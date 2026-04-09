@@ -1,0 +1,81 @@
+﻿#include "Application.h"
+#include "TestScene.h"
+#include "ImGuiManager.h"
+#include <iostream>
+#include "ResourceManager.h"
+
+Application* Application::s_Instance = nullptr;
+
+bool Application::Initialize()
+{
+    s_Instance = this;
+
+    // Window
+    if (!m_Window.Create(WINDOW_WIDTH, WINDOW_HEIGHT, L"VFX Engine"))
+    {
+        std::cout << "[Error] Window creation failed" << std::endl;
+        return false;
+    }
+    std::cout << "[OK] Window created" << std::endl;
+
+    // Graphics
+    if (!m_Graphics.Initialize(m_Window.GetHandle(), WINDOW_WIDTH, WINDOW_HEIGHT))
+    {
+        std::cout << "[Error] Graphics initialization failed" << std::endl;
+        return false;
+    }
+
+    // Renderer
+    if (!m_Renderer.Initialize(m_Graphics.GetDevice(), m_Graphics.GetContext()))
+    {
+        std::cout << "[Error] Renderer initialization failed" << std::endl;
+        return false;
+    }
+	// ImGui
+    if (!ImGuiManager::Get().Initialize(
+        m_Window.GetHandle(),
+        m_Graphics.GetDevice(),
+        m_Graphics.GetContext()))
+    {
+        std::cout << "[Error] ImGui initialization failed" << std::endl;
+        return false;
+    }
+	// ResourceManager
+    ResourceManager::Get().Initialize(m_Graphics.GetDevice());
+
+	if(!m_Game.Initialize(&m_Renderer)) return false;
+    // Timer
+    m_Timer.Start();
+
+    std::cout << "[OK] Application initialized" << std::endl;
+    m_IsRunning = true;
+    return true;
+}
+
+void Application::Run()
+{
+    while (m_IsRunning && m_Window.ProcessMessage())
+    {
+        m_Timer.Tick();
+        float dt = m_Timer.DeltaTime();
+		//ImGuiフレーム開始
+		ImGuiManager::Get().BeginFrame(); 
+		// Update
+		m_Game.Update(dt);
+		// Render
+        m_Graphics.BeginFrame();    
+		m_Game.Render();
+		//ImGuiフレーム終了
+		ImGuiManager::Get().EndFrame(); 
+        m_Graphics.EndFrame();
+    }
+}
+
+void Application::Shutdown()
+{
+    ImGuiManager::Get().Shutdown();
+    ResourceManager::Get().Shutdown();
+    m_Renderer.Shutdown();
+    s_Instance = nullptr;
+    std::cout << "[OK] Shutdown complete" << std::endl;
+}
