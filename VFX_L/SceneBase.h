@@ -1,6 +1,6 @@
 #pragma once
 #include "ObjectManager.h"
-#include "Camera.h"
+#include "CameraBase.h"
 
 class Renderer;
 
@@ -19,10 +19,10 @@ public:
     void DestroyObject(GameObject* obj);
 
     // Camera
-    void SetCamera(Camera* camera) { m_Camera = camera; }
-    Camera* GetCamera() const { return m_Camera; }
+    void SetCamera(CameraBase* camera) { m_Camera = camera; }
+    CameraBase* GetCamera() const { return m_Camera; }
 
 protected:
     ObjectManager m_ObjectManager;
-    Camera* m_Camera = nullptr;
+    CameraBase* m_Camera = nullptr;
 };

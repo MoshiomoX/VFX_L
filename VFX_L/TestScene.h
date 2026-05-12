@@ -1,6 +1,6 @@
 #pragma once
 #include "SceneBase.h"
-#include "Camera.h"
+#include "CameraBase.h"
 #include "Model.h"
 #include "CPUParticleSystem.h"
 #include "ParticleRenderer.h"
@@ -22,7 +22,7 @@ private:
 
 private:
 
-    Camera m_Camera;
+    CameraBase m_Camera;
 
     // Model
     std::shared_ptr<Model> m_Model;

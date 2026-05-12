@@ -1,4 +1,4 @@
-﻿#include "GPUParticleSystem.h"
+#include "GPUParticleSystem.h"
 #include <d3dcompiler.h>
 #include <algorithm>
 
@@ -165,7 +165,9 @@ bool GPUParticleSystem::LoadComputeShaders(ID3D11Device* device)
 
     m_UpdateCS = CompileCS(device, L"Shader/Particle/ParticleUpdateCS.hlsl");
     if (!m_UpdateCS) return false;
-
+    
+    if (!m_RenderShader.LoadParticle(device, L"Shader/Particle/GPUParticleVS.hlsl", L"Shader/Particle/GPUParticlePS.hlsl"))
+        return false;
     return true;
 }
 
@@ -216,6 +218,15 @@ bool GPUParticleSystem::CreateRenderStates(ID3D11Device* device)
     hr = device->CreateRasterizerState(&rsDesc, &m_RasterizerState);
     if (FAILED(hr)) return false;
 
+	// サンプラー（線形フィルタ、クランプ）
+    D3D11_SAMPLER_DESC sampDesc = {};
+    sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+
+    hr = device->CreateSamplerState(&sampDesc, &m_SamplerState);
+    if (FAILED(hr)) return false;
     return true;
 }
 
@@ -431,6 +442,8 @@ void GPUParticleSystem::Render()
         m_Texture->Bind(context, 0);
     }
 
+    context->PSSetSamplers(0, 1, m_SamplerState.GetAddressOf());
+
     // レンダーステート設定
     float blendFactor[4] = { 0, 0, 0, 0 };
     context->OMSetBlendState(m_BlendState.Get(), blendFactor, 0xFFFFFFFF);
@@ -456,4 +469,6 @@ void GPUParticleSystem::Render()
     // SRV解除
     ID3D11ShaderResourceView* nullSRV = nullptr;
     context->VSSetShaderResources(0, 1, &nullSRV);
-}
+
+
+}   

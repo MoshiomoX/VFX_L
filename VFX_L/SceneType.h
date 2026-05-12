@@ -5,5 +5,6 @@ enum class SceneType
     TEST,
     TITLE,
     GAME,
-    // ’Ç‰Á‚µ‚Ä‚¢‚­
+    GPU_PARTICLE_TEST,
+    // è¿½åŠ ã—ã¦ã„ã
 };

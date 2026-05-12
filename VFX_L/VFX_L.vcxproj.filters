@@ -13,10 +13,6 @@
     <Filter Include="Object">
       <UniqueIdentifier>{6f98e7a6-a191-43f0-83f1-3b92970fe2d2}</UniqueIdentifier>
     </Filter>
-    <Filter Include="HLSL">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
     <Filter Include="Scene">
       <UniqueIdentifier>{27bfe7fb-ef44-486a-a4ef-1c6e851509e8}</UniqueIdentifier>
     </Filter>
@@ -50,6 +46,22 @@
     <Filter Include="Particle\TestCpuParricles">
       <UniqueIdentifier>{d43e2fc1-f01c-41b8-9e58-05c35c9713a1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Graphics\Shader\HLSL">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Particle">
+      <UniqueIdentifier>{94a7dd83-707a-4a0e-9bad-58ceed3674f7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Particle\Common">
+      <UniqueIdentifier>{3c8d9031-e831-416a-beea-c2950a03aa50}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Manager">
+      <UniqueIdentifier>{75d9783c-b55a-472c-ad83-fa5cb325c86d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Camera">
+      <UniqueIdentifier>{484af747-754a-4d10-9c87-07291afa2729}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -64,7 +76,6 @@
     <ClCompile Include="GameTimer.cpp">
       <Filter>Core\Timer</Filter>
     </ClCompile>
-    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="main.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -107,7 +118,6 @@
     <ClCompile Include="MeshRenderer.cpp">
       <Filter>Component</Filter>
     </ClCompile>
-    <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="ThirdParty\ImGui\imgui.cpp">
       <Filter>Debug\ImGui</Filter>
     </ClCompile>
@@ -162,6 +172,30 @@
     <ClCompile Include="ParticleDeadList.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
+    <ClCompile Include="GPUParticleTestScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGuiRenderer.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="DebugManager.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="InputManager.cpp">
+      <Filter>Manager</Filter>
+    </ClCompile>
+    <ClCompile Include="ResourceManager.cpp">
+      <Filter>Manager</Filter>
+    </ClCompile>
+    <ClCompile Include="CameraBase.cpp">
+      <Filter>Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="DebugCamera.cpp">
+      <Filter>Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="DebugLineRenderer.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -188,7 +222,6 @@
     <ClInclude Include="ConstantBuffer.h">
       <Filter>Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="Camera.h" />
     <ClInclude Include="Mesh.h">
       <Filter>Graphics\Mesh</Filter>
     </ClInclude>
@@ -225,7 +258,6 @@
     <ClInclude Include="MeshRenderer.h">
       <Filter>Component</Filter>
     </ClInclude>
-    <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="ThirdParty\ImGui\imconfig.h">
       <Filter>Debug\ImGui</Filter>
     </ClInclude>
@@ -259,7 +291,7 @@
     <ClInclude Include="IndexBuffer.h">
       <Filter>Graphics\Mesh</Filter>
     </ClInclude>
-    <ClInclude Include="VertexTypes.h">
+    <ClInclude Include="Vertex3D.h">
       <Filter>Graphics\Mesh</Filter>
     </ClInclude>
     <ClInclude Include="Model.h">
@@ -304,25 +336,85 @@
     <ClInclude Include="ParticleDeadList.h">
       <Filter>Particle</Filter>
     </ClInclude>
+    <ClInclude Include="GPUParticleTestScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGuiRenderer.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugManager.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="InputManager.h">
+      <Filter>Manager</Filter>
+    </ClInclude>
+    <ClInclude Include="ResourceManager.h">
+      <Filter>Manager</Filter>
+    </ClInclude>
+    <ClInclude Include="CameraBase.h">
+      <Filter>Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugCamera.h">
+      <Filter>Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugLineRenderer.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\PS.hlsl">
-      <Filter>HLSL</Filter>
+      <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\VS.hlsl">
-      <Filter>HLSL</Filter>
+      <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\ParticlePS.hlsl">
-      <Filter>HLSL</Filter>
+    <FxCompile Include="Shader\Particle\InitDeadListCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\InitDeadListCS.hlsl">
-      <Filter>HLSL</Filter>
+    <FxCompile Include="Shader\Particle\ParticlePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\ParticleVS.hlsl">
-      <Filter>HLSL</Filter>
+    <FxCompile Include="Shader\Particle\ParticleVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\ParticleEmitCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\ParticleUpdateCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\GPUParticlePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\GPUParticleVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Shader\Particle\Common\ParticleCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EmitBox.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EmitCone.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EmitDisc.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EmitMesh.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EmitPoint.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EmitRing.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EmitSphere.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
   </ItemGroup>
 </Project>

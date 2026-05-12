@@ -1,8 +1,10 @@
-ï»¿#include "Application.h"
+#include "Application.h"
 #include "TestScene.h"
-#include "ImGuiManager.h"
+#include "DebugManager.h"
 #include <iostream>
 #include "ResourceManager.h"
+#include "InputManager.h"
+
 
 Application* Application::s_Instance = nullptr;
 
@@ -32,17 +34,18 @@ bool Application::Initialize()
         return false;
     }
 	// ImGui
-    if (!ImGuiManager::Get().Initialize(
+    if (!DebugManager::Get().Initialize(
         m_Window.GetHandle(),
         m_Graphics.GetDevice(),
-        m_Graphics.GetContext()))
+        m_Graphics.GetContext(),
+        &m_Timer,
+        &m_Renderer))
     {
         std::cout << "[Error] ImGui initialization failed" << std::endl;
         return false;
     }
-	// ResourceManager
-    ResourceManager::Get().Initialize(m_Graphics.GetDevice());
-
+	ResourceManager::Get().Initialize(m_Graphics.GetDevice());
+    InputManager::Get().Initialize(m_Window.GetHandle());
 	if(!m_Game.Initialize(&m_Renderer)) return false;
     // Timer
     m_Timer.Start();
@@ -58,22 +61,25 @@ void Application::Run()
     {
         m_Timer.Tick();
         float dt = m_Timer.DeltaTime();
-		//ImGuiãƒ•ãƒ¬ãƒ¼ãƒ é–‹å§‹
-		ImGuiManager::Get().BeginFrame(); 
+		//ImGuiƒtƒŒ[ƒ€ŠJŽn
+        InputManager::Get().Update();
+        DebugManager::Get().Update(dt);
+        DebugManager::Get().BeginFrame();
 		// Update
 		m_Game.Update(dt);
 		// Render
         m_Graphics.BeginFrame();    
 		m_Game.Render();
-		//ImGuiãƒ•ãƒ¬ãƒ¼ãƒ çµ‚äº†
-		ImGuiManager::Get().EndFrame(); 
+        DebugManager::Get().Render();    // Grid/À•WŽ²
+		//ImGuiƒtƒŒ[ƒ€I—¹
+        DebugManager::Get().EndFrame();
         m_Graphics.EndFrame();
     }
 }
 
 void Application::Shutdown()
 {
-    ImGuiManager::Get().Shutdown();
+    DebugManager::Get().Shutdown();
     ResourceManager::Get().Shutdown();
     m_Renderer.Shutdown();
     s_Instance = nullptr;

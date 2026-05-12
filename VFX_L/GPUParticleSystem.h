@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <vector>
@@ -8,7 +8,7 @@
 #include "ParticleDeadList.h"
 #include "ConstantBuffer.h"
 #include "Shader.h"
-#include "Camera.h"
+#include "CameraBase.h"
 #include "Texture.h"
 
 using Microsoft::WRL::ComPtr;
@@ -36,7 +36,7 @@ public:
     void Render();
 
     // カメラ設定
-    void SetCamera(Camera* camera) { m_Camera = camera; }
+    void SetCamera(CameraBase* camera) { m_Camera = camera; }
 
     // テクスチャ設定
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
@@ -102,6 +102,8 @@ private:
     ComPtr<ID3D11RasterizerState>   m_RasterizerState;   // カリングOFF
 
     // 外部参照
-    Camera* m_Camera = nullptr;
+    CameraBase* m_Camera = nullptr;
     std::shared_ptr<Texture> m_Texture;
+
+    ComPtr<ID3D11SamplerState> m_SamplerState;
 };

@@ -85,7 +85,7 @@ bool ParticleRenderer::CreateBuffers(int maxParticles)
 bool ParticleRenderer::CreateShaders()
 {
     // LoadParticle ‚ðŽg‚¤
-    if (!m_Shader.LoadParticle(m_Device, L"Shader/ParticleVS.hlsl", L"Shader/ParticlePS.hlsl"))
+    if (!m_Shader.LoadParticle(m_Device, L"Shader/Particle/ParticleVS.hlsl", L"Shader/Particle/ParticlePS.hlsl"))
     {
         std::cout << "[Error] Failed to load particle shaders" << std::endl;
         return false;

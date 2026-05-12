@@ -2,7 +2,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 #include "ConstantBuffer.h"
-#include "Camera.h"
+#include "CameraBase.h"
 #include "Mesh.h"
 #include "Transform.h"
 #include "Material.h"
@@ -25,7 +25,7 @@ public:
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
     void Shutdown();
 
-    void SetCamera(Camera* camera) { m_Camera = camera; }
+    void SetCamera(CameraBase* camera) { m_Camera = camera; }
 
     void SetDirectionalLight(const Vector3& direction, const Vector3& color, float intensity);
     void SetAmbientColor(const Vector3& color);
@@ -44,7 +44,7 @@ private:
     Shader m_DefaultShader;
     ConstantBuffer<MVPBuffer> m_MVPBuffer;
     ConstantBuffer<LightBuffer> m_LightBuffer;
-    Camera* m_Camera = nullptr;
+    CameraBase* m_Camera = nullptr;
 
     LightBuffer m_LightData;
 };

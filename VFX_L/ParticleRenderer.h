@@ -6,7 +6,7 @@
 #include "Particle.h"
 #include "Shader.h"
 #include "Texture.h"
-#include "Camera.h"
+#include "CameraBase.h"
 #include "ConstantBuffer.h"
 
 using Microsoft::WRL::ComPtr;
@@ -37,7 +37,7 @@ public:
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context, int maxParticles = 1000);
     void Shutdown();
 
-    void SetCamera(Camera* camera) { m_Camera = camera; }
+    void SetCamera(CameraBase* camera) { m_Camera = camera; }
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
 
     void Render(const std::vector<Particle>& particles);
@@ -58,7 +58,7 @@ private:
 
     Shader m_Shader;
     std::shared_ptr<Texture> m_Texture;
-    Camera* m_Camera = nullptr;
+    CameraBase* m_Camera = nullptr;
 
     ComPtr<ID3D11BlendState> m_BlendState;
     ComPtr<ID3D11DepthStencilState> m_DepthState;

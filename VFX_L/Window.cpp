@@ -1,5 +1,6 @@
 ﻿#include "Window.h"
 #include "imgui.h"  
+#include "InputManager.h"
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 // 静态成员函数实现窗口过程
 LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -23,7 +24,17 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             return 0;
         }
         break;
+    case WM_MOUSEMOVE:
+        InputManager::Get().OnMouseMove(LOWORD(lp), HIWORD(lp));
+        break;
+
+    case WM_MOUSEWHEEL:
+        InputManager::Get().OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wp) / 120.0f);
+        break;
     }
+
+
+
 	// 默认消息处理
     return DefWindowProc(hwnd, msg, wp, lp);
 }

@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include "VertexTypes.h"
+#include "Vertex3D.h"
 
 class TestCube
 {

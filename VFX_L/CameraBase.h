@@ -3,9 +3,11 @@
 
 using namespace DirectX::SimpleMath;
 
-class Camera
+class CameraBase
 {
 public:
+    virtual ~CameraBase() = default;
+
     void Init(float fov, float aspect, float nearZ, float farZ);
 
     // 設定
@@ -22,10 +24,12 @@ public:
     Vector3 GetRight() const;
     Vector3 GetUp() const { return m_Up; }
 
-private:
+    // サブクラスで実装
+    virtual void Update(float dt) {}
+
+protected:
     void UpdateViewMatrix();
 
-private:
     Vector3 m_Position = { 0.0f, 0.0f, 0.0f };
     Vector3 m_Target = { 0.0f, 0.0f, 0.0f };
     Vector3 m_Up = { 0.0f, 1.0f, 0.0f };

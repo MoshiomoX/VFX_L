@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Window.h"
 #include "Graphics.h"
 #include "EngineTimer.h"
@@ -15,7 +15,8 @@ public:
     void Shutdown();
 
     static Application& Get() { return *s_Instance; }
-
+    
+    
     Window& GetWindow() { return m_Window; }
     Graphics& GetGraphics() { return m_Graphics; }
     EngineTimer& GetTimer() { return m_Timer; }

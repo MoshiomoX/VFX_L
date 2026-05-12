@@ -3,7 +3,7 @@
 #include <d3d11.h>
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
-#include "VertexTypes.h"  // VERTEX_3D
+#include "Vertex3D.h"  // VERTEX_3D
 
 class Mesh
 {

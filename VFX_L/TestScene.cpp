@@ -18,12 +18,6 @@ void TestScene::Init()
     m_Camera.SetTarget({ 0.0f, 0.0f, 0.0f });
     SetCamera(&m_Camera);
 
-    // ===== Model =====
-    m_Model = ResourceManager::Get().LoadModel("Assets/Model/house/house.fbx");
-
-    m_ModelObject = CreateObject();
-    auto* mr = m_ModelObject->AddComponent<ModelRenderer>();
-    mr->SetModel(m_Model.get());
 
     // ===== Particle System =====
     m_ParticleSystem.Initialize(10000);
