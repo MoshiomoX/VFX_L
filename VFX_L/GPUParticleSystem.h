@@ -3,7 +3,6 @@
 #include <wrl/client.h>
 #include <vector>
 #include <memory>
-#include "GPUParticle.h"
 #include "GPUParticleEmitter.h"
 #include "ParticleDeadList.h"
 #include "ConstantBuffer.h"
@@ -86,9 +85,9 @@ private:
     uint32_t m_CurrentDeadCount = 0;
 
     // Compute Shaders
-    ComPtr<ID3D11ComputeShader> m_InitDeadListCS;
-    ComPtr<ID3D11ComputeShader> m_EmitCS;
-    ComPtr<ID3D11ComputeShader> m_UpdateCS;
+    Shader m_InitDeadListCS;
+    Shader m_EmitCS;
+    Shader m_UpdateCS;
 
     // 定数バッファ
     ConstantBuffer<GlobalCB>         m_GlobalCB;

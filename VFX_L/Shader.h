@@ -15,7 +15,15 @@ class Shader
 public:
     bool Load(ID3D11Device* device, const std::wstring& vsPath, const std::wstring& psPath);
     bool LoadParticle(ID3D11Device* device, const std::wstring& vsPath, const std::wstring& psPath);
+   
+    // CS対応追加
+    bool LoadCS(ID3D11Device* device, const std::wstring& csPath, const std::string& entry = "main");
+    void BindCS(ID3D11DeviceContext* context);
+    void UnbindCS(ID3D11DeviceContext* context);
+
     void Bind(ID3D11DeviceContext* context);
+
+    bool HasCS() const { return m_ComputeShader != nullptr; }
 
 private:
     bool CompileShader(const std::wstring& path, const char* entry, const char* target, ID3DBlob** blob);
@@ -26,4 +34,6 @@ private:
     ComPtr<ID3D11VertexShader> m_VertexShader;
     ComPtr<ID3D11PixelShader> m_PixelShader;
     ComPtr<ID3D11InputLayout> m_InputLayout;
+    ComPtr<ID3D11ComputeShader> m_ComputeShader;
+
 };

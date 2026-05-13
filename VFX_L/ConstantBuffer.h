@@ -33,7 +33,8 @@ public:
         context->Unmap(m_Buffer.Get(), 0);
     }
 
-    // 绑定到Vertex Shader
+    // 绑定到Vertex 
+
     void BindVS(ID3D11DeviceContext* context, UINT slot)
     {
 

@@ -74,13 +74,12 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     m_DeadListCB.BindCS(context, 0);
 
     m_DeadList.BindCSUAV(context, 0, 0);
-    context->CSSetShader(m_InitDeadListCS.Get(), nullptr, 0);
+    m_InitDeadListCS.BindCS(context);  
     context->Dispatch((maxParticles + 255) / 256, 1, 1);
 
     // 解除
     m_DeadList.UnbindCSUAV(context, 0);
-    ID3D11ComputeShader* nullCS = nullptr;
-    context->CSSetShader(nullCS, nullptr, 0);
+    m_InitDeadListCS.UnbindCS(context);
 
     // 初期カウント読み取り
     m_CurrentDeadCount = m_DeadList.ReadDeadCount(context);
@@ -157,17 +156,18 @@ bool GPUParticleSystem::CreateEmitterBuffer(ID3D11Device* device)
 // ============================================
 bool GPUParticleSystem::LoadComputeShaders(ID3D11Device* device)
 {
-    m_InitDeadListCS = CompileCS(device, L"Shader/Particle/InitDeadListCS.hlsl");
-    if (!m_InitDeadListCS) return false;
+    if (!m_InitDeadListCS.LoadCS(device, L"Shader/Particle/InitDeadListCS.hlsl"))
+        return false;
 
-    m_EmitCS = CompileCS(device, L"Shader/Particle/ParticleEmitCS.hlsl");
-    if (!m_EmitCS) return false;
+    if (!m_EmitCS.LoadCS(device, L"Shader/Particle/ParticleEmitCS.hlsl"))
+        return false;
 
-    m_UpdateCS = CompileCS(device, L"Shader/Particle/ParticleUpdateCS.hlsl");
-    if (!m_UpdateCS) return false;
-    
+    if (!m_UpdateCS.LoadCS(device, L"Shader/Particle/ParticleUpdateCS.hlsl"))
+        return false;
+
     if (!m_RenderShader.LoadParticle(device, L"Shader/Particle/GPUParticleVS.hlsl", L"Shader/Particle/GPUParticlePS.hlsl"))
         return false;
+
     return true;
 }
 
@@ -369,7 +369,7 @@ void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context)
     context->CSSetUnorderedAccessViews(0, 2, uavs, initialCounts);
 
     // dispatch
-    context->CSSetShader(m_EmitCS.Get(), nullptr, 0);
+    m_EmitCS.BindCS(context);
 
     // 全発射器の合計発射数を計算
     uint32_t totalEmit = 0;
@@ -407,7 +407,7 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     context->CSSetUnorderedAccessViews(0, 2, uavs, initialCounts);
 
     // dispatch（全粒子を処理）
-    context->CSSetShader(m_UpdateCS.Get(), nullptr, 0);
+    m_UpdateCS.BindCS(context);
     context->Dispatch((m_MaxParticles + 255) / 256, 1, 1);
 
     // 解除

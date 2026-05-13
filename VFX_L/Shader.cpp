@@ -183,3 +183,34 @@ void Shader::Bind(ID3D11DeviceContext* context)
     context->VSSetShader(m_VertexShader.Get(), nullptr, 0);
     context->PSSetShader(m_PixelShader.Get(), nullptr, 0);
 }
+bool Shader::LoadCS(ID3D11Device* device, const std::wstring& csPath, const std::string& entry)
+{
+    ComPtr<ID3DBlob> csBlob;
+    if (!CompileShader(csPath, entry.c_str(), "cs_5_0", &csBlob))
+        return false;
+
+    HRESULT hr = device->CreateComputeShader(
+        csBlob->GetBufferPointer(),
+        csBlob->GetBufferSize(),
+        nullptr,
+        &m_ComputeShader);
+
+    if (FAILED(hr))
+    {
+        std::cout << "[Error] Failed to create compute shader" << std::endl;
+        return false;
+    }
+
+    std::wcout << L"[OK] CS loaded: " << csPath << std::endl;
+    return true;
+}
+
+void Shader::BindCS(ID3D11DeviceContext* context)
+{
+    context->CSSetShader(m_ComputeShader.Get(), nullptr, 0);
+}
+
+void Shader::UnbindCS(ID3D11DeviceContext* context)
+{
+    context->CSSetShader(nullptr, nullptr, 0);
+}

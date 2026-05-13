@@ -89,14 +89,20 @@ void DebugManager::EndFrame()
 void DebugManager::Update(float dt)
 {
     if (!m_Initialized) return;
+
+    // 場景Cameraのバックアップをまだ取ってない場合、保存する
+    if (m_UseDebugCamera && !m_PreviousCamera)
+    {
+        auto* scene = Application::Get().GetGame().GetSceneManager().GetCurrentScene();
+        if (scene && scene->GetCamera())
+        {
+            m_PreviousCamera = scene->GetCamera();
+        }
+    }
+
     if (m_UseDebugCamera)
     {
         m_DebugCamera.Update(dt);
-        m_Renderer->SetCamera(&m_DebugCamera);
-
-        // 当前シーンのCameraも更新
-        auto* scene = Application::Get().GetGame().GetSceneManager().GetCurrentScene();
-        if (scene) scene->SetCamera(&m_DebugCamera);
     }
 }
 
