@@ -26,7 +26,7 @@ void GPUParticleTestScene::Init()
      auto* mr = m_ModelObject->AddComponent<ModelRenderer>();
      mr->SetModel(m_Model.get());
 	 m_ModelObject->GetTransform().SetPosition({ 0.0f, 0.0f, 30.0f });
-	 m_ModelObject->GetTransform().SetScale({ 0.1f, 0.1f, 0.1f });
+	 m_ModelObject->GetTransform().SetScale({ 0.05f, 0.05f,0.05f });
 	 m_ModelObject->GetTransform().SetRotation({ 0.0f, 0.0f, 0.0f });
 
     // ===== GPU Particle System =====
@@ -39,7 +39,7 @@ void GPUParticleTestScene::Init()
     m_GPUParticleSystem.SetCamera(&m_Camera);
 
     // ===== テクスチャ =====
-    m_ParticleTexture = ResourceManager::Get().LoadTexture(L"Assets/Particles/circle_05.png");
+    m_ParticleTexture = ResourceManager::Get().LoadTexture(L"Assets/Particles/particlesSheet.jpg");
     if (m_ParticleTexture)
     {
         m_GPUParticleSystem.SetTexture(m_ParticleTexture);
@@ -63,6 +63,8 @@ void GPUParticleTestScene::Init()
         e->endColorMax = { 1.0f, 0.3f, 0.0f, 0.0f };
         e->gravity = { 0.0f, -2.0f, 0.0f };
         e->dragCoeff = 0.0f;
+		e->atlasRows = 6;
+		e->atlasCols = 6;
     }
 
     std::cout << "[GPUParticleTestScene] Init complete" << std::endl;
@@ -146,6 +148,36 @@ void GPUParticleTestScene::ImGuiGPUParticle()
     }
     ImGui::Separator();
 
+    // 有効/無効
+    bool active = e->IsActive();
+    if (ImGui::Checkbox("Active", &active))
+    {
+        e->SetActive(active);
+    }
+    ImGui::Separator();
+    ImGui::DragInt("Atlas Rows", &e->atlasRows, 1, 1, 16);
+    ImGui::DragInt("Atlas Cols", &e->atlasCols, 1, 1, 16);
+    ImGui::Checkbox("Atlas Animate", &e->atlasAnimate);
+    if (!e->atlasAnimate)
+    {
+        int maxIndex = e->atlasRows * e->atlasCols - 1;
+        ImGui::SliderInt("Atlas Index", &e->atlasIndex, 0, maxIndex);
+    }
+    if (m_ParticleTexture && m_ParticleTexture->IsValid())
+    {
+        ImGui::Separator();
+        ImGui::Text("Current Atlas Cell:");
+
+        float cellW = 1.0f / e->atlasCols;
+        float cellH = 1.0f / e->atlasRows;
+        int col = e->atlasIndex % e->atlasCols;
+        int row = e->atlasIndex / e->atlasCols;
+
+        ImVec2 uv0(col * cellW, row * cellH);
+        ImVec2 uv1((col + 1) * cellW, (row + 1) * cellH);
+
+        ImGui::Image((ImTextureID)m_ParticleTexture->GetSRV(), ImVec2(64, 64), uv0, uv1);
+    }
     // 位置・方向
     ImGui::DragFloat3("Position", &e->position.x, 0.1f);
     ImGui::DragFloat3("Direction", &e->direction.x, 0.01f);
@@ -178,12 +210,7 @@ void GPUParticleTestScene::ImGuiGPUParticle()
     ImGui::DragFloat2("Angular Vel", &e->angularVelRange.x, 0.01f);
     ImGui::Separator();
 
-    // 有効/無効
-    bool active = e->IsActive();
-    if (ImGui::Checkbox("Active", &active))
-    {
-        e->SetActive(active);
-    }
+
 
     ImGui::End();
 }

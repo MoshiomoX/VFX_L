@@ -77,6 +77,12 @@ public:
     Vector2  rotationRange = { 0, 0 };
     Vector2  angularVelRange = { 0, 0 };
 
+    int atlasRows = 1;
+    int atlasCols = 1;
+    int atlasIndex = 0;       // -1 = アニメーション
+    bool atlasAnimate = false;
+    int textureIndex = 0;      // Texture Array内のインデックス
+
 private:
     int   m_ID;
     bool  m_IsActive = true;

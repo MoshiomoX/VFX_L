@@ -196,6 +196,9 @@
     <ClCompile Include="DebugLineRenderer.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
+    <ClCompile Include="ParticleEffect.cpp">
+      <Filter>Particle</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -359,6 +362,9 @@
     </ClInclude>
     <ClInclude Include="DebugLineRenderer.h">
       <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="ParticleEffect.h">
+      <Filter>Particle</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

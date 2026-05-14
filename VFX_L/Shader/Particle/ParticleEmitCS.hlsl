@@ -105,9 +105,13 @@ void main(uint3 id : SV_DispatchThreadID)
 
     p.rotation = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
     p.angularVel = RandomRange(seed, e.angularVelRange.x, e.angularVelRange.y);
-
-    p.uvFrame = 0;
+    
     p.seed = seed;
-
+    
+    p.textureIndex = e.textureIndex;
+    p.atlasRows = e.atlasRows;
+    p.atlasCols = e.atlasCols;
+    p.atlasAnimate = (e.atlasIndex < 0) ? 1 : 0;
+    p.uvFrame = (e.atlasIndex >= 0) ? e.atlasIndex : 0;
     particles[particleIndex] = p;
 }

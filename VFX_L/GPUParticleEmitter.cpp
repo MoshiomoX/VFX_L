@@ -43,6 +43,11 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.angularVelRange = angularVelRange;
     e.isActive = m_IsActive ? 1.0f : 0.0f;
     e.emitterID = m_ID;
+    e.atlasRows = atlasRows;
+    e.atlasCols = atlasCols;
+    e.atlasIndex = atlasAnimate ? -1 : atlasIndex;
+    e.textureIndex = textureIndex;
+
 
     // 形状パラメータをemitTypeに応じてパッキング
     switch (emitType)

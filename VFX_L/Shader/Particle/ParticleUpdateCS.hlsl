@@ -17,7 +17,6 @@ void main(uint3 id : SV_DispatchThreadID)
 
     GPUParticle p = particles[id.x];
 
-    // 死んでいる粒子はスキップ
     if (p.isAlive < 0.5)
         return;
 
@@ -35,6 +34,14 @@ void main(uint3 id : SV_DispatchThreadID)
 
     // --- 寿命比率 (0.0 ~ 1.0) ---
     float t = GetLifeRatio(p);
+
+    // --- アトラスアニメーション ---
+    if (p.atlasAnimate > 0)
+    {
+        int totalFrames = p.atlasRows * p.atlasCols;
+        p.uvFrame = (int) (t * totalFrames);
+        p.uvFrame = min(p.uvFrame, totalFrames - 1);
+    }
 
     // --- 物理更新 ---
     p.velocity += p.acceleration * g_DeltaTime;

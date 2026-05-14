@@ -30,6 +30,9 @@ public:
     void RemoveEmitter(int emitterID);
     GPUParticleEmitter* GetEmitter(int emitterID);
 
+    
+    void ResetAllocator() { m_ParticleAllocOffset = 0; }
+
     // 毎フレーム呼ぶ
     void Update(float deltaTime, float totalTime);
     void Render();
@@ -45,7 +48,6 @@ public:
     uint32_t GetDeadCount() const { return m_CurrentDeadCount; }
     uint32_t GetMaxParticles() const { return m_MaxParticles; }
     int      GetEmitterCount() const { return static_cast<int>(m_Emitters.size()); }
-
 private:
     // 初期化ヘルパー
     bool CreateParticleBuffer(ID3D11Device* device);
