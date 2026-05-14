@@ -24,6 +24,9 @@ struct VSOutput
     float4 position : SV_POSITION;
     float4 color : COLOR;
     float2 uv : TEXCOORD0;
+    nointerpolation int atlasRows : TEXCOORD1;
+    nointerpolation int atlasCols : TEXCOORD2;
+    nointerpolation int uvFrame : TEXCOORD3;
 };
 
 VSOutput main(uint vertexID : SV_VertexID)
@@ -72,7 +75,10 @@ VSOutput main(uint vertexID : SV_VertexID)
 
     float2 corner = corners[cornerIndex];
     output.uv = uvs[cornerIndex];
-
+    
+    output.atlasRows = p.atlasRows;
+    output.atlasCols = p.atlasCols;
+    output.uvFrame = p.uvFrame;
     // Billboard: カメラのRight/Up方向を取得
     float3 camRight = float3(g_View[0][0], g_View[1][0], g_View[2][0]);
     float3 camUp = float3(g_View[0][1], g_View[1][1], g_View[2][1]);

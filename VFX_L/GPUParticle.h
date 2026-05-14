@@ -27,6 +27,11 @@ struct GPUParticle
     float    isAlive;        // 生存状態 (0.0 / 1.0)
     int      uvFrame;        // UVフレーム
     uint32_t seed;           // 乱数シード
+    // --- Texture ---
+    int      textureIndex;
+    int      atlasRows;
+    int      atlasCols;
+    int      atlasAnimate;
 };
 
 // ============================================
@@ -72,6 +77,11 @@ struct GPUEmitter
     int      meshVertexCount;  // 頂点数
     float    isActive;       // 有効/無効 (0.0 / 1.0)
     int      emitterID;      // 発射器ID
+    // --- Atlas & Texture ---
+    int      atlasRows;        // アトラス行数
+    int      atlasCols;        // アトラス列数
+    int      atlasIndex;       // 固定コマ（-1ならアニメーション）
+    int      textureIndex;     // Texture Array内のインデックス
 };
 
 // ============================================

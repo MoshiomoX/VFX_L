@@ -14,7 +14,7 @@ public:
     bool IsValid() const { return m_ShaderResourceView != nullptr; }
     int GetWidth() const { return m_Width; }
     int GetHeight() const { return m_Height; }
-
+    ID3D11ShaderResourceView* GetSRV() const { return m_ShaderResourceView.Get(); }
 private:
     ComPtr<ID3D11ShaderResourceView> m_ShaderResourceView;
     ComPtr<ID3D11SamplerState> m_SamplerState;

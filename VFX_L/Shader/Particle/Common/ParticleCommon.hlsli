@@ -30,6 +30,11 @@ struct GPUParticle
     float isAlive;
     int uvFrame;
     uint seed;
+    
+    int textureIndex;
+    int atlasRows;
+    int atlasCols;
+    int atlasAnimate;
 };
 
 // ============================================
@@ -62,6 +67,11 @@ struct GPUEmitter
     int meshVertexCount;
     float isActive;
     int emitterID;
+    int atlasRows;
+    int atlasCols;
+    int atlasIndex;
+    int textureIndex;
+
 };
 
 // ============================================

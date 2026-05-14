@@ -16,11 +16,11 @@ bool Game::Initialize(Renderer* renderer)
     m_Renderer = renderer;
     if (!m_Renderer) return false;
 
-    m_SceneManager.RegisterScene<GPUParticleTestScene>(SceneType::GPU_PARTICLE_TEST);
-    m_SceneManager.ChangeScene(SceneType::GPU_PARTICLE_TEST);
+    //m_SceneManager.RegisterScene<GPUParticleTestScene>(SceneType::GPU_PARTICLE_TEST);
+    //m_SceneManager.ChangeScene(SceneType::GPU_PARTICLE_TEST);
 
-    //m_SceneManager.RegisterScene<TestScene>(SceneType::TEST);
-    //m_SceneManager.ChangeScene(SceneType::TEST);
+    m_SceneManager.RegisterScene<TestScene>(SceneType::TEST);
+    m_SceneManager.ChangeScene(SceneType::TEST);
 
 	return true;
 }
