@@ -145,3 +145,8 @@ void Graphics::Shutdown()
 {
 	// 特に解放処理は不要（ComPtrが自動で解放してくれる）
 }
+void Graphics::RestoreRenderTarget()
+{
+    m_Context->OMSetRenderTargets(1, m_RenderTargetView.GetAddressOf(), m_DepthStencilView.Get());
+    m_Context->RSSetViewports(1, &m_Viewport);
+}

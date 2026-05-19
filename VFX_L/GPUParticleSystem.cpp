@@ -65,7 +65,8 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!LoadComputeShaders(device))     return false;
     if (!CreateConstantBuffers(device))  return false;
     if (!CreateRenderStates(device))     return false;
-
+    if (!CreateColorKeyBuffer(device))   return false;
+    
     // Dead Listを全インデックスで初期化
     DeadListCB dlcb = {};
     dlcb.deadCount = 0;
@@ -123,6 +124,27 @@ bool GPUParticleSystem::CreateParticleBuffer(ID3D11Device* device)
     return true;
 }
 
+
+bool GPUParticleSystem::CreateColorKeyBuffer(ID3D11Device* device)
+{
+	D3D11_BUFFER_DESC desc = {};
+	desc.ByteWidth = sizeof(Vector4) * MAX_COLOR_KEYS_TOTAL;
+	desc.Usage = D3D11_USAGE_DYNAMIC;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+	desc.StructureByteStride = sizeof(Vector4);
+	HRESULT hr = device->CreateBuffer(&desc, nullptr, &m_ColorKeyBuffer);
+	if (FAILED(hr)) return false;
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+	srvDesc.Buffer.FirstElement = 0;
+	srvDesc.Buffer.NumElements = MAX_COLOR_KEYS_TOTAL;
+	hr = device->CreateShaderResourceView(m_ColorKeyBuffer.Get(), &srvDesc, &m_ColorKeySRV);
+	if (FAILED(hr)) return false;
+	return true;
+}
 // ============================================
 // 発射器バッファ作成
 // ============================================
@@ -335,6 +357,15 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime)
 // ============================================
 void GPUParticleSystem::UploadEmitters(ID3D11DeviceContext* context)
 {
+    // colorKeyOffset計算
+    int colorOffset = 0;
+    for (size_t i = 0; i < m_Emitters.size(); ++i)
+    {
+        m_Emitters[i]->SetColorKeyOffset(colorOffset);
+        colorOffset += m_Emitters[i]->colorKeyCount;
+    }
+
+    // Emitterアップロード（既存）
     D3D11_MAPPED_SUBRESOURCE mapped = {};
     HRESULT hr = context->Map(m_EmitterBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     if (FAILED(hr)) return;
@@ -344,10 +375,25 @@ void GPUParticleSystem::UploadEmitters(ID3D11DeviceContext* context)
     {
         dest[i] = m_Emitters[i]->ToGPU();
     }
-
     context->Unmap(m_EmitterBuffer.Get(), 0);
-}
 
+    // ColorKeyアップロード
+    hr = context->Map(m_ColorKeyBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    if (SUCCEEDED(hr))
+    {
+        auto* colorDest = static_cast<ColorKey*>(mapped.pData);
+        int offset = 0;
+        for (size_t i = 0; i < m_Emitters.size(); ++i)
+        {
+            for (int k = 0; k < m_Emitters[i]->colorKeyCount; ++k)
+            {
+                colorDest[offset + k] = m_Emitters[i]->colorKeys[k];
+            }
+            offset += m_Emitters[i]->colorKeyCount;
+        }
+        context->Unmap(m_ColorKeyBuffer.Get(), 0);
+    }
+}
 // ============================================
 // Emit dispatch
 // ============================================
@@ -398,15 +444,15 @@ void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context)
 // ============================================
 void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
 {
-    // CBバインド
     m_GlobalCB.BindCS(context, 0);
 
-    // UAV: 粒子バッファ(u0) + Dead List(u1)
+    // ColorKey SRVをt0にバインド
+    context->CSSetShaderResources(0, 1, m_ColorKeySRV.GetAddressOf());
+
     ID3D11UnorderedAccessView* uavs[2] = { m_ParticleUAV.Get(), m_DeadList.GetUAV() };
-    UINT initialCounts[2] = { (UINT)-1, (UINT)-1 }; // カウンタ維持
+    UINT initialCounts[2] = { (UINT)-1, (UINT)-1 };
     context->CSSetUnorderedAccessViews(0, 2, uavs, initialCounts);
 
-    // dispatch（全粒子を処理）
     m_UpdateCS.BindCS(context);
     context->Dispatch((m_MaxParticles + 255) / 256, 1, 1);
 
@@ -414,8 +460,10 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     ID3D11UnorderedAccessView* nullUAVs[2] = { nullptr, nullptr };
     UINT zeros[2] = { 0, 0 };
     context->CSSetUnorderedAccessViews(0, 2, nullUAVs, zeros);
-}
 
+    ID3D11ShaderResourceView* nullSRV = nullptr;
+    context->CSSetShaderResources(0, 1, &nullSRV);
+}
 // ============================================
 // レンダリング
 // ============================================

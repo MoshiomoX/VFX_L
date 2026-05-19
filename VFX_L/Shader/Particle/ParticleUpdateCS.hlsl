@@ -6,6 +6,7 @@
 #include "Common/ParticleCommon.hlsli"
 
 // --- Buffer宣言 ---
+StructuredBuffer<ColorKey> colorKeys : register(t0);
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 AppendStructuredBuffer<uint> deadList : register(u1);
 
@@ -49,7 +50,30 @@ void main(uint3 id : SV_DispatchThreadID)
     p.position += p.velocity * g_DeltaTime;
 
     // --- 色補間 ---
-    p.color = lerp(p.startColor, p.endColor, t);
+    if (p.colorKeyCount > 0)
+    {
+        // Color over Lifetime（複数キーフレーム補間）
+        float4 result = colorKeys[p.colorKeyOffset].color;
+        for (int k = 1; k < p.colorKeyCount; k++)
+        {
+            ColorKey prev = colorKeys[p.colorKeyOffset + k - 1];
+            ColorKey next = colorKeys[p.colorKeyOffset + k];
+            if (t >= prev.time && t <= next.time)
+            {
+                float localT = (t - prev.time) / (next.time - prev.time);
+                result = lerp(prev.color, next.color, localT);
+                break;
+            }
+            if (t > next.time)
+                result = next.color;
+        }
+        p.color = result;
+    }
+    else
+    {
+        // 従来の2色線形補間
+        p.color = lerp(p.startColor, p.endColor, t);
+    }
 
     // --- サイズ補間 ---
     p.size = lerp(p.startSize, p.endSize, t);

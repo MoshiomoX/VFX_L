@@ -69,10 +69,12 @@ void Application::Run()
 		m_Game.Update(dt);
 		// Render
         m_Graphics.BeginFrame();    
-		m_Game.Render();
         DebugManager::Get().Render();    // Grid/座標軸
+		m_Game.Render();
 		//ImGuiフレーム終了
         DebugManager::Get().EndFrame();
+
+        m_Graphics.RestoreRenderTarget();
         m_Graphics.EndFrame();
     }
 }

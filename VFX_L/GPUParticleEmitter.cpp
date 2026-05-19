@@ -47,6 +47,8 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.atlasCols = atlasCols;
     e.atlasIndex = atlasAnimate ? -1 : atlasIndex;
     e.textureIndex = textureIndex;
+	e.colorKeyOffset = m_ColorKeyOffset;
+    e.colorKeyCount = colorKeyCount;    
 
 
     // 形状パラメータをemitTypeに応じてパッキング

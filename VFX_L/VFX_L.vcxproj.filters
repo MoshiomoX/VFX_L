@@ -50,17 +50,17 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Graphics\Shader\HLSL\Particle">
-      <UniqueIdentifier>{94a7dd83-707a-4a0e-9bad-58ceed3674f7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Graphics\Shader\HLSL\Particle\Common">
-      <UniqueIdentifier>{3c8d9031-e831-416a-beea-c2950a03aa50}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Manager">
       <UniqueIdentifier>{75d9783c-b55a-472c-ad83-fa5cb325c86d}</UniqueIdentifier>
     </Filter>
     <Filter Include="Camera">
       <UniqueIdentifier>{484af747-754a-4d10-9c87-07291afa2729}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Particle">
+      <UniqueIdentifier>{94a7dd83-707a-4a0e-9bad-58ceed3674f7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Particle\Common">
+      <UniqueIdentifier>{3c8d9031-e831-416a-beea-c2950a03aa50}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

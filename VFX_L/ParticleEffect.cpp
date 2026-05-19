@@ -122,6 +122,11 @@ void ParticleEffect::Update(float dt, GPUParticleSystem* system)
                     emitter->atlasIndex = entry.emitterData.atlasIndex;
                     emitter->atlasAnimate = entry.emitterData.atlasAnimate;
                     emitter->textureIndex = entry.emitterData.textureIndex;
+                    emitter->colorKeyCount = entry.emitterData.colorKeyCount;
+                    for (int k = 0; k < entry.emitterData.colorKeyCount; k++)
+                    {
+                        emitter->colorKeys[k] = entry.emitterData.colorKeys[k];
+                    }
                 }
                 entry.isPlaying = true;
             }

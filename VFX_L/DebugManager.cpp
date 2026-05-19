@@ -30,6 +30,7 @@ bool DebugManager::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceConte
     }
     m_Initialized = true;
     std::cout << "[OK] DebugManager initialized" << std::endl;
+
     return true;
 }
 
@@ -48,6 +49,7 @@ void DebugManager::Shutdown()
 void DebugManager::BeginFrame()
 {
     if (!m_Initialized) return;
+
     m_ImguiRenderer->BeginFrame();
 
     ImGui::Begin("Debug Info");
@@ -99,7 +101,7 @@ void DebugManager::Update(float dt)
             m_PreviousCamera = scene->GetCamera();
         }
     }
-
+    
     if (m_UseDebugCamera)
     {
         m_DebugCamera.Update(dt);

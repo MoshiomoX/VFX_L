@@ -113,5 +113,7 @@ void main(uint3 id : SV_DispatchThreadID)
     p.atlasCols = e.atlasCols;
     p.atlasAnimate = (e.atlasIndex < 0) ? 1 : 0;
     p.uvFrame = (e.atlasIndex >= 0) ? e.atlasIndex : 0;
+    p.colorKeyOffset = e.colorKeyoffset;
+    p.colorKeyCount = e.colorKeyCount;
     particles[particleIndex] = p;
 }

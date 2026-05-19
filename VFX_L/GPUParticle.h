@@ -32,6 +32,11 @@ struct GPUParticle
     int      atlasRows;
     int      atlasCols;
     int      atlasAnimate;
+    // --- Color over Lifetime ---
+    int      colorKeyOffset;
+    int      colorKeyCount;
+    float    _pad0;
+    float    _pad1;
 };
 
 // ============================================
@@ -82,10 +87,15 @@ struct GPUEmitter
     int      atlasCols;        // アトラス列数
     int      atlasIndex;       // 固定コマ（-1ならアニメーション）
     int      textureIndex;     // Texture Array内のインデックス
+
+    int      colorKeyOffset;   // ColorKeyBuffer内の開始位置
+    int      colorKeyCount;    // キー数（0=startColor/endColorで線形補間）
+    int      _pad1;
+    int      _pad2;
 };
 
 // ============================================
-// グローバル定数バッファ (ConstantBuffer用)
+// グローバル定数バッファ (ConstantBuffe   r用)
 // CS / VS 共用 b0
 // ============================================
 struct GlobalCB
@@ -118,4 +128,17 @@ struct ParticleRenderCB
     Matrix   projection;
     Vector3  cameraPosition; // Billboard用
     float    _pad0;
+};
+
+// ============================================
+// カラーキー (Color over Lifetime用)
+// StructuredBuffer用、32字節
+// ============================================
+struct ColorKey
+{
+    Vector4 color;       // RGBA
+    float   time;        // 0.0 ~ 1.0（寿命比率）
+    float   _pad0;
+    float   _pad1;
+    float   _pad2;
 };

@@ -6,33 +6,40 @@
 
 bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceContext* context)
 {
+    if (!hwnd || !device || !context) return false;
 
-	if (!hwnd || !device || !context) return false;
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsClassic();
 
-	// Initialize ImGui for Win32 and DirectX11
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
-	//スタイルを確認
-	ImGui::StyleColorsClassic();
+    io.Fonts->AddFontFromFileTTF("Assets/Fonts/RobotoMono-Regular.ttf", 16.0f);
 
-	ImGuiIO& io = ImGui::GetIO();
-	io.Fonts->AddFontFromFileTTF("Assets/Fonts/RobotoMono-Regular.ttf", 16.0f);
+    // ViewportsEnable時、ウィンドウ外でも見た目を統一
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
 
-	if (!ImGui_ImplWin32_Init(hwnd))
-	{
-		std::cout << "[Error] ImGui Win32 init failed" << std::endl;
-		return false;
-	}
-	if (!ImGui_ImplDX11_Init(device, context))
-	{
-		std::cout << "[Error] ImGui DX11 init failed" << std::endl;
-		return false;
-	}
+    if (!ImGui_ImplWin32_Init(hwnd))
+    {
+        std::cout << "[Error] ImGui Win32 init failed" << std::endl;
+        return false;
+    }
+    if (!ImGui_ImplDX11_Init(device, context))
+    {
+        std::cout << "[Error] ImGui DX11 init failed" << std::endl;
+        return false;
+    }
 
-	m_Initialized = true;
-	std::cout << "[OK] ImGui initialized" << std::endl;
-	return true;
+    m_Initialized = true;
+    std::cout << "[OK] ImGui initialized" << std::endl;
+    return true;
 }
 
 void ImguiRenderer::Shutdown()
@@ -51,19 +58,23 @@ void ImguiRenderer::BeginFrame()
 {
 	if (!m_Initialized)
 		return;
-
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 }
-
 void ImguiRenderer::EndFrame()
 {
-	if (!m_Initialized)
-		return;
+	if (!m_Initialized) return;
 
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-}
 
+	// Viewport更新（ウィンドウ外描画対応）
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
+}
 
