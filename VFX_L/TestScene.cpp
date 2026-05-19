@@ -36,6 +36,7 @@ void TestScene::Init()
 
     std::cout << "[TestScene] Init complete" << std::endl;
 }
+
 void TestScene::Shutdown()
 {
     m_Effect.Stop(&m_GPUParticleSystem);
@@ -62,8 +63,9 @@ void TestScene::Render(Renderer& renderer)
 
 void TestScene::ImGuiEffectEditor()
 {
-    ImGui::Begin("ParticleEffect Editor");
+    ImGui::Begin("ParticleEffect Editor", nullptr, ImGuiWindowFlags_None);
 
+    // === システム情報 ===
     ImGui::Text("Alive: %u", m_GPUParticleSystem.GetAliveCount());
     ImGui::Text("Dead:  %u", m_GPUParticleSystem.GetDeadCount());
     ImGui::Text("Max:   %u", m_GPUParticleSystem.GetMaxParticles());
@@ -73,7 +75,7 @@ void TestScene::ImGuiEffectEditor()
     ImGui::Text("Time: %.2f / %.2f", m_Effect.GetCurrentTime(), m_Effect.GetTotalDuration());
     ImGui::Separator();
 
-    // 再生制御
+    // === 再生制御 ===
     if (m_Effect.IsPlaying())
     {
         if (ImGui::Button("Stop"))
@@ -92,7 +94,7 @@ void TestScene::ImGuiEffectEditor()
 
     ImGui::Separator();
 
-    // Entry追加
+    // === Entry追加 ===
     if (ImGui::Button("+ Add Entry"))
     {
         m_Effect.AddEntry(0.0f, 2.0f);
@@ -100,7 +102,7 @@ void TestScene::ImGuiEffectEditor()
 
     ImGui::Separator();
 
-    // 各Entry編集
+    // === 各Entry編集 ===
     int removeIndex = -1;
     for (int i = 0; i < m_Effect.GetEntryCount(); i++)
     {
@@ -112,17 +114,17 @@ void TestScene::ImGuiEffectEditor()
         std::string label = "Entry " + std::to_string(i);
         if (ImGui::CollapsingHeader(label.c_str()))
         {
-            // 削除ボタン
             if (ImGui::Button("Delete"))
                 removeIndex = i;
 
-            // タイムライン
+            // === タイムライン ===
             ImGui::DragFloat("Start Time", &entry->startTime, 0.1f, 0.0f, 10.0f);
             ImGui::DragFloat("Duration", &entry->duration, 0.1f, -1.0f, 10.0f);
             ImGui::Separator();
 
-            // 形状
             auto& e = entry->emitterData;
+
+            // === 形状 ===
             const char* shapeNames[] = { "Point", "Sphere", "Cone", "Box", "Ring", "Disc", "Mesh" };
             int currentType = static_cast<int>(e.emitType);
             if (ImGui::Combo("Shape", &currentType, shapeNames, IM_ARRAYSIZE(shapeNames)))
@@ -156,40 +158,132 @@ void TestScene::ImGuiEffectEditor()
             }
             ImGui::Separator();
 
-            // 位置・方向
+            // === 位置・方向 ===
             ImGui::DragFloat3("Position", &e.position.x, 0.1f);
             ImGui::DragFloat3("Direction", &e.direction.x, 0.01f);
             ImGui::Separator();
 
-            // 発射
+            // === 発射 ===
             ImGui::SliderFloat("Rate", &e.emitRate, 0.0f, 1000.0f);
             ImGui::DragInt("Max Particles", &e.maxParticles, 100, 100, 50000);
             ImGui::DragFloat2("Speed", &e.speedRange.x, 0.1f, 0.0f, 50.0f);
             ImGui::DragFloat2("Lifetime", &e.lifetimeRange.x, 0.1f, 0.1f, 10.0f);
             ImGui::Separator();
 
-            // サイズ
+            // === サイズ ===
             ImGui::DragFloat4("Size (sMin sMax eMin eMax)", &e.sizeRange.x, 0.01f, 0.0f, 5.0f);
             ImGui::Separator();
 
-            // 色
-            ImGui::ColorEdit4("Start Min", &e.startColorMin.x);
-            ImGui::ColorEdit4("Start Max", &e.startColorMax.x);
-            ImGui::ColorEdit4("End Min", &e.endColorMin.x);
-            ImGui::ColorEdit4("End Max", &e.endColorMax.x);
-            ImGui::Separator();
+            // === Color over Lifetime ===
+            ImGui::Text("Color over Lifetime");
+            bool useColorKeys = (e.colorKeyCount > 0);
+            if (ImGui::Checkbox("Use Color Keys", &useColorKeys))
+            {
+                if (useColorKeys && e.colorKeyCount == 0)
+                {
+                    e.colorKeyCount = 2;
+                    e.colorKeys[0] = { {1, 1, 1, 1}, 0.0f, 0, 0, 0 };
+                    e.colorKeys[1] = { {1, 1, 1, 0}, 1.0f, 0, 0, 0 };
+                }
+                else if (!useColorKeys)
+                {
+                    e.colorKeyCount = 0;
+                }
+            }
 
-            // 物理
+            if (e.colorKeyCount > 0)
+            {
+                if (e.colorKeyCount < GPUParticleEmitter::MAX_COLOR_KEYS)
+                {
+                    if (ImGui::Button("+ Add Key"))
+                    {
+                        e.colorKeys[e.colorKeyCount] = { {1, 1, 1, 1}, 1.0f, 0, 0, 0 };
+                        e.colorKeyCount++;
+                    }
+                }
+
+                int removeKey = -1;
+                for (int k = 0; k < e.colorKeyCount; k++)
+                {
+                    ImGui::PushID(k + 1000);
+                    ImGui::ColorEdit4(("Key " + std::to_string(k)).c_str(),
+                        &e.colorKeys[k].color.x);
+                    ImGui::SliderFloat("Time", &e.colorKeys[k].time, 0.0f, 1.0f);
+                    if (e.colorKeyCount > 2)
+                    {
+                        ImGui::SameLine();
+                        if (ImGui::Button("X"))
+                            removeKey = k;
+                    }
+                    ImGui::PopID();
+                }
+
+                if (removeKey >= 0)
+                {
+                    for (int k = removeKey; k < e.colorKeyCount - 1; k++)
+                        e.colorKeys[k] = e.colorKeys[k + 1];
+                    e.colorKeyCount--;
+                }
+
+                // === 渐变条プレビュー ===
+                ImDrawList* drawList = ImGui::GetWindowDrawList();
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                float barWidth = 200.0f;
+                float barHeight = 20.0f;
+
+                for (int x = 0; x < (int)barWidth; x++)
+                {
+                    float t = x / barWidth;
+                    Vector4 col = e.colorKeys[0].color;
+
+                    for (int k = 1; k < e.colorKeyCount; k++)
+                    {
+                        if (t >= e.colorKeys[k - 1].time && t <= e.colorKeys[k].time)
+                        {
+                            float localT = 0.0f;
+                            float diff = e.colorKeys[k].time - e.colorKeys[k - 1].time;
+                            if (diff > 0.0001f)
+                                localT = (t - e.colorKeys[k - 1].time) / diff;
+                            col = Vector4::Lerp(e.colorKeys[k - 1].color,
+                                e.colorKeys[k].color, localT);
+                            break;
+                        }
+                        if (t > e.colorKeys[k].time)
+                            col = e.colorKeys[k].color;
+                    }
+
+                    ImU32 imCol = IM_COL32(
+                        (int)(col.x * 255), (int)(col.y * 255),
+                        (int)(col.z * 255), (int)(col.w * 255));
+                    drawList->AddLine(
+                        ImVec2(pos.x + x, pos.y),
+                        ImVec2(pos.x + x, pos.y + barHeight),
+                        imCol);
+                }
+
+                ImGui::Dummy(ImVec2(barWidth, barHeight + 4));
+            }
+            else
+            {
+                // 従来の2色設定
+                ImGui::ColorEdit4("Start Min", &e.startColorMin.x);
+                ImGui::ColorEdit4("Start Max", &e.startColorMax.x);
+                ImGui::ColorEdit4("End Min", &e.endColorMin.x);
+                ImGui::ColorEdit4("End Max", &e.endColorMax.x);
+            }
+            ImGui::Separator();
+           
+            // === 物理 ===
             ImGui::DragFloat3("Gravity", &e.gravity.x, 0.1f);
             ImGui::DragFloat("Drag", &e.dragCoeff, 0.01f, 0.0f, 5.0f);
             ImGui::Separator();
 
-            // 回転
+            // === 回転 ===
             ImGui::DragFloat2("Rotation", &e.rotationRange.x, 0.01f);
             ImGui::DragFloat2("Angular Vel", &e.angularVelRange.x, 0.01f);
             ImGui::Separator();
 
-            // Atlas
+            // === Atlas ===
             ImGui::DragInt("Atlas Rows", &e.atlasRows, 1, 1, 16);
             ImGui::DragInt("Atlas Cols", &e.atlasCols, 1, 1, 16);
             ImGui::Checkbox("Atlas Animate", &e.atlasAnimate);
@@ -198,12 +292,29 @@ void TestScene::ImGuiEffectEditor()
                 int maxIdx = e.atlasRows * e.atlasCols - 1;
                 ImGui::SliderInt("Atlas Index", &e.atlasIndex, 0, maxIdx);
             }
+
+            // === テクスチャプレビュー ===
+            if (m_ParticleTexture && m_ParticleTexture->IsValid())
+            {
+                ImGui::Separator();
+                ImGui::Text("Texture Preview:");
+
+                float cellW = 1.0f / e.atlasCols;
+                float cellH = 1.0f / e.atlasRows;
+                int col = e.atlasIndex % e.atlasCols;
+                int row = e.atlasIndex / e.atlasCols;
+
+                ImVec2 uv0(col * cellW, row * cellH);
+                ImVec2 uv1((col + 1) * cellW, (row + 1) * cellH);
+
+                ImGui::Image((ImTextureID)m_ParticleTexture->GetSRV(),
+                    ImVec2(64, 64), uv0, uv1);
+            }
         }
 
         ImGui::PopID();
     }
 
-    // 削除処理（ループ外で実行）
     if (removeIndex >= 0)
     {
         m_Effect.RemoveEntry(removeIndex);

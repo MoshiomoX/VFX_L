@@ -33,6 +33,7 @@ public:
     bool IsActive() const { return m_IsActive; }
     int  GetID() const { return m_ID; }
     int  GetPendingEmitCount() const { return m_PendingEmitCount; }
+    void SetColorKeyOffset(int offset) { m_ColorKeyOffset = offset; }
 
     // --- 形状 ---
     EmitType emitType = EmitType::Point;
@@ -77,15 +78,21 @@ public:
     Vector2  rotationRange = { 0, 0 };
     Vector2  angularVelRange = { 0, 0 };
 
-    int atlasRows = 1;
-    int atlasCols = 1;
+    int atlasRows = 6;
+    int atlasCols = 6;
     int atlasIndex = 0;       // -1 = アニメーション
     bool atlasAnimate = false;
     int textureIndex = 0;      // Texture Array内のインデックス
+
+    // --- Color over Lifetime ---
+    static const int MAX_COLOR_KEYS = 8;
+    ColorKey colorKeys[MAX_COLOR_KEYS];
+    int colorKeyCount = 0;
 
 private:
     int   m_ID;
     bool  m_IsActive = true;
     float m_EmitAccumulator = 0.0f;
     int   m_PendingEmitCount = 0;
+	int   m_ColorKeyOffset = 0; // GPU側ColorKeyBuffer内の開始位置
 };

@@ -17,7 +17,7 @@ public:
 
 	ID3D11Device* GetDevice()const{ return m_Device.Get(); }
 	ID3D11DeviceContext* GetContext()const { return m_Context.Get(); }
-
+	void RestoreRenderTarget();
 private:
 	//=======================================
 	// Direct3D 11の主要コンポーネント

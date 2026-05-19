@@ -23,6 +23,7 @@ public:
     Renderer& GetRenderer() { return m_Renderer; }
 	Game& GetGame() { return m_Game; }
 private:
+ 
     Window m_Window;
     Graphics m_Graphics;
     EngineTimer m_Timer;

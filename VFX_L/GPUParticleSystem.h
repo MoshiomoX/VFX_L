@@ -55,7 +55,7 @@ private:
     bool LoadComputeShaders(ID3D11Device* device);
     bool CreateConstantBuffers(ID3D11Device* device);
     bool CreateRenderStates(ID3D11Device* device);
-
+	bool CreateColorKeyBuffer(ID3D11Device* device);
     // 毎フレームの処理
     void UploadEmitters(ID3D11DeviceContext* context);
     void DispatchEmit(ID3D11DeviceContext* context);
@@ -101,6 +101,12 @@ private:
     ComPtr<ID3D11BlendState>        m_BlendState;        // 加算合成
     ComPtr<ID3D11DepthStencilState> m_DepthStencilState; // 深度書込OFF
     ComPtr<ID3D11RasterizerState>   m_RasterizerState;   // カリングOFF
+
+
+    // ColorKeyBuffer
+    ComPtr<ID3D11Buffer> m_ColorKeyBuffer;
+    ComPtr<ID3D11ShaderResourceView> m_ColorKeySRV;
+    static const int MAX_COLOR_KEYS_TOTAL = 1024; // 全Emitter合計
 
     // 外部参照
     CameraBase* m_Camera = nullptr;

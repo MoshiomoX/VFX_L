@@ -35,8 +35,12 @@ struct GPUParticle
     int atlasRows;
     int atlasCols;
     int atlasAnimate;
+    
+    int colorKeyOffset;
+    int colorKeyCount;
+    float _pad0;
+    float _pad1;
 };
-
 // ============================================
 // GPU発射器構造体 (C++側のGPUEmitterと一致)
 // ============================================
@@ -71,7 +75,10 @@ struct GPUEmitter
     int atlasCols;
     int atlasIndex;
     int textureIndex;
-
+    int colorKeyoffset;
+    int colorKeyCount;
+    int _pad1;
+    int _pad2;
 };
 
 // ============================================
@@ -83,6 +90,17 @@ struct EmitMeshVertex
     float area;
     float3 normal;
     float _pad0;
+};
+// ============================================
+// ColorKey構造体 (色変化のキーフレーム用)
+// ============================================
+struct ColorKey
+{
+    float4 color;
+    float time;
+    float _pad0;
+    float _pad1;
+    float _pad2;
 };
 
 // ============================================
@@ -103,6 +121,7 @@ cbuffer DeadListCB : register(b1)
     uint g_DLPad0;
     uint g_DLPad1;
 };
+
 
 // ============================================
 // 乱数生成 (Wang Hash)
