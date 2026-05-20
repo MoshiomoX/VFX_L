@@ -62,6 +62,9 @@
     <Filter Include="Graphics\Shader\HLSL\Particle\Common">
       <UniqueIdentifier>{3c8d9031-e831-416a-beea-c2950a03aa50}</UniqueIdentifier>
     </Filter>
+    <Filter Include="VFX_Editor">
+      <UniqueIdentifier>{c0ca76f9-bcab-46e0-9af4-2d1457849989}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -198,6 +201,15 @@
     </ClCompile>
     <ClCompile Include="ParticleEffect.cpp">
       <Filter>Particle</Filter>
+    </ClCompile>
+    <ClCompile Include="VFXParticleEntry.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFXEffect.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFXEditor.cpp">
+      <Filter>VFX_Editor</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -365,6 +377,21 @@
     </ClInclude>
     <ClInclude Include="ParticleEffect.h">
       <Filter>Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="EntryType.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFXEntry.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFXParticleEntry.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFXEffect.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFXEditor.h">
+      <Filter>VFX_Editor</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

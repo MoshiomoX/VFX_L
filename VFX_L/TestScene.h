@@ -2,7 +2,9 @@
 #include "SceneBase.h"
 #include "CameraBase.h"
 #include "GPUParticleSystem.h"
-#include "ParticleEffect.h"
+#include "VFXEffect.h"
+#include "VFXEditor.h"
+#include "EntryType.h"
 #include <memory>
 #include "Texture.h"
 
@@ -15,13 +17,12 @@ public:
     void Render(Renderer& renderer) override;
 
 private:
-    void ImGuiEffectEditor();
-
-private:
     CameraBase m_Camera;
 
     GPUParticleSystem m_GPUParticleSystem;
-    ParticleEffect m_Effect;
+    VFXEffect m_Effect;
+    VFXContext m_Context;
+    VFXEditor m_Editor;
     std::shared_ptr<Texture> m_ParticleTexture;
 
     float m_TotalTime = 0.0f;

@@ -185,6 +185,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="ThirdParty\ImGui\imgui_widgets.cpp" />
     <ClCompile Include="ThirdParty\stb_image\stb_image.cpp" />
     <ClCompile Include="Transform.cpp" />
+    <ClCompile Include="VFXEditor.cpp" />
+    <ClCompile Include="VFXEffect.cpp" />
+    <ClCompile Include="VFXParticleEntry.cpp" />
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -196,6 +199,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="DebugLineRenderer.h" />
     <ClInclude Include="DebugManager.h" />
     <ClInclude Include="EngineTimer.h" />
+    <ClInclude Include="EntryType.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GameObject.h" />
     <ClInclude Include="GameTimer.h" />
@@ -242,6 +246,10 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Transform.h" />
     <ClInclude Include="VertexBuffer.h" />
     <ClInclude Include="Vertex3D.h" />
+    <ClInclude Include="VFXEditor.h" />
+    <ClInclude Include="VFXEffect.h" />
+    <ClInclude Include="VFXEntry.h" />
+    <ClInclude Include="VFXParticleEntry.h" />
     <ClInclude Include="Window.h" />
   </ItemGroup>
   <ItemGroup>
