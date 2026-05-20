@@ -17,7 +17,7 @@ public:
     }
 
     void ChangeScene(SceneType type);
-
+    
     void Update(float dt);
     void Render(Renderer& renderer);
 
