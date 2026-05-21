@@ -29,7 +29,6 @@ void TestScene::Init()
 
     m_Context.particleSystem = &m_GPUParticleSystem;
 
-    m_Effect.SetName("NewEffect");
 
     m_Editor.SetEffect(&m_Effect);
     m_Editor.SetContext(m_Context);

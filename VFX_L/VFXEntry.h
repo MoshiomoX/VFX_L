@@ -1,6 +1,8 @@
 #pragma once
 #include "EntryType.h"
+#include <nlohmann/json.hpp>
 
+using json = nlohmann::json;
 class VFXEntry
 {
 public:
@@ -12,6 +14,8 @@ public:
     virtual void OnUpdate(float dt, const VFXContext& ctx) = 0;
     virtual void OnImGui() = 0;
 
+	virtual  json ToJson() const = 0;
+	virtual  void FromJson(const json& j) = 0;
     float startTime = 0.0f;
     float duration = -1.0f;
     bool isPlaying = false;

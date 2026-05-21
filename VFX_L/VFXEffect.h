@@ -23,6 +23,10 @@ public:
     bool IsPlaying() const { return m_IsPlaying; }
     bool IsLooping() const { return m_Loop; }
     void SetLooping(bool loop) { m_Loop = loop; }
+   
+    bool SaveToFile(const std::string& filepath) const;
+    bool LoadFromFile(const std::string& filepath);
+
     float GetcurrentTime() const { return m_CurrentTime; }
     float GetTotalDuration() const;
 

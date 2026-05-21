@@ -4,6 +4,11 @@
 #include <algorithm>
 #include <iostream>
 
+#include <nlohmann/json.hpp>
+#include <fstream>
+
+using json = nlohmann::json;
+
 int VFXEffect::AddEntry(EntryType type, float startTime, float duration)
 {
     std::unique_ptr<VFXEntry> entry;
@@ -131,4 +136,106 @@ void VFXEffect::Update(float dt, const VFXContext& ctx)
             Stop(ctx);
         }
     }
+}
+bool VFXEffect::SaveToFile(const std::string& filepath) const
+{
+    json root;
+    root["name"] = m_Name;
+    root["loop"] = m_Loop;
+
+    json entries = json::array();
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound" };
+
+    for (auto& entry : m_Entries)
+    {
+        json e;
+        int typeIdx = static_cast<int>(entry->GetType());
+        e["type"] = typeNames[typeIdx];
+        e["startTime"] = entry->startTime;
+        e["duration"] = entry->duration;
+        e["data"] = entry->ToJson();
+        entries.push_back(e);
+    }
+
+    root["entries"] = entries;
+
+    std::ofstream file(filepath);
+    if (!file.is_open())
+    {
+        std::cout << "[Error] Failed to save: " << filepath << std::endl;
+        return false;
+    }
+
+    file << root.dump(4);
+    std::cout << "[OK] Saved: " << filepath << std::endl;
+    return true;
+}
+bool VFXEffect::LoadFromFile(const std::string& filepath)
+{
+    std::ifstream file(filepath);
+    if (!file.is_open())
+    {
+        std::cout << "[Error] Failed to load: " << filepath << std::endl;
+        return false;
+    }
+
+    json root;
+    try
+    {
+        file >> root;
+    }
+    catch (const json::exception& e)
+    {
+        std::cout << "[Error] JSON parse error: " << e.what() << std::endl;
+        return false;
+    }
+
+    m_Entries.clear();
+
+    // nameがJSONにあればそれを使う、なければファイル名
+    if (root.contains("name"))
+    {
+        m_Name = root["name"];
+    }
+    else
+    {
+        size_t lastSlash = filepath.find_last_of("/\\");
+        size_t lastDot = filepath.find_last_of('.');
+        size_t start = (lastSlash != std::string::npos) ? lastSlash + 1 : 0;
+        if (lastDot != std::string::npos && lastDot > start)
+            m_Name = filepath.substr(start, lastDot - start);
+        else
+            m_Name = "NewEffect";
+    }
+
+    m_Loop = root.value("loop", false);
+
+    if (root.contains("entries"))
+    {
+        for (auto& e : root["entries"])
+        {
+            std::string type = e.value("type", "Particle");
+            float st = e.value("startTime", 0.0f);
+            float dur = e.value("duration", -1.0f);
+
+            EntryType entryType = EntryType::Particle;
+            if (type == "Sprite") entryType = EntryType::Sprite;
+            else if (type == "Trail") entryType = EntryType::Trail;
+            else if (type == "Mesh") entryType = EntryType::Mesh;
+            else if (type == "Light") entryType = EntryType::Light;
+            else if (type == "Sound") entryType = EntryType::Sound;
+
+            int idx = AddEntry(entryType, st, dur);
+            if (idx >= 0 && e.contains("data"))
+            {
+                m_Entries[idx]->FromJson(e["data"]);
+            }
+        }
+    }
+
+    m_IsPlaying = false;
+    m_CurrentTime = 0.0f;
+
+    std::cout << "[OK] Loaded: " << filepath << std::endl;
+    return true;
 }

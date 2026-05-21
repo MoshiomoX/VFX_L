@@ -219,3 +219,122 @@ void VFXParticleEntry::OnImGui()
         ImGui::SliderInt("Atlas Index", &e.atlasIndex, 0, maxIdx);
     }
 }
+
+json VFXParticleEntry::ToJson() const
+{
+    json j;
+    auto& e = emitterData;
+
+    j["emitType"] = static_cast<int>(e.emitType);
+    j["position"] = { e.position.x, e.position.y, e.position.z };
+    j["direction"] = { e.direction.x, e.direction.y, e.direction.z };
+    j["spreadAngle"] = e.shape.spreadAngle;
+    j["radius"] = e.shape.radius;
+    j["innerRadius"] = e.shape.innerRadius;
+    j["boxExtents"] = { e.shape.boxExtents.x, e.shape.boxExtents.y, e.shape.boxExtents.z };
+    j["emitRate"] = e.emitRate;
+    j["maxParticles"] = e.maxParticles;
+    j["speedRange"] = { e.speedRange.x, e.speedRange.y };
+    j["lifetimeRange"] = { e.lifetimeRange.x, e.lifetimeRange.y };
+    j["sizeRange"] = { e.sizeRange.x, e.sizeRange.y, e.sizeRange.z, e.sizeRange.w };
+    j["startColorMin"] = { e.startColorMin.x, e.startColorMin.y, e.startColorMin.z, e.startColorMin.w };
+    j["startColorMax"] = { e.startColorMax.x, e.startColorMax.y, e.startColorMax.z, e.startColorMax.w };
+    j["endColorMin"] = { e.endColorMin.x, e.endColorMin.y, e.endColorMin.z, e.endColorMin.w };
+    j["endColorMax"] = { e.endColorMax.x, e.endColorMax.y, e.endColorMax.z, e.endColorMax.w };
+    j["gravity"] = { e.gravity.x, e.gravity.y, e.gravity.z };
+    j["dragCoeff"] = e.dragCoeff;
+    j["rotationRange"] = { e.rotationRange.x, e.rotationRange.y };
+    j["angularVelRange"] = { e.angularVelRange.x, e.angularVelRange.y };
+    j["atlasRows"] = e.atlasRows;
+    j["atlasCols"] = e.atlasCols;
+    j["atlasIndex"] = e.atlasIndex;
+    j["atlasAnimate"] = e.atlasAnimate;
+
+    if (e.colorKeyCount > 0)
+    {
+        json keys = json::array();
+        for (int k = 0; k < e.colorKeyCount; k++)
+        {
+            json key;
+            key["color"] = { e.colorKeys[k].color.x, e.colorKeys[k].color.y,
+                             e.colorKeys[k].color.z, e.colorKeys[k].color.w };
+            key["time"] = e.colorKeys[k].time;
+            keys.push_back(key);
+        }
+        j["colorKeys"] = keys;
+    }
+
+    return j;
+}
+
+void VFXParticleEntry::FromJson(const json& j)
+{
+    auto& e = emitterData;
+
+    e.emitType = static_cast<EmitType>(j.value("emitType", 0));
+
+    auto pos = j.value("position", std::vector<float>{0, 0, 0});
+    e.position = { pos[0], pos[1], pos[2] };
+
+    auto dir = j.value("direction", std::vector<float>{0, 1, 0});
+    e.direction = { dir[0], dir[1], dir[2] };
+
+    e.shape.spreadAngle = j.value("spreadAngle", 0.0f);
+    e.shape.radius = j.value("radius", 1.0f);
+    e.shape.innerRadius = j.value("innerRadius", 0.0f);
+
+    auto box = j.value("boxExtents", std::vector<float>{1, 1, 1});
+    e.shape.boxExtents = { box[0], box[1], box[2] };
+
+    e.emitRate = j.value("emitRate", 10.0f);
+    e.maxParticles = j.value("maxParticles", 1000);
+
+    auto spd = j.value("speedRange", std::vector<float>{1, 3});
+    e.speedRange = { spd[0], spd[1] };
+
+    auto life = j.value("lifetimeRange", std::vector<float>{1, 3});
+    e.lifetimeRange = { life[0], life[1] };
+
+    auto sz = j.value("sizeRange", std::vector<float>{0.1f, 0.3f, 0.0f, 0.1f});
+    e.sizeRange = { sz[0], sz[1], sz[2], sz[3] };
+
+    auto scmin = j.value("startColorMin", std::vector<float>{1, 1, 1, 1});
+    e.startColorMin = { scmin[0], scmin[1], scmin[2], scmin[3] };
+
+    auto scmax = j.value("startColorMax", std::vector<float>{1, 1, 1, 1});
+    e.startColorMax = { scmax[0], scmax[1], scmax[2], scmax[3] };
+
+    auto ecmin = j.value("endColorMin", std::vector<float>{1, 1, 1, 0});
+    e.endColorMin = { ecmin[0], ecmin[1], ecmin[2], ecmin[3] };
+
+    auto ecmax = j.value("endColorMax", std::vector<float>{1, 1, 1, 0});
+    e.endColorMax = { ecmax[0], ecmax[1], ecmax[2], ecmax[3] };
+
+    auto grav = j.value("gravity", std::vector<float>{0, -9.81f, 0});
+    e.gravity = { grav[0], grav[1], grav[2] };
+
+    e.dragCoeff = j.value("dragCoeff", 0.0f);
+
+    auto rot = j.value("rotationRange", std::vector<float>{0, 0});
+    e.rotationRange = { rot[0], rot[1] };
+
+    auto angvel = j.value("angularVelRange", std::vector<float>{0, 0});
+    e.angularVelRange = { angvel[0], angvel[1] };
+
+    e.atlasRows = j.value("atlasRows", 1);
+    e.atlasCols = j.value("atlasCols", 1);
+    e.atlasIndex = j.value("atlasIndex", 0);
+    e.atlasAnimate = j.value("atlasAnimate", false);
+
+    if (j.contains("colorKeys"))
+    {
+        auto& keys = j["colorKeys"];
+        e.colorKeyCount = static_cast<int>(keys.size());
+        for (int k = 0; k < e.colorKeyCount && k < GPUParticleEmitter::MAX_COLOR_KEYS; k++)
+        {
+            auto col = keys[k]["color"].get<std::vector<float>>();
+            e.colorKeys[k].color = { col[0], col[1], col[2], col[3] };
+            e.colorKeys[k].time = keys[k]["time"];
+        }
+    }
+}
