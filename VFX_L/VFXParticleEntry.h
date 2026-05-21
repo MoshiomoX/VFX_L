@@ -11,6 +11,9 @@ public:
     void OnUpdate(float dt, const VFXContext& ctx) override;
     void OnImGui() override;
 
+	json ToJson() const override;
+	void FromJson(const json& j) override;
+
     GPUParticleEmitter emitterData;
     int runtimeID = -1;
 };

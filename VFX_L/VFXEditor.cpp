@@ -4,12 +4,13 @@
 #include <string>
 #include <cstdio>
 #include <cmath>
-
+#include <fstream>
 void VFXEditor::Draw()
 {
     if (!m_Effect) return;
 
     ImGui::Begin("VFX Editor");
+    DrawMenuBar();
     DrawSystemInfo();
     DrawPlaybackControls();
     DrawTimeline();
@@ -26,7 +27,15 @@ void VFXEditor::DrawSystemInfo()
         ImGui::Separator();
     }
 
-    ImGui::Text("Effect: %s", m_Effect->GetName().c_str());
+    // Effect名編集
+    char name[128];
+    strncpy_s(name, m_Effect->GetName().c_str(), sizeof(name));
+    if (ImGui::InputText("Effect Name", name, sizeof(name)))
+    {
+        m_Effect->SetName(name);
+        strncpy_s(m_SaveFileName, name, sizeof(m_SaveFileName));
+    }
+
     ImGui::Text("Time: %.2f / %.2f", m_Effect->GetcurrentTime(), m_Effect->GetTotalDuration());
     ImGui::Separator();
 }
@@ -295,4 +304,90 @@ void VFXEditor::DrawEntryInspector(int index)
     }
 
     ImGui::End();
+}
+void VFXEditor::DrawMenuBar()
+{
+    if (ImGui::Button("Save"))
+    {
+        ImGui::OpenPopup("SavePopup");
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Load"))
+    {
+        ImGui::OpenPopup("LoadPopup");
+    }
+
+    // Save
+    if (ImGui::BeginPopup("SavePopup"))
+    {
+        ImGui::InputText("File Name", m_SaveFileName, sizeof(m_SaveFileName));
+
+        if (ImGui::Button("Save##confirm"))
+        {
+            std::string path = "Assets/Data/VFXData/" + std::string(m_SaveFileName) + ".json";
+
+            std::ifstream check(path);
+            if (check.is_open())
+            {
+                check.close();
+                m_ShowOverwriteConfirm = true;
+            }
+            else
+            {
+                m_Effect->SaveToFile(path);
+                ImGui::CloseCurrentPopup();
+            }
+        }
+
+        if (m_ShowOverwriteConfirm)
+        {
+            ImGui::Separator();
+            ImGui::Text("File already exists. Overwrite?");
+            if (ImGui::Button("Yes"))
+            {
+                std::string path = "Assets/Data/VFXData/" + std::string(m_SaveFileName) + ".json";
+                m_Effect->SaveToFile(path);
+                m_ShowOverwriteConfirm = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("No"))
+            {
+                m_ShowOverwriteConfirm = false;
+            }
+        }
+
+        ImGui::EndPopup();
+    }
+
+    // Load
+    if (ImGui::BeginPopup("LoadPopup"))
+    {
+        // Assets/VFX/内の.jsonファイルを列挙
+        WIN32_FIND_DATAA fd;
+        HANDLE hFind = FindFirstFileA("Assets/Data/VFXData/*.json", &fd);
+        if (hFind != INVALID_HANDLE_VALUE)
+        {
+            do
+            {
+                if (ImGui::Selectable(fd.cFileName))
+                {
+                    std::string path = "Assets/Data/VFXData/" + std::string(fd.cFileName);
+                    m_Effect->Stop(m_Context);
+                    m_Effect->LoadFromFile(path);
+                    ImGui::CloseCurrentPopup();
+                }
+            } while (FindNextFileA(hFind, &fd));
+            FindClose(hFind);
+        }
+        else
+        {
+            ImGui::Text("No files found");
+        }
+        ImGui::EndPopup();
+    }
+
+    ImGui::Separator();
 }
