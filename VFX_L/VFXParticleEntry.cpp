@@ -4,61 +4,16 @@
 
 void VFXParticleEntry::OnPlay(const VFXContext& ctx)
 {
-    auto* system = ctx.particleSystem;
-    if (!system) return;
-
-    runtimeID = system->AddEmitter(
-        emitterData.emitRate,
-        emitterData.maxParticles);
-
-    if (runtimeID >= 0)
-    {
-        auto* emitter = system->GetEmitter(runtimeID);
-        if (emitter)
-        {
-            // パラメータコピー（同じ）
-            emitter->emitType = emitterData.emitType;
-            emitter->shape = emitterData.shape;
-            emitter->position = emitterData.position;
-            emitter->direction = emitterData.direction;
-            emitter->speedRange = emitterData.speedRange;
-            emitter->lifetimeRange = emitterData.lifetimeRange;
-            emitter->sizeRange = emitterData.sizeRange;
-            emitter->startColorMin = emitterData.startColorMin;
-            emitter->startColorMax = emitterData.startColorMax;
-            emitter->endColorMin = emitterData.endColorMin;
-            emitter->endColorMax = emitterData.endColorMax;
-            emitter->gravity = emitterData.gravity;
-            emitter->dragCoeff = emitterData.dragCoeff;
-            emitter->rotationRange = emitterData.rotationRange;
-            emitter->angularVelRange = emitterData.angularVelRange;
-            emitter->atlasRows = emitterData.atlasRows;
-            emitter->atlasCols = emitterData.atlasCols;
-            emitter->atlasIndex = emitterData.atlasIndex;
-            emitter->atlasAnimate = emitterData.atlasAnimate;
-            emitter->textureIndex = emitterData.textureIndex;
-            emitter->colorKeyCount = emitterData.colorKeyCount;
-            for (int k = 0; k < emitterData.colorKeyCount; k++)
-                emitter->colorKeys[k] = emitterData.colorKeys[k];
-        }
-        isPlaying = true;
-    }
+    isPlaying = true;
+    emitterData.SetActive(true);
 }
 
 
 void VFXParticleEntry::OnStop(const VFXContext& ctx)
 {
-    auto* system = ctx.particleSystem;
-    if (!system) return;
-
-    if (runtimeID >= 0)
-    {
-        system->RemoveEmitter(runtimeID);
-        runtimeID = -1;
-    }
     isPlaying = false;
+    emitterData.SetActive(false);
 }
-
 void VFXParticleEntry::OnUpdate(float dt, const VFXContext& ctx)
 {
     // GPUParticleSystemが更新するので何もしない

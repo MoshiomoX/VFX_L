@@ -34,6 +34,7 @@ public:
     int  GetID() const { return m_ID; }
     int  GetPendingEmitCount() const { return m_PendingEmitCount; }
     void SetColorKeyOffset(int offset) { m_ColorKeyOffset = offset; }
+    void ClearPendingEmitCount() { m_PendingEmitCount = 0; }
 
     // --- å`èÛ ---
     EmitType emitType = EmitType::Point;

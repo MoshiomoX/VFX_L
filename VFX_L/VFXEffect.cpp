@@ -76,21 +76,16 @@ void VFXEffect::Stop(const VFXContext& ctx)
         }
     }
 
-    if (ctx.particleSystem)
-        ctx.particleSystem->ResetAllocator();
-
     m_IsPlaying = false;
     m_CurrentTime = 0.0f;
-
- //   std::cout << "[VFXEffect] Stop: " << m_Name << std::endl;
 }
-
 void VFXEffect::Update(float dt, const VFXContext& ctx)
 {
     if (!m_IsPlaying) return;
 
     m_CurrentTime += dt;
 
+    // Entry状態更新
     for (auto& entry : m_Entries)
     {
         float endTime = (entry->duration < 0.0f)
@@ -109,10 +104,45 @@ void VFXEffect::Update(float dt, const VFXContext& ctx)
 
         if (entry->isPlaying && m_CurrentTime >= endTime)
         {
-            entry->OnStop(ctx);
+            if (!m_Loop)
+            {
+                entry->OnStop(ctx);
+            }
         }
     }
 
+    // Emitterデータ収集
+    std::vector<GPUEmitter> emitters;
+    std::vector<ColorKey> colorKeys;
+    int colorKeyOffset = 0;
+
+    for (auto& entry : m_Entries)
+    {
+        if (entry->GetType() == EntryType::Particle && entry->isPlaying)
+        {
+            auto* pEntry = static_cast<VFXParticleEntry*>(entry.get());
+            pEntry->emitterData.Update(dt);
+
+            GPUEmitter ge = pEntry->emitterData.ToGPU();
+            ge.colorKeyOffset = colorKeyOffset;
+            emitters.push_back(ge);
+
+            // ColorKey収集
+            for (int k = 0; k < pEntry->emitterData.colorKeyCount; k++)
+            {
+                colorKeys.push_back(pEntry->emitterData.colorKeys[k]);
+            }
+            colorKeyOffset += pEntry->emitterData.colorKeyCount;
+        }
+    }
+
+    // Systemに渡す
+    if (ctx.particleSystem)
+    {
+        ctx.particleSystem->Update(dt, m_CurrentTime, emitters, colorKeys);
+    }
+
+    // allDone判定
     bool allDone = true;
     for (auto& entry : m_Entries)
     {
@@ -128,8 +158,7 @@ void VFXEffect::Update(float dt, const VFXContext& ctx)
     {
         if (m_Loop)
         {
-            Stop(ctx);
-            Play(ctx);
+            m_CurrentTime = 0.0f;
         }
         else
         {
