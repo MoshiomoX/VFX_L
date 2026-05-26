@@ -25,7 +25,7 @@ public:
     void Update(ID3D11DeviceContext* context, const T& data)
     {
         D3D11_MAPPED_SUBRESOURCE mapped;
-        // 锁定Buffer，获取可写指针
+        // 锁定Buffer，获取可写指针  
         context->Map(m_Buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         // 复制数据
         memcpy(mapped.pData, &data, sizeof(T));

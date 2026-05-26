@@ -1,0 +1,258 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [
+                    0.0,
+                    0.0
+                ],
+                "atlasAnimate": false,
+                "atlasCols": 6,
+                "atlasIndex": 0,
+                "atlasRows": 6,
+                "boxExtents": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "direction": [
+                    0.0,
+                    1.0,
+                    0.0
+                ],
+                "dragCoeff": 0.0,
+                "emitRate": 538.4619750976563,
+                "emitType": 0,
+                "endColorMax": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "endColorMin": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "gravity": [
+                    0.0,
+                    -9.8100004196167,
+                    0.0
+                ],
+                "innerRadius": 0.0,
+                "lifetimeRange": [
+                    1.0,
+                    3.0
+                ],
+                "maxParticles": 6500,
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 1.0,
+                "rotationRange": [
+                    0.0,
+                    0.0
+                ],
+                "sizeRange": [
+                    0.10000000149011612,
+                    0.30000001192092896,
+                    0.0,
+                    0.10000000149011612
+                ],
+                "speedRange": [
+                    1.0,
+                    3.0
+                ],
+                "spreadAngle": 101.11900329589844,
+                "startColorMax": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "startColorMin": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "duration": 2.0,
+            "startTime": 0.0,
+            "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [
+                    0.0,
+                    0.0
+                ],
+                "atlasAnimate": false,
+                "atlasCols": 6,
+                "atlasIndex": 0,
+                "atlasRows": 6,
+                "boxExtents": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "direction": [
+                    0.0,
+                    1.0,
+                    0.0
+                ],
+                "dragCoeff": 0.0,
+                "emitRate": 678.322021484375,
+                "emitType": 0,
+                "endColorMax": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "endColorMin": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "gravity": [
+                    0.0,
+                    -9.8100004196167,
+                    0.0
+                ],
+                "innerRadius": 0.0,
+                "lifetimeRange": [
+                    1.0,
+                    3.0
+                ],
+                "maxParticles": 1000,
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 1.0,
+                "rotationRange": [
+                    0.0,
+                    0.0
+                ],
+                "sizeRange": [
+                    0.10000000149011612,
+                    0.30000001192092896,
+                    0.0,
+                    0.10000000149011612
+                ],
+                "speedRange": [
+                    1.0,
+                    3.0
+                ],
+                "spreadAngle": 88.11199951171875,
+                "startColorMax": [
+                    0.7890295386314392,
+                    0.21307125687599182,
+                    0.21307125687599182,
+                    1.0
+                ],
+                "startColorMin": [
+                    0.7637130618095398,
+                    0.344798743724823,
+                    0.344798743724823,
+                    1.0
+                ]
+            },
+            "duration": 2.0,
+            "startTime": 0.0,
+            "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [
+                    0.0,
+                    0.0
+                ],
+                "atlasAnimate": false,
+                "atlasCols": 6,
+                "atlasIndex": 0,
+                "atlasRows": 6,
+                "boxExtents": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "direction": [
+                    0.0,
+                    1.0,
+                    0.0
+                ],
+                "dragCoeff": 0.0,
+                "emitRate": 617.7160034179688,
+                "emitType": 0,
+                "endColorMax": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "endColorMin": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "gravity": [
+                    0.0,
+                    -9.8100004196167,
+                    0.0
+                ],
+                "innerRadius": 0.0,
+                "lifetimeRange": [
+                    1.0,
+                    3.0
+                ],
+                "maxParticles": 1000,
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 1.0,
+                "rotationRange": [
+                    0.0,
+                    0.0
+                ],
+                "sizeRange": [
+                    0.10000000149011612,
+                    0.30000001192092896,
+                    0.0,
+                    0.10000000149011612
+                ],
+                "speedRange": [
+                    1.0,
+                    3.0
+                ],
+                "spreadAngle": 83.91600036621094,
+                "startColorMax": [
+                    0.2701612114906311,
+                    0.008011543191969395,
+                    0.949367105960846,
+                    1.0
+                ],
+                "startColorMin": [
+                    0.5105485320091248,
+                    0.2175755649805069,
+                    0.4994230568408966,
+                    1.0
+                ]
+            },
+            "duration": 2.0,
+            "startTime": 0.0,
+            "type": "Particle"
+        }
+    ],
+    "loop": true,
+    "name": "NewEffect"
+}

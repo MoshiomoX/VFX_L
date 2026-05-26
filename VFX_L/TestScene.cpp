@@ -50,9 +50,17 @@ void TestScene::Update(float dt)
 
     m_TotalTime += dt;
     m_Effect.Update(dt, m_Context);
-    m_GPUParticleSystem.Update(dt, m_TotalTime);
+  //  m_GPUParticleSystem.Update(dt, m_TotalTime);
 
+    //static uint32_t lastAlive = 0;
+    //uint32_t alive = m_GPUParticleSystem.GetAliveCount();
+    //if (alive != lastAlive)
+    //{
+    //    std::cout << "Alive: " << alive << std::endl;
+    //    lastAlive = alive;
+    //}
     m_Editor.Draw();
+   
 }
 
 void TestScene::Render(Renderer& renderer)
