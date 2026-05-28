@@ -1,11 +1,5 @@
 ﻿#include "ResourceManager.h"
 #include <iostream>
-#include <thread>  // 新添加：异步 (std::async)
-
-// 新添加：假设一个简单日志函数（可替换为 spdlog 或 cout）
-void LogError(const std::wstring& msg) {
-    std::wcerr << L"[Error] ResourceManager: " << msg << std::endl;
-}
 
 void ResourceManager::Initialize(ID3D11Device* device)
 {
@@ -15,7 +9,7 @@ void ResourceManager::Initialize(ID3D11Device* device)
 
 void ResourceManager::Shutdown()
 {
-    CleanupUnused();  // 新添加：释放前清理未用资源
+    CleanupUnused();
     UnloadAll();
     m_Device = nullptr;
     std::cout << "[OK] ResourceManager shutdown" << std::endl;
@@ -28,78 +22,162 @@ std::shared_ptr<Texture> ResourceManager::LoadTexture(const std::wstring& filepa
 
     auto it = m_Textures.find(filepath);
     if (it != m_Textures.end())
-    {
-        std::wcout << L"[Cache Hit] Texture: " << filepath << std::endl;
         return it->second;
-    }
 
     auto texture = std::make_shared<Texture>();
-    bool success = texture->Load(m_Device, filepath);
-
-    if (success)
+    if (texture->Load(m_Device, filepath))
     {
-        std::wcout << L"[OK] Texture loaded successfully: " << filepath << std::endl;
         m_Textures[filepath] = texture;
         return texture;
     }
-    else
-    {
-        std::wcout << L"[ERROR] Texture load FAILED: " << filepath << std::endl;
-        // 可以加 Windows API 错误码
-        wchar_t buf[256];
-        FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, nullptr, GetLastError(),
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), buf, 256, nullptr);
-        std::wcout << L"  Windows Error: " << buf << std::endl;
 
-        return nullptr;
-    }
+    std::wcout << L"[Error] Texture load failed: " << filepath << std::endl;
+    return nullptr;
 }
-
 
 std::future<std::shared_ptr<Texture>> ResourceManager::LoadTextureAsync(const std::wstring& filepath)
 {
     return std::async(std::launch::async, [this, filepath]() {
-        return LoadTexture(filepath);  // 调用同步版本，但在后台线程
+        return LoadTexture(filepath);
         });
 }
 
 void ResourceManager::UnloadTexture(const std::wstring& filepath)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);  // 新添加：线程安全锁
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
     m_Textures.erase(filepath);
 }
 
-// ===== Shader =====
-std::shared_ptr<Shader> ResourceManager::LoadShader(
+// ===== VertexShader =====
+std::shared_ptr<VertexShader> ResourceManager::LoadVS(
     const std::wstring& name,
-    const std::wstring& vsPath,
-    const std::wstring& psPath)
+    const std::wstring& hlslPath,
+    const std::string& entry)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);  // 新添加：线程安全锁
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
 
-    // キャッシュ確認
-    auto it = m_Shaders.find(name);
-    if (it != m_Shaders.end())
-    {
+    auto it = m_VertexShaders.find(name);
+    if (it != m_VertexShaders.end())
         return it->second;
-    }
 
-    // 新規読み込み
-    auto shader = std::make_shared<Shader>();
-    if (!shader->Load(m_Device, vsPath, psPath))
+    auto vs = std::make_shared<VertexShader>();
+    if (FAILED(vs->Compile(m_Device, hlslPath, entry)))
     {
-        LogError(L"Failed to load shader: " + name);  // 新添加：增强错误处理
+        std::wcout << L"[Error] VS compile failed: " << name << std::endl;
         return nullptr;
     }
 
-    m_Shaders[name] = shader;
-    return shader;
+    m_VertexShaders[name] = vs;
+    return vs;
 }
 
-void ResourceManager::UnloadShader(const std::wstring& name)
+std::shared_ptr<VertexShader> ResourceManager::LoadVS_CSO(
+    const std::wstring& name,
+    const std::string& csoPath)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);  // 新添加：线程安全锁
-    m_Shaders.erase(name);
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    auto it = m_VertexShaders.find(name);
+    if (it != m_VertexShaders.end())
+        return it->second;
+
+    auto vs = std::make_shared<VertexShader>();
+    if (FAILED(vs->Load(m_Device, csoPath.c_str())))
+    {
+        std::wcout << L"[Error] VS cso load failed: " << name << std::endl;
+        return nullptr;
+    }
+
+    m_VertexShaders[name] = vs;
+    return vs;
+}
+
+// ===== PixelShader =====
+std::shared_ptr<PixelShader> ResourceManager::LoadPS(
+    const std::wstring& name,
+    const std::wstring& hlslPath,
+    const std::string& entry)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    auto it = m_PixelShaders.find(name);
+    if (it != m_PixelShaders.end())
+        return it->second;
+
+    auto ps = std::make_shared<PixelShader>();
+    if (FAILED(ps->Compile(m_Device, hlslPath, entry)))
+    {
+        std::wcout << L"[Error] PS compile failed: " << name << std::endl;
+        return nullptr;
+    }
+
+    m_PixelShaders[name] = ps;
+    return ps;
+}
+
+std::shared_ptr<PixelShader> ResourceManager::LoadPS_CSO(
+    const std::wstring& name,
+    const std::string& csoPath)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    auto it = m_PixelShaders.find(name);
+    if (it != m_PixelShaders.end())
+        return it->second;
+
+    auto ps = std::make_shared<PixelShader>();
+    if (FAILED(ps->Load(m_Device, csoPath.c_str())))
+    {
+        std::wcout << L"[Error] PS cso load failed: " << name << std::endl;
+        return nullptr;
+    }
+
+    m_PixelShaders[name] = ps;
+    return ps;
+}
+
+// ===== ComputeShader =====
+std::shared_ptr<ComputeShader> ResourceManager::LoadCS(
+    const std::wstring& name,
+    const std::wstring& hlslPath,
+    const std::string& entry)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    auto it = m_ComputeShaders.find(name);
+    if (it != m_ComputeShaders.end())
+        return it->second;
+
+    auto cs = std::make_shared<ComputeShader>();
+    if (FAILED(cs->Compile(m_Device, hlslPath, entry)))
+    {
+        std::wcout << L"[Error] CS compile failed: " << name << std::endl;
+        return nullptr;
+    }
+
+    m_ComputeShaders[name] = cs;
+    return cs;
+}
+
+std::shared_ptr<ComputeShader> ResourceManager::LoadCS_CSO(
+    const std::wstring& name,
+    const std::string& csoPath)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    auto it = m_ComputeShaders.find(name);
+    if (it != m_ComputeShaders.end())
+        return it->second;
+
+    auto cs = std::make_shared<ComputeShader>();
+    if (FAILED(cs->Load(m_Device, csoPath.c_str())))
+    {
+        std::wcout << L"[Error] CS cso load failed: " << name << std::endl;
+        return nullptr;
+    }
+
+    m_ComputeShaders[name] = cs;
+    return cs;
 }
 
 // ===== Mesh =====
@@ -108,20 +186,16 @@ std::shared_ptr<Mesh> ResourceManager::LoadMesh(
     const std::vector<VERTEX_3D>& vertices,
     const std::vector<unsigned int>& indices)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);  // 新添加：线程安全锁
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
 
-    // キャッシュ確認
     auto it = m_Meshes.find(name);
     if (it != m_Meshes.end())
-    {
         return it->second;
-    }
 
-    // 新規作成
     auto mesh = std::make_shared<Mesh>();
     if (!mesh->Create(m_Device, vertices, indices))
     {
-        LogError(L"Failed to create mesh: " + name);  // 新添加：增强错误处理
+        std::wcout << L"[Error] Mesh create failed: " << name << std::endl;
         return nullptr;
     }
 
@@ -131,52 +205,78 @@ std::shared_ptr<Mesh> ResourceManager::LoadMesh(
 
 void ResourceManager::UnloadMesh(const std::wstring& name)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);  // 新添加：线程安全锁
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
     m_Meshes.erase(name);
 }
 
-// 新添加：资源依赖 - LoadMaterial 示例（依赖 Shader + Texture）
+// ===== Material =====
 std::shared_ptr<Material> ResourceManager::LoadMaterial(
     const std::wstring& name,
-    const std::wstring& shaderName,
+    const std::wstring& vsName,
+    const std::wstring& psName,
     const std::wstring& texturePath)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);  // 新添加：线程安全锁
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
 
     auto it = m_Materials.find(name);
     if (it != m_Materials.end())
-    {
         return it->second;
-    }
 
-    // 加载依赖资源（自动处理缓存）
-    auto shader = LoadShader(shaderName, L"Shader/VS.hlsl", L"Shader/PS.hlsl");  // 假设路径固定，可参数化
-    if (!shader) {
-        LogError(L"Failed to load shader for material: " + name);
+    auto vsIt = m_VertexShaders.find(vsName);
+    auto psIt = m_PixelShaders.find(psName);
+
+    if (vsIt == m_VertexShaders.end() || psIt == m_PixelShaders.end())
+    {
+        std::wcout << L"[Error] Shader not found for material: " << name << std::endl;
         return nullptr;
     }
 
     auto texture = LoadTexture(texturePath);
-    if (!texture) {
-        LogError(L"Failed to load texture for material: " + name);
-        return nullptr;
-    }
 
-    // 创建 Material
     auto material = std::make_shared<Material>();
-    material->SetShader(shader);
-    material->SetTexture(texture);
+    material->SetVertexShader(vsIt->second);
+    material->SetPixelShader(psIt->second);
+    if (texture)
+        material->SetTexture(texture);
 
     m_Materials[name] = material;
     return material;
 }
 
+// ===== Model =====
+std::shared_ptr<Model> ResourceManager::LoadModel(const std::string& filepath)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    auto it = m_Models.find(filepath);
+    if (it != m_Models.end())
+        return it->second;
+
+    auto model = std::make_shared<Model>();
+    if (!model->Load(m_Device, filepath))
+    {
+        std::cout << "[Error] Model load failed: " << filepath << std::endl;
+        return nullptr;
+    }
+
+    m_Models[filepath] = model;
+    return model;
+}
+
+void ResourceManager::UnloadModel(const std::string& filepath)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+    m_Models.erase(filepath);
+}
+
 // ===== 全解放 =====
 void ResourceManager::UnloadAll()
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);  // 新添加：线程安全锁
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
     m_Textures.clear();
-    m_Shaders.clear();
+    m_VertexShaders.clear();
+    m_PixelShaders.clear();
+    m_ComputeShaders.clear();
     m_Meshes.clear();
     m_Materials.clear();
     m_Models.clear();
@@ -187,76 +287,19 @@ void ResourceManager::CleanupUnused()
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
 
-    // Textures
-    for (auto it = m_Textures.begin(); it != m_Textures.end(); ) {
-        if (it->second.use_count() == 1) {
-            std::wcout << L"[Info] Cleaning unused texture: " << it->first << std::endl;
+    for (auto it = m_Textures.begin(); it != m_Textures.end(); )
+    {
+        if (it->second.use_count() == 1)
             it = m_Textures.erase(it);
-        }
-        else {
+        else
             ++it;
-        }
     }
 
-    // Models（追加）
-    for (auto it = m_Models.begin(); it != m_Models.end(); ) {
-        if (it->second.use_count() == 1) {
-            std::cout << "[Info] Cleaning unused model: " << it->first << std::endl;
+    for (auto it = m_Models.begin(); it != m_Models.end(); )
+    {
+        if (it->second.use_count() == 1)
             it = m_Models.erase(it);
-        }
-        else {
+        else
             ++it;
-        }
     }
-}
-
-//// 新添加：调试 - 估算内存使用（假设每个类有 GetSize() 方法）
-size_t ResourceManager::EstimateMemoryUsage() const
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);  // 新添加：线程安全锁
-    size_t total = 0;
-    for (const auto& pair : m_Textures)
-    {
-    //   total += pair.second->GetSize();  // 假设 Texture::GetSize() 返回字节数
-    }
-    // 类似加其他 map
-    // ...
-    return total;
-}
-
-std::shared_ptr<Model> ResourceManager::LoadModel(const std::string& filepath)
-{
-    std::cout << "[LoadModel] Start: " << filepath << std::endl;
-    std::cout << "[LoadModel] Device: " << (m_Device ? "OK" : "nullptr") << std::endl;
-
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
-    // キャッシュ確認
-    auto it = m_Models.find(filepath);
-    if (it != m_Models.end())
-    {
-        std::cout << "[LoadModel] Cache hit" << std::endl;
-        return it->second;
-    }
-
-    std::cout << "[LoadModel] Creating new model..." << std::endl;
-
-    // 新規読み込み
-    auto model = std::make_shared<Model>();
-    if (!model->Load(m_Device, filepath))
-    {
-        std::cout << "[LoadModel] Load FAILED" << std::endl;
-        return nullptr;
-    }
-
-    std::cout << "[LoadModel] Load SUCCESS" << std::endl;
-    m_Models[filepath] = model;
-    return model;
-}
-
-
-void ResourceManager::UnloadModel(const std::string& filepath)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-    m_Models.erase(filepath);
 }

@@ -1,216 +1,260 @@
 #include "Shader.h"
+#include "Texture.h"
 #include <iostream>
+#include <stdio.h>
 
+// ============================================
+// コンストラクタ
+// ============================================
+Shader::Shader(Kind kind)
+    : m_Kind(kind)
+{}
 
-bool Shader::Load(ID3D11Device* device, const std::wstring& vsPath, const std::wstring& psPath)
+// ============================================
+// デストラクタ（CBuffer解放）
+// ============================================
+Shader::~Shader()
 {
-    // VS
-    ComPtr<ID3DBlob> vsBlob;
-    if (!CompileShader(vsPath, "main", "vs_5_0", &vsBlob))
-        return false;
 
-    HRESULT hr = device->CreateVertexShader(
-        vsBlob->GetBufferPointer(),
-        vsBlob->GetBufferSize(),
-        nullptr,
-        &m_VertexShader);
-
-    if (FAILED(hr))
-    {
-        std::cout << "[Error] Failed to create vertex shader" << std::endl;
-        return false;
-    }
-
-    // PS
-    ComPtr<ID3DBlob> psBlob;
-    if (!CompileShader(psPath, "main", "ps_5_0", &psBlob))
-        return false;
-
-    hr = device->CreatePixelShader(
-        psBlob->GetBufferPointer(),
-        psBlob->GetBufferSize(),
-        nullptr,
-        &m_PixelShader);
-
-    if (FAILED(hr))
-    {
-        std::cout << "[Error] Failed to create pixel shader" << std::endl;
-        return false;
-    }
-
-    // InputLayout
-    if (!CreateDefaultLayout(device, vsBlob.Get()))
-        return false;
-
-    std::cout << "[OK] Shader loaded" << std::endl;
-    return true;
+    m_Buffers.clear();
+    m_Textures.clear();
 }
 
-bool Shader::LoadParticle(ID3D11Device* device, const std::wstring& vsPath, const std::wstring& psPath)
+// ============================================
+// .csoファイルから読み込み
+// ============================================
+HRESULT Shader::Load(ID3D11Device* device, const char* pFileName)
 {
-    // VS
-    ComPtr<ID3DBlob> vsBlob;
-    if (!CompileShader(vsPath, "main", "vs_5_0", &vsBlob))
-        return false;
+    if (!device || !pFileName)
+        return E_INVALIDARG;
 
-    HRESULT hr = device->CreateVertexShader(
-        vsBlob->GetBufferPointer(),
-        vsBlob->GetBufferSize(),
-        nullptr,
-        &m_VertexShader);
-
-    if (FAILED(hr))
+    // ファイルを開く
+    FILE* fp = nullptr;
+    fopen_s(&fp, pFileName, "rb");
+    if (!fp)
     {
-        std::cout << "[Error] Failed to create particle vertex shader" << std::endl;
-        return false;
+        std::cout << "[Error] Shader file not found: " << pFileName << std::endl;
+        return E_FAIL;
     }
 
-    // PS
-    ComPtr<ID3DBlob> psBlob;
-    if (!CompileShader(psPath, "main", "ps_5_0", &psBlob))
-        return false;
+    // ファイルサイズ取得
+    fseek(fp, 0, SEEK_END);
+    long fileSize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
 
-    hr = device->CreatePixelShader(
-        psBlob->GetBufferPointer(),
-        psBlob->GetBufferSize(),
-        nullptr,
-        &m_PixelShader);
+    // メモリに読み込み
+    char* pData = new char[fileSize];
+    fread(pData, fileSize, 1, fp);
+    fclose(fp);
 
-    if (FAILED(hr))
+    // シェーダー作成（Reflection含む）
+    HRESULT hr = Make(device, pData, static_cast<UINT>(fileSize));
+
+    delete[] pData;
+
+    if (SUCCEEDED(hr))
     {
-        std::cout << "[Error] Failed to create particle pixel shader" << std::endl;
-        return false;
+        m_IsValid = true;
+        std::cout << "[OK] Shader loaded (cso): " << pFileName << std::endl;
+    }
+    else
+    {
+        std::cout << "[Error] Shader make failed: " << pFileName << std::endl;
     }
 
-    // Particle InputLayout
-    if (!CreateParticleLayout(device, vsBlob.Get()))
-        return false;
-
-    std::cout << "[OK] Particle shader loaded" << std::endl;
-    return true;
+    return hr;
 }
 
-bool Shader::CompileShader(const std::wstring& path, const char* entry, const char* target, ID3DBlob** blob)
+// ============================================
+// .hlslファイルからランタイムコンパイル
+// ============================================
+HRESULT Shader::Compile(ID3D11Device* device,
+    const std::wstring& path,
+    const std::string& entry)
 {
+    if (!device)
+        return E_INVALIDARG;
+
+    // ターゲットプロファイル
+    static const char* pTargetList[] =
+    {
+        "vs_5_0",   // Vertex
+        "ps_5_0",   // Pixel
+        "cs_5_0",   // Compute
+    };
+
+    // コンパイルフラグ
     UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #ifdef _DEBUG
     flags |= D3DCOMPILE_DEBUG;
     flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
+    ComPtr<ID3DBlob> blob;
     ComPtr<ID3DBlob> errorBlob;
 
     HRESULT hr = D3DCompileFromFile(
         path.c_str(),
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
-        entry,
-        target,
-        flags,
-        0,
-        blob,
+        entry.c_str(),
+        pTargetList[m_Kind],
+        flags, 0,
+        &blob,
         &errorBlob);
 
     if (FAILED(hr))
     {
         std::wcout << L"[Error] Shader compile failed: " << path << std::endl;
-
         if (errorBlob)
         {
-            std::cout << (char*)errorBlob->GetBufferPointer() << std::endl;
+            std::cout << static_cast<char*>(errorBlob->GetBufferPointer()) << std::endl;
         }
-        return false;
+        return hr;
     }
 
-    return true;
+    // シェーダー作成（Reflection含む）
+    hr = Make(device, blob->GetBufferPointer(), static_cast<UINT>(blob->GetBufferSize()));
+
+    if (SUCCEEDED(hr))
+    {
+        m_IsValid = true;
+        std::wcout << L"[OK] Shader compiled: " << path << std::endl;
+    }
+
+    return hr;
 }
 
-bool Shader::CreateDefaultLayout(ID3D11Device* device, ID3DBlob* vsBlob)
+// ============================================
+// Reflection処理
+// CBuffer自動作成 + テクスチャスロット確保 + MakeShader呼出
+// ============================================
+HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
 {
-    D3D11_INPUT_ELEMENT_DESC layout[] =
-    {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    };
+    HRESULT hr;
 
-    HRESULT hr = device->CreateInputLayout(
-        layout,
-        ARRAYSIZE(layout),
-        vsBlob->GetBufferPointer(),
-        vsBlob->GetBufferSize(),
-        &m_InputLayout);
-
+    ComPtr<ID3D11ShaderReflection> pReflection;
+    hr = D3DReflect(pData, size, IID_PPV_ARGS(&pReflection));
     if (FAILED(hr))
     {
-        std::cout << "[Error] Failed to create default input layout" << std::endl;
-        return false;
+        std::cout << "[Error] D3DReflect failed" << std::endl;
+        return hr;
     }
 
-    return true;
-}
+    D3D11_SHADER_DESC shaderDesc;
+    pReflection->GetDesc(&shaderDesc);
 
-bool Shader::CreateParticleLayout(ID3D11Device* device, ID3DBlob* vsBlob)
-{
-    D3D11_INPUT_ELEMENT_DESC layout[] =
+    m_Buffers.clear();
+
+    std::cout << "=== Shader Reflection ===" << std::endl;
+
+    for (UINT i = 0; i < shaderDesc.BoundResources; ++i)
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 20, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "SIZE", 0, DXGI_FORMAT_R32_FLOAT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    };
+        D3D11_SHADER_INPUT_BIND_DESC bindDesc;
+        pReflection->GetResourceBindingDesc(i, &bindDesc);
 
-    HRESULT hr = device->CreateInputLayout(
-        layout,
-        ARRAYSIZE(layout),
-        vsBlob->GetBufferPointer(),
-        vsBlob->GetBufferSize(),
-        &m_InputLayout);
+        if (bindDesc.Type == D3D_SIT_CBUFFER)
+        {
+            ID3D11ShaderReflectionConstantBuffer* cbuf =
+                pReflection->GetConstantBufferByName(bindDesc.Name);
 
-    if (FAILED(hr))
-    {
-        std::cout << "[Error] Failed to create particle input layout" << std::endl;
-        return false;
+            D3D11_SHADER_BUFFER_DESC bufDesc;
+            cbuf->GetDesc(&bufDesc);
+
+            std::cout << "  [CBuffer] " << bindDesc.Name
+                << " (b" << bindDesc.BindPoint
+                << ", size=" << bufDesc.Size << ")" << std::endl;
+
+            D3D11_BUFFER_DESC bd = {};
+            bd.ByteWidth = (bufDesc.Size + 15) & ~15;
+            bd.Usage = D3D11_USAGE_DEFAULT;
+            bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+            ComPtr<ID3D11Buffer> buffer;
+            hr = device->CreateBuffer(&bd, nullptr, &buffer);
+            if (SUCCEEDED(hr))
+            {
+                // 按 register(bX) 索引存放（关键修复）
+                if (m_Buffers.size() <= bindDesc.BindPoint)
+                {
+                    m_Buffers.resize(bindDesc.BindPoint + 1);
+                }
+                m_Buffers[bindDesc.BindPoint] = buffer;
+            }
+        }
+        else if (bindDesc.Type == D3D_SIT_STRUCTURED)
+        {
+            std::cout << "  [StructuredBuffer] " << bindDesc.Name
+                << " (t" << bindDesc.BindPoint << ")" << std::endl;
+        }
+        else if (bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED ||
+            bindDesc.Type == D3D_SIT_UAV_RWTYPED)
+        {
+            std::cout << "  [UAV] " << bindDesc.Name
+                << " (u" << bindDesc.BindPoint << ")" << std::endl;
+        }
     }
 
-    return true;
+    std::cout << "=========================" << std::endl;
+
+    m_Textures.resize(shaderDesc.BoundResources, nullptr);
+
+    return MakeShader(device, pData, size);
 }
-
-void Shader::Bind(ID3D11DeviceContext* context)
+// ============================================
+// CBufferへのデータ書き込み
+// ============================================
+void Shader::WriteBuffer(ID3D11DeviceContext* context, UINT slot, void* pData)
 {
-    context->IASetInputLayout(m_InputLayout.Get());
-    context->VSSetShader(m_VertexShader.Get(), nullptr, 0);
-    context->PSSetShader(m_PixelShader.Get(), nullptr, 0);
-}
-bool Shader::LoadCS(ID3D11Device* device, const std::wstring& csPath, const std::string& entry)
-{
-    ComPtr<ID3DBlob> csBlob;
-    if (!CompileShader(csPath, entry.c_str(), "cs_5_0", &csBlob))
-        return false;
+    if (!context || !pData)
+        return;
 
-    HRESULT hr = device->CreateComputeShader(
-        csBlob->GetBufferPointer(),
-        csBlob->GetBufferSize(),
-        nullptr,
-        &m_ComputeShader);
-
-    if (FAILED(hr))
+    if (slot < m_Buffers.size() && m_Buffers[slot])
     {
-        std::cout << "[Error] Failed to create compute shader" << std::endl;
-        return false;
+        // 1. 更新 buffer 数据
+        context->UpdateSubresource(m_Buffers[slot].Get(), 0, nullptr, pData, 0, 0);
+
+        // 2. 根据 shader 类型，把 cbuffer 绑定到对应阶段
+        switch (m_Kind)
+        {
+        case Compute:
+            context->CSSetConstantBuffers(slot, 1, m_Buffers[slot].GetAddressOf());
+            break;
+        case Vertex:
+            context->VSSetConstantBuffers(slot, 1, m_Buffers[slot].GetAddressOf());
+            break;
+        case Pixel:
+            context->PSSetConstantBuffers(slot, 1, m_Buffers[slot].GetAddressOf());
+            break;
+        }
     }
-
-    std::wcout << L"[OK] CS loaded: " << csPath << std::endl;
-    return true;
 }
 
-void Shader::BindCS(ID3D11DeviceContext* context)
+// ============================================
+// テクスチャ設定
+// ============================================
+void Shader::SetTexture(ID3D11DeviceContext* context, UINT slot, Texture* tex)
 {
-    context->CSSetShader(m_ComputeShader.Get(), nullptr, 0);
-}
+    if (!context)
+        return;
 
-void Shader::UnbindCS(ID3D11DeviceContext* context)
-{
-    context->CSSetShader(nullptr, nullptr, 0);
+    if (slot >= m_Textures.size())
+        return;
+
+    ID3D11ShaderResourceView* pSRV = tex ? tex->GetSRV() : nullptr;
+    m_Textures[slot] = pSRV;
+
+    // シェーダー種別に応じたスロットにバインド
+    switch (m_Kind)
+    {
+    case Vertex:
+        context->VSSetShaderResources(slot, 1, &pSRV);
+        break;
+    case Pixel:
+        context->PSSetShaderResources(slot, 1, &pSRV);
+        break;
+    case Compute:
+        context->CSSetShaderResources(slot, 1, &pSRV);
+        break;
+    }
 }

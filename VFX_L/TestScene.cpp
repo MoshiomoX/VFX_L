@@ -11,7 +11,7 @@ void TestScene::Init()
     auto* device = Application::Get().GetGraphics().GetDevice();
     auto* context = Application::Get().GetGraphics().GetContext();
 
-    m_Camera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 1000.0f);
+    m_Camera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 10000.0f);
     m_Camera.SetPosition({ 0.0f, 5.0f, -15.0f });
     m_Camera.SetTarget({ 0.0f, 0.0f, 0.0f });
     SetCamera(&m_Camera);
@@ -50,7 +50,7 @@ void TestScene::Update(float dt)
 
     m_TotalTime += dt;
     m_Effect.Update(dt, m_Context);
-  //  m_GPUParticleSystem.Update(dt, m_TotalTime);
+   //     m_GPUParticleSystem.Update(dt, m_TotalTime);
 
     //static uint32_t lastAlive = 0;
     //uint32_t alive = m_GPUParticleSystem.GetAliveCount();

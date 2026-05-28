@@ -22,7 +22,7 @@ public:
 
     bool IsPlaying() const { return m_IsPlaying; }
     bool IsLooping() const { return m_Loop; }
-    void SetLooping(bool loop) { m_Loop = loop; }
+    void SetLooping(bool loop);
    
     bool SaveToFile(const std::string& filepath) const;
     bool LoadFromFile(const std::string& filepath);
@@ -35,6 +35,8 @@ private:
     std::vector<std::unique_ptr<VFXEntry>> m_Entries;
 
     bool m_IsPlaying = false;
-    bool m_Loop = false;
+	bool m_Finishing = false;
+    bool m_Loop = false; 
+    bool m_StopRequested = false;
     float m_CurrentTime = 0.0f;
 };

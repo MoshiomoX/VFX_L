@@ -9,20 +9,16 @@
 
 namespace fs = std::filesystem;
 
-// 工具函数：尝试多种路径找到纹理
 std::wstring FindTexturePath(const std::string& directory, const std::string& texPath)
 {
-    // 1. 原始路径（可能是绝对路径）
     if (fs::exists(texPath))
     {
         std::wstring wPath(texPath.begin(), texPath.end());
         return wPath;
     }
 
-    // 2. 从路径中提取文件名
     std::string filename = fs::path(texPath).filename().string();
 
-    // 3. 尝试：目录 + 文件名
     std::string path1 = directory + filename;
     if (fs::exists(path1))
     {
@@ -30,7 +26,6 @@ std::wstring FindTexturePath(const std::string& directory, const std::string& te
         return wPath;
     }
 
-    // 4. 尝试：目录 + textures/ + 文件名
     std::string path2 = directory + "textures/" + filename;
     if (fs::exists(path2))
     {
@@ -38,7 +33,6 @@ std::wstring FindTexturePath(const std::string& directory, const std::string& te
         return wPath;
     }
 
-    // 5. 尝试：目录 + Textures/ + 文件名
     std::string path3 = directory + "Textures/" + filename;
     if (fs::exists(path3))
     {
@@ -46,7 +40,6 @@ std::wstring FindTexturePath(const std::string& directory, const std::string& te
         return wPath;
     }
 
-    // 6. 尝试：Assets/ + 文件名
     std::string path4 = "Assets/" + filename;
     if (fs::exists(path4))
     {
@@ -54,16 +47,10 @@ std::wstring FindTexturePath(const std::string& directory, const std::string& te
         return wPath;
     }
 
-    // 找不到
     std::cout << "[Warning] Texture not found: " << texPath << std::endl;
-    std::cout << "  Tried: " << path1 << std::endl;
-    std::cout << "  Tried: " << path2 << std::endl;
-    std::cout << "  Tried: " << path4 << std::endl;
-
     return L"";
 }
 
-// aiMatrix4x4 → DirectX Matrix
 Matrix ConvertMatrix(const aiMatrix4x4& aiMat)
 {
     return Matrix(
@@ -80,6 +67,7 @@ void ProcessNode(
     ID3D11Device* device,
     std::vector<Model::SubMesh>& subMeshes,
     const Matrix& parentTransform);
+
 bool Model::Load(ID3D11Device* device, const std::string& filepath)
 {
     Assimp::Importer importer;
@@ -97,30 +85,28 @@ bool Model::Load(ID3D11Device* device, const std::string& filepath)
         return false;
     }
 
-    // ディレクトリ取得
     size_t lastSlash = filepath.find_last_of("/\\");
     m_Directory = (lastSlash != std::string::npos) ? filepath.substr(0, lastSlash + 1) : "";
 
-    // モデル名取得（同名テクスチャ用）
     std::string modelName = fs::path(filepath).stem().string();
 
-    // デフォルトShader
-    auto defaultShader = ResourceManager::Get().LoadShader(
-        L"Default",
-        L"Shader/VS.hlsl",
-        L"Shader/PS.hlsl"
-    );
+    // ===== 変更点: VS/PSを個別にロード =====
+    auto defaultVS = ResourceManager::Get().LoadVS(
+        L"Default", L"Shader/VS.hlsl");
+    auto defaultPS = ResourceManager::Get().LoadPS(
+        L"Default", L"Shader/PS.hlsl");
 
-    // マテリアル読み込み
     for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
         aiMaterial* aiMat = scene->mMaterials[i];
         auto material = std::make_shared<Material>();
-        material->SetShader(defaultShader);
+
+        // ===== 変更点: VS/PSを個別にセット =====
+        material->SetVertexShader(defaultVS);
+        material->SetPixelShader(defaultPS);
 
         bool textureLoaded = false;
 
-        // 1. FBXから読み取り
         if (aiMat->GetTextureCount(aiTextureType_DIFFUSE) > 0)
         {
             aiString texPath;
@@ -139,7 +125,6 @@ bool Model::Load(ID3D11Device* device, const std::string& filepath)
             }
         }
 
-        // 2. 同名テクスチャ
         if (!textureLoaded)
         {
             std::vector<std::string> exts = { ".png", ".jpg", ".jpeg", ".tga", ".dds" };
@@ -154,7 +139,6 @@ bool Model::Load(ID3D11Device* device, const std::string& filepath)
                     {
                         material->SetTexture(texture);
                         textureLoaded = true;
-                        std::cout << "[Model] Same-name texture loaded: " << texPath << std::endl;
                         break;
                     }
                 }
@@ -166,7 +150,6 @@ bool Model::Load(ID3D11Device* device, const std::string& filepath)
             std::cout << "[Model] Material " << i << " has no texture" << std::endl;
         }
 
-        // 色
         aiColor4D color;
         if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS)
         {
@@ -176,7 +159,6 @@ bool Model::Load(ID3D11Device* device, const std::string& filepath)
         m_Materials.push_back(material);
     }
 
-    // ノード処理
     ProcessNode(scene->mRootNode, scene, device, m_SubMeshes, Matrix::Identity);
 
     std::cout << "[OK] Model loaded: " << filepath << std::endl;
@@ -193,11 +175,9 @@ void ProcessNode(
     std::vector<Model::SubMesh>& subMeshes,
     const Matrix& parentTransform)
 {
-    // このノードの変換行列
     Matrix nodeTransform = ConvertMatrix(node->mTransformation);
     Matrix globalTransform = nodeTransform * parentTransform;
 
-    // このノードのメッシュを処理
     for (unsigned int i = 0; i < node->mNumMeshes; i++)
     {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
@@ -205,21 +185,17 @@ void ProcessNode(
         std::vector<VERTEX_3D> vertices;
         std::vector<unsigned int> indices;
 
-        // 頂点（変換行列を適用）
         for (unsigned int v = 0; v < mesh->mNumVertices; v++)
         {
             VERTEX_3D vertex = {};
 
-            // 位置に変換行列を適用
             Vector3 pos(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z);
             pos = Vector3::Transform(pos, globalTransform);
-
             vertex.position = pos;
 
             if (mesh->HasNormals())
             {
                 Vector3 normal(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
-                // 法線は回転のみ適用（スケールを無視）
                 normal = Vector3::TransformNormal(normal, globalTransform);
                 normal.Normalize();
                 vertex.normal = normal;
@@ -232,11 +208,9 @@ void ProcessNode(
             }
 
             vertex.color = Vector4(1, 1, 1, 1);
-
             vertices.push_back(vertex);
         }
 
-        // インデックス
         for (unsigned int f = 0; f < mesh->mNumFaces; f++)
         {
             aiFace& face = mesh->mFaces[f];
@@ -246,7 +220,6 @@ void ProcessNode(
             }
         }
 
-        // Mesh作成
         auto meshPtr = std::make_shared<Mesh>();
         if (!meshPtr->Create(device, vertices, indices))
         {
@@ -257,18 +230,15 @@ void ProcessNode(
         Model::SubMesh subMesh;
         subMesh.mesh = meshPtr;
         subMesh.materialIndex = mesh->mMaterialIndex;
-
         subMeshes.push_back(subMesh);
     }
 
-    // 子ノードを再帰処理
     for (unsigned int i = 0; i < node->mNumChildren; i++)
     {
         ProcessNode(node->mChildren[i], scene, device, subMeshes, globalTransform);
     }
 }
 
-// Draw, SetMaterial, GetMaterial は変更なし
 void Model::Draw(Renderer& renderer, Transform* transform)
 {
     for (auto& sub : m_SubMeshes)
