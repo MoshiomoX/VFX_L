@@ -9,25 +9,20 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_Device = device;
     m_Context = context;
 
-    if (!m_DefaultShader.Load(device, L"Shader/VS.hlsl", L"Shader/PS.hlsl"))
+    m_DefaultVS = std::make_shared<VertexShader>();
+    if (FAILED(m_DefaultVS->Compile(device, L"Shader/VS.hlsl")))
     {
-        std::cout << "[Error] Default shader load failed" << std::endl;
+        std::cout << "[Error] Default VS load failed" << std::endl;
         return false;
     }
 
-    if (!m_MVPBuffer.Create(device))
+    m_DefaultPS = std::make_shared<PixelShader>();
+    if (FAILED(m_DefaultPS->Compile(device, L"Shader/PS.hlsl")))
     {
-        std::cout << "[Error] MVP buffer creation failed" << std::endl;
+        std::cout << "[Error] Default PS load failed" << std::endl;
         return false;
     }
 
-    if (!m_LightBuffer.Create(device))
-    {
-        std::cout << "[Error] Light buffer creation failed" << std::endl;
-        return false;
-    }
-
-    // デフォルト光源
     m_LightData.directionalLight.direction = Vector3(0.5f, -1.0f, 0.5f);
     m_LightData.directionalLight.direction.Normalize();
     m_LightData.directionalLight.color = Vector3(1.0f, 1.0f, 1.0f);
@@ -40,6 +35,8 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 
 void Renderer::Shutdown()
 {
+    m_DefaultVS.reset();
+    m_DefaultPS.reset();
     m_Device = nullptr;
     m_Context = nullptr;
     m_Camera = nullptr;
@@ -59,38 +56,49 @@ void Renderer::SetAmbientColor(const Vector3& color)
 }
 
 void Renderer::Begin()
-{
-}
+{}
 
 void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
 {
     if (!mesh || !transform || !m_Camera)
         return;
 
-    if (material && material->GetShader())
+    VertexShader* vs = nullptr;
+    PixelShader* ps = nullptr;
+
+    if (material && material->HasVS())
+        vs = material->GetVS();
+    else
+        vs = m_DefaultVS.get();
+
+    if (material && material->HasPS())
+        ps = material->GetPS();
+    else
+        ps = m_DefaultPS.get();
+
+    if (material)
     {
         material->Bind(m_Context);
     }
     else
     {
-        m_DefaultShader.Bind(m_Context);
+        vs->Bind(m_Context);
+        ps->Bind(m_Context);
     }
 
+    // VS CBuffer (b0): MVP
     MVPBuffer mvp;
     mvp.World = transform->GetWorldMatrix();
     mvp.View = m_Camera->GetViewMatrix();
     mvp.Projection = m_Camera->GetProjectionMatrix();
+    vs->WriteBuffer(m_Context, 0, &mvp);
 
-    m_MVPBuffer.Update(m_Context, mvp);
-    m_MVPBuffer.BindVS(m_Context, 0);
-
+    // PS CBuffer (b0): Light
     m_LightData.cameraPosition = m_Camera->GetPosition();
-    m_LightBuffer.Update(m_Context, m_LightData);
-    m_LightBuffer.BindPS(m_Context, 0);
+    ps->WriteBuffer(m_Context, 0, &m_LightData);
 
     mesh->Draw(m_Context);
 }
 
 void Renderer::End()
-{
-}
+{}

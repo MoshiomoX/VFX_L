@@ -43,9 +43,6 @@
     <Filter Include="Particle">
       <UniqueIdentifier>{a7bf1cf7-0ce7-4517-a514-814a5054ada4}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Particle\TestCpuParricles">
-      <UniqueIdentifier>{d43e2fc1-f01c-41b8-9e58-05c35c9713a1}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Graphics\Shader\HLSL">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
@@ -64,6 +61,9 @@
     </Filter>
     <Filter Include="VFX_Editor">
       <UniqueIdentifier>{c0ca76f9-bcab-46e0-9af4-2d1457849989}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="State">
+      <UniqueIdentifier>{f79dca39-7ee8-46fe-b7f1-f5aa10de2722}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -163,15 +163,6 @@
     <ClCompile Include="GPUParticleEmitter.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
-    <ClCompile Include="CPUParticleSystem.cpp">
-      <Filter>Particle\TestCpuParricles</Filter>
-    </ClCompile>
-    <ClCompile Include="ParticleEmitter.cpp">
-      <Filter>Particle\TestCpuParricles</Filter>
-    </ClCompile>
-    <ClCompile Include="ParticleRenderer.cpp">
-      <Filter>Particle\TestCpuParricles</Filter>
-    </ClCompile>
     <ClCompile Include="ParticleDeadList.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
@@ -199,9 +190,6 @@
     <ClCompile Include="DebugLineRenderer.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
-    <ClCompile Include="ParticleEffect.cpp">
-      <Filter>Particle</Filter>
-    </ClCompile>
     <ClCompile Include="VFXParticleEntry.cpp">
       <Filter>VFX_Editor</Filter>
     </ClCompile>
@@ -210,6 +198,15 @@
     </ClCompile>
     <ClCompile Include="VFXEditor.cpp">
       <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="ComputeShader.cpp">
+      <Filter>Graphics\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="PixelShader.cpp">
+      <Filter>Graphics\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="VertexShader.cpp">
+      <Filter>Graphics\Shader</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -336,18 +333,6 @@
     <ClInclude Include="GPUParticleEmitter.h">
       <Filter>Particle</Filter>
     </ClInclude>
-    <ClInclude Include="CPUParticleSystem.h">
-      <Filter>Particle\TestCpuParricles</Filter>
-    </ClInclude>
-    <ClInclude Include="Particle.h">
-      <Filter>Particle\TestCpuParricles</Filter>
-    </ClInclude>
-    <ClInclude Include="ParticleEmitter.h">
-      <Filter>Particle\TestCpuParricles</Filter>
-    </ClInclude>
-    <ClInclude Include="ParticleRenderer.h">
-      <Filter>Particle\TestCpuParricles</Filter>
-    </ClInclude>
     <ClInclude Include="ParticleDeadList.h">
       <Filter>Particle</Filter>
     </ClInclude>
@@ -375,9 +360,6 @@
     <ClInclude Include="DebugLineRenderer.h">
       <Filter>Debug</Filter>
     </ClInclude>
-    <ClInclude Include="ParticleEffect.h">
-      <Filter>Particle</Filter>
-    </ClInclude>
     <ClInclude Include="EntryType.h">
       <Filter>VFX_Editor</Filter>
     </ClInclude>
@@ -392,6 +374,18 @@
     </ClInclude>
     <ClInclude Include="VFXEditor.h">
       <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="ComputeShader.h">
+      <Filter>Graphics\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="PixelShader.h">
+      <Filter>Graphics\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexShader.h">
+      <Filter>Graphics\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="StateMachine.h">
+      <Filter>State</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

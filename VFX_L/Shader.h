@@ -1,39 +1,81 @@
 #pragma once
 #include <d3d11.h>
-#include <wrl/client.h>
-#include <string>
 #include <d3dcompiler.h>
-
+#include <wrl/client.h>
+#include <vector>
+#include <string>
 
 #pragma comment(lib, "d3dcompiler.lib")
 
 using Microsoft::WRL::ComPtr;
 
+class Texture;
 
+// ============================================
+// シェーダー基底クラス
+// ReflectionによるCBuffer自動作成・テクスチャスロット管理
+// 子クラス: VertexShader / PixelShader / ComputeShader
+// ============================================
 class Shader
 {
 public:
-    bool Load(ID3D11Device* device, const std::wstring& vsPath, const std::wstring& psPath);
-    bool LoadParticle(ID3D11Device* device, const std::wstring& vsPath, const std::wstring& psPath);
-   
-    // CS対応追加
-    bool LoadCS(ID3D11Device* device, const std::wstring& csPath, const std::string& entry = "main");
-    void BindCS(ID3D11DeviceContext* context);
-    void UnbindCS(ID3D11DeviceContext* context);
+    // シェーダー種別
+    enum Kind
+    {
+        Vertex,
+        Pixel,
+        Compute,
+    };
 
-    void Bind(ID3D11DeviceContext* context);
+protected:
+    Shader(Kind kind);
 
-    bool HasCS() const { return m_ComputeShader != nullptr; }
+public:
+    virtual ~Shader();
+
+    // .csoファイルから読み込み（プリコンパイル済みバイナリ）
+    HRESULT Load(ID3D11Device* device, const char* pFileName);
+
+    // .hlslファイルからコンパイル（ランタイム）
+    HRESULT Compile(ID3D11Device* device,
+                    const std::wstring& path,
+                    const std::string& entry = "main");
+
+    // 定数バッファへデータ書き込み（スロット指定）
+    void WriteBuffer(ID3D11DeviceContext* context, UINT slot, void* pData);
+
+    // テクスチャ設定
+    void SetTexture(ID3D11DeviceContext* context, UINT slot, Texture* tex);
+
+    // シェーダーをパイプラインにバインド（子クラスで実装）
+    virtual void Bind(ID3D11DeviceContext* context) = 0;
+
+    // シェーダーのバインド解除（子クラスで実装）
+    virtual void Unbind(ID3D11DeviceContext* context) = 0;
+
+    // 有効チェック
+    bool IsValid() const { return m_IsValid; }
+
+    // 種別取得
+    Kind GetKind() const { return m_Kind; }
 
 private:
-    bool CompileShader(const std::wstring& path, const char* entry, const char* target, ID3DBlob** blob);
-    bool CreateDefaultLayout(ID3D11Device* device, ID3DBlob* vsBlob);
-    bool CreateParticleLayout(ID3D11Device* device, ID3DBlob* vsBlob);
+    // Reflection処理：CBuffer自動作成 + テクスチャスロット確保 + MakeShader呼出
+    HRESULT Make(ID3D11Device* device, void* pData, UINT size);
 
-private:
-    ComPtr<ID3D11VertexShader> m_VertexShader;
-    ComPtr<ID3D11PixelShader> m_PixelShader;
-    ComPtr<ID3D11InputLayout> m_InputLayout;
-    ComPtr<ID3D11ComputeShader> m_ComputeShader;
+protected:
+    // 子クラスがシェーダーオブジェクトを作成する
+    virtual HRESULT MakeShader(ID3D11Device* device,
+                               void* pData, UINT size) = 0;
 
+protected:
+    Kind m_Kind;
+    bool m_IsValid = false;
+
+    // Reflectionで自動作成されたCBuffer配列
+    std::vector<ComPtr<ID3D11Buffer>> m_Buffers;
+
+    // テクスチャスロット配列
+    std::vector<ID3D11ShaderResourceView*> m_Textures;
+    std::vector<ComPtr<ID3D11Buffer>>    m_ConstantBuffers;   // 推荐使用这个
 };

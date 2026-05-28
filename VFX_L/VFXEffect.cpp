@@ -57,15 +57,13 @@ void VFXEffect::Play(const VFXContext& ctx)
 {
     m_CurrentTime = 0.0f;
     m_IsPlaying = true;
+    m_StopRequested = false;
 
     for (auto& entry : m_Entries)
     {
         entry->isPlaying = false;
     }
-
-   // std::cout << "[VFXEffect] Play: " << m_Name << std::endl;
 }
-
 void VFXEffect::Stop(const VFXContext& ctx)
 {
     for (auto& entry : m_Entries)
@@ -94,7 +92,8 @@ void VFXEffect::Update(float dt, const VFXContext& ctx)
 
         if (!entry->isPlaying && m_CurrentTime >= entry->startTime && m_CurrentTime < endTime)
         {
-            entry->OnPlay(ctx);
+            if (!m_Finishing)  // 終了中は新規Playしない
+                entry->OnPlay(ctx);
         }
 
         if (entry->isPlaying && m_CurrentTime < endTime)
@@ -104,39 +103,37 @@ void VFXEffect::Update(float dt, const VFXContext& ctx)
 
         if (entry->isPlaying && m_CurrentTime >= endTime)
         {
-            if (!m_Loop)
-            {
-                entry->OnStop(ctx);
-            }
+            entry->OnStop(ctx);
         }
     }
 
-    // Emitterデータ収集
+    // Emitterデータ収集（終了中は空のemittersを渡す → 発射0、Updateだけ走る）
     std::vector<GPUEmitter> emitters;
     std::vector<ColorKey> colorKeys;
     int colorKeyOffset = 0;
 
-    for (auto& entry : m_Entries)
+    if (!m_Finishing)
     {
-        if (entry->GetType() == EntryType::Particle && entry->isPlaying)
+        for (auto& entry : m_Entries)
         {
-            auto* pEntry = static_cast<VFXParticleEntry*>(entry.get());
-            pEntry->emitterData.Update(dt);
-
-            GPUEmitter ge = pEntry->emitterData.ToGPU();
-            ge.colorKeyOffset = colorKeyOffset;
-            emitters.push_back(ge);
-
-            // ColorKey収集
-            for (int k = 0; k < pEntry->emitterData.colorKeyCount; k++)
+            if (entry->GetType() == EntryType::Particle && entry->isPlaying)
             {
-                colorKeys.push_back(pEntry->emitterData.colorKeys[k]);
+                auto* pEntry = static_cast<VFXParticleEntry*>(entry.get());
+                pEntry->emitterData.Update(dt);
+                GPUEmitter ge = pEntry->emitterData.ToGPU();
+                ge.colorKeyOffset = colorKeyOffset;
+                emitters.push_back(ge);
+
+                for (int k = 0; k < pEntry->emitterData.colorKeyCount; k++)
+                {
+                    colorKeys.push_back(pEntry->emitterData.colorKeys[k]);
+                }
+                colorKeyOffset += pEntry->emitterData.colorKeyCount;
             }
-            colorKeyOffset += pEntry->emitterData.colorKeyCount;
         }
     }
 
-    // Systemに渡す
+    // Systemに渡す（m_Finishing中も呼ぶ → UpdateCSが走り粒子が自然消滅する）
     if (ctx.particleSystem)
     {
         ctx.particleSystem->Update(dt, m_CurrentTime, emitters, colorKeys);
@@ -156,9 +153,24 @@ void VFXEffect::Update(float dt, const VFXContext& ctx)
 
     if (allDone)
     {
-        if (m_Loop)
+        if (m_Loop && !m_Finishing)
         {
             m_CurrentTime = 0.0f;
+            for (auto& entry : m_Entries)
+            {
+                entry->isPlaying = false;
+            }
+        }
+        else if (m_Finishing)
+        {
+            // 全粒子が消滅したか確認
+            if (ctx.particleSystem && ctx.particleSystem->GetAliveCount() == 0)
+            {
+                Stop(ctx);
+                m_Finishing = false;
+                m_StopRequested = false;
+            }
+            // まだ生きてる粒子がある → UpdateCSだけ回し続ける
         }
         else
         {
@@ -267,4 +279,14 @@ bool VFXEffect::LoadFromFile(const std::string& filepath)
 
     std::cout << "[OK] Loaded: " << filepath << std::endl;
     return true;
+}
+
+void VFXEffect::SetLooping(bool loop)
+{
+    if (m_Loop && !loop)
+    {
+        // Loop中にOFFにした場合
+        m_Finishing = true;
+    }
+    m_Loop = loop;
 }

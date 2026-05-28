@@ -1,19 +1,24 @@
 #include "Material.h"
-#include <iostream>
+#include "VertexShader.h"
+#include "PixelShader.h"
+#include "Texture.h"
+
 void Material::Bind(ID3D11DeviceContext* context)
 {
-    if (!context)
-        return;
+    if (!context) return;
 
-    if (m_Shader)
+    if (m_VS)
     {
-        m_Shader->Bind(context);
+        m_VS->Bind(context);
     }
 
-
-    if (m_Texture)
+    if (m_PS)
     {
-        m_Texture->Bind(context, 0);
+        m_PS->Bind(context);
     }
 
+    if (m_PS && m_Texture)
+    {
+        m_PS->SetTexture(context, 0, m_Texture.get());
+    }
 }

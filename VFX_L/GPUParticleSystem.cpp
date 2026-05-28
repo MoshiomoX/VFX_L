@@ -5,9 +5,6 @@
 
 #pragma comment(lib, "d3dcompiler.lib")
 
-// ============================================
-// 初期化
-// ============================================
 bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* context, uint32_t maxParticles)
 {
     m_Device = device;
@@ -17,8 +14,7 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!CreateParticleBuffer(device))   return false;
     if (!CreateEmitterBuffer(device))    return false;
     if (!m_DeadList.Initialize(device, maxParticles)) return false;
-    if (!LoadComputeShaders(device))     return false;
-    if (!CreateConstantBuffers(device))  return false;
+    if (!LoadShaders(device))            return false;
     if (!CreateRenderStates(device))     return false;
     if (!CreateColorKeyBuffer(device))   return false;
 
@@ -26,24 +22,21 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     DeadListCB dlcb = {};
     dlcb.deadCount = 0;
     dlcb.maxParticles = maxParticles;
-    m_DeadListCB.Update(context, dlcb);
-    m_DeadListCB.BindCS(context, 0);
 
-    m_DeadList.BindCSUAV(context, 0, 0);
-    m_InitDeadListCS.BindCS(context);
+    m_InitDeadListCS->WriteBuffer(context, 0, &dlcb);
+    m_InitDeadListCS->Bind(context);
+    m_DeadList.BindCSUAV(context, 0, 0);  // Bindの後
+
     context->Dispatch((maxParticles + 255) / 256, 1, 1);
 
     m_DeadList.UnbindCSUAV(context, 0);
-    m_InitDeadListCS.UnbindCS(context);
+    m_InitDeadListCS->Unbind(context);
 
     m_CurrentDeadCount = m_DeadList.ReadDeadCount(context);
 
     return true;
 }
 
-// ============================================
-// 粒子バッファ作成
-// ============================================
 bool GPUParticleSystem::CreateParticleBuffer(ID3D11Device* device)
 {
     D3D11_BUFFER_DESC desc = {};
@@ -77,9 +70,6 @@ bool GPUParticleSystem::CreateParticleBuffer(ID3D11Device* device)
     return true;
 }
 
-// ============================================
-// ColorKeyバッファ作成
-// ============================================
 bool GPUParticleSystem::CreateColorKeyBuffer(ID3D11Device* device)
 {
     D3D11_BUFFER_DESC desc = {};
@@ -105,9 +95,6 @@ bool GPUParticleSystem::CreateColorKeyBuffer(ID3D11Device* device)
     return true;
 }
 
-// ============================================
-// 発射器バッファ作成
-// ============================================
 bool GPUParticleSystem::CreateEmitterBuffer(ID3D11Device* device)
 {
     D3D11_BUFFER_DESC desc = {};
@@ -133,40 +120,36 @@ bool GPUParticleSystem::CreateEmitterBuffer(ID3D11Device* device)
     return true;
 }
 
-// ============================================
-// CSロード
-// ============================================
-bool GPUParticleSystem::LoadComputeShaders(ID3D11Device* device)
+bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
 {
-    if (!m_InitDeadListCS.LoadCS(device, L"Shader/Particle/InitDeadListCS.hlsl"))
-        return false;
+    m_InitDeadListCS = std::make_shared<ComputeShader>();
+    HRESULT hr = m_InitDeadListCS->Compile(device, L"Shader/Particle/InitDeadListCS.hlsl");
+    std::cout << "[LoadShaders] InitDeadListCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << " hr=0x" << std::hex << hr << std::dec << std::endl;
+    if (FAILED(hr)) return false;
 
-    if (!m_EmitCS.LoadCS(device, L"Shader/Particle/ParticleEmitCS.hlsl"))
-        return false;
+    m_EmitCS = std::make_shared<ComputeShader>();
+    hr = m_EmitCS->Compile(device, L"Shader/Particle/ParticleEmitCS.hlsl");
+    std::cout << "[LoadShaders] EmitCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) return false;
 
-    if (!m_UpdateCS.LoadCS(device, L"Shader/Particle/ParticleUpdateCS.hlsl"))
-        return false;
+    m_UpdateCS = std::make_shared<ComputeShader>();
+    hr = m_UpdateCS->Compile(device, L"Shader/Particle/ParticleUpdateCS.hlsl");
+    std::cout << "[LoadShaders] UpdateCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) return false;
 
-    if (!m_RenderShader.LoadParticle(device, L"Shader/Particle/GPUParticleVS.hlsl", L"Shader/Particle/GPUParticlePS.hlsl"))
-        return false;
+    m_RenderVS = std::make_shared<VertexShader>();
+    hr = m_RenderVS->Compile(device, L"Shader/Particle/GPUParticleVS.hlsl");
+    std::cout << "[LoadShaders] RenderVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << " hr=0x" << std::hex << hr << std::dec << std::endl;
+    if (FAILED(hr)) return false;
+
+    m_RenderPS = std::make_shared<PixelShader>();
+    hr = m_RenderPS->Compile(device, L"Shader/Particle/GPUParticlePS.hlsl");
+    std::cout << "[LoadShaders] RenderPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) return false;
 
     return true;
 }
 
-// ============================================
-// 定数バッファ作成
-// ============================================
-bool GPUParticleSystem::CreateConstantBuffers(ID3D11Device* device)
-{
-    if (!m_GlobalCB.Create(device))   return false;
-    if (!m_DeadListCB.Create(device)) return false;
-    if (!m_RenderCB.Create(device))   return false;
-    return true;
-}
-
-// ============================================
-// レンダーステート作成
-// ============================================
 bool GPUParticleSystem::CreateRenderStates(ID3D11Device* device)
 {
     D3D11_BLEND_DESC blendDesc = {};
@@ -209,112 +192,109 @@ bool GPUParticleSystem::CreateRenderStates(ID3D11Device* device)
     return true;
 }
 
-// ============================================
-// 毎フレーム更新（外部からデータを受け取る）
-// ============================================
 void GPUParticleSystem::Update(float deltaTime, float totalTime,
     const std::vector<GPUEmitter>& emitters,
     const std::vector<ColorKey>& colorKeys)
 {
     auto context = m_Context;
 
-    // Dead Listのカウントを読み取り
     m_CurrentDeadCount = m_DeadList.ReadDeadCount(context);
 
-    // GlobalCB更新
-    GlobalCB gcb = {};
-    gcb.deltaTime = deltaTime;
-    gcb.totalTime = totalTime;
-    gcb.baseSeed = static_cast<uint32_t>(totalTime * 1000.0f);
-    gcb.emitterCount = static_cast<int>(emitters.size());
-    m_GlobalCB.Update(context, gcb);
+    m_CachedGlobalCB = {};
+    m_CachedGlobalCB.deltaTime = deltaTime;
+    m_CachedGlobalCB.totalTime = totalTime;
+    m_CachedGlobalCB.baseSeed = static_cast<uint32_t>(totalTime * 1000.0f);
+    m_CachedGlobalCB.emitterCount = static_cast<int>(emitters.size());
 
-    // DeadListCB更新
-    DeadListCB dlcb = {};
-    dlcb.deadCount = m_CurrentDeadCount;
-    dlcb.maxParticles = m_MaxParticles;
-    m_DeadListCB.Update(context, dlcb);
-
-    // 外部データをアップロード
-    UploadEmitters(context, emitters);
-    UploadColorKeys(context, colorKeys);
-
-    // CS dispatch
-    DispatchEmit(context, emitters);
-    DispatchUpdate(context);
-}
-
-// ============================================
-// 発射器データのアップロード
-// ============================================
-void GPUParticleSystem::UploadEmitters(ID3D11DeviceContext* context,
-    const std::vector<GPUEmitter>& emitters)
-{
-    if (emitters.empty()) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    HRESULT hr = context->Map(m_EmitterBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    if (FAILED(hr)) return;
-
-    memcpy(mapped.pData, emitters.data(), sizeof(GPUEmitter) * emitters.size());
-    context->Unmap(m_EmitterBuffer.Get(), 0);
-}
-
-// ============================================
-// ColorKeyデータのアップロード
-// ============================================
-void GPUParticleSystem::UploadColorKeys(ID3D11DeviceContext* context,
-    const std::vector<ColorKey>& colorKeys)
-{
-    if (colorKeys.empty()) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    HRESULT hr = context->Map(m_ColorKeyBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    if (FAILED(hr)) return;
-
-    memcpy(mapped.pData, colorKeys.data(), sizeof(ColorKey) * colorKeys.size());
-    context->Unmap(m_ColorKeyBuffer.Get(), 0);
-}
-
-// ============================================
-// Emit dispatch
-// ============================================
-void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context,
-    const std::vector<GPUEmitter>& emitters)
-{
-    if (m_CurrentDeadCount == 0) return;
-    if (emitters.empty()) return;
-
-    // CBバインド
-    m_GlobalCB.BindCS(context, 0);
-    m_DeadListCB.BindCS(context, 1);
-
-    // SRV: 発射器データ
-    context->CSSetShaderResources(0, 1, m_EmitterSRV.GetAddressOf());
-
-    // UAV: 粒子バッファ(u0) + Dead List(u1)
-    ID3D11UnorderedAccessView* uavs[2] = { m_ParticleUAV.Get(), m_DeadList.GetUAV() };
-    UINT initialCounts[2] = { (UINT)-1, m_CurrentDeadCount };
-    context->CSSetUnorderedAccessViews(0, 2, uavs, initialCounts);
-
-    // dispatch
-    m_EmitCS.BindCS(context);
-
-    // 全発射器の合計発射数を計算
+    // 外部emitterから合計発射数を計算してキャッシュ
     uint32_t totalEmit = 0;
     for (auto& e : emitters)
     {
         if (e.isActive > 0.5f)
             totalEmit += e.emitCount;
     }
-    totalEmit = min(totalEmit, m_CurrentDeadCount);
 
-    if (totalEmit > 0)
+
+    UploadExternalEmitters(context, emitters, colorKeys);
+    DispatchEmit(context,totalEmit);
+    DispatchUpdate(context);
+}
+void GPUParticleSystem::UploadEmitters(ID3D11DeviceContext* context)
+{
+    if (m_Emitters.empty()) return;
+
+    int colorOffset = 0;
+    for (size_t i = 0; i < m_Emitters.size(); ++i)
     {
-        context->Dispatch((totalEmit + 255) / 256, 1, 1);
+        m_Emitters[i]->SetColorKeyOffset(colorOffset);
+        colorOffset += m_Emitters[i]->colorKeyCount;
     }
 
-    // 解除
+    // Emitterアップロード（溢れチェック付き）
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    HRESULT hr = context->Map(m_EmitterBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    if (FAILED(hr)) return;
+
+    size_t emitterCount = (std::min)(m_Emitters.size(), static_cast<size_t>(MAX_EMITTERS));
+
+    std::vector<GPUEmitter> emitterData(emitterCount);
+    for (size_t i = 0; i < emitterCount; ++i)
+    {
+        emitterData[i] = m_Emitters[i]->ToGPU();
+    }
+
+    memcpy(mapped.pData, emitterData.data(), sizeof(GPUEmitter) * emitterCount);
+    context->Unmap(m_EmitterBuffer.Get(), 0);
+
+    // ColorKeyアップロード（溢れチェック付き）
+    std::vector<ColorKey> allColorKeys;
+    for (size_t i = 0; i < emitterCount; ++i)
+    {
+        for (int k = 0; k < m_Emitters[i]->colorKeyCount; ++k)
+        {
+            allColorKeys.push_back(m_Emitters[i]->colorKeys[k]);
+        }
+    }
+
+    if (!allColorKeys.empty())
+    {
+        size_t keyCount = (std::min)(allColorKeys.size(), static_cast<size_t>(MAX_COLOR_KEYS_TOTAL));
+
+        D3D11_MAPPED_SUBRESOURCE colorMapped = {};
+        hr = context->Map(m_ColorKeyBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &colorMapped);
+        if (SUCCEEDED(hr))
+        {
+            memcpy(colorMapped.pData, allColorKeys.data(), sizeof(ColorKey) * keyCount);
+            context->Unmap(m_ColorKeyBuffer.Get(), 0);
+        }
+    }
+}
+
+void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t totalEmit)
+{
+
+    if (m_CurrentDeadCount == 0) return;
+
+    totalEmit = (std::min)(totalEmit, m_CurrentDeadCount);
+    if (totalEmit == 0) return;
+
+    DeadListCB dlcb = {};
+    dlcb.deadCount = m_CurrentDeadCount;
+    dlcb.maxParticles = m_MaxParticles;
+
+    m_EmitCS->WriteBuffer(context, 0, &m_CachedGlobalCB);
+    m_EmitCS->WriteBuffer(context, 1, &dlcb);
+
+    m_EmitCS->Bind(context);
+
+    context->CSSetShaderResources(0, 1, m_EmitterSRV.GetAddressOf());
+
+    ID3D11UnorderedAccessView* uavs[2] = { m_ParticleUAV.Get(), m_DeadList.GetUAV() };
+    UINT initialCounts[2] = { (UINT)-1, m_CurrentDeadCount };
+    context->CSSetUnorderedAccessViews(0, 2, uavs, initialCounts);
+
+    context->Dispatch((totalEmit + 255) / 256, 1, 1);
+
     ID3D11UnorderedAccessView* nullUAVs[2] = { nullptr, nullptr };
     UINT zeros[2] = { 0, 0 };
     context->CSSetUnorderedAccessViews(0, 2, nullUAVs, zeros);
@@ -322,25 +302,29 @@ void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context,
     ID3D11ShaderResourceView* nullSRV = nullptr;
     context->CSSetShaderResources(0, 1, &nullSRV);
 }
-
-// ============================================
-// Update dispatch
-// ============================================
 void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
 {
-    m_GlobalCB.BindCS(context, 0);
+    // b0: GlobalCB
+    m_UpdateCS->WriteBuffer(context, 0, &m_CachedGlobalCB);
 
-    // ColorKey SRVをt0にバインド
+    // b1: DeadListCB（g_MaxParticlesが必要）
+    DeadListCB dlcb = {};
+    dlcb.deadCount = m_CurrentDeadCount;
+    dlcb.maxParticles = m_MaxParticles;
+    m_UpdateCS->WriteBuffer(context, 1, &dlcb);
+    
+    // 先にBind
+    m_UpdateCS->Bind(context);
+
+    // Bindの後にSRVとUAV
     context->CSSetShaderResources(0, 1, m_ColorKeySRV.GetAddressOf());
 
     ID3D11UnorderedAccessView* uavs[2] = { m_ParticleUAV.Get(), m_DeadList.GetUAV() };
     UINT initialCounts[2] = { (UINT)-1, (UINT)-1 };
     context->CSSetUnorderedAccessViews(0, 2, uavs, initialCounts);
 
-    m_UpdateCS.BindCS(context);
     context->Dispatch((m_MaxParticles + 255) / 256, 1, 1);
 
-    // 解除
     ID3D11UnorderedAccessView* nullUAVs[2] = { nullptr, nullptr };
     UINT zeros[2] = { 0, 0 };
     context->CSSetUnorderedAccessViews(0, 2, nullUAVs, zeros);
@@ -348,66 +332,88 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     ID3D11ShaderResourceView* nullSRV = nullptr;
     context->CSSetShaderResources(0, 1, &nullSRV);
 }
+void GPUParticleSystem::UploadExternalEmitters(ID3D11DeviceContext* context,
+    const std::vector<GPUEmitter>& emitters,
+    const std::vector<ColorKey>& colorKeys)
+{
+    if (emitters.empty()) return;
 
-// ============================================
-// レンダリング
-// ============================================
+    // Emitterアップロード
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    HRESULT hr = context->Map(m_EmitterBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    if (FAILED(hr)) return;
+
+    size_t count = (std::min)(emitters.size(), static_cast<size_t>(MAX_EMITTERS));
+    memcpy(mapped.pData, emitters.data(), sizeof(GPUEmitter) * count);
+    context->Unmap(m_EmitterBuffer.Get(), 0);
+
+    // ColorKeyアップロード
+    if (!colorKeys.empty())
+    {
+        size_t keyCount = (std::min)(colorKeys.size(), static_cast<size_t>(MAX_COLOR_KEYS_TOTAL));
+        D3D11_MAPPED_SUBRESOURCE colorMapped = {};
+        hr = context->Map(m_ColorKeyBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &colorMapped);
+        if (SUCCEEDED(hr))
+        {
+            memcpy(colorMapped.pData, colorKeys.data(), sizeof(ColorKey) * keyCount);
+            context->Unmap(m_ColorKeyBuffer.Get(), 0);
+        }
+    }
+}
 void GPUParticleSystem::Render()
 {
     if (!m_Camera) return;
-
+    if (!m_RenderVS || !m_RenderVS->IsValid())
+    {
+        std::cout << "[Error] RenderVS invalid" << std::endl;
+        return;
+    }
+    if (!m_RenderPS || !m_RenderPS->IsValid())
+    {
+        std::cout << "[Error] RenderPS invalid" << std::endl;
+        return;
+    }
     auto context = m_Context;
 
-    // RenderCB更新
     ParticleRenderCB rcb = {};
     rcb.view = m_Camera->GetViewMatrix().Transpose();
     rcb.projection = m_Camera->GetProjectionMatrix().Transpose();
     rcb.cameraPosition = m_Camera->GetPosition();
-    m_RenderCB.Update(context, rcb);
-    m_RenderCB.BindVS(context, 0);
 
-    // 粒子バッファをVS SRVとしてバインド
+    m_RenderVS->WriteBuffer(context, 0, &rcb);
+
     context->VSSetShaderResources(0, 1, m_ParticleSRV.GetAddressOf());
 
-    // テクスチャ
     if (m_Texture)
     {
-        m_Texture->Bind(context, 0);
+        m_RenderPS->SetTexture(context, 0, m_Texture.get());
     }
 
     context->PSSetSamplers(0, 1, m_SamplerState.GetAddressOf());
 
-    // レンダーステート設定
     float blendFactor[4] = { 0, 0, 0, 0 };
     context->OMSetBlendState(m_BlendState.Get(), blendFactor, 0xFFFFFFFF);
     context->OMSetDepthStencilState(m_DepthStencilState.Get(), 0);
     context->RSSetState(m_RasterizerState.Get());
 
-    // シェーダーバインド
-    m_RenderShader.Bind(context);
+    m_RenderVS->Bind(context);
+    m_RenderPS->Bind(context);
 
-    // 頂点バッファなし、SV_VertexIDでビルボード生成
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     context->IASetInputLayout(nullptr);
     context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
 
-    // 1粒子 = 6頂点（quad）、全粒子分draw
     context->Draw(m_MaxParticles * 6, 0);
 
-    // レンダーステート復元
     context->OMSetBlendState(nullptr, blendFactor, 0xFFFFFFFF);
     context->OMSetDepthStencilState(nullptr, 0);
     context->RSSetState(nullptr);
 
-    // SRV解除
     ID3D11ShaderResourceView* nullSRV = nullptr;
     context->VSSetShaderResources(0, 1, &nullSRV);
 }
 
-// ============================================
-// システムリセット
-// ============================================
-void GPUParticleSystem::ResetSystem()
+void GPUParticleSystem::ResetSystem ()
 {
     std::vector<GPUParticle> emptyParticles(m_MaxParticles, GPUParticle{});
     m_Context->UpdateSubresource(m_ParticleBuffer.Get(), 0, nullptr, emptyParticles.data(), 0, 0);
@@ -415,15 +421,15 @@ void GPUParticleSystem::ResetSystem()
     DeadListCB dlcb = {};
     dlcb.deadCount = 0;
     dlcb.maxParticles = m_MaxParticles;
-    m_DeadListCB.Update(m_Context, dlcb);
-    m_DeadListCB.BindCS(m_Context, 0);
+
+    m_InitDeadListCS->WriteBuffer(m_Context, 0, &dlcb);
+    m_InitDeadListCS->Bind(m_Context);
 
     m_DeadList.BindCSUAV(m_Context, 0, 0);
-    m_InitDeadListCS.BindCS(m_Context);
     m_Context->Dispatch((m_MaxParticles + 255) / 256, 1, 1);
 
     m_DeadList.UnbindCSUAV(m_Context, 0);
-    m_InitDeadListCS.UnbindCS(m_Context);
+    m_InitDeadListCS->Unbind(m_Context);
 
     m_CurrentDeadCount = m_DeadList.ReadDeadCount(m_Context);
 }

@@ -1,12 +1,13 @@
 #pragma once
 #include <d3d11.h>
 #include <wrl/client.h>
-#include "ConstantBuffer.h"
+#include <SimpleMath.h>
 #include "CameraBase.h"
 #include "Mesh.h"
 #include "Transform.h"
 #include "Material.h"
-#include "Shader.h"
+#include "VertexShader.h"
+#include "PixelShader.h"
 #include "LightTypes.h"
 
 using Microsoft::WRL::ComPtr;
@@ -41,10 +42,9 @@ private:
     ID3D11Device* m_Device = nullptr;
     ID3D11DeviceContext* m_Context = nullptr;
 
-    Shader m_DefaultShader;
-    ConstantBuffer<MVPBuffer> m_MVPBuffer;
-    ConstantBuffer<LightBuffer> m_LightBuffer;
-    CameraBase* m_Camera = nullptr;
+    std::shared_ptr<VertexShader> m_DefaultVS;
+    std::shared_ptr<PixelShader> m_DefaultPS;
 
+    CameraBase* m_Camera = nullptr;
     LightBuffer m_LightData;
 };
