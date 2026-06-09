@@ -14,7 +14,7 @@ bool DebugManager::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceConte
     m_Timer = timer;
     m_Renderer = renderer;
     m_Renderer->SetCamera(&m_DebugCamera);
-    m_DebugCamera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 1000.0f);
+    m_DebugCamera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 10000.0f);
     m_DebugCamera.LookAt({ 0.0f, 5.0f, -15.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
 
     m_ImguiRenderer = std::make_unique<ImguiRenderer>();

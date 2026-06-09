@@ -10,9 +10,6 @@
     <Filter Include="Component">
       <UniqueIdentifier>{9ae45ef9-0896-448f-987a-bc8b3d600ef7}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Object">
-      <UniqueIdentifier>{6f98e7a6-a191-43f0-83f1-3b92970fe2d2}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Scene">
       <UniqueIdentifier>{27bfe7fb-ef44-486a-a4ef-1c6e851509e8}</UniqueIdentifier>
     </Filter>
@@ -64,6 +61,12 @@
     </Filter>
     <Filter Include="State">
       <UniqueIdentifier>{f79dca39-7ee8-46fe-b7f1-f5aa10de2722}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Object">
+      <UniqueIdentifier>{6f98e7a6-a191-43f0-83f1-3b92970fe2d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ECS">
+      <UniqueIdentifier>{c2088c0f-c5fc-4338-9d8e-73a9200181a9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -207,6 +210,21 @@
     </ClCompile>
     <ClCompile Include="VertexShader.cpp">
       <Filter>Graphics\Shader</Filter>
+    </ClCompile>
+    <ClCompile Include="VFXStates.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="ECSComponents.cpp">
+      <Filter>State</Filter>
+    </ClCompile>
+    <ClCompile Include="CounterStates.cpp">
+      <Filter>State</Filter>
+    </ClCompile>
+    <ClCompile Include="StateMachineSystem.cpp">
+      <Filter>State</Filter>
+    </ClCompile>
+    <ClCompile Include="Skybox.cpp">
+      <Filter>Graphics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -387,6 +405,34 @@
     <ClInclude Include="StateMachine.h">
       <Filter>State</Filter>
     </ClInclude>
+    <ClInclude Include="VFXStates.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Entity.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="SparseSet.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Registry.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="View.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="ECSComponents.h">
+      <Filter>State</Filter>
+    </ClInclude>
+    <ClInclude Include="CounterStates.h">
+      <Filter>State</Filter>
+    </ClInclude>
+    <ClInclude Include="StateMachineSystem.h">
+      <Filter>State</Filter>
+    </ClInclude>
+    <ClInclude Include="ResourcePaths.h" />
+    <ClInclude Include="Skybox.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\PS.hlsl">
@@ -415,6 +461,18 @@
     </FxCompile>
     <FxCompile Include="Shader\Particle\GPUParticleVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PBR_PS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PBR_VS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\SkyPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\SkyVS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

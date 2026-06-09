@@ -45,12 +45,12 @@ void VFXEditor::DrawPlaybackControls()
     if (m_Effect->IsPlaying())
     {
         if (ImGui::Button("Stop"))
-            m_Effect->Stop(m_Context);
+            m_Effect->Stop();
     }
     else
     {
         if (ImGui::Button("Play"))
-            m_Effect->Play(m_Context);
+            m_Effect->Play();
     }
 
     ImGui::SameLine();
@@ -375,7 +375,7 @@ void VFXEditor::DrawMenuBar()
                 if (ImGui::Selectable(fd.cFileName))
                 {
                     std::string path = "Assets/Data/VFXData/" + std::string(fd.cFileName);
-                    m_Effect->Stop(m_Context);
+                    m_Effect->Stop();
                     m_Effect->LoadFromFile(path);
                     ImGui::CloseCurrentPopup();
                 }
