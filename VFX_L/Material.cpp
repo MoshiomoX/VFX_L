@@ -7,18 +7,12 @@ void Material::Bind(ID3D11DeviceContext* context)
 {
     if (!context) return;
 
-    if (m_VS)
-    {
-        m_VS->Bind(context);
-    }
+    if (m_VS) m_VS->Bind(context);
+    if (m_PS) m_PS->Bind(context);
 
     if (m_PS)
     {
-        m_PS->Bind(context);
-    }
-
-    if (m_PS && m_Texture)
-    {
-        m_PS->SetTexture(context, 0, m_Texture.get());
+        for (int slot = 0; slot < SlotCount; ++slot)
+            m_PS->SetTexture(context, slot, m_Textures[slot].get());
     }
 }

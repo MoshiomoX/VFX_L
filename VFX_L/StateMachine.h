@@ -12,6 +12,9 @@
 //       onUpdate       … 子が遷移要求しなかった時だけ実行（遷移判断の兜底）
 // ============================================================
 #pragma once
+#ifndef NOMINMAX
+#define NOMINMAX  // Windows.h の min/max マクロを無効化
+#endif
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -31,7 +34,7 @@ public:
     // ------------------------------------------------------------
     struct Behavior
     {
-        StateID parent;                                                         // 親状態（ROOT で最上位）
+        StateID parent;                                 // 親状態（ROOT で最上位）
         void (*onEnter)(TContext&, TOwner&) = nullptr;  // 状態突入時
         void (*onUpdateAlways)(TContext&, TOwner&, float) = nullptr;  // 毎フレーム実行（常時処理）
         std::optional<StateID>(*onUpdate)(TContext&, TOwner&, float) = nullptr;  // 委譲時のみ実行（遷移判断）
@@ -208,7 +211,7 @@ private:
         auto toPath = GetPathFromRoot(next);  // [最上位 ... next]
 
         // --- LCA 計算：根から辿り、最後に一致した深さが LCA ---
-        size_t minLen = std::min(fromPath.size(), toPath.size());
+        size_t minLen = (std::min)(fromPath.size(), toPath.size());
         size_t lcaDepth = 0;
         for (size_t i = 0; i < minLen; ++i)
         {

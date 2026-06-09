@@ -3,16 +3,19 @@
 #include <memory>
 #include <string>
 #include <d3d11.h>
+#include <SimpleMath.h>
 #include "Mesh.h"
 #include "Material.h"
 #include "Transform.h"
+
+using namespace DirectX::SimpleMath;
 
 class Renderer;
 
 class Model
 {
 public:
-    struct SubMesh  
+    struct SubMesh
     {
         std::shared_ptr<Mesh> mesh;
         int materialIndex = -1;
@@ -27,8 +30,18 @@ public:
     void SetMaterial(int index, std::shared_ptr<Material> material);
     Material* GetMaterial(int index) const;
 
+    // 包囲ボックス
+    Vector3 GetBoundsMin() const { return m_BoundsMin; }
+    Vector3 GetBoundsMax() const { return m_BoundsMax; }
+    Vector3 GetBoundsCenter() const { return m_BoundsCenter; }
+    const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
+
 private:
     std::vector<SubMesh> m_SubMeshes;
     std::vector<std::shared_ptr<Material>> m_Materials;
     std::string m_Directory;
+
+    Vector3 m_BoundsMin = { 0, 0, 0 };
+    Vector3 m_BoundsMax = { 0, 0, 0 };
+    Vector3 m_BoundsCenter = { 0, 0, 0 };
 };

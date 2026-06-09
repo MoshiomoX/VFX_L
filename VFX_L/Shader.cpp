@@ -2,6 +2,7 @@
 #include "Texture.h"
 #include <iostream>
 #include <stdio.h>
+#include <algorithm>
 
 // ============================================
 // コンストラクタ
@@ -11,11 +12,10 @@ Shader::Shader(Kind kind)
 {}
 
 // ============================================
-// デストラクタ（CBuffer解放）
+// デストラクタ
 // ============================================
 Shader::~Shader()
 {
-
     m_Buffers.clear();
     m_Textures.clear();
 }
@@ -28,7 +28,6 @@ HRESULT Shader::Load(ID3D11Device* device, const char* pFileName)
     if (!device || !pFileName)
         return E_INVALIDARG;
 
-    // ファイルを開く
     FILE* fp = nullptr;
     fopen_s(&fp, pFileName, "rb");
     if (!fp)
@@ -37,19 +36,15 @@ HRESULT Shader::Load(ID3D11Device* device, const char* pFileName)
         return E_FAIL;
     }
 
-    // ファイルサイズ取得
     fseek(fp, 0, SEEK_END);
     long fileSize = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    // メモリに読み込み
     char* pData = new char[fileSize];
     fread(pData, fileSize, 1, fp);
     fclose(fp);
 
-    // シェーダー作成（Reflection含む）
     HRESULT hr = Make(device, pData, static_cast<UINT>(fileSize));
-
     delete[] pData;
 
     if (SUCCEEDED(hr))
@@ -75,15 +70,13 @@ HRESULT Shader::Compile(ID3D11Device* device,
     if (!device)
         return E_INVALIDARG;
 
-    // ターゲットプロファイル
     static const char* pTargetList[] =
     {
-        "vs_5_0",   // Vertex
-        "ps_5_0",   // Pixel
-        "cs_5_0",   // Compute
+        "vs_5_0",
+        "ps_5_0",
+        "cs_5_0",
     };
 
-    // コンパイルフラグ
     UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #ifdef _DEBUG
     flags |= D3DCOMPILE_DEBUG;
@@ -113,7 +106,6 @@ HRESULT Shader::Compile(ID3D11Device* device,
         return hr;
     }
 
-    // シェーダー作成（Reflection含む）
     hr = Make(device, blob->GetBufferPointer(), static_cast<UINT>(blob->GetBufferSize()));
 
     if (SUCCEEDED(hr))
@@ -126,8 +118,8 @@ HRESULT Shader::Compile(ID3D11Device* device,
 }
 
 // ============================================
-// Reflection処理
-// CBuffer自動作成 + テクスチャスロット確保 + MakeShader呼出
+// Reflection 処理
+// CBuffer 自動作成 + SRV/UAV スロット自動検出
 // ============================================
 HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
 {
@@ -145,6 +137,10 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
     pReflection->GetDesc(&shaderDesc);
 
     m_Buffers.clear();
+    m_SRVSlotMap.clear();
+    m_UAVSlotMap.clear();
+    m_MaxSRVSlot = 0;
+    m_MaxUAVSlot = 0;
 
     std::cout << "=== Shader Reflection ===" << std::endl;
 
@@ -153,6 +149,7 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
         D3D11_SHADER_INPUT_BIND_DESC bindDesc;
         pReflection->GetResourceBindingDesc(i, &bindDesc);
 
+        // --- CBuffer：自動作成 ---
         if (bindDesc.Type == D3D_SIT_CBUFFER)
         {
             ID3D11ShaderReflectionConstantBuffer* cbuf =
@@ -174,7 +171,6 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
             hr = device->CreateBuffer(&bd, nullptr, &buffer);
             if (SUCCEEDED(hr))
             {
-                // 按 register(bX) 索引存放（关键修复）
                 if (m_Buffers.size() <= bindDesc.BindPoint)
                 {
                     m_Buffers.resize(bindDesc.BindPoint + 1);
@@ -182,16 +178,31 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
                 m_Buffers[bindDesc.BindPoint] = buffer;
             }
         }
-        else if (bindDesc.Type == D3D_SIT_STRUCTURED)
+        // --- SRV：スロット情報を記録（t レジスタ）---
+        else if (bindDesc.Type == D3D_SIT_STRUCTURED ||
+            bindDesc.Type == D3D_SIT_TEXTURE ||
+            bindDesc.Type == D3D_SIT_TBUFFER)
         {
-            std::cout << "  [StructuredBuffer] " << bindDesc.Name
+            std::cout << "  [SRV] " << bindDesc.Name
                 << " (t" << bindDesc.BindPoint << ")" << std::endl;
+
+            m_SRVSlotMap[bindDesc.Name] = bindDesc.BindPoint;
+            if (bindDesc.BindPoint > m_MaxSRVSlot)
+                m_MaxSRVSlot = bindDesc.BindPoint;
         }
+        // --- UAV：スロット情報を記録（u レジスタ）---
         else if (bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED ||
-            bindDesc.Type == D3D_SIT_UAV_RWTYPED)
+            bindDesc.Type == D3D_SIT_UAV_RWTYPED ||
+            bindDesc.Type == D3D_SIT_UAV_APPEND_STRUCTURED ||
+            bindDesc.Type == D3D_SIT_UAV_CONSUME_STRUCTURED ||
+            bindDesc.Type == D3D_SIT_UAV_RWBYTEADDRESS)
         {
             std::cout << "  [UAV] " << bindDesc.Name
                 << " (u" << bindDesc.BindPoint << ")" << std::endl;
+
+            m_UAVSlotMap[bindDesc.Name] = bindDesc.BindPoint;
+            if (bindDesc.BindPoint > m_MaxUAVSlot)
+                m_MaxUAVSlot = bindDesc.BindPoint;
         }
     }
 
@@ -201,8 +212,9 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
 
     return MakeShader(device, pData, size);
 }
+
 // ============================================
-// CBufferへのデータ書き込み
+// CBuffer データ書き込み
 // ============================================
 void Shader::WriteBuffer(ID3D11DeviceContext* context, UINT slot, void* pData)
 {
@@ -211,10 +223,8 @@ void Shader::WriteBuffer(ID3D11DeviceContext* context, UINT slot, void* pData)
 
     if (slot < m_Buffers.size() && m_Buffers[slot])
     {
-        // 1. 更新 buffer 数据
         context->UpdateSubresource(m_Buffers[slot].Get(), 0, nullptr, pData, 0, 0);
 
-        // 2. 根据 shader 类型，把 cbuffer 绑定到对应阶段
         switch (m_Kind)
         {
         case Compute:
@@ -244,7 +254,6 @@ void Shader::SetTexture(ID3D11DeviceContext* context, UINT slot, Texture* tex)
     ID3D11ShaderResourceView* pSRV = tex ? tex->GetSRV() : nullptr;
     m_Textures[slot] = pSRV;
 
-    // シェーダー種別に応じたスロットにバインド
     switch (m_Kind)
     {
     case Vertex:
@@ -257,4 +266,156 @@ void Shader::SetTexture(ID3D11DeviceContext* context, UINT slot, Texture* tex)
         context->CSSetShaderResources(slot, 1, &pSRV);
         break;
     }
+}
+
+// ============================================
+// SRV バインド（名前指定）
+// ============================================
+void Shader::SetSRV(ID3D11DeviceContext* context, const std::string& name, ID3D11ShaderResourceView* srv)
+{
+    int slot = FindSRVSlot(name);
+    if (slot < 0)
+    {
+        std::cout << "[Warning] SRV not found: " << name << std::endl;
+        return;
+    }
+    SetSRV(context, static_cast<UINT>(slot), srv);
+}
+
+// ============================================
+// SRV バインド（スロット指定、即時）
+// ============================================
+void Shader::SetSRV(ID3D11DeviceContext* context, UINT slot, ID3D11ShaderResourceView* srv)
+{
+    if (!context) return;
+
+    switch (m_Kind)
+    {
+    case Vertex:
+        context->VSSetShaderResources(slot, 1, &srv);
+        break;
+    case Pixel:
+        context->PSSetShaderResources(slot, 1, &srv);
+        break;
+    case Compute:
+        context->CSSetShaderResources(slot, 1, &srv);
+        break;
+    }
+}
+
+// ============================================
+// UAV 登録（名前指定、キューに溜める）
+// ============================================
+void Shader::SetUAV(ID3D11DeviceContext* context, const std::string& name,
+    ID3D11UnorderedAccessView* uav, UINT initialCount)
+{
+    int slot = FindUAVSlot(name);
+    if (slot < 0)
+    {
+        std::cout << "[Warning] UAV not found: " << name << std::endl;
+        return;
+    }
+    SetUAV(context, static_cast<UINT>(slot), uav, initialCount);
+}
+
+// ============================================
+// UAV 登録（スロット指定、キューに溜める）
+// ============================================
+void Shader::SetUAV(ID3D11DeviceContext* context, UINT slot,
+    ID3D11UnorderedAccessView* uav, UINT initialCount)
+{
+    m_PendingUAVs.push_back({ slot, uav, initialCount });
+}
+
+// ============================================
+// UAV 一括バインド（溜めたキューをまとめて CSSetUnorderedAccessViews）
+// AppendStructuredBuffer の内部カウンタを壊さないために必須
+// ============================================
+void Shader::BindUAVs(ID3D11DeviceContext* context)
+{
+    if (m_PendingUAVs.empty()) return;
+    if (!context) { m_PendingUAVs.clear(); return; }
+
+    // スロット範囲を求める
+    UINT minSlot = m_PendingUAVs[0].slot;
+    UINT maxSlot = m_PendingUAVs[0].slot;
+    for (auto& p : m_PendingUAVs)
+    {
+        if (p.slot < minSlot) minSlot = p.slot;
+        if (p.slot > maxSlot) maxSlot = p.slot;
+    }
+
+    UINT count = maxSlot - minSlot + 1;
+
+    // 配列を初期化（nullptr = バインドしない、initialCount = -1 = リセットしない）
+    std::vector<ID3D11UnorderedAccessView*> uavs(count, nullptr);
+    std::vector<UINT> initialCounts(count, (UINT)-1);
+
+    // キューの内容を配列に埋め込む
+    for (auto& p : m_PendingUAVs)
+    {
+        UINT idx = p.slot - minSlot;
+        uavs[idx] = p.uav;
+        initialCounts[idx] = p.initialCount;
+    }
+
+    // 一括バインド
+    context->CSSetUnorderedAccessViews(minSlot, count, uavs.data(), initialCounts.data());
+
+    m_PendingUAVs.clear();
+}
+
+// ============================================
+// SRV 一括解除
+// ============================================
+void Shader::UnbindSRVs(ID3D11DeviceContext* context)
+{
+    if (!context) return;
+
+    for (UINT i = 0; i <= m_MaxSRVSlot; ++i)
+    {
+        ID3D11ShaderResourceView* nullSRV = nullptr;
+        switch (m_Kind)
+        {
+        case Vertex:
+            context->VSSetShaderResources(i, 1, &nullSRV);
+            break;
+        case Pixel:
+            context->PSSetShaderResources(i, 1, &nullSRV);
+            break;
+        case Compute:
+            context->CSSetShaderResources(i, 1, &nullSRV);
+            break;
+        }
+    }
+}
+
+// ============================================
+// UAV 一括解除
+// ============================================
+void Shader::UnbindUAVs(ID3D11DeviceContext* context)
+{
+    if (!context) return;
+
+    for (UINT i = 0; i <= m_MaxUAVSlot; ++i)
+    {
+        ID3D11UnorderedAccessView* nullUAV = nullptr;
+        UINT zero = 0;
+        context->CSSetUnorderedAccessViews(i, 1, &nullUAV, &zero);
+    }
+}
+
+// ============================================
+// スロット逆引き
+// ============================================
+int Shader::FindSRVSlot(const std::string& name) const
+{
+    auto it = m_SRVSlotMap.find(name);
+    return (it != m_SRVSlotMap.end()) ? static_cast<int>(it->second) : -1;
+}
+
+int Shader::FindUAVSlot(const std::string& name) const
+{
+    auto it = m_UAVSlotMap.find(name);
+    return (it != m_UAVSlotMap.end()) ? static_cast<int>(it->second) : -1;
 }

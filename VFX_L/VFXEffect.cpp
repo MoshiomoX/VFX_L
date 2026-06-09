@@ -1,3 +1,7 @@
+// ============================================================
+// VFXEffect.cpp
+// 状態機（HSM）駆動版
+// ============================================================
 #include "VFXEffect.h"
 #include "VFXParticleEntry.h"
 #include "GPUParticleSystem.h"
@@ -8,6 +12,10 @@
 #include <fstream>
 
 using json = nlohmann::json;
+
+// ============================================================
+// Entry 管理（既存：変更なし）
+// ============================================================
 
 int VFXEffect::AddEntry(EntryType type, float startTime, float duration)
 {
@@ -48,23 +56,92 @@ float VFXEffect::GetTotalDuration() const
         float end = (entry->duration < 0.0f)
             ? 9999.0f
             : entry->startTime + entry->duration;
-        maxEnd = max(maxEnd, end);
+        maxEnd = (std::max)(maxEnd, end);
     }
     return maxEnd;
 }
 
-void VFXEffect::Play(const VFXContext& ctx)
+// ============================================================
+// 状態機から呼ばれるメソッド（既存 Update から切り出し）
+// ============================================================
+
+void VFXEffect::AdvanceTime(float dt)
 {
-    m_CurrentTime = 0.0f;
-    m_IsPlaying = true;
-    m_StopRequested = false;
+    m_CurrentTime += dt;
+}
+
+void VFXEffect::UpdateEntries(float dt, const VFXContext& ctx)
+{
+    for (auto& entry : m_Entries)
+    {
+        float endTime = (entry->duration < 0.0f)
+            ? 9999.0f
+            : entry->startTime + entry->duration;
+
+        // 開始時刻に達し、未再生なら再生開始
+        if (!entry->isPlaying && m_CurrentTime >= entry->startTime && m_CurrentTime < endTime)
+        {
+            entry->OnPlay(ctx);
+        }
+
+        // 再生中かつ Duration 内なら更新
+        if (entry->isPlaying && m_CurrentTime < endTime)
+        {
+            entry->OnUpdate(dt, ctx);
+        }
+
+        // 再生中かつ Duration を超えたら停止
+        if (entry->isPlaying && m_CurrentTime >= endTime)
+        {
+            entry->OnStop(ctx);
+        }
+    }
+}
+
+void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
+{
+    // Emitter データ収集
+    std::vector<GPUEmitter> emitters;
+    std::vector<ColorKey> colorKeys;
+    int colorKeyOffset = 0;
 
     for (auto& entry : m_Entries)
     {
-        entry->isPlaying = false;
+        if (entry->GetType() == EntryType::Particle && entry->isPlaying)
+        {
+            auto* pEntry = static_cast<VFXParticleEntry*>(entry.get());
+            pEntry->emitterData.Update(dt);
+            GPUEmitter ge = pEntry->emitterData.ToGPU();
+            ge.colorKeyOffset = colorKeyOffset;
+            emitters.push_back(ge);
+
+            for (int k = 0; k < pEntry->emitterData.colorKeyCount; k++)
+            {
+                colorKeys.push_back(pEntry->emitterData.colorKeys[k]);
+            }
+            colorKeyOffset += pEntry->emitterData.colorKeyCount;
+        }
+    }
+
+    // GPU に送信（発射 + 粒子更新）
+    if (ctx.particleSystem)
+    {
+        ctx.particleSystem->Update(dt, m_CurrentTime, emitters, colorKeys);
     }
 }
-void VFXEffect::Stop(const VFXContext& ctx)
+
+void VFXEffect::DispatchUpdateOnly(float dt, const VFXContext& ctx)
+{
+    // 空の emitters を渡す → 新規発射0、UpdateCS だけ走る（自然消滅）
+    std::vector<GPUEmitter> emptyEmitters;
+    std::vector<ColorKey> emptyKeys;
+    if (ctx.particleSystem)
+    {
+        ctx.particleSystem->Update(dt, m_CurrentTime, emptyEmitters, emptyKeys);
+    }
+}
+
+void VFXEffect::StopAllEntries(const VFXContext& ctx)
 {
     for (auto& entry : m_Entries)
     {
@@ -73,111 +150,89 @@ void VFXEffect::Stop(const VFXContext& ctx)
             entry->OnStop(ctx);
         }
     }
-
-    m_IsPlaying = false;
-    m_CurrentTime = 0.0f;
 }
-void VFXEffect::Update(float dt, const VFXContext& ctx)
+
+bool VFXEffect::IsAllEntriesDone() const
 {
-    if (!m_IsPlaying) return;
-
-    m_CurrentTime += dt;
-
-    // Entry状態更新
     for (auto& entry : m_Entries)
     {
         float endTime = (entry->duration < 0.0f)
             ? 9999.0f
             : entry->startTime + entry->duration;
-
-        if (!entry->isPlaying && m_CurrentTime >= entry->startTime && m_CurrentTime < endTime)
-        {
-            if (!m_Finishing)  // 終了中は新規Playしない
-                entry->OnPlay(ctx);
-        }
-
-        if (entry->isPlaying && m_CurrentTime < endTime)
-        {
-            entry->OnUpdate(dt, ctx);
-        }
-
-        if (entry->isPlaying && m_CurrentTime >= endTime)
-        {
-            entry->OnStop(ctx);
-        }
-    }
-
-    // Emitterデータ収集（終了中は空のemittersを渡す → 発射0、Updateだけ走る）
-    std::vector<GPUEmitter> emitters;
-    std::vector<ColorKey> colorKeys;
-    int colorKeyOffset = 0;
-
-    if (!m_Finishing)
-    {
-        for (auto& entry : m_Entries)
-        {
-            if (entry->GetType() == EntryType::Particle && entry->isPlaying)
-            {
-                auto* pEntry = static_cast<VFXParticleEntry*>(entry.get());
-                pEntry->emitterData.Update(dt);
-                GPUEmitter ge = pEntry->emitterData.ToGPU();
-                ge.colorKeyOffset = colorKeyOffset;
-                emitters.push_back(ge);
-
-                for (int k = 0; k < pEntry->emitterData.colorKeyCount; k++)
-                {
-                    colorKeys.push_back(pEntry->emitterData.colorKeys[k]);
-                }
-                colorKeyOffset += pEntry->emitterData.colorKeyCount;
-            }
-        }
-    }
-
-    // Systemに渡す（m_Finishing中も呼ぶ → UpdateCSが走り粒子が自然消滅する）
-    if (ctx.particleSystem)
-    {
-        ctx.particleSystem->Update(dt, m_CurrentTime, emitters, colorKeys);
-    }
-
-    // allDone判定
-    bool allDone = true;
-    for (auto& entry : m_Entries)
-    {
-        float endTime = (entry->duration < 0.0f) ? 9999.0f : entry->startTime + entry->duration;
         if (m_CurrentTime < endTime)
         {
-            allDone = false;
-            break;
+            return false;
         }
     }
+    return true;
+}
 
-    if (allDone)
+void VFXEffect::ResetTimeline()
+{
+    m_CurrentTime = 0.0f;
+    for (auto& entry : m_Entries)
     {
-        if (m_Loop && !m_Finishing)
-        {
-            m_CurrentTime = 0.0f;
-            for (auto& entry : m_Entries)
-            {
-                entry->isPlaying = false;
-            }
-        }
-        else if (m_Finishing)
-        {
-            // 全粒子が消滅したか確認
-            if (ctx.particleSystem && ctx.particleSystem->GetAliveCount() == 0)
-            {
-                Stop(ctx);
-                m_Finishing = false;
-                m_StopRequested = false;
-            }
-            // まだ生きてる粒子がある → UpdateCSだけ回し続ける
-        }
-        else
-        {
-            Stop(ctx);
-        }
+        entry->isPlaying = false;
     }
 }
+
+uint32_t VFXEffect::GetAliveCount(const VFXContext& ctx) const
+{
+    if (ctx.particleSystem)
+        return ctx.particleSystem->GetAliveCount();
+    return 0;
+}
+
+// ============================================================
+// 状態機駆動（新 API）
+// ============================================================
+
+void VFXEffect::InitStateMachine(const VFXContext& ctx)
+{
+    RegisterVFXStates(m_SM);
+    m_SMCtx.vfxCtx = const_cast<VFXContext*>(&ctx);
+    m_SM.Start(VFXStateID::Idle, m_SMCtx, *this);
+}
+
+void VFXEffect::Update(float dt)
+{
+    m_SM.Update(m_SMCtx, *this, dt);
+}
+
+void VFXEffect::Play()
+{
+    // 即時に Idle → Playing で確実に最初から再生
+    m_SM.ChangeState(m_SMCtx, *this, VFXStateID::Idle);
+    ResetTimeline();
+    m_SM.ChangeState(m_SMCtx, *this, VFXStateID::Playing);
+}
+
+void VFXEffect::Stop()
+{
+    m_SM.SendEvent(VFXStateID::Finishing);
+}
+
+// ============================================================
+// SetLooping（状態機版：Playing 中に Loop OFF → Finishing へ遷移要求）
+// ============================================================
+
+void VFXEffect::SetLooping(bool loop)
+{
+    if (m_Loop && !loop)
+    {
+        // Loop 中に OFF にされた → 現在 Playing なら Finishing へ
+        if (m_SMCtx.current == VFXStateID::Playing)
+        {
+            m_SM.SendEvent(VFXStateID::Finishing);
+        }
+    }
+    m_Loop = loop;
+}
+
+// ============================================================
+// セーブ / ロード（既存：ほぼ変更なし）
+// ============================================================
+
 bool VFXEffect::SaveToFile(const std::string& filepath) const
 {
     json root;
@@ -211,6 +266,7 @@ bool VFXEffect::SaveToFile(const std::string& filepath) const
     std::cout << "[OK] Saved: " << filepath << std::endl;
     return true;
 }
+
 bool VFXEffect::LoadFromFile(const std::string& filepath)
 {
     std::ifstream file(filepath);
@@ -233,7 +289,6 @@ bool VFXEffect::LoadFromFile(const std::string& filepath)
 
     m_Entries.clear();
 
-    // nameがJSONにあればそれを使う、なければファイル名
     if (root.contains("name"))
     {
         m_Name = root["name"];
@@ -274,19 +329,11 @@ bool VFXEffect::LoadFromFile(const std::string& filepath)
         }
     }
 
-    m_IsPlaying = false;
+    // ロード後は Idle 状態にリセット
     m_CurrentTime = 0.0f;
+    m_SMCtx.current = VFXStateID::Idle;
+    m_SMCtx.timeInState = 0.0f;
 
     std::cout << "[OK] Loaded: " << filepath << std::endl;
     return true;
-}
-
-void VFXEffect::SetLooping(bool loop)
-{
-    if (m_Loop && !loop)
-    {
-        // Loop中にOFFにした場合
-        m_Finishing = true;
-    }
-    m_Loop = loop;
 }
