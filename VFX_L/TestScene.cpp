@@ -5,6 +5,10 @@
 #include "DebugManager.h"
 #include "imgui.h"
 #include <iostream>
+//Test
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 void TestScene::Init()
 {
@@ -91,6 +95,28 @@ void TestScene::Init()
     std::cout << "[TestScene] Init complete" << std::endl;
 
     m_Skybox.Init(device, Res::Mdl::SkyboxSphere, Res::Tex::SkyboxPanorama);
+
+    // --- スキニングモデル読み込みテスト（B3+B4の動作確認）---
+    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Jiandu_Idle);
+    if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
+    {
+        m_SkinnedModel = loaded.skinnedModel;
+        if (m_SkinnedGPU.Initialize(device, *m_SkinnedModel))
+            std::cout << "[TestScene] SkinnedModelGPU init OK" << std::endl;
+        else
+            std::cout << "[TestScene] SkinnedModelGPU init FAILED" << std::endl;
+    }
+    else
+    {
+        std::cout << "[TestScene] LoadModelAuto: skinnedとして読めなかった" << std::endl;
+    }
+
+    m_SkinningCS = ResourceManager::Get().LoadCS(L"SkinningCS", L"Shader/Skinning/SkinningCS.hlsl");
+    m_SkinnedVS  = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
+    m_SkinnedPS  = ResourceManager::Get().LoadPS(L"SkinnedPS", L"Shader/Skinning/SkinnedPS.hlsl");
+
+    m_SkinnedTransform.SetScale({0.005 , 0.005, 0.005 });   // ←見えなかったらここを調整（後述）
+    m_SkinnedTransform.SetPosition({ 0, 0, 0 });
 }
 
 void TestScene::Shutdown()
@@ -104,6 +130,7 @@ void TestScene::Update(float dt)
     SceneBase::Update(dt);
 
     m_TotalTime += dt;
+    m_AnimTime += dt;
     m_Effect.Update(dt);
 
     m_ModelTransform.SetPosition({ m_ModelPos[0], m_ModelPos[1], m_ModelPos[2] });
@@ -129,6 +156,17 @@ void TestScene::Render(Renderer& renderer)
     SceneBase::Render(renderer);
     m_Skybox.Render(renderer, GetCamera());
     m_Renderer = &renderer;
+    if (m_SkinnedModel && m_SkinningCS && m_SkinnedVS && m_SkinnedPS)
+    {
+        auto* ctx = Application::Get().GetGraphics().GetContext();
+        m_SkinnedModel->SampleAnimation(m_AnimTime, m_Palette); // 時刻→ボーン行列
+        m_SkinnedGPU.UploadPalette(ctx, m_Palette);             // パレット転送
+        m_SkinnedGPU.Skin(ctx, m_SkinningCS.get());             // CS skinning
+        m_SkinnedGPU.Render(ctx, m_SkinnedVS.get(), m_SkinnedPS.get(),
+            m_SkinnedTransform.GetWorldMatrix(),
+            GetCamera()->GetViewMatrix(),
+            GetCamera()->GetProjectionMatrix());
+    }
 
     if (m_Model)
         m_Model->Draw(renderer, &m_ModelTransform);
@@ -180,4 +218,59 @@ void TestScene::DrawDebugUI()
     }
 
     ImGui::End();
+}
+
+void TestScene:: InspectModel(const std::string& filepath)
+{
+    Assimp::Importer importer;
+
+    // 診断目的なので最小フラグ（中身を素のまま見たい）
+    const aiScene* scene = importer.ReadFile(filepath, aiProcess_Triangulate);
+
+    if (!scene || !scene->mRootNode)
+    {
+        std::cout << "[Inspect] 読み込み失敗: " << importer.GetErrorString() << std::endl;
+        return;
+    }
+
+    std::cout << "================ " << filepath << " ================" << std::endl;
+
+    // --- メッシュ情報 ---
+    std::cout << "[Mesh] 数 = " << scene->mNumMeshes << std::endl;
+    unsigned int totalVerts = 0;
+    std::unordered_set<std::string> uniqueBones; // 全meshをまたいだユニークなボーン名
+
+    for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
+    {
+        aiMesh* m = scene->mMeshes[i];
+        totalVerts += m->mNumVertices;
+
+        std::cout << "  Mesh[" << i << "] \"" << m->mName.C_Str() << "\""
+            << " 頂点=" << m->mNumVertices
+            << " ボーン=" << m->mNumBones
+            << (m->HasBones() ? " (スキンあり)" : " (スキンなし!)")
+            << std::endl;
+
+        for (unsigned int b = 0; b < m->mNumBones; ++b)
+            uniqueBones.insert(m->mBones[b]->mName.C_Str());
+    }
+    std::cout << "  合計頂点 = " << totalVerts << std::endl;
+    std::cout << "  ★ユニークボーン総数 = " << uniqueBones.size() << std::endl; // ←MAX_BONESを決める鍵
+
+    // --- アニメーション情報 ---
+    std::cout << "[Animation] 数 = " << scene->mNumAnimations << std::endl;
+    for (unsigned int i = 0; i < scene->mNumAnimations; ++i)
+    {
+        aiAnimation* a = scene->mAnimations[i];
+        double fps = (a->mTicksPerSecond != 0.0) ? a->mTicksPerSecond : 25.0;
+        double sec = a->mDuration / fps;
+        std::cout << "  Anim[" << i << "] \"" << a->mName.C_Str() << "\""
+            << " duration=" << a->mDuration << " ticks"
+            << " (" << sec << " 秒 / " << fps << " fps)"
+            << " channels=" << a->mNumChannels << std::endl;
+    }
+
+    // --- マテリアル数 ---
+    std::cout << "[Material] 数 = " << scene->mNumMaterials << std::endl;
+    std::cout << "=========================================" << std::endl;
 }

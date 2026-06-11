@@ -68,6 +68,9 @@
     <Filter Include="ECS">
       <UniqueIdentifier>{c2088c0f-c5fc-4338-9d8e-73a9200181a9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Skinning">
+      <UniqueIdentifier>{9ab8a067-1029-4c64-be59-430e6746dec3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -225,6 +228,12 @@
     </ClCompile>
     <ClCompile Include="Skybox.cpp">
       <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="SkinnedModel.cpp">
+      <Filter>Graphics\Model</Filter>
+    </ClCompile>
+    <ClCompile Include="SkinnedModelGPU.cpp">
+      <Filter>Graphics\Model</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -433,6 +442,18 @@
     <ClInclude Include="Skybox.h">
       <Filter>Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="SkinnedVertex.h">
+      <Filter>Graphics\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="SkinnedModel.h">
+      <Filter>Graphics\Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Skeleton.h">
+      <Filter>Graphics\Model</Filter>
+    </ClInclude>
+    <ClInclude Include="SkinnedModelGPU.h">
+      <Filter>Graphics\Model</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\PS.hlsl">
@@ -473,6 +494,15 @@
     </FxCompile>
     <FxCompile Include="Shader\SkyVS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Skinning\SkinningCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Skinning</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Skinning\SkinnedPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Skinning</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Skinning\SkinnedVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Skinning</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
