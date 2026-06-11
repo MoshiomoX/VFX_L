@@ -187,6 +187,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="SceneBase.cpp" />
     <ClCompile Include="SceneManager.cpp" />
     <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="SkinnedModel.cpp" />
+    <ClCompile Include="SkinnedModelGPU.cpp" />
     <ClCompile Include="Skybox.cpp" />
     <ClCompile Include="StateMachineSystem.cpp" />
     <ClCompile Include="TestCube.cpp" />
@@ -280,6 +282,10 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="SceneManager.h" />
     <ClInclude Include="SceneType.h" />
     <ClInclude Include="Shader.h" />
+    <ClInclude Include="Skeleton.h" />
+    <ClInclude Include="SkinnedModel.h" />
+    <ClInclude Include="SkinnedModelGPU.h" />
+    <ClInclude Include="SkinnedVertex.h" />
     <ClInclude Include="Skybox.h" />
     <ClInclude Include="SparseSet.h" />
     <ClInclude Include="StateMachine.h" />
@@ -390,6 +396,24 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <FxCompile Include="Shader\PS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\Skinning\SkinnedPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="Shader\Skinning\SkinnedVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="Shader\Skinning\SkinningCS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
     </FxCompile>
     <FxCompile Include="Shader\SkyPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>

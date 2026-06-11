@@ -58,6 +58,17 @@ namespace Res
         inline constexpr const char* Shadowkin =
             "Assets/Model/Shadowkin_SF/Shadowkin_Rigged.fbx";
         inline constexpr const char* SkyboxSphere = "Assets/Model/Skybox/basic_skybox_3d.fbx";
+
+        inline constexpr const char* Jiandu_TPose =
+            "Assets/Model/Jiandu/Jian_TPose.fbx";   // ①静的bind pose検証用
+        inline constexpr const char* Jiandu_Idle =
+            "Assets/Model/Jiandu/Idle.fbx";         // ②アニメ検証用
+
+        inline constexpr const char* Paladin_Idle =
+            "Assets/Model/testAnimModel/Idle.fbx";
+
+        inline constexpr const char* Paladin =
+            "Assets/Model/testAnimModel/PaladinWPropJNordstrom.fbx";
     }
 
     // ========================================================
@@ -114,6 +125,17 @@ namespace Res
 		
         //Skyboxの一枚テクスチャ
         inline constexpr const wchar_t* SkyboxPanorama = L"Assets/Model/Skybox/Tex/sky_water_landscape.jpg";
+
+
+        // ---- Jiandu / JaneDoe 材质（Diffuse のみ）----
+        inline constexpr const wchar_t* JaneDoe_Body1_Albedo =
+            L"Assets/Model/Jiandu/Tex/JaneDoe_Body_Map1_D.png";
+        inline constexpr const wchar_t* JaneDoe_Body2_Albedo =
+            L"Assets/Model/Jiandu/Tex/JaneDoe_Body_Map2_D.png";
+        inline constexpr const wchar_t* JaneDoe_Face_Albedo =
+            L"Assets/Model/Jiandu/Tex/JaneDoe_Face_D.png";
+        inline constexpr const wchar_t* JaneDoe_Weapon_Albedo =
+            L"Assets/Model/Jiandu/Tex/JaneDoe_Weapon_D.png";
     }
 
     // ========================================================

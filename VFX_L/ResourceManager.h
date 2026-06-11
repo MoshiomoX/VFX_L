@@ -13,6 +13,17 @@
 #include "Material.h"
 #include "Model.h"
 
+
+struct aiScene;
+class SkinnedModel;
+
+enum class ModelKind { Static, Skinned };
+struct LoadedModel
+{
+    ModelKind                     kind = ModelKind::Static;
+    std::shared_ptr<Model>        staticModel;
+    std::shared_ptr<SkinnedModel> skinnedModel;
+};
 class ResourceManager
 {
 public:
@@ -75,6 +86,8 @@ public:
     size_t GetPSCount() const { return m_PixelShaders.size(); }
     size_t GetCSCount() const { return m_ComputeShaders.size(); }
     size_t GetModelCount() const { return m_Models.size(); }
+    LoadedModel LoadModelAuto(const std::string& filepath);
+
 
 private:
     ResourceManager() = default;

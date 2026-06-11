@@ -11,7 +11,7 @@
 using namespace DirectX::SimpleMath;
 
 class Renderer;
-
+struct aiScene; 
 class Model
 {
 public:
@@ -21,7 +21,7 @@ public:
         int materialIndex = -1;
     };
 
-    bool Load(ID3D11Device* device, const std::string& filepath);
+  //  bool Load(ID3D11Device* device, const std::string& filepath);
     void Draw(Renderer& renderer, Transform* transform);
 
     size_t GetSubMeshCount() const { return m_SubMeshes.size(); }
@@ -35,7 +35,9 @@ public:
     Vector3 GetBoundsMax() const { return m_BoundsMax; }
     Vector3 GetBoundsCenter() const { return m_BoundsCenter; }
     const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
-
+    bool Load(ID3D11Device* device, const std::string& filepath);
+    bool LoadFromScene(ID3D11Device* device, const aiScene* scene,
+        const std::string& directory, const std::string& modelName);
 private:
     std::vector<SubMesh> m_SubMeshes;
     std::vector<std::shared_ptr<Material>> m_Materials;

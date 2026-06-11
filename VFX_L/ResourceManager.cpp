@@ -1,5 +1,66 @@
 ﻿#include "ResourceManager.h"
 #include <iostream>
+#include "SkinnedModel.h"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <assimp/config.h> 
+#include <filesystem>
+
+static bool SceneHasBones(const aiScene* scene)
+{
+    for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
+        if (scene->mMeshes[i]->HasBones())
+            return true;
+    return false;
+}
+LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    LoadedModel out;
+
+    // --- import は1回だけ。static/skinned 両対応の安全なフラグ ---
+    Assimp::Importer importer;
+ //  importer.SetPropertyInteger(AI_CONFIG_PP_LBW_MAX_WEIGHTS, 4);
+ //  importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+    const aiScene* scene = importer.ReadFile(filepath,
+        aiProcess_Triangulate |
+        aiProcess_FlipUVs |
+        aiProcess_CalcTangentSpace |
+        aiProcess_GenNormals |
+        aiProcess_MakeLeftHanded/*|
+        aiProcess_LimitBoneWeights*/);
+
+    if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
+    {
+        std::cout << "[LoadModelAuto] Assimp失敗: " << importer.GetErrorString() << std::endl;
+        return out;
+    }
+
+    namespace fs = std::filesystem;
+    size_t lastSlash = filepath.find_last_of("/\\");
+    std::string dir = (lastSlash != std::string::npos) ? filepath.substr(0, lastSlash + 1) : "";
+    std::string name = fs::path(filepath).stem().string();
+
+    // --- 骨の有無で分流 ---
+    if (SceneHasBones(scene))
+    {
+        out.kind = ModelKind::Skinned;
+        out.skinnedModel = std::make_shared<SkinnedModel>();
+        out.skinnedModel->LoadFromScene(scene, dir);
+        std::cout << "[LoadModelAuto] -> Skinned : " << filepath << std::endl;
+    }
+    else
+    {
+        out.kind = ModelKind::Static;
+        out.staticModel = std::make_shared<Model>();
+        out.staticModel->LoadFromScene(m_Device, scene, dir, name);
+        std::cout << "[LoadModelAuto] -> Static : " << filepath << std::endl;
+    }
+
+    return out;
+}
 
 void ResourceManager::Initialize(ID3D11Device* device)
 {
