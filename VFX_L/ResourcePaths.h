@@ -90,6 +90,8 @@ namespace Res
             L"Assets/Model/Rock-Set/Rock_2/Rock_2_Tex/Rock_2_Mixed_AO.jpg";
         inline constexpr const wchar_t* Rock2_Specular =
             L"Assets/Model/Rock-Set/Rock_2/Rock_2_Tex/Rock_2_Specular.jpg";
+       
+        
         inline constexpr const wchar_t* Akai_Body_Albedo =
             L"Assets/Model/Akai/AkaiTex/FemaleFitA_Body_diffuse.png";
         inline constexpr const wchar_t* Akai_Body_Normal =
@@ -98,6 +100,8 @@ namespace Res
             L"Assets/Model/Akai/AkaiTex/Erika_Archer_Clothes_diffuse.png";
         inline constexpr const wchar_t* Akai_Clothes_Normal =
             L"Assets/Model/Akai/AkaiTex/Erika_Archer_Clothes_normal.png";
+
+
 
         // ---- Shadowkin / Silver 材质（金属）----
         inline constexpr const wchar_t* Silver_Albedo =

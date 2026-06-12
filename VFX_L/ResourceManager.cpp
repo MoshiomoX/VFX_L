@@ -20,17 +20,18 @@ LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
 
     LoadedModel out;
 
-    // --- import は1回だけ。static/skinned 両対応の安全なフラグ ---
+    // --- import は1回だけ。static/skinned 両対応 ---
     Assimp::Importer importer;
- //  importer.SetPropertyInteger(AI_CONFIG_PP_LBW_MAX_WEIGHTS, 4);
- //  importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+    importer.SetPropertyInteger(AI_CONFIG_PP_LBW_MAX_WEIGHTS, 4);
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
     const aiScene* scene = importer.ReadFile(filepath,
         aiProcess_Triangulate |
         aiProcess_FlipUVs |
         aiProcess_CalcTangentSpace |
         aiProcess_GenNormals |
-        aiProcess_MakeLeftHanded/*|
-        aiProcess_LimitBoneWeights*/);
+        aiProcess_MakeLeftHanded |
+        aiProcess_LimitBoneWeights |
+        aiProcess_PopulateArmatureData);   // ★追加：骨/アーマチュア情報を整える（先生コード参照）
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
     {
@@ -43,7 +44,6 @@ LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
     std::string dir = (lastSlash != std::string::npos) ? filepath.substr(0, lastSlash + 1) : "";
     std::string name = fs::path(filepath).stem().string();
 
-    // --- 骨の有無で分流 ---
     if (SceneHasBones(scene))
     {
         out.kind = ModelKind::Skinned;
@@ -61,7 +61,6 @@ LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
 
     return out;
 }
-
 void ResourceManager::Initialize(ID3D11Device* device)
 {
     m_Device = device;

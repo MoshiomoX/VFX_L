@@ -30,6 +30,20 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_LightData.ambientColor = Vector3(0.2f, 0.2f, 0.2f);
 
     std::cout << "[OK] Renderer initialized" << std::endl;
+    // ★標準サンプラ生成（線形補間 + WRAP）。PBRのt0~t4で共用
+    D3D11_SAMPLER_DESC sd = {};
+    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sd.MinLOD = 0;
+    sd.MaxLOD = D3D11_FLOAT32_MAX;
+    if (FAILED(device->CreateSamplerState(&sd, &m_DefaultSampler)))
+    {
+        std::cout << "[Error] Default sampler create failed" << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -85,6 +99,9 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
         vs->Bind(m_Context);
         ps->Bind(m_Context);
     }
+
+    ID3D11SamplerState* samp = m_DefaultSampler.Get();
+    m_Context->PSSetSamplers(0, 1, &samp);
 
     // VS CBuffer (b0): MVP
     MVPBuffer mvp;

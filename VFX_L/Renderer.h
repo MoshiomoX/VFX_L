@@ -48,5 +48,7 @@ private:
     CameraBase* m_Camera = nullptr;
     LightBuffer m_LightData;
 
+    ComPtr<ID3D11SamplerState> m_DefaultSampler;
+
     
 };

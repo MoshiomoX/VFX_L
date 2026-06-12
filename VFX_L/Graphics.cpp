@@ -44,7 +44,8 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
 
     std::cout << "[Info] MSAA: " << sampleCount << "x (Quality: " << sampleQuality << ")" << std::endl;
 
-    // 3. SwapChain作成
+    // 3. Swap
+    // 作成
     ComPtr<IDXGIDevice> dxgiDevice;
     m_Device.As(&dxgiDevice);
 
@@ -138,7 +139,7 @@ void Graphics::BeginFrame()
 void Graphics::EndFrame()
 {
 	
-	m_SwapChain->Present(1, 0);
+	m_SwapChain->Present(0, 0);
 }
 
 void Graphics::Shutdown()
