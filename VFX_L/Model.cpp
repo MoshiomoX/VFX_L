@@ -196,6 +196,15 @@ void ProcessNode(
                 vertex.normal = normal;
             }
 
+            // ★接線（tangent）を読む。CalcTangentSpace で生成済み
+            if (mesh->HasTangentsAndBitangents())
+            {
+                Vector3 tangent(mesh->mTangents[v].x, mesh->mTangents[v].y, mesh->mTangents[v].z);
+                tangent = Vector3::TransformNormal(tangent, globalTransform);
+                tangent.Normalize();
+                vertex.tangent = tangent;
+            }
+
             if (mesh->mTextureCoords[0])
             {
                 vertex.uv.x = mesh->mTextureCoords[0][v].x;
@@ -229,7 +238,6 @@ void ProcessNode(
     for (unsigned int i = 0; i < node->mNumChildren; i++)
         ProcessNode(node->mChildren[i], scene, device, subMeshes, globalTransform);
 }
-
 void Model::Draw(Renderer& renderer, Transform* transform)
 {
     for (auto& sub : m_SubMeshes)

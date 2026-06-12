@@ -31,5 +31,6 @@ struct SkinnedVertex
         float sum = boneWeights[0] + boneWeights[1] + boneWeights[2] + boneWeights[3];
         if (sum > 0.0f) { float inv = 1.0f / sum; for (int i = 0; i < 4; ++i) boneWeights[i] *= inv; }
         else { boneIndices[0] = 0; boneWeights[0] = 1.0f; } // どの骨にも属さない頂点の保険
+
     }
 };

@@ -52,10 +52,11 @@ public:
     const Vector4& GetColor() const { return m_Color; }
 
     void Bind(ID3D11DeviceContext* context);
-
+    static void InitDefaultTextures(ID3D11Device* device);
 private:
     std::shared_ptr<VertexShader> m_VS;
     std::shared_ptr<PixelShader> m_PS;
     std::shared_ptr<Texture> m_Textures[SlotCount];
+    static std::shared_ptr<Texture> s_DefaultTextures[SlotCount];
     Vector4 m_Color = { 1, 1, 1, 1 };
 };

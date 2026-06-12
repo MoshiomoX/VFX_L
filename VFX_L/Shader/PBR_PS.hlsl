@@ -2,6 +2,8 @@
 // PBR_PS.hlsl
 // Cook-Torrance BRDF（物理ベース）
 //   t0=Albedo, t1=Normal(OpenGL), t2=Metallic, t3=Roughness, t4=AO
+//   ※欠落テクスチャは CPU 側(Material)で既定テクスチャを bind 済み前提：
+//     Albedo=白 / Normal=(128,128,255) / Metallic=黒 / Roughness=白 / AO=白
 // ============================================================
 Texture2D albedoTexture : register(t0);
 Texture2D normalTexture : register(t1);
@@ -73,7 +75,7 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
-    // --- テクスチャサンプル ---
+    // --- テクスチャサンプル（欠落分は既定テクスチャがbind済み）---
     float3 albedo = albedoTexture.Sample(samplerState, input.UV).rgb;
     float metallic = metallicTexture.Sample(samplerState, input.UV).r;
     float roughness = roughnessTexture.Sample(samplerState, input.UV).r;
@@ -87,7 +89,7 @@ float4 main(PS_INPUT input) : SV_TARGET
     // --- TBN ---
     float3 N = normalize(input.Normal);
     float3 T = normalize(input.Tangent);
-    T = normalize(T - dot(T, N) * N);
+    T = normalize(T - dot(T, N) * N); // Gram-Schmidt 直交化
     float3 B = cross(N, T);
     float3x3 TBN = float3x3(T, B, N);
     N = normalize(mul(normalMap, TBN));

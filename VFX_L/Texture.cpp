@@ -1,7 +1,7 @@
 ﻿#include "Texture.h"
 #include <DirectXTex.h>
 #include <iostream>
-
+#include <cstdint>
 bool Texture::Load(ID3D11Device* device, const std::wstring& filepath)
 {
     if (!device)
@@ -101,4 +101,47 @@ void Texture::Unbind(ID3D11DeviceContext* context, UINT slot)
     if (!context) return;
     ID3D11ShaderResourceView* nullSRV = nullptr;
     context->PSSetShaderResources(slot, 1, &nullSRV);
+}
+
+
+bool Texture::CreateFromMemory(ID3D11Device* device, const void* pixels,
+    UINT width, UINT height, DXGI_FORMAT format)
+{
+    if (!device || !pixels) return false;
+
+    // テクスチャ本体
+    D3D11_TEXTURE2D_DESC td = {};
+    td.Width = width;
+    td.Height = height;
+    td.MipLevels = 1;
+    td.ArraySize = 1;
+    td.Format = format;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_IMMUTABLE;          // 生成後は変更しない
+    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA init = {};
+    init.pSysMem = pixels;
+    init.SysMemPitch = width * 4;              // RGBA8 = 4byte/pixel 前提
+
+    ComPtr<ID3D11Texture2D> tex;
+    if (FAILED(device->CreateTexture2D(&td, &init, &tex))) return false;
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
+    sd.Format = format;
+    sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    sd.Texture2D.MipLevels = 1;
+    if (FAILED(device->CreateShaderResourceView(tex.Get(), &sd, &m_ShaderResourceView)))
+        return false;
+
+    m_Width = (int)width;
+    m_Height = (int)height;
+    return true;
+}
+
+bool Texture::CreateSolid(ID3D11Device* device,
+    uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    const uint8_t px[4] = { r, g, b, a };      // 1x1 RGBA
+    return CreateFromMemory(device, px, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM);
 }

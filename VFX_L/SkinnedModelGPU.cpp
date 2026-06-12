@@ -11,9 +11,9 @@ bool SkinnedModelGPU::CreateSubMeshBuffers(ID3D11Device* device, const SkinnedMo
     gm.materialIndex = src.materialIndex;
 
     if (gm.vertexCount == 0 || gm.indexCount == 0)
-        return true; // 空meshはスキップ
+        return true;
 
-    // --- 1. bind頂点 StructuredBuffer (SRV, 入力) ---
+    // 1. bind顶点
     {
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(SkinnedVertex) * gm.vertexCount;
@@ -33,7 +33,7 @@ bool SkinnedModelGPU::CreateSubMeshBuffers(ID3D11Device* device, const SkinnedMo
         if (FAILED(device->CreateShaderResourceView(gm.bindBuffer.Get(), &sd, &gm.bindSRV))) return false;
     }
 
-    // --- 2. skinning結果 StructuredBuffer (UAV + SRV, 出力) ---
+    // 2. skinned 输出
     {
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(SkinnedVertexOut) * gm.vertexCount;
@@ -56,7 +56,7 @@ bool SkinnedModelGPU::CreateSubMeshBuffers(ID3D11Device* device, const SkinnedMo
         if (FAILED(device->CreateShaderResourceView(gm.skinnedBuffer.Get(), &sd, &gm.skinnedSRV))) return false;
     }
 
-    // --- 3. index buffer (DrawIndexed用) ---
+    // 3. index buffer
     {
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(uint32_t) * gm.indexCount;
@@ -75,8 +75,6 @@ bool SkinnedModelGPU::CreateSubMeshBuffers(ID3D11Device* device, const SkinnedMo
 bool SkinnedModelGPU::CreatePaletteBuffer(ID3D11Device* device, UINT boneCount)
 {
     m_BoneCount = boneCount;
-
-    // Matrix = 64byte。毎フレームCPUから書くので DYNAMIC
     D3D11_BUFFER_DESC bd = {};
     bd.ByteWidth = sizeof(Matrix) * boneCount;
     bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -84,6 +82,7 @@ bool SkinnedModelGPU::CreatePaletteBuffer(ID3D11Device* device, UINT boneCount)
     bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
     bd.StructureByteStride = sizeof(Matrix);
+
     if (FAILED(device->CreateBuffer(&bd, nullptr, &m_PaletteBuffer))) return false;
 
     D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
@@ -95,96 +94,31 @@ bool SkinnedModelGPU::CreatePaletteBuffer(ID3D11Device* device, UINT boneCount)
     return true;
 }
 
-bool SkinnedModelGPU::Initialize(ID3D11Device* device, const SkinnedModel& model)
+bool SkinnedModelGPU::Initialize(ID3D11DeviceContext* ctx, ID3D11Device* device, const SkinnedModel& model)
 {
     if (!device) return false;
 
     for (const auto& sub : model.GetSubMeshes())
         if (!CreateSubMeshBuffers(device, sub))
-        {
-            std::cout << "[SkinnedModelGPU] submesh buffer error" << std::endl;
             return false;
-        }
 
     if (!CreatePaletteBuffer(device, (UINT)model.GetSkeleton().GetBoneCount()))
-    {
-        std::cout <<"[SkinnedModelGPU] palette buffer error" << std::endl;
         return false;
-    }
+
+    UploadIdentityPalette(ctx);
 
     std::cout << "[SkinnedModelGPU] OK: GpuSubMesh=" << m_SubMeshes.size()
         << " Bone=" << m_BoneCount << std::endl;
     return true;
-}   
-// ①検証用：パレットを全部単位行列で埋める（= bind poseそのまま出力させる）
+}
+
 void SkinnedModelGPU::UploadIdentityPalette(ID3D11DeviceContext* ctx)
 {
     if (!ctx || m_BoneCount == 0) return;
-
     std::vector<Matrix> palette(m_BoneCount, Matrix::Identity);
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    if (SUCCEEDED(ctx->Map(m_PaletteBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-    {
-        memcpy(mapped.pData, palette.data(), sizeof(Matrix) * m_BoneCount);
-        ctx->Unmap(m_PaletteBuffer.Get(), 0);
-    }
+    UploadPalette(ctx, palette);
 }
 
-// 全submeshをCSでskinning（bind頂点 → skinned bufferへ書き込み）
-void SkinnedModelGPU::Skin(ID3D11DeviceContext* ctx, ComputeShader* cs)
-{
-    if (!ctx || !cs) return;
-
-    cs->Bind(ctx);
-    ctx->CSSetShaderResources(1, 1, m_PaletteSRV.GetAddressOf()); // palette t1（全submesh共通）
-
-    for (auto& gm : m_SubMeshes)
-    {
-        // CB b0: この submesh の頂点数
-        struct { UINT vertexCount; UINT pad[3]; } cb{ gm.vertexCount, {0,0,0} };
-        cs->WriteBuffer(ctx, 0, &cb);
-
-        ctx->CSSetShaderResources(0, 1, gm.bindSRV.GetAddressOf());     // bind頂点 t0
-        ID3D11UnorderedAccessView* uav = gm.skinnedUAV.Get();
-        ctx->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);            // 出力 u0
-
-        ctx->Dispatch((gm.vertexCount + 255) / 256, 1, 1);
-    }
-
-    // アンバインド（次の描画/CSと衝突しないように）
-    ID3D11ShaderResourceView* nullSRV[2] = { nullptr, nullptr };
-    ctx->CSSetShaderResources(0, 2, nullSRV);
-    ID3D11UnorderedAccessView* nullUAV = nullptr;
-    ctx->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
-}
-void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, VertexShader* vs, PixelShader* ps,
-    const Matrix& world, const Matrix& view, const Matrix& proj)
-{
-    if (!ctx || !vs || !ps) return;
-
-    // RenderCB b0
-    struct { Matrix W, V, P; } cb{ world, view, proj };
-    vs->WriteBuffer(ctx, 0, &cb);
-
-    vs->Bind(ctx);
-    ps->Bind(ctx);
-
-    ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    ctx->IASetInputLayout(nullptr);                 // 頂点バッファ無し
-    ID3D11Buffer* nullVB = nullptr; UINT s = 0, o = 0;
-    ctx->IASetVertexBuffers(0, 1, &nullVB, &s, &o);
-
-    for (auto& gm : m_SubMeshes)
-    {
-        ctx->VSSetShaderResources(0, 1, gm.skinnedSRV.GetAddressOf());  // skinned頂点 t0
-        ctx->IASetIndexBuffer(gm.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-        ctx->DrawIndexed(gm.indexCount, 0, 0);
-    }
-
-    ID3D11ShaderResourceView* nullSRV = nullptr;
-    ctx->VSSetShaderResources(0, 1, &nullSRV);
-}
 void SkinnedModelGPU::UploadPalette(ID3D11DeviceContext* ctx, const std::vector<Matrix>& palette)
 {
     if (!ctx || palette.empty()) return;
@@ -196,4 +130,63 @@ void SkinnedModelGPU::UploadPalette(ID3D11DeviceContext* ctx, const std::vector<
         memcpy(mapped.pData, palette.data(), sizeof(Matrix) * count);
         ctx->Unmap(m_PaletteBuffer.Get(), 0);
     }
+}
+
+// 新增：单个 submesh skinning
+void SkinnedModelGPU::SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, int submeshIndex,
+    const std::vector<Matrix>& palette)
+{
+    if (!ctx || !cs || submeshIndex < 0 || submeshIndex >= (int)m_SubMeshes.size())
+        return;
+
+    UploadPalette(ctx, palette);   // 上传当前 submesh 专用的 palette
+
+    auto& gm = m_SubMeshes[submeshIndex];
+
+    cs->Bind(ctx);
+
+    // CB b0: 顶点数
+    struct { UINT vertexCount; UINT pad[3]; } cb{ gm.vertexCount, {0,0,0} };
+    cs->WriteBuffer(ctx, 0, &cb);
+
+    ctx->CSSetShaderResources(0, 1, gm.bindSRV.GetAddressOf());     // t0: bind verts
+    ctx->CSSetShaderResources(1, 1, m_PaletteSRV.GetAddressOf());   // t1: palette
+
+    ID3D11UnorderedAccessView* uav = gm.skinnedUAV.Get();
+    ctx->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
+
+    ctx->Dispatch((gm.vertexCount + 255) / 256, 1, 1);
+
+    // 解绑
+    ID3D11ShaderResourceView* nullSRV[2] = { nullptr, nullptr };
+    ctx->CSSetShaderResources(0, 2, nullSRV);
+    ID3D11UnorderedAccessView* nullUAV = nullptr;
+    ctx->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
+}
+
+void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, VertexShader* vs, PixelShader* ps,
+    const Matrix& world, const Matrix& view, const Matrix& proj)
+{
+    if (!ctx || !vs || !ps) return;
+
+    struct { Matrix W, V, P; } cb{ world, view, proj };
+    vs->WriteBuffer(ctx, 0, &cb);
+
+    vs->Bind(ctx);
+    ps->Bind(ctx);
+
+    ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ctx->IASetInputLayout(nullptr);
+    ID3D11Buffer* nullVB = nullptr; UINT s = 0, o = 0;
+    ctx->IASetVertexBuffers(0, 1, &nullVB, &s, &o);
+
+    for (auto& gm : m_SubMeshes)
+    {
+        ctx->VSSetShaderResources(0, 1, gm.skinnedSRV.GetAddressOf());
+        ctx->IASetIndexBuffer(gm.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+        ctx->DrawIndexed(gm.indexCount, 0, 0);
+    }
+
+    ID3D11ShaderResourceView* nullSRV = nullptr;
+    ctx->VSSetShaderResources(0, 1, &nullSRV);
 }

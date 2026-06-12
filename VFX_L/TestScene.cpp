@@ -5,24 +5,26 @@
 #include "DebugManager.h"
 #include "imgui.h"
 #include <iostream>
-//Test
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
 void TestScene::Init()
 {
-    std::cout << "[TestScene] Init - Full PBR Test" << std::endl;
+    std::cout << "[TestScene] Init - Full PBR Test (Shadowkin)" << std::endl;
 
     auto* device = Application::Get().GetGraphics().GetDevice();
     auto* context = Application::Get().GetGraphics().GetContext();
+    Material::InitDefaultTextures(device);
 
+    // ==================== 1. Camera 初期化 ====================
     m_Camera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 10000.0f);
     m_Camera.SetPosition({ 0.0f, 2.0f, -8.0f });
     m_Camera.SetTarget({ 0.0f, 0.0f, 0.0f });
     SetCamera(&m_Camera);
 
-    // 粒子・VFX
+    // ==================== 2. Particle & VFX 初期化 ====================
     if (!m_GPUParticleSystem.Initialize(device, context, 100000))
     {
         std::cout << "[Error] GPU Particle init failed" << std::endl;
@@ -41,70 +43,103 @@ void TestScene::Init()
     m_Editor.SetTexture(m_ParticleTexture);
     m_Editor.SetParticleSystem(&m_GPUParticleSystem);
 
-    // ===== Shadowkin（フル PBR）=====
+    // ==================== 3. PBR Model (Shadowkin) 初期化 ====================
     m_Model = ResourceManager::Get().LoadModel(Res::Mdl::Shadowkin);
-
     if (m_Model)
     {
-        auto pbrVS = ResourceManager::Get().LoadVS(L"PBR_VS", Res::Shd::PBR_VS);
-        auto pbrPS = ResourceManager::Get().LoadPS(L"PBR_PS", Res::Shd::PBR_PS);
-
-        if (!pbrVS) std::cout << "[Error] PBR_VS failed\n";
-        if (!pbrPS) std::cout << "[Error] PBR_PS failed\n";
-
-        // フル PBR 材质を作るヘルパー（5枚全部）
-        auto makePBR = [&](const wchar_t* alb, const wchar_t* nrm, const wchar_t* met,
-            const wchar_t* rgh, const wchar_t* ao)
-            {
-                auto m = std::make_shared<Material>();
-                m->SetVertexShader(pbrVS);
-                m->SetPixelShader(pbrPS);
-                m->SetAlbedoTexture(ResourceManager::Get().LoadTexture(alb));
-                m->SetNormalTexture(ResourceManager::Get().LoadTexture(nrm));
-                m->SetMetallicTexture(ResourceManager::Get().LoadTexture(met));
-                m->SetRoughnessTexture(ResourceManager::Get().LoadTexture(rgh));
-                m->SetAOTexture(ResourceManager::Get().LoadTexture(ao));
-                return m;
-            };
-
-        auto silverMat = makePBR(
-            Res::Tex::Silver_Albedo, Res::Tex::Silver_Normal,
-            Res::Tex::Silver_Metallic, Res::Tex::Silver_Roughness, Res::Tex::Silver_AO);
-
-        auto pantsMat = makePBR(
-            Res::Tex::Pants_Albedo, Res::Tex::Pants_Normal,
-            Res::Tex::Pants_Metallic, Res::Tex::Pants_Roughness, Res::Tex::Pants_AO);
-
-        // ★ material index はコンソールの [Material N] name: を見て調整 ★
-        // とりあえず 0=Silver, 1=Pants と仮定して割り当て。
-        // print を見て、Silver/Pants が逆なら入れ替える。
-        int matCount = (int)m_Model->GetMaterialCount();
-        std::cout << "[Shadowkin] material count = " << matCount << "\n";
-
-        if (matCount >= 1) m_Model->SetMaterial(0, silverMat);
-        if (matCount >= 2) m_Model->SetMaterial(1, pantsMat);
-        // 材质が3つ以上ある場合、残りも適当に割り当て（表示確認用）
-        for (int i = 2; i < matCount; ++i)
-            m_Model->SetMaterial(i, silverMat);
+        SetupPBRMaterials();
     }
     else
     {
-        std::cout << "[Error] Shadowkin load failed\n";
+        std::cout << "[Error] Shadowkin load failed" << std::endl;
     }
 
-    std::cout << "[TestScene] Init complete" << std::endl;
-
+    // ==================== 4. Skybox 初期化 ====================
     m_Skybox.Init(device, Res::Mdl::SkyboxSphere, Res::Tex::SkyboxPanorama);
 
-    // --- スキニングモデル読み込みテスト（B3+B4の動作確認）---
-    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Jiandu_Idle);
+    // ==================== 5. Skinned Model 初期化 ====================
+    LoadSkinnedModel();
+
+    std::cout << "[TestScene] Init complete" << std::endl;
+}
+
+// PBRマテリアル設定（Shadowkin：フルPBRテクスチャ）
+void TestScene::SetupPBRMaterials()
+{
+    auto pbrVS = ResourceManager::Get().LoadVS(L"PBR_VS", Res::Shd::PBR_VS);
+    auto pbrPS = ResourceManager::Get().LoadPS(L"PBR_PS", Res::Shd::PBR_PS);
+
+    if (!pbrVS) std::cout << "[Error] PBR_VS failed\n";
+    if (!pbrPS) std::cout << "[Error] PBR_PS failed\n";
+
+    // フルPBRマテリアル生成（Albedo/Normal/Metallic/Roughness/AO 全部）
+    auto makePBR = [&](const wchar_t* alb, const wchar_t* nrm, const wchar_t* met,
+        const wchar_t* rgh, const wchar_t* ao)
+        {
+            auto m = std::make_shared<Material>();
+            m->SetVertexShader(pbrVS);
+            m->SetPixelShader(pbrPS);
+
+            auto albTex = ResourceManager::Get().LoadTexture(alb);
+            auto nrmTex = ResourceManager::Get().LoadTexture(nrm);
+            auto metTex = ResourceManager::Get().LoadTexture(met);
+            auto rghTex = ResourceManager::Get().LoadTexture(rgh);
+            auto aoTex = ResourceManager::Get().LoadTexture(ao);
+
+            // 読み込み確認ログ（どれか欠けたら既定テクスチャで補完される）
+            std::wcout << L"[PBR-tex] alb=" << (albTex ? L"OK" : L"--")
+                << L" nrm=" << (nrmTex ? L"OK" : L"--")
+                << L" met=" << (metTex ? L"OK" : L"--")
+                << L" rgh=" << (rghTex ? L"OK" : L"--")
+                << L" ao=" << (aoTex ? L"OK" : L"--") << std::endl;
+
+            m->SetAlbedoTexture(albTex);
+            m->SetNormalTexture(nrmTex);
+            m->SetMetallicTexture(metTex);
+            m->SetRoughnessTexture(rghTex);
+            m->SetAOTexture(aoTex);
+            return m;
+        };
+
+    // Silver（金属）材质
+    auto silverMat = makePBR(
+        Res::Tex::Silver_Albedo, Res::Tex::Silver_Normal,
+        Res::Tex::Silver_Metallic, Res::Tex::Silver_Roughness, Res::Tex::Silver_AO);
+
+    // Pants（布）材质
+    auto pantsMat = makePBR(
+        Res::Tex::Pants_Albedo, Res::Tex::Pants_Normal,
+        Res::Tex::Pants_Metallic, Res::Tex::Pants_Roughness, Res::Tex::Pants_AO);
+
+    int matCount = (int)m_Model->GetMaterialCount();
+    std::cout << "[Shadowkin] material count = " << matCount << "\n";
+
+    // material index 対応は読み込み後に判明するので、ログを見て調整する
+    if (matCount >= 1) m_Model->SetMaterial(0, silverMat);
+    if (matCount >= 2) m_Model->SetMaterial(1, pantsMat);
+    for (int i = 2; i < matCount; ++i)
+        m_Model->SetMaterial(i, silverMat);
+}
+
+// スキニングモデル読み込み
+void TestScene::LoadSkinnedModel()
+{
+    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Paladin);
+
     if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
     {
         m_SkinnedModel = loaded.skinnedModel;
-        if (m_SkinnedGPU.Initialize(device, *m_SkinnedModel))
+
+        if (m_SkinnedGPU.Initialize(Application::Get().GetGraphics().GetContext(),
+            Application::Get().GetGraphics().GetDevice(),
+            *m_SkinnedModel))
+        {
             std::cout << "[TestScene] SkinnedModelGPU init OK" << std::endl;
+        }
         else
+        {
             std::cout << "[TestScene] SkinnedModelGPU init FAILED" << std::endl;
+        }
     }
     else
     {
@@ -112,11 +147,11 @@ void TestScene::Init()
     }
 
     m_SkinningCS = ResourceManager::Get().LoadCS(L"SkinningCS", L"Shader/Skinning/SkinningCS.hlsl");
-    m_SkinnedVS  = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
-    m_SkinnedPS  = ResourceManager::Get().LoadPS(L"SkinnedPS", L"Shader/Skinning/SkinnedPS.hlsl");
+    m_SkinnedVS = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
+    m_SkinnedPS = ResourceManager::Get().LoadPS(L"SkinnedPS", L"Shader/Skinning/SkinnedPS.hlsl");
 
-    m_SkinnedTransform.SetScale({0.005 , 0.005, 0.005 });   // ←見えなかったらここを調整（後述）
-    m_SkinnedTransform.SetPosition({ 0, 0, 0 });
+    m_SkinnedTransform.SetScale({ 0.005f, 0.005f, 0.005f });
+    m_SkinnedTransform.SetPosition({ 0.0f, 0.0f, 0.0f });
 }
 
 void TestScene::Shutdown()
@@ -156,23 +191,39 @@ void TestScene::Render(Renderer& renderer)
     SceneBase::Render(renderer);
     m_Skybox.Render(renderer, GetCamera());
     m_Renderer = &renderer;
-    if (m_SkinnedModel && m_SkinningCS && m_SkinnedVS && m_SkinnedPS)
-    {
-        auto* ctx = Application::Get().GetGraphics().GetContext();
-        m_SkinnedModel->SampleAnimation(m_AnimTime, m_Palette); // 時刻→ボーン行列
-        m_SkinnedGPU.UploadPalette(ctx, m_Palette);             // パレット転送
-        m_SkinnedGPU.Skin(ctx, m_SkinningCS.get());             // CS skinning
-        m_SkinnedGPU.Render(ctx, m_SkinnedVS.get(), m_SkinnedPS.get(),
-            m_SkinnedTransform.GetWorldMatrix(),
-            GetCamera()->GetViewMatrix(),
-            GetCamera()->GetProjectionMatrix());
-    }
+
+    RenderSkinnedModel(renderer);
 
     if (m_Model)
         m_Model->Draw(renderer, &m_ModelTransform);
 
     m_GPUParticleSystem.SetCamera(GetCamera());
     m_GPUParticleSystem.Render();
+}
+
+void TestScene::RenderSkinnedModel(Renderer& renderer)
+{
+    if (!m_SkinnedModel || !m_SkinningCS || !m_SkinnedVS || !m_SkinnedPS)
+        return;
+
+    auto* ctx = Application::Get().GetGraphics().GetContext();
+
+    std::vector<DirectX::SimpleMath::Matrix> globalMatrices;
+    std::vector<DirectX::SimpleMath::Matrix> subPalette;
+
+    m_SkinnedModel->SampleAnimation(m_AnimTime, globalMatrices, 0);
+
+    const int subCount = (int)m_SkinnedGPU.GetSubMeshes().size();
+    for (int s = 0; s < subCount; ++s)
+    {
+        m_SkinnedModel->BuildSubmeshPalette(s, globalMatrices, subPalette);
+        m_SkinnedGPU.SkinSubmesh(ctx, m_SkinningCS.get(), s, subPalette);
+    }
+
+    m_SkinnedGPU.Render(ctx, m_SkinnedVS.get(), m_SkinnedPS.get(),
+        m_SkinnedTransform.GetWorldMatrix(),
+        GetCamera()->GetViewMatrix(),
+        GetCamera()->GetProjectionMatrix());
 }
 
 void TestScene::DrawDebugUI()
@@ -220,11 +271,9 @@ void TestScene::DrawDebugUI()
     ImGui::End();
 }
 
-void TestScene:: InspectModel(const std::string& filepath)
+void TestScene::InspectModel(const std::string& filepath)
 {
     Assimp::Importer importer;
-
-    // 診断目的なので最小フラグ（中身を素のまま見たい）
     const aiScene* scene = importer.ReadFile(filepath, aiProcess_Triangulate);
 
     if (!scene || !scene->mRootNode)
@@ -232,45 +281,4 @@ void TestScene:: InspectModel(const std::string& filepath)
         std::cout << "[Inspect] 読み込み失敗: " << importer.GetErrorString() << std::endl;
         return;
     }
-
-    std::cout << "================ " << filepath << " ================" << std::endl;
-
-    // --- メッシュ情報 ---
-    std::cout << "[Mesh] 数 = " << scene->mNumMeshes << std::endl;
-    unsigned int totalVerts = 0;
-    std::unordered_set<std::string> uniqueBones; // 全meshをまたいだユニークなボーン名
-
-    for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
-    {
-        aiMesh* m = scene->mMeshes[i];
-        totalVerts += m->mNumVertices;
-
-        std::cout << "  Mesh[" << i << "] \"" << m->mName.C_Str() << "\""
-            << " 頂点=" << m->mNumVertices
-            << " ボーン=" << m->mNumBones
-            << (m->HasBones() ? " (スキンあり)" : " (スキンなし!)")
-            << std::endl;
-
-        for (unsigned int b = 0; b < m->mNumBones; ++b)
-            uniqueBones.insert(m->mBones[b]->mName.C_Str());
-    }
-    std::cout << "  合計頂点 = " << totalVerts << std::endl;
-    std::cout << "  ★ユニークボーン総数 = " << uniqueBones.size() << std::endl; // ←MAX_BONESを決める鍵
-
-    // --- アニメーション情報 ---
-    std::cout << "[Animation] 数 = " << scene->mNumAnimations << std::endl;
-    for (unsigned int i = 0; i < scene->mNumAnimations; ++i)
-    {
-        aiAnimation* a = scene->mAnimations[i];
-        double fps = (a->mTicksPerSecond != 0.0) ? a->mTicksPerSecond : 25.0;
-        double sec = a->mDuration / fps;
-        std::cout << "  Anim[" << i << "] \"" << a->mName.C_Str() << "\""
-            << " duration=" << a->mDuration << " ticks"
-            << " (" << sec << " 秒 / " << fps << " fps)"
-            << " channels=" << a->mNumChannels << std::endl;
-    }
-
-    // --- マテリアル数 ---
-    std::cout << "[Material] 数 = " << scene->mNumMaterials << std::endl;
-    std::cout << "=========================================" << std::endl;
 }
