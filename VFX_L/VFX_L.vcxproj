@@ -229,6 +229,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
+    <ClInclude Include="AssimpFlags.h" />
     <ClInclude Include="CameraBase.h" />
     <ClInclude Include="Component.h" />
     <ClInclude Include="ComputeShader.h" />

@@ -29,8 +29,8 @@ LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
         aiProcess_FlipUVs |
         aiProcess_CalcTangentSpace |
         aiProcess_GenNormals |
-        aiProcess_MakeLeftHanded |
-        aiProcess_LimitBoneWeights |
+        aiProcess_MakeLeftHanded | /*
+        aiProcess_LimitBoneWeights |*/
         aiProcess_PopulateArmatureData);   // ★追加：骨/アーマチュア情報を整える（先生コード参照）
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)

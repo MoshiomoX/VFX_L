@@ -44,16 +44,31 @@ void main(uint3 id : SV_DispatchThreadID)
 
     SkinnedVertex v = bindVerts[i];
 
-    // 4ボーンの行列を重み混合
-    float4x4 m =
-          bonePalette[v.boneIndices.x] * v.boneWeights.x +
-          bonePalette[v.boneIndices.y] * v.boneWeights.y +
-          bonePalette[v.boneIndices.z] * v.boneWeights.z +
-          bonePalette[v.boneIndices.w] * v.boneWeights.w;
+    // ★各ボーンで頂点を変換してから重み付け加算（matrix*scalarの型曖昧さを回避）
+    float4 pos = float4(v.position, 1.0);
+    float3 nrm = v.normal;
+
+    float4 skinnedPos = float4(0, 0, 0, 0);
+    float3 skinnedNrm = float3(0, 0, 0);
+
+    float4x4 m0 = transpose(bonePalette[v.boneIndices.x]);
+    float4x4 m1 = transpose(bonePalette[v.boneIndices.y]);
+    float4x4 m2 = transpose(bonePalette[v.boneIndices.z]);
+    float4x4 m3 = transpose(bonePalette[v.boneIndices.w]);
+
+    skinnedPos += mul(pos, m0) * v.boneWeights.x;
+    skinnedPos += mul(pos, m1) * v.boneWeights.y;
+    skinnedPos += mul(pos, m2) * v.boneWeights.z;
+    skinnedPos += mul(pos, m3) * v.boneWeights.w;
+
+    skinnedNrm += mul(nrm, (float3x3) m0) * v.boneWeights.x;
+    skinnedNrm += mul(nrm, (float3x3) m1) * v.boneWeights.y;
+    skinnedNrm += mul(nrm, (float3x3) m2) * v.boneWeights.z;
+    skinnedNrm += mul(nrm, (float3x3) m3) * v.boneWeights.w;
 
     SkinnedVertexOut o;
-    o.position = mul(float4(v.position, 1.0), m).xyz; // 行ベクトル v*M
-    o.normal = normalize(mul(v.normal, (float3x3) m));
+    o.position = skinnedPos.xyz;
+    o.normal = normalize(skinnedNrm);
     o.uv = v.uv;
     o._pad0 = 0;
     o._pad1 = 0;
