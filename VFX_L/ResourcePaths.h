@@ -69,6 +69,9 @@ namespace Res
 
         inline constexpr const char* Paladin =
             "Assets/Model/testAnimModel/PaladinWPropJNordstrom.fbx";
+
+        inline constexpr const char* Paladin_SwordAndShieldIdle =
+            "Assets/Model/testAnimModel/SwordAndShieldIdle.fbx";
     }
 
     // ========================================================

@@ -72,7 +72,6 @@ void TestScene::SetupPBRMaterials()
     if (!pbrVS) std::cout << "[Error] PBR_VS failed\n";
     if (!pbrPS) std::cout << "[Error] PBR_PS failed\n";
 
-    // フルPBRマテリアル生成（Albedo/Normal/Metallic/Roughness/AO 全部）
     auto makePBR = [&](const wchar_t* alb, const wchar_t* nrm, const wchar_t* met,
         const wchar_t* rgh, const wchar_t* ao)
         {
@@ -86,7 +85,6 @@ void TestScene::SetupPBRMaterials()
             auto rghTex = ResourceManager::Get().LoadTexture(rgh);
             auto aoTex = ResourceManager::Get().LoadTexture(ao);
 
-            // 読み込み確認ログ（どれか欠けたら既定テクスチャで補完される）
             std::wcout << L"[PBR-tex] alb=" << (albTex ? L"OK" : L"--")
                 << L" nrm=" << (nrmTex ? L"OK" : L"--")
                 << L" met=" << (metTex ? L"OK" : L"--")
@@ -114,7 +112,6 @@ void TestScene::SetupPBRMaterials()
     int matCount = (int)m_Model->GetMaterialCount();
     std::cout << "[Shadowkin] material count = " << matCount << "\n";
 
-    // material index 対応は読み込み後に判明するので、ログを見て調整する
     if (matCount >= 1) m_Model->SetMaterial(0, silverMat);
     if (matCount >= 2) m_Model->SetMaterial(1, pantsMat);
     for (int i = 2; i < matCount; ++i)
@@ -124,7 +121,7 @@ void TestScene::SetupPBRMaterials()
 // スキニングモデル読み込み
 void TestScene::LoadSkinnedModel()
 {
-    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Paladin);
+    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Jiandu_Idle);
 
     if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
     {
@@ -201,6 +198,7 @@ void TestScene::Render(Renderer& renderer)
     m_GPUParticleSystem.Render();
 }
 
+// スキニングモデル専用描画関数
 void TestScene::RenderSkinnedModel(Renderer& renderer)
 {
     if (!m_SkinnedModel || !m_SkinningCS || !m_SkinnedVS || !m_SkinnedPS)
@@ -211,8 +209,21 @@ void TestScene::RenderSkinnedModel(Renderer& renderer)
     std::vector<DirectX::SimpleMath::Matrix> globalMatrices;
     std::vector<DirectX::SimpleMath::Matrix> subPalette;
 
+    // Global Transform を1回だけ計算
     m_SkinnedModel->SampleAnimation(m_AnimTime, globalMatrices, 0);
 
+    // ★デバッグ：時間とglobal行列が動いているか（1秒に1回）。修正完了後は削除可
+    //static int s_dbg = 0;
+    //if (s_dbg++ % 60 == 0 && globalMatrices.size() > 10)
+    //{
+    //    const auto& m = globalMatrices[10];
+    //    std::cout << "[dbg] t=" << m_AnimTime
+    //        << " bones=" << globalMatrices.size()
+    //        << " g10=(" << m._41 << ", " << m._42 << ", " << m._43 << ")"
+    //        << std::endl;
+    //}
+
+    // 各SubMeshごとにPaletteを構築してSkinning
     const int subCount = (int)m_SkinnedGPU.GetSubMeshes().size();
     for (int s = 0; s < subCount; ++s)
     {
@@ -220,6 +231,7 @@ void TestScene::RenderSkinnedModel(Renderer& renderer)
         m_SkinnedGPU.SkinSubmesh(ctx, m_SkinningCS.get(), s, subPalette);
     }
 
+    // 最終描画
     m_SkinnedGPU.Render(ctx, m_SkinnedVS.get(), m_SkinnedPS.get(),
         m_SkinnedTransform.GetWorldMatrix(),
         GetCamera()->GetViewMatrix(),

@@ -1,4 +1,5 @@
 #include "SkinnedModel.h"
+#include "AssimpFlags.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -8,6 +9,10 @@
 #include <cmath>
 #include <algorithm>
 using namespace DirectX::SimpleMath;
+
+// ★offsetMatrixを階層から再計算するスイッチ
+//   [bind-check] の worstDiff が大きい(>0.1)submeshがある場合に true にして再実行
+static constexpr bool kRebuildOffsetsFromHierarchy =false;
 
 // Assimp(行優先/列ベクトル) → SimpleMath(行優先/行ベクトル) へ転置変換
 static Matrix ToSM(const aiMatrix4x4& m)
@@ -19,7 +24,7 @@ static Matrix ToSM(const aiMatrix4x4& m)
         m.a4, m.b4, m.c4, m.d4);
 }
 
-// ノード階層を再帰走査して Skeleton にボーン枠を登録（階層は全mesh共有でOK）
+// ノード階層を再帰走査して Skeleton にボーン枠を登録（階層は全mesh共有）
 static void BuildSkeleton(const aiNode* node, int parentIndex, Skeleton& skel)
 {
     int index = skel.AddBone(node->mName.C_Str());
@@ -29,6 +34,23 @@ static void BuildSkeleton(const aiNode* node, int parentIndex, Skeleton& skel)
 
     for (unsigned int i = 0; i < node->mNumChildren; ++i)
         BuildSkeleton(node->mChildren[i], index, skel);
+}
+
+// 指定mesh indexを参照しているノードのglobal bind行列を探す（再帰）
+// offset整合性チェックの基準。Mixamoは通常ほぼIdentity
+static bool FindMeshNodeGlobal(const aiNode* node, unsigned int meshIndex,
+    const Matrix& parent, Matrix& out)
+{
+    Matrix global = ToSM(node->mTransformation) * parent;   // 行ベクトル規約：local * parentGlobal
+
+    for (unsigned int i = 0; i < node->mNumMeshes; ++i)
+        if (node->mMeshes[i] == meshIndex) { out = global; return true; }
+
+    for (unsigned int i = 0; i < node->mNumChildren; ++i)
+        if (FindMeshNodeGlobal(node->mChildren[i], meshIndex, global, out))
+            return true;
+
+    return false;
 }
 
 static Vector3 InterpVec(const std::vector<VectorKey>& keys, float t, const Vector3& fb)
@@ -122,7 +144,7 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
                 std::cout << "[add-missing-bone] " << boneName << std::endl;
             }
 
-            // ★offsetは全骨共有せず、submesh毎のmapに保存（核心修正）
+            // ★offsetは全骨共有せず、submesh毎のmapに保存
             sub.boneOffsets[boneIndex] = ToSM(aibone->mOffsetMatrix);
 
             if (aibone->mNumWeights == 0)
@@ -147,6 +169,53 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
         for (auto& vert : sub.vertices)
             vert.NormalizeWeights();
 
+        // ============================================
+        // ★bind整合性チェック：
+        //   offset * boneGlobalBind ≒ meshNodeGlobalBind のはず
+        //   崩れている骨 = スパイク（手/剣/盾）の発生源
+        // ============================================
+        {
+            Matrix meshNodeGlobal = Matrix::Identity;
+            FindMeshNodeGlobal(scene->mRootNode, mi, Matrix::Identity, meshNodeGlobal);
+
+            // ★追加：meshNodeGlobal が Identity か確認
+            std::cout << "[meshNode] submesh=" << mi
+                << " pos=(" << meshNodeGlobal._41 << "," << meshNodeGlobal._42 << "," << meshNodeGlobal._43 << ")"
+                << " _11=" << meshNodeGlobal._11 << std::endl;
+            const auto& bones = m_Skeleton.GetBones();
+            auto globalBindOf = [&](int idx) {
+                Matrix g = Matrix::Identity;
+                for (int c = idx; c >= 0; c = bones[c].parentIndex)
+                    g = g * bones[c].localBindTransform;   // 子→親へ累積
+                return g;
+                };
+
+            float worst = 0.0f; int worstBone = -1;
+            for (auto& [bi2, off] : sub.boneOffsets)
+            {
+                Matrix d = off * globalBindOf(bi2) - meshNodeGlobal;
+                const float* p = &d._11;
+                float md = 0.0f;
+                for (int k = 0; k < 16; ++k) md = (std::max)(md, std::fabs(p[k]));
+                if (md > worst) { worst = md; worstBone = bi2; }
+            }
+            std::cout << "[bind-check] submesh=" << mi << " name=" << sub.name
+                << " worstDiff=" << worst
+                << " bone=" << (worstBone >= 0 ? bones[worstBone].name : std::string("none"))
+                << std::endl;
+
+            // ★修復スイッチ：ファイルのoffsetを捨て、階層から再計算する
+            //   offset = meshNodeGlobal * Invert(boneGlobalBind)
+            //   → bind時 offset*globalBind = meshNodeGlobal が保証され、スパイクは消えるはず
+            if (kRebuildOffsetsFromHierarchy)
+            {
+                for (auto& [bi2, off] : sub.boneOffsets)
+                    off = meshNodeGlobal * globalBindOf(bi2).Invert();
+                std::cout << "[offset-rebuild] submesh=" << mi
+                    << " rebuilt " << sub.boneOffsets.size() << " offsets" << std::endl;
+            }
+        }
+
         std::cout << "[SkinnedModel] submesh=" << mi << " name=" << sub.name
             << " offsetCount=" << sub.boneOffsets.size() << std::endl;
 
@@ -163,20 +232,12 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
 }
 
 // ============================================
-// 単体で呼ぶ用（フラグは LoadModelAuto と揃える）
+// 単体で呼ぶ用（フラグ/プロパティは AssimpFlags.h に一元化）
 // ============================================
 bool SkinnedModel::Load(const std::string& filepath)
 {
     Assimp::Importer importer;
-    importer.SetPropertyInteger(AI_CONFIG_PP_LBW_MAX_WEIGHTS, 4);
-    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
-    const aiScene* scene = importer.ReadFile(filepath,
-        aiProcess_Triangulate |
-        aiProcess_FlipUVs |
-        aiProcess_CalcTangentSpace |
-        aiProcess_GenNormals |
-        aiProcess_MakeLeftHanded |
-        aiProcess_LimitBoneWeights);   // JoinIdenticalVertices は削除
+    const aiScene* scene = Res::ImportModelScene(importer, filepath);
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
     {
@@ -317,8 +378,6 @@ void SkinnedModel::BuildSubmeshPalette(int submeshIndex,
 
     const SubMesh& sub = m_SubMeshes[submeshIndex];
 
-    // このsubmeshが使う骨だけ offset を掛ける。他の骨はIdentityのままでよい
-    // （そのsubmeshの頂点はその骨を参照しないので影響しない）
     for (const auto& [boneIdx, offset] : sub.boneOffsets)
     {
         if (boneIdx >= 0 && boneIdx < boneCount)
