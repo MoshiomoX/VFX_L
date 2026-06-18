@@ -42,7 +42,7 @@ private:
     CameraBase* m_PreviousCamera = nullptr;
 
     bool m_Initialized = false;
-	bool m_UseDebugCamera = true;
+	bool m_UseDebugCamera = false;
 
     bool m_ShowGrid = true;
     float m_GridSize = 50.0f;

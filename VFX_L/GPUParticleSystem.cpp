@@ -5,6 +5,26 @@
 
 #pragma comment(lib, "d3dcompiler.lib")
 
+// hlslパス → csoパス
+static std::string PtoCso(const std::wstring& hlslPath)
+{
+    std::string s(hlslPath.begin(), hlslPath.end());
+    size_t dot = s.find_last_of('.');
+    if (dot != std::string::npos)
+        s = s.substr(0, dot);
+    return s + ".cso";   // "Shader/Particle/GPUParticleVS.cso"
+}
+
+// VS/PS/CS 共通：Debug=hlslコンパイル / Release=csoロード
+template <class T>
+static HRESULT LoadShaderAuto(T* shader, ID3D11Device* device, const std::wstring& hlslPath)
+{
+#ifdef _DEBUG
+    return shader->Compile(device, hlslPath);
+#else
+    return shader->Load(device, PtoCso(hlslPath).c_str());
+#endif
+}
 // ============================================
 // 初期化
 // ============================================
@@ -210,35 +230,32 @@ bool GPUParticleSystem::CreateAliveListBuffer(ID3D11Device* device, uint32_t max
 bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
 {
     m_InitDeadListCS = std::make_shared<ComputeShader>();
-    HRESULT hr = m_InitDeadListCS->Compile(device, L"Shader/Particle/InitDeadListCS.hlsl");
-    std::cout << "[LoadShaders] InitDeadListCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED")
-        << " hr=0x" << std::hex << hr << std::dec << std::endl;
+    HRESULT hr = LoadShaderAuto(m_InitDeadListCS.get(), device, L"Shader/Particle/InitDeadListCS.hlsl");
+    std::cout << "[LoadShaders] InitDeadListCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_EmitCS = std::make_shared<ComputeShader>();
-    hr = m_EmitCS->Compile(device, L"Shader/Particle/ParticleEmitCS.hlsl");
+    hr = LoadShaderAuto(m_EmitCS.get(), device, L"Shader/Particle/ParticleEmitCS.hlsl");
     std::cout << "[LoadShaders] EmitCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_UpdateCS = std::make_shared<ComputeShader>();
-    hr = m_UpdateCS->Compile(device, L"Shader/Particle/ParticleUpdateCS.hlsl");
+    hr = LoadShaderAuto(m_UpdateCS.get(), device, L"Shader/Particle/ParticleUpdateCS.hlsl");
     std::cout << "[LoadShaders] UpdateCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_RenderVS = std::make_shared<VertexShader>();
-    hr = m_RenderVS->Compile(device, L"Shader/Particle/GPUParticleVS.hlsl");
-    std::cout << "[LoadShaders] RenderVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED")
-        << " hr=0x" << std::hex << hr << std::dec << std::endl;
+    hr = LoadShaderAuto(m_RenderVS.get(), device, L"Shader/Particle/GPUParticleVS.hlsl");
+    std::cout << "[LoadShaders] RenderVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_RenderPS = std::make_shared<PixelShader>();
-    hr = m_RenderPS->Compile(device, L"Shader/Particle/GPUParticlePS.hlsl");
+    hr = LoadShaderAuto(m_RenderPS.get(), device, L"Shader/Particle/GPUParticlePS.hlsl");
     std::cout << "[LoadShaders] RenderPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     return true;
 }
-
 // ============================================
 // レンダーステート作成
 // ============================================

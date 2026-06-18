@@ -32,4 +32,5 @@ private:
     State m_State = None;
     POINT m_OldPos = {};
     Argument m_Arg = {};
+    float m_Dt = 0.0f;
 };

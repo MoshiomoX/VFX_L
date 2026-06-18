@@ -7,6 +7,15 @@
 #include <assimp/config.h> 
 #include <filesystem>
 
+
+static std::string ToCsoPath(const std::wstring& hlslPath)
+{
+    std::string s(hlslPath.begin(), hlslPath.end());
+    size_t dot = s.find_last_of('.');
+    if (dot != std::string::npos)
+        s = s.substr(0, dot);
+    return s + ".cso";   // パス保持、拡張子だけ差し替え
+}
 static bool SceneHasBones(const aiScene* scene)
 {
     for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
@@ -110,23 +119,19 @@ void ResourceManager::UnloadTexture(const std::wstring& filepath)
 
 // ===== VertexShader =====
 std::shared_ptr<VertexShader> ResourceManager::LoadVS(
-    const std::wstring& name,
-    const std::wstring& hlslPath,
-    const std::string& entry)
+    const std::wstring& name, const std::wstring& hlslPath, const std::string& entry)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
     auto it = m_VertexShaders.find(name);
-    if (it != m_VertexShaders.end())
-        return it->second;
+    if (it != m_VertexShaders.end()) return it->second;
 
     auto vs = std::make_shared<VertexShader>();
-    if (FAILED(vs->Compile(m_Device, hlslPath, entry)))
-    {
-        std::wcout << L"[Error] VS compile failed: " << name << std::endl;
-        return nullptr;
-    }
-
+#ifdef _DEBUG
+    HRESULT hr = vs->Compile(m_Device, hlslPath, entry);
+#else
+    HRESULT hr = vs->Load(m_Device, ToCsoPath(hlslPath).c_str());
+#endif
+    if (FAILED(hr)) { std::wcout << L"[Error] VS load failed: " << name << std::endl; return nullptr; }
     m_VertexShaders[name] = vs;
     return vs;
 }
@@ -154,27 +159,22 @@ std::shared_ptr<VertexShader> ResourceManager::LoadVS_CSO(
 
 // ===== PixelShader =====
 std::shared_ptr<PixelShader> ResourceManager::LoadPS(
-    const std::wstring& name,
-    const std::wstring& hlslPath,
-    const std::string& entry)
+    const std::wstring& name, const std::wstring& hlslPath, const std::string& entry)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
     auto it = m_PixelShaders.find(name);
-    if (it != m_PixelShaders.end())
-        return it->second;
+    if (it != m_PixelShaders.end()) return it->second;
 
     auto ps = std::make_shared<PixelShader>();
-    if (FAILED(ps->Compile(m_Device, hlslPath, entry)))
-    {
-        std::wcout << L"[Error] PS compile failed: " << name << std::endl;
-        return nullptr;
-    }
-
+#ifdef _DEBUG
+    HRESULT hr = ps->Compile(m_Device, hlslPath, entry);
+#else
+    HRESULT hr = ps->Load(m_Device, ToCsoPath(hlslPath).c_str());
+#endif
+    if (FAILED(hr)) { std::wcout << L"[Error] PS load failed: " << name << std::endl; return nullptr; }
     m_PixelShaders[name] = ps;
     return ps;
 }
-
 std::shared_ptr<PixelShader> ResourceManager::LoadPS_CSO(
     const std::wstring& name,
     const std::string& csoPath)
@@ -198,23 +198,19 @@ std::shared_ptr<PixelShader> ResourceManager::LoadPS_CSO(
 
 // ===== ComputeShader =====
 std::shared_ptr<ComputeShader> ResourceManager::LoadCS(
-    const std::wstring& name,
-    const std::wstring& hlslPath,
-    const std::string& entry)
+    const std::wstring& name, const std::wstring& hlslPath, const std::string& entry)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
     auto it = m_ComputeShaders.find(name);
-    if (it != m_ComputeShaders.end())
-        return it->second;
+    if (it != m_ComputeShaders.end()) return it->second;
 
     auto cs = std::make_shared<ComputeShader>();
-    if (FAILED(cs->Compile(m_Device, hlslPath, entry)))
-    {
-        std::wcout << L"[Error] CS compile failed: " << name << std::endl;
-        return nullptr;
-    }
-
+#ifdef _DEBUG
+    HRESULT hr = cs->Compile(m_Device, hlslPath, entry);
+#else
+    HRESULT hr = cs->Load(m_Device, ToCsoPath(hlslPath).c_str());
+#endif
+    if (FAILED(hr)) { std::wcout << L"[Error] CS load failed: " << name << std::endl; return nullptr; }
     m_ComputeShaders[name] = cs;
     return cs;
 }
