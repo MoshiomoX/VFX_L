@@ -1,4 +1,4 @@
-#include "Common/ParticleCommon.hlsli"
+    #include "Common/ParticleCommon.hlsli"
 
 cbuffer ParticleRenderCB : register(b0)
 {

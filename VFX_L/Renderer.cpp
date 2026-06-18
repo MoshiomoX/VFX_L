@@ -10,18 +10,21 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_Context = context;
 
     m_DefaultVS = std::make_shared<VertexShader>();
-    if (FAILED(m_DefaultVS->Compile(device, L"Shader/VS.hlsl")))
-    {
-        std::cout << "[Error] Default VS load failed" << std::endl;
-        return false;
-    }
+#ifdef _DEBUG
+    HRESULT hrVS = m_DefaultVS->Compile(device, L"Shader/VS.hlsl");
+#else
+    HRESULT hrVS = m_DefaultVS->Load(device, "Shader/VS.cso");
+#endif
+    if (FAILED(hrVS)) { std::cout << "[Error] Default VS load failed" << std::endl; return false; }
 
     m_DefaultPS = std::make_shared<PixelShader>();
-    if (FAILED(m_DefaultPS->Compile(device, L"Shader/PS.hlsl")))
-    {
-        std::cout << "[Error] Default PS load failed" << std::endl;
-        return false;
-    }
+#ifdef _DEBUG
+    HRESULT hrPS = m_DefaultPS->Compile(device, L"Shader/PS.hlsl");
+#else
+    HRESULT hrPS = m_DefaultPS->Load(device, "Shader/PS.cso");
+#endif
+    if (FAILED(hrPS)) { std::cout << "[Error] Default PS load failed" << std::endl; return false; }
+    
 
     m_LightData.directionalLight.direction = Vector3(0.5f, -1.0f, 0.5f);
     m_LightData.directionalLight.direction.Normalize();
@@ -59,7 +62,7 @@ void Renderer::Shutdown()
 void Renderer::SetDirectionalLight(const Vector3& direction, const Vector3& color, float intensity)
 {
     m_LightData.directionalLight.direction = direction;
-    m_LightData.directionalLight.direction.Normalize();
+    m_LightData.directionalLight.direction.Normalize(); 
     m_LightData.directionalLight.color = color;
     m_LightData.directionalLight.intensity = intensity;
 }

@@ -3,23 +3,23 @@
 
 void DebugCamera::Update(float dt)
 {
+    m_Dt = dt;
+
     UpdateState();
     if (m_State == None) return;
 
-    // マウス移動量
     POINT cursorPos;
     GetCursorPos(&cursorPos);
     m_Arg.mouseMove = { (float)(cursorPos.x - m_OldPos.x), (float)(cursorPos.y - m_OldPos.y) };
     m_OldPos = cursorPos;
 
-    // カメラ情報
     m_Arg.vCamPos = DirectX::XMLoadFloat3(reinterpret_cast<const DirectX::XMFLOAT3*>(&m_Position));
     m_Arg.vCamLook = DirectX::XMLoadFloat3(reinterpret_cast<const DirectX::XMFLOAT3*>(&m_Target));
     DirectX::XMVECTOR vCamUp = DirectX::XMVector3Normalize(
         DirectX::XMLoadFloat3(reinterpret_cast<const DirectX::XMFLOAT3*>(&m_Up)));
     DirectX::XMVECTOR vFront = DirectX::XMVectorSubtract(m_Arg.vCamLook, m_Arg.vCamPos);
 
-    // カメラ姿勢
+    // ★参考版 CameraDCC と完全一致（side = cross(up, front)）
     m_Arg.vCamFront = DirectX::XMVector3Normalize(vFront);
     m_Arg.vCamSide = DirectX::XMVector3Normalize(DirectX::XMVector3Cross(vCamUp, m_Arg.vCamFront));
     m_Arg.vCamUp = DirectX::XMVector3Normalize(DirectX::XMVector3Cross(m_Arg.vCamFront, m_Arg.vCamSide));
@@ -140,11 +140,13 @@ void DebugCamera::UpdateFlight()
     DirectX::XMVECTOR vMove = DirectX::XMVectorZero();
     if (input.GetKeyPress('W')) vMove = DirectX::XMVectorAdd(vMove, vFrontAxis);
     if (input.GetKeyPress('S')) vMove = DirectX::XMVectorSubtract(vMove, vFrontAxis);
-    if (input.GetKeyPress('A')) vMove = DirectX::XMVectorSubtract(vMove, vSideAxis);
-    if (input.GetKeyPress('D')) vMove = DirectX::XMVectorAdd(vMove, vSideAxis);
+    if (input.GetKeyPress('D')) vMove = DirectX::XMVectorSubtract(vMove, vSideAxis);
+    if (input.GetKeyPress('A')) vMove = DirectX::XMVectorAdd(vMove, vSideAxis);
     if (input.GetKeyPress('Q')) vMove = DirectX::XMVectorAdd(vMove, DirectX::XMVectorSet(0, 1, 0, 0));
     if (input.GetKeyPress('E')) vMove = DirectX::XMVectorAdd(vMove, DirectX::XMVectorSet(0, -1, 0, 0));
-    vMove = DirectX::XMVectorScale(vMove, flightSpeed);
+
+    // ★dtを掛けてフレームレート非依存に（×60で元のflightSpeed数値感を維持）
+    vMove = DirectX::XMVectorScale(vMove, flightSpeed * m_Dt * 60.0f);
 
     DirectX::XMVECTOR vNewPos = DirectX::XMVectorAdd(m_Arg.vCamPos, vMove);
 

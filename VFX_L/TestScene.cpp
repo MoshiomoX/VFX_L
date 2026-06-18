@@ -58,7 +58,7 @@ void TestScene::Init()
     m_Skybox.Init(device, Res::Mdl::SkyboxSphere, Res::Tex::SkyboxPanorama);
 
     // ==================== 5. Skinned Model 初期化 ====================
-    LoadSkinnedModel();
+   // LoadSkinnedModel();
 
     std::cout << "[TestScene] Init complete" << std::endl;
 }
@@ -85,11 +85,7 @@ void TestScene::SetupPBRMaterials()
             auto rghTex = ResourceManager::Get().LoadTexture(rgh);
             auto aoTex = ResourceManager::Get().LoadTexture(ao);
 
-            std::wcout << L"[PBR-tex] alb=" << (albTex ? L"OK" : L"--")
-                << L" nrm=" << (nrmTex ? L"OK" : L"--")
-                << L" met=" << (metTex ? L"OK" : L"--")
-                << L" rgh=" << (rghTex ? L"OK" : L"--")
-                << L" ao=" << (aoTex ? L"OK" : L"--") << std::endl;
+
 
             m->SetAlbedoTexture(albTex);
             m->SetNormalTexture(nrmTex);
@@ -118,38 +114,38 @@ void TestScene::SetupPBRMaterials()
         m_Model->SetMaterial(i, silverMat);
 }
 
-// スキニングモデル読み込み
-void TestScene::LoadSkinnedModel()
-{
-    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Jiandu_Idle);
-
-    if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
-    {
-        m_SkinnedModel = loaded.skinnedModel;
-
-        if (m_SkinnedGPU.Initialize(Application::Get().GetGraphics().GetContext(),
-            Application::Get().GetGraphics().GetDevice(),
-            *m_SkinnedModel))
-        {
-            std::cout << "[TestScene] SkinnedModelGPU init OK" << std::endl;
-        }
-        else
-        {
-            std::cout << "[TestScene] SkinnedModelGPU init FAILED" << std::endl;
-        }
-    }
-    else
-    {
-        std::cout << "[TestScene] LoadModelAuto: skinnedとして読めなかった" << std::endl;
-    }
-
-    m_SkinningCS = ResourceManager::Get().LoadCS(L"SkinningCS", L"Shader/Skinning/SkinningCS.hlsl");
-    m_SkinnedVS = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
-    m_SkinnedPS = ResourceManager::Get().LoadPS(L"SkinnedPS", L"Shader/Skinning/SkinnedPS.hlsl");
-
-    m_SkinnedTransform.SetScale({ 0.005f, 0.005f, 0.005f });
-    m_SkinnedTransform.SetPosition({ 0.0f, 0.0f, 0.0f });
-}
+//// スキニングモデル読み込み
+//void TestScene::LoadSkinnedModel()
+//{
+//    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Paladin_SwordAndShieldIdle);
+//
+//    if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
+//    {
+//        m_SkinnedModel = loaded.skinnedModel;
+//
+//        if (m_SkinnedGPU.Initialize(Application::Get().GetGraphics().GetContext(),
+//            Application::Get().GetGraphics().GetDevice(),
+//            *m_SkinnedModel))
+//        {
+//            std::cout << "[TestScene] SkinnedModelGPU init OK" << std::endl;
+//        }
+//        else
+//        {
+//            std::cout << "[TestScene] SkinnedModelGPU init FAILED" << std::endl;
+//        }
+//    }
+//    else
+//    {
+//        std::cout << "[TestScene] LoadModelAuto: skinnedとして読めなかった" << std::endl;
+//    }
+//
+//    m_SkinningCS = ResourceManager::Get().LoadCS(L"SkinningCS", L"Shader/Skinning/SkinningCS.hlsl");
+//    m_SkinnedVS = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
+//    m_SkinnedPS = ResourceManager::Get().LoadPS(L"SkinnedPS", L"Shader/Skinning/SkinnedPS.hlsl");
+//
+//    m_SkinnedTransform.SetScale({ 0.005f, 0.005f, 0.005f });
+//    m_SkinnedTransform.SetPosition({ 2.0f, 0.0f, 0.0f });
+//}
 
 void TestScene::Shutdown()
 {
@@ -211,17 +207,6 @@ void TestScene::RenderSkinnedModel(Renderer& renderer)
 
     // Global Transform を1回だけ計算
     m_SkinnedModel->SampleAnimation(m_AnimTime, globalMatrices, 0);
-
-    // ★デバッグ：時間とglobal行列が動いているか（1秒に1回）。修正完了後は削除可
-    //static int s_dbg = 0;
-    //if (s_dbg++ % 60 == 0 && globalMatrices.size() > 10)
-    //{
-    //    const auto& m = globalMatrices[10];
-    //    std::cout << "[dbg] t=" << m_AnimTime
-    //        << " bones=" << globalMatrices.size()
-    //        << " g10=(" << m._41 << ", " << m._42 << ", " << m._43 << ")"
-    //        << std::endl;
-    //}
 
     // 各SubMeshごとにPaletteを構築してSkinning
     const int subCount = (int)m_SkinnedGPU.GetSubMeshes().size();
