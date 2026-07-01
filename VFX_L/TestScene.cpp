@@ -58,7 +58,7 @@ void TestScene::Init()
     m_Skybox.Init(device, Res::Mdl::SkyboxSphere, Res::Tex::SkyboxPanorama);
 
     // ==================== 5. Skinned Model 初期化 ====================
-   // LoadSkinnedModel();
+     LoadSkinnedModel();
 
     std::cout << "[TestScene] Init complete" << std::endl;
 }
@@ -114,38 +114,38 @@ void TestScene::SetupPBRMaterials()
         m_Model->SetMaterial(i, silverMat);
 }
 
-//// スキニングモデル読み込み
-//void TestScene::LoadSkinnedModel()
-//{
-//    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Paladin_SwordAndShieldIdle);
-//
-//    if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
-//    {
-//        m_SkinnedModel = loaded.skinnedModel;
-//
-//        if (m_SkinnedGPU.Initialize(Application::Get().GetGraphics().GetContext(),
-//            Application::Get().GetGraphics().GetDevice(),
-//            *m_SkinnedModel))
-//        {
-//            std::cout << "[TestScene] SkinnedModelGPU init OK" << std::endl;
-//        }
-//        else
-//        {
-//            std::cout << "[TestScene] SkinnedModelGPU init FAILED" << std::endl;
-//        }
-//    }
-//    else
-//    {
-//        std::cout << "[TestScene] LoadModelAuto: skinnedとして読めなかった" << std::endl;
-//    }
-//
-//    m_SkinningCS = ResourceManager::Get().LoadCS(L"SkinningCS", L"Shader/Skinning/SkinningCS.hlsl");
-//    m_SkinnedVS = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
-//    m_SkinnedPS = ResourceManager::Get().LoadPS(L"SkinnedPS", L"Shader/Skinning/SkinnedPS.hlsl");
-//
-//    m_SkinnedTransform.SetScale({ 0.005f, 0.005f, 0.005f });
-//    m_SkinnedTransform.SetPosition({ 2.0f, 0.0f, 0.0f });
-//}
+// スキニングモデル読み込み
+void TestScene::LoadSkinnedModel()
+{
+    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Paladin_SwordAndShieldIdle);
+
+    if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
+    {
+        m_SkinnedModel = loaded.skinnedModel;
+
+        if (m_SkinnedGPU.Initialize(Application::Get().GetGraphics().GetContext(),
+            Application::Get().GetGraphics().GetDevice(),
+            *m_SkinnedModel))
+        {
+            std::cout << "[TestScene] SkinnedModelGPU init OK" << std::endl;
+        }
+        else
+        {
+            std::cout << "[TestScene] SkinnedModelGPU init FAILED" << std::endl;
+        }
+    }
+    else
+    {
+        std::cout << "[TestScene] LoadModelAuto: skinnedとして読めなかった" << std::endl;
+    }
+
+    m_SkinningCS = ResourceManager::Get().LoadCS(L"SkinningCS", L"Shader/Skinning/SkinningCS.hlsl");
+    m_SkinnedVS = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
+    m_SkinnedPS = ResourceManager::Get().LoadPS(L"SkinnedPS", L"Shader/Skinning/SkinnedPS.hlsl");
+
+    m_SkinnedTransform.SetScale({ 0.005f, 0.005f, 0.005f });
+    m_SkinnedTransform.SetPosition({ 2.0f, 0.0f, 0.0f });
+}
 
 void TestScene::Shutdown()
 {
