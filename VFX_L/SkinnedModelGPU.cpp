@@ -138,9 +138,6 @@ void SkinnedModelGPU::SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, i
 {
     if (!ctx || !cs || submeshIndex < 0 || submeshIndex >= (int)m_SubMeshes.size())
         return;
-
-   // std::vector<Matrix> testPalette(palette.size(), Matrix::CreateTranslation(0, 100, 0));
-   // UploadPalette(ctx, testPalette);
     UploadPalette(ctx, palette);   // 上传当前 submesh 专用的 palette
 
     auto& gm = m_SubMeshes[submeshIndex];

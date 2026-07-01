@@ -422,7 +422,6 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     m_UpdateCS->UnbindSRVs(context);
     m_UpdateCS->UnbindUAVs(context);
 }
-
 // ============================================
 // レンダリング（DrawInstancedIndirect + AliveList）
 // ============================================
@@ -434,28 +433,7 @@ void GPUParticleSystem::Render()
 
     auto context = m_Context;
 
-    // ========== GPU タイミング計測 ==========
-    static ComPtr<ID3D11Query> queryBegin, queryEnd, queryDisjoint;
-    static bool queryCreated = false;
-    static int frameCount = 0;
-
-    if (!queryCreated)
-    {
-        D3D11_QUERY_DESC qd = {};
-        qd.Query = D3D11_QUERY_TIMESTAMP;
-        m_Device->CreateQuery(&qd, &queryBegin);
-        m_Device->CreateQuery(&qd, &queryEnd);
-
-        qd.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
-        m_Device->CreateQuery(&qd, &queryDisjoint);
-        queryCreated = true;
-    }
-
-    context->Begin(queryDisjoint.Get());
-    context->End(queryBegin.Get());
-    // ========================================
-
-    // --- 既存の描画処理 ---
+    // --- レンダーCB（view/proj は転置して送る）---
     ParticleRenderCB rcb = {};
     rcb.view = m_Camera->GetViewMatrix().Transpose();
     rcb.projection = m_Camera->GetProjectionMatrix().Transpose();
@@ -482,33 +460,15 @@ void GPUParticleSystem::Render()
     context->IASetInputLayout(nullptr);
     context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
 
+    // GPU が決めた instanceCount で描画（CPU は数を知らない）
     context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
 
+    // ステートを戻す
     context->OMSetBlendState(nullptr, blendFactor, 0xFFFFFFFF);
     context->OMSetDepthStencilState(nullptr, 0);
     context->RSSetState(nullptr);
 
     m_RenderVS->UnbindSRVs(context);
-
-    // ========== GPU タイミング結果取得 ==========
-    context->End(queryEnd.Get());
-    context->End(queryDisjoint.Get());
-
-    D3D11_QUERY_DATA_TIMESTAMP_DISJOINT disjointData;
-    while (context->GetData(queryDisjoint.Get(), &disjointData,
-        sizeof(disjointData), 0) == S_FALSE) {
-    }
-
-    if (!disjointData.Disjoint)
-    {
-        UINT64 tsBegin, tsEnd;
-        context->GetData(queryBegin.Get(), &tsBegin, sizeof(tsBegin), 0);
-        context->GetData(queryEnd.Get(), &tsEnd, sizeof(tsEnd), 0);
-
-        double gpuMs = (tsEnd - tsBegin) / (double)disjointData.Frequency * 1000.0;
-
-     }
-    // ==========================================
 }
 
 // ============================================
