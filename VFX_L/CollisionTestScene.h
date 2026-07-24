@@ -1,7 +1,7 @@
 // ============================================================
 // CollisionTestScene.h
 // 戦闘 + 物理 + カメラ追従の統合テストシーン
-// 杖の自動発射 → 索敵 → 投射物 → 命中 → ダメージ → 死亡 まで通す。
+// 杖は出力源（spells）ごとに独立発射。分裂・二重釈放を可視化付きで確認する。
 // ============================================================
 #pragma once
 #include "SceneBase.h"
@@ -32,9 +32,12 @@ public:
 private:
     void DrawDebugUI();
     void DrawColliderDebug(Entity e, const Color& color);
+    void DrawWandDebug();                 // 施法の可視化
     void RebuildPlayerMesh();
-    void SpawnEnemy(const Vector3& pos);
+   
     void RespawnEnemies();
+    void SpawnEnemy(const Vector3& pos, bool invincible = false);
+    void StressSpawnProjectiles(int count);   // 負荷テスト用：投射物を一気に生成
 
 private:
     FollowCamera m_Camera;
@@ -47,19 +50,19 @@ private:
     WeaponSystem        m_WeaponSystem;
     ProjectileSystem    m_ProjectileSystem;
     RenderSystem        m_RenderSystem;
-
     // --- Entities ---
     Entity m_Player = 0;
     std::vector<Entity> m_Terrain;
     std::vector<Entity> m_Enemies;
 
-    // --- 共有モデル（毎回生成すると重いので使い回す）---
+    // --- 共有モデル ---
     std::shared_ptr<Model> m_EnemyModel;
-    std::shared_ptr<Model> m_ProjectileModel;
-
+    std::shared_ptr<Model> m_DummyModel;
+    std::shared_ptr<Model> m_StressModel;
     // --- ImGui 調整用 ---
     bool m_ShowWireframe = true;
     bool m_ShowMesh = true;
+    bool m_ShowWandDebug = true;
 
     float m_LightDir[3] = { 0.5f, -1.0f, 0.5f };
     float m_LightColor[3] = { 1.0f, 1.0f, 1.0f };
@@ -74,4 +77,7 @@ private:
     float m_Gravity = -20.0f;
 
     float m_SpawnPos[3] = { 0.0f, 5.0f, 0.0f };
+    
+    
+    int  m_StressCount = 500;
 };

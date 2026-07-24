@@ -8,8 +8,8 @@
 #include "PlayerTag.h"
 #include "InputMap.h"
 #include "View.h"
-#include"DebugManager.h"
-#include"ImGui.h"
+#include "DebugManager.h"
+#include "ImGui.h"
 void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
 {
     if (DebugManager::Get().IsUsingDebugCamera()) return;

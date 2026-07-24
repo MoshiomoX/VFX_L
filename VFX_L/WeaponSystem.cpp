@@ -11,51 +11,131 @@
 #include "CollisionSystem.h"
 #include "View.h"
 #include <algorithm>
+#include <cmath>
 
 using DirectX::SimpleMath::Vector3;
+using DirectX::SimpleMath::Matrix;
 
+void WeaponSystem::SetProjectileModel(ItemID id, std::shared_ptr<Model> m)
+{
+    for (auto& p : m_Models)
+    {
+        if (p.first == id) { p.second = m; return; }
+    }
+    m_Models.push_back({ id, m });
+}
+
+std::shared_ptr<Model> WeaponSystem::GetModel(ItemID id) const
+{
+    for (const auto& p : m_Models)
+        if (p.first == id) return p.second;
+    return nullptr;
+}
+
+// ============================================================
+// 1回の施法ぶんを積む。分裂はここで扇状に展開する（空間展開）
+// ============================================================
+void WeaponSystem::QueueOneCast(const SpellStats& s,
+    const Vector3& muzzle, const Vector3& dir)
+{
+    int count = (std::max)(1, s.projectileCount);
+
+    if (count == 1 || s.spreadAngle <= 0.0f)
+    {
+        // 単発：そのまま正面へ
+        m_Requests.push_back({ s.id, muzzle, dir,
+            s.speed, s.radius, s.damage, s.lifetime });
+        return;
+    }
+
+    // 分裂：spreadAngle の範囲を count 個で等分し、Y軸まわりに回して扇状に散らす
+    //  例) count=3, spread=30 → -15度, 0度, +15度
+    float step = s.spreadAngle / (float)(count - 1);
+    float start = -s.spreadAngle * 0.5f;
+
+    for (int i = 0; i < count; ++i)
+    {
+        float deg = start + step * (float)i;
+        Matrix rot = Matrix::CreateRotationY(DirectX::XMConvertToRadians(deg));
+        Vector3 d = Vector3::TransformNormal(dir, rot);
+        d.Normalize();
+
+        m_Requests.push_back({ s.id, muzzle, d,
+            s.speed, s.radius, s.damage, s.lifetime });
+    }
+}
+
+// ============================================================
+// Update
+// ============================================================
 void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collision)
 {
     m_Requests.clear();
 
-    // ---- 1) 杖を走査：マナ回復・発射判定（生成はまだしない）----
     reg.CreateView<TransformComponent, WandComponent>()
         .Each([&](Entity e, TransformComponent& tf, WandComponent& wand)
             {
-                // マナ回復
-                wand.manaCurrent = min(wand.manaMax, wand.manaCurrent + wand.manaRegen * dt);
+                // ---- マナ回復（杖で共有）----
+                wand.manaCurrent = (std::min)(wand.manaMax, wand.manaCurrent + wand.manaRegen * dt);
 
-                // 発射間隔
-                wand.castTimer -= dt;
-                if (wand.castTimer > 0.0f) return;
-
-                // マナ不足 → 今回は撃たない（タイマーは進んだままなので回復し次第すぐ撃つ）
-                if (wand.manaCurrent < wand.manaCost) return;
-
-                // 索敵：自分を中心に全方位、最も近い敵
                 Vector3 muzzle = tf.position + wand.muzzleOffset;
+
+                // ---- 索敵は杖で1回だけ（出力源全員が同じ相手を狙う）----
                 Entity target = 0;
-                if (!collision.FindNearestEntity(muzzle, wand.range, Layer_Enemy, target))
-                    return;   // 敵がいなければ撃たない（マナも消費しない）
+                bool hasTarget = collision.FindNearestEntity(muzzle, wand.range, Layer_Enemy, target);
 
-                // 敵の中心を狙う（collider の offset を考慮）
-                Vector3 targetPos = reg.Get<TransformComponent>(target).position;
-                if (reg.Has<ColliderComponent>(target))
-                    targetPos += reg.Get<ColliderComponent>(target).offset;
+                Vector3 aimDir(0, 0, 1);
+                if (hasTarget)
+                {
+                    Vector3 targetPos = reg.Get<TransformComponent>(target).position;
+                    if (reg.Has<ColliderComponent>(target))
+                        targetPos += reg.Get<ColliderComponent>(target).offset;
 
-                Vector3 dir = targetPos - muzzle;
-                if (dir.LengthSquared() < 1e-6f) return;
-                dir.Normalize();
+                    aimDir = targetPos - muzzle;
+                    if (aimDir.LengthSquared() < 1e-6f) hasTarget = false;
+                    else aimDir.Normalize();
+                }
 
-                m_Requests.push_back({ muzzle, dir,
-                    wand.projectileSpeed, wand.projectileRadius,
-                    wand.projectileDamage, wand.projectileLifetime });
+                // ---- 出力源ごとに独立処理 ----
+                for (auto& s : wand.spells)
+                {
+                    // === 二重釈放の連射（前回の施法の残り）===
+                    // ※こちらを先に処理する。連射中は新しい施法を始めない。
+                    if (s.pendingCasts > 0)
+                    {
+                        s.delayTimer -= dt;
+                        if (s.delayTimer <= 0.0f)
+                        {
+                            if (hasTarget && wand.manaCurrent >= s.manaCost)
+                            {
+                                QueueOneCast(s, muzzle, aimDir);
+                                wand.manaCurrent -= s.manaCost;
+                            }
+                            --s.pendingCasts;
+                            s.delayTimer = s.castDelay;
+                        }
+                        continue;   // 連射中は新規施法をスキップ
+                    }
 
-                wand.manaCurrent -= wand.manaCost;
-                wand.castTimer = wand.castInterval;
+                    // === 新しい施法 ===
+                    s.castTimer -= dt;
+                    if (s.castTimer > 0.0f) continue;
+                    if (!hasTarget) continue;                       // 敵がいない → 撃たない
+                    if (wand.manaCurrent < s.manaCost) continue;    // マナ不足 → 回復待ち
+
+                    // 1回目を発射
+                    QueueOneCast(s, muzzle, aimDir);
+                    wand.manaCurrent -= s.manaCost;
+
+                    // 二重釈放：残り回数を積んで、次フレーム以降に撃つ
+                    s.pendingCasts = (std::max)(0, s.castCount - 1);
+                    s.delayTimer = s.castDelay;
+
+                    s.castTimer = s.castInterval;
+                }
             });
 
-    // ---- 2) 走査が終わってから投射物を生成する ----
+    // ---- 走査後にまとめて投射物を生成 ----
     for (const auto& req : m_Requests)
     {
         Entity p = reg.Create();
@@ -68,7 +148,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         col.shape = ColliderShape::Sphere;
         col.radius = req.radius;
         col.layer = Layer_PlayerShot;
-        col.mask = Layer_Enemy | Layer_Terrain;   // 敵と地形にのみ当たる
+        col.mask = Layer_Enemy | Layer_Terrain;
         reg.Add<ColliderComponent>(p, col);
 
         ProjectileComponent pj;
@@ -77,13 +157,12 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         pj.lifetime = req.lifetime;
         reg.Add<ProjectileComponent>(p, pj);
 
-        // ※ RigidbodyComponent は付けない
-        //   （PhysicsSystem と ProjectileSystem が両方 position を書いて競合するため）
+        // ※ Rigidbody は付けない（position の二重書き込み回避）
 
-        if (m_ProjectileModel)
+        if (auto m = GetModel(req.id))
         {
             ModelComponent mc;
-            mc.model = m_ProjectileModel;
+            mc.model = m;
             reg.Add<ModelComponent>(p, mc);
         }
     }
