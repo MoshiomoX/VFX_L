@@ -38,6 +38,20 @@ public:
     bool Load(ID3D11Device* device, const std::string& filepath);
     bool LoadFromScene(ID3D11Device* device, const aiScene* scene,
         const std::string& directory, const std::string& modelName);
+    // プログラム生成メッシュを追加する（PrimitiveBuilder 用）
+    void AddSubMesh(std::shared_ptr<Mesh> mesh, int materialIndex = -1)
+    {
+        SubMesh sub;
+        sub.mesh = mesh;
+        sub.materialIndex = materialIndex;
+        m_SubMeshes.push_back(sub);
+    }
+
+    // マテリアルを直接追加
+    void AddMaterial(std::shared_ptr<Material> mat)
+    {
+        m_Materials.push_back(mat);
+    }
 private:
     std::vector<SubMesh> m_SubMeshes;
     std::vector<std::shared_ptr<Material>> m_Materials;

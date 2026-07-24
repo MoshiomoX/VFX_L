@@ -25,7 +25,8 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 #endif
     if (FAILED(hrPS)) { std::cout << "[Error] Default PS load failed" << std::endl; return false; }
     
-
+    m_DefaultTexture = std::make_shared<Texture>();
+    m_DefaultTexture->CreateSolid(device, 255, 255, 255, 255);   // 白1x1
     m_LightData.directionalLight.direction = Vector3(0.5f, -1.0f, 0.5f);
     m_LightData.directionalLight.direction.Normalize();
     m_LightData.directionalLight.color = Vector3(1.0f, 1.0f, 1.0f);
@@ -101,8 +102,10 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
     {
         vs->Bind(m_Context);
         ps->Bind(m_Context);
+        // マテリアル無し → 白テクスチャを t0 に（黒くならないように）
+        if (m_DefaultTexture)
+            m_DefaultTexture->Bind(m_Context, 0);
     }
-
     ID3D11SamplerState* samp = m_DefaultSampler.Get();
     m_Context->PSSetSamplers(0, 1, &samp);
 

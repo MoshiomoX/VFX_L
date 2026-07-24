@@ -1,0 +1,90 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [
+                    0.0,
+                    0.0
+                ],
+                "atlasAnimate": false,
+                "atlasCols": 6,
+                "atlasIndex": 0,
+                "atlasRows": 6,
+                "boxExtents": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "direction": [
+                    0.0,
+                    1.0,
+                    0.0
+                ],
+                "dragCoeff": 0.0,
+                "emitRate": 10.0,
+                "emitType": 0,
+                "endColorMax": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "endColorMin": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "gravity": [
+                    0.0,
+                    -9.8100004196167,
+                    0.0
+                ],
+                "innerRadius": 0.0,
+                "lifetimeRange": [
+                    1.0,
+                    6.099999904632568
+                ],
+                "maxParticles": 5600,
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 1.0,
+                "rotationRange": [
+                    0.0,
+                    0.0
+                ],
+                "sizeRange": [
+                    0.10000000149011612,
+                    0.30000001192092896,
+                    0.0,
+                    0.10000000149011612
+                ],
+                "speedRange": [
+                    1.0,
+                    6.800000190734863
+                ],
+                "spreadAngle": 80.197998046875,
+                "startColorMax": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "startColorMin": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "duration": 2.0,
+            "startTime": 0.0,
+            "type": "Particle"
+        }
+    ],
+    "loop": true,
+    "name": "NewEffect"
+}

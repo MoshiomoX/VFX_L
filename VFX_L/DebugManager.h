@@ -27,7 +27,21 @@ public:
     CameraBase* GetActiveCamera();
     void SetUseDebugCamera(bool use);  
     bool IsUsingDebugCamera() const { return m_UseDebugCamera; }
+      // --- デバッグ形状描画（線框）---
+    void DrawWireSphere(const Vector3& center, float radius, const Color& color);
+    void DrawWireCapsule(const Vector3& center, float radius, float height, const Color& color);
+    void DrawWireAABB(const Vector3& center, const Vector3& halfExtents, const Color& color);
+
+    void DrawRay(const Vector3& origin, const Vector3& dir, float length, const Color& color);
+    void AddDebugLine(const Vector3& start, const Vector3& end, const Color& color);
+    // レイキャスト結果の可視化（命中まで線 + 命中点マーカー + 法線）
+    // hit=false なら maxDist まで薄い色で描く
+    void DrawRaycast(const Vector3& origin, const Vector3& dir, float maxDist,
+        bool hit, float hitT, const Vector3& hitPoint, const Vector3& hitNormal,
+        const Color& hitColor, const Color& missColor);
 private:
+
+
     DebugManager() = default;
     ~DebugManager();
     DebugManager(const DebugManager&) = delete;

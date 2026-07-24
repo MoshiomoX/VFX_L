@@ -102,7 +102,23 @@ struct ColorKey
     float _pad1;
     float _pad2;
 };
+// ============================================
+// GPU衝突体構造体 (C++側のGPUColliderと一致)
+// 48バイト
+// ============================================
+struct GPUCollider
+{
+    float3 center; // Sphere:中心 / AABB:min / Capsule:始点
+    float radius; // Sphere/Capsule:半径
 
+    float3 extent; // AABB:max / Capsule:終点
+    int type; // 0=Sphere, 1=AABB, 2=Capsule
+
+    float _pad0;
+    float _pad1;
+    float _pad2;
+    float _pad3;
+};
 // ============================================
 // 定数バッファ (Buffer宣言は各.hlslで行う)
 // ============================================

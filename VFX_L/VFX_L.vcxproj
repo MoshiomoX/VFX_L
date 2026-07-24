@@ -144,6 +144,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="CameraBase.cpp" />
+    <ClCompile Include="CollisionSystem.cpp" />
+    <ClCompile Include="CollisionTestScene.cpp" />
     <ClCompile Include="ComputeShader.cpp" />
     <ClCompile Include="CounterStates.cpp" />
     <ClCompile Include="DebugCamera.cpp" />
@@ -157,6 +159,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </ClCompile>
     <ClCompile Include="ECSComponents.cpp" />
     <ClCompile Include="EngineTimer.cpp" />
+    <ClCompile Include="FollowCamera.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="GameObject.cpp" />
     <ClCompile Include="GameTimer.cpp" />
@@ -164,6 +167,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="GPUParticleSystem.cpp" />
     <ClCompile Include="GPUParticleTestScene.cpp" />
     <ClCompile Include="Graphics.cpp" />
+    <ClCompile Include="GYScene.cpp" />
     <ClCompile Include="ImGuiManager.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -181,8 +185,13 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="ModelRenderer.cpp" />
     <ClCompile Include="ObjectManager.cpp" />
     <ClCompile Include="ParticleDeadList.cpp" />
+    <ClCompile Include="PhysicsSystem.cpp" />
     <ClCompile Include="PixelShader.cpp" />
+    <ClCompile Include="PlayerControlSystem.cpp" />
+    <ClCompile Include="PrimitiveBuilder.cpp" />
+    <ClCompile Include="ProjectileSystem.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="RenderSystem.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="SceneBase.cpp" />
     <ClCompile Include="SceneManager.cpp" />
@@ -193,6 +202,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="StateMachineSystem.cpp" />
     <ClCompile Include="TestCube.cpp" />
     <ClCompile Include="TestScene.cpp" />
+    <ClCompile Include="TestSpawner.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="ThirdParty\ImGui\imgui.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
@@ -225,12 +235,17 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="VFXEffect.cpp" />
     <ClCompile Include="VFXParticleEntry.cpp" />
     <ClCompile Include="VFXStates.cpp" />
+    <ClCompile Include="WeaponSystem.cpp" />
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="AssimpFlags.h" />
     <ClInclude Include="CameraBase.h" />
+    <ClInclude Include="ColliderComponent.h" />
+    <ClInclude Include="CollisionMath.h" />
+    <ClInclude Include="CollisionSystem.h" />
+    <ClInclude Include="CollisionTestScene.h" />
     <ClInclude Include="Component.h" />
     <ClInclude Include="ComputeShader.h" />
     <ClInclude Include="ConstantBuffer.h" />
@@ -248,14 +263,19 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="EngineTimer.h" />
     <ClInclude Include="Entity.h" />
     <ClInclude Include="EntryType.h" />
+    <ClInclude Include="FollowCamera.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GameObject.h" />
     <ClInclude Include="GameTimer.h" />
+    <ClInclude Include="GPUCollider.h" />
     <ClInclude Include="GPUParticle.h" />
     <ClInclude Include="GPUParticleEmitter.h" />
     <ClInclude Include="GPUParticleSystem.h" />
     <ClInclude Include="GPUParticleTestScene.h" />
     <ClInclude Include="Graphics.h" />
+    <ClInclude Include="GYScene.h" />
+    <ClInclude Include="HealthComponent.h" />
+    <ClInclude Include="HitEvent.h" />
     <ClInclude Include="ImGuiManager.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -266,19 +286,30 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </ClInclude>
     <ClInclude Include="IndexBuffer.h" />
     <ClInclude Include="InputManager.h" />
+    <ClInclude Include="InputMap.h" />
     <ClInclude Include="LightTypes.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="MeshRenderer.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="ModelComponent.h" />
     <ClInclude Include="ModelRenderer.h" />
     <ClInclude Include="ObjectManager.h" />
     <ClInclude Include="ParticleDeadList.h" />
+    <ClInclude Include="PhysicsMath.h" />
+    <ClInclude Include="PhysicsSystem.h" />
     <ClInclude Include="PixelShader.h" />
+    <ClInclude Include="PlayerControlSystem.h" />
+    <ClInclude Include="PlayerTag.h" />
+    <ClInclude Include="PrimitiveBuilder.h" />
+    <ClInclude Include="ProjectileComponent.h" />
+    <ClInclude Include="ProjectileSystem.h" />
     <ClInclude Include="Registry.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="RenderSystem.h" />
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="ResourcePaths.h" />
+    <ClInclude Include="RigidbodyComponent.h" />
     <ClInclude Include="SceneBase.h" />
     <ClInclude Include="SceneManager.h" />
     <ClInclude Include="SceneType.h" />
@@ -293,6 +324,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="StateMachineSystem.h" />
     <ClInclude Include="TestCube.h" />
     <ClInclude Include="TestScene.h" />
+    <ClInclude Include="TestSpawner.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="ThirdParty\ImGui\imconfig.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
@@ -328,6 +360,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </ClInclude>
     <ClInclude Include="ThirdParty\stb_image\stb_image.h" />
     <ClInclude Include="Transform.h" />
+    <ClInclude Include="TransformComponent.h" />
     <ClInclude Include="VertexBuffer.h" />
     <ClInclude Include="Vertex3D.h" />
     <ClInclude Include="VertexShader.h" />
@@ -337,6 +370,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="VFXParticleEntry.h" />
     <ClInclude Include="VFXStates.h" />
     <ClInclude Include="View.h" />
+    <ClInclude Include="WandComponent.h" />
+    <ClInclude Include="WeaponSystem.h" />
     <ClInclude Include="Window.h" />
   </ItemGroup>
   <ItemGroup>

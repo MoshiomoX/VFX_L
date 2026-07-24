@@ -71,6 +71,12 @@
     <Filter Include="Graphics\Shader\HLSL\Skinning">
       <UniqueIdentifier>{9ab8a067-1029-4c64-be59-430e6746dec3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Collider">
+      <UniqueIdentifier>{1a085175-6057-4e02-af4e-403895c02aed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ECS\System">
+      <UniqueIdentifier>{63da9086-1b00-4b57-9c11-31de4243c481}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -234,6 +240,39 @@
     </ClCompile>
     <ClCompile Include="SkinnedModelGPU.cpp">
       <Filter>Graphics\Model</Filter>
+    </ClCompile>
+    <ClCompile Include="GYScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="CollisionSystem.cpp">
+      <Filter>Collider</Filter>
+    </ClCompile>
+    <ClCompile Include="CollisionTestScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="TestSpawner.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="PrimitiveBuilder.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="FollowCamera.cpp">
+      <Filter>Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="PhysicsSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerControlSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="WeaponSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ProjectileSystem.cpp">
+      <Filter>ECS\System</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -453,6 +492,79 @@
     </ClInclude>
     <ClInclude Include="SkinnedModelGPU.h">
       <Filter>Graphics\Model</Filter>
+    </ClInclude>
+    <ClInclude Include="AssimpFlags.h" />
+    <ClInclude Include="GYScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="TransformComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="ColliderComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="CollisionMath.h">
+      <Filter>Collider</Filter>
+    </ClInclude>
+    <ClInclude Include="CollisionSystem.h">
+      <Filter>Collider</Filter>
+    </ClInclude>
+    <ClInclude Include="CollisionTestScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="GPUCollider.h">
+      <Filter>Collider</Filter>
+    </ClInclude>
+    <ClInclude Include="ModelComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="RigidbodyComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsMath.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="TestSpawner.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerTag.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="InputMap.h">
+      <Filter>Manager</Filter>
+    </ClInclude>
+    <ClInclude Include="PrimitiveBuilder.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="FollowCamera.h">
+      <Filter>Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="WandComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectileComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="HealthComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="PhysicsSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerControlSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="WeaponSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="HitEvent.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectileSystem.h">
+      <Filter>ECS\System</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

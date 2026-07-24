@@ -2,6 +2,7 @@
 #include <memory>
 #include <d3d11.h>
 #include <SimpleMath.h>
+#include "Texture.h"
 
 using namespace DirectX::SimpleMath;
 

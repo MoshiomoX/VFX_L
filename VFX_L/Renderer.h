@@ -44,7 +44,7 @@ private:
 
     std::shared_ptr<VertexShader> m_DefaultVS;
     std::shared_ptr<PixelShader> m_DefaultPS;
-
+    std::shared_ptr<Texture> m_DefaultTexture;
     CameraBase* m_Camera = nullptr;
     LightBuffer m_LightData;
 

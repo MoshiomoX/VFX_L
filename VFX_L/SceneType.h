@@ -6,5 +6,7 @@ enum class SceneType
     TITLE,
     GAME,
     GPU_PARTICLE_TEST,
+    GY,
+	COLLISION_TEST,
     // 追加していく
 };
