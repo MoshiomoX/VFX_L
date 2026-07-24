@@ -40,7 +40,7 @@ Vector3 CameraBase::GetForward() const
 Vector3 CameraBase::GetRight() const
 {
     Vector3 forward = GetForward();
-    Vector3 right = m_Up.Cross(forward);
+    Vector3 right = forward.Cross(m_Up);
     right.Normalize();
     return right;
 }

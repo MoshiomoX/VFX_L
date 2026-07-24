@@ -1,7 +1,6 @@
 #include "Material.h"
 #include "VertexShader.h"
 #include "PixelShader.h"
-#include "Texture.h"
 
 std::shared_ptr<Texture> Material::s_DefaultTextures[Material::SlotCount];
 

@@ -2,6 +2,8 @@
 #include "Renderer.h"
 #include "TestScene.h"
 #include "GPUParticleTestScene.h"
+#include "GYScene.h"
+#include "CollisionTestScene.h"
 
 Game::Game()
 {
@@ -19,9 +21,14 @@ bool Game::Initialize(Renderer* renderer)
     //m_SceneManager.RegisterScene<GPUParticleTestScene>(SceneType::GPU_PARTICLE_TEST);
     //m_SceneManager.ChangeScene(SceneType::GPU_PARTICLE_TEST);
 
-      m_SceneManager.RegisterScene<TestScene>(SceneType::TEST);
-      m_SceneManager.ChangeScene(SceneType::TEST);
+    //m_SceneManager.RegisterScene<TestScene>(SceneType::TEST);
+    //m_SceneManager.ChangeScene(SceneType::TEST);
 
+    // m_SceneManager.RegisterScene<GYScene>(SceneType::GY);
+    // m_SceneManager.ChangeScene(SceneType::GY);
+
+	m_SceneManager.RegisterScene<CollisionTestScene>(SceneType::COLLISION_TEST);
+	m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);
 	return true;
 }
 
