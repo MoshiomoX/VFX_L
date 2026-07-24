@@ -320,6 +320,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="SkinnedVertex.h" />
     <ClInclude Include="Skybox.h" />
     <ClInclude Include="SparseSet.h" />
+    <ClInclude Include="SpellID.h" />
     <ClInclude Include="StateMachine.h" />
     <ClInclude Include="StateMachineSystem.h" />
     <ClInclude Include="TestCube.h" />
