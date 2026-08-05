@@ -71,7 +71,7 @@ bool Texture::Load(ID3D11Device* device, const std::wstring& filepath)
     m_Height = static_cast<int>(image.GetMetadata().height);
 
     // Sampler作成
-    D3D11_SAMPLER_DESC sd = {};
+ /*   D3D11_SAMPLER_DESC sd = {};
     sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -80,7 +80,7 @@ bool Texture::Load(ID3D11Device* device, const std::wstring& filepath)
     sd.MinLOD = 0;
     sd.MaxLOD = D3D11_FLOAT32_MAX;
 
-    hr = device->CreateSamplerState(&sd, &m_SamplerState);
+    hr = device->CreateSamplerState(&sd, &m_SamplerState);*/
     if (FAILED(hr))
         return false;
 
@@ -88,12 +88,13 @@ bool Texture::Load(ID3D11Device* device, const std::wstring& filepath)
         << L" (" << m_Width << L"x" << m_Height << L")" << std::endl;
     return true;
 }
-
 void Texture::Bind(ID3D11DeviceContext* context, UINT slot)
 {
     if (!context) return;
     context->PSSetShaderResources(slot, 1, m_ShaderResourceView.GetAddressOf());
-    context->PSSetSamplers(slot, 1, m_SamplerState.GetAddressOf());
+
+    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
+    context->PSSetSamplers(slot, 1, &samp);
 }
 
 void Texture::Unbind(ID3D11DeviceContext* context, UINT slot)

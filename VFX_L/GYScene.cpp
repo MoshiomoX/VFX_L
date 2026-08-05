@@ -39,7 +39,7 @@ void GYScene::Init()
     m_Editor.SetParticleSystem(&m_GPUParticleSystem);
 
    // // ==================== 3. Skybox 初期化 ====================
-   // m_Skybox.Init(device, Res::Mdl::SkyboxSphere, Res::Tex::SkyboxPanorama);
+    m_Skybox.Init(device, Res::Mdl::SkyboxSphere, Res::Tex::SkyboxPanorama);
 
     std::cout << "[GYScene] Init complete" << std::endl;
 }

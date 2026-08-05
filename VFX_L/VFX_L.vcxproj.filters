@@ -77,6 +77,15 @@
     <Filter Include="ECS\System">
       <UniqueIdentifier>{63da9086-1b00-4b57-9c11-31de4243c481}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Component\Projectile">
+      <UniqueIdentifier>{9183aad3-9b58-46b2-be16-209416a03b52}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Projectile">
+      <UniqueIdentifier>{089bab3f-1695-4277-81b5-da88a06050ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics\Renderer">
+      <UniqueIdentifier>{e783db0f-676c-4e06-a9ed-5982b9fb5807}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -102,9 +111,6 @@
     </ClCompile>
     <ClCompile Include="Mesh.cpp">
       <Filter>Graphics\Mesh</Filter>
-    </ClCompile>
-    <ClCompile Include="Renderer.cpp">
-      <Filter>Graphics</Filter>
     </ClCompile>
     <ClCompile Include="TestCube.cpp">
       <Filter>Object</Filter>
@@ -232,9 +238,6 @@
     <ClCompile Include="StateMachineSystem.cpp">
       <Filter>State</Filter>
     </ClCompile>
-    <ClCompile Include="Skybox.cpp">
-      <Filter>Graphics</Filter>
-    </ClCompile>
     <ClCompile Include="SkinnedModel.cpp">
       <Filter>Graphics\Model</Filter>
     </ClCompile>
@@ -280,6 +283,18 @@
     <ClCompile Include="ProjectileVFXSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
+    <ClCompile Include="Renderer.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderStates.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Skybox.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="ProjectileBillboardRenderer.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -311,9 +326,6 @@
     </ClInclude>
     <ClInclude Include="Shader.h">
       <Filter>Graphics\Shader</Filter>
-    </ClInclude>
-    <ClInclude Include="Renderer.h">
-      <Filter>Graphics</Filter>
     </ClInclude>
     <ClInclude Include="TestCube.h">
       <Filter>Object</Filter>
@@ -484,9 +496,6 @@
       <Filter>State</Filter>
     </ClInclude>
     <ClInclude Include="ResourcePaths.h" />
-    <ClInclude Include="Skybox.h">
-      <Filter>Graphics</Filter>
-    </ClInclude>
     <ClInclude Include="SkinnedVertex.h">
       <Filter>Graphics\Mesh</Filter>
     </ClInclude>
@@ -548,9 +557,6 @@
     <ClInclude Include="WandComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
-    <ClInclude Include="ProjectileComponent.h">
-      <Filter>Component</Filter>
-    </ClInclude>
     <ClInclude Include="HealthComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -576,11 +582,29 @@
     <ClInclude Include="VFXEditorScene.h">
       <Filter>Scene</Filter>
     </ClInclude>
-    <ClInclude Include="ProjectileVFXComponent.h">
-      <Filter>Component</Filter>
-    </ClInclude>
     <ClInclude Include="ProjectileVFXSystem.h">
       <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectileComponent.h">
+      <Filter>Component\Projectile</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectileVFXComponent.h">
+      <Filter>Component\Projectile</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderStates.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Skybox.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectileBillboardRenderer.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectileVisualComponent.h">
+      <Filter>Component\Projectile</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -631,6 +655,12 @@
     </FxCompile>
     <FxCompile Include="Shader\Skinning\SkinnedVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Skinning</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Projectile\ProjectileVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Projectile</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Projectile\ProjectilePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Projectile</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

@@ -113,16 +113,16 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
 
 
 
-    // Rasterizer State
-    D3D11_RASTERIZER_DESC rd = {};
-    rd.FillMode = D3D11_FILL_SOLID;
-    rd.CullMode = D3D11_CULL_BACK;
-    rd.FrontCounterClockwise = FALSE;
-    rd.DepthClipEnable = TRUE;
-
-    ComPtr<ID3D11RasterizerState> rs;
-    m_Device->CreateRasterizerState(&rd, &rs);
-    m_Context->RSSetState(rs.Get());
+    //// Rasterizer State
+    //D3D11_RASTERIZER_DESC rd = {};
+    //rd.FillMode = D3D11_FILL_SOLID;
+    //rd.CullMode = D3D11_CULL_BACK;
+    //rd.FrontCounterClockwise = FALSE;
+    //rd.DepthClipEnable = TRUE;
+    //
+    //ComPtr<ID3D11RasterizerState> rs;
+    //m_Device->CreateRasterizerState(&rd, &rs);
+    //m_Context->RSSetState(rs.Get());
     
     return true;
 }

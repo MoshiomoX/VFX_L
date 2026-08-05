@@ -9,7 +9,7 @@
 #include "VertexShader.h"
 #include "PixelShader.h"
 #include "LightTypes.h"
-
+#include "RenderStates.h"
 using Microsoft::WRL::ComPtr;
 using namespace DirectX::SimpleMath;
 
@@ -47,8 +47,4 @@ private:
     std::shared_ptr<Texture> m_DefaultTexture;
     CameraBase* m_Camera = nullptr;
     LightBuffer m_LightData;
-
-    ComPtr<ID3D11SamplerState> m_DefaultSampler;
-
-    
 };

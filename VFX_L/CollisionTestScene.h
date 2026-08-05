@@ -1,7 +1,8 @@
 // ============================================================
 // CollisionTestScene.h
-// 戦闘 + 物理 + カメラ + 投射物 VFX の統合テストシーン
+// 戦闘 + 物理 + カメラ + 投射物 VFX / ビルボードの統合テストシーン
 // パーティクルは Submit → Flush の2段階方式（複数 VFX 共存対応）。
+// 投射物の見た目は ビルボード芯 + VFX。3D モデルも併用可（既定では未登録）。
 // ============================================================
 #pragma once
 #include "SceneBase.h"
@@ -15,6 +16,7 @@
 #include "WeaponSystem.h"
 #include "ProjectileSystem.h"
 #include "ProjectileVFXSystem.h"
+#include "ProjectileBillboardRenderer.h"
 #include "RenderSystem.h"
 
 #include "GPUParticleSystem.h"
@@ -55,10 +57,12 @@ private:
     ProjectileVFXSystem  m_ProjectileVFXSystem;
     RenderSystem         m_RenderSystem;
 
-    // --- Particle / VFX ---
-    GPUParticleSystem        m_ParticleSystem;
-    VFXContext               m_VFXContext;
-    std::shared_ptr<Texture> m_ParticleTexture;
+    // --- Particle / VFX / Billboard ---
+    GPUParticleSystem           m_ParticleSystem;
+    ProjectileBillboardRenderer m_ProjectileRenderer;
+    VFXContext                  m_VFXContext;
+    std::shared_ptr<Texture>    m_ParticleTexture;
+    std::shared_ptr<Texture>    m_ProjectileCore;
     float m_TotalTime = 0.0f;
 
     // --- Entities ---
@@ -75,7 +79,7 @@ private:
     bool m_ShowWireframe = true;
     bool m_ShowMesh = true;
     bool m_ShowWandDebug = true;
-    bool m_ShowProjMesh = true;   // 投射物の球メッシュを出すか（VFX だけで足りるか確認用）
+    bool m_ShowBillboard = true;   // 投射物の芯を描くか
 
     float m_LightDir[3] = { 0.5f, -1.0f, 0.5f };
     float m_LightColor[3] = { 1.0f, 1.0f, 1.0f };
@@ -91,10 +95,18 @@ private:
 
     float m_SpawnPos[3] = { 0.0f, 5.0f, 0.0f };
 
+    // --- 投射物の見た目（ImGui 調整用、変更時に再登録）---
+    float m_FireSize = 0.9f;
+    float m_FireColor[3] = { 1.0f, 0.65f, 0.25f };
+    float m_FireStretch = 0.0f;
+    float m_BoltSize = 0.6f;
+    float m_BoltColor[3] = { 0.5f, 0.85f, 1.0f };
+    float m_BoltStretch = 1.5f;
+
     // --- 負荷テスト ---
     int  m_StressCount = 500;
     int  m_StressPending = 0;
-    bool m_StressWithModel = true;
+    bool m_StressWithModel = false;   // 既定はビルボードで測る
     bool m_StressWithCollider = true;
 
     // --- Emitter 統計（Flush でクリアされる前に退避）---

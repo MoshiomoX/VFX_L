@@ -11,8 +11,8 @@
 #include "CollisionSystem.h"
 #include "View.h"
 #include <algorithm>
-#include <cmath>
 
+#include "ProjectileVisualComponent.h"
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Matrix;
 
@@ -166,5 +166,29 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
             reg.Add<ModelComponent>(p, mc);
 
         }
+        if (const auto* v = FindVisual(req.id))
+        {
+            ProjectileVisualComponent vis;
+            vis.size = v->size;
+            vis.color = v->color;
+            vis.stretch = v->stretch;
+            reg.Add<ProjectileVisualComponent>(p, vis);
+        }
     }
+}
+void WeaponSystem::SetProjectileVisual(ItemID id, float size,
+    const DirectX::SimpleMath::Vector4& color, float stretch)
+{
+    for (auto& v : m_Visuals)
+    {
+        if (v.id == id) { v.size = size; v.color = color; v.stretch = stretch; return; }
+    }
+    m_Visuals.push_back({ id, size, color, stretch });
+}
+
+const WeaponSystem::VisualDef* WeaponSystem::FindVisual(ItemID id) const
+{
+    for (const auto& v : m_Visuals)
+        if (v.id == id) return &v;
+    return nullptr;
 }

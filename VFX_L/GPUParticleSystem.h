@@ -10,7 +10,7 @@
 #include "ComputeShader.h"
 #include "CameraBase.h"
 #include "Texture.h"
-
+#include "RenderStates.h"
 using Microsoft::WRL::ComPtr;
 
 class GPUParticleSystem
@@ -93,9 +93,9 @@ private:
     size_t                  m_DroppedEmitters = 0;   // 上限超過で捨てた数
     GlobalCB m_CachedGlobalCB = {};
 
-    ComPtr<ID3D11BlendState>        m_BlendState;
-    ComPtr<ID3D11DepthStencilState> m_DepthStencilState;
-    ComPtr<ID3D11RasterizerState>   m_RasterizerState;
+   // ComPtr<ID3D11BlendState>        m_BlendState;
+   // ComPtr<ID3D11DepthStencilState> m_DepthStencilState;
+   // ComPtr<ID3D11RasterizerState>   m_RasterizerState;
 
     ComPtr<ID3D11Buffer> m_ColorKeyBuffer;
     ComPtr<ID3D11ShaderResourceView> m_ColorKeySRV;
@@ -107,5 +107,5 @@ private:
 
     CameraBase* m_Camera = nullptr;
     std::shared_ptr<Texture> m_Texture;
-    ComPtr<ID3D11SamplerState> m_SamplerState;
+ //   ComPtr<ID3D11SamplerState> m_SamplerState;
 };

@@ -8,6 +8,7 @@
 #include "RigidbodyComponent.h"
 #include "ModelComponent.h"
 #include "ProjectileComponent.h"
+#include "ProjectileVisualComponent.h"
 #include "ProjectileVFXComponent.h"
 #include "PlayerTag.h"
 #include "WandComponent.h"
@@ -56,20 +57,26 @@ void CollisionTestScene::Init()
 
     m_VFXContext.particleSystem = &m_ParticleSystem;
 
-    // ---------- 投射物 VFX テンプレート登録 ----------
+    // ---------- 投射物ビルボード ----------
+    if (!m_ProjectileRenderer.Initialize(device, context, 4096))
+        std::cout << "[Error] ProjectileRenderer init failed" << std::endl;
+    m_ProjectileRenderer.SetTexture(
+        ResourceManager::Get().LoadTexture(Res::Tex::ProjectileCore));    // ---------- 投射物 VFX テンプレート ----------
     m_ProjectileVFXSystem.RegisterVFX(ItemID::Fireball, Res::VFX::Fireball);
     m_ProjectileVFXSystem.RegisterVFX(ItemID::Lightning, Res::VFX::Lightning);
+
+    // ---------- 投射物の見た目（ビルボード芯）----------
+    // ※衝突半径（0.25 等）よりわざと大きく取る：見た目は派手、判定は小さく
+    // ※3D モデルを使いたい魔法は SetProjectileModel を併用すればよい
+    m_WeaponSystem.SetProjectileVisual(ItemID::Fireball, m_FireSize,
+        { m_FireColor[0], m_FireColor[1], m_FireColor[2], 1.0f }, m_FireStretch);
+    m_WeaponSystem.SetProjectileVisual(ItemID::Lightning, m_BoltSize,
+        { m_BoltColor[0], m_BoltColor[1], m_BoltColor[2], 1.0f }, m_BoltStretch);
 
     // ---------- 共有モデル ----------
     m_EnemyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 1.0f, 0.35f, 0.35f, 1 });
     m_DummyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 0.7f, 0.40f, 1.00f, 1 });
     m_StressModel = PrimitiveBuilder::CreateSphere(device, 0.25f, { 1.0f, 0.50f, 0.20f, 1 });
-
-    // 投射物の芯（VFX だけで足りるなら Show Proj Mesh を切って確認できる）
-    m_WeaponSystem.SetProjectileModel(ItemID::Fireball,
-        PrimitiveBuilder::CreateSphere(device, 0.20f, { 1.0f, 0.9f, 0.5f, 1 }));
-    m_WeaponSystem.SetProjectileModel(ItemID::Lightning,
-        PrimitiveBuilder::CreateSphere(device, 0.15f, { 0.6f, 0.9f, 1.0f, 1 }));
 
     // ---------- 地形 ----------
     struct TerrainDef { Vector3 pos; Vector3 half; Vector4 color; };
@@ -122,6 +129,7 @@ void CollisionTestScene::Init()
 // ============================================================
 void CollisionTestScene::Shutdown()
 {
+    m_ProjectileRenderer.Shutdown();
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
 }
 
@@ -237,17 +245,15 @@ void CollisionTestScene::Render(Renderer& renderer)
 
     SceneBase::Render(renderer);
 
-    // 投射物メッシュの表示切替（ModelComponent.visible を一括操作）
-    m_Registry.CreateView<ProjectileComponent, ModelComponent>()
-        .Each([&](Entity, ProjectileComponent&, ModelComponent& mc)
-            {
-                mc.visible = m_ShowProjMesh;
-            });
-
+    // ---- 1) 不透明メッシュ ----
     if (m_ShowMesh)
         m_RenderSystem.Render(m_Registry, renderer);
 
-    // パーティクルは不透明の後（加算合成のため）
+    // ---- 2) 投射物の芯（ビルボード、加算合成）----
+    if (m_ShowBillboard)
+        m_ProjectileRenderer.Render(m_Registry, GetCamera());
+
+    // ---- 3) パーティクル（加算合成）----
     m_ParticleSystem.SetCamera(GetCamera());
     m_ParticleSystem.Render();
 }
@@ -432,6 +438,14 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
         pj.lifetime = 30.0f;
         m_Registry.Add<ProjectileComponent>(p, pj);
 
+        // ビルボード芯（draw call は 1 回で済む）
+        ProjectileVisualComponent vis;
+        vis.size = 0.5f;
+        vis.color = { 1.0f, 0.5f, 0.2f, 1.0f };
+        vis.stretch = 0.0f;
+        m_Registry.Add<ProjectileVisualComponent>(p, vis);
+
+        // 3D モデル（draw call が 1発ごとに増える。比較用）
         if (m_StressWithModel && m_StressModel)
         {
             ModelComponent mc;
@@ -450,15 +464,16 @@ void CollisionTestScene::DrawDebugUI()
 
     ImGui::Checkbox("Mesh", &m_ShowMesh);
     ImGui::SameLine();
+    ImGui::Checkbox("Billboard", &m_ShowBillboard);
+    ImGui::SameLine();
     ImGui::Checkbox("Collider", &m_ShowWireframe);
     ImGui::SameLine();
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
     ImGui::Separator();
 
-    // ---------- Particle / VFX ----------
-    if (ImGui::CollapsingHeader("Particle / VFX", ImGuiTreeNodeFlags_DefaultOpen))
+    // ---------- Particle / VFX / Billboard ----------
+    if (ImGui::CollapsingHeader("Visual", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        // ★これが投射物 VFX の天井。赤くなったら槽位不足＝降級発生
         float ratio = (float)m_LastEmitterCount / (float)m_ParticleSystem.GetMaxEmitters();
         ImVec4 col = (ratio > 0.9f) ? ImVec4(1, 0.4f, 0.4f, 1)
             : (ratio > 0.7f) ? ImVec4(1, 0.9f, 0.4f, 1)
@@ -468,13 +483,40 @@ void CollisionTestScene::DrawDebugUI()
 
         if (m_LastDropped > 0)
             ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1),
-                "Dropped : %zu  (VFX が出ない投射物あり)", m_LastDropped);
+                "Dropped : %zu )", m_LastDropped);
 
         ImGui::Text("Alive Particles : %u", m_ParticleSystem.GetAliveCount());
         ImGui::Text("Projectile VFX  : %zu", m_ProjectileVFXSystem.GetActiveVFXCount());
+        ImGui::Text("Billboards      : %u ",
+            m_ProjectileRenderer.GetLastDrawCount());
 
-        ImGui::Checkbox("Show Projectile Mesh", &m_ShowProjMesh);
-        ImGui::TextDisabled("VFX だけで足りるか確認する用");
+        ImGui::Separator();
+      //  ImGui::TextDisabled("投射物の見た目（衝突半径とは独立）");
+
+        bool dirty = false;
+        if (ImGui::TreeNodeEx("Fireball", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            dirty |= ImGui::DragFloat("Size##fire", &m_FireSize, 0.02f, 0.05f, 5.0f);
+            dirty |= ImGui::ColorEdit3("Color##fire", m_FireColor);
+            dirty |= ImGui::DragFloat("Stretch##fire", &m_FireStretch, 0.05f, 0.0f, 8.0f);
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNodeEx("Lightning"))
+        {
+            dirty |= ImGui::DragFloat("Size##bolt", &m_BoltSize, 0.02f, 0.05f, 5.0f);
+            dirty |= ImGui::ColorEdit3("Color##bolt", m_BoltColor);
+            dirty |= ImGui::DragFloat("Stretch##bolt", &m_BoltStretch, 0.05f, 0.0f, 8.0f);
+            ImGui::TreePop();
+        }
+
+        // ※既に飛んでいる投射物には反映されない（次に発射した分から）
+        if (dirty)
+        {
+            m_WeaponSystem.SetProjectileVisual(ItemID::Fireball, m_FireSize,
+                { m_FireColor[0], m_FireColor[1], m_FireColor[2], 1.0f }, m_FireStretch);
+            m_WeaponSystem.SetProjectileVisual(ItemID::Lightning, m_BoltSize,
+                { m_BoltColor[0], m_BoltColor[1], m_BoltColor[2], 1.0f }, m_BoltStretch);
+        }
     }
 
     // ---------- 杖 ----------
@@ -596,8 +638,8 @@ void CollisionTestScene::DrawDebugUI()
 
         ImGui::Checkbox("With Collider", &m_StressWithCollider);
         ImGui::SameLine();
-        ImGui::Checkbox("With Model", &m_StressWithModel);
-
+        ImGui::Checkbox("With 3D Model", &m_StressWithModel);
+   
         ImGui::SliderInt("Spawn Count", &m_StressCount, 50, 2000);
         if (ImGui::Button("+ Spawn")) m_StressPending += m_StressCount;
         ImGui::SameLine();
