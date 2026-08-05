@@ -359,3 +359,31 @@ void ResourceManager::CleanupUnused()
             ++it;
     }
 }
+
+// ===== VFX テンプレート =====
+std::shared_ptr<VFXEffect> ResourceManager::LoadVFXTemplate(const std::string& filepath)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    auto it = m_VFXTemplates.find(filepath);
+    if (it != m_VFXTemplates.end())
+        return it->second;
+
+    auto effect = std::make_shared<VFXEffect>();
+    if (!effect->LoadFromFile(filepath))
+    {
+        std::cout << "[Error] VFX template load failed: " << filepath << std::endl;
+        return nullptr;
+    }
+
+    m_VFXTemplates[filepath] = effect;
+    std::cout << "[OK] VFX template cached: " << filepath << std::endl;
+    return effect;
+}
+
+void ResourceManager::UnloadVFXTemplate(const std::string& filepath)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+    m_VFXTemplates.erase(filepath);
+}
+

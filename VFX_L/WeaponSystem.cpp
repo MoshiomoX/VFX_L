@@ -71,7 +71,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
 void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collision)
 {
     m_Requests.clear();
-
+    m_Spawned.clear();
     reg.CreateView<TransformComponent, WandComponent>()
         .Each([&](Entity e, TransformComponent& tf, WandComponent& wand)
             {
@@ -156,7 +156,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         pj.damage = req.damage;
         pj.lifetime = req.lifetime;
         reg.Add<ProjectileComponent>(p, pj);
-
+        m_Spawned.push_back({ p, req.id });
         // ※ Rigidbody は付けない（position の二重書き込み回避）
 
         if (auto m = GetModel(req.id))
@@ -164,6 +164,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
             ModelComponent mc;
             mc.model = m;
             reg.Add<ModelComponent>(p, mc);
+
         }
     }
 }

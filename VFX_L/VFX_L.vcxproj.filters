@@ -274,6 +274,12 @@
     <ClCompile Include="ProjectileSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
+    <ClCompile Include="VFXEditorScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="ProjectileVFXSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -564,6 +570,16 @@
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ProjectileSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="SpellID.h" />
+    <ClInclude Include="VFXEditorScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectileVFXComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectileVFXSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
   </ItemGroup>

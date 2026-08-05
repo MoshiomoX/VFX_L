@@ -112,6 +112,7 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
             auto* pEntry = static_cast<VFXParticleEntry*>(entry.get());
             pEntry->emitterData.Update(dt);
             GPUEmitter ge = pEntry->emitterData.ToGPU();
+            ge.position += m_WorldOffset;
             ge.colorKeyOffset = colorKeyOffset;
             emitters.push_back(ge);
 
@@ -126,21 +127,16 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
     // GPU に送信（発射 + 粒子更新）
     if (ctx.particleSystem)
     {
-        ctx.particleSystem->Update(dt, m_CurrentTime, emitters, colorKeys);
+        ctx.particleSystem->SubmitEmitters(emitters, colorKeys);
     }
 }
 
 void VFXEffect::DispatchUpdateOnly(float dt, const VFXContext& ctx)
 {
-    // 空の emitters を渡す → 新規発射0、UpdateCS だけ走る（自然消滅）
-    std::vector<GPUEmitter> emptyEmitters;
-    std::vector<ColorKey> emptyKeys;
-    if (ctx.particleSystem)
-    {
-        ctx.particleSystem->Update(dt, m_CurrentTime, emptyEmitters, emptyKeys);
-    }
+    // 2段階方式では粒子の更新（UpdateCS）は GPUParticleSystem::Flush が
+    // 毎フレーム必ず1回実行する。ここで送ると二重更新になるため何もしない。
+    (void)dt; (void)ctx;
 }
-
 void VFXEffect::StopAllEntries(const VFXContext& ctx)
 {
     for (auto& entry : m_Entries)
@@ -336,4 +332,21 @@ bool VFXEffect::LoadFromFile(const std::string& filepath)
 
     std::cout << "[OK] Loaded: " << filepath << std::endl;
     return true;
+}
+
+// ============================================================
+// テンプレートから複製（json 再読み込みを避ける）
+// ============================================================
+void VFXEffect::CloneFrom(const VFXEffect& src)
+{
+    m_Name = src.m_Name;
+    m_Loop = src.m_Loop;
+
+    m_Entries.clear();
+    for (const auto& e : src.m_Entries)
+        m_Entries.push_back(e->Clone());
+
+    m_CurrentTime = 0.0f;
+    m_SMCtx.current = VFXStateID::Idle;
+    m_SMCtx.timeInState = 0.0f;
 }

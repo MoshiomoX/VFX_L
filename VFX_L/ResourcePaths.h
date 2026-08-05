@@ -150,6 +150,7 @@ namespace Res
     // ========================================================
     namespace VFX
     {
-        inline constexpr const char* DataDir = "Assets/Data/VFXData/";
+        inline constexpr const char* Fireball = "Assets/Data/VFXData/Fireball.json";
+        inline constexpr const char* Lightning = "Assets/Data/VFXData/Lightning.json";
     }
 }

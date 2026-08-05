@@ -36,7 +36,8 @@ public:
         float   range = 0.0f;
     };
     const AimDebug& GetAimDebug() const { return m_AimDebug; }
-
+    struct SpawnedProjectile { Entity entity; ItemID id; };
+    const std::vector<SpawnedProjectile>& GetSpawned() const { return m_Spawned; }
 private:
     // View 走査中に Entity を作れないので、発射要求を溜めてから生成する
     struct CastRequest
@@ -56,6 +57,6 @@ private:
 
     std::vector<CastRequest> m_Requests;
     std::vector<std::pair<ItemID, std::shared_ptr<Model>>> m_Models;
-
+    std::vector<SpawnedProjectile> m_Spawned;
     AimDebug m_AimDebug;   // 可視化用
 };

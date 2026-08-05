@@ -498,3 +498,45 @@ void GPUParticleSystem::ResetSystem()
     UINT clearValues[4] = { 6, 0, 0, 0 };
     m_Context->ClearUnorderedAccessViewUint(m_DrawIndirectUAV.Get(), clearValues);
 }
+
+// ============================================
+// emitter を積む
+//   colorKeyOffset は呼び出し側ではローカル（0 起点）なので、
+//   合併後の配列における位置へ付け替える。
+// ============================================
+void GPUParticleSystem::SubmitEmitters(const std::vector<GPUEmitter>& emitters,
+    const std::vector<ColorKey>& colorKeys)
+{
+    // 上限を超える分は捨てる（降級：特効が出ないだけ。クラッシュも上書きもしない）
+    size_t space = (m_PendingEmitters.size() < MAX_EMITTERS)
+        ? (MAX_EMITTERS - m_PendingEmitters.size()) : 0;
+    size_t count = (emitters.size() < space) ? emitters.size() : space;
+
+    if (count < emitters.size())
+        m_DroppedEmitters += (emitters.size() - count);
+
+    // colorKey は合併後配列の末尾に追加され、その分 offset がずれる
+    int baseOffset = static_cast<int>(m_PendingColorKeys.size());
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        GPUEmitter e = emitters[i];
+        e.colorKeyOffset += baseOffset;   // ローカル offset → 全体 offset へ補正
+        m_PendingEmitters.push_back(e);
+    }
+
+    for (const auto& k : colorKeys)
+        m_PendingColorKeys.push_back(k);
+}
+// ============================================
+// 1フレーム分をまとめて GPU へ（1フレーム1回だけ）
+// ============================================
+void GPUParticleSystem::Flush(float dt, float totalTime)
+{
+    // emitter が空でも呼ぶ：UpdateCS を走らせて既存粒子を進める必要がある
+    Update(dt, totalTime, m_PendingEmitters, m_PendingColorKeys);
+
+    m_PendingEmitters.clear();
+    m_PendingColorKeys.clear();
+    m_DroppedEmitters = 0;
+}
