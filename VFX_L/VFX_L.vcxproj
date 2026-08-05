@@ -189,9 +189,11 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="PixelShader.cpp" />
     <ClCompile Include="PlayerControlSystem.cpp" />
     <ClCompile Include="PrimitiveBuilder.cpp" />
+    <ClCompile Include="ProjectileBillboardRenderer.cpp" />
     <ClCompile Include="ProjectileSystem.cpp" />
     <ClCompile Include="ProjectileVFXSystem.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="RenderStates.cpp" />
     <ClCompile Include="RenderSystem.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="SceneBase.cpp" />
@@ -304,12 +306,15 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="PlayerControlSystem.h" />
     <ClInclude Include="PlayerTag.h" />
     <ClInclude Include="PrimitiveBuilder.h" />
+    <ClInclude Include="ProjectileBillboardRenderer.h" />
     <ClInclude Include="ProjectileComponent.h" />
     <ClInclude Include="ProjectileSystem.h" />
     <ClInclude Include="ProjectileVFXComponent.h" />
     <ClInclude Include="ProjectileVFXSystem.h" />
+    <ClInclude Include="ProjectileVisualComponent.h" />
     <ClInclude Include="Registry.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="RenderStates.h" />
     <ClInclude Include="RenderSystem.h" />
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="ResourcePaths.h" />
@@ -430,6 +435,18 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
     </FxCompile>
     <FxCompile Include="Shader\PBR_VS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="Shader\Projectile\ProjectilePS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="Shader\Projectile\ProjectileVS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>

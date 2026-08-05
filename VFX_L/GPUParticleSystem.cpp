@@ -38,7 +38,7 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!CreateEmitterBuffer(device))        return false;
     if (!m_DeadList.Initialize(device, maxParticles)) return false;
     if (!LoadShaders(device))                return false;
-    if (!CreateRenderStates(device))         return false;
+   // if (!CreateRenderStates(device))         return false;
     if (!CreateColorKeyBuffer(device))       return false;
     if (!CreateDrawIndirectBuffer(device))   return false;
     if (!CreateAliveListBuffer(device, maxParticles)) return false;
@@ -259,47 +259,47 @@ bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
 // ============================================
 // レンダーステート作成
 // ============================================
-bool GPUParticleSystem::CreateRenderStates(ID3D11Device* device)
-{
-    D3D11_BLEND_DESC blendDesc = {};
-    blendDesc.RenderTarget[0].BlendEnable = TRUE;
-    blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-    blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
-    blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
-    blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-
-    HRESULT hr = device->CreateBlendState(&blendDesc, &m_BlendState);
-    if (FAILED(hr)) return false;
-
-    D3D11_DEPTH_STENCIL_DESC dsDesc = {};
-    dsDesc.DepthEnable = TRUE;
-    dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-    dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
-
-    hr = device->CreateDepthStencilState(&dsDesc, &m_DepthStencilState);
-    if (FAILED(hr)) return false;
-
-    D3D11_RASTERIZER_DESC rsDesc = {};
-    rsDesc.FillMode = D3D11_FILL_SOLID;
-    rsDesc.CullMode = D3D11_CULL_NONE;
-
-    hr = device->CreateRasterizerState(&rsDesc, &m_RasterizerState);
-    if (FAILED(hr)) return false;
-
-    D3D11_SAMPLER_DESC sampDesc = {};
-    sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-
-    hr = device->CreateSamplerState(&sampDesc, &m_SamplerState);
-    if (FAILED(hr)) return false;
-
-    return true;
-}
+//bool GPUParticleSystem::CreateRenderStates(ID3D11Device* device)
+//{
+//    D3D11_BLEND_DESC blendDesc = {};
+//    blendDesc.RenderTarget[0].BlendEnable = TRUE;
+//    blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+//    blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+//    blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+//    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+//    blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+//    blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+//    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+//
+//    HRESULT hr = device->CreateBlendState(&blendDesc, &m_BlendState);
+//    if (FAILED(hr)) return false;
+//
+//    D3D11_DEPTH_STENCIL_DESC dsDesc = {};
+//    dsDesc.DepthEnable = TRUE;
+//    dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+//    dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+//
+//    hr = device->CreateDepthStencilState(&dsDesc, &m_DepthStencilState);
+//    if (FAILED(hr)) return false;
+//
+//    D3D11_RASTERIZER_DESC rsDesc = {};
+//    rsDesc.FillMode = D3D11_FILL_SOLID;
+//    rsDesc.CullMode = D3D11_CULL_NONE;
+//
+//    hr = device->CreateRasterizerState(&rsDesc, &m_RasterizerState);
+//    if (FAILED(hr)) return false;
+//
+//    D3D11_SAMPLER_DESC sampDesc = {};
+//    sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+//    sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+//    sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+//    sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+//
+//    hr = device->CreateSamplerState(&sampDesc, &m_SamplerState);
+//    if (FAILED(hr)) return false;
+//
+//    return true;
+//}
 
 // ============================================
 // 毎フレーム更新
@@ -446,12 +446,17 @@ void GPUParticleSystem::Render()
     if (m_Texture)
         m_RenderPS->SetTexture(context, 0, m_Texture.get());
 
-    context->PSSetSamplers(0, 1, m_SamplerState.GetAddressOf());
+    //context->PSSetSamplers(0, 1, m_SamplerState.GetAddressOf());
 
-    float blendFactor[4] = { 0, 0, 0, 0 };
-    context->OMSetBlendState(m_BlendState.Get(), blendFactor, 0xFFFFFFFF);
-    context->OMSetDepthStencilState(m_DepthStencilState.Get(), 0);
-    context->RSSetState(m_RasterizerState.Get());
+    //float blendFactor[4] = { 0, 0, 0, 0 };
+    //context->OMSetBlendState(m_BlendState.Get(), blendFactor, 0xFFFFFFFF);
+    //context->OMSetDepthStencilState(m_DepthStencilState.Get(), 0);
+    //context->RSSetState(m_RasterizerState.Get());
+
+    // ★変更後
+    ID3D11SamplerState* samp = RenderStates::Get().LinearClamp();
+    context->PSSetSamplers(0, 1, &samp);
+    RenderStates::Get().ApplyAdditiveBillboard(context);
 
     m_RenderVS->Bind(context);
     m_RenderPS->Bind(context);
@@ -463,11 +468,11 @@ void GPUParticleSystem::Render()
     // GPU が決めた instanceCount で描画（CPU は数を知らない）
     context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
 
-    // ステートを戻す
-    context->OMSetBlendState(nullptr, blendFactor, 0xFFFFFFFF);
-    context->OMSetDepthStencilState(nullptr, 0);
-    context->RSSetState(nullptr);
-
+    //// ステートを戻す
+    //context->OMSetBlendState(nullptr, blendFactor, 0xFFFFFFFF);
+    //context->OMSetDepthStencilState(nullptr, 0);
+    //context->RSSetState(nullptr);
+    RenderStates::Get().Restore(context);
     m_RenderVS->UnbindSRVs(context);
 }
 

@@ -8,7 +8,7 @@
 #include "VertexShader.h"
 #include "PixelShader.h"
 #include "Texture.h"
-
+#include "RenderStates.h"
 using Microsoft::WRL::ComPtr;
 class CameraBase;
 class Renderer;
@@ -30,10 +30,10 @@ private:
     std::shared_ptr<Texture> m_Texture;
     Transform m_Transform;
 
-    // スカイボックス専用ステート
-    ComPtr<ID3D11RasterizerState> m_FrontCullRS;   // 前面カリング（内面描画）
-    ComPtr<ID3D11DepthStencilState> m_DepthState;  // 深度
-    ComPtr<ID3D11SamplerState> m_Sampler;
+    //// スカイボックス専用ステート
+    //ComPtr<ID3D11RasterizerState> m_FrontCullRS;   // 前面カリング（内面描画）
+    //ComPtr<ID3D11DepthStencilState> m_DepthState;  // 深度
+    //ComPtr<ID3D11SamplerState> m_Sampler;
 
     float m_Scale = 0.0005f;   // 球の大きさ（十分大きく）
 };

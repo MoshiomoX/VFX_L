@@ -82,7 +82,8 @@ namespace Res
         // 粒子
         inline constexpr const wchar_t* ParticleSheet =
             L"Assets/Particles/particlesSheet.jpg";
-
+        inline constexpr const wchar_t* ProjectileCore =
+            L"Assets/Particles/Particle.png";
         // Rock_2 の PBR テクスチャ
         inline constexpr const wchar_t* Rock2_Albedo =
             L"Assets/Model/Rock-Set/Rock_2/Rock_2_Tex/Rock_2_Base_Color.jpg";

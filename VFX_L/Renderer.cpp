@@ -35,17 +35,23 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 
     std::cout << "[OK] Renderer initialized" << std::endl;
     // ★標準サンプラ生成（線形補間 + WRAP）。PBRのt0~t4で共用
-    D3D11_SAMPLER_DESC sd = {};
-    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    sd.MinLOD = 0;
-    sd.MaxLOD = D3D11_FLOAT32_MAX;
-    if (FAILED(device->CreateSamplerState(&sd, &m_DefaultSampler)))
+    //D3D11_SAMPLER_DESC sd = {};
+    //sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    //sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    //sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    //sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    //sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    //sd.MinLOD = 0;
+    //sd.MaxLOD = D3D11_FLOAT32_MAX;
+
+    //if (FAILED(device->CreateSamplerState(&sd, &m_DefaultSampler)))
+    //{
+    //    std::cout << "[Error] Default sampler create failed" << std::endl;
+    //    return false;
+    //}
+    if (!RenderStates::Get().Initialize(device))
     {
-        std::cout << "[Error] Default sampler create failed" << std::endl;
+        std::cout << "[Error] RenderStates init failed" << std::endl;
         return false;
     }
     return true;
@@ -55,6 +61,7 @@ void Renderer::Shutdown()
 {
     m_DefaultVS.reset();
     m_DefaultPS.reset();
+    RenderStates::Get().Shutdown();
     m_Device = nullptr;
     m_Context = nullptr;
     m_Camera = nullptr;
@@ -106,7 +113,7 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
         if (m_DefaultTexture)
             m_DefaultTexture->Bind(m_Context, 0);
     }
-    ID3D11SamplerState* samp = m_DefaultSampler.Get();
+    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
     m_Context->PSSetSamplers(0, 1, &samp);
 
     // VS CBuffer (b0): MVP

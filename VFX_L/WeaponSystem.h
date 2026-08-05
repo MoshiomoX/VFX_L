@@ -25,6 +25,10 @@ public:
 
     // 投射物モデル（種類ごとに使い回す）
     void SetProjectileModel(ItemID id, std::shared_ptr<Model> m);
+    // 投射物の見た目（ビルボード芯）を種類ごとに登録
+    void SetProjectileVisual(ItemID id, float size,
+        const DirectX::SimpleMath::Vector4& color,
+        float stretch = 0.0f);
 
     // ---- デバッグ可視化用：今フレームの照準情報 ----
     struct AimDebug
@@ -47,7 +51,17 @@ private:
         DirectX::SimpleMath::Vector3 dir;
         float speed, radius, damage, lifetime;
     };
+    struct VisualDef
+    {
+        ItemID id;
+        float  size;
+        DirectX::SimpleMath::Vector4 color;
+        float  stretch;
+    };
 
+
+    std::vector<VisualDef> m_Visuals;
+    const VisualDef* FindVisual(ItemID id) const;
     // 1回の施法ぶんの発射要求を積む（分裂の扇状展開もここで行う）
     void QueueOneCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& muzzle,

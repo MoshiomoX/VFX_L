@@ -34,28 +34,28 @@ bool Skybox::Init(ID3D11Device* device,
         return false;
     }
 
-    // --- 前面カリング（球の内側を描画する）---
-    D3D11_RASTERIZER_DESC rd = {};
-    rd.FillMode = D3D11_FILL_SOLID;
-    rd.CullMode = D3D11_CULL_FRONT;   // 内面を描く（ダメなら BACK に変える）
-    rd.FrontCounterClockwise = FALSE;
-    rd.DepthClipEnable = TRUE;
-    device->CreateRasterizerState(&rd, &m_FrontCullRS);
+    //// --- 前面カリング（球の内側を描画する）---
+    //D3D11_RASTERIZER_DESC rd = {};
+    //rd.FillMode = D3D11_FILL_SOLID;
+    //rd.CullMode = D3D11_CULL_FRONT;   // 内面を描く（ダメなら BACK に変える）
+    //rd.FrontCounterClockwise = FALSE;
+    //rd.DepthClipEnable = TRUE;
+    //device->CreateRasterizerState(&rd, &m_FrontCullRS);
 
-    // --- 深度：書き込みあり、LESS_EQUAL ---
-    D3D11_DEPTH_STENCIL_DESC dsd = {};
-    dsd.DepthEnable = TRUE;
-    dsd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-    dsd.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-    device->CreateDepthStencilState(&dsd, &m_DepthState);
+    //// --- 深度：書き込みあり、LESS_EQUAL ---
+    //D3D11_DEPTH_STENCIL_DESC dsd = {};
+    //dsd.DepthEnable = TRUE;
+    //dsd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    //dsd.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    //device->CreateDepthStencilState(&dsd, &m_DepthState);
 
-    // --- サンプラー（パノラマは横方向ループ）---
-    D3D11_SAMPLER_DESC sd = {};
-    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    device->CreateSamplerState(&sd, &m_Sampler);
+    //// --- サンプラー（パノラマは横方向ループ）---
+    //D3D11_SAMPLER_DESC sd = {};
+    //sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    //sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    //sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    //sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    //device->CreateSamplerState(&sd, &m_Sampler);
 
     m_Transform.SetScale({ m_Scale, m_Scale, m_Scale });
 
@@ -73,10 +73,12 @@ void Skybox::Render(Renderer& renderer, CameraBase* camera)
     m_Transform.SetPosition(camera->GetPosition());
 
     // --- 専用ステートを設定 ---
-    context->RSSetState(m_FrontCullRS.Get());
-    context->OMSetDepthStencilState(m_DepthState.Get(), 0);
-    context->PSSetSamplers(0, 1, m_Sampler.GetAddressOf());
-
+    //context->RSSetState(m_FrontCullRS.Get());
+    //context->OMSetDepthStencilState(m_DepthState.Get(), 0);
+    //context->PSSetSamplers(0, 1, m_Sampler.GetAddressOf());
+    RenderStates::Get().ApplySkybox(context);
+    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
+    context->PSSetSamplers(0, 1, &samp);
     // --- シェーダー + テクスチャ ---
     m_VS->Bind(context);
     m_PS->Bind(context);
