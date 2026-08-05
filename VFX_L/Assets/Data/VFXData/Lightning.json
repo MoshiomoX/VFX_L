@@ -1,0 +1,90 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [
+                    0.0,
+                    0.0
+                ],
+                "atlasAnimate": false,
+                "atlasCols": 6,
+                "atlasIndex": 25,
+                "atlasRows": 6,
+                "boxExtents": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "direction": [
+                    0.0,
+                    0.0,
+                    0.00800000037997961
+                ],
+                "dragCoeff": 0.0,
+                "emitRate": 96.77400207519531,
+                "emitType": 0,
+                "endColorMax": [
+                    0.16521570086479187,
+                    0.3717532455921173,
+                    0.6751054525375366,
+                    0.0
+                ],
+                "endColorMin": [
+                    0.04767753183841705,
+                    0.19326360523700714,
+                    0.8691983222961426,
+                    0.0
+                ],
+                "gravity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "innerRadius": 0.0,
+                "lifetimeRange": [
+                    0.800000011920929,
+                    0.800000011920929
+                ],
+                "maxParticles": 1000,
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.0,
+                "rotationRange": [
+                    0.0,
+                    0.0
+                ],
+                "sizeRange": [
+                    0.9200000166893005,
+                    0.9800000190734863,
+                    0.0,
+                    0.28999999165534973
+                ],
+                "speedRange": [
+                    6.0,
+                    6.0
+                ],
+                "spreadAngle": 11.61299991607666,
+                "startColorMax": [
+                    0.0,
+                    1.0,
+                    0.9873416423797607,
+                    1.0
+                ],
+                "startColorMin": [
+                    0.008438825607299805,
+                    1.0,
+                    0.03354167938232422,
+                    1.0
+                ]
+            },
+            "duration": 2.0,
+            "startTime": 0.0,
+            "type": "Particle"
+        }
+    ],
+    "loop": true,
+    "name": "Lightning"
+}

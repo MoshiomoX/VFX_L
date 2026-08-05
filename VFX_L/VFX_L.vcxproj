@@ -190,6 +190,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="PlayerControlSystem.cpp" />
     <ClCompile Include="PrimitiveBuilder.cpp" />
     <ClCompile Include="ProjectileSystem.cpp" />
+    <ClCompile Include="ProjectileVFXSystem.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="RenderSystem.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
@@ -232,6 +233,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Transform.cpp" />
     <ClCompile Include="VertexShader.cpp" />
     <ClCompile Include="VFXEditor.cpp" />
+    <ClCompile Include="VFXEditorScene.cpp" />
     <ClCompile Include="VFXEffect.cpp" />
     <ClCompile Include="VFXParticleEntry.cpp" />
     <ClCompile Include="VFXStates.cpp" />
@@ -304,6 +306,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="PrimitiveBuilder.h" />
     <ClInclude Include="ProjectileComponent.h" />
     <ClInclude Include="ProjectileSystem.h" />
+    <ClInclude Include="ProjectileVFXComponent.h" />
+    <ClInclude Include="ProjectileVFXSystem.h" />
     <ClInclude Include="Registry.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderSystem.h" />
@@ -366,6 +370,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Vertex3D.h" />
     <ClInclude Include="VertexShader.h" />
     <ClInclude Include="VFXEditor.h" />
+    <ClInclude Include="VFXEditorScene.h" />
     <ClInclude Include="VFXEffect.h" />
     <ClInclude Include="VFXEntry.h" />
     <ClInclude Include="VFXParticleEntry.h" />

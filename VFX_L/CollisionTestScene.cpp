@@ -7,20 +7,28 @@
 #include "ColliderComponent.h"
 #include "RigidbodyComponent.h"
 #include "ModelComponent.h"
+#include "ProjectileComponent.h"
+#include "ProjectileVFXComponent.h"
 #include "PlayerTag.h"
 #include "WandComponent.h"
 #include "SpellID.h"
 #include "HealthComponent.h"
 #include "View.h"
-#include "ProjectileComponent.h"
+
 #include "TestSpawner.h"
 #include "PrimitiveBuilder.h"
 #include "DebugManager.h"
 #include "InputManager.h"
 #include "Application.h"
+#include "ResourceManager.h"
+#include "ResourcePaths.h"
 #include "Model.h"
 #include "imgui.h"
+
+#include <unordered_set>
 #include <iostream>
+#include <cstdlib>
+#include <cmath>
 
 // ============================================================
 // Init
@@ -30,27 +38,46 @@ void CollisionTestScene::Init()
     std::cout << "[CollisionTestScene] Init" << std::endl;
 
     auto* device = Application::Get().GetGraphics().GetDevice();
+    auto* context = Application::Get().GetGraphics().GetContext();
 
     // ---------- Camera ----------
     m_Camera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 10000.0f);
     SetCamera(&m_Camera);
 
+    // ---------- Particle System ----------
+    if (!m_ParticleSystem.Initialize(device, context, 100000))
+        std::cout << "[Error] ParticleSystem init failed" << std::endl;
+
+    m_ParticleSystem.SetCamera(&m_Camera);
+
+    m_ParticleTexture = ResourceManager::Get().LoadTexture(Res::Tex::ParticleSheet);
+    if (m_ParticleTexture)
+        m_ParticleSystem.SetTexture(m_ParticleTexture);
+
+    m_VFXContext.particleSystem = &m_ParticleSystem;
+
+    // ---------- 投射物 VFX テンプレート登録 ----------
+    m_ProjectileVFXSystem.RegisterVFX(ItemID::Fireball, Res::VFX::Fireball);
+    m_ProjectileVFXSystem.RegisterVFX(ItemID::Lightning, Res::VFX::Lightning);
+
     // ---------- 共有モデル ----------
     m_EnemyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 1.0f, 0.35f, 0.35f, 1 });
-    m_DummyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 0.7f, 0.4f, 1.0f, 1 });
-    // 投射物モデル（種類ごとに登録）
+    m_DummyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 0.7f, 0.40f, 1.00f, 1 });
+    m_StressModel = PrimitiveBuilder::CreateSphere(device, 0.25f, { 1.0f, 0.50f, 0.20f, 1 });
+
+    // 投射物の芯（VFX だけで足りるなら Show Proj Mesh を切って確認できる）
     m_WeaponSystem.SetProjectileModel(ItemID::Fireball,
-        PrimitiveBuilder::CreateSphere(device, 0.25f, { 1.0f, 0.9f, 0.3f, 1 }));
+        PrimitiveBuilder::CreateSphere(device, 0.20f, { 1.0f, 0.9f, 0.5f, 1 }));
     m_WeaponSystem.SetProjectileModel(ItemID::Lightning,
-        PrimitiveBuilder::CreateSphere(device, 0.18f, { 0.5f, 0.8f, 1.0f, 1 }));
-    m_StressModel = PrimitiveBuilder::CreateSphere(device, 0.25f, { 1.0f, 0.5f, 0.2f, 1 });
+        PrimitiveBuilder::CreateSphere(device, 0.15f, { 0.6f, 0.9f, 1.0f, 1 }));
+
     // ---------- 地形 ----------
     struct TerrainDef { Vector3 pos; Vector3 half; Vector4 color; };
     TerrainDef defs[] = {
-        { { 0.0f,  0.0f, 0.0f }, { 12.0f, 0.5f, 12.0f }, { 0.45f, 0.45f, 0.50f, 1 } }, // 床
-        { { 6.0f,  1.0f, 0.0f }, {  1.0f, 1.0f,  1.0f }, { 0.70f, 0.45f, 0.30f, 1 } }, // 高い段差
-        { {-6.0f, 0.75f, 3.0f }, {  1.0f, 0.75f, 1.0f }, { 0.30f, 0.60f, 0.40f, 1 } }, // 低い段差
-        { { 0.0f,  1.5f,-9.0f }, {  4.0f, 1.5f,  0.5f }, { 0.55f, 0.50f, 0.60f, 1 } }, // 壁
+        { { 0.0f,  0.0f,  0.0f }, { 12.0f, 0.5f, 12.0f }, { 0.45f, 0.45f, 0.50f, 1 } },
+        { { 6.0f,  1.0f,  0.0f }, {  1.0f, 1.0f,  1.0f }, { 0.70f, 0.45f, 0.30f, 1 } },
+        { {-6.0f, 0.75f,  3.0f }, {  1.0f, 0.75f, 1.0f }, { 0.30f, 0.60f, 0.40f, 1 } },
+        { { 0.0f,  1.5f, -9.0f }, {  4.0f, 1.5f,  0.5f }, { 0.55f, 0.50f, 0.60f, 1 } },
     };
     for (const auto& d : defs)
     {
@@ -72,7 +99,7 @@ void CollisionTestScene::Init()
         { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f });
     m_Registry.Add<ModelComponent>(m_Player, pmc);
 
-    // ---------- 杖（第1版は spells を手動構築。後でバックパック集約に置き換える）----------
+    // ---------- 杖（spells は手動構築。後でバックパック集約に置き換え）----------
     WandComponent wand;
     {
         SpellStats fire;
@@ -104,9 +131,20 @@ void CollisionTestScene::Shutdown()
 void CollisionTestScene::Update(float dt)
 {
     SceneBase::Update(dt);
+    m_TotalTime += dt;
 
-    // ---- System 実行順（重要）----
-    // 操作 → 衝突収集 → 物理 → 杖発射 → 投射物 → ダメージ → カメラ
+    // ---- 負荷テストの分割生成（生成スパイクを避ける）----
+    if (m_StressPending > 0)
+    {
+        int batch = (m_StressPending < 50) ? m_StressPending : 50;
+        StressSpawnProjectiles(batch);
+        m_StressPending -= batch;
+    }
+
+    // ============================================================
+    // System 実行順（重要）
+    // 操作 → 衝突 → 物理 → 杖 → VFX付与 → 投射物 → ダメージ → カメラ
+    // ============================================================
     m_PlayerControlSystem.SetMoveSpeed(m_MoveSpeed);
     m_PlayerControlSystem.SetJumpPower(m_JumpPower);
     m_PlayerControlSystem.Update(m_Registry, dt, GetCamera());
@@ -117,8 +155,14 @@ void CollisionTestScene::Update(float dt)
     m_PhysicsSystem.Update(m_Registry, dt, m_CollisionSystem);
 
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
+
+    // 生成された投射物に VFX 実例を付ける（WeaponSystem の直後）
+    for (const auto& sp : m_WeaponSystem.GetSpawned())
+        m_ProjectileVFXSystem.AttachVFX(m_Registry, sp.entity, sp.id, m_VFXContext);
+
     m_ProjectileSystem.Update(m_Registry, dt, m_CollisionSystem);
 
+    // ---- 命中イベント消費：ダメージ + 死亡 ----
     for (const auto& hit : m_ProjectileSystem.GetHitEvents())
     {
         if (!m_Registry.IsValid(hit.target)) continue;
@@ -127,7 +171,7 @@ void CollisionTestScene::Update(float dt)
         auto& hp = m_Registry.Get<HealthComponent>(hit.target);
         hp.current -= hit.damage;
 
-        // 無敵の的は 0 で止める（数値が無限に減るのを防ぐ）
+        // 無敵の的は 0 で止める（累計ダメージ計測のため）
         if (hp.invincible && hp.current < 0.0f)
             hp.current = 0.0f;
 
@@ -135,32 +179,45 @@ void CollisionTestScene::Update(float dt)
             m_Registry.Destroy(hit.target);
     }
 
-    // ---- カメラ追従（物理でプレイヤーが動いた後）----
+    // ---- カメラ追従（物理の後）----
     if (m_Registry.IsValid(m_Player))
         m_Camera.SetFollowTarget(m_Registry.Get<TransformComponent>(m_Player).position);
     m_Camera.Update(dt);
 
+    // ============================================================
+    // VFX：追従して emitter を積む → 1回だけ Flush
+    // ============================================================
+    m_ProjectileVFXSystem.Update(m_Registry, dt);
+
+    // 統計を退避（Flush でクリアされる前に読む）
+    m_LastEmitterCount = m_ParticleSystem.GetPendingEmitterCount();
+    m_LastDropped = m_ParticleSystem.GetDroppedEmitterCount();
+
+    // ★1フレームに1回だけ。これが無いと粒子が一切動かない
+    m_ParticleSystem.Flush(dt, m_TotalTime);
+
     // ---- 衝突体の線框表示 ----
     if (m_ShowWireframe)
     {
-        const auto& pairs = m_CollisionSystem.GetPairs();
-        auto isHitting = [&](Entity e) -> bool
-            {
-                for (const auto& p : pairs)
-                    if (p.a == e || p.b == e) return true;
-                return false;
-            };
+        std::unordered_set<Entity> hitting;
+        for (const auto& p : m_CollisionSystem.GetPairs())
+        {
+            hitting.insert(p.a);
+            hitting.insert(p.b);
+        }
 
         m_Registry.CreateView<TransformComponent, ColliderComponent>()
             .Each([&](Entity e, TransformComponent&, ColliderComponent&)
                 {
-                    Color col = isHitting(e) ? Color(1.0f, 0.3f, 0.3f, 1.0f)
+                    // 投射物は数が多すぎるので線框を描かない
+                    if (m_Registry.Has<ProjectileComponent>(e)) return;
+
+                    Color col = hitting.count(e) ? Color(1.0f, 0.3f, 0.3f, 1.0f)
                         : Color(0.4f, 1.0f, 0.4f, 1.0f);
                     DrawColliderDebug(e, col);
                 });
     }
 
-    // ---- 施法の可視化 ----
     if (m_ShowWandDebug)
         DrawWandDebug();
 
@@ -180,8 +237,19 @@ void CollisionTestScene::Render(Renderer& renderer)
 
     SceneBase::Render(renderer);
 
+    // 投射物メッシュの表示切替（ModelComponent.visible を一括操作）
+    m_Registry.CreateView<ProjectileComponent, ModelComponent>()
+        .Each([&](Entity, ProjectileComponent&, ModelComponent& mc)
+            {
+                mc.visible = m_ShowProjMesh;
+            });
+
     if (m_ShowMesh)
         m_RenderSystem.Render(m_Registry, renderer);
+
+    // パーティクルは不透明の後（加算合成のため）
+    m_ParticleSystem.SetCamera(GetCamera());
+    m_ParticleSystem.Render();
 }
 
 // ============================================================
@@ -215,13 +283,12 @@ void CollisionTestScene::DrawWandDebug()
     auto& tf = m_Registry.Get<TransformComponent>(m_Player);
     const auto& aim = m_WeaponSystem.GetAimDebug();
 
-    // --- 索敵範囲（薄い青の球）---
     Vector3 muzzle = tf.position + wand.muzzleOffset;
     dbg.DrawWireSphere(muzzle, wand.range, Color(0.25f, 0.4f, 0.8f, 1.0f));
 
     if (!aim.hasTarget) return;
 
-    // --- 目標マーク（黄色の十字）---
+    // 目標マーク
     if (m_Registry.IsValid(aim.target))
     {
         Vector3 tp = m_Registry.Get<TransformComponent>(aim.target).position;
@@ -235,15 +302,12 @@ void CollisionTestScene::DrawWandDebug()
         dbg.AddDebugLine(tp - Vector3(0, 0, m), tp + Vector3(0, 0, m), mark);
     }
 
-    // --- 出力源ごとに分裂の扇形を描く（実際の発射計算と同じ）---
+    // 出力源ごとに分裂の扇形（実際の発射計算と同じ）
     for (size_t i = 0; i < wand.spells.size(); ++i)
     {
         const auto& s = wand.spells[i];
-
-        // 出力源ごとに高さをずらして重なりを避ける
         Vector3 origin = aim.muzzle + Vector3(0.0f, (float)i * 0.22f, 0.0f);
 
-        // 連射待ち中は橙、通常は緑
         Color col = (s.pendingCasts > 0) ? Color(1.0f, 0.6f, 0.2f, 1.0f)
             : Color(0.3f, 1.0f, 0.4f, 1.0f);
 
@@ -268,7 +332,6 @@ void CollisionTestScene::DrawWandDebug()
             }
         }
 
-        // 連射の残り回数を短い縦線で表示
         for (int k = 0; k < s.pendingCasts; ++k)
         {
             Vector3 p = origin + aim.dir * 0.4f + Vector3(0.15f * (float)k, 0.0f, 0.0f);
@@ -295,25 +358,19 @@ void CollisionTestScene::RebuildPlayerMesh()
 }
 
 // ============================================================
-// 敵を1体生成（invincible = テスト用の不死の的）
+// 敵を1体生成
 // ============================================================
 void CollisionTestScene::SpawnEnemy(const Vector3& pos, bool invincible)
 {
     Entity e = TestSpawner::SpawnCapsule(m_Registry, pos, 0.4f, 1.0f);
 
-    // TestSpawner の既定は Player 層なので敵層に上書き
     auto& col = m_Registry.Get<ColliderComponent>(e);
     col.layer = Layer_Enemy;
     col.mask = Layer_All;
 
     HealthComponent hp;
     hp.invincible = invincible;
-    if (invincible)
-    {
-        // バーが減りきらないように大きめに取る（累計ダメージ計測用）
-        hp.max = 9999.0f;
-        hp.current = 9999.0f;
-    }
+    if (invincible) { hp.max = 9999.0f; hp.current = 9999.0f; }
     m_Registry.Add<HealthComponent>(e, hp);
 
     ModelComponent mc;
@@ -332,16 +389,14 @@ void CollisionTestScene::RespawnEnemies()
         if (m_Registry.IsValid(e)) m_Registry.Destroy(e);
     m_Enemies.clear();
 
-    // 無敵の的（射撃テスト用。累計ダメージで DPS を見る）
-    SpawnEnemy({ 0.0f, 3.0f, 8.0f }, true);
-
-    // 通常の敵
-    SpawnEnemy({ 8.0f, 3.0f,  4.0f } ,false);
-    SpawnEnemy({ -8.0f, 3.0f,  5.0f },false);
-    SpawnEnemy({ 4.0f, 3.0f, -7.0f } ,false);
+    SpawnEnemy({ 0.0f, 3.0f, 8.0f }, true);   // 無敵の的（DPS 計測用）
+    SpawnEnemy({ 8.0f, 3.0f,  4.0f });
+    SpawnEnemy({ -8.0f, 3.0f,  5.0f });
+    SpawnEnemy({ 4.0f, 3.0f, -7.0f });
 }
+
 // ============================================================
-// 負荷テスト：投射物を一気に生成して限界を測る
+// 負荷テスト：投射物を一気に生成（VFX は付けない）
 // ============================================================
 void CollisionTestScene::StressSpawnProjectiles(int count)
 {
@@ -350,7 +405,6 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
 
     for (int i = 0; i < count; ++i)
     {
-        // 全方位にランダムな向きで飛ばす
         float a = (float)rand() / RAND_MAX * 6.2831853f;
         float b = (float)rand() / RAND_MAX * 6.2831853f;
         Vector3 dir(std::cos(a) * std::cos(b), std::sin(b) * 0.3f, std::sin(a) * std::cos(b));
@@ -362,20 +416,23 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
         tf.position = origin;
         m_Registry.Add<TransformComponent>(p, tf);
 
-        ColliderComponent col;
-        col.shape = ColliderShape::Sphere;
-        col.radius = 0.25f;
-        col.layer = Layer_PlayerShot;
-        col.mask = Layer_Enemy | Layer_Terrain;
-        m_Registry.Add<ColliderComponent>(p, col);
+        if (m_StressWithCollider)
+        {
+            ColliderComponent col;
+            col.shape = ColliderShape::Sphere;
+            col.radius = 0.25f;
+            col.layer = Layer_PlayerShot;
+            col.mask = Layer_Enemy | Layer_Terrain;
+            m_Registry.Add<ColliderComponent>(p, col);
+        }
 
         ProjectileComponent pj;
         pj.velocity = dir * 8.0f;
         pj.damage = 1.0f;
-        pj.lifetime = 30.0f;      // 長寿命にして数を維持する
+        pj.lifetime = 30.0f;
         m_Registry.Add<ProjectileComponent>(p, pj);
 
-        if (m_StressModel)
+        if (m_StressWithModel && m_StressModel)
         {
             ModelComponent mc;
             mc.model = m_StressModel;
@@ -383,6 +440,7 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
         }
     }
 }
+
 // ============================================================
 // ImGui
 // ============================================================
@@ -390,13 +448,34 @@ void CollisionTestScene::DrawDebugUI()
 {
     ImGui::Begin("Game Test");
 
-    // ---------- 表示切替 ----------
     ImGui::Checkbox("Mesh", &m_ShowMesh);
     ImGui::SameLine();
     ImGui::Checkbox("Collider", &m_ShowWireframe);
     ImGui::SameLine();
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
     ImGui::Separator();
+
+    // ---------- Particle / VFX ----------
+    if (ImGui::CollapsingHeader("Particle / VFX", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        // ★これが投射物 VFX の天井。赤くなったら槽位不足＝降級発生
+        float ratio = (float)m_LastEmitterCount / (float)m_ParticleSystem.GetMaxEmitters();
+        ImVec4 col = (ratio > 0.9f) ? ImVec4(1, 0.4f, 0.4f, 1)
+            : (ratio > 0.7f) ? ImVec4(1, 0.9f, 0.4f, 1)
+            : ImVec4(0.4f, 1, 0.4f, 1);
+        ImGui::TextColored(col, "Emitters : %zu / %zu",
+            m_LastEmitterCount, m_ParticleSystem.GetMaxEmitters());
+
+        if (m_LastDropped > 0)
+            ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1),
+                "Dropped : %zu  (VFX が出ない投射物あり)", m_LastDropped);
+
+        ImGui::Text("Alive Particles : %u", m_ParticleSystem.GetAliveCount());
+        ImGui::Text("Projectile VFX  : %zu", m_ProjectileVFXSystem.GetActiveVFXCount());
+
+        ImGui::Checkbox("Show Projectile Mesh", &m_ShowProjMesh);
+        ImGui::TextDisabled("VFX だけで足りるか確認する用");
+    }
 
     // ---------- 杖 ----------
     if (ImGui::CollapsingHeader("Wand", ImGuiTreeNodeFlags_DefaultOpen))
@@ -414,7 +493,6 @@ void CollisionTestScene::DrawDebugUI()
             ImGui::DragFloat("Range", &w.range, 0.5f, 1.0f, 60.0f);
             ImGui::Separator();
 
-            // --- 出力源ごとの編集 ---
             float totalDrain = 0.0f;
             for (size_t i = 0; i < w.spells.size(); ++i)
             {
@@ -440,14 +518,12 @@ void CollisionTestScene::DrawDebugUI()
                     ImGui::TreePop();
                 }
 
-                // この出力源の消費レート（二重釈放は castCount 倍）
                 if (s.castInterval > 0.0f)
                     totalDrain += (s.manaCost * (float)s.castCount) / s.castInterval;
 
                 ImGui::PopID();
             }
 
-            // --- 追加 / 削除 ---
             if (ImGui::Button("+ Fireball"))
             {
                 SpellStats s;
@@ -470,7 +546,6 @@ void CollisionTestScene::DrawDebugUI()
             if (ImGui::Button("- Remove") && !w.spells.empty())
                 w.spells.pop_back();
 
-            // --- 持続可能かの即時フィードバック（全出力源の合計）---
             bool sustainable = totalDrain <= w.manaRegen;
             ImGui::TextColored(sustainable ? ImVec4(0.4f, 1, 0.4f, 1) : ImVec4(1, 0.4f, 0.4f, 1),
                 "Total Drain %.1f/s  vs  Regen %.1f/s   %s",
@@ -478,7 +553,7 @@ void CollisionTestScene::DrawDebugUI()
         }
     }
 
-  // ---------- 敵 ----------
+    // ---------- 敵 ----------
     if (ImGui::CollapsingHeader("Enemies", ImGuiTreeNodeFlags_DefaultOpen))
     {
         int alive = 0;
@@ -495,7 +570,6 @@ void CollisionTestScene::DrawDebugUI()
             ImGui::SameLine();
             ImGui::Checkbox("Invincible", &hp.invincible);
 
-            // 無敵の的は累計被ダメージを表示（DPS 確認用）
             if (hp.invincible)
             {
                 ImGui::TextColored(ImVec4(0.7f, 0.5f, 1.0f, 1.0f),
@@ -509,7 +583,35 @@ void CollisionTestScene::DrawDebugUI()
         if (ImGui::Button("Respawn Enemies")) RespawnEnemies();
     }
 
-    // ---------- プレイヤー状態 ----------
+    // ---------- 負荷テスト ----------
+    if (ImGui::CollapsingHeader("Stress Test"))
+    {
+        int projCount = 0;
+        m_Registry.CreateView<TransformComponent, ProjectileComponent>()
+            .Each([&](Entity, TransformComponent&, ProjectileComponent&) { ++projCount; });
+
+        ImGui::Text("Projectiles : %d", projCount);
+        ImGui::Text("Colliders   : %zu", m_CollisionSystem.GetWorldColliders().size());
+        ImGui::Text("Pairs       : %zu", m_CollisionSystem.GetPairs().size());
+
+        ImGui::Checkbox("With Collider", &m_StressWithCollider);
+        ImGui::SameLine();
+        ImGui::Checkbox("With Model", &m_StressWithModel);
+
+        ImGui::SliderInt("Spawn Count", &m_StressCount, 50, 2000);
+        if (ImGui::Button("+ Spawn")) m_StressPending += m_StressCount;
+        ImGui::SameLine();
+        if (ImGui::Button("Clear All"))
+        {
+            std::vector<Entity> toKill;
+            m_Registry.CreateView<TransformComponent, ProjectileComponent>()
+                .Each([&](Entity e, TransformComponent&, ProjectileComponent&) { toKill.push_back(e); });
+            for (Entity e : toKill) m_Registry.Destroy(e);
+            m_StressPending = 0;
+        }
+    }
+
+    // ---------- プレイヤー ----------
     if (ImGui::CollapsingHeader("Player State"))
     {
         if (m_Registry.IsValid(m_Player))
@@ -531,7 +633,6 @@ void CollisionTestScene::DrawDebugUI()
         }
     }
 
-    // ---------- プレイヤー設定 ----------
     if (ImGui::CollapsingHeader("Player Settings"))
     {
         bool dirty = false;
@@ -545,7 +646,6 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::DragFloat("Gravity", &m_Gravity, 0.5f, -100.0f, 0.0f);
     }
 
-    // ---------- カメラ ----------
     if (ImGui::CollapsingHeader("Camera"))
     {
         ImGui::DragFloat("Distance", &m_Camera.distance, 0.1f, 1.0f, 30.0f);
@@ -556,7 +656,6 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::Text("Yaw/Pitch : %.1f / %.1f", m_Camera.GetYaw(), m_Camera.GetPitch());
     }
 
-    // ---------- ライト ----------
     if (ImGui::CollapsingHeader("Lighting"))
     {
         ImGui::DragFloat3("Direction", m_LightDir, 0.02f, -1.0f, 1.0f);
@@ -564,36 +663,6 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::DragFloat("Intensity", &m_LightIntensity, 0.02f, 0.0f, 5.0f);
         ImGui::ColorEdit3("Ambient", m_AmbientColor);
     }
-    // ---------- 負荷テスト ----------
-    if (ImGui::CollapsingHeader("Stress Test", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        // 現在の投射物数を数える
-        int projCount = 0;
-        m_Registry.CreateView<TransformComponent, ProjectileComponent>()
-            .Each([&](Entity, TransformComponent&, ProjectileComponent&) { ++projCount; });
-
-        ImGui::Text("Projectiles : %d", projCount);
-        ImGui::Text("Colliders   : %zu", m_CollisionSystem.GetWorldColliders().size());
-
-        ImGui::SliderInt("Spawn Count", &m_StressCount, 50, 2000);
-        if (ImGui::Button("+ Spawn")) StressSpawnProjectiles(m_StressCount);
-        ImGui::SameLine();
-        if (ImGui::Button("Clear All"))
-        {
-            std::vector<Entity> toKill;
-            m_Registry.CreateView<TransformComponent, ProjectileComponent>()
-                .Each([&](Entity e, TransformComponent&, ProjectileComponent&) { toKill.push_back(e); });
-            for (Entity e : toKill) m_Registry.Destroy(e);
-        }
-
-        ImGui::Separator();
-
-    }
-
-    // ---------- 統計 ----------
-    ImGui::Separator();
-    ImGui::Text("Colliders : %zu", m_CollisionSystem.GetWorldColliders().size());
-    ImGui::Text("Pairs     : %zu", m_CollisionSystem.GetPairs().size());
 
     ImGui::End();
 }

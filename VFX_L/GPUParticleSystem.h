@@ -20,19 +20,33 @@ public:
     ~GPUParticleSystem() = default;
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context, uint32_t maxParticles);
-    void Update(float deltaTime, float totalTime,
-        const std::vector<GPUEmitter>& emitters,
-        const std::vector<ColorKey>& colorKeys);
+ 
     void Render();
     void ResetSystem();
+
+    // --- 2段階方式 ---
+  // 各 VFXEffect が自分の emitter を積む（1フレームに何度でも呼べる）
+    void SubmitEmitters(const std::vector<GPUEmitter>& emitters,
+        const std::vector<ColorKey>& colorKeys);
+
+    // 1フレームに1度だけ呼ぶ。積まれた全 emitter で Emit + Update を実行
+    void Flush(float dt, float totalTime);
+
+    // 現在積まれている emitter 数（デバッグ表示用）
 
     void SetCamera(CameraBase* camera) { m_Camera = camera; }
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
 
+    size_t GetPendingEmitterCount() const { return m_PendingEmitters.size(); }
+    size_t GetMaxEmitters()         const { return MAX_EMITTERS; }
+    size_t GetDroppedEmitterCount() const { return m_DroppedEmitters; }
     uint32_t GetAliveCount() const { return m_MaxParticles - m_CurrentDeadCount; }
     uint32_t GetDeadCount() const { return m_CurrentDeadCount; }
     uint32_t GetMaxParticles() const { return m_MaxParticles; }
 private:
+    void Update(float deltaTime, float totalTime,
+        const std::vector<GPUEmitter>& emitters,
+        const std::vector<ColorKey>& colorKeys);
     bool CreateParticleBuffer(ID3D11Device* device);
     bool CreateEmitterBuffer(ID3D11Device* device);
     bool LoadShaders(ID3D11Device* device);
@@ -61,7 +75,7 @@ private:
     ComPtr<ID3D11UnorderedAccessView> m_AliveListUAV;
     ComPtr<ID3D11ShaderResourceView>  m_AliveListSRV;
 
-    static const int MAX_EMITTERS = 128;
+    static const int MAX_EMITTERS = 1024;
     ComPtr<ID3D11Buffer>               m_EmitterBuffer;
     ComPtr<ID3D11ShaderResourceView>   m_EmitterSRV;
 
@@ -73,7 +87,10 @@ private:
     std::shared_ptr<ComputeShader>   m_UpdateCS;
     std::shared_ptr<VertexShader>    m_RenderVS;
     std::shared_ptr<PixelShader>     m_RenderPS;
-
+    // フレーム内の積み上げ用（GPU バッファではなく CPU 側の一時領域）
+    std::vector<GPUEmitter> m_PendingEmitters;
+    std::vector<ColorKey>   m_PendingColorKeys;
+    size_t                  m_DroppedEmitters = 0;   // 上限超過で捨てた数
     GlobalCB m_CachedGlobalCB = {};
 
     ComPtr<ID3D11BlendState>        m_BlendState;

@@ -1,0 +1,90 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [
+                    0.0,
+                    0.0
+                ],
+                "atlasAnimate": false,
+                "atlasCols": 6,
+                "atlasIndex": 18,
+                "atlasRows": 6,
+                "boxExtents": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "direction": [
+                    0.0,
+                    0.0,
+                    0.07999999821186066
+                ],
+                "dragCoeff": 0.0,
+                "emitRate": 96.77400207519531,
+                "emitType": 0,
+                "endColorMax": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "endColorMin": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                "gravity": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "innerRadius": 0.0,
+                "lifetimeRange": [
+                    0.6000000238418579,
+                    0.800000011920929
+                ],
+                "maxParticles": 1000,
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "radius": 0.0,
+                "rotationRange": [
+                    0.0,
+                    0.0
+                ],
+                "sizeRange": [
+                    0.9200000166893005,
+                    1.0099999904632568,
+                    0.0,
+                    0.28999999165534973
+                ],
+                "speedRange": [
+                    4.400000095367432,
+                    4.400000095367432
+                ],
+                "spreadAngle": 24.885000228881836,
+                "startColorMax": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "startColorMin": [
+                    1.0,
+                    0.6611120104789734,
+                    0.008438825607299805,
+                    1.0
+                ]
+            },
+            "duration": 2.0,
+            "startTime": 0.0,
+            "type": "Particle"
+        }
+    ],
+    "loop": true,
+    "name": "Fireball"
+}

@@ -11,6 +11,15 @@ public:
     void OnUpdate(float dt, const VFXContext& ctx) override;
     void OnImGui() override;
 
+    std::unique_ptr<VFXEntry> Clone() const override
+    {
+        auto copy = std::make_unique<VFXParticleEntry>();
+        copy->startTime = startTime;
+        copy->duration = duration;
+        copy->isPlaying = false;
+        copy->emitterData = emitterData;
+        return copy;
+    }
 	json ToJson() const override;
 	void FromJson(const json& j) override;
 

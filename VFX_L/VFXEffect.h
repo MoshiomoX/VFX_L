@@ -45,12 +45,18 @@ public:
     bool IsPlaying() const { return m_SMCtx.current == VFXStateID::Playing; }
     bool IsFinishing() const { return m_SMCtx.current == VFXStateID::Finishing; }
 
+
+    // テンプレートから実例を複製する（entries を深くコピー）
+    void CloneFrom(const VFXEffect& src);
+
+    // 全 emitter に加算されるワールド位置（投射物追従用）
+    void SetWorldOffset(const DirectX::SimpleMath::Vector3& p) { m_WorldOffset = p; }
 private:
     std::string m_Name = "NewEffect";
     std::vector<std::unique_ptr<VFXEntry>> m_Entries;
     bool m_Loop = false;
     float m_CurrentTime = 0.0f;
-
+    DirectX::SimpleMath::Vector3 m_WorldOffset = { 0, 0, 0 };
     // --- 状態機（追加）---
     VFXStateMachine m_SM;   
     VFXStateContext m_SMCtx;

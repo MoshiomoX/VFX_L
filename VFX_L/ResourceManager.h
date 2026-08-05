@@ -12,6 +12,7 @@
 #include "Mesh.h"
 #include "Material.h"
 #include "Model.h"
+#include "VFXEffect.h"
 
 
 struct aiScene;
@@ -87,7 +88,9 @@ public:
     size_t GetCSCount() const { return m_ComputeShaders.size(); }
     size_t GetModelCount() const { return m_Models.size(); }
     LoadedModel LoadModelAuto(const std::string& filepath);
-
+    std::shared_ptr<VFXEffect> LoadVFXTemplate(const std::string& filepath);
+    void UnloadVFXTemplate(const std::string& filepath);
+    size_t GetVFXCount() const { return m_VFXTemplates.size(); }
 
 private:
     ResourceManager() = default;
@@ -105,6 +108,6 @@ private:
     std::unordered_map<std::wstring, std::shared_ptr<Mesh>> m_Meshes;
     std::unordered_map<std::wstring, std::shared_ptr<Material>> m_Materials;
     std::unordered_map<std::string, std::shared_ptr<Model>> m_Models;
-
+    std::unordered_map<std::string, std::shared_ptr<VFXEffect>> m_VFXTemplates;
     mutable std::recursive_mutex m_Mutex;
 };

@@ -4,7 +4,7 @@
 #include "GPUParticleTestScene.h"
 #include "GYScene.h"
 #include "CollisionTestScene.h"
-
+#include "VFXEditorScene.h"
 Game::Game()
 {
     // 初始化 SceneManager（注册场景）
@@ -28,7 +28,10 @@ bool Game::Initialize(Renderer* renderer)
     // m_SceneManager.ChangeScene(SceneType::GY);
 
 	m_SceneManager.RegisterScene<CollisionTestScene>(SceneType::COLLISION_TEST);
-	m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);
+	m_SceneManager.RegisterScene<VFXEditorScene>(SceneType::VFX_EDITOR);
+    m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);
+
+
 	return true;
 }
 

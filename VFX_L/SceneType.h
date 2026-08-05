@@ -8,5 +8,6 @@ enum class SceneType
     GPU_PARTICLE_TEST,
     GY,
 	COLLISION_TEST,
+    VFX_EDITOR,
     // 追加していく
 };
