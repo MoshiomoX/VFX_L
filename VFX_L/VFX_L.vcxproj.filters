@@ -86,6 +86,18 @@
     <Filter Include="Graphics\Renderer">
       <UniqueIdentifier>{e783db0f-676c-4e06-a9ed-5982b9fb5807}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Graphics\Shader\HLSL\UI">
+      <UniqueIdentifier>{745bc767-2c4a-45cd-822b-ec05990560e1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UI">
+      <UniqueIdentifier>{ef362e5f-7fdb-4e15-ae47-a3d12a65aeea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Item">
+      <UniqueIdentifier>{cda9d411-fdb6-4ffd-b061-013e69e3ed5a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Item\Items">
+      <UniqueIdentifier>{7d84ecb7-5271-4192-b5b6-a024e1f521d7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -294,6 +306,21 @@
     </ClCompile>
     <ClCompile Include="ProjectileBillboardRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="SpriteRenderer.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="BackpackUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ItemDatabase.cpp">
+      <Filter>Item</Filter>
+    </ClCompile>
+    <ClCompile Include="BackpackLogic.cpp">
+      <Filter>Item</Filter>
+    </ClCompile>
+    <ClCompile Include="BackpackAggregateSystem.cpp">
+      <Filter>ECS\System</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -606,6 +633,39 @@
     <ClInclude Include="ProjectileVisualComponent.h">
       <Filter>Component\Projectile</Filter>
     </ClInclude>
+    <ClInclude Include="SpriteRenderer.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="BackpackUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemTypes.h">
+      <Filter>Item</Filter>
+    </ClInclude>
+    <ClInclude Include="Fireball.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemDatabase.h">
+      <Filter>Item</Filter>
+    </ClInclude>
+    <ClInclude Include="AreaStats.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="BackpackComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="BackpackLogic.h">
+      <Filter>Item</Filter>
+    </ClInclude>
+    <ClInclude Include="SplitRune.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="DoubleCastRune.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="BackpackAggregateSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\PS.hlsl">
@@ -661,6 +721,12 @@
     </FxCompile>
     <FxCompile Include="Shader\Projectile\ProjectilePS.hlsl">
       <Filter>Graphics\Shader\HLSL\Projectile</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\UI\SpritePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\UI</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\UI\SpriteVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\UI</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

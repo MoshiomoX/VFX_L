@@ -18,6 +18,10 @@ public:
 	ID3D11Device* GetDevice()const{ return m_Device.Get(); }
 	ID3D11DeviceContext* GetContext()const { return m_Context.Get(); }
 	void RestoreRenderTarget();
+
+	float GetWidth()  const { return m_Viewport.Width; }
+	float GetHeight() const { return m_Viewport.Height; }
+	float GetAspect() const { return m_Viewport.Width / m_Viewport.Height; }
 private:
 	//=======================================
 	// Direct3D 11の主要コンポーネント

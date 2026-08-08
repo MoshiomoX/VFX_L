@@ -51,4 +51,15 @@ namespace InputMap
         return input.GetKeyTrigger(VK_SPACE) ||
             input.GetPadTrigger(XINPUT_GAMEPAD_A);
     }
+
+    // バックパック開閉（Tab / I / E、パッド Start）
+    // ※Trigger を使う。Press だと毎フレーム反転して点滅する
+    inline bool GetBackpackToggle()
+    {
+        auto& input = InputManager::Get();
+        return input.GetKeyTrigger(VK_TAB)
+            || input.GetKeyTrigger('I')
+            || input.GetKeyTrigger('E')
+            || input.GetPadTrigger(XINPUT_GAMEPAD_START);
+    }
 }

@@ -57,6 +57,9 @@ public:
     // Skybox：前面カリング、深度 LESS_EQUAL
     void ApplySkybox(ID3D11DeviceContext* ctx) const;
 
+	// UI：アルファ合成、深度無し
+    void ApplyUI(ID3D11DeviceContext* ctx) const;
+    
     //描画後に必ず呼ぶ。次のパスへステートを持ち越さないため
     void Restore(ID3D11DeviceContext* ctx) const;
 

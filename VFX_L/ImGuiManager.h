@@ -13,7 +13,6 @@ public:
 	void Shutdown();
 	void BeginFrame();
 	void EndFrame();
-
 private:
 	ImGuiManager() = default;
 	~ImGuiManager() = default;

@@ -143,6 +143,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="BackpackAggregateSystem.cpp" />
+    <ClCompile Include="BackpackLogic.cpp" />
+    <ClCompile Include="BackpackUI.cpp" />
     <ClCompile Include="CameraBase.cpp" />
     <ClCompile Include="CollisionSystem.cpp" />
     <ClCompile Include="CollisionTestScene.cpp" />
@@ -177,6 +180,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="InputManager.cpp" />
+    <ClCompile Include="ItemDatabase.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Material.cpp" />
     <ClCompile Include="Mesh.cpp" />
@@ -202,6 +206,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="SkinnedModel.cpp" />
     <ClCompile Include="SkinnedModelGPU.cpp" />
     <ClCompile Include="Skybox.cpp" />
+    <ClCompile Include="SpriteRenderer.cpp" />
     <ClCompile Include="StateMachineSystem.cpp" />
     <ClCompile Include="TestCube.cpp" />
     <ClCompile Include="TestScene.cpp" />
@@ -244,7 +249,12 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
+    <ClInclude Include="AreaStats.h" />
     <ClInclude Include="AssimpFlags.h" />
+    <ClInclude Include="BackpackAggregateSystem.h" />
+    <ClInclude Include="BackpackComponent.h" />
+    <ClInclude Include="BackpackLogic.h" />
+    <ClInclude Include="BackpackUI.h" />
     <ClInclude Include="CameraBase.h" />
     <ClInclude Include="ColliderComponent.h" />
     <ClInclude Include="CollisionMath.h" />
@@ -263,10 +273,12 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
+    <ClInclude Include="DoubleCastRune.h" />
     <ClInclude Include="ECSComponents.h" />
     <ClInclude Include="EngineTimer.h" />
     <ClInclude Include="Entity.h" />
     <ClInclude Include="EntryType.h" />
+    <ClInclude Include="Fireball.h" />
     <ClInclude Include="FollowCamera.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GameObject.h" />
@@ -291,6 +303,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="IndexBuffer.h" />
     <ClInclude Include="InputManager.h" />
     <ClInclude Include="InputMap.h" />
+    <ClInclude Include="ItemDatabase.h" />
+    <ClInclude Include="ItemTypes.h" />
     <ClInclude Include="LightTypes.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="Mesh.h" />
@@ -330,6 +344,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Skybox.h" />
     <ClInclude Include="SparseSet.h" />
     <ClInclude Include="SpellID.h" />
+    <ClInclude Include="SplitRune.h" />
+    <ClInclude Include="SpriteRenderer.h" />
     <ClInclude Include="StateMachine.h" />
     <ClInclude Include="StateMachineSystem.h" />
     <ClInclude Include="TestCube.h" />
@@ -481,6 +497,18 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
     </FxCompile>
     <FxCompile Include="Shader\SkyVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="Shader\UI\SpritePS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="Shader\UI\SpriteVS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>

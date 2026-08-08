@@ -12,11 +12,13 @@ bool ImGuiManager::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceConte
 	// Initialize ImGui for Win32 and DirectX11
 	IMGUI_CHECKVERSION();	
 	ImGui::CreateContext();
-
+	ImGui::GetIO().FontGlobalScale = 1.5f;
+	ImGui::GetStyle().ScaleAllSizes(1.5f);
 	//スタイルを確認
 	ImGui::StyleColorsClassic();
 	
 	ImGuiIO& io = ImGui::GetIO();
+
 	if (!ImGui_ImplWin32_Init(hwnd))
 	{
 		std::cout << "[Error] ImGui Win32 init failed" << std::endl;

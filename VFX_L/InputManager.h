@@ -32,6 +32,7 @@ public:
     float GetMouseWheel() const { return m_MouseWheel; }
     void OnMouseMove(int x, int y);
     void OnMouseWheel(float delta);
+    DirectX::XMFLOAT2 GetMousePos() const { return m_MousePos; }
 
     // ====== ゲームパッド（XInput）======
     bool IsPadConnected() const { return m_PadConnected; }

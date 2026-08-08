@@ -105,7 +105,9 @@ namespace Res
         inline constexpr const wchar_t* Akai_Clothes_Normal =
             L"Assets/Model/Akai/AkaiTex/Erika_Archer_Clothes_normal.png";
 
-
+        // バックパック UI 用
+        inline constexpr const wchar_t* BlockSolo = L"Assets/Texture/UI/Block_solo_01.png";
+        inline constexpr const wchar_t* TestBlockTex = L"Assets/Texture/UI/TestBlockTex.png";
 
         // ---- Shadowkin / Silver 材质（金属）----
         inline constexpr const wchar_t* Silver_Albedo =
