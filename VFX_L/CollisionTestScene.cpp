@@ -12,14 +12,19 @@
 #include "ProjectileVFXComponent.h"
 #include "PlayerTag.h"
 #include "WandComponent.h"
+#include "AreaStats.h"
+#include "BackpackComponent.h"
 #include "SpellID.h"
 #include "HealthComponent.h"
 #include "View.h"
 
+#include "ItemDatabase.h"
+#include "BackpackLogic.h"
 #include "TestSpawner.h"
 #include "PrimitiveBuilder.h"
 #include "DebugManager.h"
 #include "InputManager.h"
+#include "InputMap.h"
 #include "Application.h"
 #include "ResourceManager.h"
 #include "ResourcePaths.h"
@@ -38,11 +43,19 @@ void CollisionTestScene::Init()
 {
     std::cout << "[CollisionTestScene] Init" << std::endl;
 
-    auto* device = Application::Get().GetGraphics().GetDevice();
-    auto* context = Application::Get().GetGraphics().GetContext();
+    auto& gfx = Application::Get().GetGraphics();
+    auto* device = gfx.GetDevice();
+    auto* context = gfx.GetContext();
+
+    // ---------- 画面サイズを実測値から取る ----------
+    m_ScreenW = gfx.GetWidth();
+    m_ScreenH = gfx.GetHeight();
+
+    // ---------- アイテム定義表（最初に構築する）----------
+    ItemDatabase::Initialize();
 
     // ---------- Camera ----------
-    m_Camera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 10000.0f);
+    m_Camera.Init(45.0f, m_ScreenW / m_ScreenH, 0.1f, 10000.0f);
     SetCamera(&m_Camera);
 
     // ---------- Particle System ----------
@@ -61,17 +74,19 @@ void CollisionTestScene::Init()
     if (!m_ProjectileRenderer.Initialize(device, context, 4096))
         std::cout << "[Error] ProjectileRenderer init failed" << std::endl;
     m_ProjectileRenderer.SetTexture(
-        ResourceManager::Get().LoadTexture(Res::Tex::ProjectileCore));    // ---------- 投射物 VFX テンプレート ----------
-    m_ProjectileVFXSystem.RegisterVFX(ItemID::Fireball, Res::VFX::Fireball);
-    m_ProjectileVFXSystem.RegisterVFX(ItemID::Lightning, Res::VFX::Lightning);
+        ResourceManager::Get().LoadTexture(Res::Tex::ProjectileCore));
 
-    // ---------- 投射物の見た目（ビルボード芯）----------
-    // ※衝突半径（0.25 等）よりわざと大きく取る：見た目は派手、判定は小さく
-    // ※3D モデルを使いたい魔法は SetProjectileModel を併用すればよい
-    m_WeaponSystem.SetProjectileVisual(ItemID::Fireball, m_FireSize,
-        { m_FireColor[0], m_FireColor[1], m_FireColor[2], 1.0f }, m_FireStretch);
-    m_WeaponSystem.SetProjectileVisual(ItemID::Lightning, m_BoltSize,
-        { m_BoltColor[0], m_BoltColor[1], m_BoltColor[2], 1.0f }, m_BoltStretch);
+    // ---------- 定義表 → 各 System へ見た目と VFX を登録 ----------
+    RegisterItemVisuals();
+
+    // ---------- UI ----------
+    if (!m_SpriteRenderer.Initialize(device, context, 4096))
+        std::cout << "[Error] SpriteRenderer init failed" << std::endl;
+    m_SpriteRenderer.SetScreenSize(m_ScreenW, m_ScreenH);
+
+    m_BackpackUI.Initialize(ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo));
+    m_BackpackUI.LoadIcons();
+    m_BackpackUI.Layout(m_ScreenW, m_ScreenH);
 
     // ---------- 共有モデル ----------
     m_EnemyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 1.0f, 0.35f, 0.35f, 1 });
@@ -106,22 +121,46 @@ void CollisionTestScene::Init()
         { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f });
     m_Registry.Add<ModelComponent>(m_Player, pmc);
 
-    // ---------- 杖（spells は手動構築。後でバックパック集約に置き換え）----------
-    WandComponent wand;
-    {
-        SpellStats fire;
-        fire.id = ItemID::Fireball;
-        fire.damage = 10.0f;
-        fire.castInterval = 0.5f;
-        fire.manaCost = 10.0f;
-        wand.spells.push_back(fire);
-    }
-    m_Registry.Add<WandComponent>(m_Player, wand);
+    // ---------- 杖（空で作る）----------
+    // ★spells / areas はバックパックの集約結果で埋まる。
+    //   ここで数値を書かないことで「配置しなければ何も撃たない」を保証する。
+    m_Registry.Add<WandComponent>(m_Player, {});
+
+    // ---------- バックパック ----------
+    m_Registry.Add<BackpackComponent>(m_Player, {});
 
     // ---------- 敵 ----------
     RespawnEnemies();
 
-    std::cout << "[CollisionTestScene] Init complete" << std::endl;
+    std::cout << "[CollisionTestScene] Init complete ("
+        << (int)m_ScreenW << "x" << (int)m_ScreenH << ")" << std::endl;
+}
+
+// ============================================================
+// 定義表の内容を各 System へ流し込む
+// ※魔法を追加してもここは触らずに済む（全 ID を走査するため）
+// ============================================================
+void CollisionTestScene::RegisterItemVisuals()
+{
+    for (ItemID id : ItemDatabase::GetAllIDs())
+    {
+        // --- 飛行物型：ビルボード芯と VFX ---
+        if (auto* p = ItemDatabase::GetProjectile(id))
+        {
+            m_WeaponSystem.SetProjectileVisual(id,
+                p->visualSize, p->common.color, p->visualStretch);
+
+            if (p->vfxPath)
+                m_ProjectileVFXSystem.RegisterVFX(id, p->vfxPath);
+        }
+
+        // --- AOE 型：VFX（AreaSystem は未実装）---
+        if (auto* a = ItemDatabase::GetArea(id))
+        {
+            if (a->vfxPath)
+                m_ProjectileVFXSystem.RegisterVFX(id, a->vfxPath);
+        }
+    }
 }
 
 // ============================================================
@@ -129,8 +168,33 @@ void CollisionTestScene::Init()
 // ============================================================
 void CollisionTestScene::Shutdown()
 {
+    m_SpriteRenderer.Shutdown();
     m_ProjectileRenderer.Shutdown();
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
+}
+
+// ============================================================
+// 画面サイズの変化に追従する
+// ※UI の当たり判定と描画を同じ座標系に保つために必須
+// ============================================================
+void CollisionTestScene::UpdateScreenSize()
+{
+    auto& gfx = Application::Get().GetGraphics();
+    float w = gfx.GetWidth();
+    float h = gfx.GetHeight();
+
+    if (w == m_ScreenW && h == m_ScreenH) return;
+    if (w <= 0.0f || h <= 0.0f) return;
+
+    m_ScreenW = w;
+    m_ScreenH = h;
+
+    m_SpriteRenderer.SetScreenSize(w, h);
+    m_BackpackUI.Layout(w, h);
+    m_Camera.Init(45.0f, w / h, 0.1f, 10000.0f);   // アスペクト比も更新する
+
+    std::cout << "[CollisionTestScene] screen resized: "
+        << (int)w << "x" << (int)h << std::endl;
 }
 
 // ============================================================
@@ -141,6 +205,36 @@ void CollisionTestScene::Update(float dt)
     SceneBase::Update(dt);
     m_TotalTime += dt;
 
+    UpdateScreenSize();
+
+    // ---- バックパック開閉 ----
+    if (InputMap::GetBackpackToggle())
+        m_BackpackOpen = !m_BackpackOpen;
+
+    // 時間停止するかは独立制御（調整用に切り替えられる）
+    bool paused = m_BackpackOpen && m_PauseOnBackpack;
+
+    // ---- バックパックの操作（開いている間だけ）----
+    if (m_BackpackOpen && m_Registry.Has<BackpackComponent>(m_Player))
+        m_BackpackUI.HandleInput(m_Registry.Get<BackpackComponent>(m_Player));
+
+    // ---- 集約：配置が変わった時だけ杖を再構築する ----
+    // ★一時停止中も実行する。配置しながら結果を確認できるようにするため。
+    m_BackpackAggregate.Update(m_Registry);
+
+    // ※System を回さないことで停止を実現する。
+    //   パーティクルも Flush されないため空中で静止する（意図通り）。
+    if (!paused)
+        UpdateGameplay(dt);
+
+    DrawDebugUI();
+}
+
+// ============================================================
+// 通常時の gameplay 一式
+// ============================================================
+void CollisionTestScene::UpdateGameplay(float dt)
+{
     // ---- 負荷テストの分割生成（生成スパイクを避ける）----
     if (m_StressPending > 0)
     {
@@ -228,8 +322,6 @@ void CollisionTestScene::Update(float dt)
 
     if (m_ShowWandDebug)
         DrawWandDebug();
-
-    DrawDebugUI();
 }
 
 // ============================================================
@@ -256,6 +348,14 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ---- 3) パーティクル（加算合成）----
     m_ParticleSystem.SetCamera(GetCamera());
     m_ParticleSystem.Render();
+
+    // ---- 4) UI（深度なし、常に最前面）----
+    if (m_BackpackOpen && m_Registry.Has<BackpackComponent>(m_Player))
+    {
+        m_SpriteRenderer.Begin();
+        m_BackpackUI.Draw(m_SpriteRenderer, m_Registry.Get<BackpackComponent>(m_Player));
+        m_SpriteRenderer.End();
+    }
 }
 
 // ============================================================
@@ -456,6 +556,202 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
 }
 
 // ============================================================
+// ImGui：バックパック
+// ============================================================
+void CollisionTestScene::DrawBackpackPanel()
+{
+    if (!ImGui::CollapsingHeader("Backpack", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    ImGui::Text("Open : %s   (Tab / I / E / Start)", m_BackpackOpen ? "YES" : "no");
+    ImGui::Checkbox("Pause On Open", &m_PauseOnBackpack);
+    ImGui::TextDisabled("LMB: place   RMB: remove   Wheel/R: rotate");
+    ImGui::Text("Rotation : %d", m_BackpackUI.GetRotation());
+
+    // ---- アイテムパレット（定義表から自動生成）----
+    ImGui::Separator();
+    for (ItemID id : ItemDatabase::GetAllIDs())
+    {
+        const ItemCommon* c = ItemDatabase::GetCommon(id);
+        if (!c) continue;
+
+        bool selected = m_BackpackUI.HasSelection() && m_BackpackUI.GetSelectedItem() == id;
+
+        ImGui::PushStyleColor(ImGuiCol_Button,
+            ImVec4(c->color.x * 0.6f, c->color.y * 0.6f, c->color.z * 0.6f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+            ImVec4(c->color.x * 0.9f, c->color.y * 0.9f, c->color.z * 0.9f, 1.0f));
+
+        if (ImGui::Button(c->name))
+            m_BackpackUI.SetSelectedItem(id);
+
+        ImGui::PopStyleColor(2);
+
+        if (selected)
+        {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1, 1, 0.3f, 1), "<-");
+        }
+        ImGui::SameLine();
+    }
+    ImGui::NewLine();
+
+    if (ImGui::Button("Clear Selection")) m_BackpackUI.ClearSelection();
+
+    // ---- 配置状況 ----
+    if (m_Registry.Has<BackpackComponent>(m_Player))
+    {
+        auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+        ImGui::SameLine();
+        ImGui::Text("| Placed : %zu", bp.items.size());
+        ImGui::SameLine();
+        if (ImGui::Button("Clear Grid"))
+        {
+            bp.items.clear();
+            BackpackLogic::RebuildOccupancy(bp);
+            bp.dirty = true;
+        }
+    }
+
+    // ---- 集約結果（バックパック → 杖）----
+    ImGui::Separator();
+    ImGui::Text("Aggregate (rebuilt %d times)", m_BackpackAggregate.GetRebuildCount());
+
+    const auto& logs = m_BackpackAggregate.GetLog();
+    if (logs.empty())
+    {
+        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1),
+            "No attack block placed -> wand fires nothing");
+    }
+    for (const auto& log : logs)
+    {
+        ImGui::Text("%s (%d,%d)", log.sourceName.c_str(), log.row, log.col);
+        if (log.influencedBy.empty())
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("  no influence");
+        }
+        else
+        {
+            for (const auto& n : log.influencedBy)
+            {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.4f, 1, 1, 1), " <- %s", n.c_str());
+            }
+        }
+    }
+
+    if (ImGui::Button("Force Rebuild"))
+        m_BackpackAggregate.ForceRebuild(m_Registry, m_Player);
+
+    // ---- レイアウト調整（すべて比率）----
+    if (ImGui::TreeNode("Layout"))
+    {
+        bool dirty = false;
+
+        int anchorIdx = (int)m_BackpackUI.anchor;
+        const char* anchorNames[] = { "Top Left", "Top Right", "Center",
+                                      "Bottom Left", "Bottom Right" };
+        if (ImGui::Combo("Anchor", &anchorIdx, anchorNames, 5))
+        {
+            m_BackpackUI.anchor = (BackpackUI::Anchor)anchorIdx;
+            dirty = true;
+        }
+
+        dirty |= ImGui::DragFloat("Grid Ratio", &m_BackpackUI.gridScreenRatio, 0.005f, 0.10f, 0.95f);
+        dirty |= ImGui::DragFloat("Gap Ratio", &m_BackpackUI.cellGapRatio, 0.002f, 0.00f, 0.50f);
+        dirty |= ImGui::DragFloat("Pad Ratio", &m_BackpackUI.framePadRatio, 0.005f, 0.00f, 1.00f);
+        dirty |= ImGui::DragFloat("Margin Ratio", &m_BackpackUI.marginRatio, 0.002f, 0.00f, 0.30f);
+        if (dirty) m_BackpackUI.Layout(m_ScreenW, m_ScreenH);
+
+        ImGui::Text("Screen : %.0f x %.0f", m_ScreenW, m_ScreenH);
+        ImGui::Text("Cell : %.1f px   Gap : %.1f px",
+            m_BackpackUI.GetCellSize(), m_BackpackUI.GetCellGap());
+
+        ImGui::ColorEdit4("Frame Color", &m_BackpackUI.frameColor.x);
+        ImGui::ColorEdit4("Cell Color", &m_BackpackUI.cellColor.x);
+
+        ImGui::Text("Sprites : %u   Draw calls : %u",
+            m_SpriteRenderer.GetLastSpriteCount(), m_SpriteRenderer.GetLastDrawCalls());
+        ImGui::TreePop();
+    }
+}
+
+// ============================================================
+// ImGui：杖（集約結果の確認用）
+// ============================================================
+void CollisionTestScene::DrawWandPanel()
+{
+    if (!ImGui::CollapsingHeader("Wand (result of aggregation)", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    if (!m_Registry.IsValid(m_Player) || !m_Registry.Has<WandComponent>(m_Player))
+        return;
+
+    auto& w = m_Registry.Get<WandComponent>(m_Player);
+
+    char buf[64];
+    sprintf_s(buf, "%.0f / %.0f", w.manaCurrent, w.manaMax);
+    ImGui::ProgressBar(w.manaCurrent / w.manaMax, ImVec2(-1, 0), buf);
+
+    ImGui::DragFloat("Mana Max", &w.manaMax, 1.0f, 10.0f, 1000.0f);
+    ImGui::DragFloat("Mana Regen", &w.manaRegen, 0.5f, 0.0f, 300.0f);
+    ImGui::DragFloat("Range", &w.range, 0.5f, 1.0f, 60.0f);
+    ImGui::TextDisabled("spells / areas are read-only (from backpack)");
+    ImGui::Separator();
+
+    float totalDrain = 0.0f;
+
+    // ---- 飛行物型 ----
+    for (size_t i = 0; i < w.spells.size(); ++i)
+    {
+        const auto& s = w.spells[i];
+        const ItemCommon* c = ItemDatabase::GetCommon(s.id);
+        const char* name = c ? c->name : "Unknown";
+
+        ImGui::PushID((int)i);
+        ImGui::Text("[%d] %s", (int)i, name);
+        ImGui::Indent();
+        ImGui::Text("shots=%d  spread=%.0f  casts=%d  delay=%.2f",
+            s.projectileCount, s.spreadAngle, s.castCount, s.castDelay);
+        ImGui::Text("damage=%.1f  speed=%.1f  interval=%.2f  mana=%.1f",
+            s.damage, s.speed, s.castInterval, s.manaCost);
+        ImGui::Text("pending=%d  timer=%.2f", s.pendingCasts, s.castTimer);
+        ImGui::Unindent();
+        ImGui::PopID();
+
+        if (s.castInterval > 0.0f)
+            totalDrain += (s.manaCost * (float)s.castCount) / s.castInterval;
+    }
+
+    // ---- AOE 型（AreaSystem 未実装、表示のみ）----
+    for (size_t i = 0; i < w.areas.size(); ++i)
+    {
+        const auto& a = w.areas[i];
+        const ItemCommon* c = ItemDatabase::GetCommon(a.id);
+        const char* name = c ? c->name : "Unknown";
+
+        ImGui::PushID(1000 + (int)i);
+        ImGui::Text("[AOE %d] %s", (int)i, name);
+        ImGui::Indent();
+        ImGui::Text("radius=%.1f  duration=%.1f  tick=%.2f  dmg/tick=%.1f",
+            a.radius, a.duration, a.tickInterval, a.damagePerTick);
+        ImGui::TextDisabled("AreaSystem not implemented yet");
+        ImGui::Unindent();
+        ImGui::PopID();
+
+        if (a.castInterval > 0.0f)
+            totalDrain += a.manaCost / a.castInterval;
+    }
+
+    // ---- 持続可能かの即時フィードバック ----
+    bool sustainable = totalDrain <= w.manaRegen;
+    ImGui::TextColored(sustainable ? ImVec4(0.4f, 1, 0.4f, 1) : ImVec4(1, 0.4f, 0.4f, 1),
+        "Total Drain %.1f/s  vs  Regen %.1f/s   %s",
+        totalDrain, w.manaRegen, sustainable ? "(sustainable)" : "(will run dry)");
+}
+
+// ============================================================
 // ImGui
 // ============================================================
 void CollisionTestScene::DrawDebugUI()
@@ -471,8 +767,34 @@ void CollisionTestScene::DrawDebugUI()
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
     ImGui::Separator();
 
-    // ---------- Particle / VFX / Billboard ----------
-    if (ImGui::CollapsingHeader("Visual", ImGuiTreeNodeFlags_DefaultOpen))
+    DrawBackpackPanel();
+    DrawWandPanel();
+
+    // ---------- Item Database ----------
+    if (ImGui::CollapsingHeader("Item Database"))
+    {
+        for (ItemID id : ItemDatabase::GetAllIDs())
+        {
+            const ItemCommon* c = ItemDatabase::GetCommon(id);
+            if (!c) continue;
+
+            const char* cat = "?";
+            switch (c->category)
+            {
+            case ItemCategory::Projectile: cat = "Projectile"; break;
+            case ItemCategory::Function:   cat = "Function";   break;
+            case ItemCategory::Area:       cat = "Area";       break;
+            }
+
+            ImGui::TextColored(ImVec4(c->color.x, c->color.y, c->color.z, 1.0f),
+                "%-14s [%s]  occupy=%zu  influence=%zu  icon=%s",
+                c->name, cat, c->occupyCells.size(), c->influenceCells.size(),
+                c->iconPath ? "yes" : "no");
+        }
+    }
+
+    // ---------- Visual ----------
+    if (ImGui::CollapsingHeader("Visual"))
     {
         float ratio = (float)m_LastEmitterCount / (float)m_ParticleSystem.GetMaxEmitters();
         ImVec4 col = (ratio > 0.9f) ? ImVec4(1, 0.4f, 0.4f, 1)
@@ -483,116 +805,13 @@ void CollisionTestScene::DrawDebugUI()
 
         if (m_LastDropped > 0)
             ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1),
-                "Dropped : %zu )", m_LastDropped);
+                "Dropped : %zu  (some projectiles have no VFX)", m_LastDropped);
 
         ImGui::Text("Alive Particles : %u", m_ParticleSystem.GetAliveCount());
         ImGui::Text("Projectile VFX  : %zu", m_ProjectileVFXSystem.GetActiveVFXCount());
-        ImGui::Text("Billboards      : %u ",
+        ImGui::Text("Billboards      : %u  (1 draw call)",
             m_ProjectileRenderer.GetLastDrawCount());
-
-        ImGui::Separator();
-      //  ImGui::TextDisabled("投射物の見た目（衝突半径とは独立）");
-
-        bool dirty = false;
-        if (ImGui::TreeNodeEx("Fireball", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            dirty |= ImGui::DragFloat("Size##fire", &m_FireSize, 0.02f, 0.05f, 5.0f);
-            dirty |= ImGui::ColorEdit3("Color##fire", m_FireColor);
-            dirty |= ImGui::DragFloat("Stretch##fire", &m_FireStretch, 0.05f, 0.0f, 8.0f);
-            ImGui::TreePop();
-        }
-        if (ImGui::TreeNodeEx("Lightning"))
-        {
-            dirty |= ImGui::DragFloat("Size##bolt", &m_BoltSize, 0.02f, 0.05f, 5.0f);
-            dirty |= ImGui::ColorEdit3("Color##bolt", m_BoltColor);
-            dirty |= ImGui::DragFloat("Stretch##bolt", &m_BoltStretch, 0.05f, 0.0f, 8.0f);
-            ImGui::TreePop();
-        }
-
-        // ※既に飛んでいる投射物には反映されない（次に発射した分から）
-        if (dirty)
-        {
-            m_WeaponSystem.SetProjectileVisual(ItemID::Fireball, m_FireSize,
-                { m_FireColor[0], m_FireColor[1], m_FireColor[2], 1.0f }, m_FireStretch);
-            m_WeaponSystem.SetProjectileVisual(ItemID::Lightning, m_BoltSize,
-                { m_BoltColor[0], m_BoltColor[1], m_BoltColor[2], 1.0f }, m_BoltStretch);
-        }
-    }
-
-    // ---------- 杖 ----------
-    if (ImGui::CollapsingHeader("Wand", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        if (m_Registry.IsValid(m_Player) && m_Registry.Has<WandComponent>(m_Player))
-        {
-            auto& w = m_Registry.Get<WandComponent>(m_Player);
-
-            char buf[64];
-            sprintf_s(buf, "%.0f / %.0f", w.manaCurrent, w.manaMax);
-            ImGui::ProgressBar(w.manaCurrent / w.manaMax, ImVec2(-1, 0), buf);
-
-            ImGui::DragFloat("Mana Max", &w.manaMax, 1.0f, 10.0f, 1000.0f);
-            ImGui::DragFloat("Mana Regen", &w.manaRegen, 0.5f, 0.0f, 300.0f);
-            ImGui::DragFloat("Range", &w.range, 0.5f, 1.0f, 60.0f);
-            ImGui::Separator();
-
-            float totalDrain = 0.0f;
-            for (size_t i = 0; i < w.spells.size(); ++i)
-            {
-                auto& s = w.spells[i];
-                ImGui::PushID((int)i);
-
-                const char* name = (s.id == ItemID::Fireball) ? "Fireball" : "Lightning";
-                if (ImGui::TreeNodeEx("spell", ImGuiTreeNodeFlags_DefaultOpen,
-                    "[%d] %s   split x%d / cast x%d", (int)i, name,
-                    s.projectileCount, s.castCount))
-                {
-                    ImGui::SliderInt("Split (shots)", &s.projectileCount, 1, 8);
-                    ImGui::DragFloat("Spread Angle", &s.spreadAngle, 1.0f, 0.0f, 180.0f);
-                    ImGui::SliderInt("Double (casts)", &s.castCount, 1, 5);
-                    ImGui::DragFloat("Cast Delay", &s.castDelay, 0.01f, 0.02f, 1.0f);
-                    ImGui::Separator();
-                    ImGui::DragFloat("Cast Interval", &s.castInterval, 0.01f, 0.05f, 3.0f);
-                    ImGui::DragFloat("Mana Cost", &s.manaCost, 0.5f, 0.0f, 100.0f);
-                    ImGui::DragFloat("Damage", &s.damage, 0.5f, 0.0f, 200.0f);
-                    ImGui::DragFloat("Speed", &s.speed, 0.5f, 1.0f, 100.0f);
-                    ImGui::DragFloat("Lifetime", &s.lifetime, 0.1f, 0.2f, 20.0f);
-                    ImGui::Text("pending=%d  timer=%.2f", s.pendingCasts, s.castTimer);
-                    ImGui::TreePop();
-                }
-
-                if (s.castInterval > 0.0f)
-                    totalDrain += (s.manaCost * (float)s.castCount) / s.castInterval;
-
-                ImGui::PopID();
-            }
-
-            if (ImGui::Button("+ Fireball"))
-            {
-                SpellStats s;
-                s.id = ItemID::Fireball;
-                w.spells.push_back(s);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("+ Lightning"))
-            {
-                SpellStats s;
-                s.id = ItemID::Lightning;
-                s.damage = 25.0f;
-                s.manaCost = 25.0f;
-                s.castInterval = 1.0f;
-                s.speed = 35.0f;
-                s.radius = 0.18f;
-                w.spells.push_back(s);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("- Remove") && !w.spells.empty())
-                w.spells.pop_back();
-
-            bool sustainable = totalDrain <= w.manaRegen;
-            ImGui::TextColored(sustainable ? ImVec4(0.4f, 1, 0.4f, 1) : ImVec4(1, 0.4f, 0.4f, 1),
-                "Total Drain %.1f/s  vs  Regen %.1f/s   %s",
-                totalDrain, w.manaRegen, sustainable ? "(sustainable)" : "(will run dry)");
-        }
+        ImGui::TextDisabled("Visual params come from Items/*.h (ItemDatabase)");
     }
 
     // ---------- 敵 ----------
@@ -639,7 +858,8 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::Checkbox("With Collider", &m_StressWithCollider);
         ImGui::SameLine();
         ImGui::Checkbox("With 3D Model", &m_StressWithModel);
-   
+        ImGui::TextDisabled("Uncheck 3D Model -> billboard only (1 draw call)");
+
         ImGui::SliderInt("Spawn Count", &m_StressCount, 50, 2000);
         if (ImGui::Button("+ Spawn")) m_StressPending += m_StressCount;
         ImGui::SameLine();

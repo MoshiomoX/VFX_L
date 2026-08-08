@@ -87,6 +87,13 @@ void RenderStates::ApplySkybox(ID3D11DeviceContext* ctx) const
     ctx->RSSetState(CullFront());
 }
 
+void RenderStates::ApplyUI(ID3D11DeviceContext* ctx) const
+{
+    if (!ctx || !m_Initialized) return;
+    ctx->OMSetBlendState(AlphaBlend(), kBlendFactor, 0xFFFFFFFF);
+    ctx->OMSetDepthStencilState(DepthNone(), 0);  
+    ctx->RSSetState(CullNone());
+}
 // ============================================================
 // 既定状態へ戻す
 // ※各描画パスの末尾で必ず呼ぶ。忘れると次のパスが壊れる。

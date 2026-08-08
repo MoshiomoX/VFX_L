@@ -7,7 +7,7 @@
 #include <SimpleMath.h>
 #include <vector>
 #include "SpellID.h"
-
+#include "AreaStats.h"
 // 1つの出力源の最終属性（集約後の値）
 struct SpellStats
 {
@@ -39,17 +39,15 @@ struct SpellStats
 
 struct WandComponent
 {
-    // --- マナ（杖で共有）---
+    // --- マナ（杖で共有。飛行物と AOE が奪い合う）---
     float manaMax = 100.0f;
     float manaCurrent = 100.0f;
     float manaRegen = 25.0f;
 
-    // --- 索敵範囲（杖共通）---
     float range = 15.0f;
-
-    // 発射口オフセット
     DirectX::SimpleMath::Vector3 muzzleOffset = { 0.0f, 0.5f, 0.0f };
 
-    // --- 出力源リスト（バックパック集約の結果）---
-    std::vector<SpellStats> spells;
+    // --- 出力源リスト（バックパック集約の結果、大類型ごとに分ける）---
+    std::vector<SpellStats> spells;   // 飛行物型
+    std::vector<AreaStats>  areas;    // AOE 型
 };

@@ -109,21 +109,7 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
     m_Context->OMSetRenderTargets(1, m_RenderTargetView.GetAddressOf(), m_DepthStencilView.Get());
     m_Context->RSSetViewports(1, &m_Viewport);
 
-    std::cout << "[OK] Graphics initialized" << std::endl;
-
-
-
-    //// Rasterizer State
-    //D3D11_RASTERIZER_DESC rd = {};
-    //rd.FillMode = D3D11_FILL_SOLID;
-    //rd.CullMode = D3D11_CULL_BACK;
-    //rd.FrontCounterClockwise = FALSE;
-    //rd.DepthClipEnable = TRUE;
-    //
-    //ComPtr<ID3D11RasterizerState> rs;
-    //m_Device->CreateRasterizerState(&rd, &rs);
-    //m_Context->RSSetState(rs.Get());
-    
+    std::cout << "[OK] Graphics initialized" << std::endl;  
     return true;
 }
 
