@@ -13,7 +13,7 @@ bool Application::Initialize()
     s_Instance = this;
 
     // Window
-    if (!m_Window.Create(WINDOW_WIDTH, WINDOW_HEIGHT, L"VFX Engine"))
+    if (!m_Window.Create(1600, 900, L"VFX Engine"))
     {
         std::cout << "[Error] Window creation failed" << std::endl;
         return false;
@@ -21,7 +21,9 @@ bool Application::Initialize()
     std::cout << "[OK] Window created" << std::endl;
 
     // Graphics
-    if (!m_Graphics.Initialize(m_Window.GetHandle(), WINDOW_WIDTH, WINDOW_HEIGHT))
+    if (!m_Graphics.Initialize(m_Window.GetHandle(),
+        m_Window.GetWidth(),
+        m_Window.GetHeight()))
     {
         std::cout << "[Error] Graphics initialization failed" << std::endl;
         return false;
@@ -61,6 +63,9 @@ void Application::Run()
     {
         m_Timer.Tick();
         float dt = m_Timer.DeltaTime();
+        if (m_Window.ConsumeResizeFlag())
+            m_Graphics.Resize(m_Window.GetWidth(),
+                m_Window.GetHeight());
 		//ImGuiフレーム開始
         InputManager::Get().Update();
         DebugManager::Get().Update(dt);

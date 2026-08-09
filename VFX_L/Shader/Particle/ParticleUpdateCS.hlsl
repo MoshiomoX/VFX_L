@@ -1,10 +1,21 @@
+// ============================================
+// ParticleUpdateCS.hlsl
+// 粒子更新CS — 寿命処理 / 物理 / 色補間 / AliveList 構築
+//
+// ★所有者別の生存数もここで数える（VFX状態機の Finishing 判定用）
+// ============================================
+
 #include "Common/ParticleCommon.hlsli"
+
+// ★C++ 側の GPUParticleSystem::MAX_OWNERS と必ず一致させる（手書きミラー）
+#define PARTICLE_MAX_OWNERS 1024
 
 StructuredBuffer<ColorKey> colorKeys : register(t0);
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 AppendStructuredBuffer<uint> deadList : register(u1);
 RWBuffer<uint> g_DrawArgs : register(u2);
 RWStructuredBuffer<uint> aliveList : register(u3); // 存活粒子 index リスト
+RWBuffer<uint> ownerAlive : register(u4); // 所有者ごとの生存数
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -27,12 +38,17 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // --- 生存：DrawArgs に +6、AliveList に index を追加 ---
+    // --- 生存確定：DrawArgs に +1、AliveList に index を追加 ---
     uint instanceIndex;
     InterlockedAdd(g_DrawArgs[1], 1, instanceIndex);
     aliveList[instanceIndex] = id.x;
-    
-   // InterlockedAdd(g_DrawArgs[1], 1);
+
+    // --- 所有者別に数える（死んだ粒子は数えない）---
+    // ※範囲外/負値は 0（無主バケツ）へ落とす。
+    //   clamp で MAX-1 に寄せると正規の所有者と混ざるので不可。
+    uint oid = (p.ownerID >= 0 && p.ownerID < PARTICLE_MAX_OWNERS)
+             ? (uint) p.ownerID : 0u;
+    InterlockedAdd(ownerAlive[oid], 1);
 
     // --- 以下は既存のまま ---
     float t = GetLifeRatio(p);

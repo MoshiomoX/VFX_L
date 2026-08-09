@@ -2,7 +2,7 @@
 // GPUCollider.h
 // GPU 側衝突体構造体（HLSL の GPUCollider と厳密一致）
 // 16バイト境界を守る（float3 の後に必ず float を1つ入れて詰める）
-// 第1版は Sphere のみ使用。type と param で AABB/Capsule を将来拡張。
+// static_assert(sizeof(GPUCollider) == 48, "HLSL 側と不一致");
 // ============================================================
 #pragma once
 #include <SimpleMath.h>

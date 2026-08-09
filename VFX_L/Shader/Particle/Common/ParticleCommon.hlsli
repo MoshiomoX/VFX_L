@@ -38,7 +38,7 @@ struct GPUParticle
     
     int colorKeyOffset;
     int colorKeyCount;
-    float _pad0;
+    int ownerID;
     float _pad1;
 };
 // ============================================
@@ -77,7 +77,7 @@ struct GPUEmitter
     int textureIndex;
     int colorKeyoffset;
     int colorKeyCount;
-    int _pad1;
+    int ownerID;
     int _pad2;
 };
 

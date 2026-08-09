@@ -20,19 +20,17 @@ public:
     ~GPUParticleSystem() = default;
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context, uint32_t maxParticles);
- 
+
     void Render();
     void ResetSystem();
 
     // --- 2段階方式 ---
-  // 各 VFXEffect が自分の emitter を積む（1フレームに何度でも呼べる）
+    // 各 VFXEffect が自分の emitter を積む（1フレームに何度でも呼べる）
     void SubmitEmitters(const std::vector<GPUEmitter>& emitters,
         const std::vector<ColorKey>& colorKeys);
 
     // 1フレームに1度だけ呼ぶ。積まれた全 emitter で Emit + Update を実行
     void Flush(float dt, float totalTime);
-
-    // 現在積まれている emitter 数（デバッグ表示用）
 
     void SetCamera(CameraBase* camera) { m_Camera = camera; }
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
@@ -40,9 +38,24 @@ public:
     size_t GetPendingEmitterCount() const { return m_PendingEmitters.size(); }
     size_t GetMaxEmitters()         const { return MAX_EMITTERS; }
     size_t GetDroppedEmitterCount() const { return m_DroppedEmitters; }
-    uint32_t GetAliveCount() const { return m_MaxParticles - m_CurrentDeadCount; }
+    uint32_t GetMaxParticles()      const { return m_MaxParticles; }
+
+    // ============================================
+    // ★暫定実装（第5段階の ownerID 方式で置き換える）
+    //
+    // 毎フレームの ReadDeadCount（Map READ = GPU 待ち）を廃止したため、
+    // 正確な生存数は GPU 上にしか無い。CPU は知らない。
+    //
+    // GetAliveCount() が 0 を返すと VFXState_Finishing が即 Stopped へ
+    // 飛んでしまい、粒子が空中に残ったまま演出が終わる。
+    // よって「まだ居るかもしれない」= 1 を返し、Finishing の終了判定は
+    // VFXStates 側の時間兜底（timeInState > 3.0f）に任せる。
+    // ============================================
+    uint32_t GetAliveCount() const { return 1; }
+
+    // ※初期化/リセット直後の値のまま。ImGui の目安表示にのみ使う。
     uint32_t GetDeadCount() const { return m_CurrentDeadCount; }
-    uint32_t GetMaxParticles() const { return m_MaxParticles; }
+
 private:
     void Update(float deltaTime, float totalTime,
         const std::vector<GPUEmitter>& emitters,
@@ -52,10 +65,13 @@ private:
     bool LoadShaders(ID3D11Device* device);
     bool CreateRenderStates(ID3D11Device* device);
     bool CreateColorKeyBuffer(ID3D11Device* device);
-    bool CreateDrawIndirectBuffer(ID3D11Device* device); 
+    bool CreateDrawIndirectBuffer(ID3D11Device* device);
     bool CreateAliveListBuffer(ID3D11Device* device, uint32_t maxParticles);
+    bool CreateDeadCountBuffer(ID3D11Device* device);
 
-    void DispatchEmit(ID3D11DeviceContext* context, uint32_t totalEmit);
+    // ★引数名を requestedEmit に変更。
+    //   「撃ちたい数」であって「撃てる数」ではない、という意図を明示する。
+    void DispatchEmit(ID3D11DeviceContext* context, uint32_t requestedEmit);
     void DispatchUpdate(ID3D11DeviceContext* context);
 
     void UploadExternalEmitters(ID3D11DeviceContext* context,
@@ -75,11 +91,17 @@ private:
     ComPtr<ID3D11UnorderedAccessView> m_AliveListUAV;
     ComPtr<ID3D11ShaderResourceView>  m_AliveListSRV;
 
+    // 空き数の GPU 内受け渡し（CopyStructureCount の受け皿。CPU は Map しない）
+    ComPtr<ID3D11Buffer>              m_DeadCountBuffer;
+    ComPtr<ID3D11ShaderResourceView>  m_DeadCountSRV;
+
     static const int MAX_EMITTERS = 1024;
     ComPtr<ID3D11Buffer>               m_EmitterBuffer;
     ComPtr<ID3D11ShaderResourceView>   m_EmitterSRV;
 
     ParticleDeadList m_DeadList;
+
+    // ※初期化/リセット時にだけ更新される。毎フレームの回読は廃止した。
     uint32_t m_CurrentDeadCount = 0;
 
     std::shared_ptr<ComputeShader>   m_InitDeadListCS;
@@ -87,15 +109,16 @@ private:
     std::shared_ptr<ComputeShader>   m_UpdateCS;
     std::shared_ptr<VertexShader>    m_RenderVS;
     std::shared_ptr<PixelShader>     m_RenderPS;
+
     // フレーム内の積み上げ用（GPU バッファではなく CPU 側の一時領域）
     std::vector<GPUEmitter> m_PendingEmitters;
     std::vector<ColorKey>   m_PendingColorKeys;
     size_t                  m_DroppedEmitters = 0;   // 上限超過で捨てた数
     GlobalCB m_CachedGlobalCB = {};
 
-   // ComPtr<ID3D11BlendState>        m_BlendState;
-   // ComPtr<ID3D11DepthStencilState> m_DepthStencilState;
-   // ComPtr<ID3D11RasterizerState>   m_RasterizerState;
+    // ComPtr<ID3D11BlendState>        m_BlendState;
+    // ComPtr<ID3D11DepthStencilState> m_DepthStencilState;
+    // ComPtr<ID3D11RasterizerState>   m_RasterizerState;
 
     ComPtr<ID3D11Buffer> m_ColorKeyBuffer;
     ComPtr<ID3D11ShaderResourceView> m_ColorKeySRV;
@@ -107,5 +130,5 @@ private:
 
     CameraBase* m_Camera = nullptr;
     std::shared_ptr<Texture> m_Texture;
- //   ComPtr<ID3D11SamplerState> m_SamplerState;
+    //   ComPtr<ID3D11SamplerState> m_SamplerState;
 };

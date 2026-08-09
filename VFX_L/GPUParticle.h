@@ -6,7 +6,9 @@ using namespace DirectX::SimpleMath;
 
 // ============================================
 // GPU粒子構造体 (StructuredBuffer用)
-// 128字節 / ?行16字節対?
+// 160バイト (4バイト x 40) / 16バイト境界に整列
+// ※ サイズの真実は sizeof()。この注釈は参考値。
+//    ファイル末尾の static_assert が唯一の保証。
 // ============================================
 struct GPUParticle
 {
@@ -35,13 +37,15 @@ struct GPUParticle
     // --- Color over Lifetime ---
     int      colorKeyOffset;
     int      colorKeyCount;
-    float    _pad0;
+    // 所有者ID (0 = 無主)。第5段階の生存数集計で使う。
+    // 現時点では EmitCS で 0 に初期化されるだけで、誰も読まない。
+    int      ownerID;
     float    _pad1;
 };
 
 // ============================================
 // Mesh発射用頂点 (StructuredBuffer用)
-// 32字節
+// 32バイト
 // ============================================
 struct EmitMeshVertex
 {
@@ -53,6 +57,7 @@ struct EmitMeshVertex
 
 // ============================================
 // GPU発射器構造体 (StructuredBuffer用)
+// 240バイト (4バイト x 60)
 // 多発射器対応
 // ============================================
 struct GPUEmitter
@@ -85,12 +90,13 @@ struct GPUEmitter
     // --- Atlas & Texture ---
     int      atlasRows;        // アトラス行数
     int      atlasCols;        // アトラス列数
-    int      atlasIndex;       // 固定コマ（-1ならアニメーション）
+    int      atlasIndex;       // 固定コマ (-1ならアニメーション)
     int      textureIndex;     // Texture Array内のインデックス
 
     int      colorKeyOffset;   // ColorKeyBuffer内の開始位置
-    int      colorKeyCount;    // キー数（0=startColor/endColorで線形補間）
-    int      _pad1;
+    int      colorKeyCount;    // キー数 (0=startColor/endColorで線形補間)
+    // 所有者ID (0 = 無主)。発射した粒子へ引き継がれる。
+    int      ownerID;
     int      _pad2;
 };
 
@@ -108,11 +114,20 @@ struct GlobalCB
 
 // ============================================
 // Dead List用定数バッファ (ConstantBuffer用)
-// EmitCS b1 ? 現在の空き数をCSに渡す
+// b1
+//
+// ※ deadCount は現在未使用。
+//    空き数は CopyStructureCount で GPU 上のバッファへ渡し、
+//    EmitCS が SRV から直接読む方式に変えた。
+//    毎フレームの Map READ (GPU 待ち) を廃止するため。
+//
+// ※ maxParticles は削除不可。
+//    UpdateCS の "if (id.x >= g_MaxParticles) return;" が使っている。
+//    ここを消すと粒子が一切更新されなくなる。
 // ============================================
 struct DeadListCB
 {
-    uint32_t deadCount;      // 現在のDead List内の空きインデックス数
+    uint32_t deadCount;      // 未使用 (0 を入れる)
     uint32_t maxParticles;   // 粒子プール全体のサイズ
     uint32_t _pad0;
     uint32_t _pad1;
@@ -120,7 +135,7 @@ struct DeadListCB
 
 // ============================================
 // 描画用定数バッファ (ConstantBuffer用)
-// VS b1
+// VS b0
 // ============================================
 struct ParticleRenderCB
 {
@@ -132,13 +147,30 @@ struct ParticleRenderCB
 
 // ============================================
 // カラーキー (Color over Lifetime用)
-// StructuredBuffer用、32字節
+// StructuredBuffer用、32バイト
 // ============================================
 struct ColorKey
 {
     Vector4 color;       // RGBA
-    float   time;        // 0.0 ~ 1.0（寿命比率）
+    float   time;        // 0.0 ~ 1.0 (寿命比率)
     float   _pad0;
     float   _pad1;
     float   _pad2;
 };
+
+// ============================================
+// HLSL 側構造体との一致を保証する
+//
+// ※ 手書きミラーの構造体は、使われていない期間に静かに腐る。
+//    注釈では防げない。実際 GPUParticle は長い間 128 と
+//    書かれ続けていたが、本当は 160 バイトだった。
+//    片側だけ変更した瞬間にコンパイルを止めるのが唯一の防御。
+// ============================================
+static_assert(sizeof(GPUParticle) == 160, "GPUParticle: HLSL側と不一致");
+static_assert(sizeof(GPUEmitter) == 240, "GPUEmitter: HLSL側と不一致");
+static_assert(sizeof(EmitMeshVertex) == 32, "EmitMeshVertex: HLSL側と不一致");
+static_assert(sizeof(ColorKey) == 32, "ColorKey: HLSL側と不一致");
+
+// StructuredBuffer は 16バイト境界を要求する
+static_assert(sizeof(GPUParticle) % 16 == 0, "GPUParticle: 16バイト境界違反");
+static_assert(sizeof(GPUEmitter) % 16 == 0, "GPUEmitter: 16バイト境界違反");

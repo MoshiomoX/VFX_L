@@ -400,8 +400,8 @@ void Shader::UnbindUAVs(ID3D11DeviceContext* context)
     for (UINT i = 0; i <= m_MaxUAVSlot; ++i)
     {
         ID3D11UnorderedAccessView* nullUAV = nullptr;
-        UINT zero = 0;
-        context->CSSetUnorderedAccessViews(i, 1, &nullUAV, &zero);
+        UINT keep = (UINT)-1;
+        context->CSSetUnorderedAccessViews(i, 1, &nullUAV, &keep);
     }
 }
 
