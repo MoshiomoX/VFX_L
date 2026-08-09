@@ -1,4 +1,4 @@
-﻿cbuffer ParticleCB : register(b0)
+cbuffer ParticleCB : register(b0)
 {
     row_major matrix View;
     row_major matrix Projection;
