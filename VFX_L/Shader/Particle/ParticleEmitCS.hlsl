@@ -1,9 +1,4 @@
-// ============================================
-// ParticleEmitCS.hlsl
-// —±q”­ËCS ? Dead List‚©‚çConsume‚µ‚ÄV—±q‚ğ‰Šú‰»
-// ============================================
-
-#include "Common/ParticleCommon.hlsli"
+ï»¿#include "Common/ParticleCommon.hlsli"
 #include "Common/EmitPoint.hlsli"
 #include "Common/EmitSphere.hlsli"
 #include "Common/EmitCone.hlsli"
@@ -12,25 +7,39 @@
 #include "Common/EmitDisc.hlsli"
 #include "Common/EmitMesh.hlsli"
 
-// --- BufferéŒ¾ ---
+// --- Bufferå®£è¨€ ---
 StructuredBuffer<GPUEmitter> emitters : register(t0);
-StructuredBuffer<EmitMeshVertex> meshVertices : register(t1);
+StructuredBuffer<EmitMeshVertex> meshVertices : register(t1); // æœªå®Ÿè£…ï¼ˆ3Dç²’å­ç”¨ã«äºˆç´„ãƒ»æœªãƒã‚¤ãƒ³ãƒ‰ï¼‰
+Buffer<uint> deadCount : register(t2); // CopyStructureCount ã®ã‚³ãƒ”ãƒ¼å…ˆ
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 ConsumeStructuredBuffer<uint> deadList : register(u1);
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
-    // ‘S”­ËŠí‚Ì‡Œv”­Ë”‚ğ’´‚¦‚½‚çreturn
-    // ŠeEmitter‚ÌemitCount‚ğ—İÏ‚µ‚ÄA©•ª‚ª‚Ç‚ÌEmitter‚Ì‰½”Ô–Ú‚©‚ğ“Á’è
     uint globalIndex = id.x;
+
+    // ============================================
+    // â˜…ç©ºãæ•°ã‚’è¶…ãˆã‚‹ã‚¹ãƒ¬ãƒƒãƒ‰ã¯ Consume ã•ã›ãªã„ã€‚
+    //   CPU å´ã§ç™ºå°„æ•°ã‚’çµã£ã¦ã‚‚ã€Dispatch ã¯ 256 ã‚¹ãƒ¬ãƒƒãƒ‰ç²’åº¦ãªã®ã§å¿…ãšæº¢ã‚Œã‚‹ã€‚
+    //   æº¢ã‚ŒãŸåˆ†ãŒ Consume ã™ã‚‹ã¨è¨ˆæ•°å™¨ãŒä¸‹æº¢ï¼ˆuint å›ã‚Šè¾¼ã¿ï¼‰ã—ã¦
+    //   dead list ãŒé™ã‹ã«å£Šã‚Œã‚‹ã€‚è½ã¡ãªã„ã®ã§æ°—ä»˜ã‘ãªã„ã€‚
+    //   ã“ã“ãŒå”¯ä¸€ã®é˜²æ³¢å ¤ã€‚
+    // ============================================
+    if (globalIndex >= deadCount[0])
+        return;
+
+    // å„Emitterã®emitCountã‚’ç´¯ç©ã—ã¦ã€è‡ªåˆ†ãŒã©ã®Emitterã®ä½•ç•ªç›®ã‹ã‚’ç‰¹å®š
     int emitterIndex = -1;
     int localIndex = 0;
     uint accumulated = 0;
 
     for (int i = 0; i < g_EmitterCount; i++)
     {
-        if (!emitters[i].isActive > 0.5)
+        // â€»CPUå´ã®åˆ¤å®šï¼ˆisActive > 0.5fï¼‰ã¨è¡¨è¨˜ã‚’æƒãˆã‚‹ã€‚
+        //   å…ƒã¯ !isActive > 0.5 ã§ã€boolâ†’float æ˜‡æ ¼ã«ã‚ˆã‚Šçµæœã¯åŒã˜ã ã£ãŸãŒ
+        //   èª­ã¿æ‰‹ã‚’é¨™ã™æ›¸ãæ–¹ã ã£ãŸã€‚
+        if (emitters[i].isActive < 0.5)
             continue;
 
         if (globalIndex < accumulated + (uint) emitters[i].emitCount)
@@ -42,19 +51,19 @@ void main(uint3 id : SV_DispatchThreadID)
         accumulated += (uint) emitters[i].emitCount;
     }
 
-    // ‚Ç‚ÌEmitter‚É‚à‘®‚³‚È‚¢ ¨ ‰½‚à‚µ‚È‚¢
+    // ã©ã®Emitterã«ã‚‚å±ã•ãªã„ â†’ ä½•ã‚‚ã—ãªã„
     if (emitterIndex < 0)
         return;
 
     GPUEmitter e = emitters[emitterIndex];
 
-    // Dead List‚©‚ç‹ó‚«ƒCƒ“ƒfƒbƒNƒX‚ğæ“¾
+    // Dead Listã‹ã‚‰ç©ºãã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚’å–å¾—
     uint particleIndex = deadList.Consume();
 
-    // —”ƒV[ƒh‰Šú‰»iƒtƒŒ[ƒ€–ˆ‚ÉˆÙ‚È‚é + ƒXƒŒƒbƒh–ˆ‚ÉˆÙ‚È‚éj
+    // ä¹±æ•°ã‚·ãƒ¼ãƒ‰åˆæœŸåŒ–ï¼ˆãƒ•ãƒ¬ãƒ¼ãƒ æ¯ã«ç•°ãªã‚‹ + ã‚¹ãƒ¬ãƒƒãƒ‰æ¯ã«ç•°ãªã‚‹ï¼‰
     uint seed = g_BaseSeed + globalIndex * 1099;
 
-    // Œ`ó‚É‰‚¶‚Ä”­ËˆÊ’u‚Æ‘¬“x‚ğŒˆ’è
+    // å½¢çŠ¶ã«å¿œã˜ã¦ç™ºå°„ä½ç½®ã¨é€Ÿåº¦ã‚’æ±ºå®š
     float3 pos = e.position;
     float3 vel = float3(0, 0, 0);
 
@@ -83,7 +92,7 @@ void main(uint3 id : SV_DispatchThreadID)
             break;
     }
 
-    // —±q‰Šú‰»
+    // ç²’å­åˆæœŸåŒ–
     GPUParticle p = (GPUParticle) 0;
 
     p.position = pos;
@@ -105,9 +114,9 @@ void main(uint3 id : SV_DispatchThreadID)
 
     p.rotation = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
     p.angularVel = RandomRange(seed, e.angularVelRange.x, e.angularVelRange.y);
-    
+
     p.seed = seed;
-    
+
     p.textureIndex = e.textureIndex;
     p.atlasRows = e.atlasRows;
     p.atlasCols = e.atlasCols;
@@ -115,5 +124,9 @@ void main(uint3 id : SV_DispatchThreadID)
     p.uvFrame = (e.atlasIndex >= 0) ? e.atlasIndex : 0;
     p.colorKeyOffset = e.colorKeyoffset;
     p.colorKeyCount = e.colorKeyCount;
+
+    // â˜…æ‰€æœ‰è€…ã‚’å¼•ãç¶™ãã€‚0 = ç„¡ä¸»ï¼ˆæŠ•å°„ç‰©VFXï¼‰ã€‚
+    p.ownerID = e.ownerID;
+
     particles[particleIndex] = p;
 }

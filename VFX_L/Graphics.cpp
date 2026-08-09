@@ -137,3 +137,68 @@ void Graphics::RestoreRenderTarget()
     m_Context->OMSetRenderTargets(1, m_RenderTargetView.GetAddressOf(), m_DepthStencilView.Get());
     m_Context->RSSetViewports(1, &m_Viewport);
 }
+bool Graphics::Resize(int width, int height)
+{
+    if (!m_SwapChain || width <= 0 || height <= 0) return false;
+    if ((float)width == m_Viewport.Width && (float)height == m_Viewport.Height)
+        return true;   // 変化なし
+
+    // ---- 既存のビューを全部解放する（ResizeBuffers の前提）----
+    m_Context->OMSetRenderTargets(0, nullptr, nullptr);
+    m_RenderTargetView.Reset();
+    m_DepthStencilView.Reset();
+
+    // ---- バックバッファをリサイズ ----
+    HRESULT hr = m_SwapChain->ResizeBuffers(
+        0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+    if (FAILED(hr))
+    {
+        std::cout << "[Error] ResizeBuffers failed" << std::endl;
+        return false;
+    }
+
+    // ---- RenderTargetView を作り直す ----
+    ComPtr<ID3D11Texture2D> backBuffer;
+    hr = m_SwapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+    if (FAILED(hr)) return false;
+
+    hr = m_Device->CreateRenderTargetView(backBuffer.Get(), nullptr, &m_RenderTargetView);
+    if (FAILED(hr)) return false;
+
+    // ---- DepthStencil を作り直す（MSAA 設定は swap chain と一致させる）----
+    DXGI_SWAP_CHAIN_DESC scd = {};
+    m_SwapChain->GetDesc(&scd);
+
+    D3D11_TEXTURE2D_DESC depthDesc = {};
+    depthDesc.Width = width;
+    depthDesc.Height = height;
+    depthDesc.MipLevels = 1;
+    depthDesc.ArraySize = 1;
+    depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthDesc.SampleDesc.Count = scd.SampleDesc.Count;      // MSAA を揃える
+    depthDesc.SampleDesc.Quality = scd.SampleDesc.Quality;
+    depthDesc.Usage = D3D11_USAGE_DEFAULT;
+    depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+    ComPtr<ID3D11Texture2D> depthBuffer;
+    hr = m_Device->CreateTexture2D(&depthDesc, nullptr, &depthBuffer);
+    if (FAILED(hr)) return false;
+
+    hr = m_Device->CreateDepthStencilView(depthBuffer.Get(), nullptr, &m_DepthStencilView);
+    if (FAILED(hr)) return false;
+
+    // ---- ビューポート更新（GetWidth/GetHeight の返り値もこれ）----
+    m_Viewport.Width = (float)width;
+    m_Viewport.Height = (float)height;
+    m_Viewport.TopLeftX = 0.0f;
+    m_Viewport.TopLeftY = 0.0f;
+    m_Viewport.MinDepth = 0.0f;
+    m_Viewport.MaxDepth = 1.0f;
+
+    m_Context->OMSetRenderTargets(1, m_RenderTargetView.GetAddressOf(),
+        m_DepthStencilView.Get());
+    m_Context->RSSetViewports(1, &m_Viewport);
+
+    std::cout << "[Graphics] resized: " << width << "x" << height << std::endl;
+    return true;
+}

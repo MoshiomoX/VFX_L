@@ -35,6 +35,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <cmath>
+#include <chrono>     // ★Flush の CPU 時間計測用
 
 // ============================================================
 // Init
@@ -231,10 +232,40 @@ void CollisionTestScene::Update(float dt)
 }
 
 // ============================================================
+// 投射物の数を数える（自動補充の判定用）
+// ============================================================
+int CollisionTestScene::CountProjectiles() const
+{
+    int n = 0;
+    const_cast<Registry&>(m_Registry)
+        .CreateView<TransformComponent, ProjectileComponent>()
+        .Each([&](Entity, TransformComponent&, ProjectileComponent&) { ++n; });
+    return n;
+}
+
+// ============================================================
 // 通常時の gameplay 一式
 // ============================================================
 void CollisionTestScene::UpdateGameplay(float dt)
 {
+    // ============================================================
+    // ★自動補充：投射物数を目標値に保つ。
+    //   粒子プールを枯渇（deadCount = 0）状態で維持し続けることで、
+    //   EmitCS の deadCount 護欄が効いているかを検証する。
+    //   護欄が無いと計数器が下溢し、数十秒〜数分かけて
+    //   dead list が壊れ、粒子が徐々に出なくなる（落ちない）。
+    // ============================================================
+    if (m_StressAutoRefill)
+    {
+        m_RefillTimer += dt;
+        if (m_RefillTimer >= m_RefillInterval)
+        {
+            m_RefillTimer = 0.0f;
+            if (CountProjectiles() + m_StressPending < m_RefillTarget)
+                m_StressPending += m_RefillBatch;
+        }
+    }
+
     // ---- 負荷テストの分割生成（生成スパイクを避ける）----
     if (m_StressPending > 0)
     {
@@ -295,8 +326,28 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_LastEmitterCount = m_ParticleSystem.GetPendingEmitterCount();
     m_LastDropped = m_ParticleSystem.GetDroppedEmitterCount();
 
+    // ============================================================
     // ★1フレームに1回だけ。これが無いと粒子が一切動かない
-    m_ParticleSystem.Flush(dt, m_TotalTime);
+    //
+    //   Flush の CPU 時間を計る。
+    //   毎フレームの ReadDeadCount（Map READ）を廃止した効果は
+    //   ここの数字にしか現れない。
+    //   Flush は本来「コマンドを積むだけ」なので、
+    //   負荷をかけても 0 に近いままであるべき。
+    //   高いままなら、まだどこかで GPU を待っている。
+    // ============================================================
+    {
+        auto t0 = std::chrono::high_resolution_clock::now();
+
+        m_ParticleSystem.Flush(dt, m_TotalTime);
+
+        auto t1 = std::chrono::high_resolution_clock::now();
+        m_FlushMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+        // 指数移動平均。単発の外れ値に振られないようにする。
+        m_FlushMsAvg = m_FlushMsAvg * 0.95 + m_FlushMs * 0.05;
+        if (m_FlushMs > m_FlushMsPeak) m_FlushMsPeak = m_FlushMs;
+    }
 
     // ---- 衝突体の線框表示 ----
     if (m_ShowWireframe)
@@ -502,7 +553,9 @@ void CollisionTestScene::RespawnEnemies()
 }
 
 // ============================================================
-// 負荷テスト：投射物を一気に生成（VFX は付けない）
+// 負荷テスト：投射物を一気に生成
+// ★With VFX を ON にすると emitter が生まれ、粒子発射経路の負荷試験になる。
+//   OFF のままだと emitter が 1 つも出ないので EmitCS は一切走らない。
 // ============================================================
 void CollisionTestScene::StressSpawnProjectiles(int count)
 {
@@ -552,6 +605,11 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
             mc.model = m_StressModel;
             m_Registry.Add<ModelComponent>(p, mc);
         }
+
+        // ★VFX（= emitter）を付ける。粒子プールを枯渇させるのが目的。
+        //   テンプレート未登録の ItemID だと AttachVFX は何もしない（降級）。
+        if (m_StressWithVFX)
+            m_ProjectileVFXSystem.AttachVFX(m_Registry, p, m_StressVFXItem, m_VFXContext);
     }
 }
 
@@ -752,6 +810,110 @@ void CollisionTestScene::DrawWandPanel()
 }
 
 // ============================================================
+// ImGui：負荷テスト（粒子発射経路の検証を含む）
+// ============================================================
+void CollisionTestScene::DrawStressPanel()
+{
+    if (!ImGui::CollapsingHeader("Stress Test", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    int projCount = CountProjectiles();
+
+    ImGui::Text("Projectiles : %d   (pending %d)", projCount, m_StressPending);
+    ImGui::Text("Colliders   : %zu", m_CollisionSystem.GetWorldColliders().size());
+    ImGui::Text("Pairs       : %zu", m_CollisionSystem.GetPairs().size());
+
+    ImGui::Separator();
+
+    // ---------- 何を付けるか ----------
+    ImGui::Checkbox("With Collider", &m_StressWithCollider);
+    ImGui::SameLine();
+    ImGui::Checkbox("With 3D Model", &m_StressWithModel);
+    ImGui::TextDisabled("Uncheck 3D Model -> billboard only (1 draw call)");
+
+    ImGui::Checkbox("With VFX (emit path test)", &m_StressWithVFX);
+    if (!m_StressWithVFX)
+    {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1), "<- OFF = EmitCS never runs");
+    }
+
+    ImGui::SliderInt("Spawn Count", &m_StressCount, 50, 2000);
+    if (ImGui::Button("+ Spawn")) m_StressPending += m_StressCount;
+    ImGui::SameLine();
+    if (ImGui::Button("Clear All"))
+    {
+        std::vector<Entity> toKill;
+        m_Registry.CreateView<TransformComponent, ProjectileComponent>()
+            .Each([&](Entity e, TransformComponent&, ProjectileComponent&) { toKill.push_back(e); });
+        for (Entity e : toKill) m_Registry.Destroy(e);
+        m_StressPending = 0;
+    }
+
+    // ---------- 粒子プール枯渇の維持 ----------
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Pool Starvation Test");
+    ImGui::TextDisabled("Keeps the dead list empty. This is the only state");
+    ImGui::TextDisabled("where the EmitCS deadCount guard actually matters.");
+
+    ImGui::Checkbox("Auto Refill", &m_StressAutoRefill);
+    ImGui::SliderInt("Target Projectiles", &m_RefillTarget, 100, 4000);
+    ImGui::SliderInt("Refill Batch", &m_RefillBatch, 10, 500);
+
+    if (m_StressAutoRefill && !m_StressWithVFX)
+        ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
+            "Auto Refill without VFX does not stress the pool!");
+
+    // ---------- 粒子システムの状態 ----------
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Particle System");
+
+    float ratio = (float)m_LastEmitterCount / (float)m_ParticleSystem.GetMaxEmitters();
+    ImVec4 col = (ratio > 0.9f) ? ImVec4(1, 0.4f, 0.4f, 1)
+        : (ratio > 0.7f) ? ImVec4(1, 0.9f, 0.4f, 1)
+        : ImVec4(0.4f, 1, 0.4f, 1);
+    ImGui::TextColored(col, "Emitters : %zu / %zu",
+        m_LastEmitterCount, m_ParticleSystem.GetMaxEmitters());
+
+    if (m_StressWithVFX && m_LastEmitterCount == 0)
+        ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
+            "0 emitters: no VFX template for this item (check vfxPath)");
+
+    if (m_LastDropped > 0)
+        ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1),
+            "Dropped : %zu  (some projectiles have no VFX)", m_LastDropped);
+
+    ImGui::Text("Pool Size      : %u", m_ParticleSystem.GetMaxParticles());
+    ImGui::Text("Projectile VFX : %zu", m_ProjectileVFXSystem.GetActiveVFXCount());
+    ImGui::Text("Billboards     : %u  (1 draw call)",
+        m_ProjectileRenderer.GetLastDrawCount());
+
+    // ★生存数は GPU 上にしか無い。CPU は毎フレーム知らない（意図通り）。
+    ImGui::TextDisabled("Alive count lives on the GPU only.");
+    ImGui::TextDisabled("Judge by the screen and by Flush ms below.");
+
+    // ---------- Flush の CPU 時間（①の検証指標）----------
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Flush CPU Time");
+    ImGui::TextDisabled("Flush only queues commands. It should stay near 0");
+    ImGui::TextDisabled("even under load. If not, something still waits for the GPU.");
+
+    ImVec4 fcol = (m_FlushMsAvg > 1.0) ? ImVec4(1, 0.4f, 0.4f, 1)
+        : (m_FlushMsAvg > 0.3) ? ImVec4(1, 0.9f, 0.4f, 1)
+        : ImVec4(0.4f, 1, 0.4f, 1);
+    ImGui::TextColored(fcol, "now %.4f ms   avg %.4f ms   peak %.4f ms",
+        m_FlushMs, m_FlushMsAvg, m_FlushMsPeak);
+
+    if (ImGui::Button("Reset Peak"))
+    {
+        m_FlushMsPeak = 0.0;
+        m_FlushMsAvg = 0.0;
+    }
+    ImGui::SameLine();
+    ImGui::Text("| FPS %.1f", ImGui::GetIO().Framerate);
+}
+
+// ============================================================
 // ImGui
 // ============================================================
 void CollisionTestScene::DrawDebugUI()
@@ -767,8 +929,15 @@ void CollisionTestScene::DrawDebugUI()
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
     ImGui::Separator();
 
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::Text("DisplaySize : %.0f x %.0f", io.DisplaySize.x, io.DisplaySize.y);
+    ImGui::Text("FramebufferScale : %.2f, %.2f",
+        io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+    ImGui::Text("MousePos : %.0f, %.0f", io.MousePos.x, io.MousePos.y);
+
     DrawBackpackPanel();
     DrawWandPanel();
+    DrawStressPanel();
 
     // ---------- Item Database ----------
     if (ImGui::CollapsingHeader("Item Database"))
@@ -791,27 +960,6 @@ void CollisionTestScene::DrawDebugUI()
                 c->name, cat, c->occupyCells.size(), c->influenceCells.size(),
                 c->iconPath ? "yes" : "no");
         }
-    }
-
-    // ---------- Visual ----------
-    if (ImGui::CollapsingHeader("Visual"))
-    {
-        float ratio = (float)m_LastEmitterCount / (float)m_ParticleSystem.GetMaxEmitters();
-        ImVec4 col = (ratio > 0.9f) ? ImVec4(1, 0.4f, 0.4f, 1)
-            : (ratio > 0.7f) ? ImVec4(1, 0.9f, 0.4f, 1)
-            : ImVec4(0.4f, 1, 0.4f, 1);
-        ImGui::TextColored(col, "Emitters : %zu / %zu",
-            m_LastEmitterCount, m_ParticleSystem.GetMaxEmitters());
-
-        if (m_LastDropped > 0)
-            ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1),
-                "Dropped : %zu  (some projectiles have no VFX)", m_LastDropped);
-
-        ImGui::Text("Alive Particles : %u", m_ParticleSystem.GetAliveCount());
-        ImGui::Text("Projectile VFX  : %zu", m_ProjectileVFXSystem.GetActiveVFXCount());
-        ImGui::Text("Billboards      : %u  (1 draw call)",
-            m_ProjectileRenderer.GetLastDrawCount());
-        ImGui::TextDisabled("Visual params come from Items/*.h (ItemDatabase)");
     }
 
     // ---------- 敵 ----------
@@ -842,35 +990,6 @@ void CollisionTestScene::DrawDebugUI()
         }
         ImGui::Text("Alive : %d", alive);
         if (ImGui::Button("Respawn Enemies")) RespawnEnemies();
-    }
-
-    // ---------- 負荷テスト ----------
-    if (ImGui::CollapsingHeader("Stress Test"))
-    {
-        int projCount = 0;
-        m_Registry.CreateView<TransformComponent, ProjectileComponent>()
-            .Each([&](Entity, TransformComponent&, ProjectileComponent&) { ++projCount; });
-
-        ImGui::Text("Projectiles : %d", projCount);
-        ImGui::Text("Colliders   : %zu", m_CollisionSystem.GetWorldColliders().size());
-        ImGui::Text("Pairs       : %zu", m_CollisionSystem.GetPairs().size());
-
-        ImGui::Checkbox("With Collider", &m_StressWithCollider);
-        ImGui::SameLine();
-        ImGui::Checkbox("With 3D Model", &m_StressWithModel);
-        ImGui::TextDisabled("Uncheck 3D Model -> billboard only (1 draw call)");
-
-        ImGui::SliderInt("Spawn Count", &m_StressCount, 50, 2000);
-        if (ImGui::Button("+ Spawn")) m_StressPending += m_StressCount;
-        ImGui::SameLine();
-        if (ImGui::Button("Clear All"))
-        {
-            std::vector<Entity> toKill;
-            m_Registry.CreateView<TransformComponent, ProjectileComponent>()
-                .Each([&](Entity e, TransformComponent&, ProjectileComponent&) { toKill.push_back(e); });
-            for (Entity e : toKill) m_Registry.Destroy(e);
-            m_StressPending = 0;
-        }
     }
 
     // ---------- プレイヤー ----------

@@ -25,6 +25,7 @@ static HRESULT LoadShaderAuto(T* shader, ID3D11Device* device, const std::wstrin
     return shader->Load(device, PtoCso(hlslPath).c_str());
 #endif
 }
+
 // ============================================
 // 初期化
 // ============================================
@@ -38,10 +39,15 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!CreateEmitterBuffer(device))        return false;
     if (!m_DeadList.Initialize(device, maxParticles)) return false;
     if (!LoadShaders(device))                return false;
-   // if (!CreateRenderStates(device))         return false;
+    // if (!CreateRenderStates(device))         return false;
     if (!CreateColorKeyBuffer(device))       return false;
     if (!CreateDrawIndirectBuffer(device))   return false;
     if (!CreateAliveListBuffer(device, maxParticles)) return false;
+
+    // ★DispatchEmit が使うので、必ず初回発射より前に作る。
+    //   ここを忘れると deadCount が null → 全スレッドが return して
+    //   一発も発射されない（しかもエラーは出ない）。
+    if (!CreateDeadCountBuffer(device))      return false;
 
     // DeadList を全インデックスで初期化
     DeadListCB dlcb = {};
@@ -50,6 +56,10 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
 
     m_InitDeadListCS->WriteBuffer(context, 0, &dlcb);
     m_InitDeadListCS->Bind(context);
+
+    // ※ここの initialCount = 0 は正当。
+    //   「計数器を 0 にしてから maxParticles 個 Append する」一度きりの初期化。
+    //   毎フレーム CPU の値で上書きするのとは意味が違う。
     m_DeadList.BindCSUAV(context, 0, 0);
 
     context->Dispatch((maxParticles + 255) / 256, 1, 1);
@@ -57,6 +67,7 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     m_DeadList.UnbindCSUAV(context, 0);
     m_InitDeadListCS->Unbind(context);
 
+    // 初期化直後の一度だけ読む（起動時なので待っても問題ない）
     m_CurrentDeadCount = m_DeadList.ReadDeadCount(context);
 
     return true;
@@ -225,6 +236,38 @@ bool GPUParticleSystem::CreateAliveListBuffer(ID3D11Device* device, uint32_t max
 }
 
 // ============================================
+// 空き数バッファ作成
+// CopyStructureCount の受け皿。shader が SRV で読む。
+// CPU は Map しないので GPU を待たせない。
+// ============================================
+bool GPUParticleSystem::CreateDeadCountBuffer(ID3D11Device* device)
+{
+    D3D11_BUFFER_DESC d = {};
+    d.ByteWidth = sizeof(uint32_t);
+    d.Usage = D3D11_USAGE_DEFAULT;
+    d.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    if (FAILED(device->CreateBuffer(&d, nullptr, &m_DeadCountBuffer)))
+    {
+        std::cout << "[Error] DeadCountBuffer creation failed" << std::endl;
+        return false;
+    }
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
+    sd.Format = DXGI_FORMAT_R32_UINT;
+    sd.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    sd.Buffer.NumElements = 1;
+    if (FAILED(device->CreateShaderResourceView(
+        m_DeadCountBuffer.Get(), &sd, &m_DeadCountSRV)))
+    {
+        std::cout << "[Error] DeadCountSRV creation failed" << std::endl;
+        return false;
+    }
+
+    std::cout << "[OK] DeadCountBuffer created" << std::endl;
+    return true;
+}
+
+// ============================================
 // シェーダー読み込み
 // ============================================
 bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
@@ -256,8 +299,10 @@ bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
 
     return true;
 }
+
 // ============================================
 // レンダーステート作成
+// ※RenderStates（全体共通ステート）へ移行済み。復活させない。
 // ============================================
 //bool GPUParticleSystem::CreateRenderStates(ID3D11Device* device)
 //{
@@ -303,6 +348,9 @@ bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
 
 // ============================================
 // 毎フレーム更新
+// ★毎フレームの ReadDeadCount（CopyStructureCount + Map READ）は廃止。
+//   Map READ は GPU の完了を待つため、パイプラインを毎フレーム断ち切っていた。
+//   空き数は GPU 上の deadCount バッファ経由で shader が直接読む。
 // ============================================
 void GPUParticleSystem::Update(float deltaTime, float totalTime,
     const std::vector<GPUEmitter>& emitters,
@@ -310,23 +358,25 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime,
 {
     auto context = m_Context;
 
-    m_CurrentDeadCount = m_DeadList.ReadDeadCount(context);
-
     m_CachedGlobalCB = {};
     m_CachedGlobalCB.deltaTime = deltaTime;
     m_CachedGlobalCB.totalTime = totalTime;
     m_CachedGlobalCB.baseSeed = static_cast<uint32_t>(totalTime * 1000.0f);
     m_CachedGlobalCB.emitterCount = static_cast<int>(emitters.size());
 
-    uint32_t totalEmit = 0;
+    // ★CPU が知っているのは「何発撃ちたいか」だけ。
+    //   空き数に合わせた clamp はここでは行わない（shader 側が deadCount で止める）。
+    //   CPU 側で clamp しても Dispatch は 256 スレッド粒度なので必ず溢れ、
+    //   意味を持たなかった。
+    uint32_t requestedEmit = 0;
     for (auto& e : emitters)
     {
         if (e.isActive > 0.5f)
-            totalEmit += e.emitCount;
+            requestedEmit += e.emitCount;
     }
 
     UploadExternalEmitters(context, emitters, colorKeys);
-    DispatchEmit(context, totalEmit);
+    DispatchEmit(context, requestedEmit);
     DispatchUpdate(context);
 }
 
@@ -358,32 +408,46 @@ void GPUParticleSystem::UploadExternalEmitters(ID3D11DeviceContext* context,
 }
 
 // ============================================
-// Emit ディスパッチ（一括バインド版）
+// Emit ディスパッチ
+// 発射数の上限は GPU が決める。CPU は「何発撃ちたいか」だけ渡す。
 // ============================================
-void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t totalEmit)
+void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t requestedEmit)
 {
-    if (m_CurrentDeadCount == 0) return;
+    if (requestedEmit == 0) return;
 
-    totalEmit = (std::min)(totalEmit, m_CurrentDeadCount);
-    if (totalEmit == 0) return;
+    // ★deadCount が未作成だと全スレッドが return して無音で発射されなくなる。
+    //   一度だけ警告して原因を分かるようにする。
+    if (!m_DeadCountBuffer || !m_DeadCountSRV)
+    {
+        static bool warned = false;
+        if (!warned)
+        {
+            std::cout << "[Error] DeadCountBuffer is null "
+                "(CreateDeadCountBuffer が呼ばれていない)" << std::endl;
+            warned = true;
+        }
+        return;
+    }
 
-    DeadListCB dlcb = {};
-    dlcb.deadCount = m_CurrentDeadCount;
-    dlcb.maxParticles = m_MaxParticles;
+    // 空き数を GPU 上のバッファへ写す（Copy のみ、Map しない = 待たない）
+    context->CopyStructureCount(m_DeadCountBuffer.Get(), 0, m_DeadList.GetUAV());
 
     m_EmitCS->WriteBuffer(context, 0, &m_CachedGlobalCB);
-    m_EmitCS->WriteBuffer(context, 1, &dlcb);
     m_EmitCS->Bind(context);
 
     // SRV は即時バインド
     m_EmitCS->SetSRV(context, "emitters", m_EmitterSRV.Get());
+    m_EmitCS->SetSRV(context, "deadCount", m_DeadCountSRV.Get());
 
     // UAV はキューに溜めて一括バインド
     m_EmitCS->SetUAV(context, "particles", m_ParticleUAV.Get());
-    m_EmitCS->SetUAV(context, "deadList", m_DeadList.GetUAV(), m_CurrentDeadCount);
+    // ★initialCount = -1（保持）。CPU の値を渡すと計数器を毎フレーム上書きし、
+    //   下溢バグを隠す膏薬になる。計数器は GPU が自分で維持する。
+    m_EmitCS->SetUAV(context, "deadList", m_DeadList.GetUAV(), (UINT)-1);
     m_EmitCS->BindUAVs(context);
 
-    context->Dispatch((totalEmit + 255) / 256, 1, 1);
+    // 過大でも構わない。shader が deadCount で自分を止める。
+    context->Dispatch((requestedEmit + 255) / 256, 1, 1);
 
     m_EmitCS->UnbindSRVs(context);
     m_EmitCS->UnbindUAVs(context);
@@ -394,8 +458,11 @@ void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t tota
 // ============================================
 void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
 {
+    // ※deadCount は UpdateCS 側で未使用（g_MaxParticles しか読んでいない）。
+    //   ★maxParticles は削除不可：id.x の上限判定に使われている。
+    //     ここを消すと粒子が一切更新されなくなる。
     DeadListCB dlcb = {};
-    dlcb.deadCount = m_CurrentDeadCount;
+    dlcb.deadCount = 0;
     dlcb.maxParticles = m_MaxParticles;
 
     m_UpdateCS->WriteBuffer(context, 0, &m_CachedGlobalCB);
@@ -422,6 +489,7 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     m_UpdateCS->UnbindSRVs(context);
     m_UpdateCS->UnbindUAVs(context);
 }
+
 // ============================================
 // レンダリング（DrawInstancedIndirect + AliveList）
 // ============================================
@@ -446,14 +514,6 @@ void GPUParticleSystem::Render()
     if (m_Texture)
         m_RenderPS->SetTexture(context, 0, m_Texture.get());
 
-    //context->PSSetSamplers(0, 1, m_SamplerState.GetAddressOf());
-
-    //float blendFactor[4] = { 0, 0, 0, 0 };
-    //context->OMSetBlendState(m_BlendState.Get(), blendFactor, 0xFFFFFFFF);
-    //context->OMSetDepthStencilState(m_DepthStencilState.Get(), 0);
-    //context->RSSetState(m_RasterizerState.Get());
-
-    // ★変更後
     ID3D11SamplerState* samp = RenderStates::Get().LinearClamp();
     context->PSSetSamplers(0, 1, &samp);
     RenderStates::Get().ApplyAdditiveBillboard(context);
@@ -468,10 +528,7 @@ void GPUParticleSystem::Render()
     // GPU が決めた instanceCount で描画（CPU は数を知らない）
     context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
 
-    //// ステートを戻す
-    //context->OMSetBlendState(nullptr, blendFactor, 0xFFFFFFFF);
-    //context->OMSetDepthStencilState(nullptr, 0);
-    //context->RSSetState(nullptr);
+    // 次のパスへステートを持ち越さない
     RenderStates::Get().Restore(context);
     m_RenderVS->UnbindSRVs(context);
 }
@@ -491,12 +548,14 @@ void GPUParticleSystem::ResetSystem()
     m_InitDeadListCS->WriteBuffer(m_Context, 0, &dlcb);
     m_InitDeadListCS->Bind(m_Context);
 
+    // ※ここの initialCount = 0 も正当（一度きりのリセット）
     m_DeadList.BindCSUAV(m_Context, 0, 0);
     m_Context->Dispatch((m_MaxParticles + 255) / 256, 1, 1);
 
     m_DeadList.UnbindCSUAV(m_Context, 0);
     m_InitDeadListCS->Unbind(m_Context);
 
+    // リセット時の一度だけ読む（毎フレームではないので許容）
     m_CurrentDeadCount = m_DeadList.ReadDeadCount(m_Context);
 
     // DrawIndirectArgs もリセット
@@ -533,6 +592,7 @@ void GPUParticleSystem::SubmitEmitters(const std::vector<GPUEmitter>& emitters,
     for (const auto& k : colorKeys)
         m_PendingColorKeys.push_back(k);
 }
+
 // ============================================
 // 1フレーム分をまとめて GPU へ（1フレーム1回だけ）
 // ============================================

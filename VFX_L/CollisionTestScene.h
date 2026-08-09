@@ -47,12 +47,14 @@ private:
     void DrawDebugUI();
     void DrawBackpackPanel();
     void DrawWandPanel();
+    void DrawStressPanel();           // ★負荷テスト（粒子発射経路の検証を含む）
     void DrawColliderDebug(Entity e, const Color& color);
     void DrawWandDebug();
     void RebuildPlayerMesh();
     void SpawnEnemy(const Vector3& pos, bool invincible = false);
     void RespawnEnemies();
     void StressSpawnProjectiles(int count);
+    int  CountProjectiles() const;    // ★自動補充の判定用
     void RegisterItemVisuals();
 
 private:
@@ -122,6 +124,25 @@ private:
     int  m_StressPending = 0;
     bool m_StressWithModel = false;
     bool m_StressWithCollider = true;
+
+    // ★VFX を付けるか。
+    //   これを ON にしない限り emitter が 1 つも生まれないので、
+    //   粒子発射経路（EmitCS / deadList）の負荷試験にはならない。
+    bool   m_StressWithVFX = false;
+    ItemID m_StressVFXItem = ItemID::Fireball;
+
+    // ★自動補充：投射物数を目標値に保ち、粒子プールを枯渇させ続ける。
+    //   deadCount 護欄が効いているかは「枯渇状態」でしか検証できない。
+    bool  m_StressAutoRefill = false;
+    int   m_RefillTarget = 1000;
+    int   m_RefillBatch = 100;
+    float m_RefillTimer = 0.0f;
+    float m_RefillInterval = 0.1f;
+
+    // --- Flush の CPU 時間（①＝毎フレーム回読廃止の検証指標）---
+    double m_FlushMs = 0.0;
+    double m_FlushMsAvg = 0.0;
+    double m_FlushMsPeak = 0.0;
 
     // --- Emitter 統計（Flush でクリアされる前に退避）---
     size_t m_LastEmitterCount = 0;
