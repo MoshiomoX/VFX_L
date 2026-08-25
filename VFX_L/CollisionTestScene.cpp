@@ -11,6 +11,8 @@
 #include "ProjectileVisualComponent.h"
 #include "ProjectileVFXComponent.h"
 #include "PlayerTag.h"
+#include "PlayerStatsComponent.h"
+#include "PlayerStateComponent.h"
 #include "WandComponent.h"
 #include "AreaStats.h"
 #include "BackpackComponent.h"
@@ -18,6 +20,7 @@
 #include "HealthComponent.h"
 #include "View.h"
 
+#include "PlayerFactory.h"
 #include "ItemDatabase.h"
 #include "BackpackLogic.h"
 #include "TestSpawner.h"
@@ -35,7 +38,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <cmath>
-#include <chrono>     // ★Flush の CPU 時間計測用
+#include <chrono>
 
 // ============================================================
 // Init
@@ -111,24 +114,16 @@ void CollisionTestScene::Init()
         m_Terrain.push_back(e);
     }
 
-    // ---------- プレイヤー ----------
-    m_Player = TestSpawner::SpawnCapsule(m_Registry,
-        { m_SpawnPos[0], m_SpawnPos[1], m_SpawnPos[2] },
-        m_PlayerRadius, m_PlayerHeight);
-    m_Registry.Add<PlayerTag>(m_Player, {});
+    // ============================================================
+    // プレイヤー
+    // ★組み立ては PlayerFactory に集約。
+    //   ここは初期値の指定だけ。実行時の真実は Component 側。
+    // ============================================================
+    PlayerFactory::Config pcfg;
+    pcfg.spawnPos = { m_SpawnPos[0], m_SpawnPos[1], m_SpawnPos[2] };
+    pcfg.color = { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f };
 
-    ModelComponent pmc;
-    pmc.model = PrimitiveBuilder::CreateCapsule(device, m_PlayerRadius, m_PlayerHeight,
-        { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f });
-    m_Registry.Add<ModelComponent>(m_Player, pmc);
-
-    // ---------- 杖（空で作る）----------
-    // ★spells / areas はバックパックの集約結果で埋まる。
-    //   ここで数値を書かないことで「配置しなければ何も撃たない」を保証する。
-    m_Registry.Add<WandComponent>(m_Player, {});
-
-    // ---------- バックパック ----------
-    m_Registry.Add<BackpackComponent>(m_Player, {});
+    m_Player = PlayerFactory::Create(m_Registry, device, pcfg);
 
     // ---------- 敵 ----------
     RespawnEnemies();
@@ -192,7 +187,7 @@ void CollisionTestScene::UpdateScreenSize()
 
     m_SpriteRenderer.SetScreenSize(w, h);
     m_BackpackUI.Layout(w, h);
-    m_Camera.Init(45.0f, w / h, 0.1f, 10000.0f);   // アスペクト比も更新する
+    m_Camera.Init(45.0f, w / h, 0.1f, 10000.0f);
 
     std::cout << "[CollisionTestScene] screen resized: "
         << (int)w << "x" << (int)h << std::endl;
@@ -212,7 +207,6 @@ void CollisionTestScene::Update(float dt)
     if (InputMap::GetBackpackToggle())
         m_BackpackOpen = !m_BackpackOpen;
 
-    // 時間停止するかは独立制御（調整用に切り替えられる）
     bool paused = m_BackpackOpen && m_PauseOnBackpack;
 
     // ---- バックパックの操作（開いている間だけ）----
@@ -223,8 +217,6 @@ void CollisionTestScene::Update(float dt)
     // ★一時停止中も実行する。配置しながら結果を確認できるようにするため。
     m_BackpackAggregate.Update(m_Registry);
 
-    // ※System を回さないことで停止を実現する。
-    //   パーティクルも Flush されないため空中で静止する（意図通り）。
     if (!paused)
         UpdateGameplay(dt);
 
@@ -248,13 +240,7 @@ int CollisionTestScene::CountProjectiles() const
 // ============================================================
 void CollisionTestScene::UpdateGameplay(float dt)
 {
-    // ============================================================
-    // ★自動補充：投射物数を目標値に保つ。
-    //   粒子プールを枯渇（deadCount = 0）状態で維持し続けることで、
-    //   EmitCS の deadCount 護欄が効いているかを検証する。
-    //   護欄が無いと計数器が下溢し、数十秒〜数分かけて
-    //   dead list が壊れ、粒子が徐々に出なくなる（落ちない）。
-    // ============================================================
+    // ---- 自動補充（粒子プールを枯渇状態で維持する）----
     if (m_StressAutoRefill)
     {
         m_RefillTimer += dt;
@@ -276,16 +262,22 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ============================================================
     // System 実行順（重要）
-    // 操作 → 衝突 → 物理 → 杖 → VFX付与 → 投射物 → ダメージ → カメラ
+    // 操作 → 衝突 → 物理 → 状態機 → 杖 → VFX付与 → 投射物 → ダメージ → カメラ
+    //
+    // ★状態機は物理の後。isGrounded / velocity が今フレームの
+    //   最終値になっているため。物理の前だと接地が1フレーム古くなり、
+    //   着地アニメーションのタイミングがずれる。
+    // ★速度と跳躍力の注入（SetMoveSpeed 等）は廃止。
+    //   PlayerControlSystem が PlayerStatsComponent を直接読む。
     // ============================================================
-    m_PlayerControlSystem.SetMoveSpeed(m_MoveSpeed);
-    m_PlayerControlSystem.SetJumpPower(m_JumpPower);
     m_PlayerControlSystem.Update(m_Registry, dt, GetCamera());
 
     m_CollisionSystem.Update(m_Registry);
 
     m_PhysicsSystem.SetGravity(m_Gravity);
     m_PhysicsSystem.Update(m_Registry, dt, m_CollisionSystem);
+
+    m_PlayerStateSystem.Update(m_Registry, dt);
 
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
 
@@ -295,11 +287,22 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     m_ProjectileSystem.Update(m_Registry, dt, m_CollisionSystem);
 
-    // ---- 命中イベント消費：ダメージ + 死亡 ----
+    // ============================================================
+    // 命中イベント消費：ダメージ + 死亡
+    // ★プレイヤーは PlayerStateSystem::TryApplyHit を通す。
+    //   無敵判定と硬直の開始をそこ1ヶ所に集約する
+    //   （2ヶ所で無敵を見ると必ず片方だけ直して壊れる）。
+    // ============================================================
     for (const auto& hit : m_ProjectileSystem.GetHitEvents())
     {
         if (!m_Registry.IsValid(hit.target)) continue;
         if (!m_Registry.Has<HealthComponent>(hit.target)) continue;
+
+        if (m_Registry.Has<PlayerStateComponent>(hit.target))
+        {
+            PlayerStateSystem::TryApplyHit(m_Registry, hit.target, hit.damage);
+            continue;   // プレイヤーは Destroy しない（Dead 状態で残す）
+        }
 
         auto& hp = m_Registry.Get<HealthComponent>(hit.target);
         hp.current -= hit.damage;
@@ -320,21 +323,15 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // ============================================================
     // VFX：追従して emitter を積む → 1回だけ Flush
     // ============================================================
-    m_ProjectileVFXSystem.Update(m_Registry, dt);
+    m_ProjectileVFXSystem.Update(m_Registry, dt, m_VFXContext);
 
-    // 統計を退避（Flush でクリアされる前に読む）
     m_LastEmitterCount = m_ParticleSystem.GetPendingEmitterCount();
     m_LastDropped = m_ParticleSystem.GetDroppedEmitterCount();
 
     // ============================================================
-    // ★1フレームに1回だけ。これが無いと粒子が一切動かない
-    //
-    //   Flush の CPU 時間を計る。
-    //   毎フレームの ReadDeadCount（Map READ）を廃止した効果は
-    //   ここの数字にしか現れない。
-    //   Flush は本来「コマンドを積むだけ」なので、
-    //   負荷をかけても 0 に近いままであるべき。
-    //   高いままなら、まだどこかで GPU を待っている。
+    // ★1フレームに1回だけ。これが無いと粒子が一切動かない。
+    //   Flush はコマンドを積むだけなので、負荷をかけても
+    //   0 に近いままであるべき。高いままなら GPU を待っている。
     // ============================================================
     {
         auto t0 = std::chrono::high_resolution_clock::now();
@@ -344,7 +341,6 @@ void CollisionTestScene::UpdateGameplay(float dt)
         auto t1 = std::chrono::high_resolution_clock::now();
         m_FlushMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-        // 指数移動平均。単発の外れ値に振られないようにする。
         m_FlushMsAvg = m_FlushMsAvg * 0.95 + m_FlushMs * 0.05;
         if (m_FlushMs > m_FlushMsPeak) m_FlushMsPeak = m_FlushMs;
     }
@@ -499,18 +495,12 @@ void CollisionTestScene::DrawWandDebug()
 
 // ============================================================
 // プレイヤーのメッシュと衝突体を作り直す
+// ★寸法は PlayerStatsComponent が持つので PlayerFactory へ委譲する
 // ============================================================
 void CollisionTestScene::RebuildPlayerMesh()
 {
-    if (!m_Registry.IsValid(m_Player)) return;
     auto* device = Application::Get().GetGraphics().GetDevice();
-
-    auto& col = m_Registry.Get<ColliderComponent>(m_Player);
-    col.radius = m_PlayerRadius;
-    col.height = m_PlayerHeight;
-
-    auto& mc = m_Registry.Get<ModelComponent>(m_Player);
-    mc.model = PrimitiveBuilder::CreateCapsule(device, m_PlayerRadius, m_PlayerHeight,
+    PlayerFactory::RebuildVisual(m_Registry, m_Player, device,
         { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f });
 }
 
@@ -555,7 +545,6 @@ void CollisionTestScene::RespawnEnemies()
 // ============================================================
 // 負荷テスト：投射物を一気に生成
 // ★With VFX を ON にすると emitter が生まれ、粒子発射経路の負荷試験になる。
-//   OFF のままだと emitter が 1 つも出ないので EmitCS は一切走らない。
 // ============================================================
 void CollisionTestScene::StressSpawnProjectiles(int count)
 {
@@ -591,14 +580,12 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
         pj.lifetime = 30.0f;
         m_Registry.Add<ProjectileComponent>(p, pj);
 
-        // ビルボード芯（draw call は 1 回で済む）
         ProjectileVisualComponent vis;
         vis.size = 0.5f;
         vis.color = { 1.0f, 0.5f, 0.2f, 1.0f };
         vis.stretch = 0.0f;
         m_Registry.Add<ProjectileVisualComponent>(p, vis);
 
-        // 3D モデル（draw call が 1発ごとに増える。比較用）
         if (m_StressWithModel && m_StressModel)
         {
             ModelComponent mc;
@@ -607,11 +594,39 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
         }
 
         // ★VFX（= emitter）を付ける。粒子プールを枯渇させるのが目的。
-        //   テンプレート未登録の ItemID だと AttachVFX は何もしない（降級）。
         if (m_StressWithVFX)
             m_ProjectileVFXSystem.AttachVFX(m_Registry, p, m_StressVFXItem, m_VFXContext);
     }
 }
+
+// ============================================================
+// プリセット適用
+// ============================================================
+void CollisionTestScene::ApplyStressPreset(const StressPreset& p)
+{
+    std::vector<Entity> toKill;
+    m_Registry.CreateView<TransformComponent, ProjectileComponent>()
+        .Each([&](Entity e, TransformComponent&, ProjectileComponent&) { toKill.push_back(e); });
+    for (Entity e : toKill) m_Registry.Destroy(e);
+
+    m_StressPending = 0;
+
+    m_RefillTarget = p.target;
+    m_RefillBatch = p.batch;
+    m_StressAutoRefill = p.autoRefill;
+    m_StressWithVFX = p.withVFX;
+    m_StressWithCollider = p.withCollider;
+    m_StressWithModel = p.withModel;
+
+    m_FlushMsPeak = 0.0;
+    m_FlushMsAvg = 0.0;
+    m_RefillTimer = 0.0f;
+
+    std::cout << "[Stress] preset applied: " << p.name
+        << "  (" << p.purpose << ")" << std::endl;
+}
+
+
 
 // ============================================================
 // ImGui：バックパック
@@ -626,7 +641,6 @@ void CollisionTestScene::DrawBackpackPanel()
     ImGui::TextDisabled("LMB: place   RMB: remove   Wheel/R: rotate");
     ImGui::Text("Rotation : %d", m_BackpackUI.GetRotation());
 
-    // ---- アイテムパレット（定義表から自動生成）----
     ImGui::Separator();
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
@@ -656,7 +670,6 @@ void CollisionTestScene::DrawBackpackPanel()
 
     if (ImGui::Button("Clear Selection")) m_BackpackUI.ClearSelection();
 
-    // ---- 配置状況 ----
     if (m_Registry.Has<BackpackComponent>(m_Player))
     {
         auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
@@ -671,7 +684,6 @@ void CollisionTestScene::DrawBackpackPanel()
         }
     }
 
-    // ---- 集約結果（バックパック → 杖）----
     ImGui::Separator();
     ImGui::Text("Aggregate (rebuilt %d times)", m_BackpackAggregate.GetRebuildCount());
 
@@ -702,7 +714,6 @@ void CollisionTestScene::DrawBackpackPanel()
     if (ImGui::Button("Force Rebuild"))
         m_BackpackAggregate.ForceRebuild(m_Registry, m_Player);
 
-    // ---- レイアウト調整（すべて比率）----
     if (ImGui::TreeNode("Layout"))
     {
         bool dirty = false;
@@ -755,6 +766,34 @@ void CollisionTestScene::DrawWandPanel()
     ImGui::DragFloat("Mana Max", &w.manaMax, 1.0f, 10.0f, 1000.0f);
     ImGui::DragFloat("Mana Regen", &w.manaRegen, 0.5f, 0.0f, 300.0f);
     ImGui::DragFloat("Range", &w.range, 0.5f, 1.0f, 60.0f);
+
+    // ---- 施法モード ----
+    int modeIdx = (int)w.castMode;
+    const char* modeNames[] = { "Auto", "Manual", "Debug Burst" };
+    if (ImGui::Combo("Cast Mode", &modeIdx, modeNames, 3))
+        w.castMode = (CastMode)modeIdx;
+
+    switch (w.castMode)
+    {
+    case CastMode::Auto:
+        ImGui::TextDisabled("Fires whenever a target is in range.");
+        break;
+    case CastMode::Manual:
+        ImGui::TextDisabled("LMB / Pad X to fire. Aim is still automatic.");
+        ImGui::TextColored(w.castRequested ? ImVec4(1, 0.9f, 0.3f, 1) : ImVec4(0.5f, 0.5f, 0.5f, 1),
+            "requested: %s", w.castRequested ? "YES" : "no");
+        break;
+    case CastMode::DebugBurst:
+        ImGui::TextColored(ImVec4(1, 0.5f, 0.3f, 1),
+            "Ignores cast interval. Mana still applies,");
+        ImGui::TextColored(ImVec4(1, 0.5f, 0.3f, 1),
+            "so the real rate is bounded by mana regen.");
+        break;
+    }
+
+    ImGui::Text("Cast Anim : %.2f s", w.castAnimTimer);
+    ImGui::DragFloat("Anim Duration", &w.castAnimDuration, 0.01f, 0.05f, 2.0f);
+
     ImGui::TextDisabled("spells / areas are read-only (from backpack)");
     ImGui::Separator();
 
@@ -802,7 +841,6 @@ void CollisionTestScene::DrawWandPanel()
             totalDrain += a.manaCost / a.castInterval;
     }
 
-    // ---- 持続可能かの即時フィードバック ----
     bool sustainable = totalDrain <= w.manaRegen;
     ImGui::TextColored(sustainable ? ImVec4(0.4f, 1, 0.4f, 1) : ImVec4(1, 0.4f, 0.4f, 1),
         "Total Drain %.1f/s  vs  Regen %.1f/s   %s",
@@ -810,22 +848,156 @@ void CollisionTestScene::DrawWandPanel()
 }
 
 // ============================================================
-// ImGui：負荷テスト（粒子発射経路の検証を含む）
+// ImGui：プレイヤー（能力値 + 状態機）
+// ★数値は全て PlayerStatsComponent。シーンはコピーを持たない。
+// ============================================================
+void CollisionTestScene::DrawPlayerPanel()
+{
+    if (!ImGui::CollapsingHeader("Player", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    if (!m_Registry.IsValid(m_Player)) return;
+
+    // ---- 位置と速度 ----
+    if (m_Registry.Has<TransformComponent>(m_Player) &&
+        m_Registry.Has<RigidbodyComponent>(m_Player))
+    {
+        auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+        auto& rb = m_Registry.Get<RigidbodyComponent>(m_Player);
+
+        ImGui::Text("Position : %.2f, %.2f, %.2f", tf.position.x, tf.position.y, tf.position.z);
+        ImGui::Text("Velocity : %.2f, %.2f, %.2f", rb.velocity.x, rb.velocity.y, rb.velocity.z);
+        ImGui::TextColored(rb.isGrounded ? ImVec4(0.4f, 1, 0.4f, 1) : ImVec4(1, 0.6f, 0.3f, 1),
+            "Grounded : %s", rb.isGrounded ? "YES" : "no");
+
+        ImGui::DragFloat3("Spawn Pos", m_SpawnPos, 0.1f);
+        if (ImGui::Button("Reset to Spawn"))
+        {
+            tf.position = { m_SpawnPos[0], m_SpawnPos[1], m_SpawnPos[2] };
+            rb.velocity = { 0, 0, 0 };
+        }
+    }
+
+    // ---- 体力 ----
+    if (m_Registry.Has<HealthComponent>(m_Player))
+    {
+        auto& hp = m_Registry.Get<HealthComponent>(m_Player);
+        char buf[64];
+        sprintf_s(buf, "%.0f / %.0f", hp.current, hp.max);
+        ImGui::ProgressBar(hp.current / hp.max, ImVec2(-1, 0), buf);
+    }
+
+    // ---- 状態機（3層）----
+    if (m_Registry.Has<PlayerStateComponent>(m_Player))
+    {
+        auto& st = m_Registry.Get<PlayerStateComponent>(m_Player);
+
+        const char* moveNames[] = { "Idle", "Run", "Jump", "Fall" };
+        const char* actionNames[] = { "None", "Casting" };
+        const char* dmgNames[] = { "Normal", "Hurt", "Dead" };
+
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "State Machine (3 layers)");
+        ImGui::Text("Move   : %-6s  %.2fs", moveNames[(int)st.move], st.moveTime);
+        ImGui::Text("Action : %-8s  %.2fs", actionNames[(int)st.action], st.actionTime);
+
+        ImVec4 dcol = st.IsDead() ? ImVec4(1, 0.3f, 0.3f, 1)
+            : (st.damage == DamageStateID::Hurt) ? ImVec4(1, 0.8f, 0.3f, 1)
+            : ImVec4(0.4f, 1, 0.4f, 1);
+        ImGui::TextColored(dcol, "Damage : %-7s  %.2fs",
+            dmgNames[(int)st.damage], st.damageTime);
+
+        if (st.IsInvincible())
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 1, 1),
+                "  invincible %.2fs", st.invincibleTimer);
+
+        const uint32_t mask = st.SuppressMask();
+        if (mask != Mask_None)
+            ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "  suppressing: %s%s",
+                (mask & Mask_Move) ? "Move " : "", (mask & Mask_Action) ? "Action" : "");
+
+        ImGui::DragFloat("Hurt Duration", &st.hurtDuration, 0.01f, 0.0f, 2.0f);
+        ImGui::DragFloat("Invincible Time", &st.invincibleAfterHit, 0.05f, 0.0f, 5.0f);
+
+        if (ImGui::Button("Take 10 Damage"))
+            PlayerStateSystem::TryApplyHit(m_Registry, m_Player, 10.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Revive"))
+        {
+            auto& hp = m_Registry.Get<HealthComponent>(m_Player);
+            hp.current = hp.max;
+            st.damage = DamageStateID::Normal;
+            st.damageTime = 0.0f;
+            st.invincibleTimer = 0.0f;
+        }
+    }
+
+    // ---- 能力値 ----
+    if (m_Registry.Has<PlayerStatsComponent>(m_Player))
+    {
+        auto& stt = m_Registry.Get<PlayerStatsComponent>(m_Player);
+
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Stats (PlayerStatsComponent)");
+
+        bool dirty = false;
+        dirty |= ImGui::DragFloat("Radius", &stt.radius, 0.01f, 0.05f, 3.0f);
+        dirty |= ImGui::DragFloat("Height", &stt.height, 0.01f, 0.05f, 5.0f);
+        dirty |= ImGui::ColorEdit3("Color", m_PlayerColor);
+        if (dirty) RebuildPlayerMesh();
+
+        ImGui::DragFloat("Move Speed", &stt.moveSpeed, 0.1f, 0.0f, 30.0f);
+        ImGui::DragFloat("Jump Power", &stt.jumpPower, 0.1f, 0.0f, 30.0f);
+        ImGui::Text("Jump CD : %.2f", stt.jumpCooldown);
+    }
+
+    // 重力は場のパラメータなのでプレイヤーではなくシーンが持つ
+    ImGui::Separator();
+    ImGui::DragFloat("Gravity (scene)", &m_Gravity, 0.5f, -100.0f, 0.0f);
+}
+
+// ============================================================
+// ImGui：負荷テスト
 // ============================================================
 void CollisionTestScene::DrawStressPanel()
 {
-    if (!ImGui::CollapsingHeader("Stress Test", ImGuiTreeNodeFlags_DefaultOpen))
+    if (!ImGui::CollapsingHeader("Stress Test"))
         return;
 
-    int projCount = CountProjectiles();
+    // ---------- プリセット ----------
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Presets");
+    ImGui::TextDisabled("Clears projectiles and resets counters, then applies.");
 
+    const int count = (int)(sizeof(kStressPresets) / sizeof(kStressPresets[0]));
+    for (int i = 0; i < count; ++i)
+    {
+        const auto& p = kStressPresets[i];
+        if (i % 2 != 0) ImGui::SameLine();
+
+        const bool active = (m_LastPresetIndex == i);
+        if (active) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.25f, 0.5f, 0.9f, 1.0f));
+
+        if (ImGui::Button(p.name, ImVec2(150, 0)))
+        {
+            ApplyStressPreset(p);
+            m_LastPresetIndex = i;
+        }
+
+        if (active) ImGui::PopStyleColor();
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", p.purpose);
+    }
+
+    if (m_LastPresetIndex >= 0)
+        ImGui::TextDisabled("current: %s", kStressPresets[m_LastPresetIndex].name);
+
+    ImGui::Separator();
+
+    int projCount = CountProjectiles();
     ImGui::Text("Projectiles : %d   (pending %d)", projCount, m_StressPending);
     ImGui::Text("Colliders   : %zu", m_CollisionSystem.GetWorldColliders().size());
     ImGui::Text("Pairs       : %zu", m_CollisionSystem.GetPairs().size());
 
     ImGui::Separator();
-
-    // ---------- 何を付けるか ----------
     ImGui::Checkbox("With Collider", &m_StressWithCollider);
     ImGui::SameLine();
     ImGui::Checkbox("With 3D Model", &m_StressWithModel);
@@ -850,7 +1022,6 @@ void CollisionTestScene::DrawStressPanel()
         m_StressPending = 0;
     }
 
-    // ---------- 粒子プール枯渇の維持 ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Pool Starvation Test");
     ImGui::TextDisabled("Keeps the dead list empty. This is the only state");
@@ -864,7 +1035,6 @@ void CollisionTestScene::DrawStressPanel()
         ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
             "Auto Refill without VFX does not stress the pool!");
 
-    // ---------- 粒子システムの状態 ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Particle System");
 
@@ -888,15 +1058,12 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::Text("Billboards     : %u  (1 draw call)",
         m_ProjectileRenderer.GetLastDrawCount());
 
-    // ★生存数は GPU 上にしか無い。CPU は毎フレーム知らない（意図通り）。
     ImGui::TextDisabled("Alive count lives on the GPU only.");
     ImGui::TextDisabled("Judge by the screen and by Flush ms below.");
 
-    // ---------- Flush の CPU 時間（①の検証指標）----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Flush CPU Time");
-    ImGui::TextDisabled("Flush only queues commands. It should stay near 0");
-    ImGui::TextDisabled("even under load. If not, something still waits for the GPU.");
+    ImGui::TextDisabled("Flush only queues commands. It should stay near 0.");
 
     ImVec4 fcol = (m_FlushMsAvg > 1.0) ? ImVec4(1, 0.4f, 0.4f, 1)
         : (m_FlushMsAvg > 0.3) ? ImVec4(1, 0.9f, 0.4f, 1)
@@ -929,12 +1096,7 @@ void CollisionTestScene::DrawDebugUI()
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
     ImGui::Separator();
 
-    ImGuiIO& io = ImGui::GetIO();
-    ImGui::Text("DisplaySize : %.0f x %.0f", io.DisplaySize.x, io.DisplaySize.y);
-    ImGui::Text("FramebufferScale : %.2f, %.2f",
-        io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-    ImGui::Text("MousePos : %.0f, %.0f", io.MousePos.x, io.MousePos.y);
-
+    DrawPlayerPanel();
     DrawBackpackPanel();
     DrawWandPanel();
     DrawStressPanel();
@@ -992,41 +1154,7 @@ void CollisionTestScene::DrawDebugUI()
         if (ImGui::Button("Respawn Enemies")) RespawnEnemies();
     }
 
-    // ---------- プレイヤー ----------
-    if (ImGui::CollapsingHeader("Player State"))
-    {
-        if (m_Registry.IsValid(m_Player))
-        {
-            auto& tf = m_Registry.Get<TransformComponent>(m_Player);
-            auto& rb = m_Registry.Get<RigidbodyComponent>(m_Player);
-
-            ImGui::Text("Position : %.2f, %.2f, %.2f", tf.position.x, tf.position.y, tf.position.z);
-            ImGui::Text("Velocity : %.2f, %.2f, %.2f", rb.velocity.x, rb.velocity.y, rb.velocity.z);
-            ImGui::TextColored(rb.isGrounded ? ImVec4(0.4f, 1, 0.4f, 1) : ImVec4(1, 0.6f, 0.3f, 1),
-                "Grounded : %s", rb.isGrounded ? "YES" : "no");
-
-            ImGui::DragFloat3("Spawn Pos", m_SpawnPos, 0.1f);
-            if (ImGui::Button("Reset to Spawn"))
-            {
-                tf.position = { m_SpawnPos[0], m_SpawnPos[1], m_SpawnPos[2] };
-                rb.velocity = { 0, 0, 0 };
-            }
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Player Settings"))
-    {
-        bool dirty = false;
-        dirty |= ImGui::DragFloat("Radius", &m_PlayerRadius, 0.01f, 0.05f, 3.0f);
-        dirty |= ImGui::DragFloat("Height", &m_PlayerHeight, 0.01f, 0.05f, 5.0f);
-        dirty |= ImGui::ColorEdit3("Color", m_PlayerColor);
-        if (dirty) RebuildPlayerMesh();
-
-        ImGui::DragFloat("Move Speed", &m_MoveSpeed, 0.1f, 0.0f, 30.0f);
-        ImGui::DragFloat("Jump Power", &m_JumpPower, 0.1f, 0.0f, 30.0f);
-        ImGui::DragFloat("Gravity", &m_Gravity, 0.5f, -100.0f, 0.0f);
-    }
-
+    // ---------- カメラ ----------
     if (ImGui::CollapsingHeader("Camera"))
     {
         ImGui::DragFloat("Distance", &m_Camera.distance, 0.1f, 1.0f, 30.0f);
@@ -1037,6 +1165,7 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::Text("Yaw/Pitch : %.1f / %.1f", m_Camera.GetYaw(), m_Camera.GetPitch());
     }
 
+    // ---------- ライト ----------
     if (ImGui::CollapsingHeader("Lighting"))
     {
         ImGui::DragFloat3("Direction", m_LightDir, 0.02f, -1.0f, 1.0f);

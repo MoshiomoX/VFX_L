@@ -16,9 +16,9 @@ struct VSOutput
     float4 position : SV_POSITION;
     float4 color : COLOR;
     float2 uv : TEXCOORD0;
-    nointerpolation int atlasRows : TEXCOORD1;
-    nointerpolation int atlasCols : TEXCOORD2;
-    nointerpolation int uvFrame : TEXCOORD3;
+    nointerpolation uint atlasRows : TEXCOORD1;
+    nointerpolation uint atlasCols : TEXCOORD2;
+    nointerpolation uint uvFrame : TEXCOORD3;
 };
 
 VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
