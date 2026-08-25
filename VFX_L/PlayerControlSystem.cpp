@@ -8,12 +8,28 @@
 #include "PlayerTag.h"
 #include "InputMap.h"
 #include "View.h"
+#include "WandComponent.h"
 #include "DebugManager.h"
 #include "ImGui.h"
 void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
 {
-    if (DebugManager::Get().IsUsingDebugCamera()) return;
-    if (ImGui::GetIO().WantCaptureKeyboard) return;
+    // ============================================================
+    // ★入力を受け付けない状況でも「押していない」ことは必ず書く。
+    //   書かずに return すると前フレームの true が残り、撃ち続ける。
+    // ============================================================
+    const bool blocked = DebugManager::Get().IsUsingDebugCamera()
+        || ImGui::GetIO().WantCaptureKeyboard;
+
+    const bool castTrigger = blocked ? false : InputMap::GetCastTrigger();
+
+    reg.CreateView<WandComponent, PlayerTag>()
+        .Each([&](Entity e, WandComponent& wand, PlayerTag&)
+            {
+                // Manual 以外では無視されるが、常に書いて状態を残さない
+                wand.castRequested = castTrigger;
+            });
+
+    if (blocked) return;
     if (!camera) return;
 
     auto move = InputMap::GetMoveInput();

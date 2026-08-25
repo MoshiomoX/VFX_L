@@ -9,6 +9,12 @@
 #include "SpellID.h"
 #include "AreaStats.h"
 // 1つの出力源の最終属性（集約後の値）
+enum class CastMode
+{
+    Auto,        // 索敵できたら撃ち続ける（現状の挙動）
+    Manual,      // 入力があった時だけ新規施法を始める
+    DebugBurst,  // castInterval を無視して撃ち続ける（光害と負荷の確認用）
+};
 struct SpellStats
 {
     ItemID id = ItemID::Fireball;
@@ -47,6 +53,10 @@ struct WandComponent
     float range = 15.0f;
     DirectX::SimpleMath::Vector3 muzzleOffset = { 0.0f, 0.5f, 0.0f };
 
+    CastMode castMode = CastMode::Auto;
+    bool     castRequested = false;
+    float castAnimTimer = 0.0f;
+    float castAnimDuration = 0.3f;
     // --- 出力源リスト（バックパック集約の結果、大類型ごとに分ける）---
     std::vector<SpellStats> spells;   // 飛行物型
     std::vector<AreaStats>  areas;    // AOE 型

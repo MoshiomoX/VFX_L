@@ -41,7 +41,7 @@ namespace InputMap
     {
         auto& input = InputManager::Get();
         return input.GetMouseTrigger(0) ||
-            input.GetPadTrigger(XINPUT_GAMEPAD_A);
+            input.GetPadTrigger(XINPUT_GAMEPAD_X);
     }
 
 

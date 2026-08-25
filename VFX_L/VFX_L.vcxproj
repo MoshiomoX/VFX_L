@@ -192,6 +192,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="PhysicsSystem.cpp" />
     <ClCompile Include="PixelShader.cpp" />
     <ClCompile Include="PlayerControlSystem.cpp" />
+    <ClCompile Include="PlayerFactory.cpp" />
+    <ClCompile Include="PlayerStateSystem.cpp" />
     <ClCompile Include="PrimitiveBuilder.cpp" />
     <ClCompile Include="ProjectileBillboardRenderer.cpp" />
     <ClCompile Include="ProjectileSystem.cpp" />
@@ -318,6 +320,10 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="PhysicsSystem.h" />
     <ClInclude Include="PixelShader.h" />
     <ClInclude Include="PlayerControlSystem.h" />
+    <ClInclude Include="PlayerFactory.h" />
+    <ClInclude Include="PlayerStateSystem.h" />
+    <ClInclude Include="PlayerStateComponent.h" />
+    <ClInclude Include="PlayerStatsComponent.h" />
     <ClInclude Include="PlayerTag.h" />
     <ClInclude Include="PrimitiveBuilder.h" />
     <ClInclude Include="ProjectileBillboardRenderer.h" />

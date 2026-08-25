@@ -41,19 +41,32 @@ public:
     uint32_t GetMaxParticles()      const { return m_MaxParticles; }
 
     // ============================================
-    // ★暫定実装（第5段階の ownerID 方式で置き換える）
+    // emitter を積む余地があるか
+    //
+    // 呼び出し側が重い収集処理（CollectAndDispatch）に入る前に
+    // これを確認することで、積んでも捨てられるだけの計算を省ける。
+    //
+    // 計測根拠：投射物 4000 のとき Dropped が 2976 に達していた。
+    // つまり VFX 収集の 3/4 は完全な無駄だった。
+    // FPS は VFX ON で 27.6 / OFF で 84.2（投射物数は同じ 4000）。
+    // ============================================
+    bool HasEmitterSpace() const { return m_PendingEmitters.size() < MAX_EMITTERS; }
+
+    // ============================================
+    // 暫定実装（第5段階の ownerID 方式で置き換える）
     //
     // 毎フレームの ReadDeadCount（Map READ = GPU 待ち）を廃止したため、
     // 正確な生存数は GPU 上にしか無い。CPU は知らない。
     //
-    // GetAliveCount() が 0 を返すと VFXState_Finishing が即 Stopped へ
-    // 飛んでしまい、粒子が空中に残ったまま演出が終わる。
+    // 0 を返すと VFXState_Finishing が即 Stopped へ飛んでしまい、
+    // 粒子が空中に残ったまま演出が終わる。
     // よって「まだ居るかもしれない」= 1 を返し、Finishing の終了判定は
     // VFXStates 側の時間兜底（timeInState > 3.0f）に任せる。
+    // ★この 2 つは必ずセットで扱う。片方だけ変えると状態機が壊れる。
     // ============================================
     uint32_t GetAliveCount() const { return 1; }
 
-    // ※初期化/リセット直後の値のまま。ImGui の目安表示にのみ使う。
+    // 初期化/リセット直後の値のまま。ImGui の目安表示にのみ使う。
     uint32_t GetDeadCount() const { return m_CurrentDeadCount; }
 
 private:
@@ -69,8 +82,9 @@ private:
     bool CreateAliveListBuffer(ID3D11Device* device, uint32_t maxParticles);
     bool CreateDeadCountBuffer(ID3D11Device* device);
 
-    // ★引数名を requestedEmit に変更。
-    //   「撃ちたい数」であって「撃てる数」ではない、という意図を明示する。
+    // 引数名は requestedEmit。
+    // 「撃ちたい数」であって「撃てる数」ではない。
+    // 空き数に合わせた clamp は shader 側が deadCount で行う。
     void DispatchEmit(ID3D11DeviceContext* context, uint32_t requestedEmit);
     void DispatchUpdate(ID3D11DeviceContext* context);
 
@@ -101,7 +115,7 @@ private:
 
     ParticleDeadList m_DeadList;
 
-    // ※初期化/リセット時にだけ更新される。毎フレームの回読は廃止した。
+    // 初期化/リセット時にだけ更新される。毎フレームの回読は廃止した。
     uint32_t m_CurrentDeadCount = 0;
 
     std::shared_ptr<ComputeShader>   m_InitDeadListCS;

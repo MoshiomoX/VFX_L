@@ -345,12 +345,27 @@ bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
 //
 //    return true;
 //}
-
 // ============================================
 // 毎フレーム更新
-// ★毎フレームの ReadDeadCount（CopyStructureCount + Map READ）は廃止。
-//   Map READ は GPU の完了を待つため、パイプラインを毎フレーム断ち切っていた。
-//   空き数は GPU 上の deadCount バッファ経由で shader が直接読む。
+//
+// 毎フレームの ReadDeadCount（CopyStructureCount + Map READ）は廃止した。
+// Map READ は GPU の完了を待つため、パイプラインを毎フレーム断ち切っていた。
+// 空き数は GPU 上の deadCount バッファ経由で shader が直接読む。
+//
+// ---- 計測結果（内訳診断より）----
+//   Flush 合計   約 0.14 ms
+//     Upload     0.018 ms (15%)  Map + memcpy（245KB。emitter 数に比例）
+//     Emit       0.076 ms (63%)  ほぼ全部 CopyStructureCount の固定コスト
+//     Update     0.025 ms (21%)  Clear + 満池 dispatch
+//
+//   Emit が重いのは CopyStructureCount が命令キューのフラッシュを
+//   誘発するため。emitter 数と無関係な固定コスト（500 でも 1024 でも同じ）。
+//   VFX OFF 時に 0.0002 ms へ落ちることで裏付け済み。
+//
+//   ただし 1 フレーム（12〜36ms）の 0.6% 程度であり、
+//   これを削るには CPU 側で消費数を記帳する必要があって
+//   「空き数の真実は GPU にしかない」という本改修の前提を壊す。
+//   よって現時点では最適化しない。
 // ============================================
 void GPUParticleSystem::Update(float deltaTime, float totalTime,
     const std::vector<GPUEmitter>& emitters,
@@ -364,10 +379,10 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime,
     m_CachedGlobalCB.baseSeed = static_cast<uint32_t>(totalTime * 1000.0f);
     m_CachedGlobalCB.emitterCount = static_cast<int>(emitters.size());
 
-    // ★CPU が知っているのは「何発撃ちたいか」だけ。
-    //   空き数に合わせた clamp はここでは行わない（shader 側が deadCount で止める）。
-    //   CPU 側で clamp しても Dispatch は 256 スレッド粒度なので必ず溢れ、
-    //   意味を持たなかった。
+    // CPU が知っているのは「何発撃ちたいか」だけ。
+    // 空き数に合わせた clamp はここでは行わない（shader 側が deadCount で止める）。
+    // CPU 側で clamp しても Dispatch は 256 スレッド粒度なので必ず溢れ、
+    // 意味を持たなかった。
     uint32_t requestedEmit = 0;
     for (auto& e : emitters)
     {

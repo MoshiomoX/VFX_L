@@ -25,7 +25,8 @@ public:
     void AttachVFX(Registry& reg, Entity e, ItemID id, const VFXContext& ctx);
 
     // 毎フレーム：位置を追従させて Update（emitter が積まれる）
-    void Update(Registry& reg, float dt);
+    void Update(Registry& reg, float dt, const VFXContext& ctx);
+    size_t GetSkippedCount() const { return m_SkippedCount; }
 
     size_t GetActiveVFXCount() const { return m_ActiveCount; }
 
@@ -34,4 +35,5 @@ private:
 
     std::vector<std::pair<ItemID, std::shared_ptr<VFXEffect>>> m_Templates;
     size_t m_ActiveCount = 0;
+    size_t m_SkippedCount = 0;
 };

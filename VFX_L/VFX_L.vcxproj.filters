@@ -98,6 +98,9 @@
     <Filter Include="Item\Items">
       <UniqueIdentifier>{7d84ecb7-5271-4192-b5b6-a024e1f521d7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Player">
+      <UniqueIdentifier>{899d840c-906e-489f-a048-c835fe4b0aa8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -277,9 +280,6 @@
     <ClCompile Include="PhysicsSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
-    <ClCompile Include="PlayerControlSystem.cpp">
-      <Filter>ECS\System</Filter>
-    </ClCompile>
     <ClCompile Include="RenderSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
@@ -321,6 +321,15 @@
     </ClCompile>
     <ClCompile Include="BackpackAggregateSystem.cpp">
       <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerControlSystem.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerFactory.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerStateSystem.cpp">
+      <Filter>Player</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -569,9 +578,6 @@
     <ClInclude Include="TestSpawner.h">
       <Filter>Debug</Filter>
     </ClInclude>
-    <ClInclude Include="PlayerTag.h">
-      <Filter>Component</Filter>
-    </ClInclude>
     <ClInclude Include="InputMap.h">
       <Filter>Manager</Filter>
     </ClInclude>
@@ -588,9 +594,6 @@
       <Filter>Component</Filter>
     </ClInclude>
     <ClInclude Include="PhysicsSystem.h">
-      <Filter>ECS\System</Filter>
-    </ClInclude>
-    <ClInclude Include="PlayerControlSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="RenderSystem.h">
@@ -665,6 +668,24 @@
     </ClInclude>
     <ClInclude Include="BackpackAggregateSystem.h">
       <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerControlSystem.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerTag.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerStateComponent.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerFactory.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerStateSystem.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerStatsComponent.h">
+      <Filter>Player</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

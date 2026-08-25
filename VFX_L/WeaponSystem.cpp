@@ -72,17 +72,25 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 {
     m_Requests.clear();
     m_Spawned.clear();
+
+
     reg.CreateView<TransformComponent, WandComponent>()
         .Each([&](Entity e, TransformComponent& tf, WandComponent& wand)
             {
                 // ---- マナ回復（杖で共有）----
-                wand.manaCurrent = (std::min)(wand.manaMax, wand.manaCurrent + wand.manaRegen * dt);
+                wand.manaCurrent = (std::min)(wand.manaMax,
+                    wand.manaCurrent + wand.manaRegen * dt);
+
+                // ---- 動作アニメーションタイマー ----
+                if (wand.castAnimTimer > 0.0f)
+                    wand.castAnimTimer -= dt;
 
                 Vector3 muzzle = tf.position + wand.muzzleOffset;
 
                 // ---- 索敵は杖で1回だけ（出力源全員が同じ相手を狙う）----
                 Entity target = 0;
-                bool hasTarget = collision.FindNearestEntity(muzzle, wand.range, Layer_Enemy, target);
+                bool hasTarget = collision.FindNearestEntity(
+                    muzzle, wand.range, Layer_Enemy, target);
 
                 Vector3 aimDir(0, 0, 1);
                 if (hasTarget)
@@ -96,11 +104,30 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     else aimDir.Normalize();
                 }
 
+                // ---- 施法モードのゲート ----
+                // ★pendingCasts の連射には介入しない。
+                //   手動で1回押したら二重釈放の全弾が撃ち切られる（1入力 = 1 combo）。
+                bool allowNewCast = true;
+                bool ignoreCooldown = false;
+
+                switch (wand.castMode)
+                {
+                case CastMode::Auto:
+                    allowNewCast = true;
+                    break;
+                case CastMode::Manual:
+                    allowNewCast = wand.castRequested;
+                    break;
+                case CastMode::DebugBurst:
+                    allowNewCast = true;
+                    ignoreCooldown = true;
+                    break;
+                }
+
                 // ---- 出力源ごとに独立処理 ----
                 for (auto& s : wand.spells)
                 {
                     // === 二重釈放の連射（前回の施法の残り）===
-                    // ※こちらを先に処理する。連射中は新しい施法を始めない。
                     if (s.pendingCasts > 0)
                     {
                         s.delayTimer -= dt;
@@ -110,6 +137,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                             {
                                 QueueOneCast(s, muzzle, aimDir);
                                 wand.manaCurrent -= s.manaCost;
+                                wand.castAnimTimer = wand.castAnimDuration;
                             }
                             --s.pendingCasts;
                             s.delayTimer = s.castDelay;
@@ -118,19 +146,21 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     }
 
                     // === 新しい施法 ===
+                    // ★castTimer は常に減らす。ゲートで弾く前に減らさないと
+                    //   手動モードで待っている間クールダウンが進まない。
                     s.castTimer -= dt;
-                    if (s.castTimer > 0.0f) continue;
-                    if (!hasTarget) continue;                       // 敵がいない → 撃たない
-                    if (wand.manaCurrent < s.manaCost) continue;    // マナ不足 → 回復待ち
+                    if (!ignoreCooldown && s.castTimer > 0.0f) continue;
+                    if (!allowNewCast) continue;
+                    if (!hasTarget) continue;
+                    if (wand.manaCurrent < s.manaCost) continue;
 
-                    // 1回目を発射
                     QueueOneCast(s, muzzle, aimDir);
                     wand.manaCurrent -= s.manaCost;
+                    wand.castAnimTimer = wand.castAnimDuration;
 
                     // 二重釈放：残り回数を積んで、次フレーム以降に撃つ
                     s.pendingCasts = (std::max)(0, s.castCount - 1);
                     s.delayTimer = s.castDelay;
-
                     s.castTimer = s.castInterval;
                 }
             });
