@@ -1,4 +1,5 @@
 ﻿#include "ResourceManager.h"
+#include "ShaderPath.h"
 #include <iostream>
 #include "SkinnedModel.h"
 #include <assimp/Importer.hpp>
@@ -7,15 +8,30 @@
 #include <assimp/config.h> 
 #include <filesystem>
 
+// ============================================================
+// ※ToCsoPath は ShaderPath::ToCso へ移した。
+//   同じ変換関数が GPUParticleSystem 側にもコピーされており、
+//   読み込み方針を変えるたびに両方直す必要があった。
+//   実際、それが原因で Release だけ shader が見つからない状態が
+//   長い間隠れていた。
+// ============================================================
 
-static std::string ToCsoPath(const std::wstring& hlslPath)
+// ============================================================
+// entry の検査
+//
+// ※cso 方式ではエントリ名はビルド時に確定しているので、
+//   実行時に選べない。main 以外が渡されたら設計と食い違っている。
+//   黙って無視すると原因不明の描画不具合になるため警告する。
+// ============================================================
+static void WarnIfCustomEntry(const std::wstring& name, const std::string& entry)
 {
-    std::string s(hlslPath.begin(), hlslPath.end());
-    size_t dot = s.find_last_of('.');
-    if (dot != std::string::npos)
-        s = s.substr(0, dot);
-    return s + ".cso";   // パス保持、拡張子だけ差し替え
+    if (entry.empty() || entry == "main") return;
+
+    std::wcout << L"[Warning] entry point is ignored in cso mode: " << name
+        << L" (requested \"" << std::wstring(entry.begin(), entry.end()) << L"\")"
+        << std::endl;
 }
+
 static bool SceneHasBones(const aiScene* scene)
 {
     for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
@@ -23,6 +39,7 @@ static bool SceneHasBones(const aiScene* scene)
             return true;
     return false;
 }
+
 LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
@@ -40,7 +57,7 @@ LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
         aiProcess_GenNormals |
         aiProcess_MakeLeftHanded | /*
         aiProcess_LimitBoneWeights |*/
-        aiProcess_PopulateArmatureData);   // ★追加：骨/アーマチュア情報を整える（先生コード参照）
+        aiProcess_PopulateArmatureData);   // ※骨/アーマチュア情報を整える
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
     {
@@ -70,6 +87,7 @@ LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
 
     return out;
 }
+
 void ResourceManager::Initialize(ID3D11Device* device)
 {
     m_Device = device;
@@ -117,7 +135,16 @@ void ResourceManager::UnloadTexture(const std::wstring& filepath)
     m_Textures.erase(filepath);
 }
 
-// ===== VertexShader =====
+// ============================================================
+// VertexShader
+//
+// ※Debug も Release も cso を読む。
+//   構成によって読み込み経路が変わると、
+//   片方でしか出ない問題が必ず生まれる。
+//
+//   hlslPath を受け取るのは呼び出し側の記述を変えないため。
+//   実際に読むのは同じ場所の cso（拡張子だけ差し替え）。
+// ============================================================
 std::shared_ptr<VertexShader> ResourceManager::LoadVS(
     const std::wstring& name, const std::wstring& hlslPath, const std::string& entry)
 {
@@ -125,13 +152,18 @@ std::shared_ptr<VertexShader> ResourceManager::LoadVS(
     auto it = m_VertexShaders.find(name);
     if (it != m_VertexShaders.end()) return it->second;
 
+    WarnIfCustomEntry(name, entry);
+
     auto vs = std::make_shared<VertexShader>();
-#ifdef _DEBUG
-    HRESULT hr = vs->Compile(m_Device, hlslPath, entry);
-#else
-    HRESULT hr = vs->Load(m_Device, ToCsoPath(hlslPath).c_str());
-#endif
-    if (FAILED(hr)) { std::wcout << L"[Error] VS load failed: " << name << std::endl; return nullptr; }
+    const std::string csoPath = ShaderPath::ToCso(hlslPath);
+
+    if (FAILED(vs->Load(m_Device, csoPath.c_str())))
+    {
+        std::wcout << L"[Error] VS load failed: " << name
+            << L" (" << std::wstring(csoPath.begin(), csoPath.end()) << L")" << std::endl;
+        return nullptr;
+    }
+
     m_VertexShaders[name] = vs;
     return vs;
 }
@@ -157,7 +189,9 @@ std::shared_ptr<VertexShader> ResourceManager::LoadVS_CSO(
     return vs;
 }
 
-// ===== PixelShader =====
+// ============================================================
+// PixelShader
+// ============================================================
 std::shared_ptr<PixelShader> ResourceManager::LoadPS(
     const std::wstring& name, const std::wstring& hlslPath, const std::string& entry)
 {
@@ -165,16 +199,22 @@ std::shared_ptr<PixelShader> ResourceManager::LoadPS(
     auto it = m_PixelShaders.find(name);
     if (it != m_PixelShaders.end()) return it->second;
 
+    WarnIfCustomEntry(name, entry);
+
     auto ps = std::make_shared<PixelShader>();
-#ifdef _DEBUG
-    HRESULT hr = ps->Compile(m_Device, hlslPath, entry);
-#else
-    HRESULT hr = ps->Load(m_Device, ToCsoPath(hlslPath).c_str());
-#endif
-    if (FAILED(hr)) { std::wcout << L"[Error] PS load failed: " << name << std::endl; return nullptr; }
+    const std::string csoPath = ShaderPath::ToCso(hlslPath);
+
+    if (FAILED(ps->Load(m_Device, csoPath.c_str())))
+    {
+        std::wcout << L"[Error] PS load failed: " << name
+            << L" (" << std::wstring(csoPath.begin(), csoPath.end()) << L")" << std::endl;
+        return nullptr;
+    }
+
     m_PixelShaders[name] = ps;
     return ps;
 }
+
 std::shared_ptr<PixelShader> ResourceManager::LoadPS_CSO(
     const std::wstring& name,
     const std::string& csoPath)
@@ -196,7 +236,9 @@ std::shared_ptr<PixelShader> ResourceManager::LoadPS_CSO(
     return ps;
 }
 
-// ===== ComputeShader =====
+// ============================================================
+// ComputeShader
+// ============================================================
 std::shared_ptr<ComputeShader> ResourceManager::LoadCS(
     const std::wstring& name, const std::wstring& hlslPath, const std::string& entry)
 {
@@ -204,13 +246,18 @@ std::shared_ptr<ComputeShader> ResourceManager::LoadCS(
     auto it = m_ComputeShaders.find(name);
     if (it != m_ComputeShaders.end()) return it->second;
 
+    WarnIfCustomEntry(name, entry);
+
     auto cs = std::make_shared<ComputeShader>();
-#ifdef _DEBUG
-    HRESULT hr = cs->Compile(m_Device, hlslPath, entry);
-#else
-    HRESULT hr = cs->Load(m_Device, ToCsoPath(hlslPath).c_str());
-#endif
-    if (FAILED(hr)) { std::wcout << L"[Error] CS load failed: " << name << std::endl; return nullptr; }
+    const std::string csoPath = ShaderPath::ToCso(hlslPath);
+
+    if (FAILED(cs->Load(m_Device, csoPath.c_str())))
+    {
+        std::wcout << L"[Error] CS load failed: " << name
+            << L" (" << std::wstring(csoPath.begin(), csoPath.end()) << L")" << std::endl;
+        return nullptr;
+    }
+
     m_ComputeShaders[name] = cs;
     return cs;
 }
@@ -386,4 +433,3 @@ void ResourceManager::UnloadVFXTemplate(const std::string& filepath)
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
     m_VFXTemplates.erase(filepath);
 }
-

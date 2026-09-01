@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // PlayerFactory.cpp
 // ============================================================
 #include "PlayerFactory.h"
@@ -7,12 +7,15 @@
 #include "ColliderComponent.h"
 #include "RigidbodyComponent.h"
 #include "ModelComponent.h"
+#include "LevelComponent.h"
+#include "BackpackLogic.h"
 #include "PlayerTag.h"
 #include "PlayerStatsComponent.h"
 #include "PlayerStateComponent.h"
 #include "HealthComponent.h"
 #include "WandComponent.h"
 #include "BackpackComponent.h"
+#include "SpellbookComponent.h"
 #include "PrimitiveBuilder.h"
 #include <iostream>
 
@@ -30,7 +33,7 @@ namespace PlayerFactory
         // ============================================================
         // 衝突体（垂直カプセル）
         //
-        // ★mask から Layer_PlayerShot を外している。
+        // ※mask から Layer_PlayerShot を外している。
         //   muzzleOffset が {0, 0.5, 0} = カプセル内部なので、
         //   自分の弾を検出すると発射の瞬間に必ず自傷する。
         //   投射物側の mask（Enemy|Terrain）だけに頼らないこと。
@@ -62,7 +65,7 @@ namespace PlayerFactory
         reg.Add<PlayerTag>(e, {});
 
         // ---- 能力値 ----
-        // ★以降 Scene も System もこの値のコピーを持たない
+        // ※以降 Scene も System もこの値のコピーを持たない
         PlayerStatsComponent stats;
         stats.moveSpeed = cfg.moveSpeed;
         stats.jumpPower = cfg.jumpPower;
@@ -70,12 +73,13 @@ namespace PlayerFactory
         stats.height = cfg.height;
         reg.Add<PlayerStatsComponent>(e, stats);
 
+        reg.Add<LevelComponent>(e, {});
         // ---- 状態機（HSM、3層）----
-        // ★PlayerStateSystem が物理の後に進める。
+        // ※PlayerStateSystem が物理の後に進める。
         reg.Add<PlayerStateComponent>(e, {});
 
         // ---- 体力 ----
-        // ★従来プレイヤーには付いていなかった。
+        // ※従来プレイヤーには付いていなかった。
         //   HitEvent の消費側が Has<HealthComponent> で弾くため、
         //   敵の攻撃が当たっても何も起きない状態だった。
         HealthComponent hp;
@@ -91,8 +95,22 @@ namespace PlayerFactory
 
         // ---- バックパック ----
         if (cfg.withBackpack)
-            reg.Add<BackpackComponent>(e, {});
+        {
+            BackpackComponent bpc;
 
+            // 初期の設置枠。何も無いと最初の三択で枠を引くまで
+            // 魔法を1つも置けないので、中央に 3x3 を敷いておく。
+            // Rect のアンカーは左上なので (2,2) で 2..4 行 2..4 列を覆う。
+            BackpackLogic::PlaceFrame(bpc, ItemID::Frame3x3, 2, 2, 0);
+
+            reg.Add<BackpackComponent>(e, bpc);
+        }
+        // ---- 習得済み魔法 ----
+        // 開始時点の手持ち。レベルアップの三択で増えていく。
+        SpellbookComponent book;
+        book.Learn(ItemID::Fireball, 1);
+        book.Learn(ItemID::Frame3x3, 1);   // 初期配置で使う1枚
+        reg.Add<SpellbookComponent>(e, book);
         std::cout << "[PlayerFactory] player created (entity " << e << ")" << std::endl;
         return e;
     }

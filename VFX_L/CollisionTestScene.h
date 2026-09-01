@@ -1,12 +1,12 @@
-// ============================================================
+﻿// ============================================================
 // CollisionTestScene.h
-// 戦闘 + 物理 + カメラ + 投射物 VFX / ビルボード + バックパック
+// 戦闘 + 物理 + カメラ + 投射物 VFX / ビルボード + 呪文グリッド
 //
-// ★杖の中身（spells / areas）はバックパックの集約結果のみで決まる。
+// 杖の中身（spells / areas）はグリッドの集約結果のみで決まる。
 //   シーン側で数値を書かない。魔法の定義は Items/*.h が唯一の出処。
-// ★プレイヤーの能力値は PlayerAbilityComponent が持つ。
+// プレイヤーの能力値は PlayerStatsComponent が持つ。
 //   シーンはコピーを持たない（roguelite の成長を書く場所を1つにするため）。
-// ★画面サイズは Graphics から取得し、変化に追従する。
+// 画面サイズは Graphics から取得し、変化に追従する。
 // ============================================================
 #pragma once
 #include "SceneBase.h"
@@ -23,6 +23,8 @@
 #include "ProjectileVFXSystem.h"
 #include "ProjectileBillboardRenderer.h"
 #include "BackpackAggregateSystem.h"
+#include "ExpOrbSystem.h"
+#include "LevelUpSystem.h"
 #include "RenderSystem.h"
 
 #include "GPUParticleSystem.h"
@@ -30,6 +32,7 @@
 
 #include "SpriteRenderer.h"
 #include "BackpackUI.h"
+#include "LevelUpUI.h"
 
 #include "SpellID.h"      // ItemID
 
@@ -48,12 +51,13 @@ public:
 
 private:
     // ---- 毎フレーム ----
-    void UpdateScreenSize();          // 画面サイズの変化に追従する
+    void UpdateScreenSize();
     void UpdateGameplay(float dt);
+    void UpdateLevelUpChoice();       // 選択待ちの間だけ回す
 
     // ---- ImGui パネル ----
     void DrawDebugUI();
-    void DrawPlayerPanel();           // 位置 / 体力 / 状態機 / 能力値
+    void DrawPlayerPanel();
     void DrawBackpackPanel();
     void DrawWandPanel();
     void DrawStressPanel();
@@ -76,8 +80,8 @@ private:
 
     // ============================================================
     // Systems
-    // ★実行順は UpdateGameplay のコメントを参照。
-    //   ここの宣言順は実行順とは無関係。
+    // 実行順は UpdateGameplay のコメントを参照。
+    // ここの宣言順は実行順とは無関係。
     // ============================================================
     CollisionSystem         m_CollisionSystem;
     PhysicsSystem           m_PhysicsSystem;
@@ -86,6 +90,8 @@ private:
     WeaponSystem            m_WeaponSystem;
     ProjectileSystem        m_ProjectileSystem;
     ProjectileVFXSystem     m_ProjectileVFXSystem;
+    ExpOrbSystem            m_ExpOrbSystem;
+    LevelUpSystem           m_LevelUpSystem;
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
 
@@ -99,6 +105,7 @@ private:
     // --- UI ---
     SpriteRenderer m_SpriteRenderer;
     BackpackUI     m_BackpackUI;
+    LevelUpUI      m_LevelUpUI;
     bool           m_BackpackOpen = false;
     bool           m_PauseOnBackpack = true;
 
@@ -122,6 +129,10 @@ private:
     bool m_ShowWandDebug = true;
     bool m_ShowBillboard = true;
 
+    // 粒子を消して投射物の芯だけを見えるようにする。
+    // 加算合成の光の中では実体の位置が分からなくなるため。
+    bool m_ShowParticle = true;
+
     // --- ライト ---
     float m_LightDir[3] = { 0.5f, -1.0f, 0.5f };
     float m_LightColor[3] = { 1.0f, 1.0f, 1.0f };
@@ -131,14 +142,14 @@ private:
     // ============================================================
     // プレイヤー関連でシーンが持つもの
     //
-    // ★moveSpeed / jumpPower / radius / height は
-    //   PlayerAbilityComponent へ移動した。ここには置かない。
-    //   置くと「成長で +10% 速度」を書く場所が 2 つになる。
+    // moveSpeed / jumpPower / radius / height は
+    // PlayerStatsComponent へ移動した。ここには置かない。
+    // 置くと「成長で +10% 速度」を書く場所が2つになる。
     //
-    //   残しているのは：
-    //     color   = 見た目の選択（シーンの演出）
-    //     gravity = 場のパラメータ（プレイヤーの能力ではない）
-    //     spawnPos= このシーン固有の初期位置
+    // 残しているのは：
+    //   color   = 見た目の選択（シーンの演出）
+    //   gravity = 場のパラメータ（プレイヤーの能力ではない）
+    //   spawnPos= このシーン固有の初期位置
     // ============================================================
     float m_PlayerColor[3] = { 0.3f, 0.6f, 1.0f };
     float m_Gravity = -20.0f;
@@ -152,14 +163,13 @@ private:
     bool m_StressWithModel = false;
     bool m_StressWithCollider = true;
 
-    // ★VFX を付けるか。
-    //   OFF だと emitter が 1 つも生まれないので、
-    //   粒子発射経路（EmitCS / deadList）の負荷試験にはならない。
+    // これを ON にしない限り emitter が1つも生まれないので、
+    // 粒子発射経路（EmitCS / deadList）の負荷試験にはならない。
     bool   m_StressWithVFX = false;
     ItemID m_StressVFXItem = ItemID::Fireball;
 
-    // ★自動補充：投射物数を目標値に保ち、粒子プールを枯渇させ続ける。
-    //   deadCount 護欄が効いているかは「枯渇状態」でしか検証できない。
+    // 投射物数を目標値に保ち、粒子プールを枯渇させ続ける。
+    // deadCount のガードが効いているかは枯渇状態でしか検証できない。
     bool  m_StressAutoRefill = false;
     int   m_RefillTarget = 1000;
     int   m_RefillBatch = 100;
@@ -177,12 +187,7 @@ private:
 
     // ============================================================
     // 負荷テストのプリセット
-    // 手動で slider を動かすと毎回条件がズレて比較にならないため、
-    // ボタン 1 つで同じ条件を再現できるようにする。
-    //
-    // 比較の要点：
-    //   P1 と P2 は有効 emitter が同じ 1024 で投射物数だけが違う。
-    //   P3 は投射物数を保ったまま VFX を切る（VFX 全体のコストが出る）。
+    // 手動で slider を動かすと毎回条件がズレて比較にならない。
     // ============================================================
     struct StressPreset
     {

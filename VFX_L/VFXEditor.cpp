@@ -21,9 +21,8 @@ void VFXEditor::DrawSystemInfo()
 {
     if (m_ParticleSystem)
     {
-        ImGui::Text("Alive: %u", m_ParticleSystem->GetAliveCount());
-        ImGui::Text("Dead:  %u", m_ParticleSystem->GetDeadCount());
-        ImGui::Text("Max:   %u", m_ParticleSystem->GetMaxParticles());
+        ImGui::Text("Pool : %u", m_ParticleSystem->GetMaxParticles());
+        ImGui::TextDisabled("Alive count lives on the GPU only.");
         ImGui::Separator();
     }
 

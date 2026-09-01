@@ -20,7 +20,7 @@
         uint globalIndex = id.x;
 
         // ============================================
-        // ★空き数を超えるスレッドは Consume させない。
+        //   空き数を超えるスレッドは Consume させない。
         //   CPU 側で発射数を絞っても、Dispatch は 256 スレッド粒度なので必ず溢れる。
         //   溢れた分が Consume すると計数器が下溢（uint 回り込み）して
         //   dead list が静かに壊れる。落ちないので気付けない。
@@ -125,7 +125,7 @@
         p.colorKeyOffset = e.colorKeyoffset;
         p.colorKeyCount = e.colorKeyCount;
 
-        // ★所有者を引き継ぐ。0 = 無主（投射物VFX）。
+        // 所有者を引き継ぐ。0 = 無主（投射物VFX）。
         p.ownerID = e.ownerID;
 
         particles[particleIndex] = p;

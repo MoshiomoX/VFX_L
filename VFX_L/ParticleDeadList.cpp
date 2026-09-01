@@ -80,7 +80,7 @@ void ParticleDeadList::BindCSUAV(ID3D11DeviceContext* context, uint32_t slot, ui
 
 void ParticleDeadList::UnbindCSUAV(ID3D11DeviceContext* context, uint32_t slot)
 {
-    // ★同上：計数器は GPU が維持するので 0 を書かない
+    // ※同上：計数器は GPU が維持するので 0 を書かない
     ID3D11UnorderedAccessView* nullUAV = nullptr;
     UINT keep = (UINT)-1;
     context->CSSetUnorderedAccessViews(slot, 1, &nullUAV, &keep);

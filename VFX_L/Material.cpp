@@ -1,4 +1,4 @@
-#include "Material.h"
+﻿#include "Material.h"
 #include "VertexShader.h"
 #include "PixelShader.h"
 
@@ -15,7 +15,7 @@ void Material::InitDefaultTextures(ID3D11Device* device)
             return t;
         };
 
-    // ★slotの意味に応じた安全な既定値（ここが重要）
+    // ※slotの意味に応じた安全な既定値（ここが重要）
     s_DefaultTextures[Albedo] = make(255, 255, 255);  // 白：色を変えない
     s_DefaultTextures[Normal] = make(128, 128, 255);  // 平坦法線 (0,0,1)
     s_DefaultTextures[Metallic] = make(0, 0, 0);    // 非金属

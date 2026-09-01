@@ -1,4 +1,5 @@
-#include "Renderer.h"
+﻿#include "Renderer.h"
+#include "ShaderPath.h"
 #include <iostream>
 
 bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
@@ -10,21 +11,21 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_Context = context;
 
     m_DefaultVS = std::make_shared<VertexShader>();
-#ifdef _DEBUG
-    HRESULT hrVS = m_DefaultVS->Compile(device, L"Shader/VS.hlsl");
-#else
-    HRESULT hrVS = m_DefaultVS->Load(device, "Shader/VS.cso");
-#endif
-    if (FAILED(hrVS)) { std::cout << "[Error] Default VS load failed" << std::endl; return false; }
-
+    // ※Debug/Release とも cso を読む（ShaderPath 参照）
+    HRESULT hrVS = ShaderPath::Load(m_DefaultVS.get(), device, L"Shader/VS.hlsl");
+    if (FAILED(hrVS))
+    {
+        std::cout << "[Error] Default VS load failed" << std::endl;
+        return false;
+    }
     m_DefaultPS = std::make_shared<PixelShader>();
-#ifdef _DEBUG
-    HRESULT hrPS = m_DefaultPS->Compile(device, L"Shader/PS.hlsl");
-#else
-    HRESULT hrPS = m_DefaultPS->Load(device, "Shader/PS.cso");
-#endif
-    if (FAILED(hrPS)) { std::cout << "[Error] Default PS load failed" << std::endl; return false; }
-    
+    HRESULT hrPS = ShaderPath::Load(m_DefaultPS.get(), device, L"Shader/PS.hlsl");
+    if (FAILED(hrPS))
+    {
+        std::cout << "[Error] Default PS load failed" << std::endl;
+        return false;
+    }
+
     m_DefaultTexture = std::make_shared<Texture>();
     m_DefaultTexture->CreateSolid(device, 255, 255, 255, 255);   // 白1x1
     m_LightData.directionalLight.direction = Vector3(0.5f, -1.0f, 0.5f);
@@ -34,7 +35,7 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_LightData.ambientColor = Vector3(0.2f, 0.2f, 0.2f);
 
     std::cout << "[OK] Renderer initialized" << std::endl;
-    // ★標準サンプラ生成（線形補間 + WRAP）。PBRのt0~t4で共用
+    // 標準サンプラ生成（線形補間 + WRAP）。PBRのt0~t4で共用
     //D3D11_SAMPLER_DESC sd = {};
     //sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     //sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;

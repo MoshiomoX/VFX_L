@@ -331,6 +331,15 @@
     <ClCompile Include="PlayerStateSystem.cpp">
       <Filter>Player</Filter>
     </ClCompile>
+    <ClCompile Include="ExpOrbSystem.cpp">
+      <Filter>Item</Filter>
+    </ClCompile>
+    <ClCompile Include="LevelUpSystem.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="LevelUpUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -686,6 +695,33 @@
     </ClInclude>
     <ClInclude Include="PlayerStatsComponent.h">
       <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderPath.h">
+      <Filter>Graphics\Shader</Filter>
+    </ClInclude>
+    <ClInclude Include="Frame3x3.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="SpellbookComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="LevelComponent.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="ExpOrbComponent.h">
+      <Filter>Item</Filter>
+    </ClInclude>
+    <ClInclude Include="ExpOrbSystem.h">
+      <Filter>Item</Filter>
+    </ClInclude>
+    <ClInclude Include="ExpRewardComponent.h">
+      <Filter>Item</Filter>
+    </ClInclude>
+    <ClInclude Include="LevelUpSystem.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="LevelUpUI.h">
+      <Filter>UI</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

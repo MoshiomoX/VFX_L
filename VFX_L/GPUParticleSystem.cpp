@@ -1,30 +1,10 @@
 #include "GPUParticleSystem.h"
+#include "ShaderPath.h"
 #include <d3dcompiler.h>
 #include <algorithm>
 #include <iostream>
 
 #pragma comment(lib, "d3dcompiler.lib")
-
-// hlslパス → csoパス
-static std::string PtoCso(const std::wstring& hlslPath)
-{
-    std::string s(hlslPath.begin(), hlslPath.end());
-    size_t dot = s.find_last_of('.');
-    if (dot != std::string::npos)
-        s = s.substr(0, dot);
-    return s + ".cso";   // "Shader/Particle/GPUParticleVS.cso"
-}
-
-// VS/PS/CS 共通：Debug=hlslコンパイル / Release=csoロード
-template <class T>
-static HRESULT LoadShaderAuto(T* shader, ID3D11Device* device, const std::wstring& hlslPath)
-{
-#ifdef _DEBUG
-    return shader->Compile(device, hlslPath);
-#else
-    return shader->Load(device, PtoCso(hlslPath).c_str());
-#endif
-}
 
 // ============================================
 // 初期化
@@ -44,7 +24,7 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!CreateDrawIndirectBuffer(device))   return false;
     if (!CreateAliveListBuffer(device, maxParticles)) return false;
 
-    // ★DispatchEmit が使うので、必ず初回発射より前に作る。
+    // DispatchEmit が使うので、必ず初回発射より前に作る。
     //   ここを忘れると deadCount が null → 全スレッドが return して
     //   一発も発射されない（しかもエラーは出ない）。
     if (!CreateDeadCountBuffer(device))      return false;
@@ -273,78 +253,33 @@ bool GPUParticleSystem::CreateDeadCountBuffer(ID3D11Device* device)
 bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
 {
     m_InitDeadListCS = std::make_shared<ComputeShader>();
-    HRESULT hr = LoadShaderAuto(m_InitDeadListCS.get(), device, L"Shader/Particle/InitDeadListCS.hlsl");
+    HRESULT hr = ShaderPath::Load(m_InitDeadListCS.get(), device,
+        L"Shader/Particle/InitDeadListCS.hlsl");
     std::cout << "[LoadShaders] InitDeadListCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_EmitCS = std::make_shared<ComputeShader>();
-    hr = LoadShaderAuto(m_EmitCS.get(), device, L"Shader/Particle/ParticleEmitCS.hlsl");
+    hr = ShaderPath::Load(m_EmitCS.get(), device, L"Shader/Particle/ParticleEmitCS.hlsl");
     std::cout << "[LoadShaders] EmitCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_UpdateCS = std::make_shared<ComputeShader>();
-    hr = LoadShaderAuto(m_UpdateCS.get(), device, L"Shader/Particle/ParticleUpdateCS.hlsl");
+    hr = ShaderPath::Load(m_UpdateCS.get(), device, L"Shader/Particle/ParticleUpdateCS.hlsl");
     std::cout << "[LoadShaders] UpdateCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_RenderVS = std::make_shared<VertexShader>();
-    hr = LoadShaderAuto(m_RenderVS.get(), device, L"Shader/Particle/GPUParticleVS.hlsl");
+    hr = ShaderPath::Load(m_RenderVS.get(), device, L"Shader/Particle/GPUParticleVS.hlsl");
     std::cout << "[LoadShaders] RenderVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_RenderPS = std::make_shared<PixelShader>();
-    hr = LoadShaderAuto(m_RenderPS.get(), device, L"Shader/Particle/GPUParticlePS.hlsl");
+    hr = ShaderPath::Load(m_RenderPS.get(), device, L"Shader/Particle/GPUParticlePS.hlsl");
     std::cout << "[LoadShaders] RenderPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     return true;
 }
-
-// ============================================
-// レンダーステート作成
-// ※RenderStates（全体共通ステート）へ移行済み。復活させない。
-// ============================================
-//bool GPUParticleSystem::CreateRenderStates(ID3D11Device* device)
-//{
-//    D3D11_BLEND_DESC blendDesc = {};
-//    blendDesc.RenderTarget[0].BlendEnable = TRUE;
-//    blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-//    blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
-//    blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-//    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-//    blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
-//    blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-//    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-//
-//    HRESULT hr = device->CreateBlendState(&blendDesc, &m_BlendState);
-//    if (FAILED(hr)) return false;
-//
-//    D3D11_DEPTH_STENCIL_DESC dsDesc = {};
-//    dsDesc.DepthEnable = TRUE;
-//    dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-//    dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
-//
-//    hr = device->CreateDepthStencilState(&dsDesc, &m_DepthStencilState);
-//    if (FAILED(hr)) return false;
-//
-//    D3D11_RASTERIZER_DESC rsDesc = {};
-//    rsDesc.FillMode = D3D11_FILL_SOLID;
-//    rsDesc.CullMode = D3D11_CULL_NONE;
-//
-//    hr = device->CreateRasterizerState(&rsDesc, &m_RasterizerState);
-//    if (FAILED(hr)) return false;
-//
-//    D3D11_SAMPLER_DESC sampDesc = {};
-//    sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-//    sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-//    sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-//    sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-//
-//    hr = device->CreateSamplerState(&sampDesc, &m_SamplerState);
-//    if (FAILED(hr)) return false;
-//
-//    return true;
-//}
 // ============================================
 // 毎フレーム更新
 //
@@ -430,7 +365,7 @@ void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t requ
 {
     if (requestedEmit == 0) return;
 
-    // ★deadCount が未作成だと全スレッドが return して無音で発射されなくなる。
+    //deadCount が未作成だと全スレッドが return して無音で発射されなくなる。
     //   一度だけ警告して原因を分かるようにする。
     if (!m_DeadCountBuffer || !m_DeadCountSRV)
     {
@@ -456,7 +391,7 @@ void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t requ
 
     // UAV はキューに溜めて一括バインド
     m_EmitCS->SetUAV(context, "particles", m_ParticleUAV.Get());
-    // ★initialCount = -1（保持）。CPU の値を渡すと計数器を毎フレーム上書きし、
+    //initialCount = -1（保持）。CPU の値を渡すと計数器を毎フレーム上書きし、
     //   下溢バグを隠す膏薬になる。計数器は GPU が自分で維持する。
     m_EmitCS->SetUAV(context, "deadList", m_DeadList.GetUAV(), (UINT)-1);
     m_EmitCS->BindUAVs(context);
@@ -474,7 +409,7 @@ void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t requ
 void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
 {
     // ※deadCount は UpdateCS 側で未使用（g_MaxParticles しか読んでいない）。
-    //   ★maxParticles は削除不可：id.x の上限判定に使われている。
+    //   maxParticles は削除不可：id.x の上限判定に使われている。
     //     ここを消すと粒子が一切更新されなくなる。
     DeadListCB dlcb = {};
     dlcb.deadCount = 0;

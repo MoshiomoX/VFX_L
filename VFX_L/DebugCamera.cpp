@@ -1,4 +1,4 @@
-#include "DebugCamera.h"
+﻿#include "DebugCamera.h"
 #include "InputManager.h"
 
 void DebugCamera::Update(float dt)
@@ -19,7 +19,7 @@ void DebugCamera::Update(float dt)
         DirectX::XMLoadFloat3(reinterpret_cast<const DirectX::XMFLOAT3*>(&m_Up)));
     DirectX::XMVECTOR vFront = DirectX::XMVectorSubtract(m_Arg.vCamLook, m_Arg.vCamPos);
 
-    // ★参考版 CameraDCC と完全一致（side = cross(up, front)）
+    // ※参考版 CameraDCC と完全一致（side = cross(up, front)）
     m_Arg.vCamFront = DirectX::XMVector3Normalize(vFront);
     m_Arg.vCamSide = DirectX::XMVector3Normalize(DirectX::XMVector3Cross(vCamUp, m_Arg.vCamFront));
     m_Arg.vCamUp = DirectX::XMVector3Normalize(DirectX::XMVector3Cross(m_Arg.vCamFront, m_Arg.vCamSide));
@@ -145,7 +145,7 @@ void DebugCamera::UpdateFlight()
     if (input.GetKeyPress('Q')) vMove = DirectX::XMVectorAdd(vMove, DirectX::XMVectorSet(0, 1, 0, 0));
     if (input.GetKeyPress('E')) vMove = DirectX::XMVectorAdd(vMove, DirectX::XMVectorSet(0, -1, 0, 0));
 
-    // ★dtを掛けてフレームレート非依存に（×60で元のflightSpeed数値感を維持）
+    // ※dtを掛けてフレームレート非依存に（×60で元のflightSpeed数値感を維持）
     vMove = DirectX::XMVectorScale(vMove, flightSpeed * m_Dt * 60.0f);
 
     DirectX::XMVECTOR vNewPos = DirectX::XMVectorAdd(m_Arg.vCamPos, vMove);

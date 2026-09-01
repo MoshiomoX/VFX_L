@@ -1,4 +1,4 @@
-#include "SkinnedModel.h"
+﻿#include "SkinnedModel.h"
 #include "AssimpFlags.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -10,7 +10,7 @@
 #include <algorithm>
 using namespace DirectX::SimpleMath;
 
-// ★offsetMatrixを階層から再計算するスイッチ
+// ※offsetMatrixを階層から再計算するスイッチ
 //   [bind-check] の worstDiff が大きい(>0.1)submeshがある場合に true にして再実行
 static constexpr bool kRebuildOffsetsFromHierarchy =false;
 
@@ -130,7 +130,7 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
                 sub.indices.push_back(face.mIndices[k]);
         }
 
-        // ボーンウェイト + offset行列（★offsetはこのsubmesh専用に保存）
+        // ボーンウェイト + offset行列（※offsetはこのsubmesh専用に保存）
         for (unsigned int bi = 0; bi < mesh->mNumBones; ++bi)
         {
             aiBone* aibone = mesh->mBones[bi];
@@ -144,7 +144,7 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
                 std::cout << "[add-missing-bone] " << boneName << std::endl;
             }
 
-            // ★offsetは全骨共有せず、submesh毎のmapに保存
+            // ※offsetは全骨共有せず、submesh毎のmapに保存
             sub.boneOffsets[boneIndex] = ToSM(aibone->mOffsetMatrix);
 
             if (aibone->mNumWeights == 0)
@@ -170,7 +170,7 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
             vert.NormalizeWeights();
 
         // ============================================
-        // ★bind整合性チェック：
+        // ※bind整合性チェック：
         //   offset * boneGlobalBind ≒ meshNodeGlobalBind のはず
         //   崩れている骨 = スパイク（手/剣/盾）の発生源
         // ============================================
@@ -178,7 +178,7 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
             Matrix meshNodeGlobal = Matrix::Identity;
             FindMeshNodeGlobal(scene->mRootNode, mi, Matrix::Identity, meshNodeGlobal);
 
-            // ★追加：meshNodeGlobal が Identity か確認
+            // ※追加：meshNodeGlobal が Identity か確認
             std::cout << "[meshNode] submesh=" << mi
                 << " pos=(" << meshNodeGlobal._41 << "," << meshNodeGlobal._42 << "," << meshNodeGlobal._43 << ")"
                 << " _11=" << meshNodeGlobal._11 << std::endl;
@@ -204,7 +204,7 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
                 << " bone=" << (worstBone >= 0 ? bones[worstBone].name : std::string("none"))
                 << std::endl;
 
-            // ★修復スイッチ：ファイルのoffsetを捨て、階層から再計算する
+            // ※修復スイッチ：ファイルのoffsetを捨て、階層から再計算する
             //   offset = meshNodeGlobal * Invert(boneGlobalBind)
             //   → bind時 offset*globalBind = meshNodeGlobal が保証され、スパイクは消えるはず
             if (kRebuildOffsetsFromHierarchy)
@@ -305,7 +305,7 @@ float SkinnedModel::GetClipDurationSec(int clipIndex) const
 }
 
 // ============================================
-// 時刻 → 各ボーンの global行列（★offsetはここで掛けない）
+// 時刻 → 各ボーンの global行列（※offsetはここで掛けない）
 // ============================================
 void SkinnedModel::SampleAnimation(float timeSec, std::vector<Matrix>& outGlobal, int clipIndex) const
 {

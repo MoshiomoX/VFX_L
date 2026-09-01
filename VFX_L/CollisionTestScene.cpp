@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // CollisionTestScene.cpp
 // ============================================================
 #include "CollisionTestScene.h"
@@ -16,7 +16,9 @@
 #include "WandComponent.h"
 #include "AreaStats.h"
 #include "BackpackComponent.h"
+#include "SpellbookComponent.h"
 #include "SpellID.h"
+#include "ItemTypes.h"
 #include "HealthComponent.h"
 #include "View.h"
 
@@ -33,6 +35,11 @@
 #include "ResourcePaths.h"
 #include "Model.h"
 #include "imgui.h"
+#include "LevelComponent.h"
+#include "ExpOrbComponent.h"
+#include "ExpRewardComponent.h"
+#include "ExpOrbSystem.h"
+#include "LevelUpSystem.h"
 
 #include <unordered_set>
 #include <iostream>
@@ -116,8 +123,8 @@ void CollisionTestScene::Init()
 
     // ============================================================
     // プレイヤー
-    // ★組み立ては PlayerFactory に集約。
-    //   ここは初期値の指定だけ。実行時の真実は Component 側。
+    // 組み立ては PlayerFactory に集約。
+    // ここは初期値の指定だけ。実行時の真実は Component 側。
     // ============================================================
     PlayerFactory::Config pcfg;
     pcfg.spawnPos = { m_SpawnPos[0], m_SpawnPos[1], m_SpawnPos[2] };
@@ -125,6 +132,18 @@ void CollisionTestScene::Init()
 
     m_Player = PlayerFactory::Create(m_Registry, device, pcfg);
 
+    // 所持数の参照先を UI へ渡す。
+    // 習得していない魔法をパレットから取り出せないようにするため。
+    // Registry の配列が再確保されるとポインタが無効になるが、
+    // SpellbookComponent を持つのはプレイヤーだけなので今は起きない。
+    // 敵にも持たせるようになったら、毎フレーム取り直す方式へ変える。
+    if (m_Registry.Has<SpellbookComponent>(m_Player))
+        m_BackpackUI.SetSpellbook(&m_Registry.Get<SpellbookComponent>(m_Player));
+    // ---------- レベルアップ UI ----------
+    // 背景を暗くするので、単色の板テクスチャを共有する。
+    m_LevelUpUI.Initialize(ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo));
+    m_LevelUpUI.LoadIcons();
+    m_LevelUpUI.Layout(m_ScreenW, m_ScreenH);
     // ---------- 敵 ----------
     RespawnEnemies();
 
@@ -134,7 +153,7 @@ void CollisionTestScene::Init()
 
 // ============================================================
 // 定義表の内容を各 System へ流し込む
-// ※魔法を追加してもここは触らずに済む（全 ID を走査するため）
+// 魔法を追加してもここは触らずに済む（全 ID を走査するため）
 // ============================================================
 void CollisionTestScene::RegisterItemVisuals()
 {
@@ -171,7 +190,7 @@ void CollisionTestScene::Shutdown()
 
 // ============================================================
 // 画面サイズの変化に追従する
-// ※UI の当たり判定と描画を同じ座標系に保つために必須
+// UI の当たり判定と描画を同じ座標系に保つために必須
 // ============================================================
 void CollisionTestScene::UpdateScreenSize()
 {
@@ -187,12 +206,12 @@ void CollisionTestScene::UpdateScreenSize()
 
     m_SpriteRenderer.SetScreenSize(w, h);
     m_BackpackUI.Layout(w, h);
+    m_LevelUpUI.Layout(w, h);
     m_Camera.Init(45.0f, w / h, 0.1f, 10000.0f);
 
     std::cout << "[CollisionTestScene] screen resized: "
         << (int)w << "x" << (int)h << std::endl;
 }
-
 // ============================================================
 // Update
 // ============================================================
@@ -203,18 +222,34 @@ void CollisionTestScene::Update(float dt)
 
     UpdateScreenSize();
 
-    // ---- バックパック開閉 ----
+    // ============================================================
+    // レベルアップの選択は他の何よりも優先する。
+    // 選択中はグリッドを開けない。
+    // 2つの UI が同時に出ると入力の取り合いになるため。
+    //
+    // ここで早期 return する分岐は、UI が増えたら
+    // UIManager へ移す予定。今は2つなので直書きで足りる。
+    // ============================================================
+    if (LevelUpSystem::IsAnyoneChoosing(m_Registry))
+    {
+        UpdateLevelUpChoice();
+        DrawDebugUI();
+        return;
+    }
+
+    // ---- グリッド開閉 ----
     if (InputMap::GetBackpackToggle())
         m_BackpackOpen = !m_BackpackOpen;
 
+    // 時間停止するかは独立制御（調整用に切り替えられる）
     bool paused = m_BackpackOpen && m_PauseOnBackpack;
 
-    // ---- バックパックの操作（開いている間だけ）----
+    // ---- グリッドの操作（開いている間だけ）----
     if (m_BackpackOpen && m_Registry.Has<BackpackComponent>(m_Player))
         m_BackpackUI.HandleInput(m_Registry.Get<BackpackComponent>(m_Player));
 
     // ---- 集約：配置が変わった時だけ杖を再構築する ----
-    // ★一時停止中も実行する。配置しながら結果を確認できるようにするため。
+    // 一時停止中も実行する。配置しながら結果を確認できるようにするため。
     m_BackpackAggregate.Update(m_Registry);
 
     if (!paused)
@@ -224,18 +259,25 @@ void CollisionTestScene::Update(float dt)
 }
 
 // ============================================================
-// 投射物の数を数える（自動補充の判定用）
+// 習得候補の選択待ち
+//
+// ゲームは完全に止まっている。
+// 選び終わるまでこの関数だけが動く。
 // ============================================================
-int CollisionTestScene::CountProjectiles() const
+void CollisionTestScene::UpdateLevelUpChoice()
 {
-    int n = 0;
-    const_cast<Registry&>(m_Registry)
-        .CreateView<TransformComponent, ProjectileComponent>()
-        .Each([&](Entity, TransformComponent&, ProjectileComponent&) { ++n; });
-    return n;
-}
+    if (!m_Registry.Has<LevelComponent>(m_Player)) return;
 
-// ============================================================
+    const auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+
+    ItemID picked;
+    if (m_LevelUpUI.HandleInput(lv, picked))
+        LevelUpSystem::Choose(m_Registry, m_Player, picked);
+
+    // 選んだ結果が即座に杖へ反映されるように集約は回す。
+    // ただし習得しただけでは配置されないので、通常は何も起きない。
+    m_BackpackAggregate.Update(m_Registry);
+}// ============================================================
 // 通常時の gameplay 一式
 // ============================================================
 void CollisionTestScene::UpdateGameplay(float dt)
@@ -264,11 +306,11 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // System 実行順（重要）
     // 操作 → 衝突 → 物理 → 状態機 → 杖 → VFX付与 → 投射物 → ダメージ → カメラ
     //
-    // ★状態機は物理の後。isGrounded / velocity が今フレームの
-    //   最終値になっているため。物理の前だと接地が1フレーム古くなり、
-    //   着地アニメーションのタイミングがずれる。
-    // ★速度と跳躍力の注入（SetMoveSpeed 等）は廃止。
-    //   PlayerControlSystem が PlayerStatsComponent を直接読む。
+    // 状態機は物理の後。isGrounded / velocity が今フレームの
+    // 最終値になっているため。物理の前だと接地が1フレーム古くなり、
+    // 着地アニメーションのタイミングがずれる。
+    // 速度と跳躍力の注入（SetMoveSpeed 等）は廃止。
+    // PlayerControlSystem が PlayerStatsComponent を直接読む。
     // ============================================================
     m_PlayerControlSystem.Update(m_Registry, dt, GetCamera());
 
@@ -289,9 +331,9 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ============================================================
     // 命中イベント消費：ダメージ + 死亡
-    // ★プレイヤーは PlayerStateSystem::TryApplyHit を通す。
-    //   無敵判定と硬直の開始をそこ1ヶ所に集約する
-    //   （2ヶ所で無敵を見ると必ず片方だけ直して壊れる）。
+    // プレイヤーは PlayerStateSystem::TryApplyHit を通す。
+    // 無敵判定と硬直の開始をそこ1ヶ所に集約する
+    // （2ヶ所で無敵を見ると必ず片方だけ直して壊れる）。
     // ============================================================
     for (const auto& hit : m_ProjectileSystem.GetHitEvents())
     {
@@ -312,7 +354,10 @@ void CollisionTestScene::UpdateGameplay(float dt)
             hp.current = 0.0f;
 
         if (hp.IsDead())
+        {
+            ExpOrbSystem::DropFrom(m_Registry, hit.target);
             m_Registry.Destroy(hit.target);
+        }
     }
 
     // ---- カメラ追従（物理の後）----
@@ -327,11 +372,22 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     m_LastEmitterCount = m_ParticleSystem.GetPendingEmitterCount();
     m_LastDropped = m_ParticleSystem.GetDroppedEmitterCount();
+    // ---- 経験値オーブ ----
+    // プレイヤーの位置が確定した後に吸い寄せる。
+    m_ExpOrbSystem.Update(m_Registry, dt);
 
+	// ============================================================
+	// レベルアップの判定と候補の生成
+	// ============================================================
+    m_LevelUpSystem.Update(m_Registry);
+    // ---- カメラ追従（物理の後）----
+    if (m_Registry.IsValid(m_Player))
+        m_Camera.SetFollowTarget(m_Registry.Get<TransformComponent>(m_Player).position);
+    m_Camera.Update(dt);
     // ============================================================
-    // ★1フレームに1回だけ。これが無いと粒子が一切動かない。
-    //   Flush はコマンドを積むだけなので、負荷をかけても
-    //   0 に近いままであるべき。高いままなら GPU を待っている。
+    // 1フレームに1回だけ。これが無いと粒子が一切動かない。
+    // Flush はコマンドを積むだけなので、負荷をかけても
+    // 0 に近いままであるべき。高いままなら GPU を待っている。
     // ============================================================
     {
         auto t0 = std::chrono::high_resolution_clock::now();
@@ -374,6 +430,9 @@ void CollisionTestScene::UpdateGameplay(float dt)
 // ============================================================
 // Render
 // ============================================================
+// ============================================================
+// Render
+// ============================================================
 void CollisionTestScene::Render(Renderer& renderer)
 {
     renderer.SetDirectionalLight(
@@ -393,16 +452,34 @@ void CollisionTestScene::Render(Renderer& renderer)
         m_ProjectileRenderer.Render(m_Registry, GetCamera());
 
     // ---- 3) パーティクル（加算合成）----
-    m_ParticleSystem.SetCamera(GetCamera());
-    m_ParticleSystem.Render();
-
-    // ---- 4) UI（深度なし、常に最前面）----
-    if (m_BackpackOpen && m_Registry.Has<BackpackComponent>(m_Player))
+    if (m_ShowParticle)
     {
-        m_SpriteRenderer.Begin();
-        m_BackpackUI.Draw(m_SpriteRenderer, m_Registry.Get<BackpackComponent>(m_Player));
-        m_SpriteRenderer.End();
+        m_ParticleSystem.SetCamera(GetCamera());
+        m_ParticleSystem.Render();
     }
+
+    // ============================================================
+    // 4) UI（深度なし、常に最前面）
+    //
+    // Begin / End は1回だけ。同じテクスチャを使う限り
+    // 複数の UI をまとめて1回の draw call で描ける。
+    //
+    // 描画順 = 重なり順。
+    // レベルアップの選択は画面を暗くするので必ず最後に描く。
+    // ============================================================
+    m_SpriteRenderer.Begin();
+
+    if (m_BackpackOpen && m_Registry.Has<BackpackComponent>(m_Player))
+        m_BackpackUI.Draw(m_SpriteRenderer, m_Registry.Get<BackpackComponent>(m_Player));
+
+    if (m_Registry.Has<LevelComponent>(m_Player))
+    {
+        const auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        if (lv.IsChoosing())
+            m_LevelUpUI.Draw(m_SpriteRenderer, lv);
+    }
+
+    m_SpriteRenderer.End();
 }
 
 // ============================================================
@@ -495,7 +572,7 @@ void CollisionTestScene::DrawWandDebug()
 
 // ============================================================
 // プレイヤーのメッシュと衝突体を作り直す
-// ★寸法は PlayerStatsComponent が持つので PlayerFactory へ委譲する
+// 寸法は PlayerStatsComponent が持つので PlayerFactory へ委譲する
 // ============================================================
 void CollisionTestScene::RebuildPlayerMesh()
 {
@@ -520,13 +597,18 @@ void CollisionTestScene::SpawnEnemy(const Vector3& pos, bool invincible)
     if (invincible) { hp.max = 9999.0f; hp.current = 9999.0f; }
     m_Registry.Add<HealthComponent>(e, hp);
 
+    // 落とす経験値。敵の種類ができたら定義表から取る。
+    ExpRewardComponent reward;
+    reward.amount = 20.0f;
+    reward.splitCount = 1;
+    m_Registry.Add<ExpRewardComponent>(e, reward);
+
     ModelComponent mc;
     mc.model = invincible ? m_DummyModel : m_EnemyModel;
     m_Registry.Add<ModelComponent>(e, mc);
 
     m_Enemies.push_back(e);
 }
-
 // ============================================================
 // 敵を全部作り直す
 // ============================================================
@@ -544,7 +626,7 @@ void CollisionTestScene::RespawnEnemies()
 
 // ============================================================
 // 負荷テスト：投射物を一気に生成
-// ★With VFX を ON にすると emitter が生まれ、粒子発射経路の負荷試験になる。
+// With VFX を ON にすると emitter が生まれ、粒子発射経路の負荷試験になる。
 // ============================================================
 void CollisionTestScene::StressSpawnProjectiles(int count)
 {
@@ -593,7 +675,7 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
             m_Registry.Add<ModelComponent>(p, mc);
         }
 
-        // ★VFX（= emitter）を付ける。粒子プールを枯渇させるのが目的。
+        // VFX（= emitter）を付ける。粒子プールを枯渇させるのが目的。
         if (m_StressWithVFX)
             m_ProjectileVFXSystem.AttachVFX(m_Registry, p, m_StressVFXItem, m_VFXContext);
     }
@@ -625,9 +707,17 @@ void CollisionTestScene::ApplyStressPreset(const StressPreset& p)
     std::cout << "[Stress] preset applied: " << p.name
         << "  (" << p.purpose << ")" << std::endl;
 }
-
-
-
+// ============================================================
+// 投射物の数を数える（自動補充の判定用）
+// ============================================================
+int CollisionTestScene::CountProjectiles() const
+{
+    int n = 0;
+    const_cast<Registry&>(m_Registry)
+        .CreateView<TransformComponent, ProjectileComponent>()
+        .Each([&](Entity, TransformComponent&, ProjectileComponent&) { ++n; });
+    return n;
+}
 // ============================================================
 // ImGui：バックパック
 // ============================================================
@@ -636,29 +726,73 @@ void CollisionTestScene::DrawBackpackPanel()
     if (!ImGui::CollapsingHeader("Backpack", ImGuiTreeNodeFlags_DefaultOpen))
         return;
 
+    if (!m_Registry.IsValid(m_Player)) return;
+    if (!m_Registry.Has<BackpackComponent>(m_Player)) return;
+    if (!m_Registry.Has<SpellbookComponent>(m_Player)) return;
+
+    auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+    auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
+
     ImGui::Text("Open : %s   (Tab / I / E / Start)", m_BackpackOpen ? "YES" : "no");
     ImGui::Checkbox("Pause On Open", &m_PauseOnBackpack);
-    ImGui::TextDisabled("LMB: place   RMB: remove   Wheel/R: rotate");
-    ImGui::Text("Rotation : %d", m_BackpackUI.GetRotation());
+    ImGui::TextDisabled("Drag to move   RMB: remove   Wheel/R: rotate");
+    ImGui::Text("Rotation : %d   %s", m_BackpackUI.GetRotation(),
+        m_BackpackUI.IsDragging() ? "(dragging)" : "");
 
     ImGui::Separator();
+
+    // ============================================================
+    // 編集モード
+    // 枠と魔法では置ける条件が違うので、パレットも分ける。
+    //   Spell : 枠の上にしか置けない
+    //   Frame : 枠同士が重ならなければどこでも置ける
+    // ============================================================
+    int modeIdx = (int)m_BackpackUI.GetEditMode();
+    const char* modeNames[] = { "Spell", "Frame" };
+    if (ImGui::Combo("Edit Mode", &modeIdx, modeNames, 2))
+        m_BackpackUI.SetEditMode((BackpackUI::EditMode)modeIdx);
+
+    const bool frameMode = (m_BackpackUI.GetEditMode() == BackpackUI::EditMode::Frame);
+
+    ImGui::TextDisabled(frameMode
+        ? "Frames widen the placeable area. Spells ride along when moved."
+        : "Spells can only be placed on top of a frame.");
+
+    ImGui::Separator();
+
+    // ---- パレット（習得済みのものだけ）----
+    // x の数字は「あと何個置けるか」= 所持数 - 配置数。
+    // 使用中の数を別に持たないので、外した瞬間に戻る。
+    bool anyShown = false;
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
         const ItemCommon* c = ItemDatabase::GetCommon(id);
         if (!c) continue;
 
-        bool selected = m_BackpackUI.HasSelection() && m_BackpackUI.GetSelectedItem() == id;
+        if (ItemDatabase::IsFrame(id) != frameMode) continue;
+        if (!book.HasLearned(id)) continue;
 
+        anyShown = true;
+
+        const int avail = m_BackpackUI.GetAvailableCount(bp, id);
+        const bool usable = (avail > 0);
+
+        // 使い切っているものは暗く出す（持っていること自体は分かるように）
+        const float dim = usable ? 1.0f : 0.35f;
         ImGui::PushStyleColor(ImGuiCol_Button,
-            ImVec4(c->color.x * 0.6f, c->color.y * 0.6f, c->color.z * 0.6f, 1.0f));
+            ImVec4(c->color.x * 0.6f * dim, c->color.y * 0.6f * dim, c->color.z * 0.6f * dim, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-            ImVec4(c->color.x * 0.9f, c->color.y * 0.9f, c->color.z * 0.9f, 1.0f));
+            ImVec4(c->color.x * 0.9f * dim, c->color.y * 0.9f * dim, c->color.z * 0.9f * dim, 1.0f));
 
-        if (ImGui::Button(c->name))
+        char label[128];
+        sprintf_s(label, "%s  x%d", c->name, avail);
+
+        if (ImGui::Button(label) && usable)
             m_BackpackUI.SetSelectedItem(id);
 
         ImGui::PopStyleColor(2);
 
+        bool selected = m_BackpackUI.HasSelection() && m_BackpackUI.GetSelectedItem() == id;
         if (selected)
         {
             ImGui::SameLine();
@@ -668,22 +802,109 @@ void CollisionTestScene::DrawBackpackPanel()
     }
     ImGui::NewLine();
 
+    if (!anyShown)
+        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1),
+            frameMode ? "No frame learned yet" : "No spell learned yet");
+
     if (ImGui::Button("Clear Selection")) m_BackpackUI.ClearSelection();
 
-    if (m_Registry.Has<BackpackComponent>(m_Player))
+    // ---- 配置状況 ----
+    ImGui::Separator();
+    ImGui::Text("Spells : %zu   Frames : %zu", bp.items.size(), bp.frames.size());
+
+    // 置ける総マス数。グリッドの寸法ではなく、これが実際の広さ。
+    const int placeable = bp.PlaceableCount();
+    const int total = BackpackComponent::GRID * BackpackComponent::GRID;
+    ImGui::Text("Placeable : %d / %d cells", placeable, total);
+
+    if (placeable == 0)
+        ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
+            "No frame placed -> no spell can be placed");
+
+    if (ImGui::Button("Clear Spells"))
     {
-        auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
-        ImGui::SameLine();
-        ImGui::Text("| Placed : %zu", bp.items.size());
-        ImGui::SameLine();
-        if (ImGui::Button("Clear Grid"))
-        {
-            bp.items.clear();
-            BackpackLogic::RebuildOccupancy(bp);
-            bp.dirty = true;
-        }
+        bp.items.clear();
+        BackpackLogic::RebuildOccupancy(bp);
+        bp.dirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear Frames"))
+    {
+        // 枠を全部外すと、足場を失った魔法も一緒に外れる。
+        // 外れた魔法は手元に戻る（グリッドから消えた時点で戻っている）。
+        bp.frames.clear();
+        BackpackLogic::RebuildFrameOccupancy(bp);
+        BackpackLogic::ValidateItems(bp);
+        bp.dirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Reset to 3x3"))
+    {
+        bp.items.clear();
+        bp.frames.clear();
+        BackpackLogic::RebuildOccupancy(bp);
+        BackpackLogic::RebuildFrameOccupancy(bp);
+
+        // 中央へ戻す。RectCentered なのでアンカーがそのまま中心。
+        const int center = BackpackComponent::GRID / 2;
+        BackpackLogic::PlaceFrame(bp, ItemID::Frame3x3, center, center, 0);
+        bp.dirty = true;
     }
 
+    // ---- 枠を動かした結果、戻された魔法の通知 ----
+    if (m_BackpackUI.GetLastEvicted() > 0)
+    {
+        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1),
+            "%d spell(s) returned (lost their frame)", m_BackpackUI.GetLastEvicted());
+        ImGui::SameLine();
+        if (ImGui::Button("OK")) m_BackpackUI.ClearLastEvicted();
+    }
+
+    // ============================================================
+    // 習得（デバッグ用）
+    // 本来はレベルアップの三択で増える。それが出来るまでの仮。
+    // ============================================================
+    if (ImGui::TreeNode("Debug: Learn"))
+    {
+        ImGui::TextDisabled("Temporary. Will be replaced by level-up choices.");
+        ImGui::TextDisabled("Reducing below the placed count is allowed;");
+        ImGui::TextDisabled("it just blocks taking new ones out.");
+
+        for (ItemID id : ItemDatabase::GetAllIDs())
+        {
+            const ItemCommon* c = ItemDatabase::GetCommon(id);
+            if (!c) continue;
+
+            ImGui::PushID((int)id);
+            if (ImGui::SmallButton("+")) book.Learn(id, 1);
+            ImGui::SameLine();
+            if (ImGui::SmallButton("-")) book.Forget(id, 1);
+            ImGui::SameLine();
+
+            const int owned = book.GetCount(id);
+            const int placedN = ItemDatabase::IsFrame(id)
+                ? BackpackLogic::CountPlacedFrames(bp, id)
+                : BackpackLogic::CountPlaced(bp, id);
+
+            ImGui::Text("%-14s owned %d / placed %d", c->name, owned, placedN);
+            ImGui::PopID();
+        }
+        ImGui::TreePop();
+    }
+
+    // ---- 表示設定 ----
+    if (ImGui::TreeNode("Display"))
+    {
+        ImGui::Checkbox("Influence on hover only", &m_BackpackUI.showInfluenceOnHover);
+        ImGui::TextDisabled("Showing every influence cell at once fills the grid");
+        ImGui::TextDisabled("with color and hides which block affects which.");
+
+        ImGui::Checkbox("Highlight influenced blocks", &m_BackpackUI.highlightInfluenced);
+        ImGui::DragFloat("Drag Alpha", &m_BackpackUI.dragAlpha, 0.01f, 0.1f, 1.0f);
+        ImGui::TreePop();
+    }
+
+    // ---- 集約結果（バックパック → 杖）----
     ImGui::Separator();
     ImGui::Text("Aggregate (rebuilt %d times)", m_BackpackAggregate.GetRebuildCount());
 
@@ -714,6 +935,7 @@ void CollisionTestScene::DrawBackpackPanel()
     if (ImGui::Button("Force Rebuild"))
         m_BackpackAggregate.ForceRebuild(m_Registry, m_Player);
 
+    // ---- レイアウト調整（すべて比率）----
     if (ImGui::TreeNode("Layout"))
     {
         bool dirty = false;
@@ -739,6 +961,7 @@ void CollisionTestScene::DrawBackpackPanel()
 
         ImGui::ColorEdit4("Frame Color", &m_BackpackUI.frameColor.x);
         ImGui::ColorEdit4("Cell Color", &m_BackpackUI.cellColor.x);
+        ImGui::ColorEdit4("Locked Cell", &m_BackpackUI.lockedCellColor.x);
 
         ImGui::Text("Sprites : %u   Draw calls : %u",
             m_SpriteRenderer.GetLastSpriteCount(), m_SpriteRenderer.GetLastDrawCalls());
@@ -849,7 +1072,7 @@ void CollisionTestScene::DrawWandPanel()
 
 // ============================================================
 // ImGui：プレイヤー（能力値 + 状態機）
-// ★数値は全て PlayerStatsComponent。シーンはコピーを持たない。
+// 数値は全て PlayerStatsComponent。シーンはコピーを持たない。
 // ============================================================
 void CollisionTestScene::DrawPlayerPanel()
 {
@@ -886,11 +1109,40 @@ void CollisionTestScene::DrawPlayerPanel()
         sprintf_s(buf, "%.0f / %.0f", hp.current, hp.max);
         ImGui::ProgressBar(hp.current / hp.max, ImVec2(-1, 0), buf);
     }
+    // ---- 経験値 ----
+    if (m_Registry.Has<LevelComponent>(m_Player))
+    {
+        auto& lv = m_Registry.Get<LevelComponent>(m_Player);
 
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Level %d", lv.level);
+
+        char ebuf[64];
+        sprintf_s(ebuf, "%.0f / %.0f", lv.experience, lv.ExpToNext());
+        ImGui::ProgressBar(lv.Progress(), ImVec2(-1, 0), ebuf);
+
+        if (lv.IsChoosing())
+            ImGui::TextColored(ImVec4(1, 0.9f, 0.3f, 1),
+                "Choosing a reward (%zu options)", lv.pendingChoices.size());
+
+        ImGui::Text("Level ups : %d", m_LevelUpSystem.GetTotalLevelUps());
+        ImGui::DragInt("Choice Count", &m_LevelUpSystem.choiceCount, 1, 1, 5);
+        ImGui::DragFloat("Exp Base", &lv.expBase, 5.0f, 10.0f, 1000.0f);
+        ImGui::DragFloat("Exp / Level", &lv.expPerLevel, 5.0f, 0.0f, 500.0f);
+
+        if (ImGui::Button("+50 Exp")) lv.experience += 50.0f;
+        ImGui::SameLine();
+        if (ImGui::Button("Reset Level"))
+        {
+            lv.level = 1;
+            lv.experience = 0.0f;
+            lv.ClearChoices();
+        }
+    }
     // ---- 状態機（3層）----
     if (m_Registry.Has<PlayerStateComponent>(m_Player))
     {
-        auto& st = m_Registry.Get<PlayerStateComponent>(m_Player);
+        auto& state = m_Registry.Get<PlayerStateComponent>(m_Player);
 
         const char* moveNames[] = { "Idle", "Run", "Jump", "Fall" };
         const char* actionNames[] = { "None", "Casting" };
@@ -898,26 +1150,26 @@ void CollisionTestScene::DrawPlayerPanel()
 
         ImGui::Separator();
         ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "State Machine (3 layers)");
-        ImGui::Text("Move   : %-6s  %.2fs", moveNames[(int)st.move], st.moveTime);
-        ImGui::Text("Action : %-8s  %.2fs", actionNames[(int)st.action], st.actionTime);
+        ImGui::Text("Move   : %-6s  %.2fs", moveNames[(int)state.move], state.moveTime);
+        ImGui::Text("Action : %-8s  %.2fs", actionNames[(int)state.action], state.actionTime);
 
-        ImVec4 dcol = st.IsDead() ? ImVec4(1, 0.3f, 0.3f, 1)
-            : (st.damage == DamageStateID::Hurt) ? ImVec4(1, 0.8f, 0.3f, 1)
+        ImVec4 dcol = state.IsDead() ? ImVec4(1, 0.3f, 0.3f, 1)
+            : (state.damage == DamageStateID::Hurt) ? ImVec4(1, 0.8f, 0.3f, 1)
             : ImVec4(0.4f, 1, 0.4f, 1);
         ImGui::TextColored(dcol, "Damage : %-7s  %.2fs",
-            dmgNames[(int)st.damage], st.damageTime);
+            dmgNames[(int)state.damage], state.damageTime);
 
-        if (st.IsInvincible())
+        if (state.IsInvincible())
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 1, 1),
-                "  invincible %.2fs", st.invincibleTimer);
+                "  invincible %.2fs", state.invincibleTimer);
 
-        const uint32_t mask = st.SuppressMask();
+        const uint32_t mask = state.SuppressMask();
         if (mask != Mask_None)
             ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "  suppressing: %s%s",
                 (mask & Mask_Move) ? "Move " : "", (mask & Mask_Action) ? "Action" : "");
 
-        ImGui::DragFloat("Hurt Duration", &st.hurtDuration, 0.01f, 0.0f, 2.0f);
-        ImGui::DragFloat("Invincible Time", &st.invincibleAfterHit, 0.05f, 0.0f, 5.0f);
+        ImGui::DragFloat("Hurt Duration", &state.hurtDuration, 0.01f, 0.0f, 2.0f);
+        ImGui::DragFloat("Invincible Time", &state.invincibleAfterHit, 0.05f, 0.0f, 5.0f);
 
         if (ImGui::Button("Take 10 Damage"))
             PlayerStateSystem::TryApplyHit(m_Registry, m_Player, 10.0f);
@@ -926,36 +1178,35 @@ void CollisionTestScene::DrawPlayerPanel()
         {
             auto& hp = m_Registry.Get<HealthComponent>(m_Player);
             hp.current = hp.max;
-            st.damage = DamageStateID::Normal;
-            st.damageTime = 0.0f;
-            st.invincibleTimer = 0.0f;
+            state.damage = DamageStateID::Normal;
+            state.damageTime = 0.0f;
+            state.invincibleTimer = 0.0f;
         }
     }
 
     // ---- 能力値 ----
     if (m_Registry.Has<PlayerStatsComponent>(m_Player))
     {
-        auto& stt = m_Registry.Get<PlayerStatsComponent>(m_Player);
+        auto& stats = m_Registry.Get<PlayerStatsComponent>(m_Player);
 
         ImGui::Separator();
         ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Stats (PlayerStatsComponent)");
 
         bool dirty = false;
-        dirty |= ImGui::DragFloat("Radius", &stt.radius, 0.01f, 0.05f, 3.0f);
-        dirty |= ImGui::DragFloat("Height", &stt.height, 0.01f, 0.05f, 5.0f);
+        dirty |= ImGui::DragFloat("Radius", &stats.radius, 0.01f, 0.05f, 3.0f);
+        dirty |= ImGui::DragFloat("Height", &stats.height, 0.01f, 0.05f, 5.0f);
         dirty |= ImGui::ColorEdit3("Color", m_PlayerColor);
         if (dirty) RebuildPlayerMesh();
 
-        ImGui::DragFloat("Move Speed", &stt.moveSpeed, 0.1f, 0.0f, 30.0f);
-        ImGui::DragFloat("Jump Power", &stt.jumpPower, 0.1f, 0.0f, 30.0f);
-        ImGui::Text("Jump CD : %.2f", stt.jumpCooldown);
+        ImGui::DragFloat("Move Speed", &stats.moveSpeed, 0.1f, 0.0f, 30.0f);
+        ImGui::DragFloat("Jump Power", &stats.jumpPower, 0.1f, 0.0f, 30.0f);
+        ImGui::Text("Jump CD : %.2f", stats.jumpCooldown);
     }
 
     // 重力は場のパラメータなのでプレイヤーではなくシーンが持つ
     ImGui::Separator();
     ImGui::DragFloat("Gravity (scene)", &m_Gravity, 0.5f, -100.0f, 0.0f);
 }
-
 // ============================================================
 // ImGui：負荷テスト
 // ============================================================
@@ -965,6 +1216,8 @@ void CollisionTestScene::DrawStressPanel()
         return;
 
     // ---------- プリセット ----------
+    // 手動で slider を動かすと毎回条件がズレて比較にならないため、
+    // ボタン1つで同じ条件を再現できるようにしている。
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Presets");
     ImGui::TextDisabled("Clears projectiles and resets counters, then applies.");
 
@@ -990,13 +1243,16 @@ void CollisionTestScene::DrawStressPanel()
     if (m_LastPresetIndex >= 0)
         ImGui::TextDisabled("current: %s", kStressPresets[m_LastPresetIndex].name);
 
+    // ---------- 現在の状況 ----------
     ImGui::Separator();
 
     int projCount = CountProjectiles();
     ImGui::Text("Projectiles : %d   (pending %d)", projCount, m_StressPending);
+    ImGui::Text("Exp Orbs    : %d", m_ExpOrbSystem.GetOrbCount());
     ImGui::Text("Colliders   : %zu", m_CollisionSystem.GetWorldColliders().size());
     ImGui::Text("Pairs       : %zu", m_CollisionSystem.GetPairs().size());
 
+    // ---------- 何を付けるか ----------
     ImGui::Separator();
     ImGui::Checkbox("With Collider", &m_StressWithCollider);
     ImGui::SameLine();
@@ -1022,10 +1278,11 @@ void CollisionTestScene::DrawStressPanel()
         m_StressPending = 0;
     }
 
+    // ---------- 粒子プール枯渇の維持 ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Pool Starvation Test");
     ImGui::TextDisabled("Keeps the dead list empty. This is the only state");
-    ImGui::TextDisabled("where the EmitCS deadCount guard actually matters.");
+    ImGui::TextDisabled("where the EmitCS guard actually matters.");
 
     ImGui::Checkbox("Auto Refill", &m_StressAutoRefill);
     ImGui::SliderInt("Target Projectiles", &m_RefillTarget, 100, 4000);
@@ -1035,6 +1292,25 @@ void CollisionTestScene::DrawStressPanel()
         ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
             "Auto Refill without VFX does not stress the pool!");
 
+    // ---------- 経験値オーブ ----------
+    ImGui::Separator();
+    if (ImGui::TreeNode("Exp Orb"))
+    {
+        ImGui::TextDisabled("Orbs do not use CollisionSystem.");
+        ImGui::TextDisabled("Only the distance to the player is needed,");
+        ImGui::TextDisabled("and the CPU pair test would choke on the count.");
+
+        ImGui::DragFloat("Attract Radius", &m_ExpOrbSystem.attractRadius, 0.1f, 0.5f, 30.0f);
+        ImGui::DragFloat("Pickup Radius", &m_ExpOrbSystem.pickupRadius, 0.05f, 0.1f, 5.0f);
+        ImGui::DragFloat("Accel", &m_ExpOrbSystem.accel, 1.0f, 1.0f, 200.0f);
+        ImGui::DragFloat("Max Speed", &m_ExpOrbSystem.maxSpeed, 0.5f, 1.0f, 100.0f);
+        ImGui::DragFloat("Orb Gravity", &m_ExpOrbSystem.gravity, 0.5f, -50.0f, 0.0f);
+        ImGui::DragFloat("Orb Size", &m_ExpOrbSystem.orbSize, 0.01f, 0.05f, 2.0f);
+
+        ImGui::TreePop();
+    }
+
+    // ---------- パーティクルシステム ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Particle System");
 
@@ -1058,12 +1334,16 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::Text("Billboards     : %u  (1 draw call)",
         m_ProjectileRenderer.GetLastDrawCount());
 
+    // 生存数は GPU 上にしかない。毎フレームの回読を廃止したので、
+    // ここに数字を出すと画面と矛盾する値になる。
     ImGui::TextDisabled("Alive count lives on the GPU only.");
     ImGui::TextDisabled("Judge by the screen and by Flush ms below.");
 
+    // ---------- Flush の CPU 時間 ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Flush CPU Time");
-    ImGui::TextDisabled("Flush only queues commands. It should stay near 0.");
+    ImGui::TextDisabled("Flush only queues commands. It should stay near 0");
+    ImGui::TextDisabled("even under load. If not, something waits for the GPU.");
 
     ImVec4 fcol = (m_FlushMsAvg > 1.0) ? ImVec4(1, 0.4f, 0.4f, 1)
         : (m_FlushMsAvg > 0.3) ? ImVec4(1, 0.9f, 0.4f, 1)
@@ -1079,7 +1359,6 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::SameLine();
     ImGui::Text("| FPS %.1f", ImGui::GetIO().Framerate);
 }
-
 // ============================================================
 // ImGui
 // ============================================================
@@ -1091,11 +1370,12 @@ void CollisionTestScene::DrawDebugUI()
     ImGui::SameLine();
     ImGui::Checkbox("Billboard", &m_ShowBillboard);
     ImGui::SameLine();
+    ImGui::Checkbox("Particle", &m_ShowParticle);
+    ImGui::SameLine();
     ImGui::Checkbox("Collider", &m_ShowWireframe);
     ImGui::SameLine();
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
     ImGui::Separator();
-
     DrawPlayerPanel();
     DrawBackpackPanel();
     DrawWandPanel();
@@ -1115,6 +1395,8 @@ void CollisionTestScene::DrawDebugUI()
             case ItemCategory::Projectile: cat = "Projectile"; break;
             case ItemCategory::Function:   cat = "Function";   break;
             case ItemCategory::Area:       cat = "Area";       break;
+            case ItemCategory::Frame:      cat = "Frame";      break;
+            case ItemCategory::Unknown:    cat = "Unknown";    break;
             }
 
             ImGui::TextColored(ImVec4(c->color.x, c->color.y, c->color.z, 1.0f),

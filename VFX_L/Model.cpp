@@ -196,7 +196,7 @@ void ProcessNode(
                 vertex.normal = normal;
             }
 
-            // ★接線（tangent）を読む。CalcTangentSpace で生成済み
+            // ※接線（tangent）を読む。CalcTangentSpace で生成済み
             if (mesh->HasTangentsAndBitangents())
             {
                 Vector3 tangent(mesh->mTangents[v].x, mesh->mTangents[v].y, mesh->mTangents[v].z);

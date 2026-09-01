@@ -7,13 +7,20 @@
 
 enum class ItemID
 {
+	Unknown = 0,
     // --- 出力源（spells リストに入る）---
-    Fireball = 0,
+    Fireball ,
     Lightning,
 
     // --- 修飾符（隣接する出力源を強化。リストには入らない）---
     SplitRune,        // 分裂：一度の発射数 +1、ダメージ分散
     DoubleCastRune,   // 二重釈放：発射回数 +1、マナ倍
+
+    // ---- 設置枠 ----
+    Frame3x3,
+    Frame2x2,
+    FrameLine3,
+    FrameL,
 };
 
 // 出力源かどうか（集約時の振り分け用）
