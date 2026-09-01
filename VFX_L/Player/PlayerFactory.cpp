@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // PlayerFactory.cpp
 // ============================================================
 #include "Player/PlayerFactory.h"
@@ -13,6 +13,7 @@
 #include "Player/PlayerStatsComponent.h"
 #include "Player/PlayerStateComponent.h"
 #include "Component/HealthComponent.h"
+#include "Component/ManaComponent.h"
 #include "Component/WandComponent.h"
 #include "Component/BackpackComponent.h"
 #include "Component/SpellbookComponent.h"
@@ -86,6 +87,13 @@ namespace PlayerFactory
         hp.max = cfg.maxHealth;
         hp.current = cfg.maxHealth;
         reg.Add<HealthComponent>(e, hp);
+
+        // ---- 魔力 ----
+        // 現時点では HUD 表示のみ。消費・回復は未実装
+        ManaComponent mana;
+        mana.max = cfg.maxMana;
+        mana.current = cfg.maxMana;
+        reg.Add<ManaComponent>(e, mana);
 
         // ---- ?(????)----
         // spells / areas ?????????????????

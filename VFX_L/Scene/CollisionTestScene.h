@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // CollisionTestScene.h
 // ?? + ?? + ??? + ??? VFX / ????? + ??????
 //
@@ -31,8 +31,10 @@
 #include "UI/UIManager.h"
 
 #include "Graphics/Renderer/SpriteRenderer.h"
+#include "Graphics/Renderer/TextRenderer.h"
 #include "UI/BackpackUI.h"
 #include "UI/LevelUpUI.h"
+#include "UI/HUD.h"
 
 #include "SpellID.h"      // ItemID
 
@@ -108,9 +110,11 @@ private:
 
     // --- UI ---
     SpriteRenderer m_SpriteRenderer;
+    TextRenderer   m_TextRenderer;
     UIManager      m_UI;
     BackpackUI     m_BackpackUI;
     LevelUpUI      m_LevelUpUI;
+    HUD            m_HUD;
     //bool           m_BackpackOpen = false;
     bool           m_PauseOnBackpack = true;
 
