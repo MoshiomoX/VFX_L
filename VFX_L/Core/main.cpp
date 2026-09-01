@@ -1,0 +1,31 @@
+#include "Core/Application.h"
+#include <ShellScalingApi.h>
+#pragma comment(lib, "Shcore.lib")
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
+{
+    // ???????????? DPI ????????
+    //   150% ????????????Windows ????????????
+    //   ?????????????????????(ImGui ????????????)?
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+    AllocConsole();
+    FILE* fp;
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONIN$", "r", stdin);
+
+    std::cout << "=== VFX Engine ===" << std::endl;
+
+    Application app;
+    if (!app.Initialize())
+    {
+        std::cout << "[Error] Main Initialize failed" << std::endl;
+        std::cin.get();
+        return -1;
+    }
+
+    app.Run();
+    app.Shutdown();
+
+    return 0;
+}

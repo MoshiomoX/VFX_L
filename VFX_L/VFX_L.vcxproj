@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -118,7 +118,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty\ImGui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)ThirdParty\ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -140,7 +140,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty\ImGui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)ThirdParty\ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -154,81 +154,81 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Application.cpp" />
-    <ClCompile Include="BackpackAggregateSystem.cpp" />
-    <ClCompile Include="BackpackLogic.cpp" />
-    <ClCompile Include="BackpackUI.cpp" />
-    <ClCompile Include="CameraBase.cpp" />
-    <ClCompile Include="CollisionSystem.cpp" />
-    <ClCompile Include="CollisionTestScene.cpp" />
-    <ClCompile Include="ComputeShader.cpp" />
-    <ClCompile Include="CounterStates.cpp" />
-    <ClCompile Include="DebugCamera.cpp" />
-    <ClCompile Include="DebugLineRenderer.cpp">
+    <ClCompile Include="Core\Application.cpp" />
+    <ClCompile Include="ECS\System\BackpackAggregateSystem.cpp" />
+    <ClCompile Include="Item\BackpackLogic.cpp" />
+    <ClCompile Include="UI\BackpackUI.cpp" />
+    <ClCompile Include="Camera\CameraBase.cpp" />
+    <ClCompile Include="Collider\CollisionSystem.cpp" />
+    <ClCompile Include="Scene\CollisionTestScene.cpp" />
+    <ClCompile Include="Graphics\Shader\ComputeShader.cpp" />
+    <ClCompile Include="State\CounterStates.cpp" />
+    <ClCompile Include="Camera\DebugCamera.cpp" />
+    <ClCompile Include="Debug\DebugLineRenderer.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="DebugManager.cpp">
+    <ClCompile Include="Debug\DebugManager.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="ECSComponents.cpp" />
-    <ClCompile Include="EngineTimer.cpp" />
-    <ClCompile Include="ExpOrbSystem.cpp" />
-    <ClCompile Include="FollowCamera.cpp" />
-    <ClCompile Include="Game.cpp" />
-    <ClCompile Include="GameObject.cpp" />
-    <ClCompile Include="GameTimer.cpp" />
-    <ClCompile Include="GPUParticleEmitter.cpp" />
-    <ClCompile Include="GPUParticleSystem.cpp" />
-    <ClCompile Include="GPUParticleTestScene.cpp" />
-    <ClCompile Include="Graphics.cpp" />
-    <ClCompile Include="GYScene.cpp" />
-    <ClCompile Include="ImGuiManager.cpp">
+    <ClCompile Include="State\ECSComponents.cpp" />
+    <ClCompile Include="Core\Timer\EngineTimer.cpp" />
+    <ClCompile Include="Item\ExpOrbSystem.cpp" />
+    <ClCompile Include="Camera\FollowCamera.cpp" />
+    <ClCompile Include="Core\Game.cpp" />
+    <ClCompile Include="Object\GameObject.cpp" />
+    <ClCompile Include="Core\Timer\GameTimer.cpp" />
+    <ClCompile Include="Particle\GPUParticleEmitter.cpp" />
+    <ClCompile Include="Particle\GPUParticleSystem.cpp" />
+    <ClCompile Include="Scene\GPUParticleTestScene.cpp" />
+    <ClCompile Include="Graphics\Graphics.cpp" />
+    <ClCompile Include="Scene\GYScene.cpp" />
+    <ClCompile Include="Debug\ImGuiManager.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="ImGuiRenderer.cpp">
+    <ClCompile Include="Debug\ImGuiRenderer.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="InputManager.cpp" />
-    <ClCompile Include="ItemDatabase.cpp" />
-    <ClCompile Include="LevelUpSystem.cpp" />
-    <ClCompile Include="LevelUpUI.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="Material.cpp" />
-    <ClCompile Include="Mesh.cpp" />
-    <ClCompile Include="MeshRenderer.cpp" />
-    <ClCompile Include="Model.cpp" />
-    <ClCompile Include="ModelRenderer.cpp" />
-    <ClCompile Include="ObjectManager.cpp" />
-    <ClCompile Include="ParticleDeadList.cpp" />
-    <ClCompile Include="PhysicsSystem.cpp" />
-    <ClCompile Include="PixelShader.cpp" />
-    <ClCompile Include="PlayerControlSystem.cpp" />
-    <ClCompile Include="PlayerFactory.cpp" />
-    <ClCompile Include="PlayerStateSystem.cpp" />
-    <ClCompile Include="PrimitiveBuilder.cpp" />
-    <ClCompile Include="ProjectileBillboardRenderer.cpp" />
-    <ClCompile Include="ProjectileSystem.cpp" />
-    <ClCompile Include="ProjectileVFXSystem.cpp" />
-    <ClCompile Include="Renderer.cpp" />
-    <ClCompile Include="RenderStates.cpp" />
-    <ClCompile Include="RenderSystem.cpp" />
-    <ClCompile Include="ResourceManager.cpp" />
-    <ClCompile Include="SceneBase.cpp" />
-    <ClCompile Include="SceneManager.cpp" />
-    <ClCompile Include="Shader.cpp" />
-    <ClCompile Include="SkinnedModel.cpp" />
-    <ClCompile Include="SkinnedModelGPU.cpp" />
-    <ClCompile Include="Skybox.cpp" />
-    <ClCompile Include="SpriteRenderer.cpp" />
-    <ClCompile Include="StateMachineSystem.cpp" />
-    <ClCompile Include="TestCube.cpp" />
-    <ClCompile Include="TestScene.cpp" />
-    <ClCompile Include="TestSpawner.cpp" />
-    <ClCompile Include="Texture.cpp" />
+    <ClCompile Include="Manager\InputManager.cpp" />
+    <ClCompile Include="Item\ItemDatabase.cpp" />
+    <ClCompile Include="UI\LevelUpSystem.cpp" />
+    <ClCompile Include="UI\LevelUpUI.cpp" />
+    <ClCompile Include="Core\main.cpp" />
+    <ClCompile Include="Graphics\Material\Material.cpp" />
+    <ClCompile Include="Graphics\Mesh\Mesh.cpp" />
+    <ClCompile Include="Component\MeshRenderer.cpp" />
+    <ClCompile Include="Graphics\Model\Model.cpp" />
+    <ClCompile Include="Component\ModelRenderer.cpp" />
+    <ClCompile Include="Object\ObjectManager.cpp" />
+    <ClCompile Include="Particle\ParticleDeadList.cpp" />
+    <ClCompile Include="ECS\System\PhysicsSystem.cpp" />
+    <ClCompile Include="Graphics\Shader\PixelShader.cpp" />
+    <ClCompile Include="Player\PlayerControlSystem.cpp" />
+    <ClCompile Include="Player\PlayerFactory.cpp" />
+    <ClCompile Include="Player\PlayerStateSystem.cpp" />
+    <ClCompile Include="Graphics\PrimitiveBuilder.cpp" />
+    <ClCompile Include="Graphics\Renderer\ProjectileBillboardRenderer.cpp" />
+    <ClCompile Include="ECS\System\ProjectileSystem.cpp" />
+    <ClCompile Include="ECS\System\ProjectileVFXSystem.cpp" />
+    <ClCompile Include="Graphics\Renderer\Renderer.cpp" />
+    <ClCompile Include="Graphics\Renderer\RenderStates.cpp" />
+    <ClCompile Include="ECS\System\RenderSystem.cpp" />
+    <ClCompile Include="Manager\ResourceManager.cpp" />
+    <ClCompile Include="Scene\SceneBase.cpp" />
+    <ClCompile Include="Scene\SceneManager.cpp" />
+    <ClCompile Include="Graphics\Shader\Shader.cpp" />
+    <ClCompile Include="Graphics\Model\SkinnedModel.cpp" />
+    <ClCompile Include="Graphics\Model\SkinnedModelGPU.cpp" />
+    <ClCompile Include="Graphics\Renderer\Skybox.cpp" />
+    <ClCompile Include="Graphics\Renderer\SpriteRenderer.cpp" />
+    <ClCompile Include="State\StateMachineSystem.cpp" />
+    <ClCompile Include="Object\TestCube.cpp" />
+    <ClCompile Include="Scene\TestScene.cpp" />
+    <ClCompile Include="Debug\TestSpawner.cpp" />
+    <ClCompile Include="Graphics\Material\Texture.cpp" />
     <ClCompile Include="ThirdParty\ImGui\imgui.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -254,135 +254,135 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="ThirdParty\stb_image\stb_image.cpp" />
-    <ClCompile Include="Transform.cpp" />
-    <ClCompile Include="UIManager.cpp" />
-    <ClCompile Include="VertexShader.cpp" />
-    <ClCompile Include="VFXEditor.cpp" />
-    <ClCompile Include="VFXEditorScene.cpp" />
-    <ClCompile Include="VFXEffect.cpp" />
-    <ClCompile Include="VFXParticleEntry.cpp" />
-    <ClCompile Include="VFXStates.cpp" />
-    <ClCompile Include="WeaponSystem.cpp" />
-    <ClCompile Include="Window.cpp" />
+    <ClCompile Include="Graphics\Transform.cpp" />
+    <ClCompile Include="UI\UIManager.cpp" />
+    <ClCompile Include="Graphics\Shader\VertexShader.cpp" />
+    <ClCompile Include="VFX_Editor\VFXEditor.cpp" />
+    <ClCompile Include="Scene\VFXEditorScene.cpp" />
+    <ClCompile Include="VFX_Editor\VFXEffect.cpp" />
+    <ClCompile Include="VFX_Editor\VFXParticleEntry.cpp" />
+    <ClCompile Include="VFX_Editor\VFXStates.cpp" />
+    <ClCompile Include="ECS\System\WeaponSystem.cpp" />
+    <ClCompile Include="Core\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Application.h" />
-    <ClInclude Include="AreaStats.h" />
+    <ClInclude Include="Core\Application.h" />
+    <ClInclude Include="Component\AreaStats.h" />
     <ClInclude Include="AssimpFlags.h" />
-    <ClInclude Include="BackpackAggregateSystem.h" />
-    <ClInclude Include="BackpackComponent.h" />
-    <ClInclude Include="BackpackLogic.h" />
-    <ClInclude Include="BackpackUI.h" />
-    <ClInclude Include="CameraBase.h" />
-    <ClInclude Include="ColliderComponent.h" />
-    <ClInclude Include="CollisionMath.h" />
-    <ClInclude Include="CollisionSystem.h" />
-    <ClInclude Include="CollisionTestScene.h" />
-    <ClInclude Include="Component.h" />
-    <ClInclude Include="ComputeShader.h" />
-    <ClInclude Include="ConstantBuffer.h" />
-    <ClInclude Include="CounterStates.h" />
-    <ClInclude Include="DebugCamera.h" />
-    <ClInclude Include="DebugLineRenderer.h">
+    <ClInclude Include="ECS\System\BackpackAggregateSystem.h" />
+    <ClInclude Include="Component\BackpackComponent.h" />
+    <ClInclude Include="Item\BackpackLogic.h" />
+    <ClInclude Include="UI\BackpackUI.h" />
+    <ClInclude Include="Camera\CameraBase.h" />
+    <ClInclude Include="Component\ColliderComponent.h" />
+    <ClInclude Include="Collider\CollisionMath.h" />
+    <ClInclude Include="Collider\CollisionSystem.h" />
+    <ClInclude Include="Scene\CollisionTestScene.h" />
+    <ClInclude Include="Component\Component.h" />
+    <ClInclude Include="Graphics\Shader\ComputeShader.h" />
+    <ClInclude Include="Graphics\ConstantBuffer.h" />
+    <ClInclude Include="State\CounterStates.h" />
+    <ClInclude Include="Camera\DebugCamera.h" />
+    <ClInclude Include="Debug\DebugLineRenderer.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="DebugManager.h">
+    <ClInclude Include="Debug\DebugManager.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="DoubleCastRune.h" />
-    <ClInclude Include="ECSComponents.h" />
-    <ClInclude Include="EngineTimer.h" />
-    <ClInclude Include="Entity.h" />
-    <ClInclude Include="EntryType.h" />
-    <ClInclude Include="ExpOrbComponent.h" />
-    <ClInclude Include="ExpOrbSystem.h" />
-    <ClInclude Include="ExpRewardComponent.h" />
-    <ClInclude Include="Fireball.h" />
-    <ClInclude Include="FollowCamera.h" />
-    <ClInclude Include="Frame3x3.h" />
-    <ClInclude Include="Game.h" />
-    <ClInclude Include="GameObject.h" />
-    <ClInclude Include="GameTimer.h" />
-    <ClInclude Include="GPUCollider.h" />
-    <ClInclude Include="GPUParticle.h" />
-    <ClInclude Include="GPUParticleEmitter.h" />
-    <ClInclude Include="GPUParticleSystem.h" />
-    <ClInclude Include="GPUParticleTestScene.h" />
-    <ClInclude Include="Graphics.h" />
-    <ClInclude Include="GYScene.h" />
-    <ClInclude Include="HealthComponent.h" />
-    <ClInclude Include="HitEvent.h" />
-    <ClInclude Include="ImGuiManager.h">
+    <ClInclude Include="Item\Items\DoubleCastRune.h" />
+    <ClInclude Include="State\ECSComponents.h" />
+    <ClInclude Include="Core\Timer\EngineTimer.h" />
+    <ClInclude Include="ECS\Entity.h" />
+    <ClInclude Include="VFX_Editor\EntryType.h" />
+    <ClInclude Include="Item\ExpOrbComponent.h" />
+    <ClInclude Include="Item\ExpOrbSystem.h" />
+    <ClInclude Include="Item\ExpRewardComponent.h" />
+    <ClInclude Include="Item\Items\Fireball.h" />
+    <ClInclude Include="Camera\FollowCamera.h" />
+    <ClInclude Include="Item\Items\Frame3x3.h" />
+    <ClInclude Include="Core\Game.h" />
+    <ClInclude Include="Object\GameObject.h" />
+    <ClInclude Include="Core\Timer\GameTimer.h" />
+    <ClInclude Include="Collider\GPUCollider.h" />
+    <ClInclude Include="Particle\GPUParticle.h" />
+    <ClInclude Include="Particle\GPUParticleEmitter.h" />
+    <ClInclude Include="Particle\GPUParticleSystem.h" />
+    <ClInclude Include="Scene\GPUParticleTestScene.h" />
+    <ClInclude Include="Graphics\Graphics.h" />
+    <ClInclude Include="Scene\GYScene.h" />
+    <ClInclude Include="Component\HealthComponent.h" />
+    <ClInclude Include="ECS\System\HitEvent.h" />
+    <ClInclude Include="Debug\ImGuiManager.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="ImGuiRenderer.h">
+    <ClInclude Include="Debug\ImGuiRenderer.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="IndexBuffer.h" />
-    <ClInclude Include="InputManager.h" />
-    <ClInclude Include="InputMap.h" />
-    <ClInclude Include="ItemDatabase.h" />
-    <ClInclude Include="ItemTypes.h" />
-    <ClInclude Include="LevelComponent.h" />
-    <ClInclude Include="LevelUpSystem.h" />
-    <ClInclude Include="LevelUpUI.h" />
-    <ClInclude Include="LightTypes.h" />
-    <ClInclude Include="Material.h" />
-    <ClInclude Include="Mesh.h" />
-    <ClInclude Include="MeshRenderer.h" />
-    <ClInclude Include="Model.h" />
-    <ClInclude Include="ModelComponent.h" />
-    <ClInclude Include="ModelRenderer.h" />
-    <ClInclude Include="ObjectManager.h" />
-    <ClInclude Include="ParticleDeadList.h" />
-    <ClInclude Include="PhysicsMath.h" />
-    <ClInclude Include="PhysicsSystem.h" />
-    <ClInclude Include="PixelShader.h" />
-    <ClInclude Include="PlayerControlSystem.h" />
-    <ClInclude Include="PlayerFactory.h" />
-    <ClInclude Include="PlayerStateSystem.h" />
-    <ClInclude Include="PlayerStateComponent.h" />
-    <ClInclude Include="PlayerStatsComponent.h" />
-    <ClInclude Include="PlayerTag.h" />
-    <ClInclude Include="PrimitiveBuilder.h" />
-    <ClInclude Include="ProjectileBillboardRenderer.h" />
-    <ClInclude Include="ProjectileComponent.h" />
-    <ClInclude Include="ProjectileSystem.h" />
-    <ClInclude Include="ProjectileVFXComponent.h" />
-    <ClInclude Include="ProjectileVFXSystem.h" />
-    <ClInclude Include="ProjectileVisualComponent.h" />
-    <ClInclude Include="Registry.h" />
-    <ClInclude Include="Renderer.h" />
-    <ClInclude Include="RenderStates.h" />
-    <ClInclude Include="RenderSystem.h" />
-    <ClInclude Include="ResourceManager.h" />
+    <ClInclude Include="Graphics\Mesh\IndexBuffer.h" />
+    <ClInclude Include="Manager\InputManager.h" />
+    <ClInclude Include="Manager\InputMap.h" />
+    <ClInclude Include="Item\ItemDatabase.h" />
+    <ClInclude Include="Item\ItemTypes.h" />
+    <ClInclude Include="Player\LevelComponent.h" />
+    <ClInclude Include="UI\LevelUpSystem.h" />
+    <ClInclude Include="UI\LevelUpUI.h" />
+    <ClInclude Include="Graphics\Light\LightTypes.h" />
+    <ClInclude Include="Graphics\Material\Material.h" />
+    <ClInclude Include="Graphics\Mesh\Mesh.h" />
+    <ClInclude Include="Component\MeshRenderer.h" />
+    <ClInclude Include="Graphics\Model\Model.h" />
+    <ClInclude Include="Component\ModelComponent.h" />
+    <ClInclude Include="Component\ModelRenderer.h" />
+    <ClInclude Include="Object\ObjectManager.h" />
+    <ClInclude Include="Particle\ParticleDeadList.h" />
+    <ClInclude Include="Component\PhysicsMath.h" />
+    <ClInclude Include="ECS\System\PhysicsSystem.h" />
+    <ClInclude Include="Graphics\Shader\PixelShader.h" />
+    <ClInclude Include="Player\PlayerControlSystem.h" />
+    <ClInclude Include="Player\PlayerFactory.h" />
+    <ClInclude Include="Player\PlayerStateSystem.h" />
+    <ClInclude Include="Player\PlayerStateComponent.h" />
+    <ClInclude Include="Player\PlayerStatsComponent.h" />
+    <ClInclude Include="Player\PlayerTag.h" />
+    <ClInclude Include="Graphics\PrimitiveBuilder.h" />
+    <ClInclude Include="Graphics\Renderer\ProjectileBillboardRenderer.h" />
+    <ClInclude Include="Component\Projectile\ProjectileComponent.h" />
+    <ClInclude Include="ECS\System\ProjectileSystem.h" />
+    <ClInclude Include="Component\Projectile\ProjectileVFXComponent.h" />
+    <ClInclude Include="ECS\System\ProjectileVFXSystem.h" />
+    <ClInclude Include="Component\Projectile\ProjectileVisualComponent.h" />
+    <ClInclude Include="ECS\Registry.h" />
+    <ClInclude Include="Graphics\Renderer\Renderer.h" />
+    <ClInclude Include="Graphics\Renderer\RenderStates.h" />
+    <ClInclude Include="ECS\System\RenderSystem.h" />
+    <ClInclude Include="Manager\ResourceManager.h" />
     <ClInclude Include="ResourcePaths.h" />
-    <ClInclude Include="RigidbodyComponent.h" />
-    <ClInclude Include="SceneBase.h" />
-    <ClInclude Include="SceneManager.h" />
-    <ClInclude Include="SceneType.h" />
-    <ClInclude Include="Shader.h" />
-    <ClInclude Include="ShaderPath.h" />
-    <ClInclude Include="Skeleton.h" />
-    <ClInclude Include="SkinnedModel.h" />
-    <ClInclude Include="SkinnedModelGPU.h" />
-    <ClInclude Include="SkinnedVertex.h" />
-    <ClInclude Include="Skybox.h" />
-    <ClInclude Include="SparseSet.h" />
-    <ClInclude Include="SpellbookComponent.h" />
+    <ClInclude Include="Component\RigidbodyComponent.h" />
+    <ClInclude Include="Scene\SceneBase.h" />
+    <ClInclude Include="Scene\SceneManager.h" />
+    <ClInclude Include="Scene\SceneType.h" />
+    <ClInclude Include="Graphics\Shader\Shader.h" />
+    <ClInclude Include="Graphics\Shader\ShaderPath.h" />
+    <ClInclude Include="Graphics\Model\Skeleton.h" />
+    <ClInclude Include="Graphics\Model\SkinnedModel.h" />
+    <ClInclude Include="Graphics\Model\SkinnedModelGPU.h" />
+    <ClInclude Include="Graphics\Mesh\SkinnedVertex.h" />
+    <ClInclude Include="Graphics\Renderer\Skybox.h" />
+    <ClInclude Include="ECS\SparseSet.h" />
+    <ClInclude Include="Component\SpellbookComponent.h" />
     <ClInclude Include="SpellID.h" />
-    <ClInclude Include="SplitRune.h" />
-    <ClInclude Include="SpriteRenderer.h" />
-    <ClInclude Include="StateMachine.h" />
-    <ClInclude Include="StateMachineSystem.h" />
-    <ClInclude Include="TestCube.h" />
-    <ClInclude Include="TestScene.h" />
-    <ClInclude Include="TestSpawner.h" />
-    <ClInclude Include="Texture.h" />
+    <ClInclude Include="Item\Items\SplitRune.h" />
+    <ClInclude Include="Graphics\Renderer\SpriteRenderer.h" />
+    <ClInclude Include="State\StateMachine.h" />
+    <ClInclude Include="State\StateMachineSystem.h" />
+    <ClInclude Include="Object\TestCube.h" />
+    <ClInclude Include="Scene\TestScene.h" />
+    <ClInclude Include="Debug\TestSpawner.h" />
+    <ClInclude Include="Graphics\Material\Texture.h" />
     <ClInclude Include="ThirdParty\ImGui\imconfig.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -416,22 +416,22 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="ThirdParty\stb_image\stb_image.h" />
-    <ClInclude Include="Transform.h" />
-    <ClInclude Include="TransformComponent.h" />
-    <ClInclude Include="UIManager.h" />
-    <ClInclude Include="VertexBuffer.h" />
-    <ClInclude Include="Vertex3D.h" />
-    <ClInclude Include="VertexShader.h" />
-    <ClInclude Include="VFXEditor.h" />
-    <ClInclude Include="VFXEditorScene.h" />
-    <ClInclude Include="VFXEffect.h" />
-    <ClInclude Include="VFXEntry.h" />
-    <ClInclude Include="VFXParticleEntry.h" />
-    <ClInclude Include="VFXStates.h" />
-    <ClInclude Include="View.h" />
-    <ClInclude Include="WandComponent.h" />
-    <ClInclude Include="WeaponSystem.h" />
-    <ClInclude Include="Window.h" />
+    <ClInclude Include="Graphics\Transform.h" />
+    <ClInclude Include="Component\TransformComponent.h" />
+    <ClInclude Include="UI\UIManager.h" />
+    <ClInclude Include="Graphics\Mesh\VertexBuffer.h" />
+    <ClInclude Include="Graphics\Mesh\Vertex3D.h" />
+    <ClInclude Include="Graphics\Shader\VertexShader.h" />
+    <ClInclude Include="VFX_Editor\VFXEditor.h" />
+    <ClInclude Include="Scene\VFXEditorScene.h" />
+    <ClInclude Include="VFX_Editor\VFXEffect.h" />
+    <ClInclude Include="VFX_Editor\VFXEntry.h" />
+    <ClInclude Include="VFX_Editor\VFXParticleEntry.h" />
+    <ClInclude Include="VFX_Editor\VFXStates.h" />
+    <ClInclude Include="ECS\View.h" />
+    <ClInclude Include="Component\WandComponent.h" />
+    <ClInclude Include="ECS\System\WeaponSystem.h" />
+    <ClInclude Include="Core\Window.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\Particle\GPUParticlePS.hlsl">
@@ -668,7 +668,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
-      <ErrorText>このプロジェクトは、このコンピューター上にない NuGet パッケージを参照しています。それらのパッケージをダウンロードするには、[NuGet パッケージの復元] を使用します。詳細については、http://go.microsoft.com/fwlink/?LinkID=322105 を参照してください。見つからないファイルは {0} です。</ErrorText>
+      <ErrorText>??????????????????????? NuGet ???????????????????????????????????[NuGet ????????] ???????????????http://go.microsoft.com/fwlink/?LinkID=322105 ????????????????????? {0} ???</ErrorText>
     </PropertyGroup>
     <Error Condition="!Exists('..\packages\assimp-v143.5.4.3\build\native\assimp-v143.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\assimp-v143.5.4.3\build\native\assimp-v143.targets'))" />
     <Error Condition="!Exists('..\packages\directxtex_desktop_win10.2026.5.8.1\build\native\directxtex_desktop_win10.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\directxtex_desktop_win10.2026.5.8.1\build\native\directxtex_desktop_win10.targets'))" />
