@@ -26,9 +26,9 @@
 #include "ExpOrbSystem.h"
 #include "LevelUpSystem.h"
 #include "RenderSystem.h"
-
 #include "GPUParticleSystem.h"
 #include "VFXEffect.h"
+#include "UIManager.h"
 
 #include "SpriteRenderer.h"
 #include "BackpackUI.h"
@@ -62,6 +62,10 @@ private:
     void DrawWandPanel();
     void DrawStressPanel();
 
+	// ---- UI ----
+    void UpdateUI();                  // 積まれている UI の更新
+    void DrawUI();                    // 積まれている UI の描画
+    
     // ---- デバッグ描画 ----
     void DrawColliderDebug(Entity e, const Color& color);
     void DrawWandDebug();
@@ -104,9 +108,10 @@ private:
 
     // --- UI ---
     SpriteRenderer m_SpriteRenderer;
+    UIManager      m_UI;
     BackpackUI     m_BackpackUI;
     LevelUpUI      m_LevelUpUI;
-    bool           m_BackpackOpen = false;
+    //bool           m_BackpackOpen = false;
     bool           m_PauseOnBackpack = true;
 
     // --- 画面サイズ（Graphics から取得）---
