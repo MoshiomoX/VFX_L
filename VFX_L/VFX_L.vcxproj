@@ -255,6 +255,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </ClCompile>
     <ClCompile Include="ThirdParty\stb_image\stb_image.cpp" />
     <ClCompile Include="Transform.cpp" />
+    <ClCompile Include="UIManager.cpp" />
     <ClCompile Include="VertexShader.cpp" />
     <ClCompile Include="VFXEditor.cpp" />
     <ClCompile Include="VFXEditorScene.cpp" />
@@ -417,6 +418,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="ThirdParty\stb_image\stb_image.h" />
     <ClInclude Include="Transform.h" />
     <ClInclude Include="TransformComponent.h" />
+    <ClInclude Include="UIManager.h" />
     <ClInclude Include="VertexBuffer.h" />
     <ClInclude Include="Vertex3D.h" />
     <ClInclude Include="VertexShader.h" />
@@ -630,6 +632,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Assets\Fonts\font_jp.spritefont" />
     <None Include="packages.config" />
     <None Include="Shader\Particle\Common\EmitBox.hlsli">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>

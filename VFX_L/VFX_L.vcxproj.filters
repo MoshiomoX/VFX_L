@@ -92,6 +92,12 @@
     <Filter Include="UI">
       <UniqueIdentifier>{ef362e5f-7fdb-4e15-ae47-a3d12a65aeea}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Assets">
+      <UniqueIdentifier>{b4f0a9d2-6c1e-4a83-9f57-2d8e0c3b7a41}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Assets\Fonts">
+      <UniqueIdentifier>{e7c2d5f8-1a4b-4c96-b3d0-5f8a2e6c9b17}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Item">
       <UniqueIdentifier>{cda9d411-fdb6-4ffd-b061-013e69e3ed5a}</UniqueIdentifier>
     </Filter>
@@ -338,6 +344,9 @@
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="LevelUpUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UIManager.cpp">
       <Filter>UI</Filter>
     </ClCompile>
   </ItemGroup>
@@ -723,6 +732,9 @@
     <ClInclude Include="LevelUpUI.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="UIManager.h">
+      <Filter>UI</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\PS.hlsl">
@@ -812,5 +824,8 @@
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
     <None Include="packages.config" />
+    <None Include="Assets\Fonts\font_jp.spritefont">
+      <Filter>Assets\Fonts</Filter>
+    </None>
   </ItemGroup>
 </Project>
