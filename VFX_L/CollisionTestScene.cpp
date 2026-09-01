@@ -215,6 +215,9 @@ void CollisionTestScene::UpdateScreenSize()
 // ============================================================
 // Update
 // ============================================================
+// ============================================================
+// Update
+// ============================================================
 void CollisionTestScene::Update(float dt)
 {
     SceneBase::Update(dt);
@@ -223,41 +226,91 @@ void CollisionTestScene::Update(float dt)
     UpdateScreenSize();
 
     // ============================================================
-    // レベルアップの選択は他の何よりも優先する。
-    // 選択中はグリッドを開けない。
-    // 2つの UI が同時に出ると入力の取り合いになるため。
+    // プレイヤーが消えたら、プレイヤー依存の UI を全部下ろす。
     //
-    // ここで早期 return する分岐は、UI が増えたら
-    // UIManager へ移す予定。今は2つなので直書きで足りる。
+    // 積まれたまま中身が無いと、描かれず操作もできないのに
+    // ゲームは止まり続けるという状態になる。
+    // クラッシュしないぶん原因が分かりにくい。
     // ============================================================
-    if (LevelUpSystem::IsAnyoneChoosing(m_Registry))
-    {
-        UpdateLevelUpChoice();
-        DrawDebugUI();
-        return;
-    }
+    if (!m_Registry.IsValid(m_Player))
+        m_UI.Clear();
 
-    // ---- グリッド開閉 ----
-    if (InputMap::GetBackpackToggle())
-        m_BackpackOpen = !m_BackpackOpen;
-
-    // 時間停止するかは独立制御（調整用に切り替えられる）
-    bool paused = m_BackpackOpen && m_PauseOnBackpack;
-
-    // ---- グリッドの操作（開いている間だけ）----
-    if (m_BackpackOpen && m_Registry.Has<BackpackComponent>(m_Player))
-        m_BackpackUI.HandleInput(m_Registry.Get<BackpackComponent>(m_Player));
+    UpdateUI();
 
     // ---- 集約：配置が変わった時だけ杖を再構築する ----
-    // 一時停止中も実行する。配置しながら結果を確認できるようにするため。
+    // UI が開いている間も実行する。配置しながら結果を確認できるように。
     m_BackpackAggregate.Update(m_Registry);
 
-    if (!paused)
+    // ============================================================
+    // ゲーム本体
+    //
+    // 何か積まれている間は止める。
+    // グリッドだけは「止めない」を選べるようにしてあるので例外扱い。
+    // ============================================================
+    const bool pauseByUI = m_UI.ShouldPauseGame()
+        && !(m_UI.Top() == UILayer::Backpack && !m_PauseOnBackpack);
+
+    if (!pauseByUI)
         UpdateGameplay(dt);
 
     DrawDebugUI();
 }
 
+// ============================================================
+// UI の更新
+//
+// 1. 条件で自動的に開くもの
+// 2. 入力で開閉するもの
+// 3. 一番上の UI だけを更新する
+//
+// 「いつ開くか」はゲームのルールなのでここに書く。
+// UIManager は積まれたものの順序だけを見る。
+// ============================================================
+void CollisionTestScene::UpdateUI()
+{
+    // ---- 1. 自動で開くもの ----
+    // 毎フレーム呼ばれるが、Push 側が二重登録を弾く。
+    if (LevelUpSystem::IsAnyoneChoosing(m_Registry))
+        m_UI.Push(UILayer::LevelUp, UIManager::CloseMode::Forced);
+
+    // ---- 2. 入力で開閉するもの ----
+    // 一番上がグリッドか、何も積まれていない時だけ Tab が効く。
+    // これで「三択の最中にグリッドが開く」が起きない。
+    const bool canToggleBackpack =
+        m_UI.CanReceiveInput(UILayer::Backpack) || m_UI.IsEmpty();
+
+    if (canToggleBackpack && InputMap::GetBackpackToggle())
+        m_UI.Toggle(UILayer::Backpack);
+
+    // ---- 3. 一番上だけを更新する ----
+    switch (m_UI.Top())
+    {
+    case UILayer::LevelUp:
+    {
+        if (!m_Registry.Has<LevelComponent>(m_Player)) break;
+
+        const auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+
+        ItemID picked;
+        if (m_LevelUpUI.HandleInput(lv, picked))
+        {
+            LevelUpSystem::Choose(m_Registry, m_Player, picked);
+            m_UI.Pop(UILayer::LevelUp);
+        }
+        break;
+    }
+
+    case UILayer::Backpack:
+    {
+        if (!m_Registry.Has<BackpackComponent>(m_Player)) break;
+        m_BackpackUI.HandleInput(m_Registry.Get<BackpackComponent>(m_Player));
+        break;
+    }
+
+    default:
+        break;
+    }
+}
 // ============================================================
 // 習得候補の選択待ち
 //
@@ -463,23 +516,40 @@ void CollisionTestScene::Render(Renderer& renderer)
     //
     // Begin / End は1回だけ。同じテクスチャを使う限り
     // 複数の UI をまとめて1回の draw call で描ける。
-    //
-    // 描画順 = 重なり順。
-    // レベルアップの選択は画面を暗くするので必ず最後に描く。
     // ============================================================
     m_SpriteRenderer.Begin();
-
-    if (m_BackpackOpen && m_Registry.Has<BackpackComponent>(m_Player))
-        m_BackpackUI.Draw(m_SpriteRenderer, m_Registry.Get<BackpackComponent>(m_Player));
-
-    if (m_Registry.Has<LevelComponent>(m_Player))
-    {
-        const auto& lv = m_Registry.Get<LevelComponent>(m_Player);
-        if (lv.IsChoosing())
-            m_LevelUpUI.Draw(m_SpriteRenderer, lv);
-    }
-
+    DrawUI();
     m_SpriteRenderer.End();
+}
+
+// ============================================================
+// UI の描画
+//
+// 積まれた順に描く。後から積んだものが上に重なる。
+// 「三択が最前面」を別途書かなくて済む。
+// ============================================================
+void CollisionTestScene::DrawUI()
+{
+    for (UILayer layer : m_UI.GetStack())
+    {
+        switch (layer)
+        {
+        case UILayer::Backpack:
+            if (m_Registry.Has<BackpackComponent>(m_Player))
+                m_BackpackUI.Draw(m_SpriteRenderer,
+                    m_Registry.Get<BackpackComponent>(m_Player));
+            break;
+
+        case UILayer::LevelUp:
+            if (m_Registry.Has<LevelComponent>(m_Player))
+                m_LevelUpUI.Draw(m_SpriteRenderer,
+                    m_Registry.Get<LevelComponent>(m_Player));
+            break;
+
+        default:
+            break;
+        }
+    }
 }
 
 // ============================================================
@@ -721,6 +791,9 @@ int CollisionTestScene::CountProjectiles() const
 // ============================================================
 // ImGui：バックパック
 // ============================================================
+// ============================================================
+// ImGui：呪文グリッド
+// ============================================================
 void CollisionTestScene::DrawBackpackPanel()
 {
     if (!ImGui::CollapsingHeader("Backpack", ImGuiTreeNodeFlags_DefaultOpen))
@@ -733,7 +806,30 @@ void CollisionTestScene::DrawBackpackPanel()
     auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
     auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
 
-    ImGui::Text("Open : %s   (Tab / I / E / Start)", m_BackpackOpen ? "YES" : "no");
+    // ============================================================
+    // UI スタックの状態
+    // 一番上だけが入力を受け取る。どれが操作可能なのかを見えるようにする。
+    // ============================================================
+    ImGui::Text("UI Stack :");
+    {
+        const auto& stack = m_UI.GetStack();
+        if (stack.empty())
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(empty)");
+        }
+        for (size_t i = 0; i < stack.size(); ++i)
+        {
+            ImGui::SameLine();
+            const bool top = (i + 1 == stack.size());
+            ImGui::TextColored(top ? ImVec4(1, 0.9f, 0.3f, 1)
+                : ImVec4(0.6f, 0.6f, 0.6f, 1),
+                "[%s]", UIManager::LayerName(stack[i]));
+        }
+    }
+
+    ImGui::Text("Open : %s   (Tab / I / E / Start)",
+        m_UI.IsOpen(UILayer::Backpack) ? "YES" : "no");
     ImGui::Checkbox("Pause On Open", &m_PauseOnBackpack);
     ImGui::TextDisabled("Drag to move   RMB: remove   Wheel/R: rotate");
     ImGui::Text("Rotation : %d   %s", m_BackpackUI.GetRotation(),
@@ -760,9 +856,12 @@ void CollisionTestScene::DrawBackpackPanel()
 
     ImGui::Separator();
 
-    // ---- パレット（習得済みのものだけ）----
+    // ============================================================
+    // パレット（習得済みのものだけ）
+    //
     // x の数字は「あと何個置けるか」= 所持数 - 配置数。
     // 使用中の数を別に持たないので、外した瞬間に戻る。
+    // ============================================================
     bool anyShown = false;
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
@@ -780,9 +879,11 @@ void CollisionTestScene::DrawBackpackPanel()
         // 使い切っているものは暗く出す（持っていること自体は分かるように）
         const float dim = usable ? 1.0f : 0.35f;
         ImGui::PushStyleColor(ImGuiCol_Button,
-            ImVec4(c->color.x * 0.6f * dim, c->color.y * 0.6f * dim, c->color.z * 0.6f * dim, 1.0f));
+            ImVec4(c->color.x * 0.6f * dim, c->color.y * 0.6f * dim,
+                c->color.z * 0.6f * dim, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-            ImVec4(c->color.x * 0.9f * dim, c->color.y * 0.9f * dim, c->color.z * 0.9f * dim, 1.0f));
+            ImVec4(c->color.x * 0.9f * dim, c->color.y * 0.9f * dim,
+                c->color.z * 0.9f * dim, 1.0f));
 
         char label[128];
         sprintf_s(label, "%s  x%d", c->name, avail);
@@ -792,7 +893,8 @@ void CollisionTestScene::DrawBackpackPanel()
 
         ImGui::PopStyleColor(2);
 
-        bool selected = m_BackpackUI.HasSelection() && m_BackpackUI.GetSelectedItem() == id;
+        bool selected = m_BackpackUI.HasSelection()
+            && m_BackpackUI.GetSelectedItem() == id;
         if (selected)
         {
             ImGui::SameLine();
@@ -862,11 +964,11 @@ void CollisionTestScene::DrawBackpackPanel()
 
     // ============================================================
     // 習得（デバッグ用）
-    // 本来はレベルアップの三択で増える。それが出来るまでの仮。
+    // 本来はレベルアップの三択で増える。手早く試すための仮。
     // ============================================================
     if (ImGui::TreeNode("Debug: Learn"))
     {
-        ImGui::TextDisabled("Temporary. Will be replaced by level-up choices.");
+        ImGui::TextDisabled("Temporary. The level-up choice is the real path.");
         ImGui::TextDisabled("Reducing below the placed count is allowed;");
         ImGui::TextDisabled("it just blocks taking new ones out.");
 
@@ -904,7 +1006,7 @@ void CollisionTestScene::DrawBackpackPanel()
         ImGui::TreePop();
     }
 
-    // ---- 集約結果（バックパック → 杖）----
+    // ---- 集約結果（グリッド → 杖）----
     ImGui::Separator();
     ImGui::Text("Aggregate (rebuilt %d times)", m_BackpackAggregate.GetRebuildCount());
 
@@ -968,7 +1070,6 @@ void CollisionTestScene::DrawBackpackPanel()
         ImGui::TreePop();
     }
 }
-
 // ============================================================
 // ImGui：杖（集約結果の確認用）
 // ============================================================
