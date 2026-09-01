@@ -224,6 +224,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Model\SkinnedModelGPU.cpp" />
     <ClCompile Include="Graphics\Renderer\Skybox.cpp" />
     <ClCompile Include="Graphics\Renderer\SpriteRenderer.cpp" />
+    <ClCompile Include="Graphics\Renderer\TextRenderer.cpp" />
     <ClCompile Include="State\StateMachineSystem.cpp" />
     <ClCompile Include="Object\TestCube.cpp" />
     <ClCompile Include="Scene\TestScene.cpp" />
@@ -255,6 +256,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </ClCompile>
     <ClCompile Include="ThirdParty\stb_image\stb_image.cpp" />
     <ClCompile Include="Graphics\Transform.cpp" />
+    <ClCompile Include="UI\HUD.cpp" />
     <ClCompile Include="UI\UIManager.cpp" />
     <ClCompile Include="Graphics\Shader\VertexShader.cpp" />
     <ClCompile Include="VFX_Editor\VFXEditor.cpp" />
@@ -377,6 +379,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="SpellID.h" />
     <ClInclude Include="Item\Items\SplitRune.h" />
     <ClInclude Include="Graphics\Renderer\SpriteRenderer.h" />
+    <ClInclude Include="Graphics\Renderer\TextRenderer.h" />
     <ClInclude Include="State\StateMachine.h" />
     <ClInclude Include="State\StateMachineSystem.h" />
     <ClInclude Include="Object\TestCube.h" />
@@ -418,6 +421,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="ThirdParty\stb_image\stb_image.h" />
     <ClInclude Include="Graphics\Transform.h" />
     <ClInclude Include="Component\TransformComponent.h" />
+    <ClInclude Include="UI\HUD.h" />
+    <ClInclude Include="Component\ManaComponent.h" />
     <ClInclude Include="UI\UIManager.h" />
     <ClInclude Include="Graphics\Mesh\VertexBuffer.h" />
     <ClInclude Include="Graphics\Mesh\Vertex3D.h" />

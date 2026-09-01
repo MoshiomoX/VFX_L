@@ -316,6 +316,9 @@
     <ClCompile Include="Graphics\Renderer\SpriteRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="Graphics\Renderer\TextRenderer.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
     <ClCompile Include="UI\BackpackUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
@@ -347,6 +350,9 @@
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\UIManager.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\HUD.cpp">
       <Filter>UI</Filter>
     </ClCompile>
   </ItemGroup>
@@ -611,6 +617,9 @@
     <ClInclude Include="Component\HealthComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
+    <ClInclude Include="Component\ManaComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
     <ClInclude Include="ECS\System\PhysicsSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
@@ -655,6 +664,9 @@
       <Filter>Component\Projectile</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Renderer\SpriteRenderer.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Renderer\TextRenderer.h">
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="UI\BackpackUI.h">
@@ -733,6 +745,9 @@
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\UIManager.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\HUD.h">
       <Filter>UI</Filter>
     </ClInclude>
   </ItemGroup>

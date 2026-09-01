@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // CollisionTestScene.cpp
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -20,6 +20,7 @@
 #include "SpellID.h"
 #include "Item/ItemTypes.h"
 #include "Component/HealthComponent.h"
+#include "Component/ManaComponent.h"
 #include "ECS/View.h"
 
 #include "Player/PlayerFactory.h"
@@ -95,9 +96,16 @@ void CollisionTestScene::Init()
         std::cout << "[Error] SpriteRenderer init failed" << std::endl;
     m_SpriteRenderer.SetScreenSize(m_ScreenW, m_ScreenH);
 
+    if (!m_TextRenderer.Initialize(device, context, Res::Fnt::JP))
+        std::cout << "[Error] TextRenderer init failed" << std::endl;
+
     m_BackpackUI.Initialize(ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo));
     m_BackpackUI.LoadIcons();
     m_BackpackUI.Layout(m_ScreenW, m_ScreenH);
+
+    if (!m_HUD.Initialize(device))
+        std::cout << "[Error] HUD init failed" << std::endl;
+    m_HUD.Layout(m_ScreenW, m_ScreenH);
 
     // ---------- ????? ----------
     m_EnemyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 1.0f, 0.35f, 0.35f, 1 });
@@ -183,6 +191,7 @@ void CollisionTestScene::RegisterItemVisuals()
 // ============================================================
 void CollisionTestScene::Shutdown()
 {
+    m_TextRenderer.Shutdown();
     m_SpriteRenderer.Shutdown();
     m_ProjectileRenderer.Shutdown();
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
@@ -207,6 +216,7 @@ void CollisionTestScene::UpdateScreenSize()
     m_SpriteRenderer.SetScreenSize(w, h);
     m_BackpackUI.Layout(w, h);
     m_LevelUpUI.Layout(w, h);
+    m_HUD.Layout(w, h);
     m_Camera.Init(45.0f, w / h, 0.1f, 10000.0f);
 
     std::cout << "[CollisionTestScene] screen resized: "
@@ -518,8 +528,27 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ??? UI ?????1?? draw call ?????
     // ============================================================
     m_SpriteRenderer.Begin();
+    m_TextRenderer.Begin();
+
+    // ---- HUD（常時表示、モーダル UI が開いている間は隠す）----
+    // 文字はスプライトの後に一括で描かれるため、隠さないと
+    // 暗幕の上に HUD の文字だけが浮いてしまう
+    if (m_UI.IsEmpty()
+        && m_Registry.IsValid(m_Player)
+        && m_Registry.Has<HealthComponent>(m_Player)
+        && m_Registry.Has<ManaComponent>(m_Player)
+        && m_Registry.Has<LevelComponent>(m_Player))
+    {
+        m_HUD.Draw(m_SpriteRenderer, m_TextRenderer,
+            m_Registry.Get<HealthComponent>(m_Player),
+            m_Registry.Get<ManaComponent>(m_Player),
+            m_Registry.Get<LevelComponent>(m_Player));
+    }
+
     DrawUI();
+
     m_SpriteRenderer.End();
+    m_TextRenderer.End();
 }
 
 // ============================================================
