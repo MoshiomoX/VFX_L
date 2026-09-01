@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // BackpackAggregateSystem.cpp
 // ============================================================
 #include "BackpackAggregateSystem.h"
@@ -90,7 +90,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         auto occupy = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
 
         // ---- どのブロックから影響を受けているか調べる ----
-        // ★同じ相手からの影響は1回だけ数える。
+        // ※同じ相手からの影響は1回だけ数える。
         //   接触面が多い異形ブロックが自動的に有利になるのを防ぐため。
         std::unordered_set<size_t> influencers;
 

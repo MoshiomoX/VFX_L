@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // WeaponSystem.cpp
 // ============================================================
 #include "WeaponSystem.h"
@@ -105,7 +105,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 }
 
                 // ---- 施法モードのゲート ----
-                // ★pendingCasts の連射には介入しない。
+                // ※pendingCasts の連射には介入しない。
                 //   手動で1回押したら二重釈放の全弾が撃ち切られる（1入力 = 1 combo）。
                 bool allowNewCast = true;
                 bool ignoreCooldown = false;
@@ -146,7 +146,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     }
 
                     // === 新しい施法 ===
-                    // ★castTimer は常に減らす。ゲートで弾く前に減らさないと
+                    // ※castTimer は常に減らす。ゲートで弾く前に減らさないと
                     //   手動モードで待っている間クールダウンが進まない。
                     s.castTimer -= dt;
                     if (!ignoreCooldown && s.castTimer > 0.0f) continue;

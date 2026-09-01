@@ -16,9 +16,7 @@ bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceCont
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
-    io.Fonts->AddFontFromFileTTF("Assets/Fonts/RobotoMono-Regular.ttf", 16.0f);
-
-    // ViewportsEnable時、ウィンドウ外でも見た目を統一
+      // ViewportsEnable時、ウィンドウ外でも見た目を統一
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
         ImGuiStyle& style = ImGui::GetStyle();

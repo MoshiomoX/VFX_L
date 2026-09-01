@@ -2,12 +2,11 @@
 // ParticleUpdateCS.hlsl
 // 粒子更新CS — 寿命処理 / 物理 / 色補間 / AliveList 構築
 //
-// ★所有者別の生存数もここで数える（VFX状態機の Finishing 判定用）
+// 所有者別の生存数もここで数える（VFX状態機の Finishing 判定用）
 // ============================================
 
 #include "Common/ParticleCommon.hlsli"
 
-// ★C++ 側の GPUParticleSystem::MAX_OWNERS と必ず一致させる（手書きミラー）
 #define PARTICLE_MAX_OWNERS 1024
 
 StructuredBuffer<ColorKey> colorKeys : register(t0);

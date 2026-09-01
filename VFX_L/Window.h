@@ -13,7 +13,7 @@ public:
 
     HWND GetHandle() const { return m_hWnd; }
 
-    // ★実際のクライアント領域サイズ。
+    // ※実際のクライアント領域サイズ。
     //   swap chain / ビューポート / UI は全部これを基準にする。
     int GetWidth()  const { return m_Width; }
     int GetHeight() const { return m_Height; }

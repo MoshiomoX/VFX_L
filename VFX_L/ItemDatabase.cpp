@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // ItemDatabase.cpp
 // ============================================================
 #include "ItemDatabase.h"
@@ -7,6 +7,7 @@
 #include "Fireball.h"
 #include "SplitRune.h"
 #include "DoubleCastRune.h"
+#include "Frame3x3.h"
 #include <unordered_map>
 #include <iostream>
 
@@ -16,6 +17,7 @@ namespace
     std::unordered_map<ItemID, ProjectileItemDef> g_Projectiles;
     std::unordered_map<ItemID, FunctionItemDef>   g_Functions;
     std::unordered_map<ItemID, AreaItemDef>       g_Areas;
+    std::unordered_map<ItemID, FrameItemDef>      g_Frames;
 
     std::vector<ItemID> g_AllIDs;   // 登録順（UI パレット用）
     bool g_Initialized = false;
@@ -36,11 +38,16 @@ namespace
         g_Areas[def.common.id] = def;
         g_AllIDs.push_back(def.common.id);
     }
+    void Register(const FrameItemDef& def)
+    {
+        g_Frames[def.common.id] = def;
+        g_AllIDs.push_back(def.common.id);
+    }
 }
 
 // ============================================================
 // 登録
-// ★魔法を追加する時にここへ1行足すだけ。数値は個別ファイル側にある。
+// 魔法を追加する時にここへ1行足すだけ。数値は個別ファイル側にある。
 // ============================================================
 void ItemDatabase::Initialize()
 {
@@ -49,22 +56,27 @@ void ItemDatabase::Initialize()
     g_Projectiles.clear();
     g_Functions.clear();
     g_Areas.clear();
+    g_Frames.clear();
     g_AllIDs.clear();
 
     // ---- 飛行物型 ----
     Register(MakeFireball());
 
-    // ---- 機能型（次の段階で追加）----
+    // ---- 機能型 ----
     Register(MakeSplitRune());
     Register(MakeDoubleCastRune());
 
     // ---- AOE 型（後の段階）----
 
+    // ---- 設置枠 ----
+    Register(MakeFrame3x3());
+
     g_Initialized = true;
     std::cout << "[OK] ItemDatabase initialized ("
         << g_Projectiles.size() << " projectile, "
         << g_Functions.size() << " function, "
-        << g_Areas.size() << " area)" << std::endl;
+        << g_Areas.size() << " area, "
+        << g_Frames.size() << " frame)" << std::endl;
 }
 
 // ============================================================
@@ -75,7 +87,11 @@ ItemCategory ItemDatabase::GetCategory(ItemID id)
     if (g_Projectiles.count(id)) return ItemCategory::Projectile;
     if (g_Functions.count(id))   return ItemCategory::Function;
     if (g_Areas.count(id))       return ItemCategory::Area;
-    return ItemCategory::Projectile;   // 未登録時の既定
+    if (g_Frames.count(id))      return ItemCategory::Frame;
+
+    // 未登録。以前は Projectile を返していたが、
+    // 登録し忘れたブロックが攻撃型として扱われて原因が分かりにくくなる。
+    return ItemCategory::Unknown;
 }
 
 const ProjectileItemDef* ItemDatabase::GetProjectile(ItemID id)
@@ -96,11 +112,18 @@ const AreaItemDef* ItemDatabase::GetArea(ItemID id)
     return (it != g_Areas.end()) ? &it->second : nullptr;
 }
 
+const FrameItemDef* ItemDatabase::GetFrame(ItemID id)
+{
+    auto it = g_Frames.find(id);
+    return (it != g_Frames.end()) ? &it->second : nullptr;
+}
+
 const ItemCommon* ItemDatabase::GetCommon(ItemID id)
 {
     if (auto* p = GetProjectile(id)) return &p->common;
     if (auto* f = GetFunction(id))   return &f->common;
     if (auto* a = GetArea(id))       return &a->common;
+    if (auto* fr = GetFrame(id))     return &fr->common;
     return nullptr;
 }
 
@@ -110,6 +133,11 @@ bool ItemDatabase::IsAttackType(ItemID id)
     return c == ItemCategory::Projectile || c == ItemCategory::Area;
 }
 
+bool ItemDatabase::IsFrame(ItemID id)
+{
+    return GetCategory(id) == ItemCategory::Frame;
+}
+
 const std::vector<ItemID>& ItemDatabase::GetAllIDs()
 {
     return g_AllIDs;
@@ -117,7 +145,7 @@ const std::vector<ItemID>& ItemDatabase::GetAllIDs()
 
 // ============================================================
 // 修飾の適用
-// ★新しい修飾対象を増やす時はここに case を1つ足すだけ。
+// 新しい修飾対象を増やす時はここに case を1つ足すだけ。
 // ============================================================
 void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
 {
@@ -155,18 +183,24 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
     {
         switch (mod.op)
         {
-        case ModifyOp::Add:      *targetInt += (int)mod.value;                break;
-        case ModifyOp::Multiply: *targetInt = (int)(*targetInt * mod.value); break;
-        case ModifyOp::Set:      *targetInt = (int)mod.value;                break;
+        case ModifyOp::Add:      *targetInt += (int)mod.value; break;
+
+            // 切り捨てではなく四捨五入にする。
+            // 切り捨てだと 1 × 0.6 = 0 になり、
+            // 「少し減らす」つもりの修飾が「全部消す」になってしまう。
+        case ModifyOp::Multiply:
+            *targetInt = (int)(*targetInt * mod.value + 0.5f);
+            break;
+
+        case ModifyOp::Set:      *targetInt = (int)mod.value; break;
         }
         if (*targetInt < 1) *targetInt = 1;   // 最低1発は撃てるようにする
     }
 }
-
 // ============================================================
-// AOE 向けの修飾適用
-// ★AOE のパラメータを増やす時はここに case を1つ足すだけ。
-//   飛行物側の ApplyModifier には一切触らない。
+// AOE 型への修飾
+// SpellStats 版と対称な構造。
+// 新しい修飾対象を増やす時はここに case を1つ足すだけ。
 // ============================================================
 void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
 {
@@ -180,7 +214,9 @@ void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
     case AreaParam::DamagePerTick: target = &stats.damagePerTick; break;
     case AreaParam::CastInterval:  target = &stats.castInterval;  break;
     case AreaParam::ManaCost:      target = &stats.manaCost;      break;
-    default: return;
+
+    default:
+        return;
     }
 
     switch (mod.op)
@@ -190,9 +226,5 @@ void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
     case ModifyOp::Set:      *target = mod.value; break;
     }
 
-    if (*target < 0.0f) *target = 0.0f;
-
-    // tickInterval が 0 だと無限ループになるので下限を設ける
-    if (mod.param == AreaParam::TickInterval && *target < 0.02f)
-        *target = 0.02f;
+    if (*target < 0.0f) *target = 0.0f;   // 負値を防ぐ
 }

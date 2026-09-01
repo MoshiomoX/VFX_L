@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // PlayerStateSystem.cpp
 // ============================================================
 #include "PlayerStateSystem.h"
@@ -32,7 +32,7 @@ namespace
 
     // ============================================================
     // 動作層
-    // ★WeaponSystem が発射時に castAnimTimer を置く（方案B）。
+    // ※WeaponSystem が発射時に castAnimTimer を置く（方案B）。
     //   castTimer から推測しない理由：castInterval は背包の修飾で
     //   変わるため「撃った直後」の窓を計算できない。
     //   この作品は魔法の出現と動作が厳密に揃う必要がある。
@@ -89,7 +89,7 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
                 }
 
                 // 死亡時は滑り続けないよう水平速度を殺す。
-                // ★velocity.y は触らない（重力と着地は PhysicsSystem の担当）。
+                // ※velocity.y は触らない（重力と着地は PhysicsSystem の担当）。
                 if (st.IsDead())
                 {
                     rb.velocity.x = 0.0f;
@@ -133,7 +133,7 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
 
 // ============================================================
 // 被弾処理
-// ★無敵判定をここに集約する。HitEvent 側で無敵を見ないこと。
+// ※無敵判定をここに集約する。HitEvent 側で無敵を見ないこと。
 //   見る場所が2つあると必ず片方だけ直して壊れる。
 // ============================================================
 bool PlayerStateSystem::TryApplyHit(Registry& reg, unsigned int entity, float damage)

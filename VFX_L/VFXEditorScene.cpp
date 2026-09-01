@@ -9,6 +9,8 @@
 #include "Renderer.h"
 #include "imgui.h"
 #include <iostream>
+#include <vector>
+#include <chrono>
 
 // ============================================================
 // Init
@@ -48,6 +50,9 @@ void VFXEditorScene::Init()
     m_Editor.SetTexture(m_ParticleTexture);
     m_Editor.SetParticleSystem(&m_ParticleSystem);
 
+    // 一括発射の既定値をプール全体に合わせる
+    m_BurstCount = (int)m_ParticleSystem.GetMaxParticles();
+
     std::cout << "[VFXEditorScene] Init complete" << std::endl;
 }
 
@@ -82,12 +87,42 @@ void VFXEditorScene::Update(float dt)
     // ---- VFX 更新（ここで emitter が積まれる）----
     m_Effect.Update(dt);
 
+    // ============================================================
+    // 一括発射は VFX の後、Flush の前に積む。
+    // 同じフレームの emitter 配列に合流させるため。
+    // ============================================================
+    if (m_BurstPending || m_BurstLoop)
+    {
+        SubmitBurst();
+        m_BurstPending = false;
+    }
+    else
+    {
+        m_LastBurstRequest = 0;
+    }
+
     // ---- 統計を退避（Flush でクリアされる）----
     m_LastEmitterCount = m_ParticleSystem.GetPendingEmitterCount();
     m_LastDropped = m_ParticleSystem.GetDroppedEmitterCount();
 
-    // ---- ★1フレーム1回だけ ----
-    m_ParticleSystem.Flush(dt, m_TotalTime);
+    // ============================================================
+    // 1フレーム1回だけ
+    //   Flush はコマンドを積むだけの処理。
+    //   10万発を要求しても CPU 時間はほぼ変わらないはず。
+    //   変わるなら、どこかで GPU の完了を待っている。
+    // ============================================================
+    {
+        auto t0 = std::chrono::high_resolution_clock::now();
+
+        m_ParticleSystem.Flush(dt, m_TotalTime);
+
+        auto t1 = std::chrono::high_resolution_clock::now();
+        m_FlushMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+        // 指数移動平均。単発の外れ値に振られないようにする。
+        m_FlushMsAvg = m_FlushMsAvg * 0.95 + m_FlushMs * 0.05;
+        if (m_FlushMs > m_FlushMsPeak) m_FlushMsPeak = m_FlushMs;
+    }
 
     // ---- 仮想投射物の位置を可視化 ----
     if (m_ShowFakeMarker)
@@ -161,6 +196,150 @@ void VFXEditorScene::UpdateFakeProjectile(float dt)
 }
 
 // ============================================================
+// 一括発射：emitter を1つだけ積んで、そこに全弾を担当させる
+//
+// CPU は「何発撃ちたいか」しか書かない。
+//   実際に何発出るかは EmitCS が dead list の空き数を見て決める。
+//   要求が空き数を超えても、shader 側の護欄が余分なスレッドを
+//   止めるので dead list は壊れない。
+//   これを目で確認するのがこのテストの目的。
+// ============================================================
+void VFXEditorScene::SubmitBurst()
+{
+    GPUEmitter e = {};
+
+    e.position = { m_BurstOrigin[0], m_BurstOrigin[1], m_BurstOrigin[2] };
+    e.emitType = 1;                       // Sphere（全方向へ均等に散る）
+    e.direction = { 0.0f, 1.0f, 0.0f };
+    e.spreadAngle = 180.0f;
+    e.shapeSize = { 0.5f, 0.5f, 0.5f };
+
+    e.emitCount = m_BurstCount;
+    e.maxParticles = (int)m_ParticleSystem.GetMaxParticles();
+    e.particleOffset = 0;
+    e.emitRate = 0.0f;                    // 連続発射ではないので使わない
+
+    e.speedRange = { m_BurstSpeed[0], m_BurstSpeed[1] };
+    e.lifetimeRange = { m_BurstLife[0], m_BurstLife[1] };
+
+    // x=startMin, y=startMax, z=endMin, w=endMax
+    e.sizeRange = { m_BurstSize[0], m_BurstSize[0],
+                    m_BurstSize[1], m_BurstSize[1] };
+
+    e.startColorMin = { 0.6f, 0.8f, 1.0f, 1.0f };
+    e.startColorMax = { 1.0f, 1.0f, 1.0f, 1.0f };
+    e.endColorMin = { 0.2f, 0.1f, 0.6f, 0.0f };
+    e.endColorMax = { 0.6f, 0.2f, 1.0f, 0.0f };
+
+    e.gravity = { 0.0f, m_BurstGravity, 0.0f };
+    e.dragCoeff = m_BurstDrag;
+
+    e.rotationRange = { 0.0f, 360.0f };
+    e.angularVelRange = { -90.0f, 90.0f };
+
+    e.meshVertexOffset = 0;
+    e.meshVertexCount = 0;
+
+    e.isActive = 1.0f;
+    e.emitterID = 9999;                   // 通常の VFX と区別できる値
+
+    e.atlasRows = 1;
+    e.atlasCols = 1;
+    e.atlasIndex = 0;                     // 0以上 = 固定コマ（アニメしない）
+    e.textureIndex = 0;
+
+    e.colorKeyOffset = 0;
+    e.colorKeyCount = 0;                  // 0 = startColor / endColor の線形補間
+
+    std::vector<GPUEmitter> emitters{ e };
+    std::vector<ColorKey>   keys;         // 空
+
+    m_ParticleSystem.SubmitEmitters(emitters, keys);
+    m_LastBurstRequest = (size_t)m_BurstCount;
+}
+
+// ============================================================
+// 負荷テストのパネル
+// ============================================================
+void VFXEditorScene::DrawStressUI()
+{
+    if (!ImGui::CollapsingHeader("Burst Test", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    const uint32_t pool = m_ParticleSystem.GetMaxParticles();
+
+    ImGui::Text("Pool Size : %u", pool);
+    ImGui::TextDisabled("Fills the whole pool in a single frame.");
+    ImGui::TextDisabled("If the request exceeds the free slots, the EmitCS");
+    ImGui::TextDisabled("guard stops the extra threads. Nothing breaks.");
+
+    ImGui::Separator();
+
+    ImGui::SliderInt("Burst Count", &m_BurstCount, 1000, (int)pool);
+    if (ImGui::Button("Full Pool")) m_BurstCount = (int)pool;
+    ImGui::SameLine();
+    if (ImGui::Button("Half"))      m_BurstCount = (int)pool / 2;
+    ImGui::SameLine();
+    // プールを超える要求。護欄が効いているかの確認用。
+    if (ImGui::Button("Over x2"))   m_BurstCount = (int)pool * 2;
+
+    ImGui::Spacing();
+
+    if (ImGui::Button("BURST", ImVec2(160, 40)))
+        m_BurstPending = true;
+
+    ImGui::SameLine();
+    ImGui::Checkbox("Loop (keep starving)", &m_BurstLoop);
+
+    if (m_BurstLoop)
+        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1),
+            "Requesting %d every frame -> dead list stays empty", m_BurstCount);
+
+    ImGui::Separator();
+
+    // ---- 発射パラメータ ----
+    ImGui::DragFloat3("Origin", m_BurstOrigin, 0.1f);
+    ImGui::DragFloat2("Speed  min/max", m_BurstSpeed, 0.1f, 0.0f, 60.0f);
+    ImGui::DragFloat2("Life   min/max", m_BurstLife, 0.1f, 0.1f, 30.0f);
+    ImGui::DragFloat2("Size   start/end", m_BurstSize, 0.005f, 0.001f, 2.0f);
+    ImGui::DragFloat("Gravity", &m_BurstGravity, 0.1f, -30.0f, 30.0f);
+    ImGui::DragFloat("Drag", &m_BurstDrag, 0.02f, 0.0f, 5.0f);
+
+    ImGui::Separator();
+
+    // ---- 結果 ----
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Result");
+    ImGui::Text("Requested this frame : %zu", m_LastBurstRequest);
+    ImGui::Text("Emitters submitted   : %zu / %zu",
+        m_LastEmitterCount, m_ParticleSystem.GetMaxEmitters());
+
+    // 実際に何発出たかを CPU は知らない。これは仕様であって欠陥ではない。
+    //   知ろうとすると GPU の完了を待つことになる。
+    ImGui::TextDisabled("How many actually spawned lives on the GPU only.");
+    ImGui::TextDisabled("Judge it by the screen.");
+
+    ImGui::Separator();
+
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Flush CPU Time");
+    ImGui::TextDisabled("Flush only queues commands. Requesting 100k should");
+    ImGui::TextDisabled("not change this number. If it does, we wait for the GPU.");
+
+    ImVec4 c = (m_FlushMsAvg > 1.0) ? ImVec4(1, 0.4f, 0.4f, 1)
+        : (m_FlushMsAvg > 0.3) ? ImVec4(1, 0.9f, 0.4f, 1)
+        : ImVec4(0.4f, 1, 0.4f, 1);
+    ImGui::TextColored(c, "now %.4f ms   avg %.4f ms   peak %.4f ms",
+        m_FlushMs, m_FlushMsAvg, m_FlushMsPeak);
+
+    if (ImGui::Button("Reset Peak"))
+    {
+        m_FlushMsPeak = 0.0;
+        m_FlushMsAvg = 0.0;
+    }
+    ImGui::SameLine();
+    ImGui::Text("| FPS %.1f", ImGui::GetIO().Framerate);
+}
+
+// ============================================================
 // シーン側 UI（VFXEditor 本体とは別のパネル）
 // ============================================================
 void VFXEditorScene::DrawSceneUI()
@@ -171,13 +350,16 @@ void VFXEditorScene::DrawSceneUI()
     ImGui::Text("Emitters : %zu / %zu", m_LastEmitterCount, m_ParticleSystem.GetMaxEmitters());
     if (m_LastDropped > 0)
         ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "Dropped : %zu", m_LastDropped);
-    ImGui::Text("Alive Particles : %u", m_ParticleSystem.GetAliveCount());
+
+    // GetAliveCount() は現在 1 を返す暫定実装。
+    //   毎フレームの回読（Map READ）を廃止したため、
+    //   正確な生存数は GPU 上にしか無い。ここに出すと嘘になる。
+    ImGui::TextDisabled("Alive count lives on the GPU only.");
     ImGui::Separator();
 
     // ---------- 投射物追従テスト ----------
     if (ImGui::CollapsingHeader("Projectile Follow Test", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      
         ImGui::Checkbox("Enable Follow", &m_FakeProjectileOn);
         ImGui::SameLine();
         ImGui::Checkbox("Show Marker", &m_ShowFakeMarker);
@@ -214,16 +396,15 @@ void VFXEditorScene::DrawSceneUI()
         if (ImGui::Button("Reset Particles")) m_ParticleSystem.ResetSystem();
     }
 
+    // ---------- 負荷テスト ----------
+    DrawStressUI();
+
     // ---------- 環境 ----------
     if (ImGui::CollapsingHeader("Environment"))
     {
         ImGui::DragFloat3("Light Dir", m_LightDir, 0.02f, -1.0f, 1.0f);
         ImGui::ColorEdit3("Ambient", m_AmbientColor);
-        ImGui::Separator();
-        ImGui::DragFloat3("Camera Pos", (float*)&m_Camera, 0.0f);   // 表示のみ
     }
-
-   
 
     ImGui::End();
 }

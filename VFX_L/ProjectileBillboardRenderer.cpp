@@ -78,11 +78,10 @@ void ProjectileBillboardRenderer::Render(Registry& reg, CameraBase* camera)
 {
     if (!m_Context || !camera || !m_VS || !m_PS) return;
 
-    // ---- 1) 投射物を収集（TransformComponent が唯一の位置真値）----
+    // ---- 1) 投射物を収集（TransformComponent が唯一の位置真値）---
     m_Instances.clear();
-    reg.CreateView<TransformComponent, ProjectileComponent, ProjectileVisualComponent>()
-        .Each([&](Entity, TransformComponent& tf, ProjectileComponent& pj,
-            ProjectileVisualComponent& vis)
+    reg.CreateView<TransformComponent, ProjectileVisualComponent>()
+        .Each([&](Entity e, TransformComponent& tf, ProjectileVisualComponent& vis)
             {
                 if (m_Instances.size() >= m_MaxProjectiles) return;
 
@@ -90,8 +89,13 @@ void ProjectileBillboardRenderer::Render(Registry& reg, CameraBase* camera)
                 inst.position = tf.position;
                 inst.size = vis.size;
                 inst.color = vis.color;
-                inst.velocity = pj.velocity;
                 inst.stretch = vis.stretch;
+
+                if (reg.Has<ProjectileComponent>(e))
+                    inst.velocity = reg.Get<ProjectileComponent>(e).velocity;
+                else
+                    inst.velocity = { 0.0f, 0.0f, 0.0f };
+
                 m_Instances.push_back(inst);
             });
 

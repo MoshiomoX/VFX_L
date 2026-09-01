@@ -24,8 +24,35 @@ public:
 private:
     void DrawSceneUI();
     void UpdateFakeProjectile(float dt);   // 投射物追従テスト
+    void SubmitBurst();      // 一括発射の emitter を積む
+    void DrawStressUI();     // 負荷テストのパネル
 
 private:
+
+    // ============================================================
+    // 一括発射テスト
+    // 
+    // プール（10万）を1フレームで埋めきる。
+    //   dead list の空き数を超えて要求した時に何が起きるかを
+    //   実際に目で確認するためのもの。
+    //   EmitCS 側の護欄が効いていれば、空き数までしか出ない。
+    // ============================================================
+    bool   m_BurstPending = false;   // 次の Flush で1回だけ撃つ
+    bool   m_BurstLoop = false;   // 毎フレーム撃ち続ける（枯渇維持）
+    int    m_BurstCount = 100000;
+    float  m_BurstSpeed[2] = { 2.0f, 14.0f };    // min / max
+    float  m_BurstLife[2] = { 2.0f,  6.0f };
+    float  m_BurstSize[2] = { 0.20f, 0.02f };   // start / end
+    float  m_BurstOrigin[3] = { 0.0f, 1.0f, 0.0f };
+    float  m_BurstGravity = -1.5f;
+    float  m_BurstDrag = 0.4f;
+
+    size_t m_LastBurstRequest = 0;    // 直前に要求した発射数
+
+    // ---- Flush の CPU 時間（GPU を待っていないかの指標）----
+    double m_FlushMs = 0.0;
+    double m_FlushMsAvg = 0.0;
+    double m_FlushMsPeak = 0.0;
     CameraBase m_Camera;
 
     // --- Particle / VFX ---

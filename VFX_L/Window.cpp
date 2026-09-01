@@ -75,7 +75,7 @@ bool Window::Create(int width, int height, const wchar_t* title)
     if (!RegisterClassEx(&wc))
         return false;
 
-    // ★まず概算サイズで作る。
+    // ※まず概算サイズで作る。
     //   AdjustWindowRect は 96 DPI 前提で枠を計算するため、
     //   高 DPI 環境では実クライアント領域が要求値とズレる。
     RECT rect = { 0, 0, width, height };
@@ -96,7 +96,7 @@ bool Window::Create(int width, int height, const wchar_t* title)
     if (!m_hWnd)
         return false;
 
-    // ★DPI が確定してから枠を再計算し、クライアント領域を要求値に合わせ直す
+    // ※DPI が確定してから枠を再計算し、クライアント領域を要求値に合わせ直す
     UINT dpi = GetDpiForWindow(m_hWnd);
     RECT fix = { 0, 0, width, height };
     AdjustWindowRectExForDpi(&fix, WS_OVERLAPPEDWINDOW, FALSE, 0, dpi);
@@ -105,7 +105,7 @@ bool Window::Create(int width, int height, const wchar_t* title)
         fix.bottom - fix.top,
         SWP_NOMOVE | SWP_NOZORDER);
 
-    // ★最終的な実クライアント領域を保持する
+    // ※最終的な実クライアント領域を保持する
     RECT client = {};
     GetClientRect(m_hWnd, &client);
     m_Width = client.right - client.left;
@@ -146,7 +146,7 @@ void Window::ToggleFullscreen()
         m_WindowedStyle = GetWindowLong(m_hWnd, GWL_STYLE);
         GetWindowRect(m_hWnd, &m_WindowedRect);
 
-        // ★モニタの作業領域ではなく画面全体を取る（タスクバーも覆う）
+        // ※モニタの作業領域ではなく画面全体を取る（タスクバーも覆う）
         HMONITOR mon = MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST);
         MONITORINFO mi = { sizeof(MONITORINFO) };
         GetMonitorInfo(mon, &mi);
