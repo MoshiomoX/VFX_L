@@ -164,4 +164,13 @@ namespace Res
         inline constexpr const char* Fireball = "Assets/Data/VFXData/Fireball.json";
         inline constexpr const char* Lightning = "Assets/Data/VFXData/Lightning.json";
     }
+
+    // ========================================================
+    // 設定ファイル（char）
+    // ImGui で調整した値の保存先。実行時に読み書きする
+    // ========================================================
+    namespace Cfg
+    {
+        inline constexpr const char* HUD = "Assets/Data/HUD.json";
+    }
 }

@@ -263,6 +263,18 @@ void CollisionTestScene::Update(float dt)
     if (!pauseByUI)
         UpdateGameplay(dt);
 
+    // ---- HUD の残像追従 ----
+    // ポーズ中も進める。止めると、モーダルを閉じた瞬間に
+    // 古い残像が残ったまま見えてしまう
+    if (m_Registry.IsValid(m_Player)
+        && m_Registry.Has<HealthComponent>(m_Player)
+        && m_Registry.Has<ManaComponent>(m_Player))
+    {
+        m_HUD.Update(dt,
+            m_Registry.Get<HealthComponent>(m_Player),
+            m_Registry.Get<ManaComponent>(m_Player));
+    }
+
     DrawDebugUI();
 }
 
@@ -1585,6 +1597,11 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::DragFloat("Intensity", &m_LightIntensity, 0.02f, 0.0f, 5.0f);
         ImGui::ColorEdit3("Ambient", m_AmbientColor);
     }
+
+    // ---------- HUD ----------
+    // 中身は HUD 側に持たせる。場面はヘッダを出すだけ
+    if (ImGui::CollapsingHeader("HUD"))
+        m_HUD.DrawDebugUI();
 
     ImGui::End();
 }
