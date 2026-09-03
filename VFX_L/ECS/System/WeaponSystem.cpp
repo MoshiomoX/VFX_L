@@ -8,6 +8,7 @@
 #include "Component/ModelComponent.h"
 #include "Component/Projectile/ProjectileComponent.h"
 #include "Component/WandComponent.h"
+#include "Component/ManaComponent.h"
 #include "Collider/CollisionSystem.h"
 #include "ECS/View.h"
 #include <algorithm>
@@ -33,7 +34,7 @@ std::shared_ptr<Model> WeaponSystem::GetModel(ItemID id) const
 }
 
 // ============================================================
-// 1???????????????????????(????)
+// 1回の施法ぶんの発射要求を積む（分裂の扇状展開はここ）
 // ============================================================
 void WeaponSystem::QueueOneCast(const SpellStats& s,
     const Vector3& muzzle, const Vector3& dir)
@@ -42,14 +43,14 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
 
     if (count == 1 || s.spreadAngle <= 0.0f)
     {
-        // ??:???????
+        // 単発: そのまま積む
         m_Requests.push_back({ s.id, muzzle, dir,
             s.speed, s.radius, s.damage, s.lifetime });
         return;
     }
 
-    // ??:spreadAngle ???? count ??????Y??????????????
-    //  ?) count=3, spread=30 ? -15?, 0?, +15?
+    // 分裂: spreadAngle を count 等分し、Y 軸まわりに扇状へ広げる
+    //  例) count=3, spread=30 → -15°, 0°, +15°
     float step = s.spreadAngle / (float)(count - 1);
     float start = -s.spreadAngle * 0.5f;
 
@@ -67,6 +68,8 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
 
 // ============================================================
 // Update
+// ※マナは書かない。CanAfford で確認して Reserve で予約するだけ。
+//   引き落としと回復は ManaSystem がこの後で行う。
 // ============================================================
 void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collision)
 {
@@ -74,20 +77,16 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     m_Spawned.clear();
 
 
-    reg.CreateView<TransformComponent, WandComponent>()
-        .Each([&](Entity e, TransformComponent& tf, WandComponent& wand)
+    reg.CreateView<TransformComponent, WandComponent, ManaComponent>()
+        .Each([&](Entity e, TransformComponent& tf, WandComponent& wand, ManaComponent& mana)
             {
-                // ---- ????(????)----
-                wand.manaCurrent = (std::min)(wand.manaMax,
-                    wand.manaCurrent + wand.manaRegen * dt);
-
-                // ---- ????????????? ----
+                // ---- 施法アニメ用のタイマーを進める ----
                 if (wand.castAnimTimer > 0.0f)
                     wand.castAnimTimer -= dt;
 
                 Vector3 muzzle = tf.position + wand.muzzleOffset;
 
-                // ---- ?????1???(?????????????)----
+                // ---- 索敵は1回だけ（全ての出力源が同じ方向を向く）----
                 Entity target = 0;
                 bool hasTarget = collision.FindNearestEntity(
                     muzzle, wand.range, Layer_Enemy, target);
@@ -104,9 +103,9 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     else aimDir.Normalize();
                 }
 
-                // ---- ????????? ----
-                // ?pendingCasts ???????????
-                //   ???1???????????????????(1?? = 1 combo)?
+                // ---- 発射の許可をモードで決める ----
+                // ※pendingCasts はモードに関係なく消化する。
+                //   一度始めた連発は最後まで撃ち切る（1回の施法 = 1 combo）。
                 bool allowNewCast = true;
                 bool ignoreCooldown = false;
 
@@ -124,48 +123,48 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     break;
                 }
 
-                // ---- ?????????? ----
+                // ---- 出力源ごとに独立して処理する ----
                 for (auto& s : wand.spells)
                 {
-                    // === ???????(????????)===
+                    // === 連発の続き（二重釈放の残り）===
                     if (s.pendingCasts > 0)
                     {
                         s.delayTimer -= dt;
                         if (s.delayTimer <= 0.0f)
                         {
-                            if (hasTarget && wand.manaCurrent >= s.manaCost)
+                            if (hasTarget && mana.CanAfford(s.manaCost))
                             {
                                 QueueOneCast(s, muzzle, aimDir);
-                                wand.manaCurrent -= s.manaCost;
+                                mana.Reserve(s.manaCost);
                                 wand.castAnimTimer = wand.castAnimDuration;
                             }
                             --s.pendingCasts;
                             s.delayTimer = s.castDelay;
                         }
-                        continue;   // ?????????????
+                        continue;   // 連発中は新しい施法を始めない
                     }
 
-                    // === ????? ===
-                    // ?castTimer ?????????????????????
-                    //   ????????????????????????
+                    // === 新しい施法 ===
+                    // ※castTimer は撃てなくても減らし続ける。
+                    //   標的が現れた瞬間に撃てるようにするため。
                     s.castTimer -= dt;
                     if (!ignoreCooldown && s.castTimer > 0.0f) continue;
                     if (!allowNewCast) continue;
                     if (!hasTarget) continue;
-                    if (wand.manaCurrent < s.manaCost) continue;
+                    if (!mana.CanAfford(s.manaCost)) continue;
 
                     QueueOneCast(s, muzzle, aimDir);
-                    wand.manaCurrent -= s.manaCost;
+                    mana.Reserve(s.manaCost);
                     wand.castAnimTimer = wand.castAnimDuration;
 
-                    // ????:???????????????????
+                    // 二重釈放: 残りの回数を pending として積んでおく
                     s.pendingCasts = (std::max)(0, s.castCount - 1);
                     s.delayTimer = s.castDelay;
                     s.castTimer = s.castInterval;
                 }
             });
 
-    // ---- ?????????????? ----
+    // ---- 走査が終わってから Entity を作る ----
     for (const auto& req : m_Requests)
     {
         Entity p = reg.Create();
@@ -187,7 +186,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         pj.lifetime = req.lifetime;
         reg.Add<ProjectileComponent>(p, pj);
         m_Spawned.push_back({ p, req.id });
-        // ? Rigidbody ?????(position ?????????)
+        // ※Rigidbody は付けない（position は ProjectileSystem が直接進める）
 
         if (auto m = GetModel(req.id))
         {

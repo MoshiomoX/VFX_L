@@ -1,37 +1,30 @@
 ﻿// ============================================================
 // ManaComponent.h
-// 魔力データ（純データ）。現時点では HUD の表示のみに使う。
+// 魔力（純データ）。使い手が持つ。杖の属性ではない。
 //
-// 将来の消費に備えた設計：
-//   詠唱側は CanAfford / TrySpend だけを呼ぶ。
-//   数値を直接書き換える場所を増やさないため。
-//   regenPerSec は自然回復の係数。回復を担当する System を
-//   実装する時に「誰が書くか」を決める（一つのデータは一つの System）。
+// 書き手は ManaSystem だけ。
+//   消費したい側（WeaponSystem 等）は Reserve() で予約を積むだけで、
+//   current は触らない。予約は ManaSystem が毎フレーム末に引き落とす。
+//   ※粒子の Submit → Flush と同じ形。書き手を1つに絞るため。
+//
+// 同一フレーム内で複数の出力源が奪い合う場合:
+//   CanAfford() は予約済みを差し引いて判定するので、
+//   先に予約した方が勝つ。結算の順番は問わない。
 // ============================================================
 #pragma once
 
 struct ManaComponent
 {
-    float current = 50.0f;
-    float max = 50.0f;
+    float max = 100.0f;
+    float current = 100.0f;
+    float regen = 25.0f;          // 毎秒の回復量
 
-    // 自然回復（毎秒）。回復 System 実装までは未使用
-    float regenPerSec = 5.0f;
+    // 今フレームの消費予約（ManaSystem が引き落として 0 に戻す）
+    float pendingSpend = 0.0f;
 
-    bool CanAfford(float cost) const { return current >= cost; }
+    // 予約済みを差し引いた上で払えるか
+    bool CanAfford(float cost) const { return current - pendingSpend >= cost; }
 
-    // 足りれば消費して true。詠唱側はこれだけを使う
-    bool TrySpend(float cost)
-    {
-        if (current < cost) return false;
-        current -= cost;
-        return true;
-    }
-
-    // 回復処理の後などに範囲へ収める
-    void ClampToRange()
-    {
-        if (current > max) current = max;
-        if (current < 0.0f) current = 0.0f;
-    }
+    // 消費を予約する。払えるかは呼ぶ側が CanAfford で確認しておく
+    void Reserve(float cost) { pendingSpend += cost; }
 };

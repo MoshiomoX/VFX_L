@@ -14,7 +14,7 @@
 
 void BackpackAggregateSystem::Update(Registry& reg)
 {
-    // dirty ??????????(??????????????)
+    // dirty なものだけ集める（走査中に書き換えないよう、溜めてから処理する）
     std::vector<Entity> targets;
     reg.CreateView<BackpackComponent, WandComponent>()
         .Each([&](Entity e, BackpackComponent& bp, WandComponent&)
@@ -34,7 +34,7 @@ void BackpackAggregateSystem::ForceRebuild(Registry& reg, Entity e)
 }
 
 // ============================================================
-// ?????
+// 再構築の本体
 // ============================================================
 void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 {
@@ -43,8 +43,8 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
     m_Log.clear();
 
-    // ---- 1) ?????????????????????????? ----
-    //     ????????(????)???????????
+    // ---- 1) 影響格を持つブロックを集めて、ワールド座標のマスに展開する ----
+    //     回転を反映した後の位置（画布内のみ）を持っておく
     struct InfluenceSource
     {
         size_t itemIndex;
@@ -74,7 +74,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             sources.push_back(std::move(src));
     }
 
-    // ---- 2) ??????????? ----
+    // ---- 2) 攻撃ブロックごとに出力を組む ----
     wand.spells.clear();
     wand.areas.clear();
 
@@ -86,17 +86,17 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         const ItemCommon* c = ItemDatabase::GetCommon(item.id);
         if (!c) continue;
 
-        // ????????????????
+        // このブロックの占位格（回転反映後）
         auto occupy = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
 
-        // ---- ???????????????????? ----
-        // ???????????1???????
-        //   ?????????????????????????????
+        // ---- このブロックに影響を与えているブロックを探す ----
+        // 影響格と占位格が1マスでも重なれば成立。
+        //   同じブロックから複数マス重なっても1回だけ数える（set にする理由）
         std::unordered_set<size_t> influencers;
 
         for (const auto& src : sources)
         {
-            if (src.itemIndex == i) continue;   // ???????????
+            if (src.itemIndex == i) continue;   // 自分自身は数えない
 
             bool touched = false;
             for (const auto& cell : src.cells)
@@ -116,13 +116,13 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 influencers.insert(src.itemIndex);
         }
 
-        // ---- ??? ----
+        // ---- ログ ----
         AggregateLog log;
         log.sourceName = c->name;
         log.row = item.row;
         log.col = item.col;
 
-        // ---- ???????????????????? ----
+        // ---- 種類ごとに基礎値へ修飾を重ねる ----
         if (auto* pdef = ItemDatabase::GetProjectile(item.id))
         {
             SpellStats stats = pdef->baseStats;
@@ -131,7 +131,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             {
                 const auto& srcItem = bp.items[srcIdx];
                 auto* fdef = ItemDatabase::GetFunction(srcItem.id);
-                if (!fdef) continue;   // ??????????????????
+                if (!fdef) continue;   // 機能型でないものは影響格を持っていても無視
 
                 for (const auto& mod : fdef->spellModifiers)
                     ItemDatabase::ApplyModifier(stats, mod);

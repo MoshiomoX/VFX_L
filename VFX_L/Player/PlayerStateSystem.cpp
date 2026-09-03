@@ -14,11 +14,11 @@
 
 namespace
 {
-    // ???????????????(??????????????)
+    // これより遅ければ静止とみなす（水平速度の二乗で比較する）
     constexpr float kIdleSpeedSq = 0.04f;   // 0.2 m/s
 
     // ============================================================
-    // ???
+    // 移動層
     // ============================================================
     MoveStateID NextMoveState(const RigidbodyComponent& rb)
     {
@@ -31,11 +31,11 @@ namespace
     }
 
     // ============================================================
-    // ???
-    // ?WeaponSystem ????? castAnimTimer ???(??B)?
-    //   castTimer ?????????:castInterval ???????
-    //   ??????????????????????
-    //   ?????????????????????????
+    // 動作層
+    // ※WeaponSystem が立てる castAnimTimer を見る（案B）。
+    //   castTimer は使わない。あれは castInterval の残り時間で、
+    //   撃っていない間もずっと減り続けるため、
+    //   「今振っているか」の判定には使えない。
     // ============================================================
     ActionStateID NextActionState(const WandComponent* wand)
     {
@@ -52,7 +52,7 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
         .Each([&](Entity e, RigidbodyComponent& rb, HealthComponent& hp,
             PlayerStateComponent& st, PlayerTag&)
             {
-                // ---- ???????? ----
+                // ---- 各層の滞在時間を進める ----
                 st.moveTime += dt;
                 st.actionTime += dt;
                 st.damageTime += dt;
@@ -61,7 +61,7 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
                     st.invincibleTimer -= dt;
 
                 // ============================================================
-                // 1) ???(???????????)
+                // 1) 被損層（最上位。他の層を抑制する）
                 // ============================================================
                 DamageStateID nextDamage = st.damage;
 
@@ -71,13 +71,13 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
                 }
                 else if (st.damage == DamageStateID::Hurt)
                 {
-                    // ??????????(????????????)
+                    // 硬直時間が過ぎたら通常へ戻す（無敵時間は別に続く）
                     if (st.damageTime >= st.hurtDuration)
                         nextDamage = DamageStateID::Normal;
                 }
                 else if (st.damage == DamageStateID::Dead)
                 {
-                    // ??????????????????????
+                    // 死亡からの復帰はここでは扱わない（外部が書き戻す）
                     nextDamage = DamageStateID::Dead;
                 }
 
@@ -88,8 +88,8 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
                     st.damageTime = 0.0f;
                 }
 
-                // ????????????????????
-                // ?velocity.y ?????(?????? PhysicsSystem ???)?
+                // 死んだら水平速度を止める（滑り続けるのを防ぐ）
+                // ※velocity.y は触らない（重力と着地は PhysicsSystem の担当）
                 if (st.IsDead())
                 {
                     rb.velocity.x = 0.0f;
@@ -97,7 +97,7 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
                 }
 
                 // ============================================================
-                // 2) ???(Damage ??????)
+                // 2) 動作層（Damage に抑制される）
                 // ============================================================
                 ActionStateID nextAction = ActionStateID::None;
 
@@ -116,7 +116,7 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
                 }
 
                 // ============================================================
-                // 3) ???(???)
+                // 3) 移動層（最下位）
                 // ============================================================
                 if (!st.IsSuppressed(Mask_Move))
                 {
@@ -132,9 +132,9 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
 }
 
 // ============================================================
-// ????
-// ??????????????HitEvent ???????????
-//   ?????2?????????????????
+// 被弾の通知
+// 無敵判定はここに閉じ込める。HitEvent を消費する側はこれを呼ぶだけ。
+//   判定を2ヶ所に書くと必ず片方だけ直されて食い違う。
 // ============================================================
 bool PlayerStateSystem::TryApplyHit(Registry& reg, unsigned int entity, float damage)
 {
@@ -147,13 +147,13 @@ bool PlayerStateSystem::TryApplyHit(Registry& reg, unsigned int entity, float da
     auto& hp = reg.Get<HealthComponent>(e);
 
     if (st.IsDead())       return false;
-    if (st.IsInvincible()) return false;   // ???????
+    if (st.IsInvincible()) return false;   // 無敵中は弾く
 
     hp.current -= damage;
     if (hp.invincible && hp.current < 0.0f)
         hp.current = 0.0f;
 
-    // ???????????IsDead() ??????? Update ????
+    // ここでは Hurt にするだけ。IsDead() の判定は次の Update が行う。
     st.prevDamage = st.damage;
     st.damage = DamageStateID::Hurt;
     st.damageTime = 0.0f;

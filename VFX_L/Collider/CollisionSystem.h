@@ -63,6 +63,9 @@ public:
         float radius, uint32_t layerMask, Entity& outEntity) const;
 
 private:
-    std::vector<WorldCollider> m_WorldColliders;  // 毎フレーム再構築
+    // 狭相位: 1対の判定（広相位の格子から呼ばれる）
+    void TestPair(const WorldCollider& a, const WorldCollider& b);
+
+    std::vector<WorldCollider> m_WorldColliders;
     std::vector<CollisionPair> m_Pairs;
 };
