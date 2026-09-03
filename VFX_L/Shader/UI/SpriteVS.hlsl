@@ -11,13 +11,19 @@ cbuffer SpriteCB : register(b0)
     float2 _pad0;
 };
 
-// C++ 側の SpriteInstance と一致させる（48 bytes）
+// C++ 側の SpriteInstance と一致させる（64 bytes）
 struct SpriteInstance
 {
     float2 position; // 左上のスクリーン座標（ピクセル）
     float2 size; // 幅・高さ（ピクセル）
     float4 color; // 乗算色（アルファ含む）
     float4 uvRect; // 使用する UV 領域（xy=左上, zw=幅高さ）。全体なら (0,0,1,1)
+    
+    // pivot（ピクセル）まわりの回転。cos=1, sin=0 なら恒等（回転なし）。
+    // CPU 側で sincos 済みの値を積む（頂点ごとに計算させないため）
+    float2 pivot;
+    float cosA;
+    float sinA;
 };
 
 StructuredBuffer<SpriteInstance> instances : register(t0);
@@ -44,8 +50,14 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 
     float2 corner = corners[vertexID];
 
-    // ピクセル座標 → NDC 変換（左上 (0,0) を NDC (-1, +1) に対応させる）
     float2 pixel = s.position + corner * s.size;
+
+    // pivot まわりに回す（Y 下向きの画面座標なので、正の角度は時計回りに見える）
+    float2 d = pixel - s.pivot;
+    pixel = s.pivot + float2(d.x * s.cosA - d.y * s.sinA,
+                             d.x * s.sinA + d.y * s.cosA);
+
+    // ピクセル座標 → NDC 変換（左上 (0,0) を NDC (-1, +1) に対応させる）
     float2 ndc;
     ndc.x = (pixel.x / g_ScreenSize.x) * 2.0 - 1.0;
     ndc.y = -((pixel.y / g_ScreenSize.y) * 2.0 - 1.0);

@@ -4,6 +4,7 @@
 #include "Player/PlayerControlSystem.h"
 #include "ECS/Registry.h"
 #include "Component/TransformComponent.h"
+#include "Player/PlayerStatsComponent.h"
 #include "Component/RigidbodyComponent.h"
 #include "Player/PlayerTag.h"
 #include "Manager/InputMap.h"
@@ -13,10 +14,7 @@
 #include "ImGui.h"
 void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
 {
-    // ============================================================
-    // ??????????????????????????????
-    //   ???? return ????????? true ??????????
-    // ============================================================
+ 
     const bool blocked = DebugManager::Get().IsUsingDebugCamera()
         || ImGui::GetIO().WantCaptureKeyboard;
 
@@ -25,7 +23,7 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
     reg.CreateView<WandComponent, PlayerTag>()
         .Each([&](Entity e, WandComponent& wand, PlayerTag&)
             {
-                // Manual ???????????????????????
+            
                 wand.castRequested = castTrigger;
             });
 
@@ -34,25 +32,24 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
 
     auto move = InputMap::GetMoveInput();
 
-    // ??????????????(Y??????????)
     Vector3 camF = camera->GetForward(); camF.y = 0; camF.Normalize();
     Vector3 camR = camera->GetRight();   camR.y = 0; camR.Normalize();
 
-    // ??????????????????
     Vector3 dir = camR * move.x + camF * move.y;
-
-    reg.CreateView<TransformComponent, RigidbodyComponent, PlayerTag>()
-        .Each([&](Entity e, TransformComponent& tf, RigidbodyComponent& rb, PlayerTag&)
+    reg.CreateView<TransformComponent, RigidbodyComponent,
+        PlayerStatsComponent, PlayerTag>()
+        .Each([&](Entity e, TransformComponent& tf, RigidbodyComponent& rb,
+            PlayerStatsComponent& stats, PlayerTag&)
             {
-                // ????
-                rb.velocity.x = dir.x * m_MoveSpeed;
-                rb.velocity.z = dir.z * m_MoveSpeed;
+                // 能力値は Entity が持つ。System は値を持たない
+                rb.velocity.x = dir.x * stats.moveSpeed;
+                rb.velocity.z = dir.z * stats.moveSpeed;
                 tf.rotation.y = DirectX::XMConvertToDegrees(std::atan2(camF.x, camF.z));
-                // ????:?????????????????
+
                 if (rb.isGrounded && InputMap::GetJumpTrigger())
                 {
-                    rb.velocity.y = m_JumpPower;
-                    rb.isGrounded = false;   // ???????????????????
+                    rb.velocity.y = stats.jumpPower;
+                    rb.isGrounded = false;
                 }
             });
 }

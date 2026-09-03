@@ -36,7 +36,13 @@ public:
         const DirectX::SimpleMath::Vector2& size,
         const DirectX::SimpleMath::Vector4& color = { 1, 1, 1, 1 },
         const DirectX::SimpleMath::Vector4& uvRect = { 0, 0, 1, 1 });
-
+	// 回転付き。pivot は 0-1 の比率で指定（0,0=左上、1,1=右下）
+    void Draw(std::shared_ptr<Texture> tex,
+        const DirectX::SimpleMath::Vector2& pos,
+        const DirectX::SimpleMath::Vector2& size,
+        const DirectX::SimpleMath::Vector4& color,
+        float radians,
+        const DirectX::SimpleMath::Vector2& pivot);
     UINT GetLastDrawCalls() const { return m_LastDrawCalls; }
     UINT GetLastSpriteCount() const { return m_LastSpriteCount; }
 
@@ -48,6 +54,10 @@ private:
         DirectX::SimpleMath::Vector2 size;
         DirectX::SimpleMath::Vector4 color;
         DirectX::SimpleMath::Vector4 uvRect;
+
+        DirectX::SimpleMath::Vector2 pivot = { 0.0f, 0.0f };
+        float cosA = 1.0f;
+        float sinA = 0.0f;
     };
 
     struct SpriteCB

@@ -107,6 +107,12 @@
     <Filter Include="Player">
       <UniqueIdentifier>{899d840c-906e-489f-a048-c835fe4b0aa8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="World">
+      <UniqueIdentifier>{da68032a-7d8d-4565-b86e-fc8e093e4c57}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Enemy">
+      <UniqueIdentifier>{a2fdf0f4-0329-4d42-bbb0-9464a4d1feb8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Application.cpp">
@@ -354,6 +360,28 @@
     </ClCompile>
     <ClCompile Include="UI\HUD.cpp">
       <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ManaSystem.cpp" />
+    <ClCompile Include="ECS\System\ManaSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\GameUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\SpellbookUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="World\TerrainGenerator.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\GridWorld.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\ChaseAISystem.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\SpawnDirector.cpp">
+      <Filter>Enemy</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -749,6 +777,36 @@
     </ClInclude>
     <ClInclude Include="UI\HUD.h">
       <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\ManaSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\GameUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\DragContext.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\SpellbookUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="World\GridWorld.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\TerrainGenerator.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\ChaseAIComponent.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\ChaseAISystem.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\EnemyTags.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\SpawnDirector.h">
+      <Filter>Enemy</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

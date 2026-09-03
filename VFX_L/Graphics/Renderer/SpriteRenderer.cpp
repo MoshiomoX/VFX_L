@@ -166,3 +166,32 @@ void SpriteRenderer::Flush()
     m_VS->UnbindSRVs(m_Context);
     m_Batch.clear();
 }
+// ============================================================
+// 回転付き描画
+// CPU では回さない（このレンダラは頂点を持たない）。
+// pivot と cos/sin をインスタンスに積み、VS が展開時に回す。
+// radians = 0 なら既存の Draw と完全に同じ結果
+// ============================================================
+void SpriteRenderer::Draw(std::shared_ptr<Texture> tex, const Vector2& pos,
+    const Vector2& size, const Vector4& color, float radians, const Vector2& pivot)
+{
+    if (!m_InBegin || !tex) return;
+
+    if (m_CurrentTexture && m_CurrentTexture != tex)
+        Flush();
+
+    if (m_Batch.size() >= m_MaxSprites)
+        Flush();
+
+    m_CurrentTexture = tex;
+
+    SpriteInstance inst;
+    inst.position = pos;
+    inst.size = size;
+    inst.color = color;
+    inst.uvRect = { 0.0f, 0.0f, 1.0f, 1.0f };
+    inst.pivot = pivot;
+    inst.cosA = std::cos(radians);
+    inst.sinA = std::sin(radians);
+    m_Batch.push_back(inst);
+}

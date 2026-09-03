@@ -153,7 +153,7 @@ namespace Res
     // ========================================================
     namespace Fnt
     {
-        inline constexpr const wchar_t* JP = L"Assets/Fonts/font_jp.spritefont";
+        inline constexpr const wchar_t* JP = L"Assets/Fonts/NotoSansJP.spritefont";
     }
 
     // ========================================================

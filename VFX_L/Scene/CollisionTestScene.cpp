@@ -40,13 +40,16 @@
 #include "Item/ExpOrbComponent.h"
 #include "Item/ExpRewardComponent.h"
 #include "Item/ExpOrbSystem.h"
-#include "UI/LevelUpSystem.h"
+#include "World/TerrainGenerator.h"
 
+#include "Enemy/EnemyTags.h"
+#include "Enemy/ChaseAIComponent.h"
 #include <unordered_set>
 #include <iostream>
 #include <cstdlib>
 #include <cmath>
 #include <chrono>
+#include <random>
 
 // ============================================================
 // Init
@@ -59,11 +62,11 @@ void CollisionTestScene::Init()
     auto* device = gfx.GetDevice();
     auto* context = gfx.GetContext();
 
-    // ---------- ????????????? ----------
+    // ---------- 画面サイズを最初に確定させる ----------
     m_ScreenW = gfx.GetWidth();
     m_ScreenH = gfx.GetHeight();
 
-    // ---------- ???????(???????)----------
+    // ---------- アイテム定義の登録（他より先に行う）----------
     ItemDatabase::Initialize();
 
     // ---------- Camera ----------
@@ -82,92 +85,57 @@ void CollisionTestScene::Init()
 
     m_VFXContext.particleSystem = &m_ParticleSystem;
 
-    // ---------- ???????? ----------
+    // ---------- 投射物ビルボード ----------
     if (!m_ProjectileRenderer.Initialize(device, context, 4096))
         std::cout << "[Error] ProjectileRenderer init failed" << std::endl;
     m_ProjectileRenderer.SetTexture(
         ResourceManager::Get().LoadTexture(Res::Tex::ProjectileCore));
 
-    // ---------- ??? ? ? System ????? VFX ??? ----------
+    // ---------- 見た目 と 各 System が使う VFX の登録 ----------
     RegisterItemVisuals();
 
+
     // ---------- UI ----------
-    if (!m_SpriteRenderer.Initialize(device, context, 4096))
-        std::cout << "[Error] SpriteRenderer init failed" << std::endl;
-    m_SpriteRenderer.SetScreenSize(m_ScreenW, m_ScreenH);
+      // ※ItemDatabase::Initialize の後（LoadIcons が定義を読む）
+    if (!m_GameUI.Initialize(device, context, m_ScreenW, m_ScreenH))
+        std::cout << "[Error] GameUI init failed" << std::endl;
 
-    if (!m_TextRenderer.Initialize(device, context, Res::Fnt::JP))
-        std::cout << "[Error] TextRenderer init failed" << std::endl;
 
-    m_BackpackUI.Initialize(ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo));
-    m_BackpackUI.LoadIcons();
-    m_BackpackUI.Layout(m_ScreenW, m_ScreenH);
-
-    if (!m_HUD.Initialize(device))
-        std::cout << "[Error] HUD init failed" << std::endl;
-    m_HUD.Layout(m_ScreenW, m_ScreenH);
-
-    // ---------- ????? ----------
+    // ---------- 使い回すモデル ----------
     m_EnemyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 1.0f, 0.35f, 0.35f, 1 });
     m_DummyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 0.7f, 0.40f, 1.00f, 1 });
     m_StressModel = PrimitiveBuilder::CreateSphere(device, 0.25f, { 1.0f, 0.50f, 0.20f, 1 });
 
-    // ---------- ?? ----------
-    struct TerrainDef { Vector3 pos; Vector3 half; Vector4 color; };
-    TerrainDef defs[] = {
-        { { 0.0f,  0.0f,  0.0f }, { 12.0f, 0.5f, 12.0f }, { 0.45f, 0.45f, 0.50f, 1 } },
-        { { 6.0f,  1.0f,  0.0f }, {  1.0f, 1.0f,  1.0f }, { 0.70f, 0.45f, 0.30f, 1 } },
-        { {-6.0f, 0.75f,  3.0f }, {  1.0f, 0.75f, 1.0f }, { 0.30f, 0.60f, 0.40f, 1 } },
-        { { 0.0f,  1.5f, -9.0f }, {  4.0f, 1.5f,  0.5f }, { 0.55f, 0.50f, 0.60f, 1 } },
-    };
-    for (const auto& d : defs)
-    {
-        Entity e = TestSpawner::SpawnStaticBox(m_Registry, d.pos, d.half);
-        ModelComponent mc;
-        mc.model = PrimitiveBuilder::CreateBox(device, d.half, d.color);
-        m_Registry.Add<ModelComponent>(e, mc);
-        m_Terrain.push_back(e);
-    }
+    // ---------- 地形（格子对齐）----------
+    // 場地: 100 x 100 マス = 200m x 200m（旧場地 24m の約8倍幅）。
+    // 障害物の配置は seed で再現できる
+    m_Grid.Init(100, 100);
+
+    TerrainGenerator::Config tcfg;
+    tcfg.seed = m_TerrainSeed;
+    tcfg.obstacleCount = 40;
+    TerrainGenerator::Generate(m_Registry, device, m_Grid, tcfg, m_Terrain);
 
     // ============================================================
-    // ?????
-    // ????? PlayerFactory ????
-    // ??????????????????? Component ??
+    // プレイヤー
+    // 組み立ては PlayerFactory に任せる。
+    // シーンはどの Component が付いているかを知らなくてよい。
     // ============================================================
     PlayerFactory::Config pcfg;
-    pcfg.spawnPos = { m_SpawnPos[0], m_SpawnPos[1], m_SpawnPos[2] };
     pcfg.color = { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f };
 
     m_Player = PlayerFactory::Create(m_Registry, device, pcfg);
-
-    // ???????? UI ????
-    // ??????????????????????????????
-    // Registry ???????????????????????
-    // SpellbookComponent ??????????????????????
-    // ???????????????????????????????
-    if (m_Registry.Has<SpellbookComponent>(m_Player))
-        m_BackpackUI.SetSpellbook(&m_Registry.Get<SpellbookComponent>(m_Player));
-    // ---------- ?????? UI ----------
-    // ?????????????????????????
-    m_LevelUpUI.Initialize(ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo));
-    m_LevelUpUI.LoadIcons();
-    m_LevelUpUI.Layout(m_ScreenW, m_ScreenH);
-    // ---------- ? ----------
-    RespawnEnemies();
-
-    std::cout << "[CollisionTestScene] Init complete ("
-        << (int)m_ScreenW << "x" << (int)m_ScreenH << ")" << std::endl;
 }
 
 // ============================================================
-// ???????? System ?????
-// ?????????????????(? ID ???????)
+// 見た目と VFX を System に登録する
+// アイテム定義側にある値をそのまま流す（ID ごとの対応表を作る）
 // ============================================================
 void CollisionTestScene::RegisterItemVisuals()
 {
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
-        // --- ????:??????? VFX ---
+        // --- 飛行物型: ビルボードの芯 + VFX ---
         if (auto* p = ItemDatabase::GetProjectile(id))
         {
             m_WeaponSystem.SetProjectileVisual(id,
@@ -177,7 +145,7 @@ void CollisionTestScene::RegisterItemVisuals()
                 m_ProjectileVFXSystem.RegisterVFX(id, p->vfxPath);
         }
 
-        // --- AOE ?:VFX(AreaSystem ????)---
+        // --- AOE 型: VFX のみ（AreaSystem は未実装）---
         if (auto* a = ItemDatabase::GetArea(id))
         {
             if (a->vfxPath)
@@ -191,15 +159,14 @@ void CollisionTestScene::RegisterItemVisuals()
 // ============================================================
 void CollisionTestScene::Shutdown()
 {
-    m_TextRenderer.Shutdown();
-    m_SpriteRenderer.Shutdown();
+    m_GameUI.Shutdown();
     m_ProjectileRenderer.Shutdown();
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
 }
 
 // ============================================================
-// ?????????????
-// UI ???????????????????????
+// 画面サイズの変化に追従する
+// UI は全部ピクセル指定なので、変わった時だけ組み直す。
 // ============================================================
 void CollisionTestScene::UpdateScreenSize()
 {
@@ -213,18 +180,13 @@ void CollisionTestScene::UpdateScreenSize()
     m_ScreenW = w;
     m_ScreenH = h;
 
-    m_SpriteRenderer.SetScreenSize(w, h);
-    m_BackpackUI.Layout(w, h);
-    m_LevelUpUI.Layout(w, h);
-    m_HUD.Layout(w, h);
+    m_GameUI.Layout(w, h);
     m_Camera.Init(45.0f, w / h, 0.1f, 10000.0f);
 
     std::cout << "[CollisionTestScene] screen resized: "
         << (int)w << "x" << (int)h << std::endl;
 }
-// ============================================================
-// Update
-// ============================================================
+
 // ============================================================
 // Update
 // ============================================================
@@ -235,129 +197,24 @@ void CollisionTestScene::Update(float dt)
 
     UpdateScreenSize();
 
-    // ============================================================
-    // ??????????????????? UI ???????
-    //
-    // ??????????????????????????
-    // ???????????????????
-    // ????????????????????
-    // ============================================================
-    if (!m_Registry.IsValid(m_Player))
-        m_UI.Clear();
+    // ---- UI（開閉・入力・プレイヤー消失時の後始末は全部 GameUI の中）----
+    m_GameUI.Update(m_Registry, m_Player, dt);
 
-    UpdateUI();
-
-    // ---- ??:????????????????? ----
-    // UI ???????????????????????????????
+    // ---- 集約: グリッドが変わっていれば杖を組み直す ----
+    // UI の直後に置く。編成した結果を同じフレームで反映させるため
     m_BackpackAggregate.Update(m_Registry);
 
-    // ============================================================
-    // ?????
-    //
-    // ??????????????
-    // ???????????????????????????????
-    // ============================================================
-    const bool pauseByUI = m_UI.ShouldPauseGame()
-        && !(m_UI.Top() == UILayer::Backpack && !m_PauseOnBackpack);
-
-    if (!pauseByUI)
+    if (!m_GameUI.ShouldPauseGame())
         UpdateGameplay(dt);
-
-    // ---- HUD の残像追従 ----
-    // ポーズ中も進める。止めると、モーダルを閉じた瞬間に
-    // 古い残像が残ったまま見えてしまう
-    if (m_Registry.IsValid(m_Player)
-        && m_Registry.Has<HealthComponent>(m_Player)
-        && m_Registry.Has<ManaComponent>(m_Player))
-    {
-        m_HUD.Update(dt,
-            m_Registry.Get<HealthComponent>(m_Player),
-            m_Registry.Get<ManaComponent>(m_Player));
-    }
 
     DrawDebugUI();
 }
-
 // ============================================================
-// UI ???
-//
-// 1. ???????????
-// 2. ?????????
-// 3. ???? UI ???????
-//
-// ????????????????????????
-// UIManager ????????????????
-// ============================================================
-void CollisionTestScene::UpdateUI()
-{
-    // ---- 1. ??????? ----
-    // ???????????Push ??????????
-    if (LevelUpSystem::IsAnyoneChoosing(m_Registry))
-        m_UI.Push(UILayer::LevelUp, UIManager::CloseMode::Forced);
-
-    // ---- 2. ????????? ----
-    // ?????????????????????? Tab ????
-    // ????????????????????????
-    const bool canToggleBackpack =
-        m_UI.CanReceiveInput(UILayer::Backpack) || m_UI.IsEmpty();
-
-    if (canToggleBackpack && InputMap::GetBackpackToggle())
-        m_UI.Toggle(UILayer::Backpack);
-
-    // ---- 3. ?????????? ----
-    switch (m_UI.Top())
-    {
-    case UILayer::LevelUp:
-    {
-        if (!m_Registry.Has<LevelComponent>(m_Player)) break;
-
-        const auto& lv = m_Registry.Get<LevelComponent>(m_Player);
-
-        ItemID picked;
-        if (m_LevelUpUI.HandleInput(lv, picked))
-        {
-            LevelUpSystem::Choose(m_Registry, m_Player, picked);
-            m_UI.Pop(UILayer::LevelUp);
-        }
-        break;
-    }
-
-    case UILayer::Backpack:
-    {
-        if (!m_Registry.Has<BackpackComponent>(m_Player)) break;
-        m_BackpackUI.HandleInput(m_Registry.Get<BackpackComponent>(m_Player));
-        break;
-    }
-
-    default:
-        break;
-    }
-}
-// ============================================================
-// ?????????
-//
-// ??????????????
-// ?????????????????
-// ============================================================
-void CollisionTestScene::UpdateLevelUpChoice()
-{
-    if (!m_Registry.Has<LevelComponent>(m_Player)) return;
-
-    const auto& lv = m_Registry.Get<LevelComponent>(m_Player);
-
-    ItemID picked;
-    if (m_LevelUpUI.HandleInput(lv, picked))
-        LevelUpSystem::Choose(m_Registry, m_Player, picked);
-
-    // ?????????????????????????
-    // ??????????????????????????????
-    m_BackpackAggregate.Update(m_Registry);
-}// ============================================================
-// ???? gameplay ??
+// 実際の gameplay 更新
 // ============================================================
 void CollisionTestScene::UpdateGameplay(float dt)
 {
-    // ---- ????(???????????????)----
+    // ---- 補充（枯渇状態を維持し続けるための自動生成）----
     if (m_StressAutoRefill)
     {
         m_RefillTimer += dt;
@@ -369,7 +226,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         }
     }
 
-    // ---- ??????????(??????????)----
+    // ---- 生成は小分けにする（1フレームに集中させない）----
     if (m_StressPending > 0)
     {
         int batch = (m_StressPending < 50) ? m_StressPending : 50;
@@ -378,17 +235,28 @@ void CollisionTestScene::UpdateGameplay(float dt)
     }
 
     // ============================================================
-    // System ???(??)
-    // ?? ? ?? ? ?? ? ??? ? ? ? VFX?? ? ??? ? ???? ? ???
+    // System の実行順（固定）
+    // 操作 → 衝突 → 物理 → 状態機 → 杖 → 投射物 → VFX収集
+    //      → 経験値 → カメラ → 粒子 Flush
     //
-    // ?????????isGrounded / velocity ???????
-    // ?????????????????????1?????????
-    // ????????????????????
-    // ?????????(SetMoveSpeed ?)????
-    // PlayerControlSystem ? PlayerStatsComponent ??????
+    // ※状態機は物理の後。isGrounded / velocity が
+    //   今フレームの最終値になっている必要があるため。
+    //   物理より前に置くと接地判定が1フレーム古くなり、
+    //   着地の見た目がずれる。
+    //
+    // ※能力値の注入（SetMoveSpeed 等）は行わない。
+    //   PlayerControlSystem が PlayerStatsComponent を直接読む。
     // ============================================================
     m_PlayerControlSystem.Update(m_Registry, dt, GetCamera());
 
+    m_ChaseAISystem.Update(m_Registry, dt);
+        // 湧き管理（環帯生成 + 押し出し）。敵の組み立ては SpawnEnemy に委ねる
+    if (m_Registry.IsValid(m_Player))
+    {
+        m_SpawnDirector.Update(m_Registry, m_Grid,
+            m_Registry.Get<TransformComponent>(m_Player).position, dt,
+            [this](const Vector3& pos) { SpawnEnemy(pos); });
+    }
     m_CollisionSystem.Update(m_Registry);
 
     m_PhysicsSystem.SetGravity(m_Gravity);
@@ -397,18 +265,20 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_PlayerStateSystem.Update(m_Registry, dt);
 
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
-
-    // ????????? VFX ??????(WeaponSystem ???)
+   
+    m_ManaSystem.Update(m_Registry, dt);
+    // 生まれたばかりの投射物に VFX を取り付ける（WeaponSystem の直後）
     for (const auto& sp : m_WeaponSystem.GetSpawned())
         m_ProjectileVFXSystem.AttachVFX(m_Registry, sp.entity, sp.id, m_VFXContext);
 
     m_ProjectileSystem.Update(m_Registry, dt, m_CollisionSystem);
 
     // ============================================================
-    // ????????:???? + ??
-    // ?????? PlayerStateSystem::TryApplyHit ????
-    // ?????????????1???????
-    // (2?????????????????????)?
+    // 命中イベントの消費: ダメージ + 死亡処理
+    //
+    // ※プレイヤーは PlayerStateSystem::TryApplyHit を通す。
+    //   無敵時間の判定を1ヶ所に閉じ込めるため。
+    //   （2ヶ所に書くと必ず片方だけ直され、食い違う）
     // ============================================================
     for (const auto& hit : m_ProjectileSystem.GetHitEvents())
     {
@@ -418,13 +288,13 @@ void CollisionTestScene::UpdateGameplay(float dt)
         if (m_Registry.Has<PlayerStateComponent>(hit.target))
         {
             PlayerStateSystem::TryApplyHit(m_Registry, hit.target, hit.damage);
-            continue;   // ?????? Destroy ???(Dead ?????)
+            continue;   // プレイヤーは Destroy しない（Dead 状態で残す）
         }
 
         auto& hp = m_Registry.Get<HealthComponent>(hit.target);
         hp.current -= hit.damage;
 
-        // ????? 0 ????(???????????)
+        // 無敵の的は 0 で止める（累計ダメージを読むための的）
         if (hp.invincible && hp.current < 0.0f)
             hp.current = 0.0f;
 
@@ -435,34 +305,32 @@ void CollisionTestScene::UpdateGameplay(float dt)
         }
     }
 
-    // ---- ?????(????)----
-    if (m_Registry.IsValid(m_Player))
-        m_Camera.SetFollowTarget(m_Registry.Get<TransformComponent>(m_Player).position);
-    m_Camera.Update(dt);
-
     // ============================================================
-    // VFX:???? emitter ??? ? 1??? Flush
+    // VFX: 各投射物の emitter を積む（Flush はまだ呼ばない）
     // ============================================================
     m_ProjectileVFXSystem.Update(m_Registry, dt, m_VFXContext);
 
     m_LastEmitterCount = m_ParticleSystem.GetPendingEmitterCount();
     m_LastDropped = m_ParticleSystem.GetDroppedEmitterCount();
-    // ---- ?????? ----
-    // ?????????????????????
+
+    // ---- 経験値オーブ ----
+    // 投射物の後。プレイヤーの位置が確定してから吸い寄せる。
     m_ExpOrbSystem.Update(m_Registry, dt);
 
-	// ============================================================
-	// ???????????????
-	// ============================================================
+    // ============================================================
+    // レベルアップの判定（候補の抽選まで）
+    // ============================================================
     m_LevelUpSystem.Update(m_Registry);
-    // ---- ?????(????)----
+
+    // ---- カメラ追従（最後）----
     if (m_Registry.IsValid(m_Player))
         m_Camera.SetFollowTarget(m_Registry.Get<TransformComponent>(m_Player).position);
     m_Camera.Update(dt);
+
     // ============================================================
-    // 1?????1????????????????????
-    // Flush ?????????????????????
-    // 0 ????????????????? GPU ???????
+    // 粒子は1フレームに1回だけ Flush する。
+    // Flush はコマンドを積むだけの処理なので、
+    // 0 に近いままのはず。伸びるなら GPU を待っている。
     // ============================================================
     {
         auto t0 = std::chrono::high_resolution_clock::now();
@@ -476,7 +344,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         if (m_FlushMs > m_FlushMsPeak) m_FlushMsPeak = m_FlushMs;
     }
 
-    // ---- ???????? ----
+    // ---- 衝突体のワイヤ表示 ----
     if (m_ShowWireframe)
     {
         std::unordered_set<Entity> hitting;
@@ -489,7 +357,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         m_Registry.CreateView<TransformComponent, ColliderComponent>()
             .Each([&](Entity e, TransformComponent&, ColliderComponent&)
                 {
-                    // ???????????????????
+                    // 投射物は数が多すぎるので描かない
                     if (m_Registry.Has<ProjectileComponent>(e)) return;
 
                     Color col = hitting.count(e) ? Color(1.0f, 0.3f, 0.3f, 1.0f)
@@ -500,11 +368,10 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     if (m_ShowWandDebug)
         DrawWandDebug();
+    if (m_Registry.IsValid(m_Player))
+        m_Grid.DrawDebug(m_Registry.Get<TransformComponent>(m_Player).position);
 }
 
-// ============================================================
-// Render
-// ============================================================
 // ============================================================
 // Render
 // ============================================================
@@ -518,15 +385,15 @@ void CollisionTestScene::Render(Renderer& renderer)
 
     SceneBase::Render(renderer);
 
-    // ---- 1) ??????? ----
+    // ---- 1) モデル描画 ----
     if (m_ShowMesh)
         m_RenderSystem.Render(m_Registry, renderer);
 
-    // ---- 2) ?????(??????????)----
+    // ---- 2) ビルボード（投射物とオーブの芯）----
     if (m_ShowBillboard)
         m_ProjectileRenderer.Render(m_Registry, GetCamera());
 
-    // ---- 3) ??????(????)----
+    // ---- 3) 粒子（VFX 本体）----
     if (m_ShowParticle)
     {
         m_ParticleSystem.SetCamera(GetCamera());
@@ -534,67 +401,12 @@ void CollisionTestScene::Render(Renderer& renderer)
     }
 
     // ============================================================
-    // 4) UI(??????????)
-    //
-    // Begin / End ?1????????????????
-    // ??? UI ?????1?? draw call ?????
-    // ============================================================
-    m_SpriteRenderer.Begin();
-    m_TextRenderer.Begin();
-
-    // ---- HUD（常時表示、モーダル UI が開いている間は隠す）----
-    // 文字はスプライトの後に一括で描かれるため、隠さないと
-    // 暗幕の上に HUD の文字だけが浮いてしまう
-    if (m_UI.IsEmpty()
-        && m_Registry.IsValid(m_Player)
-        && m_Registry.Has<HealthComponent>(m_Player)
-        && m_Registry.Has<ManaComponent>(m_Player)
-        && m_Registry.Has<LevelComponent>(m_Player))
-    {
-        m_HUD.Draw(m_SpriteRenderer, m_TextRenderer,
-            m_Registry.Get<HealthComponent>(m_Player),
-            m_Registry.Get<ManaComponent>(m_Player),
-            m_Registry.Get<LevelComponent>(m_Player));
-    }
-
-    DrawUI();
-
-    m_SpriteRenderer.End();
-    m_TextRenderer.End();
+     // 4) UI（一番手前。Begin/End の管理は GameUI の中）
+     // ============================================================
+    m_GameUI.Render(m_Registry, m_Player);
 }
-
 // ============================================================
-// UI ???
-//
-// ????????????????????????
-// ???????????????????
-// ============================================================
-void CollisionTestScene::DrawUI()
-{
-    for (UILayer layer : m_UI.GetStack())
-    {
-        switch (layer)
-        {
-        case UILayer::Backpack:
-            if (m_Registry.Has<BackpackComponent>(m_Player))
-                m_BackpackUI.Draw(m_SpriteRenderer,
-                    m_Registry.Get<BackpackComponent>(m_Player));
-            break;
-
-        case UILayer::LevelUp:
-            if (m_Registry.Has<LevelComponent>(m_Player))
-                m_LevelUpUI.Draw(m_SpriteRenderer,
-                    m_Registry.Get<LevelComponent>(m_Player));
-            break;
-
-        default:
-            break;
-        }
-    }
-}
-
-// ============================================================
-// ????????
+// 衝突体のワイヤ描画
 // ============================================================
 void CollisionTestScene::DrawColliderDebug(Entity e, const Color& color)
 {
@@ -612,7 +424,7 @@ void CollisionTestScene::DrawColliderDebug(Entity e, const Color& color)
 }
 
 // ============================================================
-// ??????:???? / ?? / ????? / ????
+// 杖の可視化: 射程 / 標的 / 発射方向 / 待機中の発射
 // ============================================================
 void CollisionTestScene::DrawWandDebug()
 {
@@ -629,7 +441,7 @@ void CollisionTestScene::DrawWandDebug()
 
     if (!aim.hasTarget) return;
 
-    // ?????
+    // 標的の位置
     if (m_Registry.IsValid(aim.target))
     {
         Vector3 tp = m_Registry.Get<TransformComponent>(aim.target).position;
@@ -643,7 +455,7 @@ void CollisionTestScene::DrawWandDebug()
         dbg.AddDebugLine(tp - Vector3(0, 0, m), tp + Vector3(0, 0, m), mark);
     }
 
-    // ???????????(??????????)
+    // 出力源ごとの発射方向（高さをずらして重ならないようにする）
     for (size_t i = 0; i < wand.spells.size(); ++i)
     {
         const auto& s = wand.spells[i];
@@ -673,6 +485,7 @@ void CollisionTestScene::DrawWandDebug()
             }
         }
 
+        // 待機中の二重釈放を短い縦線で数える
         for (int k = 0; k < s.pendingCasts; ++k)
         {
             Vector3 p = origin + aim.dir * 0.4f + Vector3(0.15f * (float)k, 0.0f, 0.0f);
@@ -682,8 +495,8 @@ void CollisionTestScene::DrawWandDebug()
 }
 
 // ============================================================
-// ???????????????????
-// ??? PlayerStatsComponent ????? PlayerFactory ?????
+// 体格や色を変えた時に見た目を作り直す
+// 数値は PlayerStatsComponent が持つので PlayerFactory に任せる
 // ============================================================
 void CollisionTestScene::RebuildPlayerMesh()
 {
@@ -693,7 +506,7 @@ void CollisionTestScene::RebuildPlayerMesh()
 }
 
 // ============================================================
-// ??1???
+// 敵を1体作る
 // ============================================================
 void CollisionTestScene::SpawnEnemy(const Vector3& pos, bool invincible)
 {
@@ -708,7 +521,10 @@ void CollisionTestScene::SpawnEnemy(const Vector3& pos, bool invincible)
     if (invincible) { hp.max = 9999.0f; hp.current = 9999.0f; }
     m_Registry.Add<HealthComponent>(e, hp);
 
-    // ????????????????????????
+    if (!invincible)
+        m_Registry.Add<ChaseAIComponent>(e, {});
+
+    // 倒された時に落とす経験値。無ければ何も落とさない。
     ExpRewardComponent reward;
     reward.amount = 20.0f;
     reward.splitCount = 1;
@@ -717,11 +533,23 @@ void CollisionTestScene::SpawnEnemy(const Vector3& pos, bool invincible)
     ModelComponent mc;
     mc.model = invincible ? m_DummyModel : m_EnemyModel;
     m_Registry.Add<ModelComponent>(e, mc);
-
+    // 死んだ分を間引く
+    if (m_Enemies.size() > 128)
+    {
+        m_Enemies.erase(
+            std::remove_if(m_Enemies.begin(), m_Enemies.end(),
+                [this](Entity en) { return !m_Registry.IsValid(en); }),
+            m_Enemies.end());
+    }
     m_Enemies.push_back(e);
 }
 // ============================================================
-// ????????
+// 敵を並べ直す
+// 生成点を格子上のランダムな通行可能マスに取り、
+// 各点に 1~4 体を点の周囲へ散らして出す。
+//
+// ※生成点の合法性は grid.IsWalkable で保証される
+//   （障害物の中に敵が湧く事故はここで潰れている）
 // ============================================================
 void CollisionTestScene::RespawnEnemies()
 {
@@ -729,15 +557,15 @@ void CollisionTestScene::RespawnEnemies()
         if (m_Registry.IsValid(e)) m_Registry.Destroy(e);
     m_Enemies.clear();
 
-    SpawnEnemy({ 0.0f, 3.0f, 8.0f }, true);   // ????(DPS ???)
-    SpawnEnemy({ 8.0f, 3.0f,  4.0f });
-    SpawnEnemy({ -8.0f, 3.0f,  5.0f });
-    SpawnEnemy({ 4.0f, 3.0f, -7.0f });
+    if (m_Registry.IsValid(m_Player))
+    {
+        Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+        SpawnEnemy({ pp.x, 3.0f, pp.z + 8.0f }, true);
+    }
 }
-
 // ============================================================
-// ?????:?????????
-// With VFX ? ON ???? emitter ????????????????????
+// 負荷テスト: 投射物をばら撒く
+// With VFX が ON の時だけ emitter が積まれ、粒子側の経路に負荷がかかる
 // ============================================================
 void CollisionTestScene::StressSpawnProjectiles(int count)
 {
@@ -786,14 +614,14 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
             m_Registry.Add<ModelComponent>(p, mc);
         }
 
-        // VFX(= emitter)?????????????????????
+        // VFX（= emitter）を付けるかどうかで負荷の質が変わる
         if (m_StressWithVFX)
             m_ProjectileVFXSystem.AttachVFX(m_Registry, p, m_StressVFXItem, m_VFXContext);
     }
 }
 
 // ============================================================
-// ???????
+// 既定値セットを適用する
 // ============================================================
 void CollisionTestScene::ApplyStressPreset(const StressPreset& p)
 {
@@ -818,8 +646,9 @@ void CollisionTestScene::ApplyStressPreset(const StressPreset& p)
     std::cout << "[Stress] preset applied: " << p.name
         << "  (" << p.purpose << ")" << std::endl;
 }
+
 // ============================================================
-// ?????????(????????)
+// 投射物の数を数える（表示用なので毎フレームでよい）
 // ============================================================
 int CollisionTestScene::CountProjectiles() const
 {
@@ -830,289 +659,7 @@ int CollisionTestScene::CountProjectiles() const
     return n;
 }
 // ============================================================
-// ImGui:??????
-// ============================================================
-// ============================================================
-// ImGui:??????
-// ============================================================
-void CollisionTestScene::DrawBackpackPanel()
-{
-    if (!ImGui::CollapsingHeader("Backpack", ImGuiTreeNodeFlags_DefaultOpen))
-        return;
-
-    if (!m_Registry.IsValid(m_Player)) return;
-    if (!m_Registry.Has<BackpackComponent>(m_Player)) return;
-    if (!m_Registry.Has<SpellbookComponent>(m_Player)) return;
-
-    auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
-    auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
-
-    // ============================================================
-    // UI ???????
-    // ??????????????????????????????????
-    // ============================================================
-    ImGui::Text("UI Stack :");
-    {
-        const auto& stack = m_UI.GetStack();
-        if (stack.empty())
-        {
-            ImGui::SameLine();
-            ImGui::TextDisabled("(empty)");
-        }
-        for (size_t i = 0; i < stack.size(); ++i)
-        {
-            ImGui::SameLine();
-            const bool top = (i + 1 == stack.size());
-            ImGui::TextColored(top ? ImVec4(1, 0.9f, 0.3f, 1)
-                : ImVec4(0.6f, 0.6f, 0.6f, 1),
-                "[%s]", UIManager::LayerName(stack[i]));
-        }
-    }
-
-    ImGui::Text("Open : %s   (Tab / I / E / Start)",
-        m_UI.IsOpen(UILayer::Backpack) ? "YES" : "no");
-    ImGui::Checkbox("Pause On Open", &m_PauseOnBackpack);
-    ImGui::TextDisabled("Drag to move   RMB: remove   Wheel/R: rotate");
-    ImGui::Text("Rotation : %d   %s", m_BackpackUI.GetRotation(),
-        m_BackpackUI.IsDragging() ? "(dragging)" : "");
-
-    ImGui::Separator();
-
-    // ============================================================
-    // ?????
-    // ??????????????????????????
-    //   Spell : ??????????
-    //   Frame : ??????????????????
-    // ============================================================
-    int modeIdx = (int)m_BackpackUI.GetEditMode();
-    const char* modeNames[] = { "Spell", "Frame" };
-    if (ImGui::Combo("Edit Mode", &modeIdx, modeNames, 2))
-        m_BackpackUI.SetEditMode((BackpackUI::EditMode)modeIdx);
-
-    const bool frameMode = (m_BackpackUI.GetEditMode() == BackpackUI::EditMode::Frame);
-
-    ImGui::TextDisabled(frameMode
-        ? "Frames widen the placeable area. Spells ride along when moved."
-        : "Spells can only be placed on top of a frame.");
-
-    ImGui::Separator();
-
-    // ============================================================
-    // ????(?????????)
-    //
-    // x ??????????????= ??? - ????
-    // ????????????????????????
-    // ============================================================
-    bool anyShown = false;
-    for (ItemID id : ItemDatabase::GetAllIDs())
-    {
-        const ItemCommon* c = ItemDatabase::GetCommon(id);
-        if (!c) continue;
-
-        if (ItemDatabase::IsFrame(id) != frameMode) continue;
-        if (!book.HasLearned(id)) continue;
-
-        anyShown = true;
-
-        const int avail = m_BackpackUI.GetAvailableCount(bp, id);
-        const bool usable = (avail > 0);
-
-        // ??????????????(????????????????)
-        const float dim = usable ? 1.0f : 0.35f;
-        ImGui::PushStyleColor(ImGuiCol_Button,
-            ImVec4(c->color.x * 0.6f * dim, c->color.y * 0.6f * dim,
-                c->color.z * 0.6f * dim, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-            ImVec4(c->color.x * 0.9f * dim, c->color.y * 0.9f * dim,
-                c->color.z * 0.9f * dim, 1.0f));
-
-        char label[128];
-        sprintf_s(label, "%s  x%d", c->name, avail);
-
-        if (ImGui::Button(label) && usable)
-            m_BackpackUI.SetSelectedItem(id);
-
-        ImGui::PopStyleColor(2);
-
-        bool selected = m_BackpackUI.HasSelection()
-            && m_BackpackUI.GetSelectedItem() == id;
-        if (selected)
-        {
-            ImGui::SameLine();
-            ImGui::TextColored(ImVec4(1, 1, 0.3f, 1), "<-");
-        }
-        ImGui::SameLine();
-    }
-    ImGui::NewLine();
-
-    if (!anyShown)
-        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1),
-            frameMode ? "No frame learned yet" : "No spell learned yet");
-
-    if (ImGui::Button("Clear Selection")) m_BackpackUI.ClearSelection();
-
-    // ---- ???? ----
-    ImGui::Separator();
-    ImGui::Text("Spells : %zu   Frames : %zu", bp.items.size(), bp.frames.size());
-
-    // ?????????????????????????????
-    const int placeable = bp.PlaceableCount();
-    const int total = BackpackComponent::GRID * BackpackComponent::GRID;
-    ImGui::Text("Placeable : %d / %d cells", placeable, total);
-
-    if (placeable == 0)
-        ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
-            "No frame placed -> no spell can be placed");
-
-    if (ImGui::Button("Clear Spells"))
-    {
-        bp.items.clear();
-        BackpackLogic::RebuildOccupancy(bp);
-        bp.dirty = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Clear Frames"))
-    {
-        // ????????????????????????
-        // ???????????(?????????????????)?
-        bp.frames.clear();
-        BackpackLogic::RebuildFrameOccupancy(bp);
-        BackpackLogic::ValidateItems(bp);
-        bp.dirty = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Reset to 3x3"))
-    {
-        bp.items.clear();
-        bp.frames.clear();
-        BackpackLogic::RebuildOccupancy(bp);
-        BackpackLogic::RebuildFrameOccupancy(bp);
-
-        // ??????RectCentered ???????????????
-        const int center = BackpackComponent::GRID / 2;
-        BackpackLogic::PlaceFrame(bp, ItemID::Frame3x3, center, center, 0);
-        bp.dirty = true;
-    }
-
-    // ---- ?????????????????? ----
-    if (m_BackpackUI.GetLastEvicted() > 0)
-    {
-        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1),
-            "%d spell(s) returned (lost their frame)", m_BackpackUI.GetLastEvicted());
-        ImGui::SameLine();
-        if (ImGui::Button("OK")) m_BackpackUI.ClearLastEvicted();
-    }
-
-    // ============================================================
-    // ??(?????)
-    // ???????????????????????????
-    // ============================================================
-    if (ImGui::TreeNode("Debug: Learn"))
-    {
-        ImGui::TextDisabled("Temporary. The level-up choice is the real path.");
-        ImGui::TextDisabled("Reducing below the placed count is allowed;");
-        ImGui::TextDisabled("it just blocks taking new ones out.");
-
-        for (ItemID id : ItemDatabase::GetAllIDs())
-        {
-            const ItemCommon* c = ItemDatabase::GetCommon(id);
-            if (!c) continue;
-
-            ImGui::PushID((int)id);
-            if (ImGui::SmallButton("+")) book.Learn(id, 1);
-            ImGui::SameLine();
-            if (ImGui::SmallButton("-")) book.Forget(id, 1);
-            ImGui::SameLine();
-
-            const int owned = book.GetCount(id);
-            const int placedN = ItemDatabase::IsFrame(id)
-                ? BackpackLogic::CountPlacedFrames(bp, id)
-                : BackpackLogic::CountPlaced(bp, id);
-
-            ImGui::Text("%-14s owned %d / placed %d", c->name, owned, placedN);
-            ImGui::PopID();
-        }
-        ImGui::TreePop();
-    }
-
-    // ---- ???? ----
-    if (ImGui::TreeNode("Display"))
-    {
-        ImGui::Checkbox("Influence on hover only", &m_BackpackUI.showInfluenceOnHover);
-        ImGui::TextDisabled("Showing every influence cell at once fills the grid");
-        ImGui::TextDisabled("with color and hides which block affects which.");
-
-        ImGui::Checkbox("Highlight influenced blocks", &m_BackpackUI.highlightInfluenced);
-        ImGui::DragFloat("Drag Alpha", &m_BackpackUI.dragAlpha, 0.01f, 0.1f, 1.0f);
-        ImGui::TreePop();
-    }
-
-    // ---- ????(???? ? ?)----
-    ImGui::Separator();
-    ImGui::Text("Aggregate (rebuilt %d times)", m_BackpackAggregate.GetRebuildCount());
-
-    const auto& logs = m_BackpackAggregate.GetLog();
-    if (logs.empty())
-    {
-        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1),
-            "No attack block placed -> wand fires nothing");
-    }
-    for (const auto& log : logs)
-    {
-        ImGui::Text("%s (%d,%d)", log.sourceName.c_str(), log.row, log.col);
-        if (log.influencedBy.empty())
-        {
-            ImGui::SameLine();
-            ImGui::TextDisabled("  no influence");
-        }
-        else
-        {
-            for (const auto& n : log.influencedBy)
-            {
-                ImGui::SameLine();
-                ImGui::TextColored(ImVec4(0.4f, 1, 1, 1), " <- %s", n.c_str());
-            }
-        }
-    }
-
-    if (ImGui::Button("Force Rebuild"))
-        m_BackpackAggregate.ForceRebuild(m_Registry, m_Player);
-
-    // ---- ???????(?????)----
-    if (ImGui::TreeNode("Layout"))
-    {
-        bool dirty = false;
-
-        int anchorIdx = (int)m_BackpackUI.anchor;
-        const char* anchorNames[] = { "Top Left", "Top Right", "Center",
-                                      "Bottom Left", "Bottom Right" };
-        if (ImGui::Combo("Anchor", &anchorIdx, anchorNames, 5))
-        {
-            m_BackpackUI.anchor = (BackpackUI::Anchor)anchorIdx;
-            dirty = true;
-        }
-
-        dirty |= ImGui::DragFloat("Grid Ratio", &m_BackpackUI.gridScreenRatio, 0.005f, 0.10f, 0.95f);
-        dirty |= ImGui::DragFloat("Gap Ratio", &m_BackpackUI.cellGapRatio, 0.002f, 0.00f, 0.50f);
-        dirty |= ImGui::DragFloat("Pad Ratio", &m_BackpackUI.framePadRatio, 0.005f, 0.00f, 1.00f);
-        dirty |= ImGui::DragFloat("Margin Ratio", &m_BackpackUI.marginRatio, 0.002f, 0.00f, 0.30f);
-        if (dirty) m_BackpackUI.Layout(m_ScreenW, m_ScreenH);
-
-        ImGui::Text("Screen : %.0f x %.0f", m_ScreenW, m_ScreenH);
-        ImGui::Text("Cell : %.1f px   Gap : %.1f px",
-            m_BackpackUI.GetCellSize(), m_BackpackUI.GetCellGap());
-
-        ImGui::ColorEdit4("Frame Color", &m_BackpackUI.frameColor.x);
-        ImGui::ColorEdit4("Cell Color", &m_BackpackUI.cellColor.x);
-        ImGui::ColorEdit4("Locked Cell", &m_BackpackUI.lockedCellColor.x);
-
-        ImGui::Text("Sprites : %u   Draw calls : %u",
-            m_SpriteRenderer.GetLastSpriteCount(), m_SpriteRenderer.GetLastDrawCalls());
-        ImGui::TreePop();
-    }
-}
-// ============================================================
-// ImGui:?(????????)
+// ImGui: 杖（集約の結果を読むだけ）
 // ============================================================
 void CollisionTestScene::DrawWandPanel()
 {
@@ -1124,15 +671,13 @@ void CollisionTestScene::DrawWandPanel()
 
     auto& w = m_Registry.Get<WandComponent>(m_Player);
 
-    char buf[64];
-    sprintf_s(buf, "%.0f / %.0f", w.manaCurrent, w.manaMax);
-    ImGui::ProgressBar(w.manaCurrent / w.manaMax, ImVec2(-1, 0), buf);
+    // マナは使い手のもの。ここでは持続判定のために regen を読むだけ
+    const float regen = m_Registry.Has<ManaComponent>(m_Player)
+        ? m_Registry.Get<ManaComponent>(m_Player).regen : 0.0f;
 
-    ImGui::DragFloat("Mana Max", &w.manaMax, 1.0f, 10.0f, 1000.0f);
-    ImGui::DragFloat("Mana Regen", &w.manaRegen, 0.5f, 0.0f, 300.0f);
     ImGui::DragFloat("Range", &w.range, 0.5f, 1.0f, 60.0f);
 
-    // ---- ????? ----
+    // ---- 発射の仕方 ----
     int modeIdx = (int)w.castMode;
     const char* modeNames[] = { "Auto", "Manual", "Debug Burst" };
     if (ImGui::Combo("Cast Mode", &modeIdx, modeNames, 3))
@@ -1164,7 +709,7 @@ void CollisionTestScene::DrawWandPanel()
 
     float totalDrain = 0.0f;
 
-    // ---- ???? ----
+    // ---- 飛行物型 ----
     for (size_t i = 0; i < w.spells.size(); ++i)
     {
         const auto& s = w.spells[i];
@@ -1186,7 +731,7 @@ void CollisionTestScene::DrawWandPanel()
             totalDrain += (s.manaCost * (float)s.castCount) / s.castInterval;
     }
 
-    // ---- AOE ?(AreaSystem ????????)----
+    // ---- AOE 型（AreaSystem が未実装なので表示だけ）----
     for (size_t i = 0; i < w.areas.size(); ++i)
     {
         const auto& a = w.areas[i];
@@ -1206,15 +751,14 @@ void CollisionTestScene::DrawWandPanel()
             totalDrain += a.manaCost / a.castInterval;
     }
 
-    bool sustainable = totalDrain <= w.manaRegen;
+    bool sustainable = totalDrain <= regen;
     ImGui::TextColored(sustainable ? ImVec4(0.4f, 1, 0.4f, 1) : ImVec4(1, 0.4f, 0.4f, 1),
         "Total Drain %.1f/s  vs  Regen %.1f/s   %s",
-        totalDrain, w.manaRegen, sustainable ? "(sustainable)" : "(will run dry)");
+        totalDrain, regen, sustainable ? "(sustainable)" : "(will run dry)");
 }
-
 // ============================================================
-// ImGui:?????(??? + ???)
-// ????? PlayerStatsComponent??????????????
+// ImGui: プレイヤー（状態機 + 能力値）
+// 能力値は PlayerStatsComponent を直接いじる。シーンは持たない。
 // ============================================================
 void CollisionTestScene::DrawPlayerPanel()
 {
@@ -1223,7 +767,7 @@ void CollisionTestScene::DrawPlayerPanel()
 
     if (!m_Registry.IsValid(m_Player)) return;
 
-    // ---- ????? ----
+    // ---- 位置と速度 ----
     if (m_Registry.Has<TransformComponent>(m_Player) &&
         m_Registry.Has<RigidbodyComponent>(m_Player))
     {
@@ -1243,7 +787,7 @@ void CollisionTestScene::DrawPlayerPanel()
         }
     }
 
-    // ---- ?? ----
+    // ---- 体力 ----
     if (m_Registry.Has<HealthComponent>(m_Player))
     {
         auto& hp = m_Registry.Get<HealthComponent>(m_Player);
@@ -1251,7 +795,21 @@ void CollisionTestScene::DrawPlayerPanel()
         sprintf_s(buf, "%.0f / %.0f", hp.current, hp.max);
         ImGui::ProgressBar(hp.current / hp.max, ImVec2(-1, 0), buf);
     }
-    // ---- ??? ----
+
+    // ---- 魔力 ----
+    // 実行時に書くのは ManaSystem だけ。
+    // ここで max / regen を触るのはデバッグ調整の例外（hp や stats と同じ扱い）。
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mana = m_Registry.Get<ManaComponent>(m_Player);
+        char mbuf[64];
+        sprintf_s(mbuf, "%.0f / %.0f", mana.current, mana.max);
+        ImGui::ProgressBar((mana.max > 0.0f) ? mana.current / mana.max : 0.0f,
+            ImVec2(-1, 0), mbuf);
+        ImGui::DragFloat("Mana Max", &mana.max, 1.0f, 10.0f, 1000.0f);
+        ImGui::DragFloat("Mana Regen", &mana.regen, 0.5f, 0.0f, 300.0f);
+    }
+    // ---- 経験値とレベル ----
     if (m_Registry.Has<LevelComponent>(m_Player))
     {
         auto& lv = m_Registry.Get<LevelComponent>(m_Player);
@@ -1281,7 +839,8 @@ void CollisionTestScene::DrawPlayerPanel()
             lv.ClearChoices();
         }
     }
-    // ---- ???(3?)----
+
+    // ---- 状態機（3層）----
     if (m_Registry.Has<PlayerStateComponent>(m_Player))
     {
         auto& state = m_Registry.Get<PlayerStateComponent>(m_Player);
@@ -1326,7 +885,7 @@ void CollisionTestScene::DrawPlayerPanel()
         }
     }
 
-    // ---- ??? ----
+    // ---- 能力値 ----
     if (m_Registry.Has<PlayerStatsComponent>(m_Player))
     {
         auto& stats = m_Registry.Get<PlayerStatsComponent>(m_Player);
@@ -1345,21 +904,22 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::Text("Jump CD : %.2f", stats.jumpCooldown);
     }
 
-    // ????????????????????????????
+    // 重力はプレイヤーの能力ではなく環境の値なのでシーンが持つ
     ImGui::Separator();
     ImGui::DragFloat("Gravity (scene)", &m_Gravity, 0.5f, -100.0f, 0.0f);
 }
+
 // ============================================================
-// ImGui:?????
+// ImGui: 負荷テスト
 // ============================================================
 void CollisionTestScene::DrawStressPanel()
 {
     if (!ImGui::CollapsingHeader("Stress Test"))
         return;
 
-    // ---------- ????? ----------
-    // ??? slider ???????????????????????
-    // ???1????????????????????
+    // ---------- 既定値セット ----------
+    // 毎回 slider を合わせ直すと条件がぶれて比較にならない。
+    // ボタン1つで同じ条件を再現できるようにする。
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Presets");
     ImGui::TextDisabled("Clears projectiles and resets counters, then applies.");
 
@@ -1368,7 +928,7 @@ void CollisionTestScene::DrawStressPanel()
     {
         const auto& p = kStressPresets[i];
         if (i % 2 != 0) ImGui::SameLine();
-
+            
         const bool active = (m_LastPresetIndex == i);
         if (active) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.25f, 0.5f, 0.9f, 1.0f));
 
@@ -1385,7 +945,7 @@ void CollisionTestScene::DrawStressPanel()
     if (m_LastPresetIndex >= 0)
         ImGui::TextDisabled("current: %s", kStressPresets[m_LastPresetIndex].name);
 
-    // ---------- ????? ----------
+    // ---------- 現在の数 ----------
     ImGui::Separator();
 
     int projCount = CountProjectiles();
@@ -1394,7 +954,7 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::Text("Colliders   : %zu", m_CollisionSystem.GetWorldColliders().size());
     ImGui::Text("Pairs       : %zu", m_CollisionSystem.GetPairs().size());
 
-    // ---------- ?????? ----------
+    // ---------- 生成の中身 ----------
     ImGui::Separator();
     ImGui::Checkbox("With Collider", &m_StressWithCollider);
     ImGui::SameLine();
@@ -1420,7 +980,7 @@ void CollisionTestScene::DrawStressPanel()
         m_StressPending = 0;
     }
 
-    // ---------- ?????????? ----------
+    // ---------- プール枯渇テスト ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Pool Starvation Test");
     ImGui::TextDisabled("Keeps the dead list empty. This is the only state");
@@ -1434,7 +994,7 @@ void CollisionTestScene::DrawStressPanel()
         ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
             "Auto Refill without VFX does not stress the pool!");
 
-    // ---------- ?????? ----------
+    // ---------- 経験値オーブ ----------
     ImGui::Separator();
     if (ImGui::TreeNode("Exp Orb"))
     {
@@ -1452,7 +1012,7 @@ void CollisionTestScene::DrawStressPanel()
         ImGui::TreePop();
     }
 
-    // ---------- ?????????? ----------
+    // ---------- 粒子システムの状態 ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Particle System");
 
@@ -1476,12 +1036,12 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::Text("Billboards     : %u  (1 draw call)",
         m_ProjectileRenderer.GetLastDrawCount());
 
-    // ???? GPU ???????????????????????
-    // ?????????????????????
+    // 生存数の真実は GPU 上にしか無い。数字を出すと嘘になる。
+    // 画面の見た目と下の Flush ms で判断する。
     ImGui::TextDisabled("Alive count lives on the GPU only.");
     ImGui::TextDisabled("Judge by the screen and by Flush ms below.");
 
-    // ---------- Flush ? CPU ?? ----------
+    // ---------- Flush の CPU 時間 ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Flush CPU Time");
     ImGui::TextDisabled("Flush only queues commands. It should stay near 0");
@@ -1501,8 +1061,9 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::SameLine();
     ImGui::Text("| FPS %.1f", ImGui::GetIO().Framerate);
 }
+
 // ============================================================
-// ImGui
+// ImGui: 全体
 // ============================================================
 void CollisionTestScene::DrawDebugUI()
 {
@@ -1518,9 +1079,10 @@ void CollisionTestScene::DrawDebugUI()
     ImGui::SameLine();
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
     ImGui::Separator();
+
     DrawPlayerPanel();
-    DrawBackpackPanel();
     DrawWandPanel();
+    m_GameUI.DrawDebugUI(m_Registry, m_Player, m_BackpackAggregate);
     DrawStressPanel();
 
     // ---------- Item Database ----------
@@ -1548,9 +1110,55 @@ void CollisionTestScene::DrawDebugUI()
         }
     }
 
-    // ---------- ? ----------
+    // ---------- 地形 ----------
+    if (ImGui::CollapsingHeader("Terrain"))
+    {
+        ImGui::Text("Grid : %d x %d  (%.0fm x %.0fm)",
+            m_Grid.Width(), m_Grid.Depth(),
+            m_Grid.WorldWidth(), m_Grid.WorldDepth());
+
+        int seed = (int)m_TerrainSeed;
+        if (ImGui::InputInt("Seed", &seed)) m_TerrainSeed = (uint32_t)(seed < 0 ? 0 : seed);
+
+        if (ImGui::Button("Regenerate"))
+        {
+            // 古い地形を全部消して作り直す。
+            // 障害物の中に取り残された敵が出るので、敵も湧き直す
+            for (Entity e : m_Terrain)
+                if (m_Registry.IsValid(e)) m_Registry.Destroy(e);
+            m_Terrain.clear();
+            m_Grid.ClearAll();
+
+            auto* device = Application::Get().GetGraphics().GetDevice();
+            TerrainGenerator::Config tcfg;
+            tcfg.seed = m_TerrainSeed;
+            tcfg.obstacleCount = 40;
+            TerrainGenerator::Generate(m_Registry, device, m_Grid, tcfg, m_Terrain);
+
+            RespawnEnemies();
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("seed reproducible");
+    }
+    // ---------- 敵 ----------
     if (ImGui::CollapsingHeader("Enemies", ImGuiTreeNodeFlags_DefaultOpen))
     {
+        // ---- 湧き管理 ----
+        ImGui::Checkbox("Director Enabled", &m_SpawnDirector.enabled);
+        ImGui::Text("Mobs : %d / %d   (spawned %d, evicted %d)",
+            m_SpawnDirector.GetLastMobCount(), m_SpawnDirector.spawnCap,
+            m_SpawnDirector.GetTotalSpawned(), m_SpawnDirector.GetTotalEvicted());
+        ImGui::DragInt("Spawn Cap", &m_SpawnDirector.spawnCap, 1, 0, 500);
+        ImGui::DragFloat("Interval", &m_SpawnDirector.spawnInterval, 0.05f, 0.1f, 10.0f);
+        ImGui::DragInt("Per Tick", &m_SpawnDirector.spawnPerTick, 1, 1, 20);
+        ImGui::DragFloat("Ring Min", &m_SpawnDirector.rMin, 0.5f, 5.0f, 100.0f);
+        ImGui::DragFloat("Ring Max", &m_SpawnDirector.rMax, 0.5f, 5.0f, 120.0f);
+        ImGui::Separator();
+
+        ImGui::DragFloat("Separation Radius", &m_ChaseAISystem.separationRadius, 0.05f, 0.5f, 5.0f);
+        ImGui::DragFloat("Separation Power", &m_ChaseAISystem.separationPower, 0.1f, 0.0f, 20.0f);
+        ImGui::TextDisabled("chase/detect ranges live on each ChaseAIComponent");
+        ImGui::Separator();
         int alive = 0;
         for (size_t i = 0; i < m_Enemies.size(); ++i)
         {
@@ -1578,7 +1186,7 @@ void CollisionTestScene::DrawDebugUI()
         if (ImGui::Button("Respawn Enemies")) RespawnEnemies();
     }
 
-    // ---------- ??? ----------
+    // ---------- カメラ ----------
     if (ImGui::CollapsingHeader("Camera"))
     {
         ImGui::DragFloat("Distance", &m_Camera.distance, 0.1f, 1.0f, 30.0f);
@@ -1589,7 +1197,7 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::Text("Yaw/Pitch : %.1f / %.1f", m_Camera.GetYaw(), m_Camera.GetPitch());
     }
 
-    // ---------- ??? ----------
+    // ---------- 照明 ----------
     if (ImGui::CollapsingHeader("Lighting"))
     {
         ImGui::DragFloat3("Direction", m_LightDir, 0.02f, -1.0f, 1.0f);
@@ -1597,11 +1205,5 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::DragFloat("Intensity", &m_LightIntensity, 0.02f, 0.0f, 5.0f);
         ImGui::ColorEdit3("Ambient", m_AmbientColor);
     }
-
-    // ---------- HUD ----------
-    // 中身は HUD 側に持たせる。場面はヘッダを出すだけ
-    if (ImGui::CollapsingHeader("HUD"))
-        m_HUD.DrawDebugUI();
-
     ImGui::End();
 }
