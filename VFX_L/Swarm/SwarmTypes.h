@@ -64,10 +64,11 @@ namespace Swarm
         Vector3  velocity;
         float    lifetime = 0.0f;
         float    radius = 0.25f;
-        float    _pad[3] = {};
+        uint32_t vfxType = 0;      // Recipe 表の index（VFXId から引く）
+        float    _pad[2] = {};
     };
     static_assert(sizeof(Projectile) == 48, "SwarmProjectile layout mismatch");
-
+    
     struct Orb
     {
         Vector3  position;

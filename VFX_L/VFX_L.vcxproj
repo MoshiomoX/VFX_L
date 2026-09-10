@@ -454,10 +454,12 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Mesh\VertexBuffer.h" />
     <ClInclude Include="Graphics\Mesh\Vertex3D.h" />
     <ClInclude Include="Graphics\Shader\VertexShader.h" />
+    <ClInclude Include="VFX_Editor\VFXDatabase.h" />
     <ClInclude Include="VFX_Editor\VFXEditor.h" />
     <ClInclude Include="Scene\VFXEditorScene.h" />
     <ClInclude Include="VFX_Editor\VFXEffect.h" />
     <ClInclude Include="VFX_Editor\VFXEntry.h" />
+    <ClInclude Include="VFX_Editor\VFXId.h" />
     <ClInclude Include="VFX_Editor\VFXParticleEntry.h" />
     <ClInclude Include="VFX_Editor\VFXStates.h" />
     <ClInclude Include="ECS\View.h" />

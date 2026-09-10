@@ -40,7 +40,7 @@ inline ProjectileItemDef MakeFireball()
     // ---- 見た目 ----
     def.visualSize = 0.9f;    // 当たり判定より意図的に大きく
     def.visualStretch = 0.0f;    // 円形
-    def.vfxPath = Res::VFX::Fireball;
+    def.vfxId = VFXId::Fireball;
 
     return def;
 }
