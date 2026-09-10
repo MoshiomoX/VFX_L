@@ -14,8 +14,7 @@ enum class VFXId : uint32_t
 {
     None = 0,
     Fireball,
-    IceShard,
-    // ---- 追加はここに。表（VFXDatabase.cpp）にも1行足す ----
+    // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };
 

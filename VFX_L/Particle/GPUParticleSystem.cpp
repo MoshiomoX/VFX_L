@@ -334,26 +334,37 @@ void GPUParticleSystem::UploadExternalEmitters(ID3D11DeviceContext* context,
     const std::vector<GPUEmitter>& emitters,
     const std::vector<ColorKey>& colorKeys)
 {
-    if (emitters.empty()) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    HRESULT hr = context->Map(m_EmitterBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    if (FAILED(hr)) return;
-
-    size_t count = (std::min)(emitters.size(), static_cast<size_t>(MAX_EMITTERS));
-    memcpy(mapped.pData, emitters.data(), sizeof(GPUEmitter) * count);
-    context->Unmap(m_EmitterBuffer.Get(), 0);
-
-    if (!colorKeys.empty())
+    if (!emitters.empty())
     {
-        size_t keyCount = (std::min)(colorKeys.size(), static_cast<size_t>(MAX_COLOR_KEYS_TOTAL));
-        D3D11_MAPPED_SUBRESOURCE colorMapped = {};
-        hr = context->Map(m_ColorKeyBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &colorMapped);
-        if (SUCCEEDED(hr))
+        D3D11_MAPPED_SUBRESOURCE mapped = {};
+        if (SUCCEEDED(context->Map(m_EmitterBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
         {
-            memcpy(colorMapped.pData, colorKeys.data(), sizeof(ColorKey) * keyCount);
-            context->Unmap(m_ColorKeyBuffer.Get(), 0);
+            size_t count = (std::min)(emitters.size(), static_cast<size_t>(MAX_EMITTERS));
+            memcpy(mapped.pData, emitters.data(), sizeof(GPUEmitter) * count);
+            context->Unmap(m_EmitterBuffer.Get(), 0);
         }
+    }
+
+    // ---- colorKey: 静的区（Swarm 用、offset 0 起点）→ pending の順で1本に詰める ----
+    // 静的区は Swarm の粒子が毎フレーム参照するので、
+    // pending（CPU 側 emitter）が空でも書く必要がある
+    const size_t staticN = m_StaticColorKeys.size();
+    const size_t total = staticN + colorKeys.size();
+    if (total == 0) return;
+
+    D3D11_MAPPED_SUBRESOURCE cm = {};
+    if (SUCCEEDED(context->Map(m_ColorKeyBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &cm)))
+    {
+        ColorKey* dst = reinterpret_cast<ColorKey*>(cm.pData);
+        size_t written = 0;
+
+        for (size_t i = 0; i < staticN && written < MAX_COLOR_KEYS_TOTAL; ++i)
+            dst[written++] = m_StaticColorKeys[i];
+
+        for (size_t i = 0; i < colorKeys.size() && written < MAX_COLOR_KEYS_TOTAL; ++i)
+            dst[written++] = colorKeys[i];
+
+        context->Unmap(m_ColorKeyBuffer.Get(), 0);
     }
 }
 
@@ -530,7 +541,9 @@ void GPUParticleSystem::SubmitEmitters(const std::vector<GPUEmitter>& emitters,
         m_DroppedEmitters += (emitters.size() - count);
 
     // colorKey は合併後配列の末尾に追加され、その分 offset がずれる
-    int baseOffset = static_cast<int>(m_PendingColorKeys.size());
+        // colorKey は「静的区（Swarm）→ 今フレームの pending」の順で並ぶ。
+    // 静的区の分だけ offset をずらす
+    int baseOffset = static_cast<int>(m_StaticColorKeys.size() + m_PendingColorKeys.size());
 
     for (size_t i = 0; i < count; ++i)
     {

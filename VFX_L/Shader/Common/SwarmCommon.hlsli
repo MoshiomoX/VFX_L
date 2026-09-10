@@ -59,7 +59,8 @@ struct SwarmProjectile
     float lifetime;
 
     float radius;
-    float3 _pad;
+    uint vfxType; // index into SwarmVFXTable's recipe table
+    float2 _pad;
 };
 
 // ============================================================
@@ -75,9 +76,34 @@ struct SwarmOrb
 };
 
 // ============================================================
-// Per-frame constants (b0). 64 bytes.
+// Recipe: what a vfxType is made of. 32 bytes.
+// Each range indexes into a per-type table. A projectile may carry
+// several emitters (core + trail), a mesh, a light -- each consumed
+// by its own CS with the same "one thread per projectile" skeleton.
+// Must match Swarm::VFXRecipe in SwarmVFXTable.h
 // ============================================================
-cbuffer SwarmFrameCB : register(b0)
+struct SwarmRecipe
+{
+    uint particleStart;
+    uint particleCount;
+    uint modelStart;
+    uint modelCount;
+
+    uint lightStart;
+    uint lightCount;
+    uint2 _pad;
+};
+
+// ============================================================
+// Per-frame constants. Default register b0; a CS that also includes
+// ParticleCommon.hlsli (which owns b0/b1) must #define
+// SWARM_FRAME_CB_REG before including this file.
+// ============================================================
+#ifndef SWARM_FRAME_CB_REG
+#define SWARM_FRAME_CB_REG b0
+#endif
+
+cbuffer SwarmFrameCB : register(SWARM_FRAME_CB_REG)
 {
     float3 g_PlayerPos;
     float g_PlayerRadius;
