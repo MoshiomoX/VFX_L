@@ -34,6 +34,7 @@
 #include "Enemy/SpawnDirector.h"
 
 #include "World/GridWorld.h"
+#include "Swarm/SwarmSystem.h"
 
 #include "UI/GameUI.h"
 #include "SpellID.h"      // ItemID
@@ -99,6 +100,9 @@ private:
 	ChaseAISystem 		    m_ChaseAISystem;
     SpawnDirector           m_SpawnDirector;
 
+    // --- GPU 側 gameplay（雑魚・投射物・オーブ）---
+    SwarmSystem m_Swarm;
+
     // --- Particle / VFX / Billboard ---
     GPUParticleSystem           m_ParticleSystem;
     ProjectileBillboardRenderer m_ProjectileRenderer;
@@ -152,7 +156,7 @@ private:
     //   spawnPos = テスト用の復帰位置
     // ============================================================
     float m_PlayerColor[3] = { 0.3f, 0.6f, 1.0f };
-    float m_Gravity = -20.0f;
+    float m_Gravity = -9.8f;
     float m_SpawnPos[3] = { 0.0f, 5.0f, 0.0f };
 
     // ============================================================

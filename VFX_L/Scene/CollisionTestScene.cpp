@@ -116,6 +116,13 @@ void CollisionTestScene::Init()
     tcfg.obstacleCount = 40;
     TerrainGenerator::Generate(m_Registry, device, m_Grid, tcfg, m_Terrain);
 
+    // ---------- GPU 側 gameplay（雑魚・投射物・オーブ）----------
+    // ※地形の生成後に呼ぶ。格子表をそのまま上げるため
+    if (!m_Swarm.Initialize(device, context))
+        std::cout << "[Error] SwarmSystem init failed" << std::endl;
+
+    m_Swarm.UploadTerrain(m_Grid);
+
     // ============================================================
     // プレイヤー
     // 組み立ては PlayerFactory に任せる。
@@ -159,6 +166,7 @@ void CollisionTestScene::RegisterItemVisuals()
 // ============================================================
 void CollisionTestScene::Shutdown()
 {
+    m_Swarm.Shutdown();
     m_GameUI.Shutdown();
     m_ProjectileRenderer.Shutdown();
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
@@ -236,8 +244,8 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ============================================================
     // System の実行順（固定）
-    // 操作 → 衝突 → 物理 → 状態機 → 杖 → 投射物 → VFX収集
-    //      → 経験値 → カメラ → 粒子 Flush
+    // 操作/敵AI → 衝突 → 物理 → 状態機 → 杖 → マナ結算 → 投射物 → VFX収集
+    //      → 経験値 → カメラ → GPU gameplay Flush → 粒子 Flush
     //
     // ※状態機は物理の後。isGrounded / velocity が
     //   今フレームの最終値になっている必要があるため。
@@ -249,8 +257,8 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // ============================================================
     m_PlayerControlSystem.Update(m_Registry, dt, GetCamera());
 
-    m_ChaseAISystem.Update(m_Registry, dt);
-        // 湧き管理（環帯生成 + 押し出し）。敵の組み立ては SpawnEnemy に委ねる
+    m_ChaseAISystem.Update(m_Registry, m_Grid, dt);
+    // 湧き管理（環帯生成 + 押し出し）。敵の組み立ては SpawnEnemy に委ねる
     if (m_Registry.IsValid(m_Player))
     {
         m_SpawnDirector.Update(m_Registry, m_Grid,
@@ -265,7 +273,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_PlayerStateSystem.Update(m_Registry, dt);
 
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
-   
+
     m_ManaSystem.Update(m_Registry, dt);
     // 生まれたばかりの投射物に VFX を取り付ける（WeaponSystem の直後）
     for (const auto& sp : m_WeaponSystem.GetSpawned())
@@ -328,6 +336,35 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_Camera.Update(dt);
 
     // ============================================================
+    // GPU 側 gameplay の Flush（粒子と同じ位置、粒子より前）
+    //
+    // 中で固定ステップを回す。渡すのは実 dt でよい。
+    // 玩家の位置はここまでで確定しているので、この時点の値を上げる。
+    //
+    // 回読は 1〜2 フレーム古い。被弾は TryApplyHit へ流し、
+    // 無敵時間の判定は向こうに任せる（CPU 側の接触ダメージと同じ窓口）
+    // ============================================================
+    if (m_Registry.IsValid(m_Player))
+    {
+        const auto& ptf = m_Registry.Get<TransformComponent>(m_Player);
+
+        float playerRadius = 0.4f;
+        if (m_Registry.Has<ColliderComponent>(m_Player))
+            playerRadius = m_Registry.Get<ColliderComponent>(m_Player).radius;
+
+        bool playerAlive = true;
+        if (m_Registry.Has<PlayerStateComponent>(m_Player))
+            playerAlive = !m_Registry.Get<PlayerStateComponent>(m_Player).IsDead();
+
+        m_Swarm.Flush(ptf.position, playerRadius, playerAlive, dt);
+
+        // GPU 上で受けたダメージを CPU の玩家へ反映
+        const float gpuDamage = m_Swarm.ConsumePlayerDamage();
+        if (gpuDamage > 0.0f)
+            PlayerStateSystem::TryApplyHit(m_Registry, m_Player, gpuDamage);
+    }
+
+    // ============================================================
     // 粒子は1フレームに1回だけ Flush する。
     // Flush はコマンドを積むだけの処理なので、
     // 0 に近いままのはず。伸びるなら GPU を待っている。
@@ -388,6 +425,10 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ---- 1) モデル描画 ----
     if (m_ShowMesh)
         m_RenderSystem.Render(m_Registry, renderer);
+
+    // ---- 1.5) GPU 側 gameplay（雑魚・投射物。位置は GPU 上にしか無い）----
+    // ※Flush の側で UAV を外してあるので、ここでは SRV として読む
+    m_Swarm.Render(GetCamera());
 
     // ---- 2) ビルボード（投射物とオーブの芯）----
     if (m_ShowBillboard)
@@ -510,21 +551,48 @@ void CollisionTestScene::RebuildPlayerMesh()
 // ============================================================
 void CollisionTestScene::SpawnEnemy(const Vector3& pos, bool invincible)
 {
+    // 古い残骸を間引く（SpawnDirector が押し出した分が溜まらないように）
+    if (m_Enemies.size() > 128)
+    {
+        m_Enemies.erase(
+            std::remove_if(m_Enemies.begin(), m_Enemies.end(),
+                [this](Entity en) { return !m_Registry.IsValid(en); }),
+            m_Enemies.end());
+    }
+
     Entity e = TestSpawner::SpawnCapsule(m_Registry, pos, 0.4f, 1.0f);
 
     auto& col = m_Registry.Get<ColliderComponent>(e);
     col.layer = Layer_Enemy;
     col.mask = Layer_All;
 
+    // ---- 物理から外す ----
+    // 雑魚の位置は ChaseAISystem が直接書く。
+    // PhysicsSystem の押し出しは「動的実体 × 全 collider」で
+    // 二次増加するため、数を増やす雑魚には使わない。
+    // 地形との重なりは格子の回避規則で防ぐ
+    auto& rb = m_Registry.Get<RigidbodyComponent>(e);
+    rb.isStatic = true;
+    rb.useGravity = false;
+
     HealthComponent hp;
     hp.invincible = invincible;
     if (invincible) { hp.max = 9999.0f; hp.current = 9999.0f; }
     m_Registry.Add<HealthComponent>(e, hp);
 
-    if (!invincible)
+    // ---- 身分と行動 ----
+    // 無敵の的は消えない側（計測中に押し出されると困る）、動かない
+    if (invincible)
+    {
+        m_Registry.Add<EliteTag>(e, {});
+    }
+    else
+    {
+        m_Registry.Add<MobTag>(e, {});
         m_Registry.Add<ChaseAIComponent>(e, {});
+    }
 
-    // 倒された時に落とす経験値。無ければ何も落とさない。
+    // 倒された時に落とす経験値。無ければ何も落とさない
     ExpRewardComponent reward;
     reward.amount = 20.0f;
     reward.splitCount = 1;
@@ -533,14 +601,7 @@ void CollisionTestScene::SpawnEnemy(const Vector3& pos, bool invincible)
     ModelComponent mc;
     mc.model = invincible ? m_DummyModel : m_EnemyModel;
     m_Registry.Add<ModelComponent>(e, mc);
-    // 死んだ分を間引く
-    if (m_Enemies.size() > 128)
-    {
-        m_Enemies.erase(
-            std::remove_if(m_Enemies.begin(), m_Enemies.end(),
-                [this](Entity en) { return !m_Registry.IsValid(en); }),
-            m_Enemies.end());
-    }
+
     m_Enemies.push_back(e);
 }
 // ============================================================
@@ -928,7 +989,7 @@ void CollisionTestScene::DrawStressPanel()
     {
         const auto& p = kStressPresets[i];
         if (i % 2 != 0) ImGui::SameLine();
-            
+
         const bool active = (m_LastPresetIndex == i);
         if (active) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.25f, 0.5f, 0.9f, 1.0f));
 
@@ -1085,6 +1146,44 @@ void CollisionTestScene::DrawDebugUI()
     m_GameUI.DrawDebugUI(m_Registry, m_Player, m_BackpackAggregate);
     DrawStressPanel();
 
+    // ============================================================
+    // GPU 側 gameplay（Swarm）
+    // 位置や HP は GPU 上にしか無い。読めるのは counter だけ
+    // ============================================================
+    if (ImGui::CollapsingHeader("Swarm (GPU)", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        const auto& c = m_Swarm.GetCounters();
+
+        ImGui::Text("alive proj    : %u", c.aliveProjectiles);
+        ImGui::Text("alive enemy   : %u", c.aliveEnemies);
+        ImGui::Text("kills (total) : %u", c.killCount);
+        ImGui::Text("pending spawn : proj %d   enemy %d",
+            m_Swarm.GetPendingProjSpawns(), m_Swarm.GetPendingEnemySpawns());
+        ImGui::Text("sub steps     : %d   flush %.4f ms",
+            m_Swarm.GetLastSubSteps(), m_Swarm.GetFlushMs());
+
+        ImGui::Separator();
+        ImGui::TextDisabled("Test Fire: alive proj should rise to ~100");
+        ImGui::TextDisabled("then fall back to 0 within 3 seconds.");
+        ImGui::Text("requested %u   dispatched %u   steps %u",
+            m_Swarm.GetTotalRequested(), m_Swarm.GetTotalDispatched(), m_Swarm.GetTotalSteps());
+        // 生成経路が通っているかの最短確認。玩家の周りへ放射状に撃つ
+        if (ImGui::Button("Test Fire 100"))
+        {
+            if (m_Registry.IsValid(m_Player))
+            {
+                const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position
+                    + Vector3(0.0f, 1.0f, 0.0f);
+                for (int i = 0; i < 100; ++i)
+                {
+                    const float a = 6.2831853f * (float)i / 100.0f;
+                    Vector3 dir(std::cos(a), 0.0f, std::sin(a));
+                    m_Swarm.SpawnProjectile(pp, dir * 20.0f, 10.0f, 0.25f, 3.0f);
+                }
+            }
+        }
+    }
+
     // ---------- Item Database ----------
     if (ImGui::CollapsingHeader("Item Database"))
     {
@@ -1134,6 +1233,9 @@ void CollisionTestScene::DrawDebugUI()
             tcfg.seed = m_TerrainSeed;
             tcfg.obstacleCount = 40;
             TerrainGenerator::Generate(m_Registry, device, m_Grid, tcfg, m_Terrain);
+
+            // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
+            m_Swarm.UploadTerrain(m_Grid);
 
             RespawnEnemies();
         }
