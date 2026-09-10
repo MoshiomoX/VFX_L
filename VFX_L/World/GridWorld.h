@@ -80,6 +80,13 @@ public:
         return true;
     }
 
+    // ワールド座標がそのまま通行可能マスか（敵の回避判定用）
+    bool IsWalkableAt(const DirectX::SimpleMath::Vector3& p) const
+    {
+        int gx = 0, gz = 0;
+        WorldToCell(p, gx, gz);
+        return IsWalkable(gx, gz);
+    }
     void BlockArea(int gx, int gz, int w, int d)
     {
         for (int z = gz; z < gz + d; ++z)
@@ -91,7 +98,7 @@ public:
                 m_Walkable[(size_t)z * m_GridW + x] = 0;
             }
         }
-    }
+    }   
 
     void ClearAll() { std::fill(m_Walkable.begin(), m_Walkable.end(), (uint8_t)1); }
 

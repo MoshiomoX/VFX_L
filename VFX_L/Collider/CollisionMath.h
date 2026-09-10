@@ -253,10 +253,24 @@ namespace CollisionMath
     inline bool IntersectCapsuleAABB(const Capsule& cap, const AABB& box, Contact& out)
     {
         Vector3 a, b; CapsuleSegment(cap, a, b);
-        // 線分を分割サンプルし、最もめり込む点で Contact を作る
-        const int SAMPLES = 8;
+
+        // ============================================================
+        // サンプル数を相手の大きさで決める。
+        //
+        // 8点は「高いカプセルが大きな面に当たる」時のための数。
+        // 雑魚のカプセルは軸線 1m 程度で、地形の箱は最小でも 2m 角。
+        // その組み合わせだと 8点でも 3点でも見つかる最深点は同じで、
+        // 間隔を細かくしただけの無駄になる。
+        //
+        // 判定式: 軸線が相手の最小辺より短ければ 3点で足りる
+        // ============================================================
+        const Vector3 boxExtent = box.max - box.min;
+        const float minExtent = (std::min)(boxExtent.x, (std::min)(boxExtent.y, boxExtent.z));
+        const int SAMPLES = (cap.height > minExtent) ? 8 : 3;
+
         float bestDepth = -1.0f;
         Vector3 bestNormal, bestPoint;
+
         for (int i = 0; i <= SAMPLES; ++i)
         {
             float t = (float)i / SAMPLES;
@@ -264,6 +278,7 @@ namespace CollisionMath
             Vector3 closest = ClosestPointOnAABB(p, box);
             Vector3 d = p - closest;
             float distSq = d.LengthSquared();
+
             if (distSq <= cap.radius * cap.radius)
             {
                 float dist = std::sqrt(distSq);
@@ -276,7 +291,9 @@ namespace CollisionMath
                 }
             }
         }
+
         if (bestDepth < 0.0f) return false;
+
         out.normal = bestNormal;
         out.depth = bestDepth;
         out.point = bestPoint;

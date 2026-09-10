@@ -113,6 +113,15 @@
     <Filter Include="Enemy">
       <UniqueIdentifier>{a2fdf0f4-0329-4d42-bbb0-9464a4d1feb8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Swarm">
+      <UniqueIdentifier>{6aa772b7-4a05-47e2-847c-d33ddf6eb730}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Common">
+      <UniqueIdentifier>{2ffffb90-0327-4777-8e3c-f2cc67065c8c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Swarm">
+      <UniqueIdentifier>{acc8cd17-46fe-44d5-94d2-72b2c14481ed}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Application.cpp">
@@ -382,6 +391,13 @@
     </ClCompile>
     <ClCompile Include="Enemy\SpawnDirector.cpp">
       <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\ContactDamageSystem.cpp" />
+    <ClCompile Include="Swarm\GPUReadback.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystem.cpp">
+      <Filter>Swarm</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -808,6 +824,16 @@
     <ClInclude Include="Enemy\SpawnDirector.h">
       <Filter>Enemy</Filter>
     </ClInclude>
+    <ClInclude Include="Enemy\ContactDamageSystem.h" />
+    <ClInclude Include="Swarm\GPUReadback.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmTypes.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmSystem.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\PS.hlsl">
@@ -870,6 +896,15 @@
     <FxCompile Include="Shader\UI\SpriteVS.hlsl">
       <Filter>Graphics\Shader\HLSL\UI</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmSpawnProjCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmProjMoveCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmClearCountersCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Particle\Common\ParticleCommon.hlsli">
@@ -899,6 +934,9 @@
     <None Include="packages.config" />
     <None Include="Assets\Fonts\font_jp.spritefont">
       <Filter>Assets\Fonts</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
   </ItemGroup>
 </Project>
