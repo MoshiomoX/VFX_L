@@ -11,7 +11,6 @@ namespace
     // ※VFXId の順と揃える必要は無い（線形探索）。None は登録しない
     const Entry kTable[] = {
         { VFXId::Fireball, Res::VFX::Fireball },
-        // { VFXId::IceShard, "Assets/Data/VFXData/iceshard.json" },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }

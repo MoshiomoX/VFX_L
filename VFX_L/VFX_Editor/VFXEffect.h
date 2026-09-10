@@ -51,14 +51,16 @@ public:
 
     // 全 emitter に加算されるワールド位置（投射物追従用）
     void SetWorldOffset(const DirectX::SimpleMath::Vector3& p) { m_WorldOffset = p; }
+    void SetGPUTimelineIgnored(bool v) { m_GPUTimelineIgnored = v; }
+    bool IsGPUTimelineIgnored() const { return m_GPUTimelineIgnored; }
 private:
     std::string m_Name = "NewEffect";
     std::vector<std::unique_ptr<VFXEntry>> m_Entries;
     bool m_Loop = false;
     float m_CurrentTime = 0.0f;
     DirectX::SimpleMath::Vector3 m_WorldOffset = { 0, 0, 0 };
+    bool m_GPUTimelineIgnored = false;
     // --- 状態機（追加）---
     VFXStateMachine m_SM;   
     VFXStateContext m_SMCtx;
-
 };

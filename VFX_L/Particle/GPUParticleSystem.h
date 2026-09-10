@@ -35,6 +35,16 @@ public:
     void SetCamera(CameraBase* camera) { m_Camera = camera; }
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
 
+    void RegisterStaticColorKeys(const std::vector<ColorKey>& keys) { m_StaticColorKeys = keys; }
+    size_t GetStaticColorKeyCount() const { return m_StaticColorKeys.size(); }
+    ID3D11UnorderedAccessView* GetParticleUAV()  const { return m_ParticleUAV.Get(); }
+    ID3D11UnorderedAccessView* GetDeadListUAV() { return m_DeadList.GetUAV(); }
+    ID3D11ShaderResourceView* GetDeadCountSRV() const { return m_DeadCountSRV.Get(); }
+    void RefreshDeadCount(ID3D11DeviceContext* ctx)
+    {
+        ctx->CopyStructureCount(m_DeadCountBuffer.Get(), 0, m_DeadList.GetUAV());
+    }
+
     size_t GetPendingEmitterCount() const { return m_PendingEmitters.size(); }
     size_t GetMaxEmitters()         const { return MAX_EMITTERS; }
     size_t GetDroppedEmitterCount() const { return m_DroppedEmitters; }
@@ -145,5 +155,6 @@ private:
 
     CameraBase* m_Camera = nullptr;
     std::shared_ptr<Texture> m_Texture;
+    std::vector<ColorKey> m_StaticColorKeys;
     //   ComPtr<ID3D11SamplerState> m_SamplerState;
 };

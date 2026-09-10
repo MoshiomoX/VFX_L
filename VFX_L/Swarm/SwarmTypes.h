@@ -64,7 +64,7 @@ namespace Swarm
         Vector3  velocity;
         float    lifetime = 0.0f;
         float    radius = 0.25f;
-        uint32_t vfxType = 0;      // Recipe 表の index（VFXId から引く）
+        uint32_t vfxType = 0;      // index into SwarmVFXTable's recipe table
         float    _pad[2] = {};
     };
     static_assert(sizeof(Projectile) == 48, "SwarmProjectile layout mismatch");

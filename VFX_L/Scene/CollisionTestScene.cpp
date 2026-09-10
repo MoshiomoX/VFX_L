@@ -42,6 +42,7 @@
 #include "Item/ExpRewardComponent.h"
 #include "Item/ExpOrbSystem.h"
 #include "World/TerrainGenerator.h"
+#include "VFX_Editor/VFXId.h"
 
 #include "Enemy/EnemyTags.h"
 #include "Enemy/ChaseAIComponent.h"
@@ -119,11 +120,13 @@ void CollisionTestScene::Init()
 
     // ---------- GPU 側 gameplay（雑魚・投射物・オーブ）----------
     // ※地形の生成後に呼ぶ。格子表をそのまま上げるため
+    m_Swarm.SetParticleSystem(&m_ParticleSystem);
     if (!m_Swarm.Initialize(device, context))
         std::cout << "[Error] SwarmSystem init failed" << std::endl;
 
     m_Swarm.UploadTerrain(m_Grid);
-
+    m_Swarm.BuildVFXTable();
+    m_WeaponSystem.SetSwarm(&m_Swarm);
     // ============================================================
     // プレイヤー
     // 組み立ては PlayerFactory に任せる。
@@ -277,48 +280,48 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
 
     m_ManaSystem.Update(m_Registry, dt);
-    // 生まれたばかりの投射物に VFX を取り付ける（WeaponSystem の直後）
-    for (const auto& sp : m_WeaponSystem.GetSpawned())
-        m_ProjectileVFXSystem.AttachVFX(m_Registry, sp.entity, sp.id, m_VFXContext);
+    //// 生まれたばかりの投射物に VFX を取り付ける（WeaponSystem の直後）
+    //for (const auto& sp : m_WeaponSystem.GetSpawned())
+    //    m_ProjectileVFXSystem.AttachVFX(m_Registry, sp.entity, sp.id, m_VFXContext);
 
-    m_ProjectileSystem.Update(m_Registry, dt, m_CollisionSystem);
+    //m_ProjectileSystem.Update(m_Registry, dt, m_CollisionSystem);
 
-    // ============================================================
-    // 命中イベントの消費: ダメージ + 死亡処理
-    //
-    // ※プレイヤーは PlayerStateSystem::TryApplyHit を通す。
-    //   無敵時間の判定を1ヶ所に閉じ込めるため。
-    //   （2ヶ所に書くと必ず片方だけ直され、食い違う）
-    // ============================================================
-    for (const auto& hit : m_ProjectileSystem.GetHitEvents())
-    {
-        if (!m_Registry.IsValid(hit.target)) continue;
-        if (!m_Registry.Has<HealthComponent>(hit.target)) continue;
+    //// ============================================================
+    //// 命中イベントの消費: ダメージ + 死亡処理
+    ////
+    //// ※プレイヤーは PlayerStateSystem::TryApplyHit を通す。
+    ////   無敵時間の判定を1ヶ所に閉じ込めるため。
+    ////   （2ヶ所に書くと必ず片方だけ直され、食い違う）
+    //// ============================================================
+    //for (const auto& hit : m_ProjectileSystem.GetHitEvents())
+    //{
+    //    if (!m_Registry.IsValid(hit.target)) continue;
+    //    if (!m_Registry.Has<HealthComponent>(hit.target)) continue;
 
-        if (m_Registry.Has<PlayerStateComponent>(hit.target))
-        {
-            PlayerStateSystem::TryApplyHit(m_Registry, hit.target, hit.damage);
-            continue;   // プレイヤーは Destroy しない（Dead 状態で残す）
-        }
+    //    if (m_Registry.Has<PlayerStateComponent>(hit.target))
+    //    {
+    //        PlayerStateSystem::TryApplyHit(m_Registry, hit.target, hit.damage);
+    //        continue;   // プレイヤーは Destroy しない（Dead 状態で残す）
+    //    }
 
-        auto& hp = m_Registry.Get<HealthComponent>(hit.target);
-        hp.current -= hit.damage;
+    //    auto& hp = m_Registry.Get<HealthComponent>(hit.target);
+    //    hp.current -= hit.damage;
 
-        // 無敵の的は 0 で止める（累計ダメージを読むための的）
-        if (hp.invincible && hp.current < 0.0f)
-            hp.current = 0.0f;
+    //    // 無敵の的は 0 で止める（累計ダメージを読むための的）
+    //    if (hp.invincible && hp.current < 0.0f)
+    //        hp.current = 0.0f;
 
-        if (hp.IsDead())
-        {
-            ExpOrbSystem::DropFrom(m_Registry, hit.target);
-            m_Registry.Destroy(hit.target);
-        }
-    }
+    //    if (hp.IsDead())
+    //    {
+    //        ExpOrbSystem::DropFrom(m_Registry, hit.target);
+    //        m_Registry.Destroy(hit.target);
+    //    }
+    //}
 
     // ============================================================
     // VFX: 各投射物の emitter を積む（Flush はまだ呼ばない）
     // ============================================================
-    m_ProjectileVFXSystem.Update(m_Registry, dt, m_VFXContext);
+   // m_ProjectileVFXSystem.Update(m_Registry, dt, m_VFXContext);
 
     m_LastEmitterCount = m_ParticleSystem.GetPendingEmitterCount();
     m_LastDropped = m_ParticleSystem.GetDroppedEmitterCount();
@@ -358,7 +361,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         if (m_Registry.Has<PlayerStateComponent>(m_Player))
             playerAlive = !m_Registry.Get<PlayerStateComponent>(m_Player).IsDead();
 
-        m_Swarm.Flush(ptf.position, playerRadius, playerAlive, dt);
+        m_Swarm.Flush(ptf.position, playerRadius, playerAlive, dt, m_TotalTime);
 
         // GPU 上で受けたダメージを CPU の玩家へ反映
         const float gpuDamage = m_Swarm.ConsumePlayerDamage();
@@ -428,10 +431,8 @@ void CollisionTestScene::Render(Renderer& renderer)
     if (m_ShowMesh)
         m_RenderSystem.Render(m_Registry, renderer);
 
-    // ---- 1.5) GPU 側 gameplay（雑魚・投射物。位置は GPU 上にしか無い）----
-    // ※Flush の側で UAV を外してあるので、ここでは SRV として読む
-    m_Swarm.Render(GetCamera());
-
+    if (m_ShowSwarmDebug)
+        m_Swarm.RenderDebug(GetCamera());
     // ---- 2) ビルボード（投射物とオーブの芯）----
     if (m_ShowBillboard)
         m_ProjectileRenderer.Render(m_Registry, GetCamera());
@@ -1131,7 +1132,8 @@ void CollisionTestScene::DrawStressPanel()
 void CollisionTestScene::DrawDebugUI()
 {
     ImGui::Begin("Game Test");
-
+    ImGui::SameLine();
+    ImGui::Checkbox("Swarm Debug", &m_ShowSwarmDebug);
     ImGui::Checkbox("Mesh", &m_ShowMesh);
     ImGui::SameLine();
     ImGui::Checkbox("Billboard", &m_ShowBillboard);
@@ -1180,7 +1182,7 @@ void CollisionTestScene::DrawDebugUI()
                 {
                     const float a = 6.2831853f * (float)i / 100.0f;
                     Vector3 dir(std::cos(a), 0.0f, std::sin(a));
-                    m_Swarm.SpawnProjectile(pp, dir * 20.0f, 10.0f, 0.25f, 3.0f);
+                    m_Swarm.SpawnProjectile(VFXId::Fireball, pp, dir * 20.0f, 10.0f, 0.25f, 3.0f);
                 }
             }
         }
@@ -1238,7 +1240,7 @@ void CollisionTestScene::DrawDebugUI()
 
             // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
             m_Swarm.UploadTerrain(m_Grid);
-
+            m_Swarm.BuildVFXTable();
             RespawnEnemies();
         }
         ImGui::SameLine();

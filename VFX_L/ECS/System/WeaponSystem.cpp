@@ -10,6 +10,8 @@
 #include "Component/WandComponent.h"
 #include "Component/ManaComponent.h"
 #include "Collider/CollisionSystem.h"
+#include "Swarm/SwarmSystem.h"
+#include "Item/ItemDatabase.h"
 #include "ECS/View.h"
 #include <algorithm>
 
@@ -164,9 +166,26 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 }
             });
 
-    // ---- 走査が終わってから Entity を作る ----
+    // ============================================================
+    // 走査が終わってから生成する
+    // GPU 側（SwarmSystem）が繋がっていればそちらへ。
+    //   弾は「核」として GPU に積まれ、見た目は配方から粒子が出る。
+    //   CPU 側の Entity / Collider / VFX は一切作らない。
+    // 繋がっていなければ従来の CPU 経路（VFXEditor 等の互換用）
+    // ============================================================
     for (const auto& req : m_Requests)
     {
+        if (m_Swarm)
+        {
+            const auto* def = ItemDatabase::GetProjectile(req.id);
+            const VFXId vfx = def ? def->vfxId : VFXId::None;
+
+            m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
+                req.damage, req.radius, req.lifetime);
+            continue;
+        }
+
+        // ---- CPU 経路（従来）----
         Entity p = reg.Create();
 
         TransformComponent tf;
@@ -186,14 +205,12 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         pj.lifetime = req.lifetime;
         reg.Add<ProjectileComponent>(p, pj);
         m_Spawned.push_back({ p, req.id });
-        // ※Rigidbody は付けない（position は ProjectileSystem が直接進める）
 
         if (auto m = GetModel(req.id))
         {
             ModelComponent mc;
             mc.model = m;
             reg.Add<ModelComponent>(p, mc);
-
         }
         if (const auto* v = FindVisual(req.id))
         {

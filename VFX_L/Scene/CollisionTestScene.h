@@ -224,7 +224,7 @@ private:
 
     void ApplyStressPreset(const StressPreset& p);
     int  m_LastPresetIndex = -1;
-
+    bool m_ShowSwarmDebug = false;
     // --- 敵生成の調整 ---
     int      m_SpawnPointCount = 6;    // 生成点の数
     uint32_t m_TerrainSeed = 1;        // 地形の seed（ImGui から変えて Regenerate）
