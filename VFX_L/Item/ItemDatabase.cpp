@@ -3,7 +3,7 @@
 // ============================================================
 #include "Item/ItemDatabase.h"
 
-// ---- ??????????(??????? include ?1?)----
+// ---- 各アイテムの定義（増やす時はここに include を1行）----
 #include "Item/Items/Fireball.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
@@ -13,16 +13,16 @@
 
 namespace
 {
-    // ??????????????
+    // 種類ごとの登録所（実体はここだけが持つ）
     std::unordered_map<ItemID, ProjectileItemDef> g_Projectiles;
     std::unordered_map<ItemID, FunctionItemDef>   g_Functions;
     std::unordered_map<ItemID, AreaItemDef>       g_Areas;
     std::unordered_map<ItemID, FrameItemDef>      g_Frames;
 
-    std::vector<ItemID> g_AllIDs;   // ???(UI ?????)
+    std::vector<ItemID> g_AllIDs;   // 全ID（UI の一覧表示用）
     bool g_Initialized = false;
 
-    // ---- ?????(??????????)----
+    // ---- 登録ヘルパー（種類ごとにオーバーロード）----
     void Register(const ProjectileItemDef& def)
     {
         g_Projectiles[def.common.id] = def;
@@ -46,8 +46,8 @@ namespace
 }
 
 // ============================================================
-// ??
-// ????????????1????????????????????
+// 初期化
+// 起動時に1回だけ呼ぶ想定。二回目以降は何もしない（多重登録防止）
 // ============================================================
 void ItemDatabase::Initialize()
 {
@@ -59,16 +59,16 @@ void ItemDatabase::Initialize()
     g_Frames.clear();
     g_AllIDs.clear();
 
-    // ---- ???? ----
+    // ---- 飛行物型 ----
     Register(MakeFireball());
 
-    // ---- ??? ----
+    // ---- 機能型 ----
     Register(MakeSplitRune());
     Register(MakeDoubleCastRune());
 
-    // ---- AOE ?(????)----
+    // ---- AOE 型（未実装）----
 
-    // ---- ??? ----
+    // ---- 設置枠 ----
     Register(MakeFrame3x3());
 
     g_Initialized = true;
@@ -80,7 +80,7 @@ void ItemDatabase::Initialize()
 }
 
 // ============================================================
-// ??
+// 検索
 // ============================================================
 ItemCategory ItemDatabase::GetCategory(ItemID id)
 {
@@ -89,8 +89,8 @@ ItemCategory ItemDatabase::GetCategory(ItemID id)
     if (g_Areas.count(id))       return ItemCategory::Area;
     if (g_Frames.count(id))      return ItemCategory::Frame;
 
-    // ??????? Projectile ????????
-    // ?????????????????????????????????
+    // どこにも無ければ Unknown。
+    // 未登録の ID を渡した呼び出し側の不具合をここで拾えるようにする
     return ItemCategory::Unknown;
 }
 
@@ -144,8 +144,8 @@ const std::vector<ItemID>& ItemDatabase::GetAllIDs()
 }
 
 // ============================================================
-// ?????
-// ???????????????? case ?1??????
+// 飛行物型への修飾を適用する
+// パラメータが増えても switch に case を1個足すだけで済む
 // ============================================================
 void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
 {
@@ -177,7 +177,7 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
         case ModifyOp::Multiply: *target *= mod.value; break;
         case ModifyOp::Set:      *target = mod.value; break;
         }
-        if (*target < 0.0f) *target = 0.0f;   // ?????
+        if (*target < 0.0f) *target = 0.0f;   // 負値は許さない
     }
     else if (targetInt)
     {
@@ -185,22 +185,22 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
         {
         case ModifyOp::Add:      *targetInt += (int)mod.value; break;
 
-            // ????????????????
-            // ?????? 1 ﾗ 0.6 = 0 ????
-            // ????????????????????????????
+            // 四捨五入してから丸める。
+            // 切り捨てだと 1 × 0.6 = 0 になってしまい、
+            // 「弾数を減らす」意図の倍率が「弾を消す」に化けるのを防ぐ
         case ModifyOp::Multiply:
             *targetInt = (int)(*targetInt * mod.value + 0.5f);
             break;
 
         case ModifyOp::Set:      *targetInt = (int)mod.value; break;
         }
-        if (*targetInt < 1) *targetInt = 1;   // ??1??????????
+        if (*targetInt < 1) *targetInt = 1;   // 最低1は確保する
     }
 }
 // ============================================================
-// AOE ?????
-// SpellStats ????????
-// ???????????????? case ?1??????
+// AOE 型への修飾を適用する
+// SpellStats 側とは完全に独立した処理。
+// パラメータが増えても switch に case を1個足すだけで済む
 // ============================================================
 void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
 {
@@ -226,5 +226,5 @@ void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
     case ModifyOp::Set:      *target = mod.value; break;
     }
 
-    if (*target < 0.0f) *target = 0.0f;   // ?????
+    if (*target < 0.0f) *target = 0.0f;   // 負値は許さない
 }

@@ -22,12 +22,11 @@ bool SwarmSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     if (!CreateBuffers(device)) return false;
     if (!m_Readback.Initialize(device)) return false;
 
-    // CS はまだ書いていないので、読み込み失敗しても続行する。
-    // Phase 2 以降で1本ずつ増やす
+    // 読み込み失敗しても続行する（未実装の CS があっても他は動くように）
     LoadShaders(device);
 
-    m_PendingEnemies.reserve(256);
-    m_PendingProjectiles.reserve(512);
+    m_PendingEnemies.reserve(Swarm::kMaxSpawnEnemyPerFrame);
+    m_PendingProjectiles.reserve(Swarm::kMaxSpawnProjPerFrame);
 
     std::cout << "[OK] SwarmSystem initialized (enemies "
         << Swarm::kMaxEnemies << ", projectiles "
@@ -45,7 +44,7 @@ void SwarmSystem::Shutdown()
 // ============================================================
 bool SwarmSystem::CreateBuffers(ID3D11Device* device)
 {
-    // 構造化バッファ（UAV + SRV 両方）を作る共通処理
+    // ---- 構造化バッファ（UAV + SRV 両方）----
     auto makeStructured = [&](UINT stride, UINT count,
         ComPtr<ID3D11Buffer>& buf,
         ComPtr<ID3D11UnorderedAccessView>& uav,
@@ -96,8 +95,55 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(Swarm::Orb), Swarm::kMaxOrbs,
         m_OrbBuffer, m_OrbUAV, m_OrbSRV, "orb")) return false;
 
-    // ---- counter ----
-    // CopyResource で staging へ写すので UAV だけあればよい
+    // ============================================================
+    // 生死フラグ（typed buffer, R32_UINT）
+    // structured ではなく typed。RWBuffer<uint> に対応するのはこちら。
+    // MiscFlags を付けない（structured にすると RWBuffer<uint> と噛み合わない）
+    // ============================================================
+    auto makeState = [&](UINT count,
+        ComPtr<ID3D11Buffer>& buf,
+        ComPtr<ID3D11UnorderedAccessView>& uav,
+        ComPtr<ID3D11ShaderResourceView>& srv,
+        const char* name) -> bool
+        {
+            D3D11_BUFFER_DESC bd = {};
+            bd.ByteWidth = sizeof(uint32_t) * count;
+            bd.Usage = D3D11_USAGE_DEFAULT;
+            bd.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+
+            if (FAILED(device->CreateBuffer(&bd, nullptr, &buf)))
+            {
+                std::cout << "[Error] SwarmSystem: " << name << " state buffer failed" << std::endl;
+                return false;
+            }
+
+            D3D11_UNORDERED_ACCESS_VIEW_DESC ud = {};
+            ud.Format = DXGI_FORMAT_R32_UINT;
+            ud.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+            ud.Buffer.NumElements = count;
+            if (FAILED(device->CreateUnorderedAccessView(buf.Get(), &ud, &uav)))
+            {
+                std::cout << "[Error] SwarmSystem: " << name << " state UAV failed" << std::endl;
+                return false;
+            }
+
+            D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
+            sd.Format = DXGI_FORMAT_R32_UINT;
+            sd.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+            sd.Buffer.NumElements = count;
+            if (FAILED(device->CreateShaderResourceView(buf.Get(), &sd, &srv)))
+            {
+                std::cout << "[Error] SwarmSystem: " << name << " state SRV failed" << std::endl;
+                return false;
+            }
+            return true;
+        };
+
+    if (!makeState(Swarm::kMaxEnemies, m_EnemyStateBuffer, m_EnemyStateUAV, m_EnemyStateSRV, "enemy")) return false;
+    if (!makeState(Swarm::kMaxProjectiles, m_ProjStateBuffer, m_ProjStateUAV, m_ProjStateSRV, "proj"))  return false;
+    if (!makeState(Swarm::kMaxOrbs, m_OrbStateBuffer, m_OrbStateUAV, m_OrbStateSRV, "orb"))   return false;
+
+    // ---- counter（RAW UAV。CS が InterlockedAdd し、CopyResource で staging へ）----
     {
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(SwarmCounters);
@@ -118,14 +164,18 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     }
 
     // ---- 定数バッファ ----
+    // ※ComputeShader::WriteBuffer が反射から自前の CB を持つ場合は未使用。
+    //   将来 VS 側（描画）で直接使うので残しておく
     {
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(Swarm::FrameCB);
         bd.Usage = D3D11_USAGE_DYNAMIC;
         bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
         bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
         if (FAILED(device->CreateBuffer(&bd, nullptr, &m_FrameCB))) return false;
+
+        bd.ByteWidth = sizeof(Swarm::SpawnCB);
+        if (FAILED(device->CreateBuffer(&bd, nullptr, &m_SpawnCB))) return false;
     }
 
     // ---- 生成キュー（CPU が毎フレーム書くので DYNAMIC）----
@@ -149,11 +199,24 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
             return SUCCEEDED(device->CreateShaderResourceView(buf.Get(), &sd, &srv));
         };
 
-    // 1フレームに生成される数の上限。溢れた分は次フレームへ持ち越す
-    if (!makeUpload(sizeof(Swarm::Enemy), 256,
+    if (!makeUpload(sizeof(Swarm::Enemy), Swarm::kMaxSpawnEnemyPerFrame,
         m_SpawnEnemyBuffer, m_SpawnEnemySRV)) return false;
-    if (!makeUpload(sizeof(Swarm::Projectile), 512,
+    if (!makeUpload(sizeof(Swarm::Projectile), Swarm::kMaxSpawnProjPerFrame,
         m_SpawnProjBuffer, m_SpawnProjSRV)) return false;
+
+    // ============================================================
+    // state を全部 DEAD にする
+    // DEFAULT usage のバッファは初期内容が未定義。
+    // ゴミが入っていると全スロットが alive に見えて一発も湧かない
+    // （しかもエラーは出ない）
+    // ============================================================
+    {
+        const UINT zero[4] = { 0, 0, 0, 0 };
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyStateUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_ProjStateUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_CounterUAV.Get(), zero);
+    }
 
     return true;
 }
@@ -167,9 +230,7 @@ void SwarmSystem::UploadTerrain(const GridWorld& grid)
     const int d = grid.Depth();
     if (w <= 0 || d <= 0) return;
 
-    // uint8_t → uint32_t へ展開する。
-    // HLSL の StructuredBuffer<uint> に合わせるため。
-    // 4倍のメモリを食うが 100x100 なら 40KB。起動時1回なので気にしない
+    // uint8_t → uint32_t へ展開する（HLSL の StructuredBuffer<uint> に合わせる）
     std::vector<uint32_t> data((size_t)w * d);
     for (int z = 0; z < d; ++z)
         for (int x = 0; x < w; ++x)
@@ -212,17 +273,18 @@ void SwarmSystem::UploadTerrain(const GridWorld& grid)
 
 // ============================================================
 // 生成依頼を溜める（実際に GPU へ入るのは Flush）
+// ※state は本体に無い。スロットの生死は SpawnCS が
+//   state buffer 側で InterlockedCompareExchange して立てる
 // ============================================================
 void SwarmSystem::SpawnEnemy(const Vector3& pos, float hp, float moveSpeed)
 {
-    if (m_PendingEnemies.size() >= 256) return;   // 溢れたら捨てる（次フレームで湧く）
+    if (m_PendingEnemies.size() >= Swarm::kMaxSpawnEnemyPerFrame) return;
 
     Swarm::Enemy e;
     e.position = pos;
     e.hp = hp;
     e.velocity = { 0, 0, 0 };
     e.moveSpeed = moveSpeed;
-    //e.state = Swarm::kStateAlive;
     e.yaw = 0.0f;
     m_PendingEnemies.push_back(e);
 }
@@ -230,16 +292,16 @@ void SwarmSystem::SpawnEnemy(const Vector3& pos, float hp, float moveSpeed)
 void SwarmSystem::SpawnProjectile(const Vector3& pos, const Vector3& vel,
     float damage, float radius, float lifetime)
 {
-    if (m_PendingProjectiles.size() >= 512) return;
+    if (m_PendingProjectiles.size() >= Swarm::kMaxSpawnProjPerFrame) return;
 
     Swarm::Projectile p;
     p.position = pos;
     p.damage = damage;
     p.velocity = vel;
     p.lifetime = lifetime;
-    //p.state = Swarm::kStateAlive;
     p.radius = radius;
     m_PendingProjectiles.push_back(p);
+    ++m_TotalRequested;
 }
 
 // ============================================================
@@ -252,12 +314,19 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
 {
     auto t0 = std::chrono::high_resolution_clock::now();
 
-    // ---- 1) 前フレームの counter を読む（阻塞しない）----
+    // ============================================================
+    // 1) 前フレームの counter を読む（阻塞しない）
+    // killCount / playerDamage は GPU 上で永久に累加される。
+    // 前回値との差分を取る（回読が失敗したフレームがあっても取りこぼさない）
+    // ============================================================
     SwarmCounters c;
     if (m_Readback.TryRead(m_Context, c))
     {
-        // 固定小数（実値 × 100）で来る
-        m_PendingPlayerDamage += (float)c.playerDamage * 0.01f;
+        const uint32_t dmgDelta = c.playerDamage - m_LastDamageTotal;
+        m_LastDamageTotal = c.playerDamage;
+        m_PendingPlayerDamage += (float)dmgDelta * 0.01f;   // 固定小数 × 100 を戻す
+
+        m_LastKillCount = c.killCount;
     }
 
     // ---- 2) 定数と生成依頼を上げる ----
@@ -291,6 +360,9 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
 
 // ============================================================
 // 毎フレームの定数
+// ※m_CachedFrameCB を丸ごと = {} で初期化しないこと。
+//   gridOrigin / cellSize / gridW / gridD は UploadTerrain が
+//   入れた値で、ここで消すと CS が格子を引けなくなる
 // ============================================================
 void SwarmSystem::UploadFrameCB(const Vector3& playerPos, float playerRadius,
     bool playerAlive)
@@ -303,7 +375,6 @@ void SwarmSystem::UploadFrameCB(const Vector3& playerPos, float playerRadius,
     m_CachedFrameCB.maxOrbs = Swarm::kMaxOrbs;
     m_CachedFrameCB.playerAlive = playerAlive ? 1u : 0u;
     m_CachedFrameCB.seed = ++m_FrameSeed;
-    // gridOrigin / cellSize / gridW / gridD は UploadTerrain で入っている
 
     D3D11_MAPPED_SUBRESOURCE mapped = {};
     if (SUCCEEDED(m_Context->Map(m_FrameCB.Get(), 0,
@@ -315,8 +386,7 @@ void SwarmSystem::UploadFrameCB(const Vector3& playerPos, float playerRadius,
 }
 
 // ============================================================
-// 溜めた生成依頼を上げる
-// ※Phase 2 で SpawnCS を書いたら、ここでその dispatch も行う
+// 溜めた生成依頼を上げて、空きスロットへ流し込む
 // ============================================================
 void SwarmSystem::UploadSpawns()
 {
@@ -352,6 +422,8 @@ void SwarmSystem::UploadSpawns()
 
         m_SpawnProjCS->UnbindSRVs(m_Context);
         m_SpawnProjCS->UnbindUAVs(m_Context);
+
+        ++m_TotalDispatched;
     }
 
     // ---- 敵（Phase 3 で SpawnEnemyCS を書いたらここに同じ形で）----
@@ -362,11 +434,13 @@ void SwarmSystem::UploadSpawns()
 
 // ============================================================
 // 固定ステップ1回ぶんの CS 群
-// ※Phase 2 以降で埋める。順序はここが全て:
-//   生成流し込み → 敵AI → 投射物積分 → 命中 → 接触 → オーブ
+// 順序はここが全て:
+//   counter 清零 → 敵AI → 投射物積分 → 命中 → 接触 → オーブ
 // ============================================================
 void SwarmSystem::DispatchStep()
 {
+    ++m_TotalSteps;
+
     // ---- 0) counter を 0 に ----
     if (m_ClearCountersCS)
     {
@@ -397,6 +471,7 @@ void SwarmSystem::DispatchStep()
     // Phase 3: m_EnemyAICS
     // Phase 4: m_HitCS / m_ContactCS / m_OrbCS
 }
+
 // ============================================================
 // counter の写しを発行（待たない）
 // ============================================================
@@ -415,17 +490,9 @@ float SwarmSystem::ConsumePlayerDamage()
     return d;
 }
 
-
 // ============================================================
-// 描画
-// ※Phase 2/3 で埋める。
-//   UAV と SRV は同時に繋げないので、Flush の側で外し、
-//   ここで SRV として繋ぎ直す
+// シェーダー読み込み
 // ============================================================
-void SwarmSystem::Render(CameraBase* camera)
-{
-    (void)camera;
-}
 bool SwarmSystem::LoadShaders(ID3D11Device* device)
 {
     auto load = [&](std::shared_ptr<ComputeShader>& cs, const wchar_t* path,
@@ -444,4 +511,14 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_SpawnProjCS, L"Shader/Swarm/SwarmSpawnProjCS.hlsl", "SpawnProjCS");
     ok &= load(m_ProjMoveCS, L"Shader/Swarm/SwarmProjMoveCS.hlsl", "ProjMoveCS");
     return ok;
+}
+
+// ============================================================
+// 描画
+// ※Phase 2 の残り。UAV と SRV は同時に繋げないので、
+//   Flush の側で外し、ここで SRV として繋ぎ直す
+// ============================================================
+void SwarmSystem::Render(CameraBase* camera)
+{
+    (void)camera;
 }

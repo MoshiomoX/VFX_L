@@ -183,4 +183,7 @@ private:
     uint32_t m_TotalRequested = 0;    // SpawnProjectile が呼ばれた総数
     uint32_t m_TotalDispatched = 0;   // SpawnProjCS を dispatch した総数
     uint32_t m_TotalSteps = 0;        // DispatchStep が走った総数
+    
+    uint32_t m_LastKillCount = 0;
+    uint32_t m_LastDamageTotal = 0;
 };

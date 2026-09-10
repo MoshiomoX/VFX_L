@@ -22,7 +22,8 @@
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
 #include "ECS/View.h"
-
+#include "VFX_Editor/VFXId.h"
+#include "VFX_Editor/VFXDatabase.h"
 #include "Player/PlayerFactory.h"
 #include "Item/ItemDatabase.h"
 #include "Item/BackpackLogic.h"
@@ -148,19 +149,20 @@ void CollisionTestScene::RegisterItemVisuals()
             m_WeaponSystem.SetProjectileVisual(id,
                 p->visualSize, p->common.color, p->visualStretch);
 
-            if (p->vfxPath)
-                m_ProjectileVFXSystem.RegisterVFX(id, p->vfxPath);
+            // CPU 経路（精英の弾など）は今まで通り VFXEffect を張る。
+            // パスは VFXDatabase から引く（道具は ID しか知らない）
+            if (const char* path = VFXDatabase::GetPath(p->vfxId))
+                m_ProjectileVFXSystem.RegisterVFX(id, path);
         }
 
         // --- AOE 型: VFX のみ（AreaSystem は未実装）---
         if (auto* a = ItemDatabase::GetArea(id))
         {
-            if (a->vfxPath)
-                m_ProjectileVFXSystem.RegisterVFX(id, a->vfxPath);
+            if (const char* path = VFXDatabase::GetPath(a->vfxId))
+                m_ProjectileVFXSystem.RegisterVFX(id, path);
         }
     }
 }
-
 // ============================================================
 // Shutdown
 // ============================================================
