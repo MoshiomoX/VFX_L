@@ -8,6 +8,8 @@
 //   シーンはメンバ変数を持たない（roguelite の成長で書き換わるのは
 //   常に Entity 側の1ヶ所だけにする）。
 // ※デバッグ表示と Graphics まわりだけがシーンの責任。
+// ※雑魚は GPU（SwarmSystem）の中にしか居ない。
+//   CPU の Registry に居る敵は EliteTag（精英・計測用の的）だけ。
 // ============================================================
 #pragma once
 #include "Scene/SceneBase.h"
@@ -30,7 +32,6 @@
 #include "Particle/GPUParticleSystem.h"
 #include "VFX_Editor/VFXEffect.h"
 #include "ECS/System/ManaSystem.h"
-#include "Enemy/ChaseAISystem.h"
 #include "Enemy/SpawnDirector.h"
 
 #include "World/GridWorld.h"
@@ -56,8 +57,6 @@ private:
     void UpdateScreenSize();
     void UpdateGameplay(float dt);
 
-
-
     // ---- ImGui パネル ----
     void DrawDebugUI();
     void DrawPlayerPanel();
@@ -70,8 +69,8 @@ private:
 
     // ---- 生成 / 再構築 ----
     void RebuildPlayerMesh();
-    void SpawnEnemy(const Vector3& pos, bool invincible = false);
-    void RespawnEnemies();
+    void SpawnElite(const Vector3& pos);   // CPU 側の的（無敵・動かない）
+    void RespawnElites();
     void StressSpawnProjectiles(int count);
     int  CountProjectiles() const;
     void RegisterItemVisuals();
@@ -97,7 +96,6 @@ private:
     LevelUpSystem           m_LevelUpSystem;
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
-	ChaseAISystem 		    m_ChaseAISystem;
     SpawnDirector           m_SpawnDirector;
 
     // --- GPU 側 gameplay（雑魚・投射物・オーブ）---
@@ -120,12 +118,15 @@ private:
     // --- Entities ---
     Entity m_Player = 0;
     std::vector<Entity> m_Terrain;
-    std::vector<Entity> m_Enemies;
+    std::vector<Entity> m_Elites;      // CPU に残る敵はこれだけ
 
     // --- 使い回すモデル ---
-    std::shared_ptr<Model> m_EnemyModel;
     std::shared_ptr<Model> m_DummyModel;
     std::shared_ptr<Model> m_StressModel;
+
+    // --- 雑魚の初期値（SpawnDirector 経由で GPU へ渡す）---
+    float m_MobHp = 100.0f;
+    float m_MobSpeed = 3.5f;
 
     // --- 表示切替 ---
     bool m_ShowWireframe = true;

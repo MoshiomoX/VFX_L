@@ -34,7 +34,8 @@ public:
     struct AimDebug
     {
         bool    hasTarget = false;
-        Entity  target = 0;
+        bool    targetIsGpu = false;   // true = 雑魚（GPU）、false = 精英（CPU）
+        DirectX::SimpleMath::Vector3 targetPos = { 0, 0, 0 };
         DirectX::SimpleMath::Vector3 muzzle = { 0, 0, 0 };
         DirectX::SimpleMath::Vector3 dir = { 0, 0, 1 };
         float   range = 0.0f;

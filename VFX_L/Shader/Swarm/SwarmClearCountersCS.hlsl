@@ -20,6 +20,7 @@ void main()
 {
     counters.Store(SWARM_CNT_ALIVE_ENEMIES, 0u);
     counters.Store(SWARM_CNT_ALIVE_PROJ, 0u);
+    counters.Store(SWARM_CNT_NEAREST_KEY, SWARM_NO_TARGET_KEY);
    // counters.Store(SWARM_CNT_KILLS, 12345u); // TEMP: readback probe
     // do NOT touch SWARM_CNT_KILLS / SWARM_CNT_PLAYER_DAMAGE
 }

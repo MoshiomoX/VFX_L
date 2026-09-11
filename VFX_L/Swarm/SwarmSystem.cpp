@@ -9,6 +9,10 @@
 #include "Graphics/Shader/PixelShader.h"
 #include "Graphics/Renderer/RenderStates.h"
 #include "Camera/CameraBase.h"
+#include "Graphics/Model/Model.h"
+#include "Graphics/Material/Material.h"
+#include "Graphics/PrimitiveBuilder.h"
+#include "Graphics/Shader/PixelShader.h"
 #include "World/GridWorld.h"
 #include <chrono>
 #include <iostream>
@@ -32,7 +36,7 @@ bool SwarmSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 
     m_PendingEnemies.reserve(Swarm::kMaxSpawnEnemyPerFrame);
     m_PendingProjectiles.reserve(Swarm::kMaxSpawnProjPerFrame);
-
+    m_PendingRecycles.reserve(Swarm::kMaxSpawnEnemyPerFrame);
     std::cout << "[OK] SwarmSystem initialized (enemies "
         << Swarm::kMaxEnemies << ", projectiles "
         << Swarm::kMaxProjectiles << ")" << std::endl;
@@ -180,7 +184,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
 
     if (!makeRaw(sizeof(SwarmCounters), m_CounterBuffer, m_CounterUAV, "counter")) return false;
     if (!makeRaw(16, m_EmitBudget, m_EmitBudgetUAV, "emitBudget")) return false;
-
+    if (!makeRaw(16, m_RecycleClaim, m_RecycleClaimUAV, "recycleClaim")) return false;
     // ---- 定数バッファ ----
     // ※ComputeShader::WriteBuffer が反射から自前の CB を持つ場合は未使用。
     //   将来 VS 側で直接使うことを想定して残しておく
@@ -309,13 +313,21 @@ void SwarmSystem::SpawnEnemy(const Vector3& pos, float hp, float moveSpeed)
 
     Swarm::Enemy e;
     e.position = pos;
-    e.hp = hp;
+    e.hp = Swarm::HpToFixed(hp);
     e.velocity = { 0, 0, 0 };
     e.moveSpeed = moveSpeed;
     e.yaw = 0.0f;
     m_PendingEnemies.push_back(e);
 }
-
+void SwarmSystem::RecycleEnemy(const Vector3& pos, float hp, float moveSpeed)
+{
+    if (m_PendingRecycles.size() >= Swarm::kMaxSpawnEnemyPerFrame) return;
+    Swarm::Enemy e = {};
+    e.position = pos;
+    e.hp = Swarm::HpToFixed(hp);
+    e.moveSpeed = moveSpeed;
+    m_PendingRecycles.push_back(e);
+}
 void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& vel,
     float damage, float radius, float lifetime)
 {
@@ -457,12 +469,87 @@ void SwarmSystem::UploadSpawns()
 
         ++m_TotalDispatched;
     }
+    // ---- 敵：新規 + 転送を1回で上げる ----
+    // [0, newCount)          → SpawnEnemyCS が空きスロットへ
+    // [newCount, total)      → RecycleCS が遠い活きスロットへ上書き
+    if (!m_PendingEnemies.empty() || !m_PendingRecycles.empty())
+    {
+        m_EnemyUpload.clear();
+        for (const auto& e : m_PendingEnemies)
+        {
+            if (m_EnemyUpload.size() >= Swarm::kMaxSpawnEnemyPerFrame) break;
+            m_EnemyUpload.push_back(e);
+        }
+        const uint32_t newCount = (uint32_t)m_EnemyUpload.size();
+        for (const auto& e : m_PendingRecycles)
+        {
+            if (m_EnemyUpload.size() >= Swarm::kMaxSpawnEnemyPerFrame) break;
+            m_EnemyUpload.push_back(e);
+        }
+        const uint32_t recycleCount = (uint32_t)m_EnemyUpload.size() - newCount;
 
-    // ---- 敵（Phase 3 で SpawnEnemyCS を書いたらここに同じ形で）----
+        D3D11_MAPPED_SUBRESOURCE m = {};
+        if (SUCCEEDED(m_Context->Map(m_SpawnEnemyBuffer.Get(), 0,
+            D3D11_MAP_WRITE_DISCARD, 0, &m)))
+        {
+            memcpy(m.pData, m_EnemyUpload.data(),
+                sizeof(Swarm::Enemy) * m_EnemyUpload.size());
+            m_Context->Unmap(m_SpawnEnemyBuffer.Get(), 0);
+        }
+
+        // 1) 新規
+        if (newCount > 0 && m_SpawnEnemyCS)
+        {
+            Swarm::SpawnCB scb;
+            scb.requestCount = newCount;
+            scb.scanStart = m_FrameSeed * 1301u;
+
+            m_SpawnEnemyCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+            m_SpawnEnemyCS->WriteBuffer(m_Context, 1, &scb);
+            m_SpawnEnemyCS->Bind(m_Context);
+            m_SpawnEnemyCS->SetSRV(m_Context, "spawnRequests", m_SpawnEnemySRV.Get());
+            m_SpawnEnemyCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
+            m_SpawnEnemyCS->SetUAV(m_Context, "enemyStates", m_EnemyStateUAV.Get());
+            m_SpawnEnemyCS->BindUAVs(m_Context);
+
+            m_Context->Dispatch((newCount + 63) / 64, 1, 1);
+
+            m_SpawnEnemyCS->UnbindSRVs(m_Context);
+            m_SpawnEnemyCS->UnbindUAVs(m_Context);
+        }
+
+        // 2) 転送
+        if (recycleCount > 0 && m_RecycleCS)
+        {
+            const UINT zero[4] = { 0, 0, 0, 0 };
+            m_Context->ClearUnorderedAccessViewUint(m_RecycleClaimUAV.Get(), zero);
+
+            Swarm::RecycleCB rcb;
+            rcb.count = recycleCount;
+            rcb.offset = newCount;
+            rcb.minDistSq = m_RecycleMinDist * m_RecycleMinDist;
+
+            m_RecycleCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+            m_RecycleCS->WriteBuffer(m_Context, 1, &rcb);
+            m_RecycleCS->Bind(m_Context);
+            m_RecycleCS->SetSRV(m_Context, "spawnRequests", m_SpawnEnemySRV.Get());
+            m_RecycleCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+            m_RecycleCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
+            m_RecycleCS->SetUAV(m_Context, "claim", m_RecycleClaimUAV.Get());
+            m_RecycleCS->BindUAVs(m_Context);
+
+            m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+
+            m_RecycleCS->UnbindSRVs(m_Context);
+            m_RecycleCS->UnbindUAVs(m_Context);
+        }
+    }
 
     m_PendingEnemies.clear();
+    m_PendingRecycles.clear();
     m_PendingProjectiles.clear();
 }
+
 
 // ============================================================
 // 固定ステップ1回ぶんの CS 群
@@ -482,8 +569,42 @@ void SwarmSystem::DispatchStep()
         m_Context->Dispatch(1, 1, 1);
         m_ClearCountersCS->UnbindUAVs(m_Context);
     }
+    // ---- 1) 雑魚 AI: 速度を決める ----
+    // position は読むだけ。全スレッドが同じ快照を見るために
+    // 積分は次の dispatch に分けてある
+    if (m_EnemyAICS)
+    {
+        m_EnemyAICS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_EnemyAICS->WriteBuffer(m_Context, 1, &m_CachedAICB);
+        m_EnemyAICS->Bind(m_Context);
+        m_EnemyAICS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_EnemyAICS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());
+        m_EnemyAICS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
+        m_EnemyAICS->BindUAVs(m_Context);
 
-    // ---- 1) 投射物の積分 ----
+        m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+
+        m_EnemyAICS->UnbindSRVs(m_Context);
+        m_EnemyAICS->UnbindUAVs(m_Context);
+    }
+
+    // ---- 2) 雑魚の積分 ----
+    if (m_EnemyMoveCS)
+    {
+        m_EnemyMoveCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_EnemyMoveCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
+        m_EnemyMoveCS->Bind(m_Context);
+        m_EnemyMoveCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_EnemyMoveCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
+        m_EnemyMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_EnemyMoveCS->BindUAVs(m_Context);
+
+        m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+
+        m_EnemyMoveCS->UnbindSRVs(m_Context);
+        m_EnemyMoveCS->UnbindUAVs(m_Context);
+    }
+    // ---- 3) 投射物の積分 ----
     if (m_ProjMoveCS)
     {
         m_ProjMoveCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
@@ -500,8 +621,55 @@ void SwarmSystem::DispatchStep()
         m_ProjMoveCS->UnbindUAVs(m_Context);
     }
 
-    // Phase 3: m_EnemyAICS
-    // Phase 4: m_HitCS / m_ContactCS / m_OrbCS
+    // ---- 4) 命中: 弾 × 雑魚 ----
+   // 位置は今の子ステップで確定済み。hp は固定小数なので InterlockedAdd
+    if (m_HitCS)
+    {
+        m_HitCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_HitCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
+        m_HitCS->Bind(m_Context);
+        m_HitCS->SetSRV(m_Context, "projectiles", m_ProjSRV.Get());
+        m_HitCS->SetUAV(m_Context, "projStates", m_ProjStateUAV.Get());
+        m_HitCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
+        m_HitCS->SetUAV(m_Context, "enemyStates", m_EnemyStateUAV.Get());
+        m_HitCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_HitCS->BindUAVs(m_Context);
+
+        m_Context->Dispatch((Swarm::kMaxProjectiles + 255) / 256, 1, 1);
+
+        m_HitCS->UnbindSRVs(m_Context);
+        m_HitCS->UnbindUAVs(m_Context);
+    }
+    // ---- 5) Hit            弹 × 怪
+    if (m_AimResolveCS)
+    {
+        m_AimResolveCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_AimResolveCS->Bind(m_Context);
+        m_AimResolveCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+        m_AimResolveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_AimResolveCS->BindUAVs(m_Context);
+        m_Context->Dispatch(1, 1, 1);
+        m_AimResolveCS->UnbindSRVs(m_Context);
+        m_AimResolveCS->UnbindUAVs(m_Context);
+    }
+    // ---- 6) 接触: 雑魚 × 玩家 ----
+   // ダメージは counter に固定小数で累加。無敵時間の判定は CPU の状態機
+    if (m_ContactCS)
+    {
+        m_ContactCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_ContactCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
+        m_ContactCS->Bind(m_Context);
+        m_ContactCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_ContactCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
+        m_ContactCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_ContactCS->BindUAVs(m_Context);
+
+        m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+
+        m_ContactCS->UnbindSRVs(m_Context);
+        m_ContactCS->UnbindUAVs(m_Context);
+    }
+
 }
 
 // ============================================================
@@ -594,7 +762,56 @@ void SwarmSystem::RenderDebug(CameraBase* camera)
     m_Context->DrawInstanced(64, Swarm::kMaxProjectiles, 0, 0);
 
     m_DebugVS->UnbindSRVs(m_Context);
+    if (m_DebugEnemyVS)
+    {
+        m_DebugEnemyVS->WriteBuffer(m_Context, 0, &cb);
+        m_DebugEnemyVS->WriteBuffer(m_Context, 1, &m_CachedAICB);   // 半径と直線部の長さ
+        m_DebugEnemyVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+        m_DebugEnemyVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_DebugEnemyVS->Bind(m_Context);
+
+        m_Context->DrawInstanced(128, Swarm::kMaxEnemies, 0, 0);
+
+        m_DebugEnemyVS->UnbindSRVs(m_Context);
+    }
     RenderStates::Get().Restore(m_Context);
+}
+// ============================================================
+// 雑魚の本描画
+// 頂点/インデックスは1体分、インスタンス数 = プール全体。
+// 生死は VS が state を見て判断する（死んだ槽は near 面の外へ畳む）
+// ============================================================
+void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
+{
+    if (!camera || !m_EnemyMaterial || !m_EnemyModel) return;
+
+    // VS/PS/既定テクスチャをまとめて bind
+    m_EnemyMaterial->Bind(m_Context);
+    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
+    m_Context->PSSetSamplers(0, 1, &samp);
+
+    // VS b0: VS.hlsl と同じ row_major なので Transpose しない
+    EnemyRenderCB cb;
+    cb.view = camera->GetViewMatrix();
+    cb.proj = camera->GetProjectionMatrix();
+    m_EnemyVS->WriteBuffer(m_Context, 0, &cb);
+
+    // PS b0: 光。cameraPosition は Renderer が DrawMesh の中でしか詰めないので自分で入れる
+    LightBuffer l = light;
+    l.cameraPosition = camera->GetPosition();
+    m_EnemyPS->WriteBuffer(m_Context, 0, &l);
+
+    m_EnemyVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_EnemyVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+
+    for (const auto& sub : m_EnemyModel->GetSubMeshes())
+    {
+        if (sub.mesh)
+            sub.mesh->DrawInstanced(m_Context, Swarm::kMaxEnemies);
+    }
+
+    // 次のフレームの Compute が UAV として使うので必ず外す
+    m_EnemyVS->UnbindSRVs(m_Context);
 }
 // ============================================================
 // シェーダー読み込み
@@ -617,6 +834,13 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_SpawnProjCS, L"Shader/Swarm/SwarmSpawnProjCS.hlsl", "SpawnProjCS");
     ok &= load(m_ProjMoveCS, L"Shader/Swarm/SwarmProjMoveCS.hlsl", "ProjMoveCS");
     ok &= load(m_EmitCS, L"Shader/Swarm/SwarmEmitCS.hlsl", "EmitCS");
+    ok &= load(m_SpawnEnemyCS, L"Shader/Swarm/SwarmSpawnEnemyCS.hlsl", "SpawnEnemyCS");
+    ok &= load(m_EnemyAICS, L"Shader/Swarm/SwarmEnemyAICS.hlsl", "EnemyAICS");
+    ok &= load(m_EnemyMoveCS, L"Shader/Swarm/SwarmEnemyMoveCS.hlsl", "EnemyMoveCS");
+    ok &= load(m_RecycleCS, L"Shader/Swarm/SwarmRecycleCS.hlsl", "RecycleCS");
+    ok &= load(m_HitCS, L"Shader/Swarm/SwarmHitCS.hlsl", "HitCS");
+    ok &= load(m_AimResolveCS, L"Shader/Swarm/SwarmAimResolveCS.hlsl", "AimResolveCS");
+    ok &= load(m_ContactCS, L"Shader/Swarm/SwarmContactCS.hlsl", "ContactCS");
     // ---- デバッグ描画（失敗しても gameplay には影響しない）----
     m_DebugVS = std::make_shared<VertexShader>();
     HRESULT hr = ShaderPath::Load(m_DebugVS.get(), device, L"Shader/Swarm/SwarmDebugProjVS.hlsl");
@@ -627,5 +851,34 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     hr = ShaderPath::Load(m_DebugPS.get(), device, L"Shader/Swarm/SwarmDebugPS.hlsl");
     std::cout << "[SwarmSystem] DebugPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_DebugPS.reset();
+
+    m_DebugEnemyVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_DebugEnemyVS.get(), device, L"Shader/Swarm/SwarmDebugEnemyVS.hlsl");
+    std::cout << "[SwarmSystem] DebugEnemyVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_DebugEnemyVS.reset();
+    // ---- 雑魚の本描画 ----
+    m_EnemyVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_EnemyVS.get(), device, L"Shader/Swarm/SwarmEnemyVS.hlsl");
+    std::cout << "[SwarmSystem] EnemyVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_EnemyVS.reset();
+
+    m_EnemyPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_EnemyPS.get(), device, L"Shader/PS.hlsl");
+    std::cout << "[SwarmSystem] EnemyPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_EnemyPS.reset();
+
+    if (m_EnemyVS && m_EnemyPS)
+    {
+        // テクスチャ無し → Bind で既定の白が t0 に入る。色は頂点色で出す
+        Material::InitDefaultTextures(device);
+        m_EnemyMaterial = std::make_shared<Material>();
+        m_EnemyMaterial->SetVertexShader(m_EnemyVS);
+        m_EnemyMaterial->SetPixelShader(m_EnemyPS);
+
+        // 衝突体と同じ寸法（AICB.enemyRadius = 0.4 と揃える）
+        m_EnemyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f,
+            { 0.85f, 0.25f, 0.25f, 1.0f });
+    }
+
     return ok;
 }

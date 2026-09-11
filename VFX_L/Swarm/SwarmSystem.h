@@ -25,11 +25,14 @@
 #include "Swarm/GPUReadback.h"
 #include "Swarm/SwarmVFXTable.h"
 #include "VFX_Editor/VFXId.h"
+#include "Graphics/Light/LightTypes.h"
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <memory>
 #include <vector>
 
+class Model;
+class Material;
 class ComputeShader;
 class GPUParticleSystem;
 class GridWorld;
@@ -43,6 +46,7 @@ public:
     void SetParticleSystem(GPUParticleSystem* ps) { m_Particles = ps; }
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
+    void Render(CameraBase* camera, const LightBuffer& light);
     void Shutdown();
 
     // 地形は変わらないので起動時に1回だけ上げる。
@@ -69,7 +73,7 @@ public:
 
     // ---- 回読結果（1〜2 フレーム古い。用途上それで困らない）----
     const SwarmCounters& GetCounters() const { return m_Readback.Latest(); }
-
+    Swarm::AICB& GetAIParams() { return m_CachedAICB; }
     // 玩家が受けた累計ダメージを取り出して 0 に戻す
     float ConsumePlayerDamage();
 
@@ -82,7 +86,22 @@ public:
     uint32_t GetTotalRequested()  const { return m_TotalRequested; }
     uint32_t GetTotalDispatched() const { return m_TotalDispatched; }
     uint32_t GetTotalSteps()      const { return m_TotalSteps; }
+    // 溢れ分の湧き。GPU が遠い雑魚を1体選んでこの内容へ上書きする（枠を消費しない）
 
+
+    void RecycleEnemy(const Vector3& pos, float hp, float moveSpeed);
+    void SetRecycleMinDist(float d) { m_RecycleMinDist = d; }
+
+    // 玩家に一番近い雑魚（回読なので 1〜2 フレーム古い）。無ければ false
+    bool GetNearestEnemy(Vector3& pos, Vector3& vel, float& dist) const
+    {
+        const auto& c = GetCounters();
+        if (c.nearestDist >= 1e29f) return false;
+        pos = { c.nearestPos[0], c.nearestPos[1], c.nearestPos[2] };
+        vel = { c.nearestVel[0], c.nearestVel[1], c.nearestVel[2] };
+        dist = c.nearestDist;
+        return true;
+    }
 private:
     // --- 生成 ---
     bool CreateBuffers(ID3D11Device* device);
@@ -154,7 +173,7 @@ private:
 
     std::shared_ptr<VertexShader> m_DebugVS;
     std::shared_ptr<PixelShader>  m_DebugPS;
-
+    std::shared_ptr<VertexShader> m_DebugEnemyVS;
     struct DebugCB
     {
         DirectX::SimpleMath::Matrix view;
@@ -179,6 +198,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_FrameCB;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnCB;
     Swarm::FrameCB m_CachedFrameCB;
+    Swarm::AICB m_CachedAICB;
 
     // ============================================================
     // CS 群
@@ -193,7 +213,27 @@ private:
     std::shared_ptr<ComputeShader> m_HitCS;            // Phase 4: 弾 vs 敵
     std::shared_ptr<ComputeShader> m_ContactCS;        // Phase 4: 敵 vs 玩家
     std::shared_ptr<ComputeShader> m_OrbCS;            // Phase 4: 経験値オーブ
+    std::shared_ptr<ComputeShader> m_EnemyMoveCS;
+    // ---- 雑魚描画 ----
+    std::shared_ptr<VertexShader> m_EnemyVS;      // SwarmEnemyVS（buffer から位置と向きを読む）
+    std::shared_ptr<PixelShader>  m_EnemyPS;      // Shader/PS.hlsl をそのまま使う
+    std::shared_ptr<Material>     m_EnemyMaterial;// VS/PS + 既定テクスチャの束ね役
+    std::shared_ptr<Model>        m_EnemyModel;   // 雑魚共通のカプセル
 
+    std::shared_ptr<ComputeShader> m_RecycleCS;
+    std::vector<Swarm::Enemy> m_PendingRecycles;
+    std::vector<Swarm::Enemy> m_EnemyUpload;     // 新規 + 転送を連結した一時領域
+    float m_RecycleMinDist = 35.0f;
+
+    std::shared_ptr<ComputeShader> m_AimResolveCS;   // Phase 4: 最寄りの雑魚を回読用に書き出す
+    // 転送の「誰が何番目を取ったか」用。dispatch 前に 0 にする
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_RecycleClaim;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_RecycleClaimUAV;
+    struct EnemyRenderCB
+    {
+        Matrix view;
+        Matrix proj;
+    };
     // --- 固定ステップ ---
     float m_Accumulator = 0.0f;
     int   m_LastSubSteps = 0;

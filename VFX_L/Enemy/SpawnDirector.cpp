@@ -25,54 +25,25 @@ namespace
     }
 }
 
-void SpawnDirector::Update(Registry& reg, const GridWorld& grid,
-    const Vector3& playerPos, float dt, const SpawnFunc& spawn)
+void SpawnDirector::Update(const GridWorld& grid,
+    const Vector3& playerPos, float dt, int aliveMobs,
+    const SpawnFunc& spawn, const SpawnFunc& recycle)
 {
-    if (!enabled || !spawn) return;
+    if (!enabled || !spawn || !recycle) return;
 
-    // ---- 1) 現在の雑魚を集める（計数 + 押し出し候補の材料）----
-    struct Mob { Entity e; float distSq; };
-    std::vector<Mob> mobs;
+    m_LastMobCount = aliveMobs;
 
-    reg.CreateView<TransformComponent, MobTag>()
-        .Each([&](Entity e, TransformComponent& tf, MobTag&)
-            {
-                mobs.push_back({ e, DistSqXZ(tf.position, playerPos) });
-            });
-
-    m_LastMobCount = (int)mobs.size();
-
-    // ---- 2) 湧きのタイミング ----
     m_Timer += dt;
     if (m_Timer < spawnInterval) return;
     m_Timer = 0.0f;
 
-    // ---- 3) 今回湧かせる数と、そのために空ける枠 ----
+    // ---- 今回の内訳：空き枠に入る分は新規、残りは転送 ----
+    // 押し出し（Destroy）はもうしない。溢れた分は GPU が
+    // 「玩家から rMax より遠い雑魚」を選んで湧き位置へ転送する
     const int want = spawnPerTick;
-    const int overflow = (int)mobs.size() + want - spawnCap;
+    const int freeSlots = (std::max)(0, spawnCap - aliveMobs);
+    const int newCount = (std::min)(want, freeSlots);
 
-    if (overflow > 0)
-    {
-        // 玩家から遠い順に overflow 体だけ前へ寄せる（全ソート不要）
-        const int n = (std::min)(overflow, (int)mobs.size());
-
-        std::partial_sort(mobs.begin(), mobs.begin() + n, mobs.end(),
-            [](const Mob& a, const Mob& b) { return a.distSq > b.distSq; });
-
-        // 一括で消す。走査はもう終わっているので Destroy してよい
-        for (int i = 0; i < n; ++i)
-        {
-            if (reg.IsValid(mobs[i].e))
-            {
-                reg.Destroy(mobs[i].e);
-                ++m_TotalEvicted;
-            }
-        }
-    }
-
-    // ---- 4) 環帯から湧かせる ----
-    // 候補点が塞がっていたら数回試す。全部外れたらその1体は諦める
-    //（次の tick でまた試すので、湧き損ねは自然に回収される）
     for (int i = 0; i < want; ++i)
     {
         for (int attempt = 0; attempt < 8; ++attempt)
@@ -86,9 +57,8 @@ void SpawnDirector::Update(Registry& reg, const GridWorld& grid,
             grid.WorldToCell(pos, gx, gz);
             if (!grid.IsWalkable(gx, gz)) continue;
 
-            pos.y = 3.0f;   // 少し上から降らせて着地させる
-            spawn(pos);
-            ++m_TotalSpawned;
+            if (i < newCount) { spawn(pos);   ++m_TotalSpawned; }
+            else { recycle(pos); ++m_TotalRecycled; }
             break;
         }
     }
