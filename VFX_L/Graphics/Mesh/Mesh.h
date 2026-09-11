@@ -18,6 +18,8 @@ public:
         ID3D11DeviceContext* context,
         D3D_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+    void DrawInstanced(ID3D11DeviceContext* context, UINT instanceCount,
+        D3D_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     // í∏ì_èëÇ´ä∑Ç¶ÅidynamicéûÇÃÇ›Åj
     bool ModifyVertices(
         ID3D11DeviceContext* context,

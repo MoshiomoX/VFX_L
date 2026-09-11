@@ -28,13 +28,31 @@ static const uint SWARM_CNT_KILLS = 4;
 static const uint SWARM_CNT_PLAYER_DAMAGE = 8;
 static const uint SWARM_CNT_ALIVE_PROJ = 12;
 
+// nearest enemy to the player. key = (asuint(dist) & 0xFFFFF000) | slot.
+// positive floats compare as uints, so InterlockedMin finds the closest
+// AND who it is in one atomic. 12 low bits = 4096 slots; kMaxEnemies
+// must stay <= 4096 or this encoding breaks
+static const uint SWARM_CNT_NEAREST_KEY = 16;
+static const uint SWARM_CNT_NEAREST_POS = 20;
+static const uint SWARM_CNT_NEAREST_VEL = 32;
+static const uint SWARM_CNT_NEAREST_DIST = 44;
+
+static const uint SWARM_NO_TARGET_KEY = 0xFFFFFFFFu;
+static const uint SWARM_SLOT_MASK = 0xFFFu;
+static const uint SWARM_DIST_MASK = 0xFFFFF000u;
+
+#define SWARM_HP_SCALE 100.0
+uint SwarmHpToFixed(float hp)
+{
+    return (uint) (hp * SWARM_HP_SCALE + 0.5);
+}
 // ============================================================
 // Enemy: 48 bytes
 // ============================================================
 struct SwarmEnemy
 {
     float3 position;
-    float hp;
+    uint hp;
 
     float3 velocity;
     float moveSpeed;
@@ -44,7 +62,7 @@ struct SwarmEnemy
     // reserved for VAT animation (unused for now)
     float animTime;
     uint animIndex;
-    float _pad;
+    float attackCooldown;
 };
 
 // ============================================================
@@ -122,6 +140,36 @@ cbuffer SwarmFrameCB : register(SWARM_FRAME_CB_REG)
     uint g_PlayerAlive; // 0 = dead, enemies stop seeking
 };
 
+// ============================================================
+// Enemy AI tuning. Default register b1; a CS that already uses b1
+// must #define SWARM_AI_CB_REG before including this file.
+// Must match Swarm::AICB in SwarmTypes.h
+// ============================================================
+#ifndef SWARM_AI_CB_REG
+#define SWARM_AI_CB_REG b1
+#endif
+
+cbuffer SwarmAICB : register(SWARM_AI_CB_REG)
+{
+    float g_SeparationRadius;
+    float g_SeparationPower;
+    float g_AvoidPower;
+    float g_LookAhead;
+
+    float g_GroundY;
+    float g_EnemyRadius;
+    float g_EnemyCapsuleHalf;
+    float g_VelocityLag;
+
+    float g_MaxSpeedMul;
+    float g_TurnSpeed;
+    float g_PlayerPushOut;
+    float g_ContactDamage;
+
+    float g_AttackInterval;
+    float g_PlayerCapsuleHalf;
+    float2 _aiPad;
+};
 // ============================================================
 // terrain lookup: 1 = walkable
 // ============================================================

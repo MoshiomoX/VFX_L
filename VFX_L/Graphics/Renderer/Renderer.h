@@ -37,7 +37,7 @@ public:
 
     ID3D11Device* GetDevice() const { return m_Device; }
     ID3D11DeviceContext* GetContext() const { return m_Context; }
-
+    const LightBuffer& GetLightData() const { return m_LightData; }
 private:
     ID3D11Device* m_Device = nullptr;
     ID3D11DeviceContext* m_Context = nullptr;

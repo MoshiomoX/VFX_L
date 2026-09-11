@@ -78,7 +78,6 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     m_Requests.clear();
     m_Spawned.clear();
 
-
     reg.CreateView<TransformComponent, WandComponent, ManaComponent>()
         .Each([&](Entity e, TransformComponent& tf, WandComponent& wand, ManaComponent& mana)
             {
@@ -88,22 +87,80 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 Vector3 muzzle = tf.position + wand.muzzleOffset;
 
-                // ---- 索敵は1回だけ（全ての出力源が同じ方向を向く）----
-                Entity target = 0;
-                bool hasTarget = collision.FindNearestEntity(
-                    muzzle, wand.range, Layer_Enemy, target);
+                // ============================================================
+                // 索敵は1回だけ（全ての出力源が同じ目標を向く）
+                // CPU（精英）と GPU（雑魚）の両方から最寄りを取り、近い方を採用する。
+                // GPU 側は回読なので 1〜2 フレーム古い。速度を持っているので
+                // 弾速に応じた提前量で補正する（下の aimFor）
+                // ============================================================
+                bool    hasTarget = false;
+                bool    targetIsGpu = false;
+                Vector3 targetPos = muzzle;
+                Vector3 targetVel = Vector3::Zero;
+                float   bestDist = wand.range;
 
-                Vector3 aimDir(0, 0, 1);
-                if (hasTarget)
+                // --- CPU: 精英 ---
+                Entity cpuTarget = 0;
+                if (collision.FindNearestEntity(muzzle, wand.range, Layer_Enemy, cpuTarget))
                 {
-                    Vector3 targetPos = reg.Get<TransformComponent>(target).position;
-                    if (reg.Has<ColliderComponent>(target))
-                        targetPos += reg.Get<ColliderComponent>(target).offset;
+                    Vector3 tp = reg.Get<TransformComponent>(cpuTarget).position;
+                    if (reg.Has<ColliderComponent>(cpuTarget))
+                        tp += reg.Get<ColliderComponent>(cpuTarget).offset;
 
-                    aimDir = targetPos - muzzle;
-                    if (aimDir.LengthSquared() < 1e-6f) hasTarget = false;
-                    else aimDir.Normalize();
+                    const float d = (tp - muzzle).Length();
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        targetPos = tp;
+                        hasTarget = true;
+                    }
                 }
+
+                // --- GPU: 雑魚 ---
+                if (m_Swarm)
+                {
+                    Vector3 gp, gv;
+                    float   gd;
+                    if (m_Swarm->GetNearestEnemy(gp, gv, gd))
+                    {
+                        // 回読の距離は玩家中心基準。杖口基準で測り直す
+                        const float d = (gp - muzzle).Length();
+                        if (d < bestDist)
+                        {
+                            bestDist = d;
+                            targetPos = gp;
+                            targetVel = gv;
+                            targetIsGpu = true;
+                            hasTarget = true;
+                        }
+                    }
+                }
+
+                // 弾速ごとの照準方向。目標が動いていれば到達時刻ぶん先を狙う
+                // （1回の反復で十分。雑魚の速度は弾速の 1/5 程度）
+                auto aimFor = [&](float projSpeed) -> Vector3
+                    {
+                        Vector3 aimPos = targetPos;
+                        if (projSpeed > 0.01f)
+                        {
+                            const float t = (targetPos - muzzle).Length() / projSpeed;
+                            aimPos += targetVel * t;
+                        }
+                        Vector3 dir = aimPos - muzzle;
+                        if (dir.LengthSquared() < 1e-6f) return Vector3(0, 0, 1);
+                        dir.Normalize();
+                        return dir;
+                    };
+
+                // 可視化用は提前量なしの素の方向
+                const Vector3 aimDir = hasTarget ? aimFor(0.0f) : Vector3(0, 0, 1);
+
+                m_AimDebug.hasTarget = hasTarget;
+                m_AimDebug.targetIsGpu = targetIsGpu;
+                m_AimDebug.targetPos = targetPos;
+                m_AimDebug.muzzle = muzzle;
+                m_AimDebug.dir = aimDir;
+                m_AimDebug.range = wand.range;
 
                 // ---- 発射の許可をモードで決める ----
                 // ※pendingCasts はモードに関係なく消化する。
@@ -136,7 +193,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         {
                             if (hasTarget && mana.CanAfford(s.manaCost))
                             {
-                                QueueOneCast(s, muzzle, aimDir);
+                                QueueOneCast(s, muzzle, aimFor(s.speed));
                                 mana.Reserve(s.manaCost);
                                 wand.castAnimTimer = wand.castAnimDuration;
                             }
@@ -155,7 +212,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     if (!hasTarget) continue;
                     if (!mana.CanAfford(s.manaCost)) continue;
 
-                    QueueOneCast(s, muzzle, aimDir);
+                    QueueOneCast(s, muzzle, aimFor(s.speed));
                     mana.Reserve(s.manaCost);
                     wand.castAnimTimer = wand.castAnimDuration;
 
@@ -222,6 +279,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         }
     }
 }
+
 void WeaponSystem::SetProjectileVisual(ItemID id, float size,
     const DirectX::SimpleMath::Vector4& color, float stretch)
 {

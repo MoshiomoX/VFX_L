@@ -399,6 +399,7 @@
     <ClCompile Include="Swarm\SwarmSystem.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
+    <ClCompile Include="Swarm\SwarmVFXTable.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Application.h">
@@ -834,6 +835,9 @@
     <ClInclude Include="Swarm\SwarmSystem.h">
       <Filter>Swarm</Filter>
     </ClInclude>
+    <ClInclude Include="Swarm\SwarmVFXTable.h" />
+    <ClInclude Include="VFX_Editor\VFXDatabase.h" />
+    <ClInclude Include="VFX_Editor\VFXId.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\PS.hlsl">
@@ -903,6 +907,42 @@
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmClearCountersCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmDebugEnemyVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmDebugProjVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmDebugPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEmitCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyAICS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyMoveCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmSpawnEnemyCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmRecycleCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmHitCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmAimResolveCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmContactCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
   </ItemGroup>

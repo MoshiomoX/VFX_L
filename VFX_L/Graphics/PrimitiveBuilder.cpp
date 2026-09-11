@@ -154,12 +154,14 @@ namespace PrimitiveBuilder
         int totalRings = 0;
 
         // --- 上半球：頂点(phi=0) → 円柱上端(phi=π/2) ---
+        // 法線 = 球面の法線そのもの (sinφ·cx, cosφ, sinφ·cz)
         for (int i = 0; i <= halfStacks; ++i)
         {
             float phi = (PI * 0.5f) * i / halfStacks;
             float y = halfH + std::cos(phi) * radius;
             float r = std::sin(phi) * radius;
-            addRing(y, r, Vector3(1, std::cos(phi), 1), (float)i / (halfStacks * 2 + 1));
+            addRing(y, r, Vector3(std::sin(phi), std::cos(phi), std::sin(phi)),
+                (float)i / (halfStacks * 2 + 1));
             ++totalRings;
         }
 
@@ -168,12 +170,13 @@ namespace PrimitiveBuilder
         ++totalRings;
 
         // --- 下半球：円柱下端の少し下 → 最下点 ---
+        // ここは r = cosφ·radius なので水平成分は cosφ、竪直成分は -sinφ
         for (int i = 1; i <= halfStacks; ++i)
         {
             float phi = (PI * 0.5f) * i / halfStacks;
             float y = -halfH - std::sin(phi) * radius;
             float r = std::cos(phi) * radius;
-            addRing(y, r, Vector3(1, -std::sin(phi), 1),
+            addRing(y, r, Vector3(std::cos(phi), -std::sin(phi), std::cos(phi)),
                 0.5f + (float)i / (halfStacks * 2 + 1));
             ++totalRings;
         }

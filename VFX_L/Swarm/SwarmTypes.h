@@ -33,6 +33,10 @@ namespace Swarm
     constexpr uint32_t kMaxSpawnEnemyPerFrame = 256;
     constexpr uint32_t kMaxSpawnProjPerFrame = 512;
 
+    constexpr float kHpScale = 100.0f;
+    inline uint32_t HpToFixed(float hp) { return (uint32_t)(hp * kHpScale + 0.5f); }
+    inline float    HpFromFixed(uint32_t h) { return (float)h / kHpScale; }
+
     constexpr uint32_t kStateDead = 0;
     constexpr uint32_t kStateAlive = 1;
 
@@ -42,7 +46,7 @@ namespace Swarm
     struct Enemy
     {
         Vector3  position;
-        float    hp = 0.0f;
+        uint32_t hp = 0;
         Vector3  velocity;
         float    moveSpeed = 3.5f;
         float    yaw = 0.0f;
@@ -53,7 +57,7 @@ namespace Swarm
         // 骨の計算そのものが実行時に存在しなくなる
         float    animTime = 0.0f;
         uint32_t animIndex = 0;   // 0=待機 1=歩行 2=被弾
-        float    _pad = 0.0f;
+        float    attackCooldown = 0.0f;   // 接触攻撃の残り待ち時間。ContactCS だけが書く
     };
     static_assert(sizeof(Enemy) == 48, "SwarmEnemy layout mismatch");
 
@@ -111,4 +115,44 @@ namespace Swarm
         uint32_t _pad[2] = {};
     };
     static_assert(sizeof(SpawnCB) == 16, "SwarmSpawnCB layout mismatch");
+    // ============================================================
+// 雑魚 AI の調整値（b1）
+// ChaseAISystem の public メンバをそのまま持ってきた。
+// 雑魚は全員同じ体格なので半径もここ（本体の 48B を崩さない）
+// ============================================================
+    struct AICB
+    {
+        float separationRadius = 1.2f;
+        float separationPower = 4.0f;
+        float avoidPower = 6.0f;
+        float lookAhead = 0.35f;        // 秒。速度 × これ で先読み距離
+
+        float groundY = 0.9f;
+        float enemyRadius = 0.4f;       // カプセルの半径
+        float enemyCapsuleHalf = 0.5f;  // 直線部分の半分
+        float velocityLag = 10.0f;      // 速度の追従係数。大きいほど機敏（∞ = 即時）
+
+        float maxSpeedMul = 1.5f;       // 合成速度の上限 = moveSpeed × これ
+        float turnSpeed = 12.0f;        // 旋回の上限（rad/s）
+        float playerPushOut = 10.0f;    // 玩家に食い込んだ時に押し戻す強さ（1/s）
+        float contactDamage = 10.0f;    // 接触1回のダメージ
+
+        float attackInterval = 1.0f;    // 同じ雑魚が次に殴れるまでの秒数
+        float playerCapsuleHalf = 0.5f; // 玩家カプセルの直線部の半分。シーンが毎フレーム入れる
+        float _pad[2] = {};
+    };
+    static_assert(sizeof(AICB) == 64, "SwarmAICB layout mismatch");
+    // ============================================================
+  // 転送回収用（b1）
+  // 生成キューの [offset, offset+count) を、玩家から minDist より
+  // 遠い活き雑魚へ上書きする
+  // ============================================================
+    struct RecycleCB
+    {
+        uint32_t count = 0;
+        uint32_t offset = 0;
+        float    minDistSq = 0.0f;
+        uint32_t _pad = 0;
+    };
+    static_assert(sizeof(RecycleCB) == 16, "SwarmRecycleCB layout mismatch");
 }

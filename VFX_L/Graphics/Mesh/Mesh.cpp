@@ -28,6 +28,19 @@ void Mesh::Draw(
     context->DrawIndexed(m_IndexBuffer.GetIndexCount(), 0, 0);
 }
 
+void Mesh::DrawInstanced(
+    ID3D11DeviceContext* context,
+    UINT instanceCount,
+    D3D_PRIMITIVE_TOPOLOGY topology)
+{
+    if (!context || instanceCount == 0)
+        return;
+
+    context->IASetPrimitiveTopology(topology);
+    m_VertexBuffer.SetGPU(context);
+    m_IndexBuffer.SetGPU(context);
+    context->DrawIndexedInstanced(m_IndexBuffer.GetIndexCount(), instanceCount, 0, 0, 0);
+}
 bool Mesh::ModifyVertices(
     ID3D11DeviceContext* context,
     const std::vector<VERTEX_3D>& vertices)

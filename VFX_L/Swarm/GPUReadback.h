@@ -31,11 +31,19 @@
 // HLSL の SwarmCounters と一致させること（順序・サイズ厳守）
 struct SwarmCounters
 {
-    uint32_t aliveEnemies = 0;   // 生存している雑魚の数（湧き制御用）
-    uint32_t killCount = 0;      // 累計撃破数（UI 表示用）
-    uint32_t playerDamage = 0;   // 玩家への累計ダメージ（固定小数: 実値 × 100）
-    uint32_t aliveProjectiles = 0;
+    uint32_t aliveEnemies = 0;      // 0
+    uint32_t killCount = 0;         // 4
+    uint32_t playerDamage = 0;      // 8
+    uint32_t aliveProjectiles = 0;  // 12
+
+    // ---- 照準: 玩家に一番近い雑魚 ----
+    // nearestKey は GPU 内部用（距離の上位 20bit | スロット 12bit）。CPU は読まない
+    uint32_t nearestKey = 0xFFFFFFFFu;  // 16
+    float    nearestPos[3] = {};        // 20
+    float    nearestVel[3] = {};        // 32
+    float    nearestDist = 1e30f;       // 44  目標無しなら巨大値
 };
+static_assert(sizeof(SwarmCounters) == 48, "SwarmCounters layout mismatch");
 
 class GPUReadback
 {
