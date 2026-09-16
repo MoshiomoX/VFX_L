@@ -7,6 +7,7 @@
 #include "ResourcePaths.h"
 #include "Debug/DebugManager.h"
 #include "Graphics/Renderer/Renderer.h"
+#include "Graphics/Material/Material.h"
 #include "imgui.h"
 #include <iostream>
 #include <vector>
@@ -50,6 +51,14 @@ void VFXEditorScene::Init()
     m_Editor.SetTexture(m_ParticleTexture);
     m_Editor.SetParticleSystem(&m_ParticleSystem);
 
+    // ---------- 参照用モデル（Paladin, 静的読み込み）----------
+    // 粒子だけだと大きさと明るさの基準が無い。
+    // 骨付きだが LoadModel（静的）で読む: T-pose のまま、材質は自動で付く
+    Material::InitDefaultTextures(device);
+    m_Model = ResourceManager::Get().LoadModel(Res::Mdl::Paladin);
+    if (!m_Model)
+        std::cout << "[Error] Paladin load failed" << std::endl;
+
     // 一括発射の既定値をプール全体に合わせる
     m_BurstCount = (int)m_ParticleSystem.GetMaxParticles();
 
@@ -83,6 +92,10 @@ void VFXEditorScene::Update(float dt)
         m_Effect.SetWorldOffset(m_FakePos);
     else
         m_Effect.SetWorldOffset({ m_ManualOffset[0], m_ManualOffset[1], m_ManualOffset[2] });
+
+    m_ModelTransform.SetPosition({ m_ModelPos[0], m_ModelPos[1], m_ModelPos[2] });
+    m_ModelTransform.SetRotation({ m_ModelRot[0], m_ModelRot[1], m_ModelRot[2] });
+    m_ModelTransform.SetScale({ m_ModelScale[0], m_ModelScale[1], m_ModelScale[2] });
 
     // ---- VFX 更新（ここで emitter が積まれる）----
     m_Effect.Update(dt);
@@ -161,10 +174,14 @@ void VFXEditorScene::Render(Renderer& renderer)
 {
     renderer.SetDirectionalLight(
         { m_LightDir[0], m_LightDir[1], m_LightDir[2] },
-        { 1.0f, 1.0f, 1.0f }, 1.0f);
+        { 1.0f, 1.0f, 1.0f }, m_LightIntensity);
     renderer.SetAmbientColor({ m_AmbientColor[0], m_AmbientColor[1], m_AmbientColor[2] });
 
     SceneBase::Render(renderer);
+
+    // 不透明物を先に。粒子は DepthReadOnly なので、モデルの深度が要る
+    if (m_ShowModel && m_Model)
+        m_Model->Draw(renderer, &m_ModelTransform);
 
     m_ParticleSystem.SetCamera(GetCamera());
     m_ParticleSystem.Render();
@@ -256,6 +273,56 @@ void VFXEditorScene::SubmitBurst()
 
     m_ParticleSystem.SubmitEmitters(emitters, keys);
     m_LastBurstRequest = (size_t)m_BurstCount;
+}
+
+void VFXEditorScene::SetupPBRMaterials()
+{
+    auto pbrVS = ResourceManager::Get().LoadVS(L"PBR_VS", Res::Shd::PBR_VS);
+    auto pbrPS = ResourceManager::Get().LoadPS(L"PBR_PS", Res::Shd::PBR_PS);
+
+    if (!pbrVS) std::cout << "[Error] PBR_VS failed\n";
+    if (!pbrPS) std::cout << "[Error] PBR_PS failed\n";
+
+    auto makePBR = [&](const wchar_t* alb, const wchar_t* nrm, const wchar_t* met,
+        const wchar_t* rgh, const wchar_t* ao)
+        {
+            auto m = std::make_shared<Material>();
+            m->SetVertexShader(pbrVS);
+            m->SetPixelShader(pbrPS);
+
+            auto albTex = ResourceManager::Get().LoadTexture(alb);
+            auto nrmTex = ResourceManager::Get().LoadTexture(nrm);
+            auto metTex = ResourceManager::Get().LoadTexture(met);
+            auto rghTex = ResourceManager::Get().LoadTexture(rgh);
+            auto aoTex = ResourceManager::Get().LoadTexture(ao);
+
+
+
+            m->SetAlbedoTexture(albTex);
+            m->SetNormalTexture(nrmTex);
+            m->SetMetallicTexture(metTex);
+            m->SetRoughnessTexture(rghTex);
+            m->SetAOTexture(aoTex);
+            return m;
+        };
+
+    // Silver(??)??
+    auto silverMat = makePBR(
+        Res::Tex::Silver_Albedo, Res::Tex::Silver_Normal,
+        Res::Tex::Silver_Metallic, Res::Tex::Silver_Roughness, Res::Tex::Silver_AO);
+
+    // Pants(?)??
+    auto pantsMat = makePBR(
+        Res::Tex::Pants_Albedo, Res::Tex::Pants_Normal,
+        Res::Tex::Pants_Metallic, Res::Tex::Pants_Roughness, Res::Tex::Pants_AO);
+
+    int matCount = (int)m_Model->GetMaterialCount();
+    std::cout << "[Shadowkin] material count = " << matCount << "\n";
+
+    if (matCount >= 1) m_Model->SetMaterial(0, silverMat);
+    if (matCount >= 2) m_Model->SetMaterial(1, pantsMat);
+    for (int i = 2; i < matCount; ++i)
+        m_Model->SetMaterial(i, silverMat);
 }
 
 // ============================================================
@@ -404,7 +471,29 @@ void VFXEditorScene::DrawSceneUI()
     {
         ImGui::DragFloat3("Light Dir", m_LightDir, 0.02f, -1.0f, 1.0f);
         ImGui::ColorEdit3("Ambient", m_AmbientColor);
+
+        ImGui::Separator();
+        ImGui::Checkbox("Show Model", &m_ShowModel);
+        ImGui::DragFloat3("Model Pos", m_ModelPos, 0.05f);
+        ImGui::DragFloat3("Model Rot", m_ModelRot, 1.0f);
+        ImGui::DragFloat3("Model Scale", m_ModelScale, 0.001f, 0.001f, 10.0f);
     }
 
+    // ---------- Bloom（後処理。粒子の見た目に直結するのでここで触る）----------
+    if (ImGui::CollapsingHeader("Bloom", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        auto& bp = Application::Get().GetGraphics().GetBloomParams();
+        ImGui::Checkbox("Enabled", &bp.enabled);
+        ImGui::DragFloat("Threshold", &bp.threshold, 0.01f, 0.0f, 4.0f);
+        ImGui::DragFloat("Knee", &bp.knee, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat("Intensity", &bp.intensity, 0.01f, 0.0f, 5.0f);
+        ImGui::DragFloat("Light Intensity", &m_LightIntensity, 0.05f, 0.0f, 10.0f);
+
+        ImGui::Separator();
+        ImGui::DragFloat("Exposure", &bp.exposure, 0.01f, 0.1f, 8.0f);
+        ImGui::Checkbox("Tonemap (ACES)", &bp.tonemap);
+        ImGui::SameLine();
+        ImGui::Checkbox("Gamma", &bp.gamma);
+    }
     ImGui::End();
 }

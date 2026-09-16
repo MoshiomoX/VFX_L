@@ -9,6 +9,8 @@
 #include "Camera/DebugCamera.h"
 #include "Camera/CameraBase.h"
 #include "Particle/GPUParticleSystem.h"
+#include "Graphics/Model/Model.h"
+#include "Graphics/Transform.h"
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXEditor.h"
 #include <memory>
@@ -46,6 +48,8 @@ private:
     float  m_BurstOrigin[3] = { 0.0f, 1.0f, 0.0f };
     float  m_BurstGravity = -1.5f;
     float  m_BurstDrag = 0.4f;
+    float m_LightIntensity = 1.0f;
+
 
     size_t m_LastBurstRequest = 0;    // 直前に要求した発射数
 
@@ -67,6 +71,16 @@ private:
     // --- 統計（Flush でクリアされる前に退避）---
     size_t m_LastEmitterCount = 0;
     size_t m_LastDropped = 0;
+
+    // ---- 参照用モデル（VFX の大きさ・光り方を見比べる）----
+    std::shared_ptr<Model> m_Model;
+    Transform m_ModelTransform;
+    bool  m_ShowModel = true;
+    float m_ModelPos[3] = { 0.0f, 0.0f, 0.0f };
+    float m_ModelRot[3] = { 0.0f, 0.0f, 0.0f };
+    float m_ModelScale[3] = { 0.01f, 0.01f, 0.01f };
+
+    void SetupPBRMaterials();
 
     // --- 投射物追従テスト ---
     bool    m_FakeProjectileOn = false;   // 仮想投射物を動かすか

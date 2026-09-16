@@ -75,6 +75,10 @@ public:
         const std::wstring& psName,
         const std::wstring& texturePath);
 
+    // 埋め込みテクスチャ（assimp の aiTexture）。key で cache する
+    std::shared_ptr<Texture> LoadEmbeddedTexture(const std::wstring& key,
+        const void* data, size_t size, const char* formatHint);
+
     // Model
     std::shared_ptr<Model> LoadModel(const std::string& filepath);
     void UnloadModel(const std::string& filepath);

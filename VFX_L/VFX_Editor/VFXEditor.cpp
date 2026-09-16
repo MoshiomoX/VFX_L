@@ -1,5 +1,7 @@
 #include "VFX_Editor/VFXEditor.h"
 #include "VFX_Editor/VFXParticleEntry.h"
+#include "Core/Application.h"
+
 #include "imgui.h"
 #include <string>
 #include <cstdio>
@@ -215,6 +217,7 @@ void VFXEditor::DrawEntryList()
 
         if (ImGui::CollapsingHeader(label.c_str()))
         {
+
             if (ImGui::Button("Delete"))
                 removeIndex = i;
 

@@ -28,7 +28,6 @@
 #include <cstdint>
 
 // GPU 側で書かれ、CPU が読む数値の全て。
-// HLSL の SwarmCounters と一致させること（順序・サイズ厳守）
 struct SwarmCounters
 {
     uint32_t aliveEnemies = 0;      // 0
@@ -42,9 +41,14 @@ struct SwarmCounters
     float    nearestPos[3] = {};        // 20
     float    nearestVel[3] = {};        // 32
     float    nearestDist = 1e30f;       // 44  目標無しなら巨大値
-};
-static_assert(sizeof(SwarmCounters) == 48, "SwarmCounters layout mismatch");
 
+    // ---- 経験値 ----
+    // expTotal は固定小数 ×100、GPU 上で永久に累加（kills と同じ扱い。CPU は差分を取る）
+    uint32_t expTotal = 0;              // 48
+    uint32_t aliveOrbs = 0;             // 52  毎ステップ再計算
+    uint32_t _pad[2] = {};              // 56  予約
+};
+static_assert(sizeof(SwarmCounters) == 64, "SwarmCounters layout mismatch");
 class GPUReadback
 {
 public:

@@ -122,6 +122,27 @@ std::shared_ptr<Texture> ResourceManager::LoadTexture(const std::wstring& filepa
     return nullptr;
 }
 
+std::shared_ptr<Texture> ResourceManager::LoadEmbeddedTexture(const std::wstring& key,
+    const void* data, size_t size, const char* formatHint)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    auto it = m_Textures.find(key);
+    if (it != m_Textures.end())
+        return it->second;
+
+    auto texture = std::make_shared<Texture>();
+    if (texture->LoadFromMemory(m_Device, data, size, formatHint))
+    {
+        m_Textures[key] = texture;
+        return texture;
+    }
+
+    std::wcout << L"[Error] Embedded texture load failed: " << key << std::endl;
+    return nullptr;
+}
+
+
 std::future<std::shared_ptr<Texture>> ResourceManager::LoadTextureAsync(const std::wstring& filepath)
 {
     return std::async(std::launch::async, [this, filepath]() {

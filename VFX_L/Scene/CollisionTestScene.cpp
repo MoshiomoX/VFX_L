@@ -38,9 +38,7 @@
 #include "Graphics/Model/Model.h"
 #include "imgui.h"
 #include "Player/LevelComponent.h"
-#include "Item/ExpOrbComponent.h"
 #include "Item/ExpRewardComponent.h"
-#include "Item/ExpOrbSystem.h"
 #include "World/TerrainGenerator.h"
 
 #include "Enemy/EnemyTags.h"
@@ -102,7 +100,6 @@ void CollisionTestScene::Init()
     // ---------- 使い回すモデル ----------
     // 雑魚のモデルは SwarmSystem が自前で持つ。ここには置かない
     m_DummyModel = PrimitiveBuilder::CreateCapsule(device, 0.4f, 1.0f, { 0.7f, 0.40f, 1.00f, 1 });
-    m_StressModel = PrimitiveBuilder::CreateSphere(device, 0.25f, { 1.0f, 0.50f, 0.20f, 1 });
 
     // ---------- 地形（格子对齐）----------
     // 場地: 100 x 100 マス = 200m x 200m（旧場地 24m の約8倍幅）。
@@ -240,17 +237,19 @@ void CollisionTestScene::UpdateGameplay(float dt)
     }
 
     // ---- 生成は小分けにする（1フレームに集中させない）----
+    // 上限は SwarmSystem::SpawnProjectile の1フレーム受付数。超えた分は静かに捨てられる
     if (m_StressPending > 0)
     {
-        int batch = (m_StressPending < 50) ? m_StressPending : 50;
+        const int maxPerFrame = (int)Swarm::kMaxSpawnProjPerFrame;
+        int batch = (m_StressPending < maxPerFrame) ? m_StressPending : maxPerFrame;
         StressSpawnProjectiles(batch);
         m_StressPending -= batch;
     }
 
     // ============================================================
     // System の実行順（固定）
-    // 操作 → 湧き依頼 → 衝突 → 物理 → 状態機 → 杖 → マナ結算 → 投射物 → VFX収集
-    //      → 経験値 → カメラ → GPU gameplay Flush → 粒子 Flush
+    // 操作 → 湧き依頼 → 衝突 → 物理 → 状態機 → 杖 → マナ結算 → レベル判定
+    //      → カメラ → GPU gameplay Flush → 粒子 Flush
     //
     // ※雑魚の AI は GPU（SwarmEnemyAICS）。CPU には無い。
     //
@@ -295,55 +294,12 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
 
     m_ManaSystem.Update(m_Registry, dt);
-    //// 生まれたばかりの投射物に VFX を取り付ける（WeaponSystem の直後）
-    //for (const auto& sp : m_WeaponSystem.GetSpawned())
-    //    m_ProjectileVFXSystem.AttachVFX(m_Registry, sp.entity, sp.id, m_VFXContext);
 
-    //m_ProjectileSystem.Update(m_Registry, dt, m_CollisionSystem);
-
-    //// ============================================================
-    //// 命中イベントの消費: ダメージ + 死亡処理
-    ////
-    //// ※プレイヤーは PlayerStateSystem::TryApplyHit を通す。
-    ////   無敵時間の判定を1ヶ所に閉じ込めるため。
-    ////   （2ヶ所に書くと必ず片方だけ直され、食い違う）
-    //// ============================================================
-    //for (const auto& hit : m_ProjectileSystem.GetHitEvents())
-    //{
-    //    if (!m_Registry.IsValid(hit.target)) continue;
-    //    if (!m_Registry.Has<HealthComponent>(hit.target)) continue;
-
-    //    if (m_Registry.Has<PlayerStateComponent>(hit.target))
-    //    {
-    //        PlayerStateSystem::TryApplyHit(m_Registry, hit.target, hit.damage);
-    //        continue;   // プレイヤーは Destroy しない（Dead 状態で残す）
-    //    }
-
-    //    auto& hp = m_Registry.Get<HealthComponent>(hit.target);
-    //    hp.current -= hit.damage;
-
-    //    // 無敵の的は 0 で止める（累計ダメージを読むための的）
-    //    if (hp.invincible && hp.current < 0.0f)
-    //        hp.current = 0.0f;
-
-    //    if (hp.IsDead())
-    //    {
-    //        ExpOrbSystem::DropFrom(m_Registry, hit.target);
-    //        m_Registry.Destroy(hit.target);
-    //    }
-    //}
-
-    // ============================================================
-    // VFX: 各投射物の emitter を積む（Flush はまだ呼ばない）
-    // ============================================================
-   // m_ProjectileVFXSystem.Update(m_Registry, dt, m_VFXContext);
+    // 投射物の生成・移動・命中・撃破報酬は全部 GPU（SwarmSystem）。
+    // CPU 側にはもう無い。精英の弾を CPU に戻す時はここに書く
 
     m_LastEmitterCount = m_ParticleSystem.GetPendingEmitterCount();
     m_LastDropped = m_ParticleSystem.GetDroppedEmitterCount();
-
-    // ---- 経験値オーブ ----
-    // 投射物の後。プレイヤーの位置が確定してから吸い寄せる。
-    m_ExpOrbSystem.Update(m_Registry, dt);
 
     // ============================================================
     // レベルアップの判定（候補の抽選まで）
@@ -387,6 +343,11 @@ void CollisionTestScene::UpdateGameplay(float dt)
         const float gpuDamage = m_Swarm.ConsumePlayerDamage();
         if (gpuDamage > 0.0f)
             PlayerStateSystem::TryApplyHit(m_Registry, m_Player, gpuDamage);
+        // GPU 上で拾った経験値を CPU の玩家へ反映。
+        // レベルアップの判定は LevelUpSystem（次フレーム頭）に任せて、ここは足すだけ
+        const float gpuExp = m_Swarm.ConsumeExp();
+        if (gpuExp > 0.0f && m_Registry.Has<LevelComponent>(m_Player))
+            m_Registry.Get<LevelComponent>(m_Player).experience += gpuExp;
     }
 
     // ============================================================
@@ -628,7 +589,9 @@ void CollisionTestScene::RespawnElites()
 
 // ============================================================
 // 負荷テスト: 投射物をばら撒く
-// With VFX が ON の時だけ emitter が積まれ、粒子側の経路に負荷がかかる
+// 生成先は GPU（SwarmSystem）。弾1つにつき emitter が1つ積まれるので、
+// 粒子側の経路（SwarmEmitCS / deadList）に負荷がかかる。
+// 1フレームの受付上限は kMaxSpawnProjPerFrame。呼び出し側が小分けにする
 // ============================================================
 void CollisionTestScene::StressSpawnProjectiles(int count)
 {
@@ -642,44 +605,7 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
         Vector3 dir(std::cos(a) * std::cos(b), std::sin(b) * 0.3f, std::sin(a) * std::cos(b));
         dir.Normalize();
 
-        Entity p = m_Registry.Create();
-
-        TransformComponent tf;
-        tf.position = origin;
-        m_Registry.Add<TransformComponent>(p, tf);
-
-        if (m_StressWithCollider)
-        {
-            ColliderComponent col;
-            col.shape = ColliderShape::Sphere;
-            col.radius = 0.25f;
-            col.layer = Layer_PlayerShot;
-            col.mask = Layer_Enemy | Layer_Terrain;
-            m_Registry.Add<ColliderComponent>(p, col);
-        }
-
-        ProjectileComponent pj;
-        pj.velocity = dir * 8.0f;
-        pj.damage = 1.0f;
-        pj.lifetime = 30.0f;
-        m_Registry.Add<ProjectileComponent>(p, pj);
-
-        ProjectileVisualComponent vis;
-        vis.size = 0.5f;
-        vis.color = { 1.0f, 0.5f, 0.2f, 1.0f };
-        vis.stretch = 0.0f;
-        m_Registry.Add<ProjectileVisualComponent>(p, vis);
-
-        if (m_StressWithModel && m_StressModel)
-        {
-            ModelComponent mc;
-            mc.model = m_StressModel;
-            m_Registry.Add<ModelComponent>(p, mc);
-        }
-
-        // VFX（= emitter）を付けるかどうかで負荷の質が変わる
-        if (m_StressWithVFX)
-            m_ProjectileVFXSystem.AttachVFX(m_Registry, p, m_StressVFXItem, m_VFXContext);
+        m_Swarm.SpawnProjectile(VFXId::Fireball, origin, dir * 8.0f, 1.0f, 0.25f, 30.0f);
     }
 }
 
@@ -688,19 +614,12 @@ void CollisionTestScene::StressSpawnProjectiles(int count)
 // ============================================================
 void CollisionTestScene::ApplyStressPreset(const StressPreset& p)
 {
-    std::vector<Entity> toKill;
-    m_Registry.CreateView<TransformComponent, ProjectileComponent>()
-        .Each([&](Entity e, TransformComponent&, ProjectileComponent&) { toKill.push_back(e); });
-    for (Entity e : toKill) m_Registry.Destroy(e);
-
+    m_Swarm.ClearProjectiles();
     m_StressPending = 0;
 
     m_RefillTarget = p.target;
     m_RefillBatch = p.batch;
     m_StressAutoRefill = p.autoRefill;
-    m_StressWithVFX = p.withVFX;
-    m_StressWithCollider = p.withCollider;
-    m_StressWithModel = p.withModel;
 
     m_FlushMsPeak = 0.0;
     m_FlushMsAvg = 0.0;
@@ -711,15 +630,11 @@ void CollisionTestScene::ApplyStressPreset(const StressPreset& p)
 }
 
 // ============================================================
-// 投射物の数を数える（表示用なので毎フレームでよい）
+// 投射物の数: GPU の存活数（回読なので 1〜2 フレーム古い）
 // ============================================================
 int CollisionTestScene::CountProjectiles() const
 {
-    int n = 0;
-    const_cast<Registry&>(m_Registry)
-        .CreateView<TransformComponent, ProjectileComponent>()
-        .Each([&](Entity, TransformComponent&, ProjectileComponent&) { ++n; });
-    return n;
+    return (int)m_Swarm.GetCounters().aliveProjectiles;
 }
 
 // ============================================================
@@ -1015,33 +930,17 @@ void CollisionTestScene::DrawStressPanel()
 
     int projCount = CountProjectiles();
     ImGui::Text("Projectiles : %d   (pending %d)", projCount, m_StressPending);
-    ImGui::Text("Exp Orbs    : %d", m_ExpOrbSystem.GetOrbCount());
     ImGui::Text("Colliders   : %zu", m_CollisionSystem.GetWorldColliders().size());
     ImGui::Text("Pairs       : %zu", m_CollisionSystem.GetPairs().size());
 
-    // ---------- 生成の中身 ----------
+    // ---------- 生成 ----------
     ImGui::Separator();
-    ImGui::Checkbox("With Collider", &m_StressWithCollider);
-    ImGui::SameLine();
-    ImGui::Checkbox("With 3D Model", &m_StressWithModel);
-    ImGui::TextDisabled("Uncheck 3D Model -> billboard only (1 draw call)");
-
-    ImGui::Checkbox("With VFX (emit path test)", &m_StressWithVFX);
-    if (!m_StressWithVFX)
-    {
-        ImGui::SameLine();
-        ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1), "<- OFF = EmitCS never runs");
-    }
-
     ImGui::SliderInt("Spawn Count", &m_StressCount, 50, 2000);
     if (ImGui::Button("+ Spawn")) m_StressPending += m_StressCount;
     ImGui::SameLine();
     if (ImGui::Button("Clear All"))
     {
-        std::vector<Entity> toKill;
-        m_Registry.CreateView<TransformComponent, ProjectileComponent>()
-            .Each([&](Entity e, TransformComponent&, ProjectileComponent&) { toKill.push_back(e); });
-        for (Entity e : toKill) m_Registry.Destroy(e);
+        m_Swarm.ClearProjectiles();
         m_StressPending = 0;
     }
 
@@ -1055,28 +954,6 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::SliderInt("Target Projectiles", &m_RefillTarget, 100, 4000);
     ImGui::SliderInt("Refill Batch", &m_RefillBatch, 10, 500);
 
-    if (m_StressAutoRefill && !m_StressWithVFX)
-        ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
-            "Auto Refill without VFX does not stress the pool!");
-
-    // ---------- 経験値オーブ ----------
-    ImGui::Separator();
-    if (ImGui::TreeNode("Exp Orb"))
-    {
-        ImGui::TextDisabled("Orbs do not use CollisionSystem.");
-        ImGui::TextDisabled("Only the distance to the player is needed,");
-        ImGui::TextDisabled("and the CPU pair test would choke on the count.");
-
-        ImGui::DragFloat("Attract Radius", &m_ExpOrbSystem.attractRadius, 0.1f, 0.5f, 30.0f);
-        ImGui::DragFloat("Pickup Radius", &m_ExpOrbSystem.pickupRadius, 0.05f, 0.1f, 5.0f);
-        ImGui::DragFloat("Accel", &m_ExpOrbSystem.accel, 1.0f, 1.0f, 200.0f);
-        ImGui::DragFloat("Max Speed", &m_ExpOrbSystem.maxSpeed, 0.5f, 1.0f, 100.0f);
-        ImGui::DragFloat("Orb Gravity", &m_ExpOrbSystem.gravity, 0.5f, -50.0f, 0.0f);
-        ImGui::DragFloat("Orb Size", &m_ExpOrbSystem.orbSize, 0.01f, 0.05f, 2.0f);
-
-        ImGui::TreePop();
-    }
-
     // ---------- 粒子システムの状態 ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Particle System");
@@ -1088,23 +965,13 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::TextColored(col, "Emitters : %zu / %zu",
         m_LastEmitterCount, m_ParticleSystem.GetMaxEmitters());
 
-    if (m_StressWithVFX && m_LastEmitterCount == 0)
-        ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
-            "0 emitters: no VFX template for this item (check vfxPath)");
-
     if (m_LastDropped > 0)
         ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1),
             "Dropped : %zu  (some projectiles have no VFX)", m_LastDropped);
 
     ImGui::Text("Pool Size      : %u", m_ParticleSystem.GetMaxParticles());
-    ImGui::Text("Projectile VFX : %zu", m_ProjectileVFXSystem.GetActiveVFXCount());
     ImGui::Text("Billboards     : %u  (1 draw call)",
         m_ProjectileRenderer.GetLastDrawCount());
-
-    // 生存数の真実は GPU 上にしか無い。数字を出すと嘘になる。
-    // 画面の見た目と下の Flush ms で判断する。
-    ImGui::TextDisabled("Alive count lives on the GPU only.");
-    ImGui::TextDisabled("Judge by the screen and by Flush ms below.");
 
     // ---------- Flush の CPU 時間 ----------
     ImGui::Separator();
@@ -1233,8 +1100,8 @@ void CollisionTestScene::DrawDebugUI()
         if (ImGui::Button("Regenerate"))
         {
             // 古い地形を全部消して作り直す。
-            // ※GPU の雑魚は消せない（Phase 4 で KillAll を足す）。
-            //   壁の中に取り残された雑魚は硬阻断の例外規則で自力で抜ける
+            // ※GPU 側は KillAll で全消し（雑魚・弾・オーブ）。
+            //   counter は残るので撃破数などの累計は続く
             for (Entity e : m_Terrain)
                 if (m_Registry.IsValid(e)) m_Registry.Destroy(e);
             m_Terrain.clear();
@@ -1247,6 +1114,7 @@ void CollisionTestScene::DrawDebugUI()
             TerrainGenerator::Generate(m_Registry, device, m_Grid, tcfg, m_Terrain);
 
             // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
+            m_Swarm.KillAll();
             m_Swarm.UploadTerrain(m_Grid);
             m_Swarm.BuildVFXTable();
             RespawnElites();
@@ -1320,6 +1188,9 @@ void CollisionTestScene::DrawDebugUI()
         }
         ImGui::Text("Elites alive : %d", alive);
         if (ImGui::Button("Respawn Elites")) RespawnElites();
+        ImGui::SameLine();
+        // GPU 側を全消し。counter は残るので kills (total) は減らない
+        if (ImGui::Button("Kill All (GPU)")) m_Swarm.KillAll();
     }
 
     // ---------- カメラ ----------

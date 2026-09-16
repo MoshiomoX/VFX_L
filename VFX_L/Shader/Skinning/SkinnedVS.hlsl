@@ -1,4 +1,13 @@
-#pragma pack_matrix(row_major)
+// ============================================================
+// SkinnedVS.hlsl
+// No vertex buffer: reads the SkinningCS output and feeds it
+// through the standard model VS. Tangent is not skinned yet, so
+// a constant is written (Lambert PS does not read it).
+//
+// skinnedVerts sits on t0 next to ModelCommon's albedoTexture.
+// A VS never references the texture, so no conflict.
+// ============================================================
+#include "../Common/ModelCommon.hlsli"
 
 struct SkinnedVertexOut
 {
@@ -10,32 +19,17 @@ struct SkinnedVertexOut
     float2 _pad2;
 };
 
-cbuffer RenderCB : register(b0)
-{
-    matrix World;
-    matrix View;
-    matrix Projection;
-};
-
 StructuredBuffer<SkinnedVertexOut> skinnedVerts : register(t0);
 
-struct VSOut
-{
-    float4 position : SV_POSITION;
-    float3 worldPos : TEXCOORD1;
-    float3 normal : NORMAL;
-    float2 uv : TEXCOORD0;
-};
-
-VSOut main(uint vid : SV_VertexID)   // 頂点バッファ無し。skinned bufferから読む
+VS_OUTPUT main(uint vid : SV_VertexID)
 {
     SkinnedVertexOut v = skinnedVerts[vid];
 
-    float4 wp = mul(float4(v.position, 1.0), World);
-    VSOut o;
-    o.worldPos = wp.xyz;
-    o.position = mul(mul(wp, View), Projection);
-    o.normal = normalize(mul(v.normal, (float3x3) World));
-    o.uv = v.uv;
-    return o;
+    VS_INPUT i;
+    i.Position = v.position;
+    i.Normal = v.normal;
+    i.Tangent = float3(1.0, 0.0, 0.0);
+    i.UV = v.uv;
+    i.Color = float4(1.0, 1.0, 1.0, 1.0);
+    return ModelVS(i);
 }
