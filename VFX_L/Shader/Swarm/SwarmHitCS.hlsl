@@ -24,7 +24,8 @@ RWBuffer<uint> projStates : register(u0);
 RWStructuredBuffer<SwarmEnemy> enemies : register(u1);
 RWBuffer<uint> enemyStates : register(u2);
 RWByteAddressBuffer counters : register(u3);
-
+RWStructuredBuffer<SwarmOrb> orbs : register(u4);
+RWBuffer<uint> orbStates : register(u5);
 static const uint HP_CORPSE_BIT = 0x80000000u;
 
 [numthreads(256, 1, 1)]
@@ -64,8 +65,30 @@ void main(uint3 id : SV_DispatchThreadID)
             enemyStates[j] = SWARM_DEAD;
             counters.InterlockedAdd(SWARM_CNT_KILLS, 1u, prev);
 
-            // Phase 4 step 3: spawn an exp orb here (claim an orb slot
-            // with the same CAS scan as SpawnProjCS, position = enemy)
+                        // ---- drop an exp orb at the corpse ----
+            // Same CAS scan as SpawnProjCS. Start offset is spread by
+            // (enemy, projectile) so killers in the same step do not
+            // all fight over the same region. Pool full -> no orb.
+            SwarmOrb orb;
+            orb.position = enemies[j].position;
+            orb.position.y = g_OrbY;
+            orb.amount = g_OrbAmount;
+            orb.velocity = float3(0, 0, 0);
+            orb._pad = 0.0; // pull speed, 0 = not attracted yet
+
+            uint start = (j * 97u + i * 31u) % g_MaxOrbs;
+            for (uint k = 0; k < g_MaxOrbs; ++k)
+            {
+                uint slot = (start + k) % g_MaxOrbs;
+                uint was;
+                InterlockedCompareExchange(orbStates[slot],
+                                           SWARM_DEAD, SWARM_ALIVE, was);
+                if (was == SWARM_DEAD)
+                {
+                    orbs[slot] = orb;
+                    break;
+                }
+            }
         }
 
         // projectile is consumed either way (no pierce)

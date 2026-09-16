@@ -26,7 +26,6 @@
 #include "ECS/System/ProjectileVFXSystem.h"
 #include "Graphics/Renderer/ProjectileBillboardRenderer.h"
 #include "ECS/System/BackpackAggregateSystem.h"
-#include "Item/ExpOrbSystem.h"
 #include "UI/LevelUpSystem.h"
 #include "ECS/System/RenderSystem.h"
 #include "Particle/GPUParticleSystem.h"
@@ -92,7 +91,6 @@ private:
     ManaSystem              m_ManaSystem;
     ProjectileSystem        m_ProjectileSystem;
     ProjectileVFXSystem     m_ProjectileVFXSystem;
-    ExpOrbSystem            m_ExpOrbSystem;
     LevelUpSystem           m_LevelUpSystem;
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
@@ -122,7 +120,6 @@ private:
 
     // --- 使い回すモデル ---
     std::shared_ptr<Model> m_DummyModel;
-    std::shared_ptr<Model> m_StressModel;
 
     // --- 雑魚の初期値（SpawnDirector 経由で GPU へ渡す）---
     float m_MobHp = 100.0f;
@@ -163,15 +160,10 @@ private:
     // ============================================================
     // 負荷テスト
     // ============================================================
+    // ※生成先は GPU（SwarmSystem::SpawnProjectile）。
+    //   弾1つにつき emitter が1つ積まれ、粒子側の経路に負荷がかかる
     int  m_StressCount = 500;
     int  m_StressPending = 0;
-    bool m_StressWithModel = false;
-    bool m_StressWithCollider = true;
-
-    // ※ON にすると投射物1つにつき emitter が1つ積まれる。
-    //   粒子側の経路（EmitCS / deadList）に負荷をかけたい時だけ使う。
-    bool   m_StressWithVFX = false;
-    ItemID m_StressVFXItem = ItemID::Fireball;
 
     // ※投射物の数を一定に保ち続けて、プールを枯らした状態を維持する。
     //   deadCount ガードが効いているかを確認できる唯一の状態。
@@ -201,26 +193,23 @@ private:
         int   target;
         int   batch;
         bool  autoRefill;
-        bool  withVFX;
-        bool  withCollider;
-        bool  withModel;
     };
 
     static constexpr StressPreset kStressPresets[] = {
-        { "P1 Starve 4000", "pool starvation + heavy waste",
-          4000, 100, true,  true,  false, false },
-        { "P2 Starve 1024", "same 1024 emitters, no waste",
-          1024, 100, true,  true,  false, false },
-        { "P3 No VFX 4000", "isolate VFX cost (same 4000 projectiles)",
-          4000, 100, true,  false, false, false },
-        { "P4 Light 500",   "baseline, everything comfortable",
-          500,  50,  true,  true,  false, false },
-        { "C1 Collider 500", "collision only, no VFX",
-          500,  50,  true,  false, true,  false },
-        { "C2 Collider 2000","collision scaling test",
-          2000, 100, true,  false, true,  false },
-        { "D1 Model 1000",  "3D model per projectile (draw call heavy)",
-          1000, 50,  true,  false, false, true  },
+        { "P1 Starve 4000", "pool starvation: target 4000, batch 100",
+          4000, 100, true },
+        { "P2 Starve 1024", "target 1024 (= emitter cap), batch 100",
+          1024, 100, true },
+        { "P3 Refill 4000", "target 4000, batch 100",
+          4000, 100, true },
+        { "P4 Light 500",   "baseline: target 500, batch 50",
+          500,  50,  true },
+        { "C1 Steady 500",  "target 500, batch 50",
+          500,  50,  true },
+        { "C2 Scale 2000",  "target 2000, batch 100",
+          2000, 100, true },
+        { "D1 Scale 1000",  "target 1000, batch 50",
+          1000, 50,  true },
     };
 
     void ApplyStressPreset(const StressPreset& p);

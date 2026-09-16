@@ -142,6 +142,23 @@ namespace Swarm
         float _pad[2] = {};
     };
     static_assert(sizeof(AICB) == 64, "SwarmAICB layout mismatch");
+
+    // ============================================================
+   // 経験値オーブの調整値（b2）
+   // HitCS（生成）と OrbMoveCS（吸引・取得）の両方が読む
+   // ============================================================
+    struct OrbCB
+    {
+        float attractRadius = 4.0f;   // ここに入ると吸い寄せ開始
+        float pickupRadius = 0.6f;    // ここまで来たら取得
+        float accel = 30.0f;          // 吸い寄せの加速度
+        float maxSpeed = 18.0f;
+
+        float amount = 10.0f;         // 1個あたりの経験値（今は全敵共通）
+        float orbY = 0.5f;            // オーブの浮遊高さ
+        float _pad[2] = {};
+    };
+    static_assert(sizeof(OrbCB) == 32, "SwarmOrbCB layout mismatch");
     // ============================================================
   // 転送回収用（b1）
   // 生成キューの [offset, offset+count) を、玩家から minDist より

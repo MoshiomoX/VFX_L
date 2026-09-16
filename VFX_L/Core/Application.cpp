@@ -72,14 +72,11 @@ void Application::Run()
         DebugManager::Get().BeginFrame();
 		// Update
 		m_Game.Update(dt);
-		// Render
-        m_Graphics.BeginFrame();    
-        DebugManager::Get().Render();    // Grid/座標軸
-		m_Game.Render();
-		//ImGuiフレーム終了
-        DebugManager::Get().EndFrame();
-
-        m_Graphics.RestoreRenderTarget();
+        m_Graphics.BeginFrame();
+        DebugManager::Get().Render();
+        m_Game.Render();
+        m_Graphics.BeginUI();            
+        DebugManager::Get().EndFrame();  
         m_Graphics.EndFrame();
     }
 }

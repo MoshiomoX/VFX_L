@@ -1,32 +1,23 @@
 // ============================================================
 // SwarmEnemyVS.hlsl
-// Instanced mesh for GPU enemies. One instance per pool slot; the
-// VS reads position / yaw straight from the enemy buffer, so no
-// per-instance data ever touches the CPU.
+// Instanced mob mesh. Position / yaw come from the enemy buffer,
+// dead slots are collapsed behind the near plane.
 //
-// Dead slots are collapsed behind the near plane (same trick as the
-// debug VS). DrawIndexedInstanced with kMaxEnemies instances; the
-// wasted vertex work on dead slots is the price of not sorting.
-//
-// Output layout is identical to VS.hlsl so the default PS.hlsl
-// (Lambert + vertex color) can be reused as-is.
+// Uses ModelCommon's MVPBuffer on b0 (World is identity; the C++
+// side writes it). SwarmCommon's cbuffers are moved off b0.
+// enemies / enemyStates share t0 / t1 with ModelCommon's textures,
+// which a VS never references.
 // ============================================================
-
-// SwarmCommon owns b0 by default; move it out of the way (unused here)
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
+#define SWARM_ORB_CB_REG b3
+#include "../Common/ModelCommon.hlsli"
 #include "../Common/SwarmCommon.hlsli"
-
-cbuffer SwarmEnemyRenderCB : register(b0)
-{
-    row_major matrix View;
-    row_major matrix Projection;
-};
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 
-struct VS_INPUT
+struct VS_INPUT_INST
 {
     float3 Position : POSITION;
     float3 Normal : NORMAL;
@@ -36,23 +27,13 @@ struct VS_INPUT
     uint InstanceID : SV_InstanceID;
 };
 
-struct VS_OUTPUT
+// yaw = atan2(v.x, v.z): forward (0,0,1) -> (sin, 0, cos)
+float3 RotateY(float3 p, float s, float c)
 {
-    float4 Position : SV_POSITION;
-    float3 WorldPos : TEXCOORD1;
-    float3 Normal : NORMAL;
-    float2 UV : TEXCOORD0;
-    float4 Color : COLOR;
-};
-
-// rotate about Y by yaw. matches XMMatrixRotationY applied to a
-// row vector: x' = x*c + z*s, z' = -x*s + z*c
-float3 RotateY(float3 v, float s, float c)
-{
-    return float3(v.x * c + v.z * s, v.y, -v.x * s + v.z * c);
+    return float3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c);
 }
 
-VS_OUTPUT main(VS_INPUT input)
+VS_OUTPUT main(VS_INPUT_INST input)
 {
     VS_OUTPUT o = (VS_OUTPUT) 0;
 
@@ -63,17 +44,14 @@ VS_OUTPUT main(VS_INPUT input)
     }
 
     SwarmEnemy e = enemies[input.InstanceID];
-
     float s, c;
     sincos(e.yaw, s, c);
 
     float3 worldPos = RotateY(input.Position, s, c) + e.position;
     o.WorldPos = worldPos;
-
-    float4 viewPos = mul(float4(worldPos, 1.0), View);
-    o.Position = mul(viewPos, Projection);
-
-    o.Normal = normalize(RotateY(input.Normal, s, c));
+    o.Position = mul(mul(float4(worldPos, 1.0), View), Projection);
+    o.Normal = RotateY(input.Normal, s, c);
+    o.Tangent = RotateY(input.Tangent, s, c);
     o.UV = input.UV;
     o.Color = input.Color;
     return o;

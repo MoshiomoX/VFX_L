@@ -18,6 +18,7 @@ RWByteAddressBuffer counters : register(u0);
 [numthreads(1, 1, 1)]
 void main()
 {
+    counters.Store(SWARM_CNT_ALIVE_ORBS, 0u);
     counters.Store(SWARM_CNT_ALIVE_ENEMIES, 0u);
     counters.Store(SWARM_CNT_ALIVE_PROJ, 0u);
     counters.Store(SWARM_CNT_NEAREST_KEY, SWARM_NO_TARGET_KEY);

@@ -91,6 +91,14 @@ public:
 
     void RecycleEnemy(const Vector3& pos, float hp, float moveSpeed);
     void SetRecycleMinDist(float d) { m_RecycleMinDist = d; }
+    float ConsumeExp();
+
+    // GPU 上の雑魚・弾・オーブを全部消す（地形の作り直し用）。
+    // state を DEAD にするだけ。counter は触らない（累加値の差分が狂う）
+    void KillAll();
+
+    // 弾だけ消す（負荷テストのリセット用）
+    void ClearProjectiles();
 
     // 玩家に一番近い雑魚（回読なので 1〜2 フレーム古い）。無ければ false
     bool GetNearestEnemy(Vector3& pos, Vector3& vel, float& dist) const
@@ -199,6 +207,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnCB;
     Swarm::FrameCB m_CachedFrameCB;
     Swarm::AICB m_CachedAICB;
+    Swarm::OrbCB m_CachedOrbCB;
 
     // ============================================================
     // CS 群
@@ -212,13 +221,18 @@ private:
     std::shared_ptr<ComputeShader> m_EnemyAICS;        // Phase 3: seek + separation + 回避
     std::shared_ptr<ComputeShader> m_HitCS;            // Phase 4: 弾 vs 敵
     std::shared_ptr<ComputeShader> m_ContactCS;        // Phase 4: 敵 vs 玩家
-    std::shared_ptr<ComputeShader> m_OrbCS;            // Phase 4: 経験値オーブ
+    std::shared_ptr<ComputeShader> m_OrbCS;            // Phase 4: 経験値オーブの吸引・取得（DispatchStep の第 7 段）
     std::shared_ptr<ComputeShader> m_EnemyMoveCS;
     // ---- 雑魚描画 ----
     std::shared_ptr<VertexShader> m_EnemyVS;      // SwarmEnemyVS（buffer から位置と向きを読む）
     std::shared_ptr<PixelShader>  m_EnemyPS;      // Shader/PS.hlsl をそのまま使う
     std::shared_ptr<Material>     m_EnemyMaterial;// VS/PS + 既定テクスチャの束ね役
     std::shared_ptr<Model>        m_EnemyModel;   // 雑魚共通のカプセル
+
+    // --- 経験値オーブの本描画 ---
+    std::shared_ptr<VertexShader> m_OrbVS;
+    std::shared_ptr<Material>     m_OrbMaterial;   // PS は雑魚と共用
+    std::shared_ptr<Model>        m_OrbModel;
 
     std::shared_ptr<ComputeShader> m_RecycleCS;
     std::vector<Swarm::Enemy> m_PendingRecycles;
@@ -231,8 +245,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_RecycleClaimUAV;
     struct EnemyRenderCB
     {
-        Matrix view;
-        Matrix proj;
+        DirectX::SimpleMath::Matrix world = DirectX::SimpleMath::Matrix::Identity;
+        DirectX::SimpleMath::Matrix view;
+        DirectX::SimpleMath::Matrix proj;
     };
     // --- 固定ステップ ---
     float m_Accumulator = 0.0f;
@@ -244,6 +259,11 @@ private:
     float    m_PendingPlayerDamage = 0.0f;   // 回読した分の未消費ぶん
     uint32_t m_LastKillCount = 0;            // 累計 counter の前回値（差分用）
     uint32_t m_LastDamageTotal = 0;
+
+
+    uint32_t m_LastExpTotal = 0;
+    float    m_PendingExp = 0.0f;
+
 
     // --- 計測 ---
     double   m_FlushMs = 0.0;

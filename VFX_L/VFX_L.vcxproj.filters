@@ -122,6 +122,12 @@
     <Filter Include="Graphics\Shader\HLSL\Swarm">
       <UniqueIdentifier>{acc8cd17-46fe-44d5-94d2-72b2c14481ed}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Graphics\Shader\HLSL\PostProcess">
+      <UniqueIdentifier>{925a696b-02ed-4c72-a593-3556c7a7e2b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics\PostProcess">
+      <UniqueIdentifier>{7eeb8853-484a-457b-b704-d59bf887b674}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Application.cpp">
@@ -355,9 +361,6 @@
     <ClCompile Include="Player\PlayerStateSystem.cpp">
       <Filter>Player</Filter>
     </ClCompile>
-    <ClCompile Include="Item\ExpOrbSystem.cpp">
-      <Filter>Item</Filter>
-    </ClCompile>
     <ClCompile Include="UI\LevelUpSystem.cpp">
       <Filter>UI</Filter>
     </ClCompile>
@@ -400,6 +403,9 @@
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmVFXTable.cpp" />
+    <ClCompile Include="Graphics\PostProcess\Bloom.cpp">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Application.h">
@@ -774,12 +780,6 @@
     <ClInclude Include="Player\LevelComponent.h">
       <Filter>Player</Filter>
     </ClInclude>
-    <ClInclude Include="Item\ExpOrbComponent.h">
-      <Filter>Item</Filter>
-    </ClInclude>
-    <ClInclude Include="Item\ExpOrbSystem.h">
-      <Filter>Item</Filter>
-    </ClInclude>
     <ClInclude Include="Item\ExpRewardComponent.h">
       <Filter>Item</Filter>
     </ClInclude>
@@ -838,12 +838,12 @@
     <ClInclude Include="Swarm\SwarmVFXTable.h" />
     <ClInclude Include="VFX_Editor\VFXDatabase.h" />
     <ClInclude Include="VFX_Editor\VFXId.h" />
+    <ClInclude Include="Graphics\PostProcess\Bloom.h">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shader\PS.hlsl">
-      <Filter>Graphics\Shader\HLSL</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\VS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Particle\InitDeadListCS.hlsl">
@@ -945,6 +945,24 @@
     <FxCompile Include="Shader\Swarm\SwarmContactCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmOrbMoveCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmOrbVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\CompositeVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\CompositePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\BloomCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\VS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Particle\Common\ParticleCommon.hlsli">
@@ -976,6 +994,12 @@
       <Filter>Assets\Fonts</Filter>
     </None>
     <None Include="Shader\Common\SwarmCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\ModelCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\Lighting.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
   </ItemGroup>

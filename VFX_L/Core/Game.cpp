@@ -29,7 +29,7 @@ bool Game::Initialize(Renderer* renderer)
 
 	m_SceneManager.RegisterScene<CollisionTestScene>(SceneType::COLLISION_TEST);
 	m_SceneManager.RegisterScene<VFXEditorScene>(SceneType::VFX_EDITOR);
-    m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);
+    m_SceneManager.ChangeScene(SceneType::VFX_EDITOR);
 
 
 	return true;

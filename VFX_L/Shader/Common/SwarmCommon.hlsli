@@ -36,7 +36,13 @@ static const uint SWARM_CNT_NEAREST_KEY = 16;
 static const uint SWARM_CNT_NEAREST_POS = 20;
 static const uint SWARM_CNT_NEAREST_VEL = 32;
 static const uint SWARM_CNT_NEAREST_DIST = 44;
-
+// exp collected by the player, fixed point x100. ACCUMULATES forever
+// like KILLS / PLAYER_DAMAGE: the CPU takes the delta. Written by
+// OrbMoveCS on pickup.
+static const uint SWARM_CNT_EXP = 48;
+// alive orb count, cleared every step (same as ALIVE_ENEMIES)
+static const uint SWARM_CNT_ALIVE_ORBS = 52;
+// 56, 60: reserved. total 64 bytes
 static const uint SWARM_NO_TARGET_KEY = 0xFFFFFFFFu;
 static const uint SWARM_SLOT_MASK = 0xFFFu;
 static const uint SWARM_DIST_MASK = 0xFFFFF000u;
@@ -170,6 +176,28 @@ cbuffer SwarmAICB : register(SWARM_AI_CB_REG)
     float g_PlayerCapsuleHalf;
     float2 _aiPad;
 };
+
+// ============================================================
+// Exp orb tuning. Default register b2. HitCS (spawns orbs) and
+// OrbMoveCS (moves / picks them up) both read it.
+// Must match Swarm::OrbCB in SwarmTypes.h
+// ============================================================
+#ifndef SWARM_ORB_CB_REG
+#define SWARM_ORB_CB_REG b2
+#endif
+
+cbuffer SwarmOrbCB : register(SWARM_ORB_CB_REG)
+{
+    float g_OrbAttractRadius; // start pulling toward the player inside this
+    float g_OrbPickupRadius; // consumed inside this
+    float g_OrbAccel; // pull acceleration
+    float g_OrbMaxSpeed;
+
+    float g_OrbAmount; // exp per orb (global for now; per-enemy later)
+    float g_OrbY; // orbs float at this height
+    float2 _orbPad;
+};
+
 // ============================================================
 // terrain lookup: 1 = walkable
 // ============================================================
