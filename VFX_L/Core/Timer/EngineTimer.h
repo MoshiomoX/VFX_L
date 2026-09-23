@@ -7,6 +7,9 @@ public:
     void Start();
     void Tick();
 
+    // 1 フレームの上限（読込などで止まった後の巨大な dt を切る）
+    static constexpr float kMaxDeltaTime = 0.1f;
+
     float DeltaTime() const { return m_DeltaTime; }
     float TotalTime() const;
     float GetFPS() const { return m_FPS; }

@@ -46,6 +46,13 @@ static bool ResolveAgainstStatics(
             AABB otherBox{ wc.center - wc.halfExtents, wc.center + wc.halfExtents };
             hit = IntersectCapsuleAABB(selfCap, otherBox, contact);
         }
+        else if (col.shape == ColliderShape::Capsule && wc.shape == ColliderShape::Convex)
+        {
+            // 斜面: 法線が斜めに返るので、Slide 応答でそのまま登り降りになる。
+            // 接地判定（normal.y > 0.5）は 60° までを床扱いにする
+            Capsule selfCap{ selfCenter, col.radius, col.height };
+            hit = IntersectCapsuleConvex(selfCap, wc.hull, contact);
+        }
         // 他の形状組み合わせは必要になったら追加
 
         if (hit)

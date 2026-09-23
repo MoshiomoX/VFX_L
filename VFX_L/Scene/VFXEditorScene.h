@@ -83,6 +83,7 @@ private:
     SkinnedModelGPU                m_SkinnedGPU;
     std::shared_ptr<ComputeShader> m_SkinningCS;
     float m_AnimTime = 0.0f;
+    int   m_PreviewClip = 0;   // 参照モデルの再生クリップ
     bool  m_AnimPlay = true;
     float m_AnimSpeed = 1.0f;
     Transform m_ModelTransform;

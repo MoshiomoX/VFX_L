@@ -76,10 +76,20 @@ static bool TestPairShape(const CollisionSystem::WorldCollider& a,
     if (a.shape == ColliderShape::AABB && b.shape == ColliderShape::Capsule)
         return IntersectCapsuleAABB({ b.center, b.radius, b.height }, toAABB(a));
 
+    // --- Sphere / Capsule vs Convex ---
+    if (a.shape == ColliderShape::Sphere && b.shape == ColliderShape::Convex)
+        return IntersectSphereConvex({ a.center, a.radius }, b.hull);
+    if (a.shape == ColliderShape::Convex && b.shape == ColliderShape::Sphere)
+        return IntersectSphereConvex({ b.center, b.radius }, a.hull);
+    if (a.shape == ColliderShape::Capsule && b.shape == ColliderShape::Convex)
+        return IntersectCapsuleConvex({ a.center, a.radius, a.height }, b.hull);
+    if (a.shape == ColliderShape::Convex && b.shape == ColliderShape::Capsule)
+        return IntersectCapsuleConvex({ b.center, b.radius, b.height }, a.hull);
+
     // --- Capsule vs Capsule ---
     // 未対応（敵同士の押し出しをやる時に追加）
 
-    // --- AABB vs AABB は未対応（地形は静的、互いに判定しない）---
+    // --- AABB vs AABB / Convex 同士は未対応（地形は静的、互いに判定しない）---
     return false;
 }
 
@@ -121,6 +131,15 @@ void CollisionSystem::Update(Registry& reg)
                 wc.halfExtents = col.halfExtents;
                 wc.layer = col.layer;
                 wc.mask = col.mask;
+                if (col.shape == ColliderShape::Convex)
+                {
+                    // ローカル平面 n·p <= d を中心分だけ平行移動: d' = d + n·center
+                    wc.hull = col.hull;
+                    for (int i = 0; i < wc.hull.count; ++i)
+                        wc.hull.planes[i].d += wc.hull.planes[i].n.Dot(wc.center);
+                }
+                else
+                    wc.hull.count = 0;
                 m_WorldColliders.push_back(wc);
             });
 
@@ -132,7 +151,7 @@ void CollisionSystem::Update(Registry& reg)
     auto boundsOf = [](const WorldCollider& wc,
         float& minX, float& maxX, float& minZ, float& maxZ)
         {
-            if (wc.shape == ColliderShape::AABB)
+            if (wc.shape == ColliderShape::AABB || wc.shape == ColliderShape::Convex)
             {
                 minX = wc.center.x - wc.halfExtents.x;
                 maxX = wc.center.x + wc.halfExtents.x;
@@ -219,6 +238,9 @@ CollisionSystem::RaycastResult CollisionSystem::Raycast(
         case ColliderShape::AABB:
             h = RaycastAABB(ray, { wc.center - wc.halfExtents, wc.center + wc.halfExtents });
             break;
+        case ColliderShape::Convex:
+            h = RaycastConvex(ray, wc.hull);
+            break;
         default:
             continue;
         }
@@ -261,6 +283,9 @@ std::vector<Entity> CollisionSystem::OverlapSphere(
         case ColliderShape::AABB:
             hit = IntersectSphereAABB(query,
                 { wc.center - wc.halfExtents, wc.center + wc.halfExtents });
+            break;
+        case ColliderShape::Convex:
+            hit = IntersectSphereConvex(query, wc.hull);
             break;
         }
         if (hit) result.push_back(wc.entity);

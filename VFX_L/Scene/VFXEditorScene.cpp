@@ -79,6 +79,8 @@ void VFXEditorScene::Init()
         m_SkinnedModel = loaded.skinnedModel;
         if (!m_SkinnedGPU.Initialize(context, device, *m_SkinnedModel))
             std::cout << "[Error] SkinnedModelGPU init failed" << std::endl;
+        // 多クリップのモデルなら Idle から始める（無ければ 0 番）
+        m_PreviewClip = (std::max)(0, m_SkinnedModel->FindClip("Idle"));
     }
     else
         std::cout << "[Error] Paladin: not a skinned model" << std::endl;
@@ -216,7 +218,7 @@ void VFXEditorScene::Render(Renderer& renderer)
     if (m_ShowModel && m_SkinnedModel && m_SkinningCS)
     {
         std::vector<Matrix> globals, palette;
-        m_SkinnedModel->SampleAnimation(m_AnimTime, globals, 0);
+        m_SkinnedModel->SampleAnimation(m_AnimTime, globals, m_PreviewClip);
 
         const int subCount = (int)m_SkinnedGPU.GetSubMeshes().size();
         for (int s = 0; s < subCount; ++s)
@@ -520,6 +522,27 @@ void VFXEditorScene::DrawSceneUI()
         ImGui::SameLine();
         ImGui::DragFloat("Anim Speed", &m_AnimSpeed, 0.05f, 0.0f, 4.0f);
         if (ImGui::Button("Anim Reset")) m_AnimTime = 0.0f;
+
+        // クリップ選択（1 ファイル多クリップのモデル用。Mixamo 形式なら 1 個しか無い）
+        if (m_SkinnedModel && m_SkinnedModel->GetClipCount() > 0)
+        {
+            const int count = m_SkinnedModel->GetClipCount();
+            if (m_PreviewClip < 0 || m_PreviewClip >= count) m_PreviewClip = 0;
+            if (ImGui::BeginCombo("Anim Clip", m_SkinnedModel->GetClipName(m_PreviewClip).c_str()))
+            {
+                for (int i = 0; i < count; ++i)
+                {
+                    const bool sel = (i == m_PreviewClip);
+                    if (ImGui::Selectable(m_SkinnedModel->GetClipName(i).c_str(), sel))
+                    {
+                        m_PreviewClip = i;
+                        m_AnimTime = 0.0f;
+                    }
+                    if (sel) ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+        }
 
         // どのパーツが浮いているか特定する用
         if (m_SkinnedModel && ImGui::TreeNode("SubMeshes"))

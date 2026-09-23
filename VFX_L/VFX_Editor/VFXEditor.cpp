@@ -190,7 +190,7 @@ void VFXEditor::DrawEntryList()
         const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound" };
         for (int t = 0; t < 6; t++)
         {
-            bool enabled = (t == 0 || t == 3);
+            bool enabled = (t == 0 || t == 3 || t == 4);   // Particle / Mesh / Light
             if (!enabled) ImGui::BeginDisabled();
             if (ImGui::Selectable(typeNames[t]))
             {

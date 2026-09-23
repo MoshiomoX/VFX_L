@@ -17,11 +17,57 @@
 #include "Component/WandComponent.h"
 #include "Component/BackpackComponent.h"
 #include "Component/SpellbookComponent.h"
+#include "Component/SkinnedAnimComponent.h"
 #include "Graphics/PrimitiveBuilder.h"
+#include "Graphics/Model/SkinnedModel.h"
+#include "Graphics/Model/SkinnedModelGPU.h"
+#include "Manager/ResourceManager.h"
+#include "Core/Application.h"
 #include <iostream>
 
 namespace PlayerFactory
 {
+    // ============================================================
+    // 骨付きモデルを付ける。読めなければ false（呼び側がカプセルで代替）
+    // ============================================================
+    bool AttachSkinnedModel(Registry& reg, Entity e, const Config& cfg)
+    {
+        if (!cfg.skinnedModel || !*cfg.skinnedModel) return false;
+
+        auto loaded = ResourceManager::Get().LoadModelAuto(cfg.skinnedModel);
+        if (loaded.kind != ModelKind::Skinned || !loaded.skinnedModel)
+        {
+            std::cout << "[PlayerFactory] not a skinned model: " << cfg.skinnedModel << std::endl;
+            return false;
+        }
+
+        auto& gfx = Application::Get().GetGraphics();
+        auto gpu = std::make_shared<SkinnedModelGPU>();
+        if (!gpu->Initialize(gfx.GetContext(), gfx.GetDevice(), *loaded.skinnedModel))
+        {
+            std::cout << "[PlayerFactory] SkinnedModelGPU init failed" << std::endl;
+            return false;
+        }
+
+        // 持っていない手持ち品を隠す（ノード名で引く）
+        for (const char* part : cfg.hiddenParts)
+        {
+            const int idx = loaded.skinnedModel->FindSubMeshByNode(part);
+            if (idx >= 0) gpu->SetSubMeshVisible(idx, false);
+            else std::cout << "[PlayerFactory] hidden part not found: " << part << std::endl;
+        }
+
+        SkinnedAnimComponent anim;
+        anim.model = loaded.skinnedModel;
+        anim.gpu = gpu;
+        anim.scale = cfg.modelScale;
+        anim.yawOffsetDeg = cfg.modelYawOffsetDeg;
+        // カプセルは中心が原点、モデルは足元が原点。足元をカプセルの底に合わせる
+        anim.offset = { 0.0f, -(cfg.height * 0.5f + cfg.radius), 0.0f };
+        reg.Add<SkinnedAnimComponent>(e, anim);
+        return true;
+    }
+
     Entity Create(Registry& reg, ID3D11Device* device, const Config& cfg)
     {
         Entity e = reg.Create();
@@ -57,10 +103,15 @@ namespace PlayerFactory
         reg.Add<RigidbodyComponent>(e, rb);
 
         // ---- 見た目 ----
-        ModelComponent mc;
-        mc.model = PrimitiveBuilder::CreateCapsule(device,
-            cfg.radius, cfg.height, cfg.color);
-        reg.Add<ModelComponent>(e, mc);
+        // 骨付きモデルが読めたらそれ、駄目ならカプセル（従来）。
+        // 両方は付けない（RebuildVisual は Has<ModelComponent> で振り分ける）
+        if (!AttachSkinnedModel(reg, e, cfg))
+        {
+            ModelComponent mc;
+            mc.model = PrimitiveBuilder::CreateCapsule(device,
+                cfg.radius, cfg.height, cfg.color);
+            reg.Add<ModelComponent>(e, mc);
+        }
 
         // ---- 目印 ----
         reg.Add<PlayerTag>(e, {});
@@ -151,6 +202,13 @@ namespace PlayerFactory
             auto& mc = reg.Get<ModelComponent>(player);
             mc.model = PrimitiveBuilder::CreateCapsule(device,
                 stats.radius, stats.height, color);
+        }
+
+        // 骨付きなら足元の合わせ直しだけ（モデル自体は体格で変えない）
+        if (reg.Has<SkinnedAnimComponent>(player))
+        {
+            auto& anim = reg.Get<SkinnedAnimComponent>(player);
+            anim.offset.y = -(stats.height * 0.5f + stats.radius);
         }
     }
 }

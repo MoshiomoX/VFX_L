@@ -28,6 +28,7 @@ StructuredBuffer<uint> terrain : register(t0);
 StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
+StructuredBuffer<float> terrainHeight : register(t5);   // ramps (t4 = area defs)
 
 RWStructuredBuffer<SwarmProjectile> projectiles : register(u0);
 RWBuffer<uint> projStates : register(u1);
@@ -154,8 +155,11 @@ void main(uint3 id : SV_DispatchThreadID)
 
     // ---- terrain ----
     // entering a blocked cell kills it. grid precision is 2m but a
-    // wall is 2m thick anyway, so nothing slips through
-    if (!SwarmIsWalkable(terrain, p.position))
+    // wall is 2m thick anyway, so nothing slips through.
+    // ramps are walkable cells with a height: flying below the
+    // surface is a hit too (the projectile would be inside the block)
+    if (!SwarmIsWalkable(terrain, p.position)
+        || p.position.y < SwarmTerrainHeight(terrainHeight, p.position.xz))
     {
         // blow up at the last free position, not inside the wall
         if (areaOnExpire)

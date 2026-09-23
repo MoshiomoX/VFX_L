@@ -3,15 +3,19 @@
 // One fixed step of enemy integration. Runs after SwarmEnemyAICS
 // so every velocity is final before any position moves.
 //
-// No gravity, no falling: the ground is flat, so y is pinned to
-// g_GroundY. yaw is stored in radians (the VS does sin/cos on it
-// directly; the CPU version stored degrees for TransformComponent).
+// No gravity, no falling: y is pinned to g_GroundY + terrain height.
+// The height field (GridWorld::Heights, SWARM_HEIGHT_SUB cells per grid
+// cell) is 0 on flat ground and the walkable surface height on ramps
+// (trapezoid blocks), so enemies climb slopes by following it. Boxes
+// and walls stay 0 there and block through the walkable grid instead.
+// yaw is stored in radians (the VS does sin/cos on it directly).
 //
 // Also counts alive enemies for the readback.
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
 Buffer<uint> enemyStates : register(t0);
+StructuredBuffer<float> terrainHeight : register(t1);
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
 
@@ -36,7 +40,7 @@ void main(uint3 id : SV_DispatchThreadID)
             e.animIndex = 0u;
             e.animTime = 0.0;
         }
-        e.position.y = g_GroundY;
+        e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
     }
     else
     {
@@ -46,7 +50,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // trap an enemy that is already inside a wall
         e.position.x += e.velocity.x * g_Step;
         e.position.z += e.velocity.z * g_Step;
-        e.position.y = g_GroundY;
+        e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
 
         // ---- facing: turn toward the velocity at a bounded rate ----
         if (dot(e.velocity.xz, e.velocity.xz) > 0.01)

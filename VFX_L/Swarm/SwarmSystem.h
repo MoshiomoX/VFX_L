@@ -94,6 +94,13 @@ public:
     void Flush(const DirectX::SimpleMath::Vector3& playerPos,
         float playerRadius, bool playerAlive, float dt, float totalTime);
 
+    // 雑魚の見た目（焼いた静的メッシュ。デバッグ表示用）
+    std::shared_ptr<Model> GetEnemyModel() const { return m_EnemyModel; }
+
+    // 弾・範囲の点光源を PointLightManager のリストへ追記する。
+    // CPU 側の光（VFX の Light entry）を積み終えた後、描画の前に呼ぶ
+    void CollectLights();
+
     // ---- 回読結果（1〜2 フレーム古い。用途上それで困らない）----
     const SwarmCounters& GetCounters() const { return m_Readback.Latest(); }
     Swarm::AICB& GetAIParams() { return m_CachedAICB; }
@@ -137,6 +144,8 @@ private:
     // --- 生成 ---
     bool CreateBuffers(ID3D11Device* device);
     bool LoadShaders(ID3D11Device* device);
+    // 雑魚の見た目: 骨付き FBX の 1 フレームを焼いた静的メッシュ（駄目ならカプセル）
+    std::shared_ptr<Model> BuildEnemyModel(ID3D11Device* device);
 
     // --- Flush の内訳 ---
     void UploadFrameCB(const DirectX::SimpleMath::Vector3& playerPos,
@@ -220,6 +229,8 @@ private:
     // --- 地形（起動時に1回。読み取り専用）---
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_TerrainBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_TerrainSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_HeightBuffer;      // 高さ場（GridWorld::Heights）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_HeightSRV;
 
     // --- VFX 配方表（起動時に1回。読み取り専用）---
     SwarmVFXTable m_VFX;
@@ -289,6 +300,19 @@ private:
     std::shared_ptr<ComputeShader> m_AreaTickCS;     // 時計を進める・玩家に追従・tick の判定（命中の直後）
     std::shared_ptr<ComputeShader> m_AreaDamageCS;   // tick した範囲の中の雑魚へダメージ
     std::shared_ptr<ComputeShader> m_AreaEmitCS;     // GPU が出した範囲（弾の命中）から粒子を発射
+    std::shared_ptr<ComputeShader> m_LightCollectCS;     // 弾の点光源を PointLightManager へ追記
+    std::shared_ptr<ComputeShader> m_AreaLightCollectCS; // 範囲の分
+    std::shared_ptr<ComputeShader> m_EnemyCompactCS;     // 活きスロットの一覧（描画の instance 数）
+
+    // --- 雑魚描画の間接引数 ---
+    // 4096 槽を毎フレーム全部 DrawInstanced すると頂点数がモデル × 4096 になる
+    // （Minion 8.6k 頂点で 3500 万）。活きスロットだけ描くために
+    // CompactCS → aliveList、CopyStructureCount → args[submesh].InstanceCount
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AliveListBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AliveListUAV;   // APPEND
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AliveListSRV;
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_EnemyDrawArgs;  // submesh 毎（IndexCount が違う）
+    bool CreateEnemyDrawArgs(ID3D11Device* device);
 
     std::shared_ptr<ComputeShader> m_AimResolveCS;
    // Phase 4: 最寄りの雑魚を回読用に書き出す

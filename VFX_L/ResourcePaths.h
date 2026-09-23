@@ -92,6 +92,31 @@ namespace Res
 
         inline constexpr const char* Paladin_SwordAndShieldIdle =
             "Assets/Model/testAnimModel/SwordAndShieldIdle.fbx";
+
+        // KayKit Adventurers の Mage（CC0）。1 ファイルに 76 クリップ入り。
+        // 杖・魔杖・魔道書は handslot 骨に付いた submesh で、表示切替で持ち替える
+        inline constexpr const char* KayKit_Mage =
+            "Assets/Model/KayKit_Mage/Mage.fbx";
+
+        // KayKit Skeletons（CC0）。Minion は雑魚（1 フレーム焼いてインスタンス描画）、
+        // Warrior / Mage / Rogue は精英（骨付きのまま SkinnedAnimComponent）
+        inline constexpr const char* KayKit_SkeletonMinion =
+            "Assets/Model/KayKit_Skeletons/Skeleton_Minion.fbx";
+        inline constexpr const char* KayKit_SkeletonWarrior =
+            "Assets/Model/KayKit_Skeletons/Skeleton_Warrior.fbx";
+        inline constexpr const char* KayKit_SkeletonMage =
+            "Assets/Model/KayKit_Skeletons/Skeleton_Mage.fbx";
+        inline constexpr const char* KayKit_SkeletonRogue =
+            "Assets/Model/KayKit_Skeletons/Skeleton_Rogue.fbx";
+
+        // 起動時に別スレッドで先読みする骨付きモデル（ResourceManager::PreloadModelsAsync）。
+        // 1 個 19MB・Debug で数秒かかるので、タイトル / 編集器の間に済ませる。
+        // 戦闘で使う物だけ。Paladin（編集器の参照）と Mage/Rogue（未使用）は入れない
+        inline constexpr const char* kPreload[] = {
+            KayKit_Mage,
+            KayKit_SkeletonMinion,
+            KayKit_SkeletonWarrior,
+        };
     }
 
     // ========================================================
@@ -99,6 +124,10 @@ namespace Res
     // ========================================================
     namespace Tex
     {
+        // KayKit Skeletons 共通の色貼图（雑魚材質の t0）
+        inline constexpr const wchar_t* KayKit_SkeletonAlbedo =
+            L"Assets/Model/KayKit_Skeletons/skeleton_texture.png";
+
         // 粒子
         inline constexpr const wchar_t* ParticleSheet =
             L"Assets/Particles/particlesSheet.jpg";

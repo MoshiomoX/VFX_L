@@ -1,5 +1,6 @@
 #include "Scene/SceneBase.h"
 #include "Graphics/Renderer/Renderer.h"
+#include "Graphics/Light/PointLightManager.h"
 #include "Component/MeshRenderer.h"
 #include "Component/ModelRenderer.h"
 
@@ -14,6 +15,9 @@ void SceneBase::Render(Renderer& renderer)
     {
         renderer.SetCamera(m_Camera);
     }
+
+    // 点光源リストを GPU へ（Update 中に SwarmSystem が先に上げていれば何もしない）
+    PointLightManager::Get().Upload(renderer.GetContext());
 
     for (auto& obj : m_ObjectManager.GetObjects())
     {
