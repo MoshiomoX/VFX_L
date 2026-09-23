@@ -3,6 +3,8 @@
 // ============================================================
 #include "Graphics/Model/SkinnedModel.h"
 #include "Graphics/Model/MaterialLoader.h"
+#include "Graphics/Model/Model.h"
+#include "Graphics/Mesh/Mesh.h"
 #include "Manager/ResourceManager.h"
 #include "AssimpFlags.h"
 #include <assimp/Importer.hpp>
@@ -17,9 +19,11 @@
 namespace fs = std::filesystem;
 using namespace DirectX::SimpleMath;
 
-// offsetMatrix を階層から作り直すか。
-//   [bind-check] の worstDiff が大きい（>0.1）submesh がある時だけ true にして試す
-static constexpr float kOffsetRebuildThreshold = FLT_MAX;
+// offsetMatrix を階層から作り直す閾値（[bind-check] の worstDiff がこれを超えた submesh）。
+//   Blender 出力の FBX は mesh ノード自身に平行移動が乗っている事があり
+//   （KayKit Mage の頭: (0,1.216,0)）、Assimp の offset がそれを含まないので
+//   頭だけ 1.2m 沈む。Mixamo（Paladin）は無重み末端骨でしか差が出ず、見た目は変わらない
+static constexpr float kOffsetRebuildThreshold = 0.01f;
 
 // Assimp（列優先 / 右手）→ SimpleMath（行優先 / 左手）: 転置
 static Matrix ToSM(const aiMatrix4x4& m)
@@ -120,6 +124,7 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
         Matrix meshNodeGlobal = Matrix::Identity;
         std::string meshNodeName;
         FindMeshNode(scene->mRootNode, mi, Matrix::Identity, meshNodeGlobal, meshNodeName);
+        sub.nodeName = meshNodeName;
 
         // ---- 頂点（bind pose。ノード変換は焼かない）----
         for (unsigned int v = 0; v < mesh->mNumVertices; ++v)
@@ -244,6 +249,8 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
             vert.NormalizeWeights();
 
         std::cout << "[SkinnedModel] submesh=" << mi << " name=" << sub.name
+            << " node='" << meshNodeName << "' nodePos=("
+            << meshNodeGlobal._41 << "," << meshNodeGlobal._42 << "," << meshNodeGlobal._43 << ")"
             << " offsetCount=" << sub.boneOffsets.size() << std::endl;
 
         m_SubMeshes.push_back(std::move(sub));
@@ -341,63 +348,133 @@ float SkinnedModel::GetClipDurationSec(int clipIndex) const
     return (c.ticksPerSecond > 0.0f) ? c.duration / c.ticksPerSecond : 0.0f;
 }
 
+int SkinnedModel::FindSubMeshByNode(const std::string& nodeName) const
+{
+    for (int i = 0; i < (int)m_SubMeshes.size(); ++i)
+        if (m_SubMeshes[i].nodeName == nodeName) return i;
+    return -1;
+}
+
+int SkinnedModel::FindClip(const std::string& name) const
+{
+    for (int i = 0; i < (int)m_Animations.size(); ++i)
+        if (m_Animations[i].name == name) return i;
+
+    // "Rig|Idle" / "Armature|Idle" のような接頭辞付きにも当てる
+    const std::string suffix = "|" + name;
+    for (int i = 0; i < (int)m_Animations.size(); ++i)
+    {
+        const auto& n = m_Animations[i].name;
+        if (n.size() > suffix.size() &&
+            n.compare(n.size() - suffix.size(), suffix.size(), suffix) == 0)
+            return i;
+    }
+    return -1;
+}
+
 // ============================================================
 // 時刻 → 各ボーンの global 行列（offset は掛けない）
 // ============================================================
 void SkinnedModel::SampleAnimation(float timeSec, std::vector<Matrix>& outGlobal, int clipIndex) const
 {
-    const int boneCount = m_Skeleton.GetBoneCount();
-    outGlobal.assign(boneCount, Matrix::Identity);
-
     if (clipIndex < 0 || clipIndex >= (int)m_Animations.size())
-        return;
-
-    const AnimationClip& clip = m_Animations[clipIndex];
-    const auto& bones = m_Skeleton.GetBones();
-
-    static bool s_dumped = false;
-    if (!s_dumped)
     {
-        s_dumped = true;
-        int matched = 0;
-        for (auto& b : bones) if (clip.nodeToChannel.count(b.name)) ++matched;
-        std::cout << "[anim] boneCount=" << boneCount
-            << " channels=" << clip.channels.size()
-            << " matched=" << matched
-            << " tps=" << clip.ticksPerSecond
-            << " dur=" << clip.duration << std::endl;
+        outGlobal.assign(m_Skeleton.GetBoneCount(), Matrix::Identity);
+        return;
     }
+    std::vector<BoneLocal> local;
+    SampleLocal(clipIndex, timeSec, local);
+    BuildGlobals(local, outGlobal);
+}
+
+// ============================================================
+// 時刻 → 各ボーンの親基準 S/R/T
+// 時刻はクリップ長で折り返す（ループ）。ループさせたくない側で clamp してから渡す
+// ============================================================
+void SkinnedModel::SampleLocal(int clipIndex, float timeSec, std::vector<BoneLocal>& outLocal) const
+{
+    const auto& bones = m_Skeleton.GetBones();
+    const int boneCount = (int)bones.size();
+    outLocal.resize(boneCount);
+
+    const AnimationClip* clip =
+        (clipIndex >= 0 && clipIndex < (int)m_Animations.size()) ? &m_Animations[clipIndex] : nullptr;
 
     float tick = 0.0f;
-    if (clip.ticksPerSecond > 0.0f && clip.duration > 0.0f)
-        tick = std::fmod(timeSec * clip.ticksPerSecond, clip.duration);
+    if (clip && clip->ticksPerSecond > 0.0f && clip->duration > 0.0f)
+        tick = std::fmod(timeSec * clip->ticksPerSecond, clip->duration);
 
     for (int i = 0; i < boneCount; ++i)
     {
         const Bone& bone = bones[i];
-        Matrix local = bone.localBindTransform;
+        BoneLocal& o = outLocal[i];
 
-        auto it = clip.nodeToChannel.find(bone.name);
-        if (it != clip.nodeToChannel.end())
-        {
-            const BoneChannel& ch = clip.channels[it->second];
+        // bind を S/R/T に割る（Decompose は非 const なのでコピー）
+        Matrix bindCopy = bone.localBindTransform;
+        bindCopy.Decompose(o.scale, o.rotation, o.translation);
 
-            Matrix bindCopy = bone.localBindTransform;
-            Vector3 bS; Quaternion bR; Vector3 bT;
-            bindCopy.Decompose(bS, bR, bT);
+        if (!clip) continue;
+        auto it = clip->nodeToChannel.find(bone.name);
+        if (it == clip->nodeToChannel.end()) continue;
 
-            Vector3    S = InterpVec(ch.scales, tick, bS);
-            Quaternion R = InterpQuat(ch.rotations, tick, bR);
-            Vector3    T = InterpVec(ch.positions, tick, bT);
-
-            local = Matrix::CreateScale(S)
-                * Matrix::CreateFromQuaternion(R)
-                * Matrix::CreateTranslation(T);
-        }
-
-        // global = local * parentGlobal（offset は submesh 側で掛ける）
-        outGlobal[i] = (bone.parentIndex < 0) ? local : local * outGlobal[bone.parentIndex];
+        const BoneChannel& ch = clip->channels[it->second];
+        o.scale       = InterpVec(ch.scales, tick, o.scale);
+        o.rotation    = InterpQuat(ch.rotations, tick, o.rotation);
+        o.translation = InterpVec(ch.positions, tick, o.translation);
     }
+}
+
+void SkinnedModel::BuildGlobals(const std::vector<BoneLocal>& local, std::vector<Matrix>& outGlobal) const
+{
+    const auto& bones = m_Skeleton.GetBones();
+    const int boneCount = (int)bones.size();
+    outGlobal.assign(boneCount, Matrix::Identity);
+    if ((int)local.size() < boneCount) return;
+
+    for (int i = 0; i < boneCount; ++i)
+    {
+        const BoneLocal& l = local[i];
+        Matrix m = Matrix::CreateScale(l.scale)
+            * Matrix::CreateFromQuaternion(l.rotation)
+            * Matrix::CreateTranslation(l.translation);
+        // global = local * parentGlobal（offset は submesh 側で掛ける）
+        const int p = bones[i].parentIndex;
+        outGlobal[i] = (p < 0) ? m : m * outGlobal[p];
+    }
+}
+
+void SkinnedModel::BlendLocals(std::vector<BoneLocal>& a, const std::vector<BoneLocal>& b,
+    float t, const std::vector<float>* weights)
+{
+    const size_t n = (std::min)(a.size(), b.size());
+    for (size_t i = 0; i < n; ++i)
+    {
+        float w = t;
+        if (weights && i < weights->size()) w *= (*weights)[i];
+        if (w <= 0.0f) continue;
+        if (w >= 1.0f) { a[i] = b[i]; continue; }
+
+        a[i].scale       = Vector3::Lerp(a[i].scale, b[i].scale, w);
+        a[i].rotation    = Quaternion::Slerp(a[i].rotation, b[i].rotation, w);
+        a[i].translation = Vector3::Lerp(a[i].translation, b[i].translation, w);
+    }
+}
+
+bool SkinnedModel::BuildBoneMask(const std::string& rootBone, std::vector<float>& outMask) const
+{
+    const auto& bones = m_Skeleton.GetBones();
+    const int root = m_Skeleton.FindBoneIndex(rootBone);
+    outMask.assign(bones.size(), 0.0f);
+    if (root < 0) return false;
+
+    // 親は常に子より前に並ぶ（ノード階層を深さ優先で登録している）ので 1 パスで済む
+    outMask[root] = 1.0f;
+    for (size_t i = 0; i < bones.size(); ++i)
+    {
+        const int p = bones[i].parentIndex;
+        if (p >= 0 && outMask[p] > 0.0f) outMask[i] = 1.0f;
+    }
+    return true;
 }
 
 // ============================================================
@@ -419,4 +496,82 @@ void SkinnedModel::BuildSubmeshPalette(int submeshIndex,
         if (boneIdx >= 0 && boneIdx < boneCount)
             outPalette[boneIdx] = offset * global[boneIdx];
     }
+}
+
+// ============================================================
+// 1 フレームを CPU で蒙皮 → 静的 Model
+// SkinningCS.hlsl と同じ結果: p = Σ w_i * (v * palette_i)（行ベクトル規約）
+// ============================================================
+std::shared_ptr<Model> SkinnedModel::BakeStatic(ID3D11Device* device, int clipIndex, float timeSec,
+    const Matrix& xform, const std::vector<std::string>& skipNodes) const
+{
+    std::vector<Matrix> globals, palette;
+    SampleAnimation(timeSec, globals, clipIndex);
+
+    auto model = std::make_shared<Model>();
+    int baked = 0;
+    Vector3 bmin(1e9f, 1e9f, 1e9f), bmax(-1e9f, -1e9f, -1e9f);   // 焼いた結果の寸法確認用
+
+    for (int s = 0; s < (int)m_SubMeshes.size(); ++s)
+    {
+        const SubMesh& sub = m_SubMeshes[s];
+        if (std::find(skipNodes.begin(), skipNodes.end(), sub.nodeName) != skipNodes.end())
+            continue;
+
+        BuildSubmeshPalette(s, globals, palette);
+        // ※SkinningCS の transpose() は StructuredBuffer が列優先で読む分を戻しているだけ。
+        //   CPU 側は SimpleMath の行ベクトル規約（p * M）のまま掛ける。転置すると頭が足に来る
+
+        std::vector<VERTEX_3D> verts(sub.vertices.size());
+        for (size_t v = 0; v < sub.vertices.size(); ++v)
+        {
+            const SkinnedVertex& in = sub.vertices[v];
+            Vector3 p{}, n{}, t{};
+            for (int k = 0; k < MAX_BONE_INFLUENCE; ++k)
+            {
+                const float w = in.boneWeights[k];
+                if (w <= 0.0f) continue;
+                const Matrix& m = palette[in.boneIndices[k]];
+                p += Vector3::Transform(in.position, m) * w;
+                n += Vector3::TransformNormal(in.normal, m) * w;
+                t += Vector3::TransformNormal(in.tangent, m) * w;
+            }
+            VERTEX_3D& o = verts[v];
+            o.position = Vector3::Transform(p, xform);
+            o.normal = Vector3::TransformNormal(n, xform); o.normal.Normalize();
+            o.tangent = Vector3::TransformNormal(t, xform); o.tangent.Normalize();
+            o.uv = in.uv;
+            o.color = { 1, 1, 1, 1 };
+            bmin = Vector3::Min(bmin, o.position);
+            bmax = Vector3::Max(bmax, o.position);
+        }
+
+        // 巻き方向の確認: 三角形の幾何法線と頂点法線が逆なら表裏が入れ替わっている。
+        // この工程の mesh（MakeLeftHanded、FlipWindingOrder 無し）は
+        // (b-a)×(c-a) が内向きになるのが正常。外向きになっていたら焼き方が壊れている
+        {
+            int flipped = 0, total = 0;
+            for (size_t t = 0; t + 2 < sub.indices.size(); t += 3)
+            {
+                const auto& a = verts[sub.indices[t]], & b = verts[sub.indices[t + 1]], & c = verts[sub.indices[t + 2]];
+                Vector3 gn = (b.position - a.position).Cross(c.position - a.position);
+                if (gn.Dot(a.normal + b.normal + c.normal) > 0.0f) ++flipped;
+                ++total;
+            }
+            if (total > 0 && flipped * 2 > total)
+                std::cout << "[SkinnedModel] bake warning: submesh " << sub.nodeName
+                    << " looks inside-out (" << flipped << "/" << total << ")" << std::endl;
+        }
+
+        auto mesh = std::make_shared<Mesh>();
+        if (!mesh->Create(device, verts, sub.indices)) continue;
+        model->AddSubMesh(mesh, sub.materialIndex);
+        ++baked;
+    }
+
+    std::cout << "[SkinnedModel] baked static: clip=" << clipIndex << " t=" << timeSec
+        << " submeshes=" << baked << "/" << m_SubMeshes.size()
+        << " bbox=(" << bmin.x << "," << bmin.y << "," << bmin.z << ")-("
+        << bmax.x << "," << bmax.y << "," << bmax.z << ")" << std::endl;
+    return baked > 0 ? model : nullptr;
 }

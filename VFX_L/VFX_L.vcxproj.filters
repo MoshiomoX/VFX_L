@@ -322,6 +322,15 @@
     <ClCompile Include="ECS\System\RenderSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
+    <ClCompile Include="ECS\System\SkinnedAnimSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Light\PointLightManager.cpp">
+      <Filter>Graphics\Light</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXPointLightEntry.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
     <ClCompile Include="ECS\System\WeaponSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
@@ -374,6 +383,9 @@
       <Filter>Player</Filter>
     </ClCompile>
     <ClCompile Include="Player\PlayerStateSystem.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Player\PlayerAnimSystem.cpp">
       <Filter>Player</Filter>
     </ClCompile>
     <ClCompile Include="UI\LevelUpSystem.cpp">
@@ -698,6 +710,9 @@
     <ClInclude Include="Component\ModelComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
+    <ClInclude Include="Component\SkinnedAnimComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
     <ClInclude Include="Component\RigidbodyComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -730,6 +745,15 @@
     </ClInclude>
     <ClInclude Include="ECS\System\RenderSystem.h">
       <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\SkinnedAnimSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Light\PointLightManager.h">
+      <Filter>Graphics\Light</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXPointLightEntry.h">
+      <Filter>VFX_Editor</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\WeaponSystem.h">
       <Filter>ECS\System</Filter>
@@ -826,6 +850,9 @@
       <Filter>Player</Filter>
     </ClInclude>
     <ClInclude Include="Player\PlayerStateSystem.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\PlayerAnimSystem.h">
       <Filter>Player</Filter>
     </ClInclude>
     <ClInclude Include="Player\PlayerStatsComponent.h">
@@ -1053,6 +1080,15 @@
     <FxCompile Include="Shader\Swarm\SwarmAreaEmitCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmLightCollectCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyCompactCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmAreaLightCollectCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmHitCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -1129,6 +1165,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\Lighting.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\PointLights.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\Dissolve.hlsli">

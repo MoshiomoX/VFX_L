@@ -420,4 +420,36 @@ bool SwarmIsWalkable(StructuredBuffer<uint> walkable, float3 p)
     return walkable[gz * g_GridW + gx] != 0;
 }
 
+// ============================================================
+// Terrain height field (GridWorld::Heights). SWARM_HEIGHT_SUB cells
+// per grid cell, 0 on flat ground, the walkable surface height on
+// ramps. Enemies pin y to it (MoveCS), projectiles explode when they
+// fly below it (ProjMoveCS). Must match GridWorld::kHeightSub
+// ============================================================
+static const uint SWARM_HEIGHT_SUB = 4u;
+
+float SwarmHeightCell(StructuredBuffer<float> heights, int hx, int hz)
+{
+    // single exit (fxc X4000 otherwise)
+    int hw = (int) (g_GridW * SWARM_HEIGHT_SUB);
+    int hd = (int) (g_GridD * SWARM_HEIGHT_SUB);
+    bool inside = (hx >= 0 && hx < hw && hz >= 0 && hz < hd);
+    return inside ? heights[clamp(hz, 0, hd - 1) * hw + clamp(hx, 0, hw - 1)] : 0.0;
+}
+
+// bilinear sample at a world xz (same formula as GridWorld::SampleHeight)
+float SwarmTerrainHeight(StructuredBuffer<float> heights, float2 xz)
+{
+    float s = g_CellSize / (float) SWARM_HEIGHT_SUB;
+    float fx = (xz.x - g_GridOrigin.x) / s - 0.5;
+    float fz = (xz.y - g_GridOrigin.z) / s - 0.5;
+    int ix = (int) floor(fx);
+    int iz = (int) floor(fz);
+    float tx = fx - ix;
+    float tz = fz - iz;
+    float h00 = SwarmHeightCell(heights, ix, iz), h10 = SwarmHeightCell(heights, ix + 1, iz);
+    float h01 = SwarmHeightCell(heights, ix, iz + 1), h11 = SwarmHeightCell(heights, ix + 1, iz + 1);
+    return lerp(lerp(h00, h10, tx), lerp(h01, h11, tx), tz);
+}
+
 #endif

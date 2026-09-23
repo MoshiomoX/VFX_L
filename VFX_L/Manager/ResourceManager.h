@@ -5,6 +5,8 @@
 #include <memory>
 #include <future>
 #include <mutex>
+#include <thread>
+#include <vector>
 #include "Graphics/Material/Texture.h"
 #include "Graphics/Shader/VertexShader.h"
 #include "Graphics/Shader/PixelShader.h"
@@ -94,7 +96,22 @@ public:
     size_t GetPSCount() const { return m_PixelShaders.size(); }
     size_t GetCSCount() const { return m_ComputeShaders.size(); }
     size_t GetModelCount() const { return m_Models.size(); }
+    // 骨の有無で static / skinned を振り分けて読む。パスで cache する。
+    // 先読み中（PreloadModelsAsync）のパスなら完了を待って同じ物を返す
     LoadedModel LoadModelAuto(const std::string& filepath);
+
+    // ============================================================
+    // モデルの先読み（起動時に呼ぶ）
+    // 別スレッドで assimp import と D3D バッファ作成までやる。
+    //   D3D11 の device はスレッド安全、immediate context は触らない。
+    //   SkinnedModel::LoadFromScene は context を使わないのでそのまま乗る。
+    //   m_Mutex は map の出し入れの間だけ握る（import 中に握ると
+    //   主スレッドの LoadTexture 等が止まって本末転倒）
+    // ============================================================
+    void PreloadModelsAsync(const std::vector<std::string>& paths);
+    bool IsPreloadDone() const;            // 全部終わったか（進捗表示用）
+    int  GetPreloadPending() const;        // まだ終わっていない数
+
     std::shared_ptr<VFXEffect> LoadVFXTemplate(const std::string& filepath);
     void UnloadVFXTemplate(const std::string& filepath);
     size_t GetVFXCount() const { return m_VFXTemplates.size(); }
@@ -117,4 +134,12 @@ private:
     std::unordered_map<std::string, std::shared_ptr<Model>> m_Models;
     std::unordered_map<std::string, std::shared_ptr<VFXEffect>> m_VFXTemplates;
     mutable std::recursive_mutex m_Mutex;
+
+    // ---- LoadModelAuto の cache と先読み ----
+    // cache 済みは m_AutoModels、読み込み中は m_AutoPending（shared_future なので
+    // 複数の呼び手が同じ結果を待てる）。import 本体は lock 無しで走る
+    LoadedModel ImportModelAuto(const std::string& filepath);   // cache を見ない生の読み込み
+    std::unordered_map<std::string, LoadedModel> m_AutoModels;
+    std::unordered_map<std::string, std::shared_future<LoadedModel>> m_AutoPending;
+    std::vector<std::thread> m_PreloadThreads;
 };

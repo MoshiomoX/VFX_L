@@ -14,7 +14,9 @@
 // ============================================================
 #pragma once
 #include "ECS/Entity.h"
+#include "ResourcePaths.h"
 #include <SimpleMath.h>
+#include <vector>
 
 struct ID3D11Device;
 class Registry;
@@ -48,11 +50,19 @@ namespace PlayerFactory
         // ※VFX だけ確認したいシーンでは false にする
         bool withWand = true;
         bool withBackpack = true;
+
+        // ---- 見た目（骨付きモデル）----
+        // nullptr / "" ならカプセル。読めなかった時もカプセルに落ちる
+        const char* skinnedModel = Res::Mdl::KayKit_Mage;
+        float modelScale = 1.0f;            // KayKit はメートル
+        float modelYawOffsetDeg = 180.0f;   // KayKit は -Z が正面（Blender 出力）
+        // 隠す手持ち品（ノード名）。Mage は杖・魔杖・魔道書が全部付いてくるので杖だけ残す
+        std::vector<const char*> hiddenParts = { "1H_Wand", "Spellbook", "Spellbook_open" };
     };
 
     // ============================================================
     // プレイヤーを1体作る
-    // 付くもの: Transform / Collider(Capsule) / Rigidbody / Model
+    // 付くもの: Transform / Collider(Capsule) / Rigidbody / SkinnedAnim（無理なら Model）
     //          / PlayerTag / PlayerStats / PlayerState / Health / Mana
     //          / Level / Spellbook / Wand / Backpack（Config 次第）
     //

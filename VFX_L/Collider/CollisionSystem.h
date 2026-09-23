@@ -40,6 +40,7 @@ public:
         DirectX::SimpleMath::Vector3 halfExtents;
         uint32_t              layer;
         uint32_t              mask;
+        CollisionMath::Convex hull;             // Convex 用（ワールド空間へ平行移動済み）
     };
     const std::vector<WorldCollider>& GetWorldColliders() const { return m_WorldColliders; }
     // レイキャスト結果（命中 Entity 付き）

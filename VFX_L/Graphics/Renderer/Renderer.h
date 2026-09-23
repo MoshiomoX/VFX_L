@@ -54,6 +54,7 @@ public:
     void Shutdown();
 
     void SetCamera(CameraBase* camera) { m_Camera = camera; }
+    CameraBase* GetCamera() const { return m_Camera; }
 
     void SetDirectionalLight(const Vector3& direction, const Vector3& color, float intensity);
     void SetAmbientColor(const Vector3& color);

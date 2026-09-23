@@ -27,6 +27,10 @@ namespace PrimitiveBuilder
         const Vector4& color = { 1, 1, 1, 1 },
         int segments = 16);
 
+    // 六面体（8 頂点。台形柱・楔・斜坡。頂点順は CollisionMath::ConvexFromHexahedron と同じ）
+    std::shared_ptr<Model> CreateHexahedron(ID3D11Device* device, const Vector3 v[8],
+        const Vector4& color = { 1, 1, 1, 1 });
+
     // カプセル（radius + 円柱部の height。衝突体と同じ定義）
     std::shared_ptr<Model> CreateCapsule(ID3D11Device* device,
         float radius, float height,

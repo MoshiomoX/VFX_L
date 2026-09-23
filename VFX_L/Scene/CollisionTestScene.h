@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // CollisionTestScene.h
 // 衝突 + 物理 + 投射物 + 投射物 VFX / バックパック + プレイヤー
 //
@@ -21,6 +21,8 @@
 #include "ECS/System/PhysicsSystem.h"
 #include "Player/PlayerControlSystem.h"
 #include "Player/PlayerStateSystem.h"
+#include "Player/PlayerAnimSystem.h"
+#include "ECS/System/SkinnedAnimSystem.h"
 #include "ECS/System/WeaponSystem.h"
 #include "ECS/System/ProjectileSystem.h"
 #include "ECS/System/ProjectileVFXSystem.h"
@@ -73,6 +75,7 @@ private:
     // ---- 生成 / 再構築 ----
     void RebuildPlayerMesh();
     void SpawnElite(const Vector3& pos);   // CPU 側の的（無敵・動かない）
+    bool AttachEliteVisual(Entity e);      // 精英に骨付きモデルを付ける（駄目なら false）
     void RespawnElites();
     void StressSpawnProjectiles(int count);
     int  CountProjectiles() const;
@@ -92,6 +95,8 @@ private:
     PhysicsSystem           m_PhysicsSystem;
     PlayerControlSystem     m_PlayerControlSystem;
     PlayerStateSystem       m_PlayerStateSystem;
+    PlayerAnimSystem        m_PlayerAnimSystem;    // 状態機 → クリップ名
+    SkinnedAnimSystem       m_SkinnedAnimSystem;   // クリップの時計
     WeaponSystem            m_WeaponSystem;
     ManaSystem              m_ManaSystem;
     ProjectileSystem        m_ProjectileSystem;

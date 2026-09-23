@@ -11,7 +11,9 @@
 #include <assimp/postprocess.h>
 #include <assimp/config.h>
 #include <wrl/client.h>
+#include <objbase.h>   // CoInitializeEx（先読みスレッドの WIC 用）
 #include <filesystem>
+#include <chrono>
 #include <iostream>
 
 using Microsoft::WRL::ComPtr;
@@ -39,12 +41,99 @@ static bool SceneHasBones(const aiScene* scene)
 }
 
 // ============================================================
-// 骨の有無で static / skinned を振り分ける
+// 骨の有無で static / skinned を振り分ける（cache + 先読み待ち）
 // ============================================================
 LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+    std::shared_future<LoadedModel> pending;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+        auto it = m_AutoModels.find(filepath);
+        if (it != m_AutoModels.end())
+            return it->second;
 
+        auto pit = m_AutoPending.find(filepath);
+        if (pit != m_AutoPending.end())
+            pending = pit->second;
+    }
+
+    if (pending.valid())
+    {
+        // 先読み中: 完了を待つ（先読み側が m_AutoModels へ入れる）
+        LoadedModel result = pending.get();
+        std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+        m_AutoPending.erase(filepath);
+        return result;
+    }
+
+    // 未読み: この場で読んで cache へ（lock は map の出し入れだけ）
+    LoadedModel result = ImportModelAuto(filepath);
+    if (result.staticModel || result.skinnedModel)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+        m_AutoModels[filepath] = result;
+    }
+    return result;
+}
+
+// ============================================================
+// 先読み: パスごとに 1 スレッド。結果は m_AutoModels へ入り、
+// 待っている LoadModelAuto は shared_future 経由で同じ物を受け取る
+// ============================================================
+void ResourceManager::PreloadModelsAsync(const std::vector<std::string>& paths)
+{
+    // Material の既定貼图は静的な遅延初期化。複数スレッドから同時に入られると
+    // 二重に作るので、先に主スレッドで済ませておく
+    Material::InitDefaultTextures(m_Device);
+
+    for (const std::string& path : paths)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+        if (m_AutoModels.count(path) || m_AutoPending.count(path)) continue;
+
+        auto promise = std::make_shared<std::promise<LoadedModel>>();
+        m_AutoPending[path] = promise->get_future().share();
+
+        m_PreloadThreads.emplace_back([this, path, promise]()
+            {
+                // DirectXTex の WIC 読み込みはスレッド毎に COM が要る
+                const HRESULT co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+
+                LoadedModel result = ImportModelAuto(path);
+                {
+                    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+                    if (result.staticModel || result.skinnedModel)
+                        m_AutoModels[path] = result;
+                }
+                promise->set_value(result);
+                std::cout << "[Preload] done: " << path << std::endl;
+
+                if (SUCCEEDED(co)) CoUninitialize();
+            });
+    }
+    std::cout << "[Preload] " << paths.size() << " model(s) queued" << std::endl;
+}
+
+bool ResourceManager::IsPreloadDone() const
+{
+    return GetPreloadPending() == 0;
+}
+
+int ResourceManager::GetPreloadPending() const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+    int n = 0;
+    for (const auto& kv : m_AutoPending)
+        if (kv.second.wait_for(std::chrono::seconds(0)) != std::future_status::ready) ++n;
+    return n;
+}
+
+// ============================================================
+// 生の読み込み（cache を見ない。LoadModelAuto / 先読みスレッドから）
+// ※lock を握らない。中で呼ぶ LoadTexture / LoadVS は各自で握る
+// ============================================================
+LoadedModel ResourceManager::ImportModelAuto(const std::string& filepath)
+{
     LoadedModel out;
 
     Assimp::Importer importer;
@@ -95,6 +184,13 @@ void ResourceManager::Initialize(ID3D11Device* device)
 
 void ResourceManager::Shutdown()
 {
+    // 先読みスレッドが生きていたら待つ（device を先に消すと落ちる）
+    for (auto& t : m_PreloadThreads)
+        if (t.joinable()) t.join();
+    m_PreloadThreads.clear();
+    m_AutoPending.clear();
+    m_AutoModels.clear();
+
     CleanupUnused();
     UnloadAll();
     m_Device = nullptr;

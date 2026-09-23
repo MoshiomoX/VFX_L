@@ -1,6 +1,8 @@
 #include "Graphics/Model/SkinnedModelGPU.h"
 #include "Graphics/Material/Material.h"
 #include "Graphics/Renderer/RenderStates.h"
+#include "Graphics/Light/PointLightManager.h"
+#include "Graphics/Renderer/Renderer.h"   // DissolveCB
 
 #include <iostream>
 
@@ -214,6 +216,9 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model
 
     ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
     LightBuffer lightCopy = light;
+    DissolveCB dissolveOff = {};
+    dissolveOff.threshold = -1.0f;
+    PointLightManager::Get().BindPS(ctx);   // t6/t7
 
     ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     ctx->IASetInputLayout(nullptr);
@@ -232,6 +237,8 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model
 
         mat->GetVS()->WriteBuffer(ctx, 0, &cb);
         mat->GetPS()->WriteBuffer(ctx, 0, &lightCopy);
+        // PS b1: 溶解 OFF。書かないと b1 が未定義で全 clip され得る（雑魚で実際に起きた）
+        mat->GetPS()->WriteBuffer(ctx, 1, &dissolveOff);
 
         // VS t0 = skinning 結果。Material::Bind は VS の SRV を触らない
         ctx->VSSetShaderResources(0, 1, gm.skinnedSRV.GetAddressOf());
@@ -242,4 +249,5 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model
     // 次フレームの SkinningCS が UAV にするので外す
     ID3D11ShaderResourceView* nullSRV = nullptr;
     ctx->VSSetShaderResources(0, 1, &nullSRV);
+    PointLightManager::Get().UnbindPS(ctx);
 }

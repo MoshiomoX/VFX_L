@@ -16,6 +16,8 @@
 #define MODEL_LIGHT_CB_REG b0
 #endif
 
+#include "PointLights.hlsli"
+
 struct DirectionalLight
 {
     float3 direction;
@@ -58,6 +60,12 @@ float3 ShadeLambert(float3 N, float3 albedo)
     float NdotL = max(dot(N, L), 0.0);
     float3 diffuse = dirLight.color * dirLight.intensity * NdotL;
     return (ambientColor + diffuse) * albedo;
+}
+
+// + point lights (needs the world position)
+float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
+{
+    return ShadeLambert(N, albedo) + PointLightDiffuse(worldPos, N) * albedo;
 }
 
 // ------------------------------------------------------------
@@ -113,6 +121,16 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
     float3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
     float3 ambient = ambientColor * albedo * ao;
     return ambient + Lo;
+}
+
+// + point lights as diffuse only (no specular lobe per light; cheap and
+// good enough for a fireball flying past)
+float3 ShadePBR(float3 N, float3 V, float3 albedo,
+                float metallic, float roughness, float ao, float3 worldPos)
+{
+    float3 base = ShadePBR(N, V, albedo, metallic, roughness, ao);
+    float3 kD = (1.0 - metallic) * albedo / PI;
+    return base + PointLightDiffuse(worldPos, N) * kD;
 }
 
 #endif

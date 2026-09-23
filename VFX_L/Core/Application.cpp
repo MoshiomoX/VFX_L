@@ -1,8 +1,10 @@
 #include "Core/Application.h"
+#include "Graphics/Light/PointLightManager.h"
 #include "Scene/TestScene.h"
 #include "Debug/DebugManager.h"
 #include <iostream>
 #include "Manager/ResourceManager.h"
+#include "ResourcePaths.h"
 #include "Manager/InputManager.h"
 
 
@@ -47,6 +49,8 @@ bool Application::Initialize()
         return false;
     }
 	ResourceManager::Get().Initialize(m_Graphics.GetDevice());
+    // preload skinned models on worker threads (Res::Mdl::kPreload). Scenes that need them wait on the future
+    ResourceManager::Get().PreloadModelsAsync(std::vector<std::string>(std::begin(Res::Mdl::kPreload), std::end(Res::Mdl::kPreload)));
     InputManager::Get().Initialize(m_Window.GetHandle());
 	if(!m_Game.Initialize(&m_Renderer)) return false;
     // Timer
@@ -70,6 +74,7 @@ void Application::Run()
         InputManager::Get().Update();
         DebugManager::Get().Update(dt);
         DebugManager::Get().BeginFrame();
+        PointLightManager::Get().BeginFrame();   // point light list: clear per frame
 		// Update
 		m_Game.Update(dt);
         m_Graphics.BeginFrame();

@@ -19,6 +19,6 @@ float4 main(PS_INPUT input) : SV_TARGET
     float3 N = PerturbNormal(input.Normal, input.Tangent, nm);
     float3 V = normalize(cameraPosition - input.WorldPos);
 
-    float3 c = ShadePBR(N, V, albedo, metallic, roughness, ao);
+    float3 c = ShadePBR(N, V, albedo, metallic, roughness, ao, input.WorldPos);
     return float4(c * input.Color.rgb + glow, 1.0);
 }

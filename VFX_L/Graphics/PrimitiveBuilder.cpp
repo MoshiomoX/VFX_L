@@ -75,6 +75,58 @@ namespace PrimitiveBuilder
     }
 
     // ========================================================
+    // Hexahedron：8 頂点の六面体（台形柱・楔・斜坡）。
+    // 頂点順は CollisionMath::ConvexFromHexahedron と同じ:
+    //   下面 0-3（-x-z, +x-z, +x+z, -x+z）、上面 4-7 が対応。
+    // 面ごとに平面法線を付ける（箱と同じ見え方）
+    // ========================================================
+    std::shared_ptr<Model> CreateHexahedron(ID3D11Device* device, const Vector3 v[8],
+        const Vector4& color)
+    {
+        std::vector<VERTEX_3D> verts;
+        std::vector<unsigned int> indices;
+
+        Vector3 centroid;
+        for (int i = 0; i < 8; ++i) centroid += v[i];
+        centroid /= 8.0f;
+
+        // CreateBox と同じ並び（外から見て 左下・左上・右上・右下）
+        static const int faces[6][4] = {
+            { 0, 4, 5, 1 },   // -Z
+            { 2, 6, 7, 3 },   // +Z
+            { 3, 7, 4, 0 },   // -X
+            { 1, 5, 6, 2 },   // +X
+            { 3, 0, 1, 2 },   // -Y
+            { 4, 7, 6, 5 },   // +Y
+        };
+        static const Vector2 uvs[4] = { { 0, 1 }, { 0, 0 }, { 1, 0 }, { 1, 1 } };
+
+        for (int f = 0; f < 6; ++f)
+        {
+            const Vector3& a = v[faces[f][0]];
+            const Vector3& b = v[faces[f][1]];
+            const Vector3& c = v[faces[f][2]];
+            Vector3 n = (b - a).Cross(c - a);
+            n.Normalize();
+            if (n.Dot(a - centroid) < 0.0f) n = -n;   // 外向きに揃える
+
+            unsigned int base = (unsigned int)verts.size();
+            for (int k = 0; k < 4; ++k)
+                verts.push_back(MakeVertex(v[faces[f][k]], n, uvs[k], color));
+
+            indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 1);
+            indices.push_back(base + 0); indices.push_back(base + 3); indices.push_back(base + 2);
+        }
+
+        auto mesh = std::make_shared<Mesh>();
+        if (!mesh->Create(device, verts, indices)) return nullptr;
+
+        auto model = std::make_shared<Model>();
+        model->AddSubMesh(mesh);
+        return model;
+    }
+
+    // ========================================================
     // Sphere：UV球（経緯度分割）
     // ========================================================
     std::shared_ptr<Model> CreateSphere(ID3D11Device* device, float radius,

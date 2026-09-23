@@ -34,6 +34,14 @@ struct AnimationClip
     std::unordered_map<std::string, int>  nodeToChannel;          // node名 → channel index
 };
 
+// 骨 1 本の親基準の姿勢（ブレンドはこの形で行う。行列にしてから混ぜると歪む）
+struct BoneLocal
+{
+    DirectX::SimpleMath::Vector3    scale = { 1, 1, 1 };
+    DirectX::SimpleMath::Quaternion rotation;   // 単位
+    DirectX::SimpleMath::Vector3    translation;
+};
+
 // ============================================================
 // SkinnedModel
 // 骨付きモデルの CPU 側データ: bind pose 頂点 / 骨格 / アニメ / 材質。
@@ -45,7 +53,8 @@ public:
     // 1 submesh 分の CPU データ（bind pose）
     struct SubMesh
     {
-        std::string                name;
+        std::string                name;       // mesh 名（Blender だと "Cube.153" のような機械名）
+        std::string                nodeName;   // mesh を持つノード名（"Mage_Hat" / "2H_Staff"。表示切替はこちらで引く）
         std::vector<SkinnedVertex> vertices;   // bind pose（mesh 空間、変換は焼かない）
         std::vector<uint32_t>      indices;
         int                        materialIndex = -1;
@@ -61,8 +70,14 @@ public:
     bool  HasAnimation() const { return !m_Animations.empty(); }
     int   GetClipCount() const { return (int)m_Animations.size(); }
     float GetClipDurationSec(int clipIndex = 0) const;
+    // クリップ名 → index。見つからなければ -1。
+    // Blender 出力の FBX は "Rig|Idle" のように接頭辞が付くので、末尾一致も許す
+    int   FindClip(const std::string& name) const;
+    const std::string& GetClipName(int clipIndex) const { return m_Animations[clipIndex].name; }
 
     const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
+    // ノード名 → submesh index（無ければ -1）
+    int FindSubMeshByNode(const std::string& nodeName) const;
     Skeleton& GetSkeleton() { return m_Skeleton; }
     const Skeleton& GetSkeleton() const { return m_Skeleton; }
     const std::string& GetDirectory() const { return m_Directory; }
@@ -75,9 +90,32 @@ public:
     }
 
     // 時刻 → 各ボーンの global 行列（offset は掛けない）
+    // 1 クリップをそのまま流す簡易版。ブレンドするなら下の SampleLocal 系を使う
     void SampleAnimation(float timeSec,
         std::vector<DirectX::SimpleMath::Matrix>& outGlobal,
         int clipIndex = 0) const;
+
+    // ---- ブレンド用の分解版 ----
+    // 時刻 → 各ボーンの親基準 S/R/T（チャンネルの無い骨は bind）
+    void SampleLocal(int clipIndex, float timeSec, std::vector<BoneLocal>& outLocal) const;
+    // 親基準 S/R/T → global 行列
+    void BuildGlobals(const std::vector<BoneLocal>& local,
+        std::vector<DirectX::SimpleMath::Matrix>& outGlobal) const;
+    // a と b を t で混ぜて a に書く（t=0 → a のまま、t=1 → b）。
+    // weights を渡すと骨毎に t を掛ける（上半身だけ差し替える等）
+    static void BlendLocals(std::vector<BoneLocal>& a, const std::vector<BoneLocal>& b,
+        float t, const std::vector<float>* weights = nullptr);
+    // rootBone とその子孫を 1、他を 0 にした骨マスクを作る（無い名前なら false）
+    bool BuildBoneMask(const std::string& rootBone, std::vector<float>& outMask) const;
+
+    // ---- 1 フレームを CPU で蒙皮して静的 Model にする ----
+    // 雑魚のようにインスタンス描画したい相手用（骨は持たせない）。
+    //   xform      … 蒙皮後の頂点に掛ける（拡縮・向き・足元合わせ）
+    //   skipNodes  … 含めない submesh のノード名（持たせない武器など）
+    // 材質は付けない（呼び側が VS/PS/貼图を持つ）。頂点色は白
+    std::shared_ptr<class Model> BakeStatic(ID3D11Device* device, int clipIndex, float timeSec,
+        const DirectX::SimpleMath::Matrix& xform,
+        const std::vector<std::string>& skipNodes = {}) const;
 
     // submesh 毎: palette[bone] = boneOffsets[bone] * global[bone]
     void BuildSubmeshPalette(int submeshIndex,

@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // CollisionTestScene.cpp
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -7,6 +7,10 @@
 #include "Component/ColliderComponent.h"
 #include "Component/RigidbodyComponent.h"
 #include "Component/ModelComponent.h"
+#include "Component/SkinnedAnimComponent.h"
+#include "Graphics/Model/SkinnedModel.h"
+#include "Graphics/Model/SkinnedModelGPU.h"
+#include <algorithm>
 #include "Component/Projectile/ProjectileComponent.h"
 #include "Component/Projectile/ProjectileVisualComponent.h"
 #include "Component/Projectile/ProjectileVFXComponent.h"
@@ -272,7 +276,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ============================================================
     // System の実行順（固定）
-    // 操作 → 湧き依頼 → 衝突 → 物理 → 状態機 → 杖 → マナ結算 → レベル判定
+    // 操作 → 湧き依頼 → 衝突 → 物理 → 状態機 → 杖 → アニメ → マナ結算 → レベル判定
     //      → カメラ → GPU gameplay Flush → 粒子 Flush
     //
     // ※雑魚の AI は GPU（SwarmEnemyAICS）。CPU には無い。
@@ -316,6 +320,10 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_PlayerStateSystem.Update(m_Registry, dt);
 
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
+
+    // ---- 見た目のアニメ（杖の後: 「今フレーム撃った」を拾うため）----
+    m_PlayerAnimSystem.Update(m_Registry, dt);
+    m_SkinnedAnimSystem.Update(m_Registry, dt);
 
     m_ManaSystem.Update(m_Registry, dt);
 
@@ -411,6 +419,9 @@ void CollisionTestScene::UpdateGameplay(float dt)
             ? m_Registry.Get<TransformComponent>(m_Player).position : Vector3::Zero);
 
         m_ParticleSystem.Flush(dt, m_TotalTime);
+
+        // 点光源: CPU 側の VFX（範囲・精英）はもう積み終わっている。弾と範囲の分を GPU で追記
+        m_Swarm.CollectLights();
 
         auto t1 = std::chrono::high_resolution_clock::now();
         m_FlushMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -603,6 +614,7 @@ void CollisionTestScene::DrawColliderDebug(Entity e, const Color& color)
     case ColliderShape::Sphere:  dbg.DrawWireSphere(c, col.radius, color); break;
     case ColliderShape::Capsule: dbg.DrawWireCapsule(c, col.radius, col.height, color); break;
     case ColliderShape::AABB:    dbg.DrawWireAABB(c, col.halfExtents, color); break;
+    case ColliderShape::Convex:  dbg.DrawWireAABB(c, col.halfExtents, color); break;   // 包囲箱だけ
     }
 }
 
@@ -718,11 +730,42 @@ void CollisionTestScene::SpawnElite(const Vector3& pos)
     reward.splitCount = 1;
     m_Registry.Add<ExpRewardComponent>(e, reward);
 
-    ModelComponent mc;
-    mc.model = m_DummyModel;
-    m_Registry.Add<ModelComponent>(e, mc);
+    // 見た目: 骨付きの Skeleton_Warrior（Idle ループ）。読めなければ従来のカプセル
+    if (!AttachEliteVisual(e))
+    {
+        ModelComponent mc;
+        mc.model = m_DummyModel;
+        m_Registry.Add<ModelComponent>(e, mc);
+    }
 
     m_Elites.push_back(e);
+}
+
+// ============================================================
+// 精英の骨付きモデル
+// 玩家と同じ SkinnedAnimComponent 経路（SkinnedAnimSystem が時計、RenderSystem が描画）。
+// 状態機は無いので base 層に Idle を流すだけ。的なので玩家の方（-Z）を向かせる
+// ============================================================
+bool CollisionTestScene::AttachEliteVisual(Entity e)
+{
+    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::KayKit_SkeletonWarrior);
+    if (loaded.kind != ModelKind::Skinned || !loaded.skinnedModel) return false;
+
+    auto& gfx = Application::Get().GetGraphics();
+    auto gpu = std::make_shared<SkinnedModelGPU>();
+    if (!gpu->Initialize(gfx.GetContext(), gfx.GetDevice(), *loaded.skinnedModel)) return false;
+
+    SkinnedAnimComponent anim;
+    anim.model = loaded.skinnedModel;
+    anim.gpu = gpu;
+    anim.yawOffsetDeg = 180.0f;                          // KayKit は -Z が正面
+    anim.offset = { 0.0f, -(0.5f + 0.4f), 0.0f };        // SpawnCapsule(0.4, 1.0) の中心 → 足元
+    anim.base.Play((std::max)(0, loaded.skinnedModel->FindClip("Idle")), true);
+    m_Registry.Add<SkinnedAnimComponent>(e, anim);
+
+    if (m_Registry.Has<TransformComponent>(e))
+        m_Registry.Get<TransformComponent>(e).rotation.y = 180.0f;   // 玩家の方を向く
+    return true;
 }
 
 // ============================================================
@@ -1017,6 +1060,28 @@ void CollisionTestScene::DrawPlayerPanel()
             state.damageTime = 0.0f;
             state.invincibleTimer = 0.0f;
         }
+    }
+
+    // ---- アニメ（状態機 → クリップの写像の確認用）----
+    if (m_Registry.Has<SkinnedAnimComponent>(m_Player))
+    {
+        auto& anim = m_Registry.Get<SkinnedAnimComponent>(m_Player);
+        auto clipName = [&](const SkinnedAnimLayer& L) -> const char*
+            {
+                return (anim.model && L.clip >= 0) ? anim.model->GetClipName(L.clip).c_str() : "-";
+            };
+
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Animation (3 layers)");
+        ImGui::Text("base  : %-18s %.2fs", clipName(anim.base), anim.base.time);
+        ImGui::Text("upper : %-18s %.2fs  w=%.2f%s", clipName(anim.upper), anim.upper.time,
+            anim.upper.weight, anim.upper.finished ? " (end)" : "");
+        ImGui::Text("over  : %-18s %.2fs  w=%.2f%s", clipName(anim.over), anim.over.time,
+            anim.over.weight, anim.over.finished ? " (end)" : "");
+        ImGui::Checkbox("Show Skinned", &anim.visible);
+        ImGui::SameLine();
+        ImGui::DragFloat("Yaw Offset", &anim.yawOffsetDeg, 1.0f, -180.0f, 180.0f);
+        ImGui::DragFloat3("Model Offset", &anim.offset.x, 0.01f);
     }
 
     // ---- 能力値 ----

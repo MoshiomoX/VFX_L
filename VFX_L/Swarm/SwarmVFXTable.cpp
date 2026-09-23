@@ -4,6 +4,7 @@
 #include "Swarm/SwarmVFXTable.h"
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXParticleEntry.h"
+#include "VFX_Editor/VFXPointLightEntry.h"
 #include "Particle/GPUParticleSystem.h"
 #include "Manager/ResourceManager.h"
 #include <iostream>
@@ -81,17 +82,17 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
             continue;
         }
 
-        // 最初の Particle entry を探す
+        // 最初の Particle entry と、全部の Light entry を拾う
         VFXParticleEntry* pe = nullptr;
+        std::vector<const VFXPointLightEntry*> lightEntries;
         for (int k = 0; ; ++k)
         {
             VFXEntry* e = tmpl->GetEntry(k);
             if (!e) break;
-            if (e->GetType() == EntryType::Particle)
-            {
+            if (e->GetType() == EntryType::Particle && !pe)
                 pe = static_cast<VFXParticleEntry*>(e);
-                break;
-            }
+            else if (e->GetType() == EntryType::Light)
+                lightEntries.push_back(static_cast<const VFXPointLightEntry*>(e));
         }
         if (!pe) continue;
 
@@ -99,6 +100,17 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         r.particleStart = (uint32_t)emitters.size();
         r.modelStart = (uint32_t)models.size();
         r.lightStart = (uint32_t)lights.size();
+
+        // ---- 光源表（時間軸は無いので intensityStart だけ）----
+        for (const auto* le : lightEntries)
+        {
+            Swarm::VFXLightEntry l;
+            l.color[0] = le->color.x; l.color[1] = le->color.y; l.color[2] = le->color.z; l.color[3] = 1.0f;
+            l.radius = le->radius;
+            l.intensity = le->intensityStart;
+            lights.push_back(l);
+        }
+        r.lightCount = (uint32_t)lightEntries.size();
 
         // ---- GPU 互換チェック ----
         // 一弾一スレッド・無状態なので時間軸は表現できない
@@ -143,7 +155,8 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         particles->RegisterStaticColorKeys(keys);
 
     std::cout << "[SwarmVFX] " << recipes.size() - 1 << " recipes, "
-        << emitters.size() << " emitters, " << keys.size() << " color keys, "
+        << emitters.size() << " emitters, " << lights.size() << " lights, "
+        << keys.size() << " color keys, "
         << m_Warnings << " warnings" << std::endl;
     return true;
 }

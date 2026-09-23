@@ -43,6 +43,32 @@ namespace CollisionMath
         Vector3 max;
     };
 
+    // 平面（n は正規化済み。n·p <= d が「内側」）
+    struct Plane
+    {
+        Vector3 n;
+        float   d;
+
+        float SignedDist(const Vector3& p) const { return n.Dot(p) - d; }   // 正 = 外側
+    };
+
+    // 凸多面体 = 平面の集合（全部の内側の共通部分）。
+    // 台形柱・斜坡・楔など、軸に揃わない面を持つ静的地形用。
+    // 面数は固定上限（vector を持たせない: WorldCollider が毎フレーム値コピーされる）
+    constexpr int kMaxConvexPlanes = 12;
+    struct Convex
+    {
+        Plane planes[kMaxConvexPlanes];
+        int   count = 0;
+
+        bool Contains(const Vector3& p) const
+        {
+            for (int i = 0; i < count; ++i)
+                if (planes[i].SignedDist(p) > 0.0f) return false;
+            return true;
+        }
+    };
+
     // 有限線分
     struct Segment
     {
@@ -298,6 +324,187 @@ namespace CollisionMath
         out.depth = bestDepth;
         out.point = bestPoint;
         return true;
+    }
+
+    // ========================================================
+    // 点 → 凸多面体
+    //   外側: 違反している平面へ順に投影する（凸なら数回で収束。
+    //         辺・頂点領域では 2〜3 枚を交互に押されて落ち着く）
+    //   内側: 一番浅い平面（|符号付き距離| 最小）の上へ。
+    //   戻り値は「p が内側だったか」
+    // ========================================================
+    inline bool ClosestPointOnConvex(const Vector3& p, const Convex& hull, Vector3& outClosest,
+        Vector3& outNormal, float& outInsideDepth)
+    {
+        if (hull.count == 0) { outClosest = p; outNormal = Vector3(0, 1, 0); outInsideDepth = 0; return false; }
+
+        // ---- 内側判定 + 一番浅い面 ----
+        int   shallow = -1;
+        float shallowDist = -1e30f;   // 符号付き距離の最大（負の中で 0 に一番近い）
+        bool  inside = true;
+        for (int i = 0; i < hull.count; ++i)
+        {
+            const float sd = hull.planes[i].SignedDist(p);
+            if (sd > 0.0f) inside = false;
+            if (sd > shallowDist) { shallowDist = sd; shallow = i; }
+        }
+        if (inside)
+        {
+            const Plane& pl = hull.planes[shallow];
+            outNormal = pl.n;
+            outInsideDepth = -shallowDist;          // 面までの距離（正）
+            outClosest = p - pl.n * shallowDist;    // 面の上
+            return true;
+        }
+
+        // ---- 外側: 逐次投影 ----
+        Vector3 q = p;
+        for (int iter = 0; iter < 6; ++iter)
+        {
+            int   worst = -1;
+            float worstDist = 1e-5f;
+            for (int i = 0; i < hull.count; ++i)
+            {
+                const float sd = hull.planes[i].SignedDist(q);
+                if (sd > worstDist) { worstDist = sd; worst = i; }
+            }
+            if (worst < 0) break;
+            q -= hull.planes[worst].n * worstDist;
+        }
+        outClosest = q;
+        Vector3 d = p - q;
+        const float len = d.Length();
+        outNormal = (len > 1e-6f) ? d / len : hull.planes[shallow].n;
+        outInsideDepth = 0.0f;
+        return false;
+    }
+
+    // ========================================================
+    // Sphere vs Convex（Contact の A = Sphere）
+    // ========================================================
+    inline bool IntersectSphereConvex(const Sphere& s, const Convex& hull, Contact& out)
+    {
+        Vector3 closest, n; float insideDepth;
+        const bool inside = ClosestPointOnConvex(s.center, hull, closest, n, insideDepth);
+        if (inside)
+        {
+            out.normal = n;
+            out.depth = insideDepth + s.radius;
+            out.point = closest;
+            return true;
+        }
+        const float distSq = (s.center - closest).LengthSquared();
+        if (distSq > s.radius * s.radius) return false;
+        out.normal = n;
+        out.depth = s.radius - std::sqrt(distSq);
+        out.point = closest;
+        return true;
+    }
+    inline bool IntersectSphereConvex(const Sphere& s, const Convex& hull)
+    {
+        Contact c; return IntersectSphereConvex(s, hull, c);
+    }
+
+    // ========================================================
+    // Capsule vs Convex（Contact の A = Capsule）
+    //   AABB 版と同じく軸線を採様して最深点を採る
+    // ========================================================
+    inline bool IntersectCapsuleConvex(const Capsule& cap, const Convex& hull, Contact& out)
+    {
+        Vector3 a, b; CapsuleSegment(cap, a, b);
+        const int SAMPLES = 8;
+
+        float bestDepth = -1.0f;
+        Contact best;
+        for (int i = 0; i <= SAMPLES; ++i)
+        {
+            const float t = (float)i / SAMPLES;
+            Contact c;
+            if (IntersectSphereConvex({ a + (b - a) * t, cap.radius }, hull, c) && c.depth > bestDepth)
+            {
+                bestDepth = c.depth;
+                best = c;
+            }
+        }
+        if (bestDepth < 0.0f) return false;
+        out = best;
+        return true;
+    }
+    inline bool IntersectCapsuleConvex(const Capsule& cap, const Convex& hull)
+    {
+        Contact c; return IntersectCapsuleConvex(cap, hull, c);
+    }
+
+    // ========================================================
+    // Ray vs Convex（Cyrus-Beck: 各平面で射線区間を切り詰める）
+    //   起点が内側なら AABB 版と同じく命中無し
+    // ========================================================
+    inline RayHit RaycastConvex(const Ray& ray, const Convex& hull)
+    {
+        RayHit r;
+        float tmin = 0.0f, tmax = ray.maxDist;
+        int enter = -1;
+        for (int i = 0; i < hull.count; ++i)
+        {
+            const Plane& pl = hull.planes[i];
+            const float denom = pl.n.Dot(ray.dir);
+            const float num = pl.d - pl.n.Dot(ray.origin);   // 正 = 起点は内側
+            if (std::abs(denom) < 1e-8f)
+            {
+                if (num < 0.0f) return r;    // 平行で外側
+                continue;
+            }
+            const float t = num / denom;
+            if (denom < 0.0f) { if (t > tmin) { tmin = t; enter = i; } }   // 入る
+            else              { if (t < tmax) tmax = t; }                  // 出る
+            if (tmin > tmax) return r;
+        }
+        if (enter < 0) return r;
+        r.hit = true;
+        r.t = tmin;
+        r.point = ray.origin + ray.dir * tmin;
+        r.normal = hull.planes[enter].n;
+        return r;
+    }
+
+    // ========================================================
+    // 凸多面体の組み立て
+    // ========================================================
+    // 3 点から平面（法線は (b-a)×(c-a)。outward になる順で渡すこと）
+    inline Plane PlaneFromPoints(const Vector3& a, const Vector3& b, const Vector3& c)
+    {
+        Vector3 n = (b - a).Cross(c - a);
+        n.Normalize();
+        return { n, n.Dot(a) };
+    }
+
+    // 8 頂点の六面体（箱を歪めた物: 台形柱・楔・斜坡）。
+    // 頂点順: 下面 0-3（-x-z, +x-z, +x+z, -x+z）、上面 4-7 が同じ順で対応。
+    // 法線の向きは重心が内側に来るように揃えるので、面内の頂点順は気にしなくてよい
+    inline Convex ConvexFromHexahedron(const Vector3 v[8])
+    {
+        Vector3 centroid;
+        for (int i = 0; i < 8; ++i) centroid += v[i];
+        centroid /= 8.0f;
+
+        static const int faces[6][3] = {
+            { 0, 1, 3 },   // 下
+            { 4, 5, 7 },   // 上
+            { 0, 1, 4 },   // 手前（-z 側）
+            { 3, 2, 7 },   // 奥（+z 側）
+            { 0, 3, 4 },   // 左（-x 側）
+            { 1, 2, 5 },   // 右（+x 側）
+        };
+
+        Convex h;
+        h.count = 6;
+        for (int f = 0; f < 6; ++f)
+        {
+            Plane pl = PlaneFromPoints(v[faces[f][0]], v[faces[f][1]], v[faces[f][2]]);
+            if (pl.SignedDist(centroid) > 0.0f) { pl.n = -pl.n; pl.d = -pl.d; }
+            h.planes[f] = pl;
+        }
+        return h;
     }
 
     // ========================================================

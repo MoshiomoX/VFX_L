@@ -5,6 +5,7 @@
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "VFX_Editor/VFXMeshEntry.h"
+#include "VFX_Editor/VFXPointLightEntry.h"
 #include "Particle/GPUParticleSystem.h"
 #include <algorithm>
 #include <iostream>
@@ -27,8 +28,10 @@ int VFXEffect::AddEntry(EntryType type, float startTime, float duration)
     case EntryType::Particle:
         entry = std::make_unique<VFXParticleEntry>();
         break;
-    case EntryType::Mesh: 
+    case EntryType::Mesh:
         entry = std::make_unique<VFXMeshEntry>(); break;
+    case EntryType::Light:
+        entry = std::make_unique<VFXPointLightEntry>(); break;
     default:
         return -1;
     }
@@ -166,6 +169,11 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         else if (entry->GetType() == EntryType::Mesh && ctx.meshRenderer)
         {
             static_cast<VFXMeshEntry*>(entry.get())->Submit(*ctx.meshRenderer, m_WorldOffset);
+        }
+        else if (entry->GetType() == EntryType::Light)
+        {
+            // 点光源は PointLightManager（全体で 1 つ）へ。ctx を経由しない
+            static_cast<VFXPointLightEntry*>(entry.get())->Submit(m_WorldOffset);
         }
     }
 

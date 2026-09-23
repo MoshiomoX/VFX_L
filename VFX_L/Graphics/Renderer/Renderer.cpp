@@ -1,5 +1,6 @@
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Shader/ShaderPath.h"
+#include "Graphics/Light/PointLightManager.h"
 #include <iostream>
 
 bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
@@ -55,6 +56,11 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
         std::cout << "[Error] RenderStates init failed" << std::endl;
         return false;
     }
+    if (!PointLightManager::Get().Initialize(device))
+    {
+        std::cout << "[Error] PointLightManager init failed" << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -62,6 +68,7 @@ void Renderer::Shutdown()
 {
     m_DefaultVS.reset();
     m_DefaultPS.reset();
+    PointLightManager::Get().Shutdown();
     RenderStates::Get().Shutdown();
     m_Device = nullptr;
     m_Context = nullptr;
@@ -145,7 +152,12 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
     ps->WriteBuffer(m_Context, 1, &dcb);
     m_Context->PSSetShaderResources(5, 1, &noise);
 
+    // t6/t7: 今フレームの点光源（無い PS では無視される）
+    auto& lights = PointLightManager::Get();
+    lights.BindPS(m_Context);
     mesh->Draw(m_Context);
+    // 次フレームの Update で CS が UAV にするので外す（HAZARD 警告を出さない）
+    lights.UnbindPS(m_Context);
 }
 
 void Renderer::End()
