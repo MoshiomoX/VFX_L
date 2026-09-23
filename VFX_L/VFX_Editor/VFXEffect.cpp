@@ -4,6 +4,7 @@
 // ============================================================
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXParticleEntry.h"
+#include "VFX_Editor/VFXMeshEntry.h"
 #include "Particle/GPUParticleSystem.h"
 #include <algorithm>
 #include <iostream>
@@ -26,6 +27,8 @@ int VFXEffect::AddEntry(EntryType type, float startTime, float duration)
     case EntryType::Particle:
         entry = std::make_unique<VFXParticleEntry>();
         break;
+    case EntryType::Mesh: 
+        entry = std::make_unique<VFXMeshEntry>(); break;
     default:
         return -1;
     }
@@ -105,6 +108,25 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
     std::vector<ColorKey> colorKeys;
     int colorKeyOffset = 0;
 
+    // ---- 掃引ベクトル（今フレームの位置 → 前フレームの位置）----
+    // 1フレームで kMaxSweep より動いた時は瞬間移動とみなして掃引しない
+    // （プールからの再利用などで、移動前後が粒子の線で結ばれるのを防ぐ）
+    constexpr float kMaxSweep = 5.0f;
+    DirectX::SimpleMath::Vector3 sweep = { 0, 0, 0 };
+    if (m_SweepEnabled && m_HasPrevOffset)
+    {
+        sweep = m_PrevWorldOffset - m_WorldOffset;
+        if (sweep.LengthSquared() > kMaxSweep * kMaxSweep)
+            sweep = { 0, 0, 0 };
+    }
+    m_PrevWorldOffset = m_WorldOffset;
+    m_HasPrevOffset = true;
+
+    // 溶解の縁から出す粒子は、同じ effect の最初の Mesh entry の溶解を読む
+    const VFXMeshEntry* dissolveSrc = nullptr;
+    for (auto& entry : m_Entries)
+        if (entry->GetType() == EntryType::Mesh) { dissolveSrc = static_cast<VFXMeshEntry*>(entry.get()); break; }
+
     for (auto& entry : m_Entries)
     {
         if (entry->GetType() == EntryType::Particle && entry->isPlaying)
@@ -112,15 +134,38 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
             auto* pEntry = static_cast<VFXParticleEntry*>(entry.get());
             pEntry->emitterData.Update(dt);
             GPUEmitter ge = pEntry->emitterData.ToGPU();
-            ge.position += m_WorldOffset;
+
+            // 源の世界行列に従う場合は worldOffset を足さない（二重になる）
+            if (pEntry->followWorld)
+                ge.world = *pEntry->followWorld;
+            else
+            {
+                ge.position += m_WorldOffset;
+                ge.sweep = sweep;
+            }
+
             ge.colorKeyOffset = colorKeyOffset;
+            ge.trailStyle = pEntry->GetTrailSlot();   // 0 = 帯なし
             emitters.push_back(ge);
+
+            // 縁モード：今フレームの溶解パラメータで頂点表を作ってもらう
+            if (ge.emitType == static_cast<int>(EmitType::Mesh) && ge.edgeMode == 1
+                && ge.sourceId >= 0 && ctx.particleSystem && dissolveSrc)
+            {
+                EdgeFilterParams ep;
+                if (dissolveSrc->GetEdgeFilterParams(ep))
+                    ctx.particleSystem->SetSourceEdgeParams(ge.sourceId, ep);
+            }
 
             for (int k = 0; k < pEntry->emitterData.colorKeyCount; k++)
             {
                 colorKeys.push_back(pEntry->emitterData.colorKeys[k]);
             }
             colorKeyOffset += pEntry->emitterData.colorKeyCount;
+        }
+        else if (entry->GetType() == EntryType::Mesh && ctx.meshRenderer)
+        {
+            static_cast<VFXMeshEntry*>(entry.get())->Submit(*ctx.meshRenderer, m_WorldOffset);
         }
     }
 
@@ -200,6 +245,7 @@ void VFXEffect::Play()
     // 即時に Idle → Playing で確実に最初から再生
     m_SM.ChangeState(m_SMCtx, *this, VFXStateID::Idle);
     ResetTimeline();
+    NotifyTeleport();   // 前回の再生位置から線を引かない
     m_SM.ChangeState(m_SMCtx, *this, VFXStateID::Playing);
 }
 

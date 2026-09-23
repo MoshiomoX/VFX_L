@@ -5,6 +5,9 @@
 #include "Scene/GYScene.h"
 #include "Scene/CollisionTestScene.h"
 #include "Scene/VFXEditorScene.h"
+#include "Scene/ProjectileEditorScene.h"
+#include "Scene/TitleScene.h"
+#include "Scene/ResultScene.h"
 Game::Game()
 {
     // 初始化 SceneManager（注册场景）
@@ -29,6 +32,11 @@ bool Game::Initialize(Renderer* renderer)
 
 	m_SceneManager.RegisterScene<CollisionTestScene>(SceneType::COLLISION_TEST);
 	m_SceneManager.RegisterScene<VFXEditorScene>(SceneType::VFX_EDITOR);
+	m_SceneManager.RegisterScene<ProjectileEditorScene>(SceneType::PROJECTILE_EDITOR);
+	m_SceneManager.RegisterScene<TitleScene>(SceneType::TITLE);
+	m_SceneManager.RegisterScene<ResultScene>(SceneType::RESULT);
+
+    // 起動はタイトルから。ゲームへ直行したい時は F1（DebugManager のシーン切替）
     m_SceneManager.ChangeScene(SceneType::VFX_EDITOR);
 
 

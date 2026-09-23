@@ -8,6 +8,7 @@
 #include "Component/WandComponent.h"
 #include "Component/AreaStats.h"
 #include "Item/ItemDatabase.h"
+#include "Swarm/AreaProfile.h"
 #include "ECS/View.h"
 #include <unordered_set>
 #include <iostream>
@@ -144,6 +145,18 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         else if (auto* adef = ItemDatabase::GetArea(item.id))
         {
             AreaStats stats = adef->baseStats;
+
+            // 編集器のプロファイルがあれば、形・時間・威力はそちらが基礎値。
+            // 修飾符はこの後で上に掛かる
+            stats.profile = AreaProfileDB::IndexOf(adef->profile);
+            if (stats.profile > 0)
+            {
+                const AreaProfile& ap = AreaProfileDB::At(stats.profile);
+                stats.radius = ap.radius;
+                stats.duration = ap.duration;
+                stats.tickInterval = ap.tickInterval;
+                stats.damagePerTick = ap.damage;
+            }
 
             for (size_t srcIdx : influencers)
             {

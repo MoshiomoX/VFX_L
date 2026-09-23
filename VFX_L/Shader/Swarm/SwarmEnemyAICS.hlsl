@@ -29,6 +29,14 @@ void main(uint3 id : SV_DispatchThreadID)
     if (enemyStates[i] == SWARM_DEAD)
         return;
 
+    // ---- hit stun: stand still ----
+    // velocity 0 so the exit ramps back up through the lag below
+    if (enemies[i].animIndex == 2u)
+    {
+        enemies[i].velocity = float3(0, 0, 0);
+        return;
+    }
+
     float3 pos = enemies[i].position;
     float3 oldV = enemies[i].velocity; // own slot: written by this thread last step
     float moveSpeed = enemies[i].moveSpeed;

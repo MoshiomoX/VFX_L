@@ -27,7 +27,8 @@ void VFXEditor::DrawSystemInfo()
         ImGui::TextDisabled("Alive count lives on the GPU only.");
         ImGui::Separator();
     }
-
+    if (m_MeshRenderer)
+        ImGui::Text("Mesh items : %zu", m_MeshRenderer->GetItemCount());
     // Effect名編集
     char name[128];
     strncpy_s(name, m_Effect->GetName().c_str(), sizeof(name));
@@ -189,7 +190,7 @@ void VFXEditor::DrawEntryList()
         const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound" };
         for (int t = 0; t < 6; t++)
         {
-            bool enabled = (t == 0);
+            bool enabled = (t == 0 || t == 3);
             if (!enabled) ImGui::BeginDisabled();
             if (ImGui::Selectable(typeNames[t]))
             {
@@ -226,6 +227,8 @@ void VFXEditor::DrawEntryList()
             ImGui::Text("Playing: %s", entry->isPlaying ? "Yes" : "No");
             ImGui::Separator();
 
+            if (entry->GetType() == EntryType::Particle)
+                static_cast<VFXParticleEntry*>(entry)->inspectorCtx = &m_Context;
             entry->OnImGui();
 
             // テクスチャプレビュー
@@ -283,6 +286,8 @@ void VFXEditor::DrawEntryInspector(int index)
     ImGui::Separator();
 
     // 各タイプ固有のImGui
+    if (entry->GetType() == EntryType::Particle)
+        static_cast<VFXParticleEntry*>(entry)->inspectorCtx = &m_Context;
     entry->OnImGui();
 
     // テクスチャプレビュー（Particleの場合）

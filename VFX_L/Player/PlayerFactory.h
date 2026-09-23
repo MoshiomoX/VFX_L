@@ -38,7 +38,7 @@ namespace PlayerFactory
         Vector4 color = { 0.3f, 0.6f, 1.0f, 1.0f };
 
         float moveSpeed = 5.0f;
-        float jumpPower = 8.0f;
+        float jumpPower = 12.0f;
 
         float maxHealth = 100.0f;
         float maxMana = 100.0f;

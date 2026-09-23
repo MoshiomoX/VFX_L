@@ -1,0 +1,5 @@
+{
+    "damage": 5.0, "duration": 4.0, "followCaster": true, "halfHeight": 1.5, "kind": 1,
+    "name": "FireCircle", "preview": { "atTarget": true, "interval": 5.0 },
+    "radius": 4.0, "stun": false, "tickInterval": 0.5, "vfx": "FireCircle.json"
+}

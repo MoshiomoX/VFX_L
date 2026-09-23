@@ -15,8 +15,10 @@ struct SkinnedVertexOut
     float _pad0;
     float3 normal;
     float _pad1;
+    float3 tangent;
+    float _pad2;
     float2 uv;
-    float2 _pad2;
+    float2 _pad3;
 };
 
 StructuredBuffer<SkinnedVertexOut> skinnedVerts : register(t0);
@@ -28,7 +30,7 @@ VS_OUTPUT main(uint vid : SV_VertexID)
     VS_INPUT i;
     i.Position = v.position;
     i.Normal = v.normal;
-    i.Tangent = float3(1.0, 0.0, 0.0);
+    i.Tangent = i.Tangent = v.tangent;
     i.UV = v.uv;
     i.Color = float4(1.0, 1.0, 1.0, 1.0);
     return ModelVS(i);

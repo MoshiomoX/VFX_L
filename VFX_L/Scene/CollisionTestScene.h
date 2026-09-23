@@ -24,6 +24,8 @@
 #include "ECS/System/WeaponSystem.h"
 #include "ECS/System/ProjectileSystem.h"
 #include "ECS/System/ProjectileVFXSystem.h"
+#include "Swarm/AreaVFXPlayer.h"
+#include "ECS/System/MeshVFXSystem.h"
 #include "Graphics/Renderer/ProjectileBillboardRenderer.h"
 #include "ECS/System/BackpackAggregateSystem.h"
 #include "UI/LevelUpSystem.h"
@@ -55,12 +57,14 @@ private:
     // ---- フレーム処理 ----
     void UpdateScreenSize();
     void UpdateGameplay(float dt);
+    void UpdateMeshEmitTest(float dt);   // Mesh 発射の動作確認（仮設）
 
     // ---- ImGui パネル ----
     void DrawDebugUI();
     void DrawPlayerPanel();
     void DrawWandPanel();
     void DrawStressPanel();
+    void DrawBloomPanel();   // 後処理 bloom の調整（Graphics 側の BloomParams を直接触る）
 
     // ---- デバッグ描画 ----
     void DrawColliderDebug(Entity e, const Color& color);
@@ -72,6 +76,7 @@ private:
     void RespawnElites();
     void StressSpawnProjectiles(int count);
     int  CountProjectiles() const;
+    void EndRun();                         // 戦績を書いてリザルトへ
     void RegisterItemVisuals();
 
 private:
@@ -91,6 +96,10 @@ private:
     ManaSystem              m_ManaSystem;
     ProjectileSystem        m_ProjectileSystem;
     ProjectileVFXSystem     m_ProjectileVFXSystem;
+    AreaVFXPlayer           m_AreaVFX;             // CPU から出した範囲攻撃の見た目
+    int                     m_AreaTestProfile = 1; // Swarm パネルの Area Test 用
+    MeshVFXSystem           m_MeshVFXSystem;       // モデル表面からの粒子（燃焼消滅など）
+    float                   m_BurnDuration = 1.5f; // 燃焼消滅の秒数（ImGui で調整）
     LevelUpSystem           m_LevelUpSystem;
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
@@ -105,6 +114,12 @@ private:
     VFXContext                  m_VFXContext;
     std::shared_ptr<Texture>    m_ParticleTexture;
     float m_TotalTime = 0.0f;
+
+    // --- 戦績（死亡時に RunResult へ写してリザルトへ渡す）---
+    static constexpr float kDeathToResult = 2.0f;   // 死亡からリザルトまでの秒数
+    float m_ExpGained = 0.0f;     // 拾った経験値の合計
+    float m_DeathTimer = 0.0f;    // 死亡してからの秒数
+    bool  m_RunEnded = false;     // リザルトへの切替を依頼済み
 
     GameUI m_GameUI;
     GridWorld m_Grid;
@@ -122,7 +137,7 @@ private:
     std::shared_ptr<Model> m_DummyModel;
 
     // --- 雑魚の初期値（SpawnDirector 経由で GPU へ渡す）---
-    float m_MobHp = 100.0f;
+    float m_MobHp = 30.0f;
     float m_MobSpeed = 3.5f;
 
     // --- 表示切替 ---
@@ -154,7 +169,7 @@ private:
     //   spawnPos = テスト用の復帰位置
     // ============================================================
     float m_PlayerColor[3] = { 0.3f, 0.6f, 1.0f };
-    float m_Gravity = -9.8f;
+    float m_Gravity = -25.0f;
     float m_SpawnPos[3] = { 0.0f, 5.0f, 0.0f };
 
     // ============================================================
@@ -181,6 +196,14 @@ private:
     // --- Emitter 統計（Flush でクリアされる前に退避）---
     size_t m_LastEmitterCount = 0;
     size_t m_LastDropped = 0;
+
+    // --- Mesh 発射の動作確認（仮設。Editor / 実体への接続ができたら外す）---
+    // 玩家の胶囊 Mesh を発射源として登録し、毎フレーム世界行列を渡して粒子を出す
+    bool                   m_MeshEmitTest = false;
+    float                  m_MeshEmitRate = 400.0f;
+    int                    m_MeshEmitSourceId = -1;
+    std::shared_ptr<Model> m_MeshEmitModel;        // 登録した源（RebuildVisual での差し替え検知）
+    GPUParticleEmitter     m_MeshEmitter{ 7777 };
 
     // ============================================================
     // 負荷テストの既定値セット

@@ -13,8 +13,10 @@ StructuredBuffer<ColorKey> colorKeys : register(t0);
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 AppendStructuredBuffer<uint> deadList : register(u1);
 RWBuffer<uint> g_DrawArgs : register(u2);
-RWStructuredBuffer<uint> aliveList : register(u3); // 存活粒子 index リスト
+RWStructuredBuffer<uint> aliveList : register(u3); // 存活粒子 index リスト (billboard)
 RWBuffer<uint> ownerAlive : register(u4); // 所有者ごとの生存数
+RWStructuredBuffer<uint> aliveCube : register(u5); // alive list of cube particles
+RWBuffer<uint> g_DrawArgsCube : register(u6); // DrawIndexedInstancedIndirect args, [1] = InstanceCount
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -38,9 +40,18 @@ void main(uint3 id : SV_DispatchThreadID)
     }
 
     // --- 生存確定：DrawArgs に +1、AliveList に index を追加 ---
+    // renderMode で billboard / cube の 2 本に振り分ける（描画パスが別）
     uint instanceIndex;
-    InterlockedAdd(g_DrawArgs[1], 1, instanceIndex);
-    aliveList[instanceIndex] = id.x;
+    if (p.renderMode == 1)
+    {
+        InterlockedAdd(g_DrawArgsCube[1], 1, instanceIndex);
+        aliveCube[instanceIndex] = id.x;
+    }
+    else
+    {
+        InterlockedAdd(g_DrawArgs[1], 1, instanceIndex);
+        aliveList[instanceIndex] = id.x;
+    }
 
     // --- 所有者別に数える（死んだ粒子は数えない）---
     // ※範囲外/負値は 0（無主バケツ）へ落とす。
@@ -88,5 +99,6 @@ void main(uint3 id : SV_DispatchThreadID)
 
     p.size = lerp(p.startSize, p.endSize, t);
     p.rotation += p.angularVel * g_DeltaTime;
+    p.rot3 += p.angVel3 * g_DeltaTime;
     particles[id.x] = p;
 }

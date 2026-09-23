@@ -50,57 +50,53 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
 	e.colorKeyOffset = m_ColorKeyOffset;
     e.colorKeyCount = colorKeyCount;    
 
+    // Mesh ç™ºå°„ç”¨ã€‚Mesh ä»¥å¤–ã®å½¢çŠ¶ã§ã¯èª­ã¾ã‚Œãªã„
+    e.world = world;
+    e.sourceId = -1;
+    e.sourceCount = 0;
+    e.edgeMode = 0;
+    e.renderMode = renderMode;
 
-    // Œ`óƒpƒ‰ƒ[ƒ^‚ğemitType‚É‰‚¶‚ÄƒpƒbƒLƒ“ƒO
+
+    // å½¢çŠ¶ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’emitTypeã«å¿œã˜ã¦ãƒ‘ãƒƒã‚­ãƒ³ã‚°
     switch (emitType)
     {
     case EmitType::Point:
         e.spreadAngle = shape.spreadAngle;
         e.shapeSize = { 0, 0, 0 };
-        e.meshVertexOffset = 0;
-        e.meshVertexCount = 0;
         break;
 
     case EmitType::Sphere:
         e.spreadAngle = 0.0f;
         e.shapeSize = { shape.radius, 0, 0 };
-        e.meshVertexOffset = 0;
-        e.meshVertexCount = 0;
         break;
 
     case EmitType::Cone:
         e.spreadAngle = shape.spreadAngle;
         e.shapeSize = { shape.radius, 0, 0 };
-        e.meshVertexOffset = 0;
-        e.meshVertexCount = 0;
         break;
 
     case EmitType::Box:
         e.spreadAngle = 0.0f;
         e.shapeSize = shape.boxExtents;
-        e.meshVertexOffset = 0;
-        e.meshVertexCount = 0;
         break;
 
     case EmitType::Ring:
         e.spreadAngle = 0.0f;
         e.shapeSize = { shape.radius, shape.innerRadius, 0 };
-        e.meshVertexOffset = 0;
-        e.meshVertexCount = 0;
         break;
 
     case EmitType::Disc:
         e.spreadAngle = shape.spreadAngle;
         e.shapeSize = { shape.radius, 0, 0 };
-        e.meshVertexOffset = 0;
-        e.meshVertexCount = 0;
         break;
 
     case EmitType::Mesh:
         e.spreadAngle = 0.0f;
         e.shapeSize = { 0, 0, 0 };
-        e.meshVertexOffset = shape.meshVertexOffset;
-        e.meshVertexCount = shape.meshVertexCount;
+        e.sourceId = shape.sourceId;
+        e.sourceCount = shape.sourceCount;
+        e.edgeMode = shape.edgeMode;
         break;
     }
 

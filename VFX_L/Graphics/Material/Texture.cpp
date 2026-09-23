@@ -27,13 +27,16 @@ bool Texture::Load(ID3D11Device* device, const std::wstring& filepath)
     else if (ext == L".hdr" || ext == L".HDR")
         hr = DirectX::LoadFromHDRFile(filepath.c_str(), nullptr, image);
     else
-        hr = DirectX::LoadFromWICFile(filepath.c_str(), DirectX::WIC_FLAGS_NONE, nullptr, image);
+        hr = DirectX::LoadFromWICFile(filepath.c_str(),
+            DirectX::WIC_FLAGS_FORCE_RGB, nullptr, image);
+
 
     if (FAILED(hr))
     {
         std::wcout << L"[Error] Texture load failed: " << filepath << std::endl;
         return false;
     }
+
 
     return FinishFromImage(device, image, filepath);
 }
@@ -59,7 +62,8 @@ bool Texture::LoadFromMemory(ID3D11Device* device, const void* data, size_t size
         hr = DirectX::LoadFromHDRMemory(bytes, size, nullptr, image);
 
     if (FAILED(hr))
-        hr = DirectX::LoadFromWICMemory(bytes, size, DirectX::WIC_FLAGS_NONE, nullptr, image);
+        hr = DirectX::LoadFromWICMemory(bytes, size,
+            DirectX::WIC_FLAGS_FORCE_RGB, nullptr, image);
     if (FAILED(hr))
     {
         std::cout << "[Error] Texture decode from memory failed (hint: " << hint << ")" << std::endl;
@@ -76,6 +80,38 @@ bool Texture::FinishFromImage(ID3D11Device* device, DirectX::ScratchImage& image
     const std::wstring& nameForLog)
 {
     HRESULT hr;
+    // ---- 単チャンネル（灰度 png 等）は RGBA に広げる ----
+    // R8 のままだと sampler が (r,0,0,1) を返して赤くなる
+    {
+        const DXGI_FORMAT f = image.GetMetadata().format;
+        const bool single =
+            f == DXGI_FORMAT_R8_UNORM || f == DXGI_FORMAT_R16_UNORM ||
+            f == DXGI_FORMAT_R16_FLOAT || f == DXGI_FORMAT_R32_FLOAT ||
+            f == DXGI_FORMAT_A8_UNORM;
+        if (single)
+        {
+            DirectX::ScratchImage gray;
+            hr = DirectX::TransformImage(
+                image.GetImages(), image.GetImageCount(), image.GetMetadata(),
+                [](DirectX::XMVECTOR* out, const DirectX::XMVECTOR* in, size_t w, size_t)
+                {
+                    for (size_t i = 0; i < w; ++i)
+                    {
+                        const float r = DirectX::XMVectorGetX(in[i]);
+                        out[i] = DirectX::XMVectorSet(r, r, r, 1.0f);
+                    }
+                }, gray);
+            if (SUCCEEDED(hr))
+            {
+                DirectX::ScratchImage rgba;
+                hr = DirectX::Convert(gray.GetImages(), gray.GetImageCount(), gray.GetMetadata(),
+                    DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_DEFAULT,
+                    DirectX::TEX_THRESHOLD_DEFAULT, rgba);
+                if (SUCCEEDED(hr))
+                    image = std::move(rgba);
+            }
+        }
+    }
 
     // mipmap が無ければ作る。圧縮済み（BC 系）はそのまま使う
     const auto& meta = image.GetMetadata();

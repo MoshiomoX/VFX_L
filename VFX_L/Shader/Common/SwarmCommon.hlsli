@@ -42,7 +42,10 @@ static const uint SWARM_CNT_NEAREST_DIST = 44;
 static const uint SWARM_CNT_EXP = 48;
 // alive orb count, cleared every step (same as ALIVE_ENEMIES)
 static const uint SWARM_CNT_ALIVE_ORBS = 52;
-// 56, 60: reserved. total 64 bytes
+// area attacks. both cleared every step (same as ALIVE_ENEMIES)
+static const uint SWARM_CNT_ALIVE_AREAS = 56;
+static const uint SWARM_CNT_TICKING_AREAS = 60; // areas that deal damage THIS step
+// total 64 bytes
 static const uint SWARM_NO_TARGET_KEY = 0xFFFFFFFFu;
 static const uint SWARM_SLOT_MASK = 0xFFFu;
 static const uint SWARM_DIST_MASK = 0xFFFFF000u;
@@ -65,7 +68,9 @@ struct SwarmEnemy
 
     float yaw;
 
-    // reserved for VAT animation (unused for now)
+    // animIndex 2 = hit stun. HitCS sets it with animTime = 0, MoveCS
+    // counts animTime up to g_HitStun then clears it, the VS reads it
+    // for the flash. Other values are reserved for VAT animation.
     float animTime;
     uint animIndex;
     float attackCooldown;
@@ -84,8 +89,208 @@ struct SwarmProjectile
 
     float radius;
     uint vfxType; // index into SwarmVFXTable's recipe table
-    float2 _pad;
+    uint motion; // motion table index. In a spawn REQUEST bit 31 = mirror the curve
+    float pathT; // Bezier parameter 0..1 while on a curve
 };
+
+// ============================================================
+// Projectile motion
+//
+// SwarmMotion   : one row per projectile profile (the editor's data).
+//                 Must match Swarm::Motion in SwarmTypes.h. 48 bytes.
+// SwarmProjPath : one per projectile slot, same index as the pool.
+//                 The cubic Bezier this projectile is flying, built on
+//                 the GPU at spawn (and again on re-target).
+//                 Must match Swarm::ProjPath. 64 bytes.
+//
+// Control points are authored in the frame of the shot, scaled by the
+// shot distance, so one curve fits near and far targets:
+//     c.x = fraction along muzzle -> target
+//     c.y = sideways offset / distance   (mirrored by sideSign)
+//     c.z = upward   offset / distance   (world up)
+// ============================================================
+static const uint SWARM_MOTION_STRAIGHT = 0;
+static const uint SWARM_MOTION_CURVE_ONCE = 1;
+static const uint SWARM_MOTION_TRACK = 2;
+
+static const uint SWARM_NO_TARGET = 0xFFFFFFFFu;
+static const uint SWARM_MOTION_INDEX_MASK = 0xFFFFu;
+static const uint SWARM_MOTION_FLIP_BIT = 0x80000000u;
+
+struct SwarmMotion
+{
+    uint mode;
+    float retargetRadius; // TRACK only. <= 0 = unlimited
+    uint hitArea; // area def spawned where the projectile hits. 0 = none
+    uint hitAreaFlags; // bit 0 = also spawn when it expires / hits a wall
+
+    float3 c1;
+    float _pad1;
+
+    float3 c2;
+    float _pad2;
+};
+
+struct SwarmProjPath
+{
+    float3 p0;
+    uint target; // enemy slot, SWARM_NO_TARGET = flying straight
+
+    float3 p1;
+    float duration; // seconds from p0 to p3
+
+    float3 p2;
+    float sideSign; // +1 / -1, fixed per shot
+
+    float3 p3;
+    float speed; // nominal speed, restored when the curve lets go
+};
+
+float3 SwarmBezier(SwarmProjPath c, float t)
+{
+    float u = 1.0 - t;
+    return c.p0 * (u * u * u)
+         + c.p1 * (3.0 * u * u * t)
+         + c.p2 * (3.0 * u * t * t)
+         + c.p3 * (t * t * t);
+}
+
+float3 SwarmBezierTangent(SwarmProjPath c, float t)
+{
+    float u = 1.0 - t;
+    return (c.p1 - c.p0) * (3.0 * u * u)
+         + (c.p2 - c.p1) * (6.0 * u * t)
+         + (c.p3 - c.p2) * (3.0 * t * t);
+}
+
+// Fills p0..p3 and duration. sideSign / speed / target are the caller's.
+// keepHeading: leave along `heading` (re-target in flight) instead of
+// using c1, so the path has no kink where the new curve starts.
+void SwarmBuildPath(inout SwarmProjPath path, SwarmMotion m,
+                    float3 from, float3 to, float3 heading, bool keepHeading)
+{
+    float3 chord = to - from;
+    float dist = length(chord);
+    float3 fwd = (dist > 1e-4) ? chord / dist : heading;
+
+    float3 up = float3(0, 1, 0);
+    float3 side = cross(up, fwd);
+    float sideLenSq = dot(side, side);
+    side = (sideLenSq > 1e-6) ? side * rsqrt(sideLenSq) : float3(1, 0, 0);
+
+    path.p0 = from;
+    path.p3 = to;
+    path.p1 = from + fwd * (m.c1.x * dist)
+                   + side * (m.c1.y * dist * path.sideSign)
+                   + up * (m.c1.z * dist);
+    path.p2 = from + fwd * (m.c2.x * dist)
+                   + side * (m.c2.y * dist * path.sideSign)
+                   + up * (m.c2.z * dist);
+    if (keepHeading)
+        path.p1 = from + heading * (dist / 3.0);
+
+    // arc length ~ average of the chord and the control polygon
+    float len = 0.5 * (dist + length(path.p1 - path.p0)
+                            + length(path.p2 - path.p1)
+                            + length(path.p3 - path.p2));
+    path.duration = max(len / max(path.speed, 0.01), SWARM_FIXED_STEP);
+}
+
+// ============================================================
+// Area attacks (explosions, magic circles)
+//
+// SwarmArea    : one live area. 48 bytes. Must match Swarm::Area.
+//                One-shot and lasting areas are the same thing:
+//                an explosion is an area that ticks once and lingers
+//                only long enough for its particles.
+// SwarmAreaDef : a template. 32 bytes. Must match Swarm::AreaDef.
+//                Row 0 = none. Used when the GPU itself spawns an area
+//                (projectile hit), because only the GPU knows where.
+//
+// Shape: a disc. XZ distance <= radius and |dy| <= halfHeight
+// (+ the enemy capsule), same vertical rule as the projectile hit.
+// ============================================================
+static const uint SWARM_MAX_AREAS = 256; // = Swarm::kMaxAreas
+
+static const uint SWARM_AREA_FOLLOW_PLAYER = 1u; // centre rides on the player
+static const uint SWARM_AREA_STUN = 2u; // a tick freezes + flashes the enemy (hit stun)
+
+static const uint SWARM_HITAREA_ON_EXPIRE = 1u; // SwarmMotion.hitAreaFlags
+
+struct SwarmArea
+{
+    float3 center;
+    float radius;
+
+    float damage; // per tick
+    float timeLeft;
+    float tickInterval;
+    float tickTimer; // seconds until the next tick. 0 at spawn = ticks on its first step
+
+    float halfHeight;
+    uint flags;
+    uint vfxType; // recipe index for GPU-side particles. 0 = none (the CPU plays the VFX)
+    uint tickNow; // 1 while this step deals damage. written by AreaTickCS
+};
+
+struct SwarmAreaDef
+{
+    float radius;
+    float halfHeight;
+    float damage;
+    float duration;
+
+    float tickInterval;
+    uint flags;
+    uint vfxType;
+    uint _pad;
+};
+
+// ---- GPU-side spawn ----
+// A shader that may spawn areas #defines the three registers before
+// including this file, e.g.
+//     #define SWARM_AREA_POOL_U  u6
+//     #define SWARM_AREA_STATE_U u7
+//     #define SWARM_AREA_DEF_T   t2
+#ifdef SWARM_AREA_POOL_U
+RWStructuredBuffer<SwarmArea> areas : register(SWARM_AREA_POOL_U);
+RWBuffer<uint> areaStates : register(SWARM_AREA_STATE_U);
+StructuredBuffer<SwarmAreaDef> areaDefs : register(SWARM_AREA_DEF_T);
+
+// Same CAS scan as the other pools. Pool full -> no area (degrade, never corrupt)
+void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt)
+{
+    if (defId == 0u)
+        return;
+
+    SwarmAreaDef d = areaDefs[defId];
+
+    SwarmArea a = (SwarmArea) 0;
+    a.center = pos;
+    a.radius = d.radius;
+    a.damage = d.damage;
+    a.timeLeft = d.duration;
+    a.tickInterval = d.tickInterval;
+    a.tickTimer = 0.0;
+    a.halfHeight = d.halfHeight;
+    a.flags = d.flags & ~SWARM_AREA_FOLLOW_PLAYER; // born from a hit: stays where it is
+    a.vfxType = d.vfxType;
+    a.tickNow = 0u;
+
+    uint start = (salt * 97u) % SWARM_MAX_AREAS;
+    for (uint k = 0; k < SWARM_MAX_AREAS; ++k)
+    {
+        uint slot = (start + k) % SWARM_MAX_AREAS;
+        uint was;
+        InterlockedCompareExchange(areaStates[slot], SWARM_DEAD, SWARM_ALIVE, was);
+        if (was == SWARM_DEAD)
+        {
+            areas[slot] = a;
+            return;
+        }
+    }
+}
+#endif
 
 // ============================================================
 // Exp orb: 32 bytes
@@ -174,7 +379,8 @@ cbuffer SwarmAICB : register(SWARM_AI_CB_REG)
 
     float g_AttackInterval;
     float g_PlayerCapsuleHalf;
-    float2 _aiPad;
+    float g_HitStun; // seconds an enemy freezes after a hit (HitCS sets animIndex = 2)
+    float g_HitFlash; // vertex color gain at the start of the stun, decays to 1
 };
 
 // ============================================================

@@ -128,6 +128,23 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
     m_LightData.cameraPosition = m_Camera->GetPosition();
     ps->WriteBuffer(m_Context, 0, &m_LightData);
 
+    // PS CBuffer (b1) + t5: 溶解。無い時も threshold = -1 を書いて前の値を残さない
+    // （b1 を持たない PS では WriteBuffer が何もしない）
+    DissolveCB dcb = {};
+    dcb.threshold = -1.0f;
+    ID3D11ShaderResourceView* noise = nullptr;
+    if (m_Dissolve && m_Dissolve->noise && m_Dissolve->threshold >= 0.0f)
+    {
+        dcb.tiling = m_Dissolve->tiling;
+        dcb.scroll = m_Dissolve->scroll;
+        dcb.threshold = m_Dissolve->threshold;
+        dcb.edge = m_Dissolve->edge;
+        dcb.edgeColor = m_Dissolve->edgeColor;
+        noise = m_Dissolve->noise;
+    }
+    ps->WriteBuffer(m_Context, 1, &dcb);
+    m_Context->PSSetShaderResources(5, 1, &noise);
+
     mesh->Draw(m_Context);
 }
 

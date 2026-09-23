@@ -4,6 +4,7 @@
 #include "Debug/ImGuiRenderer.h"
 #include "Camera/DebugCamera.h"
 #include "Debug/DebugLineRenderer.h"
+#include "Scene/SceneType.h"
 
 
 class EngineTimer;
@@ -25,8 +26,12 @@ public:
     void Update(float dt);
     void Render();
     CameraBase* GetActiveCamera();
-    void SetUseDebugCamera(bool use);  
+    void SetUseDebugCamera(bool use);
     bool IsUsingDebugCamera() const { return m_UseDebugCamera; }
+
+    // シーン切替を依頼する（実行は次の SceneManager::Update）。
+    // デバッグカメラは旧シーンのカメラを指しているので、切替前に必ず解除する
+    void RequestScene(SceneType type);
       // --- デバッグ形状描画（線框）---
     void DrawWireSphere(const Vector3& center, float radius, const Color& color);
     void DrawWireCapsule(const Vector3& center, float radius, float height, const Color& color);

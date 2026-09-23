@@ -18,11 +18,15 @@ class CollisionSystem;
 class Model;
 struct SpellStats;
 class SwarmSystem;
+class AreaVFXPlayer;
+struct VFXContext;
 class WeaponSystem
 {
 public:
     void Update(Registry& reg, float dt, const CollisionSystem& collision);
     void SetSwarm(SwarmSystem* swarm) { m_Swarm = swarm; }
+    // 範囲攻撃の見た目の再生先。無ければ判定だけ出る
+    void SetAreaVFX(AreaVFXPlayer* player, const VFXContext* ctx) { m_AreaVFX = player; m_AreaVFXCtx = ctx; }
     // 投射物モデル（種類ごとに使い回す）
     void SetProjectileModel(ItemID id, std::shared_ptr<Model> m);
     // 投射物の見た目（ビルボード芯）を種類ごとに登録
@@ -70,6 +74,8 @@ private:
 
     std::shared_ptr<Model> GetModel(ItemID id) const;
     SwarmSystem* m_Swarm = nullptr;
+    class AreaVFXPlayer* m_AreaVFX = nullptr;
+    const struct VFXContext* m_AreaVFXCtx = nullptr;
     std::vector<CastRequest> m_Requests;
     std::vector<std::pair<ItemID, std::shared_ptr<Model>>> m_Models;
     std::vector<SpawnedProjectile> m_Spawned;

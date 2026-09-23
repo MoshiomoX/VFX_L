@@ -41,6 +41,20 @@ void Mesh::DrawInstanced(
     m_IndexBuffer.SetGPU(context);
     context->DrawIndexedInstanced(m_IndexBuffer.GetIndexCount(), instanceCount, 0, 0, 0);
 }
+void Mesh::DrawIndexedInstancedIndirect(
+    ID3D11DeviceContext* context,
+    ID3D11Buffer* args, UINT argsOffset,
+    D3D_PRIMITIVE_TOPOLOGY topology)
+{
+    if (!context || !args)
+        return;
+
+    context->IASetPrimitiveTopology(topology);
+    m_VertexBuffer.SetGPU(context);
+    m_IndexBuffer.SetGPU(context);
+    context->DrawIndexedInstancedIndirect(args, argsOffset);
+}
+
 bool Mesh::ModifyVertices(
     ID3D11DeviceContext* context,
     const std::vector<VERTEX_3D>& vertices)

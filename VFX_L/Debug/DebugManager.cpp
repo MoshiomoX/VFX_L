@@ -7,8 +7,29 @@
 #include "Core/Application.h"
 #include "imgui.h"
 #include "Graphics/Renderer/Renderer.h"
+#include "Manager/InputManager.h"
 #include <cmath>
+#include <cstdio>
 #include <iostream>
+
+namespace
+{
+    // Debug Info 面板から切替できるシーン一覧（登録済みの物だけボタンが出る）
+    struct SceneEntry
+    {
+        SceneType   type;
+        const char* label;   // ボタン表示
+        int         vkey;    // ショートカット（VK_F1 等、0 なら無し）
+    };
+    const SceneEntry kSceneEntries[] =
+    {
+        { SceneType::COLLISION_TEST, "Game Test",  VK_F1 },
+        { SceneType::VFX_EDITOR,     "VFX Editor", VK_F2 },
+        { SceneType::TITLE,          "Title",      VK_F3 },
+        { SceneType::PROJECTILE_EDITOR, "Projectile Editor", VK_F4 },
+    };
+    constexpr int kReloadKey = VK_F5;
+}
 
 DebugManager::~DebugManager() = default;
 
@@ -81,6 +102,37 @@ void DebugManager::BeginFrame()
         ImGui::SliderFloat("Axis Length", &m_AxisLength, 1.0f, 20.0f);
     }
 
+    // ---- シーン切替 ----
+    // ボタンを押した時点では依頼だけ。実際の切替は次の SceneManager::Update の先頭
+    // （旧シーンの Update の外）で行われるので、ImGui の途中で this が消える事は無い
+    ImGui::Separator();
+    {
+        auto& sm = Application::Get().GetGame().GetSceneManager();
+        const SceneType cur = sm.GetCurrentSceneType();
+        ImGui::Text("Scene: %s", SceneTypeName(cur));
+
+        for (const auto& e : kSceneEntries)
+        {
+            if (!sm.IsRegistered(e.type)) continue;
+
+            char label[64];
+            if (e.vkey >= VK_F1 && e.vkey <= VK_F12)
+                snprintf(label, sizeof(label), "%s (F%d)", e.label, e.vkey - VK_F1 + 1);
+            else
+                snprintf(label, sizeof(label), "%s", e.label);
+
+            ImGui::BeginDisabled(e.type == cur);
+            if (ImGui::Button(label)) RequestScene(e.type);
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+        }
+        ImGui::NewLine();
+
+        ImGui::BeginDisabled(cur == SceneType::NONE);
+        if (ImGui::Button("Reload Scene (F5)")) RequestScene(cur);
+        ImGui::EndDisabled();
+    }
+
     ImGui::End();
 }
 
@@ -103,6 +155,37 @@ void DebugManager::Update(float dt)
     {
         m_DebugCamera.Update(dt);
     }
+
+    // ---- シーン切替のショートカット ----
+    // ImGui がテキスト入力中の時は無視する（F キーは通常取られないが念のため）
+    if (!ImGui::GetIO().WantTextInput)
+    {
+        auto& input = InputManager::Get();
+        auto& sm = Application::Get().GetGame().GetSceneManager();
+        for (const auto& e : kSceneEntries)
+        {
+            if (e.vkey != 0 && input.GetKeyTrigger(e.vkey) && sm.IsRegistered(e.type)
+                && e.type != sm.GetCurrentSceneType())
+            {
+                RequestScene(e.type);
+            }
+        }
+        if (input.GetKeyTrigger(kReloadKey) && sm.GetCurrentSceneType() != SceneType::NONE)
+        {
+            RequestScene(sm.GetCurrentSceneType());
+        }
+    }
+}
+
+void DebugManager::RequestScene(SceneType type)
+{
+    // デバッグカメラ ON のままだと m_PreviousCamera が旧シーンのカメラ（消える）を指す。
+    // 先に解除して旧シーン側へ戻しておく（旧シーンはこの後 Shutdown されるので実害無し）
+    if (m_UseDebugCamera)
+        SetUseDebugCamera(false);
+
+    Application::Get().GetGame().GetSceneManager().RequestChangeScene(type);
+    std::cout << "[DebugManager] Scene change requested: " << SceneTypeName(type) << std::endl;
 }
 
 CameraBase* DebugManager::GetActiveCamera()

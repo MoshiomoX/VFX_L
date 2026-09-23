@@ -13,6 +13,10 @@
 #include "Graphics/Transform.h"
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXEditor.h"
+#include "VFX_Editor/VFXMeshRenderer.h"
+#include "Graphics/Model/SkinnedModel.h"
+#include "Graphics/Model/SkinnedModelGPU.h"
+#include "Graphics/Shader/ComputeShader.h"
 #include <memory>
 
 class VFXEditorScene : public SceneBase
@@ -64,6 +68,7 @@ private:
     VFXEffect                m_Effect;
     VFXContext               m_VFXContext;
     VFXEditor                m_Editor;
+    VFXMeshRenderer          m_MeshRenderer;
     std::shared_ptr<Texture> m_ParticleTexture;
 
     float m_TotalTime = 0.0f;
@@ -73,8 +78,20 @@ private:
     size_t m_LastDropped = 0;
 
     // ---- 参照用モデル（VFX の大きさ・光り方を見比べる）----
-    std::shared_ptr<Model> m_Model;
+       // ---- 参照用モデル（骨付き。SkinningCS → 材質付きで描く）----
+    std::shared_ptr<SkinnedModel>  m_SkinnedModel;
+    SkinnedModelGPU                m_SkinnedGPU;
+    std::shared_ptr<ComputeShader> m_SkinningCS;
+    float m_AnimTime = 0.0f;
+    bool  m_AnimPlay = true;
+    float m_AnimSpeed = 1.0f;
     Transform m_ModelTransform;
+    Matrix    m_ModelWorld;                 // 毎フレーム更新。Mesh 発射の followWorld が指す
+    // 参照モデルの submesh を全部 Mesh 発射源として登録した物。
+    // VFXContext::refSources が指すので、シーンより先に消えない
+    std::vector<VFXRefEmitSource> m_RefSources;
+    void RegisterRefSources();              // Init で 1 回
+    void UseRefModelAsSource(int submesh);  // 選択中の Particle entry の源にする
     bool  m_ShowModel = true;
     float m_ModelPos[3] = { 0.0f, 0.0f, 0.0f };
     float m_ModelRot[3] = { 0.0f, 0.0f, 0.0f };

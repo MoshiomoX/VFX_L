@@ -11,6 +11,10 @@
 #include "Component/ManaComponent.h"
 #include "Collider/CollisionSystem.h"
 #include "Swarm/SwarmSystem.h"
+#include "Swarm/ProjectileProfile.h"
+#include "Swarm/AreaProfile.h"
+#include "Swarm/AreaVFXPlayer.h"
+#include "VFX_Editor/EntryType.h"
 #include "Item/ItemDatabase.h"
 #include "ECS/View.h"
 #include <algorithm>
@@ -221,6 +225,51 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     s.delayTimer = s.castDelay;
                     s.castTimer = s.castInterval;
                 }
+
+                // ============================================================
+                // 範囲攻撃（爆発・法環）
+                // 判定は GPU（SwarmSystem の Area）。ここは「いつ・どこに出すか」を決めるだけ。
+                // 標的の足元に出す物は標的が要る。玩家の位置に出す物は標的が居なくても出る
+                // ============================================================
+                for (auto& a : wand.areas)
+                {
+                    a.castTimer -= dt;
+                    if (!ignoreCooldown && a.castTimer > 0.0f) continue;
+                    if (!allowNewCast) continue;
+                    if (!m_Swarm) continue;
+                    if (a.spawnAtTarget && !hasTarget) continue;
+                    if (!mana.CanAfford(a.manaCost)) continue;
+
+                    const bool atCaster = !a.spawnAtTarget;
+                    const Vector3 center = atCaster ? tf.position : targetPos;
+
+                    // 単発/持続・厚み・追従・硬直 はプロファイルから。
+                    // 半径・持続・tick・威力 は集約済みの値（修飾符込み）
+                    const AreaProfile& ap = AreaProfileDB::At(a.profile);
+                    Swarm::Area area = ap.MakeArea(center, atCaster);
+                    area.radius = a.radius;
+                    area.damage = a.damagePerTick;
+                    area.timeLeft = a.duration;
+                    if (a.profile == 0 || ap.kind == AreaProfile::Kind::Lasting)
+                        area.tickInterval = a.tickInterval;
+                    m_Swarm->SpawnArea(area);
+
+                    if (m_AreaVFX && m_AreaVFXCtx)
+                    {
+                        // プロファイルの VFX。無ければ道具の vfxId（VFXDatabase のパス）
+                        std::string vfx = ap.vfxFile;
+                        if (vfx.empty())
+                            if (const auto* adef = ItemDatabase::GetArea(a.id))
+                                if (const char* path = VFXDatabase::GetPath(adef->vfxId))
+                                    vfx = path;
+                        m_AreaVFX->Play(vfx, center, area.timeLeft,
+                            (area.flags & Swarm::kAreaFollowPlayer) != 0, *m_AreaVFXCtx);
+                    }
+
+                    mana.Reserve(a.manaCost);
+                    wand.castAnimTimer = wand.castAnimDuration;
+                    a.castTimer = a.castInterval;
+                }
             });
 
     // ============================================================
@@ -237,8 +286,13 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
             const auto* def = ItemDatabase::GetProjectile(req.id);
             const VFXId vfx = def ? def->vfxId : VFXId::None;
 
+            // 飛び方は道具のプロファイル名で引く（無ければ 0 = 直進）。
+            // 左右交互・乱数の判定は 1 発ごとに DB が持つ
+            const int motion = def ? ProjectileProfileDB::IndexOf(def->profile) : 0;
+            const bool mirror = ProjectileProfileDB::NextMirror(motion);
+
             m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
-                req.damage, req.radius, req.lifetime);
+                req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror);
             continue;
         }
 

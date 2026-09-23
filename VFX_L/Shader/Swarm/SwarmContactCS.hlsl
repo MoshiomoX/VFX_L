@@ -43,7 +43,11 @@ void main(uint3 id : SV_DispatchThreadID)
         float dy = abs(pos.y - g_PlayerPos.y);
         float gap = max(0.0, dy - (g_EnemyCapsuleHalf + g_PlayerCapsuleHalf));
 
-        float reach = g_EnemyRadius + g_PlayerRadius;
+        // The AI pass stops an enemy just OUTSIDE (enemyRadius + playerRadius),
+        // so an exact-radius test never fires while the player stands still.
+        // The resting gap is about 1 cm; the skin covers it with margin.
+        const float CONTACT_SKIN = 0.05;
+        float reach = g_EnemyRadius + g_PlayerRadius + CONTACT_SKIN;
         if (dxzSq + gap * gap <= reach * reach)
         {
             uint prev;

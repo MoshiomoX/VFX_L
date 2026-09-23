@@ -1,0 +1,103 @@
+{
+    "entries": [
+        {
+            "data": {
+                "alphaEnd": 0.0,
+                "alphaStart": 1.0,
+                "blend": 0,
+                "dissolve": true,
+                "dissolveEdge": 0.05000000074505806,
+                "dissolveEdgeColor": [
+                    1.0,
+                    0.5,
+                    0.10000000149011612,
+                    1.0
+                ],
+                "dissolveEnd": 1.0,
+                "dissolveStart": 0.0,
+                "distortion": 0.0,
+                "intensity": 1.0,
+                "mainScroll": [
+                    0.0,
+                    0.0
+                ],
+                "mainTex": {
+                    "file": "Assets/VFX/Tex/Noise_019.png",
+                    "source": 1
+                },
+                "mainTiling": [
+                    1.100000023841858,
+                    1.0
+                ],
+                "maskTex": {
+                    "gen": {
+                        "frequency": 64,
+                        "octaves": 4,
+                        "persistence": 0.5,
+                        "seed": 1,
+                        "size": 256,
+                        "type": 0
+                    },
+                    "source": 2
+                },
+                "model": "Assets/VFX/Mesh/Slash.fbx",
+                "noiseScroll": [
+                    0.0,
+                    0.0
+                ],
+                "noiseTex": {
+                    "gen": {
+                        "frequency": 4,
+                        "octaves": 4,
+                        "persistence": 0.5,
+                        "seed": 0,
+                        "size": 256,
+                        "type": 1
+                    },
+                    "source": 2
+                },
+                "noiseTiling": [
+                    1.0,
+                    1.0
+                ],
+                "offset": [
+                    0.0,
+                    1.5,
+                    0.0
+                ],
+                "rotSpeed": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scaleEnd": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "scaleStart": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "tint": [
+                    0.970588207244873,
+                    0.0,
+                    0.9134947061538696,
+                    1.0
+                ],
+                "twoSided": false
+            },
+            "duration": 3.5,
+            "startTime": 0.0,
+            "type": "Mesh"
+        }
+    ],
+    "loop": true,
+    "name": "NewEffect"
+}

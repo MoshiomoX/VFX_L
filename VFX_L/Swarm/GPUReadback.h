@@ -46,7 +46,9 @@ struct SwarmCounters
     // expTotal は固定小数 ×100、GPU 上で永久に累加（kills と同じ扱い。CPU は差分を取る）
     uint32_t expTotal = 0;              // 48
     uint32_t aliveOrbs = 0;             // 52  毎ステップ再計算
-    uint32_t _pad[2] = {};              // 56  予約
+    // ---- 範囲攻撃（どちらも毎ステップ再計算）----
+    uint32_t aliveAreas = 0;            // 56
+    uint32_t tickingAreas = 0;          // 60  そのステップでダメージを出した範囲の数
 };
 static_assert(sizeof(SwarmCounters) == 64, "SwarmCounters layout mismatch");
 class GPUReadback
