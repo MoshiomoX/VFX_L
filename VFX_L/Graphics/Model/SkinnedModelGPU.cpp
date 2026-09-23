@@ -1,4 +1,7 @@
 #include "Graphics/Model/SkinnedModelGPU.h"
+#include "Graphics/Material/Material.h"
+#include "Graphics/Renderer/RenderStates.h"
+
 #include <iostream>
 
 using namespace DirectX::SimpleMath;
@@ -56,16 +59,43 @@ bool SkinnedModelGPU::CreateSubMeshBuffers(ID3D11Device* device, const SkinnedMo
         if (FAILED(device->CreateShaderResourceView(gm.skinnedBuffer.Get(), &sd, &gm.skinnedSRV))) return false;
     }
 
-    // 3. index buffer
+    // 2'. 粒子の発射源用 raw な双子（ByteAddressBuffer）。SkinSubmesh の末尾で複写する
+    {
+        D3D11_BUFFER_DESC bd = {};
+        bd.ByteWidth = sizeof(SkinnedVertexOut) * gm.vertexCount;
+        bd.Usage = D3D11_USAGE_DEFAULT;
+        bd.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
+        if (FAILED(device->CreateBuffer(&bd, nullptr, &gm.emitRawBuffer))) return false;
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
+        sd.Format = DXGI_FORMAT_R32_TYPELESS;
+        sd.ViewDimension = D3D11_SRV_DIMENSION_BUFFEREX;
+        sd.BufferEx.FirstElement = 0;
+        sd.BufferEx.NumElements = bd.ByteWidth / 4;
+        sd.BufferEx.Flags = D3D11_BUFFEREX_SRV_FLAG_RAW;
+        if (FAILED(device->CreateShaderResourceView(gm.emitRawBuffer.Get(), &sd, &gm.emitRawSRV))) return false;
+    }
+
+    // 3. index buffer（粒子の三角形発射用に raw view も付ける）
     {
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(uint32_t) * gm.indexCount;
         bd.Usage = D3D11_USAGE_DEFAULT;
-        bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        bd.BindFlags = D3D11_BIND_INDEX_BUFFER | D3D11_BIND_SHADER_RESOURCE;
+        bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
 
         D3D11_SUBRESOURCE_DATA init = {};
         init.pSysMem = src.indices.data();
         if (FAILED(device->CreateBuffer(&bd, &init, &gm.indexBuffer))) return false;
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
+        sd.Format = DXGI_FORMAT_R32_TYPELESS;
+        sd.ViewDimension = D3D11_SRV_DIMENSION_BUFFEREX;
+        sd.BufferEx.FirstElement = 0;
+        sd.BufferEx.NumElements = bd.ByteWidth / 4;
+        sd.BufferEx.Flags = D3D11_BUFFEREX_SRV_FLAG_RAW;
+        if (FAILED(device->CreateShaderResourceView(gm.indexBuffer.Get(), &sd, &gm.indexRawSRV))) return false;
     }
 
     m_SubMeshes.push_back(std::move(gm));
@@ -161,18 +191,29 @@ void SkinnedModelGPU::SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, i
     ctx->CSSetShaderResources(0, 2, nullSRV);
     ID3D11UnorderedAccessView* nullUAV = nullptr;
     ctx->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
+
+    // 粒子の発射源に使われている submesh は、今フレームの姿勢を raw 双子へ写す
+    if (gm.emitSourceEnabled && gm.emitRawBuffer)
+        ctx->CopyResource(gm.emitRawBuffer.Get(), gm.skinnedBuffer.Get());
 }
 
-void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, VertexShader* vs, PixelShader* ps,
+// ============================================================
+// 描画: submesh 毎に材質を bind して DrawIndexed
+// 頂点バッファは無い。SkinningCS の出力を VS が t0 から読む
+// ============================================================
+void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model,
+    const LightBuffer& light,
     const Matrix& world, const Matrix& view, const Matrix& proj)
 {
-    if (!ctx || !vs || !ps) return;
+  
+    if (!ctx) return;
 
+    // ModelCommon.hlsli の MVPBuffer と同じ並び
     struct { Matrix W, V, P; } cb{ world, view, proj };
-    vs->WriteBuffer(ctx, 0, &cb);
+    static_assert(sizeof(cb) == 192, "MVPBuffer layout mismatch");
 
-    vs->Bind(ctx);
-    ps->Bind(ctx);
+    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
+    LightBuffer lightCopy = light;
 
     ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     ctx->IASetInputLayout(nullptr);
@@ -181,11 +222,24 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, VertexShader* vs, PixelSh
 
     for (auto& gm : m_SubMeshes)
     {
+        if (!gm.visible) continue;
+        Material* mat = model.GetMaterial(gm.materialIndex);
+        if (!mat || !mat->HasVS() || !mat->HasPS()) continue;
+
+        // VS / PS / 貼图（t0〜t4 は PS 側）
+        mat->Bind(ctx);
+        ctx->PSSetSamplers(0, 1, &samp);
+
+        mat->GetVS()->WriteBuffer(ctx, 0, &cb);
+        mat->GetPS()->WriteBuffer(ctx, 0, &lightCopy);
+
+        // VS t0 = skinning 結果。Material::Bind は VS の SRV を触らない
         ctx->VSSetShaderResources(0, 1, gm.skinnedSRV.GetAddressOf());
         ctx->IASetIndexBuffer(gm.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
         ctx->DrawIndexed(gm.indexCount, 0, 0);
     }
 
+    // 次フレームの SkinningCS が UAV にするので外す
     ID3D11ShaderResourceView* nullSRV = nullptr;
     ctx->VSSetShaderResources(0, 1, &nullSRV);
 }

@@ -1,37 +1,38 @@
 // ============================================================
 // ItemTypes.h
-// �A�C�e���̌^��`�ƃf�[�^�\���B
-// ���ۂ̒l�͓���Ȃ��i�l�� Items/ �ȉ��̊e�t�@�C���ɏ����j�B
+// アイテムの型定義とデータ構造。
+// 実際の値は入れない（値は Items/ 以下の各ファイルに書く）。
 //
-// �C�����̍l�����ɂ���:
-//   AOE �^�͂܂���������Ă��Ȃ����A�\���͐�ɗp�ӂ��Ă����B
-//   �ォ��ۂ��Ƒ������A�ŏ�������ׂĂ����������ɂ����B
+// 修飾符の考え方について:
+//   AOE 型はまだ実装されていないが、構造は先に用意しておく。
+//   後から丸ごと足すより、最初から並べておく方が壊れにくい。
 //
-// �����̑Ή�: C++ �̌^���ƊT�O�̑Ή��\
-//   ���ʕ� �� ItemCommon�A��ޕʂ̒l �� �e�� Def �\����
+// 命名の対応: C++ の型名と概念の対応表
+//   共通部 → ItemCommon、種類別の値 → 各種 Def 構造体
 // ============================================================
 #pragma once
 #include "SpellID.h"
 #include "VFX_Editor/VFXId.h"          
-#include "Component/WandComponent.h"   // SpellStats ���؂��
+#include <string>
+#include "Component/WandComponent.h"   // SpellStats を借りる
 #include "Component/AreaStats.h"
 #include <SimpleMath.h>
 #include <vector>
 
 // ============================================================
-// ���
+// 種別
 // ============================================================
 enum class ItemCategory
 {
-    Unknown,      // ���o�^�B�o�O�̑��������p�i�{���o�Ȃ��͂��̒l�j
-    Projectile,   // ��s���^�i�e�j
-    Function,     // �@�\�^�i�אڂ���U���u���b�N���C������j
-    Area,         // AOE �^�i�͈́j
-    Frame,        // �ݒu�g�i�u����̈���L����j
+    Unknown,      // 未登録。バグの早期発見用（本来出ないはずの値）
+    Projectile,   // 飛行物型（弾）
+    Function,     // 機能型（隣接する攻撃ブロックを修飾する）
+    Area,         // AOE 型（範囲）
+    Frame,        // 設置枠（置ける領域を広げる）
 };
 
 // ============================================================
-// �O���b�h��̑��΍��W�i�A���J�[����̃I�t�Z�b�g�j
+// グリッド上の相対座標（アンカーからのオフセット）
 // ============================================================
 struct CellOffset
 {
@@ -40,40 +41,40 @@ struct CellOffset
 };
 
 // ============================================================
-// �C���̉��Z�q
-// �@�\�^���p�����[�^���ǂ����������邩��\��
+// 修飾の演算子
+// 機能型がパラメータをどう書き換えるかを表す
 // ============================================================
 enum class ModifyOp
 {
-    Add,        // ���Z�i+2 �A+15 �x �Ȃǁj
-    Multiply,   // ��Z�i�~0.6 �Ȃǁj
-    Set,        // �㏑���i�Œ�l�ɂ���j
+    Add,        // 加算（+2 個、+15 度 など）
+    Multiply,   // 乗算（×0.6 など）
+    Set,        // 上書き（固定値にする）
 };
 
 // ============================================================
-// ��s���^�̃p�����[�^���
-// �V�����p�����[�^�𑝂₷���͂�����1�s + ApplyModifier �� case ��1�B
-//   ���₵�Y���Ƌ@�\�^����̏C�����Â��ɖ��������
+// 飛行物型のパラメータ種別
+// 新しいパラメータを増やす時はここに1行 + ApplyModifier に case を1個。
+//   増やし忘れると機能型からの修飾が静かに無視される
 // ============================================================
 enum class SpellParam
 {
     Damage,
     Speed,
-    Radius,           // �����蔻��̔��a
+    Radius,           // 当たり判定の半径
     Lifetime,
-    ProjectileCount,  // ����F���ː�
-    SpreadAngle,      // ��̊p�x
-    CastCount,        // ��d�ߕ��F���ˉ�
+    ProjectileCount,  // 分裂：発射数
+    SpreadAngle,      // 扇の角度
+    CastCount,        // 二重釈放：発射回数
     CastDelay,
-    CastInterval,     // �����Ԋu
+    CastInterval,     // 発動間隔
     ManaCost,
 };
 
 // ============================================================
-// AOE �^�̃p�����[�^���
-// SpellParam �Ƃ͕ʂ� enum �ɂ��闝�R:
-//   ��s���� AOE �ł͈Ӗ��̂���p�����[�^���Ⴄ���߁B
-//   ���� enum �ɍ�����ƕЕ��ɂ��������l���I�ׂĂ��܂�
+// AOE 型のパラメータ種別
+// SpellParam とは別の enum にする理由:
+//   飛行物と AOE では意味のあるパラメータが違うため。
+//   同じ enum に混ぜると片方にしか無い値が選べてしまう
 // ============================================================
 enum class AreaParam
 {
@@ -86,7 +87,7 @@ enum class AreaParam
 };
 
 // ============================================================
-// �C����1���i�ǂ̃p�����[�^ + �ǂ����Z + �l�j
+// 修飾符1件（どのパラメータ + どう演算 + 値）
 // ============================================================
 struct ParamModifier
 {
@@ -103,7 +104,7 @@ struct AreaModifier
 };
 
 // ============================================================
-// ��ނ��킸�S�A�C�e���������ʕ���
+// 種類を問わず全アイテムが持つ共通部分
 // ============================================================
 struct ItemCommon
 {
@@ -111,55 +112,59 @@ struct ItemCommon
     const char* name = "";
     ItemCategory category = ItemCategory::Projectile;
 
-    // �`��: ��ʊi�i���̃A�C�e���������I�ɐ�߂�}�X�j
-    // 1�}�X�����Ȃ� {{0,0}}�B�ٌ`�͂����ɕ����}�X��񋓂���
+    // 形状: 占位格（このアイテムが物理的に占めるマス）
+    // 1マスだけなら {{0,0}}。異形はここに複数マスを列挙する
     std::vector<CellOffset> occupyCells;
 
-    // �`��: �e���i�i�@�\�^���ǂ̃}�X�Ɍ��ʂ��y�ڂ����j
-    // �@�\�^�ȊO�͋�̂܂܂ł悢
-    //   ��s���^�E�ݒu�g�͑����������Ȃ��̂ŉe���i�������Ȃ�
+    // 形状: 影響格（機能型がどのマスに効果を及ぼすか）
+    // 機能型以外は空のままでよい
+    //   飛行物型・設置枠は他を強化しないので影響格を持たない
     std::vector<CellOffset> influenceCells;
 
     const wchar_t* iconPath = nullptr;
 
-    DirectX::SimpleMath::Vector4 color = { 1, 1, 1, 1 };   // UI �\���F
+    DirectX::SimpleMath::Vector4 color = { 1, 1, 1, 1 };   // UI 表示色
 };
 
 // ============================================================
-// ��s���^
+// 飛行物型
 // ============================================================
 struct ProjectileItemDef
 {
     ItemCommon common;
 
-    // ��b�l�i�W���� WandComponent.spells �ɐς܂��j
+    // 基礎値（集約後は WandComponent.spells に積まれる）
     SpellStats baseStats;
 
-    // �����ځi�����蔻��Ƃ͓Ɨ��B�h��Ɍ����Ă�����͈����ۂ����Ȃ��j
+    // 見た目（当たり判定とは独立。派手に見せても判定は安っぽくしない）
     float       visualSize = 0.9f;
-    float       visualStretch = 0.0f;      // �i�s�����ւ̈����L�΂��i0=�~�`�j
-    VFXId       vfxId = VFXId::None;   // VFX json�i���ݒ�Ȃ� nullptr�j
+    float       visualStretch = 0.0f;      // 進行方向への引き伸ばし（0=円形）
+    VFXId       vfxId = VFXId::None;   // VFX json（未設定なら nullptr）
+
+    // 飛び方。投射物編集器で作ったプロファイルの名前（Assets/Data/ProjectileData/<名前>.json）。
+    // 空 or 見つからない → 直進
+    std::string profile;
 };
 
 // ============================================================
-// �@�\�^
-// ��s���^�EAOE �^�̗����ɏC���������Ă�B
-//   ��s���p�� AOE �p�ňӖ����Ⴄ���Ƃ�����
-//   �i�����u����v�ł���s���ł͒e�����AAOE �ł͔͈͊g�� �Ȃǁj
-//   ��j������ = ProjectileCount +1�ADamage �~0.6�ASpreadAngle +15
+// 機能型
+// 飛行物型・AOE 型の両方に修飾符を持てる。
+//   飛行物用と AOE 用で意味が違うことがある
+//   （同じ「分裂」でも飛行物では弾数増、AOE では範囲拡大 など）
+//   例）分裂符 = ProjectileCount +1、Damage ×0.6、SpreadAngle +15
 // ============================================================
 struct FunctionItemDef
 {
     ItemCommon common;
 
-    std::vector<ParamModifier> spellModifiers;   // ��s���^�iSpellStats�j�ւ̏C��
-    std::vector<AreaModifier>  areaModifiers;    // AOE �^�iAreaStats�j�ւ̏C��
+    std::vector<ParamModifier> spellModifiers;   // 飛行物型（SpellStats）への修飾
+    std::vector<AreaModifier>  areaModifiers;    // AOE 型（AreaStats）への修飾
 };
 
 // ============================================================
-// AOE �^
-// ��s���^�Ƒ΂ɂȂ鑶��: �e���΂�����ɔ͈͂𔭐�������
-//   ��b�l�� AreaStats�iSpellStats �Ƃ͊��S�ɕʌn���j
+// AOE 型
+// 飛行物型と対になる存在: 弾を飛ばす代わりに範囲を発生させる
+//   基礎値は AreaStats（SpellStats とは完全に別系統）
 // ============================================================
 struct AreaItemDef
 {
@@ -167,9 +172,13 @@ struct AreaItemDef
 
     AreaStats baseStats;
 
-    // ������
-    float       visualScale = 1.0f;      // VFX �̑傫���̔{��
+    // 見た目
+    float       visualScale = 1.0f;      // VFX の大きさの倍率
     VFXId       vfxId = VFXId::None;
+
+    // 投射物編集器の Area ページで作ったプロファイルの名前（Assets/Data/AreaData/<名前>.json）。
+    // あれば 半径・持続・tick・威力 の基礎値と、単発/持続・見た目 をそこから取る。空 → baseStats のまま
+    std::string profile;
 };
 
 struct FrameItemDef
@@ -177,23 +186,23 @@ struct FrameItemDef
     ItemCommon common;
 };
 // ============================================================
-// �`��̃v���Z�b�g�i���W����ŏ����Ȃ��čςނ悤�Ɂj
+// 形状のプリセット（座標を手で書かなくて済むように）
 // ============================================================
 namespace ItemShape
 {
-    // 1�}�X
+    // 1マス
     inline std::vector<CellOffset> Single()
     {
         return { { 0, 0 } };
     }
 
-    // �\���i�㉺���E�j
+    // 十字（上下左右）
     inline std::vector<CellOffset> Cross()
     {
         return { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
     }
 
-    // ����8�}�X�i�΂ߍ��݁j
+    // 周囲8マス（斜め込み）
     inline std::vector<CellOffset> Around8()
     {
         return {
@@ -203,7 +212,7 @@ namespace ItemShape
         };
     }
 
-    // �����i�� w�B�A���J�[�͍��[�j
+    // 横一列（幅 w。アンカーは左端）
     inline std::vector<CellOffset> RowLine(int w)
     {
         std::vector<CellOffset> out;
@@ -211,7 +220,7 @@ namespace ItemShape
         return out;
     }
 
-    // �c���i���� h�B�A���J�[�͏�[�j
+    // 縦一列（高さ h。アンカーは上端）
     inline std::vector<CellOffset> ColLine(int h)
     {
         std::vector<CellOffset> out;
@@ -219,7 +228,7 @@ namespace ItemShape
         return out;
     }
 
-    // ��`�ih �~ w�B�A���J�[�͍���j
+    // 矩形（h × w。アンカーは左上）
     inline std::vector<CellOffset> Rect(int h, int w)
     {
         std::vector<CellOffset> out;

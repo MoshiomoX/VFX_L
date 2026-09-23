@@ -20,6 +20,7 @@
 #include "SpellID.h"
 #include "Item/ItemTypes.h"
 #include "Component/HealthComponent.h"
+#include "Component/DissolveComponent.h"
 #include "Component/ManaComponent.h"
 #include "ECS/View.h"
 #include "VFX_Editor/VFXId.h"
@@ -40,6 +41,7 @@
 #include "Player/LevelComponent.h"
 #include "Item/ExpRewardComponent.h"
 #include "World/TerrainGenerator.h"
+#include "Scene/RunResult.h"
 
 #include "Enemy/EnemyTags.h"
 #include <unordered_set>
@@ -48,6 +50,8 @@
 #include <cmath>
 #include <chrono>
 #include <random>
+#include "Swarm/ProjectileProfile.h"
+#include "Swarm/AreaProfile.h"
 
 // ============================================================
 // Init
@@ -92,6 +96,10 @@ void CollisionTestScene::Init()
     // ---------- 見た目 と 各 System が使う VFX の登録 ----------
     RegisterItemVisuals();
 
+    // 燃焼消滅（Mesh 発射 + 溶解の縁）。道具ではないので VFXDatabase から直接引く
+    if (const char* path = VFXDatabase::GetPath(VFXId::DeathBurn))
+        m_MeshVFXSystem.RegisterVFX(VFXId::DeathBurn, path);
+
     // ---------- UI ----------
     // ※ItemDatabase::Initialize の後（LoadIcons が定義を読む）
     if (!m_GameUI.Initialize(device, context, m_ScreenW, m_ScreenH))
@@ -119,6 +127,13 @@ void CollisionTestScene::Init()
 
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
+    // 範囲攻撃と投射物の飛び方（編集器で作った json）を GPU の表へ。
+    // 先に範囲：投射物の「命中で出す範囲」が範囲の番号を引くため
+    AreaProfileDB::LoadAll();
+    m_Swarm.SetAreaDefs(AreaProfileDB::BuildDefs(m_Swarm.GetVFXTable()));
+    ProjectileProfileDB::LoadAll();
+    m_Swarm.SetMotions(ProjectileProfileDB::BuildMotions());
+    m_WeaponSystem.SetAreaVFX(&m_AreaVFX, &m_VFXContext);
     m_Swarm.SetRecycleMinDist(m_SpawnDirector.rMax);
     m_WeaponSystem.SetSwarm(&m_Swarm);
 
@@ -215,6 +230,15 @@ void CollisionTestScene::Update(float dt)
 
     if (!m_GameUI.ShouldPauseGame())
         UpdateGameplay(dt);
+
+    // ---- 死亡 → 倒れた姿を少し見せてからリザルトへ ----
+    // 一時停止中でも進める（三択を開いたまま死ぬ事は無いが、止まると戻れない）
+    if (m_Registry.IsValid(m_Player) && m_Registry.Has<PlayerStateComponent>(m_Player)
+        && m_Registry.Get<PlayerStateComponent>(m_Player).IsDead())
+    {
+        m_DeathTimer += dt;
+        if (m_DeathTimer >= kDeathToResult) EndRun();
+    }
 
     DrawDebugUI();
 }
@@ -346,9 +370,33 @@ void CollisionTestScene::UpdateGameplay(float dt)
         // GPU 上で拾った経験値を CPU の玩家へ反映。
         // レベルアップの判定は LevelUpSystem（次フレーム頭）に任せて、ここは足すだけ
         const float gpuExp = m_Swarm.ConsumeExp();
+        if (gpuExp > 0.0f) m_ExpGained += gpuExp;   // 戦績用
         if (gpuExp > 0.0f && m_Registry.Has<LevelComponent>(m_Player))
             m_Registry.Get<LevelComponent>(m_Player).experience += gpuExp;
     }
+
+    // ============================================================
+    // 死亡 → 燃焼消滅
+    // HP が尽きた CPU 実体（精英など。玩家は PlayerStateSystem が扱う）に
+    // DissolveComponent + DeathBurn を付ける。消え終わったら MeshVFXSystem が実体を破棄する
+    // ============================================================
+    {
+        std::vector<Entity> dead;
+        m_Registry.CreateView<HealthComponent, ModelComponent>()
+            .Each([&](Entity e, HealthComponent& hp, ModelComponent&)
+                {
+                    if (!hp.IsDead()) return;
+                    if (m_Registry.Has<PlayerTag>(e)) return;
+                    if (m_Registry.Has<DissolveComponent>(e)) return;   // 既に燃えている
+                    dead.push_back(e);
+                });
+        for (Entity e : dead)
+            m_MeshVFXSystem.StartBurn(m_Registry, e, VFXId::DeathBurn, m_VFXContext, m_BurnDuration);
+    }
+    m_MeshVFXSystem.Update(m_Registry, dt, m_VFXContext);
+
+    // Mesh 発射の動作確認（Flush の前に積む）
+    UpdateMeshEmitTest(dt);
 
     // ============================================================
     // 粒子は1フレームに1回だけ Flush する。
@@ -357,6 +405,10 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // ============================================================
     {
         auto t0 = std::chrono::high_resolution_clock::now();
+
+        // 範囲攻撃の見た目（emitter を積むので粒子の Flush より前）
+        m_AreaVFX.Update(dt, m_Registry.IsValid(m_Player)
+            ? m_Registry.Get<TransformComponent>(m_Player).position : Vector3::Zero);
 
         m_ParticleSystem.Flush(dt, m_TotalTime);
 
@@ -396,6 +448,107 @@ void CollisionTestScene::UpdateGameplay(float dt)
 }
 
 // ============================================================
+// Mesh 発射の動作確認（仮設）
+// 玩家の胶囊 Mesh（VERTEX_3D）を発射源に登録し、
+// TransformComponent から作った世界行列を毎フレーム emitter に渡す。
+// 期待：粒子が胶囊の表面から法線方向に出て、玩家が向きを変えると付いて回る
+// ============================================================
+void CollisionTestScene::UpdateMeshEmitTest(float dt)
+{
+    if (!m_MeshEmitTest)
+    {
+        if (m_MeshEmitSourceId >= 0)
+        {
+            m_ParticleSystem.UnregisterEmitSource(m_MeshEmitSourceId);
+            m_MeshEmitSourceId = -1;
+            m_MeshEmitModel.reset();
+        }
+        return;
+    }
+
+    if (!m_Registry.IsValid(m_Player) || !m_Registry.Has<ModelComponent>(m_Player))
+        return;
+
+    auto model = m_Registry.Get<ModelComponent>(m_Player).model;
+    if (!model || model->GetSubMeshes().empty() || !model->GetSubMeshes()[0].mesh)
+        return;
+
+    // RebuildVisual でモデルが差し替わったら登録し直す
+    if (model != m_MeshEmitModel)
+    {
+        if (m_MeshEmitSourceId >= 0)
+            m_ParticleSystem.UnregisterEmitSource(m_MeshEmitSourceId);
+
+        const auto& mesh = model->GetSubMeshes()[0].mesh;
+        m_MeshEmitSourceId = m_ParticleSystem.RegisterEmitSource(
+            mesh->GetVertexSRV(), mesh->GetVertexCount(), GPUParticleSystem::kLayoutStatic,
+            mesh->GetIndexSRV(), mesh->GetIndexCount(), mesh->GetIndexBytes());
+        m_MeshEmitModel = model;
+
+        m_MeshEmitter.emitType = EmitType::Mesh;
+        m_MeshEmitter.shape.sourceId = m_MeshEmitSourceId;
+        m_MeshEmitter.shape.sourceCount = (int)mesh->GetVertexCount();
+        m_MeshEmitter.shape.edgeMode = 0;
+        m_MeshEmitter.position = { 0, 0, 0 };
+        m_MeshEmitter.speedRange = { 0.3f, 1.0f };
+        m_MeshEmitter.lifetimeRange = { 0.4f, 0.8f };
+        m_MeshEmitter.sizeRange = { 0.06f, 0.10f, 0.0f, 0.02f };
+        m_MeshEmitter.startColorMin = { 1.0f, 0.6f, 0.2f, 1.0f };
+        m_MeshEmitter.startColorMax = { 1.0f, 0.9f, 0.4f, 1.0f };
+        m_MeshEmitter.endColorMin = { 1.0f, 0.2f, 0.0f, 0.0f };
+        m_MeshEmitter.endColorMax = { 1.0f, 0.4f, 0.0f, 0.0f };
+        m_MeshEmitter.gravity = { 0, 0.5f, 0 };
+        m_MeshEmitter.dragCoeff = 0.5f;
+        m_MeshEmitter.atlasRows = 1;
+        m_MeshEmitter.atlasCols = 1;
+        m_MeshEmitter.atlasIndex = 0;
+        m_MeshEmitter.colorKeyCount = 0;
+
+        std::cout << "[MeshEmitTest] source id=" << m_MeshEmitSourceId
+            << " verts=" << mesh->GetVertexCount() << std::endl;
+    }
+
+    if (m_MeshEmitSourceId < 0) return;
+
+    // Transform::UpdateWorldMatrix と同じ式（scale * rot(yaw=y, pitch=x, roll=z) * trans）
+    const auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+    m_MeshEmitter.world =
+        Matrix::CreateScale(tf.scale) *
+        Matrix::CreateFromYawPitchRoll(
+            DirectX::XMConvertToRadians(tf.rotation.y),
+            DirectX::XMConvertToRadians(tf.rotation.x),
+            DirectX::XMConvertToRadians(tf.rotation.z)) *
+        Matrix::CreateTranslation(tf.position);
+
+    m_MeshEmitter.emitRate = m_MeshEmitRate;
+    m_MeshEmitter.Update(dt);
+
+    std::vector<GPUEmitter> emitters{ m_MeshEmitter.ToGPU() };
+    std::vector<ColorKey>   keys;
+    m_ParticleSystem.SubmitEmitters(emitters, keys);
+}
+
+// ============================================================
+// プレイ終了 → リザルトへ
+// 戦績を g_LastRun に写してから切替を依頼する。2 回目以降は何もしない
+// ============================================================
+void CollisionTestScene::EndRun()
+{
+    if (m_RunEnded) return;
+    m_RunEnded = true;
+
+    g_LastRun.valid = true;
+    g_LastRun.survivedSec = m_TotalTime;
+    g_LastRun.level = (m_Registry.IsValid(m_Player) && m_Registry.Has<LevelComponent>(m_Player))
+        ? m_Registry.Get<LevelComponent>(m_Player).level : 1;
+    g_LastRun.kills = m_Swarm.GetCounters().killCount;   // 回読なので 1〜2 フレーム古い。許容
+    g_LastRun.expGained = m_ExpGained;
+
+    Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::RESULT);
+    std::cout << "[CollisionTestScene] run ended: " << (int)m_TotalTime << "s, kills " << g_LastRun.kills << std::endl;
+}
+
+// ============================================================
 // Render
 // ============================================================
 void CollisionTestScene::Render(Renderer& renderer)
@@ -425,6 +578,7 @@ void CollisionTestScene::Render(Renderer& renderer)
     if (m_ShowParticle)
     {
         m_ParticleSystem.SetCamera(GetCamera());
+        m_ParticleSystem.SetLight(renderer.GetLightData());   // 立方体粒子の Lambert 用
         m_ParticleSystem.Render();
     }
 
@@ -710,7 +864,7 @@ void CollisionTestScene::DrawWandPanel()
             totalDrain += (s.manaCost * (float)s.castCount) / s.castInterval;
     }
 
-    // ---- AOE 型（AreaSystem が未実装なので表示だけ）----
+    // ---- AOE 型（判定は GPU の Area。発動は WeaponSystem）----
     for (size_t i = 0; i < w.areas.size(); ++i)
     {
         const auto& a = w.areas[i];
@@ -722,7 +876,7 @@ void CollisionTestScene::DrawWandPanel()
         ImGui::Indent();
         ImGui::Text("radius=%.1f  duration=%.1f  tick=%.2f  dmg/tick=%.1f",
             a.radius, a.duration, a.tickInterval, a.damagePerTick);
-        ImGui::TextDisabled("AreaSystem not implemented yet");
+        ImGui::TextDisabled("cast by WeaponSystem, damage on GPU (profile #%d)", a.profile);
         ImGui::Unindent();
         ImGui::PopID();
 
@@ -973,6 +1127,14 @@ void CollisionTestScene::DrawStressPanel()
     ImGui::Text("Billboards     : %u  (1 draw call)",
         m_ProjectileRenderer.GetLastDrawCount());
 
+    // ---------- Mesh 発射の動作確認（仮設）----------
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Mesh Emit Test");
+    ImGui::TextDisabled("Particles from the player capsule vertices (raw VB source).");
+    ImGui::Checkbox("Emit from Player Mesh", &m_MeshEmitTest);
+    ImGui::SliderFloat("Mesh Emit Rate", &m_MeshEmitRate, 0.0f, 5000.0f);
+    ImGui::Text("source id : %d", m_MeshEmitSourceId);
+
     // ---------- Flush の CPU 時間 ----------
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Flush CPU Time");
@@ -995,6 +1157,83 @@ void CollisionTestScene::DrawStressPanel()
 }
 
 // ============================================================
+// ImGui: Bloom（後処理）
+// Graphics が持つ BloomParams をそのまま書き換える。
+// 合成 PS は毎フレーム値を読むので、変えた瞬間に画面へ反映される。
+// 粒子の加算が 1.0 を超えた分だけ光る（Threshold 以上）。
+// ============================================================
+void CollisionTestScene::DrawBloomPanel()
+{
+    if (!ImGui::CollapsingHeader("Bloom (Post Process)"))
+        return;
+
+    auto& bp = Application::Get().GetGraphics().GetBloomParams();
+
+    // ---- 有効 / 無効 ----
+    ImGui::Checkbox("Enabled", &bp.enabled);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Reset"))
+        bp = BloomParams{};   // ヘッダの既定値へ戻す
+
+    // ---- 抽出（BloomCS の prefilter）----
+    ImGui::SeparatorText("Extract");
+    ImGui::DragFloat("Threshold", &bp.threshold, 0.01f, 0.0f, 4.0f, "%.2f");
+    ImGui::SetItemTooltip("HDR 1.0 = white. Only brightness above this goes into bloom");
+    ImGui::DragFloat("Knee", &bp.knee, 0.01f, 0.0f, 1.0f, "%.2f");
+    ImGui::SetItemTooltip("Soft range below the threshold. 0 = hard cut");
+
+    // ---- 合成（CompositePS）----
+    ImGui::SeparatorText("Composite");
+    ImGui::DragFloat("Intensity", &bp.intensity, 0.01f, 0.0f, 5.0f, "%.2f");
+    ImGui::SetItemTooltip("scene + bloom * Intensity. 0 looks the same as disabled");
+    ImGui::DragFloat("Exposure", &bp.exposure, 0.01f, 0.1f, 8.0f, "%.2f");
+    ImGui::SetItemTooltip("Whole-screen brightness multiplier (applied after bloom is added)");
+    ImGui::Checkbox("Tonemap (ACES)", &bp.tonemap);
+    ImGui::SameLine();
+    ImGui::Checkbox("Gamma (1/2.2)", &bp.gamma);
+
+    // ---- 調整用の当たり値 ----
+    ImGui::SeparatorText("Presets");
+    if (ImGui::Button("Off"))
+    {
+        bp.enabled = false;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Soft"))
+    {
+        bp.enabled = true;
+        bp.threshold = 1.2f; bp.knee = 0.6f; bp.intensity = 0.5f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Default"))
+    {
+        bp.enabled = true;
+        bp.threshold = 1.0f; bp.knee = 0.5f; bp.intensity = 0.8f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Strong"))
+    {
+        bp.enabled = true;
+        bp.threshold = 0.7f; bp.knee = 0.5f; bp.intensity = 1.6f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Isolate"))
+    {
+        // bloom だけを見る：閾値 0 で全部拾い、露出を落として bloom の形を確認する
+        bp.enabled = true;
+        bp.threshold = 0.0f; bp.knee = 0.0f; bp.intensity = 3.0f; bp.exposure = 0.3f;
+    }
+    ImGui::TextDisabled("Presets set Threshold / Knee / Intensity (Isolate also drops Exposure).");
+
+    // ---- 現状の要約 ----
+    ImGui::SeparatorText("State");
+    ImGui::Text("Pipeline : resolve -> %s -> composite(%s%s)",
+        bp.enabled ? "BloomCS x9 (prefilter + 4 down + 4 up)" : "(bloom skipped)",
+        bp.tonemap ? "ACES" : "linear",
+        bp.gamma ? ", gamma" : "");
+    ImGui::Text("Effective bloom gain : %.2f", bp.enabled ? bp.intensity * bp.exposure : 0.0f);
+}
+// ============================================================
 // ImGui: 全体
 // ============================================================
 void CollisionTestScene::DrawDebugUI()
@@ -1011,6 +1250,8 @@ void CollisionTestScene::DrawDebugUI()
     ImGui::Checkbox("Collider", &m_ShowWireframe);
     ImGui::SameLine();
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
+    ImGui::SameLine();
+    if (ImGui::Button("End Run -> Result")) EndRun();   // リザルト画面の確認用
     ImGui::Separator();
 
     DrawPlayerPanel();
@@ -1045,6 +1286,44 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::TextDisabled("then fall back to 0 within 3 seconds.");
         ImGui::Text("requested %u   dispatched %u   steps %u",
             m_Swarm.GetTotalRequested(), m_Swarm.GetTotalDispatched(), m_Swarm.GetTotalSteps());
+        // ---- 範囲攻撃の確認：道具を持っていなくても、編集器のプロファイルを直接出せる ----
+        ImGui::Text("alive areas %u   ticking %u   area vfx %zu",
+            c.aliveAreas, c.tickingAreas, m_AreaVFX.GetActiveCount());
+        if (AreaProfileDB::Count() > 1)
+        {
+            m_AreaTestProfile = (std::max)(1, (std::min)(m_AreaTestProfile, AreaProfileDB::Count() - 1));
+            if (ImGui::BeginCombo("Area Profile", AreaProfileDB::At(m_AreaTestProfile).name.c_str()))
+            {
+                for (int i = 1; i < AreaProfileDB::Count(); ++i)
+                    if (ImGui::Selectable(AreaProfileDB::At(i).name.c_str(), i == m_AreaTestProfile))
+                        m_AreaTestProfile = i;
+                ImGui::EndCombo();
+            }
+
+            const bool hasPlayer = m_Registry.IsValid(m_Player);
+            auto castAt = [&](const Vector3& pos, bool atCaster)
+                {
+                    const AreaProfile& ap = AreaProfileDB::At(m_AreaTestProfile);
+                    const Swarm::Area ar = ap.MakeArea(pos, atCaster);
+                    m_Swarm.SpawnArea(ar);
+                    m_AreaVFX.Play(ap.vfxFile, pos, ar.timeLeft,
+                        (ar.flags & Swarm::kAreaFollowPlayer) != 0, m_VFXContext);
+                };
+
+            if (ImGui::Button("Cast at Nearest Enemy"))
+            {
+                Vector3 np, nv; float nd;
+                if (m_Swarm.GetNearestEnemy(np, nv, nd)) castAt(np, false);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cast at Player") && hasPlayer)
+                castAt(m_Registry.Get<TransformComponent>(m_Player).position, true);
+        }
+        else
+        {
+            ImGui::TextDisabled("no area profile yet (make one in the Projectile Editor, F4)");
+        }
+
         // 生成経路が通っているかの最短確認。玩家の周りへ放射状に撃つ
         if (ImGui::Button("Test Fire 100"))
         {
@@ -1160,6 +1439,8 @@ void CollisionTestScene::DrawDebugUI()
 
         ImGui::DragFloat("Contact Damage", &ai.contactDamage, 0.5f, 0.0f, 100.0f);
         ImGui::DragFloat("Attack Interval", &ai.attackInterval, 0.05f, 0.1f, 5.0f);
+        ImGui::DragFloat("Hit Stun (s)", &ai.hitStun, 0.005f, 0.0f, 0.5f);
+        ImGui::DragFloat("Hit Flash Gain", &ai.hitFlash, 0.1f, 1.0f, 10.0f);
         ImGui::Separator();
 
         // ---- 精英（CPU）----
@@ -1184,9 +1465,18 @@ void CollisionTestScene::DrawDebugUI()
                 ImGui::SameLine();
                 if (ImGui::Button("Reset HP")) hp.current = hp.max;
             }
+            ImGui::SameLine();
+            // 無敵を外して HP 0 → 次フレームの死亡判定で燃焼消滅が始まる
+            if (ImGui::Button("Burn"))
+            {
+                hp.invincible = false;
+                hp.current = 0.0f;
+            }
             ImGui::PopID();
         }
         ImGui::Text("Elites alive : %d", alive);
+        ImGui::SliderFloat("Burn Duration", &m_BurnDuration, 0.3f, 5.0f);
+        ImGui::Text("Mesh VFX active : %zu", m_MeshVFXSystem.GetActiveCount());
         if (ImGui::Button("Respawn Elites")) RespawnElites();
         ImGui::SameLine();
         // GPU 側を全消し。counter は残るので kills (total) は減らない
@@ -1212,5 +1502,7 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::DragFloat("Intensity", &m_LightIntensity, 0.02f, 0.0f, 5.0f);
         ImGui::ColorEdit3("Ambient", m_AmbientColor);
     }
+
+    DrawBloomPanel();
     ImGui::End();
 }

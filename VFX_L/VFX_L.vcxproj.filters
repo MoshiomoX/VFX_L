@@ -128,6 +128,9 @@
     <Filter Include="Graphics\PostProcess">
       <UniqueIdentifier>{7eeb8853-484a-457b-b704-d59bf887b674}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Graphics\Shader\HLSL\VFX">
+      <UniqueIdentifier>{1c6228e5-49b8-4ca4-997b-cf1457ae9274}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\Application.cpp">
@@ -235,6 +238,9 @@
     <ClCompile Include="Debug\DebugManager.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\Gizmo.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
     <ClCompile Include="Manager\InputManager.cpp">
       <Filter>Manager</Filter>
     </ClCompile>
@@ -295,6 +301,12 @@
     <ClCompile Include="Scene\CollisionTestScene.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Scene\TitleScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\ResultScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\TestSpawner.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
@@ -320,6 +332,9 @@
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\ProjectileVFXSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\MeshVFXSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Renderer\Renderer.cpp">
@@ -402,9 +417,36 @@
     <ClCompile Include="Swarm\SwarmSystem.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
+    <ClCompile Include="Swarm\ProjectileProfile.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\AreaProfile.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\AreaVFXPlayer.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\ProjectileEditorScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Swarm\SwarmVFXTable.cpp" />
     <ClCompile Include="Graphics\PostProcess\Bloom.cpp">
       <Filter>Graphics\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Model\MaterialLoader.cpp">
+      <Filter>Graphics\Model</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXTextureRef.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXFileList.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXMeshEntry.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXMeshRenderer.cpp">
+      <Filter>VFX_Editor</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -540,6 +582,9 @@
     <ClInclude Include="Debug\DebugManager.h">
       <Filter>Debug</Filter>
     </ClInclude>
+    <ClInclude Include="Debug\Gizmo.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
     <ClInclude Include="Manager\InputManager.h">
       <Filter>Manager</Filter>
     </ClInclude>
@@ -638,6 +683,15 @@
     <ClInclude Include="Scene\CollisionTestScene.h">
       <Filter>Scene</Filter>
     </ClInclude>
+    <ClInclude Include="Scene\TitleScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\ResultScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\RunResult.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
     <ClInclude Include="Collider\GPUCollider.h">
       <Filter>Collider</Filter>
     </ClInclude>
@@ -692,6 +746,15 @@
     </ClInclude>
     <ClInclude Include="ECS\System\ProjectileVFXSystem.h">
       <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\MeshVFXSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="Component\MeshVFXComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Component\DissolveComponent.h">
+      <Filter>Component</Filter>
     </ClInclude>
     <ClInclude Include="Component\Projectile\ProjectileComponent.h">
       <Filter>Component\Projectile</Filter>
@@ -835,11 +898,38 @@
     <ClInclude Include="Swarm\SwarmSystem.h">
       <Filter>Swarm</Filter>
     </ClInclude>
+    <ClInclude Include="Swarm\ProjectileProfile.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\AreaProfile.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\AreaVFXPlayer.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\ProjectileEditorScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
     <ClInclude Include="Swarm\SwarmVFXTable.h" />
     <ClInclude Include="VFX_Editor\VFXDatabase.h" />
     <ClInclude Include="VFX_Editor\VFXId.h" />
     <ClInclude Include="Graphics\PostProcess\Bloom.h">
       <Filter>Graphics\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Model\MaterialLoader.h">
+      <Filter>Graphics\Model</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXTextureRef.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXFileList.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXMeshEntry.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXMeshRenderer.h">
+      <Filter>VFX_Editor</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -858,7 +948,22 @@
     <FxCompile Include="Shader\Particle\ParticleEmitCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Particle\ParticleTrailCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\ParticleTrailVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\ParticleTrailPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Particle\ParticleUpdateCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\EdgeFilterCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\ParticleCubeVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Particle\GPUParticlePS.hlsl">
@@ -936,6 +1041,18 @@
     <FxCompile Include="Shader\Swarm\SwarmRecycleCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmSpawnAreaCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmAreaTickCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmAreaDamageCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmAreaEmitCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmHitCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -963,6 +1080,15 @@
     <FxCompile Include="Shader\VS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\VFX\VFXMeshVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\VFX</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\VFX\VFXMeshPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\VFX</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\VFX\NoiseGenCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\VFX</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Particle\Common\ParticleCommon.hlsli">
@@ -978,6 +1104,9 @@
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
     <None Include="Shader\Particle\Common\EmitMesh.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\ParticleTrail.hlsli">
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
     <None Include="Shader\Particle\Common\EmitPoint.hlsli">
@@ -1000,6 +1129,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\Lighting.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\Dissolve.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
   </ItemGroup>

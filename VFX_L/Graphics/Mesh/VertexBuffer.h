@@ -25,6 +25,15 @@ public:
         bd.ByteWidth = sizeof(T) * m_VertexCount;
         bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
+        // 粒子の Mesh 発射源として CS から raw view で読めるようにする。
+        // ByteAddressBuffer は 4 バイト単位なので、割り切れない頂点型では付けない
+        const bool rawView = (bd.ByteWidth % 4 == 0);
+        if (rawView)
+        {
+            bd.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
+            bd.MiscFlags |= D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
+        }
+
         if (dynamic)
         {
             bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -39,7 +48,22 @@ public:
         D3D11_SUBRESOURCE_DATA sd = {};
         sd.pSysMem = vertices.data();
 
-        return SUCCEEDED(device->CreateBuffer(&bd, &sd, &m_Buffer));
+        m_RawSRV.Reset();
+        if (FAILED(device->CreateBuffer(&bd, &sd, &m_Buffer)))
+            return false;
+
+        // raw SRV（失敗しても頂点バッファとしては使えるので致命ではない）
+        if (rawView)
+        {
+            D3D11_SHADER_RESOURCE_VIEW_DESC sv = {};
+            sv.Format = DXGI_FORMAT_R32_TYPELESS;
+            sv.ViewDimension = D3D11_SRV_DIMENSION_BUFFEREX;
+            sv.BufferEx.FirstElement = 0;
+            sv.BufferEx.NumElements = bd.ByteWidth / 4;
+            sv.BufferEx.Flags = D3D11_BUFFEREX_SRV_FLAG_RAW;
+            device->CreateShaderResourceView(m_Buffer.Get(), &sv, &m_RawSRV);
+        }
+        return true;
     }
 
     // 空のバッファを作成（後で書き換え前提）
@@ -133,8 +157,13 @@ public:
 
     bool IsValid() const { return m_Buffer != nullptr; }
 
+    // 粒子の Mesh 発射源用 raw view（ByteAddressBuffer）。Create でのみ作られる。
+    // CreateEmpty 経由や 4 バイト非整数倍の頂点型では nullptr
+    ID3D11ShaderResourceView* GetRawSRV() const { return m_RawSRV.Get(); }
+
 private:
     ComPtr<ID3D11Buffer> m_Buffer;
+    ComPtr<ID3D11ShaderResourceView> m_RawSRV;
     UINT m_VertexCount = 0;
     bool m_Dynamic = true;
 };

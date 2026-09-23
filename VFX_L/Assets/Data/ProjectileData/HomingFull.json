@@ -1,0 +1,9 @@
+{
+    "c1": [0.25, 0.45, 0.1],
+    "c2": [0.75, 0.2, 0.0],
+    "mirror": 2,
+    "mode": 2,
+    "name": "HomingFull",
+    "preview": { "damage": 10.0, "lifetime": 6.0, "radius": 0.25, "speed": 14.0 },
+    "retargetRadius": 0.0
+}

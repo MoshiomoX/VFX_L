@@ -1,0 +1,20 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 6, "atlasIndex": 27, "atlasRows": 6,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 2.5,
+                "emitRate": 1500.0, "emitType": 1,
+                "endColorMax": [1.0, 0.15, 0.02, 0.0], "endColorMin": [0.8, 0.05, 0.0, 0.0],
+                "gravity": [0.0, 1.5, 0.0], "innerRadius": 0.0,
+                "lifetimeRange": [0.25, 0.6], "maxParticles": 2000,
+                "position": [0.0, 0.0, 0.0], "radius": 0.4, "rotationRange": [0.0, 0.0],
+                "sizeRange": [0.5, 0.9, 0.0, 0.15], "speedRange": [5.0, 11.0], "spreadAngle": 180.0,
+                "startColorMax": [1.0, 0.85, 0.4, 1.0], "startColorMin": [1.0, 0.55, 0.15, 1.0]
+            },
+            "duration": 0.2, "startTime": 0.0, "type": "Particle"
+        }
+    ],
+    "loop": false,
+    "name": "Explosion"
+}

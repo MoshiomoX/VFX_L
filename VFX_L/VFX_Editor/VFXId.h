@@ -14,6 +14,8 @@ enum class VFXId : uint32_t
 {
     None = 0,
     Fireball,
+    DeathBurn,      // 燃焼消滅（Mesh 発射 + 溶解の縁。MeshVFXSystem::StartBurn）
+    Explosion,      // 爆発。弾の命中で GPU が出す範囲（hitArea）の粒子。GPU 側は登録済みの VFX しか出せない
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };

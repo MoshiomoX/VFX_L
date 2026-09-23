@@ -9,10 +9,32 @@
 
     // --- Buffer宣言 ---
     StructuredBuffer<GPUEmitter> emitters : register(t0);
-    StructuredBuffer<EmitMeshVertex> meshVertices : register(t1); // 未実装（3D粒子用に予約・未バインド）
+    ByteAddressBuffer emitSource : register(t1); // Mesh emit source (raw vertex buffer of g_ActiveSource)
     Buffer<uint> deadCount : register(t2); // CopyStructureCount のコピー先
+    StructuredBuffer<EmitSourceLayout> sourceLayouts : register(t3); // one entry per registered source
+    StructuredBuffer<uint> edgeIndices : register(t4); // dissolve-edge vertex table of g_ActiveSource (EdgeFilterCS)
+    Buffer<uint> edgeCount : register(t5); // CopyStructureCount of the table
+    ByteAddressBuffer emitIndices : register(t6); // raw index buffer of g_ActiveSource (triangle sampling)
     RWStructuredBuffer<GPUParticle> particles : register(u0);
     ConsumeStructuredBuffer<uint> deadList : register(u1);
+
+    // --- Emit pass ---
+    // One dispatch can bind only one source buffer, so mesh emitters are
+    // dispatched once per source. g_ActiveSource < 0 = the non-mesh pass.
+    // GlobalCB (b0) is shared with SwarmEmitCS, so this lives in its own cb.
+    cbuffer EmitPassCB : register(b2)
+    {
+        int g_ActiveSource;
+        int3 g_EmitPassPad;
+    };
+
+    bool InThisPass(GPUEmitter e)
+    {
+        bool isMesh = (e.emitType == 6);
+        if (g_ActiveSource < 0)
+            return !isMesh;
+        return isMesh && (e.sourceId == g_ActiveSource);
+    }
 
     [numthreads(256, 1, 1)]
     void main(uint3 id : SV_DispatchThreadID)
@@ -42,6 +64,10 @@
             if (emitters[i].isActive < 0.5)
                 continue;
 
+            // emitters of other passes do not own any thread of this dispatch
+            if (!InThisPass(emitters[i]))
+                continue;
+
             if (globalIndex < accumulated + (uint) emitters[i].emitCount)
             {
                 emitterIndex = i;
@@ -66,6 +92,7 @@
         // 形状に応じて発射位置と速度を決定
         float3 pos = e.position;
         float3 vel = float3(0, 0, 0);
+        bool emitted = true; // mesh edge mode may have nothing to emit from
 
         switch (e.emitType)
         {
@@ -88,9 +115,15 @@
                 EmitDisc(e, seed, pos, vel);
                 break;
             case 6:
-                EmitMesh(e, seed, meshVertices, pos, vel);
+                EmitMesh(e, seed, emitSource, emitIndices, sourceLayouts[e.sourceId],
+                         edgeIndices, edgeCount[0], pos, vel, emitted);
                 break;
         }
+
+        // sweep emit: spread along the path the emitter travelled this frame.
+        // own seed so the attribute stream below stays unchanged
+        uint sweepSeed = seed ^ 0x9E3779B9u;
+        pos += e.sweep * Random(sweepSeed);
 
         // 粒子初期化
         GPUParticle p = (GPUParticle) 0;
@@ -104,6 +137,12 @@
         p.age = 0.0;
         p.isAlive = 1.0;
 
+        // nothing to emit from: the dead-list slot is already consumed, so
+        // give the particle zero life. UpdateCS returns it next frame
+        // without ever drawing it.
+        if (!emitted)
+            p.lifetime = 0.0;
+
         p.startColor = RandomColor(seed, e.startColorMin, e.startColorMax);
         p.endColor = RandomColor(seed, e.endColorMin, e.endColorMax);
         p.color = p.startColor;
@@ -114,6 +153,15 @@
 
         p.rotation = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
         p.angularVel = RandomRange(seed, e.angularVelRange.x, e.angularVelRange.y);
+
+        // cube: 3 axes share the same ranges
+        p.renderMode = e.renderMode;
+        p.rot3.x = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
+        p.rot3.y = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
+        p.rot3.z = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
+        p.angVel3.x = RandomRange(seed, e.angularVelRange.x, e.angularVelRange.y);
+        p.angVel3.y = RandomRange(seed, e.angularVelRange.x, e.angularVelRange.y);
+        p.angVel3.z = RandomRange(seed, e.angularVelRange.x, e.angularVelRange.y);
 
         p.seed = seed;
 
@@ -127,6 +175,11 @@
 
         // 所有者を引き継ぐ。0 = 無主（投射物VFX）。
         p.ownerID = e.ownerID;
+
+        // ribbon trail: the style rides on the particle; the ring starts empty
+        // (stale points of the previous owner of this slot are never read)
+        p.trailStyle = (uint) max(e.trailStyle, 0);
+        p.trailState = 0u;
 
         particles[particleIndex] = p;
     }

@@ -59,10 +59,33 @@ public:
     void RenderDebug(CameraBase* camera);
     // ---- CPU 側から生成を依頼する（Flush でまとめて反映）----
     void SpawnEnemy(const DirectX::SimpleMath::Vector3& pos, float hp, float moveSpeed);
+    // motion  : SetMotions で上げた表の番号（0 = 直進）
+    // mirror  : 曲線を左右反転して撃つ（交互撃ち・乱数撃ちは呼ぶ側が決める）
+    // 曲線の型では vel の「速さ」だけが使われ、向きは曲線が決める。
+    // 捕捉する敵は玩家に一番近い 1 体（武器が狙っているのと同じ相手）
     void SpawnProjectile(VFXId vfx,
         const DirectX::SimpleMath::Vector3& pos,
         const DirectX::SimpleMath::Vector3& vel,
-        float damage, float radius, float lifetime);
+        float damage, float radius, float lifetime,
+        uint32_t motion = 0, bool mirror = false);
+
+    // 運動表を丸ごと差し替える。添字がそのまま SpawnProjectile の motion。
+    // 飛んでいる弾も次のステップから新しい値で動く（編集器で調整中の反映用）
+    void SetMotions(const std::vector<Swarm::Motion>& motions);
+
+    // ---- 範囲攻撃（爆発・法環）----
+    // CPU から 1 個出す（Flush でまとめて反映）。
+    // tickTimer = 0 なら出た最初のステップで 1 回目のダメージが入る。
+    // 単発は tickInterval を duration より長くしておけば 1 回しか tick しない。
+    // vfxType は 0 のままにする：CPU から出した範囲の見た目は CPU 側で VFX を再生する
+    void SpawnArea(const Swarm::Area& area);
+
+    // 雛形の表を丸ごと差し替える。添字が Motion::hitArea。0 番は「無し」なので中身は使われない。
+    // 弾が命中した場所に GPU が自分で範囲を出す時に引く
+    void SetAreaDefs(const std::vector<Swarm::AreaDef>& defs);
+
+    // 範囲を全部消す
+    void ClearAreas();
 
     // ---- 毎フレーム ----
     // UpdateGameplay の末尾、粒子の Flush より前に呼ぶ。
@@ -139,6 +162,28 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjSRV;
+
+    // --- 投射物の運動 ---
+    // path   : 投射物と同じ添字。GPU が組んだベジェ（CPU は触らない）
+    // motion : 運動表。CPU から上げる（読み取り専用）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_PathBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_PathUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_PathSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_MotionBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_MotionSRV;
+
+    // --- 範囲攻撃 ---
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaStateBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaStateUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaStateSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaDefBuffer;      // 雛形の表（CPU から書く）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaDefSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnAreaBuffer;    // 生成依頼
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_SpawnAreaSRV;
+    std::vector<Swarm::Area> m_PendingAreas;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_OrbBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_OrbUAV;
@@ -239,7 +284,14 @@ private:
     std::vector<Swarm::Enemy> m_EnemyUpload;     // 新規 + 転送を連結した一時領域
     float m_RecycleMinDist = 35.0f;
 
-    std::shared_ptr<ComputeShader> m_AimResolveCS;   // Phase 4: 最寄りの雑魚を回読用に書き出す
+    // ---- 範囲攻撃 ----
+    std::shared_ptr<ComputeShader> m_SpawnAreaCS;    // CPU の依頼を空きスロットへ
+    std::shared_ptr<ComputeShader> m_AreaTickCS;     // 時計を進める・玩家に追従・tick の判定（命中の直後）
+    std::shared_ptr<ComputeShader> m_AreaDamageCS;   // tick した範囲の中の雑魚へダメージ
+    std::shared_ptr<ComputeShader> m_AreaEmitCS;     // GPU が出した範囲（弾の命中）から粒子を発射
+
+    std::shared_ptr<ComputeShader> m_AimResolveCS;
+   // Phase 4: 最寄りの雑魚を回読用に書き出す
     // 転送の「誰が何番目を取ったか」用。dispatch 前に 0 にする
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_RecycleClaim;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_RecycleClaimUAV;

@@ -216,8 +216,9 @@ void TestScene::RenderSkinnedModel(Renderer& renderer)
         m_SkinnedGPU.SkinSubmesh(ctx, m_SkinningCS.get(), s, subPalette);
     }
 
-    // ????
-    m_SkinnedGPU.Render(ctx, m_SkinnedVS.get(), m_SkinnedPS.get(),
+    LightBuffer l = renderer.GetLightData();
+    l.cameraPosition = GetCamera()->GetPosition();
+    m_SkinnedGPU.Render(ctx, *m_SkinnedModel, l,
         m_SkinnedTransform.GetWorldMatrix(),
         GetCamera()->GetViewMatrix(),
         GetCamera()->GetProjectionMatrix());

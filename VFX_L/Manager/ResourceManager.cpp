@@ -1,27 +1,25 @@
+// ============================================================
+// ResourceManager.cpp
+// ============================================================
 #include "Manager/ResourceManager.h"
 #include "Graphics/Shader/ShaderPath.h"
-#include <iostream>
+#include "Graphics/Shader/ComputeShader.h"
 #include "Graphics/Model/SkinnedModel.h"
+#include "VFX_Editor/VFXTextureRef.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#include <assimp/config.h> 
+#include <assimp/config.h>
+#include <wrl/client.h>
 #include <filesystem>
+#include <iostream>
+
+using Microsoft::WRL::ComPtr;
 
 // ============================================================
-// ?ToCsoPath ? ShaderPath::ToCso ?????
-//   ??????? GPUParticleSystem ????????????
-//   ????????????????????????
-//   ????????? Release ?? shader ??????????
-//   ?????????
-// ============================================================
-
-// ============================================================
-// entry ???
-//
-// ?cso ????????????????????????
-//   ?????????main ???????????????????
-//   ????????????????????????????
+// entry point の警告
+// cso モードでは entry は cso 生成時に決まっている（main 固定）。
+// 呼ぶ側が別の名前を要求しても無視されるので、その旨を出す
 // ============================================================
 static void WarnIfCustomEntry(const std::wstring& name, const std::string& entry)
 {
@@ -40,13 +38,15 @@ static bool SceneHasBones(const aiScene* scene)
     return false;
 }
 
+// ============================================================
+// 骨の有無で static / skinned を振り分ける
+// ============================================================
 LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
 
     LoadedModel out;
 
-    // --- import ?1????static/skinned ??? ---
     Assimp::Importer importer;
     importer.SetPropertyInteger(AI_CONFIG_PP_LBW_MAX_WEIGHTS, 4);
     importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
@@ -55,26 +55,25 @@ LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
         aiProcess_FlipUVs |
         aiProcess_CalcTangentSpace |
         aiProcess_GenNormals |
-        aiProcess_MakeLeftHanded | /*
-        aiProcess_LimitBoneWeights |*/
-        aiProcess_PopulateArmatureData);   // ??/????????????
+        aiProcess_MakeLeftHanded |
+        aiProcess_PopulateArmatureData);   // 骨 / armature の情報を埋める
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
     {
-        std::cout << "[LoadModelAuto] Assimp??: " << importer.GetErrorString() << std::endl;
+        std::cout << "[LoadModelAuto] Assimp error: " << importer.GetErrorString() << std::endl;
         return out;
     }
 
     namespace fs = std::filesystem;
-    size_t lastSlash = filepath.find_last_of("/\\");
-    std::string dir = (lastSlash != std::string::npos) ? filepath.substr(0, lastSlash + 1) : "";
-    std::string name = fs::path(filepath).stem().string();
+    const size_t lastSlash = filepath.find_last_of("/\\");
+    const std::string dir = (lastSlash != std::string::npos) ? filepath.substr(0, lastSlash + 1) : "";
+    const std::string name = fs::path(filepath).stem().string();
 
     if (SceneHasBones(scene))
     {
         out.kind = ModelKind::Skinned;
         out.skinnedModel = std::make_shared<SkinnedModel>();
-        out.skinnedModel->LoadFromScene(scene, dir);
+        out.skinnedModel->LoadFromScene(m_Device, scene, dir, name);
         std::cout << "[LoadModelAuto] -> Skinned : " << filepath << std::endl;
     }
     else
@@ -102,7 +101,9 @@ void ResourceManager::Shutdown()
     std::cout << "[OK] ResourceManager shutdown" << std::endl;
 }
 
-// ===== Texture =====
+// ============================================================
+// Texture
+// ============================================================
 std::shared_ptr<Texture> ResourceManager::LoadTexture(const std::wstring& filepath)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
@@ -142,6 +143,74 @@ std::shared_ptr<Texture> ResourceManager::LoadEmbeddedTexture(const std::wstring
     return nullptr;
 }
 
+// ============================================================
+// ノイズ生成（NoiseGenCS）
+// 配方の内容を key に cache する。R32_FLOAT 1 チャンネル
+// （typed UAV store が FL11.0 で保証されている形式）
+// ============================================================
+std::shared_ptr<Texture> ResourceManager::LoadNoiseTexture(const NoiseRecipe& recipe)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+
+    const std::string keyA = recipe.CacheKey();
+    const std::wstring key(keyA.begin(), keyA.end());
+    auto it = m_Textures.find(key);
+    if (it != m_Textures.end())
+        return it->second;
+
+    auto cs = LoadCS(L"NoiseGenCS", L"Shader/VFX/NoiseGenCS.hlsl");
+    if (!cs) return nullptr;
+
+    const UINT size = (UINT)(recipe.size < 8 ? 8 : recipe.size);
+
+    D3D11_TEXTURE2D_DESC td = {};
+    td.Width = size;
+    td.Height = size;
+    td.MipLevels = 1;
+    td.ArraySize = 1;
+    td.Format = DXGI_FORMAT_R32_FLOAT;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_DEFAULT;
+    td.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+
+    ComPtr<ID3D11Texture2D> tex;
+    ComPtr<ID3D11ShaderResourceView> srv;
+    ComPtr<ID3D11UnorderedAccessView> uav;
+    if (FAILED(m_Device->CreateTexture2D(&td, nullptr, &tex))) return nullptr;
+    if (FAILED(m_Device->CreateShaderResourceView(tex.Get(), nullptr, &srv))) return nullptr;
+    if (FAILED(m_Device->CreateUnorderedAccessView(tex.Get(), nullptr, &uav))) return nullptr;
+
+    // HLSL の NoiseCB と同じ並び（32B）
+    struct NoiseCB
+    {
+        uint32_t type, size, frequency, octaves;
+        float persistence;
+        uint32_t seed, pad0, pad1;
+    } cb = {};
+    cb.type = (uint32_t)recipe.type;
+    cb.size = size;
+    cb.frequency = (uint32_t)(recipe.frequency < 1 ? 1 : recipe.frequency);
+    cb.octaves = (uint32_t)(recipe.octaves < 1 ? 1 : recipe.octaves);
+    cb.persistence = recipe.persistence;
+    cb.seed = recipe.seed;
+
+    ComPtr<ID3D11DeviceContext> ctx;
+    m_Device->GetImmediateContext(&ctx);
+
+    cs->WriteBuffer(ctx.Get(), 0, &cb);
+    cs->Bind(ctx.Get());
+    cs->SetUAV(ctx.Get(), "dst", uav.Get());
+    cs->BindUAVs(ctx.Get());
+    ctx->Dispatch((size + 7) / 8, (size + 7) / 8, 1);
+    cs->UnbindUAVs(ctx.Get());
+
+    auto texture = std::make_shared<Texture>();
+    texture->Adopt(srv.Get(), (int)size, (int)size);
+    m_Textures[key] = texture;
+
+    std::cout << "[OK] Noise baked: " << keyA << std::endl;
+    return texture;
+}
 
 std::future<std::shared_ptr<Texture>> ResourceManager::LoadTextureAsync(const std::wstring& filepath)
 {
@@ -158,13 +227,8 @@ void ResourceManager::UnloadTexture(const std::wstring& filepath)
 
 // ============================================================
 // VertexShader
-//
-// ?Debug ? Release ? cso ????
-//   ??????????????????
-//   ??????????????????
-//
-//   hlslPath ???????????????????????
-//   ???????????? cso(?????????)?
+// Debug / Release とも cso を読む。hlslPath は ShaderPath::ToCso で
+// 出力先の cso に変換される（entry は cso 側で固定）
 // ============================================================
 std::shared_ptr<VertexShader> ResourceManager::LoadVS(
     const std::wstring& name, const std::wstring& hlslPath, const std::string& entry)
@@ -190,8 +254,7 @@ std::shared_ptr<VertexShader> ResourceManager::LoadVS(
 }
 
 std::shared_ptr<VertexShader> ResourceManager::LoadVS_CSO(
-    const std::wstring& name,
-    const std::string& csoPath)
+    const std::wstring& name, const std::string& csoPath)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
 
@@ -237,8 +300,7 @@ std::shared_ptr<PixelShader> ResourceManager::LoadPS(
 }
 
 std::shared_ptr<PixelShader> ResourceManager::LoadPS_CSO(
-    const std::wstring& name,
-    const std::string& csoPath)
+    const std::wstring& name, const std::string& csoPath)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
 
@@ -284,8 +346,7 @@ std::shared_ptr<ComputeShader> ResourceManager::LoadCS(
 }
 
 std::shared_ptr<ComputeShader> ResourceManager::LoadCS_CSO(
-    const std::wstring& name,
-    const std::string& csoPath)
+    const std::wstring& name, const std::string& csoPath)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
 
@@ -304,7 +365,9 @@ std::shared_ptr<ComputeShader> ResourceManager::LoadCS_CSO(
     return cs;
 }
 
-// ===== Mesh =====
+// ============================================================
+// Mesh
+// ============================================================
 std::shared_ptr<Mesh> ResourceManager::LoadMesh(
     const std::wstring& name,
     const std::vector<VERTEX_3D>& vertices,
@@ -333,7 +396,9 @@ void ResourceManager::UnloadMesh(const std::wstring& name)
     m_Meshes.erase(name);
 }
 
-// ===== Material =====
+// ============================================================
+// Material
+// ============================================================
 std::shared_ptr<Material> ResourceManager::LoadMaterial(
     const std::wstring& name,
     const std::wstring& vsName,
@@ -367,7 +432,9 @@ std::shared_ptr<Material> ResourceManager::LoadMaterial(
     return material;
 }
 
-// ===== Model =====
+// ============================================================
+// Model（静的）
+// ============================================================
 std::shared_ptr<Model> ResourceManager::LoadModel(const std::string& filepath)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
@@ -393,7 +460,9 @@ void ResourceManager::UnloadModel(const std::string& filepath)
     m_Models.erase(filepath);
 }
 
-// ===== ??? =====
+// ============================================================
+// 一括解放
+// ============================================================
 void ResourceManager::UnloadAll()
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
@@ -428,7 +497,9 @@ void ResourceManager::CleanupUnused()
     }
 }
 
-// ===== VFX ?????? =====
+// ============================================================
+// VFX テンプレート
+// ============================================================
 std::shared_ptr<VFXEffect> ResourceManager::LoadVFXTemplate(const std::string& filepath)
 {
     std::lock_guard<std::recursive_mutex> lock(m_Mutex);

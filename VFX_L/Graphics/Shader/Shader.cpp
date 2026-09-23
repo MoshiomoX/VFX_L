@@ -180,6 +180,7 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
         }
         // --- SRV：スロット情報を記録（t レジスタ）---
         else if (bindDesc.Type == D3D_SIT_STRUCTURED ||
+            bindDesc.Type == D3D_SIT_BYTEADDRESS ||   // ByteAddressBuffer（Mesh 発射源の raw view）
             bindDesc.Type == D3D_SIT_TEXTURE ||
             bindDesc.Type == D3D_SIT_TBUFFER)
         {

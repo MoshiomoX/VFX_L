@@ -23,8 +23,15 @@
 #define SWARM_FRAME_CB_REG b2
 #include "../Common/SwarmCommon.hlsli"
 
+// SwarmAreaEmitCS.hlsl #defines SWARM_EMIT_AREAS and includes this file:
+// same emit code, but the sources are the live areas instead of projectiles
+#ifdef SWARM_EMIT_AREAS
+StructuredBuffer<SwarmArea> areas : register(t0);
+Buffer<uint> areaStates : register(t1);
+#else
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 Buffer<uint> projStates : register(t1);
+#endif
 StructuredBuffer<SwarmRecipe> recipes : register(t2);
 StructuredBuffer<GPUEmitter> emitters : register(t3);
 Buffer<uint> deadCount : register(t4);
@@ -46,13 +53,30 @@ uint StochasticCount(float rate, float dt, inout uint seed)
 void main(uint3 id : SV_DispatchThreadID)
 {
     uint i = id.x;
+
+    // ---- the source: where, how fast, which recipe ----
+    float3 srcPos;
+    float3 srcVel;
+    uint srcVfx;
+#ifdef SWARM_EMIT_AREAS
+    if (i >= SWARM_MAX_AREAS)
+        return;
+    if (areaStates[i] == SWARM_DEAD)
+        return;
+    srcPos = areas[i].center;
+    srcVel = float3(0, 0, 0);
+    srcVfx = areas[i].vfxType;
+#else
     if (i >= g_MaxProjectiles)
         return;
     if (projStates[i] == SWARM_DEAD)
         return;
+    srcPos = projectiles[i].position;
+    srcVel = projectiles[i].velocity;
+    srcVfx = projectiles[i].vfxType;
+#endif
 
-    SwarmProjectile p = projectiles[i];
-    SwarmRecipe r = recipes[p.vfxType];
+    SwarmRecipe r = recipes[srcVfx];
     if (r.particleCount == 0u)
         return;
 
@@ -61,7 +85,7 @@ void main(uint3 id : SV_DispatchThreadID)
     for (uint ei = 0u; ei < r.particleCount; ++ei)
     {
         GPUEmitter e = emitters[r.particleStart + ei];
-        e.position = p.position; // the emitter follows the projectile
+        e.position = srcPos; // the emitter follows the source
 
         uint k = StochasticCount(e.emitRate, g_DeltaTime, seed);
         if (k == 0u)
@@ -108,6 +132,13 @@ void main(uint3 id : SV_DispatchThreadID)
                     break; // mesh emit not supported on this path
             }
 
+            // sweep emit: the projectile moved about velocity * dt since the
+            // last emit, so scatter back along that segment. Without this a
+            // fast projectile leaves a dotted trail. Own seed so the
+            // attribute stream below stays unchanged
+            uint sweepSeed = s ^ 0x9E3779B9u;
+            pos -= srcVel * (g_DeltaTime * Random(sweepSeed));
+
             // ---- particle init: identical to ParticleEmitCS ----
             GPUParticle q = (GPUParticle) 0;
             q.position = pos;
@@ -125,6 +156,15 @@ void main(uint3 id : SV_DispatchThreadID)
             q.size = q.startSize;
             q.rotation = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
             q.angularVel = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
+
+            // cube: 3 axes share the same ranges (same as ParticleEmitCS)
+            q.renderMode = e.renderMode;
+            q.rot3.x = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
+            q.rot3.y = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
+            q.rot3.z = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
+            q.angVel3.x = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
+            q.angVel3.y = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
+            q.angVel3.z = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
             q.seed = s;
             q.textureIndex = e.textureIndex;
             q.atlasRows = e.atlasRows;

@@ -26,6 +26,8 @@ namespace Res
         inline constexpr const wchar_t* Particles = L"Assets/Particles/";
         inline constexpr const char* VFXData = "Assets/Data/VFXData/";
         inline constexpr const wchar_t* ShaderDir = L"Shader/";
+        inline constexpr const char* VFXMesh = "Assets/VFX/Mesh";   // VFXFileList 用（末尾スラッシュ無し）
+        inline constexpr const char* VFXTex = "Assets/VFX/Tex";
     }
 
     // ========================================================
@@ -43,8 +45,26 @@ namespace Res
 		//Skybox用
         inline constexpr const wchar_t* Sky_VS = L"Shader/SkyVS.hlsl";
         inline constexpr const wchar_t* Sky_PS = L"Shader/SkyPS.hlsl";
+
+        // VFX 用（光を当てない）
+        inline constexpr const wchar_t* VFXMesh_VS = L"Shader/VFX/VFXMeshVS.hlsl";
+        inline constexpr const wchar_t* VFXMesh_PS = L"Shader/VFX/VFXMeshPS.hlsl";
+        inline constexpr const wchar_t* NoiseGen_CS = L"Shader/VFX/NoiseGenCS.hlsl";
     }
 
+    // ========================================================
+    // VFX 用アセット（Mesh entry のモデル / ノイズ等の貼图）
+    // Editor はフォルダを列挙して選ぶので、ここは既定値と
+    // コードから直接参照する物だけ
+    // ========================================================
+    namespace VFX
+    {
+        inline constexpr const char* Slash = "Assets/VFX/Mesh/Slash.fbx";
+
+        inline constexpr const wchar_t* Noise001 = L"Assets/VFX/Tex/Noise_001.png";
+        inline constexpr const wchar_t* Noise002 = L"Assets/VFX/Tex/Noise_002.png";
+        inline constexpr const wchar_t* Noise003 = L"Assets/VFX/Tex/Noise_003.png";
+    }
     // ========================================================
     // モデル（char）
     // ========================================================
@@ -163,6 +183,8 @@ namespace Res
     {
         inline constexpr const char* Fireball = "Assets/Data/VFXData/Fireball.json";
         inline constexpr const char* Lightning = "Assets/Data/VFXData/Lightning.json";
+        inline constexpr const char* DeathBurn = "Assets/Data/VFXData/DeathBurn.json";   // 燃焼消滅（Mesh 発射）
+        inline constexpr const char* Explosion = "Assets/Data/VFXData/Explosion.json";   // 爆発（範囲攻撃）
     }
 
     // ========================================================

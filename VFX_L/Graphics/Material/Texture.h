@@ -41,7 +41,13 @@ public:
     int GetWidth() const { return m_Width; }
     int GetHeight() const { return m_Height; }
     ID3D11ShaderResourceView* GetSRV() const { return m_ShaderResourceView.Get(); }
-
+    // 外で作った SRV を引き取る（NoiseGenCS の出力など）
+    void Adopt(ID3D11ShaderResourceView* srv, int width, int height)
+    {
+        m_ShaderResourceView = srv;
+        m_Width = width;
+        m_Height = height;
+    }
 private:
     // Load / LoadFromMemory の共通部: mipmap 生成 → SRV → サイズ控え
     bool FinishFromImage(ID3D11Device* device, DirectX::ScratchImage& image,

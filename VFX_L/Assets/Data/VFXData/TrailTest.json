@@ -1,0 +1,52 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0],
+                "atlasAnimate": false,
+                "atlasCols": 6,
+                "atlasIndex": 27,
+                "atlasRows": 6,
+                "boxExtents": [1.0, 1.0, 1.0],
+                "direction": [0.0, 1.0, 0.0],
+                "dragCoeff": 0.2,
+                "emitRate": 30.0,
+                "emitType": 0,
+                "endColorMax": [1.0, 0.2, 0.05, 0.0],
+                "endColorMin": [1.0, 0.1, 0.02, 0.0],
+                "gravity": [0.0, -6.0, 0.0],
+                "innerRadius": 0.0,
+                "lifetimeRange": [1.2, 1.8],
+                "maxParticles": 1000,
+                "position": [0.0, 0.0, 0.0],
+                "radius": 0.0,
+                "rotationRange": [0.0, 0.0],
+                "sizeRange": [0.15, 0.2, 0.0, 0.05],
+                "speedRange": [4.0, 8.0],
+                "spreadAngle": 50.0,
+                "startColorMax": [1.0, 0.8, 0.35, 1.0],
+                "startColorMin": [1.0, 0.55, 0.2, 1.0],
+                "trail": {
+                    "blend": 0,
+                    "colorHead": [1.0, 0.75, 0.3, 1.0],
+                    "colorTail": [1.0, 0.15, 0.02, 0.0],
+                    "enabled": true,
+                    "inheritColor": true,
+                    "inheritSize": false,
+                    "intensity": 3.0,
+                    "lifetime": 0.5,
+                    "softEdge": 0.6,
+                    "uvRepeat": 1.0,
+                    "uvScroll": 0.0,
+                    "widthHead": 0.12,
+                    "widthTail": 0.0
+                }
+            },
+            "duration": 2.0,
+            "startTime": 0.0,
+            "type": "Particle"
+        }
+    ],
+    "loop": true,
+    "name": "TrailTest"
+}

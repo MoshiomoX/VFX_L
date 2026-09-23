@@ -8,7 +8,7 @@
 #include "Graphics/Model/Model.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Manager/ResourceManager.h"
-#include "ResourcePaths.h"
+#include "Graphics/Model/MaterialLoader.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -18,81 +18,6 @@
 
 namespace fs = std::filesystem;
 using namespace DirectX::SimpleMath;
-
-// ============================================================
-// テクスチャの実体を探す
-//   そのまま → 同じ階層 → textures/ → Textures/ → Assets/
-// ============================================================
-static std::wstring FindTexturePath(const std::string& directory, const std::string& texPath)
-{
-    auto toW = [](const std::string& s) { return std::wstring(s.begin(), s.end()); };
-
-    if (fs::exists(texPath)) return toW(texPath);
-
-    const std::string filename = fs::path(texPath).filename().string();
-    const std::string candidates[] = {
-        directory + filename,
-        directory + "textures/" + filename,
-        directory + "Textures/" + filename,
-        "Assets/" + filename,
-    };
-    for (const auto& p : candidates)
-        if (fs::exists(p)) return toW(p);
-
-    std::cout << "[Warning] Texture not found: " << texPath << std::endl;
-    return L"";
-}
-
-// ============================================================
-// マテリアルから1枚のテクスチャを取る
-//   candidates を順に試し、最初に見つかった物を返す。
-//   埋め込み（FBX / GLB）なら scene から取り出す。
-//   外部ファイルなら FindTexturePath で探す。
-//   見つからなければ nullptr（Material::Bind が既定色を入れる）
-// ============================================================
-static std::shared_ptr<Texture> LoadMaterialTexture(
-    ID3D11Device* device, const aiScene* scene, const aiMaterial* mat,
-    const std::string& directory, const std::wstring& modelKey,
-    std::initializer_list<aiTextureType> candidates)
-{
-    for (aiTextureType type : candidates)
-    {
-        if (mat->GetTextureCount(type) == 0) continue;
-
-        aiString path;
-        if (mat->GetTexture(type, 0, &path) != AI_SUCCESS) continue;
-
-        // ---- 埋め込み ----
-        if (const aiTexture* emb = scene->GetEmbeddedTexture(path.C_Str()))
-        {
-            const std::string p = path.C_Str();
-            const std::wstring key = modelKey + L"#" + std::wstring(p.begin(), p.end());
-
-            if (emb->mHeight == 0)
-            {
-                // 圧縮ファイルそのまま（png/jpg など）。mWidth がバイト数
-                return ResourceManager::Get().LoadEmbeddedTexture(
-                    key, emb->pcData, emb->mWidth, emb->achFormatHint);
-            }
-
-            // 非圧縮 BGRA。稀なので cache しない
-            auto tex = std::make_shared<Texture>();
-            if (tex->CreateFromMemory(device, emb->pcData, emb->mWidth, emb->mHeight,
-                DXGI_FORMAT_B8G8R8A8_UNORM))
-                return tex;
-            return nullptr;
-        }
-
-        // ---- 外部ファイル ----
-        const std::wstring found = FindTexturePath(directory, path.C_Str());
-        if (!found.empty())
-        {
-            if (auto tex = ResourceManager::Get().LoadTexture(found))
-                return tex;
-        }
-    }
-    return nullptr;
-}
 
 // ============================================================
 // assimp の行列 → SimpleMath（転置）
@@ -222,75 +147,7 @@ bool Model::LoadFromScene(ID3D11Device* device, const aiScene* scene,
 {
     m_Directory = directory;
 
-    auto defaultVS = ResourceManager::Get().LoadVS(L"Default", L"Shader/VS.hlsl");
-    auto defaultPS = ResourceManager::Get().LoadPS(L"Default", L"Shader/PS.hlsl");
-    auto pbrVS = ResourceManager::Get().LoadVS(L"PBR_VS", Res::Shd::PBR_VS);
-    auto pbrPS = ResourceManager::Get().LoadPS(L"PBR_PS", Res::Shd::PBR_PS);
-
-    // 埋め込みテクスチャの cache key（同じモデルを2回読んでも解凍は1回）
-    const std::wstring modelKey =
-        std::wstring(directory.begin(), directory.end()) +
-        std::wstring(modelName.begin(), modelName.end());
-
-    // ---------- マテリアル ----------
-    for (unsigned int i = 0; i < scene->mNumMaterials; i++)
-    {
-        aiMaterial* aiMat = scene->mMaterials[i];
-        auto material = std::make_shared<Material>();
-
-        // 各スロットを候補順に探す。
-        // glTF は基色が BASE_COLOR、metal/rough 合図が UNKNOWN に来る。
-        // 古い OBJ / FBX は法線を HEIGHT に入れてくる事がある
-        auto albedo = LoadMaterialTexture(device, scene, aiMat, m_Directory, modelKey,
-            { aiTextureType_BASE_COLOR, aiTextureType_DIFFUSE });
-        auto normal = LoadMaterialTexture(device, scene, aiMat, m_Directory, modelKey,
-            { aiTextureType_NORMALS, aiTextureType_NORMAL_CAMERA, aiTextureType_HEIGHT });
-        auto metallic = LoadMaterialTexture(device, scene, aiMat, m_Directory, modelKey,
-            { aiTextureType_METALNESS, aiTextureType_UNKNOWN });
-        auto roughness = LoadMaterialTexture(device, scene, aiMat, m_Directory, modelKey,
-            { aiTextureType_DIFFUSE_ROUGHNESS, aiTextureType_UNKNOWN, aiTextureType_SHININESS });
-        auto ao = LoadMaterialTexture(device, scene, aiMat, m_Directory, modelKey,
-            { aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP });
-
-        // 基色が無ければ「モデル名.png」を探す（従来の救済）
-        if (!albedo)
-        {
-            const char* exts[] = { ".png", ".jpg", ".jpeg", ".tga", ".dds" };
-            for (const char* ext : exts)
-            {
-                const std::string p = m_Directory + modelName + ext;
-                if (!fs::exists(p)) continue;
-                albedo = ResourceManager::Get().LoadTexture(std::wstring(p.begin(), p.end()));
-                if (albedo) break;
-            }
-        }
-
-        material->SetAlbedoTexture(albedo);
-        material->SetNormalTexture(normal);
-        material->SetMetallicTexture(metallic);
-        material->SetRoughnessTexture(roughness);
-        material->SetAOTexture(ao);
-
-        // シェーダー選択: 法線か金属/粗さのどれかがあれば PBR
-        const bool usePBR = (normal || metallic || roughness) && pbrVS && pbrPS;
-        material->SetVertexShader(usePBR ? pbrVS : defaultVS);
-        material->SetPixelShader(usePBR ? pbrPS : defaultPS);
-
-        // 色（今は PS が読まない。Material に CB を付けた時に繋ぐ）
-        aiColor4D color;
-        if (aiMat->Get(AI_MATKEY_BASE_COLOR, color) == AI_SUCCESS ||
-            aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS)
-            material->SetColor(Vector4(color.r, color.g, color.b, color.a));
-
-        std::cout << "[Model] Material " << i << ": " << (usePBR ? "PBR" : "Lambert")
-            << "  albedo=" << (albedo ? "y" : "-")
-            << " normal=" << (normal ? "y" : "-")
-            << " metal=" << (metallic ? "y" : "-")
-            << " rough=" << (roughness ? "y" : "-")
-            << " ao=" << (ao ? "y" : "-") << std::endl;
-
-        m_Materials.push_back(material);
-    }
+    m_Materials = MaterialLoader::LoadFromScene(device, scene, directory, modelName);
 
     // ---------- メッシュ + 包囲ボックス ----------
     m_BoundsMin = Vector3(FLT_MAX, FLT_MAX, FLT_MAX);

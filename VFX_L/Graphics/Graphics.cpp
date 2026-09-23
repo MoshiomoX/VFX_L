@@ -215,6 +215,7 @@ void Graphics::BeginUI()
     ccb.exposure = bp.exposure;
     ccb.tonemap = bp.tonemap ? 1u : 0u;
     ccb.gamma = bp.gamma ? 1u : 0u;
+    m_CompositePS->WriteBuffer(m_Context.Get(), 0, &ccb);
 
     ID3D11SamplerState* samp = RenderStates::Get().LinearClamp();
     m_Context->PSSetSamplers(0, 1, &samp);

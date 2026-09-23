@@ -33,6 +33,11 @@ namespace Swarm
     constexpr uint32_t kMaxSpawnEnemyPerFrame = 256;
     constexpr uint32_t kMaxSpawnProjPerFrame = 512;
 
+    // 範囲攻撃。HLSL の SWARM_MAX_AREAS と一致させること
+    constexpr uint32_t kMaxAreas = 256;
+    constexpr uint32_t kMaxAreaDefs = 64;          // 0 番 = 無し
+    constexpr uint32_t kMaxSpawnAreaPerFrame = 64;
+
     constexpr float kHpScale = 100.0f;
     inline uint32_t HpToFixed(float hp) { return (uint32_t)(hp * kHpScale + 0.5f); }
     inline float    HpFromFixed(uint32_t h) { return (float)h / kHpScale; }
@@ -56,7 +61,7 @@ namespace Swarm
         // CS が animTime を進め、VS がテクスチャから引く形なら、
         // 骨の計算そのものが実行時に存在しなくなる
         float    animTime = 0.0f;
-        uint32_t animIndex = 0;   // 0=待機 1=歩行 2=被弾
+        uint32_t animIndex = 0;   // 0=待機 1=歩行 2=被弾（HitCS が書く。animTime が経過秒。VS が閃光に使う）
         float    attackCooldown = 0.0f;   // 接触攻撃の残り待ち時間。ContactCS だけが書く
     };
     static_assert(sizeof(Enemy) == 48, "SwarmEnemy layout mismatch");
@@ -69,9 +74,101 @@ namespace Swarm
         float    lifetime = 0.0f;
         float    radius = 0.25f;
         uint32_t vfxType = 0;      // index into SwarmVFXTable's recipe table
-        float    _pad[2] = {};
+        uint32_t motion = 0;       // 運動表（Motion）の番号。生成依頼では bit31 = 曲線を左右反転
+        float    pathT = 0.0f;     // 曲線上の位置 0..1。GPU が進める
     };
     static_assert(sizeof(Projectile) == 48, "SwarmProjectile layout mismatch");
+
+    // ============================================================
+    // 投射物の運動（飛び方）
+    //
+    // Motion   : 投射物プロファイル 1 個につき 1 行。編集器のデータがここへ入る。
+    //            HLSL の SwarmMotion と同じ並び（48B）
+    // ProjPath : 投射物スロットと同じ添字。今飛んでいる 3 次ベジェ。
+    //            GPU が生成時（と再捕捉時）に組み立てる。CPU は中身を触らない（64B）
+    //
+    // 制御点は「銃口 → 標的」の座標系で、射距離に比例させて持つ。
+    // 近くても遠くても同じ形の曲線になる：
+    //     c.x = 銃口 → 標的 の何割の位置か
+    //     c.y = 横へのずれ / 射距離（発射ごとに左右反転できる）
+    //     c.z = 上へのずれ / 射距離（世界の上方向）
+    // ============================================================
+    constexpr uint32_t kMaxMotions = 64;
+    constexpr uint32_t kMotionFlipBit = 0x80000000u;
+
+    enum class MotionMode : uint32_t
+    {
+        Straight = 0,    // 直進。敵を一切見ない
+        CurveOnce = 1,   // 1 回だけ捕捉して曲線で飛ぶ。標的が死んだら今の向きで直進
+        Track = 2,       // 標的が死んでも、自分に一番近い敵を探して曲線を組み直す
+    };
+
+    struct Motion
+    {
+        uint32_t mode = 0;
+        float    retargetRadius = 0.0f;   // Track の再捕捉半径。0 以下 = 無制限
+        uint32_t hitArea = 0;             // 命中した場所に出す範囲（AreaDef の番号）。0 = 無し
+        uint32_t hitAreaFlags = 0;        // bit0 = 寿命切れ・壁に当たった時も出す
+        Vector3  c1 = { 0.33f, 0.0f, 0.0f };
+        float    _pad1 = 0.0f;
+        Vector3  c2 = { 0.66f, 0.0f, 0.0f };
+        float    _pad2 = 0.0f;
+    };
+    static_assert(sizeof(Motion) == 48, "SwarmMotion layout mismatch");
+
+    struct ProjPath
+    {
+        Vector3  p0;
+        uint32_t target = 0xFFFFFFFFu;
+        Vector3  p1;
+        float    duration = 1.0f;
+        Vector3  p2;
+        float    sideSign = 1.0f;
+        Vector3  p3;
+        float    speed = 0.0f;
+    };
+    static_assert(sizeof(ProjPath) == 64, "SwarmProjPath layout mismatch");
+
+    // ============================================================
+    // 範囲攻撃（爆発・法環）
+    //
+    // Area    : 生きている範囲 1 個（48B）。HLSL の SwarmArea と同じ並び。
+    //           単発と持続は同じ物：爆発 = 1 回だけ tick して、粒子が出終わるまで残る範囲
+    // AreaDef : 雛形（32B）。GPU が自分で範囲を出す時（弾の命中）に引く表。0 番 = 無し
+    //
+    // 形は円盤：XZ の距離 <= radius かつ 高さの差 <= halfHeight（+ 雑魚のカプセル）
+    // ============================================================
+    constexpr uint32_t kAreaFollowPlayer = 1u;   // 中心が玩家に付いて動く
+    constexpr uint32_t kAreaStun = 2u;           // tick で被弾硬直 + 閃光を入れる
+    constexpr uint32_t kHitAreaOnExpire = 1u;    // Motion::hitAreaFlags
+
+    struct Area
+    {
+        Vector3  center;
+        float    radius = 3.0f;
+        float    damage = 0.0f;          // 1 tick あたり
+        float    timeLeft = 0.0f;
+        float    tickInterval = 0.25f;
+        float    tickTimer = 0.0f;       // 0 = 出た最初のステップで tick する
+        float    halfHeight = 1.5f;
+        uint32_t flags = 0;
+        uint32_t vfxType = 0;            // GPU 側で粒子を出す配方。0 = 出さない（CPU が VFX を再生する）
+        uint32_t tickNow = 0;            // GPU が書く
+    };
+    static_assert(sizeof(Area) == 48, "SwarmArea layout mismatch");
+
+    struct AreaDef
+    {
+        float    radius = 3.0f;
+        float    halfHeight = 1.5f;
+        float    damage = 0.0f;
+        float    duration = 0.3f;
+        float    tickInterval = 1.0e9f;
+        uint32_t flags = 0;
+        uint32_t vfxType = 0;
+        uint32_t _pad = 0;
+    };
+    static_assert(sizeof(AreaDef) == 32, "SwarmAreaDef layout mismatch");
     
     struct Orb
     {
@@ -139,7 +236,8 @@ namespace Swarm
 
         float attackInterval = 1.0f;    // 同じ雑魚が次に殴れるまでの秒数
         float playerCapsuleHalf = 0.5f; // 玩家カプセルの直線部の半分。シーンが毎フレーム入れる
-        float _pad[2] = {};
+        float hitStun = 0.08f;          // 被弾で止まる秒数（HitCS が animIndex=2 を立て、MoveCS が数える）
+        float hitFlash = 3.0f;          // 被弾直後の頂点色の倍率。1 へ減衰。Bloom で光る
     };
     static_assert(sizeof(AICB) == 64, "SwarmAICB layout mismatch");
 

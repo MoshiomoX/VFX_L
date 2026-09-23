@@ -39,7 +39,12 @@ struct GPUParticle
     int colorKeyOffset;
     int colorKeyCount;
     int ownerID;
-    float _pad1;
+    int renderMode; // 0 billboard / 1 cube
+    // cube only: 3-axis rotation in degrees. billboard keeps rotation / angularVel
+    float3 rot3;
+    uint trailStyle; // 0 = no trail, else style index + 1 (see ParticleTrail.hlsli)
+    float3 angVel3;
+    uint trailState; // bits 0-7 ring write position / bits 8-15 valid sample count
 };
 // ============================================
 // GPU発射器構造体 (C++側のGPUEmitterと一致)
@@ -67,8 +72,8 @@ struct GPUEmitter
     float dragCoeff;
     float2 rotationRange;
     float2 angularVelRange;
-    int meshVertexOffset;
-    int meshVertexCount;
+    int sourceId;
+    int sourceCount;
     float isActive;
     int emitterID;
     int atlasRows;
@@ -79,17 +84,33 @@ struct GPUEmitter
     int colorKeyCount;
     int ownerID;
     int _pad2;
+    // Mesh emit: model world matrix. row_major = same memory order as C++ Matrix
+    row_major float4x4 world;
+    int edgeMode; // 0 all vertices / 1 dissolve edge only
+    int renderMode; // 0 billboard / 1 cube
+    int trailStyle; // 0 = no trail, else style index + 1. copied to the particle
+    int _padS2;
+    // sweep emit: vector from this frame's emit position back to last
+    // frame's. EmitCS scatters along it so a fast emitter leaves no gaps.
+    // 0 = emit from a single point as before
+    float3 sweep;
+    float _padT;
 };
 
 // ============================================
-// Mesh発射用頂点
+// Mesh emit source vertex layout (C++ EmitSourceLayout)
+// byte offsets into a raw vertex buffer
 // ============================================
-struct EmitMeshVertex
+struct EmitSourceLayout
 {
-    float3 position;
-    float area;
-    float3 normal;
-    float _pad0;
+    uint stride;
+    uint posOffset;
+    uint normalOffset;
+    uint uvOffset;
+    uint triangleCount; // 0 = vertex sampling only
+    uint indexBytes; // 2 or 4
+    uint _pad0;
+    uint _pad1;
 };
 // ============================================
 // ColorKey構造体 (色変化のキーフレーム用)

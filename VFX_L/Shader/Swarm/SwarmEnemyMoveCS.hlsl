@@ -26,29 +26,45 @@ void main(uint3 id : SV_DispatchThreadID)
 
     SwarmEnemy e = enemies[i];
 
-    // ---- integrate ----
-    // no terrain check here: the AI pass already refused to move
-    // into a blocked cell (hard block). re-checking would only
-    // trap an enemy that is already inside a wall
-    e.position.x += e.velocity.x * g_Step;
-    e.position.z += e.velocity.z * g_Step;
-    e.position.y = g_GroundY;
-
-    // ---- facing: turn toward the velocity at a bounded rate ----
-    if (dot(e.velocity.xz, e.velocity.xz) > 0.01)
+    if (e.animIndex == 2u)
     {
-        float targetYaw = atan2(e.velocity.x, e.velocity.z);
-        float delta = targetYaw - e.yaw;
-        delta = atan2(sin(delta), cos(delta)); // wrap to [-PI, PI]
-        float maxTurn = g_TurnSpeed * g_Step;
-        e.yaw += clamp(delta, -maxTurn, maxTurn);
+        // ---- hit stun: hold position and facing, only the clock runs ----
+        // HitCS set animTime = 0 when it landed the hit
+        e.animTime += g_Step;
+        if (e.animTime >= g_HitStun)
+        {
+            e.animIndex = 0u;
+            e.animTime = 0.0;
+        }
+        e.position.y = g_GroundY;
     }
-    // ---- animation clock (nobody reads it yet) ----
-    e.animTime += g_Step;
+    else
+    {
+        // ---- integrate ----
+        // no terrain check here: the AI pass already refused to move
+        // into a blocked cell (hard block). re-checking would only
+        // trap an enemy that is already inside a wall
+        e.position.x += e.velocity.x * g_Step;
+        e.position.z += e.velocity.z * g_Step;
+        e.position.y = g_GroundY;
+
+        // ---- facing: turn toward the velocity at a bounded rate ----
+        if (dot(e.velocity.xz, e.velocity.xz) > 0.01)
+        {
+            float targetYaw = atan2(e.velocity.x, e.velocity.z);
+            float delta = targetYaw - e.yaw;
+            delta = atan2(sin(delta), cos(delta)); // wrap to [-PI, PI]
+            float maxTurn = g_TurnSpeed * g_Step;
+            e.yaw += clamp(delta, -maxTurn, maxTurn);
+        }
+        // ---- animation clock (nobody reads it yet) ----
+        e.animTime += g_Step;
+    }
 
     enemies[i].position = e.position;
     enemies[i].yaw = e.yaw;
     enemies[i].animTime = e.animTime;
+    enemies[i].animIndex = e.animIndex;
 
     uint prev;
     counters.InterlockedAdd(SWARM_CNT_ALIVE_ENEMIES, 1u, prev);

@@ -54,5 +54,13 @@ VS_OUTPUT main(VS_INPUT_INST input)
     o.Tangent = RotateY(input.Tangent, s, c);
     o.UV = input.UV;
     o.Color = input.Color;
+
+    // ---- hit flash: overbright vertex color during the stun, decays to 1 ----
+    // PS multiplies albedo by Color, so > 1 goes HDR and bloom picks it up
+    if (e.animIndex == 2u)
+    {
+        float t = saturate(e.animTime / max(g_HitStun, 1e-4));
+        o.Color.rgb *= lerp(g_HitFlash, 1.0, t);
+    }
     return o;
 }

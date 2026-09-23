@@ -2,7 +2,7 @@
 #include "Particle/GPUParticle.h"
 
 // ============================================
-// ”­ËŠíƒ^ƒCƒv (CS‘¤‚Ìswitch•ªŠò‚Æ‘Î‰)
+// ç™ºå°„å™¨ã‚¿ã‚¤ãƒ— (CSå´ã®switchåˆ†å²ã¨å¯¾å¿œ)
 // ============================================
 enum class EmitType
 {
@@ -16,9 +16,9 @@ enum class EmitType
 };
 
 // ============================================
-// GPU—±q”­ËŠí
-// ƒpƒ‰ƒ[ƒ^ŠÇ— ¨ GPUEmitter‚Ö•ÏŠ· ¨ SB‚ÉƒAƒbƒvƒ[ƒh
-// Œ`óŒvZEƒVƒ~ƒ…ƒŒ[ƒVƒ‡ƒ“‚ÍCS‘¤‚Ås‚¤
+// GPUç²’å­ç™ºå°„å™¨
+// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ç®¡ç† â†’ GPUEmitterã¸å¤‰æ› â†’ SBã«ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰
+// å½¢çŠ¶è¨ˆç®—ãƒ»ã‚·ãƒŸãƒ¥ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³ã¯CSå´ã§è¡Œã†
 // ============================================
 class GPUParticleEmitter
 {
@@ -36,7 +36,7 @@ public:
     void SetColorKeyOffset(int offset) { m_ColorKeyOffset = offset; }
     void ClearPendingEmitCount() { m_PendingEmitCount = 0; }
 
-    // --- Œ`ó ---
+    // --- å½¢çŠ¶ ---
     EmitType emitType = EmitType::Point;
 
     struct ShapeParams
@@ -45,45 +45,54 @@ public:
         float   radius = 1.0f;       // Sphere, Cone, Ring, Disc
         float   innerRadius = 0.0f;       // Ring
         Vector3 boxExtents = { 1, 1, 1 };// Box
-        int     meshVertexOffset = 0;        // Mesh
-        int     meshVertexCount = 0;        // Mesh
+        // Mesh: GPUParticleSystem::RegisterEmitSource ãŒè¿”ã™ç•ªå· (-1 = æœªè¨­å®š) ã¨é ‚ç‚¹æ•°
+        int     sourceId = -1;
+        int     sourceCount = 0;
+        int     edgeMode = 0;                // 0 = å…¨é ‚ç‚¹ / 1 = æº¶è§£ã®ç¸ã ã‘
     } shape;
 
-    // --- ”­ËˆÊ’u ---
+    // --- ç™ºå°„ä½ç½® ---
     Vector3  position = { 0, 0, 0 };
     Vector3  direction = { 0, 1, 0 };
 
-    // --- ”­Ëƒpƒ‰ƒ[ƒ^ ---
+    // Mesh ç™ºå°„ã®ã¿ä½¿ã†ã€‚ç™ºå°„æºãƒ¢ãƒ‡ãƒ«ã®ä¸–ç•Œè¡Œåˆ—ï¼ˆå›è»¢ãƒ»ç¸®å°ºè¾¼ã¿ï¼‰ã€‚
+    // ç™ºå°„ä½ç½® = mul(é ‚ç‚¹, world) + position
+    Matrix   world = Matrix::Identity;
+
+    // --- ç™ºå°„ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ ---
     float    emitRate = 10.0f;
     int      maxParticles = 1000;
     int      particleOffset = 0;
 
-    // --- ‘¬“x & õ–½ ---
+    // --- é€Ÿåº¦ & å¯¿å‘½ ---
     Vector2  speedRange = { 1.0f, 3.0f };
     Vector2  lifetimeRange = { 1.0f, 3.0f };
 
-    // --- ‘å‚«‚³ ---
+    // --- å¤§ãã• ---
     Vector4  sizeRange = { 0.1f, 0.3f, 0.0f, 0.1f };
 
-    // --- F ---
+    // --- è‰² ---
     Vector4  startColorMin = { 1, 1, 1, 1 };
     Vector4  startColorMax = { 1, 1, 1, 1 };
     Vector4  endColorMin = { 1, 1, 1, 0 };
     Vector4  endColorMax = { 1, 1, 1, 0 };
 
-    // --- •¨— ---
+    // --- ç‰©ç† ---
     Vector3  gravity = { 0, -9.81f, 0 };
     float    dragCoeff = 0.0f;
 
-    // --- ‰ñ“] ---
+    // --- å›è»¢ ---
     Vector2  rotationRange = { 0, 0 };
     Vector2  angularVelRange = { 0, 0 };
 
+    // --- æãæ–¹ ---
+    int renderMode = 0;       // 0 = ãƒ“ãƒ«ãƒœãƒ¼ãƒ‰ / 1 = ç«‹æ–¹ä½“ï¼ˆLambertã€æ·±åº¦æ›¸ãè¾¼ã¿ã‚ã‚Šï¼‰
+
     int atlasRows = 6;
     int atlasCols = 6;
-    int atlasIndex = 0;       // -1 = ƒAƒjƒ[ƒVƒ‡ƒ“
+    int atlasIndex = 0;       // -1 = ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³
     bool atlasAnimate = false;
-    int textureIndex = 0;      // Texture Array“à‚ÌƒCƒ“ƒfƒbƒNƒX
+    int textureIndex = 0;      // Texture Arrayå†…ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 
     // --- Color over Lifetime ---
     static const int MAX_COLOR_KEYS = 8;
@@ -95,5 +104,5 @@ private:
     bool  m_IsActive = true;
     float m_EmitAccumulator = 0.0f;
     int   m_PendingEmitCount = 0;
-	int   m_ColorKeyOffset = 0; // GPU‘¤ColorKeyBuffer“à‚ÌŠJnˆÊ’u
+	int   m_ColorKeyOffset = 0; // GPUå´ColorKeyBufferå†…ã®é–‹å§‹ä½ç½®
 };

@@ -1,20 +1,27 @@
+// ============================================================
+// SkinnedModel.cpp
+// ============================================================
 #include "Graphics/Model/SkinnedModel.h"
+#include "Graphics/Model/MaterialLoader.h"
+#include "Manager/ResourceManager.h"
 #include "AssimpFlags.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <assimp/config.h>
-
+#include <filesystem>
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+
+namespace fs = std::filesystem;
 using namespace DirectX::SimpleMath;
 
-// ?offsetMatrix??????????????
-//   [bind-check] ? worstDiff ????(>0.1)submesh?????? true ??????
-static constexpr bool kRebuildOffsetsFromHierarchy =false;
+// offsetMatrix を階層から作り直すか。
+//   [bind-check] の worstDiff が大きい（>0.1）submesh がある時だけ true にして試す
+static constexpr float kOffsetRebuildThreshold = FLT_MAX;
 
-// Assimp(???/?????) ? SimpleMath(???/?????) ?????
+// Assimp（列優先 / 右手）→ SimpleMath（行優先 / 左手）: 転置
 static Matrix ToSM(const aiMatrix4x4& m)
 {
     return Matrix(
@@ -24,7 +31,7 @@ static Matrix ToSM(const aiMatrix4x4& m)
         m.a4, m.b4, m.c4, m.d4);
 }
 
-// ???????????? Skeleton ????????(????mesh??)
+// ノード階層をそのまま Skeleton にする（mesh を持つノードも含む）
 static void BuildSkeleton(const aiNode* node, int parentIndex, Skeleton& skel)
 {
     int index = skel.AddBone(node->mName.C_Str());
@@ -36,18 +43,21 @@ static void BuildSkeleton(const aiNode* node, int parentIndex, Skeleton& skel)
         BuildSkeleton(node->mChildren[i], index, skel);
 }
 
-// ??mesh index???????????global bind?????(??)
-// offset???????????Mixamo?????Identity
-static bool FindMeshNodeGlobal(const aiNode* node, unsigned int meshIndex,
-    const Matrix& parent, Matrix& out)
+static bool FindMeshNode(const aiNode* node, unsigned int meshIndex,
+    const Matrix& parent, Matrix& outGlobal, std::string& outName)
 {
-    Matrix global = ToSM(node->mTransformation) * parent;   // ???????:local * parentGlobal
+    Matrix global = ToSM(node->mTransformation) * parent;   // 行優先: local * parentGlobal
 
     for (unsigned int i = 0; i < node->mNumMeshes; ++i)
-        if (node->mMeshes[i] == meshIndex) { out = global; return true; }
+        if (node->mMeshes[i] == meshIndex)
+        {
+            outGlobal = global;
+            outName = node->mName.C_Str();
+            return true;
+        }
 
     for (unsigned int i = 0; i < node->mNumChildren; ++i)
-        if (FindMeshNodeGlobal(node->mChildren[i], meshIndex, global, out))
+        if (FindMeshNode(node->mChildren[i], meshIndex, global, outGlobal, outName))
             return true;
 
     return false;
@@ -83,30 +93,35 @@ static Quaternion InterpQuat(const std::vector<QuatKey>& keys, float t, const Qu
     return keys.back().value;
 }
 
-// ============================================
-// import?????????(LoadModelAuto ??????)
-// ============================================
-bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& directory)
+// ============================================================
+// import 済みの scene から組み立てる（LoadModelAuto もここに来る）
+// ============================================================
+bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
+    const std::string& directory, const std::string& modelName)
 {
     m_Directory = directory;
 
-    // 1. ??????????????(???localBind??mesh??)
+    // 1. 骨格（ノード階層をそのまま。localBind はノード変換）
     BuildSkeleton(scene->mRootNode, -1, m_Skeleton);
-
     std::cout << "[SkinnedModel] Skeleton built with " << m_Skeleton.GetBoneCount()
         << " bones." << std::endl;
 
-    // 2. ?mesh? bind?? / index / ???? / offset??(submesh?)
+    // 2. mesh 毎に bind 頂点 / index / 重み / offset（submesh 単位）
     for (unsigned int mi = 0; mi < scene->mNumMeshes; ++mi)
     {
         aiMesh* mesh = scene->mMeshes[mi];
 
         SubMesh sub;
         sub.name = mesh->mName.C_Str();
-        sub.materialIndex = mesh->mMaterialIndex;
+        sub.materialIndex = (int)mesh->mMaterialIndex;
         sub.vertices.resize(mesh->mNumVertices);
 
-        // ??(bind pose????????)
+        // この mesh を持つノード（global bind と名前）
+        Matrix meshNodeGlobal = Matrix::Identity;
+        std::string meshNodeName;
+        FindMeshNode(scene->mRootNode, mi, Matrix::Identity, meshNodeGlobal, meshNodeName);
+
+        // ---- 頂点（bind pose。ノード変換は焼かない）----
         for (unsigned int v = 0; v < mesh->mNumVertices; ++v)
         {
             SkinnedVertex& vert = sub.vertices[v];
@@ -115,6 +130,8 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
             vert.position = Vector3(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z);
             if (mesh->HasNormals())
                 vert.normal = Vector3(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
+            if (mesh->HasTangentsAndBitangents())
+                vert.tangent = Vector3(mesh->mTangents[v].x, mesh->mTangents[v].y, mesh->mTangents[v].z);
             if (mesh->mTextureCoords[0])
             {
                 vert.uv.x = mesh->mTextureCoords[0][v].x;
@@ -122,7 +139,7 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
             }
         }
 
-        // index
+        // ---- index ----
         for (unsigned int f = 0; f < mesh->mNumFaces; ++f)
         {
             const aiFace& face = mesh->mFaces[f];
@@ -130,64 +147,73 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
                 sub.indices.push_back(face.mIndices[k]);
         }
 
-        // ??????? + offset??(?offset???submesh?????)
-        for (unsigned int bi = 0; bi < mesh->mNumBones; ++bi)
+        if (mesh->mNumBones == 0)
         {
-            aiBone* aibone = mesh->mBones[bi];
-            if (!aibone) continue;
+            // ============================================================
+            // 骨無しの剛体パーツ（武器・飾り・骨に直接ぶら下がった mesh）
+            // 頂点はノードのローカル空間にある。ノード自身を「骨」にして
+            // 全頂点を重み 1 で結ぶ。offset は Identity（ローカル → そのまま）。
+            // palette = Identity * global[node] = ノードの動きに追従する
+            // ============================================================
+            int nodeBone = m_Skeleton.FindBoneIndex(meshNodeName);
+            if (nodeBone < 0) nodeBone = 0;   // 見つからない事は無いはずだが保険
 
-            std::string boneName = aibone->mName.C_Str();
-            int boneIndex = m_Skeleton.FindBoneIndex(boneName);
-            if (boneIndex < 0)
-            {
-                boneIndex = m_Skeleton.AddBone(boneName);
-                std::cout << "[add-missing-bone] " << boneName << std::endl;
-            }
+            for (auto& vert : sub.vertices)
+                vert.AddBone((uint32_t)nodeBone, 1.0f);
+            sub.boneOffsets[nodeBone] = Matrix::Identity;
 
-            // ?offset????????submesh??map???
-            sub.boneOffsets[boneIndex] = ToSM(aibone->mOffsetMatrix);
-
-            if (aibone->mNumWeights == 0)
-                continue;
-            else if (aibone->mNumWeights > (unsigned)mesh->mNumVertices)
-            {
-                std::cout << "[skip-bad-bone] mesh=" << mi << " bone=" << bi
-                    << " numW=" << aibone->mNumWeights
-                    << " name=" << boneName << std::endl;
-                continue;
-            }
-
-            for (unsigned int w = 0; w < aibone->mNumWeights; ++w)
-            {
-                const aiVertexWeight& vw = aibone->mWeights[w];
-                if (vw.mVertexId >= sub.vertices.size()) continue;
-                sub.vertices[vw.mVertexId].AddBone((uint32_t)boneIndex, vw.mWeight);
-            }
+            std::cout << "[SkinnedModel] submesh=" << mi << " name=" << sub.name
+                << " rigid -> node '" << meshNodeName << "'" << std::endl;
         }
-
-        // ???????
-        for (auto& vert : sub.vertices)
-            vert.NormalizeWeights();
-
-        // ============================================
-        // ?bind???????:
-        //   offset * boneGlobalBind ? meshNodeGlobalBind ???
-        //   ?????? = ????(?/?/?)????
-        // ============================================
+        else
         {
-            Matrix meshNodeGlobal = Matrix::Identity;
-            FindMeshNodeGlobal(scene->mRootNode, mi, Matrix::Identity, meshNodeGlobal);
+            // ---- 骨の重み + offset（offset は submesh 毎の map に入れる）----
+            for (unsigned int bi = 0; bi < mesh->mNumBones; ++bi)
+            {
+                aiBone* aibone = mesh->mBones[bi];
+                if (!aibone) continue;
 
-            // ???:meshNodeGlobal ? Identity ???
-            std::cout << "[meshNode] submesh=" << mi
-                << " pos=(" << meshNodeGlobal._41 << "," << meshNodeGlobal._42 << "," << meshNodeGlobal._43 << ")"
-                << " _11=" << meshNodeGlobal._11 << std::endl;
+                std::string boneName = aibone->mName.C_Str();
+                int boneIndex = m_Skeleton.FindBoneIndex(boneName);
+                if (boneIndex < 0)
+                {
+                    boneIndex = m_Skeleton.AddBone(boneName);
+                    std::cout << "[add-missing-bone] " << boneName << std::endl;
+                }
+
+                sub.boneOffsets[boneIndex] = ToSM(aibone->mOffsetMatrix);
+
+                if (aibone->mNumWeights == 0)
+                    continue;
+                if (aibone->mNumWeights > (unsigned)mesh->mNumVertices)
+                {
+                    std::cout << "[skip-bad-bone] mesh=" << mi << " bone=" << bi
+                        << " numW=" << aibone->mNumWeights
+                        << " name=" << boneName << std::endl;
+                    continue;
+                }
+
+                for (unsigned int w = 0; w < aibone->mNumWeights; ++w)
+                {
+                    const aiVertexWeight& vw = aibone->mWeights[w];
+                    if (vw.mVertexId >= sub.vertices.size()) continue;
+                    sub.vertices[vw.mVertexId].AddBone((uint32_t)boneIndex, vw.mWeight);
+                }
+            }
+
+            // ============================================================
+            // bind 整合性チェック:
+            //   offset * boneGlobalBind ≒ meshNodeGlobalBind になるはず。
+            //   ずれていれば mesh ノード自身に変換が乗っている（FBX に多い）ので
+            //   offset を階層から作り直す: offset = meshNodeGlobal * Invert(boneGlobalBind)
+            // ============================================================
             const auto& bones = m_Skeleton.GetBones();
-            auto globalBindOf = [&](int idx) {
-                Matrix g = Matrix::Identity;
-                for (int c = idx; c >= 0; c = bones[c].parentIndex)
-                    g = g * bones[c].localBindTransform;   // ??????
-                return g;
+            auto globalBindOf = [&](int idx)
+                {
+                    Matrix g = Matrix::Identity;
+                    for (int c = idx; c >= 0; c = bones[c].parentIndex)
+                        g = g * bones[c].localBindTransform;   // 子 → 親の順に掛ける
+                    return g;
                 };
 
             float worst = 0.0f; int worstBone = -1;
@@ -204,10 +230,7 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
                 << " bone=" << (worstBone >= 0 ? bones[worstBone].name : std::string("none"))
                 << std::endl;
 
-            // ???????:?????offset?????????????
-            //   offset = meshNodeGlobal * Invert(boneGlobalBind)
-            //   ? bind? offset*globalBind = meshNodeGlobal ????????????????
-            if (kRebuildOffsetsFromHierarchy)
+            if (worst > kOffsetRebuildThreshold)
             {
                 for (auto& [bi2, off] : sub.boneOffsets)
                     off = meshNodeGlobal * globalBindOf(bi2).Invert();
@@ -216,6 +239,10 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
             }
         }
 
+        // 重みの正規化（骨無しパーツは 1.0 が入っているのでそのまま）
+        for (auto& vert : sub.vertices)
+            vert.NormalizeWeights();
+
         std::cout << "[SkinnedModel] submesh=" << mi << " name=" << sub.name
             << " offsetCount=" << sub.boneOffsets.size() << std::endl;
 
@@ -223,34 +250,44 @@ bool SkinnedModel::LoadFromScene(const aiScene* scene, const std::string& direct
     }
 
     m_GlobalInverse = ToSM(scene->mRootNode->mTransformation).Invert();
+
+    // 3. 材質。VS は SkinnedVS 固定、PS は貼图に応じて PBR / Lambert
+    auto skinnedVS = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
+    m_Materials = MaterialLoader::LoadFromScene(device, scene, directory, modelName, skinnedVS);
+
+    // 4. アニメ
     LoadAnimations(scene);
 
     std::cout << "[SkinnedModel] Load finished. SubMeshes=" << m_SubMeshes.size()
-        << " Bones=" << m_Skeleton.GetBoneCount() << std::endl;
-
+        << " Bones=" << m_Skeleton.GetBoneCount()
+        << " Materials=" << m_Materials.size()
+        << " Clips=" << m_Animations.size() << std::endl;
     return true;
 }
-
-// ============================================
-// ??????(???/?????? AssimpFlags.h ????)
-// ============================================
-bool SkinnedModel::Load(const std::string& filepath)
+// ============================================================
+// ファイルから（import は AssimpFlags.h の共通設定）
+// ============================================================
+bool SkinnedModel::Load(ID3D11Device* device, const std::string& filepath)
 {
     Assimp::Importer importer;
     const aiScene* scene = Res::ImportModelScene(importer, filepath);
 
     if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
     {
-        std::cout << "[SkinnedModel] Assimp??: " << importer.GetErrorString() << std::endl;
+        std::cout << "[SkinnedModel] Assimp error: " << importer.GetErrorString() << std::endl;
         return false;
     }
 
-    size_t lastSlash = filepath.find_last_of("/\\");
-    std::string dir = (lastSlash != std::string::npos) ? filepath.substr(0, lastSlash + 1) : "";
+    const size_t lastSlash = filepath.find_last_of("/\\");
+    const std::string dir = (lastSlash != std::string::npos) ? filepath.substr(0, lastSlash + 1) : "";
+    const std::string name = fs::path(filepath).stem().string();
 
-    return LoadFromScene(scene, dir);
+    return LoadFromScene(device, scene, dir, name);
 }
 
+// ============================================================
+// アニメクリップ
+// ============================================================
 void SkinnedModel::LoadAnimations(const aiScene* scene)
 {
     if (!scene->HasAnimations()) return;
@@ -273,19 +310,19 @@ void SkinnedModel::LoadAnimations(const aiScene* scene)
 
             for (unsigned int k = 0; k < ch->mNumPositionKeys; ++k)
             {
-                auto& key = ch->mPositionKeys[k];
+                const auto& key = ch->mPositionKeys[k];
                 bc.positions.push_back({ (float)key.mTime,
                     Vector3(key.mValue.x, key.mValue.y, key.mValue.z) });
             }
             for (unsigned int k = 0; k < ch->mNumRotationKeys; ++k)
             {
-                auto& key = ch->mRotationKeys[k];
+                const auto& key = ch->mRotationKeys[k];
                 bc.rotations.push_back({ (float)key.mTime,
                     Quaternion(key.mValue.x, key.mValue.y, key.mValue.z, key.mValue.w) });
             }
             for (unsigned int k = 0; k < ch->mNumScalingKeys; ++k)
             {
-                auto& key = ch->mScalingKeys[k];
+                const auto& key = ch->mScalingKeys[k];
                 bc.scales.push_back({ (float)key.mTime,
                     Vector3(key.mValue.x, key.mValue.y, key.mValue.z) });
             }
@@ -304,9 +341,9 @@ float SkinnedModel::GetClipDurationSec(int clipIndex) const
     return (c.ticksPerSecond > 0.0f) ? c.duration / c.ticksPerSecond : 0.0f;
 }
 
-// ============================================
-// ?? ? ????? global??(?offset????????)
-// ============================================
+// ============================================================
+// 時刻 → 各ボーンの global 行列（offset は掛けない）
+// ============================================================
 void SkinnedModel::SampleAnimation(float timeSec, std::vector<Matrix>& outGlobal, int clipIndex) const
 {
     const int boneCount = m_Skeleton.GetBoneCount();
@@ -358,14 +395,14 @@ void SkinnedModel::SampleAnimation(float timeSec, std::vector<Matrix>& outGlobal
                 * Matrix::CreateTranslation(T);
         }
 
-        // Convention A:global ????(offset?submesh????????)
+        // global = local * parentGlobal（offset は submesh 側で掛ける）
         outGlobal[i] = (bone.parentIndex < 0) ? local : local * outGlobal[bone.parentIndex];
     }
 }
 
-// ============================================
-// submesh????????: palette[bone] = offset(submesh??) * global[bone]
-// ============================================
+// ============================================================
+// submesh 毎のパレット: palette[bone] = offset(submesh 固有) * global[bone]
+// ============================================================
 void SkinnedModel::BuildSubmeshPalette(int submeshIndex,
     const std::vector<Matrix>& global,
     std::vector<Matrix>& outPalette) const
@@ -377,7 +414,6 @@ void SkinnedModel::BuildSubmeshPalette(int submeshIndex,
         return;
 
     const SubMesh& sub = m_SubMeshes[submeshIndex];
-
     for (const auto& [boneIdx, offset] : sub.boneOffsets)
     {
         if (boneIdx >= 0 && boneIdx < boneCount)

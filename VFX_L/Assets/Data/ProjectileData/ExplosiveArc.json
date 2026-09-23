@@ -1,0 +1,6 @@
+{
+    "c1": [0.3, 0.35, 0.0], "c2": [0.7, 0.35, 0.0], "hitArea": "Explosion", "hitAreaOnExpire": true,
+    "mirror": 1, "mode": 1, "name": "ExplosiveArc",
+    "preview": { "damage": 5.0, "lifetime": 4.0, "radius": 0.25, "speed": 14.0 },
+    "retargetRadius": 0.0
+}

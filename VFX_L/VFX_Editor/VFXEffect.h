@@ -51,6 +51,14 @@ public:
 
     // 全 emitter に加算されるワールド位置（投射物追従用）
     void SetWorldOffset(const DirectX::SimpleMath::Vector3& p) { m_WorldOffset = p; }
+
+    // 掃引発射：前フレームの位置との間を粒子で埋める。
+    // 速い追従でも軌跡が点々にならない。止まっている effect には影響しない
+    void SetSweepEnabled(bool v) { m_SweepEnabled = v; }
+    bool IsSweepEnabled() const { return m_SweepEnabled; }
+    // 瞬間移動の直後に呼ぶ。次のフレームは前の位置と繋がない：
+    //   粒子の掃引発射をしない（移動前後を粒子の線で結ばないため）
+    void NotifyTeleport() { m_HasPrevOffset = false; }
     void SetGPUTimelineIgnored(bool v) { m_GPUTimelineIgnored = v; }
     bool IsGPUTimelineIgnored() const { return m_GPUTimelineIgnored; }
 private:
@@ -59,6 +67,9 @@ private:
     bool m_Loop = false;
     float m_CurrentTime = 0.0f;
     DirectX::SimpleMath::Vector3 m_WorldOffset = { 0, 0, 0 };
+    DirectX::SimpleMath::Vector3 m_PrevWorldOffset = { 0, 0, 0 };   // 掃引発射用
+    bool m_HasPrevOffset = false;   // 再生直後・瞬間移動直後は false
+    bool m_SweepEnabled = true;
     bool m_GPUTimelineIgnored = false;
     // --- 状態機（追加）---
     VFXStateMachine m_SM;   

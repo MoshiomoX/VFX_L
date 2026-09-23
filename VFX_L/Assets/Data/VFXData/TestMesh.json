@@ -1,0 +1,89 @@
+{
+    "entries": [
+        {
+            "data": {
+                "alphaEnd": 0.0,
+                "alphaStart": 1.0,
+                "blend": 1,
+                "dissolve": false,
+                "dissolveEdge": 0.05000000074505806,
+                "dissolveEdgeColor": [
+                    1.0,
+                    0.5,
+                    0.10000000149011612,
+                    1.0
+                ],
+                "dissolveEnd": 1.0,
+                "dissolveStart": 0.0,
+                "distortion": 0.0,
+                "intensity": 1.0,
+                "mainScroll": [
+                    0.0,
+                    0.0
+                ],
+                "mainTex": {
+                    "file": "Assets/VFX/Tex/Noise_001.png",
+                    "source": 1
+                },
+                "mainTiling": [
+                    1.0,
+                    1.0
+                ],
+                "maskTex": {
+                    "file": "Assets/VFX/Tex/Noise_006.png",
+                    "source": 1
+                },
+                "model": "Assets/VFX/Mesh/basic_skybox_3d.fbx",
+                "noiseScroll": [
+                    0.0,
+                    0.0
+                ],
+                "noiseTex": {
+                    "file": "Assets/VFX/Tex/Noise_004.png",
+                    "source": 1
+                },
+                "noiseTiling": [
+                    1.0,
+                    1.0
+                ],
+                "offset": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotSpeed": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scaleEnd": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "scaleStart": [
+                    10.0,
+                    10.0,
+                    10.0
+                ],
+                "tint": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "twoSided": true
+            },
+            "duration": 3.5,
+            "startTime": 0.0,
+            "type": "Mesh"
+        }
+    ],
+    "loop": true,
+    "name": "NewEffect"
+}

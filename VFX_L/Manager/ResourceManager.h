@@ -16,6 +16,8 @@
 
 
 struct aiScene;
+struct NoiseRecipe;
+
 class SkinnedModel;
 
 enum class ModelKind { Static, Skinned };
@@ -40,6 +42,7 @@ public:
     // Texture
     std::shared_ptr<Texture> LoadTexture(const std::wstring& filepath);
     std::future<std::shared_ptr<Texture>> LoadTextureAsync(const std::wstring& filepath);
+    std::shared_ptr<Texture> LoadNoiseTexture(const NoiseRecipe& recipe);
     void UnloadTexture(const std::wstring& filepath);
 
     // VertexShader

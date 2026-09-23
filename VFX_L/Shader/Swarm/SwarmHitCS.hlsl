@@ -17,7 +17,13 @@
 // No pierce yet: a projectile dies on its first live hit.
 // Corpses are passed through without consuming the projectile.
 // ============================================================
+// the hit may leave an area behind (explosion / burning ground)
+#define SWARM_AREA_POOL_U u6
+#define SWARM_AREA_STATE_U u7
+#define SWARM_AREA_DEF_T t2
 #include "../Common/SwarmCommon.hlsli"
+
+StructuredBuffer<SwarmMotion> motions : register(t1);
 
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 RWBuffer<uint> projStates : register(u0);
@@ -59,6 +65,12 @@ void main(uint3 id : SV_DispatchThreadID)
         if (prev == 0u || prev >= HP_CORPSE_BIT)
             continue; // corpse. someone else already killed it this step
 
+        // ---- hit stun: freeze + flash (MoveCS / AICS / VS read it) ----
+        // plain stores: several hits in one step all write the same value.
+        // harmless on the killer, its slot goes DEAD right below
+        enemies[j].animIndex = 2u;
+        enemies[j].animTime = 0.0;
+
         if (prev <= dmgFixed)
         {
             // ---- this hit was the killer ----
@@ -90,6 +102,11 @@ void main(uint3 id : SV_DispatchThreadID)
                 }
             }
         }
+
+        // ---- area on hit (explosion etc.). Ticks in this same step:
+        // AreaTickCS / AreaDamageCS run right after this shader ----
+        SwarmSpawnAreaFromDef(motions[p.motion & SWARM_MOTION_INDEX_MASK].hitArea,
+                              p.position, i + j);
 
         // projectile is consumed either way (no pierce)
         projStates[i] = SWARM_DEAD;

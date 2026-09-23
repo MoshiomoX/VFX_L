@@ -89,12 +89,20 @@ HRESULT VertexShader::MakeShader(ID3D11Device* device, void* pData, UINT size)
         return S_OK;
     }
     // InputElementDesc配列を動的に構築
+    // ※SV_VertexID / SV_InstanceID 等のシステム値は IA から来ないので InputLayout に入れない。
+    //   頂点入力とシステム値を混ぜた VS（ParticleCubeVS）で CreateInputLayout が落ちるため。
+    //   システム値しか無い VS（GPUParticleVS）は InputLayout 無し（null）で描く
     auto* pInputDesc = new D3D11_INPUT_ELEMENT_DESC[shaderDesc.InputParameters];
-    for (UINT i = 0; i < shaderDesc.InputParameters; ++i)
+    UINT n = 0;   // 実際に積んだ要素数
+    for (UINT src = 0; src < shaderDesc.InputParameters; ++src)
     {
         D3D11_SIGNATURE_PARAMETER_DESC sigDesc;
-        pReflection->GetInputParameterDesc(i, &sigDesc);
+        pReflection->GetInputParameterDesc(src, &sigDesc);
 
+        if (sigDesc.SystemValueType != D3D_NAME_UNDEFINED)
+            continue;
+
+        const UINT i = n++;
         pInputDesc[i].SemanticName = sigDesc.SemanticName;
         pInputDesc[i].SemanticIndex = sigDesc.SemanticIndex;
 
@@ -127,9 +135,15 @@ HRESULT VertexShader::MakeShader(ID3D11Device* device, void* pData, UINT size)
         pInputDesc[i].InstanceDataStepRate = 0;
     }
 
+    if (n == 0)
+    {
+        delete[] pInputDesc;
+        return S_OK;   // システム値だけ：InputLayout 無し
+    }
+
     hr = device->CreateInputLayout(
         pInputDesc,
-        shaderDesc.InputParameters,
+        n,
         pData, size,
         &m_InputLayout);
 
