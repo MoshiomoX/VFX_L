@@ -16,6 +16,7 @@
 
 class Registry;
 struct StatItemDef;
+struct LevelComponent;
 
 class LevelUpSystem
 {
@@ -29,14 +30,22 @@ public:
     // 誰かが選択待ちか（シーンの一時停止判定に使う）
     static bool IsAnyoneChoosing(Registry& reg);
 
+    // 升級と同じ三択を出す。レベルは上がらず、経験値も減らない（報酬の箱など）。
+    // 既に選択待ち・候補が無い時は false（出していない）
+    bool OfferChoices(Registry& reg, Entity player);
+
     // ---- 調整値 ----
     int choiceCount = 3;
 
     // ---- 統計（ImGui 表示用）----
     int GetTotalLevelUps() const { return m_TotalLevelUps; }
+    int GetTotalOffers() const { return m_TotalOffers; }
 
 private:
     void RollChoices(Registry& reg, Entity player);
+    // 候補を pendingChoices に詰める（升級と報酬で共通）。詰めた数を返す
+    int FillChoices(LevelComponent& lv);
+    int m_TotalOffers = 0;   // 報酬の三択を出した回数
 
     // 能力値（生命・魔力の上限）をその場で適用する
     static void ApplyStat(Registry& reg, Entity player, const StatItemDef& stat);

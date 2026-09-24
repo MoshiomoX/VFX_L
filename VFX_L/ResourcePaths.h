@@ -114,6 +114,10 @@ namespace Res
         inline constexpr const char* Kenney_BlockyZombie =
             "Assets/Model/Kenney_BlockyCharacters/fbx/character-l.fbx";
 
+        // 報酬の箱（近づいて F で三択）。Kenney Retro Fantasy の像素の木箱（0.3m 角、底が原点）
+        inline constexpr const char* Kenney_RewardCrate =
+            "Assets/Model/Kenney_RetroFantasy/fbx/detail-crate.fbx";
+
         // 起動時に別スレッドで先読みする骨付きモデル（ResourceManager::PreloadModelsAsync）。
         // 1 個 19MB・Debug で数秒かかるので、タイトル / 編集器の間に済ませる。
         // 戦闘で使う物だけ。Paladin（編集器の参照）と Mage/Rogue（未使用）は入れない。

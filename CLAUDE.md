@@ -66,12 +66,11 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - `CollisionTestScene::UpdateGameplay`：每 120 帧打一行 `[crowd]` 日志。
 - `SwarmSystem::UpdateFlowField`：打 `[flow] build ms` 日志。
 
-## 6. 当前任务：可交互道具
+## 6. 可交互道具（已完成）
 
-已定（用户选）：
-- 开局在玩家周围的随机可走格子上固定放几个，用完即消失，不刷新。
-- 外观：`Kenney_RetroFantasy/fbx/detail-crate.fbx`（像素木箱），上下浮动慢转，附一盏暖黄点光源。
-- 靠近后屏幕下方提示「[F] Open」，按 F 或手柄 B 触发。
-- 效果：弹出和升级一样的三选一，**但不升级**（`LevelUpSystem` 要拆出只抽选项、不扣经验的入口）。选择中不能再触发。
+- `Component/InteractableComponent`（kind / 半径 / 案内文字 / 浮动与光的参数）+ `ECS/System/InteractionSystem`（浮动旋转、找最近的 focus、返回被按下的实体、积点光源）。效果由场景按 `kind` 分派。
+- 报酬箱：`CollisionTestScene::SpawnRewardCrates`，开局在玩家周围 6〜22m 的可走格子（周围 3x3 也可走）放 4 个，用完即消失、不刷新；地形重建时重新摆。像素木箱 `Kenney_RetroFantasy/fbx/detail-crate.fbx`，缩放到 0.9m，带静态 AABB 和暖黄点光源。
+- 靠近后画面下方出「[F] Open」（`GameUI::SetPrompt`），F / 手柄 B 触发 → `LevelUpSystem::OfferChoices`：和升级一样的三选一，但不升级、不扣经验；选择中不能再开（箱子保留）。
+- 调参在战斗场景「Reward Crates」面板。
 
 之后的候选（未定）：战斗场景读取关卡编辑器的关卡、流场寻路的实机验证、Phase 5（SpawnDirector GPU 化等）。

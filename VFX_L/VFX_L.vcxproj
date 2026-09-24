@@ -242,6 +242,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Renderer\Renderer.cpp" />
     <ClCompile Include="Graphics\Renderer\RenderStates.cpp" />
     <ClCompile Include="ECS\System\RenderSystem.cpp" />
+    <ClCompile Include="ECS\System\InteractionSystem.cpp" />
     <ClCompile Include="ECS\System\SkinnedAnimSystem.cpp" />
     <ClCompile Include="Graphics\Light\PointLightManager.cpp" />
     <ClCompile Include="VFX_Editor\VFXPointLightEntry.cpp" />
@@ -404,6 +405,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Component\MeshRenderer.h" />
     <ClInclude Include="Graphics\Model\Model.h" />
     <ClInclude Include="Component\ModelComponent.h" />
+    <ClInclude Include="Component\InteractableComponent.h" />
     <ClInclude Include="Component\SkinnedAnimComponent.h" />
     <ClInclude Include="Component\ModelRenderer.h" />
     <ClInclude Include="Object\ObjectManager.h" />
@@ -432,6 +434,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Renderer\Renderer.h" />
     <ClInclude Include="Graphics\Renderer\RenderStates.h" />
     <ClInclude Include="ECS\System\RenderSystem.h" />
+    <ClInclude Include="ECS\System\InteractionSystem.h" />
     <ClInclude Include="ECS\System\SkinnedAnimSystem.h" />
     <ClInclude Include="Graphics\Light\PointLightManager.h" />
     <ClInclude Include="VFX_Editor\VFXPointLightEntry.h" />
