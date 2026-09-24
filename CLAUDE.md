@@ -1,268 +1,77 @@
-# Phase 4 收尾清单（交给 Claude Code）
+# VFX_L — 给 Claude Code 的项目说明
 
-# 项目约束（先读）
+C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投射物、经验球、范围攻击都在 GPU 上跑（`Swarm/SwarmSystem`），玩家和精英留在 CPU 的 ECS（`Registry`）。
+设计依据：`GPU_GAMEPLAY_PLAN.md`（Phase 0〜4 已完成，Phase 5 未开始）。Phase 4 收尾清单的原文在 `PHASE4_CLEANUP.md`（已全部完成）。
 
-# C++ 注释日语，编译选项 /utf-8 全局生效。HLSL 纯 ASCII 无 BOM
+---
 
-# 本清单不需要改任何 .hlsl / .hlsli。如果发现必须改，停下来报告，不要自作主张
+## 1. 约束（全程有效）
 
-# 不改任何 GPU 结构体布局（Enemy / Projectile / Orb / FrameCB / AICB / OrbCB / SwarmCounters）
+- **编码**：C++ 注释用日语，全局 `/utf-8`。HLSL 纯 ASCII、无 BOM、CRLF。含日文 `L"..."` 字面量的文件存 UTF-8 带 BOM。
+  残留的 CP932 文件（编译时只出 C4828）要写日文注释前，先整体转成无 BOM 的 UTF-8。
+- **GPU 结构体布局**：`Enemy` / `Projectile` / `Orb` / `FrameCB` / `AICB` / `OrbCB` / `SwarmCounters` 默认不改。需要新的逐槽数据时开并行 buffer（例：`m_EnemyMaxHpBuffer`）。确实要改时先说明理由。
+- **Dispatch**：每个 CS dispatch 之后必须 `UnbindSRVs` + `UnbindUAVs`；绘制用的 SRV 画完也要解绑（否则下一帧 CS 当 UAV 用时出 HAZARD）。
+- **`DispatchStep` 顺序**：0 counter 清零 → 0b 空间哈希 → 1 敌 AI → 2 敌积分 → 2b 重叠解除 → 3 弹积分 → 4 命中（+经验球掉落）→ 5 瞄准 → 6 接触 → 7 经验球吸引/拾取。改顺序要先说明。
+- **SwarmCounters**：`killCount` / `playerDamage` / `expTotal` 是 GPU 永久累加、CPU 取差分。任何清理都不许清 counters buffer，也不许重置 `m_LastKillCount` / `m_LastDamageTotal` / `m_LastExpTotal`。
+- **工程文件**：增删源文件、着色器必须同步改 `VFX_L.vcxproj` 和 `VFX_L.vcxproj.filters`。着色器照 `SwarmEnemyVS.hlsl` 的 `FxCompile` 块写（输出到 `$(OutDir)Shader/...cso`）。
+- **Esc 在 `Core/Window.cpp` 里是退出程序**，任何场景都不能拿它当快捷键。
 
-# 不新增 dispatch，不改 DispatchStep 顺序
+## 2. 工作方式
 
-# 每个 CS Dispatch 之后必有 UnbindSRVs + UnbindUAVs，检查时顺手核对
+- 有方案选择（外观、交互方式、数据放哪）时，先列出选项和推荐，等用户决定再动手。纯机械的步骤直接做。
+- 每完成一个任务构建一次 Debug x64，通过再做下一个。不要求零警告，但不能新增警告。
+- 用户在用电脑时（最近 1 分钟内有输入）不要启动游戏抢焦点，更不要发按键；锁屏时只做日志验证。
 
-# SwarmCounters 里 killCount / playerDamage / expTotal 是 GPU 永久累加、CPU 取差分，任何清理都不许清 counters buffer，也不许重置 m\_LastKillCount / m\_LastDamageTotal / m\_LastExpTotal
+### 构建
 
-# 改动只限下面列出的文件。GPU\_GAMEPLAY\_PLAN.md 在根目录，是设计依据
+从 PowerShell 调（Git Bash 会把 `/p:` 当路径）。VS 2022 的 MSBuild 会报 MSB8020，要用 VS 18 的：
 
-# 每完成一个任务 Build（Debug x64）一次，通过再做下一个
+```
+& "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:\VFX_Project\VFX_L\VFX_L.sln" /p:Configuration=Debug /p:Platform=x64 /m /v:m /nowarn:C4828 "/flp:LogFile=<scratchpad>\build.log;Verbosity=minimal;Encoding=UTF-8" /noconsolelogger
+```
 
-# 删源文件必须同步改 .vcxproj 和 .vcxproj.filters
+- 构建前确认没有 `cl.exe` 在跑（用户可能在 VS 里构建，撞车会报 C1041 PDB 占用）。
+- 已知的旧警告：C4828（CP932 残留）、MSB8027 / LNK4042（ManaSystem.cpp 重名）、ShaderPath.h 的 C4244。
 
-# 任务 A：KillAll（Terrain Regenerate 时清 GPU 对象）
+### 自测
 
-# A1. Swarm/SwarmSystem.h
+- 启动 `x64/Debug/VFX_L.exe`（工作目录同目录），截图看画面。**只发键盘，不发鼠标**，发键前确认前台窗口属于游戏进程。
+- 程序日志走 AllocConsole，重定向拿不到；用 `AttachConsole` + `ReadConsoleOutputCharacterW` 读控制台缓冲区。
 
-# 
+## 3. 场景（DebugManager 快捷键）
 
-# public 区加两个函数声明：
+| 键 | 场景 | 用途 |
+|---|---|---|
+| F1 | Game Test（`CollisionTestScene`） | 战斗本体 |
+| F2 | VFX Editor | 特效编辑 |
+| F3 | Title | 标题 |
+| F4 | Projectile Editor | 弹道、范围攻击编辑 |
+| F5 | 重新加载当前场景 | |
+| F6 | Level Editor（`LevelEditorScene`） | 摆素材、存 `Assets/Data/LevelData/<名字>.json` |
 
-# 
+## 4. 主要系统速查
 
-# cpp
+- **雑魚外观**：`SwarmSystem::BuildEnemyModel` 候选表（Kenney Blocky L 僵尸 → KayKit Minion → 胶囊）。方块人是刚体部件，用 `Model::LoadOptions` 烘姿势，`BuildEnemyPartAnim` 做 idle / walk / attack 的部件动画表，`SwarmEnemyVS` 按敌人状态选帧。
+- **雑魚血条**：`SwarmEnemyHpBarVS/PS`，满格值在 `m_EnemyMaxHpBuffer`，由生成 CS 和回收 CS 写入。
+- **光照**：`Shader/Common/Lighting.hlsli`（半球环境光 + 平行光和点光源的 GGX 高光）。点光源表是 `PointLightManager`（每帧一张，t6/t7）。
+- **升级**：`UI/LevelUpSystem`。卡池 = `ItemDatabase::GetAllIDs()` + `GetLevelUpOnlyIDs()`（生命、法力上限卡，`ItemCategory::Stat`）。
+- **施法暂停**：`WandComponent::castingPaused`（Q / 手柄 Y）。
+- **FBX 单位**：`Model::GetFileUnitScale()` 记录 FBX 的 UnitScaleFactor，但不乘进顶点（现有模型各自手调倍率）。KayKit Forest 和 Kenney 的 FBX 都是厘米单位。
+- **素材（都是 CC0）**：`Assets/Model/KayKit_*`、`Kenney_BlockyCharacters`、`Kenney_RetroFantasy`（1m 立方的部件，编辑器默认 2 倍）。
 
-# &#x20;   // GPU 上の雑魚・弾・オーブを全部消す（地形の作り直し用）。
+## 5. 仍在代码里的临时测试（TEMP-TEST）
 
-# &#x20;   // state を DEAD にするだけ。counter は触らない（累加値の差分が狂う）
+- `Core/Game.cpp`：启动直接进 `COLLISION_TEST`（原本是 Title / VFX Editor）。
+- `CollisionTestScene::Init`：玩家 `maxHealth = 1000000`。
+- `CollisionTestScene::UpdateGameplay`：每 120 帧打一行 `[crowd]` 日志。
+- `SwarmSystem::UpdateFlowField`：打 `[flow] build ms` 日志。
 
-# &#x20;   void KillAll();
+## 6. 当前任务：可交互道具
 
-# 
+已定（用户选）：
+- 开局在玩家周围的随机可走格子上固定放几个，用完即消失，不刷新。
+- 外观：`Kenney_RetroFantasy/fbx/detail-crate.fbx`（像素木箱），上下浮动慢转，附一盏暖黄点光源。
+- 靠近后屏幕下方提示「[F] Open」，按 F 或手柄 B 触发。
+- 效果：弹出和升级一样的三选一，**但不升级**（`LevelUpSystem` 要拆出只抽选项、不扣经验的入口）。选择中不能再触发。
 
-# &#x20;   // 弾だけ消す（負荷テストのリセット用）
-
-# &#x20;   void ClearProjectiles();
-
-# A2. Swarm/SwarmSystem.cpp
-
-# 
-
-# 实现，放在 ConsumeExp 后面：
-
-# 
-
-# KillAll：ClearUnorderedAccessViewUint 清 m\_EnemyStateUAV / m\_ProjStateUAV / m\_OrbStateUAV（const UINT zero\[4] = {0,0,0,0}，和 CreateBuffers 末尾同样写法），然后 m\_PendingEnemies / m\_PendingRecycles / m\_PendingProjectiles 三个队列 clear()
-
-# ClearProjectiles：只清 m\_ProjStateUAV + m\_PendingProjectiles
-
-# 不碰 m\_CounterUAV、m\_EmitBudgetUAV、m\_Accumulator
-
-# A3. Scene/CollisionTestScene.cpp
-
-# Terrain 面板 Regenerate 按钮里，m\_Swarm.UploadTerrain(m\_Grid); 之前加 m\_Swarm.KillAll();
-
-# 把那段注释 ※GPU の雑魚は消せない（Phase 4 で KillAll を足す）... 改成说明「GPU 側は KillAll で全消し。counter は残るので撃破数などの累計は続く」
-
-# Enemies 面板 Respawn Elites 按钮旁边加一个 Kill All (GPU) 按钮，调 m\_Swarm.KillAll()
-
-# A4. 验证
-
-# 
-
-# 运行 → 等怪出来 → Terrain Regenerate → 怪、弹、球全部消失，kills (total) 数字不归零，之后 SpawnDirector 正常重新湧怪。
-
-# 
-
-# 任务 B：摘除 CPU 版 ExpOrbSystem
-
-# B1. 先 grep
-
-# 
-
-# 在整个项目搜 ExpOrbSystem、ExpOrbComponent，列出所有引用。预期只有：CollisionTestScene.h/.cpp、Item/ExpOrbSystem.h/.cpp、Item/ExpOrbComponent.h。如果还有别的地方引用，先报告再动。
-
-# 
-
-# B2. Scene/CollisionTestScene.cpp
-
-# 删 #include "Item/ExpOrbSystem.h"、#include "Item/ExpOrbComponent.h"
-
-# UpdateGameplay 里删 // ---- 経験値オーブ ---- 那三行（含 m\_ExpOrbSystem.Update）
-
-# UpdateGameplay 里 m\_ManaSystem.Update 之后那一大段被 // 注释掉的旧 CPU 投射物代码（AttachVFX 循环、m\_ProjectileSystem.Update、命中イベント消费循环、m\_ProjectileVFXSystem.Update）整段删除，替换成一条注释：
-
-# cpp
-
-# &#x20;   // 投射物の生成・移動・命中・撃破報酬は全部 GPU（SwarmSystem）。
-
-# &#x20;   // CPU 側にはもう無い。精英の弾を CPU に戻す時はここに書く
-
-# UpdateGameplay 头部那段「System の実行順」注释里把 → 投射物 → VFX収集 → 経験値 改成实际顺序：操作 → 湧き依頼 → 衝突 → 物理 → 状態機 → 杖 → マナ結算 → レベル判定 → カメラ → GPU gameplay Flush → 粒子 Flush
-
-# DrawStressPanel 里删 ImGui::Text("Exp Orbs : %d", m\_ExpOrbSystem.GetOrbCount());
-
-# DrawStressPanel 里删整个 if (ImGui::TreeNode("Exp Orb")) {...} 块
-
-# SpawnElite 里的 ExpRewardComponent 保留（精英还是 CPU，将来用）
-
-# B3. Scene/CollisionTestScene.h
-
-# 
-
-# 删 ExpOrbSystem m\_ExpOrbSystem; 成员及对应 include。
-
-# 
-
-# B4. 删文件
-
-# 
-
-# Item/ExpOrbSystem.h、Item/ExpOrbSystem.cpp、Item/ExpOrbComponent.h，从 .vcxproj（ClCompile / ClInclude）和 .vcxproj.filters 移除。Item/ExpRewardComponent.h 不删。
-
-# 
-
-# B5. 验证
-
-# 
-
-# Build 通过，运行杀怪捡球 Exp 条正常涨。
-
-# 
-
-# 任务 C：StressSpawnProjectiles 改走 GPU
-
-# 
-
-# 背景：这个负荷测试的目的是撑满粒子池测试 EmitCS 的护栏，但它现在造的是 CPU 弹实体，ProjectileSystem.Update 已注释，那些球根本不动。改成往 SwarmSystem::SpawnProjectile 发。
-
-# 
-
-# C1. Scene/CollisionTestScene.cpp StressSpawnProjectiles
-
-# 
-
-# 整个函数体重写：保留随机方向的生成方式，每颗调
-
-# 
-
-# cpp
-
-# m\_Swarm.SpawnProjectile(VFXId::Fireball, origin, dir \* 8.0f, 1.0f, 0.25f, 30.0f);
-
-# 
-
-# 不再 m\_Registry.Create()，不再加 Transform / Collider / ProjectileComponent / ProjectileVisualComponent / ModelComponent，不再 AttachVFX。注意 SwarmSystem::SpawnProjectile 每帧上限 kMaxSpawnProjPerFrame，超出会静默丢弃——UpdateGameplay 里每帧 50 的 batch 逻辑保留，但把 50 改成 Swarm::kMaxSpawnProjPerFrame（在 Swarm/SwarmTypes.h，先确认名字）。
-
-# 
-
-# C2. CountProjectiles()
-
-# 
-
-# 改成返回 (int)m\_Swarm.GetCounters().aliveProjectiles。函数头注释改成「GPU の存活数（回読なので 1〜2 フレーム古い）」。const\_cast 那行删掉。
-
-# 
-
-# C3. Stress 面板清理
-
-# Clear All 按钮：删掉 Registry 遍历删实体的代码，改成 m\_Swarm.ClearProjectiles(); m\_StressPending = 0;
-
-# ApplyStressPreset 开头那段遍历 ProjectileComponent 删实体的代码同样改成 m\_Swarm.ClearProjectiles();
-
-# 删 With Collider / With 3D Model / With VFX 三个 Checkbox 及相关 TextDisabled / TextColored 提示（包括 Auto Refill without VFX... 那条和 0 emitters: no VFX template... 那条）
-
-# 删 ImGui::Text("Projectile VFX : %zu", m\_ProjectileVFXSystem.GetActiveVFXCount());
-
-# 「Alive count lives on the GPU only」两行 TextDisabled 删掉（现在有数字了）
-
-# C4. Scene/CollisionTestScene.h
-
-# 删成员：m\_StressModel、m\_StressWithCollider、m\_StressWithModel、m\_StressWithVFX、m\_StressVFXItem
-
-# StressPreset 结构体删 withVFX / withCollider / withModel 三个字段，kStressPresets 数组对应初始化项删掉；preset 的 purpose 文案里提到 collider / model / VFX 的改成只描述 target/batch
-
-# Init() 里删 m\_StressModel = PrimitiveBuilder::CreateSphere(...) 那行
-
-# m\_ProjectileVFXSystem、m\_ProjectileSystem、m\_ProjectileRenderer 三个成员保留不动（RegisterItemVisuals 还在用前者；后两者留给精英/广告牌）
-
-# C5. 验证
-
-# 
-
-# Stress 面板 + Spawn → Swarm 面板 alive proj 上升到对应数字，30 秒后回落；Auto Refill 开着能维持在 Target 附近；粒子面板 Emitters 有数。
-
-# 
-
-# 任务 D：过期注释与文档
-
-# D1. Swarm/SwarmSystem.cpp
-
-# DispatchEmit 里 ※WriteBuffer の index は反射に出た cbuffer の順... 那段注释和被注释掉的 // m\_EmitCS->WriteBuffer(m\_Context, 1, ...) 删掉，换成：
-
-# cpp
-
-# &#x20;   // WriteBuffer の index はレジスタ番号。
-
-# &#x20;   // この CS では SwarmFrameCB を b2 に逃がしてある（b0/b1 は ParticleCommon）
-
-# DispatchStep 头注释改成实际顺序：0 counter 清零 → 1 敵AI → 2 敵積分 → 3 弾積分 → 4 命中(+オーブ落下) → 5 照準 → 6 接触 → 7 オーブ吸引・取得
-
-# 第 5 段（AimResolve）上面 // ---- 5) Hit 弹 × 怪 改成 // ---- 5) 照準: 最近傍の key → 位置/速度/距離 ----
-
-# SpawnEnemy 里 Swarm::Enemy e; 改 Swarm::Enemy e = {};，删掉手动赋 velocity / yaw 为 0 的两行（= {} 已覆盖）。SpawnProjectile 同样改 Swarm::Projectile p = {};
-
-# LoadShaders 里 Material::InitDefaultTextures(device); 从 if (m\_EnemyVS \&\& m\_EnemyPS) 块里提出来，放到 // ---- 雑魚の本描画 ---- 之前单独一行
-
-# Render() 里 orb 块 m\_OrbMaterial->Bind 之后补 m\_Context->PSSetSamplers(0, 1, \&samp);（samp 变量提到函数开头）；m\_EnemyVS->UnbindSRVs 挪到雑魚 draw 循环之后、orb 块之前
-
-# D2. Swarm/SwarmSystem.h
-
-# m\_OrbCS 声明旁边确认有一行注释说明它是第 7 步
-
-# SwarmSystem::KillAll 声明处注释见 A1
-
-# D3. Enemy/SpawnDirector.h
-
-# 
-
-# 头注释里如果有「逃亡流が封じられる / 遠くの敵は消える」类描述，改成实际行为：「cap を超えた分は RecycleCS が rMax より遠い活きスロットを上書きする。cap は溢れ弁で、通常は届かない値にする」。具体措辞按现有注释风格。
-
-# 
-
-# D4. GPU\_GAMEPLAY\_PLAN.md
-
-# 
-
-# Phase 4 全部勾上，写一行完成日期。Phase 5 项目不动。
-
-# 
-
-# 最终验证（全部做完后）
-
-# Rebuild Debug x64 零警告级别不变（不要求零警告，但不能新增）
-
-# 启动日志：\[SwarmSystem] 下面所有 CS / VS / PS 都是 OK
-
-# VS 输出窗口搜 Forcing to NULL / HAZARD，必须一条都没有
-
-# 跑 60 秒：怪追人、弹打怪、怪死掉球、球吸过来、Exp 涨、升级选项出现、HP 被怪碰掉
-
-# Terrain Regenerate 一次，全清、kills 不归零、怪重新湧
-
-# Stress + Spawn 500，alive proj 涨、Emitters 涨、Flush ms 不飙
-
-# git diff --stat 只涉及本清单列出的文件
-
-# 不要做的
-
-# 不动 Shader/ 目录
-
-# 不动 WeaponSystem / SpawnDirector.cpp / GPUReadback
-
-# 不动精英相关（SpawnElite / RespawnElites / m\_Elites / EliteTag）
-
-# 不动 ProjectileRenderer、ProjectileVFXSystem、ProjectileSystem 的源文件
-
-# 不做广告牌渲染、不做 EnemyDatabase、不做 json（都是 Phase 5）
-
+之后的候选（未定）：战斗场景读取关卡编辑器的关卡、流场寻路的实机验证、Phase 5（SpawnDirector GPU 化等）。
