@@ -27,6 +27,7 @@ namespace
         { SceneType::VFX_EDITOR,     "VFX Editor", VK_F2 },
         { SceneType::TITLE,          "Title",      VK_F3 },
         { SceneType::PROJECTILE_EDITOR, "Projectile Editor", VK_F4 },
+        { SceneType::LEVEL_EDITOR, "Level Editor", VK_F6 },
     };
     constexpr int kReloadKey = VK_F5;
 }

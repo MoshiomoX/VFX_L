@@ -235,12 +235,9 @@ void ProjectileEditorScene::Fire(bool randomCurve)
         mirror = ProjectileProfileDB::NextMirror(m_Selected);
     }
 
-    const VFXId vfx = (VFXDatabase::Count() > 0)
-        ? VFXDatabase::At((std::min)(m_VfxIndex, VFXDatabase::Count() - 1))
-        : VFXId::None;
-
-    m_Swarm.SpawnProjectile(vfx, m_Muzzle, dir * p.previewSpeed,
-        p.previewDamage, p.previewRadius, p.previewLifetime,
+    // 見た目・性能はプロファイル自身の物（ゲーム本体と同じ経路）
+    m_Swarm.SpawnProjectile(p.ResolveVFX(), m_Muzzle, dir * p.speed,
+        p.damage, p.radius, p.lifetime,
         motionRow, mirror);
 }
 
@@ -656,11 +653,35 @@ void ProjectileEditorScene::DrawProjectileTab()
         }
     }
 
-    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Test shot (editor only; in game the item decides)");
-    changed |= ImGui::DragFloat("Speed", &p.previewSpeed, 0.1f, 0.5f, 100.0f);
-    changed |= ImGui::DragFloat("Lifetime", &p.previewLifetime, 0.05f, 0.1f, 30.0f);
-    changed |= ImGui::DragFloat("Radius", &p.previewRadius, 0.01f, 0.05f, 3.0f);
-    changed |= ImGui::DragFloat("Damage", &p.previewDamage, 0.5f, 0.0f, 1000.0f);
+    // ---- 弾の性能（ゲーム本体の基礎値。機能符はこの上に掛かる）----
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Projectile (base values used in game)");
+    changed |= ImGui::DragFloat("Speed", &p.speed, 0.1f, 0.5f, 100.0f);
+    changed |= ImGui::DragFloat("Lifetime", &p.lifetime, 0.05f, 0.1f, 30.0f);
+    changed |= ImGui::DragFloat("Radius", &p.radius, 0.01f, 0.05f, 3.0f);
+    changed |= ImGui::DragFloat("Damage", &p.damage, 0.5f, 0.0f, 1000.0f);
+
+    // ---- 見た目 ----
+    ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Visual");
+    {
+        // VFX json を VFXDatabase の登録一覧から選ぶ（GPU の弾は登録済みの物しか出せない）
+        const char* cur = p.vfxFile.empty() ? "(none)" : p.vfxFile.c_str();
+        if (ImGui::BeginCombo("VFX", cur))
+        {
+            if (ImGui::Selectable("(none)", p.vfxFile.empty())) { p.vfxFile.clear(); changed = true; }
+            for (int i = 0; i < VFXDatabase::Count(); ++i)
+            {
+                const char* path = VFXDatabase::GetPath(VFXDatabase::At(i));
+                if (!path) continue;
+                const std::string file = std::filesystem::path(path).filename().string();
+                if (ImGui::Selectable(file.c_str(), file == p.vfxFile)) { p.vfxFile = file; changed = true; }
+            }
+            ImGui::EndCombo();
+        }
+        if (!p.vfxFile.empty() && p.ResolveVFX() == VFXId::None)
+            ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "'%s' is not in VFXDatabase (no visuals on GPU)", p.vfxFile.c_str());
+        changed |= ImGui::DragFloat("Visual Size", &p.visualSize, 0.01f, 0.05f, 5.0f);
+        changed |= ImGui::DragFloat("Visual Stretch", &p.visualStretch, 0.01f, 0.0f, 5.0f);
+    }
 
     if (changed)
     {
@@ -696,22 +717,6 @@ void ProjectileEditorScene::DrawProjectileTab()
         ImGui::SliderInt("Shots per Volley", &m_Volley, 1, 8);
         ImGui::DragFloat("Volley Delay", &m_VolleyDelay, 0.005f, 0.0f, 1.0f);
         if (ImGui::DragFloat3("Muzzle", &m_Muzzle.x, 0.1f)) {}
-
-        if (VFXDatabase::Count() > 0)
-        {
-            m_VfxIndex = (std::min)(m_VfxIndex, VFXDatabase::Count() - 1);
-            const char* cur = VFXDatabase::GetPath(VFXDatabase::At(m_VfxIndex));
-            if (ImGui::BeginCombo("VFX", cur ? cur : "(none)"))
-            {
-                for (int i = 0; i < VFXDatabase::Count(); ++i)
-                {
-                    const char* path = VFXDatabase::GetPath(VFXDatabase::At(i));
-                    if (ImGui::Selectable(path ? path : "(none)", i == m_VfxIndex))
-                        m_VfxIndex = i;
-                }
-                ImGui::EndCombo();
-            }
-        }
         ImGui::Checkbox("Show Projectile Spheres", &m_ShowDebugSpheres);
     }
 }

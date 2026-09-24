@@ -10,6 +10,7 @@ enum class SceneType
     COLLISION_TEST,
     VFX_EDITOR,
     PROJECTILE_EDITOR,
+    LEVEL_EDITOR,
     RESULT,
     // 追加していく
 };
@@ -28,6 +29,7 @@ inline const char* SceneTypeName(SceneType type)
     case SceneType::COLLISION_TEST:    return "Game Test";
     case SceneType::VFX_EDITOR:        return "VFX Editor";
     case SceneType::PROJECTILE_EDITOR: return "Projectile Editor";
+    case SceneType::LEVEL_EDITOR:      return "Level Editor";
     case SceneType::RESULT:            return "Result";
     }
     return "Unknown";

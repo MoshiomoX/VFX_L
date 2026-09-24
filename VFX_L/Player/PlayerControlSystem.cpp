@@ -19,12 +19,15 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
         || ImGui::GetIO().WantCaptureKeyboard;
 
     const bool castTrigger = blocked ? false : InputMap::GetCastTrigger();
+    const bool pauseToggle = blocked ? false : InputMap::GetCastPauseToggle();
 
     reg.CreateView<WandComponent, PlayerTag>()
         .Each([&](Entity e, WandComponent& wand, PlayerTag&)
             {
-            
+
                 wand.castRequested = castTrigger;
+                // 施法を止める / 再開する（プレイヤーが決める。WeaponSystem が見る）
+                if (pauseToggle) wand.castingPaused = !wand.castingPaused;
             });
 
     if (blocked) return;

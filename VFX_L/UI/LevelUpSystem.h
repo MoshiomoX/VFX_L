@@ -15,6 +15,7 @@
 #include "SpellID.h"
 
 class Registry;
+struct StatItemDef;
 
 class LevelUpSystem
 {
@@ -36,6 +37,9 @@ public:
 
 private:
     void RollChoices(Registry& reg, Entity player);
+
+    // 能力値（生命・魔力の上限）をその場で適用する
+    static void ApplyStat(Registry& reg, Entity player, const StatItemDef& stat);
 
     int m_TotalLevelUps = 0;
 };

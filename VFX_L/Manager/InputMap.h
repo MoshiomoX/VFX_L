@@ -45,6 +45,14 @@ namespace InputMap
     }
 
 
+    // 施法の一時停止 / 再開（Q、パッド Y。トリガー）
+    inline bool GetCastPauseToggle()
+    {
+        auto& input = InputManager::Get();
+        return input.GetKeyTrigger('Q') ||
+            input.GetPadTrigger(XINPUT_GAMEPAD_Y);
+    }
+
     inline bool GetJumpTrigger()
     {
         auto& input = InputManager::Get();

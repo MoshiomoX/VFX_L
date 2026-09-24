@@ -34,6 +34,7 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_LightData.directionalLight.color = Vector3(1.0f, 1.0f, 1.0f);
     m_LightData.directionalLight.intensity = 1.0f;
     m_LightData.ambientColor = Vector3(0.2f, 0.2f, 0.2f);
+    m_LightData.groundAmbientColor = m_LightData.ambientColor;
 
     std::cout << "[OK] Renderer initialized" << std::endl;
     // ????????(???? + WRAP)?PBR?t0~t4???
@@ -86,6 +87,13 @@ void Renderer::SetDirectionalLight(const Vector3& direction, const Vector3& colo
 void Renderer::SetAmbientColor(const Vector3& color)
 {
     m_LightData.ambientColor = color;
+    m_LightData.groundAmbientColor = color;
+}
+
+void Renderer::SetAmbientHemisphere(const Vector3& sky, const Vector3& ground)
+{
+    m_LightData.ambientColor = sky;
+    m_LightData.groundAmbientColor = ground;
 }
 
 void Renderer::Begin()

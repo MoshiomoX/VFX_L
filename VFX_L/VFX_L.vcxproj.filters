@@ -316,6 +316,9 @@
     <ClCompile Include="Camera\FollowCamera.cpp">
       <Filter>Camera</Filter>
     </ClCompile>
+    <ClCompile Include="Camera\FlyCamera.cpp">
+      <Filter>Camera</Filter>
+    </ClCompile>
     <ClCompile Include="ECS\System\PhysicsSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
@@ -413,6 +416,9 @@
     <ClCompile Include="World\TerrainGenerator.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\LevelData.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\GridWorld.cpp">
       <Filter>World</Filter>
     </ClCompile>
@@ -432,6 +438,9 @@
     <ClCompile Include="Swarm\ProjectileProfile.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
+    <ClCompile Include="Swarm\FlowField.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
     <ClCompile Include="Swarm\AreaProfile.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
@@ -439,6 +448,9 @@
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Scene\ProjectileEditorScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\LevelEditorScene.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmVFXTable.cpp" />
@@ -731,6 +743,9 @@
     <ClInclude Include="Camera\FollowCamera.h">
       <Filter>Camera</Filter>
     </ClInclude>
+    <ClInclude Include="Camera\FlyCamera.h">
+      <Filter>Camera</Filter>
+    </ClInclude>
     <ClInclude Include="Component\WandComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -816,6 +831,15 @@
     <ClInclude Include="Item\Items\Fireball.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\ArcBolt.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\HomingBolt.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\Meteor.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Item\ItemDatabase.h">
       <Filter>Item</Filter>
     </ClInclude>
@@ -864,6 +888,12 @@
     <ClInclude Include="Item\Items\Frame3x3.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\MaxHealthUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\MaxManaUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Component\SpellbookComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -903,6 +933,9 @@
     <ClInclude Include="World\TerrainGenerator.h">
       <Filter>World</Filter>
     </ClInclude>
+    <ClInclude Include="World\LevelData.h">
+      <Filter>World</Filter>
+    </ClInclude>
     <ClInclude Include="Enemy\ChaseAIComponent.h">
       <Filter>Enemy</Filter>
     </ClInclude>
@@ -928,6 +961,9 @@
     <ClInclude Include="Swarm\ProjectileProfile.h">
       <Filter>Swarm</Filter>
     </ClInclude>
+    <ClInclude Include="Swarm\FlowField.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
     <ClInclude Include="Swarm\AreaProfile.h">
       <Filter>Swarm</Filter>
     </ClInclude>
@@ -935,6 +971,9 @@
       <Filter>Swarm</Filter>
     </ClInclude>
     <ClInclude Include="Scene\ProjectileEditorScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\LevelEditorScene.h">
       <Filter>Scene</Filter>
     </ClInclude>
     <ClInclude Include="Swarm\SwarmVFXTable.h" />
@@ -1065,6 +1104,12 @@
     <FxCompile Include="Shader\Swarm\SwarmEnemyVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyHpBarVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyHpBarPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmRecycleCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -1084,6 +1129,12 @@
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmEnemyCompactCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyBinCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyPushCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmAreaLightCollectCS.hlsl">

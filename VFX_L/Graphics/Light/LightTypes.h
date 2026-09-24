@@ -5,34 +5,40 @@ using namespace DirectX::SimpleMath;
 
 struct DirectionalLight
 {
-	// ƒfƒtƒHƒ‹ƒg‚Íã‚©‚ç‚Ì”’FŒõ
+	// ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã¯ä¸Šã‹ã‚‰ã®ç™½è‰²å…‰
     Vector3 direction = { 0.0f, -1.0f, 0.0f };
-	float padding1;// ƒpƒfƒBƒ“ƒOi16ƒoƒCƒgƒAƒ‰ƒCƒƒ“ƒg—pj
-	Vector3 color = { 1.0f, 1.0f, 1.0f };// Œõ‚ÌF
-	float intensity = 1.0f;// Œõ‚Ì‹­‚³
+	float padding1;// ãƒ‘ãƒ‡ã‚£ãƒ³ã‚°ï¼ˆ16ãƒã‚¤ãƒˆã‚¢ãƒ©ã‚¤ãƒ¡ãƒ³ãƒˆç”¨ï¼‰
+	Vector3 color = { 1.0f, 1.0f, 1.0f };// å…‰ã®è‰²
+	float intensity = 1.0f;// å…‰ã®å¼·ã•
 };
 
 struct LightBuffer
 {
-    DirectionalLight directionalLight;          // •½sŒõŒ¹
-    Vector3 ambientColor = { 0.1f, 0.1f, 0.1f };// ŠÂ‹«Œõ
-    float   padding = 0.0f;                     // 16ƒoƒCƒg‹«ŠE
-    Vector3 cameraPosition;                     // ƒJƒƒ‰ˆÊ’u
-    float   padding2 = 0.0f;                    // 16ƒoƒCƒg‹«ŠE
+    DirectionalLight directionalLight;          // å¹³è¡Œå…‰æº
+    Vector3 ambientColor = { 0.1f, 0.1f, 0.1f };// ç’°å¢ƒå…‰ï¼ˆåŠçƒã®ä¸Š = ç©ºã®è‰²ã€‚ä¸Šå‘ãã®é¢ã»ã©ã“ã¡ã‚‰ï¼‰
+    float   padding = 0.0f;                     // 16ãƒã‚¤ãƒˆå¢ƒç•Œ
+    Vector3 cameraPosition;                     // ã‚«ãƒ¡ãƒ©ä½ç½®
+    float   padding2 = 0.0f;                    // 16ãƒã‚¤ãƒˆå¢ƒç•Œ
 
-    // š‚±‚±‚©‚ç’Ç‰ÁFŠeƒeƒNƒXƒ`ƒƒ‚Ì—L–³i1=‚ ‚è, 0=‚È‚µj
+    // ç’°å¢ƒå…‰ã®åŠçƒã®ä¸‹ = åœ°é¢ã®è‰²ï¼ˆä¸‹å‘ãã®é¢ã»ã©ã“ã¡ã‚‰ï¼‰ã€‚
+    // Renderer::SetAmbientColor ã¯ä¸¡æ–¹ã«åŒã˜è‰²ã‚’å…¥ã‚Œã‚‹ï¼ˆ= å¾“æ¥ã®ä¸€æ§˜ãªç’°å¢ƒå…‰ï¼‰ã€‚
+    // HLSL ã® LightBufferï¼ˆShader/Common/Lighting.hlsliï¼‰ã¯ã“ã“ã¾ã§ã€‚ä»¥ä¸‹ã¯ C++ ã ã‘
+    Vector3 groundAmbientColor = { 0.1f, 0.1f, 0.1f };
+    float   padding5 = 0.0f;                    // 16ãƒã‚¤ãƒˆå¢ƒç•Œ
+
+    // â˜…ã“ã“ã‹ã‚‰è¿½åŠ ï¼šå„ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®æœ‰ç„¡ï¼ˆ1=ã‚ã‚Š, 0=ãªã—ï¼‰
     float   hasAlbedo = 0.0f;
     float   hasNormal = 0.0f;
     float   hasMetallic = 0.0f;
-    float   hasRoughness = 0.0f;                // © ‚±‚Ì4‚Â‚Å1s(16byte)
+    float   hasRoughness = 0.0f;                // â† ã“ã®4ã¤ã§1è¡Œ(16byte)
 
     float   hasAO = 0.0f;
-    Vector3 padding3 = { 0,0,0 };           // © float + float3 ‚Å1s(16byte)
+    Vector3 padding3 = { 0,0,0 };           // â† float + float3 ã§1è¡Œ(16byte)
 
-    // šƒeƒNƒXƒ`ƒƒŒ‡—‚ÌƒtƒH[ƒ‹ƒoƒbƒN’l
+    // â˜…ãƒ†ã‚¯ã‚¹ãƒãƒ£æ¬ è½æ™‚ã®ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯å€¤
     Vector3 defaultAlbedo = { 1.0f, 1.0f, 1.0f };
-    float   defaultMetallic = 0.0f;            // © float3 + float ‚Å1s(16byte)
+    float   defaultMetallic = 0.0f;            // â† float3 + float ã§1è¡Œ(16byte)
 
     float   defaultRoughness = 1.0f;
-    Vector3 padding4 = { 0,0,0 };       // © float + float3 ‚Å1s(16byte)
+    Vector3 padding4 = { 0,0,0 };       // â† float + float3 ã§1è¡Œ(16byte)
 };

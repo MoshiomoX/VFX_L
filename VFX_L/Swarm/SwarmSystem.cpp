@@ -109,6 +109,10 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(Swarm::Enemy), Swarm::kMaxEnemies,
         m_EnemyBuffer, m_EnemyUAV, m_EnemySRV, "enemy")) return false;
 
+    // 生成時の hp（HP バーの分母）。Enemy 本体に場所が無いので横に持つ
+    if (!makeStructured(sizeof(uint32_t), Swarm::kMaxEnemies,
+        m_EnemyMaxHpBuffer, m_EnemyMaxHpUAV, m_EnemyMaxHpSRV, "enemyMaxHp")) return false;
+
     if (!makeStructured(sizeof(Swarm::Projectile), Swarm::kMaxProjectiles,
         m_ProjBuffer, m_ProjUAV, m_ProjSRV, "projectile")) return false;
 
@@ -296,6 +300,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_CounterUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EmitBudgetUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyMaxHpUAV.Get(), zero);   // 0 = VS 側で 1 扱い
     }
 
     return true;
@@ -369,6 +374,71 @@ void SwarmSystem::UploadTerrain(const GridWorld& grid)
             else
                 std::cout << "[Error] SwarmSystem: height buffer failed" << std::endl;
         }
+    }
+
+    // ---- 空間ハッシュ（マス数 × 固定容量。格子の寸法が変わるのでここで作り直す）----
+    {
+        auto makeUintBuf = [&](UINT count, Microsoft::WRL::ComPtr<ID3D11Buffer>& buf,
+            Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView>& uav,
+            Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& srv) -> bool
+            {
+                buf.Reset(); uav.Reset(); srv.Reset();
+                D3D11_BUFFER_DESC bd2 = {};
+                bd2.ByteWidth = sizeof(uint32_t) * count;
+                bd2.Usage = D3D11_USAGE_DEFAULT;
+                bd2.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+                bd2.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+                bd2.StructureByteStride = sizeof(uint32_t);
+                if (FAILED(m_Device->CreateBuffer(&bd2, nullptr, &buf))) return false;
+                D3D11_UNORDERED_ACCESS_VIEW_DESC ud = {};
+                ud.Format = DXGI_FORMAT_UNKNOWN;
+                ud.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+                ud.Buffer.NumElements = count;
+                if (FAILED(m_Device->CreateUnorderedAccessView(buf.Get(), &ud, &uav))) return false;
+                D3D11_SHADER_RESOURCE_VIEW_DESC sd2 = {};
+                sd2.Format = DXGI_FORMAT_UNKNOWN;
+                sd2.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+                sd2.Buffer.NumElements = count;
+                return SUCCEEDED(m_Device->CreateShaderResourceView(buf.Get(), &sd2, &srv));
+            };
+        const UINT cells = (UINT)(w * d);
+        if (!makeUintBuf(cells, m_CellCountBuffer, m_CellCountUAV, m_CellCountSRV) ||
+            !makeUintBuf(cells * kBucketCap, m_CellItemsBuffer, m_CellItemsUAV, m_CellItemsSRV))
+            std::cout << "[Error] SwarmSystem: spatial hash buffers failed" << std::endl;
+    }
+
+    // ---- 巡路: 通行図とマス中心の高さを写し、向き表の buffer を作る ----
+    {
+        std::vector<uint8_t> walk((size_t)w * d);
+        std::vector<float>   hgt((size_t)w * d);
+        for (int z = 0; z < d; ++z)
+            for (int x = 0; x < w; ++x)
+            {
+                walk[(size_t)z * w + x] = grid.IsWalkable(x, z) ? 1 : 0;
+                const auto c = grid.CellToWorld(x, z);
+                hgt[(size_t)z * w + x] = grid.SampleHeight(c.x, c.z);
+            }
+        m_Flow.SetGrid(w, d, walk, hgt);
+
+        m_FlowSRV.Reset();
+        m_FlowBuffer.Reset();
+        D3D11_BUFFER_DESC fb = {};
+        fb.ByteWidth = (UINT)(sizeof(float) * 2 * w * d);
+        fb.Usage = D3D11_USAGE_DYNAMIC;
+        fb.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        fb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        fb.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+        fb.StructureByteStride = sizeof(float) * 2;
+        if (SUCCEEDED(m_Device->CreateBuffer(&fb, nullptr, &m_FlowBuffer)))
+        {
+            D3D11_SHADER_RESOURCE_VIEW_DESC fd = {};
+            fd.Format = DXGI_FORMAT_UNKNOWN;
+            fd.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+            fd.Buffer.NumElements = (UINT)(w * d);
+            m_Device->CreateShaderResourceView(m_FlowBuffer.Get(), &fd, &m_FlowSRV);
+        }
+        else
+            std::cout << "[Error] SwarmSystem: flow buffer failed" << std::endl;
     }
 
     // CS が格子を引くのに要る値も控えておく
@@ -483,6 +553,33 @@ void SwarmSystem::ClearAreas()
 }
 
 // ============================================================
+// 巡路の更新
+// 玩家のマスが変わった時だけ Dial 法で距離場を作り直し、向き表を Map で上げる
+//（地形は静的。1 万マスで Debug 数 ms）
+// ============================================================
+void SwarmSystem::UpdateFlowField(const Vector3& playerPos)
+{
+    if (!m_FlowBuffer || m_Flow.Width() <= 0) return;
+
+    const int gx = (int)std::floor((playerPos.x - m_CachedFrameCB.gridOrigin.x) / m_CachedFrameCB.cellSize);
+    const int gz = (int)std::floor((playerPos.z - m_CachedFrameCB.gridOrigin.z) / m_CachedFrameCB.cellSize);
+
+    // 地形は静的なので、場は目標マスだけで決まる。玩家がマスを跨いだ時だけ作り直す
+    if (gx == m_Flow.TargetX() && gz == m_Flow.TargetZ()) return;
+
+    auto tf0 = std::chrono::high_resolution_clock::now();   // TEMP-TEST
+    m_Flow.Build(gx, gz);
+    { static int n = 0; if (n++ % 30 == 0) std::cout << "[flow] build ms=" << std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - tf0).count() << " target=(" << gx << "," << gz << ")" << std::endl; }   // TEMP-TEST
+    if (!m_Flow.IsBuilt()) return;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    if (FAILED(m_Context->Map(m_FlowBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
+    const auto& dirs = m_Flow.Directions();
+    memcpy(mapped.pData, dirs.data(), sizeof(Vector2) * dirs.size());
+    m_Context->Unmap(m_FlowBuffer.Get(), 0);
+}
+
+// ============================================================
 // Flush
 // 粒子の Flush と同じ位置（UpdateGameplay の末尾）、粒子より前に呼ぶ。
 // 違いは中で固定ステップを回すこと
@@ -491,6 +588,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     bool playerAlive, float dt, float totalTime)
 {
     auto t0 = std::chrono::high_resolution_clock::now();
+    m_AnimClock = totalTime;   // 雑魚の待機アニメの時計（歩き・攻撃は敵ごとの時計）
 
     // ============================================================
     // 1) 前フレームの counter を読む（阻塞しない）
@@ -513,6 +611,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     // ---- 2) 定数と生成依頼を上げる ----
     UploadFrameCB(playerPos, playerRadius, playerAlive);
     UploadSpawns();
+    if (playerAlive) UpdateFlowField(playerPos);   // 死んだら最後の場のまま（AI も止まる）
 
     // ============================================================
     // 3) 固定ステップ
@@ -689,6 +788,7 @@ void SwarmSystem::UploadSpawns()
             m_SpawnEnemyCS->SetSRV(m_Context, "spawnRequests", m_SpawnEnemySRV.Get());
             m_SpawnEnemyCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyStates", m_EnemyStateUAV.Get());
+            m_SpawnEnemyCS->SetUAV(m_Context, "enemyMaxHp", m_EnemyMaxHpUAV.Get());   // HP バーの分母
             m_SpawnEnemyCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((newCount + 63) / 64, 1, 1);
@@ -715,6 +815,7 @@ void SwarmSystem::UploadSpawns()
             m_RecycleCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
             m_RecycleCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
             m_RecycleCS->SetUAV(m_Context, "claim", m_RecycleClaimUAV.Get());
+            m_RecycleCS->SetUAV(m_Context, "enemyMaxHp", m_EnemyMaxHpUAV.Get());     // 上書きした分の分母も差し替える
             m_RecycleCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -733,7 +834,7 @@ void SwarmSystem::UploadSpawns()
 // ============================================================
 // 固定ステップ1回ぶんの CS 群
 // 順序はここが全て:
-//   0 counter 清零 → 1 敵AI → 2 敵積分 → 3 弾積分 → 4 命中(+オーブ落下)
+//   0 counter 清零 → 0b 空間ハッシュ → 1 敵AI → 2 敵積分 → 2b 重なり解消 → 3 弾積分 → 4 命中(+オーブ落下)
 //   → 5 照準 → 6 接触 → 7 オーブ吸引・取得
 // ============================================================
 void SwarmSystem::DispatchStep()
@@ -749,6 +850,27 @@ void SwarmSystem::DispatchStep()
         m_Context->Dispatch(1, 1, 1);
         m_ClearCountersCS->UnbindUAVs(m_Context);
     }
+    // ---- 0b) 雑魚の空間ハッシュ: 活きスロットをマスの桶へ ----
+    // AI の分離と 2b) の押し出しが 3x3 マスだけ見るための表。
+    // count を 0 に戻してから詰める（UAV clear は CPU から）
+    const bool hashReady = m_EnemyBinCS && m_CellCountUAV && m_CellItemsUAV;
+    if (hashReady)
+    {
+        const UINT zero[4] = { 0, 0, 0, 0 };
+        m_Context->ClearUnorderedAccessViewUint(m_CellCountUAV.Get(), zero);
+
+        m_EnemyBinCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_EnemyBinCS->Bind(m_Context);
+        m_EnemyBinCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_EnemyBinCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+        m_EnemyBinCS->SetUAV(m_Context, "cellCount", m_CellCountUAV.Get());
+        m_EnemyBinCS->SetUAV(m_Context, "cellItems", m_CellItemsUAV.Get());
+        m_EnemyBinCS->BindUAVs(m_Context);
+        m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+        m_EnemyBinCS->UnbindSRVs(m_Context);
+        m_EnemyBinCS->UnbindUAVs(m_Context);
+    }
+
     // ---- 1) 雑魚 AI: 速度を決める ----
     // position は読むだけ。全スレッドが同じ快照を見るために
     // 積分は次の dispatch に分けてある
@@ -759,6 +881,9 @@ void SwarmSystem::DispatchStep()
         m_EnemyAICS->Bind(m_Context);
         m_EnemyAICS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyAICS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());
+        m_EnemyAICS->SetSRV(m_Context, "cellCount", m_CellCountSRV.Get());
+        m_EnemyAICS->SetSRV(m_Context, "cellItems", m_CellItemsSRV.Get());
+        m_EnemyAICS->SetSRV(m_Context, "flowField", m_FlowSRV.Get());   // 巡路の向き表
         m_EnemyAICS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyAICS->BindUAVs(m_Context);
 
@@ -784,6 +909,25 @@ void SwarmSystem::DispatchStep()
 
         m_EnemyMoveCS->UnbindSRVs(m_Context);
         m_EnemyMoveCS->UnbindUAVs(m_Context);
+    }
+
+    // ---- 2b) 重なり解消: 半径 2 個分より近い同士を位置で押し離す ----
+    // 分離は速度項なので前列が止まると後列が突っ込む。ここで位置の拘束として畳む
+    if (hashReady && m_EnemyPushCS)
+    {
+        m_EnemyPushCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_EnemyPushCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
+        m_EnemyPushCS->Bind(m_Context);
+        m_EnemyPushCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_EnemyPushCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());
+        m_EnemyPushCS->SetSRV(m_Context, "cellCount", m_CellCountSRV.Get());
+        m_EnemyPushCS->SetSRV(m_Context, "cellItems", m_CellItemsSRV.Get());
+        m_EnemyPushCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());
+        m_EnemyPushCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
+        m_EnemyPushCS->BindUAVs(m_Context);
+        m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+        m_EnemyPushCS->UnbindSRVs(m_Context);
+        m_EnemyPushCS->UnbindUAVs(m_Context);
     }
     // ---- 3) 投射物の積分 ----
     if (m_ProjMoveCS)
@@ -1109,6 +1253,9 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
 
         for (auto& args : m_EnemyDrawArgs)
             if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_AliveListUAV.Get());
+        // HP バーも同じ数だけ（DrawInstancedIndirect の InstanceCount も 2 番目 = 4 バイト目）
+        if (m_HpBarArgs)
+            m_Context->CopyStructureCount(m_HpBarArgs.Get(), sizeof(uint32_t) * 1, m_AliveListUAV.Get());
     }
 
     // sampler は雑魚とオーブで共通。Material::Bind は sampler を触らないので自分で入れる
@@ -1141,13 +1288,21 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
     m_EnemyVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_EnemyVS->SetSRV(m_Context, "aliveList", m_AliveListSRV.Get());
+    // 部品アニメの表（無ければ未 bind のまま。VS は enabled = 0 で読まない）
+    if (m_PartAnimSRV)
+        m_EnemyVS->SetSRV(m_Context, "partAnim", m_PartAnimSRV.Get());
+    m_EnemyAnim.time = m_AnimClock;
+    m_EnemyAnim.walkRate = enemyWalkAnimRate;
 
     // VS は aliveList 経由でしかスロットを引かないので、間接引数が無い時は描かない
     const auto& subs = m_EnemyModel->GetSubMeshes();
     for (size_t i = 0; indirect && i < subs.size(); ++i)
     {
-        if (subs[i].mesh && m_EnemyDrawArgs[i])
-            subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_EnemyDrawArgs[i].Get(), 0);
+        if (!subs[i].mesh || !m_EnemyDrawArgs[i]) continue;
+        // VS b4: どの部品を描いているか（部品アニメの表の列）
+        m_EnemyAnim.part = (uint32_t)i;
+        m_EnemyVS->WriteBuffer(m_Context, 4, &m_EnemyAnim);
+        subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_EnemyDrawArgs[i].Get(), 0);
     }
     // 次のフレームの Compute が UAV として使うので必ず外す
     m_EnemyVS->UnbindSRVs(m_Context);
@@ -1171,6 +1326,58 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
         m_OrbVS->UnbindSRVs(m_Context);
     }
     PointLightManager::Get().UnbindPS(m_Context);
+
+    // ---- 頭上の HP バー（雑魚の後。深度は読むだけ）----
+    if (indirect)
+        RenderHpBars(camera);
+}
+
+// ============================================================
+// 雑魚の HP バー
+// 活きスロット 1 体につき 1 枚の板（6 頂点、頂点バッファ無し）。
+// 数は雑魚の本描画と同じ aliveList から間接引数で決まる。
+// 深度テストあり・書き込み無し: 手前の雑魚や壁に隠れるが、バー同士は上書きし合わない。
+// 半透明（減った部分の背景）なので AlphaBlend
+// ============================================================
+void SwarmSystem::RenderHpBars(CameraBase* camera)
+{
+    if (!hpBar.enabled || !m_HpBarVS || !m_HpBarPS || !m_HpBarArgs || !m_EnemyMaxHpSRV) return;
+
+    HpBarCB cb;
+    cb.view = camera->GetViewMatrix();
+    cb.proj = camera->GetProjectionMatrix();
+    cb.width = hpBar.width;
+    cb.height = hpBar.height;
+    cb.offset = hpBar.offset;
+    cb.border = hpBar.border;
+    cb.fill = hpBar.fill;
+    cb.back = hpBar.back;
+    cb.edge = hpBar.edge;
+    m_HpBarVS->WriteBuffer(m_Context, 0, &cb);
+    m_HpBarPS->WriteBuffer(m_Context, 0, &cb);
+
+    m_HpBarVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_HpBarVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_HpBarVS->SetSRV(m_Context, "aliveList", m_AliveListSRV.Get());
+    m_HpBarVS->SetSRV(m_Context, "enemyMaxHp", m_EnemyMaxHpSRV.Get());
+
+    m_HpBarVS->Bind(m_Context);
+    m_HpBarPS->Bind(m_Context);
+    m_Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_Context->IASetInputLayout(nullptr);
+    m_Context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
+
+    auto& rs = RenderStates::Get();
+    const float blendFactor[4] = { 0, 0, 0, 0 };
+    m_Context->OMSetBlendState(rs.AlphaBlend(), blendFactor, 0xFFFFFFFF);
+    m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);
+    m_Context->RSSetState(rs.CullNone());
+
+    m_Context->DrawInstancedIndirect(m_HpBarArgs.Get(), 0);
+
+    // 次のフレームの Compute が UAV として使うので外す
+    m_HpBarVS->UnbindSRVs(m_Context);
+    rs.Restore(m_Context);
 }
 
 // ============================================================
@@ -1245,6 +1452,8 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_LightCollectCS, L"Shader/Swarm/SwarmLightCollectCS.hlsl", "LightCollectCS");
     ok &= load(m_AreaLightCollectCS, L"Shader/Swarm/SwarmAreaLightCollectCS.hlsl", "AreaLightCollectCS");
     ok &= load(m_EnemyCompactCS, L"Shader/Swarm/SwarmEnemyCompactCS.hlsl", "EnemyCompactCS");
+    ok &= load(m_EnemyBinCS, L"Shader/Swarm/SwarmEnemyBinCS.hlsl", "EnemyBinCS");
+    ok &= load(m_EnemyPushCS, L"Shader/Swarm/SwarmEnemyPushCS.hlsl", "EnemyPushCS");
     // ---- デバッグ描画（失敗しても gameplay には影響しない）----
     m_DebugVS = std::make_shared<VertexShader>();
     HRESULT hr = ShaderPath::Load(m_DebugVS.get(), device, L"Shader/Swarm/SwarmDebugProjVS.hlsl");
@@ -1260,6 +1469,17 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     hr = ShaderPath::Load(m_DebugEnemyVS.get(), device, L"Shader/Swarm/SwarmDebugEnemyVS.hlsl");
     std::cout << "[SwarmSystem] DebugEnemyVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_DebugEnemyVS.reset();
+
+    // ---- 雑魚の HP バー（失敗してもバーが出ないだけ）----
+    m_HpBarVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_HpBarVS.get(), device, L"Shader/Swarm/SwarmEnemyHpBarVS.hlsl");
+    std::cout << "[SwarmSystem] EnemyHpBarVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_HpBarVS.reset();
+
+    m_HpBarPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_HpBarPS.get(), device, L"Shader/Swarm/SwarmEnemyHpBarPS.hlsl");
+    std::cout << "[SwarmSystem] EnemyHpBarPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_HpBarPS.reset();
 
     // テクスチャ無しの Material は Bind で既定の白を t0 に入れる。その白を用意しておく
     Material::InitDefaultTextures(device);
@@ -1309,39 +1529,222 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
 }
 
 // ============================================================
+// 雑魚の部品アニメの表
+// 部品（submesh）を節点で動かすモデル用。クリップ毎に 30fps で標本を取り、
+// 「焼いた姿勢の部品 → そのフレームの部品」の差分行列を [クリップ][フレーム][部品] に並べる。
+//   焼いた頂点 = v × B（B = 焼いた姿勢の全体変換）
+//   そのフレーム = v × G = 焼いた頂点 × (B の逆 × G)   … 行ベクトルの約束
+// ループするクリップ（待機・歩き）は終端を含めず、攻撃は 1 回きりなので終端まで取る
+// ============================================================
+bool SwarmSystem::BuildEnemyPartAnim(ID3D11Device* device, const char* modelPath,
+    const char* bakeClip, float bakeFrac, const DirectX::SimpleMath::Matrix& rootTransform,
+    size_t partCount)
+{
+    using namespace DirectX::SimpleMath;
+    m_EnemyAnim = EnemyAnimCB{};
+    m_PartAnimSRV.Reset();
+    m_PartAnimBuffer.Reset();
+    if (partCount == 0) return false;
+
+    // 焼いた姿勢の部品毎の全体変換
+    std::vector<std::vector<Matrix>> bake;
+    if (!Model::SampleSubmeshTransforms(modelPath, bakeClip, { bakeFrac }, rootTransform, bake)
+        || bake.empty() || bake[0].size() != partCount)
+    {
+        std::cout << "[SwarmSystem] part anim: bake pose mismatch (procedural sway)" << std::endl;
+        return false;
+    }
+    std::vector<Matrix> bakeInv(partCount);
+    for (size_t p = 0; p < partCount; ++p) bakeInv[p] = bake[0][p].Invert();
+
+    constexpr float kSampleFps = 30.0f;
+    constexpr int   kMaxFrames = 60;
+    std::vector<Matrix> table;
+    for (int clip = 0; clip < 3; ++clip)
+    {
+        const char* name = m_AnimClips[clip];
+        const bool loop = (clip != 2);
+
+        // 長さだけ先に知りたいので 1 点だけ取る
+        float length = 0.0f;
+        std::vector<std::vector<Matrix>> probe;
+        if (!name || !*name
+            || !Model::SampleSubmeshTransforms(modelPath, name, { 0.0f }, rootTransform, probe, &length))
+        {
+            // 無いクリップは焼いた姿勢（差分 = 単位行列）1 フレームで埋める
+            m_EnemyAnim.clipStart[clip] = (uint32_t)(table.size() / partCount);
+            m_EnemyAnim.clipFrames[clip] = 1;
+            m_EnemyAnim.clipLength[clip] = 1.0f;
+            for (size_t p = 0; p < partCount; ++p) table.push_back(Matrix::Identity);
+            std::cout << "[SwarmSystem] part anim: clip not found: " << (name ? name : "") << std::endl;
+            continue;
+        }
+
+        const int frames = (std::max)(2, (std::min)(kMaxFrames, (int)std::lround(length * kSampleFps)));
+        std::vector<float> fracs(frames);
+        for (int f = 0; f < frames; ++f)
+            fracs[f] = loop ? (float)f / (float)frames : (float)f / (float)(frames - 1);
+
+        std::vector<std::vector<Matrix>> samples;
+        if (!Model::SampleSubmeshTransforms(modelPath, name, fracs, rootTransform, samples)) return false;
+
+        m_EnemyAnim.clipStart[clip] = (uint32_t)(table.size() / partCount);
+        m_EnemyAnim.clipFrames[clip] = (uint32_t)frames;
+        m_EnemyAnim.clipLength[clip] = (length > 1e-3f) ? length : 1.0f;
+        for (const auto& frame : samples)
+        {
+            if (frame.size() != partCount) return false;
+            for (size_t p = 0; p < partCount; ++p)
+                table.push_back(bakeInv[p] * frame[p]);
+        }
+    }
+
+    // GPU へ（読み取り専用。Matrix は行優先のまま = VS は行ベクトルとして 4 行を読む）
+    D3D11_BUFFER_DESC bd = {};
+    bd.ByteWidth = (UINT)(sizeof(Matrix) * table.size());
+    bd.Usage = D3D11_USAGE_IMMUTABLE;
+    bd.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    bd.StructureByteStride = sizeof(Matrix);
+    D3D11_SUBRESOURCE_DATA sd = {};
+    sd.pSysMem = table.data();
+    if (FAILED(device->CreateBuffer(&bd, &sd, &m_PartAnimBuffer))) return false;
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srv = {};
+    srv.Format = DXGI_FORMAT_UNKNOWN;
+    srv.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    srv.Buffer.NumElements = (UINT)table.size();
+    if (FAILED(device->CreateShaderResourceView(m_PartAnimBuffer.Get(), &srv, &m_PartAnimSRV))) return false;
+
+    m_EnemyAnim.partCount = (uint32_t)partCount;
+    m_EnemyAnim.enabled = 1;
+    std::cout << "[SwarmSystem] part anim: " << partCount << " parts, frames idle "
+        << m_EnemyAnim.clipFrames[0] << " (" << m_EnemyAnim.clipLength[0] << "s) walk "
+        << m_EnemyAnim.clipFrames[1] << " (" << m_EnemyAnim.clipLength[1] << "s) attack "
+        << m_EnemyAnim.clipFrames[2] << " (" << m_EnemyAnim.clipLength[2] << "s), "
+        << table.size() * sizeof(Matrix) / 1024 << " KB" << std::endl;
+    return true;
+}
+
+// ============================================================
 // 雑魚の見た目
-// KayKit の Skeleton_Minion（骨付き）を Walking_A の 1 フレームで焼いて
-// 静的メッシュにする。4096 体が同じポーズで、歩きの揺れは VS の procedural。
+// 骨付きモデルを歩きの 1 フレームで焼いて静的メッシュにする。
+// 4096 体が同じポーズで、歩きの揺れは VS の procedural。
+// 候補を上から試して、読めた物を使う:
+//   1) Kenney Blocky の L（緑肌のゾンビ、像素貼图）… 今の雑魚
+//   2) KayKit Skeleton_Minion                    … 予備
+//   3) カプセル                                   … どちらも読めない時
 // 位置合わせ: enemies[].position はカプセル中心（groundY = 半径 + 直線半分）
-//   なので足元を -(radius + half) に置く。正面は Blender 出力の -Z → +Z に回す
+//   なので足元を -(radius + half) に置く。
+// 大きさ: ファイルの単位（cm / m）に頼らず、一度そのまま焼いて測った高さを
+//   targetHeight に合わせる（Kenney と KayKit で単位が違っても同じ寸法になる）
 // ============================================================
 std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
 {
     using namespace DirectX::SimpleMath;
     const float footY = -(m_CachedAICB.enemyRadius + m_CachedAICB.enemyCapsuleHalf);
 
-    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::KayKit_SkeletonMinion);
-    if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
+    struct EnemyLook
     {
-        const auto& sk = *loaded.skinnedModel;
-        int clip = sk.FindClip("Walking_A");
-        if (clip < 0) clip = sk.FindClip("Idle");
-        const float t = sk.GetClipDurationSec(clip) * 0.25f;   // 片足が前に出た辺り
+        const char*    model;
+        const wchar_t* albedo;
+        const char*    clip;          // 焼く歩きのクリップ（無ければ idle）
+        const char*    idleClip;
+        const char*    attackClip;    // 近接攻撃（部品アニメの表にだけ使う）
+        float          yawDeg;        // 正面を +Z に向ける回転
+        float          targetHeight;  // m。0 = ファイルの寸法 × kEnemyModelScale のまま
+        const char*    label;
+    };
+    const EnemyLook looks[] =
+    {
+        // Kenney も KayKit と同じく -Z が正面（+Z のままだと背中を向けて歩いた）→ 180 度回す。
+        // 高さはカプセル（1.8m）より少し低く
+        { Res::Mdl::Kenney_BlockyZombie, Res::Tex::Kenney_BlockyZombieAlbedo,
+          "walk", "idle", "attack-melee-right", 180.0f, 1.6f, "Kenney Blocky L (zombie)" },
+        // KayKit は Blender 出力の -Z が正面 → 180 度回す
+        { Res::Mdl::KayKit_SkeletonMinion, Res::Tex::KayKit_SkeletonAlbedo,
+          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion" },
+    };
 
-        const Matrix xform =
-            Matrix::CreateScale(kEnemyModelScale)
-            * Matrix::CreateRotationY(DirectX::XM_PI)
-            * Matrix::CreateTranslation(0.0f, footY, 0.0f);
-
-        auto baked = sk.BakeStatic(device, clip, t, xform, {});
-        if (baked)
+    // 焼く前の寸法 → 焼く時に掛ける変換。
+    // 中心を xz の原点へ、足の裏を 0 へ → 拡縮 → 向き → カプセルの足元へ。
+    // 寸法が取れない（0）時は拡縮 kEnemyModelScale、ずらし無し（Minion の従来どおり）
+    auto makeXform = [&](const EnemyLook& look, const Vector3& lo, const Vector3& hi, float& outScale)
         {
-            // 貼图は雑魚材質の t0 へ（VS/PS は雑魚専用のまま。頂点色は白で焼いてある）
-            m_EnemyMaterial->SetAlbedoTexture(
-                ResourceManager::Get().LoadTexture(Res::Tex::KayKit_SkeletonAlbedo));
-            std::cout << "[SwarmSystem] enemy model: Skeleton_Minion (baked)" << std::endl;
+            const float height = hi.y - lo.y;
+            outScale = (look.targetHeight > 0.0f && height > 1e-4f)
+                ? look.targetHeight / height : kEnemyModelScale;
+            return Matrix::CreateTranslation(-(lo.x + hi.x) * 0.5f, -lo.y, -(lo.z + hi.z) * 0.5f)
+                * Matrix::CreateScale(outScale)
+                * Matrix::CreateRotationY(DirectX::XMConvertToRadians(look.yawDeg))
+                * Matrix::CreateTranslation(0.0f, footY, 0.0f);
+        };
+
+    for (const EnemyLook& look : looks)
+    {
+        auto loaded = ResourceManager::Get().LoadModelAuto(look.model);
+
+        // ---- 骨（skin weights）の無いモデル: 部品を節点で動かす FBX（Kenney Blocky）----
+        // LoadModelAuto は Static と判定する。Model::Load に歩きの姿勢と変換を渡して焼く
+        if (loaded.kind == ModelKind::Static && loaded.staticModel)
+        {
+            Model::LoadOptions opt;
+            opt.poseClip = look.clip;
+            opt.poseTimeFrac = 0.25f;   // 片足が前に出た辺り
+
+            // 一度そのまま読んで寸法を測る（535KB の FBX なので 2 回読んでも軽い）
+            auto raw = std::make_shared<Model>();
+            if (!raw->Load(device, look.model, opt)) continue;
+            const Vector3 lo = raw->GetBoundsMin();
+            const Vector3 hi = raw->GetBoundsMax();
+
+            float scale = 1.0f;
+            opt.rootTransform = makeXform(look, lo, hi, scale);
+            auto baked = std::make_shared<Model>();
+            if (!baked->Load(device, look.model, opt)) continue;
+
+            m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
+
+            // 部品アニメの表（待機・歩き・近接攻撃）。作れなければ従来の揺れで動く
+            m_AnimClips[0] = look.idleClip;
+            m_AnimClips[1] = look.clip;
+            m_AnimClips[2] = look.attackClip;
+            BuildEnemyPartAnim(device, look.model, look.clip, opt.poseTimeFrac,
+                opt.rootTransform, baked->GetSubMeshes().size());
+
+            std::cout << "[SwarmSystem] enemy model: " << look.label << " (node pose '" << look.clip
+                << "', raw height " << (hi.y - lo.y) << " -> scale " << scale
+                << ", baked size " << (baked->GetBoundsMax() - baked->GetBoundsMin()).x << " x "
+                << (baked->GetBoundsMax() - baked->GetBoundsMin()).y << " x "
+                << (baked->GetBoundsMax() - baked->GetBoundsMin()).z << ")" << std::endl;
             return baked;
         }
+
+        // ---- 骨付きモデル: 1 フレームを CPU 蒙皮して焼く（KayKit）----
+        if (loaded.kind != ModelKind::Skinned || !loaded.skinnedModel) continue;
+
+        const auto& sk = *loaded.skinnedModel;
+        int clip = sk.FindClip(look.clip);
+        if (clip < 0) clip = sk.FindClip(look.idleClip);
+        if (clip < 0 && sk.GetClipCount() > 0) clip = 0;
+        const float t = (clip >= 0) ? sk.GetClipDurationSec(clip) * 0.25f : 0.0f;   // 片足が前に出た辺り
+
+        // 一度そのまま焼いて寸法を測る。※BakeStatic は包囲ボックスを持たないので今は 0 が返り、
+        //   拡縮は kEnemyModelScale のまま（Minion は targetHeight = 0 なので元々それで良い）
+        auto raw = sk.BakeStatic(device, clip, t, Matrix::Identity, {});
+        if (!raw) continue;
+        float scale = 1.0f;
+        const Matrix xform = makeXform(look, raw->GetBoundsMin(), raw->GetBoundsMax(), scale);
+
+        auto baked = sk.BakeStatic(device, clip, t, xform, {});
+        if (!baked) continue;
+
+        // 貼图は雑魚材質の t0 へ（VS/PS は雑魚専用のまま。頂点色は白で焼いてある）
+        m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
+        std::cout << "[SwarmSystem] enemy model: " << look.label << " (baked, clip "
+            << (clip >= 0 ? sk.GetClipName(clip) : std::string("-"))
+            << ", scale " << scale << ")" << std::endl;
+        return baked;
     }
 
     std::cout << "[SwarmSystem] enemy model: capsule (fallback)" << std::endl;
@@ -1400,6 +1803,19 @@ bool SwarmSystem::CreateEnemyDrawArgs(ID3D11Device* device)
         Microsoft::WRL::ComPtr<ID3D11Buffer> args;
         if (FAILED(device->CreateBuffer(&desc, &sd, &args))) return false;
         m_EnemyDrawArgs.push_back(args);
+    }
+
+    // HP バー: VertexCountPerInstance, InstanceCount, StartVertex, StartInstance
+    {
+        D3D11_BUFFER_DESC desc = {};
+        desc.ByteWidth = sizeof(uint32_t) * 4;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+        desc.MiscFlags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
+        const uint32_t init[4] = { 6, 0, 0, 0 };
+        D3D11_SUBRESOURCE_DATA sd = {};
+        sd.pSysMem = init;
+        if (FAILED(device->CreateBuffer(&desc, &sd, &m_HpBarArgs))) return false;
     }
     return true;
 }

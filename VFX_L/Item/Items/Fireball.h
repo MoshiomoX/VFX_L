@@ -4,8 +4,8 @@
 //
 // 設計意図：
 //   ・単発・低コスト・高頻度。全ての機能型の実験台になる基準値
-//   ・見た目（0.9）は当たり判定（0.25）の約3.6倍。
-//     派手に見せつつ、命中判定は安っぽくならないようにする
+//   ・弾そのもの（飛び方・威力・速さ・見た目）は profile "Fireball"
+//     （Assets/Data/ProjectileData/Fireball.json、投射物編集器で編集）
 //   ・他を強化しないので influenceCells は空
 // ============================================================
 #pragma once
@@ -24,12 +24,8 @@ inline ProjectileItemDef MakeFireball()
     def.common.influenceCells = {};                        // 強化効果なし
     def.common.color = { 1.00f, 0.55f, 0.20f, 1.0f };   // 橙
 
-    // ---- 基礎値 ----
+    // ---- どう撃つか ----
     def.baseStats.id = ItemID::Fireball;
-    def.baseStats.damage = 10.0f;
-    def.baseStats.speed = 20.0f;
-    def.baseStats.radius = 0.25f;   // 当たり判定
-    def.baseStats.lifetime = 3.0f;
     def.baseStats.projectileCount = 1;
     def.baseStats.spreadAngle = 0.0f;
     def.baseStats.castCount = 1;
@@ -37,10 +33,8 @@ inline ProjectileItemDef MakeFireball()
     def.baseStats.castInterval = 0.5f;
     def.baseStats.manaCost = 10.0f;
 
-    // ---- 見た目 ----
-    def.visualSize = 0.9f;    // 当たり判定より意図的に大きく
-    def.visualStretch = 0.0f;    // 円形
-    def.vfxId = VFXId::Fireball;
+    // ---- 何を撃つか ----
+    def.profile = "Fireball";
 
     return def;
 }

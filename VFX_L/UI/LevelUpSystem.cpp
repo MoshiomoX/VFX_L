@@ -7,6 +7,8 @@
 #include "Component/SpellbookComponent.h"
 #include "Player/PlayerTag.h"
 #include "Item/ItemDatabase.h"
+#include "Component/HealthComponent.h"
+#include "Component/ManaComponent.h"
 #include "ECS/View.h"
 #include <algorithm>
 #include <cstdlib>
@@ -54,6 +56,9 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
         if (!ItemDatabase::GetCommon(id)) continue;
         pool.push_back(id);
     }
+    // 能力値（生命・魔力の上限）も同じ池に混ぜる。1 枚ずつ、魔法と同じ確率で出る
+    for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
+        pool.push_back(id);
 
     if (pool.empty())
     {
@@ -111,6 +116,15 @@ bool LevelUpSystem::Choose(Registry& reg, Entity player, ItemID picked)
     }
     if (!found) return false;
 
+    // ---- 能力値: その場で上限を上げる。呪文書には入れない ----
+    if (const StatItemDef* stat = ItemDatabase::GetStat(picked))
+    {
+        ApplyStat(reg, player, *stat);
+        lv.ClearChoices();
+        std::cout << "[LevelUp] stat: " << stat->common.name << std::endl;
+        return true;
+    }
+
     // 既に持っていれば数が増える。強化ではない。
     book.Learn(picked, 1);
     lv.ClearChoices();
@@ -119,6 +133,35 @@ bool LevelUpSystem::Choose(Registry& reg, Entity player, ItemID picked)
     std::cout << "[LevelUp] learned: " << (c ? c->name : "?") << std::endl;
 
     return true;
+}
+
+// ============================================================
+// 能力値の適用
+// 上限と今の値を同じだけ足す。取った瞬間に増えたのが HUD で見えるように。
+// 今の値は上限で丸める（満タンでも溢れない）
+// ============================================================
+void LevelUpSystem::ApplyStat(Registry& reg, Entity player, const StatItemDef& stat)
+{
+    switch (stat.kind)
+    {
+    case StatKind::MaxHealth:
+        if (reg.Has<HealthComponent>(player))
+        {
+            auto& hp = reg.Get<HealthComponent>(player);
+            hp.max += stat.amount;
+            hp.current = (std::min)(hp.current + stat.amount, hp.max);
+        }
+        break;
+
+    case StatKind::MaxMana:
+        if (reg.Has<ManaComponent>(player))
+        {
+            auto& mp = reg.Get<ManaComponent>(player);
+            mp.max += stat.amount;
+            mp.current = (std::min)(mp.current + stat.amount, mp.max);
+        }
+        break;
+    }
 }
 
 bool LevelUpSystem::IsAnyoneChoosing(Registry& reg)

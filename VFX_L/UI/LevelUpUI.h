@@ -15,6 +15,7 @@
 #include <SimpleMath.h>
 
 class SpriteRenderer;
+class TextRenderer;
 class Texture;
 struct LevelComponent;
 
@@ -28,7 +29,8 @@ public:
     // 選ばれた ID を返す。まだ選ばれていなければ false。
     bool HandleInput(const LevelComponent& lv, ItemID& outPicked);
 
-    void Draw(SpriteRenderer& sprite, const LevelComponent& lv);
+    // text は能力値のカード（形が無い物）の文字に使う。SpriteRenderer の後に描かれる
+    void Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComponent& lv);
 
     // ---- レイアウト（すべて比率）----
     float cardWidthRatio = 0.20f;   // カード幅（画面短辺基準）

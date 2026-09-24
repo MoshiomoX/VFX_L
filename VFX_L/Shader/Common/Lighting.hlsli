@@ -6,8 +6,15 @@
 // All functions return LINEAR HDR radiance. No tonemap, no gamma
 // here; that happens once in CompositePS.
 //
-// Ambient model, half-lambert, point lights etc. get added here
-// and every model picks them up without touching its own PS.
+// Light model (close to Unity's default scene light):
+//   hemisphere ambient : sky color on up-facing surfaces, ground
+//                        color on down-facing ones. SetAmbientColor
+//                        puts the same color in both (= flat ambient)
+//   directional light  : diffuse + GGX specular
+//   point lights       : distance falloff, diffuse + GGX specular
+//
+// New light terms get added here and every model picks them up
+// without touching its own PS.
 // ============================================================
 #ifndef LIGHTING_HLSLI
 #define LIGHTING_HLSLI
@@ -29,13 +36,21 @@ struct DirectionalLight
 cbuffer LightBuffer : register(MODEL_LIGHT_CB_REG)
 {
     DirectionalLight dirLight;
-    float3 ambientColor;
+    float3 ambientColor;        // hemisphere top (sky)
     float padding;
     float3 cameraPosition;
     float padding2;
+    float3 groundAmbientColor;  // hemisphere bottom (ground)
+    float padding3;
 };
 
 static const float PI = 3.14159265359;
+
+// Lambert materials carry no roughness / metallic. For their
+// highlights they are treated as a plain dielectric (F0 0.04) with
+// this roughness (about Unity Standard's default smoothness 0.5)
+static const float LAMBERT_SPEC_ROUGHNESS = 0.45;
+static const float3 DIELECTRIC_F0 = float3(0.04, 0.04, 0.04);
 
 // ------------------------------------------------------------
 // Normal map (OpenGL convention, G flipped for DX) -> world normal
@@ -52,20 +67,24 @@ float3 PerturbNormal(float3 N, float3 T, float3 normalMapSample)
 }
 
 // ------------------------------------------------------------
-// Lambert: (ambient + directional) * albedo
+// Hemisphere ambient: sky from above, ground from below, blended by
+// how much the surface faces up
+// ------------------------------------------------------------
+float3 AmbientAt(float3 N)
+{
+    return lerp(groundAmbientColor, ambientColor, saturate(N.y * 0.5 + 0.5));
+}
+
+// ------------------------------------------------------------
+// Lambert without a view vector (no specular):
+// (ambient + directional) * albedo
 // ------------------------------------------------------------
 float3 ShadeLambert(float3 N, float3 albedo)
 {
     float3 L = normalize(-dirLight.direction);
     float NdotL = max(dot(N, L), 0.0);
     float3 diffuse = dirLight.color * dirLight.intensity * NdotL;
-    return (ambientColor + diffuse) * albedo;
-}
-
-// + point lights (needs the world position)
-float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
-{
-    return ShadeLambert(N, albedo) + PointLightDiffuse(worldPos, N) * albedo;
+    return (AmbientAt(N) + diffuse) * albedo;
 }
 
 // ------------------------------------------------------------
@@ -99,6 +118,17 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
     return F0 + (1.0 - F0) * pow(saturate(1.0 - cosTheta), 5.0);
 }
 
+// specular BRDF only (caller multiplies light color and N.L)
+float3 SpecularGGX(float3 N, float3 V, float3 L, float roughness, float3 F0)
+{
+    float3 H = normalize(V + L);
+    float D = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(N, V, L, roughness);
+    float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+    float denom = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+    return (D * G * F) / max(denom, 1e-4);
+}
+
 float3 ShadePBR(float3 N, float3 V, float3 albedo,
                 float metallic, float roughness, float ao)
 {
@@ -119,18 +149,74 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
     float3 radiance = dirLight.color * dirLight.intensity;
 
     float3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
-    float3 ambient = ambientColor * albedo * ao;
+    float3 ambient = AmbientAt(N) * albedo * ao;
     return ambient + Lo;
 }
 
-// + point lights as diffuse only (no specular lobe per light; cheap and
-// good enough for a fireball flying past)
+// ------------------------------------------------------------
+// Point lights (PointLights.hlsli list): diffuse + GGX specular in
+// one loop.
+//   diffuse  : sum of radiance * N.L   (caller multiplies the albedo)
+//   specular : sum of GGX lobe * radiance * N.L   (final)
+// ------------------------------------------------------------
+void PointLightShade(float3 worldPos, float3 N, float3 V,
+                     float roughness, float3 F0,
+                     out float3 diffuse, out float3 specular)
+{
+    diffuse = float3(0, 0, 0);
+    specular = float3(0, 0, 0);
+
+    uint count = min(g_PointLightCount[0], MAX_POINT_LIGHTS);
+    for (uint i = 0u; i < count; ++i)
+    {
+        PointLight l = g_PointLights[i];
+        float3 d = l.position - worldPos;
+        float dist = length(d);
+        if (dist >= l.radius)
+            continue;
+        float3 L = d / max(dist, 1e-4);
+        float NdotL = max(dot(N, L), 0.0);
+        if (NdotL <= 0.0)
+            continue;
+
+        float3 radiance = l.color * (l.intensity * PointLightAttenuation(dist, l.radius));
+        diffuse += radiance * NdotL;
+        specular += SpecularGGX(N, V, L, roughness, F0) * radiance * NdotL;
+    }
+}
+
+// ------------------------------------------------------------
+// Lambert + directional highlight + point lights (needs the world
+// position for the view vector and the point lights)
+// ------------------------------------------------------------
+float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
+{
+    float3 V = normalize(cameraPosition - worldPos);
+
+    // directional: same diffuse as the view-less version, plus highlight
+    float3 L = normalize(-dirLight.direction);
+    float NdotL = max(dot(N, L), 0.0);
+    float3 sun = dirLight.color * (dirLight.intensity * NdotL);
+    float3 sunSpec = SpecularGGX(N, V, L, LAMBERT_SPEC_ROUGHNESS, DIELECTRIC_F0) * sun;
+
+    float3 diff, spec;
+    PointLightShade(worldPos, N, V, LAMBERT_SPEC_ROUGHNESS, DIELECTRIC_F0, diff, spec);
+
+    // this Lambert has no 1/PI (the light intensity absorbs it), so the
+    // specular lobes get the same PI to keep their ratio to the diffuse
+    return (AmbientAt(N) + sun + diff) * albedo + (sunSpec + spec) * PI;
+}
+
+// PBR + point lights: same split as the directional term above
 float3 ShadePBR(float3 N, float3 V, float3 albedo,
                 float metallic, float roughness, float ao, float3 worldPos)
 {
     float3 base = ShadePBR(N, V, albedo, metallic, roughness, ao);
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
+    float3 diff, spec;
+    PointLightShade(worldPos, N, V, roughness, F0, diff, spec);
     float3 kD = (1.0 - metallic) * albedo / PI;
-    return base + PointLightDiffuse(worldPos, N) * kD;
+    return base + diff * kD + spec;
 }
 
 #endif

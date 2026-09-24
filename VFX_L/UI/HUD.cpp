@@ -156,7 +156,7 @@ void HUD::Update(float dt, const HealthComponent& hp, const ManaComponent& mp)
 // ============================================================
 void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     const HealthComponent& hp, const ManaComponent& mp,
-    const LevelComponent& lv)
+    const LevelComponent& lv, bool castingPaused)
 {
     if (!m_WhiteTex) return;
 
@@ -192,6 +192,14 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
 
     swprintf_s(buf, L"MP %d/%d", CeilInt(mp.current), (int)mp.max);
     DrawBarLabel(text, buf, mpPos, m_Style.mpBarSize);
+
+    // ---- 施法を止めている時の表示（MP バーのすぐ下）----
+    // 止めたまま忘れると「魔法が出ない」ように見えるので、必ず目に入る所へ出す
+    if (castingPaused)
+    {
+        const Vector2 p = { mpPos.x, mpPos.y + m_Style.mpBarSize.y + 6.0f };
+        DrawLabel(text, L"CASTING PAUSED  (Q)", p, m_Style.barTextScale);
+    }
 }
 
 void HUD::DrawBar(SpriteRenderer& sprite,

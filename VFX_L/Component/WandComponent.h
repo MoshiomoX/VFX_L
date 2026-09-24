@@ -36,6 +36,8 @@ struct SpellStats
     float manaCost = 10.0f;     // 1発あたりの消費（castCount 倍かかる）
 
     // --- 投射物の性能 ---
+    // 基礎値は ProjectileProfile（profile 番）から写す。機能符はその上に掛かる
+    int   profile = 0;              // ProjectileProfileDB の番号（0 = 組み込みの直進）
     float damage = 10.0f;
     float speed = 20.0f;
     float radius = 0.25f;
@@ -54,6 +56,12 @@ struct WandComponent
 
     CastMode castMode = CastMode::Auto;
     bool     castRequested = false;
+
+    // プレイヤーが施法を止めている（Q / パッド Y で切替）。
+    // 止めている間は新しい施法をしない = 魔力を使わずに溜められる。
+    // 撃ち始めた連発（二重釈放の残り）は最後まで撃ち切る。
+    // 集約（BackpackAggregateSystem）は spells / areas しか作り直さないので、背包を組み替えても残る
+    bool     castingPaused = false;
     float castAnimTimer = 0.0f;
     float castAnimDuration = 0.3f;
     // --- 集約結果（グリッドが真値。ここは派生データ）---

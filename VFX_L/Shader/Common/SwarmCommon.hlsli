@@ -421,6 +421,26 @@ bool SwarmIsWalkable(StructuredBuffer<uint> walkable, float3 p)
 }
 
 // ============================================================
+// Enemy spatial hash. Same cells as the terrain grid (g_CellSize).
+// SwarmEnemyBinCS fills it every step: cellCount[cell] = live enemies
+// in the cell, cellItems[cell * CAP + k] = their slot indices. Cells
+// past CAP entries drop the rest (readers clamp with min()). With a
+// 2m cell and 0.4m enemies a packed cell holds ~7, so 32 leaves room
+// for the crush the push pass is there to undo.
+// AI (separation) and PushCS (overlap resolve) only look at 3x3 cells.
+// ============================================================
+static const uint SWARM_BUCKET_CAP = 32u;
+
+// cell index of a world position, or -1 outside the grid
+int SwarmCellOf(float3 p)
+{
+    int gx = (int) floor((p.x - g_GridOrigin.x) / g_CellSize);
+    int gz = (int) floor((p.z - g_GridOrigin.z) / g_CellSize);
+    bool inside = (gx >= 0 && gx < (int) g_GridW && gz >= 0 && gz < (int) g_GridD);
+    return inside ? (gz * (int) g_GridW + gx) : -1;
+}
+
+// ============================================================
 // Terrain height field (GridWorld::Heights). SWARM_HEIGHT_SUB cells
 // per grid cell, 0 on flat ground, the walkable surface height on
 // ramps. Enemies pin y to it (MoveCS), projectiles explode when they
