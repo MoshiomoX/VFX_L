@@ -64,13 +64,20 @@ json ProjectileProfile::ToJson() const
     j["hitArea"] = hitArea;
     j["hitAreaOnExpire"] = hitAreaOnExpire;
 
-    json pv;
-    pv["speed"] = previewSpeed;
-    pv["lifetime"] = previewLifetime;
-    pv["radius"] = previewRadius;
-    pv["damage"] = previewDamage;
-    j["preview"] = pv;
+    j["damage"] = damage;
+    j["speed"] = speed;
+    j["radius"] = radius;
+    j["lifetime"] = lifetime;
+
+    j["vfx"] = vfxFile;
+    j["visualSize"] = visualSize;
+    j["visualStretch"] = visualStretch;
     return j;
+}
+
+VFXId ProjectileProfile::ResolveVFX() const
+{
+    return AreaProfileDB::FindVFXId(vfxFile);   // ファイル名 → VFXDatabase の登録 ID
 }
 
 void ProjectileProfile::FromJson(const json& j)
@@ -86,14 +93,23 @@ void ProjectileProfile::FromJson(const json& j)
     hitArea = j.value("hitArea", hitArea);
     hitAreaOnExpire = j.value("hitAreaOnExpire", hitAreaOnExpire);
 
+    // 旧形式（"preview" の下に試射用の値）も読めるようにしておく。新形式が優先
     if (j.contains("preview"))
     {
         const json& pv = j["preview"];
-        previewSpeed = pv.value("speed", previewSpeed);
-        previewLifetime = pv.value("lifetime", previewLifetime);
-        previewRadius = pv.value("radius", previewRadius);
-        previewDamage = pv.value("damage", previewDamage);
+        speed = pv.value("speed", speed);
+        lifetime = pv.value("lifetime", lifetime);
+        radius = pv.value("radius", radius);
+        damage = pv.value("damage", damage);
     }
+    damage = j.value("damage", damage);
+    speed = j.value("speed", speed);
+    radius = j.value("radius", radius);
+    lifetime = j.value("lifetime", lifetime);
+
+    vfxFile = j.value("vfx", vfxFile);
+    visualSize = j.value("visualSize", visualSize);
+    visualStretch = j.value("visualStretch", visualStretch);
 }
 
 // ============================================================

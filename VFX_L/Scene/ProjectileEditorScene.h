@@ -74,7 +74,6 @@ private:
     float m_VolleyDelay = 0.08f;
     int   m_VolleyLeft = 0;
     float m_VolleyTimer = 0.0f;
-    int   m_VfxIndex = 0;          // VFXDatabase::At の番号
 
     // ---- 乱数曲線の試射 ----
     // プロファイルは書き換えない。運動表の予備行（kScratchRow）に毎回違う制御点を入れて撃つ。

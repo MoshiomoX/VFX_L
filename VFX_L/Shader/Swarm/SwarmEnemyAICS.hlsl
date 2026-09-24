@@ -1,9 +1,10 @@
 // ============================================================
 // SwarmEnemyAICS.hlsl
 // One thread per enemy slot. Decide this step's velocity:
-//   seek (toward player) + separation (all-to-all against other
-//   alive enemies) + avoid (soft push from blocked cells)
-//   + hard block (kill the axis that would enter a blocked cell)
+//   seek (flow field toward the player, straight line when close)
+//   + separation (3x3 spatial hash cells) + avoid (soft push from
+//   blocked cells) + hard block (kill the axis that would enter a
+//   blocked cell)
 //
 // Writes velocity ONLY. Position is integrated by SwarmEnemyMoveCS
 // in a separate dispatch, so every thread here reads a consistent
@@ -17,7 +18,38 @@
 
 Buffer<uint> enemyStates : register(t0);
 StructuredBuffer<uint> terrain : register(t1);
+StructuredBuffer<uint> cellCount : register(t2);   // spatial hash (SwarmEnemyBinCS)
+StructuredBuffer<uint> cellItems : register(t3);
+StructuredBuffer<float2> flowField : register(t4); // per-cell direction to the player (CPU FlowField)
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
+
+// straight-line chase inside this many cells of the player: the flow
+// field's per-cell steps would make the ring around the player jitter
+static const float kDirectChaseCells = 1.5;
+
+// flow direction at a world xz: bilinear over the 4 nearest cell centres
+// so enemies do not snap to a new heading at every cell border.
+// (0,0) cells (unreachable / target) pull the blend toward zero, which
+// the caller treats as "no path, chase directly"
+float2 FlowAt(float2 xz)
+{
+    float fx = (xz.x - g_GridOrigin.x) / g_CellSize - 0.5;
+    float fz = (xz.y - g_GridOrigin.z) / g_CellSize - 0.5;
+    int ix = (int) floor(fx), iz = (int) floor(fz);
+    float tx = fx - ix, tz = fz - iz;
+    int w = (int) g_GridW, d = (int) g_GridD;
+
+    float2 sum = float2(0, 0);
+    [unroll]
+    for (int k = 0; k < 4; ++k)
+    {
+        int cx = ix + (k & 1), cz = iz + (k >> 1);
+        float wgt = ((k & 1) ? tx : 1.0 - tx) * ((k >> 1) ? tz : 1.0 - tz);
+        bool inside = (cx >= 0 && cx < w && cz >= 0 && cz < d);
+        sum += inside ? flowField[cz * w + cx] * wgt : float2(0, 0);
+    }
+    return sum;
+}
 
 
 [numthreads(256, 1, 1)]
@@ -41,38 +73,60 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 oldV = enemies[i].velocity; // own slot: written by this thread last step
     float moveSpeed = enemies[i].moveSpeed;
 
-    // ---- seek ----
+    // ---- seek: follow the flow field, chase directly when close ----
+    // the field routes around boxes and walls (the straight line used
+    // to pin enemies against the far side of an obstacle). Near the
+    // player, or where the field has no answer, fall back to the line
     float3 moveDir = float3(0, 0, 0);
     if (g_PlayerAlive != 0u)
     {
-        moveDir = g_PlayerPos - pos;
-        moveDir.y = 0.0;
-        float lenSq = dot(moveDir, moveDir);
-        if (lenSq > 1e-6)
-            moveDir *= rsqrt(lenSq);
+        float3 toPlayer = g_PlayerPos - pos;
+        toPlayer.y = 0.0;
+        float lenSq = dot(toPlayer, toPlayer);
+        float direct = kDirectChaseCells * g_CellSize;
+
+        float2 flow = FlowAt(pos.xz);
+        bool useFlow = (lenSq > direct * direct) && (dot(flow, flow) > 0.01);
+        if (useFlow)
+            moveDir = normalize(float3(flow.x, 0.0, flow.y));
+        else if (lenSq > 1e-6)
+            moveDir = toPlayer * rsqrt(lenSq);
     }
 
-    // ---- separation: every alive neighbour inside the radius ----
-    // no early-out: the ALU is cheap and dropping the branch keeps
-    // the warp converged. dead slots are skipped by state
+    // ---- separation: live neighbours in the 3x3 cells around us ----
+    // was an all-pairs loop over the whole 4096 pool; the spatial hash
+    // keeps it at (alive in 9 cells). g_SeparationRadius must stay
+    // <= g_CellSize or neighbours two cells away get missed
     float3 sep = float3(0, 0, 0);
     float sepRadSq = g_SeparationRadius * g_SeparationRadius;
 
-    for (uint j = 0; j < g_MaxEnemies; ++j)
+    int gx = (int) floor((pos.x - g_GridOrigin.x) / g_CellSize);
+    int gz = (int) floor((pos.z - g_GridOrigin.z) / g_CellSize);
+    for (int dz = -1; dz <= 1; ++dz)
     {
-        if (j == i)
-            continue;
-        if (enemyStates[j] == SWARM_DEAD)
-            continue;
+        for (int dx = -1; dx <= 1; ++dx)
+        {
+            int cx = gx + dx, cz = gz + dz;
+            if (cx < 0 || cx >= (int) g_GridW || cz < 0 || cz >= (int) g_GridD)
+                continue;
+            uint cell = (uint) (cz * (int) g_GridW + cx);
+            uint n = min(cellCount[cell], SWARM_BUCKET_CAP);
+            for (uint k = 0u; k < n; ++k)
+            {
+                uint j = cellItems[cell * SWARM_BUCKET_CAP + k];
+                if (j == i)
+                    continue;
 
-        float3 away = pos - enemies[j].position;
-        away.y = 0.0;
-        float dSq = dot(away, away);
-        if (dSq > sepRadSq || dSq < 1e-6)
-            continue;
+                float3 away = pos - enemies[j].position;
+                away.y = 0.0;
+                float dSq = dot(away, away);
+                if (dSq > sepRadSq || dSq < 1e-6)
+                    continue;
 
-        float dist = sqrt(dSq);
-        sep += away / dist * (1.0 - dist / g_SeparationRadius);
+                float dist = sqrt(dSq);
+                sep += away / dist * (1.0 - dist / g_SeparationRadius);
+            }
+        }
     }
 
     // ---- avoid: soft push away from blocked neighbour cells ----

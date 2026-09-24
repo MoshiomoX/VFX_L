@@ -11,6 +11,7 @@
 #include "Component/SpellbookComponent.h"
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
+#include "Component/WandComponent.h"
 #include "Player/LevelComponent.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputMap.h"
@@ -207,10 +208,12 @@ void GameUI::Render(Registry& reg, Entity player)
         && reg.Has<ManaComponent>(player)
         && reg.Has<LevelComponent>(player))
     {
+        const bool paused = reg.Has<WandComponent>(player)
+            && reg.Get<WandComponent>(player).castingPaused;
         m_HUD.Draw(m_Sprite, m_Text,
             reg.Get<HealthComponent>(player),
             reg.Get<ManaComponent>(player),
-            reg.Get<LevelComponent>(player));
+            reg.Get<LevelComponent>(player), paused);
     }
 
     if (reg.IsValid(player))
@@ -240,7 +243,7 @@ void GameUI::DrawModals(Registry& reg, Entity player)
 
         case UILayer::LevelUp:
             if (reg.Has<LevelComponent>(player))
-                m_LevelUp.Draw(m_Sprite, reg.Get<LevelComponent>(player));
+                m_LevelUp.Draw(m_Sprite, m_Text, reg.Get<LevelComponent>(player));
             break;
 
         default:

@@ -17,6 +17,8 @@ StructuredBuffer<SwarmEnemy> spawnRequests : register(t0);
 Buffer<uint> enemyStates : register(t1);
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer claim : register(u1);
+// spawn hp per slot for the HP bar (see SwarmSpawnEnemyCS)
+RWStructuredBuffer<uint> enemyMaxHp : register(u2);
 
 cbuffer SwarmRecycleCB : register(b1)
 {
@@ -45,5 +47,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (prev >= g_RecycleCount)
         return;
 
-    enemies[i] = spawnRequests[g_RecycleOffset + prev];
+    SwarmEnemy req = spawnRequests[g_RecycleOffset + prev];
+    enemies[i] = req;
+    enemyMaxHp[i] = req.hp;
 }

@@ -32,6 +32,10 @@ namespace ItemDatabase
     void ApplyModifier(SpellStats& stats, const ParamModifier& mod);
     void ApplyModifier(AreaStats& stats, const AreaModifier& mod);
 
-    // 登録済み全ID（UI の一覧表示用）
+    // 登録済み全ID（UI の一覧表示用）。能力値（Stat）は含まない
     const std::vector<ItemID>& GetAllIDs();
+
+    // 能力値の成長（生命・魔力の上限など）。レベルアップの候補にだけ出る
+    const StatItemDef* GetStat(ItemID id);
+    const std::vector<ItemID>& GetLevelUpOnlyIDs();
 }

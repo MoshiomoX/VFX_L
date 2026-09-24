@@ -15,6 +15,9 @@
 StructuredBuffer<SwarmEnemy> spawnRequests : register(t0);
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWBuffer<uint> enemyStates : register(u1);
+// spawn hp per slot (fixed point, same as SwarmEnemy.hp). The HP bar
+// (SwarmEnemyHpBarVS) divides by it. A side buffer so SwarmEnemy stays 48B
+RWStructuredBuffer<uint> enemyMaxHp : register(u2);
 
 cbuffer SwarmSpawnCB : register(b1)
 {
@@ -46,6 +49,7 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             // won the slot. state is already ALIVE from the exchange
             enemies[slot] = req;
+            enemyMaxHp[slot] = req.hp;
             return;
         }
     }

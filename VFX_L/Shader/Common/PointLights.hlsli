@@ -43,22 +43,8 @@ float PointLightAttenuation(float dist, float radius)
     return x * x;
 }
 
-// Sum of N.L-weighted point light radiance at worldPos. Multiply by albedo
-float3 PointLightDiffuse(float3 worldPos, float3 N)
-{
-    uint count = min(g_PointLightCount[0], MAX_POINT_LIGHTS);
-    float3 sum = float3(0, 0, 0);
-    for (uint i = 0u; i < count; ++i)
-    {
-        PointLight l = g_PointLights[i];
-        float3 d = l.position - worldPos;
-        float dist = length(d);
-        if (dist >= l.radius)
-            continue;
-        float NdotL = max(dot(N, d / max(dist, 1e-4)), 0.0);
-        sum += l.color * (l.intensity * PointLightAttenuation(dist, l.radius) * NdotL);
-    }
-    return sum;
-}
+// The shading loop (diffuse + GGX specular per light) lives in
+// Lighting.hlsli as PointLightShade: it needs the GGX terms and the
+// camera position from the light cbuffer defined there.
 
 #endif

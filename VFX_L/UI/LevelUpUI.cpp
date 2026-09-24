@@ -3,12 +3,16 @@
 // ============================================================
 #include "UI/LevelUpUI.h"
 #include "Graphics/Renderer/SpriteRenderer.h"
+#include "Graphics/Renderer/TextRenderer.h"
 #include "Graphics/Material/Texture.h"
 #include "Player/LevelComponent.h"
 #include "Item/ItemDatabase.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
+#include <algorithm>
+#include <cwchar>
+#include <string>
 
 using namespace DirectX::SimpleMath;
 
@@ -164,7 +168,7 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked)
 // 描画
 // 画面全体を暗くしてから、カードを並べる
 // ============================================================
-void LevelUpUI::Draw(SpriteRenderer& sprite, const LevelComponent& lv)
+void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComponent& lv)
 {
     if (!m_BlockTex) return;
 
@@ -210,6 +214,31 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, const LevelComponent& lv)
         auto icon = GetIcon(id);
         sprite.Draw(icon ? icon : m_BlockTex, iconPos, { iconSize, iconSize },
             icon ? Vector4(1, 1, 1, 1) : c->color);
+
+        // ---- 能力値のカード: 形の代わりに文字（色の四角の上に「+20」、下に「MAX HP」）----
+        // 文字はスプライトの後にまとめて描かれるので、四角の上に乗る
+        if (const StatItemDef* stat = ItemDatabase::GetStat(id))
+        {
+            wchar_t amount[16];
+            swprintf_s(amount, L"+%d", (int)stat->amount);
+
+            // 四角の幅の 7 割に収まる大きさ
+            const Vector2 a1 = text.Measure(amount, 1.0f);
+            const float s1 = (a1.x > 0.0f) ? (std::min)(1.2f, iconSize * 0.7f / a1.x) : 1.0f;
+            const Vector2 a = text.Measure(amount, s1);
+            text.Draw(amount,
+                { iconPos.x + (iconSize - a.x) * 0.5f, iconPos.y + (iconSize - a.y) * 0.5f },
+                { 1, 1, 1, 1 }, s1);
+
+            const std::wstring label = stat->cardLabel ? stat->cardLabel : L"";
+            const Vector2 l1 = text.Measure(label, 1.0f);
+            const float s2 = (l1.x > 0.0f) ? (std::min)(0.6f, m_CardW * 0.8f / l1.x) : 0.6f;
+            const Vector2 l = text.Measure(label, s2);
+            text.Draw(label,
+                { pos.x + (m_CardW - l.x) * 0.5f, pos.y + m_CardH * 0.74f - l.y * 0.5f },
+                { 1, 1, 1, 1 }, s2);
+            continue;
+        }
 
         // ---- 形状のプレビュー ----
         // どんな形のブロックが手に入るのかを、その場で見せる。

@@ -57,7 +57,9 @@ public:
     CameraBase* GetCamera() const { return m_Camera; }
 
     void SetDirectionalLight(const Vector3& direction, const Vector3& color, float intensity);
-    void SetAmbientColor(const Vector3& color);
+    void SetAmbientColor(const Vector3& color);   // 一様な環境光（空と地面に同じ色）
+    // 半球の環境光: 上向きの面は sky、下向きの面は ground、横向きはその中間
+    void SetAmbientHemisphere(const Vector3& sky, const Vector3& ground);
 
     // 次の DrawMesh に効く溶解。null で無効（毎回書くので持ち越さない）
     void SetDissolve(const DissolveParams* p) { m_Dissolve = p; }

@@ -1,7 +1,13 @@
 // ============================================================
 // ProjectileProfile.h
-// 投射物の「飛び方」のデータ。投射物編集器（ProjectileEditorScene）が
+// 投射物そのものの定義。投射物編集器（ProjectileEditorScene）が
 // 作って json に保存し、ゲーム本体は名前で引く。
+//
+//   ここにある物  … 弾が「何であるか」: 飛び方、命中で出す範囲、見た目（VFX）、
+//                   威力・速さ・判定半径・寿命
+//   道具（Items） … 弾を「どう撃つか」: 発射数・連発・間隔・マナ、UI 情報。
+//                   profile 名でここを参照するだけ
+//   機能符        … 集約時に上の基礎値へ修飾を掛ける（BackpackAggregateSystem）
 //
 // 1 プロファイル = GPU の運動表（Swarm::Motion）の 1 行。
 // 表の 0 番は常に組み込みの直進（json が 1 個も無くても弾は飛ぶ）。
@@ -16,6 +22,7 @@
 // ============================================================
 #pragma once
 #include "Swarm/SwarmTypes.h"
+#include "VFX_Editor/VFXId.h"
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
@@ -46,14 +53,20 @@ struct ProjectileProfile
     std::string hitArea;
     bool hitAreaOnExpire = true;   // 寿命切れ・壁に当たった時も出す
 
-    // ---- 編集器の試射用 ----
-    // ゲーム本体では速さ・寿命・威力は道具（SpellStats）が決めるので使わない
-    float previewSpeed = 14.0f;
-    float previewLifetime = 4.0f;
-    float previewRadius = 0.25f;
-    float previewDamage = 10.0f;
+    // ---- 弾の性能（基礎値。機能符はこの上に掛かる）----
+    float damage = 10.0f;
+    float speed = 20.0f;
+    float radius = 0.25f;     // 当たり判定
+    float lifetime = 3.0f;
+
+    // ---- 見た目 ----
+    // VFX json のファイル名（Assets/Data/VFXData/ の中。VFXDatabase に登録済みの物だけ GPU で出る）
+    std::string vfxFile = "Fireball.json";
+    float visualSize = 0.9f;        // 判定とは独立（派手に見せても判定は安っぽくしない）
+    float visualStretch = 0.0f;     // 進行方向への引き伸ばし（0 = 円形）
 
     Swarm::Motion ToMotion() const;
+    VFXId ResolveVFX() const;       // vfxFile → VFXId（未登録なら None）
 
     nlohmann::json ToJson() const;
     void FromJson(const nlohmann::json& j);

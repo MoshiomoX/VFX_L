@@ -108,9 +108,10 @@ public:
     // 残像の追従。描画しない間（モーダル表示中）も進める
     void Update(float dt, const HealthComponent& hp, const ManaComponent& mp);
 
+    // castingPaused: プレイヤーが施法を止めている時、MP バーの下に一行出す
     void Draw(SpriteRenderer& sprite, TextRenderer& text,
         const HealthComponent& hp, const ManaComponent& mp,
-        const LevelComponent& lv);
+        const LevelComponent& lv, bool castingPaused = false);
 
     // ---- 調整用（ImGui）----
     void DrawDebugUI();

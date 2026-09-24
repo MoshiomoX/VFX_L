@@ -50,7 +50,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
     if (count == 1 || s.spreadAngle <= 0.0f)
     {
         // 単発: そのまま積む
-        m_Requests.push_back({ s.id, muzzle, dir,
+        m_Requests.push_back({ s.id, s.profile, muzzle, dir,
             s.speed, s.radius, s.damage, s.lifetime });
         return;
     }
@@ -67,7 +67,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
         Vector3 d = Vector3::TransformNormal(dir, rot);
         d.Normalize();
 
-        m_Requests.push_back({ s.id, muzzle, d,
+        m_Requests.push_back({ s.id, s.profile, muzzle, d,
             s.speed, s.radius, s.damage, s.lifetime });
     }
 }
@@ -186,6 +186,11 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     break;
                 }
 
+                // プレイヤーが施法を止めている（Q / パッド Y）。
+                // 飛行物・範囲とも新しい施法をしない。連発の残りは上の方針どおり撃ち切る
+                if (wand.castingPaused)
+                    allowNewCast = false;
+
                 // ---- 出力源ごとに独立して処理する ----
                 for (auto& s : wand.spells)
                 {
@@ -283,12 +288,10 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     {
         if (m_Swarm)
         {
-            const auto* def = ItemDatabase::GetProjectile(req.id);
-            const VFXId vfx = def ? def->vfxId : VFXId::None;
-
-            // 飛び方は道具のプロファイル名で引く（無ければ 0 = 直進）。
+            // 弾そのもの（VFX・飛び方）は投射物プロファイルから。番号は集約時に決まっている。
             // 左右交互・乱数の判定は 1 発ごとに DB が持つ
-            const int motion = def ? ProjectileProfileDB::IndexOf(def->profile) : 0;
+            const int motion = req.profile;
+            const VFXId vfx = ProjectileProfileDB::At(motion).ResolveVFX();
             const bool mirror = ProjectileProfileDB::NextMirror(motion);
 
             m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,

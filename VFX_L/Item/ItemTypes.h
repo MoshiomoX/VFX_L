@@ -29,6 +29,7 @@ enum class ItemCategory
     Function,     // 機能型（隣接する攻撃ブロックを修飾する）
     Area,         // AOE 型（範囲）
     Frame,        // 設置枠（置ける領域を広げる）
+    Stat,         // 能力値の成長（レベルアップ専用。選んだ瞬間に効いて、物としては残らない）
 };
 
 // ============================================================
@@ -133,16 +134,15 @@ struct ProjectileItemDef
 {
     ItemCommon common;
 
-    // 基礎値（集約後は WandComponent.spells に積まれる）
+    // 「どう撃つか」（集約後は WandComponent.spells に積まれる）。
+    // ここで意味を持つのは projectileCount / spreadAngle / castCount / castDelay /
+    // castInterval / manaCost。damage / speed / radius / lifetime は
+    // 集約時に profile から写されるので、ここに書いても使われない
     SpellStats baseStats;
 
-    // 見た目（当たり判定とは独立。派手に見せても判定は安っぽくしない）
-    float       visualSize = 0.9f;
-    float       visualStretch = 0.0f;      // 進行方向への引き伸ばし（0=円形）
-    VFXId       vfxId = VFXId::None;   // VFX json（未設定なら nullptr）
-
-    // 飛び方。投射物編集器で作ったプロファイルの名前（Assets/Data/ProjectileData/<名前>.json）。
-    // 空 or 見つからない → 直進
+    // 弾そのもの（飛び方・見た目・威力・速さ・判定・寿命・命中で出す範囲）。
+    // 投射物編集器で作ったプロファイルの名前（Assets/Data/ProjectileData/<名前>.json）。
+    // 空 or 見つからない → 組み込みの直進（火球相当の値）
     std::string profile;
 };
 
@@ -184,6 +184,26 @@ struct AreaItemDef
 struct FrameItemDef
 {
     ItemCommon common;
+};
+
+// ============================================================
+// 能力値の成長（レベルアップの候補専用）
+//   背包に置く物ではないので形（occupyCells）は持たない。
+//   ItemDatabase::GetAllIDs には入らず、GetLevelUpOnlyIDs からだけ出る
+//   （背包・呪文書・デバッグの一覧に混ざらないように）
+// ============================================================
+enum class StatKind
+{
+    MaxHealth,    // HealthComponent::max
+    MaxMana,      // ManaComponent::max
+};
+
+struct StatItemDef
+{
+    ItemCommon common;
+    StatKind kind = StatKind::MaxHealth;
+    float amount = 20.0f;              // 上限と今の値の両方に足す（取った瞬間に使える）
+    const wchar_t* cardLabel = L"";    // レベルアップのカードに出す文字（形の代わり）
 };
 // ============================================================
 // 形状のプリセット（座標を手で書かなくて済むように）

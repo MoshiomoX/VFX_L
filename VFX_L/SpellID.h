@@ -11,6 +11,9 @@ enum class ItemID
     // --- 出力源（spells リストに入る）---
     Fireball ,
     Lightning,
+    ArcBolt,          // 弧（ArcOnce プロファイル）
+    HomingBolt,       // 全追尾（HomingFull）
+    Meteor,           // 弧 + 命中で爆発（ExplosiveArc）
 
     // --- 修飾符（隣接する出力源を強化。リストには入らない）---
     SplitRune,        // 分裂：一度の発射数 +1、ダメージ分散
@@ -21,10 +24,15 @@ enum class ItemID
     Frame2x2,
     FrameLine3,
     FrameL,
+
+    // ---- 能力値（レベルアップの候補にだけ出る。背包・呪文書には入らない）----
+    MaxHealthUp,      // 生命の上限 +
+    MaxManaUp,        // 魔力の上限 +
 };
 
 // 出力源かどうか（集約時の振り分け用）
 inline bool IsSpellSource(ItemID id)
 {
-    return id == ItemID::Fireball || id == ItemID::Lightning;
+    return id == ItemID::Fireball || id == ItemID::Lightning
+        || id == ItemID::ArcBolt || id == ItemID::HomingBolt || id == ItemID::Meteor;
 }

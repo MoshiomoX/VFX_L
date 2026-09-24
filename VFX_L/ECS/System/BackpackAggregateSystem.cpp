@@ -9,6 +9,7 @@
 #include "Component/AreaStats.h"
 #include "Item/ItemDatabase.h"
 #include "Swarm/AreaProfile.h"
+#include "Swarm/ProjectileProfile.h"
 #include "ECS/View.h"
 #include <unordered_set>
 #include <iostream>
@@ -127,6 +128,17 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         if (auto* pdef = ItemDatabase::GetProjectile(item.id))
         {
             SpellStats stats = pdef->baseStats;
+
+            // 弾そのもの（威力・速さ・判定・寿命）は投射物プロファイルが基礎値。
+            // 道具側の値は使わない。名前が引けなければ 0 番（組み込みの直進）
+            stats.profile = ProjectileProfileDB::IndexOf(pdef->profile);
+            {
+                const ProjectileProfile& pp = ProjectileProfileDB::At(stats.profile);
+                stats.damage = pp.damage;
+                stats.speed = pp.speed;
+                stats.radius = pp.radius;
+                stats.lifetime = pp.lifetime;
+            }
 
             for (size_t srcIdx : influencers)
             {

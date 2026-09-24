@@ -56,6 +56,8 @@
 #include <random>
 #include "Swarm/ProjectileProfile.h"
 #include "Swarm/AreaProfile.h"
+#include "Graphics/Light/PointLightManager.h"
+#include "Debug/Gizmo.h"
 
 // ============================================================
 // Init
@@ -98,6 +100,8 @@ void CollisionTestScene::Init()
         ResourceManager::Get().LoadTexture(Res::Tex::ProjectileCore));
 
     // ---------- 見た目 と 各 System が使う VFX の登録 ----------
+    // 飛行物の見た目は投射物プロファイルにあるので先に読む（GPU の表は下でもう一度 Build）
+    ProjectileProfileDB::LoadAll();
     RegisterItemVisuals();
 
     // 燃焼消滅（Mesh 発射 + 溶解の縁）。道具ではないので VFXDatabase から直接引く
@@ -148,6 +152,7 @@ void CollisionTestScene::Init()
     // ============================================================
     PlayerFactory::Config pcfg;
     pcfg.color = { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f };
+    pcfg.maxHealth = 1000000.0f;   // TEMP-TEST
 
     m_Player = PlayerFactory::Create(m_Registry, device, pcfg);
 }
@@ -160,15 +165,16 @@ void CollisionTestScene::RegisterItemVisuals()
 {
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
-        // --- 飛行物型: ビルボードの芯 + VFX ---
+        // --- 飛行物型: ビルボードの芯 + VFX（見た目は投射物プロファイル側）---
         if (auto* p = ItemDatabase::GetProjectile(id))
         {
+            const ProjectileProfile& pp = ProjectileProfileDB::At(ProjectileProfileDB::IndexOf(p->profile));
             m_WeaponSystem.SetProjectileVisual(id,
-                p->visualSize, p->common.color, p->visualStretch);
+                pp.visualSize, p->common.color, pp.visualStretch);
 
             // CPU 経路（精英の弾など）は今まで通り VFXEffect を張る。
-            // パスは VFXDatabase から引く（道具は ID しか知らない）
-            if (const char* path = VFXDatabase::GetPath(p->vfxId))
+            // パスは VFXDatabase から引く
+            if (const char* path = VFXDatabase::GetPath(pp.ResolveVFX()))
                 m_ProjectileVFXSystem.RegisterVFX(id, path);
         }
 
@@ -231,6 +237,10 @@ void CollisionTestScene::Update(float dt)
     // ---- 集約: グリッドが変わっていれば杖を組み直す ----
     // UI の直後に置く。編成した結果を同じフレームで反映させるため
     m_BackpackAggregate.Update(m_Registry);
+
+    // ---- 場景光源: 点光源表は UpdateGameplay の中（CollectLights）で GPU へ上がるので、その前に積む。
+    // 一時停止中も積む（その時は SceneBase::Render が上げる）
+    SubmitSceneLight();
 
     if (!m_GameUI.ShouldPauseGame())
         UpdateGameplay(dt);
@@ -422,6 +432,10 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
         // 点光源: CPU 側の VFX（範囲・精英）はもう積み終わっている。弾と範囲の分を GPU で追記
         m_Swarm.CollectLights();
+        {   // TEMP-TEST crowd
+            static int f = 0;
+            if (f++ % 120 == 0) { Vector3 np, nv; float nd = 0; m_Swarm.GetNearestEnemy(np, nv, nd); std::cout << "[crowd] fps=" << Application::Get().GetTimer().GetFPS() << " alive=" << m_Swarm.GetCounters().aliveEnemies << " nearest=" << nd << " flushMs=" << m_FlushMsAvg << std::endl; }
+        }
 
         auto t1 = std::chrono::high_resolution_clock::now();
         m_FlushMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -564,11 +578,12 @@ void CollisionTestScene::EndRun()
 // ============================================================
 void CollisionTestScene::Render(Renderer& renderer)
 {
-    renderer.SetDirectionalLight(
-        { m_LightDir[0], m_LightDir[1], m_LightDir[2] },
+    renderer.SetDirectionalLight(SunDirection(),
         { m_LightColor[0], m_LightColor[1], m_LightColor[2] },
         m_LightIntensity);
-    renderer.SetAmbientColor({ m_AmbientColor[0], m_AmbientColor[1], m_AmbientColor[2] });
+    renderer.SetAmbientHemisphere(
+        { m_AmbientSky[0], m_AmbientSky[1], m_AmbientSky[2] },
+        { m_AmbientGround[0], m_AmbientGround[1], m_AmbientGround[2] });
 
     SceneBase::Render(renderer);
 
@@ -683,6 +698,140 @@ void CollisionTestScene::DrawWandDebug()
             Vector3 p = origin + aim.dir * 0.4f + Vector3(0.15f * (float)k, 0.0f, 0.0f);
             dbg.AddDebugLine(p, p + Vector3(0.0f, 0.18f, 0.0f), Color(1.0f, 0.5f, 0.1f, 1.0f));
         }
+    }
+}
+
+// ============================================================
+// 太陽の向き
+// Unity の回転（X = pitch, Y = yaw, Z = 0）で前方 (0,0,1) を回したのと同じ。
+// 既定の (50, +30) は Unity の新規シーンの Directional Light (50, -30) を
+// 右手系へ写した物（X が鏡写し。画面上の当たり方が同じになる）
+// ============================================================
+Vector3 CollisionTestScene::SunDirection() const
+{
+    const float p = DirectX::XMConvertToRadians(m_SunPitch);
+    const float y = DirectX::XMConvertToRadians(m_SunYaw);
+    Vector3 d(std::sin(y) * std::cos(p), -std::sin(p), std::cos(y) * std::cos(p));
+    d.Normalize();
+    return d;
+}
+
+// ============================================================
+// 太陽の目印（Unity の Directional Light のギズモと同じ考え）
+// 平行光に位置は無いので、玩家の頭上に「光がどこから来るか」を描く:
+//   光線に垂直な円 = 太陽、円から出る平行な短い線 = 光線、
+//   中心から頭へ届く矢印 = この向きで当たっている
+// ============================================================
+void CollisionTestScene::DrawSunMarker()
+{
+    if (!m_ShowSunMarker) return;
+    if (!m_Registry.IsValid(m_Player) || !m_Registry.Has<TransformComponent>(m_Player)) return;
+
+    const Vector3 dir = SunDirection();
+    const Vector3 head = m_Registry.Get<TransformComponent>(m_Player).position + Vector3(0.0f, 2.0f, 0.0f);
+    constexpr float kArrowLen = 1.8f;   // カメラが低くても太陽の円が画面に入る長さ
+    const Vector3 sun = head - dir * kArrowLen;
+
+    // 円を張る 2 軸（光線に垂直）。真上から照らす時は Y との外積が潰れるので X を使う
+    Vector3 u = dir.Cross(Vector3::UnitY);
+    if (u.LengthSquared() < 1e-4f) u = Vector3::UnitX;
+    u.Normalize();
+    Vector3 v = dir.Cross(u);
+    v.Normalize();
+
+    auto& dbg = DebugManager::Get();
+    const Color col(m_LightColor[0], m_LightColor[1], m_LightColor[2], 1.0f);
+
+    constexpr float kR = 0.35f;
+    constexpr int kSeg = 24;
+    Vector3 prev = sun + u * kR;
+    for (int i = 1; i <= kSeg; ++i)
+    {
+        const float a = DirectX::XM_2PI * (float)i / (float)kSeg;
+        const Vector3 p = sun + (u * std::cos(a) + v * std::sin(a)) * kR;
+        dbg.AddDebugLine(prev, p, col);
+        prev = p;
+    }
+
+    // 円周から平行な光線 4 本（平行光なので全部同じ向き）
+    for (int k = 0; k < 4; ++k)
+    {
+        const float a = DirectX::XM_PIDIV2 * (float)k;
+        const Vector3 o = (u * std::cos(a) + v * std::sin(a)) * kR;
+        dbg.AddDebugLine(sun + o, sun + o + dir * 0.6f, col);
+    }
+
+    // 中心から頭への矢印
+    dbg.AddDebugLine(sun, head, col);
+    dbg.AddDebugLine(head, head - dir * 0.3f + u * 0.12f, col);
+    dbg.AddDebugLine(head, head - dir * 0.3f - u * 0.12f, col);
+}
+
+// ============================================================
+// 場景光源: 点光源表へ積む
+// 表は Application が毎フレーム頭で空にする。Upload（UpdateGameplay の
+// CollectLights か SceneBase::Render）より前に積めば、そのフレームから効く
+// ============================================================
+void CollisionTestScene::SubmitSceneLight()
+{
+    if (!m_SceneLightOn) return;
+    PointLightManager::Get().Add(m_SceneLightPos,
+        Vector3(m_SceneLightColor[0], m_SceneLightColor[1], m_SceneLightColor[2]),
+        m_SceneLightRadius, m_SceneLightIntensity);
+}
+
+// ============================================================
+// 場景光源: 3D ギズモ（左ドラッグで位置）と目印
+// 目印 = 電球の小球 + 真下への線 + 光の届く球（半径 R）が地面を切る円。
+// この円の外は場景光源では一切照らされない。
+// ※ギズモで動かした位置は次のフレームの SubmitSceneLight から効く（1 フレーム遅れ）
+// ============================================================
+void CollisionTestScene::DrawSceneLightGizmo()
+{
+    CameraBase* cam = GetCamera();
+    if (!cam) return;
+
+    // 掴んでいる状態の追跡はここで進むので、ギズモを出さないフレームも呼ぶ
+    Gizmo::BeginFrame(cam->GetViewMatrix(), cam->GetProjectionMatrix());
+
+    // 切っている時はギズモも目印も出さない
+    if (!m_SceneLightOn) return;
+
+    // 背包・升級・呪文書を開いている間は出さない（左クリックをそちらと取り合う）
+    if (m_SceneLightGizmo && !m_GameUI.ShouldPauseGame())
+    {
+        Gizmo::Options opt;
+        opt.label = "Light";
+        Gizmo::Translate("scene_light", m_SceneLightPos, opt);
+    }
+
+    if (!m_SceneLightMarker) return;
+
+    auto& dbg = DebugManager::Get();
+    const Color bulb(m_SceneLightColor[0], m_SceneLightColor[1], m_SceneLightColor[2], 1.0f);
+    const Color dim(m_SceneLightColor[0] * 0.6f, m_SceneLightColor[1] * 0.6f, m_SceneLightColor[2] * 0.6f, 1.0f);
+
+    dbg.DrawWireSphere(m_SceneLightPos, 0.25f, bulb);
+
+    const float groundY = m_Grid.SampleHeight(m_SceneLightPos.x, m_SceneLightPos.z);
+    const Vector3 foot(m_SceneLightPos.x, groundY, m_SceneLightPos.z);
+    dbg.AddDebugLine(m_SceneLightPos, foot, dim);
+
+    // 照射範囲と地面の交円（光源が地面から R 以上離れていれば地面には届かない）
+    const float h = m_SceneLightPos.y - groundY;
+    const float R = m_SceneLightRadius;
+    if (std::fabs(h) >= R) return;
+
+    const float r = std::sqrt(R * R - h * h);
+    const float y = groundY + 0.05f;   // 地面と重なってちらつかないよう少し浮かす
+    constexpr int kSeg = 48;
+    Vector3 prev(foot.x + r, y, foot.z);
+    for (int i = 1; i <= kSeg; ++i)
+    {
+        const float a = DirectX::XM_2PI * (float)i / (float)kSeg;
+        const Vector3 p(foot.x + r * std::cos(a), y, foot.z + r * std::sin(a));
+        dbg.AddDebugLine(prev, p, dim);
+        prev = p;
     }
 }
 
@@ -858,6 +1007,7 @@ void CollisionTestScene::DrawWandPanel()
     const char* modeNames[] = { "Auto", "Manual", "Debug Burst" };
     if (ImGui::Combo("Cast Mode", &modeIdx, modeNames, 3))
         w.castMode = (CastMode)modeIdx;
+    ImGui::Checkbox("Casting Paused (Q / Pad Y)", &w.castingPaused);   // プレイヤーの施法停止スイッチ
 
     switch (w.castMode)
     {
@@ -1303,6 +1453,9 @@ void CollisionTestScene::DrawBloomPanel()
 // ============================================================
 void CollisionTestScene::DrawDebugUI()
 {
+    DrawSunMarker();
+    DrawSceneLightGizmo();
+
     ImGui::Begin("Game Test");
     ImGui::SameLine();
     ImGui::Checkbox("Swarm Debug", &m_ShowSwarmDebug);
@@ -1345,6 +1498,21 @@ void CollisionTestScene::DrawDebugUI()
             m_Swarm.GetPendingProjSpawns(), m_Swarm.GetPendingEnemySpawns());
         ImGui::Text("sub steps     : %d   flush %.4f ms",
             m_Swarm.GetLastSubSteps(), m_Swarm.GetFlushMs());
+
+        // ---- 雑魚の頭上の HP バー（見た目の調整）----
+        if (ImGui::TreeNode("HP Bars"))
+        {
+            auto& bar = m_Swarm.hpBar;
+            ImGui::Checkbox("Show", &bar.enabled);
+            ImGui::DragFloat("Width (m)", &bar.width, 0.01f, 0.1f, 5.0f);
+            ImGui::DragFloat("Height (m)", &bar.height, 0.005f, 0.02f, 1.0f);
+            ImGui::DragFloat("Offset (m)", &bar.offset, 0.01f, 0.0f, 5.0f);
+            ImGui::DragFloat("Border (m)", &bar.border, 0.001f, 0.0f, 0.1f);
+            ImGui::ColorEdit4("Fill", &bar.fill.x);
+            ImGui::ColorEdit4("Back", &bar.back.x);
+            ImGui::ColorEdit4("Edge", &bar.edge.x);
+            ImGui::TreePop();
+        }
 
         ImGui::Separator();
         ImGui::TextDisabled("Test Fire: alive proj should rise to ~100");
@@ -1562,10 +1730,42 @@ void CollisionTestScene::DrawDebugUI()
     // ---------- 照明 ----------
     if (ImGui::CollapsingHeader("Lighting"))
     {
-        ImGui::DragFloat3("Direction", m_LightDir, 0.02f, -1.0f, 1.0f);
+        // ---- 太陽（平行光）= 主光 ----
+        ImGui::TextColored(ImVec4(1.0f, 0.95f, 0.8f, 1.0f), "Sun (directional, main light)");
+        ImGui::SliderFloat("Pitch (deg)", &m_SunPitch, 0.0f, 90.0f, "%.0f");   // 0 = 真横、90 = 真上から
+        ImGui::SliderFloat("Yaw (deg)", &m_SunYaw, -180.0f, 180.0f, "%.0f");
         ImGui::ColorEdit3("Light Color", m_LightColor);
         ImGui::DragFloat("Intensity", &m_LightIntensity, 0.02f, 0.0f, 5.0f);
-        ImGui::ColorEdit3("Ambient", m_AmbientColor);
+        ImGui::ColorEdit3("Ambient Sky", m_AmbientSky);
+        ImGui::ColorEdit3("Ambient Ground", m_AmbientGround);
+        ImGui::Checkbox("Sun Marker", &m_ShowSunMarker);
+        ImGui::SameLine();
+        if (ImGui::Button("Reset (Unity default)"))
+        {
+            m_SunPitch = kSunPitchDefault;
+            m_SunYaw = kSunYawDefault;
+            m_LightColor[0] = 1.0f; m_LightColor[1] = 0.957f; m_LightColor[2] = 0.839f;
+            m_LightIntensity = 1.0f;
+        }
+
+        // ---- 場景光源（位置あり。既定は切）----
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.5f, 1.0f), "Scene Point Light (positioned, local)");
+        ImGui::Checkbox("Enabled##scene_light", &m_SceneLightOn);
+        ImGui::SameLine();
+        ImGui::Checkbox("Gizmo##scene_light", &m_SceneLightGizmo);
+        ImGui::SameLine();
+        ImGui::Checkbox("Marker##scene_light", &m_SceneLightMarker);
+        ImGui::DragFloat3("Position##scene_light", &m_SceneLightPos.x, 0.05f);
+        ImGui::ColorEdit3("Color##scene_light", m_SceneLightColor);
+        ImGui::DragFloat("Radius##scene_light", &m_SceneLightRadius, 0.1f, 0.5f, 100.0f);
+        ImGui::DragFloat("Intensity##scene_light", &m_SceneLightIntensity, 0.02f, 0.0f, 20.0f);
+        if (ImGui::Button("Move Above Player##scene_light")
+            && m_Registry.IsValid(m_Player) && m_Registry.Has<TransformComponent>(m_Player))
+        {
+            m_SceneLightPos = m_Registry.Get<TransformComponent>(m_Player).position + Vector3(0.0f, 4.0f, 0.0f);
+        }
+        ImGui::TextDisabled("Gizmo: left-drag the handles (camera is right-drag)");
     }
 
     DrawBloomPanel();

@@ -1,9 +1,25 @@
 {
-    "c1": [0.3, 0.35, 0.0],
-    "c2": [0.7, 0.35, 0.0],
-    "mirror": 1,
-    "mode": 1,
-    "name": "ArcOnce",
-    "preview": { "damage": 10.0, "lifetime": 4.0, "radius": 0.25, "speed": 14.0 },
-    "retargetRadius": 0.0
+    "name":  "ArcOnce",
+    "mode":  1,
+    "c1":  [
+               0.3,
+               0.35,
+               0.0
+           ],
+    "c2":  [
+               0.7,
+               0.35,
+               0.0
+           ],
+    "mirror":  1,
+    "retargetRadius":  0.0,
+    "hitArea":  "",
+    "hitAreaOnExpire":  true,
+    "damage":  10,
+    "speed":  14.0,
+    "radius":  0.25,
+    "lifetime":  4.0,
+    "vfx":  "Fireball.json",
+    "visualSize":  0.9,
+    "visualStretch":  0
 }

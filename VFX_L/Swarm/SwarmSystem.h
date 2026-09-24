@@ -24,6 +24,7 @@
 #include "Swarm/SwarmTypes.h"
 #include "Swarm/GPUReadback.h"
 #include "Swarm/SwarmVFXTable.h"
+#include "Swarm/FlowField.h"
 #include "VFX_Editor/VFXId.h"
 #include "Graphics/Light/LightTypes.h"
 #include <d3d11.h>
@@ -57,6 +58,25 @@ public:
     bool BuildVFXTable();
 
     void RenderDebug(CameraBase* camera);
+
+    // ---- 雑魚の頭上の HP バー（Render の最後、雑魚とオーブの後に描く）----
+    // 大きさは世界の寸法（遠いほど小さい。モデルと同じ比率）。全員に常に出す
+    struct HpBarStyle
+    {
+        bool  enabled = true;
+        float width = 0.9f;       // m
+        float height = 0.1f;      // m
+        float offset = 1.0f;      // 位置（カプセルの中心）から上へ m。雑魚は高さ 1.6m（頭頂 +0.7）
+        float border = 0.015f;    // 縁の太さ m
+        DirectX::SimpleMath::Vector4 fill = { 0.85f, 0.20f, 0.20f, 1.0f };   // HUD の HP と同じ赤
+        DirectX::SimpleMath::Vector4 back = { 0.08f, 0.08f, 0.10f, 0.75f };  // 減った分
+        DirectX::SimpleMath::Vector4 edge = { 0.0f, 0.0f, 0.0f, 0.9f };
+    };
+    HpBarStyle hpBar;
+
+    // 雑魚の歩きアニメの再生速度（部品アニメがある時だけ効く。移動速度と足の運びを合わせる調整用）
+    float enemyWalkAnimRate = 1.0f;
+
     // ---- CPU 側から生成を依頼する（Flush でまとめて反映）----
     void SpawnEnemy(const DirectX::SimpleMath::Vector3& pos, float hp, float moveSpeed);
     // motion  : SetMotions で上げた表の番号（0 = 直進）
@@ -232,6 +252,25 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_HeightBuffer;      // 高さ場（GridWorld::Heights）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_HeightSRV;
 
+    // --- 雑魚の空間ハッシュ（地形と同じ格子。毎ステップ BinCS が詰め直す）---
+    // cellCount[cell] = そのマスの活き数、cellItems[cell*CAP + k] = スロット番号。
+    // AI の分離と PushCS の押し出しは 3x3 マスしか見ない（全対全をやめた）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_CellCountBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CellCountUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_CellCountSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_CellItemsBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CellItemsUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_CellItemsSRV;
+    static constexpr uint32_t kBucketCap = 32;   // = SwarmCommon.hlsli の SWARM_BUCKET_CAP
+
+    // --- 巡路（流れ場）---
+    // CPU の FlowField が玩家のマスへの向きをマス毎に持ち、GPU の AI が読む。
+    // 玩家のマスが変わった時だけ作り直して Map で上げる（地形は静的）
+    FlowField m_Flow;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_FlowBuffer;      // float2 × マス数（DYNAMIC）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_FlowSRV;
+    void UpdateFlowField(const DirectX::SimpleMath::Vector3& playerPos);
+
     // --- VFX 配方表（起動時に1回。読み取り専用）---
     SwarmVFXTable m_VFX;
 
@@ -303,6 +342,8 @@ private:
     std::shared_ptr<ComputeShader> m_LightCollectCS;     // 弾の点光源を PointLightManager へ追記
     std::shared_ptr<ComputeShader> m_AreaLightCollectCS; // 範囲の分
     std::shared_ptr<ComputeShader> m_EnemyCompactCS;     // 活きスロットの一覧（描画の instance 数）
+    std::shared_ptr<ComputeShader> m_EnemyBinCS;         // 空間ハッシュ詰め（ステップ先頭）
+    std::shared_ptr<ComputeShader> m_EnemyPushCS;        // 重なり解消（積分の後）
 
     // --- 雑魚描画の間接引数 ---
     // 4096 槽を毎フレーム全部 DrawInstanced すると頂点数がモデル × 4096 になる
@@ -313,6 +354,46 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AliveListSRV;
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_EnemyDrawArgs;  // submesh 毎（IndexCount が違う）
     bool CreateEnemyDrawArgs(ID3D11Device* device);
+
+    // --- 雑魚の部品アニメ（部品を節点で動かすモデルだけ。Kenney Blocky）---
+    // 表: [クリップ][フレーム][部品] の行列。行列は「焼いた姿勢の部品 → そのフレームの部品」の差分
+    //     （頂点は焼いた姿勢で入っているので、VS はこれを掛けるだけで動く）。
+    // クリップ: 0 待機 / 1 歩き / 2 近接攻撃。どれを出すかは VS が敵の状態から決める
+    struct EnemyAnimCB
+    {
+        uint32_t part = 0;           // 今描いている submesh（描画毎に書き換える）
+        uint32_t partCount = 0;
+        uint32_t enabled = 0;        // 0 = 表が無い → VS は従来の procedural な揺れ
+        uint32_t _pad = 0;
+        uint32_t clipStart[4] = {};  // 表の中の最初のフレーム番号
+        uint32_t clipFrames[4] = {};
+        float    clipLength[4] = {}; // 秒
+        float    time = 0.0f;        // 待機に使う時計（秒）
+        float    walkRate = 1.0f;    // 歩きの再生速度
+        float    _pad2[2] = {};
+    };
+    static_assert(sizeof(EnemyAnimCB) == 80, "EnemyAnimCB layout mismatch");
+    EnemyAnimCB m_EnemyAnim;
+    const char* m_AnimClips[3] = { "", "", "" };   // 待機 / 歩き / 攻撃 のクリップ名（BuildEnemyModel が入れる）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>             m_PartAnimBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_PartAnimSRV;
+    float m_AnimClock = 0.0f;
+    // 焼いた姿勢（bakeClip の bakeFrac）と rootTransform から表を作る。失敗したら enabled = 0 のまま
+    bool BuildEnemyPartAnim(ID3D11Device* device, const char* modelPath,
+        const char* bakeClip, float bakeFrac, const DirectX::SimpleMath::Matrix& rootTransform,
+        size_t partCount);
+
+    // --- 雑魚の HP バー ---
+    // 生成時の hp（固定小数、スロット毎）。SpawnEnemyCS / RecycleCS が書き、バーの VS が割る。
+    // Enemy 本体（48B）に場所が無いので横に持つ
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyMaxHpBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyMaxHpUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyMaxHpSRV;
+    // DrawInstancedIndirect: { 6 頂点, InstanceCount = 活き数（CopyStructureCount）, 0, 0 }
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_HpBarArgs;
+    std::shared_ptr<VertexShader> m_HpBarVS;
+    std::shared_ptr<PixelShader>  m_HpBarPS;
+    void RenderHpBars(CameraBase* camera);
 
     std::shared_ptr<ComputeShader> m_AimResolveCS;
    // Phase 4: 最寄りの雑魚を回読用に書き出す
@@ -325,6 +406,17 @@ private:
         DirectX::SimpleMath::Matrix view;
         DirectX::SimpleMath::Matrix proj;
     };
+    // SwarmEnemyHpBarVS / PS の b0（row_major なので Transpose しない）
+    struct HpBarCB
+    {
+        DirectX::SimpleMath::Matrix view;
+        DirectX::SimpleMath::Matrix proj;
+        float width, height, offset, border;
+        DirectX::SimpleMath::Vector4 fill;
+        DirectX::SimpleMath::Vector4 back;
+        DirectX::SimpleMath::Vector4 edge;
+    };
+    static_assert(sizeof(HpBarCB) == 192, "HpBarCB layout mismatch");
     // --- 固定ステップ ---
     float m_Accumulator = 0.0f;
     int   m_LastSubSteps = 0;

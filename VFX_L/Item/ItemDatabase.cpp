@@ -3,26 +3,33 @@
 // ============================================================
 #include "Item/ItemDatabase.h"
 
-// ---- ŠeƒAƒCƒeƒ€‚Ì’è‹`i‘‚â‚·‚Í‚±‚±‚É include ‚ğ1sj----
+// ---- å„ã‚¢ã‚¤ãƒ†ãƒ ã®å®šç¾©ï¼ˆå¢—ã‚„ã™æ™‚ã¯ã“ã“ã« include ã‚’1è¡Œï¼‰----
 #include "Item/Items/Fireball.h"
+#include "Item/Items/ArcBolt.h"
+#include "Item/Items/HomingBolt.h"
+#include "Item/Items/Meteor.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Frame3x3.h"
+#include "Item/Items/MaxHealthUp.h"
+#include "Item/Items/MaxManaUp.h"
 #include <unordered_map>
 #include <iostream>
 
 namespace
 {
-    // í—Ş‚²‚Æ‚Ì“o˜^ŠiÀ‘Ì‚Í‚±‚±‚¾‚¯‚ª‚Âj
+    // ç¨®é¡ã”ã¨ã®ç™»éŒ²æ‰€ï¼ˆå®Ÿä½“ã¯ã“ã“ã ã‘ãŒæŒã¤ï¼‰
     std::unordered_map<ItemID, ProjectileItemDef> g_Projectiles;
     std::unordered_map<ItemID, FunctionItemDef>   g_Functions;
     std::unordered_map<ItemID, AreaItemDef>       g_Areas;
     std::unordered_map<ItemID, FrameItemDef>      g_Frames;
+    std::unordered_map<ItemID, StatItemDef>       g_Stats;
 
-    std::vector<ItemID> g_AllIDs;   // ‘SIDiUI ‚Ìˆê——•\¦—pj
+    std::vector<ItemID> g_AllIDs;          // å…¨IDï¼ˆUI ã®ä¸€è¦§è¡¨ç¤ºç”¨ï¼‰ã€‚èƒ½åŠ›å€¤ã¯å…¥ã‚Œãªã„
+    std::vector<ItemID> g_LevelUpOnlyIDs;  // ãƒ¬ãƒ™ãƒ«ã‚¢ãƒƒãƒ—ã®å€™è£œã«ã ã‘å‡ºã‚‹ç‰©ï¼ˆèƒ½åŠ›å€¤ï¼‰
     bool g_Initialized = false;
 
-    // ---- “o˜^ƒwƒ‹ƒp[ií—Ş‚²‚Æ‚ÉƒI[ƒo[ƒ[ƒhj----
+    // ---- ç™»éŒ²ãƒ˜ãƒ«ãƒ‘ãƒ¼ï¼ˆç¨®é¡ã”ã¨ã«ã‚ªãƒ¼ãƒãƒ¼ãƒ­ãƒ¼ãƒ‰ï¼‰----
     void Register(const ProjectileItemDef& def)
     {
         g_Projectiles[def.common.id] = def;
@@ -43,11 +50,18 @@ namespace
         g_Frames[def.common.id] = def;
         g_AllIDs.push_back(def.common.id);
     }
+    // èƒ½åŠ›å€¤ã¯ g_AllIDs ã«å…¥ã‚Œãªã„ã€‚èƒŒåŒ…ãƒ»å‘ªæ–‡æ›¸ãƒ»ãƒ‡ãƒãƒƒã‚°ã®ä¸€è¦§ã¯ GetAllIDs ã‚’å›ã™ã®ã§ã€
+    // å…¥ã‚Œã‚‹ã¨ã€ŒèƒŒåŒ…ã«ç½®ã‘ã‚‹ç‰©ã€ã¨ã—ã¦æ‰±ã‚ã‚Œã¦ã—ã¾ã†
+    void Register(const StatItemDef& def)
+    {
+        g_Stats[def.common.id] = def;
+        g_LevelUpOnlyIDs.push_back(def.common.id);
+    }
 }
 
 // ============================================================
-// ‰Šú‰»
-// ‹N“®‚É1‰ñ‚¾‚¯ŒÄ‚Ô‘z’èB“ñ‰ñ–ÚˆÈ~‚Í‰½‚à‚µ‚È‚¢i‘½d“o˜^–h~j
+// åˆæœŸåŒ–
+// èµ·å‹•æ™‚ã«1å›ã ã‘å‘¼ã¶æƒ³å®šã€‚äºŒå›ç›®ä»¥é™ã¯ä½•ã‚‚ã—ãªã„ï¼ˆå¤šé‡ç™»éŒ²é˜²æ­¢ï¼‰
 // ============================================================
 void ItemDatabase::Initialize()
 {
@@ -57,30 +71,40 @@ void ItemDatabase::Initialize()
     g_Functions.clear();
     g_Areas.clear();
     g_Frames.clear();
+    g_Stats.clear();
     g_AllIDs.clear();
+    g_LevelUpOnlyIDs.clear();
 
-    // ---- ”òs•¨Œ^ ----
+    // ---- é£›è¡Œç‰©å‹ ----
     Register(MakeFireball());
+    Register(MakeArcBolt());
+    Register(MakeHomingBolt());
+    Register(MakeMeteor());
 
-    // ---- ‹@”\Œ^ ----
+    // ---- æ©Ÿèƒ½å‹ ----
     Register(MakeSplitRune());
     Register(MakeDoubleCastRune());
 
-    // ---- AOE Œ^i–¢À‘•j----
+    // ---- AOE å‹ï¼ˆæœªå®Ÿè£…ï¼‰----
 
-    // ---- İ’u˜g ----
+    // ---- è¨­ç½®æ  ----
     Register(MakeFrame3x3());
+
+    // ---- èƒ½åŠ›å€¤ï¼ˆãƒ¬ãƒ™ãƒ«ã‚¢ãƒƒãƒ—å°‚ç”¨ï¼‰----
+    Register(MakeMaxHealthUp());
+    Register(MakeMaxManaUp());
 
     g_Initialized = true;
     std::cout << "[OK] ItemDatabase initialized ("
         << g_Projectiles.size() << " projectile, "
         << g_Functions.size() << " function, "
         << g_Areas.size() << " area, "
-        << g_Frames.size() << " frame)" << std::endl;
+        << g_Frames.size() << " frame, "
+        << g_Stats.size() << " stat)" << std::endl;
 }
 
 // ============================================================
-// ŒŸõ
+// æ¤œç´¢
 // ============================================================
 ItemCategory ItemDatabase::GetCategory(ItemID id)
 {
@@ -88,9 +112,10 @@ ItemCategory ItemDatabase::GetCategory(ItemID id)
     if (g_Functions.count(id))   return ItemCategory::Function;
     if (g_Areas.count(id))       return ItemCategory::Area;
     if (g_Frames.count(id))      return ItemCategory::Frame;
+    if (g_Stats.count(id))       return ItemCategory::Stat;
 
-    // ‚Ç‚±‚É‚à–³‚¯‚ê‚Î UnknownB
-    // –¢“o˜^‚Ì ID ‚ğ“n‚µ‚½ŒÄ‚Ño‚µ‘¤‚Ì•s‹ï‡‚ğ‚±‚±‚ÅE‚¦‚é‚æ‚¤‚É‚·‚é
+    // ã©ã“ã«ã‚‚ç„¡ã‘ã‚Œã° Unknownã€‚
+    // æœªç™»éŒ²ã® ID ã‚’æ¸¡ã—ãŸå‘¼ã³å‡ºã—å´ã®ä¸å…·åˆã‚’ã“ã“ã§æ‹¾ãˆã‚‹ã‚ˆã†ã«ã™ã‚‹
     return ItemCategory::Unknown;
 }
 
@@ -118,12 +143,19 @@ const FrameItemDef* ItemDatabase::GetFrame(ItemID id)
     return (it != g_Frames.end()) ? &it->second : nullptr;
 }
 
+const StatItemDef* ItemDatabase::GetStat(ItemID id)
+{
+    auto it = g_Stats.find(id);
+    return (it != g_Stats.end()) ? &it->second : nullptr;
+}
+
 const ItemCommon* ItemDatabase::GetCommon(ItemID id)
 {
     if (auto* p = GetProjectile(id)) return &p->common;
     if (auto* f = GetFunction(id))   return &f->common;
     if (auto* a = GetArea(id))       return &a->common;
     if (auto* fr = GetFrame(id))     return &fr->common;
+    if (auto* s = GetStat(id))       return &s->common;
     return nullptr;
 }
 
@@ -143,9 +175,14 @@ const std::vector<ItemID>& ItemDatabase::GetAllIDs()
     return g_AllIDs;
 }
 
+const std::vector<ItemID>& ItemDatabase::GetLevelUpOnlyIDs()
+{
+    return g_LevelUpOnlyIDs;
+}
+
 // ============================================================
-// ”òs•¨Œ^‚Ö‚ÌCü‚ğ“K—p‚·‚é
-// ƒpƒ‰ƒ[ƒ^‚ª‘‚¦‚Ä‚à switch ‚É case ‚ğ1ŒÂ‘«‚·‚¾‚¯‚ÅÏ‚Ş
+// é£›è¡Œç‰©å‹ã¸ã®ä¿®é£¾ã‚’é©ç”¨ã™ã‚‹
+// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãŒå¢—ãˆã¦ã‚‚ switch ã« case ã‚’1å€‹è¶³ã™ã ã‘ã§æ¸ˆã‚€
 // ============================================================
 void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
 {
@@ -177,7 +214,7 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
         case ModifyOp::Multiply: *target *= mod.value; break;
         case ModifyOp::Set:      *target = mod.value; break;
         }
-        if (*target < 0.0f) *target = 0.0f;   // •‰’l‚Í‹–‚³‚È‚¢
+        if (*target < 0.0f) *target = 0.0f;   // è² å€¤ã¯è¨±ã•ãªã„
     }
     else if (targetInt)
     {
@@ -185,22 +222,22 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
         {
         case ModifyOp::Add:      *targetInt += (int)mod.value; break;
 
-            // lÌŒÜ“ü‚µ‚Ä‚©‚çŠÛ‚ß‚éB
-            // Ø‚èÌ‚Ä‚¾‚Æ 1 ~ 0.6 = 0 ‚É‚È‚Á‚Ä‚µ‚Ü‚¢A
-            // u’e”‚ğŒ¸‚ç‚·vˆÓ}‚Ì”{—¦‚ªu’e‚ğÁ‚·v‚É‰»‚¯‚é‚Ì‚ğ–h‚®
+            // å››æ¨äº”å…¥ã—ã¦ã‹ã‚‰ä¸¸ã‚ã‚‹ã€‚
+            // åˆ‡ã‚Šæ¨ã¦ã ã¨ 1 Ã— 0.6 = 0 ã«ãªã£ã¦ã—ã¾ã„ã€
+            // ã€Œå¼¾æ•°ã‚’æ¸›ã‚‰ã™ã€æ„å›³ã®å€ç‡ãŒã€Œå¼¾ã‚’æ¶ˆã™ã€ã«åŒ–ã‘ã‚‹ã®ã‚’é˜²ã
         case ModifyOp::Multiply:
             *targetInt = (int)(*targetInt * mod.value + 0.5f);
             break;
 
         case ModifyOp::Set:      *targetInt = (int)mod.value; break;
         }
-        if (*targetInt < 1) *targetInt = 1;   // Å’á1‚ÍŠm•Û‚·‚é
+        if (*targetInt < 1) *targetInt = 1;   // æœ€ä½1ã¯ç¢ºä¿ã™ã‚‹
     }
 }
 // ============================================================
-// AOE Œ^‚Ö‚ÌCü‚ğ“K—p‚·‚é
-// SpellStats ‘¤‚Æ‚ÍŠ®‘S‚É“Æ—§‚µ‚½ˆ—B
-// ƒpƒ‰ƒ[ƒ^‚ª‘‚¦‚Ä‚à switch ‚É case ‚ğ1ŒÂ‘«‚·‚¾‚¯‚ÅÏ‚Ş
+// AOE å‹ã¸ã®ä¿®é£¾ã‚’é©ç”¨ã™ã‚‹
+// SpellStats å´ã¨ã¯å®Œå…¨ã«ç‹¬ç«‹ã—ãŸå‡¦ç†ã€‚
+// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãŒå¢—ãˆã¦ã‚‚ switch ã« case ã‚’1å€‹è¶³ã™ã ã‘ã§æ¸ˆã‚€
 // ============================================================
 void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
 {
@@ -226,5 +263,5 @@ void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
     case ModifyOp::Set:      *target = mod.value; break;
     }
 
-    if (*target < 0.0f) *target = 0.0f;   // •‰’l‚Í‹–‚³‚È‚¢
+    if (*target < 0.0f) *target = 0.0f;   // è² å€¤ã¯è¨±ã•ãªã„
 }

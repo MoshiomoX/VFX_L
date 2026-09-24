@@ -52,6 +52,7 @@ private:
     struct CastRequest
     {
         ItemID  id;
+        int     profile;   // ProjectileProfileDB の番号（飛び方・VFX はここから）
         DirectX::SimpleMath::Vector3 muzzle;
         DirectX::SimpleMath::Vector3 dir;
         float speed, radius, damage, lifetime;

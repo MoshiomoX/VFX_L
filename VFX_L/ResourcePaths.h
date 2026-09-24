@@ -109,12 +109,18 @@ namespace Res
         inline constexpr const char* KayKit_SkeletonRogue =
             "Assets/Model/KayKit_Skeletons/Skeleton_Rogue.fbx";
 
+        // Kenney Blocky Characters（CC0、像素貼图の方块人）。18 体とも網格・骨・動画は同じで、
+        // 貼图（Textures/texture-a..r.png）だけ違う。雑魚は L（緑肌のゾンビ）を 1 フレーム焼いて使う
+        inline constexpr const char* Kenney_BlockyZombie =
+            "Assets/Model/Kenney_BlockyCharacters/fbx/character-l.fbx";
+
         // 起動時に別スレッドで先読みする骨付きモデル（ResourceManager::PreloadModelsAsync）。
         // 1 個 19MB・Debug で数秒かかるので、タイトル / 編集器の間に済ませる。
-        // 戦闘で使う物だけ。Paladin（編集器の参照）と Mage/Rogue（未使用）は入れない
+        // 戦闘で使う物だけ。Paladin（編集器の参照）と Mage/Rogue（未使用）は入れない。
+        // Minion は雑魚の予備（方块人が読めない時だけ）なので外した
         inline constexpr const char* kPreload[] = {
             KayKit_Mage,
-            KayKit_SkeletonMinion,
+            Kenney_BlockyZombie,
             KayKit_SkeletonWarrior,
         };
     }
@@ -127,6 +133,10 @@ namespace Res
         // KayKit Skeletons 共通の色貼图（雑魚材質の t0）
         inline constexpr const wchar_t* KayKit_SkeletonAlbedo =
             L"Assets/Model/KayKit_Skeletons/skeleton_texture.png";
+
+        // 雑魚（Kenney Blocky の L）の像素貼图
+        inline constexpr const wchar_t* Kenney_BlockyZombieAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-l.png";
 
         // 粒子
         inline constexpr const wchar_t* ParticleSheet =
