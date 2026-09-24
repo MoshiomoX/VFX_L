@@ -62,6 +62,10 @@ public:
     // 全部下ろす（プレイヤー消失時など）
     void Clear() { m_Stack.Clear(); }
 
+    // 画面下の操作案内（「[F] Open」など）。nullptr で消す。毎フレームシーンが入れ直す。
+    // モーダルが開いている間は出さない（HUD と同じ）
+    void SetPrompt(const wchar_t* text) { m_Prompt = text; }
+
 private:
     void UpdateStack(Registry& reg, Entity player, float dt);   // 開閉と入力の振り分け
     void DrawModals(Registry& reg, Entity player);    // スタック順に描く
@@ -78,4 +82,6 @@ private:
     bool  m_PauseOnBackpack = true;
     float m_ScreenW = 1920.0f;
     float m_ScreenH = 1080.0f;
+
+    const wchar_t* m_Prompt = nullptr;   // 画面下の操作案内（SetPrompt）
 };

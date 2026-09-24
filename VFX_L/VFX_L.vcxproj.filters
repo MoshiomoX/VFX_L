@@ -325,6 +325,9 @@
     <ClCompile Include="ECS\System\RenderSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
+    <ClCompile Include="ECS\System\InteractionSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
     <ClCompile Include="ECS\System\SkinnedAnimSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
@@ -722,6 +725,9 @@
     <ClInclude Include="Component\ModelComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
+    <ClInclude Include="Component\InteractableComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
     <ClInclude Include="Component\SkinnedAnimComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -759,6 +765,9 @@
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\RenderSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\InteractionSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\SkinnedAnimSystem.h">

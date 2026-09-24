@@ -45,6 +45,14 @@ namespace InputMap
     }
 
 
+    // 近くの物を使う（F、パッド B。トリガー）。報酬の箱など
+    inline bool GetInteractTrigger()
+    {
+        auto& input = InputManager::Get();
+        return input.GetKeyTrigger('F') ||
+            input.GetPadTrigger(XINPUT_GAMEPAD_B);
+    }
+
     // 施法の一時停止 / 再開（Q、パッド Y。トリガー）
     inline bool GetCastPauseToggle()
     {

@@ -32,6 +32,7 @@
 #include "ECS/System/BackpackAggregateSystem.h"
 #include "UI/LevelUpSystem.h"
 #include "ECS/System/RenderSystem.h"
+#include "ECS/System/InteractionSystem.h"
 #include "Particle/GPUParticleSystem.h"
 #include "VFX_Editor/VFXEffect.h"
 #include "ECS/System/ManaSystem.h"
@@ -83,6 +84,8 @@ private:
     void SpawnElite(const Vector3& pos);   // CPU 側の的（無敵・動かない）
     bool AttachEliteVisual(Entity e);      // 精英に骨付きモデルを付ける（駄目なら false）
     void RespawnElites();
+    void SpawnRewardCrates();              // 報酬の箱を並べ直す（開局と地形の作り直し）
+    void DrawCratePanel();
     void StressSpawnProjectiles(int count);
     int  CountProjectiles() const;
     void EndRun();                         // 戦績を書いてリザルトへ
@@ -112,6 +115,7 @@ private:
     MeshVFXSystem           m_MeshVFXSystem;       // モデル表面からの粒子（燃焼消滅など）
     float                   m_BurnDuration = 1.5f; // 燃焼消滅の秒数（ImGui で調整）
     LevelUpSystem           m_LevelUpSystem;
+    InteractionSystem       m_Interaction;         // 近づいて F で使う物（報酬の箱）
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
     SpawnDirector           m_SpawnDirector;
@@ -142,6 +146,16 @@ private:
     // --- Entities ---
     Entity m_Player = 0;
     std::vector<Entity> m_Terrain;
+
+    // --- 報酬の箱（近づいて F → 升級と同じ三択。レベルは上がらない）---
+    // 開局に玩家の周りの歩けるマスへ固定数を置く。使ったら消える（補充しない）
+    std::vector<Entity> m_Crates;
+    std::shared_ptr<Model> m_CrateModel;
+    int   m_CrateCount = 4;
+    float m_CrateMinDist = 6.0f;           // 出生点からの距離（m）
+    float m_CrateMaxDist = 22.0f;
+    float m_CrateSpacing = 5.0f;           // 箱同士の最小間隔（m）
+    float m_CrateSize = 0.9f;              // 一辺（m）。モデルの包囲箱から倍率を決める
     std::vector<Entity> m_Elites;      // CPU に残る敵はこれだけ
 
     // --- 使い回すモデル ---

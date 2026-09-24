@@ -48,6 +48,49 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
 {
     auto& lv = reg.Get<LevelComponent>(player);
 
+    if (FillChoices(lv) == 0)
+    {
+        // 候補が1つも無いなら、レベルだけ上げて先へ進める。
+        // ここで止まると経験値が溜まり続けて動かなくなる。
+        lv.ConsumeLevelUp();
+        ++m_TotalLevelUps;
+        std::cout << "[LevelUp] no candidate available" << std::endl;
+        return;
+    }
+
+    // 候補を出した時点でレベルを上げる。
+    // 選び終わってから上げる方式にすると、
+    // 選択中に経験値が入った場合の扱いが面倒になる。
+    lv.ConsumeLevelUp();
+    ++m_TotalLevelUps;
+
+    std::cout << "[LevelUp] level " << lv.level
+        << " : " << lv.pendingChoices.size() << " choices" << std::endl;
+}
+
+// ============================================================
+// 報酬の三択（レベルは上がらない。報酬の箱など）
+// 選び方・確定（Choose）・画面は升級とまったく同じ。
+// 既に選択待ちなら出さない（候補を上書きすると選ぶ前に消える）
+// ============================================================
+bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
+{
+    if (!reg.IsValid(player) || !reg.Has<LevelComponent>(player)) return false;
+
+    auto& lv = reg.Get<LevelComponent>(player);
+    if (lv.IsChoosing()) return false;
+    if (FillChoices(lv) == 0) return false;
+
+    ++m_TotalOffers;
+    std::cout << "[LevelUp] reward offer : " << lv.pendingChoices.size() << " choices" << std::endl;
+    return true;
+}
+
+// ============================================================
+// 候補を pendingChoices に詰める（升級と報酬で共通）。詰めた数を返す
+// ============================================================
+int LevelUpSystem::FillChoices(LevelComponent& lv)
+{
     // 候補の母集団を作る
     std::vector<ItemID> pool;
     for (ItemID id : ItemDatabase::GetAllIDs())
@@ -60,15 +103,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
     for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
         pool.push_back(id);
 
-    if (pool.empty())
-    {
-        // 候補が1つも無いなら、レベルだけ上げて先へ進める。
-        // ここで止まると経験値が溜まり続けて動かなくなる。
-        lv.ConsumeLevelUp();
-        ++m_TotalLevelUps;
-        std::cout << "[LevelUp] no candidate available" << std::endl;
-        return;
-    }
+    if (pool.empty()) return 0;
 
     // 前から n 個を取り出す形にしたいので、シャッフルする。
     // 池が小さいうちは毎回似た組み合わせになるが、
@@ -84,15 +119,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
     lv.pendingChoices.clear();
     for (int i = 0; i < n; ++i)
         lv.pendingChoices.push_back(pool[i]);
-
-    // 候補を出した時点でレベルを上げる。
-    // 選び終わってから上げる方式にすると、
-    // 選択中に経験値が入った場合の扱いが面倒になる。
-    lv.ConsumeLevelUp();
-    ++m_TotalLevelUps;
-
-    std::cout << "[LevelUp] level " << lv.level
-        << " : " << n << " choices" << std::endl;
+    return n;
 }
 
 // ============================================================

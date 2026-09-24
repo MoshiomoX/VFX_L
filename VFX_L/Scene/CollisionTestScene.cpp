@@ -58,6 +58,7 @@
 #include "Swarm/AreaProfile.h"
 #include "Graphics/Light/PointLightManager.h"
 #include "Debug/Gizmo.h"
+#include "Component/InteractableComponent.h"
 
 // ============================================================
 // Init
@@ -155,6 +156,10 @@ void CollisionTestScene::Init()
     pcfg.maxHealth = 1000000.0f;   // TEMP-TEST
 
     m_Player = PlayerFactory::Create(m_Registry, device, pcfg);
+
+    // ---------- 報酬の箱（玩家の周りに固定数。玩家の位置が要るので最後）----------
+    m_CrateModel = ResourceManager::Get().LoadModel(Res::Mdl::Kenney_RewardCrate);
+    SpawnRewardCrates();
 }
 
 // ============================================================
@@ -241,9 +246,13 @@ void CollisionTestScene::Update(float dt)
     // ---- 場景光源: 点光源表は UpdateGameplay の中（CollectLights）で GPU へ上がるので、その前に積む。
     // 一時停止中も積む（その時は SceneBase::Render が上げる）
     SubmitSceneLight();
+    m_Interaction.SubmitLights(m_Registry);   // 報酬の箱の目印（止まっている間も消さない）
 
     if (!m_GameUI.ShouldPauseGame())
         UpdateGameplay(dt);
+
+    // ---- 画面下の操作案内（近くに使える物がある時だけ）----
+    m_GameUI.SetPrompt(m_Interaction.HasFocus() ? m_Interaction.GetPrompt() : nullptr);
 
     // ---- 死亡 → 倒れた姿を少し見せてからリザルトへ ----
     // 一時停止中でも進める（三択を開いたまま死ぬ事は無いが、止まると戻れない）
@@ -347,6 +356,39 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // レベルアップの判定（候補の抽選まで）
     // ============================================================
     m_LevelUpSystem.Update(m_Registry);
+
+    // ============================================================
+    // 近くの物を使う（報酬の箱: 升級と同じ三択。レベルは上がらない）
+    // レベル判定の後に置く: 同じフレームで升級が三択を出していたら、
+    // 箱の三択は出せない（OfferChoices が false）→ 箱は消さずに残す
+    // ============================================================
+    {
+        const bool blocked = DebugManager::Get().IsUsingDebugCamera()
+            || ImGui::GetIO().WantCaptureKeyboard;
+        const bool dead = m_Registry.IsValid(m_Player)
+            && m_Registry.Has<PlayerStateComponent>(m_Player)
+            && m_Registry.Get<PlayerStateComponent>(m_Player).IsDead();
+        const bool pressed = !blocked && !dead && InputMap::GetInteractTrigger();
+
+        const Entity used = m_Interaction.Update(m_Registry, m_Player, dt, pressed);
+        if (used != EntityTraits::NULL_ENTITY && m_Registry.IsValid(used)
+            && m_Registry.Has<InteractableComponent>(used))
+        {
+            bool consumed = false;
+            switch (m_Registry.Get<InteractableComponent>(used).kind)
+            {
+            case InteractKind::RewardChoice:
+                consumed = m_LevelUpSystem.OfferChoices(m_Registry, m_Player);
+                break;
+            }
+            if (consumed)
+            {
+                m_Registry.Destroy(used);
+                m_Crates.erase(std::remove(m_Crates.begin(), m_Crates.end(), used), m_Crates.end());
+                m_Interaction.ClearFocus();
+            }
+        }
+    }
 
     // ---- カメラ追従（最後）----
     if (m_Registry.IsValid(m_Player))
@@ -931,6 +973,129 @@ void CollisionTestScene::RespawnElites()
         Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
         SpawnElite({ pp.x, 3.0f, pp.z + 8.0f });
     }
+}
+
+// ============================================================
+// 報酬の箱を並べ直す
+// 玩家の周り（m_CrateMinDist〜m_CrateMaxDist）の歩けるマスへ m_CrateCount 個。
+//   - 周り 3x3 マスも歩ける所だけ（壁際に置くと回り込めない）
+//   - 箱同士は m_CrateSpacing 以上離す
+//   - マスの中心・地面の高さに置く
+// 乱数は地形の seed から作る（同じ seed なら同じ配置）。
+// 箱は静的な AABB を持つ（玩家は押し返される。雑魚は GPU 側なので素通り）
+// ============================================================
+void CollisionTestScene::SpawnRewardCrates()
+{
+    for (Entity e : m_Crates)
+        if (m_Registry.IsValid(e)) m_Registry.Destroy(e);
+    m_Crates.clear();
+    m_Interaction.ClearFocus();
+
+    if (!m_CrateModel)
+    {
+        std::cout << "[CollisionTestScene] reward crate model missing: " << Res::Mdl::Kenney_RewardCrate << std::endl;
+        return;
+    }
+
+    // 倍率はモデルの包囲箱から（ファイルの単位 cm / m に頼らない）。原点は底の中心
+    const Vector3 lo = m_CrateModel->GetBoundsMin();
+    const Vector3 hi = m_CrateModel->GetBoundsMax();
+    const float height = hi.y - lo.y;
+    const float scale = (height > 1e-4f) ? m_CrateSize / height : 1.0f;
+    const float half = m_CrateSize * 0.5f;
+
+    Vector3 center = Vector3::Zero;
+    if (m_Registry.IsValid(m_Player) && m_Registry.Has<TransformComponent>(m_Player))
+        center = m_Registry.Get<TransformComponent>(m_Player).position;
+
+    std::mt19937 rng(m_TerrainSeed * 7919u + 17u);
+    std::uniform_real_distribution<float> angleDist(0.0f, DirectX::XM_2PI);
+    std::uniform_real_distribution<float> radiusDist(m_CrateMinDist, (std::max)(m_CrateMinDist, m_CrateMaxDist));
+
+    for (int attempt = 0; attempt < 400 && (int)m_Crates.size() < m_CrateCount; ++attempt)
+    {
+        const float a = angleDist(rng);
+        const float r = radiusDist(rng);
+        const Vector3 probe = center + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);
+
+        int gx = 0, gz = 0;
+        m_Grid.WorldToCell(probe, gx, gz);
+        bool open = true;
+        for (int dz = -1; dz <= 1 && open; ++dz)
+            for (int dx = -1; dx <= 1 && open; ++dx)
+                open = m_Grid.IsWalkable(gx + dx, gz + dz);
+        if (!open) continue;
+
+        Vector3 pos = m_Grid.CellToWorld(gx, gz);
+        pos.y = m_Grid.SampleHeight(pos.x, pos.z);
+
+        bool tooClose = false;
+        for (Entity other : m_Crates)
+        {
+            const Vector3 op = m_Registry.Get<InteractableComponent>(other).basePos;
+            const float dx = op.x - pos.x, dz = op.z - pos.z;
+            if (dx * dx + dz * dz < m_CrateSpacing * m_CrateSpacing) { tooClose = true; break; }
+        }
+        if (tooClose) continue;
+
+        Entity e = m_Registry.Create();
+
+        TransformComponent tf;
+        tf.position = pos;
+        tf.rotation = { 0.0f, DirectX::XMConvertToDegrees(a), 0.0f };   // 向きもばらす
+        tf.scale = { scale, scale, scale };
+        m_Registry.Add<TransformComponent>(e, tf);
+
+        ModelComponent mc;
+        mc.model = m_CrateModel;
+        m_Registry.Add<ModelComponent>(e, mc);
+
+        ColliderComponent col;
+        col.shape = ColliderShape::AABB;
+        col.halfExtents = { half, half, half };
+        col.offset = { 0.0f, half, 0.0f };   // モデルの原点が底なので、箱の中心は半分上
+        col.layer = Layer_Terrain;
+        col.mask = Layer_All;
+        m_Registry.Add<ColliderComponent>(e, col);
+
+        RigidbodyComponent rb;
+        rb.isStatic = true;
+        rb.useGravity = false;
+        m_Registry.Add<RigidbodyComponent>(e, rb);
+
+        InteractableComponent it;
+        it.kind = InteractKind::RewardChoice;
+        it.basePos = pos;
+        it.phase = a * 3.0f;
+        it.radius = half + 1.6f;   // 箱の縁から 1.6m くらいまで
+        m_Registry.Add<InteractableComponent>(e, it);
+
+        m_Crates.push_back(e);
+    }
+
+    std::cout << "[CollisionTestScene] reward crates: " << m_Crates.size() << " / " << m_CrateCount
+        << " (scale " << scale << ")" << std::endl;
+}
+
+// ============================================================
+// ImGui: 報酬の箱
+// ============================================================
+void CollisionTestScene::DrawCratePanel()
+{
+    if (!ImGui::CollapsingHeader("Reward Crates"))
+        return;
+
+    ImGui::Text("Remaining : %d   offers so far : %d", (int)m_Crates.size(), m_LevelUpSystem.GetTotalOffers());
+    ImGui::Text("Focus     : %s", m_Interaction.HasFocus() ? "YES (press F / Pad B)" : "none");
+    ImGui::DragInt("Count", &m_CrateCount, 1, 0, 30);
+    ImGui::DragFloatRange2("Distance (m)", &m_CrateMinDist, &m_CrateMaxDist, 0.5f, 0.0f, 90.0f);
+    ImGui::DragFloat("Spacing (m)", &m_CrateSpacing, 0.1f, 0.0f, 30.0f);
+    ImGui::DragFloat("Size (m)", &m_CrateSize, 0.01f, 0.1f, 3.0f);
+    ImGui::DragFloat("Bob Height", &m_Interaction.bobHeight, 0.005f, 0.0f, 1.0f);
+    ImGui::DragFloat("Spin (deg/s)", &m_Interaction.spinSpeed, 1.0f, 0.0f, 360.0f);
+    if (ImGui::Button("Respawn Crates")) SpawnRewardCrates();
+    ImGui::SameLine();
+    ImGui::TextDisabled("around the player");
 }
 
 // ============================================================
@@ -1630,6 +1795,7 @@ void CollisionTestScene::DrawDebugUI()
             m_Swarm.UploadTerrain(m_Grid);
             m_Swarm.BuildVFXTable();
             RespawnElites();
+            SpawnRewardCrates();   // 古い位置は新しい壁の中かもしれない
         }
         ImGui::SameLine();
         ImGui::TextDisabled("seed reproducible");
@@ -1717,6 +1883,8 @@ void CollisionTestScene::DrawDebugUI()
     }
 
     // ---------- カメラ ----------
+    DrawCratePanel();
+
     if (ImGui::CollapsingHeader("Camera"))
     {
         ImGui::DragFloat("Distance", &m_Camera.distance, 0.1f, 1.0f, 30.0f);

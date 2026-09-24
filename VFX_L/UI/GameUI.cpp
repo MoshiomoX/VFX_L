@@ -216,6 +216,17 @@ void GameUI::Render(Registry& reg, Entity player)
             reg.Get<LevelComponent>(player), paused);
     }
 
+    // ---- 操作案内（画面下の中央。影付き）----
+    if (m_Stack.IsEmpty() && m_Prompt && *m_Prompt)
+    {
+        const std::wstring text = m_Prompt;
+        const float scale = 0.6f;
+        const DirectX::SimpleMath::Vector2 size = m_Text.Measure(text, scale);
+        const DirectX::SimpleMath::Vector2 pos = { (m_ScreenW - size.x) * 0.5f, m_ScreenH * 0.80f };
+        m_Text.Draw(text, { pos.x + 2.0f, pos.y + 2.0f }, { 0.0f, 0.0f, 0.0f, 0.8f }, scale);
+        m_Text.Draw(text, pos, { 1.0f, 0.9f, 0.55f, 1.0f }, scale);
+    }
+
     if (reg.IsValid(player))
         DrawModals(reg, player);
 
