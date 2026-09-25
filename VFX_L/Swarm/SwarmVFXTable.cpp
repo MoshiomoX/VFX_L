@@ -117,6 +117,13 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         bool timelineIgnored = (pe->startTime != 0.0f || pe->duration >= 0.0f);
 
         GPUEmitter ge = pe->emitterData.ToGPU();
+        // メッシュ粒子の模型はここで登録する（表は場面の間ずっと使うので解除しない）。
+        // particles が無ければ ToGPU のまま（0 番 = 立方体）
+        if (pe->emitterData.renderMode != 0 && particles)
+            ge.renderMode = ParticleRenderMode::Pack(
+                particles->RegisterParticleMesh(pe->emitterData.meshPath),
+                pe->emitterData.meshGlow, pe->emitterData.meshFaceVelocity,
+                pe->emitterData.meshForwardAxis);
         ge.isActive = 1.0f;
         ge.ownerID = 0;
         ge.colorKeyOffset = (int)keys.size();   // 静的区は offset 0 起点

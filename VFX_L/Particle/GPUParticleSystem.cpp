@@ -36,7 +36,7 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!CreateColorKeyBuffer(device))       return false;
     if (!CreateDrawIndirectBuffer(device))   return false;
     if (!CreateAliveListBuffer(device, maxParticles)) return false;
-    if (!CreateCubeResources(device))        return false;
+    if (!CreateMeshResources(device))        return false;
     CreateTrailResources(device);   // 失敗しても粒子は動く（帯が出ないだけ）
     if (m_TrailReady)               // 特効の帯は style 表と TrailPS を共用する
         CreateEffectTrailResources(device);
@@ -517,14 +517,19 @@ bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
     std::cout << "[LoadShaders] EdgeFilterCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
-    m_CubeVS = std::make_shared<VertexShader>();
-    hr = ShaderPath::Load(m_CubeVS.get(), device, L"Shader/Particle/ParticleCubeVS.hlsl");
-    std::cout << "[LoadShaders] CubeVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    m_MeshVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_MeshVS.get(), device, L"Shader/Particle/ParticleMeshVS.hlsl");
+    std::cout << "[LoadShaders] MeshVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
-    m_CubePS = std::make_shared<PixelShader>();
-    hr = ShaderPath::Load(m_CubePS.get(), device, L"Shader/PS.hlsl");
-    std::cout << "[LoadShaders] CubePS (Shader/PS): " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    m_MeshLitPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_MeshLitPS.get(), device, L"Shader/PS.hlsl");
+    std::cout << "[LoadShaders] MeshLitPS (Shader/PS): " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) return false;
+
+    m_MeshGlowPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_MeshGlowPS.get(), device, L"Shader/Particle/ParticleMeshGlowPS.hlsl");
+    std::cout << "[LoadShaders] MeshGlowPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
     m_RenderVS = std::make_shared<VertexShader>();
@@ -750,12 +755,9 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     const UINT drawArgs[4] = { 6, 0, 0, 0 };
     context->UpdateSubresource(m_DrawIndirectBuffer.Get(), 0, nullptr, drawArgs, 0, 0);
 
-    // 立方体側の args も毎フレーム戻す（5 uint なので Clear ではなく丸ごと書く）
-    if (m_CubeModel && !m_CubeModel->GetSubMeshes().empty())
-    {
-        const UINT cubeArgs[5] = { m_CubeModel->GetSubMeshes()[0].mesh->GetIndexCount(), 0, 0, 0, 0 };
-        context->UpdateSubresource(m_DrawIndirectCubeBuffer.Get(), 0, nullptr, cubeArgs, 0, 0);
-    }
+    // メッシュ粒子の束ごとの数も毎フレーム 0 へ（全部 0 なので Clear でよい）
+    const UINT zeros[4] = { 0, 0, 0, 0 };
+    context->ClearUnorderedAccessViewUint(m_MeshCountUAV.Get(), zeros);
 
     m_UpdateCS->Bind(context);
 
@@ -767,8 +769,8 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     m_UpdateCS->SetUAV(context, "deadList", m_DeadList.GetUAV());
     m_UpdateCS->SetUAV(context, "g_DrawArgs", m_DrawIndirectUAV.Get());
     m_UpdateCS->SetUAV(context, "aliveList", m_AliveListUAV.Get());
-    m_UpdateCS->SetUAV(context, "g_DrawArgsCube", m_DrawIndirectCubeUAV.Get());
-    m_UpdateCS->SetUAV(context, "aliveCube", m_AliveCubeUAV.Get());
+    m_UpdateCS->SetUAV(context, "meshCounts", m_MeshCountUAV.Get());
+    m_UpdateCS->SetUAV(context, "aliveMesh", m_AliveMeshUAV.Get());
     m_UpdateCS->BindUAVs(context);
 
     context->Dispatch((m_MaxParticles + 255) / 256, 1, 1);
@@ -823,114 +825,8 @@ void GPUParticleSystem::Render()
     RenderTrails(context);
     RenderEffectTrails(context);
 
-    // ---- 立方体（不透明、深度書き込みあり）----
-    RenderCubes(context);
-}
-
-// ============================================
-// 立方体粒子の資源
-//   単位立方体 Mesh（VERTEX_3D）+ aliveCube + 5 uint の args
-// ============================================
-bool GPUParticleSystem::CreateCubeResources(ID3D11Device* device)
-{
-    m_CubeModel = PrimitiveBuilder::CreateBox(device, { 0.5f, 0.5f, 0.5f }, { 1, 1, 1, 1 });
-    if (!m_CubeModel || m_CubeModel->GetSubMeshes().empty())
-    {
-        std::cout << "[Error] cube mesh creation failed" << std::endl;
-        return false;
-    }
-
-    m_WhiteTexture = std::make_shared<Texture>();
-    m_WhiteTexture->CreateSolid(device, 255, 255, 255, 255);
-
-    // aliveCube（aliveList と同じ作り）
-    {
-        D3D11_BUFFER_DESC desc = {};
-        desc.ByteWidth = sizeof(uint32_t) * m_MaxParticles;
-        desc.Usage = D3D11_USAGE_DEFAULT;
-        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-        desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-        desc.StructureByteStride = sizeof(uint32_t);
-        if (FAILED(device->CreateBuffer(&desc, nullptr, &m_AliveCubeBuffer))) return false;
-
-        D3D11_UNORDERED_ACCESS_VIEW_DESC ud = {};
-        ud.Format = DXGI_FORMAT_UNKNOWN;
-        ud.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
-        ud.Buffer.NumElements = m_MaxParticles;
-        if (FAILED(device->CreateUnorderedAccessView(m_AliveCubeBuffer.Get(), &ud, &m_AliveCubeUAV))) return false;
-
-        D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
-        sd.Format = DXGI_FORMAT_UNKNOWN;
-        sd.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-        sd.Buffer.NumElements = m_MaxParticles;
-        if (FAILED(device->CreateShaderResourceView(m_AliveCubeBuffer.Get(), &sd, &m_AliveCubeSRV))) return false;
-    }
-
-    // DrawIndexedInstancedIndirect の args
-    // { IndexCountPerInstance, InstanceCount, StartIndexLocation, BaseVertexLocation, StartInstanceLocation }
-    {
-        const UINT initArgs[5] = { m_CubeModel->GetSubMeshes()[0].mesh->GetIndexCount(), 0, 0, 0, 0 };
-        D3D11_BUFFER_DESC desc = {};
-        desc.ByteWidth = sizeof(initArgs);
-        desc.Usage = D3D11_USAGE_DEFAULT;
-        desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-        desc.MiscFlags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
-        D3D11_SUBRESOURCE_DATA init = {};
-        init.pSysMem = initArgs;
-        if (FAILED(device->CreateBuffer(&desc, &init, &m_DrawIndirectCubeBuffer))) return false;
-
-        D3D11_UNORDERED_ACCESS_VIEW_DESC ud = {};
-        ud.Format = DXGI_FORMAT_R32_UINT;
-        ud.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
-        ud.Buffer.NumElements = 5;
-        if (FAILED(device->CreateUnorderedAccessView(m_DrawIndirectCubeBuffer.Get(), &ud, &m_DrawIndirectCubeUAV))) return false;
-    }
-
-    std::cout << "[OK] Cube particle resources created" << std::endl;
-    return true;
-}
-
-// ============================================
-// 立方体粒子の描画
-//   VS: ParticleCubeVS（MVP は b2、World は使わない）
-//   PS: Shader/PS.hlsl（Lambert、LightBuffer は b0）
-//   不透明・深度書き込みあり。ビルボードの後に描く
-// ============================================
-void GPUParticleSystem::RenderCubes(ID3D11DeviceContext* context)
-{
-    if (!m_CubeVS || !m_CubeVS->IsValid()) return;
-    if (!m_CubePS || !m_CubePS->IsValid()) return;
-    if (!m_CubeModel || m_CubeModel->GetSubMeshes().empty()) return;
-
-    // ModelCommon.hlsli の MVPBuffer と同じ並び（row_major なので転置しない）
-    struct { Matrix W, V, P; } mvp{ Matrix::Identity,
-        m_Camera->GetViewMatrix(), m_Camera->GetProjectionMatrix() };
-    static_assert(sizeof(mvp) == 192, "MVPBuffer layout mismatch");
-
-    LightBuffer light = m_Light;
-    light.cameraPosition = m_Camera->GetPosition();
-
-    RenderStates::Get().ApplyOpaque(context);
-
-    m_CubeVS->Bind(context);
-    m_CubePS->Bind(context);
-
-    m_CubeVS->WriteBuffer(context, 2, &mvp);
-    m_CubeVS->SetSRV(context, "particles", m_ParticleSRV.Get());
-    m_CubeVS->SetSRV(context, "aliveCube", m_AliveCubeSRV.Get());
-
-    m_CubePS->WriteBuffer(context, 0, &light);
-    if (m_WhiteTexture)
-        m_CubePS->SetTexture(context, 0, m_WhiteTexture.get());
-    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
-    context->PSSetSamplers(0, 1, &samp);
-
-    m_CubeModel->GetSubMeshes()[0].mesh->DrawIndexedInstancedIndirect(
-        context, m_DrawIndirectCubeBuffer.Get(), 0);
-
-    RenderStates::Get().Restore(context);
-    m_CubeVS->UnbindSRVs(context);
-    m_CubePS->UnbindSRVs(context);
+    // ---- メッシュ粒子（光を受ける：不透明・深度書き込み → 発光：加算）----
+    RenderMeshes(context);
 }
 
 // ============================================
@@ -969,11 +865,8 @@ void GPUParticleSystem::ResetSystem()
         m_Context->UpdateSubresource(m_TrailArgsBuffer.Get(), 0, nullptr, trailArgs, 0, 0);
     }
 
-    if (m_CubeModel && !m_CubeModel->GetSubMeshes().empty())
-    {
-        const UINT cubeArgs[5] = { m_CubeModel->GetSubMeshes()[0].mesh->GetIndexCount(), 0, 0, 0, 0 };
-        m_Context->UpdateSubresource(m_DrawIndirectCubeBuffer.Get(), 0, nullptr, cubeArgs, 0, 0);
-    }
+    const UINT zeros[4] = { 0, 0, 0, 0 };
+    m_Context->ClearUnorderedAccessViewUint(m_MeshCountUAV.Get(), zeros);
 }
 
 // ============================================

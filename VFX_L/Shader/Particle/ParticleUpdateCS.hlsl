@@ -15,8 +15,8 @@ AppendStructuredBuffer<uint> deadList : register(u1);
 RWBuffer<uint> g_DrawArgs : register(u2);
 RWStructuredBuffer<uint> aliveList : register(u3); // 存活粒子 index リスト (billboard)
 RWBuffer<uint> ownerAlive : register(u4); // 所有者ごとの生存数
-RWStructuredBuffer<uint> aliveCube : register(u5); // alive list of cube particles
-RWBuffer<uint> g_DrawArgsCube : register(u6); // DrawIndexedInstancedIndirect args, [1] = InstanceCount
+RWStructuredBuffer<uint> aliveMesh : register(u5); // alive mesh particles, PARTICLE_MESH_BUCKET_CAP per bucket
+RWBuffer<uint> meshCounts : register(u6); // particles per bucket (copied into each submesh's draw args)
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -40,12 +40,17 @@ void main(uint3 id : SV_DispatchThreadID)
     }
 
     // --- 生存確定：DrawArgs に +1、AliveList に index を追加 ---
-    // renderMode で billboard / cube の 2 本に振り分ける（描画パスが別）
+    // renderMode で billboard / mesh に振り分ける（描画パスが別）
     uint instanceIndex;
-    if (p.renderMode == 1)
+    if (ParticleMeshSlotPlusOne(p.renderMode) != 0u)
     {
-        InterlockedAdd(g_DrawArgsCube[1], 1, instanceIndex);
-        aliveCube[instanceIndex] = id.x;
+        // mesh: one segment of aliveMesh per bucket (mesh index x lit/glow).
+        // Past the cap the count keeps growing but nothing is written;
+        // ParticleMeshVS drops instances >= cap
+        uint bucket = ParticleMeshBucket(p.renderMode);
+        InterlockedAdd(meshCounts[bucket], 1, instanceIndex);
+        if (instanceIndex < PARTICLE_MESH_BUCKET_CAP)
+            aliveMesh[bucket * PARTICLE_MESH_BUCKET_CAP + instanceIndex] = id.x;
     }
     else
     {
