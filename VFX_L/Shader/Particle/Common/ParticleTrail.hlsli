@@ -25,6 +25,9 @@
 
 #define TRAIL_FLAG_INHERIT_COLOR 1u
 #define TRAIL_FLAG_INHERIT_SIZE  2u
+// effect trails only (EffectTrailVS): U = path length * uvRepeat, so the
+// texture stays put in the world instead of stretching over the ribbon
+#define TRAIL_FLAG_UV_TILE       4u
 
 struct TrailStyle
 {
