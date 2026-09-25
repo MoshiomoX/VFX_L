@@ -31,7 +31,7 @@ struct PlacedItem
 
 struct BackpackComponent
 {
-    static constexpr int GRID = 7;
+    static constexpr int GRID = 9;
 
     // ---- 魔法ブロック ----
     std::vector<PlacedItem> items;

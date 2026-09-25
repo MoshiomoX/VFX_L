@@ -162,8 +162,9 @@ namespace PlayerFactory
 
             // 初期枠を中央に敷く。枠が無いと魔法を1つも置けない。
             // 最初の三択で枠を引くまで何もできない、を避けるための 3x3。
-            // Rect のアンカーは左上なので (2,2) で 2..4 行 2..4 列を覆う
-            BackpackLogic::PlaceFrame(bpc, ItemID::Frame3x3, 2, 2, 0);
+            // Rect のアンカーは左上なので GRID/2-1 から 3 マス（9x9 なら 3..5 行 3..5 列）
+            const int start = BackpackComponent::GRID / 2 - 1;
+            BackpackLogic::PlaceFrame(bpc, ItemID::Frame3x3, start, start, 0);
 
             reg.Add<BackpackComponent>(e, bpc);
         }

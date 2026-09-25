@@ -7,6 +7,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Player/LevelComponent.h"
 #include "Item/ItemDatabase.h"
+#include "UI/ShapeSprite.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
@@ -243,33 +244,52 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
         // ---- 形状のプレビュー ----
         // どんな形のブロックが手に入るのかを、その場で見せる。
         // 形そのものが性能なので、名前だけでは判断できない。
-        const float miniCell = m_CardW * 0.10f;
-        const float miniGap = miniCell * 0.12f;
+        // 占位格 + 影響格の外接矩形の中心を (0.5, 0.74) に合わせる。
+        // 異形はアンカーが真ん中とは限らないので、アンカー基準だと片寄る。
+        // 大きい形は枠（幅 8 割 × 高さ 3.4 割）に収まるまでマスを縮める
+        int minR = 0, maxR = 0, minC = 0, maxC = 0;
+        bool first = true;
+        auto grow = [&](const std::vector<CellOffset>& cells)
+            {
+                for (const auto& o : cells)
+                {
+                    if (first) { minR = maxR = o.row; minC = maxC = o.col; first = false; continue; }
+                    minR = (std::min)(minR, o.row); maxR = (std::max)(maxR, o.row);
+                    minC = (std::min)(minC, o.col); maxC = (std::max)(maxC, o.col);
+                }
+            };
+        grow(c->occupyCells);
+        grow(c->influenceCells);
+
+        const int spanC = maxC - minC + 1;
+        const int spanR = maxR - minR + 1;
+        const float gapRatio = 0.12f;
+        float miniCell = m_CardW * 0.10f;
+        auto extent = [&](int n) { return miniCell * ((float)n + gapRatio * (float)(n - 1)); };
+        const float fit = (std::min)({ 1.0f, m_CardW * 0.80f / extent(spanC), m_CardH * 0.34f / extent(spanR) });
+        miniCell *= fit;
+
+        const float miniGap = miniCell * gapRatio;
         const float miniPitch = miniCell + miniGap;
 
+        // アンカーのマスの左上
         const Vector2 miniOrigin = {
-            pos.x + m_CardW * 0.5f,
-            pos.y + m_CardH * 0.74f
+            pos.x + m_CardW * 0.5f - extent(spanC) * 0.5f - (float)minC * miniPitch,
+            pos.y + m_CardH * 0.74f - extent(spanR) * 0.5f - (float)minR * miniPitch
         };
 
-        // 占位格
-        for (const auto& off : c->occupyCells)
-        {
-            const Vector2 cp = {
-                miniOrigin.x + off.col * miniPitch - miniCell * 0.5f,
-                miniOrigin.y + off.row * miniPitch - miniCell * 0.5f
-            };
-            sprite.Draw(m_BlockTex, cp, { miniCell, miniCell }, c->color);
-        }
+        // 占位格（隙間も塗って 1 枚に）
+        ShapeSprite::DrawConnected(sprite, m_BlockTex, c->color, c->occupyCells,
+            miniOrigin, miniCell, miniGap);
 
-        // 影響格（薄く）
+        // 影響格（薄く。範囲なので 1 マスずつ）
         Vector4 inflCol = c->color;
         inflCol.w = 0.30f;
         for (const auto& off : c->influenceCells)
         {
             const Vector2 cp = {
-                miniOrigin.x + off.col * miniPitch - miniCell * 0.5f,
-                miniOrigin.y + off.row * miniPitch - miniCell * 0.5f
+                miniOrigin.x + off.col * miniPitch,
+                miniOrigin.y + off.row * miniPitch
             };
             sprite.Draw(m_BlockTex, cp, { miniCell, miniCell }, inflCol);
         }

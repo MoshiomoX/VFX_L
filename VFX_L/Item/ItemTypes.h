@@ -115,6 +115,8 @@ struct ItemCommon
 
     // 形状: 占位格（このアイテムが物理的に占めるマス）
     // 1マスだけなら {{0,0}}。異形はここに複数マスを列挙する
+    // ※Items/*.h に書くのはコードの既定。Assets/Data/ItemData/<名前>.json があれば
+    //   起動時にそちらで上書きされる（投射物編集器の Item Shapes 頁で塗って保存した物）
     std::vector<CellOffset> occupyCells;
 
     // 形状: 影響格（機能型がどのマスに効果を及ぼすか）

@@ -176,6 +176,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Swarm\AreaVFXPlayer.cpp" />
     <ClCompile Include="Debug\Gizmo.cpp" />
     <ClCompile Include="Scene\ProjectileEditorScene.cpp" />
+    <ClCompile Include="Scene\ItemShapePanel.cpp" />
     <ClCompile Include="Scene\LevelEditorScene.cpp" />
     <ClCompile Include="Swarm\SwarmVFXTable.cpp" />
     <ClCompile Include="UI\BackpackUI.cpp" />
@@ -217,6 +218,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </ClCompile>
     <ClCompile Include="Manager\InputManager.cpp" />
     <ClCompile Include="Item\ItemDatabase.cpp" />
+    <ClCompile Include="Item\ItemDataFile.cpp" />
     <ClCompile Include="UI\GameUI.cpp" />
     <ClCompile Include="UI\LevelUpSystem.cpp" />
     <ClCompile Include="UI\LevelUpUI.cpp" />
@@ -328,6 +330,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Swarm\AreaVFXPlayer.h" />
     <ClInclude Include="Debug\Gizmo.h" />
     <ClInclude Include="Scene\ProjectileEditorScene.h" />
+    <ClInclude Include="Scene\ItemShapePanel.h" />
     <ClInclude Include="Scene\LevelEditorScene.h" />
     <ClInclude Include="Swarm\SwarmTypes.h" />
     <ClInclude Include="Swarm\SwarmVFXTable.h" />
@@ -395,10 +398,12 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Manager\InputManager.h" />
     <ClInclude Include="Manager\InputMap.h" />
     <ClInclude Include="Item\ItemDatabase.h" />
+    <ClInclude Include="Item\ItemDataFile.h" />
     <ClInclude Include="Item\ItemTypes.h" />
     <ClInclude Include="Player\LevelComponent.h" />
     <ClInclude Include="UI\LevelUpSystem.h" />
     <ClInclude Include="UI\LevelUpUI.h" />
+    <ClInclude Include="UI\ShapeSprite.h" />
     <ClInclude Include="Graphics\Light\LightTypes.h" />
     <ClInclude Include="Graphics\Material\Material.h" />
     <ClInclude Include="Graphics\Mesh\Mesh.h" />

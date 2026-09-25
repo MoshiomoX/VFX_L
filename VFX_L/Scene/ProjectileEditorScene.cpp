@@ -11,6 +11,7 @@
 #include "Manager/InputManager.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Material/Material.h"
+#include "Item/ItemDatabase.h"
 #include "imgui.h"
 #include <algorithm>
 #include <cstring>
@@ -132,6 +133,10 @@ void ProjectileEditorScene::Init()
     PushMotions();
     SelectProfile(ProjectileProfileDB::Count() > 1 ? 1 : 0);
 
+    // ---------- 道具の形の頁（道具の定義と形を読む。戦闘シーンを経由せずに来ても動くように）----------
+    ItemDatabase::Initialize();   // 2 回目以降は何もしない
+    m_ShapePanel.Init(&m_Swarm, &m_AreaVFX, &m_VFXContext);
+
     RespawnTargets();
 
     std::cout << "[ProjectileEditorScene] Init complete" << std::endl;
@@ -249,12 +254,13 @@ void ProjectileEditorScene::Update(float dt)
     SceneBase::Update(dt);
     m_TotalTime += dt;
 
-    // ---- 1 / 2 キーで頁を切り替える。C キーで範囲を 1 回出す（文字入力中は無効）----
+    // ---- 1 / 2 / 3 キーで頁を切り替える。C キーで範囲を 1 回出す（文字入力中は無効）----
     if (!ImGui::GetIO().WantTextInput)
     {
         auto& input = InputManager::Get();
         if (input.GetKeyTrigger('1')) m_TabRequest = 0;
         if (input.GetKeyTrigger('2')) m_TabRequest = 1;
+        if (input.GetKeyTrigger('3')) m_TabRequest = 2;
         if (m_Tab == 1 && input.GetKeyTrigger('C')) CastArea();
     }
 
@@ -330,6 +336,10 @@ void ProjectileEditorScene::Update(float dt)
         if (m_RespawnTimer > 1.0f)
             RespawnTargets();
     }
+
+    // ---- 道具の形の頁：試し置きの背包から撃つ（弾の登録は Flush より前）----
+    if (m_Tab == 2)
+        m_ShapePanel.Update(dt, m_Muzzle);
 
     // ---- GPU gameplay → 粒子 の順（本番と同じ）----
     m_Swarm.Flush(m_Muzzle, 0.4f, true, dt, m_TotalTime);
@@ -504,6 +514,7 @@ void ProjectileEditorScene::DrawUI()
     ImGui::Begin("Projectile Editor");
 
     // 開いている頁だけが自動で撃つ（m_Tab）
+    const int prevTab = m_Tab;
     if (ImGui::BeginTabBar("##editor_tabs"))
     {
         if (ImGui::BeginTabItem("Projectile (1)", nullptr,
@@ -520,12 +531,27 @@ void ProjectileEditorScene::DrawUI()
             DrawAreaTab();
             ImGui::EndTabItem();
         }
+        if (ImGui::BeginTabItem("Item Shapes (3)", nullptr,
+            (m_TabRequest == 2) ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None))
+        {
+            m_Tab = 2;
+            m_ShapePanel.DrawTab();
+            ImGui::EndTabItem();
+        }
         ImGui::EndTabBar();
     }
     m_TabRequest = -1;
 
+    // 他の頁で弾の値を変えてから来たかもしれないので、開いた瞬間に集約し直す
+    if (m_Tab == 2 && prevTab != 2)
+        m_ShapePanel.OnActivate();
+
     DrawCommonUI();
     ImGui::End();
+
+    // 試し置きの背包は別窓（頁の中に入れると縦に長すぎる）
+    if (m_Tab == 2)
+        m_ShapePanel.DrawBench();
 }
 
 // ============================================================

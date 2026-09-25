@@ -39,7 +39,7 @@ bool Game::Initialize(Renderer* renderer)
 	m_SceneManager.RegisterScene<ResultScene>(SceneType::RESULT);
 
     // 起動はタイトルから。ゲームへ直行したい時は F1（DebugManager のシーン切替）
-    m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);   // TEMP-TEST
+    m_SceneManager.ChangeScene(SceneType::TITLE);   // TEMP-TEST
 
 
 	return true;

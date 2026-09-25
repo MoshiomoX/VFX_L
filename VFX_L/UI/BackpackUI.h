@@ -24,7 +24,7 @@ struct SpellbookComponent;
 class BackpackUI
 {
 public:
-    static constexpr int GRID_SIZE = 7;
+    static constexpr int GRID_SIZE = 9;
     static_assert(GRID_SIZE == BackpackComponent::GRID,
         "BackpackUI::GRID_SIZE must match BackpackComponent::GRID");
 
