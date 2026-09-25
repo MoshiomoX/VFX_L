@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Items/ArcBolt.h
 // 弧の矢：投射物編集器の "ArcOnce" プロファイルで飛ぶ飛行物型。
 //
@@ -10,6 +10,7 @@
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
+#include "ResourcePaths.h"
 
 inline ProjectileItemDef MakeArcBolt()
 {
@@ -17,6 +18,9 @@ inline ProjectileItemDef MakeArcBolt()
 
     def.common.id = ItemID::ArcBolt;
     def.common.name = "Arc Bolt";
+    def.common.displayName = L"アークボルト";
+    def.common.description = L"弧を描いて敵へ向かう魔法弾。撃つたびに左右が入れ替わる。";
+    def.common.iconPath = Res::Icon::ArcBolt;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = {};

@@ -385,6 +385,18 @@
     <ClCompile Include="Item\ItemDataFile.cpp">
       <Filter>Item</Filter>
     </ClCompile>
+    <ClCompile Include="Item\ItemInfo.cpp">
+      <Filter>Item</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\ItemSheetView.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\PauseMenuUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\MenuList.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
     <ClCompile Include="Item\BackpackLogic.cpp">
       <Filter>Item</Filter>
     </ClCompile>
@@ -869,6 +881,18 @@
     </ClInclude>
     <ClInclude Include="Item\ItemDataFile.h">
       <Filter>Item</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\ItemInfo.h">
+      <Filter>Item</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\ItemSheetView.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\PauseMenuUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\MenuList.h">
+      <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="Component\AreaStats.h">
       <Filter>Component</Filter>

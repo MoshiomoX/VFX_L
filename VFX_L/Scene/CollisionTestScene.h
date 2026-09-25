@@ -142,9 +142,10 @@ private:
     VFXContext                  m_VFXContext;
     std::shared_ptr<Texture>    m_ParticleTexture;
     float m_TotalTime = 0.0f;
+    float m_RunTime = 0.0f;       // 遊んでいる時間（止まっている間・死んだ後は進まない）。HUD とリザルト用
 
     // --- 戦績（死亡時に RunResult へ写してリザルトへ渡す）---
-    static constexpr float kDeathToResult = 2.0f;   // 死亡からリザルトまでの秒数
+    static constexpr float kDeathToResult = 3.0f;   // 死亡からリザルトまでの秒数（「力尽きた」の幕を 2 秒ほど見せる）
     float m_ExpGained = 0.0f;     // 拾った経験値の合計
     float m_DeathTimer = 0.0f;    // 死亡してからの秒数
     bool  m_RunEnded = false;     // リザルトへの切替を依頼済み

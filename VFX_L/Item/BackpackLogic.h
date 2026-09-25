@@ -89,4 +89,8 @@ namespace BackpackLogic
     int CountPlaced(const BackpackComponent& bp, ItemID id);
     int CountPlacedFrames(const BackpackComponent& bp, ItemID id);
     std::vector<int> GetItemsOnFrame(const BackpackComponent& bp, int frameIndex);
+
+    // このブロック（items の index）に影響格が届いているブロックの index（items の順）。
+    // 集約（BackpackAggregateSystem）と UI の説明が同じ判定を使う
+    std::vector<int> GetInfluencers(const BackpackComponent& bp, int itemIndex);
 }

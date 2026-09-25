@@ -7,12 +7,15 @@
 #include "Graphics/Material/Texture.h"
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
+#include "Component/WandComponent.h"
 #include "Player/LevelComponent.h"
+#include "Item/ItemDatabase.h"
 #include "ResourcePaths.h"
 #include "imgui.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <iostream>
@@ -147,6 +150,7 @@ void HUD::BarTrail::Update(float dt, float ratio, const HUDStyle& style)
 
 void HUD::Update(float dt, const HealthComponent& hp, const ManaComponent& mp)
 {
+    m_Time += dt;
     m_HpTrail.Update(dt, SafeRatio(hp.current, hp.max), m_Style);
     m_MpTrail.Update(dt, SafeRatio(mp.current, mp.max), m_Style);
 }
@@ -156,9 +160,14 @@ void HUD::Update(float dt, const HealthComponent& hp, const ManaComponent& mp)
 // ============================================================
 void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     const HealthComponent& hp, const ManaComponent& mp,
-    const LevelComponent& lv, bool castingPaused)
+    const LevelComponent& lv, bool castingPaused,
+    const HUDFrameInfo& info)
 {
     if (!m_WhiteTex) return;
+
+    // ---- 一番下の層：瀕死の赤い縁と画面外の目印（バーや文字の下に敷く）----
+    DrawLowHpVignette(sprite, hp);
+    DrawMarkers(sprite, info);
 
     // ---- 経験値バー（既定では最上段の通し）----
     // 選択待ちで持ち越し中は 1.0 を超えるので丸める
@@ -198,7 +207,178 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     if (castingPaused)
     {
         const Vector2 p = { mpPos.x, mpPos.y + m_Style.mpBarSize.y + 6.0f };
-        DrawLabel(text, L"CASTING PAUSED  (Q)", p, m_Style.barTextScale);
+        DrawLabel(text, L"詠唱停止中  (Q で再開)", p, m_Style.barTextScale);
+    }
+
+    // ---- 経過時間・撃破数、魔法の欄 ----
+    DrawRunInfo(text, info);
+    if (m_Style.showSpellBar && info.wand)
+        DrawSpellBar(sprite, *info.wand, mp);
+}
+
+// ============================================================
+// 経過時間（大）と撃破数（小）を上の中央に
+// ============================================================
+void HUD::DrawRunInfo(TextRenderer& text, const HUDFrameInfo& info)
+{
+    const Vector2 a = m_Style.runInfo.Resolve(m_ScreenW, m_ScreenH);
+    wchar_t buf[32];
+
+    const int total = (int)info.runTime;
+    swprintf_s(buf, L"%02d:%02d", total / 60, total % 60);
+    const Vector2 ts = text.Measure(buf, m_Style.timerScale);
+    DrawLabel(text, buf, { a.x - ts.x * 0.5f, a.y }, m_Style.timerScale);
+
+    swprintf_s(buf, L"撃破 %u", info.kills);
+    const Vector2 ks = text.Measure(buf, m_Style.killScale);
+    DrawLabel(text, buf, { a.x - ks.x * 0.5f, a.y + ts.y }, m_Style.killScale);
+}
+
+// ============================================================
+// 魔法の欄
+//   杖の出力（集約後の spells → areas の順）を 1 マスずつ並べる。
+//   冷却の残りは上から暗く被せ、MP が足りない物は青く沈める。
+//   施法を止めている間は欄ごと暗くする
+// ============================================================
+void HUD::DrawSpellBar(SpriteRenderer& sprite,
+    const WandComponent& wand, const ManaComponent& mp)
+{
+    struct Slot { ItemID id; float timer; float interval; float cost; };
+    std::vector<Slot> slots;
+    for (const auto& s : wand.spells)
+        slots.push_back({ s.id, s.castTimer, s.castInterval, s.manaCost });
+    for (const auto& a : wand.areas)
+        slots.push_back({ a.id, a.castTimer, a.castInterval, a.manaCost });
+    if (slots.empty()) return;
+
+    const float size = m_Style.slotSize;
+    const float gap = m_Style.slotGap;
+    const float totalW = size * (float)slots.size() + gap * (float)(slots.size() - 1);
+    const Vector2 a = m_Style.spellBar.Resolve(m_ScreenW, m_ScreenH);
+    const float left = a.x - totalW * 0.5f;
+    const float top = a.y - size;
+    const float inset = size * 0.12f;
+
+    float x = left;
+    for (const auto& sl : slots)
+    {
+        const ItemCommon* c = ItemDatabase::GetCommon(sl.id);
+        const Vector4 col = c ? c->color : Vector4(1, 1, 1, 1);
+
+        sprite.Draw(m_WhiteTex, { x, top }, { size, size }, m_Style.slotBgColor);
+
+        const Vector2 ip = { x + inset, top + inset };
+        const Vector2 is = { size - inset * 2.0f, size - inset * 2.0f };
+        auto icon = m_IconLookup ? m_IconLookup(sl.id) : nullptr;
+        if (icon) sprite.Draw(icon, ip, is);
+        else      sprite.Draw(m_WhiteTex, ip, is, col);
+
+        // 冷却の残り（castTimer は castInterval から 0 へ減る）
+        const float cd = (sl.interval > 0.0f) ? Clamp01(sl.timer / sl.interval) : 0.0f;
+        if (cd > 0.0f)
+            sprite.Draw(m_WhiteTex, { x, top }, { size, size * cd }, m_Style.cooldownColor);
+
+        if (!mp.CanAfford(sl.cost))
+            sprite.Draw(m_WhiteTex, { x, top }, { size, size }, m_Style.noManaColor);
+
+        if (m_Style.drawBorder)
+            DrawBorder(sprite, { x, top }, { size, size });
+
+        x += size + gap;
+    }
+
+    if (wand.castingPaused)
+        sprite.Draw(m_WhiteTex, { left, top }, { totalW, size }, { 0.0f, 0.0f, 0.0f, 0.55f });
+
+}
+
+// ============================================================
+// 瀕死の赤い縁
+//   太さの違う枠を重ねて、外側ほど濃いぼかしに見せる（貼图を持たないため）。
+//   HP が低いほど濃く、脈打つように明滅させる
+// ============================================================
+void HUD::DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp)
+{
+    if (!m_Style.lowHpVignette || hp.max <= 0.0f || hp.current <= 0.0f) return;
+    if (m_Style.lowHpRatio <= 0.0f) return;
+
+    const float ratio = hp.current / hp.max;
+    if (ratio >= m_Style.lowHpRatio) return;
+
+    const float k = 1.0f - ratio / m_Style.lowHpRatio;   // 0（境目）〜 1（瀕死）
+    const float pulse = 0.7f + 0.3f * std::sin(m_Time * m_Style.vignettePulse);
+    const float thick = (std::min)(m_ScreenW, m_ScreenH) * m_Style.vignetteWidth;
+
+    // 外端の濃さ E に対して、薄い層を N 枚重ねる：1 枚の濃さ p = 1 - (1 - E)^(1/N)。
+    // 一番内側は 1 枚だけ（ほぼ透明）、外へ行くほど重なって E に近づく
+    constexpr int kLayers = 12;
+    const float edgeAlpha = Clamp01(m_Style.vignetteColor.w * (0.35f + 0.65f * k) * pulse);
+    Vector4 c = m_Style.vignetteColor;
+    c.w = 1.0f - std::pow(1.0f - edgeAlpha, 1.0f / (float)kLayers);
+
+    for (int i = 1; i <= kLayers; ++i)
+    {
+        const float w = thick * (float)i / (float)kLayers;
+        sprite.Draw(m_WhiteTex, { 0.0f, 0.0f }, { m_ScreenW, w }, c);
+        sprite.Draw(m_WhiteTex, { 0.0f, m_ScreenH - w }, { m_ScreenW, w }, c);
+        sprite.Draw(m_WhiteTex, { 0.0f, w }, { w, m_ScreenH - w * 2.0f }, c);
+        sprite.Draw(m_WhiteTex, { m_ScreenW - w, w }, { w, m_ScreenH - w * 2.0f }, c);
+    }
+}
+
+// ============================================================
+// 画面外の目印
+//   見えている物には出さない。外にある物は、画面の中心からその方向へ伸ばして
+//   内側の枠（markerMargin）に当たった所に「>」を出す。
+//   カメラの後ろの物は |w| で割って左右を保ち、必ず縁に出す
+// ============================================================
+void HUD::DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info)
+{
+    if (!m_Style.showMarkers || info.markers.empty()) return;
+
+    const Vector2 center = { m_ScreenW * 0.5f, m_ScreenH * 0.5f };
+    const float m = m_Style.markerMargin;
+    const float hx = center.x - m;
+    const float hy = center.y - m;
+    if (hx <= 0.0f || hy <= 0.0f) return;
+
+    for (const auto& mk : info.markers)
+    {
+        const Vector4 clip = Vector4::Transform(
+            Vector4(mk.position.x, mk.position.y, mk.position.z, 1.0f), info.viewProj);
+        const bool behind = clip.w <= 1.0e-4f;
+        const float w = (std::max)(std::fabs(clip.w), 1.0e-4f);
+        const Vector2 p = {
+            (clip.x / w * 0.5f + 0.5f) * m_ScreenW,
+            (0.5f - clip.y / w * 0.5f) * m_ScreenH
+        };
+
+        const bool inside = !behind && std::fabs(p.x - center.x) <= hx && std::fabs(p.y - center.y) <= hy;
+        if (inside) continue;
+
+        Vector2 d = p - center;
+        if (d.LengthSquared() < 1.0e-4f) d = { 0.0f, 1.0f };
+        const float s = (std::min)(hx / (std::max)(std::fabs(d.x), 1.0e-4f),
+                                   hy / (std::max)(std::fabs(d.y), 1.0e-4f));
+        const Vector2 tip = center + d * s;
+        const float ang = std::atan2(d.y, d.x);
+
+        // 「>」：先端から後ろへ 2 本の棒。回転の中心は先端
+        const float len = m_Style.markerSize;
+        const float thick = (std::max)(2.0f, len * 0.22f);
+        Vector4 col = mk.color;
+        col.w = 0.95f;
+        for (float spread : { 0.65f, -0.65f })
+        {
+            sprite.Draw(m_WhiteTex, { tip.x, tip.y - thick * 0.5f }, { len, thick },
+                col, ang + 3.14159265f + spread, tip);
+        }
+
+        // 後ろに小さな菱形（何の目印か色で分かるように）
+        const float gem = len * 0.55f;
+        const Vector2 gc = tip - Vector2(std::cos(ang), std::sin(ang)) * (len * 1.25f);
+        sprite.Draw(m_WhiteTex, { gc.x - gem * 0.5f, gc.y - gem * 0.5f }, { gem, gem },
+            col, 0.785398f, gc);
     }
 }
 
@@ -350,6 +530,36 @@ void HUD::DrawDebugUI()
     ImGui::ColorEdit4("Shadow", &m_Style.shadowColor.x);
 
     ImGui::Separator();
+    ImGui::Text("Run Info (time / kills)");
+    DragAnchor("Run Info", m_Style.runInfo);
+    ImGui::DragFloat("Timer Scale", &m_Style.timerScale, 0.01f, 0.05f, 3.0f);
+    ImGui::DragFloat("Kill Scale", &m_Style.killScale, 0.01f, 0.05f, 3.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Spell Bar");
+    ImGui::Checkbox("Show Spell Bar", &m_Style.showSpellBar);
+    DragAnchor("Spell Bar", m_Style.spellBar);
+    ImGui::DragFloat("Slot Size", &m_Style.slotSize, 0.5f, 8.0f, 300.0f);
+    ImGui::DragFloat("Slot Gap", &m_Style.slotGap, 0.25f, 0.0f, 100.0f);
+    ImGui::ColorEdit4("Slot Bg", &m_Style.slotBgColor.x);
+    ImGui::ColorEdit4("Cooldown", &m_Style.cooldownColor.x);
+    ImGui::ColorEdit4("No Mana", &m_Style.noManaColor.x);
+
+    ImGui::Separator();
+    ImGui::Text("Low HP Vignette");
+    ImGui::Checkbox("Enable Vignette", &m_Style.lowHpVignette);
+    ImGui::SliderFloat("Below HP Ratio", &m_Style.lowHpRatio, 0.0f, 1.0f);
+    ImGui::DragFloat("Edge Width", &m_Style.vignetteWidth, 0.005f, 0.0f, 0.5f);
+    ImGui::DragFloat("Pulse Speed", &m_Style.vignettePulse, 0.1f, 0.0f, 30.0f);
+    ImGui::ColorEdit4("Vignette", &m_Style.vignetteColor.x);
+
+    ImGui::Separator();
+    ImGui::Text("Off-screen Markers");
+    ImGui::Checkbox("Show Markers", &m_Style.showMarkers);
+    ImGui::DragFloat("Marker Size", &m_Style.markerSize, 0.25f, 2.0f, 200.0f);
+    ImGui::DragFloat("Marker Margin", &m_Style.markerMargin, 0.5f, 0.0f, 400.0f);
+
+    ImGui::Separator();
     ImGui::Text("Screen : %.0f x %.0f", m_ScreenW, m_ScreenH);
 }
 
@@ -393,6 +603,28 @@ bool HUD::SaveStyle(const char* path) const
     root["borderColor"] = ToJson(m_Style.borderColor);
     root["textColor"] = ToJson(m_Style.textColor);
     root["shadowColor"] = ToJson(m_Style.shadowColor);
+
+    root["runInfo"] = ToJson(m_Style.runInfo);
+    root["timerScale"] = m_Style.timerScale;
+    root["killScale"] = m_Style.killScale;
+
+    root["showSpellBar"] = m_Style.showSpellBar;
+    root["spellBar"] = ToJson(m_Style.spellBar);
+    root["slotSize"] = m_Style.slotSize;
+    root["slotGap"] = m_Style.slotGap;
+    root["slotBgColor"] = ToJson(m_Style.slotBgColor);
+    root["cooldownColor"] = ToJson(m_Style.cooldownColor);
+    root["noManaColor"] = ToJson(m_Style.noManaColor);
+
+    root["lowHpVignette"] = m_Style.lowHpVignette;
+    root["lowHpRatio"] = m_Style.lowHpRatio;
+    root["vignetteWidth"] = m_Style.vignetteWidth;
+    root["vignettePulse"] = m_Style.vignettePulse;
+    root["vignetteColor"] = ToJson(m_Style.vignetteColor);
+
+    root["showMarkers"] = m_Style.showMarkers;
+    root["markerSize"] = m_Style.markerSize;
+    root["markerMargin"] = m_Style.markerMargin;
 
     std::ofstream ofs(file);
     if (!ofs.is_open())
@@ -464,6 +696,28 @@ bool HUD::LoadStyle(const char* path)
     ReadVec4(root, "borderColor", m_Style.borderColor);
     ReadVec4(root, "textColor", m_Style.textColor);
     ReadVec4(root, "shadowColor", m_Style.shadowColor);
+
+    ReadAnchor(root, "runInfo", m_Style.runInfo);
+    ReadFloat(root, "timerScale", m_Style.timerScale);
+    ReadFloat(root, "killScale", m_Style.killScale);
+
+    ReadBool(root, "showSpellBar", m_Style.showSpellBar);
+    ReadAnchor(root, "spellBar", m_Style.spellBar);
+    ReadFloat(root, "slotSize", m_Style.slotSize);
+    ReadFloat(root, "slotGap", m_Style.slotGap);
+    ReadVec4(root, "slotBgColor", m_Style.slotBgColor);
+    ReadVec4(root, "cooldownColor", m_Style.cooldownColor);
+    ReadVec4(root, "noManaColor", m_Style.noManaColor);
+
+    ReadBool(root, "lowHpVignette", m_Style.lowHpVignette);
+    ReadFloat(root, "lowHpRatio", m_Style.lowHpRatio);
+    ReadFloat(root, "vignetteWidth", m_Style.vignetteWidth);
+    ReadFloat(root, "vignettePulse", m_Style.vignettePulse);
+    ReadVec4(root, "vignetteColor", m_Style.vignetteColor);
+
+    ReadBool(root, "showMarkers", m_Style.showMarkers);
+    ReadFloat(root, "markerSize", m_Style.markerSize);
+    ReadFloat(root, "markerMargin", m_Style.markerMargin);
 
     std::cout << "[OK] HUD style loaded: " << file << std::endl;
     return true;

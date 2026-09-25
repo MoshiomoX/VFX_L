@@ -68,6 +68,15 @@ namespace InputMap
             input.GetPadTrigger(XINPUT_GAMEPAD_A);
     }
 
+    // 一時停止のメニュー開閉（P、パッド Back。トリガー）
+    // ※Esc は Window.cpp でプログラム終了に使われているので割り当てない
+    inline bool GetPauseToggle()
+    {
+        auto& input = InputManager::Get();
+        return input.GetKeyTrigger('P') ||
+            input.GetPadTrigger(XINPUT_GAMEPAD_BACK);
+    }
+
     // バックパック開閉（Tab / I / E、パッド Start）
     // ※Trigger を使う。Press だと毎フレーム反転して点滅する
     inline bool GetBackpackToggle()

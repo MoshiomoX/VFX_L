@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Items/Frame3x3.h
 // 3x3 の設置枠：初期装備。
 //
@@ -12,6 +12,7 @@
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
+#include "ResourcePaths.h"
 
 inline FrameItemDef MakeFrame3x3()
 {
@@ -19,11 +20,13 @@ inline FrameItemDef MakeFrame3x3()
 
     def.common.id = ItemID::Frame3x3;
     def.common.name = "Frame 3x3";
+    def.common.displayName = L"拡張枠 3x3";
+    def.common.description = L"魔法を置ける場所を 3x3 マス広げる。魔法は枠の上にしか置けない。";
     def.common.category = ItemCategory::Frame;
     def.common.occupyCells = ItemShape::Rect(3, 3);
     def.common.influenceCells = {};                        // 枠は何にも影響しない
     def.common.color = { 0.55f, 0.75f, 0.95f, 1.0f };   // 淡い青
-    def.common.iconPath = nullptr;
+    def.common.iconPath = Res::Icon::Frame3x3;
 
     return def;
 }

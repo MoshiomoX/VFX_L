@@ -10,6 +10,7 @@
 // ============================================================
 #pragma once
 #include "SpellID.h"
+#include "UI/ItemSheetView.h"
 #include <memory>
 #include <vector>
 #include <SimpleMath.h>
@@ -33,24 +34,35 @@ public:
     void Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComponent& lv);
 
     // ---- レイアウト（すべて比率）----
-    float cardWidthRatio = 0.20f;   // カード幅（画面短辺基準）
-    float cardAspect = 1.45f;   // 高さ / 幅
-    float cardGapRatio = 0.04f;   // カード間の隙間
+    float cardWidthRatio = 0.30f;   // カード幅（画面短辺基準）。名前・説明・能力値が入る幅
+    float cardAspect = 1.50f;   // 高さ / 幅
+    float cardGapRatio = 0.035f;  // カード間の隙間
+
+    // カードの文字（幅 270px の時の大きさ。実際はカード幅に比例させる）
+    ItemSheetView::Style textStyle;
     float centerY = 0.50f;   // 画面高さに対する中心位置
 
     DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.72f };
-    DirectX::SimpleMath::Vector4 cardColor = { 0.16f, 0.14f, 0.20f, 0.96f };
-    DirectX::SimpleMath::Vector4 hoverColor = { 0.32f, 0.30f, 0.42f, 0.98f };
+    // 画面に出る時は明るく持ち上がるので（深い色が灰色に見える）、暗めの値にしておく
+    DirectX::SimpleMath::Vector4 cardColor = { 0.030f, 0.026f, 0.045f, 0.96f };
+    DirectX::SimpleMath::Vector4 hoverColor = { 0.075f, 0.068f, 0.110f, 0.98f };
 
     // 選択中の index（キーボード / パッド用）
     int GetCursor() const { return m_Cursor; }
+
+    // 区切り線などに使う無地の白（無ければブロックの貼图で代用）
+    void SetWhiteTexture(std::shared_ptr<Texture> tex) { m_WhiteTex = tex; }
 
 private:
     DirectX::SimpleMath::Vector2 CardPosition(int index, int total) const;
     DirectX::SimpleMath::Vector2 CardSize() const;
     std::shared_ptr<Texture> GetIcon(ItemID id) const;
+    void DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
+        const DirectX::SimpleMath::Vector2& areaPos,
+        const DirectX::SimpleMath::Vector2& areaSize) const;
 
     std::shared_ptr<Texture> m_BlockTex;
+    std::shared_ptr<Texture> m_WhiteTex;
     std::vector<std::pair<ItemID, std::shared_ptr<Texture>>> m_Icons;
 
     DirectX::SimpleMath::Vector2 m_ScreenSize = { 1600.0f, 900.0f };

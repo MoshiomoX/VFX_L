@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Items/MaxHealthUp.h
 // レベルアップの候補「生命の上限 +20」。
 //
@@ -10,6 +10,7 @@
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
+#include "ResourcePaths.h"
 
 inline StatItemDef MakeMaxHealthUp()
 {
@@ -17,15 +18,17 @@ inline StatItemDef MakeMaxHealthUp()
 
     def.common.id = ItemID::MaxHealthUp;
     def.common.name = "Max HP +20";
+    def.common.displayName = L"最大HP +20";
+    def.common.description = L"HP の上限を上げる。今の HP も同じだけ回復する。";
     def.common.category = ItemCategory::Stat;
     def.common.occupyCells = {};                         // 背包に置かないので形は無い
     def.common.influenceCells = {};
     def.common.color = { 0.85f, 0.25f, 0.25f, 1.0f };   // HUD の hpColor
-    def.common.iconPath = nullptr;
+    def.common.iconPath = Res::Icon::MaxHealthUp;
 
     def.kind = StatKind::MaxHealth;
     def.amount = 20.0f;
-    def.cardLabel = L"MAX HP";
+    def.cardLabel = L"最大HP";
 
     return def;
 }

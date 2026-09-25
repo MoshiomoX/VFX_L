@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // InteractableComponent.h
 // 近づいて F（パッド B）で使う物（純データ）。報酬の箱など。
 //
@@ -18,7 +18,7 @@ struct InteractableComponent
 {
     InteractKind kind = InteractKind::RewardChoice;
     float radius = 2.2f;                    // 玩家の中心（足元）からこの水平距離で使える
-    const wchar_t* prompt = L"[F] Open";   // 画面下に出す案内
+    const wchar_t* prompt = L"[F] 開ける";   // 画面下に出す案内
 
     // ---- 見た目の動き ----
     DirectX::SimpleMath::Vector3 basePos;   // 置いた位置（地面）。浮遊はこの上

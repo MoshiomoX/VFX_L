@@ -7,6 +7,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Player/LevelComponent.h"
 #include "Item/ItemDatabase.h"
+#include "Item/ItemInfo.h"
 #include "UI/ShapeSprite.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
@@ -17,6 +18,19 @@
 
 using namespace DirectX::SimpleMath;
 
+namespace
+{
+    // 道具の色を白へ寄せる（暗い色でも文字として読めるように）
+    Vector4 Brighten(Vector4 c, float t)
+    {
+        c.x += (1.0f - c.x) * t;
+        c.y += (1.0f - c.y) * t;
+        c.z += (1.0f - c.z) * t;
+        c.w = 1.0f;
+        return c;
+    }
+}
+
 void LevelUpUI::Initialize(std::shared_ptr<Texture> blockTex)
 {
     m_BlockTex = blockTex;
@@ -26,14 +40,20 @@ void LevelUpUI::LoadIcons()
 {
     m_Icons.clear();
 
-    for (ItemID id : ItemDatabase::GetAllIDs())
-    {
-        const ItemCommon* c = ItemDatabase::GetCommon(id);
-        if (!c || !c->iconPath) continue;
+    // 能力値（生命・魔力の上限）も三択に出るので、両方の一覧から読む
+    auto load = [&](const std::vector<ItemID>& ids)
+        {
+            for (ItemID id : ids)
+            {
+                const ItemCommon* c = ItemDatabase::GetCommon(id);
+                if (!c || !c->iconPath) continue;
 
-        auto tex = ResourceManager::Get().LoadTexture(c->iconPath);
-        if (tex) m_Icons.push_back({ id, tex });
-    }
+                auto tex = ResourceManager::Get().LoadTexture(c->iconPath);
+                if (tex) m_Icons.push_back({ id, tex });
+            }
+        };
+    load(ItemDatabase::GetAllIDs());
+    load(ItemDatabase::GetLevelUpOnlyIDs());
 }
 
 std::shared_ptr<Texture> LevelUpUI::GetIcon(ItemID id) const
@@ -178,7 +198,8 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
 
     // ---- 背景を暗くする ----
     // 戦闘画面が明るいままだとカードが読めない。
-    sprite.Draw(m_BlockTex, { 0.0f, 0.0f }, m_ScreenSize, dimColor);
+    const auto& flat = m_WhiteTex ? m_WhiteTex : m_BlockTex;   // 暗幕とカードの地は無地（文字を読みやすく）
+    sprite.Draw(flat, { 0.0f, 0.0f }, m_ScreenSize, dimColor);
 
     const Vector2 cardSize = CardSize();
 
@@ -202,96 +223,126 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
             edgeCol);
 
         // ---- カード本体 ----
-        sprite.Draw(m_BlockTex, pos, cardSize,
+        sprite.Draw(flat, pos, cardSize,
             selected ? hoverColor : cardColor);
 
-        // ---- アイコン（無ければ色の四角）----
-        const float iconSize = m_CardW * 0.55f;
-        const Vector2 iconPos = {
-            pos.x + (m_CardW - iconSize) * 0.5f,
-            pos.y + m_CardH * 0.12f
-        };
+        // ---- 中身：種別 → 名前 → 形（能力値は「+20」）→ 説明・特性・能力値 ----
+        // 文字の大きさはカード幅に比例させる（基準は幅 270px の時の ItemSheetView::Style）
+        const ItemInfo::Sheet sheet = ItemInfo::Describe(id);
+        const ItemSheetView::Style st = textStyle.Scaled(m_CardW / 270.0f);
+        const float pad = m_CardW * 0.07f;
+        const float inner = m_CardW - pad * 2.0f;
+        float y = pos.y + pad;
 
-        auto icon = GetIcon(id);
-        sprite.Draw(icon ? icon : m_BlockTex, iconPos, { iconSize, iconSize },
-            icon ? Vector4(1, 1, 1, 1) : c->color);
+        text.Draw(sheet.category, { pos.x + pad, y }, Brighten(c->color, 0.35f), st.smallScale);
+        y += text.GetLineHeight(st.smallScale);
 
-        // ---- 能力値のカード: 形の代わりに文字（色の四角の上に「+20」、下に「MAX HP」）----
-        // 文字はスプライトの後にまとめて描かれるので、四角の上に乗る
+        // 名前は 1 行に収まるまで縮める
+        float titleScale = st.titleScale * 1.2f;
+        const float titleW = text.Measure(sheet.title, titleScale).x;
+        if (titleW > inner && titleW > 0.0f) titleScale *= inner / titleW;
+        text.Draw(sheet.title, { pos.x + pad, y }, { 1, 1, 1, 1 }, titleScale);
+        y += text.GetLineHeight(titleScale) + st.sectionGap;
+
+        // ---- 形のプレビュー（アイコンがあれば左に並べる）----
+        const float previewH = m_CardH * 0.22f;
+        Vector2 areaPos = { pos.x + pad, y };
+        Vector2 areaSize = { inner, previewH };
+
+        if (auto icon = GetIcon(id))
+        {
+            const float s = previewH * 0.9f;
+            sprite.Draw(icon, { areaPos.x, y + (previewH - s) * 0.5f }, { s, s });
+            areaPos.x += s + pad * 0.5f;
+            areaSize.x -= s + pad * 0.5f;
+        }
+
         if (const StatItemDef* stat = ItemDatabase::GetStat(id))
         {
+            // 能力値のカード：色の四角に「+20」
+            const float sq = previewH * 0.9f;
+            const Vector2 sqPos = { areaPos.x + (areaSize.x - sq) * 0.5f, y + (previewH - sq) * 0.5f };
+            sprite.Draw(m_BlockTex, sqPos, { sq, sq }, c->color);
+
             wchar_t amount[16];
             swprintf_s(amount, L"+%d", (int)stat->amount);
-
-            // 四角の幅の 7 割に収まる大きさ
             const Vector2 a1 = text.Measure(amount, 1.0f);
-            const float s1 = (a1.x > 0.0f) ? (std::min)(1.2f, iconSize * 0.7f / a1.x) : 1.0f;
+            const float s1 = (a1.x > 0.0f) ? (std::min)(1.2f, sq * 0.7f / a1.x) : 1.0f;
             const Vector2 a = text.Measure(amount, s1);
-            text.Draw(amount,
-                { iconPos.x + (iconSize - a.x) * 0.5f, iconPos.y + (iconSize - a.y) * 0.5f },
+            text.Draw(amount, { sqPos.x + (sq - a.x) * 0.5f, sqPos.y + (sq - a.y) * 0.5f },
                 { 1, 1, 1, 1 }, s1);
-
-            const std::wstring label = stat->cardLabel ? stat->cardLabel : L"";
-            const Vector2 l1 = text.Measure(label, 1.0f);
-            const float s2 = (l1.x > 0.0f) ? (std::min)(0.6f, m_CardW * 0.8f / l1.x) : 0.6f;
-            const Vector2 l = text.Measure(label, s2);
-            text.Draw(label,
-                { pos.x + (m_CardW - l.x) * 0.5f, pos.y + m_CardH * 0.74f - l.y * 0.5f },
-                { 1, 1, 1, 1 }, s2);
-            continue;
         }
-
-        // ---- 形状のプレビュー ----
-        // どんな形のブロックが手に入るのかを、その場で見せる。
-        // 形そのものが性能なので、名前だけでは判断できない。
-        // 占位格 + 影響格の外接矩形の中心を (0.5, 0.74) に合わせる。
-        // 異形はアンカーが真ん中とは限らないので、アンカー基準だと片寄る。
-        // 大きい形は枠（幅 8 割 × 高さ 3.4 割）に収まるまでマスを縮める
-        int minR = 0, maxR = 0, minC = 0, maxC = 0;
-        bool first = true;
-        auto grow = [&](const std::vector<CellOffset>& cells)
-            {
-                for (const auto& o : cells)
-                {
-                    if (first) { minR = maxR = o.row; minC = maxC = o.col; first = false; continue; }
-                    minR = (std::min)(minR, o.row); maxR = (std::max)(maxR, o.row);
-                    minC = (std::min)(minC, o.col); maxC = (std::max)(maxC, o.col);
-                }
-            };
-        grow(c->occupyCells);
-        grow(c->influenceCells);
-
-        const int spanC = maxC - minC + 1;
-        const int spanR = maxR - minR + 1;
-        const float gapRatio = 0.12f;
-        float miniCell = m_CardW * 0.10f;
-        auto extent = [&](int n) { return miniCell * ((float)n + gapRatio * (float)(n - 1)); };
-        const float fit = (std::min)({ 1.0f, m_CardW * 0.80f / extent(spanC), m_CardH * 0.34f / extent(spanR) });
-        miniCell *= fit;
-
-        const float miniGap = miniCell * gapRatio;
-        const float miniPitch = miniCell + miniGap;
-
-        // アンカーのマスの左上
-        const Vector2 miniOrigin = {
-            pos.x + m_CardW * 0.5f - extent(spanC) * 0.5f - (float)minC * miniPitch,
-            pos.y + m_CardH * 0.74f - extent(spanR) * 0.5f - (float)minR * miniPitch
-        };
-
-        // 占位格（隙間も塗って 1 枚に）
-        ShapeSprite::DrawConnected(sprite, m_BlockTex, c->color, c->occupyCells,
-            miniOrigin, miniCell, miniGap);
-
-        // 影響格（薄く。範囲なので 1 マスずつ）
-        Vector4 inflCol = c->color;
-        inflCol.w = 0.30f;
-        for (const auto& off : c->influenceCells)
+        else
         {
-            const Vector2 cp = {
-                miniOrigin.x + off.col * miniPitch,
-                miniOrigin.y + off.row * miniPitch
-            };
-            sprite.Draw(m_BlockTex, cp, { miniCell, miniCell }, inflCol);
+            DrawShapePreview(sprite, *c, areaPos, areaSize);
         }
+        y += previewH + st.sectionGap;
+
+        // ---- 説明・特性・能力値（入り切らなければ縮める）----
+        const float avail = pos.y + m_CardH - pad - y;
+        const float need = ItemSheetView::DrawBody(nullptr, nullptr, text, sheet, { 0, 0 }, inner, st, false);
+        const ItemSheetView::Style body = (need > avail && need > 0.0f)
+            ? st.Scaled((std::max)(0.6f, avail / need)) : st;
+        ItemSheetView::DrawBody(&sprite, m_WhiteTex ? m_WhiteTex : m_BlockTex, text, sheet, { pos.x + pad, y }, inner, body, true);
+    }
+}
+
+// ============================================================
+// 形のプレビュー
+// どんな形のブロックが手に入るのかを、その場で見せる。
+// 形そのものが性能なので、名前だけでは判断できない。
+// 占位格 + 影響格の外接矩形を枠（areaPos, areaSize）の中央に合わせ、
+// 大きい形は収まるまでマスを縮める。
+// 異形はアンカーが真ん中とは限らないので、アンカー基準だと片寄る
+// ============================================================
+void LevelUpUI::DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
+    const Vector2& areaPos, const Vector2& areaSize) const
+{
+    int minR = 0, maxR = 0, minC = 0, maxC = 0;
+    bool first = true;
+    auto grow = [&](const std::vector<CellOffset>& cells)
+        {
+            for (const auto& o : cells)
+            {
+                if (first) { minR = maxR = o.row; minC = maxC = o.col; first = false; continue; }
+                minR = (std::min)(minR, o.row); maxR = (std::max)(maxR, o.row);
+                minC = (std::min)(minC, o.col); maxC = (std::max)(maxC, o.col);
+            }
+        };
+    grow(c.occupyCells);
+    grow(c.influenceCells);
+    if (first) return;
+
+    const int spanC = maxC - minC + 1;
+    const int spanR = maxR - minR + 1;
+    const float gapRatio = 0.12f;
+    float miniCell = m_CardW * 0.10f;
+    auto extent = [&](int n) { return miniCell * ((float)n + gapRatio * (float)(n - 1)); };
+    const float fit = (std::min)({ 1.0f, areaSize.x * 0.9f / extent(spanC), areaSize.y * 0.9f / extent(spanR) });
+    miniCell *= fit;
+
+    const float miniGap = miniCell * gapRatio;
+    const float miniPitch = miniCell + miniGap;
+
+    // アンカーのマスの左上
+    const Vector2 miniOrigin = {
+        areaPos.x + areaSize.x * 0.5f - extent(spanC) * 0.5f - (float)minC * miniPitch,
+        areaPos.y + areaSize.y * 0.5f - extent(spanR) * 0.5f - (float)minR * miniPitch
+    };
+
+    // 占位格（隙間も塗って 1 枚に）
+    ShapeSprite::DrawConnected(sprite, m_BlockTex, c.color, c.occupyCells,
+        miniOrigin, miniCell, miniGap);
+
+    // 影響格（薄く。範囲なので 1 マスずつ）
+    Vector4 inflCol = c.color;
+    inflCol.w = 0.30f;
+    for (const auto& off : c.influenceCells)
+    {
+        const Vector2 cp = {
+            miniOrigin.x + off.col * miniPitch,
+            miniOrigin.y + off.row * miniPitch
+        };
+        sprite.Draw(m_BlockTex, cp, { miniCell, miniCell }, inflCol);
     }
 }

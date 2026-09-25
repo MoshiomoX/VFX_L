@@ -53,6 +53,13 @@ public:
     void ClearLastEvicted() { m_LastEvicted = 0; }
     bool IsDragging() const { return m_Drag && m_Drag->IsActive(); }
 
+    // 道具のアイコン（無ければ null）。HUD の魔法の欄も同じ物を使う
+    std::shared_ptr<Texture> FindIcon(ItemID id) const { return GetIcon(id); }
+
+    // ---- マウスが乗っている物（tooltip 用。掴んでいる間は -1）----
+    int GetHoverItemIndex() const { return IsDragging() ? -1 : m_HoverItemIndex; }
+    int GetHoverFrameIndex() const { return IsDragging() ? -1 : m_HoverFrameIndex; }
+
     // ---- 配置位置 ----
     enum class Anchor { TopLeft, TopRight, Center, BottomLeft, BottomRight };
     Anchor anchor = Anchor::TopLeft;

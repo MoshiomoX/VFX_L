@@ -110,8 +110,13 @@ struct AreaModifier
 struct ItemCommon
 {
     ItemID       id = ItemID::Fireball;
-    const char* name = "";
+    const char* name = "";               // 内部名（ItemData の json 名・ログ・ImGui 用）
     ItemCategory category = ItemCategory::Projectile;
+
+    // 画面に出す名前と一言の説明（UI 用）。数値は ItemInfo が定義とプロファイルから自動で並べるので、
+    // ここには役割だけ書く。空なら name を出す
+    const wchar_t* displayName = L"";
+    const wchar_t* description = L"";
 
     // 形状: 占位格（このアイテムが物理的に占めるマス）
     // 1マスだけなら {{0,0}}。異形はここに複数マスを列挙する

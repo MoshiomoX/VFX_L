@@ -1,6 +1,8 @@
 ﻿// ============================================================
 // HUD.h
-// 常時表示の HUD（経験値バー最上段、HP / MP バー左上）
+// 常時表示の HUD
+//   経験値バー（最上段）、HP / MP バー（左上）、経過時間と撃破数（上の中央）、
+//   魔法の欄（下の中央。冷却と MP 不足）、瀕死の赤い縁、画面外の目印（箱・精英）
 //
 // UIManager には入れない（モーダルではなく、入力も取らない）。
 // 描画は SpriteRenderer / TextRenderer に相乗りし、
@@ -17,9 +19,13 @@
 // ============================================================
 #pragma once
 #include <d3d11.h>
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 #include <SimpleMath.h>
+#include "SpellID.h"
 
 class SpriteRenderer;
 class TextRenderer;
@@ -27,6 +33,30 @@ class Texture;
 struct HealthComponent;
 struct ManaComponent;
 struct LevelComponent;
+struct WandComponent;
+
+// ============================================================
+// 画面外の目印を出したい物（世界座標）。シーンが毎フレーム積む
+// ============================================================
+struct HUDMarker
+{
+    DirectX::SimpleMath::Vector3 position;
+    DirectX::SimpleMath::Vector4 color = { 1, 1, 1, 1 };
+};
+
+// ============================================================
+// HUD が毎フレーム受け取る、コンポーネント以外の情報
+// ============================================================
+struct HUDFrameInfo
+{
+    float    runTime = 0.0f;       // 経過時間（止まっている間は進まない物）
+    uint32_t kills = 0;            // 撃破数（GPU counter の累計）
+    const WandComponent* wand = nullptr;   // 魔法の欄。null なら出さない
+
+    // 画面外の目印。viewProj は世界 → クリップ（SimpleMath の行ベクトル順 view * proj）
+    DirectX::SimpleMath::Matrix viewProj;
+    std::vector<HUDMarker> markers;
+};
 
 // ============================================================
 // 画面上の一点。pos = anchor * 画面サイズ + offset
@@ -93,6 +123,32 @@ struct HUDStyle
     DirectX::SimpleMath::Vector4 borderColor = { 0.00f, 0.00f, 0.00f, 0.90f };
     DirectX::SimpleMath::Vector4 textColor = { 1.00f, 1.00f, 1.00f, 1.0f };
     DirectX::SimpleMath::Vector4 shadowColor = { 0.00f, 0.00f, 0.00f, 0.80f };
+
+    // ---- 経過時間と撃破数（アンカーは文字の上端の中央）----
+    HUDAnchor runInfo = { { 0.5f, 0.0f }, { 0.0f, 16.0f } };
+    float timerScale = 0.75f;
+    float killScale = 0.42f;
+
+    // ---- 魔法の欄（アンカーは欄の下端の中央）----
+    bool  showSpellBar = true;
+    HUDAnchor spellBar = { { 0.5f, 1.0f }, { 0.0f, -20.0f } };
+    float slotSize = 46.0f;
+    float slotGap = 6.0f;
+    DirectX::SimpleMath::Vector4 slotBgColor = { 0.08f, 0.08f, 0.10f, 0.85f };
+    DirectX::SimpleMath::Vector4 cooldownColor = { 0.00f, 0.00f, 0.00f, 0.60f };
+    DirectX::SimpleMath::Vector4 noManaColor = { 0.10f, 0.15f, 0.45f, 0.65f };   // MP が足りない時に被せる
+
+    // ---- 瀕死の赤い縁（HP が lowHpRatio を切ったら出す。低いほど濃い）----
+    bool  lowHpVignette = true;
+    float lowHpRatio = 0.30f;
+    float vignetteWidth = 0.10f;    // 画面短辺に対する縁の太さ
+    float vignettePulse = 5.0f;     // 明滅の速さ（rad/s）
+    DirectX::SimpleMath::Vector4 vignetteColor = { 0.85f, 0.05f, 0.05f, 0.55f };
+
+    // ---- 画面外の目印（画面の縁に、その方向を指す矢印）----
+    bool  showMarkers = true;
+    float markerSize = 18.0f;
+    float markerMargin = 40.0f;     // 画面の縁からの距離
 };
 
 class HUD
@@ -111,7 +167,11 @@ public:
     // castingPaused: プレイヤーが施法を止めている時、MP バーの下に一行出す
     void Draw(SpriteRenderer& sprite, TextRenderer& text,
         const HealthComponent& hp, const ManaComponent& mp,
-        const LevelComponent& lv, bool castingPaused = false);
+        const LevelComponent& lv, bool castingPaused,
+        const HUDFrameInfo& info);
+
+    // 魔法の欄のアイコン（無ければ道具の色の四角）。GameUI が背包と同じ物を渡す
+    void SetIconLookup(std::function<std::shared_ptr<Texture>(ItemID)> f) { m_IconLookup = std::move(f); }
 
     // ---- 調整用（ImGui）----
     void DrawDebugUI();
@@ -157,6 +217,14 @@ private:
     HUDStyle m_Style;
 
     std::shared_ptr<Texture> m_WhiteTex;
+    std::function<std::shared_ptr<Texture>(ItemID)> m_IconLookup;
+    float m_Time = 0.0f;   // 明滅用（Update で進める）
+
+    void DrawRunInfo(TextRenderer& text, const HUDFrameInfo& info);
+    void DrawSpellBar(SpriteRenderer& sprite,
+        const WandComponent& wand, const ManaComponent& mp);
+    void DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp);
+    void DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info);
 
     BarTrail m_HpTrail;
     BarTrail m_MpTrail;

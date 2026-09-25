@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // ResultScene.cpp
 // ============================================================
 #include "Scene/ResultScene.h"
@@ -75,7 +75,7 @@ void ResultScene::BuildRows()
     const RunResult& r = g_LastRun;
     wchar_t buf[64];
 
-    m_Rows[0].label = L"Survived";
+    m_Rows[0].label = L"生存時間";
     if (r.valid)
     {
         const int total = (int)r.survivedSec;
@@ -84,15 +84,15 @@ void ResultScene::BuildRows()
     }
     else m_Rows[0].value = L"--:--";
 
-    m_Rows[1].label = L"Level";
+    m_Rows[1].label = L"到達レベル";
     if (r.valid) { swprintf_s(buf, L"%d", r.level); m_Rows[1].value = buf; }
     else m_Rows[1].value = L"--";
 
-    m_Rows[2].label = L"Kills";
+    m_Rows[2].label = L"撃破数";
     if (r.valid) { swprintf_s(buf, L"%u", r.kills); m_Rows[2].value = buf; }
     else m_Rows[2].value = L"--";
 
-    m_Rows[3].label = L"Exp Gained";
+    m_Rows[3].label = L"獲得経験値";
     if (r.valid) { swprintf_s(buf, L"%d", (int)r.expGained); m_Rows[3].value = buf; }
     else m_Rows[3].value = L"--";
 }
@@ -165,7 +165,7 @@ void ResultScene::Render(Renderer& renderer)
         m_Sprite.Draw(m_WhiteTex, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH }, { 0.02f, 0.02f, 0.05f, 0.8f });
 
     // ---- 見出し ----
-    const std::wstring header = L"RESULT";
+    const std::wstring header = L"リザルト";
     const Vector2 headerSize = m_Text.Measure(header, kHeaderScale);
     const Vector2 headerPos = { (m_ScreenW - headerSize.x) * 0.5f, m_ScreenH * 0.14f };
     m_Text.Draw(header, headerPos + Vector2(3.0f, 3.0f), { 0.0f, 0.0f, 0.0f, 0.8f }, kHeaderScale);
@@ -201,7 +201,7 @@ void ResultScene::Render(Renderer& renderer)
     if (m_Time >= kAllShown)
     {
         const float blink = 0.55f + 0.45f * std::sin(m_Time * 3.0f);
-        const std::wstring prompt = m_Leaving ? L"Loading..." : L"Enter: Retry     BackSpace: Title";
+        const std::wstring prompt = m_Leaving ? L"読み込み中..." : L"Enter: もう一度     BackSpace: タイトルへ";
         const Vector2 ps = m_Text.Measure(prompt, kPromptScale);
         m_Text.Draw(prompt, { (m_ScreenW - ps.x) * 0.5f, m_ScreenH * 0.8f },
             { 1.0f, 1.0f, 1.0f, m_Leaving ? 1.0f : blink }, kPromptScale);

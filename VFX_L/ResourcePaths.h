@@ -212,6 +212,22 @@ namespace Res
     }
 
     // ========================================================
+    // 道具のアイコン（136px。出典と許可は Assets/Texture/UI/Icons/README.txt）
+    // ========================================================
+    namespace Icon
+    {
+        inline constexpr const wchar_t* Fireball = L"Assets/Texture/UI/Icons/Fireball.png";
+        inline constexpr const wchar_t* ArcBolt = L"Assets/Texture/UI/Icons/ArcBolt.png";
+        inline constexpr const wchar_t* HomingBolt = L"Assets/Texture/UI/Icons/HomingBolt.png";
+        inline constexpr const wchar_t* Meteor = L"Assets/Texture/UI/Icons/Meteor.png";
+        inline constexpr const wchar_t* SplitRune = L"Assets/Texture/UI/Icons/SplitRune.png";
+        inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
+        inline constexpr const wchar_t* Frame3x3 = L"Assets/Texture/UI/Icons/Frame3x3.png";
+        inline constexpr const wchar_t* MaxHealthUp = L"Assets/Texture/UI/Icons/MaxHealthUp.png";
+        inline constexpr const wchar_t* MaxManaUp = L"Assets/Texture/UI/Icons/MaxManaUp.png";
+    }
+
+    // ========================================================
     // フォント（wchar_t）
     // ========================================================
     namespace Fnt

@@ -29,6 +29,8 @@
 #include "UI/HUD.h"
 #include "UI/DragContext.h"
 #include "UI/SpellbookUI.h"
+#include "UI/ItemSheetView.h"
+#include "UI/PauseMenuUI.h"
 struct ID3D11Device;
 struct ID3D11DeviceContext;
 class Registry;
@@ -66,9 +68,37 @@ public:
     // モーダルが開いている間は出さない（HUD と同じ）
     void SetPrompt(const wchar_t* text) { m_Prompt = text; }
 
+    // 一時停止のメニューで選ばれた物（やり直す / タイトルへ）。取ったら None に戻る。
+    // 場面の切替はシーンが行う（GameUI は SceneManager を知らない）
+    PauseMenuUI::Action ConsumeMenuAction()
+    {
+        const auto a = m_MenuAction;
+        m_MenuAction = PauseMenuUI::Action::None;
+        return a;
+    }
+
+    // 死んでからの秒数。0 以上なら「力尽きた」の幕を出す（負で消す）。毎フレームシーンが入れる
+    void SetGameOver(float secondsSinceDeath) { m_GameOverTime = secondsSinceDeath; }
+
+    // HUD の経過時間・撃破数と、画面外の目印（箱・精英）。毎フレームシーンが入れ直す
+    void SetRunInfo(float runTime, uint32_t kills)
+    {
+        m_FrameInfo.runTime = runTime;
+        m_FrameInfo.kills = kills;
+    }
+    void SetMarkers(const DirectX::SimpleMath::Matrix& viewProj, std::vector<HUDMarker> markers)
+    {
+        m_FrameInfo.viewProj = viewProj;
+        m_FrameInfo.markers = std::move(markers);
+    }
+
 private:
     void UpdateStack(Registry& reg, Entity player, float dt);   // 開閉と入力の振り分け
     void DrawModals(Registry& reg, Entity player);    // スタック順に描く
+    void DrawOverlay(Registry& reg, Entity player);   // tooltip（本体の文字より上に出す別の組）
+
+    std::shared_ptr<Texture> m_WhiteTex;              // 無地の白（tooltip の箱・区切り線）
+    ItemSheetView::Style     m_TooltipStyle;          // 画面短辺 900px の時の大きさ
 
     SpriteRenderer m_Sprite;
     TextRenderer   m_Text;
@@ -84,4 +114,11 @@ private:
     float m_ScreenH = 1080.0f;
 
     const wchar_t* m_Prompt = nullptr;   // 画面下の操作案内（SetPrompt）
+    HUDFrameInfo   m_FrameInfo;          // SetRunInfo / SetMarkers。wand は Render で入れる
+
+    PauseMenuUI         m_Pause;
+    PauseMenuUI::Action m_MenuAction = PauseMenuUI::Action::None;
+    float               m_GameOverTime = -1.0f;   // SetGameOver
+
+    void DrawGameOver();
 };
