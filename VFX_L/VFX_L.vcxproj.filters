@@ -223,6 +223,9 @@
     <ClCompile Include="Particle\GPUParticleSystem.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
+    <ClCompile Include="Particle\GPUParticleEffectTrail.cpp">
+      <Filter>Particle</Filter>
+    </ClCompile>
     <ClCompile Include="Particle\GPUParticleEmitter.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
@@ -335,6 +338,9 @@
       <Filter>Graphics\Light</Filter>
     </ClCompile>
     <ClCompile Include="VFX_Editor\VFXPointLightEntry.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXTrailEntry.cpp">
       <Filter>VFX_Editor</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\WeaponSystem.cpp">
@@ -785,6 +791,9 @@
     <ClInclude Include="VFX_Editor\VFXPointLightEntry.h">
       <Filter>VFX_Editor</Filter>
     </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXTrailEntry.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
     <ClInclude Include="ECS\System\WeaponSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
@@ -1047,6 +1056,12 @@
     <FxCompile Include="Shader\Particle\ParticleTrailPS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Particle\EffectTrailCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\EffectTrailVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Particle\ParticleUpdateCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
@@ -1218,6 +1233,9 @@
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
     <None Include="Shader\Particle\Common\ParticleTrail.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EffectTrail.hlsli">
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
     <None Include="Shader\Particle\Common\EmitPoint.hlsli">

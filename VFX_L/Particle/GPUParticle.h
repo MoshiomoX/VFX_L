@@ -242,6 +242,7 @@ struct ParticleTrailStyle
     float   uvRepeat = 1.0f;         // 長さ方向に貼图を何回繰り返すか
     float   uvScroll = 0.0f;         // U/秒
     int     blend = 0;               // 0 additive / 1 alpha
+    bool    uvTile = false;          // 特効の帯（Trail entry）だけ：U = 道のり × uvRepeat（貼图が世界に固定される）
     std::shared_ptr<Texture> texture;   // null なら白
 
     ParticleTrailStyleGPU ToGPU() const
@@ -253,12 +254,69 @@ struct ParticleTrailStyle
         g.widthTail = widthTail;
         g.lifetime = lifetime;
         g.intensity = intensity;
-        g.flags = (inheritColor ? 1u : 0u) | (inheritSize ? 2u : 0u);
+        g.flags = (inheritColor ? 1u : 0u) | (inheritSize ? 2u : 0u) | (uvTile ? 4u : 0u);
         g.softEdge = softEdge;
         g.uvRepeat = uvRepeat;
         g.uvScroll = uvScroll;
         return g;
     }
+};
+
+// ============================================
+// 特効の位置で動く帯（VFX の Trail entry）
+//
+// 帯 1 本ごとに kEffectTrailPoints 点の環 + 状態 1 つを GPU 上に持つ。
+// CPU は毎フレーム帯ごとに錨（先頭の位置と命令）を 1 つ上げるだけで、
+// 点の追加・寿命切れ・帯への展開は EffectTrailCS / EffectTrailVS。
+// Shader/Particle/Common/EffectTrail.hlsli と一致させる
+// ============================================
+constexpr uint32_t kEffectTrailPoints = 64;   // EFFECT_TRAIL_POINTS
+
+enum class EffectTrailCommand : uint32_t
+{
+    None = 0,    // 切り離し済み：点を足さず、縮んで消えるだけ
+    Move = 1,    // 先頭が position にある
+    Reset = 2,   // position から新しい帯を始める
+};
+
+// CPU → GPU（dynamic、毎フレーム全帯分）。32B
+struct EffectTrailAnchorGPU
+{
+    Vector3  position;
+    float    minDistance;    // 先頭が最新の点からこれだけ離れたら点を足す
+    uint32_t styleSlot;      // style id + 1。0 = 使っていない枠
+    uint32_t command;        // EffectTrailCommand
+    uint32_t _pad[2];
+};
+
+// GPU 上だけで使う（大きさの照合用）
+struct EffectTrailPointGPU
+{
+    Vector3 position;
+    float   time;            // 点を置いた時刻
+    float   distance;        // 帯の始まりからの道のり（Tile UV 用）
+};
+
+struct EffectTrailStateGPU
+{
+    Vector3  headPos;
+    float    headTime;       // 先頭が最後に動いた時刻
+    float    headDist;
+    uint32_t ringHead;
+    uint32_t ringCount;
+    uint32_t validCount;
+    Vector3  tailPos;
+    float    tailTime;
+    float    tailDist;
+    float    _pad[3];
+};
+
+// EffectTrailCS の b0
+struct EffectTrailCB
+{
+    float    now;            // GlobalCB::totalTime と同じ時計
+    uint32_t trailCount;
+    uint32_t _pad[2];
 };
 
 // ParticleTrailVS / PS の b1
@@ -311,6 +369,10 @@ static_assert(sizeof(EdgeFilterCB) == 32, "EdgeFilterCB: HLSL側と不一致");
 static_assert(sizeof(ColorKey) == 32, "ColorKey: HLSL側と不一致");
 static_assert(sizeof(ParticleTrailStyleGPU) == 64, "TrailStyle: HLSL側と不一致");
 static_assert(sizeof(TrailDrawCB) == 16, "TrailDrawCB: HLSL側と不一致");
+static_assert(sizeof(EffectTrailAnchorGPU) == 32, "EffectTrailAnchor: HLSL側と不一致");
+static_assert(sizeof(EffectTrailPointGPU) == 20, "EffectTrailPoint: HLSL側と不一致");
+static_assert(sizeof(EffectTrailStateGPU) == 64, "EffectTrailState: HLSL側と不一致");
+static_assert(sizeof(EffectTrailCB) == 16, "EffectTrailCB: HLSL側と不一致");
 
 // StructuredBuffer は 16バイト境界を要求する
 static_assert(sizeof(GPUParticle) % 16 == 0, "GPUParticle: 16バイト境界違反");

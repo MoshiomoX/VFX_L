@@ -139,12 +139,31 @@ public:
     // 1 個ずつ帯を引く。位置の記録も帯への展開も GPU 上で完結する。
     // -1 は失敗（枠が無い / 帯の資源が作れていない）。
     // 登録を解除すると、その style の帯は生きている粒子の分も含めて描かれなくなる
+    // （特効の帯は自分の分の参照を持つので、消え終わるまで style が残る）
     // ============================================
     static const int MAX_TRAIL_STYLES = 32;
     int  RegisterTrailStyle(const ParticleTrailStyle& style);
     void UpdateTrailStyle(int id, const ParticleTrailStyle& style);
     void UnregisterTrailStyle(int id);
     bool IsTrailAvailable() const { return m_TrailReady; }
+
+    // ============================================
+    // 特効の位置で動く帯（VFX の Trail entry）
+    //
+    // 粒子の帯と違い、先頭は呼び出し側が毎フレーム渡す位置（特効の位置）。
+    // CPU が上げるのは帯ごとに位置 1 つだけで、点の追加（minDistance ごと）・
+    // 寿命切れ・帯への展開は GPU（EffectTrailCS / EffectTrailVS）。
+    // 見た目は粒子の帯と同じ style 表（RegisterTrailStyle の id）。
+    //
+    // Release した帯はその場に残り、style の lifetime を使い切ってから枠が空く
+    // （止めた時・瞬間移動した時に帯が急に消えない）。
+    // Create の戻り値 -1 = 枠が無い / style が無効
+    // ============================================
+    static const int MAX_EFFECT_TRAILS = 256;
+    int  CreateEffectTrail(int styleId, const DirectX::SimpleMath::Vector3& pos, float minDistance);
+    void MoveEffectTrail(int id, const DirectX::SimpleMath::Vector3& pos, float minDistance);
+    void ReleaseEffectTrail(int id);
+    int  GetEffectTrailCount() const;   // 使用中の枠（追従中 + 消えかけ）。ImGui 用
 
 private:
     void Update(float deltaTime, float totalTime,
@@ -179,6 +198,12 @@ private:
     void UploadTrailStyles(ID3D11DeviceContext* context);
     void DispatchTrail(ID3D11DeviceContext* context);   // UpdateCS の直後
     void RenderTrails(ID3D11DeviceContext* context);
+    void AddRefTrailStyle(int id);
+
+    // 特効の帯（GPUParticleEffectTrail.cpp）
+    bool CreateEffectTrailResources(ID3D11Device* device);
+    void DispatchEffectTrail(ID3D11DeviceContext* context);   // DispatchTrail の直後
+    void RenderEffectTrails(ID3D11DeviceContext* context);    // RenderTrails の直後
 
     void UploadExternalEmitters(ID3D11DeviceContext* context,
         const std::vector<GPUEmitter>& emitters,
@@ -293,9 +318,45 @@ private:
     {
         ParticleTrailStyle style;
         bool               used = false;
+        int                refs = 0;       // 登録者 1 + それを使う特効の帯の数
     };
     std::vector<TrailStyleSlot>       m_TrailStyles;        // id = 添字
     bool                              m_TrailStylesDirty = false;
+
+    // ---- 特効の帯 ----
+    // anchors : 帯ごとの錨（dynamic、毎フレーム全枠を上げる）
+    // states  : 帯ごとの状態（先頭・環の位置・今フレームの尾）。GPU だけが書く
+    // points  : 帯ごとに kEffectTrailPoints 点の環
+    // alive / args : 見えている帯の list と DrawInstancedIndirect の引数
+    bool                              m_EffectTrailReady = false;
+    std::shared_ptr<ComputeShader>    m_EffectTrailCS;
+    std::shared_ptr<VertexShader>     m_EffectTrailVS;     // PS は m_TrailPS を共用
+    ComPtr<ID3D11Buffer>              m_EffectAnchorBuffer;
+    ComPtr<ID3D11ShaderResourceView>  m_EffectAnchorSRV;
+    ComPtr<ID3D11Buffer>              m_EffectStateBuffer;
+    ComPtr<ID3D11UnorderedAccessView> m_EffectStateUAV;
+    ComPtr<ID3D11ShaderResourceView>  m_EffectStateSRV;
+    ComPtr<ID3D11Buffer>              m_EffectPointBuffer;
+    ComPtr<ID3D11UnorderedAccessView> m_EffectPointUAV;
+    ComPtr<ID3D11ShaderResourceView>  m_EffectPointSRV;
+    ComPtr<ID3D11Buffer>              m_EffectAliveBuffer;
+    ComPtr<ID3D11UnorderedAccessView> m_EffectAliveUAV;
+    ComPtr<ID3D11ShaderResourceView>  m_EffectAliveSRV;
+    ComPtr<ID3D11Buffer>              m_EffectArgsBuffer;
+    ComPtr<ID3D11UnorderedAccessView> m_EffectArgsUAV;
+    struct EffectTrailSlot
+    {
+        enum class State { Free, Attached, Fading };
+        State   state = State::Free;
+        int     styleId = -1;
+        DirectX::SimpleMath::Vector3 position = { 0, 0, 0 };
+        float   minDistance = 0.2f;
+        bool    reset = false;       // 次の upload で環を空にして position から始める
+        bool    moved = false;       // 今フレーム Move された
+        float   fadeEnd = 0.0f;      // Fading：この時刻を過ぎたら枠を返す
+    };
+    std::vector<EffectTrailSlot>      m_EffectTrails;       // id = 添字
+    bool                              m_EffectTrailDrawn = false;   // 今フレーム描く帯がある
 
     CameraBase* m_Camera = nullptr;
     std::shared_ptr<Texture> m_Texture;

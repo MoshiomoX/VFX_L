@@ -6,6 +6,7 @@
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "VFX_Editor/VFXMeshEntry.h"
 #include "VFX_Editor/VFXPointLightEntry.h"
+#include "VFX_Editor/VFXTrailEntry.h"
 #include "Particle/GPUParticleSystem.h"
 #include <algorithm>
 #include <iostream>
@@ -32,6 +33,8 @@ int VFXEffect::AddEntry(EntryType type, float startTime, float duration)
         entry = std::make_unique<VFXMeshEntry>(); break;
     case EntryType::Light:
         entry = std::make_unique<VFXPointLightEntry>(); break;
+    case EntryType::Trail:
+        entry = std::make_unique<VFXTrailEntry>(); break;
     default:
         return -1;
     }
@@ -122,6 +125,10 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         if (sweep.LengthSquared() > kMaxSweep * kMaxSweep)
             sweep = { 0, 0, 0 };
     }
+    // 帯（Trail entry）：前フレームと繋がない時は今の帯を切り離して新しく始める。
+    // 掃引の ON/OFF とは無関係に判定する
+    const bool jumped = !m_HasPrevOffset
+        || (m_WorldOffset - m_PrevWorldOffset).LengthSquared() > kMaxSweep * kMaxSweep;
     m_PrevWorldOffset = m_WorldOffset;
     m_HasPrevOffset = true;
 
@@ -174,6 +181,11 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         {
             // 点光源は PointLightManager（全体で 1 つ）へ。ctx を経由しない
             static_cast<VFXPointLightEntry*>(entry.get())->Submit(m_WorldOffset);
+        }
+        else if (entry->GetType() == EntryType::Trail)
+        {
+            // 先頭の位置だけ渡す。点の記録と描画は GPUParticleSystem（GPU）
+            static_cast<VFXTrailEntry*>(entry.get())->Submit(m_WorldOffset, jumped);
         }
     }
 

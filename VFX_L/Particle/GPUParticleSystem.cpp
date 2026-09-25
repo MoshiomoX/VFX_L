@@ -38,6 +38,8 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!CreateAliveListBuffer(device, maxParticles)) return false;
     if (!CreateCubeResources(device))        return false;
     CreateTrailResources(device);   // 失敗しても粒子は動く（帯が出ないだけ）
+    if (m_TrailReady)               // 特効の帯は style 表と TrailPS を共用する
+        CreateEffectTrailResources(device);
 
     // DispatchEmit が使うので、必ず初回発射より前に作る。
     //   ここを忘れると deadCount が null → 全スレッドが return して
@@ -608,6 +610,7 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime,
     DispatchEmit(context, requestedPlain, requestedPerSource);
     DispatchUpdate(context);
     DispatchTrail(context);   // 更新後の位置を帯の環へ記録する
+    DispatchEffectTrail(context);   // 特効の帯：今フレームの錨を環へ
 }
 
 void GPUParticleSystem::UploadExternalEmitters(ID3D11DeviceContext* context,
@@ -741,9 +744,11 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     m_UpdateCS->WriteBuffer(context, 0, &m_CachedGlobalCB);
     m_UpdateCS->WriteBuffer(context, 1, &dlcb);
 
-    // DrawIndirectArgs リセット（InstanceCount 累加方式）
-    UINT clearValues[4] = { 6, 0, 0, 0 };
-    context->ClearUnorderedAccessViewUint(m_DrawIndirectUAV.Get(), clearValues);
+    // DrawIndirectArgs リセット（InstanceCount 累加方式）。
+    // R32_UINT の UAV を ClearUnorderedAccessViewUint すると 4 要素とも Values[0] になる
+    // （InstanceCount まで 6 から数え始める）ので、丸ごと書く
+    const UINT drawArgs[4] = { 6, 0, 0, 0 };
+    context->UpdateSubresource(m_DrawIndirectBuffer.Get(), 0, nullptr, drawArgs, 0, 0);
 
     // 立方体側の args も毎フレーム戻す（5 uint なので Clear ではなく丸ごと書く）
     if (m_CubeModel && !m_CubeModel->GetSubMeshes().empty())
@@ -814,8 +819,9 @@ void GPUParticleSystem::Render()
     RenderStates::Get().Restore(context);
     m_RenderVS->UnbindSRVs(context);
 
-    // ---- 軌跡（帯）----
+    // ---- 軌跡（帯）：粒子の帯 → 特効の帯 ----
     RenderTrails(context);
+    RenderEffectTrails(context);
 
     // ---- 立方体（不透明、深度書き込みあり）----
     RenderCubes(context);
@@ -952,15 +958,15 @@ void GPUParticleSystem::ResetSystem()
     // リセット時の一度だけ読む（毎フレームではないので許容）
     m_CurrentDeadCount = m_DeadList.ReadDeadCount(m_Context);
 
-    // DrawIndirectArgs もリセット
-    UINT clearValues[4] = { 6, 0, 0, 0 };
-    m_Context->ClearUnorderedAccessViewUint(m_DrawIndirectUAV.Get(), clearValues);
+    // DrawIndirectArgs もリセット（Clear ではなく丸ごと書く。理由は DispatchUpdate）
+    const UINT drawArgs[4] = { 6, 0, 0, 0 };
+    m_Context->UpdateSubresource(m_DrawIndirectBuffer.Get(), 0, nullptr, drawArgs, 0, 0);
 
     // 帯の args も。粒子は全部 0 埋めしたので trailStyle / trailState も 0 に戻っている
     if (m_TrailReady)
     {
         const UINT trailArgs[4] = { 2 * (kTrailPoints + 1), 0, 0, 0 };
-        m_Context->ClearUnorderedAccessViewUint(m_TrailArgsUAV.Get(), trailArgs);
+        m_Context->UpdateSubresource(m_TrailArgsBuffer.Get(), 0, nullptr, trailArgs, 0, 0);
     }
 
     if (m_CubeModel && !m_CubeModel->GetSubMeshes().empty())
@@ -1145,10 +1151,17 @@ int GPUParticleSystem::RegisterTrailStyle(const ParticleTrailStyle& style)
         if (m_TrailStyles[i].used) continue;
         m_TrailStyles[i].style = style;
         m_TrailStyles[i].used = true;
+        m_TrailStyles[i].refs = 1;
         m_TrailStylesDirty = true;
         return i;
     }
     return -1;
+}
+
+void GPUParticleSystem::AddRefTrailStyle(int id)
+{
+    if (id < 0 || id >= (int)m_TrailStyles.size() || !m_TrailStyles[id].used) return;
+    ++m_TrailStyles[id].refs;
 }
 
 void GPUParticleSystem::UpdateTrailStyle(int id, const ParticleTrailStyle& style)
@@ -1165,7 +1178,9 @@ void GPUParticleSystem::UpdateTrailStyle(int id, const ParticleTrailStyle& style
 
 void GPUParticleSystem::UnregisterTrailStyle(int id)
 {
-    if (id < 0 || id >= (int)m_TrailStyles.size()) return;
+    if (id < 0 || id >= (int)m_TrailStyles.size() || !m_TrailStyles[id].used) return;
+    // 特効の帯がまだ参照していれば残す（消え終わった時に帯の側が放す）
+    if (--m_TrailStyles[id].refs > 0) return;
     m_TrailStyles[id] = TrailStyleSlot{};   // texture の参照もここで放す
 }
 
@@ -1192,9 +1207,10 @@ void GPUParticleSystem::DispatchTrail(ID3D11DeviceContext* context)
 {
     if (!m_TrailReady) return;
 
-    // args は毎フレーム戻す（style が 1 つも無い時も。前フレームの数で描かないため）
+    // args は毎フレーム戻す（style が 1 つも無い時も。前フレームの数で描かないため）。
+    // Clear だと InstanceCount まで頂点数になるので丸ごと書く（DispatchUpdate 参照）
     const UINT trailArgs[4] = { 2 * (kTrailPoints + 1), 0, 0, 0 };
-    context->ClearUnorderedAccessViewUint(m_TrailArgsUAV.Get(), trailArgs);
+    context->UpdateSubresource(m_TrailArgsBuffer.Get(), 0, nullptr, trailArgs, 0, 0);
 
     bool anyStyle = false;
     for (const auto& s : m_TrailStyles) if (s.used) { anyStyle = true; break; }
