@@ -8,6 +8,32 @@
 #define PARTICLE_COMMON_HLSLI
 
 // ============================================
+// renderMode (GPUParticle / GPUEmitter). Must match ParticleRenderMode
+// and kParticleMesh* in GPUParticle.h
+//   bits 0-7   : 0 = billboard / 1.. = mesh table index + 1 (0 = built-in cube)
+//   bit  8     : glow (additive, unlit, fades with colour alpha)
+//   bit  9     : face the velocity (forward axis follows it, rot3 unused)
+//   bits 10-11 : forward axis (0 = +X / 1 = +Y / 2 = +Z)
+// Mesh particles are sorted into buckets = table index * 2 + glow; every
+// bucket owns PARTICLE_MESH_BUCKET_CAP entries of the alive-mesh list
+// ============================================
+#define PARTICLE_MESH_SLOTS      16u
+#define PARTICLE_MESH_BUCKET_CAP 16384u
+
+uint ParticleMeshSlotPlusOne(int renderMode)
+{
+    return ((uint) renderMode) & 0xFFu;
+}
+
+uint ParticleMeshBucket(int renderMode)
+{
+    uint slot = ParticleMeshSlotPlusOne(renderMode) - 1u;
+    if (slot >= PARTICLE_MESH_SLOTS)
+        slot = 0u; // unknown table index: draw it as the cube
+    return slot * 2u + ((((uint) renderMode) >> 8u) & 1u);
+}
+
+// ============================================
 // GPU粒子構造体 (C++側のGPUParticleと一致)
 // 128バイト
 // ============================================
@@ -39,8 +65,8 @@ struct GPUParticle
     int colorKeyOffset;
     int colorKeyCount;
     int ownerID;
-    int renderMode; // 0 billboard / 1 cube
-    // cube only: 3-axis rotation in degrees. billboard keeps rotation / angularVel
+    int renderMode; // see PARTICLE_MESH_* above (0 billboard)
+    // mesh only: 3-axis rotation in degrees. billboard keeps rotation / angularVel
     float3 rot3;
     uint trailStyle; // 0 = no trail, else style index + 1 (see ParticleTrail.hlsli)
     float3 angVel3;
@@ -87,7 +113,7 @@ struct GPUEmitter
     // Mesh emit: model world matrix. row_major = same memory order as C++ Matrix
     row_major float4x4 world;
     int edgeMode; // 0 all vertices / 1 dissolve edge only
-    int renderMode; // 0 billboard / 1 cube
+    int renderMode; // copied to the particle (see PARTICLE_MESH_*)
     int trailStyle; // 0 = no trail, else style index + 1. copied to the particle
     int _padS2;
     // sweep emit: vector from this frame's emit position back to last

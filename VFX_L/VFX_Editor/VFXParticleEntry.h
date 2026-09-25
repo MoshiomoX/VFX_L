@@ -34,6 +34,8 @@ public:
         // 発射源の登録は実例ごと。複製先は OnPlay で自分の分を登録する
         copy->emitterData.shape.sourceId = -1;
         copy->emitterData.shape.sourceCount = 0;
+        // メッシュ粒子の模型も実例ごとに登録する（参照を数えるため）
+        copy->emitterData.meshSlot = 0;
         return copy;
     }
 	json ToJson() const override;
@@ -82,6 +84,16 @@ private:
     void ReleaseTrailStyle();
     GPUParticleSystem*     m_TrailOwner = nullptr;    // 登録先（解除用）
     int                    m_TrailStyleId = -1;
+
+    // メッシュ粒子の模型を登録 / 差し替え / 解除する（Render = Mesh で模型を選んだ時だけ）。
+    // 再生中は毎フレーム呼ぶ（Inspector で模型が変わったら取り直す）。
+    // OnStop では解除しない（生き残った粒子がまだその模型で描かれている）
+    void SyncMeshSlot(const VFXContext& ctx);
+    void ReleaseMeshSlot();
+
+    GPUParticleSystem*     m_MeshOwner = nullptr;     // 登録先（解除用）
+    int                    m_MeshSlot = -1;           // 登録した番号（-1 = 無し、0 = 読めず立方体）
+    std::string            m_MeshSlotPath;            // 登録した時の path
 
     std::shared_ptr<Model> m_SourceModel;
     GPUParticleSystem*     m_SourceOwner = nullptr;   // 登録先（解除用）

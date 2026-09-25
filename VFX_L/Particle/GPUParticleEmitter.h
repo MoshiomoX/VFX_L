@@ -1,5 +1,6 @@
 #pragma once
 #include "Particle/GPUParticle.h"
+#include <string>
 
 // ============================================
 // 発射器タイプ (CS側のswitch分岐と対応)
@@ -86,7 +87,13 @@ public:
     Vector2  angularVelRange = { 0, 0 };
 
     // --- 描き方 ---
-    int renderMode = 0;       // 0 = ビルボード / 1 = 立方体（Lambert、深度書き込みあり）
+    int renderMode = 0;       // 0 = ビルボード / 1 = メッシュ（既定は組み込みの立方体）
+    // メッシュの時だけ使う（ToGPU が ParticleRenderMode::Pack で GPUEmitter::renderMode へ詰める）
+    std::string meshPath;             // 模型のファイル（"" = 立方体）。json "mesh"
+    bool meshGlow = false;            // 発光（加算・光を受けない）。false = 不透明・光を受ける
+    bool meshFaceVelocity = false;    // 前方の軸を進行方向へ向ける（回転の範囲は使わない）
+    int  meshForwardAxis = 2;         // 模型の前方の軸（0 = +X / 1 = +Y / 2 = +Z）
+    int  meshSlot = 0;                // 実行時：GPUParticleSystem の模型表の番号（登録は entry 側。0 = 立方体）
 
     int atlasRows = 6;
     int atlasCols = 6;

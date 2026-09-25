@@ -55,7 +55,8 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.sourceId = -1;
     e.sourceCount = 0;
     e.edgeMode = 0;
-    e.renderMode = renderMode;
+    e.renderMode = (renderMode == 0) ? 0
+        : ParticleRenderMode::Pack(meshSlot, meshGlow, meshFaceVelocity, meshForwardAxis);
 
 
     // 形状パラメータをemitTypeに応じてパッキング

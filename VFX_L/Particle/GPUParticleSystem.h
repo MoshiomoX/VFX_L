@@ -3,6 +3,7 @@
 #include <wrl/client.h>
 #include <vector>
 #include <memory>
+#include <string>
 #include "Particle/GPUParticleEmitter.h"
 
 #include "Particle/ParticleDeadList.h"
@@ -165,6 +166,21 @@ public:
     void ReleaseEffectTrail(int id);
     int  GetEffectTrailCount() const;   // 使用中の枠（追従中 + 消えかけ）。ImGui 用
 
+    // ============================================
+    // メッシュ粒子の模型表（GPUParticleMesh.cpp）
+    //
+    // 0 番は組み込みの立方体（常にある）。1.. はファイルの模型を登録して使う。
+    // 模型は包囲ボックスで「最長辺 = 1、中心 = 原点」に揃えて描くので、
+    // 粒子の size がそのまま最長辺の長さ（m）になる（ファイルの単位は気にしない）。
+    // 同じ path は同じ番号を返し、参照を数える。
+    // Release で 0 になっても、生き残った粒子が別の模型で描かれないよう
+    // 数秒は番号を空けない（同じ path なら即座に戻れる）。
+    // 戻り値は番号（ParticleRenderMode::Pack に渡す）。"" は 0（立方体）、枠が無い・読めない時も 0
+    // ============================================
+    int  RegisterParticleMesh(const std::string& path);
+    void ReleaseParticleMesh(int slot);
+    int  GetParticleMeshCount() const;   // 使用中の番号（立方体を含む）。ImGui 用
+
 private:
     void Update(float deltaTime, float totalTime,
         const std::vector<GPUEmitter>& emitters,
@@ -192,8 +208,10 @@ private:
     void UploadSourceLayouts(ID3D11DeviceContext* context);
     bool CreateEdgeBuffers(int sourceId);
     void DispatchEdgeFilter(ID3D11DeviceContext* context, int sourceId);
-    bool CreateCubeResources(ID3D11Device* device);
-    void RenderCubes(ID3D11DeviceContext* context);
+    // メッシュ粒子（GPUParticleMesh.cpp）
+    bool CreateMeshResources(ID3D11Device* device);
+    bool BuildMeshSlot(int slot, std::shared_ptr<Model> model, const std::string& path);
+    void RenderMeshes(ID3D11DeviceContext* context);   // 光を受ける束 → 発光の束
     bool CreateTrailResources(ID3D11Device* device);
     void UploadTrailStyles(ID3D11DeviceContext* context);
     void DispatchTrail(ID3D11DeviceContext* context);   // UpdateCS の直後
@@ -242,18 +260,34 @@ private:
     std::shared_ptr<VertexShader>    m_RenderVS;
     std::shared_ptr<PixelShader>     m_RenderPS;
 
-    // ---- 立方体粒子（renderMode == 1）----
-    // aliveCube は UpdateCS が renderMode で振り分ける。描画は単位立方体の instancing
-    std::shared_ptr<VertexShader>     m_CubeVS;
-    std::shared_ptr<PixelShader>      m_CubePS;          // Shader/PS.hlsl（Lambert）
-    std::shared_ptr<Model>            m_CubeModel;       // PrimitiveBuilder::CreateBox
-    std::shared_ptr<Texture>          m_WhiteTexture;    // albedo は白（色は粒子から）
-    ComPtr<ID3D11Buffer>              m_AliveCubeBuffer;
-    ComPtr<ID3D11UnorderedAccessView> m_AliveCubeUAV;
-    ComPtr<ID3D11ShaderResourceView>  m_AliveCubeSRV;
-    ComPtr<ID3D11Buffer>              m_DrawIndirectCubeBuffer;   // 5 uint
-    ComPtr<ID3D11UnorderedAccessView> m_DrawIndirectCubeUAV;
+    // ---- メッシュ粒子（renderMode の下位 8bit != 0。GPUParticleMesh.cpp）----
+    // UpdateCS が束（番号 × 光を受ける / 発光）ごとに aliveMesh の区画へ振り分け、
+    // meshCounts[束] に数を積む。描画は束 × submesh ごとの DrawIndexedInstancedIndirect。
+    // 数は GPU 上で各 submesh の args へ写す（CPU は数を知らない）
+    std::shared_ptr<VertexShader>     m_MeshVS;          // ParticleMeshVS
+    std::shared_ptr<PixelShader>      m_MeshLitPS;       // Shader/PS.hlsl（Lambert）
+    std::shared_ptr<PixelShader>      m_MeshGlowPS;      // ParticleMeshGlowPS（加算）
+    std::shared_ptr<Texture>          m_WhiteTexture;    // 貼图の無い submesh の albedo（色は粒子から）
+    ComPtr<ID3D11Buffer>              m_AliveMeshBuffer; // kParticleMeshBuckets × kParticleMeshBucketCap
+    ComPtr<ID3D11UnorderedAccessView> m_AliveMeshUAV;
+    ComPtr<ID3D11ShaderResourceView>  m_AliveMeshSRV;
+    ComPtr<ID3D11Buffer>              m_MeshCountBuffer; // kParticleMeshBuckets 個の uint
+    ComPtr<ID3D11UnorderedAccessView> m_MeshCountUAV;
     LightBuffer                       m_Light;
+
+    struct MeshSlot
+    {
+        bool  used = false;
+        int   refs = 0;              // 0 番（立方体）は数えない
+        float freeAt = 0.0f;         // refs が 0 になった後、この時刻を過ぎたら別の模型に使える
+        std::string path;
+        std::shared_ptr<Model> model;
+        DirectX::SimpleMath::Vector3 center = { 0, 0, 0 };
+        float invExtent = 1.0f;
+        // submesh ごとの args（5 uint）。[0] = 光を受ける束 / [1] = 発光の束
+        std::vector<ComPtr<ID3D11Buffer>> args[2];
+    };
+    MeshSlot m_MeshSlots[kParticleMeshSlots];
 
     // ---- Mesh 発射源（id = 添字）----
     struct EmitSource

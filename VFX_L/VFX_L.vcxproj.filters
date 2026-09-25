@@ -226,6 +226,9 @@
     <ClCompile Include="Particle\GPUParticleEffectTrail.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
+    <ClCompile Include="Particle\GPUParticleMesh.cpp">
+      <Filter>Particle</Filter>
+    </ClCompile>
     <ClCompile Include="Particle\GPUParticleEmitter.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
@@ -1092,7 +1095,10 @@
     <FxCompile Include="Shader\Particle\EdgeFilterCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\Particle\ParticleCubeVS.hlsl">
+    <FxCompile Include="Shader\Particle\ParticleMeshVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Particle\ParticleMeshGlowPS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Particle\GPUParticlePS.hlsl">

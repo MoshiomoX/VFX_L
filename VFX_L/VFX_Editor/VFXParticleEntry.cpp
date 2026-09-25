@@ -12,6 +12,44 @@ VFXParticleEntry::~VFXParticleEntry()
 {
     UnregisterFileSource();
     ReleaseTrailStyle();
+    ReleaseMeshSlot();
+}
+
+// ============================================
+// メッシュ粒子の模型
+//   ビルボードと組み込みの立方体（path が空）は登録が要らない。
+//   同じ path・同じ登録先なら何もしない（読めなかった時に毎フレーム読み直さない）
+// ============================================
+void VFXParticleEntry::SyncMeshSlot(const VFXContext& ctx)
+{
+    if (emitterData.renderMode == 0 || emitterData.meshPath.empty())
+    {
+        ReleaseMeshSlot();
+        emitterData.meshSlot = 0;
+        return;
+    }
+    if (!ctx.particleSystem) return;
+
+    if (m_MeshSlot >= 0 && m_MeshOwner == ctx.particleSystem && m_MeshSlotPath == emitterData.meshPath)
+    {
+        emitterData.meshSlot = m_MeshSlot;
+        return;
+    }
+
+    ReleaseMeshSlot();
+    m_MeshOwner = ctx.particleSystem;
+    m_MeshSlotPath = emitterData.meshPath;
+    m_MeshSlot = ctx.particleSystem->RegisterParticleMesh(emitterData.meshPath);
+    emitterData.meshSlot = m_MeshSlot;
+}
+
+void VFXParticleEntry::ReleaseMeshSlot()
+{
+    if (m_MeshSlot > 0 && m_MeshOwner)
+        m_MeshOwner->ReleaseParticleMesh(m_MeshSlot);
+    m_MeshSlot = -1;
+    m_MeshOwner = nullptr;
+    m_MeshSlotPath.clear();
 }
 
 // ============================================
@@ -58,6 +96,7 @@ void VFXParticleEntry::OnPlay(const VFXContext& ctx)
         RegisterFileSource(ctx);
 
     SyncTrailStyle(ctx);   // 最初の発射より前に style を登録しておく
+    SyncMeshSlot(ctx);     // 模型も同じく
 }
 
 
@@ -72,6 +111,7 @@ void VFXParticleEntry::OnStop(const VFXContext& ctx)
 void VFXParticleEntry::OnUpdate(float dt, const VFXContext& ctx)
 {
     SyncTrailStyle(ctx);
+    SyncMeshSlot(ctx);
 
     // 粒子の更新は GPUParticleSystem がやる。
     // ここでは Inspector で発射源のモデルが変わった時の登録し直しだけ
@@ -237,10 +277,33 @@ void VFXParticleEntry::OnImGui()
     ImGui::DragFloat3("Direction", &e.direction.x, 0.01f);
     ImGui::Separator();
 
-    const char* renderNames[] = { "Billboard", "Cube" };
+    const char* renderNames[] = { "Billboard", "Mesh" };
     ImGui::Combo("Render", &e.renderMode, renderNames, IM_ARRAYSIZE(renderNames));
     if (e.renderMode == 1)
-        ImGui::TextDisabled("cube: opaque, lit, rotation ranges apply to all 3 axes");
+    {
+        // 模型は Mesh entry と同じフォルダから。(none) = 組み込みの立方体
+        VFXFileList::Combo("Mesh Model", "Assets/VFX/Mesh", { ".fbx", ".obj", ".gltf", ".glb" }, e.meshPath);
+        if (e.meshPath.empty())
+            ImGui::TextDisabled("(none) = built-in cube");
+
+        int shading = e.meshGlow ? 1 : 0;
+        const char* shadingNames[] = { "Lit (opaque)", "Glow (additive)" };
+        if (ImGui::Combo("Shading", &shading, shadingNames, IM_ARRAYSIZE(shadingNames)))
+            e.meshGlow = (shading == 1);
+
+        ImGui::Checkbox("Face Velocity", &e.meshFaceVelocity);
+        if (e.meshFaceVelocity)
+        {
+            const char* axisNames[] = { "+X", "+Y", "+Z" };
+            ImGui::Combo("Forward Axis", &e.meshForwardAxis, axisNames, IM_ARRAYSIZE(axisNames));
+        }
+
+        ImGui::TextDisabled("size = longest side of the model (m)");
+        ImGui::TextDisabled(e.meshGlow ? "glow: additive, unlit, fades with colour alpha"
+                                       : "lit: opaque, colour alpha ignored");
+        if (!e.meshFaceVelocity)
+            ImGui::TextDisabled("rotation ranges apply to all 3 axes");
+    }
     ImGui::Separator();
 
     ImGui::SliderFloat("Rate", &e.emitRate, 0.0f, 1000.0f);
@@ -418,6 +481,13 @@ json VFXParticleEntry::ToJson() const
     j["source"] = sourceModelPath;
     j["edgeMode"] = e.shape.edgeMode;
     j["renderMode"] = e.renderMode;
+    if (e.renderMode == 1)
+    {
+        j["mesh"] = e.meshPath;             // "" = 組み込みの立方体
+        j["meshGlow"] = e.meshGlow;
+        j["meshFaceVelocity"] = e.meshFaceVelocity;
+        j["meshForwardAxis"] = e.meshForwardAxis;
+    }
 
     if (e.colorKeyCount > 0)
     {
@@ -518,6 +588,11 @@ void VFXParticleEntry::FromJson(const json& j)
     sourceModelPath = j.value("source", "");
     e.shape.edgeMode = j.value("edgeMode", 0);
     e.renderMode = j.value("renderMode", 0);
+    e.meshPath = j.value("mesh", std::string());
+    e.meshGlow = j.value("meshGlow", false);
+    e.meshFaceVelocity = j.value("meshFaceVelocity", false);
+    e.meshForwardAxis = j.value("meshForwardAxis", 2);
+    e.meshSlot = 0;   // 登録は OnPlay で
     e.shape.sourceId = -1;      // 登録は OnPlay で
     e.shape.sourceCount = 0;
 

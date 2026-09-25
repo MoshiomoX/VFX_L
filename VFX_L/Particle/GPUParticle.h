@@ -43,7 +43,7 @@ struct GPUParticle
     // 所有者ID (0 = 無主)。第5段階の生存数集計で使う。
     // 現時点では EmitCS で 0 に初期化されるだけで、誰も読まない。
     int      ownerID;
-    int      renderMode;     // 0 = ビルボード / 1 = 立方体
+    int      renderMode;     // ParticleRenderMode（0 = ビルボード / 下位 8bit = メッシュ番号 + 1 など）
     // --- 立方体用の 3 軸回転（度）。ビルボードは上の rotation / angularVel を使う ---
     Vector3  rot3;
     // --- 軌跡（帯）。ParticleTrail.hlsli を参照 ---
@@ -125,7 +125,7 @@ struct GPUEmitter
     // 発射位置 = mul(頂点, world) + position
     Matrix   world;
     int      edgeMode;         // 0 = 全頂点 / 1 = 溶解の縁の頂点だけ（EdgeFilterCS の表から選ぶ）
-    int      renderMode;       // 0 = ビルボード / 1 = 立方体
+    int      renderMode;       // ParticleRenderMode（粒子へそのまま写す）
     int      trailStyle;       // 0 = 帯なし。それ以外は RegisterTrailStyle の id + 1（粒子へ引き継ぐ）
     int      _padS2;
 
@@ -270,6 +270,31 @@ struct ParticleTrailStyle
 // 点の追加・寿命切れ・帯への展開は EffectTrailCS / EffectTrailVS。
 // Shader/Particle/Common/EffectTrail.hlsli と一致させる
 // ============================================
+// ============================================
+// 粒子の描き方（GPUParticle / GPUEmitter の renderMode）
+//   bits 0-7   : 0 = ビルボード / 1.. = メッシュ表の番号 + 1（番号 0 は組み込みの立方体）
+//   bit  8     : 発光（加算・光を受けない。色の alpha で消える）
+//   bit  9     : 進行方向を向く（rot3 を使わず、前方の軸を速度に合わせる）
+//   bits 10-11 : 前方の軸（0 = +X / 1 = +Y / 2 = +Z）
+// 旧データの renderMode = 1 は「立方体・光を受ける」のまま読める。
+// Shader/Particle/Common/ParticleCommon.hlsli の PARTICLE_MESH_* と一致させる
+// ============================================
+constexpr uint32_t kParticleMeshSlots = 16;         // PARTICLE_MESH_SLOTS（0 は立方体）
+constexpr uint32_t kParticleMeshBucketCap = 16384;  // PARTICLE_MESH_BUCKET_CAP（1 束あたりの上限）
+constexpr uint32_t kParticleMeshBuckets = kParticleMeshSlots * 2;   // 番号 × { 光を受ける, 発光 }
+
+namespace ParticleRenderMode
+{
+    inline int Pack(int meshSlot, bool glow, bool faceVelocity, int forwardAxis)
+    {
+        if (meshSlot < 0 || meshSlot >= (int)kParticleMeshSlots) meshSlot = 0;
+        return (meshSlot + 1)
+            | (glow ? (1 << 8) : 0)
+            | (faceVelocity ? (1 << 9) : 0)
+            | ((forwardAxis & 3) << 10);
+    }
+}
+
 constexpr uint32_t kEffectTrailPoints = 64;   // EFFECT_TRAIL_POINTS
 
 enum class EffectTrailCommand : uint32_t
