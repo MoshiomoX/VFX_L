@@ -7,6 +7,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Item/BackpackLogic.h"
 #include "Item/ItemDatabase.h"
+#include "UI/ShapeSprite.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
@@ -356,15 +357,16 @@ void BackpackUI::DrawDropShadow(SpriteRenderer& sprite)
     const Vector4 col = m_Drag->canDrop ? Vector4(0.4f, 1.0f, 0.5f, 0.45f)
         : Vector4(1.0f, 0.3f, 0.3f, 0.45f);
 
+    // 画布の外にはみ出すマスは描かない（残ったマスだけで 1 枚にする）
     auto cells = BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation);
-    for (const auto& off : cells)
-    {
-        int r = m_Drag->dropRow + off.row;
-        int cc = m_Drag->dropCol + off.col;
-        if (r < 0 || r >= GRID_SIZE || cc < 0 || cc >= GRID_SIZE) continue;
-
-        sprite.Draw(m_BlockTex, CellPosition(r, cc), cellSizeVec, col);
-    }
+    cells.erase(std::remove_if(cells.begin(), cells.end(), [&](const CellOffset& off)
+        {
+            const int r = m_Drag->dropRow + off.row;
+            const int cc = m_Drag->dropCol + off.col;
+            return r < 0 || r >= GRID_SIZE || cc < 0 || cc >= GRID_SIZE;
+        }), cells.end());
+    ShapeSprite::DrawConnected(sprite, m_BlockTex, col, cells,
+        CellPosition(m_Drag->dropRow, m_Drag->dropCol), m_CellSize, m_CellGap);
 
     // 魔法なら影響格も薄く重ねる
     if (!ItemDatabase::IsFrame(m_Drag->id) && !c->influenceCells.empty())
@@ -438,10 +440,8 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
         if (!tc) continue;
 
         auto tcells = BackpackLogic::RotateShape(tc->occupyCells, t.rotation);
-        for (const auto& toff : tcells)
-            sprite.Draw(m_BlockTex,
-                CellPosition(t.row + toff.row, t.col + toff.col),
-                cellSizeVec, glow);
+        ShapeSprite::DrawConnected(sprite, m_BlockTex, glow, tcells,
+            CellPosition(t.row, t.col), m_CellSize, m_CellGap);
     }
 }
 
@@ -459,7 +459,6 @@ void BackpackUI::DrawDragged(SpriteRenderer& sprite, const Vector2& mousePos)
     if (!c) return;
 
     const float pitch = CellPitch();
-    const Vector2 cellSizeVec = { m_CellSize, m_CellSize };
 
     // アンカーの現在位置（掴んだずれを戻す）
     const float ox = mousePos.x - m_Drag->grabOffset.x;
@@ -471,12 +470,12 @@ void BackpackUI::DrawDragged(SpriteRenderer& sprite, const Vector2& mousePos)
     Vector4 col = icon ? Vector4(1, 1, 1, 1) : c->color;
     col.w *= dragAlpha;
 
+    Vector4 fill = c->color;
+    fill.w *= dragAlpha;
+
     auto cells = BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation);
-    for (const auto& off : cells)
-    {
-        Vector2 pos = { ox + off.col * pitch, oy + off.row * pitch };
-        sprite.Draw(tex, pos, cellSizeVec, col);
-    }
+    ShapeSprite::DrawConnected(sprite, tex, col, m_BlockTex, fill, cells,
+        { ox, oy }, m_CellSize, pitch - m_CellSize);
 }
 
 // ============================================================
@@ -549,12 +548,10 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         auto tex = icon ? icon : m_BlockTex;
         Vector4 col = icon ? Vector4(1, 1, 1, 1) : c->color;
 
+        // 異形は隙間も塗って 1 枚に見せる。隙間はアイコンの有無に関係なく本体の色
         auto cells = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
-        for (const auto& off : cells)
-        {
-            sprite.Draw(tex, CellPosition(item.row + off.row, item.col + off.col),
-                cellSizeVec, col);
-        }
+        ShapeSprite::DrawConnected(sprite, tex, col, m_BlockTex, c->color, cells,
+            CellPosition(item.row, item.col), m_CellSize, m_CellGap);
     }
 
     // ---- 影響格 ----

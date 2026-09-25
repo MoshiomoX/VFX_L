@@ -95,6 +95,19 @@ private:
     FollowCamera m_Camera;
     Registry     m_Registry;
 
+    // ---- 画面の揺れのきっかけ（Camera 面板で調整）----
+    // 被弾：trauma = min(max, base + 減った HP × perDamage)
+    bool  m_ShakeOnHit = true;
+    float m_HitTraumaBase = 0.30f;
+    float m_HitTraumaPerDamage = 0.01f;
+    float m_HitTraumaMax = 0.70f;
+    float m_PrevPlayerHp = -1.0f;       // -1 = まだ読んでいない（最初のフレームで揺らさない）
+    // 範囲攻撃：GPU の aliveAreas が増えた数 × perArea（位置は来ないので距離では弱めない）
+    bool  m_ShakeOnArea = true;
+    float m_AreaTrauma = 0.12f;
+    float m_AreaTraumaMax = 0.35f;
+    uint32_t m_PrevAliveAreas = 0;
+
     // ============================================================
     // Systems
     // 実行順は UpdateGameplay の並びがすべて。

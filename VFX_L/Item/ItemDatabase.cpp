@@ -13,7 +13,9 @@
 #include "Item/Items/Frame3x3.h"
 #include "Item/Items/MaxHealthUp.h"
 #include "Item/Items/MaxManaUp.h"
+#include "Item/ItemDataFile.h"
 #include <unordered_map>
+#include <utility>
 #include <iostream>
 
 namespace
@@ -28,6 +30,20 @@ namespace
     std::vector<ItemID> g_AllIDs;          // 全ID（UI の一覧表示用）。能力値は入れない
     std::vector<ItemID> g_LevelUpOnlyIDs;  // レベルアップの候補にだけ出る物（能力値）
     bool g_Initialized = false;
+
+    // Items/*.h に書いてある形（json で上書きする前）。編集器の「コードの既定に戻す」用
+    std::unordered_map<ItemID,
+        std::pair<std::vector<CellOffset>, std::vector<CellOffset>>> g_CodeShapes;
+
+    // 形の差し替え用。外へは const でしか出さない
+    ItemCommon* MutableCommon(ItemID id)
+    {
+        if (auto it = g_Projectiles.find(id); it != g_Projectiles.end()) return &it->second.common;
+        if (auto it = g_Functions.find(id);   it != g_Functions.end())   return &it->second.common;
+        if (auto it = g_Areas.find(id);       it != g_Areas.end())       return &it->second.common;
+        if (auto it = g_Frames.find(id);      it != g_Frames.end())      return &it->second.common;
+        return nullptr;
+    }
 
     // ---- 登録ヘルパー（種類ごとにオーバーロード）----
     void Register(const ProjectileItemDef& def)
@@ -93,6 +109,21 @@ void ItemDatabase::Initialize()
     // ---- 能力値（レベルアップ専用）----
     Register(MakeMaxHealthUp());
     Register(MakeMaxManaUp());
+
+    // ---- 形（占位格・影響格）----
+    // コードに書いた形を覚えてから、保存済みの道具データ（ItemData/<名前>.json）で上書きする。
+    // 能力値は背包に置かないので形を持たない（g_AllIDs に入っていない）
+    g_CodeShapes.clear();
+    int shapeFiles = 0;
+    for (ItemID id : g_AllIDs)
+    {
+        ItemCommon* c = MutableCommon(id);
+        if (!c) continue;
+        g_CodeShapes[id] = { c->occupyCells, c->influenceCells };
+        if (ItemDataFile::LoadShape(c->name, c->occupyCells, c->influenceCells))
+            ++shapeFiles;
+    }
+    std::cout << "[ItemDatabase] shape files: " << shapeFiles << " (" << ItemDataFile::kDir << ")" << std::endl;
 
     g_Initialized = true;
     std::cout << "[OK] ItemDatabase initialized ("
@@ -178,6 +209,28 @@ const std::vector<ItemID>& ItemDatabase::GetAllIDs()
 const std::vector<ItemID>& ItemDatabase::GetLevelUpOnlyIDs()
 {
     return g_LevelUpOnlyIDs;
+}
+
+// ============================================================
+// 形の編集
+// ============================================================
+void ItemDatabase::SetShape(ItemID id, const std::vector<CellOffset>& occupy,
+    const std::vector<CellOffset>& influence)
+{
+    ItemCommon* c = MutableCommon(id);
+    if (!c) return;
+    c->occupyCells = occupy;
+    c->influenceCells = influence;
+}
+
+bool ItemDatabase::GetCodeShape(ItemID id, std::vector<CellOffset>& occupy,
+    std::vector<CellOffset>& influence)
+{
+    auto it = g_CodeShapes.find(id);
+    if (it == g_CodeShapes.end()) return false;
+    occupy = it->second.first;
+    influence = it->second.second;
+    return true;
 }
 
 // ============================================================

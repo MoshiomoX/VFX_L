@@ -45,7 +45,7 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 | F1 | Game Test（`CollisionTestScene`） | 战斗本体 |
 | F2 | VFX Editor | 特效编辑 |
 | F3 | Title | 标题 |
-| F4 | Projectile Editor | 弹道、范围攻击编辑 |
+| F4 | Projectile Editor | 弹道、范围攻击编辑；第 3 页 Item Shapes 编辑道具形状 + 试放背包 |
 | F5 | 重新加载当前场景 | |
 | F6 | Level Editor（`LevelEditorScene`） | 摆素材、存 `Assets/Data/LevelData/<名字>.json` |
 
@@ -54,6 +54,15 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - **雑魚外观**：`SwarmSystem::BuildEnemyModel` 候选表（Kenney Blocky L 僵尸 → KayKit Minion → 胶囊）。方块人是刚体部件，用 `Model::LoadOptions` 烘姿势，`BuildEnemyPartAnim` 做 idle / walk / attack 的部件动画表，`SwarmEnemyVS` 按敌人状态选帧。
 - **雑魚血条**：`SwarmEnemyHpBarVS/PS`，满格值在 `m_EnemyMaxHpBuffer`，由生成 CS 和回收 CS 写入。
 - **光照**：`Shader/Common/Lighting.hlsli`（半球环境光 + 平行光和点光源的 GGX 高光）。点光源表是 `PointLightManager`（每帧一张，t6/t7）。
+- **背包**：9x9（`BackpackComponent::GRID` 和 `BackpackUI::GRID_SIZE` 要一起改）。开局 3x3 枠放在 `GRID/2-1`（Rect 锚点在左上）。
+- **道具形状**：`Items/*.h` 里的 `occupyCells` / `influenceCells` 是代码默认值。存在 `Assets/Data/ItemData/<道具名去掉空格>.json`（`Item/ItemDataFile`）时，`ItemDatabase::Initialize` 会用文件内容覆盖。编辑时用 `ItemDatabase::SetShape` 改，用 `GetCodeShape` 恢复成代码默认；形状变了以后用 `BackpackLogic::Refit` 重新摆放。多格方块画成连在一起的一块（`UI/ShapeSprite.h`）。
+- **形状编辑器**：`Scene/ItemShapePanel`（F4 第 3 页，按键 3）。先选道具，再在格子上画这个道具的形状：左键画占位、右键画影响、Ctrl+左键设锚点。点 Save 写进这个道具的数据文件。「Item Test Bench」窗口用和正式游戏同一条链（BackpackLogic → BackpackAggregateSystem → WeaponSystem）往靶子发射。
+- **战斗相机**：`Camera/FollowCamera`，背后第三人称视角：
+  - 平滑跟随用 SmoothDamp，水平、垂直分开调
+  - 相机偏到右肩
+  - 遮挡处理：场景通过 `SetOcclusionProbe` 用 5 条射线打 `Layer_Terrain`。有东西挡住时相机立刻拉近，没挡住后慢慢退回原距离
+  - 震动：调用 `AddTrauma`，抖动幅度 = trauma²。只作用在 `CameraBase::SetViewShake` → 视图矩阵上，不影响 `GetForward`，所以移动和朝向不会跟着抖
+  - 触发：场景看玩家 HP 掉了多少，以及 GPU `aliveAreas` 有没有增加。参数都在「Camera」面板
 - **升级**：`UI/LevelUpSystem`。卡池 = `ItemDatabase::GetAllIDs()` + `GetLevelUpOnlyIDs()`（生命、法力上限卡，`ItemCategory::Stat`）。
 - **施法暂停**：`WandComponent::castingPaused`（Q / 手柄 Y）。
 - **FBX 单位**：`Model::GetFileUnitScale()` 记录 FBX 的 UnitScaleFactor，但不乘进顶点（现有模型各自手调倍率）。KayKit Forest 和 Kenney 的 FBX 都是厘米单位。

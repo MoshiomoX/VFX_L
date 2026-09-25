@@ -24,6 +24,10 @@ public:
     Vector3 GetRight() const;
     Vector3 GetUp() const { return m_Up; }
 
+    // 見た目だけの揺れ（度）。ビュー行列にだけ掛け、GetForward / GetRight には入れない。
+    //   操作の基準（移動方向・プレイヤーの向き）が揺れで振れないように分けてある
+    void SetViewShake(float yawDeg, float pitchDeg, float rollDeg);
+
     // サブクラスで実装
     virtual void Update(float dt) {}
 
@@ -36,6 +40,11 @@ protected:
 
     Matrix m_View;
     Matrix m_Projection;
+
+    // 見た目だけの揺れ（度）。0 なら何もしない
+    float m_ShakeYaw = 0.0f;
+    float m_ShakePitch = 0.0f;
+    float m_ShakeRoll = 0.0f;
 
     bool m_Dirty = true;
 };

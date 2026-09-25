@@ -81,6 +81,11 @@ namespace BackpackLogic
     //   グリッドから消えれば自動的に取り出せるようになる。
     // 枠を減らす操作の後に必ず呼ぶ。
     int ValidateItems(BackpackComponent& bp);
+
+    // 形が変わった後に全部置き直す（編集器で形・付け替えを変えた時用）。
+    // 枠 → 魔法の順に、元の順番・位置・向きのまま置けるものだけ残す。
+    // 置けなくなった物は手元へ戻る。戻した数（枠 + 魔法）を返す
+    int Refit(BackpackComponent& bp);
     int CountPlaced(const BackpackComponent& bp, ItemID id);
     int CountPlacedFrames(const BackpackComponent& bp, ItemID id);
     std::vector<int> GetItemsOnFrame(const BackpackComponent& bp, int frameIndex);

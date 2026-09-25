@@ -376,6 +376,9 @@
     <ClCompile Include="Item\ItemDatabase.cpp">
       <Filter>Item</Filter>
     </ClCompile>
+    <ClCompile Include="Item\ItemDataFile.cpp">
+      <Filter>Item</Filter>
+    </ClCompile>
     <ClCompile Include="Item\BackpackLogic.cpp">
       <Filter>Item</Filter>
     </ClCompile>
@@ -451,6 +454,9 @@
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Scene\ProjectileEditorScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\ItemShapePanel.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Scene\LevelEditorScene.cpp">
@@ -852,6 +858,9 @@
     <ClInclude Include="Item\ItemDatabase.h">
       <Filter>Item</Filter>
     </ClInclude>
+    <ClInclude Include="Item\ItemDataFile.h">
+      <Filter>Item</Filter>
+    </ClInclude>
     <ClInclude Include="Component\AreaStats.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -918,6 +927,9 @@
     <ClInclude Include="UI\LevelUpUI.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="UI\ShapeSprite.h">
+      <Filter>UI</Filter>
+    </ClInclude>
     <ClInclude Include="UI\UIManager.h">
       <Filter>UI</Filter>
     </ClInclude>
@@ -980,6 +992,9 @@
       <Filter>Swarm</Filter>
     </ClInclude>
     <ClInclude Include="Scene\ProjectileEditorScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\ItemShapePanel.h">
       <Filter>Scene</Filter>
     </ClInclude>
     <ClInclude Include="Scene\LevelEditorScene.h">

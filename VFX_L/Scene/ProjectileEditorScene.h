@@ -10,6 +10,8 @@
 //   明るい線 = 今の設定で次に飛ぶ曲線（CPU で GPU と同じ式を引いている）
 //   暗い線   = 左右反転した側（Mirror が Fixed 以外の時）
 //   細い線   = 制御点の取っ手（p0-p1 / p3-p2）
+//
+// 頁: 1 = 投射物 / 2 = 範囲攻撃 / 3 = 道具の形（ItemShapePanel。試し置きの背包から本番の経路で撃つ）
 // ============================================================
 #pragma once
 #include "Scene/SceneBase.h"
@@ -25,6 +27,7 @@
 #include <vector>
 #include "World/GridWorld.h"
 #include "VFX_Editor/VFXId.h"
+#include "Scene/ItemShapePanel.h"
 #include <memory>
 
 class ProjectileEditorScene : public SceneBase
@@ -105,8 +108,8 @@ private:
     // 判定は本番と同じ GPU（SwarmSystem の Area）。見た目は本番と同じく CPU 側で VFX を再生する。
     // 輪の線は CPU 側で同じ時計を回して描いているだけの目安（GPU からは読み戻していない）
     // ============================================================
-    int   m_Tab = 0;                   // 0 = 投射物 / 1 = 範囲。開いている頁だけが自動で撃つ
-    int   m_TabRequest = -1;           // キー（1 / 2）で頁を切り替える依頼。-1 = 無し
+    int   m_Tab = 0;                   // 0 = 投射物 / 1 = 範囲 / 2 = 道具の形。開いている頁だけが自動で撃つ
+    int   m_TabRequest = -1;           // キー（1 / 2 / 3）で頁を切り替える依頼。-1 = 無し
     int   m_AreaSelected = 0;          // AreaProfileDB の番号（0 = 無し）
     char  m_AreaNameBuf[64] = {};
     bool  m_AreaDirty = false;
@@ -129,6 +132,9 @@ private:
     AreaVFXPlayer   m_AreaVFX;
     VFXMeshRenderer m_MeshRenderer;    // 法環の Mesh entry 用
     VFXContext      m_VFXContext;
+
+    // ---- 道具の形の頁 ----
+    ItemShapePanel  m_ShapePanel;
 
     // ---- 表示 ----
     bool  m_ShowCurve = true;

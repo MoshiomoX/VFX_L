@@ -38,4 +38,12 @@ namespace ItemDatabase
     // 能力値の成長（生命・魔力の上限など）。レベルアップの候補にだけ出る
     const StatItemDef* GetStat(ItemID id);
     const std::vector<ItemID>& GetLevelUpOnlyIDs();
+
+    // ---- 形（占位格・影響格）の編集（投射物編集器の Item Shapes 頁から使う）----
+    // 形を差し替える。置いてある物との整合は呼ぶ側が BackpackLogic::Refit で取る
+    void SetShape(ItemID id, const std::vector<CellOffset>& occupy,
+        const std::vector<CellOffset>& influence);
+    // Items/*.h に書いてある形（json で上書きする前）。無い ID なら false
+    bool GetCodeShape(ItemID id, std::vector<CellOffset>& occupy,
+        std::vector<CellOffset>& influence);
 }

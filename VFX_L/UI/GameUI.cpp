@@ -410,9 +410,9 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
         BackpackLogic::RebuildOccupancy(bp);
         BackpackLogic::RebuildFrameOccupancy(bp);
 
-        // 中央へ戻す。RectCentered なのでアンカーは中心を指定する
-        const int center = BackpackComponent::GRID / 2;
-        BackpackLogic::PlaceFrame(bp, ItemID::Frame3x3, center, center, 0);
+        // 中央へ戻す。Rect のアンカーは左上なので、中心の 1 つ手前を指定する
+        const int start = BackpackComponent::GRID / 2 - 1;
+        BackpackLogic::PlaceFrame(bp, ItemID::Frame3x3, start, start, 0);
         bp.dirty = true;
     }
 

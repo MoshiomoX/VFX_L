@@ -380,6 +380,34 @@ namespace BackpackLogic
     }
 
     // ========================================================
+    // 形が変わった後の置き直し
+    //
+    // 占有表を今の形で組み直すだけだと、形が広がった物同士が
+    // 重なったまま残る（後から書いた方が占有表に勝つだけ）。
+    // 空にしてから Place / PlaceFrame で 1 個ずつ置き直せば、
+    // 判定は普段の配置と同じ経路になる。
+    // ========================================================
+    int Refit(BackpackComponent& bp)
+    {
+        const std::vector<PlacedItem> frames = bp.frames;
+        const std::vector<PlacedItem> items = bp.items;
+
+        bp.frames.clear();
+        bp.items.clear();
+        RebuildFrameOccupancy(bp);
+        RebuildOccupancy(bp);
+
+        int evicted = 0;
+        for (const auto& f : frames)
+            if (PlaceFrame(bp, f.id, f.row, f.col, f.rotation) < 0) ++evicted;
+        for (const auto& it : items)
+            if (Place(bp, it.id, it.row, it.col, it.rotation) < 0) ++evicted;
+
+        bp.dirty = true;
+        return evicted;
+    }
+
+    // ========================================================
     // グリッド上にある同じ ID の数
     //
     // 所持数からこれを引いたものが取り出せる数。
