@@ -220,6 +220,10 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Manager\InputManager.cpp" />
     <ClCompile Include="Item\ItemDatabase.cpp" />
     <ClCompile Include="Item\ItemDataFile.cpp" />
+    <ClCompile Include="Item\ItemInfo.cpp" />
+    <ClCompile Include="UI\ItemSheetView.cpp" />
+    <ClCompile Include="UI\PauseMenuUI.cpp" />
+    <ClCompile Include="UI\MenuList.cpp" />
     <ClCompile Include="UI\GameUI.cpp" />
     <ClCompile Include="UI\LevelUpSystem.cpp" />
     <ClCompile Include="UI\LevelUpUI.cpp" />
@@ -401,6 +405,10 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Manager\InputMap.h" />
     <ClInclude Include="Item\ItemDatabase.h" />
     <ClInclude Include="Item\ItemDataFile.h" />
+    <ClInclude Include="Item\ItemInfo.h" />
+    <ClInclude Include="UI\ItemSheetView.h" />
+    <ClInclude Include="UI\PauseMenuUI.h" />
+    <ClInclude Include="UI\MenuList.h" />
     <ClInclude Include="Item\ItemTypes.h" />
     <ClInclude Include="Player\LevelComponent.h" />
     <ClInclude Include="UI\LevelUpSystem.h" />

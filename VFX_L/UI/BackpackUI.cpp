@@ -464,18 +464,9 @@ void BackpackUI::DrawDragged(SpriteRenderer& sprite, const Vector2& mousePos)
     const float ox = mousePos.x - m_Drag->grabOffset.x;
     const float oy = mousePos.y - m_Drag->grabOffset.y;
 
-    auto icon = GetIcon(m_Drag->id);
-    auto tex = icon ? icon : m_BlockTex;
-
-    Vector4 col = icon ? Vector4(1, 1, 1, 1) : c->color;
-    col.w *= dragAlpha;
-
-    Vector4 fill = c->color;
-    fill.w *= dragAlpha;
-
     auto cells = BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation);
-    ShapeSprite::DrawConnected(sprite, tex, col, m_BlockTex, fill, cells,
-        { ox, oy }, m_CellSize, pitch - m_CellSize);
+    ShapeSprite::DrawItem(sprite, m_BlockTex, c->color, GetIcon(m_Drag->id), cells,
+        { ox, oy }, m_CellSize, pitch - m_CellSize, dragAlpha);
 }
 
 // ============================================================
@@ -544,13 +535,9 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         const ItemCommon* c = ItemDatabase::GetCommon(item.id);
         if (!c) continue;
 
-        auto icon = GetIcon(item.id);
-        auto tex = icon ? icon : m_BlockTex;
-        Vector4 col = icon ? Vector4(1, 1, 1, 1) : c->color;
-
-        // 異形は隙間も塗って 1 枚に見せる。隙間はアイコンの有無に関係なく本体の色
+        // 異形は隙間も塗って 1 枚に見せる。アイコンは中心のマスに 1 つだけ
         auto cells = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
-        ShapeSprite::DrawConnected(sprite, tex, col, m_BlockTex, c->color, cells,
+        ShapeSprite::DrawItem(sprite, m_BlockTex, c->color, GetIcon(item.id), cells,
             CellPosition(item.row, item.col), m_CellSize, m_CellGap);
     }
 

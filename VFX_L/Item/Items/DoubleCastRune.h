@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // DoubleCastRune.h
 // 二重釈放符：機能型。隣接する攻撃ブロックの発射回数を増やす。
 //
@@ -11,6 +11,7 @@
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
+#include "ResourcePaths.h"
 
 inline FunctionItemDef MakeDoubleCastRune()
 {
@@ -19,11 +20,13 @@ inline FunctionItemDef MakeDoubleCastRune()
     // ---- 共通 ----
     def.common.id = ItemID::DoubleCastRune;
     def.common.name = "Double Cast";
+    def.common.displayName = L"二重詠唱のルーン";
+    def.common.description = L"隣の魔法を続けてもう一度撃つ。威力はそのままだが、消費MPも増える。";
     def.common.category = ItemCategory::Function;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Cross();
     def.common.color = { 0.80f, 0.40f, 1.00f, 1.0f }; // 紫
-    def.common.iconPath = nullptr;
+    def.common.iconPath = Res::Icon::DoubleCastRune;
 
     // ---- 飛行物型への修飾 ----
     // ※マナ消費は WeaponSystem 側で manaCost × castCount として扱われるため、

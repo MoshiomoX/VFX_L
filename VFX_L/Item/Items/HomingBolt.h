@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Items/HomingBolt.h
 // 追尾弾："HomingFull" プロファイル。全追尾（相手が死んだら次を探す）。
 //
@@ -7,6 +7,7 @@
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
+#include "ResourcePaths.h"
 
 inline ProjectileItemDef MakeHomingBolt()
 {
@@ -14,6 +15,9 @@ inline ProjectileItemDef MakeHomingBolt()
 
     def.common.id = ItemID::HomingBolt;
     def.common.name = "Homing Bolt";
+    def.common.displayName = L"ホーミングボルト";
+    def.common.description = L"敵を追い続ける魔法弾。狙った敵が倒れても次の敵を探す。消費は重め。";
+    def.common.iconPath = Res::Icon::HomingBolt;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = {};

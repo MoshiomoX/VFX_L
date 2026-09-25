@@ -252,6 +252,19 @@ void CollisionTestScene::Update(float dt)
     // ---- UI（開閉・入力・プレイヤー消失時の後始末は全部 GameUI の中）----
     m_GameUI.Update(m_Registry, m_Player, dt);
 
+    // ---- 一時停止のメニューで選ばれた場面の切替 ----
+    switch (m_GameUI.ConsumeMenuAction())
+    {
+    case PauseMenuUI::Action::Restart:
+        Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::COLLISION_TEST);
+        break;
+    case PauseMenuUI::Action::Title:
+        Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::TITLE);
+        break;
+    default:
+        break;
+    }
+
     // ---- 集約: グリッドが変わっていれば杖を組み直す ----
     // UI の直後に置く。編成した結果を同じフレームで反映させるため
     m_BackpackAggregate.Update(m_Registry);
@@ -267,13 +280,37 @@ void CollisionTestScene::Update(float dt)
     // ---- 画面下の操作案内（近くに使える物がある時だけ）----
     m_GameUI.SetPrompt(m_Interaction.HasFocus() ? m_Interaction.GetPrompt() : nullptr);
 
+    // ---- HUD：経過時間・撃破数と、画面外の目印（報酬の箱 = 黄、精英 = 赤）----
+    m_GameUI.SetRunInfo(m_RunTime, m_Swarm.GetCounters().killCount);
+    {
+        std::vector<HUDMarker> markers;
+        m_Registry.CreateView<InteractableComponent>()
+            .Each([&](Entity, InteractableComponent& it)
+                {
+                    markers.push_back({ it.basePos + Vector3(0.0f, 0.6f, 0.0f), { 1.0f, 0.78f, 0.35f, 1.0f } });
+                });
+        // 計測用の的（無敵）も EliteTag を持つので外す
+        m_Registry.CreateView<EliteTag, TransformComponent, HealthComponent>()
+            .Each([&](Entity, EliteTag&, TransformComponent& tf, HealthComponent& hp)
+                {
+                    if (hp.invincible || hp.current <= 0.0f) return;
+                    markers.push_back({ tf.position + Vector3(0.0f, 1.0f, 0.0f), { 1.0f, 0.30f, 0.30f, 1.0f } });
+                });
+        m_GameUI.SetMarkers(m_Camera.GetViewMatrix() * m_Camera.GetProjectionMatrix(), std::move(markers));
+    }
+
     // ---- 死亡 → 倒れた姿を少し見せてからリザルトへ ----
     // 一時停止中でも進める（三択を開いたまま死ぬ事は無いが、止まると戻れない）
     if (m_Registry.IsValid(m_Player) && m_Registry.Has<PlayerStateComponent>(m_Player)
         && m_Registry.Get<PlayerStateComponent>(m_Player).IsDead())
     {
         m_DeathTimer += dt;
+        m_GameUI.SetGameOver(m_DeathTimer);   // 「力尽きた」の幕
         if (m_DeathTimer >= kDeathToResult) EndRun();
+    }
+    else
+    {
+        m_GameUI.SetGameOver(-1.0f);
     }
 
     DrawDebugUI();
@@ -284,6 +321,11 @@ void CollisionTestScene::Update(float dt)
 // ============================================================
 void CollisionTestScene::UpdateGameplay(float dt)
 {
+    // ---- 遊んでいる時間（死んだら止める）----
+    if (!(m_Registry.IsValid(m_Player) && m_Registry.Has<PlayerStateComponent>(m_Player)
+        && m_Registry.Get<PlayerStateComponent>(m_Player).IsDead()))
+        m_RunTime += dt;
+
     // ---- 補充（枯渇状態を維持し続けるための自動生成）----
     if (m_StressAutoRefill)
     {
@@ -638,14 +680,14 @@ void CollisionTestScene::EndRun()
     m_RunEnded = true;
 
     g_LastRun.valid = true;
-    g_LastRun.survivedSec = m_TotalTime;
+    g_LastRun.survivedSec = m_RunTime;   // 背包・三択で止めていた時間は含めない（HUD の表示と同じ）
     g_LastRun.level = (m_Registry.IsValid(m_Player) && m_Registry.Has<LevelComponent>(m_Player))
         ? m_Registry.Get<LevelComponent>(m_Player).level : 1;
     g_LastRun.kills = m_Swarm.GetCounters().killCount;   // 回読なので 1〜2 フレーム古い。許容
     g_LastRun.expGained = m_ExpGained;
 
     Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::RESULT);
-    std::cout << "[CollisionTestScene] run ended: " << (int)m_TotalTime << "s, kills " << g_LastRun.kills << std::endl;
+    std::cout << "[CollisionTestScene] run ended: " << (int)m_RunTime << "s, kills " << g_LastRun.kills << std::endl;
 }
 
 // ============================================================

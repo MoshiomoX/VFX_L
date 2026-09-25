@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Items/Meteor.h
 // 隕石："ExplosiveArc" プロファイル。弧を描いて飛び、命中・寿命切れで
 // GPU が Explosion（Assets/Data/AreaData/Explosion.json）を出す。
@@ -9,6 +9,7 @@
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
+#include "ResourcePaths.h"
 
 inline ProjectileItemDef MakeMeteor()
 {
@@ -16,6 +17,9 @@ inline ProjectileItemDef MakeMeteor()
 
     def.common.id = ItemID::Meteor;
     def.common.name = "Meteor";
+    def.common.displayName = L"メテオ";
+    def.common.description = L"間隔の長い重い一撃。着弾点で爆発し、周りの敵をまとめて巻き込む。";
+    def.common.iconPath = Res::Icon::Meteor;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = {};

@@ -87,7 +87,9 @@ void TextRenderer::Draw(const std::wstring& text,
     TextEntry entry;
     entry.text = text;
     entry.position = position;
-    entry.color = color;
+    // SpriteBatch の既定は乗算済み alpha（ONE / INV_SRC_ALPHA）。
+    // rgb に alpha を掛けておかないと、半透明の文字が加算のように白く浮く
+    entry.color = { color.x * color.w, color.y * color.w, color.z * color.w, color.w };
     entry.scale = scale;
     m_Queue.push_back(std::move(entry));
 }

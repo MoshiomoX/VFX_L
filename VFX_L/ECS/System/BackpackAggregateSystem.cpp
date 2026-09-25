@@ -8,10 +8,8 @@
 #include "Component/WandComponent.h"
 #include "Component/AreaStats.h"
 #include "Item/ItemDatabase.h"
-#include "Swarm/AreaProfile.h"
-#include "Swarm/ProjectileProfile.h"
+#include "Item/ItemInfo.h"
 #include "ECS/View.h"
-#include <unordered_set>
 #include <iostream>
 
 void BackpackAggregateSystem::Update(Registry& reg)
@@ -37,6 +35,8 @@ void BackpackAggregateSystem::ForceRebuild(Registry& reg, Entity e)
 
 // ============================================================
 // 再構築の本体
+//   基礎値の組み立て（ItemInfo::Base*Stats）と影響の判定（BackpackLogic::GetInfluencers）は
+//   UI の説明と共用。画面に出る数字と実際に撃つ数字を同じ式で出すため
 // ============================================================
 void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 {
@@ -45,38 +45,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
     m_Log.clear();
 
-    // ---- 1) 影響格を持つブロックを集めて、ワールド座標のマスに展開する ----
-    //     回転を反映した後の位置（画布内のみ）を持っておく
-    struct InfluenceSource
-    {
-        size_t itemIndex;
-        std::vector<std::pair<int, int>> cells;   // (row, col)
-    };
-    std::vector<InfluenceSource> sources;
-
-    for (size_t i = 0; i < bp.items.size(); ++i)
-    {
-        const auto& item = bp.items[i];
-        const ItemCommon* c = ItemDatabase::GetCommon(item.id);
-        if (!c || c->influenceCells.empty()) continue;
-
-        InfluenceSource src;
-        src.itemIndex = i;
-
-        auto rotated = BackpackLogic::RotateShape(c->influenceCells, item.rotation);
-        for (const auto& off : rotated)
-        {
-            int r = item.row + off.row;
-            int cc = item.col + off.col;
-            if (r < 0 || r >= BackpackComponent::GRID) continue;
-            if (cc < 0 || cc >= BackpackComponent::GRID) continue;
-            src.cells.push_back({ r, cc });
-        }
-        if (!src.cells.empty())
-            sources.push_back(std::move(src));
-    }
-
-    // ---- 2) 攻撃ブロックごとに出力を組む ----
+    // ---- 攻撃ブロックごとに出力を組む ----
     wand.spells.clear();
     wand.areas.clear();
 
@@ -88,35 +57,8 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         const ItemCommon* c = ItemDatabase::GetCommon(item.id);
         if (!c) continue;
 
-        // このブロックの占位格（回転反映後）
-        auto occupy = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
-
-        // ---- このブロックに影響を与えているブロックを探す ----
-        // 影響格と占位格が1マスでも重なれば成立。
-        //   同じブロックから複数マス重なっても1回だけ数える（set にする理由）
-        std::unordered_set<size_t> influencers;
-
-        for (const auto& src : sources)
-        {
-            if (src.itemIndex == i) continue;   // 自分自身は数えない
-
-            bool touched = false;
-            for (const auto& cell : src.cells)
-            {
-                for (const auto& off : occupy)
-                {
-                    if (cell.first == item.row + off.row &&
-                        cell.second == item.col + off.col)
-                    {
-                        touched = true;
-                        break;
-                    }
-                }
-                if (touched) break;
-            }
-            if (touched)
-                influencers.insert(src.itemIndex);
-        }
+        // このブロックに影響を与えているブロック（items の順。同じ相手は 1 回だけ）
+        const std::vector<int> influencers = BackpackLogic::GetInfluencers(bp, (int)i);
 
         // ---- ログ ----
         AggregateLog log;
@@ -127,23 +69,11 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         // ---- 種類ごとに基礎値へ修飾を重ねる ----
         if (auto* pdef = ItemDatabase::GetProjectile(item.id))
         {
-            SpellStats stats = pdef->baseStats;
+            SpellStats stats = ItemInfo::BaseSpellStats(*pdef);
 
-            // 弾そのもの（威力・速さ・判定・寿命）は投射物プロファイルが基礎値。
-            // 道具側の値は使わない。名前が引けなければ 0 番（組み込みの直進）
-            stats.profile = ProjectileProfileDB::IndexOf(pdef->profile);
+            for (int srcIdx : influencers)
             {
-                const ProjectileProfile& pp = ProjectileProfileDB::At(stats.profile);
-                stats.damage = pp.damage;
-                stats.speed = pp.speed;
-                stats.radius = pp.radius;
-                stats.lifetime = pp.lifetime;
-            }
-
-            for (size_t srcIdx : influencers)
-            {
-                const auto& srcItem = bp.items[srcIdx];
-                auto* fdef = ItemDatabase::GetFunction(srcItem.id);
+                auto* fdef = ItemDatabase::GetFunction(bp.items[srcIdx].id);
                 if (!fdef) continue;   // 機能型でないものは影響格を持っていても無視
 
                 for (const auto& mod : fdef->spellModifiers)
@@ -156,24 +86,11 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         }
         else if (auto* adef = ItemDatabase::GetArea(item.id))
         {
-            AreaStats stats = adef->baseStats;
+            AreaStats stats = ItemInfo::BaseAreaStats(*adef);
 
-            // 編集器のプロファイルがあれば、形・時間・威力はそちらが基礎値。
-            // 修飾符はこの後で上に掛かる
-            stats.profile = AreaProfileDB::IndexOf(adef->profile);
-            if (stats.profile > 0)
+            for (int srcIdx : influencers)
             {
-                const AreaProfile& ap = AreaProfileDB::At(stats.profile);
-                stats.radius = ap.radius;
-                stats.duration = ap.duration;
-                stats.tickInterval = ap.tickInterval;
-                stats.damagePerTick = ap.damage;
-            }
-
-            for (size_t srcIdx : influencers)
-            {
-                const auto& srcItem = bp.items[srcIdx];
-                auto* fdef = ItemDatabase::GetFunction(srcItem.id);
+                auto* fdef = ItemDatabase::GetFunction(bp.items[srcIdx].id);
                 if (!fdef) continue;
 
                 for (const auto& mod : fdef->areaModifiers)

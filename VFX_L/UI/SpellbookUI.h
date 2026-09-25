@@ -65,6 +65,9 @@ public:
 
     int GetBodyCount() const { return (int)m_Bodies.size(); }
 
+    // マウスが乗っている箱の中の物（tooltip 用）。無ければ false
+    bool GetHoveredItem(ItemID& out) const { out = m_HoverId; return m_HasHover; }
+
 private:
     // ============================================================
     // 箱の中の1個。真値ではなく所持数の視覚表現。
@@ -96,6 +99,9 @@ private:
 
     std::vector<BodyState> m_Bodies;
     float m_PhysAccum = 0.0f;
+
+    ItemID m_HoverId = ItemID::Fireball;   // m_HasHover の時だけ意味がある
+    bool   m_HasHover = false;
 
     // 箱の内寸（Layout で確定。壁の内側）
     DirectX::SimpleMath::Vector2 m_BoxMin = { 0, 0 };

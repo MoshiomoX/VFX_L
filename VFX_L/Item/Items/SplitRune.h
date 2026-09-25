@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Items/SplitRune.h
 // 分裂符：機能型。隣接する攻撃ブロックを多発化させる。
 //
@@ -11,6 +11,7 @@
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
+#include "ResourcePaths.h"
 
 inline FunctionItemDef MakeSplitRune()
 {
@@ -19,11 +20,13 @@ inline FunctionItemDef MakeSplitRune()
     // ---- 共通 ----
     def.common.id = ItemID::SplitRune;
     def.common.name = "Split Rune";
+    def.common.displayName = L"分裂のルーン";
+    def.common.description = L"隣の魔法の弾を扇状に増やす。一発あたりの威力は下がる。";
     def.common.category = ItemCategory::Function;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Cross();      // 上下左右
     def.common.color = { 0.30f, 0.90f, 0.90f, 1.0f }; // 青緑
-    def.common.iconPath = nullptr;                        // 画像が出来たらここに指定
+    def.common.iconPath = Res::Icon::SplitRune;
 
     // ---- 飛行物型への修飾（3つ同時に効く）----
     def.spellModifiers.push_back({ SpellParam::ProjectileCount, ModifyOp::Add,      1.0f });

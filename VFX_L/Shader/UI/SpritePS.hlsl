@@ -15,5 +15,9 @@ struct PSInput
 
 float4 main(PSInput input) : SV_TARGET
 {
-    return spriteTexture.Sample(spriteSampler, input.uv) * input.color;
+    // SpriteRenderer draws with premultiplied alpha (ONE / INV_SRC_ALPHA),
+    // so premultiply here. Without it a translucent colour is added on top
+    // instead of blended (alpha 0.06 white came out as solid white)
+    float4 c = spriteTexture.Sample(spriteSampler, input.uv) * input.color;
+    return float4(c.rgb * c.a, c.a);
 }

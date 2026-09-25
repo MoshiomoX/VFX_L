@@ -2,6 +2,7 @@
 // SpellbookUI.cpp
 // ============================================================
 #include "UI/SpellbookUI.h"
+#include "UI/ShapeSprite.h"
 #include "Graphics/Renderer/SpriteRenderer.h"
 #include "Graphics/Material/Texture.h"
 #include "Component/SpellbookComponent.h"
@@ -351,6 +352,22 @@ void SpellbookUI::Update(const SpellbookComponent& book, const BackpackComponent
     }
 
     TryGrab();
+
+    // ---- マウスが乗っている物（tooltip 用）。掴みと同じく後ろ（上に見える物）から当てる ----
+    m_HasHover = false;
+    if (!(m_Drag && m_Drag->IsActive()) && !ImGui::GetIO().WantCaptureMouse)
+    {
+        const auto mp = InputManager::Get().GetMousePos();
+        const Vector2 mouse(mp.x, mp.y);
+        for (int i = (int)m_Bodies.size() - 1; i >= 0; --i)
+        {
+            const auto& b = m_Bodies[i];
+            if ((mouse - b.pos).LengthSquared() > b.radius * b.radius) continue;
+            m_HoverId = b.id;
+            m_HasHover = true;
+            break;
+        }
+    }
 }
 
 // ============================================================
@@ -389,9 +406,16 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
         const float w = (float)(maxC - minC + 1) * cell;
         const float h = (float)(maxR - minR + 1) * cell;
 
+        // 形は道具の色のブロック（アイコンがある時は暗くして地にする）、
+        // アイコンは中心のマスに 1 つだけ（グリッドと同じ見せ方）。全部 body.pos を軸に回す
         auto icon = GetIcon(b.id);
-        auto tex = icon ? icon : m_BlockTex;
-        Vector4 col = icon ? Vector4(1, 1, 1, 1) : c->color;
+        Vector4 col = c->color;
+        if (icon)
+        {
+            col.x *= ShapeSprite::kIconBaseDim;
+            col.y *= ShapeSprite::kIconBaseDim;
+            col.z *= ShapeSprite::kIconBaseDim;
+        }
 
         for (const auto& o : c->occupyCells)
         {
@@ -399,7 +423,18 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
                 b.pos.x - w * 0.5f + (float)(o.col - minC) * cell,
                 b.pos.y - h * 0.5f + (float)(o.row - minR) * cell
             };
-            sprite.Draw(tex, pos, { cell, cell }, col, b.angle, b.pos);
+            sprite.Draw(m_BlockTex, pos, { cell, cell }, col, b.angle, b.pos);
+        }
+
+        if (icon)
+        {
+            const CellOffset cc = ShapeSprite::CenterCell(c->occupyCells);
+            const float s = cell * 0.92f;
+            const Vector2 pos = {
+                b.pos.x - w * 0.5f + (float)(cc.col - minC) * cell + (cell - s) * 0.5f,
+                b.pos.y - h * 0.5f + (float)(cc.row - minR) * cell + (cell - s) * 0.5f
+            };
+            sprite.Draw(icon, pos, { s, s }, { 1, 1, 1, 1 }, b.angle, b.pos);
         }
     }
 }

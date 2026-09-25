@@ -31,7 +31,8 @@ enum class UILayer
     None,
     Backpack,     // 呪文編成。Tab で開閉
     LevelUp,      // 習得の三択。選ぶまで閉じられない
-    // 将来：PauseMenu / GameOver / Shop
+    Pause,        // 一時停止のメニュー。P / パッド Back で開閉（三択の上には開かない）
+    // 将来：Shop
 };
 
 class UIManager

@@ -429,4 +429,45 @@ namespace BackpackLogic
             if (f.id == id) ++n;
         return n;
     }
+
+    // ========================================================
+    // このブロックに影響を与えているブロック
+    //
+    // 相手の影響格（回転後・画布内だけ）が、このブロックの占位格に 1 マスでも
+    // 重なれば成立。同じ相手から何マス重なっても 1 回。自分自身は数えない。
+    // 並びは items の順（修飾を掛ける順が毎回同じになるように）
+    // ========================================================
+    std::vector<int> GetInfluencers(const BackpackComponent& bp, int itemIndex)
+    {
+        std::vector<int> out;
+        if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return out;
+
+        const auto& target = bp.items[itemIndex];
+        const ItemCommon* tc = ItemDatabase::GetCommon(target.id);
+        if (!tc) return out;
+        const auto occupy = RotateShape(tc->occupyCells, target.rotation);
+
+        for (int i = 0; i < (int)bp.items.size(); ++i)
+        {
+            if (i == itemIndex) continue;
+            const auto& src = bp.items[i];
+            const ItemCommon* sc = ItemDatabase::GetCommon(src.id);
+            if (!sc || sc->influenceCells.empty()) continue;
+
+            bool touched = false;
+            for (const auto& off : RotateShape(sc->influenceCells, src.rotation))
+            {
+                const int r = src.row + off.row;
+                const int c = src.col + off.col;
+                if (r < 0 || r >= BackpackComponent::GRID || c < 0 || c >= BackpackComponent::GRID) continue;
+                for (const auto& o : occupy)
+                {
+                    if (r == target.row + o.row && c == target.col + o.col) { touched = true; break; }
+                }
+                if (touched) break;
+            }
+            if (touched) out.push_back(i);
+        }
+        return out;
+    }
 }

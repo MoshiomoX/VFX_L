@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Items/Fireball.h
 // 火球：最も基本的な飛行物型の魔法。
 //
@@ -19,6 +19,9 @@ inline ProjectileItemDef MakeFireball()
     // ---- 共通 ----
     def.common.id = ItemID::Fireball;
     def.common.name = "Fireball";
+    def.common.displayName = L"ファイアボール";
+    def.common.description = L"扱いやすい基本の攻撃魔法。消費が軽く、ルーンの強化を試しやすい。";
+    def.common.iconPath = Res::Icon::Fireball;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = {};                        // 強化効果なし

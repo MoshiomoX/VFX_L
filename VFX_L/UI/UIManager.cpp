@@ -89,6 +89,7 @@ const char* UIManager::LayerName(UILayer layer)
     {
     case UILayer::Backpack: return "Backpack";
     case UILayer::LevelUp:  return "LevelUp";
+    case UILayer::Pause:    return "Pause";
     case UILayer::None:
     default:                return "None";
     }

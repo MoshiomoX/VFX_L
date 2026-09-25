@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // GameUI.cpp
 // ============================================================
 #include "UI/GameUI.h"
@@ -7,16 +7,21 @@
 #include "UI/LevelUpSystem.h"
 #include "Item/ItemDatabase.h"
 #include "Item/BackpackLogic.h"
+#include "Item/ItemInfo.h"
 #include "Component/BackpackComponent.h"
 #include "Component/SpellbookComponent.h"
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
 #include "Component/WandComponent.h"
 #include "Player/LevelComponent.h"
+#include "Player/PlayerStateComponent.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputMap.h"
+#include "Manager/InputManager.h"
+#include "Graphics/Material/Texture.h"
 #include "ResourcePaths.h"
 #include "imgui.h"
+#include <algorithm>
 #include <iostream>
 
 // ============================================================
@@ -43,6 +48,11 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
 
     auto blockTex = ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo);
 
+    // ブロックの貼图は縁に陰影があるので、箱や線は無地の白で描く
+    m_WhiteTex = std::make_shared<Texture>();
+    if (!m_WhiteTex->CreateSolid(device, 255, 255, 255, 255))
+        m_WhiteTex = blockTex;
+
     m_Backpack.Initialize(blockTex);
     m_Backpack.LoadIcons();
     m_Backpack.Layout(screenW, screenH);
@@ -55,6 +65,7 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
     m_Spellbook.SetCellSize(m_Backpack.GetCellSize());
 
     m_LevelUp.Initialize(blockTex);
+    m_LevelUp.SetWhiteTexture(m_WhiteTex);
     m_LevelUp.LoadIcons();
     m_LevelUp.Layout(screenW, screenH);
 
@@ -64,6 +75,9 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
         return false;
     }
     m_HUD.Layout(screenW, screenH);
+    m_HUD.SetIconLookup([this](ItemID id) { return m_Backpack.FindIcon(id); });
+
+    m_Pause.Layout(screenW, screenH);
 
     return true;
 }
@@ -91,6 +105,7 @@ void GameUI::Layout(float screenW, float screenH)
 
     m_LevelUp.Layout(screenW, screenH);
     m_HUD.Layout(screenW, screenH);
+    m_Pause.Layout(screenW, screenH);
 }
 
 // ============================================================
@@ -121,6 +136,13 @@ void GameUI::Update(Registry& reg, Entity player, float dt)
         return;
     }
 
+    // 死んだら何も開かせない（「力尽きた」の幕 → リザルトへ進むだけ）
+    if (reg.Has<PlayerStateComponent>(player) && reg.Get<PlayerStateComponent>(player).IsDead())
+    {
+        m_Stack.Clear();
+        return;
+    }
+
     // 魔法書の参照は毎フレーム取り直す。
     // ※Registry の再確保で古いポインタが無効になるため、
     //   Init で一度だけ渡す形にはしない。
@@ -143,6 +165,20 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     // 二重に積まれないよう、Push 側が既存を弾いてくれる
     if (LevelUpSystem::IsAnyoneChoosing(reg))
         m_Stack.Push(UILayer::LevelUp, UIManager::CloseMode::Forced);
+
+    // ---- 1b. 一時停止のメニュー（P / パッド Back）----
+    // 三択の上には開かない（選ぶまで閉じられない物の上に積むと戻り方がややこしい）。
+    // グリッドの上には開ける。閉じればグリッドへ戻る
+    if (InputMap::GetPauseToggle())
+    {
+        if (m_Stack.Top() == UILayer::Pause)
+            m_Stack.Pop(UILayer::Pause);
+        else if (m_Stack.Top() != UILayer::LevelUp)
+        {
+            m_Stack.Push(UILayer::Pause);
+            m_Pause.Open();
+        }
+    }
 
     // ---- 2. グリッドの開閉 ----
     // 何も開いていない時か、自分が一番上の時だけ Tab を受ける。
@@ -185,6 +221,16 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         break;
     }
 
+    case UILayer::Pause:
+    {
+        const auto action = m_Pause.HandleInput();
+        if (action == PauseMenuUI::Action::Resume)
+            m_Stack.Pop(UILayer::Pause);
+        else if (action != PauseMenuUI::Action::None)
+            m_MenuAction = action;   // やり直す / タイトルへ：シーンが ConsumeMenuAction で拾う
+        break;
+    }
+
     default:
         break;
     }
@@ -208,12 +254,15 @@ void GameUI::Render(Registry& reg, Entity player)
         && reg.Has<ManaComponent>(player)
         && reg.Has<LevelComponent>(player))
     {
-        const bool paused = reg.Has<WandComponent>(player)
-            && reg.Get<WandComponent>(player).castingPaused;
+        const WandComponent* wand = reg.Has<WandComponent>(player)
+            ? &reg.Get<WandComponent>(player) : nullptr;
+        m_FrameInfo.wand = wand;
         m_HUD.Draw(m_Sprite, m_Text,
             reg.Get<HealthComponent>(player),
             reg.Get<ManaComponent>(player),
-            reg.Get<LevelComponent>(player), paused);
+            reg.Get<LevelComponent>(player),
+            wand && wand->castingPaused, m_FrameInfo);
+        m_FrameInfo.wand = nullptr;   // 次のフレームまで指したままにしない
     }
 
     // ---- 操作案内（画面下の中央。影付き）----
@@ -232,6 +281,96 @@ void GameUI::Render(Registry& reg, Entity player)
 
     m_Sprite.End();
     m_Text.End();
+
+    // ---- 覆い層 ----
+    // 文字はスプライトの後にまとめて描かれるので、同じ組の中だと
+    // tooltip の箱の上に背包の文字が透けて出る。別の組で最後に描く
+    if (reg.IsValid(player))
+        DrawOverlay(reg, player);
+}
+
+// ============================================================
+// 覆い層：背包を操作している間の tooltip
+//   グリッドの魔法 → 置いてある状態の値（隣のルーンの強化込み）
+//   グリッドの枠 / 魔法書の中の物 → 道具そのものの値
+// ============================================================
+void GameUI::DrawOverlay(Registry& reg, Entity player)
+{
+    // ---- tooltip の中身（背包を操作している間だけ）----
+    ItemInfo::Sheet sheet;
+    bool tooltip = false;
+    if (m_Stack.CanReceiveInput(UILayer::Backpack) && !m_Drag.IsActive()
+        && reg.Has<BackpackComponent>(player) && !ImGui::GetIO().WantCaptureMouse)
+    {
+        const auto& bp = reg.Get<BackpackComponent>(player);
+        const int item = m_Backpack.GetHoverItemIndex();
+        const int frame = m_Backpack.GetHoverFrameIndex();
+        ItemID bookId = ItemID::Fireball;
+
+        tooltip = true;
+        if (item >= 0 && item < (int)bp.items.size())
+            sheet = ItemInfo::DescribePlaced(bp, item);
+        else if (frame >= 0 && frame < (int)bp.frames.size())
+            sheet = ItemInfo::Describe(bp.frames[frame].id);
+        else if (m_Spellbook.GetHoveredItem(bookId))
+            sheet = ItemInfo::Describe(bookId);
+        else
+            tooltip = false;
+    }
+
+    const bool gameOver = (m_GameOverTime >= 0.0f);
+    if (!tooltip && !gameOver) return;   // 何も無いフレームは Begin / End も省く
+
+    m_Sprite.Begin();
+    m_Text.Begin();
+
+    if (gameOver)
+        DrawGameOver();
+
+    if (tooltip)
+    {
+        const float shortSide = (std::min)(m_ScreenW, m_ScreenH);
+        const auto mp = InputManager::Get().GetMousePos();
+        ItemSheetView::DrawTooltip(m_Sprite, m_WhiteTex, m_Text, sheet,
+            { mp.x, mp.y }, { m_ScreenW, m_ScreenH }, shortSide * 0.36f,
+            m_TooltipStyle.Scaled(shortSide / 900.0f));
+    }
+
+    m_Sprite.End();
+    m_Text.End();
+}
+
+// ============================================================
+// 「力尽きた」の幕
+//   倒れる姿を少し見せてから（0.4 秒後）赤黒い幕と文字をじわっと出す。
+//   リザルトへの切替はシーン（kDeathToResult）が決める
+// ============================================================
+void GameUI::DrawGameOver()
+{
+    const float t = m_GameOverTime;
+    float a = (t - 0.4f) / 0.6f;
+    if (a <= 0.0f) return;
+    if (a > 1.0f) a = 1.0f;
+
+    m_Sprite.Draw(m_WhiteTex, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH }, { 0.10f, 0.0f, 0.0f, 0.68f * a });
+
+    const float k = (std::min)(m_ScreenW, m_ScreenH) / 900.0f;
+
+    const std::wstring title = L"力尽きた";
+    const float ts = 1.4f * k;
+    const DirectX::SimpleMath::Vector2 tsz = m_Text.Measure(title, ts);
+    const DirectX::SimpleMath::Vector2 tp = { (m_ScreenW - tsz.x) * 0.5f, m_ScreenH * 0.40f - tsz.y * 0.5f };
+    m_Text.Draw(title, { tp.x + 3.0f * k, tp.y + 3.0f * k }, { 0.0f, 0.0f, 0.0f, 0.8f * a }, ts);
+    m_Text.Draw(title, tp, { 1.0f, 0.35f, 0.30f, a }, ts);
+
+    wchar_t buf[64];
+    const int total = (int)m_FrameInfo.runTime;
+    swprintf_s(buf, L"生存 %02d:%02d    撃破 %u", total / 60, total % 60, m_FrameInfo.kills);
+    const std::wstring sub = buf;
+    const float ss = 0.5f * k;
+    const DirectX::SimpleMath::Vector2 ssz = m_Text.Measure(sub, ss);
+    m_Text.Draw(sub, { (m_ScreenW - ssz.x) * 0.5f, tp.y + tsz.y + 12.0f * k },
+        { 0.95f, 0.90f, 0.88f, a }, ss);
 }
 
 // ============================================================
@@ -255,6 +394,10 @@ void GameUI::DrawModals(Registry& reg, Entity player)
         case UILayer::LevelUp:
             if (reg.Has<LevelComponent>(player))
                 m_LevelUp.Draw(m_Sprite, m_Text, reg.Get<LevelComponent>(player));
+            break;
+
+        case UILayer::Pause:
+            m_Pause.Draw(m_Sprite, m_Text, m_WhiteTex);
             break;
 
         default:
