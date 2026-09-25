@@ -65,12 +65,20 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
   - 触发：场景看玩家 HP 掉了多少，以及 GPU `aliveAreas` 有没有增加。参数都在「Camera」面板
 - **升级**：`UI/LevelUpSystem`。卡池 = `ItemDatabase::GetAllIDs()` + `GetLevelUpOnlyIDs()`（生命、法力上限卡，`ItemCategory::Stat`）。
 - **施法暂停**：`WandComponent::castingPaused`（Q / 手柄 Y）。
+- **UI 文字是日文**：字体 `NotoSansJP.spritefont`（汉字、假名齐全），但**没有全角英数/全角符号和 × ° →**，文案里用半角、`x`、「度」。含日文 `L"..."` 的文件存 UTF-8 带 BOM。
+- **道具说明**：`ItemCommon::displayName / description`（`Items/*.h`）+ `Item/ItemInfo`（`Describe` / `DescribePlaced` 从道具定义和投射物/范围 profile 自动出数值，置于背包的物品叠符文修饰）。聚合系统用同一套 `ItemInfo::Base*Stats` + `BackpackLogic::GetInfluencers`，画面数字和实际一致。`UI/ItemSheetView` 负责折行和画卡片正文 / tooltip；tooltip 在 `GameUI` 的覆盖层（第二组 Begin/End）画。
+- **HUD**：顶部中间计时（`m_RunTime`，暂停不走，结算也用它）+ 撃破、底部法术栏（冷却/MP 不足/暂停施法）、低 HP 红边、屏幕外箭头（报酬箱黄、精英红）。参数在 `HUDStyle`，ImGui 调，存 `Assets/Data/HUD.json`。
+- **暂停 / 死亡 / 标题**：暂停 = P / 手柄 Back（`UILayer::Pause`，手柄 Start 是背包，Esc 是退出），菜单部件 `UI/MenuList`（暂停和标题共用）。死亡后画「力尽きた」再进结算（`kDeathToResult` 3 秒）。标题的游戏名是占位（`TitleScene.cpp` 的 `kGameTitle`）。
+- **道具图标**：`Assets/Texture/UI/Icons/`（7Soul CC0 + 自画 2 个，34px 最近邻放大到 136px，出处见同目录 README），路径 `Res::Icon::*`。形状用道具色压暗做底、图标只在中心格画一次（`ShapeSprite::DrawItem`）。
+- **SpriteRenderer 是预乘 alpha**（`AlphaBlend()` = ONE / INV_SRC_ALPHA）：`SpritePS` 输出 `rgb*a`，`TextRenderer::Draw` 也把颜色预乘。另外画面会把深色提亮（0.07 显示成中灰），深色底板用 0.015 左右。
+- **特效 Trail entry**：`VFX_Editor/VFXTrailEntry` + `Particle/GPUParticleEffectTrail.cpp`，特效位置驱动的 GPU 条带（按距离取点、按长度渐变）。战斗火球不用（用户决定）。
+- **Mesh 粒子**：粒子条目 Render = Mesh，从 `Assets/VFX/Mesh` 选模型（(none) = 立方体），Lit（不透明受光）/ Glow（加法），可选朝向速度 + 前方轴，size = 模型最长边（m）。`renderMode` 打包模型号+1 / 发光 / 朝向 / 轴（`ParticleRenderMode::Pack` ↔ `ParticleCommon.hlsli`），模型表 16 个在 `Particle/GPUParticleMesh.cpp`。示例 `MeshParticleTest.json`。
 - **FBX 单位**：`Model::GetFileUnitScale()` 记录 FBX 的 UnitScaleFactor，但不乘进顶点（现有模型各自手调倍率）。KayKit Forest 和 Kenney 的 FBX 都是厘米单位。
 - **素材（都是 CC0）**：`Assets/Model/KayKit_*`、`Kenney_BlockyCharacters`、`Kenney_RetroFantasy`（1m 立方的部件，编辑器默认 2 倍）。
 
 ## 5. 仍在代码里的临时测试（TEMP-TEST）
 
-- `Core/Game.cpp`：启动直接进 `COLLISION_TEST`（原本是 Title / VFX Editor）。
+- `Core/Game.cpp`：启动已恢复为 Title，只是 `ChangeScene(SceneType::TITLE)` 那行还留着 `// TEMP-TEST` 标记。
 - `CollisionTestScene::Init`：玩家 `maxHealth = 1000000`。
 - `CollisionTestScene::UpdateGameplay`：每 120 帧打一行 `[crowd]` 日志。
 - `SwarmSystem::UpdateFlowField`：打 `[flow] build ms` 日志。
@@ -82,4 +90,4 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - 靠近后画面下方出「[F] Open」（`GameUI::SetPrompt`），F / 手柄 B 触发 → `LevelUpSystem::OfferChoices`：和升级一样的三选一，但不升级、不扣经验；选择中不能再开（箱子保留）。
 - 调参在战斗场景「Reward Crates」面板。
 
-之后的候选（未定）：战斗场景读取关卡编辑器的关卡、流场寻路的实机验证、Phase 5（SpawnDirector GPU 化等）。
+之后的候选（未定）：战斗场景读取关卡编辑器的关卡、流场寻路的实机验证、Phase 5（SpawnDirector GPU 化等）、**认真找 UI 素材**（用户日程：面板/按钮/边框/像素日文字体，统一 UI 风格，CC0 优先，下载前先给候选）。
