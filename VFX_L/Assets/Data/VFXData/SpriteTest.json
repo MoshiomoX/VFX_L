@@ -1,0 +1,26 @@
+{
+    "entries": [
+        {
+            "data": { "sheet": "Assets/VFX/SpriteSheet/PVFX/electric-impact.png", "offset": [-3.0, 1.0, 0.0], "size": 2.0,
+                      "facing": 0, "rotation": 0.0, "color": [1.0, 1.0, 1.0, 1.0], "blend": 0, "speed": 1.0, "loopMode": 2, "anchor": 0 },
+            "duration": -1.0, "startTime": 0.0, "type": "Sprite"
+        },
+        {
+            "data": { "sheet": "Assets/VFX/SpriteSheet/PVFX/warm-explosion.png", "offset": [-1.0, 1.0, 0.0], "size": 2.0,
+                      "facing": 0, "rotation": 0.0, "color": [1.0, 1.0, 1.0, 1.0], "blend": 0, "speed": 1.0, "loopMode": 2, "anchor": 0 },
+            "duration": -1.0, "startTime": 0.0, "type": "Sprite"
+        },
+        {
+            "data": { "sheet": "Assets/VFX/SpriteSheet/PVFX/frost-nova.png", "offset": [1.2, 0.05, 0.0], "size": 2.5,
+                      "facing": 2, "rotation": 0.0, "color": [1.0, 1.0, 1.0, 1.0], "blend": 0, "speed": 1.0, "loopMode": 2, "anchor": 1 },
+            "duration": -1.0, "startTime": 0.0, "type": "Sprite"
+        },
+        {
+            "data": { "sheet": "Assets/VFX/SpriteSheet/PVFX/rift-portal.png", "offset": [3.2, 0.0, 0.0], "size": 2.5,
+                      "facing": 1, "rotation": 0.0, "color": [1.0, 1.0, 1.0, 1.0], "blend": 0, "speed": 1.0, "loopMode": 0, "anchor": 2 },
+            "duration": -1.0, "startTime": 0.0, "type": "Sprite"
+        }
+    ],
+    "loop": true,
+    "name": "SpriteTest"
+}

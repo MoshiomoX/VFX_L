@@ -122,6 +122,9 @@ void ProjectileEditorScene::Init()
         std::cout << "[Error] VFXMeshRenderer init failed" << std::endl;
     m_VFXContext.particleSystem = &m_ParticleSystem;
     m_VFXContext.meshRenderer = &m_MeshRenderer;
+    if (!m_SpriteRenderer.Initialize(device))
+        std::cout << "[Error] VFXSpriteRenderer init failed" << std::endl;
+    m_VFXContext.spriteRenderer = &m_SpriteRenderer;
     m_AreaMarker.y = m_Swarm.GetAIParams().groundY;
 
     // ---------- プロファイル ----------
@@ -1022,6 +1025,8 @@ void ProjectileEditorScene::Render(Renderer& renderer)
 
     // 法環などの VFX Mesh（光を当てない。深度は読むだけ）。粒子の前
     m_MeshRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
+    m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
+    m_Swarm.RenderSprites(GetCamera());   // GPU の範囲（弾の命中）の連番絵
 
     m_ParticleSystem.SetCamera(GetCamera());
     m_ParticleSystem.SetLight(renderer.GetLightData());

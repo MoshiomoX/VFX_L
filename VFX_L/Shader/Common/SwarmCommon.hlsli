@@ -320,7 +320,8 @@ struct SwarmRecipe
 
     uint lightStart;
     uint lightCount;
-    uint2 _pad;
+    uint spriteStart; // SwarmSpriteDef table (GPU areas only, was _pad)
+    uint spriteCount;
 };
 
 // ============================================================

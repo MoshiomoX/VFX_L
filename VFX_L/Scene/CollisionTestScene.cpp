@@ -107,6 +107,9 @@ void CollisionTestScene::Init()
         m_ParticleSystem.SetTexture(m_ParticleTexture);
 
     m_VFXContext.particleSystem = &m_ParticleSystem;
+    if (!m_SpriteRenderer.Initialize(device))
+        std::cout << "[Error] VFXSpriteRenderer init failed" << std::endl;
+    m_VFXContext.spriteRenderer = &m_SpriteRenderer;
 
     // ---------- 投射物ビルボード ----------
     if (!m_ProjectileRenderer.Initialize(device, context, 4096))
@@ -744,6 +747,10 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ---- 2) ビルボード（投射物とオーブの芯）----
     if (m_ShowBillboard)
         m_ProjectileRenderer.Render(m_Registry, GetCamera());
+
+    // ---- 2b) 連番絵（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
+    m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
+    m_Swarm.RenderSprites(GetCamera());
 
     // ---- 3) 粒子（VFX 本体）----
     if (m_ShowParticle)

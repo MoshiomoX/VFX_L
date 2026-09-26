@@ -35,6 +35,7 @@
 #include "ECS/System/InteractionSystem.h"
 #include "Particle/GPUParticleSystem.h"
 #include "VFX_Editor/VFXEffect.h"
+#include "VFX_Editor/VFXSpriteRenderer.h"
 #include "ECS/System/ManaSystem.h"
 #include "Enemy/SpawnDirector.h"
 
@@ -144,6 +145,7 @@ private:
     GPUParticleSystem           m_ParticleSystem;
     ProjectileBillboardRenderer m_ProjectileRenderer;
     VFXContext                  m_VFXContext;
+    VFXSpriteRenderer           m_SpriteRenderer;   // Sprite entry（連番絵）。升級・開箱などの CPU 特効
     std::shared_ptr<Texture>    m_ParticleTexture;
     float m_TotalTime = 0.0f;
     float m_RunTime = 0.0f;       // 遊んでいる時間（止まっている間・死んだ後は進まない）。HUD とリザルト用

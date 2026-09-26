@@ -23,6 +23,7 @@
 #include "Swarm/AreaVFXPlayer.h"
 #include "VFX_Editor/EntryType.h"
 #include "VFX_Editor/VFXMeshRenderer.h"
+#include "VFX_Editor/VFXSpriteRenderer.h"
 #include <string>
 #include <vector>
 #include "World/GridWorld.h"
@@ -131,6 +132,7 @@ private:
 
     AreaVFXPlayer   m_AreaVFX;
     VFXMeshRenderer m_MeshRenderer;    // 法環の Mesh entry 用
+    VFXSpriteRenderer m_SpriteRenderer;   // Sprite entry（連番絵）用
     VFXContext      m_VFXContext;
 
     // ---- 道具の形の頁 ----

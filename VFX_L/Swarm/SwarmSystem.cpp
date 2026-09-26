@@ -19,6 +19,7 @@
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include "World/GridWorld.h"
+#include "VFX_Editor/VFXSpriteRenderer.h"   // VFXSpriteCameraCB
 #include <chrono>
 #include <iostream>
 
@@ -207,6 +208,12 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_AreaBuffer, m_AreaUAV, m_AreaSRV, "area")) return false;
     if (!makeState(Swarm::kMaxAreas, m_AreaStateBuffer, m_AreaStateUAV, m_AreaStateSRV, "area")) return false;
 
+    // ---- 範囲の連番絵：再生中の環と、範囲の槽ごとの「前に見た timeLeft」----
+    if (!makeStructured(sizeof(Swarm::SpriteInstance), kMaxSprites,
+        m_SpriteBuffer, m_SpriteUAV, m_SpriteSRV, "sprite")) return false;
+    if (!makeStructured(sizeof(uint32_t), Swarm::kMaxAreas,
+        m_AreaSeenBuffer, m_AreaSeenUAV, m_AreaSeenSRV, "areaSeen")) return false;
+
     // ---- RAW UAV（counter と発射予約。両方とも InterlockedAdd 用）----
     auto makeRaw = [&](UINT bytes,
         ComPtr<ID3D11Buffer>& buf,
@@ -240,6 +247,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeRaw(sizeof(SwarmCounters), m_CounterBuffer, m_CounterUAV, "counter")) return false;
     if (!makeRaw(16, m_EmitBudget, m_EmitBudgetUAV, "emitBudget")) return false;
     if (!makeRaw(16, m_RecycleClaim, m_RecycleClaimUAV, "recycleClaim")) return false;
+    if (!makeRaw(16, m_SpriteHead, m_SpriteHeadUAV, "spriteHead")) return false;
     // ---- 定数バッファ ----
     // ※ComputeShader::WriteBuffer が反射から自前の CB を持つ場合は未使用。
     //   将来 VS 側で直接使うことを想定して残しておく
@@ -301,6 +309,10 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_CounterUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EmitBudgetUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EnemyMaxHpUAV.Get(), zero);   // 0 = VS 側で 1 扱い
+        m_Context->ClearUnorderedAccessViewUint(m_SpriteUAV.Get(), zero);       // alive = 0
+        m_Context->ClearUnorderedAccessViewUint(m_SpriteHeadUAV.Get(), zero);
+        const UINT unseen[4] = { 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu };
+        m_Context->ClearUnorderedAccessViewUint(m_AreaSeenUAV.Get(), unseen);
     }
 
     return true;
@@ -1127,6 +1139,78 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
         m_AreaEmitCS->UnbindSRVs(m_Context);
         m_AreaEmitCS->UnbindUAVs(m_Context);
     }
+
+    DispatchSprites(dt);
+}
+
+// ============================================================
+// 範囲の連番絵（Sprite entry）
+// 1 回目：再生中の物を進め、寿命が来た物を消す（環の全枠）
+// 2 回目：範囲の槽を見て、新しく生まれた範囲の配方の Sprite を始める
+// 範囲の数え下げ（timeLeft）は子ステップで確定済み。粒子の発射と同じく 1 フレーム 1 回
+// ============================================================
+void SwarmSystem::DispatchSprites(float dt)
+{
+    if (!m_SpriteCS || m_VFX.GetSpriteDefCount() == 0) return;
+
+    struct { float dt; uint32_t mode; uint32_t poolSize; uint32_t areaCount; } cb =
+        { dt, 0u, kMaxSprites, Swarm::kMaxAreas };
+
+    for (uint32_t mode = 0; mode < 2; ++mode)
+    {
+        cb.mode = mode;
+        m_SpriteCS->WriteBuffer(m_Context, 3, &cb);
+        m_SpriteCS->Bind(m_Context);
+        m_SpriteCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
+        m_SpriteCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
+        m_SpriteCS->SetSRV(m_Context, "recipes", m_VFX.GetRecipeSRV());
+        m_SpriteCS->SetSRV(m_Context, "spriteDefs", m_VFX.GetSpriteDefSRV());
+        m_SpriteCS->SetUAV(m_Context, "sprites", m_SpriteUAV.Get());
+        m_SpriteCS->SetUAV(m_Context, "areaSeen", m_AreaSeenUAV.Get());
+        m_SpriteCS->SetUAV(m_Context, "spriteHead", m_SpriteHeadUAV.Get());
+        m_SpriteCS->BindUAVs(m_Context);
+
+        const uint32_t n = (mode == 0) ? kMaxSprites : Swarm::kMaxAreas;
+        m_Context->Dispatch((n + 255) / 256, 1, 1);
+
+        m_SpriteCS->UnbindSRVs(m_Context);
+        m_SpriteCS->UnbindUAVs(m_Context);
+    }
+}
+
+// ============================================================
+// 範囲の連番絵を描く。環の全枠を 6 頂点ずつ描き、空の枠は VS が潰す
+// 混合は乗算済み alpha（加算の物は alpha 0）。深度は読むだけ
+// ============================================================
+void SwarmSystem::RenderSprites(CameraBase* camera)
+{
+    if (!camera || !m_SpriteVS || !m_SpritePS || m_VFX.GetSpriteDefCount() == 0) return;
+    if (!m_VFX.GetSpriteArraySRV() || !m_VFX.GetSpriteDefSRV()) return;
+
+    VFXSpriteCameraCB cb = VFXSpriteCameraCB::From(camera);
+    m_SpriteVS->WriteBuffer(m_Context, 0, &cb);
+    m_SpriteVS->Bind(m_Context);
+    m_SpritePS->Bind(m_Context);
+
+    ID3D11ShaderResourceView* vsSRV[2] = { m_SpriteSRV.Get(), m_VFX.GetSpriteDefSRV() };
+    m_Context->VSSetShaderResources(0, 2, vsSRV);
+    ID3D11ShaderResourceView* psSRV = m_VFX.GetSpriteArraySRV();
+    m_Context->PSSetShaderResources(0, 1, &psSRV);
+    ID3D11SamplerState* samp = RenderStates::Get().PointClamp();
+    m_Context->PSSetSamplers(0, 1, &samp);
+
+    m_Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_Context->IASetInputLayout(nullptr);
+    m_Context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
+    RenderStates::Get().ApplyAlphaBlend(m_Context);
+
+    m_Context->DrawInstanced(6, kMaxSprites, 0, 0);
+
+    // 次のフレームで CS が UAV として使うので必ず外す
+    ID3D11ShaderResourceView* nulls[2] = {};
+    m_Context->VSSetShaderResources(0, 2, nulls);
+    m_Context->PSSetShaderResources(0, 1, nulls);
+    RenderStates::Get().Restore(m_Context);
 }
 
 // ============================================================
@@ -1449,6 +1533,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_AreaTickCS, L"Shader/Swarm/SwarmAreaTickCS.hlsl", "AreaTickCS");
     ok &= load(m_AreaDamageCS, L"Shader/Swarm/SwarmAreaDamageCS.hlsl", "AreaDamageCS");
     ok &= load(m_AreaEmitCS, L"Shader/Swarm/SwarmAreaEmitCS.hlsl", "AreaEmitCS");
+    load(m_SpriteCS, L"Shader/Swarm/SwarmSpriteCS.hlsl", "SpriteCS");   // 無くても連番絵が出ないだけ
     ok &= load(m_LightCollectCS, L"Shader/Swarm/SwarmLightCollectCS.hlsl", "LightCollectCS");
     ok &= load(m_AreaLightCollectCS, L"Shader/Swarm/SwarmAreaLightCollectCS.hlsl", "AreaLightCollectCS");
     ok &= load(m_EnemyCompactCS, L"Shader/Swarm/SwarmEnemyCompactCS.hlsl", "EnemyCompactCS");
@@ -1480,6 +1565,17 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     hr = ShaderPath::Load(m_HpBarPS.get(), device, L"Shader/Swarm/SwarmEnemyHpBarPS.hlsl");
     std::cout << "[SwarmSystem] EnemyHpBarPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_HpBarPS.reset();
+
+    // ---- 範囲の連番絵（失敗しても出ないだけ）----
+    m_SpriteVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_SpriteVS.get(), device, L"Shader/Swarm/SwarmSpriteVS.hlsl");
+    std::cout << "[SwarmSystem] SpriteVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_SpriteVS.reset();
+
+    m_SpritePS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_SpritePS.get(), device, L"Shader/Swarm/SwarmSpritePS.hlsl");
+    std::cout << "[SwarmSystem] SpritePS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_SpritePS.reset();
 
     // テクスチャ無しの Material は Bind で既定の白を t0 に入れる。その白を用意しておく
     Material::InitDefaultTextures(device);
