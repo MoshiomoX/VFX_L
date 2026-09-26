@@ -1,0 +1,40 @@
+{
+    "entries": [
+        {
+            "data": { "sheet": "Assets/VFX/SpriteSheet/PVFX/void-implosion.png", "offset": [0.0, 0.0, 0.0], "size": 1.6,
+                      "facing": 0, "rotation": 0.0, "color": [1.0, 1.0, 1.0, 1.0], "blend": 0, "speed": 1.0, "loopMode": 1, "anchor": 1 },
+            "duration": 0.7, "startTime": 0.0, "type": "Sprite"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 55,
+                "sheet": 1, "frameMode": 3, "frameCount": 9, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 2.0,
+                "emitRate": 120.0, "emitType": 1,
+                "endColorMax": [0.9, 0.5, 1.0, 0.0], "endColorMin": [0.9, 0.5, 1.0, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.3, 0.5], "maxParticles": 300,
+                "position": [0.0, 0.0, 0.0], "radius": 0.3, "renderMode": 0, "rotationRange": [0.0, 0.3],
+                "sizeRange": [0.25, 0.3, 0.0, 0.02], "speedRange": [1.0, 2.5], "spreadAngle": 0.0,
+                "startColorMax": [1.0, 0.85, 1.0, 1.0], "startColorMin": [1.0, 0.85, 1.0, 1.0]
+            },
+            "duration": 0.1, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-360.0, 360.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
+                "sheet": 0, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 2.0,
+                "emitRate": 100.0, "emitType": 1,
+                "endColorMax": [0.5, 0.2, 1.0, 0.0], "endColorMin": [0.5, 0.2, 1.0, 0.0],
+                "gravity": [0.0, 0.5, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.4, 0.6], "maxParticles": 300,
+                "position": [0.0, 0.0, 0.0], "radius": 0.2, "renderMode": 1, "rotationRange": [0.0, 360.0],
+                "sizeRange": [0.05, 0.07, 0.01, 0.02], "speedRange": [1.0, 2.0], "spreadAngle": 0.0,
+                "startColorMax": [0.9, 0.7, 1.0, 1.0], "startColorMin": [0.75, 0.5, 1.0, 1.0],
+                "mesh": "", "meshGlow": true, "meshFaceVelocity": false, "meshForwardAxis": 2
+            },
+            "duration": 0.1, "startTime": 0.0, "type": "Particle"
+        }
+    ],
+    "loop": false,
+    "name": "HomingBoltHit"
+}

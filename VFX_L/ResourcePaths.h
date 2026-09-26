@@ -249,6 +249,8 @@ namespace Res
         inline constexpr const char* Meteor = "Assets/Data/VFXData/Meteor.json";
         inline constexpr const char* MeteorBlast = "Assets/Data/VFXData/MeteorBlast.json";   // メテオの着弾
         inline constexpr const char* FireCircle = "Assets/Data/VFXData/FireCircle.json";     // 火の輪（範囲）
+        inline constexpr const char* ArcBoltHit = "Assets/Data/VFXData/ArcBoltHit.json";     // 命中（威力 0 の範囲の見た目）
+        inline constexpr const char* HomingBoltHit = "Assets/Data/VFXData/HomingBoltHit.json";
     }
 
     // ========================================================

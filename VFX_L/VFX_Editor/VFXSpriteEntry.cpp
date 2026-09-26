@@ -106,6 +106,7 @@ void VFXSpriteEntry::Submit(VFXSpriteRenderer& renderer, const Vector3& worldOff
     item.quad.color = color;
     item.quad.facing = (uint32_t)std::clamp(facing, 0, 2);
     item.quad.flags = (blend == 1) ? 1u : 0u;
+    item.onTop = onTop;
     renderer.Submit(item);
 }
 
@@ -162,6 +163,8 @@ void VFXSpriteEntry::OnImGui()
     ImGui::DragFloat("Speed", &speed, 0.01f, 0.05f, 10.0f);
     const char* loopNames[] = { "From sheet", "Once", "Loop" };
     ImGui::Combo("Loop", &loopMode, loopNames, IM_ARRAYSIZE(loopNames));
+    ImGui::Checkbox("Always on top (no depth test)", &onTop);
+    ImGui::TextDisabled("for effects on the player that the body would hide (CPU only)");
 }
 
 // ============================================================
@@ -188,6 +191,7 @@ json VFXSpriteEntry::ToJson() const
         { "speed", speed },
         { "loopMode", loopMode },
         { "anchor", anchor },
+        { "onTop", onTop },
     };
 }
 
@@ -203,4 +207,5 @@ void VFXSpriteEntry::FromJson(const json& j)
     speed = j.value("speed", speed);
     loopMode = j.value("loopMode", loopMode);
     anchor = j.value("anchor", anchor);
+    onTop = j.value("onTop", onTop);
 }

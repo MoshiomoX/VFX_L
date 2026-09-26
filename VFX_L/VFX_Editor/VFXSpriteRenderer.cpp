@@ -77,10 +77,11 @@ void VFXSpriteRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
     ctx->GetDevice(&device);
     if (!EnsureCapacity(device.Get(), m_Items.size())) { m_Items.clear(); return; }
 
-    // 同じ貼图・同じ採样をまとめる
+    // 同じ貼图・同じ採样をまとめる。深度を見ない物は最後
     std::stable_sort(m_Items.begin(), m_Items.end(),
         [](const VFXSpriteDrawItem& a, const VFXSpriteDrawItem& b)
         {
+            if (a.onTop != b.onTop) return !a.onTop;
             if (a.texture != b.texture) return a.texture < b.texture;
             return a.point < b.point;
         });
@@ -108,8 +109,11 @@ void VFXSpriteRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
     {
         size_t end = start + 1;
         while (end < m_Items.size() && m_Items[end].texture == m_Items[start].texture
-            && m_Items[end].point == m_Items[start].point)
+            && m_Items[end].point == m_Items[start].point && m_Items[end].onTop == m_Items[start].onTop)
             ++end;
+
+        ctx->OMSetDepthStencilState(m_Items[start].onTop
+            ? RenderStates::Get().DepthNone() : RenderStates::Get().DepthReadOnly(), 0);
 
         cb.first = (uint32_t)start;
         m_VS->WriteBuffer(ctx, 0, &cb);

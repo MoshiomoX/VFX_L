@@ -18,6 +18,8 @@ namespace
         { VFXId::Meteor, Res::VFX::Meteor },
         { VFXId::MeteorBlast, Res::VFX::MeteorBlast },
         { VFXId::FireCircle, Res::VFX::FireCircle },
+        { VFXId::ArcBoltHit, Res::VFX::ArcBoltHit },
+        { VFXId::HomingBoltHit, Res::VFX::HomingBoltHit },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }

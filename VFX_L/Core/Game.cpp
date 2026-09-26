@@ -46,6 +46,8 @@ bool Game::Initialize(Renderer* renderer)
         m_SceneManager.ChangeScene(SceneType::VFX_EDITOR);
     else if (GetEnvironmentVariableA("VFXL_PROJ_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::PROJECTILE_EDITOR);
+    else if (GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
+        m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);   // 戦闘の反応特効の自測
 
 
 	return true;

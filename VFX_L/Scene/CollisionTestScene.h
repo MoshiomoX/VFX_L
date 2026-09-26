@@ -107,6 +107,24 @@ private:
     float m_HitTraumaPerDamage = 0.01f;
     float m_HitTraumaMax = 0.70f;
     float m_PrevPlayerHp = -1.0f;       // -1 = まだ読んでいない（最初のフレームで揺らさない）
+
+    // ---- 反応の特効（Feedback VFX 面板）。再生は m_AreaVFX（CPU の VFXEffect、Sprite entry も出る）----
+    bool m_FxLevelUp = true;   // 升級：足元の光（LevelUp.json、プレイヤーに付いて動く）
+    bool m_FxCrate = true;     // 報酬の箱を開けた：箱の位置（CrateOpen.json）
+    bool m_FxHurt = true;      // 被弾：体の前の赤い斬撃（Hurt.json、付いて動く）
+    int  m_PrevLevel = -1;     // -1 = まだ読んでいない
+    float m_HurtFxInterval = 1.5f;   // 被弾の斬撃は最短でもこの秒数あける（囲まれると毎秒出てうるさい）
+    float m_HurtFxTimer = 0.0f;
+    void PlayFeedbackVFX(const char* file, const Vector3& pos, float duration, bool follow);
+
+    // TEMP-TEST: VFXL_BATTLE_AUTOTEST。5 秒で升級分の経験値、9 秒で最寄りの箱の横へ、10 秒で F を押した扱い。
+    // 出来事は実時間（ms）付きで autotest.log へ（画面の連写と突き合わせる）
+    bool  m_AutoTest = false;
+    int   m_AutoStep = 0;
+    float m_AutoTime = 0.0f;
+    bool  m_AutoInteract = false;
+    void  AutoTestLog(const char* what);
+    void  UpdateAutoTest(float dt);
     // 範囲攻撃：GPU の aliveAreas が増えた数 × perArea（位置は来ないので距離では弱めない）
     bool  m_ShakeOnArea = true;
     float m_AreaTrauma = 0.12f;

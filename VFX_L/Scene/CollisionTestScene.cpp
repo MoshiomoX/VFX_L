@@ -53,6 +53,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <chrono>
+#include <fstream>   // TEMP-TEST: autotest.log
 #include <random>
 #include "Swarm/ProjectileProfile.h"
 #include "Swarm/AreaProfile.h"
@@ -83,6 +84,13 @@ void CollisionTestScene::Init()
     SetCamera(&m_Camera);
     m_Camera.SnapToTarget();
     m_CursorFree = false;   // やり直し・F5 の後はカーソルを隠した状態から
+    {
+        char env[8] = {};   // TEMP-TEST
+        m_AutoTest = GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", env, sizeof(env)) > 0;
+        m_AutoStep = 0;
+        m_AutoTime = 0.0f;
+        if (m_AutoTest) AutoTestLog("start");
+    }
 
     // 遮蔽回避の射線は地形（床・壁・障害物・宝箱）にだけ当てる。
     // 雑魚は GPU なので当たらず、精英（Layer_Enemy）も除く（敵の陰に入るたびに寄ると酔う）
@@ -324,6 +332,85 @@ void CollisionTestScene::Update(float dt)
 }
 
 // ============================================================
+// 反応の特効を 1 回出す（升級・開箱・被弾）。follow = プレイヤーに付いて動く。
+// m_AreaVFX は止まっている間（三択・一時停止）は進まないので、動き出してから見える
+// ============================================================
+void CollisionTestScene::PlayFeedbackVFX(const char* file, const Vector3& pos, float duration, bool follow)
+{
+    m_AreaVFX.Play(file, pos, duration, follow, m_VFXContext);
+    if (m_AutoTest) AutoTestLog(file);   // TEMP-TEST
+}
+
+// ============================================================
+// TEMP-TEST: 戦闘の反応特効の自測（VFXL_BATTLE_AUTOTEST）
+// ============================================================
+void CollisionTestScene::AutoTestLog(const char* what)
+{
+    const long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    std::ofstream f("autotest.log", std::ios::app);
+    f << ms << " " << what << " (game " << m_AutoTime << " s)";
+    const Vector3 cp = m_Camera.GetPosition();
+    f << " cam dist " << m_Camera.GetCurrentDistance() << (m_Camera.IsOccluded() ? " occluded" : "")
+      << " pitch " << m_Camera.GetPitch() << " camPos " << cp.x << "," << cp.y << "," << cp.z;
+    if (m_Registry.IsValid(m_Player))
+    {
+        const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+        f << " player " << pp.x << "," << pp.y << "," << pp.z;
+    }
+    f << std::endl;
+}
+
+void CollisionTestScene::UpdateAutoTest(float dt)
+{
+    m_AutoTime += dt;
+    if (!m_Registry.IsValid(m_Player)) return;
+
+    if (m_AutoStep == 0 && m_AutoTime >= 5.0f && m_Registry.Has<LevelComponent>(m_Player))
+    {
+        auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        lv.experience += lv.ExpToNext() + 1.0f;
+        AutoTestLog("give exp");
+        m_AutoStep = 1;
+    }
+    else if (m_AutoStep == 1 && m_AutoTime >= 9.0f)
+    {
+        // 最寄りの箱の横（1.2m 手前）へ。高さはそのまま
+        auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+        Entity best = EntityTraits::NULL_ENTITY;
+        float bestD = 1e9f;
+        for (Entity c : m_Crates)
+        {
+            if (!m_Registry.IsValid(c) || !m_Registry.Has<InteractableComponent>(c)) continue;
+            const float d = Vector3::DistanceSquared(m_Registry.Get<InteractableComponent>(c).basePos, tf.position);
+            if (d < bestD) { bestD = d; best = c; }
+        }
+        if (best != EntityTraits::NULL_ENTITY)
+        {
+            const Vector3 cp = m_Registry.Get<InteractableComponent>(best).basePos;
+            Vector3 dir = tf.position - cp;
+            dir.y = 0.0f;
+            if (dir.LengthSquared() < 1e-4f) dir = Vector3(1, 0, 0);
+            dir.Normalize();
+            tf.position = Vector3(cp.x + dir.x * 1.2f, tf.position.y, cp.z + dir.z * 1.2f);
+            if (m_Registry.Has<RigidbodyComponent>(m_Player))
+                m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+            m_Camera.SnapToTarget();
+            AutoTestLog("teleport to crate");
+        }
+        else
+            AutoTestLog("no crate");
+        m_AutoStep = 2;
+    }
+    else if (m_AutoStep == 2 && m_AutoTime >= 10.0f)
+    {
+        m_AutoInteract = true;
+        AutoTestLog("press F");
+        m_AutoStep = 3;
+    }
+}
+
+// ============================================================
 // マウスの捕獲
 // 普段はカーソルを隠して中央に閉じ込め、マウスの移動だけで視点が回る（ボタン不要）。
 // Alt 単押しでカーソルを出す / しまう（押しっぱなしではなく切り替え。ゲームは止めない）。
@@ -352,6 +439,8 @@ void CollisionTestScene::UpdateMouseCapture()
 // ============================================================
 void CollisionTestScene::UpdateGameplay(float dt)
 {
+    if (m_AutoTest) UpdateAutoTest(dt);   // TEMP-TEST
+
     // ---- 遊んでいる時間（死んだら止める）----
     if (!(m_Registry.IsValid(m_Player) && m_Registry.Has<PlayerStateComponent>(m_Player)
         && m_Registry.Get<PlayerStateComponent>(m_Player).IsDead()))
@@ -443,6 +532,15 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // ============================================================
     m_LevelUpSystem.Update(m_Registry);
 
+    // ---- 升級の光（レベルは三択を出した時点で上がる。見えるのは選び終えて動き出してから）----
+    if (m_Registry.IsValid(m_Player) && m_Registry.Has<LevelComponent>(m_Player))
+    {
+        const int level = m_Registry.Get<LevelComponent>(m_Player).level;
+        if (m_FxLevelUp && m_PrevLevel >= 0 && level > m_PrevLevel)
+            PlayFeedbackVFX("LevelUp.json", m_Registry.Get<TransformComponent>(m_Player).position, 1.0f, true);
+        m_PrevLevel = level;
+    }
+
     // ============================================================
     // 近くの物を使う（報酬の箱: 升級と同じ三択。レベルは上がらない）
     // レベル判定の後に置く: 同じフレームで升級が三択を出していたら、
@@ -454,7 +552,8 @@ void CollisionTestScene::UpdateGameplay(float dt)
         const bool dead = m_Registry.IsValid(m_Player)
             && m_Registry.Has<PlayerStateComponent>(m_Player)
             && m_Registry.Get<PlayerStateComponent>(m_Player).IsDead();
-        const bool pressed = !blocked && !dead && InputMap::GetInteractTrigger();
+        const bool pressed = !blocked && !dead && (InputMap::GetInteractTrigger() || m_AutoInteract);
+        m_AutoInteract = false;   // TEMP-TEST
 
         const Entity used = m_Interaction.Update(m_Registry, m_Player, dt, pressed);
         if (used != EntityTraits::NULL_ENTITY && m_Registry.IsValid(used)
@@ -469,6 +568,8 @@ void CollisionTestScene::UpdateGameplay(float dt)
             }
             if (consumed)
             {
+                if (m_FxCrate)
+                    PlayFeedbackVFX("CrateOpen.json", m_Registry.Get<InteractableComponent>(used).basePos, 1.8f, false);
                 m_Registry.Destroy(used);
                 m_Crates.erase(std::remove(m_Crates.begin(), m_Crates.end(), used), m_Crates.end());
                 m_Interaction.ClearFocus();
@@ -485,6 +586,14 @@ void CollisionTestScene::UpdateGameplay(float dt)
         const float lost = m_PrevPlayerHp - hpNow;
         if (m_ShakeOnHit && m_PrevPlayerHp >= 0.0f && lost > 0.0f)
             m_Camera.AddTrauma((std::min)(m_HitTraumaMax, m_HitTraumaBase + lost * m_HitTraumaPerDamage));
+        // 被弾の斬撃。囲まれると無敵時間ごと（1 秒弱）に出てうるさいので、m_HurtFxInterval 秒はあける。
+        // 揺れと画面の赤い縁は毎回
+        m_HurtFxTimer -= dt;
+        if (m_FxHurt && m_PrevPlayerHp >= 0.0f && lost > 0.0f && m_HurtFxTimer <= 0.0f)
+        {
+            PlayFeedbackVFX("Hurt.json", m_Registry.Get<TransformComponent>(m_Player).position, 0.5f, true);
+            m_HurtFxTimer = m_HurtFxInterval;
+        }
         m_PrevPlayerHp = hpNow;
     }
     // 範囲攻撃（爆発など）：GPU 上で生まれた範囲の数が増えたら揺らす。
@@ -1994,6 +2103,26 @@ void CollisionTestScene::DrawDebugUI()
 
     // ---------- カメラ ----------
     DrawCratePanel();
+
+    // ---------- 反応の特効（升級・開箱・被弾）----------
+    if (ImGui::CollapsingHeader("Feedback VFX"))
+    {
+        const Vector3 here = m_Registry.IsValid(m_Player)
+            ? m_Registry.Get<TransformComponent>(m_Player).position : Vector3::Zero;
+        ImGui::Checkbox("Level up##fx", &m_FxLevelUp);
+        ImGui::SameLine(160.0f);
+        if (ImGui::Button("Test##fxLevel")) PlayFeedbackVFX("LevelUp.json", here, 1.0f, true);
+        ImGui::Checkbox("Crate open##fx", &m_FxCrate);
+        ImGui::SameLine(160.0f);
+        if (ImGui::Button("Test##fxCrate")) PlayFeedbackVFX("CrateOpen.json", here, 1.8f, false);
+        ImGui::Checkbox("Hurt##fx", &m_FxHurt);
+        ImGui::SameLine(160.0f);
+        if (ImGui::Button("Test##fxHurt")) PlayFeedbackVFX("Hurt.json", here, 0.5f, true);
+        ImGui::DragFloat("Hurt min interval (s)", &m_HurtFxInterval, 0.05f, 0.0f, 5.0f);
+        ImGui::TextDisabled("Assets/Data/VFXData/LevelUp / CrateOpen / Hurt.json");
+        ImGui::TextDisabled("hits: ArcBolt -> ArcSpark, HomingBolt -> VoidPop (0 damage areas)");
+        if (ImGui::Button("Reload json")) m_AreaVFX.ClearTemplates();
+    }
 
     if (ImGui::CollapsingHeader("Camera"))
     {
