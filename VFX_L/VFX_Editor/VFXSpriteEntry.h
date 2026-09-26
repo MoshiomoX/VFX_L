@@ -51,6 +51,7 @@ public:
     float speed = 1.0f;                                // 再生速度の倍率
     int   loopMode = (int)LoopMode::FromSheet;
     int   anchor = (int)Anchor::SheetPivot;
+    bool  onTop = false;                               // 深度を見ずに一番手前へ（体に隠れる升級・被弾用）。GPU の範囲では無視
 
 private:
     int CurrentFrame() const;   // 終わっていたら -1

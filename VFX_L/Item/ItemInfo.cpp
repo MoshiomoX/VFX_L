@@ -231,7 +231,8 @@ namespace
         if (!pp.hitArea.empty())
         {
             const int ai = AreaProfileDB::IndexOf(pp.hitArea);
-            if (ai > 0)
+            // 威力 0 の範囲は命中の見た目だけ（ArcSpark など）。説明には出さない
+            if (ai > 0 && AreaProfileDB::At(ai).damage > 0.0f)
             {
                 const AreaProfile& ap = AreaProfileDB::At(ai);
                 wchar_t buf[160];

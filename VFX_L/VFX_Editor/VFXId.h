@@ -21,6 +21,8 @@ enum class VFXId : uint32_t
     Meteor,         // メテオの弾（大きな火球 + 岩）
     MeteorBlast,    // メテオの着弾（Explosion の大きい版 + 岩の破片）
     FireCircle,     // 火の輪（範囲・術者に追従）
+    ArcBoltHit,     // アークボルトの命中（範囲 ArcSpark：威力 0 の見た目だけ。Sprite = electric-impact）
+    HomingBoltHit,  // ホーミングボルトの命中（範囲 VoidPop：同上。Sprite = void-implosion）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };

@@ -53,6 +53,7 @@ struct VFXSpriteDrawItem
 {
     Texture* texture = nullptr;
     bool point = true;        // 最近傍で読む
+    bool onTop = false;       // 深度を見ない（体に隠れてしまう、プレイヤーに付く特効用）。最後に描く
     VFXSpriteQuad quad;
 };
 
