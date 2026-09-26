@@ -19,8 +19,27 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     switch (msg)
     {
     case WM_DESTROY:
+        InputManager::Get().ReleaseMouseCapture();
         PostQuitMessage(0);
         return 0;
+
+    case WM_ACTIVATE:
+        // 他の窓へ移ったら次のフレームを待たずにカーソルを返す（Alt+Tab 直後も中央に閉じ込めない）
+        if (LOWORD(wp) == WA_INACTIVE)
+            InputManager::Get().ReleaseMouseCapture();
+        break;
+
+    case WM_INPUT:
+        // 視点操作用のマウスの生の移動量。後始末のため DefWindowProc へも流す
+        InputManager::Get().OnRawInput(reinterpret_cast<HRAWINPUT>(lp));
+        break;
+
+    case WM_SYSCOMMAND:
+        // Alt（F10）単押しでのメニュー選択モードに入らない。
+        // 入ると次のキーを押すまでゲームループが止まる。Alt はカーソルの切替に使う
+        if ((wp & 0xFFF0) == SC_KEYMENU)
+            return 0;
+        break;
 
     case WM_KEYDOWN:
         if (wp == VK_ESCAPE)

@@ -1,6 +1,7 @@
 // ============================================================
 // FollowCamera.h
 // TPS 追従カメラ：対象の後上方（右肩寄り）から追いかけ、右スティック／マウスで旋回する。
+//              マウスはシーンが InputManager で捕獲している間だけ（ボタン不要。Alt でカーソルを出すと止まる）
 //
 //   平滑追従   … 追従点をばね（SmoothDamp）で追わせる。水平と垂直で速さを分ける
 //                （跳躍で画面が上下に跳ねないよう垂直は遅め）。離れすぎたら補間せず飛ぶ
@@ -46,7 +47,7 @@ public:
     float height = 1.5f;    // 注視点の高さオフセット（足元でなく胸あたりを見る）
     float shoulderOffset = 0.5f;    // 右肩へのずらし（m）。負で左肩、0 で真後ろ
     float stickSensitivity = 150.0f;  // 度/秒
-    float mouseSensitivity = 0.15f;   // 度/ピクセル
+    float mouseSensitivity = 0.15f;   // 度/カウント（Raw Input。既定のポインタ速度なら 1 カウント ≒ 1px）
     float pitchMin = -30.0f;  // 見上げ限界
     float pitchMax = 70.0f;  // 見下ろし限界
     bool  invertY = false;

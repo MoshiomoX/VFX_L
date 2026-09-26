@@ -4,7 +4,6 @@
 #include "Camera/FollowCamera.h"
 #include "Manager/InputManager.h"
 #include "Debug/DebugManager.h"
-#include "imgui.h"
 #include <cmath>
 #include <algorithm>
 
@@ -69,9 +68,10 @@ float FollowCamera::ProbeDistance(const Vector3& from, const Vector3& dir, float
 
 void FollowCamera::Update(float dt)
 {
-    // デバッグカメラ操作中・ImGui 操作中は視点入力を受け付けない
-    bool acceptInput = !DebugManager::Get().IsUsingDebugCamera()
-        && !ImGui::GetIO().WantCaptureMouse;
+    // デバッグカメラ操作中は視点入力を受け付けない。
+    // マウスはシーンが捕獲している間だけ使う（カーソルを出している時は UI・ImGui の操作用。
+    // 捕獲中は ImGui にマウスが渡らないので、WantCaptureMouse は見なくてよい）
+    bool acceptInput = !DebugManager::Get().IsUsingDebugCamera();
 
     if (acceptInput)
     {
@@ -85,10 +85,10 @@ void FollowCamera::Update(float dt)
         yawDelta += rs.x * stickSensitivity * dt;
         pitchDelta -= rs.y * stickSensitivity * dt;   // 上に倒す = 見上げる
 
-        // --- マウス右ドラッグ ---
-        if (input.GetMousePress(1))
+        // --- マウス（捕獲中はボタンを押さなくても常に回る。普通の TPS）---
+        if (input.IsMouseCaptured())
         {
-            auto md = input.GetMouseDelta();
+            auto md = input.GetMouseLookDelta();
             yawDelta += md.x * mouseSensitivity;
             pitchDelta += md.y * mouseSensitivity;    // 下に動かす = 見下ろす
         }

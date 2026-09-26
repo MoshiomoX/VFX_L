@@ -61,6 +61,10 @@ public:
     // 三択は必ず止める。グリッドは設定次第
     bool ShouldPauseGame() const;
 
+    // 何か開いているか（グリッド・三択・一時停止）。止めない設定のグリッドも含む。
+    // 開いている間はマウスで操作するので、シーンはカーソルを出す
+    bool IsModalOpen() const { return !m_Stack.IsEmpty(); }
+
     // 全部下ろす（プレイヤー消失時など）
     void Clear() { m_Stack.Clear(); }
 

@@ -95,6 +95,10 @@ private:
     FollowCamera m_Camera;
     Registry     m_Registry;
 
+    // マウスの捕獲：普段はカーソルを隠して視点操作。Alt 単押しで出す / しまう（切り替え）
+    void UpdateMouseCapture();
+    bool m_CursorFree = false;   // Alt で出している
+
     // ---- 画面の揺れのきっかけ（Camera 面板で調整）----
     // 被弾：trauma = min(max, base + 減った HP × perDamage)
     bool  m_ShakeOnHit = true;

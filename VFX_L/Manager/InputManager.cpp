@@ -1,4 +1,5 @@
 #include "Manager/InputManager.h"
+#include "imgui.h"
 #include <algorithm>
 void InputManager::Initialize(HWND hwnd)
 {
@@ -10,12 +11,60 @@ void InputManager::Initialize(HWND hwnd)
     QueryPerformanceFrequency(&m_Frequency);   // ← 追加
     QueryPerformanceCounter(&m_LastCounter);   // ← 追加
     m_TimerInit = true;
+
+    // 視点操作用に、マウスの生の移動量（WM_INPUT）を受け取る。
+    // RIDEV_NOLEGACY は付けない（WM_MOUSEMOVE / クリックは UI と ImGui がそのまま使う）
+    RAWINPUTDEVICE rid = {};
+    rid.usUsagePage = 0x01;   // Generic Desktop
+    rid.usUsage = 0x02;   // Mouse
+    rid.dwFlags = 0;
+    rid.hwndTarget = hwnd;
+    RegisterRawInputDevices(&rid, 1, sizeof(rid));
 }
 void InputManager::Update()
 {
     // ---- キーボード ----
     memcpy(m_KeyStateOld, m_KeyState, sizeof(m_KeyState));
     GetKeyboardState(m_KeyState);
+
+    const bool active = IsWindowActive();
+
+    // ---- Alt の単押し ----
+    // 押した時に構え、押している間に他のキー（マウスボタン含む）が押されたら取り消す。
+    // 前面を離れたら取り消す（Alt+Tab で戻った時に離した扱いで立たないように）
+    m_AltTap = false;
+    {
+        const bool altNow = (m_KeyState[VK_MENU] & 0x80) != 0;
+        const bool altOld = (m_KeyStateOld[VK_MENU] & 0x80) != 0;
+        if (!active)
+        {
+            m_AltArmed = false;
+        }
+        else if (altNow)
+        {
+            if (!altOld) m_AltArmed = true;
+            for (int vk = 1; vk < 256 && m_AltArmed; ++vk)
+            {
+                if (vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU) continue;
+                if (GetKeyTrigger(vk)) m_AltArmed = false;
+            }
+        }
+        else
+        {
+            m_AltTap = altOld && m_AltArmed;
+            m_AltArmed = false;
+        }
+    }
+
+    // ---- マウスの捕獲（前のフレームの要求を反映）----
+    const bool wasCaptured = m_Captured;
+    ApplyMouseCapture(m_CaptureRequested && active);
+    m_CaptureRequested = false;
+
+    // 捕獲を始めたフレームの分は捨てる（捕獲前の動きで視点が跳ねないように）
+    if (m_Captured && wasCaptured) m_LookDelta = m_RawAccum;
+    else                           m_LookDelta = { 0.0f, 0.0f };
+    m_RawAccum = { 0.0f, 0.0f };
 
     // ---- マウスデルタ ----
     if (m_FirstMouse) { m_MousePosOld = m_MousePos; m_FirstMouse = false; }
@@ -94,6 +143,69 @@ void InputManager::OnMouseMove(int x, int y)
 void InputManager::OnMouseWheel(float delta)
 {
     m_MouseWheel = delta;
+}
+
+// ====== マウスの捕獲 ======
+void InputManager::OnRawInput(HRAWINPUT handle)
+{
+    RAWINPUT raw = {};
+    UINT size = sizeof(raw);
+    if (GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) == (UINT)-1)
+        return;
+    if (raw.header.dwType != RIM_TYPEMOUSE) return;
+
+    // 絶対座標で来る機器（ペンタブ・リモートデスクトップ）は視点操作に使わない
+    if (raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) return;
+
+    m_RawAccum.x += (float)raw.data.mouse.lLastX;
+    m_RawAccum.y += (float)raw.data.mouse.lLastY;
+}
+
+// 前面が自分のスレッドのウィンドウ（本体か ImGui の別窓）で、最小化されていない
+bool InputManager::IsWindowActive() const
+{
+    if (!m_hWnd || IsIconic(m_hWnd)) return false;
+    const HWND fg = GetForegroundWindow();
+    return fg && GetWindowThreadProcessId(fg, nullptr) == GetCurrentThreadId();
+}
+
+void InputManager::ApplyMouseCapture(bool capture)
+{
+    if (capture)
+    {
+        // ImGui の別窓が前面なら本体を前へ（視点を回す窓とキーを受ける窓を揃える）
+        if (GetForegroundWindow() != m_hWnd) SetForegroundWindow(m_hWnd);
+
+        // クライアント中央の 1px に閉じ込める（クリックが外の窓へ行かない）。
+        // ClipCursor は窓の移動や他のアプリで外れることがあるので毎フレーム掛け直す
+        RECT rc = {};
+        GetClientRect(m_hWnd, &rc);
+        POINT c = { (rc.left + rc.right) / 2, (rc.top + rc.bottom) / 2 };
+        ClientToScreen(m_hWnd, &c);
+        const RECT clip = { c.x, c.y, c.x + 1, c.y + 1 };
+        ClipCursor(&clip);
+    }
+
+    if (capture == m_Captured) return;
+    m_Captured = capture;
+
+    // ShowCursor は表示カウンタ。捕獲の出入りで 1 回ずつ呼んで釣り合わせる
+    ShowCursor(capture ? FALSE : TRUE);
+    if (!capture) ClipCursor(nullptr);
+
+    // 中央に止めたカーソルの下に ImGui の窓があっても反応しないよう、捕獲中はマウスを渡さない
+    if (ImGui::GetCurrentContext())
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        if (capture) io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+        else         io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+    }
+}
+
+void InputManager::ReleaseMouseCapture()
+{
+    ApplyMouseCapture(false);
+    m_CaptureRequested = false;
 }
 
 // ====== ゲームパッド ボタン三態 ======
