@@ -82,6 +82,7 @@ void CollisionTestScene::Init()
     m_Camera.Init(45.0f, m_ScreenW / m_ScreenH, 0.1f, 10000.0f);
     SetCamera(&m_Camera);
     m_Camera.SnapToTarget();
+    m_CursorFree = false;   // やり直し・F5 の後はカーソルを隠した状態から
 
     // 遮蔽回避の射線は地形（床・壁・障害物・宝箱）にだけ当てる。
     // 雑魚は GPU なので当たらず、精英（Layer_Enemy）も除く（敵の陰に入るたびに寄ると酔う）
@@ -252,6 +253,9 @@ void CollisionTestScene::Update(float dt)
     // ---- UI（開閉・入力・プレイヤー消失時の後始末は全部 GameUI の中）----
     m_GameUI.Update(m_Registry, m_Player, dt);
 
+    // ---- マウスの捕獲（UI の開閉を見るので GameUI の後）----
+    UpdateMouseCapture();
+
     // ---- 一時停止のメニューで選ばれた場面の切替 ----
     switch (m_GameUI.ConsumeMenuAction())
     {
@@ -314,6 +318,30 @@ void CollisionTestScene::Update(float dt)
     }
 
     DrawDebugUI();
+}
+
+// ============================================================
+// マウスの捕獲
+// 普段はカーソルを隠して中央に閉じ込め、マウスの移動だけで視点が回る（ボタン不要）。
+// Alt 単押しでカーソルを出す / しまう（押しっぱなしではなく切り替え。ゲームは止めない）。
+// 次の間はマウスで操作するので、Alt の状態に関係なく出す：
+//   UI（グリッド・三択・一時停止）が開いている / 死んだ後 / デバッグカメラ中
+// その間は Alt を受けない（閉じた時に、知らないうちに切り替わっていた、を防ぐ）。
+// 要求は毎フレーム出す（出さなくなれば InputManager が放す。場面を抜けた時も同じ）
+// ============================================================
+void CollisionTestScene::UpdateMouseCapture()
+{
+    auto& input = InputManager::Get();
+
+    const bool dead = m_Registry.IsValid(m_Player)
+        && m_Registry.Has<PlayerStateComponent>(m_Player)
+        && m_Registry.Get<PlayerStateComponent>(m_Player).IsDead();
+    const bool forcedFree = m_GameUI.IsModalOpen() || dead
+        || DebugManager::Get().IsUsingDebugCamera();
+    if (forcedFree) return;
+
+    if (input.GetAltTap()) m_CursorFree = !m_CursorFree;
+    if (!m_CursorFree) input.RequestMouseCapture();
 }
 
 // ============================================================
@@ -1968,6 +1996,8 @@ void CollisionTestScene::DrawDebugUI()
         ImGui::DragFloat("Stick Sens", &m_Camera.stickSensitivity, 1.0f, 10.0f, 500.0f);
         ImGui::DragFloat("Mouse Sens", &m_Camera.mouseSensitivity, 0.01f, 0.01f, 1.0f);
         ImGui::Checkbox("Invert Y", &m_Camera.invertY);
+        ImGui::Text("Mouse look : %s (Alt toggles cursor)",
+            InputManager::Get().IsMouseCaptured() ? "ON" : "off");
         ImGui::Text("Yaw/Pitch : %.1f / %.1f", m_Camera.GetYaw(), m_Camera.GetPitch());
 
         ImGui::SeparatorText("Smooth follow");

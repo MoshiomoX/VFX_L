@@ -58,6 +58,7 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - **道具形状**：`Items/*.h` 里的 `occupyCells` / `influenceCells` 是代码默认值。存在 `Assets/Data/ItemData/<道具名去掉空格>.json`（`Item/ItemDataFile`）时，`ItemDatabase::Initialize` 会用文件内容覆盖。编辑时用 `ItemDatabase::SetShape` 改，用 `GetCodeShape` 恢复成代码默认；形状变了以后用 `BackpackLogic::Refit` 重新摆放。多格方块画成连在一起的一块（`UI/ShapeSprite.h`）。
 - **形状编辑器**：`Scene/ItemShapePanel`（F4 第 3 页，按键 3）。先选道具，再在格子上画这个道具的形状：左键画占位、右键画影响、Ctrl+左键设锚点。点 Save 写进这个道具的数据文件。「Item Test Bench」窗口用和正式游戏同一条链（BackpackLogic → BackpackAggregateSystem → WeaponSystem）往靶子发射。
 - **战斗相机**：`Camera/FollowCamera`，背后第三人称视角：
+  - 鼠标：场景每帧调 `InputManager::RequestMouseCapture`（不调了下一帧自动放开），光标隐藏并锁在窗口中央 1px，Raw Input（WM_INPUT）的位移直接转视角，不用按键。捕获中给 ImGui 设 `NoMouse`。Alt 单按切换显示光标（松开时触发，中间按了别的键就不算，`InputManager::GetAltTap`），显示时游戏不暂停。UI 打开 / 死亡 / 调试相机时强制显示光标，这时不接受 Alt。`Window.cpp` 屏蔽了 `SC_KEYMENU`（否则单按 Alt 会让游戏循环卡住）
   - 平滑跟随用 SmoothDamp，水平、垂直分开调
   - 相机偏到右肩
   - 遮挡处理：场景通过 `SetOcclusionProbe` 用 5 条射线打 `Layer_Terrain`。有东西挡住时相机立刻拉近，没挡住后慢慢退回原距离
