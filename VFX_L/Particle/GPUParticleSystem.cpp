@@ -1,4 +1,5 @@
 #include "Particle/GPUParticleSystem.h"
+#include "Particle/ParticleSheets.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Mesh/Vertex3D.h"
 #include "Graphics/Mesh/Mesh.h"
@@ -800,12 +801,27 @@ void GPUParticleSystem::Render()
     m_RenderVS->SetSRV(context, "particles", m_ParticleSRV.Get());
     m_RenderVS->SetSRV(context, "aliveList", m_AliveListSRV.Get());
 
-    if (m_Texture)
-        m_RenderPS->SetTexture(context, 0, m_Texture.get());
+    // ---- 貼图表：t0.. に全部並べ、PS が粒子ごとに番号で選ぶ ----
+    // 0 番はシーンが SetTexture で渡した物があればそちら（旧来の呼び方を残す）
+    ParticleSheets::Load();
+    ID3D11ShaderResourceView* sheets[ParticleSheets::kMaxSheets] = {};
+    struct { uint32_t pointMask, premulMask, pad[2]; } scb = {};
+    for (int i = 0; i < ParticleSheets::Count() && i < ParticleSheets::kMaxSheets; ++i)
+    {
+        const auto* s = ParticleSheets::Get(i);
+        const Texture* tex = (i == 0 && m_Texture) ? m_Texture.get() : s->texture.get();
+        sheets[i] = tex ? tex->GetSRV() : nullptr;
+        if (s->point)         scb.pointMask |= 1u << i;
+        if (s->premultiplied) scb.premulMask |= 1u << i;
+    }
+    context->PSSetShaderResources(0, ParticleSheets::kMaxSheets, sheets);
+    m_RenderPS->WriteBuffer(context, 0, &scb);
 
-    ID3D11SamplerState* samp = RenderStates::Get().LinearClamp();
-    context->PSSetSamplers(0, 1, &samp);
-    RenderStates::Get().ApplyAdditiveBillboard(context);
+    ID3D11SamplerState* samps[2] = { RenderStates::Get().LinearClamp(), RenderStates::Get().PointClamp() };
+    context->PSSetSamplers(0, 2, samps);
+    // 乗算済み alpha の混合 1 回で描く。加算の粒子は PS が alpha 0 を書くので、
+    // 従来の加算（SRC_ALPHA / ONE）と同じ見た目になる
+    RenderStates::Get().ApplyAlphaBlend(context);
 
     m_RenderVS->Bind(context);
     m_RenderPS->Bind(context);
@@ -820,6 +836,8 @@ void GPUParticleSystem::Render()
     // 次のパスへステートを持ち越さない
     RenderStates::Get().Restore(context);
     m_RenderVS->UnbindSRVs(context);
+    ID3D11ShaderResourceView* nullSheets[ParticleSheets::kMaxSheets] = {};
+    context->PSSetShaderResources(0, ParticleSheets::kMaxSheets, nullSheets);
 
     // ---- 軌跡（帯）：粒子の帯 → 特効の帯 ----
     RenderTrails(context);

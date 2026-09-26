@@ -1,0 +1,15 @@
+{
+    "name":  "Legacy (particlesSheet)",
+    "texture":  "../particlesSheet.jpg",
+    "rows":  6,
+    "cols":  6,
+    "filter":  "linear",
+    "premultiplied":  false,
+    "frames":  [],
+    "groups":  [
+                   { "name":  "flare", "start":  0, "count":  18 },
+                   { "name":  "glow", "start":  18, "count":  6 },
+                   { "name":  "star", "start":  24, "count":  3 },
+                   { "name":  "smoke", "start":  27, "count":  9 }
+               ]
+}

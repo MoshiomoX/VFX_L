@@ -168,8 +168,8 @@
         p.textureIndex = e.textureIndex;
         p.atlasRows = e.atlasRows;
         p.atlasCols = e.atlasCols;
-        p.atlasAnimate = (e.atlasIndex < 0) ? 1 : 0;
-        p.uvFrame = (e.atlasIndex >= 0) ? e.atlasIndex : 0;
+        InitParticleFrame(e.frameMode, e.atlasIndex, e.frameCount,
+                          e.atlasRows, e.atlasCols, seed, p.uvFrame, p.atlasAnimate);
         p.colorKeyOffset = e.colorKeyoffset;
         p.colorKeyCount = e.colorKeyCount;
 

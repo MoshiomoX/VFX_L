@@ -85,7 +85,7 @@ void main(uint3 id : SV_DispatchThreadID)
     for (uint ei = 0u; ei < r.particleCount; ++ei)
     {
         GPUEmitter e = emitters[r.particleStart + ei];
-        e.position = srcPos; // the emitter follows the source
+        e.position = srcPos + e.position; // follows the source; the entry position is an offset (layers)
 
         uint k = StochasticCount(e.emitRate, g_DeltaTime, seed);
         if (k == 0u)
@@ -169,8 +169,8 @@ void main(uint3 id : SV_DispatchThreadID)
             q.textureIndex = e.textureIndex;
             q.atlasRows = e.atlasRows;
             q.atlasCols = e.atlasCols;
-            q.atlasAnimate = (e.atlasIndex < 0) ? 1 : 0;
-            q.uvFrame = (e.atlasIndex >= 0) ? e.atlasIndex : 0;
+            InitParticleFrame(e.frameMode, e.atlasIndex, e.frameCount,
+                              e.atlasRows, e.atlasCols, s, q.uvFrame, q.atlasAnimate);
             q.colorKeyOffset = e.colorKeyoffset; // static region, offset 0-based
             q.colorKeyCount = e.colorKeyCount;
             q.ownerID = 0; // unowned (projectile VFX)

@@ -244,6 +244,25 @@ namespace Res
         inline constexpr const char* Lightning = "Assets/Data/VFXData/Lightning.json";
         inline constexpr const char* DeathBurn = "Assets/Data/VFXData/DeathBurn.json";   // 燃焼消滅（Mesh 発射）
         inline constexpr const char* Explosion = "Assets/Data/VFXData/Explosion.json";   // 爆発（範囲攻撃）
+        inline constexpr const char* ArcBolt = "Assets/Data/VFXData/ArcBolt.json";
+        inline constexpr const char* HomingBolt = "Assets/Data/VFXData/HomingBolt.json";
+        inline constexpr const char* Meteor = "Assets/Data/VFXData/Meteor.json";
+        inline constexpr const char* MeteorBlast = "Assets/Data/VFXData/MeteorBlast.json";   // メテオの着弾
+        inline constexpr const char* FireCircle = "Assets/Data/VFXData/FireCircle.json";     // 火の輪（範囲）
+    }
+
+    // ========================================================
+    // 粒子の貼图表（ParticleSheets）。添字 = 特効 json の "sheet" 番号なので並べ替え禁止。
+    // 追加は末尾へ。最大 ParticleSheets::kMaxSheets 枚
+    // ========================================================
+    namespace ParticleSheet
+    {
+        inline constexpr const char* kManifests[] = {
+            "Assets/Particles/Sheets/Legacy.json",           // 0: 旧 particlesSheet.jpg（6x6）
+            "Assets/Particles/Sheets/KenneyParticles.json",  // 1: Kenney Particle Pack（白・染色用）
+            "Assets/Particles/Sheets/KenneySmoke.json",      // 2: Kenney Smoke Particles（色付きの煙）
+            // 像素の連番（PVFX）は粒子ではなく Sprite entry で使う（Assets/VFX/SpriteSheet）
+        };
     }
 
     // ========================================================

@@ -111,14 +111,14 @@ struct GPUEmitter
     // --- Atlas & Texture ---
     int      atlasRows;        // アトラス行数
     int      atlasCols;        // アトラス列数
-    int      atlasIndex;       // 固定コマ (-1ならアニメーション)
-    int      textureIndex;     // Texture Array内のインデックス
+    int      atlasIndex;       // 最初のコマ（frameMode 0 の時だけ -1 = 全コマのアニメーション）
+    int      textureIndex;     // ParticleSheets の番号（粒子へ引き継ぐ）
 
     int      colorKeyOffset;   // ColorKeyBuffer内の開始位置
     int      colorKeyCount;    // キー数 (0=startColor/endColorで線形補間)
     // 所有者ID (0 = 無主)。発射した粒子へ引き継がれる。
     int      ownerID;
-    int      _pad2;
+    int      frameCount;       // コマ数（ParticleFrameMode::Animate / Random で使う。元は _pad2）
 
     // --- Mesh 発射 ---
     // モデルの世界行列（回転・縮尺込み）。HLSL 側は row_major で受けるので転置しない。
@@ -127,7 +127,7 @@ struct GPUEmitter
     int      edgeMode;         // 0 = 全頂点 / 1 = 溶解の縁の頂点だけ（EdgeFilterCS の表から選ぶ）
     int      renderMode;       // ParticleRenderMode（粒子へそのまま写す）
     int      trailStyle;       // 0 = 帯なし。それ以外は RegisterTrailStyle の id + 1（粒子へ引き継ぐ）
-    int      _padS2;
+    int      frameMode;        // ParticleFrameMode（元は _padS2）
 
     // --- 掃引発射（軌跡の隙間埋め）---
     // 今フレームの発射位置 → 前フレームの発射位置 のベクトル。
@@ -293,7 +293,24 @@ namespace ParticleRenderMode
             | (faceVelocity ? (1 << 9) : 0)
             | ((forwardAxis & 3) << 10);
     }
+
+    // ビルボード（下位 8bit = 0）の半透明。立てなければ加算（従来どおり光る）。
+    // 粒子の描画は乗算済み alpha の混合 1 回で、加算の粒子は alpha 0 を書くことで両立させる
+    // （GPUParticlePS / PARTICLE_BILLBOARD_ALPHA）
+    constexpr int kBillboardAlpha = 1 << 12;
 }
+
+// ============================================
+// 貼图の中のどのコマを使うか（GPUEmitter::frameMode）。HLSL の InitParticleFrame と一致
+//   atlasIndex = 最初のコマ、frameCount = コマ数
+// ============================================
+enum class ParticleFrameMode : int
+{
+    Legacy = 0,    // 旧式：atlasIndex >= 0 なら固定、-1 なら格子の全コマを寿命で再生
+    Fixed = 1,     // atlasIndex のコマだけ
+    Animate = 2,   // atlasIndex から frameCount コマを寿命に合わせて再生（連番）
+    Random = 3,    // atlasIndex から frameCount コマのどれかを生まれた時に選ぶ（変化形）
+};
 
 constexpr uint32_t kEffectTrailPoints = 64;   // EFFECT_TRAIL_POINTS
 

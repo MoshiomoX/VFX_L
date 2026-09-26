@@ -1,4 +1,5 @@
 #include "Particle/GPUParticleEmitter.h"
+#include "Particle/ParticleSheets.h"
 
 GPUParticleEmitter::GPUParticleEmitter(int id)
     : m_ID(id)
@@ -45,8 +46,20 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.emitterID = m_ID;
     e.atlasRows = atlasRows;
     e.atlasCols = atlasCols;
-    e.atlasIndex = atlasAnimate ? -1 : atlasIndex;
     e.textureIndex = textureIndex;
+    e.frameMode = frameMode;
+    e.frameCount = frameCount;
+    if (frameMode == (int)ParticleFrameMode::Legacy)
+        e.atlasIndex = atlasAnimate ? -1 : atlasIndex;
+    else
+        e.atlasIndex = atlasIndex;
+    // 1 番以降の貼图は格子の形が決まっている（説明 json）ので、手で入れた値は使わない
+    if (textureIndex > 0)
+        if (const auto* sheet = ParticleSheets::Get(textureIndex))
+        {
+            e.atlasRows = sheet->rows;
+            e.atlasCols = sheet->cols;
+        }
 	e.colorKeyOffset = m_ColorKeyOffset;
     e.colorKeyCount = colorKeyCount;    
 
@@ -55,7 +68,8 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.sourceId = -1;
     e.sourceCount = 0;
     e.edgeMode = 0;
-    e.renderMode = (renderMode == 0) ? 0
+    e.renderMode = (renderMode == 0)
+        ? (alphaBlend ? ParticleRenderMode::kBillboardAlpha : 0)
         : ParticleRenderMode::Pack(meshSlot, meshGlow, meshFaceVelocity, meshForwardAxis);
 
 

@@ -73,6 +73,12 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - **道具图标**：`Assets/Texture/UI/Icons/`（7Soul CC0 + 自画 2 个，34px 最近邻放大到 136px，出处见同目录 README），路径 `Res::Icon::*`。形状用道具色压暗做底、图标只在中心格画一次（`ShapeSprite::DrawItem`）。
 - **SpriteRenderer 是预乘 alpha**（`AlphaBlend()` = ONE / INV_SRC_ALPHA）：`SpritePS` 输出 `rgb*a`，`TextRenderer::Draw` 也把颜色预乘。另外画面会把深色提亮（0.07 显示成中灰），深色底板用 0.015 左右。
 - **特效 Trail entry**：`VFX_Editor/VFXTrailEntry` + `Particle/GPUParticleEffectTrail.cpp`，特效位置驱动的 GPU 条带（按距离取点、按长度渐变）。战斗火球不用（用户决定）。
+- **粒子贴图（多图集）**：公告板粒子按发射器选图集 `textureIndex`（json `"sheet"`）。图集表是 `Res::ParticleSheet::kManifests`（序号就是存档里的编号，**不许重排，只能往后加**，最多 8 张），每张 = 图集 PNG + 清单 json（行列、`filter` linear/point、`premultiplied`、`frames` 名字、`groups` 命名范围），在 `Assets/Particles/Sheets/`，由 `Particle/ParticleSheets` 懒加载。0 = 旧 `particlesSheet.jpg`（6x6，直 alpha），1 = Kenney Particle Pack（白色、靠颜色染，10x8×256px），2 = Kenney Smoke（彩色烟 9x9）。新图集一律**预乘 alpha 存 PNG**，用 `Tools/BuildParticleSheets.ps1` 从解压的素材包生成。
+  - 帧：`frameMode`（`ParticleFrameMode`：0 旧式 / 1 固定 / 2 随寿命播放 / 3 出生时随机）+ `atlasIndex`（起始）+ `frameCount`。粒子端 `atlasAnimate = (first<<12)|count`。`GPUEmitter` 的 `frameCount` / `frameMode` 是原来的 `_pad2` / `_padS2`，布局没变。
+  - 混合：公告板粒子整体用预乘 alpha（ONE / INV_SRC_ALPHA）画一次；加法粒子 PS 输出 alpha 0（外观等同旧的 SRC_ALPHA/ONE），半透明粒子（json `"blend": 1` → `renderMode` bit12）输出 a。**不排序**，重叠处前后可能错。
+  - 编辑器：Particle entry 的 Render = Billboard 时有 Texture / Blend / Group / Frames / Pick frame（点格子选起始帧，Shift+点选结束帧）。
+- **GPU 弹道的特效**：`SwarmVFXTable` 收特效里**全部**粒子条目（多层）+ 点光源；条目的 position 是相对弹/范围中心的偏移（`SwarmEmitCS`）；时间轴无效；不支持逐粒子条带。点光源全局 64 个先到先得，高频弹不挂灯。法术特效：Fireball / ArcBolt / HomingBolt / Meteor（弹）、Explosion（火球爆炸）/ MeteorBlast（陨石爆炸，AreaData 同名，数值照抄 Explosion）/ FireCircle（未被道具使用）。
+  - 手写特效 json 时数字不能写成字符串（`"-6.0"`）：读进来是坏值，bloom 会把整屏刷白。
 - **Mesh 粒子**：粒子条目 Render = Mesh，从 `Assets/VFX/Mesh` 选模型（(none) = 立方体），Lit（不透明受光）/ Glow（加法），可选朝向速度 + 前方轴，size = 模型最长边（m）。`renderMode` 打包模型号+1 / 发光 / 朝向 / 轴（`ParticleRenderMode::Pack` ↔ `ParticleCommon.hlsli`），模型表 16 个在 `Particle/GPUParticleMesh.cpp`。示例 `MeshParticleTest.json`。
 - **FBX 单位**：`Model::GetFileUnitScale()` 记录 FBX 的 UnitScaleFactor，但不乘进顶点（现有模型各自手调倍率）。KayKit Forest 和 Kenney 的 FBX 都是厘米单位。
 - **素材（都是 CC0）**：`Assets/Model/KayKit_*`、`Kenney_BlockyCharacters`、`Kenney_RetroFantasy`（1m 立方的部件，编辑器默认 2 倍）。
@@ -83,6 +89,7 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - `CollisionTestScene::Init`：玩家 `maxHealth = 1000000`。
 - `CollisionTestScene::UpdateGameplay`：每 120 帧打一行 `[crowd]` 日志。
 - `SwarmSystem::UpdateFlowField`：打 `[flow] build ms` 日志。
+- 自测钩子（环境变量，不设就不生效）：`VFXL_VFX_AUTOLOAD=<VFXData 的 json 名>` 启动直接进 VFX 编辑器并播放，附加 `VFXL_VFX_MOVE`（虚拟投射物飞行）/ `VFXL_VFX_LOOP`（强制循环）/ `VFXL_VFX_CLOSE`（近景、藏参考模型）；`VFXL_PROJ_AUTOTEST=<投射物 profile 名>` 启动直接进 F4 并选中这个弹。代码在 `Core/Game.cpp`、`VFXEditorScene::Init`、`ProjectileEditorScene::Init`。示例特效 `SheetTest.json`（四种图集/混合对比）。
 
 ## 6. 可交互道具（已完成）
 

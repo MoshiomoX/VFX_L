@@ -19,7 +19,7 @@
     "speed":  14.0,
     "radius":  0.25,
     "lifetime":  4.0,
-    "vfx":  "Fireball.json",
+    "vfx":  "ArcBolt.json",
     "visualSize":  0.9,
     "visualStretch":  0
 }

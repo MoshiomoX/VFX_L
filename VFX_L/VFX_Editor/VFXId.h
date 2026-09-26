@@ -16,6 +16,11 @@ enum class VFXId : uint32_t
     Fireball,
     DeathBurn,      // 燃焼消滅（Mesh 発射 + 溶解の縁。MeshVFXSystem::StartBurn）
     Explosion,      // 爆発。弾の命中で GPU が出す範囲（hitArea）の粒子。GPU 側は登録済みの VFX しか出せない
+    ArcBolt,        // アークボルトの弾（電撃）
+    HomingBolt,     // ホーミングボルトの弾（紫の渦）
+    Meteor,         // メテオの弾（大きな火球 + 岩）
+    MeteorBlast,    // メテオの着弾（Explosion の大きい版 + 岩の破片）
+    FireCircle,     // 火の輪（範囲・術者に追従）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };

@@ -3,16 +3,16 @@
                     {
                         "data":  {
                                      "angularVelRange":  [
-                                                             -3,
-                                                             3
+                                                             -5,
+                                                             5
                                                          ],
                                      "atlasAnimate":  false,
                                      "atlasCols":  6,
                                      "atlasRows":  6,
-                                     "atlasIndex":  8,
+                                     "atlasIndex":  73,
                                      "sheet":  1,
                                      "frameMode":  3,
-                                     "frameCount":  6,
+                                     "frameCount":  3,
                                      "blend":  0,
                                      "boxExtents":  [
                                                         1,
@@ -25,29 +25,29 @@
                                                        0
                                                    ],
                                      "dragCoeff":  0,
-                                     "emitRate":  70,
-                                     "emitType":  1,
+                                     "emitRate":  32,
+                                     "emitType":  0,
                                      "endColorMax":  [
-                                                         0.9,
+                                                         0.45,
                                                          0.15,
-                                                         0.02,
+                                                         0.9,
                                                          0
                                                      ],
                                      "endColorMin":  [
-                                                         0.9,
+                                                         0.45,
                                                          0.15,
-                                                         0.02,
+                                                         0.9,
                                                          0
                                                      ],
                                      "gravity":  [
                                                      0,
-                                                     1.5,
+                                                     0,
                                                      0
                                                  ],
                                      "innerRadius":  0,
                                      "lifetimeRange":  [
-                                                           0.22,
-                                                           0.35
+                                                           0.3,
+                                                           0.45
                                                        ],
                                      "maxParticles":  2000,
                                      "position":  [
@@ -55,34 +55,34 @@
                                                       0,
                                                       0
                                                   ],
-                                     "radius":  0.12,
+                                     "radius":  0,
                                      "renderMode":  0,
                                      "rotationRange":  [
                                                            0,
                                                            6.28
                                                        ],
                                      "sizeRange":  [
-                                                       0.75,
-                                                       0.95,
-                                                       0.25,
-                                                       0.35
+                                                       0.7,
+                                                       0.9,
+                                                       0.3,
+                                                       0.4
                                                    ],
                                      "speedRange":  [
-                                                        0.2,
-                                                        0.8
+                                                        0,
+                                                        0
                                                     ],
                                      "spreadAngle":  0,
                                      "startColorMax":  [
+                                                           0.8,
+                                                           0.45,
                                                            1,
-                                                           0.7,
-                                                           0.25,
-                                                           1
+                                                           0.9
                                                        ],
                                      "startColorMin":  [
+                                                           0.65,
+                                                           0.35,
                                                            1,
-                                                           0.45,
-                                                           0.1,
-                                                           1
+                                                           0.9
                                                        ]
                                  },
                         "duration":  -1,
@@ -92,17 +92,17 @@
                     {
                         "data":  {
                                      "angularVelRange":  [
-                                                             -1,
-                                                             1
+                                                             0,
+                                                             0
                                                          ],
                                      "atlasAnimate":  false,
                                      "atlasCols":  6,
                                      "atlasRows":  6,
-                                     "atlasIndex":  0,
-                                     "sheet":  2,
-                                     "frameMode":  3,
-                                     "frameCount":  25,
-                                     "blend":  1,
+                                     "atlasIndex":  4,
+                                     "sheet":  1,
+                                     "frameMode":  1,
+                                     "frameCount":  1,
+                                     "blend":  0,
                                      "boxExtents":  [
                                                         1,
                                                         1,
@@ -114,29 +114,29 @@
                                                        0
                                                    ],
                                      "dragCoeff":  0,
-                                     "emitRate":  14,
-                                     "emitType":  1,
+                                     "emitRate":  150,
+                                     "emitType":  0,
                                      "endColorMax":  [
-                                                         0.35,
-                                                         0.35,
-                                                         0.35,
+                                                         0.4,
+                                                         0.1,
+                                                         0.8,
                                                          0
                                                      ],
                                      "endColorMin":  [
-                                                         0.35,
-                                                         0.35,
-                                                         0.35,
+                                                         0.4,
+                                                         0.1,
+                                                         0.8,
                                                          0
                                                      ],
                                      "gravity":  [
                                                      0,
-                                                     0.8,
+                                                     0,
                                                      0
                                                  ],
                                      "innerRadius":  0,
                                      "lifetimeRange":  [
-                                                           0.55,
-                                                           0.8
+                                                           0.35,
+                                                           0.45
                                                        ],
                                      "maxParticles":  2000,
                                      "position":  [
@@ -144,34 +144,123 @@
                                                       0,
                                                       0
                                                   ],
-                                     "radius":  0.15,
+                                     "radius":  0,
                                      "renderMode":  0,
                                      "rotationRange":  [
                                                            0,
-                                                           6.28
+                                                           0
                                                        ],
                                      "sizeRange":  [
-                                                       0.35,
                                                        0.5,
-                                                       0.9,
-                                                       1.2
+                                                       0.6,
+                                                       0.05,
+                                                       0.1
                                                    ],
                                      "speedRange":  [
-                                                        0.1,
-                                                        0.4
+                                                        0,
+                                                        0
                                                     ],
                                      "spreadAngle":  0,
                                      "startColorMax":  [
-                                                           0.39999999999999997,
-                                                           0.39999999999999997,
-                                                           0.39999999999999997,
-                                                           0.45
+                                                           0.7,
+                                                           0.4,
+                                                           1,
+                                                           0.6
                                                        ],
                                      "startColorMin":  [
+                                                           0.7,
+                                                           0.4,
+                                                           1,
+                                                           0.6
+                                                       ]
+                                 },
+                        "duration":  -1,
+                        "startTime":  0,
+                        "type":  "Particle"
+                    },
+                    {
+                        "data":  {
+                                     "angularVelRange":  [
+                                                             0,
+                                                             0
+                                                         ],
+                                     "atlasAnimate":  false,
+                                     "atlasCols":  6,
+                                     "atlasRows":  6,
+                                     "atlasIndex":  55,
+                                     "sheet":  1,
+                                     "frameMode":  3,
+                                     "frameCount":  9,
+                                     "blend":  0,
+                                     "boxExtents":  [
+                                                        1,
+                                                        1,
+                                                        1
+                                                    ],
+                                     "direction":  [
+                                                       0,
+                                                       1,
+                                                       0
+                                                   ],
+                                     "dragCoeff":  0,
+                                     "emitRate":  12,
+                                     "emitType":  1,
+                                     "endColorMax":  [
+                                                         0.9,
+                                                         0.5,
+                                                         1,
+                                                         0
+                                                     ],
+                                     "endColorMin":  [
+                                                         0.9,
+                                                         0.5,
+                                                         1,
+                                                         0
+                                                     ],
+                                     "gravity":  [
+                                                     0,
+                                                     0,
+                                                     0
+                                                 ],
+                                     "innerRadius":  0,
+                                     "lifetimeRange":  [
                                                            0.35,
-                                                           0.35,
-                                                           0.35,
-                                                           0.45
+                                                           0.6
+                                                       ],
+                                     "maxParticles":  2000,
+                                     "position":  [
+                                                      0,
+                                                      0,
+                                                      0
+                                                  ],
+                                     "radius":  0.2,
+                                     "renderMode":  0,
+                                     "rotationRange":  [
+                                                           0,
+                                                           0.3
+                                                       ],
+                                     "sizeRange":  [
+                                                       0.22,
+                                                       0.3,
+                                                       0,
+                                                       0.02
+                                                   ],
+                                     "speedRange":  [
+                                                        0.3,
+                                                        1
+                                                    ],
+                                     "spreadAngle":  0,
+                                     "startColorMax":  [
+                                                           1,
+                                                           0.85,
+                                                           1,
+                                                           1
+                                                       ],
+                                     "startColorMin":  [
+                                                           1,
+                                                           0.85,
+                                                           1,
+                                                           1
                                                        ]
                                  },
                         "duration":  -1,
@@ -202,30 +291,30 @@
                                                        1,
                                                        0
                                                    ],
-                                     "dragCoeff":  1,
-                                     "emitRate":  18,
+                                     "dragCoeff":  0.5,
+                                     "emitRate":  10,
                                      "emitType":  1,
                                      "endColorMax":  [
+                                                         0.5,
+                                                         0.2,
                                                          1,
-                                                         0.3,
-                                                         0.05,
                                                          0
                                                      ],
                                      "endColorMin":  [
+                                                         0.5,
+                                                         0.2,
                                                          1,
-                                                         0.3,
-                                                         0.05,
                                                          0
                                                      ],
                                      "gravity":  [
                                                      0,
-                                                     -6,
+                                                     0.5,
                                                      0
                                                  ],
                                      "innerRadius":  0,
                                      "lifetimeRange":  [
-                                                           0.35,
-                                                           0.6
+                                                           0.5,
+                                                           0.8
                                                        ],
                                      "maxParticles":  2000,
                                      "position":  [
@@ -233,33 +322,33 @@
                                                       0,
                                                       0
                                                   ],
-                                     "radius":  0.1,
+                                     "radius":  0.15,
                                      "renderMode":  1,
                                      "rotationRange":  [
                                                            0,
                                                            360
                                                        ],
                                      "sizeRange":  [
-                                                       0.06,
-                                                       0.09,
-                                                       0.02,
-                                                       0.03
+                                                       0.05,
+                                                       0.07,
+                                                       0.01,
+                                                       0.02
                                                    ],
                                      "speedRange":  [
-                                                        1,
-                                                        2.5
+                                                        0.3,
+                                                        0.9
                                                     ],
                                      "spreadAngle":  0,
                                      "startColorMax":  [
+                                                           0.9,
+                                                           0.7,
                                                            1,
-                                                           0.75,
-                                                           0.3,
                                                            1
                                                        ],
                                      "startColorMin":  [
-                                                           1,
+                                                           0.75,
                                                            0.5,
-                                                           0.1,
+                                                           1,
                                                            1
                                                        ],
                                      "meshGlow":  true,
@@ -273,5 +362,5 @@
                     }
                 ],
     "loop":  true,
-    "name":  "Fireball"
+    "name":  "HomingBolt"
 }
