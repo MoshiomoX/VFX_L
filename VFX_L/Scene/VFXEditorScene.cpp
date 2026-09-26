@@ -58,10 +58,13 @@ void VFXEditorScene::Init()
     // Mesh entry の描画先。粒子と同じく実行時の物で、Editor は指針だけ持つ
     if (!m_MeshRenderer.Initialize(device))
         std::cout << "[Error] VFXMeshRenderer init failed" << std::endl;
+    if (!m_SpriteRenderer.Initialize(device))
+        std::cout << "[Error] VFXSpriteRenderer init failed" << std::endl;
 
     // ---------- VFX（context は値渡しなので、指針を全部埋めてから渡す）----------
     m_VFXContext.particleSystem = &m_ParticleSystem;
     m_VFXContext.meshRenderer = &m_MeshRenderer;
+    m_VFXContext.spriteRenderer = &m_SpriteRenderer;
     m_Effect.InitStateMachine(m_VFXContext);
 
     m_Editor.SetEffect(&m_Effect);
@@ -267,6 +270,9 @@ void VFXEditorScene::Render(Renderer& renderer)
 
     // ---- VFX Mesh（光を当てない。深度は読むだけ）----
     m_MeshRenderer.Render(ctx, GetCamera());
+
+    // ---- Sprite（連番絵。深度は読むだけ）----
+    m_SpriteRenderer.Render(ctx, GetCamera());
 
     // ---- 粒子 ----
     m_ParticleSystem.SetCamera(GetCamera());

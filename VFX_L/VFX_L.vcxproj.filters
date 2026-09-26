@@ -133,6 +133,15 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="VFX_Editor\VFXSpriteRenderer.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXSpriteEntry.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\SpriteSheets.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
     <ClCompile Include="Core\Application.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -507,6 +516,15 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="VFX_Editor\VFXSpriteRenderer.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXSpriteEntry.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\SpriteSheets.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Application.h">
       <Filter>Core</Filter>
     </ClInclude>
@@ -1065,6 +1083,21 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Shader\Swarm\SwarmSpritePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmSpriteVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmSpriteCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\VFX\VFXSpritePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\VFX</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\VFX\VFXSpriteVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\VFX</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\PS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
@@ -1253,6 +1286,12 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Shader\Common\SwarmSprite.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SpriteQuad.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
     <None Include="Shader\Particle\Common\ParticleCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>

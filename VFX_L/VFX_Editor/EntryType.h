@@ -5,6 +5,7 @@
 
 class GPUParticleSystem;
 class VFXMeshRenderer;
+class VFXSpriteRenderer;
 
 // ============================================================
 // シーンが用意した Mesh 発射源（参照モデルの submesh 等）。
@@ -31,6 +32,7 @@ struct VFXContext
 {
     GPUParticleSystem* particleSystem = nullptr;
     VFXMeshRenderer* meshRenderer = nullptr;
+    VFXSpriteRenderer* spriteRenderer = nullptr;   // Sprite entry（連番絵）の描画先。無ければ描かない
 
     // シーンが持つ参照モデルの発射源（Editor 用。無ければ null）。
     // 実体はシーンの物なので、寿命はシーンに従う

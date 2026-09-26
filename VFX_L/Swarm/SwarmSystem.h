@@ -59,6 +59,9 @@ public:
 
     void RenderDebug(CameraBase* camera);
 
+    // GPU の範囲（弾の命中）が出した連番絵（Sprite entry）。不透明物の後・粒子の前に呼ぶ
+    void RenderSprites(CameraBase* camera);
+
     // ---- 雑魚の頭上の HP バー（Render の最後、雑魚とオーブの後に描く）----
     // 大きさは世界の寸法（遠いほど小さい。モデルと同じ比率）。全員に常に出す
     struct HpBarStyle
@@ -173,6 +176,7 @@ private:
     void UploadSpawns();          // 溜めた生成依頼を GPU へ
     void DispatchStep();          // 固定ステップ 1 回分の CS 群
     void DispatchEmit(float dt, float totalTime);   // 弾から粒子を発射
+    void DispatchSprites(float dt);                  // 範囲の連番絵：古い物を進めて、生まれた範囲の分を始める
     void RequestReadback();       // counter の copy を発行
 
     ID3D11Device* m_Device = nullptr;
@@ -245,6 +249,22 @@ private:
     // 原子的に予約して超過分を諦める。粒子 EmitCS の護欄と同じ思想、別の形
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EmitBudget;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EmitBudgetUAV;
+
+    // ---- 範囲の連番絵（SwarmSprite.hlsli）----
+    // 再生中の表は環（満杯なら一番古い物から上書き）。範囲が消えても再生は続く。
+    // areaSeen = 範囲の槽ごとに前のフレームの timeLeft（asuint）。0xFFFFFFFF = 空・未見
+    static constexpr uint32_t kMaxSprites = 1024;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpriteBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpriteUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_SpriteSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaSeenBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaSeenUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaSeenSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpriteHead;       // 環の書き込み位置（RAW）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpriteHeadUAV;
+    std::shared_ptr<ComputeShader> m_SpriteCS;
+    std::shared_ptr<VertexShader>  m_SpriteVS;
+    std::shared_ptr<PixelShader>   m_SpritePS;
 
     // --- 地形（起動時に1回。読み取り専用）---
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_TerrainBuffer;

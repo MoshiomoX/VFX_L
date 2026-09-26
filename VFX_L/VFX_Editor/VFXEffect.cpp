@@ -7,6 +7,7 @@
 #include "VFX_Editor/VFXMeshEntry.h"
 #include "VFX_Editor/VFXPointLightEntry.h"
 #include "VFX_Editor/VFXTrailEntry.h"
+#include "VFX_Editor/VFXSpriteEntry.h"
 #include "Particle/GPUParticleSystem.h"
 #include <algorithm>
 #include <iostream>
@@ -35,6 +36,8 @@ int VFXEffect::AddEntry(EntryType type, float startTime, float duration)
         entry = std::make_unique<VFXPointLightEntry>(); break;
     case EntryType::Trail:
         entry = std::make_unique<VFXTrailEntry>(); break;
+    case EntryType::Sprite:
+        entry = std::make_unique<VFXSpriteEntry>(); break;
     default:
         return -1;
     }
@@ -176,6 +179,10 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         else if (entry->GetType() == EntryType::Mesh && ctx.meshRenderer)
         {
             static_cast<VFXMeshEntry*>(entry.get())->Submit(*ctx.meshRenderer, m_WorldOffset);
+        }
+        else if (entry->GetType() == EntryType::Sprite && ctx.spriteRenderer)
+        {
+            static_cast<VFXSpriteEntry*>(entry.get())->Submit(*ctx.spriteRenderer, m_WorldOffset);
         }
         else if (entry->GetType() == EntryType::Light)
         {
