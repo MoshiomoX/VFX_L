@@ -97,6 +97,34 @@ void VFXEditorScene::Init()
     // 一括発射の既定値をプール全体に合わせる
     m_BurstCount = (int)m_ParticleSystem.GetMaxParticles();
 
+    // TEMP-TEST: 粒子貼图の自測（Game.cpp の VFXL_VFX_AUTOLOAD と対）
+    char autoload[128] = {};
+    if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoload, sizeof(autoload)) > 0)
+    {
+        const std::string path = std::string(Res::Dir::VFXData) + autoload;
+        if (m_Effect.LoadFromFile(path)) m_Effect.Play();
+        std::cout << "[TEMP-TEST] autoload " << path << std::endl;
+        char move[8] = {};
+        if (GetEnvironmentVariableA("VFXL_VFX_MOVE", move, sizeof(move)) > 0)
+        {
+            m_FakeProjectileOn = true;   // 弾の尾を見る
+            m_ShowFakeMarker = false;
+        }
+        char loop[8] = {};
+        if (GetEnvironmentVariableA("VFXL_VFX_LOOP", loop, sizeof(loop)) > 0)
+            m_Effect.SetLooping(true);   // 一度きりの爆発を繰り返して撮る
+        char close[8] = {};
+        if (GetEnvironmentVariableA("VFXL_VFX_CLOSE", close, sizeof(close)) > 0)
+        {
+            m_Camera.SetPosition({ 0.0f, 2.0f, -5.5f });   // 近くから・参考モデル無し
+            m_Camera.SetTarget({ 0.0f, 1.0f, 0.0f });
+            m_ShowModel = false;
+            m_FakeSpeed = 6.0f;
+            m_FakeStart = { -4.0f, 1.0f, 0.0f };
+            m_FakeRange = 8.0f;
+        }
+    }
+
     std::cout << "[VFXEditorScene] Init complete" << std::endl;
 }
 

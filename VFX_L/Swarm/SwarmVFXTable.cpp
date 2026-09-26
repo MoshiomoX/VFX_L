@@ -82,19 +82,19 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
             continue;
         }
 
-        // 最初の Particle entry と、全部の Light entry を拾う
-        VFXParticleEntry* pe = nullptr;
+        // 全部の Particle entry（重ねて 1 発の見た目にする）と、全部の Light entry を拾う
+        std::vector<VFXParticleEntry*> particleEntries;
         std::vector<const VFXPointLightEntry*> lightEntries;
         for (int k = 0; ; ++k)
         {
             VFXEntry* e = tmpl->GetEntry(k);
             if (!e) break;
-            if (e->GetType() == EntryType::Particle && !pe)
-                pe = static_cast<VFXParticleEntry*>(e);
+            if (e->GetType() == EntryType::Particle)
+                particleEntries.push_back(static_cast<VFXParticleEntry*>(e));
             else if (e->GetType() == EntryType::Light)
                 lightEntries.push_back(static_cast<const VFXPointLightEntry*>(e));
         }
-        if (!pe) continue;
+        if (particleEntries.empty()) continue;
 
         Swarm::VFXRecipe r;
         r.particleStart = (uint32_t)emitters.size();
@@ -113,26 +113,33 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         r.lightCount = (uint32_t)lightEntries.size();
 
         // ---- GPU 互換チェック ----
-        // 一弾一スレッド・無状態なので時間軸は表現できない
-        bool timelineIgnored = (pe->startTime != 0.0f || pe->duration >= 0.0f);
+        // 一弾一スレッド・無状態なので時間軸は表現できない（全層が同時に出続ける）
+        bool timelineIgnored = false;
 
-        GPUEmitter ge = pe->emitterData.ToGPU();
-        // メッシュ粒子の模型はここで登録する（表は場面の間ずっと使うので解除しない）。
-        // particles が無ければ ToGPU のまま（0 番 = 立方体）
-        if (pe->emitterData.renderMode != 0 && particles)
-            ge.renderMode = ParticleRenderMode::Pack(
-                particles->RegisterParticleMesh(pe->emitterData.meshPath),
-                pe->emitterData.meshGlow, pe->emitterData.meshFaceVelocity,
-                pe->emitterData.meshForwardAxis);
-        ge.isActive = 1.0f;
-        ge.ownerID = 0;
-        ge.colorKeyOffset = (int)keys.size();   // 静的区は offset 0 起点
-        ge.colorKeyCount = pe->emitterData.colorKeyCount;
-        for (int c = 0; c < pe->emitterData.colorKeyCount; ++c)
-            keys.push_back(pe->emitterData.colorKeys[c]);
+        // ---- 発射器：entry の順に並べる。位置は弾からのずらし（SwarmEmitCS が足す）----
+        for (VFXParticleEntry* pe : particleEntries)
+        {
+            if (pe->startTime != 0.0f || pe->duration >= 0.0f)
+                timelineIgnored = true;
 
-        emitters.push_back(ge);
-        r.particleCount = 1;
+            GPUEmitter ge = pe->emitterData.ToGPU();
+            // メッシュ粒子の模型はここで登録する（表は場面の間ずっと使うので解除しない）。
+            // particles が無ければ ToGPU のまま（0 番 = 立方体）
+            if (pe->emitterData.renderMode != 0 && particles)
+                ge.renderMode = ParticleRenderMode::Pack(
+                    particles->RegisterParticleMesh(pe->emitterData.meshPath),
+                    pe->emitterData.meshGlow, pe->emitterData.meshFaceVelocity,
+                    pe->emitterData.meshForwardAxis);
+            ge.isActive = 1.0f;
+            ge.ownerID = 0;
+            ge.colorKeyOffset = (int)keys.size();   // 静的区は offset 0 起点
+            ge.colorKeyCount = pe->emitterData.colorKeyCount;
+            for (int c = 0; c < pe->emitterData.colorKeyCount; ++c)
+                keys.push_back(pe->emitterData.colorKeys[c]);
+
+            emitters.push_back(ge);
+        }
+        r.particleCount = (uint32_t)particleEntries.size();
 
         if (timelineIgnored)
         {

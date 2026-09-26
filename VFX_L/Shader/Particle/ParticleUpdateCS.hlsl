@@ -68,11 +68,12 @@ void main(uint3 id : SV_DispatchThreadID)
     // --- 以下は既存のまま ---
     float t = GetLifeRatio(p);
 
+    // atlasAnimate = (first << 12) | count (see InitParticleFrame)
     if (p.atlasAnimate > 0)
     {
-        int totalFrames = p.atlasRows * p.atlasCols;
-        p.uvFrame = (int) (t * totalFrames);
-        p.uvFrame = min(p.uvFrame, totalFrames - 1);
+        int count = p.atlasAnimate & 0xFFF;
+        int first = p.atlasAnimate >> 12;
+        p.uvFrame = first + min((int) (t * count), count - 1);
     }
 
     p.velocity += p.acceleration * g_DeltaTime;

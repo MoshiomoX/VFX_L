@@ -139,6 +139,15 @@ void ProjectileEditorScene::Init()
 
     RespawnTargets();
 
+    // TEMP-TEST: 粒子貼图の自測。VFXL_PROJ_AUTOTEST=<投射物プロファイル名> でその弾を撃ち続ける
+    char autotest[64] = {};
+    if (GetEnvironmentVariableA("VFXL_PROJ_AUTOTEST", autotest, sizeof(autotest)) > 0)
+    {
+        const int idx = ProjectileProfileDB::IndexOf(autotest);
+        if (idx >= 0) SelectProfile(idx);
+        std::cout << "[TEMP-TEST] projectile " << autotest << " -> " << idx << std::endl;
+    }
+
     std::cout << "[ProjectileEditorScene] Init complete" << std::endl;
 }
 

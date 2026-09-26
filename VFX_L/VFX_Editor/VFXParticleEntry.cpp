@@ -5,7 +5,10 @@
 #include "Graphics/Mesh/Mesh.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
+#include "Particle/ParticleSheets.h"
+#include "Graphics/Material/Texture.h"
 #include "imgui.h"
+#include <algorithm>
 #include <iostream>
 
 VFXParticleEntry::~VFXParticleEntry()
@@ -184,6 +187,178 @@ void VFXParticleEntry::ClearExternalSource()
     m_SourceDirty = true;   // 再生中なら次の OnUpdate で静的モデルへ戻る
 }
 
+// ============================================================
+// ビルボードの貼图：どの貼图（ParticleSheets）の、どのコマを、どう混ぜて描くか
+//   Frames = Fixed（1 コマ）/ Animate（連番を寿命で再生）/ Random（生まれた時に 1 コマ選ぶ）
+//   Group を選ぶと名前付きの範囲がそのまま入る（像素の連番 → Animate、それ以外 → Random）
+//   Pick frame の格子：クリック = 最初のコマ、Shift+クリック = そこまでをコマ数に
+// ============================================================
+namespace
+{
+    void DrawSheetUI(GPUParticleEmitter& e)
+    {
+        ParticleSheets::Load();
+        const int sheetCount = ParticleSheets::Count();
+
+        auto sheetLabel = [](int i) -> std::string
+        {
+            const auto* s = ParticleSheets::Get(i);
+            if (!s) return std::to_string(i) + ": (none)";
+            return std::to_string(i) + ": " + s->name + (s->texture ? "" : " (missing)");
+        };
+
+        if (ImGui::BeginCombo("Texture", sheetLabel(e.textureIndex).c_str()))
+        {
+            for (int i = 0; i < sheetCount; ++i)
+            {
+                if (ImGui::Selectable(sheetLabel(i).c_str(), i == e.textureIndex))
+                {
+                    e.textureIndex = i;
+                    // 新しい貼图は旧式のコマ指定を使わない
+                    if (i > 0 && e.frameMode == (int)ParticleFrameMode::Legacy)
+                        e.frameMode = (int)ParticleFrameMode::Fixed;
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        const auto* sheet = ParticleSheets::Get(e.textureIndex);
+        if (!sheet || !sheet->texture)
+            ImGui::TextColored(ImVec4(1, 0.5f, 0.3f, 1), "texture not loaded: particles are invisible");
+
+        // 格子：0 番だけ手で決める（旧 json の値）、1 番以降は説明 json の形
+        int rows = e.atlasRows, cols = e.atlasCols;
+        if (e.textureIndex == 0 || !sheet)
+        {
+            ImGui::DragInt("Atlas Rows", &e.atlasRows, 1, 1, 16);
+            ImGui::DragInt("Atlas Cols", &e.atlasCols, 1, 1, 16);
+            rows = (std::max)(1, e.atlasRows);
+            cols = (std::max)(1, e.atlasCols);
+        }
+        else
+        {
+            rows = sheet->rows;
+            cols = sheet->cols;
+            ImGui::TextDisabled("grid %d x %d (from the sheet)", cols, rows);
+        }
+        const int cells = rows * cols;
+
+        int blend = e.alphaBlend ? 1 : 0;
+        const char* blendNames[] = { "Additive (glow)", "Alpha" };
+        if (ImGui::Combo("Blend##sheet", &blend, blendNames, IM_ARRAYSIZE(blendNames)))
+            e.alphaBlend = (blend == 1);
+        if (e.alphaBlend && e.textureIndex == 0)
+            ImGui::TextDisabled("sheet 0 has no alpha (black background): use Additive");
+
+        // 名前付きの範囲
+        if (sheet && !sheet->groups.empty())
+        {
+            if (ImGui::BeginCombo("Group", "(pick a group)"))
+            {
+                for (const auto& g : sheet->groups)
+                {
+                    const std::string label = g.name + "  [" + std::to_string(g.start) + " +"
+                        + std::to_string(g.count) + "]";
+                    if (ImGui::Selectable(label.c_str()))
+                    {
+                        e.atlasIndex = g.start;
+                        e.frameCount = g.count;
+                        e.frameMode = (int)((g.count <= 1) ? ParticleFrameMode::Fixed
+                            : sheet->point ? ParticleFrameMode::Animate : ParticleFrameMode::Random);
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
+
+        const char* modeNames[] = { "Legacy", "Fixed", "Animate (over life)", "Random (at spawn)" };
+        ImGui::Combo("Frames", &e.frameMode, modeNames, IM_ARRAYSIZE(modeNames));
+
+        if (e.frameMode == (int)ParticleFrameMode::Legacy)
+        {
+            ImGui::Checkbox("Atlas Animate", &e.atlasAnimate);
+            if (!e.atlasAnimate)
+                ImGui::SliderInt("Atlas Index", &e.atlasIndex, 0, cells - 1);
+        }
+        else
+        {
+            ImGui::SliderInt("First Frame", &e.atlasIndex, 0, cells - 1);
+            e.atlasIndex = std::clamp(e.atlasIndex, 0, cells - 1);
+            if (e.frameMode != (int)ParticleFrameMode::Fixed)
+            {
+                ImGui::SliderInt("Frame Count", &e.frameCount, 1, (std::max)(1, cells - e.atlasIndex));
+                e.frameCount = std::clamp(e.frameCount, 1, (std::max)(1, cells - e.atlasIndex));
+            }
+            if (sheet && e.atlasIndex < (int)sheet->frames.size())
+                ImGui::TextDisabled("first: %s", sheet->frames[e.atlasIndex].c_str());
+            if (e.frameMode == (int)ParticleFrameMode::Animate)
+                ImGui::TextDisabled("plays once over the lifetime (lifetime = frames / fps)");
+        }
+
+        // コマの格子（クリックで選ぶ）
+        if (sheet && sheet->texture && ImGui::TreeNode("Pick frame"))
+        {
+            const float thumb = 40.0f;
+            const int perRow = (std::max)(1, (int)((ImGui::GetContentRegionAvail().x) / (thumb + 8.0f)));
+            const int first = e.atlasIndex;
+            const int last = (e.frameMode == (int)ParticleFrameMode::Legacy
+                || e.frameMode == (int)ParticleFrameMode::Fixed) ? first : first + e.frameCount - 1;
+
+            ImGui::BeginChild("frames", ImVec2(0, 260), ImGuiChildFlags_Borders);
+            const int lines = (cells + perRow - 1) / perRow;
+            ImGuiListClipper clipper;
+            clipper.Begin(lines, thumb + 8.0f);
+            while (clipper.Step())
+            {
+                for (int line = clipper.DisplayStart; line < clipper.DisplayEnd; ++line)
+                {
+                    for (int k = 0; k < perRow; ++k)
+                    {
+                        const int i = line * perRow + k;
+                        if (i >= cells) break;
+                        if (k > 0) ImGui::SameLine();
+
+                        const float cw = 1.0f / cols, ch = 1.0f / rows;
+                        const ImVec2 uv0((i % cols) * cw, (i / cols) * ch);
+                        const ImVec2 uv1(uv0.x + cw, uv0.y + ch);
+                        const bool inRange = (i >= first && i <= last);
+                        const ImVec4 bg = inRange ? ImVec4(0.25f, 0.45f, 0.8f, 1) : ImVec4(0.08f, 0.08f, 0.1f, 1);
+
+                        ImGui::PushID(i);
+                        if (ImGui::ImageButton("f", (ImTextureID)sheet->texture->GetSRV(),
+                            ImVec2(thumb, thumb), uv0, uv1, bg))
+                        {
+                            if (ImGui::GetIO().KeyShift && i >= first
+                                && e.frameMode != (int)ParticleFrameMode::Fixed
+                                && e.frameMode != (int)ParticleFrameMode::Legacy)
+                            {
+                                e.frameCount = i - first + 1;
+                            }
+                            else
+                            {
+                                e.atlasIndex = i;
+                                if (e.frameMode == (int)ParticleFrameMode::Legacy) e.atlasAnimate = false;
+                                e.frameCount = std::clamp(e.frameCount, 1, cells - i);
+                            }
+                        }
+                        if (ImGui::IsItemHovered())
+                        {
+                            if (i < (int)sheet->frames.size())
+                                ImGui::SetTooltip("%d: %s", i, sheet->frames[i].c_str());
+                            else
+                                ImGui::SetTooltip("%d", i);
+                        }
+                        ImGui::PopID();
+                    }
+                }
+            }
+            ImGui::EndChild();
+            ImGui::TextDisabled("click = first frame, shift+click = last frame");
+            ImGui::TreePop();
+        }
+    }
+}
+
 void VFXParticleEntry::OnImGui()
 {
     auto& e = emitterData;
@@ -304,6 +479,10 @@ void VFXParticleEntry::OnImGui()
         if (!e.meshFaceVelocity)
             ImGui::TextDisabled("rotation ranges apply to all 3 axes");
     }
+    else
+    {
+        DrawSheetUI(e);
+    }
     ImGui::Separator();
 
     ImGui::SliderFloat("Rate", &e.emitRate, 0.0f, 1000.0f);
@@ -410,15 +589,6 @@ void VFXParticleEntry::OnImGui()
     ImGui::DragFloat2("Angular Vel", &e.angularVelRange.x, 0.01f);
     ImGui::Separator();
 
-    ImGui::DragInt("Atlas Rows", &e.atlasRows, 1, 1, 16);
-    ImGui::DragInt("Atlas Cols", &e.atlasCols, 1, 1, 16);
-    ImGui::Checkbox("Atlas Animate", &e.atlasAnimate);
-    if (!e.atlasAnimate)
-    {
-        int maxIdx = e.atlasRows * e.atlasCols - 1;
-        ImGui::SliderInt("Atlas Index", &e.atlasIndex, 0, maxIdx);
-    }
-    ImGui::Separator();
 
     // ---- 軌跡（帯）：粒子 1 個ずつが引く。GPU 上で完結 ----
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Trail (ribbon per particle)");
@@ -477,6 +647,10 @@ json VFXParticleEntry::ToJson() const
     j["atlasCols"] = e.atlasCols;
     j["atlasIndex"] = e.atlasIndex;
     j["atlasAnimate"] = e.atlasAnimate;
+    j["sheet"] = e.textureIndex;
+    j["frameMode"] = e.frameMode;
+    j["frameCount"] = e.frameCount;
+    j["blend"] = e.alphaBlend ? 1 : 0;   // 0 = 加算 / 1 = 半透明
 
     j["source"] = sourceModelPath;
     j["edgeMode"] = e.shape.edgeMode;
@@ -584,6 +758,11 @@ void VFXParticleEntry::FromJson(const json& j)
     e.atlasCols = j.value("atlasCols", 1);
     e.atlasIndex = j.value("atlasIndex", 0);
     e.atlasAnimate = j.value("atlasAnimate", false);
+    // 古い json には無い → 0 番の貼图・旧式のコマ指定・加算（今までと同じ見た目）
+    e.textureIndex = j.value("sheet", 0);
+    e.frameMode = j.value("frameMode", 0);
+    e.frameCount = j.value("frameCount", 1);
+    e.alphaBlend = j.value("blend", 0) != 0;
 
     sourceModelPath = j.value("source", "");
     e.shape.edgeMode = j.value("edgeMode", 0);

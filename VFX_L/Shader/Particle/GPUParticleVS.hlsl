@@ -19,6 +19,8 @@ struct VSOutput
     nointerpolation uint atlasRows : TEXCOORD1;
     nointerpolation uint atlasCols : TEXCOORD2;
     nointerpolation uint uvFrame : TEXCOORD3;
+    nointerpolation uint sheet : TEXCOORD4; // ParticleSheets index (particle.textureIndex)
+    nointerpolation uint alphaBlend : TEXCOORD5; // 1 = alpha blended, 0 = additive
 };
 
 VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
@@ -53,6 +55,8 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     output.atlasRows = p.atlasRows;
     output.atlasCols = p.atlasCols;
     output.uvFrame = p.uvFrame;
+    output.sheet = (uint) max(p.textureIndex, 0);
+    output.alphaBlend = (((uint) p.renderMode) & PARTICLE_BILLBOARD_ALPHA) ? 1u : 0u;
 
     float3 camRight = float3(g_View[0][0], g_View[1][0], g_View[2][0]);
     float3 camUp = float3(g_View[0][1], g_View[1][1], g_View[2][1]);

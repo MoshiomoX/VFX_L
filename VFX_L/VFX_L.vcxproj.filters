@@ -229,6 +229,9 @@
     <ClCompile Include="Particle\GPUParticleMesh.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
+    <ClCompile Include="Particle\ParticleSheets.cpp">
+      <Filter>Particle</Filter>
+    </ClCompile>
     <ClCompile Include="Particle\GPUParticleEmitter.cpp">
       <Filter>Particle</Filter>
     </ClCompile>
@@ -616,6 +619,9 @@
       <Filter>Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Particle\GPUParticleSystem.h">
+      <Filter>Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="Particle\ParticleSheets.h">
       <Filter>Particle</Filter>
     </ClInclude>
     <ClInclude Include="Particle\GPUParticle.h">

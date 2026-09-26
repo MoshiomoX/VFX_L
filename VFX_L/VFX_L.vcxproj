@@ -207,6 +207,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Particle\GPUParticleSystem.cpp" />
     <ClCompile Include="Particle\GPUParticleEffectTrail.cpp" />
     <ClCompile Include="Particle\GPUParticleMesh.cpp" />
+    <ClCompile Include="Particle\ParticleSheets.cpp" />
     <ClCompile Include="Scene\GPUParticleTestScene.cpp" />
     <ClCompile Include="Graphics\Graphics.cpp" />
     <ClCompile Include="Scene\GYScene.cpp" />
@@ -388,6 +389,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Particle\GPUParticle.h" />
     <ClInclude Include="Particle\GPUParticleEmitter.h" />
     <ClInclude Include="Particle\GPUParticleSystem.h" />
+    <ClInclude Include="Particle\ParticleSheets.h" />
     <ClInclude Include="Scene\GPUParticleTestScene.h" />
     <ClInclude Include="Graphics\Graphics.h" />
     <ClInclude Include="Scene\GYScene.h" />

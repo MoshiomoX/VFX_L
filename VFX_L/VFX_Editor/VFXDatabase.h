@@ -13,6 +13,11 @@ namespace
         { VFXId::Fireball, Res::VFX::Fireball },
         { VFXId::DeathBurn, Res::VFX::DeathBurn },
         { VFXId::Explosion, Res::VFX::Explosion },
+        { VFXId::ArcBolt, Res::VFX::ArcBolt },
+        { VFXId::HomingBolt, Res::VFX::HomingBolt },
+        { VFXId::Meteor, Res::VFX::Meteor },
+        { VFXId::MeteorBlast, Res::VFX::MeteorBlast },
+        { VFXId::FireCircle, Res::VFX::FireCircle },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }

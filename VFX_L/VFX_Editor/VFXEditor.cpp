@@ -2,11 +2,42 @@
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "Core/Application.h"
 
+#include "Particle/ParticleSheets.h"
 #include "imgui.h"
 #include <string>
 #include <cstdio>
 #include <cmath>
 #include <fstream>
+#include <algorithm>
+
+namespace
+{
+    // ビルボード粒子の最初のコマを小さく見せる。
+    // 0 番の貼图はシーンが渡した物（legacy）があればそちら、1 番以降は貼图表から
+    void DrawParticleTexturePreview(const GPUParticleEmitter& e, const Texture* legacy)
+    {
+        if (e.renderMode != 0) return;
+        const auto* sheet = ParticleSheets::Get(e.textureIndex);
+        const Texture* tex = (e.textureIndex == 0 && legacy) ? legacy
+            : (sheet ? sheet->texture.get() : nullptr);
+        if (!tex || !tex->IsValid()) return;
+
+        const bool own = (e.textureIndex == 0 || !sheet);
+        const int rows = own ? (std::max)(1, e.atlasRows) : sheet->rows;
+        const int cols = own ? (std::max)(1, e.atlasCols) : sheet->cols;
+        const int index = (std::max)(0, e.atlasIndex) % (rows * cols);
+
+        ImGui::Separator();
+        ImGui::Text("Texture Preview:");
+
+        const float cellW = 1.0f / cols;
+        const float cellH = 1.0f / rows;
+        const ImVec2 uv0((index % cols) * cellW, (index / cols) * cellH);
+        const ImVec2 uv1(uv0.x + cellW, uv0.y + cellH);
+        ImGui::Image((ImTextureID)tex->GetSRV(), ImVec2(64, 64), uv0, uv1);
+    }
+}
+
 void VFXEditor::Draw()
 {
     if (!m_Effect) return;
@@ -232,24 +263,8 @@ void VFXEditor::DrawEntryList()
             entry->OnImGui();
 
             // テクスチャプレビュー
-            if (entry->GetType() == EntryType::Particle && m_Texture && m_Texture->IsValid())
-            {
-                auto* pEntry = static_cast<VFXParticleEntry*>(entry);
-                auto& e = pEntry->emitterData;
-
-                ImGui::Separator();
-                ImGui::Text("Texture Preview:");
-
-                float cellW = 1.0f / e.atlasCols;
-                float cellH = 1.0f / e.atlasRows;
-                int col = e.atlasIndex % e.atlasCols;
-                int row = e.atlasIndex / e.atlasCols;
-
-                ImVec2 uv0(col * cellW, row * cellH);
-                ImVec2 uv1((col + 1) * cellW, (row + 1) * cellH);
-
-                ImGui::Image((ImTextureID)m_Texture->GetSRV(), ImVec2(64, 64), uv0, uv1);
-            }
+            if (entry->GetType() == EntryType::Particle)
+                DrawParticleTexturePreview(static_cast<VFXParticleEntry*>(entry)->emitterData, m_Texture.get());
         }
 
         ImGui::PopID();
@@ -291,24 +306,8 @@ void VFXEditor::DrawEntryInspector(int index)
     entry->OnImGui();
 
     // テクスチャプレビュー（Particleの場合）
-    if (entry->GetType() == EntryType::Particle && m_Texture && m_Texture->IsValid())
-    {
-        auto* pEntry = static_cast<VFXParticleEntry*>(entry);
-        auto& e = pEntry->emitterData;
-
-        ImGui::Separator();
-        ImGui::Text("Texture Preview:");
-
-        float cellW = 1.0f / e.atlasCols;
-        float cellH = 1.0f / e.atlasRows;
-        int col = e.atlasIndex % e.atlasCols;
-        int row = e.atlasIndex / e.atlasCols;
-
-        ImVec2 uv0(col * cellW, row * cellH);
-        ImVec2 uv1((col + 1) * cellW, (row + 1) * cellH);
-
-        ImGui::Image((ImTextureID)m_Texture->GetSRV(), ImVec2(64, 64), uv0, uv1);
-    }
+    if (entry->GetType() == EntryType::Particle)
+        DrawParticleTexturePreview(static_cast<VFXParticleEntry*>(entry)->emitterData, m_Texture.get());
 
     ImGui::End();
 }

@@ -95,11 +95,17 @@ public:
     int  meshForwardAxis = 2;         // 模型の前方の軸（0 = +X / 1 = +Y / 2 = +Z）
     int  meshSlot = 0;                // 実行時：GPUParticleSystem の模型表の番号（登録は entry 側。0 = 立方体）
 
+    // --- 貼图（ビルボードだけ）---
+    // textureIndex = ParticleSheets の番号。0 番（旧 6x6）は下の行列を使い、
+    // 1 番以降は貼图の説明 json の行列を ToGPU が入れる
     int atlasRows = 6;
     int atlasCols = 6;
-    int atlasIndex = 0;       // -1 = アニメーション
-    bool atlasAnimate = false;
-    int textureIndex = 0;      // Texture Array内のインデックス
+    int atlasIndex = 0;       // 最初のコマ
+    bool atlasAnimate = false; // frameMode == Legacy の時だけ見る（true = 格子の全コマを再生）
+    int textureIndex = 0;      // ParticleSheets の番号（json "sheet"）
+    int frameMode = 0;         // ParticleFrameMode（0 = 旧式）。json "frameMode"
+    int frameCount = 1;        // Animate / Random のコマ数。json "frameCount"
+    bool alphaBlend = false;   // 半透明で描く（false = 加算で光る）。json "blend"
 
     // --- Color over Lifetime ---
     static const int MAX_COLOR_KEYS = 8;

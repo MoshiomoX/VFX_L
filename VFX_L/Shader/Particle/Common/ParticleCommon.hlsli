@@ -20,6 +20,22 @@
 #define PARTICLE_MESH_SLOTS      16u
 #define PARTICLE_MESH_BUCKET_CAP 16384u
 
+// billboard only (bits 0-7 == 0): alpha blended instead of additive.
+// Must match ParticleRenderMode::kBillboardAlpha
+#define PARTICLE_BILLBOARD_ALPHA (1u << 12)
+
+// ============================================
+// Which atlas cell a particle shows (GPUEmitter.frameMode).
+// Must match ParticleFrameMode in GPUParticle.h.
+//   atlasIndex = first cell, frameCount = number of cells
+// While animating, particle.atlasAnimate = (first << 12) | count and
+// UpdateCS advances uvFrame over the lifetime. 0 = uvFrame stays put.
+// ============================================
+#define PARTICLE_FRAME_LEGACY  0 // atlasIndex >= 0 fixed, -1 = every cell of the grid over the lifetime
+#define PARTICLE_FRAME_FIXED   1
+#define PARTICLE_FRAME_ANIMATE 2
+#define PARTICLE_FRAME_RANDOM  3
+
 uint ParticleMeshSlotPlusOne(int renderMode)
 {
     return ((uint) renderMode) & 0xFFu;
@@ -109,13 +125,13 @@ struct GPUEmitter
     int colorKeyoffset;
     int colorKeyCount;
     int ownerID;
-    int _pad2;
+    int frameCount; // frames used by PARTICLE_FRAME_ANIMATE / _RANDOM (was _pad2)
     // Mesh emit: model world matrix. row_major = same memory order as C++ Matrix
     row_major float4x4 world;
     int edgeMode; // 0 all vertices / 1 dissolve edge only
     int renderMode; // copied to the particle (see PARTICLE_MESH_*)
     int trailStyle; // 0 = no trail, else style index + 1. copied to the particle
-    int _padS2;
+    int frameMode; // PARTICLE_FRAME_* (was _padS2)
     // sweep emit: vector from this frame's emit position back to last
     // frame's. EmitCS scatters along it so a fast emitter leaves no gaps.
     // 0 = emit from a single point as before
@@ -210,6 +226,35 @@ float Random(inout uint seed)
 float RandomRange(inout uint seed, float minVal, float maxVal)
 {
     return lerp(minVal, maxVal, Random(seed));
+}
+
+// ============================================
+// Pick the atlas cell(s) for a new particle (both emit paths call this).
+// Uses its own seed so the attribute stream of the caller stays unchanged
+// ============================================
+void InitParticleFrame(int frameMode, int atlasIndex, int frameCount,
+                       int atlasRows, int atlasCols, uint seed,
+                       inout int uvFrame, inout int atlasAnimate)
+{
+    int first = max(atlasIndex, 0);
+    int count = clamp(frameCount, 1, 4095);
+    uvFrame = first;
+    atlasAnimate = 0;
+
+    if (frameMode == PARTICLE_FRAME_ANIMATE)
+    {
+        atlasAnimate = (first << 12) | count;
+    }
+    else if (frameMode == PARTICLE_FRAME_RANDOM)
+    {
+        uint frameSeed = seed ^ 0x85EBCA6Bu;
+        uvFrame = first + min((int) (Random(frameSeed) * count), count - 1);
+    }
+    else if (frameMode == PARTICLE_FRAME_LEGACY && atlasIndex < 0)
+    {
+        uvFrame = 0;
+        atlasAnimate = clamp(atlasRows * atlasCols, 1, 4095);
+    }
 }
 
 // -1~1の範囲のfloat3乱数
