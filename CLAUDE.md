@@ -42,7 +42,7 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 
 | 键 | 场景 | 用途 |
 |---|---|---|
-| F1 | Game Test（`CollisionTestScene`） | 战斗本体 |
+| F1 | Game Test（`CollisionTestScene`） | 战斗本体（结构见下方「战斗场景的结构」） |
 | F2 | VFX Editor | 特效编辑 |
 | F3 | Title | 标题 |
 | F4 | Projectile Editor | 弹道、范围攻击编辑；第 3 页 Item Shapes 编辑道具形状 + 试放背包 |
@@ -81,7 +81,8 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
   - CPU：`VFXSpriteRenderer`（`VFXContext::spriteRenderer`，VFX 编辑器 / F4 / 战斗场景各有一个，粒子之前画），dynamic structured buffer + 按贴图分组 DrawInstanced，点采样，预乘 alpha，不排序。
   - GPU 范围（弹命中生成的范围）：`SwarmVFXTable` 把 Sprite 条目转成 `SwarmSpriteDef`（80B，recipe 的 `spriteStart/spriteCount` 原是 `_pad`），用到的图拼成 Texture2DArray（每张一层，按最大尺寸补齐）；`SwarmSpriteCS` 在发射阶段后跑两次：推进年龄并回收 → 按槽位检测新范围（`areaSeen` 存上帧的 timeLeft，变大=新范围）并在 1024 个实例的环形池里启动；`SwarmSystem::RenderSprites` 画全部槽位。范围消失后动画继续播。GPU 弹道本身上的 Sprite 条目不画；CPU 生成的范围（vfxType 0）由 CPU 播。
   - 两条路径共用 `Shader/Common/SpriteQuad.hlsli`（四边形生成）。示例 `SpriteTest.json`。
-- **战斗反馈特效**：升级 `LevelUp.json`（radiant-heal，跟随玩家）、开箱 `CrateOpen.json`（harvest-seal + 木屑方块）、受伤 `Hurt.json`（红色 crescent-slash，跟随玩家），由 `CollisionTestScene::PlayFeedbackVFX` 经 `m_AreaVFX` 播放；暂停时不走，所以升级/开箱要等三选一选完才看得到。玩家位置是胶囊中心（y≈0.9），相机在身后时 Q 版法师会挡住身上的特效，所以升级和受伤的 Sprite 开了「Always on top」（Sprite entry 的 `onTop`，不做深度测试，只对 CPU 路径有效）。受伤最快每 `m_HurtFxInterval`（1.5 秒）一次。战斗场景「Feedback VFX」面板：开关、Test 按钮、受伤间隔、Reload json。命中特效：ArcOnce → AreaData `ArcSpark`、HomingFull → `VoidPop`（伤害 0、0.1 秒、`hitAreaOnExpire` false，只为让 GPU 播 `ArcBoltHit` / `HomingBoltHit` 的 Sprite + 粒子）；`ItemInfo` 不描述伤害 0 的命中范围。
+- **战斗反馈特效**：升级 `LevelUp.json`（radiant-heal，跟随玩家）、开箱 `CrateOpen.json`（harvest-seal + 木屑方块）、受伤 `Hurt.json`（红色 crescent-slash，跟随玩家），由 `ECS/System/FeedbackVFXSystem` 经场景的 `m_AreaVFX` 播放；暂停时不走，所以升级/开箱要等三选一选完才看得到。玩家位置是胶囊中心（y≈0.9），相机在身后时 Q 版法师会挡住身上的特效，所以升级和受伤的 Sprite 开了「Always on top」（Sprite entry 的 `onTop`，不做深度测试，只对 CPU 路径有效）。受伤最快每 `m_HurtInterval`（1.5 秒）一次。战斗场景「Feedback VFX」面板：开关、Test 按钮、受伤间隔、Reload json。命中特效：ArcOnce → AreaData `ArcSpark`、HomingFull → `VoidPop`（伤害 0、0.1 秒、`hitAreaOnExpire` false，只为让 GPU 播 `ArcBoltHit` / `HomingBoltHit` 的 Sprite + 粒子）；`ItemInfo` 不描述伤害 0 的命中范围。
+- **战斗场景的结构**：`Scene/CollisionTestScene.cpp` 只剩初始化、`UpdateGameplay` 的执行顺序、渲染、结算；ImGui 面板 / 调试绘制 / TEMP 自测在 `Scene/CollisionTestSceneDebug.cpp`（同一个类）。做完的功能拆成部品，场景持有并调用：`Camera/BattleCamera`（FollowCamera + 遮挡探针 + 鼠标捕获 / Alt + 震动触发 + Camera 面板）、`ECS/System/RewardCrateSystem`、`ECS/System/FeedbackVFXSystem`、`Graphics/Light/SceneLighting`（太阳 + 环境光 + 场景点光源 + 标记 / gizmo + Lighting 面板）、`Enemy/EliteSpawner`（精英靶子 + HP 归零的 CPU 实体燃烧消散）、`Enemy/MobSpawner`（SpawnDirector + 雑魚初始值 + Mob AI 面板）、`Debug/StressTestTools`（压力测试 + Mesh 发射测试 + Flush 耗时）。被弹的 HP 差分由场景 `TrackPlayerHpLoss` 算一次，分给相机震动和受伤特效。
 - **GPU 弹道的特效**：`SwarmVFXTable` 收特效里**全部**粒子条目（多层）+ 点光源；条目的 position 是相对弹/范围中心的偏移（`SwarmEmitCS`）；时间轴无效；不支持逐粒子条带。点光源全局 64 个先到先得，高频弹不挂灯。法术特效：Fireball / ArcBolt / HomingBolt / Meteor（弹）、Explosion（火球爆炸）/ MeteorBlast（陨石爆炸，AreaData 同名，数值照抄 Explosion）/ FireCircle（未被道具使用）。
   - 手写特效 json 时数字不能写成字符串（`"-6.0"`）：读进来是坏值，bloom 会把整屏刷白。
 - **Mesh 粒子**：粒子条目 Render = Mesh，从 `Assets/VFX/Mesh` 选模型（(none) = 立方体），Lit（不透明受光）/ Glow（加法），可选朝向速度 + 前方轴，size = 模型最长边（m）。`renderMode` 打包模型号+1 / 发光 / 朝向 / 轴（`ParticleRenderMode::Pack` ↔ `ParticleCommon.hlsli`），模型表 16 个在 `Particle/GPUParticleMesh.cpp`。示例 `MeshParticleTest.json`。
@@ -94,12 +95,12 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - `CollisionTestScene::Init`：玩家 `maxHealth = 1000000`。
 - `CollisionTestScene::UpdateGameplay`：每 120 帧打一行 `[crowd]` 日志。
 - `SwarmSystem::UpdateFlowField`：打 `[flow] build ms` 日志。
-- 自测钩子（环境变量，不设就不生效）：`VFXL_VFX_AUTOLOAD=<VFXData 的 json 名>` 启动直接进 VFX 编辑器并播放，附加 `VFXL_VFX_MOVE`（虚拟投射物飞行）/ `VFXL_VFX_LOOP`（强制循环）/ `VFXL_VFX_CLOSE`（近景、藏参考模型）；`VFXL_PROJ_AUTOTEST=<投射物 profile 名>` 启动直接进 F4 并选中这个弹；`VFXL_BATTLE_AUTOTEST=1` 直接进战斗，5 秒给升级经验、9 秒移到最近的箱子旁、10 秒模拟按 F，反馈特效和相机状态带系统毫秒时间写进 `x64/Debug/autotest.log`（三选一要靠外部发 Enter）。代码在 `Core/Game.cpp`、`VFXEditorScene::Init`、`ProjectileEditorScene::Init`、`CollisionTestScene::UpdateAutoTest`。示例特效 `SheetTest.json`（四种图集/混合对比）。
+- 自测钩子（环境变量，不设就不生效）：`VFXL_VFX_AUTOLOAD=<VFXData 的 json 名>` 启动直接进 VFX 编辑器并播放，附加 `VFXL_VFX_MOVE`（虚拟投射物飞行）/ `VFXL_VFX_LOOP`（强制循环）/ `VFXL_VFX_CLOSE`（近景、藏参考模型）；`VFXL_PROJ_AUTOTEST=<投射物 profile 名>` 启动直接进 F4 并选中这个弹；`VFXL_BATTLE_AUTOTEST=1` 直接进战斗，5 秒给升级经验、9 秒移到最近的箱子旁、10 秒模拟按 F，反馈特效和相机状态带系统毫秒时间写进 `x64/Debug/autotest.log`（三选一要靠外部发 Enter）。代码在 `Core/Game.cpp`、`VFXEditorScene::Init`、`ProjectileEditorScene::Init`、`CollisionTestScene::UpdateAutoTest`（`Scene/CollisionTestSceneDebug.cpp`）。示例特效 `SheetTest.json`（四种图集/混合对比）。
 
 ## 6. 可交互道具（已完成）
 
 - `Component/InteractableComponent`（kind / 半径 / 案内文字 / 浮动与光的参数）+ `ECS/System/InteractionSystem`（浮动旋转、找最近的 focus、返回被按下的实体、积点光源）。效果由场景按 `kind` 分派。
-- 报酬箱：`CollisionTestScene::SpawnRewardCrates`，开局在玩家周围 6〜22m 的可走格子（周围 3x3 也可走）放 4 个，用完即消失、不刷新；地形重建时重新摆。像素木箱 `Kenney_RetroFantasy/fbx/detail-crate.fbx`，缩放到 0.9m，带静态 AABB 和暖黄点光源。
+- 报酬箱：`ECS/System/RewardCrateSystem`（`Spawn` 摆放、`TryOpen` 开箱），开局在玩家周围 6〜22m 的可走格子（周围 3x3 也可走）放 4 个，用完即消失、不刷新；地形重建时重新摆。像素木箱 `Kenney_RetroFantasy/fbx/detail-crate.fbx`，缩放到 0.9m，带静态 AABB 和暖黄点光源。
 - 靠近后画面下方出「[F] Open」（`GameUI::SetPrompt`），F / 手柄 B 触发 → `LevelUpSystem::OfferChoices`：和升级一样的三选一，但不升级、不扣经验；选择中不能再开（箱子保留）。
 - 调参在战斗场景「Reward Crates」面板。
 

@@ -158,6 +158,14 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Scene\CollisionTestSceneDebug.cpp" />
+    <ClCompile Include="Debug\StressTestTools.cpp" />
+    <ClCompile Include="Enemy\MobSpawner.cpp" />
+    <ClCompile Include="Enemy\EliteSpawner.cpp" />
+    <ClCompile Include="Graphics\Light\SceneLighting.cpp" />
+    <ClCompile Include="ECS\System\FeedbackVFXSystem.cpp" />
+    <ClCompile Include="ECS\System\RewardCrateSystem.cpp" />
+    <ClCompile Include="Camera\BattleCamera.cpp" />
     <ClCompile Include="VFX_Editor\VFXSpriteRenderer.cpp" />
     <ClCompile Include="VFX_Editor\VFXSpriteEntry.cpp" />
     <ClCompile Include="VFX_Editor\SpriteSheets.cpp" />
@@ -319,6 +327,13 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="World\LevelData.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Debug\StressTestTools.h" />
+    <ClInclude Include="Enemy\MobSpawner.h" />
+    <ClInclude Include="Enemy\EliteSpawner.h" />
+    <ClInclude Include="Graphics\Light\SceneLighting.h" />
+    <ClInclude Include="ECS\System\FeedbackVFXSystem.h" />
+    <ClInclude Include="ECS\System\RewardCrateSystem.h" />
+    <ClInclude Include="Camera\BattleCamera.h" />
     <ClInclude Include="VFX_Editor\VFXSpriteRenderer.h" />
     <ClInclude Include="VFX_Editor\VFXSpriteEntry.h" />
     <ClInclude Include="VFX_Editor\SpriteSheets.h" />
