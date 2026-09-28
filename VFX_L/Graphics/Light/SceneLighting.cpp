@@ -35,6 +35,9 @@ bool SceneLighting::Init(ID3D11Device* device)
     char env[16] = {};
     if (GetEnvironmentVariableA("VFXL_SUN_PITCH", env, sizeof(env)) > 0)
         m_SunPitch = (float)atof(env);
+    // TEMP-TEST: VFXL_SRGB=0 で色貼図の sRGB 解码を切る（旧い見た目との見比べ用。面板の sRGB Textures と同じ）
+    if (GetEnvironmentVariableA("VFXL_SRGB", env, sizeof(env)) > 0)
+        m_AlbedoSrgb = (env[0] != '0');
     return m_Sky.Initialize(device);
 }
 
@@ -55,7 +58,7 @@ void SceneLighting::Apply(Renderer& renderer) const
 void SceneLighting::ClearFog(Renderer& renderer)
 {
     renderer.SetFog({ 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f, 0.0f);
-    renderer.SetAlbedoSrgb(false);
+    renderer.SetAlbedoSrgb(true);   // 既定（LightBuffer::albedoSrgb）
 }
 
 // ============================================================
