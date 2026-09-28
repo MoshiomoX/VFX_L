@@ -6,11 +6,12 @@
 //   床（草地。色むらのある細分化メッシュ）+ 外周の崖
 //   台地（平らな上面の箱。高さ数 m）… 1 段目は野原に、一部は上に 2 段目が載る
 //   坂道（台地の横から降りる楔。上面は土の道）… 台地に登れるのはここだけ
-//   丘（四方がなだらかな台形。どこからでも登れる）
+//   高台（高さ 5〜7m。一面だけが 16〜20° の長い坂、残り三面は崖。滑り込みで加速する場所）
+//        … 一部は奥に同じ向きの坂を持つ 2 段目が載り、地面・1 段目・2 段目の 3 段になる
 //   自然物（KayKit Forest の木・岩・茂み・草。木は林に固まる）
 //
 // 格子との約束（雑魚は GPU で格子と高さ場しか見ない）:
-//   台地・坂道・丘の足跡は walkable のまま、高さ場に上面の高さを書く。
+//   台地・坂道・高台の足跡は walkable のまま、高さ場に上面の高さを書く。
 //   崖（台地の側面）は「急すぎる段差」として GPU の SwarmSlopeOk と
 //   FlowField::maxStep が止める。坂道は 30° 以下なので通れる。
 //   坂道が 1 本も付けられなかった台地は登れないので BlockArea（上に湧かない）。
@@ -52,11 +53,21 @@ namespace TerrainGenerator
         int   rampWidth = 2;           // マス（4m）
         float rampSlopeDeg = 28.0f;    // 30° 以下（雑魚は 40° まで、流場は 1 マス 1.5m まで通す）
 
-        // ---- 丘（四方が坂の低い台形）----
-        int   moundCount = 10;
-        float moundHeightMin = 0.8f;
-        float moundHeightMax = 1.8f;
-        float moundSlopeDeg = 25.0f;
+        // ---- 高台（一面だけが長い坂、残り三面は崖）----
+        // 台地より先に置く（場所を取るので後回しにすると入らない）。坂の向きは高台ごとにランダム。
+        // 坂の長さ = 高さ / tan(角度)：6m・18° で約 18m
+        int   terraceCount = 4;
+        float terraceHeightMin = 5.0f;
+        float terraceHeightMax = 7.0f;
+        float terraceSlopeMin = 16.0f;   // 度（雑魚の 40°、流場の 1 マス 1.5m より十分緩い）
+        float terraceSlopeMax = 20.0f;
+        int   terraceTopMin = 5;         // 上面の一辺（マス）。2 段目がある時の奥行きは 2 段目に合わせて決まる
+        int   terraceTopMax = 10;
+        float terraceTier2Chance = 0.5f; // 2 段目を載せる確率（上面の幅が 5 マス以上の時）
+        float terraceTier2HeightMin = 3.0f;
+        float terraceTier2HeightMax = 4.5f;
+        int   terraceClear = 5;          // 坂の麓の先に木・岩・台地・外周の崖を置かないマス数（1 以上）
+                                         // （滑り降りた勢いのまま、すぐ何かにぶつからないように）
 
         // ---- 自然物（KayKit Forest）----
         // 木と岩は置物（1 マス以上を塞ぐ。周り 1 マスは他の置物を置かないので、

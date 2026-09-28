@@ -39,6 +39,8 @@ public:
 
     float GetYaw()   const { return m_Yaw; }
     float GetPitch() const { return m_Pitch; }
+    void  SetYaw(float deg) { m_Yaw = deg; }   // 向きを決め打ちする（自己テストで進行方向を映す）
+    void  SetPitch(float deg) { m_Pitch = deg; }
     float GetCurrentDistance() const { return m_CurDistance; }   // 遮蔽で縮んだ後
     bool  IsOccluded() const { return m_Occluded; }
 
