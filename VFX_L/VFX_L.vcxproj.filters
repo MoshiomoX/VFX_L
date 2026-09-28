@@ -125,6 +125,9 @@
     <Filter Include="Graphics\Shader\HLSL\PostProcess">
       <UniqueIdentifier>{925a696b-02ed-4c72-a593-3556c7a7e2b1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Graphics\Shader\HLSL\Sky">
+      <UniqueIdentifier>{6b02ea63-2d8b-4371-a964-a67eb650d8ec}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Graphics\PostProcess">
       <UniqueIdentifier>{7eeb8853-484a-457b-b704-d59bf887b674}</UniqueIdentifier>
     </Filter>
@@ -133,6 +136,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Graphics\Renderer\StaticPropRenderer.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Renderer\SkyRenderer.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneDebug.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
@@ -466,7 +475,6 @@
     <ClCompile Include="UI\HUD.cpp">
       <Filter>UI</Filter>
     </ClCompile>
-    <ClCompile Include="ManaSystem.cpp" />
     <ClCompile Include="ECS\System\ManaSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
@@ -540,6 +548,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Graphics\Renderer\StaticPropRenderer.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Renderer\SkyRenderer.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Debug\StressTestTools.h">
       <Filter>Debug</Filter>
     </ClInclude>
@@ -1128,6 +1142,21 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Shader\Sky\SkyPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Sky</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Sky\SkyVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Sky</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmBomberRingPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmBomberRingVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmDropRingVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmSpritePS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -1192,6 +1221,9 @@
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PBR_PS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\StaticPropVS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PBR_VS.hlsl">
@@ -1306,6 +1338,12 @@
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmOrbVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmOrbPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmOrbEmitCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PostProcess\CompositeVS.hlsl">

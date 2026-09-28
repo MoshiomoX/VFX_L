@@ -2,6 +2,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <memory>
+#include <dxgi1_5.h>
 #include "Graphics/PostProcess/Bloom.h"
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -13,15 +14,18 @@ class PixelShader;
 
 // ============================================================
 // Graphics
-// ��ʂ� HDR �̗��� RT�iR16G16B16A16_FLOAT, MSAA�j�֕`���B
-// BeginUI �� resolve �� ���� PS �� backbuffer �ցBUI �͂��̌�ɕ`���B
+// 場面は HDR の離屏 RT（R16G16B16A16_FLOAT, MSAA）へ描く。
+// BeginUI で resolve → 合成 PS で backbuffer へ。UI はその後に描く。
 //
-// �t���[���̗���:
-//   BeginFrame  �c HDR RT �� clear ���� bind
-//   (��ʕ`��)
-//   BeginUI     �c resolve �� ���� �� backbuffer �� bind
-//   (UI / ImGui �`��)
-//   EndFrame    �c Present
+// フレームの流れ:
+//   BeginFrame  … HDR RT を clear して bind
+//   (場面描画)
+//   BeginUI     … resolve → 合成 → backbuffer を bind
+//   (UI / ImGui 描画)
+//   EndFrame    … (上限 fps の待ち) → Present
+//
+// swap chain は flip 型（FLIP_DISCARD、3 枚、backbuffer は MSAA 無し）。
+// 垂直同期を切った時は ALLOW_TEARING で即表示する（可変リフレッシュの画面ならこれで撕れない）
 // ============================================================
 class Graphics
 {
@@ -38,38 +42,58 @@ public:
     ID3D11Device* GetDevice() const { return m_Device.Get(); }
     ID3D11DeviceContext* GetContext() const { return m_Context.Get(); }
 
-    // ���̒i�K�ɍ����� RT �ɖ߂��i��ʒ��Ȃ� HDR RT�AUI ���Ȃ� backbuffer�j
+    // 今の段階に合った RT に戻す（場面中なら HDR RT、UI 中なら backbuffer）
     void RestoreRenderTarget();
 
-    // resolve �ς݂� HDR ��ʁi�㏈���̓��́BBeginUI �ȍ~�ŗL���j
+    // resolve 済みの HDR 場面（後処理の入力。BeginUI 以降で有効）
     ID3D11ShaderResourceView* GetSceneSRV() const { return m_SceneSRV.Get(); }
 
     float GetWidth()  const { return m_Viewport.Width; }
     float GetHeight() const { return m_Viewport.Height; }
     float GetAspect() const { return m_Viewport.Width / m_Viewport.Height; }
     BloomParams& GetBloomParams() { return m_Bloom.Params(); }
+
+    // ---- 表示の同期（Debug Info 欄で切り替える）----
+    struct PresentSettings
+    {
+        bool  vsync = true;     // 切ると撕裂を許して即表示（ALLOW_TEARING が使える時）
+        float fpsCap = 0.0f;    // 上限 fps。0 = 無し。Present の直前に高精度タイマーで待つ
+    };
+    PresentSettings& GetPresentSettings() { return m_Present; }
+    bool IsTearingSupported() const { return m_TearingSupported; }
+    bool IsFlipModel() const { return m_FlipModel; }
 private:
     bool CreateSceneTargets(int width, int height);
     bool LoadPostShaders();
+    bool CreateSwapChain(HWND hWnd, int width, int height);
+    void WaitForFrameCap();
 
     Bloom m_Bloom;
     ComPtr<ID3D11Device> m_Device;
     ComPtr<ID3D11DeviceContext> m_Context;
     ComPtr<IDXGISwapChain> m_SwapChain;
 
-    // ---- backbuffer�iUI �ƍ������ʂ̍s����j----
+    // ---- backbuffer（UI と合成結果の行き先）----
     ComPtr<ID3D11RenderTargetView> m_BackbufferRTV;
 
-    // ---- ��ʗp HDR RT�iMSAA�j�� resolve ��i�� MSAA, SRV�j----
+    // ---- 場面用 HDR RT（MSAA）と resolve 先（非 MSAA, SRV）----
     ComPtr<ID3D11Texture2D> m_SceneTex;
     ComPtr<ID3D11RenderTargetView> m_SceneRTV;
     ComPtr<ID3D11Texture2D> m_SceneResolved;
     ComPtr<ID3D11ShaderResourceView> m_SceneSRV;
     ComPtr<ID3D11DepthStencilView> m_DepthStencilView;
 
-    // ---- �����i�S��ʎO�p�`�j----
+    // ---- 合成（全画面三角形）----
     std::shared_ptr<VertexShader> m_CompositeVS;
     std::shared_ptr<PixelShader> m_CompositePS;
+
+    // ---- 表示の同期 ----
+    PresentSettings m_Present;
+    bool m_FlipModel = false;          // 作れなかった時は旧来の blt 型（MSAA backbuffer）
+    bool m_TearingSupported = false;
+    UINT m_SwapChainFlags = 0;         // ResizeBuffers にも同じ値を渡す
+    HANDLE m_FrameTimer = nullptr;     // 上限 fps の待ち（高精度 waitable timer）
+    long long m_LastFrameQpc = 0;      // 前のフレームを出した時刻（QPC）
 
     UINT m_SampleCount = 1;
     UINT m_SampleQuality = 0;

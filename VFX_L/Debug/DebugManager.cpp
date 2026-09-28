@@ -82,6 +82,20 @@ void DebugManager::BeginFrame()
     ImGui::Text("FPS: %.1f", m_Timer->GetFPS());
     ImGui::Text("Delta: %.4f ms", m_Timer->DeltaTime() * 1000.0f);
 
+    // ---- 表示の同期（swap chain は Graphics）----
+    // 可変リフレッシュの画面なら VSync を切って FPS Cap を少し下（165Hz なら 160）にすると、
+    // リフレッシュより遅いフレームでも撕れず段付きにもならない。撕れるなら可変リフレッシュが効いていない
+    {
+        auto& gfx = Application::Get().GetGraphics();
+        auto& present = gfx.GetPresentSettings();
+        ImGui::Checkbox("VSync", &present.vsync);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(80.0f);
+        ImGui::DragFloat("FPS Cap", &present.fpsCap, 1.0f, 0.0f, 480.0f, present.fpsCap > 0.0f ? "%.0f" : "off");
+        ImGui::TextDisabled("swap chain: %s, tearing %s", gfx.IsFlipModel() ? "flip x3" : "blt",
+            gfx.IsTearingSupported() ? "ok" : "n/a");
+    }
+
     // DebugCamera切替
     bool useDebug = m_UseDebugCamera;
     if (ImGui::Checkbox("Debug Camera", &useDebug))

@@ -4,6 +4,7 @@
 #include "Graphics/Light/SceneLighting.h"
 #include "Graphics/Light/PointLightManager.h"
 #include "Graphics/Renderer/Renderer.h"
+#include "Graphics/Renderer/SkyRenderer.h"
 #include "World/GridWorld.h"
 #include "Camera/CameraBase.h"
 #include "Debug/DebugManager.h"
@@ -28,6 +29,11 @@ Vector3 SceneLighting::SunDirection() const
     return d;
 }
 
+bool SceneLighting::Init(ID3D11Device* device)
+{
+    return m_Sky.Initialize(device);
+}
+
 void SceneLighting::Apply(Renderer& renderer) const
 {
     renderer.SetDirectionalLight(SunDirection(),
@@ -36,6 +42,36 @@ void SceneLighting::Apply(Renderer& renderer) const
     renderer.SetAmbientHemisphere(
         { m_AmbientSky[0], m_AmbientSky[1], m_AmbientSky[2] },
         { m_AmbientGround[0], m_AmbientGround[1], m_AmbientGround[2] });
+
+    const float* fog = m_FogUseHorizon ? m_SkyHorizon : m_FogColor;
+    renderer.SetFog({ fog[0], fog[1], fog[2] }, m_FogStart, m_FogEnd, m_FogOn ? m_FogMax : 0.0f);
+    renderer.SetAlbedoSrgb(m_AlbedoSrgb);
+}
+
+void SceneLighting::ClearFog(Renderer& renderer)
+{
+    renderer.SetFog({ 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f, 0.0f);
+    renderer.SetAlbedoSrgb(false);
+}
+
+// ============================================================
+// 空（画面全体。場面の描画の一番最初）
+// 太陽のにじみと円盤は平行光の向きと色から
+// ============================================================
+void SceneLighting::DrawSky(ID3D11DeviceContext* context, CameraBase* camera) const
+{
+    if (!m_SkyOn) return;
+    SkyRenderer::Params p;
+    p.zenith = { m_SkyZenith[0], m_SkyZenith[1], m_SkyZenith[2] };
+    p.horizon = { m_SkyHorizon[0], m_SkyHorizon[1], m_SkyHorizon[2] };
+    p.below = { m_SkyBelow[0], m_SkyBelow[1], m_SkyBelow[2] };
+    p.sunDir = SunDirection();
+    p.sunColor = Vector3(m_LightColor[0], m_LightColor[1], m_LightColor[2]) * m_LightIntensity;
+    p.zenithCurve = m_SkyCurve;
+    p.sunGlow = m_SunGlow;
+    p.sunGlowPower = m_SunGlowPower;
+    p.sunDisk = m_SunDisk;
+    m_Sky.Render(context, camera, p);
 }
 
 // ============================================================
@@ -203,4 +239,26 @@ void SceneLighting::DrawImGui(const Vector3* player)
     if (ImGui::Button("Move Above Player##scene_light") && player)
         m_SceneLightPos = *player + Vector3(0.0f, 4.0f, 0.0f);
     ImGui::TextDisabled("Gizmo: left-drag the handles (camera is right-drag)");
+
+    // ---- 空と霧（線形 HDR）----
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Sky & Fog");
+    ImGui::Checkbox("Sky##sky", &m_SkyOn);
+    ImGui::ColorEdit3("Zenith##sky", m_SkyZenith, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+    ImGui::ColorEdit3("Horizon##sky", m_SkyHorizon, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+    ImGui::ColorEdit3("Below##sky", m_SkyBelow, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+    ImGui::SliderFloat("Zenith Curve##sky", &m_SkyCurve, 0.1f, 2.0f);
+    ImGui::DragFloat("Sun Glow##sky", &m_SunGlow, 0.01f, 0.0f, 3.0f);
+    ImGui::DragFloat("Sun Glow Power##sky", &m_SunGlowPower, 0.5f, 1.0f, 256.0f);
+    ImGui::DragFloat("Sun Disk##sky", &m_SunDisk, 0.1f, 0.0f, 20.0f);
+    ImGui::Checkbox("sRGB Textures##sky", &m_AlbedoSrgb);
+    ImGui::SameLine();
+    ImGui::TextDisabled("(model albedo decoded to linear)");
+    ImGui::Checkbox("Fog##fog", &m_FogOn);
+    ImGui::SameLine();
+    ImGui::Checkbox("Fog = Horizon##fog", &m_FogUseHorizon);
+    if (!m_FogUseHorizon)
+        ImGui::ColorEdit3("Fog Color##fog", m_FogColor, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+    ImGui::DragFloatRange2("Fog Start/End (m)##fog", &m_FogStart, &m_FogEnd, 0.5f, 0.0f, 1000.0f);
+    ImGui::SliderFloat("Fog Max##fog", &m_FogMax, 0.0f, 1.0f);
 }

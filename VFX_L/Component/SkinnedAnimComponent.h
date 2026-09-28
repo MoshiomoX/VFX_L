@@ -71,6 +71,8 @@ struct SkinnedAnimComponent
     // 足元が原点のモデルを、中心が原点のカプセルに合わせる時に offset.y を下げる
     DirectX::SimpleMath::Vector3 offset = { 0.0f, 0.0f, 0.0f };
     float yawOffsetDeg = 0.0f;   // モデルの正面が +Z でない時の補正
+    // 足元（モデルの原点）を軸に後ろへ傾ける 度（正で後ろ）。玩家の滑りの姿勢（PlayerAnimSystem が書く）
+    float leanDeg = 0.0f;
     float scale = 1.0f;
     bool  visible = true;
 

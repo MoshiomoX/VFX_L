@@ -9,6 +9,7 @@
 #include "Component/SkinnedAnimComponent.h"
 #include "Component/WandComponent.h"
 #include "Graphics/Model/SkinnedModel.h"
+#include <algorithm>
 
 namespace
 {
@@ -18,7 +19,7 @@ namespace
     constexpr float kDeadFade = 0.10f;
 }
 
-void PlayerAnimSystem::Update(Registry& reg, float)
+void PlayerAnimSystem::Update(Registry& reg, float dt)
 {
     reg.CreateView<PlayerStateComponent, SkinnedAnimComponent, PlayerTag>()
         .Each([&](Entity e, PlayerStateComponent& st, SkinnedAnimComponent& a, PlayerTag&)
@@ -40,10 +41,16 @@ void PlayerAnimSystem::Update(Registry& reg, float)
                     case MoveStateID::Run:  name = &m_Names.run;  break;
                     case MoveStateID::Jump: name = &m_Names.jump; break;
                     case MoveStateID::Fall: name = &m_Names.fall; break;
+                    case MoveStateID::Slide: name = &m_Names.slide; break;
                     default: break;
                     }
                     const int clip = model.FindClip(*name);
                     if (clip >= 0) a.base.Play(clip, true, 1.0f, kMoveFade);
+
+                    // 滑りの間は足元を軸に後ろへ傾ける（急に倒れないよう角度を寄せていく）
+                    const float leanTarget = (st.move == MoveStateID::Slide) ? slideLeanDeg : 0.0f;
+                    const float step = leanSpeedDeg * dt;
+                    a.leanDeg += (std::max)(-step, (std::min)(step, leanTarget - a.leanDeg));
                 }
 
                 // ============================================================

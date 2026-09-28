@@ -66,6 +66,22 @@ namespace Swarm
     };
     static_assert(sizeof(Enemy) == 48, "SwarmEnemy layout mismatch");
 
+    // ============================================================
+    // 雑魚の種類（Enemy 本体の 48B は変えず、スロットと同じ添字の並行バッファに持つ）
+    //   生成依頼では Enemy::animIndex に種類を入れて運ぶ（SpawnEnemyCS / RecycleCS が
+    //   並行バッファへ移して animIndex を 0 に戻す。弾の motion の bit31 と同じ流儀）
+    // ============================================================
+    constexpr uint32_t kEnemyKindMob = 0;      // 普通の雑魚（接触で殴る）
+    constexpr uint32_t kEnemyKindBomber = 1;   // 自爆兵（接触で点火 → fuseTime 秒後に爆発）
+    constexpr uint32_t kEnemyKinds = 2;
+
+    struct EnemyExtra
+    {
+        uint32_t kind = kEnemyKindMob;
+        float    fuse = 0.0f;   // 点火からの秒数。0 = 未点火（点火した瞬間に 1 ステップ分が入る）
+    };
+    static_assert(sizeof(EnemyExtra) == 8, "SwarmEnemyExtra layout mismatch");
+
     struct Projectile
     {
         Vector3  position;
@@ -101,6 +117,10 @@ namespace Swarm
         Straight = 0,    // 直進。敵を一切見ない
         CurveOnce = 1,   // 1 回だけ捕捉して曲線で飛ぶ。標的が死んだら今の向きで直進
         Track = 2,       // 標的が死んでも、自分に一番近い敵を探して曲線を組み直す
+        // 隕石: 撃った時に一番近い敵の位置を着弾点に決め、空から斜めに落ちる（途中で敵に当たらない）。
+        // c1 の意味が違う（m 単位）: c1.x = 着弾点からの高さ、c1.y = 銃口側へ戻した水平距離。
+        // 落ちる所には警告の輪（SwarmSystem::dropRing）
+        Drop = 3,
     };
 
     struct Motion
@@ -240,6 +260,24 @@ namespace Swarm
         float hitFlash = 3.0f;          // 被弾直後の頂点色の倍率。1 へ減衰。Bloom で光る
     };
     static_assert(sizeof(AICB) == 64, "SwarmAICB layout mismatch");
+
+    // ============================================================
+    // 自爆兵の調整値（ContactCS は b3、雑魚の VS は b5）
+    // 爆発のダメージは玩家だけ。雑魚には入らない（見た目の範囲は威力 0）
+    // ============================================================
+    struct BomberCB
+    {
+        float    fuseTime = 1.0f;       // 点火から爆発までの秒数
+        float    triggerMargin = 0.15f; // 接触（半径の和）+ これ以内で点火
+        float    blastRadius = 2.5f;    // 爆発の瞬間に玩家（カプセル）がこの中なら被弾
+        float    blastDamage = 25.0f;
+
+        uint32_t blastArea = 0;         // 爆発の見た目に出す範囲（AreaDef の番号）。0 = 出さない
+        float    swell = 0.35f;         // VS: 爆発直前の膨らみ（1 + これ 倍まで）
+        float    flashGain = 4.0f;      // VS: 点滅の明るさ（Bloom で光る）
+        float    _pad = 0.0f;
+    };
+    static_assert(sizeof(BomberCB) == 32, "SwarmBomberCB layout mismatch");
 
     // ============================================================
    // 経験値オーブの調整値（b2）

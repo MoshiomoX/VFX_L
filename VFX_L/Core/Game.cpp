@@ -42,7 +42,8 @@ bool Game::Initialize(Renderer* renderer)
     m_SceneManager.ChangeScene(SceneType::TITLE);   // TEMP-TEST
     // TEMP-TEST: 粒子貼图の自測。VFXL_VFX_AUTOLOAD=<VFXData の json 名> で特効編集へ直行して再生
     char autoloadEnv[128] = {};
-    if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoloadEnv, sizeof(autoloadEnv)) > 0)
+    if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoloadEnv, sizeof(autoloadEnv)) > 0
+        || GetEnvironmentVariableA("VFXL_REF_MAGE", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::VFX_EDITOR);
     else if (GetEnvironmentVariableA("VFXL_PROJ_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::PROJECTILE_EDITOR);

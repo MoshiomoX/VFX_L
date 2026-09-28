@@ -6,6 +6,7 @@
 #include "Graphics/Mesh/Mesh.h"
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 using namespace DirectX::SimpleMath;
 
@@ -83,6 +84,12 @@ namespace PrimitiveBuilder
     std::shared_ptr<Model> CreateHexahedron(ID3D11Device* device, const Vector3 v[8],
         const Vector4& color)
     {
+        return CreateHexahedron(device, v, color, color);
+    }
+
+    std::shared_ptr<Model> CreateHexahedron(ID3D11Device* device, const Vector3 v[8],
+        const Vector4& topColor, const Vector4& sideColor)
+    {
         std::vector<VERTEX_3D> verts;
         std::vector<unsigned int> indices;
 
@@ -110,6 +117,8 @@ namespace PrimitiveBuilder
             n.Normalize();
             if (n.Dot(a - centroid) < 0.0f) n = -n;   // 外向きに揃える
 
+            // 上を向いた面（坂の上面も）だけ top の色
+            const Vector4& color = (n.y > 0.5f) ? topColor : sideColor;
             unsigned int base = (unsigned int)verts.size();
             for (int k = 0; k < 4; ++k)
                 verts.push_back(MakeVertex(v[faces[f][k]], n, uvs[k], color));
@@ -117,6 +126,52 @@ namespace PrimitiveBuilder
             indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 1);
             indices.push_back(base + 0); indices.push_back(base + 3); indices.push_back(base + 2);
         }
+
+        auto mesh = std::make_shared<Mesh>();
+        if (!mesh->Create(device, verts, indices)) return nullptr;
+
+        auto model = std::make_shared<Model>();
+        model->AddSubMesh(mesh);
+        return model;
+    }
+
+    // ========================================================
+    // ColoredGrid：細分化した水平面。頂点は共有し（色が滑らかに繋がる）、
+    // 法線は全部 +Y。巻き順は CreateBox の +Y 面と同じ（上から見て CW）。
+    // uv は 2m で 1 周（貼図を載せる時用）
+    // ========================================================
+    std::shared_ptr<Model> CreateColoredGrid(ID3D11Device* device,
+        float sizeX, float sizeZ, int divX, int divZ, float y,
+        const std::function<Vector4(float x, float z)>& colorAt)
+    {
+        divX = (std::max)(divX, 1);
+        divZ = (std::max)(divZ, 1);
+        const int vx = divX + 1, vz = divZ + 1;
+
+        std::vector<VERTEX_3D> verts;
+        std::vector<unsigned int> indices;
+        verts.reserve((size_t)vx * vz);
+        indices.reserve((size_t)divX * divZ * 6);
+
+        for (int iz = 0; iz < vz; ++iz)
+            for (int ix = 0; ix < vx; ++ix)
+            {
+                const float x = -0.5f * sizeX + sizeX * ix / divX;
+                const float z = -0.5f * sizeZ + sizeZ * iz / divZ;
+                const Vector4 c = colorAt ? colorAt(x, z) : Vector4(1, 1, 1, 1);
+                verts.push_back(MakeVertex({ x, y, z }, { 0, 1, 0 }, { x * 0.5f, -z * 0.5f }, c));
+            }
+
+        for (int iz = 0; iz < divZ; ++iz)
+            for (int ix = 0; ix < divX; ++ix)
+            {
+                const unsigned int a = (unsigned int)(iz * vx + ix);   // (-x,-z)
+                const unsigned int b = a + (unsigned int)vx;           // (-x,+z)
+                const unsigned int c = b + 1;                          // (+x,+z)
+                const unsigned int d = a + 1;                          // (+x,-z)
+                indices.push_back(a); indices.push_back(c); indices.push_back(b);
+                indices.push_back(a); indices.push_back(d); indices.push_back(c);
+            }
 
         auto mesh = std::make_shared<Mesh>();
         if (!mesh->Create(device, verts, indices)) return nullptr;
@@ -243,6 +298,56 @@ namespace PrimitiveBuilder
                 indices.push_back(a);     indices.push_back(a + 1); indices.push_back(b);
                 indices.push_back(a + 1); indices.push_back(b + 1); indices.push_back(b);
             }
+        }
+
+        auto mesh = std::make_shared<Mesh>();
+        if (!mesh->Create(device, verts, indices)) return nullptr;
+
+        auto model = std::make_shared<Model>();
+        model->AddSubMesh(mesh);
+        return model;
+    }
+
+    // ========================================================
+    // Bipyramid：上下 2 つの角錐を赤道で貼り合わせた宝石。
+    // 三角形毎に頂点を持つ（平らな面の法線）。
+    // 巻き順は CreateBox と同じ：cross(p1 - p0, p2 - p0) が内側を向く
+    // ========================================================
+    std::shared_ptr<Model> CreateBipyramid(ID3D11Device* device,
+        float radius, float top, float bottom, int sides, const Vector4& color)
+    {
+        sides = (std::max)(sides, 3);
+        std::vector<VERTEX_3D> verts;
+        std::vector<unsigned int> indices;
+
+        auto addFace = [&](const Vector3& p0, const Vector3& p1, const Vector3& p2)
+            {
+                Vector3 n = (p1 - p0).Cross(p2 - p0);
+                n.Normalize();
+                const Vector3 center = (p0 + p1 + p2) / 3.0f;
+                // 外向きの法線。cross が外を向いていたら巻きを逆にする
+                const bool flip = n.Dot(center) > 0.0f;
+                if (!flip) n = -n;
+
+                const unsigned int base = (unsigned int)verts.size();
+                verts.push_back(MakeVertex(p0, n, { 0.5f, 0.0f }, color));
+                verts.push_back(MakeVertex(p1, n, { 0.0f, 1.0f }, color));
+                verts.push_back(MakeVertex(p2, n, { 1.0f, 1.0f }, color));
+                indices.push_back(base);
+                indices.push_back(flip ? base + 2 : base + 1);
+                indices.push_back(flip ? base + 1 : base + 2);
+            };
+
+        const Vector3 up(0.0f, top, 0.0f);
+        const Vector3 down(0.0f, -bottom, 0.0f);
+        for (int i = 0; i < sides; ++i)
+        {
+            const float a0 = 2.0f * PI * i / sides;
+            const float a1 = 2.0f * PI * (i + 1) / sides;
+            const Vector3 e0(std::cos(a0) * radius, 0.0f, std::sin(a0) * radius);
+            const Vector3 e1(std::cos(a1) * radius, 0.0f, std::sin(a1) * radius);
+            addFace(up, e0, e1);
+            addFace(down, e1, e0);
         }
 
         auto mesh = std::make_shared<Mesh>();

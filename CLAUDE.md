@@ -31,7 +31,8 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 ```
 
 - 构建前确认没有 `cl.exe` 在跑（用户可能在 VS 里构建，撞车会报 C1041 PDB 占用）。
-- 已知的旧警告：C4828（CP932 残留）、MSB8027 / LNK4042（ManaSystem.cpp 重名）、ShaderPath.h 的 C4244。
+- 已知的旧警告：C4828（CP932 残留）、ShaderPath.h 的 C4244（显示在 xutility(5094)）、HLSL 的 X4000（`SwarmIsWalkable` / `EmitMesh.hlsli` / `ParticleEmitCS` / `SwarmDebugEnemyVS` 的 `CapsulePoint`）。
+- **MSB8027 / LNK4042（同名源文件）不是无害警告**：两个同名 .cpp 会编译到同一个 `x64/Debug/<名>.obj`，最后链接进去的是哪个取决于编译顺序。以前根目录混进过一个空的 `ManaSystem.cpp`，链接到它的时候蓝量既不扣也不回、`pendingSpend` 一直累加，法杖就不打了（2026-09-26 已删）。再看到这两个警告要马上查。
 
 ### 自测
 
@@ -53,6 +54,23 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 
 - **雑魚外观**：`SwarmSystem::BuildEnemyModel` 候选表（Kenney Blocky L 僵尸 → KayKit Minion → 胶囊）。方块人是刚体部件，用 `Model::LoadOptions` 烘姿势，`BuildEnemyPartAnim` 做 idle / walk / attack 的部件动画表，`SwarmEnemyVS` 按敌人状态选帧。
 - **雑魚血条**：`SwarmEnemyHpBarVS/PS`，满格值在 `m_EnemyMaxHpBuffer`，由生成 CS 和回收 CS 写入。
+- **经验球外观**：自发光青蓝宝石（`PrimitiveBuilder::CreateBipyramid` 四角双角锥）。`SwarmOrbVS` 做浮动 / 自转 / 脉动（每槽相位不同），被吸引时长轴倒向玩家、沿速度拉伸（保体积）、变色变亮；`SwarmOrbPS` = emissive + 面的明暗 + 菲涅尔边 + 太阳高光 + 雾（b0 LightBuffer，b1 `OrbShadeCB`）。参数 `SwarmSystem::orbLook`，Swarm (GPU) 面板「Exp Orbs」。
+  - `Orb.velocity` 以前一直是 0，现在由 `SwarmOrbMoveCS` 写本步的水平吸引速度（只给外观用，布局没变）。
+  - 尾迹：`SwarmOrbEmitCS`（`SwarmEmitCS` + `SWARM_EMIT_ORBS`，b3 = `OrbEmitCB`）让吸引速度 > `trailMinSpeed` 的球按 `VFXId::ExpOrbTrail`（`ExpOrbTrail.json`）喷粒子，排在弹、范围之后发射（粒子池不够时先少的是它）。
+  - 拾取：`FeedbackVFXSystem::OnExpPicked`，GPU 经验差分 > 0 时在玩家身上播 `ExpPickup.json`，限频 0.15 秒。
+- **雑魚种类 / 自爆兵**：种类在并行 buffer `m_EnemyExtraBuffer`（`Swarm::EnemyExtra` = kind + fuse，8B）。生成请求用 `Enemy::animIndex` 带种类，SpawnEnemyCS / RecycleCS 取出后清 0（`SpawnEnemy` / `RecycleEnemy` 的 `kind` 参数）。
+  - 自爆兵（`kEnemyKindBomber`）不近战：在接触 CS（第 6 段）里碰到玩家就点燃，点燃后 AI 让它原地停下；`fuseTime` 秒后爆炸，玩家在 `blastRadius` 内受 `blastDamage`（只伤玩家），自己变 DEAD（不算击杀、不掉经验），原地放 AreaData `BomberBlast`（伤害 0，只为 GPU 播 `Explosion.json`）。引信中被打死 = 正常击杀，不爆炸。
+  - 参数 `Swarm::BomberCB`（新 cbuffer：ContactCS b3、雑魚 VS b5，HLSL 里 `#define SWARM_BOMBER_CB_REG` 才声明），`SwarmSystem::GetBomberParams`，`blastArea` 由 `MobSpawner::Init` 按名字查。
+  - 外观：18 个 Kenney 方块人是同一网格同一 UV，自爆兵 = 雑魚网格换贴图 texture-g（红色机器人，`Res::Tex::Kenney_BlockyRobotAlbedo`）。CompactCS 按种类出存活列表（`m_KindList*`，全体 `aliveList` 只给血条用），每种各画一次、画自爆兵前换 PS t0。点燃后 VS 越闪越快（红色高亮）并以脚底为基点鼓到 1+swell 倍。
+  - 刷怪：`MobSpawner` 对每个新刷/转送按 Bomber Ratio（默认 0.15）抽选；Enemies 面板「Bomber (GPU)」段调参，「Spawn 5 Bombers Nearby」在玩家 8〜12m 处出 5 个。
+  - 同一时间连着几个爆炸，玩家的无敌帧只让第一次掉血（GPU 的累计伤害照算）。
+  - 点燃后脚下的警告圈：`SwarmBomberRingVS/PS`（自爆兵列表 + DrawInstancedIndirect，外圈 = blastRadius，红色实心盘随引信从中心长大，预乘 alpha），样式 `SwarmSystem::bomberRing`。默认背后镜头下玩家脚边 2〜3m 的地面在画面外 / 被身体挡住，2.5m 的圈基本看不到（镜头问题，待定）。
+- **战斗地形（台地 + 坡道的野原，每局随机 seed）**：`World/TerrainGenerator`。草地地面（`PrimitiveBuilder::CreateColoredGrid`，值噪声色斑）+ 外围岩壁 + 1 段台地（箱子，顶草绿侧岩石，`CreateHexahedron` 双色）+ 部分台地上的 2 段 + 坡道（凸体楔，顶面土色 = 登上台地的唯一入口）+ 四面缓坡的小丘 + KayKit Forest 自然物（树成林、大石头：挡路，占的格子周围一格不放别的挡路物，所以不会连成墙；碰撞层 `Layer_Prop`，镜头遮挡检测不看它；灌木和草丛只是装饰）。模型表 `Res::Mdl::Forest`。台地、坡道、小丘的格子仍是 walkable，高度写进高度场；没有坡道可上的台地整块 BlockArea。seed 每局随机，`VFXL_TERRAIN_SEED` 可以固定；Terrain 面板可调全部参数并 Regenerate。地形顶点色是线性反照率（sRGB 值取 2.2 次方）。
+  - 自然物的绘制：`Graphics/Renderer/StaticPropRenderer`（场景持有 `m_StaticProps`）。`TerrainGenerator` 放的外观实体带 `ModelComponent::batched`，`RenderSystem` 跳过它们；`Build` 在生成 / Regenerate 后按模型分组、算一次 world 矩阵和包围球，每帧视锥剔除后把可见的矩阵写进动态 StructuredBuffer（VS t8），每种模型每个 submesh 一次 `DrawIndexedInstanced`（`Shader/StaticPropVS.hlsl`，b1 = 这次 draw 的起始下标，PS 用模型自己的材质）。距离剔除（Terrain 面板「Dist / Radius」「Max Distance」）默认关：实例化后画多少几乎不影响帧时间，开了中距离的小物会消失。2026-09-27 实测（seed 12345、关垂直同步、开局 1 分钟内）：Debug 55 → 约 108 fps（760 个装饰物从每帧 9.6 ms 降到约 0.35 ms），Release 485 → 约 730 fps（装饰物从 0.9 ms 降到约 0.05 ms）。
+  - 崖壁：雑魚不能走太陡的地方（`SwarmSlopeOk`，坡度上限 `SWARM_MAX_WALK_SLOPE` = tan40°），AI 的硬阻挡、积分、推挤都会检查；流场 `FlowField::maxStep`（相邻两格中心高度差 1.5m，斜向乘 √2）超过就不通，所以会绕到坡道。离玩家 1.5 格以内、但高度差 ≥1m 时仍然走流场，不直冲。经验球在地面高度 + `g_OrbY` 的位置平滑跟随。
+- **天空与雾**：`Graphics/Renderer/SkyRenderer`（`Shader/Sky/SkyVS/PS`，全屏渐变 + 太阳光晕，场景渲染的第一步画、不碰深度）+ `LightBuffer` 的 `fogColor/fogStart/fogEnd/fogMax`（`Lighting.hlsli` 的 `ApplyFog`，在 `ShadeLambert` / `ShadePBR` 带世界坐标的版本末尾应用）。参数在 `SceneLighting`（Lighting 面板的 Sky & Fog），雾色默认 = 地平线色；战斗场景 Shutdown 时 `SceneLighting::ClearFog` 关掉（Renderer 各场景共用）。
+  - 贴图全部按 UNORM 读，sRGB 图没有解码，所以模型偏白。`LightBuffer::albedoSrgb` = 1 时 PS / PBR_PS 用 `DecodeAlbedo`（pow 2.2）；Lighting 面板「sRGB Textures」，自测用 `VFXL_SRGB`。默认关，要不要采用还没定。
+- **交换链 / 帧率**：`Graphics` 用 flip 型（`FLIP_DISCARD` 3 枚，backbuffer 无 MSAA；场景的 HDR RT 仍是 4x MSAA，BeginUI 里 resolve）。支持时带 `ALLOW_TEARING`，关垂直同步时 Present 用它（可变刷新的屏不撕裂）。`PresentSettings`（vsync / fpsCap）在 Debug Info 窗口「VSync」「FPS Cap」调，默认开垂直同步、不限帧；限帧在 `EndFrame` 里 Present 前等（高精度 waitable timer + 最后 2ms 自旋，Release 限 160 实测 160.0 fps、sd 0.1 ms）。Alt+Enter 的独占全屏已关（全屏用 F11 无边框窗口）。实测（2026-09-27）：旧的 blt 交换链开垂直同步时 Debug 也不会锁到 82.5 fps，所以换 flip 型对平均 fps 没影响，意义在于撕裂模式 / 可变刷新 / 限帧。
 - **光照**：`Shader/Common/Lighting.hlsli`（半球环境光 + 平行光和点光源的 GGX 高光）。点光源表是 `PointLightManager`（每帧一张，t6/t7）。
 - **背包**：9x9（`BackpackComponent::GRID` 和 `BackpackUI::GRID_SIZE` 要一起改）。开局 3x3 枠放在 `GRID/2-1`（Rect 锚点在左上）。
 - **道具形状**：`Items/*.h` 里的 `occupyCells` / `influenceCells` 是代码默认值。存在 `Assets/Data/ItemData/<道具名去掉空格>.json`（`Item/ItemDataFile`）时，`ItemDatabase::Initialize` 会用文件内容覆盖。编辑时用 `ItemDatabase::SetShape` 改，用 `GetCodeShape` 恢复成代码默认；形状变了以后用 `BackpackLogic::Refit` 重新摆放。多格方块画成连在一起的一块（`UI/ShapeSprite.h`）。
@@ -64,6 +82,7 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
   - 遮挡处理：场景通过 `SetOcclusionProbe` 用 5 条射线打 `Layer_Terrain`。有东西挡住时相机立刻拉近，没挡住后慢慢退回原距离
   - 震动：调用 `AddTrauma`，抖动幅度 = trauma²。只作用在 `CameraBase::SetViewShake` → 视图矩阵上，不影响 `GetForward`，所以移动和朝向不会跟着抖
   - 触发：场景看玩家 HP 掉了多少，以及 GPU `aliveAreas` 有没有增加。参数都在「Camera」面板
+- **滑铲（斜坡加速）**：按住左 Ctrl / 手柄 X（`InputMap::GetSlideHeld`；手柄 X 也是调试用手动施法的键，自动施法时不冲突）。`PlayerControlSystem`：进入时（接地）平地也推到 moveSpeed × `slideBoost`（`slideBoostCooldown` 秒一次）；滑行中按脚下法线 `RigidbodyComponent::groundNormal`（`PhysicsSystem` 取最斜的地面接触）往下坡加速（水平 = `slideGravity` × cosθ sinθ，物理的重力投影也会再加一点），减 `slideFriction`，封顶 `slideMaxSpeed`，转向限 `slideTurnRate`；速度低于 `slideMinSpeed` 就站起，并且要松开再按才能再滑（`slideNeedsRelease`）；离地 0.2 秒内继续滑。跳起 / 松开后多出 moveSpeed 的惯性（`carryMomentum`）按 `momentumDecay`（空中 `momentumDecayAir`）减；普通跑步照旧每帧设成输入 × moveSpeed。滑行中朝向 = 速度方向。状态 `MoveStateID::Slide`（`PlayerStateComponent::slideActive`），动画 `Crouching`（Character Animations，见上）+ `SkinnedAnimComponent::leanDeg` 以脚底为轴后仰（`PlayerAnimSystem::slideLeanDeg`，默认 15 度，RenderSystem 里在 offset 之前转）。参数全在 `PlayerStatsComponent`，战斗场景 Player 面板「Slide」可调并显示速度 / 脚下坡度。现在地形的坡（坡道 28 度约 5〜7m、小丘 25 度）都很短，实测 26 度 7m 的坡从 8 滑到 13.4 m/s。
 - **升级**：`UI/LevelUpSystem`。卡池 = `ItemDatabase::GetAllIDs()` + `GetLevelUpOnlyIDs()`（生命、法力上限卡，`ItemCategory::Stat`）。
 - **施法暂停**：`WandComponent::castingPaused`（Q / 手柄 Y）。
 - **UI 文字是日文**：字体 `NotoSansJP.spritefont`（汉字、假名齐全），但**没有全角英数/全角符号和 × ° →**，文案里用半角、`x`、「度」。含日文 `L"..."` 的文件存 UTF-8 带 BOM。
@@ -83,9 +102,11 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
   - 两条路径共用 `Shader/Common/SpriteQuad.hlsli`（四边形生成）。示例 `SpriteTest.json`。
 - **战斗反馈特效**：升级 `LevelUp.json`（radiant-heal，跟随玩家）、开箱 `CrateOpen.json`（harvest-seal + 木屑方块）、受伤 `Hurt.json`（红色 crescent-slash，跟随玩家），由 `ECS/System/FeedbackVFXSystem` 经场景的 `m_AreaVFX` 播放；暂停时不走，所以升级/开箱要等三选一选完才看得到。玩家位置是胶囊中心（y≈0.9），相机在身后时 Q 版法师会挡住身上的特效，所以升级和受伤的 Sprite 开了「Always on top」（Sprite entry 的 `onTop`，不做深度测试，只对 CPU 路径有效）。受伤最快每 `m_HurtInterval`（1.5 秒）一次。战斗场景「Feedback VFX」面板：开关、Test 按钮、受伤间隔、Reload json。命中特效：ArcOnce → AreaData `ArcSpark`、HomingFull → `VoidPop`（伤害 0、0.1 秒、`hitAreaOnExpire` false，只为让 GPU 播 `ArcBoltHit` / `HomingBoltHit` 的 Sprite + 粒子）；`ItemInfo` 不描述伤害 0 的命中范围。
 - **战斗场景的结构**：`Scene/CollisionTestScene.cpp` 只剩初始化、`UpdateGameplay` 的执行顺序、渲染、结算；ImGui 面板 / 调试绘制 / TEMP 自测在 `Scene/CollisionTestSceneDebug.cpp`（同一个类）。做完的功能拆成部品，场景持有并调用：`Camera/BattleCamera`（FollowCamera + 遮挡探针 + 鼠标捕获 / Alt + 震动触发 + Camera 面板）、`ECS/System/RewardCrateSystem`、`ECS/System/FeedbackVFXSystem`、`Graphics/Light/SceneLighting`（太阳 + 环境光 + 场景点光源 + 标记 / gizmo + Lighting 面板）、`Enemy/EliteSpawner`（精英靶子 + HP 归零的 CPU 实体燃烧消散）、`Enemy/MobSpawner`（SpawnDirector + 雑魚初始值 + Mob AI 面板）、`Debug/StressTestTools`（压力测试 + Mesh 发射测试 + Flush 耗时）。被弹的 HP 差分由场景 `TrackPlayerHpLoss` 算一次，分给相机震动和受伤特效。
+- **陨石（弹道第 4 型 `MotionMode::Drop` = 3）**：profile `Meteor.json`（原 `ExplosiveArc`）。`SwarmSpawnProjCS` 在生成时锁离玩家最近的敌人，落点 = 它当时的位置（之后不跟踪），起点 = 落点 + 往枪口方向水平 `c1.y` m + 上方 `c1.x` m（默认 16 / 9，约 60 度），`SwarmBuildDropPath` 画成直线、越落越快（s = 0.4t + 0.6t²，平均速度 = profile 的 speed），寿命自动延长到够落地。`ProjMoveCS` 的 DROP 分支不做地形检测（格子判定是 2D，飞过树和台地会误判撞墙），`HitCS` 跳过 DROP（下落途中不命中），落地时在 p3 放 hitArea（`MeteorBlast`）。落点的警告圈：`SwarmDropRingVS`（弹的全部槽位 DrawInstanced，非 DROP 的丢掉）+ 共用 `SwarmBomberRingPS`，半径 = hitArea 的半径，实心圆按 pathT 长大，样式 `SwarmSystem::dropRing`（橙黄，Swarm (GPU) 面板「Meteor Ring」）。F4 的 Mode 下拉有 Drop（Drop Height / Back Offset）。道具说明对 Drop 不显示「威力」行（弹本身不命中，只有爆炸的伤害）。
 - **GPU 弹道的特效**：`SwarmVFXTable` 收特效里**全部**粒子条目（多层）+ 点光源；条目的 position 是相对弹/范围中心的偏移（`SwarmEmitCS`）；时间轴无效；不支持逐粒子条带。点光源全局 64 个先到先得，高频弹不挂灯。法术特效：Fireball / ArcBolt / HomingBolt / Meteor（弹）、Explosion（火球爆炸）/ MeteorBlast（陨石爆炸，AreaData 同名，数值照抄 Explosion）/ FireCircle（未被道具使用）。
   - 手写特效 json 时数字不能写成字符串（`"-6.0"`）：读进来是坏值，bloom 会把整屏刷白。
 - **Mesh 粒子**：粒子条目 Render = Mesh，从 `Assets/VFX/Mesh` 选模型（(none) = 立方体），Lit（不透明受光）/ Glow（加法），可选朝向速度 + 前方轴，size = 模型最长边（m）。`renderMode` 打包模型号+1 / 发光 / 朝向 / 轴（`ParticleRenderMode::Pack` ↔ `ParticleCommon.hlsli`），模型表 16 个在 `Particle/GPUParticleMesh.cpp`。示例 `MeshParticleTest.json`。
+- **别的文件的骨骼动画**：`SkinnedModel::AddAnimationsFromFile` 按骨骼名把另一个 FBX 的片段加到已读的骨骼模型上（旋转按两边 bind 的差在父空间换算 R = R_bind * inv(A_bind) * A，平移按 hips bind 长度比缩放，自己没有的骨骼的通道丢掉；重名的片段改叫「文件名|名字」，`FindClip` 仍先找到原来的）。`Res::Mdl::kExtraAnims`（ResourcePaths.h）列「模型 → 动画文件」，`ResourceManager::ImportModelAuto` 读完骨骼模型后按路径加（预读线程里也一样）。现在给 KayKit Mage（Adventurers 1.0）加了 KayKit Character Animations 1.1（CC0）的 `Rig_Medium_MovementAdvanced.fbx`（Crouching / Sneaking / Crawling / Dodge_* 等 13 个，`Assets/Model/KayKit_CharacterAnimations/`）：骨骼名和 Mage 一致，平移比 1。该包没有滑铲动画。
 - **FBX 单位**：`Model::GetFileUnitScale()` 记录 FBX 的 UnitScaleFactor，但不乘进顶点（现有模型各自手调倍率）。KayKit Forest 和 Kenney 的 FBX 都是厘米单位。
 - **素材（都是 CC0）**：`Assets/Model/KayKit_*`、`Kenney_BlockyCharacters`、`Kenney_RetroFantasy`（1m 立方的部件，编辑器默认 2 倍）。
 
@@ -95,12 +116,12 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - `CollisionTestScene::Init`：玩家 `maxHealth = 1000000`。
 - `CollisionTestScene::UpdateGameplay`：每 120 帧打一行 `[crowd]` 日志。
 - `SwarmSystem::UpdateFlowField`：打 `[flow] build ms` 日志。
-- 自测钩子（环境变量，不设就不生效）：`VFXL_VFX_AUTOLOAD=<VFXData 的 json 名>` 启动直接进 VFX 编辑器并播放，附加 `VFXL_VFX_MOVE`（虚拟投射物飞行）/ `VFXL_VFX_LOOP`（强制循环）/ `VFXL_VFX_CLOSE`（近景、藏参考模型）；`VFXL_PROJ_AUTOTEST=<投射物 profile 名>` 启动直接进 F4 并选中这个弹；`VFXL_BATTLE_AUTOTEST=1` 直接进战斗，5 秒给升级经验、9 秒移到最近的箱子旁、10 秒模拟按 F，反馈特效和相机状态带系统毫秒时间写进 `x64/Debug/autotest.log`（三选一要靠外部发 Enter）。代码在 `Core/Game.cpp`、`VFXEditorScene::Init`、`ProjectileEditorScene::Init`、`CollisionTestScene::UpdateAutoTest`（`Scene/CollisionTestSceneDebug.cpp`）。示例特效 `SheetTest.json`（四种图集/混合对比）。
+- 自测钩子（环境变量，不设就不生效）：`VFXL_VFX_AUTOLOAD=<VFXData 的 json 名>` 启动直接进 VFX 编辑器并播放，附加 `VFXL_VFX_MOVE`（虚拟投射物飞行）/ `VFXL_VFX_LOOP`（强制循环）/ `VFXL_VFX_CLOSE`（近景、藏参考模型）；`VFXL_PROJ_AUTOTEST=<投射物 profile 名>` 启动直接进 F4 并选中这个弹；`VFXL_BATTLE_AUTOTEST=1` 直接进战斗，5 秒给升级经验、9 秒移到最近的箱子旁、10 秒模拟按 F，反馈特效和相机状态带系统毫秒时间写进 `x64/Debug/autotest.log`（三选一要靠外部发 Enter）；`VFXL_BATTLE_AUTOTEST=bomber` 改跑自爆兵：1 秒停施法、停刷怪、清场、出 3 个自爆兵（应当点燃→爆炸），9 秒在玩家脚下放跟随的伤害圈、把火球放进背包并恢复施法，再出 3 个（应当被打死、不爆炸），GPU counter 和 HP 一变就记一行、每秒记一次 fps 和 MP（current / max / pendingSpend），并关掉碰撞框、法杖、格子这几项调试显示（`UpdateAutoTestBomber`）；`VFXL_BATTLE_AUTOTEST=slide` 测滑铲：2 秒后在高度图里找最长的连续下坡（1m 一步、每步下降 0.15〜0.9m）把玩家放坡顶，用 `PlayerControlSystem::testInput/testMove/testSlide/testJump` 代替输入：跑 0.4 秒 → 滑 2 秒 → 跳，再到平地跑 0.4 秒 → 按住滑 2.6 秒，每 0.1 秒记速度 / vy / 坡度 / 接地 / 是否在滑 / 高度，最后 `slide done`（`UpdateAutoTestSlide`）；`VFXL_BATTLE_AUTOTEST=perf` 测负荷：不发按键、经验每帧清零（不出三选一），4 秒后每 8 秒切一段（默认 / 藏野原装饰物 / 默认 / 关调试显示 / 两者都关 / 关调试 + 装饰物只视锥剔除 / 关调试 + 装饰物不剔除 / 默认），每段后 6 秒的平均 fps、平均/最长帧 ms、雑魚数、画了几个装饰物写进 autotest.log，最后写 `perf done`（`UpdateAutoTestPerf`，配合 `VFXL_NO_VSYNC` 用；驱动脚本关窗口）；`VFXL_NO_VSYNC` 关垂直同步、`VFXL_FPS_CAP=<数>` 限帧、`VFXL_BLT_SWAPCHAIN` 退回旧的 blt 交换链（新旧对比用）（都在 `Graphics::Initialize` / `CreateSwapChain` 读，只设初始值）；`VFXL_REF_MAGE=<片段名,片段名,...>` 直接进 VFX 编辑器，参照模型换成玩家的 Mage（实际尺寸、侧面、近景），按顺序每 3 秒换一个片段，切换时把系统毫秒时间和片段名写进 `refclip.log`（`VFXEditorScene`）；`VFXL_TERRAIN_SEED=<数字>` 固定地形；`VFXL_SRGB` 开启贴图 sRGB 解码。代码在 `Core/Game.cpp`、`VFXEditorScene::Init`、`ProjectileEditorScene::Init`、`CollisionTestScene::UpdateAutoTest`（`Scene/CollisionTestSceneDebug.cpp`）。示例特效 `SheetTest.json`（四种图集/混合对比）。
 
 ## 6. 可交互道具（已完成）
 
 - `Component/InteractableComponent`（kind / 半径 / 案内文字 / 浮动与光的参数）+ `ECS/System/InteractionSystem`（浮动旋转、找最近的 focus、返回被按下的实体、积点光源）。效果由场景按 `kind` 分派。
-- 报酬箱：`ECS/System/RewardCrateSystem`（`Spawn` 摆放、`TryOpen` 开箱），开局在玩家周围 6〜22m 的可走格子（周围 3x3 也可走）放 4 个，用完即消失、不刷新；地形重建时重新摆。像素木箱 `Kenney_RetroFantasy/fbx/detail-crate.fbx`，缩放到 0.9m，带静态 AABB 和暖黄点光源。
+- 报酬箱：`ECS/System/RewardCrateSystem`（`Spawn` 摆放、`TryOpen` 开箱），开局在玩家周围 6〜22m 的可走格子（周围 3x3 也可走、且高度相同）放 4 个，用完即消失、不刷新；地形重建时重新摆。像素木箱 `Kenney_RetroFantasy/fbx/detail-crate.fbx`，缩放到 0.9m，带静态 AABB 和暖黄点光源。
 - 靠近后画面下方出「[F] Open」（`GameUI::SetPrompt`），F / 手柄 B 触发 → `LevelUpSystem::OfferChoices`：和升级一样的三选一，但不升级、不扣经验；选择中不能再开（箱子保留）。
 - 调参在战斗场景「Reward Crates」面板。
 

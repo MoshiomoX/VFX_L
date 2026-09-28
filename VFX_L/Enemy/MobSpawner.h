@@ -5,6 +5,8 @@
 //   ・数えるのは GPU の存活数（回読なので 1〜2 フレーム古い）。
 //     空き枠が無い分は「遠い雑魚の転送」として GPU に投げる
 //   ・雑魚の初期値（HP / 速さ）と Mob AI の定数（GPU、次の固定ステップから効く）の面板
+//   ・自爆兵：新規・転送の 1 体ずつ m_BomberRatio の確率で自爆兵にする。
+//     導火線・爆発の定数は SwarmSystem::GetBomberParams（見た目の範囲は AreaData/BomberBlast.json）
 // ============================================================
 #pragma once
 #include "Enemy/SpawnDirector.h"
@@ -21,11 +23,24 @@ public:
 
     SpawnDirector& Director() { return m_Director; }
 
-    // Enemies 面板の湧き管理・雑魚の初期値・Mob AI の段
+    // 次の Update で玩家の周りに自爆兵を n 体（面板のボタン・自測用）
+    void QueueDebugBombers(int n) { m_DebugBombers += n; }
+
+    // Enemies 面板の湧き管理・雑魚の初期値・自爆兵・Mob AI の段
     void DrawImGui(SwarmSystem& swarm);
 
 private:
+    // 1 体分の依頼（種類は m_BomberRatio で抽選）
+    void Request(SwarmSystem& swarm, const DirectX::SimpleMath::Vector3& pos, bool recycle);
+    // 面板のボタンの分：玩家の周り（kDebugRingMin〜Max m の歩けるマス）に自爆兵を湧かせる
+    void SpawnDebugBombers(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
+
     SpawnDirector m_Director;
     float m_MobHp = 30.0f;
     float m_MobSpeed = 3.5f;
+
+    float m_BomberRatio = 0.15f;   // 湧きのうち自爆兵の割合
+    float m_BomberHp = 20.0f;
+    float m_BomberSpeed = 4.5f;    // 雑魚より速く寄ってくる
+    int   m_DebugBombers = 0;      // ボタンで溜めた数。次の Update で湧かせる
 };

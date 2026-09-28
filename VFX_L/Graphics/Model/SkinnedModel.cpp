@@ -341,6 +341,125 @@ void SkinnedModel::LoadAnimations(const aiScene* scene)
     }
 }
 
+// ============================================================
+// 別ファイルのアニメを骨名で足す（SkinnedModel.h の説明）
+// 変換は MakeLeftHanded だけ揃えれば良い（節点・キーを変えるのはこれだけ。
+// 網格の処理は要らないので他の後処理は掛けない）
+// ============================================================
+static void CollectNodeBinds(const aiNode* node, std::unordered_map<std::string, Matrix>& out)
+{
+    out[node->mName.C_Str()] = ToSM(node->mTransformation);
+    for (unsigned int i = 0; i < node->mNumChildren; ++i)
+        CollectNodeBinds(node->mChildren[i], out);
+}
+
+int SkinnedModel::AddAnimationsFromFile(const std::string& filepath)
+{
+    Assimp::Importer importer;
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+    const aiScene* scene = importer.ReadFile(filepath, aiProcess_MakeLeftHanded);
+    if (!scene || !scene->mRootNode)
+    {
+        std::cout << "[SkinnedModel] extra anims: Assimp error: " << importer.GetErrorString() << std::endl;
+        return -1;
+    }
+    if (!scene->HasAnimations()) return 0;
+
+    // 向こうの bind（節点名 → 親基準の行列）
+    std::unordered_map<std::string, Matrix> srcBind;
+    CollectNodeBinds(scene->mRootNode, srcBind);
+
+    // 平行移動の縮尺: hips の bind の長さの比（単位や体格が違っても腰の上下が合う）
+    float tScale = 1.0f;
+    {
+        const int di = m_Skeleton.FindBoneIndex("hips");
+        auto si = srcBind.find("hips");
+        if (di >= 0 && si != srcBind.end())
+        {
+            const float lenSrc = si->second.Translation().Length();
+            const float lenDst = m_Skeleton.GetBone(di).localBindTransform.Translation().Length();
+            if (lenSrc > 1e-5f && lenDst > 1e-5f) tScale = lenDst / lenSrc;
+        }
+    }
+
+    int added = 0, dropped = 0;
+    for (unsigned int a = 0; a < scene->mNumAnimations; ++a)
+    {
+        const aiAnimation* anim = scene->mAnimations[a];
+
+        AnimationClip clip;
+        clip.name = anim->mName.C_Str();
+        // 同じ名前が既にあれば「ファイル名|名前」にする（元の方は名前のまま引け、こちらも全名で引ける）
+        for (const auto& existing : m_Animations)
+            if (existing.name == clip.name)
+            {
+                clip.name = fs::path(filepath).stem().string() + "|" + clip.name;
+                break;
+            }
+        clip.duration = (float)anim->mDuration;
+        clip.ticksPerSecond = (anim->mTicksPerSecond != 0.0) ? (float)anim->mTicksPerSecond : 25.0f;
+
+        for (unsigned int c = 0; c < anim->mNumChannels; ++c)
+        {
+            const aiNodeAnim* ch = anim->mChannels[c];
+            const std::string node = ch->mNodeName.C_Str();
+            const int bi = m_Skeleton.FindBoneIndex(node);
+            if (bi < 0) { ++dropped; continue; }
+
+            // 自分の bind と向こうの bind を S/R/T に割る（向こうに無ければ自分の物 = 差分無し）
+            Vector3 dS, dT, sS, sT;
+            Quaternion dR, sR;
+            Matrix dst = m_Skeleton.GetBone(bi).localBindTransform;
+            dst.Decompose(dS, dR, dT);
+            auto sb = srcBind.find(node);
+            Matrix src = (sb != srcBind.end()) ? sb->second : dst;
+            src.Decompose(sS, sR, sT);
+            Quaternion sRInv;
+            sR.Inverse(sRInv);
+            const bool sameBind = (sb == srcBind.end());
+
+            BoneChannel bc;
+            bc.nodeName = node;
+            for (unsigned int k = 0; k < ch->mNumPositionKeys; ++k)
+            {
+                const auto& key = ch->mPositionKeys[k];
+                const Vector3 v(key.mValue.x, key.mValue.y, key.mValue.z);
+                bc.positions.push_back({ (float)key.mTime, sameBind ? v : dT + (v - sT) * tScale });
+            }
+            for (unsigned int k = 0; k < ch->mNumRotationKeys; ++k)
+            {
+                const auto& key = ch->mRotationKeys[k];
+                Quaternion q(key.mValue.x, key.mValue.y, key.mValue.z, key.mValue.w);
+                if (!sameBind)
+                {
+                    q = dR * sRInv * q;   // SimpleMath の積は「左を先に回す」= 行ベクトルの行列積と同じ順
+                    q.Normalize();
+                }
+                bc.rotations.push_back({ (float)key.mTime, q });
+            }
+            for (unsigned int k = 0; k < ch->mNumScalingKeys; ++k)
+            {
+                const auto& key = ch->mScalingKeys[k];
+                Vector3 v(key.mValue.x, key.mValue.y, key.mValue.z);
+                if (!sameBind)
+                    v = Vector3(dS.x * v.x / (std::max)(sS.x, 1e-6f),
+                                dS.y * v.y / (std::max)(sS.y, 1e-6f),
+                                dS.z * v.z / (std::max)(sS.z, 1e-6f));
+                bc.scales.push_back({ (float)key.mTime, v });
+            }
+
+            clip.nodeToChannel[bc.nodeName] = (int)clip.channels.size();
+            clip.channels.push_back(std::move(bc));
+        }
+        std::cout << "[SkinnedModel]   + " << clip.name << " (" << clip.channels.size() << " channels)" << std::endl;
+        m_Animations.push_back(std::move(clip));
+        ++added;
+    }
+    std::cout << "[SkinnedModel] extra anims: " << added << " clips from " << filepath
+        << " (translation scale " << tScale << ", " << dropped << " channels without a bone)" << std::endl;
+    return added;
+}
+
 float SkinnedModel::GetClipDurationSec(int clipIndex) const
 {
     if (clipIndex < 0 || clipIndex >= (int)m_Animations.size()) return 0.0f;

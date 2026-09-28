@@ -20,8 +20,12 @@ namespace
     // ============================================================
     // 移動層
     // ============================================================
-    MoveStateID NextMoveState(const RigidbodyComponent& rb)
+    MoveStateID NextMoveState(const RigidbodyComponent& rb, const PlayerStateComponent& st)
     {
+        // 滑りは PlayerControlSystem が決める（坂の継ぎ目で一瞬浮いても続く）
+        if (st.slideActive)
+            return MoveStateID::Slide;
+
         if (!rb.isGrounded)
             return (rb.velocity.y > 0.0f) ? MoveStateID::Jump : MoveStateID::Fall;
 
@@ -120,7 +124,7 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
                 // ============================================================
                 if (!st.IsSuppressed(Mask_Move))
                 {
-                    const MoveStateID nextMove = NextMoveState(rb);
+                    const MoveStateID nextMove = NextMoveState(rb, st);
                     if (nextMove != st.move)
                     {
                         st.prevMove = st.move;

@@ -17,6 +17,7 @@
 //   CurveOnce : 発射時に 1 回だけ捕捉して曲線で飛ぶ。
 //               標的が死んだら、その時の向きのまま直進する
 //   Track     : 標的が死んでも、自分に一番近い敵を探して追い続ける
+//   Drop      : 撃った時の標的の位置へ空から落ちる（隕石）。c1 = (高さ m, 銃口側への水平距離 m, 未使用)
 //
 // 捕捉する相手は今のところ「玩家に一番近い敵」固定（武器の自動照準と同じ）
 // ============================================================
@@ -40,7 +41,8 @@ struct ProjectileProfile
     std::string       name = "NewProjectile";
     Swarm::MotionMode mode = Swarm::MotionMode::Straight;
 
-    // 制御点（along, side, up）。side / up は射距離に対する割合
+    // 制御点（along, side, up）。side / up は射距離に対する割合。
+    // Drop だけは c1 = (高さ m, 銃口側への水平距離 m, 未使用)、c2 は使わない
     DirectX::SimpleMath::Vector3 c1 = { 0.30f, 0.35f, 0.0f };
     DirectX::SimpleMath::Vector3 c2 = { 0.70f, 0.35f, 0.0f };
     Mirror mirror = Mirror::Alternate;

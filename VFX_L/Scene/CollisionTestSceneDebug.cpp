@@ -15,6 +15,7 @@
 #include "Component/ManaComponent.h"
 #include "Component/WandComponent.h"
 #include "Component/InteractableComponent.h"
+#include "Component/ModelComponent.h"
 #include "Component/Projectile/ProjectileComponent.h"
 #include "Graphics/Model/SkinnedModel.h"
 #include "Player/PlayerStatsComponent.h"
@@ -23,6 +24,8 @@
 #include "Player/LevelComponent.h"
 #include "ECS/View.h"
 #include "Item/ItemDatabase.h"
+#include "Item/BackpackLogic.h"
+#include "Component/BackpackComponent.h"
 #include "Item/ItemTypes.h"
 #include "Swarm/AreaProfile.h"
 #include "World/TerrainGenerator.h"
@@ -34,6 +37,7 @@
 #include <chrono>
 #include <cmath>
 #include <fstream>   // TEMP-TEST: autotest.log
+#include <random>
 #include <unordered_set>
 
 // ============================================================
@@ -56,6 +60,8 @@ void CollisionTestScene::DrawDebugUI()
     ImGui::Checkbox("Collider", &m_ShowWireframe);
     ImGui::SameLine();
     ImGui::Checkbox("Wand Debug", &m_ShowWandDebug);
+    ImGui::SameLine();
+    ImGui::Checkbox("Grid", &m_ShowGridDebug);
     ImGui::SameLine();
     if (ImGui::Button("End Run -> Result")) EndRun();   // リザルト画面の確認用
     ImGui::Separator();
@@ -104,7 +110,8 @@ void CollisionTestScene::DrawGameplayDebug()
 
     if (m_ShowWandDebug)
         DrawWandDebug();
-    if (const Vector3* pp = PlayerPos())
+    const Vector3* pp = PlayerPos();
+    if (m_ShowGridDebug && pp)
         m_Grid.DrawDebug(*pp);
 }
 
@@ -314,7 +321,7 @@ void CollisionTestScene::DrawPlayerPanel()
     {
         auto& state = m_Registry.Get<PlayerStateComponent>(m_Player);
 
-        const char* moveNames[] = { "Idle", "Run", "Jump", "Fall" };
+        const char* moveNames[] = { "Idle", "Run", "Jump", "Fall", "Slide" };   // MoveStateID と同じ並び
         const char* actionNames[] = { "None", "Casting" };
         const char* dmgNames[] = { "Normal", "Hurt", "Dead" };
 
@@ -393,6 +400,32 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::DragFloat("Move Speed", &stats.moveSpeed, 0.1f, 0.0f, 30.0f);
         ImGui::DragFloat("Jump Power", &stats.jumpPower, 0.1f, 0.0f, 30.0f);
         ImGui::Text("Jump CD : %.2f", stats.jumpCooldown);
+
+        // ---- 滑り（左 Ctrl / パッド X）----
+        if (ImGui::TreeNode("Slide"))
+        {
+            if (m_Registry.Has<RigidbodyComponent>(m_Player))
+            {
+                const auto& rb = m_Registry.Get<RigidbodyComponent>(m_Player);
+                const float hs = std::sqrt(rb.velocity.x * rb.velocity.x + rb.velocity.z * rb.velocity.z);
+                const float slopeDeg = DirectX::XMConvertToDegrees(std::acos((std::min)(1.0f, rb.groundNormal.y)));
+                const bool sliding = m_Registry.Has<PlayerStateComponent>(m_Player)
+                    && m_Registry.Get<PlayerStateComponent>(m_Player).slideActive;
+                ImGui::Text("speed %.1f m/s  ground slope %.0f deg  %s", hs, slopeDeg, sliding ? "SLIDING" : "");
+            }
+            ImGui::DragFloat("Boost (x moveSpeed)", &stats.slideBoost, 0.02f, 1.0f, 4.0f);
+            ImGui::DragFloat("Boost Cooldown (s)", &stats.slideBoostCooldown, 0.05f, 0.0f, 5.0f);
+            ImGui::DragFloat("Friction (m/s2)", &stats.slideFriction, 0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat("Slope Gravity (m/s2)", &stats.slideGravity, 0.5f, 0.0f, 100.0f);
+            ImGui::DragFloat("Max Speed (m/s)", &stats.slideMaxSpeed, 0.5f, 1.0f, 60.0f);
+            ImGui::DragFloat("Min Speed (m/s)", &stats.slideMinSpeed, 0.1f, 0.0f, 20.0f);
+            ImGui::DragFloat("Turn Rate (deg/s)", &stats.slideTurnRate, 1.0f, 0.0f, 720.0f);
+            ImGui::DragFloat("Momentum Decay (m/s2)", &stats.momentumDecay, 0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat("Momentum Decay Air", &stats.momentumDecayAir, 0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat("Momentum Turn (deg/s)", &stats.momentumTurnRate, 1.0f, 0.0f, 1080.0f);
+            ImGui::DragFloat("Lean (deg)", &m_PlayerAnimSystem.slideLeanDeg, 0.5f, -45.0f, 60.0f);
+            ImGui::TreePop();
+        }
     }
 
     // 重力はプレイヤーの能力ではなく環境の値なのでシーンが持つ
@@ -526,6 +559,49 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
+        // ---- 隕石（DROP の弾）の着弾点の警告の輪 ----
+        if (ImGui::TreeNode("Meteor Ring"))
+        {
+            auto& ring = m_Swarm.dropRing;
+            ImGui::Checkbox("Enabled##dropRing", &ring.enabled);
+            ImGui::DragFloat("Edge Width##dropRing", &ring.edgeWidth, 0.005f, 0.0f, 0.5f);
+            ImGui::DragFloat("Lift##dropRing", &ring.lift, 0.005f, 0.0f, 0.3f);
+            ImGui::ColorEdit4("Fill##dropRing", &ring.fill.x);
+            ImGui::ColorEdit4("Edge##dropRing", &ring.edge.x);
+            ImGui::ColorEdit4("Back##dropRing", &ring.back.x);
+            ImGui::TreePop();
+        }
+
+        // ---- 経験値オーブの見た目（宝石の動き・光り方・吸い寄せ中の尾）----
+        if (ImGui::TreeNode("Exp Orbs"))
+        {
+            auto& ol = m_Swarm.orbLook;
+            ImGui::DragFloat("Scale##orb", &ol.scale, 0.01f, 0.1f, 5.0f);
+            ImGui::DragFloat("Bob height (m)", &ol.bobHeight, 0.005f, 0.0f, 1.0f);
+            ImGui::DragFloat("Bob speed", &ol.bobSpeed, 0.05f, 0.0f, 20.0f);
+            ImGui::DragFloat("Spin speed", &ol.spinSpeed, 0.05f, -20.0f, 20.0f);
+            ImGui::DragFloat("Pulse amount", &ol.pulseAmount, 0.005f, 0.0f, 0.5f);
+            ImGui::DragFloat("Pulse speed", &ol.pulseSpeed, 0.05f, 0.0f, 30.0f);
+            ImGui::ColorEdit3("Idle color", &ol.idleColor.x, ImGuiColorEditFlags_Float);
+            ImGui::ColorEdit3("Pull color", &ol.pullColor.x, ImGuiColorEditFlags_Float);
+            ImGui::DragFloat("Emissive", &ol.emissive, 0.02f, 0.0f, 10.0f);
+            ImGui::SliderFloat("Facet", &ol.facet, 0.0f, 1.0f);
+            ImGui::DragFloat("Rim gain", &ol.rimGain, 0.02f, 0.0f, 10.0f);
+            ImGui::DragFloat("Rim power", &ol.rimPower, 0.05f, 0.1f, 16.0f);
+            ImGui::ColorEdit3("Rim color", &ol.rimColor.x, ImGuiColorEditFlags_Float);
+            ImGui::DragFloat("Glint gain", &ol.glintGain, 0.02f, 0.0f, 10.0f);
+            ImGui::DragFloat("Glint power", &ol.glintPower, 0.5f, 1.0f, 256.0f);
+            ImGui::SeparatorText("Pulled");
+            ImGui::DragFloat("Full pull speed", &ol.fullPullSpeed, 0.1f, 0.1f, 50.0f);
+            ImGui::DragFloat("Tilt max (rad)", &ol.tiltMax, 0.02f, 0.0f, 1.6f);
+            ImGui::DragFloat("Stretch / speed", &ol.stretchPerSpeed, 0.002f, 0.0f, 0.5f);
+            ImGui::DragFloat("Stretch max", &ol.stretchMax, 0.02f, 0.0f, 4.0f);
+            ImGui::DragFloat("Pull glow", &ol.pullGlow, 0.02f, 0.0f, 10.0f);
+            ImGui::Checkbox("Trail (ExpOrbTrail.json)", &ol.trail);
+            ImGui::DragFloat("Trail min speed", &ol.trailMinSpeed, 0.1f, 0.0f, 50.0f);
+            ImGui::TreePop();
+        }
+
         ImGui::Separator();
         ImGui::TextDisabled("Test Fire: alive proj should rise to ~100");
         ImGui::TextDisabled("then fall back to 0 within 3 seconds.");
@@ -624,8 +700,26 @@ void CollisionTestScene::DrawTerrainPanel()
             m_Grid.Width(), m_Grid.Depth(),
             m_Grid.WorldWidth(), m_Grid.WorldDepth());
 
-        int seed = (int)m_TerrainSeed;
-        if (ImGui::InputInt("Seed", &seed)) m_TerrainSeed = (uint32_t)(seed < 0 ? 0 : seed);
+        auto& tc = m_TerrainConfig;
+        int seed = (int)tc.seed;
+        if (ImGui::InputInt("Seed", &seed)) tc.seed = (uint32_t)(seed < 0 ? 0 : seed);
+        ImGui::SameLine();
+        if (ImGui::Button("Random")) tc.seed = std::random_device{}() % 100000u;
+        ImGui::DragInt("Plateaus", &tc.plateauCount, 0.2f, 0, 40);
+        ImGui::DragIntRange2("Plateau Size", &tc.plateauMin, &tc.plateauMax, 0.2f, 3, 20);
+        ImGui::DragFloatRange2("Plateau Height", &tc.heightMin, &tc.heightMax, 0.05f, 1.0f, 8.0f);
+        ImGui::DragInt("Plateau Gap", &tc.gap, 0.1f, 1, 10);
+        ImGui::SliderFloat("2nd Tier Chance", &tc.tier2Chance, 0.0f, 1.0f);
+        ImGui::DragFloatRange2("2nd Tier Height", &tc.tier2HeightMin, &tc.tier2HeightMax, 0.05f, 1.0f, 6.0f);
+        ImGui::DragInt("Ramp Width", &tc.rampWidth, 0.1f, 1, 5);
+        ImGui::SliderFloat("Ramp Slope", &tc.rampSlopeDeg, 10.0f, 35.0f, "%.0f deg");
+        ImGui::DragInt("Mounds", &tc.moundCount, 0.2f, 0, 40);
+        ImGui::DragFloatRange2("Mound Height", &tc.moundHeightMin, &tc.moundHeightMax, 0.05f, 0.2f, 4.0f);
+        ImGui::DragInt("Spawn Clear", &tc.spawnClearRadius, 0.1f, 2, 20);
+        ImGui::DragInt("Trees", &tc.treeCount, 1.0f, 0, 400);
+        ImGui::DragInt("Rocks", &tc.rockCount, 1.0f, 0, 200);
+        ImGui::DragInt("Bushes", &tc.bushCount, 1.0f, 0, 600);
+        ImGui::DragInt("Grass", &tc.grassCount, 1.0f, 0, 2000);
 
         if (ImGui::Button("Regenerate"))
         {
@@ -638,10 +732,8 @@ void CollisionTestScene::DrawTerrainPanel()
             m_Grid.ClearAll();
 
             auto* device = Application::Get().GetGraphics().GetDevice();
-            TerrainGenerator::Config tcfg;
-            tcfg.seed = m_TerrainSeed;
-            tcfg.obstacleCount = 40;
-            TerrainGenerator::Generate(m_Registry, device, m_Grid, tcfg, m_Terrain);
+            TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain);
+            m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
 
             // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
             m_Swarm.KillAll();
@@ -651,7 +743,11 @@ void CollisionTestScene::DrawTerrainPanel()
             RespawnCrates();   // 古い位置は新しい壁の中かもしれない
         }
         ImGui::SameLine();
-        ImGui::TextDisabled("seed reproducible");
+        ImGui::TextDisabled("same seed = same map");
+
+        // 木・岩・茂み・草の描画（モデル毎の instanced + 視錐台 / 距離の間引き）
+        ImGui::Separator();
+        m_StaticProps.DrawImGui();
     }
 }
 
@@ -769,6 +865,9 @@ void CollisionTestScene::UpdateAutoTest(float dt)
 {
     m_AutoTime += dt;
     if (!m_Registry.IsValid(m_Player)) return;
+    if (m_AutoBomber) { UpdateAutoTestBomber(); return; }
+    if (m_AutoPerf) { UpdateAutoTestPerf(); return; }
+    if (m_AutoSlide) { UpdateAutoTestSlide(dt); return; }
 
     if (m_AutoStep == 0 && m_AutoTime >= 5.0f && m_Registry.Has<LevelComponent>(m_Player))
     {
@@ -811,5 +910,326 @@ void CollisionTestScene::UpdateAutoTest(float dt)
         m_AutoInteract = true;
         AutoTestLog("press F");
         m_AutoStep = 3;
+    }
+}
+
+// 1 秒: 施法停止・湧き停止・GPU の雑魚を全部消して自爆兵 3 体（寄って来て点火 → 爆発するはず）
+// 9 秒: 玩家に付いて動く小さな毒の輪（半径 1.5m、0.4 秒毎に 10）+ 自爆兵 3 体。
+//       触れて点火した後、導火線（1 秒）の途中で 2 回目の tick に倒されるはず
+//       （撃破数が増え、玩家への累計ダメージは増えない）。
+//       同時に背包へ火球を置いて施法を戻す（MP が減って回復するかを毎秒の行で見る）
+void CollisionTestScene::UpdateAutoTestBomber()
+{
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        if (m_Registry.Has<WandComponent>(m_Player))
+            m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;   // 画面の連写に調試の線を入れない
+        m_Mobs.QueueDebugBombers(3);
+        AutoTestLog("bomber A: casting paused, 3 bombers");
+        m_AutoStep = 1;
+    }
+    else if (m_AutoStep == 1 && m_AutoTime >= 9.0f)
+    {
+        Swarm::Area ring;
+        ring.center = m_Registry.Get<TransformComponent>(m_Player).position;
+        ring.radius = 1.5f;
+        ring.damage = 10.0f;
+        ring.tickInterval = 0.4f;
+        ring.timeLeft = 8.0f;
+        ring.flags = Swarm::kAreaFollowPlayer;
+        m_Swarm.SpawnArea(ring);
+        m_Mobs.QueueDebugBombers(3);
+        if (m_Registry.Has<BackpackComponent>(m_Player))
+        {
+            auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+            const int mid = BackpackComponent::GRID / 2;
+            BackpackLogic::Place(bp, ItemID::Fireball, mid, mid, 0);
+            bp.dirty = true;
+        }
+        if (m_Registry.Has<WandComponent>(m_Player))
+            m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
+        AutoTestLog("bomber B: damage ring r1.5 10/0.4s, 3 bombers");
+        m_AutoStep = 2;
+    }
+
+    // 1 秒毎に平均 fps と MP（今 / 上限 / 予約中）
+    static int s_Frames = 0;
+    static float s_FpsTimer = 0.0f;
+    ++s_Frames;
+    s_FpsTimer += ImGui::GetIO().DeltaTime;
+    if (s_FpsTimer >= 1.0f)
+    {
+        char fps[96];
+        const ManaComponent* mp = m_Registry.Has<ManaComponent>(m_Player) ? &m_Registry.Get<ManaComponent>(m_Player) : nullptr;
+        snprintf(fps, sizeof(fps), "fps %.1f mp %.1f/%.0f pending %.1f", s_Frames / s_FpsTimer,
+            mp ? mp->current : -1.0f, mp ? mp->max : -1.0f, mp ? mp->pendingSpend : -1.0f);
+        AutoTestLog(fps);
+        s_Frames = 0;
+        s_FpsTimer = 0.0f;
+    }
+
+    // counter（回読）と HP が変わった時だけ 1 行
+    const auto& c = m_Swarm.GetCounters();
+    const uint32_t now[4] = { c.aliveEnemies, c.killCount, c.playerDamage, c.aliveAreas };
+    const float hp = m_Registry.Has<HealthComponent>(m_Player) ? m_Registry.Get<HealthComponent>(m_Player).current : 0.0f;
+    if (std::equal(now, now + 4, m_AutoLast) && hp == m_AutoLastHp) return;
+    std::copy(now, now + 4, m_AutoLast);
+    m_AutoLastHp = hp;
+
+    char line[160];
+    snprintf(line, sizeof(line), "alive %u kills %u dmgTotal %.2f areas %u hp %.1f",
+        now[0], now[1], now[2] / 100.0f, now[3], hp);
+    AutoTestLog(line);
+}
+
+// ============================================================
+// TEMP-TEST: 負荷の内訳（VFXL_BATTLE_AUTOTEST=perf）
+// 4 秒の助走の後、8 秒毎に段を切り替え、各段の後ろ 6 秒の平均 fps・平均 / 最大フレーム ms・
+// 雑魚の活き数を 1 行ずつ記録する。垂直同期は VFXL_NO_VSYNC で切っておく（上限で頭打ちになるので）。
+// 升級の三択で止まらないよう経験値は毎フレーム 0 に戻す
+// ============================================================
+void CollisionTestScene::SetDecorPropsVisible(bool visible, int* outCount)
+{
+    // 野原の置物（木・石・灌木・草）は StaticPropRenderer がまとめて描いている
+    m_StaticProps.GetSettings().enabled = visible;
+    if (outCount) *outCount = m_StaticProps.GetStats().registered;
+}
+
+void CollisionTestScene::UpdateAutoTestPerf()
+{
+    // propCull: 0 = 既定の間引き / 1 = 視錐台だけ（距離で間引かない）/ 2 = 間引き無し（760 個全部）
+    struct Phase { const char* name; bool hideProps; bool noDebug; int propCull; };
+    static const Phase kPhases[] = {
+        { "default", false, false, 0 },
+        { "props hidden", true, false, 0 },
+        { "default", false, false, 0 },
+        { "debug draw off", false, true, 0 },
+        { "props hidden + debug off", true, true, 0 },
+        { "debug off, frustum cull only", false, true, 1 },
+        { "debug off, no prop culling", false, true, 2 },
+        { "default", false, false, 0 },
+    };
+    constexpr int   kPhaseCount = (int)(sizeof(kPhases) / sizeof(kPhases[0]));
+    constexpr float kLead = 4.0f, kPhaseLen = 8.0f, kSettle = 2.0f;
+
+    static bool   s_DebugDefault[3] = {};
+    static StaticPropRenderer::Settings s_PropDefault;
+    static int    s_Phase = -1;
+    static bool   s_Done = false;
+    static int    s_Frames = 0;
+    static double s_SumMs = 0.0, s_MaxMs = 0.0, s_SumAlive = 0.0, s_SumProps = 0.0, s_SumSq = 0.0;
+    static auto   s_Prev = std::chrono::steady_clock::now();
+
+    const auto nowTime = std::chrono::steady_clock::now();
+    const double frameMs = std::chrono::duration<double, std::milli>(nowTime - s_Prev).count();
+    s_Prev = nowTime;
+
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+
+    char line[200];
+    if (m_AutoStep == 0)
+    {
+        s_DebugDefault[0] = m_ShowWireframe;
+        s_DebugDefault[1] = m_ShowWandDebug;
+        s_DebugDefault[2] = m_ShowGridDebug;
+        s_PropDefault = m_StaticProps.GetSettings();
+        int models = 0;
+        m_Registry.CreateView<TransformComponent, ModelComponent>()
+            .Each([&](Entity, TransformComponent&, ModelComponent& mc) { if (mc.visible && mc.model && !mc.batched) ++models; });
+        int decor = 0;
+        SetDecorPropsVisible(true, &decor);
+        snprintf(line, sizeof(line), "perf start: model entities %d + instanced props %d, colliders %d, vsync %s",
+            models, decor, (int)m_CollisionSystem.GetWorldColliders().size(),
+            GetEnvironmentVariableA("VFXL_NO_VSYNC", nullptr, 0) > 0 ? "off" : "on");
+        AutoTestLog(line);
+        m_AutoStep = 1;
+    }
+    if (s_Done || m_AutoTime < kLead) return;
+
+    const int phase = (int)((m_AutoTime - kLead) / kPhaseLen);
+    if (phase != s_Phase)
+    {
+        // 前の段を締める
+        if (s_Phase >= 0 && s_Frames > 0)
+        {
+            snprintf(line, sizeof(line), "phase %d [%s] fps %.1f avg %.2f ms sd %.2f ms max %.2f ms alive %.0f props drawn %.0f (%d frames)",
+                s_Phase, kPhases[s_Phase].name, s_Frames * 1000.0 / s_SumMs, s_SumMs / s_Frames,
+                std::sqrt((std::max)(0.0, s_SumSq / s_Frames - (s_SumMs / s_Frames) * (s_SumMs / s_Frames))), s_MaxMs,
+                s_SumAlive / s_Frames, s_SumProps / s_Frames, s_Frames);
+            AutoTestLog(line);
+        }
+        s_Frames = 0;
+        s_SumMs = s_MaxMs = s_SumAlive = s_SumProps = s_SumSq = 0.0;
+        s_Phase = phase;
+
+        const bool done = phase >= kPhaseCount;
+        const bool hideProps = !done && kPhases[phase].hideProps;
+        const bool noDebug = !done && kPhases[phase].noDebug;
+        const int propCull = done ? 0 : kPhases[phase].propCull;
+        m_StaticProps.GetSettings() = s_PropDefault;
+        if (propCull >= 1) m_StaticProps.GetSettings().distPerRadius = m_StaticProps.GetSettings().maxDistance = 0.0f;
+        if (propCull >= 2) m_StaticProps.GetSettings().frustumCull = false;
+        SetDecorPropsVisible(!hideProps, nullptr);
+        m_ShowWireframe = !noDebug && s_DebugDefault[0];
+        m_ShowWandDebug = !noDebug && s_DebugDefault[1];
+        m_ShowGridDebug = !noDebug && s_DebugDefault[2];
+        if (done)
+        {
+            AutoTestLog("perf done");
+            s_Done = true;
+        }
+        return;
+    }
+    if (m_AutoTime - kLead - phase * kPhaseLen < kSettle) return;
+
+    ++s_Frames;
+    s_SumMs += frameMs;
+    s_SumSq += frameMs * frameMs;
+    s_MaxMs = (std::max)(s_MaxMs, frameMs);
+    s_SumAlive += m_Swarm.GetCounters().aliveEnemies;
+    s_SumProps += m_StaticProps.GetStats().drawn;
+}
+
+// ============================================================
+// TEMP-TEST: 滑りの自測（VFXL_BATTLE_AUTOTEST=slide）
+// 2 秒: 一番長い下り坂の上へ（高さ図を 1m 刻みで見て、連続して下る距離が一番長い所）。
+//       0.4 秒走ってから滑る（坂で速くなるはず）→ 2.4 秒で跳ぶ（水平の速さが残るはず）
+// 次: 平地（進む先 12m が同じ高さ）へ。0.4 秒走ってから滑る（押し出し → 摩擦で減って立つ）
+// 0.1 秒毎に 水平の速さ・足元の傾き・接地・滑り中か・高さ を autotest.log へ
+// ============================================================
+void CollisionTestScene::UpdateAutoTestSlide(float dt)
+{
+    static Vector3 s_Dir(0.0f, 0.0f, 1.0f);
+    static float s_Phase = 0.0f;
+    static float s_Log = 0.0f;
+    auto& pcs = m_PlayerControlSystem;
+    auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+    auto& rb = m_Registry.Get<RigidbodyComponent>(m_Player);
+    auto& st = m_Registry.Get<PlayerStateComponent>(m_Player);
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;   // 三択で止めない
+
+    const int W = m_Grid.Width(), D = m_Grid.Depth();
+    auto walkableAt = [&](const Vector3& p) { int gx, gz; m_Grid.WorldToCell(p, gx, gz); return m_Grid.IsWalkable(gx, gz); };
+    auto place = [&](const Vector3& p, const Vector3& dir)
+        {
+            tf.position = Vector3(p.x, m_Grid.SampleHeight(p.x, p.z) + 1.2f, p.z);
+            rb.velocity = Vector3::Zero;
+            st.slideActive = false;
+            s_Dir = dir;
+            m_Camera.Camera().SnapToTarget();
+            s_Phase = 0.0f;
+            s_Log = 0.0f;
+        };
+    char line[200];
+
+    // ---- 1) 坂を探して置く ----
+    if (m_AutoStep == 0 && m_AutoTime >= 2.0f)
+    {
+        float best = 0.0f;
+        int bestSteps = 0;
+        Vector3 start, dir(0, 0, 1);
+        for (int gz = 2; gz < D - 2; ++gz)
+            for (int gx = 2; gx < W - 2; ++gx)
+            {
+                if (!m_Grid.IsWalkable(gx, gz)) continue;
+                const Vector3 c = m_Grid.CellToWorld(gx, gz);
+                for (int k = 0; k < 8; ++k)
+                {
+                    const float a = k * DirectX::XM_PIDIV4;
+                    const Vector3 d(std::sin(a), 0.0f, std::cos(a));
+                    float prev = m_Grid.SampleHeight(c.x, c.z), drop = 0.0f;
+                    int steps = 0;
+                    for (int s = 1; s <= 16; ++s)
+                    {
+                        const Vector3 p = c + d * (float)s;
+                        if (!walkableAt(p)) break;
+                        const float h = m_Grid.SampleHeight(p.x, p.z);
+                        const float dh = prev - h;
+                        if (dh < 0.15f || dh > 0.9f) break;   // 1m で約 9〜42 度の下り
+                        drop += dh; prev = h; ++steps;
+                    }
+                    if (drop > best) { best = drop; bestSteps = steps; start = c; dir = d; }
+                }
+            }
+        place(start, dir);
+        snprintf(line, sizeof(line), "slide A: slope start %.1f,%.1f dir %.2f,%.2f drops %.2f m over %d m",
+            start.x, start.z, dir.x, dir.z, best, bestSteps);
+        AutoTestLog(line);
+        m_AutoStep = 1;
+    }
+    // ---- 3) 平地を探して置く ----
+    else if (m_AutoStep == 2)
+    {
+        Vector3 start, dir(0, 0, 1);
+        bool found = false;
+        for (int r = 3; r < W / 2 && !found; ++r)   // 中央から外へ
+            for (int gz = D / 2 - r; gz <= D / 2 + r && !found; ++gz)
+                for (int gx = W / 2 - r; gx <= W / 2 + r && !found; ++gx)
+                {
+                    if (gx < 2 || gz < 2 || gx >= W - 2 || gz >= D - 2 || !m_Grid.IsWalkable(gx, gz)) continue;
+                    const Vector3 c = m_Grid.CellToWorld(gx, gz);
+                    const float h0 = m_Grid.SampleHeight(c.x, c.z);
+                    for (int k = 0; k < 8 && !found; k += 2)
+                    {
+                        const float a = k * DirectX::XM_PIDIV4;
+                        const Vector3 d(std::sin(a), 0.0f, std::cos(a));
+                        bool ok = true;
+                        for (int s = 1; s <= 12 && ok; ++s)
+                        {
+                            const Vector3 p = c + d * (float)s;
+                            ok = walkableAt(p) && std::fabs(m_Grid.SampleHeight(p.x, p.z) - h0) < 0.02f;
+                        }
+                        if (ok) { found = true; start = c; dir = d; }
+                    }
+                }
+        place(start, dir);
+        snprintf(line, sizeof(line), "slide B: flat start %.1f,%.1f dir %.2f,%.2f found %d", start.x, start.z, dir.x, dir.z, found ? 1 : 0);
+        AutoTestLog(line);
+        m_AutoStep = 3;
+    }
+
+    if (m_AutoStep != 1 && m_AutoStep != 3)
+    {
+        pcs.testInput = false;
+        return;
+    }
+
+    // ---- 入力の代わり: 決めた向きへ走る / 滑る / 跳ぶ ----
+    s_Phase += dt;
+    const auto& cam = m_Camera.Camera();
+    Vector3 camF = cam.GetForward(); camF.y = 0; camF.Normalize();
+    Vector3 camR = cam.GetRight();   camR.y = 0; camR.Normalize();
+    pcs.testInput = true;
+    pcs.testMove = Vector2(s_Dir.Dot(camR), s_Dir.Dot(camF));
+    pcs.testJump = false;
+    if (m_AutoStep == 1)
+    {
+        pcs.testSlide = (s_Phase >= 0.4f && s_Phase < 2.4f);
+        if (s_Phase >= 2.4f && s_Phase - dt < 2.4f) pcs.testJump = true;
+    }
+    else
+        pcs.testSlide = (s_Phase >= 0.4f && s_Phase < 3.0f);
+
+    s_Log += dt;
+    if (s_Log >= 0.1f)
+    {
+        s_Log = 0.0f;
+        const float hs = std::sqrt(rb.velocity.x * rb.velocity.x + rb.velocity.z * rb.velocity.z);
+        const float slope = DirectX::XMConvertToDegrees(std::acos((std::min)(1.0f, rb.groundNormal.y)));
+        snprintf(line, sizeof(line), "slide t %.1f speed %.2f vy %.2f slope %.0f grounded %d sliding %d input %d y %.2f",
+            s_Phase, hs, rb.velocity.y, slope, rb.isGrounded ? 1 : 0, st.slideActive ? 1 : 0, pcs.testSlide ? 1 : 0, tf.position.y);
+        AutoTestLog(line);
+    }
+
+    const float end = (m_AutoStep == 1) ? 3.6f : 3.8f;
+    if (s_Phase >= end)
+    {
+        if (m_AutoStep == 1) m_AutoStep = 2;
+        else { AutoTestLog("slide done"); m_AutoStep = 4; }
     }
 }

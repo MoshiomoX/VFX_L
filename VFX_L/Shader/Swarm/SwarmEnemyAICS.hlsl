@@ -21,6 +21,8 @@ StructuredBuffer<uint> terrain : register(t1);
 StructuredBuffer<uint> cellCount : register(t2);   // spatial hash (SwarmEnemyBinCS)
 StructuredBuffer<uint> cellItems : register(t3);
 StructuredBuffer<float2> flowField : register(t4); // per-cell direction to the player (CPU FlowField)
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5); // kind + fuse (ContactCS lights it)
+StructuredBuffer<float> terrainHeight : register(t6);         // cliffs block like walls (SwarmSlopeOk)
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 
 // straight-line chase inside this many cells of the player: the flow
@@ -61,9 +63,12 @@ void main(uint3 id : SV_DispatchThreadID)
     if (enemyStates[i] == SWARM_DEAD)
         return;
 
-    // ---- hit stun: stand still ----
-    // velocity 0 so the exit ramps back up through the lag below
-    if (enemies[i].animIndex == 2u)
+    // ---- hit stun / lit bomber: stand still ----
+    // velocity 0 so the exit ramps back up through the lag below.
+    // A lit bomber stays put until it blows up, so the player can outrun the blast
+    SwarmEnemyExtra extra = enemyExtra[i];
+    bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
+    if (enemies[i].animIndex == 2u || lit)
     {
         enemies[i].velocity = float3(0, 0, 0);
         return;
@@ -86,7 +91,10 @@ void main(uint3 id : SV_DispatchThreadID)
         float direct = kDirectChaseCells * g_CellSize;
 
         float2 flow = FlowAt(pos.xz);
-        bool useFlow = (lenSq > direct * direct) && (dot(flow, flow) > 0.01);
+        // near but on another level (player on a plateau above / below):
+        // the straight line runs into the cliff, keep following the field to a ramp
+        bool sameLevel = abs(g_PlayerPos.y - pos.y) < 1.0;
+        bool useFlow = (lenSq > direct * direct || !sameLevel) && (dot(flow, flow) > 0.01);
         if (useFlow)
             moveDir = normalize(float3(flow.x, 0.0, flow.y));
         else if (lenSq > 1e-6)
@@ -160,15 +168,20 @@ void main(uint3 id : SV_DispatchThreadID)
 
     // ---- hard block, applied AFTER smoothing ----
     // the smoothed velocity may still carry an old component into a
-    // wall, so the check has to see the value that will be integrated
+    // wall, so the check has to see the value that will be integrated.
+    // A cliff (too steep, see SwarmSlopeOk) counts as a wall: the axis
+    // that would climb or drop it is dropped, so the enemy slides along
+    // the plateau side and the flow field leads it to a ramp
     if (SwarmIsWalkable(terrain, pos))
     {
         float ax = v.x * g_LookAhead;
         float az = v.z * g_LookAhead;
 
-        if (ax != 0.0 && !SwarmIsWalkable(terrain, pos + float3(ax, 0, 0)))
+        if (ax != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(ax, 0, 0))
+                          || !SwarmSlopeOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0))))
             v.x = 0.0;
-        if (az != 0.0 && !SwarmIsWalkable(terrain, pos + float3(0, 0, az)))
+        if (az != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(0, 0, az))
+                          || !SwarmSlopeOk(terrainHeight, pos.xz, pos.xz + float2(0, az))))
             v.z = 0.0;
     }
       // ---- player is solid ----

@@ -21,6 +21,9 @@ struct RigidbodyComponent
     bool  useGravity = true;    // 重力を受けるか
     bool  isStatic = false;   // 静的（地形など、動かない・押し出されない）
     bool  isGrounded = false;   // 接地しているか（PhysicsSystem が更新）
+    // 足元の面の法線（PhysicsSystem が更新）。床扱いの接触（法線 y > 0.5）のうち一番傾いた物。
+    // 接地していなければ真上。坂を滑り降りる加速（PlayerControlSystem の滑り）に使う
+    DirectX::SimpleMath::Vector3 groundNormal = { 0, 1, 0 };
 
     ResponseMode response = ResponseMode::Slide;
     float restitution = 0.3f;    // 反発係数（Bounce 用、0=無反発 1=完全反発）

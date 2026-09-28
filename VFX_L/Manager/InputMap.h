@@ -68,6 +68,15 @@ namespace InputMap
             input.GetPadTrigger(XINPUT_GAMEPAD_A);
     }
 
+    // 滑り（左 Ctrl、パッド X。押している間ずっと）。
+    // パッド X は手動施法（CastMode::Manual、調試用）の撃つ操作と重なるが、普段の自動施法では使っていない
+    inline bool GetSlideHeld()
+    {
+        auto& input = InputManager::Get();
+        return input.GetKeyPress(VK_LCONTROL) ||
+            input.GetPadPress(XINPUT_GAMEPAD_X);
+    }
+
     // 一時停止のメニュー開閉（P、パッド Back。トリガー）
     // ※Esc は Window.cpp でプログラム終了に使われているので割り当てない
     inline bool GetPauseToggle()

@@ -45,6 +45,11 @@ void main(uint3 id : SV_DispatchThreadID)
 
     SwarmProjectile p = projectiles[i];
 
+    // a falling meteor (DROP) does not hit anything on the way down.
+    // ProjMoveCS leaves its area where it lands
+    if (motions[p.motion & SWARM_MOTION_INDEX_MASK].mode == SWARM_MOTION_DROP)
+        return;
+
     float hitRadius = p.radius + g_EnemyRadius;
     float hitRadiusSq = hitRadius * hitRadius;
     uint dmgFixed = SwarmHpToFixed(p.damage);
@@ -82,8 +87,9 @@ void main(uint3 id : SV_DispatchThreadID)
             // (enemy, projectile) so killers in the same step do not
             // all fight over the same region. Pool full -> no orb.
             SwarmOrb orb;
+            // at the corpse's feet (plateaus: position.y - groundY = terrain height)
             orb.position = enemies[j].position;
-            orb.position.y = g_OrbY;
+            orb.position.y = enemies[j].position.y - g_GroundY + g_OrbY;
             orb.amount = g_OrbAmount;
             orb.velocity = float3(0, 0, 0);
             orb._pad = 0.0; // pull speed, 0 = not attracted yet

@@ -96,6 +96,14 @@ void Renderer::SetAmbientHemisphere(const Vector3& sky, const Vector3& ground)
     m_LightData.groundAmbientColor = ground;
 }
 
+void Renderer::SetFog(const Vector3& color, float start, float end, float maxAmount)
+{
+    m_LightData.fogColor = color;
+    m_LightData.fogStart = start;
+    m_LightData.fogEnd = end;
+    m_LightData.fogMax = maxAmount;
+}
+
 void Renderer::Begin()
 {}
 

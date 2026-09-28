@@ -99,8 +99,8 @@ void main(uint3 id : SV_DispatchThreadID)
         push *= maxPush * rsqrt(dot(push, push));
 
     float3 np = pos + push;
-    if (!SwarmIsWalkable(terrain, np))
-        return;   // would end up in a wall: stay put this step
+    if (!SwarmIsWalkable(terrain, np) || !SwarmSlopeOk(terrainHeight, pos.xz, np.xz))
+        return;   // would end up in a wall or over a cliff edge: stay put this step
 
     np.y = g_GroundY + SwarmTerrainHeight(terrainHeight, np.xz);
     enemies[i].position = np;

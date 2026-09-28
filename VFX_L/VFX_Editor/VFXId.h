@@ -23,6 +23,7 @@ enum class VFXId : uint32_t
     FireCircle,     // 火の輪（範囲・術者に追従）
     ArcBoltHit,     // アークボルトの命中（範囲 ArcSpark：威力 0 の見た目だけ。Sprite = electric-impact）
     HomingBoltHit,  // ホーミングボルトの命中（範囲 VoidPop：同上。Sprite = void-implosion）
+    ExpOrbTrail,    // 吸い寄せられている経験値オーブの尾（SwarmOrbEmitCS。道具は使わない）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };

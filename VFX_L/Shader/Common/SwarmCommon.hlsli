@@ -77,6 +77,22 @@ struct SwarmEnemy
 };
 
 // ============================================================
+// Enemy kind + per-kind state: 8 bytes, a side buffer with the same
+// index as the enemy pool (SwarmEnemy stays 48B).
+// Must match Swarm::EnemyExtra in SwarmTypes.h
+// A spawn REQUEST carries the kind in animIndex; SpawnEnemyCS /
+// RecycleCS move it here and reset animIndex to 0.
+// ============================================================
+static const uint SWARM_KIND_MOB = 0u;    // melee on contact
+static const uint SWARM_KIND_BOMBER = 1u; // contact lights a fuse, blows up g_BomberFuseTime later
+
+struct SwarmEnemyExtra
+{
+    uint kind;
+    float fuse; // seconds since the fuse was lit. 0 = not lit (lighting adds one step)
+};
+
+// ============================================================
 // Projectile: 48 bytes
 // ============================================================
 struct SwarmProjectile
@@ -108,10 +124,18 @@ struct SwarmProjectile
 //     c.x = fraction along muzzle -> target
 //     c.y = sideways offset / distance   (mirrored by sideSign)
 //     c.z = upward   offset / distance   (world up)
+//
+// DROP (meteor) uses c1 differently, in meters:
+//     c1.x = height of the start point above the impact point
+//     c1.y = horizontal offset of the start point, back toward the muzzle
+//            (so it falls at atan(c1.x / c1.y) from the horizontal)
+// The impact point is fixed at spawn (the enemy's position then) so the
+// warning ring on the ground (SwarmDropRingVS) is exactly where it lands.
 // ============================================================
 static const uint SWARM_MOTION_STRAIGHT = 0;
 static const uint SWARM_MOTION_CURVE_ONCE = 1;
 static const uint SWARM_MOTION_TRACK = 2;
+static const uint SWARM_MOTION_DROP = 3;
 
 static const uint SWARM_NO_TARGET = 0xFFFFFFFFu;
 static const uint SWARM_MOTION_INDEX_MASK = 0xFFFFu;
@@ -194,6 +218,20 @@ void SwarmBuildPath(inout SwarmProjPath path, SwarmMotion m,
                             + length(path.p2 - path.p1)
                             + length(path.p3 - path.p2));
     path.duration = max(len / max(path.speed, 0.01), SWARM_FIXED_STEP);
+}
+
+// DROP: a straight line from start to impact. The handles sit on the line
+// so that the distance covered is s(t) = 0.4 t + 0.6 t^2: it speeds up as
+// it falls (1.6x the nominal speed at impact, the nominal speed on average).
+// path.speed must be set by the caller.
+void SwarmBuildDropPath(inout SwarmProjPath path, float3 start, float3 impact)
+{
+    float3 d = impact - start;
+    path.p0 = start;
+    path.p1 = start + d * (0.4 / 3.0);
+    path.p2 = start + d * ((2.0 * 0.4 + 0.6) / 3.0);
+    path.p3 = impact;
+    path.duration = max(length(d) / max(path.speed, 0.01), SWARM_FIXED_STEP);
 }
 
 // ============================================================
@@ -385,6 +423,26 @@ cbuffer SwarmAICB : register(SWARM_AI_CB_REG)
 };
 
 // ============================================================
+// Bomber tuning. Opt-in: a shader that needs it #defines
+// SWARM_BOMBER_CB_REG (ContactCS b3, the enemy VS b5).
+// Must match Swarm::BomberCB in SwarmTypes.h
+// ============================================================
+#ifdef SWARM_BOMBER_CB_REG
+cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
+{
+    float g_BomberFuseTime; // lit -> explode, seconds
+    float g_BomberTriggerMargin; // lights inside (radius sum + this)
+    float g_BomberBlastRadius; // the player capsule inside this at the blast takes damage
+    float g_BomberBlastDamage;
+
+    uint g_BomberBlastArea; // area def spawned for the look (damage 0). 0 = none
+    float g_BomberSwell; // VS: grows to (1 + this) right before the blast
+    float g_BomberFlashGain; // VS: blink brightness
+    float _bomberPad;
+};
+#endif
+
+// ============================================================
 // Exp orb tuning. Default register b2. HitCS (spawns orbs) and
 // OrbMoveCS (moves / picks them up) both read it.
 // Must match Swarm::OrbCB in SwarmTypes.h
@@ -471,6 +529,23 @@ float SwarmTerrainHeight(StructuredBuffer<float> heights, float2 xz)
     float h00 = SwarmHeightCell(heights, ix, iz), h10 = SwarmHeightCell(heights, ix + 1, iz);
     float h01 = SwarmHeightCell(heights, ix, iz + 1), h11 = SwarmHeightCell(heights, ix + 1, iz + 1);
     return lerp(lerp(h00, h10, tx), lerp(h01, h11, tx), tz);
+}
+
+// ============================================================
+// Cliffs. Plateau cells are walkable (enemies roam on top) and carry
+// their height in the height field, so the grid alone would let an
+// enemy slide straight up a plateau side. A plateau side is a jump of
+// several meters inside one 0.5m height cell, a ramp is <= 30 degrees:
+// any move steeper than SWARM_MAX_WALK_SLOPE (rise / run) is refused.
+// Must match FlowField::maxStep (per 2m cell) and the generator's ramps
+// ============================================================
+static const float SWARM_MAX_WALK_SLOPE = 0.84; // tan(40 deg)
+
+bool SwarmSlopeOk(StructuredBuffer<float> heights, float2 from, float2 to)
+{
+    float run = length(to - from);
+    float rise = abs(SwarmTerrainHeight(heights, to) - SwarmTerrainHeight(heights, from));
+    return rise <= SWARM_MAX_WALK_SLOPE * run + 0.05; // + slack for the bilinear kinks
 }
 
 #endif

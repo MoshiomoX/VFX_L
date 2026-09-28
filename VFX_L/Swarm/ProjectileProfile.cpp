@@ -84,7 +84,7 @@ void ProjectileProfile::FromJson(const json& j)
 {
     name = j.value("name", name);
     const int m = j.value("mode", 0);
-    mode = (m >= 0 && m <= 2) ? static_cast<Swarm::MotionMode>(m) : Swarm::MotionMode::Straight;
+    mode = (m >= 0 && m <= 3) ? static_cast<Swarm::MotionMode>(m) : Swarm::MotionMode::Straight;
     c1 = J3(j.value("c1", json()), c1);
     c2 = J3(j.value("c2", json()), c2);
     const int mi = j.value("mirror", 0);
@@ -114,11 +114,26 @@ void ProjectileProfile::FromJson(const json& j)
 
 // ============================================================
 // SwarmCommon.hlsli の SwarmBuildPath と同じ式（keepHeading = false の側）。
+// Drop は SwarmSpawnProjCS + SwarmBuildDropPath と同じ（空の始点 → 標的の直線）。
 // 片方だけ直すと編集器の線と実際の弾道がずれるので、必ず揃えること
 // ============================================================
 void ProjectileProfile::BuildPreview(const Vector3& from, const Vector3& to,
     float sideSign, Vector3 out[4]) const
 {
+    if (mode == Swarm::MotionMode::Drop)
+    {
+        Vector3 back(from.x - to.x, 0.0f, from.z - to.z);
+        if (back.LengthSquared() > 1e-8f) back.Normalize();
+        else back = Vector3(0, 0, -1);
+        const Vector3 start = to + back * c1.y + Vector3(0.0f, (std::max)(c1.x, 1.0f), 0.0f);
+        const Vector3 d = to - start;
+        out[0] = start;
+        out[1] = start + d * (0.4f / 3.0f);
+        out[2] = start + d * ((2.0f * 0.4f + 0.6f) / 3.0f);
+        out[3] = to;
+        return;
+    }
+
     const Vector3 chord = to - from;
     const float dist = chord.Length();
     const Vector3 fwd = (dist > 1e-4f) ? chord / dist : Vector3(0, 0, 1);

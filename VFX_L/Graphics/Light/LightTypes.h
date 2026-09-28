@@ -21,10 +21,21 @@ struct LightBuffer
     float   padding2 = 0.0f;                    // 16バイト境界
 
     // 環境光の半球の下 = 地面の色（下向きの面ほどこちら）。
-    // Renderer::SetAmbientColor は両方に同じ色を入れる（= 従来の一様な環境光）。
-    // HLSL の LightBuffer（Shader/Common/Lighting.hlsli）はここまで。以下は C++ だけ
+    // Renderer::SetAmbientColor は両方に同じ色を入れる（= 従来の一様な環境光）
     Vector3 groundAmbientColor = { 0.1f, 0.1f, 0.1f };
     float   padding5 = 0.0f;                    // 16バイト境界
+
+    // 距離の霧（Lighting.hlsli の ApplyFog。陰影の後で fogColor へ寄せる）。
+    // fogMax = 0 で無し（既定。戦闘場面だけ SceneLighting が入れ、終わる時に切る）。
+    // HLSL の LightBuffer（Shader/Common/Lighting.hlsli）はここまで。以下は C++ だけ
+    Vector3 fogColor = { 0.0f, 0.0f, 0.0f };    // 線形 HDR（空の地平線の色に合わせる）
+    float   fogStart = 0.0f;                    // カメラからの距離 m。ここから濃くなり始める
+    float   fogEnd = 1.0f;                      // ここで fogMax
+    float   fogMax = 0.0f;                      // 0..1
+    // 1 = 模型の色貼図を sRGB として線形へ戻してから陰影を付ける（PS / PBR_PS の DecodeAlbedo）。
+    //     貼図は UNORM で読んでいるので、0 のままだと最後のガンマで色が白っぽく浮く
+    float   albedoSrgb = 0.0f;
+    float   fogPad = 0.0f;                      // 16バイト境界
 
     // ★ここから追加：各テクスチャの有無（1=あり, 0=なし）
     float   hasAlbedo = 0.0f;

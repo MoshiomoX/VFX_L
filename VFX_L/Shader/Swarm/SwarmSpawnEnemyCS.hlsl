@@ -18,6 +18,8 @@ RWBuffer<uint> enemyStates : register(u1);
 // spawn hp per slot (fixed point, same as SwarmEnemy.hp). The HP bar
 // (SwarmEnemyHpBarVS) divides by it. A side buffer so SwarmEnemy stays 48B
 RWStructuredBuffer<uint> enemyMaxHp : register(u2);
+// kind + fuse per slot. The request carries the kind in animIndex
+RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 
 cbuffer SwarmSpawnCB : register(b1)
 {
@@ -33,6 +35,10 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmEnemy req = spawnRequests[id.x];
+    SwarmEnemyExtra extra;
+    extra.kind = req.animIndex;
+    extra.fuse = 0.0;
+    req.animIndex = 0u;
 
     // spread starting points so threads claim different regions
     uint start = (g_ScanStart + id.x * 97u) % g_MaxEnemies;
@@ -50,6 +56,7 @@ void main(uint3 id : SV_DispatchThreadID)
             // won the slot. state is already ALIVE from the exchange
             enemies[slot] = req;
             enemyMaxHp[slot] = req.hp;
+            enemyExtra[slot] = extra;
             return;
         }
     }

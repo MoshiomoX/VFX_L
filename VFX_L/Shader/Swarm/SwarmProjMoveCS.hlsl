@@ -15,6 +15,9 @@
 //                the enemy nearest to ITSELF and builds a new curve
 //                from where it is, leaving along its current heading.
 //
+//   DROP       : falls along the straight path built at spawn onto the
+//                impact point fixed then (meteor). See the branch below.
+//
 // velocity always holds the real velocity of this step (curve or not):
 // EmitCS sweeps particles back along it and the trail reads it.
 // ============================================================
@@ -57,6 +60,35 @@ void main(uint3 id : SV_DispatchThreadID)
         if (areaOnExpire)
             SwarmSpawnAreaFromDef(m.hitArea, p.position, i);
         projStates[i] = SWARM_DEAD;
+        return;
+    }
+
+    // ---- DROP: fall onto the impact point fixed at spawn ----
+    // No enemy collision on the way (HitCS skips DROP) and no terrain test:
+    // the walkability test is 2D, so flying over a tree or a plateau would
+    // count as hitting a wall. It always lands on p3 and leaves its area there.
+    if (m.mode == SWARM_MOTION_DROP)
+    {
+        SwarmProjPath drop = paths[i];
+        p.pathT += g_Step / drop.duration;
+        float3 dropPos = SwarmBezier(drop, min(p.pathT, 1.0));
+        p.velocity = (dropPos - p.position) / g_Step;
+        p.position = dropPos;
+
+        if (p.pathT >= 1.0)
+        {
+            if (m.hitArea != 0u)
+                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i);
+            projStates[i] = SWARM_DEAD;
+            return;
+        }
+
+        projectiles[i].position = p.position;
+        projectiles[i].velocity = p.velocity;
+        projectiles[i].lifetime = p.lifetime;
+        projectiles[i].pathT = p.pathT;
+        uint dropCount;
+        counters.InterlockedAdd(SWARM_CNT_ALIVE_PROJ, 1u, dropCount);
         return;
     }
 

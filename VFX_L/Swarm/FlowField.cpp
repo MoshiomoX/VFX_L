@@ -44,6 +44,13 @@ void FlowField::Build(int targetX, int targetZ)
     const uint8_t* walk = m_Walkable.data();
     const float* hgt = m_Height.data();
     auto walkable = [&](int x, int z) { return x >= 0 && x < W && z >= 0 && z < D && walk[z * W + x] != 0; };
+    // 隣り合う 2 マスを行き来できるか（両方歩けて、段差が崖ほどでない）
+    const float stepMax = maxStep, stepMaxDiag = maxStep * 1.41421356f;
+    auto passable = [&](int ax, int az, int bx, int bz, bool diag)
+        {
+            if (!walkable(bx, bz)) return false;
+            return std::fabs(hgt[bz * W + bx] - hgt[az * W + ax]) <= (diag ? stepMaxDiag : stepMax);
+        };
 
     targetX = std::clamp(targetX, 0, W - 1);
     targetZ = std::clamp(targetZ, 0, D - 1);
@@ -98,9 +105,10 @@ void FlowField::Build(int targetX, int targetZ)
             for (int k = 0; k < 8; ++k)
             {
                 const int nx = cx + dxs[k], nz = cz + dzs[k];
-                if (!walkable(nx, nz)) continue;
-                // 斜めは両隣が通れる時だけ（角を掠めて壁に食い込まない）
-                if (k >= 4 && (!walkable(cx + dxs[k], cz) || !walkable(cx, cz + dzs[k]))) continue;
+                if (!passable(cx, cz, nx, nz, k >= 4)) continue;
+                // 斜めは両隣へも行ける時だけ（角を掠めて壁・崖に食い込まない）
+                if (k >= 4 && (!passable(cx, cz, cx + dxs[k], cz, false)
+                            || !passable(cx, cz, cx, cz + dzs[k], false))) continue;
 
                 const int nc = nz * W + nx;
                 const int dh = (int)std::lround(std::fabs(hgt[nc] - hgt[c]) * (float)slopeUnit);

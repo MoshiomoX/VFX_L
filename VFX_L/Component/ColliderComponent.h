@@ -26,6 +26,7 @@ enum CollisionLayer : uint32_t
     Layer_PlayerShot = 1 << 2,   // プレイヤーの投射物
     Layer_EnemyShot = 1 << 3,   // 敵の投射物
     Layer_Terrain = 1 << 4,
+    Layer_Prop = 1 << 5,   // 木・岩など地形の上の置物（ぶつかるが、カメラの遮蔽判定は見ない）
     Layer_All = 0xFFFFFFFF,
 };
 

@@ -10,6 +10,10 @@
 #include "Component/RigidbodyComponent.h"
 #include "Debug/TestSpawner.h"
 #include "Graphics/PrimitiveBuilder.h"
+#include "Graphics/Model/Model.h"
+#include "Manager/ResourceManager.h"
+#include "ResourcePaths.h"
+#include <algorithm>
 #include <random>
 #include <cmath>
 #include <iostream>
@@ -19,75 +23,95 @@ using DirectX::SimpleMath::Vector4;
 
 namespace
 {
-    // 格子对齐の静的 Box を1つ置き、grid に登記する
-    Entity SpawnGridBox(Registry& reg, ID3D11Device* device, GridWorld& grid,
-        int gx, int gz, int w, int d, float height, const Vector4& color)
+    constexpr float kCs = GridWorld::kCellSize;
+
+    // ---- 色（明るい草地）----
+    // 頂点色は線形の反照率（CompositePS が最後に 1/2.2 のガンマを掛ける）。
+    // 画面で見せたい sRGB の色を 2.2 乗した値で持つ（括弧内が sRGB）
+    const Vector4 kGrassDark = { 0.071f, 0.237f, 0.029f, 1 };   // (0.30, 0.52, 0.20)
+    const Vector4 kGrassLight = { 0.172f, 0.428f, 0.052f, 1 };  // (0.45, 0.68, 0.26)
+    const Vector4 kGrassDry = { 0.401f, 0.401f, 0.093f, 1 };    // (0.66, 0.66, 0.34) 所々の乾いた草
+    const Vector4 kPlateauTop = { 0.133f, 0.374f, 0.047f, 1 };  // (0.40, 0.64, 0.25)
+    const Vector4 kCliff = { 0.268f, 0.172f, 0.099f, 1 };       // (0.55, 0.45, 0.35) 台地の側面（土と岩）
+    const Vector4 kCliffHigh = { 0.325f, 0.290f, 0.247f, 1 };   // (0.60, 0.57, 0.53) 2 段目は灰色がかった岩
+    const Vector4 kRampTop = { 0.486f, 0.325f, 0.148f, 1 };     // (0.72, 0.60, 0.42) 坂道は土の道（登り口が一目で分かる）
+    const Vector4 kWallRock = { 0.172f, 0.148f, 0.133f, 1 };    // (0.45, 0.42, 0.40)
+
+    // 坂道が台地のどちら側に付くか（= 降りていく向き）
+    enum class Side { PosX, NegX, PosZ, NegZ };
+
+    struct Rect { int x, z, w, d; };   // 格子のマス（左下と大きさ）
+
+    // 色を少しばらす（台地ごとに同じ緑にならないように）
+    Vector4 Jitter(const Vector4& c, std::mt19937& rng, float amount)
     {
-        const float cs = GridWorld::kCellSize;
-        Vector3 half = { w * cs * 0.5f, height * 0.5f, d * cs * 0.5f };
-        Vector3 pos = { grid.OriginX() + gx * cs + half.x,
-                        half.y,
-                        grid.OriginZ() + gz * cs + half.z };
-        Entity e = TestSpawner::SpawnStaticBox(reg, pos, half);
-
-        ModelComponent mc;
-        mc.model = PrimitiveBuilder::CreateBox(device, half, color);
-        reg.Add<ModelComponent>(e, mc);
-
-        grid.BlockArea(gx, gz, w, d);
-        return e;
+        std::uniform_real_distribution<float> j(-amount, amount);
+        const float k = j(rng);
+        return { std::clamp(c.x + k, 0.0f, 1.0f), std::clamp(c.y + k, 0.0f, 1.0f),
+                 std::clamp(c.z + k * 0.5f, 0.0f, 1.0f), 1.0f };
     }
-}
 
-namespace TerrainGenerator
-{
-    // 格子対齐の台形柱（斜面つき障害物）。
-    // 底面は w×d マス、上面を alongX の軸方向の両側から inset だけ狭める
-    // （断面が台形。inset = h / tan(slope) なので登れる角度は slopeDeg で決まる）。
-    // 衝突は Convex（6 平面）、格子には箱と同じ足跡で登記する（雑魚は壁扱い）
-    Entity SpawnTrapezoid(Registry& reg, ID3D11Device* device, GridWorld& grid,
-        int gx, int gz, int w, int d, float height, float slopeDeg, bool alongX,
-        const Vector4& color)
+    Vector4 LerpColor(const Vector4& a, const Vector4& b, float t) { return a + (b - a) * t; }
+
+    // ---- 値ノイズ（地面の色むら）。0..1 ----
+    float Hash01(int x, int z, uint32_t seed)
     {
-        using CollisionMath::Convex;
-        const float cs = GridWorld::kCellSize;
-        const Vector3 half = { w * cs * 0.5f, height * 0.5f, d * cs * 0.5f };
-        const Vector3 pos = { grid.OriginX() + gx * cs + half.x,
-                              half.y,
-                              grid.OriginZ() + gz * cs + half.z };
+        uint32_t h = (uint32_t)x * 374761393u + (uint32_t)z * 668265263u + seed * 2246822519u;
+        h = (h ^ (h >> 13)) * 1274126177u;
+        return (float)((h ^ (h >> 16)) & 0xFFFFFFu) / (float)0xFFFFFFu;
+    }
+    float ValueNoise(float x, float z, uint32_t seed)
+    {
+        const int ix = (int)std::floor(x), iz = (int)std::floor(z);
+        float tx = x - ix, tz = z - iz;
+        tx = tx * tx * (3.0f - 2.0f * tx);
+        tz = tz * tz * (3.0f - 2.0f * tz);
+        const float a = Hash01(ix, iz, seed), b = Hash01(ix + 1, iz, seed);
+        const float c = Hash01(ix, iz + 1, seed), d = Hash01(ix + 1, iz + 1, seed);
+        const float ab = a + (b - a) * tx, cd = c + (d - c) * tx;
+        return ab + (cd - ab) * tz;
+    }
 
-        // 上面をどれだけ狭めるか。上面が消えない（最低 0.5m 残す）ように高さを削る
-        const float tanS = std::tan(DirectX::XMConvertToRadians(slopeDeg));
-        const float bottomW = alongX ? half.x * 2.0f : half.z * 2.0f;
-        float h = height;
-        float inset = h / tanS;
-        if (bottomW - 2.0f * inset < 0.5f)
+    // 格子の矩形の下隅（世界、y = 0）
+    Vector3 RectMin(const GridWorld& g, const Rect& r)
+    {
+        return { g.OriginX() + r.x * kCs, 0.0f, g.OriginZ() + r.z * kCs };
+    }
+
+    // 軸平行の箱の 8 頂点。順は ConvexFromHexahedron / CreateHexahedron と同じ:
+    // 下 0-3 = (-x-z, +x-z, +x+z, -x+z)、上 4-7 がそれぞれの真上
+    void BoxVerts(Vector3 v[8], const Vector3& lo, const Vector3& hi)
+    {
+        v[0] = { lo.x, lo.y, lo.z }; v[1] = { hi.x, lo.y, lo.z };
+        v[2] = { hi.x, lo.y, hi.z }; v[3] = { lo.x, lo.y, hi.z };
+        v[4] = { lo.x, hi.y, lo.z }; v[5] = { hi.x, hi.y, lo.z };
+        v[6] = { hi.x, hi.y, hi.z }; v[7] = { lo.x, hi.y, hi.z };
+    }
+
+    // 静的な凸体（世界座標の 8 頂点）。衝突は Convex、見た目は上面と側面の 2 色
+    Entity SpawnHull(Registry& reg, ID3D11Device* device, const Vector3 world[8],
+        const Vector4& top, const Vector4& side)
+    {
+        Vector3 lo = world[0], hi = world[0];
+        for (int i = 1; i < 8; ++i)
         {
-            inset = (bottomW - 0.5f) * 0.5f;
-            h = inset * tanS;
+            lo = Vector3::Min(lo, world[i]);
+            hi = Vector3::Max(hi, world[i]);
         }
-        const float hy = h * 0.5f;
-        const float ix = alongX ? inset : 0.0f;
-        const float iz = alongX ? 0.0f : inset;
-
-        // ローカル頂点（中心原点。下面 0-3、上面 4-7）
-        Vector3 v[8] = {
-            { -half.x, -hy, -half.z }, { +half.x, -hy, -half.z },
-            { +half.x, -hy, +half.z }, { -half.x, -hy, +half.z },
-            { -half.x + ix, +hy, -half.z + iz }, { +half.x - ix, +hy, -half.z + iz },
-            { +half.x - ix, +hy, +half.z - iz }, { -half.x + ix, +hy, +half.z - iz },
-        };
+        const Vector3 center = (lo + hi) * 0.5f;
+        Vector3 v[8];
+        for (int i = 0; i < 8; ++i) v[i] = world[i] - center;
 
         Entity e = reg.Create();
 
         TransformComponent tf;
-        tf.position = { pos.x, hy, pos.z };
+        tf.position = center;
         reg.Add<TransformComponent>(e, tf);
 
         ColliderComponent col;
         col.shape = ColliderShape::Convex;
         col.hull = CollisionMath::ConvexFromHexahedron(v);
-        col.halfExtents = { half.x, hy, half.z };   // 広相位用の包囲箱
+        col.halfExtents = (hi - lo) * 0.5f;   // 広相位用の包囲箱
         col.layer = Layer_Terrain;
         col.mask = Layer_All;
         reg.Add<ColliderComponent>(e, col);
@@ -98,145 +122,500 @@ namespace TerrainGenerator
         reg.Add<RigidbodyComponent>(e, rb);
 
         ModelComponent mc;
-        mc.model = PrimitiveBuilder::CreateHexahedron(device, v, color);
+        mc.model = PrimitiveBuilder::CreateHexahedron(device, v, top, side);
         reg.Add<ModelComponent>(e, mc);
-
-        // 格子は塞がない（雑魚が登る）。代わりに足跡の高さ場へ上面の高さを書く。
-        // 高さ = 凸体の「上を向いた平面」のうち一番低い物（下から見て初めて当たる面）。
-        // 足跡の外側（斜面が地面に落ちた先）は 0 のまま
-        {
-            const int sub = GridWorld::kHeightSub;
-            const auto& hull = col.hull;
-            for (int hz = gz * sub; hz < (gz + d) * sub; ++hz)
-                for (int hx = gx * sub; hx < (gx + w) * sub; ++hx)
-                {
-                    const Vector3 p = grid.HeightCellToWorld(hx, hz);
-                    const float lx = p.x - tf.position.x;   // ローカル xz
-                    const float lz = p.z - tf.position.z;
-                    float top = 1e9f;
-                    for (int i = 0; i < hull.count; ++i)
-                    {
-                        const auto& pl = hull.planes[i];
-                        if (pl.n.y <= 0.1f) continue;   // 上向きの面だけ
-                        top = (std::min)(top, (pl.d - pl.n.x * lx - pl.n.z * lz) / pl.n.y);
-                    }
-                    if (top < 1e8f)
-                        grid.SetHeight(hx, hz, (std::max)(0.0f, top + tf.position.y));   // ローカル → ワールド
-                }
-        }
         return e;
     }
 
+    // 静的な箱（衝突は AABB）。見た目は上面と側面の 2 色
+    Entity SpawnBlock(Registry& reg, ID3D11Device* device, const Vector3& lo, const Vector3& hi,
+        const Vector4& top, const Vector4& side)
+    {
+        const Vector3 center = (lo + hi) * 0.5f;
+        const Vector3 half = (hi - lo) * 0.5f;
+        Entity e = TestSpawner::SpawnStaticBox(reg, center, half);
+
+        Vector3 v[8];
+        BoxVerts(v, -half, half);
+        ModelComponent mc;
+        mc.model = PrimitiveBuilder::CreateHexahedron(device, v, top, side);
+        reg.Add<ModelComponent>(e, mc);
+        return e;
+    }
+
+    // 足跡の高さ場を h まで上げる（台地の上面）
+    void RaiseRect(GridWorld& g, const Rect& r, float h)
+    {
+        const int sub = GridWorld::kHeightSub;
+        for (int hz = r.z * sub; hz < (r.z + r.d) * sub; ++hz)
+            for (int hx = r.x * sub; hx < (r.x + r.w) * sub; ++hx)
+                g.SetHeight(hx, hz, (std::max)(g.HeightAt(hx, hz), h));
+    }
+
+    // 凸体の上面を足跡の高さ場へ（坂道・丘）。
+    // 高さ = 上を向いた平面のうち一番低い物（下から見て初めて当たる面）
+    void WriteHullHeights(GridWorld& g, const Rect& r, const CollisionMath::Convex& hull,
+        const Vector3& center)
+    {
+        const int sub = GridWorld::kHeightSub;
+        for (int hz = r.z * sub; hz < (r.z + r.d) * sub; ++hz)
+            for (int hx = r.x * sub; hx < (r.x + r.w) * sub; ++hx)
+            {
+                const Vector3 p = g.HeightCellToWorld(hx, hz);
+                const float lx = p.x - center.x;
+                const float lz = p.z - center.z;
+                float top = 1e9f;
+                for (int i = 0; i < hull.count; ++i)
+                {
+                    const auto& pl = hull.planes[i];
+                    if (pl.n.y <= 0.1f) continue;   // 上向きの面だけ
+                    top = (std::min)(top, (pl.d - pl.n.x * lx - pl.n.z * lz) / pl.n.y);
+                }
+                if (top < 1e8f)
+                    g.SetHeight(hx, hz, (std::max)(g.HeightAt(hx, hz), top + center.y));
+            }
+    }
+
+    // ---- 坂道の足跡 ----
+    // 台地 p の side 側の外に、辺に沿って offset マス目から幅 rw、長さ len
+    Rect RampRect(const Rect& p, Side s, int offset, int rw, int len)
+    {
+        switch (s)
+        {
+        case Side::PosX: return { p.x + p.w, p.z + offset, len, rw };
+        case Side::NegX: return { p.x - len, p.z + offset, len, rw };
+        case Side::PosZ: return { p.x + offset, p.z + p.d, rw, len };
+        default:         return { p.x + offset, p.z - len, rw, len };
+        }
+    }
+    // 坂道を降りた先の 1 マス幅の帯。塞がれていると登り口にならない
+    Rect LandingRect(const Rect& ramp, Side s)
+    {
+        switch (s)
+        {
+        case Side::PosX: return { ramp.x + ramp.w, ramp.z, 1, ramp.d };
+        case Side::NegX: return { ramp.x - 1, ramp.z, 1, ramp.d };
+        case Side::PosZ: return { ramp.x, ramp.z + ramp.d, ramp.w, 1 };
+        default:         return { ramp.x, ramp.z - 1, ramp.w, 1 };
+        }
+    }
+    int SideLength(const Rect& p, Side s)
+    {
+        return (s == Side::PosX || s == Side::NegX) ? p.d : p.w;
+    }
+
+    // 坂道の楔。高い端（top）が台地の側面に接し、外へ向かって base まで下る
+    Entity SpawnRamp(Registry& reg, ID3D11Device* device, GridWorld& g, const Rect& r, Side s,
+        float base, float top)
+    {
+        const Vector3 lo = RectMin(g, r);
+        const Vector3 hi = lo + Vector3(r.w * kCs, 0.0f, r.d * kCs);
+        const float low = base + 0.02f;   // 低い端にも厚みを残す（面が潰れて平面が作れなくならない）
+
+        Vector3 v[8];
+        BoxVerts(v, { lo.x, base, lo.z }, { hi.x, top, hi.z });
+        // 上面 4-7 のうち台地から遠い側を下げる（-x = 4,7 / +x = 5,6 / -z = 4,5 / +z = 6,7）
+        switch (s)
+        {
+        case Side::PosX: v[5].y = v[6].y = low; break;
+        case Side::NegX: v[4].y = v[7].y = low; break;
+        case Side::PosZ: v[6].y = v[7].y = low; break;
+        case Side::NegZ: v[4].y = v[5].y = low; break;
+        }
+
+        Entity e = SpawnHull(reg, device, v, kRampTop, kCliff);
+        WriteHullHeights(g, r, reg.Get<ColliderComponent>(e).hull, reg.Get<TransformComponent>(e).position);
+        return e;
+    }
+
+    // 丘：四方が slopeDeg の坂の台形（上面が 1m 以上残るように低くなることがある）
+    Entity SpawnMound(Registry& reg, ID3D11Device* device, GridWorld& g, const Rect& r,
+        float h, float slopeDeg, const Vector4& color)
+    {
+        const Vector3 lo = RectMin(g, r);
+        const Vector3 hi = lo + Vector3(r.w * kCs, 0.0f, r.d * kCs);
+        const float tanS = std::tan(DirectX::XMConvertToRadians(slopeDeg));
+        float inset = h / tanS;
+        const float maxInset = (std::min)(r.w, r.d) * kCs * 0.5f - 0.5f;
+        if (inset > maxInset)
+        {
+            inset = maxInset;
+            h = inset * tanS;
+        }
+
+        Vector3 v[8];
+        BoxVerts(v, { lo.x, 0.0f, lo.z }, { hi.x, h, hi.z });
+        v[4].x += inset; v[4].z += inset;
+        v[5].x -= inset; v[5].z += inset;
+        v[6].x -= inset; v[6].z -= inset;
+        v[7].x += inset; v[7].z -= inset;
+
+        // 斜面も上向き（法線 y > 0.5）なので全部草の色になる
+        Entity e = SpawnHull(reg, device, v, color, kCliff);
+        WriteHullHeights(g, r, reg.Get<ColliderComponent>(e).hull, reg.Get<TransformComponent>(e).position);
+        return e;
+    }
+}
+
+namespace TerrainGenerator
+{
     void Generate(Registry& reg, ID3D11Device* device, GridWorld& grid,
         const Config& cfg, std::vector<Entity>& outTerrain)
     {
-        const float cs = GridWorld::kCellSize;
+        const int gw = grid.Width();
+        const int gd = grid.Depth();
         const float W = grid.WorldWidth();
         const float D = grid.WorldDepth();
 
-        // ---------- 床 ----------
-        // 床は格子に登記しない（上を歩くものなので通行を塞がない）。
-        // 上面が y=0 に来るように半分沈める
+        // seed 固定の mt19937。rand() を使わないのは再現性のため
+        std::mt19937 rng(cfg.seed);
+        auto randi = [&](int a, int b) { return (b <= a) ? a : std::uniform_int_distribution<int>(a, b)(rng); };
+        auto randf = [&](float a, float b) { return std::uniform_real_distribution<float>(a, (std::max)(a, b))(rng); };
+
+        // ---------- 床（草地）----------
+        // 衝突は上面が y=0 の箱、見た目は 2m 間隔の格子に値ノイズで緑のむらと乾いた草を塗った面。
+        // 床は格子に登記しない（上を歩くものなので通行を塞がない）
         {
-            Entity e = TestSpawner::SpawnStaticBox(reg,
-                { 0.0f, -0.5f, 0.0f },
-                { W * 0.5f, 0.5f, D * 0.5f });
+            Entity e = TestSpawner::SpawnStaticBox(reg, { 0.0f, -0.5f, 0.0f }, { W * 0.5f, 0.5f, D * 0.5f });
+            const uint32_t s = cfg.seed;
             ModelComponent mc;
-            mc.model = PrimitiveBuilder::CreateBox(device,
-                { W * 0.5f, 0.5f, D * 0.5f }, { 0.45f, 0.45f, 0.50f, 1 });
+            mc.model = PrimitiveBuilder::CreateColoredGrid(device, W, D, gw, gd, 0.5f,
+                [s](float x, float z)
+                {
+                    const float big = ValueNoise(x / 22.0f, z / 22.0f, s);
+                    const float fine = ValueNoise(x / 6.0f, z / 6.0f, s + 7u);
+                    const Vector4 c = LerpColor(kGrassDark, kGrassLight,
+                        std::clamp(big * 0.8f + fine * 0.4f - 0.1f, 0.0f, 1.0f));
+                    const float dry = std::clamp((ValueNoise(x / 35.0f, z / 35.0f, s + 13u) - 0.62f) * 4.0f, 0.0f, 0.6f);
+                    return LerpColor(c, kGrassDry, dry);
+                });
             reg.Add<ModelComponent>(e, mc);
             outTerrain.push_back(e);
         }
 
-        // ---------- 外周の壁 ----------
-        // 1マス幅で四辺を囲む。場外へ出る・落ちるをここで殺す。
-        // 壁も格子に登記される（A* が外周を通れない図になる）
-        const int gw = grid.Width();
-        const int gd = grid.Depth();
-        const float wallH = 3.0f;
-        const Vector4 wallCol = { 0.35f, 0.35f, 0.40f, 1 };
-
-        outTerrain.push_back(SpawnGridBox(reg, device, grid, 0, 0, gw, 1, wallH, wallCol));          // 手前
-        outTerrain.push_back(SpawnGridBox(reg, device, grid, 0, gd - 1, gw, 1, wallH, wallCol));     // 奥
-        outTerrain.push_back(SpawnGridBox(reg, device, grid, 0, 1, 1, gd - 2, wallH, wallCol));      // 左
-        outTerrain.push_back(SpawnGridBox(reg, device, grid, gw - 1, 1, 1, gd - 2, wallH, wallCol)); // 右
-
-        // ---------- ランダム障害物 ----------
-        // seed 固定の mt19937。rand() を使わないのは再現性のため
-        std::mt19937 rng(cfg.seed);
-        std::uniform_int_distribution<int> distSize(cfg.minSize, cfg.maxSize);
-        std::uniform_real_distribution<float> distH(cfg.minHeight, cfg.maxHeight);
-        std::uniform_real_distribution<float> distTrap(0.0f, 1.0f);
-
-        // 玩家初期地点（場地中央）の周りは空ける
-        const int cx = gw / 2;
-        const int cz = gd / 2;
-
-        // 配置済みの足跡。台形柱は格子を塞がない（walkable のまま）ので、
-        // 重ね置きの判定は walkable とは別にここで持つ
-        std::vector<uint8_t> occupied((size_t)gw * gd, 0);
-        auto areaFree = [&](int x0, int z0, int w0, int d0)
+        // ---------- 外周の崖 ----------
+        // 1 マス幅で四辺を囲む。場外へ出る・落ちるをここで殺す（格子も塞ぐ）
+        auto wall = [&](int x, int z, int w, int d)
             {
-                for (int z = z0; z < z0 + d0; ++z)
-                    for (int x = x0; x < x0 + w0; ++x)
-                        if (occupied[(size_t)z * gw + x]) return false;
+                const Vector3 lo = RectMin(grid, { x, z, w, d });
+                const Vector3 hi = lo + Vector3(w * kCs, cfg.wallHeight, d * kCs);
+                outTerrain.push_back(SpawnBlock(reg, device, lo, hi, kPlateauTop, kWallRock));
+                grid.BlockArea(x, z, w, d);
+            };
+        wall(0, 0, gw, 1);
+        wall(0, gd - 1, gw, 1);
+        wall(0, 1, 1, gd - 2);
+        wall(gw - 1, 1, 1, gd - 2);
+
+        // ---------- 占有図 ----------
+        // 0 空き地 / 1 台地 / 2 坂道 / 3 丘 / 4 初期地点 / 5 坂道の降り口（空き地のまま残す）
+        enum : uint8_t { kFree = 0, kPlateau = 1, kRamp = 2, kMound = 3, kSpawn = 4, kLanding = 5 };
+        std::vector<uint8_t> occ((size_t)gw * gd, kFree);
+        auto at = [&](int x, int z) -> uint8_t& { return occ[(size_t)z * gw + x]; };
+        auto inside = [&](const Rect& r)   // 外周の崖と、その内側 1 マスは使わない
+            { return r.x >= 2 && r.z >= 2 && r.x + r.w <= gw - 2 && r.z + r.d <= gd - 2; };
+        auto isFree = [&](const Rect& r, int margin)
+            {
+                for (int z = r.z - margin; z < r.z + r.d + margin; ++z)
+                    for (int x = r.x - margin; x < r.x + r.w + margin; ++x)
+                        if (x >= 0 && z >= 0 && x < gw && z < gd && at(x, z) != kFree) return false;
                 return true;
             };
-        auto markArea = [&](int x0, int z0, int w0, int d0)
+        auto isGround = [&](const Rect& r)   // 降り口：地面のまま（空き地・初期地点・他の降り口）
             {
-                for (int z = z0; z < z0 + d0; ++z)
-                    for (int x = x0; x < x0 + w0; ++x)
-                        occupied[(size_t)z * gw + x] = 1;
+                for (int z = r.z; z < r.z + r.d; ++z)
+                    for (int x = r.x; x < r.x + r.w; ++x)
+                    {
+                        const uint8_t o = at(x, z);
+                        if (o != kFree && o != kSpawn && o != kLanding) return false;
+                    }
+                return true;
+            };
+        auto mark = [&](const Rect& r, uint8_t v)
+            {
+                for (int z = (std::max)(r.z, 0); z < (std::min)(r.z + r.d, gd); ++z)
+                    for (int x = (std::max)(r.x, 0); x < (std::min)(r.x + r.w, gw); ++x)
+                        at(x, z) = v;
             };
 
-        int placed = 0;
-        int attempts = 0;
-        const int maxAttempts = cfg.obstacleCount * 10;
+        // 玩家の初期地点（場地中央）の周りは平らに空ける
+        const int cr = cfg.spawnClearRadius;
+        mark({ gw / 2 - cr, gd / 2 - cr, cr * 2, cr * 2 }, kSpawn);
 
-        while (placed < cfg.obstacleCount && attempts < maxAttempts)
+        const float tanRamp = std::tan(DirectX::XMConvertToRadians(cfg.rampSlopeDeg));
+        auto rampLen = [&](float rise) { return (std::max)(1, (int)std::ceil(rise / (kCs * tanRamp))); };
+
+        // ---------- 1 段目の台地（場所だけ先に決める）----------
+        struct Plateau { Rect r; float top; bool reachable; };
+        std::vector<Plateau> plateaus;
+        for (int attempt = 0; attempt < cfg.plateauCount * 30 && (int)plateaus.size() < cfg.plateauCount; ++attempt)
         {
-            ++attempts;
-
-            const int w = distSize(rng);
-            const int d = distSize(rng);
-
-            std::uniform_int_distribution<int> distX(1, gw - 1 - w);
-            std::uniform_int_distribution<int> distZ(1, gd - 1 - d);
-            const int gx = distX(rng);
-            const int gz = distZ(rng);
-
-            // 初期地点の近くは置かない
-            if (std::abs(gx + w / 2 - cx) <= cfg.spawnClearRadius &&
-                std::abs(gz + d / 2 - cz) <= cfg.spawnClearRadius)
-                continue;
-
-            // 既存と重ねない。
-            // ※間隔は空けない（隣接は許す）。狭い通路や袋小路が出来るが、
-            //   それこそ A* に食わせたい形なので歓迎する
-            if (!grid.IsAreaWalkable(gx, gz, w, d) || !areaFree(gx, gz, w, d))
-                continue;
-            markArea(gx, gz, w, d);
-
-            const float h = distH(rng);
-            const Vector4 col = { 0.55f + 0.15f * (float)(placed % 3),
-                                  0.45f, 0.35f, 1.0f };
-
-            // 一部を台形柱にする（斜面の登り降りと Convex 判定の実地テスト）。
-            // 1 マス幅だと上面が残らないので 2 マス以上の辺に沿って狭める
-            const bool trapezoid = (distTrap(rng) < cfg.trapezoidRatio) && (w >= 2 || d >= 2);
-            if (trapezoid)
-            {
-                const bool alongX = (w >= d);
-                const Vector4 tcol = { 0.40f, 0.55f + 0.1f * (float)(placed % 2), 0.45f, 1.0f };
-                outTerrain.push_back(SpawnTrapezoid(reg, device, grid, gx, gz, w, d, h,
-                    cfg.slopeDeg, alongX, tcol));
-            }
-            else
-                outTerrain.push_back(SpawnGridBox(reg, device, grid, gx, gz, w, d, h, col));
-            ++placed;
+            Rect r = { 0, 0, randi(cfg.plateauMin, cfg.plateauMax), randi(cfg.plateauMin, cfg.plateauMax) };
+            r.x = randi(2, gw - 2 - r.w);
+            r.z = randi(2, gd - 2 - r.d);
+            // 間隔 gap を空ける = 台地同士の間に地上の通路が残る
+            if (!inside(r) || !isFree(r, cfg.gap)) continue;
+            mark(r, kPlateau);
+            plateaus.push_back({ r, randf(cfg.heightMin, cfg.heightMax), false });
         }
 
-        std::cout << "[Terrain] generated: " << placed << " obstacles ("
-            << attempts << " attempts), grid " << gw << "x" << gd << std::endl;
+        // ---------- 坂道（1 段目）。1〜2 本、降り口が地面に続く所だけ ----------
+        auto placeRamp = [&](const Rect& p, Side s, float base, float top, bool onGround) -> bool
+            {
+                const int sideLen = SideLength(p, s);
+                if (sideLen < cfg.rampWidth) return false;
+                const int len = rampLen(top - base);
+                const Rect rr = RampRect(p, s, randi(0, sideLen - cfg.rampWidth), cfg.rampWidth, len);
+                const Rect land = LandingRect(rr, s);
+                if (onGround && (!inside(rr) || !isFree(rr, 0) || !inside(land) || !isGround(land)))
+                    return false;
+                // 2 段目の坂道（1 段目の上）も載せる：置物で登り口を塞がないように
+                mark(rr, kRamp);
+                mark(land, kLanding);
+                outTerrain.push_back(SpawnRamp(reg, device, grid, rr, s, base, top));
+                return true;
+            };
+
+        int rampCount = 0;
+        int blocked = 0;
+        for (auto& p : plateaus)
+        {
+            Side order[4] = { Side::PosX, Side::NegX, Side::PosZ, Side::NegZ };
+            std::shuffle(order, order + 4, rng);
+            const int want = (randf(0.0f, 1.0f) < 0.5f) ? 2 : 1;
+            int made = 0;
+            for (Side s : order)
+                if (made < want && placeRamp(p.r, s, 0.0f, p.top, true)) ++made;
+            p.reachable = (made > 0);
+            rampCount += made;
+        }
+
+        // ---------- 台地の本体 ----------
+        // 坂道が 1 本も付かなかった台地は登れない：格子を塞いで上に何も湧かないようにする
+        for (const auto& p : plateaus)
+        {
+            const Vector3 lo = RectMin(grid, p.r);
+            const Vector3 hi = lo + Vector3(p.r.w * kCs, p.top, p.r.d * kCs);
+            outTerrain.push_back(SpawnBlock(reg, device, lo, hi,
+                Jitter(kPlateauTop, rng, 0.02f), Jitter(kCliff, rng, 0.015f)));
+            if (p.reachable) RaiseRect(grid, p.r, p.top);
+            else { grid.BlockArea(p.r.x, p.r.z, p.r.w, p.r.d); ++blocked; }
+        }
+
+        // ---------- 2 段目（大きい台地の上に小さい台地 + 1 段目の上から登る坂道）----------
+        // 1 段目の縁 1 マスは空けて残す（1 段目の坂道の着き口と、上の周回路になる）。
+        // 2 段目の坂道の側は、坂道の長さ + 降り口 1 マスも空ける
+        int tier2 = 0;
+        for (const auto& p : plateaus)
+        {
+            if (!p.reachable || p.r.w < 8 || p.r.d < 8) continue;
+            if (randf(0.0f, 1.0f) >= cfg.tier2Chance) continue;
+
+            const float rise = randf(cfg.tier2HeightMin, cfg.tier2HeightMax);
+            const int len = rampLen(rise);
+            const Side s = (Side)randi(0, 3);
+
+            int x0 = p.r.x + 1, x1 = p.r.x + p.r.w - 1;   // [x0, x1)
+            int z0 = p.r.z + 1, z1 = p.r.z + p.r.d - 1;
+            switch (s)
+            {
+            case Side::PosX: x1 -= len + 1; break;
+            case Side::NegX: x0 += len + 1; break;
+            case Side::PosZ: z1 -= len + 1; break;
+            case Side::NegZ: z0 += len + 1; break;
+            }
+            if (x1 - x0 < 3 || z1 - z0 < 3) continue;
+
+            Rect t = { 0, 0, randi(3, (std::min)(x1 - x0, 6)), randi(3, (std::min)(z1 - z0, 6)) };
+            t.x = randi(x0, x1 - t.w);
+            t.z = randi(z0, z1 - t.d);
+
+            const float top = p.top + rise;
+            const Vector3 lo = RectMin(grid, t) + Vector3(0.0f, p.top, 0.0f);
+            const Vector3 hi = RectMin(grid, t) + Vector3(t.w * kCs, top, t.d * kCs);
+            outTerrain.push_back(SpawnBlock(reg, device, lo, hi,
+                Jitter(kPlateauTop, rng, 0.02f), Jitter(kCliffHigh, rng, 0.015f)));
+            RaiseRect(grid, t, top);
+            placeRamp(t, s, p.top, top, false);
+            ++rampCount;
+            ++tier2;
+        }
+
+        // ---------- 丘（どこからでも登れる低い台形）----------
+        int mounds = 0;
+        for (int attempt = 0; attempt < cfg.moundCount * 30 && mounds < cfg.moundCount; ++attempt)
+        {
+            Rect r = { 0, 0, randi(3, 6), randi(3, 6) };
+            r.x = randi(2, gw - 2 - r.w);
+            r.z = randi(2, gd - 2 - r.d);
+            if (!inside(r) || !isFree(r, 1)) continue;
+            mark(r, kMound);
+            outTerrain.push_back(SpawnMound(reg, device, grid, r,
+                randf(cfg.moundHeightMin, cfg.moundHeightMax), cfg.moundSlopeDeg,
+                Jitter(kGrassLight, rng, 0.025f)));
+            ++mounds;
+        }
+
+        // ---------- 自然物（KayKit Forest）----------
+        // 木と岩（置物）: 足跡のマス + 周り 1 マスが「歩ける・同じ高さ・空き地か台地の上・他の置物無し」の所だけ。
+        //   坂道・降り口・台地の縁（周りの高さが違う）には置かないので、登り口は塞がれない。
+        //   足跡は格子で塞ぐ（雑魚は避けて通る。GPU の弾もそのマスで当たる）。
+        //   衝突は別の実体の箱（Layer_Prop：玩家はぶつかるが、カメラの遮蔽判定は見ない）。
+        // 茂みと草: 見た目だけ。坂道の上以外ならどこでも（初期地点にも生える）
+        struct PropModel { std::shared_ptr<Model> model; float unit; Vector3 lo, hi; };
+        auto loadModels = [](const char* const* paths, size_t n)
+            {
+                std::vector<PropModel> out;
+                for (size_t i = 0; i < n; ++i)
+                {
+                    auto m = ResourceManager::Get().LoadModel(paths[i]);
+                    if (m) out.push_back({ m, m->GetFileUnitScale(), m->GetBoundsMin(), m->GetBoundsMax() });
+                }
+                return out;
+            };
+        namespace F = Res::Mdl::Forest;
+        const auto trees = loadModels(F::kTrees, std::size(F::kTrees));
+        const auto bareTrees = loadModels(F::kBareTrees, std::size(F::kBareTrees));
+        const auto rocks = loadModels(F::kRocks, std::size(F::kRocks));
+        const auto bushes = loadModels(F::kBushes, std::size(F::kBushes));
+        const auto grasses = loadModels(F::kGrass, std::size(F::kGrass));
+
+        auto cellHeight = [&](int x, int z) { const Vector3 c = grid.CellToWorld(x, z); return grid.SampleHeight(c.x, c.z); };
+        std::vector<uint8_t> propAt((size_t)gw * gd, 0);   // 置物で塞いだマス
+
+        // 見た目の実体（底を地面に合わせ、y 軸だけ回す）
+        auto spawnVisual = [&](const PropModel& pm, float scale, float yawDeg, float x, float z, float ground)
+            {
+                const float u = pm.unit * scale;
+                Entity e = reg.Create();
+                TransformComponent tf;
+                tf.position = { x, ground - pm.lo.y * u, z };
+                tf.rotation = { 0.0f, yawDeg, 0.0f };
+                tf.scale = { u, u, u };
+                reg.Add<TransformComponent>(e, tf);
+                ModelComponent mc;
+                mc.model = pm.model;
+                mc.batched = true;   // 場面の StaticPropRenderer がまとめて描く
+                reg.Add<ModelComponent>(e, mc);
+                outTerrain.push_back(e);
+            };
+        // 衝突だけの実体（軸平行の箱）
+        auto spawnPropCollider = [&](const Vector3& center, const Vector3& half)
+            {
+                Entity e = TestSpawner::SpawnStaticBox(reg, center, half);
+                reg.Get<ColliderComponent>(e).layer = Layer_Prop;
+                outTerrain.push_back(e);
+            };
+
+        // 置物 1 個。回した包囲箱の足跡（木は幹のある 1 マスだけ）を調べて置く
+        auto placeBlocker = [&](const PropModel& pm, float scale, float yawDeg, float x, float z, bool isTree) -> bool
+            {
+                const float u = pm.unit * scale;
+                const float yaw = DirectX::XMConvertToRadians(yawDeg);
+                const float cs = std::fabs(std::cos(yaw)), sn = std::fabs(std::sin(yaw));
+                const float ex = (pm.hi.x - pm.lo.x) * 0.5f * u, ez = (pm.hi.z - pm.lo.z) * 0.5f * u;
+                const float hx = cs * ex + sn * ez, hz = sn * ex + cs * ez;   // 回した後の半幅
+
+                int gx0, gz0, gx1, gz1;
+                if (isTree)
+                {
+                    grid.WorldToCell({ x, 0.0f, z }, gx0, gz0);
+                    gx1 = gx0; gz1 = gz0;
+                }
+                else
+                {
+                    grid.WorldToCell({ x - hx, 0.0f, z - hz }, gx0, gz0);
+                    grid.WorldToCell({ x + hx, 0.0f, z + hz }, gx1, gz1);
+                }
+                int cx0, cz0;
+                grid.WorldToCell({ x, 0.0f, z }, cx0, cz0);
+                if (cx0 < 1 || cz0 < 1 || cx0 >= gw - 1 || cz0 >= gd - 1) return false;
+                const float h = cellHeight(cx0, cz0);
+                for (int zz = gz0 - 1; zz <= gz1 + 1; ++zz)
+                    for (int xx = gx0 - 1; xx <= gx1 + 1; ++xx)
+                    {
+                        if (xx < 1 || zz < 1 || xx >= gw - 1 || zz >= gd - 1) return false;
+                        const uint8_t o = at(xx, zz);
+                        if ((o != kFree && o != kPlateau) || !grid.IsWalkable(xx, zz) || propAt[(size_t)zz * gw + xx]) return false;
+                        if (std::fabs(cellHeight(xx, zz) - h) > 0.2f) return false;
+                    }
+
+                for (int zz = gz0; zz <= gz1; ++zz)
+                    for (int xx = gx0; xx <= gx1; ++xx)
+                        propAt[(size_t)zz * gw + xx] = 1;
+                grid.BlockArea(gx0, gz0, gx1 - gx0 + 1, gz1 - gz0 + 1);
+
+                spawnVisual(pm, scale, yawDeg, x, z, h);
+                const float height = (pm.hi.y - pm.lo.y) * u;
+                if (isTree)
+                {
+                    const float trunk = (std::min)(height, 3.0f);
+                    spawnPropCollider({ x, h + trunk * 0.5f, z }, { 0.3f, trunk * 0.5f, 0.3f });
+                }
+                else
+                    spawnPropCollider({ x, h + height * 0.5f, z }, { hx * 0.85f, height * 0.5f, hz * 0.85f });
+                return true;
+            };
+
+        auto randomPoint = [&](float& x, float& z)
+            {
+                x = grid.OriginX() + randf(2.0f * kCs, (gw - 2) * kCs);
+                z = grid.OriginZ() + randf(2.0f * kCs, (gd - 2) * kCs);
+            };
+
+        // 木：林（大きいノイズの高い所）に固まり、所々に 1 本。枯れ木を 1 割
+        int treesPlaced = 0;
+        for (int attempt = 0; attempt < cfg.treeCount * 40 && treesPlaced < cfg.treeCount && !trees.empty(); ++attempt)
+        {
+            float x, z;
+            randomPoint(x, z);
+            const bool grove = ValueNoise(x / 26.0f, z / 26.0f, cfg.seed + 21u) > 0.58f;
+            if (!grove && randf(0.0f, 1.0f) > 0.08f) continue;
+            const bool bare = !bareTrees.empty() && randf(0.0f, 1.0f) < 0.1f;
+            const auto& list = bare ? bareTrees : trees;
+            const PropModel& pm = list[randi(0, (int)list.size() - 1)];
+            if (placeBlocker(pm, randf(0.9f, 1.3f), randf(0.0f, 360.0f), x, z, true)) ++treesPlaced;
+        }
+
+        int rocksPlaced = 0;
+        for (int attempt = 0; attempt < cfg.rockCount * 40 && rocksPlaced < cfg.rockCount && !rocks.empty(); ++attempt)
+        {
+            float x, z;
+            randomPoint(x, z);
+            const PropModel& pm = rocks[randi(0, (int)rocks.size() - 1)];
+            if (placeBlocker(pm, randf(0.8f, 1.5f), randf(0.0f, 360.0f), x, z, false)) ++rocksPlaced;
+        }
+
+        // 茂み・草：坂道の上（地面が傾いている所）以外。茂みは半分を林の中へ
+        auto scatterDecor = [&](const std::vector<PropModel>& list, int count, float sMin, float sMax, float groveBias) -> int
+            {
+                int placed = 0;
+                for (int attempt = 0; attempt < count * 10 && placed < count && !list.empty(); ++attempt)
+                {
+                    float x, z;
+                    randomPoint(x, z);
+                    if (groveBias > 0.0f && randf(0.0f, 1.0f) < groveBias
+                        && ValueNoise(x / 26.0f, z / 26.0f, cfg.seed + 21u) <= 0.58f) continue;
+                    int gx, gz;
+                    grid.WorldToCell({ x, 0.0f, z }, gx, gz);
+                    if (!grid.IsWalkable(gx, gz) || at(gx, gz) == kRamp) continue;
+                    const float h = grid.SampleHeight(x, z);
+                    if (std::fabs(grid.SampleHeight(x + 0.6f, z) - h) > 0.1f
+                        || std::fabs(grid.SampleHeight(x, z + 0.6f) - h) > 0.1f
+                        || std::fabs(grid.SampleHeight(x - 0.6f, z) - h) > 0.1f
+                        || std::fabs(grid.SampleHeight(x, z - 0.6f) - h) > 0.1f) continue;
+                    spawnVisual(list[randi(0, (int)list.size() - 1)], randf(sMin, sMax), randf(0.0f, 360.0f), x, z, h);
+                    ++placed;
+                }
+                return placed;
+            };
+        const int bushesPlaced = scatterDecor(bushes, cfg.bushCount, 0.8f, 1.3f, 0.5f);
+        const int grassPlaced = scatterDecor(grasses, cfg.grassCount, 0.8f, 1.5f, 0.0f);
+
+        std::cout << "[Terrain] seed " << cfg.seed << ": " << plateaus.size() << " plateaus ("
+            << tier2 << " with a 2nd tier, " << blocked << " without a ramp), "
+            << rampCount << " ramps, " << mounds << " mounds, " << treesPlaced << " trees, "
+            << rocksPlaced << " rocks, " << bushesPlaced << " bushes, " << grassPlaced << " grass, grid "
+            << gw << "x" << gd << std::endl;
     }
 }

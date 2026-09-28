@@ -7,7 +7,12 @@
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Renderer/RenderStates.h"
 #include <iostream>
+#include <cstdlib>
 #include <dxgi.h>
+
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002   // Windows 10 1803+（古い SDK には無い）
+#endif
 
 #define DX_CHECK(hr, msg) \
     if (FAILED(hr)) { \
@@ -54,29 +59,21 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
     m_SampleQuality = (q > 0) ? q - 1 : 0;
     std::cout << "[Info] MSAA: " << m_SampleCount << "x (Quality: " << m_SampleQuality << ")" << std::endl;
 
-    // ---- swap chain ----
-    ComPtr<IDXGIDevice> dxgiDevice;
-    m_Device.As(&dxgiDevice);
-    ComPtr<IDXGIAdapter> adapter;
-    dxgiDevice->GetAdapter(&adapter);
-    ComPtr<IDXGIFactory> factory;
-    adapter->GetParent(IID_PPV_ARGS(&factory));
+    if (!CreateSwapChain(hWnd, width, height)) return false;
 
-    DXGI_SWAP_CHAIN_DESC scd = {};
-    scd.BufferCount = 1;
-    scd.BufferDesc.Width = width;
-    scd.BufferDesc.Height = height;
-    scd.BufferDesc.Format = kBackbufferFormat;
-    scd.BufferDesc.RefreshRate.Numerator = 60;
-    scd.BufferDesc.RefreshRate.Denominator = 1;
-    scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    scd.OutputWindow = hWnd;
-    scd.SampleDesc.Count = m_SampleCount;
-    scd.SampleDesc.Quality = m_SampleQuality;
-    scd.Windowed = TRUE;
-
-    hr = factory->CreateSwapChain(m_Device.Get(), &scd, &m_SwapChain);
-    DX_CHECK(hr, "CreateSwapChain failed");
+    // ---- 表示の同期の初期値 ----
+    // TEMP-TEST: VFXL_NO_VSYNC で垂直同期を切る、VFXL_FPS_CAP=<数> で上限 fps（負荷の計測用）
+    if (GetEnvironmentVariableA("VFXL_NO_VSYNC", nullptr, 0) > 0)
+        m_Present.vsync = false;
+    {
+        char env[16] = {};
+        if (GetEnvironmentVariableA("VFXL_FPS_CAP", env, sizeof(env)) > 0)
+            m_Present.fpsCap = (float)atof(env);
+    }
+    // 上限 fps の待ち用。HIGH_RESOLUTION（Windows 10 1803+）が無ければ普通のタイマー
+    m_FrameTimer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    if (!m_FrameTimer)
+        m_FrameTimer = CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
 
     if (!CreateSceneTargets(width, height)) return false;
     if (!LoadPostShaders()) return false;
@@ -87,6 +84,85 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
   
     
     std::cout << "[OK] Graphics initialized" << std::endl;
+    return true;
+}
+
+// ============================================================
+// swap chain
+// flip 型（FLIP_DISCARD）+ 3 枚。blt 型の 1 枚だと、垂直同期中に 1 フレームが
+// 1 リフレッシュ（165Hz なら 6.06 ms）を超えた途端に次の垂直同期まで止まり、半分の fps に落ちる。
+// 3 枚あれば表示待ちの間も次を描けるので、実際の速さのまま出る。
+// flip 型の backbuffer は MSAA にできない（場面は HDR RT 側で MSAA → resolve 済みなので困らない）。
+// 撕裂の許可（ALLOW_TEARING）は垂直同期を切った時だけ Present で使う。
+// 作れない環境では旧来の blt 型に戻す
+// ============================================================
+bool Graphics::CreateSwapChain(HWND hWnd, int width, int height)
+{
+    ComPtr<IDXGIDevice> dxgiDevice;
+    m_Device.As(&dxgiDevice);
+    ComPtr<IDXGIAdapter> adapter;
+    dxgiDevice->GetAdapter(&adapter);
+    ComPtr<IDXGIFactory> factory;
+    adapter->GetParent(IID_PPV_ARGS(&factory));
+
+    ComPtr<IDXGIFactory5> factory5;
+    if (SUCCEEDED(factory.As(&factory5)))
+    {
+        BOOL allow = FALSE;
+        if (SUCCEEDED(factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allow, sizeof(allow))))
+            m_TearingSupported = allow == TRUE;
+    }
+
+    // TEMP-TEST: VFXL_BLT_SWAPCHAIN で旧来の blt 型に戻す（新旧の比較用）
+    const bool forceBlt = GetEnvironmentVariableA("VFXL_BLT_SWAPCHAIN", nullptr, 0) > 0;
+    ComPtr<IDXGIFactory2> factory2;
+    if (!forceBlt && SUCCEEDED(factory.As(&factory2)))
+    {
+        DXGI_SWAP_CHAIN_DESC1 sd = {};
+        sd.Width = width;
+        sd.Height = height;
+        sd.Format = kBackbufferFormat;
+        sd.SampleDesc.Count = 1;
+        sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        sd.BufferCount = 3;
+        sd.Scaling = DXGI_SCALING_STRETCH;
+        sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+        sd.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+        sd.Flags = m_TearingSupported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+
+        ComPtr<IDXGISwapChain1> sc1;
+        if (SUCCEEDED(factory2->CreateSwapChainForHwnd(m_Device.Get(), hWnd, &sd, nullptr, nullptr, &sc1))
+            && SUCCEEDED(sc1.As(&m_SwapChain)))
+        {
+            m_FlipModel = true;
+            m_SwapChainFlags = sd.Flags;
+        }
+    }
+
+    if (!m_FlipModel)
+    {
+        m_TearingSupported = false;
+        DXGI_SWAP_CHAIN_DESC scd = {};
+        scd.BufferCount = 1;
+        scd.BufferDesc.Width = width;
+        scd.BufferDesc.Height = height;
+        scd.BufferDesc.Format = kBackbufferFormat;
+        scd.BufferDesc.RefreshRate.Numerator = 60;
+        scd.BufferDesc.RefreshRate.Denominator = 1;
+        scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        scd.OutputWindow = hWnd;
+        scd.SampleDesc.Count = m_SampleCount;
+        scd.SampleDesc.Quality = m_SampleQuality;
+        scd.Windowed = TRUE;
+        HRESULT hr = factory->CreateSwapChain(m_Device.Get(), &scd, &m_SwapChain);
+        DX_CHECK(hr, "CreateSwapChain failed");
+    }
+
+    // 全画面は F11 の枠無し窓で行う。Alt+Enter の排他全画面は撕裂の許可と両立しないので切る
+    factory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER);
+
+    std::cout << "[Graphics] swap chain: " << (m_FlipModel ? "flip discard x3" : "blt (fallback)")
+        << ", tearing " << (m_TearingSupported ? "supported" : "not supported") << std::endl;
     return true;
 }
 
@@ -239,11 +315,70 @@ void Graphics::BeginUI()
 
 void Graphics::EndFrame()
 {
-    m_SwapChain->Present(1, 0);
+    WaitForFrameCap();
+
+    const bool tear = !m_Present.vsync && m_TearingSupported;
+    const HRESULT hr = m_SwapChain->Present(m_Present.vsync ? 1 : 0, tear ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    static bool s_Reported = false;   // 毎フレーム出さない
+    if (FAILED(hr) && !s_Reported)
+    {
+        std::cout << "[DX ERROR] Present failed (HRESULT: 0x" << std::hex << hr << std::dec << ")" << std::endl;
+        s_Reported = true;
+    }
+}
+
+// ============================================================
+// 上限 fps: 前のフレームから 1/cap 秒経つまで待つ。
+// 残り 2 ms 以上は waitable timer で寝て、最後は回して待つ（Sleep だけだと 1〜2 ms ずれる）。
+// 目標時刻は「前の目標 + 周期」で進めてリズムを保つ。1 周期以上遅れたら今を基準に取り直す
+// （遅れを取り返そうとして連続で出さない）
+// ============================================================
+void Graphics::WaitForFrameCap()
+{
+    LARGE_INTEGER freq, now;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&now);
+
+    if (m_Present.fpsCap <= 0.0f)
+    {
+        m_LastFrameQpc = now.QuadPart;
+        return;
+    }
+
+    const long long period = (long long)((double)freq.QuadPart / m_Present.fpsCap);
+    const long long target = m_LastFrameQpc + period;
+    if (m_LastFrameQpc == 0 || now.QuadPart - target > period)
+    {
+        m_LastFrameQpc = now.QuadPart;
+        return;
+    }
+
+    for (;;)
+    {
+        QueryPerformanceCounter(&now);
+        const long long remain = target - now.QuadPart;
+        if (remain <= 0) break;
+        const double remainMs = remain * 1000.0 / (double)freq.QuadPart;
+        if (m_FrameTimer && remainMs > 2.0)
+        {
+            LARGE_INTEGER due;
+            due.QuadPart = -(long long)((remainMs - 1.5) * 10000.0);   // 相対時間（100ns 単位、負）
+            SetWaitableTimer(m_FrameTimer, &due, 0, nullptr, nullptr, FALSE);
+            WaitForSingleObject(m_FrameTimer, INFINITE);
+        }
+        else
+            YieldProcessor();
+    }
+    m_LastFrameQpc = target;
 }
 
 void Graphics::Shutdown()
 {
+    if (m_FrameTimer)
+    {
+        CloseHandle(m_FrameTimer);
+        m_FrameTimer = nullptr;
+    }
     m_Bloom.Shutdown();
     m_CompositeVS.reset();
     m_CompositePS.reset();
@@ -280,7 +415,7 @@ bool Graphics::Resize(int width, int height)
     m_SceneResolved.Reset();
     m_DepthStencilView.Reset();
 
-    HRESULT hr = m_SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+    HRESULT hr = m_SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, m_SwapChainFlags);
     if (FAILED(hr))
     {
         std::cout << "[Error] ResizeBuffers failed" << std::endl;

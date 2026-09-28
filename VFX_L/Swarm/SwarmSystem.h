@@ -34,6 +34,7 @@
 
 class Model;
 class Material;
+class Texture;
 class ComputeShader;
 class GPUParticleSystem;
 class GridWorld;
@@ -77,11 +78,67 @@ public:
     };
     HpBarStyle hpBar;
 
+    // ---- 点火した自爆兵の足元の警告の輪（Render の中、雑魚とオーブの後・HP バーの前）----
+    // 外周 = 爆発半径（BomberCB.blastRadius）、中の円盤が導火線に合わせて中心から育ち、外周に届くと爆発。
+    // 色は straight alpha（シェーダーが premultiply する）
+    struct BomberRingStyle
+    {
+        bool  enabled = true;
+        float edgeWidth = 0.08f;  // 外周の太さ m
+        float lift = 0.03f;       // 地面から浮かせる m（Z ファイト避け）
+        DirectX::SimpleMath::Vector4 fill = { 0.90f, 0.12f, 0.08f, 0.35f };  // 育つ円盤
+        DirectX::SimpleMath::Vector4 edge = { 0.95f, 0.15f, 0.10f, 0.85f };  // 外周
+        DirectX::SimpleMath::Vector4 back = { 0.90f, 0.12f, 0.08f, 0.10f };  // 外周の内側でまだ育っていない所
+    };
+    BomberRingStyle bomberRing;
+
+    // ---- 隕石（DROP の弾）が落ちる所の警告の輪（自爆兵の輪の後に描く）----
+    // 形と動きは自爆兵の輪と同じ（PS も共用）。外周 = 弾の hitArea の半径、
+    // 中の円盤が落下（pathT）に合わせて育ち、外周に届くと着弾。
+    // 色だけ橙黄: 赤は「敵の危険」、こちらは自分の技
+    BomberRingStyle dropRing = { true, 0.08f, 0.03f,
+        { 1.00f, 0.60f, 0.10f, 0.35f },    // 育つ円盤
+        { 1.00f, 0.78f, 0.25f, 0.85f },    // 外周
+        { 1.00f, 0.60f, 0.10f, 0.10f } };  // 外周の内側でまだ育っていない所
+
+    // ---- 経験値オーブの見た目（SwarmOrbVS / SwarmOrbPS / SwarmOrbEmitCS）----
+    // 自発光の宝石（双角錐）。待機中は浮き沈み・自転・脈動（スロット毎に位相をずらす）。
+    // 吸い寄せられると長軸を玩家へ傾けて引き伸ばし、pullColor へ寄って明るくなり、
+    // ExpOrbTrail.json の粒子を尾に出す。色は linear HDR（Bloom の閾値は 1）
+    struct OrbLookStyle
+    {
+        float scale = 1.0f;             // 網の倍率（網は赤道の半径 0.13m、高さ 0.4m）
+        float bobHeight = 0.08f;        // 浮き沈みの振幅 m
+        float bobSpeed = 2.5f;          // rad/s
+        float spinSpeed = 2.0f;         // 長軸まわりの自転 rad/s
+        float pulseAmount = 0.08f;      // 大きさの脈動 1 ± これ
+        float pulseSpeed = 4.0f;        // rad/s
+        float fullPullSpeed = 12.0f;    // 吸い寄せの速さがこれ（m/s）で見た目の変化が最大
+        float stretchPerSpeed = 0.06f;  // 1 m/s 毎に伸びる割合（体積は保つ）
+        float stretchMax = 0.8f;        // 伸びの上限（1 + これ 倍）
+        float tiltMax = 1.3f;           // 長軸を玩家へ傾ける最大角 rad
+        float pullGlow = 1.8f;          // 吸い寄せ中の明るさの倍率
+        DirectX::SimpleMath::Vector4 idleColor = { 0.20f, 0.65f, 1.00f, 1.0f };
+        DirectX::SimpleMath::Vector4 pullColor = { 0.55f, 0.95f, 1.00f, 1.0f };
+        float emissive = 1.6f;          // 本体の明るさ（色 × これ）
+        float facet = 0.55f;            // 面の陰影（0 = 一様に光る / 1 = 太陽の向きで面毎に明暗）
+        float rimGain = 1.2f;           // 縁の光（fresnel）
+        float rimPower = 2.5f;
+        float glintGain = 1.5f;         // 太陽の鋭いきらめき
+        float glintPower = 24.0f;
+        DirectX::SimpleMath::Vector4 rimColor = { 0.60f, 0.90f, 1.00f, 1.0f };
+        bool  trail = true;             // 吸い寄せ中の尾（粒子）
+        float trailMinSpeed = 3.0f;     // m/s。これより速く吸い寄せられている物だけ尾を出す
+    };
+    OrbLookStyle orbLook;
+
     // 雑魚の歩きアニメの再生速度（部品アニメがある時だけ効く。移動速度と足の運びを合わせる調整用）
     float enemyWalkAnimRate = 1.0f;
 
     // ---- CPU 側から生成を依頼する（Flush でまとめて反映）----
-    void SpawnEnemy(const DirectX::SimpleMath::Vector3& pos, float hp, float moveSpeed);
+    // kind: Swarm::kEnemyKindMob / kEnemyKindBomber
+    void SpawnEnemy(const DirectX::SimpleMath::Vector3& pos, float hp, float moveSpeed,
+        uint32_t kind = Swarm::kEnemyKindMob);
     // motion  : SetMotions で上げた表の番号（0 = 直進）
     // mirror  : 曲線を左右反転して撃つ（交互撃ち・乱数撃ちは呼ぶ側が決める）
     // 曲線の型では vel の「速さ」だけが使われ、向きは曲線が決める。
@@ -127,6 +184,8 @@ public:
     // ---- 回読結果（1〜2 フレーム古い。用途上それで困らない）----
     const SwarmCounters& GetCounters() const { return m_Readback.Latest(); }
     Swarm::AICB& GetAIParams() { return m_CachedAICB; }
+    // 自爆兵の定数（次の固定ステップ / 次の描画から効く）。blastArea は呼ぶ側が AreaProfileDB から入れる
+    Swarm::BomberCB& GetBomberParams() { return m_CachedBomberCB; }
     // 玩家が受けた累計ダメージを取り出して 0 に戻す
     float ConsumePlayerDamage();
 
@@ -142,7 +201,8 @@ public:
     // 溢れ分の湧き。GPU が遠い雑魚を1体選んでこの内容へ上書きする（枠を消費しない）
 
 
-    void RecycleEnemy(const Vector3& pos, float hp, float moveSpeed);
+    void RecycleEnemy(const Vector3& pos, float hp, float moveSpeed,
+        uint32_t kind = Swarm::kEnemyKindMob);
     void SetRecycleMinDist(float d) { m_RecycleMinDist = d; }
     float ConsumeExp();
 
@@ -191,6 +251,12 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemySRV;
+
+    // 雑魚の種類と自爆兵の導火線（Swarm::EnemyExtra、スロットと同じ添字）。
+    // SpawnEnemyCS / RecycleCS が書き、ContactCS が導火線を進める。AI・Compact・VS が読む
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyExtraBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyExtraUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyExtraSRV;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjUAV;
@@ -323,6 +389,7 @@ private:
     Swarm::FrameCB m_CachedFrameCB;
     Swarm::AICB m_CachedAICB;
     Swarm::OrbCB m_CachedOrbCB;
+    Swarm::BomberCB m_CachedBomberCB;
 
     // ============================================================
     // CS 群
@@ -346,8 +413,12 @@ private:
 
     // --- 経験値オーブの本描画 ---
     std::shared_ptr<VertexShader> m_OrbVS;
-    std::shared_ptr<Material>     m_OrbMaterial;   // PS は雑魚と共用
-    std::shared_ptr<Model>        m_OrbModel;
+    std::shared_ptr<PixelShader>  m_OrbPS;         // 自発光の宝石（SwarmOrbPS）
+    std::shared_ptr<Material>     m_OrbMaterial;
+    std::shared_ptr<Model>        m_OrbModel;      // 双角錐（PrimitiveBuilder::CreateBipyramid）
+    // 吸い寄せ中のオーブから粒子（SwarmEmitCS と同じ発射。配方は VFXId::ExpOrbTrail 固定）
+    std::shared_ptr<ComputeShader> m_OrbEmitCS;
+    uint32_t m_OrbTrailVfx = 0;                    // 配方表の番号。0 = 無し（json が読めなかった）
 
     std::shared_ptr<ComputeShader> m_RecycleCS;
     std::vector<Swarm::Enemy> m_PendingRecycles;
@@ -368,12 +439,18 @@ private:
     // --- 雑魚描画の間接引数 ---
     // 4096 槽を毎フレーム全部 DrawInstanced すると頂点数がモデル × 4096 になる
     // （Minion 8.6k 頂点で 3500 万）。活きスロットだけ描くために
-    // CompactCS → aliveList、CopyStructureCount → args[submesh].InstanceCount
+    // CompactCS → 種類毎の一覧、CopyStructureCount → args[種類][submesh].InstanceCount。
+    // 種類はメッシュが同じで貼図だけ違うので、一覧毎に 1 回ずつ描く。
+    // aliveList（全種類）は HP バー用
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AliveListBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AliveListUAV;   // APPEND
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AliveListSRV;
-    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_EnemyDrawArgs;  // submesh 毎（IndexCount が違う）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_KindListBuffer[Swarm::kEnemyKinds];
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_KindListUAV[Swarm::kEnemyKinds];   // APPEND
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_KindListSRV[Swarm::kEnemyKinds];
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_EnemyDrawArgs[Swarm::kEnemyKinds];  // submesh 毎（IndexCount が違う）
     bool CreateEnemyDrawArgs(ID3D11Device* device);
+    std::shared_ptr<Texture> m_BomberAlbedo;   // 自爆兵の貼図（雑魚と同じメッシュ用）。null = 雑魚と同じ貼図
 
     // --- 雑魚の部品アニメ（部品を節点で動かすモデルだけ。Kenney Blocky）---
     // 表: [クリップ][フレーム][部品] の行列。行列は「焼いた姿勢の部品 → そのフレームの部品」の差分
@@ -415,6 +492,19 @@ private:
     std::shared_ptr<PixelShader>  m_HpBarPS;
     void RenderHpBars(CameraBase* camera);
 
+    // --- 自爆兵の警告の輪 ---
+    // DrawInstancedIndirect: { 6 頂点, InstanceCount = 自爆兵の一覧の長さ, 0, 0 }。点火していない分は VS が捨てる
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_BomberRingArgs;
+    std::shared_ptr<VertexShader> m_BomberRingVS;
+    std::shared_ptr<PixelShader>  m_BomberRingPS;
+    void RenderBomberRings(CameraBase* camera);
+
+    // --- 隕石の警告の輪 ---
+    // DrawInstanced(6, kMaxProjectiles): 弾の全スロット。DROP でない・死んだ分は VS が捨てる。
+    // PS は m_BomberRingPS を共用（b0 の並びが同じ）
+    std::shared_ptr<VertexShader> m_DropRingVS;
+    void RenderDropRings(CameraBase* camera);
+
     std::shared_ptr<ComputeShader> m_AimResolveCS;
    // Phase 4: 最寄りの雑魚を回読用に書き出す
     // 転送の「誰が何番目を取ったか」用。dispatch 前に 0 にする
@@ -437,6 +527,43 @@ private:
         DirectX::SimpleMath::Vector4 edge;
     };
     static_assert(sizeof(HpBarCB) == 192, "HpBarCB layout mismatch");
+    // SwarmBomberRingVS / PS の b0（row_major なので Transpose しない）
+    struct BomberRingCB
+    {
+        DirectX::SimpleMath::Matrix view;
+        DirectX::SimpleMath::Matrix proj;
+        DirectX::SimpleMath::Vector4 fill;
+        DirectX::SimpleMath::Vector4 edge;
+        DirectX::SimpleMath::Vector4 back;
+        float edgeWidth, lift, _pad[2];
+    };
+    static_assert(sizeof(BomberRingCB) == 192, "BomberRingCB layout mismatch");
+    // SwarmOrbVS の b4（orbLook の動きの分）
+    struct OrbLookCB
+    {
+        float time, scale, bobHeight, bobSpeed;
+        float spinSpeed, pulseAmount, pulseSpeed, fullPullSpeed;
+        float stretchPerSpeed, stretchMax, tiltMax, pullGlow;
+        DirectX::SimpleMath::Vector4 idleColor;
+        DirectX::SimpleMath::Vector4 pullColor;
+    };
+    static_assert(sizeof(OrbLookCB) == 80, "OrbLookCB layout mismatch");
+    // SwarmOrbPS の b1（b0 は LightBuffer）
+    struct OrbShadeCB
+    {
+        float emissive, facet, rimGain, rimPower;
+        float glintGain, glintPower, _pad[2];
+        DirectX::SimpleMath::Vector4 rimColor;
+    };
+    static_assert(sizeof(OrbShadeCB) == 48, "OrbShadeCB layout mismatch");
+    // SwarmOrbEmitCS の b3
+    struct OrbEmitCB
+    {
+        uint32_t vfx;
+        float    minSpeed;
+        uint32_t _pad[2];
+    };
+    static_assert(sizeof(OrbEmitCB) == 16, "OrbEmitCB layout mismatch");
     // --- 固定ステップ ---
     float m_Accumulator = 0.0f;
     int   m_LastSubSteps = 0;
