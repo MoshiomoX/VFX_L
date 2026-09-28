@@ -73,6 +73,7 @@ void CollisionTestScene::DrawDebugUI()
     DrawSwarmPanel();
     DrawItemDatabasePanel();
     DrawTerrainPanel();
+    m_Grass.DrawImGui();
     DrawEnemiesPanel();
     if (m_Crates.DrawImGui(m_Interaction, m_LevelUpSystem)) RespawnCrates();
     m_Feedback.DrawImGui(m_Registry, m_Player);
@@ -738,7 +739,6 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::DragInt("Trees", &tc.treeCount, 1.0f, 0, 400);
         ImGui::DragInt("Rocks", &tc.rockCount, 1.0f, 0, 200);
         ImGui::DragInt("Bushes", &tc.bushCount, 1.0f, 0, 600);
-        ImGui::DragInt("Grass", &tc.grassCount, 1.0f, 0, 2000);
 
         if (ImGui::Button("Regenerate"))
         {
@@ -751,8 +751,10 @@ void CollisionTestScene::DrawTerrainPanel()
             m_Grid.ClearAll();
 
             auto* device = Application::Get().GetGraphics().GetDevice();
-            TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain);
+            std::vector<uint8_t> grassMask;
+            TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask);
             m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
+            m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed);   // 草の高さ・色・生やす所も
 
             // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
             m_Swarm.KillAll();

@@ -39,6 +39,7 @@
 #include "UI/LevelUpSystem.h"
 #include "ECS/System/RenderSystem.h"
 #include "Graphics/Renderer/StaticPropRenderer.h"
+#include "Graphics/Renderer/GrassRenderer.h"
 #include "ECS/System/InteractionSystem.h"
 #include "ECS/System/RewardCrateSystem.h"
 #include "ECS/System/FeedbackVFXSystem.h"
@@ -148,6 +149,7 @@ private:
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
     StaticPropRenderer      m_StaticProps;   // 野原の置物（ModelComponent::batched）をまとめて描く
+    GrassRenderer           m_Grass;         // 野原の草（GPU で生やす葉。風・踏み跡）
 
     // ---- 部品 ----
     RewardCrateSystem       m_Crates;              // 報酬の箱

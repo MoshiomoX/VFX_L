@@ -136,6 +136,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Graphics\Renderer\GrassRenderer.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Renderer\StaticPropRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
@@ -551,6 +554,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Graphics\Renderer\GrassRenderer.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Renderer\FrustumPlanes.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Graphics\Renderer\StaticPropRenderer.h">
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
@@ -1238,6 +1247,18 @@
     <FxCompile Include="Shader\StaticPropVS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Grass\GrassCullCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Grass\GrassTrampleCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Grass\GrassVS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Grass\GrassPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\PBR_VS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
@@ -1422,6 +1443,9 @@
       <Filter>Assets\Fonts</Filter>
     </None>
     <None Include="Shader\Common\SwarmCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Grass\GrassCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\ModelCommon.hlsli">
