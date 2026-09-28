@@ -251,3 +251,35 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model
     ctx->VSSetShaderResources(0, 1, &nullSRV);
     PointLightManager::Get().UnbindPS(ctx);
 }
+
+void SkinnedModelGPU::RenderDepth(ID3D11DeviceContext* ctx, const SkinnedModel& model,
+    const Matrix& world, const Matrix& view, const Matrix& proj)
+{
+    if (!ctx) return;
+
+    struct { Matrix W, V, P; } cb{ world, view, proj };
+
+    ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ctx->IASetInputLayout(nullptr);
+    ID3D11Buffer* nullVB = nullptr; UINT s = 0, o = 0;
+    ctx->IASetVertexBuffers(0, 1, &nullVB, &s, &o);
+    ctx->PSSetShader(nullptr, nullptr, 0);
+
+    for (auto& gm : m_SubMeshes)
+    {
+        if (!gm.visible) continue;
+        Material* mat = model.GetMaterial(gm.materialIndex);
+        if (!mat || !mat->HasVS()) continue;
+
+        VertexShader* vs = mat->GetVS();
+        vs->Bind(ctx);
+        ctx->IASetInputLayout(nullptr);   // 頂点は skinning 結果の SRV から引く
+        vs->WriteBuffer(ctx, 0, &cb);
+        ctx->VSSetShaderResources(0, 1, gm.skinnedSRV.GetAddressOf());
+        ctx->IASetIndexBuffer(gm.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+        ctx->DrawIndexed(gm.indexCount, 0, 0);
+    }
+
+    ID3D11ShaderResourceView* nullSRV = nullptr;
+    ctx->VSSetShaderResources(0, 1, &nullSRV);
+}

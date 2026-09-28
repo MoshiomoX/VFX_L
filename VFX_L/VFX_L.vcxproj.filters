@@ -157,6 +157,9 @@
     <ClCompile Include="Graphics\Light\SceneLighting.cpp">
       <Filter>Graphics\Light</Filter>
     </ClCompile>
+    <ClCompile Include="Graphics\Light\ShadowMap.cpp">
+      <Filter>Graphics\Light</Filter>
+    </ClCompile>
     <ClCompile Include="ECS\System\FeedbackVFXSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
@@ -564,6 +567,9 @@
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Light\SceneLighting.h">
+      <Filter>Graphics\Light</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Light\ShadowMap.h">
       <Filter>Graphics\Light</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\FeedbackVFXSystem.h">
@@ -1152,6 +1158,12 @@
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmBomberRingVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmBlobShadowPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmBlobShadowVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmDropRingVS.hlsl">

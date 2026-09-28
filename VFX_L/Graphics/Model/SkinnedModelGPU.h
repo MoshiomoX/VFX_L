@@ -61,6 +61,12 @@ public:
         const DirectX::SimpleMath::Matrix& view,
         const DirectX::SimpleMath::Matrix& proj);
 
+    // 影図へ深度だけ（VS だけ積んで PS を外す）。蒙皮は済んでいること
+    void RenderDepth(ID3D11DeviceContext* ctx, const SkinnedModel& model,
+        const DirectX::SimpleMath::Matrix& world,
+        const DirectX::SimpleMath::Matrix& view,
+        const DirectX::SimpleMath::Matrix& proj);
+
     const std::vector<GpuSubMesh>& GetSubMeshes() const { return m_SubMeshes; }
     UINT GetBoneCount() const { return m_BoneCount; }
 

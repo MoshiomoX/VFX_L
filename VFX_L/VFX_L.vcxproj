@@ -165,6 +165,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Enemy\MobSpawner.cpp" />
     <ClCompile Include="Enemy\EliteSpawner.cpp" />
     <ClCompile Include="Graphics\Light\SceneLighting.cpp" />
+    <ClCompile Include="Graphics\Light\ShadowMap.cpp" />
     <ClCompile Include="ECS\System\FeedbackVFXSystem.cpp" />
     <ClCompile Include="ECS\System\RewardCrateSystem.cpp" />
     <ClCompile Include="Camera\BattleCamera.cpp" />
@@ -334,6 +335,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Enemy\MobSpawner.h" />
     <ClInclude Include="Enemy\EliteSpawner.h" />
     <ClInclude Include="Graphics\Light\SceneLighting.h" />
+    <ClInclude Include="Graphics\Light\ShadowMap.h" />
     <ClInclude Include="ECS\System\FeedbackVFXSystem.h" />
     <ClInclude Include="ECS\System\RewardCrateSystem.h" />
     <ClInclude Include="Camera\BattleCamera.h" />
@@ -611,6 +613,34 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmBomberRingVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmBlobShadowPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmBlobShadowVS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>

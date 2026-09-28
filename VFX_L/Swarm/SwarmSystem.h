@@ -78,6 +78,20 @@ public:
     };
     HpBarStyle hpBar;
 
+    // ---- 雑魚の足元の丸い影（Render の中、雑魚とオーブの後・警告の輪の前）----
+    // 雑魚は太陽の影図（ShadowMap）に入れないので、代わりに地面を丸く暗くする。
+    // 板の四隅はそれぞれ高さ場に載せる（高台の坂でも地面に沿う）
+    struct BlobShadowStyle
+    {
+        bool  enabled = true;
+        float radius = 0.65f;     // m（体の幅 0.5m より少し大きく。真下は体に隠れる）
+        float strength = 0.6f;    // 中心の暗さ 0..1
+        float softness = 0.6f;    // 半径のうち外側の何割でぼかすか
+        float lift = 0.03f;       // 地面から浮かせる m（Z ファイト避け）
+        float clamp = 0.3f;       // 四隅の高さを足元から何 m までに抑えるか（崖の縁で板が伸びない）
+    };
+    BlobShadowStyle blobShadow;
+
     // ---- 点火した自爆兵の足元の警告の輪（Render の中、雑魚とオーブの後・HP バーの前）----
     // 外周 = 爆発半径（BomberCB.blastRadius）、中の円盤が導火線に合わせて中心から育ち、外周に届くと爆発。
     // 色は straight alpha（シェーダーが premultiply する）
@@ -492,6 +506,11 @@ private:
     std::shared_ptr<PixelShader>  m_HpBarPS;
     void RenderHpBars(CameraBase* camera);
 
+    // --- 雑魚の足元の丸い影（間接引数は HP バーと同じ: 6 頂点 x 活き数）---
+    std::shared_ptr<VertexShader> m_BlobShadowVS;
+    std::shared_ptr<PixelShader>  m_BlobShadowPS;
+    void RenderBlobShadows(CameraBase* camera);
+
     // --- 自爆兵の警告の輪 ---
     // DrawInstancedIndirect: { 6 頂点, InstanceCount = 自爆兵の一覧の長さ, 0, 0 }。点火していない分は VS が捨てる
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_BomberRingArgs;
@@ -527,6 +546,15 @@ private:
         DirectX::SimpleMath::Vector4 edge;
     };
     static_assert(sizeof(HpBarCB) == 192, "HpBarCB layout mismatch");
+    // SwarmBlobShadowVS / PS の b0（row_major なので Transpose しない）
+    struct BlobShadowCB
+    {
+        DirectX::SimpleMath::Matrix view;
+        DirectX::SimpleMath::Matrix proj;
+        float radius, strength, lift, softness;
+        float clamp, _pad[3];
+    };
+    static_assert(sizeof(BlobShadowCB) == 160, "BlobShadowCB layout mismatch");
     // SwarmBomberRingVS / PS の b0（row_major なので Transpose しない）
     struct BomberRingCB
     {

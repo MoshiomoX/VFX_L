@@ -21,6 +21,74 @@
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector3;
 
+namespace
+{
+    // 骨付きのモデル → 世界: 拡縮 → 足元を軸に傾ける（滑り）→ offset → Entity の回転 → 位置
+    // （Transform.cpp と同じ Yaw/Pitch/Roll の規約）。
+    // KayKit のモデル空間の正面は -Z なので、X 軸回りの正の角度で頭が後ろへ倒れる
+    Matrix SkinnedWorld(const TransformComponent& tf, const SkinnedAnimComponent& a)
+    {
+        return Matrix::CreateScale(a.scale)
+            * Matrix::CreateRotationX(DirectX::XMConvertToRadians(a.leanDeg))
+            * Matrix::CreateTranslation(a.offset)
+            * Matrix::CreateFromYawPitchRoll(
+                DirectX::XMConvertToRadians(tf.rotation.y + a.yawOffsetDeg),
+                DirectX::XMConvertToRadians(tf.rotation.x),
+                DirectX::XMConvertToRadians(tf.rotation.z))
+            * Matrix::CreateTranslation(tf.position);
+    }
+
+    // 層を混ぜたポーズ → submesh 毎に SkinningCS
+    bool Skin(ID3D11DeviceContext* ctx, ComputeShader* cs, SkinnedAnimComponent& a)
+    {
+        std::vector<Matrix> globals, palette;
+        if (!SkinnedAnimSystem::BuildPose(a, globals)) return false;
+        const int subCount = (int)a.gpu->GetSubMeshes().size();
+        for (int s = 0; s < subCount; ++s)
+        {
+            if (!a.gpu->IsSubMeshVisible(s)) continue;
+            a.model->BuildSubmeshPalette(s, globals, palette);
+            a.gpu->SkinSubmesh(ctx, cs, s, palette);
+        }
+        return true;
+    }
+}
+
+bool RenderSystem::EnsureSkinningCS()
+{
+    if (!m_SkinningCS)
+        m_SkinningCS = ResourceManager::Get().LoadCS(L"SkinningCS", L"Shader/Skinning/SkinningCS.hlsl");
+    return m_SkinningCS != nullptr;
+}
+
+// ============================================================
+// 影図へ深度だけ
+// ============================================================
+void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
+{
+    reg.CreateView<TransformComponent, ModelComponent>()
+        .Each([&](Entity, TransformComponent& tf, ModelComponent& mc)
+            {
+                if (!mc.visible || !mc.model || mc.batched) return;
+                Transform temp;
+                temp.SetPosition(tf.position);
+                temp.SetRotation(tf.rotation);
+                temp.SetScale(tf.scale);
+                mc.model->Draw(renderer, &temp);   // renderer が深度だけにする
+            });
+
+    // 深度だけの描画は混合・深度・ラスタライザの状態を触らない（影の深度バイアスを残す）
+    ID3D11DeviceContext* ctx = renderer.GetContext();
+    if (!ctx || !EnsureSkinningCS()) return;
+    reg.CreateView<TransformComponent, SkinnedAnimComponent>()
+        .Each([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
+            {
+                if (!a.visible || !a.model || !a.gpu) return;
+                if (skin && !Skin(ctx, m_SkinningCS.get(), a)) return;
+                a.gpu->RenderDepth(ctx, *a.model, SkinnedWorld(tf, a), renderer.DepthView(), renderer.DepthProj());
+            });
+}
+
 void RenderSystem::Render(Registry& reg, Renderer& renderer)
 {
     reg.CreateView<TransformComponent, ModelComponent>()
@@ -70,9 +138,7 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
     ID3D11DeviceContext* ctx = renderer.GetContext();
     if (!cam || !ctx) return;
 
-    if (!m_SkinningCS)
-        m_SkinningCS = ResourceManager::Get().LoadCS(L"SkinningCS", L"Shader/Skinning/SkinningCS.hlsl");
-    if (!m_SkinningCS) return;
+    if (!EnsureSkinningCS()) return;
 
     const Matrix view = cam->GetViewMatrix();
     const Matrix proj = cam->GetProjectionMatrix();
@@ -84,30 +150,8 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
         .Each([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
             {
                 if (!a.visible || !a.model || !a.gpu) return;
-
-                std::vector<Matrix> globals, palette;
-                if (!SkinnedAnimSystem::BuildPose(a, globals)) return;
-
-                const int subCount = (int)a.gpu->GetSubMeshes().size();
-                for (int s = 0; s < subCount; ++s)
-                {
-                    if (!a.gpu->IsSubMeshVisible(s)) continue;
-                    a.model->BuildSubmeshPalette(s, globals, palette);
-                    a.gpu->SkinSubmesh(ctx, m_SkinningCS.get(), s, palette);
-                }
-
-                // モデル → Entity: 拡縮 → 足元を軸に傾ける（滑り）→ offset → Entity の回転 → 位置
-                // （Transform.cpp と同じ Yaw/Pitch/Roll の規約）。
-                // KayKit のモデル空間の正面は -Z なので、X 軸回りの正の角度で頭が後ろへ倒れる
-                const Matrix world =
-                    Matrix::CreateScale(a.scale)
-                    * Matrix::CreateRotationX(DirectX::XMConvertToRadians(a.leanDeg))
-                    * Matrix::CreateTranslation(a.offset)
-                    * Matrix::CreateFromYawPitchRoll(
-                        DirectX::XMConvertToRadians(tf.rotation.y + a.yawOffsetDeg),
-                        DirectX::XMConvertToRadians(tf.rotation.x),
-                        DirectX::XMConvertToRadians(tf.rotation.z))
-                    * Matrix::CreateTranslation(tf.position);
+                if (!Skin(ctx, m_SkinningCS.get(), a)) return;
+                const Matrix world = SkinnedWorld(tf, a);
 
                 a.gpu->Render(ctx, *a.model, light, world, view, proj);
                 drewAny = true;

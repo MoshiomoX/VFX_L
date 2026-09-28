@@ -68,6 +68,20 @@ public:
     // 次の DrawMesh に効く溶解。null で無効（毎回書くので持ち越さない）
     void SetDissolve(const DissolveParams* p) { m_Dissolve = p; }
 
+    // 太陽の影の行列と調整値（LightBuffer の shadow*。ShadowMap が毎フレーム書く）。
+    // ClearShadow で影無し（Renderer は他の場面と共有なので、影を使う場面は終わる時に呼ぶ）
+    void SetShadow(const Matrix viewProj[3], const Vector4& splits, const Vector4& texelWorld,
+        const Vector4& params, const Vector4& params2);
+    void ClearShadow() { m_LightData.shadowSplits.w = 0.0f; }
+
+    // 影図へ深度だけを描く間（ShadowMap の段ごと）。DrawMesh は VS だけを積んで PS を外し、
+    // カメラの代わりにこの view / proj を使う（光・溶解・貼図・点光源は触らない）
+    void BeginDepthPass(const Matrix& view, const Matrix& proj);
+    void EndDepthPass() { m_DepthPass = false; }
+    bool InDepthPass() const { return m_DepthPass; }
+    const Matrix& DepthView() const { return m_DepthView; }
+    const Matrix& DepthProj() const { return m_DepthProj; }
+
     void Begin();
     void DrawMesh(Mesh* mesh, Transform* transform, Material* material = nullptr);
     void End();
@@ -85,4 +99,8 @@ private:
     CameraBase* m_Camera = nullptr;
     LightBuffer m_LightData;
     const DissolveParams* m_Dissolve = nullptr;
+
+    bool   m_DepthPass = false;
+    Matrix m_DepthView;
+    Matrix m_DepthProj;
 };

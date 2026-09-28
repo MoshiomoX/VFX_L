@@ -104,6 +104,23 @@ void Renderer::SetFog(const Vector3& color, float start, float end, float maxAmo
     m_LightData.fogMax = maxAmount;
 }
 
+void Renderer::SetShadow(const Matrix viewProj[3], const Vector4& splits, const Vector4& texelWorld,
+    const Vector4& params, const Vector4& params2)
+{
+    for (int i = 0; i < 3; ++i) m_LightData.shadowViewProj[i] = viewProj[i];
+    m_LightData.shadowSplits = splits;
+    m_LightData.shadowTexelWorld = texelWorld;
+    m_LightData.shadowParams = params;
+    m_LightData.shadowParams2 = params2;
+}
+
+void Renderer::BeginDepthPass(const Matrix& view, const Matrix& proj)
+{
+    m_DepthPass = true;
+    m_DepthView = view;
+    m_DepthProj = proj;
+}
+
 void Renderer::Begin()
 {}
 
@@ -119,6 +136,20 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
         vs = material->GetVS();
     else
         vs = m_DefaultVS.get();
+
+    // 影図へ深度だけ：VS（入力配置も）と MVP だけ積んで PS は外す
+    if (m_DepthPass)
+    {
+        vs->Bind(m_Context);
+        m_Context->PSSetShader(nullptr, nullptr, 0);
+        MVPBuffer mvp;
+        mvp.World = transform->GetWorldMatrix();
+        mvp.View = m_DepthView;
+        mvp.Projection = m_DepthProj;
+        vs->WriteBuffer(m_Context, 0, &mvp);
+        mesh->Draw(m_Context);
+        return;
+    }
 
     if (material && material->HasPS())
         ps = material->GetPS();

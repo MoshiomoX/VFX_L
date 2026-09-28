@@ -48,7 +48,19 @@ cbuffer LightBuffer : register(MODEL_LIGHT_CB_REG)
     float fogMax;               // 0 = no fog (default outside the battle scene)
     float albedoSrgb;           // 1 = albedo textures hold sRGB: decode before shading (DecodeAlbedo)
     float fogPad;
+    // sun shadow, 3 cascades (Graphics/Light/ShadowMap). shadowSplits.w = 0 = off
+    row_major float4x4 shadowViewProj[3]; // light view * ortho proj per cascade
+    float4 shadowSplits;        // xyz = distance from the camera each cascade covers, w = on
+    float4 shadowTexelWorld;    // xyz = one shadow texel in meters, per cascade
+    float4 shadowParams;        // x = 1 / map size, y = normal offset (texels), z = strength, w = PCF radius (texels)
+    float4 shadowParams2;       // x = fade start (fraction of the last split), y = depth bias, z = 1 = tint cascades
 };
+
+// the depth of every cascade (one array slice each) and a comparison
+// sampler (LESS_EQUAL, border = lit). Bound once per frame by ShadowMap;
+// unused registers everywhere else
+Texture2DArray g_ShadowMap : register(t9);
+SamplerComparisonState g_ShadowSampler : register(s2);
 
 // ------------------------------------------------------------
 // Albedo textures are loaded as UNORM, so an sRGB image arrives
@@ -93,6 +105,73 @@ float3 ApplyFog(float3 color, float3 worldPos)
     float d = distance(worldPos, cameraPosition);
     float f = smoothstep(fogStart, max(fogEnd, fogStart + 1e-3), d) * fogMax;
     return lerp(color, fogColor, f);
+}
+
+// ------------------------------------------------------------
+// Sun shadow: 1 = lit, 0 = fully in shadow (before strength).
+// The first cascade whose box holds the point wins (cascade 0 is the
+// sharpest). The point is pushed along the normal by a few texels
+// (more when the sun grazes the surface) so a face does not shadow
+// itself, then PCF over (2r+1)^2 bilinear comparison taps. Fades out
+// towards the end of the last cascade.
+// cascadeOut = the cascade used, 3 = none (for the debug tint)
+// ------------------------------------------------------------
+float SunShadow(float3 worldPos, float3 N, float NdotL, out uint cascadeOut)
+{
+    cascadeOut = 3u;
+    float vis = 1.0;
+    if (shadowSplits.w > 0.5 && NdotL > 0.0)
+    {
+        float4 lp = float4(0, 0, 0, 1);
+        [unroll]
+        for (uint c = 0u; c < 3u; ++c)
+        {
+            if (cascadeOut == 3u)
+            {
+                float3 p = worldPos + N * (shadowTexelWorld[c] * shadowParams.y * (2.0 - NdotL));
+                float4 q = mul(float4(p, 1.0), shadowViewProj[c]);
+                if (all(abs(q.xy) < 0.98) && q.z > 0.0 && q.z < 1.0)
+                {
+                    cascadeOut = c;
+                    lp = q;
+                }
+            }
+        }
+        if (cascadeOut < 3u)
+        {
+            float2 uv = lp.xy * float2(0.5, -0.5) + 0.5;
+            float depth = lp.z - shadowParams2.y;
+            float texel = shadowParams.x;
+            int r = (int) shadowParams.w;
+            float sum = 0.0;
+            float n = 0.0;
+            for (int y = -r; y <= r; ++y)
+            {
+                for (int x = -r; x <= r; ++x)
+                {
+                    sum += g_ShadowMap.SampleCmpLevelZero(g_ShadowSampler,
+                        float3(uv + float2(x, y) * texel, (float) cascadeOut), depth);
+                    n += 1.0;
+                }
+            }
+            vis = sum / max(n, 1.0);
+
+            float dist = distance(worldPos, cameraPosition);
+            float fadeStart = shadowSplits.z * shadowParams2.x;
+            vis = lerp(vis, 1.0, saturate((dist - fadeStart) / max(shadowSplits.z - fadeStart, 1e-3)));
+            vis = lerp(1.0, vis, shadowParams.z);
+        }
+    }
+    return vis;
+}
+
+// debug: cascade 0/1/2 tinted red/green/blue (shadowParams2.z = 1)
+float3 ShadowCascadeTint(float3 color, uint cascade)
+{
+    float3 tint = float3(1, 1, 1);
+    if (shadowParams2.z > 0.5 && cascade < 3u)
+        tint = (cascade == 0u) ? float3(1.0, 0.55, 0.55) : (cascade == 1u) ? float3(0.55, 1.0, 0.55) : float3(0.55, 0.55, 1.0);
+    return color * tint;
 }
 
 // ------------------------------------------------------------
@@ -158,8 +237,9 @@ float3 SpecularGGX(float3 N, float3 V, float3 L, float roughness, float3 F0)
     return (D * G * F) / max(denom, 1e-4);
 }
 
-float3 ShadePBR(float3 N, float3 V, float3 albedo,
-                float metallic, float roughness, float ao)
+// sunScale: how much of the directional light reaches the surface (shadow)
+float3 ShadePBRSun(float3 N, float3 V, float3 albedo,
+                   float metallic, float roughness, float ao, float sunScale)
 {
     float3 L = normalize(-dirLight.direction);
     float3 H = normalize(V + L);
@@ -175,11 +255,17 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
 
     float3 kD = (float3(1, 1, 1) - F) * (1.0 - metallic);
     float NdotL = max(dot(N, L), 0.0);
-    float3 radiance = dirLight.color * dirLight.intensity;
+    float3 radiance = dirLight.color * (dirLight.intensity * sunScale);
 
     float3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
     float3 ambient = AmbientAt(N) * albedo * ao;
     return ambient + Lo;
+}
+
+float3 ShadePBR(float3 N, float3 V, float3 albedo,
+                float metallic, float roughness, float ao)
+{
+    return ShadePBRSun(N, V, albedo, metallic, roughness, ao, 1.0);
 }
 
 // ------------------------------------------------------------
@@ -222,10 +308,13 @@ float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
 {
     float3 V = normalize(cameraPosition - worldPos);
 
-    // directional: same diffuse as the view-less version, plus highlight
+    // directional: same diffuse as the view-less version, plus highlight,
+    // both cut by the sun shadow
     float3 L = normalize(-dirLight.direction);
     float NdotL = max(dot(N, L), 0.0);
-    float3 sun = dirLight.color * (dirLight.intensity * NdotL);
+    uint cascade;
+    float shadow = SunShadow(worldPos, N, NdotL, cascade);
+    float3 sun = dirLight.color * (dirLight.intensity * NdotL * shadow);
     float3 sunSpec = SpecularGGX(N, V, L, LAMBERT_SPEC_ROUGHNESS, DIELECTRIC_F0) * sun;
 
     float3 diff, spec;
@@ -234,19 +323,21 @@ float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
     // this Lambert has no 1/PI (the light intensity absorbs it), so the
     // specular lobes get the same PI to keep their ratio to the diffuse
     float3 lit = (AmbientAt(N) + sun + diff) * albedo + (sunSpec + spec) * PI;
-    return ApplyFog(lit, worldPos);
+    return ApplyFog(ShadowCascadeTint(lit, cascade), worldPos);
 }
 
 // PBR + point lights: same split as the directional term above
 float3 ShadePBR(float3 N, float3 V, float3 albedo,
                 float metallic, float roughness, float ao, float3 worldPos)
 {
-    float3 base = ShadePBR(N, V, albedo, metallic, roughness, ao);
+    uint cascade;
+    float shadow = SunShadow(worldPos, N, max(dot(N, normalize(-dirLight.direction)), 0.0), cascade);
+    float3 base = ShadePBRSun(N, V, albedo, metallic, roughness, ao, shadow);
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
     float3 diff, spec;
     PointLightShade(worldPos, N, V, roughness, F0, diff, spec);
     float3 kD = (1.0 - metallic) * albedo / PI;
-    return ApplyFog(base + diff * kD + spec, worldPos);
+    return ApplyFog(ShadowCascadeTint(base + diff * kD + spec, cascade), worldPos);
 }
 
 #endif
