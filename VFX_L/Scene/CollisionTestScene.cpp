@@ -105,6 +105,8 @@ void CollisionTestScene::Init()
     // 雑魚のモデルは SwarmSystem が自前で持つ。ここには置かない
     m_Elites.Init(device);
     m_Lighting.Init(device);   // 空のシェーダー
+    if (!m_Shadows.Initialize(device))
+        std::cout << "[Error] ShadowMap init failed" << std::endl;
 
     // ---------- 地形（格子对齐。台地と坂道の野原）----------
     // 場地: 100 x 100 マス = 200m x 200m。
@@ -198,6 +200,9 @@ void CollisionTestScene::RegisterItemVisuals()
 void CollisionTestScene::Shutdown()
 {
     SceneLighting::ClearFog(Application::Get().GetRenderer());   // Renderer は他の場面と共有
+    m_Shadows.Disable(Application::Get().GetRenderer());         // 同上（影を切らないと他の場面が真っ暗）
+    m_Shadows.Unbind(Application::Get().GetGraphics().GetContext());
+    m_Shadows.Shutdown();
     m_Swarm.Shutdown();
     m_StaticProps.Shutdown();
     m_GameUI.Shutdown();
@@ -539,8 +544,26 @@ void CollisionTestScene::EndRun()
 void CollisionTestScene::Render(Renderer& renderer)
 {
     m_Lighting.Apply(renderer);
+    auto& gfx = Application::Get().GetGraphics();
+    ID3D11DeviceContext* ctx = gfx.GetContext();
+
+    // ---- 0) 太陽の影図（段ごとに影を落とす物を深度だけで描く）→ 場面の HDR RT に戻す ----
+    // 雑魚（GPU）は影図に入れない（足元の丸い影で代える）
+    if (m_ShowMesh && GetCamera())
+    {
+        m_Shadows.Render(ctx, renderer, *GetCamera(), m_Lighting.SunDirection(),
+            [&](const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj, int cascade)
+            {
+                m_RenderSystem.RenderDepth(m_Registry, renderer, cascade == 0);
+                m_StaticProps.RenderDepth(ctx, view, proj);
+            });
+        gfx.RestoreRenderTarget();
+    }
+    else
+        m_Shadows.Disable(renderer);
+
     // 空（画面全体。深度を触らないので一番最初に）
-    m_Lighting.DrawSky(Application::Get().GetGraphics().GetContext(), GetCamera());
+    m_Lighting.DrawSky(ctx, GetCamera());
 
     SceneBase::Render(renderer);
 
@@ -569,6 +592,7 @@ void CollisionTestScene::Render(Renderer& renderer)
         m_ParticleSystem.SetLight(renderer.GetLightData());   // 立方体粒子の Lambert 用
         m_ParticleSystem.Render();
     }
+    m_Shadows.Unbind(ctx);   // 次のフレームで影図を DSV にするので外す
 
     // ============================================================
     // 4) UI（一番手前。Begin/End の管理は GameUI の中）

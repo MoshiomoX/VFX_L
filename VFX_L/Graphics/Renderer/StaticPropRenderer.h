@@ -54,6 +54,11 @@ public:
     // 場面の不透明描画の中で呼ぶ（RenderSystem と同じ状態のまま）
     void Render(Renderer& renderer);
 
+    // 影図へ深度だけ（ShadowMap の段ごと）。光源の view * proj の視錐台で間引く
+    // （近い面は見ない：影図の手前、光源側にある物も影を落とす）。Stats は変えない
+    void RenderDepth(ID3D11DeviceContext* ctx, const DirectX::SimpleMath::Matrix& view,
+        const DirectX::SimpleMath::Matrix& proj);
+
     void DrawImGui();
 
     Settings& GetSettings() { return m_Settings; }

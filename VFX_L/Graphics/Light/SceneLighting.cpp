@@ -31,6 +31,10 @@ Vector3 SceneLighting::SunDirection() const
 
 bool SceneLighting::Init(ID3D11Device* device)
 {
+    // TEMP-TEST: 自己テストで太陽の高さを変える（影の長さを見る）
+    char env[16] = {};
+    if (GetEnvironmentVariableA("VFXL_SUN_PITCH", env, sizeof(env)) > 0)
+        m_SunPitch = (float)atof(env);
     return m_Sky.Initialize(device);
 }
 

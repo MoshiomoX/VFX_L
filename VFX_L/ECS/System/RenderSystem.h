@@ -17,8 +17,13 @@ class RenderSystem
 public:
     void Render(Registry& reg, Renderer& renderer);
 
+    // 影図へ深度だけ（renderer が BeginDepthPass 中）。影を落とす物 = 見えている実体全部。
+    // skin = true で先に骨付きの蒙皮をやり直す（級聯の最初の段だけ true にすればよい）
+    void RenderDepth(Registry& reg, Renderer& renderer, bool skin);
+
 private:
     void RenderSkinned(Registry& reg, Renderer& renderer);
+    bool EnsureSkinningCS();
 
     std::shared_ptr<ComputeShader> m_SkinningCS;   // 初回描画時に ResourceManager から取る
 };

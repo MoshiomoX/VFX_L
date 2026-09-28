@@ -310,6 +310,64 @@ void StaticPropRenderer::Render(Renderer& renderer)
 }
 
 // ============================================================
+// 影図へ深度だけ
+// ============================================================
+void StaticPropRenderer::RenderDepth(ID3D11DeviceContext* ctx, const Matrix& view, const Matrix& proj)
+{
+    if (!m_Settings.enabled || m_Instances.empty() || !ctx || !m_VS || !m_InstanceBuffer)
+        return;
+
+    Vector4 planes[6];
+    ExtractFrustumPlanes(view * proj, planes);
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    if (FAILED(ctx->Map(m_InstanceBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+        return;
+    Matrix* dst = static_cast<Matrix*>(mapped.pData);
+    int written = 0;
+    for (Group& g : m_Groups)
+    {
+        g.drawStart = written;
+        for (int i = g.first; i < g.first + g.count; ++i)
+        {
+            const Instance& in = m_Instances[i];
+            bool outside = false;
+            for (int p = 0; p < 6 && !outside; ++p)
+            {
+                if (p == 4) continue;   // 近い面
+                const Vector4& pl = planes[p];
+                outside = pl.x * in.center.x + pl.y * in.center.y + pl.z * in.center.z + pl.w < -in.radius;
+            }
+            if (!outside) dst[written++] = in.world;
+        }
+        g.drawCount = written - g.drawStart;
+    }
+    ctx->Unmap(m_InstanceBuffer.Get(), 0);
+    if (written == 0) return;
+
+    MVPBuffer mvp;
+    mvp.World = Matrix::Identity;
+    mvp.View = view;
+    mvp.Projection = proj;
+    m_VS->WriteBuffer(ctx, 0, &mvp);
+
+    ID3D11ShaderResourceView* srv = m_InstanceSRV.Get();
+    ctx->VSSetShaderResources(kInstanceSlot, 1, &srv);
+    m_VS->Bind(ctx);
+    ctx->PSSetShader(nullptr, nullptr, 0);
+    for (const Group& g : m_Groups)
+    {
+        if (g.drawCount == 0) continue;
+        PropInstanceCB icb = { (uint32_t)g.drawStart, { 0, 0, 0 } };
+        m_VS->WriteBuffer(ctx, 1, &icb);
+        for (const auto& sub : g.model->GetSubMeshes())
+            sub.mesh->DrawInstanced(ctx, (UINT)g.drawCount);
+    }
+    ID3D11ShaderResourceView* nullSRV = nullptr;
+    ctx->VSSetShaderResources(kInstanceSlot, 1, &nullSRV);
+}
+
+// ============================================================
 // ImGui（場面の Terrain 欄の中から呼ぶ）
 // ============================================================
 void StaticPropRenderer::DrawImGui()

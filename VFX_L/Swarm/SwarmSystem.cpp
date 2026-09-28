@@ -1493,12 +1493,61 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
     }
     PointLightManager::Get().UnbindPS(m_Context);
 
-    // ---- 足元の警告の輪 → 頭上の HP バー（雑魚の後。深度は読むだけ）----
+    // ---- 足元の丸い影 → 足元の警告の輪 → 頭上の HP バー（雑魚の後。深度は読むだけ）----
+    if (indirect)
+        RenderBlobShadows(camera);
     if (indirect)
         RenderBomberRings(camera);
     RenderDropRings(camera);
     if (indirect)
         RenderHpBars(camera);
+}
+
+// ============================================================
+// 雑魚の足元の丸い影
+// 活きている雑魚 1 体につき 1 枚の地面の板（6 頂点、頂点バッファ無し）。数は HP バーと同じ間接引数。
+// 四隅を高さ場に載せる（b1 の格子、b2 の groundY、t3 の高さ場）。深度テストあり・書き込み無し、
+// premultiplied の AlphaBlend（黒 x a = 地面を a だけ暗くする）
+// ============================================================
+void SwarmSystem::RenderBlobShadows(CameraBase* camera)
+{
+    if (!blobShadow.enabled || !m_BlobShadowVS || !m_BlobShadowPS || !m_HpBarArgs || !m_HeightSRV) return;
+
+    BlobShadowCB cb = {};
+    cb.view = camera->GetViewMatrix();
+    cb.proj = camera->GetProjectionMatrix();
+    cb.radius = blobShadow.radius;
+    cb.strength = blobShadow.strength;
+    cb.lift = blobShadow.lift;
+    cb.softness = blobShadow.softness;
+    cb.clamp = blobShadow.clamp;
+    m_BlobShadowVS->WriteBuffer(m_Context, 0, &cb);
+    m_BlobShadowPS->WriteBuffer(m_Context, 0, &cb);
+    m_BlobShadowVS->WriteBuffer(m_Context, 1, &m_CachedFrameCB);
+    m_BlobShadowVS->WriteBuffer(m_Context, 2, &m_CachedAICB);
+
+    m_BlobShadowVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_BlobShadowVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_BlobShadowVS->SetSRV(m_Context, "aliveList", m_AliveListSRV.Get());
+    m_BlobShadowVS->SetSRV(m_Context, "heights", m_HeightSRV.Get());
+
+    m_BlobShadowVS->Bind(m_Context);
+    m_BlobShadowPS->Bind(m_Context);
+    m_Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_Context->IASetInputLayout(nullptr);
+    m_Context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
+
+    auto& rs = RenderStates::Get();
+    const float blendFactor[4] = { 0, 0, 0, 0 };
+    m_Context->OMSetBlendState(rs.AlphaBlend(), blendFactor, 0xFFFFFFFF);
+    m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);
+    m_Context->RSSetState(rs.CullNone());
+
+    m_Context->DrawInstancedIndirect(m_HpBarArgs.Get(), 0);
+
+    // 次のフレームの Compute が UAV として使うので外す
+    m_BlobShadowVS->UnbindSRVs(m_Context);
+    rs.Restore(m_Context);
 }
 
 // ============================================================
@@ -1747,6 +1796,17 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     hr = ShaderPath::Load(m_HpBarPS.get(), device, L"Shader/Swarm/SwarmEnemyHpBarPS.hlsl");
     std::cout << "[SwarmSystem] EnemyHpBarPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_HpBarPS.reset();
+
+    // ---- 雑魚の足元の丸い影（失敗しても影が出ないだけ）----
+    m_BlobShadowVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_BlobShadowVS.get(), device, L"Shader/Swarm/SwarmBlobShadowVS.hlsl");
+    std::cout << "[SwarmSystem] BlobShadowVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_BlobShadowVS.reset();
+
+    m_BlobShadowPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_BlobShadowPS.get(), device, L"Shader/Swarm/SwarmBlobShadowPS.hlsl");
+    std::cout << "[SwarmSystem] BlobShadowPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_BlobShadowPS.reset();
 
     // ---- 自爆兵の警告の輪（失敗しても輪が出ないだけ）----
     m_BomberRingVS = std::make_shared<VertexShader>();

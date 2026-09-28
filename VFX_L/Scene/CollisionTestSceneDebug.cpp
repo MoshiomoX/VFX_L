@@ -78,6 +78,7 @@ void CollisionTestScene::DrawDebugUI()
     m_Feedback.DrawImGui(m_Registry, m_Player);
     m_Camera.DrawImGui();
     m_Lighting.DrawImGui(PlayerPos());
+    m_Shadows.DrawImGui();
     DrawBloomPanel();
     ImGui::End();
 }
@@ -559,6 +560,19 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
+        // ---- 雑魚の足元の丸い影（太陽の影図には入れない代わり）----
+        if (ImGui::TreeNode("Blob Shadows"))
+        {
+            auto& blob = m_Swarm.blobShadow;
+            ImGui::Checkbox("Enabled##blob", &blob.enabled);
+            ImGui::DragFloat("Radius (m)##blob", &blob.radius, 0.01f, 0.1f, 3.0f);
+            ImGui::SliderFloat("Strength##blob", &blob.strength, 0.0f, 1.0f);
+            ImGui::SliderFloat("Softness##blob", &blob.softness, 0.0f, 1.0f);
+            ImGui::DragFloat("Lift (m)##blob", &blob.lift, 0.005f, 0.0f, 0.3f);
+            ImGui::DragFloat("Height Clamp (m)##blob", &blob.clamp, 0.01f, 0.0f, 2.0f);
+            ImGui::TreePop();
+        }
+
         // ---- 隕石（DROP の弾）の着弾点の警告の輪 ----
         if (ImGui::TreeNode("Meteor Ring"))
         {
@@ -932,6 +946,8 @@ void CollisionTestScene::UpdateAutoTestBomber()
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
         m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;   // 画面の連写に調試の線を入れない
+        m_Camera.Camera().SetPitch(50.0f);   // 足元（丸い影・警告の輪）が映るように見下ろす
+        m_Camera.Camera().distance = 10.0f;
         m_Mobs.QueueDebugBombers(3);
         AutoTestLog("bomber A: casting paused, 3 bombers");
         m_AutoStep = 1;
@@ -1246,10 +1262,11 @@ void CollisionTestScene::UpdateAutoTestSlide(float dt)
     }
     else if (m_AutoStep == 5)
     {
-        // 下りの向きと直角に、左右から 1.5 秒ずつ（段々の横顔）
+        // 下りの向きと直角に、左から横顔（1.5 秒）→ 右から見下ろし（1.5 秒。崖の影が地面に落ちるのを見る）
         s_Phase += dt;
         const float side = (s_Phase < 1.5f) ? 1.0f : -1.0f;
         m_Camera.Camera().SetYaw(DirectX::XMConvertToDegrees(std::atan2(-s_SlopeDir.z * side, -s_SlopeDir.x * side)));
+        m_Camera.Camera().SetPitch(side > 0.0f ? 15.0f : 50.0f);
         if (s_Phase >= 3.0f) { AutoTestLog("slide done"); m_AutoStep = 6; }
     }
 

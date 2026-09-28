@@ -49,6 +49,7 @@
 #include "Enemy/EliteSpawner.h"
 #include "Enemy/MobSpawner.h"
 #include "Graphics/Light/SceneLighting.h"
+#include "Graphics/Light/ShadowMap.h"
 #include "Debug/StressTestTools.h"
 
 #include "World/GridWorld.h"
@@ -152,6 +153,7 @@ private:
     RewardCrateSystem       m_Crates;              // 報酬の箱
     FeedbackVFXSystem       m_Feedback;            // 升級・開箱・被弾の特効
     SceneLighting           m_Lighting;            // 太陽・環境光・場景光源
+    ShadowMap               m_Shadows;             // 太陽の影（3 段の級聯）
     EliteSpawner            m_Elites;              // 精英の的（CPU）
     MobSpawner              m_Mobs;                // 雑魚の湧き（GPU へ依頼）
     StressTestTools         m_Stress;              // 負荷テスト・Mesh 発射の確認
