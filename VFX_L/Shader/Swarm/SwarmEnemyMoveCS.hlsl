@@ -45,11 +45,14 @@ void main(uint3 id : SV_DispatchThreadID)
     else
     {
         // ---- integrate ----
-        // no terrain check here: the AI pass already refused to move
+        // no walkable check here: the AI pass already refused to move
         // into a blocked cell (hard block). re-checking would only
-        // trap an enemy that is already inside a wall
-        e.position.x += e.velocity.x * g_Step;
-        e.position.z += e.velocity.z * g_Step;
+        // trap an enemy that is already inside a wall.
+        // Cliffs are re-checked: the AI's player push-out comes after its
+        // hard block and could still shove an enemy up a plateau side
+        float2 next = e.position.xz + e.velocity.xz * g_Step;
+        if (SwarmSlopeOk(terrainHeight, e.position.xz, next))
+            e.position.xz = next;
         e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
 
         // ---- facing: turn toward the velocity at a bounded rate ----

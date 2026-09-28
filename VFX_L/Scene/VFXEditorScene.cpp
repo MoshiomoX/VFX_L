@@ -15,6 +15,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <fstream>   // TEMP-TEST: refclip.log
 #include <cstddef>
 
 // kLayoutSkinned が SkinnedVertexOut（SkinningCS の出力）の実際の並びと一致していることの保証
@@ -76,7 +77,10 @@ void VFXEditorScene::Init()
     // ---------- 参照用モデル（Paladin, 骨付き）----------
     // 粒子だけだと大きさと明るさの基準が無い。動く物を置く
     Material::InitDefaultTextures(device);
-    auto loaded = ResourceManager::Get().LoadModelAuto(Res::Mdl::Paladin_Idle);
+    // TEMP-TEST: VFXL_REF_MAGE=<クリップ名,...>（別ファイルのアニメを骨名で当てた結果を見る。Game.cpp と対）
+    char refMage[256] = {};
+    const bool useMage = GetEnvironmentVariableA("VFXL_REF_MAGE", refMage, sizeof(refMage)) > 0;
+    auto loaded = ResourceManager::Get().LoadModelAuto(useMage ? Res::Mdl::KayKit_Mage : Res::Mdl::Paladin_Idle);
     if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
     {
         m_SkinnedModel = loaded.skinnedModel;
@@ -84,6 +88,30 @@ void VFXEditorScene::Init()
             std::cout << "[Error] SkinnedModelGPU init failed" << std::endl;
         // 多クリップのモデルなら Idle から始める（無ければ 0 番）
         m_PreviewClip = (std::max)(0, m_SkinnedModel->FindClip("Idle"));
+
+        if (useMage)   // TEMP-TEST
+        {
+            for (int i = 0; i < m_SkinnedModel->GetClipCount(); ++i)
+                std::cout << "[TEMP-TEST] clip " << i << ": " << m_SkinnedModel->GetClipName(i) << std::endl;
+            std::string list = refMage;
+            size_t start = 0;
+            while (start <= list.size())
+            {
+                const size_t comma = list.find(',', start);
+                const std::string name = list.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+                const int idx = m_SkinnedModel->FindClip(name);
+                std::cout << "[TEMP-TEST] ref clip " << name << " -> " << idx << std::endl;
+                if (idx >= 0) m_RefCycle.push_back(idx);
+                if (comma == std::string::npos) break;
+                start = comma + 1;
+            }
+            if (!m_RefCycle.empty()) m_PreviewClip = m_RefCycle[0];
+            // 実寸（m）のモデル。横から全身が入る所に
+            m_ModelScale[0] = m_ModelScale[1] = m_ModelScale[2] = 1.0f;
+            m_ModelRot[1] = 90.0f;
+            m_Camera.SetPosition({ 0.0f, 1.6f, -9.0f });
+            m_Camera.SetTarget({ 0.0f, 0.9f, 0.0f });
+        }
     }
     else
         std::cout << "[Error] Paladin: not a skinned model" << std::endl;
@@ -165,6 +193,27 @@ void VFXEditorScene::Update(float dt)
     m_ModelTransform.SetScale({ m_ModelScale[0], m_ModelScale[1], m_ModelScale[2] });
     m_ModelWorld = m_ModelTransform.GetWorldMatrix();   // Mesh 発射の followWorld 用
     if (m_AnimPlay) m_AnimTime += dt * m_AnimSpeed;
+    if (!m_RefCycle.empty())   // TEMP-TEST: VFXL_REF_MAGE の順に 3 秒ずつ
+    {
+        m_RefCycleTimer += dt;
+        if (m_RefCycleTimer >= 3.0f)
+        {
+            m_RefCycleTimer = 0.0f;
+            m_RefCycleIndex = (m_RefCycleIndex + 1) % (int)m_RefCycle.size();
+            m_PreviewClip = m_RefCycle[m_RefCycleIndex];
+            m_AnimTime = 0.0f;
+        }
+        // 切り替えた時刻（系统 ms）とクリップ名を refclip.log へ（画面の連写と突き合わせる）
+        static int s_Logged = -1;
+        if (s_Logged != m_PreviewClip || m_RefCycleTimer == 0.0f)
+        {
+            s_Logged = m_PreviewClip;
+            std::ofstream f("refclip.log", std::ios::app);
+            f << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::system_clock::now().time_since_epoch()).count()
+              << " " << m_SkinnedModel->GetClipName(m_PreviewClip) << std::endl;
+        }
+    }
 
     // ---- VFX 更新（ここで emitter と mesh item が積まれる）----
     m_Effect.Update(dt);

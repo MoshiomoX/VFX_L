@@ -75,6 +75,17 @@ public:
     int   FindClip(const std::string& name) const;
     const std::string& GetClipName(int clipIndex) const { return m_Animations[clipIndex].name; }
 
+    // 別ファイルのアニメを骨名で足す（同じ骨名の別の人形用に作られたクリップ。
+    // 例: KayKit Character Animations の Rig_Medium_*.fbx → Adventurers 1.0 の Mage）。
+    //   回転   : 向こうの bind からの差分（親空間）を自分の bind に掛ける  R = R_bind * inv(A_bind) * A
+    //   平行移動: 差分を hips の bind の長さの比で縮めて自分の bind に足す（骨の長さは自分のまま）
+    //   拡縮   : 向こうの bind に対する比を掛ける
+    // 両方の bind が同じなら元のキーそのもの。自分に無い骨のチャンネルは捨てる。
+    // 同じ名前のクリップが既にあれば、足す方を「ファイル名|名前」にする
+    // （"Rig_Medium_MovementAdvanced|Dodge_Forward"。FindClip("Dodge_Forward") は元の方）。
+    // 戻り値 = 足したクリップ数（読めなければ -1）
+    int AddAnimationsFromFile(const std::string& filepath);
+
     const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
     // ノード名 → submesh index（無ければ -1）
     int FindSubMeshByNode(const std::string& nodeName) const;

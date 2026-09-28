@@ -41,6 +41,7 @@ enum class MoveStateID
     Run,    // 接地・移動中
     Jump,   // 空中・上昇中
     Fall,   // 空中・下降中
+    Slide,  // 滑り中（PlayerControlSystem が slideActive を立てている間。坂の段差で一瞬浮いても続く）
 };
 
 // ============================================================
@@ -78,6 +79,13 @@ struct PlayerStateComponent
     float moveTime   = 0.0f;
     float actionTime = 0.0f;
     float damageTime = 0.0f;
+
+    // ---- 滑り（PlayerControlSystem が書く。Move 層の Slide はこれを見る）----
+    bool  slideActive = false;
+    float slideAirTime = 0.0f;         // 滑り中に地面から離れている時間（短ければ滑りを続ける）
+    float slideBoostTimer = 0.0f;      // 平地の押し出しの再使用待ち（0 で使える）
+    bool  slideNeedsRelease = false;   // 遅くなって立った後はキーを離すまで滑り直さない（押しっぱなしで押し出しが繰り返されない）
+    bool  carryMomentum = false;       // 滑りでついた moveSpeed 超えの勢いを持ち越している（普段の走りでは立たない）
 
     // ---- 被損層のタイマー ----
     float hurtDuration     = 0.25f;   // 被弾硬直の長さ

@@ -98,6 +98,25 @@ namespace Res
         inline constexpr const char* KayKit_Mage =
             "Assets/Model/KayKit_Mage/Mage.fbx";
 
+        // KayKit Character Animations 1.1（CC0）の Rig_Medium。モデル無しのアニメだけのファイル。
+        // 骨名が Adventurers 1.0 の Mage と同じなので、読み込み時に骨名で足す（kExtraAnims）
+        namespace KayKitAnims
+        {
+            inline constexpr const char* MovementAdvanced =   // Crouching / Sneaking / Crawling / Dodge_* など
+                "Assets/Model/KayKit_CharacterAnimations/Rig_Medium_MovementAdvanced.fbx";
+        }
+
+        // 骨付きモデルを読んだ直後に足す別ファイルのアニメ（SkinnedModel::AddAnimationsFromFile）。
+        // ResourceManager::ImportModelAuto がパスの一致で引く（先読みスレッドの中でも同じ）
+        struct ExtraAnimSet
+        {
+            const char* model;
+            const char* animFile;
+        };
+        inline constexpr ExtraAnimSet kExtraAnims[] = {
+            { KayKit_Mage, KayKitAnims::MovementAdvanced },
+        };
+
         // KayKit Skeletons（CC0）。Minion は雑魚（1 フレーム焼いてインスタンス描画）、
         // Warrior / Mage / Rogue は精英（骨付きのまま SkinnedAnimComponent）
         inline constexpr const char* KayKit_SkeletonMinion =
@@ -117,6 +136,48 @@ namespace Res
         // 報酬の箱（近づいて F で三択）。Kenney Retro Fantasy の像素の木箱（0.3m 角、底が原点）
         inline constexpr const char* Kenney_RewardCrate =
             "Assets/Model/Kenney_RetroFantasy/fbx/detail-crate.fbx";
+
+        // 戦闘の地形に撒く自然物（KayKit Forest、CC0、cm 単位・底が原点、共通の forest_texture.png）。
+        // 木と岩は通れない置物、茂みと草は見た目だけ（TerrainGenerator）
+        namespace Forest
+        {
+            inline constexpr const char* kTrees[] = {
+                "Assets/Model/KayKit_Forest/fbx/Tree_1_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Tree_1_B_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Tree_2_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Tree_2_C_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Tree_3_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Tree_3_B_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Tree_4_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Tree_4_B_Color1.fbx",
+            };
+            inline constexpr const char* kBareTrees[] = {   // 枯れ木（たまに混ぜる）
+                "Assets/Model/KayKit_Forest/fbx/Tree_Bare_1_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Tree_Bare_2_A_Color1.fbx",
+            };
+            inline constexpr const char* kRocks[] = {
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_D_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_H_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_2_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_2_C_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_3_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_3_E_Color1.fbx",
+            };
+            inline constexpr const char* kBushes[] = {
+                "Assets/Model/KayKit_Forest/fbx/Bush_1_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Bush_1_C_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Bush_2_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Bush_3_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Bush_4_A_Color1.fbx",
+            };
+            inline constexpr const char* kGrass[] = {
+                "Assets/Model/KayKit_Forest/fbx/Grass_1_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Grass_1_C_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Grass_2_A_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Grass_2_C_Color1.fbx",
+            };
+        }
 
         // 起動時に別スレッドで先読みする骨付きモデル（ResourceManager::PreloadModelsAsync）。
         // 1 個 19MB・Debug で数秒かかるので、タイトル / 編集器の間に済ませる。
@@ -141,6 +202,10 @@ namespace Res
         // 雑魚（Kenney Blocky の L）の像素貼图
         inline constexpr const wchar_t* Kenney_BlockyZombieAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-l.png";
+        // 自爆兵（Kenney Blocky の G、赤い稲妻の機械人）。18 体とも同じメッシュ・同じ UV なので
+        // 雑魚のメッシュに貼り替えるだけで良い
+        inline constexpr const wchar_t* Kenney_BlockyRobotAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-g.png";
 
         // 粒子
         inline constexpr const wchar_t* ParticleSheet =
@@ -251,6 +316,7 @@ namespace Res
         inline constexpr const char* FireCircle = "Assets/Data/VFXData/FireCircle.json";     // 火の輪（範囲）
         inline constexpr const char* ArcBoltHit = "Assets/Data/VFXData/ArcBoltHit.json";     // 命中（威力 0 の範囲の見た目）
         inline constexpr const char* HomingBoltHit = "Assets/Data/VFXData/HomingBoltHit.json";
+        inline constexpr const char* ExpOrbTrail = "Assets/Data/VFXData/ExpOrbTrail.json";   // 吸い寄せ中の経験値オーブの尾（GPU）
     }
 
     // ========================================================

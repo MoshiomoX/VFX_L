@@ -38,6 +38,7 @@
 #include "ECS/System/BackpackAggregateSystem.h"
 #include "UI/LevelUpSystem.h"
 #include "ECS/System/RenderSystem.h"
+#include "Graphics/Renderer/StaticPropRenderer.h"
 #include "ECS/System/InteractionSystem.h"
 #include "ECS/System/RewardCrateSystem.h"
 #include "ECS/System/FeedbackVFXSystem.h"
@@ -51,6 +52,7 @@
 #include "Debug/StressTestTools.h"
 
 #include "World/GridWorld.h"
+#include "World/TerrainGenerator.h"
 #include "Swarm/SwarmSystem.h"
 
 #include "UI/GameUI.h"
@@ -102,6 +104,20 @@ private:
     bool  m_AutoInteract = false;
     void  AutoTestLog(const char* what);
     void  UpdateAutoTest(float dt);
+    // VFXL_BATTLE_AUTOTEST=bomber：施法を止め、湧きを止めて玩家の近くに自爆兵を出し、
+    // GPU の counter（活き数・撃破・玩家への累計ダメージ・範囲数）と HP が変わる度に記録する
+    bool     m_AutoBomber = false;
+    uint32_t m_AutoLast[4] = {};   // aliveEnemies / killCount / playerDamage / aliveAreas
+    float    m_AutoLastHp = -1.0f;
+    void     UpdateAutoTestBomber();
+    // VFXL_BATTLE_AUTOTEST=slide：一番長い下り坂の上に玩家を置き、走る → 滑る → 跳ぶ を入力の代わりに流して
+    // 0.1 秒毎の速さ・足元の傾き・状態を記録する。続けて平地でも滑る
+    bool     m_AutoSlide = false;
+    void     UpdateAutoTestSlide(float dt);
+    // VFXL_BATTLE_AUTOTEST=perf：野原の置物を隠す / 調試表示を切る段を順に回し、段毎の平均 fps を記録する
+    bool     m_AutoPerf = false;
+    void     UpdateAutoTestPerf();
+    void     SetDecorPropsVisible(bool visible, int* outCount);
 
 private:
     BattleCamera m_Camera;   // FollowCamera は m_Camera.Camera()
@@ -130,6 +146,7 @@ private:
     InteractionSystem       m_Interaction;         // 近づいて F で使う物（報酬の箱）
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
+    StaticPropRenderer      m_StaticProps;   // 野原の置物（ModelComponent::batched）をまとめて描く
 
     // ---- 部品 ----
     RewardCrateSystem       m_Crates;              // 報酬の箱
@@ -172,6 +189,7 @@ private:
     bool m_ShowWireframe = true;
     bool m_ShowMesh = true;
     bool m_ShowWandDebug = true;
+    bool m_ShowGridDebug = true;   // 玩家の周りの格子（通行・流れ場）
     bool m_ShowBillboard = true;
     bool m_ShowSwarmDebug = false;
 
@@ -196,5 +214,7 @@ private:
     float m_SpawnPos[3] = { 0.0f, 5.0f, 0.0f };
 
     // --- 地形 ---
-    uint32_t m_TerrainSeed = 1;        // 地形の seed（ImGui から変えて Regenerate）
+    // 地形の設定。seed は開局ごとに乱数（環境変数 VFXL_TERRAIN_SEED があればその値。再現用）。
+    // Terrain 面板から変えて Regenerate
+    TerrainGenerator::Config m_TerrainConfig;
 };

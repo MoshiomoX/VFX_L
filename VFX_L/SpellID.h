@@ -13,7 +13,7 @@ enum class ItemID
     Lightning,
     ArcBolt,          // 弧（ArcOnce プロファイル）
     HomingBolt,       // 全追尾（HomingFull）
-    Meteor,           // 弧 + 命中で爆発（ExplosiveArc）
+    Meteor,           // 空から落ちて着弾点で爆発（Meteor プロファイル、Drop 型）
 
     // --- 修飾符（隣接する出力源を強化。リストには入らない）---
     SplitRune,        // 分裂：一度の発射数 +1、ダメージ分散

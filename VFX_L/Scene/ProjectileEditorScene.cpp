@@ -14,6 +14,7 @@
 #include "Item/ItemDatabase.h"
 #include "imgui.h"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
@@ -486,7 +487,8 @@ void ProjectileEditorScene::DrawGizmos()
     // ---- 制御点（曲線の型で、標的が居る時だけ）----
     if (m_Selected == 0) return;   // 組み込みの直進は編集不可
     ProjectileProfile& p = ProjectileProfileDB::At(m_Selected);
-    if (p.mode == Swarm::MotionMode::Straight) return;
+    // 直進と隕石（Drop）は曲線の制御点が無い
+    if (p.mode == Swarm::MotionMode::Straight || p.mode == Swarm::MotionMode::Drop) return;
 
     Vector3 tp, tv;
     float dist = 0.0f;
@@ -630,15 +632,31 @@ void ProjectileEditorScene::DrawProjectileTab()
     const char* modeNames[] = {
         "Straight (no curve)",
         "Curve, lock once (target dies -> fly straight)",
-        "Full tracking (target dies -> find another)" };
+        "Full tracking (target dies -> find another)",
+        "Drop from the sky (meteor: lands where the target stood)" };
     int mode = (int)p.mode;
-    if (ImGui::Combo("Mode", &mode, modeNames, 3))
+    if (ImGui::Combo("Mode", &mode, modeNames, 4))
     {
+        const Swarm::MotionMode prev = p.mode;
         p.mode = (Swarm::MotionMode)mode;
+        // Drop は c1 を m 単位で使う。型を跨いだら意味の合う値に戻す
+        if (p.mode == Swarm::MotionMode::Drop && prev != Swarm::MotionMode::Drop)
+            p.c1 = { 16.0f, 9.0f, 0.0f };
+        else if (prev == Swarm::MotionMode::Drop && p.mode != Swarm::MotionMode::Drop)
+            p.c1 = { 0.30f, 0.35f, 0.0f };
         changed = true;
     }
 
-    if (p.mode != Swarm::MotionMode::Straight)
+    if (p.mode == Swarm::MotionMode::Drop)
+    {
+        ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Falls from the sky onto the target's position at fire time");
+        changed |= ImGui::DragFloat("Drop Height (m)", &p.c1.x, 0.1f, 1.0f, 60.0f);
+        changed |= ImGui::DragFloat("Back Offset (m)", &p.c1.y, 0.1f, 0.0f, 60.0f);
+        const float fall = std::sqrt(p.c1.x * p.c1.x + p.c1.y * p.c1.y);
+        ImGui::TextDisabled("%.0f deg from the ground, about %.2f s to land at Speed",
+            DirectX::XMConvertToDegrees(std::atan2(p.c1.x, p.c1.y)), fall / (std::max)(p.speed, 0.01f));
+    }
+    else if (p.mode != Swarm::MotionMode::Straight)
     {
         ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Curve (x = along, y = side, z = up; side/up are x distance)");
         changed |= ImGui::DragFloat3("Control 1", &p.c1.x, 0.01f, -2.0f, 2.0f);

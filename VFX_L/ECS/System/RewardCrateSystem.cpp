@@ -78,6 +78,16 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
         Vector3 pos = grid.CellToWorld(gx, gz);
         pos.y = grid.SampleHeight(pos.x, pos.z);
 
+        // 周り 3x3 も同じ高さ（坂道・崖の縁・丘の斜面には置かない）
+        bool flat = true;
+        for (int dz = -1; dz <= 1 && flat; ++dz)
+            for (int dx = -1; dx <= 1 && flat; ++dx)
+            {
+                const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
+                flat = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.2f;
+            }
+        if (!flat) continue;
+
         bool tooClose = false;
         for (Entity other : m_Crates)
         {

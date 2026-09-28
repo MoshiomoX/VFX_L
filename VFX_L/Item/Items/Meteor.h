@@ -1,7 +1,8 @@
 ﻿// ============================================================
 // Items/Meteor.h
-// 隕石："ExplosiveArc" プロファイル。弧を描いて飛び、命中・寿命切れで
-// GPU が Explosion（Assets/Data/AreaData/Explosion.json）を出す。
+// 隕石："Meteor" プロファイル（Drop 型）。撃った時に一番近い敵の足元へ空から斜めに落ち、
+// 着弾点で GPU が MeteorBlast（Assets/Data/AreaData/MeteorBlast.json）を出す。
+// 落ちる所には警告の輪（SwarmSystem::dropRing）。落ちる途中では敵に当たらない
 //
 // 設計意図：
 //   ・直撃は弱く、爆発が本体。撃つ間隔を長くして重い一発にする
@@ -18,7 +19,7 @@ inline ProjectileItemDef MakeMeteor()
     def.common.id = ItemID::Meteor;
     def.common.name = "Meteor";
     def.common.displayName = L"メテオ";
-    def.common.description = L"間隔の長い重い一撃。着弾点で爆発し、周りの敵をまとめて巻き込む。";
+    def.common.description = L"空から隕石を落とす、間隔の長い重い一撃。着弾点で爆発し、周りの敵をまとめて巻き込む。";
     def.common.iconPath = Res::Icon::Meteor;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = ItemShape::Single();
@@ -34,7 +35,7 @@ inline ProjectileItemDef MakeMeteor()
     def.baseStats.castInterval = 1.2f;
     def.baseStats.manaCost = 20.0f;
 
-    def.profile = "ExplosiveArc";   // Assets/Data/ProjectileData/ExplosiveArc.json
+    def.profile = "Meteor";   // Assets/Data/ProjectileData/Meteor.json
 
     return def;
 }

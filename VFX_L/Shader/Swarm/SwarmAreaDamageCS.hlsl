@@ -91,7 +91,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
         SwarmOrb orb;
         orb.position = epos;
-        orb.position.y = g_OrbY;
+        orb.position.y = epos.y - g_GroundY + g_OrbY; // at the corpse's feet (see SwarmHitCS)
         orb.amount = g_OrbAmount;
         orb.velocity = float3(0, 0, 0);
         orb._pad = 0.0;

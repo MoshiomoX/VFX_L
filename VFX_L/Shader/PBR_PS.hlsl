@@ -10,7 +10,7 @@ float4 main(PS_INPUT input) : SV_TARGET
 {
     float3 glow = ApplyDissolve(input.UV); // clips dissolved pixels
 
-    float3 albedo = albedoTexture.Sample(samplerState, input.UV).rgb;
+    float3 albedo = DecodeAlbedo(albedoTexture.Sample(samplerState, input.UV).rgb);
     float3 nm = normalTexture.Sample(samplerState, input.UV).rgb;
     float metallic = metallicTexture.Sample(samplerState, input.UV).b;
     float roughness = roughnessTexture.Sample(samplerState, input.UV).g;

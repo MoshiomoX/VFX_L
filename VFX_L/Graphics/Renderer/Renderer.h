@@ -60,6 +60,10 @@ public:
     void SetAmbientColor(const Vector3& color);   // 一様な環境光（空と地面に同じ色）
     // 半球の環境光: 上向きの面は sky、下向きの面は ground、横向きはその中間
     void SetAmbientHemisphere(const Vector3& sky, const Vector3& ground);
+    // 距離の霧（LightBuffer::fog*）。maxAmount = 0 で無し
+    void SetFog(const Vector3& color, float start, float end, float maxAmount);
+    // 模型の色貼図を sRGB として線形へ戻す（LightBuffer::albedoSrgb）
+    void SetAlbedoSrgb(bool on) { m_LightData.albedoSrgb = on ? 1.0f : 0.0f; }
 
     // 次の DrawMesh に効く溶解。null で無効（毎回書くので持ち越さない）
     void SetDissolve(const DissolveParams* p) { m_Dissolve = p; }

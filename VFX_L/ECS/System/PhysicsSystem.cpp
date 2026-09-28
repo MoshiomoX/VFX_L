@@ -21,6 +21,7 @@ static bool ResolveAgainstStatics(
 {
     using namespace CollisionMath;
     bool grounded = false;
+    Vector3 groundNormal(0.0f, 1.0f, 0.0f);   // 床扱いの接触のうち一番傾いた物（坂の途中で平地の箱にも触れていても坂を取る）
 
     // 自分のワールド形状（今は Capsule 前提。Sphere も可）
     Vector3 selfCenter = tf.position + col.offset;
@@ -71,9 +72,14 @@ static bool ResolveAgainstStatics(
 
             // 上向き法線に当たった = 接地
             if (contact.normal.y > 0.5f)
+            {
+                if (!grounded || contact.normal.y < groundNormal.y)
+                    groundNormal = contact.normal;
                 grounded = true;
+            }
         }
     }
+    rb.groundNormal = grounded ? groundNormal : Vector3(0.0f, 1.0f, 0.0f);
     return grounded;
 }
 

@@ -5,6 +5,7 @@
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Shader/ComputeShader.h"
 #include "Graphics/Model/SkinnedModel.h"
+#include "ResourcePaths.h"
 #include "VFX_Editor/VFXTextureRef.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -163,6 +164,10 @@ LoadedModel ResourceManager::ImportModelAuto(const std::string& filepath)
         out.kind = ModelKind::Skinned;
         out.skinnedModel = std::make_shared<SkinnedModel>();
         out.skinnedModel->LoadFromScene(m_Device, scene, dir, name);
+        // 別ファイルのアニメ（骨名で当てる。ResourcePaths の kExtraAnims）
+        for (const auto& extra : Res::Mdl::kExtraAnims)
+            if (filepath == extra.model)
+                out.skinnedModel->AddAnimationsFromFile(extra.animFile);
         std::cout << "[LoadModelAuto] -> Skinned : " << filepath << std::endl;
     }
     else

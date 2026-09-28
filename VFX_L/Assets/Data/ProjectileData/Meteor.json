@@ -1,0 +1,17 @@
+{
+    "name": "Meteor",
+    "mode": 3,
+    "c1": [ 16.0, 9.0, 0.0 ],
+    "c2": [ 0.7, 0.35, 0.0 ],
+    "mirror": 0,
+    "retargetRadius": 0.0,
+    "hitArea": "MeteorBlast",
+    "hitAreaOnExpire": true,
+    "damage": 5,
+    "speed": 20.0,
+    "radius": 0.25,
+    "lifetime": 4.0,
+    "vfx": "Meteor.json",
+    "visualSize": 1.1,
+    "visualStretch": 0
+}

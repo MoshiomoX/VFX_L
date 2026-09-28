@@ -32,12 +32,17 @@ public:
         std::string cast = "Spellcast_Shoot";
         std::string hurt = "Hit_A";
         std::string dead = "Death_A";
+        std::string slide = "Crouching";   // KayKit Character Animations（別ファイル、kExtraAnims）
         std::string upperRoot = "chest";   // 上半身マスクの根
     };
 
     void Update(Registry& reg, float dt);
 
     ClipNames& Names() { return m_Names; }
+
+    // 滑りの姿勢: slide クリップ（屈んだ姿勢）を足元を軸に後ろへ傾ける（度）。0 で傾けない
+    float slideLeanDeg = 15.0f;
+    float leanSpeedDeg = 120.0f;   // 傾きの付け外しの速さ 度/秒
 
 private:
     ClipNames m_Names;

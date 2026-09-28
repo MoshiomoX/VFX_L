@@ -30,7 +30,9 @@
 #include "ResourcePaths.h"
 #include "imgui.h"
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
+#include <random>
 
 // ============================================================
 // Init
@@ -56,6 +58,9 @@ void CollisionTestScene::Init()
     {
         char env[8] = {};   // TEMP-TEST
         m_AutoTest = GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", env, sizeof(env)) > 0;
+        m_AutoBomber = m_AutoTest && strcmp(env, "bomber") == 0;   // 値が bomber なら自爆兵の自測
+        m_AutoPerf = m_AutoTest && strcmp(env, "perf") == 0;       // 値が perf なら負荷の内訳
+        m_AutoSlide = m_AutoTest && strcmp(env, "slide") == 0;     // 値が slide なら滑りの自測
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");
@@ -99,16 +104,24 @@ void CollisionTestScene::Init()
     // ---------- 精英の的（骨付きモデルが読めない時のカプセルを用意）----------
     // 雑魚のモデルは SwarmSystem が自前で持つ。ここには置かない
     m_Elites.Init(device);
+    m_Lighting.Init(device);   // 空のシェーダー
 
-    // ---------- 地形（格子对齐）----------
-    // 場地: 100 x 100 マス = 200m x 200m（旧場地 24m の約8倍幅）。
-    // 障害物の配置は seed で再現できる
+    // ---------- 地形（格子对齐。台地と坂道の野原）----------
+    // 場地: 100 x 100 マス = 200m x 200m。
+    // 開局ごとに seed を変える（同じ seed なら同じ地形。VFXL_TERRAIN_SEED で固定できる）
     m_Grid.Init(100, 100);
-
-    TerrainGenerator::Config tcfg;
-    tcfg.seed = m_TerrainSeed;
-    tcfg.obstacleCount = 40;
-    TerrainGenerator::Generate(m_Registry, device, m_Grid, tcfg, m_Terrain);
+    {
+        char env[16] = {};
+        if (GetEnvironmentVariableA("VFXL_TERRAIN_SEED", env, sizeof(env)) > 0)
+            m_TerrainConfig.seed = (uint32_t)strtoul(env, nullptr, 10);
+        else
+            m_TerrainConfig.seed = std::random_device{}() % 100000u;
+    }
+    TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain);
+    // 置物（木・岩・茂み・草）はモデル毎の instanced 描画へ
+    if (!m_StaticProps.Initialize(device))
+        std::cout << "[Error] StaticPropRenderer init failed" << std::endl;
+    m_StaticProps.Build(m_Registry);
 
     // ---------- GPU 側 gameplay（雑魚・投射物・オーブ）----------
     // ※地形の生成後に呼ぶ。格子表をそのまま上げるため
@@ -184,7 +197,9 @@ void CollisionTestScene::RegisterItemVisuals()
 // ============================================================
 void CollisionTestScene::Shutdown()
 {
+    SceneLighting::ClearFog(Application::Get().GetRenderer());   // Renderer は他の場面と共有
     m_Swarm.Shutdown();
+    m_StaticProps.Shutdown();
     m_GameUI.Shutdown();
     m_ProjectileRenderer.Shutdown();
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
@@ -242,7 +257,7 @@ float CollisionTestScene::TrackPlayerHpLoss()
 void CollisionTestScene::RespawnCrates()
 {
     const Vector3* p = PlayerPos();
-    m_Crates.Spawn(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainSeed, m_Interaction);
+    m_Crates.Spawn(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction);
 }
 
 void CollisionTestScene::RespawnElites()
@@ -458,6 +473,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         // レベルアップの判定は LevelUpSystem（次フレーム頭）に任せて、ここは足すだけ
         const float gpuExp = m_Swarm.ConsumeExp();
         if (gpuExp > 0.0f) m_ExpGained += gpuExp;   // 戦績用
+        if (gpuExp > 0.0f) m_Feedback.OnExpPicked(ptf.position);   // 拾った時のきらめき
         if (gpuExp > 0.0f && m_Registry.Has<LevelComponent>(m_Player))
             m_Registry.Get<LevelComponent>(m_Player).experience += gpuExp;
     }
@@ -523,6 +539,8 @@ void CollisionTestScene::EndRun()
 void CollisionTestScene::Render(Renderer& renderer)
 {
     m_Lighting.Apply(renderer);
+    // 空（画面全体。深度を触らないので一番最初に）
+    m_Lighting.DrawSky(Application::Get().GetGraphics().GetContext(), GetCamera());
 
     SceneBase::Render(renderer);
 
@@ -530,6 +548,7 @@ void CollisionTestScene::Render(Renderer& renderer)
     if (m_ShowMesh)
     {
         m_RenderSystem.Render(m_Registry, renderer);
+        m_StaticProps.Render(renderer);
         m_Swarm.Render(GetCamera(), renderer.GetLightData());
     }
     if (m_ShowSwarmDebug)

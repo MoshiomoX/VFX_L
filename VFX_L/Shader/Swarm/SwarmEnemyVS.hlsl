@@ -15,13 +15,21 @@
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
+#define SWARM_BOMBER_CB_REG b5
 #include "../Common/ModelCommon.hlsli"
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
-// live slot indices (SwarmEnemyCompactCS). InstanceID indexes this, not the pool
+// live slot indices (SwarmEnemyCompactCS). InstanceID indexes this, not the pool.
+// The C++ side binds the list of the kind being drawn (mobs, then bombers)
 StructuredBuffer<uint> aliveList : register(t2);
+// kind + fuse per slot: a lit bomber blinks faster and faster and swells up
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
+
+// bomber blink: starts at this many blinks per second, ends at the second value
+static const float kFuseBlinkStart = 3.0;
+static const float kFuseBlinkEnd = 14.0;
 
 // ---- rigid part animation (models whose parts hang off animated nodes,
 // e.g. Kenney Blocky: 6 rigid parts, no skin weights) ----
@@ -173,6 +181,18 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y += bounce;
     }
 
+    // ---- lit bomber: swell toward the blast, anchored at the feet ----
+    SwarmEnemyExtra extra = enemyExtra[slot];
+    bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
+    float fuseU = lit ? saturate(extra.fuse / max(g_BomberFuseTime, 1e-3)) : 0.0;
+    if (lit)
+    {
+        float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
+        float grow = 1.0 + g_BomberSwell * fuseU * fuseU;
+        local.xz *= grow;
+        local.y = footY + (local.y - footY) * grow;
+    }
+
     float3 worldPos = RotateY(local, s, c) + e.position;
     o.WorldPos = worldPos;
     o.Position = mul(mul(float4(worldPos, 1.0), View), Projection);
@@ -187,6 +207,18 @@ VS_OUTPUT main(VS_INPUT_INST input)
     {
         float t = saturate(e.animTime / max(g_HitStun, 1e-4));
         o.Color.rgb *= lerp(g_HitFlash, 1.0, t);
+    }
+
+    // ---- lit bomber: red-hot blink. The rate ramps linearly from start to
+    // end, so the phase is its integral over the fuse time ----
+    if (lit)
+    {
+        float T = max(g_BomberFuseTime, 1e-3);
+        float f = extra.fuse;
+        float phase = kFuseBlinkStart * f + 0.5 * (kFuseBlinkEnd - kFuseBlinkStart) / T * f * f;
+        float on = (frac(phase) < 0.5) ? 1.0 : 0.0;
+        float g = g_BomberFlashGain;
+        o.Color.rgb *= lerp(float3(1, 1, 1), float3(g, g * 0.3, g * 0.2), on);
     }
     return o;
 }

@@ -42,7 +42,24 @@ cbuffer LightBuffer : register(MODEL_LIGHT_CB_REG)
     float padding2;
     float3 groundAmbientColor;  // hemisphere bottom (ground)
     float padding3;
+    float3 fogColor;            // distance fog (ApplyFog). linear HDR, = the sky's horizon
+    float fogStart;             // meters from the camera where it starts
+    float fogEnd;               // meters where it reaches fogMax
+    float fogMax;               // 0 = no fog (default outside the battle scene)
+    float albedoSrgb;           // 1 = albedo textures hold sRGB: decode before shading (DecodeAlbedo)
+    float fogPad;
 };
+
+// ------------------------------------------------------------
+// Albedo textures are loaded as UNORM, so an sRGB image arrives
+// gamma-encoded. With albedoSrgb on it is brought back to linear
+// before lighting (CompositePS re-applies 1/2.2 at the end);
+// off keeps the old, lighter look
+// ------------------------------------------------------------
+float3 DecodeAlbedo(float3 c)
+{
+    return (albedoSrgb > 0.5) ? pow(max(c, 0.0), 2.2) : c;
+}
 
 static const float PI = 3.14159265359;
 
@@ -64,6 +81,18 @@ float3 PerturbNormal(float3 N, float3 T, float3 normalMapSample)
     float3 B = cross(N, T);
     float3x3 TBN = float3x3(T, B, N);
     return normalize(mul(nm, TBN));
+}
+
+// ------------------------------------------------------------
+// Distance fog: lit color -> fogColor between fogStart and fogEnd
+// (smoothstep, capped at fogMax). Far terrain melts into the sky.
+// Applied at the end of the world-position shade functions below
+// ------------------------------------------------------------
+float3 ApplyFog(float3 color, float3 worldPos)
+{
+    float d = distance(worldPos, cameraPosition);
+    float f = smoothstep(fogStart, max(fogEnd, fogStart + 1e-3), d) * fogMax;
+    return lerp(color, fogColor, f);
 }
 
 // ------------------------------------------------------------
@@ -204,7 +233,8 @@ float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
 
     // this Lambert has no 1/PI (the light intensity absorbs it), so the
     // specular lobes get the same PI to keep their ratio to the diffuse
-    return (AmbientAt(N) + sun + diff) * albedo + (sunSpec + spec) * PI;
+    float3 lit = (AmbientAt(N) + sun + diff) * albedo + (sunSpec + spec) * PI;
+    return ApplyFog(lit, worldPos);
 }
 
 // PBR + point lights: same split as the directional term above
@@ -216,7 +246,7 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
     float3 diff, spec;
     PointLightShade(worldPos, N, V, roughness, F0, diff, spec);
     float3 kD = (1.0 - metallic) * albedo / PI;
-    return base + diff * kD + spec;
+    return ApplyFog(base + diff * kD + spec, worldPos);
 }
 
 #endif

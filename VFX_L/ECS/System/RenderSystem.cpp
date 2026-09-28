@@ -26,7 +26,7 @@ void RenderSystem::Render(Registry& reg, Renderer& renderer)
     reg.CreateView<TransformComponent, ModelComponent>()
         .Each([&](Entity e, TransformComponent& tf, ModelComponent& mc)
             {
-                if (!mc.visible || !mc.model) return;
+                if (!mc.visible || !mc.model || mc.batched) return;   // batched は StaticPropRenderer
 
                 // ECS の TransformComponent を既存 Transform に詰めて Model::Draw へ渡す。
                 // これで描画管線を変えずに ECS 描画が可能になる。
@@ -96,10 +96,12 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
                     a.gpu->SkinSubmesh(ctx, m_SkinningCS.get(), s, palette);
                 }
 
-                // モデル → Entity: 拡縮 → offset → Entity の回転 → 位置
-                // （Transform.cpp と同じ Yaw/Pitch/Roll の規約）
+                // モデル → Entity: 拡縮 → 足元を軸に傾ける（滑り）→ offset → Entity の回転 → 位置
+                // （Transform.cpp と同じ Yaw/Pitch/Roll の規約）。
+                // KayKit のモデル空間の正面は -Z なので、X 軸回りの正の角度で頭が後ろへ倒れる
                 const Matrix world =
                     Matrix::CreateScale(a.scale)
+                    * Matrix::CreateRotationX(DirectX::XMConvertToRadians(a.leanDeg))
                     * Matrix::CreateTranslation(a.offset)
                     * Matrix::CreateFromYawPitchRoll(
                         DirectX::XMConvertToRadians(tf.rotation.y + a.yawOffsetDeg),

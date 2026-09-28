@@ -20,6 +20,7 @@ namespace
         { VFXId::FireCircle, Res::VFX::FireCircle },
         { VFXId::ArcBoltHit, Res::VFX::ArcBoltHit },
         { VFXId::HomingBoltHit, Res::VFX::HomingBoltHit },
+        { VFXId::ExpOrbTrail, Res::VFX::ExpOrbTrail },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }

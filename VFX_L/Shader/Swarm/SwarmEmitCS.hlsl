@@ -24,10 +24,23 @@
 #include "../Common/SwarmCommon.hlsli"
 
 // SwarmAreaEmitCS.hlsl #defines SWARM_EMIT_AREAS and includes this file:
-// same emit code, but the sources are the live areas instead of projectiles
-#ifdef SWARM_EMIT_AREAS
+// same emit code, but the sources are the live areas instead of projectiles.
+// SwarmOrbEmitCS.hlsl does the same with SWARM_EMIT_ORBS: the sources are
+// the orbs being pulled toward the player, all with one recipe (b3)
+#if defined(SWARM_EMIT_AREAS)
 StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
+#elif defined(SWARM_EMIT_ORBS)
+StructuredBuffer<SwarmOrb> orbs : register(t0);
+Buffer<uint> orbStates : register(t1);
+
+// Must match SwarmSystem::OrbEmitCB
+cbuffer SwarmOrbEmitCB : register(b3)
+{
+    uint g_OrbTrailVfx;        // recipe index (SwarmVFXTable::IndexOf). 0 = none
+    float g_OrbTrailMinSpeed;  // pulled faster than this (m/s) -> emits
+    uint2 _orbEmitPad;
+};
 #else
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 Buffer<uint> projStates : register(t1);
@@ -58,7 +71,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 srcPos;
     float3 srcVel;
     uint srcVfx;
-#ifdef SWARM_EMIT_AREAS
+#if defined(SWARM_EMIT_AREAS)
     if (i >= SWARM_MAX_AREAS)
         return;
     if (areaStates[i] == SWARM_DEAD)
@@ -66,6 +79,16 @@ void main(uint3 id : SV_DispatchThreadID)
     srcPos = areas[i].center;
     srcVel = float3(0, 0, 0);
     srcVfx = areas[i].vfxType;
+#elif defined(SWARM_EMIT_ORBS)
+    if (i >= g_MaxOrbs || g_OrbTrailVfx == 0u)
+        return;
+    if (orbStates[i] == SWARM_DEAD)
+        return;
+    if (orbs[i]._pad <= g_OrbTrailMinSpeed) // _pad = pull speed (SwarmOrbMoveCS)
+        return;
+    srcPos = orbs[i].position;
+    srcVel = orbs[i].velocity;
+    srcVfx = g_OrbTrailVfx;
 #else
     if (i >= g_MaxProjectiles)
         return;

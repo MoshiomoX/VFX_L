@@ -19,6 +19,9 @@ RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer claim : register(u1);
 // spawn hp per slot for the HP bar (see SwarmSpawnEnemyCS)
 RWStructuredBuffer<uint> enemyMaxHp : register(u2);
+// kind + fuse per slot (see SwarmSpawnEnemyCS). A lit bomber that gets
+// recycled forgets its fuse
+RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 
 cbuffer SwarmRecycleCB : register(b1)
 {
@@ -48,6 +51,11 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmEnemy req = spawnRequests[g_RecycleOffset + prev];
+    SwarmEnemyExtra extra;
+    extra.kind = req.animIndex;
+    extra.fuse = 0.0;
+    req.animIndex = 0u;
     enemies[i] = req;
     enemyMaxHp[i] = req.hp;
+    enemyExtra[i] = extra;
 }

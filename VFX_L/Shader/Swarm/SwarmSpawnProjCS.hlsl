@@ -18,6 +18,11 @@
 // from the muzzle to the enemy nearest to the player -- the same
 // enemy the weapon aimed at (counters still hold last step's key).
 // No target -> the projectile simply flies straight.
+//
+// DROP (meteor): the same enemy fixes the impact point. The projectile
+// is moved up to its start point in the sky (c1, see SwarmCommon.hlsli)
+// and gets enough lifetime to reach the ground. No target -> it lands
+// 8m ahead of the muzzle at the player's height.
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -61,7 +66,36 @@ void main(uint3 id : SV_DispatchThreadID)
     path.speed = speed;
     path.duration = 1.0;
 
-    if (m.mode != SWARM_MOTION_STRAIGHT && speed > 0.01)
+    if (m.mode == SWARM_MOTION_DROP && speed > 0.01)
+    {
+        float3 fwd = float3(req.velocity.x, 0.0, req.velocity.z);
+        float fwdLenSq = dot(fwd, fwd);
+        fwd = (fwdLenSq > 1e-8) ? fwd * rsqrt(fwdLenSq) : float3(0, 0, 1);
+
+        float3 impact = float3(req.position.x, g_PlayerPos.y, req.position.z) + fwd * 8.0;
+        uint key = counters.Load(SWARM_CNT_NEAREST_KEY);
+        if (key != SWARM_NO_TARGET_KEY)
+        {
+            uint slot = key & SWARM_SLOT_MASK;
+            if (slot < g_MaxEnemies && enemyStates[slot] == SWARM_ALIVE)
+            {
+                impact = enemies[slot].position;
+                path.target = slot;
+            }
+        }
+
+        // start: up, and back toward the muzzle (comes in over the player's shoulder)
+        float3 back = float3(req.position.x - impact.x, 0.0, req.position.z - impact.z);
+        float backLenSq = dot(back, back);
+        back = (backLenSq > 1e-8) ? back * rsqrt(backLenSq) : -fwd;
+        float3 start = impact + back * m.c1.y + float3(0.0, max(m.c1.x, 1.0), 0.0);
+
+        SwarmBuildDropPath(path, start, impact);
+        req.position = start;
+        req.velocity = normalize(impact - start) * (speed * 0.4);
+        req.lifetime = max(req.lifetime, path.duration + 0.25);
+    }
+    else if (m.mode != SWARM_MOTION_STRAIGHT && speed > 0.01)
     {
         uint key = counters.Load(SWARM_CNT_NEAREST_KEY);
         if (key != SWARM_NO_TARGET_KEY)

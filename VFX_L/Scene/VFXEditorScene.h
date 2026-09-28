@@ -86,6 +86,10 @@ private:
     std::shared_ptr<ComputeShader> m_SkinningCS;
     float m_AnimTime = 0.0f;
     int   m_PreviewClip = 0;   // 参照モデルの再生クリップ
+    // TEMP-TEST: VFXL_REF_MAGE=<クリップ名,...> で参照モデルを玩家の Mage にし、この順に 3 秒ずつ流す
+    std::vector<int> m_RefCycle;
+    int   m_RefCycleIndex = 0;
+    float m_RefCycleTimer = 0.0f;
     bool  m_AnimPlay = true;
     float m_AnimSpeed = 1.0f;
     Transform m_ModelTransform;
