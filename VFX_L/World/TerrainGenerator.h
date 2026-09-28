@@ -8,7 +8,7 @@
 //   坂道（台地の横から降りる楔。上面は土の道）… 台地に登れるのはここだけ
 //   高台（高さ 5〜7m。一面だけが 16〜20° の長い坂、残り三面は崖。滑り込みで加速する場所）
 //        … 一部は奥に同じ向きの坂を持つ 2 段目が載り、地面・1 段目・2 段目の 3 段になる
-//   自然物（KayKit Forest の木・岩・茂み・草。木は林に固まる）
+//   自然物（KayKit Forest の木・岩・茂み。木は林に固まる）。草は GrassRenderer が GPU で生やす
 //
 // 格子との約束（雑魚は GPU で格子と高さ場しか見ない）:
 //   台地・坂道・高台の足跡は walkable のまま、高さ場に上面の高さを書く。
@@ -71,11 +71,11 @@ namespace TerrainGenerator
 
         // ---- 自然物（KayKit Forest）----
         // 木と岩は置物（1 マス以上を塞ぐ。周り 1 マスは他の置物を置かないので、
-        // 並んで壁になることはない）。茂みと草は見た目だけ（衝突も格子も無し）
+        // 並んで壁になることはない）。茂みは見た目だけ（衝突も格子も無し）。
+        // 草は模型ではなく GrassRenderer（GPU の草の葉）
         int treeCount = 110;      // 林（ノイズで固まる）が主、所々に 1 本
         int rockCount = 40;
         int bushCount = 160;
-        int grassCount = 450;
 
         // ---- 外周の崖 ----
         float wallHeight = 7.0f;
@@ -84,8 +84,12 @@ namespace TerrainGenerator
         int spawnClearRadius = 8;
     };
 
-    // 床・外周・台地・坂道・丘を生成し、grid に占用と高さを登記する。
-    // 生成した Entity は outTerrain に積む（シーンが破棄用に持つ）
+    // 床・外周・台地・坂道・高台を生成し、grid に占用と高さを登記する。
+    // 生成した Entity は outTerrain に積む（シーンが破棄用に持つ）。
+    // outGrassMask: 格子のマス毎に 1 = 草を生やす（GrassRenderer 用）。土の坂道・外周・登れない台地は 0
     void Generate(Registry& reg, ID3D11Device* device, GridWorld& grid,
-        const Config& cfg, std::vector<Entity>& outTerrain);
+        const Config& cfg, std::vector<Entity>& outTerrain, std::vector<uint8_t>* outGrassMask = nullptr);
+
+    // 床の色（線形の反照率。値ノイズの緑のむら + 所々の乾いた草）。草の色もこれに合わせる
+    DirectX::SimpleMath::Vector4 GroundColor(float x, float z, uint32_t seed);
 }

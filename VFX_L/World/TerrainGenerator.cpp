@@ -244,8 +244,18 @@ namespace
 
 namespace TerrainGenerator
 {
+    DirectX::SimpleMath::Vector4 GroundColor(float x, float z, uint32_t seed)
+    {
+        const float big = ValueNoise(x / 22.0f, z / 22.0f, seed);
+        const float fine = ValueNoise(x / 6.0f, z / 6.0f, seed + 7u);
+        const Vector4 c = LerpColor(kGrassDark, kGrassLight,
+            std::clamp(big * 0.8f + fine * 0.4f - 0.1f, 0.0f, 1.0f));
+        const float dry = std::clamp((ValueNoise(x / 35.0f, z / 35.0f, seed + 13u) - 0.62f) * 4.0f, 0.0f, 0.6f);
+        return LerpColor(c, kGrassDry, dry);
+    }
+
     void Generate(Registry& reg, ID3D11Device* device, GridWorld& grid,
-        const Config& cfg, std::vector<Entity>& outTerrain)
+        const Config& cfg, std::vector<Entity>& outTerrain, std::vector<uint8_t>* outGrassMask)
     {
         const int gw = grid.Width();
         const int gd = grid.Depth();
@@ -265,15 +275,7 @@ namespace TerrainGenerator
             const uint32_t s = cfg.seed;
             ModelComponent mc;
             mc.model = PrimitiveBuilder::CreateColoredGrid(device, W, D, gw, gd, 0.5f,
-                [s](float x, float z)
-                {
-                    const float big = ValueNoise(x / 22.0f, z / 22.0f, s);
-                    const float fine = ValueNoise(x / 6.0f, z / 6.0f, s + 7u);
-                    const Vector4 c = LerpColor(kGrassDark, kGrassLight,
-                        std::clamp(big * 0.8f + fine * 0.4f - 0.1f, 0.0f, 1.0f));
-                    const float dry = std::clamp((ValueNoise(x / 35.0f, z / 35.0f, s + 13u) - 0.62f) * 4.0f, 0.0f, 0.6f);
-                    return LerpColor(c, kGrassDry, dry);
-                });
+                [s](float x, float z) { return GroundColor(x, z, s); });
             reg.Add<ModelComponent>(e, mc);
             outTerrain.push_back(e);
         }
@@ -533,7 +535,6 @@ namespace TerrainGenerator
         const auto bareTrees = loadModels(F::kBareTrees, std::size(F::kBareTrees));
         const auto rocks = loadModels(F::kRocks, std::size(F::kRocks));
         const auto bushes = loadModels(F::kBushes, std::size(F::kBushes));
-        const auto grasses = loadModels(F::kGrass, std::size(F::kGrass));
 
         auto cellHeight = [&](int x, int z) { const Vector3 c = grid.CellToWorld(x, z); return grid.SampleHeight(c.x, c.z); };
         std::vector<uint8_t> propAt((size_t)gw * gd, 0);   // 置物で塞いだマス
@@ -641,45 +642,49 @@ namespace TerrainGenerator
             if (placeBlocker(pm, randf(0.8f, 1.5f), randf(0.0f, 360.0f), x, z, false)) ++rocksPlaced;
         }
 
-        // 茂み・草：坂道の上（地面が傾いている所）以外。茂みは半分を林の中へ。
-        // onSlopes: 高台の長い坂にも置く（草だけ。坂が長くて何も無いと寂しいので）。
-        //           傾いた地面では中心の高さより少し沈めて、低い側が浮かないようにする。
-        //           坂の横の崖際（周りの高さが急に変わる所）には置かない
-        auto scatterDecor = [&](const std::vector<PropModel>& list, int count, float sMin, float sMax, float groveBias, bool onSlopes) -> int
-            {
-                int placed = 0;
-                for (int attempt = 0; attempt < count * 10 && placed < count && !list.empty(); ++attempt)
-                {
-                    float x, z;
-                    randomPoint(x, z);
-                    if (groveBias > 0.0f && randf(0.0f, 1.0f) < groveBias
-                        && ValueNoise(x / 26.0f, z / 26.0f, cfg.seed + 21u) <= 0.58f) continue;
-                    int gx, gz;
-                    grid.WorldToCell({ x, 0.0f, z }, gx, gz);
-                    if (!grid.IsWalkable(gx, gz) || at(gx, gz) == kRamp) continue;
-                    float h = grid.SampleHeight(x, z);
-                    const float bump = (std::max)(
-                        (std::max)(std::fabs(grid.SampleHeight(x + 0.6f, z) - h), std::fabs(grid.SampleHeight(x, z + 0.6f) - h)),
-                        (std::max)(std::fabs(grid.SampleHeight(x - 0.6f, z) - h), std::fabs(grid.SampleHeight(x, z - 0.6f) - h)));
-                    if (bump > 0.1f)
-                    {
-                        // 0.6m 先で 0.45m = 37° を超える段差は崖際
-                        if (!onSlopes || at(gx, gz) != kSlope || bump > 0.45f) continue;
-                        h -= 0.1f;
-                    }
-                    spawnVisual(list[randi(0, (int)list.size() - 1)], randf(sMin, sMax), randf(0.0f, 360.0f), x, z, h);
-                    ++placed;
-                }
-                return placed;
-            };
-        const int bushesPlaced = scatterDecor(bushes, cfg.bushCount, 0.8f, 1.3f, 0.5f, false);
-        const int grassPlaced = scatterDecor(grasses, cfg.grassCount, 0.8f, 1.5f, 0.0f, true);
+        // 茂み：平らな所（坂道・坂の上以外）。半分を林の中へ。
+        // 草は模型ではなく GrassRenderer が GPU で生やす（下の outGrassMask）
+        int bushesPlaced = 0;
+        for (int attempt = 0; attempt < cfg.bushCount * 10 && bushesPlaced < cfg.bushCount && !bushes.empty(); ++attempt)
+        {
+            float x, z;
+            randomPoint(x, z);
+            if (randf(0.0f, 1.0f) < 0.5f && ValueNoise(x / 26.0f, z / 26.0f, cfg.seed + 21u) <= 0.58f) continue;
+            int gx, gz;
+            grid.WorldToCell({ x, 0.0f, z }, gx, gz);
+            if (!grid.IsWalkable(gx, gz) || at(gx, gz) == kRamp) continue;
+            const float h = grid.SampleHeight(x, z);
+            if (std::fabs(grid.SampleHeight(x + 0.6f, z) - h) > 0.1f
+                || std::fabs(grid.SampleHeight(x, z + 0.6f) - h) > 0.1f
+                || std::fabs(grid.SampleHeight(x - 0.6f, z) - h) > 0.1f
+                || std::fabs(grid.SampleHeight(x, z - 0.6f) - h) > 0.1f) continue;
+            spawnVisual(bushes[randi(0, (int)bushes.size() - 1)], randf(0.8f, 1.3f), randf(0.0f, 360.0f), x, z, h);
+            ++bushesPlaced;
+        }
+
+        // ---------- 草を生やすマス ----------
+        // 土の坂道・外周の崖・登れない台地（高さ場が 0 のまま = 箱の中に生えてしまう）以外。
+        // 崖の面そのものは GrassRenderer が高さ場の傾きで弾く
+        if (outGrassMask)
+        {
+            auto& mask = *outGrassMask;
+            mask.assign((size_t)gw * gd, 1);
+            for (int z = 0; z < gd; ++z)
+                for (int x = 0; x < gw; ++x)
+                    if (x == 0 || z == 0 || x == gw - 1 || z == gd - 1 || at(x, z) == kRamp)
+                        mask[(size_t)z * gw + x] = 0;
+            for (const auto& p : plateaus)
+                if (!p.reachable)
+                    for (int z = p.r.z; z < p.r.z + p.r.d; ++z)
+                        for (int x = p.r.x; x < p.r.x + p.r.w; ++x)
+                            mask[(size_t)z * gw + x] = 0;
+        }
 
         std::cout << "[Terrain] seed " << cfg.seed << ": " << terraces << " terraces (" << terraceTier2
             << " with a 2nd tier), " << plateaus.size() << " plateaus ("
             << tier2 << " with a 2nd tier, " << blocked << " without a ramp), "
             << rampCount << " ramps, " << treesPlaced << " trees, "
-            << rocksPlaced << " rocks, " << bushesPlaced << " bushes, " << grassPlaced << " grass, grid "
+            << rocksPlaced << " rocks, " << bushesPlaced << " bushes, grid "
             << gw << "x" << gd << std::endl;
     }
 }

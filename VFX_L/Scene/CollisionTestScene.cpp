@@ -7,6 +7,7 @@
 
 #include "Component/TransformComponent.h"
 #include "Component/ColliderComponent.h"
+#include "Component/RigidbodyComponent.h"
 #include "Component/HealthComponent.h"
 #include "Component/InteractableComponent.h"
 #include "Player/PlayerTag.h"
@@ -119,11 +120,16 @@ void CollisionTestScene::Init()
         else
             m_TerrainConfig.seed = std::random_device{}() % 100000u;
     }
-    TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain);
-    // 置物（木・岩・茂み・草）はモデル毎の instanced 描画へ
+    std::vector<uint8_t> grassMask;
+    TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask);
+    // 置物（木・岩・茂み）はモデル毎の instanced 描画へ
     if (!m_StaticProps.Initialize(device))
         std::cout << "[Error] StaticPropRenderer init failed" << std::endl;
     m_StaticProps.Build(m_Registry);
+    // 草（GPU で生やす葉）
+    if (!m_Grass.Initialize(device, context))
+        std::cout << "[Error] GrassRenderer init failed" << std::endl;
+    m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed);
 
     // ---------- GPU 側 gameplay（雑魚・投射物・オーブ）----------
     // ※地形の生成後に呼ぶ。格子表をそのまま上げるため
@@ -205,6 +211,7 @@ void CollisionTestScene::Shutdown()
     m_Shadows.Shutdown();
     m_Swarm.Shutdown();
     m_StaticProps.Shutdown();
+    m_Grass.Shutdown();
     m_GameUI.Shutdown();
     m_ProjectileRenderer.Shutdown();
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
@@ -405,6 +412,14 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_PlayerAnimSystem.Update(m_Registry, dt);
     m_SkinnedAnimSystem.Update(m_Registry, dt);
 
+    // 草の風と踏み跡（物理の後の位置・接地で）
+    if (const Vector3* pp = PlayerPos())
+    {
+        const bool grounded = m_Registry.Has<RigidbodyComponent>(m_Player) && m_Registry.Get<RigidbodyComponent>(m_Player).isGrounded;
+        const bool sliding = m_Registry.Has<PlayerStateComponent>(m_Player) && m_Registry.Get<PlayerStateComponent>(m_Player).slideActive;
+        m_Grass.Update(dt, *pp, grounded, sliding);
+    }
+
     m_ManaSystem.Update(m_Registry, dt);
 
     // 投射物の生成・移動・命中・撃破報酬は全部 GPU（SwarmSystem）。
@@ -572,6 +587,7 @@ void CollisionTestScene::Render(Renderer& renderer)
     {
         m_RenderSystem.Render(m_Registry, renderer);
         m_StaticProps.Render(renderer);
+        if (GetCamera()) m_Grass.Render(renderer, *GetCamera());   // 地形の後（深度で埋まる所を描かない）
         m_Swarm.Render(GetCamera(), renderer.GetLightData());
     }
     if (m_ShowSwarmDebug)
