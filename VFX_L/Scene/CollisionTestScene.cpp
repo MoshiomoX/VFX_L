@@ -25,6 +25,7 @@
 #include "World/TerrainGenerator.h"
 #include "Scene/RunResult.h"
 #include "Debug/DebugManager.h"
+#include "Debug/FrameProfiler.h"
 #include "Manager/InputMap.h"
 #include "Manager/ResourceManager.h"
 #include "Core/Application.h"
@@ -317,7 +318,10 @@ void CollisionTestScene::Update(float dt)
     m_Interaction.SubmitLights(m_Registry);   // 報酬の箱の目印（止まっている間も消さない）
 
     if (!m_GameUI.ShouldPauseGame())
+    {
+        PROFILE_SCOPE("Gameplay");
         UpdateGameplay(dt);
+    }
 
     // ---- 画面下の操作案内（近くに使える物がある時だけ）----
     m_GameUI.SetPrompt(m_Interaction.HasFocus() ? m_Interaction.GetPrompt() : nullptr);
@@ -339,6 +343,7 @@ void CollisionTestScene::Update(float dt)
         m_GameUI.SetGameOver(-1.0f);
     }
 
+    PROFILE_SCOPE("Debug panels (ImGui)");
     DrawDebugUI();
 }
 
@@ -393,17 +398,26 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // ※能力値の注入（SetMoveSpeed 等）は行わない。
     //   PlayerControlSystem が PlayerStatsComponent を直接読む。
     // ============================================================
-    m_PlayerControlSystem.Update(m_Registry, dt, GetCamera());
+    {
+        PROFILE_SCOPE("Player control + spawn");
+        m_PlayerControlSystem.Update(m_Registry, dt, GetCamera());
 
-    // ---- 湧き管理（雑魚は GPU。数えるのは GPU の存活数）----
-    if (const Vector3* pp = PlayerPos())
-        m_Mobs.Update(m_Grid, *pp, dt, m_Swarm);
+        // ---- 湧き管理（雑魚は GPU。数えるのは GPU の存活数）----
+        if (const Vector3* pp = PlayerPos())
+            m_Mobs.Update(m_Grid, *pp, dt, m_Swarm);
+    }
+    {
+        PROFILE_SCOPE("Collision (broadphase)");
+        m_CollisionSystem.Update(m_Registry);
+    }
+    {
+        PROFILE_SCOPE("Physics");
+        m_PhysicsSystem.SetGravity(m_Gravity);
+        m_PhysicsSystem.Update(m_Registry, dt, m_CollisionSystem);
+    }
 
-    m_CollisionSystem.Update(m_Registry);
-
-    m_PhysicsSystem.SetGravity(m_Gravity);
-    m_PhysicsSystem.Update(m_Registry, dt, m_CollisionSystem);
-
+    static const char* const kRestSection = "State / weapon / anim / crates";   // GPU の Flush の前まで
+    FrameProfiler::Get().Begin(kRestSection);
     m_PlayerStateSystem.Update(m_Registry, dt);
 
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
@@ -458,6 +472,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ---- カメラ追従（最後）----
     m_Camera.Update(dt, PlayerPos());
+    FrameProfiler::Get().End(kRestSection);
 
     // ============================================================
     // GPU 側 gameplay の Flush（粒子と同じ位置、粒子より前）
@@ -483,7 +498,10 @@ void CollisionTestScene::UpdateGameplay(float dt)
             m_Swarm.GetAIParams().playerCapsuleHalf =
             m_Registry.Get<PlayerStatsComponent>(m_Player).height * 0.5f;
 
-        m_Swarm.Flush(ptf.position, playerRadius, playerAlive, dt, m_TotalTime);
+        {
+            PROFILE_SCOPE("Swarm Flush (GPU gameplay)");
+            m_Swarm.Flush(ptf.position, playerRadius, playerAlive, dt, m_TotalTime);
+        }
 
         // GPU 上で受けたダメージを CPU の玩家へ反映
         const float gpuDamage = m_Swarm.ConsumePlayerDamage();
@@ -511,6 +529,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // 0 に近いままのはず。伸びるなら GPU を待っている。
     // ============================================================
     {
+        PROFILE_SCOPE("Particles + lights");
         auto t0 = std::chrono::high_resolution_clock::now();
 
         // 範囲攻撃・反応の特効の見た目（emitter を積むので粒子の Flush より前）
@@ -530,6 +549,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         m_Stress.RecordFlushMs(std::chrono::duration<double, std::milli>(t1 - t0).count());
     }
 
+    PROFILE_SCOPE("Gameplay debug draw");
     DrawGameplayDebug();
 }
 
@@ -566,6 +586,7 @@ void CollisionTestScene::Render(Renderer& renderer)
     // 雑魚（GPU）は影図に入れない（足元の丸い影で代える）
     if (m_ShowMesh && GetCamera())
     {
+        PROFILE_SCOPE("Shadow maps");
         m_Shadows.Render(ctx, renderer, *GetCamera(), m_Lighting.SunDirection(),
             [&](const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj, int cascade)
             {
@@ -585,25 +606,29 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ---- 1) モデル描画（CPU の実体 + GPU の雑魚）----
     if (m_ShowMesh)
     {
-        m_RenderSystem.Render(m_Registry, renderer);
-        m_StaticProps.Render(renderer);
-        if (GetCamera()) m_Grass.Render(renderer, *GetCamera());   // 地形の後（深度で埋まる所を描かない）
-        m_Swarm.Render(GetCamera(), renderer.GetLightData());
+        { PROFILE_SCOPE("Models (ECS)"); m_RenderSystem.Render(m_Registry, renderer); }
+        { PROFILE_SCOPE("Props (instanced)"); m_StaticProps.Render(renderer); }
+        { PROFILE_SCOPE("Grass"); if (GetCamera()) m_Grass.Render(renderer, *GetCamera()); }   // 地形の後（深度で埋まる所を描かない）
+        { PROFILE_SCOPE("Swarm draw"); m_Swarm.Render(GetCamera(), renderer.GetLightData()); }
     }
     if (m_ShowSwarmDebug)
         m_Swarm.RenderDebug(GetCamera());
 
-    // ---- 2) ビルボード（投射物とオーブの芯）----
-    if (m_ShowBillboard)
-        m_ProjectileRenderer.Render(m_Registry, GetCamera());
+    {
+        PROFILE_SCOPE("Billboards + sprites");
+        // ---- 2) ビルボード（投射物とオーブの芯）----
+        if (m_ShowBillboard)
+            m_ProjectileRenderer.Render(m_Registry, GetCamera());
 
-    // ---- 2b) 連番絵（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
-    m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
-    m_Swarm.RenderSprites(GetCamera());
+        // ---- 2b) 連番絵（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
+        m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
+        m_Swarm.RenderSprites(GetCamera());
+    }
 
     // ---- 3) 粒子（VFX 本体）----
     if (m_ShowParticle)
     {
+        PROFILE_SCOPE("Particles draw");
         m_ParticleSystem.SetCamera(GetCamera());
         m_ParticleSystem.SetLight(renderer.GetLightData());   // 立方体粒子の Lambert 用
         m_ParticleSystem.Render();
@@ -613,5 +638,6 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ============================================================
     // 4) UI（一番手前。Begin/End の管理は GameUI の中）
     // ============================================================
+    PROFILE_SCOPE("Game UI");
     m_GameUI.Render(m_Registry, m_Player);
 }

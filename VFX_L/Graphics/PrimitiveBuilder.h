@@ -7,8 +7,10 @@
 #pragma once
 #include <memory>
 #include <functional>
+#include <vector>
 #include <d3d11.h>
 #include <SimpleMath.h>
+#include "Graphics/Mesh/Vertex3D.h"
 
 class Model;
 
@@ -35,6 +37,20 @@ namespace PrimitiveBuilder
     //（地形の台地 = 上が草・横が岩）
     std::shared_ptr<Model> CreateHexahedron(ID3D11Device* device, const Vector3 v[8],
         const Vector4& topColor, const Vector4& sideColor);
+
+    // 六面体をまとめて 1 つのモデルにする（動かない地形を 1 回の draw にまとめる用。
+    // 1 個ずつだと DrawMesh の状態の積み直しが数十回、影の 3 段でその 3 倍になる）。
+    // Append に世界座標の 8 頂点を渡し、最後に Build。見た目は CreateHexahedron と同じ
+    class HexahedronBatch
+    {
+    public:
+        void Append(const Vector3 v[8], const Vector4& topColor, const Vector4& sideColor);
+        std::shared_ptr<Model> Build(ID3D11Device* device) const;
+        bool Empty() const { return m_Indices.empty(); }
+    private:
+        std::vector<VERTEX_3D> m_Verts;
+        std::vector<unsigned int> m_Indices;
+    };
 
     // 細分化した水平面（高さ y、中心原点で sizeX × sizeZ、divX × divZ 分割）。
     // 頂点色を colorAt(x, z)（ローカル座標）で塗る。地面の色むら用

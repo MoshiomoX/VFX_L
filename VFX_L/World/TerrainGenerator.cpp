@@ -88,8 +88,9 @@ namespace
         v[6] = { hi.x, hi.y, hi.z }; v[7] = { lo.x, hi.y, hi.z };
     }
 
-    // 静的な凸体（世界座標の 8 頂点）。衝突は Convex、見た目は上面と側面の 2 色
-    Entity SpawnHull(Registry& reg, ID3D11Device* device, const Vector3 world[8],
+    // 静的な凸体（世界座標の 8 頂点）。衝突は Convex の実体、
+    // 見た目（上面と側面の 2 色）は batch へ積む（地形全部で 1 つのモデル。Generate の最後に作る）
+    Entity SpawnHull(Registry& reg, PrimitiveBuilder::HexahedronBatch& batch, const Vector3 world[8],
         const Vector4& top, const Vector4& side)
     {
         Vector3 lo = world[0], hi = world[0];
@@ -121,14 +122,12 @@ namespace
         rb.useGravity = false;
         reg.Add<RigidbodyComponent>(e, rb);
 
-        ModelComponent mc;
-        mc.model = PrimitiveBuilder::CreateHexahedron(device, v, top, side);
-        reg.Add<ModelComponent>(e, mc);
+        batch.Append(world, top, side);
         return e;
     }
 
-    // 静的な箱（衝突は AABB）。見た目は上面と側面の 2 色
-    Entity SpawnBlock(Registry& reg, ID3D11Device* device, const Vector3& lo, const Vector3& hi,
+    // 静的な箱（衝突は AABB の実体）。見た目（上面と側面の 2 色）は batch へ
+    Entity SpawnBlock(Registry& reg, PrimitiveBuilder::HexahedronBatch& batch, const Vector3& lo, const Vector3& hi,
         const Vector4& top, const Vector4& side)
     {
         const Vector3 center = (lo + hi) * 0.5f;
@@ -136,10 +135,8 @@ namespace
         Entity e = TestSpawner::SpawnStaticBox(reg, center, half);
 
         Vector3 v[8];
-        BoxVerts(v, -half, half);
-        ModelComponent mc;
-        mc.model = PrimitiveBuilder::CreateHexahedron(device, v, top, side);
-        reg.Add<ModelComponent>(e, mc);
+        BoxVerts(v, lo, hi);
+        batch.Append(v, top, side);
         return e;
     }
 
@@ -218,7 +215,7 @@ namespace
     }
 
     // 坂道の楔。高い端（top）が台地の側面に接し、外へ向かって base まで下る
-    Entity SpawnRamp(Registry& reg, ID3D11Device* device, GridWorld& g, const Rect& r, Side s,
+    Entity SpawnRamp(Registry& reg, PrimitiveBuilder::HexahedronBatch& batch, GridWorld& g, const Rect& r, Side s,
         float base, float top, const Vector4& topColor = kRampTop)
     {
         const Vector3 lo = RectMin(g, r);
@@ -236,7 +233,7 @@ namespace
         case Side::NegZ: v[4].y = v[5].y = low; break;
         }
 
-        Entity e = SpawnHull(reg, device, v, topColor, kCliff);
+        Entity e = SpawnHull(reg, batch, v, topColor, kCliff);
         WriteHullHeights(g, r, reg.Get<ColliderComponent>(e).hull, reg.Get<TransformComponent>(e).position);
         return e;
     }
@@ -267,6 +264,10 @@ namespace TerrainGenerator
         auto randi = [&](int a, int b) { return (b <= a) ? a : std::uniform_int_distribution<int>(a, b)(rng); };
         auto randf = [&](float a, float b) { return std::uniform_real_distribution<float>(a, (std::max)(a, b))(rng); };
 
+        // 外周の崖・台地・坂道・高台の見た目は全部ここへ積み、最後に 1 つのモデルにする
+        // （衝突は 1 個ずつの実体のまま。見た目だけ 1 回の draw）
+        PrimitiveBuilder::HexahedronBatch batch;
+
         // ---------- 床（草地）----------
         // 衝突は上面が y=0 の箱、見た目は 2m 間隔の格子に値ノイズで緑のむらと乾いた草を塗った面。
         // 床は格子に登記しない（上を歩くものなので通行を塞がない）
@@ -286,7 +287,7 @@ namespace TerrainGenerator
             {
                 const Vector3 lo = RectMin(grid, { x, z, w, d });
                 const Vector3 hi = lo + Vector3(w * kCs, cfg.wallHeight, d * kCs);
-                outTerrain.push_back(SpawnBlock(reg, device, lo, hi, kPlateauTop, kWallRock));
+                outTerrain.push_back(SpawnBlock(reg, batch, lo, hi, kPlateauTop, kWallRock));
                 grid.BlockArea(x, z, w, d);
             };
         wall(0, 0, gw, 1);
@@ -394,10 +395,10 @@ namespace TerrainGenerator
             mark(LocalRect(p, s, 0, 2, 0, across), kWay);
 
             const Vector3 lo = RectMin(grid, p);
-            outTerrain.push_back(SpawnBlock(reg, device, lo, lo + Vector3(p.w * kCs, h1, p.d * kCs),
+            outTerrain.push_back(SpawnBlock(reg, batch, lo, lo + Vector3(p.w * kCs, h1, p.d * kCs),
                 Jitter(kPlateauTop, rng, 0.02f), Jitter(kCliff, rng, 0.015f)));
             RaiseRect(grid, p, h1);
-            outTerrain.push_back(SpawnRamp(reg, device, grid, sr, s, 0.0f, h1, Jitter(kGrassLight, rng, 0.02f)));
+            outTerrain.push_back(SpawnRamp(reg, batch, grid, sr, s, 0.0f, h1, Jitter(kGrassLight, rng, 0.02f)));
 
             if (tier2)
             {
@@ -406,11 +407,11 @@ namespace TerrainGenerator
                 const Rect t = LocalRect(p, s, 2 + run2, top2, v0, w2);
                 const Rect s2 = LocalRect(p, s, 2, run2, v0, w2);
                 const Vector3 tlo = RectMin(grid, t);
-                outTerrain.push_back(SpawnBlock(reg, device, tlo + Vector3(0.0f, h1, 0.0f),
+                outTerrain.push_back(SpawnBlock(reg, batch, tlo + Vector3(0.0f, h1, 0.0f),
                     tlo + Vector3(t.w * kCs, h1 + h2, t.d * kCs),
                     Jitter(kPlateauTop, rng, 0.02f), Jitter(kCliffHigh, rng, 0.015f)));
                 RaiseRect(grid, t, h1 + h2);
-                outTerrain.push_back(SpawnRamp(reg, device, grid, s2, s, h1, h1 + h2, Jitter(kGrassLight, rng, 0.02f)));
+                outTerrain.push_back(SpawnRamp(reg, batch, grid, s2, s, h1, h1 + h2, Jitter(kGrassLight, rng, 0.02f)));
                 mark(s2, kSlope);
                 ++terraceTier2;
             }
@@ -444,7 +445,7 @@ namespace TerrainGenerator
                 // 2 段目の坂道（1 段目の上）も載せる：置物で登り口を塞がないように
                 mark(rr, kRamp);
                 mark(land, kLanding);
-                outTerrain.push_back(SpawnRamp(reg, device, grid, rr, s, base, top));
+                outTerrain.push_back(SpawnRamp(reg, batch, grid, rr, s, base, top));
                 return true;
             };
 
@@ -468,7 +469,7 @@ namespace TerrainGenerator
         {
             const Vector3 lo = RectMin(grid, p.r);
             const Vector3 hi = lo + Vector3(p.r.w * kCs, p.top, p.r.d * kCs);
-            outTerrain.push_back(SpawnBlock(reg, device, lo, hi,
+            outTerrain.push_back(SpawnBlock(reg, batch, lo, hi,
                 Jitter(kPlateauTop, rng, 0.02f), Jitter(kCliff, rng, 0.015f)));
             if (p.reachable) RaiseRect(grid, p.r, p.top);
             else { grid.BlockArea(p.r.x, p.r.z, p.r.w, p.r.d); ++blocked; }
@@ -505,12 +506,24 @@ namespace TerrainGenerator
             const float top = p.top + rise;
             const Vector3 lo = RectMin(grid, t) + Vector3(0.0f, p.top, 0.0f);
             const Vector3 hi = RectMin(grid, t) + Vector3(t.w * kCs, top, t.d * kCs);
-            outTerrain.push_back(SpawnBlock(reg, device, lo, hi,
+            outTerrain.push_back(SpawnBlock(reg, batch, lo, hi,
                 Jitter(kPlateauTop, rng, 0.02f), Jitter(kCliffHigh, rng, 0.015f)));
             RaiseRect(grid, t, top);
             placeRamp(t, s, p.top, top, false);
             ++rampCount;
             ++tier2;
+        }
+
+        // ---------- 地形の見た目（外周・台地・坂道・高台）を 1 つのモデルに ----------
+        // 1 個ずつだと DrawMesh が数十回（影の 3 段でその 3 倍）。頂点は世界座標なので実体は原点
+        if (auto model = batch.Build(device))
+        {
+            Entity e = reg.Create();
+            reg.Add<TransformComponent>(e, TransformComponent{});
+            ModelComponent mc;
+            mc.model = model;
+            reg.Add<ModelComponent>(e, mc);
+            outTerrain.push_back(e);
         }
 
         // ---------- 自然物（KayKit Forest）----------

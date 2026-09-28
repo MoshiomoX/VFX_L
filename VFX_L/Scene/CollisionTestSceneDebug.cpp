@@ -31,6 +31,7 @@
 #include "World/TerrainGenerator.h"
 #include "VFX_Editor/VFXId.h"
 #include "Debug/DebugManager.h"
+#include "Debug/FrameProfiler.h"
 #include "Core/Application.h"
 #include "imgui.h"
 #include <algorithm>
@@ -80,6 +81,7 @@ void CollisionTestScene::DrawDebugUI()
     m_Camera.DrawImGui();
     m_Lighting.DrawImGui(PlayerPos());
     m_Shadows.DrawImGui();
+    FrameProfiler::Get().DrawImGui();
     DrawBloomPanel();
     ImGui::End();
 }
@@ -1084,6 +1086,8 @@ void CollisionTestScene::UpdateAutoTestPerf()
                 std::sqrt((std::max)(0.0, s_SumSq / s_Frames - (s_SumMs / s_Frames) * (s_SumMs / s_Frames))), s_MaxMs,
                 s_SumAlive / s_Frames, s_SumProps / s_Frames, s_Frames);
             AutoTestLog(line);
+            // 段の最後 1 秒の CPU 内訳（FrameProfiler。1 フレームあたり ms）
+            AutoTestLog(("  cpu " + FrameProfiler::Get().Summary()).c_str());
         }
         s_Frames = 0;
         s_SumMs = s_MaxMs = s_SumAlive = s_SumProps = s_SumSq = 0.0;

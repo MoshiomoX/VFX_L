@@ -41,7 +41,11 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
 
     UINT flags = 0;
 #ifdef _DEBUG
-    flags |= D3D11_CREATE_DEVICE_DEBUG;
+    // D3D の調試層は既定で切（2026-09-28 用户決定。Debug 構成で 1 フレーム約 2.5 ms かかっていた）。
+    // SRV / UAV の HAZARD などの警告を見たい時は VFXL_D3D_DEBUG=1（VS なら「デバッグ → 環境」に書く）
+    char debugLayer[8] = {};
+    if (GetEnvironmentVariableA("VFXL_D3D_DEBUG", debugLayer, sizeof(debugLayer)) > 0 && debugLayer[0] != '0')
+        flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
     HRESULT hr = D3D11CreateDevice(

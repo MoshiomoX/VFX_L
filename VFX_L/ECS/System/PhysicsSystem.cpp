@@ -26,16 +26,17 @@ static bool ResolveAgainstStatics(
     // 自分のワールド形状（今は Capsule 前提。Sphere も可）
     Vector3 selfCenter = tf.position + col.offset;
 
-    // 全 collider を走査し、静的なものと判定・押し出し
-    for (const auto& wc : collision.GetWorldColliders())
+    // 近くの静的な collider だけを判定・押し出し（全件は回さない。押し出しで動く分 + 1m の余白）
+    static std::vector<int> s_Near;   // 使い回す（毎フレームの確保を避ける）
+    collision.GatherStaticNear(selfCenter, col.radius + col.height * 0.5f + 1.0f, s_Near);
+    const auto& colliders = collision.GetWorldColliders();
+    for (int idx : s_Near)
     {
+        const auto& wc = colliders[idx];
         if (wc.entity == self) continue;
 
         // 相手が静的地形か？（Rigidbody を持ち isStatic、または Rigidbody 無し=静的扱い）
-        bool otherStatic = true;
-        if (reg.Has<RigidbodyComponent>(wc.entity))
-            otherStatic = reg.Get<RigidbodyComponent>(wc.entity).isStatic;
-        if (!otherStatic) continue;   // 動的同士は今は無視
+        if (wc.hasRigidbody && !wc.fixed) continue;   // 動的同士は今は無視
 
         // 自分 Capsule vs 相手 AABB の Contact を取る
         Contact contact;

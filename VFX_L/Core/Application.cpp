@@ -2,6 +2,7 @@
 #include "Graphics/Light/PointLightManager.h"
 #include "Scene/TestScene.h"
 #include "Debug/DebugManager.h"
+#include "Debug/FrameProfiler.h"
 #include <iostream>
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
@@ -70,19 +71,34 @@ void Application::Run()
         if (m_Window.ConsumeResizeFlag())
             m_Graphics.Resize(m_Window.GetWidth(),
                 m_Window.GetHeight());
-		//ImGui�t���[���J�n
-        InputManager::Get().Update();
-        DebugManager::Get().Update(dt);
-        DebugManager::Get().BeginFrame();
-        PointLightManager::Get().BeginFrame();   // point light list: clear per frame
-		// Update
-		m_Game.Update(dt);
-        m_Graphics.BeginFrame();
-        DebugManager::Get().Render();
-        m_Game.Render();
-        m_Graphics.BeginUI();            
-        DebugManager::Get().EndFrame();  
-        m_Graphics.EndFrame();
+        // 各段の CPU 時間は FrameProfiler（場面の面板の「Frame Profiler」、perf 自己テストの日志）
+        {
+            PROFILE_SCOPE("Input + ImGui NewFrame");
+            InputManager::Get().Update();
+            DebugManager::Get().Update(dt);
+            DebugManager::Get().BeginFrame();
+            PointLightManager::Get().BeginFrame();   // point light list: clear per frame
+        }
+        {
+            PROFILE_SCOPE("Update");
+            m_Game.Update(dt);
+        }
+        {
+            PROFILE_SCOPE("Render");
+            m_Graphics.BeginFrame();
+            DebugManager::Get().Render();
+            m_Game.Render();
+        }
+        {
+            PROFILE_SCOPE("Resolve + bloom + ImGui draw");
+            m_Graphics.BeginUI();
+            DebugManager::Get().EndFrame();
+        }
+        {
+            PROFILE_SCOPE("Present");
+            m_Graphics.EndFrame();
+        }
+        FrameProfiler::Get().EndFrame();
     }
 }
 

@@ -1,25 +1,24 @@
 // ============================================================
 // CollisionSystem.cpp
 //
-// 広相位は uniform grid。
-//   全対全の O(n^2) を「同じマスの中だけ総当たり」に落とす。
-//   格子は毎フレーム作り直す（増分更新は書かない。どうせ
-//   m_WorldColliders を毎フレーム収集し直すので、その流れで
-//   登記するのが一番単純で一番壊れない）。
+// 広相位は uniform grid。ただし格子に載せるのは固定（Rigidbody を持ち isStatic）の collider だけで、
+// 毎フレームは作り直さない（2026-09-28: 毎フレーム全部を unordered_map の格子へ登記し直していた頃は
+// Debug で 2.5 ms。200m の床の箱 1 つで 2,500 マス、さらに固定同士の対を set で重複除去していた）。
+//   作り直すのは、固定の並び（Entity）が変わった時か、どれかの中心が kFixedSlack 以上動いた時。
+//   各固定は AABB + kFixedSlack が覆うマスに登記するので、報酬の箱の浮き沈み程度では作り直さない。
+//   覆うマスが kLargeCells を超える物（床・外周の崖・大きい高台）は格子に載せず、毎回全員と比べる。
 //
-// 完備性の理屈:
-//   各 collider は自分の AABB が覆う全マスに登記される。
-//   交差している2つの collider は必ず少なくとも1マスを共有する。
-//   よって同マス内の総当たりだけで漏れは無い（隣接マス探索は不要）。
-//   代わりに、大きい collider は複数マスで同じ対が見つかるので
-//   pair の重複を set で弾く。
+// 対の作り方:
+//   可動 × 固定: 可動の AABB が覆うマスの固定 + 大きい固定。重複はソートで除く
+//   可動 × 可動: 総当たり（可動は玩家・CPU の弾など数個）
+//   固定 × 固定: 判定しない
+// 完備性: 交差している可動と固定は、少なくとも 1 マスを共有するか、固定が大きい方の一覧にいる。
 // ============================================================
 #include "Collider/CollisionSystem.h"
 #include "Component/TransformComponent.h"
 #include "Component/ColliderComponent.h"
+#include "Component/RigidbodyComponent.h"
 #include "ECS/View.h"
-#include <unordered_map>
-#include <unordered_set>
 #include <cmath>
 #include <algorithm>
 
@@ -31,12 +30,30 @@ namespace
     // 大半の動的 collider（半径 0.25~0.5）より十分大きく、
     // 巨大な静的 AABB（地形・床）は複数マスへまたがって登記される
     constexpr float kBroadCell = 4.0f;
+    // 固定がこれ以上動いたら格子を作り直す（登記もこの分だけ広げる）
+    constexpr float kFixedSlack = 0.5f;
+    // これより多くのマスを覆う固定は格子に載せない
+    constexpr int kLargeCells = 64;
 
-    // セル座標 → ハッシュキー（場地が原点中心なので負もあり得る）
-    inline int64_t CellKey(int cx, int cz)
+    // collider の水平の範囲
+    void BoundsOf(const CollisionSystem::WorldCollider& wc, float& minX, float& maxX, float& minZ, float& maxZ)
     {
-        return ((int64_t)cx << 32) ^ (uint32_t)cz;
+        if (wc.shape == ColliderShape::AABB || wc.shape == ColliderShape::Convex)
+        {
+            minX = wc.center.x - wc.halfExtents.x;
+            maxX = wc.center.x + wc.halfExtents.x;
+            minZ = wc.center.z - wc.halfExtents.z;
+            maxZ = wc.center.z + wc.halfExtents.z;
+        }
+        else   // Sphere / Capsule は水平方向は半径で足りる
+        {
+            minX = wc.center.x - wc.radius;
+            maxX = wc.center.x + wc.radius;
+            minZ = wc.center.z - wc.radius;
+            maxZ = wc.center.z + wc.radius;
+        }
     }
+    int CellOf(float v) { return (int)std::floor(v / kBroadCell); }
 }
 
 // ============================================================
@@ -110,17 +127,20 @@ void CollisionSystem::TestPair(const WorldCollider& a, const WorldCollider& b)
 
 // ============================================================
 // Update
-// 1) ワールド形状の収集  2) 格子へ登記  3) 同マス内だけ判定
+// 1) ワールド形状の収集（固定 / 可動に分ける）  2) 固定の格子が古ければ作り直す
+// 3) 可動 × 固定（格子）と 可動 × 可動 だけ判定
 // ============================================================
 void CollisionSystem::Update(Registry& reg)
 {
     m_WorldColliders.clear();
     m_Pairs.clear();
+    m_FixedIdx.clear();
+    m_MoverIdx.clear();
 
     // --- 1) ローカル形状 → ワールド形状へ変換して収集 ---
     //     ※垂直カプセル/球は回転不変なので rotation は考慮しない
     reg.CreateView<TransformComponent, ColliderComponent>()
-        .Each([this](Entity e, TransformComponent& tf, ColliderComponent& col)
+        .Each([this, &reg](Entity e, TransformComponent& tf, ColliderComponent& col)
             {
                 WorldCollider wc;
                 wc.entity = e;
@@ -131,6 +151,8 @@ void CollisionSystem::Update(Registry& reg)
                 wc.halfExtents = col.halfExtents;
                 wc.layer = col.layer;
                 wc.mask = col.mask;
+                wc.hasRigidbody = reg.Has<RigidbodyComponent>(e);
+                wc.fixed = wc.hasRigidbody && reg.Get<RigidbodyComponent>(e).isStatic;
                 if (col.shape == ColliderShape::Convex)
                 {
                     // ローカル平面 n·p <= d を中心分だけ平行移動: d' = d + n·center
@@ -140,73 +162,134 @@ void CollisionSystem::Update(Registry& reg)
                 }
                 else
                     wc.hull.count = 0;
+                (wc.fixed ? m_FixedIdx : m_MoverIdx).push_back((int)m_WorldColliders.size());
                 m_WorldColliders.push_back(wc);
             });
 
-    // --- 2) 各 collider を、その AABB が覆う全マスへ登記 ---
-    // static でメモリを使い回す（毎フレームの再確保を避ける）
-    static std::unordered_map<int64_t, std::vector<int>> cells;
-    for (auto& kv : cells) kv.second.clear();
-
-    auto boundsOf = [](const WorldCollider& wc,
-        float& minX, float& maxX, float& minZ, float& maxZ)
-        {
-            if (wc.shape == ColliderShape::AABB || wc.shape == ColliderShape::Convex)
-            {
-                minX = wc.center.x - wc.halfExtents.x;
-                maxX = wc.center.x + wc.halfExtents.x;
-                minZ = wc.center.z - wc.halfExtents.z;
-                maxZ = wc.center.z + wc.halfExtents.z;
-            }
-            else   // Sphere / Capsule は水平方向は半径で足りる
-            {
-                minX = wc.center.x - wc.radius;
-                maxX = wc.center.x + wc.radius;
-                minZ = wc.center.z - wc.radius;
-                maxZ = wc.center.z + wc.radius;
-            }
-        };
-
-    for (int i = 0; i < (int)m_WorldColliders.size(); ++i)
+    // --- 2) 固定の並びが変わったか、どれかが余白以上動いたら格子を作り直す ---
+    bool stale = (m_FixedIdx.size() != m_GridEntity.size());
+    for (size_t k = 0; k < m_FixedIdx.size() && !stale; ++k)
     {
+        const WorldCollider& wc = m_WorldColliders[m_FixedIdx[k]];
+        stale = (wc.entity != m_GridEntity[k])
+            || (wc.center - m_GridCenter[k]).LengthSquared() > kFixedSlack * kFixedSlack;
+    }
+    if (stale) BuildFixedGrid();
+
+    // --- 3) 可動 × 固定、可動 × 可動 ---
+    for (size_t m = 0; m < m_MoverIdx.size(); ++m)
+    {
+        const WorldCollider& a = m_WorldColliders[m_MoverIdx[m]];
         float minX, maxX, minZ, maxZ;
-        boundsOf(m_WorldColliders[i], minX, maxX, minZ, maxZ);
+        BoundsOf(a, minX, maxX, minZ, maxZ);
+        GatherFixed(minX, maxX, minZ, maxZ);
+        for (int k : m_Scratch)
+            TestPair(a, m_WorldColliders[m_FixedIdx[k]]);
 
-        const int cx0 = (int)std::floor(minX / kBroadCell);
-        const int cx1 = (int)std::floor(maxX / kBroadCell);
-        const int cz0 = (int)std::floor(minZ / kBroadCell);
-        const int cz1 = (int)std::floor(maxZ / kBroadCell);
-
-        for (int cz = cz0; cz <= cz1; ++cz)
-            for (int cx = cx0; cx <= cx1; ++cx)
-                cells[CellKey(cx, cz)].push_back(i);
+        for (size_t n = m + 1; n < m_MoverIdx.size(); ++n)
+            TestPair(a, m_WorldColliders[m_MoverIdx[n]]);
     }
+}
 
-    // --- 3) 同じマスの中だけ総当たり ---
-    // 大きい collider は複数マスに登記されているので、
-    // 同じ対が複数マスで見つかる。重複は set で弾く
-    static std::unordered_set<uint64_t> seen;
-    seen.clear();
+// ============================================================
+// 固定の格子（CSR: マス毎の始まり + 固定の k の並び）
+// ============================================================
+void CollisionSystem::BuildFixedGrid()
+{
+    ++m_FixedRebuilds;
+    const size_t n = m_FixedIdx.size();
+    m_GridEntity.resize(n);
+    m_GridCenter.resize(n);
+    m_LargeFixed.clear();
 
-    for (const auto& kv : cells)
+    // マスの範囲（余白込み）。大きい物は格子に載せない
+    struct Span { int x0, x1, z0, z1; };
+    std::vector<Span> spans(n);
+    std::vector<uint8_t> inGrid(n, 0);
+    int gx0 = 0, gx1 = -1, gz0 = 0, gz1 = -1;
+    for (size_t k = 0; k < n; ++k)
     {
-        const auto& list = kv.second;
-        const size_t n = list.size();
-
-        for (size_t a = 0; a + 1 < n; ++a)
+        const WorldCollider& wc = m_WorldColliders[m_FixedIdx[k]];
+        m_GridEntity[k] = wc.entity;
+        m_GridCenter[k] = wc.center;
+        float minX, maxX, minZ, maxZ;
+        BoundsOf(wc, minX, maxX, minZ, maxZ);
+        Span s = { CellOf(minX - kFixedSlack), CellOf(maxX + kFixedSlack),
+                   CellOf(minZ - kFixedSlack), CellOf(maxZ + kFixedSlack) };
+        spans[k] = s;
+        if ((s.x1 - s.x0 + 1) * (s.z1 - s.z0 + 1) > kLargeCells)
         {
-            for (size_t b = a + 1; b < n; ++b)
-            {
-                int i = list[a], j = list[b];
-                if (i > j) std::swap(i, j);
-
-                const uint64_t key = ((uint64_t)i << 32) | (uint32_t)j;
-                if (!seen.insert(key).second) continue;   // 別マスで判定済み
-
-                TestPair(m_WorldColliders[i], m_WorldColliders[j]);
-            }
+            m_LargeFixed.push_back((int)k);
+            continue;
         }
+        inGrid[k] = 1;
+        if (gx1 < gx0) { gx0 = s.x0; gx1 = s.x1; gz0 = s.z0; gz1 = s.z1; }
+        gx0 = (std::min)(gx0, s.x0); gx1 = (std::max)(gx1, s.x1);
+        gz0 = (std::min)(gz0, s.z0); gz1 = (std::max)(gz1, s.z1);
     }
+
+    m_GridX0 = gx0;
+    m_GridZ0 = gz0;
+    m_GridW = (gx1 >= gx0) ? gx1 - gx0 + 1 : 0;
+    m_GridD = (gz1 >= gz0) ? gz1 - gz0 + 1 : 0;
+    const size_t cells = (size_t)m_GridW * m_GridD;
+    m_CellStart.assign(cells + 1, 0);
+    for (size_t k = 0; k < n; ++k)
+    {
+        if (!inGrid[k]) continue;
+        for (int z = spans[k].z0; z <= spans[k].z1; ++z)
+            for (int x = spans[k].x0; x <= spans[k].x1; ++x)
+                ++m_CellStart[(size_t)(z - gz0) * m_GridW + (x - gx0) + 1];
+    }
+    for (size_t c = 0; c < cells; ++c) m_CellStart[c + 1] += m_CellStart[c];
+    m_CellItems.assign(m_CellStart[cells], 0);
+    std::vector<int> fill(m_CellStart.begin(), m_CellStart.end() - 1);
+    for (size_t k = 0; k < n; ++k)
+    {
+        if (!inGrid[k]) continue;
+        for (int z = spans[k].z0; z <= spans[k].z1; ++z)
+            for (int x = spans[k].x0; x <= spans[k].x1; ++x)
+                m_CellItems[fill[(size_t)(z - gz0) * m_GridW + (x - gx0)]++] = (int)k;
+    }
+}
+
+bool CollisionSystem::GridRange(float minX, float maxX, float minZ, float maxZ,
+    int& x0, int& x1, int& z0, int& z1) const
+{
+    x0 = (std::max)(CellOf(minX) - m_GridX0, 0);
+    x1 = (std::min)(CellOf(maxX) - m_GridX0, m_GridW - 1);
+    z0 = (std::max)(CellOf(minZ) - m_GridZ0, 0);
+    z1 = (std::min)(CellOf(maxZ) - m_GridZ0, m_GridD - 1);
+    return x0 <= x1 && z0 <= z1;
+}
+
+void CollisionSystem::GatherFixed(float minX, float maxX, float minZ, float maxZ) const
+{
+    m_Scratch.clear();
+    int x0, x1, z0, z1;
+    if (GridRange(minX, maxX, minZ, maxZ, x0, x1, z0, z1))
+    {
+        for (int z = z0; z <= z1; ++z)
+            for (int x = x0; x <= x1; ++x)
+            {
+                const size_t c = (size_t)z * m_GridW + x;
+                for (int i = m_CellStart[c]; i < m_CellStart[c + 1]; ++i)
+                    m_Scratch.push_back(m_CellItems[i]);
+            }
+    }
+    m_Scratch.insert(m_Scratch.end(), m_LargeFixed.begin(), m_LargeFixed.end());
+    std::sort(m_Scratch.begin(), m_Scratch.end());
+    m_Scratch.erase(std::unique(m_Scratch.begin(), m_Scratch.end()), m_Scratch.end());
+}
+
+void CollisionSystem::GatherStaticNear(const Vector3& center, float reach, std::vector<int>& out) const
+{
+    out.clear();
+    GatherFixed(center.x - reach, center.x + reach, center.z - reach, center.z + reach);
+    for (int k : m_Scratch) out.push_back(m_FixedIdx[k]);
+    // Rigidbody を持たない collider は物理では静的扱い（今は CPU の弾だけ。形が球なので押し出しには効かない）
+    for (int i : m_MoverIdx)
+        if (!m_WorldColliders[i].hasRigidbody) out.push_back(i);
 }
 
 // ============================================================

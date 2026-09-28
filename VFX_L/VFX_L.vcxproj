@@ -163,6 +163,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Renderer\GrassRenderer.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneDebug.cpp" />
     <ClCompile Include="Debug\StressTestTools.cpp" />
+    <ClCompile Include="Debug\FrameProfiler.cpp" />
     <ClCompile Include="Enemy\MobSpawner.cpp" />
     <ClCompile Include="Enemy\EliteSpawner.cpp" />
     <ClCompile Include="Graphics\Light\SceneLighting.cpp" />
@@ -335,6 +336,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Renderer\GrassRenderer.h" />
     <ClInclude Include="Graphics\Renderer\FrustumPlanes.h" />
     <ClInclude Include="Debug\StressTestTools.h" />
+    <ClInclude Include="Debug\FrameProfiler.h" />
     <ClInclude Include="Enemy\MobSpawner.h" />
     <ClInclude Include="Enemy\EliteSpawner.h" />
     <ClInclude Include="Graphics\Light\SceneLighting.h" />
