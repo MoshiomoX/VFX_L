@@ -33,8 +33,9 @@ struct LightBuffer
     float   fogEnd = 1.0f;                      // ここで fogMax
     float   fogMax = 0.0f;                      // 0..1
     // 1 = 模型の色貼図を sRGB として線形へ戻してから陰影を付ける（PS / PBR_PS の DecodeAlbedo）。
-    //     貼図は UNORM で読んでいるので、0 のままだと最後のガンマで色が白っぽく浮く
-    float   albedoSrgb = 0.0f;
+    //     貼図は UNORM で読んでいるので、0 だと最後のガンマで色が白っぽく浮く。
+    //     2026-09-28 から既定 1（全場面）。粒子・連番絵・UI の貼図はこれを通らない（見た目を変えない）
+    float   albedoSrgb = 1.0f;
     float   fogPad = 0.0f;                      // 16バイト境界
 
     // 太陽の影（3 段の級聯。Graphics/Light/ShadowMap が毎フレーム書く。Lighting.hlsli の SunShadow）。

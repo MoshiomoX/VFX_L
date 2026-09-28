@@ -28,7 +28,7 @@ public:
 
     // Render の頭で：平行光・環境光・霧を Renderer へ
     void Apply(Renderer& renderer) const;
-    // 場面の終わりに：霧を切る（Renderer は他の場面と共有）
+    // 場面の終わりに：霧を切り、面板で切ったかもしれない sRGB 解码を既定（入）へ戻す（Renderer は他の場面と共有）
     static void ClearFog(Renderer& renderer);
 
     // 空を画面全体に描く（場面の描画の一番最初。深度は触らない）
@@ -83,7 +83,7 @@ private:
     float m_SunGlow = 0.35f;
     float m_SunGlowPower = 24.0f;
     float m_SunDisk = 4.0f;
-    bool  m_AlbedoSrgb = false;   // 模型の色貼図を sRGB として扱う（全体の見た目が変わるので既定は切。比較用）
+    bool  m_AlbedoSrgb = true;    // 模型の色貼図を sRGB として扱う（2026-09-28 から既定で入。切ると旧い白っぽい見た目）
     bool  m_FogOn = true;
     bool  m_FogUseHorizon = true;                      // 霧の色 = 空の地平線の色
     float m_FogColor[3] = { 0.51f, 0.71f, 0.91f };
