@@ -190,10 +190,11 @@ private:
     std::vector<Entity> m_Terrain;
 
     // --- 表示切替 ---
-    bool m_ShowWireframe = true;
+    // 調試の線（衝突体・杖・格子）は既定で切（2026-09-28。Debug で 0.7 ms。面板の Game Test から入れる）
+    bool m_ShowWireframe = false;
     bool m_ShowMesh = true;
-    bool m_ShowWandDebug = true;
-    bool m_ShowGridDebug = true;   // 玩家の周りの格子（通行・流れ場）
+    bool m_ShowWandDebug = false;
+    bool m_ShowGridDebug = false;   // 玩家の周りの格子（通行・流れ場）
     bool m_ShowBillboard = true;
     bool m_ShowSwarmDebug = false;
 

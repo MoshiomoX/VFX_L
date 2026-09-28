@@ -61,7 +61,7 @@ private:
     float m_LightIntensity = 1.0f;
     float m_AmbientSky[3] = { 0.38f, 0.45f, 0.58f };      // 青い空の照り返し
     float m_AmbientGround[3] = { 0.20f, 0.22f, 0.14f };   // 草地の照り返し
-    bool  m_ShowSunMarker = true;   // 玩家の頭上に太陽の目印と光の向きの矢印を出す
+    bool  m_ShowSunMarker = false;  // 玩家の頭上に太陽の目印と光の向きの矢印を出す（調試用。既定で切）
 
     // ---- 場景光源（位置を持つ点光源。既定は切。松明など局所の光に使う）----
     // PS 側は距離減衰 + 拡散 + GGX の高光（Shader/Common/Lighting.hlsli）

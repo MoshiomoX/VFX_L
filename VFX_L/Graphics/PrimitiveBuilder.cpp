@@ -90,8 +90,26 @@ namespace PrimitiveBuilder
     std::shared_ptr<Model> CreateHexahedron(ID3D11Device* device, const Vector3 v[8],
         const Vector4& topColor, const Vector4& sideColor)
     {
-        std::vector<VERTEX_3D> verts;
-        std::vector<unsigned int> indices;
+        HexahedronBatch batch;
+        batch.Append(v, topColor, sideColor);
+        return batch.Build(device);
+    }
+
+    std::shared_ptr<Model> HexahedronBatch::Build(ID3D11Device* device) const
+    {
+        if (m_Indices.empty()) return nullptr;
+        auto mesh = std::make_shared<Mesh>();
+        if (!mesh->Create(device, m_Verts, m_Indices)) return nullptr;
+
+        auto model = std::make_shared<Model>();
+        model->AddSubMesh(mesh);
+        return model;
+    }
+
+    void HexahedronBatch::Append(const Vector3 v[8], const Vector4& topColor, const Vector4& sideColor)
+    {
+        std::vector<VERTEX_3D>& verts = m_Verts;
+        std::vector<unsigned int>& indices = m_Indices;
 
         Vector3 centroid;
         for (int i = 0; i < 8; ++i) centroid += v[i];
@@ -126,13 +144,6 @@ namespace PrimitiveBuilder
             indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 1);
             indices.push_back(base + 0); indices.push_back(base + 3); indices.push_back(base + 2);
         }
-
-        auto mesh = std::make_shared<Mesh>();
-        if (!mesh->Create(device, verts, indices)) return nullptr;
-
-        auto model = std::make_shared<Model>();
-        model->AddSubMesh(mesh);
-        return model;
     }
 
     // ========================================================

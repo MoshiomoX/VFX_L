@@ -151,6 +151,9 @@
     <ClCompile Include="Debug\StressTestTools.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\FrameProfiler.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
     <ClCompile Include="Enemy\MobSpawner.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
@@ -567,6 +570,9 @@
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Debug\StressTestTools.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug\FrameProfiler.h">
       <Filter>Debug</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\MobSpawner.h">
