@@ -713,8 +713,13 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::DragFloatRange2("2nd Tier Height", &tc.tier2HeightMin, &tc.tier2HeightMax, 0.05f, 1.0f, 6.0f);
         ImGui::DragInt("Ramp Width", &tc.rampWidth, 0.1f, 1, 5);
         ImGui::SliderFloat("Ramp Slope", &tc.rampSlopeDeg, 10.0f, 35.0f, "%.0f deg");
-        ImGui::DragInt("Mounds", &tc.moundCount, 0.2f, 0, 40);
-        ImGui::DragFloatRange2("Mound Height", &tc.moundHeightMin, &tc.moundHeightMax, 0.05f, 0.2f, 4.0f);
+        ImGui::DragInt("Terraces", &tc.terraceCount, 0.1f, 0, 10);
+        ImGui::DragFloatRange2("Terrace Height", &tc.terraceHeightMin, &tc.terraceHeightMax, 0.05f, 1.0f, 12.0f);
+        ImGui::DragFloatRange2("Terrace Slope", &tc.terraceSlopeMin, &tc.terraceSlopeMax, 0.1f, 5.0f, 35.0f, "%.0f deg");
+        ImGui::DragIntRange2("Terrace Top", &tc.terraceTopMin, &tc.terraceTopMax, 0.1f, 2, 16);
+        ImGui::SliderFloat("Terrace 2nd Tier", &tc.terraceTier2Chance, 0.0f, 1.0f);
+        ImGui::DragFloatRange2("Terrace 2nd Height", &tc.terraceTier2HeightMin, &tc.terraceTier2HeightMax, 0.05f, 1.0f, 8.0f);
+        ImGui::DragInt("Terrace Clear", &tc.terraceClear, 0.1f, 1, 12);
         ImGui::DragInt("Spawn Clear", &tc.spawnClearRadius, 0.1f, 2, 20);
         ImGui::DragInt("Trees", &tc.treeCount, 1.0f, 0, 400);
         ImGui::DragInt("Rocks", &tc.rockCount, 1.0f, 0, 200);
@@ -1104,6 +1109,7 @@ void CollisionTestScene::UpdateAutoTestPerf()
 void CollisionTestScene::UpdateAutoTestSlide(float dt)
 {
     static Vector3 s_Dir(0.0f, 0.0f, 1.0f);
+    static Vector3 s_SlopeStart, s_SlopeDir(0.0f, 0.0f, 1.0f);   // 1) で見つけた坂（最後の全景用）
     static float s_Phase = 0.0f;
     static float s_Log = 0.0f;
     auto& pcs = m_PlayerControlSystem;
@@ -1121,6 +1127,7 @@ void CollisionTestScene::UpdateAutoTestSlide(float dt)
             rb.velocity = Vector3::Zero;
             st.slideActive = false;
             s_Dir = dir;
+            m_Camera.Camera().SetYaw(DirectX::XMConvertToDegrees(std::atan2(-dir.x, dir.z)));   // 進行方向を映す
             m_Camera.Camera().SnapToTarget();
             s_Phase = 0.0f;
             s_Log = 0.0f;
@@ -1144,7 +1151,7 @@ void CollisionTestScene::UpdateAutoTestSlide(float dt)
                     const Vector3 d(std::sin(a), 0.0f, std::cos(a));
                     float prev = m_Grid.SampleHeight(c.x, c.z), drop = 0.0f;
                     int steps = 0;
-                    for (int s = 1; s <= 16; ++s)
+                    for (int s = 1; s <= 40; ++s)   // 大きい丘の坂は 20m 前後
                     {
                         const Vector3 p = c + d * (float)s;
                         if (!walkableAt(p)) break;
@@ -1157,6 +1164,8 @@ void CollisionTestScene::UpdateAutoTestSlide(float dt)
                 }
             }
         place(start, dir);
+        s_SlopeStart = start;
+        s_SlopeDir = dir;
         snprintf(line, sizeof(line), "slide A: slope start %.1f,%.1f dir %.2f,%.2f drops %.2f m over %d m",
             start.x, start.z, dir.x, dir.z, best, bestSteps);
         AutoTestLog(line);
@@ -1192,6 +1201,57 @@ void CollisionTestScene::UpdateAutoTestSlide(float dt)
         AutoTestLog(line);
         m_AutoStep = 3;
     }
+    // ---- 5) 一番高いマス（高台の 2 段目の上など）に立たせ、35m 引いて 3 方向から全景を撮らせる ----
+    else if (m_AutoStep == 4)
+    {
+        float best = -1.0f;
+        Vector3 top;
+        for (int gz = 2; gz < D - 2; ++gz)
+            for (int gx = 2; gx < W - 2; ++gx)
+            {
+                if (!m_Grid.IsWalkable(gx, gz)) continue;
+                const Vector3 c = m_Grid.CellToWorld(gx, gz);
+                const float h = m_Grid.SampleHeight(c.x, c.z);
+                if (h > best) { best = h; top = c; }
+            }
+        // 下りの向き：4 方向のうち、歩けて高さが上がらない（1m で 0.9m 以下の下り）まま一番遠くまで行ける向き
+        Vector3 down(1.0f, 0.0f, 0.0f);
+        int reach = 0;
+        for (int k = 0; k < 4; ++k)
+        {
+            const Vector3 d = (k == 0) ? Vector3(1, 0, 0) : (k == 1) ? Vector3(-1, 0, 0) : (k == 2) ? Vector3(0, 0, 1) : Vector3(0, 0, -1);
+            float prev = best;
+            int n = 0;
+            for (int s = 1; s <= 80; ++s)
+            {
+                const Vector3 p = top + d * (float)s;
+                if (!walkableAt(p)) break;
+                const float h = m_Grid.SampleHeight(p.x, p.z);
+                if (h > prev + 0.05f || prev - h > 0.9f) break;
+                prev = h;
+                n = s;
+            }
+            if (n > reach) { reach = n; down = d; }
+        }
+        s_SlopeDir = down;   // 以降は全景用に使う
+        place(top, down);
+        auto& cam = m_Camera.Camera();
+        cam.SetPitch(15.0f);
+        cam.distance = 45.0f;
+        cam.avoidOcclusion = false;
+        snprintf(line, sizeof(line), "slide view: highest %.1f m at %.1f,%.1f, walks down %.0f,%.0f for %d m",
+            best, top.x, top.z, down.x, down.z, reach);
+        AutoTestLog(line);
+        m_AutoStep = 5;
+    }
+    else if (m_AutoStep == 5)
+    {
+        // 下りの向きと直角に、左右から 1.5 秒ずつ（段々の横顔）
+        s_Phase += dt;
+        const float side = (s_Phase < 1.5f) ? 1.0f : -1.0f;
+        m_Camera.Camera().SetYaw(DirectX::XMConvertToDegrees(std::atan2(-s_SlopeDir.z * side, -s_SlopeDir.x * side)));
+        if (s_Phase >= 3.0f) { AutoTestLog("slide done"); m_AutoStep = 6; }
+    }
 
     if (m_AutoStep != 1 && m_AutoStep != 3)
     {
@@ -1209,8 +1269,8 @@ void CollisionTestScene::UpdateAutoTestSlide(float dt)
     pcs.testJump = false;
     if (m_AutoStep == 1)
     {
-        pcs.testSlide = (s_Phase >= 0.4f && s_Phase < 2.4f);
-        if (s_Phase >= 2.4f && s_Phase - dt < 2.4f) pcs.testJump = true;
+        pcs.testSlide = (s_Phase >= 0.4f && s_Phase < 3.4f);
+        if (s_Phase >= 3.4f && s_Phase - dt < 3.4f) pcs.testJump = true;
     }
     else
         pcs.testSlide = (s_Phase >= 0.4f && s_Phase < 3.0f);
@@ -1226,10 +1286,10 @@ void CollisionTestScene::UpdateAutoTestSlide(float dt)
         AutoTestLog(line);
     }
 
-    const float end = (m_AutoStep == 1) ? 3.6f : 3.8f;
+    const float end = (m_AutoStep == 1) ? 4.6f : 3.8f;
     if (s_Phase >= end)
     {
         if (m_AutoStep == 1) m_AutoStep = 2;
-        else { AutoTestLog("slide done"); m_AutoStep = 4; }
+        else m_AutoStep = 4;
     }
 }

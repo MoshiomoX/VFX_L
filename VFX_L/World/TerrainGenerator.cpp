@@ -152,7 +152,7 @@ namespace
                 g.SetHeight(hx, hz, (std::max)(g.HeightAt(hx, hz), h));
     }
 
-    // 凸体の上面を足跡の高さ場へ（坂道・丘）。
+    // 凸体の上面を足跡の高さ場へ（坂道・高台の坂）。
     // 高さ = 上を向いた平面のうち一番低い物（下から見て初めて当たる面）
     void WriteHullHeights(GridWorld& g, const Rect& r, const CollisionMath::Convex& hull,
         const Vector3& center)
@@ -204,9 +204,22 @@ namespace
         return (s == Side::PosX || s == Side::NegX) ? p.d : p.w;
     }
 
+    // 台地 p の中の矩形を「坂の側から」測って取る。
+    // u = side s の辺から内側への奥行き（u0 から ulen マス）、v = その辺に沿った位置（v0 から vlen マス）
+    Rect LocalRect(const Rect& p, Side s, int u0, int ulen, int v0, int vlen)
+    {
+        switch (s)
+        {
+        case Side::PosX: return { p.x + p.w - u0 - ulen, p.z + v0, ulen, vlen };
+        case Side::NegX: return { p.x + u0, p.z + v0, ulen, vlen };
+        case Side::PosZ: return { p.x + v0, p.z + p.d - u0 - ulen, vlen, ulen };
+        default:         return { p.x + v0, p.z + u0, vlen, ulen };
+        }
+    }
+
     // 坂道の楔。高い端（top）が台地の側面に接し、外へ向かって base まで下る
     Entity SpawnRamp(Registry& reg, ID3D11Device* device, GridWorld& g, const Rect& r, Side s,
-        float base, float top)
+        float base, float top, const Vector4& topColor = kRampTop)
     {
         const Vector3 lo = RectMin(g, r);
         const Vector3 hi = lo + Vector3(r.w * kCs, 0.0f, r.d * kCs);
@@ -223,35 +236,7 @@ namespace
         case Side::NegZ: v[4].y = v[5].y = low; break;
         }
 
-        Entity e = SpawnHull(reg, device, v, kRampTop, kCliff);
-        WriteHullHeights(g, r, reg.Get<ColliderComponent>(e).hull, reg.Get<TransformComponent>(e).position);
-        return e;
-    }
-
-    // 丘：四方が slopeDeg の坂の台形（上面が 1m 以上残るように低くなることがある）
-    Entity SpawnMound(Registry& reg, ID3D11Device* device, GridWorld& g, const Rect& r,
-        float h, float slopeDeg, const Vector4& color)
-    {
-        const Vector3 lo = RectMin(g, r);
-        const Vector3 hi = lo + Vector3(r.w * kCs, 0.0f, r.d * kCs);
-        const float tanS = std::tan(DirectX::XMConvertToRadians(slopeDeg));
-        float inset = h / tanS;
-        const float maxInset = (std::min)(r.w, r.d) * kCs * 0.5f - 0.5f;
-        if (inset > maxInset)
-        {
-            inset = maxInset;
-            h = inset * tanS;
-        }
-
-        Vector3 v[8];
-        BoxVerts(v, { lo.x, 0.0f, lo.z }, { hi.x, h, hi.z });
-        v[4].x += inset; v[4].z += inset;
-        v[5].x -= inset; v[5].z += inset;
-        v[6].x -= inset; v[6].z -= inset;
-        v[7].x += inset; v[7].z -= inset;
-
-        // 斜面も上向き（法線 y > 0.5）なので全部草の色になる
-        Entity e = SpawnHull(reg, device, v, color, kCliff);
+        Entity e = SpawnHull(reg, device, v, topColor, kCliff);
         WriteHullHeights(g, r, reg.Get<ColliderComponent>(e).hull, reg.Get<TransformComponent>(e).position);
         return e;
     }
@@ -308,8 +293,9 @@ namespace TerrainGenerator
         wall(gw - 1, 1, 1, gd - 2);
 
         // ---------- 占有図 ----------
-        // 0 空き地 / 1 台地 / 2 坂道 / 3 丘 / 4 初期地点 / 5 坂道の降り口（空き地のまま残す）
-        enum : uint8_t { kFree = 0, kPlateau = 1, kRamp = 2, kMound = 3, kSpawn = 4, kLanding = 5 };
+        // 空き地 / 台地・高台の上面 / 坂道 / 初期地点 / 坂道の降り口（空き地のまま残す）/ 高台の長い坂 /
+        // 高台の坂の麓（地面のまま。木・岩・台地は置かない。茂み・草は置く）/ 高台の上の通り道（木・岩を置かない）
+        enum : uint8_t { kFree, kPlateau, kRamp, kSpawn, kLanding, kSlope, kApron, kWay };
         std::vector<uint8_t> occ((size_t)gw * gd, kFree);
         auto at = [&](int x, int z) -> uint8_t& { return occ[(size_t)z * gw + x]; };
         auto inside = [&](const Rect& r)   // 外周の崖と、その内側 1 マスは使わない
@@ -327,7 +313,7 @@ namespace TerrainGenerator
                     for (int x = r.x; x < r.x + r.w; ++x)
                     {
                         const uint8_t o = at(x, z);
-                        if (o != kFree && o != kSpawn && o != kLanding) return false;
+                        if (o != kFree && o != kSpawn && o != kLanding && o != kApron) return false;
                     }
                 return true;
             };
@@ -344,6 +330,90 @@ namespace TerrainGenerator
 
         const float tanRamp = std::tan(DirectX::XMConvertToRadians(cfg.rampSlopeDeg));
         auto rampLen = [&](float rise) { return (std::max)(1, (int)std::ceil(rise / (kCs * tanRamp))); };
+
+        // ---------- 高台（一面だけが長い坂、残り三面は崖。一部は上に 2 段目）----------
+        // 場所を大きく取るので台地より先に置く。坂の向きは高台ごとにランダム。
+        //   1 段目: 上面 p（高さ h1）+ その辺いっぱいの幅の坂（長さ = h1 / tan 角度）
+        //   2 段目: p の奥に上面（+h2）と、同じ向きの坂。p の坂側 2 マスは 1 段目のまま残す通り道、
+        //           2 段目の坂以外の周りは 1 マスの縁を残す → 地面・1 段目・2 段目の 3 段が見える
+        //   通り道（kWay）には木・岩を置かない（2 段目 → 1 段目 → 地面と滑り継げる）。
+        //   坂の麓の先 terraceClear マスは滑り出す空き地（kApron）。場外の壁ともこれだけ空ける
+        const int clear = (std::max)(cfg.terraceClear, 1);
+        int terraces = 0, terraceTier2 = 0;
+        for (int attempt = 0; attempt < cfg.terraceCount * 40 && terraces < cfg.terraceCount; ++attempt)
+        {
+            const float tanS = std::tan(DirectX::XMConvertToRadians(
+                std::clamp(randf(cfg.terraceSlopeMin, cfg.terraceSlopeMax), 5.0f, 35.0f)));
+            auto slopeLen = [&](float rise) { return (std::max)(1, (int)std::ceil(rise / tanS / kCs)); };
+            const float h1 = randf(cfg.terraceHeightMin, cfg.terraceHeightMax);
+            const int run1 = slopeLen(h1);
+            const int across = randi(cfg.terraceTopMin, cfg.terraceTopMax);
+            const bool tier2 = across >= 5 && randf(0.0f, 1.0f) < cfg.terraceTier2Chance;
+            const float h2 = tier2 ? randf(cfg.terraceTier2HeightMin, cfg.terraceTier2HeightMax) : 0.0f;
+            const int run2 = tier2 ? slopeLen(h2) : 0;
+            const int top2 = tier2 ? randi(3, 5) : 0;
+            // 奥行き：2 段目があれば 通り道 2 + 坂 + 上面 + 奥の縁 1
+            const int along = tier2 ? 2 + run2 + top2 + 1 : randi(cfg.terraceTopMin, cfg.terraceTopMax);
+            const Side s = (Side)randi(0, 3);
+            const bool alongX = (s == Side::PosX || s == Side::NegX);
+
+            Rect p = { 0, 0, alongX ? along : across, alongX ? across : along };
+            if (p.w > gw - 4 || p.d > gd - 4) continue;
+            p.x = randi(2, gw - 2 - p.w);
+            p.z = randi(2, gd - 2 - p.d);
+            const Rect sr = RampRect(p, s, 0, across, run1);
+            const Rect apron = RampRect(sr, s, -1, across + 2, clear);   // 坂の幅 + 左右 1 マス
+            if (!inside(p) || !inside(sr)) continue;
+            if (apron.x < 1 || apron.z < 1 || apron.x + apron.w > gw - 1 || apron.z + apron.d > gd - 1) continue;
+            // 坂は場外の壁に向けない：麓から下る向きに壁まで 12 マス（24m。20 m/s で滑り出しても曲がる余裕）
+            constexpr int kWallRunout = 12;
+            int toWall = 0;
+            switch (s)
+            {
+            case Side::PosX: toWall = (gw - 1) - (sr.x + sr.w); break;
+            case Side::NegX: toWall = sr.x - 1; break;
+            case Side::PosZ: toWall = (gd - 1) - (sr.z + sr.d); break;
+            case Side::NegZ: toWall = sr.z - 1; break;
+            }
+            if (toWall < (std::max)(kWallRunout, clear)) continue;
+            if (!isFree(p, 2) || !isFree(sr, 2)) continue;   // 他の高台・その麓・初期地点から 2 マス
+            // 麓は他の麓・初期地点とは重なってよい（高台の体に被らなければ）
+            bool apronOk = true;
+            for (int z = apron.z; z < apron.z + apron.d && apronOk; ++z)
+                for (int x = apron.x; x < apron.x + apron.w && apronOk; ++x)
+                    apronOk = (at(x, z) == kFree || at(x, z) == kApron || at(x, z) == kSpawn);
+            if (!apronOk) continue;
+
+            for (int z = apron.z; z < apron.z + apron.d; ++z)
+                for (int x = apron.x; x < apron.x + apron.w; ++x)
+                    if (at(x, z) == kFree) at(x, z) = kApron;
+            mark(p, kPlateau);
+            mark(sr, kSlope);
+            mark(LocalRect(p, s, 0, 2, 0, across), kWay);
+
+            const Vector3 lo = RectMin(grid, p);
+            outTerrain.push_back(SpawnBlock(reg, device, lo, lo + Vector3(p.w * kCs, h1, p.d * kCs),
+                Jitter(kPlateauTop, rng, 0.02f), Jitter(kCliff, rng, 0.015f)));
+            RaiseRect(grid, p, h1);
+            outTerrain.push_back(SpawnRamp(reg, device, grid, sr, s, 0.0f, h1, Jitter(kGrassLight, rng, 0.02f)));
+
+            if (tier2)
+            {
+                const int w2 = randi(3, across - 2);
+                const int v0 = randi(1, across - 1 - w2);
+                const Rect t = LocalRect(p, s, 2 + run2, top2, v0, w2);
+                const Rect s2 = LocalRect(p, s, 2, run2, v0, w2);
+                const Vector3 tlo = RectMin(grid, t);
+                outTerrain.push_back(SpawnBlock(reg, device, tlo + Vector3(0.0f, h1, 0.0f),
+                    tlo + Vector3(t.w * kCs, h1 + h2, t.d * kCs),
+                    Jitter(kPlateauTop, rng, 0.02f), Jitter(kCliffHigh, rng, 0.015f)));
+                RaiseRect(grid, t, h1 + h2);
+                outTerrain.push_back(SpawnRamp(reg, device, grid, s2, s, h1, h1 + h2, Jitter(kGrassLight, rng, 0.02f)));
+                mark(s2, kSlope);
+                ++terraceTier2;
+            }
+            ++terraces;
+        }
 
         // ---------- 1 段目の台地（場所だけ先に決める）----------
         struct Plateau { Rect r; float top; bool reachable; };
@@ -439,21 +509,6 @@ namespace TerrainGenerator
             placeRamp(t, s, p.top, top, false);
             ++rampCount;
             ++tier2;
-        }
-
-        // ---------- 丘（どこからでも登れる低い台形）----------
-        int mounds = 0;
-        for (int attempt = 0; attempt < cfg.moundCount * 30 && mounds < cfg.moundCount; ++attempt)
-        {
-            Rect r = { 0, 0, randi(3, 6), randi(3, 6) };
-            r.x = randi(2, gw - 2 - r.w);
-            r.z = randi(2, gd - 2 - r.d);
-            if (!inside(r) || !isFree(r, 1)) continue;
-            mark(r, kMound);
-            outTerrain.push_back(SpawnMound(reg, device, grid, r,
-                randf(cfg.moundHeightMin, cfg.moundHeightMax), cfg.moundSlopeDeg,
-                Jitter(kGrassLight, rng, 0.025f)));
-            ++mounds;
         }
 
         // ---------- 自然物（KayKit Forest）----------
@@ -586,8 +641,11 @@ namespace TerrainGenerator
             if (placeBlocker(pm, randf(0.8f, 1.5f), randf(0.0f, 360.0f), x, z, false)) ++rocksPlaced;
         }
 
-        // 茂み・草：坂道の上（地面が傾いている所）以外。茂みは半分を林の中へ
-        auto scatterDecor = [&](const std::vector<PropModel>& list, int count, float sMin, float sMax, float groveBias) -> int
+        // 茂み・草：坂道の上（地面が傾いている所）以外。茂みは半分を林の中へ。
+        // onSlopes: 高台の長い坂にも置く（草だけ。坂が長くて何も無いと寂しいので）。
+        //           傾いた地面では中心の高さより少し沈めて、低い側が浮かないようにする。
+        //           坂の横の崖際（周りの高さが急に変わる所）には置かない
+        auto scatterDecor = [&](const std::vector<PropModel>& list, int count, float sMin, float sMax, float groveBias, bool onSlopes) -> int
             {
                 int placed = 0;
                 for (int attempt = 0; attempt < count * 10 && placed < count && !list.empty(); ++attempt)
@@ -599,22 +657,28 @@ namespace TerrainGenerator
                     int gx, gz;
                     grid.WorldToCell({ x, 0.0f, z }, gx, gz);
                     if (!grid.IsWalkable(gx, gz) || at(gx, gz) == kRamp) continue;
-                    const float h = grid.SampleHeight(x, z);
-                    if (std::fabs(grid.SampleHeight(x + 0.6f, z) - h) > 0.1f
-                        || std::fabs(grid.SampleHeight(x, z + 0.6f) - h) > 0.1f
-                        || std::fabs(grid.SampleHeight(x - 0.6f, z) - h) > 0.1f
-                        || std::fabs(grid.SampleHeight(x, z - 0.6f) - h) > 0.1f) continue;
+                    float h = grid.SampleHeight(x, z);
+                    const float bump = (std::max)(
+                        (std::max)(std::fabs(grid.SampleHeight(x + 0.6f, z) - h), std::fabs(grid.SampleHeight(x, z + 0.6f) - h)),
+                        (std::max)(std::fabs(grid.SampleHeight(x - 0.6f, z) - h), std::fabs(grid.SampleHeight(x, z - 0.6f) - h)));
+                    if (bump > 0.1f)
+                    {
+                        // 0.6m 先で 0.45m = 37° を超える段差は崖際
+                        if (!onSlopes || at(gx, gz) != kSlope || bump > 0.45f) continue;
+                        h -= 0.1f;
+                    }
                     spawnVisual(list[randi(0, (int)list.size() - 1)], randf(sMin, sMax), randf(0.0f, 360.0f), x, z, h);
                     ++placed;
                 }
                 return placed;
             };
-        const int bushesPlaced = scatterDecor(bushes, cfg.bushCount, 0.8f, 1.3f, 0.5f);
-        const int grassPlaced = scatterDecor(grasses, cfg.grassCount, 0.8f, 1.5f, 0.0f);
+        const int bushesPlaced = scatterDecor(bushes, cfg.bushCount, 0.8f, 1.3f, 0.5f, false);
+        const int grassPlaced = scatterDecor(grasses, cfg.grassCount, 0.8f, 1.5f, 0.0f, true);
 
-        std::cout << "[Terrain] seed " << cfg.seed << ": " << plateaus.size() << " plateaus ("
+        std::cout << "[Terrain] seed " << cfg.seed << ": " << terraces << " terraces (" << terraceTier2
+            << " with a 2nd tier), " << plateaus.size() << " plateaus ("
             << tier2 << " with a 2nd tier, " << blocked << " without a ramp), "
-            << rampCount << " ramps, " << mounds << " mounds, " << treesPlaced << " trees, "
+            << rampCount << " ramps, " << treesPlaced << " trees, "
             << rocksPlaced << " rocks, " << bushesPlaced << " bushes, " << grassPlaced << " grass, grid "
             << gw << "x" << gd << std::endl;
     }
