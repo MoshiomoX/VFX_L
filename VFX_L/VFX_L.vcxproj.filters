@@ -1037,6 +1037,12 @@
     <ClInclude Include="Item\Items\Magnifier.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\HasteRune.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\StoneShot.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="ECS\System\BackpackAggregateSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
@@ -1335,6 +1341,9 @@
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmProjMoveCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmProjEndCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmClearCountersCS.hlsl">

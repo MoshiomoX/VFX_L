@@ -43,10 +43,15 @@ struct SpellStats
     float radius = 0.25f;
     float lifetime = 3.0f;
 
+    // --- 誘発（基礎魔法 → 高級魔法。集約が決める）---
+    bool     triggered = false;   // 高級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ
+    uint32_t triggerMask = 0;     // 基礎魔法: この弾が消えたら誘発できる高級魔法（spells の添字の bit。32 個まで）
+
     // --- 実行時状態（WeaponSystem が更新）---
     float castTimer = 0.0f;      // 次に撃てるまでの残り
     int   pendingCasts = 0;         // 連発の残り回数
     float delayTimer = 0.0f;      // 次の連発までの残り
+    DirectX::SimpleMath::Vector3 triggerPos;   // 高級魔法: 連発（二重詠唱）の続きを撃つ場所
 };
 
 struct WandComponent

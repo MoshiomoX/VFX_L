@@ -49,6 +49,9 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
     wand.spells.clear();
     wand.areas.clear();
 
+    // items の index → wand.spells の添字（-1 = 飛行物でない / 撃たない）。誘発の bit を後で引く
+    std::vector<int> spellIndexOf(bp.items.size(), -1);
+
     for (size_t i = 0; i < bp.items.size(); ++i)
     {
         const auto& item = bp.items[i];
@@ -82,6 +85,19 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 log.influencedBy.push_back(fdef->common.name);
             }
 
+            // 高級魔法: 前提の基礎魔法が全種類届いていなければ撃たない（背包では暗く出る）
+            if (!pdef->triggeredBy.empty())
+            {
+                if (!BackpackLogic::IsTriggerReady(bp, (int)i))
+                {
+                    log.influencedBy.push_back("(inactive: needs triggers)");
+                    m_Log.push_back(std::move(log));
+                    continue;
+                }
+                stats.triggered = true;
+            }
+
+            spellIndexOf[i] = (int)wand.spells.size();
             wand.spells.push_back(stats);
         }
         else if (auto* adef = ItemDatabase::GetArea(item.id))
@@ -103,6 +119,21 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         }
 
         m_Log.push_back(std::move(log));
+    }
+
+    // ---- 誘発: 有効な高級魔法 k に影響格を届かせている基礎魔法に bit k を立てる ----
+    // 1 つの基礎魔法が複数の高級魔法に届いていれば全部立つ（どれも自分の冷却で撃つ）
+    for (size_t i = 0; i < bp.items.size(); ++i)
+    {
+        const int k = spellIndexOf[i];
+        if (k < 0 || k >= 32 || !wand.spells[k].triggered) continue;
+
+        for (int drv : BackpackLogic::GetTriggerDrivers(bp, (int)i))
+        {
+            const int d = spellIndexOf[drv];
+            if (d >= 0 && !wand.spells[d].triggered)
+                wand.spells[d].triggerMask |= 1u << k;
+        }
     }
 
     bp.dirty = false;

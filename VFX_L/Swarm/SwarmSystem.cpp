@@ -206,6 +206,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeState(Swarm::kMaxEnemies, m_EnemyStateBuffer, m_EnemyStateUAV, m_EnemyStateSRV, "enemy")) return false;
     if (!makeState(Swarm::kMaxProjectiles, m_ProjStateBuffer, m_ProjStateUAV, m_ProjStateSRV, "proj"))  return false;
     if (!makeState(Swarm::kMaxOrbs, m_OrbStateBuffer, m_OrbStateUAV, m_OrbStateSRV, "orb"))   return false;
+    // 誘発タグ（生死と同じ R32_UINT の並行バッファ）
+    if (!makeState(Swarm::kMaxProjectiles, m_ProjTagBuffer, m_ProjTagUAV, m_ProjTagSRV, "projTag")) return false;
 
     // ---- 範囲攻撃 ----
     if (!makeStructured(sizeof(Swarm::Area), Swarm::kMaxAreas,
@@ -267,6 +269,24 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_BossStagingWrite = 0;
         m_BossInfo = {};
     }
+    {
+        // 誘発の環（先頭 16B = 総数 + 16B × kMaxTriggerEvents）と、その回読
+        const UINT bytes = 16u + sizeof(Swarm::TriggerEvent) * Swarm::kMaxTriggerEvents;
+        if (!makeRaw(bytes, m_TriggerBuffer, m_TriggerUAV, "trigger")) return false;
+
+        D3D11_BUFFER_DESC sd = {};
+        sd.ByteWidth = bytes;
+        sd.Usage = D3D11_USAGE_STAGING;
+        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        for (int i = 0; i < kTriggerStaging; ++i)
+        {
+            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_TriggerStaging[i]))) return false;
+            m_TriggerStagingFilled[i] = false;
+        }
+        m_TriggerStagingWrite = 0;
+        m_TriggerRead = 0;
+        m_TriggerEvents.clear();
+    }
     // ---- 定数バッファ ----
     // ※ComputeShader::WriteBuffer が反射から自前の CB を持つ場合は未使用。
     //   将来 VS 側で直接使うことを想定して残しておく
@@ -307,6 +327,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_SpawnEnemyBuffer, m_SpawnEnemySRV)) return false;
     if (!makeUpload(sizeof(Swarm::Projectile), Swarm::kMaxSpawnProjPerFrame,
         m_SpawnProjBuffer, m_SpawnProjSRV)) return false;
+    if (!makeUpload(sizeof(uint32_t) * 2, Swarm::kMaxSpawnProjPerFrame,
+        m_SpawnProjExtraBuffer, m_SpawnProjExtraSRV)) return false;
     if (!makeUpload(sizeof(Swarm::Area), Swarm::kMaxSpawnAreaPerFrame,
         m_SpawnAreaBuffer, m_SpawnAreaSRV)) return false;
     if (!makeUpload(sizeof(Swarm::AreaDef), Swarm::kMaxAreaDefs,
@@ -323,6 +345,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         const UINT zero[4] = { 0, 0, 0, 0 };
         m_Context->ClearUnorderedAccessViewUint(m_EnemyStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_ProjStateUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_ProjTagUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_TriggerUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_CounterUAV.Get(), zero);
@@ -522,7 +546,8 @@ void SwarmSystem::RecycleEnemy(const Vector3& pos, float hp, float moveSpeed, ui
     m_PendingRecycles.push_back(e);
 }
 void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& vel,
-    float damage, float radius, float lifetime, uint32_t motion, bool mirror)
+    float damage, float radius, float lifetime, uint32_t motion, bool mirror,
+    uint32_t triggerTag, bool spawnAtPos)
 {
     if (m_PendingProjectiles.size() >= Swarm::kMaxSpawnProjPerFrame) return;
 
@@ -537,6 +562,8 @@ void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& 
     p.motion = (motion < Swarm::kMaxMotions) ? motion : 0u;
     if (mirror) p.motion |= Swarm::kMotionFlipBit;
     m_PendingProjectiles.push_back(p);
+    m_PendingProjExtra.push_back(triggerTag);
+    m_PendingProjExtra.push_back(spawnAtPos ? Swarm::kSpawnAtPos : 0u);
     ++m_TotalRequested;
 }
 
@@ -646,6 +673,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
         m_LastKillCount = c.killCount;
     }
     ReadBossInfo();
+    ReadTriggerEvents();
     if (m_MagnetTimer > 0.0f) m_MagnetTimer -= dt;
 
     // ---- 2) 定数と生成依頼を上げる ----
@@ -726,6 +754,12 @@ void SwarmSystem::UploadSpawns()
                 sizeof(Swarm::Projectile) * m_PendingProjectiles.size());
             m_Context->Unmap(m_SpawnProjBuffer.Get(), 0);
         }
+        if (SUCCEEDED(m_Context->Map(m_SpawnProjExtraBuffer.Get(), 0,
+            D3D11_MAP_WRITE_DISCARD, 0, &m)))
+        {
+            memcpy(m.pData, m_PendingProjExtra.data(), sizeof(uint32_t) * m_PendingProjExtra.size());
+            m_Context->Unmap(m_SpawnProjExtraBuffer.Get(), 0);
+        }
 
         // 2) 生成用の定数
         Swarm::SpawnCB scb;
@@ -738,6 +772,7 @@ void SwarmSystem::UploadSpawns()
         // 3) dispatch
         m_SpawnProjCS->Bind(m_Context);
         m_SpawnProjCS->SetSRV(m_Context, "spawnRequests", m_SpawnProjSRV.Get());
+        m_SpawnProjCS->SetSRV(m_Context, "spawnExtra", m_SpawnProjExtraSRV.Get());
         // 曲線の型は生成時に標的を捕捉して path を組む。
         // counters には前ステップの「玩家に一番近い雑魚」が残っている
         m_SpawnProjCS->SetSRV(m_Context, "motions", m_MotionSRV.Get());
@@ -747,6 +782,7 @@ void SwarmSystem::UploadSpawns()
         m_SpawnProjCS->SetUAV(m_Context, "projStates", m_ProjStateUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "paths", m_PathUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_SpawnProjCS->SetUAV(m_Context, "projTags", m_ProjTagUAV.Get());
         m_SpawnProjCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((scb.requestCount + 63) / 64, 1, 1);
@@ -870,6 +906,7 @@ void SwarmSystem::UploadSpawns()
     m_PendingEnemies.clear();
     m_PendingRecycles.clear();
     m_PendingProjectiles.clear();
+    m_PendingProjExtra.clear();
 }
 
 
@@ -1030,7 +1067,23 @@ void SwarmSystem::DispatchStep()
         m_HitCS->UnbindUAVs(m_Context);
     }
 
-    // ---- 4b) 範囲攻撃: 時計を進める → tick した範囲の中の雑魚へダメージ ----
+    // ---- 4b) 誘発: タグ付きの弾がこのステップで消えたら、その場所を環へ（命中の直後。弾の消え方 3 通りをまとめて拾う）----
+    if (m_ProjEndCS)
+    {
+        m_ProjEndCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_ProjEndCS->Bind(m_Context);
+        m_ProjEndCS->SetSRV(m_Context, "projectiles", m_ProjSRV.Get());
+        m_ProjEndCS->SetSRV(m_Context, "projStates", m_ProjStateSRV.Get());
+        m_ProjEndCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());
+        m_ProjEndCS->SetUAV(m_Context, "projTags", m_ProjTagUAV.Get());
+        m_ProjEndCS->SetUAV(m_Context, "triggerEvents", m_TriggerUAV.Get());
+        m_ProjEndCS->BindUAVs(m_Context);
+        m_Context->Dispatch((Swarm::kMaxProjectiles + 255) / 256, 1, 1);
+        m_ProjEndCS->UnbindSRVs(m_Context);
+        m_ProjEndCS->UnbindUAVs(m_Context);
+    }
+
+    // ---- 4c) 範囲攻撃: 時計を進める → tick した範囲の中の雑魚へダメージ ----
     // 命中の直後に置く：弾の命中で生まれた爆発が、そのステップのうちに炸裂する
     if (m_AreaTickCS && m_AreaDamageCS)
     {
@@ -1291,6 +1344,45 @@ void SwarmSystem::RenderSprites(CameraBase* camera)
 void SwarmSystem::RequestReadback()
 {
     m_Readback.RequestCopy(m_Context, m_CounterBuffer.Get());
+
+    // 誘発の環も写す（読むのは 2 フレーム後の Flush）
+    if (m_TriggerBuffer)
+    {
+        m_Context->CopyResource(m_TriggerStaging[m_TriggerStagingWrite].Get(), m_TriggerBuffer.Get());
+        m_TriggerStagingFilled[m_TriggerStagingWrite] = true;
+        m_TriggerStagingWrite = (m_TriggerStagingWrite + 1) % kTriggerStaging;
+    }
+}
+
+// ============================================================
+// 誘発の環を読む（一番古い staging、待たない）。総数は GPU で永久に累加されるので、
+// 読めなかったフレームがあっても次に読めた時に取りこぼさない（環の長さを超えて溜まった分だけ捨てる）
+// ============================================================
+void SwarmSystem::ReadTriggerEvents()
+{
+    const int readIndex = m_TriggerStagingWrite;   // 次に書く = 一番古い
+    if (!m_TriggerStagingFilled[readIndex] || !m_TriggerStaging[readIndex]) return;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    const HRESULT hr = m_Context->Map(m_TriggerStaging[readIndex].Get(), 0,
+        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
+    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
+
+    const auto* bytes = static_cast<const uint8_t*>(mapped.pData);
+    const uint32_t total = *reinterpret_cast<const uint32_t*>(bytes);
+    const auto* ring = reinterpret_cast<const Swarm::TriggerEvent*>(bytes + 16);
+
+    uint32_t from = m_TriggerRead;
+    if (total - from > Swarm::kMaxTriggerEvents) from = total - Swarm::kMaxTriggerEvents;   // 溢れた分は捨てる
+    for (uint32_t n = from; n != total; ++n)
+        m_TriggerEvents.push_back(ring[n % Swarm::kMaxTriggerEvents]);
+    m_TriggerRead = total;
+
+    m_Context->Unmap(m_TriggerStaging[readIndex].Get(), 0);
+
+    // 誰も取り出さない（杖が無い場面）でも溜まり続けないように
+    if (m_TriggerEvents.size() > Swarm::kMaxTriggerEvents)
+        m_TriggerEvents.erase(m_TriggerEvents.begin(), m_TriggerEvents.end() - Swarm::kMaxTriggerEvents);
 }
 
 // ============================================================
@@ -1339,6 +1431,7 @@ void SwarmSystem::KillAll()
     const UINT zero[4] = { 0, 0, 0, 0 };
     m_Context->ClearUnorderedAccessViewUint(m_EnemyStateUAV.Get(), zero);
     m_Context->ClearUnorderedAccessViewUint(m_ProjStateUAV.Get(), zero);
+    m_Context->ClearUnorderedAccessViewUint(m_ProjTagUAV.Get(), zero);   // 消した弾を「消えた」と報告させない
     m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
     m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
     m_PendingAreas.clear();
@@ -1347,6 +1440,7 @@ void SwarmSystem::KillAll()
     m_PendingEnemies.clear();
     m_PendingRecycles.clear();
     m_PendingProjectiles.clear();
+    m_PendingProjExtra.clear();
 }
 
 // ============================================================
@@ -1356,7 +1450,9 @@ void SwarmSystem::ClearProjectiles()
 {
     const UINT zero[4] = { 0, 0, 0, 0 };
     m_Context->ClearUnorderedAccessViewUint(m_ProjStateUAV.Get(), zero);
+    m_Context->ClearUnorderedAccessViewUint(m_ProjTagUAV.Get(), zero);
     m_PendingProjectiles.clear();
+    m_PendingProjExtra.clear();
 }
 // ============================================================
 // デバッグ: 判定球の線框
@@ -1806,6 +1902,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_ClearCountersCS, L"Shader/Swarm/SwarmClearCountersCS.hlsl", "ClearCountersCS");
     ok &= load(m_SpawnProjCS, L"Shader/Swarm/SwarmSpawnProjCS.hlsl", "SpawnProjCS");
     ok &= load(m_ProjMoveCS, L"Shader/Swarm/SwarmProjMoveCS.hlsl", "ProjMoveCS");
+    ok &= load(m_ProjEndCS, L"Shader/Swarm/SwarmProjEndCS.hlsl", "ProjEndCS");
     ok &= load(m_EmitCS, L"Shader/Swarm/SwarmEmitCS.hlsl", "EmitCS");
     ok &= load(m_SpawnEnemyCS, L"Shader/Swarm/SwarmSpawnEnemyCS.hlsl", "SpawnEnemyCS");
     ok &= load(m_EnemyAICS, L"Shader/Swarm/SwarmEnemyAICS.hlsl", "EnemyAICS");

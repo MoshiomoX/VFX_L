@@ -100,6 +100,8 @@ private:
     std::shared_ptr<Texture> GetIcon(ItemID id) const;
 
     void DrawHoverInfluence(SpriteRenderer& sprite, const BackpackComponent& bp);
+    // 高級魔法（メテオ等）を掴んでいる / 指している間、前提の基礎魔法の影響格を全部見せる（どこに置けば目覚めるか）
+    void DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp);
     void DrawDragged(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& mousePos);
     void DrawDropShadow(SpriteRenderer& sprite);
 

@@ -10,7 +10,7 @@
         0.0
     ],
     "damage": 10.0,
-    "hitArea": "Explosion",
+    "hitArea": "FireballHit",
     "hitAreaOnExpire": true,
     "lifetime": 3.0,
     "mirror": 2,

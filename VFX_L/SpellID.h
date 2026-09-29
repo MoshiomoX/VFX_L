@@ -15,11 +15,13 @@ enum class ItemID
     HomingBolt,       // 全追尾（HomingFull）
     Meteor,           // 空から落ちて着弾点で爆発（Meteor プロファイル、Drop 型）
     GoldenArrow,      // 黄金の矢：曲がらずまっすぐ飛ぶ速い矢（GoldenArrow プロファイル、直進）
+    StoneShot,        // 石弾：山なりに飛ぶ重い岩（StoneShot プロファイル）。火球と組むとメテオを誘発する基礎魔法
 
     // --- 修飾符（隣接する出力源を強化。リストには入らない）---
     SplitRune,        // 分裂：一度の発射数 +1、ダメージ分散
     DoubleCastRune,   // 二重釈放：発射回数 +1、マナ倍
     Magnifier,        // 拡大鏡：斜め 4 マスの弾・範囲を 1.5 倍に（見た目も）、マナ 1.3 倍
+    HasteRune,        // 加速：左右 2 マスの魔法の発動間隔 x0.75
 
     // ---- 設置枠 ----
     Frame3x3,
@@ -41,5 +43,5 @@ inline bool IsSpellSource(ItemID id)
 {
     return id == ItemID::Fireball || id == ItemID::Lightning
         || id == ItemID::ArcBolt || id == ItemID::HomingBolt || id == ItemID::Meteor
-        || id == ItemID::GoldenArrow;
+        || id == ItemID::GoldenArrow || id == ItemID::StoneShot;
 }

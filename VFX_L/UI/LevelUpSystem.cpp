@@ -48,8 +48,9 @@ void LevelUpSystem::Update(Registry& reg)
 void LevelUpSystem::RollChoices(Registry& reg, Entity player)
 {
     auto& lv = reg.Get<LevelComponent>(player);
+    const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
 
-    if (FillChoices(lv) == 0)
+    if (FillChoices(lv, book) == 0)
     {
         // 候補が1つも無いなら、レベルだけ上げて先へ進める。
         // ここで止まると経験値が溜まり続けて動かなくなる。
@@ -80,7 +81,8 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
 
     auto& lv = reg.Get<LevelComponent>(player);
     if (lv.IsChoosing()) return false;
-    if (FillChoices(lv) == 0) return false;
+    const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
+    if (FillChoices(lv, book) == 0) return false;
 
     ++m_TotalOffers;
     std::cout << "[LevelUp] reward offer : " << lv.pendingChoices.size() << " choices" << std::endl;
@@ -90,7 +92,7 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
 // ============================================================
 // 候補を pendingChoices に詰める（升級と報酬で共通）。詰めた数を返す
 // ============================================================
-int LevelUpSystem::FillChoices(LevelComponent& lv)
+int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book)
 {
     // 候補の母集団を作る（重み付き）
     struct Entry { ItemID id; float weight; };
@@ -99,6 +101,16 @@ int LevelUpSystem::FillChoices(LevelComponent& lv)
     {
         // 定義が取れないものは除く（登録漏れの保険）
         if (!ItemDatabase::GetCommon(id)) continue;
+
+        // 高級魔法（メテオ等）は前提の基礎魔法を 1 つでも持っている時だけ（使えない札を引かせない）
+        if (const auto* pdef = ItemDatabase::GetProjectile(id); pdef && book && !pdef->triggeredBy.empty())
+        {
+            bool hasAny = false;
+            for (ItemID need : pdef->triggeredBy)
+                if (book->HasLearned(need)) { hasAny = true; break; }
+            if (!hasAny) continue;
+        }
+
         pool.push_back({ id, 1.0f });
     }
     // 能力値（生命・魔力・速さ・跳躍…）も同じ池に混ぜる。種類が多いので 1 枚ずつの重みは下げる

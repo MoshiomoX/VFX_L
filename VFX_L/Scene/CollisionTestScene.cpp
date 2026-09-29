@@ -73,6 +73,7 @@ void CollisionTestScene::Init()
         m_AutoAssets = m_AutoTest && strcmp(env, "assets") == 0;         // 値が assets なら新しい素材の並べ見
         m_AutoEdge = m_AutoTest && strcmp(env, "edge") == 0;             // 値が edge なら外周の岩山を撮る
         m_AutoArrow = m_AutoTest && strcmp(env, "arrow") == 0;           // 値が arrow なら黄金の矢を横から撮る
+        m_AutoChain = m_AutoTest && strcmp(env, "chain") == 0;           // 値が chain なら火球 + 石弾 → 隕石の誘発
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");

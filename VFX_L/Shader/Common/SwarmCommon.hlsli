@@ -145,6 +145,23 @@ static const uint SWARM_MOTION_INDEX_MASK = 0xFFFFu;
 static const uint SWARM_MOTION_FLIP_BIT = 0x80000000u;
 
 // ------------------------------------------------------------
+// Trigger chain (basic spell -> advanced spell, e.g. fireball / stone
+// shot -> meteor). A spawn request may carry a parallel uint2
+// (SwarmSpawnProjCS t4):
+//   x = trigger tag: bit k = "when this projectile ends, advanced spell
+//       k of the wand may fire there". Kept per slot in projTags.
+//   y = flags: SWARM_SPAWN_AT_POS = DROP lands on the request position
+//       instead of locking the enemy nearest to the player.
+// SwarmProjEndCS reports tagged projectiles that died this step into a
+// ring (header 16B: [0] = total events ever written, then
+// SWARM_MAX_TRIGGER_EVENTS entries of 16B: ground pos xyz + tag).
+// The CPU reads the ring back and takes the entries it has not seen.
+// Must match Swarm::kMaxTriggerEvents / kSpawnAtPos in SwarmTypes.h
+// ------------------------------------------------------------
+static const uint SWARM_MAX_TRIGGER_EVENTS = 128u;
+static const uint SWARM_SPAWN_AT_POS = 1u;
+
+// ------------------------------------------------------------
 // Size scale of one projectile / area (the Magnifier item).
 // A projectile's scale = its hit radius / its profile's radius
 // (SwarmMotion.baseRadius), worked out once in SwarmSpawnProjCS and

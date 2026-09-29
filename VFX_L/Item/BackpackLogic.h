@@ -93,4 +93,11 @@ namespace BackpackLogic
     // このブロック（items の index）に影響格が届いているブロックの index（items の順）。
     // 集約（BackpackAggregateSystem）と UI の説明が同じ判定を使う
     std::vector<int> GetInfluencers(const BackpackComponent& bp, int itemIndex);
+
+    // 高級魔法（ProjectileItemDef::triggeredBy がある物）を誘発する基礎魔法（items の index）。
+    // 影響格がこのブロックに届いていて、id が triggeredBy に入っている物。高級魔法でなければ空
+    std::vector<int> GetTriggerDrivers(const BackpackComponent& bp, int itemIndex);
+
+    // triggeredBy の全種類が揃って届いているか。高級魔法でなければ常に true
+    bool IsTriggerReady(const BackpackComponent& bp, int itemIndex);
 }

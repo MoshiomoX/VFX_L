@@ -12,6 +12,7 @@
 #include <vector>
 #include <utility>
 #include <SimpleMath.h>
+#include "Swarm/SwarmTypes.h"
 
 class Registry;
 class CollisionSystem;
@@ -47,15 +48,20 @@ public:
     const AimDebug& GetAimDebug() const { return m_AimDebug; }
     struct SpawnedProjectile { Entity entity; ItemID id; };
     const std::vector<SpawnedProjectile>& GetSpawned() const { return m_Spawned; }
+    // 誘発の累計（ImGui・自測用）: 届いた「基礎魔法の弾が消えた」数 / それで撃った高級魔法の回数
+    uint32_t GetTriggerEventsSeen() const { return m_TriggerEventsSeen; }
+    uint32_t GetTriggeredCasts() const { return m_TriggeredCasts; }
 private:
     // View 走査中に Entity を作れないので、発射要求を溜めてから生成する
     struct CastRequest
     {
         ItemID  id;
         int     profile;   // ProjectileProfileDB の番号（飛び方・VFX はここから）
-        DirectX::SimpleMath::Vector3 muzzle;
+        DirectX::SimpleMath::Vector3 muzzle;   // 撃つ位置。atPos なら着弾点
         DirectX::SimpleMath::Vector3 dir;
         float speed, radius, damage, lifetime;
+        uint32_t triggerTag = 0;   // この弾が消えたら誘発できる高級魔法（SpellStats::triggerMask）
+        bool     atPos = false;    // 誘発の隕石: muzzle に落とす
     };
     struct VisualDef
     {
@@ -72,6 +78,13 @@ private:
     void QueueOneCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& muzzle,
         const DirectX::SimpleMath::Vector3& dir);
+    // 高級魔法 1 回分（誘発。impact に落とす。分裂は着弾点を輪に並べる）
+    void QueueTriggeredCast(const SpellStats& s,
+        const DirectX::SimpleMath::Vector3& impact,
+        const DirectX::SimpleMath::Vector3& muzzle);
+    std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 今フレームに回読で届いた誘発
+    uint32_t m_TriggerEventsSeen = 0;
+    uint32_t m_TriggeredCasts = 0;
 
     std::shared_ptr<Model> GetModel(ItemID id) const;
     SwarmSystem* m_Swarm = nullptr;

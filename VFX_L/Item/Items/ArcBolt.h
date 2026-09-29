@@ -22,7 +22,7 @@ inline ProjectileItemDef MakeArcBolt()
     def.common.description = L"弧を描いて敵へ向かう魔法弾。撃つたびに左右が入れ替わる。";
     def.common.iconPath = Res::Icon::ArcBolt;
     def.common.category = ItemCategory::Projectile;
-    def.common.occupyCells = ItemShape::Single();
+    def.common.occupyCells = { { 0, 0 }, { 1, 0 }, { 1, 1 } };   // L 字 3 マス（2026-09-30）
     def.common.influenceCells = {};
     def.common.color = { 0.40f, 0.80f, 1.00f, 1.0f };   // 水色
 
@@ -32,8 +32,8 @@ inline ProjectileItemDef MakeArcBolt()
     def.baseStats.spreadAngle = 0.0f;
     def.baseStats.castCount = 1;
     def.baseStats.castDelay = 0.12f;
-    def.baseStats.castInterval = 0.5f;
-    def.baseStats.manaCost = 10.0f;
+    def.baseStats.castInterval = 0.375f;  // 単体の魔法は速め：0.5 → 0.375（2026-09-30）
+    def.baseStats.manaCost = 7.5f;        // 間隔と同じ x0.75 で、毎秒の消費は変えない
 
     // ---- 飛び方 ----
     def.profile = "ArcOnce";   // Assets/Data/ProjectileData/ArcOnce.json

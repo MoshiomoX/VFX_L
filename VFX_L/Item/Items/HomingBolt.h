@@ -19,7 +19,7 @@ inline ProjectileItemDef MakeHomingBolt()
     def.common.description = L"敵を追い続ける魔法弾。狙った敵が倒れても次の敵を探す。消費は重め。";
     def.common.iconPath = Res::Icon::HomingBolt;
     def.common.category = ItemCategory::Projectile;
-    def.common.occupyCells = ItemShape::Single();
+    def.common.occupyCells = ItemShape::Single();   // 1 マス（最初から持っている一番軽い魔法。3x3 枠の真ん中に置かれる）
     def.common.influenceCells = {};
     def.common.color = { 0.75f, 0.45f, 1.00f, 1.0f };   // 紫
 
@@ -29,8 +29,8 @@ inline ProjectileItemDef MakeHomingBolt()
     def.baseStats.spreadAngle = 0.0f;
     def.baseStats.castCount = 1;
     def.baseStats.castDelay = 0.12f;
-    def.baseStats.castInterval = 0.6f;
-    def.baseStats.manaCost = 14.0f;
+    def.baseStats.castInterval = 0.45f;   // 単体の魔法は速め：0.6 → 0.45（2026-09-30）
+    def.baseStats.manaCost = 10.5f;       // 間隔と同じ x0.75 で、毎秒の消費は変えない
 
     def.profile = "HomingFull";   // Assets/Data/ProjectileData/HomingFull.json
 

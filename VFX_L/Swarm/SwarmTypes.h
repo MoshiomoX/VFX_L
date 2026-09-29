@@ -116,6 +116,25 @@ namespace Swarm
     constexpr uint32_t kMaxMotions = 64;
     constexpr uint32_t kMotionFlipBit = 0x80000000u;
 
+    // ============================================================
+    // 誘発（基礎魔法 → 高級魔法。火球・石弾が消えた所に隕石が落ちる）
+    //   生成依頼に並行の uint2 を付ける（Projectile の 48B は変えない）:
+    //     x = 誘発タグ。bit k = 「この弾が消えたら、杖の k 番の高級魔法がそこで撃てる」
+    //     y = kSpawnAtPos：Drop 型の着弾点を依頼の position にする（最寄りの敵を捕捉しない）
+    //   タグはスロット毎の projTags に残り、SwarmProjEndCS が「このステップで消えたタグ付きの弾」を
+    //   環（先頭 16B = 今までに書いた総数、以降 16B × kMaxTriggerEvents）へ書く。CPU は回読して差分を取る。
+    //   HLSL の SWARM_MAX_TRIGGER_EVENTS / SWARM_SPAWN_AT_POS と一致させること
+    // ============================================================
+    constexpr uint32_t kMaxTriggerEvents = 128;
+    constexpr uint32_t kSpawnAtPos = 1u;
+
+    struct TriggerEvent
+    {
+        Vector3  position;    // 弾が消えた所の地面（地形の高さ）
+        uint32_t tag = 0;
+    };
+    static_assert(sizeof(TriggerEvent) == 16, "SwarmTriggerEvent layout mismatch");
+
     enum class MotionMode : uint32_t
     {
         Straight = 0,    // 直進。敵を一切見ない

@@ -23,6 +23,12 @@
 // is moved up to its start point in the sky (c1, see SwarmCommon.hlsli)
 // and gets enough lifetime to reach the ground. No target -> it lands
 // 8m ahead of the muzzle at the player's height.
+// With SWARM_SPAWN_AT_POS (a triggered meteor) the request position IS
+// the impact point (where the fireball / stone shot ended) and it comes
+// in over the player's side.
+//
+// Every claimed slot gets its trigger tag (0 = none) in projTags, so a
+// reused slot never keeps an old tag.
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -30,11 +36,13 @@ StructuredBuffer<SwarmProjectile> spawnRequests : register(t0);
 StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
+StructuredBuffer<uint2> spawnExtra : register(t4);   // x = trigger tag, y = SWARM_SPAWN_* flags
 
 RWStructuredBuffer<SwarmProjectile> projectiles : register(u0);
 RWBuffer<uint> projStates : register(u1);
 RWStructuredBuffer<SwarmProjPath> paths : register(u2);
 RWByteAddressBuffer counters : register(u3);
+RWBuffer<uint> projTags : register(u4);
 
 cbuffer SwarmSpawnCB : register(b1)
 {
@@ -50,6 +58,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmProjectile req = spawnRequests[id.x];
+    uint2 extra = spawnExtra[id.x];
 
     // ---- motion: split the request word, then build the path ----
     float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? -1.0 : 1.0;
@@ -78,19 +87,29 @@ void main(uint3 id : SV_DispatchThreadID)
         fwd = (fwdLenSq > 1e-8) ? fwd * rsqrt(fwdLenSq) : float3(0, 0, 1);
 
         float3 impact = float3(req.position.x, g_PlayerPos.y, req.position.z) + fwd * 8.0;
-        uint key = counters.Load(SWARM_CNT_NEAREST_KEY);
-        if (key != SWARM_NO_TARGET_KEY)
+        // start: up, and back toward the muzzle (comes in over the player's shoulder)
+        float3 backFrom = req.position;
+        if ((extra.y & SWARM_SPAWN_AT_POS) != 0u)
         {
-            uint slot = key & SWARM_SLOT_MASK;
-            if (slot < g_MaxEnemies && enemyStates[slot] == SWARM_ALIVE)
+            // triggered: the CPU already chose the impact point
+            impact = req.position;
+            backFrom = g_PlayerPos;
+        }
+        else
+        {
+            uint key = counters.Load(SWARM_CNT_NEAREST_KEY);
+            if (key != SWARM_NO_TARGET_KEY)
             {
-                impact = enemies[slot].position;
-                path.target = slot;
+                uint slot = key & SWARM_SLOT_MASK;
+                if (slot < g_MaxEnemies && enemyStates[slot] == SWARM_ALIVE)
+                {
+                    impact = enemies[slot].position;
+                    path.target = slot;
+                }
             }
         }
 
-        // start: up, and back toward the muzzle (comes in over the player's shoulder)
-        float3 back = float3(req.position.x - impact.x, 0.0, req.position.z - impact.z);
+        float3 back = float3(backFrom.x - impact.x, 0.0, backFrom.z - impact.z);
         float backLenSq = dot(back, back);
         back = (backLenSq > 1e-8) ? back * rsqrt(backLenSq) : -fwd;
         float3 start = impact + back * m.c1.y + float3(0.0, max(m.c1.x, 1.0), 0.0);
@@ -137,6 +156,7 @@ void main(uint3 id : SV_DispatchThreadID)
             // won the slot. state is already ALIVE from the exchange
             projectiles[slot] = req;
             paths[slot] = path;
+            projTags[slot] = extra.x;
             return;
         }
     }

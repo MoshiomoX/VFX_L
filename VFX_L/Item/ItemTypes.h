@@ -151,6 +151,12 @@ struct ProjectileItemDef
     // 投射物編集器で作ったプロファイルの名前（Assets/Data/ProjectileData/<名前>.json）。
     // 空 or 見つからない → 組み込みの直進（火球相当の値）
     std::string profile;
+
+    // 高級魔法の前提（2026-09-30）。空 = 基礎魔法（自分で撃つ）。
+    // 空でなければ自分では撃たず、ここに並ぶ基礎魔法が「全種類」影響格をこのブロックに届かせている時だけ有効になる。
+    // 有効な時は、届いている基礎魔法の弾が消えた場所（命中・寿命・壁）で撃つ（隕石ならそこへ落ちる）。
+    // 判定は BackpackLogic::GetTriggerDrivers / IsTriggerReady（集約と UI の説明で共用）
+    std::vector<ItemID> triggeredBy;
 };
 
 // ============================================================
@@ -240,6 +246,12 @@ namespace ItemShape
     inline std::vector<CellOffset> Diagonal()
     {
         return { { -1, -1 }, { -1, 1 }, { 1, -1 }, { 1, 1 } };
+    }
+
+    // 左右 2 マス（横一列の両隣。十字・斜めのどちらとも一部しか重ならない）
+    inline std::vector<CellOffset> Sides()
+    {
+        return { { 0, -1 }, { 0, 1 } };
     }
 
     // 周囲8マス（斜め込み）

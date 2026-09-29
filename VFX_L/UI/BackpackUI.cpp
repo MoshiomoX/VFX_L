@@ -454,6 +454,47 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
 }
 
 // ============================================================
+// 高級魔法の置き場所の手がかり
+// メテオを掴んでいる / 指している間、背包の中のファイアボール・石弾の影響格を
+// それぞれの道具の色で塗る。両方の色が重なる所に占位格を掛ければ目覚める
+// ============================================================
+void BackpackUI::DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp)
+{
+    ItemID id = ItemID::Unknown;
+    if (m_Drag && m_Drag->IsActive())
+        id = m_Drag->id;
+    else if (m_HoverItemIndex >= 0 && m_HoverItemIndex < (int)bp.items.size())
+        id = bp.items[m_HoverItemIndex].id;
+
+    const ProjectileItemDef* def = ItemDatabase::GetProjectile(id);
+    if (!def || def->triggeredBy.empty()) return;
+
+    const Vector2 cellSizeVec = { m_CellSize, m_CellSize };
+    const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
+
+    for (const auto& src : bp.items)
+    {
+        if (std::find(def->triggeredBy.begin(), def->triggeredBy.end(), src.id) == def->triggeredBy.end())
+            continue;
+        const ItemCommon* c = ItemDatabase::GetCommon(src.id);
+        if (!c) continue;
+
+        Vector4 col = c->color;
+        col.w = 0.18f;
+        Vector4 edge = c->color;
+        edge.w = 0.9f;
+        for (const auto& off : BackpackLogic::RotateShape(c->influenceCells, src.rotation))
+        {
+            const int r = src.row + off.row;
+            const int cc = src.col + off.col;
+            if (r < 0 || r >= GRID_SIZE || cc < 0 || cc >= GRID_SIZE) continue;
+            sprite.Draw(white, CellPosition(r, cc), cellSizeVec, col);
+            UIDeco::DrawFrameLines(sprite, CellPosition(r, cc), cellSizeVec, edge);
+        }
+    }
+}
+
+// ============================================================
 // ドラッグ中のブロック
 //
 // マスには吸い付けず、マウスに追従させる。
@@ -560,10 +601,16 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         auto cells = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
         ShapeSprite::DrawItemGlass(sprite, white, c->color, UIDeco::CategoryColor(c->category),
             GetIcon(item.id), cells, CellPosition(item.row, item.col), m_CellSize, m_CellGap);
+
+        // 目覚めていない高級魔法（前提の基礎魔法が届いていない = 撃たない）は暗く沈める
+        if (!BackpackLogic::IsTriggerReady(bp, (int)i))
+            ShapeSprite::DrawConnected(sprite, white, { 0.0f, 0.0f, 0.0f, 0.6f }, cells,
+                CellPosition(item.row, item.col), m_CellSize, m_CellGap);
     }
 
     // ---- 影響格 ----
     // 枠には influenceCells が無いので、関数内の空チェックで自然に弾かれる
+    DrawTriggerSources(sprite, bp);
     DrawHoverInfluence(sprite, bp);
 
     // ---- 置き先の影 → ドラッグ中のブロック ----

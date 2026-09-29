@@ -45,7 +45,8 @@ public:
 private:
     void RollChoices(Registry& reg, Entity player);
     // 候補を pendingChoices に詰める（升級と報酬で共通）。詰めた数を返す
-    int FillChoices(LevelComponent& lv);
+    // book: 持っている物（高級魔法は前提の基礎魔法を 1 つでも持っていないと出さない）。null = 絞らない
+    int FillChoices(LevelComponent& lv, const struct SpellbookComponent* book);
     int m_TotalOffers = 0;   // 報酬の三択を出した回数
 
     // 能力値（生命・魔力の上限）をその場で適用する

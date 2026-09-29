@@ -16,9 +16,11 @@ From game-icons.net  https://game-icons.net
   HomingBolt.png      "On target"         by Lorc        https://game-icons.net/1x1/lorc/on-target.html
   Meteor.png          "Meteor impact"     by Lorc        https://game-icons.net/1x1/lorc/meteor-impact.html
   GoldenArrow.png     "High shot"         by Lorc        https://game-icons.net/1x1/lorc/high-shot.html
+  StoneShot.png       "Stone sphere"      by Lorc        https://game-icons.net/1x1/lorc/stone-sphere.html
   SplitRune.png       "Split arrows"      by Delapouite  https://game-icons.net/1x1/delapouite/split-arrows.html
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html
+  HasteRune.png       "Stopwatch"         by Lorc        https://game-icons.net/1x1/lorc/stopwatch.html
   MaxHealthUp.png     "Heart plus"        by Zeromancer  https://game-icons.net/1x1/zeromancer/heart-plus.html
   MaxManaUp.png       "Potion ball"       by Lorc        https://game-icons.net/1x1/lorc/potion-ball.html
   MoveSpeedUp.png     "Sprint"            by Lorc        https://game-icons.net/1x1/lorc/sprint.html

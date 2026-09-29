@@ -1,0 +1,5 @@
+{
+    "damage": 0.0, "duration": 0.1, "followCaster": false, "halfHeight": 1.5, "kind": 0,
+    "name": "StoneShotHit", "preview": { "atTarget": true, "interval": 1.0 },
+    "radius": 0.5, "stun": false, "tickInterval": 1.0, "vfx": "StoneShotHit.json"
+}
