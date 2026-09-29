@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <random>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 
 using DirectX::SimpleMath::Vector3;
@@ -576,7 +577,10 @@ namespace TerrainGenerator
                 outTerrain.push_back(e);
             };
 
-        // 置物 1 個。回した包囲箱の足跡（木は幹のある 1 マスだけ）を調べて置く
+        // 置物 1 個。回した包囲箱の足跡（木は幹のある 1 マスだけ）を調べて置く。
+        // 小さい物（木は高さ < treeBlockMinHeight、岩は足跡の長辺 < rockBlockMinSize）は見た目だけ:
+        // 置き場所の条件と「周りに他の置物無し」は同じだが、格子を塞がず衝突も付けない
+        int decorTrees = 0, decorRocks = 0;
         auto placeBlocker = [&](const PropModel& pm, float scale, float yawDeg, float x, float z, bool isTree) -> bool
             {
                 const float u = pm.unit * scale;
@@ -584,6 +588,9 @@ namespace TerrainGenerator
                 const float cs = std::fabs(std::cos(yaw)), sn = std::fabs(std::sin(yaw));
                 const float ex = (pm.hi.x - pm.lo.x) * 0.5f * u, ez = (pm.hi.z - pm.lo.z) * 0.5f * u;
                 const float hx = cs * ex + sn * ez, hz = sn * ex + cs * ez;   // 回した後の半幅
+                const float height = (pm.hi.y - pm.lo.y) * u;
+                const bool blocks = isTree ? (height >= cfg.treeBlockMinHeight)
+                    : ((std::max)(ex, ez) * 2.0f >= cfg.rockBlockMinSize);
 
                 int gx0, gz0, gx1, gz1;
                 if (isTree)
@@ -612,10 +619,14 @@ namespace TerrainGenerator
                 for (int zz = gz0; zz <= gz1; ++zz)
                     for (int xx = gx0; xx <= gx1; ++xx)
                         propAt[(size_t)zz * gw + xx] = 1;
-                grid.BlockArea(gx0, gz0, gx1 - gx0 + 1, gz1 - gz0 + 1);
 
                 spawnVisual(pm, scale, yawDeg, x, z, h);
-                const float height = (pm.hi.y - pm.lo.y) * u;
+                if (!blocks)
+                {
+                    ++(isTree ? decorTrees : decorRocks);
+                    return true;
+                }
+                grid.BlockArea(gx0, gz0, gx1 - gx0 + 1, gz1 - gz0 + 1);
                 if (isTree)
                 {
                     const float trunk = (std::min)(height, 3.0f);
@@ -696,8 +707,23 @@ namespace TerrainGenerator
         std::cout << "[Terrain] seed " << cfg.seed << ": " << terraces << " terraces (" << terraceTier2
             << " with a 2nd tier), " << plateaus.size() << " plateaus ("
             << tier2 << " with a 2nd tier, " << blocked << " without a ramp), "
-            << rampCount << " ramps, " << treesPlaced << " trees, "
-            << rocksPlaced << " rocks, " << bushesPlaced << " bushes, grid "
+            << rampCount << " ramps, " << treesPlaced << " trees (" << decorTrees << " decor), "
+            << rocksPlaced << " rocks (" << decorRocks << " decor), " << bushesPlaced << " bushes, grid "
             << gw << "x" << gd << std::endl;
+
+        // 木・岩の模型の大きさ（拡縮 1 倍、m）。「小さい物は見た目だけ」のしきい値を決める目安
+        auto printSizes = [](const char* tag, const std::vector<PropModel>& list)
+            {
+                std::cout << "[Terrain] " << tag << " sizes (w x d x h m):";
+                for (const auto& pm : list)
+                {
+                    const Vector3 s = (pm.hi - pm.lo) * pm.unit;
+                    std::cout << " " << std::fixed << std::setprecision(2) << s.x << "x" << s.z << "x" << s.y;
+                }
+                std::cout << std::defaultfloat << std::endl;
+            };
+        printSizes("tree", trees);
+        printSizes("bare tree", bareTrees);
+        printSizes("rock", rocks);
     }
 }

@@ -66,6 +66,7 @@ void CollisionTestScene::Init()
         m_AutoStress = m_AutoTest && strcmp(env, "stress") == 0;   // 値が stress なら雑魚を増やしていく負荷試験
         m_AutoMagnifier = m_AutoTest && strcmp(env, "magnifier") == 0;   // 値が magnifier なら拡大鏡の見比べ
         m_AutoUI = m_AutoTest && strcmp(env, "ui") == 0;                 // 値が ui なら幻想 UI の各画面を順に開く
+        m_AutoLoco = m_AutoTest && strcmp(env, "loco") == 0;             // 値が loco なら横 / 後ろ走りと爆発の見え方
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");

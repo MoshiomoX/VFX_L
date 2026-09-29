@@ -57,8 +57,8 @@ public:
     // 増やしたら BattleCamera.cpp の CAMERA_FLOATS / CAMERA_BOOLS にも足す（保存・読込・既定値に戻す）
     float fov = 45.0f;             // 縦の画角（度）
     float defaultYaw = 0.0f;       // 始めの向き（度）
-    float defaultPitch = 20.0f;    // 始めの見下ろし角（度、正 = 見下ろす）
-    float distance = 6.0f;    // 対象からの距離（中距離）
+    float defaultPitch = 28.0f;    // 始めの見下ろし角（度、正 = 見下ろす）
+    float distance = 8.0f;    // 対象からの距離（爆発で自分の周りが隠れないよう少し引く）
     float height = 1.5f;    // 注視点の高さオフセット（足元でなく胸あたりを見る）
     float shoulderOffset = 0.5f;    // 右肩へのずらし（m）。負で左肩、0 で真後ろ
     float stickSensitivity = 150.0f;  // 度/秒
@@ -118,9 +118,9 @@ private:
     Vector3 m_PivotVel = { 0, 0, 0 };
     bool    m_Snap = true;
     float   m_Yaw = 0.0f;    // 水平角（度）
-    float   m_Pitch = 20.0f;   // 仰角（度、正=見下ろす）
+    float   m_Pitch = 28.0f;   // 仰角（度、正=見下ろす）
 
-    float   m_CurDistance = 6.0f;   // 遮蔽回避を反映した今の距離
+    float   m_CurDistance = 8.0f;   // 遮蔽回避を反映した今の距離
     float   m_DistVel = 0.0f;
     bool    m_Occluded = false;
 

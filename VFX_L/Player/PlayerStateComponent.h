@@ -44,6 +44,16 @@ enum class MoveStateID
     Slide,  // 滑り中（PlayerControlSystem が slideActive を立てている間。坂の段差で一瞬浮いても続く）
 };
 
+// カメラの前から見た進む向き（前後左右 4 分割、各 ±45 度）。止まっている間は None
+enum class MoveDirID
+{
+    None,
+    Forward,
+    Right,
+    Back,
+    Left,
+};
+
 // ============================================================
 // 動作層：杖を振っているか
 // Casting は Move を抑制しない。
@@ -86,6 +96,11 @@ struct PlayerStateComponent
     float slideBoostTimer = 0.0f;      // 平地の押し出しの再使用待ち（0 で使える）
     bool  slideNeedsRelease = false;   // 遅くなって立った後はキーを離すまで滑り直さない（押しっぱなしで押し出しが繰り返されない）
     bool  carryMomentum = false;       // 滑りでついた moveSpeed 超えの勢いを持ち越している（普段の走りでは立たない）
+
+    // ---- 進む方向（PlayerControlSystem が書く）----
+    // カメラの前から見た進む方向（度。0 = 前、+90 = 右、±180 = 後ろ）。体はこの方向へ振り向く
+    float moveAngleCam = 0.0f;
+    MoveDirID moveDir = MoveDirID::None;
 
     // ---- 被損層のタイマー ----
     float hurtDuration     = 0.25f;   // 被弾硬直の長さ

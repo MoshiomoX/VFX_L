@@ -103,7 +103,7 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 - flip 交换链 + ALLOW_TEARING + 限帧
 - 删掉根目录空的 `ManaSystem.cpp`（同名 obj 互相覆盖，蓝量时好时坏的根因）
 
-### 9-28 未提交（84 处改动，可一次提交）
+### 9-28（f830fca「Add Visuals Assets」）
 - **幻想 UI**（`UI/UIDeco`）：深色面板 + 双线 + 四角绳结 + 旋转魔法阵，按道具种类金 / 青 / 银；已换升级卡片、HUD、背包、tooltip、暂停、标题
 - **字体**：Yuji Syuku 毛笔体（OFL），`Tools/BuildSpriteFont.ps1` 生成 7467 字
 - **图标**：game-icons.net 白色剪影（CC BY），`Tools/BuildGameIcons.ps1`
@@ -112,6 +112,13 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 - **能力卡**：移動速度 +8%、跳躍力 +8%
 - **相机**：调参 Save / Load（`Camera.json`）、FOV、速度演出、前瞻、滚轮调距离；修 InputManager 滚轮读不到
 - **压力测试** `VFXL_BATTLE_AUTOTEST=stress` 和 UI / magnifier 自测钩子
+
+### 9-29：玩家反馈 1〜4（`Plan.md`，做完再进平衡）
+- **特效挡视线**：镜头默认 6m / 20 度 → 8m / 28 度；`Explosion` / `MeteorBlast` 的闪光、火团、烟减量缩小，烟寿命 x0.65
+- **后退 / 横移**：免费 UAL 没有这些片段；试过程序化扭腰 + 倒放后，用户决定放弃「一直朝前」→ 按镜头方向判断前 / 右 / 后 / 左，身体转向移动方向（后退就转身朝镜头跑）
+- **滑步感**：Walk / Jog / Sprint 按速度切换 + 播放速率 = 实速 / 片段原速 + 切换时继承步伐相位
+- **树石太多**：树 110→60、石 40→20，小石头（和矮枯树）只当装饰不挡路
+- 自测 `VFXL_BATTLE_AUTOTEST=loco`（7 个方向 + 爆炸视野截图）
 
 ---
 
@@ -125,12 +132,12 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 | 范围攻击 | 完成 | 火球爆炸、陨石爆炸、命中特效范围（伤害 0） |
 | 经验球 | 完成 | 外观 + 尾迹 + 拾取特效 |
 | 精英（CPU） | 靶子级别 | KayKit Skeleton Warrior，HP 归零燃烧消散 |
-| 玩家 | 移动 / 跳 / 滑铲 / 自动施法 / 施法暂停 | Quaternius 游侠模型（未提交） |
+| 玩家 | 移动 / 跳 / 滑铲 / 自动施法 / 施法暂停 | Quaternius 游侠模型；Walk / Jog / Sprint，身体转向移动方向（9-29） |
 | 背包 | 9x9，形状编辑器 | 道具 12 种：4 弹、2 符文 + 拡大鏡、扩张枠、4 能力卡 |
 | 升级 / 报酬箱 | 完成 | 三选一共用 |
-| 地形 | 随机野原 | 台地、坡道、高台、森林、草地；关卡编辑器的关卡未接入 |
+| 地形 | 随机野原 | 台地、坡道、高台、森林（9-29 减量，小物不挡路）、草地；关卡编辑器的关卡未接入 |
 | 光照 / 影子 / 雾 / 天空 | 完成 | 级联影子 + 脚底圆影；sRGB 解码 |
-| UI | 幻想风格（未提交） | 结算画面、「[F] Open」、「力尽きた」幕未换 |
+| UI | 幻想风格 | 结算画面、「[F] Open」、「力尽きた」幕未换 |
 | 特效编辑器 | Particle / Trail / Sprite / Mesh / Light 条目 | GPU 弹道读全部粒子层 |
 | 相机 | 完成 | 遮挡拉近、震动、速度演出、调参保存 |
 | 性能工具 | FrameProfiler、压力 / perf 自测 | 数字见第 6 节 |
@@ -187,7 +194,7 @@ Debug 剩下的大头：影子 1.0、resolve + bloom + ImGui 0.75、ECS 模型 0
 **TEMP-TEST 残留**：玩家 HP 1000000、`[crowd]` / `[flow]` 日志、`Game.cpp` 的 TEMP-TEST 标记、各环境变量自测钩子（见 `CLAUDE.md` 第 5 节）。
 
 **候选（未定）**
-- 提交 9-28 的未提交改动
+- （9-28 的改动已在 f830fca 提交）
 - 战斗场景读取关卡编辑器的关卡
 - Phase 5（SpawnDirector GPU 化、VAT 雑魚动画等）
 - Credits 画面

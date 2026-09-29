@@ -151,11 +151,30 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
                 rb.velocity.x = hv.x;
                 rb.velocity.z = hv.z;
 
-                // 向き: 滑っている間は進む方、普段はカメラの前
-                if (st.slideActive && hv.LengthSquared() > 0.01f)
-                    tf.rotation.y = DirectX::XMConvertToDegrees(std::atan2(hv.x, hv.z));
+                // 向き: カメラの前から見て 前 / 右 / 後 / 左 のどちらへ進んでいるかを出し、体をその方向へ振り向かせる
+                // （後ろへ走ればカメラの方を向いて走る）。止まっている間は最後の向きのまま。
+                // 滑っている間はこれまで通り進む方へすぐ向ける
+                if (hv.LengthSquared() > 0.01f)
+                {
+                    const float camYaw = DirectX::XMConvertToDegrees(std::atan2(camF.x, camF.z));
+                    const float moveYaw = DirectX::XMConvertToDegrees(std::atan2(hv.x, hv.z));
+                    st.moveAngleCam = std::remainder(camYaw - moveYaw, 360.0f);   // +90 = カメラの右
+                    const float a = st.moveAngleCam;
+                    st.moveDir = (std::fabs(a) <= 45.0f) ? MoveDirID::Forward
+                        : (std::fabs(a) >= 135.0f) ? MoveDirID::Back
+                        : (a > 0.0f) ? MoveDirID::Right : MoveDirID::Left;
+
+                    if (st.slideActive)
+                        tf.rotation.y = moveYaw;
+                    else
+                    {
+                        const float step = stats.faceTurnRate * dt;
+                        const float d = std::remainder(moveYaw - tf.rotation.y, 360.0f);
+                        tf.rotation.y = std::remainder(tf.rotation.y + std::clamp(d, -step, step), 360.0f);
+                    }
+                }
                 else
-                    tf.rotation.y = DirectX::XMConvertToDegrees(std::atan2(camF.x, camF.z));
+                    st.moveDir = MoveDirID::None;
 
                 if (grounded && jumpPressed)
                 {
