@@ -3,6 +3,7 @@
 // ============================================================
 #include "UI/SpellbookUI.h"
 #include "UI/ShapeSprite.h"
+#include "UI/UIDeco.h"
 #include "Graphics/Renderer/SpriteRenderer.h"
 #include "Graphics/Material/Texture.h"
 #include "Component/SpellbookComponent.h"
@@ -380,12 +381,20 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
 {
     if (!m_BlockTex) return;
 
-    // ---- 箱 ----
+    const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
+
+    // ---- 箱（幻想 UI の面板。中は一段暗い井戸）----
     Vector2 outerPos = { m_BoxMin.x - m_Wall, m_BoxMin.y - m_Wall };
     Vector2 outerSize = { (m_BoxMax.x - m_BoxMin.x) + m_Wall * 2.0f,
                           (m_BoxMax.y - m_BoxMin.y) + m_Wall * 2.0f };
-    sprite.Draw(m_BlockTex, outerPos, outerSize, frameColor);
-    sprite.Draw(m_BlockTex, m_BoxMin,
+    {
+        UIDeco::PanelStyle ps;
+        ps.fill = frameColor;
+        ps.innerInset = (std::max)(3.0f, m_Wall * 0.35f);
+        ps.cornerSize = outerSize.x * 0.16f;
+        UIDeco::DrawPanel(sprite, outerPos, outerSize, UIDeco::TintColor(UIDeco::Tint::Gold), ps);
+    }
+    sprite.Draw(white, m_BoxMin,
         { m_BoxMax.x - m_BoxMin.x, m_BoxMax.y - m_BoxMin.y }, innerColor);
 
     // ---- 中身 ----
@@ -406,16 +415,14 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
         const float w = (float)(maxC - minC + 1) * cell;
         const float h = (float)(maxR - minR + 1) * cell;
 
-        // 形は道具の色のブロック（アイコンがある時は暗くして地にする）、
-        // アイコンは中心のマスに 1 つだけ（グリッドと同じ見せ方）。全部 body.pos を軸に回す
+        // 背包と同じ「色ガラス」：マスごとに種類の色の縁 + 道具の色を沈めた地。
+        // アイコンは中心のマスに 1 つだけ（暖かい白）。全部 body.pos を軸に回す（回るので形の輪郭は引かない）
         auto icon = GetIcon(b.id);
-        Vector4 col = c->color;
-        if (icon)
-        {
-            col.x *= ShapeSprite::kIconBaseDim;
-            col.y *= ShapeSprite::kIconBaseDim;
-            col.z *= ShapeSprite::kIconBaseDim;
-        }
+        Vector4 edge = UIDeco::CategoryColor(c->category);
+        edge.w = 0.95f;
+        const Vector4 glass = { c->color.x * ShapeSprite::kGlassDim, c->color.y * ShapeSprite::kGlassDim,
+            c->color.z * ShapeSprite::kGlassDim, 1.0f };
+        const float th = (std::max)(1.0f, cell * 0.05f);
 
         for (const auto& o : c->occupyCells)
         {
@@ -423,18 +430,19 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
                 b.pos.x - w * 0.5f + (float)(o.col - minC) * cell,
                 b.pos.y - h * 0.5f + (float)(o.row - minR) * cell
             };
-            sprite.Draw(m_BlockTex, pos, { cell, cell }, col, b.angle, b.pos);
+            sprite.Draw(white, pos, { cell, cell }, edge, b.angle, b.pos);
+            sprite.Draw(white, { pos.x + th, pos.y + th }, { cell - th * 2.0f, cell - th * 2.0f }, glass, b.angle, b.pos);
         }
 
         if (icon)
         {
             const CellOffset cc = ShapeSprite::CenterCell(c->occupyCells);
-            const float s = cell * 0.92f;
+            const float s = cell * 0.74f;
             const Vector2 pos = {
                 b.pos.x - w * 0.5f + (float)(cc.col - minC) * cell + (cell - s) * 0.5f,
                 b.pos.y - h * 0.5f + (float)(cc.row - minR) * cell + (cell - s) * 0.5f
             };
-            sprite.Draw(icon, pos, { s, s }, { 1, 1, 1, 1 }, b.angle, b.pos);
+            sprite.Draw(icon, pos, { s, s }, ShapeSprite::kIconTint, b.angle, b.pos);
         }
     }
 }

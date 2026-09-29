@@ -94,6 +94,7 @@ private:
     DirectX::XMFLOAT2 m_MousePosOld = {};
     DirectX::XMFLOAT2 m_MouseDelta = {};
     float m_MouseWheel = 0.0f;
+    float m_WheelAccum = 0.0f;   // WM_MOUSEWHEEL の合計（Update で取り出す）
     bool m_FirstMouse = true;
 
     // マウスの捕獲

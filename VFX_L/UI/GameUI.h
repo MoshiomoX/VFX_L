@@ -65,6 +65,11 @@ public:
     // 開いている間はマウスで操作するので、シーンはカーソルを出す
     bool IsModalOpen() const { return !m_Stack.IsEmpty(); }
 
+    // TEMP-TEST: 自測（VFXL_BATTLE_AUTOTEST=ui）。鼠标を使わずに画面を開閉し、tooltip を指定の位置に出す
+    //   layer: 0 = 全部閉じる / 1 = 背包 / 2 = 一時停止。itemIndex < 0 で tooltip を消す
+    void TestShow(int layer);
+    void TestTooltip(int itemIndex, const DirectX::SimpleMath::Vector2& pos) { m_TestTooltipItem = itemIndex; m_TestTooltipPos = pos; }
+
     // 全部下ろす（プレイヤー消失時など）
     void Clear() { m_Stack.Clear(); }
 
@@ -103,6 +108,8 @@ private:
 
     std::shared_ptr<Texture> m_WhiteTex;              // 無地の白（tooltip の箱・区切り線）
     ItemSheetView::Style     m_TooltipStyle;          // 画面短辺 900px の時の大きさ
+    int m_TestTooltipItem = -1;                       // TEMP-TEST: TestTooltip
+    DirectX::SimpleMath::Vector2 m_TestTooltipPos = { 0.0f, 0.0f };
 
     SpriteRenderer m_Sprite;
     TextRenderer   m_Text;

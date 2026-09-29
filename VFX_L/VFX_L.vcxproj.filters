@@ -478,6 +478,9 @@
     <ClCompile Include="UI\LevelUpUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\UIDeco.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
     <ClCompile Include="UI\UIManager.cpp">
       <Filter>UI</Filter>
     </ClCompile>
@@ -1016,6 +1019,9 @@
     <ClInclude Include="Item\Items\DoubleCastRune.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\Magnifier.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="ECS\System\BackpackAggregateSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
@@ -1052,6 +1058,12 @@
     <ClInclude Include="Item\Items\MaxManaUp.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\MoveSpeedUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\JumpPowerUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Component\SpellbookComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -1065,6 +1077,9 @@
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\LevelUpUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\UIDeco.h">
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\ShapeSprite.h">

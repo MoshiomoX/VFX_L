@@ -22,18 +22,20 @@ class SkinnedModel;
 class PlayerAnimSystem
 {
 public:
-    // クリップ名（モデルを替える時はここを差し替える）
+    // クリップ名（モデルを替える時はここを差し替える）。
+    // 今は Quaternius の Universal Animation Library（Ranger.fbx に焼き込み済み）。
+    // KayKit Mage の時は Idle / Running_A / Jump_Idle / Spellcast_Shoot / Hit_A / Death_A / Crouching / chest
     struct ClipNames
     {
-        std::string idle = "Idle";
-        std::string run = "Running_A";
-        std::string jump = "Jump_Idle";
-        std::string fall = "Jump_Idle";
-        std::string cast = "Spellcast_Shoot";
-        std::string hurt = "Hit_A";
-        std::string dead = "Death_A";
-        std::string slide = "Crouching";   // KayKit Character Animations（別ファイル、kExtraAnims）
-        std::string upperRoot = "chest";   // 上半身マスクの根
+        std::string idle = "Idle_Loop";
+        std::string run = "Jog_Fwd_Loop";
+        std::string jump = "Jump_Loop";
+        std::string fall = "Jump_Loop";
+        std::string cast = "Spell_Simple_Shoot";
+        std::string hurt = "Hit_Chest";
+        std::string dead = "Death01";
+        std::string slide = "Slide_Loop";    // 本物の滑りの姿勢（UAL2）
+        std::string upperRoot = "spine_02";  // 上半身マスクの根（UE 風の骨名）
     };
 
     void Update(Registry& reg, float dt);
@@ -41,7 +43,7 @@ public:
     ClipNames& Names() { return m_Names; }
 
     // 滑りの姿勢: slide クリップ（屈んだ姿勢）を足元を軸に後ろへ傾ける（度）。0 で傾けない
-    float slideLeanDeg = 15.0f;
+    float slideLeanDeg = 0.0f;   // Slide_Loop は最初から後ろへ倒れた姿勢（KayKit の Crouching の時は 15）
     float leanSpeedDeg = 120.0f;   // 傾きの付け外しの速さ 度/秒
 
 private:

@@ -44,6 +44,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float3 srcPos;
     uint srcVfx;
+    float srcScale; // size scale (Magnifier): a bigger blast lights a wider circle
 #ifdef SWARM_LIGHT_AREAS
     if (i >= SWARM_MAX_AREAS)
         return;
@@ -51,6 +52,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     srcPos = areas[i].center;
     srcVfx = areas[i].vfxType;
+    srcScale = SwarmAreaScale(areas[i]);
 #else
     if (i >= g_MaxProjectiles)
         return;
@@ -58,6 +60,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     srcPos = projectiles[i].position;
     srcVfx = projectiles[i].vfxType;
+    srcScale = SwarmProjScale(projectiles[i]);
 #endif
 
     SwarmRecipe r = recipes[srcVfx];
@@ -77,7 +80,7 @@ void main(uint3 id : SV_DispatchThreadID)
         SwarmLightEntry d = lightDefs[r.lightStart + k];
         PointLight l;
         l.position = srcPos;
-        l.radius = d.radius;
+        l.radius = d.radius * srcScale;
         l.color = d.color.rgb;
         l.intensity = d.intensity;
         outLights[slot] = l;

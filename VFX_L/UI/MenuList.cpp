@@ -5,21 +5,9 @@
 #include "Graphics/Renderer/SpriteRenderer.h"
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Manager/InputManager.h"
+#include "UI/UIDeco.h"
 
 using namespace DirectX::SimpleMath;
-
-namespace
-{
-    // 枠は 4 本の細い矩形（矩形しか描けないので）
-    void DrawFrame(SpriteRenderer& sprite, const std::shared_ptr<Texture>& white,
-        const Vector2& pos, const Vector2& size, float t, const Vector4& c)
-    {
-        sprite.Draw(white, pos, { size.x, t }, c);
-        sprite.Draw(white, { pos.x, pos.y + size.y - t }, { size.x, t }, c);
-        sprite.Draw(white, { pos.x, pos.y + t }, { t, size.y - t * 2.0f }, c);
-        sprite.Draw(white, { pos.x + size.x - t, pos.y + t }, { t, size.y - t * 2.0f }, c);
-    }
-}
 
 void MenuList::Layout(const Vector2& topLeft, const Vector2& itemSize, float gap)
 {
@@ -105,18 +93,31 @@ void MenuList::Draw(SpriteRenderer& sprite, TextRenderer& text,
 {
     if (!white) return;
 
+    // 幻想 UI：暗い地 + 古金の細い二重線。選択中は線が明るく光り、両端に菱形
+    const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
     for (int i = 0; i < Count(); ++i)
     {
         const Vector2 p = ItemPos(i);
         const bool sel = (i == m_Cursor);
 
-        Vector4 fill = sel ? accentColor : Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-        fill.w = sel ? 0.28f : 0.06f;
-        sprite.Draw(white, p, m_ItemSize, fill);
-        if (sel) DrawFrame(sprite, white, p, m_ItemSize, 2.0f, accentColor);
+        UIDeco::PanelStyle ps;
+        ps.fill = sel ? Vector4(0.010f, 0.008f, 0.016f, 0.96f) : Vector4(0.003f, 0.0025f, 0.005f, 0.90f);
+        ps.innerInset = 3.0f;
+        ps.innerAlpha = sel ? 0.45f : 0.20f;
+        Vector4 line = gold;
+        if (!sel) line.w = 0.55f;
+        UIDeco::DrawPanel(sprite, p, m_ItemSize, line, ps, sel ? 1.0f : 0.0f);
+
+        if (sel)
+        {
+            const float g = m_ItemSize.y * 0.22f;
+            const float cy = p.y + m_ItemSize.y * 0.5f;
+            for (const float cx : { p.x, p.x + m_ItemSize.x })
+                sprite.Draw(white, { cx - g * 0.5f, cy - g * 0.5f }, { g, g }, gold, 0.785398f, { cx, cy });
+        }
 
         const Vector2 ls = text.Measure(m_Labels[i], textScale);
         text.Draw(m_Labels[i], { p.x + (m_ItemSize.x - ls.x) * 0.5f, p.y + (m_ItemSize.y - ls.y) * 0.5f },
-            sel ? Vector4(1, 1, 1, 1) : Vector4(0.75f, 0.75f, 0.78f, 1.0f), textScale);
+            sel ? Vector4(0.96f, 0.92f, 0.84f, 1.0f) : Vector4(0.50f, 0.46f, 0.40f, 1.0f), textScale);
     }
 }

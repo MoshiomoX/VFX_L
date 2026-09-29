@@ -71,6 +71,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 srcPos;
     float3 srcVel;
     uint srcVfx;
+    float srcScale = 1.0; // size scale (Magnifier). 1 = as authored
 #if defined(SWARM_EMIT_AREAS)
     if (i >= SWARM_MAX_AREAS)
         return;
@@ -79,6 +80,7 @@ void main(uint3 id : SV_DispatchThreadID)
     srcPos = areas[i].center;
     srcVel = float3(0, 0, 0);
     srcVfx = areas[i].vfxType;
+    srcScale = SwarmAreaScale(areas[i]);
 #elif defined(SWARM_EMIT_ORBS)
     if (i >= g_MaxOrbs || g_OrbTrailVfx == 0u)
         return;
@@ -97,6 +99,7 @@ void main(uint3 id : SV_DispatchThreadID)
     srcPos = projectiles[i].position;
     srcVel = projectiles[i].velocity;
     srcVfx = projectiles[i].vfxType;
+    srcScale = SwarmProjScale(projectiles[i]);
 #endif
 
     SwarmRecipe r = recipes[srcVfx];
@@ -108,6 +111,15 @@ void main(uint3 id : SV_DispatchThreadID)
     for (uint ei = 0u; ei < r.particleCount; ++ei)
     {
         GPUEmitter e = emitters[r.particleStart + ei];
+        // bigger source = the whole effect scaled: offset, emit shape, speed (how far it
+        // spreads in its lifetime), gravity, particle size. A little denser too (x scale;
+        // the area grows with scale^2 but the particle pool is shared)
+        e.position *= srcScale;
+        e.shapeSize *= srcScale;
+        e.speedRange *= srcScale;
+        e.gravity *= srcScale;
+        e.sizeRange *= srcScale;
+        e.emitRate *= srcScale;
         e.position = srcPos + e.position; // follows the source; the entry position is an offset (layers)
 
         uint k = StochasticCount(e.emitRate, g_DeltaTime, seed);

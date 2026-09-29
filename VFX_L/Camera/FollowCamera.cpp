@@ -45,6 +45,20 @@ void FollowCamera::AddTrauma(float amount)
     m_Trauma = std::clamp(m_Trauma + amount, 0.0f, 1.0f);
 }
 
+namespace
+{
+    constexpr float kNearZ = 0.1f;
+    constexpr float kFarZ = 10000.0f;
+}
+
+// 縦横比を覚えて、今の fov で射影を作る（最初の Update より前に描かれても行列がある）
+void FollowCamera::SetAspect(float aspect)
+{
+    m_Aspect = aspect;
+    CameraBase::Init(fov, m_Aspect, kNearZ, kFarZ);
+    m_AppliedFov = fov;
+}
+
 // ============================================================
 // 遮蔽の距離：5 本の射線のうち一番近い当たり
 // 1 本だけだと、柱の角をかすめる時にカメラの端が壁へめり込む
@@ -95,6 +109,14 @@ void FollowCamera::Update(float dt)
 
         if (invertY) pitchDelta = -pitchDelta;
 
+        // --- ホイールで距離（捕獲中だけ。カーソルを出している時は UI・ImGui のスクロールに譲る）---
+        if (wheelZoom && input.IsMouseCaptured())
+        {
+            const float w = input.GetMouseWheel();
+            if (w != 0.0f)
+                distance = std::clamp(distance - w * zoomStep, zoomMin, zoomMax);
+        }
+
         m_Yaw += yawDelta;
         m_Pitch += pitchDelta;
         m_Pitch = std::clamp(m_Pitch, pitchMin, pitchMax);
@@ -122,25 +144,69 @@ void FollowCamera::Update(float dt)
     up.Normalize();
 
     // ============================================================
+    // 対象の水平の速さ（移動量 / dt を均す）。ワープ・開始時は 0 から
+    // 止まっている間（dt = 0）は前の値のまま
+    // ============================================================
+    if (dt > 0.0f)
+    {
+        const Vector3 step = m_FollowTarget - m_PrevTarget;
+        if (m_Snap || step.Length() > snapDistance)
+        {
+            m_Vel = m_VelVel = Vector3::Zero;
+            m_LookAhead = m_LookAheadVel = Vector3::Zero;
+        }
+        else
+        {
+            m_Vel.x = SmoothDamp(m_Vel.x, step.x / dt, m_VelVel.x, speedSmoothTime, dt);
+            m_Vel.z = SmoothDamp(m_Vel.z, step.z / dt, m_VelVel.z, speedSmoothTime, dt);
+        }
+        m_PrevTarget = m_FollowTarget;
+    }
+    m_Speed = Vector3(m_Vel.x, 0.0f, m_Vel.z).Length();
+
+    // 先読み：進む方向へ注視点を前に
+    {
+        Vector3 ahead = Vector3::Zero;
+        if (lookAheadTime > 0.0f && m_Speed > 0.1f)
+            ahead = m_Vel / m_Speed * (std::min)(m_Speed * lookAheadTime, lookAheadMax);
+        m_LookAhead.x = SmoothDamp(m_LookAhead.x, ahead.x, m_LookAheadVel.x, lookAheadSmoothTime, dt);
+        m_LookAhead.z = SmoothDamp(m_LookAhead.z, ahead.z, m_LookAheadVel.z, lookAheadSmoothTime, dt);
+    }
+    const Vector3 followPoint = m_FollowTarget + m_LookAhead;
+
+    // 速さの演出：速さが speedStart を超えた分だけ画角を広げ、少し引く
+    const float over = speedEffects ? (std::max)(0.0f, m_Speed - speedStart) : 0.0f;
+    const float extraFov = (std::min)(over * speedFovPerMps, speedFovMax);
+    m_SpeedDist = (std::min)(over * speedDistPerMps, speedDistMax);
+
+    const float fovNow = std::clamp(fov + extraFov, 10.0f, 150.0f);
+    if (std::abs(fovNow - m_AppliedFov) > 0.01f)
+    {
+        CameraBase::Init(fovNow, m_Aspect, kNearZ, kFarZ);
+        m_AppliedFov = fovNow;
+    }
+
+    // ============================================================
     // 平滑追従：追従点をばねで追わせる
     // ============================================================
-    const float gap = (m_FollowTarget - m_Pivot).Length();
+    const float baseDistance = distance + m_SpeedDist;
+    const float gap = (followPoint - m_Pivot).Length();
     if (m_Snap || !smoothFollow || gap > snapDistance)
     {
-        m_Pivot = m_FollowTarget;
+        m_Pivot = followPoint;
         m_PivotVel = Vector3::Zero;
         if (m_Snap)
         {
-            m_CurDistance = distance;
+            m_CurDistance = baseDistance;
             m_DistVel = 0.0f;
             m_Snap = false;
         }
     }
     else
     {
-        m_Pivot.x = SmoothDamp(m_Pivot.x, m_FollowTarget.x, m_PivotVel.x, followSmoothTime, dt);
-        m_Pivot.z = SmoothDamp(m_Pivot.z, m_FollowTarget.z, m_PivotVel.z, followSmoothTime, dt);
-        m_Pivot.y = SmoothDamp(m_Pivot.y, m_FollowTarget.y, m_PivotVel.y, verticalSmoothTime, dt);
+        m_Pivot.x = SmoothDamp(m_Pivot.x, followPoint.x, m_PivotVel.x, followSmoothTime, dt);
+        m_Pivot.z = SmoothDamp(m_Pivot.z, followPoint.z, m_PivotVel.z, followSmoothTime, dt);
+        m_Pivot.y = SmoothDamp(m_Pivot.y, followPoint.y, m_PivotVel.y, verticalSmoothTime, dt);
     }
 
     // 体の芯（肩ずらし前の注視点）
@@ -166,11 +232,11 @@ void FollowCamera::Update(float dt)
     //   寄る時は即座（めり込みを 1 フレームも見せない）
     //   戻る時はばね（障害物の縁を行き来した時にぱたぱたさせない）
     // ============================================================
-    float want = distance;
+    float want = baseDistance;
     m_Occluded = false;
     if (probe)
     {
-        const float reach = distance + probeRadius;
+        const float reach = baseDistance + probeRadius;
         const float hit = ProbeDistance(lookAt, -forward, reach, right, up);
         if (hit < reach)
         {

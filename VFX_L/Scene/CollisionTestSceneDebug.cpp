@@ -26,7 +26,10 @@
 #include "Item/ItemDatabase.h"
 #include "Item/BackpackLogic.h"
 #include "Component/BackpackComponent.h"
+#include "Component/SpellbookComponent.h"
 #include "Item/ItemTypes.h"
+#include "Item/ItemInfo.h"
+#include "UI/LevelUpSystem.h"
 #include "Swarm/AreaProfile.h"
 #include "World/TerrainGenerator.h"
 #include "VFX_Editor/VFXId.h"
@@ -886,11 +889,14 @@ void CollisionTestScene::AutoTestLog(const char* what)
 
 void CollisionTestScene::UpdateAutoTest(float dt)
 {
+    if (m_AutoUI) return;   // UpdateAutoTestUI が Update から回す
     m_AutoTime += dt;
     if (!m_Registry.IsValid(m_Player)) return;
     if (m_AutoBomber) { UpdateAutoTestBomber(); return; }
     if (m_AutoPerf) { UpdateAutoTestPerf(); return; }
     if (m_AutoSlide) { UpdateAutoTestSlide(dt); return; }
+    if (m_AutoStress) { UpdateAutoTestStress(); return; }
+    if (m_AutoMagnifier) { UpdateAutoTestMagnifier(); return; }
 
     if (m_AutoStep == 0 && m_AutoTime >= 5.0f && m_Registry.Has<LevelComponent>(m_Player))
     {
@@ -1122,6 +1128,355 @@ void CollisionTestScene::UpdateAutoTestPerf()
 }
 
 // ============================================================
+// TEMP-TEST: 負荷試験（VFXL_BATTLE_AUTOTEST=stress）
+// 玩家は動かず無敵（HP 1e6）、魔力も無限。開局の 3x3 枠へ火球・弧・追尾・隕石を置けるだけ置いて撃たせる。
+// 湧きは SpawnDirector の上限を段ごとに上げ、10〜30m に一気に湧かせる（倒されても上限まで補充）。
+// 段 12 秒、最初の 6 秒は寄って来るのを待つ。段の後半の平均 fps・最長フレーム・活き数と、
+// 最後 1 秒の CPU / GPU の内訳（FrameProfiler）を記録。三択で止まらないよう経験値は毎フレーム 0
+// ============================================================
+void CollisionTestScene::UpdateAutoTestStress()
+{
+    struct Phase { const char* name; int mobs; int shots; };
+    static const Phase kPhases[] = {
+        { "0 mobs", 0, 0 },
+        { "250 mobs", 250, 0 },
+        { "500 mobs", 500, 0 },
+        { "1000 mobs", 1000, 0 },
+        { "2000 mobs", 2000, 0 },
+        { "4000 mobs", 4000, 0 },
+        { "4000 mobs + 2000 shots", 4000, 2000 },
+    };
+    constexpr int   kPhaseCount = (int)(sizeof(kPhases) / sizeof(kPhases[0]));
+    constexpr float kLead = 3.0f, kPhaseLen = 12.0f, kSettle = 6.0f;
+
+    static int    s_Phase = -1;
+    static bool   s_Done = false;
+    static int    s_Frames = 0;
+    static double s_SumMs = 0.0, s_MaxMs = 0.0;
+    static double s_Sum[4] = {};   // 雑魚 / 弾 / 経験値オーブ / 範囲
+    static auto   s_Prev = std::chrono::steady_clock::now();
+
+    const auto nowTime = std::chrono::steady_clock::now();
+    const double frameMs = std::chrono::duration<double, std::milli>(nowTime - s_Prev).count();
+    s_Prev = nowTime;
+
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mp = m_Registry.Get<ManaComponent>(m_Player);
+        mp.max = mp.current = 1.0e6f;
+    }
+
+    char line[240];
+    if (m_AutoStep == 0)
+    {
+        // 法術を開局の枠（3..5 行・列）へ置けるだけ置く
+        int placed = 0;
+        if (m_Registry.Has<BackpackComponent>(m_Player))
+        {
+            auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+            const ItemID spells[] = { ItemID::Fireball, ItemID::ArcBolt, ItemID::HomingBolt, ItemID::Meteor };
+            const int lo = BackpackComponent::GRID / 2 - 1;
+            for (ItemID id : spells)
+            {
+                bool done = false;
+                for (int r = lo; r < lo + 3 && !done; ++r)
+                    for (int c = lo; c < lo + 3 && !done; ++c)
+                        if (BackpackLogic::CanPlace(bp, id, r, c, 0))
+                        {
+                            BackpackLogic::Place(bp, id, r, c, 0);
+                            done = true;
+                            ++placed;
+                        }
+            }
+            bp.dirty = true;
+        }
+        if (m_Registry.Has<WandComponent>(m_Player))
+            m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
+        auto& d = m_Mobs.Director();
+        d.enabled = true;
+        d.spawnCap = 0;
+        d.spawnInterval = 0.05f;
+        d.spawnPerTick = 100;
+        d.rMin = 10.0f;
+        d.rMax = 30.0f;
+        snprintf(line, sizeof(line), "stress start: %d spells placed, vsync %s", placed,
+            GetEnvironmentVariableA("VFXL_NO_VSYNC", nullptr, 0) > 0 ? "off" : "on");
+        AutoTestLog(line);
+        m_AutoStep = 1;
+    }
+    if (s_Done || m_AutoTime < kLead) return;
+
+    const int phase = (int)((m_AutoTime - kLead) / kPhaseLen);
+    if (phase != s_Phase)
+    {
+        if (s_Phase >= 0 && s_Frames > 0)
+        {
+            snprintf(line, sizeof(line),
+                "stress %d [%s] fps %.1f avg %.2f ms max %.2f ms | mobs %.0f shots %.0f orbs %.0f areas %.0f (%d frames)",
+                s_Phase, kPhases[s_Phase].name, s_Frames * 1000.0 / s_SumMs, s_SumMs / s_Frames, s_MaxMs,
+                s_Sum[0] / s_Frames, s_Sum[1] / s_Frames, s_Sum[2] / s_Frames, s_Sum[3] / s_Frames, s_Frames);
+            AutoTestLog(line);
+            AutoTestLog(("  prof " + FrameProfiler::Get().Summary()).c_str());
+        }
+        s_Frames = 0;
+        s_SumMs = s_MaxMs = 0.0;
+        for (double& v : s_Sum) v = 0.0;
+        s_Phase = phase;
+
+        if (phase >= kPhaseCount)
+        {
+            m_Mobs.Director().spawnCap = 0;
+            m_Stress.SetAutoRefill(false, 0, 0);
+            AutoTestLog("stress done");
+            s_Done = true;
+            return;
+        }
+        m_Mobs.Director().spawnCap = kPhases[phase].mobs;
+        m_Stress.SetAutoRefill(kPhases[phase].shots > 0, kPhases[phase].shots, 100);
+        return;
+    }
+    if (m_AutoTime - kLead - phase * kPhaseLen < kSettle) return;
+
+    const auto& c = m_Swarm.GetCounters();
+    ++s_Frames;
+    s_SumMs += frameMs;
+    s_MaxMs = (std::max)(s_MaxMs, frameMs);
+    s_Sum[0] += c.aliveEnemies;
+    s_Sum[1] += c.aliveProjectiles;
+    s_Sum[2] += c.aliveOrbs;
+    s_Sum[3] += c.aliveAreas;
+}
+
+// ============================================================
+// TEMP-TEST: 拡大鏡（VFXL_BATTLE_AUTOTEST=magnifier）
+// 1 秒: 湧きを止めて正面 8〜9m に動かない的（HP 1000）を 3 体。
+//       開局の 3x3 枠の左上に火球、右下に隕石（ここまでは素の大きさ）。魔力無限・経験値 0・見下ろし
+// 9 秒: 中央に拡大鏡 → 斜めの 2 つが 1.5 倍になるはず（弾・爆発・隕石の警告の輪）
+// 各段の 1 秒後に 集約後の法術（半径・消費）と 道具説明（DescribePlaced）を autotest.log へ。
+// 1 秒毎に 弾・範囲の数。画面の見比べは外から連写（"magnifier A" / "magnifier B" の後）
+// ============================================================
+void CollisionTestScene::UpdateAutoTestMagnifier()
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mp = m_Registry.Get<ManaComponent>(m_Player);
+        mp.max = mp.current = 1.0e6f;
+    }
+    if (!m_Registry.Has<BackpackComponent>(m_Player) || !m_Registry.Has<WandComponent>(m_Player)) return;
+    auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+    auto& wand = m_Registry.Get<WandComponent>(m_Player);
+    const int lo = BackpackComponent::GRID / 2 - 1;
+
+    auto logState = [&](const char* tag)
+    {
+        char line[240];
+        for (const SpellStats& s : wand.spells)
+        {
+            const ItemCommon* ic = ItemDatabase::GetCommon(s.id);
+            snprintf(line, sizeof(line), "%s spell %s radius %.3f mana %.2f damage %.1f",
+                tag, ic ? ic->name : "?", s.radius, s.manaCost, s.damage);
+            AutoTestLog(line);
+        }
+        for (int i = 0; i < (int)bp.items.size(); ++i)
+        {
+            const ItemInfo::Sheet sh = ItemInfo::DescribePlaced(bp, i);
+            auto utf8 = [](const std::wstring& w)
+            {
+                const int n = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+                std::string o(n, '\0');
+                WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), o.data(), n, nullptr, nullptr);
+                return o;
+            };
+            std::string t = std::string(tag) + " sheet " + utf8(sh.title) + " :";
+            for (const auto& tr : sh.traits) t += " [" + utf8(tr) + "]";
+            for (const auto& l : sh.stats) t += " " + utf8(l.label) + "=" + utf8(l.value);
+            AutoTestLog(t.c_str());
+        }
+    };
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Camera.Camera().SetPitch(50.0f);
+        m_Camera.Camera().distance = 14.0f;
+        // 的は玩家の正面（鏡頭の奥）8〜9m に動かない雑魚 3 体。前後の段で同じ所に当たるので見比べやすい
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+        const float gy = m_Swarm.GetAIParams().groundY;
+        const Vector3 targets[] = { { 0.0f, 0.0f, 8.0f }, { -1.5f, 0.0f, 9.0f }, { 1.5f, 0.0f, 9.0f } };
+        for (const Vector3& t : targets)
+            m_Swarm.SpawnEnemy(Vector3(pp.x + t.x, gy, pp.z + t.z), 1000.0f, 0.0f);
+        const int a = BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
+        const int b = BackpackLogic::Place(bp, ItemID::Meteor, lo + 2, lo + 2, 0);
+        bp.dirty = true;
+        wand.castingPaused = false;
+        char line[96];
+        snprintf(line, sizeof(line), "magnifier A: fireball %d meteor %d (no magnifier)", a, b);
+        AutoTestLog(line);
+        m_AutoStep = 1;
+    }
+    else if (m_AutoStep == 1 && m_AutoTime >= 2.0f)
+    {
+        logState("A");
+        m_AutoStep = 2;
+    }
+    else if (m_AutoStep == 2 && m_AutoTime >= 9.0f)
+    {
+        const int m = BackpackLogic::Place(bp, ItemID::Magnifier, lo + 1, lo + 1, 0);
+        bp.dirty = true;
+        char line[96];
+        snprintf(line, sizeof(line), "magnifier B: magnifier %d placed in the middle", m);
+        AutoTestLog(line);
+        m_AutoStep = 3;
+    }
+    else if (m_AutoStep == 3 && m_AutoTime >= 10.0f)
+    {
+        logState("B");
+        m_AutoStep = 4;
+    }
+
+    static float s_Timer = 0.0f;
+    s_Timer += ImGui::GetIO().DeltaTime;
+    if (s_Timer >= 1.0f)
+    {
+        s_Timer = 0.0f;
+        const auto& c = m_Swarm.GetCounters();
+        char line[96];
+        snprintf(line, sizeof(line), "shots %u areas %u mobs %u", c.aliveProjectiles, c.aliveAreas, c.aliveEnemies);
+        AutoTestLog(line);
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 幻想 UI の見た目（VFXL_BATTLE_AUTOTEST=ui）
+// 1 秒: 湧き停止、背包へ火球・隕石・拡大鏡・分裂のルーンを置く（MP 無限、経験値 0）
+// 2 秒: 背包を開く "ui backpack" / 4 秒: 拡大鏡の tooltip "ui tooltip" / 6 秒: 一時停止 "ui pause"
+// 8 秒: 全部閉じる "ui hud" / 10 秒: 経験値を渡して三択 "ui levelup" / 13 秒 "ui done"
+// 背包・一時停止の間は gameplay が止まるので Update から呼ぶ（dt は止まっていても進む）
+// ============================================================
+void CollisionTestScene::UpdateAutoTestUI(float dt)
+{
+    m_AutoTime += dt;
+    if (!m_Registry.IsValid(m_Player)) return;
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mp = m_Registry.Get<ManaComponent>(m_Player);
+        mp.max = mp.current = 1.0e6f;
+    }
+    if (m_AutoStep < 5 && m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+
+    static int s_MagnifierIndex = -1;
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        if (m_Registry.Has<BackpackComponent>(m_Player))
+        {
+            auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+            const int lo = BackpackComponent::GRID / 2 - 1;
+            BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
+            BackpackLogic::Place(bp, ItemID::Meteor, lo + 2, lo + 2, 0);
+            s_MagnifierIndex = BackpackLogic::Place(bp, ItemID::Magnifier, lo + 1, lo + 1, 0);
+            BackpackLogic::Place(bp, ItemID::SplitRune, lo, lo + 2, 0);
+            bp.dirty = true;
+        }
+        // 魔法書（背包の横の箱）にも置いていない物を入れておく
+        if (m_Registry.Has<SpellbookComponent>(m_Player))
+        {
+            auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
+            book.Learn(ItemID::ArcBolt);
+            book.Learn(ItemID::HomingBolt);
+            book.Learn(ItemID::DoubleCastRune);
+            book.Learn(ItemID::Magnifier);
+        }
+        if (m_Registry.Has<WandComponent>(m_Player))
+            m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
+        // カメラの調整値の保存 → 変更 → 読込 が往復するか（本物の Camera.json には触らない）
+        {
+            auto& cam = m_Camera.Camera();
+            const float before = cam.fov;
+            m_Camera.SaveSettings("autotest_camera.json");
+            cam.fov = 70.0f;
+            m_Camera.LoadSettings("autotest_camera.json");
+            char line[128];
+            snprintf(line, sizeof(line), "ui camera settings round trip: fov %.1f -> 70 -> %.1f", before, cam.fov);
+            AutoTestLog(line);
+        }
+        AutoTestLog("ui items placed");
+        m_AutoStep = 1;
+    }
+    else if (m_AutoStep == 1 && m_AutoTime >= 2.0f)
+    {
+        m_GameUI.TestShow(1);
+        AutoTestLog("ui backpack");
+        m_AutoStep = 2;
+    }
+    else if (m_AutoStep == 2 && m_AutoTime >= 4.0f)
+    {
+        m_GameUI.TestTooltip(s_MagnifierIndex, { m_ScreenW * 0.62f, m_ScreenH * 0.30f });
+        AutoTestLog("ui tooltip");
+        m_AutoStep = 3;
+    }
+    else if (m_AutoStep == 3 && m_AutoTime >= 6.0f)
+    {
+        m_GameUI.TestTooltip(-1, { 0.0f, 0.0f });
+        m_GameUI.TestShow(2);
+        AutoTestLog("ui pause");
+        m_AutoStep = 4;
+    }
+    else if (m_AutoStep == 4 && m_AutoTime >= 8.0f)
+    {
+        m_GameUI.TestShow(0);
+        AutoTestLog("ui hud");
+        m_AutoStep = 5;
+    }
+    else if (m_AutoStep == 5 && m_AutoTime >= 10.0f && m_Registry.Has<LevelComponent>(m_Player))
+    {
+        auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        lv.experience += lv.ExpToNext() + 1.0f;
+        AutoTestLog("ui levelup");
+        m_AutoStep = 6;
+    }
+    else if (m_AutoStep == 6 && m_AutoTime >= 10.5f && m_Registry.Has<LevelComponent>(m_Player))
+    {
+        // 三択の中身を新しい能力値のカードに差し替える（見た目の確認用）
+        auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        if (lv.IsChoosing())
+        {
+            lv.pendingChoices = { ItemID::MoveSpeedUp, ItemID::JumpPowerUp, ItemID::MaxHealthUp };
+            AutoTestLog("ui levelup choices: MoveSpeedUp / JumpPowerUp / MaxHealthUp");
+        }
+        m_AutoStep = 7;
+    }
+    else if (m_AutoStep == 7 && m_AutoTime >= 12.0f && m_Registry.Has<PlayerStatsComponent>(m_Player))
+    {
+        // 実際に選んで、速さと跳ぶ力が上がるかを記録する
+        auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        auto& st = m_Registry.Get<PlayerStatsComponent>(m_Player);
+        char line[160];
+        snprintf(line, sizeof(line), "ui stat before: moveSpeed %.3f jumpPower %.3f", st.moveSpeed, st.jumpPower);
+        AutoTestLog(line);
+        LevelUpSystem::Choose(m_Registry, m_Player, ItemID::MoveSpeedUp);
+        lv.pendingChoices = { ItemID::JumpPowerUp };
+        LevelUpSystem::Choose(m_Registry, m_Player, ItemID::JumpPowerUp);
+        snprintf(line, sizeof(line), "ui stat after : moveSpeed %.3f jumpPower %.3f", st.moveSpeed, st.jumpPower);
+        AutoTestLog(line);
+        m_AutoStep = 8;
+    }
+    else if (m_AutoStep == 8 && m_AutoTime >= 13.0f)
+    {
+        AutoTestLog("ui done");
+        m_AutoStep = 9;
+    }
+}
+
+// ============================================================
 // TEMP-TEST: 滑りの自測（VFXL_BATTLE_AUTOTEST=slide）
 // 2 秒: 一番長い下り坂の上へ（高さ図を 1m 刻みで見て、連続して下る距離が一番長い所）。
 //       0.4 秒走ってから滑る（坂で速くなるはず）→ 2.4 秒で跳ぶ（水平の速さが残るはず）
@@ -1304,8 +1659,9 @@ void CollisionTestScene::UpdateAutoTestSlide(float dt)
         s_Log = 0.0f;
         const float hs = std::sqrt(rb.velocity.x * rb.velocity.x + rb.velocity.z * rb.velocity.z);
         const float slope = DirectX::XMConvertToDegrees(std::acos((std::min)(1.0f, rb.groundNormal.y)));
-        snprintf(line, sizeof(line), "slide t %.1f speed %.2f vy %.2f slope %.0f grounded %d sliding %d input %d y %.2f",
-            s_Phase, hs, rb.velocity.y, slope, rb.isGrounded ? 1 : 0, st.slideActive ? 1 : 0, pcs.testSlide ? 1 : 0, tf.position.y);
+        snprintf(line, sizeof(line), "slide t %.1f speed %.2f vy %.2f slope %.0f grounded %d sliding %d input %d y %.2f | cam speed %.1f fov %.1f +dist %.2f",
+            s_Phase, hs, rb.velocity.y, slope, rb.isGrounded ? 1 : 0, st.slideActive ? 1 : 0, pcs.testSlide ? 1 : 0, tf.position.y,
+            m_Camera.Camera().GetSpeed(), m_Camera.Camera().GetEffectiveFov(), m_Camera.Camera().GetSpeedExtraDistance());
         AutoTestLog(line);
     }
 

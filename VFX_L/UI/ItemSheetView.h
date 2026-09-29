@@ -30,9 +30,9 @@ namespace ItemSheetView
         float sectionGap = 8.0f;     // 説明・特性・能力値の間（px）
         float pad = 12.0f;           // 箱の内側の余白（px）
 
-        // 画面に出る時は明るく持ち上がる（0.07 が中間の灰色に見えた）ので暗めに
-        DirectX::SimpleMath::Vector4 panelColor = { 0.015f, 0.013f, 0.022f, 0.95f };
-        DirectX::SimpleMath::Vector4 textColor = { 1.00f, 1.00f, 1.00f, 1.0f };
+        // 線形の値。画面に出る時は明るく持ち上がる（0.07 が中間の灰色に見えた）ので暗く、ほぼ不透明に
+        DirectX::SimpleMath::Vector4 panelColor = { 0.0025f, 0.0020f, 0.0045f, 0.97f };
+        DirectX::SimpleMath::Vector4 textColor = { 0.96f, 0.92f, 0.84f, 1.0f };
         DirectX::SimpleMath::Vector4 descColor = { 0.85f, 0.85f, 0.88f, 1.0f };
         DirectX::SimpleMath::Vector4 traitColor = { 1.00f, 0.88f, 0.55f, 1.0f };
         DirectX::SimpleMath::Vector4 labelColor = { 0.65f, 0.65f, 0.70f, 1.0f };

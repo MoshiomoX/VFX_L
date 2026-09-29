@@ -7,6 +7,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Manager/InputManager.h"
 #include "ResourcePaths.h"
+#include "UI/UIDeco.h"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -194,16 +195,27 @@ void TitleScene::Render(Renderer& renderer)
     const float titleScale = 1.6f * k;
     const Vector2 titleSize = m_Text.Measure(title, titleScale);
     const Vector2 titlePos = { (m_ScreenW - titleSize.x) * 0.5f, m_ScreenH * 0.24f };
+
+    // 名前の後ろで大きな魔法陣がゆっくり回る（幻想 UI、古金）
+    {
+        const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
+        Vector4 ring = gold;
+        ring.w = 0.22f;
+        UIDeco::DrawCircle(m_Sprite, true, { m_ScreenW * 0.5f, titlePos.y + titleSize.y * 0.55f },
+            m_ScreenH * 0.62f, ring, UIDeco::Clock() * 0.03f);
+    }
     m_Text.Draw(title, titlePos + Vector2(3.0f, 3.0f) * k, { 0.0f, 0.0f, 0.0f, 0.8f }, titleScale);
     m_Text.Draw(title, titlePos, { 1.0f, 0.92f, 0.6f, 1.0f }, titleScale);
 
-    float y = titlePos.y + titleSize.y + 10.0f * k;
-    if (m_WhiteTex)
+    // 名前の下に百合紋の分割線
+    float y = titlePos.y + titleSize.y + 2.0f * k;
     {
-        const float lineW = titleSize.x + 80.0f * k;
-        m_Sprite.Draw(m_WhiteTex, { (m_ScreenW - lineW) * 0.5f, y }, { lineW, 2.0f }, { 1.0f, 0.92f, 0.6f, 0.8f });
+        const float lineW = titleSize.x + 160.0f * k;
+        const float lineH = lineW * 0.10f;
+        UIDeco::DrawDivider(m_Sprite, true, { m_ScreenW * 0.5f, y + lineH * 0.5f }, lineW,
+            UIDeco::TintColor(UIDeco::Tint::Gold));
+        y += lineH + 4.0f * k;
     }
-    y += 14.0f * k;
 
     const std::wstring tagline = kTagline;
     const float tagScale = 0.5f * k;

@@ -9,6 +9,7 @@
 #include "Item/ItemDatabase.h"
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
+#include "Player/PlayerStatsComponent.h"
 #include "ECS/View.h"
 #include <algorithm>
 #include <cstdlib>
@@ -186,6 +187,23 @@ void LevelUpSystem::ApplyStat(Registry& reg, Entity player, const StatItemDef& s
             auto& mp = reg.Get<ManaComponent>(player);
             mp.max += stat.amount;
             mp.current = (std::min)(mp.current + stat.amount, mp.max);
+        }
+        break;
+
+    // 速さは今の値に掛ける（percent）か足す。PlayerControlSystem が毎フレーム読むのですぐ効く
+    case StatKind::MoveSpeed:
+        if (reg.Has<PlayerStatsComponent>(player))
+        {
+            auto& st = reg.Get<PlayerStatsComponent>(player);
+            st.moveSpeed = stat.percent ? st.moveSpeed * (1.0f + stat.amount) : st.moveSpeed + stat.amount;
+        }
+        break;
+
+    case StatKind::JumpPower:
+        if (reg.Has<PlayerStatsComponent>(player))
+        {
+            auto& st = reg.Get<PlayerStatsComponent>(player);
+            st.jumpPower = stat.percent ? st.jumpPower * (1.0f + stat.amount) : st.jumpPower + stat.amount;
         }
         break;
     }

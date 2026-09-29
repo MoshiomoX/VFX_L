@@ -5,6 +5,8 @@
 #include "UI/ItemSheetView.h"
 #include "Graphics/Renderer/SpriteRenderer.h"
 #include "Graphics/Renderer/TextRenderer.h"
+#include "Item/ItemDatabase.h"
+#include "UI/UIDeco.h"
 #include <algorithm>
 
 using namespace DirectX::SimpleMath;
@@ -22,15 +24,6 @@ namespace
     bool IsNoLineStart(wchar_t c)
     {
         return c == L'、' || c == L'。' || c == L')' || c == L' ';
-    }
-
-    Vector4 Brighten(Vector4 c, float t)
-    {
-        c.x += (1.0f - c.x) * t;
-        c.y += (1.0f - c.y) * t;
-        c.z += (1.0f - c.z) * t;
-        c.w = 1.0f;
-        return c;
     }
 }
 
@@ -204,19 +197,19 @@ namespace ItemSheetView
         p.x = (std::max)(p.x, margin);
         p.y = (std::max)(p.y, margin);
 
-        // ---- 箱（縁は道具の色）----
-        const float edge = 2.0f;
-        sprite.Draw(white, { p.x - edge, p.y - edge }, { width + edge * 2.0f, h + edge * 2.0f },
-            Brighten(sheet.color, 0.1f));
-        sprite.Draw(white, p, { width, h }, st.panelColor);
+        // ---- 箱（幻想 UI：道具の種類の色の二重線）----
+        const Vector4 tint = UIDeco::CategoryColor(ItemDatabase::GetCategory(sheet.id));
+        UIDeco::PanelStyle ps;
+        ps.fill = st.panelColor;
+        ps.innerInset = 3.0f;
+        UIDeco::DrawPanel(sprite, p, { width, h }, tint, ps);
 
         // ---- 名前（左）と種別（右）----
         const float x = p.x + st.pad;
         float y = p.y + st.pad;
         text.Draw(sheet.title, { x, y }, st.textColor, st.titleScale);
         const float cw = text.Measure(sheet.category, st.smallScale).x;
-        text.Draw(sheet.category, { p.x + width - st.pad - cw, y + (titleH - smallH) },
-            Brighten(sheet.color, 0.35f), st.smallScale);
+        text.Draw(sheet.category, { p.x + width - st.pad - cw, y + (titleH - smallH) }, tint, st.smallScale);
         y += titleH + headGap;
 
         DrawBody(&sprite, white, text, sheet, { x, y }, inner, st, true);

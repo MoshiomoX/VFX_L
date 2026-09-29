@@ -66,7 +66,8 @@ namespace Swarm
         float    age = 0.0f;
         uint32_t def = 0;
         uint32_t alive = 0;
-        uint32_t _pad[2] = {};
+        float    sizeScale = 0.0f;   // 範囲の大きさの倍率（拡大鏡）。0 = 1
+        uint32_t _pad = 0;
     };
     static_assert(sizeof(SpriteInstance) == 32, "SwarmSprite layout mismatch");
 

@@ -35,6 +35,11 @@ public:
 
     void DrawImGui();
 
+    // 調整値の保存 / 読込（Assets/Data/Camera.json）。Init で自動で読む。無ければコードの既定値
+    bool SaveSettings(const char* path = nullptr) const;
+    bool LoadSettings(const char* path = nullptr);
+    void ResetSettings();   // コードの既定値へ戻す（ファイルはそのまま）
+
 private:
     FollowCamera m_Camera;
     bool m_CursorFree = false;   // Alt で出している

@@ -10,6 +10,7 @@
 #include "Component/WandComponent.h"
 #include "Player/LevelComponent.h"
 #include "Item/ItemDatabase.h"
+#include "UI/UIDeco.h"
 #include "ResourcePaths.h"
 #include "imgui.h"
 
@@ -185,9 +186,9 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     const Vector2 mpPos = m_Style.mpBar.Resolve(m_ScreenW, m_ScreenH);
 
     DrawBar(sprite, hpPos, m_Style.hpBarSize,
-        SafeRatio(hp.current, hp.max), m_HpTrail.value, m_Style.hpColor);
+        SafeRatio(hp.current, hp.max), m_HpTrail.value, m_Style.hpColor, true);
     DrawBar(sprite, mpPos, m_Style.mpBarSize,
-        SafeRatio(mp.current, mp.max), m_MpTrail.value, m_Style.mpColor);
+        SafeRatio(mp.current, mp.max), m_MpTrail.value, m_Style.mpColor, true);
 
     // ---- 数値 ----
     wchar_t buf[32];
@@ -211,15 +212,15 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     }
 
     // ---- 経過時間・撃破数、魔法の欄 ----
-    DrawRunInfo(text, info);
+    DrawRunInfo(sprite, text, info);
     if (m_Style.showSpellBar && info.wand)
         DrawSpellBar(sprite, *info.wand, mp);
 }
 
 // ============================================================
-// 経過時間（大）と撃破数（小）を上の中央に
+// 経過時間（大）と撃破数（小）を上の中央に。間に古金の細い分割線
 // ============================================================
-void HUD::DrawRunInfo(TextRenderer& text, const HUDFrameInfo& info)
+void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrameInfo& info)
 {
     const Vector2 a = m_Style.runInfo.Resolve(m_ScreenW, m_ScreenH);
     wchar_t buf[32];
@@ -229,9 +230,17 @@ void HUD::DrawRunInfo(TextRenderer& text, const HUDFrameInfo& info)
     const Vector2 ts = text.Measure(buf, m_Style.timerScale);
     DrawLabel(text, buf, { a.x - ts.x * 0.5f, a.y }, m_Style.timerScale);
 
+    float y = a.y + ts.y;
+    if (m_Style.runDividerWidth > 0.0f)
+    {
+        const float dh = m_Style.runDividerWidth * 0.05f;
+        UIDeco::DrawDivider(sprite, false, { a.x, y }, m_Style.runDividerWidth, m_Style.borderColor);
+        y += dh * 0.5f;
+    }
+
     swprintf_s(buf, L"撃破 %u", info.kills);
     const Vector2 ks = text.Measure(buf, m_Style.killScale);
-    DrawLabel(text, buf, { a.x - ks.x * 0.5f, a.y + ts.y }, m_Style.killScale);
+    DrawLabel(text, buf, { a.x - ks.x * 0.5f, y }, m_Style.killScale);
 }
 
 // ============================================================
@@ -257,39 +266,56 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
     const Vector2 a = m_Style.spellBar.Resolve(m_ScreenW, m_ScreenH);
     const float left = a.x - totalW * 0.5f;
     const float top = a.y - size;
-    const float inset = size * 0.12f;
+    const float iconSize = size * 0.56f;
+
+    // 丸い欄（円の貼图が無ければ四角に戻す）
+    const UIDeco::Textures& deco = UIDeco::Tex();
+    const auto& disc = deco.disc ? deco.disc : m_WhiteTex;
+    const float spin = UIDeco::Clock() * 0.10f;
 
     float x = left;
+    int index = 0;
     for (const auto& sl : slots)
     {
         const ItemCommon* c = ItemDatabase::GetCommon(sl.id);
         const Vector4 col = c ? c->color : Vector4(1, 1, 1, 1);
+        const Vector2 center = { x + size * 0.5f, top + size * 0.5f };
 
-        sprite.Draw(m_WhiteTex, { x, top }, { size, size }, m_Style.slotBgColor);
+        // 後ろの魔法陣（道具の種類の色。隣同士で逆に回す）。明るい草の上でも見えるよう、暗い円を敷いてから
+        if (m_Style.slotCircleScale > 0.0f)
+        {
+            const float d = size * m_Style.slotCircleScale;
+            sprite.Draw(disc, { center.x - d * 0.5f, center.y - d * 0.5f }, { d, d }, { 0.0f, 0.0f, 0.0f, 0.55f });
+            Vector4 ring = UIDeco::CategoryColor(c ? c->category : ItemCategory::Projectile);
+            ring.w = 0.85f;
+            UIDeco::DrawCircle(sprite, false, center, d, ring, (index % 2) ? -spin : spin);
+        }
 
-        const Vector2 ip = { x + inset, top + inset };
-        const Vector2 is = { size - inset * 2.0f, size - inset * 2.0f };
+        sprite.Draw(disc, { x, top }, { size, size }, m_Style.slotBgColor);
+
         auto icon = m_IconLookup ? m_IconLookup(sl.id) : nullptr;
-        if (icon) sprite.Draw(icon, ip, is);
-        else      sprite.Draw(m_WhiteTex, ip, is, col);
+        const Vector2 ip = { center.x - iconSize * 0.5f, center.y - iconSize * 0.5f };
+        if (icon) sprite.Draw(icon, ip, { iconSize, iconSize }, m_Style.textColor);
+        else      sprite.Draw(disc, ip, { iconSize, iconSize }, col);
 
-        // 冷却の残り（castTimer は castInterval から 0 へ減る）
+        // 冷却の残り（castTimer は castInterval から 0 へ減る）。円の上から cd の割合だけ暗く
         const float cd = (sl.interval > 0.0f) ? Clamp01(sl.timer / sl.interval) : 0.0f;
         if (cd > 0.0f)
-            sprite.Draw(m_WhiteTex, { x, top }, { size, size * cd }, m_Style.cooldownColor);
+            sprite.Draw(disc, { x, top }, { size, size * cd }, m_Style.cooldownColor, { 0.0f, 0.0f, 1.0f, cd });
 
         if (!mp.CanAfford(sl.cost))
-            sprite.Draw(m_WhiteTex, { x, top }, { size, size }, m_Style.noManaColor);
+            sprite.Draw(disc, { x, top }, { size, size }, m_Style.noManaColor);
+        if (wand.castingPaused)
+            sprite.Draw(disc, { x, top }, { size, size }, { 0.0f, 0.0f, 0.0f, 0.55f });
 
-        if (m_Style.drawBorder)
+        if (m_Style.drawBorder && deco.ring)
+            sprite.Draw(deco.ring, { x, top }, { size, size }, m_Style.borderColor);
+        else if (m_Style.drawBorder)
             DrawBorder(sprite, { x, top }, { size, size });
 
         x += size + gap;
+        ++index;
     }
-
-    if (wand.castingPaused)
-        sprite.Draw(m_WhiteTex, { left, top }, { totalW, size }, { 0.0f, 0.0f, 0.0f, 0.55f });
-
 }
 
 // ============================================================
@@ -384,7 +410,7 @@ void HUD::DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info)
 
 void HUD::DrawBar(SpriteRenderer& sprite,
     const Vector2& pos, const Vector2& size,
-    float ratio, float trailRatio, const Vector4& fillColor)
+    float ratio, float trailRatio, const Vector4& fillColor, bool gems)
 {
     // 背景（枠を兼ねる）
     sprite.Draw(m_WhiteTex, pos, size, m_Style.bgColor);
@@ -407,13 +433,27 @@ void HUD::DrawBar(SpriteRenderer& sprite,
             m_Style.trailColor);
     }
 
-    // 中身
+    // 中身（下 4 割を少し暗くして厚みを出す）
     const float w = innerW * ratio;
     if (w > 0.0f)
+    {
         sprite.Draw(m_WhiteTex, innerPos, { w, innerH }, fillColor);
+        sprite.Draw(m_WhiteTex, { innerPos.x, innerPos.y + innerH * 0.6f }, { w, innerH * 0.4f },
+            { 0.0f, 0.0f, 0.0f, 0.30f });
+    }
 
     if (m_Style.drawBorder)
         DrawBorder(sprite, pos, size);
+
+    // 両端の菱形（枠の色）
+    if (gems && m_Style.gemSize > 0.0f)
+    {
+        const float g = m_Style.gemSize;
+        const float cy = pos.y + size.y * 0.5f;
+        for (const float cx : { pos.x, pos.x + size.x })
+            sprite.Draw(m_WhiteTex, { cx - g * 0.5f, cy - g * 0.5f }, { g, g },
+                m_Style.borderColor, 0.785398f, { cx, cy });
+    }
 }
 
 // 枠は4本の細い矩形。矩形しか描けないので線ではなくこの形にする
@@ -517,6 +557,7 @@ void HUD::DrawDebugUI()
     ImGui::Checkbox("Draw Border", &m_Style.drawBorder);
     if (m_Style.drawBorder)
         ImGui::DragFloat("Border Size", &m_Style.borderSize, 0.1f, 0.0f, 10.0f);
+    ImGui::DragFloat("Bar End Gems", &m_Style.gemSize, 0.25f, 0.0f, 40.0f);
 
     ImGui::Separator();
     ImGui::Text("Colors");
@@ -534,6 +575,7 @@ void HUD::DrawDebugUI()
     DragAnchor("Run Info", m_Style.runInfo);
     ImGui::DragFloat("Timer Scale", &m_Style.timerScale, 0.01f, 0.05f, 3.0f);
     ImGui::DragFloat("Kill Scale", &m_Style.killScale, 0.01f, 0.05f, 3.0f);
+    ImGui::DragFloat("Divider Width", &m_Style.runDividerWidth, 1.0f, 0.0f, 800.0f);
 
     ImGui::Separator();
     ImGui::Text("Spell Bar");
@@ -541,6 +583,7 @@ void HUD::DrawDebugUI()
     DragAnchor("Spell Bar", m_Style.spellBar);
     ImGui::DragFloat("Slot Size", &m_Style.slotSize, 0.5f, 8.0f, 300.0f);
     ImGui::DragFloat("Slot Gap", &m_Style.slotGap, 0.25f, 0.0f, 100.0f);
+    ImGui::DragFloat("Magic Circle Scale", &m_Style.slotCircleScale, 0.01f, 0.0f, 4.0f);
     ImGui::ColorEdit4("Slot Bg", &m_Style.slotBgColor.x);
     ImGui::ColorEdit4("Cooldown", &m_Style.cooldownColor.x);
     ImGui::ColorEdit4("No Mana", &m_Style.noManaColor.x);
@@ -594,6 +637,7 @@ bool HUD::SaveStyle(const char* path) const
 
     root["drawBorder"] = m_Style.drawBorder;
     root["borderSize"] = m_Style.borderSize;
+    root["gemSize"] = m_Style.gemSize;
 
     root["bgColor"] = ToJson(m_Style.bgColor);
     root["hpColor"] = ToJson(m_Style.hpColor);
@@ -607,11 +651,13 @@ bool HUD::SaveStyle(const char* path) const
     root["runInfo"] = ToJson(m_Style.runInfo);
     root["timerScale"] = m_Style.timerScale;
     root["killScale"] = m_Style.killScale;
+    root["runDividerWidth"] = m_Style.runDividerWidth;
 
     root["showSpellBar"] = m_Style.showSpellBar;
     root["spellBar"] = ToJson(m_Style.spellBar);
     root["slotSize"] = m_Style.slotSize;
     root["slotGap"] = m_Style.slotGap;
+    root["slotCircleScale"] = m_Style.slotCircleScale;
     root["slotBgColor"] = ToJson(m_Style.slotBgColor);
     root["cooldownColor"] = ToJson(m_Style.cooldownColor);
     root["noManaColor"] = ToJson(m_Style.noManaColor);
@@ -687,6 +733,7 @@ bool HUD::LoadStyle(const char* path)
 
     ReadBool(root, "drawBorder", m_Style.drawBorder);
     ReadFloat(root, "borderSize", m_Style.borderSize);
+    ReadFloat(root, "gemSize", m_Style.gemSize);
 
     ReadVec4(root, "bgColor", m_Style.bgColor);
     ReadVec4(root, "hpColor", m_Style.hpColor);
@@ -700,11 +747,13 @@ bool HUD::LoadStyle(const char* path)
     ReadAnchor(root, "runInfo", m_Style.runInfo);
     ReadFloat(root, "timerScale", m_Style.timerScale);
     ReadFloat(root, "killScale", m_Style.killScale);
+    ReadFloat(root, "runDividerWidth", m_Style.runDividerWidth);
 
     ReadBool(root, "showSpellBar", m_Style.showSpellBar);
     ReadAnchor(root, "spellBar", m_Style.spellBar);
     ReadFloat(root, "slotSize", m_Style.slotSize);
     ReadFloat(root, "slotGap", m_Style.slotGap);
+    ReadFloat(root, "slotCircleScale", m_Style.slotCircleScale);
     ReadVec4(root, "slotBgColor", m_Style.slotBgColor);
     ReadVec4(root, "cooldownColor", m_Style.cooldownColor);
     ReadVec4(root, "noManaColor", m_Style.noManaColor);
