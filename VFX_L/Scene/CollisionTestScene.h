@@ -131,6 +131,10 @@ private:
     // 背包・一時停止で gameplay が止まるので Update から直接呼ぶ
     bool     m_AutoUI = false;
     void     UpdateAutoTestUI(float dt);
+    // VFXL_BATTLE_AUTOTEST=loco：前 / 右 / 後 / 左 / 左後 / 右前 / 前（ゆっくり）へ走らせて
+    // 脚の向き・後ろ走り・歩様・再生速度を記録し、続けて既定の鏡頭で火球と隕石の爆発を映す（画面は外から連写）
+    bool     m_AutoLoco = false;
+    void     UpdateAutoTestLoco(float dt);
     void     SetDecorPropsVisible(bool visible, int* outCount);
 
 private:

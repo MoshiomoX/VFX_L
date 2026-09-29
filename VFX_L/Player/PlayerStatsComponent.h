@@ -33,6 +33,7 @@ struct PlayerStatsComponent
     float momentumDecay = 6.0f;         // 滑りをやめた後の勢いの減り方（地上）m/s^2
     float momentumDecayAir = 1.5f;      // 同（空中）
     float momentumTurnRate = 360.0f;    // 勢いが残っている間の向きの変え方 度/秒
+    float faceTurnRate = 720.0f;        // 体を進む方向へ向ける速さ 度/秒（後ろへ走り出すと 0.25 秒で振り向く）
 
     // --- 体格（衝突体と見た目の両方が参照する）---
     // ※成長対象ではない。調整用。

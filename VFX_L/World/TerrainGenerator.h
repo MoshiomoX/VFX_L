@@ -73,9 +73,13 @@ namespace TerrainGenerator
         // 木と岩は置物（1 マス以上を塞ぐ。周り 1 マスは他の置物を置かないので、
         // 並んで壁になることはない）。茂みは見た目だけ（衝突も格子も無し）。
         // 草は模型ではなく GrassRenderer（GPU の草の葉）
-        int treeCount = 110;      // 林（ノイズで固まる）が主、所々に 1 本
-        int rockCount = 40;
+        int treeCount = 60;       // 林（ノイズで固まる）が主、所々に 1 本
+        int rockCount = 20;
         int bushCount = 160;
+        // これより小さい木・岩は見た目だけ（格子も衝突も無し。雑魚が間に入って震えたり角に詰まったりしないよう、
+        // 道を塞ぐのは大きい物だけにする）。値は拡縮後の大きさ
+        float treeBlockMinHeight = 3.0f;   // m（木の高さ）
+        float rockBlockMinSize = 1.2f;     // m（岩の足跡の長い辺）
 
         // ---- 外周の崖 ----
         float wallHeight = 7.0f;

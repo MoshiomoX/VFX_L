@@ -25,7 +25,7 @@
                                                        0
                                                    ],
                                      "dragCoeff":  0,
-                                     "emitRate":  50,
+                                     "emitRate":  35,
                                      "emitType":  1,
                                      "endColorMax":  [
                                                          1,
@@ -62,10 +62,10 @@
                                                            6.28
                                                        ],
                                      "sizeRange":  [
+                                                       1.28,
                                                        1.6,
-                                                       2,
-                                                       2.6,
-                                                       3.2
+                                                       2.08,
+                                                       2.56
                                                    ],
                                      "speedRange":  [
                                                         0.5,
@@ -114,7 +114,7 @@
                                                        0
                                                    ],
                                      "dragCoeff":  4,
-                                     "emitRate":  110,
+                                     "emitRate":  77,
                                      "emitType":  1,
                                      "endColorMax":  [
                                                          0.8,
@@ -151,10 +151,10 @@
                                                            6.28
                                                        ],
                                      "sizeRange":  [
-                                                       1,
-                                                       1.3,
-                                                       1.8,
-                                                       2.4
+                                                       0.85,
+                                                       1.105,
+                                                       1.53,
+                                                       2.04
                                                    ],
                                      "speedRange":  [
                                                         2.5,
@@ -203,7 +203,7 @@
                                                        0
                                                    ],
                                      "dragCoeff":  0,
-                                     "emitRate":  55,
+                                     "emitRate":  30.25,
                                      "emitType":  1,
                                      "endColorMax":  [
                                                          0.3,
@@ -224,8 +224,8 @@
                                                  ],
                                      "innerRadius":  0,
                                      "lifetimeRange":  [
-                                                           0.9,
-                                                           1.3
+                                                           0.585,
+                                                           0.845
                                                        ],
                                      "maxParticles":  2000,
                                      "position":  [
@@ -240,10 +240,10 @@
                                                            6.28
                                                        ],
                                      "sizeRange":  [
-                                                       1,
-                                                       1.4,
-                                                       2.2,
-                                                       2.8
+                                                       0.75,
+                                                       1.05,
+                                                       1.65,
+                                                       2.1
                                                    ],
                                      "speedRange":  [
                                                         1,

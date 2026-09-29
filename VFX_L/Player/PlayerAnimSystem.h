@@ -3,6 +3,8 @@
 // PlayerStateComponent（HSM 3 層）→ SkinnedAnimComponent（再生層）の写像。
 //
 //   Move   層 → base  : Idle / Run / Jump / Fall
+//                       Run は水平の速さで Walk / Jog / Sprint を選び、
+//                       再生速度を 実速度 / クリップの素の速さ にする（足の滑りを消す）
 //   Action 層 → upper : Casting（上半身だけ。走りながら撃てる）
 //   Damage 層 → over  : Hurt / Dead（全身上書き）
 //
@@ -28,7 +30,9 @@ public:
     struct ClipNames
     {
         std::string idle = "Idle_Loop";
+        std::string walk = "Walk_Loop";
         std::string run = "Jog_Fwd_Loop";
+        std::string sprint = "Sprint_Loop";
         std::string jump = "Jump_Loop";
         std::string fall = "Jump_Loop";
         std::string cast = "Spell_Simple_Shoot";
@@ -46,6 +50,24 @@ public:
     float slideLeanDeg = 0.0f;   // Slide_Loop は最初から後ろへ倒れた姿勢（KayKit の Crouching の時は 15）
     float leanSpeedDeg = 120.0f;   // 傾きの付け外しの速さ 度/秒
 
+    // ---- 歩様（Run 状態の中の Walk / Jog / Sprint）----
+    // クリップの素の速さ（m/秒）。UAL の *_RM.glb の root 移動量 / 1 周の長さで測った値
+    float walkRefSpeed = 0.975f;    // Walk_Loop  1.30m / 1.333s
+    float jogRefSpeed = 5.36f;      // Jog_Fwd_Loop 5.0m / 0.933s
+    float sprintRefSpeed = 8.25f;   // Sprint_Loop 5.5m / 0.667s
+    // 切り替えの速さ（m/秒）。行き来でばたつかないよう ± gaitHysteresis/2 の幅を持たせる
+    float walkToJog = 2.3f;
+    float jogToSprint = 6.7f;
+    float gaitHysteresis = 0.4f;
+    // 再生速度の範囲（境目の近くは多少滑るが、極端な早回し / 遅回しはしない）
+    float minPlayRate = 0.5f;
+    float maxPlayRate = 2.0f;
+
+    int CurrentGait() const { return m_Gait; }   // 0 Walk / 1 Jog / 2 Sprint（面板の表示用）
+    float CurrentPlayRate() const { return m_PlayRate; }
+
 private:
     ClipNames m_Names;
+    int   m_Gait = 1;
+    float m_PlayRate = 1.0f;
 };
