@@ -18,6 +18,7 @@
 #include "Item/ItemDatabase.h"
 #include "ECS/View.h"
 #include <algorithm>
+#include <cmath>
 
 #include "Component/Projectile/ProjectileVisualComponent.h"
 using DirectX::SimpleMath::Vector3;
@@ -51,7 +52,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
     {
         // 単発: そのまま積む
         m_Requests.push_back({ s.id, s.profile, muzzle, dir,
-            s.speed, s.radius, s.damage, s.lifetime });
+            s.speed, s.radius, s.damage, s.lifetime, s.triggerMask });
         return;
     }
 
@@ -68,7 +69,38 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
         d.Normalize();
 
         m_Requests.push_back({ s.id, s.profile, muzzle, d,
-            s.speed, s.radius, s.damage, s.lifetime });
+            s.speed, s.radius, s.damage, s.lifetime, s.triggerMask });
+    }
+}
+
+// ============================================================
+// 高級魔法 1 回分（誘発）: 基礎魔法の弾が消えた場所 impact に落とす。
+// 分裂（projectileCount > 1）は着弾点を impact の周りの輪に並べる（扇に開くと同じ所に重なるだけなので）
+// ============================================================
+void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
+    const Vector3& impact, const Vector3& muzzle)
+{
+    constexpr float kSplitRing = 2.0f;   // 分裂した時の輪の半径（m）。爆発（半径 3）が少し重なる程度
+
+    // 向きは Drop 型の予備（着弾点が決まっているので実際には使われない）
+    Vector3 dir = impact - muzzle;
+    dir.y = 0.0f;
+    if (dir.LengthSquared() < 1e-6f) dir = Vector3(0, 0, 1);
+    dir.Normalize();
+
+    const int count = (std::max)(1, s.projectileCount);
+    for (int i = 0; i < count; ++i)
+    {
+        Vector3 p = impact;
+        if (count > 1)
+        {
+            const float a = DirectX::XM_2PI * (float)i / (float)count;
+            p += Vector3(std::cos(a), 0.0f, std::sin(a)) * kSplitRing;
+        }
+        CastRequest req = { s.id, s.profile, p, dir,
+            s.speed, s.radius, s.damage, s.lifetime, s.triggerMask };
+        req.atPos = true;
+        m_Requests.push_back(req);
     }
 }
 
@@ -81,6 +113,13 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 {
     m_Requests.clear();
     m_Spawned.clear();
+
+    // 基礎魔法の弾が消えた場所（回読なので 2〜3 フレーム古い）。高級魔法はここでだけ撃つ
+    m_TriggerEvents.clear();
+    if (m_Swarm) m_Swarm->ConsumeTriggerEvents(m_TriggerEvents);
+    m_TriggerEventsSeen += (uint32_t)m_TriggerEvents.size();
+    // 環に入るのは地面の高さ。普段の隕石の標的（雑魚の位置 = 地面 + groundY）と同じ高さへ上げる
+    const float triggerLift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
 
     reg.CreateView<TransformComponent, WandComponent, ManaComponent>()
         .Each([&](Entity e, TransformComponent& tf, WandComponent& wand, ManaComponent& mana)
@@ -200,7 +239,16 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         s.delayTimer -= dt;
                         if (s.delayTimer <= 0.0f)
                         {
-                            if (hasTarget && mana.CanAfford(s.manaCost))
+                            if (s.triggered)
+                            {
+                                // 高級魔法の連発は最初と同じ場所へ
+                                if (mana.CanAfford(s.manaCost))
+                                {
+                                    QueueTriggeredCast(s, s.triggerPos, muzzle);
+                                    mana.Reserve(s.manaCost);
+                                }
+                            }
+                            else if (hasTarget && mana.CanAfford(s.manaCost))
                             {
                                 QueueOneCast(s, muzzle, aimFor(s.speed));
                                 mana.Reserve(s.manaCost);
@@ -216,6 +264,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     // ※castTimer は撃てなくても減らし続ける。
                     //   標的が現れた瞬間に撃てるようにするため。
                     s.castTimer -= dt;
+                    if (s.triggered) continue;   // 高級魔法は下の「誘発」でだけ撃つ
                     if (!ignoreCooldown && s.castTimer > 0.0f) continue;
                     if (!allowNewCast) continue;
                     if (!hasTarget) continue;
@@ -229,6 +278,35 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     s.pendingCasts = (std::max)(0, s.castCount - 1);
                     s.delayTimer = s.castDelay;
                     s.castTimer = s.castInterval;
+                }
+
+                // ============================================================
+                // 誘発: 基礎魔法の弾が消えた場所で高級魔法を撃つ（火球・石弾 → 隕石）。
+                // 高級魔法は自分の冷却と MP を持ち、冷却が明けてから最初に届いた場所で 1 回撃つ。
+                // 標的は要らない（場所が決まっている）
+                // ============================================================
+                for (const auto& ev : m_TriggerEvents)
+                {
+                    for (uint32_t k = 0; k < (uint32_t)wand.spells.size() && k < 32; ++k)
+                    {
+                        if ((ev.tag & (1u << k)) == 0) continue;
+                        auto& s = wand.spells[k];
+                        if (!s.triggered || s.pendingCasts > 0) continue;   // 背包を組み替えて添字がずれた物も弾く
+                        if (!ignoreCooldown && s.castTimer > 0.0f) continue;
+                        if (!allowNewCast) continue;
+                        if (!mana.CanAfford(s.manaCost)) continue;
+
+                        Vector3 impact = ev.position;
+                        impact.y += triggerLift;
+                        QueueTriggeredCast(s, impact, muzzle);
+                        mana.Reserve(s.manaCost);
+                        ++m_TriggeredCasts;
+
+                        s.pendingCasts = (std::max)(0, s.castCount - 1);
+                        s.delayTimer = s.castDelay;
+                        s.castTimer = s.castInterval;
+                        s.triggerPos = impact;
+                    }
                 }
 
                 // ============================================================
@@ -295,7 +373,8 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
             const bool mirror = ProjectileProfileDB::NextMirror(motion);
 
             m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
-                req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror);
+                req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
+                req.triggerTag, req.atPos);
             continue;
         }
 

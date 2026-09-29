@@ -218,6 +218,9 @@ namespace
 
     // ---- 種類ごとの中身 ----
     // v = 修飾後、b = 元の値（修飾が無ければ同じ物を渡す）
+    // 隕石の飛び方。誘発で撃つ高級魔法は「一番近い敵」ではなく前提の弾が消えた場所へ落ちるので、後で差し替える
+    const wchar_t* const kDropTrait = L"一番近い敵の足元へ空から落ちてくる";
+
     void FillProjectile(Sheet& s, const SpellStats& v, const SpellStats& b)
     {
         // 飛び方と命中時の範囲はプロファイルから。編集器で変えれば説明も変わる
@@ -227,7 +230,7 @@ namespace
         case Swarm::MotionMode::Straight:  s.traits.push_back(L"まっすぐ飛ぶ"); break;
         case Swarm::MotionMode::CurveOnce: s.traits.push_back(L"撃った時に一番近い敵を狙って曲がる"); break;
         case Swarm::MotionMode::Track:     s.traits.push_back(L"敵を追い続ける。倒したら次の敵へ"); break;
-        case Swarm::MotionMode::Drop:      s.traits.push_back(L"一番近い敵の足元へ空から落ちてくる"); break;
+        case Swarm::MotionMode::Drop:      s.traits.push_back(kDropTrait); break;
         }
         // 隕石は落ちる途中で敵に当たらない（弾そのものの威力は入らず、着弾の範囲だけ）
         const bool drop = pp.mode == Swarm::MotionMode::Drop;
@@ -380,6 +383,22 @@ namespace ItemInfo
         return stats;
     }
 
+    // 高級魔法の前提（「ファイアボール・ストーンショット」）
+    static std::wstring TriggerNames(const ProjectileItemDef& d)
+    {
+        std::vector<std::wstring> names;
+        for (ItemID need : d.triggeredBy) names.push_back(DisplayName(need));
+        return Join(names);
+    }
+
+    // 高級魔法: 飛び方の文を「前提の弾が消えた場所へ」に差し替える
+    static void FixTriggeredFlight(Sheet& s, const ProjectileItemDef& d)
+    {
+        if (d.triggeredBy.empty()) return;
+        for (auto& t : s.traits)
+            if (t == kDropTrait) t = TriggerNames(d) + L" の弾が消えた場所へ空から落ちてくる";
+    }
+
     Sheet Describe(ItemID id)
     {
         Sheet s = Header(id);
@@ -387,6 +406,10 @@ namespace ItemInfo
         {
             const SpellStats b = BaseSpellStats(*d);
             FillProjectile(s, b, b);
+            FixTriggeredFlight(s, *d);
+            if (!d->triggeredBy.empty())
+                s.traits.insert(s.traits.begin(),
+                    L"上級魔法: " + TriggerNames(*d) + L" の両方を上下左右に隣り合わせると目覚める");
         }
         else if (auto* d = ItemDatabase::GetArea(id))
         {
@@ -424,7 +447,43 @@ namespace ItemInfo
                 by.push_back(DisplayName(f->common.id));
             }
             FillProjectile(s, v, b);
+            FixTriggeredFlight(s, *d);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
+
+            // ---- 誘発（集約と同じ判定）----
+            if (!d->triggeredBy.empty())
+            {
+                // 高級魔法: 目覚めているか、足りない基礎魔法は何か
+                if (BackpackLogic::IsTriggerReady(bp, itemIndex))
+                    s.traits.insert(s.traits.begin(), L"発動中: " + TriggerNames(*d) + L" の弾が消えた場所で発動する");
+                else
+                {
+                    const std::vector<int> drivers = BackpackLogic::GetTriggerDrivers(bp, itemIndex);
+                    std::vector<std::wstring> missing;
+                    for (ItemID need : d->triggeredBy)
+                    {
+                        bool found = false;
+                        for (int k : drivers) if (bp.items[k].id == need) { found = true; break; }
+                        if (!found) missing.push_back(DisplayName(need));
+                    }
+                    s.traits.insert(s.traits.begin(), L"未発動: " + Join(missing) + L" を上下左右に隣り合わせる");
+                }
+            }
+            else
+            {
+                // 基礎魔法: 呼び起こしている高級魔法
+                std::vector<std::wstring> wakes;
+                for (int j = 0; j < (int)bp.items.size(); ++j)
+                {
+                    if (j == itemIndex) continue;
+                    const auto drv = BackpackLogic::GetTriggerDrivers(bp, j);
+                    if (std::find(drv.begin(), drv.end(), itemIndex) != drv.end()
+                        && BackpackLogic::IsTriggerReady(bp, j))
+                        wakes.push_back(DisplayName(bp.items[j].id));
+                }
+                if (!wakes.empty())
+                    s.traits.insert(s.traits.begin(), L"誘発: " + Join(wakes) + L"（この弾が消えた場所で）");
+            }
             return s;
         }
         if (auto* d = ItemDatabase::GetArea(id))

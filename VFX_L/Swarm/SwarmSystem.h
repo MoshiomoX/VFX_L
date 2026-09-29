@@ -158,11 +158,21 @@ public:
     // mirror  : 曲線を左右反転して撃つ（交互撃ち・乱数撃ちは呼ぶ側が決める）
     // 曲線の型では vel の「速さ」だけが使われ、向きは曲線が決める。
     // 捕捉する敵は玩家に一番近い 1 体（武器が狙っているのと同じ相手）
+    // triggerTag : この弾が消えたら誘発できる高級魔法（杖の spells の添字の bit）。0 = 無し
+    // spawnAtPos : Drop 型だけ。pos を着弾点にする（誘発の隕石。最寄りの敵を捕捉しない）
     void SpawnProjectile(VFXId vfx,
         const DirectX::SimpleMath::Vector3& pos,
         const DirectX::SimpleMath::Vector3& vel,
         float damage, float radius, float lifetime,
-        uint32_t motion = 0, bool mirror = false);
+        uint32_t motion = 0, bool mirror = false,
+        uint32_t triggerTag = 0, bool spawnAtPos = false);
+
+    // 回読で届いた誘発（タグ付きの弾が消えた場所）を全部取り出す。2〜3 フレーム古い
+    void ConsumeTriggerEvents(std::vector<Swarm::TriggerEvent>& out)
+    {
+        out.insert(out.end(), m_TriggerEvents.begin(), m_TriggerEvents.end());
+        m_TriggerEvents.clear();
+    }
 
     // 運動表を丸ごと差し替える。添字がそのまま SpawnProjectile の motion。
     // 飛んでいる弾も次のステップから新しい値で動く（編集器で調整中の反映用）
@@ -321,6 +331,22 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjStateUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjStateSRV;
 
+    // 弾スロット毎の誘発タグ（Swarm::TriggerEvent の説明）。SpawnProjCS が書き、ProjEndCS が消す
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjTagBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjTagUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjTagSRV;
+
+    // 誘発の環（ProjEndCS が書く）→ staging 3 枚で回読。総数は GPU 上で永久に累加、CPU は読んだ所まで覚える
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_TriggerBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_TriggerUAV;
+    static constexpr int kTriggerStaging = 3;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_TriggerStaging[kTriggerStaging];
+    bool m_TriggerStagingFilled[kTriggerStaging] = {};
+    int  m_TriggerStagingWrite = 0;
+    uint32_t m_TriggerRead = 0;                         // 読み終えた総数
+    std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 読んだが、まだ誰も取り出していない物
+    void ReadTriggerEvents();   // 一番古い staging を読めたら新しい分を m_TriggerEvents へ（Flush の頭）
+
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_OrbStateBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_OrbStateUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_OrbStateSRV;
@@ -398,6 +424,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnEnemySRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnProjBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnProjSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnProjExtraBuffer;   // 依頼と同じ添字の uint2（誘発タグ, kSpawnAtPos）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnProjExtraSRV;
+    std::vector<uint32_t> m_PendingProjExtra;                      // 2 個ずつ（m_PendingProjectiles と並ぶ）
 
     std::vector<Swarm::Enemy>      m_PendingEnemies;
     std::vector<Swarm::Projectile> m_PendingProjectiles;
@@ -417,6 +446,7 @@ private:
     std::shared_ptr<ComputeShader> m_ClearCountersCS;  // 子ステップ頭で counter を 0 に
     std::shared_ptr<ComputeShader> m_SpawnProjCS;      // 生成依頼を投射物の空きスロットへ
     std::shared_ptr<ComputeShader> m_ProjMoveCS;       // 投射物の積分
+    std::shared_ptr<ComputeShader> m_ProjEndCS;        // タグ付きの弾が消えた場所を誘発の環へ（命中の直後）
     std::shared_ptr<ComputeShader> m_EmitCS;           // 弾から粒子を発射
     std::shared_ptr<ComputeShader> m_SpawnEnemyCS;     // Phase 3
     std::shared_ptr<ComputeShader> m_EnemyAICS;        // Phase 3: seek + separation + 回避

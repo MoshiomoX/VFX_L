@@ -23,6 +23,9 @@ namespace
         { VFXId::ExpOrbTrail, Res::VFX::ExpOrbTrail },
         { VFXId::GoldenArrow, Res::VFX::GoldenArrow },
         { VFXId::GoldenArrowHit, Res::VFX::GoldenArrowHit },
+        { VFXId::FireballHit, Res::VFX::FireballHit },
+        { VFXId::StoneShot, Res::VFX::StoneShot },
+        { VFXId::StoneShotHit, Res::VFX::StoneShotHit },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }

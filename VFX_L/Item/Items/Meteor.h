@@ -1,12 +1,15 @@
 ﻿// ============================================================
 // Items/Meteor.h
-// 隕石："Meteor" プロファイル（Drop 型）。撃った時に一番近い敵の足元へ空から斜めに落ち、
+// 隕石：高級魔法（2026-09-30〜）。"Meteor" プロファイル（Drop 型）。
+// 自分では撃たない。ファイアボールと石弾の両方の影響格が届いている時だけ有効になり、
+// どちらかの弾が消えた場所（命中・寿命・壁）へ空から斜めに落ちる（WeaponSystem の誘発）。
 // 着弾点で GPU が MeteorBlast（Assets/Data/AreaData/MeteorBlast.json）を出す。
 // 落ちる所には警告の輪（SwarmSystem::dropRing）。落ちる途中では敵に当たらない
 //
 // 設計意図：
-//   ・直撃は弱く、爆発が本体。撃つ間隔を長くして重い一発にする
-//   ・爆発の威力・半径は Area プロファイル側（編集器で調整）
+//   ・強い範囲攻撃は基礎魔法を組み合わせないと使えない = 1 種類だけ育てても届かない
+//   ・自分の冷却と MP を持つ。冷却が明けてから最初に消えた火球・石弾の場所に 1 個落ちる
+//   ・直撃は弱く、爆発が本体。爆発の威力・半径は Area プロファイル側（編集器で調整）
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
@@ -19,10 +22,10 @@ inline ProjectileItemDef MakeMeteor()
     def.common.id = ItemID::Meteor;
     def.common.name = "Meteor";
     def.common.displayName = L"メテオ";
-    def.common.description = L"空から隕石を落とす、間隔の長い重い一撃。着弾点で爆発し、周りの敵をまとめて巻き込む。";
+    def.common.description = L"上級魔法。ファイアボールと石弾の両方に隣り合うと目覚め、どちらかの弾が消えた場所へ隕石を落として周りをまとめて吹き飛ばす。";
     def.common.iconPath = Res::Icon::Meteor;
     def.common.category = ItemCategory::Projectile;
-    def.common.occupyCells = ItemShape::Single();
+    def.common.occupyCells = { { 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };   // 十字 5 マス（中心 + 上下左右）
     def.common.influenceCells = {};
     def.common.color = { 1.00f, 0.30f, 0.15f, 1.0f };   // 赤橙
 
@@ -32,10 +35,13 @@ inline ProjectileItemDef MakeMeteor()
     def.baseStats.spreadAngle = 0.0f;
     def.baseStats.castCount = 1;
     def.baseStats.castDelay = 0.12f;
-    def.baseStats.castInterval = 1.2f;
+    def.baseStats.castInterval = 1.8f;    // 誘発の冷却
     def.baseStats.manaCost = 20.0f;
 
     def.profile = "Meteor";   // Assets/Data/ProjectileData/Meteor.json
+
+    // ---- 前提の基礎魔法（両方の影響格が届いている時だけ有効）----
+    def.triggeredBy = { ItemID::Fireball, ItemID::StoneShot };
 
     return def;
 }

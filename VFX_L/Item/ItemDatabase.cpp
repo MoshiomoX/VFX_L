@@ -9,9 +9,11 @@
 #include "Item/Items/HomingBolt.h"
 #include "Item/Items/GoldenArrow.h"
 #include "Item/Items/Meteor.h"
+#include "Item/Items/StoneShot.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Magnifier.h"
+#include "Item/Items/HasteRune.h"
 #include "Item/Items/Frame3x3.h"
 #include "Item/Items/MaxHealthUp.h"
 #include "Item/Items/MaxManaUp.h"
@@ -103,11 +105,13 @@ void ItemDatabase::Initialize()
     Register(MakeHomingBolt());
     Register(MakeMeteor());
     Register(MakeGoldenArrow());
+    Register(MakeStoneShot());
 
     // ---- 機能型 ----
     Register(MakeSplitRune());
     Register(MakeDoubleCastRune());
     Register(MakeMagnifier());
+    Register(MakeHasteRune());
 
     // ---- AOE 型（未実装）----
 

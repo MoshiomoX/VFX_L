@@ -1,0 +1,25 @@
+{
+    "name":  "StoneShot",
+    "mode":  1,
+    "c1":  [
+               0.3,
+               0.0,
+               0.3
+           ],
+    "c2":  [
+               0.7,
+               0.0,
+               0.25
+           ],
+    "mirror":  0,
+    "retargetRadius":  0.0,
+    "hitArea":  "StoneShotHit",
+    "hitAreaOnExpire":  true,
+    "damage":  22,
+    "speed":  13.0,
+    "radius":  0.35,
+    "lifetime":  3.0,
+    "vfx":  "StoneShot.json",
+    "visualSize":  0.6,
+    "visualStretch":  0
+}
