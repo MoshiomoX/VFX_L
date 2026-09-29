@@ -18,9 +18,9 @@ public:
         const SpawnFunc& spawn, const SpawnFunc& recycle);
 
     bool  enabled = true;
-    int   spawnCap = 40;
-    float spawnInterval = 2.0f;
-    int   spawnPerTick = 1;
+    int   spawnCap = 550;           // 同時に居られる雑魚の上限（Megabonk の通常面と同じ）
+    float spawnPerSecond = 1.0f;    // 1 秒あたりに湧かせる数（端数は次へ持ち越す）。難度が毎フレーム書く
+    int   maxPerFrame = 64;         // 1 フレームで出す上限（止まった後に溜まった分が一度に出ないよう）
     float rMin = 25.0f;
     float rMax = 35.0f;
 
@@ -29,7 +29,7 @@ public:
     int GetTotalRecycled() const { return m_TotalRecycled; }
 
 private:
-    float m_Timer = 0.0f;
+    float m_Credit = 0.0f;   // 湧かせる分の端数の貯め
     int   m_LastMobCount = 0;
     int   m_TotalSpawned = 0;
     int   m_TotalRecycled = 0;

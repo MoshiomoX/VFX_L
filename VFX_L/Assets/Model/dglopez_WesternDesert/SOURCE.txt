@@ -1,0 +1,13 @@
+Low Poly Western Desert Asset Pack - FREE VERSION (30 models)
+Author: dglopez
+Source: https://dglopez.itch.io/low-poly-western-desert-asset-pack-30-free-models
+Downloaded: 2026-09-29 (FREE_VERSION_30_MODELS.zip; FBX and GLB kept, BLEND/OBJ dropped)
+
+License (see LICENSE.txt): free for personal and commercial use, may be modified and
+shipped inside a game. NOT allowed: redistributing or re-uploading the original files.
+
+Because the GitHub repository of this project is public, this folder is listed in
+.gitignore and is NOT committed. On a new machine, download the zip from the page above
+and copy FBX/, GLB/, LICENSE.txt, README.txt, ASSET_LIST.txt into this folder.
+
+Used for the desert stage (rocks, cacti, dry plants, bones, western props).

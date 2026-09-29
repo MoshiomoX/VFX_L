@@ -16,6 +16,7 @@ struct RunResult
     int      level = 1;           // 到達レベル
     uint32_t kills = 0;           // 撃破数（GPU counter の累計）
     float    expGained = 0.0f;    // 拾った経験値の合計
+    bool     cleared = false;     // Boss を倒して面をクリアした（false = 力尽きた・途中でやめた）
 };
 
 // 直近のプレイの戦績

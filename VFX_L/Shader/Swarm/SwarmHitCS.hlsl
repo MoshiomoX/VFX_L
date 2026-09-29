@@ -16,14 +16,20 @@
 //
 // No pierce yet: a projectile dies on its first live hit.
 // Corpses are passed through without consuming the projectile.
+//
+// Elites / the boss have a bigger capsule (SwarmKindCapsule) and drop an
+// orb worth SwarmKindExpMul times more. The kind is only read for enemies
+// that pass a coarse test sized for the biggest body.
 // ============================================================
 // the hit may leave an area behind (explosion / burning ground)
 #define SWARM_AREA_POOL_U u6
 #define SWARM_AREA_STATE_U u7
 #define SWARM_AREA_DEF_T t2
+#define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmMotion> motions : register(t1);
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3);
 
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 RWBuffer<uint> projStates : register(u0);
@@ -50,8 +56,10 @@ void main(uint3 id : SV_DispatchThreadID)
     if (motions[p.motion & SWARM_MOTION_INDEX_MASK].mode == SWARM_MOTION_DROP)
         return;
 
-    float hitRadius = p.radius + g_EnemyRadius;
-    float hitRadiusSq = hitRadius * hitRadius;
+    // coarse sphere around the pool position that holds the biggest body
+    float kMax = max(1.0, max(g_EliteScale, g_BossScale));
+    float coarse = p.radius + kMax * 2.0 * (g_EnemyRadius + g_EnemyCapsuleHalf);
+    float coarseSq = coarse * coarse;
     uint dmgFixed = SwarmHpToFixed(p.damage);
 
     for (uint j = 0; j < g_MaxEnemies; ++j)
@@ -59,9 +67,19 @@ void main(uint3 id : SV_DispatchThreadID)
         if (enemyStates[j] == SWARM_DEAD)
             continue;
 
-        float3 d = p.position - enemies[j].position;
-        d.y -= clamp(d.y, -g_EnemyCapsuleHalf, g_EnemyCapsuleHalf);
-        if (dot(d, d) > hitRadiusSq)
+        float3 pos = enemies[j].position;
+        float3 dc = p.position - pos;
+        if (dot(dc, dc) > coarseSq)
+            continue;
+
+        uint kind = enemyExtra[j].kind;
+        float3 center;
+        float er, eh;
+        SwarmKindCapsule(kind, pos, center, er, eh);
+        float3 d = p.position - center;
+        d.y -= clamp(d.y, -eh, eh);
+        float hitRadius = p.radius + er;
+        if (dot(d, d) > hitRadius * hitRadius)
             continue;
         // ---- hit: apply damage atomically ----
         uint prev;
@@ -72,9 +90,13 @@ void main(uint3 id : SV_DispatchThreadID)
 
         // ---- hit stun: freeze + flash (MoveCS / AICS / VS read it) ----
         // plain stores: several hits in one step all write the same value.
-        // harmless on the killer, its slot goes DEAD right below
-        enemies[j].animIndex = 2u;
-        enemies[j].animTime = 0.0;
+        // harmless on the killer, its slot goes DEAD right below.
+        // The boss never flinches (it would be pinned by the constant fire)
+        if (kind != SWARM_KIND_BOSS)
+        {
+            enemies[j].animIndex = 2u;
+            enemies[j].animTime = 0.0;
+        }
 
         if (prev <= dmgFixed)
         {
@@ -90,7 +112,7 @@ void main(uint3 id : SV_DispatchThreadID)
             // at the corpse's feet (plateaus: position.y - groundY = terrain height)
             orb.position = enemies[j].position;
             orb.position.y = enemies[j].position.y - g_GroundY + g_OrbY;
-            orb.amount = g_OrbAmount;
+            orb.amount = g_OrbAmount * SwarmKindExpMul(kind);
             orb.velocity = float3(0, 0, 0);
             orb._pad = 0.0; // pull speed, 0 = not attracted yet
 

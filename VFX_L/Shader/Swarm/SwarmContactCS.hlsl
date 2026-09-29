@@ -38,8 +38,9 @@ RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // The resting gap is about 1 cm; the skin covers it with margin.
 static const float CONTACT_SKIN = 0.05;
 
-// player capsule within `reach` of this enemy capsule (XZ + vertical gap)
-bool PlayerWithin(float3 pos, float reach)
+// player capsule within `reach` of an enemy capsule (XZ + vertical gap).
+// halfLen = the enemy capsule's straight half (bigger for elites)
+bool PlayerWithinCapsule(float3 pos, float halfLen, float reach)
 {
     float dx = pos.x - g_PlayerPos.x;
     float dz = pos.z - g_PlayerPos.z;
@@ -47,8 +48,13 @@ bool PlayerWithin(float3 pos, float reach)
 
     // vertical gap between the two straight segments (0 if they overlap)
     float dy = abs(pos.y - g_PlayerPos.y);
-    float gap = max(0.0, dy - (g_EnemyCapsuleHalf + g_PlayerCapsuleHalf));
+    float gap = max(0.0, dy - (halfLen + g_PlayerCapsuleHalf));
     return dxzSq + gap * gap <= reach * reach;
+}
+
+bool PlayerWithin(float3 pos, float reach)
+{
+    return PlayerWithinCapsule(pos, g_EnemyCapsuleHalf, reach);
 }
 
 void UpdateBomber(uint i, SwarmEnemyExtra extra)
@@ -104,12 +110,17 @@ void main(uint3 id : SV_DispatchThreadID)
 
     if (cd <= 0.0 && g_PlayerAlive != 0u)
     {
-        float reach = g_EnemyRadius + g_PlayerRadius + CONTACT_SKIN;
-        if (PlayerWithin(enemies[i].position, reach))
+        // elites / boss: bigger capsule, harder hits
+        float3 center;
+        float er, eh;
+        SwarmKindCapsule(extra.kind, enemies[i].position, center, er, eh);
+        float reach = er + g_PlayerRadius + CONTACT_SKIN;
+        if (PlayerWithinCapsule(center, eh, reach))
         {
+            float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind);
             uint prev;
             counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE,
-                                    SwarmHpToFixed(g_ContactDamage), prev);
+                                    SwarmHpToFixed(dmg), prev);
             cd = g_AttackInterval;
         }
     }

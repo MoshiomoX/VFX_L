@@ -7,6 +7,7 @@
 #include "Item/Items/Fireball.h"
 #include "Item/Items/ArcBolt.h"
 #include "Item/Items/HomingBolt.h"
+#include "Item/Items/GoldenArrow.h"
 #include "Item/Items/Meteor.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
@@ -16,6 +17,8 @@
 #include "Item/Items/MaxManaUp.h"
 #include "Item/Items/MoveSpeedUp.h"
 #include "Item/Items/JumpPowerUp.h"
+#include "Item/Items/ManaRegenUp.h"
+#include "Item/Items/JumpCountUp.h"
 #include "Item/ItemDataFile.h"
 #include <unordered_map>
 #include <utility>
@@ -99,6 +102,7 @@ void ItemDatabase::Initialize()
     Register(MakeArcBolt());
     Register(MakeHomingBolt());
     Register(MakeMeteor());
+    Register(MakeGoldenArrow());
 
     // ---- 機能型 ----
     Register(MakeSplitRune());
@@ -115,6 +119,8 @@ void ItemDatabase::Initialize()
     Register(MakeMaxManaUp());
     Register(MakeMoveSpeedUp());
     Register(MakeJumpPowerUp());
+    Register(MakeManaRegenUp());
+    Register(MakeJumpCountUp());
 
     // ---- 形（占位格・影響格）----
     // コードに書いた形を覚えてから、保存済みの道具データ（ItemData/<名前>.json）で上書きする。

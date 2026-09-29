@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# dglopez Western Desert pack: its license forbids redistributing the original files and this repo is public.
+# Kept locally only; see VFX_L/Assets/Model/dglopez_WesternDesert/SOURCE.txt (which IS committed).
+VFX_L/Assets/Model/dglopez_WesternDesert/*
+!VFX_L/Assets/Model/dglopez_WesternDesert/SOURCE.txt

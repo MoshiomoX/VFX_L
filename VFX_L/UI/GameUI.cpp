@@ -198,6 +198,13 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 
         const auto& lv = reg.Get<LevelComponent>(player);
 
+        // 画面の外で選ばれた（自測など）なら、三択の層だけ残らないよう下ろす
+        if (!lv.IsChoosing())
+        {
+            m_Stack.Pop(UILayer::LevelUp);
+            break;
+        }
+
         ItemID picked;
         if (m_LevelUp.HandleInput(lv, picked))
         {
@@ -376,16 +383,21 @@ void GameUI::DrawGameOver()
     if (a <= 0.0f) return;
     if (a > 1.0f) a = 1.0f;
 
-    m_Sprite.Draw(m_WhiteTex, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH }, { 0.10f, 0.0f, 0.0f, 0.68f * a });
+    // 死んだ時は赤黒く、Boss を倒した時は暗い金に沈める（線形の色）
+    const bool cleared = m_GameOverCleared;
+    m_Sprite.Draw(m_WhiteTex, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH },
+        cleared ? DirectX::SimpleMath::Vector4{ 0.06f, 0.04f, 0.0f, 0.60f * a }
+                : DirectX::SimpleMath::Vector4{ 0.10f, 0.0f, 0.0f, 0.68f * a });
 
     const float k = (std::min)(m_ScreenW, m_ScreenH) / 900.0f;
 
-    const std::wstring title = L"力尽きた";
+    const std::wstring title = cleared ? L"ステージクリア" : L"力尽きた";
     const float ts = 1.4f * k;
     const DirectX::SimpleMath::Vector2 tsz = m_Text.Measure(title, ts);
     const DirectX::SimpleMath::Vector2 tp = { (m_ScreenW - tsz.x) * 0.5f, m_ScreenH * 0.40f - tsz.y * 0.5f };
     m_Text.Draw(title, { tp.x + 3.0f * k, tp.y + 3.0f * k }, { 0.0f, 0.0f, 0.0f, 0.8f * a }, ts);
-    m_Text.Draw(title, tp, { 1.0f, 0.35f, 0.30f, a }, ts);
+    m_Text.Draw(title, tp, cleared ? DirectX::SimpleMath::Vector4{ 1.0f, 0.75f, 0.25f, a }
+                                   : DirectX::SimpleMath::Vector4{ 1.0f, 0.35f, 0.30f, a }, ts);
 
     wchar_t buf[64];
     const int total = (int)m_FrameInfo.runTime;

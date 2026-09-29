@@ -25,9 +25,12 @@ Entity InteractionSystem::Update(Registry& reg, Entity player, float dt, bool in
         .Each([&](Entity e, TransformComponent& tf, InteractableComponent& it)
             {
                 // ---- 浮遊と回転（下端が地面になるよう 0..bobHeight で上下）----
-                const float bob = (std::sin(m_Time * bobSpeed + it.phase) * 0.5f + 0.5f) * bobHeight;
-                tf.position = it.basePos + Vector3(0.0f, bob, 0.0f);
-                tf.rotation.y = std::fmod(tf.rotation.y + spinSpeed * dt, 360.0f);
+                if (it.animate)
+                {
+                    const float bob = (std::sin(m_Time * bobSpeed + it.phase) * 0.5f + 0.5f) * bobHeight;
+                    tf.position = it.basePos + Vector3(0.0f, bob, 0.0f);
+                    tf.rotation.y = std::fmod(tf.rotation.y + spinSpeed * dt, 360.0f);
+                }
 
                 // ---- 一番近い使える物（水平距離。高さは段差で多少ずれても使えるように無視）----
                 if (!hasPlayer) return;

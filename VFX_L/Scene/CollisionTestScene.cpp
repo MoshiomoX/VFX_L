@@ -67,6 +67,12 @@ void CollisionTestScene::Init()
         m_AutoMagnifier = m_AutoTest && strcmp(env, "magnifier") == 0;   // 値が magnifier なら拡大鏡の見比べ
         m_AutoUI = m_AutoTest && strcmp(env, "ui") == 0;                 // 値が ui なら幻想 UI の各画面を順に開く
         m_AutoLoco = m_AutoTest && strcmp(env, "loco") == 0;             // 値が loco なら横 / 後ろ走りと爆発の見え方
+        m_AutoBalance = m_AutoTest && strcmp(env, "balance") == 0;       // 値が balance なら難度の推移を記録
+        m_AutoBoss = m_AutoTest && strcmp(env, "boss") == 0;             // 値が boss なら門 → Boss → クリア
+        m_AutoPickup = m_AutoTest && strcmp(env, "pickup") == 0;         // 値が pickup なら 4 択・空中跳び・磁石
+        m_AutoAssets = m_AutoTest && strcmp(env, "assets") == 0;         // 値が assets なら新しい素材の並べ見
+        m_AutoEdge = m_AutoTest && strcmp(env, "edge") == 0;             // 値が edge なら外周の岩山を撮る
+        m_AutoArrow = m_AutoTest && strcmp(env, "arrow") == 0;           // 値が arrow なら黄金の矢を横から撮る
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");
@@ -161,7 +167,6 @@ void CollisionTestScene::Init()
     // ============================================================
     PlayerFactory::Config pcfg;
     pcfg.color = { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f };
-    pcfg.maxHealth = 1000000.0f;   // TEMP-TEST
 
     m_Player = PlayerFactory::Create(m_Registry, device, pcfg);
 
@@ -172,6 +177,8 @@ void CollisionTestScene::Init()
 
     // ---------- 報酬の箱（玩家の周りに固定数。玩家の位置が要るので最後）----------
     m_Crates.Init();
+    m_Stage.Init();
+    m_Pickups.Init(device);
     RespawnCrates();
 }
 
@@ -275,6 +282,9 @@ void CollisionTestScene::RespawnCrates()
 {
     const Vector3* p = PlayerPos();
     m_Crates.Spawn(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction);
+    // Boss を呼ぶ門・磁石も同じ時に置き直す（地形が変わると前の場所は歩けないかもしれない）
+    m_Stage.SpawnPortal(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction);
+    m_Pickups.Reset(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed);
 }
 
 void CollisionTestScene::RespawnElites()
@@ -320,9 +330,12 @@ void CollisionTestScene::Update(float dt)
     // 一時停止中も積む（その時は SceneBase::Render が上げる）
     m_Lighting.SubmitPointLights();
     m_Interaction.SubmitLights(m_Registry);   // 報酬の箱の目印（止まっている間も消さない）
+    m_Pickups.SubmitLights();                 // 磁石の目印
 
     // TEMP-TEST: UI の自測は背包・一時停止を開くので（gameplay が止まる）、ここで回す
     if (m_AutoUI) UpdateAutoTestUI(dt);
+    if (m_AutoBalance) UpdateAutoTestBalance(dt);   // 三択を自動で選ぶので同じくここ
+    if (m_AutoPickup) UpdateAutoTestPickup(dt);     // 同上（4 択の画面を開いたまま撮る）
 
     if (!m_GameUI.ShouldPauseGame())
     {
@@ -334,12 +347,20 @@ void CollisionTestScene::Update(float dt)
     m_GameUI.SetPrompt(m_Interaction.HasFocus() ? m_Interaction.GetPrompt() : nullptr);
 
     // ---- HUD：経過時間・撃破数と、画面外の目印 ----
-    m_GameUI.SetRunInfo(m_RunTime, m_Swarm.GetCounters().killCount);
+    m_GameUI.SetRunInfo(m_RunTime, m_Swarm.GetCounters().killCount, m_Stage.stageTime);
+    m_GameUI.SetBossBar(m_Stage.IsBossAlive() ? m_Stage.BossHpRatio() : -1.0f);
     UpdateHudMarkers();
 
     // ---- 死亡 → 倒れた姿を少し見せてからリザルトへ ----
     // 一時停止中でも進める（三択を開いたまま死ぬ事は無いが、止まると戻れない）
-    if (IsPlayerDead())
+    // Boss を倒したら同じ流れで「ステージクリア」の幕 → リザルト（倒した後に死んでもクリア扱い）
+    if (m_Stage.IsCleared())
+    {
+        m_DeathTimer += dt;
+        m_GameUI.SetGameOver(m_DeathTimer, true);
+        if (m_DeathTimer >= kDeathToResult) EndRun();
+    }
+    else if (IsPlayerDead())
     {
         m_DeathTimer += dt;
         m_GameUI.SetGameOver(m_DeathTimer);   // 「力尽きた」の幕
@@ -363,8 +384,18 @@ void CollisionTestScene::UpdateHudMarkers()
     m_Registry.CreateView<InteractableComponent>()
         .Each([&](Entity, InteractableComponent& it)
             {
-                markers.push_back({ it.basePos + Vector3(0.0f, 0.6f, 0.0f), { 1.0f, 0.78f, 0.35f, 1.0f } });
+                // 箱は黄、Boss の門は紫
+                if (it.kind == InteractKind::BossPortal)
+                    markers.push_back({ it.basePos + Vector3(0.0f, 2.0f, 0.0f), { 0.75f, 0.35f, 1.0f, 1.0f } });
+                else
+                    markers.push_back({ it.basePos + Vector3(0.0f, 0.6f, 0.0f), { 1.0f, 0.78f, 0.35f, 1.0f } });
             });
+    // 磁石（赤）
+    for (const Vector3& p : m_Pickups.GetPositions())
+        markers.push_back({ p, { 1.0f, 0.25f, 0.20f, 1.0f } });
+    // 面の Boss（GPU の回読の位置）
+    if (m_Stage.IsBossAlive())
+        markers.push_back({ m_Stage.BossPos() + Vector3(0.0f, 2.0f, 0.0f), { 0.85f, 0.25f, 1.0f, 1.0f } });
     // 計測用の的（無敵）も EliteTag を持つので外す
     m_Registry.CreateView<EliteTag, TransformComponent, HealthComponent>()
         .Each([&](Entity, EliteTag&, TransformComponent& tf, HealthComponent& hp)
@@ -411,7 +442,10 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
         // ---- 湧き管理（雑魚は GPU。数えるのは GPU の存活数）----
         if (const Vector3* pp = PlayerPos())
-            m_Mobs.Update(m_Grid, *pp, dt, m_Swarm);
+        {
+            m_Mobs.Update(m_Grid, *pp, dt, m_RunTime, m_Swarm);
+            m_Stage.Update(m_Grid, *pp, m_RunTime, dt, m_Mobs, m_Swarm);   // 時間で起きる出来事（精英・最終波・Boss）
+        }
     }
     {
         PROFILE_SCOPE("Collision (broadphase)");
@@ -469,6 +503,12 @@ void CollisionTestScene::UpdateGameplay(float dt)
         Vector3 openedPos;
         if (m_Crates.TryOpen(m_Registry, used, m_Player, m_LevelUpSystem, m_Interaction, openedPos))
             m_Feedback.OnCrateOpened(openedPos);
+        else if (const Vector3* pp = PlayerPos())
+            m_Stage.TryUsePortal(m_Registry, used, m_Grid, *pp, m_Mobs, m_Swarm, m_Interaction);
+
+        // 磁石（触れたら場の経験値オーブを全部吸い寄せる）
+        if (const Vector3* pp = PlayerPos(); pp && !IsPlayerDead())
+            m_Pickups.Update(m_Registry, m_Grid, *pp, dt, m_RunTime, m_Swarm);
     }
 
     // ---- 被弾と升級の反応（揺れ・斬撃・升級の光）----
@@ -575,6 +615,7 @@ void CollisionTestScene::EndRun()
         ? m_Registry.Get<LevelComponent>(m_Player).level : 1;
     g_LastRun.kills = m_Swarm.GetCounters().killCount;   // 回読なので 1〜2 フレーム古い。許容
     g_LastRun.expGained = m_ExpGained;
+    g_LastRun.cleared = m_Stage.IsCleared();
 
     Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::RESULT);
     std::cout << "[CollisionTestScene] run ended: " << (int)m_RunTime << "s, kills " << g_LastRun.kills << std::endl;

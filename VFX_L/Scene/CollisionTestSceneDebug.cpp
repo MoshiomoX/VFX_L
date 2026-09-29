@@ -16,6 +16,9 @@
 #include "Component/WandComponent.h"
 #include "Component/InteractableComponent.h"
 #include "Component/ModelComponent.h"
+#include "Manager/ResourceManager.h"
+#include "Graphics/Model/Model.h"
+#include <filesystem>
 #include "Component/Projectile/ProjectileComponent.h"
 #include "Graphics/Model/SkinnedModel.h"
 #include "Player/PlayerStatsComponent.h"
@@ -57,6 +60,14 @@ namespace
         default:                 return "-";
         }
     }
+
+    // TEMP-TEST: 自測で背包を組み直す前に、置いてある魔法を全部外す（開局の火球も。手元へ戻るだけ）
+    void ClearBackpackItems(BackpackComponent& bp)
+    {
+        while (!bp.items.empty())
+            BackpackLogic::Remove(bp, (int)bp.items.size() - 1);
+        bp.dirty = true;
+    }
 }
 
 // ============================================================
@@ -95,6 +106,8 @@ void CollisionTestScene::DrawDebugUI()
     m_Grass.DrawImGui();
     DrawEnemiesPanel();
     if (m_Crates.DrawImGui(m_Interaction, m_LevelUpSystem)) RespawnCrates();
+    if (const Vector3* pp = PlayerPos())
+        m_Pickups.DrawImGui(m_Registry, m_Grid, *pp);
     m_Feedback.DrawImGui(m_Registry, m_Player);
     m_Camera.DrawImGui();
     m_Lighting.DrawImGui(PlayerPos());
@@ -146,6 +159,8 @@ void CollisionTestScene::DrawEnemiesPanel()
         return;
 
     m_Mobs.DrawImGui(m_Swarm);
+    ImGui::Separator();
+    m_Stage.DrawImGui(m_Swarm, m_RunTime);
     ImGui::Separator();
 
     if (m_Elites.DrawImGui(m_Registry, m_MeshVFXSystem)) RespawnElites();
@@ -325,8 +340,10 @@ void CollisionTestScene::DrawPlayerPanel()
 
         ImGui::Text("Level ups : %d", m_LevelUpSystem.GetTotalLevelUps());
         ImGui::DragInt("Choice Count", &m_LevelUpSystem.choiceCount, 1, 1, 5);
+        ImGui::DragFloat("Stat Card Weight", &m_LevelUpSystem.statWeight, 0.01f, 0.0f, 2.0f);
         ImGui::DragFloat("Exp Base", &lv.expBase, 5.0f, 10.0f, 1000.0f);
-        ImGui::DragFloat("Exp / Level", &lv.expPerLevel, 5.0f, 0.0f, 500.0f);
+        ImGui::DragFloat("Exp / Level", &lv.expPerLevel, 1.0f, 0.0f, 500.0f);
+        ImGui::DragFloat("Exp / Level^2", &lv.expPerLevelSq, 0.1f, 0.0f, 50.0f);
 
         if (ImGui::Button("+50 Exp")) lv.experience += 50.0f;
         ImGui::SameLine();
@@ -419,8 +436,19 @@ void CollisionTestScene::DrawPlayerPanel()
         dirty |= ImGui::ColorEdit3("Color", m_PlayerColor);
         if (dirty) RebuildPlayerMesh();
 
+        // 無敵（手で遊んで確かめる時用。HP 0 でも死なない）
+        if (m_Registry.Has<HealthComponent>(m_Player))
+        {
+            auto& hp = m_Registry.Get<HealthComponent>(m_Player);
+            ImGui::Checkbox("God mode", &hp.invincible);
+            ImGui::SameLine();
+            ImGui::Text("HP %.0f / %.0f", hp.current, hp.max);
+        }
+        ImGui::DragFloat("HP Regen (/s)", &stats.healthRegen, 0.01f, 0.0f, 50.0f);
         ImGui::DragFloat("Move Speed", &stats.moveSpeed, 0.1f, 0.0f, 30.0f);
         ImGui::DragFloat("Jump Power", &stats.jumpPower, 0.1f, 0.0f, 30.0f);
+        ImGui::DragInt("Extra Jumps", &stats.extraJumps, 0.1f, 0, 10);
+        ImGui::DragFloat("Air Jump Falloff", &stats.airJumpFalloff, 0.01f, 0.0f, 1.0f);
         ImGui::Text("Jump CD : %.2f", stats.jumpCooldown);
 
         // ---- 滑り（左 Ctrl / パッド X）----
@@ -788,6 +816,8 @@ void CollisionTestScene::DrawTerrainPanel()
         // これより小さい木・岩は見た目だけ（格子も衝突も無し）
         ImGui::DragFloat("Tree blocks if height >=", &tc.treeBlockMinHeight, 0.05f, 0.0f, 20.0f, "%.2f m");
         ImGui::DragFloat("Rock blocks if size >=", &tc.rockBlockMinSize, 0.05f, 0.0f, 10.0f, "%.2f m");
+        ImGui::Checkbox("Rock Mountains (outer wall)", &tc.rockMountains);
+        ImGui::DragFloat("Mountain Scale", &tc.mountainScale, 0.02f, 0.2f, 3.0f);
 
         if (ImGui::Button("Regenerate"))
         {
@@ -942,6 +972,11 @@ void CollisionTestScene::UpdateAutoTest(float dt)
     if (m_AutoStress) { UpdateAutoTestStress(); return; }
     if (m_AutoMagnifier) { UpdateAutoTestMagnifier(); return; }
     if (m_AutoLoco) { UpdateAutoTestLoco(dt); return; }
+    if (m_AutoBalance || m_AutoPickup) return;   // Update から回す
+    if (m_AutoBoss) { UpdateAutoTestBoss(); return; }
+    if (m_AutoAssets) { UpdateAutoTestAssets(); return; }
+    if (m_AutoEdge) { UpdateAutoTestEdge(); return; }
+    if (m_AutoArrow) { UpdateAutoTestArrow(); return; }
 
     if (m_AutoStep == 0 && m_AutoTime >= 5.0f && m_Registry.Has<LevelComponent>(m_Player))
     {
@@ -1223,6 +1258,7 @@ void CollisionTestScene::UpdateAutoTestStress()
             auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
             const ItemID spells[] = { ItemID::Fireball, ItemID::ArcBolt, ItemID::HomingBolt, ItemID::Meteor };
             const int lo = BackpackComponent::GRID / 2 - 1;
+            ClearBackpackItems(bp);
             for (ItemID id : spells)
             {
                 bool done = false;
@@ -1242,8 +1278,9 @@ void CollisionTestScene::UpdateAutoTestStress()
         auto& d = m_Mobs.Director();
         d.enabled = true;
         d.spawnCap = 0;
-        d.spawnInterval = 0.05f;
-        d.spawnPerTick = 100;
+        m_Mobs.scaling = false;   // 難度の倍率・湧く速さの曲線は切る（数だけ段毎に変える）
+        d.spawnPerSecond = 2000.0f;
+        d.maxPerFrame = 100;
         d.rMin = 10.0f;
         d.rMax = 30.0f;
         snprintf(line, sizeof(line), "stress start: %d spells placed, vsync %s", placed,
@@ -1356,6 +1393,7 @@ void CollisionTestScene::UpdateAutoTestMagnifier()
         const Vector3 targets[] = { { 0.0f, 0.0f, 8.0f }, { -1.5f, 0.0f, 9.0f }, { 1.5f, 0.0f, 9.0f } };
         for (const Vector3& t : targets)
             m_Swarm.SpawnEnemy(Vector3(pp.x + t.x, gy, pp.z + t.z), 1000.0f, 0.0f);
+        ClearBackpackItems(bp);
         const int a = BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
         const int b = BackpackLogic::Place(bp, ItemID::Meteor, lo + 2, lo + 2, 0);
         bp.dirty = true;
@@ -1489,6 +1527,7 @@ void CollisionTestScene::UpdateAutoTestLoco(float dt)
         {
             auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
             const int lo = BackpackComponent::GRID / 2 - 1;
+            ClearBackpackItems(bp);
             BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
             BackpackLogic::Place(bp, ItemID::Meteor, lo + 2, lo + 2, 0);
             bp.dirty = true;
@@ -1504,6 +1543,561 @@ void CollisionTestScene::UpdateAutoTestLoco(float dt)
         if (s_Phase >= 4.0f && s_Phase - dt < 4.0f) AutoTestLog("loco blast");
         if (s_Phase >= 5.5f && s_Phase - dt < 5.5f) AutoTestLog("loco blast");
         if (s_Phase >= 7.0f) { AutoTestLog("loco done"); m_AutoStep = kSegCount + 3; }
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 難度の推移（VFXL_BATTLE_AUTOTEST=balance）
+// 実時間で数える（三択・背包の間は gameplay が止まるので Update から呼ぶ）。
+// 0 秒: 無敵。5 秒毎に 1 行。10 秒: 経過時間を 170 秒へ（3:00 の精英）、30 秒: 300 秒へ、
+// 45 秒: 600 秒へ（8:00 の精英・時間切れ → 最終波）、55 秒: 660 秒へ（最終波 3 段）。
+// 出来事は "balance event"、その 5 秒後に "balance look"。70 秒で "balance done"
+// ============================================================
+void CollisionTestScene::UpdateAutoTestBalance(float dt)
+{
+    static float s_Real = 0.0f, s_Log = 0.0f;
+    static int s_Jump = 0;
+    s_Real += dt;
+    if (!m_Registry.IsValid(m_Player)) return;
+
+    auto& hp = m_Registry.Get<HealthComponent>(m_Player);
+    hp.invincible = true;
+
+    // 三択が出ていたら先頭を選ぶ
+    if (m_Registry.Has<LevelComponent>(m_Player))
+    {
+        const auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        if (lv.IsChoosing())
+        {
+            const ItemID pick = lv.pendingChoices.front();
+            LevelUpSystem::Choose(m_Registry, m_Player, pick);
+            const ItemCommon* ic = ItemDatabase::GetCommon(pick);
+            char line[128];
+            snprintf(line, sizeof(line), "balance pick %s (level %d)", ic ? ic->name : "?", lv.level);
+            AutoTestLog(line);
+        }
+    }
+
+    if (s_Jump == 0 && s_Real >= 10.0f) { m_RunTime = 170.0f; s_Jump = 1; AutoTestLog("balance jump to 170 s"); }
+    if (s_Jump == 1 && s_Real >= 30.0f) { m_RunTime = 300.0f; s_Jump = 2; AutoTestLog("balance jump to 300 s"); }
+    if (s_Jump == 2 && s_Real >= 45.0f) { m_RunTime = 600.0f; s_Jump = 3; AutoTestLog("balance jump to 600 s"); }
+    if (s_Jump == 3 && s_Real >= 55.0f) { m_RunTime = 660.0f; s_Jump = 4; AutoTestLog("balance jump to 660 s"); }
+
+    // 時間で起きた出来事（精英など）。出てから 5 秒後にも 1 行（歩いて来たところを外から撮る）
+    static float s_EventAt = -1.0f;
+    if (const char* ev = m_Stage.ConsumeEvent())
+    {
+        char line[96];
+        snprintf(line, sizeof(line), "balance event %s at run %.0f", ev, m_RunTime);
+        AutoTestLog(line);
+        s_EventAt = s_Real;
+    }
+    if (s_EventAt >= 0.0f && s_Real >= s_EventAt + 5.0f)
+    {
+        AutoTestLog("balance look");
+        s_EventAt = -1.0f;
+    }
+
+    s_Log += dt;
+    if (s_Log >= 5.0f)
+    {
+        s_Log = 0.0f;
+        const auto& c = m_Swarm.GetCounters();
+        const auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        char line[240];
+        snprintf(line, sizeof(line),
+            "balance real %.0f run %.0f mobs %u kills %u level %d exp %.0f/%.0f hp %.0f/%.0f statMul %.2f spawn/s %.2f contact %.1f orbs %u",
+            s_Real, m_RunTime, c.aliveEnemies, c.killCount, lv.level, lv.experience, lv.ExpToNext(),
+            hp.current, hp.max, m_Mobs.GetStatMul(), m_Mobs.Director().spawnPerSecond,
+            m_Swarm.GetAIParams().contactDamage, c.aliveOrbs);
+        AutoTestLog(line);
+    }
+    if (s_Real >= 70.0f && s_Jump == 4) { AutoTestLog("balance done"); s_Jump = 5; }
+}
+
+// ============================================================
+// TEMP-TEST: 門 → Boss → クリア（VFXL_BATTLE_AUTOTEST=boss）
+// 1 秒: 無敵・湧き停止・全消し、門の手前 2m へ移る。2 秒: F を押した扱い（Boss HP 300）。
+// 毎秒 "boss t ..." 行。出来事は "boss event"。倒した後はシーンが「ステージクリア」→ リザルトへ
+// ============================================================
+void CollisionTestScene::UpdateAutoTestBoss()
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;   // 三択で止めない
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        const Entity portal = m_Stage.GetPortal();
+        if (m_Registry.IsValid(portal) && m_Registry.Has<InteractableComponent>(portal))
+        {
+            auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+            const Vector3 pp = m_Registry.Get<InteractableComponent>(portal).basePos;
+            Vector3 dir = tf.position - pp; dir.y = 0.0f;
+            if (dir.LengthSquared() < 1e-4f) dir = Vector3(1, 0, 0);
+            dir.Normalize();
+            tf.position = Vector3(pp.x + dir.x * 2.0f, pp.y + 1.0f, pp.z + dir.z * 2.0f);
+            if (m_Registry.Has<RigidbodyComponent>(m_Player))
+                m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+            m_Camera.Camera().SnapToTarget();
+            AutoTestLog("boss at portal");
+        }
+        else
+            AutoTestLog("boss: no portal");
+        m_Stage.bossHp = 300.0f;
+        m_AutoStep = 1;
+    }
+    else if (m_AutoStep == 1 && m_AutoTime >= 2.0f)
+    {
+        m_AutoInteract = true;
+        AutoTestLog("boss press F");
+        m_AutoStep = 2;
+    }
+
+    if (const char* ev = m_Stage.ConsumeEvent())
+    {
+        char line[96];
+        snprintf(line, sizeof(line), "boss event %s", ev);
+        AutoTestLog(line);
+    }
+
+    // 倒した 2 秒後（「ステージクリア」の幕が出ている）に 1 行。外から撮る
+    static float s_ClearedAt = -1.0f;
+    if (m_AutoStep == 2 && m_Stage.IsCleared()) { s_ClearedAt = m_AutoTime; m_AutoStep = 3; }
+    if (m_AutoStep == 3 && m_AutoTime >= s_ClearedAt + 2.0f) { AutoTestLog("boss done"); m_AutoStep = 4; }
+
+    static float s_Log = 0.0f;
+    s_Log += ImGui::GetIO().DeltaTime;
+    if (m_AutoStep >= 2 && s_Log >= 1.0f)
+    {
+        s_Log = 0.0f;
+        const auto& info = m_Swarm.GetBossInfo();
+        char line[160];
+        snprintf(line, sizeof(line), "boss t %.0f alive %u hp %.0f / %.0f ratio %.2f cleared %d",
+            m_AutoTime, info.alive, Swarm::HpFromFixed(info.hp > info.maxHp ? 0u : info.hp),
+            Swarm::HpFromFixed(info.maxHp), m_Stage.BossHpRatio(), m_Stage.IsCleared() ? 1 : 0);
+        AutoTestLog(line);
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 4 択・空中跳び・磁石（VFXL_BATTLE_AUTOTEST=pickup）
+// 実時間。Update から呼ぶ（4 択の間は gameplay が止まる）。
+// 1 秒: 升級の経験値 → 2 秒 "pickup cards N"（4 択の画面を撮る）→ 3 秒 選ぶ・空中 2 回にする
+// 4.0 / 4.35 / 4.7 秒: 跳ぶ（地上 → 空中 → 空中）。押した次のフレームの vy を記録（12 → 9 → 6.75 のはず）
+// 6〜16 秒: その場で撃たせて球を溜める。16 秒: 足元へ磁石を置いて乗る → 17 / 19 / 21 秒 球の数と経験値。22 秒 done
+// ============================================================
+void CollisionTestScene::UpdateAutoTestPickup(float dt)
+{
+    static float s_Real = 0.0f;
+    static int s_Step = 0;
+    static int s_PendingJumpLog = 0;
+    s_Real += dt;
+    if (!m_Registry.IsValid(m_Player)) return;
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+    auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+    auto& pcs = m_PlayerControlSystem;
+    auto& rb = m_Registry.Get<RigidbodyComponent>(m_Player);
+    char line[200];
+
+    // 跳んだ次のフレーム: 上向きの速さを記録
+    if (s_PendingJumpLog > 0)
+    {
+        snprintf(line, sizeof(line), "pickup jump #%d vy %.2f grounded %d airJumpsUsed %d",
+            s_PendingJumpLog, rb.velocity.y, rb.isGrounded ? 1 : 0,
+            m_Registry.Get<PlayerStateComponent>(m_Player).airJumpsUsed);
+        AutoTestLog(line);
+        s_PendingJumpLog = 0;
+        pcs.testJump = false;
+    }
+
+    auto at = [&](float t) { return s_Real >= t && s_Real - dt < t; };
+
+    if (s_Step == 0 && s_Real >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        lv.experience += lv.ExpToNext() + 1.0f;
+        s_Step = 1;
+    }
+    else if (s_Step == 1 && s_Real >= 2.0f)
+    {
+        std::string names;
+        for (ItemID id : lv.pendingChoices)
+        {
+            const ItemCommon* ic = ItemDatabase::GetCommon(id);
+            names += std::string(" ") + (ic ? ic->name : "?");
+        }
+        snprintf(line, sizeof(line), "pickup cards %zu:%s", lv.pendingChoices.size(), names.c_str());
+        AutoTestLog(line);
+        s_Step = 2;
+    }
+    else if (s_Step == 2 && s_Real >= 3.0f)
+    {
+        if (lv.IsChoosing()) LevelUpSystem::Choose(m_Registry, m_Player, lv.pendingChoices.front());
+        m_Registry.Get<PlayerStatsComponent>(m_Player).extraJumps = 2;
+        pcs.testInput = true;
+        pcs.testMove = Vector2::Zero;
+        s_Step = 3;
+    }
+    else if (s_Step == 3)
+    {
+        lv.experience = 0.0f;   // 以降は三択で止めない
+        int n = 0;
+        if (at(4.0f)) n = 1;
+        else if (at(4.35f)) n = 2;
+        else if (at(4.7f)) n = 3;
+        if (n > 0) { pcs.testJump = true; s_PendingJumpLog = n; }
+
+        if (at(16.0f))
+        {
+            const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+            snprintf(line, sizeof(line), "pickup before magnet: orbs %u level %d exp %.0f",
+                m_Swarm.GetCounters().aliveOrbs, lv.level, m_ExpGained);
+            AutoTestLog(line);
+            m_Pickups.Place(m_Registry, m_Grid, pp, 1.5f, 2.5f);
+            const auto ps = m_Pickups.GetPositions();
+            if (!ps.empty())
+            {
+                // 置いた磁石（一番近い物）の上へ
+                Vector3 best = ps.front();
+                for (const Vector3& p : ps)
+                    if (Vector3::DistanceSquared(p, pp) < Vector3::DistanceSquared(best, pp)) best = p;
+                auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+                tf.position = Vector3(best.x, tf.position.y, best.z);
+            }
+        }
+        if (at(17.0f) || at(19.0f) || at(21.0f))
+        {
+            snprintf(line, sizeof(line), "pickup after magnet: orbs %u level %d exp %.0f",
+                m_Swarm.GetCounters().aliveOrbs, lv.level, m_ExpGained);
+            AutoTestLog(line);
+        }
+        if (at(22.0f)) { AutoTestLog("pickup done"); s_Step = 4; }
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 黄金の矢（VFXL_BATTLE_AUTOTEST=arrow）
+// 1 秒: 湧き停止・全消し・無敵・MP 無限、正面 14m に動かない的 3 体、背包を黄金の矢だけにする。
+//       鏡頭は 14m・見下ろし 15 度で、玩家の右 90 度から見る（矢が画面を横切る。VFXL_ARROW_FAR で 30m・40 度）
+// 3 秒から 0.06 秒毎に "arrow look" を 16 回（外から連写）→ "arrow done"
+// ============================================================
+void CollisionTestScene::UpdateAutoTestArrow()
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mp = m_Registry.Get<ManaComponent>(m_Player);
+        mp.max = mp.current = 1.0e6f;
+    }
+    auto& cam = m_Camera.Camera();
+    static int s_Shots = 0;
+    static float s_Next = 3.0f;
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        // 的は玩家の +Z 側 14m（鏡頭の yaw 0 = +Z）
+        const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+        const float gy = m_Swarm.GetAIParams().groundY;
+        for (float x : { -1.5f, 0.0f, 1.5f })
+            m_Swarm.SpawnEnemy(Vector3(pp.x + x, gy, pp.z + 14.0f), 100000.0f, 0.0f);
+        if (m_Registry.Has<BackpackComponent>(m_Player) && m_Registry.Has<WandComponent>(m_Player))
+        {
+            auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+            const int lo = BackpackComponent::GRID / 2 - 1;
+            ClearBackpackItems(bp);
+            BackpackLogic::Place(bp, ItemID::GoldenArrow, lo + 1, lo + 1, 0);
+            bp.dirty = true;
+            m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
+        }
+        cam.SetYaw(-90.0f);   // 右から（矢は画面を左 → 右へ横切る向き）
+        // 弾道全体（玩家 → 14m 先の的）が画面に入る距離。近すぎると弾と一緒に飛ぶ矢が一瞬しか映らない
+        cam.distance = 14.0f;
+        cam.SetPitch(15.0f);
+        if (GetEnvironmentVariableA("VFXL_ARROW_FAR", nullptr, 0) > 0) { cam.distance = 30.0f; cam.SetPitch(40.0f); }
+        cam.avoidOcclusion = false;
+        cam.SnapToTarget();
+        AutoTestLog("arrow start");
+        m_AutoStep = 1;
+    }
+    else if (m_AutoStep == 1 && m_AutoTime >= s_Next)
+    {
+        const auto& c = m_Swarm.GetCounters();
+        char line[96];
+        snprintf(line, sizeof(line), "arrow look %d shots %u areas %u", s_Shots, c.aliveProjectiles, c.aliveAreas);
+        AutoTestLog(line);
+        s_Next += 0.06f;
+        if (++s_Shots >= 16) { AutoTestLog("arrow done"); m_AutoStep = 2; }
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 外周の岩山（VFXL_BATTLE_AUTOTEST=edge）
+// 1 秒: 湧き停止・全消し・無敵、北の縁から 15m の所へ移り縁を向く（鏡頭 10m・見下ろし 8 度）→ 3 秒 "edge look near"
+// → 鏡頭 60m・見下ろし 45 度 → 5.5 秒 "edge look high" → 場地の中央・既定の鏡頭 → 8 秒 "edge look center"（fps も）→ 9 秒 done
+// ============================================================
+void CollisionTestScene::UpdateAutoTestEdge()
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+    auto& cam = m_Camera.Camera();
+    auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+
+    auto place = [&](float x, float z)
+        {
+            tf.position = Vector3(x, m_Grid.SampleHeight(x, z) + 1.0f, z);
+            if (m_Registry.Has<RigidbodyComponent>(m_Player))
+                m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+        };
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        place(0.0f, m_Grid.WorldDepth() * 0.5f - 15.0f);
+        cam.SetYaw(0.0f);   // yaw 0 = +Z（北の縁）を向く（FollowCamera: forward = (-sin, ., cos)）
+        cam.distance = 10.0f;
+        cam.SetPitch(8.0f);
+        cam.avoidOcclusion = false;   // 後ろの台地で寄らないように
+        cam.SnapToTarget();
+        m_AutoStep = 1;
+    }
+    // 撮影は記録の後に外から非同期で行うので、記録してから 0.6 秒は鏡頭を動かさない
+    else if (m_AutoStep == 1 && m_AutoTime >= 3.0f) { AutoTestLog("edge look near"); m_AutoStep = 11; }
+    else if (m_AutoStep == 11 && m_AutoTime >= 3.6f)
+    {
+        cam.distance = 60.0f;
+        cam.SetPitch(45.0f);
+        m_AutoStep = 2;
+    }
+    else if (m_AutoStep == 2 && m_AutoTime >= 5.5f) { AutoTestLog("edge look high"); m_AutoStep = 12; }
+    else if (m_AutoStep == 12 && m_AutoTime >= 6.1f)
+    {
+        cam.avoidOcclusion = true;
+        const FollowCamera def;
+        cam.distance = def.distance;
+        cam.ResetView();
+        cam.SetYaw(0.0f);
+        place(0.0f, 0.0f);
+        cam.SnapToTarget();
+        m_AutoStep = 3;
+    }
+    else if (m_AutoStep == 3 && m_AutoTime >= 8.0f)
+    {
+        char line[96];
+        snprintf(line, sizeof(line), "edge look center fps %.0f", ImGui::GetIO().Framerate);
+        AutoTestLog(line);
+        m_AutoStep = 4;
+    }
+    else if (m_AutoStep == 4 && m_AutoTime >= 9.0f)
+    {
+        AutoTestLog("edge done");
+        m_AutoStep = 5;
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 新しい素材の並べ見（VFXL_BATTLE_AUTOTEST=assets）
+// 1 秒: 湧き停止・全消し・無敵。2 / 7 / 12 秒: 1 包ずつ（前の包は消す）玩家の前へ格子に並べ、
+// 模型毎の大きさ（ファイルの単位を掛けた m）を記録。各 3 秒後に "assets look <包>"（外から撮る）。
+// VFXL_ASSET_SET=rocks なら岩の 3 組（Rock-Set / KayKit Forest の Rock_ / dglopez の *rock*）を並べた後、
+// 各組の岩を 8〜20m に拡大して 2 列に積んだ「山の壁」を 3 本並べて撮る（"assets look wall" / "wall top"）
+// ============================================================
+void CollisionTestScene::UpdateAutoTestAssets()
+{
+    struct Pack { const char* dir; const char* contains; };   // contains: 名前にこれを含む物だけ（小文字比較、空 = 全部）
+    static const Pack kDefault[] = {
+        { "Assets/Model/dglopez_WesternDesert/FBX", "" },
+        { "Assets/Model/Quaternius_UltimateNature/FBX", "" },
+        { "Assets/Model/Quaternius_ModularRuins/FBX", "" },
+    };
+    static const Pack kRocks[] = {
+        { "Assets/Model/Rock-Set", "" },
+        { "Assets/Model/KayKit_Forest/fbx", "rock_" },
+        { "Assets/Model/dglopez_WesternDesert/FBX", "rock" },
+    };
+    static const Pack kArrows[] = {
+        { "Assets/VFX/Mesh", "gongjian" },
+        { "Assets/VFX/Mesh", "gonjian" },
+        { "Assets/VFX/Mesh", "jian0" },
+    };
+    static const std::string s_Set = [] {
+        char v[16] = {};
+        return GetEnvironmentVariableA("VFXL_ASSET_SET", v, sizeof(v)) > 0 ? std::string(v) : std::string();
+    }();
+    static const bool s_Rocks = (s_Set == "rocks");
+    const Pack* kPacks = s_Rocks ? kRocks : (s_Set == "arrows" ? kArrows : kDefault);
+    const int kPackCount = 3;
+    static std::vector<std::shared_ptr<Model>> s_PackModels[3];   // 山の壁に使う（組毎）
+
+    auto listFiles = [](const Pack& p)
+        {
+            std::vector<std::string> files;
+            for (const auto& de : std::filesystem::recursive_directory_iterator(p.dir))
+            {
+                std::string ext = de.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+                if (ext != ".fbx") continue;
+                std::string name = de.path().filename().string();
+                std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+                if (*p.contains && name.find(p.contains) == std::string::npos) continue;
+                files.push_back(de.path().generic_string());
+            }
+            std::sort(files.begin(), files.end());
+            return files;
+        };
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
+        auto& cam = m_Camera.Camera();
+        cam.distance = 14.0f;
+        cam.SetPitch(25.0f);
+        m_AutoStep = 1;
+        return;
+    }
+    const int pack = m_AutoStep - 1;   // 0.. 並べる包
+    if (m_AutoStep >= 1 && m_AutoStep <= kPackCount && m_AutoTime >= 2.0f + 5.0f * pack)
+    {
+        for (Entity e : m_AutoAssetEntities) if (m_Registry.IsValid(e)) m_Registry.Destroy(e);
+        m_AutoAssetEntities.clear();
+
+        const std::vector<std::string> files = listFiles(kPacks[pack]);
+        s_PackModels[pack].clear();
+
+        // 玩家の前（鏡頭の奥）に 列 cols で並べる。間隔は大きい物に合わせて広め
+        const auto& cam = m_Camera.Camera();
+        Vector3 f = cam.GetForward(); f.y = 0.0f; f.Normalize();
+        const Vector3 r(f.z, 0.0f, -f.x);
+        const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+        const int cols = (int)std::ceil(std::sqrt((float)files.size() * 1.6f));
+        const float gap = (pack == 2) ? 5.0f : 3.0f;
+        char line[256];
+        for (int i = 0; i < (int)files.size(); ++i)
+        {
+            auto m = ResourceManager::Get().LoadModel(files[i]);
+            if (!m) { snprintf(line, sizeof(line), "assets FAIL %s", files[i].c_str()); AutoTestLog(line); continue; }
+            const float u = m->GetFileUnitScale();
+            const Vector3 size = (m->GetBoundsMax() - m->GetBoundsMin()) * u;
+            if (size.y > 0.4f) s_PackModels[pack].push_back(m);   // 小石は山に使わない
+            snprintf(line, sizeof(line), "assets size %s unit %.3f  %.2f x %.2f x %.2f m",
+                std::filesystem::path(files[i]).filename().string().c_str(), u, size.x, size.z, size.y);
+            AutoTestLog(line);
+
+            const int cx = i % cols, cz = i / cols;
+            Vector3 pos = pp + f * (6.0f + cz * gap) + r * ((cx - (cols - 1) * 0.5f) * gap);
+            pos.y = m_Grid.SampleHeight(pos.x, pos.z) - m->GetBoundsMin().y * u;
+            Entity e = m_Registry.Create();
+            TransformComponent tf;
+            tf.position = pos;
+            tf.scale = { u, u, u };
+            m_Registry.Add<TransformComponent>(e, tf);
+            ModelComponent mc;
+            mc.model = m;
+            m_Registry.Add<ModelComponent>(e, mc);
+            m_AutoAssetEntities.push_back(e);
+        }
+        snprintf(line, sizeof(line), "assets pack %s: %d models", kPacks[pack].dir, (int)files.size());
+        AutoTestLog(line);
+        m_AutoStep += 100;   // 撮るのを待つ（下で戻す）
+    }
+    else if (m_AutoStep > 100 && m_AutoStep < 200)
+    {
+        const int p = m_AutoStep - 101;
+        if (m_AutoTime >= 5.0f + 5.0f * p)
+        {
+            char line[128];
+            snprintf(line, sizeof(line), "assets look %d", p);
+            AutoTestLog(line);
+            m_AutoStep = p + 2;
+            if (m_AutoStep > kPackCount)
+            {
+                if (s_Rocks) m_AutoStep = 500;   // 山の壁へ
+                else { AutoTestLog("assets done"); m_AutoStep = 999; }
+            }
+        }
+    }
+    else if (m_AutoStep == 500)
+    {
+        // ---- 山の壁: 組毎に 36m、手前の列 8〜12m・奥の列 14〜20m に拡大して隙間なく積む ----
+        for (Entity e : m_AutoAssetEntities) if (m_Registry.IsValid(e)) m_Registry.Destroy(e);
+        m_AutoAssetEntities.clear();
+        auto& cam = m_Camera.Camera();
+        Vector3 f = cam.GetForward(); f.y = 0.0f; f.Normalize();
+        const Vector3 r(f.z, 0.0f, -f.x);
+        const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+        std::mt19937 rng(1234u);
+        std::uniform_real_distribution<float> u01(0.0f, 1.0f);
+        char line[160];
+        for (int pk = 0; pk < kPackCount; ++pk)
+        {
+            const auto& models = s_PackModels[pk];
+            if (models.empty()) continue;
+            const float segCenter = (pk - 1) * 42.0f;
+            for (int row = 0; row < 2; ++row)
+            {
+                const float step = row == 0 ? 5.0f : 7.0f;
+                const float hMin = row == 0 ? 8.0f : 14.0f, hMax = row == 0 ? 12.0f : 20.0f;
+                for (float x = -18.0f; x <= 18.0f; x += step)
+                {
+                    const auto& m = models[(size_t)(u01(rng) * models.size()) % models.size()];
+                    const float unit = m->GetFileUnitScale();
+                    const Vector3 lo = m->GetBoundsMin() * unit, hi = m->GetBoundsMax() * unit;
+                    const float targetH = hMin + (hMax - hMin) * u01(rng);
+                    const float s = targetH / (std::max)(hi.y - lo.y, 0.1f);
+                    Vector3 pos = pp + f * (16.0f + row * 7.0f + u01(rng) * 2.0f) + r * (segCenter + x + u01(rng) * 2.0f);
+                    pos.y = m_Grid.SampleHeight(pos.x, pos.z) - lo.y * s - targetH * 0.08f;   // 少し埋める（浮いて見えない）
+                    Entity e = m_Registry.Create();
+                    TransformComponent tf;
+                    tf.position = pos;
+                    tf.rotation = { 0.0f, u01(rng) * 360.0f, 0.0f };
+                    tf.scale = { unit * s, unit * s, unit * s };
+                    m_Registry.Add<TransformComponent>(e, tf);
+                    ModelComponent mc;
+                    mc.model = m;
+                    m_Registry.Add<ModelComponent>(e, mc);
+                    m_AutoAssetEntities.push_back(e);
+                }
+            }
+            snprintf(line, sizeof(line), "assets wall %d (%s): %d rock models, left -> right", pk, kPacks[pk].dir, (int)models.size());
+            AutoTestLog(line);
+        }
+        cam.distance = 12.0f;
+        cam.SetPitch(4.0f);
+        m_AutoStep = 501;
+    }
+    else if (m_AutoStep == 501 && m_AutoTime >= 20.0f)
+    {
+        AutoTestLog("assets look wall");
+        m_Camera.Camera().distance = 45.0f;
+        m_Camera.Camera().SetPitch(35.0f);
+        m_AutoStep = 502;
+    }
+    else if (m_AutoStep == 502 && m_AutoTime >= 22.5f)
+    {
+        AutoTestLog("assets look walltop");
+        m_AutoStep = 503;
+    }
+    else if (m_AutoStep == 503 && m_AutoTime >= 23.0f)
+    {
+        AutoTestLog("assets done");
+        m_AutoStep = 999;
     }
 }
 
@@ -1535,6 +2129,7 @@ void CollisionTestScene::UpdateAutoTestUI(float dt)
         {
             auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
             const int lo = BackpackComponent::GRID / 2 - 1;
+            ClearBackpackItems(bp);
             BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
             BackpackLogic::Place(bp, ItemID::Meteor, lo + 2, lo + 2, 0);
             s_MagnifierIndex = BackpackLogic::Place(bp, ItemID::Magnifier, lo + 1, lo + 1, 0);

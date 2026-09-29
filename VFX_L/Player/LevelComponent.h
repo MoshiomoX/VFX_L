@@ -23,15 +23,18 @@ struct LevelComponent
     float experience = 0.0f;      // 現在のレベル内で溜まった量
 
     // ---- 曲線 ----
-    // 線形。level 1 → 100、level 2 → 150、level 3 → 200 …
-    // 指数だと後半が急に伸びて、1周 5〜10分の想定と噛み合わない。
-    // 形は実際に遊んでから調整する。
-    float expBase = 100.0f;
-    float expPerLevel = 50.0f;
+    // 必要量 = expBase + expPerLevel × n + expPerLevelSq × n²（n = level - 1）。
+    // Megabonk 風に序盤は速く（1 → 2 は雑魚 3 体）、後半ほどゆっくり。
+    // level 1 → 30、5 → 114、10 → 287、20 → 856。10 分で 30 前後の想定。
+    // 指数だと後半が急に伸びて、1 周 10 分の想定と噛み合わない。
+    float expBase = 30.0f;
+    float expPerLevel = 15.0f;
+    float expPerLevelSq = 1.5f;
 
     float ExpToNext() const
     {
-        return expBase + expPerLevel * (float)(level - 1);
+        const float n = (float)(level - 1);
+        return expBase + expPerLevel * n + expPerLevelSq * n * n;
     }
 
     float Progress() const

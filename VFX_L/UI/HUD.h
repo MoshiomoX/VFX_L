@@ -50,6 +50,8 @@ struct HUDMarker
 struct HUDFrameInfo
 {
     float    runTime = 0.0f;       // 経過時間（止まっている間は進まない物）
+    float    stageTime = 0.0f;     // 面の制限時間。> 0 なら残りを数え下ろし、過ぎたら超過分を赤く「+」で出す
+    float    bossHp = -1.0f;       // Boss の HP 条（0..1）。負なら出さない
     uint32_t kills = 0;            // 撃破数（GPU counter の累計）
     const WandComponent* wand = nullptr;   // 魔法の欄。null なら出さない
 

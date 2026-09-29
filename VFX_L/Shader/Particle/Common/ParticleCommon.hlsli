@@ -24,6 +24,11 @@
 // Must match ParticleRenderMode::kBillboardAlpha
 #define PARTICLE_BILLBOARD_ALPHA (1u << 12)
 
+// any render mode: add the source's velocity (GPU projectile / area / orb)
+// to the initial velocity. Only SwarmEmitCS reads it.
+// Must match ParticleRenderMode::kInheritSourceVelocity
+#define PARTICLE_INHERIT_SOURCE_VELOCITY (1u << 13)
+
 // ============================================
 // Which atlas cell a particle shows (GPUEmitter.frameMode).
 // Must match ParticleFrameMode in GPUParticle.h.

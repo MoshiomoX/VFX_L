@@ -176,11 +176,21 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
                 else
                     st.moveDir = MoveDirID::None;
 
+                if (grounded) st.airJumpsUsed = 0;
+
                 if (grounded && jumpPressed)
                 {
                     rb.velocity.y = stats.jumpPower;
                     rb.isGrounded = false;
                     if (st.slideActive) st.carryMomentum = true;   // 水平の勢いは持ったまま空中へ
+                    st.slideActive = false;
+                }
+                else if (!grounded && jumpPressed && st.airJumpsUsed < stats.extraJumps)
+                {
+                    // 空中の追加ジャンプ: 回を重ねるごとに弱くなる（airJumpFalloff 0.75 なら 12 → 9 → 6.75 …）。
+                    // 落ちている最中でも上向きの速さを置き換える（足すと落下の勢いに負ける）
+                    ++st.airJumpsUsed;
+                    rb.velocity.y = stats.jumpPower * std::pow(stats.airJumpFalloff, (float)st.airJumpsUsed);
                     st.slideActive = false;
                 }
             });

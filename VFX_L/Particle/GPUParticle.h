@@ -298,6 +298,10 @@ namespace ParticleRenderMode
     // 粒子の描画は乗算済み alpha の混合 1 回で、加算の粒子は alpha 0 を書くことで両立させる
     // （GPUParticlePS / PARTICLE_BILLBOARD_ALPHA）
     constexpr int kBillboardAlpha = 1 << 12;
+
+    // 発射元（GPU の弾・範囲・オーブ）の速度を粒子の初速に足す（ビルボード・メッシュ共通）。
+    // 弾と一緒に飛ぶ見た目（矢の本体など）に使う。SwarmEmitCS だけが読む（CPU の発射器には発射元の速度が無い）
+    constexpr int kInheritSourceVelocity = 1 << 13;
 }
 
 // ============================================

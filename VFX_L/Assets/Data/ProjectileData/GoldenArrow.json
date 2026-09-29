@@ -1,0 +1,25 @@
+{
+    "name":  "GoldenArrow",
+    "mode":  0,
+    "c1":  [
+               0.3,
+               0.0,
+               0.0
+           ],
+    "c2":  [
+               0.7,
+               0.0,
+               0.0
+           ],
+    "mirror":  0,
+    "retargetRadius":  0.0,
+    "hitArea":  "GoldenArrowHit",
+    "hitAreaOnExpire":  false,
+    "damage":  12,
+    "speed":  32.0,
+    "radius":  0.25,
+    "lifetime":  1.2,
+    "vfx":  "GoldenArrow.json",
+    "visualSize":  0.9,
+    "visualStretch":  0
+}

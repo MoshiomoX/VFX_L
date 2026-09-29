@@ -12,12 +12,14 @@
 // returns after a single counter load.
 //
 // Kill handling mirrors SwarmHitCS: state -> DEAD, kill counter,
-// exp orb. Keep the two in sync.
+// exp orb. Keep the two in sync (elite body size and orb value too).
 // ============================================================
+#define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2);
 
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWBuffer<uint> enemyStates : register(u1);
@@ -39,6 +41,10 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     float3 epos = enemies[j].position;
+    uint kind = enemyExtra[j].kind;
+    float3 ecenter;
+    float er, eh;
+    SwarmKindCapsule(kind, epos, ecenter, er, eh);
 
     float total = 0.0;
     bool stun = false;
@@ -52,13 +58,13 @@ void main(uint3 id : SV_DispatchThreadID)
         if (a.tickNow == 0u)
             continue;
 
-        float3 d = epos - a.center;
+        float3 d = ecenter - a.center;
 
         // vertical: outside the slab + the capsule's straight part -> miss
-        if (abs(d.y) > a.halfHeight + g_EnemyCapsuleHalf + g_EnemyRadius)
+        if (abs(d.y) > a.halfHeight + eh + er)
             continue;
 
-        float reach = a.radius + g_EnemyRadius;
+        float reach = a.radius + er;
         if (d.x * d.x + d.z * d.z > reach * reach)
             continue;
 
@@ -77,7 +83,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (prev == 0u || prev >= HP_CORPSE_BIT)
         return; // already a corpse
 
-    if (stun)
+    if (stun && kind != SWARM_KIND_BOSS)   // the boss never flinches
     {
         enemies[j].animIndex = 2u;
         enemies[j].animTime = 0.0;
@@ -92,7 +98,7 @@ void main(uint3 id : SV_DispatchThreadID)
         SwarmOrb orb;
         orb.position = epos;
         orb.position.y = epos.y - g_GroundY + g_OrbY; // at the corpse's feet (see SwarmHitCS)
-        orb.amount = g_OrbAmount;
+        orb.amount = g_OrbAmount * SwarmKindExpMul(kind);
         orb.velocity = float3(0, 0, 0);
         orb._pad = 0.0;
 

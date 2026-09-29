@@ -24,6 +24,8 @@ enum class VFXId : uint32_t
     ArcBoltHit,     // アークボルトの命中（範囲 ArcSpark：威力 0 の見た目だけ。Sprite = electric-impact）
     HomingBoltHit,  // ホーミングボルトの命中（範囲 VoidPop：同上。Sprite = void-implosion）
     ExpOrbTrail,    // 吸い寄せられている経験値オーブの尾（SwarmOrbEmitCS。道具は使わない）
+    GoldenArrow,    // 黄金の矢の弾（gonjian.FBX の矢が弾と一緒に飛ぶ + 金の軌跡）
+    GoldenArrowHit, // 黄金の矢の命中（範囲 GoldenArrowHit：威力 0 の見た目だけ。金の火花）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };

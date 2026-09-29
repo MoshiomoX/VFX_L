@@ -37,6 +37,7 @@ public:
     float cardWidthRatio = 0.30f;   // カード幅（画面短辺基準）。名前・説明・能力値が入る幅
     float cardAspect = 1.50f;   // 高さ / 幅
     float cardGapRatio = 0.035f;  // カード間の隙間
+    int   fitCards = 4;           // この枚数が横に収まるようにカード幅を抑える（LevelUpSystem::choiceCount と合わせる）
 
     // カードの文字（幅 270px の時の大きさ。実際はカード幅に比例させる）
     ItemSheetView::Style textStyle;

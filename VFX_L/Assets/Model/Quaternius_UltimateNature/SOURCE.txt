@@ -1,0 +1,6 @@
+Ultimate Nature Pack (150 models) by Quaternius -- desert subset only
+Source: https://quaternius.com/packs/ultimatenature.html
+Downloaded: 2026-09-29 from the author's Google Drive folder. Only the FBX files useful for the
+desert stage were taken: Cactus_1-5, CactusFlower_1, CactusFlowers_2-5, PalmTree_1-4, Rock_1-7,
+CommonTree_Dead_1-5, Willow_Dead_1-5.
+License: CC0 1.0 (see License.txt)

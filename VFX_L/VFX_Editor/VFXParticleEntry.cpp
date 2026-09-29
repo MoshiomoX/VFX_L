@@ -483,6 +483,9 @@ void VFXParticleEntry::OnImGui()
     {
         DrawSheetUI(e);
     }
+    ImGui::Checkbox("Inherit Source Velocity", &e.inheritVelocity);
+    if (e.inheritVelocity)
+        ImGui::TextDisabled("adds the GPU projectile's velocity (battle only, not in this preview)");
     ImGui::Separator();
 
     ImGui::SliderFloat("Rate", &e.emitRate, 0.0f, 1000.0f);
@@ -655,6 +658,7 @@ json VFXParticleEntry::ToJson() const
     j["source"] = sourceModelPath;
     j["edgeMode"] = e.shape.edgeMode;
     j["renderMode"] = e.renderMode;
+    if (e.inheritVelocity) j["inheritVelocity"] = true;
     if (e.renderMode == 1)
     {
         j["mesh"] = e.meshPath;             // "" = 組み込みの立方体
@@ -771,6 +775,7 @@ void VFXParticleEntry::FromJson(const json& j)
     e.meshGlow = j.value("meshGlow", false);
     e.meshFaceVelocity = j.value("meshFaceVelocity", false);
     e.meshForwardAxis = j.value("meshForwardAxis", 2);
+    e.inheritVelocity = j.value("inheritVelocity", false);
     e.meshSlot = 0;   // 登録は OnPlay で
     e.shape.sourceId = -1;      // 登録は OnPlay で
     e.shape.sourceCount = 0;

@@ -73,6 +73,10 @@ namespace Swarm
     // ============================================================
     constexpr uint32_t kEnemyKindMob = 0;      // 普通の雑魚（接触で殴る）
     constexpr uint32_t kEnemyKindBomber = 1;   // 自爆兵（接触で点火 → fuseTime 秒後に爆発）
+    constexpr uint32_t kEnemyKindElite = 2;    // 精英（大きい雑魚。BomberCB の elite* で体格・接触ダメージ・経験値を倍にする）
+    constexpr uint32_t kEnemyKindBoss = 3;     // 面の Boss（BomberCB の boss*。怯まない。HP と位置は BossInfo で CPU へ）
+    // 描画リストの数（種類毎に貼図を替えて描く）。精英は雑魚と同じ網格・貼図なので雑魚のリストで描き、
+    // 大きさと色は VS が種類を見て変える
     constexpr uint32_t kEnemyKinds = 2;
 
     struct EnemyExtra
@@ -252,7 +256,7 @@ namespace Swarm
         float maxSpeedMul = 1.5f;       // 合成速度の上限 = moveSpeed × これ
         float turnSpeed = 12.0f;        // 旋回の上限（rad/s）
         float playerPushOut = 10.0f;    // 玩家に食い込んだ時に押し戻す強さ（1/s）
-        float contactDamage = 10.0f;    // 接触1回のダメージ
+        float contactDamage = 15.0f;    // 接触1回のダメージ（Megabonk 1 面の雑魚 8〜25）
 
         float attackInterval = 1.0f;    // 同じ雑魚が次に殴れるまでの秒数
         float playerCapsuleHalf = 0.5f; // 玩家カプセルの直線部の半分。シーンが毎フレーム入れる
@@ -270,14 +274,41 @@ namespace Swarm
         float    fuseTime = 1.0f;       // 点火から爆発までの秒数
         float    triggerMargin = 0.15f; // 接触（半径の和）+ これ以内で点火
         float    blastRadius = 2.5f;    // 爆発の瞬間に玩家（カプセル）がこの中なら被弾
-        float    blastDamage = 25.0f;
+        float    blastDamage = 30.0f;     // Megabonk の Boomer と同じ
 
         uint32_t blastArea = 0;         // 爆発の見た目に出す範囲（AreaDef の番号）。0 = 出さない
         float    swell = 0.35f;         // VS: 爆発直前の膨らみ（1 + これ 倍まで）
         float    flashGain = 4.0f;      // VS: 点滅の明るさ（Bloom で光る）
         float    _pad = 0.0f;
+
+        // ---- 精英（kEnemyKindElite）。種類の規則を読む pass はこの CB を持っているので相乗りする ----
+        float    eliteScale = 2.2f;       // 体格（模型・当たり / 接触の半径・HP 条の高さ）
+        float    eliteDamageMul = 40.0f / 15.0f;   // 接触ダメージの倍率（Megabonk の小ボス 40 / 雑魚 15）
+        float    eliteExpMul = 20.0f;     // 落とす経験値オーブの倍率（1 個で雑魚 20 体分）
+        float    _elitePad = 0.0f;
+
+        // ---- 面の Boss（kEnemyKindBoss）----
+        float    bossScale = 3.0f;           // 4 だと目の前に来た時に画面の大半を塞ぐ
+        float    bossDamageMul = 40.0f / 15.0f;   // Megabonk の面 Boss 22〜40 / 雑魚 15
+        float    bossExpMul = 100.0f;
+        float    _bossPad = 0.0f;
     };
-    static_assert(sizeof(BomberCB) == 32, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 64, "SwarmBomberCB layout mismatch");
+
+    // ============================================================
+    // Boss の様子（GPU → CPU。SwarmEnemyCompactCS が毎フレーム書き、staging で回読）。
+    // Boss HP 条・画面外の目印・倒したかの判定に使う（回読なので 2〜3 フレーム古い）
+    // ============================================================
+    struct BossInfo
+    {
+        uint32_t alive = 0;    // 生きている Boss の数
+        uint32_t hp = 0;       // 固定小数（HpFromFixed で戻す）。複数居たら最後に書いた 1 体
+        uint32_t maxHp = 0;
+        uint32_t _pad = 0;
+        float    pos[3] = {};
+        float    _pad2 = 0.0f;
+    };
+    static_assert(sizeof(BossInfo) == 32, "SwarmBossInfo layout mismatch");
 
     // ============================================================
    // 経験値オーブの調整値（b2）
@@ -285,7 +316,7 @@ namespace Swarm
    // ============================================================
     struct OrbCB
     {
-        float attractRadius = 4.0f;   // ここに入ると吸い寄せ開始
+        float attractRadius = 5.0f;   // ここに入ると吸い寄せ開始（Megabonk の拾う範囲 5）
         float pickupRadius = 0.6f;    // ここまで来たら取得
         float accel = 30.0f;          // 吸い寄せの加速度
         float maxSpeed = 18.0f;

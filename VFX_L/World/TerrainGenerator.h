@@ -83,6 +83,10 @@ namespace TerrainGenerator
 
         // ---- 外周の崖 ----
         float wallHeight = 7.0f;
+        // 外周の見た目を岩山にする（衝突・格子は崖の箱のまま、箱は描かない）。
+        // 大きい岩（Res::Mdl::Forest::kCliffRocks）を拡大して外へ 3 列: 手前 8〜13m / 中 15〜22m / 奥 24〜34m
+        bool  rockMountains = true;
+        float mountainScale = 1.0f;       // 3 列の高さにまとめて掛ける
 
         // 玩家の初期地点（場地中央）の周りは平らに空ける（マス数の半径）
         int spawnClearRadius = 8;

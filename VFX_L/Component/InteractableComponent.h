@@ -12,6 +12,7 @@
 enum class InteractKind
 {
     RewardChoice,   // 升級と同じ三択を出す（レベルは上がらない）
+    BossPortal,     // 面の Boss を呼ぶ（StageDirector）
 };
 
 struct InteractableComponent
@@ -22,6 +23,7 @@ struct InteractableComponent
 
     // ---- 見た目の動き ----
     DirectX::SimpleMath::Vector3 basePos;   // 置いた位置（地面）。浮遊はこの上
+    bool  animate = true;                   // false なら浮遊も回転もしない（門など据え置きの物）
     float phase = 0.0f;                     // 浮遊の位相（箱ごとにずらす）
 
     // ---- 目印の光（PointLightManager へ毎フレーム積む）----

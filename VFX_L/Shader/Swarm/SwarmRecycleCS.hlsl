@@ -44,6 +44,9 @@ void main(uint3 id : SV_DispatchThreadID)
     float dSq = d.x * d.x + d.z * d.z;
     if (dSq < g_RecycleMinDistSq)
         return;
+    // elites / the boss are never recycled into a plain mob: they keep chasing
+    if (enemyExtra[i].kind >= SWARM_KIND_ELITE)
+        return;
 
     uint prev;
     claim.InterlockedAdd(0, 1u, prev);
