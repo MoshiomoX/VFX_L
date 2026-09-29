@@ -29,6 +29,7 @@
 #include "Graphics/Light/LightTypes.h"
 #include <d3d11.h>
 #include <wrl/client.h>
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -197,11 +198,15 @@ public:
 
     // ---- 回読結果（1〜2 フレーム古い。用途上それで困らない）----
     const SwarmCounters& GetCounters() const { return m_Readback.Latest(); }
+    // Boss の数・HP・位置（描画の CompactCS が書くので 2〜3 フレーム古い）
+    const Swarm::BossInfo& GetBossInfo() const { return m_BossInfo; }
     Swarm::AICB& GetAIParams() { return m_CachedAICB; }
     // 自爆兵の定数（次の固定ステップ / 次の描画から効く）。blastArea は呼ぶ側が AreaProfileDB から入れる
     Swarm::BomberCB& GetBomberParams() { return m_CachedBomberCB; }
     // 玩家が受けた累計ダメージを取り出して 0 に戻す
     float ConsumePlayerDamage();
+    // 磁石: seconds の間、場の経験値オーブを全部吸い寄せ始める（OrbCB の吸い寄せ半径を場全体にする）
+    void MagnetAllOrbs(float seconds = 0.3f) { m_MagnetTimer = (std::max)(m_MagnetTimer, seconds); }
 
     // ---- ImGui 表示用 ----
     const SwarmVFXTable& GetVFXTable() const { return m_VFX; }
@@ -465,6 +470,17 @@ private:
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_EnemyDrawArgs[Swarm::kEnemyKinds];  // submesh 毎（IndexCount が違う）
     bool CreateEnemyDrawArgs(ID3D11Device* device);
     std::shared_ptr<Texture> m_BomberAlbedo;   // 自爆兵の貼図（雑魚と同じメッシュ用）。null = 雑魚と同じ貼図
+
+    // --- Boss の様子（CompactCS が書く 32B → staging 3 枚で回読。counter と同じ流儀で待たない）---
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_BossInfoBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_BossInfoUAV;
+    static constexpr int kBossStaging = 3;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_BossStaging[kBossStaging];
+    bool m_BossStagingFilled[kBossStaging] = {};
+    int  m_BossStagingWrite = 0;
+    Swarm::BossInfo m_BossInfo;
+    float m_MagnetTimer = 0.0f;   // MagnetAllOrbs の残り秒（> 0 の間 OrbMoveCS の吸い寄せ半径を場全体に）
+    void ReadBossInfo();   // 一番古い staging を読めたら m_BossInfo を更新（Flush の頭）
 
     // --- 雑魚の部品アニメ（部品を節点で動かすモデルだけ。Kenney Blocky）---
     // 表: [クリップ][フレーム][部品] の行列。行列は「焼いた姿勢の部品 → そのフレームの部品」の差分

@@ -205,6 +205,8 @@ enum class StatKind
     MaxMana,      // ManaComponent::max
     MoveSpeed,    // PlayerStatsComponent::moveSpeed（歩く速さ。滑りの初速もこれの倍率）
     JumpPower,    // PlayerStatsComponent::jumpPower（跳んだ瞬間の上向きの速さ）
+    ManaRegen,    // ManaComponent::regen（1 秒あたりの魔力回復）
+    JumpCount,    // PlayerStatsComponent::extraJumps（空中で追加で跳べる回数。amount 回ぶん足す）
 };
 
 struct StatItemDef

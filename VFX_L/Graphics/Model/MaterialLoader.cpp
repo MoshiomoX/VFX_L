@@ -112,6 +112,29 @@ std::vector<std::shared_ptr<Material>> MaterialLoader::LoadFromScene(
                 if (albedo) break;
             }
         }
+        if (!albedo)
+        {
+            // 貼図の参照を持たない FBX（Rock-Set など）: 同梱の色貼図を名前で探す。
+            // <名前>_Tex/ か同じ目録の「<名前> で始まり Base_Color / BaseColor / Albedo / Diffuse を含む」画像
+            auto lower = [](std::string s) { for (auto& ch : s) ch = (char)tolower((unsigned char)ch); return s; };
+            const std::string key = lower(modelName);
+            for (const std::string& dirPath : { directory + modelName + "_Tex/", directory })
+            {
+                std::error_code ec;
+                if (albedo || !fs::is_directory(dirPath, ec)) continue;
+                for (const auto& de : fs::directory_iterator(dirPath, ec))
+                {
+                    const std::string n = lower(de.path().filename().string());
+                    const std::string ext = lower(de.path().extension().string());
+                    if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".tga") continue;
+                    if (n.rfind(key, 0) != 0) continue;
+                    if (n.find("base_color") == std::string::npos && n.find("basecolor") == std::string::npos
+                        && n.find("albedo") == std::string::npos && n.find("diffuse") == std::string::npos) continue;
+                    albedo = ResourceManager::Get().LoadTexture(ToW(de.path().generic_string()));
+                    if (albedo) break;
+                }
+            }
+        }
 
         material->SetAlbedoTexture(albedo);
         material->SetNormalTexture(normal);

@@ -9,7 +9,9 @@
 #include "Player/PlayerTag.h"
 #include "Component/HealthComponent.h"
 #include "Component/WandComponent.h"
+#include "Player/PlayerStatsComponent.h"
 #include "ECS/View.h"
+#include <algorithm>
 #include <cmath>
 
 namespace
@@ -63,6 +65,10 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
 
                 if (st.invincibleTimer > 0.0f)
                     st.invincibleTimer -= dt;
+
+                // 自然回復（死んだら止める）
+                if (!hp.IsDead() && reg.Has<PlayerStatsComponent>(e))
+                    hp.current = (std::min)(hp.max, hp.current + reg.Get<PlayerStatsComponent>(e).healthRegen * dt);
 
                 // ============================================================
                 // 1) 被損層（最上位。他の層を抑制する）

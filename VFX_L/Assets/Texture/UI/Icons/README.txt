@@ -15,6 +15,7 @@ From game-icons.net  https://game-icons.net
   ArcBolt.png         "Lightning helix"   by Lorc        https://game-icons.net/1x1/lorc/lightning-helix.html
   HomingBolt.png      "On target"         by Lorc        https://game-icons.net/1x1/lorc/on-target.html
   Meteor.png          "Meteor impact"     by Lorc        https://game-icons.net/1x1/lorc/meteor-impact.html
+  GoldenArrow.png     "High shot"         by Lorc        https://game-icons.net/1x1/lorc/high-shot.html
   SplitRune.png       "Split arrows"      by Delapouite  https://game-icons.net/1x1/delapouite/split-arrows.html
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html
@@ -22,6 +23,9 @@ From game-icons.net  https://game-icons.net
   MaxManaUp.png       "Potion ball"       by Lorc        https://game-icons.net/1x1/lorc/potion-ball.html
   MoveSpeedUp.png     "Sprint"            by Lorc        https://game-icons.net/1x1/lorc/sprint.html
   JumpPowerUp.png     "Jump across"       by Delapouite  https://game-icons.net/1x1/delapouite/jump-across.html
+  ManaRegenUp.png     "Magic swirl"       by Lorc        https://game-icons.net/1x1/lorc/magic-swirl.html
+  JumpCountUp.png     "Wingfoot"          by Lorc        https://game-icons.net/1x1/lorc/wingfoot.html
+  Magnet.png          "Magnet"            by Lorc        https://game-icons.net/1x1/lorc/magnet.html
 
 Drawn for this project (by the same script, no license needed):
   Frame3x3.png        3x3 grid of squares

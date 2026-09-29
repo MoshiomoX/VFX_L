@@ -15,6 +15,7 @@
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
+#define SWARM_BOMBER_CB_REG b4   // elite body size: bar sits higher and wider
 #include "../Common/SwarmCommon.hlsli"
 
 cbuffer SwarmHpBarCB : register(b0)
@@ -34,6 +35,7 @@ StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> aliveList : register(t2);
 StructuredBuffer<uint> enemyMaxHp : register(t3);
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t4);
 
 struct BarOut
 {
@@ -73,10 +75,16 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float3 right = float3(g_BarView._11, g_BarView._21, g_BarView._31);
     float3 up = float3(g_BarView._12, g_BarView._22, g_BarView._32);
 
+    // elites are scaled about the feet: the bar goes up with the head and gets wider
+    float k = SwarmKindScale(enemyExtra[slot].kind);
+    float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
+    float offset = footY + (g_BarOffset - footY) * k;
+    float width = g_BarWidth * (k > 1.0 ? 1.5 : 1.0);
+
     float2 c = kCorner[vid];
-    float3 center = e.position + float3(0.0, g_BarOffset, 0.0);
+    float3 center = e.position + float3(0.0, offset, 0.0);
     float3 world = center
-        + right * ((c.x - 0.5) * g_BarWidth)
+        + right * ((c.x - 0.5) * width)
         + up * ((0.5 - c.y) * g_BarHeight);
 
     o.pos = mul(mul(float4(world, 1.0), g_BarView), g_BarProj);

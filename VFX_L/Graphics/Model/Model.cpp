@@ -37,13 +37,29 @@ static Matrix ConvertMatrix(const aiMatrix4x4& m)
 static void ProcessNode(
     aiNode* node, const aiScene* scene, ID3D11Device* device,
     std::vector<Model::SubMesh>& subMeshes, const Matrix& parentTransform,
-    Vector3& boundsMin, Vector3& boundsMax)
+    Vector3& boundsMin, Vector3& boundsMax,
+    const std::vector<std::shared_ptr<Material>>& materials)
 {
     const Matrix globalTransform = ConvertMatrix(node->mTransformation) * parentTransform;
 
     for (unsigned int i = 0; i < node->mNumMeshes; i++)
     {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+
+        // 色の貼図が無い材質（色だけで塗った低ポリ素材。Quaternius・dglopez など）は、
+        // 材質の拡散色を頂点色に焼く。PS は 貼図 × 頂点色 なので、焼かないと白くなる
+        // （Material::m_Color は描画で使っていない）。貼図のある材質は触らない
+        // （Blender の FBX は拡散色 0.8 を書くことが多く、掛けると今の素材が暗くなる）
+        Vector4 baseColor(1, 1, 1, 1);
+        if (mesh->mMaterialIndex < materials.size() && materials[mesh->mMaterialIndex]
+            && !materials[mesh->mMaterialIndex]->HasTexture()
+            && mesh->mMaterialIndex < scene->mNumMaterials)
+        {
+            const aiMaterial* m = scene->mMaterials[mesh->mMaterialIndex];
+            aiColor4D c;
+            if (m->Get(AI_MATKEY_BASE_COLOR, c) == AI_SUCCESS || m->Get(AI_MATKEY_COLOR_DIFFUSE, c) == AI_SUCCESS)
+                baseColor = Vector4(c.r, c.g, c.b, 1.0f);
+        }
 
         std::vector<VERTEX_3D> vertices;
         std::vector<unsigned int> indices;
@@ -83,7 +99,7 @@ static void ProcessNode(
                 vertex.uv.y = mesh->mTextureCoords[0][v].y;
             }
 
-            vertex.color = Vector4(1, 1, 1, 1);
+            vertex.color = baseColor;
             vertices.push_back(vertex);
         }
 
@@ -109,7 +125,7 @@ static void ProcessNode(
 
     for (unsigned int i = 0; i < node->mNumChildren; i++)
         ProcessNode(node->mChildren[i], scene, device, subMeshes, globalTransform,
-            boundsMin, boundsMax);
+            boundsMin, boundsMax, materials);
 }
 
 // ============================================================
@@ -298,7 +314,7 @@ bool Model::LoadFromScene(ID3D11Device* device, const aiScene* scene,
     m_BoundsMax = Vector3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
     // rootTransform は全節点の一番外側に掛かる（行ベクトル: v * 節点 * root）
     ProcessNode(scene->mRootNode, scene, device, m_SubMeshes, rootTransform,
-        m_BoundsMin, m_BoundsMax);
+        m_BoundsMin, m_BoundsMax, m_Materials);
     if (m_SubMeshes.empty())
         m_BoundsMin = m_BoundsMax = Vector3::Zero;
     m_BoundsCenter = (m_BoundsMin + m_BoundsMax) * 0.5f;

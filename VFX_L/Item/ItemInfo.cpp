@@ -318,6 +318,8 @@ namespace
         case StatKind::MaxMana:   l.label = L"最大MP"; break;
         case StatKind::MoveSpeed: l.label = L"移動速度"; break;
         case StatKind::JumpPower: l.label = L"跳躍力"; break;
+        case StatKind::ManaRegen: l.label = L"魔力回復"; break;
+        case StatKind::JumpCount: l.label = L"跳躍回数"; break;
         }
         l.value = def.percent ? L"+" + Num(def.amount * 100.0f) + L"%" : L"+" + Num(def.amount);
         l.trend = +1;

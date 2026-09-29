@@ -11,6 +11,7 @@
 #include "Player/LevelComponent.h"
 #include "Item/ItemDatabase.h"
 #include "UI/UIDeco.h"
+#include <cmath>
 #include "ResourcePaths.h"
 #include "imgui.h"
 
@@ -225,10 +226,25 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
     const Vector2 a = m_Style.runInfo.Resolve(m_ScreenW, m_ScreenH);
     wchar_t buf[32];
 
-    const int total = (int)info.runTime;
-    swprintf_s(buf, L"%02d:%02d", total / 60, total % 60);
+    // 制限時間があれば残りを数え下ろす（切り上げ: 0:00 になった瞬間が時間切れ）。
+    // 過ぎたら超過分を赤く「+」付きで
+    const bool countdown = info.stageTime > 0.0f;
+    const bool overtime = countdown && info.runTime >= info.stageTime;
+    int total = (int)info.runTime;
+    if (countdown)
+        total = overtime ? (int)(info.runTime - info.stageTime) : (int)std::ceil(info.stageTime - info.runTime);
+    swprintf_s(buf, overtime ? L"+%02d:%02d" : L"%02d:%02d", total / 60, total % 60);
     const Vector2 ts = text.Measure(buf, m_Style.timerScale);
-    DrawLabel(text, buf, { a.x - ts.x * 0.5f, a.y }, m_Style.timerScale);
+    const Vector2 tp = { a.x - ts.x * 0.5f, a.y };
+    if (overtime)
+    {
+        // 線形の色（HUD は場景の HDR に描いてから色調写像を通る）
+        const float o = m_Style.textShadowOffset;
+        if (m_Style.textShadow) text.Draw(buf, { tp.x + o, tp.y + o }, m_Style.shadowColor, m_Style.timerScale);
+        text.Draw(buf, tp, { 1.0f, 0.12f, 0.08f, 1.0f }, m_Style.timerScale);
+    }
+    else
+        DrawLabel(text, buf, tp, m_Style.timerScale);
 
     float y = a.y + ts.y;
     if (m_Style.runDividerWidth > 0.0f)
@@ -238,9 +254,19 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
         y += dh * 0.5f;
     }
 
-    swprintf_s(buf, L"撃破 %u", info.kills);
+    swprintf_s(buf, overtime ? L"最終波   撃破 %u" : L"撃破 %u", info.kills);
     const Vector2 ks = text.Measure(buf, m_Style.killScale);
     DrawLabel(text, buf, { a.x - ks.x * 0.5f, y }, m_Style.killScale);
+
+    // ---- Boss の HP 条（呼んでいる間だけ。撃破数の下に画面幅の 4 割）----
+    if (info.bossHp >= 0.0f)
+    {
+        const Vector2 size = { m_ScreenW * 0.4f, m_Style.hpBarSize.y };
+        const Vector2 pos = { a.x - size.x * 0.5f, y + ks.y + 8.0f };
+        const float r = Clamp01(info.bossHp);
+        DrawBar(sprite, pos, size, r, r, { 0.35f, 0.05f, 0.55f, 1.0f }, true);   // 紫（線形）
+        DrawBarLabel(text, L"ボス", pos, size);
+    }
 }
 
 // ============================================================

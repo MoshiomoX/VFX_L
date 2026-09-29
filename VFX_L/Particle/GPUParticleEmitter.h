@@ -94,6 +94,8 @@ public:
     bool meshFaceVelocity = false;    // 前方の軸を進行方向へ向ける（回転の範囲は使わない）
     int  meshForwardAxis = 2;         // 模型の前方の軸（0 = +X / 1 = +Y / 2 = +Z）
     int  meshSlot = 0;                // 実行時：GPUParticleSystem の模型表の番号（登録は entry 側。0 = 立方体）
+    // 発射元（GPU の弾など）の速度を初速に足す。弾と一緒に飛ぶ見た目用（GPU の弾の上でだけ効く）。json "inheritVelocity"
+    bool inheritVelocity = false;
 
     // --- 貼图（ビルボードだけ）---
     // textureIndex = ParticleSheets の番号。0 番（旧 6x6）は下の行列を使い、

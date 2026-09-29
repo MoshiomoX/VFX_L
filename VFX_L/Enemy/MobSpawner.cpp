@@ -26,6 +26,10 @@ void MobSpawner::Init(SwarmSystem& swarm)
 
     // 爆発の見た目の範囲。AreaProfileDB::LoadAll の後に呼ばれる（無ければ 0 = 見た目無しで爆発だけ）
     swarm.GetBomberParams().blastArea = (uint32_t)AreaProfileDB::IndexOf("BomberBlast");
+
+    // 難度の倍率を掛ける元
+    baseContactDamage = swarm.GetAIParams().contactDamage;
+    baseBlastDamage = swarm.GetBomberParams().blastDamage;
 }
 
 void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
@@ -33,8 +37,8 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
     const float groundY = swarm.GetAIParams().groundY;
     const Vector3 p = { pos.x, groundY, pos.z };
     const bool bomber = Rand01() < m_BomberRatio;
-    const float hp = bomber ? m_BomberHp : m_MobHp;
-    const float speed = bomber ? m_BomberSpeed : m_MobSpeed;
+    const float hp = (bomber ? m_BomberHp : m_MobHp) * m_StatMul;   // 湧いた瞬間の難度で決まる
+    const float speed = (bomber ? m_BomberSpeed : m_MobSpeed) * finalSpeedMul;
     const uint32_t kind = bomber ? Swarm::kEnemyKindBomber : Swarm::kEnemyKindMob;
 
     if (recycle) swarm.RecycleEnemy(p, hp, speed, kind);
@@ -62,9 +66,23 @@ void MobSpawner::SpawnDebugBombers(const GridWorld& grid, const Vector3& player,
     }
 }
 
-void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, SwarmSystem& swarm)
+void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, float runTime, SwarmSystem& swarm)
 {
     swarm.SetRecycleMinDist(m_Director.rMax);
+
+    // ---- 難度：経過時間 → 強さの倍率と湧く速さ ----
+    m_RunTime = runTime;
+    if (scaling)
+    {
+        const float minutes = runTime / 60.0f;
+        m_StatMul = (1.0f + statGrowthPerMin * minutes) * finalStatMul;
+        m_Director.spawnPerSecond = (finalSpawnRate > 0.0f) ? finalSpawnRate
+            : spawnRateStart + (spawnRateAt10Min - spawnRateStart) * (minutes / 10.0f);
+    }
+    else
+        m_StatMul = 1.0f;
+    swarm.GetAIParams().contactDamage = baseContactDamage * m_StatMul;
+    swarm.GetBomberParams().blastDamage = baseBlastDamage * m_StatMul;
 
     m_Director.Update(grid, player, dt,
         (int)swarm.GetCounters().aliveEnemies,
@@ -85,11 +103,26 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
         m_Director.GetLastMobCount(), m_Director.spawnCap,
         m_Director.GetTotalSpawned(), m_Director.GetTotalRecycled());
     ImGui::DragInt("Spawn Cap", &m_Director.spawnCap, 1, 0, 4096);
-    ImGui::DragFloat("Interval", &m_Director.spawnInterval, 0.05f, 0.1f, 10.0f);
-    ImGui::DragInt("Per Tick", &m_Director.spawnPerTick, 1, 1, 20);
+    ImGui::BeginDisabled(scaling);   // 難度が効いている間は毎フレーム上書きされる
+    ImGui::DragFloat("Spawn / s", &m_Director.spawnPerSecond, 0.05f, 0.0f, 200.0f);
+    ImGui::EndDisabled();
+    ImGui::DragInt("Max / Frame", &m_Director.maxPerFrame, 1, 1, 256);
     ImGui::DragFloat("Ring Min", &m_Director.rMin, 0.5f, 5.0f, 100.0f);
     ImGui::DragFloat("Ring Max", &m_Director.rMax, 0.5f, 5.0f, 120.0f);
     ImGui::TextDisabled("recycle: enemies farther than Ring Max get teleported");
+    ImGui::Separator();
+
+    // ---- 難度（経過時間で上がる）----
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1), "Difficulty");
+    ImGui::Checkbox("Scale with time", &scaling);
+    ImGui::Text("run %.0f s  stat x%.2f  spawn %.2f /s  contact %.1f  blast %.1f",
+        m_RunTime, m_StatMul, m_Director.spawnPerSecond,
+        swarm.GetAIParams().contactDamage, swarm.GetBomberParams().blastDamage);
+    ImGui::DragFloat("Stat Growth / min", &statGrowthPerMin, 0.005f, 0.0f, 2.0f, "%.3f");
+    ImGui::DragFloat("Spawn / s at start", &spawnRateStart, 0.05f, 0.0f, 100.0f);
+    ImGui::DragFloat("Spawn / s at 10 min", &spawnRateAt10Min, 0.1f, 0.0f, 200.0f);
+    ImGui::DragFloat("Contact Damage (base)", &baseContactDamage, 0.5f, 0.0f, 200.0f);
+    ImGui::DragFloat("Blast Damage (base)", &baseBlastDamage, 0.5f, 0.0f, 400.0f);
     ImGui::Separator();
 
     // ---- 雑魚の初期値 ----
@@ -106,7 +139,6 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Fuse Time (s)", &bomb.fuseTime, 0.05f, 0.1f, 5.0f);
     ImGui::DragFloat("Trigger Margin", &bomb.triggerMargin, 0.01f, 0.0f, 2.0f);
     ImGui::DragFloat("Blast Radius", &bomb.blastRadius, 0.05f, 0.5f, 10.0f);
-    ImGui::DragFloat("Blast Damage", &bomb.blastDamage, 0.5f, 0.0f, 200.0f);
     ImGui::DragFloat("Fuse Swell", &bomb.swell, 0.01f, 0.0f, 1.0f);
     ImGui::DragFloat("Fuse Flash Gain", &bomb.flashGain, 0.1f, 1.0f, 10.0f);
     ImGui::Text("Blast VFX area: #%u (AreaData/BomberBlast.json)", bomb.blastArea);
@@ -134,7 +166,6 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Max Speed Mul", &ai.maxSpeedMul, 0.05f, 1.0f, 4.0f);
     ImGui::DragFloat("Turn Speed", &ai.turnSpeed, 0.5f, 1.0f, 40.0f);
 
-    ImGui::DragFloat("Contact Damage", &ai.contactDamage, 0.5f, 0.0f, 100.0f);
     ImGui::DragFloat("Attack Interval", &ai.attackInterval, 0.05f, 0.1f, 5.0f);
     ImGui::DragFloat("Hit Stun (s)", &ai.hitStun, 0.005f, 0.0f, 0.5f);
     ImGui::DragFloat("Hit Flash Gain", &ai.hitFlash, 0.1f, 1.0f, 10.0f);

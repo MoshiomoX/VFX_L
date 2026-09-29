@@ -59,8 +59,12 @@ void LevelUpUI::Layout(float screenW, float screenH)
     const float shortSide = (screenW < screenH) ? screenW : screenH;
 
     m_CardW = shortSide * cardWidthRatio;
-    m_CardH = m_CardW * cardAspect;
     m_CardGap = shortSide * cardGapRatio;
+    // 候補 fitCards 枚が画面幅の 94% に収まらなければ細くする（縦長・狭い窓でも 4 枚並ぶように）
+    const float n = (float)(fitCards < 1 ? 1 : fitCards);
+    const float maxW = (screenW * 0.94f - m_CardGap * (n - 1.0f)) / n;
+    if (m_CardW > maxW) m_CardW = maxW;
+    m_CardH = m_CardW * cardAspect;
 }
 
 Vector2 LevelUpUI::CardSize() const

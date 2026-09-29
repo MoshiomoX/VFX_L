@@ -174,6 +174,10 @@ void main(uint3 id : SV_DispatchThreadID)
             uint sweepSeed = s ^ 0x9E3779B9u;
             pos -= srcVel * (g_DeltaTime * Random(sweepSeed));
 
+            // flies along with the source (arrow body etc.)
+            if ((((uint) e.renderMode) & PARTICLE_INHERIT_SOURCE_VELOCITY) != 0u)
+                vel += srcVel;
+
             // ---- particle init: identical to ParticleEmitCS ----
             GPUParticle q = (GPUParticle) 0;
             q.position = pos;

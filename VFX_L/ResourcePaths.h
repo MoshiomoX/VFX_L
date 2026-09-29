@@ -143,6 +143,10 @@ namespace Res
         inline constexpr const char* Kenney_RewardCrate =
             "Assets/Model/Kenney_RetroFantasy/fbx/detail-crate.fbx";
 
+        // Boss を呼ぶ門（近づいて F）。Kenney Retro Fantasy の石の門（1m 角の部品、底が原点）
+        inline constexpr const char* Kenney_PortalGate =
+            "Assets/Model/Kenney_RetroFantasy/fbx/wall-flat-gate.fbx";
+
         // 戦闘の地形に撒く自然物（KayKit Forest、CC0、cm 単位・底が原点、共通の forest_texture.png）。
         // 木と岩は通れない置物、茂みと草は見た目だけ（TerrainGenerator）
         namespace Forest
@@ -169,6 +173,26 @@ namespace Res
                 "Assets/Model/KayKit_Forest/fbx/Rock_2_C_Color1.fbx",
                 "Assets/Model/KayKit_Forest/fbx/Rock_3_A_Color1.fbx",
                 "Assets/Model/KayKit_Forest/fbx/Rock_3_E_Color1.fbx",
+            };
+            // 外周の岩山（大きい岩だけ。拡大して 3 列に積む。TerrainGenerator::Config::rockMountains）
+            inline constexpr const char* kCliffRocks[] = {
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_J_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_K_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_L_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_M_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_N_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_O_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_P_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_1_Q_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_2_E_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_2_F_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_2_G_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_2_H_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_3_M_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_3_N_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_3_O_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_3_Q_Color1.fbx",
+                "Assets/Model/KayKit_Forest/fbx/Rock_3_R_Color1.fbx",
             };
             inline constexpr const char* kBushes[] = {
                 "Assets/Model/KayKit_Forest/fbx/Bush_1_A_Color1.fbx",
@@ -290,6 +314,7 @@ namespace Res
         inline constexpr const wchar_t* Fireball = L"Assets/Texture/UI/Icons/Fireball.png";
         inline constexpr const wchar_t* ArcBolt = L"Assets/Texture/UI/Icons/ArcBolt.png";
         inline constexpr const wchar_t* HomingBolt = L"Assets/Texture/UI/Icons/HomingBolt.png";
+        inline constexpr const wchar_t* GoldenArrow = L"Assets/Texture/UI/Icons/GoldenArrow.png";
         inline constexpr const wchar_t* Meteor = L"Assets/Texture/UI/Icons/Meteor.png";
         inline constexpr const wchar_t* SplitRune = L"Assets/Texture/UI/Icons/SplitRune.png";
         inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
@@ -299,6 +324,9 @@ namespace Res
         inline constexpr const wchar_t* MaxManaUp = L"Assets/Texture/UI/Icons/MaxManaUp.png";
         inline constexpr const wchar_t* MoveSpeedUp = L"Assets/Texture/UI/Icons/MoveSpeedUp.png";
         inline constexpr const wchar_t* JumpPowerUp = L"Assets/Texture/UI/Icons/JumpPowerUp.png";
+        inline constexpr const wchar_t* ManaRegenUp = L"Assets/Texture/UI/Icons/ManaRegenUp.png";
+        inline constexpr const wchar_t* JumpCountUp = L"Assets/Texture/UI/Icons/JumpCountUp.png";
+        inline constexpr const wchar_t* Magnet = L"Assets/Texture/UI/Icons/Magnet.png";   // 拾う磁石（場に落ちている物。背包の道具ではない）
     }
 
     // ========================================================
@@ -340,6 +368,8 @@ namespace Res
         inline constexpr const char* ArcBoltHit = "Assets/Data/VFXData/ArcBoltHit.json";     // 命中（威力 0 の範囲の見た目）
         inline constexpr const char* HomingBoltHit = "Assets/Data/VFXData/HomingBoltHit.json";
         inline constexpr const char* ExpOrbTrail = "Assets/Data/VFXData/ExpOrbTrail.json";   // 吸い寄せ中の経験値オーブの尾（GPU）
+        inline constexpr const char* GoldenArrow = "Assets/Data/VFXData/GoldenArrow.json";   // 黄金の矢（矢の模型が弾と一緒に飛ぶ）
+        inline constexpr const char* GoldenArrowHit = "Assets/Data/VFXData/GoldenArrowHit.json";
     }
 
     // ========================================================

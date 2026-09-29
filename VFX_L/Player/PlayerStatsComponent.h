@@ -15,9 +15,16 @@
 
 struct PlayerStatsComponent
 {
+    // --- 体力 ---
+    float healthRegen = 10.0f / 60.0f;   // HP/秒 の自然回復（Megabonk の基礎値 10 / 分）
+
     // --- 移動 ---
     float moveSpeed = 5.0f;
     float jumpPower = 8.0f;
+    // 空中で追加で跳べる回数（レベルアップの「跳躍回数 +1」）。
+    // 空中の n 回目は jumpPower × airJumpFalloff^n（0.75 なら 12 → 9 → 6.75 …。0.5 は弱すぎた）
+    int   extraJumps = 0;
+    float airJumpFalloff = 0.75f;
 
     // --- 滑り（左 Ctrl / パッド X を押している間。PlayerControlSystem）---
     // 平地: 入った瞬間に moveSpeed * slideBoost まで押し出し、摩擦で減って slideMinSpeed を切ったら立つ。

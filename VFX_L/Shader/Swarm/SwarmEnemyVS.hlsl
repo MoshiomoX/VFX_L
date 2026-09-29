@@ -30,6 +30,10 @@ StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 // bomber blink: starts at this many blinks per second, ends at the second value
 static const float kFuseBlinkStart = 3.0;
 static const float kFuseBlinkEnd = 14.0;
+// elite: dark red tint on the shared zombie texture
+static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
+// boss: violet
+static const float3 kBossTint = float3(1.1, 0.5, 1.5);
 
 // ---- rigid part animation (models whose parts hang off animated nodes,
 // e.g. Kenney Blocky: 6 rigid parts, no skin weights) ----
@@ -181,8 +185,18 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y += bounce;
     }
 
-    // ---- lit bomber: swell toward the blast, anchored at the feet ----
     SwarmEnemyExtra extra = enemyExtra[slot];
+
+    // ---- elite: bigger body, anchored at the feet (SwarmKindCapsule matches) ----
+    float kindScale = SwarmKindScale(extra.kind);
+    if (kindScale != 1.0)
+    {
+        float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
+        local.xz *= kindScale;
+        local.y = footY + (local.y - footY) * kindScale;
+    }
+
+    // ---- lit bomber: swell toward the blast, anchored at the feet ----
     bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
     float fuseU = lit ? saturate(extra.fuse / max(g_BomberFuseTime, 1e-3)) : 0.0;
     if (lit)
@@ -200,6 +214,10 @@ VS_OUTPUT main(VS_INPUT_INST input)
     o.Tangent = RotateY(tangent, s, c);
     o.UV = input.UV;
     o.Color = input.Color;
+    if (extra.kind == SWARM_KIND_ELITE)
+        o.Color.rgb *= kEliteTint;
+    else if (extra.kind == SWARM_KIND_BOSS)
+        o.Color.rgb *= kBossTint;
 
     // ---- hit flash: overbright vertex color during the stun, decays to 1 ----
     // PS multiplies albedo by Color, so > 1 goes HDR and bloom picks it up

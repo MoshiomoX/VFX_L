@@ -141,7 +141,8 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
                 ge.renderMode = ParticleRenderMode::Pack(
                     particles->RegisterParticleMesh(pe->emitterData.meshPath),
                     pe->emitterData.meshGlow, pe->emitterData.meshFaceVelocity,
-                    pe->emitterData.meshForwardAxis);
+                    pe->emitterData.meshForwardAxis)
+                    | (pe->emitterData.inheritVelocity ? ParticleRenderMode::kInheritSourceVelocity : 0);
             ge.isActive = 1.0f;
             ge.ownerID = 0;
             ge.colorKeyOffset = (int)keys.size();   // 静的区は offset 0 起点

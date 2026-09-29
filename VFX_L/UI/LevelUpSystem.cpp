@@ -92,35 +92,40 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
 // ============================================================
 int LevelUpSystem::FillChoices(LevelComponent& lv)
 {
-    // 候補の母集団を作る
-    std::vector<ItemID> pool;
+    // 候補の母集団を作る（重み付き）
+    struct Entry { ItemID id; float weight; };
+    std::vector<Entry> pool;
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
         // 定義が取れないものは除く（登録漏れの保険）
         if (!ItemDatabase::GetCommon(id)) continue;
-        pool.push_back(id);
+        pool.push_back({ id, 1.0f });
     }
-    // 能力値（生命・魔力の上限）も同じ池に混ぜる。1 枚ずつ、魔法と同じ確率で出る
+    // 能力値（生命・魔力・速さ・跳躍…）も同じ池に混ぜる。種類が多いので 1 枚ずつの重みは下げる
+    // （全部 1 だと候補の半分近くが能力値になる。2026-09-29 用户「基础数值的东西有点太多了」）
     for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
-        pool.push_back(id);
+        pool.push_back({ id, statWeight });
 
-    if (pool.empty()) return 0;
-
-    // 前から n 個を取り出す形にしたいので、シャッフルする。
-    // 池が小さいうちは毎回似た組み合わせになるが、
-    // 魔法が増えれば自然に散る。
-    for (size_t i = pool.size() - 1; i > 0; --i)
-    {
-        const size_t j = (size_t)(rand() % (int)(i + 1));
-        std::swap(pool[i], pool[j]);
-    }
-
-    const int n = (std::min)((int)pool.size(), (choiceCount < 1) ? 1 : choiceCount);
-
+    // 重みに比例して 1 枚ずつ引く（引いた物は池から外す = 同じ物は並ばない）
+    const int want = (choiceCount < 1) ? 1 : choiceCount;
     lv.pendingChoices.clear();
-    for (int i = 0; i < n; ++i)
-        lv.pendingChoices.push_back(pool[i]);
-    return n;
+    while ((int)lv.pendingChoices.size() < want && !pool.empty())
+    {
+        float total = 0.0f;
+        for (const Entry& e : pool) total += (std::max)(e.weight, 0.0f);
+        if (total <= 0.0f) break;
+
+        float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
+        size_t pick = pool.size() - 1;
+        for (size_t i = 0; i < pool.size(); ++i)
+        {
+            r -= (std::max)(pool[i].weight, 0.0f);
+            if (r < 0.0f) { pick = i; break; }
+        }
+        lv.pendingChoices.push_back(pool[pick].id);
+        pool.erase(pool.begin() + (ptrdiff_t)pick);
+    }
+    return (int)lv.pendingChoices.size();
 }
 
 // ============================================================
@@ -205,6 +210,21 @@ void LevelUpSystem::ApplyStat(Registry& reg, Entity player, const StatItemDef& s
             auto& st = reg.Get<PlayerStatsComponent>(player);
             st.jumpPower = stat.percent ? st.jumpPower * (1.0f + stat.amount) : st.jumpPower + stat.amount;
         }
+        break;
+
+    // 魔力の回復（毎秒）。ManaSystem が毎フレーム読む
+    case StatKind::ManaRegen:
+        if (reg.Has<ManaComponent>(player))
+        {
+            auto& mp = reg.Get<ManaComponent>(player);
+            mp.regen = stat.percent ? mp.regen * (1.0f + stat.amount) : mp.regen + stat.amount;
+        }
+        break;
+
+    // 空中で跳べる回数。次に空中で跳ぶ時から効く
+    case StatKind::JumpCount:
+        if (reg.Has<PlayerStatsComponent>(player))
+            reg.Get<PlayerStatsComponent>(player).extraJumps += (int)(stat.amount + 0.5f);
         break;
     }
 }

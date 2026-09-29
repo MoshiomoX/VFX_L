@@ -85,6 +85,8 @@ struct SwarmEnemy
 // ============================================================
 static const uint SWARM_KIND_MOB = 0u;    // melee on contact
 static const uint SWARM_KIND_BOMBER = 1u; // contact lights a fuse, blows up g_BomberFuseTime later
+static const uint SWARM_KIND_ELITE = 2u;  // big mob: g_EliteScale body, g_EliteDamageMul melee, g_EliteExpMul orb
+static const uint SWARM_KIND_BOSS = 3u;   // stage boss: g_Boss*, never hit-stunned, reported in SwarmBossInfo
 
 struct SwarmEnemyExtra
 {
@@ -478,7 +480,53 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_BomberSwell; // VS: grows to (1 + this) right before the blast
     float g_BomberFlashGain; // VS: blink brightness
     float _bomberPad;
+
+    // ---- elite (SWARM_KIND_ELITE). Shares this cbuffer: every pass that
+    // needs the kind rules already binds it ----
+    float g_EliteScale; // body size (model, hit / contact radius, HP bar height)
+    float g_EliteDamageMul; // melee damage = g_ContactDamage * this
+    float g_EliteExpMul; // its orb is worth g_OrbAmount * this
+    float _elitePad;
+
+    // ---- stage boss (SWARM_KIND_BOSS) ----
+    float g_BossScale;
+    float g_BossDamageMul;
+    float g_BossExpMul;
+    float _bossPad;
 };
+
+// body size multiplier of a kind (radius and model)
+float SwarmKindScale(uint kind)
+{
+    return (kind == SWARM_KIND_ELITE) ? g_EliteScale
+         : (kind == SWARM_KIND_BOSS) ? g_BossScale : 1.0;
+}
+
+// melee damage multiplier of a kind (times g_ContactDamage)
+float SwarmKindDamageMul(uint kind)
+{
+    return (kind == SWARM_KIND_ELITE) ? g_EliteDamageMul
+         : (kind == SWARM_KIND_BOSS) ? g_BossDamageMul : 1.0;
+}
+
+// exp orb value multiplier of a kind (times g_OrbAmount)
+float SwarmKindExpMul(uint kind)
+{
+    return (kind == SWARM_KIND_ELITE) ? g_EliteExpMul
+         : (kind == SWARM_KIND_BOSS) ? g_BossExpMul : 1.0;
+}
+
+// Body capsule of an enemy of this kind. The model is scaled about its
+// feet, so a bigger body also has its centre higher up.
+// pos = SwarmEnemy.position (the capsule centre of a normal mob)
+void SwarmKindCapsule(uint kind, float3 pos, out float3 center, out float radius, out float halfLen)
+{
+    float k = SwarmKindScale(kind);
+    radius = g_EnemyRadius * k;
+    halfLen = g_EnemyCapsuleHalf * k;
+    center = pos;
+    center.y += (k - 1.0) * (g_EnemyRadius + g_EnemyCapsuleHalf);
+}
 #endif
 
 // ============================================================

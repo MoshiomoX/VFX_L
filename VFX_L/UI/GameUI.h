@@ -87,13 +87,22 @@ public:
     }
 
     // 死んでからの秒数。0 以上なら「力尽きた」の幕を出す（負で消す）。毎フレームシーンが入れる
-    void SetGameOver(float secondsSinceDeath) { m_GameOverTime = secondsSinceDeath; }
+    // cleared = true なら「ステージクリア」（Boss を倒した）の幕にする
+    void SetGameOver(float secondsSinceDeath, bool cleared = false)
+    {
+        m_GameOverTime = secondsSinceDeath;
+        m_GameOverCleared = cleared;
+    }
+    // Boss の HP 条（0..1）。負で消す。毎フレームシーンが入れる
+    void SetBossBar(float hpRatio) { m_FrameInfo.bossHp = hpRatio; }
 
     // HUD の経過時間・撃破数と、画面外の目印（箱・精英）。毎フレームシーンが入れ直す
-    void SetRunInfo(float runTime, uint32_t kills)
+    // stageTime: 面の制限時間（秒）。0 なら経過時間をそのまま出す
+    void SetRunInfo(float runTime, uint32_t kills, float stageTime = 0.0f)
     {
         m_FrameInfo.runTime = runTime;
         m_FrameInfo.kills = kills;
+        m_FrameInfo.stageTime = stageTime;
     }
     void SetMarkers(const DirectX::SimpleMath::Matrix& viewProj, std::vector<HUDMarker> markers)
     {
@@ -130,6 +139,7 @@ private:
     PauseMenuUI         m_Pause;
     PauseMenuUI::Action m_MenuAction = PauseMenuUI::Action::None;
     float               m_GameOverTime = -1.0f;   // SetGameOver
+    bool                m_GameOverCleared = false;
 
     void DrawGameOver();
 };

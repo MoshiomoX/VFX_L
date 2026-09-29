@@ -35,7 +35,8 @@ public:
     bool OfferChoices(Registry& reg, Entity player);
 
     // ---- 調整値 ----
-    int choiceCount = 3;
+    int choiceCount = 4;        // 候補の数（2026-09-29 用户の依頼で 3 → 4）
+    float statWeight = 0.35f;   // 能力値の札 1 枚の出やすさ（魔法・ルーン 1 枚 = 1）
 
     // ---- 統計（ImGui 表示用）----
     int GetTotalLevelUps() const { return m_TotalLevelUps; }

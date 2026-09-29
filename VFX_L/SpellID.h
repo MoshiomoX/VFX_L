@@ -14,6 +14,7 @@ enum class ItemID
     ArcBolt,          // 弧（ArcOnce プロファイル）
     HomingBolt,       // 全追尾（HomingFull）
     Meteor,           // 空から落ちて着弾点で爆発（Meteor プロファイル、Drop 型）
+    GoldenArrow,      // 黄金の矢：曲がらずまっすぐ飛ぶ速い矢（GoldenArrow プロファイル、直進）
 
     // --- 修飾符（隣接する出力源を強化。リストには入らない）---
     SplitRune,        // 分裂：一度の発射数 +1、ダメージ分散
@@ -31,11 +32,14 @@ enum class ItemID
     MaxManaUp,        // 魔力の上限 +
     MoveSpeedUp,      // 移動速度 +%
     JumpPowerUp,      // 跳躍力（跳ぶ初速）+%
+    ManaRegenUp,      // 魔力回復 +%
+    JumpCountUp,      // 跳躍回数 +1（空中の追加ジャンプ。回を重ねるごとに半分）
 };
 
 // 出力源かどうか（集約時の振り分け用）
 inline bool IsSpellSource(ItemID id)
 {
     return id == ItemID::Fireball || id == ItemID::Lightning
-        || id == ItemID::ArcBolt || id == ItemID::HomingBolt || id == ItemID::Meteor;
+        || id == ItemID::ArcBolt || id == ItemID::HomingBolt || id == ItemID::Meteor
+        || id == ItemID::GoldenArrow;
 }

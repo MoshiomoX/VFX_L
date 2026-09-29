@@ -97,6 +97,9 @@ struct PlayerStateComponent
     bool  slideNeedsRelease = false;   // 遅くなって立った後はキーを離すまで滑り直さない（押しっぱなしで押し出しが繰り返されない）
     bool  carryMomentum = false;       // 滑りでついた moveSpeed 超えの勢いを持ち越している（普段の走りでは立たない）
 
+    // ---- 空中の追加ジャンプ（PlayerControlSystem。接地で 0 に戻る）----
+    int   airJumpsUsed = 0;
+
     // ---- 進む方向（PlayerControlSystem が書く）----
     // カメラの前から見た進む方向（度。0 = 前、+90 = 右、±180 = 後ろ）。体はこの方向へ振り向く
     float moveAngleCam = 0.0f;

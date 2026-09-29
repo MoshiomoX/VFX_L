@@ -165,11 +165,13 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\StressTestTools.cpp" />
     <ClCompile Include="Debug\FrameProfiler.cpp" />
     <ClCompile Include="Enemy\MobSpawner.cpp" />
+    <ClCompile Include="Enemy\StageDirector.cpp" />
     <ClCompile Include="Enemy\EliteSpawner.cpp" />
     <ClCompile Include="Graphics\Light\SceneLighting.cpp" />
     <ClCompile Include="Graphics\Light\ShadowMap.cpp" />
     <ClCompile Include="ECS\System\FeedbackVFXSystem.cpp" />
     <ClCompile Include="ECS\System\RewardCrateSystem.cpp" />
+    <ClCompile Include="ECS\System\PickupSystem.cpp" />
     <ClCompile Include="Camera\BattleCamera.cpp" />
     <ClCompile Include="VFX_Editor\VFXSpriteRenderer.cpp" />
     <ClCompile Include="VFX_Editor\VFXSpriteEntry.cpp" />
@@ -339,11 +341,13 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Debug\StressTestTools.h" />
     <ClInclude Include="Debug\FrameProfiler.h" />
     <ClInclude Include="Enemy\MobSpawner.h" />
+    <ClInclude Include="Enemy\StageDirector.h" />
     <ClInclude Include="Enemy\EliteSpawner.h" />
     <ClInclude Include="Graphics\Light\SceneLighting.h" />
     <ClInclude Include="Graphics\Light\ShadowMap.h" />
     <ClInclude Include="ECS\System\FeedbackVFXSystem.h" />
     <ClInclude Include="ECS\System\RewardCrateSystem.h" />
+    <ClInclude Include="ECS\System\PickupSystem.h" />
     <ClInclude Include="Camera\BattleCamera.h" />
     <ClInclude Include="VFX_Editor\VFXSpriteRenderer.h" />
     <ClInclude Include="VFX_Editor\VFXSpriteEntry.h" />
@@ -408,6 +412,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\Fireball.h" />
     <ClInclude Include="Item\Items\ArcBolt.h" />
     <ClInclude Include="Item\Items\HomingBolt.h" />
+    <ClInclude Include="Item\Items\GoldenArrow.h" />
     <ClInclude Include="Item\Items\Meteor.h" />
     <ClInclude Include="Item\Items\Magnifier.h" />
     <ClInclude Include="Camera\FollowCamera.h" />
@@ -417,6 +422,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\MaxManaUp.h" />
     <ClInclude Include="Item\Items\MoveSpeedUp.h" />
     <ClInclude Include="Item\Items\JumpPowerUp.h" />
+    <ClInclude Include="Item\Items\ManaRegenUp.h" />
+    <ClInclude Include="Item\Items\JumpCountUp.h" />
     <ClInclude Include="Core\Game.h" />
     <ClInclude Include="Object\GameObject.h" />
     <ClInclude Include="Core\Timer\GameTimer.h" />

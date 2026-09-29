@@ -157,6 +157,9 @@
     <ClCompile Include="Enemy\MobSpawner.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
+    <ClCompile Include="Enemy\StageDirector.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
     <ClCompile Include="Enemy\EliteSpawner.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
@@ -170,6 +173,9 @@
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\RewardCrateSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\PickupSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="Camera\BattleCamera.cpp">
@@ -581,6 +587,9 @@
     <ClInclude Include="Enemy\MobSpawner.h">
       <Filter>Enemy</Filter>
     </ClInclude>
+    <ClInclude Include="Enemy\StageDirector.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
     <ClInclude Include="Enemy\EliteSpawner.h">
       <Filter>Enemy</Filter>
     </ClInclude>
@@ -594,6 +603,9 @@
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\RewardCrateSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\PickupSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="Camera\BattleCamera.h">
@@ -983,6 +995,9 @@
     <ClInclude Include="Item\Items\HomingBolt.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\GoldenArrow.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Item\Items\Meteor.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
@@ -1062,6 +1077,12 @@
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\JumpPowerUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\ManaRegenUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\JumpCountUp.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Component\SpellbookComponent.h">

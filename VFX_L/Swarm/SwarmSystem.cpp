@@ -252,6 +252,21 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeRaw(16, m_EmitBudget, m_EmitBudgetUAV, "emitBudget")) return false;
     if (!makeRaw(16, m_RecycleClaim, m_RecycleClaimUAV, "recycleClaim")) return false;
     if (!makeRaw(16, m_SpriteHead, m_SpriteHeadUAV, "spriteHead")) return false;
+    if (!makeRaw(sizeof(Swarm::BossInfo), m_BossInfoBuffer, m_BossInfoUAV, "bossInfo")) return false;
+    {
+        // Boss の様子の回読（GPUReadback と同じく 3 枚を輪転）
+        D3D11_BUFFER_DESC sd = {};
+        sd.ByteWidth = sizeof(Swarm::BossInfo);
+        sd.Usage = D3D11_USAGE_STAGING;
+        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        for (int i = 0; i < kBossStaging; ++i)
+        {
+            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_BossStaging[i]))) return false;
+            m_BossStagingFilled[i] = false;
+        }
+        m_BossStagingWrite = 0;
+        m_BossInfo = {};
+    }
     // ---- 定数バッファ ----
     // ※ComputeShader::WriteBuffer が反射から自前の CB を持つ場合は未使用。
     //   将来 VS 側で直接使うことを想定して残しておく
@@ -630,6 +645,8 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
 
         m_LastKillCount = c.killCount;
     }
+    ReadBossInfo();
+    if (m_MagnetTimer > 0.0f) m_MagnetTimer -= dt;
 
     // ---- 2) 定数と生成依頼を上げる ----
     UploadFrameCB(playerPos, playerRadius, playerAlive);
@@ -903,6 +920,7 @@ void SwarmSystem::DispatchStep()
     {
         m_EnemyAICS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_EnemyAICS->WriteBuffer(m_Context, 1, &m_CachedAICB);
+        m_EnemyAICS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 精英の体格（玩家の手前で止まる距離）
         m_EnemyAICS->Bind(m_Context);
         m_EnemyAICS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyAICS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());
@@ -989,7 +1007,9 @@ void SwarmSystem::DispatchStep()
         m_HitCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_HitCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
         m_HitCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
+        m_HitCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 精英の体格・経験値
         m_HitCS->Bind(m_Context);
+        m_HitCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
         m_HitCS->SetSRV(m_Context, "projectiles", m_ProjSRV.Get());
         // 命中した場所に範囲を出すプロファイル用（UAV はこれで 8 本。D3D11.0 の上限）
         m_HitCS->SetSRV(m_Context, "motions", m_MotionSRV.Get());
@@ -1027,7 +1047,9 @@ void SwarmSystem::DispatchStep()
         m_AreaDamageCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_AreaDamageCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
         m_AreaDamageCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
+        m_AreaDamageCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 精英の体格・経験値
         m_AreaDamageCS->Bind(m_Context);
+        m_AreaDamageCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
@@ -1081,7 +1103,10 @@ void SwarmSystem::DispatchStep()
     if (m_OrbCS)
     {
         m_OrbCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
-        m_OrbCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
+        // 磁石: 効いている間は吸い寄せの半径を場全体に（一度吸われた球は離さないので短い間で足りる）
+        Swarm::OrbCB orbCB = m_CachedOrbCB;
+        if (m_MagnetTimer > 0.0f) orbCB.attractRadius = 1.0e4f;
+        m_OrbCS->WriteBuffer(m_Context, 2, &orbCB);
         m_OrbCS->Bind(m_Context);
         m_OrbCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 台地の上では高く浮かぶ
         m_OrbCS->SetUAV(m_Context, "orbs", m_OrbUAV.Get());
@@ -1269,6 +1294,22 @@ void SwarmSystem::RequestReadback()
 }
 
 // ============================================================
+// Boss の様子を読む（GPUReadback::TryRead と同じ。一番古い staging、待たない）
+// ============================================================
+void SwarmSystem::ReadBossInfo()
+{
+    const int readIndex = m_BossStagingWrite;   // 次に書く = 一番古い
+    if (!m_BossStagingFilled[readIndex] || !m_BossStaging[readIndex]) return;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    const HRESULT hr = m_Context->Map(m_BossStaging[readIndex].Get(), 0,
+        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
+    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;   // まだ。前回の値のまま
+    memcpy(&m_BossInfo, mapped.pData, sizeof(Swarm::BossInfo));
+    m_Context->Unmap(m_BossStaging[readIndex].Get(), 0);
+}
+
+// ============================================================
 // 玩家の被弾を取り出す（取ったら 0 に戻す）
 // ============================================================
 float SwarmSystem::ConsumePlayerDamage()
@@ -1373,17 +1414,29 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
     const bool indirect = m_EnemyCompactCS && m_AliveListUAV && !m_EnemyDrawArgs[0].empty();
     if (indirect)
     {
+        // Boss の様子は毎回 0 から（居なければ alive = 0 のまま）
+        const UINT zero[4] = { 0, 0, 0, 0 };
+        m_Context->ClearUnorderedAccessViewUint(m_BossInfoUAV.Get(), zero);
+
         m_EnemyCompactCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_EnemyCompactCS->Bind(m_Context);
         m_EnemyCompactCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyCompactCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+        m_EnemyCompactCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+        m_EnemyCompactCS->SetSRV(m_Context, "enemyMaxHp", m_EnemyMaxHpSRV.Get());
         m_EnemyCompactCS->SetUAV(m_Context, "aliveList", m_AliveListUAV.Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "mobList", m_KindListUAV[Swarm::kEnemyKindMob].Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "bomberList", m_KindListUAV[Swarm::kEnemyKindBomber].Get(), 0);
+        m_EnemyCompactCS->SetUAV(m_Context, "bossInfo", m_BossInfoUAV.Get());
         m_EnemyCompactCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
         m_EnemyCompactCS->UnbindSRVs(m_Context);
         m_EnemyCompactCS->UnbindUAVs(m_Context);
+
+        // Boss の様子を staging へ（読むのは 2 フレーム後の Flush）
+        m_Context->CopyResource(m_BossStaging[m_BossStagingWrite].Get(), m_BossInfoBuffer.Get());
+        m_BossStagingFilled[m_BossStagingWrite] = true;
+        m_BossStagingWrite = (m_BossStagingWrite + 1) % kBossStaging;
 
         // 種類毎の一覧の長さ → その種類の submesh 毎の InstanceCount
         for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
@@ -1668,12 +1721,15 @@ void SwarmSystem::RenderHpBars(CameraBase* camera)
     cb.back = hpBar.back;
     cb.edge = hpBar.edge;
     m_HpBarVS->WriteBuffer(m_Context, 0, &cb);
+    m_HpBarVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 足元の高さ（半径・カプセル）
+    m_HpBarVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);  // 精英の体格
     m_HpBarPS->WriteBuffer(m_Context, 0, &cb);
 
     m_HpBarVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_HpBarVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_HpBarVS->SetSRV(m_Context, "aliveList", m_AliveListSRV.Get());
     m_HpBarVS->SetSRV(m_Context, "enemyMaxHp", m_EnemyMaxHpSRV.Get());
+    m_HpBarVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     m_HpBarVS->Bind(m_Context);
     m_HpBarPS->Bind(m_Context);

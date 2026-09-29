@@ -284,11 +284,15 @@ namespace TerrainGenerator
 
         // ---------- 外周の崖 ----------
         // 1 マス幅で四辺を囲む。場外へ出る・落ちるをここで殺す（格子も塞ぐ）
+        // 岩山にする時は衝突の箱だけ（見た目は後で岩を積む）
         auto wall = [&](int x, int z, int w, int d)
             {
                 const Vector3 lo = RectMin(grid, { x, z, w, d });
                 const Vector3 hi = lo + Vector3(w * kCs, cfg.wallHeight, d * kCs);
-                outTerrain.push_back(SpawnBlock(reg, batch, lo, hi, kPlateauTop, kWallRock));
+                if (cfg.rockMountains)
+                    outTerrain.push_back(TestSpawner::SpawnStaticBox(reg, (lo + hi) * 0.5f, (hi - lo) * 0.5f));
+                else
+                    outTerrain.push_back(SpawnBlock(reg, batch, lo, hi, kPlateauTop, kWallRock));
                 grid.BlockArea(x, z, w, d);
             };
         wall(0, 0, gw, 1);
@@ -686,6 +690,50 @@ namespace TerrainGenerator
             ++bushesPlaced;
         }
 
+        // ---------- 外周の岩山（rockMountains）----------
+        // 大きい岩を拡大して、崖の箱の外側へ 3 列に隙間なく積む（見た目だけ。衝突・格子は崖の箱）。
+        // 手前の列は内側の面が場地の縁（崖のマスの内側）に来るように置き、奥ほど高く。
+        // 四辺とも角の先まで伸ばして、角に穴が開かないようにする
+        int mountainRocks = 0;
+        if (cfg.rockMountains)
+        {
+            const auto cliffRocks = loadModels(F::kCliffRocks, std::size(F::kCliffRocks));
+            struct Row { float offset, step, hMin, hMax; };
+            const Row rows[] = {
+                { 0.0f, 4.5f, 8.0f, 13.0f },
+                { 7.0f, 6.0f, 15.0f, 22.0f },
+                { 16.0f, 8.0f, 24.0f, 34.0f },
+            };
+            const float halfW = W * 0.5f - kCs, halfD = D * 0.5f - kCs;   // 場地の縁（崖のマスの内側）
+            // 四辺: 外向きの法線 n と、辺に沿う向き t、辺の半分の長さ
+            struct Side { Vector3 n, t; float edge, half; };
+            const Side sides[] = {
+                { { 0, 0, 1 }, { 1, 0, 0 }, halfD, halfW },
+                { { 0, 0, -1 }, { 1, 0, 0 }, halfD, halfW },
+                { { 1, 0, 0 }, { 0, 0, 1 }, halfW, halfD },
+                { { -1, 0, 0 }, { 0, 0, 1 }, halfW, halfD },
+            };
+            for (const Side& sd : sides)
+                for (const Row& row : rows)
+                {
+                    const float extra = row.offset + 20.0f;   // 角の先まで
+                    for (float s = -sd.half - extra; s <= sd.half + extra; s += row.step)
+                    {
+                        const PropModel& pm = cliffRocks[randi(0, (int)cliffRocks.size() - 1)];
+                        const float h = (pm.hi.y - pm.lo.y) * pm.unit;
+                        if (h < 0.1f) continue;
+                        const float targetH = randf(row.hMin, row.hMax) * cfg.mountainScale;
+                        const float scale = targetH / h;   // unit を含めた倍率は spawnVisual が掛ける
+                        const float radius = 0.5f * ((pm.hi.x - pm.lo.x) + (pm.hi.z - pm.lo.z)) * 0.5f * pm.unit * scale;
+                        const float out = sd.edge + row.offset + radius * 0.8f + randf(-1.0f, 1.0f);
+                        const Vector3 p = sd.n * out + sd.t * (s + randf(-1.0f, 1.0f));
+                        // 少し埋める（底の縁が浮いて見えないように）
+                        spawnVisual(pm, scale, randf(0.0f, 360.0f), p.x, p.z, -targetH * 0.08f);
+                        ++mountainRocks;
+                    }
+                }
+        }
+
         // ---------- 草を生やすマス ----------
         // 土の坂道・外周の崖・登れない台地（高さ場が 0 のまま = 箱の中に生えてしまう）以外。
         // 崖の面そのものは GrassRenderer が高さ場の傾きで弾く
@@ -708,7 +756,8 @@ namespace TerrainGenerator
             << " with a 2nd tier), " << plateaus.size() << " plateaus ("
             << tier2 << " with a 2nd tier, " << blocked << " without a ramp), "
             << rampCount << " ramps, " << treesPlaced << " trees (" << decorTrees << " decor), "
-            << rocksPlaced << " rocks (" << decorRocks << " decor), " << bushesPlaced << " bushes, grid "
+            << rocksPlaced << " rocks (" << decorRocks << " decor), " << bushesPlaced << " bushes, "
+            << mountainRocks << " mountain rocks, grid "
             << gw << "x" << gd << std::endl;
 
         // 木・岩の模型の大きさ（拡縮 1 倍、m）。「小さい物は見た目だけ」のしきい値を決める目安

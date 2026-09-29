@@ -33,14 +33,15 @@ void SpawnDirector::Update(const GridWorld& grid,
 
     m_LastMobCount = aliveMobs;
 
-    m_Timer += dt;
-    if (m_Timer < spawnInterval) return;
-    m_Timer = 0.0f;
+    // 1 秒あたり spawnPerSecond 体。端数は貯めて次のフレームへ
+    m_Credit += (std::max)(0.0f, spawnPerSecond) * dt;
+    const int want = (std::min)((int)m_Credit, maxPerFrame);
+    if (want <= 0) return;
+    m_Credit = (std::min)(m_Credit - (float)want, (float)maxPerFrame);
 
     // ---- 今回の内訳：空き枠に入る分は新規、残りは転送 ----
     // 押し出し（Destroy）はもうしない。溢れた分は GPU が
     // 「玩家から rMax より遠い雑魚」を選んで湧き位置へ転送する
-    const int want = spawnPerTick;
     const int freeSlots = (std::max)(0, spawnCap - aliveMobs);
     const int newCount = (std::min)(want, freeSlots);
 

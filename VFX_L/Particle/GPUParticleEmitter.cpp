@@ -71,6 +71,7 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.renderMode = (renderMode == 0)
         ? (alphaBlend ? ParticleRenderMode::kBillboardAlpha : 0)
         : ParticleRenderMode::Pack(meshSlot, meshGlow, meshFaceVelocity, meshForwardAxis);
+    if (inheritVelocity) e.renderMode |= ParticleRenderMode::kInheritSourceVelocity;
 
 
     // 形状パラメータをemitTypeに応じてパッキング

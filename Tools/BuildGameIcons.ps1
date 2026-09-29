@@ -31,6 +31,7 @@ $Icons = [ordered]@{
     'ArcBolt'        = 'lorc/lightning-helix'
     'HomingBolt'     = 'lorc/on-target'
     'Meteor'         = 'lorc/meteor-impact'
+    'GoldenArrow'    = 'lorc/high-shot'
     'SplitRune'      = 'delapouite/split-arrows'
     'DoubleCastRune' = 'lorc/echo-ripples'
     'Magnifier'      = 'lorc/magnifying-glass'
@@ -38,6 +39,9 @@ $Icons = [ordered]@{
     'MaxManaUp'      = 'lorc/potion-ball'
     'MoveSpeedUp'    = 'lorc/sprint'
     'JumpPowerUp'    = 'delapouite/jump-across'
+    'ManaRegenUp'    = 'lorc/magic-swirl'
+    'JumpCountUp'    = 'lorc/wingfoot'
+    'Magnet'         = 'lorc/magnet'
     'Frame3x3'       = '@grid3'
 }
 

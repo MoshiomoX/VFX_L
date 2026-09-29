@@ -165,7 +165,7 @@ void ResultScene::Render(Renderer& renderer)
         m_Sprite.Draw(m_WhiteTex, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH }, { 0.02f, 0.02f, 0.05f, 0.8f });
 
     // ---- 見出し ----
-    const std::wstring header = L"リザルト";
+    const std::wstring header = (g_LastRun.valid && g_LastRun.cleared) ? L"ステージクリア" : L"リザルト";
     const Vector2 headerSize = m_Text.Measure(header, kHeaderScale);
     const Vector2 headerPos = { (m_ScreenW - headerSize.x) * 0.5f, m_ScreenH * 0.14f };
     m_Text.Draw(header, headerPos + Vector2(3.0f, 3.0f), { 0.0f, 0.0f, 0.0f, 0.8f }, kHeaderScale);

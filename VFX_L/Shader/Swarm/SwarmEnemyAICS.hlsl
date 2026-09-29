@@ -13,7 +13,9 @@
 //
 // Logic mirrors ChaseAISystem.cpp. Keep them in sync.
 // + player block (solid circle, slide around it)
+// Elites (bigger body) stop farther out: SwarmKindScale.
 // ============================================================
+#define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
 Buffer<uint> enemyStates : register(t0);
@@ -195,7 +197,7 @@ void main(uint3 id : SV_DispatchThreadID)
         float3 toP = g_PlayerPos - pos;
         toP.y = 0.0;
         float dist = length(toP);
-        float contact = g_PlayerRadius + g_EnemyRadius;
+        float contact = g_PlayerRadius + g_EnemyRadius * SwarmKindScale(extra.kind);
 
         float3 n;
         if (dist > 1e-4)

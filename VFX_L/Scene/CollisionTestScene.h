@@ -42,6 +42,7 @@
 #include "Graphics/Renderer/GrassRenderer.h"
 #include "ECS/System/InteractionSystem.h"
 #include "ECS/System/RewardCrateSystem.h"
+#include "ECS/System/PickupSystem.h"
 #include "ECS/System/FeedbackVFXSystem.h"
 #include "Particle/GPUParticleSystem.h"
 #include "VFX_Editor/VFXEffect.h"
@@ -49,6 +50,7 @@
 #include "ECS/System/ManaSystem.h"
 #include "Enemy/EliteSpawner.h"
 #include "Enemy/MobSpawner.h"
+#include "Enemy/StageDirector.h"
 #include "Graphics/Light/SceneLighting.h"
 #include "Graphics/Light/ShadowMap.h"
 #include "Debug/StressTestTools.h"
@@ -135,6 +137,28 @@ private:
     // 脚の向き・後ろ走り・歩様・再生速度を記録し、続けて既定の鏡頭で火球と隕石の爆発を映す（画面は外から連写）
     bool     m_AutoLoco = false;
     void     UpdateAutoTestLoco(float dt);
+    // VFXL_BATTLE_AUTOTEST=balance：無敵・入力なしで普通に遊ばせ（三択は先頭を自動で選ぶ）、
+    // 5 秒毎に経過時間・雑魚数・撃破・等級・HP・難度の倍率を記録。
+    // 10 秒で経過時間を 170 秒（3:00 の精英が出る）、30 秒で 5 分、45 秒で 10 分（時間切れ）、55 秒で 11 分へ飛ばす
+    bool     m_AutoBalance = false;
+    void     UpdateAutoTestBalance(float dt);
+    // VFXL_BATTLE_AUTOTEST=boss：無敵・湧き停止、門の前へ移って F（Boss の HP は流れを見るため 300）、
+    // 毎秒 Boss の状態を記録。倒せば「ステージクリア」→ リザルト
+    bool     m_AutoBoss = false;
+    void     UpdateAutoTestBoss();
+    // VFXL_BATTLE_AUTOTEST=pickup：4 択の画面 → 跳躍回数（空中 2 回、12 → 9 → 6.75）→ 磁石で場の球を全部吸う、を記録
+    bool     m_AutoPickup = false;
+    void     UpdateAutoTestPickup(float dt);
+    // VFXL_BATTLE_AUTOTEST=assets：新しい素材（沙漠・遺跡）を 1 包ずつ玩家の前に並べ、大きさ（m）を記録して撮る
+    // VFXL_BATTLE_AUTOTEST=arrow：黄金の矢だけを背包に置き、正面の的へ撃たせて横から連写する
+    bool     m_AutoArrow = false;
+    void     UpdateAutoTestArrow();
+    // VFXL_BATTLE_AUTOTEST=edge：外周の岩山を、縁の近くの平視・高い所からの俯瞰・場地の中央から撮る
+    bool     m_AutoEdge = false;
+    void     UpdateAutoTestEdge();
+    bool     m_AutoAssets = false;
+    void     UpdateAutoTestAssets();
+    std::vector<Entity> m_AutoAssetEntities;
     void     SetDecorPropsVisible(bool visible, int* outCount);
 
 private:
@@ -169,11 +193,13 @@ private:
 
     // ---- 部品 ----
     RewardCrateSystem       m_Crates;              // 報酬の箱
+    PickupSystem            m_Pickups;             // 場の拾い物（磁石）
     FeedbackVFXSystem       m_Feedback;            // 升級・開箱・被弾の特効
     SceneLighting           m_Lighting;            // 太陽・環境光・場景光源
     ShadowMap               m_Shadows;             // 太陽の影（3 段の級聯）
     EliteSpawner            m_Elites;              // 精英の的（CPU）
     MobSpawner              m_Mobs;                // 雑魚の湧き（GPU へ依頼）
+    StageDirector           m_Stage;               // 1 面の進行（制限時間・精英の時間表）
     StressTestTools         m_Stress;              // 負荷テスト・Mesh 発射の確認
 
     // --- GPU 側 gameplay（雑魚・投射物・オーブ）---
