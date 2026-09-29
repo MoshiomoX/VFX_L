@@ -8,9 +8,11 @@
 #include "Item/BackpackLogic.h"
 #include "Item/ItemDatabase.h"
 #include "UI/ShapeSprite.h"
+#include "UI/UIDeco.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
+#include <algorithm>
 #include <cmath>
 
 using namespace DirectX::SimpleMath;
@@ -354,6 +356,7 @@ void BackpackUI::DrawDropShadow(SpriteRenderer& sprite)
     if (!c) return;
 
     const Vector2 cellSizeVec = { m_CellSize, m_CellSize };
+    const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
     const Vector4 col = m_Drag->canDrop ? Vector4(0.4f, 1.0f, 0.5f, 0.45f)
         : Vector4(1.0f, 0.3f, 0.3f, 0.45f);
 
@@ -365,7 +368,7 @@ void BackpackUI::DrawDropShadow(SpriteRenderer& sprite)
             const int cc = m_Drag->dropCol + off.col;
             return r < 0 || r >= GRID_SIZE || cc < 0 || cc >= GRID_SIZE;
         }), cells.end());
-    ShapeSprite::DrawConnected(sprite, m_BlockTex, col, cells,
+    ShapeSprite::DrawConnected(sprite, white, col, cells,
         CellPosition(m_Drag->dropRow, m_Drag->dropCol), m_CellSize, m_CellGap);
 
     // 魔法なら影響格も薄く重ねる
@@ -381,7 +384,7 @@ void BackpackUI::DrawDropShadow(SpriteRenderer& sprite)
             int cc = m_Drag->dropCol + off.col;
             if (r < 0 || r >= GRID_SIZE || cc < 0 || cc >= GRID_SIZE) continue;
 
-            sprite.Draw(m_BlockTex, CellPosition(r, cc), cellSizeVec, ic);
+            sprite.Draw(white, CellPosition(r, cc), cellSizeVec, ic);
         }
     }
 }
@@ -404,10 +407,14 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
     if (!c || c->influenceCells.empty()) return;
 
     const Vector2 cellSizeVec = { m_CellSize, m_CellSize };
+    const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
     auto cells = BackpackLogic::RotateShape(c->influenceCells, src.rotation);
 
-    Vector4 col = c->color;
-    col.w = 0.45f;
+    // 影響格：種類の色で薄く塗って縁を引く
+    Vector4 col = UIDeco::CategoryColor(c->category);
+    col.w = 0.22f;
+    Vector4 edge = col;
+    edge.w = 0.85f;
 
     for (const auto& off : cells)
     {
@@ -415,7 +422,8 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
         int cc = src.col + off.col;
         if (r < 0 || r >= GRID_SIZE || cc < 0 || cc >= GRID_SIZE) continue;
 
-        sprite.Draw(m_BlockTex, CellPosition(r, cc), cellSizeVec, col);
+        sprite.Draw(white, CellPosition(r, cc), cellSizeVec, col);
+        UIDeco::DrawFrameLines(sprite, CellPosition(r, cc), cellSizeVec, edge);
     }
 
     if (!highlightInfluenced) return;
@@ -440,7 +448,7 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
         if (!tc) continue;
 
         auto tcells = BackpackLogic::RotateShape(tc->occupyCells, t.rotation);
-        ShapeSprite::DrawConnected(sprite, m_BlockTex, glow, tcells,
+        ShapeSprite::DrawConnected(sprite, white, glow, tcells,
             CellPosition(t.row, t.col), m_CellSize, m_CellGap);
     }
 }
@@ -465,8 +473,9 @@ void BackpackUI::DrawDragged(SpriteRenderer& sprite, const Vector2& mousePos)
     const float oy = mousePos.y - m_Drag->grabOffset.y;
 
     auto cells = BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation);
-    ShapeSprite::DrawItem(sprite, m_BlockTex, c->color, GetIcon(m_Drag->id), cells,
-        { ox, oy }, m_CellSize, pitch - m_CellSize, dragAlpha);
+    const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
+    ShapeSprite::DrawItemGlass(sprite, white, c->color, UIDeco::CategoryColor(c->category),
+        GetIcon(m_Drag->id), cells, { ox, oy }, m_CellSize, pitch - m_CellSize, dragAlpha);
 }
 
 // ============================================================
@@ -478,25 +487,36 @@ void BackpackUI::DrawDragged(SpriteRenderer& sprite, const Vector2& mousePos)
 void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
 {
     if (!m_BlockTex) return;
+    const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
 
     const Vector2 cellSizeVec = { m_CellSize, m_CellSize };
 
-    // ---- 外枠 ----
+    // ---- 外枠（幻想 UI の面板。四隅の組紐はマスの下に敷く）----
     float extent = GridExtent();
     Vector2 framePos = { m_Origin.x - m_FramePad, m_Origin.y - m_FramePad };
     Vector2 frameSize = { extent + m_FramePad * 2.0f, extent + m_FramePad * 2.0f };
-    sprite.Draw(m_BlockTex, framePos, frameSize, frameColor);
+    {
+        UIDeco::PanelStyle ps;
+        ps.fill = frameColor;
+        ps.innerInset = (std::max)(3.0f, m_FramePad * 0.3f);
+        ps.cornerSize = m_CellSize * cornerCells;
+        UIDeco::DrawPanel(sprite, framePos, frameSize, UIDeco::TintColor(UIDeco::Tint::Gold), ps);
+    }
 
     // ---- マス ----
     // 枠が敷かれていないマスは暗くする。
     // GRID は画布の上限であって、置ける場所ではないことを見せるため。
+    // 置けるマスは細い月銀の線で囲む
+    Vector4 cellLine = UIDeco::TintColor(UIDeco::Tint::Silver);
+    cellLine.w = cellLineAlpha;
     for (int row = 0; row < GRID_SIZE; ++row)
     {
         for (int col = 0; col < GRID_SIZE; ++col)
         {
             const bool placeable = bp.IsPlaceable(row, col);
-            sprite.Draw(m_BlockTex, CellPosition(row, col), cellSizeVec,
-                placeable ? cellColor : lockedCellColor);
+            const Vector2 p = CellPosition(row, col);
+            sprite.Draw(white, p, cellSizeVec, placeable ? cellColor : lockedCellColor);
+            if (placeable) UIDeco::DrawFrameLines(sprite, p, cellSizeVec, cellLine);
         }
     }
 
@@ -510,10 +530,11 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         const ItemCommon* fc = ItemDatabase::GetCommon(f.id);
         if (fc)
         {
-            Vector4 mark = { 1.0f, 0.9f, 0.5f, 0.30f };
+            Vector4 mark = UIDeco::TintColor(UIDeco::Tint::Silver);
+            mark.w = 0.18f;
             auto cells = BackpackLogic::RotateShape(fc->occupyCells, f.rotation);
             for (const auto& off : cells)
-                sprite.Draw(m_BlockTex,
+                sprite.Draw(white,
                     CellPosition(f.row + off.row, f.col + off.col),
                     cellSizeVec, mark);
         }
@@ -535,10 +556,10 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         const ItemCommon* c = ItemDatabase::GetCommon(item.id);
         if (!c) continue;
 
-        // 異形は隙間も塗って 1 枚に見せる。アイコンは中心のマスに 1 つだけ
+        // 異形は隙間も塗って 1 枚に見せる。アイコンは中心のマスに 1 つだけ。輪郭は種類の色
         auto cells = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
-        ShapeSprite::DrawItem(sprite, m_BlockTex, c->color, GetIcon(item.id), cells,
-            CellPosition(item.row, item.col), m_CellSize, m_CellGap);
+        ShapeSprite::DrawItemGlass(sprite, white, c->color, UIDeco::CategoryColor(c->category),
+            GetIcon(item.id), cells, CellPosition(item.row, item.col), m_CellSize, m_CellGap);
     }
 
     // ---- 影響格 ----

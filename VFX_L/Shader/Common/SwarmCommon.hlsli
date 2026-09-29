@@ -105,7 +105,8 @@ struct SwarmProjectile
 
     float radius;
     uint vfxType; // index into SwarmVFXTable's recipe table
-    uint motion; // motion table index. In a spawn REQUEST bit 31 = mirror the curve
+    uint motion; // bits 0-15 = motion table index, 16-30 = size scale (SwarmProjScale).
+                 // In a spawn REQUEST bit 31 = mirror the curve
     float pathT; // Bezier parameter 0..1 while on a curve
 };
 
@@ -141,6 +142,36 @@ static const uint SWARM_NO_TARGET = 0xFFFFFFFFu;
 static const uint SWARM_MOTION_INDEX_MASK = 0xFFFFu;
 static const uint SWARM_MOTION_FLIP_BIT = 0x80000000u;
 
+// ------------------------------------------------------------
+// Size scale of one projectile / area (the Magnifier item).
+// A projectile's scale = its hit radius / its profile's radius
+// (SwarmMotion.baseRadius), worked out once in SwarmSpawnProjCS and
+// kept in bits 16-30 of SwarmProjectile.motion (every reader masks the
+// index with SWARM_MOTION_INDEX_MASK). An area keeps its scale in bits
+// 16-31 of SwarmArea.flags. Fixed point, 1024 = 1.0; 0 = 1.0 (spawn
+// requests from the CPU leave the bits empty).
+// Multiplied into: the hit area's radius, particle size / offset /
+// shape / speed (SwarmEmitCS), point light radius, sprite size, the
+// meteor's warning ring.
+// ------------------------------------------------------------
+static const uint SWARM_SCALE_SHIFT = 16u;
+static const float SWARM_SCALE_ONE = 1024.0;
+
+uint SwarmPackScale(float scale, uint maxQ)
+{
+    return (uint) clamp(round(scale * SWARM_SCALE_ONE), 1.0, (float) maxQ);
+}
+float SwarmUnpackScale(uint q)
+{
+    return (q == 0u) ? 1.0 : (float) q / SWARM_SCALE_ONE;
+}
+
+// size scale of a live projectile (1 = as authored)
+float SwarmProjScale(SwarmProjectile p)
+{
+    return SwarmUnpackScale((p.motion >> SWARM_SCALE_SHIFT) & 0x7FFFu);
+}
+
 struct SwarmMotion
 {
     uint mode;
@@ -149,7 +180,7 @@ struct SwarmMotion
     uint hitAreaFlags; // bit 0 = also spawn when it expires / hits a wall
 
     float3 c1;
-    float _pad1;
+    float baseRadius; // the profile's hit radius: a shot bigger than this is drawn bigger
 
     float3 c2;
     float _pad2;
@@ -266,10 +297,16 @@ struct SwarmArea
     float tickTimer; // seconds until the next tick. 0 at spawn = ticks on its first step
 
     float halfHeight;
-    uint flags;
+    uint flags; // bits 0-15 = SWARM_AREA_*, 16-31 = size scale (SwarmAreaScale)
     uint vfxType; // recipe index for GPU-side particles. 0 = none (the CPU plays the VFX)
     uint tickNow; // 1 while this step deals damage. written by AreaTickCS
 };
+
+// size scale of an area (1 = as authored). radius / halfHeight already include it
+float SwarmAreaScale(SwarmArea a)
+{
+    return SwarmUnpackScale(a.flags >> SWARM_SCALE_SHIFT);
+}
 
 struct SwarmAreaDef
 {
@@ -295,8 +332,9 @@ RWStructuredBuffer<SwarmArea> areas : register(SWARM_AREA_POOL_U);
 RWBuffer<uint> areaStates : register(SWARM_AREA_STATE_U);
 StructuredBuffer<SwarmAreaDef> areaDefs : register(SWARM_AREA_DEF_T);
 
-// Same CAS scan as the other pools. Pool full -> no area (degrade, never corrupt)
-void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt)
+// Same CAS scan as the other pools. Pool full -> no area (degrade, never corrupt).
+// scale: the size scale of whatever spawned it (a projectile's SwarmProjScale, 1 = as authored)
+void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale)
 {
     if (defId == 0u)
         return;
@@ -305,13 +343,14 @@ void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt)
 
     SwarmArea a = (SwarmArea) 0;
     a.center = pos;
-    a.radius = d.radius;
+    a.radius = d.radius * scale;
     a.damage = d.damage;
     a.timeLeft = d.duration;
     a.tickInterval = d.tickInterval;
     a.tickTimer = 0.0;
-    a.halfHeight = d.halfHeight;
-    a.flags = d.flags & ~SWARM_AREA_FOLLOW_PLAYER; // born from a hit: stays where it is
+    a.halfHeight = d.halfHeight * scale;
+    a.flags = (d.flags & 0xFFFFu & ~SWARM_AREA_FOLLOW_PLAYER) // born from a hit: stays where it is
+        | (SwarmPackScale(scale, 0xFFFFu) << SWARM_SCALE_SHIFT);
     a.vfxType = d.vfxType;
     a.tickNow = 0u;
 

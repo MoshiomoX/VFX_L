@@ -53,11 +53,14 @@ namespace PlayerFactory
 
         // ---- 見た目（骨付きモデル）----
         // nullptr / "" ならカプセル。読めなかった時もカプセルに落ちる
-        const char* skinnedModel = Res::Mdl::KayKit_Mage;
-        float modelScale = 1.0f;            // KayKit はメートル
-        float modelYawOffsetDeg = 180.0f;   // KayKit は -Z が正面（Blender 出力）
-        // 隠す手持ち品（ノード名）。Mage は杖・魔杖・魔道書が全部付いてくるので杖だけ残す
-        std::vector<const char*> hiddenParts = { "1H_Wand", "Spellbook", "Spellbook_open" };
+        // 2026-09-28 から Quaternius の游侠（白髭）。前の KayKit Mage に戻すなら
+        //   skinnedModel = Res::Mdl::KayKit_Mage、hiddenParts = { "1H_Wand", "Spellbook", "Spellbook_open" }、
+        //   PlayerAnimSystem::ClipNames も KayKit の名前へ
+        const char* skinnedModel = Res::Mdl::Quaternius_Ranger;
+        float modelScale = 1.0f;            // メートル（身長 1.8m ≒ カプセルの高さ）
+        float modelYawOffsetDeg = 0.0f;     // +Z が正面（Tools/BuildPlayerModel.py の FBX。KayKit は -Z が正面で 180）
+        // 隠す部品（ノード名）。游侠は手持ち品が無い
+        std::vector<const char*> hiddenParts = {};
     };
 
     // ============================================================

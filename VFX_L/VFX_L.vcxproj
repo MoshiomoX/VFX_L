@@ -244,6 +244,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="UI\GameUI.cpp" />
     <ClCompile Include="UI\LevelUpSystem.cpp" />
     <ClCompile Include="UI\LevelUpUI.cpp" />
+    <ClCompile Include="UI\UIDeco.cpp" />
     <ClCompile Include="Core\main.cpp" />
     <ClCompile Include="Graphics\Material\Material.cpp" />
     <ClCompile Include="Graphics\Mesh\Mesh.cpp" />
@@ -408,11 +409,14 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\ArcBolt.h" />
     <ClInclude Include="Item\Items\HomingBolt.h" />
     <ClInclude Include="Item\Items\Meteor.h" />
+    <ClInclude Include="Item\Items\Magnifier.h" />
     <ClInclude Include="Camera\FollowCamera.h" />
     <ClInclude Include="Camera\FlyCamera.h" />
     <ClInclude Include="Item\Items\Frame3x3.h" />
     <ClInclude Include="Item\Items\MaxHealthUp.h" />
     <ClInclude Include="Item\Items\MaxManaUp.h" />
+    <ClInclude Include="Item\Items\MoveSpeedUp.h" />
+    <ClInclude Include="Item\Items\JumpPowerUp.h" />
     <ClInclude Include="Core\Game.h" />
     <ClInclude Include="Object\GameObject.h" />
     <ClInclude Include="Core\Timer\GameTimer.h" />
@@ -447,6 +451,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Player\LevelComponent.h" />
     <ClInclude Include="UI\LevelUpSystem.h" />
     <ClInclude Include="UI\LevelUpUI.h" />
+    <ClInclude Include="UI\UIDeco.h" />
     <ClInclude Include="UI\ShapeSprite.h" />
     <ClInclude Include="Graphics\Light\LightTypes.h" />
     <ClInclude Include="Graphics\Material\Material.h" />

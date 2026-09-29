@@ -42,10 +42,19 @@ public:
     ItemSheetView::Style textStyle;
     float centerY = 0.50f;   // 画面高さに対する中心位置
 
-    DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.72f };
-    // 画面に出る時は明るく持ち上がるので（深い色が灰色に見える）、暗めの値にしておく
-    DirectX::SimpleMath::Vector4 cardColor = { 0.030f, 0.026f, 0.045f, 0.96f };
-    DirectX::SimpleMath::Vector4 hoverColor = { 0.075f, 0.068f, 0.110f, 0.98f };
+    // 戦闘の UI は場面の HDR バッファに描かれ、トーンマップ + ガンマを通る（線形の値）。
+    // 画面で 72% 暗くしたいなら 1 - 0.28^2.2 ≒ 0.94
+    DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.94f };
+    // 地は不透明に近く（少し透けると明るい草が混ざって灰色になる）。画面で #0E0C16 くらい
+    DirectX::SimpleMath::Vector4 cardColor = { 0.0025f, 0.0020f, 0.0045f, 0.985f };
+    DirectX::SimpleMath::Vector4 hoverColor = { 0.0060f, 0.0048f, 0.0100f, 0.985f };
+
+    // ---- 幻想 UI の飾り（UIDeco）----
+    float headingScale = 1.10f;   // 見出し「レベルアップ」（カード幅 270px の時）
+    DirectX::SimpleMath::Vector4 headingColor = { 0.96f, 0.92f, 0.84f, 1.0f };   // 名前・見出しの暖かい白
+    DirectX::SimpleMath::Vector4 iconColor = { 0.97f, 0.94f, 0.87f, 1.0f };      // 白い剪影に掛ける色
+    float cornerRatio = 0.26f;    // 四隅の組紐の大きさ（カード幅に対して）
+    float circleSpin = 0.12f;     // 魔法陣の回転（rad / 秒、選択中は倍）
 
     // 選択中の index（キーボード / パッド用）
     int GetCursor() const { return m_Cursor; }

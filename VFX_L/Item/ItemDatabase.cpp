@@ -10,9 +10,12 @@
 #include "Item/Items/Meteor.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
+#include "Item/Items/Magnifier.h"
 #include "Item/Items/Frame3x3.h"
 #include "Item/Items/MaxHealthUp.h"
 #include "Item/Items/MaxManaUp.h"
+#include "Item/Items/MoveSpeedUp.h"
+#include "Item/Items/JumpPowerUp.h"
 #include "Item/ItemDataFile.h"
 #include <unordered_map>
 #include <utility>
@@ -100,6 +103,7 @@ void ItemDatabase::Initialize()
     // ---- 機能型 ----
     Register(MakeSplitRune());
     Register(MakeDoubleCastRune());
+    Register(MakeMagnifier());
 
     // ---- AOE 型（未実装）----
 
@@ -109,6 +113,8 @@ void ItemDatabase::Initialize()
     // ---- 能力値（レベルアップ専用）----
     Register(MakeMaxHealthUp());
     Register(MakeMaxManaUp());
+    Register(MakeMoveSpeedUp());
+    Register(MakeJumpPowerUp());
 
     // ---- 形（占位格・影響格）----
     // コードに書いた形を覚えてから、保存済みの道具データ（ItemData/<名前>.json）で上書きする。

@@ -39,6 +39,14 @@ public:
     void DrawImGui(SwarmSystem& swarm, const CollisionSystem& collision,
         const GPUParticleSystem& particles, const ProjectileBillboardRenderer& billboards);
 
+    // 投射物の自動補充（自己テストから。面板の Auto Refill と同じ）
+    void SetAutoRefill(bool on, int target, int batch)
+    {
+        m_AutoRefill = on;
+        m_RefillTarget = target;
+        m_RefillBatch = batch;
+    }
+
 private:
     struct StressPreset
     {

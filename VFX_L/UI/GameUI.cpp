@@ -318,6 +318,23 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
             tooltip = false;
     }
 
+    // TEMP-TEST: 自測で置いた tooltip（鼠标の位置の代わりに m_TestTooltipPos）
+    DirectX::SimpleMath::Vector2 anchor = { 0.0f, 0.0f };
+    {
+        const auto mp = InputManager::Get().GetMousePos();
+        anchor = { mp.x, mp.y };
+    }
+    if (m_TestTooltipItem >= 0 && reg.Has<BackpackComponent>(player))
+    {
+        const auto& bp = reg.Get<BackpackComponent>(player);
+        if (m_TestTooltipItem < (int)bp.items.size())
+        {
+            sheet = ItemInfo::DescribePlaced(bp, m_TestTooltipItem);
+            tooltip = true;
+            anchor = m_TestTooltipPos;
+        }
+    }
+
     const bool gameOver = (m_GameOverTime >= 0.0f);
     if (!tooltip && !gameOver) return;   // 何も無いフレームは Begin / End も省く
 
@@ -330,14 +347,21 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     if (tooltip)
     {
         const float shortSide = (std::min)(m_ScreenW, m_ScreenH);
-        const auto mp = InputManager::Get().GetMousePos();
         ItemSheetView::DrawTooltip(m_Sprite, m_WhiteTex, m_Text, sheet,
-            { mp.x, mp.y }, { m_ScreenW, m_ScreenH }, shortSide * 0.36f,
+            anchor, { m_ScreenW, m_ScreenH }, shortSide * 0.36f,
             m_TooltipStyle.Scaled(shortSide / 900.0f));
     }
 
     m_Sprite.End();
     m_Text.End();
+}
+
+// TEMP-TEST: 自測で画面を開閉する（VFXL_BATTLE_AUTOTEST=ui）
+void GameUI::TestShow(int layer)
+{
+    m_Stack.Clear();
+    if (layer == 1) m_Stack.Push(UILayer::Backpack);
+    if (layer == 2) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); }
 }
 
 // ============================================================

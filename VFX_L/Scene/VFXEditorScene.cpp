@@ -80,7 +80,8 @@ void VFXEditorScene::Init()
     // TEMP-TEST: VFXL_REF_MAGE=<クリップ名,...>（別ファイルのアニメを骨名で当てた結果を見る。Game.cpp と対）
     char refMage[256] = {};
     const bool useMage = GetEnvironmentVariableA("VFXL_REF_MAGE", refMage, sizeof(refMage)) > 0;
-    auto loaded = ResourceManager::Get().LoadModelAuto(useMage ? Res::Mdl::KayKit_Mage : Res::Mdl::Paladin_Idle);
+    // 参照はプレイヤーの今のモデル（PlayerFactory::Config::skinnedModel と同じ。2026-09-28 から Quaternius の游侠）
+    auto loaded = ResourceManager::Get().LoadModelAuto(useMage ? Res::Mdl::Quaternius_Ranger : Res::Mdl::Paladin_Idle);
     if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
     {
         m_SkinnedModel = loaded.skinnedModel;

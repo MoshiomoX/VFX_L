@@ -66,7 +66,8 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     if (m.mode != SWARM_MOTION_DROP)
         return o;
 
-    float radius = (m.hitArea != 0u) ? areaDefs[m.hitArea].radius : 1.0;
+    // the blast is scaled with the meteor (SwarmSpawnAreaFromDef), so is the ring
+    float radius = (m.hitArea != 0u) ? areaDefs[m.hitArea].radius * SwarmProjScale(p) : 1.0;
     radius = max(radius, 0.01);
     float3 c3 = paths[iid].p3;
     float2 c = kCorner[vid];

@@ -52,7 +52,7 @@
 #include "Graphics/Light/SceneLighting.h"
 #include "Graphics/Light/ShadowMap.h"
 #include "Debug/StressTestTools.h"
-
+                
 #include "World/GridWorld.h"
 #include "World/TerrainGenerator.h"
 #include "Swarm/SwarmSystem.h"
@@ -119,6 +119,18 @@ private:
     // VFXL_BATTLE_AUTOTEST=perf：野原の置物を隠す / 調試表示を切る段を順に回し、段毎の平均 fps を記録する
     bool     m_AutoPerf = false;
     void     UpdateAutoTestPerf();
+    // VFXL_BATTLE_AUTOTEST=stress：玩家は動かず無敵、法術を背包に置いて撃たせ、雑魚の数を段ごとに増やす
+    // （0 / 250 / 500 / 1000 / 2000 / 4000 / 4000 + 弾 2000）。段毎の fps と CPU / GPU の内訳を記録する
+    bool     m_AutoStress = false;
+    void     UpdateAutoTestStress();
+    // VFXL_BATTLE_AUTOTEST=magnifier：拡大鏡の斜めに火球と隕石、効かない所にもう 1 つ火球を置いて撃たせ、
+    // 集約後の半径・消費と道具説明を記録する（大きさの見比べは外から連写）
+    bool     m_AutoMagnifier = false;
+    void     UpdateAutoTestMagnifier();
+    // VFXL_BATTLE_AUTOTEST=ui：背包 → tooltip → 一時停止 → HUD → 三択 を順に開いて記録する（画面は外から連写）。
+    // 背包・一時停止で gameplay が止まるので Update から直接呼ぶ
+    bool     m_AutoUI = false;
+    void     UpdateAutoTestUI(float dt);
     void     SetDecorPropsVisible(bool visible, int* outCount);
 
 private:

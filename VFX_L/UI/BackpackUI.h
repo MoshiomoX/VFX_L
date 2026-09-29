@@ -67,12 +67,15 @@ public:
     // ---- 見た目（すべて画面短辺に対する比率。Layout で確定）----
     float gridScreenRatio = 0.42f;
     float cellGapRatio = 0.07f;
-    float framePadRatio = 0.28f;
+    float framePadRatio = 0.40f;
     float marginRatio = 0.02f;
 
-    DirectX::SimpleMath::Vector4 frameColor = { 0.22f, 0.15f, 0.10f, 0.92f };
-    DirectX::SimpleMath::Vector4 cellColor = { 0.45f, 0.32f, 0.22f, 1.00f };
-    DirectX::SimpleMath::Vector4 lockedCellColor = { 0.14f, 0.11f, 0.09f, 0.85f };
+    // 幻想 UI（UIDeco）。色は線形の値（戦闘の UI は HDR バッファに描かれてガンマを通る）
+    DirectX::SimpleMath::Vector4 frameColor = { 0.0025f, 0.0020f, 0.0045f, 0.985f };
+    DirectX::SimpleMath::Vector4 cellColor = { 0.010f, 0.009f, 0.016f, 0.98f };        // 置けるマス
+    DirectX::SimpleMath::Vector4 lockedCellColor = { 0.001f, 0.001f, 0.002f, 0.85f };  // 枠の無いマス
+    float cellLineAlpha = 0.30f;   // 置けるマスを囲む月銀の線
+    float cornerCells = 1.6f;      // 外枠の四隅の組紐（マス何個分）
 
     // ---- 影響格の表示 ----
     bool showInfluenceOnHover = true;

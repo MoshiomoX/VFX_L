@@ -110,33 +110,39 @@ struct HUDStyle
     float trailDelay = 0.25f;     // 減ってから動き出すまでの秒数
     float trailSpeed = 0.9f;      // 追いつく速さ（割合 / 秒）
 
-    // ---- 枠 ----
+    // ---- 枠（幻想 UI：古金の細い線）----
     bool  drawBorder = true;
     float borderSize = 1.0f;
+    float gemSize = 9.0f;         // HP / MP バーの両端の菱形（0 = 無し）
 
     // ---- 配色 ----
-    DirectX::SimpleMath::Vector4 bgColor = { 0.08f, 0.08f, 0.10f, 0.85f };
-    DirectX::SimpleMath::Vector4 hpColor = { 0.85f, 0.25f, 0.25f, 1.0f };
-    DirectX::SimpleMath::Vector4 mpColor = { 0.30f, 0.50f, 0.95f, 1.0f };
-    DirectX::SimpleMath::Vector4 expColor = { 0.95f, 0.80f, 0.25f, 1.0f };
-    DirectX::SimpleMath::Vector4 trailColor = { 1.00f, 1.00f, 1.00f, 0.55f };
-    DirectX::SimpleMath::Vector4 borderColor = { 0.00f, 0.00f, 0.00f, 0.90f };
-    DirectX::SimpleMath::Vector4 textColor = { 1.00f, 1.00f, 1.00f, 1.0f };
-    DirectX::SimpleMath::Vector4 shadowColor = { 0.00f, 0.00f, 0.00f, 0.80f };
+    // 戦闘の UI は場面の HDR バッファに描かれ、トーンマップ + ガンマを通る。色は全部線形の値
+    // （sRGB の見た目 c なら c^2.2。0.07 でも画面では中間の灰色になる）
+    DirectX::SimpleMath::Vector4 bgColor = { 0.003f, 0.0025f, 0.005f, 0.95f };
+    DirectX::SimpleMath::Vector4 hpColor = { 0.55f, 0.035f, 0.030f, 1.0f };    // 見た目 #C0342F くらい
+    DirectX::SimpleMath::Vector4 mpColor = { 0.050f, 0.16f, 0.75f, 1.0f };     // 見た目 #3F6FE0 くらい
+    DirectX::SimpleMath::Vector4 expColor = { 0.79f, 0.49f, 0.07f, 1.0f };     // 見た目 #E6B84D くらい
+    DirectX::SimpleMath::Vector4 trailColor = { 1.00f, 0.85f, 0.60f, 0.50f };
+    DirectX::SimpleMath::Vector4 borderColor = { 0.69f, 0.47f, 0.15f, 0.90f }; // 古金（UIDeco と同じ）
+    DirectX::SimpleMath::Vector4 textColor = { 0.91f, 0.84f, 0.70f, 1.0f };    // 暖かい白
+    DirectX::SimpleMath::Vector4 shadowColor = { 0.00f, 0.00f, 0.00f, 0.85f };
 
     // ---- 経過時間と撃破数（アンカーは文字の上端の中央）----
     HUDAnchor runInfo = { { 0.5f, 0.0f }, { 0.0f, 16.0f } };
-    float timerScale = 0.75f;
+    float timerScale = 0.80f;
     float killScale = 0.42f;
+    float runDividerWidth = 200.0f;   // 時間と撃破数の間の細い分割線（0 = 無し）
 
     // ---- 魔法の欄（アンカーは欄の下端の中央）----
+    // 丸い欄：暗い円 + 古金の輪 + 後ろでゆっくり回る魔法陣。冷却は円を上から暗く
     bool  showSpellBar = true;
-    HUDAnchor spellBar = { { 0.5f, 1.0f }, { 0.0f, -20.0f } };
-    float slotSize = 46.0f;
-    float slotGap = 6.0f;
-    DirectX::SimpleMath::Vector4 slotBgColor = { 0.08f, 0.08f, 0.10f, 0.85f };
-    DirectX::SimpleMath::Vector4 cooldownColor = { 0.00f, 0.00f, 0.00f, 0.60f };
-    DirectX::SimpleMath::Vector4 noManaColor = { 0.10f, 0.15f, 0.45f, 0.65f };   // MP が足りない時に被せる
+    HUDAnchor spellBar = { { 0.5f, 1.0f }, { 0.0f, -26.0f } };
+    float slotSize = 50.0f;
+    float slotGap = 26.0f;            // 魔法陣が欄より大きいので広め
+    float slotCircleScale = 1.5f;     // 魔法陣の直径 / 欄（0 = 無し）
+    DirectX::SimpleMath::Vector4 slotBgColor = { 0.003f, 0.0025f, 0.005f, 0.98f };
+    DirectX::SimpleMath::Vector4 cooldownColor = { 0.00f, 0.00f, 0.00f, 0.78f };
+    DirectX::SimpleMath::Vector4 noManaColor = { 0.010f, 0.020f, 0.14f, 0.70f };   // MP が足りない時に被せる
 
     // ---- 瀕死の赤い縁（HP が lowHpRatio を切ったら出す。低いほど濃い）----
     bool  lowHpVignette = true;
@@ -195,11 +201,12 @@ private:
 
     // 背景 → 残像 → 中身 → 枠 の順で1本のバーを描く
     // ratio / trailRatio は 0..1 に丸めて渡すこと
+    // gems: 両端に菱形を付ける（HP / MP。画面幅いっぱいの経験値バーには付けない）
     void DrawBar(SpriteRenderer& sprite,
         const DirectX::SimpleMath::Vector2& pos,
         const DirectX::SimpleMath::Vector2& size,
         float ratio, float trailRatio,
-        const DirectX::SimpleMath::Vector4& fillColor);
+        const DirectX::SimpleMath::Vector4& fillColor, bool gems = false);
 
     void DrawBorder(SpriteRenderer& sprite,
         const DirectX::SimpleMath::Vector2& pos,
@@ -220,7 +227,7 @@ private:
     std::function<std::shared_ptr<Texture>(ItemID)> m_IconLookup;
     float m_Time = 0.0f;   // 明滅用（Update で進める）
 
-    void DrawRunInfo(TextRenderer& text, const HUDFrameInfo& info);
+    void DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrameInfo& info);
     void DrawSpellBar(SpriteRenderer& sprite,
         const WandComponent& wand, const ManaComponent& mp);
     void DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp);

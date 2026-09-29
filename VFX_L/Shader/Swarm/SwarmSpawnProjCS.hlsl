@@ -53,10 +53,15 @@ void main(uint3 id : SV_DispatchThreadID)
 
     // ---- motion: split the request word, then build the path ----
     float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? -1.0 : 1.0;
-    req.motion = req.motion & SWARM_MOTION_INDEX_MASK;
+    uint motionIdx = req.motion & SWARM_MOTION_INDEX_MASK;
     req.pathT = 0.0;
 
-    SwarmMotion m = motions[req.motion];
+    SwarmMotion m = motions[motionIdx];
+
+    // size scale (the Magnifier item): this shot's hit radius against the
+    // profile's. Kept in the motion word so every shader after this sees it
+    float sizeScale = (m.baseRadius > 0.0) ? req.radius / m.baseRadius : 1.0;
+    req.motion = motionIdx | (SwarmPackScale(sizeScale, 0x7FFFu) << SWARM_SCALE_SHIFT);
 
     float speed = length(req.velocity);
 

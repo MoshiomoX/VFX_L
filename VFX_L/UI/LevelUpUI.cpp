@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // LevelUpUI.cpp
 // ============================================================
 #include "UI/LevelUpUI.h"
@@ -9,27 +9,16 @@
 #include "Item/ItemDatabase.h"
 #include "Item/ItemInfo.h"
 #include "UI/ShapeSprite.h"
+#include "UI/UIDeco.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
 #include <algorithm>
+#include <cmath>
 #include <cwchar>
 #include <string>
 
 using namespace DirectX::SimpleMath;
-
-namespace
-{
-    // 道具の色を白へ寄せる（暗い色でも文字として読めるように）
-    Vector4 Brighten(Vector4 c, float t)
-    {
-        c.x += (1.0f - c.x) * t;
-        c.y += (1.0f - c.y) * t;
-        c.z += (1.0f - c.z) * t;
-        c.w = 1.0f;
-        return c;
-    }
-}
 
 void LevelUpUI::Initialize(std::shared_ptr<Texture> blockTex)
 {
@@ -202,6 +191,22 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
     sprite.Draw(flat, { 0.0f, 0.0f }, m_ScreenSize, dimColor);
 
     const Vector2 cardSize = CardSize();
+    const float k = m_CardW / 270.0f;   // 文字や飾りの大きさの基準（カード幅 270px の時 1）
+    const float spin = UIDeco::Clock() * circleSpin;
+
+    // ---- 見出し「レベルアップ」+ 百合紋の分割線（HUD・メニューと同じ古金）----
+    {
+        const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
+        const float s = headingScale * k;
+        const std::wstring head = L"レベルアップ";
+        const Vector2 hs = text.Measure(head, s);
+        const float cardTop = CardPosition(0, total).y;
+        const float divW = m_CardW * 1.25f;
+        const float divH = divW * 0.10f;
+        const float headY = cardTop - hs.y - divH - m_CardW * 0.10f;
+        text.Draw(head, { (m_ScreenSize.x - hs.x) * 0.5f, headY }, headingColor, s);
+        UIDeco::DrawDivider(sprite, true, { m_ScreenSize.x * 0.5f, headY + hs.y + divH * 0.45f }, divW, gold);
+    }
 
     for (int i = 0; i < total; ++i)
     {
@@ -209,77 +214,89 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
         const ItemCommon* c = ItemDatabase::GetCommon(id);
         if (!c) continue;
 
-        const Vector2 pos = CardPosition(i, total);
         const bool selected = (i == m_Cursor);
+        Vector2 pos = CardPosition(i, total);
+        if (selected) pos.y -= m_CardH * 0.015f;   // 選択中は少し浮かせる
 
-        // ---- カードの縁（選択中は太く光らせる）----
-        const float edge = selected ? m_CardW * 0.035f : m_CardW * 0.015f;
-        Vector4 edgeCol = c->color;
-        edgeCol.w = selected ? 1.0f : 0.55f;
+        // ---- カード本体：種類の色の二重線 + 四隅の組紐。選択中は光らせる ----
+        const Vector4 tint = UIDeco::CategoryColor(c->category);
+        UIDeco::PanelStyle ps;
+        ps.fill = selected ? hoverColor : cardColor;
+        ps.innerInset = 5.0f * k;
+        ps.cornerSize = m_CardW * cornerRatio;
+        UIDeco::DrawPanel(sprite, pos, cardSize, tint, ps, selected ? 1.0f : 0.0f);
 
-        sprite.Draw(m_BlockTex,
-            { pos.x - edge, pos.y - edge },
-            { cardSize.x + edge * 2.0f, cardSize.y + edge * 2.0f },
-            edgeCol);
-
-        // ---- カード本体 ----
-        sprite.Draw(flat, pos, cardSize,
-            selected ? hoverColor : cardColor);
-
-        // ---- 中身：種別 → 名前 → 形（能力値は「+20」）→ 説明・特性・能力値 ----
+        // ---- 中身：種別 → 名前 → 魔法陣の中のアイコン + 形（能力値は「+20」）→ 分割線 → 説明・特性・能力値 ----
         // 文字の大きさはカード幅に比例させる（基準は幅 270px の時の ItemSheetView::Style）
         const ItemInfo::Sheet sheet = ItemInfo::Describe(id);
-        const ItemSheetView::Style st = textStyle.Scaled(m_CardW / 270.0f);
-        const float pad = m_CardW * 0.07f;
+        const ItemSheetView::Style st = textStyle.Scaled(k);
+        const float pad = m_CardW * 0.08f;
         const float inner = m_CardW - pad * 2.0f;
+        const float cx = pos.x + m_CardW * 0.5f;
         float y = pos.y + pad;
 
-        text.Draw(sheet.category, { pos.x + pad, y }, Brighten(c->color, 0.35f), st.smallScale);
+        // 種別と名前は中央揃え（四隅の組紐の間に入る）
+        const Vector2 catSize = text.Measure(sheet.category, st.smallScale);
+        text.Draw(sheet.category, { cx - catSize.x * 0.5f, y }, tint, st.smallScale);
         y += text.GetLineHeight(st.smallScale);
 
         // 名前は 1 行に収まるまで縮める
-        float titleScale = st.titleScale * 1.2f;
+        const float titleMax = m_CardW - m_CardW * cornerRatio * 1.4f;
+        float titleScale = st.titleScale * 1.3f;
         const float titleW = text.Measure(sheet.title, titleScale).x;
-        if (titleW > inner && titleW > 0.0f) titleScale *= inner / titleW;
-        text.Draw(sheet.title, { pos.x + pad, y }, { 1, 1, 1, 1 }, titleScale);
+        if (titleW > titleMax && titleW > 0.0f) titleScale *= titleMax / titleW;
+        const Vector2 titleSize = text.Measure(sheet.title, titleScale);
+        text.Draw(sheet.title, { cx - titleSize.x * 0.5f, y }, headingColor, titleScale);
         y += text.GetLineHeight(titleScale) + st.sectionGap;
 
-        // ---- 形のプレビュー（アイコンがあれば左に並べる）----
-        const float previewH = m_CardH * 0.22f;
+        // ---- 左：魔法陣の中のアイコン / 右：形のプレビュー ----
+        const float previewH = m_CardH * 0.24f;
         Vector2 areaPos = { pos.x + pad, y };
         Vector2 areaSize = { inner, previewH };
-
-        if (auto icon = GetIcon(id))
         {
-            const float s = previewH * 0.9f;
-            sprite.Draw(icon, { areaPos.x, y + (previewH - s) * 0.5f }, { s, s });
-            areaPos.x += s + pad * 0.5f;
-            areaSize.x -= s + pad * 0.5f;
+            const float d = previewH;
+            const Vector2 center = { areaPos.x + d * 0.5f, y + previewH * 0.5f };
+            Vector4 ring = tint;
+            ring.w = selected ? 0.75f : 0.50f;
+            UIDeco::DrawCircle(sprite, true, center, d, ring, selected ? spin * 2.0f : spin);
+            if (auto icon = GetIcon(id))
+            {
+                const float s = d * 0.56f;
+                sprite.Draw(icon, { center.x - s * 0.5f, center.y - s * 0.5f }, { s, s }, iconColor);
+            }
+            areaPos.x += d + pad * 0.5f;
+            areaSize.x -= d + pad * 0.5f;
         }
 
         if (const StatItemDef* stat = ItemDatabase::GetStat(id))
         {
-            // 能力値のカード：色の四角に「+20」
-            const float sq = previewH * 0.9f;
-            const Vector2 sqPos = { areaPos.x + (areaSize.x - sq) * 0.5f, y + (previewH - sq) * 0.5f };
-            sprite.Draw(m_BlockTex, sqPos, { sq, sq }, c->color);
-
+            // 能力値のカード：右側に大きく「+20」（割合の物は「+8%」）
             wchar_t amount[16];
-            swprintf_s(amount, L"+%d", (int)stat->amount);
+            if (stat->percent) swprintf_s(amount, L"+%d%%", (int)std::lround(stat->amount * 100.0f));
+            else               swprintf_s(amount, L"+%d", (int)stat->amount);
             const Vector2 a1 = text.Measure(amount, 1.0f);
-            const float s1 = (a1.x > 0.0f) ? (std::min)(1.2f, sq * 0.7f / a1.x) : 1.0f;
+            const float s1 = (a1.x > 0.0f) ? (std::min)(1.4f * k, areaSize.x * 0.7f / a1.x) : 1.0f;
             const Vector2 a = text.Measure(amount, s1);
-            text.Draw(amount, { sqPos.x + (sq - a.x) * 0.5f, sqPos.y + (sq - a.y) * 0.5f },
-                { 1, 1, 1, 1 }, s1);
+            text.Draw(amount, { areaPos.x + (areaSize.x - a.x) * 0.5f, y + (previewH - a.y) * 0.5f }, tint, s1);
         }
         else
         {
             DrawShapePreview(sprite, *c, areaPos, areaSize);
         }
-        y += previewH + st.sectionGap;
+        y += previewH + st.sectionGap * 0.5f;
 
-        // ---- 説明・特性・能力値（入り切らなければ縮める）----
-        const float avail = pos.y + m_CardH - pad - y;
+        // ---- 分割線 ----
+        {
+            const float dw = inner * 0.85f;
+            const float dh = dw * 0.05f;
+            Vector4 dc = tint;
+            dc.w = 0.75f;
+            UIDeco::DrawDivider(sprite, false, { cx, y + dh * 0.5f }, dw, dc);
+            y += dh + st.sectionGap * 0.5f;
+        }
+
+        // ---- 説明・特性・能力値（入り切らなければ縮める）。下の組紐とは重ねない ----
+        const float avail = pos.y + m_CardH - (std::max)(pad, m_CardW * cornerRatio * 0.55f) - y;
         const float need = ItemSheetView::DrawBody(nullptr, nullptr, text, sheet, { 0, 0 }, inner, st, false);
         const ItemSheetView::Style body = (need > avail && need > 0.0f)
             ? st.Scaled((std::max)(0.6f, avail / need)) : st;
@@ -330,19 +347,24 @@ void LevelUpUI::DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
         areaPos.y + areaSize.y * 0.5f - extent(spanR) * 0.5f - (float)minR * miniPitch
     };
 
-    // 占位格（隙間も塗って 1 枚に）
-    ShapeSprite::DrawConnected(sprite, m_BlockTex, c.color, c.occupyCells,
+    // 占位格（背包と同じ「色ガラス + 種類の色の輪郭」。隙間も塗って 1 枚に）
+    const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
+    const Vector4 tint = UIDeco::CategoryColor(c.category);
+    ShapeSprite::DrawItemGlass(sprite, white, c.color, tint, nullptr, c.occupyCells,
         miniOrigin, miniCell, miniGap);
 
-    // 影響格（薄く。範囲なので 1 マスずつ）
-    Vector4 inflCol = c.color;
-    inflCol.w = 0.30f;
+    // 影響格（薄く塗って縁を引く。範囲なので 1 マスずつ）
+    Vector4 inflCol = tint;
+    inflCol.w = 0.18f;
+    Vector4 inflEdge = tint;
+    inflEdge.w = 0.70f;
     for (const auto& off : c.influenceCells)
     {
         const Vector2 cp = {
             miniOrigin.x + off.col * miniPitch,
             miniOrigin.y + off.row * miniPitch
         };
-        sprite.Draw(m_BlockTex, cp, { miniCell, miniCell }, inflCol);
+        sprite.Draw(white, cp, { miniCell, miniCell }, inflCol);
+        UIDeco::DrawFrameLines(sprite, cp, { miniCell, miniCell }, inflEdge);
     }
 }

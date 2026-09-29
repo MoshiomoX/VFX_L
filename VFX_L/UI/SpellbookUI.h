@@ -60,8 +60,9 @@ public:
     float restitution = 0.25f;     // 反発（小さめ。跳ねすぎると収納に見えない）
     float spinTransfer = 0.4f;      // 接線速度をどれだけ回転に変えるか
 
-    DirectX::SimpleMath::Vector4 frameColor = { 0.35f, 0.20f, 0.06f, 1.00f };
-    DirectX::SimpleMath::Vector4 innerColor = { 0.72f, 0.35f, 0.33f, 1.00f };
+    // 幻想 UI（UIDeco）。線形の値（戦闘の UI は HDR バッファに描かれてガンマを通る）
+    DirectX::SimpleMath::Vector4 frameColor = { 0.0025f, 0.0020f, 0.0045f, 0.985f };   // 面板の地
+    DirectX::SimpleMath::Vector4 innerColor = { 0.0060f, 0.0050f, 0.0100f, 1.00f };    // 箱の中
 
     int GetBodyCount() const { return (int)m_Bodies.size(); }
 

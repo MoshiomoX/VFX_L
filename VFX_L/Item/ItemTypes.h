@@ -203,13 +203,18 @@ enum class StatKind
 {
     MaxHealth,    // HealthComponent::max
     MaxMana,      // ManaComponent::max
+    MoveSpeed,    // PlayerStatsComponent::moveSpeed（歩く速さ。滑りの初速もこれの倍率）
+    JumpPower,    // PlayerStatsComponent::jumpPower（跳んだ瞬間の上向きの速さ）
 };
 
 struct StatItemDef
 {
     ItemCommon common;
     StatKind kind = StatKind::MaxHealth;
-    float amount = 20.0f;              // 上限と今の値の両方に足す（取った瞬間に使える）
+    // percent = false: 上限と今の値の両方に足す（取った瞬間に使える）
+    // percent = true : 今の値に (1 + amount) を掛ける（0.08 = +8%。重ねると複利）
+    float amount = 20.0f;
+    bool  percent = false;
     const wchar_t* cardLabel = L"";    // レベルアップのカードに出す文字（形の代わり）
 };
 // ============================================================
@@ -227,6 +232,12 @@ namespace ItemShape
     inline std::vector<CellOffset> Cross()
     {
         return { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+    }
+
+    // 斜め 4 マス（X 字。十字の Cross と重ならない）
+    inline std::vector<CellOffset> Diagonal()
+    {
+        return { { -1, -1 }, { -1, 1 }, { 1, -1 }, { 1, 1 } };
     }
 
     // 周囲8マス（斜め込み）

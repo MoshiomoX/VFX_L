@@ -58,7 +58,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (p.lifetime <= 0.0)
     {
         if (areaOnExpire)
-            SwarmSpawnAreaFromDef(m.hitArea, p.position, i);
+            SwarmSpawnAreaFromDef(m.hitArea, p.position, i, SwarmProjScale(p));
         projStates[i] = SWARM_DEAD;
         return;
     }
@@ -78,7 +78,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (p.pathT >= 1.0)
         {
             if (m.hitArea != 0u)
-                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i);
+                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i, SwarmProjScale(p));
             projStates[i] = SWARM_DEAD;
             return;
         }
@@ -195,7 +195,7 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         // blow up at the last free position, not inside the wall
         if (areaOnExpire)
-            SwarmSpawnAreaFromDef(m.hitArea, projectiles[i].position, i);
+            SwarmSpawnAreaFromDef(m.hitArea, projectiles[i].position, i, SwarmProjScale(p));
         projStates[i] = SWARM_DEAD;
         return;
     }

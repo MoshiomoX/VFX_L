@@ -38,6 +38,7 @@ bool Application::Initialize()
         std::cout << "[Error] Renderer initialization failed" << std::endl;
         return false;
     }
+    FrameProfiler::Get().InitGpu(m_Graphics.GetDevice(), m_Graphics.GetContext());   // PROFILE_SCOPE_GPU の timestamp
 	// ImGui
     if (!DebugManager::Get().Initialize(
         m_Window.GetHandle(),
@@ -71,7 +72,8 @@ void Application::Run()
         if (m_Window.ConsumeResizeFlag())
             m_Graphics.Resize(m_Window.GetWidth(),
                 m_Window.GetHeight());
-        // 各段の CPU 時間は FrameProfiler（場面の面板の「Frame Profiler」、perf 自己テストの日志）
+        // 各段の CPU / GPU 時間は FrameProfiler（場面の面板の「Frame Profiler」、perf / stress 自己テストの日志）
+        FrameProfiler::Get().BeginFrame();
         {
             PROFILE_SCOPE("Input + ImGui NewFrame");
             InputManager::Get().Update();
@@ -80,17 +82,17 @@ void Application::Run()
             PointLightManager::Get().BeginFrame();   // point light list: clear per frame
         }
         {
-            PROFILE_SCOPE("Update");
+            PROFILE_SCOPE_GPU("Update");   // GPU = 雑魚・弾・粒子の compute
             m_Game.Update(dt);
         }
         {
-            PROFILE_SCOPE("Render");
+            PROFILE_SCOPE_GPU("Render");
             m_Graphics.BeginFrame();
             DebugManager::Get().Render();
             m_Game.Render();
         }
         {
-            PROFILE_SCOPE("Resolve + bloom + ImGui draw");
+            PROFILE_SCOPE_GPU("Resolve + bloom + ImGui draw");
             m_Graphics.BeginUI();
             DebugManager::Get().EndFrame();
         }
@@ -104,6 +106,7 @@ void Application::Run()
 
 void Application::Shutdown()
 {
+    FrameProfiler::Get().ShutdownGpu();
     DebugManager::Get().Shutdown();
     ResourceManager::Get().Shutdown();
     m_Renderer.Shutdown();

@@ -40,7 +40,8 @@ struct SwarmSprite
     float age;
     uint def;
     uint alive;
-    uint2 _pad;
+    float sizeScale; // the area's size scale (Magnifier). 0 = 1
+    uint _pad;
 };
 
 #endif

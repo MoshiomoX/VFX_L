@@ -48,7 +48,8 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     SpriteQuad q;
     q.position = s.position;
     q.rotation = d.rotation;
-    q.size = float2(d.height * d.aspect, d.height);
+    float scale = (s.sizeScale > 0.0) ? s.sizeScale : 1.0;   // Magnifier
+    q.size = float2(d.height * d.aspect, d.height) * scale;
     q.pivot = d.pivot;
     q.uvRect = float4((float) (f % cols) * d.cellUV.x, (float) (f / cols) * d.cellUV.y, d.cellUV.x, d.cellUV.y);
     q.color = d.color;

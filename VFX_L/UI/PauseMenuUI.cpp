@@ -6,6 +6,7 @@
 #include "Graphics/Renderer/SpriteRenderer.h"
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Manager/InputManager.h"
+#include "UI/UIDeco.h"
 #include <algorithm>
 #include <string>
 
@@ -66,27 +67,30 @@ void PauseMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std::sh
     if (!white) return;
 
     sprite.Draw(white, { 0.0f, 0.0f }, m_Screen, dimColor);
-    sprite.Draw(white, m_PanelPos, m_PanelSize, panelColor);
 
-    // 縁（4 本の細い矩形）
-    Vector4 edge = accentColor;
-    edge.w = 0.8f;
-    const float t = 2.0f;
-    sprite.Draw(white, m_PanelPos, { m_PanelSize.x, t }, edge);
-    sprite.Draw(white, { m_PanelPos.x, m_PanelPos.y + m_PanelSize.y - t }, { m_PanelSize.x, t }, edge);
-    sprite.Draw(white, { m_PanelPos.x, m_PanelPos.y + t }, { t, m_PanelSize.y - t * 2.0f }, edge);
-    sprite.Draw(white, { m_PanelPos.x + m_PanelSize.x - t, m_PanelPos.y + t }, { t, m_PanelSize.y - t * 2.0f }, edge);
+    // ---- 面板（幻想 UI：古金の二重線 + 四隅の組紐）----
+    const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
+    {
+        UIDeco::PanelStyle ps;
+        ps.fill = panelColor;
+        ps.innerInset = (std::max)(4.0f, m_Short * 0.007f);
+        ps.cornerSize = m_Short * 0.10f;
+        UIDeco::DrawPanel(sprite, m_PanelPos, m_PanelSize, gold, ps);
+    }
 
     const float k = m_Short / 900.0f;
     const float pad = m_Short * kPadRatio;
 
-    // ---- 見出し ----
+    // ---- 見出し + 百合紋の分割線 ----
     const std::wstring title = L"一時停止";
     const float titleScale = 0.9f * k;
     const Vector2 ts = text.Measure(title, titleScale);
     const float titleH = m_Short * kTitleRatio;
-    text.Draw(title, { m_PanelPos.x + (m_PanelSize.x - ts.x) * 0.5f,
-        m_PanelPos.y + pad + (titleH - ts.y) * 0.5f - titleH * 0.1f }, accentColor, titleScale);
+    const float titleY = m_PanelPos.y + pad + (titleH - ts.y) * 0.5f - titleH * 0.2f;
+    text.Draw(title, { m_PanelPos.x + (m_PanelSize.x - ts.x) * 0.5f, titleY },
+        { 0.96f, 0.92f, 0.84f, 1.0f }, titleScale);
+    UIDeco::DrawDivider(sprite, true, { m_PanelPos.x + m_PanelSize.x * 0.5f, titleY + ts.y + titleH * 0.08f },
+        m_PanelSize.x * 0.62f, gold);
 
     // ---- 項目 ----
     m_List.Draw(sprite, text, white, 0.55f * k);

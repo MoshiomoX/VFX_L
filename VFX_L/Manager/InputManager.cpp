@@ -71,7 +71,8 @@ void InputManager::Update()
     m_MouseDelta.x = m_MousePos.x - m_MousePosOld.x;
     m_MouseDelta.y = m_MousePos.y - m_MousePosOld.y;
     m_MousePosOld = m_MousePos;
-    m_MouseWheel = 0.0f;
+    m_MouseWheel = m_WheelAccum;   // 前の Update からのノッチ数（上 = 正）
+    m_WheelAccum = 0.0f;
 
     // ---- ゲームパッド ----
     m_PadStateOld = m_PadState;
@@ -140,9 +141,11 @@ void InputManager::OnMouseMove(int x, int y)
     m_MousePos.y = static_cast<float>(y);
 }
 
+// ホイールは溜めておき、Update で 1 フレーム分として出す（マウスの移動量と同じ）。
+// 以前は直接 m_MouseWheel に書いていたので、メッセージ処理の後の Update で 0 に消され、読めなかった
 void InputManager::OnMouseWheel(float delta)
 {
-    m_MouseWheel = delta;
+    m_WheelAccum += delta;
 }
 
 // ====== マウスの捕獲 ======

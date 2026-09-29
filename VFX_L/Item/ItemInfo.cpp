@@ -238,10 +238,13 @@ namespace
             if (ai > 0 && AreaProfileDB::At(ai).damage > 0.0f)
             {
                 const AreaProfile& ap = AreaProfileDB::At(ai);
+                // 当たり半径が profile より大きい（拡大鏡）と、GPU は命中の範囲も同じ倍率で広げる
+                // （SwarmSpawnProjCS の sizeScale → SwarmSpawnAreaFromDef）
+                const float areaScale = (pp.radius > 0.0f) ? v.radius / pp.radius : 1.0f;
                 wchar_t buf[160];
                 if (ap.kind == AreaProfile::Kind::OneShot)
                     swprintf_s(buf, drop ? L"着弾すると爆発する (威力 %ls、半径 %lsm)" : L"命中すると爆発する (威力 %ls、半径 %lsm)",
-                        Num(ap.damage).c_str(), Num(ap.radius).c_str());
+                        Num(ap.damage).c_str(), Num(ap.radius * areaScale).c_str());
                 else
                     swprintf_s(buf, L"命中した所に範囲を残す (%ls 秒ごとに威力 %ls、%ls 秒間)",
                         Num(ap.tickInterval).c_str(), Num(ap.damage).c_str(), Num(ap.duration).c_str());
@@ -262,7 +265,8 @@ namespace
 
         // 修飾で変わった時だけ出す（行が多いと読まれない）
         if (Changed(v.speed, b.speed))       s.stats.push_back(StatLine(L"弾速", v.speed, b.speed, L"m/秒", +1));
-        if (Changed(v.radius, b.radius))     s.stats.push_back(StatLine(L"当たり判定", v.radius, b.radius, L"m", +1));
+        // 隕石は弾が当たらないので、当たり判定の行は出さない（大きさは爆発の半径に表れる）
+        if (!drop && Changed(v.radius, b.radius)) s.stats.push_back(StatLine(L"当たり判定", v.radius, b.radius, L"m", +1));
         if (Changed(v.lifetime, b.lifetime)) s.stats.push_back(StatLine(L"飛ぶ時間", v.lifetime, b.lifetime, L"秒", +1));
         if (v.projectileCount > 1)           s.stats.push_back(StatLine(L"拡散", v.spreadAngle, b.spreadAngle, L"度", 0));
     }
@@ -308,8 +312,14 @@ namespace
     void FillStat(Sheet& s, const StatItemDef& def)
     {
         Line l;
-        l.label = (def.kind == StatKind::MaxHealth) ? L"最大HP" : L"最大MP";
-        l.value = L"+" + Num(def.amount);
+        switch (def.kind)
+        {
+        case StatKind::MaxHealth: l.label = L"最大HP"; break;
+        case StatKind::MaxMana:   l.label = L"最大MP"; break;
+        case StatKind::MoveSpeed: l.label = L"移動速度"; break;
+        case StatKind::JumpPower: l.label = L"跳躍力"; break;
+        }
+        l.value = def.percent ? L"+" + Num(def.amount * 100.0f) + L"%" : L"+" + Num(def.amount);
         l.trend = +1;
         s.stats.push_back(l);
     }

@@ -37,8 +37,9 @@ public:
     float panelWidthRatio = 0.46f;
     float itemHeightRatio = 0.075f;
     float itemGapRatio = 0.018f;
-    DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.62f };
-    DirectX::SimpleMath::Vector4 panelColor = { 0.015f, 0.013f, 0.022f, 0.96f };   // 画面では持ち上がるので暗めに
+    // 線形の値（戦闘の UI は HDR バッファに描かれてガンマを通る。0.9 で画面では 6 割ほど暗くなる）
+    DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.90f };
+    DirectX::SimpleMath::Vector4 panelColor = { 0.0025f, 0.0020f, 0.0045f, 0.985f };
     DirectX::SimpleMath::Vector4 accentColor = { 1.0f, 0.80f, 0.35f, 1.0f };
 
 private:

@@ -130,7 +130,7 @@ namespace Swarm
         uint32_t hitArea = 0;             // 命中した場所に出す範囲（AreaDef の番号）。0 = 無し
         uint32_t hitAreaFlags = 0;        // bit0 = 寿命切れ・壁に当たった時も出す
         Vector3  c1 = { 0.33f, 0.0f, 0.0f };
-        float    _pad1 = 0.0f;
+        float    baseRadius = 0.0f;       // profile の当たり半径。これより大きく撃たれた弾は見た目も大きく（拡大鏡）。0 = 倍率 1
         Vector3  c2 = { 0.66f, 0.0f, 0.0f };
         float    _pad2 = 0.0f;
     };

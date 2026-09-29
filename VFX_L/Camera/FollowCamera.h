@@ -44,7 +44,20 @@ public:
     float GetCurrentDistance() const { return m_CurDistance; }   // 遮蔽で縮んだ後
     bool  IsOccluded() const { return m_Occluded; }
 
-    // ---- 調整パラメータ（ImGui から触る）----
+    // 視点を defaultYaw / defaultPitch に戻す（開始時・面板のボタン）
+    void  ResetView() { m_Yaw = defaultYaw; m_Pitch = defaultPitch; }
+
+    // 画面の縦横比（Init / Resize で）。画角は Update が fov + 速さの分から作り直す
+    void  SetAspect(float aspect);
+    float GetEffectiveFov() const { return m_AppliedFov; }
+    float GetSpeed() const { return m_Speed; }          // 対象の水平の速さ（平滑後、m/秒）
+    float GetSpeedExtraDistance() const { return m_SpeedDist; }
+
+    // ---- 調整パラメータ（ImGui から触る。BattleCamera が Assets/Data/Camera.json へ保存）----
+    // 増やしたら BattleCamera.cpp の CAMERA_FLOATS / CAMERA_BOOLS にも足す（保存・読込・既定値に戻す）
+    float fov = 45.0f;             // 縦の画角（度）
+    float defaultYaw = 0.0f;       // 始めの向き（度）
+    float defaultPitch = 20.0f;    // 始めの見下ろし角（度、正 = 見下ろす）
     float distance = 6.0f;    // 対象からの距離（中距離）
     float height = 1.5f;    // 注視点の高さオフセット（足元でなく胸あたりを見る）
     float shoulderOffset = 0.5f;    // 右肩へのずらし（m）。負で左肩、0 で真後ろ
@@ -74,6 +87,27 @@ public:
     float shakeFrequency = 14.0f;   // 揺れの速さ
     float traumaDecay = 1.4f;    // 毎秒減る量
 
+    // 速さの演出：対象が速く動くほど画角を広げ、少し引く（滑り・跳躍の勢いを見せる）。
+    // 普段の走り（5 m/秒前後）では効かず、speedStart を超えた分だけ
+    bool  speedEffects = true;
+    float speedStart = 6.0f;          // 効き始める速さ（m/秒、水平）
+    float speedFovPerMps = 1.0f;      // 1 m/秒ごとに足す画角（度）
+    float speedFovMax = 10.0f;        // 足す画角の上限（度）
+    float speedDistPerMps = 0.12f;    // 1 m/秒ごとに引く距離（m）
+    float speedDistMax = 1.5f;        // 引く距離の上限（m）
+    float speedSmoothTime = 0.30f;    // 速さの読みを均す時間（秒。短いと画角がぴくつく）
+
+    // 先読み：進む方向へ注視点を前に出す（速さ × lookAheadTime、上限 lookAheadMax）。0 = 無し
+    float lookAheadTime = 0.0f;       // 秒
+    float lookAheadMax = 1.5f;        // m
+    float lookAheadSmoothTime = 0.35f;
+
+    // マウスホイールで距離を変える（捕獲中だけ。面板の Distance と同じ値を動かすので保存される）
+    bool  wheelZoom = true;
+    float zoomMin = 3.0f;
+    float zoomMax = 14.0f;
+    float zoomStep = 0.6f;            // 1 ノッチあたり（m）
+
 private:
     // from から dir へ、中心 + 上下左右（probeRadius ずらし）の 5 本で一番近い当たり。無ければ maxDist
     float ProbeDistance(const Vector3& from, const Vector3& dir, float maxDist,
@@ -92,6 +126,17 @@ private:
 
     float   m_Trauma = 0.0f;
     float   m_ShakeTime = 0.0f;
+
+    // 速さ（対象の移動量から）・先読み・画角
+    Vector3 m_PrevTarget = { 0, 0, 0 };
+    Vector3 m_Vel = { 0, 0, 0 };        // 平滑後の水平速度
+    Vector3 m_VelVel = { 0, 0, 0 };
+    float   m_Speed = 0.0f;
+    Vector3 m_LookAhead = { 0, 0, 0 };
+    Vector3 m_LookAheadVel = { 0, 0, 0 };
+    float   m_SpeedDist = 0.0f;         // 速さで引いた距離
+    float   m_Aspect = 16.0f / 9.0f;
+    float   m_AppliedFov = -1.0f;       // 今の射影行列の画角（変わった時だけ作り直す）
 
     OcclusionProbe m_Probe;
 };

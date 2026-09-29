@@ -98,6 +98,12 @@ namespace Res
         inline constexpr const char* KayKit_Mage =
             "Assets/Model/KayKit_Mage/Mage.fbx";
 
+        // 玩家（2026-09-28 から）。Quaternius の CC0 素材 4 つを Tools/BuildPlayerModel.py で 1 つの GLB に:
+        // 素体の頭 + 游侠の服 + 白い髭、アニメ 24 本（Universal Animation Library 1/2）入り。
+        // 65 骨（UE 風の名前 root / pelvis / spine_01..）、メートル、glTF の -Z が正面
+        inline constexpr const char* Quaternius_Ranger =
+            "Assets/Model/Quaternius_Ranger/Ranger.fbx";
+
         // KayKit Character Animations 1.1（CC0）の Rig_Medium。モデル無しのアニメだけのファイル。
         // 骨名が Adventurers 1.0 の Mage と同じなので、読み込み時に骨名で足す（kExtraAnims）
         namespace KayKitAnims
@@ -184,7 +190,7 @@ namespace Res
         // 戦闘で使う物だけ。Paladin（編集器の参照）と Mage/Rogue（未使用）は入れない。
         // Minion は雑魚の予備（方块人が読めない時だけ）なので外した
         inline constexpr const char* kPreload[] = {
-            KayKit_Mage,
+            Quaternius_Ranger,
             Kenney_BlockyZombie,
             KayKit_SkeletonWarrior,
         };
@@ -287,9 +293,24 @@ namespace Res
         inline constexpr const wchar_t* Meteor = L"Assets/Texture/UI/Icons/Meteor.png";
         inline constexpr const wchar_t* SplitRune = L"Assets/Texture/UI/Icons/SplitRune.png";
         inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
+        inline constexpr const wchar_t* Magnifier = L"Assets/Texture/UI/Icons/Magnifier.png";
         inline constexpr const wchar_t* Frame3x3 = L"Assets/Texture/UI/Icons/Frame3x3.png";
         inline constexpr const wchar_t* MaxHealthUp = L"Assets/Texture/UI/Icons/MaxHealthUp.png";
         inline constexpr const wchar_t* MaxManaUp = L"Assets/Texture/UI/Icons/MaxManaUp.png";
+        inline constexpr const wchar_t* MoveSpeedUp = L"Assets/Texture/UI/Icons/MoveSpeedUp.png";
+        inline constexpr const wchar_t* JumpPowerUp = L"Assets/Texture/UI/Icons/JumpPowerUp.png";
+    }
+
+    // ========================================================
+    // 幻想 UI の飾り（白い線画。コードで色を掛ける。Tools/BuildUIDeco.ps1 で作る、出典は同じ目録の README）
+    // ========================================================
+    namespace Deco
+    {
+        inline constexpr const wchar_t* MagicCircleStar = L"Assets/Texture/UI/Deco/MagicCircleStar.png";
+        inline constexpr const wchar_t* MagicCircleFlower = L"Assets/Texture/UI/Deco/MagicCircleFlower.png";
+        inline constexpr const wchar_t* CornerKnot = L"Assets/Texture/UI/Deco/CornerKnot.png";   // 右上の角
+        inline constexpr const wchar_t* DividerFleur = L"Assets/Texture/UI/Deco/DividerFleur.png";
+        inline constexpr const wchar_t* DividerThin = L"Assets/Texture/UI/Deco/DividerThin.png";
     }
 
     // ========================================================
@@ -297,7 +318,9 @@ namespace Res
     // ========================================================
     namespace Fnt
     {
-        inline constexpr const wchar_t* JP = L"Assets/Fonts/NotoSansJP.spritefont";
+        // 毛筆体 Yuji Syuku（OFL、2026-09-28 用户決定）。Tools/BuildSpriteFont.ps1 で TTF から作る（32px、BC2）。
+        // 旧 NotoSansJP.spritefont は比較用に残してある
+        inline constexpr const wchar_t* JP = L"Assets/Fonts/YujiSyuku.spritefont";
     }
 
     // ========================================================
@@ -340,5 +363,6 @@ namespace Res
     namespace Cfg
     {
         inline constexpr const char* HUD = "Assets/Data/HUD.json";
+        inline constexpr const char* Camera = "Assets/Data/Camera.json";   // 戦闘カメラの調整（BattleCamera）
     }
 }

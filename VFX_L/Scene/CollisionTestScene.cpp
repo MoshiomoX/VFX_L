@@ -58,11 +58,14 @@ void CollisionTestScene::Init()
     m_Camera.Init(m_ScreenW / m_ScreenH, &m_CollisionSystem);
     SetCamera(&m_Camera.Camera());
     {
-        char env[8] = {};   // TEMP-TEST
+        char env[16] = {};   // TEMP-TEST
         m_AutoTest = GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", env, sizeof(env)) > 0;
         m_AutoBomber = m_AutoTest && strcmp(env, "bomber") == 0;   // 値が bomber なら自爆兵の自測
         m_AutoPerf = m_AutoTest && strcmp(env, "perf") == 0;       // 値が perf なら負荷の内訳
         m_AutoSlide = m_AutoTest && strcmp(env, "slide") == 0;     // 値が slide なら滑りの自測
+        m_AutoStress = m_AutoTest && strcmp(env, "stress") == 0;   // 値が stress なら雑魚を増やしていく負荷試験
+        m_AutoMagnifier = m_AutoTest && strcmp(env, "magnifier") == 0;   // 値が magnifier なら拡大鏡の見比べ
+        m_AutoUI = m_AutoTest && strcmp(env, "ui") == 0;                 // 値が ui なら幻想 UI の各画面を順に開く
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");
@@ -317,6 +320,9 @@ void CollisionTestScene::Update(float dt)
     m_Lighting.SubmitPointLights();
     m_Interaction.SubmitLights(m_Registry);   // 報酬の箱の目印（止まっている間も消さない）
 
+    // TEMP-TEST: UI の自測は背包・一時停止を開くので（gameplay が止まる）、ここで回す
+    if (m_AutoUI) UpdateAutoTestUI(dt);
+
     if (!m_GameUI.ShouldPauseGame())
     {
         PROFILE_SCOPE("Gameplay");
@@ -499,7 +505,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
             m_Registry.Get<PlayerStatsComponent>(m_Player).height * 0.5f;
 
         {
-            PROFILE_SCOPE("Swarm Flush (GPU gameplay)");
+            PROFILE_SCOPE_GPU("Swarm Flush (GPU gameplay)");
             m_Swarm.Flush(ptf.position, playerRadius, playerAlive, dt, m_TotalTime);
         }
 
@@ -529,7 +535,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // 0 に近いままのはず。伸びるなら GPU を待っている。
     // ============================================================
     {
-        PROFILE_SCOPE("Particles + lights");
+        PROFILE_SCOPE_GPU("Particles + lights");
         auto t0 = std::chrono::high_resolution_clock::now();
 
         // 範囲攻撃・反応の特効の見た目（emitter を積むので粒子の Flush より前）
@@ -586,7 +592,7 @@ void CollisionTestScene::Render(Renderer& renderer)
     // 雑魚（GPU）は影図に入れない（足元の丸い影で代える）
     if (m_ShowMesh && GetCamera())
     {
-        PROFILE_SCOPE("Shadow maps");
+        PROFILE_SCOPE_GPU("Shadow maps");
         m_Shadows.Render(ctx, renderer, *GetCamera(), m_Lighting.SunDirection(),
             [&](const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj, int cascade)
             {
@@ -606,16 +612,16 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ---- 1) モデル描画（CPU の実体 + GPU の雑魚）----
     if (m_ShowMesh)
     {
-        { PROFILE_SCOPE("Models (ECS)"); m_RenderSystem.Render(m_Registry, renderer); }
-        { PROFILE_SCOPE("Props (instanced)"); m_StaticProps.Render(renderer); }
-        { PROFILE_SCOPE("Grass"); if (GetCamera()) m_Grass.Render(renderer, *GetCamera()); }   // 地形の後（深度で埋まる所を描かない）
-        { PROFILE_SCOPE("Swarm draw"); m_Swarm.Render(GetCamera(), renderer.GetLightData()); }
+        { PROFILE_SCOPE_GPU("Models (ECS)"); m_RenderSystem.Render(m_Registry, renderer); }
+        { PROFILE_SCOPE_GPU("Props (instanced)"); m_StaticProps.Render(renderer); }
+        { PROFILE_SCOPE_GPU("Grass"); if (GetCamera()) m_Grass.Render(renderer, *GetCamera()); }   // 地形の後（深度で埋まる所を描かない）
+        { PROFILE_SCOPE_GPU("Swarm draw"); m_Swarm.Render(GetCamera(), renderer.GetLightData()); }
     }
     if (m_ShowSwarmDebug)
         m_Swarm.RenderDebug(GetCamera());
 
     {
-        PROFILE_SCOPE("Billboards + sprites");
+        PROFILE_SCOPE_GPU("Billboards + sprites");
         // ---- 2) ビルボード（投射物とオーブの芯）----
         if (m_ShowBillboard)
             m_ProjectileRenderer.Render(m_Registry, GetCamera());
@@ -628,7 +634,7 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ---- 3) 粒子（VFX 本体）----
     if (m_ShowParticle)
     {
-        PROFILE_SCOPE("Particles draw");
+        PROFILE_SCOPE_GPU("Particles draw");
         m_ParticleSystem.SetCamera(GetCamera());
         m_ParticleSystem.SetLight(renderer.GetLightData());   // 立方体粒子の Lambert 用
         m_ParticleSystem.Render();
@@ -638,6 +644,6 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ============================================================
     // 4) UI（一番手前。Begin/End の管理は GameUI の中）
     // ============================================================
-    PROFILE_SCOPE("Game UI");
+    PROFILE_SCOPE_GPU("Game UI");
     m_GameUI.Render(m_Registry, m_Player);
 }

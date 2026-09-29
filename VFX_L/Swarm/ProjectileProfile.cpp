@@ -48,6 +48,7 @@ Swarm::Motion ProjectileProfile::ToMotion() const
     m.hitArea = (uint32_t)AreaProfileDB::IndexOf(hitArea);   // 無ければ 0 = 出さない
     m.hitAreaFlags = hitAreaOnExpire ? Swarm::kHitAreaOnExpire : 0u;
     m.c1 = c1;
+    m.baseRadius = radius;   // これより大きい当たり半径で撃たれたら、見た目と爆発も同じ倍率で大きく（拡大鏡）
     m.c2 = c2;
     return m;
 }
