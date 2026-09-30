@@ -168,25 +168,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float k = 1.0 - exp(-g_VelocityLag * g_Step);
     float3 v = lerp(oldV, target, k);
 
-    // ---- hard block, applied AFTER smoothing ----
-    // the smoothed velocity may still carry an old component into a
-    // wall, so the check has to see the value that will be integrated.
-    // A cliff (too steep, see SwarmSlopeOk) counts as a wall: the axis
-    // that would climb or drop it is dropped, so the enemy slides along
-    // the plateau side and the flow field leads it to a ramp
-    if (SwarmIsWalkable(terrain, pos))
-    {
-        float ax = v.x * g_LookAhead;
-        float az = v.z * g_LookAhead;
-
-        if (ax != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(ax, 0, 0))
-                          || !SwarmSlopeOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0))))
-            v.x = 0.0;
-        if (az != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(0, 0, az))
-                          || !SwarmSlopeOk(terrainHeight, pos.xz, pos.xz + float2(0, az))))
-            v.z = 0.0;
-    }
-      // ---- player is solid ----
+    // ---- player is solid ----
     // Same idea as the terrain hard block, but against a circle:
     // drop the velocity component that would carry us inside the
     // contact radius, keep the tangential part so the crowd slides
@@ -219,6 +201,36 @@ void main(uint3 id : SV_DispatchThreadID)
 
         if (dist < contact)
             v -= n * (contact - dist) * g_PlayerPushOut;
+    }
+
+    // ---- hard block, applied LAST (after smoothing and the player push) ----
+    // the smoothed velocity may still carry an old component into a
+    // wall, and the player push-out used to come after this check and shove
+    // enemies into trees / walls (2026-09-30). Look-ahead = body radius +
+    // velocity * g_LookAhead, so the mesh stops at the wall face instead of
+    // sinking half a body into it. A cliff (too steep, see SwarmSlopeOk)
+    // counts as a wall: the axis that would climb or drop it is dropped, so
+    // the enemy slides along the plateau side and the flow field leads it to
+    // a ramp. The diagonal is checked too (both axes free but the corner
+    // cell blocked used to let enemies cut through the corner).
+    // An enemy already inside a blocked cell skips this: MoveCS walks it out
+    if (SwarmIsWalkable(terrain, pos))
+    {
+        float r = g_EnemyRadius * SwarmKindScale(extra.kind);
+        float ax = (v.x != 0.0) ? v.x * g_LookAhead + sign(v.x) * r : 0.0;
+        float az = (v.z != 0.0) ? v.z * g_LookAhead + sign(v.z) * r : 0.0;
+
+        if (ax != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(ax, 0, 0))
+                          || !SwarmSlopeOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0))))
+            v.x = 0.0;
+        if (az != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(0, 0, az))
+                          || !SwarmSlopeOk(terrainHeight, pos.xz, pos.xz + float2(0, az))))
+            v.z = 0.0;
+        if (v.x != 0.0 && v.z != 0.0 && !SwarmIsWalkable(terrain, pos + float3(ax, 0, az)))
+        {
+            // corner: keep the axis that has more room, drop the other
+            if (abs(v.x) > abs(v.z)) v.z = 0.0; else v.x = 0.0;
+        }
     }
     v.y = 0.0;
     enemies[i].velocity = v;

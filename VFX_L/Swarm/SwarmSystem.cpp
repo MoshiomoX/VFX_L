@@ -993,6 +993,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyMoveCS->Bind(m_Context);
         m_EnemyMoveCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyMoveCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 斜面の高さ
+        m_EnemyMoveCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());       // 通行格（壁への滑り・壁からの脱出）
         m_EnemyMoveCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_EnemyMoveCS->BindUAVs(m_Context);
@@ -2360,4 +2361,33 @@ bool SwarmSystem::CreateEnemyDrawArgs(ID3D11Device* device)
         if (FAILED(device->CreateBuffer(&desc, &sd, &m_BomberRingArgs))) return false;
     }
     return true;
+}
+
+// ============================================================
+// TEMP-TEST: 敵の池と状態を丸ごと読み戻す（staging を作って CopyResource → Map。GPU を待つので自測だけ）
+// ============================================================
+bool SwarmSystem::DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates)
+{
+    if (!m_Device || !m_Context || !m_EnemyBuffer || !m_EnemyStateBuffer) return false;
+
+    auto readback = [&](ID3D11Buffer* src, UINT bytes, void* dst) -> bool
+        {
+            D3D11_BUFFER_DESC sd = {};
+            sd.ByteWidth = bytes;
+            sd.Usage = D3D11_USAGE_STAGING;
+            sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            ComPtr<ID3D11Buffer> staging;
+            if (FAILED(m_Device->CreateBuffer(&sd, nullptr, &staging))) return false;
+            m_Context->CopyResource(staging.Get(), src);
+            D3D11_MAPPED_SUBRESOURCE m = {};
+            if (FAILED(m_Context->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &m))) return false;
+            memcpy(dst, m.pData, bytes);
+            m_Context->Unmap(staging.Get(), 0);
+            return true;
+        };
+
+    outEnemies.resize(Swarm::kMaxEnemies);
+    outStates.resize(Swarm::kMaxEnemies);
+    if (!readback(m_EnemyBuffer.Get(), (UINT)(sizeof(Swarm::Enemy) * Swarm::kMaxEnemies), outEnemies.data())) return false;
+    return readback(m_EnemyStateBuffer.Get(), (UINT)(sizeof(uint32_t) * Swarm::kMaxEnemies), outStates.data());
 }

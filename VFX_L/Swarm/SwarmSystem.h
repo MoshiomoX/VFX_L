@@ -217,6 +217,8 @@ public:
     float ConsumePlayerDamage();
     // 磁石: seconds の間、場の経験値オーブを全部吸い寄せ始める（OrbCB の吸い寄せ半径を場全体にする）
     void MagnetAllOrbs(float seconds = 0.3f) { m_MagnetTimer = (std::max)(m_MagnetTimer, seconds); }
+    // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（Map で止まる。自測の検証だけ。毎フレーム呼ばない）
+    bool DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates);
     // 光線（胶囊型の範囲）: チャンネル ch の起点 / 終点 / 半径を次の固定ステップから効かせる。
     // 範囲そのものは SpawnArea（flags に kAreaCapsule | ch << kAreaBeamShift）で出す。
     // active = false にすると GPU 側の範囲が次のステップで消える
