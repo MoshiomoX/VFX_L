@@ -22,7 +22,7 @@ inline ProjectileItemDef MakeArcBolt()
     def.common.description = L"弧を描いて敵へ向かう魔法弾。撃つたびに左右が入れ替わる。";
     def.common.iconPath = Res::Icon::ArcBolt;
     def.common.category = ItemCategory::Projectile;
-    def.common.occupyCells = { { 0, 0 }, { 1, 0 }, { 1, 1 } };   // L 字 3 マス（2026-09-30）
+    def.common.occupyCells = ItemShape::Single();       // 基礎魔法は 1 マス（L 字 3 マスは 2026-09-30 用户の指示で廃止）
     def.common.influenceCells = ItemShape::Cross();     // 誘発の届く範囲（上下左右。追尾弾と組んで魔導光線を目覚めさせる）
     def.common.color = { 0.40f, 0.80f, 1.00f, 1.0f };   // 水色
 

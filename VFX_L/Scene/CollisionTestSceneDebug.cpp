@@ -2664,7 +2664,7 @@ void CollisionTestScene::UpdateAutoTestBeam()
         ClearBackpackItems(bp);
         BackpackLogic::Place(bp, ItemID::Beam, lo, lo + 1, 0);            // 上段（横 3 マス）
         BackpackLogic::Place(bp, ItemID::HomingBolt, lo + 1, lo + 2, 0);  // 右中（十字の上が光線の右端）
-        BackpackLogic::Place(bp, ItemID::ArcBolt, lo + 1, lo, 0);         // 左中（L 字が下へ。十字の上が光線の左端）
+        BackpackLogic::Place(bp, ItemID::ArcBolt, lo + 1, lo, 0);         // 左中（十字の上が光線の左端）
         bp.dirty = true;
         m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
 
