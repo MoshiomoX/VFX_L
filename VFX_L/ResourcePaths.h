@@ -341,6 +341,11 @@ namespace Res
         inline constexpr const wchar_t* CornerKnot = L"Assets/Texture/UI/Deco/CornerKnot.png";   // 右上の角
         inline constexpr const wchar_t* DividerFleur = L"Assets/Texture/UI/Deco/DividerFleur.png";
         inline constexpr const wchar_t* DividerThin = L"Assets/Texture/UI/Deco/DividerThin.png";
+
+        // 魔法書の木箱（Tools/BuildChestUI.ps1 がコードで描く。色付き・sRGB で読む）
+        inline constexpr const wchar_t* ChestFrame = L"Assets/Texture/UI/Chest/ChestFrame.png";   // 9 分割の枠（縁 128/512）
+        inline constexpr const wchar_t* ChestBack = L"Assets/Texture/UI/Chest/ChestBack.png";     // 内側の奥の板
+        inline constexpr const wchar_t* ChestLock = L"Assets/Texture/UI/Chest/ChestLock.png";     // 前板から下がる錠前
     }
 
     // ========================================================

@@ -74,6 +74,7 @@ void CollisionTestScene::Init()
         m_AutoEdge = m_AutoTest && strcmp(env, "edge") == 0;             // 値が edge なら外周の岩山を撮る
         m_AutoArrow = m_AutoTest && strcmp(env, "arrow") == 0;           // 値が arrow なら黄金の矢を横から撮る
         m_AutoChain = m_AutoTest && strcmp(env, "chain") == 0;           // 値が chain なら火球 + 石弾 → 隕石の誘発
+        m_AutoChest = m_AutoTest && strcmp(env, "chest") == 0;           // 値が chest なら魔法書の木箱の物理
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");
@@ -335,6 +336,7 @@ void CollisionTestScene::Update(float dt)
 
     // TEMP-TEST: UI の自測は背包・一時停止を開くので（gameplay が止まる）、ここで回す
     if (m_AutoUI) UpdateAutoTestUI(dt);
+    if (m_AutoChest) UpdateAutoTestChest(dt);       // 同上（背包を開いたまま）
     if (m_AutoBalance) UpdateAutoTestBalance(dt);   // 三択を自動で選ぶので同じくここ
     if (m_AutoPickup) UpdateAutoTestPickup(dt);     // 同上（4 択の画面を開いたまま撮る）
 

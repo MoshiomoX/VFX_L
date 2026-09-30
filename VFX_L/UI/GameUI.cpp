@@ -652,7 +652,11 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
         ImGui::Text("Bodies : %d", m_Spellbook.GetBodyCount());
         ImGui::DragFloat("Gravity##sb", &m_Spellbook.gravity, 10.0f, 0.0f, 5000.0f);
         ImGui::DragFloat("Restitution##sb", &m_Spellbook.restitution, 0.01f, 0.0f, 0.9f);
-        ImGui::DragFloat("Spin##sb", &m_Spellbook.spinTransfer, 0.01f, 0.0f, 2.0f);
+        ImGui::DragFloat("Friction##sb", &m_Spellbook.friction, 0.01f, 0.0f, 1.5f);
+        ImGui::SliderInt("Iterations##sb", &m_Spellbook.iterations, 1, 30);
+        ImGui::Checkbox("Allow Sleep##sb", &m_Spellbook.allowSleep);
+        ImGui::SameLine();
+        ImGui::TextDisabled(m_Spellbook.IsAsleep() ? "(asleep)" : "(awake, %d contacts)", m_Spellbook.GetContactCount());
         ImGui::DragFloat("Box Scale##sb", &m_Spellbook.boxScale, 0.01f, 0.3f, 1.0f);
 
         ImGui::TreePop();
@@ -721,8 +725,10 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
         ImGui::ColorEdit4("Frame Color", &m_Backpack.frameColor.x);
         ImGui::ColorEdit4("Cell Color", &m_Backpack.cellColor.x);
         ImGui::ColorEdit4("Locked Cell", &m_Backpack.lockedCellColor.x);
-        ImGui::ColorEdit4("Box Frame", &m_Spellbook.frameColor.x);
-        ImGui::ColorEdit4("Box Inner", &m_Spellbook.innerColor.x);
+        ImGui::ColorEdit4("Chest Frame Tint", &m_Spellbook.frameTint.x);
+        ImGui::ColorEdit4("Chest Back Tint", &m_Spellbook.backTint.x);
+        ImGui::ColorEdit4("Chest Shadow", &m_Spellbook.shadowColor.x);
+        ImGui::DragFloat("Chest Lock Scale", &m_Spellbook.lockScale, 0.01f, 0.0f, 4.0f);
 
         ImGui::Text("Sprites : %u   Draw calls : %u",
             m_Sprite.GetLastSpriteCount(), m_Sprite.GetLastDrawCalls());
