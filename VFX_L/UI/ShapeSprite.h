@@ -127,6 +127,7 @@ namespace ShapeSprite
     inline constexpr float kGlassDim = 0.12f;     // 道具の色をどれだけ暗くして地にするか（線形）
     inline constexpr float kGlassAlpha = 0.92f;
     inline const DirectX::SimpleMath::Vector4 kIconTint = { 0.97f, 0.94f, 0.87f, 1.0f };
+    inline constexpr float kIconScale = 0.88f;    // アイコンの大きさ（マス比。2026-09-30 0.74 → 0.88、用户要求）
 
     // 道具 1 個（幻想 UI）。white は無地の白、outline は種類の色（UIDeco::CategoryColor）
     inline void DrawItemGlass(SpriteRenderer& sprite,
@@ -148,7 +149,7 @@ namespace ShapeSprite
         if (!icon) return;
         const CellOffset c = CenterCell(cells);
         const float pitch = cell + gap;
-        const float s = cell * 0.74f;
+        const float s = cell * kIconScale;
         DirectX::SimpleMath::Vector4 ic = kIconTint;
         ic.w = alpha;
         sprite.Draw(icon,

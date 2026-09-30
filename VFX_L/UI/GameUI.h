@@ -68,6 +68,7 @@ public:
     // TEMP-TEST: 自測（VFXL_BATTLE_AUTOTEST=ui）。鼠标を使わずに画面を開閉し、tooltip を指定の位置に出す
     //   layer: 0 = 全部閉じる / 1 = 背包 / 2 = 一時停止。itemIndex < 0 で tooltip を消す
     void TestShow(int layer);
+    const SpellbookUI& GetSpellbook() const { return m_Spellbook; }   // TEMP-TEST: 木箱の物理の記録
     void TestTooltip(int itemIndex, const DirectX::SimpleMath::Vector2& pos) { m_TestTooltipItem = itemIndex; m_TestTooltipPos = pos; }
 
     // 全部下ろす（プレイヤー消失時など）

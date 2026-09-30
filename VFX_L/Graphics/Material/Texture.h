@@ -17,8 +17,10 @@ namespace DirectX { class ScratchImage; }
 class Texture
 {
 public:
-    // ファイルから（dds / tga / hdr / それ以外は WIC）
-    bool Load(ID3D11Device* device, const std::wstring& filepath);
+    // ファイルから（dds / tga / hdr / それ以外は WIC）。
+    // srgb = true: WIC の画像を *_SRGB 形式で作り、サンプラーに線形へ戻させる
+    // （共有キャッシュを通さない専用の絵だけ。キャッシュの絵は UNORM のまま）
+    bool Load(ID3D11Device* device, const std::wstring& filepath, bool srgb = false);
 
     // メモリ上の画像ファイル（png/jpg/dds/tga のバイト列）から。
     // FBX / GLB の埋め込みテクスチャ用。formatHint は assimp の achFormatHint

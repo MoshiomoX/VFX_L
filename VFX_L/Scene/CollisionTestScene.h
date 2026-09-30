@@ -156,6 +156,10 @@ private:
     // VFXL_BATTLE_AUTOTEST=chain：火球 + 石弾 → 隕石の誘発。隕石が落ちるか、石弾を外すと止まるか
     bool     m_AutoChain = false;
     void     UpdateAutoTestChain();
+    // VFXL_BATTLE_AUTOTEST=chest：魔法書の木箱へ形の違う物をまとめて降らせ、積み方・眠るまでを記録して撮る。
+    // 背包が開いて gameplay が止まるので Update から直接呼ぶ
+    bool     m_AutoChest = false;
+    void     UpdateAutoTestChest(float dt);
     // VFXL_BATTLE_AUTOTEST=edge：外周の岩山を、縁の近くの平視・高い所からの俯瞰・場地の中央から撮る
     bool     m_AutoEdge = false;
     void     UpdateAutoTestEdge();

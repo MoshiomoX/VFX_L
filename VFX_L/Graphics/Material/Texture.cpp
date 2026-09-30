@@ -8,7 +8,7 @@
 // ============================================================
 // ファイルから
 // ============================================================
-bool Texture::Load(ID3D11Device* device, const std::wstring& filepath)
+bool Texture::Load(ID3D11Device* device, const std::wstring& filepath, bool srgb)
 {
     if (!device) return false;
 
@@ -28,7 +28,8 @@ bool Texture::Load(ID3D11Device* device, const std::wstring& filepath)
         hr = DirectX::LoadFromHDRFile(filepath.c_str(), nullptr, image);
     else
         hr = DirectX::LoadFromWICFile(filepath.c_str(),
-            DirectX::WIC_FLAGS_FORCE_RGB, nullptr, image);
+            srgb ? (DirectX::WIC_FLAGS_FORCE_RGB | DirectX::WIC_FLAGS_FORCE_SRGB) : DirectX::WIC_FLAGS_FORCE_RGB,
+            nullptr, image);
 
 
     if (FAILED(hr))
