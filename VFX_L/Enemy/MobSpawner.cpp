@@ -90,6 +90,35 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
         [this, &swarm](const Vector3& pos) { Request(swarm, pos, true); });
 
     SpawnDebugBombers(grid, player, swarm);
+    SpawnGhosts(player, dt, swarm);
+}
+
+// ============================================================
+// 最終波の幽霊。玩家の周りの環（rMin〜rMax）に湧く。壁を素通りするので歩けるマスかは見ない。
+// 同時上限は雑魚と共通（Director.spawnCap。alive は種類を問わず数える）
+// ============================================================
+void MobSpawner::SpawnGhosts(const Vector3& player, float dt, SwarmSystem& swarm)
+{
+    int want = m_DebugGhosts;
+    m_DebugGhosts = 0;
+    if (finalGhostRate > 0.0f && m_Director.enabled)
+    {
+        m_GhostAccum += finalGhostRate * dt;
+        const int n = (int)m_GhostAccum;
+        m_GhostAccum -= (float)n;
+        if ((int)swarm.GetCounters().aliveEnemies < m_Director.spawnCap) want += n;
+    }
+    else
+        m_GhostAccum = 0.0f;
+
+    const float groundY = swarm.GetAIParams().groundY;
+    for (int k = 0; k < want && k < m_Director.maxPerFrame; ++k)
+    {
+        const float ang = Rand01() * 6.2831853f;
+        const float r = m_Director.rMin + (m_Director.rMax - m_Director.rMin) * Rand01();
+        const Vector3 pos = player + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
+        swarm.SpawnEnemy({ pos.x, groundY, pos.z }, m_MobHp * m_StatMul, m_MobSpeed * ghostSpeedMul, Swarm::kEnemyKindGhost);
+    }
 }
 
 // ============================================================
@@ -150,6 +179,9 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::ColorEdit4("Ring Edge", &ring.edge.x);
     ImGui::ColorEdit4("Ring Back", &ring.back.x);
     if (ImGui::Button("Spawn 5 Bombers Nearby")) QueueDebugBombers(5);
+    ImGui::SameLine();
+    if (ImGui::Button("Spawn 5 Ghosts")) QueueDebugGhosts(5);
+    ImGui::DragFloat("Ghost Speed x", &ghostSpeedMul, 0.05f, 1.0f, 6.0f);
     ImGui::Separator();
 
     // ---- 雑魚 AI（GPU の定数。次の固定ステップから効く）----

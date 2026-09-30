@@ -75,9 +75,14 @@ namespace Swarm
     constexpr uint32_t kEnemyKindBomber = 1;   // 自爆兵（接触で点火 → fuseTime 秒後に爆発）
     constexpr uint32_t kEnemyKindElite = 2;    // 精英（大きい雑魚。BomberCB の elite* で体格・接触ダメージ・経験値を倍にする）
     constexpr uint32_t kEnemyKindBoss = 3;     // 面の Boss（BomberCB の boss*。怯まない。HP と位置は BossInfo で CPU へ）
+    constexpr uint32_t kEnemyKindGhost = 4;    // 最終波の幽霊（2026-09-30）：雑魚の HP、速い、壁も台地も素通り、半透明の青白
     // 描画リストの数（種類毎に貼図を替えて描く）。精英は雑魚と同じ網格・貼図なので雑魚のリストで描き、
     // 大きさと色は VS が種類を見て変える
-    constexpr uint32_t kEnemyKinds = 2;
+    constexpr uint32_t kEnemyKinds = 3;
+    // 描画リストの添字（種類 → リスト。精英 / Boss は雑魚のリスト）
+    constexpr uint32_t kDrawListMob = 0;
+    constexpr uint32_t kDrawListBomber = 1;
+    constexpr uint32_t kDrawListGhost = 2;    // 最後に alpha blend で描く
 
     struct EnemyExtra
     {
@@ -314,8 +319,14 @@ namespace Swarm
         float    bossDamageMul = 40.0f / 15.0f;   // Megabonk の面 Boss 22〜40 / 雑魚 15
         float    bossExpMul = 100.0f;
         float    _bossPad = 0.0f;
+
+        // ---- 最終波の幽霊（kEnemyKindGhost）----
+        float    ghostHover = 0.7f;          // VS: 地面からこれだけ浮く（判定の位置は地面のまま）
+        float    ghostAlpha = 0.55f;         // VS: 頂点 alpha（alpha blend で描く）
+        float    ghostGlow = 1.6f;           // VS: 青白の色に掛ける HDR の倍率
+        float    ghostDamageMul = 1.0f;      // 接触ダメージの倍率
     };
-    static_assert(sizeof(BomberCB) == 64, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 80, "SwarmBomberCB layout mismatch");
 
     // ============================================================
     // Boss の様子（GPU → CPU。SwarmEnemyCompactCS が毎フレーム書き、staging で回読）。

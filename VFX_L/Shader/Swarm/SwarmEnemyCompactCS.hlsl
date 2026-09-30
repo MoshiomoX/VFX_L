@@ -30,6 +30,7 @@ AppendStructuredBuffer<uint> aliveList : register(u0);
 AppendStructuredBuffer<uint> mobList : register(u1);
 AppendStructuredBuffer<uint> bomberList : register(u2);
 RWByteAddressBuffer bossInfo : register(u3);
+AppendStructuredBuffer<uint> ghostList : register(u4); // drawn last with alpha blend
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -43,6 +44,8 @@ void main(uint3 id : SV_DispatchThreadID)
     uint kind = enemyExtra[i].kind;
     if (kind == SWARM_KIND_BOMBER)
         bomberList.Append(i);
+    else if (kind == SWARM_KIND_GHOST)
+        ghostList.Append(i);
     else
         mobList.Append(i);
 

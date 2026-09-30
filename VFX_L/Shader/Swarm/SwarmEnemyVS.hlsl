@@ -34,6 +34,8 @@ static const float kFuseBlinkEnd = 14.0;
 static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
 // boss: violet
 static const float3 kBossTint = float3(1.1, 0.5, 1.5);
+// ghost: translucent cyan-white, drawn with alpha blend (SwarmSystem draws its list last)
+static const float3 kGhostTint = float3(0.55, 1.25, 1.6);
 
 // ---- rigid part animation (models whose parts hang off animated nodes,
 // e.g. Kenney Blocky: 6 rigid parts, no skin weights) ----
@@ -208,6 +210,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
 
     float3 worldPos = RotateY(local, s, c) + e.position;
+    // ghost: hovers and bobs (the gameplay position stays on the ground)
+    if (extra.kind == SWARM_KIND_GHOST)
+        worldPos.y += g_GhostHover + 0.15 * sin(g_AnimTime * 3.0 + (float) slot * 0.7);
     o.WorldPos = worldPos;
     o.Position = mul(mul(float4(worldPos, 1.0), View), Projection);
     o.Normal = RotateY(normal, s, c);
@@ -218,6 +223,11 @@ VS_OUTPUT main(VS_INPUT_INST input)
         o.Color.rgb *= kEliteTint;
     else if (extra.kind == SWARM_KIND_BOSS)
         o.Color.rgb *= kBossTint;
+    else if (extra.kind == SWARM_KIND_GHOST)
+    {
+        o.Color.rgb *= kGhostTint * g_GhostGlow;
+        o.Color.a = g_GhostAlpha;
+    }
 
     // ---- hit flash: overbright vertex color during the stun, decays to 1 ----
     // PS multiplies albedo by Color, so > 1 goes HDR and bloom picks it up

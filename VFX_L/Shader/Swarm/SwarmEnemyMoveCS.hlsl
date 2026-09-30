@@ -17,6 +17,7 @@
 Buffer<uint> enemyStates : register(t0);
 StructuredBuffer<float> terrainHeight : register(t1);
 StructuredBuffer<uint> terrain : register(t2); // walkable grid (for the slide / walk-out)
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3); // kind: ghosts skip the walls
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
 
@@ -56,7 +57,12 @@ void main(uint3 id : SV_DispatchThreadID)
         // in) is walked toward the nearest free cell instead, ignoring the
         // walls on the way (they are what it is escaping from).
         float2 from = e.position.xz;
-        if (!SwarmIsWalkable(terrain, e.position))
+        if (enemyExtra[i].kind == SWARM_KIND_GHOST)
+        {
+            // ghost: flies straight, through walls and over plateaus (y still follows the ground below)
+            e.position.xz = from + e.velocity.xz * g_Step;
+        }
+        else if (!SwarmIsWalkable(terrain, e.position))
         {
             float2 best = from;
             float bestD = 1e30;
