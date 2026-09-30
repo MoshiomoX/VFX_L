@@ -205,9 +205,6 @@
     <ClCompile Include="Core\Timer\EngineTimer.cpp">
       <Filter>Core\Timer</Filter>
     </ClCompile>
-    <ClCompile Include="Core\Timer\GameTimer.cpp">
-      <Filter>Core\Timer</Filter>
-    </ClCompile>
     <ClCompile Include="Core\main.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -252,9 +249,6 @@
     </ClCompile>
     <ClCompile Include="ThirdParty\ImGui\imgui_widgets.cpp">
       <Filter>Debug\ImGui</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\ImGuiManager.cpp">
-      <Filter>Debug</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Model\Model.cpp">
       <Filter>Graphics\Model</Filter>
@@ -327,15 +321,6 @@
     </ClCompile>
     <ClCompile Include="VFX_Editor\VFXStates.cpp">
       <Filter>VFX_Editor</Filter>
-    </ClCompile>
-    <ClCompile Include="State\ECSComponents.cpp">
-      <Filter>State</Filter>
-    </ClCompile>
-    <ClCompile Include="State\CounterStates.cpp">
-      <Filter>State</Filter>
-    </ClCompile>
-    <ClCompile Include="State\StateMachineSystem.cpp">
-      <Filter>State</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Model\SkinnedModel.cpp">
       <Filter>Graphics\Model</Filter>
@@ -604,13 +589,7 @@
     <ClInclude Include="Core\Timer\EngineTimer.h">
       <Filter>Core\Timer</Filter>
     </ClInclude>
-    <ClInclude Include="Core\Timer\GameTimer.h">
-      <Filter>Core\Timer</Filter>
-    </ClInclude>
     <ClInclude Include="Graphics\Graphics.h">
-      <Filter>Graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="Graphics\ConstantBuffer.h">
       <Filter>Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Mesh\Mesh.h">
@@ -657,9 +636,6 @@
     </ClInclude>
     <ClInclude Include="ThirdParty\ImGui\imgui_impl_dx11.h">
       <Filter>Debug\ImGui</Filter>
-    </ClInclude>
-    <ClInclude Include="Debug\ImGuiManager.h">
-      <Filter>Debug</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Mesh\VertexBuffer.h">
       <Filter>Graphics\Mesh</Filter>
@@ -766,15 +742,6 @@
     <ClInclude Include="ECS\View.h">
       <Filter>ECS</Filter>
     </ClInclude>
-    <ClInclude Include="State\ECSComponents.h">
-      <Filter>State</Filter>
-    </ClInclude>
-    <ClInclude Include="State\CounterStates.h">
-      <Filter>State</Filter>
-    </ClInclude>
-    <ClInclude Include="State\StateMachineSystem.h">
-      <Filter>State</Filter>
-    </ClInclude>
     <ClInclude Include="ResourcePaths.h" />
     <ClInclude Include="Graphics\Mesh\SkinnedVertex.h">
       <Filter>Graphics\Mesh</Filter>
@@ -812,9 +779,6 @@
     </ClInclude>
     <ClInclude Include="Scene\RunResult.h">
       <Filter>Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="Collider\GPUCollider.h">
-      <Filter>Collider</Filter>
     </ClInclude>
     <ClInclude Include="Component\ModelComponent.h">
       <Filter>Component</Filter>

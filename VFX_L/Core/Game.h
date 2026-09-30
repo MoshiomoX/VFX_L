@@ -1,6 +1,5 @@
 #pragma once
 #include "Scene/SceneManager.h"
-#include "Core/Timer/GameTimer.h"
 //#include "Manager/InputManager.h"
 class Renderer;
 
@@ -18,7 +17,6 @@ public:
 
 private:
     SceneManager m_SceneManager;
-    GameTimer m_Timer;
     Renderer* m_Renderer = nullptr;  // ???,???
 
     bool m_IsRunning = true;	
