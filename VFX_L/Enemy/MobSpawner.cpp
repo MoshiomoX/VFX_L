@@ -75,7 +75,7 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
     if (scaling)
     {
         const float minutes = runTime / 60.0f;
-        m_StatMul = (1.0f + statGrowthPerMin * minutes) * finalStatMul;
+        m_StatMul = (1.0f + statMulBonus + statGrowthPerMin * minutes) * finalStatMul;
         m_Director.spawnPerSecond = (finalSpawnRate > 0.0f) ? finalSpawnRate
             : spawnRateStart + (spawnRateAt10Min - spawnRateStart) * (minutes / 10.0f);
     }

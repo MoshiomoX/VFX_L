@@ -14,6 +14,9 @@
 #include "Player/PlayerStatsComponent.h"
 #include "Player/PlayerStateComponent.h"
 #include "Player/PlayerFactory.h"
+#include "Graphics/Light/PointLightManager.h"
+#include "UI/UIDeco.h"
+#include <algorithm>
 #include "Player/LevelComponent.h"
 #include "Enemy/EnemyTags.h"
 #include "ECS/View.h"
@@ -126,6 +129,26 @@ void CollisionTestScene::Init()
     if (!m_Shadows.Initialize(device))
         std::cout << "[Error] ShadowMap init failed" << std::endl;
 
+    // ---------- 面（草原 / 砂漠 / 遺跡）----------
+    // 前の面から引き継いだ番号（g_RunCarry.stage。タイトルから来た時は 1）。VFXL_STAGE=n で上書き（調試）
+    m_StageIndex = g_RunCarry.stage;
+    {
+        char env[16] = {};
+        if (GetEnvironmentVariableA("VFXL_STAGE", env, sizeof(env)) > 0)
+            m_StageIndex = atoi(env);
+        m_StageIndex = std::clamp(m_StageIndex, 1, StageConfig::kStageCount);
+    }
+    const StageDef& stageDef = StageConfig::Get(m_StageIndex);
+    m_TerrainConfig.biome = stageDef.biome;
+    m_Lighting.ApplyPreset(stageDef.light);
+    std::cout << "[CollisionTestScene] stage " << m_StageIndex << " biome " << (int)stageDef.biome << std::endl;
+    if (m_AutoTest)
+    {
+        char line[48];
+        snprintf(line, sizeof(line), "stage %d biome %d", m_StageIndex, (int)stageDef.biome);
+        AutoTestLog(line);   // TEMP-TEST: 面の引き継ぎの確認用
+    }
+
     // ---------- 地形（格子对齐。台地と坂道の野原）----------
     // 場地: 100 x 100 マス = 200m x 200m。
     // 開局ごとに seed を変える（同じ seed なら同じ地形。VFXL_TERRAIN_SEED で固定できる）
@@ -138,7 +161,8 @@ void CollisionTestScene::Init()
             m_TerrainConfig.seed = std::random_device{}() % 100000u;
     }
     std::vector<uint8_t> grassMask;
-    TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask);
+    m_Torches.clear();
+    TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches);
     // 置物（木・岩・茂み）はモデル毎の instanced 描画へ
     if (!m_StaticProps.Initialize(device))
         std::cout << "[Error] StaticPropRenderer init failed" << std::endl;
@@ -146,7 +170,14 @@ void CollisionTestScene::Init()
     // 草（GPU で生やす葉）
     if (!m_Grass.Initialize(device, context))
         std::cout << "[Error] GrassRenderer init failed" << std::endl;
-    m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed);
+    // 面ごとの草（砂漠は疎らな枯れ草、遺跡は無し）。色は床の色（GroundColor）に掛かる
+    m_Grass.GetSettings().enabled = stageDef.grass;
+    m_Grass.GetSettings().spacing = stageDef.grassSpacing;
+    m_Grass.GetSettings().rootColor = stageDef.grassRoot;
+    m_Grass.GetSettings().tipColor = stageDef.grassTip;
+    m_Grass.GetSettings().heightMin = stageDef.grassHeightMin;
+    m_Grass.GetSettings().heightMax = stageDef.grassHeightMax;
+    m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);
 
     // ---------- GPU 側 gameplay（雑魚・投射物・オーブ）----------
     // ※地形の生成後に呼ぶ。格子表をそのまま上げるため
@@ -164,6 +195,7 @@ void CollisionTestScene::Init()
     m_Swarm.SetMotions(ProjectileProfileDB::BuildMotions());
     m_WeaponSystem.SetAreaVFX(&m_AreaVFX, &m_VFXContext);
     m_Mobs.Init(m_Swarm);
+    m_Mobs.statMulBonus = stageDef.difficultyBonus;   // 面の難度の下駄
     m_WeaponSystem.SetSwarm(&m_Swarm);
 
     // ============================================================
@@ -175,6 +207,7 @@ void CollisionTestScene::Init()
     pcfg.color = { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f };
 
     m_Player = PlayerFactory::Create(m_Registry, device, pcfg);
+    ApplyRunCarry();   // 前の面の背包・魔法書・等級・能力値（あれば）
 
     // ---------- 反応の特効（升級・開箱・被弾）----------
     m_Feedback.Init(&m_AreaVFX, &m_VFXContext);
@@ -335,6 +368,7 @@ void CollisionTestScene::Update(float dt)
     // ---- 場景光源: 点光源表は UpdateGameplay の中（CollectLights）で GPU へ上がるので、その前に積む。
     // 一時停止中も積む（その時は SceneBase::Render が上げる）
     m_Lighting.SubmitPointLights();
+    SubmitTorchLights();                      // 遺跡の松明（玩家に近い物だけ）
     m_Interaction.SubmitLights(m_Registry);   // 報酬の箱の目印（止まっている間も消さない）
     m_Pickups.SubmitLights();                 // 磁石の目印
 
@@ -355,6 +389,7 @@ void CollisionTestScene::Update(float dt)
 
     // ---- HUD：経過時間・撃破数と、画面外の目印 ----
     m_GameUI.SetRunInfo(m_RunTime, m_Swarm.GetCounters().killCount, m_Stage.stageTime);
+    m_GameUI.SetStage(m_StageIndex, StageConfig::Get(m_StageIndex).name);
     m_GameUI.SetBossBar(m_Stage.IsBossAlive() ? m_Stage.BossHpRatio() : -1.0f);
     UpdateHudMarkers();
 
@@ -623,6 +658,23 @@ void CollisionTestScene::EndRun()
     g_LastRun.kills = m_Swarm.GetCounters().killCount;   // 回読なので 1〜2 フレーム古い。許容
     g_LastRun.expGained = m_ExpGained;
     g_LastRun.cleared = m_Stage.IsCleared();
+    g_LastRun.stage = m_StageIndex;
+    g_LastRun.hasNextStage = g_LastRun.cleared && m_StageIndex < StageConfig::kStageCount;
+
+    // ---- 次の面への引き継ぎ（クリアした時だけ。力尽きたら最初から）----
+    g_RunCarry.Reset();
+    if (g_LastRun.hasNextStage && m_Registry.IsValid(m_Player))
+    {
+        g_RunCarry.stage = m_StageIndex + 1;
+        g_RunCarry.hasPlayer = true;
+        if (m_Registry.Has<BackpackComponent>(m_Player))    g_RunCarry.backpack = m_Registry.Get<BackpackComponent>(m_Player);
+        if (m_Registry.Has<SpellbookComponent>(m_Player))   g_RunCarry.spellbook = m_Registry.Get<SpellbookComponent>(m_Player);
+        if (m_Registry.Has<LevelComponent>(m_Player))       g_RunCarry.level = m_Registry.Get<LevelComponent>(m_Player);
+        if (m_Registry.Has<ManaComponent>(m_Player))        g_RunCarry.mana = m_Registry.Get<ManaComponent>(m_Player);
+        if (m_Registry.Has<HealthComponent>(m_Player))      g_RunCarry.health = m_Registry.Get<HealthComponent>(m_Player);
+        if (m_Registry.Has<PlayerStatsComponent>(m_Player)) g_RunCarry.stats = m_Registry.Get<PlayerStatsComponent>(m_Player);
+        g_RunCarry.killsBefore = g_LastRun.kills;
+    }
 
     Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::RESULT);
     std::cout << "[CollisionTestScene] run ended: " << (int)m_RunTime << "s, kills " << g_LastRun.kills << std::endl;
@@ -696,4 +748,82 @@ void CollisionTestScene::Render(Renderer& renderer)
     // ============================================================
     PROFILE_SCOPE_GPU("Game UI");
     m_GameUI.Render(m_Registry, m_Player);
+}
+
+// ============================================================
+// 遺跡の松明：玩家に近い順に StageDef::torchLights 個だけ点光源を付ける
+// （松明は外周に 60 本ほど。全部付けると点光源の上限 64 を使い切る）
+// ============================================================
+void CollisionTestScene::SubmitTorchLights()
+{
+    if (m_Torches.empty() || !m_Registry.IsValid(m_Player)) return;
+    const StageDef& def = StageConfig::Get(m_StageIndex);
+    const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+
+    // 近い順に並べる（松明の数は少ないので毎フレーム並べ替えても軽い）
+    std::vector<std::pair<float, size_t>> order;
+    order.reserve(m_Torches.size());
+    for (size_t i = 0; i < m_Torches.size(); ++i)
+        order.push_back({ (m_Torches[i] - pp).LengthSquared(), i });
+    std::sort(order.begin(), order.end());
+
+    auto& lights = PointLightManager::Get();
+    const float t = UIDeco::Clock();
+    const int n = (std::min)((int)order.size(), def.torchLights);
+    for (int k = 0; k < n; ++k)
+    {
+        const Vector3& p = m_Torches[order[k].second];
+        // 松明ごとに位相をずらした揺らぎ
+        const float flicker = 0.85f + 0.15f * std::sin(t * 9.0f + (float)order[k].second * 1.7f)
+            * std::cos(t * 5.3f + (float)order[k].second * 0.9f);
+        lights.Add(p, { 1.0f, 0.62f, 0.25f }, 18.0f, 2.6f * flicker);
+    }
+}
+
+// ============================================================
+// 前の面から引き継いだ玩家（背包・魔法書・等級・能力値）。HP / MP は上限から始める
+// ============================================================
+void CollisionTestScene::ApplyRunCarry()
+{
+    if (!g_RunCarry.hasPlayer || !m_Registry.IsValid(m_Player)) return;
+    g_RunCarry.hasPlayer = false;   // 一度だけ（F5 の再読込で二重に効かないように）
+
+    if (m_Registry.Has<BackpackComponent>(m_Player))
+    {
+        m_Registry.Get<BackpackComponent>(m_Player) = g_RunCarry.backpack;
+        m_Registry.Get<BackpackComponent>(m_Player).dirty = true;
+    }
+    if (m_Registry.Has<SpellbookComponent>(m_Player))
+        m_Registry.Get<SpellbookComponent>(m_Player) = g_RunCarry.spellbook;
+    if (m_Registry.Has<LevelComponent>(m_Player))
+    {
+        auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        lv = g_RunCarry.level;
+        lv.pendingChoices.clear();
+    }
+    if (m_Registry.Has<PlayerStatsComponent>(m_Player))
+        m_Registry.Get<PlayerStatsComponent>(m_Player) = g_RunCarry.stats;
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mp = m_Registry.Get<ManaComponent>(m_Player);
+        mp.max = g_RunCarry.mana.max;
+        mp.regen = g_RunCarry.mana.regen;
+        mp.current = mp.max;
+        mp.pendingSpend = 0.0f;
+    }
+    if (m_Registry.Has<HealthComponent>(m_Player))
+    {
+        auto& hp = m_Registry.Get<HealthComponent>(m_Player);
+        hp.max = g_RunCarry.health.max;
+        hp.current = hp.max;
+    }
+    std::cout << "[CollisionTestScene] carried the player over from the previous stage (level "
+        << g_RunCarry.level.level << ")" << std::endl;
+    if (m_AutoTest)
+    {
+        char line[96];
+        snprintf(line, sizeof(line), "carry level %d items %d book %d", g_RunCarry.level.level,
+            (int)g_RunCarry.backpack.items.size(), (int)g_RunCarry.spellbook.entries.size());
+        AutoTestLog(line);   // TEMP-TEST: 面の引き継ぎの確認用
+    }
 }

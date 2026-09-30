@@ -58,6 +58,7 @@
                 
 #include "World/GridWorld.h"
 #include "World/TerrainGenerator.h"
+#include "World/StageConfig.h"
 #include "Swarm/SwarmSystem.h"
 
 #include "UI/GameUI.h"
@@ -276,4 +277,11 @@ private:
     // 地形の設定。seed は開局ごとに乱数（環境変数 VFXL_TERRAIN_SEED があればその値。再現用）。
     // Terrain 面板から変えて Regenerate
     TerrainGenerator::Config m_TerrainConfig;
+
+    // --- 面（2026-09-30）。どの面かで地形の見た目・照明・草・難度の下駄が変わる（World/StageConfig）---
+    int m_StageIndex = 1;
+    std::vector<DirectX::SimpleMath::Vector3> m_Torches;   // 遺跡の壁の松明（玩家に近い物にだけ点光源を付ける）
+    void SubmitTorchLights();
+    // 前の面から引き継いだ玩家（g_RunCarry）を写す。引き継ぎが無ければ何もしない
+    void ApplyRunCarry();
 };

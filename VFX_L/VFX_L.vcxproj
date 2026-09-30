@@ -333,6 +333,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="VFX_Editor\VFXTextureRef.cpp" />
     <ClCompile Include="World\GridWorld.cpp" />
     <ClCompile Include="World\TerrainGenerator.cpp" />
+    <ClCompile Include="World\StageConfig.cpp" />
     <ClCompile Include="World\LevelData.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -591,6 +592,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="VFX_Editor\VFXTextureRef.h" />
     <ClInclude Include="World\GridWorld.h" />
     <ClInclude Include="World\TerrainGenerator.h" />
+    <ClInclude Include="World\StageConfig.h" />
     <ClInclude Include="World\LevelData.h" />
   </ItemGroup>
   <ItemGroup>

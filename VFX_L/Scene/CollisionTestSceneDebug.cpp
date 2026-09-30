@@ -831,9 +831,10 @@ void CollisionTestScene::DrawTerrainPanel()
 
             auto* device = Application::Get().GetGraphics().GetDevice();
             std::vector<uint8_t> grassMask;
-            TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask);
+            m_Torches.clear();
+            TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches);
             m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
-            m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed);   // 草の高さ・色・生やす所も
+            m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
 
             // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
             m_Swarm.KillAll();

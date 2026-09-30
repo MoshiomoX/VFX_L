@@ -511,6 +511,9 @@
     <ClCompile Include="World\TerrainGenerator.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\StageConfig.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\LevelData.cpp">
       <Filter>World</Filter>
     </ClCompile>
@@ -1149,6 +1152,9 @@
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\TerrainGenerator.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\StageConfig.h">
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\LevelData.h">

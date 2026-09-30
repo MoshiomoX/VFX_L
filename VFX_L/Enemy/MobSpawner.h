@@ -32,6 +32,7 @@ public:
     // ---- 難度 ----
     bool  scaling = true;               // false なら倍率 1・湧く速さは Director の値のまま（自測・負荷試験用）
     float statGrowthPerMin = 0.12f;     // HP・ダメージの伸び（1 分あたり）。10 分で 2.2 倍
+    float statMulBonus = 0.0f;          // 面の下駄（StageDef::difficultyBonus。第 2 面 +0.6、第 3 面 +1.2）。倍率に足す
     float spawnRateStart = 1.0f;        // 開始時の湧き（体/秒）
     float spawnRateAt10Min = 8.0f;      // 10 分時点の湧き（体/秒）
     // 面の終わりの押し寄せ（StageDirector が毎フレーム書く。時間切れ前は 1 / 0 / 1）

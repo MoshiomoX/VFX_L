@@ -32,9 +32,14 @@ class GridWorld;
 
 namespace TerrainGenerator
 {
+    // 面の見た目（2026-09-30。第 1 面 草原 / 第 2 面 砂漠 / 第 3 面 遺跡）。
+    // 地形の形は全部共通で、床・台地の色、自然物の表、外周（岩山 or 遺跡の壁）、草の有無が変わる
+    enum class Biome { Grassland = 0, Desert = 1, Dungeon = 2 };
+
     struct Config
     {
         uint32_t seed = 1;
+        Biome biome = Biome::Grassland;
 
         // ---- 1 段目の台地 ----
         int   plateauCount = 14;       // 置こうとする数（場所が無ければ減る）
@@ -95,9 +100,12 @@ namespace TerrainGenerator
     // 床・外周・台地・坂道・高台を生成し、grid に占用と高さを登記する。
     // 生成した Entity は outTerrain に積む（シーンが破棄用に持つ）。
     // outGrassMask: 格子のマス毎に 1 = 草を生やす（GrassRenderer 用）。土の坂道・外周・登れない台地は 0
+    // outTorches: 遺跡の壁の松明の位置（場面が近い物に点光源を付ける）。他の面では空
     void Generate(Registry& reg, ID3D11Device* device, GridWorld& grid,
-        const Config& cfg, std::vector<Entity>& outTerrain, std::vector<uint8_t>* outGrassMask = nullptr);
+        const Config& cfg, std::vector<Entity>& outTerrain, std::vector<uint8_t>* outGrassMask = nullptr,
+        std::vector<DirectX::SimpleMath::Vector3>* outTorches = nullptr);
 
-    // 床の色（線形の反照率。値ノイズの緑のむら + 所々の乾いた草）。草の色もこれに合わせる
-    DirectX::SimpleMath::Vector4 GroundColor(float x, float z, uint32_t seed);
+    // 床の色（線形の反照率。草原 = 値ノイズの緑のむら + 所々の乾いた草、砂漠 = 砂丘の縞、遺跡 = 石畳）。
+    // 草の色もこれに合わせる
+    DirectX::SimpleMath::Vector4 GroundColor(float x, float z, uint32_t seed, Biome biome = Biome::Grassland);
 }
