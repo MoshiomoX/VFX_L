@@ -16,6 +16,7 @@
 
 Buffer<uint> enemyStates : register(t0);
 StructuredBuffer<float> terrainHeight : register(t1);
+StructuredBuffer<uint> terrain : register(t2); // walkable grid (for the slide / walk-out)
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
 
@@ -45,14 +46,60 @@ void main(uint3 id : SV_DispatchThreadID)
     else
     {
         // ---- integrate ----
-        // no walkable check here: the AI pass already refused to move
-        // into a blocked cell (hard block). re-checking would only
-        // trap an enemy that is already inside a wall.
-        // Cliffs are re-checked: the AI's player push-out comes after its
-        // hard block and could still shove an enemy up a plateau side
-        float2 next = e.position.xz + e.velocity.xz * g_Step;
-        if (SwarmSlopeOk(terrainHeight, e.position.xz, next))
-            e.position.xz = next;
+        // The AI's hard block is a look-ahead on cell granularity and the
+        // player push / separation can still carry a velocity into a wall, so
+        // the step itself is checked here (2026-09-30, enemies used to end up
+        // inside trees and walls): a step that ends in a blocked cell or over
+        // a cliff is reduced to the axis that stays free (slide along the
+        // wall), and dropped if neither does.
+        // An enemy that is already inside a blocked cell (pushed in, spawned
+        // in) is walked toward the nearest free cell instead, ignoring the
+        // walls on the way (they are what it is escaping from).
+        float2 from = e.position.xz;
+        if (!SwarmIsWalkable(terrain, e.position))
+        {
+            float2 best = from;
+            float bestD = 1e30;
+            int gx = (int) floor((from.x - g_GridOrigin.x) / g_CellSize);
+            int gz = (int) floor((from.y - g_GridOrigin.z) / g_CellSize);
+            for (int dz = -2; dz <= 2; ++dz)
+                for (int dx = -2; dx <= 2; ++dx)
+                {
+                    int cx = gx + dx, cz = gz + dz;
+                    if (cx < 0 || cx >= (int) g_GridW || cz < 0 || cz >= (int) g_GridD)
+                        continue;
+                    if (terrain[cz * g_GridW + cx] == 0u)
+                        continue;
+                    float2 c = float2(g_GridOrigin.x + (cx + 0.5) * g_CellSize,
+                                      g_GridOrigin.z + (cz + 0.5) * g_CellSize);
+                    float d = dot(c - from, c - from);
+                    if (d < bestD) { bestD = d; best = c; }
+                }
+            if (bestD < 1e29)
+            {
+                float2 dir = best - from;
+                float len = length(dir);
+                float stepLen = min(len, max(e.moveSpeed, 2.0) * g_Step);
+                if (len > 1e-4)
+                    e.position.xz = from + dir / len * stepLen;
+            }
+        }
+        else
+        {
+            float2 next = from + e.velocity.xz * g_Step;
+            float3 n3 = float3(next.x, 0.0, next.y);
+            if (SwarmIsWalkable(terrain, n3) && SwarmSlopeOk(terrainHeight, from, next))
+                e.position.xz = next;
+            else
+            {
+                float2 nx = float2(next.x, from.y);
+                float2 nz = float2(from.x, next.y);
+                if (SwarmIsWalkable(terrain, float3(nx.x, 0.0, nx.y)) && SwarmSlopeOk(terrainHeight, from, nx))
+                    e.position.xz = nx;
+                else if (SwarmIsWalkable(terrain, float3(nz.x, 0.0, nz.y)) && SwarmSlopeOk(terrainHeight, from, nz))
+                    e.position.xz = nz;
+            }
+        }
         e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
 
         // ---- facing: turn toward the velocity at a bounded rate ----
