@@ -203,7 +203,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\TitleScene.cpp" />
     <ClCompile Include="Scene\ResultScene.cpp" />
     <ClCompile Include="Graphics\Shader\ComputeShader.cpp" />
-    <ClCompile Include="State\CounterStates.cpp" />
     <ClCompile Include="Camera\DebugCamera.cpp" />
     <ClCompile Include="Debug\DebugLineRenderer.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
@@ -213,22 +212,16 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="State\ECSComponents.cpp" />
     <ClCompile Include="Core\Timer\EngineTimer.cpp" />
     <ClCompile Include="Camera\FollowCamera.cpp" />
     <ClCompile Include="Camera\FlyCamera.cpp" />
     <ClCompile Include="Core\Game.cpp" />
-    <ClCompile Include="Core\Timer\GameTimer.cpp" />
     <ClCompile Include="Particle\GPUParticleEmitter.cpp" />
     <ClCompile Include="Particle\GPUParticleSystem.cpp" />
     <ClCompile Include="Particle\GPUParticleEffectTrail.cpp" />
     <ClCompile Include="Particle\GPUParticleMesh.cpp" />
     <ClCompile Include="Particle\ParticleSheets.cpp" />
     <ClCompile Include="Graphics\Graphics.cpp" />
-    <ClCompile Include="Debug\ImGuiManager.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="Debug\ImGuiRenderer.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -273,7 +266,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Model\SkinnedModelGPU.cpp" />
     <ClCompile Include="Graphics\Renderer\SpriteRenderer.cpp" />
     <ClCompile Include="Graphics\Renderer\TextRenderer.cpp" />
-    <ClCompile Include="State\StateMachineSystem.cpp" />
     <ClCompile Include="Debug\TestSpawner.cpp" />
     <ClCompile Include="Graphics\Material\Texture.cpp" />
     <ClCompile Include="ThirdParty\ImGui\imgui.cpp">
@@ -376,8 +368,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Scene\ResultScene.h" />
     <ClInclude Include="Scene\RunResult.h" />
     <ClInclude Include="Graphics\Shader\ComputeShader.h" />
-    <ClInclude Include="Graphics\ConstantBuffer.h" />
-    <ClInclude Include="State\CounterStates.h" />
     <ClInclude Include="Camera\DebugCamera.h" />
     <ClInclude Include="Debug\DebugLineRenderer.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
@@ -388,7 +378,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="Item\Items\DoubleCastRune.h" />
-    <ClInclude Include="State\ECSComponents.h" />
     <ClInclude Include="Core\Timer\EngineTimer.h" />
     <ClInclude Include="ECS\Entity.h" />
     <ClInclude Include="UI\DragContext.h" />
@@ -415,18 +404,12 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\ManaRegenUp.h" />
     <ClInclude Include="Item\Items\JumpCountUp.h" />
     <ClInclude Include="Core\Game.h" />
-    <ClInclude Include="Core\Timer\GameTimer.h" />
-    <ClInclude Include="Collider\GPUCollider.h" />
     <ClInclude Include="Particle\GPUParticle.h" />
     <ClInclude Include="Particle\GPUParticleEmitter.h" />
     <ClInclude Include="Particle\GPUParticleSystem.h" />
     <ClInclude Include="Particle\ParticleSheets.h" />
     <ClInclude Include="Graphics\Graphics.h" />
     <ClInclude Include="Component\HealthComponent.h" />
-    <ClInclude Include="Debug\ImGuiManager.h">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-    </ClInclude>
     <ClInclude Include="Debug\ImGuiRenderer.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -496,7 +479,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Renderer\SpriteRenderer.h" />
     <ClInclude Include="Graphics\Renderer\TextRenderer.h" />
     <ClInclude Include="State\StateMachine.h" />
-    <ClInclude Include="State\StateMachineSystem.h" />
     <ClInclude Include="Debug\TestSpawner.h" />
     <ClInclude Include="Graphics\Material\Texture.h" />
     <ClInclude Include="ThirdParty\ImGui\imconfig.h">

@@ -10,7 +10,7 @@ TestScene / GYScene / GPUParticleTestScene 虽然还在编译，但注册被注�
 
 ## A. 源码：整文件（编译着，但没有任何活代码引用）
 
-**2026-09-30 已删（用户决定）**：CPU→GPU 的旧路径（ChaseAI、ContactDamage、ProjectileSystem / HitEvent、ProjectileVFX、Projectile 组件 + 公告板 + WeaponSystem 的 CPU 分支）、TestScene / GYScene / GPUParticleTestScene + Skybox + 其 shader、旧 GameObject 模型（Object/、Component.h、MeshRenderer、ModelRenderer）。下表里这些行保留作记录。
+**2026-09-30 已删（用户决定）**：CPU→GPU 的旧路径（ChaseAI、ContactDamage、ProjectileSystem / HitEvent、ProjectileVFX、Projectile 组件 + 公告板 + WeaponSystem 的 CPU 分支）、TestScene / GYScene / GPUParticleTestScene + Skybox + 其 shader、旧 GameObject 模型（Object/、Component.h、MeshRenderer、ModelRenderer）。下表里这些行保留作记录。第二轮又删了 `GPUCollider.h`、`ImGuiManager`、`ConstantBuffer.h`、示例状态机（StateMachineSystem / CounterStates / ECSComponents）、`GameTimer`（`Game::m_Timer`）——即全部「0 个 include」的头文件。
 
 | 决定 | 文件 | 是什么 | 证据 | 置信度 |
 |---|---|---|---|---|
