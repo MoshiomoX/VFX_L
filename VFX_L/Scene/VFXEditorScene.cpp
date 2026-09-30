@@ -61,11 +61,14 @@ void VFXEditorScene::Init()
         std::cout << "[Error] VFXMeshRenderer init failed" << std::endl;
     if (!m_SpriteRenderer.Initialize(device))
         std::cout << "[Error] VFXSpriteRenderer init failed" << std::endl;
+    if (!m_BeamRenderer.Initialize(device))
+        std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
 
     // ---------- VFX（context は値渡しなので、指針を全部埋めてから渡す）----------
     m_VFXContext.particleSystem = &m_ParticleSystem;
     m_VFXContext.meshRenderer = &m_MeshRenderer;
     m_VFXContext.spriteRenderer = &m_SpriteRenderer;
+    m_VFXContext.beamRenderer = &m_BeamRenderer;
     m_Effect.InitStateMachine(m_VFXContext);
 
     m_Editor.SetEffect(&m_Effect);
@@ -323,6 +326,7 @@ void VFXEditorScene::Render(Renderer& renderer)
 
     // ---- Sprite（連番絵。深度は読むだけ）----
     m_SpriteRenderer.Render(ctx, GetCamera());
+    m_BeamRenderer.Render(ctx, GetCamera());   // 光線（Beam entry。加算）
 
     // ---- 粒子 ----
     m_ParticleSystem.SetCamera(GetCamera());

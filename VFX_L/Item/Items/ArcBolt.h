@@ -23,7 +23,7 @@ inline ProjectileItemDef MakeArcBolt()
     def.common.iconPath = Res::Icon::ArcBolt;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = { { 0, 0 }, { 1, 0 }, { 1, 1 } };   // L 字 3 マス（2026-09-30）
-    def.common.influenceCells = {};
+    def.common.influenceCells = ItemShape::Cross();     // 誘発の届く範囲（上下左右。追尾弾と組んで魔導光線を目覚めさせる）
     def.common.color = { 0.40f, 0.80f, 1.00f, 1.0f };   // 水色
 
     // ---- どう撃つか（弾の威力・速さ・見た目は profile 側）----

@@ -183,6 +183,9 @@ namespace Swarm
     // ============================================================
     constexpr uint32_t kAreaFollowPlayer = 1u;   // 中心が玩家に付いて動く
     constexpr uint32_t kAreaStun = 2u;           // tick で被弾硬直 + 閃光を入れる
+    constexpr uint32_t kAreaCapsule = 4u;        // 胶囊（光線）：中心 → 終点の線分の周り。起点 / 終点 / 半径は毎ステップ BeamCB から（2026-09-30）
+    constexpr uint32_t kAreaBeamShift = 8u;      // (flags >> 8) & 0xF = 光線のチャンネル（BeamCB の添字）
+    constexpr uint32_t kMaxBeams = 4;            // 同時に出せる光線（HLSL の SWARM_MAX_BEAMS と同じ）
     constexpr uint32_t kHitAreaOnExpire = 1u;    // Motion::hitAreaFlags
 
     struct Area
@@ -345,6 +348,17 @@ namespace Swarm
         float _pad[2] = {};
     };
     static_assert(sizeof(OrbCB) == 32, "SwarmOrbCB layout mismatch");
+
+    // ============================================================
+    // 光線（胶囊型の範囲）の起点 / 終点（b3、AreaTickCS）。CPU が毎フレーム書く。
+    // start.w = 半径、end.w = 1 の間だけ生きる（0 にすると GPU 側の範囲が消える）
+    // ============================================================
+    struct BeamCB
+    {
+        DirectX::SimpleMath::Vector4 start[kMaxBeams];
+        DirectX::SimpleMath::Vector4 end[kMaxBeams];
+    };
+    static_assert(sizeof(BeamCB) == 128, "SwarmBeamCB layout mismatch");
     // ============================================================
   // 転送回収用（b1）
   // 生成キューの [offset, offset+count) を、玩家から minDist より

@@ -20,6 +20,7 @@
 StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2);
+StructuredBuffer<float4> areaEnds : register(t3); // capsule (beam) end per slot, written by AreaTickCS
 
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWBuffer<uint> enemyStates : register(u1);
@@ -58,7 +59,15 @@ void main(uint3 id : SV_DispatchThreadID)
         if (a.tickNow == 0u)
             continue;
 
-        float3 d = ecenter - a.center;
+        // capsule (beam): measure from the closest point of the segment centre -> end
+        float3 c = a.center;
+        if ((a.flags & SWARM_AREA_CAPSULE) != 0u)
+        {
+            float3 seg = areaEnds[k].xyz - a.center;
+            float t = saturate(dot(ecenter - a.center, seg) / max(dot(seg, seg), 1e-4));
+            c = a.center + seg * t;
+        }
+        float3 d = ecenter - c;
 
         // vertical: outside the slab + the capsule's straight part -> miss
         if (abs(d.y) > a.halfHeight + eh + er)

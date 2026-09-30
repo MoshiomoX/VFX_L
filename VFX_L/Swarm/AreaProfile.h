@@ -30,6 +30,8 @@ struct AreaProfile
     {
         OneShot = 0,   // 爆発
         Lasting = 1,   // 法環・燃える地面
+        Beam = 2,      // 光線（2026-09-30）：玩家の手から length m の胶囊。duration の間 tickInterval ごとにダメージ。
+                       // 判定は GPU の胶囊型範囲（Swarm::kAreaCapsule）、起点は毎フレーム玩家に付く。見た目は VFX の Beam entry
     };
 
     std::string name = "NewArea";
@@ -43,6 +45,10 @@ struct AreaProfile
     bool  followCaster = false;    // 玩家の位置に出した時、玩家に付いて動く
     bool  stun = true;             // ダメージで被弾硬直を入れる（法環で入れると敵が固まり続けるので注意）
 
+    // ---- Beam のみ ----
+    float length = 18.0f;          // 射程（m）。地形に当たればそこまで
+    float chargeTime = 0.5f;       // 撃つ前の溜め（秒）。この間は判定が無く、VFX だけ出ている
+
     // 見た目。Assets/Data/VFXData/ の json のファイル名（拡張子込み）。空 = 無し
     std::string vfxFile;
 
@@ -52,6 +58,7 @@ struct AreaProfile
 
     // 実際の tick 間隔（OneShot は 2 回目が来ない値）
     float EffectiveTickInterval() const { return (kind == Kind::OneShot) ? 1.0e9f : tickInterval; }
+    bool  IsBeam() const { return kind == Kind::Beam; }
     uint32_t Flags(bool atCaster) const;
 
     // CPU から出す時の形。vfxType は 0（見た目は CPU が再生する）

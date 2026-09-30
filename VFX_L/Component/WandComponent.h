@@ -45,7 +45,7 @@ struct SpellStats
 
     // --- 誘発（基礎魔法 → 高級魔法。集約が決める）---
     bool     triggered = false;   // 高級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ
-    uint32_t triggerMask = 0;     // 基礎魔法: この弾が消えたら誘発できる高級魔法（spells の添字の bit。32 個まで）
+    uint32_t triggerMask = 0;     // 基礎魔法: この弾が消えたら誘発できる高級魔法（bit 0〜15 = spells の添字、bit 16〜31 = areas の添字（光線））
 
     // --- 実行時状態（WeaponSystem が更新）---
     float castTimer = 0.0f;      // 次に撃てるまでの残り

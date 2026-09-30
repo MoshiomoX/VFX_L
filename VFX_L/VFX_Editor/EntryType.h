@@ -6,6 +6,7 @@
 class GPUParticleSystem;
 class VFXMeshRenderer;
 class VFXSpriteRenderer;
+class VFXBeamRenderer;
 
 // ============================================================
 // シーンが用意した Mesh 発射源（参照モデルの submesh 等）。
@@ -26,6 +27,7 @@ enum class EntryType
     Mesh = 3,
     Light = 4,
     Sound = 5,
+    Beam = 6,      // 起点 → 終点の光線（2026-09-30）
 };
 
 struct VFXContext
@@ -33,6 +35,7 @@ struct VFXContext
     GPUParticleSystem* particleSystem = nullptr;
     VFXMeshRenderer* meshRenderer = nullptr;
     VFXSpriteRenderer* spriteRenderer = nullptr;   // Sprite entry（連番絵）の描画先。無ければ描かない
+    VFXBeamRenderer* beamRenderer = nullptr;       // Beam entry（光線）の描画先。無ければ描かない
 
     // シーンが持つ参照モデルの発射源（Editor 用。無ければ null）。
     // 実体はシーンの物なので、寿命はシーンに従う

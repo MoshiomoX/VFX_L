@@ -8,6 +8,7 @@
 #include "VFX_Editor/VFXPointLightEntry.h"
 #include "VFX_Editor/VFXTrailEntry.h"
 #include "VFX_Editor/VFXSpriteEntry.h"
+#include "VFX_Editor/VFXBeamEntry.h"
 #include "Particle/GPUParticleSystem.h"
 #include <algorithm>
 #include <iostream>
@@ -38,6 +39,8 @@ int VFXEffect::AddEntry(EntryType type, float startTime, float duration)
         entry = std::make_unique<VFXTrailEntry>(); break;
     case EntryType::Sprite:
         entry = std::make_unique<VFXSpriteEntry>(); break;
+    case EntryType::Beam:
+        entry = std::make_unique<VFXBeamEntry>(); break;
     default:
         return -1;
     }
@@ -184,6 +187,10 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         {
             static_cast<VFXSpriteEntry*>(entry.get())->Submit(*ctx.spriteRenderer, m_WorldOffset);
         }
+        else if (entry->GetType() == EntryType::Beam && ctx.beamRenderer)
+        {
+            static_cast<VFXBeamEntry*>(entry.get())->Submit(*ctx.beamRenderer, m_WorldOffset, m_BeamEnd, m_HasBeamEnd);
+        }
         else if (entry->GetType() == EntryType::Light)
         {
             // 点光源は PointLightManager（全体で 1 つ）へ。ctx を経由しない
@@ -309,7 +316,7 @@ bool VFXEffect::SaveToFile(const std::string& filepath) const
     root["loop"] = m_Loop;
 
     json entries = json::array();
-    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound" };
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
 
     for (auto& entry : m_Entries)
     {
@@ -389,6 +396,7 @@ bool VFXEffect::LoadFromFile(const std::string& filepath)
             else if (type == "Mesh") entryType = EntryType::Mesh;
             else if (type == "Light") entryType = EntryType::Light;
             else if (type == "Sound") entryType = EntryType::Sound;
+            else if (type == "Beam") entryType = EntryType::Beam;
 
             int idx = AddEntry(entryType, st, dur);
             if (idx >= 0 && e.contains("data"))

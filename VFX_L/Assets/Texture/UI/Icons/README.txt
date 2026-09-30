@@ -17,6 +17,7 @@ From game-icons.net  https://game-icons.net
   Meteor.png          "Meteor impact"     by Lorc        https://game-icons.net/1x1/lorc/meteor-impact.html
   GoldenArrow.png     "High shot"         by Lorc        https://game-icons.net/1x1/lorc/high-shot.html
   StoneShot.png       "Stone sphere"      by Lorc        https://game-icons.net/1x1/lorc/stone-sphere.html
+  Beam.png            "Laser blast"       by Lorc        https://game-icons.net/1x1/lorc/laser-blast.html
   SplitRune.png       "Split arrows"      by Delapouite  https://game-icons.net/1x1/delapouite/split-arrows.html
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html

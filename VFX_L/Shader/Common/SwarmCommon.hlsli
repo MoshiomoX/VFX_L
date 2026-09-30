@@ -302,6 +302,12 @@ static const uint SWARM_MAX_AREAS = 256; // = Swarm::kMaxAreas
 
 static const uint SWARM_AREA_FOLLOW_PLAYER = 1u; // centre rides on the player
 static const uint SWARM_AREA_STUN = 2u; // a tick freezes + flashes the enemy (hit stun)
+// Capsule (beam): the area is the segment centre -> areaEnds[slot] with
+// radius around it. Start / end / radius come from SwarmBeamCB every step
+// (AreaTickCS), channel = bits 8-11 of flags. Only the CPU spawns these.
+static const uint SWARM_AREA_CAPSULE = 4u;
+static const uint SWARM_AREA_BEAM_SHIFT = 8u; // (flags >> shift) & 0xF = beam channel
+static const uint SWARM_MAX_BEAMS = 4u; // = Swarm::kMaxBeams
 
 static const uint SWARM_HITAREA_ON_EXPIRE = 1u; // SwarmMotion.hitAreaFlags
 

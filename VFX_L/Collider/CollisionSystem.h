@@ -69,7 +69,7 @@ public:
     };
 
     // シーン全体へレイキャスト。layerMask に含まれる層のみ対象。最も近い命中を返す。
-    RaycastResult Raycast(const CollisionMath::Ray& ray, uint32_t layerMask = 0xFFFFFFFF);
+    RaycastResult Raycast(const CollisionMath::Ray& ray, uint32_t layerMask = 0xFFFFFFFF) const;
     // 範囲内の Entity を取得（AOE / 索敵用）
     std::vector<Entity> OverlapSphere(const DirectX::SimpleMath::Vector3& center,
         float radius, uint32_t layerMask) const;

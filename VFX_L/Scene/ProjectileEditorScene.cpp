@@ -126,6 +126,9 @@ void ProjectileEditorScene::Init()
     if (!m_SpriteRenderer.Initialize(device))
         std::cout << "[Error] VFXSpriteRenderer init failed" << std::endl;
     m_VFXContext.spriteRenderer = &m_SpriteRenderer;
+    if (!m_BeamRenderer.Initialize(device))
+        std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
+    m_VFXContext.beamRenderer = &m_BeamRenderer;
     m_AreaMarker.y = m_Swarm.GetAIParams().groundY;
 
     // ---------- プロファイル ----------
@@ -908,9 +911,9 @@ void ProjectileEditorScene::DrawAreaTab()
         PushMotions();   // 投射物の hitArea は名前で引くので、表を作り直す
     }
 
-    const char* kindNames[] = { "One shot (explosion)", "Lasting (circle / burning ground)" };
+    const char* kindNames[] = { "One shot (explosion)", "Lasting (circle / burning ground)", "Beam (capsule from the player)" };
     int kind = (int)p.kind;
-    if (ImGui::Combo("Kind", &kind, kindNames, 2))
+    if (ImGui::Combo("Kind", &kind, kindNames, 3))
     {
         p.kind = (AreaProfile::Kind)kind;
         changed = true;
@@ -931,6 +934,12 @@ void ProjectileEditorScene::DrawAreaTab()
         const float ticks = std::floor(p.duration / (std::max)(p.tickInterval, 0.02f)) + 1.0f;
         ImGui::TextDisabled("about %.0f ticks, %.0f damage in total, %.1f dps",
             ticks, ticks * p.damage, p.damage / (std::max)(p.tickInterval, 0.02f));
+    }
+    if (p.kind == AreaProfile::Kind::Beam)
+    {
+        changed |= ImGui::DragFloat("Length (m)", &p.length, 0.1f, 1.0f, 80.0f);
+        changed |= ImGui::DragFloat("Charge (sec, no damage)", &p.chargeTime, 0.01f, 0.0f, 3.0f);
+        ImGui::TextDisabled("radius = beam half width. The start rides on the player; the end is clipped by terrain");
     }
     changed |= ImGui::Checkbox("Follow caster (when cast on the player)", &p.followCaster);
     changed |= ImGui::Checkbox("Hit stun on damage", &p.stun);
@@ -1044,6 +1053,7 @@ void ProjectileEditorScene::Render(Renderer& renderer)
     // 法環などの VFX Mesh（光を当てない。深度は読むだけ）。粒子の前
     m_MeshRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
     m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
+    m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
     m_Swarm.RenderSprites(GetCamera());   // GPU の範囲（弾の命中）の連番絵
 
     m_ParticleSystem.SetCamera(GetCamera());

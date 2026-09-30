@@ -15,6 +15,7 @@
 #include "VFX_Editor/VFXEditor.h"
 #include "VFX_Editor/VFXMeshRenderer.h"
 #include "VFX_Editor/VFXSpriteRenderer.h"
+#include "VFX_Editor/VFXBeamRenderer.h"
 #include "Graphics/Model/SkinnedModel.h"
 #include "Graphics/Model/SkinnedModelGPU.h"
 #include "Graphics/Shader/ComputeShader.h"
@@ -71,6 +72,7 @@ private:
     VFXEditor                m_Editor;
     VFXMeshRenderer          m_MeshRenderer;
     VFXSpriteRenderer        m_SpriteRenderer;   // Sprite entry（連番絵）
+    VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
     std::shared_ptr<Texture> m_ParticleTexture;
 
     float m_TotalTime = 0.0f;

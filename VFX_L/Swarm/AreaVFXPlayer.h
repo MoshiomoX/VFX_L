@@ -26,8 +26,14 @@ public:
 
     // vfxFile: Assets/Data/VFXData/ の json のファイル名。空や読めない時は何もしない。
     // duration 秒後に Stop する（loop の特効でも止まる）。follow = 毎フレーム followPos へ動かす
-    void Play(const std::string& vfxFile, const DirectX::SimpleMath::Vector3& pos,
+    // 戻り値は実例の番号（0 = 出せなかった）。SetInstance / StopInstance で後から動かせる
+    uint32_t Play(const std::string& vfxFile, const DirectX::SimpleMath::Vector3& pos,
         float duration, bool follow, const VFXContext& ctx);
+
+    // 光線など、位置と終点を毎フレーム外から入れる物（follow は無視される）。番号が古ければ何もしない
+    void SetInstance(uint32_t handle, const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector3& beamEnd);
+    // 早めに止める（発射を止めて、出ている物は自然に消える）
+    void StopInstance(uint32_t handle);
 
     void Update(float dt, const DirectX::SimpleMath::Vector3& followPos);
 
@@ -41,6 +47,7 @@ private:
     struct Instance
     {
         std::unique_ptr<VFXEffect> effect;
+        uint32_t handle = 0;
         float timeLeft = 0.0f;
         bool  follow = false;
         bool  stopped = false;   // Stop を送った後（消えるのを待っている）
@@ -50,4 +57,5 @@ private:
 
     std::vector<std::pair<std::string, std::shared_ptr<VFXEffect>>> m_Templates;
     std::vector<Instance> m_Active;
+    uint32_t m_NextHandle = 1;
 };

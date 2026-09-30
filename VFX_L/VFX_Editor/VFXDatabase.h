@@ -26,6 +26,7 @@ namespace
         { VFXId::FireballHit, Res::VFX::FireballHit },
         { VFXId::StoneShot, Res::VFX::StoneShot },
         { VFXId::StoneShotHit, Res::VFX::StoneShotHit },
+        { VFXId::Beam, Res::VFX::Beam },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }

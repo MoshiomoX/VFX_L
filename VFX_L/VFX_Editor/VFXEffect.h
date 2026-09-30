@@ -60,6 +60,8 @@ public:
     //   粒子の掃引発射をしない（移動前後を粒子の線で結ばないため）
     void NotifyTeleport() { m_HasPrevOffset = false; }
     void SetGPUTimelineIgnored(bool v) { m_GPUTimelineIgnored = v; }
+    // 光線（Beam entry）の終点。入っていなければ entry のプレビュー方向に描く。毎フレーム入れ直す物
+    void SetBeamEnd(const DirectX::SimpleMath::Vector3& p) { m_BeamEnd = p; m_HasBeamEnd = true; }
     bool IsGPUTimelineIgnored() const { return m_GPUTimelineIgnored; }
 private:
     std::string m_Name = "NewEffect";
@@ -71,6 +73,8 @@ private:
     bool m_HasPrevOffset = false;   // 再生直後・瞬間移動直後は false
     bool m_SweepEnabled = true;
     bool m_GPUTimelineIgnored = false;
+    DirectX::SimpleMath::Vector3 m_BeamEnd = { 0, 0, 0 };
+    bool m_HasBeamEnd = false;
     // --- 状態機（追加）---
     VFXStateMachine m_SM;   
     VFXStateContext m_SMCtx;

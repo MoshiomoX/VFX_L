@@ -103,10 +103,10 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
         if (!ItemDatabase::GetCommon(id)) continue;
 
         // 高級魔法（メテオ等）は前提の基礎魔法を 1 つでも持っている時だけ（使えない札を引かせない）
-        if (const auto* pdef = ItemDatabase::GetProjectile(id); pdef && book && !pdef->triggeredBy.empty())
+        if (const auto* c = ItemDatabase::GetCommon(id); c && book && !c->triggeredBy.empty())
         {
             bool hasAny = false;
-            for (ItemID need : pdef->triggeredBy)
+            for (ItemID need : c->triggeredBy)
                 if (book->HasLearned(need)) { hasAny = true; break; }
             if (!hasAny) continue;
         }
