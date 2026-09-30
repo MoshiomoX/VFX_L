@@ -10,6 +10,7 @@
 #include "Item/Items/GoldenArrow.h"
 #include "Item/Items/Meteor.h"
 #include "Item/Items/StoneShot.h"
+#include "Item/Items/Beam.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Magnifier.h"
@@ -106,6 +107,7 @@ void ItemDatabase::Initialize()
     Register(MakeMeteor());
     Register(MakeGoldenArrow());
     Register(MakeStoneShot());
+    Register(MakeBeam());
 
     // ---- 機能型 ----
     Register(MakeSplitRune());

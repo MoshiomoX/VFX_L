@@ -94,7 +94,7 @@ namespace BackpackLogic
     // 集約（BackpackAggregateSystem）と UI の説明が同じ判定を使う
     std::vector<int> GetInfluencers(const BackpackComponent& bp, int itemIndex);
 
-    // 高級魔法（ProjectileItemDef::triggeredBy がある物）を誘発する基礎魔法（items の index）。
+    // 高級魔法（ItemCommon::triggeredBy がある物。隕石・光線）を誘発する基礎魔法（items の index）。
     // 影響格がこのブロックに届いていて、id が triggeredBy に入っている物。高級魔法でなければ空
     std::vector<int> GetTriggerDrivers(const BackpackComponent& bp, int itemIndex);
 

@@ -75,6 +75,7 @@ void CollisionTestScene::Init()
         m_AutoArrow = m_AutoTest && strcmp(env, "arrow") == 0;           // 値が arrow なら黄金の矢を横から撮る
         m_AutoChain = m_AutoTest && strcmp(env, "chain") == 0;           // 値が chain なら火球 + 石弾 → 隕石の誘発
         m_AutoChest = m_AutoTest && strcmp(env, "chest") == 0;           // 値が chest なら魔法書の木箱の物理
+        m_AutoBeam = m_AutoTest && strcmp(env, "beam") == 0;             // 値が beam なら追尾弾 + 弧 → 魔導光線
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");
@@ -94,6 +95,9 @@ void CollisionTestScene::Init()
     if (!m_SpriteRenderer.Initialize(device))
         std::cout << "[Error] VFXSpriteRenderer init failed" << std::endl;
     m_VFXContext.spriteRenderer = &m_SpriteRenderer;
+    if (!m_BeamRenderer.Initialize(device))
+        std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
+    m_VFXContext.beamRenderer = &m_BeamRenderer;
 
     // ---------- 投射物ビルボード ----------
     if (!m_ProjectileRenderer.Initialize(device, context, 4096))
@@ -673,6 +677,7 @@ void CollisionTestScene::Render(Renderer& renderer)
 
         // ---- 2b) 連番絵（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
         m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
+        m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());   // 光線（加算）
         m_Swarm.RenderSprites(GetCamera());
     }
 

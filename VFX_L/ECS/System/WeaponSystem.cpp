@@ -287,7 +287,26 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 // ============================================================
                 for (const auto& ev : m_TriggerEvents)
                 {
-                    for (uint32_t k = 0; k < (uint32_t)wand.spells.size() && k < 32; ++k)
+                    // ---- bit 16〜31: 高級の範囲魔法（光線）。弾が消えた方向へ手から撃つ ----
+                    for (uint32_t j = 0; j < (uint32_t)wand.areas.size() && j < 16; ++j)
+                    {
+                        if ((ev.tag & (1u << (16 + j))) == 0) continue;
+                        auto& a = wand.areas[j];
+                        if (!a.triggered) continue;
+                        if (!ignoreCooldown && a.castTimer > 0.0f) continue;
+                        if (!allowNewCast) continue;
+                        if (!mana.CanAfford(a.manaCost)) continue;
+
+                        Vector3 impact = ev.position;
+                        impact.y += triggerLift;
+                        if (!StartBeam(a, muzzle, impact)) continue;   // チャンネルが全部埋まっている
+                        mana.Reserve(a.manaCost);
+                        wand.castAnimTimer = wand.castAnimDuration;
+                        ++m_TriggeredCasts;
+                        a.castTimer = a.castInterval;
+                    }
+
+                    for (uint32_t k = 0; k < (uint32_t)wand.spells.size() && k < 16; ++k)
                     {
                         if ((ev.tag & (1u << k)) == 0) continue;
                         auto& s = wand.spells[k];
@@ -314,9 +333,12 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 // 判定は GPU（SwarmSystem の Area）。ここは「いつ・どこに出すか」を決めるだけ。
                 // 標的の足元に出す物は標的が要る。玩家の位置に出す物は標的が居なくても出る
                 // ============================================================
+                UpdateBeams(dt, muzzle, collision);   // 出ている光線（溜め → 判定 → 終了）
+
                 for (auto& a : wand.areas)
                 {
                     a.castTimer -= dt;
+                    if (a.triggered) continue;   // 光線は上の「誘発」でだけ始まる
                     if (!ignoreCooldown && a.castTimer > 0.0f) continue;
                     if (!allowNewCast) continue;
                     if (!m_Swarm) continue;
@@ -431,4 +453,100 @@ const WeaponSystem::VisualDef* WeaponSystem::FindVisual(ItemID id) const
     for (const auto& v : m_Visuals)
         if (v.id == id) return &v;
     return nullptr;
+}
+// ============================================================
+// 光線（高級の範囲魔法）
+// 誘発で始まる。溜めの間は特効だけ、溜めが終わった瞬間に GPU へ胶囊型の範囲を 1 個出し、
+// 以後は毎フレーム起点（杖口）と終点（向き × 射程を地形で切った所）を SetBeam で渡す。
+// 終点は Beam entry の特効にも同じ物を入れる（当たり判定と見た目が一致する）
+// ============================================================
+bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Vector3& impact)
+{
+    // 空いているチャンネル
+    uint32_t used = 0;
+    for (const auto& b : m_Beams) used |= 1u << b.channel;
+    uint32_t ch = 0;
+    while (ch < Swarm::kMaxBeams && (used & (1u << ch))) ++ch;
+    if (ch >= Swarm::kMaxBeams) return false;
+
+    ActiveBeam b;
+    b.channel = ch;
+    b.dir = impact - muzzle;
+    if (b.dir.LengthSquared() < 1e-6f) b.dir = Vector3(0, 0, 1);
+    b.dir.Normalize();
+
+    // 溜め・射程・厚み・硬直はプロファイルから。半径・持続・tick・威力は集約済みの値（修飾符込み）
+    const AreaProfile& ap = AreaProfileDB::At(a.profile);
+    const bool hasProfile = a.profile > 0;
+    b.charge = hasProfile ? ap.chargeTime : 0.5f;
+    b.length = hasProfile ? ap.length : 18.0f;
+    b.halfHeight = hasProfile ? ap.halfHeight : 1.2f;
+    b.timeLeft = a.duration;
+    b.radius = a.radius;
+    b.damage = a.damagePerTick;
+    b.tickInterval = a.tickInterval;
+    b.flags = Swarm::kAreaCapsule | (ch << Swarm::kAreaBeamShift);
+    if (!hasProfile || ap.stun) b.flags |= Swarm::kAreaStun;
+
+    if (m_AreaVFX && m_AreaVFXCtx)
+    {
+        std::string vfx = hasProfile ? ap.vfxFile : std::string();
+        if (vfx.empty())
+            if (const auto* adef = ItemDatabase::GetArea(a.id))
+                if (const char* path = VFXDatabase::GetPath(adef->vfxId))
+                    vfx = path;
+        b.vfxHandle = m_AreaVFX->Play(vfx, muzzle, b.charge + b.timeLeft, false, *m_AreaVFXCtx);
+        m_AreaVFX->SetInstance(b.vfxHandle, muzzle, muzzle + b.dir * b.length);
+    }
+
+    m_Beams.push_back(b);
+    return true;
+}
+
+void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionSystem& collision)
+{
+    for (auto& b : m_Beams)
+    {
+        // 終点：射程の先。地形に当たればそこまで
+        const Vector3 start = muzzle;
+        Vector3 end = start + b.dir * b.length;
+        CollisionMath::Ray ray;
+        ray.origin = start;
+        ray.dir = b.dir;
+        ray.maxDist = b.length;
+        const auto hit = collision.Raycast(ray, Layer_Terrain);
+        if (hit.hit) end = hit.point;
+
+        if (b.charge > 0.0f)
+        {
+            b.charge -= dt;
+            if (b.charge <= 0.0f && !b.spawned && m_Swarm)
+            {
+                // 溜め終わり：GPU の胶囊型の範囲を 1 個。中心 / 半径 / 終点は毎ステップ BeamCB から写される
+                Swarm::Area area;
+                area.center = start;
+                area.radius = b.radius;
+                area.damage = b.damage;
+                area.timeLeft = b.timeLeft;
+                area.tickInterval = b.tickInterval;
+                area.tickTimer = 0.0f;
+                area.halfHeight = b.halfHeight;
+                area.flags = b.flags;
+                area.vfxType = 0;
+                m_Swarm->SetBeam(b.channel, start, end, b.radius, true);
+                m_Swarm->SpawnArea(area);
+                b.spawned = true;
+            }
+        }
+        else
+        {
+            b.timeLeft -= dt;
+            if (m_Swarm) m_Swarm->SetBeam(b.channel, start, end, b.radius, b.timeLeft > 0.0f);
+        }
+
+        if (m_AreaVFX) m_AreaVFX->SetInstance(b.vfxHandle, start, end);
+    }
+
+    m_Beams.erase(std::remove_if(m_Beams.begin(), m_Beams.end(),
+        [](const ActiveBeam& b) { return b.charge <= 0.0f && b.timeLeft <= 0.0f; }), m_Beams.end());
 }

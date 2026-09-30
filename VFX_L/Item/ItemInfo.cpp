@@ -276,9 +276,23 @@ namespace
 
     void FillArea(Sheet& s, const AreaStats& v, const AreaStats& b)
     {
-        s.traits.push_back(v.spawnAtTarget ? L"一番近い敵の足元に出る" : L"自分の周りに出る");
-        s.stats.push_back(StatLine(L"威力", v.damagePerTick, b.damagePerTick, L"", +1));
-        s.stats.push_back(StatLine(L"範囲", v.radius, b.radius, L"m", +1));
+        // 光線（AreaProfile::Kind::Beam）: 手から貫く胶囊。範囲の代わりに太さと射程
+        const bool beam = v.profile > 0 && AreaProfileDB::At(v.profile).IsBeam();
+        if (beam)
+        {
+            const AreaProfile& ap = AreaProfileDB::At(v.profile);
+            wchar_t t[96];
+            swprintf(t, 96, L"手から %.0fm 先まで貫く光線（%.1f 秒の溜めのあと）", ap.length, ap.chargeTime);
+            s.traits.push_back(t);
+            s.stats.push_back(StatLine(L"威力", v.damagePerTick, b.damagePerTick, L"", +1));
+            s.stats.push_back(StatLine(L"太さ", v.radius * 2.0f, b.radius * 2.0f, L"m", +1));
+        }
+        else
+        {
+            s.traits.push_back(v.spawnAtTarget ? L"一番近い敵の足元に出る" : L"自分の周りに出る");
+            s.stats.push_back(StatLine(L"威力", v.damagePerTick, b.damagePerTick, L"", +1));
+            s.stats.push_back(StatLine(L"範囲", v.radius, b.radius, L"m", +1));
+        }
         s.stats.push_back(StatLine(L"持続", v.duration, b.duration, L"秒", +1));
         s.stats.push_back(StatLine(L"ダメージ間隔", v.tickInterval, b.tickInterval, L"秒", -1));
         s.stats.push_back(StatLine(L"発動間隔", v.castInterval, b.castInterval, L"秒", -1));
@@ -384,19 +398,61 @@ namespace ItemInfo
     }
 
     // 高級魔法の前提（「ファイアボール・ストーンショット」）
-    static std::wstring TriggerNames(const ProjectileItemDef& d)
+    static std::wstring TriggerNames(const ItemCommon& c)
     {
         std::vector<std::wstring> names;
-        for (ItemID need : d.triggeredBy) names.push_back(DisplayName(need));
+        for (ItemID need : c.triggeredBy) names.push_back(DisplayName(need));
         return Join(names);
     }
 
     // 高級魔法: 飛び方の文を「前提の弾が消えた場所へ」に差し替える
     static void FixTriggeredFlight(Sheet& s, const ProjectileItemDef& d)
     {
-        if (d.triggeredBy.empty()) return;
+        if (d.common.triggeredBy.empty()) return;
         for (auto& t : s.traits)
-            if (t == kDropTrait) t = TriggerNames(d) + L" の弾が消えた場所へ空から落ちてくる";
+            if (t == kDropTrait) t = TriggerNames(d.common) + L" の弾が消えた場所へ空から落ちてくる";
+    }
+
+    // 高級魔法が発動した時に何をするか（隕石はそこへ落ちる、光線はそこへ向けて撃つ）
+    static std::wstring TriggerAction(const ItemCommon& c)
+    {
+        return (c.category == ItemCategory::Area) ? L" の弾が消えた方向へ撃つ" : L" の弾が消えた場所で発動する";
+    }
+
+    // 背包に置いた物の「誘発」の行（集約と同じ判定）。高級魔法なら目覚めているか / 足りない前提、
+    // 基礎魔法なら自分が呼び起こしている高級魔法
+    static void AddTriggerTraits(Sheet& s, const BackpackComponent& bp, int itemIndex, const ItemCommon& c)
+    {
+        if (!c.triggeredBy.empty())
+        {
+            if (BackpackLogic::IsTriggerReady(bp, itemIndex))
+                s.traits.insert(s.traits.begin(), L"発動中: " + TriggerNames(c) + TriggerAction(c));
+            else
+            {
+                const std::vector<int> drivers = BackpackLogic::GetTriggerDrivers(bp, itemIndex);
+                std::vector<std::wstring> missing;
+                for (ItemID need : c.triggeredBy)
+                {
+                    bool found = false;
+                    for (int k : drivers) if (bp.items[k].id == need) { found = true; break; }
+                    if (!found) missing.push_back(DisplayName(need));
+                }
+                s.traits.insert(s.traits.begin(), L"未発動: " + Join(missing) + L" を上下左右に隣り合わせる");
+            }
+            return;
+        }
+
+        std::vector<std::wstring> wakes;
+        for (int j = 0; j < (int)bp.items.size(); ++j)
+        {
+            if (j == itemIndex) continue;
+            const auto drv = BackpackLogic::GetTriggerDrivers(bp, j);
+            if (std::find(drv.begin(), drv.end(), itemIndex) != drv.end()
+                && BackpackLogic::IsTriggerReady(bp, j))
+                wakes.push_back(DisplayName(bp.items[j].id));
+        }
+        if (!wakes.empty())
+            s.traits.insert(s.traits.begin(), L"誘発: " + Join(wakes) + L"（この弾が消えた場所で）");
     }
 
     Sheet Describe(ItemID id)
@@ -407,14 +463,17 @@ namespace ItemInfo
             const SpellStats b = BaseSpellStats(*d);
             FillProjectile(s, b, b);
             FixTriggeredFlight(s, *d);
-            if (!d->triggeredBy.empty())
+            if (!d->common.triggeredBy.empty())
                 s.traits.insert(s.traits.begin(),
-                    L"上級魔法: " + TriggerNames(*d) + L" の両方を上下左右に隣り合わせると目覚める");
+                    L"上級魔法: " + TriggerNames(d->common) + L" の両方を上下左右に隣り合わせると目覚める");
         }
         else if (auto* d = ItemDatabase::GetArea(id))
         {
             const AreaStats b = BaseAreaStats(*d);
             FillArea(s, b, b);
+            if (!d->common.triggeredBy.empty())
+                s.traits.insert(s.traits.begin(),
+                    L"上級魔法: " + TriggerNames(d->common) + L" の両方を上下左右に隣り合わせると目覚める");
         }
         else if (auto* d = ItemDatabase::GetFunction(id))
             FillFunction(s, *d);
@@ -450,40 +509,7 @@ namespace ItemInfo
             FixTriggeredFlight(s, *d);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
 
-            // ---- 誘発（集約と同じ判定）----
-            if (!d->triggeredBy.empty())
-            {
-                // 高級魔法: 目覚めているか、足りない基礎魔法は何か
-                if (BackpackLogic::IsTriggerReady(bp, itemIndex))
-                    s.traits.insert(s.traits.begin(), L"発動中: " + TriggerNames(*d) + L" の弾が消えた場所で発動する");
-                else
-                {
-                    const std::vector<int> drivers = BackpackLogic::GetTriggerDrivers(bp, itemIndex);
-                    std::vector<std::wstring> missing;
-                    for (ItemID need : d->triggeredBy)
-                    {
-                        bool found = false;
-                        for (int k : drivers) if (bp.items[k].id == need) { found = true; break; }
-                        if (!found) missing.push_back(DisplayName(need));
-                    }
-                    s.traits.insert(s.traits.begin(), L"未発動: " + Join(missing) + L" を上下左右に隣り合わせる");
-                }
-            }
-            else
-            {
-                // 基礎魔法: 呼び起こしている高級魔法
-                std::vector<std::wstring> wakes;
-                for (int j = 0; j < (int)bp.items.size(); ++j)
-                {
-                    if (j == itemIndex) continue;
-                    const auto drv = BackpackLogic::GetTriggerDrivers(bp, j);
-                    if (std::find(drv.begin(), drv.end(), itemIndex) != drv.end()
-                        && BackpackLogic::IsTriggerReady(bp, j))
-                        wakes.push_back(DisplayName(bp.items[j].id));
-                }
-                if (!wakes.empty())
-                    s.traits.insert(s.traits.begin(), L"誘発: " + Join(wakes) + L"（この弾が消えた場所で）");
-            }
+            AddTriggerTraits(s, bp, itemIndex, d->common);   // 誘発（集約と同じ判定）
             return s;
         }
         if (auto* d = ItemDatabase::GetArea(id))
@@ -499,6 +525,7 @@ namespace ItemInfo
             }
             FillArea(s, v, b);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
+            AddTriggerTraits(s, bp, itemIndex, d->common);   // 光線（高級魔法）の誘発
             return s;
         }
 

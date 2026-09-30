@@ -86,6 +86,34 @@ private:
     uint32_t m_TriggerEventsSeen = 0;
     uint32_t m_TriggeredCasts = 0;
 
+    // ---- 光線（高級の範囲魔法、AreaProfile::Kind::Beam。2026-09-30）----
+    // 誘発された時に始まり、溜め → 光線（GPU の胶囊型範囲 1 個 + Beam entry の特効）→ 終了。
+    // 起点は毎フレーム杖口、終点は向き × 射程を地形で切った所。GPU には SwarmSystem::SetBeam で毎フレーム渡す
+    struct ActiveBeam
+    {
+        uint32_t channel = 0;        // Swarm::BeamCB の添字（同時に kMaxBeams 本まで）
+        DirectX::SimpleMath::Vector3 dir = { 0, 0, 1 };
+        float charge = 0.0f;         // 残りの溜め（この間は判定が無い）
+        float timeLeft = 0.0f;       // 光線の残り秒
+        float length = 18.0f;
+        float radius = 0.6f;
+        float halfHeight = 1.2f;
+        float damage = 0.0f;         // 1 tick
+        float tickInterval = 0.1f;
+        uint32_t flags = 0;          // kAreaCapsule | channel | (stun)
+        bool spawned = false;        // GPU の範囲を出したか（溜めが終わった時に 1 回）
+        uint32_t vfxHandle = 0;      // AreaVFXPlayer の実例
+    };
+    std::vector<ActiveBeam> m_Beams;
+    // 誘発で光線を始める（チャンネルが空いていなければ false = 撃たない）
+    bool StartBeam(const struct AreaStats& a, const DirectX::SimpleMath::Vector3& muzzle,
+        const DirectX::SimpleMath::Vector3& impact);
+    // 溜め・判定の出現・起点 / 終点の更新・終了
+    void UpdateBeams(float dt, const DirectX::SimpleMath::Vector3& muzzle, const CollisionSystem& collision);
+public:
+    int GetActiveBeamCount() const { return (int)m_Beams.size(); }
+private:
+
     std::shared_ptr<Model> GetModel(ItemID id) const;
     SwarmSystem* m_Swarm = nullptr;
     class AreaVFXPlayer* m_AreaVFX = nullptr;

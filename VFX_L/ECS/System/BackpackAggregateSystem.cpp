@@ -51,6 +51,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
     // items の index → wand.spells の添字（-1 = 飛行物でない / 撃たない）。誘発の bit を後で引く
     std::vector<int> spellIndexOf(bp.items.size(), -1);
+    std::vector<int> areaIndexOf(bp.items.size(), -1);    // 同じく wand.areas の添字（光線の誘発用）
 
     for (size_t i = 0; i < bp.items.size(); ++i)
     {
@@ -86,7 +87,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             }
 
             // 高級魔法: 前提の基礎魔法が全種類届いていなければ撃たない（背包では暗く出る）
-            if (!pdef->triggeredBy.empty())
+            if (!pdef->common.triggeredBy.empty())
             {
                 if (!BackpackLogic::IsTriggerReady(bp, (int)i))
                 {
@@ -115,6 +116,19 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 log.influencedBy.push_back(fdef->common.name);
             }
 
+            // 高級魔法（光線）: 前提が揃っていなければ出さない（背包では暗く出る）
+            if (!adef->common.triggeredBy.empty())
+            {
+                if (!BackpackLogic::IsTriggerReady(bp, (int)i))
+                {
+                    log.influencedBy.push_back("(inactive: needs triggers)");
+                    m_Log.push_back(std::move(log));
+                    continue;
+                }
+                stats.triggered = true;
+            }
+
+            areaIndexOf[i] = (int)wand.areas.size();
             wand.areas.push_back(stats);
         }
 
@@ -133,6 +147,19 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             const int d = spellIndexOf[drv];
             if (d >= 0 && !wand.spells[d].triggered)
                 wand.spells[d].triggerMask |= 1u << k;
+        }
+    }
+    // 同じく高級の範囲魔法（光線）j は bit (16 + j)
+    for (size_t i = 0; i < bp.items.size(); ++i)
+    {
+        const int j = areaIndexOf[i];
+        if (j < 0 || j >= 16 || !wand.areas[j].triggered) continue;
+
+        for (int drv : BackpackLogic::GetTriggerDrivers(bp, (int)i))
+        {
+            const int d = spellIndexOf[drv];
+            if (d >= 0 && !wand.spells[d].triggered)
+                wand.spells[d].triggerMask |= 1u << (16 + j);
         }
     }
 

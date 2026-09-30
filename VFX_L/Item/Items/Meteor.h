@@ -41,7 +41,7 @@ inline ProjectileItemDef MakeMeteor()
     def.profile = "Meteor";   // Assets/Data/ProjectileData/Meteor.json
 
     // ---- 前提の基礎魔法（両方の影響格が届いている時だけ有効）----
-    def.triggeredBy = { ItemID::Fireball, ItemID::StoneShot };
+    def.common.triggeredBy = { ItemID::Fireball, ItemID::StoneShot };
 
     return def;
 }

@@ -217,6 +217,11 @@ public:
     float ConsumePlayerDamage();
     // 磁石: seconds の間、場の経験値オーブを全部吸い寄せ始める（OrbCB の吸い寄せ半径を場全体にする）
     void MagnetAllOrbs(float seconds = 0.3f) { m_MagnetTimer = (std::max)(m_MagnetTimer, seconds); }
+    // 光線（胶囊型の範囲）: チャンネル ch の起点 / 終点 / 半径を次の固定ステップから効かせる。
+    // 範囲そのものは SpawnArea（flags に kAreaCapsule | ch << kAreaBeamShift）で出す。
+    // active = false にすると GPU 側の範囲が次のステップで消える
+    void SetBeam(uint32_t ch, const DirectX::SimpleMath::Vector3& start, const DirectX::SimpleMath::Vector3& end,
+        float radius, bool active);
 
     // ---- ImGui 表示用 ----
     const SwarmVFXTable& GetVFXTable() const { return m_VFX; }
@@ -307,6 +312,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaStateBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaStateUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaStateSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaEndBuffer;      // 槽ごとの胶囊の終点（float4。AreaTickCS が書く）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaEndUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaEndSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaDefBuffer;      // 雛形の表（CPU から書く）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaDefSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnAreaBuffer;    // 生成依頼
@@ -438,6 +446,7 @@ private:
     Swarm::AICB m_CachedAICB;
     Swarm::OrbCB m_CachedOrbCB;
     Swarm::BomberCB m_CachedBomberCB;
+    Swarm::BeamCB m_CachedBeamCB = {};   // 光線の起点 / 終点（SetBeam）
 
     // ============================================================
     // CS 群

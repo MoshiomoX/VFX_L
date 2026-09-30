@@ -31,13 +31,13 @@ std::shared_ptr<VFXEffect> AreaVFXPlayer::GetTemplate(const std::string& vfxFile
     return tmpl;
 }
 
-void AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
+uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
     float duration, bool follow, const VFXContext& ctx)
 {
-    if (vfxFile.empty() || m_Active.size() >= kMaxActive) return;
+    if (vfxFile.empty() || m_Active.size() >= kMaxActive) return 0;
 
     auto tmpl = GetTemplate(vfxFile);
-    if (!tmpl) return;
+    if (!tmpl) return 0;
 
     Instance inst;
     inst.effect = std::make_unique<VFXEffect>();
@@ -47,7 +47,34 @@ void AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
     inst.effect->Play();
     inst.timeLeft = duration;
     inst.follow = follow;
+    inst.handle = m_NextHandle++;
+    if (m_NextHandle == 0) m_NextHandle = 1;
     m_Active.push_back(std::move(inst));
+    return m_Active.back().handle;
+}
+
+void AreaVFXPlayer::SetInstance(uint32_t handle, const Vector3& pos, const Vector3& beamEnd)
+{
+    for (auto& inst : m_Active)
+    {
+        if (inst.handle != handle) continue;
+        inst.follow = false;
+        inst.effect->SetWorldOffset(pos);
+        inst.effect->SetBeamEnd(beamEnd);
+        return;
+    }
+}
+
+void AreaVFXPlayer::StopInstance(uint32_t handle)
+{
+    for (auto& inst : m_Active)
+    {
+        if (inst.handle != handle || inst.stopped) continue;
+        inst.effect->Stop();
+        inst.stopped = true;
+        inst.timeLeft = 0.0f;
+        return;
+    }
 }
 
 void AreaVFXPlayer::Update(float dt, const Vector3& followPos)

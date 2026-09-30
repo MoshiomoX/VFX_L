@@ -476,7 +476,7 @@ namespace BackpackLogic
     {
         std::vector<int> out;
         if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return out;
-        const ProjectileItemDef* def = ItemDatabase::GetProjectile(bp.items[itemIndex].id);
+        const ItemCommon* def = ItemDatabase::GetCommon(bp.items[itemIndex].id);
         if (!def || def->triggeredBy.empty()) return out;
 
         for (int src : GetInfluencers(bp, itemIndex))
@@ -491,7 +491,7 @@ namespace BackpackLogic
     bool IsTriggerReady(const BackpackComponent& bp, int itemIndex)
     {
         if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return false;
-        const ProjectileItemDef* def = ItemDatabase::GetProjectile(bp.items[itemIndex].id);
+        const ItemCommon* def = ItemDatabase::GetCommon(bp.items[itemIndex].id);
         if (!def || def->triggeredBy.empty()) return true;
 
         const std::vector<int> drivers = GetTriggerDrivers(bp, itemIndex);

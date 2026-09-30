@@ -74,6 +74,8 @@ json AreaProfile::ToJson() const
     j["tickInterval"] = tickInterval;
     j["followCaster"] = followCaster;
     j["stun"] = stun;
+    j["length"] = length;
+    j["chargeTime"] = chargeTime;
     j["vfx"] = vfxFile;
 
     json pv;
@@ -87,7 +89,7 @@ void AreaProfile::FromJson(const json& j)
 {
     name = j.value("name", name);
     const int k = j.value("kind", 0);
-    kind = (k == 1) ? Kind::Lasting : Kind::OneShot;
+    kind = (k == 2) ? Kind::Beam : (k == 1) ? Kind::Lasting : Kind::OneShot;
     radius = j.value("radius", radius);
     halfHeight = j.value("halfHeight", halfHeight);
     damage = j.value("damage", damage);
@@ -95,6 +97,8 @@ void AreaProfile::FromJson(const json& j)
     tickInterval = j.value("tickInterval", tickInterval);
     followCaster = j.value("followCaster", followCaster);
     stun = j.value("stun", stun);
+    length = j.value("length", length);
+    chargeTime = j.value("chargeTime", chargeTime);
     vfxFile = j.value("vfx", vfxFile);
 
     if (j.contains("preview"))

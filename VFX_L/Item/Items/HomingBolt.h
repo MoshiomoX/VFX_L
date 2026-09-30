@@ -20,7 +20,7 @@ inline ProjectileItemDef MakeHomingBolt()
     def.common.iconPath = Res::Icon::HomingBolt;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = ItemShape::Single();   // 1 マス（最初から持っている一番軽い魔法。3x3 枠の真ん中に置かれる）
-    def.common.influenceCells = {};
+    def.common.influenceCells = ItemShape::Cross();     // 誘発の届く範囲（上下左右。弧と組んで魔導光線を目覚めさせる）
     def.common.color = { 0.75f, 0.45f, 1.00f, 1.0f };   // 紫
 
     // ---- どう撃つか（弾の威力・速さ・見た目は profile 側）----

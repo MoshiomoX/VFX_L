@@ -47,6 +47,7 @@
 #include "Particle/GPUParticleSystem.h"
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXSpriteRenderer.h"
+#include "VFX_Editor/VFXBeamRenderer.h"
 #include "ECS/System/ManaSystem.h"
 #include "Enemy/EliteSpawner.h"
 #include "Enemy/MobSpawner.h"
@@ -160,6 +161,9 @@ private:
     // 背包が開いて gameplay が止まるので Update から直接呼ぶ
     bool     m_AutoChest = false;
     void     UpdateAutoTestChest(float dt);
+    // VFXL_BATTLE_AUTOTEST=beam：追尾弾 + 弧 → 魔導光線の誘発。正面の的へ向けて光線が出るか（横から撮る）
+    bool     m_AutoBeam = false;
+    void     UpdateAutoTestBeam();
     // VFXL_BATTLE_AUTOTEST=edge：外周の岩山を、縁の近くの平視・高い所からの俯瞰・場地の中央から撮る
     bool     m_AutoEdge = false;
     void     UpdateAutoTestEdge();
@@ -217,6 +221,7 @@ private:
     ProjectileBillboardRenderer m_ProjectileRenderer;
     VFXContext                  m_VFXContext;
     VFXSpriteRenderer           m_SpriteRenderer;   // Sprite entry（連番絵）。升級・開箱などの CPU 特効
+    VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
     std::shared_ptr<Texture>    m_ParticleTexture;
     float m_TotalTime = 0.0f;
     float m_RunTime = 0.0f;       // 遊んでいる時間（止まっている間・死んだ後は進まない）。HUD とリザルト用

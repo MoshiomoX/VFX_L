@@ -213,6 +213,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(Swarm::Area), Swarm::kMaxAreas,
         m_AreaBuffer, m_AreaUAV, m_AreaSRV, "area")) return false;
     if (!makeState(Swarm::kMaxAreas, m_AreaStateBuffer, m_AreaStateUAV, m_AreaStateSRV, "area")) return false;
+    if (!makeStructured(sizeof(DirectX::SimpleMath::Vector4), Swarm::kMaxAreas,
+        m_AreaEndBuffer, m_AreaEndUAV, m_AreaEndSRV, "areaEnd")) return false;
 
     // ---- 範囲の連番絵：再生中の環と、範囲の槽ごとの「前に見た timeLeft」----
     if (!makeStructured(sizeof(Swarm::SpriteInstance), kMaxSprites,
@@ -593,6 +595,14 @@ void SwarmSystem::SpawnArea(const Swarm::Area& area)
 {
     if (m_PendingAreas.size() >= Swarm::kMaxSpawnAreaPerFrame) return;
     m_PendingAreas.push_back(area);
+}
+
+// 光線の起点 / 終点（次の固定ステップから AreaTickCS が胶囊型の範囲へ写す）
+void SwarmSystem::SetBeam(uint32_t ch, const Vector3& start, const Vector3& end, float radius, bool active)
+{
+    if (ch >= Swarm::kMaxBeams) return;
+    m_CachedBeamCB.start[ch] = { start.x, start.y, start.z, radius };
+    m_CachedBeamCB.end[ch] = { end.x, end.y, end.z, active ? 1.0f : 0.0f };
 }
 
 void SwarmSystem::SetAreaDefs(const std::vector<Swarm::AreaDef>& defs)
@@ -1088,10 +1098,12 @@ void SwarmSystem::DispatchStep()
     if (m_AreaTickCS && m_AreaDamageCS)
     {
         m_AreaTickCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        m_AreaTickCS->WriteBuffer(m_Context, 3, &m_CachedBeamCB);   // 光線の起点 / 終点
         m_AreaTickCS->Bind(m_Context);
         m_AreaTickCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
         m_AreaTickCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
         m_AreaTickCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_AreaTickCS->SetUAV(m_Context, "areaEnds", m_AreaEndUAV.Get());
         m_AreaTickCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxAreas + 255) / 256, 1, 1);
         m_AreaTickCS->UnbindUAVs(m_Context);
@@ -1105,6 +1117,7 @@ void SwarmSystem::DispatchStep()
         m_AreaDamageCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
+        m_AreaDamageCS->SetSRV(m_Context, "areaEnds", m_AreaEndSRV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "enemyStates", m_EnemyStateUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());

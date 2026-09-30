@@ -466,7 +466,7 @@ void BackpackUI::DrawTriggerSources(SpriteRenderer& sprite, const BackpackCompon
     else if (m_HoverItemIndex >= 0 && m_HoverItemIndex < (int)bp.items.size())
         id = bp.items[m_HoverItemIndex].id;
 
-    const ProjectileItemDef* def = ItemDatabase::GetProjectile(id);
+    const ItemCommon* def = ItemDatabase::GetCommon(id);
     if (!def || def->triggeredBy.empty()) return;
 
     const Vector2 cellSizeVec = { m_CellSize, m_CellSize };

@@ -298,7 +298,7 @@ void CollisionSystem::GatherStaticNear(const Vector3& center, float reach, std::
 //   毎フレーム数回しか呼ばれないので格子に載せる必要が無い
 // ============================================================
 CollisionSystem::RaycastResult CollisionSystem::Raycast(
-    const CollisionMath::Ray& ray, uint32_t layerMask)
+    const CollisionMath::Ray& ray, uint32_t layerMask) const
 {
     using namespace CollisionMath;
     RaycastResult best;
