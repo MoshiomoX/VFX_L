@@ -150,7 +150,7 @@ bool GrassRenderer::CreateBuffers()
 // 地形の貼図（高さ場と同じ 0.5m 格子。texel の中心 = 高さ格子の中心なので、
 // 線形補間で引けば GridWorld::SampleHeight と同じ値になる）
 // ============================================================
-void GrassRenderer::Build(const GridWorld& grid, const std::vector<uint8_t>& grassMask, uint32_t seed)
+void GrassRenderer::Build(const GridWorld& grid, const std::vector<uint8_t>& grassMask, uint32_t seed, TerrainGenerator::Biome biome)
 {
     if (!m_Device) return;
     m_HeightSRV.Reset();
@@ -167,7 +167,7 @@ void GrassRenderer::Build(const GridWorld& grid, const std::vector<uint8_t>& gra
         for (int hx = 0; hx < hw; ++hx)
         {
             const Vector3 p = grid.HeightCellToWorld(hx, hz);
-            Vector4 c = TerrainGenerator::GroundColor(p.x, p.z, seed);
+            Vector4 c = TerrainGenerator::GroundColor(p.x, p.z, seed, biome);
             const size_t cell = (size_t)(hz / sub) * gw + (hx / sub);
             c.w = (grassMask.empty() || (cell < grassMask.size() && grassMask[cell])) ? 1.0f : 0.0f;
             ground[(size_t)hz * hw + hx] = c;

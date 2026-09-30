@@ -3,6 +3,7 @@
 // ※日本語の文字列リテラルを含むので UTF-8（BOM 付き）で保存する
 // ============================================================
 #include "Scene/TitleScene.h"
+#include "Scene/RunResult.h"
 #include "Core/Application.h"
 #include "Graphics/Material/Texture.h"
 #include "Manager/InputManager.h"
@@ -42,6 +43,7 @@ namespace
 void TitleScene::Init()
 {
     std::cout << "[TitleScene] Init" << std::endl;
+    g_RunCarry.Reset();   // タイトルからは第 1 面を最初から（面の引き継ぎを捨てる）
 
     auto& gfx = Application::Get().GetGraphics();
     auto* device = gfx.GetDevice();

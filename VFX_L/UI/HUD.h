@@ -53,6 +53,8 @@ struct HUDFrameInfo
     float    stageTime = 0.0f;     // 面の制限時間。> 0 なら残りを数え下ろし、過ぎたら超過分を赤く「+」で出す
     float    bossHp = -1.0f;       // Boss の HP 条（0..1）。負なら出さない
     uint32_t kills = 0;            // 撃破数（GPU counter の累計）
+    int      stage = 0;            // 面の番号（1..）。0 なら出さない
+    const wchar_t* stageName = L"";
     const WandComponent* wand = nullptr;   // 魔法の欄。null なら出さない
 
     // 画面外の目印。viewProj は世界 → クリップ（SimpleMath の行ベクトル順 view * proj）

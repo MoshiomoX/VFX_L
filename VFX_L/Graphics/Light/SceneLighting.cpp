@@ -269,3 +269,25 @@ void SceneLighting::DrawImGui(const Vector3* player)
     ImGui::DragFloatRange2("Fog Start/End (m)##fog", &m_FogStart, &m_FogEnd, 0.5f, 0.0f, 1000.0f);
     ImGui::SliderFloat("Fog Max##fog", &m_FogMax, 0.0f, 1.0f);
 }
+
+// ============================================================
+// 面ごとの照明の組（Init の後、環境変数の上書きより後に呼ぶ）
+// ============================================================
+void SceneLighting::ApplyPreset(const Preset& p)
+{
+    m_SunPitch = p.sunPitch;
+    m_SunYaw = p.sunYaw;
+    m_LightColor[0] = p.lightColor.x; m_LightColor[1] = p.lightColor.y; m_LightColor[2] = p.lightColor.z;
+    m_LightIntensity = p.lightIntensity;
+    m_AmbientSky[0] = p.ambientSky.x; m_AmbientSky[1] = p.ambientSky.y; m_AmbientSky[2] = p.ambientSky.z;
+    m_AmbientGround[0] = p.ambientGround.x; m_AmbientGround[1] = p.ambientGround.y; m_AmbientGround[2] = p.ambientGround.z;
+    m_SkyZenith[0] = p.skyZenith.x; m_SkyZenith[1] = p.skyZenith.y; m_SkyZenith[2] = p.skyZenith.z;
+    m_SkyHorizon[0] = p.skyHorizon.x; m_SkyHorizon[1] = p.skyHorizon.y; m_SkyHorizon[2] = p.skyHorizon.z;
+    m_SkyBelow[0] = p.skyBelow.x; m_SkyBelow[1] = p.skyBelow.y; m_SkyBelow[2] = p.skyBelow.z;
+    m_SunGlow = p.sunGlow;
+    m_FogUseHorizon = p.fogUseHorizon;
+    m_FogColor[0] = p.fogColor.x; m_FogColor[1] = p.fogColor.y; m_FogColor[2] = p.fogColor.z;
+    m_FogStart = p.fogStart;
+    m_FogEnd = p.fogEnd;
+    m_FogMax = p.fogMax;
+}

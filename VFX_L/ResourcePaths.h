@@ -209,6 +209,118 @@ namespace Res
             };
         }
 
+        // ========================================================
+        // 第 2 面「砂漠」の自然物（2026-09-30。TerrainGenerator の Biome::Desert）
+        // Quaternius Ultimate Nature（CC0）+ dglopez Western Desert（非 CC0、リポジトリには入れない。
+        // 無ければ読めた物だけで生成する）。全部 cm 単位の FBX
+        // ========================================================
+        namespace Desert
+        {
+            inline constexpr const char* kTrees[] = {          // 木の枠：椰子（少なめ）
+                "Assets/Model/Quaternius_UltimateNature/FBX/PalmTree_1.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/PalmTree_2.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/PalmTree_3.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/PalmTree_4.fbx",
+            };
+            inline constexpr const char* kBareTrees[] = {      // 枯れ木（砂漠では多め）
+                "Assets/Model/Quaternius_UltimateNature/FBX/CommonTree_Dead_1.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/CommonTree_Dead_3.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/CommonTree_Dead_5.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Willow_Dead_1.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Willow_Dead_3.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/dry_stump.fbx",
+            };
+            inline constexpr const char* kRocks[] = {
+                "Assets/Model/Quaternius_UltimateNature/FBX/Rock_1.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Rock_2.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Rock_3.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Rock_5.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/medium_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/rounded_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/eroded_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/spiky_rock.fbx",
+            };
+            inline constexpr const char* kCliffRocks[] = {     // 外周の岩山
+                "Assets/Model/Quaternius_UltimateNature/FBX/Rock_4.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Rock_6.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Rock_7.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/big_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/eroded_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/plain_rock.fbx",
+            };
+            inline constexpr const char* kBushes[] = {         // 見た目だけ：サボテン・枯れ草・骨
+                "Assets/Model/Quaternius_UltimateNature/FBX/Cactus_1.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Cactus_2.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Cactus_3.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Cactus_4.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/Cactus_5.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/CactusFlower_1.fbx",
+                "Assets/Model/Quaternius_UltimateNature/FBX/CactusFlowers_3.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/cactus_1.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/ball_cactus.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/desert_bush.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/dry_bush_1.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/dry_grass_1.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/succulent.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/dry_bones_1.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/skull.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/dry_log.fbx",
+            };
+        }
+
+        // ========================================================
+        // 第 3 面「遺跡」（地牢）の物（2026-09-30。Biome::Dungeon）。Quaternius Modular Ruins（CC0、2m 単位）
+        // ========================================================
+        namespace Ruins
+        {
+            inline constexpr const char* kWalls[] = {          // 外周の壁（2m 幅を並べて積む）
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall_Hole.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall_Overgrown.fbx",
+            };
+            inline constexpr const char* kWallTops[] = {       // 一番上の段（崩れた縁）
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall_Broken.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall_Half.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall.fbx",
+            };
+            inline constexpr const char* kColumn = "Assets/Model/Quaternius_ModularRuins/FBX/Column_Square.fbx";
+            inline constexpr const char* kTorch = "Assets/Model/Quaternius_ModularRuins/FBX/Torch.fbx";
+            inline constexpr const char* kTrees[] = {          // 木の枠：石柱・彫像（塞ぐ物）
+                "Assets/Model/Quaternius_ModularRuins/FBX/Column_Round.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Column_Square.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Statue_Fox.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Statue_Stag.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Support_Tall.fbx",
+            };
+            inline constexpr const char* kBareTrees[] = {      // たまに混ぜる：枯れ木
+                "Assets/Model/Quaternius_ModularRuins/FBX/DeadTree_1.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/DeadTree_2.fbx",
+            };
+            inline constexpr const char* kRocks[] = {          // 岩の枠：崩れた壁・本棚・樽・箱
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall_Double_Broken.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Wall_Broken.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Bookcase_Full.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Bookcase_Empty.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Column_Round_Short.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Cart.fbx",
+            };
+            inline constexpr const char* kBushes[] = {         // 見た目だけ：壺・蝋燭・骸骨・煉瓦・草
+                "Assets/Model/Quaternius_ModularRuins/FBX/Pot1.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Pot2.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Pot3.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Pot1_Broken.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Pot2_Broken.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Candles_1.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Candles_2.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Skull.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Bricks.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Barrel.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Crate.fbx",
+                "Assets/Model/Quaternius_ModularRuins/FBX/Grass.fbx",
+            };
+        }
+
         // 起動時に別スレッドで先読みする骨付きモデル（ResourceManager::PreloadModelsAsync）。
         // 1 個 19MB・Debug で数秒かかるので、タイトル / 編集器の間に済ませる。
         // 戦闘で使う物だけ。Paladin（編集器の参照）と Mage/Rogue（未使用）は入れない。

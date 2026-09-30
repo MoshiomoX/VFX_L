@@ -254,7 +254,10 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
         y += dh * 0.5f;
     }
 
-    swprintf_s(buf, overtime ? L"最終波   撃破 %u" : L"撃破 %u", info.kills);
+    if (info.stage > 0)
+        swprintf_s(buf, overtime ? L"第%d面 %s   最終波   撃破 %u" : L"第%d面 %s   撃破 %u", info.stage, info.stageName, info.kills);
+    else
+        swprintf_s(buf, overtime ? L"最終波   撃破 %u" : L"撃破 %u", info.kills);
     const Vector2 ks = text.Measure(buf, m_Style.killScale);
     DrawLabel(text, buf, { a.x - ks.x * 0.5f, y }, m_Style.killScale);
 

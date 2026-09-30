@@ -48,6 +48,24 @@ public:
 
     void SetAlbedoSrgb(bool on) { m_AlbedoSrgb = on; }
 
+    // 面ごとの照明の組（2026-09-30。草原 / 砂漠 / 遺跡。World/StageConfig が持つ）。線形 HDR
+    struct Preset
+    {
+        float sunPitch = kSunPitchDefault, sunYaw = kSunYawDefault;
+        DirectX::SimpleMath::Vector3 lightColor = { 1.0f, 0.957f, 0.839f };
+        float lightIntensity = 1.0f;
+        DirectX::SimpleMath::Vector3 ambientSky = { 0.38f, 0.45f, 0.58f };
+        DirectX::SimpleMath::Vector3 ambientGround = { 0.20f, 0.22f, 0.14f };
+        DirectX::SimpleMath::Vector3 skyZenith = { 0.09f, 0.30f, 0.85f };
+        DirectX::SimpleMath::Vector3 skyHorizon = { 0.51f, 0.71f, 0.91f };
+        DirectX::SimpleMath::Vector3 skyBelow = { 0.26f, 0.34f, 0.42f };
+        float sunGlow = 0.35f;
+        bool  fogUseHorizon = true;
+        DirectX::SimpleMath::Vector3 fogColor = { 0.51f, 0.71f, 0.91f };
+        float fogStart = 40.0f, fogEnd = 170.0f, fogMax = 0.8f;
+    };
+    void ApplyPreset(const Preset& p);
+
 private:
     void DrawSunMarker(const DirectX::SimpleMath::Vector3& player) const;
     void DrawSceneLightGizmo(const GridWorld& grid, CameraBase* camera, bool allowGizmo);

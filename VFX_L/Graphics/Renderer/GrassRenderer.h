@@ -24,6 +24,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <SimpleMath.h>
+#include "World/TerrainGenerator.h"
 #include <memory>
 #include <vector>
 #include <cstdint>
@@ -71,7 +72,8 @@ public:
 
     // 地形の生成後（作り直しの度にも）: 高さ場・地面の色・生やすマスを貼図へ、踏み跡を消す。
     // grassMask は格子のマス毎（TerrainGenerator::Generate の outGrassMask）。空なら全部に生やす
-    void Build(const GridWorld& grid, const std::vector<uint8_t>& grassMask, uint32_t seed);
+    void Build(const GridWorld& grid, const std::vector<uint8_t>& grassMask, uint32_t seed,
+        TerrainGenerator::Biome biome = TerrainGenerator::Biome::Grassland);   // biome: 床の色（GroundColor）
 
     // 毎フレームの gameplay 更新から（一時停止中は呼ばない）
     void Update(float dt, const DirectX::SimpleMath::Vector3& player, bool grounded, bool sliding);

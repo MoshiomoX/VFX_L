@@ -105,6 +105,8 @@ public:
         m_FrameInfo.kills = kills;
         m_FrameInfo.stageTime = stageTime;
     }
+    // 面の番号と名前（撃破数の行の頭に「第 2 面 砂漠」）。stage = 0 なら出さない
+    void SetStage(int stage, const wchar_t* name) { m_FrameInfo.stage = stage; m_FrameInfo.stageName = name; }
     void SetMarkers(const DirectX::SimpleMath::Matrix& viewProj, std::vector<HUDMarker> markers)
     {
         m_FrameInfo.viewProj = viewProj;
