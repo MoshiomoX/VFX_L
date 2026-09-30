@@ -1,6 +1,5 @@
 #include "Core/Application.h"
 #include "Graphics/Light/PointLightManager.h"
-#include "Scene/TestScene.h"
 #include "Debug/DebugManager.h"
 #include "Debug/FrameProfiler.h"
 #include <iostream>

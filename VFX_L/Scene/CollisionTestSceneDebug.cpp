@@ -19,7 +19,6 @@
 #include "Manager/ResourceManager.h"
 #include "Graphics/Model/Model.h"
 #include <filesystem>
-#include "Component/Projectile/ProjectileComponent.h"
 #include "Graphics/Model/SkinnedModel.h"
 #include "Player/PlayerStatsComponent.h"
 #include "Player/PlayerStateComponent.h"
@@ -83,7 +82,6 @@ void CollisionTestScene::DrawDebugUI()
     ImGui::Checkbox("Swarm Debug", &m_ShowSwarmDebug);
     ImGui::Checkbox("Mesh", &m_ShowMesh);
     ImGui::SameLine();
-    ImGui::Checkbox("Billboard", &m_ShowBillboard);
     ImGui::SameLine();
     ImGui::Checkbox("Particle", &m_ShowParticle);
     ImGui::SameLine();
@@ -99,7 +97,7 @@ void CollisionTestScene::DrawDebugUI()
     DrawPlayerPanel();
     DrawWandPanel();
     m_GameUI.DrawDebugUI(m_Registry, m_Player, m_BackpackAggregate);
-    m_Stress.DrawImGui(m_Swarm, m_CollisionSystem, m_ParticleSystem, m_ProjectileRenderer);
+    m_Stress.DrawImGui(m_Swarm, m_CollisionSystem, m_ParticleSystem);
     DrawSwarmPanel();
     DrawItemDatabasePanel();
     DrawTerrainPanel();
@@ -134,9 +132,6 @@ void CollisionTestScene::DrawGameplayDebug()
         m_Registry.CreateView<TransformComponent, ColliderComponent>()
             .Each([&](Entity e, TransformComponent&, ColliderComponent&)
                 {
-                    // 投射物は数が多すぎるので描かない
-                    if (m_Registry.Has<ProjectileComponent>(e)) return;
-
                     Color col = hitting.count(e) ? Color(1.0f, 0.3f, 0.3f, 1.0f)
                         : Color(0.4f, 1.0f, 0.4f, 1.0f);
                     DrawColliderDebug(e, col);

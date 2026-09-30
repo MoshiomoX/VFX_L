@@ -181,8 +181,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Core\Application.cpp" />
     <ClCompile Include="ECS\System\BackpackAggregateSystem.cpp" />
     <ClCompile Include="ECS\System\ManaSystem.cpp" />
-    <ClCompile Include="Enemy\ChaseAISystem.cpp" />
-    <ClCompile Include="Enemy\ContactDamageSystem.cpp" />
     <ClCompile Include="Enemy\SpawnDirector.cpp" />
     <ClCompile Include="Graphics\Model\MaterialLoader.cpp" />
     <ClCompile Include="Graphics\PostProcess\Bloom.cpp" />
@@ -220,16 +218,13 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Camera\FollowCamera.cpp" />
     <ClCompile Include="Camera\FlyCamera.cpp" />
     <ClCompile Include="Core\Game.cpp" />
-    <ClCompile Include="Object\GameObject.cpp" />
     <ClCompile Include="Core\Timer\GameTimer.cpp" />
     <ClCompile Include="Particle\GPUParticleEmitter.cpp" />
     <ClCompile Include="Particle\GPUParticleSystem.cpp" />
     <ClCompile Include="Particle\GPUParticleEffectTrail.cpp" />
     <ClCompile Include="Particle\GPUParticleMesh.cpp" />
     <ClCompile Include="Particle\ParticleSheets.cpp" />
-    <ClCompile Include="Scene\GPUParticleTestScene.cpp" />
     <ClCompile Include="Graphics\Graphics.cpp" />
-    <ClCompile Include="Scene\GYScene.cpp" />
     <ClCompile Include="Debug\ImGuiManager.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -252,10 +247,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Core\main.cpp" />
     <ClCompile Include="Graphics\Material\Material.cpp" />
     <ClCompile Include="Graphics\Mesh\Mesh.cpp" />
-    <ClCompile Include="Component\MeshRenderer.cpp" />
     <ClCompile Include="Graphics\Model\Model.cpp" />
-    <ClCompile Include="Component\ModelRenderer.cpp" />
-    <ClCompile Include="Object\ObjectManager.cpp" />
     <ClCompile Include="Particle\ParticleDeadList.cpp" />
     <ClCompile Include="ECS\System\PhysicsSystem.cpp" />
     <ClCompile Include="Graphics\Shader\PixelShader.cpp" />
@@ -264,9 +256,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Player\PlayerStateSystem.cpp" />
     <ClCompile Include="Player\PlayerAnimSystem.cpp" />
     <ClCompile Include="Graphics\PrimitiveBuilder.cpp" />
-    <ClCompile Include="Graphics\Renderer\ProjectileBillboardRenderer.cpp" />
-    <ClCompile Include="ECS\System\ProjectileSystem.cpp" />
-    <ClCompile Include="ECS\System\ProjectileVFXSystem.cpp" />
     <ClCompile Include="ECS\System\MeshVFXSystem.cpp" />
     <ClCompile Include="Graphics\Renderer\Renderer.cpp" />
     <ClCompile Include="Graphics\Renderer\RenderStates.cpp" />
@@ -282,12 +271,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Shader\Shader.cpp" />
     <ClCompile Include="Graphics\Model\SkinnedModel.cpp" />
     <ClCompile Include="Graphics\Model\SkinnedModelGPU.cpp" />
-    <ClCompile Include="Graphics\Renderer\Skybox.cpp" />
     <ClCompile Include="Graphics\Renderer\SpriteRenderer.cpp" />
     <ClCompile Include="Graphics\Renderer\TextRenderer.cpp" />
     <ClCompile Include="State\StateMachineSystem.cpp" />
-    <ClCompile Include="Object\TestCube.cpp" />
-    <ClCompile Include="Scene\TestScene.cpp" />
     <ClCompile Include="Debug\TestSpawner.cpp" />
     <ClCompile Include="Graphics\Material\Texture.cpp" />
     <ClCompile Include="ThirdParty\ImGui\imgui.cpp">
@@ -363,9 +349,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="ECS\System\BackpackAggregateSystem.h" />
     <ClInclude Include="Component\BackpackComponent.h" />
     <ClInclude Include="ECS\System\ManaSystem.h" />
-    <ClInclude Include="Enemy\ChaseAIComponent.h" />
-    <ClInclude Include="Enemy\ChaseAISystem.h" />
-    <ClInclude Include="Enemy\ContactDamageSystem.h" />
     <ClInclude Include="Enemy\EnemyTags.h" />
     <ClInclude Include="Enemy\SpawnDirector.h" />
     <ClInclude Include="Graphics\Model\MaterialLoader.h" />
@@ -392,7 +375,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Scene\TitleScene.h" />
     <ClInclude Include="Scene\ResultScene.h" />
     <ClInclude Include="Scene\RunResult.h" />
-    <ClInclude Include="Component\Component.h" />
     <ClInclude Include="Graphics\Shader\ComputeShader.h" />
     <ClInclude Include="Graphics\ConstantBuffer.h" />
     <ClInclude Include="State\CounterStates.h" />
@@ -433,18 +415,14 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\ManaRegenUp.h" />
     <ClInclude Include="Item\Items\JumpCountUp.h" />
     <ClInclude Include="Core\Game.h" />
-    <ClInclude Include="Object\GameObject.h" />
     <ClInclude Include="Core\Timer\GameTimer.h" />
     <ClInclude Include="Collider\GPUCollider.h" />
     <ClInclude Include="Particle\GPUParticle.h" />
     <ClInclude Include="Particle\GPUParticleEmitter.h" />
     <ClInclude Include="Particle\GPUParticleSystem.h" />
     <ClInclude Include="Particle\ParticleSheets.h" />
-    <ClInclude Include="Scene\GPUParticleTestScene.h" />
     <ClInclude Include="Graphics\Graphics.h" />
-    <ClInclude Include="Scene\GYScene.h" />
     <ClInclude Include="Component\HealthComponent.h" />
-    <ClInclude Include="ECS\System\HitEvent.h" />
     <ClInclude Include="Debug\ImGuiManager.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -471,13 +449,10 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Light\LightTypes.h" />
     <ClInclude Include="Graphics\Material\Material.h" />
     <ClInclude Include="Graphics\Mesh\Mesh.h" />
-    <ClInclude Include="Component\MeshRenderer.h" />
     <ClInclude Include="Graphics\Model\Model.h" />
     <ClInclude Include="Component\ModelComponent.h" />
     <ClInclude Include="Component\InteractableComponent.h" />
     <ClInclude Include="Component\SkinnedAnimComponent.h" />
-    <ClInclude Include="Component\ModelRenderer.h" />
-    <ClInclude Include="Object\ObjectManager.h" />
     <ClInclude Include="Particle\ParticleDeadList.h" />
     <ClInclude Include="Component\PhysicsMath.h" />
     <ClInclude Include="ECS\System\PhysicsSystem.h" />
@@ -490,15 +465,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Player\PlayerStatsComponent.h" />
     <ClInclude Include="Player\PlayerTag.h" />
     <ClInclude Include="Graphics\PrimitiveBuilder.h" />
-    <ClInclude Include="Graphics\Renderer\ProjectileBillboardRenderer.h" />
-    <ClInclude Include="Component\Projectile\ProjectileComponent.h" />
-    <ClInclude Include="ECS\System\ProjectileSystem.h" />
-    <ClInclude Include="Component\Projectile\ProjectileVFXComponent.h" />
-    <ClInclude Include="ECS\System\ProjectileVFXSystem.h" />
     <ClInclude Include="ECS\System\MeshVFXSystem.h" />
     <ClInclude Include="Component\MeshVFXComponent.h" />
     <ClInclude Include="Component\DissolveComponent.h" />
-    <ClInclude Include="Component\Projectile\ProjectileVisualComponent.h" />
     <ClInclude Include="ECS\Registry.h" />
     <ClInclude Include="Graphics\Renderer\Renderer.h" />
     <ClInclude Include="Graphics\Renderer\RenderStates.h" />
@@ -520,7 +489,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Model\SkinnedModel.h" />
     <ClInclude Include="Graphics\Model\SkinnedModelGPU.h" />
     <ClInclude Include="Graphics\Mesh\SkinnedVertex.h" />
-    <ClInclude Include="Graphics\Renderer\Skybox.h" />
     <ClInclude Include="ECS\SparseSet.h" />
     <ClInclude Include="Component\SpellbookComponent.h" />
     <ClInclude Include="SpellID.h" />
@@ -529,8 +497,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Renderer\TextRenderer.h" />
     <ClInclude Include="State\StateMachine.h" />
     <ClInclude Include="State\StateMachineSystem.h" />
-    <ClInclude Include="Object\TestCube.h" />
-    <ClInclude Include="Scene\TestScene.h" />
     <ClInclude Include="Debug\TestSpawner.h" />
     <ClInclude Include="Graphics\Material\Texture.h" />
     <ClInclude Include="ThirdParty\ImGui\imconfig.h">
@@ -1074,37 +1040,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/PostProcess/%(Filename).cso</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/PostProcess/%(Filename).cso</ObjectFileOutput>
     </FxCompile>
-    <FxCompile Include="Shader\Projectile\ProjectilePS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-    </FxCompile>
-    <FxCompile Include="Shader\Projectile\ProjectileVS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-    </FxCompile>
     <FxCompile Include="Shader\PS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-    </FxCompile>
-    <FxCompile Include="Shader\Skinning\SkinnedPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
@@ -1128,26 +1064,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-    </FxCompile>
-    <FxCompile Include="Shader\SkyPS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-    </FxCompile>
-    <FxCompile Include="Shader\SkyVS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
