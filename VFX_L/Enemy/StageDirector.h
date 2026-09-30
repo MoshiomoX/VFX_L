@@ -73,6 +73,8 @@ public:
     float finalStepMul = 1.5f;      // 1 段毎の強さの倍率
     int   finalCap = 400;           // 最初の 2 分の同時上限（Megabonk と同じ）
     int   finalCapLate = 300;       // 2 分より後
+    float finalGhostRate = 2.0f;    // 最終波の幽霊（体/秒。時間切れの直後）。雑魚の湧きとは別枠、上限は共通
+    float finalGhostStepMul = 1.5f; // 1 段毎の幽霊の数の倍率（2 → 3 → 4.5 …）
 
     float bossHp = 8000.0f;         // 倍率 1 の時の HP（Megabonk 1 面の Boss 8000〜10000）
     float bossSpeed = 2.8f;         // m/秒

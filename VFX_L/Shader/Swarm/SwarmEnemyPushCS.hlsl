@@ -24,6 +24,7 @@ StructuredBuffer<uint> terrain : register(t1);
 StructuredBuffer<uint> cellCount : register(t2);
 StructuredBuffer<uint> cellItems : register(t3);
 StructuredBuffer<float> terrainHeight : register(t4);
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5); // kind: ghosts ignore walls and cliffs
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 
 // how much of the penetration to close per step (1 = all of it, jittery)
@@ -99,7 +100,8 @@ void main(uint3 id : SV_DispatchThreadID)
         push *= maxPush * rsqrt(dot(push, push));
 
     float3 np = pos + push;
-    if (!SwarmIsWalkable(terrain, np) || !SwarmSlopeOk(terrainHeight, pos.xz, np.xz))
+    bool ghost = (enemyExtra[i].kind == SWARM_KIND_GHOST);   // ghosts ignore walls and cliffs
+    if (!ghost && (!SwarmIsWalkable(terrain, np) || !SwarmSlopeOk(terrainHeight, pos.xz, np.xz)))
         return;   // would end up in a wall or over a cliff edge: stay put this step
 
     np.y = g_GroundY + SwarmTerrainHeight(terrainHeight, np.xz);

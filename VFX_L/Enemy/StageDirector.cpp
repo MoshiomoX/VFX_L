@@ -99,6 +99,7 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
         mobs.finalStatMul = std::pow(finalStepMul, (float)(level - 1));
         mobs.finalSpawnRate = finalSpawnRate;
         mobs.finalSpeedMul = finalSpeedMul;
+        mobs.finalGhostRate = finalGhostRate * std::pow(finalGhostStepMul, (float)(level - 1));   // 幽霊は段毎に数が増える
         director.spawnCap = (over < 120.0f) ? finalCap : finalCapLate;
     }
     else if (m_FinalLevel != 0)
@@ -108,6 +109,7 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
         mobs.finalStatMul = 1.0f;
         mobs.finalSpawnRate = 0.0f;
         mobs.finalSpeedMul = 1.0f;
+        mobs.finalGhostRate = 0.0f;
         if (m_NormalCap >= 0) director.spawnCap = m_NormalCap;
     }
 
@@ -304,6 +306,12 @@ void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
     ImGui::DragFloat("Final Step Stat x", &finalStepMul, 0.01f, 1.0f, 5.0f);
     ImGui::DragInt("Final Cap (first 2 min)", &finalCap, 1, 0, 4096);
     ImGui::DragInt("Final Cap (later)", &finalCapLate, 1, 0, 4096);
+    ImGui::DragFloat("Final Ghosts / s", &finalGhostRate, 0.1f, 0.0f, 50.0f);
+    ImGui::DragFloat("Final Ghost Step x", &finalGhostStepMul, 0.01f, 1.0f, 5.0f);
+    ImGui::DragFloat("Ghost Hover", &kind.ghostHover, 0.05f, 0.0f, 3.0f);
+    ImGui::DragFloat("Ghost Alpha", &kind.ghostAlpha, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Ghost Glow", &kind.ghostGlow, 0.05f, 0.0f, 6.0f);
+    ImGui::DragFloat("Ghost Damage x", &kind.ghostDamageMul, 0.05f, 0.0f, 20.0f);
 
     static const char* kBossNames[] = { "none", "summoned", "alive", "defeated" };
     const Swarm::BossInfo& info = swarm.GetBossInfo();

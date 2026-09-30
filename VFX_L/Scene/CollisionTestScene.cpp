@@ -80,6 +80,7 @@ void CollisionTestScene::Init()
         m_AutoChest = m_AutoTest && strcmp(env, "chest") == 0;           // 値が chest なら魔法書の木箱の物理
         m_AutoBeam = m_AutoTest && strcmp(env, "beam") == 0;             // 値が beam なら追尾弾 + 弧 → 魔導光線
         m_AutoStuck = m_AutoTest && strcmp(env, "stuck") == 0;           // 値が stuck なら雑魚の壁詰まり
+        m_AutoGhost = m_AutoTest && strcmp(env, "ghost") == 0;           // 値が ghost なら最終波の幽霊
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");

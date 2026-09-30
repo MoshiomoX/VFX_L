@@ -87,6 +87,7 @@ static const uint SWARM_KIND_MOB = 0u;    // melee on contact
 static const uint SWARM_KIND_BOMBER = 1u; // contact lights a fuse, blows up g_BomberFuseTime later
 static const uint SWARM_KIND_ELITE = 2u;  // big mob: g_EliteScale body, g_EliteDamageMul melee, g_EliteExpMul orb
 static const uint SWARM_KIND_BOSS = 3u;   // stage boss: g_Boss*, never hit-stunned, reported in SwarmBossInfo
+static const uint SWARM_KIND_GHOST = 4u;  // final-swarm ghost: mob hp, fast, flies straight through walls and plateaus (2026-09-30)
 
 struct SwarmEnemyExtra
 {
@@ -516,6 +517,12 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_BossDamageMul;
     float g_BossExpMul;
     float _bossPad;
+
+    // ---- final-swarm ghost (SWARM_KIND_GHOST) ----
+    float g_GhostHover; // VS: floats this much above the ground
+    float g_GhostAlpha; // VS: vertex alpha (drawn with alpha blend)
+    float g_GhostGlow; // VS: HDR gain on the cyan tint
+    float g_GhostDamageMul; // melee damage = g_ContactDamage * this
 };
 
 // body size multiplier of a kind (radius and model)
@@ -529,7 +536,8 @@ float SwarmKindScale(uint kind)
 float SwarmKindDamageMul(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteDamageMul
-         : (kind == SWARM_KIND_BOSS) ? g_BossDamageMul : 1.0;
+         : (kind == SWARM_KIND_BOSS) ? g_BossDamageMul
+         : (kind == SWARM_KIND_GHOST) ? g_GhostDamageMul : 1.0;
 }
 
 // exp orb value multiplier of a kind (times g_OrbAmount)

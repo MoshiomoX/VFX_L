@@ -39,6 +39,11 @@ public:
     float finalStatMul = 1.0f;          // 強さの倍率に更に掛ける
     float finalSpawnRate = 0.0f;        // > 0 なら湧く速さをこれにする（体/秒）
     float finalSpeedMul = 1.0f;         // 新しく湧く雑魚の速さに掛ける
+    // 最終波の幽霊（kEnemyKindGhost。2026-09-30 用户「Megabonk の時間切れの幽霊」）：
+    // 雑魚と同じ HP（× 難度）、速さ × ghostSpeedMul、壁も台地も素通り。StageDirector が毎フレーム書く（時間切れ前は 0）
+    float finalGhostRate = 0.0f;        // 体/秒
+    float ghostSpeedMul = 2.6f;         // 雑魚の速さに掛ける（3.5 → 9.1 m/s。玩家の走り 5、滑り 13）
+    void QueueDebugGhosts(int n) { m_DebugGhosts += n; }
     // 倍率 1 の時の接触 / 爆発ダメージ。Init で GPU の既定値（AICB / BomberCB）から取る
     float baseContactDamage = 0.0f;
     float baseBlastDamage = 0.0f;
@@ -64,6 +69,9 @@ private:
     float m_BomberHp = 18.0f;      // Megabonk の Boomer
     float m_BomberSpeed = 4.5f;    // 雑魚より速く寄ってくる
     int   m_DebugBombers = 0;      // ボタンで溜めた数。次の Update で湧かせる
+    int   m_DebugGhosts = 0;
+    float m_GhostAccum = 0.0f;     // finalGhostRate の端数の持ち越し
+    void SpawnGhosts(const DirectX::SimpleMath::Vector3& player, float dt, SwarmSystem& swarm);
     float m_StatMul = 1.0f;        // 今の強さの倍率（Update が経過時間から出す）
     float m_RunTime = 0.0f;
 };

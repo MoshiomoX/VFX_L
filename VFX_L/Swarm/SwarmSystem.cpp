@@ -994,6 +994,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyMoveCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyMoveCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 斜面の高さ
         m_EnemyMoveCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());       // 通行格（壁への滑り・壁からの脱出）
+        m_EnemyMoveCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 種類（幽霊は壁を素通り）
         m_EnemyMoveCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_EnemyMoveCS->BindUAVs(m_Context);
@@ -1016,6 +1017,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyPushCS->SetSRV(m_Context, "cellCount", m_CellCountSRV.Get());
         m_EnemyPushCS->SetSRV(m_Context, "cellItems", m_CellItemsSRV.Get());
         m_EnemyPushCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());
+        m_EnemyPushCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 種類（幽霊は壁・崖を無視）
         m_EnemyPushCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyPushCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1535,8 +1537,9 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
         m_EnemyCompactCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
         m_EnemyCompactCS->SetSRV(m_Context, "enemyMaxHp", m_EnemyMaxHpSRV.Get());
         m_EnemyCompactCS->SetUAV(m_Context, "aliveList", m_AliveListUAV.Get(), 0);
-        m_EnemyCompactCS->SetUAV(m_Context, "mobList", m_KindListUAV[Swarm::kEnemyKindMob].Get(), 0);
-        m_EnemyCompactCS->SetUAV(m_Context, "bomberList", m_KindListUAV[Swarm::kEnemyKindBomber].Get(), 0);
+        m_EnemyCompactCS->SetUAV(m_Context, "mobList", m_KindListUAV[Swarm::kDrawListMob].Get(), 0);
+        m_EnemyCompactCS->SetUAV(m_Context, "bomberList", m_KindListUAV[Swarm::kDrawListBomber].Get(), 0);
+        m_EnemyCompactCS->SetUAV(m_Context, "ghostList", m_KindListUAV[Swarm::kDrawListGhost].Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "bossInfo", m_BossInfoUAV.Get());
         m_EnemyCompactCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1557,7 +1560,7 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
             m_Context->CopyStructureCount(m_HpBarArgs.Get(), sizeof(uint32_t) * 1, m_AliveListUAV.Get());
         if (m_BomberRingArgs)
             m_Context->CopyStructureCount(m_BomberRingArgs.Get(), sizeof(uint32_t) * 1,
-                m_KindListUAV[Swarm::kEnemyKindBomber].Get());
+                m_KindListUAV[Swarm::kDrawListBomber].Get());
     }
 
     // sampler は雑魚とオーブで共通。Material::Bind は sampler を触らないので自分で入れる
@@ -1604,8 +1607,17 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
     for (uint32_t k = 0; indirect && k < Swarm::kEnemyKinds; ++k)
     {
         m_EnemyVS->SetSRV(m_Context, "aliveList", m_KindListSRV[k].Get());
-        if (k == Swarm::kEnemyKindBomber && m_BomberAlbedo)
+        if (k == Swarm::kDrawListBomber && m_BomberAlbedo)
             m_EnemyPS->SetTexture(m_Context, 0, m_BomberAlbedo.get());
+        if (k == Swarm::kDrawListGhost)
+        {
+            // 幽霊：雑魚の貼図に戻し、alpha blend（乗算済み: 色はそのまま足され、alpha 分だけ後ろが消える = 光る半透明）。
+            // 深度は書く（後から描くオーブ・粒子が幽霊の奥にある時に正しく隠れる）
+            m_EnemyMaterial->Bind(m_Context);
+            m_Context->PSSetSamplers(0, 1, &samp);
+            const float bf[4] = { 0, 0, 0, 0 };
+            m_Context->OMSetBlendState(RenderStates::Get().AlphaBlend(), bf, 0xFFFFFFFF);
+        }
 
         for (size_t i = 0; i < subs.size() && i < m_EnemyDrawArgs[k].size(); ++i)
         {
@@ -1614,6 +1626,11 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
             m_EnemyAnim.part = (uint32_t)i;
             m_EnemyVS->WriteBuffer(m_Context, 4, &m_EnemyAnim);
             subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_EnemyDrawArgs[k][i].Get(), 0);
+        }
+        if (k == Swarm::kDrawListGhost)
+        {
+            const float bf[4] = { 0, 0, 0, 0 };
+            m_Context->OMSetBlendState(RenderStates::Get().Opaque(), bf, 0xFFFFFFFF);
         }
     }
     // 次のフレームの Compute が UAV として使うので必ず外す
@@ -1739,7 +1756,7 @@ void SwarmSystem::RenderBomberRings(CameraBase* camera)
 
     m_BomberRingVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_BomberRingVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
-    m_BomberRingVS->SetSRV(m_Context, "bomberList", m_KindListSRV[Swarm::kEnemyKindBomber].Get());
+    m_BomberRingVS->SetSRV(m_Context, "bomberList", m_KindListSRV[Swarm::kDrawListBomber].Get());
     m_BomberRingVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     m_BomberRingVS->Bind(m_Context);

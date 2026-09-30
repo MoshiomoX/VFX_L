@@ -97,6 +97,8 @@ void main(uint3 id : SV_DispatchThreadID)
         // the straight line runs into the cliff, keep following the field to a ramp
         bool sameLevel = abs(g_PlayerPos.y - pos.y) < 1.0;
         bool useFlow = (lenSq > direct * direct || !sameLevel) && (dot(flow, flow) > 0.01);
+        if (extra.kind == SWARM_KIND_GHOST)
+            useFlow = false; // ghosts fly straight at the player (through walls and over plateaus)
         if (useFlow)
             moveDir = normalize(float3(flow.x, 0.0, flow.y));
         else if (lenSq > 1e-6)
@@ -139,17 +141,21 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // ---- avoid: soft push away from blocked neighbour cells ----
+    // ---- avoid: soft push away from blocked neighbour cells (not for ghosts) ----
+    bool ghost = (extra.kind == SWARM_KIND_GHOST);
     float3 avoid = float3(0, 0, 0);
     float cs = g_CellSize;
-    if (!SwarmIsWalkable(terrain, pos + float3(cs, 0, 0)))
-        avoid.x -= 1.0;
-    if (!SwarmIsWalkable(terrain, pos - float3(cs, 0, 0)))
-        avoid.x += 1.0;
-    if (!SwarmIsWalkable(terrain, pos + float3(0, 0, cs)))
-        avoid.z -= 1.0;
-    if (!SwarmIsWalkable(terrain, pos - float3(0, 0, cs)))
-        avoid.z += 1.0;
+    if (!ghost)
+    {
+        if (!SwarmIsWalkable(terrain, pos + float3(cs, 0, 0)))
+            avoid.x -= 1.0;
+        if (!SwarmIsWalkable(terrain, pos - float3(cs, 0, 0)))
+            avoid.x += 1.0;
+        if (!SwarmIsWalkable(terrain, pos + float3(0, 0, cs)))
+            avoid.z -= 1.0;
+        if (!SwarmIsWalkable(terrain, pos - float3(0, 0, cs)))
+            avoid.z += 1.0;
+    }
 
     // ---- compose the target velocity ----
     float3 target = moveDir * moveSpeed
@@ -214,7 +220,7 @@ void main(uint3 id : SV_DispatchThreadID)
     // a ramp. The diagonal is checked too (both axes free but the corner
     // cell blocked used to let enemies cut through the corner).
     // An enemy already inside a blocked cell skips this: MoveCS walks it out
-    if (SwarmIsWalkable(terrain, pos))
+    if (!ghost && SwarmIsWalkable(terrain, pos))
     {
         float r = g_EnemyRadius * SwarmKindScale(extra.kind);
         float ax = (v.x != 0.0) ? v.x * g_LookAhead + sign(v.x) * r : 0.0;

@@ -164,6 +164,9 @@ private:
     // VFXL_BATTLE_AUTOTEST=stuck：雑魚をわざと塞がったマスの中に出し、壁から出てくるか・二度と入らないかを敵の池の読み戻しで数える
     bool     m_AutoStuck = false;
     void     UpdateAutoTestStuck();
+    // VFXL_BATTLE_AUTOTEST=ghost：最終波の幽霊を 20 体出して、数・壁抜け・近づく速さを記録し撮る
+    bool     m_AutoGhost = false;
+    void     UpdateAutoTestGhost();
     // VFXL_BATTLE_AUTOTEST=edge：外周の岩山を、縁の近くの平視・高い所からの俯瞰・場地の中央から撮る
     bool     m_AutoEdge = false;
     void     UpdateAutoTestEdge();
