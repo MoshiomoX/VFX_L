@@ -19,7 +19,6 @@
 class SwarmSystem;
 class GPUParticleSystem;
 class CollisionSystem;
-class ProjectileBillboardRenderer;
 class Model;
 
 class StressTestTools
@@ -37,7 +36,7 @@ public:
     double GetFlushMsAvg() const { return m_FlushMsAvg; }
 
     void DrawImGui(SwarmSystem& swarm, const CollisionSystem& collision,
-        const GPUParticleSystem& particles, const ProjectileBillboardRenderer& billboards);
+        const GPUParticleSystem& particles);
 
     // 投射物の自動補充（自己テストから。面板の Auto Refill と同じ）
     void SetAutoRefill(bool on, int target, int batch)

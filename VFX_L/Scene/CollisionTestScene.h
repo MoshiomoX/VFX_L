@@ -30,11 +30,8 @@
 #include "Player/PlayerAnimSystem.h"
 #include "ECS/System/SkinnedAnimSystem.h"
 #include "ECS/System/WeaponSystem.h"
-#include "ECS/System/ProjectileSystem.h"
-#include "ECS/System/ProjectileVFXSystem.h"
 #include "Swarm/AreaVFXPlayer.h"
 #include "ECS/System/MeshVFXSystem.h"
-#include "Graphics/Renderer/ProjectileBillboardRenderer.h"
 #include "ECS/System/BackpackAggregateSystem.h"
 #include "UI/LevelUpSystem.h"
 #include "ECS/System/RenderSystem.h"
@@ -85,7 +82,6 @@ private:
     void RespawnCrates();            // 報酬の箱を玩家の周りへ並べ直す（開局・地形の作り直し・面板）
     void RespawnElites();            // 精英の的を玩家の前へ（地形の作り直し・面板）
     void EndRun();                   // 戦績を書いてリザルトへ
-    void RegisterItemVisuals();
 
     // ---- ImGui / デバッグ描画（CollisionTestSceneDebug.cpp）----
     void DrawDebugUI();
@@ -191,8 +187,6 @@ private:
     SkinnedAnimSystem       m_SkinnedAnimSystem;   // クリップの時計
     WeaponSystem            m_WeaponSystem;
     ManaSystem              m_ManaSystem;
-    ProjectileSystem        m_ProjectileSystem;
-    ProjectileVFXSystem     m_ProjectileVFXSystem;
     AreaVFXPlayer           m_AreaVFX;             // CPU から出した範囲攻撃・反応の特効の見た目
     int                     m_AreaTestProfile = 1; // Swarm パネルの Area Test 用
     MeshVFXSystem           m_MeshVFXSystem;       // モデル表面からの粒子（燃焼消滅など）
@@ -219,7 +213,6 @@ private:
 
     // --- Particle / VFX / Billboard ---
     GPUParticleSystem           m_ParticleSystem;
-    ProjectileBillboardRenderer m_ProjectileRenderer;
     VFXContext                  m_VFXContext;
     VFXSpriteRenderer           m_SpriteRenderer;   // Sprite entry（連番絵）。升級・開箱などの CPU 特効
     VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
@@ -250,7 +243,6 @@ private:
     bool m_ShowMesh = true;
     bool m_ShowWandDebug = false;
     bool m_ShowGridDebug = false;   // 玩家の周りの格子（通行・流れ場）
-    bool m_ShowBillboard = true;
     bool m_ShowSwarmDebug = false;
 
     // ※粒子だけを個別に消せるようにしておく。

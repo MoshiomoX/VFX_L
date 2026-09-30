@@ -1,12 +1,9 @@
 #include "Scene/SceneBase.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Light/PointLightManager.h"
-#include "Component/MeshRenderer.h"
-#include "Component/ModelRenderer.h"
 
-void SceneBase::Update(float dt)
+void SceneBase::Update(float)
 {
-    m_ObjectManager.Update(dt);
 }
 
 void SceneBase::Render(Renderer& renderer)
@@ -18,28 +15,4 @@ void SceneBase::Render(Renderer& renderer)
 
     // 点光源リストを GPU へ（Update 中に SwarmSystem が先に上げていれば何もしない）
     PointLightManager::Get().Upload(renderer.GetContext());
-
-    for (auto& obj : m_ObjectManager.GetObjects())
-    {
-        auto* mr = obj->GetComponent<MeshRenderer>();
-        if (mr)
-        {
-            mr->Draw(renderer);
-        }
-        auto* modelR = obj->GetComponent<ModelRenderer>();
-        if (modelR)
-        {
-            modelR->Draw(renderer);
-        }
-    }
-}
-
-GameObject* SceneBase::CreateObject()
-{
-    return m_ObjectManager.CreateObject();
-}
-
-void SceneBase::DestroyObject(GameObject* obj)
-{
-    m_ObjectManager.DestroyObject(obj);
 }

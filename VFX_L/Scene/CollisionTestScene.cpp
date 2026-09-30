@@ -102,16 +102,9 @@ void CollisionTestScene::Init()
         std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
     m_VFXContext.beamRenderer = &m_BeamRenderer;
 
-    // ---------- 投射物ビルボード ----------
-    if (!m_ProjectileRenderer.Initialize(device, context, 4096))
-        std::cout << "[Error] ProjectileRenderer init failed" << std::endl;
-    m_ProjectileRenderer.SetTexture(
-        ResourceManager::Get().LoadTexture(Res::Tex::ProjectileCore));
-
-    // ---------- 見た目 と 各 System が使う VFX の登録 ----------
-    // 飛行物の見た目は投射物プロファイルにあるので先に読む（GPU の表は下でもう一度 Build）
+    // ---------- 各 System が使う VFX の登録 ----------
+    // 投射物プロファイル（弾の飛び方・見た目）を先に読む（GPU の表は下でもう一度 Build）
     ProjectileProfileDB::LoadAll();
-    RegisterItemVisuals();
 
     // 燃焼消滅（Mesh 発射 + 溶解の縁）。道具ではないので VFXDatabase から直接引く
     if (const char* path = VFXDatabase::GetPath(VFXId::DeathBurn))
@@ -222,36 +215,6 @@ void CollisionTestScene::Init()
 }
 
 // ============================================================
-// 見た目と VFX を System に登録する
-// アイテム定義側にある値をそのまま流す（ID ごとの対応表を作る）
-// ============================================================
-void CollisionTestScene::RegisterItemVisuals()
-{
-    for (ItemID id : ItemDatabase::GetAllIDs())
-    {
-        // --- 飛行物型: ビルボードの芯 + VFX（見た目は投射物プロファイル側）---
-        if (auto* p = ItemDatabase::GetProjectile(id))
-        {
-            const ProjectileProfile& pp = ProjectileProfileDB::At(ProjectileProfileDB::IndexOf(p->profile));
-            m_WeaponSystem.SetProjectileVisual(id,
-                pp.visualSize, p->common.color, pp.visualStretch);
-
-            // CPU 経路（精英の弾など）は今まで通り VFXEffect を張る。
-            // パスは VFXDatabase から引く
-            if (const char* path = VFXDatabase::GetPath(pp.ResolveVFX()))
-                m_ProjectileVFXSystem.RegisterVFX(id, path);
-        }
-
-        // --- AOE 型: VFX のみ（AreaSystem は未実装）---
-        if (auto* a = ItemDatabase::GetArea(id))
-        {
-            if (const char* path = VFXDatabase::GetPath(a->vfxId))
-                m_ProjectileVFXSystem.RegisterVFX(id, path);
-        }
-    }
-}
-
-// ============================================================
 // Shutdown
 // ============================================================
 void CollisionTestScene::Shutdown()
@@ -264,7 +227,6 @@ void CollisionTestScene::Shutdown()
     m_StaticProps.Shutdown();
     m_Grass.Shutdown();
     m_GameUI.Shutdown();
-    m_ProjectileRenderer.Shutdown();
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
 }
 
@@ -723,11 +685,7 @@ void CollisionTestScene::Render(Renderer& renderer)
 
     {
         PROFILE_SCOPE_GPU("Billboards + sprites");
-        // ---- 2) ビルボード（投射物とオーブの芯）----
-        if (m_ShowBillboard)
-            m_ProjectileRenderer.Render(m_Registry, GetCamera());
-
-        // ---- 2b) 連番絵（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
+        // ---- 2) 連番絵（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
         m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());   // 光線（加算）
         m_Swarm.RenderSprites(GetCamera());

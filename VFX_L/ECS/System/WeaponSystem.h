@@ -4,20 +4,20 @@
 //   分裂       = 同フレーム内で扇状に複数発（空間展開）
 //   二重釈放   = pendingCasts を残し、delayTimer 後に次を撃つ（時間展開）
 // マナは杖で共有なので、出力源が多いと奪い合う。
+// 弾は全部 GPU（SwarmSystem）に積む。CPU の Entity の弾は 2026-09-30 に削除した
+// （GPU 化の後は到達しない経路だった）
 // ============================================================
 #pragma once
 #include "ECS/Entity.h"
 #include "SpellID.h"
-#include <memory>
 #include <vector>
-#include <utility>
 #include <SimpleMath.h>
 #include "Swarm/SwarmTypes.h"
 
 class Registry;
 class CollisionSystem;
-class Model;
 struct SpellStats;
+struct AreaStats;
 class SwarmSystem;
 class AreaVFXPlayer;
 struct VFXContext;
@@ -28,12 +28,6 @@ public:
     void SetSwarm(SwarmSystem* swarm) { m_Swarm = swarm; }
     // 範囲攻撃の見た目の再生先。無ければ判定だけ出る
     void SetAreaVFX(AreaVFXPlayer* player, const VFXContext* ctx) { m_AreaVFX = player; m_AreaVFXCtx = ctx; }
-    // 投射物モデル（種類ごとに使い回す）
-    void SetProjectileModel(ItemID id, std::shared_ptr<Model> m);
-    // 投射物の見た目（ビルボード芯）を種類ごとに登録
-    void SetProjectileVisual(ItemID id, float size,
-        const DirectX::SimpleMath::Vector4& color,
-        float stretch = 0.0f);
 
     // ---- デバッグ可視化用：今フレームの照準情報 ----
     struct AimDebug
@@ -46,13 +40,13 @@ public:
         float   range = 0.0f;
     };
     const AimDebug& GetAimDebug() const { return m_AimDebug; }
-    struct SpawnedProjectile { Entity entity; ItemID id; };
-    const std::vector<SpawnedProjectile>& GetSpawned() const { return m_Spawned; }
     // 誘発の累計（ImGui・自測用）: 届いた「基礎魔法の弾が消えた」数 / それで撃った高級魔法の回数
     uint32_t GetTriggerEventsSeen() const { return m_TriggerEventsSeen; }
     uint32_t GetTriggeredCasts() const { return m_TriggeredCasts; }
+    int GetActiveBeamCount() const { return (int)m_Beams.size(); }
+
 private:
-    // View 走査中に Entity を作れないので、発射要求を溜めてから生成する
+    // View 走査中に GPU へ積めないので、発射要求を溜めてから積む
     struct CastRequest
     {
         ItemID  id;
@@ -63,17 +57,7 @@ private:
         uint32_t triggerTag = 0;   // この弾が消えたら誘発できる高級魔法（SpellStats::triggerMask）
         bool     atPos = false;    // 誘発の隕石: muzzle に落とす
     };
-    struct VisualDef
-    {
-        ItemID id;
-        float  size;
-        DirectX::SimpleMath::Vector4 color;
-        float  stretch;
-    };
 
-
-    std::vector<VisualDef> m_Visuals;
-    const VisualDef* FindVisual(ItemID id) const;
     // 1回の施法ぶんの発射要求を積む（分裂の扇状展開もここで行う）
     void QueueOneCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& muzzle,
@@ -106,20 +90,14 @@ private:
     };
     std::vector<ActiveBeam> m_Beams;
     // 誘発で光線を始める（チャンネルが空いていなければ false = 撃たない）
-    bool StartBeam(const struct AreaStats& a, const DirectX::SimpleMath::Vector3& muzzle,
+    bool StartBeam(const AreaStats& a, const DirectX::SimpleMath::Vector3& muzzle,
         const DirectX::SimpleMath::Vector3& impact);
     // 溜め・判定の出現・起点 / 終点の更新・終了
     void UpdateBeams(float dt, const DirectX::SimpleMath::Vector3& muzzle, const CollisionSystem& collision);
-public:
-    int GetActiveBeamCount() const { return (int)m_Beams.size(); }
-private:
 
-    std::shared_ptr<Model> GetModel(ItemID id) const;
     SwarmSystem* m_Swarm = nullptr;
-    class AreaVFXPlayer* m_AreaVFX = nullptr;
-    const struct VFXContext* m_AreaVFXCtx = nullptr;
+    AreaVFXPlayer* m_AreaVFX = nullptr;
+    const VFXContext* m_AreaVFXCtx = nullptr;
     std::vector<CastRequest> m_Requests;
-    std::vector<std::pair<ItemID, std::shared_ptr<Model>>> m_Models;
-    std::vector<SpawnedProjectile> m_Spawned;
     AimDebug m_AimDebug;   // 可視化用
 };

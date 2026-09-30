@@ -5,8 +5,6 @@
 #include "ECS/Registry.h"
 #include "Component/TransformComponent.h"
 #include "Component/ColliderComponent.h"
-#include "Component/ModelComponent.h"
-#include "Component/Projectile/ProjectileComponent.h"
 #include "Component/WandComponent.h"
 #include "Component/ManaComponent.h"
 #include "Collider/CollisionSystem.h"
@@ -20,25 +18,8 @@
 #include <algorithm>
 #include <cmath>
 
-#include "Component/Projectile/ProjectileVisualComponent.h"
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Matrix;
-
-void WeaponSystem::SetProjectileModel(ItemID id, std::shared_ptr<Model> m)
-{
-    for (auto& p : m_Models)
-    {
-        if (p.first == id) { p.second = m; return; }
-    }
-    m_Models.push_back({ id, m });
-}
-
-std::shared_ptr<Model> WeaponSystem::GetModel(ItemID id) const
-{
-    for (const auto& p : m_Models)
-        if (p.first == id) return p.second;
-    return nullptr;
-}
 
 // ============================================================
 // 1回の施法ぶんの発射要求を積む（分裂の扇状展開はここ）
@@ -112,7 +93,6 @@ void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
 void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collision)
 {
     m_Requests.clear();
-    m_Spawned.clear();
 
     // 基礎魔法の弾が消えた場所（回読なので 2〜3 フレーム古い）。高級魔法はここでだけ撃つ
     m_TriggerEvents.clear();
@@ -378,81 +358,22 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
             });
 
     // ============================================================
-    // 走査が終わってから生成する
-    // GPU 側（SwarmSystem）が繋がっていればそちらへ。
-    //   弾は「核」として GPU に積まれ、見た目は配方から粒子が出る。
-    //   CPU 側の Entity / Collider / VFX は一切作らない。
-    // 繋がっていなければ従来の CPU 経路（VFXEditor 等の互換用）
+    // 走査が終わってから GPU（SwarmSystem）へ積む。
+    //   弾は「核」として GPU に積まれ、見た目は配方から粒子が出る。CPU 側の Entity は作らない
     // ============================================================
+    if (!m_Swarm) { m_Requests.clear(); return; }
     for (const auto& req : m_Requests)
     {
-        if (m_Swarm)
-        {
-            // 弾そのもの（VFX・飛び方）は投射物プロファイルから。番号は集約時に決まっている。
-            // 左右交互・乱数の判定は 1 発ごとに DB が持つ
-            const int motion = req.profile;
-            const VFXId vfx = ProjectileProfileDB::At(motion).ResolveVFX();
-            const bool mirror = ProjectileProfileDB::NextMirror(motion);
+        // 弾そのもの（VFX・飛び方）は投射物プロファイルから。番号は集約時に決まっている。
+        // 左右交互・乱数の判定は 1 発ごとに DB が持つ
+        const int motion = req.profile;
+        const VFXId vfx = ProjectileProfileDB::At(motion).ResolveVFX();
+        const bool mirror = ProjectileProfileDB::NextMirror(motion);
 
-            m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
-                req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
-                req.triggerTag, req.atPos);
-            continue;
-        }
-
-        // ---- CPU 経路（従来）----
-        Entity p = reg.Create();
-
-        TransformComponent tf;
-        tf.position = req.muzzle;
-        reg.Add<TransformComponent>(p, tf);
-
-        ColliderComponent col;
-        col.shape = ColliderShape::Sphere;
-        col.radius = req.radius;
-        col.layer = Layer_PlayerShot;
-        col.mask = Layer_Enemy | Layer_Terrain;
-        reg.Add<ColliderComponent>(p, col);
-
-        ProjectileComponent pj;
-        pj.velocity = req.dir * req.speed;
-        pj.damage = req.damage;
-        pj.lifetime = req.lifetime;
-        reg.Add<ProjectileComponent>(p, pj);
-        m_Spawned.push_back({ p, req.id });
-
-        if (auto m = GetModel(req.id))
-        {
-            ModelComponent mc;
-            mc.model = m;
-            reg.Add<ModelComponent>(p, mc);
-        }
-        if (const auto* v = FindVisual(req.id))
-        {
-            ProjectileVisualComponent vis;
-            vis.size = v->size;
-            vis.color = v->color;
-            vis.stretch = v->stretch;
-            reg.Add<ProjectileVisualComponent>(p, vis);
-        }
+        m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
+            req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
+            req.triggerTag, req.atPos);
     }
-}
-
-void WeaponSystem::SetProjectileVisual(ItemID id, float size,
-    const DirectX::SimpleMath::Vector4& color, float stretch)
-{
-    for (auto& v : m_Visuals)
-    {
-        if (v.id == id) { v.size = size; v.color = color; v.stretch = stretch; return; }
-    }
-    m_Visuals.push_back({ id, size, color, stretch });
-}
-
-const WeaponSystem::VisualDef* WeaponSystem::FindVisual(ItemID id) const
-{
-    for (const auto& v : m_Visuals)
-        if (v.id == id) return &v;
-    return nullptr;
 }
 // ============================================================
 // 光線（高級の範囲魔法）

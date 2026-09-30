@@ -42,9 +42,6 @@ namespace Res
         // PBR用
         inline constexpr const wchar_t* PBR_VS = L"Shader/PBR_VS.hlsl";
         inline constexpr const wchar_t* PBR_PS = L"Shader/PBR_PS.hlsl";
-		//Skybox用
-        inline constexpr const wchar_t* Sky_VS = L"Shader/SkyVS.hlsl";
-        inline constexpr const wchar_t* Sky_PS = L"Shader/SkyPS.hlsl";
 
         // VFX 用（光を当てない）
         inline constexpr const wchar_t* VFXMesh_VS = L"Shader/VFX/VFXMeshVS.hlsl";
@@ -74,10 +71,6 @@ namespace Res
         // 必要なら .obj 版も
         inline constexpr const char* Rock2_Obj = "Assets/Model/Rock-Set/Rock_2/Rock_2.obj";
         inline constexpr const char* Akai = "Assets/Model/Akai/Akai.fbx";
-        // Shadowkin（骨骼付き、PBR フルセット）
-        inline constexpr const char* Shadowkin =
-            "Assets/Model/Shadowkin_SF/Shadowkin_Rigged.fbx";
-        inline constexpr const char* SkyboxSphere = "Assets/Model/Skybox/basic_skybox_3d.fbx";
 
         inline constexpr const char* Jiandu_TPose =
             "Assets/Model/Jiandu/Jian_TPose.fbx";   // ①静的bind pose検証用
@@ -90,8 +83,6 @@ namespace Res
         inline constexpr const char* Paladin =
             "Assets/Model/testAnimModel/PaladinWPropJNordstrom.fbx";
 
-        inline constexpr const char* Paladin_SwordAndShieldIdle =
-            "Assets/Model/testAnimModel/SwordAndShieldIdle.fbx";
 
         // KayKit Adventurers の Mage（CC0）。1 ファイルに 76 クリップ入り。
         // 杖・魔杖・魔道書は handslot 骨に付いた submesh で、表示切替で持ち替える
@@ -379,32 +370,7 @@ namespace Res
         inline constexpr const wchar_t* BlockSolo = L"Assets/Texture/UI/Block_solo_01.png";
         inline constexpr const wchar_t* TestBlockTex = L"Assets/Texture/UI/TestBlockTex.png";
 
-        // ---- Shadowkin / Silver 材质（金属）----
-        inline constexpr const wchar_t* Silver_Albedo =
-            L"Assets/Model/Shadowkin_SF/Tex/Silver_Base_color.png";
-        inline constexpr const wchar_t* Silver_Normal =
-            L"Assets/Model/Shadowkin_SF/Tex/Silver_Normal_OpenGL.png";   // OpenGL（G反転必要）
-        inline constexpr const wchar_t* Silver_Metallic =
-            L"Assets/Model/Shadowkin_SF/Tex/Silver_Metallic.png";
-        inline constexpr const wchar_t* Silver_Roughness =
-            L"Assets/Model/Shadowkin_SF/Tex/Silver_Roughness.png";
-        inline constexpr const wchar_t* Silver_AO =
-            L"Assets/Model/Shadowkin_SF/Tex/Silver_Mixed_AO.png";
-
-        // ---- Shadowkin / Pants 材质（布）----
-        inline constexpr const wchar_t* Pants_Albedo =
-            L"Assets/Model/Shadowkin_SF/Tex/Pants_Base_color.png";
-        inline constexpr const wchar_t* Pants_Normal =
-            L"Assets/Model/Shadowkin_SF/Tex/Pants_Normal_OpenGL.png";    // OpenGL（G反転必要）
-        inline constexpr const wchar_t* Pants_Metallic =
-            L"Assets/Model/Shadowkin_SF/Tex/Pants_Metallic.png";
-        inline constexpr const wchar_t* Pants_Roughness =
-            L"Assets/Model/Shadowkin_SF/Tex/Pants_Roughness.png";
-        inline constexpr const wchar_t* Pants_AO =
-            L"Assets/Model/Shadowkin_SF/Tex/Pants_Mixed_AO.png";
 		
-        //Skyboxの一枚テクスチャ
-        inline constexpr const wchar_t* SkyboxPanorama = L"Assets/Model/Skybox/Tex/sky_water_landscape.jpg";
 
 
         // ---- Jiandu / JaneDoe 材质（Diffuse のみ）----

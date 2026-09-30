@@ -220,9 +220,6 @@
     <ClCompile Include="Graphics\Mesh\Mesh.cpp">
       <Filter>Graphics\Mesh</Filter>
     </ClCompile>
-    <ClCompile Include="Object\TestCube.cpp">
-      <Filter>Object</Filter>
-    </ClCompile>
     <ClCompile Include="Graphics\Material\Material.cpp">
       <Filter>Graphics\Material</Filter>
     </ClCompile>
@@ -232,20 +229,11 @@
     <ClCompile Include="Scene\SceneManager.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
-    <ClCompile Include="Scene\TestScene.cpp">
-      <Filter>Scene</Filter>
-    </ClCompile>
     <ClCompile Include="Scene\SceneBase.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
-    <ClCompile Include="Object\ObjectManager.cpp">
-      <Filter>Object</Filter>
-    </ClCompile>
     <ClCompile Include="Graphics\Shader\Shader.cpp">
       <Filter>Graphics\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Component\MeshRenderer.cpp">
-      <Filter>Component</Filter>
     </ClCompile>
     <ClCompile Include="ThirdParty\ImGui\imgui.cpp">
       <Filter>Debug\ImGui</Filter>
@@ -271,14 +259,8 @@
     <ClCompile Include="Graphics\Model\Model.cpp">
       <Filter>Graphics\Model</Filter>
     </ClCompile>
-    <ClCompile Include="Component\ModelRenderer.cpp">
-      <Filter>Component</Filter>
-    </ClCompile>
     <ClCompile Include="ThirdParty\stb_image\stb_image.cpp">
       <Filter>Graphics\Material</Filter>
-    </ClCompile>
-    <ClCompile Include="Object\GameObject.cpp">
-      <Filter>Object</Filter>
     </ClCompile>
     <ClCompile Include="Core\Game.cpp">
       <Filter>Core</Filter>
@@ -300,9 +282,6 @@
     </ClCompile>
     <ClCompile Include="Particle\ParticleDeadList.cpp">
       <Filter>Particle</Filter>
-    </ClCompile>
-    <ClCompile Include="Scene\GPUParticleTestScene.cpp">
-      <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Debug\ImGuiRenderer.cpp">
       <Filter>Debug</Filter>
@@ -364,9 +343,6 @@
     <ClCompile Include="Graphics\Model\SkinnedModelGPU.cpp">
       <Filter>Graphics\Model</Filter>
     </ClCompile>
-    <ClCompile Include="Scene\GYScene.cpp">
-      <Filter>Scene</Filter>
-    </ClCompile>
     <ClCompile Include="Collider\CollisionSystem.cpp">
       <Filter>Collider</Filter>
     </ClCompile>
@@ -415,14 +391,8 @@
     <ClCompile Include="ECS\System\WeaponSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
-    <ClCompile Include="ECS\System\ProjectileSystem.cpp">
-      <Filter>ECS\System</Filter>
-    </ClCompile>
     <ClCompile Include="Scene\VFXEditorScene.cpp">
       <Filter>Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="ECS\System\ProjectileVFXSystem.cpp">
-      <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\MeshVFXSystem.cpp">
       <Filter>ECS\System</Filter>
@@ -431,12 +401,6 @@
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Renderer\RenderStates.cpp">
-      <Filter>Graphics\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Graphics\Renderer\Skybox.cpp">
-      <Filter>Graphics\Renderer</Filter>
-    </ClCompile>
-    <ClCompile Include="Graphics\Renderer\ProjectileBillboardRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Renderer\SpriteRenderer.cpp">
@@ -520,13 +484,9 @@
     <ClCompile Include="World\GridWorld.cpp">
       <Filter>World</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\ChaseAISystem.cpp">
-      <Filter>Enemy</Filter>
-    </ClCompile>
     <ClCompile Include="Enemy\SpawnDirector.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\ContactDamageSystem.cpp" />
     <ClCompile Include="Swarm\GPUReadback.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
@@ -647,12 +607,6 @@
     <ClInclude Include="Core\Timer\GameTimer.h">
       <Filter>Core\Timer</Filter>
     </ClInclude>
-    <ClInclude Include="Component\Component.h">
-      <Filter>Component</Filter>
-    </ClInclude>
-    <ClInclude Include="Object\GameObject.h">
-      <Filter>Object</Filter>
-    </ClInclude>
     <ClInclude Include="Graphics\Graphics.h">
       <Filter>Graphics</Filter>
     </ClInclude>
@@ -664,9 +618,6 @@
     </ClInclude>
     <ClInclude Include="Graphics\Shader\Shader.h">
       <Filter>Graphics\Shader</Filter>
-    </ClInclude>
-    <ClInclude Include="Object\TestCube.h">
-      <Filter>Object</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Material\Material.h">
       <Filter>Graphics\Material</Filter>
@@ -680,17 +631,8 @@
     <ClInclude Include="Scene\SceneManager.h">
       <Filter>Scene</Filter>
     </ClInclude>
-    <ClInclude Include="Scene\TestScene.h">
-      <Filter>Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="Object\ObjectManager.h">
-      <Filter>Object</Filter>
-    </ClInclude>
     <ClInclude Include="Scene\SceneType.h">
       <Filter>Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="Component\MeshRenderer.h">
-      <Filter>Component</Filter>
     </ClInclude>
     <ClInclude Include="ThirdParty\ImGui\imconfig.h">
       <Filter>Debug\ImGui</Filter>
@@ -731,9 +673,6 @@
     <ClInclude Include="Graphics\Model\Model.h">
       <Filter>Graphics\Model</Filter>
     </ClInclude>
-    <ClInclude Include="Component\ModelRenderer.h">
-      <Filter>Component</Filter>
-    </ClInclude>
     <ClInclude Include="ThirdParty\stb_image\stb_image.h">
       <Filter>Graphics\Material</Filter>
     </ClInclude>
@@ -760,9 +699,6 @@
     </ClInclude>
     <ClInclude Include="Particle\ParticleDeadList.h">
       <Filter>Particle</Filter>
-    </ClInclude>
-    <ClInclude Include="Scene\GPUParticleTestScene.h">
-      <Filter>Scene</Filter>
     </ClInclude>
     <ClInclude Include="Debug\ImGuiRenderer.h">
       <Filter>Debug</Filter>
@@ -853,9 +789,6 @@
       <Filter>Graphics\Model</Filter>
     </ClInclude>
     <ClInclude Include="AssimpFlags.h" />
-    <ClInclude Include="Scene\GYScene.h">
-      <Filter>Scene</Filter>
-    </ClInclude>
     <ClInclude Include="Component\TransformComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -946,18 +879,9 @@
     <ClInclude Include="ECS\System\WeaponSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
-    <ClInclude Include="ECS\System\HitEvent.h">
-      <Filter>ECS\System</Filter>
-    </ClInclude>
-    <ClInclude Include="ECS\System\ProjectileSystem.h">
-      <Filter>ECS\System</Filter>
-    </ClInclude>
     <ClInclude Include="SpellID.h" />
     <ClInclude Include="Scene\VFXEditorScene.h">
       <Filter>Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="ECS\System\ProjectileVFXSystem.h">
-      <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\MeshVFXSystem.h">
       <Filter>ECS\System</Filter>
@@ -968,26 +892,11 @@
     <ClInclude Include="Component\DissolveComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
-    <ClInclude Include="Component\Projectile\ProjectileComponent.h">
-      <Filter>Component\Projectile</Filter>
-    </ClInclude>
-    <ClInclude Include="Component\Projectile\ProjectileVFXComponent.h">
-      <Filter>Component\Projectile</Filter>
-    </ClInclude>
     <ClInclude Include="Graphics\Renderer\Renderer.h">
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Renderer\RenderStates.h">
       <Filter>Graphics\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Graphics\Renderer\Skybox.h">
-      <Filter>Graphics\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Graphics\Renderer\ProjectileBillboardRenderer.h">
-      <Filter>Graphics\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="Component\Projectile\ProjectileVisualComponent.h">
-      <Filter>Component\Projectile</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Renderer\SpriteRenderer.h">
       <Filter>Graphics\Renderer</Filter>
@@ -1160,19 +1069,12 @@
     <ClInclude Include="World\LevelData.h">
       <Filter>World</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\ChaseAIComponent.h">
-      <Filter>Enemy</Filter>
-    </ClInclude>
-    <ClInclude Include="Enemy\ChaseAISystem.h">
-      <Filter>Enemy</Filter>
-    </ClInclude>
     <ClInclude Include="Enemy\EnemyTags.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\SpawnDirector.h">
       <Filter>Enemy</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\ContactDamageSystem.h" />
     <ClInclude Include="Swarm\GPUReadback.h">
       <Filter>Swarm</Filter>
     </ClInclude>
@@ -1337,26 +1239,11 @@
     <FxCompile Include="Shader\PBR_VS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\SkyPS.hlsl">
-      <Filter>Graphics\Shader\HLSL</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\SkyVS.hlsl">
-      <Filter>Graphics\Shader\HLSL</Filter>
-    </FxCompile>
     <FxCompile Include="Shader\Skinning\SkinningCS.hlsl">
-      <Filter>Graphics\Shader\HLSL\Skinning</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\Skinning\SkinnedPS.hlsl">
       <Filter>Graphics\Shader\HLSL\Skinning</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Skinning\SkinnedVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Skinning</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\Projectile\ProjectileVS.hlsl">
-      <Filter>Graphics\Shader\HLSL\Projectile</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\Projectile\ProjectilePS.hlsl">
-      <Filter>Graphics\Shader\HLSL\Projectile</Filter>
     </FxCompile>
     <FxCompile Include="Shader\UI\SpritePS.hlsl">
       <Filter>Graphics\Shader\HLSL\UI</Filter>

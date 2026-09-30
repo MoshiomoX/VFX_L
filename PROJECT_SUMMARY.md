@@ -207,7 +207,7 @@ Debug 剩下的大头：影子 1.0、resolve + bloom + ImGui 0.75、ECS 模型 0
 - Paladin FBX 子网格名字错位（资产问题，用户决定不处理）。
 - `Debug/` 目录被 `.gitignore` 的 `[Dd]ebug/` 挡住，新文件要 `git add -f`；`Gizmo.cpp/h` 一直没被跟踪。
 
-**TEMP-TEST 残留**：玩家 HP 1000000、`[crowd]` / `[flow]` 日志、`Game.cpp` 的 TEMP-TEST 标记、各环境变量自测钩子（见 `CLAUDE.md` 第 5 节）。
+**TEMP-TEST 残留**：`[crowd]` / `[flow]` 日志、`Game.cpp` 的 TEMP-TEST 标记、各环境变量自测钩子（见 `CLAUDE.md` 第 5 节）。
 
 **候选（未定）**
 - （9-28 的改动已在 f830fca 提交）

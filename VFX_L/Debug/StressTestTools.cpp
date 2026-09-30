@@ -5,7 +5,6 @@
 #include "Swarm/SwarmSystem.h"
 #include "Particle/GPUParticleSystem.h"
 #include "Collider/CollisionSystem.h"
-#include "Graphics/Renderer/ProjectileBillboardRenderer.h"
 #include "Graphics/Model/Model.h"
 #include "Graphics/Mesh/Mesh.h"
 #include "Component/TransformComponent.h"
@@ -179,7 +178,7 @@ void StressTestTools::UpdateMeshEmitTest(float dt, Registry& reg, Entity player,
 // ImGui: 負荷テスト
 // ============================================================
 void StressTestTools::DrawImGui(SwarmSystem& swarm, const CollisionSystem& collision,
-    const GPUParticleSystem& particles, const ProjectileBillboardRenderer& billboards)
+    const GPUParticleSystem& particles)
 {
     if (!ImGui::CollapsingHeader("Stress Test"))
         return;
@@ -257,7 +256,6 @@ void StressTestTools::DrawImGui(SwarmSystem& swarm, const CollisionSystem& colli
             "Dropped : %zu  (some projectiles have no VFX)", m_LastDropped);
 
     ImGui::Text("Pool Size      : %u", particles.GetMaxParticles());
-    ImGui::Text("Billboards     : %u  (1 draw call)", billboards.GetLastDrawCount());
 
     // ---------- Mesh 発射の動作確認（仮設）----------
     ImGui::Separator();
