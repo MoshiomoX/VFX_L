@@ -71,6 +71,8 @@ void main(uint3 id : SV_DispatchThreadID)
                     continue;
 
                 float3 away = pos - enemies[j].position;
+                if (abs(away.y) > 1.5)
+                    continue;   // another level (plateau edge above a cliff foot crowd): not touching
                 away.y = 0.0;
                 float dSq = dot(away, away);
                 if (dSq >= minDistSq)
@@ -129,6 +131,9 @@ void main(uint3 id : SV_DispatchThreadID)
             return;   // would end up in a wall or over a cliff edge: stay put this step
     }
 
-    np.y = g_GroundY + SwarmTerrainHeight(terrainHeight, np.xz);
+    // on the ground: follow it. Falling off a plateau (MoveCS): keep the height, gravity lands it
+    float groundNow = g_GroundY + SwarmTerrainHeight(terrainHeight, pos.xz);
+    bool falling = (pos.y > groundNow + 0.25);   // = MoveCS kSnapDown
+    np.y = falling ? pos.y : g_GroundY + SwarmTerrainHeight(terrainHeight, np.xz);
     enemies[i].position = np;
 }

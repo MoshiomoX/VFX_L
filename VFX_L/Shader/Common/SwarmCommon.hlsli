@@ -667,6 +667,31 @@ bool SwarmSlopeOk(StructuredBuffer<float> heights, float2 from, float2 to)
 }
 
 // ============================================================
+// Dropping off a plateau (2026-10-01). An enemy on higher ground than
+// the player may step DOWN a cliff (it falls, MoveCS applies gravity);
+// climbing one is still refused. Only while the player stands at least
+// SWARM_DROP_MIN_BELOW lower: with the player up on the same plateau
+// the cliffs stay walls both ways. FlowField (CPU) uses the same rule,
+// so the field never routes an enemy off an edge the GPU will not let
+// it take. The crowd push (PushCS) never drops anyone.
+// ============================================================
+static const float SWARM_DROP_MIN_BELOW = 1.0;
+
+bool SwarmDropAllowed(StructuredBuffer<float> heights, float2 enemyXZ)
+{
+    return g_PlayerAlive != 0u
+        && SwarmTerrainHeight(heights, g_PlayerPos.xz) <= SwarmTerrainHeight(heights, enemyXZ) - SWARM_DROP_MIN_BELOW;
+}
+
+// SwarmSlopeOk, but a drop of any height passes when allowDrop
+bool SwarmStepHeightOk(StructuredBuffer<float> heights, float2 from, float2 to, bool allowDrop)
+{
+    float rise = SwarmTerrainHeight(heights, to) - SwarmTerrainHeight(heights, from);
+    float lim = SWARM_MAX_WALK_SLOPE * length(to - from) + 0.05;
+    return rise <= lim && (allowDrop || -rise <= lim);
+}
+
+// ============================================================
 // Body circle vs walls and cliffs (2026-10-01).
 // MoveCS / PushCS used to check the centre only, so the crowd pushed
 // enemies up to the wall face with half the body inside a plateau side
@@ -701,9 +726,17 @@ static const float SWARM_BODY_WALL_MUL = 1.15;
 // the flow field routes through those and the boss would get stuck
 static const float SWARM_BODY_WALL_MAX = 0.9;
 
-float3 SwarmBodyContact(StructuredBuffer<uint> walkable, StructuredBuffer<float> heights, float2 c, float radius)
+// countDrops = false: lower ground does not count (an enemy dropping off
+// an edge may hang its body over it), only walls and rising faces do.
+// footH: the height the rises are measured from (the enemy's feet, terrain
+// space). Default = the ground under the centre. MoveCS passes the real
+// feet: an enemy stepping off an edge has its centre over the low ground
+// already while its feet are still level with the plateau behind it,
+// which must not count as a wall (it used to stop them right at the edge)
+float3 SwarmBodyContact(StructuredBuffer<uint> walkable, StructuredBuffer<float> heights, float2 c, float radius,
+                        bool countDrops = true, float footH = -1e30)
 {
-    float hc = SwarmTerrainHeightRaw(heights, c);
+    float hc = (footH > -1e29) ? footH : SwarmTerrainHeightRaw(heights, c);
     float maxRise = SWARM_BODY_MAX_SLOPE * radius + SWARM_BODY_CLIFF_RISE;
     float3 acc = float3(0, 0, 0);
     [unroll]
@@ -712,8 +745,9 @@ float3 SwarmBodyContact(StructuredBuffer<uint> walkable, StructuredBuffer<float>
         float a = (float) k * 0.7853982;
         float2 d = float2(cos(a), sin(a));
         float2 q = c + d * radius;
+        float rise = SwarmTerrainHeightRaw(heights, q) - hc;
         if (!SwarmIsWalkable(walkable, float3(q.x, 0.0, q.y))
-            || abs(SwarmTerrainHeightRaw(heights, q) - hc) > maxRise)
+            || rise > maxRise || (countDrops && -rise > maxRise))
             acc += float3(d, 1.0);
     }
     return acc;

@@ -72,7 +72,8 @@ void main(uint3 id : SV_DispatchThreadID)
     bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
     if (enemies[i].animIndex == 2u || lit)
     {
-        enemies[i].velocity = float3(0, 0, 0);
+        // y is the fall speed (MoveCS owns it): a stunned enemy in mid-air keeps falling
+        enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
         return;
     }
 
@@ -130,6 +131,10 @@ void main(uint3 id : SV_DispatchThreadID)
                     continue;
 
                 float3 away = pos - enemies[j].position;
+                // another level (on a plateau above / below, or falling past): not touching.
+                // The crowd at a cliff foot used to hold the ones on the edge above back
+                if (abs(away.y) > 1.5)
+                    continue;
                 away.y = 0.0;
                 float dSq = dot(away, away);
                 if (dSq > sepRadSq || dSq < 1e-6)
@@ -180,7 +185,9 @@ void main(uint3 id : SV_DispatchThreadID)
     // contact radius, keep the tangential part so the crowd slides
     // around and rings the player instead of piling onto them.
     // An enemy already overlapping is pushed out gently.
-    if (g_PlayerAlive != 0u)
+    // Only on the player's level: an enemy on a plateau edge right above the
+    // player is not touching it and has to step off and drop (2026-10-01)
+    if (g_PlayerAlive != 0u && abs(g_PlayerPos.y - pos.y) < 1.5)
     {
         float3 toP = g_PlayerPos - pos;
         toP.y = 0.0;
@@ -219,18 +226,21 @@ void main(uint3 id : SV_DispatchThreadID)
     // the enemy slides along the plateau side and the flow field leads it to
     // a ramp. The diagonal is checked too (both axes free but the corner
     // cell blocked used to let enemies cut through the corner).
-    // An enemy already inside a blocked cell skips this: MoveCS walks it out
+    // An enemy already inside a blocked cell skips this: MoveCS walks it out.
+    // With the player lower down (SwarmDropAllowed) a cliff going DOWN is no
+    // wall: the enemy walks off the edge and falls (2026-10-01)
     if (!ghost && SwarmIsWalkable(terrain, pos))
     {
         float r = SwarmBodyWallRadius(extra.kind);   // same body radius as MoveCS / PushCS
+        bool allowDrop = SwarmDropAllowed(terrainHeight, pos.xz);
         float ax = (v.x != 0.0) ? v.x * g_LookAhead + sign(v.x) * r : 0.0;
         float az = (v.z != 0.0) ? v.z * g_LookAhead + sign(v.z) * r : 0.0;
 
         if (ax != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(ax, 0, 0))
-                          || !SwarmSlopeOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0))))
+                          || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0), allowDrop)))
             v.x = 0.0;
         if (az != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(0, 0, az))
-                          || !SwarmSlopeOk(terrainHeight, pos.xz, pos.xz + float2(0, az))))
+                          || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(0, az), allowDrop)))
             v.z = 0.0;
         if (v.x != 0.0 && v.z != 0.0 && !SwarmIsWalkable(terrain, pos + float3(ax, 0, az)))
         {
@@ -238,6 +248,6 @@ void main(uint3 id : SV_DispatchThreadID)
             if (abs(v.x) > abs(v.z)) v.z = 0.0; else v.x = 0.0;
         }
     }
-    v.y = 0.0;
+    v.y = oldV.y;   // the fall speed is MoveCS's (gravity), the AI only steers xz
     enemies[i].velocity = v;
 }

@@ -44,12 +44,25 @@ void FlowField::Build(int targetX, int targetZ)
     const uint8_t* walk = m_Walkable.data();
     const float* hgt = m_Height.data();
     auto walkable = [&](int x, int z) { return x >= 0 && x < W && z >= 0 && z < D && walk[z * W + x] != 0; };
-    // 隣り合う 2 マスを行き来できるか（両方歩けて、段差が崖ほどでない）
+    // 雑魚が b から a（目標に近い方）へ進めるか: b が歩けて、上りが崖ほどでない。
+    // 下りの崖（飛び降り）は b が目標より dropMinBelow 以上高い時だけ（isDrop で返す）
     const float stepMax = maxStep, stepMaxDiag = maxStep * 1.41421356f;
+    float targetH = 0.0f;   // 目標マスの高さ（下で決まる）
+    auto passableEx = [&](int ax, int az, int bx, int bz, bool diag, bool& isDrop)
+        {
+            isDrop = false;
+            if (!walkable(bx, bz)) return false;
+            const float ha = hgt[az * W + ax], hb = hgt[bz * W + bx];
+            const float lim = diag ? stepMaxDiag : stepMax;
+            if (ha - hb > lim) return false;            // 上りの崖
+            if (hb - ha <= lim) return true;            // 坂・平地
+            isDrop = allowDrops && (hb - targetH >= dropMinBelow);   // 下りの崖
+            return isDrop;
+        };
     auto passable = [&](int ax, int az, int bx, int bz, bool diag)
         {
-            if (!walkable(bx, bz)) return false;
-            return std::fabs(hgt[bz * W + bx] - hgt[az * W + ax]) <= (diag ? stepMaxDiag : stepMax);
+            bool drop;
+            return passableEx(ax, az, bx, bz, diag, drop);
         };
 
     targetX = std::clamp(targetX, 0, W - 1);
@@ -70,6 +83,7 @@ void FlowField::Build(int targetX, int targetZ)
     }
     m_TargetX = targetX;
     m_TargetZ = targetZ;
+    targetH = hgt[targetZ * W + targetX];
 
     // ---- 作業領域（生の配列。Debug の反復子検査を避ける）----
     static std::vector<int> cost;          // 整数コスト
@@ -105,13 +119,15 @@ void FlowField::Build(int targetX, int targetZ)
             for (int k = 0; k < 8; ++k)
             {
                 const int nx = cx + dxs[k], nz = cz + dzs[k];
-                if (!passable(cx, cz, nx, nz, k >= 4)) continue;
-                // 斜めは両隣へも行ける時だけ（角を掠めて壁・崖に食い込まない）
-                if (k >= 4 && (!passable(cx, cz, cx + dxs[k], cz, false)
+                bool drop = false;
+                if (!passableEx(cx, cz, nx, nz, k >= 4, drop)) continue;
+                // 斜めは両隣へも行ける時だけ（角を掠めて壁・崖に食い込まない）。飛び降りは真っ直ぐだけ
+                if (k >= 4 && (drop || !passable(cx, cz, cx + dxs[k], cz, false)
                             || !passable(cx, cz, cx, cz + dzs[k], false))) continue;
 
                 const int nc = nz * W + nx;
-                const int dh = (int)std::lround(std::fabs(hgt[nc] - hgt[c]) * (float)slopeUnit);
+                const int dh = drop ? dropCost
+                    : (int)std::lround(std::fabs(hgt[nc] - hgt[c]) * (float)slopeUnit);
                 int edge = stepCost[k] + dh;
                 if (edge >= kBuckets) edge = kBuckets - 1;   // 桶の周期を超えない（極端な段差）
                 const int nCost = cur + edge;
