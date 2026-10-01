@@ -20,6 +20,9 @@
 // during the fuse dies in HitCS / AreaDamageCS first (normal kill + orb)
 // and never reaches this pass lit.
 //
+// Every hit also records where it came from in playerHits (u6) so the
+// CPU can knock the player back (melee a little, blasts ~3x + a hop).
+//
 // Only writer of Enemy.attackCooldown and SwarmEnemyExtra.fuse.
 // ============================================================
 #define SWARM_AREA_POOL_U u4
@@ -32,6 +35,24 @@ RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
 RWBuffer<uint> enemyStates : register(u2);
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
+// direction of the hits the player took, for the CPU knockback (2026-10-01).
+// Swarm::PlayerHitInfo: melee x, z, count, blast x, z, count (+ 2 pad).
+// x / z = sum of unit vectors (enemy or blast centre -> player) * HIT_DIR_SCALE.
+// Never cleared: the CPU diffs it like the counters
+RWByteAddressBuffer playerHits : register(u6);
+static const float HIT_DIR_SCALE = 1000.0; // = Swarm::kHitDirScale
+
+// add one hit coming from `from` to the record at byte offset `base`
+void RecordHit(uint base, float3 from)
+{
+    float2 d = g_PlayerPos.xz - from.xz;
+    float len = length(d);
+    d = (len > 1e-4) ? d / len : float2(0.0, 0.0);
+    uint prev;
+    playerHits.InterlockedAdd(base + 0u, asuint((int) round(d.x * HIT_DIR_SCALE)), prev);
+    playerHits.InterlockedAdd(base + 4u, asuint((int) round(d.y * HIT_DIR_SCALE)), prev);
+    playerHits.InterlockedAdd(base + 8u, 1u, prev);
+}
 
 // The AI pass stops an enemy just OUTSIDE (enemyRadius + playerRadius),
 // so an exact-radius test never fires while the player stands still.
@@ -84,6 +105,7 @@ void UpdateBomber(uint i, SwarmEnemyExtra extra)
         uint prev;
         counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE,
                                 SwarmHpToFixed(g_BomberBlastDamage), prev);
+        RecordHit(12u, pos);   // blast: from the bomber
     }
     enemyStates[i] = SWARM_DEAD;
     enemyExtra[i].fuse = 0.0;
@@ -121,6 +143,7 @@ void main(uint3 id : SV_DispatchThreadID)
             uint prev;
             counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE,
                                     SwarmHpToFixed(dmg), prev);
+            RecordHit(0u, enemies[i].position);   // melee: from this enemy
             cd = g_AttackInterval;
         }
     }

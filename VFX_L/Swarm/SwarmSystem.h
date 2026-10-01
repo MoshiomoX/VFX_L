@@ -215,6 +215,10 @@ public:
     Swarm::BomberCB& GetBomberParams() { return m_CachedBomberCB; }
     // 玩家が受けた累計ダメージを取り出して 0 に戻す
     float ConsumePlayerDamage();
+    // 玩家が受けた打撃（ノックバック用）を取り出して 0 に戻す。
+    // dir = 「敵 / 爆心 → 玩家」の単位ベクトルの和（XZ）、count = 回数。回読なので 2〜3 フレーム古い
+    struct PlayerHits { DirectX::SimpleMath::Vector2 meleeDir, blastDir; uint32_t melee = 0, blasts = 0; };
+    PlayerHits ConsumePlayerHits();
     // 磁石: seconds の間、場の経験値オーブを全部吸い寄せ始める（OrbCB の吸い寄せ半径を場全体にする）
     void MagnetAllOrbs(float seconds = 0.3f) { m_MagnetTimer = (std::max)(m_MagnetTimer, seconds); }
     // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（Map で止まる。自測の検証だけ。毎フレーム呼ばない）
@@ -522,6 +526,16 @@ private:
     Swarm::BossInfo m_BossInfo;
     float m_MagnetTimer = 0.0f;   // MagnetAllOrbs の残り秒（> 0 の間 OrbMoveCS の吸い寄せ半径を場全体に）
     void ReadBossInfo();   // 一番古い staging を読めたら m_BossInfo を更新（Flush の頭）
+
+    // --- 玩家が受けた打撃の向き（ContactCS u6 が永久に累加する 32B → staging 3 枚、CPU は差分）---
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_PlayerHitBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_PlayerHitUAV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_PlayerHitStaging[kBossStaging];
+    bool m_PlayerHitStagingFilled[kBossStaging] = {};
+    int  m_PlayerHitStagingWrite = 0;
+    Swarm::PlayerHitInfo m_LastPlayerHits;   // 前回読んだ累計（差分の基準。counters と同じく戻さない）
+    PlayerHits m_PendingPlayerHits;          // 読んだ差分の未消費ぶん
+    void ReadPlayerHits();
 
     // --- 雑魚の部品アニメ（部品を節点で動かすモデルだけ。Kenney Blocky）---
     // 表: [クリップ][フレーム][部品] の行列。行列は「焼いた姿勢の部品 → そのフレームの部品」の差分

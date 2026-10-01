@@ -497,6 +497,27 @@ void CollisionTestScene::DrawPlayerPanel()
             ImGui::DragFloat("Face turn rate (deg/s)", &stats.faceTurnRate, 5.0f, 30.0f, 3000.0f);
             ImGui::TreePop();
         }
+
+        // ---- 被弾のノックバック（距離は身位 = 体の幅単位）----
+        if (ImGui::TreeNode("Knockback"))
+        {
+            const float body = stats.radius * 2.0f;
+            ImGui::Text("body width %.2f m", body);
+            ImGui::DragFloat("Melee (bodies)", &stats.knockMeleeBodies, 0.01f, 0.0f, 3.0f);
+            ImGui::SameLine(); ImGui::TextDisabled("= %.2f m", stats.knockMeleeBodies * body);
+            ImGui::DragFloat("Melee time (s)", &stats.knockMeleeTime, 0.005f, 0.02f, 1.0f);
+            ImGui::DragFloat("Blast (bodies)", &stats.knockBlastBodies, 0.01f, 0.0f, 5.0f);
+            ImGui::SameLine(); ImGui::TextDisabled("= %.2f m", stats.knockBlastBodies * body);
+            ImGui::DragFloat("Blast time (s)", &stats.knockBlastTime, 0.005f, 0.02f, 1.0f);
+            ImGui::DragFloat("Blast lift (m/s)", &stats.knockBlastLift, 0.1f, 0.0f, 15.0f);
+            // 体の前から打たれた事にして後ろへ下げる（被弾はしない）
+            const float yaw = DirectX::XMConvertToRadians(m_Registry.Get<TransformComponent>(m_Player).rotation.y);
+            const Vector2 back(-std::sin(yaw), -std::cos(yaw));
+            if (ImGui::Button("Test melee")) PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, back, false);
+            ImGui::SameLine();
+            if (ImGui::Button("Test blast")) PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, back, true);
+            ImGui::TreePop();
+        }
     }
 
     // 重力はプレイヤーの能力ではなく環境の値なのでシーンが持つ
@@ -978,6 +999,7 @@ void CollisionTestScene::UpdateAutoTest(float dt)
     if (m_AutoStuck) { UpdateAutoTestStuck(); return; }
     if (m_AutoGhost) { UpdateAutoTestGhost(); return; }
     if (m_AutoClip) { UpdateAutoTestClip(); return; }
+    if (m_AutoKnock) { UpdateAutoTestKnock(); return; }
 
     if (m_AutoStep == 0 && m_AutoTime >= 5.0f && m_Registry.Has<LevelComponent>(m_Player))
     {
@@ -3139,6 +3161,82 @@ void CollisionTestScene::UpdateAutoTestClip()
     else if (s_Phase == 1 && t0 >= 6.6f) { cam.SetPitch(65.0f); cam.distance = sc.elite ? 16.0f : 11.0f; s_Phase = 2; }
     else if (s_Phase == 2 && t0 >= 8.0f) { snprintf(line, sizeof(line), "clip look %s top", sc.name); AutoTestLog(line); s_Phase = 3; }
     else if (s_Phase == 3 && t0 >= 8.6f) s_Phase = 9;
+}
+
+// ============================================================
+// TEMP-TEST: 被弾のノックバック（VFXL_BATTLE_AUTOTEST=knock、2026-10-01）
+// 1 秒: 湧き停止・全消し・無敵・施法停止、入力は 0（testInput）。玩家の前 3m に雑魚 1 体（殴られる）。
+// 6 秒: 全消しして前 2m に自爆兵 1 体（触れて点火 → 爆発）。
+// ノックバックが入る度（knockTime が増えた時）に位置を覚え、knockDuration + 0.15 秒後に
+// `knock <melee|blast> dist <水平に動いた m> lift <最高点 - 開始の高さ> dir (x,z)` を記録。12 秒 done
+// ============================================================
+void CollisionTestScene::UpdateAutoTestKnock()
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+    if (m_Registry.Has<WandComponent>(m_Player))
+        m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
+    m_PlayerControlSystem.testInput = true;
+    m_PlayerControlSystem.testMove = Vector2::Zero;
+
+    static Vector3 s_Start;
+    static float s_Watch = -1.0f, s_PeakY = 0.0f, s_LastKnock = 0.0f;
+    static bool s_Blast = false;
+    const auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+    const auto& st = m_Registry.Get<PlayerStateComponent>(m_Player);
+    const auto& stats = m_Registry.Get<PlayerStatsComponent>(m_Player);
+    const float gy = m_Swarm.GetAIParams().groundY;
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        m_Swarm.SpawnEnemy(Vector3(tf.position.x, gy, tf.position.z + 3.0f), 100000.0f, 3.5f);
+        char line[128];
+        snprintf(line, sizeof(line), "knock start body %.2f m  melee %.2f bodies  blast %.2f bodies lift %.1f",
+            stats.radius * 2.0f, stats.knockMeleeBodies, stats.knockBlastBodies, stats.knockBlastLift);
+        AutoTestLog(line);
+        m_AutoStep = 1;
+    }
+    else if (m_AutoStep == 1 && m_AutoTime >= 6.0f)
+    {
+        m_Swarm.KillAll();
+        m_Swarm.SpawnEnemy(Vector3(tf.position.x, gy, tf.position.z + 2.0f), 100000.0f, 3.5f, Swarm::kEnemyKindBomber);
+        AutoTestLog("knock bomber");
+        m_AutoStep = 2;
+    }
+    else if (m_AutoStep == 2 && m_AutoTime >= 12.0f)
+    {
+        m_PlayerControlSystem.testInput = false;
+        AutoTestLog("knock done");
+        m_AutoStep = 3;
+    }
+
+    // ノックバックが入った（残り時間が増えた）→ 測り始める
+    if (st.knockTime > s_LastKnock + 1e-4f && st.knockTime >= st.knockDuration - 1e-4f)
+    {
+        s_Start = tf.position;
+        s_PeakY = tf.position.y;
+        s_Blast = std::fabs(st.knockDuration - stats.knockBlastTime) < 1e-4f;
+        s_Watch = m_AutoTime + st.knockDuration + 0.15f;
+    }
+    s_LastKnock = st.knockTime;
+    if (s_Watch > 0.0f)
+    {
+        s_PeakY = (std::max)(s_PeakY, tf.position.y);
+        if (m_AutoTime >= s_Watch)
+        {
+            const Vector3 d = tf.position - s_Start;
+            char line[160];
+            snprintf(line, sizeof(line), "knock %s dist %.3f lift %.3f dir (%.2f,%.2f) hp %.0f",
+                s_Blast ? "blast" : "melee", std::sqrt(d.x * d.x + d.z * d.z), s_PeakY - s_Start.y,
+                st.knockX, st.knockZ, m_Registry.Get<HealthComponent>(m_Player).current);
+            AutoTestLog(line);
+            s_Watch = -1.0f;
+        }
+    }
 }
 
 // ============================================================

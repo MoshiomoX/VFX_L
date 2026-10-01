@@ -44,6 +44,41 @@ namespace
     }
 }
 
+void PlayerControlSystem::ApplyKnockback(Registry& reg, unsigned int entity, Vector2 dir, bool blast)
+{
+    const Entity e = (Entity)entity;
+    if (!reg.IsValid(e) || !reg.Has<PlayerStateComponent>(e) || !reg.Has<PlayerStatsComponent>(e)) return;
+    auto& st = reg.Get<PlayerStateComponent>(e);
+    const auto& stats = reg.Get<PlayerStatsComponent>(e);
+    if (st.IsDead() || dir.LengthSquared() < 1e-6f) return;
+    dir.Normalize();
+
+    // 止まっている時に dist だけ下がる初速（直線的に 0 へ減るので 平均 = 初速 / 2）
+    const float bodies = blast ? stats.knockBlastBodies : stats.knockMeleeBodies;
+    const float duration = (std::max)(0.01f, blast ? stats.knockBlastTime : stats.knockMeleeTime);
+    const float dist = bodies * stats.radius * 2.0f;
+    const float v0 = 2.0f * dist / duration;
+
+    // 爆発が近接より強い。弱い方が強い方を上書きしない（爆発の直後に殴られても飛ばされ続ける）
+    const float remaining = (st.knockDuration > 0.0f)
+        ? std::sqrt(st.knockX * st.knockX + st.knockZ * st.knockZ) * st.knockTime / st.knockDuration : 0.0f;
+    if (remaining > v0) return;
+
+    st.knockX = dir.x * v0;
+    st.knockZ = dir.y * v0;
+    st.knockTime = st.knockDuration = duration;
+
+    if (blast && reg.Has<RigidbodyComponent>(e))
+    {
+        auto& rb = reg.Get<RigidbodyComponent>(e);
+        if (rb.velocity.y < stats.knockBlastLift)
+        {
+            rb.velocity.y = stats.knockBlastLift;
+            rb.isGrounded = false;
+        }
+    }
+}
+
 void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
 {
     const bool blocked = !testInput &&
@@ -78,7 +113,9 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
             PlayerStatsComponent& stats, PlayerStateComponent& st, PlayerTag&)
             {
                 // 能力値は Entity が持つ。System は値を持たない
-                Vector3 hv(rb.velocity.x, 0.0f, rb.velocity.z);
+                // 前フレームに足したノックバックは引いて戻す（滑り・勢いの持ち越しに混ざらないように）
+                Vector3 hv(rb.velocity.x - st.knockAppliedX, 0.0f, rb.velocity.z - st.knockAppliedZ);
+                st.knockAppliedX = st.knockAppliedZ = 0.0f;
                 const bool grounded = rb.isGrounded;
                 const bool canMove = !st.IsSuppressed(Mask_Move);
                 if (st.slideBoostTimer > 0.0f) st.slideBoostTimer -= dt;
@@ -148,8 +185,21 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
                     }
                 }
 
-                rb.velocity.x = hv.x;
-                rb.velocity.z = hv.z;
+                // ---- ノックバック: 初速から直線的に 0 へ。普段の走りの間は入力の効きを 0 → 1 へ戻す ----
+                // （敵へ向かって走っていても下がる。滑り・勢いの持ち越しはそのまま、上に足すだけ）
+                Vector3 knock = Vector3::Zero;
+                if (st.knockTime > 0.0f && st.knockDuration > 0.0f)
+                {
+                    const float f = st.knockTime / st.knockDuration;   // 1 → 0
+                    knock = Vector3(st.knockX, 0.0f, st.knockZ) * f;
+                    if (!st.slideActive && !st.carryMomentum) hv *= (1.0f - f);
+                    st.knockTime = (std::max)(0.0f, st.knockTime - dt);
+                }
+                st.knockAppliedX = knock.x;
+                st.knockAppliedZ = knock.z;
+
+                rb.velocity.x = hv.x + knock.x;
+                rb.velocity.z = hv.z + knock.z;
 
                 // 向き: カメラの前から見て 前 / 右 / 後 / 左 のどちらへ進んでいるかを出し、体をその方向へ振り向かせる
                 // （後ろへ走ればカメラの方を向いて走る）。止まっている間は最後の向きのまま。
