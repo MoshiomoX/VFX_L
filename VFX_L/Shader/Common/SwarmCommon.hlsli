@@ -666,4 +666,75 @@ bool SwarmSlopeOk(StructuredBuffer<float> heights, float2 from, float2 to)
     return rise <= SWARM_MAX_WALK_SLOPE * run + 0.05; // + slack for the bilinear kinks
 }
 
+// ============================================================
+// Body circle vs walls and cliffs (2026-10-01).
+// MoveCS / PushCS used to check the centre only, so the crowd pushed
+// enemies up to the wall face with half the body inside a plateau side
+// (self test "clip": 0.37m of a 0.4m radius, elites 0.73m of 0.88m).
+// The body is sampled at 8 points on a circle; a point counts as
+// touching when its cell is blocked, or the ground there is a cliff
+// (higher / lower than the centre by more than a walkable slope plus
+// SWARM_BODY_CLIFF_RISE). The heights are the raw 0.5m height cells,
+// not the bilinear sample: plateau sides sit on cell edges, so the step
+// is exactly at the face (the bilinear one starts rising 0.25m before
+// it). The margin covers the stair steps of a ramp (~0.27m per cell).
+// Returns xy = sum of the directions of the touching points (the push
+// out goes the other way), z = how many touch.
+// ============================================================
+static const float SWARM_BODY_CLIFF_RISE = 0.35;
+// slope allowed across the body: the steepest ramp is ~30 deg, so this
+// can be tighter than SWARM_MAX_WALK_SLOPE (40 deg) and still catch a
+// ~1m ledge under an elite's 0.9m radius
+static const float SWARM_BODY_MAX_SLOPE = 0.62; // tan(32 deg)
+
+// height of the 0.5m height cell that contains xz (no blending)
+float SwarmTerrainHeightRaw(StructuredBuffer<float> heights, float2 xz)
+{
+    float s = g_CellSize / (float) SWARM_HEIGHT_SUB;
+    return SwarmHeightCell(heights, (int) floor((xz.x - g_GridOrigin.x) / s),
+                                    (int) floor((xz.y - g_GridOrigin.z) / s));
+}
+// rest radius against walls in units of the collision radius: the mesh
+// is wider than the capsule (~0.9m vs 0.8m), same reason as PushCS
+static const float SWARM_BODY_WALL_MUL = 1.15;
+// cap so the big kinds still fit a 1-cell (2m) gap between walls:
+// the flow field routes through those and the boss would get stuck
+static const float SWARM_BODY_WALL_MAX = 0.9;
+
+float3 SwarmBodyContact(StructuredBuffer<uint> walkable, StructuredBuffer<float> heights, float2 c, float radius)
+{
+    float hc = SwarmTerrainHeightRaw(heights, c);
+    float maxRise = SWARM_BODY_MAX_SLOPE * radius + SWARM_BODY_CLIFF_RISE;
+    float3 acc = float3(0, 0, 0);
+    [unroll]
+    for (int k = 0; k < 8; ++k)
+    {
+        float a = (float) k * 0.7853982;
+        float2 d = float2(cos(a), sin(a));
+        float2 q = c + d * radius;
+        if (!SwarmIsWalkable(walkable, float3(q.x, 0.0, q.y))
+            || abs(SwarmTerrainHeightRaw(heights, q) - hc) > maxRise)
+            acc += float3(d, 1.0);
+    }
+    return acc;
+}
+
+// SwarmSlopeOk on the raw height cells. Used for the step that eases a
+// body out of a cliff face: within 0.25m of the face the bilinear height
+// already climbs the cliff, so stepping away from it looks like a steep
+// drop to SwarmSlopeOk and an enemy spawned there could never leave
+bool SwarmRawSlopeOk(StructuredBuffer<float> heights, float2 from, float2 to)
+{
+    float rise = abs(SwarmTerrainHeightRaw(heights, to) - SwarmTerrainHeightRaw(heights, from));
+    return rise <= SWARM_MAX_WALK_SLOPE * length(to - from) + SWARM_BODY_CLIFF_RISE;
+}
+
+#ifdef SWARM_BOMBER_CB_REG
+// the body radius used against walls (bigger kinds = bigger, capped)
+float SwarmBodyWallRadius(uint kind)
+{
+    return min(g_EnemyRadius * SwarmKindScale(kind) * SWARM_BODY_WALL_MUL, SWARM_BODY_WALL_MAX);
+}
+#endif
+
 #endif

@@ -12,6 +12,7 @@
 //
 // Also counts alive enemies for the readback.
 // ============================================================
+#define SWARM_BOMBER_CB_REG b3   // kind body scale (elites / boss keep a bigger gap to walls)
 #include "../Common/SwarmCommon.hlsli"
 
 Buffer<uint> enemyStates : register(t0);
@@ -20,6 +21,23 @@ StructuredBuffer<uint> terrain : register(t2); // walkable grid (for the slide /
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3); // kind: ghosts skip the walls
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
+
+// m/s a body that touches a wall / cliff face is eased back out
+static const float kWallPushOut = 2.0;
+
+// one step from -> to: the centre lands on a walkable cell without a
+// cliff on the way, and (bodyCheck) the body circle there touches nothing.
+// easing out of a face (!bodyCheck) the cliff test uses the raw heights
+// (SwarmRawSlopeOk: the bilinear one would not let it step away)
+bool StepOk(float2 from, float2 to, float radius, bool bodyCheck)
+{
+    bool ok = SwarmIsWalkable(terrain, float3(to.x, 0.0, to.y));
+    if (ok)
+        ok = bodyCheck ? SwarmSlopeOk(terrainHeight, from, to) : SwarmRawSlopeOk(terrainHeight, from, to);
+    if (ok && bodyCheck)
+        ok = (SwarmBodyContact(terrain, terrainHeight, to, radius).z == 0.0);
+    return ok;
+}
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -92,19 +110,36 @@ void main(uint3 id : SV_DispatchThreadID)
         }
         else
         {
-            float2 next = from + e.velocity.xz * g_Step;
-            float3 n3 = float3(next.x, 0.0, next.y);
-            if (SwarmIsWalkable(terrain, n3) && SwarmSlopeOk(terrainHeight, from, next))
-                e.position.xz = next;
-            else
+            // The body circle has to stay clear of walls and cliff faces too, not
+            // just the centre (2026-10-01, see SwarmBodyContact). A body that
+            // already touches one (pushed in by the crowd, spawned there) eases
+            // out at kWallPushOut while keeping the part of its velocity that
+            // runs along the wall. When the touches cancel out (squeezed from
+            // both sides) only the centre is checked, as before.
+            float radius = SwarmBodyWallRadius(enemyExtra[i].kind);
+            float3 touch = SwarmBodyContact(terrain, terrainHeight, from, radius);
+            bool easeOut = (touch.z > 0.0 && dot(touch.xy, touch.xy) > 0.01);
+            bool bodyCheck = (touch.z == 0.0);
+
+            float2 v = e.velocity.xz;
+            if (easeOut)
             {
-                float2 nx = float2(next.x, from.y);
-                float2 nz = float2(from.x, next.y);
-                if (SwarmIsWalkable(terrain, float3(nx.x, 0.0, nx.y)) && SwarmSlopeOk(terrainHeight, from, nx))
-                    e.position.xz = nx;
-                else if (SwarmIsWalkable(terrain, float3(nz.x, 0.0, nz.y)) && SwarmSlopeOk(terrainHeight, from, nz))
-                    e.position.xz = nz;
+                float2 outDir = -normalize(touch.xy);
+                float into = -dot(v, outDir);   // > 0 = toward the wall
+                if (into > 0.0)
+                    v += outDir * into;
+                v += outDir * kWallPushOut;
             }
+
+            float2 next = from + v * g_Step;
+            float2 nx = float2(next.x, from.y);
+            float2 nz = float2(from.x, next.y);
+            if (StepOk(from, next, radius, bodyCheck))
+                e.position.xz = next;
+            else if (StepOk(from, nx, radius, bodyCheck))
+                e.position.xz = nx;
+            else if (StepOk(from, nz, radius, bodyCheck))
+                e.position.xz = nz;
         }
         e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
 

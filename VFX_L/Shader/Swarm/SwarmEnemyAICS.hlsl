@@ -222,7 +222,7 @@ void main(uint3 id : SV_DispatchThreadID)
     // An enemy already inside a blocked cell skips this: MoveCS walks it out
     if (!ghost && SwarmIsWalkable(terrain, pos))
     {
-        float r = g_EnemyRadius * SwarmKindScale(extra.kind);
+        float r = SwarmBodyWallRadius(extra.kind);   // same body radius as MoveCS / PushCS
         float ax = (v.x != 0.0) ? v.x * g_LookAhead + sign(v.x) * r : 0.0;
         float az = (v.z != 0.0) ? v.z * g_LookAhead + sign(v.z) * r : 0.0;
 
