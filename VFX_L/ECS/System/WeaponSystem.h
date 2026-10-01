@@ -44,6 +44,15 @@ public:
     uint32_t GetTriggerEventsSeen() const { return m_TriggerEventsSeen; }
     uint32_t GetTriggeredCasts() const { return m_TriggeredCasts; }
     int GetActiveBeamCount() const { return (int)m_Beams.size(); }
+    // 光線が標的へ向きを回す速さ（度/秒。2026-10-01 用户指定 90）
+    float beamTurnRate = 90.0f;
+    // 自測用: i 本目の光線の向き・標的が読めているか・標的の位置。無ければ false
+    bool GetBeamDebug(int i, DirectX::SimpleMath::Vector3& dir, bool& hasTarget, DirectX::SimpleMath::Vector3& target) const
+    {
+        if (i < 0 || i >= (int)m_Beams.size()) return false;
+        dir = m_Beams[i].dir; hasTarget = m_Beams[i].hasTarget; target = m_Beams[i].targetPos;
+        return true;
+    }
 
 private:
     // View 走査中に GPU へ積めないので、発射要求を溜めてから積む
@@ -87,8 +96,16 @@ private:
         uint32_t flags = 0;          // kAreaCapsule | channel | (stun)
         bool spawned = false;        // GPU の範囲を出したか（溜めが終わった時に 1 回）
         uint32_t vfxHandle = 0;      // AreaVFXPlayer の実例
+        // 標的（2026-10-01）: 始めに seek（弾が消えた所）に一番近い敵を GPU で捕まえ、その敵へ向きを回す。
+        // 死んだら射程内で向きに一番近い敵へ乗り換える（SwarmBeamTargetCS）。回し方は beamTurnRate 度/秒
+        DirectX::SimpleMath::Vector3 seek = { 0, 0, 0 };
+        uint32_t serial = 0;         // SwarmSystem::SetBeamTarget の通し番号
+        bool targetStarted = false;  // 開始の依頼を出した（以後は追跡）
+        bool hasTarget = false;      // 最後のフレームで標的が読めた（自測の記録用）
+        DirectX::SimpleMath::Vector3 targetPos = { 0, 0, 0 };
     };
     std::vector<ActiveBeam> m_Beams;
+    uint32_t m_BeamSerial = 0;
     // 誘発で光線を始める（チャンネルが空いていなければ false = 撃たない）
     bool StartBeam(const AreaStats& a, const DirectX::SimpleMath::Vector3& muzzle,
         const DirectX::SimpleMath::Vector3& impact);

@@ -174,6 +174,9 @@ private:
     // VFXL_BATTLE_AUTOTEST=drop：台地の上の雑魚が崖下の玩家へ縁から飛び降りるか（A）、玩家も上に居る時は落ちないか（B）
     bool     m_AutoDrop = false;
     void     UpdateAutoTestDrop();
+    // VFXL_BATTLE_AUTOTEST=beamtrack：魔導光線の標的が死んだら、向きに近い次の敵へ一定の速さで回るか
+    bool     m_AutoBeamTrack = false;
+    void     UpdateAutoTestBeamTrack();
     // VFXL_BATTLE_AUTOTEST=ghost：最終波の幽霊を 20 体出して、数・壁抜け・近づく速さを記録し撮る
     bool     m_AutoGhost = false;
     void     UpdateAutoTestGhost();

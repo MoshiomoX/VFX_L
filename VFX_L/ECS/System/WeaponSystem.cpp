@@ -21,6 +21,23 @@
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Matrix;
 
+namespace
+{
+    // 単位ベクトル from を to へ最大 maxRad だけ回す（光線が標的へ向きを変える。瞬間には向けない）
+    Vector3 RotateToward(const Vector3& from, const Vector3& to, float maxRad)
+    {
+        const float c = (std::max)(-1.0f, (std::min)(1.0f, from.Dot(to)));
+        const float angle = std::acos(c);
+        if (angle <= maxRad || angle < 1e-5f) return to;
+        Vector3 axis = from.Cross(to);
+        if (axis.LengthSquared() < 1e-10f) axis = Vector3::Up;   // 真後ろ: 水平に回す
+        axis.Normalize();
+        Vector3 r = Vector3::Transform(from, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, maxRad));
+        r.Normalize();
+        return r;
+    }
+}
+
 // ============================================================
 // 1回の施法ぶんの発射要求を積む（分裂の扇状展開はここ）
 // ============================================================
@@ -395,6 +412,8 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     b.dir = impact - muzzle;
     if (b.dir.LengthSquared() < 1e-6f) b.dir = Vector3(0, 0, 1);
     b.dir.Normalize();
+    b.seek = impact;               // GPU がここに一番近い敵を最初の標的にする
+    b.serial = ++m_BeamSerial;
 
     // 溜め・射程・厚み・硬直はプロファイルから。半径・持続・tick・威力は集約済みの値（修飾符込み）
     const AreaProfile& ap = AreaProfileDB::At(a.profile);
@@ -428,6 +447,25 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
 {
     for (auto& b : m_Beams)
     {
+        // 標的へ向きを回す（瞬間には向けない。beamTurnRate 度/秒まで）。
+        // 標的は GPU の回読（2〜3 フレーム古い）。読めない間（始めの数フレーム・射程内に敵が居ない）は今の向きのまま
+        Vector3 tp;
+        b.hasTarget = m_Swarm && m_Swarm->GetBeamTarget(b.channel, b.serial, tp);
+        if (b.hasTarget)
+        {
+            b.targetPos = tp;
+            Vector3 want = tp - muzzle;
+            if (want.LengthSquared() > 1e-4f)
+            {
+                want.Normalize();
+                b.dir = RotateToward(b.dir, want, DirectX::XMConvertToRadians(beamTurnRate) * dt);
+            }
+        }
+        if (m_Swarm)
+            m_Swarm->SetBeamTarget(b.channel, b.targetStarted ? Swarm::kBeamTargetTrack : Swarm::kBeamTargetStart,
+                muzzle, b.dir, b.length, b.seek, b.serial);
+        b.targetStarted = true;
+
         // 終点：射程の先。地形に当たればそこまで
         const Vector3 start = muzzle;
         Vector3 end = start + b.dir * b.length;
@@ -468,6 +506,10 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
         if (m_AreaVFX) m_AreaVFX->SetInstance(b.vfxHandle, start, end);
     }
 
+    // 終わった光線のチャンネルは標的探しも止める
+    for (const auto& b : m_Beams)
+        if (b.charge <= 0.0f && b.timeLeft <= 0.0f && m_Swarm)
+            m_Swarm->SetBeamTarget(b.channel, Swarm::kBeamTargetIdle, Vector3::Zero, Vector3::Zero, 0.0f, Vector3::Zero, 0);
     m_Beams.erase(std::remove_if(m_Beams.begin(), m_Beams.end(),
         [](const ActiveBeam& b) { return b.charge <= 0.0f && b.timeLeft <= 0.0f; }), m_Beams.end());
 }

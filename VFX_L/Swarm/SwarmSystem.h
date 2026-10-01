@@ -228,6 +228,12 @@ public:
     // active = false にすると GPU 側の範囲が次のステップで消える
     void SetBeam(uint32_t ch, const DirectX::SimpleMath::Vector3& start, const DirectX::SimpleMath::Vector3& end,
         float radius, bool active);
+    // 光線の標的（SwarmBeamTargetCS）。cmd = Swarm::kBeamTarget*。毎フレーム呼ぶ（次の Flush で効く）。
+    // serial はその光線の通し番号（チャンネルは使い回すので、答えがどの光線の物かを見分ける）
+    void SetBeamTarget(uint32_t ch, uint32_t cmd, const DirectX::SimpleMath::Vector3& origin,
+        const DirectX::SimpleMath::Vector3& dir, float length, const DirectX::SimpleMath::Vector3& seek, uint32_t serial);
+    // 回読した標的の位置（2〜3 フレーム古い）。serial が違う / 標的が無ければ false
+    bool GetBeamTarget(uint32_t ch, uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
 
     // ---- ImGui 表示用 ----
     const SwarmVFXTable& GetVFXTable() const { return m_VFX; }
@@ -462,6 +468,7 @@ private:
     std::shared_ptr<ComputeShader> m_SpawnProjCS;      // 生成依頼を投射物の空きスロットへ
     std::shared_ptr<ComputeShader> m_ProjMoveCS;       // 投射物の積分
     std::shared_ptr<ComputeShader> m_ProjEndCS;        // タグ付きの弾が消えた場所を誘発の環へ（命中の直後）
+    std::shared_ptr<ComputeShader> m_BeamTargetCS;     // 光線の標的（捕まえた敵 → 死んだら向きに近い敵へ）
     std::shared_ptr<ComputeShader> m_EmitCS;           // 弾から粒子を発射
     std::shared_ptr<ComputeShader> m_SpawnEnemyCS;     // Phase 3
     std::shared_ptr<ComputeShader> m_EnemyAICS;        // Phase 3: seek + separation + 回避
@@ -536,6 +543,17 @@ private:
     Swarm::PlayerHitInfo m_LastPlayerHits;   // 前回読んだ累計（差分の基準。counters と同じく戻さない）
     PlayerHits m_PendingPlayerHits;          // 読んだ差分の未消費ぶん
     void ReadPlayerHits();
+
+    // --- 光線の標的（SwarmBeamTargetCS が毎フレーム書く 32B × kMaxBeams → staging 3 枚で回読）---
+    Swarm::BeamTargetCB m_CachedBeamTargetCB = {};
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_BeamTargetBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_BeamTargetUAV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_BeamTargetStaging[kBossStaging];
+    bool m_BeamTargetStagingFilled[kBossStaging] = {};
+    int  m_BeamTargetStagingWrite = 0;
+    Swarm::BeamTarget m_BeamTargets[Swarm::kMaxBeams];   // 最後に読めた答え
+    void DispatchBeamTargets();   // Flush の固定ステップの後（敵の位置が決まってから）
+    void ReadBeamTargets();
 
     // --- 雑魚の部品アニメ（部品を節点で動かすモデルだけ。Kenney Blocky）---
     // 表: [クリップ][フレーム][部品] の行列。行列は「焼いた姿勢の部品 → そのフレームの部品」の差分

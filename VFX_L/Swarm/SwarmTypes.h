@@ -386,6 +386,31 @@ namespace Swarm
         DirectX::SimpleMath::Vector4 end[kMaxBeams];
     };
     static_assert(sizeof(BeamCB) == 128, "SwarmBeamCB layout mismatch");
+
+    // ============================================================
+    // 光線の標的（b4、SwarmBeamTargetCS、2026-10-01）。チャンネル毎:
+    //   origin.w = asfloat(cmd)（0 = 未使用 / 1 = 開始: seek に一番近い敵を捕まえる / 2 = 追跡: 捕まえた敵が
+    //   死んだら・遠くへ行ったら、射程内で光線の向きに一番近い敵へ乗り換える）、dir.w = 射程、seek.w = asfloat(serial)
+    // 結果は 32B × チャンネル（slot, serial, valid, pad, pos.xyz, pad）を staging で回読
+    // ============================================================
+    enum : uint32_t { kBeamTargetIdle = 0, kBeamTargetStart = 1, kBeamTargetTrack = 2 };
+    struct BeamTargetCB
+    {
+        DirectX::SimpleMath::Vector4 origin[kMaxBeams];
+        DirectX::SimpleMath::Vector4 dir[kMaxBeams];
+        DirectX::SimpleMath::Vector4 seek[kMaxBeams];
+    };
+    static_assert(sizeof(BeamTargetCB) == 192, "SwarmBeamTargetCB layout mismatch");
+    struct BeamTarget
+    {
+        uint32_t slot = 0xFFFFFFFFu;
+        uint32_t serial = 0;
+        uint32_t valid = 0;
+        uint32_t _pad = 0;
+        float    pos[3] = {};
+        float    _pad2 = 0.0f;
+    };
+    static_assert(sizeof(BeamTarget) == 32, "SwarmBeamTarget layout mismatch");
     // ============================================================
   // 転送回収用（b1）
   // 生成キューの [offset, offset+count) を、玩家から minDist より
