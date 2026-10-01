@@ -290,6 +290,25 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_PendingPlayerHits = {};
     }
     {
+        // 光線の標的（チャンネル毎 32B）。slot = 0xFFFFFFFF・serial 0 で始める（どの光線の答えでもない）
+        const UINT bytes = sizeof(Swarm::BeamTarget) * Swarm::kMaxBeams;
+        if (!makeRaw(bytes, m_BeamTargetBuffer, m_BeamTargetUAV, "beamTargets")) return false;
+        const UINT zero[4] = { 0, 0, 0, 0 };
+        m_Context->ClearUnorderedAccessViewUint(m_BeamTargetUAV.Get(), zero);
+        D3D11_BUFFER_DESC sd = {};
+        sd.ByteWidth = bytes;
+        sd.Usage = D3D11_USAGE_STAGING;
+        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        for (int i = 0; i < kBossStaging; ++i)
+        {
+            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_BeamTargetStaging[i]))) return false;
+            m_BeamTargetStagingFilled[i] = false;
+        }
+        m_BeamTargetStagingWrite = 0;
+        m_CachedBeamTargetCB = {};
+        for (auto& t : m_BeamTargets) t = {};
+    }
+    {
         // 誘発の環（先頭 16B = 総数 + 16B × kMaxTriggerEvents）と、その回読
         const UINT bytes = 16u + sizeof(Swarm::TriggerEvent) * Swarm::kMaxTriggerEvents;
         if (!makeRaw(bytes, m_TriggerBuffer, m_TriggerUAV, "trigger")) return false;
@@ -623,6 +642,71 @@ void SwarmSystem::SetBeam(uint32_t ch, const Vector3& start, const Vector3& end,
     m_CachedBeamCB.end[ch] = { end.x, end.y, end.z, active ? 1.0f : 0.0f };
 }
 
+// 光線の標的の依頼（次の Flush の DispatchBeamTargets で効く）
+void SwarmSystem::SetBeamTarget(uint32_t ch, uint32_t cmd, const Vector3& origin, const Vector3& dir,
+    float length, const Vector3& seek, uint32_t serial)
+{
+    if (ch >= Swarm::kMaxBeams) return;
+    auto asF = [](uint32_t u) { float f; memcpy(&f, &u, sizeof(f)); return f; };
+    m_CachedBeamTargetCB.origin[ch] = { origin.x, origin.y, origin.z, asF(cmd) };
+    m_CachedBeamTargetCB.dir[ch] = { dir.x, dir.y, dir.z, length };
+    m_CachedBeamTargetCB.seek[ch] = { seek.x, seek.y, seek.z, asF(serial) };
+}
+
+bool SwarmSystem::GetBeamTarget(uint32_t ch, uint32_t serial, Vector3& pos) const
+{
+    if (ch >= Swarm::kMaxBeams) return false;
+    const Swarm::BeamTarget& t = m_BeamTargets[ch];
+    if (t.serial != serial || t.valid == 0) return false;
+    pos = { t.pos[0], t.pos[1], t.pos[2] };
+    return true;
+}
+
+// ============================================================
+// 光線の標的を決める（1 チャンネル 1 グループ）→ staging へ写す。使っている光線が無ければ何もしない
+// ============================================================
+void SwarmSystem::DispatchBeamTargets()
+{
+    if (!m_BeamTargetCS || !m_BeamTargetBuffer) return;
+    bool any = false;
+    for (uint32_t ch = 0; ch < Swarm::kMaxBeams; ++ch)
+    {
+        uint32_t cmd;
+        memcpy(&cmd, &m_CachedBeamTargetCB.origin[ch].w, sizeof(cmd));
+        any |= (cmd != Swarm::kBeamTargetIdle);
+    }
+    if (!any) return;
+
+    m_BeamTargetCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+    m_BeamTargetCS->WriteBuffer(m_Context, 4, &m_CachedBeamTargetCB);
+    m_BeamTargetCS->Bind(m_Context);
+    m_BeamTargetCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_BeamTargetCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_BeamTargetCS->SetUAV(m_Context, "beamTargets", m_BeamTargetUAV.Get());
+    m_BeamTargetCS->BindUAVs(m_Context);
+    m_Context->Dispatch(Swarm::kMaxBeams, 1, 1);
+    m_BeamTargetCS->UnbindSRVs(m_Context);
+    m_BeamTargetCS->UnbindUAVs(m_Context);
+
+    m_Context->CopyResource(m_BeamTargetStaging[m_BeamTargetStagingWrite].Get(), m_BeamTargetBuffer.Get());
+    m_BeamTargetStagingFilled[m_BeamTargetStagingWrite] = true;
+    m_BeamTargetStagingWrite = (m_BeamTargetStagingWrite + 1) % kBossStaging;
+}
+
+// 一番古い staging を読む（待たない）。読めなければ前回の答えのまま
+void SwarmSystem::ReadBeamTargets()
+{
+    const int readIndex = m_BeamTargetStagingWrite;
+    if (!m_BeamTargetStagingFilled[readIndex] || !m_BeamTargetStaging[readIndex]) return;
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    const HRESULT hr = m_Context->Map(m_BeamTargetStaging[readIndex].Get(), 0,
+        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
+    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
+    memcpy(m_BeamTargets, mapped.pData, sizeof(m_BeamTargets));
+    m_Context->Unmap(m_BeamTargetStaging[readIndex].Get(), 0);
+    m_BeamTargetStagingFilled[readIndex] = false;   // 同じ答えを 2 度読まない（光線が止まった後に古い物が残らない）
+}
+
 void SwarmSystem::SetAreaDefs(const std::vector<Swarm::AreaDef>& defs)
 {
     if (!m_AreaDefBuffer) return;
@@ -702,6 +786,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     }
     ReadBossInfo();
     ReadPlayerHits();
+    ReadBeamTargets();
     ReadTriggerEvents();
     if (m_MagnetTimer > 0.0f) m_MagnetTimer -= dt;
 
@@ -731,6 +816,9 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     // ---- 4) 弾から粒子を発射（粒子の Flush より前に済ませる）----
     // 見た目の話なので可変 dt でよい（固定ステップの外）
     DispatchEmit(dt, totalTime);
+
+    // 光線の標的（敵の位置が決まった後）
+    DispatchBeamTargets();
 
     // ---- 5) counter の写しを発行（CopyResource だけ。待たない）----
     RequestReadback();
@@ -1998,6 +2086,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_SpawnProjCS, L"Shader/Swarm/SwarmSpawnProjCS.hlsl", "SpawnProjCS");
     ok &= load(m_ProjMoveCS, L"Shader/Swarm/SwarmProjMoveCS.hlsl", "ProjMoveCS");
     ok &= load(m_ProjEndCS, L"Shader/Swarm/SwarmProjEndCS.hlsl", "ProjEndCS");
+    ok &= load(m_BeamTargetCS, L"Shader/Swarm/SwarmBeamTargetCS.hlsl", "BeamTargetCS");
     ok &= load(m_EmitCS, L"Shader/Swarm/SwarmEmitCS.hlsl", "EmitCS");
     ok &= load(m_SpawnEnemyCS, L"Shader/Swarm/SwarmSpawnEnemyCS.hlsl", "SpawnEnemyCS");
     ok &= load(m_EnemyAICS, L"Shader/Swarm/SwarmEnemyAICS.hlsl", "EnemyAICS");
