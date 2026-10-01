@@ -42,6 +42,14 @@ struct PlayerStatsComponent
     float momentumTurnRate = 360.0f;    // 勢いが残っている間の向きの変え方 度/秒
     float faceTurnRate = 720.0f;        // 体を進む方向へ向ける速さ 度/秒（後ろへ走り出すと 0.25 秒で振り向く）
 
+    // --- 被弾のノックバック（2026-10-01、用户指定：雑魚 0.2 身位、爆発はその約 3 倍で少し浮く）---
+    // 距離は「身位」= 体の幅（radius × 2）単位。止まっている時に下がる距離。精英 / Boss の殴りも雑魚と同じ
+    float knockMeleeBodies = 0.2f;      // 殴られた時
+    float knockMeleeTime = 0.12f;       // 何秒かけて下がるか
+    float knockBlastBodies = 0.6f;      // 自爆兵の爆発
+    float knockBlastTime = 0.25f;
+    float knockBlastLift = 3.0f;        // 爆発で上へ弾く初速 m/s（重力 25 で 0.18m・0.24 秒浮く）
+
     // --- 体格（衝突体と見た目の両方が参照する）---
     // ※成長対象ではない。調整用。
     float radius = 0.4f;

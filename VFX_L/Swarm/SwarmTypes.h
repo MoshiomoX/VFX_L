@@ -344,6 +344,22 @@ namespace Swarm
     static_assert(sizeof(BossInfo) == 32, "SwarmBossInfo layout mismatch");
 
     // ============================================================
+    // 玩家が受けた打撃の向き（GPU → CPU、2026-10-01 ノックバック用）。
+    // SwarmContactCS が殴られた / 爆発を受けた度に「敵（爆心）→ 玩家」の単位ベクトル × 1000 と回数を足す。
+    // counters と同じく GPU 上で永久に累加し、CPU は前回値との差分を取る（消さない。読み損ねても取りこぼさない）
+    // ============================================================
+    struct PlayerHitInfo
+    {
+        int32_t  meleeX = 0, meleeZ = 0;   // 近接の向きの和（× kHitDirScale）
+        uint32_t meleeCount = 0;
+        int32_t  blastX = 0, blastZ = 0;   // 爆発の向きの和
+        uint32_t blastCount = 0;
+        uint32_t _pad[2] = {};
+    };
+    static_assert(sizeof(PlayerHitInfo) == 32, "SwarmPlayerHitInfo layout mismatch");
+    constexpr float kHitDirScale = 1000.0f;   // = SwarmContactCS の HIT_DIR_SCALE
+
+    // ============================================================
    // 経験値オーブの調整値（b2）
    // HitCS（生成）と OrbMoveCS（吸引・取得）の両方が読む
    // ============================================================

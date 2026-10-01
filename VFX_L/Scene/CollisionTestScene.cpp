@@ -82,6 +82,7 @@ void CollisionTestScene::Init()
         m_AutoStuck = m_AutoTest && strcmp(env, "stuck") == 0;           // 値が stuck なら雑魚の壁詰まり
         m_AutoGhost = m_AutoTest && strcmp(env, "ghost") == 0;           // 値が ghost なら最終波の幽霊
         m_AutoClip = m_AutoTest && strcmp(env, "clip") == 0;             // 値が clip なら障害物の横で雑魚の食い込みを測る
+        m_AutoKnock = m_AutoTest && strcmp(env, "knock") == 0;           // 値が knock なら被弾のノックバックを測る
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");
@@ -561,6 +562,20 @@ void CollisionTestScene::UpdateGameplay(float dt)
         const float gpuDamage = m_Swarm.ConsumePlayerDamage();
         if (gpuDamage > 0.0f)
             PlayerStateSystem::TryApplyHit(m_Registry, m_Player, gpuDamage);
+        // ノックバック（打撃の向きは別の回読。ダメージと前後して届くことがある）。
+        // 無敵中は下がらない。ただし無敵が始まったばかり（この打撃のダメージが先に届いた）なら下がる。
+        // 同じフレームに爆発があれば爆発の方（遠く・少し浮く）
+        const auto hits = m_Swarm.ConsumePlayerHits();
+        if ((hits.melee > 0 || hits.blasts > 0) && playerAlive && m_Registry.Has<PlayerStateComponent>(m_Player))
+        {
+            const auto& st = m_Registry.Get<PlayerStateComponent>(m_Player);
+            const bool fresh = !st.IsInvincible() || st.invincibleTimer > st.invincibleAfterHit - 0.2f;
+            if (fresh)
+            {
+                if (hits.blasts > 0) PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.blastDir, true);
+                else                 PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.meleeDir, false);
+            }
+        }
         // GPU 上で拾った経験値を CPU の玩家へ反映。
         // レベルアップの判定は LevelUpSystem（次フレーム頭）に任せて、ここは足すだけ
         const float gpuExp = m_Swarm.ConsumeExp();

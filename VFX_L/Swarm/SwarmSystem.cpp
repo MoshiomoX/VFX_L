@@ -272,6 +272,24 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_BossInfo = {};
     }
     {
+        // 玩家が受けた打撃の向き（ノックバック用）。永久に累加するので作った時に 1 度だけ 0 にする
+        if (!makeRaw(sizeof(Swarm::PlayerHitInfo), m_PlayerHitBuffer, m_PlayerHitUAV, "playerHits")) return false;
+        const UINT zero[4] = { 0, 0, 0, 0 };
+        m_Context->ClearUnorderedAccessViewUint(m_PlayerHitUAV.Get(), zero);
+        D3D11_BUFFER_DESC sd = {};
+        sd.ByteWidth = sizeof(Swarm::PlayerHitInfo);
+        sd.Usage = D3D11_USAGE_STAGING;
+        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        for (int i = 0; i < kBossStaging; ++i)
+        {
+            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_PlayerHitStaging[i]))) return false;
+            m_PlayerHitStagingFilled[i] = false;
+        }
+        m_PlayerHitStagingWrite = 0;
+        m_LastPlayerHits = {};
+        m_PendingPlayerHits = {};
+    }
+    {
         // 誘発の環（先頭 16B = 総数 + 16B × kMaxTriggerEvents）と、その回読
         const UINT bytes = 16u + sizeof(Swarm::TriggerEvent) * Swarm::kMaxTriggerEvents;
         if (!makeRaw(bytes, m_TriggerBuffer, m_TriggerUAV, "trigger")) return false;
@@ -683,6 +701,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
         m_LastKillCount = c.killCount;
     }
     ReadBossInfo();
+    ReadPlayerHits();
     ReadTriggerEvents();
     if (m_MagnetTimer > 0.0f) m_MagnetTimer -= dt;
 
@@ -715,6 +734,13 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
 
     // ---- 5) counter の写しを発行（CopyResource だけ。待たない）----
     RequestReadback();
+    // 玩家が受けた打撃の向きも同じ時に写す（counter と同じ遅れで届く）
+    if (m_PlayerHitBuffer)
+    {
+        m_Context->CopyResource(m_PlayerHitStaging[m_PlayerHitStagingWrite].Get(), m_PlayerHitBuffer.Get());
+        m_PlayerHitStagingFilled[m_PlayerHitStagingWrite] = true;
+        m_PlayerHitStagingWrite = (m_PlayerHitStagingWrite + 1) % kBossStaging;
+    }
 
     auto t1 = std::chrono::high_resolution_clock::now();
     m_FlushMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -1161,6 +1187,7 @@ void SwarmSystem::DispatchStep()
         m_ContactCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());
         m_ContactCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
         m_ContactCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
+        m_ContactCS->SetUAV(m_Context, "playerHits", m_PlayerHitUAV.Get());   // 打撃の向き（ノックバック）
         m_ContactCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1417,6 +1444,41 @@ void SwarmSystem::ReadBossInfo()
     if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;   // まだ。前回の値のまま
     memcpy(&m_BossInfo, mapped.pData, sizeof(Swarm::BossInfo));
     m_Context->Unmap(m_BossStaging[readIndex].Get(), 0);
+}
+
+// ============================================================
+// 玩家が受けた打撃の向きを読む（一番古い staging、待たない）。
+// 累計なので前回値との差分を足す（読めなかったフレームの分も次で拾える）。
+// int の和は回り込んでも uint の引き算 → int で正しい差になる
+// ============================================================
+void SwarmSystem::ReadPlayerHits()
+{
+    const int readIndex = m_PlayerHitStagingWrite;   // 次に書く = 一番古い
+    if (!m_PlayerHitStagingFilled[readIndex] || !m_PlayerHitStaging[readIndex]) return;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    const HRESULT hr = m_Context->Map(m_PlayerHitStaging[readIndex].Get(), 0,
+        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
+    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
+    Swarm::PlayerHitInfo now;
+    memcpy(&now, mapped.pData, sizeof(now));
+    m_Context->Unmap(m_PlayerHitStaging[readIndex].Get(), 0);
+
+    auto diff = [](int32_t a, int32_t b) { return (int32_t)((uint32_t)a - (uint32_t)b); };
+    const float s = 1.0f / Swarm::kHitDirScale;
+    PlayerHits& p = m_PendingPlayerHits;
+    p.meleeDir += Vector2((float)diff(now.meleeX, m_LastPlayerHits.meleeX), (float)diff(now.meleeZ, m_LastPlayerHits.meleeZ)) * s;
+    p.blastDir += Vector2((float)diff(now.blastX, m_LastPlayerHits.blastX), (float)diff(now.blastZ, m_LastPlayerHits.blastZ)) * s;
+    p.melee += now.meleeCount - m_LastPlayerHits.meleeCount;
+    p.blasts += now.blastCount - m_LastPlayerHits.blastCount;
+    m_LastPlayerHits = now;
+}
+
+SwarmSystem::PlayerHits SwarmSystem::ConsumePlayerHits()
+{
+    const PlayerHits h = m_PendingPlayerHits;
+    m_PendingPlayerHits = {};
+    return h;
 }
 
 // ============================================================

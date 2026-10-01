@@ -100,6 +100,13 @@ struct PlayerStateComponent
     // ---- 空中の追加ジャンプ（PlayerControlSystem。接地で 0 に戻る）----
     int   airJumpsUsed = 0;
 
+    // ---- ノックバック（2026-10-01。PlayerControlSystem::ApplyKnockback が入れ、Update が減らす）----
+    // 初速 knockX/Z（水平 m/s）から knockDuration 秒かけて直線的に 0 へ。その間は入力の効きも 0 → 1 へ戻す
+    float knockX = 0.0f, knockZ = 0.0f;
+    float knockTime = 0.0f;            // 残り秒
+    float knockDuration = 0.0f;
+    float knockAppliedX = 0.0f, knockAppliedZ = 0.0f;   // 前フレームに速度へ足した分（滑りの勢いに混ざらないよう次で引く）
+
     // ---- 進む方向（PlayerControlSystem が書く）----
     // カメラの前から見た進む方向（度。0 = 前、+90 = 右、±180 = 後ろ）。体はこの方向へ振り向く
     float moveAngleCam = 0.0f;

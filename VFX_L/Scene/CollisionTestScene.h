@@ -168,6 +168,9 @@ private:
     // 体（半径）が塞がったマス・崖へどれだけ食い込むかを数えて撮る（2026-10-01、壁に嵌まって見える件の切り分け）
     bool     m_AutoClip = false;
     void     UpdateAutoTestClip();
+    // VFXL_BATTLE_AUTOTEST=knock：止まった玩家を雑魚 1 体に殴らせ、次に自爆兵 1 体を爆発させて、ノックバックで動いた距離と高さを記録
+    bool     m_AutoKnock = false;
+    void     UpdateAutoTestKnock();
     // VFXL_BATTLE_AUTOTEST=ghost：最終波の幽霊を 20 体出して、数・壁抜け・近づく速さを記録し撮る
     bool     m_AutoGhost = false;
     void     UpdateAutoTestGhost();
