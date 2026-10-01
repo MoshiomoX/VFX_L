@@ -990,6 +990,7 @@ void SwarmSystem::DispatchStep()
     {
         m_EnemyMoveCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_EnemyMoveCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
+        m_EnemyMoveCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 種類の体格（壁から体半径を離す）
         m_EnemyMoveCS->Bind(m_Context);
         m_EnemyMoveCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyMoveCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 斜面の高さ
@@ -1011,6 +1012,7 @@ void SwarmSystem::DispatchStep()
     {
         m_EnemyPushCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_EnemyPushCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
+        m_EnemyPushCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 種類の体格（壁から体半径を離す）
         m_EnemyPushCS->Bind(m_Context);
         m_EnemyPushCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyPushCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());

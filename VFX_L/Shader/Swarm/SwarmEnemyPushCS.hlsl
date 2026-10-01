@@ -17,6 +17,7 @@
 // A push that would end in a blocked cell is dropped: the walls are
 // hard, the crowd is not.
 // ============================================================
+#define SWARM_BOMBER_CB_REG b3   // kind body scale (the wall gap of elites / boss)
 #include "../Common/SwarmCommon.hlsli"
 
 Buffer<uint> enemyStates : register(t0);
@@ -100,9 +101,33 @@ void main(uint3 id : SV_DispatchThreadID)
         push *= maxPush * rsqrt(dot(push, push));
 
     float3 np = pos + push;
-    bool ghost = (enemyExtra[i].kind == SWARM_KIND_GHOST);   // ghosts ignore walls and cliffs
-    if (!ghost && (!SwarmIsWalkable(terrain, np) || !SwarmSlopeOk(terrainHeight, pos.xz, np.xz)))
-        return;   // would end up in a wall or over a cliff edge: stay put this step
+    uint kind = enemyExtra[i].kind;
+    bool ghost = (kind == SWARM_KIND_GHOST);   // ghosts ignore walls and cliffs
+    if (!ghost)
+    {
+        // the body circle must not be pushed into a wall / cliff face either
+        // (2026-10-01): drop the part of the push that goes into it, and the
+        // whole push if the body would still touch more than it does now
+        float radius = SwarmBodyWallRadius(kind);
+        float3 tn = SwarmBodyContact(terrain, terrainHeight, np.xz, radius);
+        if (tn.z > 0.0)
+        {
+            float tl = length(tn.xy);
+            if (tl > 1e-3)
+            {
+                float2 n = tn.xy / tl;
+                float along = dot(push.xz, n);
+                if (along > 0.0)
+                    push.xz -= n * along;
+                np = pos + push;
+            }
+            if (SwarmBodyContact(terrain, terrainHeight, np.xz, radius).z
+                > SwarmBodyContact(terrain, terrainHeight, pos.xz, radius).z)
+                return;
+        }
+        if (!SwarmIsWalkable(terrain, np) || !SwarmSlopeOk(terrainHeight, pos.xz, np.xz))
+            return;   // would end up in a wall or over a cliff edge: stay put this step
+    }
 
     np.y = g_GroundY + SwarmTerrainHeight(terrainHeight, np.xz);
     enemies[i].position = np;

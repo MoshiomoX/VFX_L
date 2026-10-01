@@ -164,6 +164,10 @@ private:
     // VFXL_BATTLE_AUTOTEST=stuck：雑魚をわざと塞がったマスの中に出し、壁から出てくるか・二度と入らないかを敵の池の読み戻しで数える
     bool     m_AutoStuck = false;
     void     UpdateAutoTestStuck();
+    // VFXL_BATTLE_AUTOTEST=clip：玩家を木 / 岩 / 外周 / 崖 / 台地の箱 / 崖（精英）の横に立たせて雑魚を群がらせ、
+    // 体（半径）が塞がったマス・崖へどれだけ食い込むかを数えて撮る（2026-10-01、壁に嵌まって見える件の切り分け）
+    bool     m_AutoClip = false;
+    void     UpdateAutoTestClip();
     // VFXL_BATTLE_AUTOTEST=ghost：最終波の幽霊を 20 体出して、数・壁抜け・近づく速さを記録し撮る
     bool     m_AutoGhost = false;
     void     UpdateAutoTestGhost();
