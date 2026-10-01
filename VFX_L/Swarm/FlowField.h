@@ -47,6 +47,14 @@ public:
     // GPU 側の SWARM_MAX_WALK_SLOPE（40°）と揃えておく
     float maxStep = 1.5f;
 
+    // 崖は上りだけ通れない（2026-10-01、用户：台地の上の雑魚は下の玩家へ縁から飛び降りる）。
+    // 下りの崖は「そのマスが目標（玩家のマス）より dropMinBelow m 以上高い」時だけ通れる
+    // （= GPU の SwarmDropAllowed と同じ規則。玩家も台地の上なら崖は今まで通り両向き通れない）。
+    // 飛び降りの辺コスト = 1 マス分 + dropCost（坂へ回り道するより近ければ飛び降りる）
+    bool  allowDrops = true;
+    float dropMinBelow = 1.0f;
+    int   dropCost = 5;
+
     // 探索を打ち切る経路長（マス数）。0 = 全域。
     // 雑魚は湧き半径の中にしか居ないので、その外まで解いても無駄
     int maxRangeCells = 0;
