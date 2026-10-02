@@ -685,6 +685,11 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
+        // ---- 液溜まり（Liquid entry。見た目は VFX の json、ここは描くかどうかだけ）----
+        ImGui::Checkbox("Liquids (GPU areas)", &m_Swarm.liquids);
+        ImGui::SameLine();
+        ImGui::TextDisabled("look: Liquid entry in the area's VFX json (F2)");
+
         // ---- 隕石（DROP の弾）の着弾点の警告の輪 ----
         if (ImGui::TreeNode("Meteor Ring"))
         {
@@ -3752,6 +3757,7 @@ void CollisionTestScene::UpdateAutoTestPoison()
     m_PlayerControlSystem.testMove = Vector2::Zero;
     static float s_NextLog = 0.0f;
     static int s_Looks = 0;
+    static bool s_PoisonClose = false;   // VFXL_POISON_CLOSE: 近くに落として液溜まりを近景で撮る
     const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
 
     if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
@@ -3760,10 +3766,22 @@ void CollisionTestScene::UpdateAutoTestPoison()
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
         const float gy = m_Swarm.GetAIParams().groundY;
-        for (int k = 0; k < 16; ++k)
-            m_Swarm.SpawnEnemy(Vector3(pp.x + ((k % 2) ? 0.8f : -0.8f), gy, pp.z + 17.0f + (float)(k / 2) * 1.6f),
-                1000.0f, 3.5f);
-        m_Swarm.SpawnEnemy(Vector3(pp.x, gy, pp.z + 31.0f), 2000.0f, 3.4f, Swarm::kEnemyKindElite);
+        char envBuf[8];
+        s_PoisonClose = GetEnvironmentVariableA("VFXL_POISON_CLOSE", envBuf, sizeof(envBuf)) > 0;
+        if (s_PoisonClose)
+        {
+            // 正面 6〜9m にほとんど動かない雑魚 8 体（毒は一番近い敵の足元に落ちる）
+            for (int k = 0; k < 8; ++k)
+                m_Swarm.SpawnEnemy(Vector3(pp.x + ((k % 2) ? 1.2f : -1.2f), gy, pp.z + 6.0f + (float)(k / 2) * 1.0f),
+                    1000.0f, 0.2f);
+        }
+        else
+        {
+            for (int k = 0; k < 16; ++k)
+                m_Swarm.SpawnEnemy(Vector3(pp.x + ((k % 2) ? 0.8f : -0.8f), gy, pp.z + 17.0f + (float)(k / 2) * 1.6f),
+                    1000.0f, 3.5f);
+            m_Swarm.SpawnEnemy(Vector3(pp.x, gy, pp.z + 31.0f), 2000.0f, 3.4f, Swarm::kEnemyKindElite);
+        }
         if (m_Registry.Has<BackpackComponent>(m_Player) && m_Registry.Has<WandComponent>(m_Player))
         {
             auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
@@ -3775,11 +3793,12 @@ void CollisionTestScene::UpdateAutoTestPoison()
         }
         auto& cam = m_Camera.Camera();
         cam.SetYaw(0.0f);
-        cam.distance = 16.0f;
-        cam.SetPitch(40.0f);
+        cam.distance = s_PoisonClose ? 9.0f : 16.0f;   // 近景は普段の鏡頭（8m）に近い距離
+        cam.SetPitch(s_PoisonClose ? 34.0f : 40.0f);
         cam.avoidOcclusion = false;
         cam.SnapToTarget();
-        AutoTestLog("poison start: 16 mobs (3.5 m/s) + 1 elite (3.4 m/s) walking in from +Z 17-31m");
+        AutoTestLog(s_PoisonClose ? "poison start (close): 8 mobs standing at +Z 6-9m, looks every 0.5s from 2.5s, liquid on/off alternately"
+                                  : "poison start: 16 mobs (3.5 m/s) + 1 elite (3.4 m/s) walking in from +Z 17-31m");
         s_NextLog = m_AutoTime;
         m_AutoStep = 1;
     }
@@ -3815,15 +3834,35 @@ void CollisionTestScene::UpdateAutoTestPoison()
             AutoTestLog(line);
         }
     }
-    const float looks[] = { 3.5f, 5.0f, 6.5f };
-    if (s_Looks < 3 && m_AutoTime >= looks[s_Looks])
+    if (s_PoisonClose)
     {
-        char line[32];
-        snprintf(line, sizeof(line), "poison look %d", s_Looks++);
-        AutoTestLog(line);
+        // 近景（VFXL_POISON_CLOSE、2026-10-02 液溜まりが明るすぎる件）: 2.5 秒から 0.5 秒毎に撮る。
+        // 液溜まり（Liquid entry）を 1 枚毎に入 / 切して、他の層（泡・毒霧・点光源）と見比べる。
+        // 切り替えは撮る 0.15 秒前（描画に反映されてから log を書く）
+        const int k = (int)std::floor((m_AutoTime - 2.5f + 0.15f) / 0.5f);
+        if (k >= 0 && k < 10)
+            m_Swarm.liquids = (k % 2) == 0;
+        if (s_Looks < 10 && m_AutoTime >= 2.5f + 0.5f * (float)s_Looks)
+        {
+            char line[48];
+            snprintf(line, sizeof(line), "poison look %d liquid %s", s_Looks, m_Swarm.liquids ? "on" : "off");
+            ++s_Looks;
+            AutoTestLog(line);
+        }
+    }
+    else
+    {
+        const float looks[] = { 3.5f, 5.0f, 6.5f };
+        if (s_Looks < 3 && m_AutoTime >= looks[s_Looks])
+        {
+            char line[32];
+            snprintf(line, sizeof(line), "poison look %d", s_Looks++);
+            AutoTestLog(line);
+        }
     }
     if (m_AutoTime >= 10.0f)
     {
+        m_Swarm.liquids = true;
         m_PlayerControlSystem.testInput = false;
         AutoTestLog("poison done");
         m_AutoStep = 2;

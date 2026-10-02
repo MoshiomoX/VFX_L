@@ -63,12 +63,15 @@ void VFXEditorScene::Init()
         std::cout << "[Error] VFXSpriteRenderer init failed" << std::endl;
     if (!m_BeamRenderer.Initialize(device))
         std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
+    if (!m_LiquidRenderer.Initialize(device))
+        std::cout << "[Error] VFXLiquidRenderer init failed" << std::endl;
 
     // ---------- VFX（context は値渡しなので、指針を全部埋めてから渡す）----------
     m_VFXContext.particleSystem = &m_ParticleSystem;
     m_VFXContext.meshRenderer = &m_MeshRenderer;
     m_VFXContext.spriteRenderer = &m_SpriteRenderer;
     m_VFXContext.beamRenderer = &m_BeamRenderer;
+    m_VFXContext.liquidRenderer = &m_LiquidRenderer;
     m_Effect.InitStateMachine(m_VFXContext);
 
     m_Editor.SetEffect(&m_Effect);
@@ -323,6 +326,9 @@ void VFXEditorScene::Render(Renderer& renderer)
 
     // ---- VFX Mesh（光を当てない。深度は読むだけ）----
     m_MeshRenderer.Render(ctx, GetCamera());
+
+    // ---- Liquid（液溜まり。地面なので連番絵より先。地形は無いので effect の高さで平ら）----
+    m_LiquidRenderer.Render(ctx, GetCamera(), renderer.GetLightData());
 
     // ---- Sprite（連番絵。深度は読むだけ）----
     m_SpriteRenderer.Render(ctx, GetCamera());

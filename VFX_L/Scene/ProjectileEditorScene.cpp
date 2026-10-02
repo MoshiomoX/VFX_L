@@ -129,6 +129,9 @@ void ProjectileEditorScene::Init()
     if (!m_BeamRenderer.Initialize(device))
         std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
     m_VFXContext.beamRenderer = &m_BeamRenderer;
+    if (!m_LiquidRenderer.Initialize(device))
+        std::cout << "[Error] VFXLiquidRenderer init failed" << std::endl;
+    m_VFXContext.liquidRenderer = &m_LiquidRenderer;
     m_AreaMarker.y = m_Swarm.GetAIParams().groundY;
 
     // ---------- プロファイル ----------
@@ -1059,6 +1062,9 @@ void ProjectileEditorScene::Render(Renderer& renderer)
 
     // 法環などの VFX Mesh（光を当てない。深度は読むだけ）。粒子の前
     m_MeshRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
+    // CPU で出した液溜まり（範囲の試し出し。地面なので連番絵より先）
+    m_LiquidRenderer.SetTerrain(m_Swarm.GetHeightSRV(), m_Swarm.GetFrameCB());
+    m_LiquidRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera(), renderer.GetLightData());
     m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
     m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
     m_Swarm.RenderSprites(GetCamera());   // GPU の範囲（弾の命中）の連番絵

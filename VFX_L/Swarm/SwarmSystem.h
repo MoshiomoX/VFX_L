@@ -147,6 +147,13 @@ public:
     };
     OrbLookStyle orbLook;
 
+    // ---- 液溜まり（Liquid entry を持つ配方の範囲。Render の中、オーブの後・丸い影の前）----
+    // 見た目は VFX の json の Liquid entry（VFXLiquidDef）。ここは描くかどうかだけ
+    bool liquids = true;
+    // CPU の経路（VFXLiquidRenderer）に地形を渡す用。戦闘場面が毎フレーム SetTerrain に入れる
+    ID3D11ShaderResourceView* GetHeightSRV() const { return m_HeightSRV.Get(); }
+    const Swarm::FrameCB& GetFrameCB() const { return m_CachedFrameCB; }
+
     // 雑魚の歩きアニメの再生速度（部品アニメがある時だけ効く。移動速度と足の運びを合わせる調整用）
     float enemyWalkAnimRate = 1.0f;
 
@@ -411,6 +418,21 @@ private:
     std::shared_ptr<ComputeShader> m_SpriteCS;
     std::shared_ptr<VertexShader>  m_SpriteVS;
     std::shared_ptr<PixelShader>   m_SpritePS;
+
+    // ---- 液溜まり（Liquid entry、2026-10-02）----
+    // areaDirs   : 範囲を出した物が飛んでいた向き（xy = 単位 xz、w = 1 未読）。ProjMoveCS が書き、追跡が読んで w を消す
+    // liquidTrack: 槽ごとの (向き xz, 最初に見た時の残り時間, 前フレームの残り時間)。w <= 0 = 空。SwarmLiquidTrackCS
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaDirBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaDirUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaDirSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_LiquidTrackBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LiquidTrackUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_LiquidTrackSRV;
+    std::shared_ptr<ComputeShader> m_LiquidTrackCS;
+    std::shared_ptr<VertexShader>  m_LiquidVS;   // SwarmLiquidVS
+    std::shared_ptr<PixelShader>   m_LiquidPS;   // VFXLiquidPS（CPU の経路と同じ）
+    void DispatchLiquidTrack();
+    void RenderLiquids(CameraBase* camera, const LightBuffer& light);
 
     // --- 地形（起動時に1回。読み取り専用）---
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_TerrainBuffer;

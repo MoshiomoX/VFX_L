@@ -25,6 +25,8 @@
 #define SWARM_AREA_POOL_U u4
 #define SWARM_AREA_STATE_U u5
 #define SWARM_AREA_DEF_T t4
+// and remembers which way it was flying (a poison flask's puddle splashes that way)
+#define SWARM_AREA_DIR_U u6
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<uint> terrain : register(t0);
@@ -59,7 +61,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (p.lifetime <= 0.0)
     {
         if (areaOnExpire)
-            SwarmSpawnAreaFromDef(m.hitArea, p.position, i, SwarmProjScale(p), projBoost[i]);
+            SwarmSpawnAreaFromDef(m.hitArea, p.position, i, SwarmProjScale(p), projBoost[i], p.velocity.xz);
         projStates[i] = SWARM_DEAD;
         return;
     }
@@ -79,7 +81,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (p.pathT >= 1.0)
         {
             if (m.hitArea != 0u)
-                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i, SwarmProjScale(p), projBoost[i]);
+                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i, SwarmProjScale(p), projBoost[i], p.velocity.xz);   // the arc's last heading = the throw
             projStates[i] = SWARM_DEAD;
             return;
         }
@@ -196,7 +198,7 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         // blow up at the last free position, not inside the wall
         if (areaOnExpire)
-            SwarmSpawnAreaFromDef(m.hitArea, projectiles[i].position, i, SwarmProjScale(p), projBoost[i]);
+            SwarmSpawnAreaFromDef(m.hitArea, projectiles[i].position, i, SwarmProjScale(p), projBoost[i], p.velocity.xz);
         projStates[i] = SWARM_DEAD;
         return;
     }

@@ -25,6 +25,7 @@
 #include "VFX_Editor/VFXMeshRenderer.h"
 #include "VFX_Editor/VFXSpriteRenderer.h"
 #include "VFX_Editor/VFXBeamRenderer.h"
+#include "VFX_Editor/VFXLiquidRenderer.h"
 #include <string>
 #include <vector>
 #include "World/GridWorld.h"
@@ -135,6 +136,7 @@ private:
     VFXMeshRenderer m_MeshRenderer;    // 法環の Mesh entry 用
     VFXSpriteRenderer m_SpriteRenderer;   // Sprite entry（連番絵）用
     VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
+    VFXLiquidRenderer           m_LiquidRenderer;   // Liquid entry（CPU で出す液溜まり）
     VFXContext      m_VFXContext;
 
     // ---- 道具の形の頁 ----

@@ -6,6 +6,7 @@
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "VFX_Editor/VFXPointLightEntry.h"
 #include "VFX_Editor/VFXSpriteEntry.h"
+#include "VFX_Editor/VFXLiquidEntry.h"
 #include "VFX_Editor/SpriteSheets.h"
 #include "Particle/GPUParticleSystem.h"
 #include "Manager/ResourceManager.h"
@@ -70,12 +71,15 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     std::vector<Swarm::VFXSpriteDef>  sprites;
     std::vector<const SpriteSheets::Info*> spriteSheetOf;   // sprites と同じ並び（cellUV を後で決める）
     std::vector<const SpriteSheets::Info*> slices;          // 貼图配列の 1 枚ずつ
+    std::vector<VFXLiquidDef>         liquids;
+    std::vector<uint32_t>             recipeLiquid;          // recipes と同じ並び。def の番号 + 1、0 = 無し
 
     m_Index.clear();
     m_Warnings = 0;
 
     // index 0 は「何も無い」配方。vfxType が引けない時の逃げ先
     recipes.push_back({});
+    recipeLiquid.push_back(0u);
     m_Index.push_back({ VFXId::None, 0 });
 
     for (int i = 0; i < VFXDatabase::Count(); ++i)
@@ -95,6 +99,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         std::vector<VFXParticleEntry*> particleEntries;
         std::vector<const VFXPointLightEntry*> lightEntries;
         std::vector<const VFXSpriteEntry*> spriteEntries;
+        const VFXLiquidEntry* liquidEntry = nullptr;   // 1 つの範囲に液溜まりは 1 つ（2 つ目以降は無視）
         for (int k = 0; ; ++k)
         {
             VFXEntry* e = tmpl->GetEntry(k);
@@ -105,8 +110,13 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
                 lightEntries.push_back(static_cast<const VFXPointLightEntry*>(e));
             else if (e->GetType() == EntryType::Sprite)
                 spriteEntries.push_back(static_cast<const VFXSpriteEntry*>(e));
+            else if (e->GetType() == EntryType::Liquid)
+            {
+                if (!liquidEntry) liquidEntry = static_cast<const VFXLiquidEntry*>(e);
+                else std::cout << "[SwarmVFX] warning: " << path << " has more than one Liquid entry; the GPU uses the first" << std::endl;
+            }
         }
-        if (particleEntries.empty() && spriteEntries.empty()) continue;
+        if (particleEntries.empty() && spriteEntries.empty() && !liquidEntry) continue;
 
         Swarm::VFXRecipe r;
         r.particleStart = (uint32_t)emitters.size();
@@ -205,8 +215,18 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
                 << " has timed entries; GPU path ignores start/duration" << std::endl;
         }
 
+        // ---- Liquid entry（GPU の範囲が生きている間、その下に描く。SwarmLiquidVS）----
+        // 時間軸は使わない（範囲の寿命で出て、消える前の dryTime 秒で乾く）
+        uint32_t liquidIndex = 0;
+        if (liquidEntry)
+        {
+            liquids.push_back(liquidEntry->def);
+            liquidIndex = (uint32_t)liquids.size();   // + 1 済み
+        }
+
         m_Index.push_back({ id, (uint32_t)recipes.size() });
         recipes.push_back(r);
+        recipeLiquid.push_back(liquidIndex);
     }
 
     m_EmitterCount = (int)emitters.size();
@@ -232,12 +252,20 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     if (!UploadImmutable(device, sprites.data(), sizeof(Swarm::VFXSpriteDef),
         (UINT)sprites.size(), m_SpriteDefBuffer, m_SpriteDefSRV, "sprite")) return false;
 
+    // ---- Liquid ----
+    m_LiquidDefCount = (int)liquids.size();
+    if (!UploadImmutable(device, liquids.data(), sizeof(VFXLiquidDef),
+        (UINT)liquids.size(), m_LiquidDefBuffer, m_LiquidDefSRV, "liquid")) return false;
+    if (!UploadImmutable(device, recipeLiquid.data(), sizeof(uint32_t),
+        (UINT)recipeLiquid.size(), m_RecipeLiquidBuffer, m_RecipeLiquidSRV, "recipeLiquid")) return false;
+
     if (particles)
         particles->RegisterStaticColorKeys(keys);
 
     std::cout << "[SwarmVFX] " << recipes.size() - 1 << " recipes, "
         << emitters.size() << " emitters, " << lights.size() << " lights, "
         << sprites.size() << " sprites (" << slices.size() << " sheets), "
+        << liquids.size() << " liquids, "
         << keys.size() << " color keys, "
         << m_Warnings << " warnings" << std::endl;
     return true;

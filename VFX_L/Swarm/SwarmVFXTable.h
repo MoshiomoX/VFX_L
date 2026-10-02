@@ -17,6 +17,7 @@
 #include "VFX_Editor/VFXId.h"
 #include "Particle/GPUParticleEmitter.h"
 #include "VFX_Editor/SpriteSheets.h"
+#include "VFX_Editor/VFXLiquidDef.h"
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <vector>
@@ -108,6 +109,10 @@ public:
     ID3D11ShaderResourceView* GetSpriteDefSRV()   const { return m_SpriteDefSRV.Get(); }
     ID3D11ShaderResourceView* GetSpriteArraySRV() const { return m_SpriteArraySRV.Get(); }
     int GetSpriteDefCount() const { return m_SpriteDefCount; }
+    // Liquid entry（2026-10-02）: def の表と、配方ごとの「def の番号 + 1（0 = 液体なし）」
+    ID3D11ShaderResourceView* GetLiquidDefSRV()    const { return m_LiquidDefSRV.Get(); }
+    ID3D11ShaderResourceView* GetRecipeLiquidSRV() const { return m_RecipeLiquidSRV.Get(); }
+    int GetLiquidDefCount() const { return m_LiquidDefCount; }
 
     // ImGui 表示用
     int GetRecipeCount()  const { return (int)m_Index.size(); }
@@ -136,6 +141,11 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_SpriteArray;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpriteArraySRV;
     int m_SpriteDefCount = 0;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_LiquidDefBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_LiquidDefSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_RecipeLiquidBuffer;   // 配方と同じ添字の uint（Recipe の 32B は変えない）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_RecipeLiquidSRV;
+    int m_LiquidDefCount = 0;
     int m_SpriteSliceW = 1;
     int m_SpriteSliceH = 1;
 
