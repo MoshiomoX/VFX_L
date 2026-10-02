@@ -43,12 +43,13 @@ struct PlayerStatsComponent
     float faceTurnRate = 720.0f;        // 体を進む方向へ向ける速さ 度/秒（後ろへ走り出すと 0.25 秒で振り向く）
 
     // --- 被弾のノックバック（2026-10-01、用户指定：雑魚 0.2 身位、爆発はその約 3 倍で少し浮く）---
+    // 2026-10-02 用户「全体的に少し強く」→ 距離 x1.5、時間も少し伸ばす（0.2 / 0.12 秒、0.6 / 0.25 秒、上 3 m/s から）
     // 距離は「身位」= 体の幅（radius × 2）単位。止まっている時に下がる距離。精英 / Boss の殴りも雑魚と同じ
-    float knockMeleeBodies = 0.2f;      // 殴られた時
-    float knockMeleeTime = 0.12f;       // 何秒かけて下がるか
-    float knockBlastBodies = 0.6f;      // 自爆兵の爆発
-    float knockBlastTime = 0.25f;
-    float knockBlastLift = 3.0f;        // 爆発で上へ弾く初速 m/s（重力 25 で 0.18m・0.24 秒浮く）
+    float knockMeleeBodies = 0.3f;      // 殴られた時
+    float knockMeleeTime = 0.14f;       // 何秒かけて下がるか
+    float knockBlastBodies = 0.9f;      // 自爆兵の爆発
+    float knockBlastTime = 0.28f;
+    float knockBlastLift = 4.0f;        // 爆発で上へ弾く初速 m/s（重力 25 で 0.32m・0.32 秒浮く）
 
     // --- 体格（衝突体と見た目の両方が参照する）---
     // ※成長対象ではない。調整用。
