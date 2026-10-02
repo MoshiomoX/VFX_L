@@ -194,6 +194,10 @@ private:
     // VFXL_BATTLE_AUTOTEST=edge：外周の岩山を、縁の近くの平視・高い所からの俯瞰・場地の中央から撮る
     bool     m_AutoEdge = false;
     void     UpdateAutoTestEdge();
+    // VFXL_BATTLE_AUTOTEST=layers：場地の三層（2026-10-02）。流場の作り直し時間、山頂・鉱洞の俯瞰、
+    // 山頂の坂の上から滑り降り、鉱洞の一番奥（Boss の門）、鉱洞の入口、湧きを戻して雑魚の数
+    bool     m_AutoLayers = false;
+    void     UpdateAutoTestLayers(float dt);
     bool     m_AutoAssets = false;
     void     UpdateAutoTestAssets();
     std::vector<Entity> m_AutoAssetEntities;
@@ -300,6 +304,8 @@ private:
     // 地形の設定。seed は開局ごとに乱数（環境変数 VFXL_TERRAIN_SEED があればその値。再現用）。
     // Terrain 面板から変えて Regenerate
     TerrainGenerator::Config m_TerrainConfig;
+    // 三層（山頂・鉱洞）のマス。箱を山頂・鉱洞にも置き、Boss の門を鉱洞の奥に置く
+    TerrainGenerator::Layout m_TerrainLayout;
 
     // --- 面（2026-09-30）。どの面かで地形の見た目・照明・草・難度の下駄が変わる（World/StageConfig）---
     int m_StageIndex = 1;

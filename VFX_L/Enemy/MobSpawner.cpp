@@ -36,8 +36,9 @@ void MobSpawner::Init(SwarmSystem& swarm)
 
 void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
 {
+    // pos.y = 地面の高さ（SpawnDirector が高さ場から引く）
     const float groundY = swarm.GetAIParams().groundY;
-    const Vector3 p = { pos.x, groundY, pos.z };
+    const Vector3 p = { pos.x, pos.y + groundY, pos.z };
     const bool bomber = Rand01() < m_BomberRatio;
     const float hp = (bomber ? m_BomberHp : m_MobHp) * m_StatMul;   // 湧いた瞬間の難度で決まる
     const float speed = (bomber ? m_BomberSpeed : m_MobSpeed) * finalSpeedMul;
@@ -62,7 +63,8 @@ void MobSpawner::SpawnDebugBombers(const GridWorld& grid, const Vector3& player,
             grid.WorldToCell(pos, gx, gz);
             if (!grid.IsWalkable(gx, gz)) continue;
 
-            swarm.SpawnEnemy({ pos.x, groundY, pos.z }, m_BomberHp, m_BomberSpeed, Swarm::kEnemyKindBomber);
+            swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, m_BomberHp, m_BomberSpeed,
+                Swarm::kEnemyKindBomber);
             break;
         }
     }

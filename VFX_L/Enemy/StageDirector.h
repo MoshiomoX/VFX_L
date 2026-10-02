@@ -34,9 +34,10 @@ public:
     void Update(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, float runTime, float dt,
         MobSpawner& mobs, SwarmSystem& swarm);
 
-    // 門を置き直す（開局・地形の作り直し）。center の周り portalMinDist〜portalMaxDist の平らな所
+    // 門を置き直す（開局・地形の作り直し）。center の周り portalMinDist〜portalMaxDist の平らな所。
+    // preferred があればまずその近く（10 マス以内で一番近い平らな所。三層の場地では鉱洞の一番奥）
     void SpawnPortal(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& center, uint32_t seed,
-        InteractionSystem& interaction);
+        InteractionSystem& interaction, const DirectX::SimpleMath::Vector3* preferred = nullptr);
     // 使われた物が門なら Boss を呼ぶ（呼んだら true）。門は使えなくなる（見た目は残す）
     bool TryUsePortal(Registry& reg, Entity used, const GridWorld& grid, const DirectX::SimpleMath::Vector3& player,
         const MobSpawner& mobs, SwarmSystem& swarm, InteractionSystem& interaction);

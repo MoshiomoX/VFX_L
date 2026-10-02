@@ -24,22 +24,80 @@ namespace
 }
 
 void FlowField::SetGrid(int w, int d, const std::vector<uint8_t>& walkable,
-    const std::vector<float>& cellHeight)
+    const std::vector<float>& cellHeight, const std::vector<float>& fineHeight, int sub)
 {
     m_W = w;
     m_D = d;
     m_Walkable = walkable;
     m_Height = cellHeight;
     if ((int)m_Height.size() != w * d) m_Height.assign((size_t)w * d, 0.0f);
+    // 境の段差の表：マス a と向き k の隣 b の境を挟んだ原始の高さの組（sub 組）のうち、
+    // b から a への上り（a − b）の最大と下りの最大
+    m_EdgeUp.clear();
+    m_EdgeDown.clear();
+    if (sub > 0 && fineHeight.size() == (size_t)w * sub * d * sub)
+    {
+        const int fineW = w * sub;
+        m_EdgeUp.assign((size_t)w * d * 4, 0.0f);
+        m_EdgeDown.assign((size_t)w * d * 4, 0.0f);
+        for (int az = 0; az < d; ++az)
+            for (int ax = 0; ax < w; ++ax)
+                for (int k = 0; k < 4; ++k)
+                {
+                    const int bx = ax + dxs[k], bz = az + dzs[k];
+                    if (bx < 0 || bz < 0 || bx >= w || bz >= d) continue;
+                    float up = 0.0f, down = 0.0f;
+                    for (int s = 0; s < sub; ++s)
+                    {
+                        int hxA, hzA, hxB, hzB;
+                        if (dxs[k] != 0)
+                        {
+                            hxA = (dxs[k] > 0) ? ax * sub + sub - 1 : ax * sub;
+                            hxB = (dxs[k] > 0) ? bx * sub : bx * sub + sub - 1;
+                            hzA = hzB = az * sub + s;
+                        }
+                        else
+                        {
+                            hzA = (dzs[k] > 0) ? az * sub + sub - 1 : az * sub;
+                            hzB = (dzs[k] > 0) ? bz * sub : bz * sub + sub - 1;
+                            hxA = hxB = ax * sub + s;
+                        }
+                        const float rise = fineHeight[(size_t)hzA * fineW + hxA] - fineHeight[(size_t)hzB * fineW + hxB];
+                        up = (std::max)(up, rise);
+                        down = (std::max)(down, -rise);
+                    }
+                    m_EdgeUp[((size_t)az * w + ax) * 4 + k] = up;
+                    m_EdgeDown[((size_t)az * w + ax) * 4 + k] = down;
+                }
+    }
     m_Cost.clear();
     m_Dir.clear();
     m_TargetX = m_TargetZ = -1;
 }
 
-void FlowField::Build(int targetX, int targetZ)
+void FlowField::CopySettings(const FlowField& o)
+{
+    slopeCost = o.slopeCost;
+    maxStep = o.maxStep;
+    edgeStepMax = o.edgeStepMax;
+    allowDrops = o.allowDrops;
+    dropMinBelow = o.dropMinBelow;
+    dropCost = o.dropCost;
+    maxRangeCells = o.maxRangeCells;
+}
+
+void FlowField::TakeResult(FlowField& o)
+{
+    m_Dir.swap(o.m_Dir);
+    m_Cost.swap(o.m_Cost);
+    m_TargetX = o.m_TargetX;
+    m_TargetZ = o.m_TargetZ;
+}
+
+bool FlowField::Build(int targetX, int targetZ)
 {
     const int W = m_W, D = m_D, n = W * D;
-    if (n <= 0) return;
+    if (n <= 0) return false;
 
     const uint8_t* walk = m_Walkable.data();
     const float* hgt = m_Height.data();
@@ -48,14 +106,24 @@ void FlowField::Build(int targetX, int targetZ)
     // 下りの崖（飛び降り）は b が目標より dropMinBelow 以上高い時だけ（isDrop で返す）
     const float stepMax = maxStep, stepMaxDiag = maxStep * 1.41421356f;
     float targetH = 0.0f;   // 目標マスの高さ（下で決まる）
+    // 上下左右の隣との境の段差（SetGrid で作った表）。b から a への上り / 下りの最大
+    const float* edgeUp = m_EdgeUp.empty() ? nullptr : m_EdgeUp.data();
+    const float* edgeDown = m_EdgeDown.empty() ? nullptr : m_EdgeDown.data();
     auto passableEx = [&](int ax, int az, int bx, int bz, bool diag, bool& isDrop)
         {
             isDrop = false;
             if (!walkable(bx, bz)) return false;
             const float ha = hgt[az * W + ax], hb = hgt[bz * W + bx];
             const float lim = diag ? stepMaxDiag : stepMax;
-            if (ha - hb > lim) return false;            // 上りの崖
-            if (hb - ha <= lim) return true;            // 坂・平地
+            float up = 0.0f, down = 0.0f;
+            if (!diag && edgeUp)   // 斜めは両隣を通れる時だけ（呼ぶ側）
+            {
+                const int k = (bx > ax) ? 0 : (bx < ax) ? 1 : (bz > az) ? 2 : 3;
+                up = edgeUp[(az * W + ax) * 4 + k];
+                down = edgeDown[(az * W + ax) * 4 + k];
+            }
+            if (ha - hb > lim || up > edgeStepMax) return false;        // 上りの崖（中心の差・境の段）
+            if (hb - ha <= lim && down <= edgeStepMax) return true;     // 坂・平地
             isDrop = allowDrops && (hb - targetH >= dropMinBelow);   // 下りの崖
             return isDrop;
         };
@@ -79,17 +147,18 @@ void FlowField::Build(int targetX, int targetZ)
                     {
                         targetX += dx; targetZ += dz; found = true;
                     }
-        if (!found) return;   // 完全に囲まれている。前回の場を使い続ける
+        if (!found) return false;   // 完全に囲まれている。前回の場を使い続ける
     }
     m_TargetX = targetX;
     m_TargetZ = targetZ;
     targetH = hgt[targetZ * W + targetX];
 
-    // ---- 作業領域（生の配列。Debug の反復子検査を避ける）----
-    static std::vector<int> cost;          // 整数コスト
-    static std::vector<int> bucket[kBuckets];
+    // ---- 作業領域（場ごと。別スレッドで作る作業用の場と本体が同時に作れる）----
+    std::vector<int>& cost = m_WorkCost;
+    if ((int)m_WorkBuckets.size() != kBuckets) m_WorkBuckets.resize(kBuckets);
+    std::vector<int>* bucket = m_WorkBuckets.data();
     cost.assign(n, kInf);
-    for (auto& b : bucket) b.clear();
+    for (int i = 0; i < kBuckets; ++i) bucket[i].clear();
     m_Dir.assign(n, Vector2(0, 0));
     int* costp = cost.data();
     Vector2* dirp = m_Dir.data();
@@ -150,4 +219,5 @@ void FlowField::Build(int targetX, int targetZ)
     m_Cost.resize(n);
     for (int i = 0; i < n; ++i)
         m_Cost[i] = (costp[i] == kInf) ? FLT_MAX : (float)costp[i] * 0.1f;
+    return true;
 }

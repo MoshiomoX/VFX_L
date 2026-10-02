@@ -58,6 +58,7 @@ bool SwarmSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 
 void SwarmSystem::Shutdown()
 {
+    WaitFlowJob();
     m_Readback.Shutdown();
 }
 
@@ -538,7 +539,10 @@ void SwarmSystem::UploadTerrain(const GridWorld& grid)
                 const auto c = grid.CellToWorld(x, z);
                 hgt[(size_t)z * w + x] = grid.SampleHeight(c.x, c.z);
             }
-        m_Flow.SetGrid(w, d, walk, hgt);
+        WaitFlowJob();   // 古い格子で作っている途中の物は捨てる
+        m_Flow.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
+        m_FlowWorker.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
+        m_FlowRequestX = m_FlowRequestZ = -1;
 
         m_FlowSRV.Reset();
         m_FlowBuffer.Reset();
@@ -759,28 +763,53 @@ void SwarmSystem::ClearAreas()
 // ============================================================
 // 巡路の更新
 // 玩家のマスが変わった時だけ Dial 法で距離場を作り直し、向き表を Map で上げる
-//（地形は静的。1 万マスで Debug 数 ms）
+//（地形は静的）。作り直しは別スレッド：
+//   1) 走っている作り直しが終わっていれば、結果を m_Flow へ貰って GPU へ上げる
+//   2) 走っている物が無く、玩家のマスが最後に作らせたマスと違えば、次を作らせる
+// GPU の向き表は 1〜2 フレーム古いマスの物になるが、雑魚は遠くの大回りに使うだけ
+// （玩家の近くは直進）なので困らない
 // ============================================================
 void SwarmSystem::UpdateFlowField(const Vector3& playerPos)
 {
     if (!m_FlowBuffer || m_Flow.Width() <= 0) return;
 
+    if (m_FlowJob.valid() && m_FlowJob.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+    {
+        if (m_FlowJob.get())
+        {
+            m_Flow.TakeResult(m_FlowWorker);
+            D3D11_MAPPED_SUBRESOURCE mapped = {};
+            if (SUCCEEDED(m_Context->Map(m_FlowBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+            {
+                const auto& dirs = m_Flow.Directions();
+                memcpy(mapped.pData, dirs.data(), sizeof(Vector2) * dirs.size());
+                m_Context->Unmap(m_FlowBuffer.Get(), 0);
+            }
+        }
+    }
+    if (m_FlowJob.valid()) return;   // まだ作っている
+
     const int gx = (int)std::floor((playerPos.x - m_CachedFrameCB.gridOrigin.x) / m_CachedFrameCB.cellSize);
     const int gz = (int)std::floor((playerPos.z - m_CachedFrameCB.gridOrigin.z) / m_CachedFrameCB.cellSize);
 
     // 地形は静的なので、場は目標マスだけで決まる。玩家がマスを跨いだ時だけ作り直す
-    if (gx == m_Flow.TargetX() && gz == m_Flow.TargetZ()) return;
+    if (gx == m_FlowRequestX && gz == m_FlowRequestZ) return;
+    m_FlowRequestX = gx;
+    m_FlowRequestZ = gz;
 
-    auto tf0 = std::chrono::high_resolution_clock::now();   // TEMP-TEST
-    m_Flow.Build(gx, gz);
-    { static int n = 0; if (n++ % 30 == 0) std::cout << "[flow] build ms=" << std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - tf0).count() << " target=(" << gx << "," << gz << ")" << std::endl; }   // TEMP-TEST
-    if (!m_Flow.IsBuilt()) return;
+    m_FlowWorker.CopySettings(m_Flow);   // 面板で変えた探索範囲など
+    m_FlowJob = std::async(std::launch::async, [this, gx, gz]
+        {
+            auto tf0 = std::chrono::high_resolution_clock::now();   // TEMP-TEST
+            const bool built = m_FlowWorker.Build(gx, gz);
+            { static int n = 0; if (n++ % 30 == 0) std::cout << "[flow] build ms=" << std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - tf0).count() << " target=(" << gx << "," << gz << ")" << std::endl; }   // TEMP-TEST
+            return built;
+        });
+}
 
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    if (FAILED(m_Context->Map(m_FlowBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
-    const auto& dirs = m_Flow.Directions();
-    memcpy(mapped.pData, dirs.data(), sizeof(Vector2) * dirs.size());
-    m_Context->Unmap(m_FlowBuffer.Get(), 0);
+void SwarmSystem::WaitFlowJob()
+{
+    if (m_FlowJob.valid()) m_FlowJob.get();
 }
 
 // ============================================================
@@ -935,6 +964,7 @@ void SwarmSystem::UploadSpawns()
         m_SpawnProjCS->SetSRV(m_Context, "motions", m_MotionSRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_SpawnProjCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 落点が鉱洞の中なら真上から落とす
         m_SpawnProjCS->SetUAV(m_Context, "projectiles", m_ProjUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "projStates", m_ProjStateUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "paths", m_PathUAV.Get());

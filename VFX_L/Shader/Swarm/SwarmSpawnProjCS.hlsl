@@ -26,6 +26,10 @@
 // With SWARM_SPAWN_AT_POS (a triggered meteor) the request position IS
 // the impact point (where the fireball / stone shot ended) and it comes
 // in over the player's side.
+// Inside the mine cave (2026-10-03: the ground at the impact is below the
+// plain, and the mine is roofed): fall from right above the impact, under
+// the roof. Coming in over the player's side could start outside the cave
+// and fly through the rock mass.
 //
 // Every claimed slot gets its trigger tag (0 = none) in projTags, so a
 // reused slot never keeps an old tag. Same for projBoost (the damage /
@@ -38,6 +42,13 @@ StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
 StructuredBuffer<uint2> spawnExtra : register(t4);   // x = trigger tag, y = SWARM_SPAWN_* flags
+StructuredBuffer<float> terrainHeight : register(t5); // GridWorld::Heights (the mine cave test)
+
+// ground lower than this (m) = the mine floor, under the roof
+static const float kCaveFloorBelow = -1.0;
+// fall height / back offset there (roof underside is ~15m above the floor)
+static const float kCaveDropHeight = 8.0;
+static const float kCaveDropBack = 2.0;
 
 RWStructuredBuffer<SwarmProjectile> projectiles : register(u0);
 RWBuffer<uint> projStates : register(u1);
@@ -126,7 +137,10 @@ void main(uint3 id : SV_DispatchThreadID)
             float3 back = float3(backFrom.x - impact.x, 0.0, backFrom.z - impact.z);
             float backLenSq = dot(back, back);
             back = (backLenSq > 1e-8) ? back * rsqrt(backLenSq) : -fwd;
-            float3 start = impact + back * m.c1.y + float3(0.0, max(m.c1.x, 1.0), 0.0);
+            bool inCave = SwarmTerrainHeight(terrainHeight, impact.xz) < kCaveFloorBelow;
+            float backDist = inCave ? min(m.c1.y, kCaveDropBack) : m.c1.y;
+            float upDist = inCave ? min(max(m.c1.x, 1.0), kCaveDropHeight) : max(m.c1.x, 1.0);
+            float3 start = impact + back * backDist + float3(0.0, upDist, 0.0);
 
             SwarmBuildDropPath(path, start, impact);
             req.position = start;

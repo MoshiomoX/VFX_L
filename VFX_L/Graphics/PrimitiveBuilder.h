@@ -58,6 +58,17 @@ namespace PrimitiveBuilder
         float sizeX, float sizeZ, int divX, int divZ, float y,
         const std::function<Vector4(float x, float z)>& colorAt);
 
+    // 段々の地面（2026-10-02、場地の三層）。cellsX × cellsZ マス（一辺 cellSize、中心原点）の
+    // マス毎の高さ levelAt(gx, gz) の水平面と、高さの違う隣のマスとの境の縦の壁（低い側を向く）。
+    // 同じ高さのマス同士は頂点を共有する（色が滑らかに繋がる）。上面は topColorAt(x, z, 高さ)、
+    // 壁は bandHeight 毎の帯に分けて帯の中ほどの wallColorAt(x, y, z) で塗る（地層の縞）
+    std::shared_ptr<Model> CreateSteppedGrid(ID3D11Device* device,
+        int cellsX, int cellsZ, float cellSize,
+        const std::function<float(int gx, int gz)>& levelAt,
+        const std::function<Vector4(float x, float z, float level)>& topColorAt,
+        const std::function<Vector4(float x, float y, float z)>& wallColorAt,
+        float bandHeight = 2.0f);
+
     // カプセル（radius + 円柱部の height。衝突体と同じ定義）
     std::shared_ptr<Model> CreateCapsule(ID3D11Device* device,
         float radius, float height,

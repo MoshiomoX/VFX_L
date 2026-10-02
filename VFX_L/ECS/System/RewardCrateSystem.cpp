@@ -33,11 +33,14 @@ void RewardCrateSystem::Init()
 //   - 周り 3x3 マスも歩ける所だけ（壁際に置くと回り込めない）
 //   - 箱同士は m_Spacing 以上離す
 //   - マスの中心・地面の高さに置く
+// 山頂・鉱洞のマスの表があれば、そこからも同じ条件で m_SummitCount / m_MineCount 個
+// （区域の中の箱同士は区域の広さに合わせて 20m 以上離す）。
 // 乱数は地形の seed から作る（同じ seed なら同じ配置）。
 // 箱は静的な AABB を持つ（玩家は押し返される。雑魚は GPU 側なので素通り）
 // ============================================================
 void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector3& center,
-    uint32_t seed, InteractionSystem& interaction)
+    uint32_t seed, InteractionSystem& interaction,
+    const std::vector<int>* summitCells, const std::vector<int>* mineCells)
 {
     for (Entity e : m_Crates)
         if (reg.IsValid(e)) reg.Destroy(e);
@@ -61,19 +64,14 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
     std::uniform_real_distribution<float> angleDist(0.0f, DirectX::XM_2PI);
     std::uniform_real_distribution<float> radiusDist(m_MinDist, (std::max)(m_MinDist, m_MaxDist));
 
-    for (int attempt = 0; attempt < 400 && (int)m_Crates.size() < m_Count; ++attempt)
+    // マス (gx, gz) の中心に 1 個置けたら true。spacing = 既に置いた箱からの最小距離
+    auto tryPlace = [&](int gx, int gz, float a, float spacing) -> bool
     {
-        const float a = angleDist(rng);
-        const float r = radiusDist(rng);
-        const Vector3 probe = center + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);
-
-        int gx = 0, gz = 0;
-        grid.WorldToCell(probe, gx, gz);
         bool open = true;
         for (int dz = -1; dz <= 1 && open; ++dz)
             for (int dx = -1; dx <= 1 && open; ++dx)
                 open = grid.IsWalkable(gx + dx, gz + dz);
-        if (!open) continue;
+        if (!open) return false;
 
         Vector3 pos = grid.CellToWorld(gx, gz);
         pos.y = grid.SampleHeight(pos.x, pos.z);
@@ -86,16 +84,14 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
                 const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
                 flat = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.2f;
             }
-        if (!flat) continue;
+        if (!flat) return false;
 
-        bool tooClose = false;
         for (Entity other : m_Crates)
         {
             const Vector3 op = reg.Get<InteractableComponent>(other).basePos;
             const float dx = op.x - pos.x, dz = op.z - pos.z;
-            if (dx * dx + dz * dz < m_Spacing * m_Spacing) { tooClose = true; break; }
+            if (dx * dx + dz * dz < spacing * spacing) return false;
         }
-        if (tooClose) continue;
 
         Entity e = reg.Create();
 
@@ -130,9 +126,38 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
         reg.Add<InteractableComponent>(e, it);
 
         m_Crates.push_back(e);
+        return true;
+    };
+
+    for (int attempt = 0, placed = 0; attempt < 400 && placed < m_Count; ++attempt)
+    {
+        const float a = angleDist(rng);
+        const float r = radiusDist(rng);
+        const Vector3 probe = center + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);
+        int gx = 0, gz = 0;
+        grid.WorldToCell(probe, gx, gz);
+        if (tryPlace(gx, gz, a, m_Spacing)) ++placed;
     }
 
-    std::cout << "[RewardCrateSystem] reward crates: " << m_Crates.size() << " / " << m_Count
+    // 山頂・鉱洞（区域のマスから無作為に）
+    auto placeInZone = [&](const std::vector<int>* cells, int count) -> int
+    {
+        if (!cells || cells->empty()) return 0;
+        std::uniform_int_distribution<int> pick(0, (int)cells->size() - 1);
+        int placed = 0;
+        for (int attempt = 0; attempt < 400 && placed < count; ++attempt)
+        {
+            const int c = (*cells)[pick(rng)];
+            if (tryPlace(c % grid.Width(), c / grid.Width(), angleDist(rng), (std::max)(m_Spacing, 20.0f))) ++placed;
+        }
+        return placed;
+    };
+    const int nearCount = (int)m_Crates.size();
+    const int summitPlaced = placeInZone(summitCells, m_SummitCount);
+    const int minePlaced = placeInZone(mineCells, m_MineCount);
+
+    std::cout << "[RewardCrateSystem] reward crates: near " << nearCount << " / " << m_Count
+        << ", summit " << summitPlaced << " / " << m_SummitCount << ", mine " << minePlaced << " / " << m_MineCount
         << " (scale " << scale << ")" << std::endl;
 }
 
@@ -166,7 +191,9 @@ bool RewardCrateSystem::DrawImGui(InteractionSystem& interaction, const LevelUpS
 
     ImGui::Text("Remaining : %d   offers so far : %d", (int)m_Crates.size(), levelUp.GetTotalOffers());
     ImGui::Text("Focus     : %s", interaction.HasFocus() ? "YES (press F / Pad B)" : "none");
-    ImGui::DragInt("Count", &m_Count, 1, 0, 30);
+    ImGui::DragInt("Count (near start)", &m_Count, 1, 0, 30);
+    ImGui::DragInt("Count (summit)", &m_SummitCount, 1, 0, 10);
+    ImGui::DragInt("Count (mine)", &m_MineCount, 1, 0, 10);
     ImGui::DragFloatRange2("Distance (m)", &m_MinDist, &m_MaxDist, 0.5f, 0.0f, 90.0f);
     ImGui::DragFloat("Spacing (m)", &m_Spacing, 0.1f, 0.0f, 30.0f);
     ImGui::DragFloat("Size (m)", &m_Size, 0.01f, 0.1f, 3.0f);
