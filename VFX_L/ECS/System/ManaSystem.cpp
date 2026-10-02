@@ -18,6 +18,10 @@ void ManaSystem::Update(Registry& reg, float dt)
                 // ---- 2) 回復 ----
                 m.current += m.regen * dt;
 
+                // ---- 魔力解放の残りと再使用待ち ----
+                if (m.surgeTime > 0.0f) m.surgeTime = (m.surgeTime > dt) ? m.surgeTime - dt : 0.0f;
+                if (m.surgeCooldownLeft > 0.0f) m.surgeCooldownLeft = (m.surgeCooldownLeft > dt) ? m.surgeCooldownLeft - dt : 0.0f;
+
                 // ---- 3) 範囲に収める ----
                 //   予約は CanAfford を通っているので負にはならないはずだが、
                 //   ImGui で max を下げられた時のために両側で丸める

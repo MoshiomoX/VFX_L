@@ -6,6 +6,7 @@
 #include "VFX_Editor/EntryType.h"
 #include "Component/TransformComponent.h"
 #include "Player/LevelComponent.h"
+#include "Component/ManaComponent.h"
 #include "imgui.h"
 
 using DirectX::SimpleMath::Vector3;
@@ -16,10 +17,13 @@ namespace
     constexpr const char* kCrateOpen = "CrateOpen.json";
     constexpr const char* kHurt = "Hurt.json";
     constexpr const char* kExpPickup = "ExpPickup.json";
+    constexpr const char* kSurgeBurst = "ManaSurgeBurst.json";
+    constexpr const char* kSurgeAura = "ManaSurgeAura.json";
     constexpr float kLevelUpTime = 1.0f;
     constexpr float kCrateOpenTime = 1.8f;
     constexpr float kHurtTime = 0.5f;
     constexpr float kExpPickupTime = 0.6f;
+    constexpr float kSurgeBurstTime = 0.8f;
 }
 
 void FeedbackVFXSystem::Init(AreaVFXPlayer* player, const VFXContext* ctx)
@@ -29,13 +33,16 @@ void FeedbackVFXSystem::Init(AreaVFXPlayer* player, const VFXContext* ctx)
     m_PrevLevel = -1;
     m_HurtTimer = 0.0f;
     m_PickupTimer = 0.0f;
+    m_PrevSurgeTime = 0.0f;
+    m_SurgeAura = 0;
 }
 
-void FeedbackVFXSystem::Play(const char* file, const Vector3& pos, float duration, bool follow)
+uint32_t FeedbackVFXSystem::Play(const char* file, const Vector3& pos, float duration, bool follow)
 {
-    if (!m_Player || !m_Ctx) return;
-    m_Player->Play(file, pos, duration, follow, *m_Ctx);
+    if (!m_Player || !m_Ctx) return 0;
+    const uint32_t handle = m_Player->Play(file, pos, duration, follow, *m_Ctx);
     if (onPlayed) onPlayed(file);
+    return handle;
 }
 
 void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLost)
@@ -59,6 +66,25 @@ void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpL
     {
         Play(kHurt, pos, kHurtTime, true);
         m_HurtTimer = m_HurtInterval;
+    }
+
+    // ---- 魔力解放（残り時間が増えた = 始まった。光は残り時間だけ出す）----
+    if (reg.Has<ManaComponent>(player))
+    {
+        const float surge = reg.Get<ManaComponent>(player).surgeTime;
+        if (m_Surge && surge > m_PrevSurgeTime + 1e-4f)
+        {
+            if (m_SurgeAura && m_Player) m_Player->StopInstance(m_SurgeAura);
+            Play(kSurgeBurst, pos, kSurgeBurstTime, true);
+            m_SurgeAura = Play(kSurgeAura, pos, surge, true);
+        }
+        else if (surge <= 0.0f && m_PrevSurgeTime > 0.0f && m_SurgeAura)
+        {
+            // 解放が終わった（調試面板で残りを 0 にされた時も）。Test ボタンの光は残り時間で勝手に止まる
+            if (m_Player) m_Player->StopInstance(m_SurgeAura);
+            m_SurgeAura = 0;
+        }
+        m_PrevSurgeTime = surge;
     }
 }
 
@@ -98,7 +124,16 @@ void FeedbackVFXSystem::DrawImGui(Registry& reg, Entity player)
     ImGui::SameLine(160.0f);
     if (ImGui::Button("Test##fxExp")) Play(kExpPickup, here, kExpPickupTime, true);
     ImGui::DragFloat("Pickup min interval (s)", &m_PickupInterval, 0.01f, 0.0f, 2.0f);
+    ImGui::Checkbox("Mana surge##fx", &m_Surge);
+    ImGui::SameLine(160.0f);
+    if (ImGui::Button("Test##fxSurge"))
+    {
+        if (m_SurgeAura && m_Player) m_Player->StopInstance(m_SurgeAura);
+        Play(kSurgeBurst, here, kSurgeBurstTime, true);
+        m_SurgeAura = Play(kSurgeAura, here, 3.0f, true);
+    }
     ImGui::TextDisabled("Assets/Data/VFXData/LevelUp / CrateOpen / Hurt / ExpPickup.json");
+    ImGui::TextDisabled("  ManaSurgeBurst / ManaSurgeAura.json");
     ImGui::TextDisabled("hits: ArcBolt -> ArcSpark, HomingBolt -> VoidPop (0 damage areas)");
     if (ImGui::Button("Reload json") && m_Player) m_Player->ClearTemplates();
 }

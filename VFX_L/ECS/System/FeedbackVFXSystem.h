@@ -11,11 +11,15 @@
 //     うるさいので m_HurtInterval 秒はあける
 //   ・経験値：GPU で拾った分が回読で届いたフレームに体の周りへ（付いて動く）。
 //     吸い寄せで何百個も一度に拾うので、m_PickupInterval 秒に 1 回まで
+//   ・魔力解放（2026-10-01）：始まったフレームに金の爆発（ManaSurgeBurst.json）、
+//     解放の間ずっと体の周りに金の光（ManaSurgeAura.json、loop。残り時間で止める）。
+//     どちらも付いて動く。解放が早く終わったら光も止める
 // ============================================================
 #pragma once
 #include "ECS/Registry.h"
 #include "ECS/Entity.h"
 #include <SimpleMath.h>
+#include <cstdint>
 #include <functional>
 
 class AreaVFXPlayer;
@@ -33,8 +37,8 @@ public:
     // 経験値を拾った（SwarmSystem::ConsumeExp が > 0 の時）。pos = プレイヤーの位置
     void OnExpPicked(const DirectX::SimpleMath::Vector3& pos);
 
-    // 1 回出す。follow = プレイヤーに付いて動く（AreaVFXPlayer::Update の followPos）
-    void Play(const char* file, const DirectX::SimpleMath::Vector3& pos, float duration, bool follow);
+    // 1 回出す。follow = プレイヤーに付いて動く（AreaVFXPlayer::Update の followPos）。戻り値は実例の番号（0 = 出せなかった）
+    uint32_t Play(const char* file, const DirectX::SimpleMath::Vector3& pos, float duration, bool follow);
 
     void DrawImGui(Registry& reg, Entity player);
 
@@ -54,4 +58,8 @@ private:
     float m_HurtTimer = 0.0f;
     float m_PickupInterval = 0.15f;
     float m_PickupTimer = 0.0f;
+
+    bool     m_Surge = true;          // 魔力解放：金の爆発 + 体の周りの光
+    float    m_PrevSurgeTime = 0.0f;  // 前のフレームの ManaComponent::surgeTime（増えたら始まった）
+    uint32_t m_SurgeAura = 0;         // 光の実例（0 = 出していない）
 };

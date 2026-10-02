@@ -53,8 +53,8 @@ namespace InputMap
             input.GetPadTrigger(XINPUT_GAMEPAD_B);
     }
 
-    // 施法の一時停止 / 再開（Q、パッド Y。トリガー）
-    inline bool GetCastPauseToggle()
+    // 魔力解放：3 秒間魔力を消費しない（Q、パッド Y。トリガー。2026-10-01 までは施法の一時停止だった）
+    inline bool GetManaSurgeTrigger()
     {
         auto& input = InputManager::Get();
         return input.GetKeyTrigger('Q') ||

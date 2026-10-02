@@ -125,6 +125,7 @@ struct HUDStyle
     DirectX::SimpleMath::Vector4 bgColor = { 0.003f, 0.0025f, 0.005f, 0.95f };
     DirectX::SimpleMath::Vector4 hpColor = { 0.55f, 0.035f, 0.030f, 1.0f };    // 見た目 #C0342F くらい
     DirectX::SimpleMath::Vector4 mpColor = { 0.050f, 0.16f, 0.75f, 1.0f };     // 見た目 #3F6FE0 くらい
+    DirectX::SimpleMath::Vector4 mpSurgeColor = { 1.10f, 0.70f, 0.10f, 1.0f }; // 魔力解放中（金。1 を少し超えて光る。脈打つ）
     DirectX::SimpleMath::Vector4 expColor = { 0.79f, 0.49f, 0.07f, 1.0f };     // 見た目 #E6B84D くらい
     DirectX::SimpleMath::Vector4 trailColor = { 1.00f, 0.85f, 0.60f, 0.50f };
     DirectX::SimpleMath::Vector4 borderColor = { 0.69f, 0.47f, 0.15f, 0.90f }; // 古金（UIDeco と同じ）
@@ -155,6 +156,12 @@ struct HUDStyle
     float vignettePulse = 5.0f;     // 明滅の速さ（rad/s）
     DirectX::SimpleMath::Vector4 vignetteColor = { 0.85f, 0.05f, 0.05f, 0.55f };
 
+    // ---- 魔力解放中の金の縁（解放の間だけ。出入りはフェード）----
+    bool  surgeVignette = true;
+    float surgeVignetteWidth = 0.09f;
+    // 草の緑と混ざると黄緑に寄るので、赤みを多めにした金
+    DirectX::SimpleMath::Vector4 surgeVignetteColor = { 1.00f, 0.40f, 0.035f, 0.55f };
+
     // ---- 画面外の目印（画面の縁に、その方向を指す矢印）----
     bool  showMarkers = true;
     float markerSize = 18.0f;
@@ -174,11 +181,10 @@ public:
     // 残像の追従。描画しない間（モーダル表示中）も進める
     void Update(float dt, const HealthComponent& hp, const ManaComponent& mp);
 
-    // castingPaused: プレイヤーが施法を止めている時、MP バーの下に一行出す
+    // MP バーの下に魔力解放の状態を一行出す（解放中は残り秒・バーが金、再使用待ちは残り秒、使える時は案内）
     void Draw(SpriteRenderer& sprite, TextRenderer& text,
         const HealthComponent& hp, const ManaComponent& mp,
-        const LevelComponent& lv, bool castingPaused,
-        const HUDFrameInfo& info);
+        const LevelComponent& lv, const HUDFrameInfo& info);
 
     // 魔法の欄のアイコン（無ければ道具の色の四角）。GameUI が背包と同じ物を渡す
     void SetIconLookup(std::function<std::shared_ptr<Texture>(ItemID)> f) { m_IconLookup = std::move(f); }
@@ -235,6 +241,10 @@ private:
     void DrawSpellBar(SpriteRenderer& sprite,
         const WandComponent& wand, const ManaComponent& mp);
     void DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp);
+    void DrawSurgeVignette(SpriteRenderer& sprite, const ManaComponent& mp);
+    // 画面の四辺のぼかし（外端の濃さ edgeAlpha、太さ = 画面短辺 × widthRatio）
+    void DrawEdgeGlow(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector4& color,
+        float edgeAlpha, float widthRatio);
     void DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info);
 
     BarTrail m_HpTrail;

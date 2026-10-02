@@ -136,6 +136,11 @@ void GameUI::Update(Registry& reg, Entity player, float dt)
         return;
     }
 
+    // HUD の残像と明滅の時間（モーダル表示中も進める）。
+    // 2026-10-01 まで一度も呼ばれておらず、残像は満タンのまま・明滅は止まったままだった
+    if (reg.Has<HealthComponent>(player) && reg.Has<ManaComponent>(player))
+        m_HUD.Update(dt, reg.Get<HealthComponent>(player), reg.Get<ManaComponent>(player));
+
     // 死んだら何も開かせない（「力尽きた」の幕 → リザルトへ進むだけ）
     if (reg.Has<PlayerStateComponent>(player) && reg.Get<PlayerStateComponent>(player).IsDead())
     {
@@ -267,8 +272,7 @@ void GameUI::Render(Registry& reg, Entity player)
         m_HUD.Draw(m_Sprite, m_Text,
             reg.Get<HealthComponent>(player),
             reg.Get<ManaComponent>(player),
-            reg.Get<LevelComponent>(player),
-            wand && wand->castingPaused, m_FrameInfo);
+            reg.Get<LevelComponent>(player), m_FrameInfo);
         m_FrameInfo.wand = nullptr;   // 次のフレームまで指したままにしない
     }
 
