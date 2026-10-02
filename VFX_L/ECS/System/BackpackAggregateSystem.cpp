@@ -9,6 +9,7 @@
 #include "Component/AreaStats.h"
 #include "Item/ItemDatabase.h"
 #include "Item/ItemInfo.h"
+#include "Player/PlayerStatsComponent.h"
 #include "ECS/View.h"
 #include <iostream>
 
@@ -42,6 +43,9 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 {
     auto& bp = reg.Get<BackpackComponent>(e);
     auto& wand = reg.Get<WandComponent>(e);
+    // 能力アップ「魔法威力」。ルーンの修飾の後に掛ける（ItemInfo::DescribePlaced と同じ順）。
+    // 札を取ったら LevelUpSystem::ApplyStat が dirty を立てるので、ここで掛け直される
+    const float power = reg.Has<PlayerStatsComponent>(e) ? reg.Get<PlayerStatsComponent>(e).spellPower : 1.0f;
 
     m_Log.clear();
 
@@ -85,6 +89,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
                 log.influencedBy.push_back(fdef->common.name);
             }
+            ItemInfo::ApplySpellPower(stats, power);
 
             // 高級魔法: 前提の基礎魔法が全種類届いていなければ撃たない（背包では暗く出る）
             if (!pdef->common.triggeredBy.empty())
@@ -115,6 +120,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
                 log.influencedBy.push_back(fdef->common.name);
             }
+            ItemInfo::ApplySpellPower(stats, power);
 
             // 高級魔法（光線）: 前提が揃っていなければ出さない（背包では暗く出る）
             if (!adef->common.triggeredBy.empty())

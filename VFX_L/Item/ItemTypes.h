@@ -214,6 +214,7 @@ enum class StatKind
     JumpPower,    // PlayerStatsComponent::jumpPower（跳んだ瞬間の上向きの速さ）
     ManaRegen,    // ManaComponent::regen（1 秒あたりの魔力回復）
     JumpCount,    // PlayerStatsComponent::extraJumps（空中で追加で跳べる回数。amount 回ぶん足す）
+    SpellPower,   // PlayerStatsComponent::spellPower（全部の攻撃魔法のダメージの倍率。背包を集約し直して効く）
 };
 
 struct StatItemDef

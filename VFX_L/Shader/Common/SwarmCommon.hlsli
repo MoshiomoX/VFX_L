@@ -174,6 +174,29 @@ static const uint SWARM_MAX_TRIGGER_EVENTS = 128u;
 static const uint SWARM_SPAWN_AT_POS = 1u;
 
 // ------------------------------------------------------------
+// Boost on the areas a projectile leaves (2026-10-02). y bits 8-19 =
+// damage multiplier, bits 20-31 = duration multiplier, 256 = 1.0 (0 reads
+// as 1.0). SpawnProjCS keeps y >> SWARM_SPAWN_BOOST_SHIFT per slot in
+// projBoost; HitCS / ProjMoveCS hand it to SwarmSpawnAreaFromDef.
+// Damage = the "spell power" stat card, duration = shots cast during a
+// mana surge (only lasting areas get longer).
+// Must match Swarm::kSpawnBoostShift / PackSpawnBoost in SwarmTypes.h
+// ------------------------------------------------------------
+static const uint SWARM_SPAWN_BOOST_SHIFT = 8u;
+
+float SwarmBoostDamage(uint boost)
+{
+    uint q = boost & 0xFFFu;
+    return (q == 0u) ? 1.0 : (float) q / 256.0;
+}
+
+float SwarmBoostDuration(uint boost)
+{
+    uint q = (boost >> 12) & 0xFFFu;
+    return (q == 0u) ? 1.0 : (float) q / 256.0;
+}
+
+// ------------------------------------------------------------
 // Size scale of one projectile / area (the Magnifier item).
 // A projectile's scale = its hit radius / its profile's radius
 // (SwarmMotion.baseRadius), worked out once in SwarmSpawnProjCS and
@@ -386,18 +409,21 @@ StructuredBuffer<SwarmAreaDef> areaDefs : register(SWARM_AREA_DEF_T);
 
 // Same CAS scan as the other pools. Pool full -> no area (degrade, never corrupt).
 // scale: the size scale of whatever spawned it (a projectile's SwarmProjScale, 1 = as authored)
-void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale)
+// boost: the projectile's projBoost (SwarmBoostDamage / SwarmBoostDuration), 0 = none.
+//        The duration part only stretches lasting areas (a one-shot ticks once anyway)
+void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint boost)
 {
     if (defId == 0u)
         return;
 
     SwarmAreaDef d = areaDefs[defId];
+    bool lasting = d.tickInterval < d.duration;
 
     SwarmArea a = (SwarmArea) 0;
     a.center = pos;
     a.radius = d.radius * scale;
-    a.damage = d.damage;
-    a.timeLeft = d.duration;
+    a.damage = d.damage * SwarmBoostDamage(boost);
+    a.timeLeft = d.duration * (lasting ? SwarmBoostDuration(boost) : 1.0);
     a.tickInterval = d.tickInterval;
     a.tickTimer = 0.0;
     a.halfHeight = d.halfHeight * scale;

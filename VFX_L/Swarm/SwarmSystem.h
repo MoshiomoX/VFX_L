@@ -160,12 +160,15 @@ public:
     // 捕捉する敵は玩家に一番近い 1 体（武器が狙っているのと同じ相手）
     // triggerTag : この弾が消えたら誘発できる高級魔法（杖の spells の添字の bit）。0 = 無し
     // spawnAtPos : Drop 型だけ。pos を着弾点にする（誘発の隕石。最寄りの敵を捕捉しない）
+    // areaDamageMul / areaDurationMul : この弾が命中・着弾で出す範囲の威力 / 持続に掛ける
+    //   （魔法威力の能力アップ・魔力解放中の弾。持続は「持続する範囲」だけ伸びる。Swarm::PackSpawnBoost）
     void SpawnProjectile(VFXId vfx,
         const DirectX::SimpleMath::Vector3& pos,
         const DirectX::SimpleMath::Vector3& vel,
         float damage, float radius, float lifetime,
         uint32_t motion = 0, bool mirror = false,
-        uint32_t triggerTag = 0, bool spawnAtPos = false);
+        uint32_t triggerTag = 0, bool spawnAtPos = false,
+        float areaDamageMul = 1.0f, float areaDurationMul = 1.0f);
 
     // 回読で届いた誘発（タグ付きの弾が消えた場所）を全部取り出す。2〜3 フレーム古い
     void ConsumeTriggerEvents(std::vector<Swarm::TriggerEvent>& out)
@@ -361,6 +364,12 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjTagBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjTagUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjTagSRV;
+
+    // 弾スロット毎の「出す範囲への倍率」（威力 12bit | 持続 12bit、Swarm::PackSpawnBoost の >> 8。2026-10-02）。
+    // SpawnProjCS が書き、HitCS / ProjMoveCS が範囲を出す時に読む
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBoostBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjBoostUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjBoostSRV;
 
     // 誘発の環（ProjEndCS が書く）→ staging 3 枚で回読。総数は GPU 上で永久に累加、CPU は読んだ所まで覚える
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_TriggerBuffer;

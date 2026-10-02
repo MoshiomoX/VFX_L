@@ -15,6 +15,7 @@
 #include "Component/WandComponent.h"
 #include "Player/LevelComponent.h"
 #include "Player/PlayerStateComponent.h"
+#include "Player/PlayerStatsComponent.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputMap.h"
 #include "Manager/InputManager.h"
@@ -310,6 +311,8 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     // ---- tooltip の中身（背包を操作している間だけ）----
     ItemInfo::Sheet sheet;
     bool tooltip = false;
+    // 置いてある魔法の数字は能力アップ「魔法威力」込み（集約と同じ）
+    const float spellPower = reg.Has<PlayerStatsComponent>(player) ? reg.Get<PlayerStatsComponent>(player).spellPower : 1.0f;
     if (m_Stack.CanReceiveInput(UILayer::Backpack) && !m_Drag.IsActive()
         && reg.Has<BackpackComponent>(player) && !ImGui::GetIO().WantCaptureMouse)
     {
@@ -320,7 +323,7 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
 
         tooltip = true;
         if (item >= 0 && item < (int)bp.items.size())
-            sheet = ItemInfo::DescribePlaced(bp, item);
+            sheet = ItemInfo::DescribePlaced(bp, item, spellPower);
         else if (frame >= 0 && frame < (int)bp.frames.size())
             sheet = ItemInfo::Describe(bp.frames[frame].id);
         else if (m_Spellbook.GetHoveredItem(bookId))
@@ -340,7 +343,7 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
         const auto& bp = reg.Get<BackpackComponent>(player);
         if (m_TestTooltipItem < (int)bp.items.size())
         {
-            sheet = ItemInfo::DescribePlaced(bp, m_TestTooltipItem);
+            sheet = ItemInfo::DescribePlaced(bp, m_TestTooltipItem, spellPower);
             tooltip = true;
             anchor = m_TestTooltipPos;
         }

@@ -29,7 +29,14 @@ struct ManaComponent
     float surgeCooldown = 30.0f;
     float surgeTime = 0.0f;           // 残り（> 0 の間は無限）
     float surgeCooldownLeft = 0.0f;   // 次に使えるまで
+    // 解放中の強化（2026-10-02 用户指定、WeaponSystem が見る）:
+    //   詠唱 = 発動間隔・高級魔法の冷却・連発の間・光線の溜めの計時がこの倍の速さで進む
+    //   持続 = 解放中に撃った魔法の「持続する範囲」（毒の池・光線）がこの倍だけ長く残る（撃った時に決まる）
+    float surgeCastSpeed = 1.5f;
+    float surgeDurationMul = 1.5f;
     bool SurgeActive() const { return surgeTime > 0.0f; }
+    float CastSpeed() const { return SurgeActive() ? surgeCastSpeed : 1.0f; }
+    float DurationMul() const { return SurgeActive() ? surgeDurationMul : 1.0f; }
     // 使えれば始めて true
     bool TryStartSurge()
     {

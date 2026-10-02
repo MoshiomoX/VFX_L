@@ -35,6 +35,12 @@ public:
     // 早めに止める（発射を止めて、出ている物は自然に消える）
     void StopInstance(uint32_t handle);
 
+    // 時間軸を伸び縮みさせる（Play の直後、まだ Update していない実例に使う）。
+    // 各 entry の開始 / 終了の時刻 t を、t <= split なら t × before、それより後は
+    // split × before + (t - split) × after に写す。光線の溜め（split = 溜め）を短く・光線を長くする時用
+    // （魔力解放、2026-10-02）。持続が -1（無限）の entry は開始だけ写す
+    void RemapTimeline(uint32_t handle, float split, float before, float after);
+
     void Update(float dt, const DirectX::SimpleMath::Vector3& followPos);
 
     void StopAll();

@@ -197,7 +197,18 @@ void CollisionTestScene::DrawWandPanel()
             mp.SurgeActive() ? "ON" : "off", mp.surgeTime, mp.surgeCooldownLeft);
         ImGui::DragFloat("Surge duration (s)", &mp.surgeDuration, 0.1f, 0.0f, 30.0f);
         ImGui::DragFloat("Surge cooldown (s)", &mp.surgeCooldown, 0.5f, 0.0f, 300.0f);
+        // 解放中の強化（2026-10-02）: 詠唱の計時の速さ / 持続する範囲の長さ
+        ImGui::DragFloat("Surge cast speed x", &mp.surgeCastSpeed, 0.05f, 0.1f, 5.0f);
+        ImGui::DragFloat("Surge duration x", &mp.surgeDurationMul, 0.05f, 0.1f, 5.0f);
         if (ImGui::Button("Reset surge cooldown")) mp.surgeCooldownLeft = 0.0f;
+    }
+    // 能力アップ「魔法威力」の累積（変えたら背包を集約し直す）
+    if (m_Registry.Has<PlayerStatsComponent>(m_Player))
+    {
+        auto& st = m_Registry.Get<PlayerStatsComponent>(m_Player);
+        if (ImGui::DragFloat("Spell power x", &st.spellPower, 0.01f, 0.1f, 10.0f)
+            && m_Registry.Has<BackpackComponent>(m_Player))
+            m_Registry.Get<BackpackComponent>(m_Player).dirty = true;
     }
 
     switch (w.castMode)

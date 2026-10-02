@@ -28,7 +28,8 @@
 // in over the player's side.
 //
 // Every claimed slot gets its trigger tag (0 = none) in projTags, so a
-// reused slot never keeps an old tag.
+// reused slot never keeps an old tag. Same for projBoost (the damage /
+// duration multipliers of the areas it leaves, see SwarmBoostDamage).
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -43,6 +44,7 @@ RWBuffer<uint> projStates : register(u1);
 RWStructuredBuffer<SwarmProjPath> paths : register(u2);
 RWByteAddressBuffer counters : register(u3);
 RWBuffer<uint> projTags : register(u4);
+RWBuffer<uint> projBoost : register(u5);   // y >> SWARM_SPAWN_BOOST_SHIFT: damage / duration boost of the areas it leaves
 
 cbuffer SwarmSpawnCB : register(b1)
 {
@@ -170,6 +172,7 @@ void main(uint3 id : SV_DispatchThreadID)
             projectiles[slot] = req;
             paths[slot] = path;
             projTags[slot] = extra.x;
+            projBoost[slot] = extra.y >> SWARM_SPAWN_BOOST_SHIFT;
             return;
         }
     }

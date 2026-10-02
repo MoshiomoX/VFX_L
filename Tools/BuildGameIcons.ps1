@@ -45,6 +45,7 @@ $Icons = [ordered]@{
     'JumpPowerUp'    = 'delapouite/jump-across'
     'ManaRegenUp'    = 'lorc/magic-swirl'
     'JumpCountUp'    = 'lorc/wingfoot'
+    'SpellPowerUp'   = 'lorc/crystal-wand'
     'Magnet'         = 'lorc/magnet'
     'Frame3x3'       = '@grid3'
 }

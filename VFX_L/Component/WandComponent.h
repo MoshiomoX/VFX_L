@@ -42,6 +42,9 @@ struct SpellStats
     float speed = 20.0f;
     float radius = 0.25f;
     float lifetime = 3.0f;
+    // 命中・着弾で出す範囲（プロファイルの hitArea）の威力に掛ける倍率。
+    // 範囲の威力は GPU の範囲定義が持つので、弾ごとに渡す（能力アップ「魔法威力」。ItemInfo::ApplySpellPower）
+    float areaDamageMul = 1.0f;
 
     // --- 誘発（基礎魔法 → 高級魔法。集約が決める）---
     bool     triggered = false;   // 高級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ

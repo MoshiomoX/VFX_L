@@ -109,7 +109,7 @@ void UpdateBomber(uint i, SwarmEnemyExtra extra)
     }
     enemyStates[i] = SWARM_DEAD;
     enemyExtra[i].fuse = 0.0;
-    SwarmSpawnAreaFromDef(g_BomberBlastArea, pos, i, 1.0);
+    SwarmSpawnAreaFromDef(g_BomberBlastArea, pos, i, 1.0, 0u);
 }
 
 [numthreads(256, 1, 1)]

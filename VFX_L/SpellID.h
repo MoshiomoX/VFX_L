@@ -38,6 +38,7 @@ enum class ItemID
     JumpPowerUp,      // 跳躍力（跳ぶ初速）+%
     ManaRegenUp,      // 魔力回復 +%
     JumpCountUp,      // 跳躍回数 +1（空中の追加ジャンプ。回を重ねるごとに半分）
+    SpellPowerUp,     // 魔法威力 +%（全部の攻撃魔法のダメージ。2026-10-02）
 };
 
 // 出力源かどうか（集約時の振り分け用）

@@ -133,6 +133,24 @@ namespace Swarm
     constexpr uint32_t kMaxTriggerEvents = 128;
     constexpr uint32_t kSpawnAtPos = 1u;
 
+    // ============================================================
+    // 弾が出す範囲（命中・着弾の hitArea）への倍率（2026-10-02）
+    //   y の bit 8〜19 = 威力の倍率、bit 20〜31 = 持続の倍率（どちらも 256 = 1.0、0 は 1.0 扱い）。
+    //   SwarmSpawnProjCS がスロット毎の projBoost へ写し、範囲を出す所（HitCS / ProjMoveCS）が掛ける。
+    //   威力 = 能力アップ「魔法威力」、持続 = 魔力解放中に撃った弾（持続する範囲だけ伸びる）。
+    //   HLSL の SWARM_SPAWN_BOOST_SHIFT / SwarmBoostDamage / SwarmBoostDuration と一致させること
+    // ============================================================
+    constexpr uint32_t kSpawnBoostShift = 8u;
+    inline uint32_t PackSpawnBoost(float damageMul, float durationMul)
+    {
+        auto q = [](float v) -> uint32_t
+            {
+                const float c = (v < 1.0f / 256.0f) ? 1.0f / 256.0f : (v > 4095.0f / 256.0f ? 4095.0f / 256.0f : v);
+                return (uint32_t)(c * 256.0f + 0.5f);
+            };
+        return (q(damageMul) | (q(durationMul) << 12)) << kSpawnBoostShift;
+    }
+
     struct TriggerEvent
     {
         Vector3  position;    // 弾が消えた所の地面（地形の高さ）

@@ -42,15 +42,22 @@ namespace
 // 1回の施法ぶんの発射要求を積む（分裂の扇状展開はここ）
 // ============================================================
 void WeaponSystem::QueueOneCast(const SpellStats& s,
-    const Vector3& muzzle, const Vector3& dir)
+    const Vector3& muzzle, const Vector3& dir, float durationMul)
 {
     int count = (std::max)(1, s.projectileCount);
+    auto push = [&](const Vector3& d)
+        {
+            CastRequest req = { s.id, s.profile, muzzle, d,
+                s.speed, s.radius, s.damage, s.lifetime, s.triggerMask };
+            req.areaDamageMul = s.areaDamageMul;
+            req.areaDurationMul = durationMul;
+            m_Requests.push_back(req);
+        };
 
     if (count == 1 || s.spreadAngle <= 0.0f)
     {
         // 単発: そのまま積む
-        m_Requests.push_back({ s.id, s.profile, muzzle, dir,
-            s.speed, s.radius, s.damage, s.lifetime, s.triggerMask });
+        push(dir);
         return;
     }
 
@@ -66,8 +73,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
         Vector3 d = Vector3::TransformNormal(dir, rot);
         d.Normalize();
 
-        m_Requests.push_back({ s.id, s.profile, muzzle, d,
-            s.speed, s.radius, s.damage, s.lifetime, s.triggerMask });
+        push(d);
     }
 }
 
@@ -76,7 +82,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
 // 分裂（projectileCount > 1）は着弾点を impact の周りの輪に並べる（扇に開くと同じ所に重なるだけなので）
 // ============================================================
 void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
-    const Vector3& impact, const Vector3& muzzle)
+    const Vector3& impact, const Vector3& muzzle, float durationMul)
 {
     constexpr float kSplitRing = 2.0f;   // 分裂した時の輪の半径（m）。爆発（半径 3）が少し重なる程度
 
@@ -98,6 +104,8 @@ void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
         CastRequest req = { s.id, s.profile, p, dir,
             s.speed, s.radius, s.damage, s.lifetime, s.triggerMask };
         req.atPos = true;
+        req.areaDamageMul = s.areaDamageMul;
+        req.areaDurationMul = durationMul;
         m_Requests.push_back(req);
     }
 }
@@ -124,6 +132,14 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 // ---- 施法アニメ用のタイマーを進める ----
                 if (wand.castAnimTimer > 0.0f)
                     wand.castAnimTimer -= dt;
+
+                // ---- 魔力解放（2026-10-02）----
+                // 詠唱: 発動間隔・高級魔法の冷却・連発の間の計時を castSpeed 倍で進める
+                //   （始まった時に冷却中だった魔法もすぐ速くなり、終われば残りは普通の速さに戻る。HUD の冷却表示ともずれない）
+                // 持続: 解放中に撃った魔法の持続する範囲（毒の池・光線）を durationMul 倍に。撃った時に決まる
+                const float castSpeed = mana.CastSpeed();
+                const float durationMul = mana.DurationMul();
+                const float castDt = dt * castSpeed;
 
                 Vector3 muzzle = tf.position + wand.muzzleOffset;
 
@@ -233,7 +249,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     // === 連発の続き（二重釈放の残り）===
                     if (s.pendingCasts > 0)
                     {
-                        s.delayTimer -= dt;
+                        s.delayTimer -= castDt;
                         if (s.delayTimer <= 0.0f)
                         {
                             if (s.triggered)
@@ -241,13 +257,13 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                                 // 高級魔法の連発は最初と同じ場所へ
                                 if (mana.CanAfford(s.manaCost))
                                 {
-                                    QueueTriggeredCast(s, s.triggerPos, muzzle);
+                                    QueueTriggeredCast(s, s.triggerPos, muzzle, durationMul);
                                     mana.Reserve(s.manaCost);
                                 }
                             }
                             else if (hasTarget && mana.CanAfford(s.manaCost))
                             {
-                                QueueOneCast(s, muzzle, aimFor(s.speed));
+                                QueueOneCast(s, muzzle, aimFor(s.speed), durationMul);
                                 mana.Reserve(s.manaCost);
                                 wand.castAnimTimer = wand.castAnimDuration;
                             }
@@ -260,14 +276,14 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     // === 新しい施法 ===
                     // ※castTimer は撃てなくても減らし続ける。
                     //   標的が現れた瞬間に撃てるようにするため。
-                    s.castTimer -= dt;
+                    s.castTimer -= castDt;
                     if (s.triggered) continue;   // 高級魔法は下の「誘発」でだけ撃つ
                     if (!ignoreCooldown && s.castTimer > 0.0f) continue;
                     if (!allowNewCast) continue;
                     if (!hasTarget) continue;
                     if (!mana.CanAfford(s.manaCost)) continue;
 
-                    QueueOneCast(s, muzzle, aimFor(s.speed));
+                    QueueOneCast(s, muzzle, aimFor(s.speed), durationMul);
                     mana.Reserve(s.manaCost);
                     wand.castAnimTimer = wand.castAnimDuration;
 
@@ -296,7 +312,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        if (!StartBeam(a, muzzle, impact)) continue;   // チャンネルが全部埋まっている
+                        if (!StartBeam(a, muzzle, impact, castSpeed, durationMul)) continue;   // チャンネルが全部埋まっている
                         mana.Reserve(a.manaCost);
                         wand.castAnimTimer = wand.castAnimDuration;
                         ++m_TriggeredCasts;
@@ -314,7 +330,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        QueueTriggeredCast(s, impact, muzzle);
+                        QueueTriggeredCast(s, impact, muzzle, durationMul);
                         mana.Reserve(s.manaCost);
                         ++m_TriggeredCasts;
 
@@ -334,7 +350,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 for (auto& a : wand.areas)
                 {
-                    a.castTimer -= dt;
+                    a.castTimer -= castDt;
                     if (a.triggered) continue;   // 光線は上の「誘発」でだけ始まる
                     if (!ignoreCooldown && a.castTimer > 0.0f) continue;
                     if (!allowNewCast) continue;
@@ -352,8 +368,12 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     area.radius = a.radius;
                     area.damage = a.damagePerTick;
                     area.timeLeft = a.duration;
-                    if (a.profile == 0 || ap.kind == AreaProfile::Kind::Lasting)
+                    const bool lasting = (a.profile == 0 || ap.kind == AreaProfile::Kind::Lasting);
+                    if (lasting)
+                    {
                         area.tickInterval = a.tickInterval;
+                        area.timeLeft *= durationMul;   // 魔力解放中に出した持続する範囲は長く残る
+                    }
                     m_Swarm->SpawnArea(area);
 
                     if (m_AreaVFX && m_AreaVFXCtx)
@@ -364,8 +384,10 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                             if (const auto* adef = ItemDatabase::GetArea(a.id))
                                 if (const char* path = VFXDatabase::GetPath(adef->vfxId))
                                     vfx = path;
-                        m_AreaVFX->Play(vfx, center, area.timeLeft,
+                        const uint32_t h = m_AreaVFX->Play(vfx, center, area.timeLeft,
                             (area.flags & Swarm::kAreaFollowPlayer) != 0, *m_AreaVFXCtx);
+                        if (lasting && durationMul != 1.0f)
+                            m_AreaVFX->RemapTimeline(h, 0.0f, 1.0f, durationMul);   // 見た目の entry も同じだけ伸ばす
                     }
 
                     mana.Reserve(a.manaCost);
@@ -389,7 +411,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
         m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
             req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
-            req.triggerTag, req.atPos);
+            req.triggerTag, req.atPos, req.areaDamageMul, req.areaDurationMul);
     }
 }
 // ============================================================
@@ -398,7 +420,8 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 // 以後は毎フレーム起点（杖口）と終点（向き × 射程を地形で切った所）を SetBeam で渡す。
 // 終点は Beam entry の特効にも同じ物を入れる（当たり判定と見た目が一致する）
 // ============================================================
-bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Vector3& impact)
+bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Vector3& impact,
+    float castSpeed, float durationMul)
 {
     // 空いているチャンネル
     uint32_t used = 0;
@@ -418,10 +441,12 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     // 溜め・射程・厚み・硬直はプロファイルから。半径・持続・tick・威力は集約済みの値（修飾符込み）
     const AreaProfile& ap = AreaProfileDB::At(a.profile);
     const bool hasProfile = a.profile > 0;
-    b.charge = hasProfile ? ap.chargeTime : 0.5f;
+    const float baseCharge = hasProfile ? ap.chargeTime : 0.5f;
+    castSpeed = (std::max)(castSpeed, 0.01f);
+    b.charge = baseCharge / castSpeed;            // 魔力解放中は溜めも速い
     b.length = hasProfile ? ap.length : 18.0f;
     b.halfHeight = hasProfile ? ap.halfHeight : 1.2f;
-    b.timeLeft = a.duration;
+    b.timeLeft = a.duration * durationMul;        // 魔力解放中に撃った光線は長く出る
     b.radius = a.radius;
     b.damage = a.damagePerTick;
     b.tickInterval = a.tickInterval;
@@ -436,6 +461,9 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
                 if (const char* path = VFXDatabase::GetPath(adef->vfxId))
                     vfx = path;
         b.vfxHandle = m_AreaVFX->Play(vfx, muzzle, b.charge + b.timeLeft, false, *m_AreaVFXCtx);
+        // 特効の時間軸は「溜め（baseCharge 秒）→ 光線」で作ってある。溜めを縮め、光線を伸ばして判定と合わせる
+        if (castSpeed != 1.0f || durationMul != 1.0f)
+            m_AreaVFX->RemapTimeline(b.vfxHandle, baseCharge, 1.0f / castSpeed, durationMul);
         m_AreaVFX->SetInstance(b.vfxHandle, muzzle, muzzle + b.dir * b.length);
     }
 

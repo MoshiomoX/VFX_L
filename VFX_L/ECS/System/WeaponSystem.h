@@ -65,16 +65,19 @@ private:
         float speed, radius, damage, lifetime;
         uint32_t triggerTag = 0;   // この弾が消えたら誘発できる高級魔法（SpellStats::triggerMask）
         bool     atPos = false;    // 誘発の隕石: muzzle に落とす
+        float    areaDamageMul = 1.0f;     // 命中・着弾で出す範囲の威力（SpellStats::areaDamageMul = 魔法威力）
+        float    areaDurationMul = 1.0f;   // 同じく持続（魔力解放中に撃った弾。持続する範囲だけ伸びる）
     };
 
-    // 1回の施法ぶんの発射要求を積む（分裂の扇状展開もここで行う）
+    // 1回の施法ぶんの発射要求を積む（分裂の扇状展開もここで行う）。
+    // durationMul = 撃った時の魔力解放の持続倍率（ManaComponent::DurationMul）
     void QueueOneCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& muzzle,
-        const DirectX::SimpleMath::Vector3& dir);
+        const DirectX::SimpleMath::Vector3& dir, float durationMul);
     // 高級魔法 1 回分（誘発。impact に落とす。分裂は着弾点を輪に並べる）
     void QueueTriggeredCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& impact,
-        const DirectX::SimpleMath::Vector3& muzzle);
+        const DirectX::SimpleMath::Vector3& muzzle, float durationMul);
     std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 今フレームに回読で届いた誘発
     uint32_t m_TriggerEventsSeen = 0;
     uint32_t m_TriggeredCasts = 0;
@@ -107,8 +110,9 @@ private:
     std::vector<ActiveBeam> m_Beams;
     uint32_t m_BeamSerial = 0;
     // 誘発で光線を始める（チャンネルが空いていなければ false = 撃たない）
+    // castSpeed / durationMul = 撃った時の魔力解放（溜めを castSpeed 倍速く、光線を durationMul 倍長く。特効の時間軸も合わせる）
     bool StartBeam(const AreaStats& a, const DirectX::SimpleMath::Vector3& muzzle,
-        const DirectX::SimpleMath::Vector3& impact);
+        const DirectX::SimpleMath::Vector3& impact, float castSpeed = 1.0f, float durationMul = 1.0f);
     // 溜め・判定の出現・起点 / 終点の更新・終了
     void UpdateBeams(float dt, const DirectX::SimpleMath::Vector3& muzzle, const CollisionSystem& collision);
 

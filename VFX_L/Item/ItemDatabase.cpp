@@ -23,6 +23,7 @@
 #include "Item/Items/JumpPowerUp.h"
 #include "Item/Items/ManaRegenUp.h"
 #include "Item/Items/JumpCountUp.h"
+#include "Item/Items/SpellPowerUp.h"
 #include "Item/ItemDataFile.h"
 #include <unordered_map>
 #include <utility>
@@ -129,6 +130,7 @@ void ItemDatabase::Initialize()
     Register(MakeJumpPowerUp());
     Register(MakeManaRegenUp());
     Register(MakeJumpCountUp());
+    Register(MakeSpellPowerUp());
 
     // ---- 形（占位格・影響格）----
     // コードに書いた形を覚えてから、保存済みの道具データ（ItemData/<名前>.json）で上書きする。

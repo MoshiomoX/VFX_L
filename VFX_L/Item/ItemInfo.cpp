@@ -245,14 +245,16 @@ namespace
                 // 当たり半径が profile より大きい（拡大鏡）と、GPU は命中の範囲も同じ倍率で広げる
                 // （SwarmSpawnProjCS の sizeScale → SwarmSpawnAreaFromDef）
                 const float areaScale = (pp.radius > 0.0f) ? v.radius / pp.radius : 1.0f;
+                // 範囲の威力は魔法威力の分だけ上がる（GPU が弾ごとの areaDamageMul を掛ける）
+                const float areaDamage = ap.damage * v.areaDamageMul;
                 wchar_t buf[160];
                 if (ap.kind == AreaProfile::Kind::OneShot)
                     swprintf_s(buf, drop ? L"着弾すると爆発する (威力 %ls、半径 %lsm)" : L"命中すると爆発する (威力 %ls、半径 %lsm)",
-                        Num(ap.damage).c_str(), Num(ap.radius * areaScale).c_str());
+                        Num(areaDamage).c_str(), Num(ap.radius * areaScale).c_str());
                 else
                     swprintf_s(buf, drop ? L"落ちた所に範囲を残す (半径 %lsm、%ls 秒ごとに威力 %ls、%ls 秒間)"
                                          : L"命中した所に範囲を残す (半径 %lsm、%ls 秒ごとに威力 %ls、%ls 秒間)",
-                        Num(ap.radius * areaScale).c_str(), Num(ap.tickInterval).c_str(), Num(ap.damage).c_str(), Num(ap.duration).c_str());
+                        Num(ap.radius * areaScale).c_str(), Num(ap.tickInterval).c_str(), Num(areaDamage).c_str(), Num(ap.duration).c_str());
                 s.traits.push_back(buf);
                 // 減速（毒の池）。15 段階に丸めた実際の値を出す（AreaProfile::Flags）
                 if (ap.slow > 0.0f)
@@ -346,6 +348,7 @@ namespace
         case StatKind::JumpPower: l.label = L"跳躍力"; break;
         case StatKind::ManaRegen: l.label = L"魔力回復"; break;
         case StatKind::JumpCount: l.label = L"跳躍回数"; break;
+        case StatKind::SpellPower: l.label = L"魔法の威力"; break;
         }
         l.value = def.percent ? L"+" + Num(def.amount * 100.0f) + L"%" : L"+" + Num(def.amount);
         l.trend = +1;
@@ -404,6 +407,17 @@ namespace ItemInfo
             stats.damagePerTick = ap.damage;
         }
         return stats;
+    }
+
+    void ApplySpellPower(SpellStats& s, float power)
+    {
+        s.damage *= power;
+        s.areaDamageMul *= power;
+    }
+
+    void ApplySpellPower(AreaStats& a, float power)
+    {
+        a.damagePerTick *= power;
     }
 
     // 高級魔法の前提（「ファイアボール・ストーンショット」）
@@ -493,7 +507,7 @@ namespace ItemInfo
         return s;
     }
 
-    Sheet DescribePlaced(const BackpackComponent& bp, int itemIndex)
+    Sheet DescribePlaced(const BackpackComponent& bp, int itemIndex, float spellPower)
     {
         if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return Sheet{};
         const ItemID id = bp.items[itemIndex].id;
@@ -514,6 +528,7 @@ namespace ItemInfo
                 for (const auto& m : f->spellModifiers) ItemDatabase::ApplyModifier(v, m);
                 by.push_back(DisplayName(f->common.id));
             }
+            ApplySpellPower(v, spellPower);   // 集約と同じく修飾の後
             FillProjectile(s, v, b);
             FixTriggeredFlight(s, *d);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
@@ -532,6 +547,7 @@ namespace ItemInfo
                 for (const auto& m : f->areaModifiers) ItemDatabase::ApplyModifier(v, m);
                 by.push_back(DisplayName(f->common.id));
             }
+            ApplySpellPower(v, spellPower);
             FillArea(s, v, b);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
             AddTriggerTraits(s, bp, itemIndex, d->common);   // 光線（高級魔法）の誘発
