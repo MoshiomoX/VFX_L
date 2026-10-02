@@ -85,6 +85,7 @@ void CollisionTestScene::Init()
         m_AutoKnock = m_AutoTest && strcmp(env, "knock") == 0;           // 値が knock なら被弾のノックバックを測る
         m_AutoDrop = m_AutoTest && strcmp(env, "drop") == 0;             // 値が drop なら台地からの飛び降り
         m_AutoBeamTrack = m_AutoTest && strcmp(env, "beamtrack") == 0;   // 値が beamtrack なら光線の標的乗り換え
+        m_AutoSurge = m_AutoTest && strcmp(env, "surge") == 0;           // 値が surge なら魔力解放（Q）
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");

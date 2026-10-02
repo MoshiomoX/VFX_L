@@ -177,6 +177,9 @@ private:
     // VFXL_BATTLE_AUTOTEST=beamtrack：魔導光線の標的が死んだら、向きに近い次の敵へ一定の速さで回るか
     bool     m_AutoBeamTrack = false;
     void     UpdateAutoTestBeamTrack();
+    // VFXL_BATTLE_AUTOTEST=surge：魔力解放（Q）で 3 秒間 MP が減らず撃ち続けられるか・再使用待ちで 2 回目が効かないか
+    bool     m_AutoSurge = false;
+    void     UpdateAutoTestSurge();
     // VFXL_BATTLE_AUTOTEST=ghost：最終波の幽霊を 20 体出して、数・壁抜け・近づく速さを記録し撮る
     bool     m_AutoGhost = false;
     void     UpdateAutoTestGhost();

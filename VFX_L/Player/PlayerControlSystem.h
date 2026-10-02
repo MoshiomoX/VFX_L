@@ -29,6 +29,7 @@ public:
     bool testInput = false;
     bool testSlide = false;
     bool testJump = false;   // 1 フレームだけ立てる
+    bool testSurge = false;  // 魔力解放（1 フレームだけ立てる。読んだら下ろす）
     DirectX::SimpleMath::Vector2 testMove = { 0.0f, 0.0f };
     void SetMoveSpeed(float s) { m_MoveSpeed = s; }
     void SetJumpPower(float p) { m_JumpPower = p; }

@@ -11,6 +11,7 @@
 #include "Manager/InputMap.h"
 #include "ECS/View.h"
 #include "Component/WandComponent.h"
+#include "Component/ManaComponent.h"
 #include "Debug/DebugManager.h"
 #include "ImGui.h"
 #include <algorithm>
@@ -85,16 +86,21 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
         (DebugManager::Get().IsUsingDebugCamera() || ImGui::GetIO().WantCaptureKeyboard);
 
     const bool castTrigger = blocked ? false : InputMap::GetCastTrigger();
-    const bool pauseToggle = blocked ? false : InputMap::GetCastPauseToggle();
+    const bool surgeTrigger = testInput ? testSurge : (blocked ? false : InputMap::GetManaSurgeTrigger());
+    testSurge = false;
 
     reg.CreateView<WandComponent, PlayerTag>()
         .Each([&](Entity e, WandComponent& wand, PlayerTag&)
             {
 
                 wand.castRequested = castTrigger;
-                // 施法を止める / 再開する（プレイヤーが決める。WeaponSystem が見る）
-                if (pauseToggle) wand.castingPaused = !wand.castingPaused;
             });
+
+    // 魔力解放（3 秒間魔力を消費しない、30 秒に 1 回。再使用待ちの間は何も起きない）。
+    // 施法の一時停止はプレイヤーの操作から外した（2026-10-01。WandComponent::castingPaused は調試面板・自測用に残る）
+    if (surgeTrigger)
+        reg.CreateView<ManaComponent, PlayerTag>()
+            .Each([&](Entity, ManaComponent& mana, PlayerTag&) { mana.TryStartSurge(); });
 
     if (blocked) return;
     if (!camera) return;

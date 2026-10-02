@@ -162,13 +162,13 @@ void HUD::Update(float dt, const HealthComponent& hp, const ManaComponent& mp)
 // ============================================================
 void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     const HealthComponent& hp, const ManaComponent& mp,
-    const LevelComponent& lv, bool castingPaused,
-    const HUDFrameInfo& info)
+    const LevelComponent& lv, const HUDFrameInfo& info)
 {
     if (!m_WhiteTex) return;
 
     // ---- 一番下の層：瀕死の赤い縁と画面外の目印（バーや文字の下に敷く）----
     DrawLowHpVignette(sprite, hp);
+    DrawSurgeVignette(sprite, mp);
     DrawMarkers(sprite, info);
 
     // ---- 経験値バー（既定では最上段の通し）----
@@ -188,8 +188,16 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
 
     DrawBar(sprite, hpPos, m_Style.hpBarSize,
         SafeRatio(hp.current, hp.max), m_HpTrail.value, m_Style.hpColor, true);
+    // 魔力解放中は金色で脈打つ（減らないことが一目で分かるように）
+    Vector4 mpCol = m_Style.mpColor;
+    if (mp.SurgeActive())
+    {
+        const float pulse = 0.85f + 0.15f * std::sin(m_Time * 10.0f);
+        mpCol = m_Style.mpSurgeColor * pulse;
+        mpCol.w = m_Style.mpSurgeColor.w;
+    }
     DrawBar(sprite, mpPos, m_Style.mpBarSize,
-        SafeRatio(mp.current, mp.max), m_MpTrail.value, m_Style.mpColor, true);
+        SafeRatio(mp.current, mp.max), m_MpTrail.value, mpCol, true);
 
     // ---- 数値 ----
     wchar_t buf[32];
@@ -204,12 +212,17 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     swprintf_s(buf, L"MP %d/%d", CeilInt(mp.current), (int)mp.max);
     DrawBarLabel(text, buf, mpPos, m_Style.mpBarSize);
 
-    // ---- 施法を止めている時の表示（MP バーのすぐ下）----
-    // 止めたまま忘れると「魔法が出ない」ように見えるので、必ず目に入る所へ出す
-    if (castingPaused)
+    // ---- 魔力解放（Q）の状態（MP バーのすぐ下）----
+    // 解放中 = 残り秒、再使用待ち = 使えるまでの秒、使える時 = 操作の案内
     {
         const Vector2 p = { mpPos.x, mpPos.y + m_Style.mpBarSize.y + 6.0f };
-        DrawLabel(text, L"詠唱停止中  (Q で再開)", p, m_Style.barTextScale);
+        if (mp.SurgeActive())
+            swprintf_s(buf, L"魔力解放中  %.1f秒", mp.surgeTime);
+        else if (mp.surgeCooldownLeft > 0.0f)
+            swprintf_s(buf, L"魔力解放  あと %d秒", CeilInt(mp.surgeCooldownLeft));
+        else
+            swprintf_s(buf, L"Q  魔力解放");
+        DrawLabel(text, buf, p, m_Style.barTextScale);
     }
 
     // ---- 経過時間・撃破数、魔法の欄 ----
@@ -362,13 +375,37 @@ void HUD::DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp)
 
     const float k = 1.0f - ratio / m_Style.lowHpRatio;   // 0（境目）〜 1（瀕死）
     const float pulse = 0.7f + 0.3f * std::sin(m_Time * m_Style.vignettePulse);
-    const float thick = (std::min)(m_ScreenW, m_ScreenH) * m_Style.vignetteWidth;
+    DrawEdgeGlow(sprite, m_Style.vignetteColor, m_Style.vignetteColor.w * (0.35f + 0.65f * k) * pulse,
+        m_Style.vignetteWidth);
+}
 
-    // 外端の濃さ E に対して、薄い層を N 枚重ねる：1 枚の濃さ p = 1 - (1 - E)^(1/N)。
-    // 一番内側は 1 枚だけ（ほぼ透明）、外へ行くほど重なって E に近づく
+// ============================================================
+// 魔力解放中の金の縁（2026-10-01）。出始め 0.2 秒で濃くなり、終わり 0.4 秒で消える。ゆっくり脈打つ
+// ============================================================
+void HUD::DrawSurgeVignette(SpriteRenderer& sprite, const ManaComponent& mp)
+{
+    if (!m_Style.surgeVignette || !mp.SurgeActive()) return;
+    const float in = Clamp01((mp.surgeDuration - mp.surgeTime) / 0.2f);
+    const float out = Clamp01(mp.surgeTime / 0.4f);
+    const float pulse = 0.8f + 0.2f * std::sin(m_Time * 6.0f);
+    DrawEdgeGlow(sprite, m_Style.surgeVignetteColor, m_Style.surgeVignetteColor.w * in * out * pulse,
+        m_Style.surgeVignetteWidth);
+}
+
+// ============================================================
+// 画面の縁のぼかし（瀕死の赤・魔力解放の金で共用）
+//   太さの違う枠を重ねて、外側ほど濃いぼかしに見せる（貼图を持たないため）。
+//   外端の濃さ E に対して、薄い層を N 枚重ねる：1 枚の濃さ p = 1 - (1 - E)^(1/N)。
+//   一番内側は 1 枚だけ（ほぼ透明）、外へ行くほど重なって E に近づく
+// ============================================================
+void HUD::DrawEdgeGlow(SpriteRenderer& sprite, const Vector4& color, float edgeAlpha, float widthRatio)
+{
+    edgeAlpha = Clamp01(edgeAlpha);
+    if (edgeAlpha <= 0.0f) return;
+    const float thick = (std::min)(m_ScreenW, m_ScreenH) * widthRatio;
+
     constexpr int kLayers = 12;
-    const float edgeAlpha = Clamp01(m_Style.vignetteColor.w * (0.35f + 0.65f * k) * pulse);
-    Vector4 c = m_Style.vignetteColor;
+    Vector4 c = color;
     c.w = 1.0f - std::pow(1.0f - edgeAlpha, 1.0f / (float)kLayers);
 
     for (int i = 1; i <= kLayers; ++i)
@@ -593,6 +630,7 @@ void HUD::DrawDebugUI()
     ImGui::ColorEdit4("Background", &m_Style.bgColor.x);
     ImGui::ColorEdit4("HP", &m_Style.hpColor.x);
     ImGui::ColorEdit4("MP", &m_Style.mpColor.x);
+    ImGui::ColorEdit4("MP (surge)", &m_Style.mpSurgeColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
     ImGui::ColorEdit4("Exp", &m_Style.expColor.x);
     ImGui::ColorEdit4("Trail", &m_Style.trailColor.x);
     ImGui::ColorEdit4("Border Color", &m_Style.borderColor.x);
@@ -624,6 +662,12 @@ void HUD::DrawDebugUI()
     ImGui::DragFloat("Edge Width", &m_Style.vignetteWidth, 0.005f, 0.0f, 0.5f);
     ImGui::DragFloat("Pulse Speed", &m_Style.vignettePulse, 0.1f, 0.0f, 30.0f);
     ImGui::ColorEdit4("Vignette", &m_Style.vignetteColor.x);
+
+    ImGui::Separator();
+    ImGui::Text("Mana Surge Edge");
+    ImGui::Checkbox("Enable Surge Edge", &m_Style.surgeVignette);
+    ImGui::DragFloat("Surge Edge Width", &m_Style.surgeVignetteWidth, 0.005f, 0.0f, 0.5f);
+    ImGui::ColorEdit4("Surge Edge", &m_Style.surgeVignetteColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
 
     ImGui::Separator();
     ImGui::Text("Off-screen Markers");
@@ -671,6 +715,7 @@ bool HUD::SaveStyle(const char* path) const
     root["bgColor"] = ToJson(m_Style.bgColor);
     root["hpColor"] = ToJson(m_Style.hpColor);
     root["mpColor"] = ToJson(m_Style.mpColor);
+    root["mpSurgeColor"] = ToJson(m_Style.mpSurgeColor);
     root["expColor"] = ToJson(m_Style.expColor);
     root["trailColor"] = ToJson(m_Style.trailColor);
     root["borderColor"] = ToJson(m_Style.borderColor);
@@ -696,6 +741,9 @@ bool HUD::SaveStyle(const char* path) const
     root["vignetteWidth"] = m_Style.vignetteWidth;
     root["vignettePulse"] = m_Style.vignettePulse;
     root["vignetteColor"] = ToJson(m_Style.vignetteColor);
+    root["surgeVignette"] = m_Style.surgeVignette;
+    root["surgeVignetteWidth"] = m_Style.surgeVignetteWidth;
+    root["surgeVignetteColor"] = ToJson(m_Style.surgeVignetteColor);
 
     root["showMarkers"] = m_Style.showMarkers;
     root["markerSize"] = m_Style.markerSize;
@@ -767,6 +815,7 @@ bool HUD::LoadStyle(const char* path)
     ReadVec4(root, "bgColor", m_Style.bgColor);
     ReadVec4(root, "hpColor", m_Style.hpColor);
     ReadVec4(root, "mpColor", m_Style.mpColor);
+    ReadVec4(root, "mpSurgeColor", m_Style.mpSurgeColor);
     ReadVec4(root, "expColor", m_Style.expColor);
     ReadVec4(root, "trailColor", m_Style.trailColor);
     ReadVec4(root, "borderColor", m_Style.borderColor);
@@ -792,6 +841,9 @@ bool HUD::LoadStyle(const char* path)
     ReadFloat(root, "vignetteWidth", m_Style.vignetteWidth);
     ReadFloat(root, "vignettePulse", m_Style.vignettePulse);
     ReadVec4(root, "vignetteColor", m_Style.vignetteColor);
+    ReadBool(root, "surgeVignette", m_Style.surgeVignette);
+    ReadFloat(root, "surgeVignetteWidth", m_Style.surgeVignetteWidth);
+    ReadVec4(root, "surgeVignetteColor", m_Style.surgeVignetteColor);
 
     ReadBool(root, "showMarkers", m_Style.showMarkers);
     ReadFloat(root, "markerSize", m_Style.markerSize);
