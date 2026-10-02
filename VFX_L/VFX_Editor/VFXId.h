@@ -31,6 +31,7 @@ enum class VFXId : uint32_t
     StoneShotHit,   // 石弾の命中（範囲 StoneShotHit：威力 0 の見た目だけ。土煙 + 岩の欠片）
     Poison,         // 毒の弾（緑の毒液の塊 + 滴。Lob 型で山なりに飛ぶ）
     PoisonPool,     // 毒の池（範囲 PoisonPool：落ちた所の飛沫 + 泡 + 毒霧 + 緑の光。持続 4 秒）
+    MobDeath,       // 敵が死んだ足元の土煙（範囲 MobDeath：威力 0 の見た目だけ。部品の砕け散りと一緒。2026-10-02）
     Beam,           // 魔導光線（溜めの光球 + Beam entry の光線 + 点光源。CPU の AreaVFXPlayer が再生し、終点は WeaponSystem が毎フレーム入れる）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count

@@ -269,6 +269,11 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeRaw(16, m_EmitBudget, m_EmitBudgetUAV, "emitBudget")) return false;
     if (!makeRaw(16, m_RecycleClaim, m_RecycleClaimUAV, "recycleClaim")) return false;
     if (!makeRaw(16, m_SpriteHead, m_SpriteHeadUAV, "spriteHead")) return false;
+    // ---- 死んだ敵の砕け散り：槽毎の前フレームの生死、尸の環とその通し番号 ----
+    if (!makeState(Swarm::kMaxEnemies, m_EnemyPrevAliveBuffer, m_EnemyPrevAliveUAV, m_EnemyPrevAliveSRV, "prevAlive")) return false;
+    if (!makeStructured(sizeof(Swarm::Corpse), Swarm::kMaxCorpses,
+        m_CorpseBuffer, m_CorpseUAV, m_CorpseSRV, "corpse")) return false;
+    if (!makeRaw(16, m_CorpseHead, m_CorpseHeadUAV, "corpseHead")) return false;
     if (!makeRaw(sizeof(Swarm::BossInfo), m_BossInfoBuffer, m_BossInfoUAV, "bossInfo")) return false;
     {
         // Boss の様子の回読（GPUReadback と同じく 3 枚を輪転）
@@ -411,6 +416,9 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_EnemySlowUAV.Get(), zero);    // 減速なし（0.0f）
         m_Context->ClearUnorderedAccessViewUint(m_SpriteUAV.Get(), zero);       // alive = 0
         m_Context->ClearUnorderedAccessViewUint(m_SpriteHeadUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevAliveUAV.Get(), zero);   // 全員「前は死んでいた」
+        m_Context->ClearUnorderedAccessViewUint(m_CorpseUAV.Get(), zero);           // birth 0 = 空き
+        m_Context->ClearUnorderedAccessViewUint(m_CorpseHeadUAV.Get(), zero);
         const UINT unseen[4] = { 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu };
         m_Context->ClearUnorderedAccessViewUint(m_AreaSeenUAV.Get(), unseen);
     }
@@ -841,6 +849,9 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
 
     // 液溜まりの追跡（新しく生まれた範囲の向きと年齢。範囲の数え下げが済んだ後、1 フレーム 1 回）
     DispatchLiquidTrack();
+
+    // 死んだ敵の砕け散り（このフレームの固定ステップで死んだ物を環へ。描く一覧も作る）
+    DispatchCorpses();
 
     // ---- 5) counter の写しを発行（CopyResource だけ。待たない）----
     RequestReadback();
@@ -1490,6 +1501,121 @@ void SwarmSystem::DispatchLiquidTrack()
 }
 
 // ============================================================
+// 死んだ敵の砕け散り（2026-10-02）
+// 1) 敵の槽 1 つに 1 スレッド：前フレームは生きていて今は死んでいる槽 = 死んだ。最後の位置・向き・種類を
+//    尸の環へ書き、足元に土煙の範囲を出す（切っている間も「前の生死」だけは追う）
+// 2) 環の枠 1 つに 1 スレッド：まだ砕けている物を見た目毎の一覧へ → 各 submesh の InstanceCount
+// ============================================================
+void SwarmSystem::DispatchCorpses()
+{
+    if (!m_CorpseTrackCS || !m_CorpseListCS) return;
+
+    CorpseTrackCB tcb = { m_AnimClock, corpse.enabled ? 1u : 0u, corpse.deathArea, 0u };
+    m_CorpseTrackCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);   // 玩家の位置（飛ばす向き）・槽の数
+    m_CorpseTrackCS->WriteBuffer(m_Context, 4, &tcb);
+    m_CorpseTrackCS->Bind(m_Context);
+    m_CorpseTrackCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_CorpseTrackCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_CorpseTrackCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+    m_CorpseTrackCS->SetSRV(m_Context, "areaDefs", m_AreaDefSRV.Get());
+    m_CorpseTrackCS->SetUAV(m_Context, "prevAlive", m_EnemyPrevAliveUAV.Get());
+    m_CorpseTrackCS->SetUAV(m_Context, "corpses", m_CorpseUAV.Get());
+    m_CorpseTrackCS->SetUAV(m_Context, "corpseHead", m_CorpseHeadUAV.Get());
+    m_CorpseTrackCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
+    m_CorpseTrackCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
+    m_CorpseTrackCS->BindUAVs(m_Context);
+    m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+    m_CorpseTrackCS->UnbindSRVs(m_Context);
+    m_CorpseTrackCS->UnbindUAVs(m_Context);
+
+    if (m_CorpseDrawArgs[0].empty()) return;   // 敵の網がまだ無い
+    CorpseListCB lcb = { m_AnimClock, corpse.life, { 0.0f, 0.0f } };
+    m_CorpseListCS->WriteBuffer(m_Context, 4, &lcb);
+    m_CorpseListCS->Bind(m_Context);
+    m_CorpseListCS->SetSRV(m_Context, "corpses", m_CorpseSRV.Get());
+    m_CorpseListCS->SetUAV(m_Context, "mobCorpses", m_CorpseListUAV[Swarm::kDrawListMob].Get(), 0);
+    m_CorpseListCS->SetUAV(m_Context, "bomberCorpses", m_CorpseListUAV[Swarm::kDrawListBomber].Get(), 0);
+    m_CorpseListCS->SetUAV(m_Context, "ghostCorpses", m_CorpseListUAV[Swarm::kDrawListGhost].Get(), 0);
+    m_CorpseListCS->BindUAVs(m_Context);
+    m_Context->Dispatch((Swarm::kMaxCorpses + 63) / 64, 1, 1);
+    m_CorpseListCS->UnbindSRVs(m_Context);
+    m_CorpseListCS->UnbindUAVs(m_Context);
+
+    for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
+        for (auto& args : m_CorpseDrawArgs[k])
+            if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_CorpseListUAV[k].Get());
+}
+
+// ============================================================
+// 砕け散る部品を描く。雑魚と同じ網・同じ PS・同じ貼図の切り替え（自爆兵は自分の貼図、幽霊は半透明）。
+// VS だけ SwarmCorpseVS に差し替え、submesh（部品）毎に CorpseCB.part を入れて間接描画
+// ============================================================
+void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
+{
+    if (!corpse.enabled || !m_CorpseVS || !m_EnemyMaterial || !m_EnemyModel || m_CorpseDrawArgs[0].empty()) return;
+
+    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
+    EnemyRenderCB cb;
+    cb.view = view;
+    cb.proj = proj;
+    // Material::Bind は VS も入れ直すので、その後で砕け散りの VS に差し替える
+    auto bindVS = [&]()
+        {
+            m_EnemyMaterial->Bind(m_Context);
+            m_Context->PSSetSamplers(0, 1, &samp);
+            m_CorpseVS->Bind(m_Context);
+            m_CorpseVS->WriteBuffer(m_Context, 0, &cb);
+            m_CorpseVS->WriteBuffer(m_Context, 2, &m_CachedAICB);     // 体の大きさ
+            m_CorpseVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB); // 精鋭・Boss の倍率、幽霊の見た目
+            m_CorpseVS->SetSRV(m_Context, "corpses", m_CorpseSRV.Get());
+        };
+    bindVS();
+
+    CorpseCB ccb;
+    ccb.partCount = m_EnemyAnim.partCount;
+    ccb.time = m_AnimClock;
+    ccb.life = corpse.life;
+    ccb.gravity = corpse.gravity;
+    ccb.fling = corpse.fling;
+    ccb.up = corpse.up;
+    ccb.spin = corpse.spin;
+    ccb.bounce = corpse.bounce;
+    ccb.flash = corpse.flash;
+    ccb.flashTime = corpse.flashTime;
+    ccb.shrinkStart = corpse.shrinkStart;
+    for (int p = 0; p < 8; ++p) ccb.pivot[p] = m_PartPivots[p];
+
+    const auto& subs = m_EnemyModel->GetSubMeshes();
+    for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
+    {
+        if (k == Swarm::kDrawListGhost)
+        {
+            bindVS();   // 雑魚の貼図に戻す
+            const float bf[4] = { 0, 0, 0, 0 };
+            m_Context->OMSetBlendState(RenderStates::Get().AlphaBlend(), bf, 0xFFFFFFFF);
+        }
+        else if (k == Swarm::kDrawListBomber && m_BomberAlbedo)
+            m_EnemyPS->SetTexture(m_Context, 0, m_BomberAlbedo.get());
+        m_CorpseVS->SetSRV(m_Context, "corpseList", m_CorpseListSRV[k].Get());
+
+        for (size_t i = 0; i < subs.size() && i < m_CorpseDrawArgs[k].size(); ++i)
+        {
+            if (!subs[i].mesh || !m_CorpseDrawArgs[k][i]) continue;
+            ccb.part = (uint32_t)i;
+            m_CorpseVS->WriteBuffer(m_Context, 4, &ccb);
+            subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_CorpseDrawArgs[k][i].Get(), 0);
+        }
+        if (k == Swarm::kDrawListGhost)
+        {
+            const float bf[4] = { 0, 0, 0, 0 };
+            m_Context->OMSetBlendState(RenderStates::Get().Opaque(), bf, 0xFFFFFFFF);
+        }
+    }
+    // 次のフレームの Compute が UAV として使うので外す
+    m_CorpseVS->UnbindSRVs(m_Context);
+}
+
+// ============================================================
 // 液溜まり（GPU の範囲の Liquid entry）
 // 範囲の全槽を地面の格子 1 枚ずつ（LIQUID_GRID^2 の四角、頂点バッファ無し）。
 // 死んだ槽・配方に液体が無い範囲は VS が潰す。PS は CPU の経路と同じ VFXLiquidPS。
@@ -1709,6 +1835,8 @@ void SwarmSystem::KillAll()
     m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
     m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
     m_Context->ClearUnorderedAccessViewUint(m_AreaDirUAV.Get(), zero);
+    // 「前は生きていた」も消す：全消しで全員が一度に砕け散らないように
+    m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevAliveUAV.Get(), zero);
     m_PendingAreas.clear();
 
     // まだ GPU に上げていない依頼も捨てる（消した直後に湧き直さないように）
@@ -1894,6 +2022,9 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
     }
     // 次のフレームの Compute が UAV として使うので必ず外す
     m_EnemyVS->UnbindSRVs(m_Context);
+
+    // ---- 死んだ敵の砕け散り（同じ網・同じ PS。VS だけ差し替え）----
+    RenderCorpses(cb.view, cb.proj);
 
     // ---- 経験値オーブ（自発光の宝石）----
     // 全スロットを DrawInstanced し、死んだ物は VS が潰す
@@ -2212,6 +2343,8 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     load(m_OrbEmitCS, L"Shader/Swarm/SwarmOrbEmitCS.hlsl", "OrbEmitCS");   // 無くてもオーブの尾が出ないだけ
     load(m_SpriteCS, L"Shader/Swarm/SwarmSpriteCS.hlsl", "SpriteCS");   // 無くても連番絵が出ないだけ
     load(m_LiquidTrackCS, L"Shader/Swarm/SwarmLiquidTrackCS.hlsl", "LiquidTrackCS");   // 無くても液溜まりが出ないだけ
+    load(m_CorpseTrackCS, L"Shader/Swarm/SwarmCorpseTrackCS.hlsl", "CorpseTrackCS");   // 無くても死体が砕けないだけ
+    load(m_CorpseListCS, L"Shader/Swarm/SwarmCorpseListCS.hlsl", "CorpseListCS");
     ok &= load(m_LightCollectCS, L"Shader/Swarm/SwarmLightCollectCS.hlsl", "LightCollectCS");
     ok &= load(m_AreaLightCollectCS, L"Shader/Swarm/SwarmAreaLightCollectCS.hlsl", "AreaLightCollectCS");
     ok &= load(m_EnemyCompactCS, L"Shader/Swarm/SwarmEnemyCompactCS.hlsl", "EnemyCompactCS");
@@ -2283,6 +2416,12 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     std::cout << "[SwarmSystem] SpritePS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_SpritePS.reset();
 
+    // ---- 死んだ敵の砕け散り（PS は雑魚と同じ。失敗しても砕けないだけ）----
+    m_CorpseVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_CorpseVS.get(), device, L"Shader/Swarm/SwarmCorpseVS.hlsl");
+    std::cout << "[SwarmSystem] CorpseVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_CorpseVS.reset();
+
     // ---- 液溜まり（Liquid entry。PS は CPU の経路と共用。失敗しても出ないだけ）----
     m_LiquidVS = std::make_shared<VertexShader>();
     hr = ShaderPath::Load(m_LiquidVS.get(), device, L"Shader/Swarm/SwarmLiquidVS.hlsl");
@@ -2340,6 +2479,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
         {
             std::cout << "[SwarmSystem] enemy draw args: FAILED (falls back to full-pool DrawInstanced)" << std::endl;
             for (auto& args : m_EnemyDrawArgs) args.clear();
+            for (auto& args : m_CorpseDrawArgs) args.clear();   // 砕け散りも描かない
         }
     }
 
@@ -2374,6 +2514,12 @@ bool SwarmSystem::BuildEnemyPartAnim(ID3D11Device* device, const char* modelPath
     }
     std::vector<Matrix> bakeInv(partCount);
     for (size_t p = 0; p < partCount; ++p) bakeInv[p] = bake[0][p].Invert();
+    // 砕け散りの回転の中心 = 部品の節点の原点（首・肩・股の関節。網と同じ焼いた姿勢の空間）
+    for (size_t p = 0; p < 8; ++p)
+    {
+        const Vector3 o = (p < partCount) ? bake[0][p].Translation() : Vector3::Zero;
+        m_PartPivots[p] = Vector4(o.x, o.y, o.z, 1.0f);
+    }
 
     constexpr float kSampleFps = 30.0f;
     constexpr int   kMaxFrames = 60;
@@ -2614,27 +2760,37 @@ bool SwarmSystem::CreateEnemyDrawArgs(ID3D11Device* device)
     if (!makeList(m_AliveListBuffer, m_AliveListUAV, m_AliveListSRV)) return false;
     for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
         if (!makeList(m_KindListBuffer[k], m_KindListUAV[k], m_KindListSRV[k])) return false;
+    // 砕け散り中の尸の一覧（見た目毎。大きさは敵と同じで足りる）
+    for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
+        if (!makeList(m_CorpseListBuffer[k], m_CorpseListUAV[k], m_CorpseListSRV[k])) return false;
 
+    // submesh 毎の間接引数（IndexCount が違う）。生きている敵と尸で別々に持つ
+    auto makeDrawArgs = [&](std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>>& out) -> bool
+        {
+            out.clear();
+            for (const auto& sub : m_EnemyModel->GetSubMeshes())
+            {
+                if (!sub.mesh) { out.emplace_back(); continue; }
+
+                D3D11_BUFFER_DESC desc = {};
+                desc.ByteWidth = sizeof(uint32_t) * 5;
+                desc.Usage = D3D11_USAGE_DEFAULT;
+                desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+                desc.MiscFlags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
+                // IndexCountPerInstance, InstanceCount, StartIndex, BaseVertex, StartInstance
+                const uint32_t init[5] = { sub.mesh->GetIndexCount(), 0, 0, 0, 0 };
+                D3D11_SUBRESOURCE_DATA sd = {};
+                sd.pSysMem = init;
+                Microsoft::WRL::ComPtr<ID3D11Buffer> args;
+                if (FAILED(device->CreateBuffer(&desc, &sd, &args))) return false;
+                out.push_back(args);
+            }
+            return true;
+        };
     for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
     {
-        m_EnemyDrawArgs[k].clear();
-        for (const auto& sub : m_EnemyModel->GetSubMeshes())
-        {
-            if (!sub.mesh) { m_EnemyDrawArgs[k].emplace_back(); continue; }
-
-            D3D11_BUFFER_DESC desc = {};
-            desc.ByteWidth = sizeof(uint32_t) * 5;
-            desc.Usage = D3D11_USAGE_DEFAULT;
-            desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-            desc.MiscFlags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
-            // IndexCountPerInstance, InstanceCount, StartIndex, BaseVertex, StartInstance
-            const uint32_t init[5] = { sub.mesh->GetIndexCount(), 0, 0, 0, 0 };
-            D3D11_SUBRESOURCE_DATA sd = {};
-            sd.pSysMem = init;
-            Microsoft::WRL::ComPtr<ID3D11Buffer> args;
-            if (FAILED(device->CreateBuffer(&desc, &sd, &args))) return false;
-            m_EnemyDrawArgs[k].push_back(args);
-        }
+        if (!makeDrawArgs(m_EnemyDrawArgs[k])) return false;
+        if (!makeDrawArgs(m_CorpseDrawArgs[k])) return false;
     }
 
     // HP バー: VertexCountPerInstance, InstanceCount, StartVertex, StartInstance

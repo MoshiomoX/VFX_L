@@ -147,6 +147,25 @@ public:
     };
     OrbLookStyle orbLook;
 
+    // ---- 死んだ敵の砕け散り（2026-10-02、用户が選んだ「方块碎裂飞散」）----
+    // 部品（頭・胴・腕・脚）が玩家から離れる向きへ飛び、回りながら 1 回跳ねて、life 秒で縮んで消える。
+    // 足元に土煙（範囲 MobDeath、威力 0 の見た目だけ。deathArea は MobSpawner::Init が名前で引く）
+    struct CorpseStyle
+    {
+        bool  enabled = true;
+        float life = 0.9f;          // 秒
+        float gravity = 18.0f;      // m/s^2（重力 25 より軽くして少し長く宙に）
+        float fling = 3.5f;         // 玩家から離れる向きの初速 m/s
+        float up = 4.5f;            // 上向きの初速 m/s
+        float spin = 9.0f;          // 回転 rad/s（着地後は 1/3）
+        float bounce = 0.35f;       // 着地で残る速さの割合
+        float flash = 3.0f;         // 死んだ瞬間の明るさ（頂点色の倍率。1 を超えると bloom）
+        float flashTime = 0.08f;    // その明るさが戻るまで 秒
+        float shrinkStart = 0.55f;  // life のこの割合から縮み始める
+        uint32_t deathArea = 0;     // 土煙の AreaDef。0 = 出さない
+    };
+    CorpseStyle corpse;
+
     // ---- 液溜まり（Liquid entry を持つ配方の範囲。Render の中、オーブの後・丸い影の前）----
     // 見た目は VFX の json の Liquid entry（VFXLiquidDef）。ここは描くかどうかだけ
     bool liquids = true;
@@ -434,6 +453,29 @@ private:
     void DispatchLiquidTrack();
     void RenderLiquids(CameraBase* camera, const LightBuffer& light);
 
+    // ---- 死んだ敵の砕け散り（2026-10-02）----
+    // prevAlive : 槽毎の前フレームの生死（SwarmCorpseTrackCS が「生 → 死」を見つける）
+    // corpses   : 環（Swarm::kMaxCorpses 枠）。corpseHead の [0] = 今までに書いた数
+    // 一覧      : 見た目毎（雑魚 / 自爆兵 / 幽霊）の砕け中の環の番号（SwarmCorpseListCS、append）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevAliveBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPrevAliveUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPrevAliveSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_CorpseSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseHead;   // RAW
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseHeadUAV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseListBuffer[Swarm::kEnemyKinds];
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseListUAV[Swarm::kEnemyKinds];   // APPEND
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_CorpseListSRV[Swarm::kEnemyKinds];
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_CorpseDrawArgs[Swarm::kEnemyKinds];  // submesh 毎
+    std::shared_ptr<ComputeShader> m_CorpseTrackCS;
+    std::shared_ptr<ComputeShader> m_CorpseListCS;
+    std::shared_ptr<VertexShader>  m_CorpseVS;
+    DirectX::SimpleMath::Vector4   m_PartPivots[8] = {};   // 部品の付け根（焼いた姿勢の節点の原点。BuildEnemyPartAnim）
+    void DispatchCorpses();
+    void RenderCorpses(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
+
     // --- 地形（起動時に1回。読み取り専用）---
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_TerrainBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_TerrainSRV;
@@ -681,6 +723,19 @@ private:
         float clamp, _pad[3];
     };
     static_assert(sizeof(BlobShadowCB) == 160, "BlobShadowCB layout mismatch");
+    // SwarmCorpseVS の b4（砕け散り）
+    struct CorpseCB
+    {
+        uint32_t part = 0, partCount = 0;
+        float time = 0.0f, life = 0.9f;
+        float gravity = 18.0f, fling = 3.5f, up = 4.5f, spin = 9.0f;
+        float bounce = 0.35f, flash = 3.0f, flashTime = 0.08f, shrinkStart = 0.55f;
+        DirectX::SimpleMath::Vector4 pivot[8] = {};
+    };
+    static_assert(sizeof(CorpseCB) == 176, "CorpseCB layout mismatch");
+    // SwarmCorpseTrackCS / SwarmCorpseListCS の b4
+    struct CorpseTrackCB { float time; uint32_t on; uint32_t deathArea; uint32_t _pad; };
+    struct CorpseListCB { float time; float life; float _pad[2]; };
     // SwarmBomberRingVS / PS の b0（row_major なので Transpose しない）
     struct BomberRingCB
     {

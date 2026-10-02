@@ -87,6 +87,7 @@ void CollisionTestScene::Init()
         m_AutoBeamTrack = m_AutoTest && strcmp(env, "beamtrack") == 0;   // 値が beamtrack なら光線の標的乗り換え
         m_AutoSurge = m_AutoTest && strcmp(env, "surge") == 0;           // 値が surge なら魔力解放（Q）
         m_AutoPoison = m_AutoTest && strcmp(env, "poison") == 0;         // 値が poison なら毒（池の減速と持続ダメージ）
+        m_AutoDeath = m_AutoTest && strcmp(env, "death") == 0;           // 値が death なら死んだ敵の砕け散り
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
         if (m_AutoTest) AutoTestLog("start");
