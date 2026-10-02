@@ -80,7 +80,7 @@ void main(uint3 id : SV_DispatchThreadID)
     path.speed = speed;
     path.duration = 1.0;
 
-    if (m.mode == SWARM_MOTION_DROP && speed > 0.01)
+    if (SwarmMotionLands(m.mode) && speed > 0.01)
     {
         float3 fwd = float3(req.velocity.x, 0.0, req.velocity.z);
         float fwdLenSq = dot(fwd, fwd);
@@ -109,14 +109,27 @@ void main(uint3 id : SV_DispatchThreadID)
             }
         }
 
-        float3 back = float3(backFrom.x - impact.x, 0.0, backFrom.z - impact.z);
-        float backLenSq = dot(back, back);
-        back = (backLenSq > 1e-8) ? back * rsqrt(backLenSq) : -fwd;
-        float3 start = impact + back * m.c1.y + float3(0.0, max(m.c1.x, 1.0), 0.0);
+        if (m.mode == SWARM_MOTION_LOB)
+        {
+            // thrown from the muzzle (from the player when the CPU chose the spot)
+            float3 from = ((extra.y & SWARM_SPAWN_AT_POS) != 0u) ? g_PlayerPos : req.position;
+            SwarmBuildPath(path, m, from, impact, fwd, false);
+            float3 tan0 = SwarmBezierTangent(path, 0.0);
+            float tanLenSq = dot(tan0, tan0);
+            req.position = from;
+            req.velocity = (tanLenSq > 1e-8) ? tan0 * (rsqrt(tanLenSq) * speed) : fwd * speed;
+        }
+        else
+        {
+            float3 back = float3(backFrom.x - impact.x, 0.0, backFrom.z - impact.z);
+            float backLenSq = dot(back, back);
+            back = (backLenSq > 1e-8) ? back * rsqrt(backLenSq) : -fwd;
+            float3 start = impact + back * m.c1.y + float3(0.0, max(m.c1.x, 1.0), 0.0);
 
-        SwarmBuildDropPath(path, start, impact);
-        req.position = start;
-        req.velocity = normalize(impact - start) * (speed * 0.4);
+            SwarmBuildDropPath(path, start, impact);
+            req.position = start;
+            req.velocity = normalize(impact - start) * (speed * 0.4);
+        }
         req.lifetime = max(req.lifetime, path.duration + 0.25);
     }
     else if (m.mode != SWARM_MOTION_STRAIGHT && speed > 0.01)

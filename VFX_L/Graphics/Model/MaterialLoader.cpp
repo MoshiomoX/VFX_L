@@ -8,6 +8,7 @@
 #include <assimp/scene.h>
 #include <iostream>
 #include <filesystem>
+#include <Windows.h>   // MultiByteToWideChar（UTF-8 のパス）
 
 namespace fs = std::filesystem;
 using namespace DirectX::SimpleMath;
@@ -16,20 +17,37 @@ namespace
 {
     std::wstring ToW(const std::string& s) { return std::wstring(s.begin(), s.end()); }
 
+    // assimp の文字列は UTF-8。窄い std::string のまま fs::path にすると ANSI（日本語環境は CP932）として
+    // 変換され、作者の PC の中文入りのパス（shuimian_02.FBX の F:\...\风暴英雄全套特效贴图\...png など）で
+    // 例外が飛ぶ。Debug では abort() の対話框が出たまま固まっていた（2026-10-02）。UTF-8 → 幅広で作る
+    fs::path Utf8Path(const std::string& s)
+    {
+        if (s.empty()) return fs::path();
+        const int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), nullptr, 0);
+        if (n <= 0) return fs::path();
+        std::wstring w((size_t)n, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), w.data(), n);
+        return fs::path(w);
+    }
+
     // テクスチャの実体を探す: そのまま → 同じ階層 → textures/ → Textures/ → Assets/
+    // 存在の確認は error_code 版（読めないドライブ等でも例外にしない）
     std::wstring FindTexturePath(const std::string& directory, const std::string& texPath)
     {
-        if (fs::exists(texPath)) return ToW(texPath);
+        std::error_code ec;
+        const fs::path tex = Utf8Path(texPath);
+        if (!tex.empty() && fs::exists(tex, ec)) return tex.wstring();
 
-        const std::string filename = fs::path(texPath).filename().string();
-        const std::string candidates[] = {
-            directory + filename,
-            directory + "textures/" + filename,
-            directory + "Textures/" + filename,
-            "Assets/" + filename,
+        const fs::path filename = tex.filename();
+        const fs::path dir = Utf8Path(directory);
+        const fs::path candidates[] = {
+            dir / filename,
+            dir / "textures" / filename,
+            dir / "Textures" / filename,
+            fs::path("Assets") / filename,
         };
         for (const auto& p : candidates)
-            if (fs::exists(p)) return ToW(p);
+            if (!filename.empty() && fs::exists(p, ec)) return p.wstring();
 
         std::cout << "[Warning] Texture not found: " << texPath << std::endl;
         return L"";

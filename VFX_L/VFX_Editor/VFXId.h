@@ -29,6 +29,8 @@ enum class VFXId : uint32_t
     FireballHit,    // 火球の命中・消滅（範囲 FireballHit：威力 0 の見た目だけ。小さな炎の閃き。2026-09-30 に火球の爆発を廃止）
     StoneShot,      // 石弾の弾（Rock_2.fbx の岩が弾と一緒に飛ぶ + 土煙）
     StoneShotHit,   // 石弾の命中（範囲 StoneShotHit：威力 0 の見た目だけ。土煙 + 岩の欠片）
+    Poison,         // 毒の弾（緑の毒液の塊 + 滴。Lob 型で山なりに飛ぶ）
+    PoisonPool,     // 毒の池（範囲 PoisonPool：落ちた所の飛沫 + 泡 + 毒霧 + 緑の光。持続 4 秒）
     Beam,           // 魔導光線（溜めの光球 + Beam entry の光線 + 点光源。CPU の AreaVFXPlayer が再生し、終点は WeaponSystem が毎フレーム入れる）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count

@@ -1013,6 +1013,7 @@ void CollisionTestScene::UpdateAutoTest(float dt)
     if (m_AutoDrop) { UpdateAutoTestDrop(); return; }
     if (m_AutoBeamTrack) { UpdateAutoTestBeamTrack(); return; }
     if (m_AutoSurge) { UpdateAutoTestSurge(); return; }
+    if (m_AutoPoison) { UpdateAutoTestPoison(); return; }
 
     if (m_AutoStep == 0 && m_AutoTime >= 5.0f && m_Registry.Has<LevelComponent>(m_Player))
     {
@@ -3712,5 +3713,108 @@ void CollisionTestScene::UpdateAutoTestGhost()
             AutoTestLog(line);
         }
         if (m_AutoTime >= 8.0f) { AutoTestLog("ghost done"); m_AutoStep = 2; }
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 毒（VFXL_BATTLE_AUTOTEST=poison、2026-10-01）
+// 1 秒: 湧き停止・全消し・無敵・MP 無限・入力 0、背包は毒だけ（3x3 の中央）。玩家の +Z 17〜30m に雑魚 16 体
+//   （2 列、HP 1000、3.5 m/s）、31m に精鋭 1 体（HP 2000、3.4 m/s で見分ける）。玩家は動かない。
+//   射程 15m に入った最寄りの敵の足元へ毒が落ち、後ろから来る敵がその池を通る。
+// 0.25 秒毎に DebugReadEnemies（Map で GPU を待つ。自測専用）で
+//   `poison t alive free slowed ratio elite hp areas`：free = 玩家から 3m 以上離れた雑魚、
+//   slowed = その中で 水平速度 / moveSpeed < 0.8 の数、ratio = slowed の平均（40% 減速なら 0.6 前後）、
+//   elite = 精鋭の 速度 / moveSpeed（玩家の近く・死亡は -1。池の中なら 0.8 前後）、hp = 全員の HP 合計（池で減る）
+// 鏡頭は玩家の後ろ 16m・俯角 40°。3.5 / 5 / 6.5 秒 `poison look <n>`（外から撮る）、10 秒 done
+// ============================================================
+void CollisionTestScene::UpdateAutoTestPoison()
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mp = m_Registry.Get<ManaComponent>(m_Player);
+        mp.max = mp.current = 1.0e6f;
+    }
+    m_PlayerControlSystem.testInput = true;
+    m_PlayerControlSystem.testMove = Vector2::Zero;
+    static float s_NextLog = 0.0f;
+    static int s_Looks = 0;
+    const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        const float gy = m_Swarm.GetAIParams().groundY;
+        for (int k = 0; k < 16; ++k)
+            m_Swarm.SpawnEnemy(Vector3(pp.x + ((k % 2) ? 0.8f : -0.8f), gy, pp.z + 17.0f + (float)(k / 2) * 1.6f),
+                1000.0f, 3.5f);
+        m_Swarm.SpawnEnemy(Vector3(pp.x, gy, pp.z + 31.0f), 2000.0f, 3.4f, Swarm::kEnemyKindElite);
+        if (m_Registry.Has<BackpackComponent>(m_Player) && m_Registry.Has<WandComponent>(m_Player))
+        {
+            auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+            const int lo = BackpackComponent::GRID / 2 - 1;
+            ClearBackpackItems(bp);
+            BackpackLogic::Place(bp, ItemID::Poison, lo + 1, lo + 1, 0);
+            bp.dirty = true;
+            m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
+        }
+        auto& cam = m_Camera.Camera();
+        cam.SetYaw(0.0f);
+        cam.distance = 16.0f;
+        cam.SetPitch(40.0f);
+        cam.avoidOcclusion = false;
+        cam.SnapToTarget();
+        AutoTestLog("poison start: 16 mobs (3.5 m/s) + 1 elite (3.4 m/s) walking in from +Z 17-31m");
+        s_NextLog = m_AutoTime;
+        m_AutoStep = 1;
+    }
+    if (m_AutoStep != 1) return;
+
+    if (m_AutoTime >= s_NextLog)
+    {
+        s_NextLog = m_AutoTime + 0.25f;
+        std::vector<Swarm::Enemy> enemies;
+        std::vector<uint32_t> states;
+        if (m_Swarm.DebugReadEnemies(enemies, states))
+        {
+            int alive = 0, freeN = 0, slowed = 0;
+            float ratioSum = 0.0f, elite = -1.0f, hp = 0.0f;
+            for (size_t i = 0; i < enemies.size(); ++i)
+            {
+                if (states[i] == Swarm::kStateDead) continue;
+                const Swarm::Enemy& e = enemies[i];
+                ++alive;
+                hp += Swarm::HpFromFixed(e.hp);
+                const float dx = e.position.x - pp.x, dz = e.position.z - pp.z;
+                if (dx * dx + dz * dz < 3.0f * 3.0f) continue;   // 玩家に詰まっている（押し合いで遅い）
+                const float speed = std::sqrt(e.velocity.x * e.velocity.x + e.velocity.z * e.velocity.z);
+                const float r = speed / (std::max)(e.moveSpeed, 0.01f);
+                if (std::fabs(e.moveSpeed - 3.4f) < 1e-3f) { elite = r; continue; }
+                ++freeN;
+                if (r < 0.8f) { ++slowed; ratioSum += r; }
+            }
+            char line[200];
+            snprintf(line, sizeof(line), "poison t %.2f alive %d free %d slowed %d ratio %.2f elite %.2f hp %.0f areas %u",
+                m_AutoTime, alive, freeN, slowed, slowed ? ratioSum / slowed : 0.0f, elite, hp,
+                m_Swarm.GetCounters().aliveAreas);
+            AutoTestLog(line);
+        }
+    }
+    const float looks[] = { 3.5f, 5.0f, 6.5f };
+    if (s_Looks < 3 && m_AutoTime >= looks[s_Looks])
+    {
+        char line[32];
+        snprintf(line, sizeof(line), "poison look %d", s_Looks++);
+        AutoTestLog(line);
+    }
+    if (m_AutoTime >= 10.0f)
+    {
+        m_PlayerControlSystem.testInput = false;
+        AutoTestLog("poison done");
+        m_AutoStep = 2;
     }
 }

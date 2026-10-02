@@ -231,9 +231,10 @@ namespace
         case Swarm::MotionMode::CurveOnce: s.traits.push_back(L"撃った時に一番近い敵を狙って曲がる"); break;
         case Swarm::MotionMode::Track:     s.traits.push_back(L"敵を追い続ける。倒したら次の敵へ"); break;
         case Swarm::MotionMode::Drop:      s.traits.push_back(kDropTrait); break;
+        case Swarm::MotionMode::Lob:       s.traits.push_back(L"一番近い敵の足元へ山なりに投げる（途中の敵には当たらない）"); break;
         }
-        // 隕石は落ちる途中で敵に当たらない（弾そのものの威力は入らず、着弾の範囲だけ）
-        const bool drop = pp.mode == Swarm::MotionMode::Drop;
+        // 隕石・投げ上げ（毒）は途中で敵に当たらない（弾そのものの威力は入らず、着弾の範囲だけ）
+        const bool drop = pp.mode == Swarm::MotionMode::Drop || pp.mode == Swarm::MotionMode::Lob;
         if (!pp.hitArea.empty())
         {
             const int ai = AreaProfileDB::IndexOf(pp.hitArea);
@@ -249,9 +250,17 @@ namespace
                     swprintf_s(buf, drop ? L"着弾すると爆発する (威力 %ls、半径 %lsm)" : L"命中すると爆発する (威力 %ls、半径 %lsm)",
                         Num(ap.damage).c_str(), Num(ap.radius * areaScale).c_str());
                 else
-                    swprintf_s(buf, L"命中した所に範囲を残す (%ls 秒ごとに威力 %ls、%ls 秒間)",
-                        Num(ap.tickInterval).c_str(), Num(ap.damage).c_str(), Num(ap.duration).c_str());
+                    swprintf_s(buf, drop ? L"落ちた所に範囲を残す (半径 %lsm、%ls 秒ごとに威力 %ls、%ls 秒間)"
+                                         : L"命中した所に範囲を残す (半径 %lsm、%ls 秒ごとに威力 %ls、%ls 秒間)",
+                        Num(ap.radius * areaScale).c_str(), Num(ap.tickInterval).c_str(), Num(ap.damage).c_str(), Num(ap.duration).c_str());
                 s.traits.push_back(buf);
+                // 減速（毒の池）。15 段階に丸めた実際の値を出す（AreaProfile::Flags）
+                if (ap.slow > 0.0f)
+                {
+                    const int pct = (int)std::lround(std::lround(std::clamp(ap.slow, 0.0f, 1.0f) * 15.0f) / 15.0f * 100.0f);
+                    swprintf_s(buf, L"範囲の中の敵は移動が %d%% 遅くなる (精鋭・ボスは半分)", pct);
+                    s.traits.push_back(buf);
+                }
             }
         }
 

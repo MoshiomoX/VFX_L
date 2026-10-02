@@ -395,6 +395,7 @@ namespace Res
         inline constexpr const wchar_t* GoldenArrow = L"Assets/Texture/UI/Icons/GoldenArrow.png";
         inline constexpr const wchar_t* Meteor = L"Assets/Texture/UI/Icons/Meteor.png";
         inline constexpr const wchar_t* StoneShot = L"Assets/Texture/UI/Icons/StoneShot.png";
+        inline constexpr const wchar_t* Poison = L"Assets/Texture/UI/Icons/Poison.png";
         inline constexpr const wchar_t* Beam = L"Assets/Texture/UI/Icons/Beam.png";
         inline constexpr const wchar_t* SplitRune = L"Assets/Texture/UI/Icons/SplitRune.png";
         inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
@@ -459,6 +460,8 @@ namespace Res
         inline constexpr const char* FireballHit = "Assets/Data/VFXData/FireballHit.json";
         inline constexpr const char* StoneShot = "Assets/Data/VFXData/StoneShot.json";
         inline constexpr const char* StoneShotHit = "Assets/Data/VFXData/StoneShotHit.json";
+        inline constexpr const char* Poison = "Assets/Data/VFXData/Poison.json";           // 毒の弾（緑の毒液の塊 + 滴）
+        inline constexpr const char* PoisonPool = "Assets/Data/VFXData/PoisonPool.json";   // 毒の池（範囲 PoisonPool：泡 + 毒霧 + 緑の光）
         inline constexpr const char* Beam = "Assets/Data/VFXData/Beam.json";               // 魔導光線（溜め + Beam entry の光線 + 先端の光）
     }
 

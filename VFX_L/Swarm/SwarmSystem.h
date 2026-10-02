@@ -304,6 +304,12 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyExtraUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyExtraSRV;
 
+    // 毒の池の減速（float2 = 残り秒・強さ、スロットと同じ添字。2026-10-01）。
+    // AreaDamageCS が tick の度に書き、AICS が速度に掛けて数え下げる。Spawn / Recycle で 0 に戻す
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemySlowBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemySlowUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemySlowSRV;
+
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjSRV;

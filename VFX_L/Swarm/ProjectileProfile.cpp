@@ -85,7 +85,7 @@ void ProjectileProfile::FromJson(const json& j)
 {
     name = j.value("name", name);
     const int m = j.value("mode", 0);
-    mode = (m >= 0 && m <= 3) ? static_cast<Swarm::MotionMode>(m) : Swarm::MotionMode::Straight;
+    mode = (m >= 0 && m <= 4) ? static_cast<Swarm::MotionMode>(m) : Swarm::MotionMode::Straight;
     c1 = J3(j.value("c1", json()), c1);
     c2 = J3(j.value("c2", json()), c2);
     const int mi = j.value("mirror", 0);

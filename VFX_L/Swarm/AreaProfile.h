@@ -44,6 +44,7 @@ struct AreaProfile
     float tickInterval = 0.25f;    // Lasting のみ
     bool  followCaster = false;    // 玩家の位置に出した時、玩家に付いて動く
     bool  stun = true;             // ダメージで被弾硬直を入れる（法環で入れると敵が固まり続けるので注意）
+    float slow = 0.0f;             // tick の度に中の敵の移動速度をこれだけ落とす（0〜1、15 段階に丸める。精英・Boss は半分。2026-10-01 毒の池）
 
     // ---- Beam のみ ----
     float length = 18.0f;          // 射程（m）。地形に当たればそこまで

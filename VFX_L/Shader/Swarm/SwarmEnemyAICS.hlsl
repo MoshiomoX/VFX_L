@@ -26,6 +26,7 @@ StructuredBuffer<float2> flowField : register(t4); // per-cell direction to the 
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5); // kind + fuse (ContactCS lights it)
 StructuredBuffer<float> terrainHeight : register(t6);         // cliffs block like walls (SwarmSlopeOk)
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
+RWStructuredBuffer<float2> enemySlow : register(u1); // (seconds left, amount) from AreaDamageCS; counted down here
 
 // straight-line chase inside this many cells of the player: the flow
 // field's per-cell steps would make the ring around the player jitter
@@ -65,6 +66,16 @@ void main(uint3 id : SV_DispatchThreadID)
     if (enemyStates[i] == SWARM_DEAD)
         return;
 
+    // ---- slow (poison pool): count down before any early return ----
+    float slowMul = 1.0;
+    float2 slow = enemySlow[i];
+    if (slow.x > 0.0)
+    {
+        slowMul = 1.0 - saturate(slow.y);
+        slow.x -= g_Step;
+        enemySlow[i] = (slow.x > 0.0) ? slow : float2(0, 0);
+    }
+
     // ---- hit stun / lit bomber: stand still ----
     // velocity 0 so the exit ramps back up through the lag below.
     // A lit bomber stays put until it blows up, so the player can outrun the blast
@@ -79,7 +90,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float3 pos = enemies[i].position;
     float3 oldV = enemies[i].velocity; // own slot: written by this thread last step
-    float moveSpeed = enemies[i].moveSpeed;
+    float moveSpeed = enemies[i].moveSpeed * slowMul;
 
     // ---- seek: follow the flow field, chase directly when close ----
     // the field routes around boxes and walls (the straight line used

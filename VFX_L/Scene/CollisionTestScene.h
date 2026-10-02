@@ -180,6 +180,9 @@ private:
     // VFXL_BATTLE_AUTOTEST=surge：魔力解放（Q）で 3 秒間 MP が減らず撃ち続けられるか・再使用待ちで 2 回目が効かないか
     bool     m_AutoSurge = false;
     void     UpdateAutoTestSurge();
+    // VFXL_BATTLE_AUTOTEST=poison：毒が最寄りの敵の足元へ落ちるか・池で敵が遅くなるか・池のダメージが入るか
+    bool     m_AutoPoison = false;
+    void     UpdateAutoTestPoison();
     // VFXL_BATTLE_AUTOTEST=ghost：最終波の幽霊を 20 体出して、数・壁抜け・近づく速さを記録し撮る
     bool     m_AutoGhost = false;
     void     UpdateAutoTestGhost();

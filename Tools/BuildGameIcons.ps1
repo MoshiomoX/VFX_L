@@ -33,6 +33,7 @@ $Icons = [ordered]@{
     'Meteor'         = 'lorc/meteor-impact'
     'GoldenArrow'    = 'lorc/high-shot'
     'StoneShot'      = 'lorc/stone-sphere'
+    'Poison'         = 'lorc/poison-bottle'
     'Beam'           = 'lorc/laser-blast'
     'SplitRune'      = 'delapouite/split-arrows'
     'DoubleCastRune' = 'lorc/echo-ripples'

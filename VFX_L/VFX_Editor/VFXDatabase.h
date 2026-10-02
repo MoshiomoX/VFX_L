@@ -27,6 +27,8 @@ namespace
         { VFXId::StoneShot, Res::VFX::StoneShot },
         { VFXId::StoneShotHit, Res::VFX::StoneShotHit },
         { VFXId::Beam, Res::VFX::Beam },
+        { VFXId::Poison, Res::VFX::Poison },
+        { VFXId::PoisonPool, Res::VFX::PoisonPool },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }
