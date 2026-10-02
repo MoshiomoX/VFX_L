@@ -32,6 +32,7 @@ StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
 StructuredBuffer<float> terrainHeight : register(t5);   // ramps (t4 = area defs)
+Buffer<uint> projBoost : register(t6);   // damage / duration boost of the area this shot leaves
 
 RWStructuredBuffer<SwarmProjectile> projectiles : register(u0);
 RWBuffer<uint> projStates : register(u1);
@@ -58,7 +59,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (p.lifetime <= 0.0)
     {
         if (areaOnExpire)
-            SwarmSpawnAreaFromDef(m.hitArea, p.position, i, SwarmProjScale(p));
+            SwarmSpawnAreaFromDef(m.hitArea, p.position, i, SwarmProjScale(p), projBoost[i]);
         projStates[i] = SWARM_DEAD;
         return;
     }
@@ -78,7 +79,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (p.pathT >= 1.0)
         {
             if (m.hitArea != 0u)
-                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i, SwarmProjScale(p));
+                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i, SwarmProjScale(p), projBoost[i]);
             projStates[i] = SWARM_DEAD;
             return;
         }
@@ -195,7 +196,7 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         // blow up at the last free position, not inside the wall
         if (areaOnExpire)
-            SwarmSpawnAreaFromDef(m.hitArea, projectiles[i].position, i, SwarmProjScale(p));
+            SwarmSpawnAreaFromDef(m.hitArea, projectiles[i].position, i, SwarmProjScale(p), projBoost[i]);
         projStates[i] = SWARM_DEAD;
         return;
     }

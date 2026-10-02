@@ -51,6 +51,11 @@ struct PlayerStatsComponent
     float knockBlastTime = 0.28f;
     float knockBlastLift = 4.0f;        // 爆発で上へ弾く初速 m/s（重力 25 で 0.32m・0.32 秒浮く）
 
+    // --- 魔法の威力（2026-10-02、能力アップ「魔法威力」で掛け算）---
+    // 全部の攻撃魔法のダメージに掛かる（弾の命中・着弾の範囲・光線）。
+    // BackpackAggregateSystem と ItemInfo::DescribePlaced が同じ ItemInfo::ApplySpellPower で掛ける
+    float spellPower = 1.0f;
+
     // --- 体格（衝突体と見た目の両方が参照する）---
     // ※成長対象ではない。調整用。
     float radius = 0.4f;

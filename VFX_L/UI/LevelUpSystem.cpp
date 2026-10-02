@@ -10,6 +10,7 @@
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
 #include "Player/PlayerStatsComponent.h"
+#include "Component/BackpackComponent.h"
 #include "ECS/View.h"
 #include <algorithm>
 #include <cstdlib>
@@ -237,6 +238,17 @@ void LevelUpSystem::ApplyStat(Registry& reg, Entity player, const StatItemDef& s
     case StatKind::JumpCount:
         if (reg.Has<PlayerStatsComponent>(player))
             reg.Get<PlayerStatsComponent>(player).extraJumps += (int)(stat.amount + 0.5f);
+        break;
+
+    // 魔法の威力。杖の数値は背包の集約で決まるので、集約し直させる（BackpackAggregateSystem が掛ける）
+    case StatKind::SpellPower:
+        if (reg.Has<PlayerStatsComponent>(player))
+        {
+            auto& st = reg.Get<PlayerStatsComponent>(player);
+            st.spellPower = stat.percent ? st.spellPower * (1.0f + stat.amount) : st.spellPower + stat.amount;
+            if (reg.Has<BackpackComponent>(player))
+                reg.Get<BackpackComponent>(player).dirty = true;
+        }
         break;
     }
 }

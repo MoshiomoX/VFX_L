@@ -212,6 +212,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeState(Swarm::kMaxOrbs, m_OrbStateBuffer, m_OrbStateUAV, m_OrbStateSRV, "orb"))   return false;
     // 誘発タグ（生死と同じ R32_UINT の並行バッファ）
     if (!makeState(Swarm::kMaxProjectiles, m_ProjTagBuffer, m_ProjTagUAV, m_ProjTagSRV, "projTag")) return false;
+    // 出す範囲への倍率（同じく R32_UINT。0 = 1 倍）
+    if (!makeState(Swarm::kMaxProjectiles, m_ProjBoostBuffer, m_ProjBoostUAV, m_ProjBoostSRV, "projBoost")) return false;
 
     // ---- 範囲攻撃 ----
     if (!makeStructured(sizeof(Swarm::Area), Swarm::kMaxAreas,
@@ -389,6 +391,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_EnemyStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_ProjStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_ProjTagUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_ProjBoostUAV.Get(), zero);   // 0 = 1 倍
         m_Context->ClearUnorderedAccessViewUint(m_TriggerUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
@@ -591,7 +594,7 @@ void SwarmSystem::RecycleEnemy(const Vector3& pos, float hp, float moveSpeed, ui
 }
 void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& vel,
     float damage, float radius, float lifetime, uint32_t motion, bool mirror,
-    uint32_t triggerTag, bool spawnAtPos)
+    uint32_t triggerTag, bool spawnAtPos, float areaDamageMul, float areaDurationMul)
 {
     if (m_PendingProjectiles.size() >= Swarm::kMaxSpawnProjPerFrame) return;
 
@@ -607,7 +610,8 @@ void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& 
     if (mirror) p.motion |= Swarm::kMotionFlipBit;
     m_PendingProjectiles.push_back(p);
     m_PendingProjExtra.push_back(triggerTag);
-    m_PendingProjExtra.push_back(spawnAtPos ? Swarm::kSpawnAtPos : 0u);
+    m_PendingProjExtra.push_back((spawnAtPos ? Swarm::kSpawnAtPos : 0u)
+        | Swarm::PackSpawnBoost(areaDamageMul, areaDurationMul));
     ++m_TotalRequested;
 }
 
@@ -912,6 +916,7 @@ void SwarmSystem::UploadSpawns()
         m_SpawnProjCS->SetUAV(m_Context, "paths", m_PathUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "projTags", m_ProjTagUAV.Get());
+        m_SpawnProjCS->SetUAV(m_Context, "projBoost", m_ProjBoostUAV.Get());   // 出す範囲への倍率
         m_SpawnProjCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((scb.requestCount + 63) / 64, 1, 1);
@@ -1162,6 +1167,7 @@ void SwarmSystem::DispatchStep()
         m_ProjMoveCS->SetUAV(m_Context, "paths", m_PathUAV.Get());
         // 寿命切れ・壁で範囲を出すプロファイル用
         m_ProjMoveCS->SetSRV(m_Context, "areaDefs", m_AreaDefSRV.Get());
+        m_ProjMoveCS->SetSRV(m_Context, "projBoost", m_ProjBoostSRV.Get());   // 出す範囲の威力 / 持続の倍率
         m_ProjMoveCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
         m_ProjMoveCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
         m_ProjMoveCS->SetUAV(m_Context, "projectiles", m_ProjUAV.Get());
@@ -1188,6 +1194,7 @@ void SwarmSystem::DispatchStep()
         // 命中した場所に範囲を出すプロファイル用（UAV はこれで 8 本。D3D11.0 の上限）
         m_HitCS->SetSRV(m_Context, "motions", m_MotionSRV.Get());
         m_HitCS->SetSRV(m_Context, "areaDefs", m_AreaDefSRV.Get());
+        m_HitCS->SetSRV(m_Context, "projBoost", m_ProjBoostSRV.Get());   // SRV なので UAV の上限には響かない
         m_HitCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
         m_HitCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
         m_HitCS->SetUAV(m_Context, "projStates", m_ProjStateUAV.Get());

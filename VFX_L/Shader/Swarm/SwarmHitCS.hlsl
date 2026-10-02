@@ -30,6 +30,7 @@
 
 StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3);
+Buffer<uint> projBoost : register(t4); // damage / duration boost of the area this shot leaves
 
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 RWBuffer<uint> projStates : register(u0);
@@ -134,7 +135,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // ---- area on hit (explosion etc.). Ticks in this same step:
         // AreaTickCS / AreaDamageCS run right after this shader ----
         SwarmSpawnAreaFromDef(motions[p.motion & SWARM_MOTION_INDEX_MASK].hitArea,
-                              p.position, i + j, SwarmProjScale(p));
+                              p.position, i + j, SwarmProjScale(p), projBoost[i]);
 
         // projectile is consumed either way (no pierce)
         projStates[i] = SWARM_DEAD;

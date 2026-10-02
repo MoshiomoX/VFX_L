@@ -4,6 +4,7 @@
 #include "Swarm/AreaVFXPlayer.h"
 #include "Swarm/AreaProfile.h"
 #include "VFX_Editor/VFXEffect.h"
+#include "VFX_Editor/VFXEntry.h"
 #include <algorithm>
 
 using namespace DirectX::SimpleMath;
@@ -61,6 +62,28 @@ void AreaVFXPlayer::SetInstance(uint32_t handle, const Vector3& pos, const Vecto
         inst.follow = false;
         inst.effect->SetWorldOffset(pos);
         inst.effect->SetBeamEnd(beamEnd);
+        return;
+    }
+}
+
+void AreaVFXPlayer::RemapTimeline(uint32_t handle, float split, float before, float after)
+{
+    auto remap = [&](float t)
+        {
+            return (t <= split) ? t * before : split * before + (t - split) * after;
+        };
+    for (auto& inst : m_Active)
+    {
+        if (inst.handle != handle) continue;
+        for (int i = 0; i < inst.effect->GetEntryCount(); ++i)
+        {
+            VFXEntry* e = inst.effect->GetEntry(i);
+            if (!e) continue;
+            const float start = remap(e->startTime);
+            if (e->duration >= 0.0f)
+                e->duration = (std::max)(0.0f, remap(e->startTime + e->duration) - start);
+            e->startTime = start;
+        }
         return;
     }
 }

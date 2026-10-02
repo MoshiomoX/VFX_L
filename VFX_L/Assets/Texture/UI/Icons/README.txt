@@ -29,6 +29,7 @@ From game-icons.net  https://game-icons.net
   JumpPowerUp.png     "Jump across"       by Delapouite  https://game-icons.net/1x1/delapouite/jump-across.html
   ManaRegenUp.png     "Magic swirl"       by Lorc        https://game-icons.net/1x1/lorc/magic-swirl.html
   JumpCountUp.png     "Wingfoot"          by Lorc        https://game-icons.net/1x1/lorc/wingfoot.html
+  SpellPowerUp.png    "Crystal wand"      by Lorc        https://game-icons.net/1x1/lorc/crystal-wand.html
   Magnet.png          "Magnet"            by Lorc        https://game-icons.net/1x1/lorc/magnet.html
 
 Drawn for this project (by the same script, no license needed):

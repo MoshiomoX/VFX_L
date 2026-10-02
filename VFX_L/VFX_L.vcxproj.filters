@@ -985,6 +985,9 @@
     <ClInclude Include="Item\Items\JumpCountUp.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\SpellPowerUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Component\SpellbookComponent.h">
       <Filter>Component</Filter>
     </ClInclude>

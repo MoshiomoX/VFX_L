@@ -404,6 +404,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\JumpPowerUp.h" />
     <ClInclude Include="Item\Items\ManaRegenUp.h" />
     <ClInclude Include="Item\Items\JumpCountUp.h" />
+    <ClInclude Include="Item\Items\SpellPowerUp.h" />
     <ClInclude Include="Core\Game.h" />
     <ClInclude Include="Particle\GPUParticle.h" />
     <ClInclude Include="Particle\GPUParticleEmitter.h" />

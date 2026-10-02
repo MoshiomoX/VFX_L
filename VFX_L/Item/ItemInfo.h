@@ -30,6 +30,11 @@ namespace ItemInfo
     SpellStats BaseSpellStats(const ProjectileItemDef& def);
     AreaStats  BaseAreaStats(const AreaItemDef& def);
 
+    // 能力アップ「魔法威力」（PlayerStatsComponent::spellPower）を掛ける。修飾（ルーン）の後に掛ける。
+    // 飛行物は弾の威力と、命中・着弾で出す範囲の威力（areaDamageMul）の両方
+    void ApplySpellPower(SpellStats& s, float power);
+    void ApplySpellPower(AreaStats& a, float power);
+
     // 能力値の 1 行
     struct Line
     {
@@ -54,6 +59,6 @@ namespace ItemInfo
     // 道具そのもの（レベルアップのカード・魔法書の中の物）
     Sheet Describe(ItemID id);
 
-    // 背包に置いてある物（items の index）。隣のルーンの修飾を反映する
-    Sheet DescribePlaced(const BackpackComponent& bp, int itemIndex);
+    // 背包に置いてある物（items の index）。隣のルーンの修飾と魔法威力（spellPower）を反映する
+    Sheet DescribePlaced(const BackpackComponent& bp, int itemIndex, float spellPower = 1.0f);
 }
