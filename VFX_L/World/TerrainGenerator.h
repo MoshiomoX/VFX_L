@@ -2,8 +2,14 @@
 // TerrainGenerator.h
 // 戦闘の地形を seed から生成する（格子に沿った「台地と坂道」の野原）。
 //
+// 場地の三層（2026-10-02、用户：山頂・平原・鉱洞の大きな分層。200m 四方）:
+//   平原（高さ 0。開局の場所。下の台地・高台・自然物はここ）を中心に、対角の隅に
+//   山頂（+summitHeight の大きな台地。長い坂が数本、残りは崖 = 雑魚は飛び降りる）と
+//   鉱洞（-mineDepth の窪地。下り坂が数本、縁から飛び降りられる）。
+//   床はマス毎の高さ（level）の段々のメッシュ 1 つ、衝突は高さ毎の箱の組。
+//
 // 生成するもの:
-//   床（草地。色むらのある細分化メッシュ）+ 外周の崖
+//   床（草地。色むらのある段々のメッシュ）+ 外周の崖
 //   台地（平らな上面の箱。高さ数 m）… 1 段目は野原に、一部は上に 2 段目が載る
 //   坂道（台地の横から降りる楔。上面は土の道）… 台地に登れるのはここだけ
 //   高台（高さ 5〜7m。一面だけが 16〜20° の長い坂、残り三面は崖。滑り込みで加速する場所）
@@ -40,6 +46,38 @@ namespace TerrainGenerator
     {
         uint32_t seed = 1;
         Biome biome = Biome::Grassland;
+
+        // ---- 場地の三層（山頂・平原・鉱洞）----
+        // 隅の組（どちらの対角か、どちらが山頂か）は seed で決まる。
+        // 形 = 隅の正方形（一辺 size マス、外周の崖の内側から）+ 内側の二辺の出っ張り・凹み + 内側の角の面取り。
+        // 2026-10-02 は 300m の場地で作り、10-03 に 200m へ戻した（用户：高低差はそのまま、水平だけ 2/3）。
+        // 坂も長さが 2/3 になったので急になった（山頂 18〜22° → 26〜31°、鉱洞 22° → 31°。雑魚は 40°、流場は 1 マス 1.5m まで）
+        bool  layers = true;
+        int   summitSize = 33;            // マス（66m）
+        float summitHeight = 16.0f;       // m
+        int   summitRamps = 3;            // 平原へ下りる長い坂の数（場所が無ければ減る）
+        int   summitRampWidth = 4;        // マス（8m）
+        float summitRampSlopeMin = 26.0f; // 度（滑り込みで平原まで滑り降りる）
+        float summitRampSlopeMax = 31.0f;
+        int   mineSize = 33;
+        float mineDepth = 10.0f;          // m
+        int   mineRamps = 2;              // 平原から底へ下りる坂の数
+        int   mineRampWidth = 2;          // マス（4m）
+        float mineRampSlope = 31.0f;      // 度
+        int   mineRockCount = 13;         // 鉱洞の底に足す岩（木は生やさない）
+
+        // ---- 鉱洞の屋根（2026-10-03、用户：推奨どおり）----
+        // 坑を岩の塊で覆う（外から見ると山の麓の洞穴、入口は下り坂の上端）。坑の周り 1 マスは塞いだ岩の壁、
+        // 坑の上は roofBottom〜roofTop の板、上に大きい岩を積んで低い山に見せる（真ん中ほど高い）。
+        // 衝突は roofCollisionTop まで（見た目より高い = 跳んでも上に乗れない）。
+        // 中は暗いので壁に松明（caveTorchSpacing マス毎。点光源は場面が近い物にだけ付ける）
+        bool  mineRoof = true;
+        float roofBottom = 5.0f;          // 屋根の下面（平原から m。坑の底から 15m、口の高さ 5m）
+        float roofTop = 12.0f;            // 岩の塊の上面（見た目。平原から m）
+        float roofCollisionTop = 40.0f;   // 衝突の上端（見えない）
+        float roofRockMin = 8.0f;         // 上に積む岩の高さ（縁 → 真ん中で roofRockMax まで）。
+        float roofRockMax = 16.0f;        // 縁も高めにして、外から見た輪郭を箱でなく岩山にする
+        int   caveTorchSpacing = 6;       // マス（12m）
 
         // ---- 1 段目の台地 ----
         int   plateauCount = 14;       // 置こうとする数（場所が無ければ減る）
@@ -78,7 +116,7 @@ namespace TerrainGenerator
         // 木と岩は置物（1 マス以上を塞ぐ。周り 1 マスは他の置物を置かないので、
         // 並んで壁になることはない）。茂みは見た目だけ（衝突も格子も無し）。
         // 草は模型ではなく GrassRenderer（GPU の草の葉）
-        int treeCount = 60;       // 林（ノイズで固まる）が主、所々に 1 本
+        int treeCount = 60;       // 林（ノイズで固まる）が主、所々に 1 本（鉱洞には生やさない）
         int rockCount = 20;
         int bushCount = 160;
         // これより小さい木・岩は見た目だけ（格子も衝突も無し。雑魚が間に入って震えたり角に詰まったりしないよう、
@@ -97,13 +135,26 @@ namespace TerrainGenerator
         int spawnClearRadius = 8;
     };
 
+    // 三層の結果（箱・Boss の門の置き場所を決める用）。マスは gz * 格子の幅 + gx
+    struct Layout
+    {
+        std::vector<int> summitCells;   // 山頂の上面の歩けるマス
+        std::vector<int> mineCells;     // 鉱洞の底の歩けるマス（坂は含まない）
+        bool hasMineDeep = false;
+        DirectX::SimpleMath::Vector3 mineDeep;   // 鉱洞の一番奥（坂の降り口から歩いて一番遠い底のマス。地面の高さ）
+        // 坂：上端の辺の中央（地面の高さ）と下る向き（xz の単位）
+        struct Ramp { DirectX::SimpleMath::Vector3 top, down; };
+        std::vector<Ramp> summitRamps, mineRamps;
+    };
+
     // 床・外周・台地・坂道・高台を生成し、grid に占用と高さを登記する。
     // 生成した Entity は outTerrain に積む（シーンが破棄用に持つ）。
-    // outGrassMask: 格子のマス毎に 1 = 草を生やす（GrassRenderer 用）。土の坂道・外周・登れない台地は 0
+    // outGrassMask: 格子のマス毎に 1 = 草を生やす（GrassRenderer 用）。土の坂道・外周・登れない台地・鉱洞は 0
     // outTorches: 遺跡の壁の松明の位置（場面が近い物に点光源を付ける）。他の面では空
+    // outLayout: 山頂・鉱洞のマス（layers = false なら空）
     void Generate(Registry& reg, ID3D11Device* device, GridWorld& grid,
         const Config& cfg, std::vector<Entity>& outTerrain, std::vector<uint8_t>* outGrassMask = nullptr,
-        std::vector<DirectX::SimpleMath::Vector3>* outTorches = nullptr);
+        std::vector<DirectX::SimpleMath::Vector3>* outTorches = nullptr, Layout* outLayout = nullptr);
 
     // 床の色（線形の反照率。草原 = 値ノイズの緑のむら + 所々の乾いた草、砂漠 = 砂丘の縞、遺跡 = 石畳）。
     // 草の色もこれに合わせる

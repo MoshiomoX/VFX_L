@@ -75,6 +75,7 @@ void CollisionTestScene::Init()
         m_AutoPickup = m_AutoTest && strcmp(env, "pickup") == 0;         // 値が pickup なら 4 択・空中跳び・磁石
         m_AutoAssets = m_AutoTest && strcmp(env, "assets") == 0;         // 値が assets なら新しい素材の並べ見
         m_AutoEdge = m_AutoTest && strcmp(env, "edge") == 0;             // 値が edge なら外周の岩山を撮る
+        m_AutoLayers = m_AutoTest && strcmp(env, "layers") == 0;         // 値が layers なら山頂・平原・鉱洞の三層
         m_AutoArrow = m_AutoTest && strcmp(env, "arrow") == 0;           // 値が arrow なら黄金の矢を横から撮る
         m_AutoChain = m_AutoTest && strcmp(env, "chain") == 0;           // 値が chain なら火球 + 石弾 → 隕石の誘発
         m_AutoChest = m_AutoTest && strcmp(env, "chest") == 0;           // 値が chest なら魔法書の木箱の物理
@@ -155,7 +156,8 @@ void CollisionTestScene::Init()
     }
 
     // ---------- 地形（格子对齐。台地と坂道の野原）----------
-    // 場地: 100 x 100 マス = 200m x 200m。
+    // 場地: 100 x 100 マス = 200m x 200m（山頂・平原・鉱洞の三層。2026-10-02 に一度 300m にしたが、
+    // 10-03 用户「大きすぎる」で 200m へ戻した。高低差はそのまま、水平だけ 2/3）。
     // 開局ごとに seed を変える（同じ seed なら同じ地形。VFXL_TERRAIN_SEED で固定できる）
     m_Grid.Init(100, 100);
     {
@@ -167,7 +169,8 @@ void CollisionTestScene::Init()
     }
     std::vector<uint8_t> grassMask;
     m_Torches.clear();
-    TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches);
+    TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches,
+        &m_TerrainLayout);
     // 置物（木・岩・茂み）はモデル毎の instanced 描画へ
     if (!m_StaticProps.Initialize(device))
         std::cout << "[Error] StaticPropRenderer init failed" << std::endl;
@@ -176,7 +179,8 @@ void CollisionTestScene::Init()
     if (!m_Grass.Initialize(device, context))
         std::cout << "[Error] GrassRenderer init failed" << std::endl;
     // 面ごとの草（砂漠は疎らな枯れ草、遺跡は無し）。色は床の色（GroundColor）に掛かる
-    m_Grass.GetSettings().enabled = stageDef.grass;
+    // Initialize が VFXL_NO_GRASS で切った時はそのまま（面の設定で上書きしない）
+    m_Grass.GetSettings().enabled = m_Grass.GetSettings().enabled && stageDef.grass;
     m_Grass.GetSettings().spacing = stageDef.grassSpacing;
     m_Grass.GetSettings().rootColor = stageDef.grassRoot;
     m_Grass.GetSettings().tipColor = stageDef.grassTip;
@@ -294,9 +298,13 @@ float CollisionTestScene::TrackPlayerHpLoss()
 void CollisionTestScene::RespawnCrates()
 {
     const Vector3* p = PlayerPos();
-    m_Crates.Spawn(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction);
-    // Boss を呼ぶ門・磁石も同じ時に置き直す（地形が変わると前の場所は歩けないかもしれない）
-    m_Stage.SpawnPortal(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction);
+    // 三層の場地では山頂・鉱洞にも箱を置く（登る・潜るご褒美）
+    m_Crates.Spawn(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction,
+        &m_TerrainLayout.summitCells, &m_TerrainLayout.mineCells);
+    // Boss を呼ぶ門・磁石も同じ時に置き直す（地形が変わると前の場所は歩けないかもしれない）。
+    // 門は鉱洞の一番奥（無ければ従来通り玩家の周り）
+    m_Stage.SpawnPortal(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction,
+        m_TerrainLayout.hasMineDeep ? &m_TerrainLayout.mineDeep : nullptr);
     m_Pickups.Reset(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed);
 }
 
@@ -738,8 +746,9 @@ void CollisionTestScene::Render(Renderer& renderer)
 }
 
 // ============================================================
-// 遺跡の松明：玩家に近い順に StageDef::torchLights 個だけ点光源を付ける
-// （松明は外周に 60 本ほど。全部付けると点光源の上限 64 を使い切る）
+// 遺跡の松明・鉱洞の壁の松明：玩家に近い順に StageDef::torchLights 個だけ点光源を付ける
+// （松明は外周に 60 本ほど。全部付けると点光源の上限 64 を使い切る）。
+// 50m より遠い物は付けない（草原・砂漠は鉱洞の中にしか無く、遠くで光っても見えない）
 // ============================================================
 void CollisionTestScene::SubmitTorchLights()
 {
@@ -757,13 +766,16 @@ void CollisionTestScene::SubmitTorchLights()
     auto& lights = PointLightManager::Get();
     const float t = UIDeco::Clock();
     const int n = (std::min)((int)order.size(), def.torchLights);
-    for (int k = 0; k < n; ++k)
+    constexpr float kMaxDistSq = 50.0f * 50.0f;
+    for (int k = 0; k < n && order[k].first < kMaxDistSq; ++k)
     {
         const Vector3& p = m_Torches[order[k].second];
         // 松明ごとに位相をずらした揺らぎ
         const float flicker = 0.85f + 0.15f * std::sin(t * 9.0f + (float)order[k].second * 1.7f)
             * std::cos(t * 5.3f + (float)order[k].second * 0.9f);
-        lights.Add(p, { 1.0f, 0.62f, 0.25f }, 18.0f, 2.6f * flicker);
+        // 鉱洞の中（平原より低い）は小さく：点光源は壁を抜けるので、大きいと洞の外の壁・草まで照らす
+        const bool inCave = p.y < -1.0f;
+        lights.Add(p, { 1.0f, 0.62f, 0.25f }, inCave ? 10.0f : 18.0f, (inCave ? 2.2f : 2.6f) * flicker);
     }
 }
 

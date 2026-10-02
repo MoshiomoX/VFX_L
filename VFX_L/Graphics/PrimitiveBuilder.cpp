@@ -6,7 +6,9 @@
 #include "Graphics/Mesh/Mesh.h"
 #include <vector>
 #include <cmath>
+#include <cstring>
 #include <algorithm>
+#include <unordered_map>
 
 using namespace DirectX::SimpleMath;
 
@@ -182,6 +184,116 @@ namespace PrimitiveBuilder
                 const unsigned int d = a + 1;                          // (+x,-z)
                 indices.push_back(a); indices.push_back(c); indices.push_back(b);
                 indices.push_back(a); indices.push_back(d); indices.push_back(c);
+            }
+
+        auto mesh = std::make_shared<Mesh>();
+        if (!mesh->Create(device, verts, indices)) return nullptr;
+
+        auto model = std::make_shared<Model>();
+        model->AddSubMesh(mesh);
+        return model;
+    }
+
+    // ========================================================
+    // SteppedGrid：段々の地面。上面は ColoredGrid と同じ巻き順・uv。
+    // 頂点は (節点, 高さ) で共有する（段の境の節点は高さごとに別の頂点）。
+    // 壁の四隅は外（低い側）から見て 左下・左上・右上・右下 = HexahedronBatch の面と同じ並び。
+    // 外から見た「左」= 上 × 法線
+    // ========================================================
+    std::shared_ptr<Model> CreateSteppedGrid(ID3D11Device* device,
+        int cellsX, int cellsZ, float cellSize,
+        const std::function<float(int gx, int gz)>& levelAt,
+        const std::function<Vector4(float x, float z, float level)>& topColorAt,
+        const std::function<Vector4(float x, float y, float z)>& wallColorAt,
+        float bandHeight)
+    {
+        cellsX = (std::max)(cellsX, 1);
+        cellsZ = (std::max)(cellsZ, 1);
+        bandHeight = (std::max)(bandHeight, 0.25f);
+        const float x0 = -0.5f * cellsX * cellSize;
+        const float z0 = -0.5f * cellsZ * cellSize;
+
+        std::vector<float> level((size_t)cellsX * cellsZ);
+        for (int gz = 0; gz < cellsZ; ++gz)
+            for (int gx = 0; gx < cellsX; ++gx)
+                level[(size_t)gz * cellsX + gx] = levelAt ? levelAt(gx, gz) : 0.0f;
+
+        std::vector<VERTEX_3D> verts;
+        std::vector<unsigned int> indices;
+        verts.reserve((size_t)(cellsX + 1) * (cellsZ + 1) + 4096);
+        indices.reserve((size_t)cellsX * cellsZ * 6 + 4096);
+
+        // ---- 上面 ----
+        std::unordered_map<uint64_t, unsigned int> topVert;
+        topVert.reserve((size_t)(cellsX + 1) * (cellsZ + 1));
+        auto nodeVert = [&](int ix, int iz, float y) -> unsigned int
+            {
+                uint32_t bits = 0;
+                std::memcpy(&bits, &y, sizeof(bits));
+                const uint64_t key = ((uint64_t)(iz * (cellsX + 1) + ix) << 32) | bits;
+                auto it = topVert.find(key);
+                if (it != topVert.end()) return it->second;
+                const float x = x0 + ix * cellSize, z = z0 + iz * cellSize;
+                const Vector4 c = topColorAt ? topColorAt(x, z, y) : Vector4(1, 1, 1, 1);
+                const unsigned int idx = (unsigned int)verts.size();
+                verts.push_back(MakeVertex({ x, y, z }, { 0, 1, 0 }, { x * 0.5f, -z * 0.5f }, c));
+                topVert.emplace(key, idx);
+                return idx;
+            };
+        for (int gz = 0; gz < cellsZ; ++gz)
+            for (int gx = 0; gx < cellsX; ++gx)
+            {
+                const float y = level[(size_t)gz * cellsX + gx];
+                const unsigned int a = nodeVert(gx, gz, y);           // (-x,-z)
+                const unsigned int b = nodeVert(gx, gz + 1, y);       // (-x,+z)
+                const unsigned int c = nodeVert(gx + 1, gz + 1, y);   // (+x,+z)
+                const unsigned int d = nodeVert(gx + 1, gz, y);       // (+x,-z)
+                indices.push_back(a); indices.push_back(c); indices.push_back(b);
+                indices.push_back(a); indices.push_back(d); indices.push_back(c);
+            }
+
+        // ---- 壁 ----
+        // 境の辺 p0-p1（y は無視）に lo..hi の壁。n = 高い側から低い側へ
+        auto wall = [&](Vector3 p0, Vector3 p1, float lo, float hi, const Vector3& n)
+            {
+                const Vector3 left = Vector3(0, 1, 0).Cross(n);
+                if ((p1 - p0).Dot(left) > 0.0f) std::swap(p0, p1);   // p0 = 左
+                const int bands = (std::max)(1, (int)std::ceil((hi - lo) / bandHeight - 0.01f));
+                for (int k = 0; k < bands; ++k)
+                {
+                    const float yb = lo + (hi - lo) * k / bands;
+                    const float yt = lo + (hi - lo) * (k + 1) / bands;
+                    const Vector3 mid = (p0 + p1) * 0.5f;
+                    const Vector4 c = wallColorAt ? wallColorAt(mid.x, (yb + yt) * 0.5f, mid.z) : Vector4(1, 1, 1, 1);
+                    const unsigned int base = (unsigned int)verts.size();
+                    verts.push_back(MakeVertex({ p0.x, yb, p0.z }, n, { 0, 1 }, c));
+                    verts.push_back(MakeVertex({ p0.x, yt, p0.z }, n, { 0, 0 }, c));
+                    verts.push_back(MakeVertex({ p1.x, yt, p1.z }, n, { 1, 0 }, c));
+                    verts.push_back(MakeVertex({ p1.x, yb, p1.z }, n, { 1, 1 }, c));
+                    indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 1);
+                    indices.push_back(base + 0); indices.push_back(base + 3); indices.push_back(base + 2);
+                }
+            };
+        for (int gz = 0; gz < cellsZ; ++gz)
+            for (int gx = 0; gx < cellsX; ++gx)
+            {
+                const float la = level[(size_t)gz * cellsX + gx];
+                if (gx + 1 < cellsX)   // +x の隣との境（x 一定）
+                {
+                    const float lb = level[(size_t)gz * cellsX + gx + 1];
+                    const float x = x0 + (gx + 1) * cellSize;
+                    const Vector3 p0(x, 0, z0 + gz * cellSize), p1(x, 0, z0 + (gz + 1) * cellSize);
+                    if (la > lb)      wall(p0, p1, lb, la, { 1, 0, 0 });
+                    else if (lb > la) wall(p0, p1, la, lb, { -1, 0, 0 });
+                }
+                if (gz + 1 < cellsZ)   // +z の隣との境（z 一定）
+                {
+                    const float lb = level[(size_t)(gz + 1) * cellsX + gx];
+                    const float z = z0 + (gz + 1) * cellSize;
+                    const Vector3 p0(x0 + gx * cellSize, 0, z), p1(x0 + (gx + 1) * cellSize, 0, z);
+                    if (la > lb)      wall(p0, p1, lb, la, { 0, 0, 1 });
+                    else if (lb > la) wall(p0, p1, la, lb, { 0, 0, -1 });
+                }
             }
 
         auto mesh = std::make_shared<Mesh>();

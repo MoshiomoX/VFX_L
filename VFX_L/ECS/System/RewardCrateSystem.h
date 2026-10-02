@@ -25,9 +25,12 @@ public:
     void Init();
 
     // 並べ直す（開局・地形の作り直し・面板のボタン）。
-    // center の周り（minDist〜maxDist）の歩けるマスへ count 個。乱数は地形の seed から
+    // center の周り（minDist〜maxDist）の歩けるマスへ count 個。乱数は地形の seed から。
+    // summitCells / mineCells（TerrainGenerator::Layout のマス）があれば、そこにも summitCount / mineCount 個
+    // （2026-10-02、場地の三層：登る・潜るご褒美）
     void Spawn(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& center,
-        uint32_t seed, InteractionSystem& interaction);
+        uint32_t seed, InteractionSystem& interaction,
+        const std::vector<int>* summitCells = nullptr, const std::vector<int>* mineCells = nullptr);
 
     // InteractionSystem が返した「使われた物」を処理する。
     // 報酬の箱で、三択が出せたら箱を消して true（openedPos = 箱の置き場所）。
@@ -43,7 +46,9 @@ public:
 private:
     std::vector<Entity> m_Crates;
     std::shared_ptr<Model> m_Model;
-    int   m_Count = 4;
+    int   m_Count = 2;                // 出生点の周り（三層の場地になってから 4 → 2。残りは山頂と鉱洞へ）
+    int   m_SummitCount = 2;
+    int   m_MineCount = 2;
     float m_MinDist = 6.0f;           // 出生点からの距離（m）
     float m_MaxDist = 22.0f;
     float m_Spacing = 5.0f;           // 箱同士の最小間隔（m）

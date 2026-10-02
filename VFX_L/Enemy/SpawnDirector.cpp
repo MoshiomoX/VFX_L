@@ -57,6 +57,8 @@ void SpawnDirector::Update(const GridWorld& grid,
             int gx = 0, gz = 0;
             grid.WorldToCell(pos, gx, gz);
             if (!grid.IsWalkable(gx, gz)) continue;
+            // y = その場所の地面の高さ（山頂・鉱洞の底。湧いた所から落ちたり埋まったりしない）
+            pos.y = grid.SampleHeight(pos.x, pos.z);
 
             if (i < newCount) { spawn(pos);   ++m_TotalSpawned; }
             else { recycle(pos); ++m_TotalRecycled; }

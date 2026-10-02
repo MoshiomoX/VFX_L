@@ -131,6 +131,13 @@ public:
         float& dst = m_Height[(size_t)hz * HeightW() + hx];
         if (h > dst) dst = h;   // 重なりは高い方
     }
+    // そのまま書く（低くもできる）。鉱洞の底（負の高さ）を掘る時だけ使う。
+    // 上に載る坂は後から SetHeight（高い方）で書く
+    void SetHeightExact(int hx, int hz, float h)
+    {
+        if (hx < 0 || hx >= HeightW() || hz < 0 || hz >= HeightD()) return;
+        m_Height[(size_t)hz * HeightW() + hx] = h;
+    }
     float HeightAt(int hx, int hz) const
     {
         if (hx < 0 || hx >= HeightW() || hz < 0 || hz >= HeightD()) return 0.0f;

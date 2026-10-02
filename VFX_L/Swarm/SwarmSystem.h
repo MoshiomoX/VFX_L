@@ -30,6 +30,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <algorithm>
+#include <future>
 #include <memory>
 #include <vector>
 
@@ -240,6 +241,10 @@ public:
     // Boss の数・HP・位置（描画の CompactCS が書くので 2〜3 フレーム古い）
     const Swarm::BossInfo& GetBossInfo() const { return m_BossInfo; }
     Swarm::AICB& GetAIParams() { return m_CachedAICB; }
+    // 流場（探索範囲などの定数。次に玩家のマスが変わった時の作り直しから効く）
+    FlowField& GetFlowField() { return m_Flow; }
+    // 玩家が同じマスに居ても次のフレームで作り直す（定数を変えた時）
+    void RequestFlowRebuild() { m_FlowRequestX = m_FlowRequestZ = -1; }
     // 自爆兵の定数（次の固定ステップ / 次の描画から効く）。blastArea は呼ぶ側が AreaProfileDB から入れる
     Swarm::BomberCB& GetBomberParams() { return m_CachedBomberCB; }
     // 玩家が受けた累計ダメージを取り出して 0 に戻す
@@ -495,8 +500,15 @@ private:
 
     // --- 巡路（流れ場）---
     // CPU の FlowField が玩家のマスへの向きをマス毎に持ち、GPU の AI が読む。
-    // 玩家のマスが変わった時だけ作り直して Map で上げる（地形は静的）
+    // 玩家のマスが変わった時だけ作り直して Map で上げる（地形は静的）。
+    // 作り直しは別スレッド（std::async）で作業用の場 m_FlowWorker に作らせ、出来たら m_Flow が結果を貰う
+    // （300m の場地の全域は Debug で約 13ms。主スレッドで回すとマスを跨ぐ度に引っ掛かる）。
+    // 走っている間に玩家が更にマスを跨いだら、終わった後で最新のマスでもう一度作る
     FlowField m_Flow;
+    FlowField m_FlowWorker;
+    std::future<bool> m_FlowJob;
+    int m_FlowRequestX = -1, m_FlowRequestZ = -1;   // 最後に作らせた目標マス
+    void WaitFlowJob();                             // 走っている作り直しを待って捨てる（地形の差し替え・終了の前）
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_FlowBuffer;      // float2 × マス数（DYNAMIC）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_FlowSRV;
     void UpdateFlowField(const DirectX::SimpleMath::Vector3& playerPos);

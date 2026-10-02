@@ -19,6 +19,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <random>
+#include <utility>
+#include <vector>
 
 using DirectX::SimpleMath::Vector3;
 
@@ -47,7 +49,7 @@ bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, flo
         grid.WorldToCell(pos, gx, gz);
         if (!grid.IsWalkable(gx, gz)) continue;
 
-        swarm.SpawnEnemy({ pos.x, groundY, pos.z }, hp, eliteSpeed, Swarm::kEnemyKindElite);
+        swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, hp, eliteSpeed, Swarm::kEnemyKindElite);
         ++m_ElitesSpawned;
         std::cout << "[Stage] elite #" << m_ElitesSpawned << " hp " << hp << std::endl;
         return true;
@@ -68,7 +70,8 @@ bool StageDirector::SpawnBoss(const GridWorld& grid, const Vector3& player, Swar
         grid.WorldToCell(pos, gx, gz);
         if (!grid.IsWalkable(gx, gz)) continue;
 
-        swarm.SpawnEnemy({ pos.x, groundY, pos.z }, m_BossSpawnHp, bossSpeed, Swarm::kEnemyKindBoss);
+        swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, m_BossSpawnHp, bossSpeed,
+            Swarm::kEnemyKindBoss);
         std::cout << "[Stage] boss summoned, hp " << m_BossSpawnHp << std::endl;
         return true;
     }
@@ -185,7 +188,7 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
 // 乱数は地形の seed から（同じ seed なら同じ場所）。周り 3x3 も歩けて平らな所
 // ============================================================
 void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vector3& center, uint32_t seed,
-    InteractionSystem& interaction)
+    InteractionSystem& interaction, const Vector3* preferred)
 {
     if (m_Portal != EntityTraits::NULL_ENTITY && reg.IsValid(m_Portal)) reg.Destroy(m_Portal);
     m_Portal = EntityTraits::NULL_ENTITY;
@@ -205,14 +208,9 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
     std::uniform_real_distribution<float> angleDist(0.0f, DirectX::XM_2PI);
     std::uniform_real_distribution<float> radiusDist(portalMinDist, (std::max)(portalMinDist, portalMaxDist));
 
-    for (int attempt = 0; attempt < 400; ++attempt)
+    // マス (gx, gz) の周り 3x3 が歩けて平らなら門を置いて true
+    auto tryPlace = [&](int gx, int gz) -> bool
     {
-        const float a = angleDist(rng);
-        const float r = radiusDist(rng);
-        const Vector3 probe = center + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);
-
-        int gx = 0, gz = 0;
-        grid.WorldToCell(probe, gx, gz);
         Vector3 pos = grid.CellToWorld(gx, gz);
         pos.y = grid.SampleHeight(pos.x, pos.z);
         bool ok = true;
@@ -223,7 +221,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
                 const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
                 ok = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.2f;
             }
-        if (!ok) continue;
+        if (!ok) return false;
 
         Entity e = reg.Create();
         TransformComponent tf;
@@ -251,8 +249,38 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         reg.Add<InteractableComponent>(e, it);
 
         m_Portal = e;
-        std::cout << "[Stage] boss portal at " << pos.x << ", " << pos.z << " (" << r << " m)" << std::endl;
-        return;
+        std::cout << "[Stage] boss portal at " << pos.x << ", " << pos.y << ", " << pos.z
+            << " (" << (pos - center).Length() << " m from the start)" << std::endl;
+        return true;
+    };
+
+    // 指定の場所の近く：10 マス以内のマスを近い順に
+    if (preferred)
+    {
+        int px = 0, pz = 0;
+        grid.WorldToCell(*preferred, px, pz);
+        std::vector<std::pair<int, int>> ring;   // (距離², マスの番号)
+        constexpr int kSearch = 10;
+        for (int dz = -kSearch; dz <= kSearch; ++dz)
+            for (int dx = -kSearch; dx <= kSearch; ++dx)
+            {
+                const int gx = px + dx, gz = pz + dz;
+                if (gx < 0 || gz < 0 || gx >= grid.Width() || gz >= grid.Depth()) continue;
+                ring.push_back({ dx * dx + dz * dz, gz * grid.Width() + gx });
+            }
+        std::sort(ring.begin(), ring.end());
+        for (const auto& c : ring)
+            if (tryPlace(c.second % grid.Width(), c.second / grid.Width())) return;
+    }
+
+    for (int attempt = 0; attempt < 400; ++attempt)
+    {
+        const float a = angleDist(rng);
+        const float r = radiusDist(rng);
+        const Vector3 probe = center + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);
+        int gx = 0, gz = 0;
+        grid.WorldToCell(probe, gx, gz);
+        if (tryPlace(gx, gz)) return;
     }
     std::cout << "[Stage] no place for the boss portal" << std::endl;
 }
