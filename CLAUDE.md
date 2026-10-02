@@ -173,6 +173,7 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - **FBX 单位**：`Model::GetFileUnitScale()` 记录 FBX 的 UnitScaleFactor，但不乘进顶点（现有模型各自手调倍率）。KayKit Forest、Kenney、Quaternius、dglopez 的 FBX 都是厘米单位（0.01）。
 - **无贴图材质的颜色（2026-09-29）**：`Material::m_Color` 在渲染里没被用过，所以「只靠材质颜色上色」的 FBX 以前全是白的。`Model::LoadFromScene` 的 `ProcessNode` 现在对**没拿到颜色贴图**的材质（包括 MaterialLoader 的同名贴图兜底也没找到的）把 `BASE_COLOR` / `COLOR_DIFFUSE` 烘进顶点色（PS 本来就是 贴图 × 顶点色）；有贴图的材质不动（Blender FBX 常写 0.8 灰，乘上会变暗）。骨骼模型（SkinnedModel）没改。已知：Modular Ruins 的 Tree_1〜3 / DeadTree_1〜3 用「白色树叶 / 树皮贴图 × 材质色」，仍然是白的。
 - **素材**：CC0 = `Assets/Model/KayKit_*`、`Kenney_BlockyCharacters`、`Kenney_RetroFantasy`（1m 立方的部件，编辑器默认 2 倍）、`Quaternius_ModularRuins`（92 件，地牢 / 遗迹：2m 一格的墙、拱、柱、门、地板、宝箱、火把…）、`Quaternius_UltimateNature`（只取了沙漠用的 31 件：仙人掌、棕榈、岩石、枯树）。**非 CC0** = `dglopez_WesternDesert`（30 件沙漠：岩石、仙人掌、骨头、枯木、桶栅栏；可商用可打包进游戏，但禁止再分发原始文件，而 GitHub 仓库是公开的 → 整个文件夹在 `.gitignore` 里、只提交 `SOURCE.txt`，换电脑要按 SOURCE.txt 重新下载）。各文件夹有 `SOURCE.txt`（来源 / 许可 / 取了哪些）。2026-09-29 用户选定：地牢 = Modular Ruins、沙漠 = dglopez + Ultimate Nature + Modular Ruins；9-30 接进地形生成（第 2 / 3 面，`Res::Mdl::Desert / Ruins`）。
+  - **特效模型一览**（2026-10-01）：`Assets/VFX/Mesh/README.md`（102 个的类别 / 形状 / 游戏内尺寸 / 单位 / 问题 + `Catalog/` 缩略图总表），生成工具 `Tools/MeshCatalog*`（Blender 后台渲染 + 用游戏的 assimp dll 量包围盒）。要点：8 个 FBX 6.1 游戏读不了；6 个 obj 被 `.gitignore` 的 `*.obj` 挡在 git 外；单位乱（游戏不乘 FBX 单位，天空球 1000 万、Slash 3）。
 
 ## 5. 仍在代码里的临时测试（TEMP-TEST）
 
