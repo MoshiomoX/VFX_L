@@ -207,6 +207,7 @@ private:
     BattleCamera m_Camera;   // FollowCamera は m_Camera.Camera()
     Registry     m_Registry;
     float        m_PrevPlayerHp = -1.0f;   // -1 = まだ読んでいない（最初のフレームで揺らさない）
+    bool         m_PrevDebugGrid = true;   // 入る前の DebugManager の参照格子（Shutdown で戻す）
 
     // ============================================================
     // Systems

@@ -46,6 +46,11 @@ void CollisionTestScene::Init()
 {
     std::cout << "[CollisionTestScene] Init" << std::endl;
 
+    // DebugManager の y = 0 の参照格子は消す（地面と同じ高さで深度が競り合い、地面に 1m の縞が出ていた。
+    // 9-30 から「地面に格子線」と記録していた物の正体）。Shutdown で元に戻す（編集器の場面は使う）
+    m_PrevDebugGrid = DebugManager::Get().GetShowGrid();
+    DebugManager::Get().SetShowGrid(false);
+
     auto& gfx = Application::Get().GetGraphics();
     auto* device = gfx.GetDevice();
     auto* context = gfx.GetContext();
@@ -243,6 +248,7 @@ void CollisionTestScene::Shutdown()
     m_StaticProps.Shutdown();
     m_Grass.Shutdown();
     m_GameUI.Shutdown();
+    DebugManager::Get().SetShowGrid(m_PrevDebugGrid);   // 参照格子を元に戻す（DebugManager も場面間で共有）
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
 }
 
