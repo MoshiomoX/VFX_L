@@ -109,6 +109,9 @@ void CollisionTestScene::Init()
     if (!m_BeamRenderer.Initialize(device))
         std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
     m_VFXContext.beamRenderer = &m_BeamRenderer;
+    if (!m_LiquidRenderer.Initialize(device))
+        std::cout << "[Error] VFXLiquidRenderer init failed" << std::endl;
+    m_VFXContext.liquidRenderer = &m_LiquidRenderer;
 
     // ---------- 各 System が使う VFX の登録 ----------
     // 投射物プロファイル（弾の飛び方・見た目）を先に読む（GPU の表は下でもう一度 Build）
@@ -707,6 +710,9 @@ void CollisionTestScene::Render(Renderer& renderer)
 
     {
         PROFILE_SCOPE_GPU("Billboards + sprites");
+        // ---- 2a) CPU で出した液溜まり（地面なので連番絵より先。高さ場は群れの物を借りる）----
+        m_LiquidRenderer.SetTerrain(m_Swarm.GetHeightSRV(), m_Swarm.GetFrameCB());
+        m_LiquidRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera(), renderer.GetLightData());
         // ---- 2) 連番絵（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
         m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());   // 光線（加算）

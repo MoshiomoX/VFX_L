@@ -147,7 +147,7 @@ void VFXEditor::DrawTimeline()
     };
 
     const ImU32 selectedColor = IM_COL32(255, 255, 255, 80);
-    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
 
     float barY = canvasPos.y + 20.0f;
     for (int i = 0; i < m_Effect->GetEntryCount(); i++)
@@ -218,10 +218,10 @@ void VFXEditor::DrawEntryList()
 
     if (ImGui::BeginPopup("AddEntryType"))
     {
-        const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
-        for (int t = 0; t < 7; t++)
+        const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
+        for (int t = 0; t < 8; t++)
         {
-            bool enabled = (t != 5);   // Particle / Sprite / Trail / Mesh / Light / Beam（Sound は未実装）
+            bool enabled = (t != 5);   // Particle / Sprite / Trail / Mesh / Light / Beam / Liquid（Sound は未実装）
             if (!enabled) ImGui::BeginDisabled();
             if (ImGui::Selectable(typeNames[t]))
             {
@@ -234,7 +234,7 @@ void VFXEditor::DrawEntryList()
 
     ImGui::Separator();
 
-    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
     int removeIndex = -1;
 
     for (int i = 0; i < m_Effect->GetEntryCount(); i++)
@@ -280,7 +280,7 @@ void VFXEditor::DrawEntryInspector(int index)
     auto* entry = m_Effect->GetEntry(index);
     if (!entry) return;
 
-    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
     int typeIdx = static_cast<int>(entry->GetType());
 
     std::string title = "Inspector - Entry " + std::to_string(index) + " [" + typeNames[typeIdx] + "]";

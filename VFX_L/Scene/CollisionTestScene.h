@@ -45,6 +45,7 @@
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXSpriteRenderer.h"
 #include "VFX_Editor/VFXBeamRenderer.h"
+#include "VFX_Editor/VFXLiquidRenderer.h"
 #include "ECS/System/ManaSystem.h"
 #include "Enemy/EliteSpawner.h"
 #include "Enemy/MobSpawner.h"
@@ -241,6 +242,7 @@ private:
     VFXContext                  m_VFXContext;
     VFXSpriteRenderer           m_SpriteRenderer;   // Sprite entry（連番絵）。升級・開箱などの CPU 特効
     VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
+    VFXLiquidRenderer           m_LiquidRenderer;   // Liquid entry（CPU で出す液溜まり。GPU の範囲の物は m_Swarm が描く）
     std::shared_ptr<Texture>    m_ParticleTexture;
     float m_TotalTime = 0.0f;
     float m_RunTime = 0.0f;       // 遊んでいる時間（止まっている間・死んだ後は進まない）。HUD とリザルト用

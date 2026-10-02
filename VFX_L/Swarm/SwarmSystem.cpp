@@ -20,6 +20,7 @@
 #include "ResourcePaths.h"
 #include "World/GridWorld.h"
 #include "VFX_Editor/VFXSpriteRenderer.h"   // VFXSpriteCameraCB
+#include "VFX_Editor/VFXLiquidRenderer.h"   // 液溜まりの CameraCB / FrameCB（CPU の経路と同じ並び）
 #include <chrono>
 #include <iostream>
 
@@ -218,6 +219,12 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     // ---- 範囲攻撃 ----
     if (!makeStructured(sizeof(Swarm::Area), Swarm::kMaxAreas,
         m_AreaBuffer, m_AreaUAV, m_AreaSRV, "area")) return false;
+    // Liquid entry（2026-10-02）: 範囲を出した物が飛んでいた向き（ProjMoveCS が書く）と、
+    // 追跡（SwarmLiquidTrackCS: 向き・最初に見た時の残り時間・前フレームの残り時間）
+    if (!makeStructured(sizeof(float) * 4, Swarm::kMaxAreas,
+        m_AreaDirBuffer, m_AreaDirUAV, m_AreaDirSRV, "areaDir")) return false;
+    if (!makeStructured(sizeof(float) * 4, Swarm::kMaxAreas,
+        m_LiquidTrackBuffer, m_LiquidTrackUAV, m_LiquidTrackSRV, "liquidTrack")) return false;
     if (!makeState(Swarm::kMaxAreas, m_AreaStateBuffer, m_AreaStateUAV, m_AreaStateSRV, "area")) return false;
     if (!makeStructured(sizeof(DirectX::SimpleMath::Vector4), Swarm::kMaxAreas,
         m_AreaEndBuffer, m_AreaEndUAV, m_AreaEndSRV, "areaEnd")) return false;
@@ -392,6 +399,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_ProjStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_ProjTagUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_ProjBoostUAV.Get(), zero);   // 0 = 1 倍
+        m_Context->ClearUnorderedAccessViewUint(m_AreaDirUAV.Get(), zero);     // w = 0: 新しい向きは無い
+        m_Context->ClearUnorderedAccessViewUint(m_LiquidTrackUAV.Get(), zero); // w = 0: 空
         m_Context->ClearUnorderedAccessViewUint(m_TriggerUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
@@ -735,6 +744,7 @@ void SwarmSystem::ClearAreas()
 {
     const UINT zero[4] = { 0, 0, 0, 0 };
     m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
+    m_Context->ClearUnorderedAccessViewUint(m_AreaDirUAV.Get(), zero);   // 消えた範囲の向きを次の範囲に渡さない
     m_PendingAreas.clear();
 }
 
@@ -828,6 +838,9 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
 
     // 光線の標的（敵の位置が決まった後）
     DispatchBeamTargets();
+
+    // 液溜まりの追跡（新しく生まれた範囲の向きと年齢。範囲の数え下げが済んだ後、1 フレーム 1 回）
+    DispatchLiquidTrack();
 
     // ---- 5) counter の写しを発行（CopyResource だけ。待たない）----
     RequestReadback();
@@ -1168,6 +1181,7 @@ void SwarmSystem::DispatchStep()
         // 寿命切れ・壁で範囲を出すプロファイル用
         m_ProjMoveCS->SetSRV(m_Context, "areaDefs", m_AreaDefSRV.Get());
         m_ProjMoveCS->SetSRV(m_Context, "projBoost", m_ProjBoostSRV.Get());   // 出す範囲の威力 / 持続の倍率
+        m_ProjMoveCS->SetUAV(m_Context, "areaDirs", m_AreaDirUAV.Get());      // 出した範囲に飛んでいた向きを残す（液溜まりの飛び散る向き）
         m_ProjMoveCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
         m_ProjMoveCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
         m_ProjMoveCS->SetUAV(m_Context, "projectiles", m_ProjUAV.Get());
@@ -1453,6 +1467,82 @@ void SwarmSystem::DispatchSprites(float dt)
 }
 
 // ============================================================
+// 液溜まりの追跡（Liquid entry、2026-10-02）
+// 範囲の槽 1 つに 1 スレッド。前フレームに空だった / 残り時間が増えた槽 = 新しい範囲。
+// その時に、出した物が残した向き（areaDirs、ProjMoveCS が書く）を 1 回だけ受け取り、
+// 最初に見た時の残り時間を覚える（年齢 = それ - 今の残り時間）。時計は要らない
+// ============================================================
+void SwarmSystem::DispatchLiquidTrack()
+{
+    if (!m_LiquidTrackCS) return;
+
+    m_LiquidTrackCS->Bind(m_Context);
+    m_LiquidTrackCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
+    m_LiquidTrackCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
+    m_LiquidTrackCS->SetUAV(m_Context, "areaDirs", m_AreaDirUAV.Get());
+    m_LiquidTrackCS->SetUAV(m_Context, "liquidTrack", m_LiquidTrackUAV.Get());
+    m_LiquidTrackCS->BindUAVs(m_Context);
+
+    m_Context->Dispatch((Swarm::kMaxAreas + 63) / 64, 1, 1);
+
+    m_LiquidTrackCS->UnbindSRVs(m_Context);
+    m_LiquidTrackCS->UnbindUAVs(m_Context);
+}
+
+// ============================================================
+// 液溜まり（GPU の範囲の Liquid entry）
+// 範囲の全槽を地面の格子 1 枚ずつ（LIQUID_GRID^2 の四角、頂点バッファ無し）。
+// 死んだ槽・配方に液体が無い範囲は VS が潰す。PS は CPU の経路と同じ VFXLiquidPS。
+// 深度テストあり・書き込み無し、乗算済み alpha（外側の光は alpha 0 = 加算）。
+// 雑魚・オーブの後、足元の丸い影の前（雑魚の影が液面に落ちる）。点光源はまだ繋がっている
+// ============================================================
+void SwarmSystem::RenderLiquids(CameraBase* camera, const LightBuffer& light)
+{
+    if (!liquids || !m_LiquidVS || !m_LiquidPS || !m_HeightSRV) return;
+    if (m_VFX.GetLiquidDefCount() == 0 || !m_VFX.GetLiquidDefSRV() || !m_VFX.GetRecipeLiquidSRV()) return;
+
+    VFXLiquidRenderer::CameraCB cam;
+    cam.viewProj = camera->GetViewMatrix() * camera->GetProjectionMatrix();
+    cam.hasTerrain = 1u;
+    VFXLiquidRenderer::FrameCB frame;
+    frame.time = m_AnimClock;
+    LightBuffer l = light;   // cameraPosition は Render が入れ直した物
+
+    m_LiquidVS->WriteBuffer(m_Context, 0, &cam);
+    m_LiquidVS->WriteBuffer(m_Context, 1, &m_CachedFrameCB);   // 地形の格子
+    m_LiquidPS->WriteBuffer(m_Context, 0, &l);
+    m_LiquidPS->WriteBuffer(m_Context, 1, &frame);
+
+    m_LiquidVS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
+    m_LiquidVS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
+    m_LiquidVS->SetSRV(m_Context, "liquidTrack", m_LiquidTrackSRV.Get());
+    m_LiquidVS->SetSRV(m_Context, "heights", m_HeightSRV.Get());
+    m_LiquidVS->SetSRV(m_Context, "recipeLiquid", m_VFX.GetRecipeLiquidSRV());
+    m_LiquidVS->SetSRV(m_Context, "liquidDefs", m_VFX.GetLiquidDefSRV());
+    m_LiquidPS->SetSRV(m_Context, "liquidDefs", m_VFX.GetLiquidDefSRV());
+
+    m_LiquidVS->Bind(m_Context);
+    m_LiquidPS->Bind(m_Context);
+    m_Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_Context->IASetInputLayout(nullptr);
+    m_Context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
+
+    auto& rs = RenderStates::Get();
+    const float blendFactor[4] = { 0, 0, 0, 0 };
+    m_Context->OMSetBlendState(rs.AlphaBlend(), blendFactor, 0xFFFFFFFF);
+    m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);
+    m_Context->RSSetState(rs.CullNone());
+
+    constexpr UINT kVerts = 16 * 16 * 6;   // LiquidCommon.hlsli の LIQUID_VERTS
+    m_Context->DrawInstanced(kVerts, Swarm::kMaxAreas, 0, 0);
+
+    // 次のフレームの Compute が UAV として使うので外す（liquidTrack・areas）
+    m_LiquidVS->UnbindSRVs(m_Context);
+    m_LiquidPS->UnbindSRVs(m_Context);
+    rs.Restore(m_Context);
+}
+
+// ============================================================
 // 範囲の連番絵を描く。環の全枠を 6 頂点ずつ描き、空の枠は VS が潰す
 // 混合は乗算済み alpha（加算の物は alpha 0）。深度は読むだけ
 // ============================================================
@@ -1618,6 +1708,7 @@ void SwarmSystem::KillAll()
     m_Context->ClearUnorderedAccessViewUint(m_ProjTagUAV.Get(), zero);   // 消した弾を「消えた」と報告させない
     m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
     m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
+    m_Context->ClearUnorderedAccessViewUint(m_AreaDirUAV.Get(), zero);
     m_PendingAreas.clear();
 
     // まだ GPU に上げていない依頼も捨てる（消した直後に湧き直さないように）
@@ -1839,6 +1930,8 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
 
         m_OrbVS->UnbindSRVs(m_Context);
     }
+    // ---- 液溜まり（Liquid entry。点光源を外す前に：毒の池の緑の光が液面に映る）----
+    RenderLiquids(camera, l);
     PointLightManager::Get().UnbindPS(m_Context);
 
     // ---- 足元の丸い影 → 足元の警告の輪 → 頭上の HP バー（雑魚の後。深度は読むだけ）----
@@ -2118,6 +2211,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_AreaEmitCS, L"Shader/Swarm/SwarmAreaEmitCS.hlsl", "AreaEmitCS");
     load(m_OrbEmitCS, L"Shader/Swarm/SwarmOrbEmitCS.hlsl", "OrbEmitCS");   // 無くてもオーブの尾が出ないだけ
     load(m_SpriteCS, L"Shader/Swarm/SwarmSpriteCS.hlsl", "SpriteCS");   // 無くても連番絵が出ないだけ
+    load(m_LiquidTrackCS, L"Shader/Swarm/SwarmLiquidTrackCS.hlsl", "LiquidTrackCS");   // 無くても液溜まりが出ないだけ
     ok &= load(m_LightCollectCS, L"Shader/Swarm/SwarmLightCollectCS.hlsl", "LightCollectCS");
     ok &= load(m_AreaLightCollectCS, L"Shader/Swarm/SwarmAreaLightCollectCS.hlsl", "AreaLightCollectCS");
     ok &= load(m_EnemyCompactCS, L"Shader/Swarm/SwarmEnemyCompactCS.hlsl", "EnemyCompactCS");
@@ -2188,6 +2282,17 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     hr = ShaderPath::Load(m_SpritePS.get(), device, L"Shader/Swarm/SwarmSpritePS.hlsl");
     std::cout << "[SwarmSystem] SpritePS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_SpritePS.reset();
+
+    // ---- 液溜まり（Liquid entry。PS は CPU の経路と共用。失敗しても出ないだけ）----
+    m_LiquidVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_LiquidVS.get(), device, L"Shader/Swarm/SwarmLiquidVS.hlsl");
+    std::cout << "[SwarmSystem] LiquidVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_LiquidVS.reset();
+
+    m_LiquidPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_LiquidPS.get(), device, L"Shader/VFX/VFXLiquidPS.hlsl");
+    std::cout << "[SwarmSystem] LiquidPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_LiquidPS.reset();
 
     // テクスチャ無しの Material は Bind で既定の白を t0 に入れる。その白を用意しておく
     Material::InitDefaultTextures(device);

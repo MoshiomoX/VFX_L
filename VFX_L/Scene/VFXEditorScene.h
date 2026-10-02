@@ -16,6 +16,7 @@
 #include "VFX_Editor/VFXMeshRenderer.h"
 #include "VFX_Editor/VFXSpriteRenderer.h"
 #include "VFX_Editor/VFXBeamRenderer.h"
+#include "VFX_Editor/VFXLiquidRenderer.h"
 #include "Graphics/Model/SkinnedModel.h"
 #include "Graphics/Model/SkinnedModelGPU.h"
 #include "Graphics/Shader/ComputeShader.h"
@@ -73,6 +74,7 @@ private:
     VFXMeshRenderer          m_MeshRenderer;
     VFXSpriteRenderer        m_SpriteRenderer;   // Sprite entry（連番絵）
     VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
+    VFXLiquidRenderer           m_LiquidRenderer;   // Liquid entry（液溜まり。編集器では地形無し = 平ら）
     std::shared_ptr<Texture> m_ParticleTexture;
 
     float m_TotalTime = 0.0f;

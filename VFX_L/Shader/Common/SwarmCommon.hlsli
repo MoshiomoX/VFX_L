@@ -406,12 +406,21 @@ struct SwarmAreaDef
 RWStructuredBuffer<SwarmArea> areas : register(SWARM_AREA_POOL_U);
 RWBuffer<uint> areaStates : register(SWARM_AREA_STATE_U);
 StructuredBuffer<SwarmAreaDef> areaDefs : register(SWARM_AREA_DEF_T);
+// Optional: the direction the spawner was travelling, per area slot
+// (xy = unit xz, w = 1 "fresh"). SwarmLiquidTrackCS reads it once when it
+// first sees the area and clears w. A shader with a UAV to spare #defines
+// SWARM_AREA_DIR_U (ProjMoveCS: a LOB poison flask lands there). HitCS has
+// no UAV left, so its areas carry no direction (a liquid picks an angle)
+#ifdef SWARM_AREA_DIR_U
+RWStructuredBuffer<float4> areaDirs : register(SWARM_AREA_DIR_U);
+#endif
 
 // Same CAS scan as the other pools. Pool full -> no area (degrade, never corrupt).
 // scale: the size scale of whatever spawned it (a projectile's SwarmProjScale, 1 = as authored)
 // boost: the projectile's projBoost (SwarmBoostDamage / SwarmBoostDuration), 0 = none.
 //        The duration part only stretches lasting areas (a one-shot ticks once anyway)
-void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint boost)
+// dir  : the spawner's velocity in xz (any length). Kept only with SWARM_AREA_DIR_U
+void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint boost, float2 dir)
 {
     if (defId == 0u)
         return;
@@ -441,6 +450,10 @@ void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint 
         if (was == SWARM_DEAD)
         {
             areas[slot] = a;
+#ifdef SWARM_AREA_DIR_U
+            float dirLenSq = dot(dir, dir);
+            areaDirs[slot] = float4((dirLenSq > 1e-8) ? dir * rsqrt(dirLenSq) : float2(0.0, 0.0), 0.0, 1.0);
+#endif
             return;
         }
     }

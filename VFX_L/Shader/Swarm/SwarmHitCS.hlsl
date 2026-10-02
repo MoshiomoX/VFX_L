@@ -135,7 +135,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // ---- area on hit (explosion etc.). Ticks in this same step:
         // AreaTickCS / AreaDamageCS run right after this shader ----
         SwarmSpawnAreaFromDef(motions[p.motion & SWARM_MOTION_INDEX_MASK].hitArea,
-                              p.position, i + j, SwarmProjScale(p), projBoost[i]);
+                              p.position, i + j, SwarmProjScale(p), projBoost[i], p.velocity.xz);
 
         // projectile is consumed either way (no pierce)
         projStates[i] = SWARM_DEAD;
