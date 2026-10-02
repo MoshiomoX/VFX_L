@@ -118,6 +118,10 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(Swarm::EnemyExtra), Swarm::kMaxEnemies,
         m_EnemyExtraBuffer, m_EnemyExtraUAV, m_EnemyExtraSRV, "enemyExtra")) return false;
 
+    // 毒の池の減速（残り秒・強さ）。これも本体の横に持つ
+    if (!makeStructured(sizeof(float) * 2, Swarm::kMaxEnemies,
+        m_EnemySlowBuffer, m_EnemySlowUAV, m_EnemySlowSRV, "enemySlow")) return false;
+
     if (!makeStructured(sizeof(Swarm::Projectile), Swarm::kMaxProjectiles,
         m_ProjBuffer, m_ProjUAV, m_ProjSRV, "projectile")) return false;
 
@@ -392,6 +396,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_EmitBudgetUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EnemyMaxHpUAV.Get(), zero);   // 0 = VS 側で 1 扱い
         m_Context->ClearUnorderedAccessViewUint(m_EnemyExtraUAV.Get(), zero);   // 雑魚・未点火
+        m_Context->ClearUnorderedAccessViewUint(m_EnemySlowUAV.Get(), zero);    // 減速なし（0.0f）
         m_Context->ClearUnorderedAccessViewUint(m_SpriteUAV.Get(), zero);       // alive = 0
         m_Context->ClearUnorderedAccessViewUint(m_SpriteHeadUAV.Get(), zero);
         const UINT unseen[4] = { 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu };
@@ -990,6 +995,7 @@ void SwarmSystem::UploadSpawns()
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyStates", m_EnemyStateUAV.Get());
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyMaxHp", m_EnemyMaxHpUAV.Get());   // HP バーの分母
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());   // 種類・導火線
+            m_SpawnEnemyCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());     // 新しい敵は減速なし
             m_SpawnEnemyCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((newCount + 63) / 64, 1, 1);
@@ -1018,6 +1024,7 @@ void SwarmSystem::UploadSpawns()
             m_RecycleCS->SetUAV(m_Context, "claim", m_RecycleClaimUAV.Get());
             m_RecycleCS->SetUAV(m_Context, "enemyMaxHp", m_EnemyMaxHpUAV.Get());     // 上書きした分の分母も差し替える
             m_RecycleCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());     // 種類も差し替え、導火線は消える
+            m_RecycleCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());       // 減速も消える
             m_RecycleCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1091,6 +1098,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyAICS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 点火した自爆兵は止まる
         m_EnemyAICS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());    // 崖は壁と同じく止める
         m_EnemyAICS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
+        m_EnemyAICS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 毒の池の減速（速度に掛けて数え下げる）
         m_EnemyAICS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1242,6 +1250,7 @@ void SwarmSystem::DispatchStep()
         m_AreaDamageCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "orbs", m_OrbUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "orbStates", m_OrbStateUAV.Get());
+        m_AreaDamageCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 減速の範囲が tick したら書く
         m_AreaDamageCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
         m_AreaDamageCS->UnbindSRVs(m_Context);

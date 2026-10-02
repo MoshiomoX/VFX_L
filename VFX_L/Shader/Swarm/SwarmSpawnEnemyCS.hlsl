@@ -20,6 +20,8 @@ RWBuffer<uint> enemyStates : register(u1);
 RWStructuredBuffer<uint> enemyMaxHp : register(u2);
 // kind + fuse per slot. The request carries the kind in animIndex
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
+// poison slow per slot (see SwarmAreaDamageCS): a new enemy starts unslowed
+RWStructuredBuffer<float2> enemySlow : register(u4);
 
 cbuffer SwarmSpawnCB : register(b1)
 {
@@ -57,6 +59,7 @@ void main(uint3 id : SV_DispatchThreadID)
             enemies[slot] = req;
             enemyMaxHp[slot] = req.hp;
             enemyExtra[slot] = extra;
+            enemySlow[slot] = float2(0, 0);
             return;
         }
     }

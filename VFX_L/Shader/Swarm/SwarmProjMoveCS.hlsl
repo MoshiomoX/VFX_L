@@ -63,11 +63,11 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // ---- DROP: fall onto the impact point fixed at spawn ----
+    // ---- DROP / LOB: fall onto the impact point fixed at spawn ----
     // No enemy collision on the way (HitCS skips DROP) and no terrain test:
     // the walkability test is 2D, so flying over a tree or a plateau would
     // count as hitting a wall. It always lands on p3 and leaves its area there.
-    if (m.mode == SWARM_MOTION_DROP)
+    if (SwarmMotionLands(m.mode))
     {
         SwarmProjPath drop = paths[i];
         p.pathT += g_Step / drop.duration;

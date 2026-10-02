@@ -149,6 +149,9 @@ namespace Swarm
         // c1 の意味が違う（m 単位）: c1.x = 着弾点からの高さ、c1.y = 銃口側へ戻した水平距離。
         // 落ちる所には警告の輪（SwarmSystem::dropRing）
         Drop = 3,
+        // 投げ上げ（2026-10-01、毒）: 撃った時に一番近い敵の位置を着弾点に決め、銃口から山なりに投げる。
+        // 道筋は曲線と同じ c1 / c2（c.z で持ち上げる）、振る舞いは Drop と同じ（途中で当たらず、地形も見ず、着弾点に hitArea）
+        Lob = 4,
     };
 
     struct Motion
@@ -190,6 +193,8 @@ namespace Swarm
     constexpr uint32_t kAreaStun = 2u;           // tick で被弾硬直 + 閃光を入れる
     constexpr uint32_t kAreaCapsule = 4u;        // 胶囊（光線）：中心 → 終点の線分の周り。起点 / 終点 / 半径は毎ステップ BeamCB から（2026-09-30）
     constexpr uint32_t kAreaBeamShift = 8u;      // (flags >> 8) & 0xF = 光線のチャンネル（BeamCB の添字）
+    // 減速（2026-10-01、毒の池）: (flags >> 12) & 0xF = q、tick の度に中の敵を q / 15 だけ遅くする（精英・Boss は半分）
+    constexpr uint32_t kAreaSlowShift = 12u;
     constexpr uint32_t kMaxBeams = 4;            // 同時に出せる光線（HLSL の SWARM_MAX_BEAMS と同じ）
     constexpr uint32_t kHitAreaOnExpire = 1u;    // Motion::hitAreaFlags
 

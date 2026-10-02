@@ -51,9 +51,9 @@ void main(uint3 id : SV_DispatchThreadID)
 
     SwarmProjectile p = projectiles[i];
 
-    // a falling meteor (DROP) does not hit anything on the way down.
-    // ProjMoveCS leaves its area where it lands
-    if (motions[p.motion & SWARM_MOTION_INDEX_MASK].mode == SWARM_MOTION_DROP)
+    // a falling meteor (DROP) / a thrown poison flask (LOB) does not hit anything
+    // on the way. ProjMoveCS leaves its area where it lands
+    if (SwarmMotionLands(motions[p.motion & SWARM_MOTION_INDEX_MASK].mode))
         return;
 
     // coarse sphere around the pool position that holds the biggest body

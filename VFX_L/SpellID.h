@@ -16,6 +16,7 @@ enum class ItemID
     Meteor,           // 空から落ちて着弾点で爆発（Meteor プロファイル、Drop 型）
     GoldenArrow,      // 黄金の矢：曲がらずまっすぐ飛ぶ速い矢（GoldenArrow プロファイル、直進）
     StoneShot,        // 石弾：山なりに飛ぶ重い岩（StoneShot プロファイル）。火球と組むとメテオを誘発する基礎魔法
+    Poison,           // 毒：一番近い敵の足元へ山なりに投げ、減速 + 持続ダメージの池を残す基礎魔法（Poison プロファイル、Lob 型。2026-10-01）
     Beam,             // 魔導光線：高級の範囲魔法（2026-09-30）。追尾弾と弧の両方に隣り合うと目覚め、どちらかの弾が消えた方向へ手から光線を撃つ（Beam プロファイル、胶囊型）
 
     // --- 修飾符（隣接する出力源を強化。リストには入らない）---
@@ -44,5 +45,5 @@ inline bool IsSpellSource(ItemID id)
 {
     return id == ItemID::Fireball || id == ItemID::Lightning
         || id == ItemID::ArcBolt || id == ItemID::HomingBolt || id == ItemID::Meteor
-        || id == ItemID::GoldenArrow || id == ItemID::StoneShot;
+        || id == ItemID::GoldenArrow || id == ItemID::StoneShot || id == ItemID::Poison;
 }

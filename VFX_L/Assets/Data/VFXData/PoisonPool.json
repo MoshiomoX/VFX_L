@@ -1,0 +1,59 @@
+{
+    "entries": [
+        {
+            "data": { "sheet": "Assets/VFX/SpriteSheet/PVFX/acid-splash.png", "offset": [0.0, -0.9, 0.0], "size": 2.4,
+                      "facing": 1, "rotation": 0.0, "color": [1.0, 1.0, 1.0, 1.0], "blend": 0, "speed": 1.0, "loopMode": 1, "anchor": 0, "onTop": false },
+            "duration": 0.9, "startTime": 0.0, "type": "Sprite"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
+                "sheet": 0, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.0,
+                "emitRate": 3.0, "emitType": 0,
+                "endColorMax": [0.1, 0.4, 0.05, 0.0], "endColorMin": [0.1, 0.4, 0.05, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [1.0, 1.2], "maxParticles": 6,
+                "position": [0.0, -0.86, 0.0], "radius": 0.0, "renderMode": 1, "rotationRange": [0.0, 0.0],
+                "sizeRange": [4.2, 4.5, 4.4, 4.6], "speedRange": [0.0, 0.0], "spreadAngle": 0.0,
+                "startColorMax": [0.12, 0.45, 0.06, 0.55], "startColorMin": [0.12, 0.45, 0.06, 0.5],
+                "mesh": "Assets/VFX/Mesh/shuimian_02.FBX", "meshGlow": true, "meshFaceVelocity": false, "meshForwardAxis": 2
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 0,
+                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.3,
+                "emitRate": 28.0, "emitType": 5,
+                "endColorMax": [0.4, 0.9, 0.25, 0.0], "endColorMin": [0.4, 0.9, 0.25, 0.0],
+                "gravity": [0.0, 0.5, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.5, 0.9], "maxParticles": 60,
+                "position": [0.0, -0.8, 0.0], "radius": 1.9, "renderMode": 0, "rotationRange": [0.0, 0.0],
+                "sizeRange": [0.12, 0.22, 0.18, 0.3], "speedRange": [0.4, 0.9], "spreadAngle": 0.0,
+                "startColorMax": [0.55, 1.0, 0.35, 0.9], "startColorMin": [0.45, 0.95, 0.3, 0.9]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-0.5, 0.5], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.8,
+                "emitRate": 10.0, "emitType": 5,
+                "endColorMax": [0.15, 0.4, 0.08, 0.0], "endColorMin": [0.15, 0.4, 0.08, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [1.4, 2.0], "maxParticles": 30,
+                "position": [0.0, -0.6, 0.0], "radius": 1.8, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.9, 1.2, 1.6, 2.0], "speedRange": [0.15, 0.35], "spreadAngle": 0.0,
+                "startColorMax": [0.2, 0.5, 0.1, 0.35], "startColorMin": [0.18, 0.45, 0.1, 0.3]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, -0.4, 0.0], "color": [0.35, 1.0, 0.25], "radius": 4.5,
+                      "intensityStart": 1.4, "intensityEnd": 1.4, "flicker": 0.2, "flickerSpeed": 6.0 },
+            "duration": 1.0, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "PoisonPool"
+}

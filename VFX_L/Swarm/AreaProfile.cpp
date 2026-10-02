@@ -4,6 +4,7 @@
 #include "Swarm/AreaProfile.h"
 #include "Swarm/SwarmVFXTable.h"
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -44,6 +45,8 @@ uint32_t AreaProfile::Flags(bool atCaster) const
     uint32_t f = 0;
     if (atCaster && followCaster) f |= Swarm::kAreaFollowPlayer;
     if (stun) f |= Swarm::kAreaStun;
+    const uint32_t q = (uint32_t)std::lround(std::clamp(slow, 0.0f, 1.0f) * 15.0f);
+    f |= q << Swarm::kAreaSlowShift;
     return f;
 }
 
@@ -74,6 +77,7 @@ json AreaProfile::ToJson() const
     j["tickInterval"] = tickInterval;
     j["followCaster"] = followCaster;
     j["stun"] = stun;
+    j["slow"] = slow;
     j["length"] = length;
     j["chargeTime"] = chargeTime;
     j["vfx"] = vfxFile;
@@ -97,6 +101,7 @@ void AreaProfile::FromJson(const json& j)
     tickInterval = j.value("tickInterval", tickInterval);
     followCaster = j.value("followCaster", followCaster);
     stun = j.value("stun", stun);
+    slow = j.value("slow", slow);
     length = j.value("length", length);
     chargeTime = j.value("chargeTime", chargeTime);
     vfxFile = j.value("vfx", vfxFile);

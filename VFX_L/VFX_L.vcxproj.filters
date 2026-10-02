@@ -934,6 +934,9 @@
     <ClInclude Include="Item\Items\StoneShot.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\Poison.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="ECS\System\BackpackAggregateSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>

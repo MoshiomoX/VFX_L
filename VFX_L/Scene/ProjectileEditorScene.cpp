@@ -636,15 +636,21 @@ void ProjectileEditorScene::DrawProjectileTab()
         "Straight (no curve)",
         "Curve, lock once (target dies -> fly straight)",
         "Full tracking (target dies -> find another)",
-        "Drop from the sky (meteor: lands where the target stood)" };
+        "Drop from the sky (meteor: lands where the target stood)",
+        "Lob (thrown in an arc onto where the target stood, no hits on the way)" };
     int mode = (int)p.mode;
-    if (ImGui::Combo("Mode", &mode, modeNames, 4))
+    if (ImGui::Combo("Mode", &mode, modeNames, 5))
     {
         const Swarm::MotionMode prev = p.mode;
         p.mode = (Swarm::MotionMode)mode;
         // Drop は c1 を m 単位で使う。型を跨いだら意味の合う値に戻す
         if (p.mode == Swarm::MotionMode::Drop && prev != Swarm::MotionMode::Drop)
             p.c1 = { 16.0f, 9.0f, 0.0f };
+        else if (p.mode == Swarm::MotionMode::Lob && prev != Swarm::MotionMode::Lob)
+        {
+            p.c1 = { 0.25f, 0.0f, 0.45f };   // 山なり（Lob プリセットと同じ）
+            p.c2 = { 0.75f, 0.0f, 0.45f };
+        }
         else if (prev == Swarm::MotionMode::Drop && p.mode != Swarm::MotionMode::Drop)
             p.c1 = { 0.30f, 0.35f, 0.0f };
         changed = true;
@@ -943,6 +949,7 @@ void ProjectileEditorScene::DrawAreaTab()
     }
     changed |= ImGui::Checkbox("Follow caster (when cast on the player)", &p.followCaster);
     changed |= ImGui::Checkbox("Hit stun on damage", &p.stun);
+    changed |= ImGui::SliderFloat("Slow (per tick)", &p.slow, 0.0f, 1.0f, "%.2f");   // 0.4 = 40% 遅く（精英・Boss は半分）
     if (p.stun && p.kind == AreaProfile::Kind::Lasting)
         ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "stun + short tick interval = enemies stay frozen inside");
 

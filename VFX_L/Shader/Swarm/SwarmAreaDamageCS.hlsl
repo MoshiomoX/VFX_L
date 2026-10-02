@@ -13,6 +13,9 @@
 //
 // Kill handling mirrors SwarmHitCS: state -> DEAD, kill counter,
 // exp orb. Keep the two in sync (elite body size and orb value too).
+//
+// A ticking area with slow bits (SwarmAreaSlow) also refreshes the
+// enemy's enemySlow entry (2026-10-01, the Poison pool).
 // ============================================================
 #define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
@@ -27,6 +30,7 @@ RWBuffer<uint> enemyStates : register(u1);
 RWByteAddressBuffer counters : register(u2);
 RWStructuredBuffer<SwarmOrb> orbs : register(u3);
 RWBuffer<uint> orbStates : register(u4);
+RWStructuredBuffer<float2> enemySlow : register(u5); // (seconds left, amount). AICS reads and counts it down
 
 static const uint HP_CORPSE_BIT = 0x80000000u;
 
@@ -49,6 +53,8 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float total = 0.0;
     bool stun = false;
+    float slow = 0.0;     // strongest slow among the areas this enemy stands in
+    float slowTime = 0.0; // until the next tick of that area, plus a little
 
     for (uint k = 0; k < SWARM_MAX_AREAS; ++k)
     {
@@ -80,6 +86,23 @@ void main(uint3 id : SV_DispatchThreadID)
         total += a.damage;
         if ((a.flags & SWARM_AREA_STUN) != 0u)
             stun = true;
+        float s = SwarmAreaSlow(a.flags);
+        if (s > 0.0)
+        {
+            slow = max(slow, s);
+            slowTime = max(slowTime, min(a.tickInterval, 2.0) + SWARM_SLOW_LINGER);
+        }
+    }
+
+    // ---- slow: refresh, never weaken one that is still running ----
+    if (slow > 0.0)
+    {
+        if (kind == SWARM_KIND_ELITE || kind == SWARM_KIND_BOSS)
+            slow *= SWARM_SLOW_BIG_MUL;
+        float2 cur = enemySlow[j];
+        if (cur.x <= 0.0)
+            cur.y = 0.0;
+        enemySlow[j] = float2(max(cur.x, slowTime), max(cur.y, slow));
     }
 
     if (total <= 0.0)

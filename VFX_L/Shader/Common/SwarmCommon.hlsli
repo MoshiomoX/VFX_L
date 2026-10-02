@@ -140,6 +140,17 @@ static const uint SWARM_MOTION_STRAIGHT = 0;
 static const uint SWARM_MOTION_CURVE_ONCE = 1;
 static const uint SWARM_MOTION_TRACK = 2;
 static const uint SWARM_MOTION_DROP = 3;
+// LOB (2026-10-01, the Poison spell): thrown from the muzzle in an arc onto
+// the spot where the nearest enemy stood at spawn. Built like a CURVE path
+// (c1 / c2 in the shot frame, so c.z lifts the arc) but behaves like DROP:
+// no enemy hits on the way, no terrain test, always lands on p3 and leaves
+// its hit area there.
+static const uint SWARM_MOTION_LOB = 4;
+
+bool SwarmMotionLands(uint mode)
+{
+    return mode == SWARM_MOTION_DROP || mode == SWARM_MOTION_LOB;
+}
 
 static const uint SWARM_NO_TARGET = 0xFFFFFFFFu;
 static const uint SWARM_MOTION_INDEX_MASK = 0xFFFFu;
@@ -309,6 +320,21 @@ static const uint SWARM_AREA_STUN = 2u; // a tick freezes + flashes the enemy (h
 static const uint SWARM_AREA_CAPSULE = 4u;
 static const uint SWARM_AREA_BEAM_SHIFT = 8u; // (flags >> shift) & 0xF = beam channel
 static const uint SWARM_MAX_BEAMS = 4u; // = Swarm::kMaxBeams
+
+// Slow (2026-10-01, the Poison pool): bits 12-15 of flags = q, a tick slows
+// the enemies inside by q / 15 (0 = none). AreaDamageCS keeps the strongest
+// slow per enemy in enemySlow[slot] = (seconds left, amount) and refreshes it
+// on every tick, so it holds while the enemy stands in the pool and wears off
+// SWARM_SLOW_LINGER after the next tick it misses. AICS scales moveSpeed by
+// (1 - amount) and counts the seconds down. Elites / the boss take half.
+static const uint SWARM_AREA_SLOW_SHIFT = 12u;
+static const float SWARM_SLOW_LINGER = 0.15;
+static const float SWARM_SLOW_BIG_MUL = 0.5;
+
+float SwarmAreaSlow(uint flags)
+{
+    return (float) ((flags >> SWARM_AREA_SLOW_SHIFT) & 0xFu) / 15.0;
+}
 
 static const uint SWARM_HITAREA_ON_EXPIRE = 1u; // SwarmMotion.hitAreaFlags
 
