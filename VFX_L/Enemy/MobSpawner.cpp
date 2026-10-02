@@ -26,6 +26,8 @@ void MobSpawner::Init(SwarmSystem& swarm)
 
     // 爆発の見た目の範囲。AreaProfileDB::LoadAll の後に呼ばれる（無ければ 0 = 見た目無しで爆発だけ）
     swarm.GetBomberParams().blastArea = (uint32_t)AreaProfileDB::IndexOf("BomberBlast");
+    // 死んだ敵の足元の土煙（砕け散りと一緒に出る。無ければ 0 = 部品が飛ぶだけ）
+    swarm.corpse.deathArea = (uint32_t)AreaProfileDB::IndexOf("MobDeath");
 
     // 難度の倍率を掛ける元
     baseContactDamage = swarm.GetAIParams().contactDamage;

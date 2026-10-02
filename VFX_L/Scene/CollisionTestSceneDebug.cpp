@@ -685,6 +685,24 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
+        // ---- 死んだ敵の砕け散り（2026-10-02）----
+        if (ImGui::TreeNode("Death Shatter"))
+        {
+            auto& cs = m_Swarm.corpse;
+            ImGui::Checkbox("Enabled##corpse", &cs.enabled);
+            ImGui::DragFloat("Life (s)##corpse", &cs.life, 0.01f, 0.1f, 5.0f);
+            ImGui::DragFloat("Fling (m/s)##corpse", &cs.fling, 0.05f, 0.0f, 20.0f);
+            ImGui::DragFloat("Up (m/s)##corpse", &cs.up, 0.05f, 0.0f, 20.0f);
+            ImGui::DragFloat("Gravity##corpse", &cs.gravity, 0.1f, 0.1f, 60.0f);
+            ImGui::DragFloat("Spin (rad/s)##corpse", &cs.spin, 0.1f, 0.0f, 40.0f);
+            ImGui::SliderFloat("Bounce##corpse", &cs.bounce, 0.0f, 1.0f);
+            ImGui::DragFloat("Flash##corpse", &cs.flash, 0.05f, 1.0f, 10.0f);
+            ImGui::DragFloat("Flash Time (s)##corpse", &cs.flashTime, 0.005f, 0.0f, 0.5f);
+            ImGui::SliderFloat("Shrink Start##corpse", &cs.shrinkStart, 0.0f, 1.0f);
+            ImGui::TextDisabled("dust: area #%u (AreaData/MobDeath.json, VFXData/MobDeath.json)", cs.deathArea);
+            ImGui::TreePop();
+        }
+
         // ---- 液溜まり（Liquid entry。見た目は VFX の json、ここは描くかどうかだけ）----
         ImGui::Checkbox("Liquids (GPU areas)", &m_Swarm.liquids);
         ImGui::SameLine();
@@ -1030,6 +1048,7 @@ void CollisionTestScene::UpdateAutoTest(float dt)
     if (m_AutoBeamTrack) { UpdateAutoTestBeamTrack(); return; }
     if (m_AutoSurge) { UpdateAutoTestSurge(); return; }
     if (m_AutoPoison) { UpdateAutoTestPoison(); return; }
+    if (m_AutoDeath) { UpdateAutoTestDeath(); return; }
 
     if (m_AutoStep == 0 && m_AutoTime >= 5.0f && m_Registry.Has<LevelComponent>(m_Player))
     {
@@ -3865,6 +3884,77 @@ void CollisionTestScene::UpdateAutoTestPoison()
         m_Swarm.liquids = true;
         m_PlayerControlSystem.testInput = false;
         AutoTestLog("poison done");
+        m_AutoStep = 2;
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 死んだ敵の砕け散り（VFXL_BATTLE_AUTOTEST=death、2026-10-02）
+// 1 秒: 湧き停止・全消し・無敵・MP 無限・入力 0、背包は追尾弾 + 火球（3x3 の中央と左上）。
+//   鏡頭は玩家の後ろ 9m・俯角 34°。0.6 秒毎に正面 6〜8m へ HP 8 の雑魚を 3 体（追尾弾 1 発で死ぬ）。
+// 2 秒から 0.12 秒毎に `death look <n> kills <k>`（外から撮る、30 枚）、6 秒 done
+// ============================================================
+void CollisionTestScene::UpdateAutoTestDeath()
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mp = m_Registry.Get<ManaComponent>(m_Player);
+        mp.max = mp.current = 1.0e6f;
+    }
+    m_PlayerControlSystem.testInput = true;
+    m_PlayerControlSystem.testMove = Vector2::Zero;
+    static float s_NextWave = 0.0f;
+    static int s_Looks = 0;
+    const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+    const float gy = m_Swarm.GetAIParams().groundY;
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        if (m_Registry.Has<BackpackComponent>(m_Player) && m_Registry.Has<WandComponent>(m_Player))
+        {
+            auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+            const int lo = BackpackComponent::GRID / 2 - 1;
+            ClearBackpackItems(bp);
+            BackpackLogic::Place(bp, ItemID::HomingBolt, lo + 1, lo + 1, 0);
+            BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
+            bp.dirty = true;
+            m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
+        }
+        auto& cam = m_Camera.Camera();
+        cam.SetYaw(0.0f);
+        cam.distance = 9.0f;
+        cam.SetPitch(34.0f);
+        cam.avoidOcclusion = false;
+        cam.SnapToTarget();
+        AutoTestLog("death start: waves of 3 mobs (hp 8) at +Z 6-8m every 0.6s, homing + fireball");
+        s_NextWave = m_AutoTime;
+        m_AutoStep = 1;
+    }
+    if (m_AutoStep != 1) return;
+
+    if (m_AutoTime >= s_NextWave && m_AutoTime < 5.5f)
+    {
+        s_NextWave = m_AutoTime + 0.6f;
+        for (int k = 0; k < 3; ++k)
+            m_Swarm.SpawnEnemy(Vector3(pp.x + (float)(k - 1) * 1.6f, gy, pp.z + 6.0f + (float)(rand() % 3)), 8.0f, 0.5f);
+    }
+    if (s_Looks < 30 && m_AutoTime >= 2.0f + 0.12f * (float)s_Looks)
+    {
+        char line[64];
+        snprintf(line, sizeof(line), "death look %d kills %u", s_Looks, m_Swarm.GetCounters().killCount);
+        ++s_Looks;
+        AutoTestLog(line);
+    }
+    if (m_AutoTime >= 6.0f)
+    {
+        m_PlayerControlSystem.testInput = false;
+        AutoTestLog("death done");
         m_AutoStep = 2;
     }
 }

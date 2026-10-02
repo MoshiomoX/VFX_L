@@ -29,6 +29,7 @@ namespace
         { VFXId::Beam, Res::VFX::Beam },
         { VFXId::Poison, Res::VFX::Poison },
         { VFXId::PoisonPool, Res::VFX::PoisonPool },
+        { VFXId::MobDeath, Res::VFX::MobDeath },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }

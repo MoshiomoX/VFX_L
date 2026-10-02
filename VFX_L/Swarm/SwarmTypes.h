@@ -134,6 +134,26 @@ namespace Swarm
     constexpr uint32_t kSpawnAtPos = 1u;
 
     // ============================================================
+    // 死んだ敵の砕け散り（2026-10-02）
+    //   SwarmCorpseTrackCS が「前のフレームは生きていて今は DEAD」の槽を見つけ、その時の位置・向き・種類を
+    //   環（kMaxCorpses 枠、先頭は RAW の通し番号）へ 1 つ書く。描画（SwarmCorpseVS）は部品毎に
+    //   (seed, 経過時間) の式で飛び散らせる。状態は持たない。HLSL の SwarmCorpse / SWARM_MAX_CORPSES と一致
+    // ============================================================
+    constexpr uint32_t kMaxCorpses = 512;
+    struct Corpse
+    {
+        Vector3  position;          // 死んだ時の位置（雑魚の position = 地面 + groundY）
+        float    yaw = 0.0f;
+        float    dir[2] = {};       // 飛ばす向き（xz の単位。玩家から離れる向き）
+        float    birth = 0.0f;      // 死んだ時刻（SwarmSystem の時計 m_AnimClock）。0 = 空き
+        uint32_t kind = 0;
+        uint32_t seed = 0;
+        uint32_t cause = 0;         // 予約：死因（火・毒・雷で死に方を変える時用。今は 0）
+        float    _pad[2] = {};
+    };
+    static_assert(sizeof(Corpse) == 48, "SwarmCorpse layout mismatch");
+
+    // ============================================================
     // 弾が出す範囲（命中・着弾の hitArea）への倍率（2026-10-02）
     //   y の bit 8〜19 = 威力の倍率、bit 20〜31 = 持続の倍率（どちらも 256 = 1.0、0 は 1.0 扱い）。
     //   SwarmSpawnProjCS がスロット毎の projBoost へ写し、範囲を出す所（HitCS / ProjMoveCS）が掛ける。

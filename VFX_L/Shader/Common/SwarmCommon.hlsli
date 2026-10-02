@@ -184,6 +184,26 @@ static const uint SWARM_SPAWN_AT_POS = 1u;
 // ------------------------------------------------------------
 static const uint SWARM_SPAWN_BOOST_SHIFT = 8u;
 
+// ------------------------------------------------------------
+// A dead enemy shattering into its rigid parts (2026-10-02).
+// SwarmCorpseTrackCS writes one when a slot that was alive last frame is
+// DEAD now; SwarmCorpseVS throws the parts as a closed-form function of
+// (seed, age). Must match Swarm::Corpse / kMaxCorpses in SwarmTypes.h
+// ------------------------------------------------------------
+static const uint SWARM_MAX_CORPSES = 512u;
+
+struct SwarmCorpse
+{
+    float3 position; // where it died (enemy position = ground + groundY)
+    float yaw;
+    float2 dir;      // throw direction, unit xz (away from the player)
+    float birth;     // time of death on SwarmSystem's clock, 0 = empty
+    uint kind;
+    uint seed;
+    uint cause;      // reserved: cause of death (fire / poison / lightning variants), 0 for now
+    float2 _pad;
+};
+
 float SwarmBoostDamage(uint boost)
 {
     uint q = boost & 0xFFFu;

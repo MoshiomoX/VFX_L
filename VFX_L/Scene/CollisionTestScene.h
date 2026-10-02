@@ -184,6 +184,10 @@ private:
     // VFXL_BATTLE_AUTOTEST=poison：毒が最寄りの敵の足元へ落ちるか・池で敵が遅くなるか・池のダメージが入るか
     bool     m_AutoPoison = false;
     void     UpdateAutoTestPoison();
+    // VFXL_BATTLE_AUTOTEST=death：死んだ敵の砕け散り（2026-10-02）。正面の近くに一撃で死ぬ雑魚を出し続け、
+    // 追尾弾と火球で倒す。0.12 秒毎に `death look <n>`（外から撮る）
+    bool     m_AutoDeath = false;
+    void     UpdateAutoTestDeath();
     // VFXL_BATTLE_AUTOTEST=ghost：最終波の幽霊を 20 体出して、数・壁抜け・近づく速さを記録し撮る
     bool     m_AutoGhost = false;
     void     UpdateAutoTestGhost();
