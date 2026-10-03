@@ -33,6 +33,7 @@
 #include <future>
 #include <memory>
 #include <vector>
+#include <array>
 
 class Model;
 class Material;
@@ -56,6 +57,9 @@ public:
     // 地形は変わらないので起動時に1回だけ上げる。
     // Regenerate した時はもう一度呼ぶこと
     void UploadTerrain(const GridWorld& grid);
+    // 通行図だけを上げ直して流場を作り直させる（置物の下を塞ぐ / 開けた箱の下を戻す時）。
+    // 寸法は変わらない前提（空間ハッシュ・高さ場・向き表の buffer はそのまま）
+    void RefreshWalkable(const GridWorld& grid);
 
     // VFXDatabase から配方表を作る。ItemDatabase / VFXDatabase の後に1回
     bool BuildVFXTable();
@@ -253,10 +257,15 @@ public:
     // dir = 「敵 / 爆心 → 玩家」の単位ベクトルの和（XZ）、count = 回数。回読なので 2〜3 フレーム古い
     struct PlayerHits { DirectX::SimpleMath::Vector2 meleeDir, blastDir; uint32_t melee = 0, blasts = 0; };
     PlayerHits ConsumePlayerHits();
+    // 前回からの間に出た「鏡頭を揺らす範囲」（爆発・光線。AreaProfile::cameraShake）の数（2〜3 フレーム遅れ）
+    uint32_t ConsumeShakeAreas();
+    // 前回からの間に GPU で生まれた範囲の数を VFX 配方（Area::vfxType）毎に out へ足して 0 に戻す（音用。2〜3 フレーム遅れ）
+    void ConsumeAreaBirths(std::array<uint32_t, Swarm::kAreaBirthKinds>& out);
     // 磁石: seconds の間、場の経験値オーブを全部吸い寄せ始める（OrbCB の吸い寄せ半径を場全体にする）
     void MagnetAllOrbs(float seconds = 0.3f) { m_MagnetTimer = (std::max)(m_MagnetTimer, seconds); }
     // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（Map で止まる。自測の検証だけ。毎フレーム呼ばない）
-    bool DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates);
+    bool DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates,
+        std::vector<Swarm::EnemyExtra>* outExtras = nullptr);   // outExtras: 種類（soak 自測）
     // 光線（胶囊型の範囲）: チャンネル ch の起点 / 終点 / 半径を次の固定ステップから効かせる。
     // 範囲そのものは SpawnArea（flags に kAreaCapsule | ch << kAreaBeamShift）で出す。
     // active = false にすると GPU 側の範囲が次のステップで消える
@@ -634,6 +643,20 @@ private:
     Swarm::PlayerHitInfo m_LastPlayerHits;   // 前回読んだ累計（差分の基準。counters と同じく戻さない）
     PlayerHits m_PendingPlayerHits;          // 読んだ差分の未消費ぶん
     void ReadPlayerHits();
+
+    // 生まれた範囲の数の累計（2026-10-03）。SwarmLiquidTrackCS が新しい範囲を見つけた時に足す。
+    //   [0] = 鏡頭を揺らす範囲（kAreaShake）、[1 + vfxType] = GPU の VFX 配方毎（命中の火花・爆発・土煙・毒の池 → 音）
+    // 永久に累加・CPU は差分（counters と同じ。SwarmCounters は変えない）
+    static constexpr uint32_t kAreaBirthSlots = 1 + Swarm::kAreaBirthKinds;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaBirthBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaBirthUAV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaBirthStaging[kBossStaging];
+    bool     m_AreaBirthStagingFilled[kBossStaging] = {};
+    int      m_AreaBirthStagingWrite = 0;
+    std::array<uint32_t, kAreaBirthSlots> m_LastAreaBirths = {};
+    uint32_t m_PendingShakes = 0;
+    std::array<uint32_t, Swarm::kAreaBirthKinds> m_PendingAreaBirths = {};
+    void ReadAreaBirths();
 
     // --- 光線の標的（SwarmBeamTargetCS が毎フレーム書く 32B × kMaxBeams → staging 3 枚で回読）---
     Swarm::BeamTargetCB m_CachedBeamTargetCB = {};

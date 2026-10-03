@@ -89,11 +89,14 @@ private:
     // 固定の k 番目のうち、水平範囲に掛かり得る物を m_Scratch へ（重複無し）
     void GatherFixed(float minX, float maxX, float minZ, float maxZ) const;
 
+    // 固定が前（0〜固定の数-1、並びが変わらない限り作り直さない）、可動が後ろ（毎フレーム）
     std::vector<WorldCollider> m_WorldColliders;
     std::vector<CollisionPair> m_Pairs;
 
-    std::vector<int> m_FixedIdx;     // 固定の k 番目 → m_WorldColliders の添字（毎フレーム）
+    std::vector<int> m_FixedIdx;     // 固定の k 番目 → m_WorldColliders の添字（= k）
     std::vector<int> m_MoverIdx;     // 可動（毎フレーム）
+    std::vector<std::pair<Entity, DirectX::SimpleMath::Vector3>> m_ScanFixed;   // 毎フレームの走査：固定の (entity, 中心)
+    std::vector<WorldCollider> m_MoverWorld;                                     // 同：可動
     std::vector<Entity> m_GridEntity;                       // 格子を作った時の固定の並び（変化の検出）
     std::vector<DirectX::SimpleMath::Vector3> m_GridCenter; // 同、中心
     int m_GridX0 = 0, m_GridZ0 = 0, m_GridW = 0, m_GridD = 0;   // マス単位

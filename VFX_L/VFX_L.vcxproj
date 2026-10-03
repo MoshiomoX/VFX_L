@@ -298,7 +298,15 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Transform.cpp" />
     <ClCompile Include="UI\HUD.cpp" />
     <ClCompile Include="UI\SpellbookUI.cpp" />
-    <ClCompile Include="UI\UIManager.cpp" />
+    <ClCompile Include="Audio\AudioSystem.cpp" />
+    <ClCompile Include="Audio\BattleAudio.cpp" />
+    <ClCompile Include="ThirdParty\miniaudio\miniaudio_impl.c">
+      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">TurnOffAllWarnings</WarningLevel>
+      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</SDLCheck>
+      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</SDLCheck>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>    <ClCompile Include="UI\UIManager.cpp" />
     <ClCompile Include="Graphics\Shader\VertexShader.cpp" />
     <ClCompile Include="VFX_Editor\VFXEditor.cpp" />
     <ClCompile Include="Scene\VFXEditorScene.cpp" />
@@ -388,7 +396,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="UI\DragContext.h" />
     <ClInclude Include="UI\GameUI.h" />
     <ClInclude Include="UI\SpellbookUI.h" />
-    <ClInclude Include="VFX_Editor\EntryType.h" />
+    <ClInclude Include="Audio\AudioSystem.h" />
+    <ClInclude Include="Audio\BattleAudio.h" />
+    <ClInclude Include="ThirdParty\miniaudio\miniaudio.h" />    <ClInclude Include="VFX_Editor\EntryType.h" />
     <ClInclude Include="Item\ExpRewardComponent.h" />
     <ClInclude Include="Item\Items\Fireball.h" />
     <ClInclude Include="Item\Items\ArcBolt.h" />
@@ -1673,8 +1683,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shader\Common\SwarmSprite.hlsli">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    <None Include="ThirdParty\miniaudio\stb_vorbis.c" />
+    <None Include="ThirdParty\miniaudio\LICENSE" />
+    <None Include="Shader\Common\SwarmSprite.hlsli">      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>

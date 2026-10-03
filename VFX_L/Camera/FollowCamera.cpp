@@ -45,6 +45,11 @@ void FollowCamera::AddTrauma(float amount)
     m_Trauma = std::clamp(m_Trauma + amount, 0.0f, 1.0f);
 }
 
+void FollowCamera::RaiseTrauma(float atLeast)
+{
+    m_Trauma = std::clamp((std::max)(m_Trauma, atLeast), 0.0f, 1.0f);
+}
+
 namespace
 {
     constexpr float kNearZ = 0.1f;

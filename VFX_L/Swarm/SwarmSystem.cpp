@@ -309,6 +309,26 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_PendingPlayerHits = {};
     }
     {
+        // 生まれた範囲の数（累計。[0] 揺らす範囲、[1 + 配方] 配方毎）。作った時に 1 度だけ 0 にする
+        const UINT bytes = (UINT)(sizeof(uint32_t) * kAreaBirthSlots);
+        if (!makeRaw(bytes, m_AreaBirthBuffer, m_AreaBirthUAV, "areaBirths")) return false;
+        const UINT zero[4] = { 0, 0, 0, 0 };
+        m_Context->ClearUnorderedAccessViewUint(m_AreaBirthUAV.Get(), zero);
+        D3D11_BUFFER_DESC sd = {};
+        sd.ByteWidth = bytes;
+        sd.Usage = D3D11_USAGE_STAGING;
+        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        for (int i = 0; i < kBossStaging; ++i)
+        {
+            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_AreaBirthStaging[i]))) return false;
+            m_AreaBirthStagingFilled[i] = false;
+        }
+        m_AreaBirthStagingWrite = 0;
+        m_LastAreaBirths = {};
+        m_PendingShakes = 0;
+        m_PendingAreaBirths = {};
+    }
+    {
         // 光線の標的（チャンネル毎 32B）。slot = 0xFFFFFFFF・serial 0 で始める（どの光線の答えでもない）
         const UINT bytes = sizeof(Swarm::BeamTarget) * Swarm::kMaxBeams;
         if (!makeRaw(bytes, m_BeamTargetBuffer, m_BeamTargetUAV, "beamTargets")) return false;
@@ -430,6 +450,58 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
 // ============================================================
 // 地形の格子表を上げる（起動時と Regenerate の時だけ）
 // ============================================================
+// ============================================================
+// 通行図だけを上げ直す（2026-10-03）。箱・門の柱は GPU の雑魚には格子でしか見えないので、
+// 場面がその下のマスを塞いだ / 箱が開いて戻した時に呼ぶ
+// ============================================================
+void SwarmSystem::RefreshWalkable(const GridWorld& grid)
+{
+    const int w = grid.Width();
+    const int d = grid.Depth();
+    if (!m_Device || w <= 0 || d <= 0) return;
+
+    std::vector<uint32_t> data((size_t)w * d);
+    std::vector<uint8_t> walk((size_t)w * d);
+    std::vector<float> hgt((size_t)w * d);
+    for (int z = 0; z < d; ++z)
+        for (int x = 0; x < w; ++x)
+        {
+            const size_t i = (size_t)z * w + x;
+            walk[i] = grid.IsWalkable(x, z) ? 1 : 0;
+            data[i] = walk[i];
+            const auto c = grid.CellToWorld(x, z);
+            hgt[i] = grid.SampleHeight(c.x, c.z);
+        }
+
+    D3D11_BUFFER_DESC bd = {};
+    bd.ByteWidth = (UINT)(data.size() * sizeof(uint32_t));
+    bd.Usage = D3D11_USAGE_IMMUTABLE;
+    bd.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    bd.StructureByteStride = sizeof(uint32_t);
+    D3D11_SUBRESOURCE_DATA init = {};
+    init.pSysMem = data.data();
+    ComPtr<ID3D11Buffer> buf;
+    ComPtr<ID3D11ShaderResourceView> srv;
+    D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
+    sd.Format = DXGI_FORMAT_UNKNOWN;
+    sd.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    sd.Buffer.NumElements = (UINT)data.size();
+    if (FAILED(m_Device->CreateBuffer(&bd, &init, &buf))
+        || FAILED(m_Device->CreateShaderResourceView(buf.Get(), &sd, &srv)))
+    {
+        std::cout << "[Error] SwarmSystem: walkable refresh failed" << std::endl;
+        return;
+    }
+    m_TerrainBuffer = buf;
+    m_TerrainSRV = srv;
+
+    WaitFlowJob();   // 古い通行図で作っている途中の物は捨てる
+    m_Flow.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
+    m_FlowWorker.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
+    m_FlowRequestX = m_FlowRequestZ = -1;
+}
+
 void SwarmSystem::UploadTerrain(const GridWorld& grid)
 {
     const int w = grid.Width();
@@ -842,6 +914,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     }
     ReadBossInfo();
     ReadPlayerHits();
+    ReadAreaBirths();
     ReadBeamTargets();
     ReadTriggerEvents();
     if (m_MagnetTimer > 0.0f) m_MagnetTimer -= dt;
@@ -890,6 +963,12 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
         m_Context->CopyResource(m_PlayerHitStaging[m_PlayerHitStagingWrite].Get(), m_PlayerHitBuffer.Get());
         m_PlayerHitStagingFilled[m_PlayerHitStagingWrite] = true;
         m_PlayerHitStagingWrite = (m_PlayerHitStagingWrite + 1) % kBossStaging;
+    }
+    if (m_AreaBirthBuffer)
+    {
+        m_Context->CopyResource(m_AreaBirthStaging[m_AreaBirthStagingWrite].Get(), m_AreaBirthBuffer.Get());
+        m_AreaBirthStagingFilled[m_AreaBirthStagingWrite] = true;
+        m_AreaBirthStagingWrite = (m_AreaBirthStagingWrite + 1) % kBossStaging;
     }
 
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -1522,6 +1601,7 @@ void SwarmSystem::DispatchLiquidTrack()
     m_LiquidTrackCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
     m_LiquidTrackCS->SetUAV(m_Context, "areaDirs", m_AreaDirUAV.Get());
     m_LiquidTrackCS->SetUAV(m_Context, "liquidTrack", m_LiquidTrackUAV.Get());
+    m_LiquidTrackCS->SetUAV(m_Context, "areaBirths", m_AreaBirthUAV.Get());   // 生まれた範囲の数（揺らす範囲・配方毎。新しい範囲を見つけた所で数える）
     m_LiquidTrackCS->BindUAVs(m_Context);
 
     m_Context->Dispatch((Swarm::kMaxAreas + 63) / 64, 1, 1);
@@ -1829,6 +1909,38 @@ SwarmSystem::PlayerHits SwarmSystem::ConsumePlayerHits()
     const PlayerHits h = m_PendingPlayerHits;
     m_PendingPlayerHits = {};
     return h;
+}
+
+// 生まれた範囲の累計を読み、差分を溜める（ReadPlayerHits と同じ輪転）
+void SwarmSystem::ReadAreaBirths()
+{
+    const int readIndex = m_AreaBirthStagingWrite;   // 次に書く = 一番古い
+    if (!m_AreaBirthStagingFilled[readIndex] || !m_AreaBirthStaging[readIndex]) return;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    const HRESULT hr = m_Context->Map(m_AreaBirthStaging[readIndex].Get(), 0,
+        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
+    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
+    std::array<uint32_t, kAreaBirthSlots> now;
+    memcpy(now.data(), mapped.pData, sizeof(uint32_t) * kAreaBirthSlots);
+    m_Context->Unmap(m_AreaBirthStaging[readIndex].Get(), 0);
+    m_PendingShakes += now[0] - m_LastAreaBirths[0];
+    for (uint32_t k = 0; k < Swarm::kAreaBirthKinds; ++k)
+        m_PendingAreaBirths[k] += now[1 + k] - m_LastAreaBirths[1 + k];
+    m_LastAreaBirths = now;
+}
+
+uint32_t SwarmSystem::ConsumeShakeAreas()
+{
+    const uint32_t n = m_PendingShakes;
+    m_PendingShakes = 0;
+    return n;
+}
+
+void SwarmSystem::ConsumeAreaBirths(std::array<uint32_t, Swarm::kAreaBirthKinds>& out)
+{
+    for (uint32_t k = 0; k < Swarm::kAreaBirthKinds; ++k) out[k] += m_PendingAreaBirths[k];
+    m_PendingAreaBirths = {};
 }
 
 // ============================================================
@@ -2691,8 +2803,24 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
             // 一度そのまま読んで寸法を測る（535KB の FBX なので 2 回読んでも軽い）
             auto raw = std::make_shared<Model>();
             if (!raw->Load(device, look.model, opt)) continue;
-            const Vector3 lo = raw->GetBoundsMin();
-            const Vector3 hi = raw->GetBoundsMax();
+            Vector3 lo = raw->GetBoundsMin();
+            Vector3 hi = raw->GetBoundsMax();
+            // 足元と高さは待機の姿勢で測る（2026-10-03、用户：Boss の足が地面に埋まっている）。
+            // 歩きの 0.25 は両脚を一番開いた所で、最低点が一番高い。それを足元に合わせていたので、
+            // 待機・攻撃・歩きの大半で足が 0.29m（1.6m の雑魚で。Boss は 3 倍）地面に埋まっていた。
+            // 待機に合わせると立っている時は足が地面に着き、歩きは脚が振り子のように上がる（Kenney の元の動き）
+            {
+                Model::LoadOptions standOpt;
+                standOpt.poseClip = look.idleClip;
+                standOpt.poseTimeFrac = 0.0f;
+                Model stand;
+                if (look.idleClip && *look.idleClip && stand.Load(device, look.model, standOpt)
+                    && stand.GetBoundsMax().y - stand.GetBoundsMin().y > 1e-4f)
+                {
+                    lo = stand.GetBoundsMin();
+                    hi = stand.GetBoundsMax();
+                }
+            }
 
             float scale = 1.0f;
             opt.rootTransform = makeXform(look, lo, hi, scale);
@@ -2843,7 +2971,8 @@ bool SwarmSystem::CreateEnemyDrawArgs(ID3D11Device* device)
 // ============================================================
 // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（staging を作って CopyResource → Map。GPU を待つので自測だけ）
 // ============================================================
-bool SwarmSystem::DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates)
+bool SwarmSystem::DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates,
+    std::vector<Swarm::EnemyExtra>* outExtras)
 {
     if (!m_Device || !m_Context || !m_EnemyBuffer || !m_EnemyStateBuffer) return false;
 
@@ -2866,5 +2995,13 @@ bool SwarmSystem::DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::v
     outEnemies.resize(Swarm::kMaxEnemies);
     outStates.resize(Swarm::kMaxEnemies);
     if (!readback(m_EnemyBuffer.Get(), (UINT)(sizeof(Swarm::Enemy) * Swarm::kMaxEnemies), outEnemies.data())) return false;
-    return readback(m_EnemyStateBuffer.Get(), (UINT)(sizeof(uint32_t) * Swarm::kMaxEnemies), outStates.data());
+    if (!readback(m_EnemyStateBuffer.Get(), (UINT)(sizeof(uint32_t) * Swarm::kMaxEnemies), outStates.data())) return false;
+    // 種類（並行バッファ）。無ければ空のまま（呼ぶ側は全部雑魚として扱う）
+    if (outExtras && m_EnemyExtraBuffer)
+    {
+        outExtras->resize(Swarm::kMaxEnemies);
+        if (!readback(m_EnemyExtraBuffer.Get(), (UINT)(sizeof(Swarm::EnemyExtra) * Swarm::kMaxEnemies), outExtras->data()))
+            outExtras->clear();
+    }
+    return true;
 }

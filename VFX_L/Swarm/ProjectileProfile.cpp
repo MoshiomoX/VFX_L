@@ -71,6 +71,7 @@ json ProjectileProfile::ToJson() const
     j["lifetime"] = lifetime;
 
     j["vfx"] = vfxFile;
+    j["castSound"] = castSound;
     j["visualSize"] = visualSize;
     j["visualStretch"] = visualStretch;
     return j;
@@ -109,6 +110,7 @@ void ProjectileProfile::FromJson(const json& j)
     lifetime = j.value("lifetime", lifetime);
 
     vfxFile = j.value("vfx", vfxFile);
+    castSound = j.value("castSound", castSound);
     visualSize = j.value("visualSize", visualSize);
     visualStretch = j.value("visualStretch", visualStretch);
 }

@@ -14,6 +14,7 @@
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include <algorithm>
+#include <climits>
 #include <random>
 #include <cmath>
 #include <iomanip>
@@ -147,6 +148,39 @@ namespace
         v[2] = { hi.x, lo.y, hi.z }; v[3] = { lo.x, lo.y, hi.z };
         v[4] = { lo.x, hi.y, lo.z }; v[5] = { hi.x, hi.y, lo.z };
         v[6] = { hi.x, hi.y, hi.z }; v[7] = { lo.x, hi.y, hi.z };
+    }
+
+    // 静的な凸体の衝突だけ（世界座標の 8 頂点。見た目は無し）
+    Entity SpawnHullCollider(Registry& reg, const Vector3 world[8], uint32_t layer)
+    {
+        Vector3 lo = world[0], hi = world[0];
+        for (int i = 1; i < 8; ++i)
+        {
+            lo = Vector3::Min(lo, world[i]);
+            hi = Vector3::Max(hi, world[i]);
+        }
+        const Vector3 center = (lo + hi) * 0.5f;
+        Vector3 v[8];
+        for (int i = 0; i < 8; ++i) v[i] = world[i] - center;
+
+        Entity e = reg.Create();
+        TransformComponent tf;
+        tf.position = center;
+        reg.Add<TransformComponent>(e, tf);
+
+        ColliderComponent col;
+        col.shape = ColliderShape::Convex;
+        col.hull = CollisionMath::ConvexFromHexahedron(v);
+        col.halfExtents = (hi - lo) * 0.5f;   // 広相位用の包囲箱
+        col.layer = layer;
+        col.mask = Layer_All;
+        reg.Add<ColliderComponent>(e, col);
+
+        RigidbodyComponent rb;
+        rb.isStatic = true;
+        rb.useGravity = false;
+        reg.Add<RigidbodyComponent>(e, rb);
+        return e;
     }
 
     // 静的な凸体（世界座標の 8 頂点）。衝突は Convex の実体、
@@ -569,6 +603,51 @@ namespace TerrainGenerator
                 solidBox(lo, lo + Vector3(r.w * kCs, summitH, r.d * kCs));
                 RaiseRect(grid, r, summitH);
             }
+            // 外周の崖のマス（塞いだマス）の高さ場は内側の隣と同じに（2026-10-03）。外周の岩を少し外へ下げたので
+            // このマスの地面が見えるようになり、草を生やす。草は高さ場に立つので、山頂・坑の脇でも正しい高さに
+            for (int z = 0; z < gd; ++z)
+                for (int x = 0; x < gw; ++x)
+                    if (x == 0 || z == 0 || x == gw - 1 || z == gd - 1)
+                    {
+                        const uint8_t id = zoneAt(x, z);
+                        const float lv = (id == kZoneSummit) ? summitH : (id == kZoneMine) ? -mineD : 0.0f;
+                        SetRectHeight(grid, { x, z, 1, 1 }, lv);
+                    }
+            // 場地の外へ 40m の地面（見た目だけ。外周の岩の隙間から下の空が見えないように）。
+            // 外周のマス毎に外向きの帯、四隅は正方形。高さは内側の隣と同じ
+            {
+                const Palette& P = PaletteFor(cfg.biome);
+                const Vector4 skirtTop = LerpColor(P.groundDark, P.groundLight, 0.4f);
+                constexpr float kSkirt = 40.0f;
+                auto skirtLevel = [&](int x, int z)
+                    {
+                        const uint8_t id = zoneAt(x, z);
+                        return (id == kZoneSummit) ? summitH : (id == kZoneMine) ? -mineD : 0.0f;
+                    };
+                auto skirtBox = [&](float x0, float z0, float x1, float z1, float lv)
+                    {
+                        Vector3 v[8];
+                        BoxVerts(v, { x0, lv - 2.0f, z0 }, { x1, lv, z1 });
+                        batch.Append(v, skirtTop, gCliff);
+                    };
+                const float ox = grid.OriginX(), oz = grid.OriginZ();
+                for (int i = 0; i < gw; ++i)   // 南（-z）と北（+z）
+                {
+                    const float x0 = ox + i * kCs, x1 = x0 + kCs;
+                    skirtBox(x0, oz - kSkirt, x1, oz, skirtLevel(i, 0));
+                    skirtBox(x0, oz + D, x1, oz + D + kSkirt, skirtLevel(i, gd - 1));
+                }
+                for (int j = 0; j < gd; ++j)   // 西（-x）と東（+x）
+                {
+                    const float z0 = oz + j * kCs, z1 = z0 + kCs;
+                    skirtBox(ox - kSkirt, z0, ox, z1, skirtLevel(0, j));
+                    skirtBox(ox + W, z0, ox + W + kSkirt, z1, skirtLevel(gw - 1, j));
+                }
+                skirtBox(ox - kSkirt, oz - kSkirt, ox, oz, skirtLevel(0, 0));
+                skirtBox(ox + W, oz - kSkirt, ox + W + kSkirt, oz, skirtLevel(gw - 1, 0));
+                skirtBox(ox - kSkirt, oz + D, ox, oz + D + kSkirt, skirtLevel(0, gd - 1));
+                skirtBox(ox + W, oz + D, ox + W + kSkirt, oz + D + kSkirt, skirtLevel(gw - 1, gd - 1));
+            }
             // 見た目のメッシュは洞の岩の壁が決まってから（下り坂の後）
         }
 
@@ -841,6 +920,42 @@ namespace TerrainGenerator
                     grid.BlockArea(x, z, 1, 1);
                     ++caveRingCells;
                 }
+
+            // 岩の壁のマスの高さ場（2026-10-03、通し検査 soak で見つけた）。歩けないので誰も立たないが、
+            // 隣の歩けるマスの双線形の高さに混ざる。平原の 0 のままだと、坑の縁に押し付けられた雑魚が
+            // 壁の途中（坑の底から 3.8m）まで持ち上がって見えた。高さマス毎に、一番近い歩けるマス
+            // （壁ではない）の高さにする = 坑側の半分は坑の底、外側の半分は平原の高さ
+            {
+                constexpr int kSub = GridWorld::kHeightSub;
+                std::vector<std::pair<int, float>> fill;   // (高さマスの番号, 高さ)
+                for (int z = 0; z < gd; ++z)
+                    for (int x = 0; x < gw; ++x)
+                    {
+                        if (!caveRing[(size_t)z * gw + x]) continue;
+                        for (int sz = 0; sz < kSub; ++sz)
+                            for (int sx = 0; sx < kSub; ++sx)
+                            {
+                                const int hx = x * kSub + sx, hz = z * kSub + sz;
+                                int best = INT_MAX;
+                                float bh = grid.HeightAt(hx, hz);
+                                for (int r = 1; r <= 2 * kSub && best > r * r; ++r)
+                                    for (int dz = -r; dz <= r; ++dz)
+                                        for (int dx = -r; dx <= r; ++dx)
+                                        {
+                                            if ((std::max)(std::abs(dx), std::abs(dz)) != r) continue;
+                                            const int nx = hx + dx, nz = hz + dz;
+                                            const int cx = nx / kSub, cz = nz / kSub;
+                                            if (nx < 0 || nz < 0 || cx >= gw || cz >= gd) continue;
+                                            if (!grid.IsWalkable(cx, cz) || caveRing[(size_t)cz * gw + cx]) continue;
+                                            const int d2 = dx * dx + dz * dz;
+                                            if (d2 < best) { best = d2; bh = grid.HeightAt(nx, nz); }
+                                        }
+                                fill.push_back({ hz * gw * kSub + hx, bh });
+                            }
+                    }
+                for (const auto& f : fill)
+                    grid.SetHeightExact(f.first % (gw * kSub), f.first / (gw * kSub), f.second);
+            }
 
             const float collTop = (std::max)(cfg.roofCollisionTop, roofTopY);
             const Vector4 rockTop(gCliffHigh.x * 1.1f, gCliffHigh.y * 1.1f, gCliffHigh.z * 1.1f, 1.0f);
@@ -1307,6 +1422,7 @@ namespace TerrainGenerator
         // 四辺とも角の先まで伸ばして、角に穴が開かないようにする。
         // 底は縁の地面の高さ（鉱洞の脇は鉱洞の底から）、高さは平原（山頂の脇は山頂）から測る
         int mountainRocks = 0;
+        int edgeRockColliders = 0, edgeRockCells = 0;   // 一番手前の列の衝突の数・塞いだマス
         if (cfg.rockMountains && !ruinWalls && set.nCliff > 0)
         {
             const auto cliffRocks = loadModels(set.cliff, set.nCliff);
@@ -1326,8 +1442,9 @@ namespace TerrainGenerator
                 { { -1, 0, 0 }, { 0, 0, 1 }, halfW, halfD },
             };
             for (const Side& sd : sides)
-                for (const Row& row : rows)
+                for (int ri = 0; ri < (int)std::size(rows); ++ri)
                 {
+                    const Row& row = rows[ri];
                     const float extra = row.offset + 20.0f;   // 角の先まで
                     for (float s = -sd.half - extra; s <= sd.half + extra; s += row.step)
                     {
@@ -1338,12 +1455,84 @@ namespace TerrainGenerator
                         edgeSpan(sd.n, sd.t, sd.edge, s, row.step * 0.75f, lo, hi);
                         const float targetH = randf(row.hMin, row.hMax) * cfg.mountainScale + ((std::max)(hi, 0.0f) - lo);
                         const float scale = targetH / h;   // unit を含めた倍率は spawnVisual が掛ける
-                        const float radius = 0.5f * ((pm.hi.x - pm.lo.x) + (pm.hi.z - pm.lo.z)) * 0.5f * pm.unit * scale;
-                        const float out = sd.edge + row.offset + radius * 0.8f + randf(-1.0f, 1.0f);
+                        const float yawDeg = randf(0.0f, 360.0f);
+                        const float base = lo - targetH * 0.08f;   // 少し埋める（底の縁が浮いて見えないように）
+                        if (ri > 0)
+                        {
+                            const float radius = 0.5f * ((pm.hi.x - pm.lo.x) + (pm.hi.z - pm.lo.z)) * 0.5f * pm.unit * scale;
+                            const float out = sd.edge + row.offset + radius * 0.8f + randf(-1.0f, 1.0f);
+                            const Vector3 p = sd.n * out + sd.t * (s + randf(-1.0f, 1.0f));
+                            spawnVisual(pm, scale, yawDeg, p.x, p.z, base);
+                            ++mountainRocks;
+                            continue;
+                        }
+
+                        // 一番手前の列：岩と一緒に回した包囲箱（× edgeRockShrink）の内向きの半幅から、
+                        // 箱の内側の面が縁から intrude だけ内に入る所へ原点を置く
+                        const float u = pm.unit * scale;
+                        const auto rot = DirectX::SimpleMath::Matrix::CreateRotationY(DirectX::XMConvertToRadians(yawDeg));
+                        const Vector3 ax = Vector3::TransformNormal({ 1, 0, 0 }, rot);
+                        const Vector3 az = Vector3::TransformNormal({ 0, 0, 1 }, rot);
+                        const float hx = (pm.hi.x - pm.lo.x) * 0.5f * u * cfg.edgeRockShrink;
+                        const float hz = (pm.hi.z - pm.lo.z) * 0.5f * u * cfg.edgeRockShrink;
+                        const Vector3 mid = Vector3::TransformNormal(
+                            Vector3((pm.hi.x + pm.lo.x) * 0.5f * u, 0.0f, (pm.hi.z + pm.lo.z) * 0.5f * u), rot);   // 原点 → 箱の真ん中
+                        const float ext = std::fabs(ax.Dot(sd.n)) * hx + std::fabs(az.Dot(sd.n)) * hz;          // 外向きの半幅
+                        const float intrude = randf(cfg.edgeRockIntrudeMin, cfg.edgeRockIntrudeMax);
+                        const float out = sd.edge - intrude + ext - mid.Dot(sd.n);
                         const Vector3 p = sd.n * out + sd.t * (s + randf(-1.0f, 1.0f));
-                        // 少し埋める（底の縁が浮いて見えないように）
-                        spawnVisual(pm, scale, randf(0.0f, 360.0f), p.x, p.z, lo - targetH * 0.08f);
+                        spawnVisual(pm, scale, yawDeg, p.x, p.z, base);
                         ++mountainRocks;
+                        const Vector3 c = Vector3(p.x, 0.0f, p.z) + mid;
+
+                        // 雑魚（格子しか見ない）：箱が 0.15m 以上入り込むマスを塞ぐ（2026-10-03、通し検査 soak）。
+                        // 以前は「1/4 以上掛かる」= マスの中心から ±0.5m の小点 4 つだけで見ていて、角が 0.5m 弱
+                        // 入り込む岩には縁沿いの雑魚の体が 0.3m 埋まった。小点を 5x5（一番外はマスの縁から 0.15m 内）にし、
+                        // 衝突の要らない浅い岩（0.15〜0.35m）も塞ぐ
+                        constexpr float kBlockIntrude = 0.15f;
+                        if (intrude > kBlockIntrude)
+                        {
+                            auto inBox = [&](const Vector3& q)
+                                {
+                                    const Vector3 d = q - c;
+                                    return std::fabs(d.Dot(ax)) <= hx && std::fabs(d.Dot(az)) <= hz;
+                                };
+                            const float reach = hx + hz;
+                            int gx0, gz0, gx1, gz1;
+                            grid.WorldToCell({ c.x - reach, 0.0f, c.z - reach }, gx0, gz0);
+                            grid.WorldToCell({ c.x + reach, 0.0f, c.z + reach }, gx1, gz1);
+                            const float off[5] = { -0.85f, -0.425f, 0.0f, 0.425f, 0.85f };   // × マスの半分
+                            for (int gz = (std::max)(gz0, 1); gz <= (std::min)(gz1, gd - 2); ++gz)
+                                for (int gx = (std::max)(gx0, 1); gx <= (std::min)(gx1, gw - 2); ++gx)
+                                {
+                                    const Vector3 cc = grid.CellToWorld(gx, gz);
+                                    bool hit = false;
+                                    for (int sz = 0; sz < 5 && !hit; ++sz)
+                                        for (int sx = 0; sx < 5 && !hit; ++sx)
+                                            hit = inBox(cc + Vector3(off[sx], 0.0f, off[sz]) * (kCs * 0.5f));
+                                    if (!hit) continue;
+                                    if (grid.IsWalkable(gx, gz)) ++edgeRockCells;
+                                    grid.BlockArea(gx, gz, 1, 1);
+                                }
+                        }
+
+                        // 入り込みが玩家の半径（0.4m）未満の岩は、外周の崖の箱が玩家を先に止めるので衝突は要らない
+                        // （衝突の数を減らす。静的な衝突も物理・広相位の走査で 1 個ずつ時間を食う）
+                        constexpr float kNeedCollider = 0.35f;
+                        if (intrude <= kNeedCollider) continue;
+
+                        // 衝突：回した箱（底 〜 岩の頂）。縁より内の岩だけ
+                        const float y0 = base, y1 = base + targetH;
+                        const Vector3 dx = ax * hx, dz = az * hz;
+                        Vector3 v[8] = {
+                            c - dx - dz, c + dx - dz, c + dx + dz, c - dx + dz,
+                            c - dx - dz, c + dx - dz, c + dx + dz, c - dx + dz,
+                        };
+                        for (int k = 0; k < 4; ++k) { v[k].y = y0; v[k + 4].y = y1; }
+                        // Layer_Prop（木と同じ）：玩家は当たる、鏡頭の遮蔽の射線は見ない（毎フレーム 5 本 × 全部を回すと
+                        // Debug で 0.15 ms。鏡頭は外周の崖の箱で止まる）
+                        outTerrain.push_back(SpawnHullCollider(reg, v, Layer_Prop));
+                        ++edgeRockColliders;
                     }
                 }
         }
@@ -1398,13 +1587,26 @@ namespace TerrainGenerator
                     if (!columns.empty())
                     {
                         const PropModel& cm = columns[0];
+                        const float cw = (cm.hi.x - cm.lo.x) * cm.unit;
                         const float cd = (cm.hi.z - cm.lo.z) * cm.unit;
+                        const float ch = (cm.hi.y - cm.lo.y) * cm.unit;
+                        // 柱の内側の面が縁から奥行きの ruinColumnIntrude だけ内に出る（2026-10-03 までは 0.85 出ていて
+                        // 衝突も無く、入り込めた）。出た分は箱で止める（向きは 90 度刻みなので AABB）
+                        const float intrude = std::clamp(cfg.ruinColumnIntrude, 0.0f, 1.0f) * cd;
+                        const bool alongX = std::fabs(sd.n.z) > 0.5f;   // 縁が x に沿う = 柱の幅が x
                         for (float s = -sd.half + 4.0f; s <= sd.half - 2.0f; s += 8.0f)
                         {
                             float lo, hi;
                             edgeSpan(sd.n, sd.t, sd.edge, s, 0.0f, lo, hi);
-                            const Vector3 p = sd.n * (sd.edge - cd * 0.35f) + sd.t * s;
+                            const Vector3 p = sd.n * (sd.edge - intrude + cd * 0.5f) + sd.t * s;
                             spawnVisual(cm, 1.0f, sd.yaw, p.x, p.z, lo);
+                            if (intrude > 0.0f)
+                            {
+                                Entity ce = TestSpawner::SpawnStaticBox(reg, { p.x, lo + ch * 0.5f, p.z },
+                                    alongX ? Vector3(cw * 0.5f, ch * 0.5f, cd * 0.5f) : Vector3(cd * 0.5f, ch * 0.5f, cw * 0.5f));
+                                reg.Get<ColliderComponent>(ce).layer = Layer_Prop;   // 外周の岩と同じ（鏡頭の射線は見ない）
+                                outTerrain.push_back(ce);
+                            }
                             ++ruinPieces;
                         }
                     }
@@ -1493,11 +1695,14 @@ namespace TerrainGenerator
                 for (int z = 1; z < gd - 1; ++z)
                     for (int x = 1; x < gw - 1; ++x)
                     {
-                        if (at(x, z) != kPit) continue;   // 底（坂・降り口は除く）
+                        if (at(x, z) != kPit || !grid.IsWalkable(x, z)) continue;   // 歩ける底（坂・降り口・岩は除く）
                         for (int k = 0; k < 4; ++k)
                         {
                             const int nx = x + ndx[k], nz = z + ndz[k];
-                            if (zone[(size_t)nz * gw + nx] == kZoneMine || grid.IsWalkable(nx, nz)) continue;
+                            // 壁 = 洞の岩の壁か外周の崖のマス（外周の岩で塞いだマスの縁に付けると岩の前に浮く）
+                            const bool wallCell = caveRing[(size_t)nz * gw + nx] != 0
+                                || nx == 0 || nz == 0 || nx == gw - 1 || nz == gd - 1;
+                            if (!wallCell) continue;
                             const Vector3 d((float)ndx[k], 0.0f, (float)ndz[k]);
                             const Vector3 wallP = grid.CellToWorld(x, z) + d * (kCs * 0.5f);
                             bool farEnough = true;
@@ -1517,7 +1722,8 @@ namespace TerrainGenerator
         }
 
         // ---------- 草を生やすマス ----------
-        // 土の坂道・外周の崖・登れない台地（高さ場が 0 のまま = 箱の中に生えてしまう）・鉱洞・洞の岩の壁以外。
+        // 土の坂道・登れない台地（高さ場が 0 のまま = 箱の中に生えてしまう）・鉱洞・洞の岩の壁以外。
+        // 外周の崖のマスにも生やす（2026-10-03。外周の岩を外へ下げて地面が見えるようになった。高さ場は内側の隣と同じ）。
         // 崖の面そのものは GrassRenderer が高さ場の傾きで弾く
         if (outGrassMask)
         {
@@ -1525,8 +1731,7 @@ namespace TerrainGenerator
             mask.assign((size_t)gw * gd, 1);
             for (int z = 0; z < gd; ++z)
                 for (int x = 0; x < gw; ++x)
-                    if (x == 0 || z == 0 || x == gw - 1 || z == gd - 1 || at(x, z) == kRamp || at(x, z) == kMass
-                        || zone[(size_t)z * gw + x] == kZoneMine)
+                    if (at(x, z) == kRamp || at(x, z) == kMass || zoneAt(x, z) == kZoneMine)
                         mask[(size_t)z * gw + x] = 0;
             for (const auto& p : plateaus)
                 if (!p.reachable)
@@ -1606,7 +1811,8 @@ namespace TerrainGenerator
             << tier2 << " with a 2nd tier, " << blocked << " without a ramp), "
             << rampCount << " ramps, " << treesPlaced << " trees (" << decorTrees << " decor), "
             << rocksPlaced << " rocks (" << decorRocks << " decor), " << bushesPlaced << " bushes, "
-            << mountainRocks << " mountain rocks, " << ruinPieces << " ruin pieces, biome " << (int)cfg.biome << ", grid "
+            << mountainRocks << " mountain rocks (" << edgeRockColliders << " edge colliders, "
+            << edgeRockCells << " cells blocked), " << ruinPieces << " ruin pieces, biome " << (int)cfg.biome << ", grid "
             << gw << "x" << gd << std::endl;
 
         // 木・岩の模型の大きさ（拡縮 1 倍、m）。「小さい物は見た目だけ」のしきい値を決める目安

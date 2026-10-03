@@ -34,6 +34,8 @@ public:
     void SetInstance(uint32_t handle, const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector3& beamEnd);
     // 早めに止める（発射を止めて、出ている物は自然に消える）
     void StopInstance(uint32_t handle);
+    // Y 軸回りに回す（Play の直後に 1 回。Boss の門の渦を門の向きに合わせる）
+    void RotateInstance(uint32_t handle, float yawDeg);
 
     // 時間軸を伸び縮みさせる（Play の直後、まだ Update していない実例に使う）。
     // 各 entry の開始 / 終了の時刻 t を、t <= split なら t × before、それより後は

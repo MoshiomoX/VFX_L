@@ -115,7 +115,7 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
     Vector3 dir = camR * move.x + camF * move.y;
     reg.CreateView<TransformComponent, RigidbodyComponent,
         PlayerStatsComponent, PlayerStateComponent, PlayerTag>()
-        .Each([&](Entity e, TransformComponent& tf, RigidbodyComponent& rb,
+        .EachFrom<PlayerTag>([&](Entity e, TransformComponent& tf, RigidbodyComponent& rb,
             PlayerStatsComponent& stats, PlayerStateComponent& st, PlayerTag&)
             {
                 // 能力値は Entity が持つ。System は値を持たない

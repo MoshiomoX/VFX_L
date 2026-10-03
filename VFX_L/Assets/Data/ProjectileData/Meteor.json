@@ -1,4 +1,5 @@
 {
+    "castSound": "cast_meteor",
     "name": "Meteor",
     "mode": 3,
     "c1": [ 16.0, 9.0, 0.0 ],

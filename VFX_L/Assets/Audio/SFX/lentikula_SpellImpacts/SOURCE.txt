@@ -1,0 +1,7 @@
+lentikula - Basic Spell Impacts / Druid Spell Impacts / Healing Spell Impacts
+Author : lentikula
+Source : https://lentikula.itch.io/freecc0-basic-spell-impacts-sfx
+         https://lentikula.itch.io/druid-spell-impacts
+         https://lentikula.itch.io/healing-spell-impacts
+License: CC0 ("use it in whatever project without attribution")
+Downloaded: 2026-10-03. 48 kHz / 24-bit WAV converted to OGG Vorbis. *_short.ogg = first 1.2 s with a 0.4 s fade-out (for frequent hits)

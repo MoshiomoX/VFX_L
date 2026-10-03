@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Audio">
+      <UniqueIdentifier>{1793d765-dea2-4793-ac43-f318c5a9265b}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Core">
       <UniqueIdentifier>{3c6e462f-3467-4c11-a3ca-89d848f92a6a}</UniqueIdentifier>
     </Filter>
@@ -459,6 +462,15 @@
     </ClCompile>
     <ClCompile Include="UI\GameUI.cpp">
       <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Audio\AudioSystem.cpp">
+      <Filter>Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="Audio\BattleAudio.cpp">
+      <Filter>Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\miniaudio\miniaudio_impl.c">
+      <Filter>Audio</Filter>
     </ClCompile>
     <ClCompile Include="UI\SpellbookUI.cpp">
       <Filter>UI</Filter>
@@ -1039,6 +1051,15 @@
     <ClInclude Include="UI\DragContext.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="Audio\AudioSystem.h">
+      <Filter>Audio</Filter>
+    </ClInclude>
+    <ClInclude Include="Audio\BattleAudio.h">
+      <Filter>Audio</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\miniaudio\miniaudio.h">
+      <Filter>Audio</Filter>
+    </ClInclude>
     <ClInclude Include="UI\SpellbookUI.h">
       <Filter>UI</Filter>
     </ClInclude>
@@ -1376,6 +1397,12 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="ThirdParty\miniaudio\stb_vorbis.c">
+      <Filter>Audio</Filter>
+    </None>
+    <None Include="ThirdParty\miniaudio\LICENSE">
+      <Filter>Audio</Filter>
+    </None>
     <None Include="Shader\Common\SwarmSprite.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>

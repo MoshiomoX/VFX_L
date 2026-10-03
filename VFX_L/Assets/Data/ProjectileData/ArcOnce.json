@@ -1,4 +1,5 @@
 {
+    "castSound": "cast_arc",
     "name":  "ArcOnce",
     "mode":  1,
     "c1":  [

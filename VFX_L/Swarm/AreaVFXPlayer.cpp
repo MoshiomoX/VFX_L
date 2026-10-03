@@ -88,6 +88,16 @@ void AreaVFXPlayer::RemapTimeline(uint32_t handle, float split, float before, fl
     }
 }
 
+void AreaVFXPlayer::RotateInstance(uint32_t handle, float yawDeg)
+{
+    for (auto& inst : m_Active)
+        if (inst.handle == handle)
+        {
+            inst.effect->RotateYaw(yawDeg);
+            return;
+        }
+}
+
 void AreaVFXPlayer::StopInstance(uint32_t handle)
 {
     for (auto& inst : m_Active)

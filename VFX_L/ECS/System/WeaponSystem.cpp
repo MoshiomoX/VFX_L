@@ -12,6 +12,7 @@
 #include "Swarm/ProjectileProfile.h"
 #include "Swarm/AreaProfile.h"
 #include "Swarm/AreaVFXPlayer.h"
+#include "Audio/AudioSystem.h"
 #include "VFX_Editor/EntryType.h"
 #include "Item/ItemDatabase.h"
 #include "ECS/View.h"
@@ -127,7 +128,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     const float triggerLift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
 
     reg.CreateView<TransformComponent, WandComponent, ManaComponent>()
-        .Each([&](Entity e, TransformComponent& tf, WandComponent& wand, ManaComponent& mana)
+        .EachFrom<WandComponent>([&](Entity e, TransformComponent& tf, WandComponent& wand, ManaComponent& mana)
             {
                 // ---- 施法アニメ用のタイマーを進める ----
                 if (wand.castAnimTimer > 0.0f)
@@ -375,6 +376,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         area.timeLeft *= durationMul;   // 魔力解放中に出した持続する範囲は長く残る
                     }
                     m_Swarm->SpawnArea(area);
+                    AudioSystem::Get().Play(ap.sound);   // CPU から出す範囲の音（GPU の命中で出る物は BattleAudio が鳴らす）
 
                     if (m_AreaVFX && m_AreaVFXCtx)
                     {
@@ -412,6 +414,8 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
             req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
             req.triggerTag, req.atPos, req.areaDamageMul, req.areaDurationMul);
+        // 撃った音（分裂・二重で同じフレームに何発も出ても、cue の間隔・同時数で間引かれる）
+        AudioSystem::Get().Play(ProjectileProfileDB::At(motion).castSound);
     }
 }
 // ============================================================
@@ -452,6 +456,8 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     b.tickInterval = a.tickInterval;
     b.flags = Swarm::kAreaCapsule | (ch << Swarm::kAreaBeamShift);
     if (!hasProfile || ap.stun) b.flags |= Swarm::kAreaStun;
+    if (hasProfile && ap.cameraShake) b.flags |= Swarm::kAreaShake;   // 光線が出た瞬間に揺らす
+    if (hasProfile) b.sound = ap.sound;
 
     if (m_AreaVFX && m_AreaVFXCtx)
     {
@@ -468,6 +474,7 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     }
 
     m_Beams.push_back(b);
+    AudioSystem::Get().Play("beam_charge");   // 溜め（撃った瞬間の音は溜め終わりに範囲の sound）
     return true;
 }
 
@@ -523,6 +530,7 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
                 m_Swarm->SetBeam(b.channel, start, end, b.radius, true);
                 m_Swarm->SpawnArea(area);
                 b.spawned = true;
+                AudioSystem::Get().Play(b.sound);
             }
         }
         else

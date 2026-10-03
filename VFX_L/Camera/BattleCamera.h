@@ -28,7 +28,8 @@ public:
 
     // 揺れのきっかけ。hpLost = このフレームに減った HP（0 なら何もしない）
     void OnPlayerHit(float hpLost);
-    void OnAliveAreas(uint32_t aliveAreas);
+    // count = このフレームに届いた「鏡頭を揺らす範囲」（爆発・光線）の数（SwarmSystem::ConsumeShakeAreas）
+    void OnShakeAreas(uint32_t count);
 
     // 追従（物理の後、Flush の前）。target が null なら追従点を動かさない
     void Update(float dt, const Vector3* target);
@@ -45,14 +46,16 @@ private:
     bool m_CursorFree = false;   // Alt で出している
 
     // ---- 画面の揺れのきっかけ ----
-    // 被弾：trauma = min(max, base + 減った HP × perDamage)
+    // どちらも trauma を「少なくともこの値まで」上げる（足さない。続けて来ても上限を超えない）
+    // 被弾：min(max, base + 減った HP × perDamage)
     bool  m_ShakeOnHit = true;
     float m_HitTraumaBase = 0.30f;
     float m_HitTraumaPerDamage = 0.01f;
     float m_HitTraumaMax = 0.70f;
-    // 範囲攻撃：GPU の aliveAreas が増えた数 × perArea（位置は来ないので距離では弱めない）
+    // 爆発：min(max, 出た数 × perArea)（位置は来ないので距離では弱めない）。
+    // 2026-10-03 に爆発だけを数えるようにしたので 1 個 0.12 → 0.25、上限 0.35 → 0.4
+    // （以前は 1 個の爆発に命中の火花の範囲が何個も付いて来て、足し算で強く揺れていた）
     bool  m_ShakeOnArea = true;
-    float m_AreaTrauma = 0.12f;
-    float m_AreaTraumaMax = 0.35f;
-    uint32_t m_PrevAliveAreas = 0;
+    float m_AreaTrauma = 0.25f;
+    float m_AreaTraumaMax = 0.40f;
 };

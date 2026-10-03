@@ -247,12 +247,35 @@ void main(uint3 id : SV_DispatchThreadID)
         float ax = (v.x != 0.0) ? v.x * g_LookAhead + sign(v.x) * r : 0.0;
         float az = (v.z != 0.0) ? v.z * g_LookAhead + sign(v.z) * r : 0.0;
 
-        if (ax != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(ax, 0, 0))
-                          || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0), allowDrop)))
-            v.x = 0.0;
-        if (az != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(0, 0, az))
-                          || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(0, az), allowDrop)))
-            v.z = 0.0;
+        bool blockX = ax != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(ax, 0, 0))
+                                    || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0), allowDrop));
+        bool blockZ = az != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(0, 0, az))
+                                    || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(0, az), allowDrop));
+        float lostX = blockX ? v.x : 0.0;
+        float lostZ = blockZ ? v.z : 0.0;
+        if (blockX) v.x = 0.0;
+        if (blockZ) v.z = 0.0;
+        // The probe runs along the centre line. With the centre right on a cell border beside a
+        // blocked cell (x exactly -28.00 next to a tree cell) it lands in that cell, so the axis
+        // toward the open lane beside it was dropped and the enemy stood still or turned on the
+        // spot for minutes (soak 2026-10-03). Probe a body radius to each side: if only one side
+        // is open, slide that way at the speed that was dropped (MoveCS side-steps the corner)
+        if (blockZ && abs(v.x) < 0.25 * abs(lostZ))
+        {
+            float2 l = pos.xz + float2(-r, az), rr = pos.xz + float2(r, az);
+            bool openL = SwarmIsWalkable(terrain, float3(l.x, 0, l.y)) && SwarmStepHeightOk(terrainHeight, pos.xz, l, allowDrop);
+            bool openR = SwarmIsWalkable(terrain, float3(rr.x, 0, rr.y)) && SwarmStepHeightOk(terrainHeight, pos.xz, rr, allowDrop);
+            if (openL != openR)
+                v.x = (openL ? -1.0 : 1.0) * abs(lostZ);
+        }
+        if (blockX && abs(v.z) < 0.25 * abs(lostX))
+        {
+            float2 l = pos.xz + float2(ax, -r), rr = pos.xz + float2(ax, r);
+            bool openL = SwarmIsWalkable(terrain, float3(l.x, 0, l.y)) && SwarmStepHeightOk(terrainHeight, pos.xz, l, allowDrop);
+            bool openR = SwarmIsWalkable(terrain, float3(rr.x, 0, rr.y)) && SwarmStepHeightOk(terrainHeight, pos.xz, rr, allowDrop);
+            if (openL != openR)
+                v.z = (openL ? -1.0 : 1.0) * abs(lostX);
+        }
         if (v.x != 0.0 && v.z != 0.0 && !SwarmIsWalkable(terrain, pos + float3(ax, 0, az)))
         {
             // corner: keep the axis that has more room, drop the other

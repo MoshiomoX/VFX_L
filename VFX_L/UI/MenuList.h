@@ -42,6 +42,7 @@ public:
 
 private:
     DirectX::SimpleMath::Vector2 ItemPos(int i) const;
+    int HandleInputRaw();   // 判定だけ（HandleInput が音を付ける）
 
     std::vector<std::wstring> m_Labels;
     DirectX::SimpleMath::Vector2 m_TopLeft = { 0.0f, 0.0f };

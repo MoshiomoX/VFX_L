@@ -439,3 +439,27 @@ void VFXEffect::CloneFrom(const VFXEffect& src)
     m_SMCtx.current = VFXStateID::Idle;
     m_SMCtx.timeInState = 0.0f;
 }
+
+// ============================================================
+// Y 軸回りに回す（2026-10-03、Boss の門の渦を門の向きに合わせる）。
+// 粒子 entry の発射位置（effect からの相対）と発射の向き、点光源の位置を回す。
+// 重力は世界の向きのまま。回転は TransformComponent の yaw と同じ（局所 +Z → (sin, 0, cos)）
+// ============================================================
+void VFXEffect::RotateYaw(float degrees)
+{
+    const auto rot = DirectX::SimpleMath::Matrix::CreateRotationY(DirectX::XMConvertToRadians(degrees));
+    for (auto& entry : m_Entries)
+    {
+        if (entry->GetType() == EntryType::Particle)
+        {
+            auto& e = static_cast<VFXParticleEntry*>(entry.get())->emitterData;
+            e.position = DirectX::SimpleMath::Vector3::Transform(e.position, rot);
+            e.direction = DirectX::SimpleMath::Vector3::TransformNormal(e.direction, rot);
+        }
+        else if (entry->GetType() == EntryType::Light)
+        {
+            auto* l = static_cast<VFXPointLightEntry*>(entry.get());
+            l->offset = DirectX::SimpleMath::Vector3::Transform(l->offset, rot);
+        }
+    }
+}

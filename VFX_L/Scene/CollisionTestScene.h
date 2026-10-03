@@ -41,6 +41,7 @@
 #include "ECS/System/RewardCrateSystem.h"
 #include "ECS/System/PickupSystem.h"
 #include "ECS/System/FeedbackVFXSystem.h"
+#include "Audio/BattleAudio.h"
 #include "Particle/GPUParticleSystem.h"
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXSpriteRenderer.h"
@@ -198,6 +199,25 @@ private:
     // 山頂の坂の上から滑り降り、鉱洞の一番奥（Boss の門）、鉱洞の入口、湧きを戻して雑魚の数
     bool     m_AutoLayers = false;
     void     UpdateAutoTestLayers(float dt);
+    // VFXL_BATTLE_AUTOTEST=portal：Boss の門（石の拱 + 粒子の渦、2026-10-03）を正面・斜めから撮り、
+    // 門の前で F → 渦が止まるか
+    bool     m_AutoPortal = false;
+    void     UpdateAutoTestPortal();
+    // VFXL_BATTLE_AUTOTEST=edgerock：外周の一番手前の岩（2026-10-03、少し外へ下げて入り込む物だけ衝突）。
+    // 四辺の 8 か所で玩家を壁へ押し、止まった所の縁からの距離を記録・横から撮る。最後に縁沿いの雑魚
+    bool     m_AutoEdgeRock = false;
+    void     UpdateAutoTestEdgeRock(float dt);
+    // VFXL_BATTLE_AUTOTEST=bossexit：鉱洞の奥で Boss を呼び、玩家は洞の外の平原へ。Boss が口から出て来られるか
+    bool     m_AutoBossExit = false;
+    void     UpdateAutoTestBossExit();
+    // VFXL_BATTLE_AUTOTEST=soak：普通に湧かせて 10 分回し（VFXL_SOAK_MIN）、玩家は場所を巡る。
+    // 0.25 秒毎に敵の池を読み戻し、穿模（壁・崖・地面）と寻路（詰まり・その場で回る・道に沿って進まない）を数える
+    bool     m_AutoSoak = false;
+    void     UpdateAutoTestSoak(float dt);
+    // VFXL_BATTLE_AUTOTEST=music：BGM を音を出したまま全曲掛け、再生位置・繰り返しの継ぎ目・実際の出力の峰値、
+    // 面の曲 → 最終波 → Boss → クリアの切り替えを記録
+    bool     m_AutoMusic = false;
+    void     UpdateAutoTestMusic();
     bool     m_AutoAssets = false;
     void     UpdateAutoTestAssets();
     std::vector<Entity> m_AutoAssetEntities;
@@ -208,6 +228,15 @@ private:
     Registry     m_Registry;
     float        m_PrevPlayerHp = -1.0f;   // -1 = まだ読んでいない（最初のフレームで揺らさない）
     bool         m_PrevDebugGrid = true;   // 入る前の DebugManager の参照格子（Shutdown で戻す）
+    uint32_t     m_PortalVfx = 0;          // Boss の門の渦（AreaVFXPlayer の実例。0 = 無し）
+
+    // 置物（報酬の箱・門の柱）の下で雑魚用に塞いだマス（2026-10-03）。元は歩けたマスだけ覚え、
+    // 箱が開いて消えたら戻す。crate = 箱（InteractableComponent が外れたら消えた扱い）
+    struct PropBlock { Entity entity; bool crate; std::vector<int> cells; };
+    std::vector<PropBlock> m_PropBlocks;
+    void BlockPropCells();     // RespawnCrates の最後（前の分は戻してから塞ぎ直す）
+    void UpdatePropBlocks();   // 毎フレーム：消えた箱の分を戻す
+    void BlockUnreachablePockets();   // 地形の直後：場地の真ん中へ歩いて行けないマスを塞ぐ
 
     // ============================================================
     // Systems
@@ -236,6 +265,7 @@ private:
     RewardCrateSystem       m_Crates;              // 報酬の箱
     PickupSystem            m_Pickups;             // 場の拾い物（磁石）
     FeedbackVFXSystem       m_Feedback;            // 升級・開箱・被弾の特効
+    BattleAudio             m_Audio;               // 戦闘の音（GPU の範囲・玩家の動き・BGM。2026-10-03）
     SceneLighting           m_Lighting;            // 太陽・環境光・場景光源
     ShadowMap               m_Shadows;             // 太陽の影（3 段の級聯）
     EliteSpawner            m_Elites;              // 精英の的（CPU）

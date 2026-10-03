@@ -6,6 +6,7 @@
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Manager/InputManager.h"
 #include "UI/UIDeco.h"
+#include "Audio/AudioSystem.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -38,7 +39,17 @@ void MenuList::Open()
 // マウスは「動かした時だけ」カーソルを奪う（キーで選んでいる途中に、
 // 止まっているマウスの位置へ戻されないように）
 // ============================================================
+// 選択の移動・決定の音（2026-10-03）。判定そのものは HandleInputRaw
 int MenuList::HandleInput()
+{
+    const int before = m_Cursor;
+    const int picked = HandleInputRaw();
+    if (picked >= 0) AudioSystem::Get().Play("ui_select");
+    else if (m_Cursor != before && before >= 0) AudioSystem::Get().Play("ui_hover");
+    return picked;
+}
+
+int MenuList::HandleInputRaw()
 {
     const int n = Count();
     if (n <= 0) return -1;

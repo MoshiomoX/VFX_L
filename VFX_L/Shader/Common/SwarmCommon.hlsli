@@ -361,6 +361,9 @@ static const uint SWARM_AREA_STUN = 2u; // a tick freezes + flashes the enemy (h
 // radius around it. Start / end / radius come from SwarmBeamCB every step
 // (AreaTickCS), channel = bits 8-11 of flags. Only the CPU spawns these.
 static const uint SWARM_AREA_CAPSULE = 4u;
+// shakes the camera when it appears (explosions; = Swarm::kAreaShake, 2026-10-03).
+// Counted by SwarmLiquidTrackCS, which already spots every newly born area
+static const uint SWARM_AREA_SHAKE = 8u;
 static const uint SWARM_AREA_BEAM_SHIFT = 8u; // (flags >> shift) & 0xF = beam channel
 static const uint SWARM_MAX_BEAMS = 4u; // = Swarm::kMaxBeams
 

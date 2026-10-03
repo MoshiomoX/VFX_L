@@ -17,11 +17,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include "Debug/TestSpawner.h"
 #include <iostream>
 #include <random>
 #include <utility>
 #include <vector>
 
+using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector3;
 
 namespace
@@ -31,7 +33,7 @@ namespace
 
 void StageDirector::Init()
 {
-    m_PortalModel = ResourceManager::Get().LoadModel(Res::Mdl::Kenney_PortalGate);
+    m_PortalModel = ResourceManager::Get().LoadModel(Res::Mdl::Ruins_ArchGate);   // 石の拱（2026-10-03）
     m_Portal = EntityTraits::NULL_ENTITY;
     m_Boss = BossState::None;
 }
@@ -188,14 +190,17 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
 // 乱数は地形の seed から（同じ seed なら同じ場所）。周り 3x3 も歩けて平らな所
 // ============================================================
 void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vector3& center, uint32_t seed,
-    InteractionSystem& interaction, const Vector3* preferred)
+    InteractionSystem& interaction, const Vector3* preferred, const Vector3* faceToward)
 {
     if (m_Portal != EntityTraits::NULL_ENTITY && reg.IsValid(m_Portal)) reg.Destroy(m_Portal);
     m_Portal = EntityTraits::NULL_ENTITY;
+    for (Entity e : m_PortalPillars)
+        if (reg.IsValid(e)) reg.Destroy(e);
+    m_PortalPillars.clear();
     interaction.ClearFocus();
     if (!m_PortalModel)
     {
-        std::cout << "[Stage] portal model missing: " << Res::Mdl::Kenney_PortalGate << std::endl;
+        std::cout << "[Stage] portal model missing: " << Res::Mdl::Ruins_ArchGate << std::endl;
         return;
     }
 
@@ -203,6 +208,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
     const Vector3 hi = m_PortalModel->GetBoundsMax();
     const float h = hi.y - lo.y;
     const float scale = (h > 1e-4f) ? portalHeight / h : 1.0f;
+    const Vector3 face = faceToward ? *faceToward : center;
 
     std::mt19937 rng(seed * 104729u + 31u);
     std::uniform_real_distribution<float> angleDist(0.0f, DirectX::XM_2PI);
@@ -223,11 +229,16 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
             }
         if (!ok) return false;
 
+        // 門の面（拱の局所 +Z）を face の方へ向ける（通り抜ける向きが近づく玩家から見える）
+        const float yawDeg = DirectX::XMConvertToDegrees(std::atan2(face.x - pos.x, face.z - pos.z));
+        const Matrix rot = Matrix::CreateRotationY(DirectX::XMConvertToRadians(yawDeg));
+        // 包囲箱の xz の真ん中を pos に、底を地面に合わせる（模型の原点の位置に頼らない）
+        const Vector3 midXZ((lo.x + hi.x) * 0.5f * scale, 0.0f, (lo.z + hi.z) * 0.5f * scale);
+
         Entity e = reg.Create();
         TransformComponent tf;
-        tf.position = pos;
-        // 門の面を開局の位置へ向ける（通り抜ける向きが玩家から見える）
-        tf.rotation = { 0.0f, DirectX::XMConvertToDegrees(std::atan2(center.x - pos.x, center.z - pos.z)), 0.0f };
+        tf.position = pos - Vector3::Transform(midXZ, rot) - Vector3(0.0f, lo.y * scale, 0.0f);
+        tf.rotation = { 0.0f, yawDeg, 0.0f };
         tf.scale = { scale, scale, scale };
         reg.Add<TransformComponent>(e, tf);
 
@@ -235,17 +246,31 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         mc.model = m_PortalModel;
         reg.Add<ModelComponent>(e, mc);
 
-        // 衝突は付けない（門をくぐれる。雑魚は GPU なので元々素通り）
+        // 拱の口はくぐれる。両脇の柱だけ玩家が抜けないように箱（雑魚は場面が下のマスを塞ぐ = BlockPropCells）。
+        // 柱の太さは m で持つ（2026-10-03：以前は 0.3 × scale で、cm の FBX の倍率 0.016 を掛けて 5mm になっていた）
+        const float halfW = (hi.x - lo.x) * 0.5f * scale;
+        const float pillarHalf = 0.4f;   // 丸い柱の太さ ≈ 0.8m
+        for (float side : { -1.0f, 1.0f })
+        {
+            const Vector3 c = pos + Vector3::Transform(Vector3(side * (halfW - pillarHalf), 0.0f, 0.0f), rot)
+                + Vector3(0.0f, portalHeight * 0.5f, 0.0f);
+            m_PortalPillars.push_back(TestSpawner::SpawnStaticBox(reg, c, { pillarHalf, portalHeight * 0.5f, pillarHalf }));
+        }
+
+        // 渦の中心 = 口の真ん中（丸い口の高さの 4 割ほど）
+        m_PortalYaw = yawDeg;
+        m_PortalCenter = pos + Vector3(0.0f, portalHeight * 0.43f, 0.0f);
+
         InteractableComponent it;
         it.kind = InteractKind::BossPortal;
         it.basePos = pos;
         it.animate = false;
         it.radius = 3.0f;
         it.prompt = L"[F] ボスを呼ぶ";
-        it.lightColor = { 0.75f, 0.35f, 1.0f };   // 紫
+        it.lightColor = { 0.75f, 0.35f, 1.0f };   // 紫（渦の特効にも光がある。こちらは控えめ）
         it.lightRadius = 7.0f;
-        it.lightIntensity = 2.0f;
-        it.lightHeight = portalHeight * 0.5f;
+        it.lightIntensity = 1.0f;
+        it.lightHeight = portalHeight * 0.43f;
         reg.Add<InteractableComponent>(e, it);
 
         m_Portal = e;

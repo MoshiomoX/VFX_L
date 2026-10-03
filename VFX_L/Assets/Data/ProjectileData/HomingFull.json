@@ -1,4 +1,5 @@
 {
+    "castSound": "cast_homing",
     "name":  "HomingFull",
     "mode":  2,
     "c1":  [

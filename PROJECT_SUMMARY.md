@@ -13,7 +13,7 @@ C++ / DirectX 11 自制引擎上的 3D roguelite（幸存者类）。雑魚、�
 | 提交 | 60 个（2026-04-10 首次提交 → 2026-09-28），当前分支 `level-editor-pixel-enemies`，比 `main` 领先 19 个提交 |
 | 未提交 | 84 处改动（见第 3 节末尾「9-28 未提交」） |
 | 构建 | VS 18（v145）Debug / Release x64，MSBuild 命令见 `CLAUDE.md` 第 2 节 |
-| 帧时间（seed 12345，关垂直同步，开局默认段） | Debug 约 4.5 ms（约 225 fps），Release 约 1.4 ms |
+| 帧时间（seed 12345，关垂直同步，开局默认段） | 10-03：Debug 约 5.5 ms（约 183 fps），Release 约 2.1 ms（约 474 fps，GPU 瓶颈）。9-28 时 Debug 4.5 / Release 1.4 |
 | GPU 雑魚上限 | `Swarm::kMaxEnemies` = 4096；压力测试 4000 只 + 2000 发弹 Release 5.7 ms |
 
 游戏循环已经闭合：标题 → 战斗（刷怪、自动施法、经验球、升级三选一、报酬箱、背包摆放）→ 死亡「力尽きた」→ 结算。
@@ -117,7 +117,7 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 - **特效挡视线**：镜头默认 6m / 20 度 → 8m / 28 度；`Explosion` / `MeteorBlast` 的闪光、火团、烟减量缩小，烟寿命 x0.65
 - **后退 / 横移**：免费 UAL 没有这些片段；试过程序化扭腰 + 倒放后，用户决定放弃「一直朝前」→ 按镜头方向判断前 / 右 / 后 / 左，身体转向移动方向（后退就转身朝镜头跑）
 - **滑步感**：Walk / Jog / Sprint 按速度切换 + 播放速率 = 实速 / 片段原速 + 切换时继承步伐相位
-- **树石太多**：树 110→60、石 40→20，小石头（和矮枯树）只当装饰不挡路
+- **树石太多**：树 110→60、石 40→20，小石头（和矮枯树）只当装饰不挡路；10-03 再减半（树 30、石 10、灌木 80、矿洞岩 7）
 - 自测 `VFXL_BATTLE_AUTOTEST=loco`（7 个方向 + 爆炸视野截图）
 
 ### 9-29：平衡第一版（暂时全部模仿 Megabonk）
@@ -147,6 +147,15 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 - 10-03：用户嫌 300m 太大 → 改回 200m，高低差不变、水平全部 ×2/3（山顶 / 矿洞 33 格，坡变陡：山顶 26〜31 度、矿洞 31 度），内容数量回到原来的 200m；Debug fps 120 → 160，流场全图 6ms，爬山 10 秒 30/30
 - 10-03：矿洞加顶（第二步，用户「按推荐」）：坑周一圈岩壁（挡格，只能走坡道进出）+ 5〜12m 的洞顶 + 洞口过梁（洞内 15m、洞口 5m），顶上按离边距离堆 8〜16m 的岩石成矮山，看不见的碰撞到 40m（上不去），坑壁每 12m 一支火把（洞内灯半径 10m，防止穿墙照到洞外），陨石落点在洞里时从正上方落下；自测进洞 20 秒 30/30；`VFXL_NO_GRASS` 失效已修
 - 10-03：地面的格子线（9-30 起一直记为已知问题）查明是 `DebugManager` 默认开着的 y = 0 参照网格（±50m、1m 间距），和地面深度打架；战斗场景进入时关掉、离开时恢复
+- 10-03：Boss 门换成石拱（遗迹包 `Arch_Round_RoundColumn`，5.6m，柱子有碰撞）+ 门洞里的粒子漩涡（`BossPortal.json`：环沿、往中心吸的火花、旋转的螺旋贴图、光团、星点、紫雾、点光源；`VFXEffect::RotateYaw` 让特效跟门的朝向转），召唤 Boss 后漩涡熄灭；用户选的「圆拱带柱 + 纯粒子漩涡」；自测 `portal`
+- 10-03：外围岩石穿模（第一排岩石伸进场地 3〜4m 且没有碰撞）：用户要「稍微往后挪 + 加碰撞」→ 第一排按旋转包围盒只伸进 −0.6〜1m，伸进 0.35m 以上的加凸体碰撞（约 90 个）+ 封雑魚格子；外围墙格改成长草、场地外加 40m 地面；遗迹方柱同样处理。碰撞系统改成固定碰撞体缓存（以前每帧重拷所有凸体），加岩石碰撞后 Debug 只多约 0.1 ms；自测 `edgerock`
+- 10-03：复测 fps：Debug 7.76 ms / Release 2.11 ms（GPU 瓶颈）。Debug 慢的主因是 ECS View 总扫 Transform 池（约 1500 实体），渲染每帧扫 4 遍 → `View::EachFrom<Base>` + `RenderSystem` 每帧收集一次 → Debug 5.48 ms（183 fps）；自然物减半后 5.28 ms（189 fps）
+- 10-03：自然物减半（树 30、石 10、灌木 80、矿洞岩 7）；矿洞洞口加大（用户：Boss 太大出不来）：坡宽 4→8m、洞口高 5→8m、洞顶 8〜15m（洞内 18m），自测 `bossexit`
+- 10-03：雑魚 / 精英 / Boss 的脚陷在地里（用户发现 Boss 的脚穿模）：部件动画按走路张腿那帧对齐脚底，站着时脚在地下 0.29m × 体型倍率 → 改按 idle 姿势对齐；顺带修了 assimp 在攻击动画里插的翻转 180 度的坏旋转键（攻击正中间整个身体沉进地里）
+- 10-03：实时通し检查 soak（3 面 × 10 分钟）：修了穿过报酬箱 / Boss 门柱（封格，门柱碰撞原来只有 5mm）、伸进外围岩石（封格规则改严）、困在封闭口袋（流场反算后封掉）、墙角卡住 / 原地打转（MoveCS 墙角横移 + AI 两侧探测）、贴坑壁被抬起（洞壁格高度场）；同种子前 5 分钟 stuck 14→4、穿过物体 8→0；最后一批修改未实测（验证测试因内存不足被停）
+- 10-03：镜头震动修正（用户：特效拉满时画面一直震）：以前命中火花和死亡土烟也算「范围出现」并且累加，trauma 顶满；现在只有爆炸 / 光线（范围 json `cameraShake`）会震，且改成「至少抬到」不再累加
+- 10-03：**加声音**（用户选 miniaudio、音效 + BGM、CC0 素材）：`Audio/AudioSystem`（cue 数据驱动 `Sounds.json`、节流、BGM 交叉淡入淡出、4 组音量）+ `Audio/BattleAudio`（GPU 命中 / 爆炸 / 击杀按特效配方计数后播放、玩家动作、BGM 选曲）+ 各处 UI 音效；素材 Kenney / rubberduck / lentikula / NIIIEMAND + OpenGameArt 6 首 BGM，全 CC0，约 33MB；具体用哪个文件待用户试听
+- 10-03：声音第 2 / 3 版：BGM 先换成激烈的战斗曲，用户听后改为「关卡 = 自然环境的主题曲，Boss 出场更激昂」→ 关卡回到 Grasslands / Negev Desert / Ruined City，最終波 Flags，Boss 换金属的 Boss Battle Theme + 咆哮 + 低频冲击音 + 0.05 秒硬切；UI 音换成木头 / 书 / 皮革的材质声；11 首曲子重编码成无缝循环（`loopStart`）；出口加限幅器（乱战混音峰值 1.55 → 输出 ≤1.0，以前 72% 的帧爆音）；新自测 `music`（不静音：逐曲 / 循环接缝 / 逐 cue / 乱战 / 切歌，WASAPI 会话电平表测实际输出）
 - 外围岩壁的外观换成岩山：KayKit 大岩石放大堆 3 排（8〜34m，约 400 块，实例化），碰撞仍是原来的箱子；自测 `edge`
 - 追加：升级 4 选 1 + 能力卡权重 0.35；新卡「魔力回復 +20%」「跳躍回数 +1」（空中每次 ×0.75：12 → 9 → 6.75）；开局法术改成追踪弹（火球太强）；场上磁铁（`ECS/System/PickupSystem`，碰到吸全图经验球）；自测 `pickup`
 
@@ -172,6 +181,7 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 | 特效编辑器 | Particle / Trail / Sprite / Mesh / Light 条目 | GPU 弹道读全部粒子层 |
 | 相机 | 完成 | 遮挡拉近、震动、速度演出、调参保存 |
 | 性能工具 | FrameProfiler、压力 / perf 自测 | 数字见第 6 节 |
+| 声音 | 第 3 版（10-03） | miniaudio；音效 41 个 cue + BGM 6 个槽位（另有 15 首 alt 候选），全 CC0（`Assets/Audio/`）；出口限幅器；关卡 = 环境主题曲、Boss = 金属曲 + 登场冲击；自测 `music` 出声测过；音效具体选哪个文件仍待用户试听 |
 | Credits 画面 | 未做 | CC BY 图标要求署名，发布前必须补 |
 
 ---
@@ -188,6 +198,9 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 | KayKit Forest / Skeletons / Character Animations | CC0 | 森林、精英、备用动画 |
 | Quaternius UBC / Modular Outfits / UAL 1+2 | CC0 | 玩家模型与动画 |
 | PVFX Foundry 序列帧 | CC0 | Sprite entry |
+| Kenney 音效 6 包 / rubberduck / lentikula / NIIIEMAND | CC0 | 音效（`Assets/Audio/SFX/`，各文件夹 SOURCE.txt） |
+| OpenGameArt BGM 21 首（nene / Juhani Junkala / Dizzy Crow / Cleyton Kauffman / Emma_MA / Alexander Ehlers / cynicmusic；11 首为无缝循环重编码过） | CC0 | BGM（`Assets/Audio/Music/SOURCE.txt`） |
+| miniaudio + stb_vorbis | 公有领域 / MIT-0 | 音频库（`ThirdParty/miniaudio/`） |
 | UI 线稿原图 | CC0 / 公有领域 | `Assets/Texture/UI/Deco/`（出处见同目录 README） |
 | Yuji Syuku 字体 | OFL | UI 文字 |
 | game-icons.net | **CC BY 3.0** | 道具图标（每个作者写进 README，需 Credits 画面） |
@@ -202,6 +215,8 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 |---|---|---|
 | 开局默认段（9-28 优化前） | 10.8 ms | 1.49 ms |
 | 开局默认段（优化后） | **4.5 ms** | **1.40 ms** |
+| 开局默认段（10-03，三层场地 + 装饰物约 1100 个，优化前） | 7.76 ms | 2.11 ms |
+| 开局默认段（10-03，View 只扫需要的池子之后） | **5.48 ms** | 未复测（GPU 瓶颈） |
 | 4000 只雑魚 | 5.2 ms | 3.14 ms |
 | 4000 只 + 2000 发弹 | 6.0 ms | 5.69 ms |
 | 太阳影子开销 | +1.1 ms | 未单测 |

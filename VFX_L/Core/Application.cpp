@@ -6,6 +6,7 @@
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include "Manager/InputManager.h"
+#include "Audio/AudioSystem.h"
 
 
 Application* Application::s_Instance = nullptr;
@@ -53,6 +54,7 @@ bool Application::Initialize()
     // preload skinned models on worker threads (Res::Mdl::kPreload). Scenes that need them wait on the future
     ResourceManager::Get().PreloadModelsAsync(std::vector<std::string>(std::begin(Res::Mdl::kPreload), std::end(Res::Mdl::kPreload)));
     InputManager::Get().Initialize(m_Window.GetHandle());
+    AudioSystem::Get().Initialize();   // 音（装置が無くても続ける）
 	if(!m_Game.Initialize(&m_Renderer)) return false;
     // Timer
     m_Timer.Start();
@@ -83,6 +85,7 @@ void Application::Run()
         {
             PROFILE_SCOPE_GPU("Update");   // GPU = 雑魚・弾・粒子の compute
             m_Game.Update(dt);
+            AudioSystem::Get().Update(dt);   // 鳴り終わった声の回収・BGM のフェード
         }
         {
             PROFILE_SCOPE_GPU("Render");
@@ -105,6 +108,7 @@ void Application::Run()
 
 void Application::Shutdown()
 {
+    AudioSystem::Get().Shutdown();
     FrameProfiler::Get().ShutdownGpu();
     DebugManager::Get().Shutdown();
     ResourceManager::Get().Shutdown();

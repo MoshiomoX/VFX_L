@@ -100,6 +100,13 @@ public:
         }
     }   
 
+    // 1 マスの通行を書き換える（置物の下を塞ぐ / 開けた箱の下を戻す。CollisionTestScene::BlockPropCells）
+    void SetWalkable(int gx, int gz, bool walkable)
+    {
+        if (gx < 0 || gx >= m_GridW || gz < 0 || gz >= m_GridD) return;
+        m_Walkable[(size_t)gz * m_GridW + gx] = walkable ? 1 : 0;
+    }
+
     void ClearAll()
     {
         std::fill(m_Walkable.begin(), m_Walkable.end(), (uint8_t)1);

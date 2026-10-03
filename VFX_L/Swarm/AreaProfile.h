@@ -45,6 +45,7 @@ struct AreaProfile
     bool  followCaster = false;    // 玩家の位置に出した時、玩家に付いて動く
     bool  stun = true;             // ダメージで被弾硬直を入れる（法環で入れると敵が固まり続けるので注意）
     float slow = 0.0f;             // tick の度に中の敵の移動速度をこれだけ落とす（0〜1、15 段階に丸める。精英・Boss は半分。2026-10-01 毒の池）
+    bool  cameraShake = false;     // 出た時に鏡頭を揺らす（爆発・光線。2026-10-03：以前は命中の火花・死んだ時の土煙も含め全部揺らしていた）
 
     // ---- Beam のみ ----
     float length = 18.0f;          // 射程（m）。地形に当たればそこまで
@@ -52,6 +53,9 @@ struct AreaProfile
 
     // 見た目。Assets/Data/VFXData/ の json のファイル名（拡張子込み）。空 = 無し
     std::string vfxFile;
+    // 出た時の音（Assets/Data/Audio/Sounds.json の cue の名前。空 = 鳴らさない。2026-10-03）。
+    // GPU で生まれた範囲は vfxFile の配方毎に数えて鳴らす（同じ vfxFile の範囲は同じ音になる）
+    std::string sound;
 
     // ---- 編集器の試射用 ----
     bool  previewAtTarget = true;      // true = 一番近い標的の足元 / false = 銃口（= 玩家）の位置
