@@ -5,9 +5,12 @@
 #include "Swarm/SwarmSystem.h"
 #include "Swarm/AreaProfile.h"
 #include "World/GridWorld.h"
+#include "Audio/AudioSystem.h"
 #include "imgui.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <vector>
 
 using DirectX::SimpleMath::Vector3;
 
@@ -39,19 +42,33 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
     // pos.y = 地面の高さ（SpawnDirector が高さ場から引く）
     const float groundY = swarm.GetAIParams().groundY;
     const Vector3 p = { pos.x, pos.y + groundY, pos.z };
-    const bool bomber = Rand01() < m_BomberRatio;
-    const float hp = (bomber ? m_BomberHp : m_MobHp) * m_StatMul;   // 湧いた瞬間の難度で決まる
-    const float speed = (bomber ? m_BomberSpeed : m_MobSpeed) * finalSpeedMul;
-    const uint32_t kind = bomber ? Swarm::kEnemyKindBomber : Swarm::kEnemyKindMob;
+    const float roll = Rand01();
+    uint32_t kind = Swarm::kEnemyKindMob;
+    float hp = m_MobHp, speed = m_MobSpeed;
+    if (roll < m_BomberRatio)
+    {
+        kind = Swarm::kEnemyKindBomber;
+        hp = m_BomberHp;
+        speed = m_BomberSpeed;
+    }
+    else if (roll < m_BomberRatio + m_SplitterRatio)
+    {
+        kind = Swarm::kEnemyKindSplitter;
+        hp = m_SplitterHp;
+        speed = m_SplitterSpeed;
+    }
+    hp *= m_StatMul;   // 湧いた瞬間の難度で決まる
+    speed *= finalSpeedMul;
 
     if (recycle) swarm.RecycleEnemy(p, hp, speed, kind);
     else         swarm.SpawnEnemy(p, hp, speed, kind);
 }
 
-void MobSpawner::SpawnDebugBombers(const GridWorld& grid, const Vector3& player, SwarmSystem& swarm)
+void MobSpawner::SpawnDebugKind(const GridWorld& grid, const Vector3& player, SwarmSystem& swarm,
+    int& count, float hp, float speed, uint32_t kind)
 {
     const float groundY = swarm.GetAIParams().groundY;
-    for (; m_DebugBombers > 0; --m_DebugBombers)
+    for (; count > 0; --count)
     {
         for (int attempt = 0; attempt < 8; ++attempt)
         {
@@ -63,11 +80,42 @@ void MobSpawner::SpawnDebugBombers(const GridWorld& grid, const Vector3& player,
             grid.WorldToCell(pos, gx, gz);
             if (!grid.IsWalkable(gx, gz)) continue;
 
-            swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, m_BomberHp, m_BomberSpeed,
-                Swarm::kEnemyKindBomber);
+            swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, hp, speed, kind);
             break;
         }
     }
+}
+
+// ============================================================
+// 分裂怪の死（GPU の分裂の環、2〜3 フレーム遅れ）→ 分裂体を死んだ所の周りに。
+// 同時上限（spawnCap）は見ない：倒した結果なので必ず出す（池が満杯なら GPU が捨てる）。
+// 周りの点が塞がったマスなら死んだ所そのものに置く（GPU が重なりを押し広げる）
+// ============================================================
+void MobSpawner::SpawnSplitlings(const GridWorld& grid, SwarmSystem& swarm)
+{
+    static std::vector<Swarm::SplitEvent> s_Events;
+    s_Events.clear();
+    swarm.ConsumeSplitEvents(s_Events);
+    if (s_Events.empty()) return;
+
+    const float hp = m_SplitlingHp * m_StatMul;
+    const float speed = m_MobSpeed * m_SplitlingSpeedMul * finalSpeedMul;
+    for (const Swarm::SplitEvent& ev : s_Events)
+    {
+        ++m_SplitEventsSeen;
+        const float base = Rand01() * 6.2831853f;
+        for (int k = 0; k < m_SplitCount; ++k)
+        {
+            const float ang = base + 6.2831853f * (float)k / (float)(std::max)(1, m_SplitCount);
+            Vector3 p = ev.position + Vector3(std::cos(ang), 0.0f, std::sin(ang)) * m_SplitSpread;
+            int gx = 0, gz = 0;
+            grid.WorldToCell(p, gx, gz);
+            if (!grid.IsWalkable(gx, gz)) p = ev.position;
+            swarm.SpawnEnemy(p, hp, speed, Swarm::kEnemyKindSplitling);
+            ++m_SplitlingsSpawned;
+        }
+    }
+    AudioSystem::Get().PlayBurst("enemy_split", (uint32_t)s_Events.size());
 }
 
 void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, float runTime, SwarmSystem& swarm)
@@ -85,6 +133,15 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
     }
     else
         m_StatMul = 1.0f;
+    // 分裂怪の割合（面毎の表。start 前は 0、rampEnd まで直線）
+    if (runTime < splitterStart)
+        m_SplitterRatio = 0.0f;
+    else
+    {
+        const float span = (std::max)(1.0f, splitterRampEnd - splitterStart);
+        const float t = (std::min)(1.0f, (runTime - splitterStart) / span);
+        m_SplitterRatio = splitterRatioStart + (splitterRatioEnd - splitterRatioStart) * t;
+    }
     swarm.GetAIParams().contactDamage = baseContactDamage * m_StatMul;
     swarm.GetBomberParams().blastDamage = baseBlastDamage * m_StatMul;
 
@@ -93,7 +150,9 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
         [this, &swarm](const Vector3& pos) { Request(swarm, pos, false); },
         [this, &swarm](const Vector3& pos) { Request(swarm, pos, true); });
 
-    SpawnDebugBombers(grid, player, swarm);
+    SpawnDebugKind(grid, player, swarm, m_DebugBombers, m_BomberHp, m_BomberSpeed, Swarm::kEnemyKindBomber);
+    SpawnDebugKind(grid, player, swarm, m_DebugSplitters, m_SplitterHp * m_StatMul, m_SplitterSpeed, Swarm::kEnemyKindSplitter);
+    SpawnSplitlings(grid, swarm);
     SpawnGhosts(player, dt, swarm);
 }
 
@@ -186,6 +245,28 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::SameLine();
     if (ImGui::Button("Spawn 5 Ghosts")) QueueDebugGhosts(5);
     ImGui::DragFloat("Ghost Speed x", &ghostSpeedMul, 0.05f, 1.0f, 6.0f);
+    ImGui::Separator();
+
+    // ---- 分裂怪（湧きの割合は面の表 + 経過時間、初期値は CPU、体格・倍率は GPU の定数）----
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1), "Splitter (GPU)");
+    ImGui::Text("ratio now %.2f   splits %u -> splitlings %u", m_SplitterRatio, m_SplitEventsSeen, m_SplitlingsSpawned);
+    ImGui::DragFloat("Splitter Start (s)", &splitterStart, 5.0f, 0.0f, 1.0e9f);
+    ImGui::DragFloat("Splitter Ratio Start", &splitterRatioStart, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Splitter Ratio End", &splitterRatioEnd, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Splitter Ramp End (s)", &splitterRampEnd, 5.0f, 0.0f, 3600.0f);
+    ImGui::DragFloat("Splitter HP", &m_SplitterHp, 1.0f, 1.0f, 1000.0f);
+    ImGui::DragFloat("Splitter Speed", &m_SplitterSpeed, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Splitter Scale", &bomb.splitterScale, 0.01f, 0.2f, 3.0f);
+    ImGui::DragFloat("Splitter Damage x", &bomb.splitterDamageMul, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Splitter Exp x", &bomb.splitterExpMul, 0.05f, 0.0f, 20.0f);
+    ImGui::DragInt("Split Count", &m_SplitCount, 1, 0, 8);
+    ImGui::DragFloat("Split Spread (m)", &m_SplitSpread, 0.05f, 0.0f, 3.0f);
+    ImGui::DragFloat("Splitling HP", &m_SplitlingHp, 0.5f, 1.0f, 500.0f);
+    ImGui::DragFloat("Splitling Speed x", &m_SplitlingSpeedMul, 0.05f, 0.1f, 5.0f);
+    ImGui::DragFloat("Splitling Scale", &bomb.splitlingScale, 0.01f, 0.2f, 2.0f);
+    ImGui::DragFloat("Splitling Damage x", &bomb.splitlingDamageMul, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Splitling Exp x", &bomb.splitlingExpMul, 0.05f, 0.0f, 10.0f);
+    if (ImGui::Button("Spawn 5 Splitters Nearby")) QueueDebugSplitters(5);
     ImGui::Separator();
 
     // ---- 雑魚 AI（GPU の定数。次の固定ステップから効く）----

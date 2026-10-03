@@ -28,6 +28,7 @@
 #include "World/TerrainGenerator.h"
 #include "Scene/RunResult.h"
 #include "Debug/DebugManager.h"
+#include "Audio/AudioSystem.h"
 #include "Debug/FrameProfiler.h"
 #include "Manager/InputMap.h"
 #include "Manager/ResourceManager.h"
@@ -86,6 +87,9 @@ void CollisionTestScene::Init()
         m_AutoBossExit = m_AutoTest && strcmp(env, "bossexit") == 0;     // 値が bossexit なら Boss が洞から出られるか
         m_AutoSoak = m_AutoTest && strcmp(env, "soak") == 0;             // 値が soak なら実時間の通し検査（穿模・寻路）
         m_AutoMusic = m_AutoTest && strcmp(env, "music") == 0;           // 値が music なら BGM の全曲・継ぎ目・切り替え
+        m_AutoSplit = m_AutoTest && strcmp(env, "split") == 0;           // 値が split なら分裂怪
+        m_AutoBossSlam = m_AutoTest && strcmp(env, "bossslam") == 0;     // 値が bossslam なら Boss の重撃の輪
+        m_AutoGround = m_AutoTest && strcmp(env, "ground") == 0;         // 値が ground なら地面の貼図を撮る
         m_AutoArrow = m_AutoTest && strcmp(env, "arrow") == 0;           // 値が arrow なら黄金の矢を横から撮る
         m_AutoChain = m_AutoTest && strcmp(env, "chain") == 0;           // 値が chain なら火球 + 石弾 → 隕石の誘発
         m_AutoChest = m_AutoTest && strcmp(env, "chest") == 0;           // 値が chest なら魔法書の木箱の物理
@@ -223,6 +227,10 @@ void CollisionTestScene::Init()
     m_Mobs.Init(m_Swarm);
     m_Audio.Init(m_Swarm, m_StageIndex);   // 範囲の音の表（範囲の profile と VFX 表の後）
     m_Mobs.statMulBonus = stageDef.difficultyBonus;   // 面の難度の下駄
+    m_Mobs.splitterStart = stageDef.splitter.start;   // 分裂怪の混ざり方（面毎）
+    m_Mobs.splitterRatioStart = stageDef.splitter.ratioStart;
+    m_Mobs.splitterRatioEnd = stageDef.splitter.ratioEnd;
+    m_Mobs.splitterRampEnd = stageDef.splitter.rampEnd;
     m_WeaponSystem.SetSwarm(&m_Swarm);
 
     // ============================================================
@@ -244,6 +252,8 @@ void CollisionTestScene::Init()
     // ---------- 報酬の箱（玩家の周りに固定数。玩家の位置が要るので最後）----------
     m_Crates.Init();
     m_Stage.Init();
+    m_BossAttacks.Reset();
+    m_BossSlamHits = 0;
     m_Pickups.Init(device);
     RespawnCrates();
 }
@@ -528,6 +538,55 @@ void CollisionTestScene::Update(float dt)
 }
 
 // ============================================================
+// Boss の重撃（BossAttacks が拍子と輪を持つ）。爆発した輪に玩家が入っていれば当たり:
+// 水平距離 ≤ 半径、足が輪の地面より kSlamDodgeHeight 以上高ければ外れ（跳べば避けられる）。
+// 被弾の無敵・ノックバック（爆発の強い方）は雑魚の打撃と同じ道。輪は毎フレーム GPU の描画へ
+// ============================================================
+void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
+{
+    constexpr float kSlamDodgeHeight = 1.2f;
+
+    static std::vector<BossAttacks::Blast> s_Blasts;
+    s_Blasts.clear();
+    const int placed = m_BossAttacks.Update(dt, m_Stage.IsBossAlive(), m_Stage.BossHpRatio(), m_Stage.BossPos(),
+        player, m_Mobs.GetStatMul(), m_Grid, s_Blasts);
+    if (placed > 0) AudioSystem::Get().Play("boss_slam_warn");
+
+    float halfHeight = 0.9f;
+    if (m_Registry.Has<PlayerStatsComponent>(m_Player))
+        halfHeight = m_Registry.Get<PlayerStatsComponent>(m_Player).height * 0.5f;
+    for (const BossAttacks::Blast& b : s_Blasts)
+    {
+        m_AreaVFX.Play("BossSlam.json", b.center, 2.0f, false, m_VFXContext);
+        AudioSystem::Get().Play("boss_slam");
+        m_Camera.OnShakeAreas(1);
+        if (IsPlayerDead()) continue;
+
+        const DirectX::SimpleMath::Vector2 d(player.x - b.center.x, player.z - b.center.z);
+        const float feetAbove = (player.y - halfHeight) - b.center.y;
+        if (d.Length() > b.radius || feetAbove > kSlamDodgeHeight || feetAbove < -2.0f) continue;
+        if (!PlayerStateSystem::TryApplyHit(m_Registry, m_Player, b.damage)) continue;   // 無敵中
+        ++m_BossSlamHits;
+        const DirectX::SimpleMath::Vector2 dir = (d.LengthSquared() > 1e-4f) ? d / d.Length()
+            : DirectX::SimpleMath::Vector2(0.0f, 1.0f);
+        PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, dir, true);
+    }
+
+    // ---- 輪を GPU の描画へ ----
+    SwarmSystem::WarnCircle circles[SwarmSystem::kMaxWarnCircles];
+    int n = 0;
+    for (const BossAttacks::Ring& r : m_BossAttacks.Rings())
+    {
+        if (n >= SwarmSystem::kMaxWarnCircles) break;
+        circles[n].center = r.center;
+        circles[n].radius = r.radius;
+        circles[n].progress = m_BossAttacks.Progress(r);
+        ++n;
+    }
+    m_Swarm.SetWarnCircles(circles, n);
+}
+
+// ============================================================
 // HUD の画面外の目印（報酬の箱 = 黄、精英 = 赤）
 // ============================================================
 void CollisionTestScene::UpdateHudMarkers()
@@ -597,6 +656,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         {
             m_Mobs.Update(m_Grid, *pp, dt, m_RunTime, m_Swarm);
             m_Stage.Update(m_Grid, *pp, m_RunTime, dt, m_Mobs, m_Swarm);   // 時間で起きる出来事（精英・最終波・Boss）
+            UpdateBossAttacks(dt, *pp);                                    // Boss の技（重撃の警告の輪）
         }
     }
     {

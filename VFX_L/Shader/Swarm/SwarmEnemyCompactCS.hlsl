@@ -31,6 +31,7 @@ AppendStructuredBuffer<uint> mobList : register(u1);
 AppendStructuredBuffer<uint> bomberList : register(u2);
 RWByteAddressBuffer bossInfo : register(u3);
 AppendStructuredBuffer<uint> ghostList : register(u4); // drawn last with alpha blend
+AppendStructuredBuffer<uint> splitterList : register(u5); // splitters and splitlings (own texture, 2026-10-03)
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -46,6 +47,8 @@ void main(uint3 id : SV_DispatchThreadID)
         bomberList.Append(i);
     else if (kind == SWARM_KIND_GHOST)
         ghostList.Append(i);
+    else if (kind == SWARM_KIND_SPLITTER || kind == SWARM_KIND_SPLITLING)
+        splitterList.Append(i);
     else
         mobList.Append(i);
 

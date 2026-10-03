@@ -76,13 +76,16 @@ namespace Swarm
     constexpr uint32_t kEnemyKindElite = 2;    // 精英（大きい雑魚。BomberCB の elite* で体格・接触ダメージ・経験値を倍にする）
     constexpr uint32_t kEnemyKindBoss = 3;     // 面の Boss（BomberCB の boss*。怯まない。HP と位置は BossInfo で CPU へ）
     constexpr uint32_t kEnemyKindGhost = 4;    // 最終波の幽霊（2026-09-30）：雑魚の HP、速い、壁も台地も素通り、半透明の青白
+    constexpr uint32_t kEnemyKindSplitter = 5; // 分裂怪（2026-10-03）：死ぬと小さい分裂体を 3 体出す（SwarmCorpseTrackCS → 分裂の環 → MobSpawner）
+    constexpr uint32_t kEnemyKindSplitling = 6;// 分裂体：分裂怪の小さい子。もう分裂しない
     // 描画リストの数（種類毎に貼図を替えて描く）。精英は雑魚と同じ網格・貼図なので雑魚のリストで描き、
     // 大きさと色は VS が種類を見て変える
-    constexpr uint32_t kEnemyKinds = 3;
-    // 描画リストの添字（種類 → リスト。精英 / Boss は雑魚のリスト）
+    constexpr uint32_t kEnemyKinds = 4;
+    // 描画リストの添字（種類 → リスト。精英 / Boss は雑魚のリスト、分裂体は分裂怪のリスト）
     constexpr uint32_t kDrawListMob = 0;
     constexpr uint32_t kDrawListBomber = 1;
-    constexpr uint32_t kDrawListGhost = 2;    // 最後に alpha blend で描く
+    constexpr uint32_t kDrawListSplitter = 2;
+    constexpr uint32_t kDrawListGhost = 3;    // 最後に alpha blend で描く
 
     struct EnemyExtra
     {
@@ -372,8 +375,30 @@ namespace Swarm
         float    ghostAlpha = 0.55f;         // VS: 頂点 alpha（alpha blend で描く）
         float    ghostGlow = 1.6f;           // VS: 青白の色に掛ける HDR の倍率
         float    ghostDamageMul = 1.0f;      // 接触ダメージの倍率
+
+        // ---- 分裂怪（kEnemyKindSplitter）と分裂体（kEnemyKindSplitling）。2026-10-03 ----
+        float    splitterScale = 1.15f;      // 少し大きい
+        float    splitterDamageMul = 1.0f;
+        float    splitterExpMul = 1.5f;      // HP は雑魚の 2 倍、分裂体の分も足すと雑魚 2.4 体分
+        float    _splitterPad = 0.0f;
+        float    splitlingScale = 0.6f;
+        float    splitlingDamageMul = 0.5f;
+        float    splitlingExpMul = 0.3f;
+        float    _splitlingPad = 0.0f;
     };
-    static_assert(sizeof(BomberCB) == 80, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 112, "SwarmBomberCB layout mismatch");
+
+    // ============================================================
+    // 分裂の環（GPU → CPU）。SwarmCorpseTrackCS が分裂怪の死を見つけたら 1 件書く（先頭 16B = 今までの総数、
+    // 以降 16B × kMaxSplitEvents）。CPU は誘発の環と同じく回読して差分を取り、MobSpawner が分裂体を湧かせる
+    // ============================================================
+    constexpr uint32_t kMaxSplitEvents = 128;
+    struct SplitEvent
+    {
+        Vector3  position;    // 死んだ所（敵の位置 = 地面 + groundY）
+        uint32_t kind = 0;    // 死んだ物の種類（今は分裂怪だけ）
+    };
+    static_assert(sizeof(SplitEvent) == 16, "SwarmSplitEvent layout mismatch");
 
     // ============================================================
     // Boss の様子（GPU → CPU。SwarmEnemyCompactCS が毎フレーム書き、staging で回読）。

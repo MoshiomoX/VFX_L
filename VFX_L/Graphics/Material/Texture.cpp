@@ -43,6 +43,89 @@ bool Texture::Load(ID3D11Device* device, const std::wstring& filepath, bool srgb
 }
 
 // ============================================================
+// 複数の画像 → Texture2DArray（地形の貼図）
+// 1 枚ずつ WIC で読み、RGBA8 UNORM に揃え（1 枚目と大きさが違えば縮め直す）、mipmap を作ってから
+// 配列の各層へ写す。最後に配列のまま SRV（Texture2DArray）
+// ============================================================
+bool Texture::LoadArray(ID3D11Device* device, const std::vector<std::wstring>& files,
+    std::vector<DirectX::XMFLOAT4>* outAverage)
+{
+    if (!device || files.empty()) return false;
+    constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+    std::vector<DirectX::ScratchImage> layers(files.size());
+    size_t width = 0, height = 0;
+    for (size_t i = 0; i < files.size(); ++i)
+    {
+        DirectX::ScratchImage img;
+        HRESULT hr = DirectX::LoadFromWICFile(files[i].c_str(), DirectX::WIC_FLAGS_FORCE_RGB, nullptr, img);
+        if (FAILED(hr))
+        {
+            std::wcout << L"[Error] Texture array: load failed " << files[i] << std::endl;
+            return false;
+        }
+        if (img.GetMetadata().format != kFormat)
+        {
+            DirectX::ScratchImage conv;
+            hr = DirectX::Convert(img.GetImages(), img.GetImageCount(), img.GetMetadata(), kFormat,
+                DirectX::TEX_FILTER_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, conv);
+            if (FAILED(hr)) return false;
+            img = std::move(conv);
+        }
+        if (i == 0)
+        {
+            width = img.GetMetadata().width;
+            height = img.GetMetadata().height;
+        }
+        else if (img.GetMetadata().width != width || img.GetMetadata().height != height)
+        {
+            DirectX::ScratchImage sized;
+            hr = DirectX::Resize(img.GetImages(), img.GetImageCount(), img.GetMetadata(), width, height,
+                DirectX::TEX_FILTER_DEFAULT, sized);
+            if (FAILED(hr)) return false;
+            img = std::move(sized);
+        }
+        hr = DirectX::GenerateMipMaps(img.GetImages(), img.GetImageCount(), img.GetMetadata(),
+            DirectX::TEX_FILTER_DEFAULT, 0, layers[i]);
+        if (FAILED(hr)) return false;
+    }
+
+    const size_t levels = layers[0].GetMetadata().mipLevels;
+    if (outAverage)
+    {
+        // 一番小さい mip（1x1）= 層全体の平均色
+        outAverage->clear();
+        for (const DirectX::ScratchImage& l : layers)
+        {
+            const DirectX::Image* last = l.GetImage(l.GetMetadata().mipLevels - 1, 0, 0);
+            const uint8_t* px = last ? last->pixels : nullptr;
+            outAverage->push_back(px ? DirectX::XMFLOAT4(px[0] / 255.0f, px[1] / 255.0f, px[2] / 255.0f, px[3] / 255.0f)
+                                     : DirectX::XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f));
+        }
+    }
+    DirectX::ScratchImage arr;
+    if (FAILED(arr.Initialize2D(kFormat, width, height, files.size(), levels))) return false;
+    for (size_t i = 0; i < layers.size(); ++i)
+        for (size_t m = 0; m < levels; ++m)
+        {
+            const DirectX::Image* src = layers[i].GetImage(m, 0, 0);
+            const DirectX::Image* dst = arr.GetImage(m, i, 0);
+            if (!src || !dst) return false;
+            if (FAILED(DirectX::CopyRectangle(*src, DirectX::Rect(0, 0, src->width, src->height), *dst,
+                    DirectX::TEX_FILTER_DEFAULT, 0, 0)))
+                return false;
+        }
+
+    m_ShaderResourceView.Reset();
+    if (FAILED(DirectX::CreateShaderResourceView(device, arr.GetImages(), arr.GetImageCount(), arr.GetMetadata(),
+            &m_ShaderResourceView)))
+        return false;
+    m_Width = (int)width;
+    m_Height = (int)height;
+    return true;
+}
+
+// ============================================================
 // メモリ上の画像ファイルから
 // ============================================================
 bool Texture::LoadFromMemory(ID3D11Device* device, const void* data, size_t size,

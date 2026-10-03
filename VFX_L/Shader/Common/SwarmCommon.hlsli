@@ -88,6 +88,8 @@ static const uint SWARM_KIND_BOMBER = 1u; // contact lights a fuse, blows up g_B
 static const uint SWARM_KIND_ELITE = 2u;  // big mob: g_EliteScale body, g_EliteDamageMul melee, g_EliteExpMul orb
 static const uint SWARM_KIND_BOSS = 3u;   // stage boss: g_Boss*, never hit-stunned, reported in SwarmBossInfo
 static const uint SWARM_KIND_GHOST = 4u;  // final-swarm ghost: mob hp, fast, flies straight through walls and plateaus (2026-09-30)
+static const uint SWARM_KIND_SPLITTER = 5u;  // splits into 3 splitlings on death (SwarmCorpseTrackCS -> split ring -> CPU) (2026-10-03)
+static const uint SWARM_KIND_SPLITLING = 6u; // small child of a splitter, does not split again
 
 struct SwarmEnemyExtra
 {
@@ -611,13 +613,25 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_GhostAlpha; // VS: vertex alpha (drawn with alpha blend)
     float g_GhostGlow; // VS: HDR gain on the cyan tint
     float g_GhostDamageMul; // melee damage = g_ContactDamage * this
+
+    // ---- splitter (SWARM_KIND_SPLITTER) and its splitlings (2026-10-03) ----
+    float g_SplitterScale;
+    float g_SplitterDamageMul;
+    float g_SplitterExpMul;
+    float _splitterPad;
+    float g_SplitlingScale;
+    float g_SplitlingDamageMul;
+    float g_SplitlingExpMul;
+    float _splitlingPad;
 };
 
 // body size multiplier of a kind (radius and model)
 float SwarmKindScale(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteScale
-         : (kind == SWARM_KIND_BOSS) ? g_BossScale : 1.0;
+         : (kind == SWARM_KIND_BOSS) ? g_BossScale
+         : (kind == SWARM_KIND_SPLITTER) ? g_SplitterScale
+         : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingScale : 1.0;
 }
 
 // melee damage multiplier of a kind (times g_ContactDamage)
@@ -625,14 +639,18 @@ float SwarmKindDamageMul(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteDamageMul
          : (kind == SWARM_KIND_BOSS) ? g_BossDamageMul
-         : (kind == SWARM_KIND_GHOST) ? g_GhostDamageMul : 1.0;
+         : (kind == SWARM_KIND_GHOST) ? g_GhostDamageMul
+         : (kind == SWARM_KIND_SPLITTER) ? g_SplitterDamageMul
+         : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingDamageMul : 1.0;
 }
 
 // exp orb value multiplier of a kind (times g_OrbAmount)
 float SwarmKindExpMul(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteExpMul
-         : (kind == SWARM_KIND_BOSS) ? g_BossExpMul : 1.0;
+         : (kind == SWARM_KIND_BOSS) ? g_BossExpMul
+         : (kind == SWARM_KIND_SPLITTER) ? g_SplitterExpMul
+         : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingExpMul : 1.0;
 }
 
 // Body capsule of an enemy of this kind. The model is scaled about its

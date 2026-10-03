@@ -28,6 +28,18 @@ struct StageDef
     // 難度の下駄：MobSpawner の倍率 (1 + 0.12 × 分) に足す（第 2 面 +0.6 = 第 1 面の 5 分相当から始まる）
     float difficultyBonus = 0.0f;
 
+    // 新しい敵の混ざり方（2026-10-03、用户「面毎の主力 + 面の中で時間で増える」）。
+    // 湧き（新規・転送）のうちその種類の割合: start 秒までは 0、start で ratioStart、rampEnd 秒で ratioEnd（間は直線）。
+    // 今は分裂怪だけ（第 1 面の主力）。次の敵を足したら第 2・3 面の主力にする
+    struct EnemyMix
+    {
+        float start = 1.0e9f;
+        float ratioStart = 0.0f;
+        float ratioEnd = 0.0f;
+        float rampEnd = 480.0f;
+    };
+    EnemyMix splitter = { 60.0f, 0.10f, 0.25f, 480.0f };
+
     // 遺跡の松明（外周の壁に付く）に点光源を付ける数（玩家に近い順。全体の上限 64 を圧迫しないように）
     int torchLights = 12;
 };

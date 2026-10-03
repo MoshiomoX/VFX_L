@@ -13,6 +13,11 @@
 // wiping the field does not shatter everything at once.
 //
 // A slot that dies and is reused within the same frame is missed (rare).
+//
+// A dying splitter (2026-10-03) also writes its position to the split ring
+// (splitEvents: +0 total written so far, then 16 bytes x SWARM_MAX_SPLIT_EVENTS
+// of float3 position + uint kind). The CPU reads it back like the trigger ring
+// and MobSpawner spawns the splitlings. This runs even with the shatter off.
 // ============================================================
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
@@ -36,6 +41,9 @@ StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2);
 RWBuffer<uint> prevAlive : register(u0);
 RWStructuredBuffer<SwarmCorpse> corpses : register(u1);
 RWByteAddressBuffer corpseHead : register(u2);   // [0] = corpses written so far (wraps the ring)
+RWByteAddressBuffer splitEvents : register(u5);  // split ring, see above
+
+static const uint SWARM_MAX_SPLIT_EVENTS = 128u;   // Swarm::kMaxSplitEvents
 
 uint CorpseHash(uint x)
 {
@@ -57,11 +65,23 @@ void main(uint3 id : SV_DispatchThreadID)
     uint alive = (enemyStates[i] != SWARM_DEAD) ? 1u : 0u;
     uint was = prevAlive[i];
     prevAlive[i] = alive;
-    if (was == 0u || alive != 0u || g_CorpseOn == 0u)
+    if (was == 0u || alive != 0u)
         return;
 
     // ---- died since last frame ----
     SwarmEnemy e = enemies[i];
+    uint kind = enemyExtra[i].kind;
+    if (kind == SWARM_KIND_SPLITTER)
+    {
+        uint s;
+        splitEvents.InterlockedAdd(0, 1u, s);
+        uint at = 16u + (s % SWARM_MAX_SPLIT_EVENTS) * 16u;
+        splitEvents.Store3(at, asuint(e.position));
+        splitEvents.Store(at + 12u, kind);
+    }
+    if (g_CorpseOn == 0u)
+        return;
+
     uint n;
     corpseHead.InterlockedAdd(0, 1u, n);
 
@@ -73,7 +93,7 @@ void main(uint3 id : SV_DispatchThreadID)
     // away from the player (the spells come from there); right on top of the player: backwards
     c.dir = (awayLenSq > 1e-4) ? away * rsqrt(awayLenSq) : -float2(sin(e.yaw), cos(e.yaw));
     c.birth = g_CorpseTime;
-    c.kind = enemyExtra[i].kind;
+    c.kind = kind;
     c.seed = CorpseHash(i * 2654435761u ^ (n * 0x9E3779B9u));
     c.cause = 0u;
     c._pad = float2(0.0, 0.0);

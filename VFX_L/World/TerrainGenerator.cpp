@@ -11,6 +11,7 @@
 #include "Debug/TestSpawner.h"
 #include "Graphics/PrimitiveBuilder.h"
 #include "Graphics/Model/Model.h"
+#include "Graphics/Renderer/TerrainSurface.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include <algorithm>
@@ -384,7 +385,11 @@ namespace
         case Side::NegZ: v[4].y = v[5].y = low; break;
         }
 
+        // 貼図の層: 土の坂（既定の色）は自動（斜面 = 道）、草色の長い坂（高台・山頂）は地面と同じ草
+        const bool grassy = !(topColor == gRampTop);
+        batch.SetLayers(grassy ? (int)TerrainSurface::Ground : -1, -1);
         Entity e = SpawnHull(reg, batch, v, topColor, gCliff);
+        batch.SetLayers(-1, -1);
         WriteHullHeights(g, r, reg.Get<ColliderComponent>(e).hull, reg.Get<TransformComponent>(e).position);
         return e;
     }
@@ -460,6 +465,30 @@ namespace TerrainGenerator
             gRampTop = P.rampTop;
             gWallRock = P.wallRock;
             gGroundLight = P.groundLight;
+        }
+
+        // 貼図の層毎の「元の頂点色の基準の明るさ」（TerrainSurface。頂点色の明るさ / これ を貼図に薄く掛けて色斑を残す）。
+        // 地面・洞の底は色の関数を場地に 48x48 点で平均、他はその層の配色
+        float terrainRefLum[TerrainSurface::LayerCount] = {};
+        {
+            auto lum = [](const Vector4& c) { return 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z; };
+            const Palette& P = PaletteFor(cfg.biome);
+            const float half = 0.5f * gw * kCs;
+            double ground = 0.0, mine = 0.0;
+            constexpr int kN = 48;
+            for (int iz = 0; iz < kN; ++iz)
+                for (int ix = 0; ix < kN; ++ix)
+                {
+                    const float x = -half + (ix + 0.5f) * (2.0f * half / kN);
+                    const float z = -half + (iz + 0.5f) * (2.0f * half / kN);
+                    ground += lum(GroundColor(x, z, cfg.seed, cfg.biome));
+                    mine += lum(MineColor(x, z, cfg.seed, P));
+                }
+            terrainRefLum[TerrainSurface::Ground] = (float)(ground / (kN * kN));
+            terrainRefLum[TerrainSurface::Path] = lum(gRampTop);
+            terrainRefLum[TerrainSurface::Cliff] = 0.5f * (lum(gCliff) + lum(gCliffHigh));
+            terrainRefLum[TerrainSurface::CaveFloor] = (float)(mine / (kN * kN));
+            terrainRefLum[TerrainSurface::Rock] = lum(gCliffHigh);
         }
         // 遺跡は外周を岩山でなく壁にする（衝突の箱は同じ）
         const bool ruinWalls = cfg.biome == Biome::Dungeon;
@@ -972,7 +1001,9 @@ namespace TerrainGenerator
                         solidBox(lo + Vector3(0.0f, roofBottomY, 0.0f), lo + Vector3(r.w * kCs, collTop, r.d * kCs));
                         Vector3 v[8];
                         BoxVerts(v, lo + Vector3(0.0f, roofBottomY, 0.0f), lo + Vector3(r.w * kCs, roofTopY, r.d * kCs));
+                        batch.SetLayers(TerrainSurface::Rock, TerrainSurface::Rock);   // 天井は上も横も岩
                         batch.Append(v, rockTop, gCliffHigh);
+                        batch.SetLayers(-1, -1);
                     }
                 };
             roofOver(zone, kZoneMine);   // 屋根
@@ -1003,10 +1034,28 @@ namespace TerrainGenerator
                     const float k = (0.82f + 0.3f * band) * (0.9f + 0.2f * drift);
                     return Vector4(base.x * k, base.y * k, base.z * k, 1.0f);
                 };
+            // 貼図の層（TerrainSurface）: 洞の岩の壁の上 = 岩、坑の底 = 洞の底。
+            // 壁は 高い側が岩の壁 か 低い側が坑 なら岩（坑の壁を y の境目で崖と岩に分けない）、他は自動（崖）
+            auto isRing = [&](int x, int z)
+                {
+                    const int cx = std::clamp(x, 1, gw - 2), cz = std::clamp(z, 1, gd - 2);
+                    return caveRing[(size_t)cz * gw + cx] != 0;
+                };
+            auto topLayer = [&](int x, int z) -> int
+                {
+                    if (isRing(x, z)) return TerrainSurface::Rock;
+                    return (zoneAt(x, z) == kZoneMine) ? (int)TerrainSurface::CaveFloor : -1;
+                };
+            auto wallLayer = [&](int hx, int hz, int lx, int lz) -> int
+                {
+                    return (isRing(hx, hz) || zoneAt(lx, lz) == kZoneMine) ? (int)TerrainSurface::Rock : -1;
+                };
             Entity e = reg.Create();
             reg.Add<TransformComponent>(e, TransformComponent{});
             ModelComponent mc;
-            mc.model = PrimitiveBuilder::CreateSteppedGrid(device, gw, gd, kCs, levelAt, topColor, wallColor, 2.0f);
+            mc.model = PrimitiveBuilder::CreateSteppedGrid(device, gw, gd, kCs, levelAt, topColor, wallColor, 2.0f,
+                topLayer, wallLayer);
+            if (mc.model) TerrainSurface::Get().Apply(device, *mc.model, (int)cfg.biome, terrainRefLum);
             reg.Add<ModelComponent>(e, mc);
             outTerrain.push_back(e);
         }
@@ -1185,6 +1234,7 @@ namespace TerrainGenerator
         // 1 個ずつだと DrawMesh が数十回（影の 3 段でその 3 倍）。頂点は世界座標なので実体は原点
         if (auto model = batch.Build(device))
         {
+            TerrainSurface::Get().Apply(device, *model, (int)cfg.biome, terrainRefLum);
             Entity e = reg.Create();
             reg.Add<TransformComponent>(e, TransformComponent{});
             ModelComponent mc;
