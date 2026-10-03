@@ -51,6 +51,7 @@
 #include "Enemy/EliteSpawner.h"
 #include "Enemy/MobSpawner.h"
 #include "Enemy/StageDirector.h"
+#include "Enemy/BossAttacks.h"
 #include "Graphics/Light/SceneLighting.h"
 #include "Graphics/Light/ShadowMap.h"
 #include "Debug/StressTestTools.h"
@@ -79,6 +80,7 @@ private:
     void UpdateGameplay(float dt);
     float TrackPlayerHpLoss();       // このフレームに減った HP（最初のフレームは 0）
     void UpdateHudMarkers();         // 画面外の目印（報酬の箱 = 黄、精英 = 赤）
+    void UpdateBossAttacks(float dt, const DirectX::SimpleMath::Vector3& player);   // Boss の重撃：輪・爆発・当たり
     bool IsPlayerDead();
     const Vector3* PlayerPos();      // 玩家の位置（居なければ null）。部品へ渡す用
     void RespawnCrates();            // 報酬の箱を玩家の周りへ並べ直す（開局・地形の作り直し・面板）
@@ -218,6 +220,15 @@ private:
     // 面の曲 → 最終波 → Boss → クリアの切り替えを記録
     bool     m_AutoMusic = false;
     void     UpdateAutoTestMusic();
+    // VFXL_BATTLE_AUTOTEST=split：分裂怪を正面に出して倒し、分裂体が出るか・種類毎の数・湧きの割合
+    bool     m_AutoSplit = false;
+    void     UpdateAutoTestSplit();
+    // VFXL_BATTLE_AUTOTEST=bossslam：Boss を呼び、立ち止まる（当たる）/ 円を走る（外れる）で重撃の輪を試す
+    bool     m_AutoBossSlam = false;
+    void     UpdateAutoTestBossSlam(float dt);
+    // VFXL_BATTLE_AUTOTEST=ground：地面の貼図（2026-10-03）を平原・高い所から・山頂の崖・坂・鉱洞の底・洞口で撮る
+    bool     m_AutoGround = false;
+    void     UpdateAutoTestGround();
     bool     m_AutoAssets = false;
     void     UpdateAutoTestAssets();
     std::vector<Entity> m_AutoAssetEntities;
@@ -271,6 +282,8 @@ private:
     EliteSpawner            m_Elites;              // 精英の的（CPU）
     MobSpawner              m_Mobs;                // 雑魚の湧き（GPU へ依頼）
     StageDirector           m_Stage;               // 1 面の進行（制限時間・精英の時間表）
+    BossAttacks             m_BossAttacks;         // Boss の技（重撃の警告の輪。2026-10-03）
+    uint32_t                m_BossSlamHits = 0;    // 自測の記録用：重撃が玩家に当たった数
     StressTestTools         m_Stress;              // 負荷テスト・Mesh 発射の確認
 
     // --- GPU 側 gameplay（雑魚・投射物・オーブ）---

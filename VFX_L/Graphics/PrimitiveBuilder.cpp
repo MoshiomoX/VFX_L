@@ -126,8 +126,6 @@ namespace PrimitiveBuilder
             { 3, 0, 1, 2 },   // -Y
             { 4, 7, 6, 5 },   // +Y
         };
-        static const Vector2 uvs[4] = { { 0, 1 }, { 0, 0 }, { 1, 0 }, { 1, 1 } };
-
         for (int f = 0; f < 6; ++f)
         {
             const Vector3& a = v[faces[f][0]];
@@ -138,10 +136,13 @@ namespace PrimitiveBuilder
             if (n.Dot(a - centroid) < 0.0f) n = -n;   // 外向きに揃える
 
             // 上を向いた面（坂の上面も）だけ top の色
-            const Vector4& color = (n.y > 0.5f) ? topColor : sideColor;
+            const bool up = n.y > 0.5f;
+            const Vector4& color = up ? topColor : sideColor;
+            // uv.x = 地形の貼図の層 + 1（0 = 自動。TerrainSurface）。地形以外（磁石）は既定の白い貼図なので uv を使わない
+            const Vector2 layerUv((float)((up ? m_TopLayer : m_SideLayer) + 1), 0.0f);
             unsigned int base = (unsigned int)verts.size();
             for (int k = 0; k < 4; ++k)
-                verts.push_back(MakeVertex(v[faces[f][k]], n, uvs[k], color));
+                verts.push_back(MakeVertex(v[faces[f][k]], n, layerUv, color));
 
             indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 1);
             indices.push_back(base + 0); indices.push_back(base + 3); indices.push_back(base + 2);
@@ -205,7 +206,9 @@ namespace PrimitiveBuilder
         const std::function<float(int gx, int gz)>& levelAt,
         const std::function<Vector4(float x, float z, float level)>& topColorAt,
         const std::function<Vector4(float x, float y, float z)>& wallColorAt,
-        float bandHeight)
+        float bandHeight,
+        const std::function<int(int gx, int gz)>& topLayerAt,
+        const std::function<int(int hiGx, int hiGz, int loGx, int loGz)>& wallLayerAt)
     {
         cellsX = (std::max)(cellsX, 1);
         cellsZ = (std::max)(cellsZ, 1);
@@ -224,19 +227,21 @@ namespace PrimitiveBuilder
         indices.reserve((size_t)cellsX * cellsZ * 6 + 4096);
 
         // ---- 上面 ----
+        // 頂点は (節点, 高さ, 層) で共有（層の違うマスの境は別の頂点 = 貼図の層が混ざらない）。uv = (層 + 1, 0)
         std::unordered_map<uint64_t, unsigned int> topVert;
         topVert.reserve((size_t)(cellsX + 1) * (cellsZ + 1));
-        auto nodeVert = [&](int ix, int iz, float y) -> unsigned int
+        auto nodeVert = [&](int ix, int iz, float y, int layerCode) -> unsigned int
             {
                 uint32_t bits = 0;
                 std::memcpy(&bits, &y, sizeof(bits));
-                const uint64_t key = ((uint64_t)(iz * (cellsX + 1) + ix) << 32) | bits;
+                const uint64_t key = ((uint64_t)(layerCode & 0xF) << 60)
+                    | ((uint64_t)(iz * (cellsX + 1) + ix) << 32) | bits;
                 auto it = topVert.find(key);
                 if (it != topVert.end()) return it->second;
                 const float x = x0 + ix * cellSize, z = z0 + iz * cellSize;
                 const Vector4 c = topColorAt ? topColorAt(x, z, y) : Vector4(1, 1, 1, 1);
                 const unsigned int idx = (unsigned int)verts.size();
-                verts.push_back(MakeVertex({ x, y, z }, { 0, 1, 0 }, { x * 0.5f, -z * 0.5f }, c));
+                verts.push_back(MakeVertex({ x, y, z }, { 0, 1, 0 }, { (float)layerCode, 0.0f }, c));
                 topVert.emplace(key, idx);
                 return idx;
             };
@@ -244,21 +249,23 @@ namespace PrimitiveBuilder
             for (int gx = 0; gx < cellsX; ++gx)
             {
                 const float y = level[(size_t)gz * cellsX + gx];
-                const unsigned int a = nodeVert(gx, gz, y);           // (-x,-z)
-                const unsigned int b = nodeVert(gx, gz + 1, y);       // (-x,+z)
-                const unsigned int c = nodeVert(gx + 1, gz + 1, y);   // (+x,+z)
-                const unsigned int d = nodeVert(gx + 1, gz, y);       // (+x,-z)
+                const int code = (topLayerAt ? topLayerAt(gx, gz) : -1) + 1;
+                const unsigned int a = nodeVert(gx, gz, y, code);           // (-x,-z)
+                const unsigned int b = nodeVert(gx, gz + 1, y, code);       // (-x,+z)
+                const unsigned int c = nodeVert(gx + 1, gz + 1, y, code);   // (+x,+z)
+                const unsigned int d = nodeVert(gx + 1, gz, y, code);       // (+x,-z)
                 indices.push_back(a); indices.push_back(c); indices.push_back(b);
                 indices.push_back(a); indices.push_back(d); indices.push_back(c);
             }
 
         // ---- 壁 ----
         // 境の辺 p0-p1（y は無視）に lo..hi の壁。n = 高い側から低い側へ
-        auto wall = [&](Vector3 p0, Vector3 p1, float lo, float hi, const Vector3& n)
+        auto wall = [&](Vector3 p0, Vector3 p1, float lo, float hi, const Vector3& n, int layerCode)
             {
                 const Vector3 left = Vector3(0, 1, 0).Cross(n);
                 if ((p1 - p0).Dot(left) > 0.0f) std::swap(p0, p1);   // p0 = 左
                 const int bands = (std::max)(1, (int)std::ceil((hi - lo) / bandHeight - 0.01f));
+                const Vector2 uv((float)layerCode, 0.0f);
                 for (int k = 0; k < bands; ++k)
                 {
                     const float yb = lo + (hi - lo) * k / bands;
@@ -266,14 +273,16 @@ namespace PrimitiveBuilder
                     const Vector3 mid = (p0 + p1) * 0.5f;
                     const Vector4 c = wallColorAt ? wallColorAt(mid.x, (yb + yt) * 0.5f, mid.z) : Vector4(1, 1, 1, 1);
                     const unsigned int base = (unsigned int)verts.size();
-                    verts.push_back(MakeVertex({ p0.x, yb, p0.z }, n, { 0, 1 }, c));
-                    verts.push_back(MakeVertex({ p0.x, yt, p0.z }, n, { 0, 0 }, c));
-                    verts.push_back(MakeVertex({ p1.x, yt, p1.z }, n, { 1, 0 }, c));
-                    verts.push_back(MakeVertex({ p1.x, yb, p1.z }, n, { 1, 1 }, c));
+                    verts.push_back(MakeVertex({ p0.x, yb, p0.z }, n, uv, c));
+                    verts.push_back(MakeVertex({ p0.x, yt, p0.z }, n, uv, c));
+                    verts.push_back(MakeVertex({ p1.x, yt, p1.z }, n, uv, c));
+                    verts.push_back(MakeVertex({ p1.x, yb, p1.z }, n, uv, c));
                     indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 1);
                     indices.push_back(base + 0); indices.push_back(base + 3); indices.push_back(base + 2);
                 }
             };
+        // 壁の層: 高い側・低い側のマスから（無ければ自動 = 0）
+        auto wallCode = [&](int hx, int hz, int lx, int lz) { return (wallLayerAt ? wallLayerAt(hx, hz, lx, lz) : -1) + 1; };
         for (int gz = 0; gz < cellsZ; ++gz)
             for (int gx = 0; gx < cellsX; ++gx)
             {
@@ -283,16 +292,16 @@ namespace PrimitiveBuilder
                     const float lb = level[(size_t)gz * cellsX + gx + 1];
                     const float x = x0 + (gx + 1) * cellSize;
                     const Vector3 p0(x, 0, z0 + gz * cellSize), p1(x, 0, z0 + (gz + 1) * cellSize);
-                    if (la > lb)      wall(p0, p1, lb, la, { 1, 0, 0 });
-                    else if (lb > la) wall(p0, p1, la, lb, { -1, 0, 0 });
+                    if (la > lb)      wall(p0, p1, lb, la, { 1, 0, 0 }, wallCode(gx, gz, gx + 1, gz));
+                    else if (lb > la) wall(p0, p1, la, lb, { -1, 0, 0 }, wallCode(gx + 1, gz, gx, gz));
                 }
                 if (gz + 1 < cellsZ)   // +z の隣との境（z 一定）
                 {
                     const float lb = level[(size_t)(gz + 1) * cellsX + gx];
                     const float z = z0 + (gz + 1) * cellSize;
                     const Vector3 p0(x0 + gx * cellSize, 0, z), p1(x0 + (gx + 1) * cellSize, 0, z);
-                    if (la > lb)      wall(p0, p1, lb, la, { 0, 0, 1 });
-                    else if (lb > la) wall(p0, p1, la, lb, { 0, 0, -1 });
+                    if (la > lb)      wall(p0, p1, lb, la, { 0, 0, 1 }, wallCode(gx, gz, gx, gz + 1));
+                    else if (lb > la) wall(p0, p1, la, lb, { 0, 0, -1 }, wallCode(gx, gz + 1, gx, gz));
                 }
             }
 

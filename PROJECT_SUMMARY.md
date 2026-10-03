@@ -156,6 +156,8 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 - 10-03：镜头震动修正（用户：特效拉满时画面一直震）：以前命中火花和死亡土烟也算「范围出现」并且累加，trauma 顶满；现在只有爆炸 / 光线（范围 json `cameraShake`）会震，且改成「至少抬到」不再累加
 - 10-03：**加声音**（用户选 miniaudio、音效 + BGM、CC0 素材）：`Audio/AudioSystem`（cue 数据驱动 `Sounds.json`、节流、BGM 交叉淡入淡出、4 组音量）+ `Audio/BattleAudio`（GPU 命中 / 爆炸 / 击杀按特效配方计数后播放、玩家动作、BGM 选曲）+ 各处 UI 音效；素材 Kenney / rubberduck / lentikula / NIIIEMAND + OpenGameArt 6 首 BGM，全 CC0，约 33MB；具体用哪个文件待用户试听
 - 10-03：声音第 2 / 3 版：BGM 先换成激烈的战斗曲，用户听后改为「关卡 = 自然环境的主题曲，Boss 出场更激昂」→ 关卡回到 Grasslands / Negev Desert / Ruined City，最終波 Flags，Boss 换金属的 Boss Battle Theme + 咆哮 + 低频冲击音 + 0.05 秒硬切；UI 音换成木头 / 书 / 皮革的材质声；11 首曲子重编码成无缝循环（`loopStart`）；出口加限幅器（乱战混音峰值 1.55 → 输出 ≤1.0，以前 72% 的帧爆音）；新自测 `music`（不静音：逐曲 / 循环接缝 / 逐 cue / 乱战 / 切歌，WASAPI 会话电平表测实际输出）
+- 10-03：敌人第一批（用户从 4 种里选）：**分裂怪**（黄色假人，HP 30，死后分成 3 只小分裂体；GPU 尸体追踪写分裂环 → CPU 回读后生成；每关主力 + 按时间增加，第 1 面 1:00 起 10% → 8:00 25%）+ **Boss 重击预警圈**（`Enemy/BossAttacks`：每 6 秒（半血后 4 秒）在玩家脚下连放 3 个红圈，1.2 秒后炸，跑动 / 跳起可躲；圈 = 贴地网格的 `SwarmWarnRingVS`，爆炸 = 场景里的 KayKit 石头从地里拱出）。自测 `split` / `bossslam`
+- 10-03：**地面贴图**（用户：地面是纯色）：3dtextures.me 的风格化贴图 7 套（CC0），`TerrainSurface` + `TerrainPS`：5 层（地面 / 道路 / 崖 / 洞底 / 岩）按法线、高度或顶点指定选层，三向投影 + 法线贴图，亮度对齐原配色、保留原色斑明暗；三关各一组（草原草地 / 砂漠沙 / 遺跡石板，洞底裂石共用）。自测 `ground`
 - 外围岩壁的外观换成岩山：KayKit 大岩石放大堆 3 排（8〜34m，约 400 块，实例化），碰撞仍是原来的箱子；自测 `edge`
 - 追加：升级 4 选 1 + 能力卡权重 0.35；新卡「魔力回復 +20%」「跳躍回数 +1」（空中每次 ×0.75：12 → 9 → 6.75）；开局法术改成追踪弹（火球太强）；场上磁铁（`ECS/System/PickupSystem`，碰到吸全图经验球）；自测 `pickup`
 
@@ -166,7 +168,7 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 | 系统 | 状态 | 备注 |
 |---|---|---|
 | GPU 雑魚（AI、积分、推挤、流场） | 完成 | 空间哈希 + 3x3 分离；流场 `FlowField` 绕坡道 |
-| 雑魚种类 | 自爆兵、精英、Boss（9-29） | 种类在并行 buffer，`Enemy` 布局未动；精英 / Boss 是放大染色的雑魚，Boss 没有专属攻击 |
+| 雑魚种类 | 自爆兵、精英、Boss（9-29）、幽灵（9-30）、分裂怪 + 分裂体（10-03） | 种类在并行 buffer，`Enemy` 布局未动；精英 / Boss 是放大染色的雑魚；Boss 有一招重击预警圈（10-03，CPU 控制）；远程 / 冲锋 / 盾兵是候选，未做 |
 | 关卡流程 | 10 分钟 + 精英 + 最終波 + Boss 门（9-29） | `Enemy/StageDirector`；数值照 Megabonk，缺的自定。9-30 起三关（草原 → 砂漠 → 遺跡，`World/StageConfig`），打倒 Boss 后保留背包进下一关 |
 | GPU 投射物 | 4 种弹道（直线 / 曲线 / 追尾 / 陨石） | profile json = 弹本身，Item = 怎么放 |
 | 范围攻击 | 完成 | 火球爆炸、陨石爆炸、命中特效范围（伤害 0） |
@@ -175,7 +177,7 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 | 玩家 | 移动 / 跳 / 滑铲 / 自动施法 / 魔力解放（Q） | Quaternius 游侠模型；Walk / Jog / Sprint，身体转向移动方向（9-29） |
 | 背包 | 9x9，形状编辑器 | 道具 18 种：6 弹（9-30 加黄金の矢、石弾；陨石是高级魔法，要火球 + 石弾驱动）+ 1 范围型（魔導光線，高级，追踪弾 + 弧驱动）、2 符文 + 拡大鏡 + 加速のルーン（9-30）、扩张枠、6 能力卡（9-29 加魔力回復、跳躍回数）；升级 4 选 1 |
 | 升级 / 报酬箱 | 完成 | 三选一共用 |
-| 地形 | 随机野原 × 3 种外观，200m 三层 | 10-02 起：中间平原 + 对角的 +16m 山顶 / −10m 矿洞（10-03 加了岩石洞顶，入口是下行坡；一度 300m，10-03 改回 200m）；台地、坡道、高台三关共用；草原 = 森林 + 草地 + 岩山，砂漠 = 棕榈 / 枯树 / 仙人掌 + 岩山，遺跡 = 遗迹墙 + 石柱 + 火把 + 夜（9-30）；关卡编辑器的关卡未接入 |
+| 地形 | 随机野原 × 3 种外观，200m 三层 | 10-02 起：中间平原 + 对角的 +16m 山顶 / −10m 矿洞（10-03 加了岩石洞顶，入口是下行坡；一度 300m，10-03 改回 200m）；台地、坡道、高台三关共用；草原 = 森林 + 草地 + 岩山，砂漠 = 棕榈 / 枯树 / 仙人掌 + 岩山，遺跡 = 遗迹墙 + 石柱 + 火把 + 夜（9-30）；10-03 起地面 / 崖 / 洞有风格化贴图（`TerrainSurface`）；关卡编辑器的关卡未接入 |
 | 光照 / 影子 / 雾 / 天空 | 完成 | 级联影子 + 脚底圆影；sRGB 解码 |
 | UI | 幻想风格 | 结算画面、「[F] Open」、「力尽きた」幕未换 |
 | 特效编辑器 | Particle / Trail / Sprite / Mesh / Light 条目 | GPU 弹道读全部粒子层 |
@@ -200,6 +202,7 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 | PVFX Foundry 序列帧 | CC0 | Sprite entry |
 | Kenney 音效 6 包 / rubberduck / lentikula / NIIIEMAND | CC0 | 音效（`Assets/Audio/SFX/`，各文件夹 SOURCE.txt） |
 | OpenGameArt BGM 21 首（nene / Juhani Junkala / Dizzy Crow / Cleyton Kauffman / Emma_MA / Alexander Ehlers / cynicmusic；11 首为无缝循环重编码过） | CC0 | BGM（`Assets/Audio/Music/SOURCE.txt`） |
+| 3dtextures.me 风格化贴图 7 套（Joao Paulo） | CC0 | 地面 / 崖 / 洞的贴图（`Assets/Texture/Terrain/SOURCE.txt`） |
 | miniaudio + stb_vorbis | 公有领域 / MIT-0 | 音频库（`ThirdParty/miniaudio/`） |
 | UI 线稿原图 | CC0 / 公有领域 | `Assets/Texture/UI/Deco/`（出处见同目录 README） |
 | Yuji Syuku 字体 | OFL | UI 文字 |

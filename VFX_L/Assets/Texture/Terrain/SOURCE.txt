@@ -1,0 +1,14 @@
+Terrain textures (added 2026-10-03). All from 3dtextures.me by Joao Paulo, CC0 1.0 (https://3dtextures.me/about/ :
+"All textures on this site are licensed as CC0 ... you can redistribute them"). Attribution not required.
+
+File prefix      Source texture             Page
+Grass002         Stylized Grass 002         https://3dtextures.me/2020/07/28/stylized-grass-002/
+Ground002        Stylized Ground 002        https://3dtextures.me/2024/06/07/stylized-ground-002/
+Sand001          Stylized Sand 001          https://3dtextures.me/2020/06/25/stylized-sand-001/
+CliffRock005     Stylized Cliff Rock 005    https://3dtextures.me/2024/08/21/stylized-cliff-rock-005/
+CliffRock006     Stylized Cliff Rock 006    https://3dtextures.me/2024/11/28/stylized-cliff-rock-006/
+StoneFloor007    Stylized Stone Floor 007   https://3dtextures.me/2024/09/03/stylized-stone-floor-007/
+StoneFloor010    Stylized Stone Floor 010   https://3dtextures.me/2024/10/28/stylized-stone-floor-010/
+
+Processing (ffmpeg): <name>_albedo.jpg = basecolor x (0.45 + 0.55 x ambientOcclusion) (CliffRock006 has no AO map: basecolor only),
+<name>_normal.jpg = the normal map as is. Both 1024 x 1024, JPEG quality 2 (4:4:4). Height / roughness maps were not used.

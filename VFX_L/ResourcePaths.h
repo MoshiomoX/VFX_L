@@ -344,6 +344,9 @@ namespace Res
         // 雑魚のメッシュに貼り替えるだけで良い
         inline constexpr const wchar_t* Kenney_BlockyRobotAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-g.png";
+        // 分裂怪・分裂体（Kenney Blocky の D、黄色い衝突試験人形。2026-10-03）
+        inline constexpr const wchar_t* Kenney_BlockyDummyAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-d.png";
 
         // 粒子
         inline constexpr const wchar_t* ParticleSheet =

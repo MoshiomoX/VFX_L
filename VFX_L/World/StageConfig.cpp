@@ -46,6 +46,7 @@ namespace
         s.grassHeightMin = 0.12f;
         s.grassHeightMax = 0.26f;
         s.difficultyBonus = 0.6f;
+        s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };   // 分裂怪は第 1 面の主力。ここは少し混ざるだけ
         return s;
     }
 
@@ -73,6 +74,7 @@ namespace
         s.light.fogMax = 0.92f;
         s.grass = false;
         s.difficultyBonus = 1.2f;
+        s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };
         s.torchLights = 12;
         return s;
     }

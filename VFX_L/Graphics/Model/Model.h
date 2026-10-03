@@ -81,6 +81,13 @@ public:
     {
         m_Materials.push_back(mat);
     }
+
+    // 全部の submesh を 1 つのマテリアルで描く（地形の貼図。2026-10-03）
+    void SetSingleMaterial(std::shared_ptr<Material> mat)
+    {
+        m_Materials.assign(1, mat);
+        for (SubMesh& s : m_SubMeshes) s.materialIndex = 0;
+    }
 private:
     std::vector<SubMesh> m_SubMeshes;
     std::vector<std::shared_ptr<Material>> m_Materials;

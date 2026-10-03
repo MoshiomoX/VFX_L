@@ -365,6 +365,43 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_TriggerRead = 0;
         m_TriggerEvents.clear();
     }
+    {
+        // 分裂の環（先頭 16B = 総数 + 16B × kMaxSplitEvents。2026-10-03）と、その回読
+        const UINT bytes = 16u + sizeof(Swarm::SplitEvent) * Swarm::kMaxSplitEvents;
+        if (!makeRaw(bytes, m_SplitBuffer, m_SplitUAV, "split")) return false;
+        const UINT zero[4] = { 0, 0, 0, 0 };
+        m_Context->ClearUnorderedAccessViewUint(m_SplitUAV.Get(), zero);
+
+        D3D11_BUFFER_DESC sd = {};
+        sd.ByteWidth = bytes;
+        sd.Usage = D3D11_USAGE_STAGING;
+        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        for (int i = 0; i < kTriggerStaging; ++i)
+        {
+            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_SplitStaging[i]))) return false;
+            m_SplitStagingFilled[i] = false;
+        }
+        m_SplitStagingWrite = 0;
+        m_SplitRead = 0;
+        m_SplitEvents.clear();
+    }
+    {
+        // 地面の警告の輪（CPU が毎フレーム書く。動的の StructuredBuffer）
+        D3D11_BUFFER_DESC bd = {};
+        bd.ByteWidth = sizeof(WarnCircle) * kMaxWarnCircles;
+        bd.Usage = D3D11_USAGE_DYNAMIC;
+        bd.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+        bd.StructureByteStride = sizeof(WarnCircle);
+        if (FAILED(device->CreateBuffer(&bd, nullptr, &m_WarnCircleBuffer))) return false;
+        D3D11_SHADER_RESOURCE_VIEW_DESC sv = {};
+        sv.Format = DXGI_FORMAT_UNKNOWN;
+        sv.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+        sv.Buffer.NumElements = kMaxWarnCircles;
+        if (FAILED(device->CreateShaderResourceView(m_WarnCircleBuffer.Get(), &sv, &m_WarnCircleSRV))) return false;
+        m_WarnCircleCount = 0;
+    }
     // ---- 定数バッファ ----
     // ※ComputeShader::WriteBuffer が反射から自前の CB を持つ場合は未使用。
     //   将来 VS 側で直接使うことを想定して残しておく
@@ -917,6 +954,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     ReadAreaBirths();
     ReadBeamTargets();
     ReadTriggerEvents();
+    ReadSplitEvents();
     if (m_MagnetTimer > 0.0f) m_MagnetTimer -= dt;
 
     // ---- 2) 定数と生成依頼を上げる ----
@@ -1633,6 +1671,7 @@ void SwarmSystem::DispatchCorpses()
     m_CorpseTrackCS->SetUAV(m_Context, "corpseHead", m_CorpseHeadUAV.Get());
     m_CorpseTrackCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
     m_CorpseTrackCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
+    m_CorpseTrackCS->SetUAV(m_Context, "splitEvents", m_SplitUAV.Get());   // 分裂怪が死んだ所（2026-10-03）
     m_CorpseTrackCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
     m_CorpseTrackCS->UnbindSRVs(m_Context);
@@ -1646,6 +1685,7 @@ void SwarmSystem::DispatchCorpses()
     m_CorpseListCS->SetUAV(m_Context, "mobCorpses", m_CorpseListUAV[Swarm::kDrawListMob].Get(), 0);
     m_CorpseListCS->SetUAV(m_Context, "bomberCorpses", m_CorpseListUAV[Swarm::kDrawListBomber].Get(), 0);
     m_CorpseListCS->SetUAV(m_Context, "ghostCorpses", m_CorpseListUAV[Swarm::kDrawListGhost].Get(), 0);
+    m_CorpseListCS->SetUAV(m_Context, "splitterCorpses", m_CorpseListUAV[Swarm::kDrawListSplitter].Get(), 0);
     m_CorpseListCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxCorpses + 63) / 64, 1, 1);
     m_CorpseListCS->UnbindSRVs(m_Context);
@@ -1704,8 +1744,10 @@ void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
             const float bf[4] = { 0, 0, 0, 0 };
             m_Context->OMSetBlendState(RenderStates::Get().AlphaBlend(), bf, 0xFFFFFFFF);
         }
-        else if (k == Swarm::kDrawListBomber && m_BomberAlbedo)
-            m_EnemyPS->SetTexture(m_Context, 0, m_BomberAlbedo.get());
+        else if (Texture* albedo = ListAlbedo(k))
+            m_EnemyPS->SetTexture(m_Context, 0, albedo);
+        else if (k != Swarm::kDrawListMob)
+            bindVS();   // 自分の貼図が無い種類は雑魚の貼図に戻す
         m_CorpseVS->SetSRV(m_Context, "corpseList", m_CorpseListSRV[k].Get());
 
         for (size_t i = 0; i < subs.size() && i < m_CorpseDrawArgs[k].size(); ++i)
@@ -1827,6 +1869,13 @@ void SwarmSystem::RequestReadback()
         m_TriggerStagingFilled[m_TriggerStagingWrite] = true;
         m_TriggerStagingWrite = (m_TriggerStagingWrite + 1) % kTriggerStaging;
     }
+    // 分裂の環も
+    if (m_SplitBuffer)
+    {
+        m_Context->CopyResource(m_SplitStaging[m_SplitStagingWrite].Get(), m_SplitBuffer.Get());
+        m_SplitStagingFilled[m_SplitStagingWrite] = true;
+        m_SplitStagingWrite = (m_SplitStagingWrite + 1) % kTriggerStaging;
+    }
 }
 
 // ============================================================
@@ -1858,6 +1907,50 @@ void SwarmSystem::ReadTriggerEvents()
     // 誰も取り出さない（杖が無い場面）でも溜まり続けないように
     if (m_TriggerEvents.size() > Swarm::kMaxTriggerEvents)
         m_TriggerEvents.erase(m_TriggerEvents.begin(), m_TriggerEvents.end() - Swarm::kMaxTriggerEvents);
+}
+
+// ============================================================
+// 分裂の環を読む（誘発の環と同じ作り。一番古い staging、待たない）
+// ============================================================
+void SwarmSystem::ReadSplitEvents()
+{
+    const int readIndex = m_SplitStagingWrite;   // 次に書く = 一番古い
+    if (!m_SplitStagingFilled[readIndex] || !m_SplitStaging[readIndex]) return;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    const HRESULT hr = m_Context->Map(m_SplitStaging[readIndex].Get(), 0,
+        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
+    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
+
+    const auto* bytes = static_cast<const uint8_t*>(mapped.pData);
+    const uint32_t total = *reinterpret_cast<const uint32_t*>(bytes);
+    const auto* ring = reinterpret_cast<const Swarm::SplitEvent*>(bytes + 16);
+
+    uint32_t from = m_SplitRead;
+    if (total - from > Swarm::kMaxSplitEvents) from = total - Swarm::kMaxSplitEvents;   // 溢れた分は捨てる
+    for (uint32_t n = from; n != total; ++n)
+        m_SplitEvents.push_back(ring[n % Swarm::kMaxSplitEvents]);
+    m_SplitRead = total;
+
+    m_Context->Unmap(m_SplitStaging[readIndex].Get(), 0);
+
+    if (m_SplitEvents.size() > Swarm::kMaxSplitEvents)
+        m_SplitEvents.erase(m_SplitEvents.begin(), m_SplitEvents.end() - Swarm::kMaxSplitEvents);
+}
+
+// ============================================================
+// 地面の警告の輪（CPU から毎フレーム）
+// ============================================================
+void SwarmSystem::SetWarnCircles(const WarnCircle* circles, int count)
+{
+    m_WarnCircleCount = 0;
+    if (!m_WarnCircleBuffer || count <= 0) return;
+    count = (std::min)(count, kMaxWarnCircles);
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    if (FAILED(m_Context->Map(m_WarnCircleBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
+    memcpy(mapped.pData, circles, sizeof(WarnCircle) * count);
+    m_Context->Unmap(m_WarnCircleBuffer.Get(), 0);
+    m_WarnCircleCount = count;
 }
 
 // ============================================================
@@ -2069,6 +2162,7 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
         m_EnemyCompactCS->SetUAV(m_Context, "mobList", m_KindListUAV[Swarm::kDrawListMob].Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "bomberList", m_KindListUAV[Swarm::kDrawListBomber].Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "ghostList", m_KindListUAV[Swarm::kDrawListGhost].Get(), 0);
+        m_EnemyCompactCS->SetUAV(m_Context, "splitterList", m_KindListUAV[Swarm::kDrawListSplitter].Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "bossInfo", m_BossInfoUAV.Get());
         m_EnemyCompactCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -2136,8 +2230,13 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
     for (uint32_t k = 0; indirect && k < Swarm::kEnemyKinds; ++k)
     {
         m_EnemyVS->SetSRV(m_Context, "aliveList", m_KindListSRV[k].Get());
-        if (k == Swarm::kDrawListBomber && m_BomberAlbedo)
-            m_EnemyPS->SetTexture(m_Context, 0, m_BomberAlbedo.get());
+        if (Texture* albedo = ListAlbedo(k))
+            m_EnemyPS->SetTexture(m_Context, 0, albedo);
+        else if (k != Swarm::kDrawListMob && k != Swarm::kDrawListGhost)
+        {
+            m_EnemyMaterial->Bind(m_Context);   // 自分の貼図が無い種類は雑魚の貼図に戻す
+            m_Context->PSSetSamplers(0, 1, &samp);
+        }
         if (k == Swarm::kDrawListGhost)
         {
             // 幽霊：雑魚の貼図に戻し、alpha blend（乗算済み: 色はそのまま足され、alpha 分だけ後ろが消える = 光る半透明）。
@@ -2213,8 +2312,50 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
     if (indirect)
         RenderBomberRings(camera);
     RenderDropRings(camera);
+    RenderWarnRings(camera);
     if (indirect)
         RenderHpBars(camera);
+}
+
+// ============================================================
+// CPU が置いた地面の警告の輪（Boss の重撃）。輪 1 つ = 地面に載せた 8x8 の格子 1 枚（頂点バッファ無し）
+// ============================================================
+void SwarmSystem::RenderWarnRings(CameraBase* camera)
+{
+    if (!warnRing.enabled || m_WarnCircleCount <= 0 || !m_WarnRingVS || !m_BomberRingPS || !m_HeightSRV) return;
+
+    BomberRingCB cb;
+    cb.view = camera->GetViewMatrix();
+    cb.proj = camera->GetProjectionMatrix();
+    cb.fill = warnRing.fill;
+    cb.edge = warnRing.edge;
+    cb.back = warnRing.back;
+    cb.edgeWidth = warnRing.edgeWidth;
+    cb.lift = warnRing.lift;
+    cb._pad[0] = cb._pad[1] = 0.0f;
+    m_WarnRingVS->WriteBuffer(m_Context, 0, &cb);
+    m_BomberRingPS->WriteBuffer(m_Context, 0, &cb);
+    m_WarnRingVS->WriteBuffer(m_Context, 1, &m_CachedFrameCB);   // b1: 格子（高さ場を引く）
+    m_WarnRingVS->SetSRV(m_Context, "circles", m_WarnCircleSRV.Get());
+    m_WarnRingVS->SetSRV(m_Context, "heights", m_HeightSRV.Get());
+
+    m_WarnRingVS->Bind(m_Context);
+    m_BomberRingPS->Bind(m_Context);
+    m_Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_Context->IASetInputLayout(nullptr);
+    m_Context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
+
+    auto& rs = RenderStates::Get();
+    const float blendFactor[4] = { 0, 0, 0, 0 };
+    m_Context->OMSetBlendState(rs.AlphaBlend(), blendFactor, 0xFFFFFFFF);
+    m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);
+    m_Context->RSSetState(rs.CullNone());
+
+    constexpr UINT kGrid = 8;   // SwarmWarnRingVS の WARN_GRID
+    m_Context->DrawInstanced(kGrid * kGrid * 6, (UINT)m_WarnCircleCount, 0, 0);
+
+    m_WarnRingVS->UnbindSRVs(m_Context);   // 高さ場は Compute が書くので外す
+    rs.Restore(m_Context);
 }
 
 // ============================================================
@@ -2547,6 +2688,12 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     std::cout << "[SwarmSystem] DropRingVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_DropRingVS.reset();
 
+    // ---- 地面の警告の輪（Boss の重撃。PS は自爆兵の輪と共用）----
+    m_WarnRingVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_WarnRingVS.get(), device, L"Shader/Swarm/SwarmWarnRingVS.hlsl");
+    std::cout << "[SwarmSystem] WarnRingVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_WarnRingVS.reset();
+
     // ---- 範囲の連番絵（失敗しても出ないだけ）----
     m_SpriteVS = std::make_shared<VertexShader>();
     hr = ShaderPath::Load(m_SpriteVS.get(), device, L"Shader/Swarm/SwarmSpriteVS.hlsl");
@@ -2761,6 +2908,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         float          targetHeight;  // m。0 = ファイルの寸法 × kEnemyModelScale のまま
         const char*    label;
         const wchar_t* bomberAlbedo;  // 自爆兵に貼る物（同じメッシュ・同じ UV）。null = 雑魚と同じ
+        const wchar_t* splitterAlbedo;// 分裂怪・分裂体に貼る物。null = 雑魚と同じ
     };
     const EnemyLook looks[] =
     {
@@ -2768,10 +2916,10 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         // 高さはカプセル（1.8m）より少し低く
         { Res::Mdl::Kenney_BlockyZombie, Res::Tex::Kenney_BlockyZombieAlbedo,
           "walk", "idle", "attack-melee-right", 180.0f, 1.6f, "Kenney Blocky L (zombie)",
-          Res::Tex::Kenney_BlockyRobotAlbedo },
+          Res::Tex::Kenney_BlockyRobotAlbedo, Res::Tex::Kenney_BlockyDummyAlbedo },
         // KayKit は Blender 出力の -Z が正面 → 180 度回す
         { Res::Mdl::KayKit_SkeletonMinion, Res::Tex::KayKit_SkeletonAlbedo,
-          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion", nullptr },
+          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion", nullptr, nullptr },
     };
 
     // 焼く前の寸法 → 焼く時に掛ける変換。
@@ -2829,6 +2977,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
 
             m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
             m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
+            m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
 
             // 部品アニメの表（待機・歩き・近接攻撃）。作れなければ従来の揺れで動く
             m_AnimClips[0] = look.idleClip;
@@ -2867,6 +3016,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         // 貼图は雑魚材質の t0 へ（VS/PS は雑魚専用のまま。頂点色は白で焼いてある）
         m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
         m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
+        m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
         std::cout << "[SwarmSystem] enemy model: " << look.label << " (baked, clip "
             << (clip >= 0 ? sk.GetClipName(clip) : std::string("-"))
             << ", scale " << scale << ")" << std::endl;

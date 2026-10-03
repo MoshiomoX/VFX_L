@@ -50,11 +50,15 @@ typedef VS_OUTPUT PS_INPUT;
 
 // ---- texture slots (Material binds by slot) ----
 //   t0 albedo / t1 normal / t2 metallic / t3 roughness / t4 AO
+// A PS that binds something else there (TerrainPS: Texture2DArray) defines
+// MODEL_NO_TEXTURES before the include.
+#ifndef MODEL_NO_TEXTURES
 Texture2D albedoTexture : register(t0);
 Texture2D normalTexture : register(t1);
 Texture2D metallicTexture : register(t2);
 Texture2D roughnessTexture : register(t3);
 Texture2D aoTexture : register(t4);
+#endif
 SamplerState samplerState : register(s0);
 
 // ---- standard model VS ----

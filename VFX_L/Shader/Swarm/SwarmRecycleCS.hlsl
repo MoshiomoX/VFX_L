@@ -46,8 +46,11 @@ void main(uint3 id : SV_DispatchThreadID)
     float dSq = d.x * d.x + d.z * d.z;
     if (dSq < g_RecycleMinDistSq)
         return;
-    // elites / the boss are never recycled into a plain mob: they keep chasing
-    if (enemyExtra[i].kind >= SWARM_KIND_ELITE)
+    // elites / the boss are never recycled into a plain mob: they keep chasing.
+    // Ghosts neither (they fly straight in). Splitters and splitlings can be (2026-10-03: they are
+    // numbered after the ghost, so the old "kind >= ELITE" test would have pinned them far away)
+    uint kind = enemyExtra[i].kind;
+    if (kind == SWARM_KIND_ELITE || kind == SWARM_KIND_BOSS || kind == SWARM_KIND_GHOST)
         return;
 
     uint prev;

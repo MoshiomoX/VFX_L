@@ -121,6 +121,13 @@ public:
         { 1.00f, 0.78f, 0.25f, 0.85f },    // 外周
         { 1.00f, 0.60f, 0.10f, 0.10f } };  // 外周の内側でまだ育っていない所
 
+    // ---- Boss の重撃の警告の輪（SetWarnCircles。2026-10-03）----
+    // 形は同じ。色は赤（用户 10-03「もう少し赤く」：最初は紫を混ぜてピンクに見えた）、自爆兵の輪より濃く外周を太く
+    BomberRingStyle warnRing = { true, 0.14f, 0.04f,
+        { 0.95f, 0.08f, 0.05f, 0.45f },    // 育つ円盤
+        { 1.00f, 0.15f, 0.08f, 0.95f },    // 外周
+        { 0.85f, 0.06f, 0.04f, 0.14f } };  // 外周の内側でまだ育っていない所
+
     // ---- 経験値オーブの見た目（SwarmOrbVS / SwarmOrbPS / SwarmOrbEmitCS）----
     // 自発光の宝石（双角錐）。待機中は浮き沈み・自転・脈動（スロット毎に位相をずらす）。
     // 吸い寄せられると長軸を玩家へ傾けて引き伸ばし、pullColor へ寄って明るくなり、
@@ -207,6 +214,24 @@ public:
         out.insert(out.end(), m_TriggerEvents.begin(), m_TriggerEvents.end());
         m_TriggerEvents.clear();
     }
+    // 回読で届いた分裂怪の死（MobSpawner が分裂体を湧かせる）を全部取り出す。2〜3 フレーム古い
+    void ConsumeSplitEvents(std::vector<Swarm::SplitEvent>& out)
+    {
+        out.insert(out.end(), m_SplitEvents.begin(), m_SplitEvents.end());
+        m_SplitEvents.clear();
+    }
+
+    // ---- 地面の警告の輪（CPU が置く。Boss の重撃。2026-10-03）----
+    struct WarnCircle
+    {
+        DirectX::SimpleMath::Vector3 center;   // 地面の高さ（y = 地形）
+        float radius = 3.0f;
+        float progress = 0.0f;                 // 0..1：中の円が広がり、1 で縁に届く（= 爆発）
+        float _pad[3] = {};
+    };
+    static constexpr int kMaxWarnCircles = 32;
+    // 今フレームの輪を丸ごと差し替える（毎フレーム呼ぶ。数 0 で消える）
+    void SetWarnCircles(const WarnCircle* circles, int count);
 
     // 運動表を丸ごと差し替える。添字がそのまま SpawnProjectile の motion。
     // 飛んでいる弾も次のステップから新しい値で動く（編集器で調整中の反映用）
@@ -422,6 +447,23 @@ private:
     std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 読んだが、まだ誰も取り出していない物
     void ReadTriggerEvents();   // 一番古い staging を読めたら新しい分を m_TriggerEvents へ（Flush の頭）
 
+    // 分裂の環（CorpseTrackCS が書く）→ 誘発の環と同じく staging 3 枚で回読
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SplitBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SplitUAV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SplitStaging[kTriggerStaging];
+    bool m_SplitStagingFilled[kTriggerStaging] = {};
+    int  m_SplitStagingWrite = 0;
+    uint32_t m_SplitRead = 0;
+    std::vector<Swarm::SplitEvent> m_SplitEvents;
+    void ReadSplitEvents();
+
+    // 地面の警告の輪（CPU の WarnCircle を毎フレーム書く動的 buffer → SwarmWarnRingVS + SwarmBomberRingPS）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>             m_WarnCircleBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_WarnCircleSRV;
+    int m_WarnCircleCount = 0;
+    std::shared_ptr<VertexShader> m_WarnRingVS;
+    void RenderWarnRings(CameraBase* camera);
+
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_OrbStateBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_OrbStateUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_OrbStateSRV;
@@ -622,6 +664,14 @@ private:
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_EnemyDrawArgs[Swarm::kEnemyKinds];  // submesh 毎（IndexCount が違う）
     bool CreateEnemyDrawArgs(ID3D11Device* device);
     std::shared_ptr<Texture> m_BomberAlbedo;   // 自爆兵の貼図（雑魚と同じメッシュ用）。null = 雑魚と同じ貼図
+    std::shared_ptr<Texture> m_SplitterAlbedo; // 分裂怪・分裂体の貼図（黄色い衝突試験人形）。null = 雑魚と同じ貼図
+    // 描画リストの貼図（null = 雑魚の材質の物）
+    Texture* ListAlbedo(uint32_t list) const
+    {
+        if (list == Swarm::kDrawListBomber) return m_BomberAlbedo.get();
+        if (list == Swarm::kDrawListSplitter) return m_SplitterAlbedo.get();
+        return nullptr;
+    }
 
     // --- Boss の様子（CompactCS が書く 32B → staging 3 枚で回読。counter と同じ流儀で待たない）---
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_BossInfoBuffer;

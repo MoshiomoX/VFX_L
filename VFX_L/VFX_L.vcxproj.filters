@@ -142,6 +142,9 @@
     <ClCompile Include="Graphics\Renderer\GrassRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="Graphics\Renderer\TerrainSurface.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Renderer\StaticPropRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
@@ -161,6 +164,9 @@
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\StageDirector.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\BossAttacks.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\EliteSpawner.cpp">
@@ -541,6 +547,9 @@
     <ClInclude Include="Graphics\Renderer\GrassRenderer.h">
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Graphics\Renderer\TerrainSurface.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Graphics\Renderer\FrustumPlanes.h">
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
@@ -560,6 +569,9 @@
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\StageDirector.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\BossAttacks.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\EliteSpawner.h">
@@ -1155,6 +1167,9 @@
     <FxCompile Include="Shader\Swarm\SwarmDropRingVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmWarnRingVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmSpritePS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -1261,6 +1276,9 @@
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Grass\GrassPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Terrain\TerrainPS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PBR_VS.hlsl">

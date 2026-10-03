@@ -7,6 +7,7 @@
 // ============================================================
 #include "Scene/CollisionTestScene.h"
 #include "Audio/AudioSystem.h"
+#include "Graphics/Renderer/TerrainSurface.h"
 
 #include "Component/TransformComponent.h"
 #include "Component/ColliderComponent.h"
@@ -159,6 +160,7 @@ void CollisionTestScene::DrawEnemiesPanel()
     m_Mobs.DrawImGui(m_Swarm);
     ImGui::Separator();
     m_Stage.DrawImGui(m_Swarm, m_RunTime);
+    m_BossAttacks.DrawImGui();
     ImGui::Separator();
 
     if (m_Elites.DrawImGui(m_Registry, m_MeshVFXSystem)) RespawnElites();
@@ -723,6 +725,18 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::ColorEdit4("Back##dropRing", &ring.back.x);
             ImGui::TreePop();
         }
+        // ---- Boss の重撃の警告の輪（BossAttacks が置く）----
+        if (ImGui::TreeNode("Boss Slam Ring"))
+        {
+            auto& ring = m_Swarm.warnRing;
+            ImGui::Checkbox("Enabled##warnRing", &ring.enabled);
+            ImGui::DragFloat("Edge Width##warnRing", &ring.edgeWidth, 0.005f, 0.0f, 0.5f);
+            ImGui::DragFloat("Lift##warnRing", &ring.lift, 0.005f, 0.0f, 0.3f);
+            ImGui::ColorEdit4("Fill##warnRing", &ring.fill.x);
+            ImGui::ColorEdit4("Edge##warnRing", &ring.edge.x);
+            ImGui::ColorEdit4("Back##warnRing", &ring.back.x);
+            ImGui::TreePop();
+        }
 
         // ---- 経験値オーブの見た目（宝石の動き・光り方・吸い寄せ中の尾）----
         if (ImGui::TreeNode("Exp Orbs"))
@@ -851,6 +865,7 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::Text("Grid : %d x %d  (%.0fm x %.0fm)",
             m_Grid.Width(), m_Grid.Depth(),
             m_Grid.WorldWidth(), m_Grid.WorldDepth());
+        TerrainSurface::Get().DrawImGui();   // 地面の貼図（2026-10-03）
 
         auto& tc = m_TerrainConfig;
         int seed = (int)tc.seed;
@@ -1088,6 +1103,9 @@ void CollisionTestScene::UpdateAutoTest(float dt)
     if (m_AutoBossExit) { UpdateAutoTestBossExit(); return; }
     if (m_AutoSoak) { UpdateAutoTestSoak(dt); return; }
     if (m_AutoMusic) { UpdateAutoTestMusic(); return; }
+    if (m_AutoSplit) { UpdateAutoTestSplit(); return; }
+    if (m_AutoBossSlam) { UpdateAutoTestBossSlam(dt); return; }
+    if (m_AutoGround) { UpdateAutoTestGround(); return; }
     if (m_AutoArrow) { UpdateAutoTestArrow(); return; }
     if (m_AutoChain) { UpdateAutoTestChain(); return; }
     if (m_AutoBeam) { UpdateAutoTestBeam(); return; }
@@ -2361,6 +2379,412 @@ void CollisionTestScene::UpdateAutoTestBossExit()
         if (m_AutoTime >= 48.0f) { AutoTestLog("bossexit look end"); m_AutoStep = 4; }
     }
     else if (m_AutoStep == 4 && m_AutoTime >= 48.8f) { AutoTestLog("bossexit done"); m_AutoStep = 5; }
+}
+
+// ============================================================
+// TEMP-TEST: 分裂怪（VFXL_BATTLE_AUTOTEST=split、2026-10-03）
+// 1 秒: 湧き停止・全消し・無敵・MP 無限、背包は追尾弾（中）+ 火球（左上）。鏡頭は玩家の背後 11m / 32°、+Z 向き。
+// 1.5 / 5 / 8.5 秒に正面（+Z）7〜9m へ分裂怪 6 体。0.25 秒毎に池を読み戻して
+// `split t splitters splitlings others kills events spawned`。分裂体が初めて見えた 0.15 秒後・2.5 秒・6 秒に
+// `split look <n>`。12 秒: 施法を止め、計時を 470 秒に固定して湧きを戻す（第 1 面の分裂怪の割合 ≒ 0.25）。
+// 18 秒に種類毎の数を `split mix ...`、`split done`
+// ============================================================
+void CollisionTestScene::UpdateAutoTestSplit()
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+    if (m_Registry.Has<ManaComponent>(m_Player))
+    {
+        auto& mana = m_Registry.Get<ManaComponent>(m_Player);
+        mana.current = mana.max;
+    }
+    auto& cam = m_Camera.Camera();
+    const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+    char line[300];
+    static float s_NextLog = 0.0f;
+    static int s_Wave = 0;
+    static bool s_SawSplitling = false;
+    static float s_ShotAt = -1.0f;
+    static int s_Shot = 0;
+
+    auto spawnWave = [&]()
+        {
+            const float gy = m_Swarm.GetAIParams().groundY;
+            for (int i = 0; i < 6; ++i)
+            {
+                const float x = pp.x - 5.0f + 2.0f * (float)i;
+                const float z = pp.z + 7.0f + (float)(i % 2) * 2.0f;
+                m_Swarm.SpawnEnemy({ x, m_Grid.SampleHeight(x, z) + gy, z }, 30.0f, 3.2f, Swarm::kEnemyKindSplitter);
+            }
+            ++s_Wave;
+        };
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        if (m_Registry.Has<BackpackComponent>(m_Player))
+        {
+            auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+            const int lo = BackpackComponent::GRID / 2 - 1;
+            ClearBackpackItems(bp);
+            BackpackLogic::Place(bp, ItemID::HomingBolt, lo + 1, lo + 1, 0);
+            BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
+            bp.dirty = true;
+        }
+        cam.SetYaw(0.0f);
+        cam.distance = 11.0f;
+        cam.SetPitch(32.0f);
+        cam.SnapToTarget();
+        s_NextLog = m_AutoTime;
+        s_Wave = 0;
+        s_SawSplitling = false;
+        s_ShotAt = -1.0f;
+        s_Shot = 0;
+        m_AutoStep = 1;
+    }
+    if (m_AutoStep == 1)
+    {
+        const float t = m_AutoTime - 1.0f;
+        if ((s_Wave == 0 && t >= 0.5f) || (s_Wave == 1 && t >= 4.0f) || (s_Wave == 2 && t >= 7.5f)) spawnWave();
+        if (m_AutoTime >= s_NextLog)
+        {
+            s_NextLog += 0.25f;
+            std::vector<Swarm::Enemy> en;
+            std::vector<uint32_t> st;
+            std::vector<Swarm::EnemyExtra> ex;
+            if (m_Swarm.DebugReadEnemies(en, st, &ex))
+            {
+                int splitters = 0, splitlings = 0, others = 0;
+                float nearest = 1.0e9f;
+                for (size_t i = 0; i < st.size() && i < ex.size(); ++i)
+                {
+                    if (st[i] == Swarm::kStateDead) continue;
+                    if (ex[i].kind == Swarm::kEnemyKindSplitter) ++splitters;
+                    else if (ex[i].kind == Swarm::kEnemyKindSplitling)
+                    {
+                        ++splitlings;
+                        nearest = (std::min)(nearest, Vector3(en[i].position.x - pp.x, 0.0f, en[i].position.z - pp.z).Length());
+                    }
+                    else ++others;
+                }
+                snprintf(line, sizeof(line), "split t %.2f splitters %d splitlings %d others %d kills %u events %u spawned %u nearestSplitling %.1f",
+                    t, splitters, splitlings, others, m_Swarm.GetCounters().killCount, m_Mobs.GetSplitEventsSeen(),
+                    m_Mobs.GetSplitlingsSpawned(), splitlings > 0 ? nearest : -1.0f);
+                AutoTestLog(line);
+                if (splitlings > 0 && !s_SawSplitling) { s_SawSplitling = true; s_ShotAt = m_AutoTime + 0.15f; }
+            }
+        }
+        if (s_ShotAt > 0.0f && m_AutoTime >= s_ShotAt)
+        {
+            snprintf(line, sizeof(line), "split look %d", s_Shot++);
+            AutoTestLog(line);
+            s_ShotAt = -1.0f;
+        }
+        if ((s_Shot == 1 && t >= 2.5f) || (s_Shot == 2 && t >= 6.0f))
+        {
+            snprintf(line, sizeof(line), "split look %d", s_Shot++);
+            AutoTestLog(line);
+        }
+        if (t >= 11.0f)
+        {
+            // 湧きの割合: 施法を止めて計時を 470 秒に（分裂怪の割合 ≒ 0.25、自爆兵 0.15）
+            m_Swarm.KillAll();
+            if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
+            m_Mobs.Director().enabled = true;
+            m_AutoStep = 2;
+            s_NextLog = m_AutoTime + 6.0f;
+        }
+    }
+    if (m_AutoStep == 2)
+    {
+        m_RunTime = 470.0f;
+        if (m_AutoTime >= s_NextLog)
+        {
+            std::vector<Swarm::Enemy> en;
+            std::vector<uint32_t> st;
+            std::vector<Swarm::EnemyExtra> ex;
+            if (m_Swarm.DebugReadEnemies(en, st, &ex))
+            {
+                int count[8] = {};
+                for (size_t i = 0; i < st.size() && i < ex.size(); ++i)
+                    if (st[i] != Swarm::kStateDead && ex[i].kind < 8) ++count[ex[i].kind];
+                const int total = count[0] + count[1] + count[5];
+                snprintf(line, sizeof(line), "split mix ratioNow %.3f mobs %d bombers %d splitters %d splitlings %d elites %d -> splitter share %.3f bomber share %.3f",
+                    m_Mobs.GetSplitterRatio(), count[0], count[1], count[5], count[6], count[2],
+                    total > 0 ? (float)count[5] / total : 0.0f, total > 0 ? (float)count[1] / total : 0.0f);
+                AutoTestLog(line);
+            }
+            AutoTestLog("split done");
+            m_AutoStep = 3;
+        }
+    }
+}
+
+// ============================================================
+// TEMP-TEST: 地面の貼図（VFXL_BATTLE_AUTOTEST=ground、2026-10-03）
+// 湧き停止・全消し・無敵・施法停止。1.2 秒毎に玩家と鏡頭を置き直して `ground look <名>`:
+//   plain（開始地点、普段の鏡頭）→ plainNoGrass（同じ所で草を消す = 地面そのもの）→ high（40m / 50° の俯瞰）→
+//   summit（山頂の重心から中央へ 32m の平原から山頂の崖を見上げる）→ ramp（山頂の 1 本目の坂の坂下から坂を見る）→
+//   mine（鉱洞の一番奥、洞の底と壁）→ mouth（鉱洞の 1 本目の坂の上から坑を見下ろす）、`ground done`
+// 第 2・3 面は VFXL_STAGE=2 / 3 で
+// ============================================================
+void CollisionTestScene::UpdateAutoTestGround()
+{
+    m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+    auto& cam = m_Camera.Camera();
+    const auto& lay = m_TerrainLayout;
+    static Vector3 s_Start;
+    static int s_Shot = 0;
+    static float s_Next = 0.0f;
+    static bool s_GrassWas = true;   // 面の設定（遺跡は草無し）。plainNoGrass の後に戻す
+    char line[200];
+
+    auto place = [&](const Vector3& p, float yawDeg, float dist, float pitch)
+        {
+            tf.position = Vector3(p.x, m_Grid.SampleHeight(p.x, p.z) + 1.0f, p.z);
+            m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+            cam.SetYaw(yawDeg);
+            cam.distance = dist;
+            cam.SetPitch(pitch);
+            cam.SnapToTarget();
+        };
+    auto yawTo = [](const Vector3& from, const Vector3& to)
+        {
+            return DirectX::XMConvertToDegrees(std::atan2(-(to.x - from.x), to.z - from.z));   // forward.x = -sin(yaw)
+        };
+    auto centroid = [&](const std::vector<int>& cells)
+        {
+            Vector3 c;
+            for (int i : cells) c += m_Grid.CellToWorld(i % m_Grid.Width(), i / m_Grid.Width());
+            return cells.empty() ? c : c / (float)cells.size();
+        };
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
+        s_Start = tf.position;
+        s_GrassWas = m_Grass.GetSettings().enabled;
+        s_Shot = 0;
+        s_Next = m_AutoTime;
+        m_AutoStep = 1;
+    }
+    if (m_AutoStep != 1 || m_AutoTime < s_Next) return;
+
+    // 前の撮影を記録してから 1.2 秒後に次へ（外の撮影は記録を見て撮る）
+    auto& grass = m_Grass.GetSettings();
+    switch (s_Shot)
+    {
+    case 0: grass.enabled = s_GrassWas; place(s_Start, 0.0f, 8.0f, 28.0f); AutoTestLog("ground look plain"); break;
+    case 1: grass.enabled = false; AutoTestLog("ground look plainNoGrass"); break;
+    case 2: grass.enabled = s_GrassWas; place(s_Start, 30.0f, 40.0f, 50.0f); AutoTestLog("ground look high"); break;
+    case 3:
+        if (!lay.summitCells.empty())
+        {
+            const Vector3 sc = centroid(lay.summitCells);
+            Vector3 toCenter = s_Start - sc;
+            toCenter.y = 0.0f;
+            toCenter.Normalize();
+            const Vector3 p = sc + toCenter * 32.0f;
+            place(p, yawTo(p, sc), 10.0f, 8.0f);
+            AutoTestLog("ground look summit");
+        }
+        break;
+    case 4:
+        if (!lay.summitRamps.empty())
+        {
+            const auto& r = lay.summitRamps[0];
+            const Vector3 p = r.top + r.down * 22.0f;   // 坂の麓より少し先
+            place(p, yawTo(p, r.top), 9.0f, 18.0f);
+            AutoTestLog("ground look ramp");
+        }
+        break;
+    case 5:
+        if (lay.hasMineDeep)
+        {
+            const Vector3 mc = centroid(lay.mineCells);
+            place(lay.mineDeep, yawTo(lay.mineDeep, mc), 9.0f, 30.0f);
+            AutoTestLog("ground look mine");
+        }
+        break;
+    case 6:
+        if (!lay.mineRamps.empty())
+        {
+            const auto& r = lay.mineRamps[0];
+            const Vector3 p = r.top - r.down * 3.0f;   // 坂の上（平原側）から坑を見下ろす
+            place(p, yawTo(p, r.top + r.down * 10.0f), 7.0f, 35.0f);
+            AutoTestLog("ground look mouth");
+        }
+        break;
+    default:
+        snprintf(line, sizeof(line), "ground done stage %d", m_StageIndex);
+        AutoTestLog(line);
+        AutoTestLog("ground done");
+        m_AutoStep = 2;
+        return;
+    }
+    ++s_Shot;
+    s_Next = m_AutoTime + 1.2f;
+}
+
+// ============================================================
+// TEMP-TEST: Boss の重撃の輪（VFXL_BATTLE_AUTOTEST=bossslam、2026-10-03）
+// 1 秒: 湧き停止・全消し・施法停止、玩家の HP 10 万（無敵にすると当たりを数えられない）。
+// Boss は動かない（bossSpeed 0）・HP 大。門の前で F → 2.5 秒で玩家を Boss から 12〜16m の同じ高さの歩けるマスへ、
+// 鏡頭は玩家の背後から Boss の方を 13m / 38° で見る。最初の技は 2.5 秒後（firstDelay。玩家を置き直した後）。
+// A 段（〜13 秒）は立ち止まる（当たるはず）、B 段（〜24 秒）は半径 5m の円を走る（外れるはず）。
+// 0.5 秒毎に `bossslam t phase alive rings volleys placed blasts hits hp`。各段で輪が 0.6 まで育った所で
+// `bossslam look rings<A|B>`、爆発の 0.1 秒後に `bossslam look blast<A|B>`、`bossslam done`
+// ============================================================
+void CollisionTestScene::UpdateAutoTestBossSlam(float dt)
+{
+    if (m_Registry.Has<LevelComponent>(m_Player))
+        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    auto& hp = m_Registry.Get<HealthComponent>(m_Player);
+    auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+    auto& cam = m_Camera.Camera();
+    auto& pcs = m_PlayerControlSystem;
+    char line[300];
+    static float s_NextLog = 0.0f, s_PhaseStart = 0.0f, s_Angle = 0.0f;
+    static Vector3 s_Spot;
+    static bool s_ShotRings[2] = {}, s_ShotBlast[2] = {};
+    static uint32_t s_LastBlasts = 0;
+    static float s_BlastShotAt = -1.0f;
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
+        hp.invincible = false;
+        hp.max = hp.current = 100000.0f;
+        m_Stage.bossSpeed = 0.0f;
+        m_Stage.bossHp = 1.0e6f;
+        m_BossAttacks.firstDelay = 2.5f;   // 最初の技は玩家を置き直した後（3.5 秒）
+        const float yaw = DirectX::XMConvertToRadians(m_Stage.GetPortalYaw());
+        const Vector3 p = m_Stage.GetPortalCenter() + Vector3(std::sin(yaw), 0.0f, std::cos(yaw)) * 2.0f;
+        tf.position = Vector3(p.x, m_Grid.SampleHeight(p.x, p.z) + 1.0f, p.z);
+        m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+        m_AutoStep = 1;
+    }
+    else if (m_AutoStep == 1 && m_AutoTime >= 1.5f) { m_AutoInteract = true; m_AutoStep = 2; }
+    else if (m_AutoStep == 2 && m_AutoTime >= 3.5f)
+    {
+        if (!m_Stage.IsBossAlive()) { AutoTestLog("bossslam no boss"); AutoTestLog("bossslam done"); m_AutoStep = 9; return; }
+        // Boss から 12〜16m、Boss の足元と同じ高さで 3x3 が歩けるマス
+        const Vector3 bp = m_Stage.BossPos();
+        const float by = m_Grid.SampleHeight(bp.x, bp.z);
+        bool found = false;
+        for (float r = 14.0f; r >= 9.0f && !found; r -= 1.0f)
+            for (int a = 0; a < 24 && !found; ++a)
+            {
+                const float ang = 6.2831853f * (float)a / 24.0f;
+                const Vector3 c = bp + Vector3(std::cos(ang), 0.0f, std::sin(ang)) * r;
+                int gx = 0, gz = 0;
+                m_Grid.WorldToCell(c, gx, gz);
+                bool ok = true;
+                for (int dz = -1; dz <= 1 && ok; ++dz)
+                    for (int dx = -1; dx <= 1 && ok; ++dx)
+                        ok = m_Grid.IsWalkable(gx + dx, gz + dz);
+                if (!ok || std::fabs(m_Grid.SampleHeight(c.x, c.z) - by) > 0.3f) continue;
+                s_Spot = Vector3(c.x, m_Grid.SampleHeight(c.x, c.z), c.z);
+                found = true;
+            }
+        if (!found) s_Spot = Vector3(bp.x + 10.0f, by, bp.z);
+        tf.position = s_Spot + Vector3(0.0f, 1.0f, 0.0f);
+        m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+        const Vector3 toBoss = bp - s_Spot;
+        cam.SetYaw(DirectX::XMConvertToDegrees(std::atan2(-toBoss.x, toBoss.z)));   // forward.x = -sin(yaw)
+        cam.distance = 13.0f;
+        cam.SetPitch(38.0f);
+        cam.SnapToTarget();
+        snprintf(line, sizeof(line), "bossslam player at %.1f,%.1f,%.1f boss at %.1f,%.1f,%.1f dist %.1f found %d",
+            s_Spot.x, s_Spot.y, s_Spot.z, bp.x, bp.y, bp.z, Vector3(toBoss.x, 0.0f, toBoss.z).Length(), found ? 1 : 0);
+        AutoTestLog(line);
+        s_NextLog = m_AutoTime;
+        s_PhaseStart = m_AutoTime;
+        s_ShotRings[0] = s_ShotRings[1] = s_ShotBlast[0] = s_ShotBlast[1] = false;
+        s_LastBlasts = m_BossAttacks.blasts;
+        s_BlastShotAt = -1.0f;
+        m_BossSlamHits = 0;
+        m_AutoStep = 3;
+    }
+    else if (m_AutoStep == 3)
+    {
+        const float t = m_AutoTime - s_PhaseStart;
+        const int phase = (t < 9.5f) ? 0 : 1;   // A: 立ち止まる / B: 円を走る
+        const char* phaseName = phase == 0 ? "A" : "B";
+        Vector3 camF = cam.GetForward(); camF.y = 0.0f; camF.Normalize();
+        Vector3 camR = cam.GetRight();   camR.y = 0.0f; camR.Normalize();
+        pcs.testInput = true;
+        pcs.testSlide = false;
+        pcs.testJump = false;
+        if (phase == 0) pcs.testMove = Vector2::Zero;
+        else
+        {
+            s_Angle += dt * 1.0f;
+            const Vector3 goal = s_Spot + Vector3(std::cos(s_Angle + 0.6f), 0.0f, std::sin(s_Angle + 0.6f)) * 5.0f;
+            Vector3 d = goal - tf.position;
+            d.y = 0.0f;
+            if (d.LengthSquared() > 1e-4f) d.Normalize();
+            pcs.testMove = Vector2(d.Dot(camR), d.Dot(camF));
+        }
+
+        // 撮影: 輪が 0.6 まで育った所 / 爆発の直後（各段 1 回）
+        if (!s_ShotRings[phase])
+            for (const BossAttacks::Ring& r : m_BossAttacks.Rings())
+                if (m_BossAttacks.Progress(r) >= 0.6f)
+                {
+                    snprintf(line, sizeof(line), "bossslam look rings%s", phaseName);
+                    AutoTestLog(line);
+                    s_ShotRings[phase] = true;
+                    break;
+                }
+        if (m_BossAttacks.blasts != s_LastBlasts)
+        {
+            s_LastBlasts = m_BossAttacks.blasts;
+            if (!s_ShotBlast[phase] && s_BlastShotAt < 0.0f) s_BlastShotAt = m_AutoTime + 0.1f;
+        }
+        if (s_BlastShotAt > 0.0f && m_AutoTime >= s_BlastShotAt)
+        {
+            snprintf(line, sizeof(line), "bossslam look blast%s", phaseName);
+            AutoTestLog(line);
+            s_ShotBlast[phase] = true;
+            s_BlastShotAt = -1.0f;
+        }
+
+        if (m_AutoTime >= s_NextLog)
+        {
+            s_NextLog += 0.5f;
+            snprintf(line, sizeof(line), "bossslam t %.1f phase %s alive %d rings %d volleys %u placed %u blasts %u hits %u hp %.0f",
+                t, phaseName, m_Stage.IsBossAlive() ? 1 : 0, (int)m_BossAttacks.Rings().size(), m_BossAttacks.volleys,
+                m_BossAttacks.ringsPlaced, m_BossAttacks.blasts, m_BossSlamHits, hp.current);
+            AutoTestLog(line);
+        }
+        if (t >= 9.5f && t - dt < 9.5f)
+        {
+            snprintf(line, sizeof(line), "bossslam phase A end hits %u blasts %u", m_BossSlamHits, m_BossAttacks.blasts);
+            AutoTestLog(line);
+        }
+        if (t >= 21.0f)
+        {
+            pcs.testInput = false;
+            snprintf(line, sizeof(line), "bossslam total hits %u blasts %u volleys %u", m_BossSlamHits, m_BossAttacks.blasts,
+                m_BossAttacks.volleys);
+            AutoTestLog(line);
+            AutoTestLog("bossslam done");
+            m_AutoStep = 9;
+        }
+    }
 }
 
 // ============================================================

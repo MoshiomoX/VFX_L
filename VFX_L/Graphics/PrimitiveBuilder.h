@@ -41,15 +41,19 @@ namespace PrimitiveBuilder
     // 六面体をまとめて 1 つのモデルにする（動かない地形を 1 回の draw にまとめる用。
     // 1 個ずつだと DrawMesh の状態の積み直しが数十回、影の 3 段でその 3 倍になる）。
     // Append に世界座標の 8 頂点を渡し、最後に Build。見た目は CreateHexahedron と同じ
+    // 頂点の uv は (地形の貼図の層 + 1, 0)（TerrainSurface。0 = 法線と高さで自動。2026-10-03）
     class HexahedronBatch
     {
     public:
         void Append(const Vector3 v[8], const Vector4& topColor, const Vector4& sideColor);
         std::shared_ptr<Model> Build(ID3D11Device* device) const;
         bool Empty() const { return m_Indices.empty(); }
+        // 次の Append からの上面 / 側面の層（TerrainSurface::Layer）。-1 = 自動
+        void SetLayers(int topLayer, int sideLayer) { m_TopLayer = topLayer; m_SideLayer = sideLayer; }
     private:
         std::vector<VERTEX_3D> m_Verts;
         std::vector<unsigned int> m_Indices;
+        int m_TopLayer = -1, m_SideLayer = -1;
     };
 
     // 細分化した水平面（高さ y、中心原点で sizeX × sizeZ、divX × divZ 分割）。
@@ -61,13 +65,17 @@ namespace PrimitiveBuilder
     // 段々の地面（2026-10-02、場地の三層）。cellsX × cellsZ マス（一辺 cellSize、中心原点）の
     // マス毎の高さ levelAt(gx, gz) の水平面と、高さの違う隣のマスとの境の縦の壁（低い側を向く）。
     // 同じ高さのマス同士は頂点を共有する（色が滑らかに繋がる）。上面は topColorAt(x, z, 高さ)、
-    // 壁は bandHeight 毎の帯に分けて帯の中ほどの wallColorAt(x, y, z) で塗る（地層の縞）
+    // 壁は bandHeight 毎の帯に分けて帯の中ほどの wallColorAt(x, y, z) で塗る（地層の縞）。
+    // 地形の貼図の層（2026-10-03、TerrainSurface。頂点の uv = (層 + 1, 0)）: topLayerAt(gx, gz) = マスの上面、
+    // wallLayerAt(高い側の gx, gz, 低い側の gx, gz) = 境の壁。-1 / 無し = 法線と高さで自動
     std::shared_ptr<Model> CreateSteppedGrid(ID3D11Device* device,
         int cellsX, int cellsZ, float cellSize,
         const std::function<float(int gx, int gz)>& levelAt,
         const std::function<Vector4(float x, float z, float level)>& topColorAt,
         const std::function<Vector4(float x, float y, float z)>& wallColorAt,
-        float bandHeight = 2.0f);
+        float bandHeight = 2.0f,
+        const std::function<int(int gx, int gz)>& topLayerAt = nullptr,
+        const std::function<int(int hiGx, int hiGz, int loGx, int loGz)>& wallLayerAt = nullptr);
 
     // カプセル（radius + 円柱部の height。衝突体と同じ定義）
     std::shared_ptr<Model> CreateCapsule(ID3D11Device* device,
