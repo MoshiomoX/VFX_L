@@ -130,51 +130,90 @@ void CollisionSystem::TestPair(const WorldCollider& a, const WorldCollider& b)
 // 1) ワールド形状の収集（固定 / 可動に分ける）  2) 固定の格子が古ければ作り直す
 // 3) 可動 × 固定（格子）と 可動 × 可動 だけ判定
 // ============================================================
+// ローカル形状 → ワールド形状
+// ※垂直カプセル/球は回転不変なので rotation は考慮しない
+static CollisionSystem::WorldCollider MakeWorldCollider(Entity e, const TransformComponent& tf,
+    const ColliderComponent& col, bool hasRigidbody, bool fixed)
+{
+    CollisionSystem::WorldCollider wc;
+    wc.entity = e;
+    wc.shape = col.shape;
+    wc.center = tf.position + col.offset;
+    wc.radius = col.radius;
+    wc.height = col.height;
+    wc.halfExtents = col.halfExtents;
+    wc.layer = col.layer;
+    wc.mask = col.mask;
+    wc.hasRigidbody = hasRigidbody;
+    wc.fixed = fixed;
+    if (col.shape == ColliderShape::Convex)
+    {
+        // ローカル平面 n·p <= d を中心分だけ平行移動: d' = d + n·center
+        wc.hull = col.hull;
+        for (int i = 0; i < wc.hull.count; ++i)
+            wc.hull.planes[i].d += wc.hull.planes[i].n.Dot(wc.center);
+    }
+    else
+        wc.hull.count = 0;
+    return wc;
+}
+
 void CollisionSystem::Update(Registry& reg)
 {
-    m_WorldColliders.clear();
     m_Pairs.clear();
-    m_FixedIdx.clear();
     m_MoverIdx.clear();
 
-    // --- 1) ローカル形状 → ワールド形状へ変換して収集 ---
-    //     ※垂直カプセル/球は回転不変なので rotation は考慮しない
-    reg.CreateView<TransformComponent, ColliderComponent>()
-        .Each([this, &reg](Entity e, TransformComponent& tf, ColliderComponent& col)
+    // --- 1) 走査。固定は (entity, 中心) だけ集め、可動は毎フレーム作る ---
+    // 固定の WorldCollider（凸体は平面 12 枚を持つ）を毎フレーム全部作り直していた。
+    // 外周の岩に衝突を 131 個足した時に Debug で約 0.15 ms 増えたので、固定は前回の物を使い回す（2026-10-03）
+    m_ScanFixed.clear();
+    m_MoverWorld.clear();
+    reg.CreateView<TransformComponent, ColliderComponent>()   // 衝突を持つ物だけ回す（装飾物の Transform は見ない）
+        .EachFrom<ColliderComponent>([this, &reg](Entity e, TransformComponent& tf, ColliderComponent& col)
             {
-                WorldCollider wc;
-                wc.entity = e;
-                wc.shape = col.shape;
-                wc.center = tf.position + col.offset;
-                wc.radius = col.radius;
-                wc.height = col.height;
-                wc.halfExtents = col.halfExtents;
-                wc.layer = col.layer;
-                wc.mask = col.mask;
-                wc.hasRigidbody = reg.Has<RigidbodyComponent>(e);
-                wc.fixed = wc.hasRigidbody && reg.Get<RigidbodyComponent>(e).isStatic;
-                if (col.shape == ColliderShape::Convex)
-                {
-                    // ローカル平面 n·p <= d を中心分だけ平行移動: d' = d + n·center
-                    wc.hull = col.hull;
-                    for (int i = 0; i < wc.hull.count; ++i)
-                        wc.hull.planes[i].d += wc.hull.planes[i].n.Dot(wc.center);
-                }
-                else
-                    wc.hull.count = 0;
-                (wc.fixed ? m_FixedIdx : m_MoverIdx).push_back((int)m_WorldColliders.size());
-                m_WorldColliders.push_back(wc);
+                const bool hasRb = reg.Has<RigidbodyComponent>(e);
+                const bool fixed = hasRb && reg.Get<RigidbodyComponent>(e).isStatic;
+                if (fixed) m_ScanFixed.push_back({ e, tf.position + col.offset });
+                else       m_MoverWorld.push_back(MakeWorldCollider(e, tf, col, hasRb, false));
             });
 
-    // --- 2) 固定の並びが変わったか、どれかが余白以上動いたら格子を作り直す ---
-    bool stale = (m_FixedIdx.size() != m_GridEntity.size());
-    for (size_t k = 0; k < m_FixedIdx.size() && !stale; ++k)
+    // --- 2) 固定：並びが変わったら全部作り直して格子も。位置だけ変わった物はその 1 個を作り直し、
+    //        余白以上動いていたら格子を作り直す ---
+    const size_t nFixed = m_ScanFixed.size();
+    bool structural = (nFixed != m_GridEntity.size()) || (m_WorldColliders.size() < nFixed);
+    for (size_t k = 0; k < nFixed && !structural; ++k)
+        structural = (m_ScanFixed[k].first != m_GridEntity[k]);
+    bool rebuildGrid = structural;
+    m_WorldColliders.resize(nFixed);
+    if (structural)
     {
-        const WorldCollider& wc = m_WorldColliders[m_FixedIdx[k]];
-        stale = (wc.entity != m_GridEntity[k])
-            || (wc.center - m_GridCenter[k]).LengthSquared() > kFixedSlack * kFixedSlack;
+        m_FixedIdx.resize(nFixed);
+        for (size_t k = 0; k < nFixed; ++k)
+        {
+            const Entity e = m_ScanFixed[k].first;
+            m_WorldColliders[k] = MakeWorldCollider(e, reg.Get<TransformComponent>(e), reg.Get<ColliderComponent>(e), true, true);
+            m_FixedIdx[k] = (int)k;
+        }
     }
-    if (stale) BuildFixedGrid();
+    else
+    {
+        for (size_t k = 0; k < nFixed; ++k)
+        {
+            if (m_ScanFixed[k].second == m_WorldColliders[k].center) continue;
+            const Entity e = m_ScanFixed[k].first;
+            m_WorldColliders[k] = MakeWorldCollider(e, reg.Get<TransformComponent>(e), reg.Get<ColliderComponent>(e), true, true);
+            if ((m_WorldColliders[k].center - m_GridCenter[k]).LengthSquared() > kFixedSlack * kFixedSlack)
+                rebuildGrid = true;
+        }
+    }
+    if (rebuildGrid) BuildFixedGrid();
+
+    // 可動は固定の後ろへ
+    for (const WorldCollider& wc : m_MoverWorld)
+    {
+        m_MoverIdx.push_back((int)m_WorldColliders.size());
+        m_WorldColliders.push_back(wc);
+    }
 
     // --- 3) 可動 × 固定、可動 × 可動 ---
     for (size_t m = 0; m < m_MoverIdx.size(); ++m)

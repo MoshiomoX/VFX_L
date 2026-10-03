@@ -52,6 +52,17 @@ bool StepOk(float2 from, float2 to, float radius, bool bodyCheck, bool allowDrop
     return ok;
 }
 
+// the side-step around a corner: StepOk with the body check, but the centre's slope is
+// the raw one. Next to a face the bilinear ground is blurred up (the last 0.25m before
+// it), so stepping away from the face looked like a steep drop to SwarmStepHeightOk and
+// the side-step was refused (soak 2026-10-03: an enemy pinned beside a ramp side)
+bool SideStepOk(float2 from, float2 to, float radius, bool allowDrop, float footH)
+{
+    return SwarmIsWalkable(terrain, float3(to.x, 0.0, to.y))
+        && SwarmRawSlopeOk(terrainHeight, from, to)
+        && SwarmBodyContact(terrain, terrainHeight, to, radius, !allowDrop, footH).z == 0.0;
+}
+
 // a cliff under the body circle: the highest and lowest raw height cell differ by this much
 static const float kEdgeCliff = 0.8;
 
@@ -202,12 +213,38 @@ void main(uint3 id : SV_DispatchThreadID)
             float2 next = from + v * g_Step;
             float2 nx = float2(next.x, from.y);
             float2 nz = float2(from.x, next.y);
+            // both axes carry real speed (a sliver on one axis made that axis' slide "succeed"
+            // with no progress, so the side-step below never ran: soak 2026-10-03)
+            float sp = length(v);
+            bool both = (abs(v.x) > 0.15 * sp) && (abs(v.y) > 0.15 * sp);
             if (StepOk(from, next, radius, bodyCheck, allowDrop, footH))
                 e.position.xz = next;
-            else if (StepOk(from, nx, radius, bodyCheck, allowDrop, footH))
+            else if (both && StepOk(from, nx, radius, bodyCheck, allowDrop, footH))
                 e.position.xz = nx;
-            else if (StepOk(from, nz, radius, bodyCheck, allowDrop, footH))
+            else if (both && StepOk(from, nz, radius, bodyCheck, allowDrop, footH))
                 e.position.xz = nz;
+            else if (bodyCheck)
+            {
+                // corner ahead to the side (2026-10-03, soak test): the AI only probes
+                // straight ahead along each axis, so a wall / plateau corner diagonally
+                // in front lets it keep pushing while the body circle here clips the
+                // corner -> the step and both slides fail and the enemy stood still
+                // for good. Side-step away from the touching points, across the
+                // velocity, until the straight path clears
+                float3 tn = SwarmBodyContact(terrain, terrainHeight, next, radius, !allowDrop, footH);
+                if (tn.z > 0.0 && dot(tn.xy, tn.xy) > 0.01 && sp > 1e-4)
+                {
+                    float2 dirV = v / sp;
+                    float2 away = -normalize(tn.xy);
+                    float2 side = away - dirV * dot(away, dirV);
+                    if (dot(side, side) > 1e-4)
+                    {
+                        float2 ns = from + normalize(side) * sp * g_Step;
+                        if (SideStepOk(from, ns, radius, allowDrop, footH))
+                            e.position.xz = ns;
+                    }
+                }
+            }
         }
         if (enemyExtra[i].kind == SWARM_KIND_GHOST)
         {

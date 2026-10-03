@@ -13,6 +13,7 @@
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "ResourcePaths.h"
+#include "Audio/AudioSystem.h"
 #include "imgui.h"
 #include <cmath>
 #include <cstdlib>
@@ -755,6 +756,7 @@ void SpellbookUI::TryGrab()
     const auto& b = m_Bodies[i];
 
     // ---- DragContext へ引き渡す ----
+    AudioSystem::Get().Play("item_pick");
     m_Drag->source = DragSource::Spellbook;
     m_Drag->id = b.id;
     m_Drag->rotation = 0;             // グリッド回転は正から始める

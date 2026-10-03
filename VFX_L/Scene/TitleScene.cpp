@@ -9,6 +9,7 @@
 #include "Manager/InputManager.h"
 #include "ResourcePaths.h"
 #include "UI/UIDeco.h"
+#include "Audio/AudioSystem.h"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -75,6 +76,7 @@ void TitleScene::Init()
 
     m_Time = 0.0f;
     m_Starting = false;
+    AudioSystem::Get().PlayMusic("title");   // 戦闘から戻った時は面の曲から交差フェード
 
     std::cout << "[TitleScene] Init complete" << std::endl;
 }

@@ -230,6 +230,10 @@ namespace Swarm
     constexpr uint32_t kAreaFollowPlayer = 1u;   // 中心が玩家に付いて動く
     constexpr uint32_t kAreaStun = 2u;           // tick で被弾硬直 + 閃光を入れる
     constexpr uint32_t kAreaCapsule = 4u;        // 胶囊（光線）：中心 → 終点の線分の周り。起点 / 終点 / 半径は毎ステップ BeamCB から（2026-09-30）
+    constexpr uint32_t kAreaShake = 8u;          // 出た時に鏡頭を揺らす（爆発。2026-10-03：命中の火花・死んだ時の土煙・毒の池まで揺らしていた）
+    // 生まれた範囲を GPU の VFX 配方（Area::vfxType）毎に数える数（SwarmLiquidTrackCS、音を鳴らす用。2026-10-03）。
+    // 配方番号がこれ以上の物は最後の枠にまとめる
+    constexpr uint32_t kAreaBirthKinds = 127u;
     constexpr uint32_t kAreaBeamShift = 8u;      // (flags >> 8) & 0xF = 光線のチャンネル（BeamCB の添字）
     // 減速（2026-10-01、毒の池）: (flags >> 12) & 0xF = q、tick の度に中の敵を q / 15 だけ遅くする（精英・Boss は半分）
     constexpr uint32_t kAreaSlowShift = 12u;

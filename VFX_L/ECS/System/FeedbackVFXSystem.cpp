@@ -7,6 +7,7 @@
 #include "Component/TransformComponent.h"
 #include "Player/LevelComponent.h"
 #include "Component/ManaComponent.h"
+#include "Audio/AudioSystem.h"
 #include "imgui.h"
 
 using DirectX::SimpleMath::Vector3;
@@ -56,12 +57,16 @@ void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpL
     if (reg.Has<LevelComponent>(player))
     {
         const int level = reg.Get<LevelComponent>(player).level;
-        if (m_LevelUp && m_PrevLevel >= 0 && level > m_PrevLevel)
-            Play(kLevelUp, pos, kLevelUpTime, true);
+        if (m_PrevLevel >= 0 && level > m_PrevLevel)
+        {
+            AudioSystem::Get().Play("level_up");
+            if (m_LevelUp) Play(kLevelUp, pos, kLevelUpTime, true);
+        }
         m_PrevLevel = level;
     }
 
     // ---- 被弾（揺れと画面の赤い縁は毎回。斬撃だけ間をあける）----
+    if (hpLost > 0.0f) AudioSystem::Get().Play("player_hurt");   // 間隔は cue の minInterval
     if (m_Hurt && hpLost > 0.0f && m_HurtTimer <= 0.0f)
     {
         Play(kHurt, pos, kHurtTime, true);
@@ -74,6 +79,7 @@ void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpL
         const float surge = reg.Get<ManaComponent>(player).surgeTime;
         if (m_Surge && surge > m_PrevSurgeTime + 1e-4f)
         {
+            AudioSystem::Get().Play("mana_surge");
             if (m_SurgeAura && m_Player) m_Player->StopInstance(m_SurgeAura);
             Play(kSurgeBurst, pos, kSurgeBurstTime, true);
             m_SurgeAura = Play(kSurgeAura, pos, surge, true);
@@ -90,11 +96,13 @@ void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpL
 
 void FeedbackVFXSystem::OnCrateOpened(const Vector3& pos)
 {
+    AudioSystem::Get().Play("crate_open");
     if (m_Crate) Play(kCrateOpen, pos, kCrateOpenTime, false);
 }
 
 void FeedbackVFXSystem::OnExpPicked(const Vector3& pos)
 {
+    AudioSystem::Get().Play("exp_pickup");   // 音は cue の間隔で間引く（光より細かく鳴らす）
     if (!m_ExpPickup || m_PickupTimer > 0.0f) return;
     Play(kExpPickup, pos, kExpPickupTime, true);
     m_PickupTimer = m_PickupInterval;

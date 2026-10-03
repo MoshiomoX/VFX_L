@@ -1,0 +1,23 @@
+Background music. All CC0 1.0 (verified on each OpenGameArt page on 2026-10-03). Converted to OGG Vorbis q5.
+Title_NewSunrise_nene.ogg                  "New Sunrise" (V2) by nene              https://opengameart.org/content/new-sunrise
+Stage1_Grasslands_JuhaniJunkala.ogg        "Grasslands" (JRPG Pack 1 Exploration) by Juhani Junkala (SubspaceAudio)  https://opengameart.org/content/jrpg-pack-1-exploration
+Stage2_NegevDesertLoop_DizzyCrow.ogg       "Negev Desert Loop" (Desert calmness and fighting) by Dizzy Crow  https://opengameart.org/content/desert-calmness-and-fighting-orchestral-141
+Stage3_RuinedCityTheme_CleytonKauffman.ogg "Ruined City Theme" by Cleyton Kauffman  https://opengameart.org/content/ruined-city-theme
+FinalWave_DeterminedPursuit_EmmaMA.ogg     "Determined Pursuit (epic orchestra loop)" by Emma_MA  https://opengameart.org/content/determined-pursuit-epic-orchestra-loop
+Boss_EpicBossBattle_JuhaniJunkala.ogg      "Epic Boss Battle [Seamlessly Looping]" by Juhani Junkala  https://opengameart.org/content/boss-battle-music
+
+Battle tracks (added 2026-10-03, user: the first set was too peaceful). All CC0 1.0, verified on each OpenGameArt page. Converted to OGG Vorbis q5.
+Battle_FightingIsNotAnOption_CleytonKauffman.ogg   "RPG Battle Theme II (Fighting is not an option)" by Cleyton Kauffman  https://opengameart.org/content/rpg-battle-theme-ii
+Battle_BattleRPGThemeVar_CleytonKauffman.ogg       "Boss Battle Theme" (Battle RPG Theme Var) by Cleyton Kauffman  https://opengameart.org/content/boss-battle-theme
+Battle_BattleThemeA_cynicmusic.ogg                 "Battle Theme A" by cynicmusic  https://opengameart.org/content/battle-theme-a
+Battle_EvilApproach_nene.ogg                       "Evil Approach" by nene  https://opengameart.org/content/evil-approach
+Battle_NegevFightLoop_DizzyCrow.ogg                "Negev Fight Loop" (Desert calmness and fighting) by Dizzy Crow  https://opengameart.org/content/desert-calmness-and-fighting-orchestral-141
+Battle_EncounterWithTheWitches / ArmyApproaching / PreparingForBattle_JuhaniJunkala.ogg  "JRPG Pack 5 Action" by Juhani Junkala  https://opengameart.org/content/jrpg-pack-5-action
+Battle_Doomed / Flags / GreatMission / Spacetime / Twists / WakingTheDevil / Warped_AlexanderEhlers.ogg  "Free Music Pack" by Alexander Ehlers  https://opengameart.org/content/free-music-pack
+
+Loop edits (2026-10-03). The tracks below are not loops (they have an ending, or silence at the head / tail), so they were re-encoded:
+leading / trailing silence below -50 dB removed, then out = head(0..X) + body(X..L-X) + crossfade(tail -> head(0..X)) (X seconds, qsin),
+so the first play starts at the real beginning and the game loops back to X seconds ("loopStart" in Assets/Data/Audio/Sounds.json) without a gap.
+X = 2 s: Battle_GreatMission / Doomed / Flags / Spacetime / WakingTheDevil / Warped / Twists_AlexanderEhlers, Battle_BattleThemeA_cynicmusic, Battle_EvilApproach_nene
+X = 1 s: Battle_BattleRPGThemeVar_CleytonKauffman     X = 3 s: Title_NewSunrise_nene
+Script: loopify.sh (ffmpeg silenceremove / atrim / acrossfade, Vorbis q5). The other tracks loop as published.

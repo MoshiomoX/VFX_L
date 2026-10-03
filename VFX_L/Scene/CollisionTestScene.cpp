@@ -81,6 +81,11 @@ void CollisionTestScene::Init()
         m_AutoAssets = m_AutoTest && strcmp(env, "assets") == 0;         // 値が assets なら新しい素材の並べ見
         m_AutoEdge = m_AutoTest && strcmp(env, "edge") == 0;             // 値が edge なら外周の岩山を撮る
         m_AutoLayers = m_AutoTest && strcmp(env, "layers") == 0;         // 値が layers なら山頂・平原・鉱洞の三層
+        m_AutoPortal = m_AutoTest && strcmp(env, "portal") == 0;         // 値が portal なら Boss の門の石の拱と渦
+        m_AutoEdgeRock = m_AutoTest && strcmp(env, "edgerock") == 0;     // 値が edgerock なら外周の岩の衝突
+        m_AutoBossExit = m_AutoTest && strcmp(env, "bossexit") == 0;     // 値が bossexit なら Boss が洞から出られるか
+        m_AutoSoak = m_AutoTest && strcmp(env, "soak") == 0;             // 値が soak なら実時間の通し検査（穿模・寻路）
+        m_AutoMusic = m_AutoTest && strcmp(env, "music") == 0;           // 値が music なら BGM の全曲・継ぎ目・切り替え
         m_AutoArrow = m_AutoTest && strcmp(env, "arrow") == 0;           // 値が arrow なら黄金の矢を横から撮る
         m_AutoChain = m_AutoTest && strcmp(env, "chain") == 0;           // 値が chain なら火球 + 石弾 → 隕石の誘発
         m_AutoChest = m_AutoTest && strcmp(env, "chest") == 0;           // 値が chest なら魔法書の木箱の物理
@@ -171,11 +176,18 @@ void CollisionTestScene::Init()
             m_TerrainConfig.seed = (uint32_t)strtoul(env, nullptr, 10);
         else
             m_TerrainConfig.seed = std::random_device{}() % 100000u;
+        // TEMP-TEST: 外周の岩を縁から内に入れない = 岩の衝突 0 個（衝突の有無で fps を比べる用）
+        if (GetEnvironmentVariableA("VFXL_NO_EDGE_COLLIDERS", env, sizeof(env)) > 0)
+        {
+            m_TerrainConfig.edgeRockIntrudeMin = -1.0f;
+            m_TerrainConfig.edgeRockIntrudeMax = 0.0f;
+        }
     }
     std::vector<uint8_t> grassMask;
     m_Torches.clear();
     TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches,
         &m_TerrainLayout);
+    BlockUnreachablePockets();
     // 置物（木・岩・茂み）はモデル毎の instanced 描画へ
     if (!m_StaticProps.Initialize(device))
         std::cout << "[Error] StaticPropRenderer init failed" << std::endl;
@@ -209,6 +221,7 @@ void CollisionTestScene::Init()
     m_Swarm.SetMotions(ProjectileProfileDB::BuildMotions());
     m_WeaponSystem.SetAreaVFX(&m_AreaVFX, &m_VFXContext);
     m_Mobs.Init(m_Swarm);
+    m_Audio.Init(m_Swarm, m_StageIndex);   // 範囲の音の表（範囲の profile と VFX 表の後）
     m_Mobs.statMulBonus = stageDef.difficultyBonus;   // 面の難度の下駄
     m_WeaponSystem.SetSwarm(&m_Swarm);
 
@@ -240,6 +253,7 @@ void CollisionTestScene::Init()
 // ============================================================
 void CollisionTestScene::Shutdown()
 {
+    m_Audio.StopMusic();   // 次の場面（タイトル・結果）が自分の曲を流す
     SceneLighting::ClearFog(Application::Get().GetRenderer());   // Renderer は他の場面と共有
     m_Shadows.Disable(Application::Get().GetRenderer());         // 同上（影を切らないと他の場面が真っ暗）
     m_Shadows.Unbind(Application::Get().GetGraphics().GetContext());
@@ -308,10 +322,110 @@ void CollisionTestScene::RespawnCrates()
     m_Crates.Spawn(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction,
         &m_TerrainLayout.summitCells, &m_TerrainLayout.mineCells);
     // Boss を呼ぶ門・磁石も同じ時に置き直す（地形が変わると前の場所は歩けないかもしれない）。
-    // 門は鉱洞の一番奥（無ければ従来通り玩家の周り）
+    // 門は鉱洞の一番奥（無ければ従来通り玩家の周り）。面は鉱洞の真ん中の方（洞の中から近づく）
+    Vector3 mineMid;
+    for (int i : m_TerrainLayout.mineCells) mineMid += m_Grid.CellToWorld(i % m_Grid.Width(), i / m_Grid.Width());
+    const bool hasMine = !m_TerrainLayout.mineCells.empty();
+    if (hasMine) mineMid /= (float)m_TerrainLayout.mineCells.size();
     m_Stage.SpawnPortal(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction,
-        m_TerrainLayout.hasMineDeep ? &m_TerrainLayout.mineDeep : nullptr);
+        m_TerrainLayout.hasMineDeep ? &m_TerrainLayout.mineDeep : nullptr, hasMine ? &mineMid : nullptr);
+    // 石の拱の間の渦（粒子。門の向きに回す）。Boss を呼ぶと UpdateGameplay が止める
+    if (m_PortalVfx) m_AreaVFX.StopInstance(m_PortalVfx);
+    m_PortalVfx = 0;
+    if (m_Registry.IsValid(m_Stage.GetPortal()))
+    {
+        m_PortalVfx = m_AreaVFX.Play("BossPortal.json", m_Stage.GetPortalCenter(), 1.0e9f, false, m_VFXContext);
+        if (m_PortalVfx) m_AreaVFX.RotateInstance(m_PortalVfx, m_Stage.GetPortalYaw());
+    }
     m_Pickups.Reset(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed);
+    BlockPropCells();
+}
+
+// ============================================================
+// 置物の下のマスを雑魚用に塞ぐ（2026-10-03、通し検査 soak で見つけた）。
+// 報酬の箱・Boss の門の柱の衝突は玩家にしか効かず、GPU の雑魚は格子しか見ないので素通りしていた。
+// 木・岩と同じく、衝突の箱が掛かるマスを塞ぐ（元から塞がっていたマスは覚えない = 戻さない）
+// ============================================================
+void CollisionTestScene::BlockPropCells()
+{
+    const int W = m_Grid.Width();
+    for (const auto& b : m_PropBlocks)
+        for (int c : b.cells) m_Grid.SetWalkable(c % W, c / W, true);
+    m_PropBlocks.clear();
+
+    auto block = [&](Entity e, bool crate)
+        {
+            if (!m_Registry.IsValid(e) || !m_Registry.Has<ColliderComponent>(e) || !m_Registry.Has<TransformComponent>(e))
+                return;
+            const auto& col = m_Registry.Get<ColliderComponent>(e);
+            const Vector3 c = m_Registry.Get<TransformComponent>(e).position + col.offset;
+            const Vector3 h = col.halfExtents;
+            int x0, z0, x1, z1;
+            m_Grid.WorldToCell(c - h, x0, z0);
+            m_Grid.WorldToCell(c + h, x1, z1);
+            PropBlock b{ e, crate, {} };
+            for (int z = z0; z <= z1; ++z)
+                for (int x = x0; x <= x1; ++x)
+                    if (m_Grid.IsWalkable(x, z))
+                    {
+                        m_Grid.SetWalkable(x, z, false);
+                        b.cells.push_back(z * W + x);
+                    }
+            m_PropBlocks.push_back(std::move(b));
+        };
+    for (Entity e : m_Crates.GetCrates()) block(e, true);
+    for (Entity e : m_Stage.GetPortalPillars()) block(e, false);
+    m_Swarm.RefreshWalkable(m_Grid);
+}
+
+// ============================================================
+// 出られない袋小路を塞ぐ（2026-10-03、通し検査 soak で見つけた）。
+// 山頂の凹み・崖と木 / 台地に囲まれた所など、場地の真ん中（開局の場所）へ歩いて行けない歩けるマスがあると、
+// そこに湧いた雑魚は流場の答えが無く、何分でもその場に留まっていた（3 面 × 10 分で 54 件）。
+// 雑魚と同じ規則（FlowField：崖は上れない、下りは飛び降り）で真ん中を目標に解き、届かないマスを塞ぐ
+// （湧かない・入らない）。地形を作った直後、GPU へ上げる前に呼ぶ
+// ============================================================
+void CollisionTestScene::BlockUnreachablePockets()
+{
+    const int W = m_Grid.Width(), D = m_Grid.Depth();
+    if (W <= 0 || D <= 0) return;
+    std::vector<uint8_t> walk((size_t)W * D);
+    std::vector<float> hgt((size_t)W * D);
+    for (int z = 0; z < D; ++z)
+        for (int x = 0; x < W; ++x)
+        {
+            walk[(size_t)z * W + x] = m_Grid.IsWalkable(x, z) ? 1 : 0;
+            const Vector3 c = m_Grid.CellToWorld(x, z);
+            hgt[(size_t)z * W + x] = m_Grid.SampleHeight(c.x, c.z);
+        }
+    FlowField ff;
+    ff.SetGrid(W, D, walk, hgt, m_Grid.Heights(), GridWorld::kHeightSub);
+    if (!ff.Build(W / 2, D / 2)) return;
+    const auto& cost = ff.Costs();
+    int blocked = 0;
+    for (size_t i = 0; i < cost.size() && i < walk.size(); ++i)
+        if (walk[i] && cost[i] > 1e30f)
+        {
+            m_Grid.BlockArea((int)(i % W), (int)(i / W), 1, 1);
+            ++blocked;
+        }
+    std::cout << "[Terrain] unreachable pockets blocked: " << blocked << " cells" << std::endl;
+}
+
+void CollisionTestScene::UpdatePropBlocks()
+{
+    const int W = m_Grid.Width();
+    bool changed = false;
+    for (auto it = m_PropBlocks.begin(); it != m_PropBlocks.end();)
+    {
+        const bool gone = !m_Registry.IsValid(it->entity)
+            || (it->crate && !m_Registry.Has<InteractableComponent>(it->entity));
+        if (!gone) { ++it; continue; }
+        for (int c : it->cells) m_Grid.SetWalkable(c % W, c / W, true);
+        it = m_PropBlocks.erase(it);
+        changed = true;
+    }
+    if (changed) m_Swarm.RefreshWalkable(m_Grid);
 }
 
 void CollisionTestScene::RespawnElites()
@@ -370,6 +484,14 @@ void CollisionTestScene::Update(float dt)
     {
         PROFILE_SCOPE("Gameplay");
         UpdateGameplay(dt);
+
+        // 音：GPU の範囲（命中・爆発・撃破）、玩家の跳び / 着地 / 滑り、BGM の切り替え、一回物
+        BattleAudio::State as;
+        as.bossAlive = m_Stage.IsBossAlive();
+        as.finalWave = m_Stage.stageTime > 0.0f && m_RunTime >= m_Stage.stageTime;
+        as.playerDead = IsPlayerDead();
+        as.cleared = m_Stage.IsCleared();
+        m_Audio.Update(dt, m_Swarm, m_Registry, m_Player, as);
     }
 
     // ---- 画面下の操作案内（近くに使える物がある時だけ）----
@@ -535,6 +657,15 @@ void CollisionTestScene::UpdateGameplay(float dt)
             m_Feedback.OnCrateOpened(openedPos);
         else if (const Vector3* pp = PlayerPos())
             m_Stage.TryUsePortal(m_Registry, used, m_Grid, *pp, m_Mobs, m_Swarm, m_Interaction);
+        UpdatePropBlocks();   // 開けた箱の下のマスを雑魚に戻す
+
+        // 門が使われた（Boss を呼んだ。面板の「Summon Boss Now」も含めて、門から使える印が消えた）ら渦を止める
+        const Entity portal = m_Stage.GetPortal();
+        if (m_PortalVfx && (!m_Registry.IsValid(portal) || !m_Registry.Has<InteractableComponent>(portal)))
+        {
+            m_AreaVFX.StopInstance(m_PortalVfx);
+            m_PortalVfx = 0;
+        }
 
         // 磁石（触れたら場の経験値オーブを全部吸い寄せる）
         if (const Vector3* pp = PlayerPos(); pp && !IsPlayerDead())
@@ -545,7 +676,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     const float hpLost = TrackPlayerHpLoss();
     m_Camera.OnPlayerHit(hpLost);
     m_Feedback.Update(m_Registry, m_Player, dt, hpLost);
-    m_Camera.OnAliveAreas(m_Swarm.GetCounters().aliveAreas);
+    m_Camera.OnShakeAreas(m_Swarm.ConsumeShakeAreas());   // 爆発・光線だけ（命中の火花・土煙では揺らさない）
 
     // ---- カメラ追従（最後）----
     m_Camera.Update(dt, PlayerPos());

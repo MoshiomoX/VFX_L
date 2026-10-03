@@ -1,5 +1,6 @@
 {
-    "damage": 25.0, "duration": 0.25, "followCaster": false, "halfHeight": 1.5, "kind": 0,
+    "sound": "meteor_impact",
+    "cameraShake": true, "damage": 25.0, "duration": 0.25, "followCaster": false, "halfHeight": 1.5, "kind": 0,
     "name": "MeteorBlast", "preview": { "atTarget": true, "interval": 1.5 },
     "radius": 3.0, "stun": true, "tickInterval": 0.25, "vfx": "MeteorBlast.json"
 }

@@ -35,6 +35,8 @@ public:
 
     // 揺れを足す（合計は 0..1 に丸める）
     void  AddTrauma(float amount);
+    // 少なくとも atLeast まで上げる（足さない）。同じ種類のきっかけが続いても上限を超えて重ならない
+    void  RaiseTrauma(float atLeast);
     float GetTrauma() const { return m_Trauma; }
 
     float GetYaw()   const { return m_Yaw; }

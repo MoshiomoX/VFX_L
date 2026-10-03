@@ -10,6 +10,7 @@
 #pragma once
 #include "ECS/Entity.h"
 #include "SpellID.h"
+#include <string>
 #include <vector>
 #include <SimpleMath.h>
 #include "Swarm/SwarmTypes.h"
@@ -99,6 +100,7 @@ private:
         uint32_t flags = 0;          // kAreaCapsule | channel | (stun)
         bool spawned = false;        // GPU の範囲を出したか（溜めが終わった時に 1 回）
         uint32_t vfxHandle = 0;      // AreaVFXPlayer の実例
+        std::string sound;           // 溜め終わり（撃った瞬間）の音 = 範囲の sound
         // 標的（2026-10-01）: 始めに seek（弾が消えた所）に一番近い敵を GPU で捕まえ、その敵へ向きを回す。
         // 死んだら射程内で向きに一番近い敵へ乗り換える（SwarmBeamTargetCS）。回し方は beamTurnRate 度/秒
         DirectX::SimpleMath::Vector3 seek = { 0, 0, 0 };

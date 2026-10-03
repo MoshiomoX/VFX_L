@@ -22,7 +22,7 @@ Entity InteractionSystem::Update(Registry& reg, Entity player, float dt, bool in
 
     float bestDistSq = FLT_MAX;
     reg.CreateView<TransformComponent, InteractableComponent>()
-        .Each([&](Entity e, TransformComponent& tf, InteractableComponent& it)
+        .EachFrom<InteractableComponent>([&](Entity e, TransformComponent& tf, InteractableComponent& it)
             {
                 // ---- 浮遊と回転（下端が地面になるよう 0..bobHeight で上下）----
                 if (it.animate)

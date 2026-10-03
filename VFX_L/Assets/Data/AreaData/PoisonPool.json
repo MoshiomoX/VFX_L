@@ -1,4 +1,5 @@
 {
+    "sound": "poison_splash",
     "damage": 3.0, "duration": 4.0, "followCaster": false, "halfHeight": 1.5, "kind": 1,
     "name": "PoisonPool", "preview": { "atTarget": true, "interval": 2.0 },
     "radius": 2.2, "slow": 0.4, "stun": false, "tickInterval": 0.5, "vfx": "PoisonPool.json"

@@ -66,6 +66,8 @@ struct ProjectileProfile
     std::string vfxFile = "Fireball.json";
     float visualSize = 0.9f;        // 判定とは独立（派手に見せても判定は安っぽくしない）
     float visualStretch = 0.0f;     // 進行方向への引き伸ばし（0 = 円形）
+    // 撃った時の音（Assets/Data/Audio/Sounds.json の cue の名前。空 = 鳴らさない。2026-10-03）
+    std::string castSound;
 
     Swarm::Motion ToMotion() const;
     VFXId ResolveVFX() const;       // vfxFile → VFXId（未登録なら None）

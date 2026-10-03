@@ -64,24 +64,38 @@ bool RenderSystem::EnsureSkinningCS()
 // ============================================================
 // 影図へ深度だけ
 // ============================================================
+void RenderSystem::GatherDrawables(Registry& reg)
+{
+    m_Drawables.clear();
+    reg.CreateView<TransformComponent, ModelComponent>()
+        .EachFrom<ModelComponent>([&](Entity e, TransformComponent&, ModelComponent& mc)
+            {
+                if (mc.visible && mc.model && !mc.batched)   // batched は StaticPropRenderer
+                    m_Drawables.push_back(e);
+            });
+    m_DrawablesFresh = true;
+}
+
 void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
 {
-    reg.CreateView<TransformComponent, ModelComponent>()
-        .Each([&](Entity, TransformComponent& tf, ModelComponent& mc)
-            {
-                if (!mc.visible || !mc.model || mc.batched) return;
-                Transform temp;
-                temp.SetPosition(tf.position);
-                temp.SetRotation(tf.rotation);
-                temp.SetScale(tf.scale);
-                mc.model->Draw(renderer, &temp);   // renderer が深度だけにする
-            });
+    if (!m_DrawablesFresh) GatherDrawables(reg);   // 影の最初の段で集め、残りの段と Render で使い回す
+    for (Entity e : m_Drawables)
+    {
+        if (!reg.IsValid(e) || !reg.Has<ModelComponent>(e) || !reg.Has<TransformComponent>(e)) continue;
+        const auto& tf = reg.Get<TransformComponent>(e);
+        auto& mc = reg.Get<ModelComponent>(e);
+        Transform temp;
+        temp.SetPosition(tf.position);
+        temp.SetRotation(tf.rotation);
+        temp.SetScale(tf.scale);
+        mc.model->Draw(renderer, &temp);   // renderer が深度だけにする
+    }
 
     // 深度だけの描画は混合・深度・ラスタライザの状態を触らない（影の深度バイアスを残す）
     ID3D11DeviceContext* ctx = renderer.GetContext();
     if (!ctx || !EnsureSkinningCS()) return;
     reg.CreateView<TransformComponent, SkinnedAnimComponent>()
-        .Each([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
+        .EachFrom<SkinnedAnimComponent>([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
             {
                 if (!a.visible || !a.model || !a.gpu) return;
                 if (skin && !Skin(ctx, m_SkinningCS.get(), a)) return;
@@ -91,39 +105,42 @@ void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
 
 void RenderSystem::Render(Registry& reg, Renderer& renderer)
 {
-    reg.CreateView<TransformComponent, ModelComponent>()
-        .Each([&](Entity e, TransformComponent& tf, ModelComponent& mc)
+    if (!m_DrawablesFresh) GatherDrawables(reg);   // 影を描かない場面はここで集める
+    for (Entity e : m_Drawables)
+    {
+        if (!reg.IsValid(e) || !reg.Has<ModelComponent>(e) || !reg.Has<TransformComponent>(e)) continue;
+        const auto& tf = reg.Get<TransformComponent>(e);
+        auto& mc = reg.Get<ModelComponent>(e);
+
+        // ECS の TransformComponent を既存 Transform に詰めて Model::Draw へ渡す。
+        // これで描画管線を変えずに ECS 描画が可能になる。
+        Transform temp;
+        temp.SetPosition(tf.position);
+        temp.SetRotation(tf.rotation);
+        temp.SetScale(tf.scale);
+
+        // 溶解中の実体は PS の溶解を掛ける（閾値 = progress）
+        DissolveParams dp;
+        const DissolveParams* pdp = nullptr;
+        if (reg.Has<DissolveComponent>(e))
+        {
+            const auto& d = reg.Get<DissolveComponent>(e);
+            if (d.noise)
             {
-                if (!mc.visible || !mc.model || mc.batched) return;   // batched は StaticPropRenderer
-
-                // ECS の TransformComponent を既存 Transform に詰めて Model::Draw へ渡す。
-                // これで描画管線を変えずに ECS 描画が可能になる。
-                Transform temp;
-                temp.SetPosition(tf.position);
-                temp.SetRotation(tf.rotation);
-                temp.SetScale(tf.scale);
-
-                // 溶解中の実体は PS の溶解を掛ける（閾値 = progress）
-                DissolveParams dp;
-                const DissolveParams* pdp = nullptr;
-                if (reg.Has<DissolveComponent>(e))
-                {
-                    const auto& d = reg.Get<DissolveComponent>(e);
-                    if (d.noise)
-                    {
-                        dp.noise = d.noise->GetSRV();
-                        dp.tiling = d.tiling;
-                        dp.scroll = d.scroll;
-                        dp.threshold = d.Threshold();
-                        dp.edge = d.edge;
-                        dp.edgeColor = d.edgeColor;
-                        pdp = &dp;
-                    }
-                }
-                renderer.SetDissolve(pdp);
-                mc.model->Draw(renderer, &temp);
-                renderer.SetDissolve(nullptr);
-            });
+                dp.noise = d.noise->GetSRV();
+                dp.tiling = d.tiling;
+                dp.scroll = d.scroll;
+                dp.threshold = d.Threshold();
+                dp.edge = d.edge;
+                dp.edgeColor = d.edgeColor;
+                pdp = &dp;
+            }
+        }
+        renderer.SetDissolve(pdp);
+        mc.model->Draw(renderer, &temp);
+        renderer.SetDissolve(nullptr);
+    }
+    m_DrawablesFresh = false;   // 次のフレームで集め直す
 
     RenderSkinned(reg, renderer);
 }
@@ -147,7 +164,7 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
 
     bool drewAny = false;
     reg.CreateView<TransformComponent, SkinnedAnimComponent>()
-        .Each([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
+        .EachFrom<SkinnedAnimComponent>([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
             {
                 if (!a.visible || !a.model || !a.gpu) return;
                 if (!Skin(ctx, m_SkinningCS.get(), a)) return;

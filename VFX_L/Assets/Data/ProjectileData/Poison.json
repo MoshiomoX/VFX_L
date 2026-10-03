@@ -1,4 +1,5 @@
 {
+    "castSound": "cast_poison",
     "name":  "Poison",
     "mode":  4,
     "c1":  [

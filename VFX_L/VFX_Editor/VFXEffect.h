@@ -48,6 +48,8 @@ public:
 
     // テンプレートから実例を複製する（entries を深くコピー）
     void CloneFrom(const VFXEffect& src);
+    // 実例を Y 軸回りに回す（粒子の発射位置・向き、点光源の位置）。複製した直後に 1 回
+    void RotateYaw(float degrees);
 
     // 全 emitter に加算されるワールド位置（投射物追従用）
     void SetWorldOffset(const DirectX::SimpleMath::Vector3& p) { m_WorldOffset = p; }

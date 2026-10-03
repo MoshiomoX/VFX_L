@@ -1,4 +1,5 @@
 {
+    "sound": "enemy_death",
     "damage": 0.0, "duration": 0.12, "followCaster": false, "halfHeight": 1.0, "kind": 0,
     "name": "MobDeath", "preview": { "atTarget": true, "interval": 1.0 },
     "radius": 0.5, "stun": false, "tickInterval": 1.0, "vfx": "MobDeath.json"

@@ -45,6 +45,7 @@ uint32_t AreaProfile::Flags(bool atCaster) const
     uint32_t f = 0;
     if (atCaster && followCaster) f |= Swarm::kAreaFollowPlayer;
     if (stun) f |= Swarm::kAreaStun;
+    if (cameraShake) f |= Swarm::kAreaShake;
     const uint32_t q = (uint32_t)std::lround(std::clamp(slow, 0.0f, 1.0f) * 15.0f);
     f |= q << Swarm::kAreaSlowShift;
     return f;
@@ -78,9 +79,11 @@ json AreaProfile::ToJson() const
     j["followCaster"] = followCaster;
     j["stun"] = stun;
     j["slow"] = slow;
+    j["cameraShake"] = cameraShake;
     j["length"] = length;
     j["chargeTime"] = chargeTime;
     j["vfx"] = vfxFile;
+    j["sound"] = sound;
 
     json pv;
     pv["atTarget"] = previewAtTarget;
@@ -102,9 +105,11 @@ void AreaProfile::FromJson(const json& j)
     followCaster = j.value("followCaster", followCaster);
     stun = j.value("stun", stun);
     slow = j.value("slow", slow);
+    cameraShake = j.value("cameraShake", cameraShake);
     length = j.value("length", length);
     chargeTime = j.value("chargeTime", chargeTime);
     vfxFile = j.value("vfx", vfxFile);
+    sound = j.value("sound", sound);
 
     if (j.contains("preview"))
     {

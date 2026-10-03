@@ -21,6 +21,7 @@
 #include "Manager/InputManager.h"
 #include "Graphics/Material/Texture.h"
 #include "ResourcePaths.h"
+#include "Audio/AudioSystem.h"
 #include "imgui.h"
 #include <algorithm>
 #include <iostream>
@@ -178,11 +179,15 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     if (InputMap::GetPauseToggle())
     {
         if (m_Stack.Top() == UILayer::Pause)
+        {
             m_Stack.Pop(UILayer::Pause);
+            AudioSystem::Get().Play("ui_close");
+        }
         else if (m_Stack.Top() != UILayer::LevelUp)
         {
             m_Stack.Push(UILayer::Pause);
             m_Pause.Open();
+            AudioSystem::Get().Play("ui_open");
         }
     }
 
@@ -193,7 +198,10 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         m_Stack.CanReceiveInput(UILayer::Backpack) || m_Stack.IsEmpty();
 
     if (canToggleBackpack && InputMap::GetBackpackToggle())
+    {
         m_Stack.Toggle(UILayer::Backpack);
+        AudioSystem::Get().Play(m_Stack.IsOpen(UILayer::Backpack) ? "ui_open" : "ui_close");
+    }
 
     // ---- 3. 一番上にだけ入力を渡す ----
     switch (m_Stack.Top())
@@ -216,6 +224,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         {
             LevelUpSystem::Choose(reg, player, picked);
             m_Stack.Pop(UILayer::LevelUp);
+            AudioSystem::Get().Play("card_pick");
         }
         break;
     }

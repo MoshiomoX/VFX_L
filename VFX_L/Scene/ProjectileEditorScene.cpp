@@ -953,6 +953,7 @@ void ProjectileEditorScene::DrawAreaTab()
     changed |= ImGui::Checkbox("Follow caster (when cast on the player)", &p.followCaster);
     changed |= ImGui::Checkbox("Hit stun on damage", &p.stun);
     changed |= ImGui::SliderFloat("Slow (per tick)", &p.slow, 0.0f, 1.0f, "%.2f");   // 0.4 = 40% 遅く（精英・Boss は半分）
+    changed |= ImGui::Checkbox("Camera Shake", &p.cameraShake);   // 戦闘で出た時に鏡頭を揺らす（爆発だけ）
     if (p.stun && p.kind == AreaProfile::Kind::Lasting)
         ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "stun + short tick interval = enemies stay frozen inside");
 

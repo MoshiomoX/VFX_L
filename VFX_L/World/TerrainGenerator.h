@@ -62,9 +62,9 @@ namespace TerrainGenerator
         int   mineSize = 33;
         float mineDepth = 10.0f;          // m
         int   mineRamps = 2;              // 平原から底へ下りる坂の数
-        int   mineRampWidth = 2;          // マス（4m）
+        int   mineRampWidth = 4;          // マス（8m。10-03 に 2 → 4：Boss（高さ 4.8m・幅約 3m）が洞から出られる幅）
         float mineRampSlope = 31.0f;      // 度
-        int   mineRockCount = 13;         // 鉱洞の底に足す岩（木は生やさない）
+        int   mineRockCount = 7;          // 鉱洞の底に足す岩（木は生やさない。10-03 に 13 → 7）
 
         // ---- 鉱洞の屋根（2026-10-03、用户：推奨どおり）----
         // 坑を岩の塊で覆う（外から見ると山の麓の洞穴、入口は下り坂の上端）。坑の周り 1 マスは塞いだ岩の壁、
@@ -72,8 +72,8 @@ namespace TerrainGenerator
         // 衝突は roofCollisionTop まで（見た目より高い = 跳んでも上に乗れない）。
         // 中は暗いので壁に松明（caveTorchSpacing マス毎。点光源は場面が近い物にだけ付ける）
         bool  mineRoof = true;
-        float roofBottom = 5.0f;          // 屋根の下面（平原から m。坑の底から 15m、口の高さ 5m）
-        float roofTop = 12.0f;            // 岩の塊の上面（見た目。平原から m）
+        float roofBottom = 8.0f;          // 屋根の下面（平原から m。坑の底から 18m、口の高さ 8m。10-03 に 5 → 8：Boss の頭がつかえない）
+        float roofTop = 15.0f;            // 岩の塊の上面（見た目。平原から m。屋根の厚さ 7m は roofBottom と一緒に上げた）
         float roofCollisionTop = 40.0f;   // 衝突の上端（見えない）
         float roofRockMin = 8.0f;         // 上に積む岩の高さ（縁 → 真ん中で roofRockMax まで）。
         float roofRockMax = 16.0f;        // 縁も高めにして、外から見た輪郭を箱でなく岩山にする
@@ -116,9 +116,10 @@ namespace TerrainGenerator
         // 木と岩は置物（1 マス以上を塞ぐ。周り 1 マスは他の置物を置かないので、
         // 並んで壁になることはない）。茂みは見た目だけ（衝突も格子も無し）。
         // 草は模型ではなく GrassRenderer（GPU の草の葉）
-        int treeCount = 60;       // 林（ノイズで固まる）が主、所々に 1 本（鉱洞には生やさない）
-        int rockCount = 20;
-        int bushCount = 160;
+        // 2026-10-03 に半分へ（用户：場地の木・岩・茂みを今の半分ほどに）。以前は 60 / 20 / 160
+        int treeCount = 30;       // 林（ノイズで固まる）が主、所々に 1 本（鉱洞には生やさない）
+        int rockCount = 10;
+        int bushCount = 80;
         // これより小さい木・岩は見た目だけ（格子も衝突も無し。雑魚が間に入って震えたり角に詰まったりしないよう、
         // 道を塞ぐのは大きい物だけにする）。値は拡縮後の大きさ
         float treeBlockMinHeight = 3.0f;   // m（木の高さ）
@@ -130,6 +131,16 @@ namespace TerrainGenerator
         // 大きい岩（Res::Mdl::Forest::kCliffRocks）を拡大して外へ 3 列: 手前 8〜13m / 中 15〜22m / 奥 24〜34m
         bool  rockMountains = true;
         float mountainScale = 1.0f;       // 3 列の高さにまとめて掛ける
+        // 一番手前の列（2026-10-03、用户：外周の岩に入り込めて穿模する。少し外へ下げてから衝突を付ける）。
+        // 衝突の箱 = 岩と一緒に回した包囲箱の edgeRockShrink 倍（岩は角が丸いので少し小さく）。
+        // 箱の内側の面が場地の縁から edgeRockIntrudeMin〜Max m 内に入る所に置く（負 = 縁より外）。
+        // 縁より内に入る岩だけ衝突（凸体、Layer_Prop = 鏡頭の射線は見ない）を付け、箱が 1/4 以上掛かるマスは塞ぐ（雑魚用）。
+        // 縁より外の岩と高い所は外周の崖の箱（見えない壁）が止める
+        float edgeRockIntrudeMin = -0.6f;
+        float edgeRockIntrudeMax = 1.0f;
+        float edgeRockShrink = 0.85f;
+        // 遺跡の壁の柱：内に入る量（柱の奥行きに対する割合）。衝突（AABB）を付ける
+        float ruinColumnIntrude = 0.4f;
 
         // 玩家の初期地点（場地中央）の周りは平らに空ける（マス数の半径）
         int spawnClearRadius = 8;

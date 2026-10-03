@@ -134,9 +134,14 @@ namespace Res
         inline constexpr const char* Kenney_RewardCrate =
             "Assets/Model/Kenney_RetroFantasy/fbx/detail-crate.fbx";
 
-        // Boss を呼ぶ門（近づいて F）。Kenney Retro Fantasy の石の門（1m 角の部品、底が原点）
+        // Boss を呼ぶ門（近づいて F）。Kenney Retro Fantasy の石の門（1m 角の部品、底が原点）。
+        // 2026-10-03 から使っていない（用户：石の門に → Ruins_ArchGate）。比べる用に残す
         inline constexpr const char* Kenney_PortalGate =
             "Assets/Model/Kenney_RetroFantasy/fbx/wall-flat-gate.fbx";
+        // Boss を呼ぶ門（2026-10-03）。Quaternius Modular Ruins の丸柱付きの丸い石の拱（CC0、cm 単位、
+        // 3.09 × 0.49 × 3.53m、拱の面は XY）。間に粒子の渦（VFXData/BossPortal.json）
+        inline constexpr const char* Ruins_ArchGate =
+            "Assets/Model/Quaternius_ModularRuins/FBX/Arch_Round_RoundColumn.fbx";
 
         // 戦闘の地形に撒く自然物（KayKit Forest、CC0、cm 単位・底が原点、共通の forest_texture.png）。
         // 木と岩は通れない置物、茂みと草は見た目だけ（TerrainGenerator）

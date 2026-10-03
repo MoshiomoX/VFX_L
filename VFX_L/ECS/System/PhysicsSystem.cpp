@@ -87,8 +87,8 @@ static bool ResolveAgainstStatics(
 void PhysicsSystem::Update(Registry& reg, float dt, CollisionSystem& collision)
 {
     // 動的 Rigidbody を移動 + 応答
-    reg.CreateView<TransformComponent, ColliderComponent, RigidbodyComponent>()
-        .Each([&](Entity e, TransformComponent& tf, ColliderComponent& col, RigidbodyComponent& rb)
+    reg.CreateView<TransformComponent, ColliderComponent, RigidbodyComponent>()   // 剛体を持つ物だけ回す
+        .EachFrom<RigidbodyComponent>([&](Entity e, TransformComponent& tf, ColliderComponent& col, RigidbodyComponent& rb)
             {
                 if (rb.isStatic) return;   // 静的は動かさない
 

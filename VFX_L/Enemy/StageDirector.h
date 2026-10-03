@@ -35,9 +35,11 @@ public:
         MobSpawner& mobs, SwarmSystem& swarm);
 
     // 門を置き直す（開局・地形の作り直し）。center の周り portalMinDist〜portalMaxDist の平らな所。
-    // preferred があればまずその近く（10 マス以内で一番近い平らな所。三層の場地では鉱洞の一番奥）
+    // preferred があればまずその近く（10 マス以内で一番近い平らな所。三層の場地では鉱洞の一番奥）。
+    // 門の面は faceToward（無ければ center）の方を向く
     void SpawnPortal(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& center, uint32_t seed,
-        InteractionSystem& interaction, const DirectX::SimpleMath::Vector3* preferred = nullptr);
+        InteractionSystem& interaction, const DirectX::SimpleMath::Vector3* preferred = nullptr,
+        const DirectX::SimpleMath::Vector3* faceToward = nullptr);
     // 使われた物が門なら Boss を呼ぶ（呼んだら true）。門は使えなくなる（見た目は残す）
     bool TryUsePortal(Registry& reg, Entity used, const GridWorld& grid, const DirectX::SimpleMath::Vector3& player,
         const MobSpawner& mobs, SwarmSystem& swarm, InteractionSystem& interaction);
@@ -53,6 +55,11 @@ public:
     float BossHpRatio() const { return m_BossHpRatio; }
     DirectX::SimpleMath::Vector3 BossPos() const { return m_BossPos; }
     Entity GetPortal() const { return m_Portal; }
+    // 門の向き（度。TransformComponent の yaw = 局所 +Z が向く方）と、渦の中心（世界、門の口の真ん中）
+    float GetPortalYaw() const { return m_PortalYaw; }
+    // 拱の柱の衝突（場面が下のマスを雑魚用に塞ぐ）
+    const std::vector<Entity>& GetPortalPillars() const { return m_PortalPillars; }
+    DirectX::SimpleMath::Vector3 GetPortalCenter() const { return m_PortalCenter; }
 
     // Enemies 面板の「Stage」の段
     void DrawImGui(SwarmSystem& swarm, float runTime);
@@ -83,7 +90,7 @@ public:
     float bossRingMax = 16.0f;
     float portalMinDist = 35.0f;    // 門を置く距離（開局の玩家から m）
     float portalMaxDist = 55.0f;
-    float portalHeight = 4.0f;      // 門の高さ（m。模型の包囲箱から倍率を出す）
+    float portalHeight = 5.6f;      // 門の高さ（m。模型の包囲箱から倍率を出す。石の拱 3.53m → ×1.59、幅 4.9m）
 
 private:
     enum class BossState { None, Summoned, Alive, Defeated };
@@ -100,6 +107,9 @@ private:
 
     std::shared_ptr<Model> m_PortalModel;
     Entity m_Portal = EntityTraits::NULL_ENTITY;
+    std::vector<Entity> m_PortalPillars;   // 拱の 2 本の柱の衝突（玩家が柱を抜けないように）
+    float m_PortalYaw = 0.0f;
+    DirectX::SimpleMath::Vector3 m_PortalCenter;
     BossState m_Boss = BossState::None;
     float  m_BossSpawnHp = 0.0f;  // 呼んだ時に決めた HP（出直しても同じ）
     float  m_BossWait = 0.0f;     // 呼んでから回読に現れるまでの秒（長すぎたら湧かせ直す）

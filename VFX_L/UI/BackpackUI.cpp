@@ -11,6 +11,7 @@
 #include "UI/UIDeco.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
+#include "Audio/AudioSystem.h"
 #include "imgui.h"
 #include <algorithm>
 #include <cmath>
@@ -216,6 +217,8 @@ void BackpackUI::EndDrag(BackpackComponent& bp)
     if (!m_Drag->IsActive()) return;
 
     const bool isFrame = ItemDatabase::IsFrame(m_Drag->id);
+    // 置けた / 手元へ戻した音（グリッド外の魔法書由来を離しただけの時も「戻す」）
+    AudioSystem::Get().Play(m_Drag->canDrop ? "item_place" : "item_return");
 
     if (m_Drag->canDrop)
     {
@@ -309,7 +312,10 @@ void BackpackUI::HandleInput(BackpackComponent& bp)
     {
         m_Rotation = (m_Rotation + rotDelta) % 4;
         if (m_Drag->IsActive())
+        {
             m_Drag->rotation = (m_Drag->rotation + rotDelta) % 4;
+            AudioSystem::Get().Play("item_rotate");
+        }
     }
 
     // ---- ドラッグ中 ----
@@ -326,6 +332,7 @@ void BackpackUI::HandleInput(BackpackComponent& bp)
     if (input.GetMouseTrigger(0))
     {
         BeginDrag(bp, m_MousePos);
+        if (m_Drag->IsActive()) AudioSystem::Get().Play("item_pick");
         return;
     }
 
@@ -333,6 +340,7 @@ void BackpackUI::HandleInput(BackpackComponent& bp)
 
     if (input.GetMouseTrigger(1))
     {
+        if (m_HoverItemIndex >= 0 || m_HoverFrameIndex >= 0) AudioSystem::Get().Play("item_return");
         if (m_HoverItemIndex >= 0)
             BackpackLogic::Remove(bp, m_HoverItemIndex);
         else if (m_HoverFrameIndex >= 0)

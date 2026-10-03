@@ -1,4 +1,5 @@
 {
+    "castSound": "cast_arrow",
     "name":  "GoldenArrow",
     "mode":  0,
     "c1":  [

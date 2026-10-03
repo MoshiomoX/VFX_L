@@ -22,6 +22,13 @@ StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
 RWStructuredBuffer<float4> areaDirs : register(u0);
 RWStructuredBuffer<float4> liquidTrack : register(u1);
+// Areas ever born (2026-10-03), grows for good, the CPU reads the difference:
+//   [0]            = SWARM_AREA_SHAKE areas (SwarmSystem::ConsumeShakeAreas -> BattleCamera)
+//   [1 + vfxType]  = areas per GPU VFX recipe (hit sparks, explosions, death puffs, pools)
+//                    -> SwarmSystem::ConsumeAreaBirths -> sounds (the CPU never sees GPU hits)
+// Counted here because this pass already spots every newly born area once
+static const uint SWARM_AREA_BIRTH_KINDS = 127u;   // = Swarm::kAreaBirthKinds
+RWByteAddressBuffer areaBirths : register(u2);
 
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -45,6 +52,11 @@ void main(uint3 id : SV_DispatchThreadID)
         float2 dir = (ad.w > 0.5) ? ad.xy : float2(0.0, 0.0);
         areaDirs[i] = float4(ad.xyz, 0.0);   // consumed
         t = float4(dir, left, left);
+        uint prev;
+        if ((areas[i].flags & SWARM_AREA_SHAKE) != 0u)
+            areaBirths.InterlockedAdd(0, 1u, prev);
+        uint kind = min(areas[i].vfxType, SWARM_AREA_BIRTH_KINDS - 1u);
+        areaBirths.InterlockedAdd((1u + kind) * 4u, 1u, prev);
     }
     else
     {

@@ -45,7 +45,6 @@ void BattleCamera::Init(float aspect, CollisionSystem* terrain)
     m_Camera.ResetView();
     m_Camera.SnapToTarget();
     m_CursorFree = false;   // やり直し・F5 の後はカーソルを隠した状態から
-    m_PrevAliveAreas = 0;
 
     // 遮蔽回避の射線は地形（床・壁・障害物・宝箱）にだけ当てる。
     // 雑魚は GPU なので当たらず、精英（Layer_Enemy）も除く（敵の陰に入るたびに寄ると酔う）
@@ -159,20 +158,22 @@ void BattleCamera::UpdateMouseCapture(bool cursorNeeded)
 // 画面の揺れ
 // 被弾：HP の減りを見る。雑魚（GPU）・精英の接触・デバッグの被弾、経路を問わず拾える。
 //   無敵中は TryApplyHit が HP を減らさないので、揺れも自然に止まる
-// 範囲攻撃（爆発など）：GPU 上で生まれた範囲の数が増えたら揺らす。
+// 爆発：鏡頭を揺らす印（AreaProfile::cameraShake）の付いた範囲が出た数（GPU が数える）。
 //   命中で出る範囲は GPU が作るので CPU には位置が来ない → 距離で弱めることはできない
+// どちらも trauma を「足す」のではなく「少なくともそこまで上げる」（2026-10-03、用户：特効を出し切ると画面が揺れ続ける）。
+//   以前は GPU の範囲の数が増える度に足していて、命中の火花・死んだ時の土煙（どちらも範囲）が毎秒十数個出ると
+//   減衰（毎秒 1.4）を上回って trauma が 1 に張り付いていた
 // ============================================================
 void BattleCamera::OnPlayerHit(float hpLost)
 {
     if (m_ShakeOnHit && hpLost > 0.0f)
-        m_Camera.AddTrauma((std::min)(m_HitTraumaMax, m_HitTraumaBase + hpLost * m_HitTraumaPerDamage));
+        m_Camera.RaiseTrauma((std::min)(m_HitTraumaMax, m_HitTraumaBase + hpLost * m_HitTraumaPerDamage));
 }
 
-void BattleCamera::OnAliveAreas(uint32_t aliveAreas)
+void BattleCamera::OnShakeAreas(uint32_t count)
 {
-    if (m_ShakeOnArea && aliveAreas > m_PrevAliveAreas)
-        m_Camera.AddTrauma((std::min)(m_AreaTraumaMax, (float)(aliveAreas - m_PrevAliveAreas) * m_AreaTrauma));
-    m_PrevAliveAreas = aliveAreas;
+    if (m_ShakeOnArea && count > 0)
+        m_Camera.RaiseTrauma((std::min)(m_AreaTraumaMax, (float)count * m_AreaTrauma));
 }
 
 void BattleCamera::Update(float dt, const Vector3* target)
@@ -269,9 +270,10 @@ void BattleCamera::DrawImGui()
     ImGui::DragFloat("Hit base", &m_HitTraumaBase, 0.01f, 0.0f, 1.0f);
     ImGui::DragFloat("Hit per damage", &m_HitTraumaPerDamage, 0.001f, 0.0f, 0.2f, "%.3f");
     ImGui::DragFloat("Hit max", &m_HitTraumaMax, 0.01f, 0.0f, 1.0f);
-    ImGui::Checkbox("On area spawn (explosions)", &m_ShakeOnArea);
-    ImGui::DragFloat("Per area", &m_AreaTrauma, 0.01f, 0.0f, 1.0f);
-    ImGui::DragFloat("Area max", &m_AreaTraumaMax, 0.01f, 0.0f, 1.0f);
+    ImGui::Checkbox("On explosion (area json: cameraShake)", &m_ShakeOnArea);
+    ImGui::DragFloat("Per explosion", &m_AreaTrauma, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Explosion max", &m_AreaTraumaMax, 0.01f, 0.0f, 1.0f);
+    ImGui::TextDisabled("hit / explosion raise trauma to at least the value (no stacking)");
     if (ImGui::Button("Test 0.3")) m_Camera.AddTrauma(0.3f);
     ImGui::SameLine();
     if (ImGui::Button("Test 0.6")) m_Camera.AddTrauma(0.6f);
