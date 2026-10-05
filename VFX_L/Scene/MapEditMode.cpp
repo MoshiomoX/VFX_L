@@ -212,7 +212,14 @@ MapEditMode::Selection MapEditMode::Pick()
         }
     // 地面より奥の物は選ばない（丘の向こうの木を拾わない）
     Vector3 ground;
-    if (best.type != SelType::None && RayGround(ground) && (ground - ro).Length() + 0.5f < bestT) return {};
+    const bool hitGround = RayGround(ground);
+    if (best.type != SelType::None && hitGround && (ground - ro).Length() + 0.5f < bestT) best = {};
+    // 何も拾わなければ、光線が当たった地面の下の地形の部品（台地・高台。坂も同じ 1 個）
+    if (best.type == SelType::None && hitGround)
+    {
+        const uint32_t g = MapTerrainEdit::GroupAt(m_Map, ground.x, ground.z);
+        if (g != 0 && IsPartGroup(g)) best = { SelType::Group, g, -1 };
+    }
     return best;
 }
 
@@ -227,8 +234,16 @@ bool MapEditMode::SelectionPos(Vector3& pos) const
             return true;
         }
         const int vi = MapEdit::FindVolume(m_Map, m_Sel.group);   // 手で置いた体積
-        if (vi < 0) return false;
-        pos = m_Map.volumes[(size_t)vi].center;
+        if (vi >= 0)
+        {
+            pos = m_Map.volumes[(size_t)vi].center;
+            return true;
+        }
+        // 地形の部品：本体の箱の上面の真ん中
+        const MapData::BlockPart* body = MapTerrainEdit::Block(const_cast<MapData::Map&>(m_Map), m_Sel.group, 0);
+        if (!body) return false;
+        pos = m_Grid.CellToWorld(body->x, body->z)
+            + Vector3((body->w - 1) * GridWorld::kCellSize * 0.5f, body->top, (body->d - 1) * GridWorld::kCellSize * 0.5f);
         return true;
     }
     if (m_Sel.type == SelType::Placement && m_Sel.placement >= 0 && m_Sel.placement < (int)m_Map.placements.size())
@@ -262,6 +277,14 @@ bool MapEditMode::ApplyMove(const Vector3& deltaIn)
     if (m_Sel.type == SelType::Placement)
     {
         m_Map.placements[(size_t)m_Sel.placement].pos += delta;
+    }
+    else if (IsPartGroup(m_Sel.group))
+    {
+        // 地形の部品：マス単位で動かす。足元は動かした先の地面に合わせ直し、台座・起伏・高さ場まで作り直す。
+        // 見た目（床のメッシュ）の建て直しは重いので、ギズモを離した時にまとめて（m_ViewDirty）
+        const int dx = (int)std::lround(deltaIn.x / GridWorld::kCellSize), dz = (int)std::lround(deltaIn.z / GridWorld::kCellSize);
+        if (!MapTerrainEdit::MoveGroup(m_Map, m_Sel.group, dx, dz)) return false;
+        m_ViewDirty = true;
     }
     else if (const int vi = MapEdit::FindVolume(m_Map, m_Sel.group); vi >= 0)
     {
@@ -304,7 +327,12 @@ void MapEditMode::RotateSelection(float deg)
 
 void MapEditMode::DeleteSelection()
 {
-    if (m_Sel.type == SelType::Group)
+    if (m_Sel.type == SelType::Group && IsPartGroup(m_Sel.group))
+    {
+        MapTerrainEdit::DeleteGroup(m_Map, m_Sel.group);   // 地形の部品：起伏・高さ場も作り直す
+        m_ViewDirty = true;
+    }
+    else if (m_Sel.type == SelType::Group)
         MapEdit::DeleteGroup(m_Map, m_Sel.group);
     else if (m_Sel.type == SelType::Placement && m_Sel.placement >= 0 && m_Sel.placement < (int)m_Map.placements.size())
         m_Map.placements.erase(m_Map.placements.begin() + m_Sel.placement);
@@ -367,6 +395,11 @@ void MapEditMode::FocusSelection(FlyCamera& camera)
         {
             radius = m_Map.volumes[(size_t)vi].half.Length();
         }
+        else if (const MapData::BlockPart* body = MapTerrainEdit::Block(m_Map, m_Sel.group, 0))
+        {
+            radius = Vector3(body->w * GridWorld::kCellSize * 0.5f, body->top - body->base,
+                body->d * GridWorld::kCellSize * 0.5f).Length() + 4.0f;
+        }
     }
     else if (m_Map.placements[(size_t)m_Sel.placement].type == MapData::kPlaceBossGate)
     {
@@ -420,7 +453,9 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
     if (!placing && SelectionPos(pivot))
     {
         Gizmo::Options opt;
-        opt.snap = snap;
+        // 地形の部品はマス（2m）単位でしか動かない
+        const bool part = m_Sel.type == SelType::Group && IsPartGroup(m_Sel.group);
+        opt.snap = part ? GridWorld::kCellSize : snap;
         Vector3 pos = pivot;
         if (Gizmo::Translate("map_edit_selected", pos, opt))
         {
@@ -479,6 +514,13 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
 
     DrawSelectionMarks();
 
+    // 地形の部品を変えた後の見た目の建て直し：ギズモ・数値のドラッグが終わってから
+    if (m_ViewDirty && !Gizmo::IsUsing() && !ImGui::IsAnyItemActive())
+    {
+        m_ViewDirty = false;
+        RebuildView();
+    }
+
     // ---- ショートカット ----
     if (io.WantTextInput || camera.IsLooking()) return placed;
     const bool ctrl = input.GetKeyPress(VK_CONTROL);
@@ -496,3 +538,10 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
     return placed;
 }
 
+
+bool MapEditMode::IsPartGroup(uint32_t group) const
+{
+    for (const auto& p : m_Map.blockParts)
+        if (p.tag.group == group) return p.tag.kind == MapData::kPlateau || p.tag.kind == MapData::kTerrace;
+    return false;
+}

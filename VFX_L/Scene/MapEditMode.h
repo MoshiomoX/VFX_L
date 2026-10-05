@@ -20,6 +20,7 @@
 #include "World/GridWorld.h"
 #include "World/MapData.h"
 #include "World/MapEdit.h"
+#include "World/MapTerrainEdit.h"
 #include <SimpleMath.h>
 #include <memory>
 #include <string>
@@ -63,6 +64,7 @@ public:
     void TestSelectPlacement(int i) { m_Sel = { SelType::Placement, 0, i }; }
     void TestFocus(FlyCamera& camera) { FocusSelection(camera); }
     bool TestApplyMove(const Vector3& delta) { return ApplyMove(delta); }
+    void TestRebuildView() { m_ViewDirty = false; RebuildView(); }
     int  TestAddPlacement(MapData::PlaceType type, const Vector3& pos) { return AddPlacement(type, pos); }
     std::shared_ptr<Model> TestModel(const std::string& path) { return GetModel(path); }
 
@@ -90,6 +92,10 @@ private:
     void DuplicateSelection();
     void FocusSelection(FlyCamera& camera);
     void RefreshCollision(uint32_t group, MapEdit::Collision mode);
+    // 地形の部品（台地・高台。坂も同じ 1 個）の group か。山頂・洞窟の坂は含めない（区域の一部）
+    bool IsPartGroup(uint32_t group) const;
+    void DrawPartInspector();                // 地形の部品の中身（MapEditModeUI.cpp）
+    void AddPart(FlyCamera& camera, bool terrace);
     int  AddPlacement(MapData::PlaceType type, const Vector3& pos);
     Vector3 ScreenCenterGround(FlyCamera& camera) const;
 
@@ -114,6 +120,7 @@ private:
     bool m_ShowCollision = true;
     bool m_ShowVolumes = true;               // 手で置いた見えない体積を線で見せる（見せている時だけ選べる）
     bool m_StopPlacing = false;
+    bool m_ViewDirty = false;                // 地形の部品を変えた：見た目（床・合成モデル）を建て直す
 
     // 置く物（マウスの下）
     bool    m_GhostValid = false;

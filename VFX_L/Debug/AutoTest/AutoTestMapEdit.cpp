@@ -10,11 +10,13 @@
 #include "Camera/FlyCamera.h"
 #include "Graphics/Model/Model.h"
 #include "World/GridWorld.h"
+#include "World/MapTerrainEdit.h"
 #include <Windows.h>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <string>
 
 using DirectX::SimpleMath::Vector3;
 
@@ -57,11 +59,20 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
     s_Time += dt;
     char line[320];
     MapData::Map& map = edit.TestMap();
-    if (s_Step > 0 && s_Step < 7 && s_Group == 0) { Log("mapedit no tree found"); Log("mapedit done"); s_Step = 7; return; }
+    if (s_Step > 0 && s_Step < 9 && s_Group == 0) { Log("mapedit no tree found"); Log("mapedit done"); s_Step = 9; return; }
 
     if (s_Step == 0 && s_Time >= 0.5f)
     {
         edit.TestOpen(12345u, 0);
+        {
+            // 地形の部品から作り直した結果が生成器の結果と同じか（4 歩目）
+            const MapTerrainEdit::Check c = MapTerrainEdit::Verify(map);
+            snprintf(line, sizeof(line), "mapedit rederive blockParts %zu rampParts %zu pads %zu reliefSame %d heightMaxDiff %.4f diffCells %d walkableSame %d grassSame %d recordsSame %d",
+                map.blockParts.size(), map.rampParts.size(), map.pads.size(), (int)c.reliefSame, c.heightMaxDiff, c.heightDiffCells,
+                (int)c.walkableSame, (int)c.grassSame, (int)c.recordsSame);
+            Log(line);
+            Log(("mapedit rederive detail" + c.detail).c_str());
+        }
         for (const auto& b : map.boxes)
         {
             if (b.tag.kind != MapData::kTree) continue;
@@ -148,6 +159,77 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
     else if (s_Step == 5 && s_Time >= 4.5f) { Log("mapedit look prefabs"); s_Step = 6; }
     else if (s_Step == 6 && s_Time >= 5.0f)
     {
+        // ---- 地形の部品（4 歩目）----
+        // 生成された台地（登れる・坂付き）を 1 つ選び、4 マス動かす → 元の所の高さ場が地面に戻り、先の所が上面の高さになる。
+        // 新しい台地 + 坂道を足す → 上面の高さ・坂の角度。消す → 高さ場が元に戻る
+        auto heightAt = [&](float x, float z) { return MapEdit::GroundHeight(map, x, z); };
+        auto center = [&](const MapData::BlockPart& b)
+            {
+                const float cs = GridWorld::kCellSize;
+                return Vector3(-0.5f * map.gw * cs + (b.x + b.w * 0.5f) * cs, 0.0f, -0.5f * map.gd * cs + (b.z + b.d * 0.5f) * cs);
+            };
+        uint32_t pg = 0;
+        for (const auto& b : map.blockParts)
+            if (b.tag.kind == MapData::kPlateau && b.raise && b.onGround && MapTerrainEdit::RampCount(map, b.tag.group) > 0)
+            { pg = b.tag.group; break; }
+        if (pg != 0)
+        {
+            const MapData::BlockPart before = *MapTerrainEdit::Block(map, pg, 0);
+            const Vector3 c0 = center(before);
+            const size_t padsBefore = map.pads.size();
+            // 動かせる向きを探す（場外・他の物は見ない。場外だけ MoveGroup が弾く）
+            bool moved = MapTerrainEdit::MoveGroup(map, pg, 4, 0) || MapTerrainEdit::MoveGroup(map, pg, -4, 0);
+            const MapData::BlockPart after = *MapTerrainEdit::Block(map, pg, 0);
+            const Vector3 c1 = center(after);
+            int boxes = 0;
+            float boxLoX = 0.0f;
+            for (const auto& b : map.boxes) if (b.tag.group == pg) { ++boxes; boxLoX = b.lo.x; }
+            snprintf(line, sizeof(line),
+                "mapedit part move ok %d cells %d->%d top %.2f->%.2f base %.2f->%.2f | oldCenter h %.2f (was top %.2f) newCenter h %.2f | boxes %d pads %zu->%zu walkableMatches %d",
+                (int)moved, before.x, after.x, before.top, after.top, before.base, after.base,
+                heightAt(c0.x - (after.x - before.x > 0 ? 3.0f : -3.0f), c0.z), before.top, heightAt(c1.x, c1.z),
+                boxes, padsBefore, map.pads.size(), (int)MapEdit::WalkableMatchesBlocks(map));
+            Log(line);
+            (void)boxLoX;
+        }
+
+        // 新しい台地：真ん中の空き地に 6 x 6・3m、+x へ幅 2 の坂道
+        const Vector3 tp = map.props[(size_t)MapEdit::FindProp(map, s_Group)].pos;
+        const float cs = GridWorld::kCellSize;
+        (void)tp;
+        const int gx = 59, gz = 60;   // フィールドの真ん中の少し東（開始時の場所の空き地）
+        const Vector3 probe(-0.5f * map.gw * cs + (gx + 0.5f) * cs, 0.0f, -0.5f * map.gd * cs + (gz - 11 + 0.5f) * cs);
+        const float groundBefore = heightAt(probe.x, probe.z);
+        const size_t partsBefore = map.blockParts.size();
+        const uint32_t ng = MapTerrainEdit::AddPlateau(map, gx - 3, gz - 14, 6, 6, 3.0f);
+        const bool rampOk = MapTerrainEdit::AddRamp(map, ng, 0, 0, 2, 2);
+        const MapData::BlockPart nb = *MapTerrainEdit::Block(map, ng, 0);
+        const MapData::RampPart nr = *MapTerrainEdit::Ramp(map, ng, 0);
+        const float topH = heightAt(probe.x, probe.z);
+        const float slope = std::atan2(nr.top - nr.base, nr.w * cs) * 57.29578f;
+        snprintf(line, sizeof(line),
+            "mapedit part add group %u parts %zu->%zu ramp %d | ground %.2f base %.2f top %.2f heightOnTop %.2f | ramp cells %d,%d %dx%d slope %.1f deg midRampH %.2f",
+            ng, partsBefore, map.blockParts.size(), (int)rampOk, groundBefore, nb.base, nb.top, topH,
+            nr.x, nr.z, nr.w, nr.d, slope,
+            heightAt(-0.5f * map.gw * cs + (nr.x + nr.w * 0.5f) * cs, -0.5f * map.gd * cs + (nr.z + nr.d * 0.5f) * cs));
+        Log(line);
+
+        // 複製して消す：消した後の高さ場が、足す前（groundBefore）へ戻るか
+        MapData::Map trial = map;
+        MapTerrainEdit::DeleteGroup(trial, ng);
+        snprintf(line, sizeof(line), "mapedit part delete heightBack %.2f (before %.2f) parts %zu walkableMatches %d",
+            MapEdit::GroundHeight(trial, probe.x, probe.z), groundBefore, trial.blockParts.size(),
+            (int)MapEdit::WalkableMatchesBlocks(trial));
+        Log(line);
+
+        edit.TestRebuildView();
+        edit.TestSelectGroup(ng);
+        edit.TestFocus(camera);
+        s_Step = 7;
+    }
+    else if (s_Step == 7 && s_Time >= 6.5f) { Log("mapedit look parts"); s_Step = 8; }
+    else if (s_Step == 8 && s_Time >= 7.0f)
+    {
         std::vector<uint8_t> a, b;
         MapData::Serialize(map, a);
         const bool saved = MapData::Save("_edittest", map);
@@ -158,6 +240,6 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
             (int)saved, (int)loaded, (int)(a == b), a.size(), (int)MapEdit::WalkableMatchesBlocks(map));
         Log(line);
         Log("mapedit done");
-        s_Step = 7;
+        s_Step = 9;
     }
 }

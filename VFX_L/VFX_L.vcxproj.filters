@@ -637,10 +637,16 @@
     <ClCompile Include="World\TerrainBuild.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\TerrainParts.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\MapData.cpp">
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\MapEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapTerrainEdit.cpp">
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="Scene\MapEditMode.cpp">
@@ -650,6 +656,9 @@
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Scene\MapEditModeView.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditModeTerrainUI.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestMapEdit.cpp">
@@ -1289,6 +1298,9 @@
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\MapEdit.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\MapTerrainEdit.h">
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="Scene\MapEditMode.h">
