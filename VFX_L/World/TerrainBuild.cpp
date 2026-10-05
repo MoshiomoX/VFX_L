@@ -10,6 +10,7 @@
 #include "Debug/TestSpawner.h"
 #include "Graphics/Model/Model.h"
 #include "Manager/ResourceManager.h"
+#include <climits>
 #include <functional>
 #include <iostream>
 
@@ -160,9 +161,15 @@ namespace TerrainBuild
 
     // ============================================================
     // Emitter
+    // m_Reg が無い時（記録だけ）は実体を作らず、記録だけ積む
     // ============================================================
     Emitter::Emitter(Registry& reg, std::vector<Entity>& outTerrain, MapData::Map* rec)
-        : m_Reg(reg), m_Out(outTerrain), m_Rec(rec)
+        : m_Reg(&reg), m_Out(&outTerrain), m_Rec(rec)
+    {
+    }
+
+    Emitter::Emitter(MapData::Map* rec)
+        : m_Rec(rec)
     {
     }
 
@@ -176,9 +183,12 @@ namespace TerrainBuild
 
     void Emitter::Box(const Vector3& lo, const Vector3& hi, uint32_t layer)
     {
-        Entity e = TestSpawner::SpawnStaticBox(m_Reg, (lo + hi) * 0.5f, (hi - lo) * 0.5f);
-        m_Reg.Get<ColliderComponent>(e).layer = layer;
-        m_Out.push_back(e);
+        if (m_Reg)
+        {
+            Entity e = TestSpawner::SpawnStaticBox(*m_Reg, (lo + hi) * 0.5f, (hi - lo) * 0.5f);
+            m_Reg->Get<ColliderComponent>(e).layer = layer;
+            m_Out->push_back(e);
+        }
         if (m_Rec)
         {
             MapData::Box b;
@@ -189,7 +199,7 @@ namespace TerrainBuild
 
     void Emitter::Hull(const Vector3 world[8], uint32_t layer)
     {
-        m_Out.push_back(SpawnHullCollider(m_Reg, world, layer));
+        if (m_Reg) m_Out->push_back(SpawnHullCollider(*m_Reg, world, layer));
         if (m_Rec)
         {
             MapData::Hull h;
@@ -201,9 +211,12 @@ namespace TerrainBuild
 
     void Emitter::Visual(const Vector3 world[8], const Vector4& top, const Vector4& side, int topLayer, int sideLayer)
     {
-        m_Batch.SetLayers(topLayer, sideLayer);
-        m_Batch.Append(world, top, side);
-        m_Batch.SetLayers(-1, -1);
+        if (m_Reg)
+        {
+            m_Batch.SetLayers(topLayer, sideLayer);
+            m_Batch.Append(world, top, side);
+            m_Batch.SetLayers(-1, -1);
+        }
         if (m_Rec)
         {
             MapData::Visual v;
@@ -216,19 +229,19 @@ namespace TerrainBuild
     void Emitter::Prop(const std::string& path, const std::shared_ptr<Model>& model,
         const Vector3& pos, float yawDeg, float scale)
     {
-        if (model)
+        if (m_Reg && model)
         {
-            Entity e = m_Reg.Create();
+            Entity e = m_Reg->Create();
             TransformComponent tf;
             tf.position = pos;
             tf.rotation = { 0.0f, yawDeg, 0.0f };
             tf.scale = { scale, scale, scale };
-            m_Reg.Add<TransformComponent>(e, tf);
+            m_Reg->Add<TransformComponent>(e, tf);
             ModelComponent mc;
             mc.model = model;
             mc.batched = true;   // シーンの StaticPropRenderer がまとめて描く
-            m_Reg.Add<ModelComponent>(e, mc);
-            m_Out.push_back(e);
+            m_Reg->Add<ModelComponent>(e, mc);
+            m_Out->push_back(e);
         }
         if (m_Rec)
         {
@@ -238,9 +251,10 @@ namespace TerrainBuild
         }
     }
 
-    void Emitter::Block(GridWorld& grid, int x, int z, int w, int d)
+    // grid が無い時は記録だけ（通行の表は MapEdit::RebuildWalkable が記録から組む）
+    void Emitter::Block(GridWorld* grid, int x, int z, int w, int d)
     {
-        grid.BlockArea(x, z, w, d);
+        if (grid) grid->BlockArea(x, z, w, d);
         if (m_Rec)
         {
             MapData::Block b;
@@ -252,15 +266,16 @@ namespace TerrainBuild
     // 1 個ずつだと DrawMesh が数十回（影の 3 段でその 3 倍）。頂点は世界座標なので実体は原点
     void Emitter::FinishVisuals(ID3D11Device* device, TerrainGenerator::Biome biome, const float* refLum)
     {
+        if (!m_Reg) return;
         auto model = m_Batch.Build(device);
         if (!model) return;
         TerrainSurface::Get().Apply(device, *model, (int)biome, refLum);
-        Entity e = m_Reg.Create();
-        m_Reg.Add<TransformComponent>(e, TransformComponent{});
+        Entity e = m_Reg->Create();
+        m_Reg->Add<TransformComponent>(e, TransformComponent{});
         ModelComponent mc;
         mc.model = model;
-        m_Reg.Add<ModelComponent>(e, mc);
-        m_Out.push_back(e);
+        m_Reg->Add<ModelComponent>(e, mc);
+        m_Out->push_back(e);
     }
 
     // ============================================================
@@ -489,7 +504,7 @@ namespace TerrainGenerator
             emit.SetTag(p.tag);
             emit.Prop(map.models[(size_t)p.model], models[(size_t)p.model], p.pos, p.yawDeg, p.scale);
         }
-        for (const auto& b : map.blocks) { emit.SetTag(b.tag); emit.Block(grid, b.x, b.z, b.w, b.d); }
+        for (const auto& b : map.blocks) { emit.SetTag(b.tag); emit.Block(&grid, b.x, b.z, b.w, b.d); }
 
         GroundParams gp;
         gp.seed = map.seed; gp.biome = biome; gp.relief = map.relief; gp.reliefSubdiv = map.reliefSubdiv;
@@ -528,6 +543,9 @@ namespace TerrainGenerator
             o.nextGroup = map.nextGroup;
             o.placements = map.placements;
             o.volumes = map.volumes;
+            o.rawPlain = map.rawPlain; o.rawSummit = map.rawSummit;
+            o.blockParts = map.blockParts; o.rampParts = map.rampParts; o.pads = map.pads;
+            o.padMargin = map.padMargin; o.reliefMaxSlopeDeg = map.reliefMaxSlopeDeg; o.rampSlopeDeg = map.rampSlopeDeg;
         }
 
         std::cout << "[Terrain] built from map: seed " << map.seed << " biome " << map.biome << ", "

@@ -55,6 +55,21 @@ namespace TerrainBuild
     // 下 0-3 = (-x-z, +x-z, +x+z, -x+z)、上 4-7 がそれぞれの真上
     void BoxVerts(Vector3 v[8], const Vector3& lo, const Vector3& hi);
 
+    // ---- 格子の矩形・高さ場の補助（生成と、部品からの作り直し MapEdit が共用）----
+    // 坂が台地のどちら側に付くか（= 降りていく向き）。MapData::RampPart::side の値と同じ
+    enum class Side { PosX, NegX, PosZ, NegZ };
+    struct Rect { int x, z, w, d; };   // 格子のマス（左下と大きさ）
+
+    Vector3 RectMin(const GridWorld& g, const Rect& r);                  // 格子の矩形の下隅（世界、y = 0）
+    void RaiseRect(GridWorld& g, const Rect& r, float h);                // 足跡の高さ場を h まで上げる（台地の上面）
+    // 凸体の上面を足跡の高さ場へ（坂道・高台の坂）
+    void WriteHullHeights(GridWorld& g, const Rect& r, const CollisionMath::Convex& hull, const Vector3& center);
+    // 台地 p の side 側の外に、辺に沿って offset マス目から幅 rw、長さ len
+    Rect RampRect(const Rect& p, Side s, int offset, int rw, int len);
+    Rect LandingRect(const Rect& ramp, Side s);                          // 坂道を降りた先の 1 マス幅の帯
+    // 隣のノードとの傾きを軸方向で tanMax までに抑える（fixed のノードは動かさない）
+    void LimitSlope(std::vector<float>& h, int nx, int nz, float step, float tanMax, const std::vector<uint8_t>* fixed);
+
     // ============================================================
     // 起伏（2026-10-04、ユーザー：純平地をやめて、緩い丘の斜面に小さい土饅頭が載った地面に）。
     // 平原と山頂の上面の起伏を 0.5m 毎のノード（フィールドの隅から隅まで、高さ場と同じ細かさ）に持ち、間は双線形。
@@ -143,6 +158,7 @@ namespace TerrainBuild
     {
     public:
         Emitter(Registry& reg, std::vector<Entity>& outTerrain, MapData::Map* rec);
+        explicit Emitter(MapData::Map* rec);   // 記録だけ（実体を作らない。MapEdit が部品から記録を作り直す時）
 
         // 新しい 1 個（木 1 本・台地 1 つ…）の始まり。以後の記録は同じ group になる
         MapData::Tag Begin(MapData::Kind kind);
@@ -157,21 +173,37 @@ namespace TerrainBuild
         // 置物の見た目（StaticPropRenderer がまとめて描く）。model が null なら記録だけ（素材が無い PC）
         void Prop(const std::string& path, const std::shared_ptr<Model>& model,
             const Vector3& pos, float yawDeg, float scale);
-        void Block(GridWorld& grid, int x, int z, int w, int d);                 // 格子を塞ぐ
+        void Block(GridWorld* grid, int x, int z, int w, int d);                 // 格子を塞ぐ（grid が無ければ記録だけ）
 
         // 積んだ見た目を 1 つのモデルの実体にする（最後に 1 回）
         void FinishVisuals(ID3D11Device* device, TerrainGenerator::Biome biome, const float* refLum);
 
         MapData::Map* Rec() const { return m_Rec; }
+        const MapData::Tag& Tag() const { return m_Tag; }
 
     private:
-        Registry& m_Reg;
-        std::vector<Entity>& m_Out;
+        Registry* m_Reg = nullptr;                 // 無ければ記録だけ
+        std::vector<Entity>* m_Out = nullptr;
         MapData::Map* m_Rec = nullptr;
         MapData::Tag m_Tag;
         uint32_t m_NextGroup = 1;   // rec が無い時用
         PrimitiveBuilder::HexahedronBatch m_Batch;
     };
+
+    // ---- 起伏の合成：素の起伏 + 台座（生成と MapEdit が同じ関数を通る = 同じ結果）----
+    // 洞窟の周りを平原の 0 に均す重み（ノード毎。洞窟が無ければ全部 0）
+    void ComputeMineWeights(const std::vector<uint8_t>& zone, int gw, int gd, int padMargin, std::vector<float>& out);
+    // ノードの範囲（両端含む）の面を、素の起伏 raw と zone の台座（+ mineW）から作り直す
+    void ComposeRelief(std::vector<float>& arr, const std::vector<float>& raw, const std::vector<MapData::Pad>& pads,
+        uint8_t zone, const std::vector<float>* mineW, int nx, int nz, int ix0, int iz0, int ix1, int iz1);
+    // 仕上げ：急な所を抑える（台座の芯は動かさない）
+    void LimitReliefSlopes(std::vector<float>& arr, const std::vector<MapData::Pad>& pads, uint8_t zone,
+        const std::vector<float>* mineW, int nx, int nz, float step, float maxSlopeDeg);
+
+    // ---- 地形の部品を建てる。grid があれば高さ場・通行も書く。origin = 格子の原点を知るための格子 ----
+    void EmitBlockPart(Emitter& emit, GridWorld* grid, const GridWorld& origin, const MapData::BlockPart& p);
+    void RampVerts(const GridWorld& origin, const MapData::RampPart& p, Vector3 v[8]);
+    void EmitRampPart(Emitter& emit, GridWorld* grid, const GridWorld& origin, const MapData::RampPart& p);
 
     // テクスチャの層毎の「元の頂点色の基準の明るさ」（TerrainSurface。頂点色の明るさ / これ をテクスチャに薄く掛けて色むらを残す）。
     // 地面・洞の底は色の関数をフィールドに 48x48 点で平均、他はその層の配色

@@ -21,7 +21,7 @@
 
 namespace MapData
 {
-    inline constexpr uint32_t kVersion = 3;   // 2 = 機能付きの置き物（placements）、3 = 手で置いた体積（volumes）。古い版も読める
+    inline constexpr uint32_t kVersion = 4;   // 2 = placements、3 = volumes、4 = 地形の部品（parts / pads / 素の起伏）。古い版も読める
 
     // 何の一部か（エディタの一覧・選別用）
     enum Kind : uint16_t
@@ -84,6 +84,43 @@ namespace MapData
         bool blockMobs = true;                    // 足跡のマスを塞ぐ
     };
 
+
+    // ---- 地形の部品（版 4、地図エディタの 4 歩目）----
+    // 台地・高台・坂は「部品」として持ち、衝突・見た目・高さ場・足元の台座はここから作り直せる（MapEdit）。
+    // 同じ 1 個（台地 + 坂道 + 2 段目）は同じ group
+    // 箱の部品（台地・高台の上面、2 段目）。足跡はマスの矩形
+    struct BlockPart
+    {
+        Tag tag;
+        int x = 0, z = 0, w = 1, d = 1;          // マス（左下と大きさ）
+        float bottom = 0.0f, top = 0.0f;         // 箱の底（足元より少し埋めてある）と上面
+        float base = 0.0f;                       // 足元の高さ（地面なら台座の高さ、2 段目なら下の段の上面）
+        DirectX::SimpleMath::Vector4 topColor, sideColor;
+        bool raise = true;                       // true = 上を歩ける（高さ場を上げる）。false = 登れないので格子を塞ぐ
+        bool onGround = true;                    // 地面に載っている（足元に台座を作る）。2 段目は false
+    };
+    // 坂の部品（楔）。高い端が side の反対側、side の向きへ base まで下る
+    struct RampPart
+    {
+        Tag tag;
+        int x = 0, z = 0, w = 1, d = 1;          // マス
+        uint8_t side = 0;                        // 下る向き：0 +x / 1 -x / 2 +z / 3 -z
+        float base = 0.0f, top = 0.0f;
+        DirectX::SimpleMath::Vector4 topColor, sideColor;
+        bool grassy = false;                     // 草の坂（地面と同じ層、草を生やす）。false = 土の道
+        bool onGround = true;                    // 足元に台座を作る（台地の上の坂・洞窟の中の坂は false）
+        // どの箱に付いているか（同じ group の何番目の BlockPart か。-1 = 付いていない = 山頂・洞窟の坂）と、
+        // その辺に沿った位置。箱の大きさを変えた時に足跡を作り直す用
+        int owner = -1, offset = 0;
+    };
+    // 台座：起伏を高さ L（区域の基準からの差）に均す範囲。ノード（0.5m）単位、両端含む。m = 元の起伏へ戻す幅
+    struct Pad
+    {
+        Tag tag;
+        uint8_t zone = 0;                        // 0 平原 / 1 山頂
+        int ax0 = 0, ax1 = 0, az0 = 0, az1 = 0, m = 1;
+        float L = 0.0f;
+    };
     struct Map
     {
         // ---- 見出し ----
@@ -114,6 +151,15 @@ namespace MapData
         std::vector<DirectX::SimpleMath::Vector3> torches;
         std::vector<Placement> placements;   // 報酬の箱・Boss の門
         std::vector<Volume> volumes;         // 手で置いた見えない体積
+
+        // ---- 地形の部品（版 4）。これと素の起伏から、起伏・高さ場を作り直せる ----
+        std::vector<float>     rawPlain, rawSummit;   // 台座で均す前の起伏（reliefPlain / reliefSummit と同じ大きさ。無ければ空）
+        std::vector<BlockPart> blockParts;
+        std::vector<RampPart>  rampParts;
+        std::vector<Pad>       pads;
+        int   padMargin = 5;                 // 台座の戻しの幅（マス。TerrainGenerator::Config と同じ）
+        float reliefMaxSlopeDeg = 30.0f;     // 起伏の傾きの上限
+        float rampSlopeDeg = 28.0f;          // エディタで足す坂道の既定の角度
 
         // ---- 三層の結果（TerrainGenerator::Layout と同じ）----
         std::vector<int> summitCells, mineCells;

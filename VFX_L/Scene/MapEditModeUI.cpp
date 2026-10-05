@@ -109,6 +109,20 @@ void MapEditMode::DrawWindow(FlyCamera& camera)
     if (ImGui::Button("Add Mob Blocker")) addVolume(false, true);
     ImGui::SetItemTooltip("The player walks through; mobs cannot enter these cells");
 
+    // ---- 地形の部品（台地・高台・坂。4 歩目）----
+    ImGui::SeparatorText("Terrain parts (plateau / terrace / ramp)");
+    if (!MapTerrainEdit::HasParts(m_Map))
+        ImGui::TextDisabled("This map was saved before terrain parts existed: generate it again to edit them.");
+    else
+    {
+        ImGui::Text("Parts: %zu boxes, %zu ramps", m_Map.blockParts.size(), m_Map.rampParts.size());
+        if (ImGui::Button("Add Plateau")) AddPart(camera, false);
+        ImGui::SetItemTooltip("6 x 6 cells, 3 m high, one ramp. Click a plateau to select it");
+        ImGui::SameLine();
+        if (ImGui::Button("Add Terrace")) AddPart(camera, true);
+        ImGui::SetItemTooltip("8 x 8 cells, 6 m high, one full-width grassy slope (for sliding)");
+    }
+
     DrawInspector(camera);
 
     ImGui::SeparatorText("Keys");
@@ -130,7 +144,9 @@ void MapEditMode::DrawInspector(FlyCamera& camera)
     }
 
     const int volume = (m_Sel.type == SelType::Group) ? MapEdit::FindVolume(m_Map, m_Sel.group) : -1;
-    if (volume >= 0)
+    if (m_Sel.type == SelType::Group && IsPartGroup(m_Sel.group))
+        DrawPartInspector();   // 地形の部品（MapEditModeTerrainUI.cpp）
+    else if (volume >= 0)
     {
         // 手で置いた見えない体積
         MapData::Volume& v = m_Map.volumes[(size_t)volume];

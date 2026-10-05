@@ -10,6 +10,7 @@
 #include "Graphics/Transform.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
+#include "World/TerrainBuild.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -86,6 +87,32 @@ void MapEditMode::DrawSelectionMarks()
         return;
     }
     if (m_Sel.type != SelType::Group) return;
+
+    // 地形の部品：箱と坂の楔を黄の線で（データから描くので、見た目の建て直しを待たずに動く）
+    if (IsPartGroup(m_Sel.group))
+    {
+        const Color yellow(1.0f, 0.85f, 0.2f, 1.0f);
+        auto& dbg = DebugManager::Get();
+        const float cs = GridWorld::kCellSize;
+        for (const auto& p : m_Map.blockParts)
+        {
+            if (p.tag.group != m_Sel.group) continue;
+            const Vector3 c = m_Grid.CellToWorld(p.x, p.z) - Vector3(cs * 0.5f, 0.0f, cs * 0.5f);
+            LineBox(c + Vector3(0.0f, p.bottom, 0.0f), c + Vector3(p.w * cs, p.top + 0.05f, p.d * cs), Matrix::Identity, yellow);
+        }
+        for (const auto& p : m_Map.rampParts)
+        {
+            if (p.tag.group != m_Sel.group) continue;
+            Vector3 v[8];
+            TerrainBuild::RampVerts(m_Grid, p, v);
+            for (int i = 0; i < 4; ++i)   // 下の輪・上の輪・縦
+            {
+                dbg.AddDebugLine(v[i], v[(i + 1) % 4], yellow);
+                dbg.AddDebugLine(v[i + 4] + Vector3(0.0f, 0.05f, 0.0f), v[(i + 1) % 4 + 4] + Vector3(0.0f, 0.05f, 0.0f), yellow);
+                dbg.AddDebugLine(v[i], v[i + 4], yellow);
+            }
+        }
+    }
 
     for (const auto& p : m_Map.props)
         if (p.tag.group == m_Sel.group)

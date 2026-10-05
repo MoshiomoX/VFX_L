@@ -147,6 +147,30 @@ namespace MapData
         // 版 3 から
         w.Pod((uint32_t)m.volumes.size());
         for (const auto& v : m.volumes) { w.Tag(v.tag); w.Pod(v.center); w.Pod(v.half); w.Pod((uint8_t)v.solid); w.Pod((uint8_t)v.blockMobs); }
+
+        // 版 4 から
+        w.Array(m.rawPlain); w.Array(m.rawSummit);
+        w.Pod((uint32_t)m.blockParts.size());
+        for (const auto& p : m.blockParts)
+        {
+            w.Tag(p.tag); w.Pod((int32_t)p.x); w.Pod((int32_t)p.z); w.Pod((int32_t)p.w); w.Pod((int32_t)p.d);
+            w.Pod(p.bottom); w.Pod(p.top); w.Pod(p.base); w.Pod(p.topColor); w.Pod(p.sideColor);
+            w.Pod((uint8_t)p.raise); w.Pod((uint8_t)p.onGround);
+        }
+        w.Pod((uint32_t)m.rampParts.size());
+        for (const auto& p : m.rampParts)
+        {
+            w.Tag(p.tag); w.Pod((int32_t)p.x); w.Pod((int32_t)p.z); w.Pod((int32_t)p.w); w.Pod((int32_t)p.d);
+            w.Pod(p.side); w.Pod(p.base); w.Pod(p.top); w.Pod(p.topColor); w.Pod(p.sideColor);
+            w.Pod((uint8_t)p.grassy); w.Pod((uint8_t)p.onGround); w.Pod((int32_t)p.owner); w.Pod((int32_t)p.offset);
+        }
+        w.Pod((uint32_t)m.pads.size());
+        for (const auto& p : m.pads)
+        {
+            w.Tag(p.tag); w.Pod(p.zone); w.Pod((int32_t)p.ax0); w.Pod((int32_t)p.ax1); w.Pod((int32_t)p.az0);
+            w.Pod((int32_t)p.az1); w.Pod((int32_t)p.m); w.Pod(p.L);
+        }
+        w.Pod((int32_t)m.padMargin); w.Pod(m.reliefMaxSlopeDeg); w.Pod(m.rampSlopeDeg);
     }
 
     bool Deserialize(const std::vector<uint8_t>& in, Map& m)
@@ -207,6 +231,31 @@ namespace MapData
         {
             m.volumes.resize(r.Count(32));
             for (auto& v : m.volumes) { r.Tag(v.tag); r.Pod(v.center); r.Pod(v.half); r.Pod(u8); v.solid = u8 != 0; r.Pod(u8); v.blockMobs = u8 != 0; }
+        }
+        if (version >= 4)
+        {
+            r.Array(m.rawPlain); r.Array(m.rawSummit);
+            m.blockParts.resize(r.Count(64));
+            for (auto& p : m.blockParts)
+            {
+                r.Tag(p.tag); r.Pod(i32); p.x = i32; r.Pod(i32); p.z = i32; r.Pod(i32); p.w = i32; r.Pod(i32); p.d = i32;
+                r.Pod(p.bottom); r.Pod(p.top); r.Pod(p.base); r.Pod(p.topColor); r.Pod(p.sideColor);
+                r.Pod(u8); p.raise = u8 != 0; r.Pod(u8); p.onGround = u8 != 0;
+            }
+            m.rampParts.resize(r.Count(73));
+            for (auto& p : m.rampParts)
+            {
+                r.Tag(p.tag); r.Pod(i32); p.x = i32; r.Pod(i32); p.z = i32; r.Pod(i32); p.w = i32; r.Pod(i32); p.d = i32;
+                r.Pod(p.side); r.Pod(p.base); r.Pod(p.top); r.Pod(p.topColor); r.Pod(p.sideColor);
+                r.Pod(u8); p.grassy = u8 != 0; r.Pod(u8); p.onGround = u8 != 0; r.Pod(i32); p.owner = i32; r.Pod(i32); p.offset = i32;
+            }
+            m.pads.resize(r.Count(31));
+            for (auto& p : m.pads)
+            {
+                r.Tag(p.tag); r.Pod(p.zone); r.Pod(i32); p.ax0 = i32; r.Pod(i32); p.ax1 = i32; r.Pod(i32); p.az0 = i32;
+                r.Pod(i32); p.az1 = i32; r.Pod(i32); p.m = i32; r.Pod(p.L);
+            }
+            r.Pod(i32); m.padMargin = i32; r.Pod(m.reliefMaxSlopeDeg); r.Pod(m.rampSlopeDeg);
         }
         if (!r.ok) { m.Clear(); return false; }
 
