@@ -347,4 +347,62 @@ namespace TerrainBuild
         WriteHullHeights(*grid, { p.x, p.z, p.w, p.d }, CollisionMath::ConvexFromHexahedron(local), center);
     }
 
+
+    // ============================================================
+    // 素の起伏（台座で均す前）= ノイズの丘 + 丘の部品 → 傾きを抑える
+    // 生成と、地図エディタが全体の設定・丘の部品を変えた時の作り直し（MapTerrainEdit::RebuildRaw）が共用
+    // ============================================================
+    void BuildReliefNoise(const MapData::ReliefParams& rp, uint32_t seed, int gw, int gd,
+        std::vector<float>& plain, std::vector<float>& summit)
+    {
+        const int nx = gw * GridWorld::kHeightSub + 1, nz = gd * GridWorld::kHeightSub + 1;
+        const float step = kCs / GridWorld::kHeightSub;
+        const float ox = -0.5f * gw * kCs, oz = -0.5f * gd * kCs;
+        const float hill = rp.hillHeight, detail = rp.detailHeight;
+        const float big = (std::max)(rp.hillScale, 4.0f), fine = (std::max)(rp.detailScale, 2.0f);
+        const uint32_t s = seed;
+        plain.assign((size_t)nx * nz, 0.0f);
+        summit.assign((size_t)nx * nz, 0.0f);
+        for (int iz = 0; iz < nz; ++iz)
+            for (int ix = 0; ix < nx; ++ix)
+            {
+                const float x = ox + ix * step, z = oz + iz * step;
+                const size_t i = (size_t)iz * nx + ix;
+                plain[i] = hill * GradNoise(x / big, z / big, s + 101u) + detail * GradNoise(x / fine, z / fine, s + 103u);
+                summit[i] = rp.summitMul
+                    * (hill * GradNoise(x / big, z / big, s + 107u) + detail * GradNoise(x / fine, z / fine, s + 109u));
+            }
+    }
+
+    void AddHillsAndLimit(const std::vector<MapData::Hill>& hills, float summitMul, float maxSlopeDeg, int gw, int gd,
+        std::vector<float>& plain, std::vector<float>& summit)
+    {
+        const int nx = gw * GridWorld::kHeightSub + 1, nz = gd * GridWorld::kHeightSub + 1;
+        const float step = kCs / GridWorld::kHeightSub;
+        const float ox = -0.5f * gw * kCs, oz = -0.5f * gd * kCs;
+        for (const MapData::Hill& hl : hills)
+        {
+            const float cx = hl.x, cz = hl.z, r = hl.radius, h = hl.height;
+            if (r <= 0.0f) continue;
+            const int ix0 = (std::max)(0, (int)std::floor((cx - r - ox) / step));
+            const int ix1 = (std::min)(nx - 1, (int)std::ceil((cx + r - ox) / step));
+            const int iz0 = (std::max)(0, (int)std::floor((cz - r - oz) / step));
+            const int iz1 = (std::min)(nz - 1, (int)std::ceil((cz + r - oz) / step));
+            for (int iz = iz0; iz <= iz1; ++iz)
+                for (int ix = ix0; ix <= ix1; ++ix)
+                {
+                    const float dx = (ox + ix * step) - cx, dz = (oz + iz * step) - cz;
+                    const float u2 = (dx * dx + dz * dz) / (r * r);
+                    if (u2 >= 1.0f) continue;
+                    const float k = (1.0f - u2) * (1.0f - u2) * h;
+                    const size_t i = (size_t)iz * nx + ix;
+                    plain[i] += k;
+                    summit[i] += k * summitMul;
+                }
+        }
+        // 素の起伏の傾きを抑える（台座の戻りは後で別に抑える）
+        const float tanRaw = std::tan(DirectX::XMConvertToRadians(maxSlopeDeg - 2.0f));
+        LimitSlope(plain, nx, nz, step, tanRaw, nullptr);
+        LimitSlope(summit, nx, nz, step, tanRaw, nullptr);
+    }
 }

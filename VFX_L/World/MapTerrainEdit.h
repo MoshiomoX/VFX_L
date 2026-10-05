@@ -32,6 +32,8 @@ namespace MapTerrainEdit
     bool MoveGroup(MapData::Map& map, uint32_t group, int dx, int dz);
     // 部品を変えた後のまとめ（足元の合わせ直し → 坂の足跡 → 記録 → 台座 → Rederive）
     void Refresh(MapData::Map& map, uint32_t group);
+    // derive = false：起伏・高さ場の作り直しを省く（何個もまとめて直す時。最後に Rederive / RegenZones を呼ぶこと）
+    void Refresh(MapData::Map& map, uint32_t group, bool derive);
     void DeleteGroup(MapData::Map& map, uint32_t group);
 
     // 台地を足す（w x d マス、高さ height m、上を歩ける）。新しい group を返す
@@ -62,6 +64,28 @@ namespace MapTerrainEdit
     // 区域の縁に合わせるのは置く人（山頂の坂は高い端を山頂の縁に、洞窟の坂は高い端を坑の縁の内側に）
     uint32_t AddZoneRamp(MapData::Map& map, bool summit, int x, int z, int side, int width, int length);
 
+    // ---- 起伏の筆（4 歩目の 3 段目。MapReliefEdit.cpp）----
+    enum class BrushMode { Raise, Lower, Smooth, Flatten };
+    // 世界の点 (x, z) を中心に半径 radius m の筆を 1 回当てる。変えたノードの数を返す。
+    //   Raise / Lower : amount = 真ん中での変化量（m）
+    //   Smooth        : amount = 周りの平均へ寄せる割合（0〜1）
+    //   Flatten       : amount = target の高さ（世界の y）へ寄せる割合（0〜1）
+    // 台座で均す前の素の起伏を書き換えるだけなので、塗り終わったら FinishBrush を呼ぶ
+    int BrushRelief(MapData::Map& map, float x, float z, float radius, BrushMode mode, float amount, float target = 0.0f);
+    void FinishBrush(MapData::Map& map);
+
+    // ---- 起伏の中身：全体の設定と丘の部品（MapHillEdit.cpp）----
+    // 素の起伏 = ノイズの丘（Map::reliefParams）+ 丘の部品（Map::hills）→ 傾きを抑える → + 筆の分（Map::sculpt*）
+    bool CanEditHills(const MapData::Map& map);   // 版 6 以降で生成 / 保存した地図
+    // 設定・丘の部品を変えた後に呼ぶ：素の起伏を作り直す。この後 Rederive（落ち着いたら ReseatAll）
+    void RebuildRaw(MapData::Map& map);
+    int  FindHill(const MapData::Map& map, uint32_t group);          // Map::hills の番号（無ければ -1）
+    uint32_t HillAt(const MapData::Map& map, float x, float z);      // その点を含む丘（一番小さい物。無ければ 0）
+    uint32_t AddHill(MapData::Map& map, float x, float z, float radius, float height);   // RebuildRaw まで行う
+    void DeleteHill(MapData::Map& map, uint32_t group);              // RebuildRaw まで行う
+    // 全部の地形の部品の足元を今の地面へ合わせ直す（起伏を変えた後。Rederive まで行う）
+    void ReseatAll(MapData::Map& map);
+
     // 確認用：生成器の結果と作り直した結果の差（生成した直後の地図で呼ぶ）
     struct Check
     {
@@ -73,6 +97,7 @@ namespace MapTerrainEdit
         bool grassSame = false;
         bool recordsSame = false;      // 部品の衝突・見た目の記録を作り直しても中身が同じ（順番は問わない）
         bool zonesSame = false;        // 区域から作り直した床・洞の壁 / 屋根の記録、岩の壁のマス、三層の結果が同じ
+        bool rawSame = false;          // 全体の設定と丘の部品から作り直した素の起伏が 1 ビットも違わない
     };
     Check Verify(const MapData::Map& map);
 }
@@ -83,4 +108,5 @@ namespace MapTerrainEdit::detail
     std::string& LastPerf();                        // TEMP-TEST: 直前の Rederive の内訳（ms）
     uint64_t RecordSum(const MapData::Map& map);    // 衝突・見た目・塞ぐマスの記録の中身の合計（順番に依らない）
     bool ZonesMatch(const MapData::Map& map);       // 区域から作り直した物が今の記録と同じか（Verify 用）
+    bool RawMatches(const MapData::Map& map);        // 設定と丘の部品から作り直した素の起伏が今の物と同じか（Verify 用）
 }

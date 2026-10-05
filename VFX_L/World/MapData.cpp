@@ -180,6 +180,14 @@ namespace MapData
         w.Pod((uint32_t)m.roofRockModels.size());
         for (const auto& s : m.roofRockModels) w.String(s);
         w.String(m.torchModel);
+
+        // 版 6 から
+        w.Pod((uint8_t)m.hasReliefParams);
+        w.Pod(m.reliefParams.hillHeight); w.Pod(m.reliefParams.hillScale); w.Pod(m.reliefParams.detailHeight);
+        w.Pod(m.reliefParams.detailScale); w.Pod(m.reliefParams.summitMul);
+        w.Pod((uint32_t)m.hills.size());
+        for (const auto& h : m.hills) { w.Tag(h.tag); w.Pod(h.x); w.Pod(h.z); w.Pod(h.radius); w.Pod(h.height); }
+        w.Array(m.sculptPlain); w.Array(m.sculptSummit);
     }
 
     bool Deserialize(const std::vector<uint8_t>& in, Map& m)
@@ -275,6 +283,15 @@ namespace MapData
             m.roofRockModels.resize(r.Count(4));
             for (auto& s : m.roofRockModels) r.String(s);
             r.String(m.torchModel);
+        }
+        if (version >= 6)
+        {
+            r.Pod(u8); m.hasReliefParams = u8 != 0;
+            r.Pod(m.reliefParams.hillHeight); r.Pod(m.reliefParams.hillScale); r.Pod(m.reliefParams.detailHeight);
+            r.Pod(m.reliefParams.detailScale); r.Pod(m.reliefParams.summitMul);
+            m.hills.resize(r.Count(22));
+            for (auto& h : m.hills) { r.Tag(h.tag); r.Pod(h.x); r.Pod(h.z); r.Pod(h.radius); r.Pod(h.height); }
+            r.Array(m.sculptPlain); r.Array(m.sculptSummit);
         }
         if (!r.ok) { m.Clear(); return false; }
 

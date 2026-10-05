@@ -550,6 +550,8 @@ namespace TerrainGenerator
             o.roofBottomY = map.roofBottomY; o.roofCollTop = map.roofCollTop; o.roofRockMin = map.roofRockMin; o.roofRockMax = map.roofRockMax;
             o.caveTorchSpacing = map.caveTorchSpacing; o.rimRock = map.rimRock; o.rimSink = map.rimSink;
             o.roofRockModels = map.roofRockModels; o.torchModel = map.torchModel;
+            o.hasReliefParams = map.hasReliefParams; o.reliefParams = map.reliefParams; o.hills = map.hills;
+            o.sculptPlain = map.sculptPlain; o.sculptSummit = map.sculptSummit;
         }
 
         std::cout << "[Terrain] built from map: seed " << map.seed << " biome " << map.biome << ", "

@@ -63,7 +63,7 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
     if (s_Step == 1 && s_Time > 1.0f) { s_IdleSum += dt; ++s_IdleN; }
     char line[320];
     MapData::Map& map = edit.TestMap();
-    if (s_Step > 0 && s_Step < 10 && s_Group == 0) { Log("mapedit no tree found"); Log("mapedit done"); s_Step = 10; return; }
+    if (s_Step > 0 && s_Step != 10 && s_Group == 0) { Log("mapedit no tree found"); Log("mapedit done"); s_Step = 10; return; }
 
     if (s_Step == 0 && s_Time >= 0.5f)
     {
@@ -71,9 +71,9 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
         {
             // 地形の部品から作り直した結果が生成器の結果と同じか（4 歩目）
             const MapTerrainEdit::Check c = MapTerrainEdit::Verify(map);
-            snprintf(line, sizeof(line), "mapedit rederive blockParts %zu rampParts %zu pads %zu reliefSame %d heightMaxDiff %.4f diffCells %d walkableSame %d grassSame %d recordsSame %d zonesSame %d",
+            snprintf(line, sizeof(line), "mapedit rederive blockParts %zu rampParts %zu pads %zu reliefSame %d heightMaxDiff %.4f diffCells %d walkableSame %d grassSame %d recordsSame %d zonesSame %d rawSame %d hills %zu",
                 map.blockParts.size(), map.rampParts.size(), map.pads.size(), (int)c.reliefSame, c.heightMaxDiff, c.heightDiffCells,
-                (int)c.walkableSame, (int)c.grassSame, (int)c.recordsSame, (int)c.zonesSame);
+                (int)c.walkableSame, (int)c.grassSame, (int)c.recordsSame, (int)c.zonesSame, (int)c.rawSame, map.hills.size());
             Log(line);
             Log(("mapedit rederive detail" + c.detail).c_str());
         }
@@ -265,6 +265,110 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
             Log(line);
         }
 
+
+        // ---- 起伏の中身：丘の部品と全体の設定 ----
+        // 丘（半径 9m・高さ 3m）を世界 (24, -34) へ足す → そこが約 3m 上がる。12m 動かす → 元の所は戻り、先の所が上がる。
+        // 丘の高さの設定を半分にする → 起伏の幅が縮む → 台地の足元を合わせ直す（ReseatAll）→ 設定を戻す
+        {
+            auto ms = [](std::chrono::steady_clock::time_point a) { return std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - a).count(); };
+            // 部品も区域の境も無い平原の空き地を探す（中心と 12m 先の両方、周り 14m に地形の部品が無い所）
+            float hx = 24.0f, hz = -34.0f;
+            {
+                auto freeAt = [&](float x, float z)
+                    {
+                        for (float dz = -14.0f; dz <= 14.0f; dz += 7.0f)
+                            for (float dx = -14.0f; dx <= 14.0f; dx += 7.0f)
+                            {
+                                const int cx = (int)std::floor((x + dx + 0.5f * map.gw * cs) / cs), cz = (int)std::floor((z + dz + 0.5f * map.gd * cs) / cs);
+                                if (cx < 3 || cz < 3 || cx >= map.gw - 3 || cz >= map.gd - 3) return false;
+                                if (map.zone[(size_t)cz * map.gw + cx] != 0 || MapTerrainEdit::GroupAt(map, x + dx, z + dz) != 0) return false;
+                            }
+                        return true;
+                    };
+                bool found = false;
+                for (float z = -70.0f; z <= 70.0f && !found; z += 6.0f)
+                    for (float x = -70.0f; x <= 58.0f && !found; x += 6.0f)
+                        if (freeAt(x, z) && freeAt(x + 12.0f, z)) { hx = x; hz = z; found = true; }
+            }
+            const float a0 = heightAt(hx, hz), b0 = heightAt(hx + 12.0f, hz);
+            const size_t hills0 = map.hills.size();
+            const uint32_t hg = MapTerrainEdit::AddHill(map, hx, hz, 9.0f, 3.0f);
+            MapTerrainEdit::Rederive(map);
+            const float a1 = heightAt(hx, hz);
+            auto t0 = std::chrono::steady_clock::now();
+            map.hills[(size_t)MapTerrainEdit::FindHill(map, hg)].x += 12.0f;
+            MapTerrainEdit::RebuildRaw(map);
+            MapTerrainEdit::Rederive(map);
+            const float moveMs = ms(t0);
+            const float a2 = heightAt(hx, hz), b2 = heightAt(hx + 12.0f, hz);
+
+            auto range = [&]() { const auto mm = std::minmax_element(map.reliefPlain.begin(), map.reliefPlain.end()); return *mm.second - *mm.first; };
+            const float range0 = range(), baseBefore = MapTerrainEdit::Block(map, ng, 0)->base;
+            const float keep = map.reliefParams.hillHeight;
+            t0 = std::chrono::steady_clock::now();
+            map.reliefParams.hillHeight = keep * 0.5f;
+            MapTerrainEdit::RebuildRaw(map);
+            MapTerrainEdit::Rederive(map);
+            const float paramMs = ms(t0);
+            t0 = std::chrono::steady_clock::now();
+            MapTerrainEdit::ReseatAll(map);
+            const float reseatMs = ms(t0);
+            const float range1 = range(), baseHalf = MapTerrainEdit::Block(map, ng, 0)->base;
+            map.reliefParams.hillHeight = keep;
+            MapTerrainEdit::RebuildRaw(map);
+            MapTerrainEdit::ReseatAll(map);
+            snprintf(line, sizeof(line),
+                "mapedit hill at %.0f,%.0f parts %zu->%zu | add: %.2f -> %.2f | move 12m: old spot %.2f (was %.2f), new spot %.2f -> %.2f | hillHeight x0.5: plain range %.2f -> %.2f, plateau base %.2f -> %.2f, back -> range %.2f base %.2f | walkableMatches %d",
+                hx, hz, hills0, map.hills.size(), a0, a1, a2, a0, b0, b2, range0, range1, baseBefore, baseHalf, range(),
+                MapTerrainEdit::Block(map, ng, 0)->base, (int)MapEdit::WalkableMatchesBlocks(map));
+            Log(line);
+            snprintf(line, sizeof(line), "mapedit perf hill move %.0f ms param change %.0f ms ReseatAll %.0f ms", moveMs, paramMs, reseatMs);
+            Log(line);
+        }
+
+        // ---- 起伏の筆（4 歩目の 3 段目）----
+        // 真ん中の少し南西（世界 -4, -14）へ半径 10m の筆：8m 下げる（傾きの上限で浅くなる・床の箱も下がる）→
+        // 高さ 1m に平らにする → 3m 上げる（丘が出来る）。25m 離れた所は変わらない
+        {
+            using MapTerrainEdit::BrushMode;
+            const float bx = -4.0f, bz = -14.0f, br = 10.0f;
+            auto maxSlopeDeg = [&]()   // 筆の中心を通る x 方向の線の上で一番急な所
+                {
+                    float m = 0.0f;
+                    for (float x = bx - br - 4.0f; x < bx + br + 4.0f; x += 0.5f)
+                        m = (std::max)(m, std::fabs(heightAt(x + 0.5f, bz) - heightAt(x, bz)) / 0.5f);
+                    return std::atan(m) * 57.29578f;
+                };
+            auto floorTop = [&]()   // 平原の床の箱の上面（一番大きい箱）
+                {
+                    float top = -1.0e9f, area = 0.0f;
+                    for (const auto& b : map.boxes)
+                    {
+                        if (b.tag.kind != MapData::kFloor) continue;
+                        const float a = (b.hi.x - b.lo.x) * (b.hi.z - b.lo.z);
+                        if (a > area && b.hi.y < 8.0f && b.hi.y > -9.0f) { area = a; top = b.hi.y; }
+                    }
+                    return top;
+                };
+            const float h0 = heightAt(bx, bz), far0 = heightAt(bx - 25.0f, bz), floor0 = floorTop();
+            const int n1 = MapTerrainEdit::BrushRelief(map, bx, bz, br, BrushMode::Lower, 8.0f);
+            MapTerrainEdit::FinishBrush(map);
+            const float h1 = heightAt(bx, bz), slope1 = maxSlopeDeg(), floor1 = floorTop();
+            const float plainMin = *std::min_element(map.reliefPlain.begin(), map.reliefPlain.end());
+            for (int i = 0; i < 8; ++i) MapTerrainEdit::BrushRelief(map, bx, bz, br, BrushMode::Flatten, 1.0f, 1.0f);
+            MapTerrainEdit::FinishBrush(map);
+            const float h2 = heightAt(bx, bz);
+            MapTerrainEdit::BrushRelief(map, bx, bz, br, BrushMode::Raise, 3.0f);
+            for (int i = 0; i < 4; ++i) MapTerrainEdit::BrushRelief(map, bx + 6.0f, bz, 5.0f, BrushMode::Smooth, 1.0f);
+            MapTerrainEdit::FinishBrush(map);
+            const float h3 = heightAt(bx, bz);
+            snprintf(line, sizeof(line),
+                "mapedit brush nodes %d | start %.2f lower8 -> %.2f (slope max %.1f deg, floor box top %.2f -> %.2f, plain min %.2f) | flatten to 1 -> %.2f | raise3 -> %.2f (slope max %.1f deg) | far %.2f -> %.2f | walkableMatches %d",
+                n1, h0, h1, slope1, floor0, floor1, plainMin, h2, h3, maxSlopeDeg(), far0, heightAt(bx - 25.0f, bz),
+                (int)MapEdit::WalkableMatchesBlocks(map));
+            Log(line);
+        }
+
         { const auto t0 = std::chrono::steady_clock::now(); MapTerrainEdit::Rederive(map); const auto t1 = std::chrono::steady_clock::now(); MapTerrainEdit::RegenZones(map); const auto t2 = std::chrono::steady_clock::now(); edit.TestRebuildView(); const auto t3 = std::chrono::steady_clock::now();
           char t[160]; snprintf(t, sizeof(t), "mapedit perf Rederive %.0f ms RegenZones %.0f ms RebuildView %.0f ms", std::chrono::duration<float, std::milli>(t1 - t0).count(), std::chrono::duration<float, std::milli>(t2 - t1).count(), std::chrono::duration<float, std::milli>(t3 - t2).count()); Log(t);
           Log(("mapedit perf detail " + MapTerrainEdit::detail::LastPerf()).c_str()); }
@@ -280,8 +384,14 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
         camera.Place({ -15.0f, 75.0f, -75.0f }, 0.0f, 45.0f);
         s_Step = 8;
     }
-    else if (s_Step == 8 && s_Time >= 7.5f) { Log("mapedit look zones"); s_Step = 9; }
-    else if (s_Step == 9 && s_Time >= 8.2f)
+    else if (s_Step == 8 && s_Time >= 7.5f)
+    {
+        Log("mapedit look zones");
+        camera.Place({ -4.0f, 22.0f, -48.0f }, 0.0f, 30.0f);   // 筆で作った丘（世界 -4, -14）
+        s_Step = 11;
+    }
+    else if (s_Step == 11 && s_Time >= 8.5f) { Log("mapedit look hills"); s_Step = 9; }
+    else if (s_Step == 9 && s_Time >= 9.0f)
     {
         std::vector<uint8_t> a, b;
         MapData::Serialize(map, a);

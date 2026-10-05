@@ -99,24 +99,20 @@ namespace
 
 
 
-    // 起伏の素（台座で均す前）: 大きい丘（勾配ノイズ 2 段）+ 小さい土饅頭。面ごとの倍率（砂漠は砂丘で強め、遺跡は石畳なので弱め）
-    void BuildRelief(ReliefField& f, const TerrainGenerator::Config& cfg)
+    // 起伏の素（台座で均す前）: 大きい丘（勾配ノイズ 2 段）+ 小さい土饅頭。面ごとの倍率（砂漠は砂丘で強め、遺跡は石畳なので弱め）。
+    // ここで決めるのは「全体の設定」と「土饅頭（丘の部品）をどこへ撒くか」だけで、起伏に書くのは TerrainBuild の
+    // BuildReliefNoise / AddHillsAndLimit（地図エディタが設定や丘の部品を変えた時も同じ関数で作り直す）
+    void BuildRelief(ReliefField& f, const TerrainGenerator::Config& cfg, Emitter& emit,
+        MapData::ReliefParams& rp, std::vector<MapData::Hill>& hills)
     {
         const float biomeMul = (cfg.biome == TerrainGenerator::Biome::Desert) ? 1.25f
             : (cfg.biome == TerrainGenerator::Biome::Dungeon) ? 0.5f : 1.0f;
-        const float hill = cfg.hillHeight * biomeMul;
-        const float detail = cfg.hillDetailHeight * biomeMul;
-        const float big = (std::max)(cfg.hillScale, 4.0f), fine = (std::max)(cfg.hillDetailScale, 2.0f);
-        const uint32_t s = cfg.seed;
-        for (int iz = 0; iz < f.nz; ++iz)
-            for (int ix = 0; ix < f.nx; ++ix)
-            {
-                const float x = f.NodeX(ix), z = f.NodeZ(iz);
-                const size_t i = (size_t)iz * f.nx + ix;
-                f.plain[i] = hill * GradNoise(x / big, z / big, s + 101u) + detail * GradNoise(x / fine, z / fine, s + 103u);
-                f.summit[i] = cfg.summitReliefMul
-                    * (hill * GradNoise(x / big, z / big, s + 107u) + detail * GradNoise(x / fine, z / fine, s + 109u));
-            }
+        rp.hillHeight = cfg.hillHeight * biomeMul;
+        rp.detailHeight = cfg.hillDetailHeight * biomeMul;
+        rp.hillScale = cfg.hillScale;
+        rp.detailScale = cfg.hillDetailScale;
+        rp.summitMul = cfg.summitReliefMul;
+        BuildReliefNoise(rp, cfg.seed, f.gw, f.gd, f.plain, f.summit);
 
         // 土饅頭: 半径 r、高さ h の (1 - (d/r)^2)^2。高さは r × bumpMaxSlope まで（斜面の最大の傾き ≒ 1.54 h / r）。
         // 構造物の配置の乱数と別の列（同じ seed で台地などの置き場所が起伏の有無で変わらない）
@@ -124,43 +120,28 @@ namespace
         auto randf = [&](float a, float b) { return std::uniform_real_distribution<float>(a, (std::max)(a, b))(rng); };
         const float W = f.gw * kCs, D = f.gd * kCs;
         const int count = (int)(cfg.bumpCount * (W * D) / (200.0f * 200.0f));
-        struct Placed { float x, z, r; };
-        std::vector<Placed> placed;
-        for (int attempt = 0; attempt < count * 10 && (int)placed.size() < count; ++attempt)
+        hills.clear();
+        for (int attempt = 0; attempt < count * 10 && (int)hills.size() < count; ++attempt)
         {
             const float cx = f.ox + randf(0.0f, W), cz = f.oz + randf(0.0f, D);
             const float r = randf(cfg.bumpRadiusMin, cfg.bumpRadiusMax);
             // 重ねない（重なると足し算で急になる。1 回目は 36° の所があった）
             bool overlap = false;
-            for (const Placed& q : placed)
+            for (const MapData::Hill& q : hills)
             {
-                const float dx = q.x - cx, dz = q.z - cz, rr = q.r + r;
+                const float dx = q.x - cx, dz = q.z - cz, rr = q.radius + r;
                 if (dx * dx + dz * dz < rr * rr) { overlap = true; break; }
             }
             if (overlap) continue;
-            placed.push_back({ cx, cz, r });
-            const float h = (std::min)(randf(cfg.bumpHeightMin, cfg.bumpHeightMax), r * cfg.bumpMaxSlope) * biomeMul;
-            const int ix0 = (std::max)(0, (int)std::floor((cx - r - f.ox) / f.step));
-            const int ix1 = (std::min)(f.nx - 1, (int)std::ceil((cx + r - f.ox) / f.step));
-            const int iz0 = (std::max)(0, (int)std::floor((cz - r - f.oz) / f.step));
-            const int iz1 = (std::min)(f.nz - 1, (int)std::ceil((cz + r - f.oz) / f.step));
-            for (int iz = iz0; iz <= iz1; ++iz)
-                for (int ix = ix0; ix <= ix1; ++ix)
-                {
-                    const float dx = f.NodeX(ix) - cx, dz = f.NodeZ(iz) - cz;
-                    const float u2 = (dx * dx + dz * dz) / (r * r);
-                    if (u2 >= 1.0f) continue;
-                    const float k = (1.0f - u2) * (1.0f - u2) * h;
-                    const size_t i = (size_t)iz * f.nx + ix;
-                    f.plain[i] += k;
-                    f.summit[i] += k * cfg.summitReliefMul;
-                }
+            MapData::Hill hill;
+            hill.x = cx; hill.z = cz; hill.radius = r;
+            hill.height = (std::min)(randf(cfg.bumpHeightMin, cfg.bumpHeightMax), r * cfg.bumpMaxSlope) * biomeMul;
+            hill.tag = emit.Begin(MapData::kHill);
+            hills.push_back(hill);
         }
 
-        // 素の起伏の傾きを抑える（台座の戻りは後で別に抑える）
-        const float tanRaw = std::tan(DirectX::XMConvertToRadians(cfg.reliefMaxSlopeDeg - 2.0f));
-        LimitSlope(f.plain, f.nx, f.nz, f.step, tanRaw, nullptr);
-        LimitSlope(f.summit, f.nx, f.nz, f.step, tanRaw, nullptr);
+        // 丘の部品を足して、素の起伏の傾きを抑える（台座の戻りは後で別に抑える）
+        AddHillsAndLimit(hills, rp.summitMul, cfg.reliefMaxSlopeDeg, f.gw, f.gd, f.plain, f.summit);
     }
 }
 
@@ -302,7 +283,9 @@ namespace TerrainGenerator
             "ReliefField の区域の番号は zone と同じ");
         auto relief = std::make_shared<ReliefField>();
         relief->Init(grid, zone, summitH, mineD);
-        if (cfg.relief) BuildRelief(*relief, cfg);
+        MapData::ReliefParams reliefParams;   // 起伏の全体の設定と丘の部品（記録へ。地図エディタが変える）
+        std::vector<MapData::Hill> hills;
+        if (cfg.relief) BuildRelief(*relief, cfg, emit, reliefParams, hills);
         const int hsub = GridWorld::kHeightSub;
         constexpr float kPadSink = 0.5f;   // 台座に載せる箱の底を埋める深さ（台座の縁の起伏との隙間を見せない）
         std::vector<uint8_t> raised((size_t)gw * gd, 0);   // 台地・坂・高台が高さ場を上げたマス
@@ -1511,6 +1494,7 @@ namespace TerrainGenerator
             m.roofRockMin = cfg.roofRockMin; m.roofRockMax = cfg.roofRockMax; m.caveTorchSpacing = cfg.caveTorchSpacing;
             m.rimRock = rimRock; m.rimSink = rimSink;
             m.roofRockModels = roofRockPaths; m.torchModel = Ru::kTorch;
+            m.hasReliefParams = cfg.relief; m.reliefParams = reliefParams; m.hills = hills;
             m.walkable = grid.Walkable(); m.heights = grid.Heights();
             m.grassMask = grassMask;
             m.torches = torchList;

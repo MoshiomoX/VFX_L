@@ -219,6 +219,12 @@ MapEditMode::Selection MapEditMode::Pick()
     {
         const uint32_t g = MapTerrainEdit::GroupAt(m_Map, ground.x, ground.z);
         if (g != 0 && IsPartGroup(g)) best = { SelType::Group, g, -1 };
+        // 部品も無ければ、その点を含む丘（輪を見せている時だけ）
+        else if (m_ShowHills && MapTerrainEdit::CanEditHills(m_Map))
+        {
+            const uint32_t hg = MapTerrainEdit::HillAt(m_Map, ground.x, ground.z);
+            if (hg != 0) best = { SelType::Group, hg, -1 };
+        }
     }
     return best;
 }
@@ -237,6 +243,13 @@ bool MapEditMode::SelectionPos(Vector3& pos) const
         if (vi >= 0)
         {
             pos = m_Map.volumes[(size_t)vi].center;
+            return true;
+        }
+        // 丘の部品：中心の地面
+        if (const int hi = MapTerrainEdit::FindHill(m_Map, m_Sel.group); hi >= 0)
+        {
+            const MapData::Hill& h = m_Map.hills[(size_t)hi];
+            pos = { h.x, m_Grid.SampleHeight(h.x, h.z), h.z };
             return true;
         }
         // 地形の部品：本体の箱の上面の真ん中
@@ -285,6 +298,15 @@ bool MapEditMode::ApplyMove(const Vector3& deltaIn)
     if (m_Sel.type == SelType::Placement)
     {
         m_Map.placements[(size_t)m_Sel.placement].pos += delta;
+    }
+    else if (const int hi = MapTerrainEdit::FindHill(m_Map, m_Sel.group); hi >= 0)
+    {
+        // 丘の部品：水平に動かして起伏を作り直す。台地などの足元の合わせ直しと見た目は、離した時にまとめて
+        m_Map.hills[(size_t)hi].x += deltaIn.x;
+        m_Map.hills[(size_t)hi].z += deltaIn.z;
+        MapTerrainEdit::RebuildRaw(m_Map);
+        MapTerrainEdit::Rederive(m_Map);
+        m_ViewDirty = m_ReseatDirty = true;
     }
     else if (IsPartGroup(m_Sel.group))
     {
@@ -335,7 +357,13 @@ void MapEditMode::RotateSelection(float deg)
 
 void MapEditMode::DeleteSelection()
 {
-    if (m_Sel.type == SelType::Group && IsPartGroup(m_Sel.group))
+    if (m_Sel.type == SelType::Group && MapTerrainEdit::FindHill(m_Map, m_Sel.group) >= 0)
+    {
+        MapTerrainEdit::DeleteHill(m_Map, m_Sel.group);    // 丘の部品
+        MapTerrainEdit::Rederive(m_Map);
+        m_ViewDirty = m_ReseatDirty = true;
+    }
+    else if (m_Sel.type == SelType::Group && IsPartGroup(m_Sel.group))
     {
         MapTerrainEdit::DeleteGroup(m_Map, m_Sel.group);   // 地形の部品：起伏・高さ場も作り直す
         m_ViewDirty = true;
@@ -359,6 +387,17 @@ void MapEditMode::DuplicateSelection()
         m_Sel = { SelType::Placement, 0, AddPlacement((MapData::PlaceType)p.type, p.pos + Vector3(2.0f, 0.0f, 0.0f)) };
         return;
     }
+    if (m_Sel.type == SelType::Group)
+        if (const int hi = MapTerrainEdit::FindHill(m_Map, m_Sel.group); hi >= 0)
+        {
+            const MapData::Hill h = m_Map.hills[(size_t)hi];   // 丘の部品：隣へ同じ物
+            const uint32_t g = MapTerrainEdit::AddHill(m_Map, h.x + h.radius * 2.0f, h.z, h.radius, h.height);
+            MapTerrainEdit::Rederive(m_Map);
+            m_Sel = { SelType::Group, g, -1 };
+            m_Dirty = true;
+            m_ViewDirty = m_ReseatDirty = true;
+            return;
+        }
     if (m_Sel.type == SelType::Group)
         if (const int vi = MapEdit::FindVolume(m_Map, m_Sel.group); vi >= 0)
         {
@@ -496,39 +535,8 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
     // ---- 左クリック：置く / 選ぶ ----
     const bool mouseFree = !io.WantCaptureMouse && !Gizmo::IsHovering() && !Gizmo::IsUsing() && !camera.IsLooking();
 
-    // ---- 区域の筆（山頂 / 平原 / 洞窟を塗る）：左ボタンを押している間マウスの下のマスを塗り、離した時に作り直す ----
-    const bool painting = m_PaintZone >= 0 && !placing && MapTerrainEdit::CanEditZones(m_Map);
-    if (painting)
-    {
-        Vector3 hit;
-        if (mouseFree && RayGround(hit))
-        {
-            int gx = 0, gz = 0;
-            m_Grid.WorldToCell(hit, gx, gz);
-            // 筆の輪（塗る範囲の目安）
-            const float r = ((float)m_PaintRadius + 0.5f) * GridWorld::kCellSize;
-            const Vector3 c = m_Grid.CellToWorld(gx, gz);
-            const Color col = m_PaintZone == 1 ? Color(1.0f, 0.9f, 0.4f, 1.0f) : m_PaintZone == 2 ? Color(0.6f, 0.5f, 1.0f, 1.0f)
-                : Color(0.4f, 1.0f, 0.5f, 1.0f);
-            for (int i = 0; i < 32; ++i)
-            {
-                const float a0 = i * 6.2831853f / 32.0f, a1 = (i + 1) * 6.2831853f / 32.0f;
-                const Vector3 p0(c.x + std::cos(a0) * r, 0.0f, c.z + std::sin(a0) * r), p1(c.x + std::cos(a1) * r, 0.0f, c.z + std::sin(a1) * r);
-                DebugManager::Get().AddDebugLine({ p0.x, m_Grid.SampleHeight(p0.x, p0.z) + 0.3f, p0.z },
-                    { p1.x, m_Grid.SampleHeight(p1.x, p1.z) + 0.3f, p1.z }, col);
-            }
-            if (ImGui::IsMouseDown(ImGuiMouseButton_Left)
-                && MapTerrainEdit::PaintZone(m_Map, gx, gz, m_PaintRadius, (uint8_t)m_PaintZone) > 0)
-                m_ZoneDirty = true;
-        }
-        if (m_ZoneDirty && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
-        {
-            m_ZoneDirty = false;
-            MapTerrainEdit::RegenZones(m_Map);
-            m_Dirty = true;
-            m_ViewDirty = true;
-        }
-    }
+    // ---- 地面に塗る道具（区域の筆・起伏の筆。MapEditModeTools.cpp）。有効な間は左クリックで物を選ばない ----
+    const bool painting = UpdateTools(mouseFree, placing);
 
     if (mouseFree && !painting && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
@@ -560,6 +568,12 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
     // 地形の部品を変えた後の見た目の建て直し：ギズモ・数値のドラッグが終わってから
     if (m_ViewDirty && !Gizmo::IsUsing() && !ImGui::IsAnyItemActive())
     {
+        // 起伏（丘の部品・全体の設定）を変えた後：台地などの足元を今の地面へ合わせ直す
+        if (m_ReseatDirty)
+        {
+            m_ReseatDirty = false;
+            MapTerrainEdit::ReseatAll(m_Map);
+        }
         m_ViewDirty = false;
         RebuildView();
     }

@@ -21,7 +21,7 @@
 
 namespace MapData
 {
-    inline constexpr uint32_t kVersion = 5;   // 2 = placements、3 = volumes、4 = 地形の部品、5 = 区域の作り直し用の値。古い版も読める
+    inline constexpr uint32_t kVersion = 6;   // 2 = placements、3 = volumes、4 = 地形の部品、5 = 区域の作り直し用の値、6 = 起伏の中身（丘の部品）。古い版も読める
 
     // 何の一部か（エディタの一覧・選別用）
     enum Kind : uint16_t
@@ -42,6 +42,7 @@ namespace MapData
         kTorch,
         kRoofRock,       // 洞の上に積んだ岩
         kManual,         // エディタで足した物
+        kHill,           // 丘の部品（起伏に足す盛り上がり）
     };
 
     struct Tag { uint16_t kind = kFloor; uint32_t group = 0; };
@@ -114,6 +115,24 @@ namespace MapData
         int owner = -1, offset = 0;
     };
     // 台座：起伏を高さ L（区域の基準からの差）に均す範囲。ノード（0.5m）単位、両端含む。m = 元の起伏へ戻す幅
+    // 丘の部品（版 6）：起伏に足す 1 個の盛り上がり。高さ = height × (1 - (d / radius)^2)^2（負なら窪み）。
+    // 生成が撒く土饅頭もこれ。エディタで選んで動かす・大きさを変える・消す
+    struct Hill
+    {
+        Tag tag;                                 // kind = kHill
+        float x = 0.0f, z = 0.0f;                // 世界
+        float radius = 4.0f;
+        float height = 1.0f;
+    };
+    // 起伏の全体の設定（版 6）：大きい丘（勾配ノイズ）と細かいうねり。面ごとの倍率を掛けた後の値
+    struct ReliefParams
+    {
+        float hillHeight = 4.2f;                 // m（丘の振れ幅）
+        float hillScale = 46.0f;                 // m（丘の大きさ = 波長）
+        float detailHeight = 1.0f;               // m（細かいうねり）
+        float detailScale = 18.0f;               // m
+        float summitMul = 0.6f;                  // 山頂の上面の倍率
+    };
     struct Pad
     {
         Tag tag;
@@ -173,6 +192,12 @@ namespace MapData
         float rimSink = 0.0f;                // 押し込む量
         std::vector<std::string> roofRockModels;   // 洞の上に積む岩のモデル
         std::string torchModel;              // 松明のモデル
+
+        // ---- 起伏の中身（版 6）：素の起伏 = ノイズの丘（reliefParams）+ 丘の部品（hills）→ 傾きを抑える → + 筆の分（sculpt）----
+        bool hasReliefParams = false;        // 下の値が入っている（版 6 以降で生成 / 保存した地図）
+        ReliefParams reliefParams;
+        std::vector<Hill> hills;
+        std::vector<float> sculptPlain, sculptSummit;   // 起伏の筆で足した分（rawPlain と同じ大きさ。塗っていなければ空）
 
         // ---- 三層の結果（TerrainGenerator::Layout と同じ）----
         std::vector<int> summitCells, mineCells;

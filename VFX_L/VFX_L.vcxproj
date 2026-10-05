@@ -379,6 +379,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="World\MapEdit.cpp" />
     <ClCompile Include="World\MapTerrainEdit.cpp" />
     <ClCompile Include="World\MapZoneEdit.cpp" />
+    <ClCompile Include="World\MapReliefEdit.cpp" />
+    <ClCompile Include="World\MapHillEdit.cpp" />
+    <ClCompile Include="Scene\MapEditModeTools.cpp" />
     <ClCompile Include="Scene\MapEditMode.cpp" />
     <ClCompile Include="Scene\MapEditModeUI.cpp" />
     <ClCompile Include="Scene\MapEditModeView.cpp" />
