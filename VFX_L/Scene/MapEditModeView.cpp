@@ -68,6 +68,16 @@ std::shared_ptr<Model> MapEditMode::PlacementModel(const MapData::Placement& p, 
 // 選んだ物：見た目の箱（黄）、衝突（緑）、塞いだマス（赤い枠、地面の少し上）
 void MapEditMode::DrawSelectionMarks()
 {
+    // 手で置いた見えない体積：全部を水色の線で（選んだ物は黄。プレイヤーに当たらない物は暗い色）
+    if (m_ShowVolumes)
+        for (const auto& v : m_Map.volumes)
+        {
+            const bool selected = m_Sel.type == SelType::Group && m_Sel.group == v.tag.group;
+            const Color c = selected ? Color(1.0f, 0.85f, 0.2f, 1.0f)
+                : v.solid ? Color(0.3f, 0.85f, 1.0f, 1.0f) : Color(0.25f, 0.45f, 0.7f, 1.0f);
+            LineBox(v.center - v.half, v.center + v.half, Matrix::Identity, c);
+        }
+
     if (m_Sel.type == SelType::Placement && m_Sel.placement >= 0 && m_Sel.placement < (int)m_Map.placements.size())
     {
         Matrix world;

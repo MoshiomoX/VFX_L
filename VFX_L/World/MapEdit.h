@@ -44,6 +44,13 @@ namespace MapEdit
     void MoveGroup(MapData::Map& map, uint32_t group, const Vector3& delta);
     void DeleteGroup(MapData::Map& map, uint32_t group);
 
+    // ---- 手で置いた見えない体積（MapData::Volume。3 歩目）----
+    int  FindVolume(const MapData::Map& map, uint32_t group);   // 無ければ -1
+    // 足す。新しい group を返す（衝突・塞ぐマスも作る）
+    uint32_t AddVolume(MapData::Map& map, const Vector3& center, const Vector3& half, bool solid, bool blockMobs);
+    // 体積の中身（位置・大きさ・solid・blockMobs）を変えた後に呼ぶ：衝突の箱と塞ぐマスを作り直す
+    void ApplyVolume(MapData::Map& map, uint32_t group);
+
     // 置物を足す（kind = kManual など）。新しい group を返す。衝突は SetPropCollision で付ける
     uint32_t AddProp(MapData::Map& map, const std::string& model, const Vector3& pos, float yawDeg, float scale,
         MapData::Kind kind = MapData::kManual);
