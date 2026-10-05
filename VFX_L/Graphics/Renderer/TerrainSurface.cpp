@@ -34,8 +34,8 @@ namespace
     };
     static_assert(sizeof(TerrainCB) == 112, "TerrainCB layout mismatch");
 
-    // 面毎の貼図（Assets/Texture/Terrain/<名>_albedo.jpg / _normal.jpg）。層の順 = Layer
-    // 用户 10-03 に推奨の割り当てで決定：草原 地面 G2・坂 D1 / 砂漠 地面 S1・崖 R2 / 鉱洞 底 F2・壁 R3 / 遺跡 地面 F1、崖は R3
+    // 面毎のテクスチャ（Assets/Texture/Terrain/<名>_albedo.jpg / _normal.jpg）。層の順 = Layer
+    // ユーザー 10-03 に推奨の割り当てで決定：草原 地面 G2・坂 D1 / 砂漠 地面 S1・崖 R2 / 洞窟 底 F2・壁 R3 / 遺跡 地面 F1、崖は R3
     const char* const kLayerFiles[3][TerrainSurface::LayerCount] =
     {
         { "Grass002", "Ground002", "CliffRock006", "StoneFloor010", "CliffRock006" },     // 草原
@@ -139,7 +139,7 @@ void TerrainSurface::WriteCB()
     const BiomeSet& b = m_Biomes[m_Biome];
     for (int i = 0; i < LayerCount; ++i)
     {
-        // 明るさ合わせ: 貼図の平均を元の配色の明るさへ（色相は貼図のまま）。極端にならないよう 0.4〜2.5 倍
+        // 明るさ合わせ: テクスチャの平均を元の配色の明るさへ（色相はテクスチャのまま）。極端にならないよう 0.4〜2.5 倍
         const float match = (b.texLum[i] > 1e-4f) ? m_RefLum[i] / b.texLum[i] : 1.0f;
         const float gain = std::clamp(1.0f + (match - 1.0f) * params.matchBrightness, 0.4f, 2.5f);
         m_Gain[i] = gain;

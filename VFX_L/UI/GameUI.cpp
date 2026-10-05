@@ -14,6 +14,7 @@
 #include "Component/ManaComponent.h"
 #include "Component/WandComponent.h"
 #include "Player/LevelComponent.h"
+#include "Player/WalletComponent.h"
 #include "Player/PlayerStateComponent.h"
 #include "Player/PlayerStatsComponent.h"
 #include "Manager/ResourceManager.h"
@@ -50,7 +51,7 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
 
     auto blockTex = ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo);
 
-    // ブロックの貼图は縁に陰影があるので、箱や線は無地の白で描く
+    // ブロックのテクスチャは縁に陰影があるので、箱や線は無地の白で描く
     m_WhiteTex = std::make_shared<Texture>();
     if (!m_WhiteTex->CreateSolid(device, 255, 255, 255, 255))
         m_WhiteTex = blockTex;
@@ -212,12 +213,16 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 
         const auto& lv = reg.Get<LevelComponent>(player);
 
-        // 画面の外で選ばれた（自測など）なら、三択の層だけ残らないよう下ろす
+        // 画面の外で選ばれた（自動テストなど）なら、三択の層だけ残らないよう下ろす
         if (!lv.IsChoosing())
         {
             m_Stack.Pop(UILayer::LevelUp);
             break;
         }
+
+        // 金貨での引き直し（2026-10-04）：値段と所持をボタンへ
+        const WalletComponent* wallet = reg.Has<WalletComponent>(player) ? &reg.Get<WalletComponent>(player) : nullptr;
+        m_LevelUp.SetReroll((m_LevelUpSystem && wallet) ? m_LevelUpSystem->RerollCost(lv) : -1, wallet ? wallet->Coins() : 0);
 
         ItemID picked;
         if (m_LevelUp.HandleInput(lv, picked))
@@ -225,6 +230,11 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
             LevelUpSystem::Choose(reg, player, picked);
             m_Stack.Pop(UILayer::LevelUp);
             AudioSystem::Get().Play("card_pick");
+        }
+        else if (m_LevelUp.ConsumeRerollRequest() && m_LevelUpSystem)
+        {
+            // 足りなければ何も変わらず、断りの音（鍵が開かない）
+            AudioSystem::Get().Play(m_LevelUpSystem->Reroll(reg, player) ? "card_reroll" : "gold_deny");
         }
         break;
     }
@@ -292,7 +302,16 @@ void GameUI::Render(Registry& reg, Entity player)
         const std::wstring text = m_Prompt;
         const float scale = 0.6f;
         const DirectX::SimpleMath::Vector2 size = m_Text.Measure(text, scale);
-        const DirectX::SimpleMath::Vector2 pos = { (m_ScreenW - size.x) * 0.5f, m_ScreenH * 0.80f };
+        // 魔力解放の大きな欄（2026-10-04、下の中央）の魔法陣より上に出す（重ならないように）
+        float y = m_ScreenH * 0.80f;
+        const HUDStyle& hs = m_HUD.Style();
+        if (hs.showSurgeSkill)
+        {
+            const float top = hs.surgeSkill.Resolve(m_ScreenW, m_ScreenH).y
+                - hs.surgeSkillSize * (0.5f + 0.5f * (std::max)(1.0f, hs.surgeCircleScale));
+            y = (std::min)(y, top - size.y - 10.0f);
+        }
+        const DirectX::SimpleMath::Vector2 pos = { (m_ScreenW - size.x) * 0.5f, y };
         m_Text.Draw(text, { pos.x + 2.0f, pos.y + 2.0f }, { 0.0f, 0.0f, 0.0f, 0.8f }, scale);
         m_Text.Draw(text, pos, { 1.0f, 0.9f, 0.55f, 1.0f }, scale);
     }
@@ -305,19 +324,19 @@ void GameUI::Render(Registry& reg, Entity player)
 
     // ---- 覆い層 ----
     // 文字はスプライトの後にまとめて描かれるので、同じ組の中だと
-    // tooltip の箱の上に背包の文字が透けて出る。別の組で最後に描く
+    // tooltip の箱の上にバックパックの文字が透けて出る。別の組で最後に描く
     if (reg.IsValid(player))
         DrawOverlay(reg, player);
 }
 
 // ============================================================
-// 覆い層：背包を操作している間の tooltip
+// 覆い層：バックパックを操作している間の tooltip
 //   グリッドの魔法 → 置いてある状態の値（隣のルーンの強化込み）
-//   グリッドの枠 / 魔法書の中の物 → 道具そのものの値
+//   グリッドの枠 / 魔法書の中の物 → アイテムそのものの値
 // ============================================================
 void GameUI::DrawOverlay(Registry& reg, Entity player)
 {
-    // ---- tooltip の中身（背包を操作している間だけ）----
+    // ---- tooltip の中身（バックパックを操作している間だけ）----
     ItemInfo::Sheet sheet;
     bool tooltip = false;
     // 置いてある魔法の数字は能力アップ「魔法威力」込み（集約と同じ）
@@ -341,7 +360,7 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
             tooltip = false;
     }
 
-    // TEMP-TEST: 自測で置いた tooltip（鼠标の位置の代わりに m_TestTooltipPos）
+    // TEMP-TEST: 自動テストで置いた tooltip（マウスの位置の代わりに m_TestTooltipPos）
     DirectX::SimpleMath::Vector2 anchor = { 0.0f, 0.0f };
     {
         const auto mp = InputManager::Get().GetMousePos();
@@ -379,7 +398,7 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     m_Text.End();
 }
 
-// TEMP-TEST: 自測で画面を開閉する（VFXL_BATTLE_AUTOTEST=ui）
+// TEMP-TEST: 自動テストで画面を開閉する（VFXL_BATTLE_AUTOTEST=ui）
 void GameUI::TestShow(int layer)
 {
     m_Stack.Clear();

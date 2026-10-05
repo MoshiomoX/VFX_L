@@ -10,7 +10,7 @@ namespace BackpackLogic
     // ========================================================
     // 枠の上に乗っている魔法を集める
     //
-    // 占位格の1つでもその枠に乗っていれば対象。
+    // 占有マスの1つでもその枠に乗っていれば対象。
     // 複数の枠にまたがる魔法は、どちらの枠からも拾われる。
     // ========================================================
     std::vector<int> GetItemsOnFrame(const BackpackComponent& bp, int frameIndex)
@@ -61,7 +61,7 @@ namespace BackpackLogic
 
     // ========================================================
     // 魔法: 置けるか
-    // 画布内、枠の上、他の魔法と重ならない、の3つを全部満たす時だけ true
+    // キャンバス内、枠の上、他の魔法と重ならない、の3つを全部満たす時だけ true
     // ========================================================
     bool CanPlace(const BackpackComponent& bp, ItemID id,
         int row, int col, int rotation, int ignoreIndex)
@@ -76,7 +76,7 @@ namespace BackpackLogic
             int r = row + off.row;
             int cc = col + off.col;
 
-            // 画布外
+            // キャンバス外
             if (r < 0 || r >= BackpackComponent::GRID ||
                 cc < 0 || cc >= BackpackComponent::GRID)
                 return false;
@@ -156,7 +156,7 @@ namespace BackpackLogic
 
     // ========================================================
     // 枠: 置けるか
-    // 画布内で、他の枠と重ならなければ置ける。
+    // キャンバス内で、他の枠と重ならなければ置ける。
     //   魔法の有無は見ない。枠は魔法の下に敷くものなので。
     // ========================================================
     bool CanPlaceFrame(const BackpackComponent& bp, ItemID id,
@@ -227,7 +227,7 @@ namespace BackpackLogic
     // 枠: 移動
     //
     // 乗っている魔法も一緒に動かす。
-    // 動かした先で足場を失うもの（画布外、他の枠の魔法と重なる等）だけ
+    // 動かした先で足場を失うもの（キャンバス外、他の枠の魔法と重なる等）だけ
     // 手元へ戻す。全部戻すのではなく、残せるものは残す
     // （枠を少し動かすたびに全部組み直しでは編成にならない）。
     //
@@ -274,7 +274,7 @@ namespace BackpackLogic
         RebuildOccupancy(bp);
 
         // 4. 足場を失ったものを手元へ戻す
-        //    画布外に出たもの、他の魔法と重なったものがここで消える
+        //    キャンバス外に出たもの、他の魔法と重なったものがここで消える
         const int evicted = ValidateItems(bp);
         if (outEvicted) *outEvicted = evicted;
 
@@ -337,7 +337,7 @@ namespace BackpackLogic
                     const int r = item.row + off.row;
                     const int cc = item.col + off.col;
 
-                    // 画布外
+                    // キャンバス外
                     if (r < 0 || r >= BackpackComponent::GRID ||
                         cc < 0 || cc >= BackpackComponent::GRID)
                     {
@@ -434,7 +434,7 @@ namespace BackpackLogic
     // ========================================================
     // このブロックに影響を与えているブロック
     //
-    // 相手の影響格（回転後・画布内だけ）が、このブロックの占位格に 1 マスでも
+    // 相手の影響マス（回転後・キャンバス内だけ）が、このブロックの占有マスに 1 マスでも
     // 重なれば成立。同じ相手から何マス重なっても 1 回。自分自身は数えない。
     // 並びは items の順（修飾を掛ける順が毎回同じになるように）
     // ========================================================

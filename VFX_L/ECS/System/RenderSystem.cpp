@@ -23,19 +23,10 @@ using DirectX::SimpleMath::Vector3;
 
 namespace
 {
-    // 骨付きのモデル → 世界: 拡縮 → 足元を軸に傾ける（滑り）→ offset → Entity の回転 → 位置
-    // （Transform.cpp と同じ Yaw/Pitch/Roll の規約）。
-    // KayKit のモデル空間の正面は -Z なので、X 軸回りの正の角度で頭が後ろへ倒れる
+    // 骨付きのモデル → 世界（揺れ物の系と同じ行列を使うので SkinnedAnimSystem に置いた）
     Matrix SkinnedWorld(const TransformComponent& tf, const SkinnedAnimComponent& a)
     {
-        return Matrix::CreateScale(a.scale)
-            * Matrix::CreateRotationX(DirectX::XMConvertToRadians(a.leanDeg))
-            * Matrix::CreateTranslation(a.offset)
-            * Matrix::CreateFromYawPitchRoll(
-                DirectX::XMConvertToRadians(tf.rotation.y + a.yawOffsetDeg),
-                DirectX::XMConvertToRadians(tf.rotation.x),
-                DirectX::XMConvertToRadians(tf.rotation.z))
-            * Matrix::CreateTranslation(tf.position);
+        return SkinnedAnimSystem::WorldMatrix(tf, a);
     }
 
     // 層を混ぜたポーズ → submesh 毎に SkinningCS
@@ -62,7 +53,7 @@ bool RenderSystem::EnsureSkinningCS()
 }
 
 // ============================================================
-// 影図へ深度だけ
+// シャドウマップへ深度だけ
 // ============================================================
 void RenderSystem::GatherDrawables(Registry& reg)
 {
@@ -105,7 +96,7 @@ void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
 
 void RenderSystem::Render(Registry& reg, Renderer& renderer)
 {
-    if (!m_DrawablesFresh) GatherDrawables(reg);   // 影を描かない場面はここで集める
+    if (!m_DrawablesFresh) GatherDrawables(reg);   // 影を描かないシーンはここで集める
     for (Entity e : m_Drawables)
     {
         if (!reg.IsValid(e) || !reg.Has<ModelComponent>(e) || !reg.Has<TransformComponent>(e)) continue;
@@ -113,7 +104,7 @@ void RenderSystem::Render(Registry& reg, Renderer& renderer)
         auto& mc = reg.Get<ModelComponent>(e);
 
         // ECS の TransformComponent を既存 Transform に詰めて Model::Draw へ渡す。
-        // これで描画管線を変えずに ECS 描画が可能になる。
+        // これで描画パイプラインを変えずに ECS 描画が可能になる。
         Transform temp;
         temp.SetPosition(tf.position);
         temp.SetRotation(tf.rotation);
@@ -147,7 +138,7 @@ void RenderSystem::Render(Registry& reg, Renderer& renderer)
 
 // ============================================================
 // 骨付き: 層を混ぜたポーズ → SkinningCS → 描画
-// 蒙皮結果は Entity 毎の SkinnedModelGPU に入る（複数体でも干渉しない）
+// スキニング結果は Entity 毎の SkinnedModelGPU に入る（複数体でも干渉しない）
 // ============================================================
 void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
 {

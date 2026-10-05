@@ -5,7 +5,7 @@
 //   PROFILE_SCOPE_GPU("名前") … CPU 時間 + GPU 時間（D3D11 の timestamp query。数フレーム遅れで読む）
 //   区間の時間を積み、1 秒ごとに「1 フレームあたりの平均 ms」にまとめる。
 //   名前は文字列リテラル（ポインタで見分ける）。入れ子にしてよい（表示は字下げ）。
-//   Application::Run の頭で BeginFrame、最後で EndFrame。場面の面板から DrawImGui、自己テストは Summary を日志へ。
+//   Application::Run の頭で BeginFrame、最後で EndFrame。シーンのパネルから DrawImGui、自己テストは Summary をログへ。
 // GPU の値は区間の始めと終わりの GPU 時刻の差。CPU が遅くて GPU が命令待ちで遊んでいる時（Debug）は
 // その待ちも入るので大きく出る。GPU が詰まっている時（Release）に意味がある
 // ============================================================
@@ -33,7 +33,7 @@ public:
     struct Row { const char* name; int depth; float ms; float gpuMs; };   // gpuMs < 0 = 測っていない
     const std::vector<Row>& Report() const { return m_Report; }   // 直近 1 秒の 1 フレーム平均
     float ReportFrameMs() const { return m_ReportFrameMs; }
-    std::string Summary() const;   // 日志用の 1 行（GPU を測った区間は "cpu/gpu"）
+    std::string Summary() const;   // ログ用の 1 行（GPU を測った区間は "cpu/gpu"）
     void DrawImGui();
 
 private:

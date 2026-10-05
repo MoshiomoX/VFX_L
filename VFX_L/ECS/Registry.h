@@ -146,7 +146,7 @@ private:
     friend class View;
 
 private:
-    std::vector<std::unique_ptr<ISparseSet>> m_Pools;   // ComponentID を下标に格納
+    std::vector<std::unique_ptr<ISparseSet>> m_Pools;   // ComponentID を添字に格納
     std::vector<uint32_t> m_Generations;                // index ごとの現在世代
     std::vector<uint32_t> m_FreeIndices;                // 回収済み index（再利用待ち）
 };

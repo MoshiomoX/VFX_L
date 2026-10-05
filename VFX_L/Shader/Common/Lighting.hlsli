@@ -54,6 +54,10 @@ cbuffer LightBuffer : register(MODEL_LIGHT_CB_REG)
     float4 shadowTexelWorld;    // xyz = one shadow texel in meters, per cascade
     float4 shadowParams;        // x = 1 / map size, y = normal offset (texels), z = strength, w = PCF radius (texels)
     float4 shadowParams2;       // x = fade start (fraction of the last split), y = depth bias, z = 1 = tint cascades
+    // toon shading (2026-10-04, ShadeToon). toonParams.x = 0 = the realistic shading above
+    float4 toonParams;          // x = on, y = lit/dark border (N.L x shadow), z = border softness, w = hard highlight strength
+    float4 toonShadowTint;      // rgb = multiplies the ambient on the dark side (cool), w = sun scale on the lit side
+    float4 toonRim;             // rgb = rim color, w = strength (side-facing surfaces near the camera)
 };
 
 // the depth of every cascade (one array slice each) and a comparison
@@ -301,12 +305,71 @@ void PointLightShade(float3 worldPos, float3 N, float3 V,
 }
 
 // ------------------------------------------------------------
+// Toon shading (2026-10-04, toonParams.x = 1). Two bands with a narrow
+// soft border instead of N.L:
+//   lit side  : full sun (x toonShadowTint.w, since N.L no longer dims
+//               the faces turned away a little)
+//   dark side : the hemisphere ambient tinted cool (toonShadowTint.rgb)
+//               instead of plain grey
+//   highlight : a small hard spot where N.H is close to 1
+//   rim       : a thin bright band at the silhouette of side-facing
+//               surfaces near the camera (characters, trunks, walls;
+//               not the ground, not far away)
+// The sun shadow takes part in the band (N.L x shadow), so cast shadows
+// get the same crisp edge. Point lights stay smooth (torches, spell
+// glows) and add on top.
+// ------------------------------------------------------------
+float ToonBand(float x)
+{
+    return smoothstep(toonParams.y - toonParams.z, toonParams.y + toonParams.z, x);
+}
+
+float3 ToonRim(float3 N, float3 V, float3 worldPos, float lit)
+{
+    if (toonRim.w <= 0.0)
+        return float3(0, 0, 0);
+    float r = smoothstep(0.60, 0.68, 1.0 - saturate(dot(N, V)));        // a thin band at the silhouette
+    r *= saturate(1.0 - abs(N.y) * 1.4);                                 // side-facing surfaces only
+    r *= 1.0 - smoothstep(18.0, 32.0, distance(worldPos, cameraPosition)); // near the camera only
+    return toonRim.rgb * (toonRim.w * r * (0.35 + 0.65 * lit));
+}
+
+float3 ShadeToon(float3 N, float3 V, float3 albedo, float3 worldPos, float specScale)
+{
+    float3 L = normalize(-dirLight.direction);
+    float NdotL = max(dot(N, L), 0.0);
+    uint cascade;
+    float shadow = SunShadow(worldPos, N, NdotL, cascade);
+    float lit = ToonBand(NdotL * shadow);
+
+    float3 sun = dirLight.color * (dirLight.intensity * toonShadowTint.w * lit);
+    float3 ambient = AmbientAt(N) * lerp(toonShadowTint.rgb, float3(1, 1, 1), lit);
+
+    float3 H = normalize(V + L);
+    // narrow window: low-poly flat facets light up as a whole when their normal hits H.
+    // Near the camera only (like the rim): far rock walls otherwise sparkle like plastic
+    float nearCam = 1.0 - smoothstep(18.0, 32.0, distance(worldPos, cameraPosition));
+    float spot = smoothstep(0.994, 0.997, saturate(dot(N, H))) * lit * toonParams.w * specScale * nearCam;
+
+    float3 diff, spec;
+    PointLightShade(worldPos, N, V, LAMBERT_SPEC_ROUGHNESS, DIELECTRIC_F0, diff, spec);
+
+    float3 c = (ambient + sun + diff) * albedo
+             + dirLight.color * (dirLight.intensity * spot)
+             + spec * PI * 0.5
+             + ToonRim(N, V, worldPos, lit);
+    return ApplyFog(ShadowCascadeTint(c, cascade), worldPos);
+}
+
+// ------------------------------------------------------------
 // Lambert + directional highlight + point lights (needs the world
 // position for the view vector and the point lights)
 // ------------------------------------------------------------
 float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
 {
     float3 V = normalize(cameraPosition - worldPos);
+    if (toonParams.x > 0.5)
+        return ShadeToon(N, V, albedo, worldPos, 1.0);
 
     // directional: same diffuse as the view-less version, plus highlight,
     // both cut by the sun shadow
@@ -330,6 +393,9 @@ float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
 float3 ShadePBR(float3 N, float3 V, float3 albedo,
                 float metallic, float roughness, float ao, float3 worldPos)
 {
+    // toon: metallic / roughness only scale the hard highlight (smooth = brighter spot)
+    if (toonParams.x > 0.5)
+        return ShadeToon(N, V, albedo * ao, worldPos, saturate(1.2 - roughness));
     uint cascade;
     float shadow = SunShadow(worldPos, N, max(dot(N, normalize(-dirLight.direction)), 0.0), cascade);
     float3 base = ShadePBRSun(N, V, albedo, metallic, roughness, ao, shadow);

@@ -1,9 +1,9 @@
 // ============================================================
 // UIDeco.h
-// 幻想 UI の飾り：暗い半透明の面板 + 細い二重線 + 四隅の組紐 + 分割線 + 魔法陣。
+// 幻想 UI の飾り：暗い半透明のパネル + 細い二重線 + 四隅の組紐 + 分割線 + 魔法陣。
 // 飾りの絵は全部「白い線画」（Assets/Texture/UI/Deco）で、描く時に色を掛ける。
 //
-// 色は道具の種類で決める（2026-09-28 用户決定）：
+// 色はアイテムの種類で決める（2026-09-28 ユーザー決定）：
 //   攻撃魔法・範囲魔法 = 古金 / ルーン = 奥術青 / 拡張枠・能力アップ = 月銀
 //   HUD・メニューなど、どの魔法にも属さない所 = 古金
 // ============================================================
@@ -24,16 +24,16 @@ namespace UIDeco
     Tint TintFor(ItemCategory c);
     inline DirectX::SimpleMath::Vector4 CategoryColor(ItemCategory c) { return TintColor(TintFor(c)); }
 
-    // 飾りの貼图（初回に読む。ResourceManager のキャッシュ経由）
+    // 飾りのテクスチャ（初回に読む。ResourceManager のキャッシュ経由）
     struct Textures
     {
-        std::shared_ptr<Texture> white;          // 無地（面板の地・線）
+        std::shared_ptr<Texture> white;          // 無地（パネルの地・線）
         std::shared_ptr<Texture> circleStar;     // 八芒星の魔法陣
         std::shared_ptr<Texture> circleFlower;   // 花の魔法陣
         std::shared_ptr<Texture> corner;         // 右上の角の組紐（他の角は反転して使う）
         std::shared_ptr<Texture> dividerFleur;   // 百合紋の分割線（見出し用）
         std::shared_ptr<Texture> dividerThin;    // 細い分割線（区切り用）
-        std::shared_ptr<Texture> disc;           // 塗りの円（コードで作る。丸い欄の地・冷却）
+        std::shared_ptr<Texture> disc;           // 塗りの円（コードで作る。丸い欄の地・クールダウン）
         std::shared_ptr<Texture> ring;           // 細い円の線（コードで作る。丸い欄の縁）
     };
     const Textures& Tex();
@@ -48,7 +48,7 @@ namespace UIDeco
         float cornerAlpha = 0.90f;
     };
 
-    // 面板。highlight（0〜1）で線を明るく・外に光を足す（選択中のカードなど）
+    // パネル。highlight（0〜1）で線を明るく・外に光を足す（選択中のカードなど）
     void DrawPanel(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& pos,
         const DirectX::SimpleMath::Vector2& size, const DirectX::SimpleMath::Vector4& tint,
         const PanelStyle& style, float highlight = 0.0f);

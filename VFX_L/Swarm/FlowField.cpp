@@ -4,7 +4,7 @@
 //   std::priority_queue 版は Debug で 1 万マス 26ms かかった（反復子検査）。
 //   コストを整数（直進 10 / 斜め 14 / 高低差 1m = slopeCost×10）にして
 //   環状の桶に積む。桶の数 > 最大辺コストなら正しい順で取り出せる。
-//   松弛の時に親の向きも書くので、向き表を作る 2 周目は要らない
+//   緩和の時に親の向きも書くので、向き表を作る 2 周目は要らない
 // ============================================================
 #include "Swarm/FlowField.h"
 #include <cfloat>
@@ -127,16 +127,11 @@ bool FlowField::Build(int targetX, int targetZ)
             isDrop = allowDrops && (hb - targetH >= dropMinBelow);   // 下りの崖
             return isDrop;
         };
-    auto passable = [&](int ax, int az, int bx, int bz, bool diag)
-        {
-            bool drop;
-            return passableEx(ax, az, bx, bz, diag, drop);
-        };
 
     targetX = std::clamp(targetX, 0, W - 1);
     targetZ = std::clamp(targetZ, 0, D - 1);
 
-    // 目標が壁の中（玩家が箱に乗っている等）なら、近くの通行可マスへ寄せる
+    // 目標が壁の中（プレイヤーが箱に乗っている等）なら、近くの通行可マスへ寄せる
     if (!walkable(targetX, targetZ))
     {
         bool found = false;
@@ -190,9 +185,21 @@ bool FlowField::Build(int targetX, int targetZ)
                 const int nx = cx + dxs[k], nz = cz + dzs[k];
                 bool drop = false;
                 if (!passableEx(cx, cz, nx, nz, k >= 4, drop)) continue;
-                // 斜めは両隣へも行ける時だけ（角を掠めて壁・崖に食い込まない）。飛び降りは真っ直ぐだけ
-                if (k >= 4 && (drop || !passable(cx, cz, cx + dxs[k], cz, false)
-                            || !passable(cx, cz, cx, cz + dzs[k], false))) continue;
+                // 斜めは両隣を経由しても行ける時だけ（角を掠めて壁・崖に食い込まない）。飛び降りは真っ直ぐだけ。
+                // 両隣 → 目標側（c）に加えて、自分（n）→ 両隣も見る（2026-10-05）。以前は前者だけで、
+                // 起伏で台地の角の斜め隣・坂の脇の地面が上がると「中心の差 < 1.5m × √2」で斜めに通れることになり、
+                // 実際は角から隣へ 1.9m の崖 / 坂の脇の 0.8m の段で、GPU は止める → 雑魚がその場で詰まった（soak）
+                if (k >= 4)
+                {
+                    if (drop) continue;
+                    const int ix1 = cx + dxs[k], iz1 = cz;   // 中継のマス（x だけ進んだ所）
+                    const int ix2 = cx, iz2 = cz + dzs[k];   // 中継のマス（z だけ進んだ所）
+                    bool d1 = false, d2 = false, d3 = false, d4 = false;
+                    if (!passableEx(cx, cz, ix1, iz1, false, d1) || d1
+                        || !passableEx(cx, cz, ix2, iz2, false, d2) || d2) continue;   // 中継 → c
+                    if (!passableEx(ix1, iz1, nx, nz, false, d3) || d3
+                        || !passableEx(ix2, iz2, nx, nz, false, d4) || d4) continue;   // n → 中継
+                }
 
                 const int nc = nz * W + nx;
                 const int dh = drop ? dropCost

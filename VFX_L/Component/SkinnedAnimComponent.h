@@ -4,20 +4,21 @@
 //
 //   3 層でポーズを作る:
 //     base  … 全身（Idle / Run）。常に寄与 1
-//     upper … 上半身だけ差し替え（施法）。upperMask の骨に weight で混ぜる
+//     upper … 上半身だけ差し替え（詠唱）。upperMask の骨に weight で混ぜる
 //     over  … 全身上書き（被弾 / 死亡）。weight で混ぜる
 //   各層はクリップ切替時に前クリップからクロスフェードする。
 //
 //   誰が何を書くか:
-//     PlayerAnimSystem   … 状態機を見て Play() / weight の目標を書く
+//     PlayerAnimSystem   … ステートマシンを見て Play() / weight の目標を書く
 //     SkinnedAnimSystem  … 時刻とフェードを進める（Update）
-//     RenderSystem       … サンプリング → 蒙皮 → 描画（Render）
+//     RenderSystem       … サンプリング → スキニング → 描画（Render）
 //
-//   GPU 側（蒙皮結果バッファ）は実体ごとに要るので gpu は共有しない。
+//   GPU 側（スキニング結果バッファ）は実体ごとに要るので gpu は共有しない。
 //   model（bind 頂点・骨・クリップ）は ResourceManager の共有で良い。
 // ============================================================
 #pragma once
 #include <memory>
+#include <utility>
 #include <vector>
 #include <SimpleMath.h>
 
@@ -71,7 +72,7 @@ struct SkinnedAnimComponent
     // 足元が原点のモデルを、中心が原点のカプセルに合わせる時に offset.y を下げる
     DirectX::SimpleMath::Vector3 offset = { 0.0f, 0.0f, 0.0f };
     float yawOffsetDeg = 0.0f;   // モデルの正面が +Z でない時の補正
-    // 足元（モデルの原点）を軸に後ろへ傾ける 度（正で後ろ）。玩家の滑りの姿勢（PlayerAnimSystem が書く）
+    // 足元（モデルの原点）を軸に後ろへ傾ける 度（正で後ろ）。プレイヤーの滑りの姿勢（PlayerAnimSystem が書く）
     float leanDeg = 0.0f;
     float scale = 1.0f;
     bool  visible = true;
@@ -80,4 +81,7 @@ struct SkinnedAnimComponent
     SkinnedAnimLayer upper;
     SkinnedAnimLayer over;
     std::vector<float> upperMask;   // 骨毎 0/1。空なら upper 層は使わない
+
+    // 層を混ぜた後で差し替える骨の global（モデル空間）。揺れ物の結果（ClothChainSystem が毎フレーム書く）
+    std::vector<std::pair<int, DirectX::SimpleMath::Matrix>> boneOverrides;
 };

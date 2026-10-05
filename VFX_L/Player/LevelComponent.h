@@ -52,6 +52,9 @@ struct LevelComponent
 
     bool IsChoosing() const { return !pendingChoices.empty(); }
 
+    // 今の四択で金貨を払って選び直した回数（2026-10-04。値段が回数で上がる。選んだら 0 に戻る）
+    int rerollCount = 0;
+
     // 連続レベルアップは1回ずつ処理する。
     // まとめて上げると三択が何度も連続で出て、選ぶ作業だけが続く。
     // 余った経験値は持ち越して、選び終わってから次のレベルへ進む。
@@ -62,5 +65,5 @@ struct LevelComponent
         ++level;
     }
 
-    void ClearChoices() { pendingChoices.clear(); }
+    void ClearChoices() { pendingChoices.clear(); rerollCount = 0; }
 };

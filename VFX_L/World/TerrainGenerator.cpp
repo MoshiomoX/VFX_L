@@ -20,6 +20,7 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <string>
 
 using DirectX::SimpleMath::Vector3;
@@ -30,7 +31,7 @@ namespace
     constexpr float kCs = GridWorld::kCellSize;
 
     // ---- 色（明るい草地）----
-    // 頂点色は線形の反照率（CompositePS が最後に 1/2.2 のガンマを掛ける）。
+    // 頂点色は線形のアルベド（CompositePS が最後に 1/2.2 のガンマを掛ける）。
     // 画面で見せたい sRGB の色を 2.2 乗した値で持つ（括弧内が sRGB）
     // 面（Biome）ごとの色の組。Generate の頭で g* へ写す（helper が既定引数で参照するので変数にしてある）
     struct Palette
@@ -38,7 +39,7 @@ namespace
         Vector4 groundDark, groundLight, groundDry;   // 床：暗い / 明るい / 所々の別色（乾いた草・砂利・苔）
         Vector4 plateauTop, cliff, cliffHigh;         // 台地の上面 / 側面 / 2 段目の側面
         Vector4 rampTop, wallRock;                    // 坂道の上面 / 外周の箱（岩山でない時）
-        Vector4 mineDark, mineLight;                  // 鉱洞の底：暗い / 明るい（土と砂利）
+        Vector4 mineDark, mineLight;                  // 洞窟の底：暗い / 明るい（土と砂利）
     };
     const Palette kPaletteGrass = {
         { 0.071f, 0.237f, 0.029f, 1 },   // (0.30, 0.52, 0.20)
@@ -49,7 +50,7 @@ namespace
         { 0.325f, 0.290f, 0.247f, 1 },   // (0.60, 0.57, 0.53) 2 段目は灰色がかった岩
         { 0.486f, 0.325f, 0.148f, 1 },   // (0.72, 0.60, 0.42) 坂道は土の道（登り口が一目で分かる）
         { 0.172f, 0.148f, 0.133f, 1 },   // (0.45, 0.42, 0.40)
-        { 0.106f, 0.076f, 0.052f, 1 },   // (0.36, 0.31, 0.26) 鉱洞の底（湿った土）
+        { 0.106f, 0.076f, 0.052f, 1 },   // (0.36, 0.31, 0.26) 洞窟の底（湿った土）
         { 0.218f, 0.173f, 0.119f, 1 },   // (0.50, 0.45, 0.38)
     };
     const Palette kPaletteDesert = {     // 砂（2026-09-30）
@@ -61,7 +62,7 @@ namespace
         { 0.460f, 0.270f, 0.130f, 1 },   // (0.70, 0.55, 0.40)
         { 0.460f, 0.280f, 0.130f, 1 },   // (0.70, 0.56, 0.40) 坂道
         { 0.270f, 0.150f, 0.070f, 1 },   // (0.55, 0.42, 0.30)
-        { 0.268f, 0.119f, 0.043f, 1 },   // (0.55, 0.38, 0.24) 鉱洞の底（赤い砂岩）
+        { 0.268f, 0.119f, 0.043f, 1 },   // (0.55, 0.38, 0.24) 洞窟の底（赤い砂岩）
         { 0.428f, 0.218f, 0.082f, 1 },   // (0.68, 0.50, 0.32)
     };
     const Palette kPaletteDungeon = {    // 石畳（2026-09-30）
@@ -73,7 +74,7 @@ namespace
         { 0.093f, 0.087f, 0.099f, 1 },   // (0.34, 0.33, 0.35)
         { 0.180f, 0.165f, 0.133f, 1 },   // (0.46, 0.44, 0.40) 坂道（砂岩の板）
         { 0.047f, 0.047f, 0.056f, 1 },   // (0.25, 0.25, 0.27)
-        { 0.036f, 0.032f, 0.036f, 1 },   // (0.22, 0.21, 0.22) 鉱洞の底（暗い岩）
+        { 0.036f, 0.032f, 0.036f, 1 },   // (0.22, 0.21, 0.22) 洞窟の底（暗い岩）
         { 0.106f, 0.093f, 0.087f, 1 },   // (0.36, 0.34, 0.33)
     };
     const Palette& PaletteFor(TerrainGenerator::Biome b)
@@ -127,7 +128,26 @@ namespace
         return ab + (cd - ab) * tz;
     }
 
-    // 鉱洞の底：大きな湿りのむら + 細かい砂利
+    // 勾配ノイズ（Perlin 式、およそ -1..1）。値ノイズは格子点で傾きが 0 になり、丘が平らな所の継ぎ合わせに見えた
+    // （起伏の傾きの中央値が 1°）。格子点ごとに乱数の向きの勾配を持たせ、5 次の補間でつなぐ
+    float GradNoise(float x, float z, uint32_t seed)
+    {
+        const int ix = (int)std::floor(x), iz = (int)std::floor(z);
+        const float fx = x - ix, fz = z - iz;
+        auto dotGrad = [&](int gx, int gz, float dx, float dz)
+            {
+                const float a = Hash01(gx, gz, seed) * 6.2831853f;
+                return std::cos(a) * dx + std::sin(a) * dz;
+            };
+        auto fade = [](float t) { return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f); };
+        const float u = fade(fx), v = fade(fz);
+        const float n00 = dotGrad(ix, iz, fx, fz), n10 = dotGrad(ix + 1, iz, fx - 1.0f, fz);
+        const float n01 = dotGrad(ix, iz + 1, fx, fz - 1.0f), n11 = dotGrad(ix + 1, iz + 1, fx - 1.0f, fz - 1.0f);
+        const float a = n00 + (n10 - n00) * u, b = n01 + (n11 - n01) * u;
+        return (a + (b - a) * v) * 1.4142f;
+    }
+
+    // 洞窟の底：大きな湿りのむら + 細かい砂利
     Vector4 MineColor(float x, float z, uint32_t seed, const Palette& P)
     {
         const float big = ValueNoise(x / 14.0f, z / 14.0f, seed + 41u);
@@ -172,7 +192,7 @@ namespace
         ColliderComponent col;
         col.shape = ColliderShape::Convex;
         col.hull = CollisionMath::ConvexFromHexahedron(v);
-        col.halfExtents = (hi - lo) * 0.5f;   // 広相位用の包囲箱
+        col.halfExtents = (hi - lo) * 0.5f;   // ブロードフェーズ用の包囲箱
         col.layer = layer;
         col.mask = Layer_All;
         reg.Add<ColliderComponent>(e, col);
@@ -208,7 +228,7 @@ namespace
         ColliderComponent col;
         col.shape = ColliderShape::Convex;
         col.hull = CollisionMath::ConvexFromHexahedron(v);
-        col.halfExtents = (hi - lo) * 0.5f;   // 広相位用の包囲箱
+        col.halfExtents = (hi - lo) * 0.5f;   // ブロードフェーズ用の包囲箱
         col.layer = Layer_Terrain;
         col.mask = Layer_All;
         reg.Add<ColliderComponent>(e, col);
@@ -243,15 +263,6 @@ namespace
         for (int hz = r.z * sub; hz < (r.z + r.d) * sub; ++hz)
             for (int hx = r.x * sub; hx < (r.x + r.w) * sub; ++hx)
                 g.SetHeight(hx, hz, (std::max)(g.HeightAt(hx, hz), h));
-    }
-
-    // 足跡の高さ場をそのまま h にする（鉱洞の底。低くもできる）
-    void SetRectHeight(GridWorld& g, const Rect& r, float h)
-    {
-        const int sub = GridWorld::kHeightSub;
-        for (int hz = r.z * sub; hz < (r.z + r.d) * sub; ++hz)
-            for (int hx = r.x * sub; hx < (r.x + r.w) * sub; ++hx)
-                g.SetHeightExact(hx, hz, h);
     }
 
     // マスの印（mask == value のマス）を軸平行の矩形の組に分ける（衝突の箱にする）。
@@ -385,13 +396,191 @@ namespace
         case Side::NegZ: v[4].y = v[5].y = low; break;
         }
 
-        // 貼図の層: 土の坂（既定の色）は自動（斜面 = 道）、草色の長い坂（高台・山頂）は地面と同じ草
+        // テクスチャの層: 土の坂（既定の色）は自動（斜面 = 道）、草色の長い坂（高台・山頂）は地面と同じ草
         const bool grassy = !(topColor == gRampTop);
         batch.SetLayers(grassy ? (int)TerrainSurface::Ground : -1, -1);
         Entity e = SpawnHull(reg, batch, v, topColor, gCliff);
         batch.SetLayers(-1, -1);
         WriteHullHeights(g, r, reg.Get<ColliderComponent>(e).hull, reg.Get<TransformComponent>(e).position);
         return e;
+    }
+
+    // ============================================================
+    // 起伏（2026-10-04、ユーザー：純平地をやめて、緩い丘の斜面に小さい土饅頭が載った地面に）。
+    // 平原と山頂の上面の起伏を 0.5m 毎のノード（フィールドの隅から隅まで、高さ場と同じ細かさ）に持ち、間は双線形。
+    // 洞窟の底は平ら。区域の境（崖）を挟んでは混ぜない = 高さも法線も「その点のマスの区域の式」で出す。
+    // 戦闘の地面の衝突（ColliderShape::HeightField）もこれに問い合わせる（Generate が作り、衝突の実体が持つ）
+    // ============================================================
+    class ReliefField : public CollisionMath::HeightFieldShape
+    {
+    public:
+        enum : uint8_t { kPlain = 0, kSummit = 1, kMine = 2 };
+        int gw = 0, gd = 0;              // マス
+        float ox = 0.0f, oz = 0.0f;      // フィールドの隅（世界）
+        int nx = 0, nz = 0;              // ノード
+        float step = kCs / GridWorld::kHeightSub;
+        float summitH = 0.0f, mineD = 0.0f;
+        std::vector<uint8_t> zone;       // マス毎の区域
+        std::vector<float> plain, summit;   // ノード毎の起伏（区域の基準の高さからの差）
+
+        void Init(const GridWorld& g, const std::vector<uint8_t>& zones, float summitHeight, float mineDepth)
+        {
+            gw = g.Width(); gd = g.Depth();
+            ox = g.OriginX(); oz = g.OriginZ();
+            nx = gw * GridWorld::kHeightSub + 1;
+            nz = gd * GridWorld::kHeightSub + 1;
+            zone = zones;
+            summitH = summitHeight;
+            mineD = mineDepth;
+            plain.assign((size_t)nx * nz, 0.0f);
+            summit.assign((size_t)nx * nz, 0.0f);
+        }
+        float NodeX(int ix) const { return ox + ix * step; }
+        float NodeZ(int iz) const { return oz + iz * step; }
+        float Sample(const std::vector<float>& a, float x, float z) const
+        {
+            const float fx = std::clamp((x - ox) / step, 0.0f, (float)(nx - 1));
+            const float fz = std::clamp((z - oz) / step, 0.0f, (float)(nz - 1));
+            const int ix = (std::min)((int)fx, nx - 2), iz = (std::min)((int)fz, nz - 2);
+            const float tx = fx - ix, tz = fz - iz;
+            const float* p = &a[(size_t)iz * nx + ix];
+            return (p[0] * (1.0f - tx) + p[1] * tx) * (1.0f - tz) + (p[nx] * (1.0f - tx) + p[nx + 1] * tx) * tz;
+        }
+        // 外周のマスは内側の隣と同じ区域
+        uint8_t ZoneAtCell(int gx, int gz) const
+        {
+            gx = std::clamp(gx, 1, gw - 2);
+            gz = std::clamp(gz, 1, gd - 2);
+            return zone[(size_t)gz * gw + gx];
+        }
+        uint8_t ZoneAt(float x, float z) const
+        {
+            return ZoneAtCell((int)std::floor((x - ox) / kCs), (int)std::floor((z - oz) / kCs));
+        }
+        float SurfaceIn(uint8_t k, float x, float z) const
+        {
+            switch (k)
+            {
+            case kSummit: return summitH + Sample(summit, x, z);
+            case kMine:   return -mineD;
+            default:      return Sample(plain, x, z);
+            }
+        }
+
+        // ---- CollisionMath::HeightFieldShape ----
+        bool Contains(float x, float z) const override
+        {
+            return x >= ox && z >= oz && x <= ox + gw * kCs && z <= oz + gd * kCs;
+        }
+        float Height(float x, float z) const override { return SurfaceIn(ZoneAt(x, z), x, z); }
+        Vector3 Normal(float x, float z) const override
+        {
+            const uint8_t k = ZoneAt(x, z);
+            const float e = step * 0.5f;
+            const float dx = (SurfaceIn(k, x + e, z) - SurfaceIn(k, x - e, z)) / (2.0f * e);
+            const float dz = (SurfaceIn(k, x, z + e) - SurfaceIn(k, x, z - e)) / (2.0f * e);
+            Vector3 n(-dx, 1.0f, -dz);
+            n.Normalize();
+            return n;
+        }
+    };
+
+    // 隣のノードとの傾きを軸方向で tanMax までに抑える（急な所を両側から寄せる。fixed のノードは動かさない）。
+    // 2026-10-05 に起伏を大きくした時、土饅頭が丘の斜面に載った所・台座の戻りが 40〜45° になった（雑魚は 40° まで）。
+    // 軸方向で抑えるので斜め方向は最大 √2 倍（30° → 39°）
+    void LimitSlope(std::vector<float>& h, int nx, int nz, float step, float tanMax, const std::vector<uint8_t>* fixed)
+    {
+        const float lim = tanMax * step;
+        for (int it = 0; it < 64; ++it)
+        {
+            bool changed = false;
+            for (int iz = 0; iz < nz; ++iz)
+                for (int ix = 0; ix < nx; ++ix)
+                {
+                    const size_t i = (size_t)iz * nx + ix;
+                    for (int k = 0; k < 2; ++k)
+                    {
+                        const int jx = ix + (k == 0 ? 1 : 0), jz = iz + (k == 1 ? 1 : 0);
+                        if (jx >= nx || jz >= nz) continue;
+                        const size_t j = (size_t)jz * nx + jx;
+                        const float d = h[j] - h[i];
+                        const float ad = std::fabs(d);
+                        if (ad <= lim + 1e-4f) continue;
+                        const bool fi = fixed && (*fixed)[i], fj = fixed && (*fixed)[j];
+                        if (fi && fj) continue;
+                        const float ex = (ad - lim) * (d > 0.0f ? 1.0f : -1.0f);   // 差をこれだけ縮める
+                        if (fi)      h[j] -= ex;
+                        else if (fj) h[i] += ex;
+                        else { h[i] += ex * 0.5f; h[j] -= ex * 0.5f; }
+                        changed = true;
+                    }
+                }
+            if (!changed) break;
+        }
+    }
+
+    // 起伏の素（台座で均す前）: 大きい丘（勾配ノイズ 2 段）+ 小さい土饅頭。面ごとの倍率（砂漠は砂丘で強め、遺跡は石畳なので弱め）
+    void BuildRelief(ReliefField& f, const TerrainGenerator::Config& cfg)
+    {
+        const float biomeMul = (cfg.biome == TerrainGenerator::Biome::Desert) ? 1.25f
+            : (cfg.biome == TerrainGenerator::Biome::Dungeon) ? 0.5f : 1.0f;
+        const float hill = cfg.hillHeight * biomeMul;
+        const float detail = cfg.hillDetailHeight * biomeMul;
+        const float big = (std::max)(cfg.hillScale, 4.0f), fine = (std::max)(cfg.hillDetailScale, 2.0f);
+        const uint32_t s = cfg.seed;
+        for (int iz = 0; iz < f.nz; ++iz)
+            for (int ix = 0; ix < f.nx; ++ix)
+            {
+                const float x = f.NodeX(ix), z = f.NodeZ(iz);
+                const size_t i = (size_t)iz * f.nx + ix;
+                f.plain[i] = hill * GradNoise(x / big, z / big, s + 101u) + detail * GradNoise(x / fine, z / fine, s + 103u);
+                f.summit[i] = cfg.summitReliefMul
+                    * (hill * GradNoise(x / big, z / big, s + 107u) + detail * GradNoise(x / fine, z / fine, s + 109u));
+            }
+
+        // 土饅頭: 半径 r、高さ h の (1 - (d/r)^2)^2。高さは r × bumpMaxSlope まで（斜面の最大の傾き ≒ 1.54 h / r）。
+        // 構造物の配置の乱数と別の列（同じ seed で台地などの置き場所が起伏の有無で変わらない）
+        std::mt19937 rng(cfg.seed ^ 0x9E3779B9u);
+        auto randf = [&](float a, float b) { return std::uniform_real_distribution<float>(a, (std::max)(a, b))(rng); };
+        const float W = f.gw * kCs, D = f.gd * kCs;
+        const int count = (int)(cfg.bumpCount * (W * D) / (200.0f * 200.0f));
+        struct Placed { float x, z, r; };
+        std::vector<Placed> placed;
+        for (int attempt = 0; attempt < count * 10 && (int)placed.size() < count; ++attempt)
+        {
+            const float cx = f.ox + randf(0.0f, W), cz = f.oz + randf(0.0f, D);
+            const float r = randf(cfg.bumpRadiusMin, cfg.bumpRadiusMax);
+            // 重ねない（重なると足し算で急になる。1 回目は 36° の所があった）
+            bool overlap = false;
+            for (const Placed& q : placed)
+            {
+                const float dx = q.x - cx, dz = q.z - cz, rr = q.r + r;
+                if (dx * dx + dz * dz < rr * rr) { overlap = true; break; }
+            }
+            if (overlap) continue;
+            placed.push_back({ cx, cz, r });
+            const float h = (std::min)(randf(cfg.bumpHeightMin, cfg.bumpHeightMax), r * cfg.bumpMaxSlope) * biomeMul;
+            const int ix0 = (std::max)(0, (int)std::floor((cx - r - f.ox) / f.step));
+            const int ix1 = (std::min)(f.nx - 1, (int)std::ceil((cx + r - f.ox) / f.step));
+            const int iz0 = (std::max)(0, (int)std::floor((cz - r - f.oz) / f.step));
+            const int iz1 = (std::min)(f.nz - 1, (int)std::ceil((cz + r - f.oz) / f.step));
+            for (int iz = iz0; iz <= iz1; ++iz)
+                for (int ix = ix0; ix <= ix1; ++ix)
+                {
+                    const float dx = f.NodeX(ix) - cx, dz = f.NodeZ(iz) - cz;
+                    const float u2 = (dx * dx + dz * dz) / (r * r);
+                    if (u2 >= 1.0f) continue;
+                    const float k = (1.0f - u2) * (1.0f - u2) * h;
+                    const size_t i = (size_t)iz * f.nx + ix;
+                    f.plain[i] += k;
+                    f.summit[i] += k * cfg.summitReliefMul;
+                }
+        }
+
+        // 素の起伏の傾きを抑える（台座の戻りは後で別に抑える）
+        const float tanRaw = std::tan(DirectX::XMConvertToRadians(cfg.reliefMaxSlopeDeg - 2.0f));
+        LimitSlope(f.plain, f.nx, f.nz, f.step, tanRaw, nullptr);
+        LimitSlope(f.summit, f.nx, f.nz, f.step, tanRaw, nullptr);
     }
 }
 
@@ -467,8 +656,8 @@ namespace TerrainGenerator
             gGroundLight = P.groundLight;
         }
 
-        // 貼図の層毎の「元の頂点色の基準の明るさ」（TerrainSurface。頂点色の明るさ / これ を貼図に薄く掛けて色斑を残す）。
-        // 地面・洞の底は色の関数を場地に 48x48 点で平均、他はその層の配色
+        // テクスチャの層毎の「元の頂点色の基準の明るさ」（TerrainSurface。頂点色の明るさ / これ をテクスチャに薄く掛けて色むらを残す）。
+        // 地面・洞の底は色の関数をフィールドに 48x48 点で平均、他はその層の配色
         float terrainRefLum[TerrainSurface::LayerCount] = {};
         {
             auto lum = [](const Vector4& c) { return 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z; };
@@ -499,8 +688,8 @@ namespace TerrainGenerator
                 outTerrain.push_back(TestSpawner::SpawnStaticBox(reg, (lo + hi) * 0.5f, (hi - lo) * 0.5f));
             };
 
-        // ---------- 場地の三層：隅の山頂と鉱洞（2026-10-02）----------
-        // zone: マス毎に 平原 / 山頂 / 鉱洞。山頂と鉱洞は対角の隅（どの組かは seed）。
+        // ---------- フィールドの三層：隅の山頂と洞窟（2026-10-02）----------
+        // zone: マス毎に 平原 / 山頂 / 洞窟。山頂と洞窟は対角の隅（どの組かは seed）。
         // 形 = 隅の正方形 → 内側の角の面取り → 内側の二辺に出っ張り 1〜2 個と凹み 1 個 → 1 マス幅の所を均す
         enum : uint8_t { kZonePlain = 0, kZoneSummit = 1, kZoneMine = 2 };
         std::vector<uint8_t> zone((size_t)gw * gd, kZonePlain);
@@ -509,7 +698,7 @@ namespace TerrainGenerator
         const float mineD = layers ? (std::max)(cfg.mineDepth, 1.0f) : 0.0f;
         if (layers)
         {
-            // 隅の局所座標 (u, v)：外周の崖の内側の隅のマス = (1, 1)、場地の内へ増える
+            // 隅の局所座標 (u, v)：外周の崖の内側の隅のマス = (1, 1)、フィールドの内へ増える
             auto setLocal = [&](int corner, uint8_t id, int u0, int v0, int uw, int vw, bool on)
                 {
                     for (int v = v0; v < v0 + vw; ++v)
@@ -518,7 +707,7 @@ namespace TerrainGenerator
                             const int gx = (corner & 1) ? (gw - 1 - u) : u;
                             const int gz = (corner & 2) ? (gd - 1 - v) : v;
                             if (gx < 1 || gz < 1 || gx >= gw - 1 || gz >= gd - 1) continue;
-                            // 開局の場所（中央）には掛けない
+                            // 開始時の場所（中央）には掛けない
                             if (std::abs(gx - gw / 2) <= cfg.spawnClearRadius + 3
                                 && std::abs(gz - gd / 2) <= cfg.spawnClearRadius + 3) continue;
                             uint8_t& c = zone[(size_t)gz * gw + gx];
@@ -576,14 +765,170 @@ namespace TerrainGenerator
                     zone.swap(next);
                 }
         }
-        // 鉱洞の屋根（2026-10-03）：坑の周り 1 マスの岩の壁（caveRing、下り坂の口は除く）。見た目の高さは roofTopY。
+        // 洞窟の屋根（2026-10-03）：坑の周り 1 マスの岩の壁（caveRing、下り坂の口は除く）。見た目の高さは roofTopY。
         // 中身は下り坂を置いた後で決まる
         const bool cave = layers && cfg.mineRoof;
         const float roofBottomY = cave ? (std::max)(cfg.roofBottom, 2.5f) : 0.0f;
         const float roofTopY = cave ? (std::max)(cfg.roofTop, roofBottomY + 1.0f) : 0.0f;
         std::vector<uint8_t> caveRing((size_t)gw * gd, 0);
 
-        // マス毎の地面の高さ（見た目）。外周の崖のマスは内側の隣と同じ（場地の縁に段の壁を作らない）
+        // ---------- 起伏（2026-10-04）----------
+        // relief = 平原・山頂の上面の起伏（ReliefField）。台座（padRect）で構造物の足元を均す。
+        // 高さ場（雑魚・草・置物が見る）は「上げたマス（台地・坂・高台）と洞の岩の壁」以外を常に起伏の面と同じに保つ
+        // （台座を当てる度に周りを書き直す）。上げたマスは RaiseRect / SpawnRamp の高さのまま
+        static_assert(ReliefField::kPlain == kZonePlain && ReliefField::kSummit == kZoneSummit && ReliefField::kMine == kZoneMine,
+            "ReliefField の区域の番号は zone と同じ");
+        auto relief = std::make_shared<ReliefField>();
+        relief->Init(grid, zone, summitH, mineD);
+        if (cfg.relief) BuildRelief(*relief, cfg);
+        const int hsub = GridWorld::kHeightSub;
+        constexpr float kPadSink = 0.5f;   // 台座に載せる箱の底を埋める深さ（台座の縁の起伏との隙間を見せない）
+        std::vector<uint8_t> raised((size_t)gw * gd, 0);   // 台地・坂・高台が高さ場を上げたマス
+        // 台座は順番に依らない混ぜ方にする（1 版目は「先に均した所を後の台座が触らない」鍵で、鍵の境に 0.5m で
+        // 1m 以上の段（57°）ができた）。ノード毎に 面 = lerp(素の起伏, Lmix, 最大の重み)、
+        // Lmix = Σ w^4 L / Σ w^4（芯（重み 1）の台座がほぼ勝つ = 構造物の足元はほぼ L のまま、境は連続）
+        const std::vector<float> rawPlain = relief->plain, rawSummit = relief->summit;
+        struct Pad { int ax0, ax1, az0, az1, m; float L; };   // 芯（縁込み）のノードの範囲・戻しの幅（ノード）・高さ
+        std::vector<Pad> padsPlain, padsSummit;
+        std::vector<float> mineW(relief->plain.size(), 0.0f);   // 洞窟の周りの 0 への均し（平原だけ）
+        auto markRaised = [&](const Rect& r)
+            {
+                for (int z = (std::max)(r.z, 0); z < (std::min)(r.z + r.d, gd); ++z)
+                    for (int x = (std::max)(r.x, 0); x < (std::min)(r.x + r.w, gw); ++x)
+                        raised[(size_t)z * gw + x] = 1;
+            };
+        auto raiseRect = [&](const Rect& r, float h) { RaiseRect(grid, r, h); markRaised(r); };
+        // 高さ場のマス（hx, hz の範囲、両端含む）を起伏の面へ合わせる。上げたマス・洞の岩の壁は触らない
+        auto writeBase = [&](int hx0, int hz0, int hx1, int hz1)
+            {
+                hx0 = (std::max)(hx0, 0); hz0 = (std::max)(hz0, 0);
+                hx1 = (std::min)(hx1, gw * hsub - 1); hz1 = (std::min)(hz1, gd * hsub - 1);
+                for (int hz = hz0; hz <= hz1; ++hz)
+                    for (int hx = hx0; hx <= hx1; ++hx)
+                    {
+                        const size_t c = (size_t)(hz / hsub) * gw + (hx / hsub);
+                        if (raised[c] || caveRing[c]) continue;
+                        const Vector3 p = grid.HeightCellToWorld(hx, hz);
+                        grid.SetHeightExact(hx, hz, relief->SurfaceIn(relief->ZoneAtCell(hx / hsub, hz / hsub), p.x, p.z));
+                    }
+            };
+        // 矩形（マス）のノードの起伏の平均（区域の基準からの差）
+        auto avgRelief = [&](uint8_t zk, const Rect& r)
+            {
+                const auto& arr = (zk == kZoneSummit) ? relief->summit : relief->plain;
+                double sum = 0.0;
+                int n = 0;
+                for (int iz = (std::max)(r.z * hsub, 0); iz <= (std::min)((r.z + r.d) * hsub, relief->nz - 1); ++iz)
+                    for (int ix = (std::max)(r.x * hsub, 0); ix <= (std::min)((r.x + r.w) * hsub, relief->nx - 1); ++ix)
+                    {
+                        sum += arr[(size_t)iz * relief->nx + ix];
+                        ++n;
+                    }
+                return n > 0 ? (float)(sum / n) : 0.0f;
+            };
+        // 台座の重み（芯 = 1、そこから m ノードで 0 へ smoothstep）
+        auto padWeight = [](const Pad& p, int ix, int iz)
+            {
+                const int d = (std::max)((std::max)(p.ax0 - ix, ix - p.ax1), (std::max)(p.az0 - iz, iz - p.az1));
+                if (d <= 0) return 1.0f;
+                if (d >= p.m) return 0.0f;
+                const float t = (float)d / (float)p.m;
+                return 1.0f - t * t * (3.0f - 2.0f * t);
+            };
+        // ノードの範囲の面を素の起伏と台座から作り直す
+        auto rebuildRelief = [&](uint8_t zk, int ix0, int iz0, int ix1, int iz1)
+            {
+                auto& arr = (zk == kZoneSummit) ? relief->summit : relief->plain;
+                const auto& raw = (zk == kZoneSummit) ? rawSummit : rawPlain;
+                const auto& pads = (zk == kZoneSummit) ? padsSummit : padsPlain;
+                ix0 = (std::max)(ix0, 0); iz0 = (std::max)(iz0, 0);
+                ix1 = (std::min)(ix1, relief->nx - 1); iz1 = (std::min)(iz1, relief->nz - 1);
+                for (int iz = iz0; iz <= iz1; ++iz)
+                    for (int ix = ix0; ix <= ix1; ++ix)
+                    {
+                        const size_t i = (size_t)iz * relief->nx + ix;
+                        float wmax = 0.0f, num = 0.0f, den = 0.0f;
+                        if (zk == kZonePlain && mineW[i] > 0.0f)
+                        {
+                            const float w4 = mineW[i] * mineW[i] * mineW[i] * mineW[i];
+                            wmax = mineW[i];
+                            den = w4;   // L = 0
+                        }
+                        for (const Pad& p : pads)
+                        {
+                            const float w = padWeight(p, ix, iz);
+                            if (w <= 0.0f) continue;
+                            const float w4 = w * w * w * w;
+                            wmax = (std::max)(wmax, w);
+                            num += w4 * p.L;
+                            den += w4;
+                        }
+                        arr[i] = (den > 0.0f) ? raw[i] + (num / den - raw[i]) * wmax : raw[i];
+                    }
+            };
+        // 台座: 矩形（マス）の周り rim マスまでを高さ L（区域の基準からの差）に均し、そこから margin マスで元の起伏へ戻す
+        auto padRect = [&](uint8_t zk, const Rect& r, int rim, int margin, float L)
+            {
+                if (!cfg.relief) return;
+                Pad p;
+                p.ax0 = (r.x - rim) * hsub; p.ax1 = (r.x + r.w + rim) * hsub;
+                p.az0 = (r.z - rim) * hsub; p.az1 = (r.z + r.d + rim) * hsub;
+                p.m = (std::max)(margin, 1) * hsub;
+                p.L = L;
+                ((zk == kZoneSummit) ? padsSummit : padsPlain).push_back(p);
+                rebuildRelief(zk, p.ax0 - p.m, p.az0 - p.m, p.ax1 + p.m, p.az1 + p.m);
+                writeBase(p.ax0 - p.m - 1, p.az0 - p.m - 1, p.ax1 + p.m, p.az1 + p.m);
+            };
+
+        // 洞窟の周り（岩の壁・洞の口・下り坂の上端）は平原の 0 に均す: 坑のマスからの距離（ノード、チェビシェフ）が
+        // 4 マス以内は 0、そこから 4 マスで元の起伏へ
+        if (cfg.relief && layers)
+        {
+            const int nx = relief->nx, nz = relief->nz;
+            std::vector<int> dist((size_t)nx * nz, INT_MAX / 4);
+            for (int gz = 0; gz < gd; ++gz)
+                for (int gx = 0; gx < gw; ++gx)
+                {
+                    if (zone[(size_t)gz * gw + gx] != kZoneMine) continue;
+                    for (int iz = gz * hsub; iz <= (gz + 1) * hsub; ++iz)
+                        for (int ix = gx * hsub; ix <= (gx + 1) * hsub; ++ix)
+                            dist[(size_t)iz * nx + ix] = 0;
+                }
+            auto relax = [&](int ix, int iz, int jx, int jz)
+                {
+                    if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) return;
+                    int& d = dist[(size_t)iz * nx + ix];
+                    d = (std::min)(d, dist[(size_t)jz * nx + jx] + 1);
+                };
+            for (int iz = 0; iz < nz; ++iz)
+                for (int ix = 0; ix < nx; ++ix)
+                {
+                    relax(ix, iz, ix - 1, iz); relax(ix, iz, ix, iz - 1);
+                    relax(ix, iz, ix - 1, iz - 1); relax(ix, iz, ix + 1, iz - 1);
+                }
+            for (int iz = nz - 1; iz >= 0; --iz)
+                for (int ix = nx - 1; ix >= 0; --ix)
+                {
+                    relax(ix, iz, ix + 1, iz); relax(ix, iz, ix, iz + 1);
+                    relax(ix, iz, ix + 1, iz + 1); relax(ix, iz, ix - 1, iz + 1);
+                }
+            const int full = 4 * hsub, fade = (std::max)(cfg.padMargin, 1) * hsub;
+            for (size_t i = 0; i < dist.size(); ++i)
+            {
+                const int d = dist[i];
+                if (d >= full + fade) continue;
+                float w = 1.0f;
+                if (d > full)
+                {
+                    const float t = (float)(d - full) / (float)fade;
+                    w = 1.0f - t * t * (3.0f - 2.0f * t);
+                }
+                mineW[i] = w;
+            }
+            rebuildRelief(kZonePlain, 0, 0, nx - 1, nz - 1);
+        }
+
+        // マス毎の地面の高さ（見た目）。外周の崖のマスは内側の隣と同じ（フィールドの縁に段の壁を作らない）
         auto zoneAt = [&](int x, int z)
             {
                 x = std::clamp(x, 1, gw - 2);
@@ -597,92 +942,51 @@ namespace TerrainGenerator
                 const uint8_t id = zoneAt(x, z);
                 return (id == kZoneSummit) ? summitH : (id == kZoneMine) ? -mineD : 0.0f;
             };
-        auto levelAtWorld = [&](float x, float z)
-            {
-                int gx = 0, gz = 0;
-                grid.WorldToCell({ x, 0.0f, z }, gx, gz);
-                return levelAt(gx, gz);
-            };
 
         // ---------- 床（草地）----------
-        // 見た目: マス毎の高さの段々のメッシュ 1 つ（平原・山頂の上面は値ノイズの色むら、鉱洞の底は土と砂利、
+        // 見た目: マス毎の高さの段々のメッシュ 1 つ（平原・山頂の上面は値ノイズの色むら、洞窟の底は土と砂利、
         //   段の境は 2m 毎の縞の岩の壁）。
-        // 衝突: 鉱洞以外は上面 y = 0 の箱（底は鉱洞の底より下 = 鉱洞の壁にもなる）、鉱洞の底は上面 -mineDepth、
+        // 衝突: 洞窟以外は上面 y = 0 の箱（底は洞窟の底より下 = 洞窟の壁にもなる）、洞窟の底は上面 -mineDepth、
         //   山頂は 0〜summitHeight。どれもマスの印を矩形に分けた箱の組。
-        // 高さ場: 山頂は上げる、鉱洞はそのまま -mineDepth を書く（坂は後で高い方を書く）。
-        // 床は格子に登記しない（上を歩くものなので通行を塞がない）
+        // 高さ場: 山頂は上げる、洞窟はそのまま -mineDepth を書く（坂は後で高い方を書く）。
+        // 床は格子に登録しない（上を歩くものなので通行を塞がない）
         const float floorBottom = -mineD - 1.0f;
         {
+            // 起伏（2026-10-04）: 歩く面は高さ場の衝突（下の relief）。箱は上面を起伏の一番低い所より下げ、
+            // 崖（山頂の縁・坑の壁）の縦の壁としてだけ残す。山頂の箱は底を floorBottom まで伸ばす
+            // （周りの平原が 0 より低い所で山頂の下に潜り込めないように）
+            float plainTop = 0.0f, summitTop = summitH;
+            if (cfg.relief)
+            {
+                plainTop = *std::min_element(relief->plain.begin(), relief->plain.end()) - 0.1f;
+                summitTop = summitH + *std::min_element(relief->summit.begin(), relief->summit.end()) - 0.1f;
+            }
             std::vector<uint8_t> solid((size_t)gw * gd);
             for (size_t i = 0; i < solid.size(); ++i) solid[i] = (zone[i] == kZoneMine) ? 0 : 1;
             for (const Rect& r : MaskRects(solid, gw, gd, 1))
             {
                 const Vector3 lo = RectMin(grid, r);
-                solidBox({ lo.x, floorBottom, lo.z }, lo + Vector3(r.w * kCs, 0.0f, r.d * kCs));
+                solidBox({ lo.x, floorBottom, lo.z }, lo + Vector3(r.w * kCs, plainTop, r.d * kCs));
             }
             for (const Rect& r : MaskRects(zone, gw, gd, kZoneMine))
             {
                 const Vector3 lo = RectMin(grid, r);
                 solidBox({ lo.x, floorBottom, lo.z }, lo + Vector3(r.w * kCs, -mineD, r.d * kCs));
-                SetRectHeight(grid, r, -mineD);
             }
             for (const Rect& r : MaskRects(zone, gw, gd, kZoneSummit))
             {
                 const Vector3 lo = RectMin(grid, r);
-                solidBox(lo, lo + Vector3(r.w * kCs, summitH, r.d * kCs));
-                RaiseRect(grid, r, summitH);
+                solidBox({ lo.x, floorBottom, lo.z }, lo + Vector3(r.w * kCs, summitTop, r.d * kCs));
             }
-            // 外周の崖のマス（塞いだマス）の高さ場は内側の隣と同じに（2026-10-03）。外周の岩を少し外へ下げたので
-            // このマスの地面が見えるようになり、草を生やす。草は高さ場に立つので、山頂・坑の脇でも正しい高さに
-            for (int z = 0; z < gd; ++z)
-                for (int x = 0; x < gw; ++x)
-                    if (x == 0 || z == 0 || x == gw - 1 || z == gd - 1)
-                    {
-                        const uint8_t id = zoneAt(x, z);
-                        const float lv = (id == kZoneSummit) ? summitH : (id == kZoneMine) ? -mineD : 0.0f;
-                        SetRectHeight(grid, { x, z, 1, 1 }, lv);
-                    }
-            // 場地の外へ 40m の地面（見た目だけ。外周の岩の隙間から下の空が見えないように）。
-            // 外周のマス毎に外向きの帯、四隅は正方形。高さは内側の隣と同じ
-            {
-                const Palette& P = PaletteFor(cfg.biome);
-                const Vector4 skirtTop = LerpColor(P.groundDark, P.groundLight, 0.4f);
-                constexpr float kSkirt = 40.0f;
-                auto skirtLevel = [&](int x, int z)
-                    {
-                        const uint8_t id = zoneAt(x, z);
-                        return (id == kZoneSummit) ? summitH : (id == kZoneMine) ? -mineD : 0.0f;
-                    };
-                auto skirtBox = [&](float x0, float z0, float x1, float z1, float lv)
-                    {
-                        Vector3 v[8];
-                        BoxVerts(v, { x0, lv - 2.0f, z0 }, { x1, lv, z1 });
-                        batch.Append(v, skirtTop, gCliff);
-                    };
-                const float ox = grid.OriginX(), oz = grid.OriginZ();
-                for (int i = 0; i < gw; ++i)   // 南（-z）と北（+z）
-                {
-                    const float x0 = ox + i * kCs, x1 = x0 + kCs;
-                    skirtBox(x0, oz - kSkirt, x1, oz, skirtLevel(i, 0));
-                    skirtBox(x0, oz + D, x1, oz + D + kSkirt, skirtLevel(i, gd - 1));
-                }
-                for (int j = 0; j < gd; ++j)   // 西（-x）と東（+x）
-                {
-                    const float z0 = oz + j * kCs, z1 = z0 + kCs;
-                    skirtBox(ox - kSkirt, z0, ox, z1, skirtLevel(0, j));
-                    skirtBox(ox + W, z0, ox + W + kSkirt, z1, skirtLevel(gw - 1, j));
-                }
-                skirtBox(ox - kSkirt, oz - kSkirt, ox, oz, skirtLevel(0, 0));
-                skirtBox(ox + W, oz - kSkirt, ox + W + kSkirt, oz, skirtLevel(gw - 1, 0));
-                skirtBox(ox - kSkirt, oz + D, ox, oz + D + kSkirt, skirtLevel(0, gd - 1));
-                skirtBox(ox + W, oz + D, ox + W + kSkirt, oz + D + kSkirt, skirtLevel(gw - 1, gd - 1));
-            }
-            // 見た目のメッシュは洞の岩の壁が決まってから（下り坂の後）
+            // 高さ場 = 起伏の面（山頂は +summitH、洞窟は -mineD）。外周の崖のマス（塞いだマス）も内側の隣と同じ区域の面
+            // （2026-10-03。外周の岩を少し外へ下げてこのマスの地面が見え、草を生やす）
+            writeBase(0, 0, gw * hsub - 1, gd * hsub - 1);
+            // 見た目のメッシュと場外の地面は台座が全部決まってから（高台・台地の後）
         }
 
         // ---------- 外周の崖 ----------
         // 1 マス幅で四辺を囲む。場外へ出る・落ちるをここで殺す（格子も塞ぐ）。
-        // 高さは鉱洞の底の下から山頂 + wallHeight まで（山頂から外へ飛び出せない）。
+        // 高さは洞窟の底の下から山頂 + wallHeight まで（山頂から外へ飛び出せない）。
         // 岩山にする時は衝突の箱だけ（見た目は後で岩を積む）
         auto wall = [&](int x, int z, int w, int d)
             {
@@ -699,10 +1003,10 @@ namespace TerrainGenerator
         wall(0, 1, 1, gd - 2);
         wall(gw - 1, 1, 1, gd - 2);
 
-        // ---------- 占有図 ----------
+        // ---------- 占有マップ ----------
         // 空き地 / 台地・高台の上面 / 坂道 / 初期地点 / 坂道の降り口（空き地のまま残す）/ 高台の長い坂 /
         // 高台の坂の麓（地面のまま。木・岩・台地は置かない。茂み・草は置く）/ 高台の上の通り道（木・岩を置かない）/
-        // 山頂の上面（木・岩を置く）/ 鉱洞の底（岩だけ置く）
+        // 山頂の上面（木・岩を置く）/ 洞窟の底（岩だけ置く）
         enum : uint8_t { kFree, kPlateau, kRamp, kSpawn, kLanding, kSlope, kApron, kWay, kHigh, kPit, kMass };   // kMass = 洞の岩の壁
         std::vector<uint8_t> occ((size_t)gw * gd, kFree);
         for (size_t i = 0; i < occ.size(); ++i)
@@ -734,7 +1038,7 @@ namespace TerrainGenerator
                         at(x, z) = v;
             };
 
-        // 玩家の初期地点（場地中央）の周りは平らに空ける
+        // プレイヤーの初期地点（フィールド中央）の周りは平らに空ける
         const int cr = cfg.spawnClearRadius;
         mark({ gw / 2 - cr, gd / 2 - cr, cr * 2, cr * 2 }, kSpawn);
 
@@ -776,14 +1080,14 @@ namespace TerrainGenerator
                 return true;
             };
 
-        // ---------- 山頂の長い坂・鉱洞の下り坂 ----------
+        // ---------- 山頂の長い坂・洞窟の下り坂 ----------
         // 区域の縁のうち、幅 w マスが真っ直ぐ同じ向きに平原へ面している所に、縁と直角の坂を置く。
         //   山頂: 坂は縁の外（平原）へ下る。麓の先 terraceClear マスは空き地（kApron）、坂の上端の山頂 2 マスは通り道（kWay）。
-        //   鉱洞: 坂は縁の内（底）へ下る（坂の両脇は底へ飛び降りられる）。入口の平原側 3 マスと底の降り口 1 マスは空ける（kLanding）。
+        //   洞窟: 坂は縁の内（底）へ下る（坂の両脇は底へ飛び降りられる）。入口の平原側 3 マスと底の降り口 1 マスは空ける（kLanding）。
         // 候補を全部集めて混ぜ、互いに離れた物から本数分取る
         int summitRampsMade = 0, mineRampsMade = 0;
-        std::vector<Rect> mineLandings;   // 鉱洞の坂の降り口（底側）。一番奥を探す起点
-        std::vector<Rect> mineMouths;     // 鉱洞の坂の上端の外 1 列（平原側）= 洞の口
+        std::vector<Rect> mineLandings;   // 洞窟の坂の降り口（底側）。一番奥を探す起点
+        std::vector<Rect> mineMouths;     // 洞窟の坂の上端の外 1 列（平原側）= 洞の口
         std::vector<Layout::Ramp> summitRampInfo, mineRampInfo;
         // 坂の上端の辺の中央と下る向き（Layout へ渡す）
         auto rampInfo = [&](const Rect& r, Side down, float topY)
@@ -860,14 +1164,20 @@ namespace TerrainGenerator
                             if (at(x, z) == kFree) at(x, z) = kApron;
                     mark(c.ramp, kSlope);
                     mark(c.extra, kWay);
-                    outTerrain.push_back(SpawnRamp(reg, batch, grid, c.ramp, c.s, 0.0f, summitH, Jitter(gGroundLight, rng, 0.02f)));
+                    // 起伏: 坂と麓を麓の起伏の平均の高さに、坂の上端の山頂側（通り道）を山頂の基準の高さに均す
+                    const float foot = cfg.relief ? avgRelief(kZonePlain, c.apron) : 0.0f;
+                    padRect(kZonePlain, c.ramp, 1, cfg.padMargin, foot);
+                    padRect(kZonePlain, c.apron, 0, cfg.padMargin, foot);
+                    padRect(kZoneSummit, c.extra, 1, cfg.padMargin, 0.0f);
+                    outTerrain.push_back(SpawnRamp(reg, batch, grid, c.ramp, c.s, foot, summitH, Jitter(gGroundLight, rng, 0.02f)));
+                    markRaised(c.ramp);
                     summitRampInfo.push_back(rampInfo(c.ramp, c.s, summitH));
                     made.push_back(c.ramp);
                 }
                 summitRampsMade = (int)made.size();
             }
 
-            // ---- 鉱洞 ----
+            // ---- 洞窟 ----
             {
                 const int w = (std::max)(1, cfg.mineRampWidth);
                 const float tanM = std::tan(DirectX::XMConvertToRadians(std::clamp(cfg.mineRampSlope, 5.0f, 35.0f)));
@@ -888,7 +1198,7 @@ namespace TerrainGenerator
                             }
                             const Rect land = LandingRect(r, Opposite(s));
                             if (!inside(entry)) continue;
-                            // 坂・降り口は鉱洞の底（kPit = 鉱洞の中だけ）、入口は平原の空き地
+                            // 坂・降り口は洞窟の底（kPit = 洞窟の中だけ）、入口は平原の空き地
                             if (!allOcc(r, { kPit }) || !allOcc(land, { kPit }) || !allOcc(entry, { kFree })) continue;
                             cands.push_back({ r, s, land, entry });
                         }
@@ -903,6 +1213,7 @@ namespace TerrainGenerator
                     mark(c.extra, kLanding);
                     mark(c.apron, kLanding);
                     outTerrain.push_back(SpawnRamp(reg, batch, grid, c.ramp, Opposite(c.s), -mineD, 0.0f));
+                    markRaised(c.ramp);
                     mineRampInfo.push_back(rampInfo(c.ramp, Opposite(c.s), 0.0f));
                     mineLandings.push_back(c.extra);
                     // 入口の帯（3 列）のうち坑に接する 1 列
@@ -920,8 +1231,8 @@ namespace TerrainGenerator
             }
         }
 
-        // ---------- 鉱洞の屋根（2026-10-03、用户：推奨どおり）----------
-        // 坑の上を岩の塊で覆い、外から見ると山の麓の洞穴にする。
+        // ---------- 洞窟の屋根（2026-10-03、ユーザー：推奨どおり）----------
+        // 坑の上を岩の塊で覆い、外から見ると山の麓の洞窟にする。
         //   岩の壁 = 坑の 8 近傍の平原のマス（下り坂の口を除く）。格子を塞ぎ（雑魚は縁から飛び降りられない。
         //     出入りは下り坂だけ）、見た目は roofTop の高さの段（段々のメッシュが外の壁・中の壁を描く）。
         //   屋根 = 坑の上の roofBottom〜roofTop の板、口の上 = 同じ高さの梁（口の高さは roofBottom）。
@@ -1010,56 +1321,6 @@ namespace TerrainGenerator
             roofOver(mouth, 1);          // 口の上の梁
         }
 
-        // ---------- 床の見た目（段々のメッシュ）----------
-        {
-            const Palette& P = PaletteFor(cfg.biome);
-            const uint32_t s = cfg.seed;
-            const Biome bm = cfg.biome;
-            const float rockLevel = roofTopY;
-            auto topColor = [&P, s, bm, cave, rockLevel](float x, float z, float level)
-                {
-                    if (cave && std::fabs(level - rockLevel) < 0.01f)   // 洞の岩の壁の上
-                    {
-                        const float k = 0.95f + 0.25f * ValueNoise(x / 5.0f, z / 5.0f, s + 51u);
-                        return Vector4(gCliffHigh.x * k, gCliffHigh.y * k, gCliffHigh.z * k, 1.0f);
-                    }
-                    return (level < -0.01f) ? MineColor(x, z, s, P) : GroundColor(x, z, s, bm);
-                };
-            // 壁：山頂の崖・洞の岩は灰色がかった岩（2 段目の台地と同じ色）、鉱洞の壁は土と岩。2m の帯ごとに明るさを変える（地層）
-            auto wallColor = [s](float x, float y, float z)
-                {
-                    const Vector4& base = (y > 0.0f) ? gCliffHigh : gCliff;
-                    const float band = Hash01((int)std::floor(y / 2.0f), 17, s);
-                    const float drift = ValueNoise((x + z) / 9.0f, y / 4.0f, s + 31u);
-                    const float k = (0.82f + 0.3f * band) * (0.9f + 0.2f * drift);
-                    return Vector4(base.x * k, base.y * k, base.z * k, 1.0f);
-                };
-            // 貼図の層（TerrainSurface）: 洞の岩の壁の上 = 岩、坑の底 = 洞の底。
-            // 壁は 高い側が岩の壁 か 低い側が坑 なら岩（坑の壁を y の境目で崖と岩に分けない）、他は自動（崖）
-            auto isRing = [&](int x, int z)
-                {
-                    const int cx = std::clamp(x, 1, gw - 2), cz = std::clamp(z, 1, gd - 2);
-                    return caveRing[(size_t)cz * gw + cx] != 0;
-                };
-            auto topLayer = [&](int x, int z) -> int
-                {
-                    if (isRing(x, z)) return TerrainSurface::Rock;
-                    return (zoneAt(x, z) == kZoneMine) ? (int)TerrainSurface::CaveFloor : -1;
-                };
-            auto wallLayer = [&](int hx, int hz, int lx, int lz) -> int
-                {
-                    return (isRing(hx, hz) || zoneAt(lx, lz) == kZoneMine) ? (int)TerrainSurface::Rock : -1;
-                };
-            Entity e = reg.Create();
-            reg.Add<TransformComponent>(e, TransformComponent{});
-            ModelComponent mc;
-            mc.model = PrimitiveBuilder::CreateSteppedGrid(device, gw, gd, kCs, levelAt, topColor, wallColor, 2.0f,
-                topLayer, wallLayer);
-            if (mc.model) TerrainSurface::Get().Apply(device, *mc.model, (int)cfg.biome, terrainRefLum);
-            reg.Add<ModelComponent>(e, mc);
-            outTerrain.push_back(e);
-        }
-
         // ---------- 高台（一面だけが長い坂、残り三面は崖。一部は上に 2 段目）----------
         // 場所を大きく取るので台地より先に置く。坂の向きは高台ごとにランダム。
         //   1 段目: 上面 p（高さ h1）+ その辺いっぱいの幅の坂（長さ = h1 / tan 角度）
@@ -1110,11 +1371,18 @@ namespace TerrainGenerator
             mark(sr, kSlope);
             mark(LocalRect(p, s, 0, 2, 0, across), kWay);
 
+            // 起伏: 高台・坂・麓を足元の起伏の平均の高さ base に均し、全部 base に載せる（箱の底は少し埋める）
+            const float base = cfg.relief ? 0.5f * (avgRelief(kZonePlain, p) + avgRelief(kZonePlain, sr)) : 0.0f;
+            padRect(kZonePlain, p, 1, cfg.padMargin, base);
+            padRect(kZonePlain, sr, 1, cfg.padMargin, base);
+            padRect(kZonePlain, apron, 0, cfg.padMargin, base);
             const Vector3 lo = RectMin(grid, p);
-            outTerrain.push_back(SpawnBlock(reg, batch, lo, lo + Vector3(p.w * kCs, h1, p.d * kCs),
+            outTerrain.push_back(SpawnBlock(reg, batch, lo + Vector3(0.0f, base - kPadSink, 0.0f),
+                lo + Vector3(p.w * kCs, base + h1, p.d * kCs),
                 Jitter(gPlateauTop, rng, 0.02f), Jitter(gCliff, rng, 0.015f)));
-            RaiseRect(grid, p, h1);
-            outTerrain.push_back(SpawnRamp(reg, batch, grid, sr, s, 0.0f, h1, Jitter(gGroundLight, rng, 0.02f)));
+            raiseRect(p, base + h1);
+            outTerrain.push_back(SpawnRamp(reg, batch, grid, sr, s, base, base + h1, Jitter(gGroundLight, rng, 0.02f)));
+            markRaised(sr);
 
             if (tier2)
             {
@@ -1123,11 +1391,12 @@ namespace TerrainGenerator
                 const Rect t = LocalRect(p, s, 2 + run2, top2, v0, w2);
                 const Rect s2 = LocalRect(p, s, 2, run2, v0, w2);
                 const Vector3 tlo = RectMin(grid, t);
-                outTerrain.push_back(SpawnBlock(reg, batch, tlo + Vector3(0.0f, h1, 0.0f),
-                    tlo + Vector3(t.w * kCs, h1 + h2, t.d * kCs),
+                outTerrain.push_back(SpawnBlock(reg, batch, tlo + Vector3(0.0f, base + h1, 0.0f),
+                    tlo + Vector3(t.w * kCs, base + h1 + h2, t.d * kCs),
                     Jitter(gPlateauTop, rng, 0.02f), Jitter(gCliffHigh, rng, 0.015f)));
-                RaiseRect(grid, t, h1 + h2);
-                outTerrain.push_back(SpawnRamp(reg, batch, grid, s2, s, h1, h1 + h2, Jitter(gGroundLight, rng, 0.02f)));
+                raiseRect(t, base + h1 + h2);
+                outTerrain.push_back(SpawnRamp(reg, batch, grid, s2, s, base + h1, base + h1 + h2, Jitter(gGroundLight, rng, 0.02f)));
+                markRaised(s2);
                 mark(s2, kSlope);
                 ++terraceTier2;
             }
@@ -1135,7 +1404,7 @@ namespace TerrainGenerator
         }
 
         // ---------- 1 段目の台地（場所だけ先に決める）----------
-        struct Plateau { Rect r; float top; bool reachable; };
+        struct Plateau { Rect r; float top; bool reachable; float base; };   // base = 足元（台座）の高さ
         std::vector<Plateau> plateaus;
         for (int attempt = 0; attempt < cfg.plateauCount * 30 && (int)plateaus.size() < cfg.plateauCount; ++attempt)
         {
@@ -1145,7 +1414,10 @@ namespace TerrainGenerator
             // 間隔 gap を空ける = 台地同士の間に地上の通路が残る
             if (!inside(r) || !isFree(r, cfg.gap)) continue;
             mark(r, kPlateau);
-            plateaus.push_back({ r, randf(cfg.heightMin, cfg.heightMax), false });
+            // 起伏: 足元を起伏の平均の高さに均す（坂道は付けた時に同じ高さへ）
+            const float base = cfg.relief ? avgRelief(kZonePlain, r) : 0.0f;
+            padRect(kZonePlain, r, 1, cfg.padMargin, base);
+            plateaus.push_back({ r, base + randf(cfg.heightMin, cfg.heightMax), false, base });
         }
 
         // ---------- 坂道（1 段目）。1〜2 本、降り口が地面に続く所だけ ----------
@@ -1161,7 +1433,13 @@ namespace TerrainGenerator
                 // 2 段目の坂道（1 段目の上）も載せる：置物で登り口を塞がないように
                 mark(rr, kRamp);
                 mark(land, kLanding);
+                if (onGround)   // 起伏: 坂と降り口を台地の足元と同じ高さに均す
+                {
+                    padRect(kZonePlain, rr, 0, cfg.padMargin, base);
+                    padRect(kZonePlain, land, 0, cfg.padMargin, base);
+                }
                 outTerrain.push_back(SpawnRamp(reg, batch, grid, rr, s, base, top));
+                markRaised(rr);
                 return true;
             };
 
@@ -1174,7 +1452,7 @@ namespace TerrainGenerator
             const int want = (randf(0.0f, 1.0f) < 0.5f) ? 2 : 1;
             int made = 0;
             for (Side s : order)
-                if (made < want && placeRamp(p.r, s, 0.0f, p.top, true)) ++made;
+                if (made < want && placeRamp(p.r, s, p.base, p.top, true)) ++made;
             p.reachable = (made > 0);
             rampCount += made;
         }
@@ -1183,11 +1461,11 @@ namespace TerrainGenerator
         // 坂道が 1 本も付かなかった台地は登れない：格子を塞いで上に何も湧かないようにする
         for (const auto& p : plateaus)
         {
-            const Vector3 lo = RectMin(grid, p.r);
-            const Vector3 hi = lo + Vector3(p.r.w * kCs, p.top, p.r.d * kCs);
+            const Vector3 lo = RectMin(grid, p.r) + Vector3(0.0f, p.base - kPadSink, 0.0f);
+            const Vector3 hi = RectMin(grid, p.r) + Vector3(p.r.w * kCs, p.top, p.r.d * kCs);
             outTerrain.push_back(SpawnBlock(reg, batch, lo, hi,
                 Jitter(gPlateauTop, rng, 0.02f), Jitter(gCliff, rng, 0.015f)));
-            if (p.reachable) RaiseRect(grid, p.r, p.top);
+            if (p.reachable) raiseRect(p.r, p.top);
             else { grid.BlockArea(p.r.x, p.r.z, p.r.w, p.r.d); ++blocked; }
         }
 
@@ -1224,10 +1502,149 @@ namespace TerrainGenerator
             const Vector3 hi = RectMin(grid, t) + Vector3(t.w * kCs, top, t.d * kCs);
             outTerrain.push_back(SpawnBlock(reg, batch, lo, hi,
                 Jitter(gPlateauTop, rng, 0.02f), Jitter(gCliffHigh, rng, 0.015f)));
-            RaiseRect(grid, t, top);
+            raiseRect(t, top);
             placeRamp(t, s, p.top, top, false);
             ++rampCount;
             ++tier2;
+        }
+
+        // ---------- 起伏の仕上げ：台座の戻りなどの急な所を抑える（2026-10-05）----------
+        // 台座の芯（重み 1 = 構造物の足元・洞窟の周り）は動かさない。抑えた後の面で高さ場を書き直す
+        if (cfg.relief)
+        {
+            const float tanFinal = std::tan(DirectX::XMConvertToRadians(cfg.reliefMaxSlopeDeg));
+            for (uint8_t zk : { (uint8_t)kZonePlain, (uint8_t)kZoneSummit })
+            {
+                auto& arr = (zk == kZoneSummit) ? relief->summit : relief->plain;
+                const auto& pads = (zk == kZoneSummit) ? padsSummit : padsPlain;
+                std::vector<uint8_t> core(arr.size(), 0);
+                for (const Pad& p : pads)
+                    for (int iz = (std::max)(p.az0, 0); iz <= (std::min)(p.az1, relief->nz - 1); ++iz)
+                        for (int ix = (std::max)(p.ax0, 0); ix <= (std::min)(p.ax1, relief->nx - 1); ++ix)
+                            core[(size_t)iz * relief->nx + ix] = 1;
+                if (zk == kZonePlain)
+                    for (size_t i = 0; i < core.size(); ++i)
+                        if (mineW[i] >= 0.999f) core[i] = 1;
+                LimitSlope(arr, relief->nx, relief->nz, relief->step, tanFinal, &core);
+            }
+            writeBase(0, 0, gw * hsub - 1, gd * hsub - 1);
+        }
+
+        // ---------- 床の見た目（段々のメッシュ + 起伏）----------
+        // 台座が全部決まってから作る（2026-10-04 に高台・台地の後へ移した）
+        {
+            const Palette& P = PaletteFor(cfg.biome);
+            const uint32_t s = cfg.seed;
+            const Biome bm = cfg.biome;
+            const float rockLevel = roofTopY;
+            auto topColor = [&P, s, bm, cave, rockLevel](float x, float z, float level)
+                {
+                    if (cave && std::fabs(level - rockLevel) < 0.01f)   // 洞の岩の壁の上
+                    {
+                        const float k = 0.95f + 0.25f * ValueNoise(x / 5.0f, z / 5.0f, s + 51u);
+                        return Vector4(gCliffHigh.x * k, gCliffHigh.y * k, gCliffHigh.z * k, 1.0f);
+                    }
+                    return (level < -0.01f) ? MineColor(x, z, s, P) : GroundColor(x, z, s, bm);
+                };
+            // 壁：山頂の崖・洞の岩は灰色がかった岩（2 段目の台地と同じ色）、洞窟の壁は土と岩。2m の帯ごとに明るさを変える（地層）
+            auto wallColor = [s](float x, float y, float z)
+                {
+                    const Vector4& base = (y > 0.0f) ? gCliffHigh : gCliff;
+                    const float band = Hash01((int)std::floor(y / 2.0f), 17, s);
+                    const float drift = ValueNoise((x + z) / 9.0f, y / 4.0f, s + 31u);
+                    const float k = (0.82f + 0.3f * band) * (0.9f + 0.2f * drift);
+                    return Vector4(base.x * k, base.y * k, base.z * k, 1.0f);
+                };
+            // テクスチャの層（TerrainSurface）: 洞の岩の壁の上 = 岩、坑の底 = 洞の底、平原・山頂の上面 = 地面
+            // （起伏の斜面は法線で自動にすると「道」の層になる）。
+            // 壁は 高い側が岩の壁 か 低い側が坑 なら岩（坑の壁を y の境目で崖と岩に分けない）、他は自動（崖）
+            auto isRing = [&](int x, int z)
+                {
+                    const int cx = std::clamp(x, 1, gw - 2), cz = std::clamp(z, 1, gd - 2);
+                    return caveRing[(size_t)cz * gw + cx] != 0;
+                };
+            auto topLayer = [&](int x, int z) -> int
+                {
+                    if (isRing(x, z)) return TerrainSurface::Rock;
+                    if (zoneAt(x, z) == kZoneMine) return TerrainSurface::CaveFloor;
+                    return cfg.relief ? (int)TerrainSurface::Ground : -1;
+                };
+            auto wallLayer = [&](int hx, int hz, int lx, int lz) -> int
+                {
+                    return (isRing(hx, hz) || zoneAt(lx, lz) == kZoneMine) ? (int)TerrainSurface::Rock : -1;
+                };
+            // 頂点の高さ = そのマスの区域の起伏の面（洞の岩の壁は平らな roofTopY）
+            auto heightAt = [&](int gx, int gz, float x, float z) -> float
+                {
+                    if (isRing(gx, gz)) return roofTopY;
+                    return relief->SurfaceIn(zoneAt(gx, gz), x, z);
+                };
+            Entity e = reg.Create();
+            reg.Add<TransformComponent>(e, TransformComponent{});
+            ModelComponent mc;
+            mc.model = PrimitiveBuilder::CreateSteppedGrid(device, gw, gd, kCs, levelAt, topColor, wallColor, 2.0f,
+                topLayer, wallLayer, cfg.relief ? std::function<float(int, int, float, float)>(heightAt) : nullptr,
+                cfg.relief ? cfg.reliefSubdiv : 1);
+            if (mc.model) TerrainSurface::Get().Apply(device, *mc.model, (int)cfg.biome, terrainRefLum);
+            reg.Add<ModelComponent>(e, mc);
+            outTerrain.push_back(e);
+        }
+
+        // ---------- フィールドの外へ 40m の地面 ----------
+        // 見た目だけ（外周の岩の隙間から下の空が見えないように）。外周のマス毎に外向きの帯、四隅は正方形。
+        // 高さは縁の地面（起伏の面）
+        {
+            const Palette& P = PaletteFor(cfg.biome);
+            const Vector4 skirtTop = LerpColor(P.groundDark, P.groundLight, 0.4f);
+            constexpr float kSkirt = 40.0f;
+            const float ox = grid.OriginX(), oz = grid.OriginZ();
+            auto skirtLevel = [&](float x, float z)
+                {
+                    return relief->Height(std::clamp(x, ox + 0.01f, ox + W - 0.01f), std::clamp(z, oz + 0.01f, oz + D - 0.01f));
+                };
+            auto skirtBox = [&](float x0, float z0, float x1, float z1, float lv)
+                {
+                    Vector3 v[8];
+                    BoxVerts(v, { x0, lv - 2.0f, z0 }, { x1, lv, z1 });
+                    batch.Append(v, skirtTop, gCliff);
+                };
+            for (int i = 0; i < gw; ++i)   // 南（-z）と北（+z）
+            {
+                const float x0 = ox + i * kCs, x1 = x0 + kCs, xm = x0 + kCs * 0.5f;
+                skirtBox(x0, oz - kSkirt, x1, oz, skirtLevel(xm, oz));
+                skirtBox(x0, oz + D, x1, oz + D + kSkirt, skirtLevel(xm, oz + D));
+            }
+            for (int j = 0; j < gd; ++j)   // 西（-x）と東（+x）
+            {
+                const float z0 = oz + j * kCs, z1 = z0 + kCs, zm = z0 + kCs * 0.5f;
+                skirtBox(ox - kSkirt, z0, ox, z1, skirtLevel(ox, zm));
+                skirtBox(ox + W, z0, ox + W + kSkirt, z1, skirtLevel(ox + W, zm));
+            }
+            skirtBox(ox - kSkirt, oz - kSkirt, ox, oz, skirtLevel(ox, oz));
+            skirtBox(ox + W, oz - kSkirt, ox + W + kSkirt, oz, skirtLevel(ox + W, oz));
+            skirtBox(ox - kSkirt, oz + D, ox, oz + D + kSkirt, skirtLevel(ox, oz + D));
+            skirtBox(ox + W, oz + D, ox + W + kSkirt, oz + D + kSkirt, skirtLevel(ox + W, oz + D));
+        }
+
+        // ---------- 地面の衝突（高さ場、2026-10-04）----------
+        // 歩く面は relief（平原・山頂は起伏、洞窟は平ら）。崖の縦の壁は上の箱。Layer_Terrain（カメラの遮蔽・光線の先も見る）
+        {
+            Entity e = reg.Create();
+            TransformComponent tf;
+            tf.position = Vector3(grid.OriginX() + W * 0.5f, 0.0f, grid.OriginZ() + D * 0.5f);
+            reg.Add<TransformComponent>(e, tf);
+            ColliderComponent col;
+            col.shape = ColliderShape::HeightField;
+            col.heightField = relief;
+            col.halfExtents = Vector3(W * 0.5f, summitH + 20.0f, D * 0.5f);   // ブロードフェーズ用（フィールド全体 = 大きい物の表）
+            col.layer = Layer_Terrain;
+            col.mask = Layer_All;
+            reg.Add<ColliderComponent>(e, col);
+            RigidbodyComponent rb;
+            rb.isStatic = true;
+            rb.useGravity = false;
+            reg.Add<RigidbodyComponent>(e, rb);
+            outTerrain.push_back(e);
         }
 
         // ---------- 地形の見た目（外周・台地・坂道・高台）を 1 つのモデルに ----------
@@ -1247,7 +1664,7 @@ namespace TerrainGenerator
         // 木と岩（置物）: 足跡のマス + 周り 1 マスが「歩ける・同じ高さ・空き地か台地の上・他の置物無し」の所だけ。
         //   坂道・降り口・台地の縁（周りの高さが違う）には置かないので、登り口は塞がれない。
         //   足跡は格子で塞ぐ（雑魚は避けて通る。GPU の弾もそのマスで当たる）。
-        //   衝突は別の実体の箱（Layer_Prop：玩家はぶつかるが、カメラの遮蔽判定は見ない）。
+        //   衝突は別の実体の箱（Layer_Prop：プレイヤーはぶつかるが、カメラの遮蔽判定は見ない）。
         // 茂みと草: 見た目だけ。坂道の上以外ならどこでも（初期地点にも生える）
         struct PropModel { std::shared_ptr<Model> model; float unit; Vector3 lo, hi; };
         auto loadModels = [](const char* const* paths, size_t n)
@@ -1308,7 +1725,7 @@ namespace TerrainGenerator
                 reg.Add<TransformComponent>(e, tf);
                 ModelComponent mc;
                 mc.model = pm.model;
-                mc.batched = true;   // 場面の StaticPropRenderer がまとめて描く
+                mc.batched = true;   // シーンの StaticPropRenderer がまとめて描く
                 reg.Add<ModelComponent>(e, mc);
                 outTerrain.push_back(e);
             };
@@ -1349,22 +1766,31 @@ namespace TerrainGenerator
                 int cx0, cz0;
                 grid.WorldToCell({ x, 0.0f, z }, cx0, cz0);
                 if (cx0 < 1 || cz0 < 1 || cx0 >= gw - 1 || cz0 >= gd - 1) return false;
-                const float h = cellHeight(cx0, cz0);
+                const float h0 = cellHeight(cx0, cz0);
+                // 起伏があると隣のマスと 2m で最大 0.9m ほど違う。台地の縁（段差は 2.5m 以上）は引き続き弾く
+                const float maxStep = cfg.relief ? 0.7f : 0.2f;
                 for (int zz = gz0 - 1; zz <= gz1 + 1; ++zz)
                     for (int xx = gx0 - 1; xx <= gx1 + 1; ++xx)
                     {
                         if (xx < 1 || zz < 1 || xx >= gw - 1 || zz >= gd - 1) return false;
-                        // 空き地・台地・山頂の上面。鉱洞の底は岩だけ
+                        // 空き地・台地・山頂の上面。洞窟の底は岩だけ
                         const uint8_t o = at(xx, zz);
                         const bool okHere = o == kFree || o == kPlateau || o == kHigh || (!isTree && o == kPit);
                         if (!okHere || !grid.IsWalkable(xx, zz) || propAt[(size_t)zz * gw + xx]) return false;
-                        if (std::fabs(cellHeight(xx, zz) - h) > 0.2f) return false;
+                        if (std::fabs(cellHeight(xx, zz) - h0) > maxStep) return false;
                     }
 
                 for (int zz = gz0; zz <= gz1; ++zz)
                     for (int xx = gx0; xx <= gx1; ++xx)
                         propAt[(size_t)zz * gw + xx] = 1;
 
+                // 底 = 足跡（木は幹）の四隅と中心の一番低い所（斜面の下側で浮かない。上側は埋まる）
+                float h = grid.SampleHeight(x, z);
+                {
+                    const float fx = isTree ? 0.35f : hx * 0.8f, fz = isTree ? 0.35f : hz * 0.8f;
+                    for (int k = 0; k < 4; ++k)
+                        h = (std::min)(h, grid.SampleHeight(x + ((k & 1) ? fx : -fx), z + ((k & 2) ? fz : -fz)));
+                }
                 spawnVisual(pm, scale, yawDeg, x, z, h);
                 if (!blocks)
                 {
@@ -1411,7 +1837,7 @@ namespace TerrainGenerator
             if (placeBlocker(pm, randf(0.8f, 1.5f), randf(0.0f, 360.0f), x, z, false)) ++rocksPlaced;
         }
 
-        // 鉱洞の底の岩（崩れた岩屑。木は生やさない）。底のマスから選ぶ
+        // 洞窟の底の岩（崩れた岩屑。木は生やさない）。底のマスから選ぶ
         int mineRocksPlaced = 0;
         if (layers && !rocks.empty())
         {
@@ -1431,7 +1857,7 @@ namespace TerrainGenerator
         }
 
         // 茂み：平らな所（坂道・坂の上以外）。半分を林の中へ。
-        // 草は模型ではなく GrassRenderer が GPU で生やす（下の outGrassMask）
+        // 草はモデルではなく GrassRenderer が GPU で生やす（下の outGrassMask）
         int bushesPlaced = 0;
         for (int attempt = 0; attempt < bushTarget * 10 && bushesPlaced < bushTarget && !bushes.empty(); ++attempt)
         {
@@ -1441,18 +1867,25 @@ namespace TerrainGenerator
             int gx, gz;
             grid.WorldToCell({ x, 0.0f, z }, gx, gz);
             if (!grid.IsWalkable(gx, gz) || at(gx, gz) == kRamp || zoneAt(gx, gz) == kZoneMine) continue;
-            const float h = grid.SampleHeight(x, z);
-            if (std::fabs(grid.SampleHeight(x + 0.6f, z) - h) > 0.1f
-                || std::fabs(grid.SampleHeight(x, z + 0.6f) - h) > 0.1f
-                || std::fabs(grid.SampleHeight(x - 0.6f, z) - h) > 0.1f
-                || std::fabs(grid.SampleHeight(x, z - 0.6f) - h) > 0.1f) continue;
+            // 段差（台地の縁・坂の脇）は弾く。起伏の斜面（0.6m で 0.3m 程まで）は置いて、一番低い所に合わせる
+            const float tol = cfg.relief ? 0.35f : 0.1f;
+            const float h0 = grid.SampleHeight(x, z);
+            float h = h0;
+            bool stepped = false;
+            for (int k = 0; k < 4 && !stepped; ++k)
+            {
+                const float s = grid.SampleHeight(x + (k == 0 ? 0.6f : k == 1 ? -0.6f : 0.0f), z + (k == 2 ? 0.6f : k == 3 ? -0.6f : 0.0f));
+                stepped = std::fabs(s - h0) > tol;
+                h = (std::min)(h, s);
+            }
+            if (stepped) continue;
             spawnVisual(bushes[randi(0, (int)bushes.size() - 1)], randf(0.8f, 1.3f), randf(0.0f, 360.0f), x, z, h);
             ++bushesPlaced;
         }
 
-        // 場地の縁の地面の高さ（外周の岩山・遺跡の壁の底と頂を決める）。
+        // フィールドの縁の地面の高さ（外周の岩山・遺跡の壁の底と頂を決める）。
         // n = 外向きの法線、t = 辺に沿う向き、edge = 縁までの距離。辺に沿った s ± halfLen の 3 点の最低 lo / 最高 hi
-        // （山頂の脇は高く、鉱洞の脇は低い。段の境に掛かる物は低い方から高い方まで届かせる）
+        // （山頂の脇は高く、洞窟の脇は低い。段の境に掛かる物は低い方から高い方まで届かせる）
         auto edgeSpan = [&](const Vector3& n, const Vector3& t, float edge, float s, float halfLen, float& lo, float& hi)
             {
                 lo = 1e9f; hi = -1e9f;
@@ -1460,7 +1893,7 @@ namespace TerrainGenerator
                 for (int k = -1; k <= 1; ++k)
                 {
                     const Vector3 p = n * (edge - kCs * 0.5f) + t * (s + k * halfLen);
-                    const float h = levelAtWorld(std::clamp(p.x, -limX, limX), std::clamp(p.z, -limZ, limZ));
+                    const float h = relief->Height(std::clamp(p.x, -limX, limX), std::clamp(p.z, -limZ, limZ));   // 起伏の面（区域の式）
                     lo = (std::min)(lo, h);
                     hi = (std::max)(hi, h);
                 }
@@ -1468,9 +1901,9 @@ namespace TerrainGenerator
 
         // ---------- 外周の岩山（rockMountains）----------
         // 大きい岩を拡大して、崖の箱の外側へ 3 列に隙間なく積む（見た目だけ。衝突・格子は崖の箱）。
-        // 手前の列は内側の面が場地の縁（崖のマスの内側）に来るように置き、奥ほど高く。
+        // 手前の列は内側の面がフィールドの縁（崖のマスの内側）に来るように置き、奥ほど高く。
         // 四辺とも角の先まで伸ばして、角に穴が開かないようにする。
-        // 底は縁の地面の高さ（鉱洞の脇は鉱洞の底から）、高さは平原（山頂の脇は山頂）から測る
+        // 底は縁の地面の高さ（洞窟の脇は洞窟の底から）、高さは平原（山頂の脇は山頂）から測る
         int mountainRocks = 0;
         int edgeRockColliders = 0, edgeRockCells = 0;   // 一番手前の列の衝突の数・塞いだマス
         if (cfg.rockMountains && !ruinWalls && set.nCliff > 0)
@@ -1482,7 +1915,7 @@ namespace TerrainGenerator
                 { 7.0f, 6.0f, 15.0f, 22.0f },
                 { 16.0f, 8.0f, 24.0f, 34.0f },
             };
-            const float halfW = W * 0.5f - kCs, halfD = D * 0.5f - kCs;   // 場地の縁（崖のマスの内側）
+            const float halfW = W * 0.5f - kCs, halfD = D * 0.5f - kCs;   // フィールドの縁（崖のマスの内側）
             // 四辺: 外向きの法線 n と、辺に沿う向き t、辺の半分の長さ
             struct Side { Vector3 n, t; float edge, half; };
             const Side sides[] = {
@@ -1566,8 +1999,8 @@ namespace TerrainGenerator
                                 }
                         }
 
-                        // 入り込みが玩家の半径（0.4m）未満の岩は、外周の崖の箱が玩家を先に止めるので衝突は要らない
-                        // （衝突の数を減らす。静的な衝突も物理・広相位の走査で 1 個ずつ時間を食う）
+                        // 入り込みがプレイヤーの半径（0.4m）未満の岩は、外周の崖の箱がプレイヤーを先に止めるので衝突は要らない
+                        // （衝突の数を減らす。静的な衝突も物理・ブロードフェーズの走査で 1 個ずつ時間を食う）
                         constexpr float kNeedCollider = 0.35f;
                         if (intrude <= kNeedCollider) continue;
 
@@ -1579,8 +2012,8 @@ namespace TerrainGenerator
                             c - dx - dz, c + dx - dz, c + dx + dz, c - dx + dz,
                         };
                         for (int k = 0; k < 4; ++k) { v[k].y = y0; v[k + 4].y = y1; }
-                        // Layer_Prop（木と同じ）：玩家は当たる、鏡頭の遮蔽の射線は見ない（毎フレーム 5 本 × 全部を回すと
-                        // Debug で 0.15 ms。鏡頭は外周の崖の箱で止まる）
+                        // Layer_Prop（木と同じ）：プレイヤーは当たる、カメラの遮蔽の射線は見ない（毎フレーム 5 本 × 全部を回すと
+                        // Debug で 0.15 ms。カメラは外周の崖の箱で止まる）
                         outTerrain.push_back(SpawnHullCollider(reg, v, Layer_Prop));
                         ++edgeRockColliders;
                     }
@@ -1589,8 +2022,8 @@ namespace TerrainGenerator
 
         // ---------- 遺跡の壁（Biome::Dungeon の外周）----------
         // Modular Ruins の 2m 幅の壁を辺に沿って並べ、壁の高さ（cfg.wallHeight）まで積む。一番上の段は崩れた縁。
-        // 内側の面が場地の縁（崖のマスの内側）に来る。柱を 8m 毎、松明を 12m 毎に内側の面へ
-        // （松明の位置は outTorches へ。点光源は場面が近い物にだけ付ける）。
+        // 内側の面がフィールドの縁（崖のマスの内側）に来る。柱を 8m 毎、松明を 12m 毎に内側の面へ
+        // （松明の位置は outTorches へ。点光源はシーンが近い物にだけ付ける）。
         // 衝突・格子は崖の箱のまま（壁は見た目だけ）
         int ruinPieces = 0;
         if (ruinWalls)
@@ -1654,7 +2087,7 @@ namespace TerrainGenerator
                             {
                                 Entity ce = TestSpawner::SpawnStaticBox(reg, { p.x, lo + ch * 0.5f, p.z },
                                     alongX ? Vector3(cw * 0.5f, ch * 0.5f, cd * 0.5f) : Vector3(cd * 0.5f, ch * 0.5f, cw * 0.5f));
-                                reg.Get<ColliderComponent>(ce).layer = Layer_Prop;   // 外周の岩と同じ（鏡頭の射線は見ない）
+                                reg.Get<ColliderComponent>(ce).layer = Layer_Prop;   // 外周の岩と同じ（カメラの射線は見ない）
                                 outTerrain.push_back(ce);
                             }
                             ++ruinPieces;
@@ -1759,8 +2192,14 @@ namespace TerrainGenerator
                             for (const Vector3& q : placed)
                                 if ((q - wallP).LengthSquared() < gap * gap) { farEnough = false; break; }
                             if (!farEnough) continue;
+                            // 外周の岩山は縁から edgeRockIntrudeMin（負 = 外）まで下がっていて、歩けるマスの前の岩は
+                            // 縁より内へほとんど入らない（入る岩はマスを塞ぐ）。縁の線に付けると岩の前で宙に浮くので、
+                            // 岩の中へ押し込む（深く入った所は隠れるが、灯りは元の位置に出す）
+                            const bool rimRock = caveRing[(size_t)nz * gw + nx] == 0
+                                && cfg.rockMountains && !ruinWalls && set.nCliff > 0;
+                            const float sink = rimRock ? (std::max)(-cfg.edgeRockIntrudeMin, 0.0f) + 0.2f : 0.0f;
                             const Vector3 p = wallP - d * (td * 0.5f);
-                            spawnVisual(tm, 1.0f, yaws[k], p.x, p.z, -mineD + 2.0f);
+                            spawnVisual(tm, 1.0f, yaws[k], p.x + d.x * sink, p.z + d.z * sink, -mineD + 2.0f);
                             if (outTorches)
                                 outTorches->push_back(Vector3(p.x, -mineD + 2.7f, p.z) - d * 0.4f);
                             placed.push_back(wallP);
@@ -1772,7 +2211,7 @@ namespace TerrainGenerator
         }
 
         // ---------- 草を生やすマス ----------
-        // 土の坂道・登れない台地（高さ場が 0 のまま = 箱の中に生えてしまう）・鉱洞・洞の岩の壁以外。
+        // 土の坂道・登れない台地（高さ場が 0 のまま = 箱の中に生えてしまう）・洞窟・洞の岩の壁以外。
         // 外周の崖のマスにも生やす（2026-10-03。外周の岩を外へ下げて地面が見えるようになった。高さ場は内側の隣と同じ）。
         // 崖の面そのものは GrassRenderer が高さ場の傾きで弾く
         if (outGrassMask)
@@ -1798,7 +2237,7 @@ namespace TerrainGenerator
             {
                 outLayout->summitRamps = summitRampInfo;
                 outLayout->mineRamps = mineRampInfo;
-                auto floorCell = [&](int x, int z)   // 鉱洞の底の歩けるマス（坂は除く）
+                auto floorCell = [&](int x, int z)   // 洞窟の底の歩けるマス（坂は除く）
                     {
                         return x >= 0 && z >= 0 && x < gw && z < gd && zone[(size_t)z * gw + x] == kZoneMine
                             && at(x, z) != kRamp && grid.IsWalkable(x, z);
@@ -1848,6 +2287,31 @@ namespace TerrainGenerator
             }
         }
 
+        // 起伏の目安（見えている平原の地面 = 歩けて台地・坂の下でないノード）: 高さの幅と傾きの分布（度）
+        if (cfg.relief)
+        {
+            std::vector<float> slopes;
+            float lo = 1e9f, hi = -1e9f;
+            const int nx = relief->nx;
+            for (int iz = 1; iz + 1 < relief->nz; iz += 2)
+                for (int ix = 1; ix + 1 < nx; ix += 2)
+                {
+                    const int cx = (std::min)(ix / hsub, gw - 1), cz = (std::min)(iz / hsub, gd - 1);
+                    if (relief->ZoneAtCell(cx, cz) != kZonePlain || raised[(size_t)cz * gw + cx] || !grid.IsWalkable(cx, cz)) continue;
+                    const float* p = &relief->plain[(size_t)iz * nx + ix];
+                    lo = (std::min)(lo, p[0]);
+                    hi = (std::max)(hi, p[0]);
+                    const float dx = (p[1] - p[-1]) / (2.0f * relief->step), dz = (p[nx] - p[-nx]) / (2.0f * relief->step);
+                    slopes.push_back(DirectX::XMConvertToDegrees(std::atan(std::sqrt(dx * dx + dz * dz))));
+                }
+            if (!slopes.empty())
+            {
+                std::sort(slopes.begin(), slopes.end());
+                auto pct = [&](float q) { return slopes[(size_t)(q * (slopes.size() - 1))]; };
+                std::cout << "[Terrain] relief: plain " << lo << " .. " << hi << " m, slope p50 " << pct(0.5f)
+                    << " p90 " << pct(0.9f) << " p99 " << pct(0.99f) << " max " << slopes.back() << " deg" << std::endl;
+            }
+        }
         if (layers)
             std::cout << "[Terrain] layers: summit " << std::count(zone.begin(), zone.end(), (uint8_t)kZoneSummit)
                 << " cells +" << summitH << "m, " << summitRampsMade << " ramps / mine "
@@ -1865,7 +2329,7 @@ namespace TerrainGenerator
             << edgeRockCells << " cells blocked), " << ruinPieces << " ruin pieces, biome " << (int)cfg.biome << ", grid "
             << gw << "x" << gd << std::endl;
 
-        // 木・岩の模型の大きさ（拡縮 1 倍、m）。「小さい物は見た目だけ」のしきい値を決める目安
+        // 木・岩のモデルの大きさ（拡縮 1 倍、m）。「小さい物は見た目だけ」のしきい値を決める目安
         auto printSizes = [](const char* tag, const std::vector<PropModel>& list)
             {
                 std::cout << "[Terrain] " << tag << " sizes (w x d x h m):";

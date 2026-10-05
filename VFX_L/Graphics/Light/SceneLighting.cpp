@@ -35,9 +35,12 @@ bool SceneLighting::Init(ID3D11Device* device)
     char env[16] = {};
     if (GetEnvironmentVariableA("VFXL_SUN_PITCH", env, sizeof(env)) > 0)
         m_SunPitch = (float)atof(env);
-    // TEMP-TEST: VFXL_SRGB=0 で色貼図の sRGB 解码を切る（旧い見た目との見比べ用。面板の sRGB Textures と同じ）
+    // TEMP-TEST: VFXL_SRGB=0 で色テクスチャの sRGB デコードを切る（旧い見た目との見比べ用。パネルの sRGB Textures と同じ）
     if (GetEnvironmentVariableA("VFXL_SRGB", env, sizeof(env)) > 0)
         m_AlbedoSrgb = (env[0] != '0');
+    // TEMP-TEST: VFXL_NO_TOON=1 でトゥーンの陰影を切る（2026-10-04、見比べ用。パネルの Toon と同じ）
+    if (GetEnvironmentVariableA("VFXL_NO_TOON", env, sizeof(env)) > 0)
+        m_ToonOn = (env[0] == '0');
     return m_Sky.Initialize(device);
 }
 
@@ -53,16 +56,21 @@ void SceneLighting::Apply(Renderer& renderer) const
     const float* fog = m_FogUseHorizon ? m_SkyHorizon : m_FogColor;
     renderer.SetFog({ fog[0], fog[1], fog[2] }, m_FogStart, m_FogEnd, m_FogOn ? m_FogMax : 0.0f);
     renderer.SetAlbedoSrgb(m_AlbedoSrgb);
+    Vector4 toon = m_ToonParams;
+    toon.x = m_ToonOn ? 1.0f : 0.0f;
+    renderer.SetToon(toon, m_ToonShadowTint, m_ToonRim);
 }
 
 void SceneLighting::ClearFog(Renderer& renderer)
 {
     renderer.SetFog({ 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f, 0.0f);
     renderer.SetAlbedoSrgb(true);   // 既定（LightBuffer::albedoSrgb）
+    LightBuffer def;                // トゥーンも切る（Renderer はシーンで共用。他のシーンは従来の陰影）
+    renderer.SetToon(def.toonParams, def.toonShadowTint, def.toonRim);
 }
 
 // ============================================================
-// 空（画面全体。場面の描画の一番最初）
+// 空（画面全体。シーンの描画の一番最初）
 // 太陽のにじみと円盤は平行光の向きと色から
 // ============================================================
 void SceneLighting::DrawSky(ID3D11DeviceContext* context, CameraBase* camera) const
@@ -82,7 +90,7 @@ void SceneLighting::DrawSky(ID3D11DeviceContext* context, CameraBase* camera) co
 }
 
 // ============================================================
-// 場景光源: 点光源表へ積む
+// シーン光源: 点光源表へ積む
 // 表は Application が毎フレーム頭で空にする。Upload（UpdateGameplay の
 // CollectLights か SceneBase::Render）より前に積めば、そのフレームから効く
 // ============================================================
@@ -103,7 +111,7 @@ void SceneLighting::DrawMarkers(const Vector3* player, const GridWorld& grid,
 
 // ============================================================
 // 太陽の目印（Unity の Directional Light のギズモと同じ考え）
-// 平行光に位置は無いので、玩家の頭上に「光がどこから来るか」を描く:
+// 平行光に位置は無いので、プレイヤーの頭上に「光がどこから来るか」を描く:
 //   光線に垂直な円 = 太陽、円から出る平行な短い線 = 光線、
 //   中心から頭へ届く矢印 = この向きで当たっている
 // ============================================================
@@ -152,9 +160,9 @@ void SceneLighting::DrawSunMarker(const Vector3& player) const
 }
 
 // ============================================================
-// 場景光源: 3D ギズモ（左ドラッグで位置）と目印
+// シーン光源: 3D ギズモ（左ドラッグで位置）と目印
 // 目印 = 電球の小球 + 真下への線 + 光の届く球（半径 R）が地面を切る円。
-// この円の外は場景光源では一切照らされない。
+// この円の外はシーン光源では一切照らされない。
 // ※ギズモで動かした位置は次のフレームの SubmitPointLights から効く（1 フレーム遅れ）
 // ============================================================
 void SceneLighting::DrawSceneLightGizmo(const GridWorld& grid, CameraBase* camera, bool allowGizmo)
@@ -167,7 +175,7 @@ void SceneLighting::DrawSceneLightGizmo(const GridWorld& grid, CameraBase* camer
     // 切っている時はギズモも目印も出さない
     if (!m_SceneLightOn) return;
 
-    // 背包・升級・呪文書を開いている間は出さない（左クリックをそちらと取り合う）
+    // バックパック・レベルアップ・呪文書を開いている間は出さない（左クリックをそちらと取り合う）
     if (m_SceneLightGizmo && allowGizmo)
     {
         Gizmo::Options opt;
@@ -206,7 +214,7 @@ void SceneLighting::DrawSceneLightGizmo(const GridWorld& grid, CameraBase* camer
 }
 
 // ============================================================
-// ImGui: Lighting 面板
+// ImGui: Lighting パネル
 // ============================================================
 void SceneLighting::DrawImGui(const Vector3* player)
 {
@@ -231,7 +239,7 @@ void SceneLighting::DrawImGui(const Vector3* player)
         m_LightIntensity = 1.0f;
     }
 
-    // ---- 場景光源（位置あり。既定は切）----
+    // ---- シーン光源（位置あり。既定は切）----
     ImGui::Separator();
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.5f, 1.0f), "Scene Point Light (positioned, local)");
     ImGui::Checkbox("Enabled##scene_light", &m_SceneLightOn);
@@ -268,6 +276,18 @@ void SceneLighting::DrawImGui(const Vector3* player)
         ImGui::ColorEdit3("Fog Color##fog", m_FogColor, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::DragFloatRange2("Fog Start/End (m)##fog", &m_FogStart, &m_FogEnd, 0.5f, 0.0f, 1000.0f);
     ImGui::SliderFloat("Fog Max##fog", &m_FogMax, 0.0f, 1.0f);
+
+    // ---- トゥーンの陰影（2026-10-04）。アウトラインはシーンの Toon 段（Outline）----
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.5f, 1.0f), "Toon Shading");
+    ImGui::Checkbox("Toon##toon", &m_ToonOn);
+    ImGui::SliderFloat("Band Border (N.L)##toon", &m_ToonParams.y, 0.0f, 1.0f);
+    ImGui::SliderFloat("Band Softness##toon", &m_ToonParams.z, 0.0f, 0.5f);
+    ImGui::DragFloat("Hard Highlight##toon", &m_ToonParams.w, 0.01f, 0.0f, 5.0f);
+    ImGui::ColorEdit3("Dark Side Tint##toon", &m_ToonShadowTint.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+    ImGui::DragFloat("Lit Side Sun x##toon", &m_ToonShadowTint.w, 0.01f, 0.0f, 3.0f);
+    ImGui::ColorEdit3("Rim Color##toon", &m_ToonRim.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+    ImGui::DragFloat("Rim Strength##toon", &m_ToonRim.w, 0.01f, 0.0f, 3.0f);
 }
 
 // ============================================================

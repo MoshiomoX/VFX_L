@@ -118,7 +118,7 @@ void ProjectileProfile::FromJson(const json& j)
 // ============================================================
 // SwarmCommon.hlsli の SwarmBuildPath と同じ式（keepHeading = false の側）。
 // Drop は SwarmSpawnProjCS + SwarmBuildDropPath と同じ（空の始点 → 標的の直線）。
-// 片方だけ直すと編集器の線と実際の弾道がずれるので、必ず揃えること
+// 片方だけ直すとエディタの線と実際の弾道がずれるので、必ず揃えること
 // ============================================================
 void ProjectileProfile::BuildPreview(const Vector3& from, const Vector3& to,
     float sideSign, Vector3 out[4]) const
@@ -203,7 +203,7 @@ void ProjectileProfileDB::LoadAll()
 
     for (const auto& path : files)
     {
-        if ((int)g_Profiles.size() >= kScratchRow) break;   // 最後の行は編集器用
+        if ((int)g_Profiles.size() >= kScratchRow) break;   // 最後の行はエディタ用
 
         std::ifstream in(path);
         if (!in.is_open()) continue;
@@ -253,7 +253,7 @@ int ProjectileProfileDB::IndexOf(const std::string& name)
 int ProjectileProfileDB::Add(const ProjectileProfile& p)
 {
     EnsureBuiltin();
-    if ((int)g_Profiles.size() >= kScratchRow) return -1;   // 最後の行は編集器用
+    if ((int)g_Profiles.size() >= kScratchRow) return -1;   // 最後の行はエディタ用
     g_Profiles.push_back(p);
     g_ShotCount.push_back(0);
     return (int)g_Profiles.size() - 1;

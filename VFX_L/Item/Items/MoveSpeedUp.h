@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // Items/MoveSpeedUp.h
-// レベルアップの候補「移動速度 +8%」（2026-09-28 用户の依頼）。
+// レベルアップの候補「移動速度 +8%」（2026-09-28 ユーザーの依頼）。
 //
 // 設計意図：
 //   逃げ回る力を伸ばす選択肢。群れに囲まれにくくなり、経験値の玉も拾いやすい。
@@ -18,9 +18,9 @@ inline StatItemDef MakeMoveSpeedUp()
     def.common.id = ItemID::MoveSpeedUp;
     def.common.name = "Move Speed +8%";
     def.common.displayName = L"移動速度 +8%";
-    def.common.description = L"走る速さを上げる。滑り出しの勢いも同じだけ強くなる。";
+    def.common.description = L"移動速度を上げる。スライディングの初速も同じだけ上がる。";
     def.common.category = ItemCategory::Stat;
-    def.common.occupyCells = {};                         // 背包に置かないので形は無い
+    def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};
     def.common.color = { 0.45f, 0.85f, 0.55f, 1.0f };
     def.common.iconPath = Res::Icon::MoveSpeedUp;

@@ -4,7 +4,7 @@
 //   見た目は VFXLiquidDef（色・光り方・泡・飛び散り方・時間）。
 //   CPU：effect の位置 + offset に、entry の duration の間だけ出す（終わりの dryTime で縮む）。
 //        向きは previewDir（0 なら seed で決めた角度）。描画は VFXLiquidRenderer。
-//   GPU：弾の命中・着弾で生まれた範囲の配方にこの entry があると、範囲が生きている間
+//   GPU：弾の命中・着弾で生まれた範囲のレシピにこの entry があると、範囲が生きている間
 //        その下に描く（SwarmVFXTable → SwarmLiquidVS）。向きは弾が飛んできた方向、
 //        半径は def.radius（0 なら範囲の半径）、乾くのは範囲が消える前の dryTime 秒。
 //        GPU では startTime / duration は使わない

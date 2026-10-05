@@ -16,11 +16,13 @@ inline ProjectileItemDef MakeHomingBolt()
     def.common.id = ItemID::HomingBolt;
     def.common.name = "Homing Bolt";
     def.common.displayName = L"ホーミングボルト";
-    def.common.description = L"敵を追い続ける魔法弾。狙った敵が倒れても次の敵を探す。消費は重め。";
+    def.common.description = L"敵を追い続ける魔法弾。狙った敵が倒れても次の敵を探す。消費MPは多め。";
     def.common.iconPath = Res::Icon::HomingBolt;
     def.common.category = ItemCategory::Projectile;
-    def.common.occupyCells = ItemShape::Single();   // 1 マス（最初から持っている一番軽い魔法。3x3 枠の真ん中に置かれる）
-    def.common.influenceCells = ItemShape::Cross();     // 誘発の届く範囲（上下左右。弧と組んで魔導光線を目覚めさせる）
+    // 形は強さで決める（2026-10-04、ユーザー「小さい 1 マスの魔法を色々な形に」）。単体 DPS 約 18 で一番弱い開始時の魔法 → 横 2 マス
+    // （3x3 枠の真ん中に置いても枠に収まる）
+    def.common.occupyCells = ItemShape::RowLine(2);
+    def.common.influenceCells = ItemShape::Around4(def.common.occupyCells);   // 誘発の届く範囲（形の上下左右。弧と組んで魔導光線を目覚めさせる）
     def.common.color = { 0.75f, 0.45f, 1.00f, 1.0f };   // 紫
 
     // ---- どう撃つか（弾の威力・速さ・見た目は profile 側）----

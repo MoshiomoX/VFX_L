@@ -11,6 +11,7 @@
 #include "Player/LevelComponent.h"
 #include "Item/ItemDatabase.h"
 #include "UI/UIDeco.h"
+#include "Manager/ResourceManager.h"
 #include <cmath>
 #include "ResourcePaths.h"
 #include "imgui.h"
@@ -89,7 +90,7 @@ namespace
         ReadVec2(j[key], "offset", out.offset);
     }
 
-    // ---- ImGui の小道具 ----
+    // ---- ImGui の小物 ----
     void DragAnchor(const char* label, HUDAnchor& a)
     {
         ImGui::PushID(label);
@@ -114,6 +115,10 @@ bool HUD::Initialize(ID3D11Device* device)
         m_WhiteTex.reset();
         return false;
     }
+
+    // 魔力解放の欄の絵（無ければ円だけ描く）・金貨の絵
+    m_SurgeIcon = ResourceManager::Get().LoadTexture(Res::Icon::ManaSurge);
+    m_GoldIcon = ResourceManager::Get().LoadTexture(Res::Icon::Gold);
 
     // 保存済みの調整があれば使う。無ければコードの既定値のまま
     LoadStyle();
@@ -155,6 +160,12 @@ void HUD::Update(float dt, const HealthComponent& hp, const ManaComponent& mp)
     m_Time += dt;
     m_HpTrail.Update(dt, SafeRatio(hp.current, hp.max), m_Style);
     m_MpTrail.Update(dt, SafeRatio(mp.current, mp.max), m_Style);
+
+    // 魔力解放の再使用待ちが明けた瞬間に欄を一度光らせる
+    const bool ready = !mp.SurgeActive() && mp.surgeCooldownLeft <= 0.0f;
+    if (ready && !m_SurgeWasReady) m_SurgeReadyFlash = 1.0f;
+    m_SurgeWasReady = ready;
+    m_SurgeReadyFlash = (std::max)(0.0f, m_SurgeReadyFlash - dt / 0.6f);
 }
 
 // ============================================================
@@ -212,23 +223,17 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     swprintf_s(buf, L"MP %d/%d", CeilInt(mp.current), (int)mp.max);
     DrawBarLabel(text, buf, mpPos, m_Style.mpBarSize);
 
-    // ---- 魔力解放（Q）の状態（MP バーのすぐ下）----
-    // 解放中 = 残り秒、再使用待ち = 使えるまでの秒、使える時 = 操作の案内
-    {
-        const Vector2 p = { mpPos.x, mpPos.y + m_Style.mpBarSize.y + 6.0f };
-        if (mp.SurgeActive())
-            swprintf_s(buf, L"魔力解放中  %.1f秒", mp.surgeTime);
-        else if (mp.surgeCooldownLeft > 0.0f)
-            swprintf_s(buf, L"魔力解放  あと %d秒", CeilInt(mp.surgeCooldownLeft));
-        else
-            swprintf_s(buf, L"Q  魔力解放");
-        DrawLabel(text, buf, p, m_Style.barTextScale);
-    }
+    // ---- 金貨（MP バーの下）----
+    if (m_Style.showGold && info.gold >= 0)
+        DrawGold(sprite, text, info.gold);
 
-    // ---- 経過時間・撃破数、魔法の欄 ----
+    // ---- 経過時間・撃破数、魔法の欄、その上の魔力解放（Q）----
+    // 魔力解放は 2026-10-04 まで MP バーの下の一行の文字だった
     DrawRunInfo(sprite, text, info);
     if (m_Style.showSpellBar && info.wand)
         DrawSpellBar(sprite, *info.wand, mp);
+    if (m_Style.showSurgeSkill)
+        DrawSurgeSkill(sprite, text, mp);
 }
 
 // ============================================================
@@ -251,7 +256,7 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
     const Vector2 tp = { a.x - ts.x * 0.5f, a.y };
     if (overtime)
     {
-        // 線形の色（HUD は場景の HDR に描いてから色調写像を通る）
+        // 線形の色（HUD はシーンの HDR に描いてからトーンマッピングを通る）
         const float o = m_Style.textShadowOffset;
         if (m_Style.textShadow) text.Draw(buf, { tp.x + o, tp.y + o }, m_Style.shadowColor, m_Style.timerScale);
         text.Draw(buf, tp, { 1.0f, 0.12f, 0.08f, 1.0f }, m_Style.timerScale);
@@ -268,9 +273,9 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
     }
 
     if (info.stage > 0)
-        swprintf_s(buf, overtime ? L"第%d面 %s   最終波   撃破 %u" : L"第%d面 %s   撃破 %u", info.stage, info.stageName, info.kills);
+        swprintf_s(buf, overtime ? L"ステージ%d %s   最終ウェーブ   撃破 %u" : L"ステージ%d %s   撃破 %u", info.stage, info.stageName, info.kills);
     else
-        swprintf_s(buf, overtime ? L"最終波   撃破 %u" : L"撃破 %u", info.kills);
+        swprintf_s(buf, overtime ? L"最終ウェーブ   撃破 %u" : L"撃破 %u", info.kills);
     const Vector2 ks = text.Measure(buf, m_Style.killScale);
     DrawLabel(text, buf, { a.x - ks.x * 0.5f, y }, m_Style.killScale);
 
@@ -288,8 +293,8 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
 // ============================================================
 // 魔法の欄
 //   杖の出力（集約後の spells → areas の順）を 1 マスずつ並べる。
-//   冷却の残りは上から暗く被せ、MP が足りない物は青く沈める。
-//   施法を止めている間は欄ごと暗くする
+//   クールダウンの残りは上から暗く被せ、MP が足りない物は青く沈める。
+//   詠唱を止めている間は欄ごと暗くする
 // ============================================================
 void HUD::DrawSpellBar(SpriteRenderer& sprite,
     const WandComponent& wand, const ManaComponent& mp)
@@ -310,7 +315,7 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
     const float top = a.y - size;
     const float iconSize = size * 0.56f;
 
-    // 丸い欄（円の貼图が無ければ四角に戻す）
+    // 丸い欄（円のテクスチャが無ければ四角に戻す）
     const UIDeco::Textures& deco = UIDeco::Tex();
     const auto& disc = deco.disc ? deco.disc : m_WhiteTex;
     const float spin = UIDeco::Clock() * 0.10f;
@@ -323,7 +328,7 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
         const Vector4 col = c ? c->color : Vector4(1, 1, 1, 1);
         const Vector2 center = { x + size * 0.5f, top + size * 0.5f };
 
-        // 後ろの魔法陣（道具の種類の色。隣同士で逆に回す）。明るい草の上でも見えるよう、暗い円を敷いてから
+        // 後ろの魔法陣（アイテムの種類の色。隣同士で逆に回す）。明るい草の上でも見えるよう、暗い円を敷いてから
         if (m_Style.slotCircleScale > 0.0f)
         {
             const float d = size * m_Style.slotCircleScale;
@@ -340,7 +345,7 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
         if (icon) sprite.Draw(icon, ip, { iconSize, iconSize }, m_Style.textColor);
         else      sprite.Draw(disc, ip, { iconSize, iconSize }, col);
 
-        // 冷却の残り（castTimer は castInterval から 0 へ減る）。円の上から cd の割合だけ暗く
+        // クールダウンの残り（castTimer は castInterval から 0 へ減る）。円の上から cd の割合だけ暗く
         const float cd = (sl.interval > 0.0f) ? Clamp01(sl.timer / sl.interval) : 0.0f;
         if (cd > 0.0f)
             sprite.Draw(disc, { x, top }, { size, size * cd }, m_Style.cooldownColor, { 0.0f, 0.0f, 1.0f, cd });
@@ -361,8 +366,145 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
 }
 
 // ============================================================
+// 金貨（2026-10-04）：硬貨の絵 + 枚数。増えた瞬間は 0.35 秒ほど明るく、少し大きく
+// ============================================================
+void HUD::DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold)
+{
+    if (m_LastGold >= 0 && gold > m_LastGold) m_GoldPulseAt = m_Time;
+    m_LastGold = gold;
+    const float pulse = std::exp(-(m_Time - m_GoldPulseAt) * 8.0f);   // 1 → 0
+
+    const Vector2 p = m_Style.goldText.Resolve(m_ScreenW, m_ScreenH);
+    const float is = m_Style.goldIconSize;
+    Vector4 col = m_Style.goldColor;
+    col.x *= 1.0f + 0.6f * pulse;
+    col.y *= 1.0f + 0.6f * pulse;
+    col.z *= 1.0f + 0.6f * pulse;
+    if (m_GoldIcon)
+    {
+        const float o = m_Style.textShadowOffset + 0.5f;
+        sprite.Draw(m_GoldIcon, { p.x + o, p.y + o }, { is, is }, m_Style.shadowColor);
+        sprite.Draw(m_GoldIcon, p, { is, is }, col);
+    }
+
+    wchar_t buf[24];
+    swprintf_s(buf, L"%d", gold);
+    const float s = m_Style.goldTextScale * (1.0f + 0.12f * pulse);
+    const Vector2 ts = text.Measure(buf, s);
+    const Vector2 tp = { p.x + is + 6.0f, p.y + (is - ts.y) * 0.5f };
+    if (m_Style.textShadow)
+    {
+        const float o = m_Style.textShadowOffset;
+        text.Draw(buf, { tp.x + o, tp.y + o }, m_Style.shadowColor, s);
+    }
+    text.Draw(buf, tp, col, s);
+}
+
+// ============================================================
+// 魔力解放（Q）の大きな欄（2026-10-04）
+//   魔法の欄の上の中央。魔法の欄と同じ作りを大きくし、後ろは星の魔法陣（魔法の欄は花）。
+//   使える     : 絵が明るく、魔法陣がゆっくり息をする。使えるようになった瞬間に一度光る
+//   解放中     : 輪と魔法陣が金に光り（HDR）、速く回る。絵は金に沈め、中央に残り秒（小数 1 桁、白）
+//   再使用待ち : 上から残りの割合だけ暗く、絵も沈む。中央に残り秒（切り上げ）
+// ============================================================
+void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaComponent& mp)
+{
+    const float size = m_Style.surgeSkillSize;
+    const Vector2 a = m_Style.surgeSkill.Resolve(m_ScreenW, m_ScreenH);
+    const Vector2 center = { a.x, a.y - size * 0.5f };
+    const Vector2 tl = { center.x - size * 0.5f, center.y - size * 0.5f };
+
+    const bool active = mp.SurgeActive();
+    const bool ready = !active && mp.surgeCooldownLeft <= 0.0f;
+    const float cd = (!active && mp.surgeCooldown > 0.0f) ? Clamp01(mp.surgeCooldownLeft / mp.surgeCooldown) : 0.0f;
+
+    const UIDeco::Textures& deco = UIDeco::Tex();
+    const auto& disc = deco.disc ? deco.disc : m_WhiteTex;
+    const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
+    const Vector4& glow = m_Style.surgeActiveColor;
+    const float breathe = 0.5f + 0.5f * std::sin(m_Time * 2.5f);   // 使える時の息（0..1）
+    const float pulse = 0.5f + 0.5f * std::sin(m_Time * 10.0f);    // 解放中の脈（0..1）
+
+    // ---- 後ろ：暗い円 → （解放中）金の光 → 魔法陣 ----
+    if (m_Style.surgeCircleScale > 0.0f)
+    {
+        const float d = size * m_Style.surgeCircleScale;
+        sprite.Draw(disc, { center.x - d * 0.5f, center.y - d * 0.5f }, { d, d }, { 0.0f, 0.0f, 0.0f, 0.55f });
+        if (active)
+        {
+            const float g = d * (1.12f + 0.06f * pulse);
+            sprite.Draw(disc, { center.x - g * 0.5f, center.y - g * 0.5f }, { g, g },
+                { glow.x, glow.y, glow.z, 0.22f + 0.12f * pulse });
+        }
+
+        Vector4 ring = active ? glow : gold;
+        ring.w = active ? 1.0f : (ready ? 0.65f + 0.30f * breathe : 0.40f);
+        const float spin = UIDeco::Clock() * (active ? 1.2f : 0.15f);
+        UIDeco::DrawCircle(sprite, true, center, d, ring, spin);
+    }
+
+    // ---- 欄の地と絵 ----
+    sprite.Draw(disc, tl, { size, size }, m_Style.slotBgColor);
+
+    const float iconSize = size * 0.62f;
+    const Vector2 ip = { center.x - iconSize * 0.5f, center.y - iconSize * 0.5f };
+    Vector4 iconCol = m_Style.textColor;
+    if (active)   // 金に沈めて、上に重ねる残り秒（白）を読めるようにする
+        iconCol = { glow.x * 0.25f, glow.y * 0.25f, glow.z * 0.25f, 1.0f };
+    else if (!ready)
+        iconCol = { iconCol.x * 0.55f, iconCol.y * 0.55f, iconCol.z * 0.55f, 1.0f };
+    if (m_SurgeIcon) sprite.Draw(m_SurgeIcon, ip, { iconSize, iconSize }, iconCol);
+    else             sprite.Draw(disc, ip, { iconSize, iconSize }, iconCol);
+
+    // 再使用待ち：上から残りの割合だけ暗く（魔法の欄と同じ）
+    if (cd > 0.0f)
+        sprite.Draw(disc, tl, { size, size * cd }, m_Style.cooldownColor, { 0.0f, 0.0f, 1.0f, cd });
+
+    // 使えるようになった瞬間の光
+    if (m_SurgeReadyFlash > 0.0f)
+        sprite.Draw(disc, tl, { size, size }, { glow.x, glow.y, glow.z, 0.55f * m_SurgeReadyFlash });
+
+    // 縁の輪（解放中は金に光る）
+    if (deco.ring)
+    {
+        Vector4 edge = m_Style.borderColor;
+        if (active) edge = { glow.x, glow.y, glow.z, 1.0f };
+        sprite.Draw(deco.ring, tl, { size, size }, edge);
+    }
+    else
+        DrawBorder(sprite, tl, { size, size });
+
+    // ---- 中央の残り秒 ----
+    wchar_t buf[16] = {};
+    if (active)
+        swprintf_s(buf, L"%.1f", mp.surgeTime);
+    else if (!ready)
+        swprintf_s(buf, L"%d", CeilInt(mp.surgeCooldownLeft));
+    if (buf[0])
+    {
+        const float s = m_Style.surgeNumberScale;
+        const Vector2 ts = text.Measure(buf, s);
+        const Vector2 tp = { center.x - ts.x * 0.5f, center.y - ts.y * 0.5f };
+        const float o = m_Style.textShadowOffset + 0.5f;
+        text.Draw(buf, { tp.x + o, tp.y + o }, m_Style.shadowColor, s);
+        text.Draw(buf, tp, active ? Vector4(1.3f, 1.2f, 1.0f, 1.0f) : m_Style.textColor, s);   // 解放中は少し光る白
+    }
+
+    // ---- 下の縁の「Q」の札 ----
+    {
+        const float k = size * 0.34f;
+        const Vector2 kc = { center.x, tl.y + size };
+        const Vector2 kp = { kc.x - k * 0.5f, kc.y - k * 0.5f };
+        sprite.Draw(disc, kp, { k, k }, m_Style.slotBgColor);
+        if (deco.ring) sprite.Draw(deco.ring, kp, { k, k }, active ? Vector4(glow.x, glow.y, glow.z, 1.0f) : m_Style.borderColor);
+        const Vector2 ts = text.Measure(L"Q", m_Style.surgeKeyScale);
+        DrawLabel(text, L"Q", { kc.x - ts.x * 0.5f, kc.y - ts.y * 0.5f }, m_Style.surgeKeyScale);
+    }
+}
+
+// ============================================================
 // 瀕死の赤い縁
-//   太さの違う枠を重ねて、外側ほど濃いぼかしに見せる（貼图を持たないため）。
+//   太さの違う枠を重ねて、外側ほど濃いぼかしに見せる（テクスチャを持たないため）。
 //   HP が低いほど濃く、脈打つように明滅させる
 // ============================================================
 void HUD::DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp)
@@ -394,7 +536,7 @@ void HUD::DrawSurgeVignette(SpriteRenderer& sprite, const ManaComponent& mp)
 
 // ============================================================
 // 画面の縁のぼかし（瀕死の赤・魔力解放の金で共用）
-//   太さの違う枠を重ねて、外側ほど濃いぼかしに見せる（貼图を持たないため）。
+//   太さの違う枠を重ねて、外側ほど濃いぼかしに見せる（テクスチャを持たないため）。
 //   外端の濃さ E に対して、薄い層を N 枚重ねる：1 枚の濃さ p = 1 - (1 - E)^(1/N)。
 //   一番内側は 1 枚だけ（ほぼ透明）、外へ行くほど重なって E に近づく
 // ============================================================
@@ -656,6 +798,24 @@ void HUD::DrawDebugUI()
     ImGui::ColorEdit4("No Mana", &m_Style.noManaColor.x);
 
     ImGui::Separator();
+    ImGui::Text("Gold");
+    ImGui::Checkbox("Show Gold", &m_Style.showGold);
+    DragAnchor("Gold", m_Style.goldText);
+    ImGui::DragFloat("Gold Icon Size", &m_Style.goldIconSize, 0.5f, 4.0f, 200.0f);
+    ImGui::DragFloat("Gold Text Scale", &m_Style.goldTextScale, 0.01f, 0.05f, 3.0f);
+    ImGui::ColorEdit4("Gold Color", &m_Style.goldColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+
+    ImGui::Separator();
+    ImGui::Text("Mana Surge Skill (Q)");
+    ImGui::Checkbox("Show Surge Skill", &m_Style.showSurgeSkill);
+    DragAnchor("Surge Skill", m_Style.surgeSkill);
+    ImGui::DragFloat("Surge Size", &m_Style.surgeSkillSize, 0.5f, 8.0f, 300.0f);
+    ImGui::DragFloat("Surge Circle Scale", &m_Style.surgeCircleScale, 0.01f, 0.0f, 4.0f);
+    ImGui::DragFloat("Surge Number Scale", &m_Style.surgeNumberScale, 0.01f, 0.05f, 3.0f);
+    ImGui::DragFloat("Surge Key Scale", &m_Style.surgeKeyScale, 0.01f, 0.05f, 3.0f);
+    ImGui::ColorEdit4("Surge Active", &m_Style.surgeActiveColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+
+    ImGui::Separator();
     ImGui::Text("Low HP Vignette");
     ImGui::Checkbox("Enable Vignette", &m_Style.lowHpVignette);
     ImGui::SliderFloat("Below HP Ratio", &m_Style.lowHpRatio, 0.0f, 1.0f);
@@ -735,6 +895,20 @@ bool HUD::SaveStyle(const char* path) const
     root["slotBgColor"] = ToJson(m_Style.slotBgColor);
     root["cooldownColor"] = ToJson(m_Style.cooldownColor);
     root["noManaColor"] = ToJson(m_Style.noManaColor);
+
+    root["showGold"] = m_Style.showGold;
+    root["goldText"] = ToJson(m_Style.goldText);
+    root["goldIconSize"] = m_Style.goldIconSize;
+    root["goldTextScale"] = m_Style.goldTextScale;
+    root["goldColor"] = ToJson(m_Style.goldColor);
+
+    root["showSurgeSkill"] = m_Style.showSurgeSkill;
+    root["surgeSkill"] = ToJson(m_Style.surgeSkill);
+    root["surgeSkillSize"] = m_Style.surgeSkillSize;
+    root["surgeCircleScale"] = m_Style.surgeCircleScale;
+    root["surgeNumberScale"] = m_Style.surgeNumberScale;
+    root["surgeKeyScale"] = m_Style.surgeKeyScale;
+    root["surgeActiveColor"] = ToJson(m_Style.surgeActiveColor);
 
     root["lowHpVignette"] = m_Style.lowHpVignette;
     root["lowHpRatio"] = m_Style.lowHpRatio;
@@ -835,6 +1009,20 @@ bool HUD::LoadStyle(const char* path)
     ReadVec4(root, "slotBgColor", m_Style.slotBgColor);
     ReadVec4(root, "cooldownColor", m_Style.cooldownColor);
     ReadVec4(root, "noManaColor", m_Style.noManaColor);
+
+    ReadBool(root, "showGold", m_Style.showGold);
+    ReadAnchor(root, "goldText", m_Style.goldText);
+    ReadFloat(root, "goldIconSize", m_Style.goldIconSize);
+    ReadFloat(root, "goldTextScale", m_Style.goldTextScale);
+    ReadVec4(root, "goldColor", m_Style.goldColor);
+
+    ReadBool(root, "showSurgeSkill", m_Style.showSurgeSkill);
+    ReadAnchor(root, "surgeSkill", m_Style.surgeSkill);
+    ReadFloat(root, "surgeSkillSize", m_Style.surgeSkillSize);
+    ReadFloat(root, "surgeCircleScale", m_Style.surgeCircleScale);
+    ReadFloat(root, "surgeNumberScale", m_Style.surgeNumberScale);
+    ReadFloat(root, "surgeKeyScale", m_Style.surgeKeyScale);
+    ReadVec4(root, "surgeActiveColor", m_Style.surgeActiveColor);
 
     ReadBool(root, "lowHpVignette", m_Style.lowHpVignette);
     ReadFloat(root, "lowHpRatio", m_Style.lowHpRatio);

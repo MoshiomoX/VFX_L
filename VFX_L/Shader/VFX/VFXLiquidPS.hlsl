@@ -47,6 +47,15 @@ float4 main(LiquidVSOut i) : SV_TARGET
     float inside = -d;
     float deep = smoothstep(0.0, max(L.depthWidth, 1e-3), inside);
     float rim = 1.0 - smoothstep(0.0, max(L.rimWidth, 1e-3), inside);
+    // toon (2026-10-04, follows the scene's toonParams): crisp zones instead of smooth ramps
+    bool toon = toonParams.x > 0.5;
+    if (toon)
+    {
+        float dw = max(L.depthWidth, 1e-3);
+        deep = smoothstep(dw * 0.5 - px, dw * 0.5 + px, inside);
+        float rw0 = max(L.rimWidth, 1e-3);
+        rim = 1.0 - smoothstep(rw0 * 0.6 - px, rw0 * 0.6 + px, inside);
+    }
 
     // ---- surface normal ----
     // height h(d) = bump * S(-d / depthWidth), S = smoothstep  ->  grad h = -slope * grad d
@@ -71,12 +80,28 @@ float4 main(LiquidVSOut i) : SV_TARGET
     float NdotL = saturate(dot(N, Ld));
     uint cascade;
     float shadow = SunShadow(i.world, float3(0.0, 1.0, 0.0), NdotL, cascade);
-    float3 sun = dirLight.color * dirLight.intensity * NdotL * shadow;
+    float lit = toon ? ToonBand(NdotL * shadow) : NdotL * shadow;
+    float3 sun = dirLight.color * dirLight.intensity * lit * (toon ? toonShadowTint.w : 1.0);
 
-    float3 albedo = lerp(L.edgeColor.rgb, L.deepColor.rgb, deep) * (1.0 + L.swirl * (n0 - 0.5) * 2.0);
+    // toon: the swirl is two-level patches
+    float swirlN = toon ? smoothstep(0.5 - fwidth(n0), 0.5 + fwidth(n0), n0) : n0;
+    float3 albedo = lerp(L.edgeColor.rgb, L.deepColor.rgb, deep) * (1.0 + L.swirl * (swirlN - 0.5) * 2.0);
     const float3 F0 = float3(0.02, 0.02, 0.02);   // water-like
-    float3 spec = SpecularGGX(N, V, Ld, max(L.roughness, 0.04), F0) * sun * L.specGain;
-    float fres = pow(1.0 - saturate(dot(N, V)), 5.0);
+    float3 spec;
+    float fres;
+    if (toon)
+    {
+        // a small hard highlight and a crisp band of sky at grazing angles
+        float3 H = normalize(V + Ld);
+        spec = dirLight.color * (dirLight.intensity * L.specGain * 0.6 * lit)
+             * smoothstep(0.990, 0.995, saturate(dot(N, H)));
+        fres = smoothstep(0.74, 0.76, 1.0 - saturate(dot(N, V))) * 0.5;
+    }
+    else
+    {
+        spec = SpecularGGX(N, V, Ld, max(L.roughness, 0.04), F0) * sun * L.specGain;
+        fres = pow(1.0 - saturate(dot(N, V)), 5.0);
+    }
     float3 sky = L.skyColor.rgb * (fres * L.skyColor.a);
     float3 pd, ps;
     PointLightShade(i.world, N, V, max(L.roughness, 0.04), F0, pd, ps);
@@ -85,11 +110,18 @@ float4 main(LiquidVSOut i) : SV_TARGET
     pd *= L.pointGain;
     ps *= L.pointGain;
     // a liquid shows little diffuse; most of what you see is what it reflects and emits
-    float3 diffuse = albedo * (AmbientAt(N) + sun + pd) * 0.6;
+    float3 ambient = toon ? AmbientAt(N) * lerp(toonShadowTint.rgb, float3(1, 1, 1), lit) : AmbientAt(N);
+    float3 diffuse = albedo * (ambient + sun + pd) * 0.6;
     float3 glow = L.glowColor.rgb * (1.0 + L.glowColor.a * rim);
     float bub = LiquidBubbles(L, i.local, seed, deep, g_LTime) * L.bubbleGain;
 
     float3 c = diffuse + spec + ps + sky + glow + bub * (L.edgeColor.rgb + 0.3);
+    // toon: a dark ink line just inside the edge (at least 1.5 px wide)
+    if (toon)
+    {
+        float lineW = max(0.035, px * 1.5);
+        c *= lerp(0.25, 1.0, smoothstep(lineW - px, lineW + px, inside));
+    }
     c = ApplyFog(c, i.world);
     float alpha = cover * lerp(L.edgeColor.a, L.deepColor.a, deep);
 

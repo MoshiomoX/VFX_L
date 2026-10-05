@@ -45,7 +45,7 @@ namespace
     }
 
 #ifdef _WIN32
-    // TEMP-TEST: この程序の音声 session の音量計（DebugOutputPeak）。見つけたら持っておき、読めなくなったら探し直す
+    // TEMP-TEST: このプログラムの音声 session の音量計（DebugOutputPeak）。見つけたら持っておき、読めなくなったら探し直す
     Microsoft::WRL::ComPtr<IAudioMeterInformation> g_SessionMeter;
 
     bool FindSessionMeter()
@@ -88,7 +88,7 @@ struct AudioSystem::Impl
         int   maxVoices = 4;        // 同じ cue が同時に鳴る上限
         Bus   bus = Bus::Sfx;
         double lastPlay = -1.0e9;
-        uint32_t plays = 0, skipped = 0;   // 面板の表示用
+        uint32_t plays = 0, skipped = 0;   // パネルの表示用
     };
     struct Track
     {
@@ -97,7 +97,7 @@ struct AudioSystem::Impl
         float loopStart = 0.0f;   // 秒。2 周目からはここへ戻る（1 周目は曲の頭から。Tools の loopify で作った曲）
     };
 
-    // 出口の限幅器（2026-10-03）。乱戦で命中・撃破・爆発の音が何百も重なると峰値が 1.8 まで行き、割れていた。
+    // 出口のリミッター（2026-10-03）。乱戦で命中・撃破・爆発の音が何百も重なるとピーク値が 1.8 まで行き、割れていた。
     // 全部の音を混ぜた後（ma_engine の onProcess、音声スレッド）で、峰が kThreshold を超える分だけ音量を下げる
     // （立ち上がり 1 ms・戻り 250 ms）。それでも越えた分は柔らかく丸める（1.0 を超えない）
     struct Limiter
@@ -107,9 +107,9 @@ struct AudioSystem::Impl
         std::atomic<uint32_t> channels{ 0 };
         float attack = 0.0f, release = 0.0f;
         float gain = 1.0f;
-        std::atomic<float> minGain{ 1.0f };          // 自測用: 前に読んでからの一番下げた倍率
-        std::atomic<uint32_t> softClipped{ 0 };      // 自測用: 丸めたサンプル数
-        std::atomic<float> inPeak{ 0.0f }, outPeak{ 0.0f };   // 自測用: 限幅の前 / 後の峰
+        std::atomic<float> minGain{ 1.0f };          // 自動テスト用: 前に読んでからの一番下げた倍率
+        std::atomic<uint32_t> softClipped{ 0 };      // 自動テスト用: 丸めたサンプル数
+        std::atomic<float> inPeak{ 0.0f }, outPeak{ 0.0f };   // 自動テスト用: リミットの前 / 後の峰
 
         void Setup(uint32_t sampleRate, uint32_t ch)
         {
@@ -222,7 +222,7 @@ bool AudioSystem::Initialize()
 {
     if (m->ok) return true;
     ma_engine_config cfg = ma_engine_config_init();
-    cfg.onProcess = &Impl::Limiter::Process;   // 全部を混ぜた後の限幅（Setup までは channels = 0 で素通し）
+    cfg.onProcess = &Impl::Limiter::Process;   // 全部を混ぜた後のリミット（Setup までは channels = 0 で素通し）
     cfg.pProcessUserData = &m->limiter;
     if (ma_engine_init(&cfg, &m->engine) != MA_SUCCESS)
     {
@@ -236,7 +236,7 @@ bool AudioSystem::Initialize()
     m->voices.clear();
     for (int i = 0; i < kVoiceCount; ++i) m->voices.push_back(std::make_unique<Impl::Voice>());
     LoadSettings();
-    // TEMP-TEST: VFXL_AUDIO_MUTE=1 なら主音量 0（自測で用户の机から音を出さない。鳴らす処理は通るので統計は取れる。保存はしない）
+    // TEMP-TEST: VFXL_AUDIO_MUTE=1 なら主音量 0（自動テストでユーザーの机から音を出さない。鳴らす処理は通るので統計は取れる。保存はしない）
     {
         char* mute = nullptr;
         size_t len = 0;
@@ -514,7 +514,7 @@ AudioSystem::MusicProbe AudioSystem::DebugMusic() const
     ma_sound_get_length_in_seconds(s, &r.length);
     r.fade = ma_sound_get_current_fade_volume(s);
     {
-        // loop point が stream から中の decoder へ渡っているか（decoder は読み込みスレッドの物。自測で覗くだけ）
+        // loop point が stream から中の decoder へ渡っているか（decoder は読み込みスレッドの物。自動テストで覗くだけ）
         auto* ds = static_cast<ma_resource_manager_data_source*>(ma_sound_get_data_source(s));
         ma_uint32 rate = 0;
         ma_sound_get_data_format(s, nullptr, nullptr, &rate, nullptr, 0);

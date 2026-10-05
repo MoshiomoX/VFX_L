@@ -9,7 +9,7 @@ class SpawnDirector
 public:
     using SpawnFunc = std::function<void(const DirectX::SimpleMath::Vector3& pos)>;
 
-    // aliveMobs: GPU 側の存活数（回読なので 1〜2 フレーム古い）
+    // aliveMobs: GPU 側の生存数（リードバックなので 1〜2 フレーム古い）
     // spawn:     空き枠へ新規に湧かせる
     // recycle:   枠が無い分。遠い雑魚をこの位置へ転送する（GPU が選ぶ）
     void Update(const GridWorld& grid,

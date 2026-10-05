@@ -9,7 +9,7 @@
 //
 // 同一フレーム内で複数の出力源が奪い合う場合:
 //   CanAfford() は予約済みを差し引いて判定するので、
-//   先に予約した方が勝つ。結算の順番は問わない。
+//   先に予約した方が勝つ。リザルトの順番は問わない。
 // ============================================================
 #pragma once
 
@@ -17,20 +17,27 @@ struct ManaComponent
 {
     float max = 100.0f;
     float current = 100.0f;
-    float regen = 25.0f;          // 毎秒の回復量
+    float regen = 25.0f;          // 毎秒の回復量（レベル 1 の時。能力アップ「魔力回復」はこれに掛ける）
+    // 回復はレベルで伸びる（2026-10-04 ユーザー指定）：実際の回復 = regen × (1 + regenPerLevel × (レベル - 1))。
+    // 魔法を増やしても MP が先に尽きて撃てず、撃破の速さが一局を通して頭打ちだった（自動テスト curve：平均 MP 4%）
+    float regenPerLevel = 0.10f;
+    float EffectiveRegen(int level) const
+    {
+        return regen * (1.0f + regenPerLevel * (float)(level > 1 ? level - 1 : 0));
+    }
 
     // 今フレームの消費予約（ManaSystem が引き落として 0 に戻す）
     float pendingSpend = 0.0f;
 
-    // ---- 魔力解放（Q / パッド Y、2026-10-01 用户指定）----
+    // ---- 魔力解放（Q / パッド Y、2026-10-01 ユーザー指定）----
     // surgeDuration 秒の間は魔力を消費しない（CanAfford は常に true、Reserve は積まない）。
-    // 使った瞬間から surgeCooldown 秒は使えない。時間は ManaSystem が進める
+    // 使った瞬間から surgeCooldown 秒は使えない（2026-10-04 ユーザー指定で 30 → 20 秒）。時間は ManaSystem が進める
     float surgeDuration = 3.0f;
-    float surgeCooldown = 30.0f;
+    float surgeCooldown = 20.0f;
     float surgeTime = 0.0f;           // 残り（> 0 の間は無限）
     float surgeCooldownLeft = 0.0f;   // 次に使えるまで
-    // 解放中の強化（2026-10-02 用户指定、WeaponSystem が見る）:
-    //   詠唱 = 発動間隔・高級魔法の冷却・連発の間・光線の溜めの計時がこの倍の速さで進む
+    // 解放中の強化（2026-10-02 ユーザー指定、WeaponSystem が見る）:
+    //   詠唱 = 発動間隔・上級魔法のクールダウン・連発の間・光線の溜めの計時がこの倍の速さで進む
     //   持続 = 解放中に撃った魔法の「持続する範囲」（毒の池・光線）がこの倍だけ長く残る（撃った時に決まる）
     float surgeCastSpeed = 1.5f;
     float surgeDurationMul = 1.5f;

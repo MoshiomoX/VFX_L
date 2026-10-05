@@ -5,8 +5,9 @@
 // 垂直カプセル前提 → 回転は考慮しない（端点は中心±高さで算出）
 // ============================================================
 #pragma once
+#include <memory>
 #include <SimpleMath.h>
-#include "Collider/CollisionMath.h"   // Convex
+#include "Collider/CollisionMath.h"   // Convex / HeightFieldShape
 
 // 形状タイプ
 enum class ColliderShape
@@ -14,7 +15,8 @@ enum class ColliderShape
     Sphere,
     Capsule,   // 垂直カプセル（Y軸方向に立つ）
     AABB,
-    Convex,    // 凸多面体（平面集合）。台形柱・斜坡など、軸に揃わない静的地形
+    Convex,    // 凸多面体（平面集合）。台形柱・斜面など、軸に揃わない静的地形
+    HeightField,   // 起伏のある地面（2026-10-04）。高さは heightField に問い合わせる。halfExtents = ブロードフェーズ用の範囲
 };
 
 // 衝突レイヤー（ビットフラグ。どの層と衝突するかを mask で制御）
@@ -43,9 +45,12 @@ struct ColliderComponent
     float height = 1.0f;   // Capsule 専用: 円柱部分の高さ（両端の半球は含まない）
 
     // Convex 専用: Entity 位置（+offset）を原点とするローカル平面。
-    // 回転は見ない（他の形状と同じ約束）。halfExtents は広相位用の包囲箱として必ず埋める。
+    // 回転は見ない（他の形状と同じ約束）。halfExtents はブロードフェーズ用の包囲箱として必ず埋める。
     // 組み立ては CollisionMath::ConvexFromHexahedron 等で
     CollisionMath::Convex hull;
+
+    // HeightField 専用: 地面の高さの問い合わせ先（世界座標。Entity の位置は使わない）
+    std::shared_ptr<const CollisionMath::HeightFieldShape> heightField;
 
     // --- レイヤー ---
     uint32_t layer = Layer_Enemy;      // 自分が属する層

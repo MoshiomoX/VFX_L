@@ -1,13 +1,13 @@
 // ============================================================
 // ProjectileProfile.h
-// 投射物そのものの定義。投射物編集器（ProjectileEditorScene）が
+// 投射物そのものの定義。投射物エディタ（ProjectileEditorScene）が
 // 作って json に保存し、ゲーム本体は名前で引く。
 //
 //   ここにある物  … 弾が「何であるか」: 飛び方、命中で出す範囲、見た目（VFX）、
 //                   威力・速さ・判定半径・寿命
-//   道具（Items） … 弾を「どう撃つか」: 発射数・連発・間隔・マナ、UI 情報。
+//   アイテム（Items） … 弾を「どう撃つか」: 発射数・連発・間隔・マナ、UI 情報。
 //                   profile 名でここを参照するだけ
-//   機能符        … 集約時に上の基礎値へ修飾を掛ける（BackpackAggregateSystem）
+//   機能ルーン        … 集約時に上の基礎値へ修飾を掛ける（BackpackAggregateSystem）
 //
 // 1 プロファイル = GPU の運動表（Swarm::Motion）の 1 行。
 // 表の 0 番は常に組み込みの直進（json が 1 個も無くても弾は飛ぶ）。
@@ -19,7 +19,7 @@
 //   Track     : 標的が死んでも、自分に一番近い敵を探して追い続ける
 //   Drop      : 撃った時の標的の位置へ空から落ちる（隕石）。c1 = (高さ m, 銃口側への水平距離 m, 未使用)
 //
-// 捕捉する相手は今のところ「玩家に一番近い敵」固定（武器の自動照準と同じ）
+// 捕捉する相手は今のところ「プレイヤーに一番近い敵」固定（武器の自動照準と同じ）
 // ============================================================
 #pragma once
 #include "Swarm/SwarmTypes.h"
@@ -55,7 +55,7 @@ struct ProjectileProfile
     std::string hitArea;
     bool hitAreaOnExpire = true;   // 寿命切れ・壁に当たった時も出す
 
-    // ---- 弾の性能（基礎値。機能符はこの上に掛かる）----
+    // ---- 弾の性能（基礎値。機能ルーンはこの上に掛かる）----
     float damage = 10.0f;
     float speed = 20.0f;
     float radius = 0.25f;     // 当たり判定
@@ -75,14 +75,14 @@ struct ProjectileProfile
     nlohmann::json ToJson() const;
     void FromJson(const nlohmann::json& j);
 
-    // GPU（SwarmBuildPath）と同じ式で 4 制御点を出す。編集器の曲線表示用。
+    // GPU（SwarmBuildPath）と同じ式で 4 制御点を出す。エディタの曲線表示用。
     // sideSign は +1 / -1
     void BuildPreview(const DirectX::SimpleMath::Vector3& from,
         const DirectX::SimpleMath::Vector3& to, float sideSign,
         DirectX::SimpleMath::Vector3 out[4]) const;
 
     // BuildPreview の逆。世界座標の点から制御点（along, side, up）を求めて書き込む。
-    // 編集器で制御点を 3D で掴んで動かした時用。which は 1 か 2
+    // エディタで制御点を 3D で掴んで動かした時用。which は 1 か 2
     void SetControlFromWorld(int which,
         const DirectX::SimpleMath::Vector3& from,
         const DirectX::SimpleMath::Vector3& to, float sideSign,
@@ -97,7 +97,7 @@ namespace ProjectileProfileDB
 {
     inline constexpr const char* kDir = "Assets/Data/ProjectileData/";
 
-    // 運動表の最後の 1 行は編集器の「乱数曲線の試射」用に空けておく。
+    // 運動表の最後の 1 行はエディタの「乱数曲線の試射」用に空けておく。
     // プロファイルはここまでしか増やせない
     inline constexpr int kScratchRow = (int)Swarm::kMaxMotions - 1;
 
@@ -107,7 +107,7 @@ namespace ProjectileProfileDB
     int  Count();
     ProjectileProfile& At(int index);
 
-    // 名前 → 番号。無ければ 0（直進）。道具が撃つ時に呼ぶ
+    // 名前 → 番号。無ければ 0（直進）。アイテムが撃つ時に呼ぶ
     int  IndexOf(const std::string& name);
 
     // 新規追加して番号を返す。表が一杯なら -1

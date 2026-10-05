@@ -50,12 +50,12 @@ struct VFXLiquidDef
     uint32_t spatter = 4;      // 前へ飛ぶ小さな飛沫（0〜8）
     uint32_t flags = 0;        // 予約
     // 点光源の効き（拡散 + 照り返し）。毒の池は自分の緑の点光源を 0.5m 上に持つので、
-    // そのままだと液面に強い照り返しが出る（10-02 用户「太亮了」）
+    // そのままだと液面に強い照り返しが出る（10-02 ユーザー「明るすぎた」）
     float    pointGain = 0.3f;
 
     nlohmann::json ToJson() const;
     void FromJson(const nlohmann::json& j);
-    // ImGui で全部の値をいじる（VFX 編集器の Inspector）
+    // ImGui で全部の値をいじる（VFX エディタの Inspector）
     void DrawImGui();
 };
 static_assert(sizeof(VFXLiquidDef) == 160, "LiquidDef layout mismatch");

@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // Items/ArcBolt.h
-// 弧の矢：投射物編集器の "ArcOnce" プロファイルで飛ぶ飛行物型。
+// 弧の矢：投射物エディタの "ArcOnce" プロファイルで飛ぶ飛行物型。
 //
 // 設計意図：
 //   ・威力・速さ・見た目は ArcOnce.json 側（火球と同じ値にして飛び方だけ比べる）
@@ -22,8 +22,9 @@ inline ProjectileItemDef MakeArcBolt()
     def.common.description = L"弧を描いて敵へ向かう魔法弾。撃つたびに左右が入れ替わる。";
     def.common.iconPath = Res::Icon::ArcBolt;
     def.common.category = ItemCategory::Projectile;
-    def.common.occupyCells = ItemShape::Single();       // 基礎魔法は 1 マス（L 字 3 マスは 2026-09-30 用户の指示で廃止）
-    def.common.influenceCells = ItemShape::Cross();     // 誘発の届く範囲（上下左右。追尾弾と組んで魔導光線を目覚めさせる）
+    // 形は強さで決める（2026-10-04）。単体 DPS 約 27（火球と並んで一番高い）→ 4 マスの稲妻の Z 字
+    def.common.occupyCells = { { 0, 0 }, { 0, 1 }, { 1, 1 }, { 1, 2 } };
+    def.common.influenceCells = ItemShape::Around4(def.common.occupyCells);   // 誘発の届く範囲（形の上下左右。追尾弾と組んで魔導光線を目覚めさせる）
     def.common.color = { 0.40f, 0.80f, 1.00f, 1.0f };   // 水色
 
     // ---- どう撃つか（弾の威力・速さ・見た目は profile 側）----

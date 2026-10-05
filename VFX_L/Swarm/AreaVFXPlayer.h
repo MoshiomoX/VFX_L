@@ -25,8 +25,8 @@ public:
     ~AreaVFXPlayer();
 
     // vfxFile: Assets/Data/VFXData/ の json のファイル名。空や読めない時は何もしない。
-    // duration 秒後に Stop する（loop の特効でも止まる）。follow = 毎フレーム followPos へ動かす
-    // 戻り値は実例の番号（0 = 出せなかった）。SetInstance / StopInstance で後から動かせる
+    // duration 秒後に Stop する（loop のエフェクトでも止まる）。follow = 毎フレーム followPos へ動かす
+    // 戻り値はインスタンスの番号（0 = 出せなかった）。SetInstance / StopInstance で後から動かせる
     uint32_t Play(const std::string& vfxFile, const DirectX::SimpleMath::Vector3& pos,
         float duration, bool follow, const VFXContext& ctx);
 
@@ -37,7 +37,7 @@ public:
     // Y 軸回りに回す（Play の直後に 1 回。Boss の門の渦を門の向きに合わせる）
     void RotateInstance(uint32_t handle, float yawDeg);
 
-    // 時間軸を伸び縮みさせる（Play の直後、まだ Update していない実例に使う）。
+    // 時間軸を伸び縮みさせる（Play の直後、まだ Update していないインスタンスに使う）。
     // 各 entry の開始 / 終了の時刻 t を、t <= split なら t × before、それより後は
     // split × before + (t - split) × after に写す。光線の溜め（split = 溜め）を短く・光線を長くする時用
     // （魔力解放、2026-10-02）。持続が -1（無限）の entry は開始だけ写す

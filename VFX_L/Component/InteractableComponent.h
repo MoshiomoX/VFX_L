@@ -11,14 +11,14 @@
 
 enum class InteractKind
 {
-    RewardChoice,   // 升級と同じ三択を出す（レベルは上がらない）
+    RewardChoice,   // レベルアップと同じ三択を出す（レベルは上がらない）
     BossPortal,     // 面の Boss を呼ぶ（StageDirector）
 };
 
 struct InteractableComponent
 {
     InteractKind kind = InteractKind::RewardChoice;
-    float radius = 2.2f;                    // 玩家の中心（足元）からこの水平距離で使える
+    float radius = 2.2f;                    // プレイヤーの中心（足元）からこの水平距離で使える
     const wchar_t* prompt = L"[F] 開ける";   // 画面下に出す案内
 
     // ---- 見た目の動き ----

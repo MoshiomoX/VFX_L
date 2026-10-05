@@ -13,7 +13,7 @@
                                      "sheet":  2,
                                      "frameMode":  3,
                                      "frameCount":  25,
-                                     "blend":  1,
+                                     "blend":  1, "toon": { "cut": 0.30, "bands": 2, "shade": 0.70, "outline": true },
                                      "boxExtents":  [
                                                         1,
                                                         1,

@@ -49,15 +49,15 @@ public:
     {
         // 全頂点に最後に掛ける（拡縮・向き・足元合わせ）。包囲ボックスも掛けた後の値になる
         Matrix rootTransform = Matrix::Identity;
-        // 節点アニメ（骨を持たず、部品を節点で動かす FBX）の 1 フレームを姿勢として焼く。
+        // ノードアニメ（骨を持たず、部品をノードで動かす FBX）の 1 フレームを姿勢として焼く。
         // 空なら焼かない（バインドポーズのまま）。名前は "Rig|walk" の末尾一致でもよい
         std::string poseClip;
         float poseTimeFrac = 0.0f;   // 0..1（クリップの長さに対する割合）
     };
     bool Load(ID3D11Device* device, const std::string& filepath, const LoadOptions& opt);
 
-    // 節点アニメ（部品を節点で動かす FBX）の標本取り。
-    // timeFracs の各時刻（0..1）で、submesh 毎の全体変換（節点 × rootTransform）を返す。
+    // ノードアニメ（部品をノードで動かす FBX）のサンプリングり。
+    // timeFracs の各時刻（0..1）で、submesh 毎の全体変換（ノード × rootTransform）を返す。
     // 並びは Load で作られる submesh と同じ（ProcessNode の順）。
     // 雑魚の部品アニメ（GPU で 1 部品 1 行列）の表を作るのに使う
     static bool SampleSubmeshTransforms(const std::string& filepath, const std::string& clip,
@@ -82,7 +82,7 @@ public:
         m_Materials.push_back(mat);
     }
 
-    // 全部の submesh を 1 つのマテリアルで描く（地形の貼図。2026-10-03）
+    // 全部の submesh を 1 つのマテリアルで描く（地形のテクスチャ。2026-10-03）
     void SetSingleMaterial(std::shared_ptr<Material> mat)
     {
         m_Materials.assign(1, mat);

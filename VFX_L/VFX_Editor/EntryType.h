@@ -36,7 +36,7 @@ struct VFXContext
 {
     GPUParticleSystem* particleSystem = nullptr;
     VFXMeshRenderer* meshRenderer = nullptr;
-    VFXSpriteRenderer* spriteRenderer = nullptr;   // Sprite entry（連番絵）の描画先。無ければ描かない
+    VFXSpriteRenderer* spriteRenderer = nullptr;   // Sprite entry（連番画像）の描画先。無ければ描かない
     VFXBeamRenderer* beamRenderer = nullptr;       // Beam entry（光線）の描画先。無ければ描かない
     VFXLiquidRenderer* liquidRenderer = nullptr;   // Liquid entry（液溜まり）の描画先。無ければ描かない
 

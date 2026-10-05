@@ -14,12 +14,12 @@ class PixelShader;
 
 // ============================================================
 // Graphics
-// 場面は HDR の離屏 RT（R16G16B16A16_FLOAT, MSAA）へ描く。
+// シーンは HDR のオフスクリーン RT（R16G16B16A16_FLOAT, MSAA）へ描く。
 // BeginUI で resolve → 合成 PS で backbuffer へ。UI はその後に描く。
 //
 // フレームの流れ:
 //   BeginFrame  … HDR RT を clear して bind
-//   (場面描画)
+//   (シーン描画)
 //   BeginUI     … resolve → 合成 → backbuffer を bind
 //   (UI / ImGui 描画)
 //   EndFrame    … (上限 fps の待ち) → Present
@@ -42,11 +42,17 @@ public:
     ID3D11Device* GetDevice() const { return m_Device.Get(); }
     ID3D11DeviceContext* GetContext() const { return m_Context.Get(); }
 
-    // 今の段階に合った RT に戻す（場面中なら HDR RT、UI 中なら backbuffer）
+    // 今の段階に合った RT に戻す（シーン中なら HDR RT、UI 中なら backbuffer）
     void RestoreRenderTarget();
 
-    // resolve 済みの HDR 場面（後処理の入力。BeginUI 以降で有効）
+    // resolve 済みの HDR シーン（後処理の入力。BeginUI 以降で有効）
     ID3D11ShaderResourceView* GetSceneSRV() const { return m_SceneSRV.Get(); }
+
+    // シーンの深度（MSAA なら Texture2DMS）と、シーンの RT / DSV（2026-10-04、画面のアウトラインが深度を読む）。
+    // 深度を SRV で読む間は DSV を外すこと（同じ資源の読み書き）。読み終えたら RestoreRenderTarget
+    ID3D11ShaderResourceView* GetDepthSRV() const { return m_DepthSRV.Get(); }
+    ID3D11RenderTargetView* GetSceneRTV() const { return m_SceneRTV.Get(); }
+    UINT GetSampleCount() const { return m_SampleCount; }
 
     float GetWidth()  const { return m_Viewport.Width; }
     float GetHeight() const { return m_Viewport.Height; }
@@ -56,7 +62,7 @@ public:
     // ---- 表示の同期（Debug Info 欄で切り替える）----
     struct PresentSettings
     {
-        bool  vsync = true;     // 切ると撕裂を許して即表示（ALLOW_TEARING が使える時）
+        bool  vsync = true;     // 切るとティアリングを許して即表示（ALLOW_TEARING が使える時）
         float fpsCap = 0.0f;    // 上限 fps。0 = 無し。Present の直前に高精度タイマーで待つ
     };
     PresentSettings& GetPresentSettings() { return m_Present; }
@@ -76,12 +82,13 @@ private:
     // ---- backbuffer（UI と合成結果の行き先）----
     ComPtr<ID3D11RenderTargetView> m_BackbufferRTV;
 
-    // ---- 場面用 HDR RT（MSAA）と resolve 先（非 MSAA, SRV）----
+    // ---- シーン用 HDR RT（MSAA）と resolve 先（非 MSAA, SRV）----
     ComPtr<ID3D11Texture2D> m_SceneTex;
     ComPtr<ID3D11RenderTargetView> m_SceneRTV;
     ComPtr<ID3D11Texture2D> m_SceneResolved;
     ComPtr<ID3D11ShaderResourceView> m_SceneSRV;
     ComPtr<ID3D11DepthStencilView> m_DepthStencilView;
+    ComPtr<ID3D11ShaderResourceView> m_DepthSRV;   // 同じ深度を読む（画面のアウトライン）
 
     // ---- 合成（全画面三角形）----
     std::shared_ptr<VertexShader> m_CompositeVS;

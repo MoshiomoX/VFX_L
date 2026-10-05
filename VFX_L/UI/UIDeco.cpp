@@ -16,7 +16,7 @@ using namespace DirectX::SimpleMath;
 
 namespace UIDeco
 {
-    // 戦闘の UI は場面の HDR バッファに描かれ、合成でトーンマップ + ガンマを通る
+    // 戦闘の UI はシーンの HDR バッファに描かれ、合成でトーンマップ + ガンマを通る
     // （0.07 が中間の灰色に見えるのはこのため）。色は sRGB の見た目で決めて、ここで線形へ直す
     static Vector4 FromSrgb(float r, float g, float b)
     {

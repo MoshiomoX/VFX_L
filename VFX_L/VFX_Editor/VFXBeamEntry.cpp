@@ -76,6 +76,7 @@ void VFXBeamEntry::Submit(VFXBeamRenderer& renderer, const Vector3& worldOffset,
     item.tipFade = tipFade;
     item.rootFade = rootFade;
     item.seed = m_Seed;
+    item.toon = toon ? 1.0f : 0.0f;
     renderer.Submit(item);
 }
 
@@ -97,6 +98,7 @@ void VFXBeamEntry::OnImGui()
     ImGui::DragFloat("Glow Alpha", &glowAlpha, 0.01f, 0.0f, 2.0f);
     ImGui::ColorEdit4("Color (HDR)", &color.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::ColorEdit4("Core Color", &coreColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+    ImGui::Checkbox("Toon (hard-edged bands)", &toon);   // 2026-10-04
     ImGui::Separator();
 
     ImGui::DragFloat("Scroll Speed (m/s)", &scrollSpeed, 0.1f, -40.0f, 40.0f);
@@ -141,6 +143,7 @@ json VFXBeamEntry::ToJson() const
         { "shrinkTime", shrinkTime },
         { "previewLength", previewLength },
         { "previewDir", V3(previewDir) },
+        { "toon", toon },
     };
 }
 
@@ -162,4 +165,5 @@ void VFXBeamEntry::FromJson(const json& j)
     shrinkTime = j.value("shrinkTime", shrinkTime);
     previewLength = j.value("previewLength", previewLength);
     previewDir = J3(j.value("previewDir", json()), previewDir);
+    toon = j.value("toon", false);   // 古い json には無い = 従来の柔らかい光線
 }

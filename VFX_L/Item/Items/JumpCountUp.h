@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // Items/JumpCountUp.h
-// レベルアップの候補「跳躍回数 +1」（2026-09-29 用户の依頼）。
+// レベルアップの候補「跳躍回数 +1」（2026-09-29 ユーザーの依頼）。
 //
 // 設計意図：
 //   空中でもう一回跳べる。空中の n 回目は跳躍力 × 0.75^n（12 → 9 → 6.75 …）なので、
@@ -17,10 +17,10 @@ inline StatItemDef MakeJumpCountUp()
 
     def.common.id = ItemID::JumpCountUp;
     def.common.name = "Extra Jump +1";
-    def.common.displayName = L"跳躍回数 +1";
-    def.common.description = L"空中でもう一度跳べる。回を重ねるごとに勢いは少しずつ弱まる。";
+    def.common.displayName = L"ジャンプ回数 +1";
+    def.common.description = L"空中でもう一度ジャンプできる。空中ジャンプは回数を重ねるごとに少しずつ弱くなる。";
     def.common.category = ItemCategory::Stat;
-    def.common.occupyCells = {};                         // 背包に置かないので形は無い
+    def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};
     def.common.color = { 0.60f, 0.90f, 0.95f, 1.0f };
     def.common.iconPath = Res::Icon::JumpCountUp;
@@ -28,7 +28,7 @@ inline StatItemDef MakeJumpCountUp()
     def.kind = StatKind::JumpCount;
     def.amount = 1.0f;
     def.percent = false;
-    def.cardLabel = L"跳躍回数";
+    def.cardLabel = L"ジャンプ回数";
 
     return def;
 }

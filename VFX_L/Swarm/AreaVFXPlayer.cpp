@@ -11,7 +11,7 @@ using namespace DirectX::SimpleMath;
 
 namespace
 {
-    constexpr size_t kMaxActive = 64;   // 溢れたら新しい物を諦める（降級）
+    constexpr size_t kMaxActive = 64;   // 溢れたら新しい物を諦める（格下げ）
 }
 
 AreaVFXPlayer::AreaVFXPlayer() = default;
@@ -129,9 +129,9 @@ void AreaVFXPlayer::Update(float dt, const Vector3& followPos)
 
     // 捨てる条件：
     //   - Stop を送って少し経った（発射はもう止まっている。出た粒子は GPU の池で勝手に消える）
-    //   - loop しない特効が自分で終わった
+    //   - loop しないエフェクトが自分で終わった
     // ※IsFinishing を待たない。Finishing は「粒子池全体の生存数が 0」で抜ける作りなので、
-    //   戦闘中（他の粒子が常に居る）は永遠に終わらず、実例が溜まり続ける
+    //   戦闘中（他の粒子が常に居る）は永遠に終わらず、インスタンスが溜まり続ける
     m_Active.erase(std::remove_if(m_Active.begin(), m_Active.end(),
         [](const Instance& i)
         {

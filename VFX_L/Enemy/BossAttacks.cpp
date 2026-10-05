@@ -19,7 +19,7 @@ void BossAttacks::Reset()
 }
 
 int BossAttacks::Update(float dt, bool bossAlive, float bossHpRatio, const Vector3& bossPos,
-    const Vector3& player, float statMul, const GridWorld& grid, std::vector<Blast>& outBlasts)
+    const Vector3& player, float damageMul, const GridWorld& grid, std::vector<Blast>& outBlasts)
 {
     // Boss が居なくなったら（倒した・まだ呼んでいない）輪も消す
     if (!bossAlive)
@@ -39,7 +39,7 @@ int BossAttacks::Update(float dt, bool bossAlive, float bossHpRatio, const Vecto
     {
         if (it->age >= warnTime)
         {
-            outBlasts.push_back({ it->center, it->radius, damage * statMul });
+            outBlasts.push_back({ it->center, it->radius, damage * damageMul });
             ++blasts;
             it = m_Rings.erase(it);
         }
@@ -63,7 +63,7 @@ int BossAttacks::Update(float dt, bool bossAlive, float bossHpRatio, const Vecto
     else if (!inRange && m_Timer < 0.0f)
         m_Timer = 0.0f;   // 離れている間は溜めない（近付いた瞬間に 1 回だけ）
 
-    // ---- 輪を置く（置いた瞬間の玩家の足元）----
+    // ---- 輪を置く（置いた瞬間のプレイヤーの足元）----
     int placed = 0;
     if (m_Pending > 0)
     {

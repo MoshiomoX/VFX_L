@@ -18,7 +18,7 @@ bool SkinnedModelGPU::CreateSubMeshBuffers(ID3D11Device* device, const SkinnedMo
     if (gm.vertexCount == 0 || gm.indexCount == 0)
         return true;
 
-    // 1. bind顶点
+    // 1. bind頂点
     {
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(SkinnedVertex) * gm.vertexCount;
@@ -38,7 +38,7 @@ bool SkinnedModelGPU::CreateSubMeshBuffers(ID3D11Device* device, const SkinnedMo
         if (FAILED(device->CreateShaderResourceView(gm.bindBuffer.Get(), &sd, &gm.bindSRV))) return false;
     }
 
-    // 2. skinned 输出
+    // 2. skinned 出力
     {
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(SkinnedVertexOut) * gm.vertexCount;
@@ -164,19 +164,19 @@ void SkinnedModelGPU::UploadPalette(ID3D11DeviceContext* ctx, const std::vector<
     }
 }
 
-// 新增：单个 submesh skinning
+// 追加：単一 submesh skinning
 void SkinnedModelGPU::SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, int submeshIndex,
     const std::vector<Matrix>& palette)
 {
     if (!ctx || !cs || submeshIndex < 0 || submeshIndex >= (int)m_SubMeshes.size())
         return;
-    UploadPalette(ctx, palette);   // 上传当前 submesh 专用的 palette
+    UploadPalette(ctx, palette);   // 今の submesh 専用の palette を上げる
 
     auto& gm = m_SubMeshes[submeshIndex];
 
     cs->Bind(ctx);
 
-    // CB b0: 顶点数
+    // CB b0: 頂点数
     struct { UINT vertexCount; UINT pad[3]; } cb{ gm.vertexCount, {0,0,0} };
     cs->WriteBuffer(ctx, 0, &cb);
 
@@ -188,7 +188,7 @@ void SkinnedModelGPU::SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, i
 
     ctx->Dispatch((gm.vertexCount + 255) / 256, 1, 1);
 
-    // 解绑
+    // アンバインド
     ID3D11ShaderResourceView* nullSRV[2] = { nullptr, nullptr };
     ctx->CSSetShaderResources(0, 2, nullSRV);
     ID3D11UnorderedAccessView* nullUAV = nullptr;
@@ -231,7 +231,7 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model
         Material* mat = model.GetMaterial(gm.materialIndex);
         if (!mat || !mat->HasVS() || !mat->HasPS()) continue;
 
-        // VS / PS / 貼图（t0〜t4 は PS 側）
+        // VS / PS / テクスチャ（t0〜t4 は PS 側）
         mat->Bind(ctx);
         ctx->PSSetSamplers(0, 1, &samp);
 

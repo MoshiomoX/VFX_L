@@ -2,22 +2,22 @@
     "entries": [
         {
             "data": {
-                "angularVelRange": [-1.0, 1.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 38,
-                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1,
+                "angularVelRange": [-1.0, 1.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 52,
+                "sheet": 2, "frameMode": 3, "frameCount": 25, "blend": 1, "toon": { "cut": 0.30, "bands": 2, "shade": 0.70, "outline": true },
                 "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 3.0,
                 "emitRate": 160.0, "emitType": 1,
-                "endColorMax": [0.28, 0.26, 0.22, 0.0], "endColorMin": [0.26, 0.24, 0.20, 0.0],
+                "endColorMax": [0.70, 0.62, 0.50, 0.0], "endColorMin": [0.64, 0.57, 0.46, 0.0],
                 "gravity": [0.0, 0.6, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.45, 0.7], "maxParticles": 200,
                 "position": [0.0, -0.7, 0.0], "radius": 0.35, "renderMode": 0, "rotationRange": [0.0, 6.28],
                 "sizeRange": [0.35, 0.5, 0.8, 1.1], "speedRange": [1.0, 2.2], "spreadAngle": 0.0,
-                "startColorMax": [0.32, 0.30, 0.26, 0.55], "startColorMin": [0.28, 0.26, 0.22, 0.5]
+                "startColorMax": [0.78, 0.70, 0.56, 0.55], "startColorMin": [0.70, 0.63, 0.50, 0.5]
             },
             "duration": 0.1, "startTime": 0.0, "type": "Particle"
         },
         {
             "data": {
                 "angularVelRange": [-6.0, 6.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 5,
-                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1,
+                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1, "toon": { "cut": 0.35, "bands": 1, "shade": 0.60, "outline": true },
                 "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.5,
                 "emitRate": 100.0, "emitType": 1,
                 "endColorMax": [0.20, 0.15, 0.10, 0.0], "endColorMin": [0.18, 0.13, 0.09, 0.0],

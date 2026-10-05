@@ -89,17 +89,17 @@ public:
     // --- 描き方 ---
     int renderMode = 0;       // 0 = ビルボード / 1 = メッシュ（既定は組み込みの立方体）
     // メッシュの時だけ使う（ToGPU が ParticleRenderMode::Pack で GPUEmitter::renderMode へ詰める）
-    std::string meshPath;             // 模型のファイル（"" = 立方体）。json "mesh"
+    std::string meshPath;             // モデルのファイル（"" = 立方体）。json "mesh"
     bool meshGlow = false;            // 発光（加算・光を受けない）。false = 不透明・光を受ける
     bool meshFaceVelocity = false;    // 前方の軸を進行方向へ向ける（回転の範囲は使わない）
-    int  meshForwardAxis = 2;         // 模型の前方の軸（0 = +X / 1 = +Y / 2 = +Z）
-    int  meshSlot = 0;                // 実行時：GPUParticleSystem の模型表の番号（登録は entry 側。0 = 立方体）
+    int  meshForwardAxis = 2;         // モデルの前方の軸（0 = +X / 1 = +Y / 2 = +Z）
+    int  meshSlot = 0;                // 実行時：GPUParticleSystem のモデル表の番号（登録は entry 側。0 = 立方体）
     // 発射元（GPU の弾など）の速度を初速に足す。弾と一緒に飛ぶ見た目用（GPU の弾の上でだけ効く）。json "inheritVelocity"
     bool inheritVelocity = false;
 
-    // --- 貼图（ビルボードだけ）---
+    // --- テクスチャ（ビルボードだけ）---
     // textureIndex = ParticleSheets の番号。0 番（旧 6x6）は下の行列を使い、
-    // 1 番以降は貼图の説明 json の行列を ToGPU が入れる
+    // 1 番以降はテクスチャの説明 json の行列を ToGPU が入れる
     int atlasRows = 6;
     int atlasCols = 6;
     int atlasIndex = 0;       // 最初のコマ
@@ -108,6 +108,16 @@ public:
     int frameMode = 0;         // ParticleFrameMode（0 = 旧式）。json "frameMode"
     int frameCount = 1;        // Animate / Random のコマ数。json "frameCount"
     bool alphaBlend = false;   // 半透明で描く（false = 加算で光る）。json "blend"
+
+    // --- トゥーン（ビルボードだけ。2026-10-04）---
+    // テクスチャの alpha を境で切って縁をくっきりさせ（色の alpha の減り = 形が痩せて消える）、
+    // 内側から外側へ色を段に分け、外周に濃い線。煙・土・毒霧向け（光る火花・光の玉は切ると紙っぽくなる）。
+    // ToGPU が renderMode の 14 bit 以降へ詰める（ParticleRenderMode::PackToon、GPUParticlePS）。json "toon" {...}
+    bool  toon = false;
+    float toonCut = 0.30f;       // alpha の境（0.05〜0.80。大きいほど塊が小さく締まる）
+    int   toonBands = 2;         // 色の段（1〜3）
+    float toonShade = 0.60f;     // 一番外の段の明るさ（内側 = 1）
+    bool  toonOutline = true;    // 外周の濃い線
 
     // --- Color over Lifetime ---
     static const int MAX_COLOR_KEYS = 8;

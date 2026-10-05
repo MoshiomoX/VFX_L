@@ -53,7 +53,7 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
         e.atlasIndex = atlasAnimate ? -1 : atlasIndex;
     else
         e.atlasIndex = atlasIndex;
-    // 1 番以降の貼图は格子の形が決まっている（説明 json）ので、手で入れた値は使わない
+    // 1 番以降のテクスチャは格子の形が決まっている（説明 json）ので、手で入れた値は使わない
     if (textureIndex > 0)
         if (const auto* sheet = ParticleSheets::Get(textureIndex))
         {
@@ -72,6 +72,8 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
         ? (alphaBlend ? ParticleRenderMode::kBillboardAlpha : 0)
         : ParticleRenderMode::Pack(meshSlot, meshGlow, meshFaceVelocity, meshForwardAxis);
     if (inheritVelocity) e.renderMode |= ParticleRenderMode::kInheritSourceVelocity;
+    if (renderMode == 0 && toon)   // トゥーン（ビルボードだけ）
+        e.renderMode |= ParticleRenderMode::PackToon(toonOutline, toonCut, toonBands, toonShade);
 
 
     // 形状パラメータをemitTypeに応じてパッキング

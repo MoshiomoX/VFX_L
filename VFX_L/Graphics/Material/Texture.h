@@ -24,7 +24,7 @@ public:
     // （共有キャッシュを通さない専用の絵だけ。キャッシュの絵は UNORM のまま）
     bool Load(ID3D11Device* device, const std::wstring& filepath, bool srgb = false);
 
-    // 複数の画像を 1 つの Texture2DArray に（2026-10-03、地形の貼図）。1 枚目の大きさに揃え、
+    // 複数の画像を 1 つの Texture2DArray に（2026-10-03、地形のテクスチャ）。1 枚目の大きさに揃え、
     // RGBA8 UNORM・mipmap 付き。シェーダーは Texture2DArray で読む（sRGB の解き方は使う側の PS）
     // outAverage: 各層の平均色（一番小さい mip の 1 画素、0..1、ファイルの値のまま = sRGB の絵なら sRGB）
     bool LoadArray(ID3D11Device* device, const std::vector<std::wstring>& files,

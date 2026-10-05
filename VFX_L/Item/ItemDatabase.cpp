@@ -42,7 +42,7 @@ namespace
     std::vector<ItemID> g_LevelUpOnlyIDs;  // レベルアップの候補にだけ出る物（能力値）
     bool g_Initialized = false;
 
-    // Items/*.h に書いてある形（json で上書きする前）。編集器の「コードの既定に戻す」用
+    // Items/*.h に書いてある形（json で上書きする前）。エディタの「コードの既定に戻す」用
     std::unordered_map<ItemID,
         std::pair<std::vector<CellOffset>, std::vector<CellOffset>>> g_CodeShapes;
 
@@ -77,8 +77,8 @@ namespace
         g_Frames[def.common.id] = def;
         g_AllIDs.push_back(def.common.id);
     }
-    // 能力値は g_AllIDs に入れない。背包・呪文書・デバッグの一覧は GetAllIDs を回すので、
-    // 入れると「背包に置ける物」として扱われてしまう
+    // 能力値は g_AllIDs に入れない。バックパック・呪文書・デバッグの一覧は GetAllIDs を回すので、
+    // 入れると「バックパックに置ける物」として扱われてしまう
     void Register(const StatItemDef& def)
     {
         g_Stats[def.common.id] = def;
@@ -132,9 +132,9 @@ void ItemDatabase::Initialize()
     Register(MakeJumpCountUp());
     Register(MakeSpellPowerUp());
 
-    // ---- 形（占位格・影響格）----
-    // コードに書いた形を覚えてから、保存済みの道具データ（ItemData/<名前>.json）で上書きする。
-    // 能力値は背包に置かないので形を持たない（g_AllIDs に入っていない）
+    // ---- 形（占有マス・影響マス）----
+    // コードに書いた形を覚えてから、保存済みのアイテムデータ（ItemData/<名前>.json）で上書きする。
+    // 能力値はバックパックに置かないので形を持たない（g_AllIDs に入っていない）
     g_CodeShapes.clear();
     int shapeFiles = 0;
     for (ItemID id : g_AllIDs)

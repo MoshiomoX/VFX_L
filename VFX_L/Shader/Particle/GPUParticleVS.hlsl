@@ -21,6 +21,9 @@ struct VSOutput
     nointerpolation uint uvFrame : TEXCOORD3;
     nointerpolation uint sheet : TEXCOORD4; // ParticleSheets index (particle.textureIndex)
     nointerpolation uint alphaBlend : TEXCOORD5; // 1 = alpha blended, 0 = additive
+    nointerpolation uint renderMode : TEXCOORD6; // toon bits (PARTICLE_TOON_*, GPUParticlePS)
+    // toon: x = life left relative to the start alpha (erodes the shape), y = opacity (start alpha x 1.3)
+    nointerpolation float2 toonFade : TEXCOORD7;
 };
 
 VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
@@ -57,6 +60,9 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     output.uvFrame = p.uvFrame;
     output.sheet = (uint) max(p.textureIndex, 0);
     output.alphaBlend = (((uint) p.renderMode) & PARTICLE_BILLBOARD_ALPHA) ? 1u : 0u;
+    output.renderMode = (uint) p.renderMode;
+    float startA = max(p.startColor.a, 1e-3);
+    output.toonFade = float2(saturate(p.color.a / startA), saturate(startA * 1.3));
 
     float3 camRight = float3(g_View[0][0], g_View[1][0], g_View[2][0]);
     float3 camUp = float3(g_View[0][1], g_View[1][1], g_View[2][1]);

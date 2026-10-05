@@ -19,7 +19,7 @@ using DirectX::SimpleMath::Vector4;
 
 namespace
 {
-    constexpr int   kEditHalf = 4;           // 形のマス目は -4..4（9x9。背包と同じ広さ）
+    constexpr int   kEditHalf = 4;           // 形のマス目は -4..4（9x9。バックパックと同じ広さ）
     constexpr int   kEditSize = kEditHalf * 2 + 1;
     constexpr float kEditCell = 22.0f;
     constexpr float kBenchCell = 26.0f;
@@ -34,7 +34,7 @@ namespace
     const ImU32 kColPlaceable = IM_COL32(115, 82, 56, 255);
     const ImU32 kColLocked = IM_COL32(36, 28, 23, 217);
 
-    // 占位格の雛形（Apply で今の占位格を差し替える。影響格はそのまま）
+    // 占有マスの雛形（Apply で今の占有マスを差し替える。影響マスはそのまま）
     //   アンカーは回転の中心になるので、なるべく真ん中寄り
     struct Preset { const char* name; std::vector<CellOffset> cells; };
     const std::vector<Preset>& Presets()
@@ -78,7 +78,7 @@ namespace
         return BackpackLogic::RotateShape({ o }, rotation)[0];
     }
 
-    // 占位格が 4 近傍でつながっているか
+    // 占有マスが 4 近傍でつながっているか
     bool IsConnected(const std::vector<CellOffset>& cells)
     {
         if (cells.size() <= 1) return true;
@@ -183,12 +183,12 @@ void ItemShapePanel::Init(SwarmSystem* swarm, AreaVFXPlayer* areaVFX, const VFXC
 
     m_Reg.Add<BackpackComponent>(m_Caster, {});
 
-    // 全面に枠 + 真ん中に火球、右隣に分裂符（開いた瞬間に「影響で 2 発になる」が見える）
+    // 全面に枠 + 真ん中に火球（2x2）、右隣に分裂ルーン（開いた瞬間に「影響で 2 発になる」が見える）
     FillFrames();
     BackpackComponent& bp = Bench();
     const int mid = BackpackComponent::GRID / 2;
     BackpackLogic::Place(bp, ItemID::Fireball, mid, mid, 0);
-    BackpackLogic::Place(bp, ItemID::SplitRune, mid, mid + 1, 0);
+    BackpackLogic::Place(bp, ItemID::SplitRune, mid, mid + 2, 0);
 
     if (!ItemDatabase::GetAllIDs().empty())
         m_Item = m_BenchItem = ItemDatabase::GetAllIDs().front();
@@ -301,8 +301,8 @@ void ItemShapePanel::DrawTab()
 }
 
 // ============================================================
-// 道具の一覧（塗る道具を選ぶ）
-//   * = 未保存、[file] = 保存済みの道具データがある（コードの形を上書きしている）
+// アイテムの一覧（塗るアイテムを選ぶ）
+//   * = 未保存、[file] = 保存済みのアイテムデータがある（コードの形を上書きしている）
 // ============================================================
 void ItemShapePanel::DrawItemList()
 {
@@ -336,8 +336,8 @@ void ItemShapePanel::DrawItemList()
 }
 
 // ============================================================
-// 形のマス目（選んでいる道具の形）
-//   左 = 占位格、右 = 影響格（押したマスの反転値でなぞり塗り）
+// 形のマス目（選んでいるアイテムの形）
+//   左 = 占有マス、右 = 影響マス（押したマスの反転値でなぞり塗り）
 //   Ctrl + 左 = そのマスがアンカー (0,0) になるよう全体をずらす
 //   表示だけ回せる。塗った位置は回転を戻して形へ書く
 // ============================================================
@@ -346,7 +346,7 @@ void ItemShapePanel::DrawShapeGrid()
     const ItemCommon* c = ItemDatabase::GetCommon(m_Item);
     if (!c) return;
 
-    // 枠は他を強化しないので影響格を塗らせない
+    // 枠は他を強化しないので影響マスを塗らせない
     const bool isFrame = (c->category == ItemCategory::Frame);
     std::vector<CellOffset> occ = c->occupyCells;
     std::vector<CellOffset> infl = c->influenceCells;
@@ -403,12 +403,12 @@ void ItemShapePanel::DrawShapeGrid()
         m_LastPaintC = gc;
         if (m_PaintLayer == 0)
         {
-            // 最後の 1 マスは消させない（占位格が空だと「どこにでも置けて何も塞がない」物になる）
+            // 最後の 1 マスは消させない（占有マスが空だと「どこにでも置けて何も塞がない」物になる）
             const bool lastOne = !m_PaintValue && occ.size() == 1 && Has(occ, sc.row, sc.col);
             if (!lastOne)
             {
                 SetCell(occ, sc.row, sc.col, m_PaintValue);
-                // 占位格にしたマスは影響格から外す（自分自身には効かないので意味が無い）
+                // 占有マスにしたマスは影響マスから外す（自分自身には効かないので意味が無い）
                 if (m_PaintValue) SetCell(infl, sc.row, sc.col, false);
                 changed = true;
             }
@@ -466,7 +466,7 @@ void ItemShapePanel::DrawShapeGrid()
 }
 
 // ============================================================
-// 形の道具箱：雛形・ずらす・影響格の自動生成・戻す + 警告
+// 形のアイテム箱：雛形・ずらす・影響マスの自動生成・戻す + 警告
 // ============================================================
 void ItemShapePanel::DrawShapeTools()
 {
@@ -478,7 +478,7 @@ void ItemShapePanel::DrawShapeTools()
     std::vector<CellOffset> infl = c->influenceCells;
     bool changed = false;
 
-    // ---- 占位格の雛形 ----
+    // ---- 占有マスの雛形 ----
     const auto& presets = Presets();
     m_Preset = std::clamp(m_Preset, 0, (int)presets.size() - 1);
     ImGui::Text("Occupy preset");
@@ -518,7 +518,7 @@ void ItemShapePanel::DrawShapeTools()
     ImGui::SameLine(); if (ImGui::ArrowButton("##sd", ImGuiDir_Down))  shift(1, 0);
     ImGui::SameLine(); if (ImGui::ArrowButton("##sr", ImGuiDir_Right)) shift(0, 1);
 
-    // ---- 影響格の自動生成：占位格のまわりを囲む ----
+    // ---- 影響マスの自動生成：占有マスのまわりを囲む ----
     auto autoInfluence = [&](bool diagonal)
         {
             infl.clear();
@@ -617,7 +617,7 @@ void ItemShapePanel::DrawBench()
 
     ImGui::TextDisabled("Same path as the game: BackpackLogic -> Aggregate -> WeaponSystem");
 
-    // ---------- 道具を選ぶ ----------
+    // ---------- アイテムを選ぶ ----------
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Palette   (rotation %d deg, R = rotate)", m_BenchRot * 90);
     if (ImGui::BeginListBox("##palette", ImVec2(-1, 120)))
     {
@@ -642,7 +642,7 @@ void ItemShapePanel::DrawBench()
     ImGui::SameLine();
     if (ImGui::Button("Rot +")) m_BenchRot = (m_BenchRot + 1) % 4;
 
-    // ---------- 背包 ----------
+    // ---------- バックパック ----------
     DrawBenchGrid();
 
     BackpackComponent& bp = Bench();
@@ -675,9 +675,9 @@ void ItemShapePanel::DrawBench()
 
 // ============================================================
 // 試し置きのマス目
-//   左クリック = 選んだ道具を置く（枠なら枠として）
+//   左クリック = 選んだアイテムを置く（枠なら枠として）
 //   右クリック = そのマスの魔法を外す（無ければ枠を外す）
-//   道具の上にマウス = その影響格と、影響を受けている道具を光らせる
+//   アイテムの上にマウス = その影響マスと、影響を受けているアイテムを光らせる
 //   空きマスの上 = 置いた時の影（緑 = 置ける / 赤 = 置けない）
 // ============================================================
 void ItemShapePanel::DrawBenchGrid()
@@ -738,7 +738,7 @@ void ItemShapePanel::DrawBenchGrid()
     const int hoverItem = onCell ? BackpackLogic::GetItemAt(bp, hr, hc) : -1;
     if (hoverItem >= 0)
     {
-        // 影響格 + 影響を受けている道具
+        // 影響マス + 影響を受けているアイテム
         const auto& src = bp.items[hoverItem];
         const ItemCommon* c = ItemDatabase::GetCommon(src.id);
         if (c && !c->influenceCells.empty())

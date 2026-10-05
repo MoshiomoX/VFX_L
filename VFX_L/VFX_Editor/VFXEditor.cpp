@@ -13,7 +13,7 @@
 namespace
 {
     // ビルボード粒子の最初のコマを小さく見せる。
-    // 0 番の貼图はシーンが渡した物（legacy）があればそちら、1 番以降は貼图表から
+    // 0 番のテクスチャはシーンが渡した物（legacy）があればそちら、1 番以降はテクスチャ表から
     void DrawParticleTexturePreview(const GPUParticleEmitter& e, const Texture* legacy)
     {
         if (e.renderMode != 0) return;
@@ -136,7 +136,7 @@ void VFXEditor::DrawTimeline()
         }
     }
 
-    // 各Entryの横条
+    // 各Entryの横縞
     const ImU32 entryColors[] = {
         IM_COL32(70, 130, 230, 200),
         IM_COL32(230, 180, 70, 200),
@@ -163,7 +163,7 @@ void VFXEditor::DrawTimeline()
         int typeIdx = static_cast<int>(entry->GetType());
         ImU32 color = entryColors[typeIdx % 6];
 
-        // 横条
+        // 横縞
         drawList->AddRectFilled(ImVec2(startX, y), ImVec2(endX, y + 22.0f), color, 4.0f);
 
         // 選択ハイライト

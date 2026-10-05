@@ -47,7 +47,7 @@ void EliteSpawner::Respawn(Registry& reg, const Vector3* player)
 }
 
 // ============================================================
-// 精英（無敵の的）を1体作る
+// エリート（無敵の的）を1体作る
 // 雑魚はここでは作らない。雑魚は SwarmSystem::SpawnEnemy へ
 // ============================================================
 void EliteSpawner::Spawn(Registry& reg, const Vector3& pos)
@@ -91,9 +91,9 @@ void EliteSpawner::Spawn(Registry& reg, const Vector3& pos)
 }
 
 // ============================================================
-// 精英の骨付きモデル
-// 玩家と同じ SkinnedAnimComponent 経路（SkinnedAnimSystem が時計、RenderSystem が描画）。
-// 状態機は無いので base 層に Idle を流すだけ。的なので玩家の方（-Z）を向かせる
+// エリートの骨付きモデル
+// プレイヤーと同じ SkinnedAnimComponent 経路（SkinnedAnimSystem が時計、RenderSystem が描画）。
+// ステートマシンは無いので base 層に Idle を流すだけ。的なのでプレイヤーの方（-Z）を向かせる
 // ============================================================
 bool EliteSpawner::AttachVisual(Registry& reg, Entity e)
 {
@@ -113,13 +113,13 @@ bool EliteSpawner::AttachVisual(Registry& reg, Entity e)
     reg.Add<SkinnedAnimComponent>(e, anim);
 
     if (reg.Has<TransformComponent>(e))
-        reg.Get<TransformComponent>(e).rotation.y = 180.0f;   // 玩家の方を向く
+        reg.Get<TransformComponent>(e).rotation.y = 180.0f;   // プレイヤーの方を向く
     return true;
 }
 
 // ============================================================
 // 死亡 → 燃焼消滅
-// HP が尽きた CPU 実体（精英など。玩家は PlayerStateSystem が扱う）に
+// HP が尽きた CPU 実体（エリートなど。プレイヤーは PlayerStateSystem が扱う）に
 // DissolveComponent + DeathBurn を付ける。消え終わったら MeshVFXSystem が実体を破棄する
 // ============================================================
 void EliteSpawner::UpdateDeaths(Registry& reg, MeshVFXSystem& meshVfx, const VFXContext& ctx)
@@ -138,7 +138,7 @@ void EliteSpawner::UpdateDeaths(Registry& reg, MeshVFXSystem& meshVfx, const VFX
 }
 
 // ============================================================
-// ImGui: Enemies 面板の精英（CPU）の段
+// ImGui: Enemies パネルのエリート（CPU）の段
 // ============================================================
 bool EliteSpawner::DrawImGui(Registry& reg, const MeshVFXSystem& meshVfx)
 {

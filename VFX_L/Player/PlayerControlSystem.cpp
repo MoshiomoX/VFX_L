@@ -96,8 +96,8 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
                 wand.castRequested = castTrigger;
             });
 
-    // 魔力解放（3 秒間魔力を消費しない、30 秒に 1 回。再使用待ちの間は何も起きない）。
-    // 施法の一時停止はプレイヤーの操作から外した（2026-10-01。WandComponent::castingPaused は調試面板・自測用に残る）
+    // 魔力解放（3 秒間魔力を消費しない、20 秒に 1 回。再使用待ちの間は何も起きない）。
+    // 詠唱の一時停止はプレイヤーの操作から外した（2026-10-01。WandComponent::castingPaused はデバッグパネル・自動テスト用に残る）
     if (surgeTrigger)
         reg.CreateView<ManaComponent, PlayerTag>()
             .Each([&](Entity, ManaComponent& mana, PlayerTag&) { mana.TryStartSurge(); });

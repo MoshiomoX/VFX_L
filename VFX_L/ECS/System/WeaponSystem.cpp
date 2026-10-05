@@ -40,7 +40,7 @@ namespace
 }
 
 // ============================================================
-// 1回の施法ぶんの発射要求を積む（分裂の扇状展開はここ）
+// 1回の詠唱ぶんの発射要求を積む（分裂の扇状展開はここ）
 // ============================================================
 void WeaponSystem::QueueOneCast(const SpellStats& s,
     const Vector3& muzzle, const Vector3& dir, float durationMul)
@@ -79,7 +79,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
 }
 
 // ============================================================
-// 高級魔法 1 回分（誘発）: 基礎魔法の弾が消えた場所 impact に落とす。
+// 上級魔法 1 回分（誘発）: 基本魔法の弾が消えた場所 impact に落とす。
 // 分裂（projectileCount > 1）は着弾点を impact の周りの輪に並べる（扇に開くと同じ所に重なるだけなので）
 // ============================================================
 void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
@@ -120,7 +120,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 {
     m_Requests.clear();
 
-    // 基礎魔法の弾が消えた場所（回読なので 2〜3 フレーム古い）。高級魔法はここでだけ撃つ
+    // 基本魔法の弾が消えた場所（リードバックなので 2〜3 フレーム古い）。上級魔法はここでだけ撃つ
     m_TriggerEvents.clear();
     if (m_Swarm) m_Swarm->ConsumeTriggerEvents(m_TriggerEvents);
     m_TriggerEventsSeen += (uint32_t)m_TriggerEvents.size();
@@ -130,13 +130,13 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     reg.CreateView<TransformComponent, WandComponent, ManaComponent>()
         .EachFrom<WandComponent>([&](Entity e, TransformComponent& tf, WandComponent& wand, ManaComponent& mana)
             {
-                // ---- 施法アニメ用のタイマーを進める ----
+                // ---- 詠唱アニメ用のタイマーを進める ----
                 if (wand.castAnimTimer > 0.0f)
                     wand.castAnimTimer -= dt;
 
                 // ---- 魔力解放（2026-10-02）----
-                // 詠唱: 発動間隔・高級魔法の冷却・連発の間の計時を castSpeed 倍で進める
-                //   （始まった時に冷却中だった魔法もすぐ速くなり、終われば残りは普通の速さに戻る。HUD の冷却表示ともずれない）
+                // 詠唱: 発動間隔・上級魔法のクールダウン・連発の間の計時を castSpeed 倍で進める
+                //   （始まった時にクールダウン中だった魔法もすぐ速くなり、終われば残りは普通の速さに戻る。HUD のクールダウン表示ともずれない）
                 // 持続: 解放中に撃った魔法の持続する範囲（毒の池・光線）を durationMul 倍に。撃った時に決まる
                 const float castSpeed = mana.CastSpeed();
                 const float durationMul = mana.DurationMul();
@@ -146,9 +146,9 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 // ============================================================
                 // 索敵は1回だけ（全ての出力源が同じ目標を向く）
-                // CPU（精英）と GPU（雑魚）の両方から最寄りを取り、近い方を採用する。
-                // GPU 側は回読なので 1〜2 フレーム古い。速度を持っているので
-                // 弾速に応じた提前量で補正する（下の aimFor）
+                // CPU（エリート）と GPU（雑魚）の両方から最寄りを取り、近い方を採用する。
+                // GPU 側はリードバックなので 1〜2 フレーム古い。速度を持っているので
+                // 弾速に応じた先読み量で補正する（下の aimFor）
                 // ============================================================
                 bool    hasTarget = false;
                 bool    targetIsGpu = false;
@@ -156,7 +156,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 Vector3 targetVel = Vector3::Zero;
                 float   bestDist = wand.range;
 
-                // --- CPU: 精英 ---
+                // --- CPU: エリート ---
                 Entity cpuTarget = 0;
                 if (collision.FindNearestEntity(muzzle, wand.range, Layer_Enemy, cpuTarget))
                 {
@@ -180,7 +180,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     float   gd;
                     if (m_Swarm->GetNearestEnemy(gp, gv, gd))
                     {
-                        // 回読の距離は玩家中心基準。杖口基準で測り直す
+                        // リードバックの距離はプレイヤー中心基準。杖先基準で測り直す
                         const float d = (gp - muzzle).Length();
                         if (d < bestDist)
                         {
@@ -209,7 +209,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         return dir;
                     };
 
-                // 可視化用は提前量なしの素の方向
+                // 可視化用は先読み量なしの素の方向
                 const Vector3 aimDir = hasTarget ? aimFor(0.0f) : Vector3(0, 0, 1);
 
                 m_AimDebug.hasTarget = hasTarget;
@@ -221,7 +221,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 // ---- 発射の許可をモードで決める ----
                 // ※pendingCasts はモードに関係なく消化する。
-                //   一度始めた連発は最後まで撃ち切る（1回の施法 = 1 combo）。
+                //   一度始めた連発は最後まで撃ち切る（1回の詠唱 = 1 combo）。
                 bool allowNewCast = true;
                 bool ignoreCooldown = false;
 
@@ -239,15 +239,15 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     break;
                 }
 
-                // プレイヤーが施法を止めている（Q / パッド Y）。
-                // 飛行物・範囲とも新しい施法をしない。連発の残りは上の方針どおり撃ち切る
+                // プレイヤーが詠唱を止めている（Q / パッド Y）。
+                // 飛行物・範囲とも新しい詠唱をしない。連発の残りは上の方針どおり撃ち切る
                 if (wand.castingPaused)
                     allowNewCast = false;
 
                 // ---- 出力源ごとに独立して処理する ----
                 for (auto& s : wand.spells)
                 {
-                    // === 連発の続き（二重釈放の残り）===
+                    // === 連発の続き（二重詠唱の残り）===
                     if (s.pendingCasts > 0)
                     {
                         s.delayTimer -= castDt;
@@ -255,7 +255,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         {
                             if (s.triggered)
                             {
-                                // 高級魔法の連発は最初と同じ場所へ
+                                // 上級魔法の連発は最初と同じ場所へ
                                 if (mana.CanAfford(s.manaCost))
                                 {
                                     QueueTriggeredCast(s, s.triggerPos, muzzle, durationMul);
@@ -271,14 +271,14 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                             --s.pendingCasts;
                             s.delayTimer = s.castDelay;
                         }
-                        continue;   // 連発中は新しい施法を始めない
+                        continue;   // 連発中は新しい詠唱を始めない
                     }
 
-                    // === 新しい施法 ===
+                    // === 新しい詠唱 ===
                     // ※castTimer は撃てなくても減らし続ける。
                     //   標的が現れた瞬間に撃てるようにするため。
                     s.castTimer -= castDt;
-                    if (s.triggered) continue;   // 高級魔法は下の「誘発」でだけ撃つ
+                    if (s.triggered) continue;   // 上級魔法は下の「誘発」でだけ撃つ
                     if (!ignoreCooldown && s.castTimer > 0.0f) continue;
                     if (!allowNewCast) continue;
                     if (!hasTarget) continue;
@@ -288,20 +288,20 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     mana.Reserve(s.manaCost);
                     wand.castAnimTimer = wand.castAnimDuration;
 
-                    // 二重釈放: 残りの回数を pending として積んでおく
+                    // 二重詠唱: 残りの回数を pending として積んでおく
                     s.pendingCasts = (std::max)(0, s.castCount - 1);
                     s.delayTimer = s.castDelay;
                     s.castTimer = s.castInterval;
                 }
 
                 // ============================================================
-                // 誘発: 基礎魔法の弾が消えた場所で高級魔法を撃つ（火球・石弾 → 隕石）。
-                // 高級魔法は自分の冷却と MP を持ち、冷却が明けてから最初に届いた場所で 1 回撃つ。
+                // 誘発: 基本魔法の弾が消えた場所で上級魔法を撃つ（火球・石弾 → 隕石）。
+                // 上級魔法は自分のクールダウンと MP を持ち、クールダウンが明けてから最初に届いた場所で 1 回撃つ。
                 // 標的は要らない（場所が決まっている）
                 // ============================================================
                 for (const auto& ev : m_TriggerEvents)
                 {
-                    // ---- bit 16〜31: 高級の範囲魔法（光線）。弾が消えた方向へ手から撃つ ----
+                    // ---- bit 16〜31: 上級の範囲魔法（光線）。弾が消えた方向へ手から撃つ ----
                     for (uint32_t j = 0; j < (uint32_t)wand.areas.size() && j < 16; ++j)
                     {
                         if ((ev.tag & (1u << (16 + j))) == 0) continue;
@@ -324,7 +324,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     {
                         if ((ev.tag & (1u << k)) == 0) continue;
                         auto& s = wand.spells[k];
-                        if (!s.triggered || s.pendingCasts > 0) continue;   // 背包を組み替えて添字がずれた物も弾く
+                        if (!s.triggered || s.pendingCasts > 0) continue;   // バックパックを組み替えて添字がずれた物も弾く
                         if (!ignoreCooldown && s.castTimer > 0.0f) continue;
                         if (!allowNewCast) continue;
                         if (!mana.CanAfford(s.manaCost)) continue;
@@ -345,7 +345,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 // ============================================================
                 // 範囲攻撃（爆発・法環）
                 // 判定は GPU（SwarmSystem の Area）。ここは「いつ・どこに出すか」を決めるだけ。
-                // 標的の足元に出す物は標的が要る。玩家の位置に出す物は標的が居なくても出る
+                // 標的の足元に出す物は標的が要る。プレイヤーの位置に出す物は標的が居なくても出る
                 // ============================================================
                 UpdateBeams(dt, muzzle, collision);   // 出ている光線（溜め → 判定 → 終了）
 
@@ -363,7 +363,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     const Vector3 center = atCaster ? tf.position : targetPos;
 
                     // 単発/持続・厚み・追従・硬直 はプロファイルから。
-                    // 半径・持続・tick・威力 は集約済みの値（修飾符込み）
+                    // 半径・持続・tick・威力 は集約済みの値（修飾ルーン込み）
                     const AreaProfile& ap = AreaProfileDB::At(a.profile);
                     Swarm::Area area = ap.MakeArea(center, atCaster);
                     area.radius = a.radius;
@@ -380,7 +380,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                     if (m_AreaVFX && m_AreaVFXCtx)
                     {
-                        // プロファイルの VFX。無ければ道具の vfxId（VFXDatabase のパス）
+                        // プロファイルの VFX。無ければアイテムの vfxId（VFXDatabase のパス）
                         std::string vfx = ap.vfxFile;
                         if (vfx.empty())
                             if (const auto* adef = ItemDatabase::GetArea(a.id))
@@ -400,7 +400,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
     // ============================================================
     // 走査が終わってから GPU（SwarmSystem）へ積む。
-    //   弾は「核」として GPU に積まれ、見た目は配方から粒子が出る。CPU 側の Entity は作らない
+    //   弾は「核」として GPU に積まれ、見た目はレシピから粒子が出る。CPU 側の Entity は作らない
     // ============================================================
     if (!m_Swarm) { m_Requests.clear(); return; }
     for (const auto& req : m_Requests)
@@ -419,10 +419,10 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     }
 }
 // ============================================================
-// 光線（高級の範囲魔法）
-// 誘発で始まる。溜めの間は特効だけ、溜めが終わった瞬間に GPU へ胶囊型の範囲を 1 個出し、
-// 以後は毎フレーム起点（杖口）と終点（向き × 射程を地形で切った所）を SetBeam で渡す。
-// 終点は Beam entry の特効にも同じ物を入れる（当たり判定と見た目が一致する）
+// 光線（上級の範囲魔法）
+// 誘発で始まる。溜めの間はエフェクトだけ、溜めが終わった瞬間に GPU へカプセル型の範囲を 1 個出し、
+// 以後は毎フレーム起点（杖先）と終点（向き × 射程を地形で切った所）を SetBeam で渡す。
+// 終点は Beam entry のエフェクトにも同じ物を入れる（当たり判定と見た目が一致する）
 // ============================================================
 bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Vector3& impact,
     float castSpeed, float durationMul)
@@ -442,7 +442,7 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     b.seek = impact;               // GPU がここに一番近い敵を最初の標的にする
     b.serial = ++m_BeamSerial;
 
-    // 溜め・射程・厚み・硬直はプロファイルから。半径・持続・tick・威力は集約済みの値（修飾符込み）
+    // 溜め・射程・厚み・硬直はプロファイルから。半径・持続・tick・威力は集約済みの値（修飾ルーン込み）
     const AreaProfile& ap = AreaProfileDB::At(a.profile);
     const bool hasProfile = a.profile > 0;
     const float baseCharge = hasProfile ? ap.chargeTime : 0.5f;
@@ -467,7 +467,7 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
                 if (const char* path = VFXDatabase::GetPath(adef->vfxId))
                     vfx = path;
         b.vfxHandle = m_AreaVFX->Play(vfx, muzzle, b.charge + b.timeLeft, false, *m_AreaVFXCtx);
-        // 特効の時間軸は「溜め（baseCharge 秒）→ 光線」で作ってある。溜めを縮め、光線を伸ばして判定と合わせる
+        // エフェクトの時間軸は「溜め（baseCharge 秒）→ 光線」で作ってある。溜めを縮め、光線を伸ばして判定と合わせる
         if (castSpeed != 1.0f || durationMul != 1.0f)
             m_AreaVFX->RemapTimeline(b.vfxHandle, baseCharge, 1.0f / castSpeed, durationMul);
         m_AreaVFX->SetInstance(b.vfxHandle, muzzle, muzzle + b.dir * b.length);
@@ -483,7 +483,7 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
     for (auto& b : m_Beams)
     {
         // 標的へ向きを回す（瞬間には向けない。beamTurnRate 度/秒まで）。
-        // 標的は GPU の回読（2〜3 フレーム古い）。読めない間（始めの数フレーム・射程内に敵が居ない）は今の向きのまま
+        // 標的は GPU のリードバック（2〜3 フレーム古い）。読めない間（始めの数フレーム・射程内に敵が居ない）は今の向きのまま
         Vector3 tp;
         b.hasTarget = m_Swarm && m_Swarm->GetBeamTarget(b.channel, b.serial, tp);
         if (b.hasTarget)
@@ -516,7 +516,7 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
             b.charge -= dt;
             if (b.charge <= 0.0f && !b.spawned && m_Swarm)
             {
-                // 溜め終わり：GPU の胶囊型の範囲を 1 個。中心 / 半径 / 終点は毎ステップ BeamCB から写される
+                // 溜め終わり：GPU のカプセル型の範囲を 1 個。中心 / 半径 / 終点は毎ステップ BeamCB から写される
                 Swarm::Area area;
                 area.center = start;
                 area.radius = b.radius;

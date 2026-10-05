@@ -76,6 +76,14 @@ Vector2 LevelUpUI::CardSize() const
 // カードの左上座標
 // 枚数に応じて全体を中央寄せする
 // ============================================================
+void LevelUpUI::RerollRect(int total, Vector2& pos, Vector2& size) const
+{
+    const float k = m_CardW / 270.0f;
+    size = { m_CardW * rerollWidthRatio, 48.0f * k };
+    const float cardBottom = CardPosition(0, (std::max)(1, total)).y + m_CardH;
+    pos = { (m_ScreenSize.x - size.x) * 0.5f, cardBottom + m_CardW * 0.10f };
+}
+
 Vector2 LevelUpUI::CardPosition(int index, int total) const
 {
     if (total <= 0) return { 0.0f, 0.0f };
@@ -155,6 +163,21 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked)
         m_Cursor = (m_Cursor + total - 1) % total;
     if (input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_RIGHT))
         m_Cursor = (m_Cursor + 1) % total;
+
+    // ---- 金貨で引き直す（R / パッド X / ボタンのクリック）。同じフレームには決定しない ----
+    m_RerollHover = false;
+    if (m_RerollCost >= 0)
+    {
+        Vector2 bp, bs;
+        RerollRect(total, bp, bs);
+        m_RerollHover = mouse.x >= bp.x && mouse.x <= bp.x + bs.x && mouse.y >= bp.y && mouse.y <= bp.y + bs.y;
+        if (input.GetKeyTrigger('R') || input.GetPadTrigger(XINPUT_GAMEPAD_X) ||
+            (input.GetMouseTrigger(0) && m_RerollHover))
+        {
+            m_RerollRequested = true;
+            return false;
+        }
+    }
 
     // ---- 決定 ----
     bool decided = false;
@@ -306,13 +329,32 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
             ? st.Scaled((std::max)(0.6f, avail / need)) : st;
         ItemSheetView::DrawBody(&sprite, m_WhiteTex ? m_WhiteTex : m_BlockTex, text, sheet, { pos.x + pad, y }, inner, body, true);
     }
+
+    // ---- 金貨で引き直すボタン（2026-10-04）。足りない時は文字を暗い赤に ----
+    if (m_RerollCost >= 0)
+    {
+        Vector2 bp, bs;
+        RerollRect(total, bp, bs);
+        const bool afford = m_Gold >= m_RerollCost;
+        UIDeco::PanelStyle ps;
+        ps.fill = m_RerollHover ? hoverColor : cardColor;
+        ps.innerInset = 4.0f * k;
+        UIDeco::DrawPanel(sprite, bp, bs, UIDeco::TintColor(UIDeco::Tint::Gold), ps, (m_RerollHover && afford) ? 1.0f : 0.0f);
+
+        wchar_t buf[96];
+        swprintf_s(buf, L"R  引き直す     金貨 %d   （所持 %d）", m_RerollCost, m_Gold);
+        const float s = rerollTextScale * k;
+        const Vector2 ts = text.Measure(buf, s);
+        const Vector4 col = afford ? headingColor : Vector4(0.60f, 0.10f, 0.07f, 1.0f);   // 線形の暗い赤
+        text.Draw(buf, { bp.x + (bs.x - ts.x) * 0.5f, bp.y + (bs.y - ts.y) * 0.5f }, col, s);
+    }
 }
 
 // ============================================================
 // 形のプレビュー
 // どんな形のブロックが手に入るのかを、その場で見せる。
 // 形そのものが性能なので、名前だけでは判断できない。
-// 占位格 + 影響格の外接矩形を枠（areaPos, areaSize）の中央に合わせ、
+// 占有マス + 影響マスの外接矩形を枠（areaPos, areaSize）の中央に合わせ、
 // 大きい形は収まるまでマスを縮める。
 // 異形はアンカーが真ん中とは限らないので、アンカー基準だと片寄る
 // ============================================================
@@ -351,13 +393,13 @@ void LevelUpUI::DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
         areaPos.y + areaSize.y * 0.5f - extent(spanR) * 0.5f - (float)minR * miniPitch
     };
 
-    // 占位格（背包と同じ「色ガラス + 種類の色の輪郭」。隙間も塗って 1 枚に）
+    // 占有マス（バックパックと同じ「色ガラス + 種類の色の輪郭」。隙間も塗って 1 枚に）
     const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
     const Vector4 tint = UIDeco::CategoryColor(c.category);
     ShapeSprite::DrawItemGlass(sprite, white, c.color, tint, nullptr, c.occupyCells,
         miniOrigin, miniCell, miniGap);
 
-    // 影響格（薄く塗って縁を引く。範囲なので 1 マスずつ）
+    // 影響マス（薄く塗って縁を引く。範囲なので 1 マスずつ）
     Vector4 inflCol = tint;
     inflCol.w = 0.18f;
     Vector4 inflEdge = tint;

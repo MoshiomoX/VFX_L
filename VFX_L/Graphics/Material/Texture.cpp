@@ -43,7 +43,7 @@ bool Texture::Load(ID3D11Device* device, const std::wstring& filepath, bool srgb
 }
 
 // ============================================================
-// 複数の画像 → Texture2DArray（地形の貼図）
+// 複数の画像 → Texture2DArray（地形のテクスチャ）
 // 1 枚ずつ WIC で読み、RGBA8 UNORM に揃え（1 枚目と大きさが違えば縮め直す）、mipmap を作ってから
 // 配列の各層へ写す。最後に配列のまま SRV（Texture2DArray）
 // ============================================================

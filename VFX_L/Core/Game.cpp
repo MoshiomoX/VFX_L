@@ -8,7 +8,7 @@
 #include "Scene/ResultScene.h"
 Game::Game()
 {
-    // 初始化 SceneManager（注册场景）
+    // 初期化 SceneManager（シーン登録）
 }
 
 Game::~Game() = default;
@@ -28,7 +28,7 @@ bool Game::Initialize(Renderer* renderer)
 
     // 起動はタイトルから。ゲームへ直行したい時は F1（DebugManager のシーン切替）
     m_SceneManager.ChangeScene(SceneType::TITLE);   // TEMP-TEST
-    // TEMP-TEST: 粒子貼图の自測。VFXL_VFX_AUTOLOAD=<VFXData の json 名> で特効編集へ直行して再生
+    // TEMP-TEST: 粒子テクスチャの自動テスト。VFXL_VFX_AUTOLOAD=<VFXData の json 名> でエフェクト編集へ直行して再生
     char autoloadEnv[128] = {};
     if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoloadEnv, sizeof(autoloadEnv)) > 0
         || GetEnvironmentVariableA("VFXL_REF_MAGE", autoloadEnv, sizeof(autoloadEnv)) > 0)
@@ -36,7 +36,7 @@ bool Game::Initialize(Renderer* renderer)
     else if (GetEnvironmentVariableA("VFXL_PROJ_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::PROJECTILE_EDITOR);
     else if (GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
-        m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);   // 戦闘の反応特効の自測
+        m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);   // 戦闘の反応エフェクトの自動テスト
 
 
 	return true;

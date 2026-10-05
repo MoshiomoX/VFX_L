@@ -44,7 +44,7 @@ private:
     // プール（10万）を1フレームで埋めきる。
     //   dead list の空き数を超えて要求した時に何が起きるかを
     //   実際に目で確認するためのもの。
-    //   EmitCS 側の護欄が効いていれば、空き数までしか出ない。
+    //   EmitCS 側のガードが効いていれば、空き数までしか出ない。
     // ============================================================
     bool   m_BurstPending = false;   // 次の Flush で1回だけ撃つ
     bool   m_BurstLoop = false;   // 毎フレーム撃ち続ける（枯渇維持）
@@ -72,9 +72,9 @@ private:
     VFXContext               m_VFXContext;
     VFXEditor                m_Editor;
     VFXMeshRenderer          m_MeshRenderer;
-    VFXSpriteRenderer        m_SpriteRenderer;   // Sprite entry（連番絵）
+    VFXSpriteRenderer        m_SpriteRenderer;   // Sprite entry（連番画像）
     VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
-    VFXLiquidRenderer           m_LiquidRenderer;   // Liquid entry（液溜まり。編集器では地形無し = 平ら）
+    VFXLiquidRenderer           m_LiquidRenderer;   // Liquid entry（液溜まり。エディタでは地形無し = 平ら）
     std::shared_ptr<Texture> m_ParticleTexture;
 
     float m_TotalTime = 0.0f;
@@ -90,7 +90,7 @@ private:
     std::shared_ptr<ComputeShader> m_SkinningCS;
     float m_AnimTime = 0.0f;
     int   m_PreviewClip = 0;   // 参照モデルの再生クリップ
-    // TEMP-TEST: VFXL_REF_MAGE=<クリップ名,...> で参照モデルを玩家の Mage にし、この順に 3 秒ずつ流す
+    // TEMP-TEST: VFXL_REF_MAGE=<クリップ名,...> で参照モデルをプレイヤーの Mage にし、この順に 3 秒ずつ流す
     std::vector<int> m_RefCycle;
     int   m_RefCycleIndex = 0;
     float m_RefCycleTimer = 0.0f;

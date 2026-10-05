@@ -82,7 +82,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             for (int srcIdx : influencers)
             {
                 auto* fdef = ItemDatabase::GetFunction(bp.items[srcIdx].id);
-                if (!fdef) continue;   // 機能型でないものは影響格を持っていても無視
+                if (!fdef) continue;   // 機能型でないものは影響マスを持っていても無視
 
                 for (const auto& mod : fdef->spellModifiers)
                     ItemDatabase::ApplyModifier(stats, mod);
@@ -91,7 +91,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             }
             ItemInfo::ApplySpellPower(stats, power);
 
-            // 高級魔法: 前提の基礎魔法が全種類届いていなければ撃たない（背包では暗く出る）
+            // 上級魔法: 前提の基本魔法が全種類届いていなければ撃たない（バックパックでは暗く出る）
             if (!pdef->common.triggeredBy.empty())
             {
                 if (!BackpackLogic::IsTriggerReady(bp, (int)i))
@@ -122,7 +122,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             }
             ItemInfo::ApplySpellPower(stats, power);
 
-            // 高級魔法（光線）: 前提が揃っていなければ出さない（背包では暗く出る）
+            // 上級魔法（光線）: 前提が揃っていなければ出さない（バックパックでは暗く出る）
             if (!adef->common.triggeredBy.empty())
             {
                 if (!BackpackLogic::IsTriggerReady(bp, (int)i))
@@ -141,8 +141,8 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         m_Log.push_back(std::move(log));
     }
 
-    // ---- 誘発: 有効な高級魔法 k に影響格を届かせている基礎魔法に bit k を立てる ----
-    // 1 つの基礎魔法が複数の高級魔法に届いていれば全部立つ（どれも自分の冷却で撃つ）
+    // ---- 誘発: 有効な上級魔法 k に影響マスを届かせている基本魔法に bit k を立てる ----
+    // 1 つの基本魔法が複数の上級魔法に届いていれば全部立つ（どれも自分のクールダウンで撃つ）
     for (size_t i = 0; i < bp.items.size(); ++i)
     {
         const int k = spellIndexOf[i];
@@ -155,7 +155,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 wand.spells[d].triggerMask |= 1u << k;
         }
     }
-    // 同じく高級の範囲魔法（光線）j は bit (16 + j)
+    // 同じく上級の範囲魔法（光線）j は bit (16 + j)
     for (size_t i = 0; i < bp.items.size(); ++i)
     {
         const int j = areaIndexOf[i];

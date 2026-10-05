@@ -51,7 +51,7 @@ public:
 
     bool Initialize(ID3D11DeviceContext* ctx, ID3D11Device* device, const SkinnedModel& model);
 
-    // 新增：对单个 submesh 进行 skinning（上传该 submesh 专用的 palette）
+    // 追加：submesh 1 つ分だけスキニングする（その submesh 専用の palette を上げる）
     void SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, int submeshIndex,
         const std::vector<DirectX::SimpleMath::Matrix>& palette);
 
@@ -61,7 +61,7 @@ public:
         const DirectX::SimpleMath::Matrix& view,
         const DirectX::SimpleMath::Matrix& proj);
 
-    // 影図へ深度だけ（VS だけ積んで PS を外す）。蒙皮は済んでいること
+    // シャドウマップへ深度だけ（VS だけ積んで PS を外す）。スキニングは済んでいること
     void RenderDepth(ID3D11DeviceContext* ctx, const SkinnedModel& model,
         const DirectX::SimpleMath::Matrix& world,
         const DirectX::SimpleMath::Matrix& view,

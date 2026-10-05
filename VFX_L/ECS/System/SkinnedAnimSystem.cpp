@@ -5,6 +5,7 @@
 #include "ECS/Registry.h"
 #include "ECS/View.h"
 #include "Component/SkinnedAnimComponent.h"
+#include "Component/TransformComponent.h"
 #include "Graphics/Model/SkinnedModel.h"
 #include <algorithm>
 #include <cmath>
@@ -88,7 +89,21 @@ void SkinnedAnimSystem::Update(Registry& reg, float dt)
             });
 }
 
-bool SkinnedAnimSystem::BuildPose(const SkinnedAnimComponent& a, std::vector<Matrix>& outGlobal)
+Matrix SkinnedAnimSystem::WorldMatrix(const TransformComponent& tf, const SkinnedAnimComponent& a)
+{
+    // Transform.cpp と同じ Yaw/Pitch/Roll の規約。
+    // KayKit のモデル空間の正面は -Z なので、X 軸回りの正の角度で頭が後ろへ倒れる
+    return Matrix::CreateScale(a.scale)
+        * Matrix::CreateRotationX(DirectX::XMConvertToRadians(a.leanDeg))
+        * Matrix::CreateTranslation(a.offset)
+        * Matrix::CreateFromYawPitchRoll(
+            DirectX::XMConvertToRadians(tf.rotation.y + a.yawOffsetDeg),
+            DirectX::XMConvertToRadians(tf.rotation.x),
+            DirectX::XMConvertToRadians(tf.rotation.z))
+        * Matrix::CreateTranslation(tf.position);
+}
+
+bool SkinnedAnimSystem::BuildPose(const SkinnedAnimComponent& a, std::vector<Matrix>& outGlobal, bool applyOverrides)
 {
     if (!a.model) return false;
     const SkinnedModel& model = *a.model;
@@ -113,5 +128,10 @@ bool SkinnedAnimSystem::BuildPose(const SkinnedAnimComponent& a, std::vector<Mat
     }
 
     model.BuildGlobals(pose, outGlobal);
+
+    // 揺れ物（マント等）の結果で差し替え
+    if (applyOverrides)
+        for (const auto& [bone, m] : a.boneOverrides)
+            if (bone >= 0 && bone < (int)outGlobal.size()) outGlobal[bone] = m;
     return true;
 }

@@ -142,7 +142,7 @@ void ResultScene::Update(float dt)
 
     if (retry)
     {
-        // クリアして次の面があれば、戦闘場面が積んだ引き継ぎ（g_RunCarry）のまま次へ。無ければ最初から
+        // クリアして次の面があれば、戦闘シーンが積んだ引き継ぎ（g_RunCarry）のまま次へ。無ければ最初から
         if (!g_LastRun.hasNextStage) g_RunCarry.Reset();
         m_Leaving = true;
         sm.RequestChangeScene(SceneType::COLLISION_TEST);
@@ -209,7 +209,7 @@ void ResultScene::Render(Renderer& renderer)
         const float blink = 0.55f + 0.45f * std::sin(m_Time * 3.0f);
         const std::wstring prompt = m_Leaving ? L"読み込み中..."
             : g_LastRun.hasNextStage ? L"Enter: 次のステージへ     BackSpace: タイトルへ"
-            : L"Enter: もう一度     BackSpace: タイトルへ";
+            : L"Enter: もう一度遊ぶ     BackSpace: タイトルへ";
         const Vector2 ps = m_Text.Measure(prompt, kPromptScale);
         m_Text.Draw(prompt, { (m_ScreenW - ps.x) * 0.5f, m_ScreenH * 0.8f },
             { 1.0f, 1.0f, 1.0f, m_Leaving ? 1.0f : blink }, kPromptScale);

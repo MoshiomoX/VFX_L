@@ -2,7 +2,7 @@
 // ProjectileEditorScene.h
 // 投射物の「飛び方」専用の編集シーン。
 //
-// 戦闘は無い。銃口（= GPU 側の「玩家」位置）から標的の雑魚へ試射を繰り返し、
+// 戦闘は無い。銃口（= GPU 側の「プレイヤー」位置）から標的の雑魚へ試射を繰り返し、
 // 曲線の制御点・型・左右の振り方を調整して json に保存する。
 // 弾は本番と同じ SwarmSystem（GPU）で飛ぶので、ここで見た軌道がそのままゲームに出る。
 //
@@ -11,7 +11,7 @@
 //   暗い線   = 左右反転した側（Mirror が Fixed 以外の時）
 //   細い線   = 制御点の取っ手（p0-p1 / p3-p2）
 //
-// 頁: 1 = 投射物 / 2 = 範囲攻撃 / 3 = 道具の形（ItemShapePanel。試し置きの背包から本番の経路で撃つ）
+// 頁: 1 = 投射物 / 2 = 範囲攻撃 / 3 = アイテムの形（ItemShapePanel。試し置きのバックパックから本番の経路で撃つ）
 // ============================================================
 #pragma once
 #include "Scene/SceneBase.h"
@@ -111,14 +111,14 @@ private:
     // 判定は本番と同じ GPU（SwarmSystem の Area）。見た目は本番と同じく CPU 側で VFX を再生する。
     // 輪の線は CPU 側で同じ時計を回して描いているだけの目安（GPU からは読み戻していない）
     // ============================================================
-    int   m_Tab = 0;                   // 0 = 投射物 / 1 = 範囲 / 2 = 道具の形。開いている頁だけが自動で撃つ
+    int   m_Tab = 0;                   // 0 = 投射物 / 1 = 範囲 / 2 = アイテムの形。開いている頁だけが自動で撃つ
     int   m_TabRequest = -1;           // キー（1 / 2 / 3）で頁を切り替える依頼。-1 = 無し
     int   m_AreaSelected = 0;          // AreaProfileDB の番号（0 = 無し）
     char  m_AreaNameBuf[64] = {};
     bool  m_AreaDirty = false;
     bool  m_AreaAutoCast = true;
     float m_AreaCastTimer = 0.0f;
-    int   m_AreaPlace = 0;             // 0 = 一番近い標的 / 1 = 銃口（= 玩家。追従の確認用）/ 2 = 目印（ギズモで動かす）
+    int   m_AreaPlace = 0;             // 0 = 一番近い標的 / 1 = 銃口（= プレイヤー。追従の確認用）/ 2 = 目印（ギズモで動かす）
     DirectX::SimpleMath::Vector3 m_AreaMarker = { 4.0f, 0.9f, 4.0f };
     std::vector<std::string> m_VfxFiles;
 
@@ -134,12 +134,12 @@ private:
 
     AreaVFXPlayer   m_AreaVFX;
     VFXMeshRenderer m_MeshRenderer;    // 法環の Mesh entry 用
-    VFXSpriteRenderer m_SpriteRenderer;   // Sprite entry（連番絵）用
+    VFXSpriteRenderer m_SpriteRenderer;   // Sprite entry（連番画像）用
     VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
     VFXLiquidRenderer           m_LiquidRenderer;   // Liquid entry（CPU で出す液溜まり）
     VFXContext      m_VFXContext;
 
-    // ---- 道具の形の頁 ----
+    // ---- アイテムの形の頁 ----
     ItemShapePanel  m_ShapePanel;
 
     // ---- 表示 ----

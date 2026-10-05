@@ -83,7 +83,7 @@ LoadedModel ResourceManager::LoadModelAuto(const std::string& filepath)
 // ============================================================
 void ResourceManager::PreloadModelsAsync(const std::vector<std::string>& paths)
 {
-    // Material の既定貼图は静的な遅延初期化。複数スレッドから同時に入られると
+    // Material の既定テクスチャは静的な遅延初期化。複数スレッドから同時に入られると
     // 二重に作るので、先に主スレッドで済ませておく
     Material::InitDefaultTextures(m_Device);
 
@@ -167,7 +167,7 @@ LoadedModel ResourceManager::ImportModelAuto(const std::string& filepath)
         // 別ファイルのアニメ（骨名で当てる。ResourcePaths の kExtraAnims）
         for (const auto& extra : Res::Mdl::kExtraAnims)
             if (filepath == extra.model)
-                out.skinnedModel->AddAnimationsFromFile(extra.animFile);
+                out.skinnedModel->AddAnimationsFromFile(extra.animFile, extra.map, extra.mapCount);
         std::cout << "[LoadModelAuto] -> Skinned : " << filepath << std::endl;
     }
     else
@@ -246,7 +246,7 @@ std::shared_ptr<Texture> ResourceManager::LoadEmbeddedTexture(const std::wstring
 
 // ============================================================
 // ノイズ生成（NoiseGenCS）
-// 配方の内容を key に cache する。R32_FLOAT 1 チャンネル
+// レシピの内容を key に cache する。R32_FLOAT 1 チャンネル
 // （typed UAV store が FL11.0 で保証されている形式）
 // ============================================================
 std::shared_ptr<Texture> ResourceManager::LoadNoiseTexture(const NoiseRecipe& recipe)

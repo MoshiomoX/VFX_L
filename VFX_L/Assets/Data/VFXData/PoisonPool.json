@@ -7,12 +7,12 @@
         },
         {
             "data": {
-                "deepColor": [0.010, 0.060, 0.008, 0.92], "edgeColor": [0.06, 0.28, 0.025, 0.80],
+                "deepColor": [0.010, 0.060, 0.008, 0.92], "edgeColor": [0.08, 0.36, 0.03, 0.85],
                 "glowColor": [0.010, 0.050, 0.005, 2.0], "skyColor": [0.35, 0.45, 0.40, 0.6],
                 "radius": 0.0, "fill": 0.92, "spread": 0.6, "wobble": 0.03,
-                "blend": 0.18, "rimWidth": 0.12, "depthWidth": 0.35, "bump": 0.06,
+                "blend": 0.18, "rimWidth": 0.16, "depthWidth": 0.35, "bump": 0.06,
                 "splashTime": 0.22, "dryTime": 0.7, "specGain": 1.0, "roughness": 0.35,
-                "bubbles": 0.45, "bubbleGain": 0.35, "swirl": 0.25, "swirlScale": 1.6,
+                "bubbles": 0.6, "bubbleGain": 0.4, "swirl": 0.25, "swirlScale": 1.6,
                 "lift": 0.035, "cliff": 0.6, "haloWidth": 0.35, "haloGain": 0.6,
                 "lobes": 7, "spatter": 4, "pointGain": 0.3,
                 "offset": [0.0, -0.86, 0.0], "previewDir": [0.0, 0.0, 1.0]
@@ -30,20 +30,6 @@
                 "position": [0.0, -0.8, 0.0], "radius": 1.9, "renderMode": 0, "rotationRange": [0.0, 0.0],
                 "sizeRange": [0.12, 0.22, 0.18, 0.3], "speedRange": [0.4, 0.9], "spreadAngle": 0.0,
                 "startColorMax": [0.55, 1.0, 0.35, 0.6], "startColorMin": [0.45, 0.95, 0.3, 0.6]
-            },
-            "duration": 1.0, "startTime": 0.0, "type": "Particle"
-        },
-        {
-            "data": {
-                "angularVelRange": [-0.5, 0.5], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
-                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1,
-                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.8,
-                "emitRate": 10.0, "emitType": 5,
-                "endColorMax": [0.15, 0.4, 0.08, 0.0], "endColorMin": [0.15, 0.4, 0.08, 0.0],
-                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [1.4, 2.0], "maxParticles": 30,
-                "position": [0.0, -0.6, 0.0], "radius": 1.8, "renderMode": 0, "rotationRange": [0.0, 6.28],
-                "sizeRange": [0.9, 1.2, 1.6, 2.0], "speedRange": [0.15, 0.35], "spreadAngle": 0.0,
-                "startColorMax": [0.2, 0.5, 0.1, 0.35], "startColorMin": [0.18, 0.45, 0.1, 0.3]
             },
             "duration": 1.0, "startTime": 0.0, "type": "Particle"
         },

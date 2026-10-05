@@ -23,7 +23,7 @@ void BattleAudio::Init(const SwarmSystem& swarm, int stage)
     m_PrevAirJumps = 0;
     m_AirTime = 0.0f;
 
-    // 範囲の profile の sound を、GPU がその範囲に付ける VFX 配方番号（AreaProfileDB::BuildDefs と同じ引き方）へ。
+    // 範囲の profile の sound を、GPU がその範囲に付ける VFX レシピ番号（AreaProfileDB::BuildDefs と同じ引き方）へ。
     // 同じ vfxFile の範囲（Explosion と BomberBlast）は同じ音になる（先に見つけた方）
     const SwarmVFXTable& table = swarm.GetVFXTable();
     for (int i = 1; i < AreaProfileDB::Count(); ++i)
@@ -49,7 +49,7 @@ void BattleAudio::Update(float dt, SwarmSystem& swarm, Registry& reg, Entity pla
         if (m_Births[r] > 0 && !m_RecipeCue[r].empty())
             audio.PlayBurst(m_RecipeCue[r], m_Births[r]);
 
-    // ---- 玩家の跳び・着地・滑り込み ----
+    // ---- プレイヤーの跳び・着地・滑り込み ----
     if (reg.IsValid(player) && reg.Has<RigidbodyComponent>(player) && reg.Has<PlayerStateComponent>(player))
     {
         const auto& rb = reg.Get<RigidbodyComponent>(player);
@@ -73,7 +73,7 @@ void BattleAudio::Update(float dt, SwarmSystem& swarm, Registry& reg, Entity pla
     {
         if (st.bossAlive && !m_Prev.bossAlive)
         {
-            // Boss の登場（2026-10-03 用户「もっと激しく」）: 咆哮 + 低い衝撃音、曲は下で交差フェードせず切り替える
+            // Boss の登場（2026-10-03 ユーザー「もっと激しく」）: 咆哮 + 低い衝撃音、曲は下で交差フェードせず切り替える
             audio.Play("boss_summon");
             audio.Play("boss_impact");
         }

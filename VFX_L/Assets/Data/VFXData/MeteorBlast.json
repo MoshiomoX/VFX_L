@@ -102,7 +102,7 @@
                                      "sheet":  2,
                                      "frameMode":  3,
                                      "frameCount":  9,
-                                     "blend":  1,
+                                     "blend":  1, "toon": { "cut": 0.25, "bands": 3, "shade": 0.55, "outline": true },
                                      "boxExtents":  [
                                                         1,
                                                         1,
@@ -191,7 +191,7 @@
                                      "sheet":  2,
                                      "frameMode":  3,
                                      "frameCount":  25,
-                                     "blend":  1,
+                                     "blend":  1, "toon": { "cut": 0.30, "bands": 2, "shade": 0.65, "outline": true },
                                      "boxExtents":  [
                                                         1,
                                                         1,

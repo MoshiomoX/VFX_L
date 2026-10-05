@@ -95,9 +95,9 @@ void StressTestTools::RecordFlushMs(double ms)
 
 // ============================================================
 // Mesh 発射の動作確認（仮設）
-// 玩家の胶囊 Mesh（VERTEX_3D）を発射源に登録し、
+// プレイヤーのカプセル Mesh（VERTEX_3D）を発射源に登録し、
 // TransformComponent から作った世界行列を毎フレーム emitter に渡す。
-// 期待：粒子が胶囊の表面から法線方向に出て、玩家が向きを変えると付いて回る
+// 期待：粒子がカプセルの表面から法線方向に出て、プレイヤーが向きを変えると付いて回る
 // ============================================================
 void StressTestTools::UpdateMeshEmitTest(float dt, Registry& reg, Entity player, GPUParticleSystem& particles)
 {
@@ -214,7 +214,7 @@ void StressTestTools::DrawImGui(SwarmSystem& swarm, const CollisionSystem& colli
     // ---------- 現在の数 ----------
     ImGui::Separator();
 
-    const int projCount = (int)swarm.GetCounters().aliveProjectiles;   // 回読なので 1〜2 フレーム古い
+    const int projCount = (int)swarm.GetCounters().aliveProjectiles;   // リードバックなので 1〜2 フレーム古い
     ImGui::Text("Projectiles : %d   (pending %d)", projCount, m_StressPending);
     ImGui::Text("Colliders   : %zu", collision.GetWorldColliders().size());
     ImGui::Text("Pairs       : %zu", collision.GetPairs().size());

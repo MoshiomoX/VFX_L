@@ -29,6 +29,9 @@
 // Must match ParticleRenderMode::kInheritSourceVelocity
 #define PARTICLE_INHERIT_SOURCE_VELOCITY (1u << 13)
 
+// billboard only: toon look, bits 14-25 (2026-10-04). Decoded in
+// GPUParticlePS (PARTICLE_TOON_*), packed by ParticleRenderMode::PackToon
+
 // ============================================
 // Which atlas cell a particle shows (GPUEmitter.frameMode).
 // Must match ParticleFrameMode in GPUParticle.h.

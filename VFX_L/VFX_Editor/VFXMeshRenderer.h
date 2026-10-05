@@ -69,7 +69,7 @@ private:
 
     std::shared_ptr<VertexShader> m_VS;
     std::shared_ptr<PixelShader> m_PS;
-    std::shared_ptr<Texture> m_White;   // 貼图無しの既定
+    std::shared_ptr<Texture> m_White;   // テクスチャ無しの既定
 
     ComPtr<ID3D11BlendState> m_BlendAdditive;
     ComPtr<ID3D11BlendState> m_BlendAlpha;
