@@ -76,32 +76,71 @@ namespace TerrainBuild
     // 軸方向で抑えるので斜め方向は最大 √2 倍（30° → 39°）
     void LimitSlope(std::vector<float>& h, int nx, int nz, float step, float tanMax, const std::vector<uint8_t>* fixed)
     {
+        // 配列は素のポインタで回す（Debug の vector の添字検査が重い）。
+        // 2 回目以降の走査は「前の走査か今の走査で動いたノードが絡む組」だけ調べる（2026-10-05）:
+        // 前に調べてから両端とも動いていない組は、もう一度調べても同じく何もしない。調べる組の順番は変えないので、
+        // 結果は全部調べる方式と 1 ビットも変わらない（全体 16 万ノード × 最大 64 回が Debug で 280 ms → 地図エディタが止まった）
         const float lim = tanMax * step;
+        float* H = h.data();
+        const uint8_t* F = fixed ? fixed->data() : nullptr;
+        const size_t count = (size_t)nx * nz;
+        std::vector<uint8_t> prevV(count, 1), curV(count, 0);       // ノードが動いたか（前の走査 / 今の走査）。初回は全部調べる
+        std::vector<uint8_t> prevRowV((size_t)nz + 1, 1), curRowV((size_t)nz + 1, 0);   // 行に動いたノードがあるか
+        uint8_t* prev = prevV.data();
+        uint8_t* cur = curV.data();
+        uint8_t* prevRow = prevRowV.data();
+        uint8_t* curRow = curRowV.data();
+
+        // 隣との差を lim までに縮める。動かしたら true
+        auto relax = [&](size_t i, size_t j)
+            {
+                const float d = H[j] - H[i];
+                const float ad = std::fabs(d);
+                if (ad <= lim + 1e-4f) return false;
+                const bool fi = F && F[i], fj = F && F[j];
+                if (fi && fj) return false;
+                const float ex = (ad - lim) * (d > 0.0f ? 1.0f : -1.0f);   // 差をこれだけ縮める
+                if (fi)      H[j] -= ex;
+                else if (fj) H[i] += ex;
+                else { H[i] += ex * 0.5f; H[j] -= ex * 0.5f; }
+                return true;
+            };
         for (int it = 0; it < 64; ++it)
         {
             bool changed = false;
             for (int iz = 0; iz < nz; ++iz)
+            {
+                // この行の組（右隣・上隣）に絡むのは、この行と 1 つ上の行のノードだけ
+                if (!(prevRow[iz] | prevRow[iz + 1] | curRow[iz] | curRow[iz + 1])) continue;
+                const size_t row = (size_t)iz * nx;
                 for (int ix = 0; ix < nx; ++ix)
                 {
-                    const size_t i = (size_t)iz * nx + ix;
-                    for (int k = 0; k < 2; ++k)
+                    const size_t i = row + ix;
+                    const uint8_t di = prev[i] | cur[i];
+                    if (ix + 1 < nx && (di | prev[i + 1] | cur[i + 1]) && relax(i, i + 1))
                     {
-                        const int jx = ix + (k == 0 ? 1 : 0), jz = iz + (k == 1 ? 1 : 0);
-                        if (jx >= nx || jz >= nz) continue;
-                        const size_t j = (size_t)jz * nx + jx;
-                        const float d = h[j] - h[i];
-                        const float ad = std::fabs(d);
-                        if (ad <= lim + 1e-4f) continue;
-                        const bool fi = fixed && (*fixed)[i], fj = fixed && (*fixed)[j];
-                        if (fi && fj) continue;
-                        const float ex = (ad - lim) * (d > 0.0f ? 1.0f : -1.0f);   // 差をこれだけ縮める
-                        if (fi)      h[j] -= ex;
-                        else if (fj) h[i] += ex;
-                        else { h[i] += ex * 0.5f; h[j] -= ex * 0.5f; }
+                        cur[i] = cur[i + 1] = 1;
+                        curRow[iz] = 1;
                         changed = true;
                     }
+                    if (iz + 1 < nz)
+                    {
+                        const size_t j = i + (size_t)nx;
+                        // 上の組は、右の組で i が動いたかも見る（今の走査の印を取り直す）
+                        if ((prev[i] | cur[i] | prev[j] | cur[j]) && relax(i, j))
+                        {
+                            cur[i] = cur[j] = 1;
+                            curRow[iz] = curRow[iz + 1] = 1;
+                            changed = true;
+                        }
+                    }
                 }
+            }
             if (!changed) break;
+            std::swap(prev, cur);
+            std::swap(prevRow, curRow);
+            std::fill(cur, cur + count, (uint8_t)0);
+            std::fill(curRow, curRow + nz + 1, (uint8_t)0);
         }
     }
 
@@ -116,6 +155,7 @@ namespace TerrainBuild
         const int nx = gw * hsub + 1, nz = gd * hsub + 1;
         out.assign((size_t)nx * nz, 0.0f);
         std::vector<int> dist((size_t)nx * nz, INT_MAX / 4);
+        int* D = dist.data();   // 素のポインタで回す（Debug の添字検査が重い）
         bool any = false;
         for (int gz = 0; gz < gd; ++gz)
             for (int gx = 0; gx < gw; ++gx)
@@ -130,8 +170,8 @@ namespace TerrainBuild
         auto relax = [&](int ix, int iz, int jx, int jz)
             {
                 if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) return;
-                int& d = dist[(size_t)iz * nx + ix];
-                d = (std::min)(d, dist[(size_t)jz * nx + jx] + 1);
+                int& d = D[(size_t)iz * nx + ix];
+                d = (std::min)(d, D[(size_t)jz * nx + jx] + 1);
             };
         for (int iz = 0; iz < nz; ++iz)
             for (int ix = 0; ix < nx; ++ix)
@@ -171,35 +211,64 @@ namespace TerrainBuild
     }
 
     // 台座は順番に依らない混ぜ方: ノード毎に 面 = lerp(素の起伏, Lmix, 最大の重み)、Lmix = Σ w^4 L / Σ w^4
-    // （芯（重み 1）の台座がほぼ勝つ = 構造物の足元はほぼ L のまま、境は連続）
+    // （芯（重み 1）の台座がほぼ勝つ = 構造物の足元はほぼ L のまま、境は連続）。
+    // 回し方は「台座毎に、その台座が届く範囲のノードへ足す」（2026-10-05。以前は「ノード毎に全部の台座を見る」で、
+    // 全体の作り直し 16 万ノード × 台座 76 個が Debug で数百 ms。地図エディタで部品を動かす度に止まった）。
+    // ノード毎に見れば足す順は台座の順のままなので、結果は以前と 1 ビットも変わらない
     void ComposeRelief(std::vector<float>& arr, const std::vector<float>& raw, const std::vector<MapData::Pad>& pads,
         uint8_t zone, const std::vector<float>* mineW, int nx, int nz, int ix0, int iz0, int ix1, int iz1)
     {
         ix0 = (std::max)(ix0, 0); iz0 = (std::max)(iz0, 0);
         ix1 = (std::min)(ix1, nx - 1); iz1 = (std::min)(iz1, nz - 1);
+        if (ix1 < ix0 || iz1 < iz0) return;
+        const int rw = ix1 - ix0 + 1, rh = iz1 - iz0 + 1;
+
+        // 範囲の中のノード毎の 最大の重み / Σ w^4 L / Σ w^4
+        std::vector<float> wmaxV((size_t)rw * rh, 0.0f), numV((size_t)rw * rh, 0.0f), denV((size_t)rw * rh, 0.0f);
+        float* wmax = wmaxV.data();
+        float* num = numV.data();
+        float* den = denV.data();
+
+        if (mineW)   // 洞窟の周りの 0 への均し（L = 0）。台座より先に入れる
+        {
+            const float* mw = mineW->data();
+            for (int iz = iz0; iz <= iz1; ++iz)
+                for (int ix = ix0; ix <= ix1; ++ix)
+                {
+                    const float m = mw[(size_t)iz * nx + ix];
+                    if (m <= 0.0f) continue;
+                    const size_t k = (size_t)(iz - iz0) * rw + (ix - ix0);
+                    wmax[k] = m;
+                    den[k] = m * m * m * m;
+                }
+        }
+        for (const MapData::Pad& p : pads)
+        {
+            if (p.zone != zone) continue;
+            // 重みが 0 でないのは芯から m ノード未満の所だけ
+            const int px0 = (std::max)(p.ax0 - p.m, ix0), px1 = (std::min)(p.ax1 + p.m, ix1);
+            const int pz0 = (std::max)(p.az0 - p.m, iz0), pz1 = (std::min)(p.az1 + p.m, iz1);
+            for (int iz = pz0; iz <= pz1; ++iz)
+                for (int ix = px0; ix <= px1; ++ix)
+                {
+                    const float w = PadWeight(p, ix, iz);
+                    if (w <= 0.0f) continue;
+                    const float w4 = w * w * w * w;
+                    const size_t k = (size_t)(iz - iz0) * rw + (ix - ix0);
+                    wmax[k] = (std::max)(wmax[k], w);
+                    num[k] += w4 * p.L;
+                    den[k] += w4;
+                }
+        }
+
+        float* out = arr.data();
+        const float* src = raw.data();
         for (int iz = iz0; iz <= iz1; ++iz)
             for (int ix = ix0; ix <= ix1; ++ix)
             {
                 const size_t i = (size_t)iz * nx + ix;
-                float wmax = 0.0f, num = 0.0f, den = 0.0f;
-                if (mineW && (*mineW)[i] > 0.0f)
-                {
-                    const float m = (*mineW)[i];
-                    const float w4 = m * m * m * m;
-                    wmax = m;
-                    den = w4;   // L = 0
-                }
-                for (const MapData::Pad& p : pads)
-                {
-                    if (p.zone != zone) continue;
-                    const float w = PadWeight(p, ix, iz);
-                    if (w <= 0.0f) continue;
-                    const float w4 = w * w * w * w;
-                    wmax = (std::max)(wmax, w);
-                    num += w4 * p.L;
-                    den += w4;
-                }
-                arr[i] = (den > 0.0f) ? raw[i] + (num / den - raw[i]) * wmax : raw[i];
+                const size_t k = (size_t)(iz - iz0) * rw + (ix - ix0);
+                out[i] = (den[k] > 0.0f) ? src[i] + (num[k] / den[k] - src[i]) * wmax[k] : src[i];
             }
     }
 

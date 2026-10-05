@@ -123,6 +123,25 @@ void MapEditMode::DrawWindow(FlyCamera& camera)
         ImGui::SetItemTooltip("8 x 8 cells, 6 m high, one full-width grassy slope (for sliding)");
     }
 
+    // ---- 区域（平原 / 山頂 / 洞窟）を塗る（4 歩目の 2 段目）----
+    ImGui::SeparatorText("Zones (paint summit / plain / mine)");
+    if (!MapTerrainEdit::CanEditZones(m_Map))
+        ImGui::TextDisabled("This map was saved before zone editing existed: generate it again.");
+    else
+    {
+        const char* modes[] = { "Off (select)", "Plain", "Summit (+16 m)", "Mine (-10 m, cave)" };
+        int mode = m_PaintZone + 1;
+        if (ImGui::Combo("Paint", &mode, modes, 4)) m_PaintZone = mode - 1;
+        ImGui::SliderInt("Brush radius (cells)", &m_PaintRadius, 0, 8);
+        ImGui::TextDisabled("Hold LMB and drag on the ground. Cliffs, cave walls, roof");
+        ImGui::TextDisabled("rocks and torches are rebuilt when you release.");
+        if (ImGui::Button("Add Summit Ramp")) AddZoneRamp(camera, true);
+        ImGui::SetItemTooltip("Grass slope from the summit down to the plain. Put its high end on the summit edge");
+        ImGui::SameLine();
+        if (ImGui::Button("Add Mine Ramp")) AddZoneRamp(camera, false);
+        ImGui::SetItemTooltip("Dirt ramp inside the pit, down to the mine floor. Its high end is the cave mouth");
+    }
+
     DrawInspector(camera);
 
     ImGui::SeparatorText("Keys");

@@ -8,7 +8,9 @@
 #include <climits>
 #include <cmath>
 #include <cstdio>
+#include <chrono>
 #include <cstring>
+#include <string>
 
 using namespace TerrainBuild;
 
@@ -17,6 +19,13 @@ namespace
     constexpr int   kSub = GridWorld::kHeightSub;
     constexpr float kPadSink = 0.5f;      // 地面に載る箱の底を埋める深さ（TerrainGenerator と同じ）
     constexpr int   kTerraceApron = 5;    // 高台の坂の麓の空き地（TerrainGenerator::Config::terraceClear の既定）
+    constexpr int   kSummitApron = 8;     // 山頂の坂の麓の空き地（TerrainGenerator の kSummitRunout）
+
+    bool HasKind(const MapData::Map& m, uint32_t group, uint16_t kind)
+    {
+        for (const auto& p : m.rampParts) if (p.tag.group == group && p.tag.kind == kind) return true;
+        return false;
+    }
 
     template <class T> void EraseGroup(std::vector<T>& v, uint32_t group)
     {
@@ -84,13 +93,19 @@ namespace
         return n > 0 ? (float)(sum / n) : 0.0f;
     }
 
+}
+
+namespace MapTerrainEdit::detail
+{
     // 記録の中身の合計（順番に依らない比べ方）
-    uint64_t Fnv(const void* data, size_t n, uint64_t h)
+    static uint64_t Fnv(const void* data, size_t n, uint64_t h)
     {
         const auto* p = static_cast<const uint8_t*>(data);
         for (size_t i = 0; i < n; ++i) { h ^= p[i]; h *= 1099511628211ull; }
         return h;
     }
+    std::string& LastPerf() { static std::string s; return s; }   // TEMP-TEST: Rederive の内訳（ms）
+
     uint64_t RecordSum(const MapData::Map& m)
     {
         constexpr uint64_t kSeed = 1469598103934665603ull;
@@ -181,7 +196,9 @@ namespace MapTerrainEdit
         GridWorld g;
         g.Init(map.gw, map.gd);
 
+        const auto tp0 = std::chrono::steady_clock::now();
         if (map.relief) Compose(map, map.reliefPlain, map.reliefSummit, true);
+        const auto tp1 = std::chrono::steady_clock::now();
 
         // ---- 高さ場：起伏の面 → 箱の上面・坂（高い方）。洞の岩の壁のマスは元の値のまま（生成が隣のマスから埋めた値）----
         ReliefField rf;
@@ -197,6 +214,7 @@ namespace MapTerrainEdit
                 const DirectX::SimpleMath::Vector3 p = g.HeightCellToWorld(hx, hz);
                 g.SetHeightExact(hx, hz, rf.SurfaceIn(rf.ZoneAtCell(hx / kSub, hz / kSub), p.x, p.z));
             }
+        const auto tp2 = std::chrono::steady_clock::now();
         Emitter none(nullptr);   // 何も記録しない（高さ場だけ書く）
         auto raiseParts = [&]()
             {
@@ -239,6 +257,7 @@ namespace MapTerrainEdit
             for (const auto& f : fill) g.SetHeightExact(f.first % hw, f.first / hw, f.second);
             if (!fill.empty()) raiseParts();   // 岩の壁の上に置いた部品（高い方が勝つ）
         }
+        const auto tp3 = std::chrono::steady_clock::now();
         map.heights = g.Heights();
 
         MapEdit::RebuildWalkable(map);
@@ -257,6 +276,13 @@ namespace MapTerrainEdit
             };
         for (const auto& p : map.rampParts) if (!p.grassy) clear(p.x, p.z, p.w, p.d);
         for (const auto& p : map.blockParts) if (!p.raise) clear(p.x, p.z, p.w, p.d);
+        {
+            const auto tp4 = std::chrono::steady_clock::now();
+            auto ms = [](auto a, auto b) { return std::chrono::duration<float, std::milli>(b - a).count(); };
+            char buf[160];
+            snprintf(buf, sizeof(buf), "compose %.0f base %.0f raise+ring %.0f walk+grass %.0f ms", ms(tp0, tp1), ms(tp1, tp2), ms(tp2, tp3), ms(tp3, tp4));
+            detail::LastPerf() = buf;
+        }
     }
 
     void RegenRecords(MapData::Map& map, uint32_t group)
@@ -297,7 +323,16 @@ namespace MapTerrainEdit
             if (zone == ReliefField::kMine) continue;
             const float L = p.base - ZoneBase(map, zone);
             const int across = AlongX(p.side) ? p.d : p.w;
-            if (p.grassy)   // 高台の長い坂：麓の先も均す（滑り降りた先が平ら）
+            if (p.tag.kind == MapData::kSummitRamp)
+            {
+                // 山頂の長い坂：坂と麓（先 8 マス）を麓の高さに、坂の上端の山頂側 2 マス（通り道）を山頂の基準の高さに
+                map.pads.push_back(MakePad(map, p.tag, ReliefField::kPlain, r, 1, p.base));
+                map.pads.push_back(MakePad(map, p.tag, ReliefField::kPlain,
+                    RampRect(r, (Side)p.side, -1, across + 2, kSummitApron), 0, p.base));
+                map.pads.push_back(MakePad(map, p.tag, ReliefField::kSummit,
+                    RampRect(r, (Side)(p.side ^ 1), 0, across, 2), 1, 0.0f));
+            }
+            else if (p.grassy)   // 高台の長い坂：麓の先も均す（滑り降りた先が平ら）
             {
                 map.pads.push_back(MakePad(map, p.tag, zone, r, 1, L));
                 map.pads.push_back(MakePad(map, p.tag, zone, RampRect(r, (Side)p.side, -1, across + 2, kTerraceApron), 0, L));
@@ -326,15 +361,36 @@ namespace MapTerrainEdit
             float ground = ZoneBase(map, zone);
             if (map.relief && zone != ReliefField::kMine)
             {
-                std::vector<float> plain, summit;
-                Compose(map, plain, summit, false);
-                ground += AvgRelief(map, zone == ReliefField::kSummit ? summit : plain, { body->x, body->z, body->w, body->d });
+                // 足跡のノードだけ合成する（全体を合成すると部品を 1 マス動かす度に数十 ms 余計に掛かる）
+                const Rect r = { body->x, body->z, body->w, body->d };
+                const int nx = map.gw * kSub + 1, nz = map.gd * kSub + 1;
+                const bool onSummit = zone == ReliefField::kSummit;
+                std::vector<float> mineW, arr((size_t)nx * nz, 0.0f);
+                if (!onSummit) ComputeMineWeights(map.zone, map.gw, map.gd, map.padMargin, mineW);
+                ComposeRelief(arr, onSummit ? map.rawSummit : map.rawPlain, map.pads, zone, onSummit ? nullptr : &mineW,
+                    nx, nz, r.x * kSub, r.z * kSub, (r.x + r.w) * kSub, (r.z + r.d) * kSub);
+                ground += AvgRelief(map, arr, r);
             }
             const float delta = ground - body->base;
             for (auto& p : map.blockParts)
                 if (p.tag.group == group) { p.bottom += delta; p.top += delta; p.base += delta; }
             for (auto& p : map.rampParts)
                 if (p.tag.group == group) { p.base += delta; p.top += delta; }
+        }
+
+        // ---- 山頂の長い坂（箱に付いていない草の坂）：麓の高さ = 自分の台座を除いた平原の起伏の、麓の空き地の平均 ----
+        if (!body && HasKind(map, group, MapData::kSummitRamp))
+        {
+            std::vector<float> plain, summit;
+            if (map.relief) Compose(map, plain, summit, false);
+            for (auto& p : map.rampParts)
+            {
+                if (p.tag.group != group || p.tag.kind != MapData::kSummitRamp) continue;
+                const int across = AlongX(p.side) ? p.d : p.w;
+                const Rect apron = RampRect({ p.x, p.z, p.w, p.d }, (Side)p.side, -1, across + 2, kSummitApron);
+                p.base = map.relief ? AvgRelief(map, plain, apron) : 0.0f;
+                p.top = map.summitH;
+            }
         }
 
         // ---- 箱に付いた坂：足跡と高さを箱から作り直す（箱の大きさ・高さを変えた時）----
@@ -357,7 +413,9 @@ namespace MapTerrainEdit
 
         RegenRecords(map, group);
         RegenPads(map, group);
-        Rederive(map);
+        // 洞窟の下り坂を変えたら、洞の口・岩の壁・屋根・一番奥も変わる（RegenZones の最後に Rederive）
+        if (HasKind(map, group, MapData::kMineRamp) && CanEditZones(map)) RegenZones(map);
+        else Rederive(map);
     }
 
     bool MoveGroup(MapData::Map& map, uint32_t group, int dx, int dz)
@@ -375,11 +433,13 @@ namespace MapTerrainEdit
 
     void DeleteGroup(MapData::Map& map, uint32_t group)
     {
+        const bool zoneRamp = HasKind(map, group, MapData::kMineRamp) || HasKind(map, group, MapData::kSummitRamp);
         EraseGroup(map.blockParts, group);
         EraseGroup(map.rampParts, group);
         EraseGroup(map.pads, group);
         MapEdit::DeleteGroup(map, group);   // 衝突・見た目・塞ぐマスの記録
-        Rederive(map);
+        if (zoneRamp && CanEditZones(map)) RegenZones(map);   // 洞の口・三層の結果（坂の表）も作り直す
+        else Rederive(map);
     }
 
     uint32_t AddPlateau(MapData::Map& map, int x, int z, int w, int d, float height)
@@ -467,7 +527,8 @@ namespace MapTerrainEdit
         c.grassSame = map.grassMask == copy.grassMask;
         c.recordsSame = map.boxes.size() == copy.boxes.size() && map.hulls.size() == copy.hulls.size()
             && map.visuals.size() == copy.visuals.size() && map.blocks.size() == copy.blocks.size()
-            && RecordSum(map) == RecordSum(copy);
+            && detail::RecordSum(map) == detail::RecordSum(copy);
+        c.zonesSame = detail::ZonesMatch(map);
         return c;
     }
 }

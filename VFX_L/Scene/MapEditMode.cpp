@@ -241,7 +241,15 @@ bool MapEditMode::SelectionPos(Vector3& pos) const
         }
         // 地形の部品：本体の箱の上面の真ん中
         const MapData::BlockPart* body = MapTerrainEdit::Block(const_cast<MapData::Map&>(m_Map), m_Sel.group, 0);
-        if (!body) return false;
+        if (!body)
+        {
+            // 山頂・洞窟の坂（箱が無い）：坂の真ん中、上端と下端の間の高さ
+            const MapData::RampPart* ramp = MapTerrainEdit::Ramp(const_cast<MapData::Map&>(m_Map), m_Sel.group, 0);
+            if (!ramp || !IsPartGroup(m_Sel.group)) return false;
+            pos = m_Grid.CellToWorld(ramp->x, ramp->z) + Vector3((ramp->w - 1) * GridWorld::kCellSize * 0.5f,
+                (ramp->base + ramp->top) * 0.5f, (ramp->d - 1) * GridWorld::kCellSize * 0.5f);
+            return true;
+        }
         pos = m_Grid.CellToWorld(body->x, body->z)
             + Vector3((body->w - 1) * GridWorld::kCellSize * 0.5f, body->top, (body->d - 1) * GridWorld::kCellSize * 0.5f);
         return true;
@@ -487,7 +495,42 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
 
     // ---- 左クリック：置く / 選ぶ ----
     const bool mouseFree = !io.WantCaptureMouse && !Gizmo::IsHovering() && !Gizmo::IsUsing() && !camera.IsLooking();
-    if (mouseFree && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+
+    // ---- 区域の筆（山頂 / 平原 / 洞窟を塗る）：左ボタンを押している間マウスの下のマスを塗り、離した時に作り直す ----
+    const bool painting = m_PaintZone >= 0 && !placing && MapTerrainEdit::CanEditZones(m_Map);
+    if (painting)
+    {
+        Vector3 hit;
+        if (mouseFree && RayGround(hit))
+        {
+            int gx = 0, gz = 0;
+            m_Grid.WorldToCell(hit, gx, gz);
+            // 筆の輪（塗る範囲の目安）
+            const float r = ((float)m_PaintRadius + 0.5f) * GridWorld::kCellSize;
+            const Vector3 c = m_Grid.CellToWorld(gx, gz);
+            const Color col = m_PaintZone == 1 ? Color(1.0f, 0.9f, 0.4f, 1.0f) : m_PaintZone == 2 ? Color(0.6f, 0.5f, 1.0f, 1.0f)
+                : Color(0.4f, 1.0f, 0.5f, 1.0f);
+            for (int i = 0; i < 32; ++i)
+            {
+                const float a0 = i * 6.2831853f / 32.0f, a1 = (i + 1) * 6.2831853f / 32.0f;
+                const Vector3 p0(c.x + std::cos(a0) * r, 0.0f, c.z + std::sin(a0) * r), p1(c.x + std::cos(a1) * r, 0.0f, c.z + std::sin(a1) * r);
+                DebugManager::Get().AddDebugLine({ p0.x, m_Grid.SampleHeight(p0.x, p0.z) + 0.3f, p0.z },
+                    { p1.x, m_Grid.SampleHeight(p1.x, p1.z) + 0.3f, p1.z }, col);
+            }
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left)
+                && MapTerrainEdit::PaintZone(m_Map, gx, gz, m_PaintRadius, (uint8_t)m_PaintZone) > 0)
+                m_ZoneDirty = true;
+        }
+        if (m_ZoneDirty && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            m_ZoneDirty = false;
+            MapTerrainEdit::RegenZones(m_Map);
+            m_Dirty = true;
+            m_ViewDirty = true;
+        }
+    }
+
+    if (mouseFree && !painting && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         if (placing)
         {
@@ -543,5 +586,9 @@ bool MapEditMode::IsPartGroup(uint32_t group) const
 {
     for (const auto& p : m_Map.blockParts)
         if (p.tag.group == group) return p.tag.kind == MapData::kPlateau || p.tag.kind == MapData::kTerrace;
+    // 箱の無い坂 = 山頂の長い坂・洞窟の下り坂（区域を塗り替えられる地図だけ）
+    if (MapTerrainEdit::CanEditZones(m_Map))
+        for (const auto& p : m_Map.rampParts)
+            if (p.tag.group == group) return p.tag.kind == MapData::kSummitRamp || p.tag.kind == MapData::kMineRamp;
     return false;
 }

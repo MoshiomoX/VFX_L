@@ -12,6 +12,7 @@
 #include "World/GridWorld.h"
 #include "World/MapTerrainEdit.h"
 #include <Windows.h>
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -57,9 +58,12 @@ bool MapEditAutoTest::Enabled()
 void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
 {
     s_Time += dt;
+    // 計測：開いた後の待ち時間（1.0〜1.5 秒）の平均フレーム時間
+    static float s_IdleSum = 0.0f; static int s_IdleN = 0;
+    if (s_Step == 1 && s_Time > 1.0f) { s_IdleSum += dt; ++s_IdleN; }
     char line[320];
     MapData::Map& map = edit.TestMap();
-    if (s_Step > 0 && s_Step < 9 && s_Group == 0) { Log("mapedit no tree found"); Log("mapedit done"); s_Step = 9; return; }
+    if (s_Step > 0 && s_Step < 10 && s_Group == 0) { Log("mapedit no tree found"); Log("mapedit done"); s_Step = 10; return; }
 
     if (s_Step == 0 && s_Time >= 0.5f)
     {
@@ -67,9 +71,9 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
         {
             // 地形の部品から作り直した結果が生成器の結果と同じか（4 歩目）
             const MapTerrainEdit::Check c = MapTerrainEdit::Verify(map);
-            snprintf(line, sizeof(line), "mapedit rederive blockParts %zu rampParts %zu pads %zu reliefSame %d heightMaxDiff %.4f diffCells %d walkableSame %d grassSame %d recordsSame %d",
+            snprintf(line, sizeof(line), "mapedit rederive blockParts %zu rampParts %zu pads %zu reliefSame %d heightMaxDiff %.4f diffCells %d walkableSame %d grassSame %d recordsSame %d zonesSame %d",
                 map.blockParts.size(), map.rampParts.size(), map.pads.size(), (int)c.reliefSame, c.heightMaxDiff, c.heightDiffCells,
-                (int)c.walkableSame, (int)c.grassSame, (int)c.recordsSame);
+                (int)c.walkableSame, (int)c.grassSame, (int)c.recordsSame, (int)c.zonesSame);
             Log(line);
             Log(("mapedit rederive detail" + c.detail).c_str());
         }
@@ -97,7 +101,11 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
         camera.Place(s_OldPos + Vector3(3.0f, 9.0f, -14.0f), 0.0f, 28.0f);
         s_Step = 1;
     }
-    else if (s_Step == 1 && s_Time >= 1.5f) { Log("mapedit look before"); s_Step = 2; }
+    else if (s_Step == 1 && s_Time >= 1.5f)
+    {
+        char t[96]; snprintf(t, sizeof(t), "mapedit perf idle frame %.2f ms (%d frames)", s_IdleN ? 1000.0f * s_IdleSum / s_IdleN : 0.0f, s_IdleN); Log(t);
+        Log("mapedit look before"); s_Step = 2;
+    }
     else if (s_Step == 2 && s_Time >= 2.0f)
     {
         const bool moved = edit.TestApplyMove({ 6.0f, 0.0f, 4.0f });
@@ -178,7 +186,9 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
             const Vector3 c0 = center(before);
             const size_t padsBefore = map.pads.size();
             // 動かせる向きを探す（場外・他の物は見ない。場外だけ MoveGroup が弾く）
+            const auto t0 = std::chrono::steady_clock::now();
             bool moved = MapTerrainEdit::MoveGroup(map, pg, 4, 0) || MapTerrainEdit::MoveGroup(map, pg, -4, 0);
+            { char t[96]; snprintf(t, sizeof(t), "mapedit perf MoveGroup %.0f ms", std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count()); Log(t); }
             const MapData::BlockPart after = *MapTerrainEdit::Block(map, pg, 0);
             const Vector3 c1 = center(after);
             int boxes = 0;
@@ -222,13 +232,56 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
             (int)MapEdit::WalkableMatchesBlocks(trial));
         Log(line);
 
-        edit.TestRebuildView();
+
+        // ---- 区域の塗り替え（4 歩目の 2 段目）----
+        // 真ん中の西（マス 38,50）に山頂、真ん中の北西（マス 46,56）に洞窟を半径 3 マスで塗って作り直す：
+        // 高さ場が +16m / -10m になる、洞の岩の壁（塞いだマス）・屋根の岩・松明が増える、山頂 / 洞窟のマスの表が増える。
+        // 新しい坑に下り坂を足す → 上端の先（マス 50,55）が洞の口になり、岩の壁から外れて歩けるようになる
+        {
+            auto cellCenter = [&](int x, int z) { return Vector3(-0.5f * map.gw * cs + (x + 0.5f) * cs, 0.0f, -0.5f * map.gd * cs + (z + 0.5f) * cs); };
+            auto countZone = [&](uint8_t zn) { return (int)std::count(map.zone.begin(), map.zone.end(), zn); };
+            auto countRing = [&]() { return (int)std::count(map.caveRing.begin(), map.caveRing.end(), (uint8_t)1); };
+            auto countKind = [&](uint16_t k) { int n = 0; for (const auto& p : map.props) if (p.tag.kind == k) ++n; return n; };
+            const int summit0 = countZone(1), mine0 = countZone(2), ring0 = countRing(), rocks0 = countKind(MapData::kRoofRock);
+            const size_t sc0 = map.summitCells.size(), mc0 = map.mineCells.size(), torch0 = map.torches.size();
+            const int painted = MapTerrainEdit::PaintZone(map, 38, 50, 3, 1) + MapTerrainEdit::PaintZone(map, 46, 56, 3, 2);
+            MapTerrainEdit::RegenZones(map);
+            const Vector3 ps = cellCenter(38, 50), pm = cellCenter(46, 56);
+            snprintf(line, sizeof(line),
+                "mapedit zone paint cells %d summit %d->%d mine %d->%d | h summit %.2f mine %.2f | ring %d->%d roofRocks %d->%d lights %zu->%zu | summitCells %zu->%zu mineCells %zu->%zu walkableMatches %d",
+                painted, summit0, countZone(1), mine0, countZone(2), heightAt(ps.x, ps.z), heightAt(pm.x, pm.z),
+                ring0, countRing(), rocks0, countKind(MapData::kRoofRock), torch0, map.torches.size(),
+                sc0, map.summitCells.size(), mc0, map.mineCells.size(), (int)MapEdit::WalkableMatchesBlocks(map));
+            Log(line);
+
+            const size_t mouthCell = (size_t)55 * map.gw + 50;
+            const int ringBefore = map.caveRing[mouthCell], walkBefore = map.walkable[mouthCell];
+            const uint32_t rg = MapTerrainEdit::AddZoneRamp(map, false, 45, 55, 1, 2, 5);   // -x へ下る、幅 2・長さ 5（坑が小さいので急）
+            const Vector3 pr = cellCenter(47, 55);
+            snprintf(line, sizeof(line),
+                "mapedit zone mineRamp group %u | mouth cell ring %d->%d walkable %d->%d | midRamp h %.2f | mineRamps %zu hasDeep %d",
+                rg, ringBefore, (int)map.caveRing[mouthCell], walkBefore, (int)map.walkable[mouthCell],
+                heightAt(pr.x, pr.z), map.mineRamps.size(), (int)map.hasMineDeep);
+            Log(line);
+        }
+
+        { const auto t0 = std::chrono::steady_clock::now(); MapTerrainEdit::Rederive(map); const auto t1 = std::chrono::steady_clock::now(); MapTerrainEdit::RegenZones(map); const auto t2 = std::chrono::steady_clock::now(); edit.TestRebuildView(); const auto t3 = std::chrono::steady_clock::now();
+          char t[160]; snprintf(t, sizeof(t), "mapedit perf Rederive %.0f ms RegenZones %.0f ms RebuildView %.0f ms", std::chrono::duration<float, std::milli>(t1 - t0).count(), std::chrono::duration<float, std::milli>(t2 - t1).count(), std::chrono::duration<float, std::milli>(t3 - t2).count()); Log(t);
+          Log(("mapedit perf detail " + MapTerrainEdit::detail::LastPerf()).c_str()); }
         edit.TestSelectGroup(ng);
         edit.TestFocus(camera);
         s_Step = 7;
     }
-    else if (s_Step == 7 && s_Time >= 6.5f) { Log("mapedit look parts"); s_Step = 8; }
-    else if (s_Step == 8 && s_Time >= 7.0f)
+    else if (s_Step == 7 && s_Time >= 6.5f)
+    {
+        Log("mapedit look parts");
+        // 塗った山頂（西）と洞窟（南）が両方入る所へ
+        edit.TestSelectGroup(0);
+        camera.Place({ -15.0f, 75.0f, -75.0f }, 0.0f, 45.0f);
+        s_Step = 8;
+    }
+    else if (s_Step == 8 && s_Time >= 7.5f) { Log("mapedit look zones"); s_Step = 9; }
+    else if (s_Step == 9 && s_Time >= 8.2f)
     {
         std::vector<uint8_t> a, b;
         MapData::Serialize(map, a);
@@ -240,6 +293,6 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
             (int)saved, (int)loaded, (int)(a == b), a.size(), (int)MapEdit::WalkableMatchesBlocks(map));
         Log(line);
         Log("mapedit done");
-        s_Step = 9;
+        s_Step = 10;
     }
 }

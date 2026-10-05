@@ -65,6 +65,7 @@ public:
     void TestFocus(FlyCamera& camera) { FocusSelection(camera); }
     bool TestApplyMove(const Vector3& delta) { return ApplyMove(delta); }
     void TestRebuildView() { m_ViewDirty = false; RebuildView(); }
+    void TestFocusAt(FlyCamera& camera, const Vector3& pos, float radius);
     int  TestAddPlacement(MapData::PlaceType type, const Vector3& pos) { return AddPlacement(type, pos); }
     std::shared_ptr<Model> TestModel(const std::string& path) { return GetModel(path); }
 
@@ -96,6 +97,8 @@ private:
     bool IsPartGroup(uint32_t group) const;
     void DrawPartInspector();                // 地形の部品の中身（MapEditModeUI.cpp）
     void AddPart(FlyCamera& camera, bool terrace);
+    void AddZoneRamp(FlyCamera& camera, bool summit);   // 山頂の長い坂 / 洞窟の下り坂を画面の真ん中へ
+    void DrawZoneRampInspector();
     int  AddPlacement(MapData::PlaceType type, const Vector3& pos);
     Vector3 ScreenCenterGround(FlyCamera& camera) const;
 
@@ -121,6 +124,9 @@ private:
     bool m_ShowVolumes = true;               // 手で置いた見えない体積を線で見せる（見せている時だけ選べる）
     bool m_StopPlacing = false;
     bool m_ViewDirty = false;                // 地形の部品を変えた：見た目（床・合成モデル）を建て直す
+    int  m_PaintZone = -1;                   // 区域の筆：-1 = 切、0 平原 / 1 山頂 / 2 洞窟
+    int  m_PaintRadius = 2;                  // 筆の半径（マス）
+    bool m_ZoneDirty = false;                // 塗っている最中（離した時に作り直す）
 
     // 置く物（マウスの下）
     bool    m_GhostValid = false;
