@@ -202,6 +202,12 @@ namespace TerrainBuild
     void LimitReliefSlopes(std::vector<float>& arr, const std::vector<MapData::Pad>& pads, uint8_t zone,
         const std::vector<float>* mineW, int nx, int nz, float step, float maxSlopeDeg);
 
+    // ---- 素の起伏（台座で均す前）= ノイズの丘 + 丘の部品 → 傾きを抑える ----
+    void BuildReliefNoise(const MapData::ReliefParams& rp, uint32_t seed, int gw, int gd,
+        std::vector<float>& plain, std::vector<float>& summit);
+    void AddHillsAndLimit(const std::vector<MapData::Hill>& hills, float summitMul, float maxSlopeDeg, int gw, int gd,
+        std::vector<float>& plain, std::vector<float>& summit);
+
     // ---- 地形の部品を建てる。grid があれば高さ場・通行も書く。origin = 格子の原点を知るための格子 ----
     void EmitBlockPart(Emitter& emit, GridWorld* grid, const GridWorld& origin, const MapData::BlockPart& p);
     void RampVerts(const GridWorld& origin, const MapData::RampPart& p, Vector3 v[8]);

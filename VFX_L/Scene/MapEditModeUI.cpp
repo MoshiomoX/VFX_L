@@ -17,7 +17,7 @@ namespace
     const char* KindName(uint16_t kind)
     {
         static const char* kNames[] = { "Floor", "Outer Wall", "Summit Ramp", "Mine Ramp", "Cave Roof", "Terrace", "Plateau",
-            "Skirt", "Tree", "Rock", "Bush", "Edge Rock", "Ruin Wall", "Torch", "Roof Rock", "Placed (editor)" };
+            "Skirt", "Tree", "Rock", "Bush", "Edge Rock", "Ruin Wall", "Torch", "Roof Rock", "Placed (editor)", "Hill" };
         return kind < std::size(kNames) ? kNames[kind] : "?";
     }
 }
@@ -123,24 +123,7 @@ void MapEditMode::DrawWindow(FlyCamera& camera)
         ImGui::SetItemTooltip("8 x 8 cells, 6 m high, one full-width grassy slope (for sliding)");
     }
 
-    // ---- 区域（平原 / 山頂 / 洞窟）を塗る（4 歩目の 2 段目）----
-    ImGui::SeparatorText("Zones (paint summit / plain / mine)");
-    if (!MapTerrainEdit::CanEditZones(m_Map))
-        ImGui::TextDisabled("This map was saved before zone editing existed: generate it again.");
-    else
-    {
-        const char* modes[] = { "Off (select)", "Plain", "Summit (+16 m)", "Mine (-10 m, cave)" };
-        int mode = m_PaintZone + 1;
-        if (ImGui::Combo("Paint", &mode, modes, 4)) m_PaintZone = mode - 1;
-        ImGui::SliderInt("Brush radius (cells)", &m_PaintRadius, 0, 8);
-        ImGui::TextDisabled("Hold LMB and drag on the ground. Cliffs, cave walls, roof");
-        ImGui::TextDisabled("rocks and torches are rebuilt when you release.");
-        if (ImGui::Button("Add Summit Ramp")) AddZoneRamp(camera, true);
-        ImGui::SetItemTooltip("Grass slope from the summit down to the plain. Put its high end on the summit edge");
-        ImGui::SameLine();
-        if (ImGui::Button("Add Mine Ramp")) AddZoneRamp(camera, false);
-        ImGui::SetItemTooltip("Dirt ramp inside the pit, down to the mine floor. Its high end is the cave mouth");
-    }
+    DrawToolsUI(camera);   // 区域の筆・山頂 / 洞窟の坂・起伏の筆（MapEditModeTools.cpp）
 
     DrawInspector(camera);
 
@@ -163,7 +146,9 @@ void MapEditMode::DrawInspector(FlyCamera& camera)
     }
 
     const int volume = (m_Sel.type == SelType::Group) ? MapEdit::FindVolume(m_Map, m_Sel.group) : -1;
-    if (m_Sel.type == SelType::Group && IsPartGroup(m_Sel.group))
+    if (m_Sel.type == SelType::Group && MapTerrainEdit::FindHill(m_Map, m_Sel.group) >= 0)
+        DrawHillInspector();   // 丘の部品（MapEditModeTools.cpp）
+    else if (m_Sel.type == SelType::Group && IsPartGroup(m_Sel.group))
         DrawPartInspector();   // 地形の部品（MapEditModeTerrainUI.cpp）
     else if (volume >= 0)
     {

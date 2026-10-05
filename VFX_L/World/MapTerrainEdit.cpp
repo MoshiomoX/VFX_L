@@ -348,7 +348,9 @@ namespace MapTerrainEdit
     // ============================================================
     // 部品を変えた後のまとめ
     // ============================================================
-    void Refresh(MapData::Map& map, uint32_t group)
+    void Refresh(MapData::Map& map, uint32_t group) { Refresh(map, group, true); }
+
+    void Refresh(MapData::Map& map, uint32_t group, bool derive)
     {
         if (!HasParts(map)) return;
         MapData::BlockPart* body = Block(map, group, 0);
@@ -413,6 +415,7 @@ namespace MapTerrainEdit
 
         RegenRecords(map, group);
         RegenPads(map, group);
+        if (!derive) return;   // まとめて作り直す時（ReseatAll）は呼ぶ側が最後に 1 回
         // 洞窟の下り坂を変えたら、洞の口・岩の壁・屋根・一番奥も変わる（RegenZones の最後に Rederive）
         if (HasKind(map, group, MapData::kMineRamp) && CanEditZones(map)) RegenZones(map);
         else Rederive(map);
@@ -529,6 +532,7 @@ namespace MapTerrainEdit
             && map.visuals.size() == copy.visuals.size() && map.blocks.size() == copy.blocks.size()
             && detail::RecordSum(map) == detail::RecordSum(copy);
         c.zonesSame = detail::ZonesMatch(map);
+        c.rawSame = detail::RawMatches(map);
         return c;
     }
 }

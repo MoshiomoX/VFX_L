@@ -66,6 +66,7 @@ public:
     bool TestApplyMove(const Vector3& delta) { return ApplyMove(delta); }
     void TestRebuildView() { m_ViewDirty = false; RebuildView(); }
     void TestFocusAt(FlyCamera& camera, const Vector3& pos, float radius);
+    void TestFinishEdits() { if (m_ReseatDirty) { m_ReseatDirty = false; MapTerrainEdit::ReseatAll(m_Map); } m_ViewDirty = false; RebuildView(); }
     int  TestAddPlacement(MapData::PlaceType type, const Vector3& pos) { return AddPlacement(type, pos); }
     std::shared_ptr<Model> TestModel(const std::string& path) { return GetModel(path); }
 
@@ -99,6 +100,11 @@ private:
     void AddPart(FlyCamera& camera, bool terrace);
     void AddZoneRamp(FlyCamera& camera, bool summit);   // 山頂の長い坂 / 洞窟の下り坂を画面の真ん中へ
     void DrawZoneRampInspector();
+    bool UpdateTools(bool mouseFree, bool placing);     // 区域の筆・起伏の筆（MapEditModeTools.cpp）
+    void DrawToolsUI(FlyCamera& camera);
+    void DrawHillMarks();                               // 丘の部品の輪
+    void DrawHillInspector();                           // 選んだ丘の中身
+    void ApplyReliefChange();                           // 起伏の設定・丘を変えた後（作り直し + 後でまとめる印）
     int  AddPlacement(MapData::PlaceType type, const Vector3& pos);
     Vector3 ScreenCenterGround(FlyCamera& camera) const;
 
@@ -127,6 +133,14 @@ private:
     int  m_PaintZone = -1;                   // 区域の筆：-1 = 切、0 平原 / 1 山頂 / 2 洞窟
     int  m_PaintRadius = 2;                  // 筆の半径（マス）
     bool m_ZoneDirty = false;                // 塗っている最中（離した時に作り直す）
+    int   m_BrushMode = -1;                  // 起伏の筆：-1 = 切、0 上げる / 1 下げる / 2 均す / 3 平らにする
+    float m_BrushRadius = 8.0f;              // m
+    float m_BrushStrength = 3.0f;            // 上げ下げは m/秒、均し・平らは寄せる速さ
+    float m_BrushFlattenY = 0.0f;            // 平らにする高さ（押し始めの所の地面）
+    bool  m_BrushStroke = false;             // 押している最中
+    bool  m_BrushDirty = false;              // 起伏を書き換えた（離した時に作り直す）
+    bool  m_ShowHills = true;                // 丘の部品を輪で見せる（見せている時だけ選べる）
+    bool  m_ReseatDirty = false;             // 起伏を変えた：離した時に、台地などの足元を今の地面へ合わせ直す
 
     // 置く物（マウスの下）
     bool    m_GhostValid = false;

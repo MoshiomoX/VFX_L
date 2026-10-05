@@ -655,6 +655,15 @@
     <ClCompile Include="World\MapZoneEdit.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\MapReliefEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapHillEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditModeTools.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Scene\MapEditMode.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
