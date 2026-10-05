@@ -18,8 +18,8 @@ namespace
     std::wstring ToW(const std::string& s) { return std::wstring(s.begin(), s.end()); }
 
     // assimp の文字列は UTF-8。窄い std::string のまま fs::path にすると ANSI（日本語環境は CP932）として
-    // 変換され、作者の PC の中文入りのパス（shuimian_02.FBX の F:\...\风暴英雄全套特效贴图\...png など）で
-    // 例外が飛ぶ。Debug では abort() の対話框が出たまま固まっていた（2026-10-02）。UTF-8 → 幅広で作る
+    // 変換され、作者の PC の中国語入りのパス（shuimian_02.FBX の F:\...\风暴英雄全套特效贴图\...png など）で
+    // 例外が飛ぶ。Debug では abort() のダイアログが出たまま固まっていた（2026-10-02）。UTF-8 → 幅広で作る
     fs::path Utf8Path(const std::string& s)
     {
         if (s.empty()) return fs::path();
@@ -44,6 +44,7 @@ namespace
             dir / filename,
             dir / "textures" / filename,
             dir / "Textures" / filename,
+            dir / "Tex" / filename,   // Assets/Model/Shadowkin_SF/Tex（2026-10-04）
             fs::path("Assets") / filename,
         };
         for (const auto& p : candidates)
@@ -132,7 +133,7 @@ std::vector<std::shared_ptr<Material>> MaterialLoader::LoadFromScene(
         }
         if (!albedo)
         {
-            // 貼図の参照を持たない FBX（Rock-Set など）: 同梱の色貼図を名前で探す。
+            // テクスチャの参照を持たない FBX（Rock-Set など）: 同梱の色テクスチャを名前で探す。
             // <名前>_Tex/ か同じ目録の「<名前> で始まり Base_Color / BaseColor / Albedo / Diffuse を含む」画像
             auto lower = [](std::string s) { for (auto& ch : s) ch = (char)tolower((unsigned char)ch); return s; };
             const std::string key = lower(modelName);

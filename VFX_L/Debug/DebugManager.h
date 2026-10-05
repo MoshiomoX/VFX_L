@@ -29,15 +29,15 @@ public:
     void SetUseDebugCamera(bool use);
     bool IsUsingDebugCamera() const { return m_UseDebugCamera; }
 
-    // y = 0 の参照格子（原点 ±GridSize、1m 刻み）と座標軸。編集器向け。
-    // 戦闘場面は地面が y = 0 にあって格子と深度で競り合い、地面に縞が出るので入る時に消す（2026-10-03）
+    // y = 0 の参照格子（原点 ±GridSize、1m 刻み）と座標軸。エディタ向け。
+    // 戦闘シーンは地面が y = 0 にあって格子と深度で競り合い、地面に縞が出るので入る時に消す（2026-10-03）
     bool GetShowGrid() const { return m_ShowGrid; }
     void SetShowGrid(bool show) { m_ShowGrid = show; }
 
     // シーン切替を依頼する（実行は次の SceneManager::Update）。
     // デバッグカメラは旧シーンのカメラを指しているので、切替前に必ず解除する
     void RequestScene(SceneType type);
-      // --- デバッグ形状描画（線框）---
+      // --- デバッグ形状描画（ワイヤーフレーム）---
     void DrawWireSphere(const Vector3& center, float radius, const Color& color);
     void DrawWireCapsule(const Vector3& center, float radius, float height, const Color& color);
     void DrawWireAABB(const Vector3& center, const Vector3& halfExtents, const Color& color);

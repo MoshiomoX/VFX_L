@@ -68,7 +68,7 @@ struct EmitSourceLayout
     uint32_t normalOffset;   // 法線 (float3) のオフセット
     uint32_t uvOffset;       // uv (float2) のオフセット（溶解の縁判定用）
     // ---- 三角形発射（index buffer の raw view があれば面上の点から出す）----
-    // triangleCount == 0 なら頂点だけから出す（胶囊の円柱部のように頂点が無い面には出ない）
+    // triangleCount == 0 なら頂点だけから出す（カプセルの円柱部のように頂点が無い面には出ない）
     uint32_t triangleCount;  // index 数 / 3。RegisterEmitSource が埋める
     uint32_t indexBytes;     // 2 (R16) か 4 (R32)
     uint32_t _pad0;
@@ -239,10 +239,10 @@ struct ParticleTrailStyle
     bool    inheritColor = true;     // 粒子の今の色（alpha 込み）を掛ける。粒子と一緒に薄れる
     bool    inheritSize = false;     // 幅に粒子の大きさを掛ける
     float   softEdge = 0.6f;         // 0 = 縁が硬い / 1 = 中心線から薄れる
-    float   uvRepeat = 1.0f;         // 長さ方向に貼图を何回繰り返すか
+    float   uvRepeat = 1.0f;         // 長さ方向にテクスチャを何回繰り返すか
     float   uvScroll = 0.0f;         // U/秒
     int     blend = 0;               // 0 additive / 1 alpha
-    bool    uvTile = false;          // 特効の帯（Trail entry）だけ：U = 道のり × uvRepeat（貼图が世界に固定される）
+    bool    uvTile = false;          // エフェクトの帯（Trail entry）だけ：U = 道のり × uvRepeat（テクスチャが世界に固定される）
     std::shared_ptr<Texture> texture;   // null なら白
 
     ParticleTrailStyleGPU ToGPU() const
@@ -263,7 +263,7 @@ struct ParticleTrailStyle
 };
 
 // ============================================
-// 特効の位置で動く帯（VFX の Trail entry）
+// エフェクトの位置で動く帯（VFX の Trail entry）
 //
 // 帯 1 本ごとに kEffectTrailPoints 点の環 + 状態 1 つを GPU 上に持つ。
 // CPU は毎フレーム帯ごとに錨（先頭の位置と命令）を 1 つ上げるだけで、
@@ -302,10 +302,27 @@ namespace ParticleRenderMode
     // 発射元（GPU の弾・範囲・オーブ）の速度を粒子の初速に足す（ビルボード・メッシュ共通）。
     // 弾と一緒に飛ぶ見た目（矢の本体など）に使う。SwarmEmitCS だけが読む（CPU の発射器には発射元の速度が無い）
     constexpr int kInheritSourceVelocity = 1 << 13;
+
+    // ビルボードのトゥーン（2026-10-04。GPUParticlePS の PARTICLE_TOON_* と一致）
+    //   bit 14 = トゥーン、bit 15 = 外周の線、bits 16-19 = alpha の境（0.05 + 0.05 × n）、
+    //   bits 20-21 = 色の段 - 1、bits 22-25 = 外の段の明るさ（n / 15）
+    constexpr int kToon = 1 << 14;
+    constexpr int kToonOutline = 1 << 15;
+    inline int PackToon(bool outline, float cut, int bands, float shade)
+    {
+        auto q = [](float v, float lo, float step) {
+            int n = (int)((v - lo) / step + 0.5f);
+            return n < 0 ? 0 : (n > 15 ? 15 : n);
+        };
+        int b = bands - 1;
+        b = b < 0 ? 0 : (b > 2 ? 2 : b);
+        return kToon | (outline ? kToonOutline : 0)
+            | (q(cut, 0.05f, 0.05f) << 16) | (b << 20) | (q(shade, 0.0f, 1.0f / 15.0f) << 22);
+    }
 }
 
 // ============================================
-// 貼图の中のどのコマを使うか（GPUEmitter::frameMode）。HLSL の InitParticleFrame と一致
+// テクスチャの中のどのコマを使うか（GPUEmitter::frameMode）。HLSL の InitParticleFrame と一致
 //   atlasIndex = 最初のコマ、frameCount = コマ数
 // ============================================
 enum class ParticleFrameMode : int

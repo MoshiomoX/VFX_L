@@ -4,13 +4,13 @@
 // ProjectileVFXSystem の Mesh 発射版。
 //
 //   Attach     : テンプレートを複製し、Shape=Mesh で source 未指定の
-//                Particle entry を宿主の Mesh（頂点 + index の raw view）へ束ねる
+//                Particle entry をホストの Mesh（頂点 + index の raw view）へ束ねる
 //   StartBurn  : DissolveComponent を付けて Attach（燃焼消滅の開始）
 //   Update     : 世界行列の追従、溶解の進行、縁の粒子の依頼、
 //                消滅し終えた実体の破棄
 //
 // ※ GPUParticleSystem::Flush より前に Update すること。
-// ※ 発射源の登録は Model ごとに 1 回（同じ胶囊を使う精英は 1 枠を共有）
+// ※ 発射源の登録は Model ごとに 1 回（同じカプセルを使うエリートは 1 枠を共有）
 // ============================================================
 #pragma once
 #include "ECS/Entity.h"
@@ -33,7 +33,7 @@ public:
     // 起動時：VFXId ごとのテンプレートを登録
     void RegisterVFX(VFXId id, const std::string& jsonPath);
 
-    // 実体に VFX 実例を付ける。ModelComponent が無い / テンプレートが無いなら false
+    // 実体に VFX インスタンスを付ける。ModelComponent が無い / テンプレートが無いなら false
     bool Attach(Registry& reg, Entity e, VFXId id, const VFXContext& ctx);
     void Detach(Registry& reg, Entity e);
 
@@ -50,7 +50,7 @@ private:
 
     // Model の第 0 SubMesh を発射源として登録（キャッシュ。id を返す、失敗は -1）
     int  AcquireSource(const std::shared_ptr<Model>& model, GPUParticleSystem* ps, int& vertexCount);
-    // 効果の中の Mesh 発射 entry を宿主の源へ束ねる
+    // 効果の中の Mesh 発射 entry をホストの源へ束ねる
     void BindEntries(MeshVFXComponent& comp);
 
     struct SourceCache

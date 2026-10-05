@@ -6,7 +6,7 @@
 //           （置いた後に Transform を動かしても追従しない。地形の作り直しで Build し直す）
 //   Render: 毎フレーム、視錐台と距離（包囲球の半径に比例）で間引き、見える分だけを
 //           動的 StructuredBuffer に詰めて、モデルの submesh 毎に DrawIndexedInstanced 1 回。
-//           材質（PS・貼図）はモデルのものをそのまま使い、VS だけ StaticPropVS に差し替える
+//           材質（PS・テクスチャ）はモデルのものをそのまま使い、VS だけ StaticPropVS に差し替える
 //
 // 1 個ずつ DrawMesh すると 1 回毎に状態を全部積み直すので、数百個で CPU が詰まる
 // （2026-09-27 計測: 野原の置物 760 個で Debug 9.6 ms / Release 0.9 ms）。
@@ -51,11 +51,11 @@ public:
     void Build(Registry& reg);
     void Clear();
 
-    // 場面の不透明描画の中で呼ぶ（RenderSystem と同じ状態のまま）
+    // シーンの不透明描画の中で呼ぶ（RenderSystem と同じ状態のまま）
     void Render(Renderer& renderer);
 
-    // 影図へ深度だけ（ShadowMap の段ごと）。光源の view * proj の視錐台で間引く
-    // （近い面は見ない：影図の手前、光源側にある物も影を落とす）。Stats は変えない
+    // シャドウマップへ深度だけ（ShadowMap の段ごと）。光源の view * proj の視錐台で間引く
+    // （近い面は見ない：シャドウマップの手前、光源側にある物も影を落とす）。Stats は変えない
     void RenderDepth(ID3D11DeviceContext* ctx, const DirectX::SimpleMath::Matrix& view,
         const DirectX::SimpleMath::Matrix& proj);
 

@@ -14,7 +14,7 @@
 
 namespace
 {
-    // Debug Info 面板から切替できるシーン一覧（登録済みの物だけボタンが出る）
+    // Debug Info パネルから切替できるシーン一覧（登録済みの物だけボタンが出る）
     struct SceneEntry
     {
         SceneType   type;
@@ -272,7 +272,7 @@ void DebugManager::SetUseDebugCamera(bool use)
 }
 
 // ============================================================
-// デバッグ形状描画（線框）
+// デバッグ形状描画（ワイヤーフレーム）
 // ============================================================
 void DebugManager::AddDebugLine(const Vector3& start, const Vector3& end, const Color& color)
 {

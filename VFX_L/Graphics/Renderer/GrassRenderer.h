@@ -1,6 +1,6 @@
 // ============================================================
 // GrassRenderer.h
-// 野原の草（GPU で生やす低多边形の葉）。風になびき、玩家が踏むと倒れて、ゆっくり起き上がる。
+// 野原の草（GPU で生やすローポリの葉）。風になびき、プレイヤーが踏むと倒れて、ゆっくり起き上がる。
 //
 //   配置: 世界に固定した格子（spacing m 毎）の各マスに 1 本、マスの中でハッシュでずらす
 //         （カメラが動いても同じ場所に同じ葉 = 泳がない）。毎フレーム、カメラの周り maxDistance m の
@@ -9,15 +9,15 @@
 //           間引かれかけの葉は先に縮めるので、境目で葉が急に消えない。
 //           土の坂道・外周・登れない台地（Build の grassMask）と、崖の面（高さ場が急な所）には生やさない。
 //   葉の形: 1 枚 3 三角形（根元の四角が半分の高さで 0.6 倍に細り、先は三角）。両面。
-//           色 = 地面の色（地形生成の GroundColor を貼図にした物）x 根元は暗く・先は明るく黄色寄り。
+//           色 = 地面の色（地形生成の GroundColor をテクスチャにした物）x 根元は暗く・先は明るく黄色寄り。
 //           光は Lighting.hlsli（太陽の影・霧も効く）。草は影を落とさない。
-//   動き: 風（風向きに流れる波 + 小さな揺れ）+ 踏み跡。踏み跡は場地全体を覆う貼図（GrassTrampleCS）。
-//         毎フレーム古い値を減衰させ、玩家の足元の円（滑り中は大きい）で外向きに押す。
+//   動き: 風（風向きに流れる波 + 小さな揺れ）+ 踏み跡。踏み跡はフィールド全体を覆うテクスチャ（GrassTrampleCS）。
+//         毎フレーム古い値を減衰させ、プレイヤーの足元の円（滑り中は大きい）で外向きに押す。
 //         一時停止中は Update が呼ばれないので、風も踏み跡の回復も止まる。
 //
-// 使い方（場面）:
+// 使い方（シーン）:
 //   Initialize → 地形生成の後 Build(grid, grassMask, seed)（作り直しの度にも）
-//   UpdateGameplay で Update(dt, 玩家の位置, 接地, 滑り中)
+//   UpdateGameplay で Update(dt, プレイヤーの位置, 接地, 滑り中)
 //   不透明物（地形・置物）の後に Render
 // ============================================================
 #pragma once
@@ -42,7 +42,7 @@ public:
     struct Settings
     {
         bool  enabled = true;
-        // 2026-09-28 用户: 細かい葉をたくさん → 大きめの葉を少し疎らに、広く
+        // 2026-09-28 ユーザー: 細かい葉をたくさん → 大きめの葉を少し疎らに、広く
         float spacing = 0.25f;              // 格子の間隔 m（近くは 1 / spacing^2 本 / m2）
         float maxDistance = 70.0f;          // カメラからこれより遠くは生やさない
         float fullDensityDistance = 18.0f;  // ここまでは全部。ここから maxDistance で farDensity まで間引く
@@ -70,7 +70,7 @@ public:
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
     void Shutdown();
 
-    // 地形の生成後（作り直しの度にも）: 高さ場・地面の色・生やすマスを貼図へ、踏み跡を消す。
+    // 地形の生成後（作り直しの度にも）: 高さ場・地面の色・生やすマスをテクスチャへ、踏み跡を消す。
     // grassMask は格子のマス毎（TerrainGenerator::Generate の outGrassMask）。空なら全部に生やす
     void Build(const GridWorld& grid, const std::vector<uint8_t>& grassMask, uint32_t seed,
         TerrainGenerator::Biome biome = TerrainGenerator::Biome::Grassland);   // biome: 床の色（GroundColor）
@@ -111,7 +111,7 @@ public:
 
 private:
     static constexpr uint32_t kMaxBlades = 262144;   // 8MB。近くを見下ろしても収まる（普段は数万本）
-    static constexpr int kTrampleSize = 512;          // 踏み跡の貼図の辺（200m の場地で 0.39m / texel）
+    static constexpr int kTrampleSize = 512;          // 踏み跡のテクスチャの辺（200m のフィールドで 0.39m / texel）
 
     bool CreateBuffers();
 

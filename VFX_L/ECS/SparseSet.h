@@ -3,7 +3,7 @@
 // ECS の中核データ構造（1種類の Component 専用の容器）
 //
 // 3つの配列で構成：
-//   m_Sparse  : Entity番号(下标) → dense の位置(值) を記録する地図（穴あきOK）
+//   m_Sparse  : Entity番号(添字) → dense の位置(值) を記録する地図（穴あきOK）
 //   m_Dense   : Component データ本体（連続、穴なし）
 //   m_Entities: m_Dense と並走、各 dense データの持ち主 Entity（逆引き用）
 // ============================================================
@@ -105,11 +105,11 @@ public:
         return m_Dense[m_Sparse[EntityTraits::GetIndex(e)]];
     }
 
-    // --- 遍历用：連続配列を直接公開 ---
+    // --- 走査用：連続配列を直接公開 ---
     std::vector<T>& GetDense() { return m_Dense; }
     const std::vector<T>& GetDense() const { return m_Dense; }
 
-    // --- dense[i] の持ち主 Entity 一覧（View の遍历基準に使う）---
+    // --- dense[i] の持ち主 Entity 一覧（View の走査基準に使う）---
     const std::vector<Entity>& GetEntities() const { return m_Entities; }
 
     size_t Size() const { return m_Dense.size(); }

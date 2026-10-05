@@ -1,10 +1,10 @@
 // ============================================================
 // MeshVFXComponent.h
-// 実体のモデル表面から粒子を出す VFX 実例（受击火花、燃焼消滅など）。
+// 実体のモデル表面から粒子を出す VFX インスタンス（被弾火花、燃焼消滅など）。
 // テンプレートから CloneFrom した効果を 1 実体ごとに持つ。
 //
 //   Shape = Mesh で source 未指定の Particle entry は、
-//   Attach 時に宿主の ModelComponent の Mesh へ束ねられる。
+//   Attach 時にホストの ModelComponent の Mesh へ束ねられる。
 //   world は毎フレーム TransformComponent から更新され、
 //   entry の followWorld がここを指す（heap に置いて住所を固定する）
 // ============================================================

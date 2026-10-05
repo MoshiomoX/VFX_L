@@ -70,8 +70,8 @@ int MeshVFXSystem::AcquireSource(const std::shared_ptr<Model>& model, GPUParticl
 }
 
 // ============================================================
-// 効果の中の Mesh 発射 entry を宿主の源へ束ねる。
-// 規約：Shape = Mesh かつ source（ファイル）未指定 = 宿主のモデルから出す
+// 効果の中の Mesh 発射 entry をホストの源へ束ねる。
+// 規約：Shape = Mesh かつ source（ファイル）未指定 = ホストのモデルから出す
 // ============================================================
 void MeshVFXSystem::BindEntries(MeshVFXComponent& comp)
 {
@@ -123,7 +123,7 @@ void MeshVFXSystem::Detach(Registry& reg, Entity e)
     if (!reg.IsValid(e) || !reg.Has<MeshVFXComponent>(e)) return;
     auto& comp = reg.Get<MeshVFXComponent>(e);
     if (comp.effect) comp.effect->Stop();
-    // 発射源はキャッシュが持ち続ける（Model ごとに 1 枠、精英同士で共有）
+    // 発射源はキャッシュが持ち続ける（Model ごとに 1 枠、エリート同士で共有）
     reg.Remove<MeshVFXComponent>(e);
 }
 

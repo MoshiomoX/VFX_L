@@ -26,6 +26,8 @@ struct BeamItem
     float tipFade; // metres over which the tip thins out
     float rootFade; // metres over which the root fades in
     float seed;
+    float toon; // 1 = hard-edged bands + two-level streaks (2026-10-04)
+    float3 toonPad;
 };
 
 // ---- value noise (hash based, no texture) ----

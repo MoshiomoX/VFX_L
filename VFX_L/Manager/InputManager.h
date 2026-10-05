@@ -37,7 +37,7 @@ public:
     // ====== マウスの捕獲（TPS の視点操作）======
     // 捕獲中はカーソルを隠してウィンドウ中央の 1px に閉じ込め、ImGui にもマウスを渡さない。
     // 毎フレーム RequestMouseCapture を呼んでいる間だけ有効で、呼ばなくなった次のフレームで放す
-    // （場面を抜けた時に戻し忘れて、タイトルでカーソルが消えたままになるのを防ぐ）。
+    // （シーンを抜けた時に戻し忘れて、タイトルでカーソルが消えたままになるのを防ぐ）。
     // ウィンドウが前面に無い間は、要求があっても放しておく
     void RequestMouseCapture() { m_CaptureRequested = true; }
     bool IsMouseCaptured() const { return m_Captured; }

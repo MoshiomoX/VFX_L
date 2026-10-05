@@ -8,8 +8,8 @@ class VFXMeshRenderer;
 struct EdgeFilterParams;
 
 // ============================================================
-// Mesh entry: モデルを特効として描く（剣気の弧、衝撃波の環、魔法陣）。
-// 光は当てない。色 = 貼图 × tint × intensity（HDR）。
+// Mesh entry: モデルをエフェクトとして描く（剣気の弧、衝撃波の環、魔法陣）。
+// 光は当てない。色 = テクスチャ × tint × intensity（HDR）。
 // 寿命中の変化は start → end の線形（曲線は後で）
 // ============================================================
 class VFXMeshEntry : public VFXEntry

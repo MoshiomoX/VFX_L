@@ -27,8 +27,8 @@ struct SpellStats
     int   projectileCount = 1;      // 一度に出る数
     float spreadAngle = 0.0f;   // 扇の角度（度）。count>1 の時だけ意味を持つ
 
-    // --- 二重釈放（時間展開: 少し遅れてもう一度）---
-    int   castCount = 1;            // 1回の施法で撃つ回数
+    // --- 二重詠唱（時間展開: 少し遅れてもう一度）---
+    int   castCount = 1;            // 1回の詠唱で撃つ回数
     float castDelay = 0.12f;        // 次の一発までの間隔（秒）
 
     // --- リズム / コスト ---
@@ -36,7 +36,7 @@ struct SpellStats
     float manaCost = 10.0f;     // 1発あたりの消費（castCount 倍かかる）
 
     // --- 投射物の性能 ---
-    // 基礎値は ProjectileProfile（profile 番）から写す。機能符はその上に掛かる
+    // 基礎値は ProjectileProfile（profile 番）から写す。機能ルーンはその上に掛かる
     int   profile = 0;              // ProjectileProfileDB の番号（0 = 組み込みの直進）
     float damage = 10.0f;
     float speed = 20.0f;
@@ -46,15 +46,15 @@ struct SpellStats
     // 範囲の威力は GPU の範囲定義が持つので、弾ごとに渡す（能力アップ「魔法威力」。ItemInfo::ApplySpellPower）
     float areaDamageMul = 1.0f;
 
-    // --- 誘発（基礎魔法 → 高級魔法。集約が決める）---
-    bool     triggered = false;   // 高級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ
-    uint32_t triggerMask = 0;     // 基礎魔法: この弾が消えたら誘発できる高級魔法（bit 0〜15 = spells の添字、bit 16〜31 = areas の添字（光線））
+    // --- 誘発（基本魔法 → 上級魔法。集約が決める）---
+    bool     triggered = false;   // 上級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ
+    uint32_t triggerMask = 0;     // 基本魔法: この弾が消えたら誘発できる上級魔法（bit 0〜15 = spells の添字、bit 16〜31 = areas の添字（光線））
 
     // --- 実行時状態（WeaponSystem が更新）---
     float castTimer = 0.0f;      // 次に撃てるまでの残り
     int   pendingCasts = 0;         // 連発の残り回数
     float delayTimer = 0.0f;      // 次の連発までの残り
-    DirectX::SimpleMath::Vector3 triggerPos;   // 高級魔法: 連発（二重詠唱）の続きを撃つ場所
+    DirectX::SimpleMath::Vector3 triggerPos;   // 上級魔法: 連発（二重詠唱）の続きを撃つ場所
 };
 
 struct WandComponent
@@ -65,10 +65,10 @@ struct WandComponent
     CastMode castMode = CastMode::Auto;
     bool     castRequested = false;
 
-    // プレイヤーが施法を止めている（Q / パッド Y で切替）。
-    // 止めている間は新しい施法をしない = 魔力を使わずに溜められる。
-    // 撃ち始めた連発（二重釈放の残り）は最後まで撃ち切る。
-    // 集約（BackpackAggregateSystem）は spells / areas しか作り直さないので、背包を組み替えても残る
+    // プレイヤーが詠唱を止めている（Q / パッド Y で切替）。
+    // 止めている間は新しい詠唱をしない = 魔力を使わずに溜められる。
+    // 撃ち始めた連発（二重詠唱の残り）は最後まで撃ち切る。
+    // 集約（BackpackAggregateSystem）は spells / areas しか作り直さないので、バックパックを組み替えても残る
     bool     castingPaused = false;
     float castAnimTimer = 0.0f;
     float castAnimDuration = 0.3f;

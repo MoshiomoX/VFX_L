@@ -1,13 +1,13 @@
 // ============================================================
 // ParticleSheets.h
-// 粒子の貼图表。ビルボード粒子は発射器ごとに「どの貼图の、どの絵」を選ぶ。
+// 粒子のテクスチャ表。ビルボード粒子は発射器ごとに「どのテクスチャの、どの絵」を選ぶ。
 //
-//   貼图 1 枚 = 格子に並べた絵（atlas）+ 説明 json（行列・採样・名前付きの範囲）。
-//   番号は Res::ParticleSheet::kManifests の並び（特効 json の "sheet" に保存される）。
+//   テクスチャ 1 枚 = 格子に並べた絵（atlas）+ 説明 json（行列・サンプリング・名前付きの範囲）。
+//   番号は Res::ParticleSheet::kManifests の並び（エフェクト json の "sheet" に保存される）。
 //   GPUParticleSystem が全部を t0.. に並べて貼り、PS が番号で選ぶ
-//   （SM5.0 は貼图の配列を動的な添字で引けないので switch）。
+//   （SM5.0 はテクスチャの配列を動的な添字で引けないので switch）。
 //
-//   premultiplied = true の貼图は rgb に alpha を掛けた値で保存してある
+//   premultiplied = true のテクスチャは rgb に alpha を掛けた値で保存してある
 //   （Tools/BuildParticleSheets.ps1）。旧 particlesSheet.jpg（0 番）だけ false
 // ============================================================
 #pragma once
@@ -34,7 +34,7 @@ namespace ParticleSheets
         std::shared_ptr<Texture> texture;   // 読めなければ null（その番号の粒子は透明になる）
         int  rows = 1;
         int  cols = 1;
-        bool point = false;                 // 最近傍で読む（像素絵）
+        bool point = false;                 // 最近傍で読む（ピクセルアート）
         bool premultiplied = false;
         std::vector<std::string> frames;    // 格子ごとの名前（空でもよい）
         std::vector<Group> groups;          // 名前付きの範囲（連番・同じ種類の変化形）

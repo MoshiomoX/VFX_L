@@ -61,6 +61,8 @@ public:
 
         // submesh 毎の offset 行列（同じ骨でも submesh によって違い得る）
         std::unordered_map<int, DirectX::SimpleMath::Matrix> boneOffsets;
+        // mesh を持つノードの bind の global。スキニングした時の骨の global = Invert(offset) * nodeGlobal
+        DirectX::SimpleMath::Matrix nodeGlobal = DirectX::SimpleMath::Matrix::Identity;
     };
 
     bool Load(ID3D11Device* device, const std::string& filepath);
@@ -84,9 +86,22 @@ public:
     // 同じ名前のクリップが既にあれば、足す方を「ファイル名|名前」にする
     // （"Rig_Medium_MovementAdvanced|Dodge_Forward"。FindClip("Dodge_Forward") は元の方）。
     // 戻り値 = 足したクリップ数（読めなければ -1）
-    int AddAnimationsFromFile(const std::string& filepath);
+    //
+    // map を渡すと（2026-10-04）骨名の違う人形（例: CC_Base_* ← UE 風）から世界空間で付け替える：
+    //   自分の基準 = スキニングした時の姿勢（offset から逆算。ノードの既定の姿勢は飾りのポーズの事がある）。
+    //   基準どうしの姿勢の違い（T ポーズ ↔ A ポーズ）は、対応する骨の向き（骨 → 子の骨）が向こうの
+    //   基準に揃うよう骨ごとに最小の回転で直す。そのうえで 30fps で向こうの骨の世界の回転の
+    //   基準からの差分を両モデルの向きの差で回して掛け、親で割って親基準に戻して焼く。
+    //   腰（map の先頭）は平行移動も腰の高さの比で縮めて付ける。対応の無い骨（マント、捻り骨）は
+    //   スキニングした時の親基準の姿勢のまま親に付いて行く
+    int AddAnimationsFromFile(const std::string& filepath,
+        const struct BoneMapEntry* map = nullptr, int mapCount = 0);
 
     const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
+
+    // スキニングした時の骨の global（モデル空間）= Invert(offset) * mesh ノード。
+    // offset の無い骨（末端の _end 等）は親の値にノードの親基準の変換を掛ける
+    DirectX::SimpleMath::Matrix GetSkinBindGlobal(int boneIndex) const;
     // ノード名 → submesh index（無ければ -1）
     int FindSubMeshByNode(const std::string& nodeName) const;
     Skeleton& GetSkeleton() { return m_Skeleton; }
@@ -119,11 +134,11 @@ public:
     // rootBone とその子孫を 1、他を 0 にした骨マスクを作る（無い名前なら false）
     bool BuildBoneMask(const std::string& rootBone, std::vector<float>& outMask) const;
 
-    // ---- 1 フレームを CPU で蒙皮して静的 Model にする ----
+    // ---- 1 フレームを CPU でスキニングして静的 Model にする ----
     // 雑魚のようにインスタンス描画したい相手用（骨は持たせない）。
-    //   xform      … 蒙皮後の頂点に掛ける（拡縮・向き・足元合わせ）
+    //   xform      … スキニング後の頂点に掛ける（拡縮・向き・足元合わせ）
     //   skipNodes  … 含めない submesh のノード名（持たせない武器など）
-    // 材質は付けない（呼び側が VS/PS/貼图を持つ）。頂点色は白
+    // 材質は付けない（呼び側が VS/PS/テクスチャを持つ）。頂点色は白
     std::shared_ptr<class Model> BakeStatic(ID3D11Device* device, int clipIndex, float timeSec,
         const DirectX::SimpleMath::Matrix& xform,
         const std::vector<std::string>& skipNodes = {}) const;
@@ -135,6 +150,9 @@ public:
 
 private:
     void LoadAnimations(const aiScene* scene);
+    // AddAnimationsFromFile の骨名の対応表あり版（世界空間で付け替えて焼く）
+    int RetargetAnimations(const aiScene* scene, const std::string& filepath,
+        const struct BoneMapEntry* map, int mapCount);
 
     std::vector<SubMesh>                    m_SubMeshes;
     std::vector<std::shared_ptr<Material>>  m_Materials;

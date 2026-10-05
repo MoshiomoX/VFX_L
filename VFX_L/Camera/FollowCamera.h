@@ -46,7 +46,7 @@ public:
     float GetCurrentDistance() const { return m_CurDistance; }   // 遮蔽で縮んだ後
     bool  IsOccluded() const { return m_Occluded; }
 
-    // 視点を defaultYaw / defaultPitch に戻す（開始時・面板のボタン）
+    // 視点を defaultYaw / defaultPitch に戻す（開始時・パネルのボタン）
     void  ResetView() { m_Yaw = defaultYaw; m_Pitch = defaultPitch; }
 
     // 画面の縦横比（Init / Resize で）。画角は Update が fov + 速さの分から作り直す
@@ -59,8 +59,8 @@ public:
     // 増やしたら BattleCamera.cpp の CAMERA_FLOATS / CAMERA_BOOLS にも足す（保存・読込・既定値に戻す）
     float fov = 45.0f;             // 縦の画角（度）
     float defaultYaw = 0.0f;       // 始めの向き（度）
-    float defaultPitch = 28.0f;    // 始めの見下ろし角（度、正 = 見下ろす）
-    float distance = 8.0f;    // 対象からの距離（爆発で自分の周りが隠れないよう少し引く）
+    float defaultPitch = 32.0f;    // 始めの見下ろし角（度、正 = 見下ろす）
+    float distance = 10.0f;   // 対象からの距離（爆発で自分の周りが隠れないよう少し引く）
     float height = 1.5f;    // 注視点の高さオフセット（足元でなく胸あたりを見る）
     float shoulderOffset = 0.5f;    // 右肩へのずらし（m）。負で左肩、0 で真後ろ
     float stickSensitivity = 150.0f;  // 度/秒
@@ -104,7 +104,7 @@ public:
     float lookAheadMax = 1.5f;        // m
     float lookAheadSmoothTime = 0.35f;
 
-    // マウスホイールで距離を変える（捕獲中だけ。面板の Distance と同じ値を動かすので保存される）
+    // マウスホイールで距離を変える（捕獲中だけ。パネルの Distance と同じ値を動かすので保存される）
     bool  wheelZoom = true;
     float zoomMin = 3.0f;
     float zoomMax = 14.0f;
@@ -120,7 +120,7 @@ private:
     Vector3 m_PivotVel = { 0, 0, 0 };
     bool    m_Snap = true;
     float   m_Yaw = 0.0f;    // 水平角（度）
-    float   m_Pitch = 28.0f;   // 仰角（度、正=見下ろす）
+    float   m_Pitch = 32.0f;  // 仰角（度、正=見下ろす）
 
     float   m_CurDistance = 8.0f;   // 遮蔽回避を反映した今の距離
     float   m_DistVel = 0.0f;

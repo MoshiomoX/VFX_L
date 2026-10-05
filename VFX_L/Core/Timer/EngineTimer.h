@@ -21,7 +21,7 @@ private:
     float m_DeltaTime = 0.0f;
     float m_FPS = 0.0f;
 
-    // FPS计算用
+    // FPS計算用
     int m_FrameCount = 0;
     float m_FPSTimer = 0.0f;
 };

@@ -101,9 +101,9 @@ namespace
         case SpellParam::Damage:          return L"威力";
         case SpellParam::Speed:           return L"弾速";
         case SpellParam::Radius:          return L"当たり判定";
-        case SpellParam::Lifetime:        return L"飛ぶ時間";
+        case SpellParam::Lifetime:        return L"飛行時間";
         case SpellParam::ProjectileCount: return L"弾数";
-        case SpellParam::SpreadAngle:     return L"拡散";
+        case SpellParam::SpreadAngle:     return L"拡散角度";
         case SpellParam::CastCount:       return L"連射";
         case SpellParam::CastDelay:       return L"連射の間隔";
         case SpellParam::CastInterval:    return L"発動間隔";
@@ -218,12 +218,12 @@ namespace
 
     // ---- 種類ごとの中身 ----
     // v = 修飾後、b = 元の値（修飾が無ければ同じ物を渡す）
-    // 隕石の飛び方。誘発で撃つ高級魔法は「一番近い敵」ではなく前提の弾が消えた場所へ落ちるので、後で差し替える
-    const wchar_t* const kDropTrait = L"一番近い敵の足元へ空から落ちてくる";
+    // 隕石の飛び方。誘発で撃つ上級魔法は「一番近い敵」ではなく前提の弾が消えた場所へ落ちるので、後で差し替える
+    const wchar_t* const kDropTrait = L"一番近い敵の足元へ空から落ちる";
 
     void FillProjectile(Sheet& s, const SpellStats& v, const SpellStats& b)
     {
-        // 飛び方と命中時の範囲はプロファイルから。編集器で変えれば説明も変わる
+        // 飛び方と命中時の範囲はプロファイルから。エディタで変えれば説明も変わる
         const ProjectileProfile& pp = ProjectileProfileDB::At(b.profile);
         switch (pp.mode)
         {
@@ -252,15 +252,15 @@ namespace
                     swprintf_s(buf, drop ? L"着弾すると爆発する (威力 %ls、半径 %lsm)" : L"命中すると爆発する (威力 %ls、半径 %lsm)",
                         Num(areaDamage).c_str(), Num(ap.radius * areaScale).c_str());
                 else
-                    swprintf_s(buf, drop ? L"落ちた所に範囲を残す (半径 %lsm、%ls 秒ごとに威力 %ls、%ls 秒間)"
-                                         : L"命中した所に範囲を残す (半径 %lsm、%ls 秒ごとに威力 %ls、%ls 秒間)",
+                    swprintf_s(buf, drop ? L"着弾地点にダメージゾーンを残す (半径 %lsm、%ls 秒ごとに威力 %ls、%ls 秒間)"
+                                         : L"命中地点にダメージゾーンを残す (半径 %lsm、%ls 秒ごとに威力 %ls、%ls 秒間)",
                         Num(ap.radius * areaScale).c_str(), Num(ap.tickInterval).c_str(), Num(areaDamage).c_str(), Num(ap.duration).c_str());
                 s.traits.push_back(buf);
                 // 減速（毒の池）。15 段階に丸めた実際の値を出す（AreaProfile::Flags）
                 if (ap.slow > 0.0f)
                 {
                     const int pct = (int)std::lround(std::lround(std::clamp(ap.slow, 0.0f, 1.0f) * 15.0f) / 15.0f * 100.0f);
-                    swprintf_s(buf, L"範囲の中の敵は移動が %d%% 遅くなる (精鋭・ボスは半分)", pct);
+                    swprintf_s(buf, L"範囲内の敵の移動速度が %d%% 下がる (エリート・ボスには半分の効果)", pct);
                     s.traits.push_back(buf);
                 }
             }
@@ -281,19 +281,19 @@ namespace
         if (Changed(v.speed, b.speed))       s.stats.push_back(StatLine(L"弾速", v.speed, b.speed, L"m/秒", +1));
         // 隕石は弾が当たらないので、当たり判定の行は出さない（大きさは爆発の半径に表れる）
         if (!drop && Changed(v.radius, b.radius)) s.stats.push_back(StatLine(L"当たり判定", v.radius, b.radius, L"m", +1));
-        if (Changed(v.lifetime, b.lifetime)) s.stats.push_back(StatLine(L"飛ぶ時間", v.lifetime, b.lifetime, L"秒", +1));
-        if (v.projectileCount > 1)           s.stats.push_back(StatLine(L"拡散", v.spreadAngle, b.spreadAngle, L"度", 0));
+        if (Changed(v.lifetime, b.lifetime)) s.stats.push_back(StatLine(L"飛行時間", v.lifetime, b.lifetime, L"秒", +1));
+        if (v.projectileCount > 1)           s.stats.push_back(StatLine(L"拡散角度", v.spreadAngle, b.spreadAngle, L"度", 0));
     }
 
     void FillArea(Sheet& s, const AreaStats& v, const AreaStats& b)
     {
-        // 光線（AreaProfile::Kind::Beam）: 手から貫く胶囊。範囲の代わりに太さと射程
+        // 光線（AreaProfile::Kind::Beam）: 手から貫くカプセル。範囲の代わりに太さと射程
         const bool beam = v.profile > 0 && AreaProfileDB::At(v.profile).IsBeam();
         if (beam)
         {
             const AreaProfile& ap = AreaProfileDB::At(v.profile);
             wchar_t t[96];
-            swprintf(t, 96, L"手から %.0fm 先まで貫く光線（%.1f 秒の溜めのあと）", ap.length, ap.chargeTime);
+            swprintf(t, 96, L"前方 %.0fm を貫く光線を放つ（溜め %.1f 秒）", ap.length, ap.chargeTime);
             s.traits.push_back(t);
             s.stats.push_back(StatLine(L"威力", v.damagePerTick, b.damagePerTick, L"", +1));
             s.stats.push_back(StatLine(L"太さ", v.radius * 2.0f, b.radius * 2.0f, L"m", +1));
@@ -331,7 +331,7 @@ namespace
             minC = (std::min)(minC, o.col); maxC = (std::max)(maxC, o.col);
         }
         Line l;
-        l.label = L"広さ";
+        l.label = L"サイズ";
         l.value = Num((float)(maxC - minC + 1)) + L"x" + Num((float)(maxR - minR + 1))
             + L" (" + Num((float)c.occupyCells.size()) + L" マス)";
         s.stats.push_back(l);
@@ -345,9 +345,9 @@ namespace
         case StatKind::MaxHealth: l.label = L"最大HP"; break;
         case StatKind::MaxMana:   l.label = L"最大MP"; break;
         case StatKind::MoveSpeed: l.label = L"移動速度"; break;
-        case StatKind::JumpPower: l.label = L"跳躍力"; break;
-        case StatKind::ManaRegen: l.label = L"魔力回復"; break;
-        case StatKind::JumpCount: l.label = L"跳躍回数"; break;
+        case StatKind::JumpPower: l.label = L"ジャンプ力"; break;
+        case StatKind::ManaRegen: l.label = L"MP回復"; break;
+        case StatKind::JumpCount: l.label = L"ジャンプ回数"; break;
         case StatKind::SpellPower: l.label = L"魔法の威力"; break;
         }
         l.value = def.percent ? L"+" + Num(def.amount * 100.0f) + L"%" : L"+" + Num(def.amount);
@@ -380,7 +380,7 @@ namespace ItemInfo
     }
 
     // 弾そのもの（威力・速さ・判定・寿命）は投射物プロファイルが基礎値。
-    // 道具側の値は使わない。名前が引けなければ 0 番（組み込みの直進）
+    // アイテム側の値は使わない。名前が引けなければ 0 番（組み込みの直進）
     SpellStats BaseSpellStats(const ProjectileItemDef& def)
     {
         SpellStats stats = def.baseStats;
@@ -393,7 +393,7 @@ namespace ItemInfo
         return stats;
     }
 
-    // 編集器のプロファイルがあれば、形・時間・威力はそちらが基礎値
+    // エディタのプロファイルがあれば、形・時間・威力はそちらが基礎値
     AreaStats BaseAreaStats(const AreaItemDef& def)
     {
         AreaStats stats = def.baseStats;
@@ -420,7 +420,7 @@ namespace ItemInfo
         a.damagePerTick *= power;
     }
 
-    // 高級魔法の前提（「ファイアボール・ストーンショット」）
+    // 上級魔法の前提（「ファイアボール・ストーンショット」）
     static std::wstring TriggerNames(const ItemCommon& c)
     {
         std::vector<std::wstring> names;
@@ -428,22 +428,22 @@ namespace ItemInfo
         return Join(names);
     }
 
-    // 高級魔法: 飛び方の文を「前提の弾が消えた場所へ」に差し替える
+    // 上級魔法: 飛び方の文を「前提の弾が消えた場所へ」に差し替える
     static void FixTriggeredFlight(Sheet& s, const ProjectileItemDef& d)
     {
         if (d.common.triggeredBy.empty()) return;
         for (auto& t : s.traits)
-            if (t == kDropTrait) t = TriggerNames(d.common) + L" の弾が消えた場所へ空から落ちてくる";
+            if (t == kDropTrait) t = TriggerNames(d.common) + L" の弾が消えた場所へ空から落ちる";
     }
 
-    // 高級魔法が発動した時に何をするか（隕石はそこへ落ちる、光線はそこへ向けて撃つ）
+    // 上級魔法が発動した時に何をするか（隕石はそこへ落ちる、光線はそこへ向けて撃つ）
     static std::wstring TriggerAction(const ItemCommon& c)
     {
         return (c.category == ItemCategory::Area) ? L" の弾が消えた方向へ撃つ" : L" の弾が消えた場所で発動する";
     }
 
-    // 背包に置いた物の「誘発」の行（集約と同じ判定）。高級魔法なら目覚めているか / 足りない前提、
-    // 基礎魔法なら自分が呼び起こしている高級魔法
+    // バックパックに置いた物の「誘発」の行（集約と同じ判定）。上級魔法なら目覚めているか / 足りない前提、
+    // 基本魔法なら自分が呼び起こしている上級魔法
     static void AddTriggerTraits(Sheet& s, const BackpackComponent& bp, int itemIndex, const ItemCommon& c)
     {
         if (!c.triggeredBy.empty())
@@ -460,7 +460,7 @@ namespace ItemInfo
                     for (int k : drivers) if (bp.items[k].id == need) { found = true; break; }
                     if (!found) missing.push_back(DisplayName(need));
                 }
-                s.traits.insert(s.traits.begin(), L"未発動: " + Join(missing) + L" を上下左右に隣り合わせる");
+                s.traits.insert(s.traits.begin(), L"未発動: " + Join(missing) + L" を上下左右に隣接させる");
             }
             return;
         }
@@ -475,7 +475,7 @@ namespace ItemInfo
                 wakes.push_back(DisplayName(bp.items[j].id));
         }
         if (!wakes.empty())
-            s.traits.insert(s.traits.begin(), L"誘発: " + Join(wakes) + L"（この弾が消えた場所で）");
+            s.traits.insert(s.traits.begin(), L"連鎖: " + Join(wakes) + L"（この弾が消えた場所で発動）");
     }
 
     Sheet Describe(ItemID id)
@@ -488,7 +488,7 @@ namespace ItemInfo
             FixTriggeredFlight(s, *d);
             if (!d->common.triggeredBy.empty())
                 s.traits.insert(s.traits.begin(),
-                    L"上級魔法: " + TriggerNames(d->common) + L" の両方を上下左右に隣り合わせると目覚める");
+                    L"上級魔法: " + TriggerNames(d->common) + L" の両方を上下左右に隣接させると発動する");
         }
         else if (auto* d = ItemDatabase::GetArea(id))
         {
@@ -496,7 +496,7 @@ namespace ItemInfo
             FillArea(s, b, b);
             if (!d->common.triggeredBy.empty())
                 s.traits.insert(s.traits.begin(),
-                    L"上級魔法: " + TriggerNames(d->common) + L" の両方を上下左右に隣り合わせると目覚める");
+                    L"上級魔法: " + TriggerNames(d->common) + L" の両方を上下左右に隣接させると発動する");
         }
         else if (auto* d = ItemDatabase::GetFunction(id))
             FillFunction(s, *d);
@@ -550,7 +550,7 @@ namespace ItemInfo
             ApplySpellPower(v, spellPower);
             FillArea(s, v, b);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
-            AddTriggerTraits(s, bp, itemIndex, d->common);   // 光線（高級魔法）の誘発
+            AddTriggerTraits(s, bp, itemIndex, d->common);   // 光線（上級魔法）の誘発
             return s;
         }
 

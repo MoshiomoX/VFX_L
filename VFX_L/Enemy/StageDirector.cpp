@@ -83,7 +83,7 @@ bool StageDirector::SpawnBoss(const GridWorld& grid, const Vector3& player, Swar
 void StageDirector::Update(const GridWorld& grid, const Vector3& player, float runTime, float dt,
     MobSpawner& mobs, SwarmSystem& swarm)
 {
-    // ---- 時間切れの後は最終波 ----
+    // ---- 時間切れの後は最終ウェーブ ----
     auto& director = mobs.Director();
     if (runTime >= stageTime)
     {
@@ -109,7 +109,7 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
     }
     else if (m_FinalLevel != 0)
     {
-        // 面板で制限時間を延ばした時など: 普段へ戻す
+        // パネルで制限時間を延ばした時など: 普段へ戻す
         m_FinalLevel = 0;
         mobs.finalStatMul = 1.0f;
         mobs.finalSpawnRate = 0.0f;
@@ -118,9 +118,9 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
         if (m_NormalCap >= 0) director.spawnCap = m_NormalCap;
     }
 
-    const float hp = eliteHp * mobs.GetStatMul();   // 出た瞬間の難度で決まる（雑魚と同じ）
+    const float hp = eliteHp * mobs.GetHpMul();   // 出た瞬間の難度で決まる（雑魚と同じ）
 
-    // ---- 決まった時間に精英 ----
+    // ---- 決まった時間にエリート ----
     if (m_NextElite < eliteTimes.size() && runTime >= eliteTimes[m_NextElite])
     {
         if (SpawnElite(grid, player, hp, swarm))
@@ -136,19 +136,19 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
         m_Event = "elite (button)";
     }
 
-    // ---- Boss（面板のボタンは門を使ったのと同じ）----
+    // ---- Boss（パネルのボタンは門を使ったのと同じ）----
     if (m_DebugBoss)
     {
         m_DebugBoss = false;
         if (m_Boss == BossState::None || m_Boss == BossState::Defeated)
         {
-            m_BossSpawnHp = bossHp * mobs.GetStatMul();
+            m_BossSpawnHp = bossHp * mobs.GetHpMul();
             m_SummonPos = player;
             if (SpawnBoss(grid, player, swarm)) { m_Boss = BossState::Summoned; m_BossWait = 0.0f; m_Event = "boss (button)"; }
         }
     }
 
-    // 生死は GPU の回読で見る（2〜3 フレーム遅れる）
+    // 生死は GPU のリードバックで見る（2〜3 フレーム遅れる）
     const Swarm::BossInfo& info = swarm.GetBossInfo();
     switch (m_Boss)
     {
@@ -186,7 +186,7 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
 }
 
 // ============================================================
-// 門を置く（開局・地形の作り直し）
+// 門を置く（開始時・地形の作り直し）
 // 乱数は地形の seed から（同じ seed なら同じ場所）。周り 3x3 も歩けて平らな所
 // ============================================================
 void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vector3& center, uint32_t seed,
@@ -225,14 +225,14 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
             {
                 if (!grid.IsWalkable(gx + dx, gz + dz)) { ok = false; break; }
                 const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
-                ok = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.2f;
+                ok = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.6f;   // 起伏の斜面は可（2026-10-04、0.2 → 0.6）
             }
         if (!ok) return false;
 
-        // 門の面（拱の局所 +Z）を face の方へ向ける（通り抜ける向きが近づく玩家から見える）
+        // 門の面（拱の局所 +Z）を face の方へ向ける（通り抜ける向きが近づくプレイヤーから見える）
         const float yawDeg = DirectX::XMConvertToDegrees(std::atan2(face.x - pos.x, face.z - pos.z));
         const Matrix rot = Matrix::CreateRotationY(DirectX::XMConvertToRadians(yawDeg));
-        // 包囲箱の xz の真ん中を pos に、底を地面に合わせる（模型の原点の位置に頼らない）
+        // 包囲箱の xz の真ん中を pos に、底を地面に合わせる（モデルの原点の位置に頼らない）
         const Vector3 midXZ((lo.x + hi.x) * 0.5f * scale, 0.0f, (lo.z + hi.z) * 0.5f * scale);
 
         Entity e = reg.Create();
@@ -246,7 +246,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         mc.model = m_PortalModel;
         reg.Add<ModelComponent>(e, mc);
 
-        // 拱の口はくぐれる。両脇の柱だけ玩家が抜けないように箱（雑魚は場面が下のマスを塞ぐ = BlockPropCells）。
+        // 拱の口はくぐれる。両脇の柱だけプレイヤーが抜けないように箱（雑魚はシーンが下のマスを塞ぐ = BlockPropCells）。
         // 柱の太さは m で持つ（2026-10-03：以前は 0.3 × scale で、cm の FBX の倍率 0.016 を掛けて 5mm になっていた）
         const float halfW = (hi.x - lo.x) * 0.5f * scale;
         const float pillarHalf = 0.4f;   // 丸い柱の太さ ≈ 0.8m
@@ -267,7 +267,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         it.animate = false;
         it.radius = 3.0f;
         it.prompt = L"[F] ボスを呼ぶ";
-        it.lightColor = { 0.75f, 0.35f, 1.0f };   // 紫（渦の特効にも光がある。こちらは控えめ）
+        it.lightColor = { 0.75f, 0.35f, 1.0f };   // 紫（渦のエフェクトにも光がある。こちらは控えめ）
         it.lightRadius = 7.0f;
         it.lightIntensity = 1.0f;
         it.lightHeight = portalHeight * 0.43f;
@@ -319,21 +319,21 @@ bool StageDirector::TryUsePortal(Registry& reg, Entity used, const GridWorld& gr
     if (m_Boss != BossState::None) return false;
 
     // HP は呼んだ時の難度で決まる（遅いほど固い。Megabonk と同じ）
-    m_BossSpawnHp = bossHp * mobs.GetStatMul();
+    m_BossSpawnHp = bossHp * mobs.GetHpMul();
     m_SummonPos = player;
     SpawnBoss(grid, player, swarm);   // 失敗しても Summoned のまま Update が湧かせ直す
     m_Boss = BossState::Summoned;
     m_BossWait = 0.0f;
     m_Event = "boss summoned";
 
-    // 門は使えなくする（模型は残す。光と画面外の目印は消える）
+    // 門は使えなくする（モデルは残す。光と画面外の目印は消える）
     reg.Remove<InteractableComponent>(used);
     interaction.ClearFocus();
     return true;
 }
 
 // ============================================================
-// ImGui: Enemies 面板の「Stage」の段
+// ImGui: Enemies パネルの「Stage」の段
 // ============================================================
 void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
 {
@@ -346,7 +346,7 @@ void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
     ImGui::DragFloat("Elite Speed", &eliteSpeed, 0.1f, 0.0f, 20.0f);
     ImGui::DragFloatRange2("Elite Ring", &eliteRingMin, &eliteRingMax, 0.5f, 5.0f, 60.0f);
 
-    auto& kind = swarm.GetBomberParams();   // 精英・Boss の体格などは GPU の定数（BomberCB と相乗り）
+    auto& kind = swarm.GetBomberParams();   // エリート・Boss の体格などは GPU の定数（BomberCB と相乗り）
     ImGui::DragFloat("Elite Scale", &kind.eliteScale, 0.05f, 1.0f, 5.0f);
     ImGui::DragFloat("Elite Damage x", &kind.eliteDamageMul, 0.05f, 0.0f, 20.0f);
     ImGui::DragFloat("Elite Exp x", &kind.eliteExpMul, 0.5f, 0.0f, 200.0f);

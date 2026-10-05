@@ -1,8 +1,8 @@
 // ============================================================
 // VFXSpriteRenderer.h
-// Sprite entry が毎フレーム Submit した連番絵の 1 コマを、粒子の前にまとめて描く。
+// Sprite entry が毎フレーム Submit した連番画像の 1 コマを、粒子の前にまとめて描く。
 //   1 枚 = SpriteQuad（HLSL の SpriteQuad.hlsli と同じ並び）を dynamic な
-//   structured buffer に詰め、同じ貼图ごとに DrawInstanced。板の向きは VS が決める。
+//   structured buffer に詰め、同じテクスチャごとに DrawInstanced。板の向きは VS が決める。
 //   混合は乗算済み alpha の 1 種類（加算の物は PS が alpha 0 を書く）。深度は読むだけ。
 //   並べ替えはしない（重なった半透明の前後は崩れることがある）
 // ============================================================
@@ -53,7 +53,7 @@ struct VFXSpriteDrawItem
 {
     Texture* texture = nullptr;
     bool point = true;        // 最近傍で読む
-    bool onTop = false;       // 深度を見ない（体に隠れてしまう、プレイヤーに付く特効用）。最後に描く
+    bool onTop = false;       // 深度を見ない（体に隠れてしまう、プレイヤーに付くエフェクト用）。最後に描く
     VFXSpriteQuad quad;
 };
 

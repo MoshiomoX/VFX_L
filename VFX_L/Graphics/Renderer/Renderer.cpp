@@ -137,7 +137,7 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
     else
         vs = m_DefaultVS.get();
 
-    // 影図へ深度だけ：VS（入力配置も）と MVP だけ積んで PS は外す
+    // シャドウマップへ深度だけ：VS（入力配置も）と MVP だけ積んで PS は外す
     if (m_DepthPass)
     {
         vs->Bind(m_Context);

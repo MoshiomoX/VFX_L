@@ -7,11 +7,11 @@
 class GPUParticleSystem;
 
 // ============================================================
-// Trail entry：特効の位置（+ offset）が引く帯。
+// Trail entry：エフェクトの位置（+ offset）が引く帯。
 //
 //   Particle entry の Trail は粒子 1 個ずつが自分の動きで引くので、
-//   止まっている粒子（特効と一緒に動くだけの芯など）には帯が出ない。
-//   こちらは特効そのものの移動で引く。
+//   止まっている粒子（エフェクトと一緒に動くだけの芯など）には帯が出ない。
+//   こちらはエフェクトそのものの移動で引く。
 //
 //   点の追加（Min Distance ごと）・寿命切れ・帯への展開は全部 GPU
 //   （GPUParticleSystem の EffectTrail）。CPU は毎フレーム先頭の位置を 1 つ渡すだけ。
@@ -41,7 +41,7 @@ public:
     DirectX::SimpleMath::Vector3 offset = { 0, 0, 0 };
     float              minDistance = 0.2f;   // 先頭がこれだけ動いたら点を 1 つ足す（m）
     ParticleTrailStyle style;                // lifetime = 1 点の寿命（秒）。inherit 系は使わない
-    VFXTextureRef      tex;                  // 帯の貼图（json "tex"）。無ければ白
+    VFXTextureRef      tex;                  // 帯のテクスチャ（json "tex"）。無ければ白
 
 private:
     void SyncStyle(const VFXContext& ctx);   // style を登録 / 更新（Inspector の変更を反映）

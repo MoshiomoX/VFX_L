@@ -88,7 +88,7 @@ void VFXLiquidRenderer::SetTerrain(ID3D11ShaderResourceView* heights, const Swar
 }
 
 // ============================================================
-// 描画。呼ぶ側は不透明物・群れの後、連番絵・粒子の前
+// 描画。呼ぶ側は不透明物・群れの後、連番画像・粒子の前
 // ============================================================
 void VFXLiquidRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera, const LightBuffer& light)
 {

@@ -44,7 +44,10 @@
         "item_pick": { "files": ["Assets/Audio/SFX/Kenney_RPGAudio/handleSmallLeather.ogg", "Assets/Audio/SFX/Kenney_RPGAudio/handleSmallLeather2.ogg"], "bus": "ui", "volume": 0.55, "pitchMin": 0.95, "pitchMax": 1.05, "maxVoices": 2, "minInterval": 0.05 },
         "item_place": { "files": ["Assets/Audio/SFX/rubberduck_RPG/item_wood_02.ogg", "Assets/Audio/SFX/rubberduck_RPG/item_wood_03.ogg"], "bus": "ui", "volume": 0.60, "pitchMin": 0.95, "pitchMax": 1.05, "maxVoices": 2, "minInterval": 0.05 },
         "item_return": { "files": ["Assets/Audio/SFX/Kenney_RPGAudio/dropLeather.ogg"], "bus": "ui", "volume": 0.50, "pitchMin": 0.95, "pitchMax": 1.05, "maxVoices": 2, "minInterval": 0.05 },
-        "item_rotate": { "files": ["Assets/Audio/SFX/Kenney_RPGAudio/bookFlip3.ogg"], "bus": "ui", "volume": 0.40, "pitchMin": 0.95, "pitchMax": 1.08, "maxVoices": 2, "minInterval": 0.05 }
+        "item_rotate": { "files": ["Assets/Audio/SFX/Kenney_RPGAudio/bookFlip3.ogg"], "bus": "ui", "volume": 0.40, "pitchMin": 0.95, "pitchMax": 1.08, "maxVoices": 2, "minInterval": 0.05 },
+        "gold_spend": { "files": ["Assets/Audio/SFX/rubberduck_RPG/item_coins_01.ogg", "Assets/Audio/SFX/rubberduck_RPG/item_coins_02.ogg", "Assets/Audio/SFX/rubberduck_RPG/item_coins_03.ogg", "Assets/Audio/SFX/rubberduck_RPG/item_coins_04.ogg"], "volume": 0.65, "pitchMin": 0.95, "pitchMax": 1.05, "maxVoices": 2, "minInterval": 0.05 },
+        "card_reroll": { "files": ["Assets/Audio/SFX/Kenney_RPGAudio/handleCoins.ogg", "Assets/Audio/SFX/Kenney_RPGAudio/handleCoins2.ogg"], "bus": "ui", "volume": 0.65, "pitchMin": 0.97, "pitchMax": 1.03, "maxVoices": 1, "minInterval": 0.08 },
+        "gold_deny": { "files": ["Assets/Audio/SFX/rubberduck_RPG/lock_01.ogg", "Assets/Audio/SFX/rubberduck_RPG/lock_02.ogg", "Assets/Audio/SFX/rubberduck_RPG/lock_03.ogg"], "bus": "ui", "volume": 0.60, "pitchMin": 0.95, "pitchMax": 1.05, "maxVoices": 1, "minInterval": 0.15 }
     },
     "music": {
         "title": { "file": "Assets/Audio/Music/Title_NewSunrise_nene.ogg", "volume": 0.80, "loopStart": 3.0 },

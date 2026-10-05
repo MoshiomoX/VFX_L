@@ -1,10 +1,10 @@
 ﻿// ============================================================
 // Items/GoldenArrow.h
-// 黄金の矢：投射物編集器の "GoldenArrow" プロファイルで飛ぶ飛行物型（2026-09-30 用户の依頼）。
+// 黄金の矢：投射物エディタの "GoldenArrow" プロファイルで飛ぶ飛行物型（2026-09-30 ユーザーの依頼）。
 //
 // 設計意図：
 //   ・曲がらない・追わない。撃った瞬間の狙い（最寄りの敵の予測位置）へまっすぐ速く飛ぶ
-//   ・見た目は特効模型の弓矢（gonjian.FBX）が金色に光りながら弾と一緒に飛ぶ（GoldenArrow.json）
+//   ・見た目はエフェクトモデルの弓矢（gonjian.FBX）が金色に光りながら弾と一緒に飛ぶ（GoldenArrow.json）
 //   ・威力 12・速さ 32 m/s・0.525 秒毎・MP 6.75（2026-09-30 に x0.75）。火球（爆発込み）より弱く、追尾弾より少し強い一点型
 // ============================================================
 #pragma once
@@ -21,7 +21,8 @@ inline ProjectileItemDef MakeGoldenArrow()
     def.common.description = L"金色に輝く矢を放つ。曲がらずまっすぐ、速く飛ぶ。";
     def.common.iconPath = Res::Icon::GoldenArrow;
     def.common.category = ItemCategory::Projectile;
-    def.common.occupyCells = ItemShape::ColLine(2);   // 縦 2 マス（矢柄。2026-09-30）
+    // 形は強さで決める（2026-10-04、元は縦 2 マス）。単体 DPS 約 23（追尾弾より強く石弾より少し弱い）→ 縦 3 マスの矢柄
+    def.common.occupyCells = ItemShape::ColLine(3);
     def.common.influenceCells = {};
     def.common.color = { 1.00f, 0.78f, 0.25f, 1.0f };   // 金
 

@@ -37,6 +37,12 @@ namespace
     constexpr float kSleepLinear = 6.0f;          // px/s
     constexpr float kSleepAngular = 0.08f;        // rad/s
     constexpr float kSleepTime = 0.5f;            // 秒
+    // 静かな収め：全体がこれより遅い状態が kQuietTime 続いたら、毎ステップ kSettleDamp を掛けて止める
+    constexpr float kQuietLinear = 60.0f;         // px/s
+    constexpr float kQuietAngular = 1.5f;         // rad/s
+    constexpr float kQuietTime = 1.0f;            // 秒
+    constexpr float kSettleDamp = 0.92f;          // 1 ステップあたり（120 Hz で約 0.1 秒で 1/e）
+    constexpr float kQuietSmooth = 0.25f;         // 秒。速さを均す時定数
 
     constexpr float kWallThick = 400.0f;          // 壁の四角の厚さ（px。薄いと速い物が抜ける）
     constexpr uint32_t kWallUid[4] = { 1, 2, 3, 4 };   // 左 右 上 床
@@ -701,6 +707,23 @@ void SpellbookUI::StepPhysics(float dt)
     m_MaxV = maxV;
     m_MaxW = maxW;
 
+    // ---- 静かな収め（2026-10-04）----
+    // 基本魔法が Z・L・凸字の多マスになってから、斜めに寄り掛かった物が摩擦の限界の角度でゆっくり滑り続け、
+    // 箱がいつまでも眠らなくなった（自動テスト chest：10 秒経っても 4〜14 px/s・0.1〜0.3 rad/s）。
+    // 全体がゆっくりになって kQuietTime 続いたら強く減衰させて止める（倒れ込む・落ちる速い動きには掛からない）。
+    // 1 ステップだけの接触の跳ね（瞬間の速さ）で毎回やり直しにならないよう、速さは時定数 kQuietSmooth で均して見る
+    const float k = 1.0f - std::exp(-dt / kQuietSmooth);
+    m_QuietV += (maxV - m_QuietV) * k;
+    m_QuietW += (maxW - m_QuietW) * k;
+    if (m_QuietV < kQuietLinear && m_QuietW < kQuietAngular)
+    {
+        m_QuietTimer += dt;
+        if (m_QuietTimer >= kQuietTime)
+            for (auto& b : m_Bodies) { b.vel *= kSettleDamp; b.angVel *= kSettleDamp; }
+    }
+    else
+        m_QuietTimer = 0.0f;
+
     // ---- 箱ごと眠る（全部止まって一定時間）----
     if (allowSleep && maxV < kSleepLinear && maxW < kSleepAngular)
     {
@@ -848,7 +871,7 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
     }
     else
     {
-        // 木箱の絵が無い時は幻想 UI の面板で代用
+        // 木箱の絵が無い時は幻想 UI のパネルで代用
         UIDeco::PanelStyle ps;
         ps.innerInset = (std::max)(3.0f, m_Wall * 0.35f);
         ps.cornerSize = outerSize.x * 0.16f;
@@ -865,7 +888,7 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
         const ItemCommon* c = ItemDatabase::GetCommon(b.id);
         if (!c) continue;
 
-        // 背包と同じ「色ガラス」：道具の色を沈めた地 + 外周だけ種類の色の縁
+        // バックパックと同じ「色ガラス」：アイテムの色を沈めた地 + 外周だけ種類の色の縁
         // （同じ物のマス同士の境目には縁を引かないので、一続きの形に見える）
         Vector4 edge = UIDeco::CategoryColor(c->category);
         edge.w = 0.95f;

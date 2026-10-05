@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // Items/JumpPowerUp.h
-// レベルアップの候補「跳躍力 +8%」（2026-09-28 用户の依頼「跳ぶ速さ」）。
+// レベルアップの候補「跳躍力 +8%」（2026-09-28 ユーザーの依頼「跳ぶ速さ」）。
 //
 // 設計意図：
 //   跳んだ瞬間の上向きの速さ（jumpPower）を上げる。高さは速さの 2 乗で伸びるので
@@ -17,10 +17,10 @@ inline StatItemDef MakeJumpPowerUp()
 
     def.common.id = ItemID::JumpPowerUp;
     def.common.name = "Jump Power +8%";
-    def.common.displayName = L"跳躍力 +8%";
-    def.common.description = L"跳ぶ勢いを上げる。より高く、より遠くへ跳べる。";
+    def.common.displayName = L"ジャンプ力 +8%";
+    def.common.description = L"ジャンプの勢いを上げる。より高く、より遠くへ跳べる。";
     def.common.category = ItemCategory::Stat;
-    def.common.occupyCells = {};                         // 背包に置かないので形は無い
+    def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};
     def.common.color = { 0.55f, 0.75f, 1.00f, 1.0f };
     def.common.iconPath = Res::Icon::JumpPowerUp;
@@ -28,7 +28,7 @@ inline StatItemDef MakeJumpPowerUp()
     def.kind = StatKind::JumpPower;
     def.amount = 0.08f;
     def.percent = true;
-    def.cardLabel = L"跳躍力";
+    def.cardLabel = L"ジャンプ力";
 
     return def;
 }

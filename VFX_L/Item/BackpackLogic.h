@@ -5,7 +5,7 @@
 //
 // 魔法と枠で関数を分けている理由:
 //     魔法 . 枠の上にしか置けない（frameOccupancy を見る）
-//     枠   . 画布の中ならどこでも置ける（重なり判定は枠同士だけ）
+//     枠   . キャンバスの中ならどこでも置ける（重なり判定は枠同士だけ）
 // ============================================================
 #pragma once
 #include "Component/BackpackComponent.h"
@@ -24,7 +24,7 @@ namespace BackpackLogic
     // 魔法ブロック
     // ============================================================
 
-    // 置けるか（画布内 + 枠の上 + 空いている）
+    // 置けるか（キャンバス内 + 枠の上 + 空いている）
     // ignoreIndex を渡すと、そのアイテムは無いものとして判定する（移動用）
     bool CanPlace(const BackpackComponent& bp, ItemID id,
         int row, int col, int rotation, int ignoreIndex = -1);
@@ -45,7 +45,7 @@ namespace BackpackLogic
     // 設置枠
     // ============================================================
 
-    // 枠を置けるか（画布内 + 他の枠と重ならない）
+    // 枠を置けるか（キャンバス内 + 他の枠と重ならない）
     //   魔法の有無は見ない。枠は魔法の下に敷くものなので。
     bool CanPlaceFrame(const BackpackComponent& bp, ItemID id,
         int row, int col, int rotation, int ignoreIndex = -1);
@@ -82,7 +82,7 @@ namespace BackpackLogic
     // 枠を減らす操作の後に必ず呼ぶ。
     int ValidateItems(BackpackComponent& bp);
 
-    // 形が変わった後に全部置き直す（編集器で形・付け替えを変えた時用）。
+    // 形が変わった後に全部置き直す（エディタで形・付け替えを変えた時用）。
     // 枠 → 魔法の順に、元の順番・位置・向きのまま置けるものだけ残す。
     // 置けなくなった物は手元へ戻る。戻した数（枠 + 魔法）を返す
     int Refit(BackpackComponent& bp);
@@ -90,14 +90,14 @@ namespace BackpackLogic
     int CountPlacedFrames(const BackpackComponent& bp, ItemID id);
     std::vector<int> GetItemsOnFrame(const BackpackComponent& bp, int frameIndex);
 
-    // このブロック（items の index）に影響格が届いているブロックの index（items の順）。
+    // このブロック（items の index）に影響マスが届いているブロックの index（items の順）。
     // 集約（BackpackAggregateSystem）と UI の説明が同じ判定を使う
     std::vector<int> GetInfluencers(const BackpackComponent& bp, int itemIndex);
 
-    // 高級魔法（ItemCommon::triggeredBy がある物。隕石・光線）を誘発する基礎魔法（items の index）。
-    // 影響格がこのブロックに届いていて、id が triggeredBy に入っている物。高級魔法でなければ空
+    // 上級魔法（ItemCommon::triggeredBy がある物。隕石・光線）を誘発する基本魔法（items の index）。
+    // 影響マスがこのブロックに届いていて、id が triggeredBy に入っている物。上級魔法でなければ空
     std::vector<int> GetTriggerDrivers(const BackpackComponent& bp, int itemIndex);
 
-    // triggeredBy の全種類が揃って届いているか。高級魔法でなければ常に true
+    // triggeredBy の全種類が揃って届いているか。上級魔法でなければ常に true
     bool IsTriggerReady(const BackpackComponent& bp, int itemIndex);
 }

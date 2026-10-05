@@ -2,6 +2,7 @@
 // SkinnedModel.cpp
 // ============================================================
 #include "Graphics/Model/SkinnedModel.h"
+#include "Graphics/Model/BoneMaps.h"
 #include "Graphics/Model/MaterialLoader.h"
 #include "Graphics/Model/Model.h"
 #include "Graphics/Mesh/Mesh.h"
@@ -15,6 +16,7 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <climits>
 
 namespace fs = std::filesystem;
 using namespace DirectX::SimpleMath;
@@ -125,6 +127,7 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
         std::string meshNodeName;
         FindMeshNode(scene->mRootNode, mi, Matrix::Identity, meshNodeGlobal, meshNodeName);
         sub.nodeName = meshNodeName;
+        sub.nodeGlobal = meshNodeGlobal;
 
         // ---- 頂点（bind pose。ノード変換は焼かない）----
         for (unsigned int v = 0; v < mesh->mNumVertices; ++v)
@@ -173,6 +176,7 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
         else
         {
             // ---- 骨の重み + offset（offset は submesh 毎の map に入れる）----
+            std::vector<int> weighted;   // 重みを持つ骨（bind の判定はこれだけで見る）
             for (unsigned int bi = 0; bi < mesh->mNumBones; ++bi)
             {
                 aiBone* aibone = mesh->mBones[bi];
@@ -198,6 +202,7 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
                     continue;
                 }
 
+                weighted.push_back(boneIndex);
                 for (unsigned int w = 0; w < aibone->mNumWeights; ++w)
                 {
                     const aiVertexWeight& vw = aibone->mWeights[w];
@@ -208,9 +213,14 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
 
             // ============================================================
             // bind 整合性チェック:
-            //   offset * boneGlobalBind ≒ meshNodeGlobalBind になるはず。
-            //   ずれていれば mesh ノード自身に変換が乗っている（FBX に多い）ので
-            //   offset を階層から作り直す: offset = meshNodeGlobal * Invert(boneGlobalBind)
+            //   offset * boneGlobalBind ≒ meshNodeGlobalBind になるはず。ずれ方で 2 通り:
+            //   ・重みのある骨が全部同じだけずれる = mesh ノード自身に変換が乗っている（FBX に多い。
+            //     KayKit Mage の頭）→ offset を階層から作り直す: offset = meshNodeGlobal * Invert(boneGlobalBind)
+            //   ・骨ごとにずれ方が違う = ノードの既定の姿勢がスキニングした時の姿勢と違う（Reallusion CC の
+            //     Shadowkin: スキニングは T ポーズ、ノードは A ポーズ + 指を曲げた姿勢）→ FBX の offset が正しい。
+            //     作り直すと T ポーズの頂点を A ポーズの骨に付けることになり、前腕〜指先の腕の長さが狂って
+            //     爪が長い線に伸びた（2026-10-04）
+            //   重みの無い骨（末端の leaf 骨など）はスキニングに効かないので判定から外す
             // ============================================================
             const auto& bones = m_Skeleton.GetBones();
             auto globalBindOf = [&](int idx)
@@ -220,27 +230,46 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
                         g = g * bones[c].localBindTransform;   // 子 → 親の順に掛ける
                     return g;
                 };
+            auto maxAbs = [](const Matrix& d)
+                {
+                    const float* p = &d._11;
+                    float md = 0.0f;
+                    for (int k = 0; k < 16; ++k) md = (std::max)(md, std::fabs(p[k]));
+                    return md;
+                };
 
             float worst = 0.0f; int worstBone = -1;
-            for (auto& [bi2, off] : sub.boneOffsets)
+            for (int b : weighted)
             {
-                Matrix d = off * globalBindOf(bi2) - meshNodeGlobal;
-                const float* p = &d._11;
-                float md = 0.0f;
-                for (int k = 0; k < 16; ++k) md = (std::max)(md, std::fabs(p[k]));
-                if (md > worst) { worst = md; worstBone = bi2; }
+                const float md = maxAbs(sub.boneOffsets[b] * globalBindOf(b) - meshNodeGlobal);
+                if (md > worst) { worst = md; worstBone = b; }
+            }
+            float spread = 0.0f;   // 重みのある骨どうしの「offset * bind」の食い違い
+            if (!weighted.empty())
+            {
+                const Matrix ref = sub.boneOffsets[weighted[0]] * globalBindOf(weighted[0]);
+                for (int b : weighted)
+                    spread = (std::max)(spread, maxAbs(sub.boneOffsets[b] * globalBindOf(b) - ref));
             }
             std::cout << "[bind-check] submesh=" << mi << " name=" << sub.name
-                << " worstDiff=" << worst
+                << " worstDiff=" << worst << " spread=" << spread
                 << " bone=" << (worstBone >= 0 ? bones[worstBone].name : std::string("none"))
                 << std::endl;
 
             if (worst > kOffsetRebuildThreshold)
             {
-                for (auto& [bi2, off] : sub.boneOffsets)
-                    off = meshNodeGlobal * globalBindOf(bi2).Invert();
-                std::cout << "[offset-rebuild] submesh=" << mi
-                    << " rebuilt " << sub.boneOffsets.size() << " offsets" << std::endl;
+                if (spread <= (std::max)(kOffsetRebuildThreshold, worst * 0.1f))
+                {
+                    for (auto& [bi2, off] : sub.boneOffsets)
+                        off = meshNodeGlobal * globalBindOf(bi2).Invert();
+                    std::cout << "[offset-rebuild] submesh=" << mi
+                        << " rebuilt " << sub.boneOffsets.size() << " offsets" << std::endl;
+                }
+                else
+                {
+                    std::cout << "[offset-keep] submesh=" << mi
+                        << " bind pose differs from the node pose, keeping the file's offsets" << std::endl;
+                }
             }
         }
 
@@ -258,7 +287,7 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
 
     m_GlobalInverse = ToSM(scene->mRootNode->mTransformation).Invert();
 
-    // 3. 材質。VS は SkinnedVS 固定、PS は貼图に応じて PBR / Lambert
+    // 3. 材質。VS は SkinnedVS 固定、PS はテクスチャに応じて PBR / Lambert
     auto skinnedVS = ResourceManager::Get().LoadVS(L"SkinnedVS", L"Shader/Skinning/SkinnedVS.hlsl");
     m_Materials = MaterialLoader::LoadFromScene(device, scene, directory, modelName, skinnedVS);
 
@@ -343,8 +372,8 @@ void SkinnedModel::LoadAnimations(const aiScene* scene)
 
 // ============================================================
 // 別ファイルのアニメを骨名で足す（SkinnedModel.h の説明）
-// 変換は MakeLeftHanded だけ揃えれば良い（節点・キーを変えるのはこれだけ。
-// 網格の処理は要らないので他の後処理は掛けない）
+// 変換は MakeLeftHanded だけ揃えれば良い（ノード・キーを変えるのはこれだけ。
+// メッシュの処理は要らないので他の後処理は掛けない）
 // ============================================================
 static void CollectNodeBinds(const aiNode* node, std::unordered_map<std::string, Matrix>& out)
 {
@@ -353,7 +382,7 @@ static void CollectNodeBinds(const aiNode* node, std::unordered_map<std::string,
         CollectNodeBinds(node->mChildren[i], out);
 }
 
-int SkinnedModel::AddAnimationsFromFile(const std::string& filepath)
+int SkinnedModel::AddAnimationsFromFile(const std::string& filepath, const BoneMapEntry* map, int mapCount)
 {
     Assimp::Importer importer;
     importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
@@ -364,8 +393,10 @@ int SkinnedModel::AddAnimationsFromFile(const std::string& filepath)
         return -1;
     }
     if (!scene->HasAnimations()) return 0;
+    if (map && mapCount > 0)
+        return RetargetAnimations(scene, filepath, map, mapCount);
 
-    // 向こうの bind（節点名 → 親基準の行列）
+    // 向こうの bind（ノード名 → 親基準の行列）
     std::unordered_map<std::string, Matrix> srcBind;
     CollectNodeBinds(scene->mRootNode, srcBind);
 
@@ -458,6 +489,373 @@ int SkinnedModel::AddAnimationsFromFile(const std::string& filepath)
     std::cout << "[SkinnedModel] extra anims: " << added << " clips from " << filepath
         << " (translation scale " << tScale << ", " << dropped << " channels without a bone)" << std::endl;
     return added;
+}
+
+// ============================================================
+// 骨名の違う人形から世界空間で付け替えて焼く（2026-10-04。SkinnedModel.h の説明）
+//   回転の積は SimpleMath の「左を先に回す」（行ベクトル）。global = local * parentGlobal
+// ============================================================
+namespace
+{
+    Vector3 SampleVecKeys(const aiVectorKey* keys, unsigned n, double t, const Vector3& fallback)
+    {
+        if (n == 0) return fallback;
+        auto V = [](const aiVector3D& v) { return Vector3(v.x, v.y, v.z); };
+        if (n == 1 || t <= keys[0].mTime) return V(keys[0].mValue);
+        for (unsigned k = 0; k + 1 < n; ++k)
+            if (t < keys[k + 1].mTime)
+            {
+                const float f = (float)((t - keys[k].mTime) / (std::max)(keys[k + 1].mTime - keys[k].mTime, 1e-9));
+                return Vector3::Lerp(V(keys[k].mValue), V(keys[k + 1].mValue), f);
+            }
+        return V(keys[n - 1].mValue);
+    }
+
+    Quaternion SampleQuatKeys(const aiQuatKey* keys, unsigned n, double t, const Quaternion& fallback)
+    {
+        if (n == 0) return fallback;
+        auto Q = [](const aiQuaternion& q) { return Quaternion(q.x, q.y, q.z, q.w); };
+        if (n == 1 || t <= keys[0].mTime) return Q(keys[0].mValue);
+        for (unsigned k = 0; k + 1 < n; ++k)
+            if (t < keys[k + 1].mTime)
+            {
+                const float f = (float)((t - keys[k].mTime) / (std::max)(keys[k + 1].mTime - keys[k].mTime, 1e-9));
+                return Quaternion::Slerp(Q(keys[k].mValue), Q(keys[k + 1].mValue), f);
+            }
+        return Q(keys[n - 1].mValue);
+    }
+
+    Quaternion RotationOf(Matrix m)
+    {
+        Vector3 s, t;
+        Quaternion r;
+        m.Decompose(s, r, t);
+        r.Normalize();
+        return r;
+    }
+
+    Quaternion Inv(const Quaternion& q)
+    {
+        Quaternion r;
+        q.Inverse(r);
+        return r;
+    }
+
+    // 左（left）と上（up）の 2 本から正規直交の基底（行 = x 左, y 上, z 前）
+    Matrix FrameOf(Vector3 left, Vector3 up)
+    {
+        left.Normalize();
+        up = up - left * up.Dot(left);
+        up.Normalize();
+        Vector3 fwd = left.Cross(up);
+        return Matrix(left.x, left.y, left.z, 0, up.x, up.y, up.z, 0, fwd.x, fwd.y, fwd.z, 0, 0, 0, 0, 1);
+    }
+}
+
+int SkinnedModel::RetargetAnimations(const aiScene* scene, const std::string& filepath,
+    const BoneMapEntry* map, int mapCount)
+{
+    // ---- 向こうのノード（深さ優先 = 親が先）----
+    struct SrcNode { std::string name; int parent; Matrix bind; };
+    std::vector<SrcNode> src;
+    std::unordered_map<std::string, int> srcIndex;
+    {
+        std::vector<std::pair<const aiNode*, int>> stack = { { scene->mRootNode, -1 } };
+        while (!stack.empty())
+        {
+            auto [node, parent] = stack.back();
+            stack.pop_back();
+            const int idx = (int)src.size();
+            src.push_back({ node->mName.C_Str(), parent, ToSM(node->mTransformation) });
+            srcIndex[src.back().name] = idx;
+            for (int c = (int)node->mNumChildren - 1; c >= 0; --c)
+                stack.push_back({ node->mChildren[c], idx });
+        }
+    }
+    const int ns = (int)src.size();
+    std::vector<Matrix> sBindG(ns);
+    for (int i = 0; i < ns; ++i)
+        sBindG[i] = (src[i].parent >= 0) ? src[i].bind * sBindG[src[i].parent] : src[i].bind;
+
+    // ---- 自分の骨（配列は親が先）。基準 = スキニングした時の姿勢 ----
+    //   offset のある骨は Invert(offset) * mesh ノード、無い骨はノードの親基準の変換で親に付ける。
+    //   ノードの既定の姿勢は飾りのポーズの事がある（Shadowkin: 片膝を曲げてつま先を伸ばした浮遊ポーズ、
+    //   マントも後ろへなびいている）。それを基準にするとアニメ全体にその癖が乗る
+    const auto& bones = m_Skeleton.GetBones();
+    const int nb = (int)bones.size();
+    std::vector<Matrix> tBindG(nb);
+    {
+        std::vector<char> fromOffset(nb, 0);
+        for (const auto& sub : m_SubMeshes)
+            for (const auto& [b, off] : sub.boneOffsets)
+                if (b >= 0 && b < nb && !fromOffset[b])
+                {
+                    tBindG[b] = off.Invert() * sub.nodeGlobal;
+                    fromOffset[b] = 1;
+                }
+        for (int i = 0; i < nb; ++i)
+            if (!fromOffset[i])
+            {
+                const int p = bones[i].parentIndex;
+                tBindG[i] = (p >= 0) ? bones[i].localBindTransform * tBindG[p] : bones[i].localBindTransform;
+            }
+    }
+    std::vector<Quaternion> tBindLocalR(nb), tBindGR(nb);
+    std::vector<Vector3> tBindLocalT(nb), tBindLocalS(nb);
+    for (int i = 0; i < nb; ++i)
+    {
+        const int p = bones[i].parentIndex;
+        Matrix local = (p >= 0) ? tBindG[i] * tBindG[p].Invert() : tBindG[i];
+        local.Decompose(tBindLocalS[i], tBindLocalR[i], tBindLocalT[i]);
+        tBindLocalR[i].Normalize();
+        tBindGR[i] = RotationOf(tBindG[i]);
+    }
+
+    // ---- 対応（自分の骨 → 向こうのノード）----
+    std::vector<int> toSrc(nb, -1);
+    int mapped = 0;
+    auto pairOf = [&](const char* srcName, int& ti, int& si)
+    {
+        ti = si = -1;
+        for (int k = 0; k < mapCount; ++k)
+            if (std::string(map[k].source) == srcName)
+            {
+                ti = m_Skeleton.FindBoneIndex(map[k].target);
+                auto it = srcIndex.find(map[k].source);
+                si = (it != srcIndex.end()) ? it->second : -1;
+                return ti >= 0 && si >= 0;
+            }
+        return false;
+    };
+    for (int k = 0; k < mapCount; ++k)
+    {
+        const int ti = m_Skeleton.FindBoneIndex(map[k].target);
+        auto it = srcIndex.find(map[k].source);
+        if (ti < 0 || it == srcIndex.end()) continue;
+        toSrc[ti] = it->second;
+        ++mapped;
+    }
+    if (mapped < 8)
+    {
+        std::cout << "[SkinnedModel] retarget: only " << mapped << " bones matched, skipped " << filepath << std::endl;
+        return 0;
+    }
+
+    // ---- 向き合わせ（向こうのモデル空間 → 自分のモデル空間）：左右の上腕と腰 → 頭 ----
+    Quaternion align;   // 単位
+    {
+        int tl, sl, tr, sr, th, sh, tp, sp;
+        if (pairOf("upperarm_l", tl, sl) && pairOf("upperarm_r", tr, sr) && pairOf("Head", th, sh) && pairOf("pelvis", tp, sp))
+        {
+            const Matrix fs = FrameOf(sBindG[sl].Translation() - sBindG[sr].Translation(),
+                                      sBindG[sh].Translation() - sBindG[sp].Translation());
+            const Matrix ft = FrameOf(tBindG[tl].Translation() - tBindG[tr].Translation(),
+                                      tBindG[th].Translation() - tBindG[tp].Translation());
+            align = Quaternion::CreateFromRotationMatrix(fs.Transpose() * ft);   // 向こう → 基底の座標 → 自分
+            align.Normalize();
+        }
+    }
+    const Quaternion alignInv = Inv(align);
+
+    // ---- 腰（map の先頭）：平行移動も。縮尺 = 腰の高さ（腰 → 左足首）の比 ----
+    const int hipT = m_Skeleton.FindBoneIndex(map[0].target);
+    const int hipS = srcIndex.count(map[0].source) ? srcIndex[map[0].source] : -1;
+    float hipScale = 1.0f;
+    {
+        int tf, sf;
+        if (hipT >= 0 && hipS >= 0 && pairOf("foot_l", tf, sf))
+        {
+            const float lt = (tBindG[hipT].Translation() - tBindG[tf].Translation()).Length();
+            const float ls = (sBindG[hipS].Translation() - sBindG[sf].Translation()).Length();
+            if (lt > 1e-6f && ls > 1e-6f) hipScale = lt / ls;
+        }
+    }
+    Matrix hipParentInv = Matrix::Identity;
+    if (hipT >= 0 && bones[hipT].parentIndex >= 0)
+        hipParentInv = tBindG[bones[hipT].parentIndex].Invert();   // 腰より上の骨は動かない前提（root 等）
+
+    // ---- 基準の姿勢の違いを直す（T ポーズ ↔ A ポーズ、つま先、指の開き）----
+    //   骨ごとに「骨 → 向きの子」の世界の向きが向こうの基準（向き合わせ後）と揃う最小の回転 corr。
+    //   向きの子 = 子孫のうち表で最初に出てくる骨（BoneMaps.h）。子の無い末端は親の corr を使う。
+    //   世界の回転を骨ごとに直接決めるので、親を直しても子の向きはずれない
+    std::vector<Quaternion> corr(nb, Quaternion::Identity);
+    {
+        std::vector<int> mapOrder(nb, INT_MAX);   // 表の何行目か
+        for (int k = 0; k < mapCount; ++k)
+        {
+            const int ti = m_Skeleton.FindBoneIndex(map[k].target);
+            if (ti >= 0 && toSrc[ti] >= 0 && mapOrder[ti] == INT_MAX) mapOrder[ti] = k;
+        }
+        std::vector<int> mappedAnc(nb, -1), dirChild(nb, -1);
+        for (int i = 0; i < nb; ++i)
+        {
+            const int p = bones[i].parentIndex;
+            mappedAnc[i] = (p < 0) ? -1 : (toSrc[p] >= 0 ? p : mappedAnc[p]);
+            if (toSrc[i] < 0 || mappedAnc[i] < 0) continue;
+            int& c = dirChild[mappedAnc[i]];
+            if (c < 0 || mapOrder[i] < mapOrder[c]) c = i;
+        }
+        // 最小の回転（a を b に向ける。どちらも正規化済み）
+        auto fromTo = [](const Vector3& a, const Vector3& b)
+        {
+            const float d = a.Dot(b);
+            if (d < -0.9999f)
+            {
+                Vector3 axis = a.Cross(Vector3::UnitX);
+                if (axis.LengthSquared() < 1e-6f) axis = a.Cross(Vector3::UnitY);
+                axis.Normalize();
+                return Quaternion(axis.x, axis.y, axis.z, 0.0f);
+            }
+            const Vector3 axis = a.Cross(b);
+            Quaternion q(axis.x, axis.y, axis.z, 1.0f + d);
+            q.Normalize();
+            return q;
+        };
+        float worstDeg = 0.0f; int worstBone = -1;
+        for (int i = 0; i < nb; ++i)
+        {
+            if (toSrc[i] < 0) continue;
+            const int c = dirChild[i];
+            if (c < 0)
+            {
+                corr[i] = (mappedAnc[i] >= 0) ? corr[mappedAnc[i]] : Quaternion::Identity;
+                continue;
+            }
+            Vector3 dt = tBindG[c].Translation() - tBindG[i].Translation();
+            Vector3 ds = Vector3::Transform(sBindG[toSrc[c]].Translation() - sBindG[toSrc[i]].Translation(), align);
+            if (dt.Length() < 1e-4f * (std::max)(1.0f, tBindG[i].Translation().Length()) || ds.Length() < 1e-6f)
+            {
+                corr[i] = (mappedAnc[i] >= 0) ? corr[mappedAnc[i]] : Quaternion::Identity;   // 同じ位置の骨（腰と Waist 等）
+                continue;
+            }
+            dt.Normalize();
+            ds.Normalize();
+            corr[i] = fromTo(dt, ds);
+            const float deg = std::acos(std::clamp(dt.Dot(ds), -1.0f, 1.0f)) * 57.2958f;
+            if (deg > worstDeg) { worstDeg = deg; worstBone = i; }
+        }
+        std::cout << "[SkinnedModel] retarget: rest pose fixed up to " << worstDeg << " deg ("
+            << (worstBone >= 0 ? bones[worstBone].name : std::string("-")) << ")" << std::endl;
+    }
+
+    int added = 0;
+    std::vector<const aiNodeAnim*> chOf(ns);
+    std::vector<Matrix> sG(ns);
+    std::vector<Quaternion> tGR(nb);
+    for (unsigned a = 0; a < scene->mNumAnimations; ++a)
+    {
+        const aiAnimation* anim = scene->mAnimations[a];
+        std::fill(chOf.begin(), chOf.end(), nullptr);
+        for (unsigned c = 0; c < anim->mNumChannels; ++c)
+        {
+            auto it = srcIndex.find(anim->mChannels[c]->mNodeName.C_Str());
+            if (it != srcIndex.end()) chOf[it->second] = anim->mChannels[c];
+        }
+
+        AnimationClip clip;
+        clip.name = anim->mName.C_Str();
+        for (const auto& existing : m_Animations)
+            if (existing.name == clip.name)
+            {
+                clip.name = fs::path(filepath).stem().string() + "|" + clip.name;
+                break;
+            }
+        clip.ticksPerSecond = (anim->mTicksPerSecond != 0.0) ? (float)anim->mTicksPerSecond : 25.0f;
+        clip.duration = (float)anim->mDuration;
+
+        // 全部の骨に channel を作る（ノードの既定の姿勢ではなくスキニングした時の姿勢を基準にするため）。
+        // 付け替える骨は回転を毎フレーム、それ以外はスキニングした時の親基準の回転を 1 キー。
+        // 平行移動と拡縮はスキニングした時の物を 1 キー（腰の平行移動だけ毎フレーム）
+        std::vector<int> chOfBone(nb, -1);
+        for (int i = 0; i < nb; ++i)
+        {
+            chOfBone[i] = (int)clip.channels.size();
+            BoneChannel bc;
+            bc.nodeName = bones[i].name;
+            if (toSrc[i] < 0)
+                bc.rotations.push_back({ 0.0f, tBindLocalR[i] });
+            if (i != hipT)
+                bc.positions.push_back({ 0.0f, tBindLocalT[i] });
+            bc.scales.push_back({ 0.0f, tBindLocalS[i] });
+            clip.nodeToChannel[bc.nodeName] = chOfBone[i];
+            clip.channels.push_back(std::move(bc));
+        }
+
+        const double step = (double)clip.ticksPerSecond / 30.0;
+        const int samples = (int)std::floor(clip.duration / step) + 1;
+        for (int k = 0; k <= samples; ++k)
+        {
+            const double t = (std::min)((double)k * step, (double)clip.duration);
+
+            // 向こうの世界の行列
+            for (int i = 0; i < ns; ++i)
+            {
+                Matrix local = src[i].bind;
+                if (const aiNodeAnim* ch = chOf[i])
+                {
+                    Vector3 bs, bt;
+                    Quaternion br;
+                    Matrix bc = src[i].bind;
+                    bc.Decompose(bs, br, bt);
+                    const Vector3 s = SampleVecKeys(ch->mScalingKeys, ch->mNumScalingKeys, t, bs);
+                    const Quaternion r = SampleQuatKeys(ch->mRotationKeys, ch->mNumRotationKeys, t, br);
+                    const Vector3 p = SampleVecKeys(ch->mPositionKeys, ch->mNumPositionKeys, t, bt);
+                    local = Matrix::CreateScale(s) * Matrix::CreateFromQuaternion(r) * Matrix::CreateTranslation(p);
+                }
+                sG[i] = (src[i].parent >= 0) ? local * sG[src[i].parent] : local;
+            }
+
+            // 自分の世界の回転を親から順に。付け替える骨 = 基準の世界の回転（向きを直した物）に
+            // 向こうの基準からの差分（向きを合わせて）を足す
+            for (int i = 0; i < nb; ++i)
+            {
+                const int p = bones[i].parentIndex;
+                const Quaternion parentR = (p >= 0) ? tGR[p] : Quaternion::Identity;
+                const int s = toSrc[i];
+                if (s < 0)
+                {
+                    tGR[i] = tBindLocalR[i] * parentR;
+                    continue;
+                }
+                Quaternion dS = Inv(RotationOf(sBindG[s])) * RotationOf(sG[s]);   // 向こうの基準からの差分（世界）
+                Quaternion dT = alignInv * dS * align;                               // 自分の空間へ
+                tGR[i] = tBindGR[i] * corr[i] * dT;
+                tGR[i].Normalize();
+                Quaternion localR = tGR[i] * Inv(parentR);
+                localR.Normalize();
+                clip.channels[chOfBone[i]].rotations.push_back({ (float)t, localR });
+            }
+
+            // 腰の平行移動（世界の差分を向きを合わせて縮め、親基準へ）
+            if (hipT >= 0 && hipS >= 0 && chOfBone[hipT] >= 0)
+            {
+                const Vector3 d = sG[hipS].Translation() - sBindG[hipS].Translation();
+                const Vector3 world = tBindG[hipT].Translation() + Vector3::Transform(d, align) * hipScale;
+                clip.channels[chOfBone[hipT]].positions.push_back({ (float)t, Vector3::Transform(world, hipParentInv) });
+            }
+            if (t >= clip.duration) break;
+        }
+
+        std::cout << "[SkinnedModel]   ~ " << clip.name << " (retargeted " << mapped << " bones)" << std::endl;
+        m_Animations.push_back(std::move(clip));
+        ++added;
+    }
+    std::cout << "[SkinnedModel] retarget: " << added << " clips from " << filepath << " (" << mapped
+        << " bones mapped, hip scale " << hipScale << ")" << std::endl;
+    return added;
+}
+
+Matrix SkinnedModel::GetSkinBindGlobal(int boneIndex) const
+{
+    const auto& bones = m_Skeleton.GetBones();
+    if (boneIndex < 0 || boneIndex >= (int)bones.size()) return Matrix::Identity;
+    for (const auto& sub : m_SubMeshes)
+    {
+        auto it = sub.boneOffsets.find(boneIndex);
+        if (it != sub.boneOffsets.end()) return it->second.Invert() * sub.nodeGlobal;
+    }
+    const int p = bones[boneIndex].parentIndex;
+    return (p >= 0) ? bones[boneIndex].localBindTransform * GetSkinBindGlobal(p) : bones[boneIndex].localBindTransform;
 }
 
 float SkinnedModel::GetClipDurationSec(int clipIndex) const
@@ -618,7 +1016,7 @@ void SkinnedModel::BuildSubmeshPalette(int submeshIndex,
 }
 
 // ============================================================
-// 1 フレームを CPU で蒙皮 → 静的 Model
+// 1 フレームを CPU でスキニング → 静的 Model
 // SkinningCS.hlsl と同じ結果: p = Σ w_i * (v * palette_i)（行ベクトル規約）
 // ============================================================
 std::shared_ptr<Model> SkinnedModel::BakeStatic(ID3D11Device* device, int clipIndex, float timeSec,

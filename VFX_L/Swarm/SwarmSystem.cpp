@@ -230,7 +230,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(DirectX::SimpleMath::Vector4), Swarm::kMaxAreas,
         m_AreaEndBuffer, m_AreaEndUAV, m_AreaEndSRV, "areaEnd")) return false;
 
-    // ---- 範囲の連番絵：再生中の環と、範囲の槽ごとの「前に見た timeLeft」----
+    // ---- 範囲の連番画像：再生中の環と、範囲の槽ごとの「前に見た timeLeft」----
     if (!makeStructured(sizeof(Swarm::SpriteInstance), kMaxSprites,
         m_SpriteBuffer, m_SpriteUAV, m_SpriteSRV, "sprite")) return false;
     if (!makeStructured(sizeof(uint32_t), Swarm::kMaxAreas,
@@ -277,7 +277,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeRaw(16, m_CorpseHead, m_CorpseHeadUAV, "corpseHead")) return false;
     if (!makeRaw(sizeof(Swarm::BossInfo), m_BossInfoBuffer, m_BossInfoUAV, "bossInfo")) return false;
     {
-        // Boss の様子の回読（GPUReadback と同じく 3 枚を輪転）
+        // Boss の様子のリードバック（GPUReadback と同じく 3 枚を輪転）
         D3D11_BUFFER_DESC sd = {};
         sd.ByteWidth = sizeof(Swarm::BossInfo);
         sd.Usage = D3D11_USAGE_STAGING;
@@ -291,7 +291,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_BossInfo = {};
     }
     {
-        // 玩家が受けた打撃の向き（ノックバック用）。永久に累加するので作った時に 1 度だけ 0 にする
+        // プレイヤーが受けた打撃の向き（ノックバック用）。永久に累積するので作った時に 1 度だけ 0 にする
         if (!makeRaw(sizeof(Swarm::PlayerHitInfo), m_PlayerHitBuffer, m_PlayerHitUAV, "playerHits")) return false;
         const UINT zero[4] = { 0, 0, 0, 0 };
         m_Context->ClearUnorderedAccessViewUint(m_PlayerHitUAV.Get(), zero);
@@ -309,7 +309,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_PendingPlayerHits = {};
     }
     {
-        // 生まれた範囲の数（累計。[0] 揺らす範囲、[1 + 配方] 配方毎）。作った時に 1 度だけ 0 にする
+        // 生まれた範囲の数（累計。[0] 揺らす範囲、[1 + レシピ] レシピ毎）。作った時に 1 度だけ 0 にする
         const UINT bytes = (UINT)(sizeof(uint32_t) * kAreaBirthSlots);
         if (!makeRaw(bytes, m_AreaBirthBuffer, m_AreaBirthUAV, "areaBirths")) return false;
         const UINT zero[4] = { 0, 0, 0, 0 };
@@ -348,7 +348,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         for (auto& t : m_BeamTargets) t = {};
     }
     {
-        // 誘発の環（先頭 16B = 総数 + 16B × kMaxTriggerEvents）と、その回読
+        // 誘発の環（先頭 16B = 総数 + 16B × kMaxTriggerEvents）と、そのリードバック
         const UINT bytes = 16u + sizeof(Swarm::TriggerEvent) * Swarm::kMaxTriggerEvents;
         if (!makeRaw(bytes, m_TriggerBuffer, m_TriggerUAV, "trigger")) return false;
 
@@ -366,7 +366,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_TriggerEvents.clear();
     }
     {
-        // 分裂の環（先頭 16B = 総数 + 16B × kMaxSplitEvents。2026-10-03）と、その回読
+        // 分裂の環（先頭 16B = 総数 + 16B × kMaxSplitEvents。2026-10-03）と、そのリードバック
         const UINT bytes = 16u + sizeof(Swarm::SplitEvent) * Swarm::kMaxSplitEvents;
         if (!makeRaw(bytes, m_SplitBuffer, m_SplitUAV, "split")) return false;
         const UINT zero[4] = { 0, 0, 0, 0 };
@@ -488,8 +488,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
 // 地形の格子表を上げる（起動時と Regenerate の時だけ）
 // ============================================================
 // ============================================================
-// 通行図だけを上げ直す（2026-10-03）。箱・門の柱は GPU の雑魚には格子でしか見えないので、
-// 場面がその下のマスを塞いだ / 箱が開いて戻した時に呼ぶ
+// 通行マップだけを上げ直す（2026-10-03）。箱・門の柱は GPU の雑魚には格子でしか見えないので、
+// シーンがその下のマスを塞いだ / 箱が開いて戻した時に呼ぶ
 // ============================================================
 void SwarmSystem::RefreshWalkable(const GridWorld& grid)
 {
@@ -533,7 +533,7 @@ void SwarmSystem::RefreshWalkable(const GridWorld& grid)
     m_TerrainBuffer = buf;
     m_TerrainSRV = srv;
 
-    WaitFlowJob();   // 古い通行図で作っている途中の物は捨てる
+    WaitFlowJob();   // 古い通行マップで作っている途中の物は捨てる
     m_Flow.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
     m_FlowWorker.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
     m_FlowRequestX = m_FlowRequestZ = -1;
@@ -637,7 +637,7 @@ void SwarmSystem::UploadTerrain(const GridWorld& grid)
             std::cout << "[Error] SwarmSystem: spatial hash buffers failed" << std::endl;
     }
 
-    // ---- 巡路: 通行図とマス中心の高さを写し、向き表の buffer を作る ----
+    // ---- 巡路: 通行マップとマス中心の高さを写し、向き表の buffer を作る ----
     {
         std::vector<uint8_t> walk((size_t)w * d);
         std::vector<float>   hgt((size_t)w * d);
@@ -685,7 +685,7 @@ void SwarmSystem::UploadTerrain(const GridWorld& grid)
 }
 
 // ============================================================
-// VFX 配方表の構築（起動時に1回）
+// VFX レシピ表の構築（起動時に1回）
 // ============================================================
 bool SwarmSystem::BuildVFXTable()
 {
@@ -773,7 +773,7 @@ void SwarmSystem::SpawnArea(const Swarm::Area& area)
     m_PendingAreas.push_back(area);
 }
 
-// 光線の起点 / 終点（次の固定ステップから AreaTickCS が胶囊型の範囲へ写す）
+// 光線の起点 / 終点（次の固定ステップから AreaTickCS がカプセル型の範囲へ写す）
 void SwarmSystem::SetBeam(uint32_t ch, const Vector3& start, const Vector3& end, float radius, bool active)
 {
     if (ch >= Swarm::kMaxBeams) return;
@@ -871,12 +871,12 @@ void SwarmSystem::ClearAreas()
 
 // ============================================================
 // 巡路の更新
-// 玩家のマスが変わった時だけ Dial 法で距離場を作り直し、向き表を Map で上げる
+// プレイヤーのマスが変わった時だけ Dial 法で距離場を作り直し、向き表を Map で上げる
 //（地形は静的）。作り直しは別スレッド：
 //   1) 走っている作り直しが終わっていれば、結果を m_Flow へ貰って GPU へ上げる
-//   2) 走っている物が無く、玩家のマスが最後に作らせたマスと違えば、次を作らせる
+//   2) 走っている物が無く、プレイヤーのマスが最後に作らせたマスと違えば、次を作らせる
 // GPU の向き表は 1〜2 フレーム古いマスの物になるが、雑魚は遠くの大回りに使うだけ
-// （玩家の近くは直進）なので困らない
+// （プレイヤーの近くは直進）なので困らない
 // ============================================================
 void SwarmSystem::UpdateFlowField(const Vector3& playerPos)
 {
@@ -901,12 +901,12 @@ void SwarmSystem::UpdateFlowField(const Vector3& playerPos)
     const int gx = (int)std::floor((playerPos.x - m_CachedFrameCB.gridOrigin.x) / m_CachedFrameCB.cellSize);
     const int gz = (int)std::floor((playerPos.z - m_CachedFrameCB.gridOrigin.z) / m_CachedFrameCB.cellSize);
 
-    // 地形は静的なので、場は目標マスだけで決まる。玩家がマスを跨いだ時だけ作り直す
+    // 地形は静的なので、場は目標マスだけで決まる。プレイヤーがマスを跨いだ時だけ作り直す
     if (gx == m_FlowRequestX && gz == m_FlowRequestZ) return;
     m_FlowRequestX = gx;
     m_FlowRequestZ = gz;
 
-    m_FlowWorker.CopySettings(m_Flow);   // 面板で変えた探索範囲など
+    m_FlowWorker.CopySettings(m_Flow);   // パネルで変えた探索範囲など
     m_FlowJob = std::async(std::launch::async, [this, gx, gz]
         {
             auto tf0 = std::chrono::high_resolution_clock::now();   // TEMP-TEST
@@ -933,9 +933,9 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     m_AnimClock = totalTime;   // 雑魚の待機アニメの時計（歩き・攻撃は敵ごとの時計）
 
     // ============================================================
-    // 1) 前フレームの counter を読む（阻塞しない）
-    // killCount / playerDamage は GPU 上で永久に累加される。
-    // 前回値との差分を取る（回読が失敗したフレームがあっても取りこぼさない）
+    // 1) 前フレームの counter を読む（ブロックしない）
+    // killCount / playerDamage は GPU 上で永久に累積される。
+    // 前回値との差分を取る（リードバックが失敗したフレームがあっても取りこぼさない）
     // ============================================================
     SwarmCounters c;
     if (m_Readback.TryRead(m_Context, c))
@@ -995,7 +995,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
 
     // ---- 5) counter の写しを発行（CopyResource だけ。待たない）----
     RequestReadback();
-    // 玩家が受けた打撃の向きも同じ時に写す（counter と同じ遅れで届く）
+    // プレイヤーが受けた打撃の向きも同じ時に写す（counter と同じ遅れで届く）
     if (m_PlayerHitBuffer)
     {
         m_Context->CopyResource(m_PlayerHitStaging[m_PlayerHitStagingWrite].Get(), m_PlayerHitBuffer.Get());
@@ -1077,11 +1077,11 @@ void SwarmSystem::UploadSpawns()
         m_SpawnProjCS->SetSRV(m_Context, "spawnRequests", m_SpawnProjSRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "spawnExtra", m_SpawnProjExtraSRV.Get());
         // 曲線の型は生成時に標的を捕捉して path を組む。
-        // counters には前ステップの「玩家に一番近い雑魚」が残っている
+        // counters には前ステップの「プレイヤーに一番近い雑魚」が残っている
         m_SpawnProjCS->SetSRV(m_Context, "motions", m_MotionSRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
-        m_SpawnProjCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 落点が鉱洞の中なら真上から落とす
+        m_SpawnProjCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 着弾点が洞窟の中なら真上から落とす
         m_SpawnProjCS->SetUAV(m_Context, "projectiles", m_ProjUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "projStates", m_ProjStateUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "paths", m_PathUAV.Get());
@@ -1220,7 +1220,7 @@ void SwarmSystem::UploadSpawns()
 // ============================================================
 // 固定ステップ1回ぶんの CS 群
 // 順序はここが全て:
-//   0 counter 清零 → 0b 空間ハッシュ → 1 敵AI → 2 敵積分 → 2b 重なり解消 → 3 弾積分 → 4 命中(+オーブ落下)
+//   0 counter ゼロクリア → 0b 空間ハッシュ → 1 敵AI → 2 敵積分 → 2b 重なり解消 → 3 弾積分 → 4 命中(+オーブ落下)
 //   → 5 照準 → 6 接触 → 7 オーブ吸引・取得
 // ============================================================
 void SwarmSystem::DispatchStep()
@@ -1258,13 +1258,13 @@ void SwarmSystem::DispatchStep()
     }
 
     // ---- 1) 雑魚 AI: 速度を決める ----
-    // position は読むだけ。全スレッドが同じ快照を見るために
+    // position は読むだけ。全スレッドが同じスナップショットを見るために
     // 積分は次の dispatch に分けてある
     if (m_EnemyAICS)
     {
         m_EnemyAICS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_EnemyAICS->WriteBuffer(m_Context, 1, &m_CachedAICB);
-        m_EnemyAICS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 精英の体格（玩家の手前で止まる距離）
+        m_EnemyAICS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格（プレイヤーの手前で止まる距離）
         m_EnemyAICS->Bind(m_Context);
         m_EnemyAICS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyAICS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());
@@ -1292,7 +1292,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyMoveCS->Bind(m_Context);
         m_EnemyMoveCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyMoveCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 斜面の高さ
-        m_EnemyMoveCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());       // 通行格（壁への滑り・壁からの脱出）
+        m_EnemyMoveCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());       // 通行マス（壁への滑り・壁からの脱出）
         m_EnemyMoveCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 種類（幽霊は壁を素通り）
         m_EnemyMoveCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
@@ -1359,7 +1359,7 @@ void SwarmSystem::DispatchStep()
         m_HitCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_HitCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
         m_HitCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
-        m_HitCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 精英の体格・経験値
+        m_HitCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格・経験値
         m_HitCS->Bind(m_Context);
         m_HitCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
         m_HitCS->SetSRV(m_Context, "projectiles", m_ProjSRV.Get());
@@ -1414,11 +1414,11 @@ void SwarmSystem::DispatchStep()
         m_Context->Dispatch((Swarm::kMaxAreas + 255) / 256, 1, 1);
         m_AreaTickCS->UnbindUAVs(m_Context);
 
-        // tick した範囲が 1 つも無いステップは、各スレッドが counter を 1 回読んで帰る
+        // tick した範囲が 1 つも無いステップは、各スレッドが counter を 1 リードバックんで帰る
         m_AreaDamageCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_AreaDamageCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
         m_AreaDamageCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
-        m_AreaDamageCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 精英の体格・経験値
+        m_AreaDamageCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格・経験値
         m_AreaDamageCS->Bind(m_Context);
         m_AreaDamageCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
@@ -1447,8 +1447,8 @@ void SwarmSystem::DispatchStep()
         m_AimResolveCS->UnbindSRVs(m_Context);
         m_AimResolveCS->UnbindUAVs(m_Context);
     }
-    // ---- 6) 接触: 雑魚 × 玩家 ----
-   // ダメージは counter に固定小数で累加。無敵時間の判定は CPU の状態機。
+    // ---- 6) 接触: 雑魚 × プレイヤー ----
+   // ダメージは counter に固定小数で累積。無敵時間の判定は CPU のステートマシン。
    // 自爆兵はここで点火・導火線・爆発（スロットを DEAD にして見た目の範囲を出す）
     if (m_ContactCS)
     {
@@ -1473,7 +1473,7 @@ void SwarmSystem::DispatchStep()
     }
     // ---- 7) 経験値オーブ: 吸引・取得 ----
    // HitCS がこのステップで落としたオーブも含めて動かす。
-   // 取得分は counter に固定小数で累加（永久累加、CPU が差分）
+   // 取得分は counter に固定小数で累積（永久累積、CPU が差分）
     if (m_OrbCS)
     {
         m_OrbCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
@@ -1590,9 +1590,9 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
 }
 
 // ============================================================
-// 範囲の連番絵（Sprite entry）
+// 範囲の連番画像（Sprite entry）
 // 1 回目：再生中の物を進め、寿命が来た物を消す（環の全枠）
-// 2 回目：範囲の槽を見て、新しく生まれた範囲の配方の Sprite を始める
+// 2 回目：範囲の槽を見て、新しく生まれた範囲のレシピの Sprite を始める
 // 範囲の数え下げ（timeLeft）は子ステップで確定済み。粒子の発射と同じく 1 フレーム 1 回
 // ============================================================
 void SwarmSystem::DispatchSprites(float dt)
@@ -1639,7 +1639,7 @@ void SwarmSystem::DispatchLiquidTrack()
     m_LiquidTrackCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
     m_LiquidTrackCS->SetUAV(m_Context, "areaDirs", m_AreaDirUAV.Get());
     m_LiquidTrackCS->SetUAV(m_Context, "liquidTrack", m_LiquidTrackUAV.Get());
-    m_LiquidTrackCS->SetUAV(m_Context, "areaBirths", m_AreaBirthUAV.Get());   // 生まれた範囲の数（揺らす範囲・配方毎。新しい範囲を見つけた所で数える）
+    m_LiquidTrackCS->SetUAV(m_Context, "areaBirths", m_AreaBirthUAV.Get());   // 生まれた範囲の数（揺らす範囲・レシピ毎。新しい範囲を見つけた所で数える）
     m_LiquidTrackCS->BindUAVs(m_Context);
 
     m_Context->Dispatch((Swarm::kMaxAreas + 63) / 64, 1, 1);
@@ -1659,7 +1659,7 @@ void SwarmSystem::DispatchCorpses()
     if (!m_CorpseTrackCS || !m_CorpseListCS) return;
 
     CorpseTrackCB tcb = { m_AnimClock, corpse.enabled ? 1u : 0u, corpse.deathArea, 0u };
-    m_CorpseTrackCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);   // 玩家の位置（飛ばす向き）・槽の数
+    m_CorpseTrackCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);   // プレイヤーの位置（飛ばす向き）・槽の数
     m_CorpseTrackCS->WriteBuffer(m_Context, 4, &tcb);
     m_CorpseTrackCS->Bind(m_Context);
     m_CorpseTrackCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
@@ -1671,7 +1671,7 @@ void SwarmSystem::DispatchCorpses()
     m_CorpseTrackCS->SetUAV(m_Context, "corpseHead", m_CorpseHeadUAV.Get());
     m_CorpseTrackCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
     m_CorpseTrackCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
-    m_CorpseTrackCS->SetUAV(m_Context, "splitEvents", m_SplitUAV.Get());   // 分裂怪が死んだ所（2026-10-03）
+    m_CorpseTrackCS->SetUAV(m_Context, "splitEvents", m_SplitUAV.Get());   // スプリッターが死んだ所（2026-10-03）
     m_CorpseTrackCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
     m_CorpseTrackCS->UnbindSRVs(m_Context);
@@ -1697,7 +1697,7 @@ void SwarmSystem::DispatchCorpses()
 }
 
 // ============================================================
-// 砕け散る部品を描く。雑魚と同じ網・同じ PS・同じ貼図の切り替え（自爆兵は自分の貼図、幽霊は半透明）。
+// 砕け散る部品を描く。雑魚と同じ網・同じ PS・同じテクスチャの切り替え（自爆兵は自分のテクスチャ、幽霊は半透明）。
 // VS だけ SwarmCorpseVS に差し替え、submesh（部品）毎に CorpseCB.part を入れて間接描画
 // ============================================================
 void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
@@ -1716,7 +1716,7 @@ void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
             m_CorpseVS->Bind(m_Context);
             m_CorpseVS->WriteBuffer(m_Context, 0, &cb);
             m_CorpseVS->WriteBuffer(m_Context, 2, &m_CachedAICB);     // 体の大きさ
-            m_CorpseVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB); // 精鋭・Boss の倍率、幽霊の見た目
+            m_CorpseVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB); // エリート・Boss の倍率、幽霊の見た目
             m_CorpseVS->SetSRV(m_Context, "corpses", m_CorpseSRV.Get());
         };
     bindVS();
@@ -1740,14 +1740,14 @@ void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
     {
         if (k == Swarm::kDrawListGhost)
         {
-            bindVS();   // 雑魚の貼図に戻す
+            bindVS();   // 雑魚のテクスチャに戻す
             const float bf[4] = { 0, 0, 0, 0 };
             m_Context->OMSetBlendState(RenderStates::Get().AlphaBlend(), bf, 0xFFFFFFFF);
         }
         else if (Texture* albedo = ListAlbedo(k))
             m_EnemyPS->SetTexture(m_Context, 0, albedo);
         else if (k != Swarm::kDrawListMob)
-            bindVS();   // 自分の貼図が無い種類は雑魚の貼図に戻す
+            bindVS();   // 自分のテクスチャが無い種類は雑魚のテクスチャに戻す
         m_CorpseVS->SetSRV(m_Context, "corpseList", m_CorpseListSRV[k].Get());
 
         for (size_t i = 0; i < subs.size() && i < m_CorpseDrawArgs[k].size(); ++i)
@@ -1770,7 +1770,7 @@ void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
 // ============================================================
 // 液溜まり（GPU の範囲の Liquid entry）
 // 範囲の全槽を地面の格子 1 枚ずつ（LIQUID_GRID^2 の四角、頂点バッファ無し）。
-// 死んだ槽・配方に液体が無い範囲は VS が潰す。PS は CPU の経路と同じ VFXLiquidPS。
+// 死んだ槽・レシピに液体が無い範囲は VS が潰す。PS は CPU の経路と同じ VFXLiquidPS。
 // 深度テストあり・書き込み無し、乗算済み alpha（外側の光は alpha 0 = 加算）。
 // 雑魚・オーブの後、足元の丸い影の前（雑魚の影が液面に落ちる）。点光源はまだ繋がっている
 // ============================================================
@@ -1821,7 +1821,7 @@ void SwarmSystem::RenderLiquids(CameraBase* camera, const LightBuffer& light)
 }
 
 // ============================================================
-// 範囲の連番絵を描く。環の全枠を 6 頂点ずつ描き、空の枠は VS が潰す
+// 範囲の連番画像を描く。環の全枠を 6 頂点ずつ描き、空の枠は VS が潰す
 // 混合は乗算済み alpha（加算の物は alpha 0）。深度は読むだけ
 // ============================================================
 void SwarmSystem::RenderSprites(CameraBase* camera)
@@ -1879,7 +1879,7 @@ void SwarmSystem::RequestReadback()
 }
 
 // ============================================================
-// 誘発の環を読む（一番古い staging、待たない）。総数は GPU で永久に累加されるので、
+// 誘発の環を読む（一番古い staging、待たない）。総数は GPU で永久に累積されるので、
 // 読めなかったフレームがあっても次に読めた時に取りこぼさない（環の長さを超えて溜まった分だけ捨てる）
 // ============================================================
 void SwarmSystem::ReadTriggerEvents()
@@ -1904,7 +1904,7 @@ void SwarmSystem::ReadTriggerEvents()
 
     m_Context->Unmap(m_TriggerStaging[readIndex].Get(), 0);
 
-    // 誰も取り出さない（杖が無い場面）でも溜まり続けないように
+    // 誰も取り出さない（杖が無いシーン）でも溜まり続けないように
     if (m_TriggerEvents.size() > Swarm::kMaxTriggerEvents)
         m_TriggerEvents.erase(m_TriggerEvents.begin(), m_TriggerEvents.end() - Swarm::kMaxTriggerEvents);
 }
@@ -1970,7 +1970,7 @@ void SwarmSystem::ReadBossInfo()
 }
 
 // ============================================================
-// 玩家が受けた打撃の向きを読む（一番古い staging、待たない）。
+// プレイヤーが受けた打撃の向きを読む（一番古い staging、待たない）。
 // 累計なので前回値との差分を足す（読めなかったフレームの分も次で拾える）。
 // int の和は回り込んでも uint の引き算 → int で正しい差になる
 // ============================================================
@@ -2037,7 +2037,7 @@ void SwarmSystem::ConsumeAreaBirths(std::array<uint32_t, Swarm::kAreaBirthKinds>
 }
 
 // ============================================================
-// 玩家の被弾を取り出す（取ったら 0 に戻す）
+// プレイヤーの被弾を取り出す（取ったら 0 に戻す）
 // ============================================================
 float SwarmSystem::ConsumePlayerDamage()
 {
@@ -2058,8 +2058,8 @@ float SwarmSystem::ConsumeExp()
 // GPU 上の雑魚・弾・オーブを全部消す（地形の作り直し用）
 // state を 0（DEAD）にするだけ。本体バッファは触らない。
 // ※counter / emitBudget / accumulator は触らない。
-//   killCount 等は永久累加で CPU が差分を取るため、
-//   ここで 0 にすると次の回読で差分が狂う
+//   killCount 等は永久累積で CPU が差分を取るため、
+//   ここで 0 にすると次のリードバックで差分が狂う
 // ============================================================
 void SwarmSystem::KillAll()
 {
@@ -2093,8 +2093,8 @@ void SwarmSystem::ClearProjectiles()
     m_PendingProjExtra.clear();
 }
 // ============================================================
-// デバッグ: 判定球の線框
-// 全スロットを DrawInstanced し、死んだ物は VS 側で裁剪外へ畳む。
+// デバッグ: 判定球のワイヤーフレーム
+// 全スロットを DrawInstanced し、死んだ物は VS 側でクリップ外へ畳む。
 // 8192 × 64 頂点 = 約 52 万頂点。デバッグ用途なら気にしない
 // ============================================================
 void SwarmSystem::RenderDebug(CameraBase* camera)
@@ -2134,11 +2134,20 @@ void SwarmSystem::RenderDebug(CameraBase* camera)
     RenderStates::Get().Restore(m_Context);
 }
 // ============================================================
-// 雑魚の本描画
+// 描画の全部（不透明な物 → 半透明・重ね描き）。画面のアウトラインを間に挟むシーンは 2 つを分けて呼ぶ
+// ============================================================
+void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
+{
+    RenderOpaque(camera, light);
+    RenderOverlay(camera, light);
+}
+
+// ============================================================
+// 雑魚の本描画（不透明：雑魚・砕け散り・経験値オーブ。深度を書く）
 // 頂点/インデックスは1体分、インスタンス数 = プール全体。
 // 生死は VS が state を見て判断する（死んだ槽は near 面の外へ畳む）
 // ============================================================
-void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
+void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
 {
     if (!camera || !m_EnemyMaterial || !m_EnemyModel) return;
 
@@ -2225,7 +2234,7 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
     m_EnemyAnim.walkRate = enemyWalkAnimRate;
 
     // VS は一覧（aliveList の名前で繋ぐ）経由でしかスロットを引かないので、間接引数が無い時は描かない。
-    // 種類毎に一覧と貼図（t0）を差し替えて同じメッシュを描く。雑魚の貼図は Material::Bind が入れた物
+    // 種類毎に一覧とテクスチャ（t0）を差し替えて同じメッシュを描く。雑魚のテクスチャは Material::Bind が入れた物
     const auto& subs = m_EnemyModel->GetSubMeshes();
     for (uint32_t k = 0; indirect && k < Swarm::kEnemyKinds; ++k)
     {
@@ -2234,12 +2243,12 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
             m_EnemyPS->SetTexture(m_Context, 0, albedo);
         else if (k != Swarm::kDrawListMob && k != Swarm::kDrawListGhost)
         {
-            m_EnemyMaterial->Bind(m_Context);   // 自分の貼図が無い種類は雑魚の貼図に戻す
+            m_EnemyMaterial->Bind(m_Context);   // 自分のテクスチャが無い種類は雑魚のテクスチャに戻す
             m_Context->PSSetSamplers(0, 1, &samp);
         }
         if (k == Swarm::kDrawListGhost)
         {
-            // 幽霊：雑魚の貼図に戻し、alpha blend（乗算済み: 色はそのまま足され、alpha 分だけ後ろが消える = 光る半透明）。
+            // 幽霊：雑魚のテクスチャに戻し、alpha blend（乗算済み: 色はそのまま足され、alpha 分だけ後ろが消える = 光る半透明）。
             // 深度は書く（後から描くオーブ・粒子が幽霊の奥にある時に正しく隠れる）
             m_EnemyMaterial->Bind(m_Context);
             m_Context->PSSetSamplers(0, 1, &samp);
@@ -2302,7 +2311,21 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
 
         m_OrbVS->UnbindSRVs(m_Context);
     }
+}
+
+// ============================================================
+// 半透明・重ね描き（液面・足元の影・警告の輪・HP バー。深度は読むだけ）。
+// トゥーンのアウトライン（2026-10-04）は RenderOpaque との間に描くので、アウトラインがこれらの上に乗らない
+// ============================================================
+void SwarmSystem::RenderOverlay(CameraBase* camera, const LightBuffer& light)
+{
+    if (!camera || !m_EnemyMaterial || !m_EnemyModel) return;
+    const bool indirect = m_EnemyCompactCS && m_AliveListUAV && !m_EnemyDrawArgs[0].empty();
+    LightBuffer l = light;
+    l.cameraPosition = camera->GetPosition();
+
     // ---- 液溜まり（Liquid entry。点光源を外す前に：毒の池の緑の光が液面に映る）----
+    PointLightManager::Get().BindPS(m_Context);   // 間に草などが入っても液面が点光源を読めるように
     RenderLiquids(camera, l);
     PointLightManager::Get().UnbindPS(m_Context);
 
@@ -2318,7 +2341,7 @@ void SwarmSystem::Render(CameraBase* camera, const LightBuffer& light)
 }
 
 // ============================================================
-// CPU が置いた地面の警告の輪（Boss の重撃）。輪 1 つ = 地面に載せた 8x8 の格子 1 枚（頂点バッファ無し）
+// CPU が置いた地面の警告の輪（Boss のスラム）。輪 1 つ = 地面に載せた 8x8 の格子 1 枚（頂点バッファ無し）
 // ============================================================
 void SwarmSystem::RenderWarnRings(CameraBase* camera)
 {
@@ -2524,7 +2547,7 @@ void SwarmSystem::RenderHpBars(CameraBase* camera)
     cb.edge = hpBar.edge;
     m_HpBarVS->WriteBuffer(m_Context, 0, &cb);
     m_HpBarVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 足元の高さ（半径・カプセル）
-    m_HpBarVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);  // 精英の体格
+    m_HpBarVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);  // エリートの体格
     m_HpBarPS->WriteBuffer(m_Context, 0, &cb);
 
     m_HpBarVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
@@ -2624,7 +2647,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_AreaDamageCS, L"Shader/Swarm/SwarmAreaDamageCS.hlsl", "AreaDamageCS");
     ok &= load(m_AreaEmitCS, L"Shader/Swarm/SwarmAreaEmitCS.hlsl", "AreaEmitCS");
     load(m_OrbEmitCS, L"Shader/Swarm/SwarmOrbEmitCS.hlsl", "OrbEmitCS");   // 無くてもオーブの尾が出ないだけ
-    load(m_SpriteCS, L"Shader/Swarm/SwarmSpriteCS.hlsl", "SpriteCS");   // 無くても連番絵が出ないだけ
+    load(m_SpriteCS, L"Shader/Swarm/SwarmSpriteCS.hlsl", "SpriteCS");   // 無くても連番画像が出ないだけ
     load(m_LiquidTrackCS, L"Shader/Swarm/SwarmLiquidTrackCS.hlsl", "LiquidTrackCS");   // 無くても液溜まりが出ないだけ
     load(m_CorpseTrackCS, L"Shader/Swarm/SwarmCorpseTrackCS.hlsl", "CorpseTrackCS");   // 無くても死体が砕けないだけ
     load(m_CorpseListCS, L"Shader/Swarm/SwarmCorpseListCS.hlsl", "CorpseListCS");
@@ -2688,13 +2711,13 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     std::cout << "[SwarmSystem] DropRingVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_DropRingVS.reset();
 
-    // ---- 地面の警告の輪（Boss の重撃。PS は自爆兵の輪と共用）----
+    // ---- 地面の警告の輪（Boss のスラム。PS は自爆兵の輪と共用）----
     m_WarnRingVS = std::make_shared<VertexShader>();
     hr = ShaderPath::Load(m_WarnRingVS.get(), device, L"Shader/Swarm/SwarmWarnRingVS.hlsl");
     std::cout << "[SwarmSystem] WarnRingVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_WarnRingVS.reset();
 
-    // ---- 範囲の連番絵（失敗しても出ないだけ）----
+    // ---- 範囲の連番画像（失敗しても出ないだけ）----
     m_SpriteVS = std::make_shared<VertexShader>();
     hr = ShaderPath::Load(m_SpriteVS.get(), device, L"Shader/Swarm/SwarmSpriteVS.hlsl");
     std::cout << "[SwarmSystem] SpriteVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
@@ -2777,7 +2800,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
 
 // ============================================================
 // 雑魚の部品アニメの表
-// 部品（submesh）を節点で動かすモデル用。クリップ毎に 30fps で標本を取り、
+// 部品（submesh）をノードで動かすモデル用。クリップ毎に 30fps でサンプルを取り、
 // 「焼いた姿勢の部品 → そのフレームの部品」の差分行列を [クリップ][フレーム][部品] に並べる。
 //   焼いた頂点 = v × B（B = 焼いた姿勢の全体変換）
 //   そのフレーム = v × G = 焼いた頂点 × (B の逆 × G)   … 行ベクトルの約束
@@ -2803,7 +2826,7 @@ bool SwarmSystem::BuildEnemyPartAnim(ID3D11Device* device, const char* modelPath
     }
     std::vector<Matrix> bakeInv(partCount);
     for (size_t p = 0; p < partCount; ++p) bakeInv[p] = bake[0][p].Invert();
-    // 砕け散りの回転の中心 = 部品の節点の原点（首・肩・股の関節。網と同じ焼いた姿勢の空間）
+    // 砕け散りの回転の中心 = 部品のノードの原点（首・肩・股の関節。網と同じ焼いた姿勢の空間）
     for (size_t p = 0; p < 8; ++p)
     {
         const Vector3 o = (p < partCount) ? bake[0][p].Translation() : Vector3::Zero;
@@ -2884,7 +2907,7 @@ bool SwarmSystem::BuildEnemyPartAnim(ID3D11Device* device, const char* modelPath
 // 骨付きモデルを歩きの 1 フレームで焼いて静的メッシュにする。
 // 4096 体が同じポーズで、歩きの揺れは VS の procedural。
 // 候補を上から試して、読めた物を使う:
-//   1) Kenney Blocky の L（緑肌のゾンビ、像素貼图）… 今の雑魚
+//   1) Kenney Blocky の L（緑肌のゾンビ、ピクセルテクスチャ）… 今の雑魚
 //   2) KayKit Skeleton_Minion                    … 予備
 //   3) カプセル                                   … どちらも読めない時
 // 位置合わせ: enemies[].position はカプセル中心（groundY = 半径 + 直線半分）
@@ -2908,7 +2931,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         float          targetHeight;  // m。0 = ファイルの寸法 × kEnemyModelScale のまま
         const char*    label;
         const wchar_t* bomberAlbedo;  // 自爆兵に貼る物（同じメッシュ・同じ UV）。null = 雑魚と同じ
-        const wchar_t* splitterAlbedo;// 分裂怪・分裂体に貼る物。null = 雑魚と同じ
+        const wchar_t* splitterAlbedo;// スプリッター・分裂体に貼る物。null = 雑魚と同じ
     };
     const EnemyLook looks[] =
     {
@@ -2940,7 +2963,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
     {
         auto loaded = ResourceManager::Get().LoadModelAuto(look.model);
 
-        // ---- 骨（skin weights）の無いモデル: 部品を節点で動かす FBX（Kenney Blocky）----
+        // ---- 骨（skin weights）の無いモデル: 部品をノードで動かす FBX（Kenney Blocky）----
         // LoadModelAuto は Static と判定する。Model::Load に歩きの姿勢と変換を渡して焼く
         if (loaded.kind == ModelKind::Static && loaded.staticModel)
         {
@@ -2948,12 +2971,12 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
             opt.poseClip = look.clip;
             opt.poseTimeFrac = 0.25f;   // 片足が前に出た辺り
 
-            // 一度そのまま読んで寸法を測る（535KB の FBX なので 2 回読んでも軽い）
+            // 一度そのまま読んで寸法を測る（535KB の FBX なので 2 リードバックんでも軽い）
             auto raw = std::make_shared<Model>();
             if (!raw->Load(device, look.model, opt)) continue;
             Vector3 lo = raw->GetBoundsMin();
             Vector3 hi = raw->GetBoundsMax();
-            // 足元と高さは待機の姿勢で測る（2026-10-03、用户：Boss の足が地面に埋まっている）。
+            // 足元と高さは待機の姿勢で測る（2026-10-03、ユーザー：Boss の足が地面に埋まっている）。
             // 歩きの 0.25 は両脚を一番開いた所で、最低点が一番高い。それを足元に合わせていたので、
             // 待機・攻撃・歩きの大半で足が 0.29m（1.6m の雑魚で。Boss は 3 倍）地面に埋まっていた。
             // 待機に合わせると立っている時は足が地面に着き、歩きは脚が振り子のように上がる（Kenney の元の動き）
@@ -2994,7 +3017,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
             return baked;
         }
 
-        // ---- 骨付きモデル: 1 フレームを CPU 蒙皮して焼く（KayKit）----
+        // ---- 骨付きモデル: 1 フレームを CPU スキニングして焼く（KayKit）----
         if (loaded.kind != ModelKind::Skinned || !loaded.skinnedModel) continue;
 
         const auto& sk = *loaded.skinnedModel;
@@ -3013,7 +3036,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         auto baked = sk.BakeStatic(device, clip, t, xform, {});
         if (!baked) continue;
 
-        // 貼图は雑魚材質の t0 へ（VS/PS は雑魚専用のまま。頂点色は白で焼いてある）
+        // テクスチャは雑魚材質の t0 へ（VS/PS は雑魚専用のまま。頂点色は白で焼いてある）
         m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
         m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
         m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
@@ -3119,7 +3142,7 @@ bool SwarmSystem::CreateEnemyDrawArgs(ID3D11Device* device)
 }
 
 // ============================================================
-// TEMP-TEST: 敵の池と状態を丸ごと読み戻す（staging を作って CopyResource → Map。GPU を待つので自測だけ）
+// TEMP-TEST: 敵の池と状態を丸ごと読み戻す（staging を作って CopyResource → Map。GPU を待つので自動テストだけ）
 // ============================================================
 bool SwarmSystem::DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates,
     std::vector<Swarm::EnemyExtra>* outExtras)

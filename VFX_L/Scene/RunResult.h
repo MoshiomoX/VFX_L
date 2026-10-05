@@ -26,10 +26,10 @@ inline RunResult g_LastRun;
 
 // ============================================================
 // 面をまたぐ引き継ぎ（2026-09-30）。
-// Boss を倒した面の終わりに戦闘場面が書き、リザルトの「次のステージへ」で次の戦闘場面が読む。
+// Boss を倒した面の終わりに戦闘シーンが書き、リザルトの「次のステージへ」で次の戦闘シーンが読む。
 //   stage     : 次に始める面（1..StageConfig::kStageCount）。タイトルから始める時は 1
-//   hasPlayer : true なら下の部品を玩家へ写す（背包・魔法書・等級・能力値。HP / MP は満タンから）
-// 戦闘場面が読んだら hasPlayer を落とす（F5 の再読込で二重に効かないように）
+//   hasPlayer : true なら下の部品をプレイヤーへ写す（バックパック・魔法書・等級・能力値。HP / MP は満タンから）
+// 戦闘シーンが読んだら hasPlayer を落とす（F5 の再読込で二重に効かないように）
 // ============================================================
 #include "Component/BackpackComponent.h"
 #include "Component/SpellbookComponent.h"
@@ -37,6 +37,7 @@ inline RunResult g_LastRun;
 #include "Component/HealthComponent.h"
 #include "Player/PlayerStatsComponent.h"
 #include "Player/LevelComponent.h"
+#include "Player/WalletComponent.h"
 
 struct RunCarry
 {
@@ -45,6 +46,7 @@ struct RunCarry
     BackpackComponent    backpack;
     SpellbookComponent   spellbook;
     LevelComponent       level;
+    WalletComponent      wallet;   
     ManaComponent        mana;
     HealthComponent      health;
     PlayerStatsComponent stats;

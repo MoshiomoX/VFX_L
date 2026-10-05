@@ -36,7 +36,7 @@ namespace InputMap
         return move;
     }
 
-    // 施法（トリガー：押した瞬間のみ）
+    // 詠唱（トリガー：押した瞬間のみ）
     inline bool GetCastTrigger()
     {
         auto& input = InputManager::Get();
@@ -53,7 +53,7 @@ namespace InputMap
             input.GetPadTrigger(XINPUT_GAMEPAD_B);
     }
 
-    // 魔力解放：3 秒間魔力を消費しない（Q、パッド Y。トリガー。2026-10-01 までは施法の一時停止だった）
+    // 魔力解放：3 秒間魔力を消費しない（Q、パッド Y。トリガー。2026-10-01 までは詠唱の一時停止だった）
     inline bool GetManaSurgeTrigger()
     {
         auto& input = InputManager::Get();
@@ -69,7 +69,7 @@ namespace InputMap
     }
 
     // 滑り（左 Ctrl、パッド X。押している間ずっと）。
-    // パッド X は手動施法（CastMode::Manual、調試用）の撃つ操作と重なるが、普段の自動施法では使っていない
+    // パッド X は手動詠唱（CastMode::Manual、デバッグ用）の撃つ操作と重なるが、普段の自動詠唱では使っていない
     inline bool GetSlideHeld()
     {
         auto& input = InputManager::Get();
@@ -77,12 +77,11 @@ namespace InputMap
             input.GetPadPress(XINPUT_GAMEPAD_X);
     }
 
-    // 一時停止のメニュー開閉（P、パッド Back。トリガー）
-    // ※Esc は Window.cpp でプログラム終了に使われているので割り当てない
+    // 一時停止のメニュー開閉（Esc、パッド Back。トリガー）
     inline bool GetPauseToggle()
     {
         auto& input = InputManager::Get();
-        return input.GetKeyTrigger('P') ||
+        return input.GetKeyTrigger(VK_ESCAPE) ||
             input.GetPadTrigger(XINPUT_GAMEPAD_BACK);
     }
 

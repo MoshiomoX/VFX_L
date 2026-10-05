@@ -19,7 +19,7 @@ VFXParticleEntry::~VFXParticleEntry()
 }
 
 // ============================================
-// メッシュ粒子の模型
+// メッシュ粒子のモデル
 //   ビルボードと組み込みの立方体（path が空）は登録が要らない。
 //   同じ path・同じ登録先なら何もしない（読めなかった時に毎フレーム読み直さない）
 // ============================================
@@ -99,7 +99,7 @@ void VFXParticleEntry::OnPlay(const VFXContext& ctx)
         RegisterFileSource(ctx);
 
     SyncTrailStyle(ctx);   // 最初の発射より前に style を登録しておく
-    SyncMeshSlot(ctx);     // 模型も同じく
+    SyncMeshSlot(ctx);     // モデルも同じく
 }
 
 
@@ -188,9 +188,9 @@ void VFXParticleEntry::ClearExternalSource()
 }
 
 // ============================================================
-// ビルボードの貼图：どの貼图（ParticleSheets）の、どのコマを、どう混ぜて描くか
+// ビルボードのテクスチャ：どのテクスチャ（ParticleSheets）の、どのコマを、どう混ぜて描くか
 //   Frames = Fixed（1 コマ）/ Animate（連番を寿命で再生）/ Random（生まれた時に 1 コマ選ぶ）
-//   Group を選ぶと名前付きの範囲がそのまま入る（像素の連番 → Animate、それ以外 → Random）
+//   Group を選ぶと名前付きの範囲がそのまま入る（ピクセルの連番 → Animate、それ以外 → Random）
 //   Pick frame の格子：クリック = 最初のコマ、Shift+クリック = そこまでをコマ数に
 // ============================================================
 namespace
@@ -214,7 +214,7 @@ namespace
                 if (ImGui::Selectable(sheetLabel(i).c_str(), i == e.textureIndex))
                 {
                     e.textureIndex = i;
-                    // 新しい貼图は旧式のコマ指定を使わない
+                    // 新しいテクスチャは旧式のコマ指定を使わない
                     if (i > 0 && e.frameMode == (int)ParticleFrameMode::Legacy)
                         e.frameMode = (int)ParticleFrameMode::Fixed;
                 }
@@ -456,7 +456,7 @@ void VFXParticleEntry::OnImGui()
     ImGui::Combo("Render", &e.renderMode, renderNames, IM_ARRAYSIZE(renderNames));
     if (e.renderMode == 1)
     {
-        // 模型は Mesh entry と同じフォルダから。(none) = 組み込みの立方体
+        // モデルは Mesh entry と同じフォルダから。(none) = 組み込みの立方体
         VFXFileList::Combo("Mesh Model", "Assets/VFX/Mesh", { ".fbx", ".obj", ".gltf", ".glb" }, e.meshPath);
         if (e.meshPath.empty())
             ImGui::TextDisabled("(none) = built-in cube");
@@ -482,6 +482,16 @@ void VFXParticleEntry::OnImGui()
     else
     {
         DrawSheetUI(e);
+        // トゥーン（2026-10-04）：煙・土・毒霧向け。光る物は切ると紙っぽくなる
+        ImGui::Checkbox("Toon (crisp cartoon look)", &e.toon);
+        if (e.toon)
+        {
+            ImGui::SliderFloat("Toon Cut (alpha)", &e.toonCut, 0.05f, 0.80f, "%.2f");
+            ImGui::SliderInt("Toon Bands", &e.toonBands, 1, 3);
+            ImGui::SliderFloat("Toon Outer Shade", &e.toonShade, 0.0f, 1.0f, "%.2f");
+            ImGui::Checkbox("Toon Outline", &e.toonOutline);
+            ImGui::TextDisabled("fading colour alpha shrinks the shape instead of fading it");
+        }
     }
     ImGui::Checkbox("Inherit Source Velocity", &e.inheritVelocity);
     if (e.inheritVelocity)
@@ -547,7 +557,7 @@ void VFXParticleEntry::OnImGui()
             e.colorKeyCount--;
         }
 
-        // 渐变条
+        // グラデーションバー
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         ImVec2 pos = ImGui::GetCursorScreenPos();
         float barWidth = 200.0f;
@@ -659,6 +669,8 @@ json VFXParticleEntry::ToJson() const
     j["edgeMode"] = e.shape.edgeMode;
     j["renderMode"] = e.renderMode;
     if (e.inheritVelocity) j["inheritVelocity"] = true;
+    if (e.toon)   // トゥーン（無ければ従来の見た目）
+        j["toon"] = { { "cut", e.toonCut }, { "bands", e.toonBands }, { "shade", e.toonShade }, { "outline", e.toonOutline } };
     if (e.renderMode == 1)
     {
         j["mesh"] = e.meshPath;             // "" = 組み込みの立方体
@@ -762,7 +774,7 @@ void VFXParticleEntry::FromJson(const json& j)
     e.atlasCols = j.value("atlasCols", 1);
     e.atlasIndex = j.value("atlasIndex", 0);
     e.atlasAnimate = j.value("atlasAnimate", false);
-    // 古い json には無い → 0 番の貼图・旧式のコマ指定・加算（今までと同じ見た目）
+    // 古い json には無い → 0 番のテクスチャ・旧式のコマ指定・加算（今までと同じ見た目）
     e.textureIndex = j.value("sheet", 0);
     e.frameMode = j.value("frameMode", 0);
     e.frameCount = j.value("frameCount", 1);
@@ -776,6 +788,15 @@ void VFXParticleEntry::FromJson(const json& j)
     e.meshFaceVelocity = j.value("meshFaceVelocity", false);
     e.meshForwardAxis = j.value("meshForwardAxis", 2);
     e.inheritVelocity = j.value("inheritVelocity", false);
+    e.toon = j.contains("toon") && j["toon"].is_object();
+    if (e.toon)
+    {
+        const auto& t = j["toon"];
+        e.toonCut = t.value("cut", e.toonCut);
+        e.toonBands = t.value("bands", e.toonBands);
+        e.toonShade = t.value("shade", e.toonShade);
+        e.toonOutline = t.value("outline", e.toonOutline);
+    }
     e.meshSlot = 0;   // 登録は OnPlay で
     e.shape.sourceId = -1;      // 登録は OnPlay で
     e.shape.sourceCount = 0;

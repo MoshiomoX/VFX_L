@@ -73,7 +73,7 @@ void Application::Run()
         if (m_Window.ConsumeResizeFlag())
             m_Graphics.Resize(m_Window.GetWidth(),
                 m_Window.GetHeight());
-        // 各段の CPU / GPU 時間は FrameProfiler（場面の面板の「Frame Profiler」、perf / stress 自己テストの日志）
+        // 各段の CPU / GPU 時間は FrameProfiler（シーンのパネルの「Frame Profiler」、perf / stress 自己テストのログ）
         FrameProfiler::Get().BeginFrame();
         {
             PROFILE_SCOPE("Input + ImGui NewFrame");

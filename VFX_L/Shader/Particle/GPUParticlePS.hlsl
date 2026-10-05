@@ -43,7 +43,71 @@ struct PSInput
     nointerpolation uint uvFrame : TEXCOORD3;
     nointerpolation uint sheet : TEXCOORD4;
     nointerpolation uint alphaBlend : TEXCOORD5;
+    nointerpolation uint renderMode : TEXCOORD6;
+    nointerpolation float2 toonFade : TEXCOORD7;   // x = life left (erosion), y = opacity
 };
+
+// ------------------------------------------------------------
+// Toon billboards (2026-10-04). Bits of renderMode, must match
+// ParticleRenderMode::PackToon (GPUParticle.h):
+//   bit 14 = toon, bit 15 = outline, bits 16-19 = alpha cut (0.05 + 0.05 n),
+//   bits 20-21 = color bands - 1, bits 22-25 = outer band brightness (n / 15)
+// ------------------------------------------------------------
+#define PARTICLE_TOON         (1u << 14)
+#define PARTICLE_TOON_OUTLINE (1u << 15)
+static const float TOON_OUTLINE_WIDTH = 0.07;   // alpha units inside the cut
+static const float TOON_OUTLINE_DARK = 0.22;    // the line = color x this
+static const float TOON_SHAPE_BLUR = 8.0;       // gradient scale for the shape sample (about 3 mips up)
+
+// texRgb: the sampled texel, straight color (already divided by its alpha)
+// ta    : the texture alpha (the shape), pc: the particle color
+// fade  : x = life left relative to the start alpha, y = opacity (from the VS)
+// aa    : fwidth(ta), taken by the caller outside the branch
+float4 ToonBillboard(float3 texRgb, float ta, float aa, float4 pc, float2 fade, uint mode, bool alphaBlend)
+{
+    float cut = 0.05 + 0.05 * (float)((mode >> 16u) & 15u);
+    uint bands = 1u + min((mode >> 20u) & 3u, 2u);
+    float shade = (float)((mode >> 22u) & 15u) / 15.0;
+
+    // the life fade erodes the shape (rising cut) instead of fading it out
+    float thr = lerp(1.0, cut, fade.x);
+    aa = max(aa, 1e-3);
+    float mask = smoothstep(thr - aa, thr + aa, ta);
+    if (mask <= 0.0)
+        discard;
+
+    // bands from the edge inward: outermost = shade, innermost = 1
+    float inner = saturate((ta - thr) / max(1.0 - thr, 1e-3));   // 0 at the edge .. 1 at the core
+    float level = 1.0;
+    if (bands > 1u)
+    {
+        float steps = (float)(bands - 1u);
+        float b = 0.0;
+        [unroll]
+        for (uint k = 1u; k < 3u; ++k)
+        {
+            if (k < bands)
+            {
+                float edgeK = (float)k / (float)bands;
+                b += smoothstep(edgeK - aa * 2.0, edgeK + aa * 2.0, inner);
+            }
+        }
+        level = lerp(shade, 1.0, b / steps);
+    }
+    float3 rgb = texRgb * pc.rgb * level;
+
+    // a dark rim just inside the edge
+    if (mode & PARTICLE_TOON_OUTLINE)
+    {
+        float lineW = TOON_OUTLINE_WIDTH * (1.0 - thr) / max(1.0 - cut, 1e-3);   // thins out as it erodes
+        float rim = 1.0 - smoothstep(thr + lineW - aa, thr + lineW + aa, ta);   // ('line' is a reserved word)
+        rgb = lerp(rgb, texRgb * pc.rgb * TOON_OUTLINE_DARK, rim);
+    }
+
+    // premultiplied output: alpha-blended = a crisp shape at the start opacity, additive = alpha 0
+    float a = mask * (alphaBlend ? fade.y : 1.0);
+    return float4(rgb * a, alphaBlend ? a : 0.0);
+}
 
 float4 SampleSheet(uint sheet, SamplerState s, float2 uv, float2 dx, float2 dy)
 {
@@ -92,6 +156,21 @@ float4 main(PSInput input) : SV_TARGET
         tex = SampleSheet(sheet, g_Point, atlasUV, dx, dy);
     else
         tex = SampleSheet(sheet, g_Linear, atlasUV, dx, dy);
+
+    // toon: crisp shape, color bands, dark rim (per emitter, PARTICLE_TOON).
+    // The shape comes from a blurred copy of the texel (a higher mip via scaled
+    // gradients): noisy smoke textures otherwise threshold into lace. The alpha
+    // gradient is taken after the branch, outside flow control
+    float4 soft = tex;
+    [branch]
+    if (input.renderMode & PARTICLE_TOON)
+        soft = SampleSheet(sheet, g_Linear, atlasUV, dx * TOON_SHAPE_BLUR, dy * TOON_SHAPE_BLUR);
+    float alphaWidth = fwidth(soft.a);
+    if (input.renderMode & PARTICLE_TOON)
+    {
+        float3 straight = ((g_PremulMask & bit) != 0u) ? soft.rgb / max(soft.a, 1e-3) : soft.rgb;
+        return ToonBillboard(straight, soft.a, alphaWidth, input.color, input.toonFade, input.renderMode, input.alphaBlend != 0u);
+    }
 
     float a = tex.a * input.color.a;
     clip(a - 0.01);

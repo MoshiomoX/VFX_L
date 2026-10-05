@@ -24,23 +24,30 @@ float4 main(PSIn i) : SV_TARGET
     float d = i.uv.x;
     float y = abs(i.uv.y);
     float r = saturate(1.0 - y * y); // 1 at the centre line, 0 at the edge
+    float n = BeamFbm(float2((d - b.scroll) * b.noiseScale, i.uv.y * 1.3 + b.seed));
+    // gradients for the toon edges, taken outside the branches
+    float rW = max(fwidth(r), 1e-3);
+    float nW = max(fwidth(n), 1e-3);
+    bool toon = b.toon > 0.5;
 
     // ---- cross-section ----
+    // toon: every layer is a flat band with a crisp edge (glow, main and core stack into
+    // three clear steps toward the centre) instead of a smooth falloff
     float a;
     float3 col;
     if (i.layer == 0)
     {
-        a = r * r * b.glowAlpha;
+        a = (toon ? smoothstep(0.30 - rW, 0.30 + rW, r) : r * r) * b.glowAlpha;
         col = b.color.rgb * 0.7;
     }
     else if (i.layer == 1)
     {
-        a = pow(r, 1.6);
+        a = toon ? smoothstep(0.35 - rW, 0.35 + rW, r) : pow(r, 1.6);
         col = b.color.rgb;
     }
     else
     {
-        a = pow(r, 0.8);
+        a = toon ? smoothstep(0.45 - rW, 0.45 + rW, r) : pow(r, 0.8);
         col = b.coreColor.rgb;
     }
 
@@ -50,8 +57,9 @@ float4 main(PSIn i) : SV_TARGET
     a *= root * tip;
 
     // ---- flowing streaks (toward the tip). the core keeps most of its brightness ----
-    float n = BeamFbm(float2((d - b.scroll) * b.noiseScale, i.uv.y * 1.3 + b.seed));
-    float streak = lerp(1.0 - b.noiseStrength, 1.0 + b.noiseStrength * 0.7, n);
+    // toon: two levels with a crisp border instead of a smooth ramp
+    float nn = toon ? smoothstep(0.55 - nW, 0.55 + nW, n) : n;
+    float streak = lerp(1.0 - b.noiseStrength, 1.0 + b.noiseStrength * 0.7, nn);
     if (i.layer == 2) streak = lerp(1.0, streak, 0.35);
     a *= streak;
 

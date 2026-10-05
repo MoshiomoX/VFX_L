@@ -2,7 +2,7 @@
 // GPUParticleMesh.cpp
 // GPUParticleSystem のうち「メッシュ粒子」（renderMode の下位 8bit != 0）の部分。
 //
-//   模型表 : 0 番 = 組み込みの立方体、1.. = RegisterParticleMesh で登録したファイルの模型。
+//   モデル表 : 0 番 = 組み込みの立方体、1.. = RegisterParticleMesh で登録したファイルのモデル。
 //            包囲ボックスで「最長辺 = 1、中心 = 原点」に揃えて描く（粒子の size = 最長辺の m）
 //   束     : 番号 × { 光を受ける, 発光 }。UpdateCS が束ごとに aliveMesh の区画へ振り分け、
 //            meshCounts[束] に数を積む
@@ -50,7 +50,7 @@ namespace
     };
     static_assert(sizeof(DissolveOffCB) == 48, "DissolveCB layout mismatch");
 
-    // 参照が 0 になってから別の模型に使うまでの秒数（生き残った粒子が消えるのを待つ）
+    // 参照が 0 になってから別のモデルに使うまでの秒数（生き残った粒子が消えるのを待つ）
     constexpr float kMeshReuseDelay = 8.0f;
 
     // DrawIndexedInstancedIndirect の args 1 本（[0] = index 数。[1] は毎フレーム GPU が写す）
@@ -165,7 +165,7 @@ bool GPUParticleSystem::BuildMeshSlot(int slot, std::shared_ptr<Model> model, co
 }
 
 // ============================================
-// 模型の登録 / 解除
+// モデルの登録 / 解除
 // ============================================
 int GPUParticleSystem::RegisterParticleMesh(const std::string& path)
 {
@@ -228,7 +228,7 @@ int GPUParticleSystem::GetParticleMeshCount() const
 // ============================================
 // 描画（ビルボード・帯の後）
 // ============================================
-void GPUParticleSystem::RenderMeshes(ID3D11DeviceContext* context)
+void GPUParticleSystem::RenderMeshes(ID3D11DeviceContext* context, int firstPass, int lastPass)
 {
     if (!m_Camera || !m_MeshVS || !m_MeshVS->IsValid()) return;
     if (!m_MeshLitPS || !m_MeshLitPS->IsValid() || !m_MeshGlowPS || !m_MeshGlowPS->IsValid()) return;
@@ -264,7 +264,7 @@ void GPUParticleSystem::RenderMeshes(ID3D11DeviceContext* context)
     ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
 
     // pass 0 = 光を受ける（不透明・深度書き込み）/ 1 = 発光（加算・深度は読むだけ）
-    for (int pass = 0; pass < 2; ++pass)
+    for (int pass = (std::max)(firstPass, 0); pass <= (std::min)(lastPass, 1); ++pass)
     {
         PixelShader* ps = (pass == 0) ? m_MeshLitPS.get() : m_MeshGlowPS.get();
         if (pass == 0) RenderStates::Get().ApplyOpaque(context);

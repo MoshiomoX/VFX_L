@@ -197,7 +197,7 @@ namespace ItemSheetView
         p.x = (std::max)(p.x, margin);
         p.y = (std::max)(p.y, margin);
 
-        // ---- 箱（幻想 UI：道具の種類の色の二重線）----
+        // ---- 箱（幻想 UI：アイテムの種類の色の二重線）----
         const Vector4 tint = UIDeco::CategoryColor(ItemDatabase::GetCategory(sheet.id));
         UIDeco::PanelStyle ps;
         ps.fill = st.panelColor;

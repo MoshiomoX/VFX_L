@@ -20,12 +20,12 @@ class PlayerControlSystem
 public:
     void Update(Registry& reg, float dt, CameraBase* camera);
 
-    // 被弾のノックバック（2026-10-01）。dir = 打たれた向き（敵 / 爆心 → 玩家、XZ。長さは問わない）、
+    // 被弾のノックバック（2026-10-01）。dir = 打たれた向き（敵 / 爆心 → プレイヤー、XZ。長さは問わない）、
     // blast = 爆発（遠くへ、少し浮く）。距離・時間は PlayerStatsComponent の knock*。
     // 入れた後の knockDuration 秒は水平速度に上乗せし、入力の効きは 0 から戻す
     static void ApplyKnockback(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, bool blast);
 
-    // TEMP-TEST: 自測（VFXL_BATTLE_AUTOTEST=slide）が入力の代わりに入れる
+    // TEMP-TEST: 自動テスト（VFXL_BATTLE_AUTOTEST=slide）が入力の代わりに入れる
     bool testInput = false;
     bool testSlide = false;
     bool testJump = false;   // 1 フレームだけ立てる

@@ -9,7 +9,7 @@ class ComputeShader;
 
 // ============================================================
 // Bloom（全部 ComputeShader、シェーダーは BloomCS.hlsl 1本）
-//   prefilter（閾値 + 半分に）→ dual-filter 降採様 ×4 → 昇採様 ×4
+//   prefilter（閾値 + 半分に）→ dual-filter ダウンサンプリング ×4 → アップサンプリング ×4
 // 結果は半解像度。合成 PS が linear で拾って全画面に伸ばす
 // ============================================================
 struct BloomParams
@@ -32,7 +32,7 @@ public:
     bool Resize(ID3D11Device* device, int width, int height);
     void Shutdown();
 
-    // sceneSRV: resolve 済みの HDR 場面（非 MSAA）
+    // sceneSRV: resolve 済みの HDR シーン（非 MSAA）
     void Execute(ID3D11DeviceContext* context, ID3D11ShaderResourceView* sceneSRV);
 
     ID3D11ShaderResourceView* GetResultSRV() const;

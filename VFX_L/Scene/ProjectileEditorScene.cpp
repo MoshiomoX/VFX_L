@@ -114,7 +114,7 @@ void ProjectileEditorScene::Init()
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
 
-    // 標的は殴ってこない（銃口 = GPU 側の玩家位置なので、放っておくと接触判定が走る）
+    // 標的は殴ってこない（銃口 = GPU 側のプレイヤー位置なので、放っておくと接触判定が走る）
     m_Swarm.GetAIParams().contactDamage = 0.0f;
     m_Muzzle.y = m_Swarm.GetAIParams().groundY;   // 雑魚の胴の高さで水平に撃つ
 
@@ -143,13 +143,13 @@ void ProjectileEditorScene::Init()
     PushMotions();
     SelectProfile(ProjectileProfileDB::Count() > 1 ? 1 : 0);
 
-    // ---------- 道具の形の頁（道具の定義と形を読む。戦闘シーンを経由せずに来ても動くように）----------
+    // ---------- アイテムの形の頁（アイテムの定義と形を読む。戦闘シーンを経由せずに来ても動くように）----------
     ItemDatabase::Initialize();   // 2 回目以降は何もしない
     m_ShapePanel.Init(&m_Swarm, &m_AreaVFX, &m_VFXContext);
 
     RespawnTargets();
 
-    // TEMP-TEST: 粒子貼图の自測。VFXL_PROJ_AUTOTEST=<投射物プロファイル名> でその弾を撃ち続ける
+    // TEMP-TEST: 粒子テクスチャの自動テスト。VFXL_PROJ_AUTOTEST=<投射物プロファイル名> でその弾を撃ち続ける
     char autotest[64] = {};
     if (GetEnvironmentVariableA("VFXL_PROJ_AUTOTEST", autotest, sizeof(autotest)) > 0)
     {
@@ -214,7 +214,7 @@ void ProjectileEditorScene::RespawnTargets()
 }
 
 // ============================================================
-// 1 発撃つ。狙いは玩家（= 銃口）に一番近い雑魚。武器の自動照準と同じ
+// 1 発射つ。狙いはプレイヤー（= 銃口）に一番近い雑魚。武器の自動照準と同じ
 // ============================================================
 void ProjectileEditorScene::Fire(bool randomCurve)
 {
@@ -330,7 +330,7 @@ void ProjectileEditorScene::Update(float dt)
     }
 
     // 1 フレームに撃つのは 1 発まで。乱数曲線は予備行を 1 発ごとに書き換えるので、
-    // 同じフレームに 2 発撃つと両方が後の曲線になってしまう
+    // 同じフレームに 2 発射つと両方が後の曲線になってしまう
     if (m_VolleyLeft > 0)
     {
         m_VolleyTimer -= dt;
@@ -343,7 +343,7 @@ void ProjectileEditorScene::Update(float dt)
     }
 
     // ---- 標的が全滅したら少し待って並べ直す ----
-    // aliveEnemies は回読で 1〜2 フレーム古い。湧かせた直後の 0 を全滅と誤認しないよう、
+    // aliveEnemies はリードバックで 1〜2 フレーム古い。湧かせた直後の 0 を全滅と誤認しないよう、
     // 0 が一定時間続いた時だけ並べ直す
     if (m_AutoRespawn)
     {
@@ -356,7 +356,7 @@ void ProjectileEditorScene::Update(float dt)
             RespawnTargets();
     }
 
-    // ---- 道具の形の頁：試し置きの背包から撃つ（弾の登録は Flush より前）----
+    // ---- アイテムの形の頁：試し置きのバックパックから撃つ（弾の登録は Flush より前）----
     if (m_Tab == 2)
         m_ShapePanel.Update(dt, m_Muzzle);
 
@@ -569,7 +569,7 @@ void ProjectileEditorScene::DrawUI()
     DrawCommonUI();
     ImGui::End();
 
-    // 試し置きの背包は別窓（頁の中に入れると縦に長すぎる）
+    // 試し置きのバックパックは別窓（頁の中に入れると縦に長すぎる）
     if (m_Tab == 2)
         m_ShapePanel.DrawBench();
 }
@@ -721,7 +721,7 @@ void ProjectileEditorScene::DrawProjectileTab()
         }
     }
 
-    // ---- 弾の性能（ゲーム本体の基礎値。機能符はこの上に掛かる）----
+    // ---- 弾の性能（ゲーム本体の基礎値。機能ルーンはこの上に掛かる）----
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Projectile (base values used in game)");
     changed |= ImGui::DragFloat("Speed", &p.speed, 0.1f, 0.5f, 100.0f);
     changed |= ImGui::DragFloat("Lifetime", &p.lifetime, 0.05f, 0.1f, 30.0f);
@@ -826,7 +826,7 @@ void ProjectileEditorScene::CastArea()
     }
     else if (m_AreaPlace == 1)
     {
-        center = m_Muzzle;   // 銃口 = GPU 側の玩家位置。追従の確認はここで
+        center = m_Muzzle;   // 銃口 = GPU 側のプレイヤー位置。追従の確認はここで
         atCaster = true;
     }
 
@@ -952,8 +952,8 @@ void ProjectileEditorScene::DrawAreaTab()
     }
     changed |= ImGui::Checkbox("Follow caster (when cast on the player)", &p.followCaster);
     changed |= ImGui::Checkbox("Hit stun on damage", &p.stun);
-    changed |= ImGui::SliderFloat("Slow (per tick)", &p.slow, 0.0f, 1.0f, "%.2f");   // 0.4 = 40% 遅く（精英・Boss は半分）
-    changed |= ImGui::Checkbox("Camera Shake", &p.cameraShake);   // 戦闘で出た時に鏡頭を揺らす（爆発だけ）
+    changed |= ImGui::SliderFloat("Slow (per tick)", &p.slow, 0.0f, 1.0f, "%.2f");   // 0.4 = 40% 遅く（エリート・Boss は半分）
+    changed |= ImGui::Checkbox("Camera Shake", &p.cameraShake);   // 戦闘で出た時にカメラを揺らす（爆発だけ）
     if (p.stun && p.kind == AreaProfile::Kind::Lasting)
         ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "stun + short tick interval = enemies stay frozen inside");
 
@@ -1063,12 +1063,12 @@ void ProjectileEditorScene::Render(Renderer& renderer)
 
     // 法環などの VFX Mesh（光を当てない。深度は読むだけ）。粒子の前
     m_MeshRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
-    // CPU で出した液溜まり（範囲の試し出し。地面なので連番絵より先）
+    // CPU で出した液溜まり（範囲の試し出し。地面なので連番画像より先）
     m_LiquidRenderer.SetTerrain(m_Swarm.GetHeightSRV(), m_Swarm.GetFrameCB());
     m_LiquidRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera(), renderer.GetLightData());
     m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
     m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
-    m_Swarm.RenderSprites(GetCamera());   // GPU の範囲（弾の命中）の連番絵
+    m_Swarm.RenderSprites(GetCamera());   // GPU の範囲（弾の命中）の連番画像
 
     m_ParticleSystem.SetCamera(GetCamera());
     m_ParticleSystem.SetLight(renderer.GetLightData());

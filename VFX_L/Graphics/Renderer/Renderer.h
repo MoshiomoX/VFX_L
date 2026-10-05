@@ -62,20 +62,27 @@ public:
     void SetAmbientHemisphere(const Vector3& sky, const Vector3& ground);
     // 距離の霧（LightBuffer::fog*）。maxAmount = 0 で無し
     void SetFog(const Vector3& color, float start, float end, float maxAmount);
-    // 模型の色貼図を sRGB として線形へ戻す（LightBuffer::albedoSrgb）
+    // モデルの色テクスチャを sRGB として線形へ戻す（LightBuffer::albedoSrgb）
     void SetAlbedoSrgb(bool on) { m_LightData.albedoSrgb = on ? 1.0f : 0.0f; }
+    // トゥーンの陰影（2026-10-04。LightBuffer::toon*、Lighting.hlsli の ShadeToon）。params.x = 0 で切
+    void SetToon(const Vector4& params, const Vector4& shadowTint, const Vector4& rim)
+    {
+        m_LightData.toonParams = params;
+        m_LightData.toonShadowTint = shadowTint;
+        m_LightData.toonRim = rim;
+    }
 
     // 次の DrawMesh に効く溶解。null で無効（毎回書くので持ち越さない）
     void SetDissolve(const DissolveParams* p) { m_Dissolve = p; }
 
     // 太陽の影の行列と調整値（LightBuffer の shadow*。ShadowMap が毎フレーム書く）。
-    // ClearShadow で影無し（Renderer は他の場面と共有なので、影を使う場面は終わる時に呼ぶ）
+    // ClearShadow で影無し（Renderer は他のシーンと共有なので、影を使うシーンは終わる時に呼ぶ）
     void SetShadow(const Matrix viewProj[3], const Vector4& splits, const Vector4& texelWorld,
         const Vector4& params, const Vector4& params2);
     void ClearShadow() { m_LightData.shadowSplits.w = 0.0f; }
 
-    // 影図へ深度だけを描く間（ShadowMap の段ごと）。DrawMesh は VS だけを積んで PS を外し、
-    // カメラの代わりにこの view / proj を使う（光・溶解・貼図・点光源は触らない）
+    // シャドウマップへ深度だけを描く間（ShadowMap の段ごと）。DrawMesh は VS だけを積んで PS を外し、
+    // カメラの代わりにこの view / proj を使う（光・溶解・テクスチャ・点光源は触らない）
     void BeginDepthPass(const Matrix& view, const Matrix& proj);
     void EndDepthPass() { m_DepthPass = false; }
     bool InDepthPass() const { return m_DepthPass; }

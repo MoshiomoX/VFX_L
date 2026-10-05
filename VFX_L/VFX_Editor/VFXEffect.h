@@ -25,7 +25,7 @@ public:
     bool SaveToFile(const std::string& filepath) const;
     bool LoadFromFile(const std::string& filepath);
 
-    // --- 状態機から呼ばれるメソッド（既存 Update から切り出し）---
+    // --- ステートマシンから呼ばれるメソッド（既存 Update から切り出し）---
     void AdvanceTime(float dt);
     void UpdateEntries(float dt, const VFXContext& ctx);
     void CollectAndDispatch(float dt, const VFXContext& ctx);
@@ -35,9 +35,9 @@ public:
     void ResetTimeline();
     uint32_t GetAliveCount(const VFXContext& ctx) const;
 
-    // --- 状態機駆動（新しい API）---
+    // --- ステートマシン駆動（新しい API）---
     void InitStateMachine(const VFXContext& ctx);
-    void Update(float dt);                    // 新：状態機駆動版
+    void Update(float dt);                    // 新：ステートマシン駆動版
     void Play();                               // 新：Event 駆動
     void Stop();                               // 新：Event 駆動
 
@@ -46,9 +46,9 @@ public:
     bool IsFinishing() const { return m_SMCtx.current == VFXStateID::Finishing; }
 
 
-    // テンプレートから実例を複製する（entries を深くコピー）
+    // テンプレートからインスタンスを複製する（entries を深くコピー）
     void CloneFrom(const VFXEffect& src);
-    // 実例を Y 軸回りに回す（粒子の発射位置・向き、点光源の位置）。複製した直後に 1 回
+    // インスタンスを Y 軸回りに回す（粒子の発射位置・向き、点光源の位置）。複製した直後に 1 回
     void RotateYaw(float degrees);
 
     // 全 emitter に加算されるワールド位置（投射物追従用）
@@ -77,7 +77,7 @@ private:
     bool m_GPUTimelineIgnored = false;
     DirectX::SimpleMath::Vector3 m_BeamEnd = { 0, 0, 0 };
     bool m_HasBeamEnd = false;
-    // --- 状態機（追加）---
+    // --- ステートマシン（追加）---
     VFXStateMachine m_SM;   
     VFXStateContext m_SMCtx;
 };

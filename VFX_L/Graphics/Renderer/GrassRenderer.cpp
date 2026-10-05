@@ -126,7 +126,7 @@ bool GrassRenderer::CreateBuffers()
         if (FAILED(m_Device->CreateBuffer(&cd, nullptr, &m_CountStaging[i]))) return false;
     }
 
-    // ---- 踏み跡（場地全体。xy = 押す向き x 強さ）----
+    // ---- 踏み跡（フィールド全体。xy = 押す向き x 強さ）----
     for (int i = 0; i < 2; ++i)
     {
         D3D11_TEXTURE2D_DESC td = {};
@@ -147,7 +147,7 @@ bool GrassRenderer::CreateBuffers()
 }
 
 // ============================================================
-// 地形の貼図（高さ場と同じ 0.5m 格子。texel の中心 = 高さ格子の中心なので、
+// 地形のテクスチャ（高さ場と同じ 0.5m 格子。texel の中心 = 高さ格子の中心なので、
 // 線形補間で引けば GridWorld::SampleHeight と同じ値になる）
 // ============================================================
 void GrassRenderer::Build(const GridWorld& grid, const std::vector<uint8_t>& grassMask, uint32_t seed, TerrainGenerator::Biome biome)
@@ -262,7 +262,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     cb.maxBlades = kMaxBlades;
     m_PendingDt = 0.0f;   // 一時停止中（Update 無し）は 0 のまま = 踏み跡も止まる
 
-    // ---- 1) 踏み跡: 前の貼図を読んで、もう片方へ書く ----
+    // ---- 1) 踏み跡: 前のテクスチャを読んで、もう片方へ書く ----
     m_TrampleCS->WriteBuffer(ctx, 0, &cb);
     m_TrampleCS->Bind(ctx);
     m_TrampleCS->SetSRV(ctx, "g_TrampleIn", m_TrampleSRV[m_TrampleCur].Get());

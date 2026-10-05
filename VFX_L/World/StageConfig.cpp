@@ -23,21 +23,21 @@ namespace
         s.index = 2;
         s.name = L"砂漠";
         s.biome = TerrainGenerator::Biome::Desert;
-        // 高い白い太陽、暖かい空、遠くは砂色の靄
-        s.light.sunPitch = 62.0f;
+        // 砂塵で霞んだ砂漠（2026-10-05：日差しが強すぎた → 太陽を弱め、空は砂色に濁らせ、靄を近くから濃く）
+        s.light.sunPitch = 55.0f;
         s.light.sunYaw = 20.0f;
-        s.light.lightColor = { 1.0f, 0.95f, 0.85f };
-        s.light.lightIntensity = 0.95f;
-        s.light.ambientSky = { 0.45f, 0.42f, 0.36f };
-        s.light.ambientGround = { 0.30f, 0.22f, 0.12f };
-        s.light.skyZenith = { 0.12f, 0.32f, 0.80f };
-        s.light.skyHorizon = { 0.80f, 0.68f, 0.50f };
-        s.light.skyBelow = { 0.45f, 0.36f, 0.24f };
-        s.light.sunGlow = 0.5f;
+        s.light.lightColor = { 1.0f, 0.90f, 0.74f };
+        s.light.lightIntensity = 0.60f;
+        s.light.ambientSky = { 0.40f, 0.37f, 0.31f };
+        s.light.ambientGround = { 0.24f, 0.18f, 0.11f };
+        s.light.skyZenith = { 0.40f, 0.42f, 0.46f };
+        s.light.skyHorizon = { 0.60f, 0.52f, 0.40f };
+        s.light.skyBelow = { 0.40f, 0.33f, 0.24f };
+        s.light.sunGlow = 0.25f;
         s.light.fogUseHorizon = true;
-        s.light.fogStart = 30.0f;
-        s.light.fogEnd = 150.0f;
-        s.light.fogMax = 0.85f;
+        s.light.fogStart = 10.0f;
+        s.light.fogEnd = 85.0f;
+        s.light.fogMax = 0.93f;
         // 疎らな枯れ草（床の砂色に掛かる）
         s.grass = true;
         s.grassSpacing = 0.7f;
@@ -46,7 +46,7 @@ namespace
         s.grassHeightMin = 0.12f;
         s.grassHeightMax = 0.26f;
         s.difficultyBonus = 0.6f;
-        s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };   // 分裂怪は第 1 面の主力。ここは少し混ざるだけ
+        s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };   // スプリッターは第 1 面の主力。ここは少し混ざるだけ
         return s;
     }
 

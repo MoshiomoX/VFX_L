@@ -2,8 +2,8 @@
 // VFXBeamRenderer.h
 // Beam entry が毎フレーム Submit した光線を、粒子の前にまとめて描く（2026-09-30）。
 //   1 本 = 起点 → 終点の帯。VS が SV_VertexID から帯を組み立て（32 分割、カメラへ向ける）、
-//   1 本につき 3 層（辉光 / 主色 / 白芯）を instance で描く。PS は幅方向の断面 + 長さ方向に
-//   流れる値ノイズで「流れる光」を作る。貼图は使わない。
+//   1 本につき 3 層（グロー / 主色 / 白芯）を instance で描く。PS は幅方向の断面 + 長さ方向に
+//   流れる値ノイズで「流れる光」を作る。テクスチャは使わない。
 //   乗算済み alpha の混合で alpha 0 を書く = 加算（粒子の加算と同じ見え方）。深度は読むだけ。
 // ============================================================
 #pragma once
@@ -18,7 +18,7 @@ class CameraBase;
 class VertexShader;
 class PixelShader;
 
-// HLSL: BeamItem（96 bytes）
+// HLSL: BeamItem（112 bytes。2026-10-04 トゥーンの欄を足した）
 struct VFXBeamItem
 {
     DirectX::SimpleMath::Vector3 start;
@@ -27,16 +27,19 @@ struct VFXBeamItem
     float coreRatio = 0.35f;                // 白芯の幅（主色比）
     DirectX::SimpleMath::Vector4 color = { 0.3f, 0.8f, 1.0f, 1.0f };       // 主色（HDR 可）
     DirectX::SimpleMath::Vector4 coreColor = { 1.0f, 1.0f, 1.0f, 1.0f };   // 白芯
-    float glowRatio = 2.2f;                 // 辉光の幅（主色比）
-    float glowAlpha = 0.35f;                // 辉光の濃さ
+    float glowRatio = 2.2f;                 // グローの幅（主色比）
+    float glowAlpha = 0.35f;                // グローの濃さ
     float scroll = 0.0f;                    // ノイズの流れの位相（m）
     float noiseScale = 1.5f;                // ノイズの細かさ（1/m）
     float noiseStrength = 0.35f;            // 幅の揺れ・明暗の強さ（0〜1）
     float tipFade = 1.0f;                   // 先端を薄くする長さ（m）
     float rootFade = 0.3f;                  // 根元を薄くする長さ（m）
     float seed = 0.0f;                      // 本ごとのノイズのずれ
+    // トゥーン（2026-10-04）：断面をなだらかな減衰ではなく縁のはっきりした段に、流れる明暗も 2 値に
+    float toon = 0.0f;                      // 1 = トゥーン
+    float toonPad[3] = { 0.0f, 0.0f, 0.0f };
 };
-static_assert(sizeof(VFXBeamItem) == 96, "BeamItem layout mismatch");
+static_assert(sizeof(VFXBeamItem) == 112, "BeamItem layout mismatch");
 
 class VFXBeamRenderer
 {

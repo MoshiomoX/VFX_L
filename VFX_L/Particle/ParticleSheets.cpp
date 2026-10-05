@@ -64,7 +64,7 @@ void ParticleSheets::Load()
         Sheet s;
         s.name = manifest;
 
-        // 読めなくても番号は詰めない（後ろの貼图の番号がずれると特効が壊れる）
+        // 読めなくても番号は詰めない（後ろのテクスチャの番号がずれるとエフェクトが壊れる）
         std::ifstream f(manifest);
         if (!f)
         {
@@ -113,7 +113,7 @@ void ParticleSheets::Load()
 
 int ParticleSheets::Count()
 {
-    Load();   // 初回の問い合わせで読む（弾の特効表は最初の描画より先に作られる）
+    Load();   // 初回の問い合わせで読む（弾のエフェクト表は最初の描画より先に作られる）
     return (int)g_Sheets.size();
 }
 

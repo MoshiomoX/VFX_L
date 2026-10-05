@@ -353,7 +353,7 @@ void BackpackUI::HandleInput(BackpackComponent& bp)
 // 置き先の影
 //
 // 置けるなら緑、置けないなら赤。
-// 魔法なら影響格も薄く重ねて、置いた後の効き方が分かるようにする
+// 魔法なら影響マスも薄く重ねて、置いた後の効き方が分かるようにする
 // （枠には influenceCells が無いので自然に何も出ない）
 // ============================================================
 void BackpackUI::DrawDropShadow(SpriteRenderer& sprite)
@@ -368,7 +368,7 @@ void BackpackUI::DrawDropShadow(SpriteRenderer& sprite)
     const Vector4 col = m_Drag->canDrop ? Vector4(0.4f, 1.0f, 0.5f, 0.45f)
         : Vector4(1.0f, 0.3f, 0.3f, 0.45f);
 
-    // 画布の外にはみ出すマスは描かない（残ったマスだけで 1 枚にする）
+    // キャンバスの外にはみ出すマスは描かない（残ったマスだけで 1 枚にする）
     auto cells = BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation);
     cells.erase(std::remove_if(cells.begin(), cells.end(), [&](const CellOffset& off)
         {
@@ -379,7 +379,7 @@ void BackpackUI::DrawDropShadow(SpriteRenderer& sprite)
     ShapeSprite::DrawConnected(sprite, white, col, cells,
         CellPosition(m_Drag->dropRow, m_Drag->dropCol), m_CellSize, m_CellGap);
 
-    // 魔法なら影響格も薄く重ねる
+    // 魔法なら影響マスも薄く重ねる
     if (!ItemDatabase::IsFrame(m_Drag->id) && !c->influenceCells.empty())
     {
         Vector4 ic = c->color;
@@ -397,7 +397,7 @@ void BackpackUI::DrawDropShadow(SpriteRenderer& sprite)
     }
 }
 // ============================================================
-// マウスが乗っているブロックの影響格を描く
+// マウスが乗っているブロックの影響マスを描く
 //
 // 全部同時に出さない。
 // 触れている1つ分だけ出せば、どこに効いているかが一目で分かる。
@@ -418,7 +418,7 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
     const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
     auto cells = BackpackLogic::RotateShape(c->influenceCells, src.rotation);
 
-    // 影響格：種類の色で薄く塗って縁を引く
+    // 影響マス：種類の色で薄く塗って縁を引く
     Vector4 col = UIDeco::CategoryColor(c->category);
     col.w = 0.22f;
     Vector4 edge = col;
@@ -437,7 +437,7 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
     if (!highlightInfluenced) return;
 
     // ---- 影響を受けているブロックを光らせる ----
-    // 影響格に占位格が1つでも重なっていれば対象。
+    // 影響マスに占有マスが1つでも重なっていれば対象。
     // ブロック全体を光らせるので、異形でも見落とさない。
     // 同じブロックを複数回塗っても1回分より濃くなるだけで問題ない。
     Vector4 glow = { 1.0f, 1.0f, 0.75f, 0.35f };
@@ -462,9 +462,9 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
 }
 
 // ============================================================
-// 高級魔法の置き場所の手がかり
-// メテオを掴んでいる / 指している間、背包の中のファイアボール・石弾の影響格を
-// それぞれの道具の色で塗る。両方の色が重なる所に占位格を掛ければ目覚める
+// 上級魔法の置き場所の手がかり
+// メテオを掴んでいる / 指している間、バックパックの中のファイアボール・石弾の影響マスを
+// それぞれのアイテムの色で塗る。両方の色が重なる所に占有マスを掛ければ目覚める
 // ============================================================
 void BackpackUI::DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp)
 {
@@ -531,7 +531,7 @@ void BackpackUI::DrawDragged(SpriteRenderer& sprite, const Vector2& mousePos)
 // 描画
 // 重ね順 = 呼ぶ順
 //   外枠 → マス（枠の有無で色分け）→ 枠のハイライト → 置かれた魔法
-//   → 影響格 → 置き先の影 → ドラッグ中のブロック
+//   → 影響マス → 置き先の影 → ドラッグ中のブロック
 // ============================================================
 void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
 {
@@ -540,7 +540,7 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
 
     const Vector2 cellSizeVec = { m_CellSize, m_CellSize };
 
-    // ---- 外枠（幻想 UI の面板。四隅の組紐はマスの下に敷く）----
+    // ---- 外枠（幻想 UI のパネル。四隅の組紐はマスの下に敷く）----
     float extent = GridExtent();
     Vector2 framePos = { m_Origin.x - m_FramePad, m_Origin.y - m_FramePad };
     Vector2 frameSize = { extent + m_FramePad * 2.0f, extent + m_FramePad * 2.0f };
@@ -554,7 +554,7 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
 
     // ---- マス ----
     // 枠が敷かれていないマスは暗くする。
-    // GRID は画布の上限であって、置ける場所ではないことを見せるため。
+    // GRID はキャンバスの上限であって、置ける場所ではないことを見せるため。
     // 置けるマスは細い月銀の線で囲む
     Vector4 cellLine = UIDeco::TintColor(UIDeco::Tint::Silver);
     cellLine.w = cellLineAlpha;
@@ -610,13 +610,13 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         ShapeSprite::DrawItemGlass(sprite, white, c->color, UIDeco::CategoryColor(c->category),
             GetIcon(item.id), cells, CellPosition(item.row, item.col), m_CellSize, m_CellGap);
 
-        // 目覚めていない高級魔法（前提の基礎魔法が届いていない = 撃たない）は暗く沈める
+        // 目覚めていない上級魔法（前提の基本魔法が届いていない = 撃たない）は暗く沈める
         if (!BackpackLogic::IsTriggerReady(bp, (int)i))
             ShapeSprite::DrawConnected(sprite, white, { 0.0f, 0.0f, 0.0f, 0.6f }, cells,
                 CellPosition(item.row, item.col), m_CellSize, m_CellGap);
     }
 
-    // ---- 影響格 ----
+    // ---- 影響マス ----
     // 枠には influenceCells が無いので、関数内の空チェックで自然に弾かれる
     DrawTriggerSources(sprite, bp);
     DrawHoverInfluence(sprite, bp);

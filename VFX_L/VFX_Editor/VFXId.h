@@ -1,9 +1,9 @@
 // ============================================================
 // VFXId.h
-// 特効の ID と、ID → JSON パスの対応表。
+// エフェクトの ID と、ID → JSON パスの対応表。
 //
-// 道具（ItemDatabase）は VFXId だけを持ち、パスを知らない。
-//   同じ特効を複数の道具が使い回せるし、
+// アイテム（ItemDatabase）は VFXId だけを持ち、パスを知らない。
+//   同じエフェクトを複数のアイテムが使い回せるし、
 //   CPU 経路（ProjectileVFXSystem）と GPU 経路（SwarmVFXTable）が
 //   同じ表を引くので、二重管理にならない。
 // ============================================================
@@ -23,7 +23,7 @@ enum class VFXId : uint32_t
     FireCircle,     // 火の輪（範囲・術者に追従）
     ArcBoltHit,     // アークボルトの命中（範囲 ArcSpark：威力 0 の見た目だけ。Sprite = electric-impact）
     HomingBoltHit,  // ホーミングボルトの命中（範囲 VoidPop：同上。Sprite = void-implosion）
-    ExpOrbTrail,    // 吸い寄せられている経験値オーブの尾（SwarmOrbEmitCS。道具は使わない）
+    ExpOrbTrail,    // 吸い寄せられている経験値オーブの尾（SwarmOrbEmitCS。アイテムは使わない）
     GoldenArrow,    // 黄金の矢の弾（gonjian.FBX の矢が弾と一緒に飛ぶ + 金の軌跡）
     GoldenArrowHit, // 黄金の矢の命中（範囲 GoldenArrowHit：威力 0 の見た目だけ。金の火花）
     FireballHit,    // 火球の命中・消滅（範囲 FireballHit：威力 0 の見た目だけ。小さな炎の閃き。2026-09-30 に火球の爆発を廃止）

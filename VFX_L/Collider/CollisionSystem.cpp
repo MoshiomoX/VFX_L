@@ -1,16 +1,16 @@
 // ============================================================
 // CollisionSystem.cpp
 //
-// 広相位は uniform grid。ただし格子に載せるのは固定（Rigidbody を持ち isStatic）の collider だけで、
-// 毎フレームは作り直さない（2026-09-28: 毎フレーム全部を unordered_map の格子へ登記し直していた頃は
+// ブロードフェーズは uniform grid。ただし格子に載せるのは固定（Rigidbody を持ち isStatic）の collider だけで、
+// 毎フレームは作り直さない（2026-09-28: 毎フレーム全部を unordered_map の格子へ登録し直していた頃は
 // Debug で 2.5 ms。200m の床の箱 1 つで 2,500 マス、さらに固定同士の対を set で重複除去していた）。
 //   作り直すのは、固定の並び（Entity）が変わった時か、どれかの中心が kFixedSlack 以上動いた時。
-//   各固定は AABB + kFixedSlack が覆うマスに登記するので、報酬の箱の浮き沈み程度では作り直さない。
+//   各固定は AABB + kFixedSlack が覆うマスに登録するので、報酬の箱の浮き沈み程度では作り直さない。
 //   覆うマスが kLargeCells を超える物（床・外周の崖・大きい高台）は格子に載せず、毎回全員と比べる。
 //
 // 対の作り方:
 //   可動 × 固定: 可動の AABB が覆うマスの固定 + 大きい固定。重複はソートで除く
-//   可動 × 可動: 総当たり（可動は玩家・CPU の弾など数個）
+//   可動 × 可動: 総当たり（可動はプレイヤー・CPU の弾など数個）
 //   固定 × 固定: 判定しない
 // 完備性: 交差している可動と固定は、少なくとも 1 マスを共有するか、固定が大きい方の一覧にいる。
 // ============================================================
@@ -26,11 +26,11 @@ using DirectX::SimpleMath::Vector3;
 
 namespace
 {
-    // 広相位のマスの一辺。
+    // ブロードフェーズのマスの一辺。
     // 大半の動的 collider（半径 0.25~0.5）より十分大きく、
-    // 巨大な静的 AABB（地形・床）は複数マスへまたがって登記される
+    // 巨大な静的 AABB（地形・床）は複数マスへまたがって登録される
     constexpr float kBroadCell = 4.0f;
-    // 固定がこれ以上動いたら格子を作り直す（登記もこの分だけ広げる）
+    // 固定がこれ以上動いたら格子を作り直す（登録もこの分だけ広げる）
     constexpr float kFixedSlack = 0.5f;
     // これより多くのマスを覆う固定は格子に載せない
     constexpr int kLargeCells = 64;
@@ -38,7 +38,7 @@ namespace
     // collider の水平の範囲
     void BoundsOf(const CollisionSystem::WorldCollider& wc, float& minX, float& maxX, float& minZ, float& maxZ)
     {
-        if (wc.shape == ColliderShape::AABB || wc.shape == ColliderShape::Convex)
+        if (wc.shape == ColliderShape::AABB || wc.shape == ColliderShape::Convex || wc.shape == ColliderShape::HeightField)
         {
             minX = wc.center.x - wc.halfExtents.x;
             maxX = wc.center.x + wc.halfExtents.x;
@@ -111,7 +111,7 @@ static bool TestPairShape(const CollisionSystem::WorldCollider& a,
 }
 
 // ============================================================
-// 狭相位: 1対の判定（広相位の格子から呼ばれる）
+// ナローフェーズ: 1対の判定（ブロードフェーズの格子から呼ばれる）
 // レイヤーフィルタ → 形状判定 → 命中なら m_Pairs へ。
 // 中身のロジックは旧の二重ループの内側と同一
 // ============================================================
@@ -155,6 +155,7 @@ static CollisionSystem::WorldCollider MakeWorldCollider(Entity e, const Transfor
     }
     else
         wc.hull.count = 0;
+    if (col.shape == ColliderShape::HeightField) wc.heightField = col.heightField;
     return wc;
 }
 
@@ -363,6 +364,9 @@ CollisionSystem::RaycastResult CollisionSystem::Raycast(
         case ColliderShape::Convex:
             h = RaycastConvex(ray, wc.hull);
             break;
+        case ColliderShape::HeightField:   // 起伏の地面（カメラの遮蔽・光線の先が丘で止まる）
+            if (wc.heightField) h = RaycastHeightField(ray, *wc.heightField);
+            break;
         default:
             continue;
         }
@@ -408,6 +412,8 @@ std::vector<Entity> CollisionSystem::OverlapSphere(
             break;
         case ColliderShape::Convex:
             hit = IntersectSphereConvex(query, wc.hull);
+            break;
+        case ColliderShape::HeightField:   // 範囲の問い合わせ（敵探し等）は地面を見ない
             break;
         }
         if (hit) result.push_back(wc.entity);

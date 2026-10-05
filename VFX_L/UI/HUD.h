@@ -2,7 +2,8 @@
 // HUD.h
 // 常時表示の HUD
 //   経験値バー（最上段）、HP / MP バー（左上）、経過時間と撃破数（上の中央）、
-//   魔法の欄（下の中央。冷却と MP 不足）、瀕死の赤い縁、画面外の目印（箱・精英）
+//   魔法の欄（下の中央。クールダウンと MP 不足）、その上の魔力解放（Q）の大きな欄、
+//   瀕死の赤い縁、画面外の目印（箱・エリート）
 //
 // UIManager には入れない（モーダルではなく、入力も取らない）。
 // 描画は SpriteRenderer / TextRenderer に相乗りし、
@@ -55,6 +56,7 @@ struct HUDFrameInfo
     uint32_t kills = 0;            // 撃破数（GPU counter の累計）
     int      stage = 0;            // 面の番号（1..）。0 なら出さない
     const wchar_t* stageName = L"";
+    int      gold = -1;            // 金貨（2026-10-04）。MP バーの下に出す。負なら出さない
     const WandComponent* wand = nullptr;   // 魔法の欄。null なら出さない
 
     // 画面外の目印。viewProj は世界 → クリップ（SimpleMath の行ベクトル順 view * proj）
@@ -120,7 +122,7 @@ struct HUDStyle
     float gemSize = 9.0f;         // HP / MP バーの両端の菱形（0 = 無し）
 
     // ---- 配色 ----
-    // 戦闘の UI は場面の HDR バッファに描かれ、トーンマップ + ガンマを通る。色は全部線形の値
+    // 戦闘の UI はシーンの HDR バッファに描かれ、トーンマップ + ガンマを通る。色は全部線形の値
     // （sRGB の見た目 c なら c^2.2。0.07 でも画面では中間の灰色になる）
     DirectX::SimpleMath::Vector4 bgColor = { 0.003f, 0.0025f, 0.005f, 0.95f };
     DirectX::SimpleMath::Vector4 hpColor = { 0.55f, 0.035f, 0.030f, 1.0f };    // 見た目 #C0342F くらい
@@ -139,7 +141,7 @@ struct HUDStyle
     float runDividerWidth = 200.0f;   // 時間と撃破数の間の細い分割線（0 = 無し）
 
     // ---- 魔法の欄（アンカーは欄の下端の中央）----
-    // 丸い欄：暗い円 + 古金の輪 + 後ろでゆっくり回る魔法陣。冷却は円を上から暗く
+    // 丸い欄：暗い円 + 古金の輪 + 後ろでゆっくり回る魔法陣。クールダウンは円を上から暗く
     bool  showSpellBar = true;
     HUDAnchor spellBar = { { 0.5f, 1.0f }, { 0.0f, -26.0f } };
     float slotSize = 50.0f;
@@ -148,6 +150,27 @@ struct HUDStyle
     DirectX::SimpleMath::Vector4 slotBgColor = { 0.003f, 0.0025f, 0.005f, 0.98f };
     DirectX::SimpleMath::Vector4 cooldownColor = { 0.00f, 0.00f, 0.00f, 0.78f };
     DirectX::SimpleMath::Vector4 noManaColor = { 0.010f, 0.020f, 0.14f, 0.70f };   // MP が足りない時に被せる
+
+    // ---- 金貨（2026-10-04。MP バーの下、以前の魔力解放の文字の所。アンカーは絵の左上）----
+    // 増えた瞬間は少し明るく膨らむ
+    bool  showGold = true;
+    HUDAnchor goldText = { { 0.0f, 0.0f }, { 20.0f, 100.0f } };
+    float goldIconSize = 24.0f;
+    float goldTextScale = 0.50f;
+    DirectX::SimpleMath::Vector4 goldColor = { 1.00f, 0.62f, 0.10f, 1.0f };   // 線形の金（画面で #FFCF59 くらい）
+
+    // ---- 魔力解放（Q）の大きな欄（2026-10-04 ユーザー指定：MP バーの下の文字をやめ、魔法の欄の上の中央に大きく）----
+    // 魔法の欄と同じ作り（暗い円 + 輪 + 後ろの魔法陣）を大きくした物。アンカーは欄の下端の中央。
+    // 使える = 明るい + ゆっくり息をする、解放中 = 金に光って残り秒、再使用待ち = 上から暗く + 残り秒。
+    // 下の縁に「Q」の小さな札
+    bool  showSurgeSkill = true;
+    HUDAnchor surgeSkill = { { 0.5f, 1.0f }, { 0.0f, -114.0f } };
+    float surgeSkillSize = 72.0f;          // 魔法の欄（50）より一回り大きい
+    float surgeCircleScale = 1.45f;        // 魔法陣の直径 / 欄（0 = 無し）
+    float surgeNumberScale = 0.62f;        // 残り秒の文字
+    float surgeKeyScale = 0.36f;           // 「Q」の札の文字
+    // 解放中の光（HDR。1 を超えた分が bloom で滲む）
+    DirectX::SimpleMath::Vector4 surgeActiveColor = { 1.60f, 0.95f, 0.20f, 1.0f };
 
     // ---- 瀕死の赤い縁（HP が lowHpRatio を切ったら出す。低いほど濃い）----
     bool  lowHpVignette = true;
@@ -181,12 +204,12 @@ public:
     // 残像の追従。描画しない間（モーダル表示中）も進める
     void Update(float dt, const HealthComponent& hp, const ManaComponent& mp);
 
-    // MP バーの下に魔力解放の状態を一行出す（解放中は残り秒・バーが金、再使用待ちは残り秒、使える時は案内）
+    // 魔力解放の状態は魔法の欄の上の大きな欄に出す（解放中は MP バーも金）
     void Draw(SpriteRenderer& sprite, TextRenderer& text,
         const HealthComponent& hp, const ManaComponent& mp,
         const LevelComponent& lv, const HUDFrameInfo& info);
 
-    // 魔法の欄のアイコン（無ければ道具の色の四角）。GameUI が背包と同じ物を渡す
+    // 魔法の欄のアイコン（無ければアイテムの色の四角）。GameUI がバックパックと同じ物を渡す
     void SetIconLookup(std::function<std::shared_ptr<Texture>(ItemID)> f) { m_IconLookup = std::move(f); }
 
     // ---- 調整用（ImGui）----
@@ -235,11 +258,20 @@ private:
 
     std::shared_ptr<Texture> m_WhiteTex;
     std::function<std::shared_ptr<Texture>(ItemID)> m_IconLookup;
+    std::shared_ptr<Texture> m_SurgeIcon;   // 魔力解放の欄の絵（Res::Icon::ManaSurge）
+    std::shared_ptr<Texture> m_GoldIcon;    // 金貨の絵（Res::Icon::Gold）
+    int   m_LastGold = -1;                  // 増えた瞬間を見つける
+    float m_GoldPulseAt = -10.0f;           // 最後に増えた時刻（m_Time）
     float m_Time = 0.0f;   // 明滅用（Update で進める）
+    // 魔力解放が使えるようになった瞬間の光（1 → 0）。開始時は使える状態なので光らせない
+    bool  m_SurgeWasReady = true;
+    float m_SurgeReadyFlash = 0.0f;
 
     void DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrameInfo& info);
     void DrawSpellBar(SpriteRenderer& sprite,
         const WandComponent& wand, const ManaComponent& mp);
+    void DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaComponent& mp);
+    void DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold);
     void DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp);
     void DrawSurgeVignette(SpriteRenderer& sprite, const ManaComponent& mp);
     // 画面の四辺のぼかし（外端の濃さ edgeAlpha、太さ = 画面短辺 × widthRatio）

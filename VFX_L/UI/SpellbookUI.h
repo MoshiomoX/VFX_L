@@ -48,7 +48,7 @@ public:
 
     void SetDragContext(DragContext* drag) { m_Drag = drag; }
 
-    // グリッドとマス寸を揃える（拖拽中に大きさが跳ばないように）
+    // グリッドとマス寸を揃える（ドラッグ中に大きさが跳ばないように）
     void SetCellSize(float cellSize) { m_CellSize = cellSize; }
 
     // 同期 → 物理 → 掴み判定。Backpack 層が開いている間だけ呼ばれる
@@ -72,7 +72,7 @@ public:
     float gravity = 1800.0f;   // px/s^2
     float restitution = 0.15f;     // 反発（小さめ。跳ねすぎると収納に見えない）
     float friction = 0.55f;     // クーロン摩擦係数
-    int   iterations = 10;        // インパルスの反復回数
+    int   iterations = 20;        // インパルスの反復回数（2026-10-04 10 → 20：多マスの凹んだ形が寄り掛かると 10 回では収まらない）
     bool  allowSleep = true;      // 全部止まったら計算を止める
 
     int GetBodyCount() const { return (int)m_Bodies.size(); }
@@ -139,7 +139,7 @@ private:
     void StepPhysics(float dt);
     void TryGrab();
     void SpawnBody(ItemID id);
-    void Wake() { m_Asleep = false; m_SleepTimer = 0.0f; }
+    void Wake() { m_Asleep = false; m_SleepTimer = 0.0f; m_QuietTimer = 0.0f; m_QuietV = 1.0e3f; m_QuietW = 1.0e3f; }
     float CellPx() const { return m_CellSize * boxScale; }
     Box CellBox(const BodyState& b, int cell) const;
     int HitTest(const DirectX::SimpleMath::Vector2& p) const;   // 上に見える物から。無ければ -1
@@ -157,6 +157,8 @@ private:
     float m_PhysAccum = 0.0f;
     bool  m_Asleep = false;
     float m_SleepTimer = 0.0f;
+    float m_QuietTimer = 0.0f;   // 全体がゆっくりな時間（静かな収めの判定）
+    float m_QuietV = 1.0e3f, m_QuietW = 1.0e3f;   // 均した全体の速さ（px/s・rad/s）
     int   m_ContactCount = 0;
     float m_MaxV = 0.0f, m_MaxW = 0.0f;
 

@@ -77,7 +77,7 @@ void VFXSpriteRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
     ctx->GetDevice(&device);
     if (!EnsureCapacity(device.Get(), m_Items.size())) { m_Items.clear(); return; }
 
-    // 同じ貼图・同じ採样をまとめる。深度を見ない物は最後
+    // 同じテクスチャ・同じサンプリングをまとめる。深度を見ない物は最後
     std::stable_sort(m_Items.begin(), m_Items.end(),
         [](const VFXSpriteDrawItem& a, const VFXSpriteDrawItem& b)
         {

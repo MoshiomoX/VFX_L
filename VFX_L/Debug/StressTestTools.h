@@ -1,13 +1,13 @@
 // ============================================================
 // StressTestTools.h
-// 戦闘シーンの負荷テスト道具（Stress Test 面板）
+// 戦闘シーンの負荷テストアイテム（Stress Test パネル）
 //   ・投射物をばら撒く：生成先は GPU（SwarmSystem::SpawnProjectile）。
 //     弾1つにつき emitter が1つ積まれ、粒子側の経路に負荷がかかる
 //   ・自動補充：投射物の数を一定に保ち続けてプールを枯らした状態を維持する
 //     （deadCount ガードが効いているかを確認できる唯一の状態）
 //   ・既定値セット：毎回 slider を並べ直すと再現条件がぶれるので表にする
-//   ・Mesh 発射の動作確認（仮設）：玩家の Mesh を発射源に登録し、世界行列を毎フレーム渡す
-//   ・粒子 Flush の CPU 時間と emitter 数の記録（場面が測って渡す）
+//   ・Mesh 発射の動作確認（仮設）：プレイヤーの Mesh を発射源に登録し、世界行列を毎フレーム渡す
+//   ・粒子 Flush の CPU 時間と emitter 数の記録（シーンが測って渡す）
 // ============================================================
 #pragma once
 #include "ECS/Registry.h"
@@ -30,7 +30,7 @@ public:
     // Mesh 発射の動作確認（粒子の Flush の前に積む）
     void UpdateMeshEmitTest(float dt, Registry& reg, Entity player, GPUParticleSystem& particles);
 
-    // 場面が測った値を記録する（Flush でクリアされる前の emitter 数・Flush の CPU 時間）
+    // シーンが測った値を記録する（Flush でクリアされる前の emitter 数・Flush の CPU 時間）
     void RecordEmitterStats(size_t pending, size_t dropped) { m_LastEmitterCount = pending; m_LastDropped = dropped; }
     void RecordFlushMs(double ms);
     double GetFlushMsAvg() const { return m_FlushMsAvg; }
@@ -38,7 +38,7 @@ public:
     void DrawImGui(SwarmSystem& swarm, const CollisionSystem& collision,
         const GPUParticleSystem& particles);
 
-    // 投射物の自動補充（自己テストから。面板の Auto Refill と同じ）
+    // 投射物の自動補充（自己テストから。パネルの Auto Refill と同じ）
     void SetAutoRefill(bool on, int target, int batch)
     {
         m_AutoRefill = on;

@@ -16,7 +16,7 @@ using DirectX::SimpleMath::Vector3;
 
 namespace
 {
-    // 面板のボタンで湧かせる自爆兵の輪（玩家から m）
+    // パネルのボタンで湧かせる自爆兵の輪（プレイヤーから m）
     constexpr float kDebugRingMin = 8.0f;
     constexpr float kDebugRingMax = 12.0f;
 
@@ -35,6 +35,9 @@ void MobSpawner::Init(SwarmSystem& swarm)
     // 難度の倍率を掛ける元
     baseContactDamage = swarm.GetAIParams().contactDamage;
     baseBlastDamage = swarm.GetBomberParams().blastDamage;
+
+    // 難度の表（保存してあれば。無ければコードの既定値）
+    curve.Load();
 }
 
 void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
@@ -57,7 +60,7 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
         hp = m_SplitterHp;
         speed = m_SplitterSpeed;
     }
-    hp *= m_StatMul;   // 湧いた瞬間の難度で決まる
+    hp *= m_HpMul;   // 湧いた瞬間の難度で決まる
     speed *= finalSpeedMul;
 
     if (recycle) swarm.RecycleEnemy(p, hp, speed, kind);
@@ -87,7 +90,7 @@ void MobSpawner::SpawnDebugKind(const GridWorld& grid, const Vector3& player, Sw
 }
 
 // ============================================================
-// 分裂怪の死（GPU の分裂の環、2〜3 フレーム遅れ）→ 分裂体を死んだ所の周りに。
+// スプリッターの死（GPU の分裂の環、2〜3 フレーム遅れ）→ 分裂体を死んだ所の周りに。
 // 同時上限（spawnCap）は見ない：倒した結果なので必ず出す（池が満杯なら GPU が捨てる）。
 // 周りの点が塞がったマスなら死んだ所そのものに置く（GPU が重なりを押し広げる）
 // ============================================================
@@ -98,7 +101,7 @@ void MobSpawner::SpawnSplitlings(const GridWorld& grid, SwarmSystem& swarm)
     swarm.ConsumeSplitEvents(s_Events);
     if (s_Events.empty()) return;
 
-    const float hp = m_SplitlingHp * m_StatMul;
+    const float hp = m_SplitlingHp * m_HpMul;
     const float speed = m_MobSpeed * m_SplitlingSpeedMul * finalSpeedMul;
     for (const Swarm::SplitEvent& ev : s_Events)
     {
@@ -126,14 +129,14 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
     m_RunTime = runTime;
     if (scaling)
     {
-        const float minutes = runTime / 60.0f;
-        m_StatMul = (1.0f + statMulBonus + statGrowthPerMin * minutes) * finalStatMul;
-        m_Director.spawnPerSecond = (finalSpawnRate > 0.0f) ? finalSpawnRate
-            : spawnRateStart + (spawnRateAt10Min - spawnRateStart) * (minutes / 10.0f);
+        const DifficultyCurve::Sample s = curve.Evaluate(runTime / 60.0f);
+        m_HpMul = (s.hpMul + statMulBonus) * finalStatMul;
+        m_DamageMul = (s.damageMul + statMulBonus) * finalStatMul;
+        m_Director.spawnPerSecond = (finalSpawnRate > 0.0f) ? finalSpawnRate : s.spawnRate;
     }
     else
-        m_StatMul = 1.0f;
-    // 分裂怪の割合（面毎の表。start 前は 0、rampEnd まで直線）
+        m_HpMul = m_DamageMul = 1.0f;
+    // スプリッターの割合（面毎の表。start 前は 0、rampEnd まで直線）
     if (runTime < splitterStart)
         m_SplitterRatio = 0.0f;
     else
@@ -142,8 +145,8 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
         const float t = (std::min)(1.0f, (runTime - splitterStart) / span);
         m_SplitterRatio = splitterRatioStart + (splitterRatioEnd - splitterRatioStart) * t;
     }
-    swarm.GetAIParams().contactDamage = baseContactDamage * m_StatMul;
-    swarm.GetBomberParams().blastDamage = baseBlastDamage * m_StatMul;
+    swarm.GetAIParams().contactDamage = baseContactDamage * m_DamageMul;
+    swarm.GetBomberParams().blastDamage = baseBlastDamage * m_DamageMul;
 
     m_Director.Update(grid, player, dt,
         (int)swarm.GetCounters().aliveEnemies,
@@ -151,13 +154,13 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
         [this, &swarm](const Vector3& pos) { Request(swarm, pos, true); });
 
     SpawnDebugKind(grid, player, swarm, m_DebugBombers, m_BomberHp, m_BomberSpeed, Swarm::kEnemyKindBomber);
-    SpawnDebugKind(grid, player, swarm, m_DebugSplitters, m_SplitterHp * m_StatMul, m_SplitterSpeed, Swarm::kEnemyKindSplitter);
+    SpawnDebugKind(grid, player, swarm, m_DebugSplitters, m_SplitterHp * m_HpMul, m_SplitterSpeed, Swarm::kEnemyKindSplitter);
     SpawnSplitlings(grid, swarm);
     SpawnGhosts(player, dt, swarm);
 }
 
 // ============================================================
-// 最終波の幽霊。玩家の周りの環（rMin〜rMax）に湧く。壁を素通りするので歩けるマスかは見ない。
+// 最終ウェーブの幽霊。プレイヤーの周りの環（rMin〜rMax）に湧く。壁を素通りするので歩けるマスかは見ない。
 // 同時上限は雑魚と共通（Director.spawnCap。alive は種類を問わず数える）
 // ============================================================
 void MobSpawner::SpawnGhosts(const Vector3& player, float dt, SwarmSystem& swarm)
@@ -180,12 +183,12 @@ void MobSpawner::SpawnGhosts(const Vector3& player, float dt, SwarmSystem& swarm
         const float ang = Rand01() * 6.2831853f;
         const float r = m_Director.rMin + (m_Director.rMax - m_Director.rMin) * Rand01();
         const Vector3 pos = player + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
-        swarm.SpawnEnemy({ pos.x, groundY, pos.z }, m_MobHp * m_StatMul, m_MobSpeed * ghostSpeedMul, Swarm::kEnemyKindGhost);
+        swarm.SpawnEnemy({ pos.x, groundY, pos.z }, m_MobHp * m_HpMul, m_MobSpeed * ghostSpeedMul, Swarm::kEnemyKindGhost);
     }
 }
 
 // ============================================================
-// ImGui: Enemies 面板の雑魚の段
+// ImGui: Enemies パネルの雑魚の段
 // ============================================================
 void MobSpawner::DrawImGui(SwarmSystem& swarm)
 {
@@ -207,12 +210,11 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     // ---- 難度（経過時間で上がる）----
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1), "Difficulty");
     ImGui::Checkbox("Scale with time", &scaling);
-    ImGui::Text("run %.0f s  stat x%.2f  spawn %.2f /s  contact %.1f  blast %.1f",
-        m_RunTime, m_StatMul, m_Director.spawnPerSecond,
+    ImGui::Text("run %.0f s  HP x%.2f  damage x%.2f  spawn %.2f /s  contact %.1f  blast %.1f",
+        m_RunTime, m_HpMul, m_DamageMul, m_Director.spawnPerSecond,
         swarm.GetAIParams().contactDamage, swarm.GetBomberParams().blastDamage);
-    ImGui::DragFloat("Stat Growth / min", &statGrowthPerMin, 0.005f, 0.0f, 2.0f, "%.3f");
-    ImGui::DragFloat("Spawn / s at start", &spawnRateStart, 0.05f, 0.0f, 100.0f);
-    ImGui::DragFloat("Spawn / s at 10 min", &spawnRateAt10Min, 0.1f, 0.0f, 200.0f);
+    ImGui::Text("stage bonus +%.2f (HP & damage)   final x%.2f", statMulBonus, finalStatMul);
+    curve.DrawImGui(m_RunTime / 60.0f);   // 表（分・湧き・HP・ダメージ）と曲線、Save / Load / Reset
     ImGui::DragFloat("Contact Damage (base)", &baseContactDamage, 0.5f, 0.0f, 200.0f);
     ImGui::DragFloat("Blast Damage (base)", &baseBlastDamage, 0.5f, 0.0f, 400.0f);
     ImGui::Separator();
@@ -247,7 +249,7 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Ghost Speed x", &ghostSpeedMul, 0.05f, 1.0f, 6.0f);
     ImGui::Separator();
 
-    // ---- 分裂怪（湧きの割合は面の表 + 経過時間、初期値は CPU、体格・倍率は GPU の定数）----
+    // ---- スプリッター（湧きの割合は面の表 + 経過時間、初期値は CPU、体格・倍率は GPU の定数）----
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1), "Splitter (GPU)");
     ImGui::Text("ratio now %.2f   splits %u -> splitlings %u", m_SplitterRatio, m_SplitEventsSeen, m_SplitlingsSpawned);
     ImGui::DragFloat("Splitter Start (s)", &splitterStart, 5.0f, 0.0f, 1.0e9f);

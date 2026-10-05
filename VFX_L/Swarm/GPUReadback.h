@@ -1,10 +1,10 @@
 // ============================================================
 // GPUReadback.h
-// GPU から少量の数値を読み戻す通道。
+// GPU から少量の数値を読み戻すチャンネル。
 //
 // 絶対に守る規律:
-//   阻塞式の Map(D3D11_MAP_READ) は使わない。
-//   あれは GPU の完了を待つため管線を断ち切り、数 ms を失う。
+//   ブロッキングの Map(D3D11_MAP_READ) は使わない。
+//   あれは GPU の完了を待つためパイプラインを断ち切り、数 ms を失う。
 //   （GPUParticleSystem で毎フレームの ReadDeadCount を廃止したのと同じ理由）
 //
 // 手法:
@@ -35,7 +35,7 @@ struct SwarmCounters
     uint32_t playerDamage = 0;      // 8
     uint32_t aliveProjectiles = 0;  // 12
 
-    // ---- 照準: 玩家に一番近い雑魚 ----
+    // ---- 照準: プレイヤーに一番近い雑魚 ----
     // nearestKey は GPU 内部用（距離の上位 20bit | スロット 12bit）。CPU は読まない
     uint32_t nearestKey = 0xFFFFFFFFu;  // 16
     float    nearestPos[3] = {};        // 20
@@ -43,7 +43,7 @@ struct SwarmCounters
     float    nearestDist = 1e30f;       // 44  目標無しなら巨大値
 
     // ---- 経験値 ----
-    // expTotal は固定小数 ×100、GPU 上で永久に累加（kills と同じ扱い。CPU は差分を取る）
+    // expTotal は固定小数 ×100、GPU 上で永久に累積（kills と同じ扱い。CPU は差分を取る）
     uint32_t expTotal = 0;              // 48
     uint32_t aliveOrbs = 0;             // 52  毎ステップ再計算
     // ---- 範囲攻撃（どちらも毎ステップ再計算）----

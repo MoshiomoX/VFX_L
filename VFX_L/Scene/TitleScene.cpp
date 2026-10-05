@@ -21,13 +21,13 @@ namespace
 {
     // ゲームの名前は仮。決まったらここだけ書き換える
     constexpr const wchar_t* kGameTitle = L"ルーンパック";
-    constexpr const wchar_t* kTagline = L"魔法を背嚢に詰めて、群れを生き延びろ";
+    constexpr const wchar_t* kTagline = L"魔法をバックパックに詰めて、押し寄せる群れを生き抜け";
 
     constexpr float kOrbitRadius = 14.0f;
     constexpr float kOrbitSpeed = 0.15f;   // rad / 秒
     constexpr int   kDecoCount = 28;
 
-    // 道具の色（火球・分裂・二重詠唱・HP・MP・枠）に寄せた飾りの色
+    // アイテムの色（火球・分裂・二重詠唱・HP・MP・枠）に寄せた飾りの色
     const Vector4 kDecoColors[] = {
         { 1.00f, 0.55f, 0.20f, 1.0f },
         { 0.30f, 0.90f, 0.90f, 1.0f },
@@ -163,7 +163,7 @@ void TitleScene::Update(float dt)
             Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::COLLISION_TEST);
             break;
         case 1:
-            PostQuitMessage(0);   // Esc（Window.cpp）と同じ終わり方
+            PostQuitMessage(0);   // 窓の × と同じ終わり方（Esc での即終了は 2026-10-04 に外した）
             break;
         default:
             break;
@@ -239,7 +239,7 @@ void TitleScene::Render(Renderer& renderer)
         m_Menu.Draw(m_Sprite, m_Text, m_WhiteTex, 0.55f * k);
     }
 
-    // ---- 操作の案内（下の中央）と、開発用の場面切替（右下）----
+    // ---- 操作の案内（下の中央）と、開発用のシーン切替（右下）----
     const std::wstring howTo = L"W / S で選択    Enter / Space / パッド A で決定";
     const float hs = 0.36f * k;
     const Vector2 howSize = m_Text.Measure(howTo, hs);

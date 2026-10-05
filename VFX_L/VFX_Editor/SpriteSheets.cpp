@@ -47,7 +47,7 @@ namespace
             }
         }
         s.loop = (j.value("loop_mode", std::string("none")) == "loop");
-        s.point = true;   // 像素絵（IMPORTING.md: nearest-neighbor）
+        s.point = true;   // ピクセルアート（IMPORTING.md: nearest-neighbor）
 
         int srcW = s.cellW, srcH = s.cellH;
         if (j.contains("source_size") && j["source_size"].size() >= 2)

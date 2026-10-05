@@ -1,6 +1,6 @@
 // ============================================================
 // GPUParticleEffectTrail.cpp
-// GPUParticleSystem のうち「特効の位置で動く帯」（VFX の Trail entry）の部分。
+// GPUParticleSystem のうち「エフェクトの位置で動く帯」（VFX の Trail entry）の部分。
 //
 //   CPU : 枠の貸し借りと、帯ごとの錨（先頭の位置 + 命令）を毎フレーム上げるだけ
 //   GPU : EffectTrailCS が点の追加・寿命切れ・尾の切り詰めをして生存 list を積み、
@@ -53,7 +53,7 @@ namespace
 // ============================================
 // 資源
 //   shader 2 本 + 錨（dynamic）+ 状態 + 点の環 + 生存 list + indirect args
-// ここが失敗しても粒子と粒子の帯は動く（特効の帯が出ないだけ）
+// ここが失敗しても粒子と粒子の帯は動く（エフェクトの帯が出ないだけ）
 // ============================================
 bool GPUParticleSystem::CreateEffectTrailResources(ID3D11Device* device)
 {
@@ -262,7 +262,7 @@ void GPUParticleSystem::DispatchEffectTrail(ID3D11DeviceContext* context)
 
 // ============================================
 // 描画（RenderTrails の直後）
-//   粒子の帯と同じく、特効の帯が使っている style ごとに 1 draw
+//   粒子の帯と同じく、エフェクトの帯が使っている style ごとに 1 draw
 //   （他の style の instance は VS が捨てる）
 // ============================================
 void GPUParticleSystem::RenderEffectTrails(ID3D11DeviceContext* context)

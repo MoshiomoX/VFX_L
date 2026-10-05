@@ -19,6 +19,9 @@
     <Filter Include="Debug">
       <UniqueIdentifier>{5f3639ec-0348-40d7-bb8e-ff1e2d9a0dfe}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Debug\AutoTest">
+      <UniqueIdentifier>{76731e09-27d5-4e5e-a0bc-270f40db1f2a}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Debug\ImGui">
       <UniqueIdentifier>{059b4fc5-12a6-4151-9213-2fee5042175a}</UniqueIdentifier>
     </Filter>
@@ -154,6 +157,135 @@
     <ClCompile Include="Scene\CollisionTestSceneDebug.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBomber.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPerf.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMagnifier.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestLoco.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestCape.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestHills.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBalance.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGold.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestCurve.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBoss.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPickup.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestChain.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestEdge.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestEdgeRock.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossExit.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGround.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPortal.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestLayers.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestAssets.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestUI.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSlide.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestShapes.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestChest.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBeam.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestStuck.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestClip.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestKnock.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSurge.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBeamTrack.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestDrop.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGhost.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestScenePlayerPanels.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneWorldPanels.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\BattleAutoTest.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestFeedback.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\StressTestTools.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
@@ -167,6 +299,9 @@
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\BossAttacks.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\DifficultyCurve.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\EliteSpawner.cpp">
@@ -379,6 +514,9 @@
     <ClCompile Include="ECS\System\SkinnedAnimSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
+    <ClCompile Include="ECS\System\ClothChainSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Light\PointLightManager.cpp">
       <Filter>Graphics\Light</Filter>
     </ClCompile>
@@ -527,6 +665,9 @@
     <ClCompile Include="Graphics\PostProcess\Bloom.cpp">
       <Filter>Graphics\PostProcess</Filter>
     </ClCompile>
+    <ClCompile Include="Graphics\PostProcess\Outline.cpp">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Model\MaterialLoader.cpp">
       <Filter>Graphics\Model</Filter>
     </ClCompile>
@@ -562,6 +703,12 @@
     <ClInclude Include="Debug\StressTestTools.h">
       <Filter>Debug</Filter>
     </ClInclude>
+    <ClInclude Include="Debug\AutoTest\BattleAutoTest.h">
+      <Filter>Debug\AutoTest</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug\AutoTest\AutoTestCommon.h">
+      <Filter>Debug\AutoTest</Filter>
+    </ClInclude>
     <ClInclude Include="Debug\FrameProfiler.h">
       <Filter>Debug</Filter>
     </ClInclude>
@@ -572,6 +719,9 @@
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\BossAttacks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\DifficultyCurve.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\EliteSpawner.h">
@@ -791,6 +941,9 @@
     <ClInclude Include="Graphics\Model\Skeleton.h">
       <Filter>Graphics\Model</Filter>
     </ClInclude>
+    <ClInclude Include="Graphics\Model\BoneMaps.h">
+      <Filter>Graphics\Model</Filter>
+    </ClInclude>
     <ClInclude Include="Graphics\Model\SkinnedModelGPU.h">
       <Filter>Graphics\Model</Filter>
     </ClInclude>
@@ -826,6 +979,9 @@
       <Filter>Component</Filter>
     </ClInclude>
     <ClInclude Include="Component\SkinnedAnimComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Component\ClothChainComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
     <ClInclude Include="Component\RigidbodyComponent.h">
@@ -868,6 +1024,9 @@
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\SkinnedAnimSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\ClothChainSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Light\PointLightManager.h">
@@ -1033,6 +1192,9 @@
     <ClInclude Include="Player\LevelComponent.h">
       <Filter>Player</Filter>
     </ClInclude>
+    <ClInclude Include="Player\WalletComponent.h">
+      <Filter>Player</Filter>
+    </ClInclude>
     <ClInclude Include="Item\ExpRewardComponent.h">
       <Filter>Item</Filter>
     </ClInclude>
@@ -1127,6 +1289,9 @@
     <ClInclude Include="VFX_Editor\VFXDatabase.h" />
     <ClInclude Include="VFX_Editor\VFXId.h" />
     <ClInclude Include="Graphics\PostProcess\Bloom.h">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\PostProcess\Outline.h">
       <Filter>Graphics\PostProcess</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Model\MaterialLoader.h">
@@ -1396,6 +1561,9 @@
       <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PostProcess\CompositePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\OutlinePS.hlsl">
       <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PostProcess\BloomCS.hlsl">

@@ -5,15 +5,15 @@
 // 真値は地形の Entity（AABB collider 付きの静的 Box）。
 // walkable[] はそこから導出される派生データ。
 //   ※BackpackComponent の occupancy と同じ規律:
-//     実体のリストが真値、占用表は Rebuild で作り直す。
+//     実体のリストが真値、占有表は Rebuild で作り直す。
 //
-// 場地はワールド原点が中心。
-//   マス (0,0) は場地の隅（南西角）で、ワールド座標では
+// フィールドはワールド原点が中心。
+//   マス (0,0) はフィールドの隅（南西角）で、ワールド座標では
 //   (-WorldWidth/2, -WorldDepth/2) から始まる。
 //   座標が負になるので、マス変換は必ず floor を使う
 //   （int 切り捨ては 0 方向へ丸まり、負側で 1 マスずれる）。
 //
-// 通行図 walkable は (gx, gz) の純 2D。箱・壁は高さに関係なく「塞ぐ」。
+// 通行マップ walkable は (gx, gz) の純 2D。箱・壁は高さに関係なく「塞ぐ」。
 // 斜面（台形柱）だけは塞がず、別の高さ場（kHeightSub 分割）に
 // 「歩ける面の高さ」を書く。雑魚はこれを引いて登る（2.5D）。
 //
@@ -37,7 +37,7 @@ public:
     {
         m_GridW = gridW;
         m_GridD = gridD;
-        m_OriginX = -0.5f * gridW * kCellSize;   // 場地の南西角のワールド座標
+        m_OriginX = -0.5f * gridW * kCellSize;   // フィールドの南西角のワールド座標
         m_OriginZ = -0.5f * gridD * kCellSize;
         m_Walkable.assign((size_t)gridW * gridD, 1);
         m_Height.assign((size_t)gridW * kHeightSub * gridD * kHeightSub, 0.0f);
@@ -51,7 +51,7 @@ public:
     float OriginZ() const { return m_OriginZ; }
 
     // ---- 座標変換 ----
-    // 場地が原点中心なのでオフセット付き。static ではなくなった
+    // フィールドが原点中心なのでオフセット付き。static ではなくなった
     DirectX::SimpleMath::Vector3 CellToWorld(int gx, int gz) const
     {
         return { m_OriginX + (gx + 0.5f) * kCellSize,
@@ -65,7 +65,7 @@ public:
         gz = (int)std::floor((p.z - m_OriginZ) / kCellSize);
     }
 
-    // ---- 占用 ----
+    // ---- 占有 ----
     bool IsWalkable(int gx, int gz) const
     {
         if (gx < 0 || gx >= m_GridW || gz < 0 || gz >= m_GridD) return false;
@@ -138,7 +138,7 @@ public:
         float& dst = m_Height[(size_t)hz * HeightW() + hx];
         if (h > dst) dst = h;   // 重なりは高い方
     }
-    // そのまま書く（低くもできる）。鉱洞の底（負の高さ）を掘る時だけ使う。
+    // そのまま書く（低くもできる）。洞窟の底（負の高さ）を掘る時だけ使う。
     // 上に載る坂は後から SetHeight（高い方）で書く
     void SetHeightExact(int hx, int hz, float h)
     {

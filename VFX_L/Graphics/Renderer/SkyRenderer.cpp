@@ -23,7 +23,7 @@ bool SkyRenderer::Initialize(ID3D11Device* device)
 }
 
 // ============================================================
-// 画面全体を空で塗る（場面の描画の一番最初）。
+// 画面全体を空で塗る（シーンの描画の一番最初）。
 // 深度は読まず書かない：後から描く物は全部この上に乗る
 // ============================================================
 void SkyRenderer::Render(ID3D11DeviceContext* context, CameraBase* camera, const Params& p) const

@@ -9,7 +9,7 @@
 //   - 遷移は Hybrid：Event(キュー型) を先に消化 → Polling(委譲チェーン)
 //   - 親の Update は2系統：
 //       onUpdateAlways … 毎フレーム必ず実行（共通処理：重力など）
-//       onUpdate       … 子が遷移要求しなかった時だけ実行（遷移判断の兜底）
+//       onUpdate       … 子が遷移要求しなかった時だけ実行（遷移判断のフォールバック）
 // ============================================================
 #pragma once
 #ifndef NOMINMAX
@@ -24,7 +24,7 @@
 
 // StateID : enum class を想定（末尾に ROOT 番兵を置く運用）
 // TOwner  : 業務データ型（VFXEffect / Player 等）
-// TContext: 状態機データ型（current と timeInState を持つ構造体）
+// TContext: ステートマシンデータ型（current と timeInState を持つ構造体）
 template<typename StateID, typename TOwner, typename TContext>
 class StateMachine {
 public:
@@ -41,7 +41,7 @@ public:
         void (*onExit)(TContext&, TOwner&) = nullptr;  // 状態離脱時
     };
 
-    // 状態切替通知（from → to）。外部ロジックへ解耦して伝える。
+    // 状態切替通知（from → to）。外部ロジックへ疎結合化して伝える。
     using ChangeCallback = std::function<void(StateID from, StateID to)>;
 
     // ------------------------------------------------------------

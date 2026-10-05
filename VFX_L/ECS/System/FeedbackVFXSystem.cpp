@@ -53,7 +53,7 @@ void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpL
     if (!reg.IsValid(player) || !reg.Has<TransformComponent>(player)) return;
     const Vector3 pos = reg.Get<TransformComponent>(player).position;
 
-    // ---- 升級（レベルは三択を出した時点で上がる）----
+    // ---- レベルアップ（レベルは三択を出した時点で上がる）----
     if (reg.Has<LevelComponent>(player))
     {
         const int level = reg.Get<LevelComponent>(player).level;
@@ -86,7 +86,7 @@ void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpL
         }
         else if (surge <= 0.0f && m_PrevSurgeTime > 0.0f && m_SurgeAura)
         {
-            // 解放が終わった（調試面板で残りを 0 にされた時も）。Test ボタンの光は残り時間で勝手に止まる
+            // 解放が終わった（デバッグパネルで残りを 0 にされた時も）。Test ボタンの光は残り時間で勝手に止まる
             if (m_Player) m_Player->StopInstance(m_SurgeAura);
             m_SurgeAura = 0;
         }
@@ -109,7 +109,7 @@ void FeedbackVFXSystem::OnExpPicked(const Vector3& pos)
 }
 
 // ============================================================
-// ImGui: Feedback VFX 面板
+// ImGui: Feedback VFX パネル
 // ============================================================
 void FeedbackVFXSystem::DrawImGui(Registry& reg, Entity player)
 {

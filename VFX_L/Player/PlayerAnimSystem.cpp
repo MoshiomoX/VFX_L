@@ -17,7 +17,7 @@ namespace
 {
     constexpr float kMoveFade = 0.15f;   // Idle ↔ Run
     constexpr float kGaitFade = 0.25f;   // Walk ↔ Jog ↔ Sprint（位相を揃えるので長めでも崩れない）
-    constexpr float kCastFade = 0.08f;   // 施法の乗せ降ろし（遅いと撃ち始めが見えない）
+    constexpr float kCastFade = 0.08f;   // 詠唱の乗せ降ろし（遅いと撃ち始めが見えない）
     constexpr float kHurtFade = 0.05f;
     constexpr float kDeadFade = 0.10f;
 }
@@ -31,8 +31,8 @@ void PlayerAnimSystem::Update(Registry& reg, float dt)
                 const SkinnedModel& model = *a.model;
 
                 // 上半身マスクは初回に作る（モデルが決まってからでないと骨が分からない）
-                if (a.upperMask.empty())
-                    model.BuildBoneMask(m_Names.upperRoot, a.upperMask);
+                if (a.upperMask.empty() && !model.BuildBoneMask(m_Names.upperRoot, a.upperMask))
+                    model.BuildBoneMask(m_Names.upperRootAlt, a.upperMask);
 
                 // ============================================================
                 // base: 移動層
@@ -106,7 +106,7 @@ void PlayerAnimSystem::Update(Registry& reg, float dt)
                 }
 
                 // ============================================================
-                // upper: 動作層（施法）
+                // upper: 動作層（詠唱）
                 // 撃った瞬間に頭出し。連射中も 1 発ごとに振り直す
                 // ============================================================
                 {

@@ -39,7 +39,7 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!CreateAliveListBuffer(device, maxParticles)) return false;
     if (!CreateMeshResources(device))        return false;
     CreateTrailResources(device);   // 失敗しても粒子は動く（帯が出ないだけ）
-    if (m_TrailReady)               // 特効の帯は style 表と TrailPS を共用する
+    if (m_TrailReady)               // エフェクトの帯は style 表と TrailPS を共用する
         CreateEffectTrailResources(device);
 
     // DispatchEmit が使うので、必ず初回発射より前に作る。
@@ -56,7 +56,7 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     m_InitDeadListCS->Bind(context);
 
     // ※ここの initialCount = 0 は正当。
-    //   「計数器を 0 にしてから maxParticles 個 Append する」一度きりの初期化。
+    //   「カウンターを 0 にしてから maxParticles 個 Append する」一度きりの初期化。
     //   毎フレーム CPU の値で上書きするのとは意味が違う。
     m_DeadList.BindCSUAV(context, 0, 0);
 
@@ -348,7 +348,7 @@ void GPUParticleSystem::SetSourceEdgeParams(int sourceId, const EdgeFilterParams
 
 // ============================================
 // EdgeFilterCS：1 スレッド 1 頂点で noise を引き、縁の頂点だけ Append
-// initialCount = 0 で計数器を毎回リセット（表は毎フレーム作り直す）
+// initialCount = 0 でカウンターを毎回リセット（表は毎フレーム作り直す）
 // ============================================
 void GPUParticleSystem::DispatchEdgeFilter(ID3D11DeviceContext* context, int sourceId)
 {
@@ -395,7 +395,7 @@ bool GPUParticleSystem::CreateDrawIndirectBuffer(ID3D11Device* device)
     desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
     desc.MiscFlags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
 
-    // InstanceCount 累加方式：VertexCount=6(固定), InstanceCount=0(CSが累加)
+    // InstanceCount 累積方式：VertexCount=6(固定), InstanceCount=0(CSが累積)
     uint32_t initArgs[4] = { 6, 0, 0, 0 };
     D3D11_SUBRESOURCE_DATA initData = {};
     initData.pSysMem = initArgs;
@@ -579,7 +579,7 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime,
     m_CachedGlobalCB.baseSeed = static_cast<uint32_t>(totalTime * 1000.0f);
     m_CachedGlobalCB.emitterCount = static_cast<int>(emitters.size());
 
-    // CPU が知っているのは「何発撃ちたいか」だけ。
+    // CPU が知っているのは「何発射ちたいか」だけ。
     // 空き数に合わせた clamp はここでは行わない（shader 側が deadCount で止める）。
     // CPU 側で clamp しても Dispatch は 256 スレッド粒度なので必ず溢れ、
     // 意味を持たなかった。
@@ -616,7 +616,7 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime,
     DispatchEmit(context, requestedPlain, requestedPerSource);
     DispatchUpdate(context);
     DispatchTrail(context);   // 更新後の位置を帯の環へ記録する
-    DispatchEffectTrail(context);   // 特効の帯：今フレームの錨を環へ
+    DispatchEffectTrail(context);   // エフェクトの帯：今フレームの錨を環へ
 }
 
 void GPUParticleSystem::UploadExternalEmitters(ID3D11DeviceContext* context,
@@ -659,7 +659,7 @@ void GPUParticleSystem::UploadExternalEmitters(ID3D11DeviceContext* context,
 
 // ============================================
 // Emit ディスパッチ
-// 発射数の上限は GPU が決める。CPU は「何発撃ちたいか」だけ渡す。
+// 発射数の上限は GPU が決める。CPU は「何発射ちたいか」だけ渡す。
 // ============================================
 void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t requestedPlain,
     const uint32_t* requestedPerSource)
@@ -690,7 +690,7 @@ void GPUParticleSystem::DispatchEmit(ID3D11DeviceContext* context, uint32_t requ
     if (requestedPlain > 0)
         DispatchEmitPass(context, -1, requestedPlain);
 
-    // pass 1..: Mesh 発射源ごと。玩家 + 精英の個位数なので回数は気にしない
+    // pass 1..: Mesh 発射源ごと。プレイヤー + エリートの個位数なので回数は気にしない
     for (int i = 0; i < MAX_EMIT_SOURCES; ++i)
         if (requestedPerSource[i] > 0)
             DispatchEmitPass(context, i, requestedPerSource[i]);
@@ -700,7 +700,7 @@ void GPUParticleSystem::DispatchEmitPass(ID3D11DeviceContext* context, int activ
 {
     // 空き数を GPU 上のバッファへ写す（Copy のみ、Map しない = 待たない）。
     // ※pass ごとに写し直す。前の pass が Consume した分を見ないと
-    //   deadCount の防波堤が古い値で判定し、計数器が下溢する
+    //   deadCount の防波堤が古い値で判定し、カウンターがアンダーフローする
     context->CopyStructureCount(m_DeadCountBuffer.Get(), 0, m_DeadList.GetUAV());
 
     EmitPassCB pcb = {};
@@ -723,8 +723,8 @@ void GPUParticleSystem::DispatchEmitPass(ID3D11DeviceContext* context, int activ
 
     // UAV はキューに溜めて一括バインド
     m_EmitCS->SetUAV(context, "particles", m_ParticleUAV.Get());
-    //initialCount = -1（保持）。CPU の値を渡すと計数器を毎フレーム上書きし、
-    //   下溢バグを隠す膏薬になる。計数器は GPU が自分で維持する。
+    //initialCount = -1（保持）。CPU の値を渡すとカウンターを毎フレーム上書きし、
+    //   アンダーフローバグを隠す膏薬になる。カウンターは GPU が自分で維持する。
     m_EmitCS->SetUAV(context, "deadList", m_DeadList.GetUAV(), (UINT)-1);
     m_EmitCS->BindUAVs(context);
 
@@ -750,7 +750,7 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     m_UpdateCS->WriteBuffer(context, 0, &m_CachedGlobalCB);
     m_UpdateCS->WriteBuffer(context, 1, &dlcb);
 
-    // DrawIndirectArgs リセット（InstanceCount 累加方式）。
+    // DrawIndirectArgs リセット（InstanceCount 累積方式）。
     // R32_UINT の UAV を ClearUnorderedAccessViewUint すると 4 要素とも Values[0] になる
     // （InstanceCount まで 6 から数え始める）ので、丸ごと書く
     const UINT drawArgs[4] = { 6, 0, 0, 0 };
@@ -783,7 +783,13 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
 // ============================================
 // レンダリング（DrawInstancedIndirect + AliveList）
 // ============================================
-void GPUParticleSystem::Render()
+void GPUParticleSystem::RenderLitMeshes()
+{
+    if (!m_Camera) return;
+    RenderMeshes(m_Context, 0, 0);
+}
+
+void GPUParticleSystem::Render(bool litMeshes)
 {
     if (!m_Camera) return;
     if (!m_RenderVS || !m_RenderVS->IsValid()) return;
@@ -801,7 +807,7 @@ void GPUParticleSystem::Render()
     m_RenderVS->SetSRV(context, "particles", m_ParticleSRV.Get());
     m_RenderVS->SetSRV(context, "aliveList", m_AliveListSRV.Get());
 
-    // ---- 貼图表：t0.. に全部並べ、PS が粒子ごとに番号で選ぶ ----
+    // ---- テクスチャ表：t0.. に全部並べ、PS が粒子ごとに番号で選ぶ ----
     // 0 番はシーンが SetTexture で渡した物があればそちら（旧来の呼び方を残す）
     ParticleSheets::Load();
     ID3D11ShaderResourceView* sheets[ParticleSheets::kMaxSheets] = {};
@@ -839,12 +845,12 @@ void GPUParticleSystem::Render()
     ID3D11ShaderResourceView* nullSheets[ParticleSheets::kMaxSheets] = {};
     context->PSSetShaderResources(0, ParticleSheets::kMaxSheets, nullSheets);
 
-    // ---- 軌跡（帯）：粒子の帯 → 特効の帯 ----
+    // ---- 軌跡（帯）：粒子の帯 → エフェクトの帯 ----
     RenderTrails(context);
     RenderEffectTrails(context);
 
     // ---- メッシュ粒子（光を受ける：不透明・深度書き込み → 発光：加算）----
-    RenderMeshes(context);
+    RenderMeshes(context, litMeshes ? 0 : 1, 1);
 }
 
 // ============================================
@@ -895,7 +901,7 @@ void GPUParticleSystem::ResetSystem()
 void GPUParticleSystem::SubmitEmitters(const std::vector<GPUEmitter>& emitters,
     const std::vector<ColorKey>& colorKeys)
 {
-    // 上限を超える分は捨てる（降級：特効が出ないだけ。クラッシュも上書きもしない）
+    // 上限を超える分は捨てる（格下げ：エフェクトが出ないだけ。クラッシュも上書きもしない）
     size_t space = (m_PendingEmitters.size() < MAX_EMITTERS)
         ? (MAX_EMITTERS - m_PendingEmitters.size()) : 0;
     size_t count = (emitters.size() < space) ? emitters.size() : space;
@@ -1090,7 +1096,7 @@ void GPUParticleSystem::UpdateTrailStyle(int id, const ParticleTrailStyle& style
 void GPUParticleSystem::UnregisterTrailStyle(int id)
 {
     if (id < 0 || id >= (int)m_TrailStyles.size() || !m_TrailStyles[id].used) return;
-    // 特効の帯がまだ参照していれば残す（消え終わった時に帯の側が放す）
+    // エフェクトの帯がまだ参照していれば残す（消え終わった時に帯の側が放す）
     if (--m_TrailStyles[id].refs > 0) return;
     m_TrailStyles[id] = TrailStyleSlot{};   // texture の参照もここで放す
 }
@@ -1154,7 +1160,7 @@ void GPUParticleSystem::DispatchTrail(ID3D11DeviceContext* context)
 // ============================================
 // 帯の描画
 //   頂点 buffer は無い。1 instance = 粒子 1 個、SV_VertexID で triangle strip を辿る。
-//   貼图と合成方法が style ごとに違うので、使用中の style の数だけ draw する
+//   テクスチャと合成方法が style ごとに違うので、使用中の style の数だけ draw する
 //   （他の style の instance は VS が捨てる）
 // ============================================
 void GPUParticleSystem::RenderTrails(ID3D11DeviceContext* context)

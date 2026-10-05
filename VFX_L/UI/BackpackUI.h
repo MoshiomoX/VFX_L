@@ -53,7 +53,7 @@ public:
     void ClearLastEvicted() { m_LastEvicted = 0; }
     bool IsDragging() const { return m_Drag && m_Drag->IsActive(); }
 
-    // 道具のアイコン（無ければ null）。HUD の魔法の欄も同じ物を使う
+    // アイテムのアイコン（無ければ null）。HUD の魔法の欄も同じ物を使う
     std::shared_ptr<Texture> FindIcon(ItemID id) const { return GetIcon(id); }
 
     // ---- マウスが乗っている物（tooltip 用。掴んでいる間は -1）----
@@ -77,7 +77,7 @@ public:
     float cellLineAlpha = 0.30f;   // 置けるマスを囲む月銀の線
     float cornerCells = 1.6f;      // 外枠の四隅の組紐（マス何個分）
 
-    // ---- 影響格の表示 ----
+    // ---- 影響マスの表示 ----
     bool showInfluenceOnHover = true;
     bool highlightInfluenced = true;
     float dragAlpha = 0.75f;
@@ -100,7 +100,7 @@ private:
     std::shared_ptr<Texture> GetIcon(ItemID id) const;
 
     void DrawHoverInfluence(SpriteRenderer& sprite, const BackpackComponent& bp);
-    // 高級魔法（メテオ等）を掴んでいる / 指している間、前提の基礎魔法の影響格を全部見せる（どこに置けば目覚めるか）
+    // 上級魔法（メテオ等）を掴んでいる / 指している間、前提の基本魔法の影響マスを全部見せる（どこに置けば目覚めるか）
     void DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp);
     void DrawDragged(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& mousePos);
     void DrawDropShadow(SpriteRenderer& sprite);

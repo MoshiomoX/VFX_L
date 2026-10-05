@@ -53,7 +53,7 @@ namespace CollisionMath
     };
 
     // 凸多面体 = 平面の集合（全部の内側の共通部分）。
-    // 台形柱・斜坡・楔など、軸に揃わない面を持つ静的地形用。
+    // 台形柱・斜面・楔など、軸に揃わない面を持つ静的地形用。
     // 面数は固定上限（vector を持たせない: WorldCollider が毎フレーム値コピーされる）
     constexpr int kMaxConvexPlanes = 12;
     struct Convex
@@ -67,6 +67,16 @@ namespace CollisionMath
                 if (planes[i].SignedDist(p) > 0.0f) return false;
             return true;
         }
+    };
+
+    // 高さ場（起伏のある地面。2026-10-04）。中身（格子・区域の式）は地形の側が持ち、ここは問い合わせだけ。
+    // 区域の境（崖）は式が変わるので、高さも法線も「点の真下のマスの式」で出す（崖を挟んで混ぜない）
+    struct HeightFieldShape
+    {
+        virtual ~HeightFieldShape() = default;
+        virtual bool    Contains(float x, float z) const = 0;   // 範囲内か（外は無い物として扱う）
+        virtual float   Height(float x, float z) const = 0;
+        virtual Vector3 Normal(float x, float z) const = 0;     // 上向き・正規化済み
     };
 
     // 有限線分
@@ -407,7 +417,7 @@ namespace CollisionMath
 
     // ========================================================
     // Capsule vs Convex（Contact の A = Capsule）
-    //   AABB 版と同じく軸線を採様して最深点を採る
+    //   AABB 版と同じく軸線をサンプリングして最深点を採る
     // ========================================================
     inline bool IntersectCapsuleConvex(const Capsule& cap, const Convex& hull, Contact& out)
     {
@@ -468,6 +478,43 @@ namespace CollisionMath
     }
 
     // ========================================================
+    // Ray vs 高さ場（2026-10-04）: 0.5m 刻みで進めて地面の下へ入った区間を二分で詰める。
+    //   起点が地面の下なら命中無し（AABB / Convex と同じ）
+    // ========================================================
+    inline RayHit RaycastHeightField(const Ray& ray, const HeightFieldShape& hf)
+    {
+        RayHit r;
+        auto below = [&](float t)
+            {
+                const Vector3 p = ray.origin + ray.dir * t;
+                return hf.Contains(p.x, p.z) && p.y < hf.Height(p.x, p.z);
+            };
+        if (below(0.0f)) return r;
+        constexpr float kStep = 0.5f;
+        float prev = 0.0f;
+        for (float t = kStep; ; t += kStep)
+        {
+            const float tt = (std::min)(t, ray.maxDist);
+            if (below(tt))
+            {
+                float a = prev, b = tt;
+                for (int i = 0; i < 10; ++i)
+                {
+                    const float m = 0.5f * (a + b);
+                    if (below(m)) b = m; else a = m;
+                }
+                r.hit = true;
+                r.t = b;
+                r.point = ray.origin + ray.dir * b;
+                r.normal = hf.Normal(r.point.x, r.point.z);
+                return r;
+            }
+            if (tt >= ray.maxDist) return r;
+            prev = tt;
+        }
+    }
+
+    // ========================================================
     // 凸多面体の組み立て
     // ========================================================
     // 3 点から平面（法線は (b-a)×(c-a)。outward になる順で渡すこと）
@@ -478,7 +525,7 @@ namespace CollisionMath
         return { n, n.Dot(a) };
     }
 
-    // 8 頂点の六面体（箱を歪めた物: 台形柱・楔・斜坡）。
+    // 8 頂点の六面体（箱を歪めた物: 台形柱・楔・斜面）。
     // 頂点順: 下面 0-3（-x-z, +x-z, +x+z, -x+z）、上面 4-7 が同じ順で対応。
     // 法線の向きは重心が内側に来るように揃えるので、面内の頂点順は気にしなくてよい
     inline Convex ConvexFromHexahedron(const Vector3 v[8])
@@ -649,7 +696,7 @@ namespace CollisionMath
 
         // 最近点までの距離
         float tClosest = (c1 - ray.origin).Dot(ray.dir);   // 射線に沿った距離
-        // 表面までの手前分だけ戻す（勾股: sqrt(半径^2 - 最近距離^2)）
+        // 表面までの手前分だけ戻す（三平方: sqrt(半径^2 - 最近距離^2)）
         float back = std::sqrt(max(0.0f, rr - distSq));
         float t = tClosest - back;
 

@@ -13,6 +13,7 @@
 //   LoadModel / VFX データ                  → char（string）
 // ============================================================
 #pragma once
+#include "Graphics/Model/BoneMaps.h"   // kExtraAnims の骨名の対応表
 
 namespace Res
 {
@@ -50,7 +51,7 @@ namespace Res
     }
 
     // ========================================================
-    // VFX 用アセット（Mesh entry のモデル / ノイズ等の貼图）
+    // VFX 用アセット（Mesh entry のモデル / ノイズ等のテクスチャ）
     // Editor はフォルダを列挙して選ぶので、ここは既定値と
     // コードから直接参照する物だけ
     // ========================================================
@@ -85,12 +86,12 @@ namespace Res
 
 
         // KayKit Adventurers の Mage（CC0）。1 ファイルに 76 クリップ入り。
-        // 杖・魔杖・魔道書は handslot 骨に付いた submesh で、表示切替で持ち替える
+        // 杖・杖・魔道書は handslot 骨に付いた submesh で、表示切替で持ち替える
         inline constexpr const char* KayKit_Mage =
             "Assets/Model/KayKit_Mage/Mage.fbx";
 
-        // 玩家（2026-09-28 から）。Quaternius の CC0 素材 4 つを Tools/BuildPlayerModel.py で 1 つの GLB に:
-        // 素体の頭 + 游侠の服 + 白い髭、アニメ 24 本（Universal Animation Library 1/2）入り。
+        // プレイヤー（2026-09-28 から）。Quaternius の CC0 素材 4 つを Tools/BuildPlayerModel.py で 1 つの GLB に:
+        // 素体の頭 + レンジャーの服 + 白い髭、アニメ 24 本（Universal Animation Library 1/2）入り。
         // 65 骨（UE 風の名前 root / pelvis / spine_01..）、メートル、glTF の -Z が正面
         inline constexpr const char* Quaternius_Ranger =
             "Assets/Model/Quaternius_Ranger/Ranger.fbx";
@@ -105,17 +106,26 @@ namespace Res
 
         // 骨付きモデルを読んだ直後に足す別ファイルのアニメ（SkinnedModel::AddAnimationsFromFile）。
         // ResourceManager::ImportModelAuto がパスの一致で引く（先読みスレッドの中でも同じ）
+        // map があれば骨名の違う人形から世界空間で付け替える（Graphics/Model/BoneMaps.h、2026-10-04）
         struct ExtraAnimSet
         {
             const char* model;
             const char* animFile;
+            const BoneMapEntry* map = nullptr;
+            int mapCount = 0;
         };
+
+        // Reallusion CC 骨（CC_Base_*）の PBR の人形（ユーザーがUnrealの配布から落とした物）。
+        // アニメは持たないので、レンジャー（UE 風の骨）の 24 段を付け替えて使う（VFXL_PLAYER=shadowkin でプレイヤーに）
+        inline constexpr const char* Shadowkin = "Assets/Model/Shadowkin_SF/Shadowkin_Rigged.fbx";
+
         inline constexpr ExtraAnimSet kExtraAnims[] = {
             { KayKit_Mage, KayKitAnims::MovementAdvanced },
+            { Shadowkin, Quaternius_Ranger, kBoneMapCCFromUE, (int)(sizeof(kBoneMapCCFromUE) / sizeof(kBoneMapCCFromUE[0])) },
         };
 
         // KayKit Skeletons（CC0）。Minion は雑魚（1 フレーム焼いてインスタンス描画）、
-        // Warrior / Mage / Rogue は精英（骨付きのまま SkinnedAnimComponent）
+        // Warrior / Mage / Rogue はエリート（骨付きのまま SkinnedAnimComponent）
         inline constexpr const char* KayKit_SkeletonMinion =
             "Assets/Model/KayKit_Skeletons/Skeleton_Minion.fbx";
         inline constexpr const char* KayKit_SkeletonWarrior =
@@ -125,17 +135,17 @@ namespace Res
         inline constexpr const char* KayKit_SkeletonRogue =
             "Assets/Model/KayKit_Skeletons/Skeleton_Rogue.fbx";
 
-        // Kenney Blocky Characters（CC0、像素貼图の方块人）。18 体とも網格・骨・動画は同じで、
-        // 貼图（Textures/texture-a..r.png）だけ違う。雑魚は L（緑肌のゾンビ）を 1 フレーム焼いて使う
+        // Kenney Blocky Characters（CC0、ピクセルテクスチャのブロック人形）。18 体ともメッシュ・骨・動画は同じで、
+        // テクスチャ（Textures/texture-a..r.png）だけ違う。雑魚は L（緑肌のゾンビ）を 1 フレーム焼いて使う
         inline constexpr const char* Kenney_BlockyZombie =
             "Assets/Model/Kenney_BlockyCharacters/fbx/character-l.fbx";
 
-        // 報酬の箱（近づいて F で三択）。Kenney Retro Fantasy の像素の木箱（0.3m 角、底が原点）
+        // 報酬の箱（近づいて F で三択）。Kenney Retro Fantasy のピクセルの木箱（0.3m 角、底が原点）
         inline constexpr const char* Kenney_RewardCrate =
             "Assets/Model/Kenney_RetroFantasy/fbx/detail-crate.fbx";
 
         // Boss を呼ぶ門（近づいて F）。Kenney Retro Fantasy の石の門（1m 角の部品、底が原点）。
-        // 2026-10-03 から使っていない（用户：石の門に → Ruins_ArchGate）。比べる用に残す
+        // 2026-10-03 から使っていない（ユーザー：石の門に → Ruins_ArchGate）。比べる用に残す
         inline constexpr const char* Kenney_PortalGate =
             "Assets/Model/Kenney_RetroFantasy/fbx/wall-flat-gate.fbx";
         // Boss を呼ぶ門（2026-10-03）。Quaternius Modular Ruins の丸柱付きの丸い石の拱（CC0、cm 単位、
@@ -265,7 +275,7 @@ namespace Res
         }
 
         // ========================================================
-        // 第 3 面「遺跡」（地牢）の物（2026-09-30。Biome::Dungeon）。Quaternius Modular Ruins（CC0、2m 単位）
+        // 第 3 面「遺跡」（ダンジョン）の物（2026-09-30。Biome::Dungeon）。Quaternius Modular Ruins（CC0、2m 単位）
         // ========================================================
         namespace Ruins
         {
@@ -318,11 +328,11 @@ namespace Res
         }
 
         // 起動時に別スレッドで先読みする骨付きモデル（ResourceManager::PreloadModelsAsync）。
-        // 1 個 19MB・Debug で数秒かかるので、タイトル / 編集器の間に済ませる。
-        // 戦闘で使う物だけ。Paladin（編集器の参照）と Mage/Rogue（未使用）は入れない。
-        // Minion は雑魚の予備（方块人が読めない時だけ）なので外した
+        // 1 個 19MB・Debug で数秒かかるので、タイトル / エディタの間に済ませる。
+        // 戦闘で使う物だけ。Paladin（エディタの参照）と Mage/Rogue（未使用）は入れない。
+        // Minion は雑魚の予備（ブロック人形が読めない時だけ）なので外した
         inline constexpr const char* kPreload[] = {
-            Quaternius_Ranger,
+            Shadowkin,   // プレイヤー（2026-10-04〜。レンジャーのアニメもこの中で読む）
             Kenney_BlockyZombie,
             KayKit_SkeletonWarrior,
         };
@@ -333,18 +343,18 @@ namespace Res
     // ========================================================
     namespace Tex
     {
-        // KayKit Skeletons 共通の色貼图（雑魚材質の t0）
+        // KayKit Skeletons 共通の色テクスチャ（雑魚材質の t0）
         inline constexpr const wchar_t* KayKit_SkeletonAlbedo =
             L"Assets/Model/KayKit_Skeletons/skeleton_texture.png";
 
-        // 雑魚（Kenney Blocky の L）の像素貼图
+        // 雑魚（Kenney Blocky の L）のピクセルテクスチャ
         inline constexpr const wchar_t* Kenney_BlockyZombieAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-l.png";
-        // 自爆兵（Kenney Blocky の G、赤い稲妻の機械人）。18 体とも同じメッシュ・同じ UV なので
+        // 自爆兵（Kenney Blocky の G、赤い稲妻のロボット）。18 体とも同じメッシュ・同じ UV なので
         // 雑魚のメッシュに貼り替えるだけで良い
         inline constexpr const wchar_t* Kenney_BlockyRobotAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-g.png";
-        // 分裂怪・分裂体（Kenney Blocky の D、黄色い衝突試験人形。2026-10-03）
+        // スプリッター・分裂体（Kenney Blocky の D、黄色い衝突試験人形。2026-10-03）
         inline constexpr const wchar_t* Kenney_BlockyDummyAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-d.png";
 
@@ -381,7 +391,7 @@ namespace Res
 		
 
 
-        // ---- Jiandu / JaneDoe 材质（Diffuse のみ）----
+        // ---- Jiandu / JaneDoe マテリアル（Diffuse のみ）----
         inline constexpr const wchar_t* JaneDoe_Body1_Albedo =
             L"Assets/Model/Jiandu/Tex/JaneDoe_Body_Map1_D.png";
         inline constexpr const wchar_t* JaneDoe_Body2_Albedo =
@@ -393,7 +403,7 @@ namespace Res
     }
 
     // ========================================================
-    // 道具のアイコン（136px。出典と許可は Assets/Texture/UI/Icons/README.txt）
+    // アイテムのアイコン（136px。出典と許可は Assets/Texture/UI/Icons/README.txt）
     // ========================================================
     namespace Icon
     {
@@ -417,7 +427,9 @@ namespace Res
         inline constexpr const wchar_t* ManaRegenUp = L"Assets/Texture/UI/Icons/ManaRegenUp.png";
         inline constexpr const wchar_t* JumpCountUp = L"Assets/Texture/UI/Icons/JumpCountUp.png";
         inline constexpr const wchar_t* SpellPowerUp = L"Assets/Texture/UI/Icons/SpellPowerUp.png";
-        inline constexpr const wchar_t* Magnet = L"Assets/Texture/UI/Icons/Magnet.png";   // 拾う磁石（場に落ちている物。背包の道具ではない）
+        inline constexpr const wchar_t* Magnet = L"Assets/Texture/UI/Icons/Magnet.png";   // 拾う磁石（場に落ちている物。バックパックのアイテムではない）
+        inline constexpr const wchar_t* ManaSurge = L"Assets/Texture/UI/Icons/ManaSurge.png";   // 魔力解放（Q）。HUD の魔法の欄の上の大きな欄
+        inline constexpr const wchar_t* Gold = L"Assets/Texture/UI/Icons/Gold.png";   // 金貨（HUD の MP バーの下）
     }
 
     // ========================================================
@@ -442,7 +454,7 @@ namespace Res
     // ========================================================
     namespace Fnt
     {
-        // 毛筆体 Yuji Syuku（OFL、2026-09-28 用户決定）。Tools/BuildSpriteFont.ps1 で TTF から作る（32px、BC2）。
+        // 毛筆体 Yuji Syuku（OFL、2026-09-28 ユーザー決定）。Tools/BuildSpriteFont.ps1 で TTF から作る（32px、BC2）。
         // 旧 NotoSansJP.spritefont は比較用に残してある
         inline constexpr const wchar_t* JP = L"Assets/Fonts/YujiSyuku.spritefont";
     }
@@ -464,7 +476,7 @@ namespace Res
         inline constexpr const char* ArcBoltHit = "Assets/Data/VFXData/ArcBoltHit.json";     // 命中（威力 0 の範囲の見た目）
         inline constexpr const char* HomingBoltHit = "Assets/Data/VFXData/HomingBoltHit.json";
         inline constexpr const char* ExpOrbTrail = "Assets/Data/VFXData/ExpOrbTrail.json";   // 吸い寄せ中の経験値オーブの尾（GPU）
-        inline constexpr const char* GoldenArrow = "Assets/Data/VFXData/GoldenArrow.json";   // 黄金の矢（矢の模型が弾と一緒に飛ぶ）
+        inline constexpr const char* GoldenArrow = "Assets/Data/VFXData/GoldenArrow.json";   // 黄金の矢（矢のモデルが弾と一緒に飛ぶ）
         inline constexpr const char* GoldenArrowHit = "Assets/Data/VFXData/GoldenArrowHit.json";
         inline constexpr const char* FireballHit = "Assets/Data/VFXData/FireballHit.json";
         inline constexpr const char* StoneShot = "Assets/Data/VFXData/StoneShot.json";
@@ -476,7 +488,7 @@ namespace Res
     }
 
     // ========================================================
-    // 粒子の貼图表（ParticleSheets）。添字 = 特効 json の "sheet" 番号なので並べ替え禁止。
+    // 粒子のテクスチャ表（ParticleSheets）。添字 = エフェクト json の "sheet" 番号なので並べ替え禁止。
     // 追加は末尾へ。最大 ParticleSheets::kMaxSheets 枚
     // ========================================================
     namespace ParticleSheet
@@ -485,7 +497,7 @@ namespace Res
             "Assets/Particles/Sheets/Legacy.json",           // 0: 旧 particlesSheet.jpg（6x6）
             "Assets/Particles/Sheets/KenneyParticles.json",  // 1: Kenney Particle Pack（白・染色用）
             "Assets/Particles/Sheets/KenneySmoke.json",      // 2: Kenney Smoke Particles（色付きの煙）
-            // 像素の連番（PVFX）は粒子ではなく Sprite entry で使う（Assets/VFX/SpriteSheet）
+            // ピクセルの連番（PVFX）は粒子ではなく Sprite entry で使う（Assets/VFX/SpriteSheet）
         };
     }
 
@@ -497,5 +509,6 @@ namespace Res
     {
         inline constexpr const char* HUD = "Assets/Data/HUD.json";
         inline constexpr const char* Camera = "Assets/Data/Camera.json";   // 戦闘カメラの調整（BattleCamera）
+        inline constexpr const char* Difficulty = "Assets/Data/Difficulty.json";   // 経過時間 → 難度の表（DifficultyCurve）
     }
 }

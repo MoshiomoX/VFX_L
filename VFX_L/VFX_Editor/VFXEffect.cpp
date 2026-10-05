@@ -1,6 +1,6 @@
 // ============================================================
 // VFXEffect.cpp
-// 状態機（HSM）駆動版
+// ステートマシン（HSM）駆動版
 // ============================================================
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXParticleEntry.h"
@@ -80,7 +80,7 @@ float VFXEffect::GetTotalDuration() const
 }
 
 // ============================================================
-// 状態機から呼ばれるメソッド（既存 Update から切り出し）
+// ステートマシンから呼ばれるメソッド（既存 Update から切り出し）
 // ============================================================
 
 void VFXEffect::AdvanceTime(float dt)
@@ -266,7 +266,7 @@ uint32_t VFXEffect::GetAliveCount(const VFXContext& ctx) const
 }
 
 // ============================================================
-// 状態機駆動（新 API）
+// ステートマシン駆動（新 API）
 // ============================================================
 
 void VFXEffect::InitStateMachine(const VFXContext& ctx)
@@ -296,7 +296,7 @@ void VFXEffect::Stop()
 }
 
 // ============================================================
-// SetLooping（状態機版：Playing 中に Loop OFF → Finishing へ遷移要求）
+// SetLooping（ステートマシン版：Playing 中に Loop OFF → Finishing へ遷移要求）
 // ============================================================
 
 void VFXEffect::SetLooping(bool loop)

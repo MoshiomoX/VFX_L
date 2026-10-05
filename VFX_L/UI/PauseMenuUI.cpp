@@ -68,7 +68,7 @@ void PauseMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std::sh
 
     sprite.Draw(white, { 0.0f, 0.0f }, m_Screen, dimColor);
 
-    // ---- 面板（幻想 UI：古金の二重線 + 四隅の組紐）----
+    // ---- パネル（幻想 UI：古金の二重線 + 四隅の組紐）----
     const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
     {
         UIDeco::PanelStyle ps;
@@ -96,7 +96,7 @@ void PauseMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std::sh
     m_List.Draw(sprite, text, white, 0.55f * k);
 
     // ---- 操作の案内 ----
-    const std::wstring hint = L"P / パッド Back で再開";
+    const std::wstring hint = L"Esc / パッド Back で再開";
     const float hintScale = 0.36f * k;
     const Vector2 hs = text.Measure(hint, hintScale);
     const float hintTop = m_PanelPos.y + pad + titleH + m_List.Height();

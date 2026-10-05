@@ -241,7 +241,7 @@ std::vector<Swarm::AreaDef> AreaProfileDB::BuildDefs(const SwarmVFXTable& vfxTab
         d.damage = p.damage;
         d.duration = p.duration;
         d.tickInterval = p.EffectiveTickInterval();
-        d.flags = p.Flags(false);   // 命中で出る範囲は玩家に付いて動かない
+        d.flags = p.Flags(false);   // 命中で出る範囲はプレイヤーに付いて動かない
         d.vfxType = vfxTable.IndexOf(FindVFXId(p.vfxFile));
         out.push_back(d);
     }

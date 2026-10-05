@@ -70,14 +70,14 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     std::vector<Swarm::VFXLightEntry> lights;
     std::vector<Swarm::VFXSpriteDef>  sprites;
     std::vector<const SpriteSheets::Info*> spriteSheetOf;   // sprites と同じ並び（cellUV を後で決める）
-    std::vector<const SpriteSheets::Info*> slices;          // 貼图配列の 1 枚ずつ
+    std::vector<const SpriteSheets::Info*> slices;          // テクスチャ配列の 1 枚ずつ
     std::vector<VFXLiquidDef>         liquids;
     std::vector<uint32_t>             recipeLiquid;          // recipes と同じ並び。def の番号 + 1、0 = 無し
 
     m_Index.clear();
     m_Warnings = 0;
 
-    // index 0 は「何も無い」配方。vfxType が引けない時の逃げ先
+    // index 0 は「何も無い」レシピ。vfxType が引けない時の逃げ先
     recipes.push_back({});
     recipeLiquid.push_back(0u);
     m_Index.push_back({ VFXId::None, 0 });
@@ -145,7 +145,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
                 timelineIgnored = true;
 
             GPUEmitter ge = pe->emitterData.ToGPU();
-            // メッシュ粒子の模型はここで登録する（表は場面の間ずっと使うので解除しない）。
+            // メッシュ粒子のモデルはここで登録する（表はシーンの間ずっと使うので解除しない）。
             // particles が無ければ ToGPU のまま（0 番 = 立方体）
             if (pe->emitterData.renderMode != 0 && particles)
                 ge.renderMode = ParticleRenderMode::Pack(
@@ -241,7 +241,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     if (!UploadImmutable(device, lights.data(), sizeof(Swarm::VFXLightEntry),
         (UINT)lights.size(), m_LightBuffer, m_LightSRV, "light")) return false;
 
-    // ---- Sprite：貼图配列（全部を一番大きい物の大きさに揃える）と 1 コマの uv ----
+    // ---- Sprite：テクスチャ配列（全部を一番大きい物の大きさに揃える）と 1 コマの uv ----
     m_SpriteDefCount = (int)sprites.size();
     if (!BuildSpriteArray(device, slices)) return false;
     for (size_t i = 0; i < sprites.size(); ++i)
@@ -278,10 +278,10 @@ uint32_t SwarmVFXTable::IndexOf(VFXId id) const
     return 0;
 }
 // ============================================================
-// Sprite の貼图配列
-// 全部を一番大きい貼图の大きさに揃え、各 1 枚の左上に詰める（余りは透明）。
+// Sprite のテクスチャ配列
+// 全部を一番大きいテクスチャの大きさに揃え、各 1 枚の左上に詰める（余りは透明）。
 // uv は SwarmVFXTable::Build が「コマの画素 / 1 枚の大きさ」で入れる。
-// 像素絵なので mipmap は作らない（最近傍で読む）。
+// ピクセルアートなので mipmap は作らない（最近傍で読む）。
 // 使う物が無くても 1x1 の透明を 1 枚作る（SRV を null にしない）
 // ============================================================
 bool SwarmVFXTable::BuildSpriteArray(ID3D11Device* device, const std::vector<const SpriteSheets::Info*>& sheets)

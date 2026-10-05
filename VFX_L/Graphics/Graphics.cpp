@@ -22,7 +22,7 @@
 
 namespace
 {
-    // 場面 RT の形式。粒子の加算が 1.0 を超えて残るようにする（bloom の入力）
+    // シーン RT の形式。粒子の加算が 1.0 を超えて残るようにする（bloom の入力）
     constexpr DXGI_FORMAT kSceneFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
     constexpr DXGI_FORMAT kDepthFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     constexpr DXGI_FORMAT kBackbufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -41,7 +41,7 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
 
     UINT flags = 0;
 #ifdef _DEBUG
-    // D3D の調試層は既定で切（2026-09-28 用户決定。Debug 構成で 1 フレーム約 2.5 ms かかっていた）。
+    // D3D のデバッグ層は既定で切（2026-09-28 ユーザー決定。Debug 構成で 1 フレーム約 2.5 ms かかっていた）。
     // SRV / UAV の HAZARD などの警告を見たい時は VFXL_D3D_DEBUG=1（VS なら「デバッグ → 環境」に書く）
     char debugLayer[8] = {};
     if (GetEnvironmentVariableA("VFXL_D3D_DEBUG", debugLayer, sizeof(debugLayer)) > 0 && debugLayer[0] != '0')
@@ -96,8 +96,8 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
 // flip 型（FLIP_DISCARD）+ 3 枚。blt 型の 1 枚だと、垂直同期中に 1 フレームが
 // 1 リフレッシュ（165Hz なら 6.06 ms）を超えた途端に次の垂直同期まで止まり、半分の fps に落ちる。
 // 3 枚あれば表示待ちの間も次を描けるので、実際の速さのまま出る。
-// flip 型の backbuffer は MSAA にできない（場面は HDR RT 側で MSAA → resolve 済みなので困らない）。
-// 撕裂の許可（ALLOW_TEARING）は垂直同期を切った時だけ Present で使う。
+// flip 型の backbuffer は MSAA にできない（シーンは HDR RT 側で MSAA → resolve 済みなので困らない）。
+// ティアリングの許可（ALLOW_TEARING）は垂直同期を切った時だけ Present で使う。
 // 作れない環境では旧来の blt 型に戻す
 // ============================================================
 bool Graphics::CreateSwapChain(HWND hWnd, int width, int height)
@@ -162,7 +162,7 @@ bool Graphics::CreateSwapChain(HWND hWnd, int width, int height)
         DX_CHECK(hr, "CreateSwapChain failed");
     }
 
-    // 全画面は F11 の枠無し窓で行う。Alt+Enter の排他全画面は撕裂の許可と両立しないので切る
+    // 全画面は F11 の枠無し窓で行う。Alt+Enter の排他全画面はティアリングの許可と両立しないので切る
     factory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER);
 
     std::cout << "[Graphics] swap chain: " << (m_FlipModel ? "flip discard x3" : "blt (fallback)")
@@ -183,7 +183,7 @@ bool Graphics::CreateSceneTargets(int width, int height)
     hr = m_Device->CreateRenderTargetView(backBuffer.Get(), nullptr, &m_BackbufferRTV);
     DX_CHECK(hr, "CreateRenderTargetView(backbuffer) failed");
 
-    // ---- 場面用 HDR RT（MSAA）----
+    // ---- シーン用 HDR RT（MSAA）----
     D3D11_TEXTURE2D_DESC td = {};
     td.Width = width;
     td.Height = height;
@@ -214,16 +214,32 @@ bool Graphics::CreateSceneTargets(int width, int height)
     dd.Height = height;
     dd.MipLevels = 1;
     dd.ArraySize = 1;
-    dd.Format = kDepthFormat;
+    // 2026-10-04：画面のアウトライン（PostProcess/Outline）が深度を読むので型無し + SRV。
+    // DSV は D24S8、SRV は深度 24bit だけ（R24_UNORM_X8）
+    dd.Format = DXGI_FORMAT_R24G8_TYPELESS;
     dd.SampleDesc.Count = m_SampleCount;
     dd.SampleDesc.Quality = m_SampleQuality;
     dd.Usage = D3D11_USAGE_DEFAULT;
-    dd.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    dd.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
     ComPtr<ID3D11Texture2D> depthTex;
     hr = m_Device->CreateTexture2D(&dd, nullptr, &depthTex);
     DX_CHECK(hr, "CreateTexture2D(depth) failed");
-    hr = m_Device->CreateDepthStencilView(depthTex.Get(), nullptr, &m_DepthStencilView);
+    D3D11_DEPTH_STENCIL_VIEW_DESC dsvd = {};
+    dsvd.Format = kDepthFormat;
+    dsvd.ViewDimension = (m_SampleCount > 1) ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D;
+    hr = m_Device->CreateDepthStencilView(depthTex.Get(), &dsvd, &m_DepthStencilView);
     DX_CHECK(hr, "CreateDepthStencilView failed");
+    D3D11_SHADER_RESOURCE_VIEW_DESC dsrv = {};
+    dsrv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+    if (m_SampleCount > 1)
+        dsrv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
+    else
+    {
+        dsrv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        dsrv.Texture2D.MipLevels = 1;
+    }
+    hr = m_Device->CreateShaderResourceView(depthTex.Get(), &dsrv, &m_DepthSRV);
+    DX_CHECK(hr, "CreateShaderResourceView(depth) failed");
 
     m_Viewport.Width = (float)width;
     m_Viewport.Height = (float)height;
@@ -271,7 +287,7 @@ void Graphics::BeginFrame()
 }
 
 // ============================================================
-// 場面描画の終わり: resolve → 合成 → backbuffer を bind
+// シーン描画の終わり: resolve → 合成 → backbuffer を bind
 // これ以降の描画（UI / ImGui）は backbuffer に乗る
 // ============================================================
 void Graphics::BeginUI()
@@ -390,7 +406,7 @@ void Graphics::Shutdown()
 
 // ============================================================
 // 今の段階に合った RT に戻す
-// 場面中に別の RT へ描いた後（影など）はここで HDR RT に戻る。
+// シーン中に別の RT へ描いた後（影など）はここで HDR RT に戻る。
 // UI 中に呼ばれたら backbuffer に戻る
 // ============================================================
 void Graphics::RestoreRenderTarget()
@@ -418,6 +434,7 @@ bool Graphics::Resize(int width, int height)
     m_SceneSRV.Reset();
     m_SceneResolved.Reset();
     m_DepthStencilView.Reset();
+    m_DepthSRV.Reset();
 
     HRESULT hr = m_SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, m_SwapChainFlags);
     if (FAILED(hr))

@@ -46,9 +46,9 @@ static void ProcessNode(
     {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 
-        // 色の貼図が無い材質（色だけで塗った低ポリ素材。Quaternius・dglopez など）は、
-        // 材質の拡散色を頂点色に焼く。PS は 貼図 × 頂点色 なので、焼かないと白くなる
-        // （Material::m_Color は描画で使っていない）。貼図のある材質は触らない
+        // 色のテクスチャが無い材質（色だけで塗った低ポリ素材。Quaternius・dglopez など）は、
+        // 材質の拡散色を頂点色に焼く。PS は テクスチャ × 頂点色 なので、焼かないと白くなる
+        // （Material::m_Color は描画で使っていない）。テクスチャのある材質は触らない
         // （Blender の FBX は拡散色 0.8 を書くことが多く、掛けると今の素材が暗くなる）
         Vector4 baseColor(1, 1, 1, 1);
         if (mesh->mMaterialIndex < materials.size() && materials[mesh->mMaterialIndex]
@@ -145,8 +145,8 @@ static const aiAnimation* FindAnimation(const aiScene* scene, const std::string&
 }
 
 // ============================================================
-// 節点アニメの 1 時刻を各節点の mTransformation へ書き込む。
-// 骨（skin weights）を持たず、部品を節点で動かす FBX（Kenney Blocky 等）の
+// ノードアニメの 1 時刻を各ノードの mTransformation へ書き込む。
+// 骨（skin weights）を持たず、部品をノードで動かす FBX（Kenney Blocky 等）の
 // 姿勢を焼く・部品アニメを表にするため。前後のキーを補間する
 // （位置・拡縮は線形、回転は球面線形）
 // ============================================================
@@ -224,7 +224,7 @@ static bool ApplyNodePose(aiScene* scene, const std::string& clip, float timeFra
     return true;
 }
 
-// ProcessNode と同じ順（節点の mesh → 子）で、submesh 毎の全体変換を集める
+// ProcessNode と同じ順（ノードの mesh → 子）で、submesh 毎の全体変換を集める
 static void CollectMeshGlobals(const aiNode* node, const Matrix& parentTransform, std::vector<Matrix>& out)
 {
     const Matrix globalTransform = ConvertMatrix(node->mTransformation) * parentTransform;
@@ -235,7 +235,7 @@ static void CollectMeshGlobals(const aiNode* node, const Matrix& parentTransform
 }
 
 // ============================================================
-// 部品アニメの表を作るための標本取り（Model.h の説明を参照）
+// 部品アニメの表を作るためのサンプリングり（Model.h の説明を参照）
 // ============================================================
 bool Model::SampleSubmeshTransforms(const std::string& filepath, const std::string& clip,
     const std::vector<float>& timeFracs, const Matrix& rootTransform,
@@ -248,7 +248,7 @@ bool Model::SampleSubmeshTransforms(const std::string& filepath, const std::stri
         aiProcess_FlipUVs |
         aiProcess_CalcTangentSpace |
         aiProcess_GenNormals |
-        aiProcess_MakeLeftHanded);   // Load と同じ前処理（節点の並びと座標系を揃える）
+        aiProcess_MakeLeftHanded);   // Load と同じ前処理（ノードの並びと座標系を揃える）
     if (!scene || !scene->mRootNode) return false;
 
     const aiAnimation* anim = FindAnimation(scene, clip);
@@ -312,7 +312,7 @@ bool Model::Load(ID3D11Device* device, const std::string& filepath, const LoadOp
             m_FileUnitScale = f * 0.01f;
     }
 
-    // 節点アニメの姿勢を焼く（importer が持つ scene を書き換える。この関数の中だけで使うので問題ない）
+    // ノードアニメの姿勢を焼く（importer が持つ scene を書き換える。この関数の中だけで使うので問題ない）
     if (!opt.poseClip.empty()
         && !ApplyNodePose(const_cast<aiScene*>(scene), opt.poseClip, opt.poseTimeFrac))
     {
@@ -337,7 +337,7 @@ bool Model::LoadFromScene(ID3D11Device* device, const aiScene* scene,
     // ---------- メッシュ + 包囲ボックス ----------
     m_BoundsMin = Vector3(FLT_MAX, FLT_MAX, FLT_MAX);
     m_BoundsMax = Vector3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-    // rootTransform は全節点の一番外側に掛かる（行ベクトル: v * 節点 * root）
+    // rootTransform は全ノードの一番外側に掛かる（行ベクトル: v * ノード * root）
     ProcessNode(scene->mRootNode, scene, device, m_SubMeshes, rootTransform,
         m_BoundsMin, m_BoundsMax, m_Materials);
     if (m_SubMeshes.empty())

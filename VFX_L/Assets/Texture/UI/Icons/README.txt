@@ -31,6 +31,8 @@ From game-icons.net  https://game-icons.net
   JumpCountUp.png     "Wingfoot"          by Lorc        https://game-icons.net/1x1/lorc/wingfoot.html
   SpellPowerUp.png    "Crystal wand"      by Lorc        https://game-icons.net/1x1/lorc/crystal-wand.html
   Magnet.png          "Magnet"            by Lorc        https://game-icons.net/1x1/lorc/magnet.html
+  ManaSurge.png       "Embrassed energy"  by Lorc        https://game-icons.net/1x1/lorc/embrassed-energy.html
+  Gold.png            "Two coins"         by Delapouite  https://game-icons.net/1x1/delapouite/two-coins.html
 
 Drawn for this project (by the same script, no license needed):
   Frame3x3.png        3x3 grid of squares

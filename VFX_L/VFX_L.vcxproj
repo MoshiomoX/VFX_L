@@ -163,11 +163,55 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Renderer\GrassRenderer.cpp" />
     <ClCompile Include="Graphics\Renderer\TerrainSurface.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneDebug.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBomber.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestPerf.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestMagnifier.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestLoco.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestCape.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestHills.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBalance.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestGold.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestCurve.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBoss.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestPickup.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestChain.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestEdge.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestEdgeRock.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBossExit.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestGround.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestPortal.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestLayers.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestAssets.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestUI.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestSlide.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestShapes.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestChest.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBeam.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestStuck.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestClip.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestKnock.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestSurge.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBeamTrack.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestDrop.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestGhost.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp" />
+    <ClCompile Include="Scene\CollisionTestScenePlayerPanels.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneWorldPanels.cpp" />
+    <ClCompile Include="Debug\AutoTest\BattleAutoTest.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestFeedback.cpp" />
     <ClCompile Include="Debug\StressTestTools.cpp" />
     <ClCompile Include="Debug\FrameProfiler.cpp" />
     <ClCompile Include="Enemy\MobSpawner.cpp" />
     <ClCompile Include="Enemy\StageDirector.cpp" />
     <ClCompile Include="Enemy\BossAttacks.cpp" />
+    <ClCompile Include="Enemy\DifficultyCurve.cpp" />
     <ClCompile Include="Enemy\EliteSpawner.cpp" />
     <ClCompile Include="Graphics\Light\SceneLighting.cpp" />
     <ClCompile Include="Graphics\Light\ShadowMap.cpp" />
@@ -188,6 +232,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Enemy\SpawnDirector.cpp" />
     <ClCompile Include="Graphics\Model\MaterialLoader.cpp" />
     <ClCompile Include="Graphics\PostProcess\Bloom.cpp" />
+    <ClCompile Include="Graphics\PostProcess\Outline.cpp" />
     <ClCompile Include="Item\BackpackLogic.cpp" />
     <ClCompile Include="Swarm\GPUReadback.cpp" />
     <ClCompile Include="Swarm\SwarmSystem.cpp" />
@@ -259,6 +304,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="ECS\System\RenderSystem.cpp" />
     <ClCompile Include="ECS\System\InteractionSystem.cpp" />
     <ClCompile Include="ECS\System\SkinnedAnimSystem.cpp" />
+    <ClCompile Include="ECS\System\ClothChainSystem.cpp" />
     <ClCompile Include="Graphics\Light\PointLightManager.cpp" />
     <ClCompile Include="VFX_Editor\VFXPointLightEntry.cpp" />
     <ClCompile Include="VFX_Editor\VFXTrailEntry.cpp" />
@@ -333,10 +379,13 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Renderer\TerrainSurface.h" />
     <ClInclude Include="Graphics\Renderer\FrustumPlanes.h" />
     <ClInclude Include="Debug\StressTestTools.h" />
+    <ClInclude Include="Debug\AutoTest\BattleAutoTest.h" />
+    <ClInclude Include="Debug\AutoTest\AutoTestCommon.h" />
     <ClInclude Include="Debug\FrameProfiler.h" />
     <ClInclude Include="Enemy\MobSpawner.h" />
     <ClInclude Include="Enemy\StageDirector.h" />
     <ClInclude Include="Enemy\BossAttacks.h" />
+    <ClInclude Include="Enemy\DifficultyCurve.h" />
     <ClInclude Include="Enemy\EliteSpawner.h" />
     <ClInclude Include="Graphics\Light\SceneLighting.h" />
     <ClInclude Include="Graphics\Light\ShadowMap.h" />
@@ -362,6 +411,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Enemy\SpawnDirector.h" />
     <ClInclude Include="Graphics\Model\MaterialLoader.h" />
     <ClInclude Include="Graphics\PostProcess\Bloom.h" />
+    <ClInclude Include="Graphics\PostProcess\Outline.h" />
     <ClInclude Include="Item\BackpackLogic.h" />
     <ClInclude Include="Swarm\GPUReadback.h" />
     <ClInclude Include="Swarm\SwarmSystem.h" />
@@ -446,6 +496,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="UI\MenuList.h" />
     <ClInclude Include="Item\ItemTypes.h" />
     <ClInclude Include="Player\LevelComponent.h" />
+    <ClInclude Include="Player\WalletComponent.h" />
     <ClInclude Include="UI\LevelUpSystem.h" />
     <ClInclude Include="UI\LevelUpUI.h" />
     <ClInclude Include="UI\UIDeco.h" />
@@ -457,6 +508,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Component\ModelComponent.h" />
     <ClInclude Include="Component\InteractableComponent.h" />
     <ClInclude Include="Component\SkinnedAnimComponent.h" />
+    <ClInclude Include="Component\ClothChainComponent.h" />
     <ClInclude Include="Particle\ParticleDeadList.h" />
     <ClInclude Include="Component\PhysicsMath.h" />
     <ClInclude Include="ECS\System\PhysicsSystem.h" />
@@ -478,6 +530,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="ECS\System\RenderSystem.h" />
     <ClInclude Include="ECS\System\InteractionSystem.h" />
     <ClInclude Include="ECS\System\SkinnedAnimSystem.h" />
+    <ClInclude Include="ECS\System\ClothChainSystem.h" />
     <ClInclude Include="Graphics\Light\PointLightManager.h" />
     <ClInclude Include="VFX_Editor\VFXPointLightEntry.h" />
     <ClInclude Include="VFX_Editor\VFXTrailEntry.h" />
@@ -490,6 +543,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Shader\Shader.h" />
     <ClInclude Include="Graphics\Shader\ShaderPath.h" />
     <ClInclude Include="Graphics\Model\Skeleton.h" />
+    <ClInclude Include="Graphics\Model\BoneMaps.h" />
     <ClInclude Include="Graphics\Model\SkinnedModel.h" />
     <ClInclude Include="Graphics\Model\SkinnedModelGPU.h" />
     <ClInclude Include="Graphics\Mesh\SkinnedVertex.h" />
@@ -1142,6 +1196,20 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/PostProcess/%(Filename).cso</ObjectFileOutput>
     </FxCompile>
     <FxCompile Include="Shader\PostProcess\CompositePS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/PostProcess/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/PostProcess/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/PostProcess/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/PostProcess/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\OutlinePS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>

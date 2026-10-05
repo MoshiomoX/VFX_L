@@ -57,7 +57,7 @@ void GPUReadback::RequestCopy(ID3D11DeviceContext* ctx, ID3D11Buffer* src)
 // 3 枚ある以上、そこへの Copy は 2 フレーム前に発行済みで、
 // 普通は完了している。それでも DO_NOT_WAIT を外さない:
 //   コマ落ちや GPU 側の詰まりで完了していない可能性は残るし、
-//   その時に待ってしまうと管線が切れる。
+//   その時に待ってしまうとパイプラインが切れる。
 // ============================================================
 bool GPUReadback::TryRead(ID3D11DeviceContext* ctx, SwarmCounters& out)
 {
