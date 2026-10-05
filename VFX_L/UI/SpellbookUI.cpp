@@ -776,6 +776,11 @@ void SpellbookUI::TryGrab()
     auto mp = input.GetMousePos();
     const int i = HitTest(Vector2(mp.x, mp.y));
     if (i < 0) return;
+    GrabBody(i);
+}
+
+void SpellbookUI::GrabBody(int i)
+{
     const auto& b = m_Bodies[i];
 
     // ---- DragContext へ引き渡す ----
@@ -797,6 +802,29 @@ void SpellbookUI::TryGrab()
 
     m_Bodies.erase(m_Bodies.begin() + i);
     Wake();
+}
+
+// ============================================================
+// パッド操作（BackpackPadControl）用の読み取りと掴み
+// ============================================================
+bool SpellbookUI::GetBodyInfo(int i, uint32_t& uid, Vector2& pos) const
+{
+    if (i < 0 || i >= (int)m_Bodies.size()) return false;
+    uid = m_Bodies[i].uid;
+    pos = m_Bodies[i].pos;
+    return true;
+}
+
+bool SpellbookUI::GrabByUid(uint32_t uid)
+{
+    if (!m_Drag || m_Drag->IsActive()) return false;
+    for (int i = 0; i < (int)m_Bodies.size(); ++i)
+    {
+        if (m_Bodies[i].uid != uid) continue;
+        GrabBody(i);
+        return true;
+    }
+    return false;
 }
 
 // ============================================================
@@ -831,11 +859,20 @@ void SpellbookUI::Update(const SpellbookComponent& book, const BackpackComponent
         }
     }
 
-    TryGrab();
+    if (m_MouseEnabled) TryGrab();
 
-    // ---- マウスが乗っている物（tooltip 用）----
+    // ---- マウスが乗っている物（tooltip 用）。パッド操作中は選んでいる物 ----
     m_HasHover = false;
-    if (!(m_Drag && m_Drag->IsActive()) && !ImGui::GetIO().WantCaptureMouse)
+    if (!m_MouseEnabled)
+    {
+        for (const auto& b : m_Bodies)
+        {
+            if (b.uid != m_PadSelUid) continue;
+            m_HoverId = b.id;
+            m_HasHover = !(m_Drag && m_Drag->IsActive());
+        }
+    }
+    else if (!(m_Drag && m_Drag->IsActive()) && !ImGui::GetIO().WantCaptureMouse)
     {
         const auto mp = InputManager::Get().GetMousePos();
         const int i = HitTest(Vector2(mp.x, mp.y));
@@ -881,19 +918,40 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
     // ---- 中身 ----
     const float cellPx = CellPx();
     const float halfPx = cellPx * 0.5f;
-    const float th = (std::max)(1.0f, cellPx * 0.05f);
+    const float thBase = (std::max)(1.0f, cellPx * 0.05f);
 
-    for (const auto& b : m_Bodies)
+    // パッドで選んでいる物は最後に（他の物の上に）、少し持ち上げて明るい縁で描く
+    const uint32_t padSel = m_MouseEnabled ? 0 : m_PadSelUid;
+    BodyState lifted;
+    for (int pass = 0; pass < 2; ++pass)
+    for (const auto& src : m_Bodies)
     {
-        const ItemCommon* c = ItemDatabase::GetCommon(b.id);
+        const bool selected = (padSel != 0 && src.uid == padSel);
+        if (selected != (pass == 1)) continue;
+
+        const ItemCommon* c = ItemDatabase::GetCommon(src.id);
         if (!c) continue;
+
+        if (selected)
+        {
+            lifted = src;
+            lifted.pos.y -= cellPx * 0.16f;
+        }
+        const BodyState& b = selected ? lifted : src;
+        const float th = selected ? (std::max)(2.0f, cellPx * 0.10f) : thBase;
 
         // バックパックと同じ「色ガラス」：アイテムの色を沈めた地 + 外周だけ種類の色の縁
         // （同じ物のマス同士の境目には縁を引かないので、一続きの形に見える）
         Vector4 edge = UIDeco::CategoryColor(c->category);
         edge.w = 0.95f;
-        const Vector4 glass = { c->color.x * ShapeSprite::kGlassDim, c->color.y * ShapeSprite::kGlassDim,
-            c->color.z * ShapeSprite::kGlassDim, 1.0f };
+        float dim = ShapeSprite::kGlassDim;
+        if (selected)
+        {
+            const float pulse = 0.75f + 0.25f * std::sin(UIDeco::Clock() * 6.0f);
+            edge = { 1.6f * pulse, 1.45f * pulse, 0.95f * pulse, 1.0f };
+            dim *= 2.2f;
+        }
+        const Vector4 glass = { c->color.x * dim, c->color.y * dim, c->color.z * dim, 1.0f };
 
         for (int k = 0; k < (int)b.cells.size(); ++k)
         {

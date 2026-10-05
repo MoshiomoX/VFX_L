@@ -192,6 +192,19 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         }
     }
 
+    // ---- 1c. パッドの B で閉じる要求（前のフレーム）----
+    // 押したフレームに閉じると、同じフレームの gameplay が B を「近くの物を使う」として拾ってしまう
+    if (m_PadClosePending)
+    {
+        m_PadClosePending = false;
+        if (m_Stack.Top() == UILayer::Backpack)
+        {
+            m_Stack.Pop(UILayer::Backpack);
+            m_Drag.Reset();
+            AudioSystem::Get().Play("ui_close");
+        }
+    }
+
     // ---- 2. グリッドの開閉 ----
     // 何も開いていない時か、自分が一番上の時だけ Tab を受ける。
     // 三択が乗っている間はグリッドを閉じられない。
@@ -201,6 +214,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     if (canToggleBackpack && InputMap::GetBackpackToggle())
     {
         m_Stack.Toggle(UILayer::Backpack);
+        if (!m_Stack.IsOpen(UILayer::Backpack)) m_Drag.Reset();   // 掴んだまま閉じたら元へ戻す
         AudioSystem::Get().Play(m_Stack.IsOpen(UILayer::Backpack) ? "ui_open" : "ui_close");
     }
 
@@ -248,8 +262,25 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 
         // 箱が先（掴み開始）、グリッドが後（ドラッグの継続と着地）。
         // ドラッグの終了は常に BackpackUI 側が行う
+        //
+        // 最後に触った機器がパッドなら、マウスの処理の代わりにパッド操作（マスに吸い付くカーソル）を回す。
+        // 掴んだまま機器を替えたら取り消す（マウス側は「ボタンを離した = 置く」なので、そのまま渡すと勝手に置かれる）
+        const bool wasPad = m_Pad.IsActive();
+        const bool pad = m_Pad.DetectDevice();
+        if (pad != wasPad) m_Drag.Reset();
+
+        m_Spellbook.SetMouseEnabled(!pad);
         m_Spellbook.Update(reg.Get<SpellbookComponent>(player), bp, dt);
-        m_Backpack.HandleInput(bp);
+        if (pad)
+        {
+            if (m_Pad.Update(bp, m_Backpack, m_Spellbook, m_Drag, dt))
+                m_PadClosePending = true;
+            InputManager::Get().RequestHideCursor();
+        }
+        else
+        {
+            m_Backpack.HandleInput(bp);
+        }
         break;
     }
 
@@ -341,8 +372,11 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     bool tooltip = false;
     // 置いてある魔法の数字は能力アップ「魔法威力」込み（集約と同じ）
     const float spellPower = reg.Has<PlayerStatsComponent>(player) ? reg.Get<PlayerStatsComponent>(player).spellPower : 1.0f;
+    // パッド操作中はカーソルを止めて少し経ってから、指している物のそばに出す
+    const bool pad = m_Pad.IsActive();
     if (m_Stack.CanReceiveInput(UILayer::Backpack) && !m_Drag.IsActive()
-        && reg.Has<BackpackComponent>(player) && !ImGui::GetIO().WantCaptureMouse)
+        && reg.Has<BackpackComponent>(player)
+        && (pad ? m_Pad.TooltipReady() : !ImGui::GetIO().WantCaptureMouse))
     {
         const auto& bp = reg.Get<BackpackComponent>(player);
         const int item = m_Backpack.GetHoverItemIndex();
@@ -365,6 +399,7 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     {
         const auto mp = InputManager::Get().GetMousePos();
         anchor = { mp.x, mp.y };
+        if (pad) anchor = m_Pad.TooltipAnchor();
     }
     if (m_TestTooltipItem >= 0 && reg.Has<BackpackComponent>(player))
     {
@@ -459,6 +494,8 @@ void GameUI::DrawModals(Registry& reg, Entity player)
             {
                 m_Spellbook.Draw(m_Sprite);   // 箱が下、グリッドとドラッグ中が上
                 m_Backpack.Draw(m_Sprite, reg.Get<BackpackComponent>(player));
+                if (m_Pad.IsActive() && m_Stack.Top() == UILayer::Backpack)
+                    m_Pad.Draw(m_Sprite, m_Text, m_Backpack, m_Drag, { m_ScreenW, m_ScreenH });
             }
             break;
 
@@ -526,6 +563,7 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
 
     ImGui::Text("Open : %s   (Tab / I / E / Start)",
         m_Stack.IsOpen(UILayer::Backpack) ? "YES" : "no");
+    ImGui::Text("Device : %s", m_Pad.IsActive() ? "pad (A grab/place, B back, LB/RB rotate, X return, Y box)" : "mouse");
     ImGui::Checkbox("Pause On Open", &m_PauseOnBackpack);
     ImGui::TextDisabled("Grab from the box, drop on the grid. RMB: remove");
     ImGui::TextDisabled("Wheel/R: rotate while dragging");

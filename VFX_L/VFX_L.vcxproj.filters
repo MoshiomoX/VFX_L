@@ -271,6 +271,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPoisonPerf.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -550,6 +553,15 @@
     <ClCompile Include="UI\BackpackUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\BackpackPadControl.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPadBag.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClInclude Include="UI\BackpackPadControl.h">
+      <Filter>UI</Filter>
+    </ClInclude>
     <ClCompile Include="Item\ItemDatabase.cpp">
       <Filter>Item</Filter>
     </ClCompile>
@@ -621,6 +633,33 @@
     </ClCompile>
     <ClCompile Include="World\TerrainGenerator.cpp">
       <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\TerrainBuild.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapData.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditMode.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditModeUI.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditModeView.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMapEdit.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneTerrain.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMapIO.cpp">
+      <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="World\StageConfig.cpp">
       <Filter>World</Filter>
@@ -1242,6 +1281,21 @@
     </ClInclude>
     <ClInclude Include="World\TerrainGenerator.h">
       <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\TerrainBuild.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\MapData.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\MapEdit.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\MapEditMode.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug\AutoTest\AutoTestMapEdit.h">
+      <Filter>Debug\AutoTest</Filter>
     </ClInclude>
     <ClInclude Include="World\StageConfig.h">
       <Filter>World</Filter>

@@ -1,0 +1,130 @@
+// ============================================================
+// MapEditMode.h
+// ステージ編集シーン（F6）の「戦闘の地図」モード（2026-10-05、地図エディタの 2 歩目）。
+//
+// 戦闘の地図（World/MapData、Assets/Data/MapData/<名前>.vmap）を開いて、置物を編集する:
+//   選ぶ   … 左クリック（光線 × 回転込みの包囲箱）
+//   動かす … 移動ギズモ（Unity と同じ矢印）。水平に動かすと地面の高さに付いていく
+//   回す / 拡縮 / 衝突の付け方 … 右の窓（置物 1 個の物だけ。R キーでも回せる）
+//   足す   … 素材一覧（LevelEditorScene の Level Assets）で選んでクリック
+//   消す   … Delete
+//   機能付きの置き物（報酬の箱・Boss の門）… 窓のボタンで足す。戦闘シーンが中身ごと作る
+// 動かす度にその物の衝突の箱と塞いだマス（雑魚の通行）を作り直す（World/MapEdit）。
+// 選んだ物の衝突は緑の線、塞いだマスは赤い枠で見せる。
+//
+// 地形そのもの（床・台地・坂・外周）は見た目だけ建てて表示する（編集は 4 歩目）。
+// LevelEditorScene が持ち、カメラ・素材一覧・置く物の向き / 大きさはシーンの物を借りる
+// ============================================================
+#pragma once
+#include "ECS/Registry.h"
+#include "World/GridWorld.h"
+#include "World/MapData.h"
+#include "World/MapEdit.h"
+#include <SimpleMath.h>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+class Model;
+class Renderer;
+class FlyCamera;
+
+class MapEditMode
+{
+public:
+    using Vector3 = DirectX::SimpleMath::Vector3;
+    using Matrix = DirectX::SimpleMath::Matrix;
+
+    bool IsActive() const { return m_Active; }
+    void SetActive(bool on) { m_Active = on; }
+    void Shutdown();
+
+    // 置こうとしている素材（シーンの素材一覧で選んだ物）。path が null なら選択モード
+    struct PlaceRequest
+    {
+        const std::string* path = nullptr;
+        float scale = 1.0f;     // ファイルの単位を m に直した後に掛ける倍率
+        float yawDeg = 0.0f;
+    };
+
+    // 操作（ギズモ・クリック・ショートカット）。置いたフレームは true（シーンが次の向き・大きさを振り直す）
+    bool Update(FlyCamera& camera, const PlaceRequest& place, float snap);
+    void Render(Renderer& renderer);
+    void DrawWindow(FlyCamera& camera);
+
+    // 置くのを止める要求（X キー）。シーンが素材の選択を外す
+    bool ConsumeStopPlacing() { const bool v = m_StopPlacing; m_StopPlacing = false; return v; }
+
+    // TEMP-TEST: 自動テスト（VFXL_MAPEDIT_AUTOTEST）
+    bool TestOpen(uint32_t seed, int biome);              // seed から作って開く
+    MapData::Map& TestMap() { return m_Map; }
+    void TestSelectGroup(uint32_t group) { m_Sel = { SelType::Group, group, -1 }; }
+    void TestSelectPlacement(int i) { m_Sel = { SelType::Placement, 0, i }; }
+    void TestFocus(FlyCamera& camera) { FocusSelection(camera); }
+    bool TestApplyMove(const Vector3& delta) { return ApplyMove(delta); }
+    int  TestAddPlacement(MapData::PlaceType type, const Vector3& pos) { return AddPlacement(type, pos); }
+    std::shared_ptr<Model> TestModel(const std::string& path) { return GetModel(path); }
+
+private:
+    static constexpr float kCrateSize = 0.9f;     // RewardCrateSystem::m_Size の既定
+    static constexpr float kGateHeight = 5.6f;    // StageDirector::portalHeight の既定
+
+    enum class SelType { None, Group, Placement };
+    struct Selection { SelType type = SelType::None; uint32_t group = 0; int placement = -1; };
+
+    // ---- 地図 ----
+    bool Generate(uint32_t seed, int biome);
+    bool Load(const std::string& name);
+    bool Save();
+    void RebuildView();                      // 地形の見た目（床・合成モデル）を建て直す
+    void SetStatus(const std::string& msg);
+
+    // ---- 選択・編集 ----
+    bool RayGround(Vector3& hit) const;      // マウスの光線と地面（高さ場）
+    Selection Pick();
+    bool SelectionPos(Vector3& pos) const;
+    bool ApplyMove(const Vector3& delta);    // 選択中を動かす（衝突・塞ぐマスも）
+    void RotateSelection(float deg);
+    void DeleteSelection();
+    void DuplicateSelection();
+    void FocusSelection(FlyCamera& camera);
+    void RefreshCollision(uint32_t group, MapEdit::Collision mode);
+    int  AddPlacement(MapData::PlaceType type, const Vector3& pos);
+    Vector3 ScreenCenterGround(FlyCamera& camera) const;
+
+    // ---- 表示 ----
+    std::shared_ptr<Model> GetModel(const std::string& path);
+    std::shared_ptr<Model> PlacementModel(const MapData::Placement& p, Matrix& outWorld);
+    Matrix PropWorld(const MapData::Prop& p) const;
+    void DrawSelectionMarks();
+    void DrawInspector(FlyCamera& camera);
+
+    bool m_Active = false;
+    bool m_Loaded = false;
+    bool m_Dirty = false;
+
+    MapData::Map m_Map;
+    Registry     m_Reg;                      // 地形の見た目の実体だけ
+    GridWorld    m_Grid;
+    std::vector<Entity> m_Terrain;
+
+    Selection m_Sel;
+    bool m_GroundFollow = true;              // 水平に動かした時、地面の高さに付いていく
+    bool m_ShowCollision = true;
+    bool m_StopPlacing = false;
+
+    // 置く物（マウスの下）
+    bool    m_GhostValid = false;
+    Vector3 m_GhostPos = { 0, 0, 0 };
+    PlaceRequest m_Ghost;
+    std::string  m_GhostPath;
+
+    std::unordered_map<std::string, std::shared_ptr<Model>> m_Models;
+
+    char m_NameBuf[64] = "map01";
+    int  m_GenSeed = 12345;
+    int  m_GenBiome = 0;
+    std::vector<std::string> m_Files;
+    std::string m_Status;
+};

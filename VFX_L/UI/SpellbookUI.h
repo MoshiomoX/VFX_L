@@ -84,6 +84,16 @@ public:
     // マウスが乗っている箱の中の物（tooltip 用）。無ければ false
     bool GetHoveredItem(ItemID& out) const { out = m_HoverId; return m_HasHover; }
 
+    // ---- パッド操作（BackpackPadControl から）----
+    // false の間はマウスを見ない（掴み・hover をパッドの選択に任せる）
+    void SetMouseEnabled(bool on) { m_MouseEnabled = on; }
+    // 箱の中の i 番目の物の uid と重心の位置。範囲外は false
+    bool GetBodyInfo(int i, uint32_t& uid, DirectX::SimpleMath::Vector2& pos) const;
+    // パッドで選んでいる物（0 = 無し）。明るい縁で少し浮かせて描き、tooltip の対象にもなる
+    void SetPadSelection(uint32_t uid) { m_PadSelUid = uid; }
+    // uid の物を掴んで DragContext へ渡す（マウスの掴みと同じ）。無ければ false
+    bool GrabByUid(uint32_t uid);
+
 private:
     // ============================================================
     // 箱の中の1個。真値ではなく所持数の視覚表現。
@@ -138,6 +148,7 @@ private:
     void SyncBodies(const SpellbookComponent& book, const BackpackComponent& bp);
     void StepPhysics(float dt);
     void TryGrab();
+    void GrabBody(int index);   // body を消して DragContext へ引き渡す
     void SpawnBody(ItemID id);
     void Wake() { m_Asleep = false; m_SleepTimer = 0.0f; m_QuietTimer = 0.0f; m_QuietV = 1.0e3f; m_QuietW = 1.0e3f; }
     float CellPx() const { return m_CellSize * boxScale; }
@@ -164,6 +175,9 @@ private:
 
     ItemID m_HoverId = ItemID::Fireball;   // m_HasHover の時だけ意味がある
     bool   m_HasHover = false;
+
+    bool     m_MouseEnabled = true;   // SetMouseEnabled
+    uint32_t m_PadSelUid = 0;         // SetPadSelection
 
     // 箱の内寸（Layout で確定。枠の内側）
     DirectX::SimpleMath::Vector2 m_BoxMin = { 0, 0 };

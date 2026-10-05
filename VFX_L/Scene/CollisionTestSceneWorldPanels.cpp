@@ -1,4 +1,4 @@
-// ============================================================
+    // ============================================================
 // CollisionTestSceneWorldPanels.cpp
 // CollisionTestScene: ImGui panels (Swarm (GPU) / Terrain)
 // ============================================================
@@ -335,33 +335,35 @@ void CollisionTestScene::DrawTerrainPanel()
 
         if (ImGui::Button("Regenerate"))
         {
-            // 古い地形を全部消して作り直す。
-            // ※GPU 側は KillAll で全消し（雑魚・弾・オーブ）。
-            //   counter は残るので撃破数などの累計は続く
-            for (Entity e : m_Terrain)
-                if (m_Registry.IsValid(e)) m_Registry.Destroy(e);
-            m_Terrain.clear();
-            m_Grid.ClearAll();
-            m_PropBlocks.clear();   // 新しい格子に古い置物のマスを戻さない
-
-            auto* device = Application::Get().GetGraphics().GetDevice();
-            std::vector<uint8_t> grassMask;
-            m_Torches.clear();
-            TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches,
-                &m_TerrainLayout);
-            BlockUnreachablePockets();
-            m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
-            m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
-
-            // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
-            m_Swarm.KillAll();
-            m_Swarm.UploadTerrain(m_Grid);
-            m_Swarm.BuildVFXTable();
-            RespawnElites();
-            RespawnCrates();   // 古い位置は新しい壁の中かもしれない
+            // seed と上の設定から作り直す（読み込んだ地図は外す）。中身は CollisionTestSceneTerrain.cpp
+            m_MapFile.clear();
+            MapData::PlayOverride().clear();
+            RebuildTerrain();
         }
         ImGui::SameLine();
         ImGui::TextDisabled("same seed = same map");
+
+        // ---- 地図のデータ（2026-10-05、World/MapData）----
+        // 今の地形（生成した物でも読んだ物でも）をそのまま保存し、読み込めば乱数なしで同じ地図になる
+        ImGui::SeparatorText("Map Data (Assets/Data/MapData/<name>.vmap)");
+        ImGui::Text("Current : %s", m_MapLoaded ? m_MapFile.c_str() : "(generated from seed)");
+        ImGui::Text("%zu boxes, %zu hulls, %zu visuals, %zu props, %zu blocks",
+            m_TerrainMap.boxes.size(), m_TerrainMap.hulls.size(), m_TerrainMap.visuals.size(),
+            m_TerrainMap.props.size(), m_TerrainMap.blocks.size());
+        ImGui::InputText("Map Name", m_MapNameBuf, sizeof(m_MapNameBuf));
+        if (ImGui::Button("Save Map") && m_MapNameBuf[0])
+        {
+            BakePlacements();   // 地図にまだ無ければ、今の箱と Boss の門の位置を入れる（F6 で動かせる）
+            MapData::Save(m_MapNameBuf, m_TerrainMap);
+        }
+        ImGui::TextDisabled("Edit props / crates / boss gate in F6 -> Battle Map");
+        ImGui::SameLine();
+        if (ImGui::Button("Load Map") && m_MapNameBuf[0])
+        {
+            m_MapFile = m_MapNameBuf;
+            RebuildTerrain();   // 読めなければ seed から生成する（Current の表示で分かる）
+        }
+        ImGui::SetItemTooltip("Per-stage maps: StageDef::mapFile (World/StageConfig). VFXL_MAP=<name> overrides at start");
 
         // 木・岩・茂み・草の描画（モデル毎の instanced + 視錐台 / 距離の間引き）
         ImGui::Separator();

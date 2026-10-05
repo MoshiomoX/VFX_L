@@ -45,6 +45,9 @@ BattleAutoTest::BattleAutoTest(CollisionTestScene& scene)
     , m_GameUI(scene.m_GameUI)
     , m_TerrainConfig(scene.m_TerrainConfig)
     , m_TerrainLayout(scene.m_TerrainLayout)
+    , m_TerrainMap(scene.m_TerrainMap)
+    , m_MapFile(scene.m_MapFile)
+    , m_Terrain(scene.m_Terrain)
     , m_StageIndex(scene.m_StageIndex)
     , m_PortalVfx(scene.m_PortalVfx)
     , m_RunTime(scene.m_RunTime)
@@ -85,4 +88,9 @@ std::shared_ptr<BattleAutoTest> BattleAutoTest::Create(const char* name, Collisi
         if (std::strcmp(n, "feedback") == 0) fallback = factory;
     }
     return fallback ? fallback(scene) : nullptr;
+}
+
+void BattleAutoTest::RebuildTerrain()
+{
+    m_Scene.RebuildTerrain();
 }

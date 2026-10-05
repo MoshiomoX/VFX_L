@@ -39,7 +39,9 @@ public:
     // 門の面は faceToward（無ければ center）の方を向く
     void SpawnPortal(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& center, uint32_t seed,
         InteractionSystem& interaction, const DirectX::SimpleMath::Vector3* preferred = nullptr,
-        const DirectX::SimpleMath::Vector3* faceToward = nullptr);
+        const DirectX::SimpleMath::Vector3* faceToward = nullptr,
+        const DirectX::SimpleMath::Vector4* fixed = nullptr);
+    // fixed: 地図に置いてある門（MapData::Placement。xyz = 口の真ん中の地面、w = 向きの度）。あればその通りに置く
     // 使われた物が門なら Boss を呼ぶ（呼んだら true）。門は使えなくなる（見た目は残す）
     bool TryUsePortal(Registry& reg, Entity used, const GridWorld& grid, const DirectX::SimpleMath::Vector3& player,
         const MobSpawner& mobs, SwarmSystem& swarm, InteractionSystem& interaction);

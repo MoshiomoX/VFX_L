@@ -190,7 +190,8 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
 // 乱数は地形の seed から（同じ seed なら同じ場所）。周り 3x3 も歩けて平らな所
 // ============================================================
 void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vector3& center, uint32_t seed,
-    InteractionSystem& interaction, const Vector3* preferred, const Vector3* faceToward)
+    InteractionSystem& interaction, const Vector3* preferred, const Vector3* faceToward,
+    const DirectX::SimpleMath::Vector4* fixed)
 {
     if (m_Portal != EntityTraits::NULL_ENTITY && reg.IsValid(m_Portal)) reg.Destroy(m_Portal);
     m_Portal = EntityTraits::NULL_ENTITY;
@@ -214,23 +215,9 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
     std::uniform_real_distribution<float> angleDist(0.0f, DirectX::XM_2PI);
     std::uniform_real_distribution<float> radiusDist(portalMinDist, (std::max)(portalMinDist, portalMaxDist));
 
-    // マス (gx, gz) の周り 3x3 が歩けて平らなら門を置いて true
-    auto tryPlace = [&](int gx, int gz) -> bool
+    // 門の実体（pos = 口の真ん中の地面、yawDeg = 向き）
+    auto placeAt = [&](const Vector3& pos, float yawDeg)
     {
-        Vector3 pos = grid.CellToWorld(gx, gz);
-        pos.y = grid.SampleHeight(pos.x, pos.z);
-        bool ok = true;
-        for (int dz = -1; dz <= 1 && ok; ++dz)
-            for (int dx = -1; dx <= 1 && ok; ++dx)
-            {
-                if (!grid.IsWalkable(gx + dx, gz + dz)) { ok = false; break; }
-                const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
-                ok = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.6f;   // 起伏の斜面は可（2026-10-04、0.2 → 0.6）
-            }
-        if (!ok) return false;
-
-        // 門の面（拱の局所 +Z）を face の方へ向ける（通り抜ける向きが近づくプレイヤーから見える）
-        const float yawDeg = DirectX::XMConvertToDegrees(std::atan2(face.x - pos.x, face.z - pos.z));
         const Matrix rot = Matrix::CreateRotationY(DirectX::XMConvertToRadians(yawDeg));
         // 包囲箱の xz の真ん中を pos に、底を地面に合わせる（モデルの原点の位置に頼らない）
         const Vector3 midXZ((lo.x + hi.x) * 0.5f * scale, 0.0f, (lo.z + hi.z) * 0.5f * scale);
@@ -276,8 +263,35 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         m_Portal = e;
         std::cout << "[Stage] boss portal at " << pos.x << ", " << pos.y << ", " << pos.z
             << " (" << (pos - center).Length() << " m from the start)" << std::endl;
+    };
+
+    // マス (gx, gz) の周り 3x3 が歩けて平らなら門を置いて true
+    auto tryPlace = [&](int gx, int gz) -> bool
+    {
+        Vector3 pos = grid.CellToWorld(gx, gz);
+        pos.y = grid.SampleHeight(pos.x, pos.z);
+        bool ok = true;
+        for (int dz = -1; dz <= 1 && ok; ++dz)
+            for (int dx = -1; dx <= 1 && ok; ++dx)
+            {
+                if (!grid.IsWalkable(gx + dx, gz + dz)) { ok = false; break; }
+                const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
+                ok = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.6f;   // 起伏の斜面は可（2026-10-04、0.2 → 0.6）
+            }
+        if (!ok) return false;
+
+        // 門の面（拱の局所 +Z）を face の方へ向ける（通り抜ける向きが近づくプレイヤーから見える）
+        const float yawDeg = DirectX::XMConvertToDegrees(std::atan2(face.x - pos.x, face.z - pos.z));
+        placeAt(pos, yawDeg);
         return true;
     };
+
+    // 地図に門が置いてあればその通りに（地図エディタ）
+    if (fixed)
+    {
+        placeAt({ fixed->x, fixed->y, fixed->z }, fixed->w);
+        return;
+    }
 
     // 指定の場所の近く：10 マス以内のマスを近い順に
     if (preferred)

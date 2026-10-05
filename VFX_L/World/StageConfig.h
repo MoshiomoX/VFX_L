@@ -18,6 +18,10 @@ struct StageDef
     TerrainGenerator::Biome biome = TerrainGenerator::Biome::Grassland;
     SceneLighting::Preset light;
 
+    // 保存した地図（Assets/Data/MapData/<名前>.vmap、World/MapData）。nullptr = 毎回 seed から生成（2026-10-05）。
+    // 地図を使う時、地形の見た目（Biome）と seed は地図の物になる
+    const char* mapFile = nullptr;
+
     // 草（GrassRenderer）。砂漠は疎らな枯れ草、遺跡は無し
     bool  grass = true;
     float grassSpacing = 0.25f;

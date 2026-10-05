@@ -107,6 +107,17 @@ public:
         m_Walkable[(size_t)gz * m_GridW + gx] = walkable ? 1 : 0;
     }
 
+    // 通行の表を丸ごと（地図の保存 / 読み込み。MapData）
+    const std::vector<uint8_t>& Walkable() const { return m_Walkable; }
+    // 通行と高さ場を丸ごと入れ替える。大きさが合わなければ何もしない
+    bool SetData(const std::vector<uint8_t>& walkable, const std::vector<float>& heights)
+    {
+        if (walkable.size() != m_Walkable.size() || heights.size() != m_Height.size()) return false;
+        m_Walkable = walkable;
+        m_Height = heights;
+        return true;
+    }
+
     void ClearAll()
     {
         std::fill(m_Walkable.begin(), m_Walkable.end(), (uint8_t)1);

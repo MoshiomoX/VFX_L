@@ -47,6 +47,10 @@ public:
     DirectX::XMFLOAT2 GetMouseLookDelta() const { return m_LookDelta; }
     void OnRawInput(HRAWINPUT handle);   // WM_INPUT から
 
+    // カーソルを隠すだけ（閉じ込めない。パッドで UI を操作している間）。
+    // 捕獲と同じく、毎フレーム呼んでいる間だけ有効
+    void RequestHideCursor() { m_HideRequested = true; }
+
     // Alt の単押し：押してから離すまでに他のキー・マウスボタンが押されなかった時、離したフレームだけ true。
     // Alt+Tab / Alt+F4 / Alt+クリック（デバッグカメラ）では立たない
     bool GetAltTap() const { return m_AltTap; }
@@ -102,6 +106,8 @@ private:
     bool IsWindowActive() const;
     bool m_CaptureRequested = false;   // 今フレーム要求された（次の Update で反映して下ろす）
     bool m_Captured = false;
+    bool m_HideRequested = false;      // RequestHideCursor（次の Update で反映して下ろす）
+    bool m_CursorHidden = false;
     DirectX::XMFLOAT2 m_RawAccum = {};    // WM_INPUT の合計（Update で取り出す）
     DirectX::XMFLOAT2 m_LookDelta = {};
 

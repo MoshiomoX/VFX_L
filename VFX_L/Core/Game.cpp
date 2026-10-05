@@ -33,6 +33,8 @@ bool Game::Initialize(Renderer* renderer)
     if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoloadEnv, sizeof(autoloadEnv)) > 0
         || GetEnvironmentVariableA("VFXL_REF_MAGE", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::VFX_EDITOR);
+    else if (GetEnvironmentVariableA("VFXL_MAPEDIT_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
+        m_SceneManager.ChangeScene(SceneType::LEVEL_EDITOR);   // TEMP-TEST: 地図エディタ（Debug/AutoTest/AutoTestMapEdit）
     else if (GetEnvironmentVariableA("VFXL_PROJ_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::PROJECTILE_EDITOR);
     else if (GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)

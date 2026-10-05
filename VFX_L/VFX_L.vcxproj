@@ -201,6 +201,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestDrop.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGhost.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestPoisonPerf.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp" />
     <ClCompile Include="Scene\CollisionTestScenePlayerPanels.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneWorldPanels.cpp" />
@@ -246,6 +247,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\LevelEditorScene.cpp" />
     <ClCompile Include="Swarm\SwarmVFXTable.cpp" />
     <ClCompile Include="UI\BackpackUI.cpp" />
+    <ClCompile Include="UI\BackpackPadControl.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestPadBag.cpp" />
     <ClCompile Include="Camera\CameraBase.cpp" />
     <ClCompile Include="Collider\CollisionSystem.cpp" />
     <ClCompile Include="Scene\CollisionTestScene.cpp" />
@@ -369,6 +372,15 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="VFX_Editor\VFXTextureRef.cpp" />
     <ClCompile Include="World\GridWorld.cpp" />
     <ClCompile Include="World\TerrainGenerator.cpp" />
+    <ClCompile Include="World\TerrainBuild.cpp" />
+    <ClCompile Include="World\MapData.cpp" />
+    <ClCompile Include="World\MapEdit.cpp" />
+    <ClCompile Include="Scene\MapEditMode.cpp" />
+    <ClCompile Include="Scene\MapEditModeUI.cpp" />
+    <ClCompile Include="Scene\MapEditModeView.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestMapEdit.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneTerrain.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestMapIO.cpp" />
     <ClCompile Include="World\StageConfig.cpp" />
     <ClCompile Include="World\LevelData.cpp" />
   </ItemGroup>
@@ -426,6 +438,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Swarm\SwarmTypes.h" />
     <ClInclude Include="Swarm\SwarmVFXTable.h" />
     <ClInclude Include="UI\BackpackUI.h" />
+    <ClInclude Include="UI\BackpackPadControl.h" />
     <ClInclude Include="Camera\CameraBase.h" />
     <ClInclude Include="Component\ColliderComponent.h" />
     <ClInclude Include="Collider\CollisionMath.h" />
@@ -615,6 +628,11 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="VFX_Editor\VFXTextureRef.h" />
     <ClInclude Include="World\GridWorld.h" />
     <ClInclude Include="World\TerrainGenerator.h" />
+    <ClInclude Include="World\TerrainBuild.h" />
+    <ClInclude Include="World\MapData.h" />
+    <ClInclude Include="World\MapEdit.h" />
+    <ClInclude Include="Scene\MapEditMode.h" />
+    <ClInclude Include="Debug\AutoTest\AutoTestMapEdit.h" />
     <ClInclude Include="World\StageConfig.h" />
     <ClInclude Include="World\LevelData.h" />
   </ItemGroup>

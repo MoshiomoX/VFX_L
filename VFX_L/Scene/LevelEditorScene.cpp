@@ -11,6 +11,7 @@
 #include "Manager/InputManager.h"
 #include "Debug/DebugManager.h"
 #include "Debug/Gizmo.h"
+#include "Debug/AutoTest/AutoTestMapEdit.h"
 #include "imgui.h"
 #include <algorithm>
 #include <cctype>
@@ -146,6 +147,8 @@ void LevelEditorScene::Init()
 
 void LevelEditorScene::Shutdown()
 {
+    if (m_MapEdit.IsActive()) DebugManager::Get().SetShowGrid(true);   // 地図モードで消した参照格子を戻す
+    m_MapEdit.Shutdown();
     m_Models.clear();
     m_Ground.reset();
 }
@@ -225,6 +228,27 @@ void LevelEditorScene::Update(float dt)
 
     m_Camera.Update(dt);
     Gizmo::BeginFrame(m_Camera.GetViewMatrix(), m_Camera.GetProjectionMatrix());
+
+    // ---- 戦闘の地図モード（Scene/MapEditMode）：操作も表示もそちらへ任せる。カメラ・素材一覧・置く物の向き / 大きさはこのシーンの物 ----
+    if (MapEditAutoTest::Enabled()) MapEditAutoTest::Update(m_MapEdit, m_Camera, dt);   // TEMP-TEST
+    if (m_MapEdit.IsActive())
+    {
+        MapEditMode::PlaceRequest req;
+        if (m_PlaceAsset >= 0)
+        {
+            req.path = &m_Assets[m_PlaceAsset].path;
+            req.scale = m_GhostScale;
+            req.yawDeg = m_GhostYaw;
+        }
+        if (m_MapEdit.Update(m_Camera, req, m_Snap)) RerollGhost();
+        if (m_MapEdit.ConsumeStopPlacing()) m_PlaceAsset = -1;
+        // 置いている最中の R は次に置く物を回す
+        if (m_PlaceAsset >= 0 && !ImGui::GetIO().WantTextInput && !m_Camera.IsLooking()
+            && InputManager::Get().GetKeyTrigger('R'))
+            RotateStep(InputManager::Get().GetKeyPress(VK_SHIFT) ? -1.0f : 1.0f);
+        DrawUI();
+        return;
+    }
 
     UpdateEditing();
 
@@ -525,6 +549,12 @@ void LevelEditorScene::Render(Renderer& renderer)
 
     SceneBase::Render(renderer);   // カメラを渡し、点光源表を上げる
 
+    if (m_MapEdit.IsActive())
+    {
+        m_MapEdit.Render(renderer);
+        return;
+    }
+
     if (m_Ground)
     {
         Transform g;
@@ -584,8 +614,26 @@ void LevelEditorScene::DrawBox(const Model& model, const Matrix& world, const Co
 // ============================================================
 void LevelEditorScene::DrawUI()
 {
+    // ---- モードの切り替え：素材を並べる（json）/ 戦闘の地図（.vmap）----
+    {
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x * 0.5f - 170.0f, vp->Pos.y + 40.0f), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Editor Mode", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        int mode = m_MapEdit.IsActive() ? 1 : 0;
+        ImGui::RadioButton("Prop Level (.json)", &mode, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Battle Map (.vmap)", &mode, 1);
+        if ((mode == 1) != m_MapEdit.IsActive())
+        {
+            m_MapEdit.SetActive(mode == 1);
+            // y = 0 の参照格子は起伏のある地図の中を横切るので、地図モードでは消す
+            DebugManager::Get().SetShowGrid(mode != 1);
+        }
+        ImGui::End();
+    }
     DrawAssetWindow();
-    DrawLevelWindow();
+    if (m_MapEdit.IsActive()) m_MapEdit.DrawWindow(m_Camera);
+    else DrawLevelWindow();
 }
 
 void LevelEditorScene::DrawAssetWindow()

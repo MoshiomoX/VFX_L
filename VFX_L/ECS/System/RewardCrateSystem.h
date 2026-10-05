@@ -32,7 +32,9 @@ public:
     // （2026-10-02、フィールドの三層：登る・潜るご褒美）
     void Spawn(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& center,
         uint32_t seed, InteractionSystem& interaction,
-        const std::vector<int>* summitCells = nullptr, const std::vector<int>* mineCells = nullptr);
+        const std::vector<int>* summitCells = nullptr, const std::vector<int>* mineCells = nullptr,
+        const std::vector<DirectX::SimpleMath::Vector4>* fixed = nullptr);
+    // fixed: 地図に置いてある箱（MapData::Placement。xyz = 底の中心、w = 向きの度）。空でなければ乱数で並べず、その通りに置く
 
     // InteractionSystem が返した「使われた物」を処理する。
     // 報酬の箱で、金貨が足りて三択が出せたら代金を払って箱を消して true（openedPos = 箱の置き場所）。

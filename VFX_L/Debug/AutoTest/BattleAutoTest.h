@@ -36,6 +36,8 @@ protected:
     void AutoTestLog(const char* what);
     // 野原の置物（木・石・低木）の表示。outCount = 登録数
     void SetDecorPropsVisible(bool visible, int* outCount);
+    // 地形の建て直し（m_MapFile があれば保存した地図から、無ければ seed から）
+    void RebuildTerrain();
 
     // ---- 自動テストの進行（シーンが持つ。AutoTestLog が経過時間を書くので）----
     int&   m_AutoStep;
@@ -67,6 +69,9 @@ protected:
     GameUI&                   m_GameUI;
     TerrainGenerator::Config& m_TerrainConfig;
     TerrainGenerator::Layout& m_TerrainLayout;
+    MapData::Map&             m_TerrainMap;    // 建てた物の記録
+    std::string&              m_MapFile;       // 読む地図の名前（空 = 生成）
+    std::vector<Entity>&      m_Terrain;       // 地形の実体
     int&                      m_StageIndex;
     uint32_t&                 m_PortalVfx;
     float&                    m_RunTime;
