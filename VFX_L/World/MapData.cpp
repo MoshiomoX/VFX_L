@@ -143,6 +143,10 @@ namespace MapData
         // 版 2 から
         w.Pod((uint32_t)m.placements.size());
         for (const auto& p : m.placements) { w.Pod(p.type); w.Pod(p.pos); w.Pod(p.yawDeg); }
+
+        // 版 3 から
+        w.Pod((uint32_t)m.volumes.size());
+        for (const auto& v : m.volumes) { w.Tag(v.tag); w.Pod(v.center); w.Pod(v.half); w.Pod((uint8_t)v.solid); w.Pod((uint8_t)v.blockMobs); }
     }
 
     bool Deserialize(const std::vector<uint8_t>& in, Map& m)
@@ -198,6 +202,11 @@ namespace MapData
         {
             m.placements.resize(r.Count(18));
             for (auto& p : m.placements) { r.Pod(p.type); r.Pod(p.pos); r.Pod(p.yawDeg); }
+        }
+        if (version >= 3)
+        {
+            m.volumes.resize(r.Count(32));
+            for (auto& v : m.volumes) { r.Tag(v.tag); r.Pod(v.center); r.Pod(v.half); r.Pod(u8); v.solid = u8 != 0; r.Pod(u8); v.blockMobs = u8 != 0; }
         }
         if (!r.ok) { m.Clear(); return false; }
 

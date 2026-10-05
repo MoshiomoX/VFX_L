@@ -117,6 +117,32 @@ void MapEditAutoTest::Update(MapEditMode& edit, FlyCamera& camera, float dt)
         edit.TestSelectPlacement(gate);
         snprintf(line, sizeof(line), "mapedit prefabs placements %zu", map.placements.size());
         Log(line);
+
+        // 手で置く見えない体積（3 歩目）：6 x 3 x 4 m を木の右へ。衝突の箱が 1 つ増え、足跡のマスが塞がる →
+        // 4m 動かすとマスが付いて来る → 「雑魚を塞ぐ」を切るとマスが開く（箱は残る）→ 戻す
+        auto cells = [&](uint32_t g) { int n = 0; for (const auto& b : map.blocks) if (b.tag.group == g) n += b.w * b.d; return n; };
+        auto boxesOf = [&](uint32_t g) { int n = 0; for (const auto& b : map.boxes) if (b.tag.group == g) ++n; return n; };
+        auto walk = [&](const Vector3& q) { const int c = CellOf(map, q); return c >= 0 ? (int)map.walkable[(size_t)c] : -1; };
+        Vector3 c0 = ground(p.x + 7.0f, p.z + 1.0f);
+        c0.y += 1.2f;
+        const uint32_t vg = MapEdit::AddVolume(map, c0, { 3.0f, 1.5f, 2.0f }, true, true);
+        const int cellsAdd = cells(vg), boxesAdd = boxesOf(vg), walkAdd = walk(c0);
+        edit.TestSelectGroup(vg);
+        edit.TestApplyMove({ 4.0f, 0.0f, 0.0f });
+        const Vector3 c1 = map.volumes[(size_t)MapEdit::FindVolume(map, vg)].center;
+        const int cellsMove = cells(vg), walkOld = walk(c0 - Vector3(2.5f, 0.0f, 0.0f)), walkNew = walk(c1);
+        map.volumes[(size_t)MapEdit::FindVolume(map, vg)].blockMobs = false;
+        MapEdit::ApplyVolume(map, vg);
+        const int cellsOff = cells(vg), boxesOff = boxesOf(vg), walkOff = walk(c1);
+        map.volumes[(size_t)MapEdit::FindVolume(map, vg)].blockMobs = true;
+        MapEdit::ApplyVolume(map, vg);
+        snprintf(line, sizeof(line),
+            "mapedit volume add boxes %d cells %d centerWalkable %d | move dx %.2f cells %d oldEdgeWalkable %d newCenterWalkable %d | mobsOff boxes %d cells %d centerWalkable %d | back cells %d matches %d",
+            boxesAdd, cellsAdd, walkAdd, c1.x - c0.x, cellsMove, walkOld, walkNew, boxesOff, cellsOff, walkOff, cells(vg),
+            (int)MapEdit::WalkableMatchesBlocks(map));
+        Log(line);
+        edit.TestSelectGroup(vg);
+        edit.TestFocus(camera);   // 体積の線（水色 → 選択中は黄）と塞いだマス（赤）を写す
         s_Step = 5;
     }
     else if (s_Step == 5 && s_Time >= 4.5f) { Log("mapedit look prefabs"); s_Step = 6; }

@@ -527,6 +527,7 @@ namespace TerrainGenerator
             o.summitRamps = map.summitRamps; o.mineRamps = map.mineRamps;
             o.nextGroup = map.nextGroup;
             o.placements = map.placements;
+            o.volumes = map.volumes;
         }
 
         std::cout << "[Terrain] built from map: seed " << map.seed << " biome " << map.biome << ", "

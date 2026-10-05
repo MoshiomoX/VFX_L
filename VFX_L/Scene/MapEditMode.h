@@ -112,6 +112,7 @@ private:
     Selection m_Sel;
     bool m_GroundFollow = true;              // 水平に動かした時、地面の高さに付いていく
     bool m_ShowCollision = true;
+    bool m_ShowVolumes = true;               // 手で置いた見えない体積を線で見せる（見せている時だけ選べる）
     bool m_StopPlacing = false;
 
     // 置く物（マウスの下）

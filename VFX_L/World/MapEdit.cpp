@@ -216,7 +216,68 @@ namespace MapEdit
         EraseGroup(map.hulls, group);
         EraseGroup(map.visuals, group);
         EraseGroup(map.blocks, group);
+        EraseGroup(map.volumes, group);
         RebuildWalkable(map);
+    }
+
+    // ============================================================
+    // 手で置いた見えない体積
+    // ============================================================
+    int FindVolume(const MapData::Map& map, uint32_t group)
+    {
+        for (int i = 0; i < (int)map.volumes.size(); ++i)
+            if (map.volumes[i].tag.group == group) return i;
+        return -1;
+    }
+
+    void ApplyVolume(MapData::Map& map, uint32_t group)
+    {
+        const int vi = FindVolume(map, group);
+        if (vi < 0) return;
+        const MapData::Volume v = map.volumes[(size_t)vi];
+        const Vector3 lo = v.center - v.half, hi = v.center + v.half;
+
+        EraseGroup(map.boxes, group);
+        EraseGroup(map.blocks, group);
+        if (v.solid)
+        {
+            MapData::Box b;
+            b.tag = v.tag; b.lo = lo; b.hi = hi; b.layer = Layer_Prop;
+            map.boxes.push_back(b);
+        }
+        if (v.blockMobs)
+        {
+            // 縁から 0.15m 入った範囲に掛かるマス（マスの端に少し触れただけでは塞がない）。1 マスより小さければ真ん中のマス
+            constexpr float kInset = 0.15f;
+            const float ox = OriginX(map), oz = OriginZ(map);
+            int x0 = (int)std::floor((lo.x + kInset - ox) / kCs), x1 = (int)std::floor((hi.x - kInset - ox) / kCs);
+            int z0 = (int)std::floor((lo.z + kInset - oz) / kCs), z1 = (int)std::floor((hi.z - kInset - oz) / kCs);
+            if (x1 < x0) x0 = x1 = (int)std::floor((v.center.x - ox) / kCs);
+            if (z1 < z0) z0 = z1 = (int)std::floor((v.center.z - oz) / kCs);
+            x0 = (std::max)(x0, 0); z0 = (std::max)(z0, 0);
+            x1 = (std::min)(x1, map.gw - 1); z1 = (std::min)(z1, map.gd - 1);
+            if (x1 >= x0 && z1 >= z0)
+            {
+                MapData::Block b;
+                b.tag = v.tag; b.x = x0; b.z = z0; b.w = x1 - x0 + 1; b.d = z1 - z0 + 1;
+                map.blocks.push_back(b);
+            }
+        }
+        RebuildWalkable(map);
+    }
+
+    uint32_t AddVolume(MapData::Map& map, const Vector3& center, const Vector3& half, bool solid, bool blockMobs)
+    {
+        MapData::Volume v;
+        v.tag.kind = (uint16_t)MapData::kManual;
+        v.tag.group = map.nextGroup++;
+        v.center = center;
+        v.half = half;
+        v.solid = solid;
+        v.blockMobs = blockMobs;
+        map.volumes.push_back(v);
+        ApplyVolume(map, v.tag.group);
+        return v.tag.group;
     }
 
     uint32_t AddProp(MapData::Map& map, const std::string& model, const Vector3& pos, float yawDeg, float scale,

@@ -285,8 +285,16 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 - **试玩**：窗口「Save and play (F1 battle)」= 存盘 + `MapData::PlayOverride()` 设成这张图 + 切到战斗场景；战斗 Terrain 面板的 Regenerate 会清掉这个覆盖。
 - 自测 `VFXL_MAPEDIT_AUTOTEST=1`（`Debug/AutoTest/AutoTestMapEdit.cpp`，启动直接进 F6；不走 `BattleAutoTest`，自己往 autotest.log 写 `mapedit ...`）：seed 12345 草原 → 选一棵带碰撞的树 → 移 (6, 0, 4) → 加 2 个箱子 + 1 个门 → 存 `_edittest` 再读回。实测：`walkableMatchesBlocks 1`，移动后碰撞盒同样平移（y 跟地面 +1.30）、原格解封、新格封上，存读逐字节相同。再用 `VFXL_MAP=_edittest` 跑 `mapio`：战斗里箱子 2 个（来自图）、门的位置和图里一致、读图重建仍逐字节相同。
 - **没验证**：真实鼠标操作（点选、拖 Gizmo、点地面放置）—— 自测只走了数据接口，我不发鼠标；把箱子放在不能走的地方不会被拦（放的人负责）。
-- 第 3 步（手动碰撞箱 / 封路区域）和第 4 步（地形工具）未动手。
+- 第 1、2 步已提交 ca34c49（game-balance，未推送）。
 
-**待办顺序（2026-10-05 用户定）**：① 背包手柄操作（**已做**，见上） → ② 地图编辑器（四步里第 1、2 步已做）（上面四步）→ ③ Boss 动作设计 + 机能实现（用户同日定：地形做完直接接这个；把 Boss 招式从现在的 1 个（重击预警圈）做到 3〜4 个 + 规则版选招，也是 ⑤ 的前提；招式清单还没谈，动手前先和用户定）→ ④ Tripo 接入（AI 生成 3D 模型：走 API + `Tools/` 脚本，key 放环境变量 `TRIPO_API_KEY`；纸面评估 = 摆放物 / Mesh 粒子模型 / 单件道具合适，骨骼角色要写骨骼对应表，GPU 雑魚不合适；未动手）→ ⑤ Jev 接入 Boss AI（TypeSafe AI 的 System One 模型，云端 API，一次请求返回带概率的 Choice / Score / Noul 判断，70〜500ms，输入 0.042 美元 / 百万 token、输出免费 = 一场 Boss 战不到 1 美分；只当「选招的战术层」接在 `Enemy/BossAttacks` 这层，后台线程异步问、没回答就走规则；前提是先把 Boss 招式做到 3〜4 个 + 规则版选招；免费额度 / 速率限制 / 使用条款 / Early Access 申请方式没查到，发布时 key 要走中转服务器；只讨论、未动手）。
+**第 3 步已做（2026-10-05 晚，手动碰撞箱 / 封路区域；未提交）**：
+- 数据 = `MapData::Volume { tag(kManual), center, half（轴对齐）, solid, blockMobs }`，存在图里（文件版本 3，1 / 2 仍可读）。碰撞盒和封格是从它**派生**的：`MapEdit::ApplyVolume` 删掉这个 group 的 boxes / blocks 再重建 —— `solid` → 一条 `Box`（`Layer_Prop`：挡玩家，镜头遮挡射线不看，所以看不见的墙不会让镜头突然拉近）；`blockMobs` → 一条 `Block`（足迹内缩 0.15m 后覆盖到的格子，比一格小就封中心格）。战斗侧不用改：派生出的记录和别的记录一样被 `BuildFromMap` 重放。封的格子雑魚绕着走，**GPU 的弹也会在那格被挡住**（格子判定共用）。
+- F6「Battle Map Editor」窗口新增一段「Invisible volumes」：`Add Collision Box`（挡玩家 + 挡雑魚）/ `Add Mob Blocker`（玩家能过、只挡雑魚），放在画面中央的地面上（默认 4×3×4m，底埋 0.3m）；「Show」开关（关掉就不画、也选不到）。全部体积画水色线框（不挡玩家的颜色暗一档），选中的是黄，派生的碰撞盒绿、封的格子红。选中后和摆放物一样用箭头拖（高度跟地面）、Ctrl+D 复制、Del 删；右侧可改 Center / Size（改高度时底不动）/ 两个开关 / `Sit On Ground`。实现上体积就是「有 Volume 记录的 group」，`MapEditMode` 的选择类型没加新的。
+- 只有轴对齐的箱子，不能旋转；大小只能在窗口里改数值，没有拖拽手柄。
+- 自测并进了 `VFXL_MAPEDIT_AUTOTEST`：`mapedit volume ...` 一行 = 加一个 6×3×4m → 碰撞盒 +1、封 8 格、中心格不可走 → 平移 4m 后封格跟着走（旧边缘格解封）→ 关 blockMobs 后封格 0、碰撞盒还在 → 开回来 8 格，`WalkableMatchesBlocks` 1；存读逐字节相同；`VFXL_MAP=_edittest` 跑 `mapio`：战斗里 boxes 121 → 122、blocks 312 → 313、实体 1205 → 1206。
+- 没验证：真实鼠标操作；战斗里实际走过去撞这面看不见的墙 / 雑魚绕路（只看了记录和实体数）。
+- 第 4 步（地形工具：刷格子高度、放台地 / 坡道 / 高台、改山顶和矿洞轮廓）未动手。
+
+**待办顺序（2026-10-05 用户定）**：① 背包手柄操作（**已做**，见上） → ② 地图编辑器（四步里第 1〜3 步已做，剩第 4 步地形工具）（上面四步）→ ③ Boss 动作设计 + 机能实现（用户同日定：地形做完直接接这个；把 Boss 招式从现在的 1 个（重击预警圈）做到 3〜4 个 + 规则版选招，也是 ⑤ 的前提；招式清单还没谈，动手前先和用户定）→ ④ Tripo 接入（AI 生成 3D 模型：走 API + `Tools/` 脚本，key 放环境变量 `TRIPO_API_KEY`；纸面评估 = 摆放物 / Mesh 粒子模型 / 单件道具合适，骨骼角色要写骨骼对应表，GPU 雑魚不合适；未动手）→ ⑤ Jev 接入 Boss AI（TypeSafe AI 的 System One 模型，云端 API，一次请求返回带概率的 Choice / Score / Noul 判断，70〜500ms，输入 0.042 美元 / 百万 token、输出免费 = 一场 Boss 战不到 1 美分；只当「选招的战术层」接在 `Enemy/BossAttacks` 这层，后台线程异步问、没回答就走规则；前提是先把 Boss 招式做到 3〜4 个 + 规则版选招；免费额度 / 速率限制 / 使用条款 / Early Access 申请方式没查到，发布时 key 要走中转服务器；只讨论、未动手）。
 
 之后的候选（未定）：战斗场景读取关卡编辑器的关卡、流场寻路的实机验证、Phase 5（SpawnDirector GPU 化等）、**认真找 UI 素材**（用户日程：面板/按钮/边框/像素日文字体，统一 UI 风格，CC0 优先，下载前先给候选）。

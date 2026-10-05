@@ -89,6 +89,26 @@ void MapEditMode::DrawWindow(FlyCamera& camera)
     if (crates == 0) ImGui::TextDisabled("No crate here -> the battle places crates by seed.");
     if (gates == 0) ImGui::TextDisabled("No gate here -> the battle places the gate by seed.");
 
+    // ---- 手で置く見えない体積（衝突の箱 / 雑魚の通行を塞ぐ区域）----
+    ImGui::SeparatorText("Invisible volumes (collision / blocked area)");
+    ImGui::Text("Volumes: %zu", m_Map.volumes.size());
+    ImGui::SameLine();
+    ImGui::Checkbox("Show", &m_ShowVolumes);
+    auto addVolume = [&](bool solid, bool blockMobs)
+        {
+            const Vector3 half(2.0f, 1.5f, 2.0f);
+            Vector3 c = ScreenCenterGround(camera);
+            c.y += half.y - 0.3f;   // 底を少し地面に埋める
+            m_ShowVolumes = true;
+            m_Sel = { SelType::Group, MapEdit::AddVolume(m_Map, c, half, solid, blockMobs), -1 };
+            m_Dirty = true;
+        };
+    if (ImGui::Button("Add Collision Box")) addVolume(true, true);
+    ImGui::SetItemTooltip("Invisible wall: stops the player and blocks mobs");
+    ImGui::SameLine();
+    if (ImGui::Button("Add Mob Blocker")) addVolume(false, true);
+    ImGui::SetItemTooltip("The player walks through; mobs cannot enter these cells");
+
     DrawInspector(camera);
 
     ImGui::SeparatorText("Keys");
@@ -109,7 +129,40 @@ void MapEditMode::DrawInspector(FlyCamera& camera)
         return;
     }
 
-    if (m_Sel.type == SelType::Placement)
+    const int volume = (m_Sel.type == SelType::Group) ? MapEdit::FindVolume(m_Map, m_Sel.group) : -1;
+    if (volume >= 0)
+    {
+        // 手で置いた見えない体積
+        MapData::Volume& v = m_Map.volumes[(size_t)volume];
+        ImGui::Text("Invisible volume");
+        bool changed = false;
+        changed |= ImGui::DragFloat3("Center", &v.center.x, 0.05f);
+        Vector3 size = v.half * 2.0f;
+        if (ImGui::DragFloat3("Size (m)", &size.x, 0.05f, 0.2f, 200.0f))
+        {
+            const float bottom = v.center.y - v.half.y;   // 底の高さを保ったまま高さを変える
+            v.half = Vector3((std::max)(size.x, 0.2f), (std::max)(size.y, 0.2f), (std::max)(size.z, 0.2f)) * 0.5f;
+            v.center.y = bottom + v.half.y;
+            changed = true;
+        }
+        changed |= ImGui::Checkbox("Blocks the player (collision)", &v.solid);
+        changed |= ImGui::Checkbox("Blocks mobs (grid cells)", &v.blockMobs);
+        ImGui::SetItemTooltip("Mobs path around blocked 2 m cells; GPU projectiles also stop there");
+        if (ImGui::Button("Sit On Ground"))
+        {
+            v.center.y = m_Grid.SampleHeight(v.center.x, v.center.z) + v.half.y - 0.3f;   // 少し埋める
+            changed = true;
+        }
+        if (changed)
+        {
+            MapEdit::ApplyVolume(m_Map, m_Sel.group);
+            m_Dirty = true;
+        }
+        int blocked = 0;
+        for (const auto& b : m_Map.blocks) if (b.tag.group == m_Sel.group) blocked += b.w * b.d;
+        ImGui::Text("Blocks %d cell(s) for mobs", blocked);
+    }
+    else if (m_Sel.type == SelType::Placement)
     {
         auto& p = m_Map.placements[(size_t)m_Sel.placement];
         ImGui::Text("%s", p.type == MapData::kPlaceBossGate ? "Boss Gate (F summons the boss)" : "Reward Crate (pay gold, pick 1 of 4)");

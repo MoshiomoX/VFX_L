@@ -21,7 +21,7 @@
 
 namespace MapData
 {
-    inline constexpr uint32_t kVersion = 2;   // 2 = 機能付きの置き物（placements）を追加。1 も読める
+    inline constexpr uint32_t kVersion = 3;   // 2 = 機能付きの置き物（placements）、3 = 手で置いた体積（volumes）。古い版も読める
 
     // 何の一部か（エディタの一覧・選別用）
     enum Kind : uint16_t
@@ -72,6 +72,18 @@ namespace MapData
     enum PlaceType : uint16_t { kPlaceCrate = 0, kPlaceBossGate = 1 };
     struct Placement { uint16_t type = kPlaceCrate; DirectX::SimpleMath::Vector3 pos; float yawDeg = 0.0f; };   // pos = 底の中心（地面）
 
+    // 手で置いた見えない体積（地図エディタの 3 歩目）。衝突の箱（solid）と塞ぐマス（blockMobs）はここから作る
+    // （MapEdit::ApplyVolume。boxes / blocks に同じ group の記録として入り、戦闘シーンは他の記録と同じに建てる）。
+    // 塞いだマスは雑魚が通れず、GPU の弾もそこで当たる
+    struct Volume
+    {
+        Tag tag;                                  // kind = kManual
+        DirectX::SimpleMath::Vector3 center;
+        DirectX::SimpleMath::Vector3 half = { 2.0f, 1.5f, 2.0f };   // 軸平行
+        bool solid = true;                        // プレイヤーがぶつかる（Layer_Prop：カメラの遮蔽は見ない）
+        bool blockMobs = true;                    // 足跡のマスを塞ぐ
+    };
+
     struct Map
     {
         // ---- 見出し ----
@@ -101,6 +113,7 @@ namespace MapData
         std::vector<Block>  blocks;
         std::vector<DirectX::SimpleMath::Vector3> torches;
         std::vector<Placement> placements;   // 報酬の箱・Boss の門
+        std::vector<Volume> volumes;         // 手で置いた見えない体積
 
         // ---- 三層の結果（TerrainGenerator::Layout と同じ）----
         std::vector<int> summitCells, mineCells;

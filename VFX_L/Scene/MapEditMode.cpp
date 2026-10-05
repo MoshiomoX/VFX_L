@@ -199,6 +199,17 @@ MapEditMode::Selection MapEditMode::Pick()
         auto model = PlacementModel(m_Map.placements[(size_t)i], world);
         test(model, world, { SelType::Placement, 0, i });
     }
+    // 手で置いた見えない体積（表示している時だけ選べる）
+    if (m_ShowVolumes)
+        for (const auto& v : m_Map.volumes)
+        {
+            float t = 0.0f;
+            if (RayBox(ro, rd, v.center - v.half, v.center + v.half, t) && t < bestT)
+            {
+                bestT = t;
+                best = { SelType::Group, v.tag.group, -1 };
+            }
+        }
     // 地面より奥の物は選ばない（丘の向こうの木を拾わない）
     Vector3 ground;
     if (best.type != SelType::None && RayGround(ground) && (ground - ro).Length() + 0.5f < bestT) return {};
@@ -210,8 +221,14 @@ bool MapEditMode::SelectionPos(Vector3& pos) const
     if (m_Sel.type == SelType::Group)
     {
         const int pi = MapEdit::FindProp(m_Map, m_Sel.group);
-        if (pi < 0) return false;
-        pos = m_Map.props[(size_t)pi].pos;
+        if (pi >= 0)
+        {
+            pos = m_Map.props[(size_t)pi].pos;
+            return true;
+        }
+        const int vi = MapEdit::FindVolume(m_Map, m_Sel.group);   // 手で置いた体積
+        if (vi < 0) return false;
+        pos = m_Map.volumes[(size_t)vi].center;
         return true;
     }
     if (m_Sel.type == SelType::Placement && m_Sel.placement >= 0 && m_Sel.placement < (int)m_Map.placements.size())
@@ -245,6 +262,12 @@ bool MapEditMode::ApplyMove(const Vector3& deltaIn)
     if (m_Sel.type == SelType::Placement)
     {
         m_Map.placements[(size_t)m_Sel.placement].pos += delta;
+    }
+    else if (const int vi = MapEdit::FindVolume(m_Map, m_Sel.group); vi >= 0)
+    {
+        // 手で置いた体積：動かして、衝突の箱と塞ぐマスを作り直す
+        m_Map.volumes[(size_t)vi].center += delta;
+        MapEdit::ApplyVolume(m_Map, m_Sel.group);
     }
     else if (MapEdit::IsSimpleProp(m_Map, m_Sel.group))
     {
@@ -300,6 +323,16 @@ void MapEditMode::DuplicateSelection()
         m_Sel = { SelType::Placement, 0, AddPlacement((MapData::PlaceType)p.type, p.pos + Vector3(2.0f, 0.0f, 0.0f)) };
         return;
     }
+    if (m_Sel.type == SelType::Group)
+        if (const int vi = MapEdit::FindVolume(m_Map, m_Sel.group); vi >= 0)
+        {
+            const MapData::Volume v = m_Map.volumes[(size_t)vi];
+            const uint32_t g = MapEdit::AddVolume(m_Map, v.center + Vector3(v.half.x * 2.0f + 1.0f, 0.0f, 0.0f), v.half,
+                v.solid, v.blockMobs);
+            m_Sel = { SelType::Group, g, -1 };
+            m_Dirty = true;
+            return;
+        }
     if (m_Sel.type != SelType::Group || !MapEdit::IsSimpleProp(m_Map, m_Sel.group)) return;
     const MapData::Prop src = m_Map.props[(size_t)MapEdit::FindProp(m_Map, m_Sel.group)];
     const MapEdit::Collision mode = MapEdit::CollisionOf(m_Map, m_Sel.group);
@@ -319,11 +352,20 @@ void MapEditMode::FocusSelection(FlyCamera& camera)
     float radius = 2.0f;
     if (m_Sel.type == SelType::Group)
     {
-        const auto& p = m_Map.props[(size_t)MapEdit::FindProp(m_Map, m_Sel.group)];
-        if (auto model = GetModel(m_Map.models[(size_t)p.model]))
+        const int pi = MapEdit::FindProp(m_Map, m_Sel.group);
+        const int vi = MapEdit::FindVolume(m_Map, m_Sel.group);
+        if (pi >= 0)
         {
-            radius = (model->GetBoundsMax() - model->GetBoundsMin()).Length() * 0.5f * p.scale;
-            pos = Vector3::Transform(model->GetBoundsCenter(), PropWorld(p));
+            const auto& p = m_Map.props[(size_t)pi];
+            if (auto model = GetModel(m_Map.models[(size_t)p.model]))
+            {
+                radius = (model->GetBoundsMax() - model->GetBoundsMin()).Length() * 0.5f * p.scale;
+                pos = Vector3::Transform(model->GetBoundsCenter(), PropWorld(p));
+            }
+        }
+        else if (vi >= 0)
+        {
+            radius = m_Map.volumes[(size_t)vi].half.Length();
         }
     }
     else if (m_Map.placements[(size_t)m_Sel.placement].type == MapData::kPlaceBossGate)
