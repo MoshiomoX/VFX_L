@@ -37,6 +37,10 @@ float4 main(LiquidVSOut i) : SV_TARGET
 
     // ---- shape ----
     float2 g;
+    // the grid is a square; nothing is drawn outside the circle it was sized for
+    float reachOut = R * L.fill + max(L.haloWidth, 0.0) + 0.05;
+    if (dot(i.local, i.local) > reachOut * reachOut)
+        discard;
     float d = LiquidSDF(L, i.local, seed, R, age, left, g_LTime, g);
     float px = max(fwidth(d), 1e-4);
     float cover = saturate(0.5 - d / px) * i.mask;
@@ -103,8 +107,12 @@ float4 main(LiquidVSOut i) : SV_TARGET
         fres = pow(1.0 - saturate(dot(N, V)), 5.0);
     }
     float3 sky = L.skyColor.rgb * (fres * L.skyColor.a);
-    float3 pd, ps;
-    PointLightShade(i.world, N, V, max(L.roughness, 0.04), F0, pd, ps);
+    // pointGain 0 skips the light loop: every pool brings its own light, so with N stacked
+    // pools each pixel of each pool walked N lights (2026-10-05, poison pools)
+    float3 pd = float3(0.0, 0.0, 0.0);
+    float3 ps = float3(0.0, 0.0, 0.0);
+    if (L.pointGain > 0.0)
+        PointLightShade(i.world, N, V, max(L.roughness, 0.04), F0, pd, ps);
     // a liquid pool usually carries its own light just above it (Poison: 0.5m); at full
     // strength its highlight on the liquid went far past the bloom threshold
     pd *= L.pointGain;

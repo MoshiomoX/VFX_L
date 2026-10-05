@@ -41,7 +41,8 @@ void RewardCrateSystem::Init()
 // ============================================================
 void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector3& center,
     uint32_t seed, InteractionSystem& interaction,
-    const std::vector<int>* summitCells, const std::vector<int>* mineCells)
+    const std::vector<int>* summitCells, const std::vector<int>* mineCells,
+    const std::vector<DirectX::SimpleMath::Vector4>* fixed)
 {
     for (Entity e : m_Crates)
         if (reg.IsValid(e)) reg.Destroy(e);
@@ -66,36 +67,9 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
     std::uniform_real_distribution<float> angleDist(0.0f, DirectX::XM_2PI);
     std::uniform_real_distribution<float> radiusDist(m_MinDist, (std::max)(m_MinDist, m_MaxDist));
 
-    // マス (gx, gz) の中心に 1 個置けたら true。spacing = 既に置いた箱からの最小距離
-    auto tryPlace = [&](int gx, int gz, float a, float spacing) -> bool
+    // 箱 1 個の実体（pos = 底の中心、a = 向き rad）
+    auto spawnAt = [&](const Vector3& pos, float a)
     {
-        bool open = true;
-        for (int dz = -1; dz <= 1 && open; ++dz)
-            for (int dx = -1; dx <= 1 && open; ++dx)
-                open = grid.IsWalkable(gx + dx, gz + dz);
-        if (!open) return false;
-
-        Vector3 pos = grid.CellToWorld(gx, gz);
-        pos.y = grid.SampleHeight(pos.x, pos.z);
-
-        // 周り 3x3 もほぼ同じ高さ（坂道・崖の縁には置かない）。2026-10-04 から地面に起伏（緩い丘で隣のマスと
-        // 2m で 0.2〜0.5m 違う）があるので 0.2 → 0.6m。台地の縁の段差（2.5m 以上）は引き続き弾く
-        bool flat = true;
-        for (int dz = -1; dz <= 1 && flat; ++dz)
-            for (int dx = -1; dx <= 1 && flat; ++dx)
-            {
-                const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
-                flat = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.6f;
-            }
-        if (!flat) return false;
-
-        for (Entity other : m_Crates)
-        {
-            const Vector3 op = reg.Get<InteractableComponent>(other).basePos;
-            const float dx = op.x - pos.x, dz = op.z - pos.z;
-            if (dx * dx + dz * dz < spacing * spacing) return false;
-        }
-
         Entity e = reg.Create();
 
         TransformComponent tf;
@@ -129,8 +103,50 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
         reg.Add<InteractableComponent>(e, it);
 
         m_Crates.push_back(e);
+    };
+
+    // マス (gx, gz) の中心に 1 個置けたら true。spacing = 既に置いた箱からの最小距離
+    auto tryPlace = [&](int gx, int gz, float a, float spacing) -> bool
+    {
+        bool open = true;
+        for (int dz = -1; dz <= 1 && open; ++dz)
+            for (int dx = -1; dx <= 1 && open; ++dx)
+                open = grid.IsWalkable(gx + dx, gz + dz);
+        if (!open) return false;
+
+        Vector3 pos = grid.CellToWorld(gx, gz);
+        pos.y = grid.SampleHeight(pos.x, pos.z);
+
+        // 周り 3x3 もほぼ同じ高さ（坂道・崖の縁には置かない）。2026-10-04 から地面に起伏（緩い丘で隣のマスと
+        // 2m で 0.2〜0.5m 違う）があるので 0.2 → 0.6m。台地の縁の段差（2.5m 以上）は引き続き弾く
+        bool flat = true;
+        for (int dz = -1; dz <= 1 && flat; ++dz)
+            for (int dx = -1; dx <= 1 && flat; ++dx)
+            {
+                const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
+                flat = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.6f;
+            }
+        if (!flat) return false;
+
+        for (Entity other : m_Crates)
+        {
+            const Vector3 op = reg.Get<InteractableComponent>(other).basePos;
+            const float dx = op.x - pos.x, dz = op.z - pos.z;
+            if (dx * dx + dz * dz < spacing * spacing) return false;
+        }
+
+        spawnAt(pos, a);
         return true;
     };
+
+    // 地図に箱が置いてあればその通りに（地図エディタ。場所の検査はしない = 置いた人の責任）
+    if (fixed && !fixed->empty())
+    {
+        for (const auto& f : *fixed)
+            spawnAt({ f.x, f.y, f.z }, DirectX::XMConvertToRadians(f.w));
+        std::cout << "[RewardCrateSystem] reward crates: " << m_Crates.size() << " from the map" << std::endl;
+        return;
+    }
 
     for (int attempt = 0, placed = 0; attempt < 400 && placed < m_Count; ++attempt)
     {

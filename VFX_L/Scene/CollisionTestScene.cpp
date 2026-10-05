@@ -168,10 +168,16 @@ void CollisionTestScene::Init()
             m_TerrainConfig.edgeRockIntrudeMax = 0.0f;
         }
     }
+    // 保存した地図を使う面（StageDef::mapFile）はそれを読む。VFXL_MAP=<名前> で上書き（デバッグ）。無ければ seed から生成
+    m_MapFile = stageDef.mapFile ? stageDef.mapFile : "";
+    // 地図エディタ（F6）の「Save and play」で指定された地図（戦闘の Terrain パネルの Regenerate で外れる）
+    if (!MapData::PlayOverride().empty()) m_MapFile = MapData::PlayOverride();
+    {
+        char env[64] = {};
+        if (GetEnvironmentVariableA("VFXL_MAP", env, sizeof(env)) > 0) m_MapFile = env;
+    }
     std::vector<uint8_t> grassMask;
-    m_Torches.clear();
-    TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches,
-        &m_TerrainLayout);
+    BuildTerrain(grassMask);
     BlockUnreachablePockets();
     // 置物（木・岩・茂み）はモデル毎の instanced 描画へ
     if (!m_StaticProps.Initialize(device))
@@ -353,8 +359,18 @@ void CollisionTestScene::RespawnCrates()
 {
     const Vector3* p = PlayerPos();
     // 三層のフィールドでは山頂・洞窟にも箱を置く（登る・潜るご褒美）
+    // 地図に置いてある機能付きの置き物（MapData::Placement、地図エディタ）。ある種類はその通りに、無い種類は seed から
+    std::vector<DirectX::SimpleMath::Vector4> fixedCrates;
+    DirectX::SimpleMath::Vector4 fixedGate;
+    bool hasFixedGate = false;
+    for (const auto& pl : m_TerrainMap.placements)
+    {
+        const DirectX::SimpleMath::Vector4 v(pl.pos.x, pl.pos.y, pl.pos.z, pl.yawDeg);
+        if (pl.type == MapData::kPlaceBossGate) { fixedGate = v; hasFixedGate = true; }
+        else fixedCrates.push_back(v);
+    }
     m_Crates.Spawn(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction,
-        &m_TerrainLayout.summitCells, &m_TerrainLayout.mineCells);
+        &m_TerrainLayout.summitCells, &m_TerrainLayout.mineCells, &fixedCrates);
     // Boss を呼ぶ門・磁石も同じ時に置き直す（地形が変わると前の場所は歩けないかもしれない）。
     // 門は洞窟の一番奥（無ければ従来通りプレイヤーの周り）。面は洞窟の真ん中の方（洞の中から近づく）
     Vector3 mineMid;
@@ -362,7 +378,8 @@ void CollisionTestScene::RespawnCrates()
     const bool hasMine = !m_TerrainLayout.mineCells.empty();
     if (hasMine) mineMid /= (float)m_TerrainLayout.mineCells.size();
     m_Stage.SpawnPortal(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed, m_Interaction,
-        m_TerrainLayout.hasMineDeep ? &m_TerrainLayout.mineDeep : nullptr, hasMine ? &mineMid : nullptr);
+        m_TerrainLayout.hasMineDeep ? &m_TerrainLayout.mineDeep : nullptr, hasMine ? &mineMid : nullptr,
+        hasFixedGate ? &fixedGate : nullptr);
     // 石の拱の間の渦（粒子。門の向きに回す）。Boss を呼ぶと UpdateGameplay が止める
     if (m_PortalVfx) m_AreaVFX.StopInstance(m_PortalVfx);
     m_PortalVfx = 0;

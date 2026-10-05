@@ -60,6 +60,7 @@
                 
 #include "World/GridWorld.h"
 #include "World/TerrainGenerator.h"
+#include "World/MapData.h"
 #include "World/StageConfig.h"
 #include "Swarm/SwarmSystem.h"
 
@@ -236,6 +237,19 @@ private:
     TerrainGenerator::Config m_TerrainConfig;
     // 三層（山頂・洞窟）のマス。箱を山頂・洞窟にも置き、Boss の門を洞窟の奥に置く
     TerrainGenerator::Layout m_TerrainLayout;
+
+    // --- 地図のデータ（2026-10-05、World/MapData。地図エディタの 1 歩目）---
+    // 生成でも読み込みでも、建てた物の記録を持つ（保存・エディタの元）。中身は CollisionTestSceneTerrain.cpp
+    MapData::Map m_TerrainMap;
+    std::string  m_MapFile;              // 読む地図の名前（空 = seed から生成）。StageDef::mapFile / VFXL_MAP / Terrain パネル
+    bool         m_MapLoaded = false;    // 今の地形はファイルから建てた
+    char         m_MapNameBuf[64] = "map01";   // Terrain パネルの名前欄
+    // 地形を建てる：m_MapFile があれば読む（失敗したら生成）、無ければ seed から生成。実体・格子・記録・草のマス
+    void BuildTerrain(std::vector<uint8_t>& grassMask);
+    // 古い地形を消して建て直し、後処理（置物の描画表・草・GPU の格子表・箱）まで行う（Terrain パネル・自動テスト）
+    void RebuildTerrain();
+    // 今ある報酬の箱と Boss の門を m_TerrainMap の placements へ（その種類がまだ 1 つも無い時だけ）
+    void BakePlacements();
 
     // --- 面（2026-09-30）。どの面かで地形の見た目・照明・草・難度の下駄が変わる（World/StageConfig）---
     int m_StageIndex = 1;

@@ -89,6 +89,9 @@ public:
     int GetAvailableCount(const BackpackComponent& bp, ItemID id) const;
 
 private:
+    // パッド操作はカーソルのマスを仮のマウス位置にして、下のドラッグ処理をそのまま使う
+    friend class BackpackPadControl;
+
     void BeginDrag(BackpackComponent& bp, const DirectX::SimpleMath::Vector2& mousePos);
     void UpdateDrag(BackpackComponent& bp, const DirectX::SimpleMath::Vector2& mousePos);
     void EndDrag(BackpackComponent& bp);

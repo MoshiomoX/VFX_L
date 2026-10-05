@@ -17,6 +17,7 @@
 #include "Scene/SceneBase.h"
 #include "Camera/FlyCamera.h"
 #include "World/LevelData.h"
+#include "Scene/MapEditMode.h"
 #include <SimpleMath.h>
 #include <memory>
 #include <random>
@@ -85,6 +86,7 @@ private:
 
 private:
     FlyCamera m_Camera;
+    MapEditMode m_MapEdit;            // 戦闘の地図モード（2026-10-05）
     float m_ScreenW = 0.0f;
     float m_ScreenH = 0.0f;
 

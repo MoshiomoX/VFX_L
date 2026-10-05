@@ -61,6 +61,17 @@ void InputManager::Update()
     ApplyMouseCapture(m_CaptureRequested && active);
     m_CaptureRequested = false;
 
+    // ---- カーソルを隠すだけの要求（パッドで UI を操作中）。ShowCursor は表示カウンタなので出入りで 1 回ずつ ----
+    {
+        const bool hide = m_HideRequested && active && !m_Captured;
+        m_HideRequested = false;
+        if (hide != m_CursorHidden)
+        {
+            m_CursorHidden = hide;
+            ShowCursor(hide ? FALSE : TRUE);
+        }
+    }
+
     // 捕獲を始めたフレームの分は捨てる（捕獲前の動きで視点が跳ねないように）
     if (m_Captured && wasCaptured) m_LookDelta = m_RawAccum;
     else                           m_LookDelta = { 0.0f, 0.0f };

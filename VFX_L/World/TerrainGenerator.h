@@ -37,6 +37,7 @@
 struct ID3D11Device;
 class Registry;
 class GridWorld;
+namespace MapData { struct Map; }
 
 namespace TerrainGenerator
 {
@@ -188,9 +189,21 @@ namespace TerrainGenerator
     // outGrassMask: 格子のマス毎に 1 = 草を生やす（GrassRenderer 用）。土の坂道・外周・登れない台地・洞窟は 0
     // outTorches: 遺跡の壁の松明の位置（シーンが近い物に点光源を付ける）。他の面では空
     // outLayout: 山頂・洞窟のマス（layers = false なら空）
+    // outMap: 建てた物の記録（MapData。保存すれば BuildFromMap で同じ地図を読める）
     void Generate(Registry& reg, ID3D11Device* device, GridWorld& grid,
         const Config& cfg, std::vector<Entity>& outTerrain, std::vector<uint8_t>* outGrassMask = nullptr,
-        std::vector<DirectX::SimpleMath::Vector3>* outTorches = nullptr, Layout* outLayout = nullptr);
+        std::vector<DirectX::SimpleMath::Vector3>* outTorches = nullptr, Layout* outLayout = nullptr,
+        MapData::Map* outMap = nullptr);
+
+    // BuildFromMap が建てる部分（エディタは見た目だけ欲しい：kPartVisuals | kPartGround）
+    enum BuildParts : uint32_t { kPartColliders = 1, kPartVisuals = 2, kPartProps = 4, kPartGround = 8, kPartAll = 15 };
+
+    // 記録（保存した地図）から同じ物を建てる。乱数は使わない。格子の大きさが合わなければ false（何も作らない）。
+    // outMap: 建て直した物をもう一度記録する（読んだ地図と同じ内容になる。確認・編集の元）。map と同じ物は渡さない
+    bool BuildFromMap(Registry& reg, ID3D11Device* device, GridWorld& grid, const MapData::Map& map,
+        std::vector<Entity>& outTerrain, std::vector<uint8_t>* outGrassMask = nullptr,
+        std::vector<DirectX::SimpleMath::Vector3>* outTorches = nullptr, Layout* outLayout = nullptr,
+        MapData::Map* outMap = nullptr, uint32_t parts = kPartAll);
 
     // 床の色（線形のアルベド。草原 = 値ノイズの緑のむら + 所々の乾いた草、砂漠 = 砂丘の縞、遺跡 = 石畳）。
     // 草の色もこれに合わせる

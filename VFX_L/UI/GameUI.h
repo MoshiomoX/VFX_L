@@ -31,6 +31,7 @@
 #include "UI/SpellbookUI.h"
 #include "UI/ItemSheetView.h"
 #include "UI/PauseMenuUI.h"
+#include "UI/BackpackPadControl.h"
 struct ID3D11Device;
 struct ID3D11DeviceContext;
 class Registry;
@@ -70,6 +71,8 @@ public:
     //   layer: 0 = 全部閉じる / 1 = バックパック / 2 = 一時停止。itemIndex < 0 で tooltip を消す
     void TestShow(int layer);
     const SpellbookUI& GetSpellbook() const { return m_Spellbook; }   // TEMP-TEST: 木箱の物理の記録
+    BackpackPadControl& TestPad() { return m_Pad; }          // TEMP-TEST: パッド操作（padbag）
+    const DragContext& GetDrag() const { return m_Drag; }    // TEMP-TEST
     void TestTooltip(int itemIndex, const DirectX::SimpleMath::Vector2& pos) { m_TestTooltipItem = itemIndex; m_TestTooltipPos = pos; }
 
     // 全部下ろす（プレイヤー消失時など）
@@ -136,6 +139,8 @@ private:
     LevelUpUI      m_LevelUp;
 	DragContext    m_Drag;
     HUD            m_HUD;
+    BackpackPadControl m_Pad;                  // バックパック画面のパッド操作
+    bool           m_PadClosePending = false;  // B で閉じる要求（次のフレームで閉じる）
 
     bool  m_PauseOnBackpack = true;
     float m_ScreenW = 1920.0f;

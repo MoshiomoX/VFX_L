@@ -14,7 +14,7 @@
                 "splashTime": 0.22, "dryTime": 0.7, "specGain": 1.0, "roughness": 0.35,
                 "bubbles": 0.6, "bubbleGain": 0.4, "swirl": 0.25, "swirlScale": 1.6,
                 "lift": 0.035, "cliff": 0.6, "haloWidth": 0.35, "haloGain": 0.6,
-                "lobes": 7, "spatter": 4, "pointGain": 0.3,
+                "lobes": 7, "spatter": 4, "pointGain": 0.0,
                 "offset": [0.0, -0.86, 0.0], "previewDir": [0.0, 0.0, 1.0]
             },
             "duration": 4.0, "startTime": 0.0, "type": "Liquid"
