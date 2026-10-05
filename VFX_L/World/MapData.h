@@ -21,7 +21,7 @@
 
 namespace MapData
 {
-    inline constexpr uint32_t kVersion = 4;   // 2 = placements、3 = volumes、4 = 地形の部品（parts / pads / 素の起伏）。古い版も読める
+    inline constexpr uint32_t kVersion = 5;   // 2 = placements、3 = volumes、4 = 地形の部品、5 = 区域の作り直し用の値。古い版も読める
 
     // 何の一部か（エディタの一覧・選別用）
     enum Kind : uint16_t
@@ -160,6 +160,19 @@ namespace MapData
         int   padMargin = 5;                 // 台座の戻しの幅（マス。TerrainGenerator::Config と同じ）
         float reliefMaxSlopeDeg = 30.0f;     // 起伏の傾きの上限
         float rampSlopeDeg = 28.0f;          // エディタで足す坂道の既定の角度
+
+        // ---- 区域（平原 / 山頂 / 洞窟）を塗り替えた時の作り直し用（版 5）----
+        bool  hasZoneParams = false;         // 下の値が入っている（版 5 以降で生成 / 保存した地図）
+        float floorPlainTop = 0.0f;          // 床の箱の上面（平原）。起伏の一番低い所より少し下
+        float floorSummitTop = 0.0f;         // 同（山頂）
+        float roofBottomY = 0.0f;            // 洞窟の屋根の下面
+        float roofCollTop = 0.0f;            // 洞の岩の壁・屋根の衝突の上端（見えない高さまで）
+        float roofRockMin = 8.0f, roofRockMax = 16.0f;   // 洞の上に積む岩の高さ（縁 → 真ん中）
+        int   caveTorchSpacing = 6;          // 洞の中の松明の間隔（マス）
+        bool  rimRock = false;               // 外周が岩山（松明を岩へ押し込む）
+        float rimSink = 0.0f;                // 押し込む量
+        std::vector<std::string> roofRockModels;   // 洞の上に積む岩のモデル
+        std::string torchModel;              // 松明のモデル
 
         // ---- 三層の結果（TerrainGenerator::Layout と同じ）----
         std::vector<int> summitCells, mineCells;

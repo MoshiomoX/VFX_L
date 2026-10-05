@@ -63,7 +63,11 @@ void MapEditMode::DrawPartInspector()
     const int blocks = MapTerrainEdit::BlockCount(m_Map, g);
     const int ramps = MapTerrainEdit::RampCount(m_Map, g);
     MapData::BlockPart* body = MapTerrainEdit::Block(m_Map, g, 0);
-    if (!body) return;
+    if (!body)
+    {
+        DrawZoneRampInspector();   // 山頂の長い坂・洞窟の下り坂（箱が無い）
+        return;
+    }
     ImGui::Text("%s  (%d box, %d ramp)", body->tag.kind == MapData::kTerrace ? "Terrace" : "Plateau", blocks, ramps);
     ImGui::TextDisabled("Move with the gizmo (2 m steps). It re-seats on the ground.");
 
@@ -178,4 +182,73 @@ void MapEditMode::DrawPartInspector()
         m_Dirty = true;
         m_ViewDirty = true;
     }
+}
+
+// ============================================================
+// 山頂の長い坂 / 洞窟の下り坂（区域の縁に付く、箱の無い坂。2 段目）
+// ============================================================
+// 画面の真ん中の地面へ足す。向きは +X へ下る既定（窓で変える）。長さは高さと角度から：
+// 山頂 = 28°（16m なら 15 マス）、洞窟 = 31°（10m なら 9 マス）
+void MapEditMode::AddZoneRamp(FlyCamera& camera, bool summit)
+{
+    const Vector3 c = ScreenCenterGround(camera);
+    int gx = 0, gz = 0;
+    m_Grid.WorldToCell(c, gx, gz);
+    const float rise = summit ? m_Map.summitH : m_Map.mineD;
+    const float deg = summit ? 28.0f : 31.0f;
+    const int length = (std::max)(1, (int)std::ceil(rise / (kCell * std::tan(DirectX::XMConvertToRadians(deg)))));
+    const uint32_t g = MapTerrainEdit::AddZoneRamp(m_Map, summit, gx, gz - 2, 0, 4, length);
+    if (g == 0) return;
+    m_Sel = { SelType::Group, g, -1 };
+    m_Dirty = true;
+    m_ViewDirty = true;
+}
+
+void MapEditMode::DrawZoneRampInspector()
+{
+    const uint32_t g = m_Sel.group;
+    MapData::RampPart* r = MapTerrainEdit::Ramp(m_Map, g, 0);
+    if (!r) return;
+    const bool summit = r->tag.kind == MapData::kSummitRamp;
+    ImGui::Text("%s", summit ? "Summit ramp (grass slope to the plain)" : "Mine ramp (down to the mine floor)");
+    ImGui::TextWrapped(summit
+        ? "Move it so the high end touches the summit edge. The foot is flattened to the ground."
+        : "Keep it inside the pit with the high end at the pit edge: the cell row beyond the high end becomes the cave mouth.");
+
+    bool changed = false;
+    int pos[2] = { r->x, r->z };
+    if (ImGui::DragInt2("Cell (x, z)", pos, 0.1f, 2, (std::max)(m_Map.gw, m_Map.gd) - 3))
+    {
+        r->x = std::clamp(pos[0], 2, m_Map.gw - 2 - r->w);
+        r->z = std::clamp(pos[1], 2, m_Map.gd - 2 - r->d);
+        changed = true;
+    }
+    int side = r->side;
+    if (ImGui::Combo("Goes down toward", &side, kSideNames, 4))
+    {
+        if (AlongX(r->side) != AlongX((uint8_t)side)) std::swap(r->w, r->d);
+        r->side = (uint8_t)side;
+        changed = true;
+    }
+    int& width = AlongX(r->side) ? r->d : r->w;
+    int& length = AlongX(r->side) ? r->w : r->d;
+    changed |= ImGui::DragInt("Width (cells)", &width, 0.1f, 1, 20);
+    changed |= ImGui::DragInt("Length (cells)", &length, 0.1f, 1, 60);
+    width = (std::max)(width, 1);
+    length = (std::max)(length, 1);
+    const float slope = DirectX::XMConvertToDegrees(std::atan2(r->top - r->base, length * kCell));
+    ImGui::TextColored(slope > 35.0f ? ImVec4(1.0f, 0.4f, 0.3f, 1.0f) : ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
+        "Slope %.0f deg%s", slope, slope > 35.0f ? "  (too steep for mobs: make it longer)" : "");
+
+    if (changed)
+    {
+        MapTerrainEdit::Refresh(m_Map, g);   // 洞窟の坂なら洞の口・岩の壁・屋根も作り直す
+        m_Dirty = true;
+        m_ViewDirty = true;
+    }
+}
+
+void MapEditMode::TestFocusAt(FlyCamera& camera, const Vector3& pos, float radius)
+{
+    camera.Focus(pos, radius);
 }

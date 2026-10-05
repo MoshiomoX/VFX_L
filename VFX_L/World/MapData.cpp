@@ -171,6 +171,15 @@ namespace MapData
             w.Pod((int32_t)p.az1); w.Pod((int32_t)p.m); w.Pod(p.L);
         }
         w.Pod((int32_t)m.padMargin); w.Pod(m.reliefMaxSlopeDeg); w.Pod(m.rampSlopeDeg);
+
+        // 版 5 から
+        w.Pod((uint8_t)m.hasZoneParams);
+        w.Pod(m.floorPlainTop); w.Pod(m.floorSummitTop); w.Pod(m.roofBottomY); w.Pod(m.roofCollTop);
+        w.Pod(m.roofRockMin); w.Pod(m.roofRockMax); w.Pod((int32_t)m.caveTorchSpacing);
+        w.Pod((uint8_t)m.rimRock); w.Pod(m.rimSink);
+        w.Pod((uint32_t)m.roofRockModels.size());
+        for (const auto& s : m.roofRockModels) w.String(s);
+        w.String(m.torchModel);
     }
 
     bool Deserialize(const std::vector<uint8_t>& in, Map& m)
@@ -256,6 +265,16 @@ namespace MapData
                 r.Pod(i32); p.az1 = i32; r.Pod(i32); p.m = i32; r.Pod(p.L);
             }
             r.Pod(i32); m.padMargin = i32; r.Pod(m.reliefMaxSlopeDeg); r.Pod(m.rampSlopeDeg);
+        }
+        if (version >= 5)
+        {
+            r.Pod(u8); m.hasZoneParams = u8 != 0;
+            r.Pod(m.floorPlainTop); r.Pod(m.floorSummitTop); r.Pod(m.roofBottomY); r.Pod(m.roofCollTop);
+            r.Pod(m.roofRockMin); r.Pod(m.roofRockMax); r.Pod(i32); m.caveTorchSpacing = i32;
+            r.Pod(u8); m.rimRock = u8 != 0; r.Pod(m.rimSink);
+            m.roofRockModels.resize(r.Count(4));
+            for (auto& s : m.roofRockModels) r.String(s);
+            r.String(m.torchModel);
         }
         if (!r.ok) { m.Clear(); return false; }
 

@@ -48,6 +48,20 @@ namespace MapTerrainEdit
     // 世界の点（xz）にある部品の group（上にある箱を優先。無ければ 0）
     uint32_t GroupAt(const MapData::Map& map, float x, float z);
 
+    // ---- 区域（平原 / 山頂 / 洞窟）の塗り替え（4 歩目の 2 段目）----
+    // 区域を塗り替えられる地図か（版 5 以降で生成 / 保存した物）
+    bool CanEditZones(const MapData::Map& map);
+    // マス (cx, cz) を中心に半径 radius マスの円を zone（0 平原 / 1 山頂 / 2 洞窟）で塗る。外周の崖のマスは塗らない。
+    // 変えたマスの数を返す。区域の表を書き換えるだけなので、塗り終わったら RegenZones を呼ぶ
+    int PaintZone(MapData::Map& map, int cx, int cz, int radius, uint8_t zone);
+    // 区域の形から決まる物を全部作り直す：床の箱、洞の岩の壁・屋根、三層の結果（山頂・洞窟のマス、一番奥 = Boss の門の候補）、
+    // 起伏・高さ場・通行・草のマス（Rederive）。regenProps = 洞の上の岩と洞の中の松明も置き直す（乱数は地図の seed から）
+    void RegenZones(MapData::Map& map, bool regenProps = true);
+    // 山頂の長い坂（summit = true。草の坂、麓へ下る）/ 洞窟の下り坂（土の坂、坑の底へ下る）を足す。
+    // (x, z) = 足跡の左下のマス、side = 下る向き、width = 幅、length = 長さ（マス）。新しい group を返す。
+    // 区域の縁に合わせるのは置く人（山頂の坂は高い端を山頂の縁に、洞窟の坂は高い端を坑の縁の内側に）
+    uint32_t AddZoneRamp(MapData::Map& map, bool summit, int x, int z, int side, int width, int length);
+
     // 確認用：生成器の結果と作り直した結果の差（生成した直後の地図で呼ぶ）
     struct Check
     {
@@ -58,6 +72,15 @@ namespace MapTerrainEdit
         bool walkableSame = false;
         bool grassSame = false;
         bool recordsSame = false;      // 部品の衝突・見た目の記録を作り直しても中身が同じ（順番は問わない）
+        bool zonesSame = false;        // 区域から作り直した床・洞の壁 / 屋根の記録、岩の壁のマス、三層の結果が同じ
     };
     Check Verify(const MapData::Map& map);
+}
+
+// 実装の中だけで使う（MapTerrainEdit.cpp / MapZoneEdit.cpp）
+namespace MapTerrainEdit::detail
+{
+    std::string& LastPerf();                        // TEMP-TEST: 直前の Rederive の内訳（ms）
+    uint64_t RecordSum(const MapData::Map& map);    // 衝突・見た目・塞ぐマスの記録の中身の合計（順番に依らない）
+    bool ZonesMatch(const MapData::Map& map);       // 区域から作り直した物が今の記録と同じか（Verify 用）
 }

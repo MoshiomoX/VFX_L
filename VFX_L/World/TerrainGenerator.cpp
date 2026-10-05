@@ -50,35 +50,6 @@ namespace
 
 
 
-    // マスの印（mask == value のマス）を軸平行の矩形の組に分ける（衝突の箱にする）。
-    // 左下から横に伸ばし、同じ幅で上へ伸ばせるだけ伸ばす貪欲法
-    std::vector<Rect> MaskRects(const std::vector<uint8_t>& mask, int w, int d, uint8_t value)
-    {
-        std::vector<uint8_t> used(mask.size(), 0);
-        auto avail = [&](int x, int z) { const size_t i = (size_t)z * w + x; return mask[i] == value && !used[i]; };
-        std::vector<Rect> out;
-        for (int z = 0; z < d; ++z)
-            for (int x = 0; x < w; ++x)
-            {
-                if (!avail(x, z)) continue;
-                int x1 = x;
-                while (x1 + 1 < w && avail(x1 + 1, z)) ++x1;
-                int z1 = z;
-                for (;;)
-                {
-                    const int nz = z1 + 1;
-                    if (nz >= d) break;
-                    bool ok = true;
-                    for (int xx = x; xx <= x1 && ok; ++xx) ok = avail(xx, nz);
-                    if (!ok) break;
-                    z1 = nz;
-                }
-                for (int zz = z; zz <= z1; ++zz)
-                    for (int xx = x; xx <= x1; ++xx) used[(size_t)zz * w + xx] = 1;
-                out.push_back({ x, z, x1 - x + 1, z1 - z + 1 });
-            }
-        return out;
-    }
 
     // 外へ 1 歩（Side の向き）
     void SideStep(Side s, int& dx, int& dz)
@@ -461,6 +432,7 @@ namespace TerrainGenerator
         //   山頂は 0〜summitHeight。どれもマスの印を矩形に分けた箱の組。
         // 高さ場: 山頂は上げる、洞窟はそのまま -mineDepth を書く（坂は後で高い方を書く）。
         // 床は格子に登録しない（上を歩くものなので通行を塞がない）
+        float floorPlainTop = 0.0f, floorSummitTop = 0.0f;   // 床の箱の上面（記録へ。区域を塗り替えた時に同じ高さで作り直す）
         const float floorBottom = -mineD - 1.0f;
         {
             // 起伏（2026-10-04）: 歩く面は高さ場の衝突（下の relief）。箱は上面を起伏の一番低い所より下げ、
@@ -473,23 +445,8 @@ namespace TerrainGenerator
                 summitTop = summitH + *std::min_element(relief->summit.begin(), relief->summit.end()) - 0.1f;
             }
             emit.Begin(MapData::kFloor);
-            std::vector<uint8_t> solid((size_t)gw * gd);
-            for (size_t i = 0; i < solid.size(); ++i) solid[i] = (zone[i] == kZoneMine) ? 0 : 1;
-            for (const Rect& r : MaskRects(solid, gw, gd, 1))
-            {
-                const Vector3 lo = RectMin(grid, r);
-                solidBox({ lo.x, floorBottom, lo.z }, lo + Vector3(r.w * kCs, plainTop, r.d * kCs));
-            }
-            for (const Rect& r : MaskRects(zone, gw, gd, kZoneMine))
-            {
-                const Vector3 lo = RectMin(grid, r);
-                solidBox({ lo.x, floorBottom, lo.z }, lo + Vector3(r.w * kCs, -mineD, r.d * kCs));
-            }
-            for (const Rect& r : MaskRects(zone, gw, gd, kZoneSummit))
-            {
-                const Vector3 lo = RectMin(grid, r);
-                solidBox({ lo.x, floorBottom, lo.z }, lo + Vector3(r.w * kCs, summitTop, r.d * kCs));
-            }
+            EmitFloorBoxes(emit, grid, zone, floorBottom, plainTop, summitTop, mineD);
+            floorPlainTop = plainTop; floorSummitTop = summitTop;
             // 高さ場 = 起伏の面（山頂は +summitH、洞窟は -mineD）。外周の崖のマス（塞いだマス）も内側の隣と同じ区域の面
             // （2026-10-03。外周の岩を少し外へ下げてこのマスの地面が見え、草を生やす）
             writeBase(0, 0, gw * hsub - 1, gd * hsub - 1);
@@ -754,26 +711,14 @@ namespace TerrainGenerator
         if (cave)
         {
             emit.Begin(MapData::kCaveRoof);
-            std::vector<uint8_t> mouth((size_t)gw * gd, 0);
-            for (const Rect& m : mineMouths)
-                for (int z = m.z; z < m.z + m.d; ++z)
-                    for (int x = m.x; x < m.x + m.w; ++x)
-                        if (x >= 0 && z >= 0 && x < gw && z < gd) mouth[(size_t)z * gw + x] = 1;
+            // 岩の壁（坑の 8 近傍、口を除く）→ 塞ぐ・壁と屋根と梁の衝突・屋根の見た目（TerrainBuild。区域を塗り替えた時も同じ関数）
+            std::vector<uint8_t> mouth;
+            ComputeCaveRing(zone, mineMouths, gw, gd, caveRing, mouth);
             for (int z = 1; z < gd - 1; ++z)
                 for (int x = 1; x < gw - 1; ++x)
-                {
-                    const size_t i = (size_t)z * gw + x;
-                    if (zone[i] == kZoneMine || mouth[i]) continue;
-                    bool nextToPit = false;
-                    for (int dz = -1; dz <= 1 && !nextToPit; ++dz)
-                        for (int dx = -1; dx <= 1 && !nextToPit; ++dx)
-                            nextToPit = zone[(size_t)(z + dz) * gw + (x + dx)] == kZoneMine;
-                    if (!nextToPit) continue;
-                    caveRing[i] = 1;
-                    at(x, z) = kMass;
-                    emit.Block(&grid, x, z, 1, 1);
-                    ++caveRingCells;
-                }
+                    if (caveRing[(size_t)z * gw + x]) { at(x, z) = kMass; ++caveRingCells; }
+            const float collTop = (std::max)(cfg.roofCollisionTop, roofTopY);
+            EmitCaveRoof(emit, &grid, grid, zone, caveRing, mouth, roofBottomY, roofTopY, collTop, gCliffHigh);
 
             // 岩の壁のマスの高さ場（2026-10-03、通し検査 soak で見つけた）。歩けないので誰も立たないが、
             // 隣の歩けるマスの双線形の高さに混ざる。平原の 0 のままだと、坑の縁に押し付けられた雑魚が
@@ -810,27 +755,6 @@ namespace TerrainGenerator
                 for (const auto& f : fill)
                     grid.SetHeightExact(f.first % (gw * kSub), f.first / (gw * kSub), f.second);
             }
-
-            const float collTop = (std::max)(cfg.roofCollisionTop, roofTopY);
-            const Vector4 rockTop(gCliffHigh.x * 1.1f, gCliffHigh.y * 1.1f, gCliffHigh.z * 1.1f, 1.0f);
-            for (const Rect& r : MaskRects(caveRing, gw, gd, 1))
-            {
-                const Vector3 lo = RectMin(grid, r);
-                solidBox(lo, lo + Vector3(r.w * kCs, collTop, r.d * kCs));
-            }
-            auto roofOver = [&](const std::vector<uint8_t>& mask, uint8_t value)
-                {
-                    for (const Rect& r : MaskRects(mask, gw, gd, value))
-                    {
-                        const Vector3 lo = RectMin(grid, r);
-                        solidBox(lo + Vector3(0.0f, roofBottomY, 0.0f), lo + Vector3(r.w * kCs, collTop, r.d * kCs));
-                        Vector3 v[8];
-                        BoxVerts(v, lo + Vector3(0.0f, roofBottomY, 0.0f), lo + Vector3(r.w * kCs, roofTopY, r.d * kCs));
-                        emit.Visual(v, rockTop, gCliffHigh, TerrainSurface::Rock, TerrainSurface::Rock);   // 天井は上も横も岩
-                    }
-                };
-            roofOver(zone, kZoneMine);   // 屋根
-            roofOver(mouth, 1);          // 口の上の梁
         }
 
         // ---------- 高台（一面だけが長い坂、残り三面は崖。一部は上に 2 段目）----------
@@ -1517,99 +1441,21 @@ namespace TerrainGenerator
 
         // ---------- 洞の上の岩（低い山に見せる）と中の松明 ----------
         int caveRocks = 0, caveTorches = 0;
+        // 岩のモデルの表・松明の条件は記録にも残す（区域を塗り替えた時に同じ物で作り直す。MapTerrainEdit::RegenZones）
+        std::vector<std::string> roofRockPaths;
+        const bool rimRock = cfg.rockMountains && !ruinWalls && set.nCliff > 0;
+        const float rimSink = (std::max)(-cfg.edgeRockIntrudeMin, 0.0f) + 0.2f;
         if (cave)
         {
-            // 岩の塊（坑 + 岩の壁）のマスと、塊の縁からの距離（4 近傍の BFS）。真ん中ほど高い岩を積む
-            auto inMass = [&](int x, int z)
-                {
-                    if (x < 0 || z < 0 || x >= gw || z >= gd) return false;
-                    const size_t i = (size_t)z * gw + x;
-                    return zone[i] == kZoneMine || caveRing[i] != 0;
-                };
-            std::vector<int> dist((size_t)gw * gd, -1);
-            std::vector<int> queue;
-            const int ndx[4] = { 1, -1, 0, 0 }, ndz[4] = { 0, 0, 1, -1 };
-            for (int z = 0; z < gd; ++z)
-                for (int x = 0; x < gw; ++x)
-                {
-                    if (!inMass(x, z)) continue;
-                    bool edge = false;
-                    for (int k = 0; k < 4 && !edge; ++k) edge = !inMass(x + ndx[k], z + ndz[k]);
-                    if (edge) { dist[(size_t)z * gw + x] = 0; queue.push_back(z * gw + x); }
-                }
-            int maxDist = 0;
-            for (size_t qi = 0; qi < queue.size(); ++qi)
-            {
-                const int c = queue[qi], cx = c % gw, cz = c / gw;
-                maxDist = (std::max)(maxDist, dist[(size_t)c]);
-                for (int k = 0; k < 4; ++k)
-                {
-                    const int nx = cx + ndx[k], nz = cz + ndz[k];
-                    if (!inMass(nx, nz) || dist[(size_t)nz * gw + nx] >= 0) continue;
-                    dist[(size_t)nz * gw + nx] = dist[(size_t)c] + 1;
-                    queue.push_back(nz * gw + nx);
-                }
-            }
             const bool ownCliff = set.nCliff > 0;   // 遺跡は岩山の表が無いので森の岩を使う
-            const auto roofRocks = loadModels(ownCliff ? set.cliff : F::kCliffRocks,
-                ownCliff ? set.nCliff : std::size(F::kCliffRocks));
-            for (int z = 1; z < gd - 1 && !roofRocks.empty(); z += 2)
-                for (int x = 1; x < gw - 1; x += 2)
-                {
-                    const int gx = x + randi(0, 1), gz = z + randi(0, 1);   // 2x2 の区画の中でずらす
-                    if (!inMass(gx, gz)) continue;
-                    const PropModel& pm = roofRocks[randi(0, (int)roofRocks.size() - 1)];
-                    const float h = (pm.hi.y - pm.lo.y) * pm.unit;
-                    if (h < 0.1f) continue;
-                    const float t = (maxDist > 0) ? (float)dist[(size_t)gz * gw + gx] / (float)maxDist : 0.0f;
-                    const float targetH = (cfg.roofRockMin + (cfg.roofRockMax - cfg.roofRockMin) * t) * randf(0.8f, 1.2f);
-                    const Vector3 c = grid.CellToWorld(gx, gz);
-                    spawnVisual(pm, targetH / h, randf(0.0f, 360.0f), c.x + randf(-1.0f, 1.0f), c.z + randf(-1.0f, 1.0f),
-                        roofTopY - targetH * 0.15f, MapData::kRoofRock);   // 少し埋める
-                    ++caveRocks;
-                }
-
-            // 松明：坑の底のマスで、隣が塞がった壁（岩の壁・外周）の所。壁の面に付け、caveTorchSpacing マス毎
-            const auto torchModels = loadModels(&Ru::kTorch, 1);
-            if (!torchModels.empty())
-            {
-                const PropModel& tm = torchModels[0];
-                const float td = (tm.hi.z - tm.lo.z) * tm.unit;
-                const float yaws[4] = { 90.0f, 270.0f, 0.0f, 180.0f };   // 壁の向き +x / -x / +z / -z（遺跡の壁と同じ取り方）
-                const float gap = (float)(std::max)(cfg.caveTorchSpacing, 1) * kCs;
-                std::vector<Vector3> placed;
-                for (int z = 1; z < gd - 1; ++z)
-                    for (int x = 1; x < gw - 1; ++x)
-                    {
-                        if (at(x, z) != kPit || !grid.IsWalkable(x, z)) continue;   // 歩ける底（坂・降り口・岩は除く）
-                        for (int k = 0; k < 4; ++k)
-                        {
-                            const int nx = x + ndx[k], nz = z + ndz[k];
-                            // 壁 = 洞の岩の壁か外周の崖のマス（外周の岩で塞いだマスの縁に付けると岩の前に浮く）
-                            const bool wallCell = caveRing[(size_t)nz * gw + nx] != 0
-                                || nx == 0 || nz == 0 || nx == gw - 1 || nz == gd - 1;
-                            if (!wallCell) continue;
-                            const Vector3 d((float)ndx[k], 0.0f, (float)ndz[k]);
-                            const Vector3 wallP = grid.CellToWorld(x, z) + d * (kCs * 0.5f);
-                            bool farEnough = true;
-                            for (const Vector3& q : placed)
-                                if ((q - wallP).LengthSquared() < gap * gap) { farEnough = false; break; }
-                            if (!farEnough) continue;
-                            // 外周の岩山は縁から edgeRockIntrudeMin（負 = 外）まで下がっていて、歩けるマスの前の岩は
-                            // 縁より内へほとんど入らない（入る岩はマスを塞ぐ）。縁の線に付けると岩の前で宙に浮くので、
-                            // 岩の中へ押し込む（深く入った所は隠れるが、灯りは元の位置に出す）
-                            const bool rimRock = caveRing[(size_t)nz * gw + nx] == 0
-                                && cfg.rockMountains && !ruinWalls && set.nCliff > 0;
-                            const float sink = rimRock ? (std::max)(-cfg.edgeRockIntrudeMin, 0.0f) + 0.2f : 0.0f;
-                            const Vector3 p = wallP - d * (td * 0.5f);
-                            spawnVisual(tm, 1.0f, yaws[k], p.x + d.x * sink, p.z + d.z * sink, -mineD + 2.0f, MapData::kTorch);
-                                torchList.push_back(Vector3(p.x, -mineD + 2.7f, p.z) - d * 0.4f);
-                            placed.push_back(wallP);
-                            ++caveTorches;
-                            break;
-                        }
-                    }
-            }
+            const char* const* paths = ownCliff ? set.cliff : F::kCliffRocks;
+            const size_t count = ownCliff ? set.nCliff : std::size(F::kCliffRocks);
+            for (size_t i = 0; i < count; ++i) roofRockPaths.push_back(paths[i]);
+            // 岩の塊（坑 + 岩の壁）の上に 2x2 マス毎に 1 個、真ん中ほど高く。松明は坑の底の壁際に caveTorchSpacing マス毎
+            caveRocks = EmitRoofRocks(emit, grid, zone, caveRing, roofTopY, cfg.roofRockMin, cfg.roofRockMax, roofRockPaths, rng);
+            caveTorches = EmitCaveTorches(emit, grid,
+                [&](int x, int z) { return at(x, z) == kPit && grid.IsWalkable(x, z); },   // 歩ける底（坂・降り口・岩は除く）
+                caveRing, mineD, cfg.caveTorchSpacing, rimRock, rimSink, Ru::kTorch, torchList);
         }
 
         // ---------- 草を生やすマス ----------
@@ -1633,59 +1479,15 @@ namespace TerrainGenerator
 
         // ---------- 三層の結果（箱・Boss の門の置き場所）----------
         Layout layout;
+        if (layers)
         {
-            if (layers)
-            {
-                layout.summitRamps = summitRampInfo;
-                layout.mineRamps = mineRampInfo;
-                auto floorCell = [&](int x, int z)   // 洞窟の底の歩けるマス（坂は除く）
-                    {
-                        return x >= 0 && z >= 0 && x < gw && z < gd && zone[(size_t)z * gw + x] == kZoneMine
-                            && at(x, z) != kRamp && grid.IsWalkable(x, z);
-                    };
-                for (int z = 0; z < gd; ++z)
-                    for (int x = 0; x < gw; ++x)
-                    {
-                        const int i = z * gw + x;
-                        if (zone[(size_t)i] == kZoneSummit && at(x, z) != kSlope && grid.IsWalkable(x, z))
-                            layout.summitCells.push_back(i);
-                        if (floorCell(x, z)) layout.mineCells.push_back(i);
-                    }
-                // 一番奥：坂の降り口から底を 4 近傍で歩いた距離が一番大きく、周り 3x3 も底のマス
-                std::vector<int> dist((size_t)gw * gd, -1);
-                std::vector<int> queue;
-                for (const Rect& r : mineLandings)
-                    for (int z = r.z; z < r.z + r.d; ++z)
-                        for (int x = r.x; x < r.x + r.w; ++x)
-                            if (floorCell(x, z) && dist[(size_t)z * gw + x] < 0)
-                            {
-                                dist[(size_t)z * gw + x] = 0;
-                                queue.push_back(z * gw + x);
-                            }
-                int best = -1, bestDist = -1;
-                for (size_t qi = 0; qi < queue.size(); ++qi)
-                {
-                    const int c = queue[qi], cx = c % gw, cz = c / gw;
-                    bool roomy = true;
-                    for (int dz = -1; dz <= 1 && roomy; ++dz)
-                        for (int dx = -1; dx <= 1 && roomy; ++dx)
-                            roomy = floorCell(cx + dx, cz + dz);
-                    if (roomy && dist[(size_t)c] > bestDist) { bestDist = dist[(size_t)c]; best = c; }
-                    const int nx[4] = { cx + 1, cx - 1, cx, cx }, nz[4] = { cz, cz, cz + 1, cz - 1 };
-                    for (int k = 0; k < 4; ++k)
-                        if (floorCell(nx[k], nz[k]) && dist[(size_t)nz[k] * gw + nx[k]] < 0)
-                        {
-                            dist[(size_t)nz[k] * gw + nx[k]] = dist[(size_t)c] + 1;
-                            queue.push_back(nz[k] * gw + nx[k]);
-                        }
-                }
-                if (best >= 0)
-                {
-                    layout.hasMineDeep = true;
-                    layout.mineDeep = grid.CellToWorld(best % gw, best / gw);
-                    layout.mineDeep.y = -mineD;
-                }
-            }
+            layout.summitRamps = summitRampInfo;
+            layout.mineRamps = mineRampInfo;
+            // 山頂の上面の歩けるマス、洞窟の底の歩けるマス（坂は除く）、一番奥（TerrainBuild。区域を塗り替えた時も同じ関数）
+            ComputeLayoutCells(grid,
+                [&](int x, int z) { return zone[(size_t)z * gw + x] == kZoneSummit && at(x, z) != kSlope && grid.IsWalkable(x, z); },
+                [&](int x, int z) { return zone[(size_t)z * gw + x] == kZoneMine && at(x, z) != kRamp && grid.IsWalkable(x, z); },
+                mineLandings, mineD, layout.summitCells, layout.mineCells, layout.hasMineDeep, layout.mineDeep);
         }
 
         // ---------- 記録（MapData）の土台と見出し ----------
@@ -1702,6 +1504,13 @@ namespace TerrainGenerator
             m.rawPlain = rawPlain; m.rawSummit = rawSummit;
             m.pads = pads;
             m.padMargin = cfg.padMargin; m.reliefMaxSlopeDeg = cfg.reliefMaxSlopeDeg; m.rampSlopeDeg = cfg.rampSlopeDeg;
+            // 区域を塗り替えた時の作り直し用（MapTerrainEdit::RegenZones）
+            m.hasZoneParams = true;
+            m.floorPlainTop = floorPlainTop; m.floorSummitTop = floorSummitTop;
+            m.roofBottomY = roofBottomY; m.roofCollTop = (std::max)(cfg.roofCollisionTop, roofTopY);
+            m.roofRockMin = cfg.roofRockMin; m.roofRockMax = cfg.roofRockMax; m.caveTorchSpacing = cfg.caveTorchSpacing;
+            m.rimRock = rimRock; m.rimSink = rimSink;
+            m.roofRockModels = roofRockPaths; m.torchModel = Ru::kTorch;
             m.walkable = grid.Walkable(); m.heights = grid.Heights();
             m.grassMask = grassMask;
             m.torches = torchList;

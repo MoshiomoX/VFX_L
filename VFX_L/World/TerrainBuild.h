@@ -19,7 +19,9 @@
 #include "Graphics/Renderer/TerrainSurface.h"
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -204,6 +206,32 @@ namespace TerrainBuild
     void EmitBlockPart(Emitter& emit, GridWorld* grid, const GridWorld& origin, const MapData::BlockPart& p);
     void RampVerts(const GridWorld& origin, const MapData::RampPart& p, Vector3 v[8]);
     void EmitRampPart(Emitter& emit, GridWorld* grid, const GridWorld& origin, const MapData::RampPart& p);
+
+    // ---- 区域（平原 / 山頂 / 洞窟）の形から決まる物（TerrainZones.cpp。生成と MapTerrainEdit::RegenZones が共用）----
+    // マスの印（mask == value）を軸平行の矩形の組に分ける
+    std::vector<Rect> MaskRects(const std::vector<uint8_t>& mask, int w, int d, uint8_t value);
+    // 床の縦の壁になる衝突の箱（平原・洞窟の底・山頂）
+    void EmitFloorBoxes(Emitter& emit, const GridWorld& origin, const std::vector<uint8_t>& zone,
+        float floorBottom, float plainTop, float summitTop, float mineD);
+    // 洞の岩の壁（坑の 8 近傍、口を除く）と口の印
+    void ComputeCaveRing(const std::vector<uint8_t>& zone, const std::vector<Rect>& mouths, int gw, int gd,
+        std::vector<uint8_t>& ring, std::vector<uint8_t>& mouthMask);
+    // 洞窟の屋根：岩の壁のマスを塞ぐ、壁・屋根・梁の衝突、屋根・梁の見た目
+    void EmitCaveRoof(Emitter& emit, GridWorld* grid, const GridWorld& origin, const std::vector<uint8_t>& zone,
+        const std::vector<uint8_t>& ring, const std::vector<uint8_t>& mouthMask,
+        float roofBottomY, float roofTopY, float collTop, const Vector4& cliffHigh);
+    // 洞の上に積む岩。置いた数を返す
+    int EmitRoofRocks(Emitter& emit, const GridWorld& origin, const std::vector<uint8_t>& zone,
+        const std::vector<uint8_t>& ring, float roofTopY, float rockMin, float rockMax,
+        const std::vector<std::string>& modelPaths, std::mt19937& rng);
+    // 洞の中の松明（pitFloor = 歩ける坑の底のマスか）。灯りの位置を outLights へ足す。置いた数を返す
+    int EmitCaveTorches(Emitter& emit, const GridWorld& origin, const std::function<bool(int, int)>& pitFloor,
+        const std::vector<uint8_t>& ring, float mineD, int spacing, bool rimRock, float rimSink,
+        const std::string& torchPath, std::vector<Vector3>& outLights);
+    // 三層の結果：山頂・洞窟の歩けるマスと、洞窟の一番奥
+    void ComputeLayoutCells(const GridWorld& origin, const std::function<bool(int, int)>& summitCell,
+        const std::function<bool(int, int)>& mineFloor, const std::vector<Rect>& mineLandings, float mineD,
+        std::vector<int>& summitCells, std::vector<int>& mineCells, bool& hasMineDeep, Vector3& mineDeep);
 
     // テクスチャの層毎の「元の頂点色の基準の明るさ」（TerrainSurface。頂点色の明るさ / これ をテクスチャに薄く掛けて色むらを残す）。
     // 地面・洞の底は色の関数をフィールドに 48x48 点で平均、他はその層の配色

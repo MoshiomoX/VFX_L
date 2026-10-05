@@ -120,8 +120,8 @@ void AutoTestMapIO::Run()
         m_EntA = TerrainDigest();
         m_GridA = gridHash();
         snprintf(line, sizeof(line),
-            "mapio gen seed %u biome %d bytes %zu saved %d boxes %zu hulls %zu visuals %zu props %zu blocks %zu models %zu torches %zu entities %zu",
-            m_TerrainMap.seed, m_TerrainMap.biome, m_BytesA.size(), (int)saved, m_TerrainMap.boxes.size(),
+            "mapio gen hash %016llx seed %u biome %d bytes %zu saved %d boxes %zu hulls %zu visuals %zu props %zu blocks %zu models %zu torches %zu entities %zu",
+            (unsigned long long)Fnv(m_BytesA.data(), m_BytesA.size()), m_TerrainMap.seed, m_TerrainMap.biome, m_BytesA.size(), (int)saved, m_TerrainMap.boxes.size(),
             m_TerrainMap.hulls.size(), m_TerrainMap.visuals.size(), m_TerrainMap.props.size(), m_TerrainMap.blocks.size(),
             m_TerrainMap.models.size(), m_TerrainMap.torches.size(), m_EntA.count);
         AutoTestLog(line);
