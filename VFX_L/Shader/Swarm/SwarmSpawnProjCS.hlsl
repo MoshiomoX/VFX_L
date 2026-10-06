@@ -64,6 +64,20 @@ cbuffer SwarmSpawnCB : register(b1)
     uint2 _spawnPad;
 };
 
+// Does the curve go under the ground (plus a margin) anywhere between the ends?
+// Four samples are enough for the gentle curves the profiles use (c.y <= ~0.45 of the range)
+bool PathHitsGround(SwarmProjPath p)
+{
+    [unroll]
+    for (int i = 1; i <= 4; ++i)
+    {
+        float3 q = SwarmBezier(p, (float)i * 0.2);
+        if (q.y < SwarmTerrainHeight(terrainHeight, q.xz) + 0.4)
+            return true;
+    }
+    return false;
+}
+
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -163,6 +177,20 @@ void main(uint3 id : SV_DispatchThreadID)
                 path.target = slot;
                 SwarmBuildPath(path, m, req.position, enemies[slot].position,
                                req.velocity / speed, false);
+
+                // A randomly rolled curve may dip into the ground (2026-10-06, user: check before
+                // firing). Sample the curve; if it goes under the terrain, roll the side offset to
+                // the opposite direction (down -> up); if that still hits, fall back to the flat side
+                if (PathHitsGround(path))
+                {
+                    path.sideSign += 3.14159265;
+                    SwarmBuildPath(path, m, req.position, enemies[slot].position, req.velocity / speed, false);
+                    if (PathHitsGround(path))
+                    {
+                        path.sideSign = 0.0;
+                        SwarmBuildPath(path, m, req.position, enemies[slot].position, req.velocity / speed, false);
+                    }
+                }
 
                 // leave the muzzle along the curve, not along the aim line
                 float3 tan0 = SwarmBezierTangent(path, 0.0);
