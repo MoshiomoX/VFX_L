@@ -195,7 +195,10 @@ int GPUParticleSystem::RegisterParticleMesh(const std::string& path)
         return 0;
     }
 
-    auto model = ResourceManager::Get().LoadModel(path);
+    // "@sphere" = 組み込みの球（ファイル無し。水晶玉の光球など「球らしさ」が要る物用。2026-10-06）
+    std::shared_ptr<Model> model = (path == "@sphere")
+        ? PrimitiveBuilder::CreateSphere(m_Device, 0.5f, { 1, 1, 1, 1 }, 24)
+        : ResourceManager::Get().LoadModel(path);
     if (!model || !BuildMeshSlot(slot, model, path))
     {
         std::cout << "[Warn] mesh particle: cannot load " << path << " (drawn as cube)" << std::endl;
