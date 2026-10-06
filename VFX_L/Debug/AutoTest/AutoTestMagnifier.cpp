@@ -82,12 +82,13 @@ void AutoTestMagnifier::Run()
         for (const Vector3& t : targets)
             m_Swarm.SpawnEnemy(Vector3(pp.x + t.x, gy, pp.z + t.z), 1000.0f, 0.0f);
         ClearBackpackItems(bp);
-        const int a = BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
-        const int b = BackpackLogic::Place(bp, ItemID::Meteor, lo + 2, lo + 2, 0);
+        // 2026-10-06：基本魔法が多マスになった（火球 2x2・メテオ 十字 5）ので 3x3 の枠には石弾（L 字 3 マス）を置く。
+        // 石弾の命中（StoneShotHit：土煙 + 石）が「炸裂」の見た目。火球は爆発しなくなった
+        const int a = BackpackLogic::Place(bp, ItemID::StoneShot, lo, lo, 0);
         bp.dirty = true;
         wand.castingPaused = false;
         char line[96];
-        snprintf(line, sizeof(line), "magnifier A: fireball %d meteor %d (no magnifier)", a, b);
+        snprintf(line, sizeof(line), "magnifier A: stone %d (no magnifier)", a);
         AutoTestLog(line);
         m_AutoStep = 1;
     }
@@ -96,19 +97,46 @@ void AutoTestMagnifier::Run()
         logState("A");
         m_AutoStep = 2;
     }
-    else if (m_AutoStep == 2 && m_AutoTime >= 9.0f)
+    else if (m_AutoStep == 2 && m_AutoTime >= 4.5f)
     {
-        const int m = BackpackLogic::Place(bp, ItemID::Magnifier, lo + 1, lo + 1, 0);
-        bp.dirty = true;
-        char line[96];
-        snprintf(line, sizeof(line), "magnifier B: magnifier %d placed in the middle", m);
-        AutoTestLog(line);
+        AutoTestLog("magnifier look A");   // 石弾が当たっている頃（外の撮影）
         m_AutoStep = 3;
     }
-    else if (m_AutoStep == 3 && m_AutoTime >= 10.0f)
+    else if (m_AutoStep == 3 && m_AutoTime >= 9.0f)
+    {
+        // 拡大鏡（斜めの影響マス）を、石弾に掛かる空きマスのどこかへ：3x3 の空きを順に試す
+        int m = -1, mx = -1, mz = -1;
+        for (int z = 0; z < 3 && m < 0; ++z)
+            for (int x = 0; x < 3 && m < 0; ++x)
+            {
+                const int idx = BackpackLogic::Place(bp, ItemID::Magnifier, lo + x, lo + z, 0);
+                if (idx < 0) continue;
+                const std::vector<int> inf = BackpackLogic::GetInfluencers(bp, 0);   // 0 = 石弾
+                bool hits = false;
+                for (int k : inf) hits = hits || k == idx;
+                if (hits) { m = idx; mx = x; mz = z; }
+                else BackpackLogic::Remove(bp, idx);
+            }
+        bp.dirty = true;
+        char line[96];
+        snprintf(line, sizeof(line), "magnifier B: magnifier %d placed at %d,%d", m, mx, mz);
+        AutoTestLog(line);
+        m_AutoStep = 4;
+    }
+    else if (m_AutoStep == 4 && m_AutoTime >= 10.0f)
     {
         logState("B");
-        m_AutoStep = 4;
+        m_AutoStep = 5;
+    }
+    else if (m_AutoStep == 5 && m_AutoTime >= 12.5f)
+    {
+        AutoTestLog("magnifier look B");
+        m_AutoStep = 6;
+    }
+    else if (m_AutoStep == 6 && m_AutoTime >= 14.0f)
+    {
+        AutoTestLog("magnifier done");
+        m_AutoStep = 7;
     }
 
     static float s_Timer = 0.0f;
