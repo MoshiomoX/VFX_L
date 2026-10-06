@@ -34,6 +34,9 @@ public:
     ID3D11DepthStencilState* DepthReadOnly() const { return m_Common->DepthRead(); }
     ID3D11DepthStencilState* DepthNone()     const { return m_Common->DepthNone(); }
     ID3D11DepthStencilState* DepthLessEqual() const { return m_DepthLessEqual.Get(); }  // Skybox 用
+    // 深度は普通どおり + ステンシルに参照値を書く（陣営のアウトライン。2026-10-06）。
+    // OMSetDepthStencilState(DepthStencilWrite(), 陣営の番号)。Restore で元（ステンシル無し）に戻る
+    ID3D11DepthStencilState* DepthStencilWrite() const { return m_DepthStencilWrite.Get(); }
 
     ID3D11RasterizerState* CullBack()  const { return m_CullBack.Get(); }
     ID3D11RasterizerState* CullFront() const { return m_CullFront.Get(); }
@@ -73,6 +76,7 @@ private:
 
     // CommonStates に無いもの
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_DepthLessEqual;
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_DepthStencilWrite;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState>   m_CullBack;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState>   m_CullFront;
 

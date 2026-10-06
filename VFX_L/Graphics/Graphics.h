@@ -51,6 +51,8 @@ public:
     // シーンの深度（MSAA なら Texture2DMS）と、シーンの RT / DSV（2026-10-04、画面のアウトラインが深度を読む）。
     // 深度を SRV で読む間は DSV を外すこと（同じ資源の読み書き）。読み終えたら RestoreRenderTarget
     ID3D11ShaderResourceView* GetDepthSRV() const { return m_DepthSRV.Get(); }
+    // 同じ深度のステンシル（G チャンネル、uint）。陣営のアウトライン（2026-10-06）。使い方は深度と同じ
+    ID3D11ShaderResourceView* GetStencilSRV() const { return m_StencilSRV.Get(); }
     ID3D11RenderTargetView* GetSceneRTV() const { return m_SceneRTV.Get(); }
     UINT GetSampleCount() const { return m_SampleCount; }
 
@@ -89,6 +91,7 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_SceneSRV;
     ComPtr<ID3D11DepthStencilView> m_DepthStencilView;
     ComPtr<ID3D11ShaderResourceView> m_DepthSRV;   // 同じ深度を読む（画面のアウトライン）
+    ComPtr<ID3D11ShaderResourceView> m_StencilSRV; // 同じ資源のステンシル（陣営のアウトライン）
 
     // ---- 合成（全画面三角形）----
     std::shared_ptr<VertexShader> m_CompositeVS;

@@ -14,6 +14,8 @@
 #include "Graphics/Material/Texture.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Renderer/RenderStates.h"
+#include "Player/PlayerTag.h"
+#include "Enemy/EnemyTags.h"
 #include "Camera/CameraBase.h"
 #include "Manager/ResourceManager.h"
 #include "ECS/View.h"
@@ -94,14 +96,35 @@ void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
             });
 }
 
+namespace
+{
+    // 陣営のアウトライン（2026-10-06、ユーザー：味方は青、敵は赤）：描く時にステンシルへ書く番号。
+    // 0 = どちらでもない（置物・門・箱）、1 = 味方（プレイヤー）、2 = 敵（エリート・Boss・雑魚の CPU 側の的）。
+    // 画面のアウトライン（PostProcess/Outline）がこの番号で線の色と太さを選ぶ
+    UINT StencilRefFor(Registry& reg, Entity e)
+    {
+        if (reg.Has<PlayerTag>(e)) return RenderSystem::kStencilFriend;
+        if (reg.Has<EliteTag>(e) || reg.Has<MobTag>(e)) return RenderSystem::kStencilEnemy;
+        return 0;
+    }
+    void SetStencil(ID3D11DeviceContext* ctx, UINT ref)
+    {
+        auto& rs = RenderStates::Get();
+        if (ref == 0) ctx->OMSetDepthStencilState(rs.DepthDefault(), 0);
+        else          ctx->OMSetDepthStencilState(rs.DepthStencilWrite(), ref);
+    }
+}
+
 void RenderSystem::Render(Registry& reg, Renderer& renderer)
 {
     if (!m_DrawablesFresh) GatherDrawables(reg);   // 影を描かないシーンはここで集める
+    ID3D11DeviceContext* ctx = renderer.GetContext();
     for (Entity e : m_Drawables)
     {
         if (!reg.IsValid(e) || !reg.Has<ModelComponent>(e) || !reg.Has<TransformComponent>(e)) continue;
         const auto& tf = reg.Get<TransformComponent>(e);
         auto& mc = reg.Get<ModelComponent>(e);
+        if (ctx) SetStencil(ctx, StencilRefFor(reg, e));
 
         // ECS の TransformComponent を既存 Transform に詰めて Model::Draw へ渡す。
         // これで描画パイプラインを変えずに ECS 描画が可能になる。
@@ -131,6 +154,7 @@ void RenderSystem::Render(Registry& reg, Renderer& renderer)
         mc.model->Draw(renderer, &temp);
         renderer.SetDissolve(nullptr);
     }
+    if (ctx) SetStencil(ctx, 0);
     m_DrawablesFresh = false;   // 次のフレームで集め直す
 
     RenderSkinned(reg, renderer);
@@ -155,15 +179,17 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
 
     bool drewAny = false;
     reg.CreateView<TransformComponent, SkinnedAnimComponent>()
-        .EachFrom<SkinnedAnimComponent>([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
+        .EachFrom<SkinnedAnimComponent>([&](Entity e, TransformComponent& tf, SkinnedAnimComponent& a)
             {
                 if (!a.visible || !a.model || !a.gpu) return;
                 if (!Skin(ctx, m_SkinningCS.get(), a)) return;
                 const Matrix world = SkinnedWorld(tf, a);
 
+                SetStencil(ctx, StencilRefFor(reg, e));   // 陣営のアウトライン（プレイヤー = 味方、エリート = 敵）
                 a.gpu->Render(ctx, *a.model, light, world, view, proj);
                 drewAny = true;
             });
+    SetStencil(ctx, 0);
 
     // SkinnedModelGPU::Render は InputLayout / VB を外すので、後続の通常描画のために戻す
     if (drewAny)
