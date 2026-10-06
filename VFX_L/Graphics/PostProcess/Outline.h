@@ -31,13 +31,23 @@ public:
         float strength = 0.9f;
         DirectX::SimpleMath::Vector3 tint = { 0.06f, 0.05f, 0.10f };   // 線が下の色に掛ける色（線形。少し青紫）
         bool  debugView = false;     // 調整用：目からの距離を縞で見せる
+
+        // ---- 陣営の線（2026-10-06、ユーザー：味方は少し太い青、敵は赤）----
+        // 描く時にステンシルへ書いた番号（RenderSystem::kStencilFriend / kStencilEnemy）で線の色を選ぶ。
+        // 線は手前側の画素に乗るので、その画素のステンシル = その物の陣営
+        bool  factionEnabled = true;
+        DirectX::SimpleMath::Vector3 friendColor = { 0.20f, 0.50f, 1.00f };   // 味方（線形）
+        DirectX::SimpleMath::Vector3 enemyColor = { 1.00f, 0.10f, 0.08f };    // 敵
+        float friendThicknessMul = 1.6f;   // 味方の線の太さ（thickness に掛ける）
+        float enemyThicknessMul = 1.2f;
+        float factionStrength = 1.0f;      // 陣営の線の濃さ（0〜1）
     };
 
     bool Initialize(ID3D11Device* device);
     void Render(ID3D11DeviceContext* context, Graphics& graphics, CameraBase* camera);
 
     Params& GetParams() { return m_Params; }
-    bool IsReady() const { return m_VS && m_PS && m_Multiply; }
+    bool IsReady() const { return m_VS && m_PS && m_Blend; }
     void DrawImGui();
 
 private:
@@ -45,12 +55,16 @@ private:
     {
         float depthA, depthB, thickness, threshold;
         float fadeStart, fadeEnd, strength, debugView;
-        DirectX::SimpleMath::Vector3 tint; float pad1;
+        DirectX::SimpleMath::Vector3 tint; float factionStrength;
+        DirectX::SimpleMath::Vector3 friendColor; float friendThickness;   // 画素単位（thickness × 倍率）
+        DirectX::SimpleMath::Vector3 enemyColor; float enemyThickness;
     };
-    static_assert(sizeof(OutlineCB) == 48, "OutlineCB layout mismatch");
+    static_assert(sizeof(OutlineCB) == 80, "OutlineCB layout mismatch");
 
     Params m_Params;
     std::shared_ptr<VertexShader> m_VS;
     std::shared_ptr<PixelShader>  m_PS;
-    Microsoft::WRL::ComPtr<ID3D11BlendState> m_Multiply;
+    // 乗算済みアルファ（結果 = 出力 + 下の色 × (1 − a)）。線の色へ a だけ寄せる。
+    // 2026-10-04 の第 1 版は乗算（下の色 × tint）だったが、青 / 赤の陣営の線は暗くするだけでは出せないので変えた
+    Microsoft::WRL::ComPtr<ID3D11BlendState> m_Blend;
 };

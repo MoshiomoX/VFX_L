@@ -240,6 +240,10 @@ bool Graphics::CreateSceneTargets(int width, int height)
     }
     hr = m_Device->CreateShaderResourceView(depthTex.Get(), &dsrv, &m_DepthSRV);
     DX_CHECK(hr, "CreateShaderResourceView(depth) failed");
+    // ステンシル（陣営のアウトライン、2026-10-06）：同じ資源の G（8bit uint）だけを読む
+    dsrv.Format = DXGI_FORMAT_X24_TYPELESS_G8_UINT;
+    hr = m_Device->CreateShaderResourceView(depthTex.Get(), &dsrv, &m_StencilSRV);
+    DX_CHECK(hr, "CreateShaderResourceView(stencil) failed");
 
     m_Viewport.Width = (float)width;
     m_Viewport.Height = (float)height;
@@ -435,6 +439,7 @@ bool Graphics::Resize(int width, int height)
     m_SceneResolved.Reset();
     m_DepthStencilView.Reset();
     m_DepthSRV.Reset();
+    m_StencilSRV.Reset();
 
     HRESULT hr = m_SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, m_SwapChainFlags);
     if (FAILED(hr))

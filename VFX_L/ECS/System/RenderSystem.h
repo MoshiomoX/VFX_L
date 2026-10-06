@@ -17,6 +17,11 @@ class ComputeShader;
 class RenderSystem
 {
 public:
+    // 陣営のアウトライン（2026-10-06）: 描く時にステンシルへ書く番号。Outline（PostProcess）がこれで線の色を選ぶ。
+    // SwarmSystem の雑魚・Boss も kStencilEnemy を書く
+    static constexpr unsigned int kStencilFriend = 1;   // プレイヤー（味方）
+    static constexpr unsigned int kStencilEnemy = 2;    // 敵（雑魚・エリート・Boss）
+
     void Render(Registry& reg, Renderer& renderer);
 
     // シャドウマップへ深度だけ（renderer が BeginDepthPass 中）。影を落とす物 = 見えている実体全部。

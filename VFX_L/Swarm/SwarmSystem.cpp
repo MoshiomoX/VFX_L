@@ -2236,6 +2236,8 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     // VS は一覧（aliveList の名前で繋ぐ）経由でしかスロットを引かないので、間接引数が無い時は描かない。
     // 種類毎に一覧とテクスチャ（t0）を差し替えて同じメッシュを描く。雑魚のテクスチャは Material::Bind が入れた物
     const auto& subs = m_EnemyModel->GetSubMeshes();
+    // 陣営のアウトライン（2026-10-06）：敵はステンシルに 2 を書く（PostProcess/Outline が赤い線にする）。描き終えたら元へ
+    m_Context->OMSetDepthStencilState(RenderStates::Get().DepthStencilWrite(), 2);
     for (uint32_t k = 0; indirect && k < Swarm::kEnemyKinds; ++k)
     {
         m_EnemyVS->SetSRV(m_Context, "aliveList", m_KindListSRV[k].Get());
@@ -2270,6 +2272,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
             m_Context->OMSetBlendState(RenderStates::Get().Opaque(), bf, 0xFFFFFFFF);
         }
     }
+    m_Context->OMSetDepthStencilState(RenderStates::Get().DepthDefault(), 0);   // 砕け散り・オーブはステンシル無し
     // 次のフレームの Compute が UAV として使うので必ず外す
     m_EnemyVS->UnbindSRVs(m_Context);
 
