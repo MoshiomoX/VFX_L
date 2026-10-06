@@ -37,6 +37,9 @@ struct AreaStats
     // 集約時に ItemCommon::triggeredBy が揃っていれば true。基本魔法側の SpellStats::triggerMask の bit (16 + 添字) が自分
     bool triggered = false;
 
+    // --- 貯蔵（水晶玉。2026-10-06）: WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光線の起点が光球）。-1 = 杖から ---
+    int storeUnit = -1;
+
     // --- エディタのプロファイル（AreaProfileDB の番号。0 = 無し）---
     // 単発か持続か・上下の厚み・プレイヤーへの追従・硬直・見た目 はここから引く。
     // 半径・持続・tick・威力 は上の値を使う（集約時にプロファイルの値を基礎値として入れ、修飾ルーンを掛けてある）

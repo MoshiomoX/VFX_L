@@ -98,6 +98,11 @@ namespace BackpackLogic
     // 影響マスがこのブロックに届いていて、id が triggeredBy に入っている物。上級魔法でなければ空
     std::vector<int> GetTriggerDrivers(const BackpackComponent& bp, int itemIndex);
 
-    // triggeredBy の全種類が揃って届いているか。上級魔法でなければ常に true
+    // triggeredBy の全種類が揃って届いているか。上級魔法でなければ常に true。
+    // 水晶玉に貯蔵されている上級魔法も true（光球が直接撃つので前提は要らない。2026-10-06）
     bool IsTriggerReady(const BackpackComponent& bp, int itemIndex);
+
+    // この攻撃魔法を貯蔵している召喚物（水晶玉）の index。無ければ -1（2026-10-06）。
+    // 召喚物の影響マス（左右 2 マス）がこのブロックに届いていれば貯蔵。複数届いていれば items の順で先の物
+    int StoredBy(const BackpackComponent& bp, int itemIndex);
 }

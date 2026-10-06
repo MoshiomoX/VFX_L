@@ -29,6 +29,7 @@ namespace UIDeco
         {
         case Tint::Silver: return FromSrgb(0.80f, 0.84f, 0.89f);   // 月銀 #CBD5E3
         case Tint::Arcane: return FromSrgb(0.44f, 0.88f, 0.85f);   // 奥術青 #6FE0DA
+        case Tint::Violet: return FromSrgb(0.78f, 0.62f, 0.96f);   // 菫 #C79EF5（召喚物）
         default:           return FromSrgb(0.85f, 0.71f, 0.42f);   // 古金 #D8B46A
         }
     }
@@ -38,6 +39,7 @@ namespace UIDeco
         switch (c)
         {
         case ItemCategory::Function: return Tint::Arcane;
+        case ItemCategory::Summon:   return Tint::Violet;
         case ItemCategory::Frame:
         case ItemCategory::Stat:     return Tint::Silver;
         default:                     return Tint::Gold;   // 攻撃魔法・範囲魔法・不明

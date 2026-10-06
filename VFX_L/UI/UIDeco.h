@@ -17,7 +17,7 @@ class Texture;
 
 namespace UIDeco
 {
-    enum class Tint { Gold, Silver, Arcane };
+    enum class Tint { Gold, Silver, Arcane, Violet };   // Violet = 召喚物（水晶玉。2026-10-06）
 
     // 線の色（a = 1）。UI は線形で合成されるので、sRGB の見た目の色を線形へ直した値
     DirectX::SimpleMath::Vector4 TintColor(Tint t);

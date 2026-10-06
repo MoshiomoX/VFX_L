@@ -35,6 +35,12 @@ std::shared_ptr<VFXEffect> AreaVFXPlayer::GetTemplate(const std::string& vfxFile
 uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
     float duration, bool follow, const VFXContext& ctx)
 {
+    return Play(vfxFile, pos, duration, follow, ctx, Vector3(1.0f, 1.0f, 1.0f));
+}
+
+uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
+    float duration, bool follow, const VFXContext& ctx, const Vector3& tint)
+{
     if (vfxFile.empty() || m_Active.size() >= kMaxActive) return 0;
 
     auto tmpl = GetTemplate(vfxFile);
@@ -43,6 +49,7 @@ uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
     Instance inst;
     inst.effect = std::make_unique<VFXEffect>();
     inst.effect->CloneFrom(*tmpl);
+    if (tint != Vector3(1.0f, 1.0f, 1.0f)) inst.effect->Tint(tint);   // 再生前に染める（粒子の色は OnPlay で GPU へ写る）
     inst.effect->InitStateMachine(ctx);
     inst.effect->SetWorldOffset(pos);
     inst.effect->Play();

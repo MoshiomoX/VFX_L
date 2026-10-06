@@ -50,6 +50,8 @@ public:
     void CloneFrom(const VFXEffect& src);
     // インスタンスを Y 軸回りに回す（粒子の発射位置・向き、点光源の位置）。複製した直後に 1 回
     void RotateYaw(float degrees);
+    // 色を掛ける（粒子の開始 / 終了色、点光源の色）。複製した直後に 1 回（水晶玉の光球。2026-10-06）
+    void Tint(const DirectX::SimpleMath::Vector3& c) { for (auto& e : m_Entries) e->Tint(c); }
 
     // 全 emitter に加算されるワールド位置（投射物追従用）
     void SetWorldOffset(const DirectX::SimpleMath::Vector3& p) { m_WorldOffset = p; }

@@ -23,6 +23,7 @@ From game-icons.net  https://game-icons.net
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html
   HasteRune.png       "Stopwatch"         by Lorc        https://game-icons.net/1x1/lorc/stopwatch.html
+  CrystalBall.png     "Crystal ball"      by Lorc        https://game-icons.net/1x1/lorc/crystal-ball.html
   MaxHealthUp.png     "Heart plus"        by Zeromancer  https://game-icons.net/1x1/zeromancer/heart-plus.html
   MaxManaUp.png       "Potion ball"       by Lorc        https://game-icons.net/1x1/lorc/potion-ball.html
   MoveSpeedUp.png     "Sprint"            by Lorc        https://game-icons.net/1x1/lorc/sprint.html

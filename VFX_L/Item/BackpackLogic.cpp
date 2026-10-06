@@ -493,6 +493,7 @@ namespace BackpackLogic
         if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return false;
         const ItemCommon* def = ItemDatabase::GetCommon(bp.items[itemIndex].id);
         if (!def || def->triggeredBy.empty()) return true;
+        if (StoredBy(bp, itemIndex) >= 0) return true;   // 水晶玉の光球が直接撃つ
 
         const std::vector<int> drivers = GetTriggerDrivers(bp, itemIndex);
         for (ItemID need : def->triggeredBy)
@@ -503,5 +504,15 @@ namespace BackpackLogic
             if (!found) return false;
         }
         return true;
+    }
+
+    int StoredBy(const BackpackComponent& bp, int itemIndex)
+    {
+        if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return -1;
+        if (!ItemDatabase::IsAttackType(bp.items[itemIndex].id)) return -1;
+        for (int src : GetInfluencers(bp, itemIndex))
+            if (ItemDatabase::GetCategory(bp.items[src].id) == ItemCategory::Summon)
+                return src;
+        return -1;
     }
 }

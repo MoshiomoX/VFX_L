@@ -301,10 +301,13 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
 {
     struct Slot { ItemID id; float timer; float interval; float cost; };
     std::vector<Slot> slots;
+    // 水晶玉に貯蔵された魔法は欄に出さず（光球ごとに撃つので 1 つのクールダウンが無い）、水晶玉を 1 欄にして次の光球までを出す
     for (const auto& s : wand.spells)
-        slots.push_back({ s.id, s.castTimer, s.castInterval, s.manaCost });
+        if (s.storeUnit < 0) slots.push_back({ s.id, s.castTimer, s.castInterval, s.manaCost });
     for (const auto& a : wand.areas)
-        slots.push_back({ a.id, a.castTimer, a.castInterval, a.manaCost });
+        if (a.storeUnit < 0) slots.push_back({ a.id, a.castTimer, a.castInterval, a.manaCost });
+    for (const auto& o : wand.orbs)
+        if (o.storedCount > 0) slots.push_back({ o.id, o.spawnTimer, o.orbInterval, 0.0f });
     if (slots.empty()) return;
 
     const float size = m_Style.slotSize;

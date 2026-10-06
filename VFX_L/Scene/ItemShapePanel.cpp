@@ -156,6 +156,7 @@ namespace
         case ItemCategory::Area:       return "Area";
         case ItemCategory::Frame:      return "Frame";
         case ItemCategory::Stat:       return "Stat";
+        case ItemCategory::Summon:     return "Summon";
         default:                       return "?";
         }
     }

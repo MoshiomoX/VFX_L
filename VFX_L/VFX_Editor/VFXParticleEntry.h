@@ -40,6 +40,12 @@ public:
     }
 	json ToJson() const override;
 	void FromJson(const json& j) override;
+    void Tint(const DirectX::SimpleMath::Vector3& c) override
+    {
+        auto mul = [&](DirectX::SimpleMath::Vector4& v) { v.x *= c.x; v.y *= c.y; v.z *= c.z; };
+        mul(emitterData.startColorMin); mul(emitterData.startColorMax);
+        mul(emitterData.endColorMin);   mul(emitterData.endColorMax);
+    }
 
     GPUParticleEmitter emitterData;
     int runtimeID = -1;
