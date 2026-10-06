@@ -1,0 +1,34 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [-0.6, 0.6], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 4, "blend": 1,
+                "boxExtents": [40.0, 6.0, 40.0], "direction": [0.87, -0.05, 0.50], "dragCoeff": 0.0,
+                "emitRate": 420.0, "emitType": 3,
+                "endColorMax": [0.80, 0.64, 0.42, 0.0], "endColorMin": [0.72, 0.56, 0.36, 0.0],
+                "gravity": [0.0, -0.4, 0.0], "innerRadius": 0.0, "lifetimeRange": [1.6, 2.6], "maxParticles": 2500,
+                "position": [0.0, 0.0, 0.0], "radius": 1.0, "renderMode": 0, "rotationRange": [-3.0, 3.0],
+                "sizeRange": [1.0, 1.8, 1.4, 2.4], "speedRange": [15.0, 23.0], "spreadAngle": 14.0,
+                "startColorMax": [0.82, 0.66, 0.44, 0.30], "startColorMin": [0.72, 0.56, 0.36, 0.22]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 5,
+                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1,
+                "boxExtents": [30.0, 3.0, 30.0], "direction": [0.87, 0.0, 0.50], "dragCoeff": 0.0,
+                "emitRate": 700.0, "emitType": 3,
+                "endColorMax": [0.85, 0.72, 0.50, 0.0], "endColorMin": [0.80, 0.66, 0.44, 0.0],
+                "gravity": [0.0, -1.5, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.6, 1.1], "maxParticles": 1500,
+                "position": [0.0, -2.0, 0.0], "radius": 1.0, "renderMode": 0, "rotationRange": [-3.0, 3.0],
+                "sizeRange": [0.12, 0.22, 0.10, 0.18], "speedRange": [20.0, 30.0], "spreadAngle": 10.0,
+                "startColorMax": [0.95, 0.85, 0.62, 0.55], "startColorMin": [0.85, 0.72, 0.50, 0.40]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        }
+    ],
+    "loop": true,
+    "name": "Sandstorm"
+}

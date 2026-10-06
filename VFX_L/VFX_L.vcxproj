@@ -182,6 +182,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestBossExit.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGround.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp" />
@@ -376,6 +377,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="World\TerrainParts.cpp" />
     <ClCompile Include="World\TerrainZones.cpp" />
     <ClCompile Include="World\TerrainBoulders.cpp" />
+    <ClCompile Include="World\WeatherSystem.cpp" />
     <ClCompile Include="World\MapData.cpp" />
     <ClCompile Include="World\MapEdit.cpp" />
     <ClCompile Include="World\MapTerrainEdit.cpp" />

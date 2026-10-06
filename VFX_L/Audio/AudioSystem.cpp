@@ -170,6 +170,8 @@ struct AudioSystem::Impl
 
     std::unique_ptr<ma_sound> music, musicOld;
     std::string musicName;
+    std::unique_ptr<ma_sound> ambient;   // 環境音のループ（SetAmbient）
+    std::string ambientFile;
     float oldLeft = 0.0f;   // 前の曲がフェードし終わるまでの秒
 
     double time = 0.0;
@@ -260,6 +262,8 @@ void AudioSystem::Shutdown()
     if (m->musicOld) { ma_sound_uninit(m->musicOld.get()); m->musicOld.reset(); }
     if (m->music) { ma_sound_uninit(m->music.get()); m->music.reset(); }
     m->musicName.clear();
+    if (m->ambient) { ma_sound_uninit(m->ambient.get()); m->ambient.reset(); }
+    m->ambientFile.clear();
     m->Unregister();
     for (int i = 0; i < 3; ++i)
         if (m->groupOk[i]) { ma_sound_group_uninit(&m->groups[i]); m->groupOk[i] = false; }
@@ -378,6 +382,33 @@ void AudioSystem::PlayMusic(const std::string& track, float fadeSec)
 }
 
 const std::string& AudioSystem::CurrentMusic() const { return m->musicName; }
+
+void AudioSystem::SetAmbient(const std::string& file, float volume, float pitch)
+{
+    if (!m->ok) return;
+    if (file != m->ambientFile)
+    {
+        if (m->ambient) { ma_sound_uninit(m->ambient.get()); m->ambient.reset(); }
+        m->ambientFile = file;
+        if (!file.empty())
+        {
+            auto s = std::make_unique<ma_sound>();
+            if (ma_sound_init_from_file(&m->engine, file.c_str(), MA_SOUND_FLAG_STREAM | MA_SOUND_FLAG_NO_SPATIALIZATION,
+                    m->Group(Bus::Sfx), nullptr, s.get()) != MA_SUCCESS)
+            {
+                std::cout << "[Audio] ambient load failed: " << file << std::endl;
+                m->ambientFile.clear();
+                return;
+            }
+            ma_sound_set_looping(s.get(), MA_TRUE);
+            ma_sound_set_pitch(s.get(), pitch);
+            ma_sound_set_volume(s.get(), 0.0f);
+            ma_sound_start(s.get());
+            m->ambient = std::move(s);
+        }
+    }
+    if (m->ambient) ma_sound_set_volume(m->ambient.get(), (std::max)(volume, 0.0f));
+}
 
 float AudioSystem::GetVolume(Bus b) const { return m->volumes[(int)b]; }
 

@@ -66,6 +66,7 @@ protected:
     StressTestTools&          m_Stress;
     StaticPropRenderer&       m_StaticProps;
     GrassRenderer&            m_Grass;
+    WeatherSystem&            m_Weather;       // 時刻と天候の出来事
     GameUI&                   m_GameUI;
     TerrainGenerator::Config& m_TerrainConfig;
     TerrainGenerator::Layout& m_TerrainLayout;
