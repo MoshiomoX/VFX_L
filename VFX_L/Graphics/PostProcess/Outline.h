@@ -38,7 +38,7 @@ public:
         bool  factionEnabled = true;
         DirectX::SimpleMath::Vector3 friendColor = { 0.20f, 0.50f, 1.00f };   // 味方（線形）
         DirectX::SimpleMath::Vector3 enemyColor = { 1.00f, 0.10f, 0.08f };    // 敵
-        float friendThicknessMul = 1.6f;   // 味方の線の太さ（thickness に掛ける）
+        float friendThicknessMul = 1.15f;  // 味方の線の太さ（thickness に掛ける）。1.6 は露出 0.8 + ACES にしたら重く見えた（10-07 ユーザー）→ 約 2px
         float enemyThicknessMul = 1.2f;
         float factionStrength = 1.0f;      // 陣営の線の濃さ（0〜1）
     };
