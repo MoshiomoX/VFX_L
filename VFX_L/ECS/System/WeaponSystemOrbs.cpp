@@ -25,6 +25,13 @@ bool WeaponSystem::FindOrb(uint32_t serial, Vector3& pos) const
     return false;
 }
 
+bool WeaponSystem::FirstOrbOf(int unit, Vector3& pos, uint32_t& serial) const
+{
+    for (const Orb& o : m_Orbs)
+        if (o.unit == unit && o.age < o.life) { pos = o.pos; serial = o.serial; return true; }
+    return false;
+}
+
 void WeaponSystem::UpdateOrbs(float dt, float castDt, float castSpeed, float durationMul,
     const Vector3& playerPos, WandComponent& wand, ManaComponent& mana,
     bool allowNewCast, bool ignoreCooldown, bool hasTarget,
@@ -96,6 +103,7 @@ void WeaponSystem::UpdateOrbs(float dt, float castDt, float castSpeed, float dur
         {
             const SpellStats& s = wand.spells[k];
             if (s.storeUnit != o.unit) continue;
+            if (s.triggered) continue;   // 上級魔法は誘発で撃つ（WeaponSystem::Update の「誘発」。起点だけ光球）
             Orb::Timer& t = o.spellTimers[k];
 
             if (t.pendingCasts > 0)
@@ -134,6 +142,7 @@ void WeaponSystem::UpdateOrbs(float dt, float castDt, float castSpeed, float dur
         {
             AreaStats& a = wand.areas[j];
             if (a.storeUnit != o.unit) continue;
+            if (a.triggered) continue;   // 上級の光線は誘発で撃つ（起点だけ光球）
             float& timer = o.areaTimers[j];
             timer -= castDt;
             if (!ignoreCooldown && timer > 0.0f) continue;

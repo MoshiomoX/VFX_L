@@ -358,7 +358,7 @@ namespace
     // 召喚物（水晶玉）。数値は定義から
     void FillSummon(Sheet& s, const SummonItemDef& def)
     {
-        s.traits.push_back(L"薄く光るマス（左右）に置いた魔法を貯蔵する。上級魔法も貯蔵でき、前提の魔法なしで撃てる");
+        s.traits.push_back(L"薄く光るマス（左右）に置いた魔法を貯蔵する。上級魔法も貯蔵できる（発動には隣接する基本魔法が要る）");
         s.traits.push_back(L"貯蔵した魔法は杖からは撃てなくなり、周りを回る光球が光球の位置から撃つ");
         s.traits.push_back(L"貯蔵した魔法は自分の隣のルーンで強化される。水晶玉そのものはルーンの影響を受けない");
         s.stats.push_back(StatLine(L"光球の数", (float)def.maxOrbs, (float)def.maxOrbs, L"個", 0));
@@ -469,7 +469,6 @@ namespace ItemInfo
     {
         if (!c.triggeredBy.empty())
         {
-            if (BackpackLogic::StoredBy(bp, itemIndex) >= 0) return;   // 貯蔵された上級魔法は光球が直接撃つ（誘発の行は出さない）
             if (BackpackLogic::IsTriggerReady(bp, itemIndex))
                 s.traits.insert(s.traits.begin(), L"発動中: " + TriggerNames(c) + TriggerAction(c));
             else

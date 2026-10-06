@@ -247,7 +247,8 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 // ---- 出力源ごとに独立して処理する ----
                 for (auto& s : wand.spells)
                 {
-                    if (s.storeUnit >= 0) continue;   // 水晶玉に貯蔵された魔法は光球が撃つ（UpdateOrbs）
+                    // 水晶玉に貯蔵された基本魔法は光球が撃つ（UpdateOrbs）。貯蔵された上級魔法は下の「誘発」で光球の位置から
+                    if (s.storeUnit >= 0 && !s.triggered) continue;
 
                     // === 連発の続き（二重詠唱の残り）===
                     if (s.pendingCasts > 0)
@@ -312,10 +313,14 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         if (!ignoreCooldown && a.castTimer > 0.0f) continue;
                         if (!allowNewCast) continue;
                         if (!mana.CanAfford(a.manaCost)) continue;
+                        // 貯蔵された光線は光球から（光球が出ていなければ撃たない）
+                        Vector3 origin = muzzle;
+                        uint32_t orbSerial = 0;
+                        if (a.storeUnit >= 0 && !FirstOrbOf(a.storeUnit, origin, orbSerial)) continue;
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        if (!StartBeam(a, muzzle, impact, castSpeed, durationMul)) continue;   // チャンネルが全部埋まっている
+                        if (!StartBeam(a, origin, impact, castSpeed, durationMul, orbSerial)) continue;   // チャンネルが全部埋まっている
                         mana.Reserve(a.manaCost);
                         wand.castAnimTimer = wand.castAnimDuration;
                         ++m_TriggeredCasts;
@@ -330,10 +335,14 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         if (!ignoreCooldown && s.castTimer > 0.0f) continue;
                         if (!allowNewCast) continue;
                         if (!mana.CanAfford(s.manaCost)) continue;
+                        // 貯蔵された上級魔法は光球から（光球が出ていなければ撃たない。隕石の落点は同じ = 弾が消えた所）
+                        Vector3 origin = muzzle;
+                        uint32_t orbSerial = 0;
+                        if (s.storeUnit >= 0 && !FirstOrbOf(s.storeUnit, origin, orbSerial)) continue;
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        QueueTriggeredCast(s, impact, muzzle, durationMul);
+                        QueueTriggeredCast(s, impact, origin, durationMul);
                         mana.Reserve(s.manaCost);
                         ++m_TriggeredCasts;
 
@@ -353,7 +362,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 for (auto& a : wand.areas)
                 {
-                    if (a.storeUnit >= 0) continue;   // 貯蔵された物は光球が撃つ
+                    if (a.storeUnit >= 0 && !a.triggered) continue;   // 貯蔵された物は光球が撃つ（光線は誘発で光球から）
                     a.castTimer -= castDt;
                     if (a.triggered) continue;   // 光線は上の「誘発」でだけ始まる
                     if (!ignoreCooldown && a.castTimer > 0.0f) continue;

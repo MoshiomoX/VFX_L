@@ -52,7 +52,7 @@ struct SpellStats
 
     // --- 貯蔵（水晶玉。2026-10-06）---
     // 杖からは撃たず、WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光球ごとに計時）。
-    // manaCost は既に召喚物の倍率を掛けた値。上級魔法が貯蔵された時は triggered = false（光球が直接撃つ）
+    // manaCost は既に召喚物の倍率を掛けた値。上級魔法（triggered）が貯蔵された時は誘発された時に光球の位置から撃つ
     int      storeUnit = -1;
 
     // --- 実行時状態（WeaponSystem が更新）---

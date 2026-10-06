@@ -5,11 +5,13 @@
 //   1 秒: 湧き停止・全消し・無敵・MP 無限、正面 +Z 8〜9m に動かない的 3 体、9x9 全部に枠。
 //        バックパック: 水晶玉 (4,4)、左に ホーミングボルト (4,2)〜(4,3)（横 2 → 右端が水晶玉の左マス）、
 //        右に メテオ (4,6)（十字 → 左端 (4,5) が水晶玉の右マス）、ホーミングボルトの上に 分裂のルーン (3,2)、
-//        右下に ファイアボール (7,7)（貯蔵されない対照）。
+//        メテオの前提として ファイアボール (5,7) と ストーンショット (1,6)（貯蔵されない対照。杖から撃つ）。
 //   2 秒: 集約結果（storeUnit / MP / 弾数）を記録。0.5 秒毎に "crystal t orbs orbCasts proj"。
 //   3.5 / 5.5 / 9 秒 "crystal look <n>"、12 秒 "crystal done"
-// 期待: ホーミングボルト storeUnit 0・MP 10.5×1.5 = 15.75・弾数 2（分裂）、メテオ storeUnit 0・triggered 0、
-//       ファイアボール storeUnit -1、orbs 1 つ（stored 2）、光球は 2 秒毎に 1 個 → 最大 3 個、orbCasts が増える
+// 期待: ホーミングボルト storeUnit 0・MP 10.5×1.5 = 15.75・弾数 2（分裂）、メテオ storeUnit 0・triggered 1
+//       （貯蔵されていても前提が要る。10-06 ユーザー）、ファイアボール / ストーンショット storeUnit -1、
+//       orbs 1 つ（stored 2）、光球は 2 秒毎に 1 個 → 最大 3 個、orbCasts（光球からの基本魔法）と
+//       triggered（光球を起点にした隕石）が増える
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 #include "ECS/System/WeaponSystem.h"
@@ -72,7 +74,10 @@ void AutoTestCrystal::Run()
             place(ItemID::HomingBolt, 4, 2);
             place(ItemID::Meteor, 4, 6);
             place(ItemID::SplitRune, 3, 2);
-            place(ItemID::Fireball, 7, 7);
+            // メテオの前提（貯蔵されていても要る）: ファイアボール 2x2 を (5,7)（メテオの (4,7) の下）、
+            // ストーンショット L を (1,6)（(2,6) がメテオの (3,6) の上）。どちらも杖から撃つ（貯蔵されない）
+            place(ItemID::Fireball, 5, 7);
+            place(ItemID::StoneShot, 1, 6);
             bp.dirty = true;
             m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
         }
@@ -134,9 +139,9 @@ void AutoTestCrystal::Run()
             const bool hasOrb = m_WeaponSystem.GetOrbPos(0, op);
             const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
             char line[200];
-            snprintf(line, sizeof(line), "crystal t %.1f orbs %d orbCasts %u proj %u areas %u orb0 (%.2f %.2f %.2f) fromPlayer %.2f",
-                m_AutoTime, m_WeaponSystem.GetOrbCount(), m_WeaponSystem.GetOrbCasts(), c.aliveProjectiles, c.aliveAreas,
-                op.x, op.y, op.z, hasOrb ? (op - pp).Length() : -1.0f);
+            snprintf(line, sizeof(line), "crystal t %.1f orbs %d orbCasts %u triggered %u proj %u areas %u orb0 (%.2f %.2f %.2f) fromPlayer %.2f",
+                m_AutoTime, m_WeaponSystem.GetOrbCount(), m_WeaponSystem.GetOrbCasts(), m_WeaponSystem.GetTriggeredCasts(),
+                c.aliveProjectiles, c.aliveAreas, op.x, op.y, op.z, hasOrb ? (op - pp).Length() : -1.0f);
             AutoTestLog(line);
             s_NextSample += 0.5f;
         }

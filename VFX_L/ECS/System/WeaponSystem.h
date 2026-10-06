@@ -151,6 +151,8 @@ private:
         const DirectX::SimpleMath::Vector3& targetPos, const DirectX::SimpleMath::Vector3& targetVel);
     // 光球の位置（生きていれば true）
     bool FindOrb(uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
+    // 水晶玉 unit の生きている光球の先頭（貯蔵された上級魔法を誘発で撃つ時の起点）。無ければ false
+    bool FirstOrbOf(int unit, DirectX::SimpleMath::Vector3& pos, uint32_t& serial) const;
     // 誘発で光線を始める（チャンネルが空いていなければ false = 撃たない）
     // castSpeed / durationMul = 撃った時の魔力解放（溜めを castSpeed 倍速く、光線を durationMul 倍長く。エフェクトの時間軸も合わせる）
     // orbSerial = 光球から撃つ時はその通し番号（起点が光球に追従する）
