@@ -111,15 +111,17 @@ void main(uint3 id : SV_DispatchThreadID)
     for (uint ei = 0u; ei < r.particleCount; ++ei)
     {
         GPUEmitter e = emitters[r.particleStart + ei];
-        // bigger source = the whole effect scaled: offset, emit shape, speed (how far it
-        // spreads in its lifetime), gravity, particle size. A little denser too (x scale;
-        // the area grows with scale^2 but the particle pool is shared)
-        e.position *= srcScale;
-        e.shapeSize *= srcScale;
-        e.speedRange *= srcScale;
-        e.gravity *= srcScale;
-        e.sizeRange *= srcScale;
-        e.emitRate *= srcScale;
+        // bigger source: the footprint (offset, emit shape, speed = how far it spreads, gravity)
+        // follows the hit radius so particles cover the area, but the look (particle size) only
+        // grows with sqrt(scale) and the rate stays: a x1.5 hit radius used to make a x3.4 volume
+        // cloud that hid the player (Magnifier rune, 2026-10-06)
+        float footScale = srcScale;
+        float lookScale = sqrt(srcScale);
+        e.position *= footScale;
+        e.shapeSize *= footScale;
+        e.speedRange *= footScale;
+        e.gravity *= footScale;
+        e.sizeRange *= lookScale;
         e.position = srcPos + e.position; // follows the source; the entry position is an offset (layers)
 
         uint k = StochasticCount(e.emitRate, g_DeltaTime, seed);
