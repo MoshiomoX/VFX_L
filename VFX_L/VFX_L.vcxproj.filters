@@ -196,6 +196,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestCrystal.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestChain.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -536,6 +539,9 @@
       <Filter>VFX_Editor</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\WeaponSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\WeaponSystemOrbs.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="Scene\VFXEditorScene.cpp">
@@ -1205,6 +1211,9 @@
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\HasteRune.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\CrystalBall.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\StoneShot.h">

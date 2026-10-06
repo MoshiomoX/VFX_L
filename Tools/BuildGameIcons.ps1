@@ -39,6 +39,7 @@ $Icons = [ordered]@{
     'DoubleCastRune' = 'lorc/echo-ripples'
     'Magnifier'      = 'lorc/magnifying-glass'
     'HasteRune'      = 'lorc/stopwatch'
+    'CrystalBall'    = 'lorc/crystal-ball'
     'MaxHealthUp'    = 'zeromancer/heart-plus'
     'MaxManaUp'      = 'lorc/potion-ball'
     'MoveSpeedUp'    = 'lorc/sprint'

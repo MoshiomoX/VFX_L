@@ -485,6 +485,7 @@ void CollisionTestScene::DrawItemDatabasePanel()
             case ItemCategory::Function:   cat = "Function";   break;
             case ItemCategory::Area:       cat = "Area";       break;
             case ItemCategory::Frame:      cat = "Frame";      break;
+            case ItemCategory::Summon:     cat = "Summon";     break;
             case ItemCategory::Unknown:    cat = "Unknown";    break;
             }
 

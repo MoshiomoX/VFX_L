@@ -247,6 +247,8 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 // ---- 出力源ごとに独立して処理する ----
                 for (auto& s : wand.spells)
                 {
+                    if (s.storeUnit >= 0) continue;   // 水晶玉に貯蔵された魔法は光球が撃つ（UpdateOrbs）
+
                     // === 連発の続き（二重詠唱の残り）===
                     if (s.pendingCasts > 0)
                     {
@@ -351,6 +353,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 for (auto& a : wand.areas)
                 {
+                    if (a.storeUnit >= 0) continue;   // 貯蔵された物は光球が撃つ
                     a.castTimer -= castDt;
                     if (a.triggered) continue;   // 光線は上の「誘発」でだけ始まる
                     if (!ignoreCooldown && a.castTimer > 0.0f) continue;
@@ -396,6 +399,10 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     wand.castAnimTimer = wand.castAnimDuration;
                     a.castTimer = a.castInterval;
                 }
+
+                // ---- 光球（水晶玉の召喚物）：出現・回転・消滅と、貯蔵された魔法の発射 ----
+                UpdateOrbs(dt, castDt, castSpeed, durationMul, tf.position, wand, mana,
+                    allowNewCast, ignoreCooldown, hasTarget, targetPos, targetVel);
             });
 
     // ============================================================
@@ -425,7 +432,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 // 終点は Beam entry のエフェクトにも同じ物を入れる（当たり判定と見た目が一致する）
 // ============================================================
 bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Vector3& impact,
-    float castSpeed, float durationMul)
+    float castSpeed, float durationMul, uint32_t orbSerial)
 {
     // 空いているチャンネル
     uint32_t used = 0;
@@ -441,6 +448,8 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     b.dir.Normalize();
     b.seek = impact;               // GPU がここに一番近い敵を最初の標的にする
     b.serial = ++m_BeamSerial;
+    b.orbSerial = orbSerial;       // 光球から撃った光線は起点が光球に追従する（UpdateBeams）
+    b.lastStart = muzzle;
 
     // 溜め・射程・厚み・硬直はプロファイルから。半径・持続・tick・威力は集約済みの値（修飾ルーン込み）
     const AreaProfile& ap = AreaProfileDB::At(a.profile);
@@ -482,6 +491,14 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
 {
     for (auto& b : m_Beams)
     {
+        // 起点：杖先。光球から撃った物は光球（消えた後は最後の位置に留まる）
+        Vector3 start = muzzle;
+        if (b.orbSerial != 0)
+        {
+            if (FindOrb(b.orbSerial, start)) b.lastStart = start;
+            else start = b.lastStart;
+        }
+
         // 標的へ向きを回す（瞬間には向けない。beamTurnRate 度/秒まで）。
         // 標的は GPU のリードバック（2〜3 フレーム古い）。読めない間（始めの数フレーム・射程内に敵が居ない）は今の向きのまま
         Vector3 tp;
@@ -489,7 +506,7 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
         if (b.hasTarget)
         {
             b.targetPos = tp;
-            Vector3 want = tp - muzzle;
+            Vector3 want = tp - start;
             if (want.LengthSquared() > 1e-4f)
             {
                 want.Normalize();
@@ -498,11 +515,10 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
         }
         if (m_Swarm)
             m_Swarm->SetBeamTarget(b.channel, b.targetStarted ? Swarm::kBeamTargetTrack : Swarm::kBeamTargetStart,
-                muzzle, b.dir, b.length, b.seek, b.serial);
+                start, b.dir, b.length, b.seek, b.serial);
         b.targetStarted = true;
 
         // 終点：射程の先。地形に当たればそこまで
-        const Vector3 start = muzzle;
         Vector3 end = start + b.dir * b.length;
         CollisionMath::Ray ray;
         ray.origin = start;

@@ -29,6 +29,9 @@ public:
     // 戻り値はインスタンスの番号（0 = 出せなかった）。SetInstance / StopInstance で後から動かせる
     uint32_t Play(const std::string& vfxFile, const DirectX::SimpleMath::Vector3& pos,
         float duration, bool follow, const VFXContext& ctx);
+    // 同上 + 色を掛けて出す（粒子の開始 / 終了色と点光源。水晶玉の光球を貯蔵した魔法の色で染める。2026-10-06）
+    uint32_t Play(const std::string& vfxFile, const DirectX::SimpleMath::Vector3& pos,
+        float duration, bool follow, const VFXContext& ctx, const DirectX::SimpleMath::Vector3& tint);
 
     // 光線など、位置と終点を毎フレーム外から入れる物（follow は無視される）。番号が古ければ何もしない
     void SetInstance(uint32_t handle, const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector3& beamEnd);

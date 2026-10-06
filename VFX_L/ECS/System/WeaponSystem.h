@@ -19,6 +19,8 @@ class Registry;
 class CollisionSystem;
 struct SpellStats;
 struct AreaStats;
+struct WandComponent;
+struct ManaComponent;
 class SwarmSystem;
 class AreaVFXPlayer;
 struct VFXContext;
@@ -41,6 +43,15 @@ public:
         float   range = 0.0f;
     };
     const AimDebug& GetAimDebug() const { return m_AimDebug; }
+    // 光球（水晶玉の召喚物）の数と位置（ImGui・自動テスト・陣営の描画用）
+    int GetOrbCount() const { return (int)m_Orbs.size(); }
+    bool GetOrbPos(int i, DirectX::SimpleMath::Vector3& pos) const
+    {
+        if (i < 0 || i >= (int)m_Orbs.size()) return false;
+        pos = m_Orbs[i].pos;
+        return true;
+    }
+    uint32_t GetOrbCasts() const { return m_OrbCasts; }   // 光球が撃った回数の累計（自動テスト用）
     // 誘発の累計（ImGui・自動テスト用）: 届いた「基本魔法の弾が消えた」数 / それで撃った上級魔法の回数
     uint32_t GetTriggerEventsSeen() const { return m_TriggerEventsSeen; }
     uint32_t GetTriggeredCasts() const { return m_TriggeredCasts; }
@@ -108,13 +119,44 @@ private:
         bool targetStarted = false;  // 開始の依頼を出した（以後は追跡）
         bool hasTarget = false;      // 最後のフレームで標的が読めた（自動テストの記録用）
         DirectX::SimpleMath::Vector3 targetPos = { 0, 0, 0 };
+        uint32_t orbSerial = 0;      // 光球から撃った光線（0 = 杖から）。光球が生きている間は起点がそれに追従する
+        DirectX::SimpleMath::Vector3 lastStart = { 0, 0, 0 };   // 光球が消えた後の起点（最後の位置に留まる）
     };
     std::vector<ActiveBeam> m_Beams;
     uint32_t m_BeamSerial = 0;
+
+    // ---- 光球（水晶玉の召喚物、2026-10-06。WeaponSystemOrbs.cpp）----
+    // WandComponent::orbs[unit] の設定で出る。貯蔵された魔法（SpellStats / AreaStats の storeUnit == unit）を
+    // 光球ごとの計時で、光球の位置から撃つ。見た目は AreaVFXPlayer のインスタンス（貯蔵した魔法の色で染める）
+    struct Orb
+    {
+        int unit = 0;
+        uint32_t serial = 0;
+        float age = 0.0f;
+        float life = 8.0f;
+        float phase = 0.0f;          // 回る角度（rad）。出た時に決めて orbitSpeed で進む
+        DirectX::SimpleMath::Vector3 pos = { 0, 0, 0 };
+        uint32_t vfxHandle = 0;
+        struct Timer { float castTimer = 0.0f; int pendingCasts = 0; float delayTimer = 0.0f; };
+        std::vector<Timer> spellTimers;   // wand.spells と同じ添字（貯蔵されている物だけ使う）
+        std::vector<float> areaTimers;    // wand.areas と同じ添字
+    };
+    std::vector<Orb> m_Orbs;
+    uint32_t m_OrbSerial = 0;
+    uint32_t m_OrbCasts = 0;
+    // 光球の出現・移動・消滅と、貯蔵された魔法の発射（Update の走査の中、範囲攻撃の後）
+    void UpdateOrbs(float dt, float castDt, float castSpeed, float durationMul,
+        const DirectX::SimpleMath::Vector3& playerPos, WandComponent& wand, ManaComponent& mana,
+        bool allowNewCast, bool ignoreCooldown, bool hasTarget,
+        const DirectX::SimpleMath::Vector3& targetPos, const DirectX::SimpleMath::Vector3& targetVel);
+    // 光球の位置（生きていれば true）
+    bool FindOrb(uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
     // 誘発で光線を始める（チャンネルが空いていなければ false = 撃たない）
     // castSpeed / durationMul = 撃った時の魔力解放（溜めを castSpeed 倍速く、光線を durationMul 倍長く。エフェクトの時間軸も合わせる）
+    // orbSerial = 光球から撃つ時はその通し番号（起点が光球に追従する）
     bool StartBeam(const AreaStats& a, const DirectX::SimpleMath::Vector3& muzzle,
-        const DirectX::SimpleMath::Vector3& impact, float castSpeed = 1.0f, float durationMul = 1.0f);
+        const DirectX::SimpleMath::Vector3& impact, float castSpeed = 1.0f, float durationMul = 1.0f,
+        uint32_t orbSerial = 0);
     // 溜め・判定の出現・起点 / 終点の更新・終了
     void UpdateBeams(float dt, const DirectX::SimpleMath::Vector3& muzzle, const CollisionSystem& collision);
 

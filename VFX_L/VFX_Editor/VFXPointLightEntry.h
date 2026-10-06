@@ -23,6 +23,7 @@ public:
     std::unique_ptr<VFXEntry> Clone() const override;
     json ToJson() const override;
     void FromJson(const json& j) override;
+    void Tint(const DirectX::SimpleMath::Vector3& c) override { color.x *= c.x; color.y *= c.y; color.z *= c.z; }
 
     // 今フレームの光を PointLightManager へ積む（再生中のみ）
     void Submit(const DirectX::SimpleMath::Vector3& worldOffset);

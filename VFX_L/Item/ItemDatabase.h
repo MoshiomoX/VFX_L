@@ -18,6 +18,7 @@ namespace ItemDatabase
     const FunctionItemDef* GetFunction(ItemID id);
     const AreaItemDef* GetArea(ItemID id);
     const FrameItemDef* GetFrame(ItemID id);
+    const SummonItemDef* GetSummon(ItemID id);   // 召喚物（水晶玉。2026-10-06）
 
     // 種類を問わず共通部分だけ取る（表示用に便利）
     const ItemCommon* GetCommon(ItemID id);

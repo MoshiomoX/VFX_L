@@ -176,6 +176,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestBoss.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPickup.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestCrystal.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestChain.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestEdge.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestEdgeRock.cpp" />
@@ -370,6 +371,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="VFX_Editor\VFXParticleEntry.cpp" />
     <ClCompile Include="VFX_Editor\VFXStates.cpp" />
     <ClCompile Include="ECS\System\WeaponSystem.cpp" />
+    <ClCompile Include="ECS\System\WeaponSystemOrbs.cpp" />
     <ClCompile Include="Core\Window.cpp" />
     <ClCompile Include="VFX_Editor\VFXTextureRef.cpp" />
     <ClCompile Include="World\GridWorld.cpp" />
@@ -489,6 +491,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\Beam.h" />
     <ClInclude Include="Item\Items\Magnifier.h" />
     <ClInclude Include="Item\Items\HasteRune.h" />
+    <ClInclude Include="Item\Items\CrystalBall.h" />
     <ClInclude Include="Item\Items\StoneShot.h" />
     <ClInclude Include="Item\Items\Poison.h" />
     <ClInclude Include="Camera\FollowCamera.h" />

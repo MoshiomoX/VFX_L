@@ -58,7 +58,7 @@ void SpellLab::FillChest(Registry& reg, Entity player)
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
         const ItemCategory c = ItemDatabase::GetCategory(id);
-        if (c != ItemCategory::Projectile && c != ItemCategory::Area && c != ItemCategory::Function) continue;
+        if (c != ItemCategory::Projectile && c != ItemCategory::Area && c != ItemCategory::Function && c != ItemCategory::Summon) continue;
         const int have = book.GetCount(id);
         if (have < kCopies) book.Learn(id, kCopies - have);
     }
@@ -224,7 +224,8 @@ void SpellLab::DrawStats(Registry& reg, Entity player)
             ImGui::TableNextColumn(); ImGui::Text("%.3f", s.radius);
             ImGui::TableNextColumn(); ImGui::Text("%d", s.castCount);
             ImGui::TableNextColumn();
-            if (s.triggered) ImGui::TextUnformatted("advanced (armed)");
+            if (s.storeUnit >= 0) ImGui::Text("stored in orb unit %d", s.storeUnit);
+            else if (s.triggered) ImGui::TextUnformatted("advanced (armed)");
             else if (s.triggerMask)
             {
                 // 消えた所で連鎖する上級魔法の名前
@@ -255,9 +256,18 @@ void SpellLab::DrawStats(Registry& reg, Entity player)
             ImGui::TableNextColumn(); ImGui::Text("%.1f /%.2fs x%.1fs", a.damagePerTick, a.tickInterval, a.duration);
             ImGui::TableNextColumn(); ImGui::Text("%.2f", a.radius);
             ImGui::TableNextColumn(); ImGui::TextUnformatted("-");
-            ImGui::TableNextColumn(); ImGui::TextUnformatted(a.triggered ? "advanced (armed)" : "-");
+            ImGui::TableNextColumn();
+            if (a.storeUnit >= 0) ImGui::Text("stored in orb unit %d", a.storeUnit);
+            else ImGui::TextUnformatted(a.triggered ? "advanced (armed)" : "-");
         }
         ImGui::EndTable();
+    }
+    // 召喚物（水晶玉）：何を貯蔵しているか・光球の設定
+    for (size_t u = 0; u < wand.orbs.size(); ++u)
+    {
+        const OrbUnitStats& o = wand.orbs[u];
+        ImGui::Text("orb unit %d: %d stored, %d orbs x %.1fs every %.1fs, color (%.2f %.2f %.2f)",
+            (int)u, o.storedCount, o.maxOrbs, o.orbLife, o.orbInterval, o.color.x, o.color.y, o.color.z);
     }
 
     // 置いてあるが発動していない上級魔法（前提の基本魔法が足りない）

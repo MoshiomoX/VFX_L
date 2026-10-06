@@ -16,6 +16,7 @@
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Magnifier.h"
 #include "Item/Items/HasteRune.h"
+#include "Item/Items/CrystalBall.h"
 #include "Item/Items/Frame3x3.h"
 #include "Item/Items/MaxHealthUp.h"
 #include "Item/Items/MaxManaUp.h"
@@ -36,6 +37,7 @@ namespace
     std::unordered_map<ItemID, FunctionItemDef>   g_Functions;
     std::unordered_map<ItemID, AreaItemDef>       g_Areas;
     std::unordered_map<ItemID, FrameItemDef>      g_Frames;
+    std::unordered_map<ItemID, SummonItemDef>     g_Summons;   // 召喚物（水晶玉。2026-10-06）
     std::unordered_map<ItemID, StatItemDef>       g_Stats;
 
     std::vector<ItemID> g_AllIDs;          // 全ID（UI の一覧表示用）。能力値は入れない
@@ -53,6 +55,7 @@ namespace
         if (auto it = g_Functions.find(id);   it != g_Functions.end())   return &it->second.common;
         if (auto it = g_Areas.find(id);       it != g_Areas.end())       return &it->second.common;
         if (auto it = g_Frames.find(id);      it != g_Frames.end())      return &it->second.common;
+        if (auto it = g_Summons.find(id);     it != g_Summons.end())     return &it->second.common;
         return nullptr;
     }
 
@@ -77,6 +80,11 @@ namespace
         g_Frames[def.common.id] = def;
         g_AllIDs.push_back(def.common.id);
     }
+    void Register(const SummonItemDef& def)
+    {
+        g_Summons[def.common.id] = def;
+        g_AllIDs.push_back(def.common.id);
+    }
     // 能力値は g_AllIDs に入れない。バックパック・呪文書・デバッグの一覧は GetAllIDs を回すので、
     // 入れると「バックパックに置ける物」として扱われてしまう
     void Register(const StatItemDef& def)
@@ -98,6 +106,7 @@ void ItemDatabase::Initialize()
     g_Functions.clear();
     g_Areas.clear();
     g_Frames.clear();
+    g_Summons.clear();
     g_Stats.clear();
     g_AllIDs.clear();
     g_LevelUpOnlyIDs.clear();
@@ -117,6 +126,9 @@ void ItemDatabase::Initialize()
     Register(MakeDoubleCastRune());
     Register(MakeMagnifier());
     Register(MakeHasteRune());
+
+    // ---- 召喚物（2026-10-06）----
+    Register(MakeCrystalBall());
 
     // ---- AOE 型（未実装）----
 
@@ -165,6 +177,7 @@ ItemCategory ItemDatabase::GetCategory(ItemID id)
     if (g_Functions.count(id))   return ItemCategory::Function;
     if (g_Areas.count(id))       return ItemCategory::Area;
     if (g_Frames.count(id))      return ItemCategory::Frame;
+    if (g_Summons.count(id))     return ItemCategory::Summon;
     if (g_Stats.count(id))       return ItemCategory::Stat;
 
     // どこにも無ければ Unknown。
@@ -196,6 +209,12 @@ const FrameItemDef* ItemDatabase::GetFrame(ItemID id)
     return (it != g_Frames.end()) ? &it->second : nullptr;
 }
 
+const SummonItemDef* ItemDatabase::GetSummon(ItemID id)
+{
+    auto it = g_Summons.find(id);
+    return (it != g_Summons.end()) ? &it->second : nullptr;
+}
+
 const StatItemDef* ItemDatabase::GetStat(ItemID id)
 {
     auto it = g_Stats.find(id);
@@ -208,6 +227,7 @@ const ItemCommon* ItemDatabase::GetCommon(ItemID id)
     if (auto* f = GetFunction(id))   return &f->common;
     if (auto* a = GetArea(id))       return &a->common;
     if (auto* fr = GetFrame(id))     return &fr->common;
+    if (auto* su = GetSummon(id))    return &su->common;
     if (auto* s = GetStat(id))       return &s->common;
     return nullptr;
 }
