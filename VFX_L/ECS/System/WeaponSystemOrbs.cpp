@@ -61,7 +61,7 @@ void WeaponSystem::UpdateOrbs(float dt, float castDt, float castSpeed, float dur
         o.serial = ++m_OrbSerial;
         if (m_OrbSerial == 0) o.serial = ++m_OrbSerial;
         o.life = unit.orbLife;
-        // 同じ水晶玉の光球は等間隔に並ぶ（出た順に 1/maxOrbs 周ずつずらす）
+        // 出る位置：プレイヤーの横（出た順に 1/maxOrbs 周ずつ向きをずらす）。以後その場に留まり、ゆっくり昇るだけ（付いて来ない。10-06 ユーザー）
         o.phase = DirectX::XM_2PI * (float)(m_OrbSerial % (uint32_t)(std::max)(1, unit.maxOrbs)) / (float)(std::max)(1, unit.maxOrbs);
         o.pos = playerPos + Vector3(std::sin(o.phase) * unit.orbitRadius, unit.orbitHeight, std::cos(o.phase) * unit.orbitRadius);
         if (m_AreaVFX && m_AreaVFXCtx && unit.vfxFile && *unit.vfxFile)
@@ -81,8 +81,7 @@ void WeaponSystem::UpdateOrbs(float dt, float castDt, float castSpeed, float dur
             continue;
         }
         const OrbUnitStats& unit = wand.orbs[o.unit];
-        o.phase += unit.orbitSpeed * dt;
-        o.pos = playerPos + Vector3(std::sin(o.phase) * unit.orbitRadius, unit.orbitHeight, std::cos(o.phase) * unit.orbitRadius);
+        o.pos.y += unit.riseSpeed * dt;   // その場でとてもゆっくり昇る（プレイヤーには付いて来ない）
         if (m_AreaVFX && o.vfxHandle) m_AreaVFX->SetInstance(o.vfxHandle, o.pos, o.pos);
 
         // 光球の位置からの照準（WeaponSystem::Update の aimFor と同じ先読み）

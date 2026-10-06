@@ -69,7 +69,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         u.orbLife = sdef->orbLife;
         u.orbitRadius = sdef->orbitRadius;
         u.orbitHeight = sdef->orbitHeight;
-        u.orbitSpeed = sdef->orbitSpeed;
+        u.riseSpeed = sdef->riseSpeed;
         u.vfxFile = sdef->vfxFile;
         u.color = { 0, 0, 0 };
         orbIndexOf[i] = (int)wand.orbs.size();

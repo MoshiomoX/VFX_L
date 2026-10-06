@@ -217,9 +217,10 @@ struct SummonItemDef
     float orbInterval = 2.0f;  // 光球が出る間隔（秒）
     float orbLife = 8.0f;      // 光球 1 個の持続（秒）
     float manaMul = 1.5f;      // 貯蔵された魔法の消費 MP の倍率
-    float orbitRadius = 1.1f;  // プレイヤーからの距離（m）
-    float orbitHeight = 1.4f;  // 足元からの高さ（m）
-    float orbitSpeed = 1.2f;   // 回る速さ（rad/秒）
+    // 光球の動き（10-06 ユーザー：「生成されたらその場で、とてもゆっくり上へ昇る。プレイヤーには付いて来ない」）
+    float orbitRadius = 1.1f;  // 出る位置：プレイヤーからの横の距離（m）
+    float orbitHeight = 1.4f;  // 出る位置：足元からの高さ（m）
+    float riseSpeed = 0.1f;    // その場で昇る速さ（m/秒。8 秒で 0.8m）
     const char* vfxFile = "SpellOrb.json";   // 光球の見た目（VFXData）。色は貯蔵した魔法で染める
 };
 
