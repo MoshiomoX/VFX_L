@@ -12,7 +12,7 @@ cbuffer CompositeCB : register(b0)
     float g_BloomIntensity;
     float g_Exposure;
     uint g_Tonemap; // 0 = off, 1 = ACES
-    uint g_Gamma; // 0 = off, 1 = pow(1/2.2)
+    float g_Gamma; // display gamma exponent (2.2 = sRGB-like); <= 0 = off
 };
 
 struct PSInput
@@ -36,8 +36,8 @@ float4 main(PSInput i) : SV_TARGET
 
     if (g_Tonemap != 0u)
         c = ACES(c);
-    if (g_Gamma != 0u)
-        c = pow(max(c, 0.0), 1.0 / 2.2);
+    if (g_Gamma > 0.0)
+        c = pow(max(c, 0.0), 1.0 / g_Gamma);
 
     return float4(c, 1.0);
 }

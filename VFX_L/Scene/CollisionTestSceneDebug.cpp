@@ -279,7 +279,10 @@ void CollisionTestScene::DrawBloomPanel()
     ImGui::SetItemTooltip("Whole-screen brightness multiplier (applied after bloom is added)");
     ImGui::Checkbox("Tonemap (ACES)", &bp.tonemap);
     ImGui::SameLine();
-    ImGui::Checkbox("Gamma (1/2.2)", &bp.gamma);
+    ImGui::Checkbox("Gamma", &bp.gamma);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(90.0f);
+    ImGui::DragFloat("Gamma Exp", &bp.gammaExp, 0.01f, 1.0f, 3.0f, "%.2f");   // 2.2 = sRGB 相当
 
     // ---- 調整用の当たり値 ----
     ImGui::SeparatorText("Presets");

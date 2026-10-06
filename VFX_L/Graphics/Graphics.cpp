@@ -310,11 +310,11 @@ void Graphics::BeginUI()
     m_Context->OMSetRenderTargets(1, m_BackbufferRTV.GetAddressOf(), nullptr);
     m_Context->RSSetViewports(1, &m_Viewport);
 
-    struct CompositeCB { float intensity; float exposure; uint32_t tonemap; uint32_t gamma; } ccb = {};
+    struct CompositeCB { float intensity; float exposure; uint32_t tonemap; float gamma; } ccb = {};   // gamma = 指数（0 = 無し）
     ccb.intensity = bp.enabled ? bp.intensity : 0.0f;
     ccb.exposure = bp.exposure;
     ccb.tonemap = bp.tonemap ? 1u : 0u;
-    ccb.gamma = bp.gamma ? 1u : 0u;
+    ccb.gamma = bp.gamma ? bp.gammaExp : 0.0f;
     m_CompositePS->WriteBuffer(m_Context.Get(), 0, &ccb);
 
     ID3D11SamplerState* samp = RenderStates::Get().LinearClamp();
