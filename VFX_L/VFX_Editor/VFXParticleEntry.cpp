@@ -460,6 +460,10 @@ void VFXParticleEntry::OnImGui()
         VFXFileList::Combo("Mesh Model", "Assets/VFX/Mesh", { ".fbx", ".obj", ".gltf", ".glb" }, e.meshPath);
         if (e.meshPath.empty())
             ImGui::TextDisabled("(none) = built-in cube");
+        else if (e.meshPath == "@sphere")
+            ImGui::TextDisabled("built-in sphere");
+        // 組み込みの球（ファイル無し、"@sphere"。2026-10-06）
+        if (ImGui::SmallButton("Use built-in sphere")) e.meshPath = "@sphere";
 
         int shading = e.meshGlow ? 1 : 0;
         const char* shadingNames[] = { "Lit (opaque)", "Glow (additive)" };
