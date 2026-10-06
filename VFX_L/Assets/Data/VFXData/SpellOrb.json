@@ -2,33 +2,27 @@
     "entries": [
         {
             "data": {
-                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
-                "sheet": 0, "frameMode": 0, "frameCount": 1, "blend": 0,
-                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.0,
-                "emitRate": 20.0, "emitType": 0,
-                "endColorMax": [1.1, 1.1, 1.1, 1.0], "endColorMin": [1.1, 1.1, 1.1, 1.0],
-                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.15, 0.2], "maxParticles": 8,
-                "position": [0.0, 0.0, 0.0], "radius": 0.0, "renderMode": 1, "rotationRange": [0.0, 0.0],
-                "sizeRange": [0.5, 0.5, 0.5, 0.5], "speedRange": [0.0, 0.0], "spreadAngle": 0.0,
-                "startColorMax": [1.1, 1.1, 1.1, 1.0], "startColorMin": [1.1, 1.1, 1.1, 1.0],
-                "mesh": "@sphere", "meshGlow": false, "meshFaceVelocity": false, "meshForwardAxis": 2
+                "model": "@sphere", "mainTex": {}, "noiseTex": {}, "maskTex": {},
+                "offset": [0.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0], "rotSpeed": [0.0, 40.0, 0.0],
+                "scaleStart": [0.5, 0.5, 0.5], "scaleEnd": [0.5, 0.5, 0.5],
+                "tint": [1.0, 1.0, 1.0, 1.0], "alphaStart": 1.0, "alphaEnd": 1.0, "intensity": 0.7,
+                "blend": 1, "twoSided": false, "shade": 1.0,
+                "mainTiling": [1.0, 1.0], "mainScroll": [0.0, 0.0], "noiseTiling": [1.0, 1.0], "noiseScroll": [0.0, 0.0],
+                "distortion": 0.0, "dissolve": false
             },
-            "duration": -1.0, "startTime": 0.0, "type": "Particle"
+            "duration": -1.0, "startTime": 0.0, "type": "Mesh"
         },
         {
             "data": {
-                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
-                "sheet": 0, "frameMode": 0, "frameCount": 1, "blend": 0,
-                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.0,
-                "emitRate": 20.0, "emitType": 0,
-                "endColorMax": [1.0, 1.0, 1.0, 0.0], "endColorMin": [1.0, 1.0, 1.0, 0.0],
-                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.15, 0.2], "maxParticles": 8,
-                "position": [0.0, 0.0, 0.0], "radius": 0.0, "renderMode": 1, "rotationRange": [0.0, 0.0],
-                "sizeRange": [0.66, 0.7, 0.72, 0.76], "speedRange": [0.0, 0.0], "spreadAngle": 0.0,
-                "startColorMax": [1.0, 1.0, 1.0, 0.35], "startColorMin": [1.0, 1.0, 1.0, 0.3],
-                "mesh": "@sphere", "meshGlow": true, "meshFaceVelocity": false, "meshForwardAxis": 2
+                "model": "@sphere", "mainTex": {}, "noiseTex": {}, "maskTex": {},
+                "offset": [0.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0], "rotSpeed": [0.0, 0.0, 0.0],
+                "scaleStart": [0.7, 0.7, 0.7], "scaleEnd": [0.7, 0.7, 0.7],
+                "tint": [1.0, 1.0, 1.0, 1.0], "alphaStart": 1.0, "alphaEnd": 1.0, "intensity": 0.1,
+                "blend": 0, "twoSided": false, "shade": 0.6,
+                "mainTiling": [1.0, 1.0], "mainScroll": [0.0, 0.0], "noiseTiling": [1.0, 1.0], "noiseScroll": [0.0, 0.0],
+                "distortion": 0.0, "dissolve": false
             },
-            "duration": -1.0, "startTime": 0.0, "type": "Particle"
+            "duration": -1.0, "startTime": 0.0, "type": "Mesh"
         },
         {
             "data": {
@@ -40,7 +34,7 @@
                 "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.3, 0.4], "maxParticles": 16,
                 "position": [0.0, 0.0, 0.0], "radius": 0.0, "renderMode": 0, "rotationRange": [0.0, 0.0],
                 "sizeRange": [0.9, 1.0, 0.9, 1.0], "speedRange": [0.0, 0.0], "spreadAngle": 0.0,
-                "startColorMax": [1.0, 1.0, 1.0, 0.25], "startColorMin": [1.0, 1.0, 1.0, 0.25]
+                "startColorMax": [1.0, 1.0, 1.0, 0.12], "startColorMin": [1.0, 1.0, 1.0, 0.12]
             },
             "duration": -1.0, "startTime": 0.0, "type": "Particle"
         },

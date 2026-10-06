@@ -28,9 +28,12 @@ struct VFXMeshParams
     DirectX::SimpleMath::Vector4 dissolveEdgeColor = { 1, 0.5f, 0.1f, 1 };
     uint32_t hasNoise = 0;
     uint32_t hasMask = 0;
-    float _pad[2] = {};
+    float shade = 0.0f;                // 球らしい陰影の強さ（0 = 無し。2026-10-06）
+    float _pad = 0.0f;
+    DirectX::SimpleMath::Vector3 camPos = { 0, 0, 0 };   // 縁の光用（Render が入れる）
+    float _pad2 = 0.0f;
 };
-static_assert(sizeof(VFXMeshParams) == 96, "VFXMeshCB layout mismatch");
+static_assert(sizeof(VFXMeshParams) == 112, "VFXMeshCB layout mismatch");
 
 // 1 回の描画
 struct VFXMeshDrawItem
@@ -69,6 +72,7 @@ private:
 
     std::shared_ptr<VertexShader> m_VS;
     std::shared_ptr<PixelShader> m_PS;
+    DirectX::SimpleMath::Vector3 m_CamPos = { 0, 0, 0 };   // Render で入れ、Draw が params.camPos に写す
     std::shared_ptr<Texture> m_White;   // テクスチャ無しの既定
 
     ComPtr<ID3D11BlendState> m_BlendAdditive;

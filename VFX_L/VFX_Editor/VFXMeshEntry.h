@@ -51,6 +51,10 @@ public:
     float intensity = 1.0f;                                     // HDR。>1 で bloom
     int   blend = 0;                                            // 0 additive / 1 alpha
     bool  twoSided = true;
+    // 球らしさ（2026-10-06、水晶玉の光球）：0 = 従来どおり平坦、1 = 固定の光の向きで二段の陰影 + 縁の光 + 小さな高光。
+    // 場の光は読まない（見た目だけ）。モデルは "@sphere" で組み込みの球（ファイル無し）が使える
+    float shade = 0.0f;
+    void Tint(const DirectX::SimpleMath::Vector3& c) override { tint.x *= c.x; tint.y *= c.y; tint.z *= c.z; }
 
     // ---- UV ----
     DirectX::SimpleMath::Vector2 mainTiling = { 1, 1 };

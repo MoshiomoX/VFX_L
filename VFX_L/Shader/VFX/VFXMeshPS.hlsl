@@ -3,6 +3,9 @@
 // Unlit VFX material: main * tint * intensity (linear HDR out).
 //   noise : scrolls, distorts main UV, drives dissolve
 //   mask  : multiplies alpha
+//   shade : (2026-10-06) fake sphere look - two-band shading from a
+//           fixed light direction, a rim light toward the camera and a
+//           small highlight. Reads no scene light (pure look).
 // Sits on the same VS_OUTPUT as lit models but reads no light.
 // ============================================================
 #include "../Common/ModelCommon.hlsli"
@@ -26,7 +29,10 @@ cbuffer VFXMeshCB : register(b1)
     float4 g_DissolveEdgeColor;
     uint g_HasNoise;
     uint g_HasMask;
-    float2 _pad;
+    float g_Shade;             // 0 = flat, 1 = full sphere shading
+    float _pad;
+    float3 g_CamPos;
+    float _pad2;
 };
 
 float4 main(PS_INPUT i) : SV_TARGET
@@ -53,6 +59,22 @@ float4 main(PS_INPUT i) : SV_TARGET
         clip(d);
         float edge = 1.0 - saturate(d / max(g_DissolveEdge, 1e-4));
         c.rgb = lerp(c.rgb, g_DissolveEdgeColor.rgb, edge * g_DissolveEdgeColor.a);
+    }
+
+    // ---- sphere look: fixed key light (upper left, toward the camera side), rim, highlight ----
+    if (g_Shade > 0.0)
+    {
+        float3 N = normalize(i.Normal);
+        float3 V = normalize(g_CamPos - i.WorldPos);
+        float3 L = normalize(float3(-0.45, 0.75, -0.35) + V * 0.6);   // leans toward the viewer: the lit side faces the camera
+        float ndl = saturate(dot(N, L));
+        float band = smoothstep(0.12, 0.3, ndl);                       // two bands like the toon models
+        float shadeMul = lerp(0.42, 1.0, band);
+        float rim = pow(1.0 - saturate(dot(N, V)), 3.0);
+        float3 H = normalize(L + V);
+        float spec = pow(saturate(dot(N, H)), 60.0) * 0.35;
+        float3 shaded = c.rgb * shadeMul + c.rgb * rim * 0.45 + spec * c.a;
+        c.rgb = lerp(c.rgb, shaded, g_Shade);
     }
 
     c.rgb *= g_Intensity;

@@ -71,6 +71,7 @@ void VFXMeshRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
     const Matrix view = camera->GetViewMatrix();
     const Matrix proj = camera->GetProjectionMatrix();
     const Vector3 camPos = camera->GetPosition();
+    m_CamPos = camPos;
 
     // alpha は遠 → 近。additive は順不同なので後ろにまとめる
     std::vector<const VFXMeshDrawItem*> alpha, additive;
@@ -115,6 +116,7 @@ void VFXMeshRenderer::Draw(ID3D11DeviceContext* ctx, const VFXMeshDrawItem& item
     m_VS->WriteBuffer(ctx, 0, (void*)&mvp);
 
     VFXMeshParams params = item.params;
+    params.camPos = m_CamPos;
     m_PS->WriteBuffer(ctx, 1, &params);
 
     ID3D11ShaderResourceView* srvs[3] = {
