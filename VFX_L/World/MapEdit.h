@@ -20,6 +20,7 @@ namespace MapEdit
         None,        // 見た目だけ（茂み・小さい岩）
         Trunk,       // 幹だけ（木。0.6m 角の柱、根元の 1 マスを塞ぐ）
         Footprint,   // 足跡いっぱい（岩。回した包囲箱 × 0.85、掛かるマスを塞ぐ）
+        Mesh,        // モデルの凸包（巨石。Prop::collide = 1。衝突は建てる時に作る、塞ぐマスは凸包の足元）
     };
 
     // 地面の高さ（地図の高さ場を双線形で。GridWorld::SampleHeight と同じ式）
@@ -37,8 +38,10 @@ namespace MapEdit
     Collision CollisionOf(const MapData::Map& map, uint32_t group);
 
     // 置物 1 個の物の衝突と塞いだマスを、今の位置・向き・大きさから作り直す。
-    // lo / hi = モデルの包囲箱（モデルの座標。Prop::scale を掛けると m）
-    void SetPropCollision(MapData::Map& map, uint32_t group, Collision mode, const Vector3& lo, const Vector3& hi);
+    // lo / hi = モデルの包囲箱（モデルの座標。Prop::scale を掛けると m）。
+    // hullPoints = モデルの凸包の点（Model::GetHullPoints。Mesh の時だけ要る。無ければ Footprint と同じ）
+    void SetPropCollision(MapData::Map& map, uint32_t group, Collision mode, const Vector3& lo, const Vector3& hi,
+        const std::vector<Vector3>* hullPoints = nullptr);
 
     // group をまとめて動かす（置物・衝突・近くの松明の灯り）。塞いだマスは衝突の足跡から作り直す
     void MoveGroup(MapData::Map& map, uint32_t group, const Vector3& delta);

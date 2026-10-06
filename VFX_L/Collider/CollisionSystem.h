@@ -49,6 +49,7 @@ public:
         bool                  hasRigidbody;    // RigidbodyComponent を持つか
         bool                  fixed;           // Rigidbody を持ち isStatic
         CollisionMath::Convex hull;             // Convex 用（ワールド空間へ平行移動済み）
+        bool                  wallOnly;        // Convex 用：水平にしか押し返さない（ColliderComponent::wallOnly）
         std::shared_ptr<const CollisionMath::HeightFieldShape> heightField;   // HeightField 用（世界座標）
     };
     const std::vector<WorldCollider>& GetWorldColliders() const { return m_WorldColliders; }

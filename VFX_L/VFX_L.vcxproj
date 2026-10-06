@@ -375,6 +375,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="World\TerrainBuild.cpp" />
     <ClCompile Include="World\TerrainParts.cpp" />
     <ClCompile Include="World\TerrainZones.cpp" />
+    <ClCompile Include="World\TerrainBoulders.cpp" />
     <ClCompile Include="World\MapData.cpp" />
     <ClCompile Include="World\MapEdit.cpp" />
     <ClCompile Include="World\MapTerrainEdit.cpp" />

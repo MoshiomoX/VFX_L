@@ -80,15 +80,29 @@ namespace TerrainBuild
             for (int z = m.z; z < m.z + m.d; ++z)
                 for (int x = m.x; x < m.x + m.w; ++x)
                     if (x >= 0 && z >= 0 && x < gw && z < gd) mouthMask[(size_t)z * gw + x] = 1;
-        for (int z = 1; z < gd - 1; ++z)
-            for (int x = 1; x < gw - 1; ++x)
+        // 外周のマスは内側の隣と同じ区域（ReliefField::ZoneAtCell）なので、坑がフィールドの縁に接する所は
+        // 縁のマスも坑扱いになり、坑がそのまま場外へ開いていた（2026-10-06、縁の空気壁と岩を消して見えた）。
+        // 縁のマスは坑の隣なら岩の壁にする
+        auto zoneC = [&](int x, int z)
+            {
+                return zone[(size_t)std::clamp(z, 1, gd - 2) * gw + std::clamp(x, 1, gw - 2)];
+            };
+        for (int z = 0; z < gd; ++z)
+            for (int x = 0; x < gw; ++x)
             {
                 const size_t i = (size_t)z * gw + x;
-                if (zone[i] == ReliefField::kMine || mouthMask[i]) continue;
+                const bool edge = x == 0 || z == 0 || x == gw - 1 || z == gd - 1;
+                if (mouthMask[i] || (!edge && zone[i] == ReliefField::kMine)) continue;
                 bool nextToPit = false;
                 for (int dz = -1; dz <= 1 && !nextToPit; ++dz)
                     for (int dx = -1; dx <= 1 && !nextToPit; ++dx)
-                        nextToPit = zone[(size_t)(z + dz) * gw + (x + dx)] == ReliefField::kMine;
+                    {
+                        const int nx = x + dx, nz = z + dz;
+                        if (nx < 0 || nz < 0 || nx >= gw || nz >= gd || (dx == 0 && dz == 0)) continue;
+                        const bool nEdge = nx == 0 || nz == 0 || nx == gw - 1 || nz == gd - 1;
+                        nextToPit = !nEdge && zoneC(nx, nz) == ReliefField::kMine;   // 縁のマス同士では坑と見なさない
+                    }
+                if (!nextToPit && edge && zoneC(x, z) == ReliefField::kMine) nextToPit = true;   // 縁のマス自身が坑扱い
                 if (nextToPit) ring[i] = 1;
             }
     }
@@ -102,15 +116,16 @@ namespace TerrainBuild
         float roofBottomY, float roofTopY, float collTop, const Vector4& cliffHigh)
     {
         const int gw = origin.Width(), gd = origin.Depth();
-        for (int z = 1; z < gd - 1; ++z)
-            for (int x = 1; x < gw - 1; ++x)
+        for (int z = 0; z < gd; ++z)
+            for (int x = 0; x < gw; ++x)
                 if (ring[(size_t)z * gw + x]) emit.Block(grid, x, z, 1, 1);
 
         const Vector4 rockTop(cliffHigh.x * 1.1f, cliffHigh.y * 1.1f, cliffHigh.z * 1.1f, 1.0f);
         for (const Rect& r : MaskRects(ring, gw, gd, 1))
         {
+            // 底は坑の底より下から（縁のマスの壁は床の箱が無い。-50 = 十分下）
             const Vector3 lo = RectMin(origin, r);
-            emit.Box(lo, lo + Vector3(r.w * kCs, collTop, r.d * kCs), Layer_Terrain);
+            emit.Box({ lo.x, -50.0f, lo.z }, lo + Vector3(r.w * kCs, collTop, r.d * kCs), Layer_Terrain);
         }
         auto roofOver = [&](const std::vector<uint8_t>& mask, uint8_t value)
             {

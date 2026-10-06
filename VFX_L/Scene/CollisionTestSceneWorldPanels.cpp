@@ -1,4 +1,4 @@
-    // ============================================================
+// ============================================================
 // CollisionTestSceneWorldPanels.cpp
 // CollisionTestScene: ImGui panels (Swarm (GPU) / Terrain)
 // ============================================================
@@ -307,8 +307,32 @@ void CollisionTestScene::DrawTerrainPanel()
         // これより小さい木・岩は見た目だけ（格子も衝突も無し）
         ImGui::DragFloat("Tree blocks if height >=", &tc.treeBlockMinHeight, 0.05f, 0.0f, 20.0f, "%.2f m");
         ImGui::DragFloat("Rock blocks if size >=", &tc.rockBlockMinSize, 0.05f, 0.0f, 10.0f, "%.2f m");
+        // 縁の碗（Megabonk 風、2026-10-06）：地面そのものが縁で急な崖になる。巨石は飾り、空気壁も石の衝突も無し
+        ImGui::Checkbox("Rim Rise (bowl-shaped edge, Megabonk style)", &tc.rimRise);
+        if (tc.rimRise)
+        {
+            ImGui::DragFloat("Rim Width", &tc.rimRiseWidth, 0.2f, 3.0f, 40.0f, "%.0f m");
+            ImGui::DragFloat("Rim Height", &tc.rimRiseHeight, 0.2f, 3.0f, 80.0f, "%.0f m");
+            ImGui::DragFloat("Rim Clear (no props inside)", &tc.rimClear, 0.2f, 0.0f, 30.0f, "%.0f m");
+        }
         ImGui::Checkbox("Rock Mountains (outer wall)", &tc.rockMountains);
         ImGui::DragFloat("Mountain Scale", &tc.mountainScale, 0.02f, 0.2f, 3.0f);
+        // 巨石（2026-10-06）：数個の Rock-Set を辺に沿って引き伸ばして山に見せる。切ると以前の「岩を 3 列に積む」
+        ImGui::Checkbox("Boulder Mountains (few stretched rocks)", &tc.boulderMountains);
+        if (tc.boulderMountains)
+        {
+            ImGui::Checkbox("Boulders: Rock-Set (PBR, realistic)", &tc.boulderRealistic);
+            ImGui::DragInt("Boulders / Side", &tc.boulderPerSide, 0.1f, 1, 12);
+            ImGui::DragFloatRange2("Boulder Height (sides)", &tc.boulderHeightMin, &tc.boulderHeightMax, 0.2f, 3.0f, 80.0f, "%.0f m");
+            ImGui::DragFloatRange2("Boulder Height (corners)", &tc.boulderBackHeightMin, &tc.boulderBackHeightMax, 0.2f, 3.0f, 100.0f, "%.0f m");
+            ImGui::DragFloat("Boulder Depth", &tc.boulderDepth, 0.2f, 5.0f, 80.0f, "%.0f m");
+            ImGui::DragFloat("Boulder Sink", &tc.boulderSink, 0.01f, 0.0f, 0.6f);
+            ImGui::DragFloat("Boulder Center Out", &tc.boulderCenterOut, 0.1f, -20.0f, 20.0f, "%.1f m");
+            ImGui::SetItemTooltip("0 = the rock's centre sits on the field edge (half of it inside)");
+            // 石の凸包で当てる（外周の空気壁は石の裏の兜底へ）。切ると以前の「縁より外の見た目だけ + 縁の空気壁」
+            ImGui::Checkbox("Boulder Collision (hull, no air wall)", &tc.boulderCollide);
+        }
+        ImGui::Checkbox("Roof Boulders (cave hill = 3 rocks)", &tc.roofBoulders);
         // 一番手前の列の岩：縁から内に入る量（負 = 外）。内に入る岩だけ衝突が付く
         ImGui::DragFloatRange2("Edge Rock Intrude", &tc.edgeRockIntrudeMin, &tc.edgeRockIntrudeMax, 0.05f, -3.0f, 4.0f, "%.2f m");
         ImGui::DragFloat("Edge Rock Collider x", &tc.edgeRockShrink, 0.01f, 0.5f, 1.2f);

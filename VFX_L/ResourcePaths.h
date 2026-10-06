@@ -71,6 +71,14 @@ namespace Res
         inline constexpr const char* Rock2 = "Assets/Model/Rock-Set/Rock_2/Rock_2.fbx";
         // 必要なら .obj 版も
         inline constexpr const char* Rock2_Obj = "Assets/Model/Rock-Set/Rock_2/Rock_2.obj";
+        // 巨石（Rock-Set、PBR テクスチャ付き）：外周の岩山・洞窟の上の山に数個を引き伸ばして使う（2026-10-06）
+        inline constexpr const char* kBoulders[] = {
+            "Assets/Model/Rock-Set/Rock_2/Rock_2.fbx",
+            "Assets/Model/Rock-Set/Rock_5/Rock_5.fbx",
+            "Assets/Model/Rock-Set/Rock_6/Rock_6.fbx",
+            "Assets/Model/Rock-Set/Rock_7/Rock_7.fbx",
+            "Assets/Model/Rock-Set/Rock_9/Rock_9.fbx",
+        };
         inline constexpr const char* Akai = "Assets/Model/Akai/Akai.fbx";
 
         inline constexpr const char* Jiandu_TPose =

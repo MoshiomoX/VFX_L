@@ -133,8 +133,9 @@ void MapEditMode::DrawToolsUI(FlyCamera& camera)
             m_BrushMode = mode - 1;
             if (m_BrushMode >= 0) m_PaintZone = -1;
         }
-        ImGui::SliderFloat("Radius (m)", &m_BrushRadius, 2.0f, 30.0f, "%.0f");
-        ImGui::SliderFloat("Strength", &m_BrushStrength, 0.5f, 10.0f, "%.1f");
+        // "##brush"：丘の部品の欄にも "Radius (m)" があり、同じ窓で ID が被る（ImGui の警告）
+        ImGui::SliderFloat("Radius (m)##brush", &m_BrushRadius, 2.0f, 30.0f, "%.0f");
+        ImGui::SliderFloat("Strength##brush", &m_BrushStrength, 0.5f, 10.0f, "%.1f");
         ImGui::SetItemTooltip("Raise / Lower: metres per second at the centre. Smooth / Flatten: how fast it settles");
         ImGui::TextDisabled("Hold LMB on the plain or the summit. The ground is rebuilt when");
         ImGui::TextDisabled("you release. Slopes stay walkable; plateau feet stay flat.");
@@ -187,10 +188,9 @@ void MapEditMode::DrawToolsUI(FlyCamera& camera)
 // 台地などの足元の合わせ直しと床のメッシュの建て直しは、ドラッグが終わってから（MapEditMode::Update）
 void MapEditMode::ApplyReliefChange()
 {
-    MapTerrainEdit::RebuildRaw(m_Map);
-    MapTerrainEdit::Rederive(m_Map);
+    // 印だけ付ける：素の起伏 → 起伏・高さ場の作り直しは、スライダー / ギズモを離した時に FlushPending がまとめて
     m_Dirty = true;
-    m_ViewDirty = m_ReseatDirty = true;
+    m_ReliefDirty = m_ViewDirty = true;
 }
 
 // 丘の部品を輪で（選んだ物は黄、盛り上がりは緑、窪みは青）。輪を見せている時だけ選べる
@@ -216,9 +216,9 @@ void MapEditMode::DrawHillInspector()
     ImGui::TextDisabled("Move with the gizmo. The ground is rebuilt when you release.");
     bool changed = false;
     float pos[2] = { h.x, h.z };
-    if (ImGui::DragFloat2("Position (x, z)", pos, 0.1f)) { h.x = pos[0]; h.z = pos[1]; changed = true; }
-    changed |= ImGui::SliderFloat("Radius (m)", &h.radius, 1.0f, 40.0f, "%.1f");
-    changed |= ImGui::SliderFloat("Height (m)", &h.height, -6.0f, 10.0f, "%.1f");
+    if (ImGui::DragFloat2("Position (x, z)##hill", pos, 0.1f)) { h.x = pos[0]; h.z = pos[1]; changed = true; }
+    changed |= ImGui::SliderFloat("Radius (m)##hill", &h.radius, 1.0f, 40.0f, "%.1f");
+    changed |= ImGui::SliderFloat("Height (m)##hill", &h.height, -6.0f, 10.0f, "%.1f");
     ImGui::SetItemTooltip("Negative = a hollow. Steep sides are flattened to the max slope");
     // 一番急な所の目安：1.54 × 高さ / 半径
     const float steep = DirectX::XMConvertToDegrees(std::atan(1.54f * std::fabs(h.height) / (std::max)(h.radius, 0.1f)));

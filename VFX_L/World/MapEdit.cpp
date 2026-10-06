@@ -128,12 +128,15 @@ namespace MapEdit
         for (const auto& b : map.boxes) if (b.tag.group == group) ++boxes;
         for (const auto& h : map.hulls) if (h.tag.group == group) ++hulls;
         for (const auto& v : map.visuals) if (v.tag.group == group) ++visuals;
-        const bool kindOk = kind == MapData::kTree || kind == MapData::kRock || kind == MapData::kBush || kind == MapData::kManual;
+        const bool kindOk = kind == MapData::kTree || kind == MapData::kRock || kind == MapData::kBush || kind == MapData::kManual
+            || kind == MapData::kEdgeRock || kind == MapData::kRoofRock;   // 巨石（1 個 = 置物だけ）も回す・伸ばすができる
         return props == 1 && boxes <= 1 && hulls == 0 && visuals == 0 && kindOk;
     }
 
     Collision CollisionOf(const MapData::Map& map, uint32_t group)
     {
+        const int pi = FindProp(map, group);
+        if (pi >= 0 && map.props[(size_t)pi].collide) return Collision::Mesh;
         for (const auto& b : map.boxes)
         {
             if (b.tag.group != group) continue;
@@ -143,19 +146,65 @@ namespace MapEdit
         return Collision::None;
     }
 
-    void SetPropCollision(MapData::Map& map, uint32_t group, Collision mode, const Vector3& lo, const Vector3& hi)
+    void SetPropCollision(MapData::Map& map, uint32_t group, Collision mode, const Vector3& lo, const Vector3& hi,
+        const std::vector<Vector3>* hullPoints)
     {
         const int pi = FindProp(map, group);
         if (pi < 0) return;
+        if (mode == Collision::Mesh && (!hullPoints || hullPoints->empty())) mode = Collision::Footprint;
+        map.props[(size_t)pi].collide = (mode == Collision::Mesh) ? 1 : 0;
         const MapData::Prop p = map.props[(size_t)pi];
 
         EraseGroup(map.boxes, group);
+        if (mode == Collision::Mesh)
+        {
+            // 衝突は建てる時に凸包から作る（記録は Prop::collide だけ）。塞ぐマスは凸包の足元（TerrainBuild と同じ 5x5 の小点）
+            EraseGroup(map.blocks, group);
+            const DirectX::SimpleMath::Matrix world = DirectX::SimpleMath::Matrix::CreateScale(p.stretch * p.scale)
+                * DirectX::SimpleMath::Matrix::CreateRotationY(DirectX::XMConvertToRadians(p.yawDeg))
+                * DirectX::SimpleMath::Matrix::CreateTranslation(p.pos);
+            std::vector<Vector3> pts;
+            Vector3 wlo, whi;
+            for (const Vector3& q : *hullPoints)
+            {
+                const Vector3 w = Vector3::Transform(q, world);
+                if (pts.empty()) { wlo = whi = w; }
+                wlo = Vector3::Min(wlo, w); whi = Vector3::Max(whi, w);
+                pts.push_back(w);
+            }
+            const Vector3 center = (wlo + whi) * 0.5f;
+            for (auto& q : pts) q -= center;
+            const CollisionMath::Convex hull = CollisionMath::ConvexFromPoints(pts.data(), (int)pts.size());
+            const float ox = OriginX(map), oz = OriginZ(map);
+            const int gx0 = (std::max)((int)std::floor((wlo.x - ox) / kCs), 1), gx1 = (std::min)((int)std::floor((whi.x - ox) / kCs), map.gw - 2);
+            const int gz0 = (std::max)((int)std::floor((wlo.z - oz) / kCs), 1), gz1 = (std::min)((int)std::floor((whi.z - oz) / kCs), map.gd - 2);
+            const float off[5] = { -0.85f, -0.425f, 0.0f, 0.425f, 0.85f };
+            for (int gz = gz0; gz <= gz1; ++gz)
+                for (int gx = gx0; gx <= gx1; ++gx)
+                {
+                    const float cx = ox + (gx + 0.5f) * kCs, cz = oz + (gz + 0.5f) * kCs;
+                    bool hit = false;
+                    for (int sz = 0; sz < 5 && !hit; ++sz)
+                        for (int sx = 0; sx < 5 && !hit; ++sx)
+                        {
+                            Vector3 q(cx + off[sx] * kCs * 0.5f, 0.0f, cz + off[sz] * kCs * 0.5f);
+                            q.y = GroundHeight(map, q.x, q.z) + 0.6f;
+                            hit = hull.Contains(q - center);
+                        }
+                    if (!hit) continue;
+                    MapData::Block b;
+                    b.tag = p.tag; b.x = gx; b.z = gz; b.w = 1; b.d = 1;
+                    map.blocks.push_back(b);
+                }
+            RebuildWalkable(map);
+            return;
+        }
         if (mode != Collision::None)
         {
-            // TerrainGenerator の placeBlocker と同じ作り
+            // TerrainGenerator の placeBlocker と同じ作り（軸ごとの倍率 stretch も掛ける）
             const float u = p.scale;
-            const float bottom = p.pos.y + lo.y * u;
-            const float height = (hi.y - lo.y) * u;
+            const float bottom = p.pos.y + lo.y * u * p.stretch.y;
+            const float height = (hi.y - lo.y) * u * p.stretch.y;
             MapData::Box b;
             b.tag = p.tag;
             b.layer = Layer_Prop;
@@ -169,7 +218,7 @@ namespace MapEdit
             {
                 const float yaw = DirectX::XMConvertToRadians(p.yawDeg);
                 const float cs = std::fabs(std::cos(yaw)), sn = std::fabs(std::sin(yaw));
-                const float ex = (hi.x - lo.x) * 0.5f * u, ez = (hi.z - lo.z) * 0.5f * u;
+                const float ex = (hi.x - lo.x) * 0.5f * u * p.stretch.x, ez = (hi.z - lo.z) * 0.5f * u * p.stretch.z;
                 const float hx = (cs * ex + sn * ez) * 0.85f, hz = (sn * ex + cs * ez) * 0.85f;
                 b.lo = { p.pos.x - hx, bottom, p.pos.z - hz };
                 b.hi = { p.pos.x + hx, bottom + height, p.pos.z + hz };

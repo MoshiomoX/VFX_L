@@ -28,8 +28,9 @@ namespace MapTerrainEdit
     void RegenPads(MapData::Map& map, uint32_t group);
 
     // group を (dx, dz) マス動かす。足元の高さは動かした先の地面（この group の台座を除いた起伏の平均）に合わせ直す。
-    // 記録・台座・起伏・高さ場まで作り直す。場外へ出るなら動かさず false
-    bool MoveGroup(MapData::Map& map, uint32_t group, int dx, int dz);
+    // 記録・台座・起伏・高さ場まで作り直す。場外へ出るなら動かさず false。
+    // refresh = false：部品のマスだけ動かす（ドラッグ中。離した時に Refresh を呼ぶこと）
+    bool MoveGroup(MapData::Map& map, uint32_t group, int dx, int dz, bool refresh = true);
     // 部品を変えた後のまとめ（足元の合わせ直し → 坂の足跡 → 記録 → 台座 → Rederive）
     void Refresh(MapData::Map& map, uint32_t group);
     // derive = false：起伏・高さ場の作り直しを省く（何個もまとめて直す時。最後に Rederive / RegenZones を呼ぶこと）

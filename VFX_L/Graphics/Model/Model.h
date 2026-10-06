@@ -42,6 +42,9 @@ public:
     float GetFileUnitScale() const { return m_FileUnitScale; }
 
     const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
+    // 衝突用の凸包の点（2026-10-06）：全頂点のうち 26 方向それぞれで一番外にある物（最大 26 点、モデルの座標、
+    // 包囲ボックスと同じく拡縮前）。CollisionMath::ConvexFromPoints で凸体にする（巨石を形通りに当てる）
+    const std::vector<Vector3>& GetHullPoints() const { return m_HullPoints; }
     bool Load(ID3D11Device* device, const std::string& filepath);
 
     // 読み込みの追加指定（Load の 3 引数版）。雑魚のように「1 体分を焼いて使い回す」用
@@ -96,6 +99,7 @@ private:
     Vector3 m_BoundsMin = { 0, 0, 0 };
     Vector3 m_BoundsMax = { 0, 0, 0 };
     Vector3 m_BoundsCenter = { 0, 0, 0 };
+    std::vector<Vector3> m_HullPoints;   // 26 方向の極値点（GetHullPoints）
 
     float m_FileUnitScale = 1.0f;   // Load() が FBX の UnitScaleFactor から決める
 };

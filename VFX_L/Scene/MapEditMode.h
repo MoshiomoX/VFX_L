@@ -63,10 +63,10 @@ public:
     void TestSelectGroup(uint32_t group) { m_Sel = { SelType::Group, group, -1 }; }
     void TestSelectPlacement(int i) { m_Sel = { SelType::Placement, 0, i }; }
     void TestFocus(FlyCamera& camera) { FocusSelection(camera); }
-    bool TestApplyMove(const Vector3& delta) { return ApplyMove(delta); }
+    bool TestApplyMove(const Vector3& delta) { const bool ok = ApplyMove(delta); FlushPending(); return ok; }
     void TestRebuildView() { m_ViewDirty = false; RebuildView(); }
     void TestFocusAt(FlyCamera& camera, const Vector3& pos, float radius);
-    void TestFinishEdits() { if (m_ReseatDirty) { m_ReseatDirty = false; MapTerrainEdit::ReseatAll(m_Map); } m_ViewDirty = false; RebuildView(); }
+    void TestFinishEdits() { FlushPending(); if (m_ReseatDirty) { m_ReseatDirty = false; MapTerrainEdit::ReseatAll(m_Map); } m_ViewDirty = false; RebuildView(); }
     int  TestAddPlacement(MapData::PlaceType type, const Vector3& pos) { return AddPlacement(type, pos); }
     std::shared_ptr<Model> TestModel(const std::string& path) { return GetModel(path); }
 
@@ -104,7 +104,10 @@ private:
     void DrawToolsUI(FlyCamera& camera);
     void DrawHillMarks();                               // 丘の部品の輪
     void DrawHillInspector();                           // 選んだ丘の中身
-    void ApplyReliefChange();                           // 起伏の設定・丘を変えた後（作り直し + 後でまとめる印）
+    void ApplyReliefChange();                           // 起伏の設定・丘を変えた後（後でまとめて作り直す印）
+    // ドラッグ中に溜めた作り直し（地形の部品の Refresh、素の起伏 → 起伏・高さ場）を今やる。
+    // 全体の作り直しは Debug で 100 ms 以上掛かるので、動かしている間はデータの位置だけ変え、離した時に 1 回
+    void FlushPending();
     int  AddPlacement(MapData::PlaceType type, const Vector3& pos);
     Vector3 ScreenCenterGround(FlyCamera& camera) const;
 
@@ -141,6 +144,10 @@ private:
     bool  m_BrushDirty = false;              // 起伏を書き換えた（離した時に作り直す）
     bool  m_ShowHills = true;                // 丘の部品を輪で見せる（見せている時だけ選べる）
     bool  m_ReseatDirty = false;             // 起伏を変えた：離した時に、台地などの足元を今の地面へ合わせ直す
+    uint32_t m_PartDirty = 0;                // 動かした / 中身を変えた地形の部品（離した時に Refresh）
+    bool  m_ReliefDirty = false;             // 丘の部品・起伏の設定を変えた（離した時に素の起伏から作り直す）
+    bool  m_GizmoWasUsing = false;
+    Vector3 m_GizmoGrabPos = { 0, 0, 0 };    // ギズモを掴んだ時の位置（水平に動かしたドラッグかを見る）
 
     // 置く物（マウスの下）
     bool    m_GhostValid = false;

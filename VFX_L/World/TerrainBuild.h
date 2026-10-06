@@ -134,10 +134,14 @@ namespace TerrainBuild
             }
         }
 
+        // 場外にも地面がある範囲（m）。見た目の場外の地面（kSkirt 40m）と同じ：高さは縁のノードの値（Sample / ZoneAt が端へ丸める）。
+        // 外周の空気壁を石の衝突に替えた時（2026-10-06）、石の裏へ出た所に衝突の地面が無くて落ちた
+        float margin = 40.0f;
+
         // ---- CollisionMath::HeightFieldShape ----
         bool Contains(float x, float z) const override
         {
-            return x >= ox && z >= oz && x <= ox + gw * kCs && z <= oz + gd * kCs;
+            return x >= ox - margin && z >= oz - margin && x <= ox + gw * kCs + margin && z <= oz + gd * kCs + margin;
         }
         float Height(float x, float z) const override { return SurfaceIn(ZoneAt(x, z), x, z); }
         Vector3 Normal(float x, float z) const override
@@ -168,13 +172,17 @@ namespace TerrainBuild
         void SetTag(const MapData::Tag& tag) { m_Tag = tag; }
 
         void Box(const Vector3& lo, const Vector3& hi, uint32_t layer);          // 衝突だけの箱
-        void Hull(const Vector3 world[8], uint32_t layer);                       // 衝突だけの凸体
+        void Hull(const Vector3 world[8], uint32_t layer, bool wallOnly = false);   // 衝突だけの凸体（wallOnly = 水平にしか押さない = 登れない）
         // 見た目の六面体（上面と側面の 2 色）。地形全部で 1 つのモデルにする（FinishVisuals）
         void Visual(const Vector3 world[8], const Vector4& top, const Vector4& side,
             int topLayer = -1, int sideLayer = -1);
         // 置物の見た目（StaticPropRenderer がまとめて描く）。model が null なら記録だけ（素材が無い PC）
+        // stretch = 軸ごとの倍率（モデルのローカル軸。巨石を辺に沿って引き伸ばす用）。最終の倍率 = scale × stretch。
+        // collide = モデルの凸包（Model::GetHullPoints）で衝突を付ける（Layer_Terrain。巨石。2026-10-06）。
+        // 衝突の実体は記録の Prop::collide から建て直せるので、記録は置物 1 つだけ
         void Prop(const std::string& path, const std::shared_ptr<Model>& model,
-            const Vector3& pos, float yawDeg, float scale);
+            const Vector3& pos, float yawDeg, float scale, const Vector3& stretch = Vector3::One, bool collide = false);
+        void SetPropColliders(bool on) { m_PropColliders = on; }   // false = collide の置物でも衝突を建てない（エディタの表示）
         void Block(GridWorld* grid, int x, int z, int w, int d);                 // 格子を塞ぐ（grid が無ければ記録だけ）
 
         // 積んだ見た目を 1 つのモデルの実体にする（最後に 1 回）
@@ -189,8 +197,17 @@ namespace TerrainBuild
         MapData::Map* m_Rec = nullptr;
         MapData::Tag m_Tag;
         uint32_t m_NextGroup = 1;   // rec が無い時用
+        bool m_PropColliders = true;
         PrimitiveBuilder::HexahedronBatch m_Batch;
     };
+
+    // ---- 置物の凸包（巨石の衝突。2026-10-06）----
+    // モデルの凸包の点を世界へ（pos / yaw / scale × stretch。Emitter::Prop と同じ置き方）
+    std::vector<Vector3> PropHullWorld(const Model& model, const Vector3& pos, float yawDeg, float scale, const Vector3& stretch);
+    // 世界の点の凸包の衝突（Entity の位置 = 包囲箱の真ん中）
+    Entity SpawnPointHullCollider(Registry& reg, const std::vector<Vector3>& world, uint32_t layer);
+    // 凸包の足元に掛かるマスを塞ぐ（マスの 5x5 の小点のどれかが、その点の地面 + 0.6m で凸包の中）。塞いだ数を返す
+    int BlockCellsUnderHull(Emitter& emit, GridWorld& grid, const std::vector<Vector3>& world);
 
     // ---- 起伏の合成：素の起伏 + 台座（生成と MapEdit が同じ関数を通る = 同じ結果）----
     // 洞窟の周りを平原の 0 に均す重み（ノード毎。洞窟が無ければ全部 0）
@@ -202,6 +219,11 @@ namespace TerrainBuild
     void LimitReliefSlopes(std::vector<float>& arr, const std::vector<MapData::Pad>& pads, uint8_t zone,
         const std::vector<float>* mineW, int nx, int nz, float step, float maxSlopeDeg);
 
+    // 外周の縁を碗のように持ち上げる（2026-10-06、Megabonk 風：地面そのものが縁で急な崖になる。空気壁も石の衝突も要らない）。
+    // 傾きの制限の後に掛ける（制限に均されないよう）。縁から width m 内側で height m まで、t^1.6 の曲線（上ほど急、65〜75°）。
+    // 生成と MapTerrainEdit::Rederive が同じ関数を通る
+    void ApplyRimRise(std::vector<float>& arr, int nx, int nz, float step, float width, float height);
+
     // ---- 素の起伏（台座で均す前）= ノイズの丘 + 丘の部品 → 傾きを抑える ----
     void BuildReliefNoise(const MapData::ReliefParams& rp, uint32_t seed, int gw, int gd,
         std::vector<float>& plain, std::vector<float>& summit);
@@ -212,6 +234,34 @@ namespace TerrainBuild
     void EmitBlockPart(Emitter& emit, GridWorld* grid, const GridWorld& origin, const MapData::BlockPart& p);
     void RampVerts(const GridWorld& origin, const MapData::RampPart& p, Vector3 v[8]);
     void EmitRampPart(Emitter& emit, GridWorld* grid, const GridWorld& origin, const MapData::RampPart& p);
+
+    // ---- 巨石（Rock-Set を数個引き伸ばして山に見せる。TerrainBoulders.cpp、2026-10-06）----
+    struct RimBoulderParams
+    {
+        int   perSide = 4;                      // 一辺の数（1 列。中心が縁の線の上）
+        float frontHMin = 28.0f, frontHMax = 40.0f;   // 辺の石の高さ（m、heightMul を掛ける前）
+        float backHMin = 34.0f, backHMax = 46.0f;     // 四隅
+        float depth = 30.0f;                    // 石の厚み（縁をまたぐ向き m。半分が場内）
+        float sink = 0.22f;                     // 高さに対する埋める割合
+        float heightMul = 1.0f;                 // Config::mountainScale
+        float centerOut = 0.0f;                 // 箱の真ん中を縁の線から外へずらす量（m。負 = 内へ）
+        float intrude = -0.6f;                  // （衝突なしの旧配置用）箱の内側の面：縁から内に入る量（負 = 外）
+        float yawJitterDeg = 12.0f;
+        bool  collide = false;                  // 石の凸包で衝突（Prop::collide）+ 足元のマスを塞ぐ（grid があれば）
+        // 石の後ろの岩色の壁（見た目だけ）：石と石の丸い端の間から空が見えないように。高さは縁の地面から
+        float backdropHeight = 14.0f;           // 0 = 無し
+        float backdropOut = 0.0f;               // 縁から外へ（0 = 縁の線の上。石の間の隙間の突き当たりがこの壁になる）
+        Vector4 backdropColor = { 0.3f, 0.3f, 0.32f, 1.0f };
+    };
+    // 辺の地面の高さの範囲（n = 外向き、t = 辺に沿う向き、edge = 縁の座標、s = 辺に沿う位置、halfLen = 調べる半幅）
+    using EdgeSpanFn = std::function<void(const Vector3& n, const Vector3& t, float edge, float s, float halfLen, float& lo, float& hi)>;
+    // grid = 衝突を付ける時に足元のマスを塞ぐ先（null = 塞がない）。outBlocked に塞いだマスの数
+    int EmitRimBoulders(Emitter& emit, GridWorld* grid, float halfW, float halfD, const RimBoulderParams& P,
+        const std::vector<std::string>& modelPaths, const EdgeSpanFn& edgeSpan, std::mt19937& rng, int* outBlocked = nullptr);
+    // 洞窟の上の山：塊の包囲矩形に真ん中 1 個 + 両端 1 個ずつ（rockMax / rockMin は EmitRoofRocks と同じ意味の高さ）
+    int EmitRoofBoulders(Emitter& emit, const GridWorld& origin, const std::vector<uint8_t>& zone,
+        const std::vector<uint8_t>& ring, float roofTopY, float rockMin, float rockMax,
+        const std::vector<std::string>& modelPaths, std::mt19937& rng);
 
     // ---- 区域（平原 / 山頂 / 洞窟）の形から決まる物（TerrainZones.cpp。生成と MapTerrainEdit::RegenZones が共用）----
     // マスの印（mask == value）を軸平行の矩形の組に分ける
@@ -253,6 +303,7 @@ namespace TerrainBuild
         bool  cave = false;
         float roofTopY = 0.0f;
         float summitH = 0.0f, mineD = 0.0f;
+        float rimWidth = 0.0f;   // 縁の碗の斜面の幅（m。0 = 無し）：その帯は崖の層で描く
     };
     Entity SpawnGround(Registry& reg, ID3D11Device* device, const GridWorld& grid,
         const std::shared_ptr<ReliefField>& relief, const std::vector<uint8_t>& caveRing,

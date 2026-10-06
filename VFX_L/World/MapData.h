@@ -21,7 +21,7 @@
 
 namespace MapData
 {
-    inline constexpr uint32_t kVersion = 6;   // 2 = placements、3 = volumes、4 = 地形の部品、5 = 区域の作り直し用の値、6 = 起伏の中身（丘の部品）。古い版も読める
+    inline constexpr uint32_t kVersion = 10;   // 2 = placements、3 = volumes、4 = 地形の部品、5 = 区域の作り直し用の値、6 = 起伏の中身（丘の部品）、7 = 置物の stretch・洞の上の巨石、8 = 置物の凸包の衝突、9 = 縁の碗、10 = 凸体の wallOnly。古い版も読める
 
     // 何の一部か（エディタの一覧・選別用）
     enum Kind : uint16_t
@@ -48,7 +48,7 @@ namespace MapData
     struct Tag { uint16_t kind = kFloor; uint32_t group = 0; };
 
     struct Box    { Tag tag; DirectX::SimpleMath::Vector3 lo, hi; uint32_t layer = 0; };   // 衝突だけ（軸平行）
-    struct Hull   { Tag tag; DirectX::SimpleMath::Vector3 v[8]; uint32_t layer = 0; };     // 衝突だけ（凸体、世界座標の 8 頂点）
+    struct Hull   { Tag tag; DirectX::SimpleMath::Vector3 v[8]; uint32_t layer = 0; uint8_t wallOnly = 0; };   // 衝突だけ（凸体、世界座標の 8 頂点）。wallOnly = 水平にしか押さない（登れない。版 10）
     struct Visual                                                                          // 見た目の六面体
     {
         Tag tag;
@@ -63,6 +63,8 @@ namespace MapData
         DirectX::SimpleMath::Vector3 pos;    // 実体の位置（底合わせ済み）
         float yawDeg = 0.0f;
         float scale = 1.0f;                  // 一様（ファイルの単位込み）
+        DirectX::SimpleMath::Vector3 stretch = { 1.0f, 1.0f, 1.0f };   // 軸ごとの倍率（モデルのローカル軸。巨石用。版 7）
+        uint8_t collide = 0;                 // 1 = モデルの凸包で衝突を付ける（巨石。建てる時に Model::GetHullPoints から作る。版 8）
     };
     struct Block  { Tag tag; int x = 0, z = 0, w = 0, d = 0; };                            // 塞いだマスの矩形
 
@@ -192,6 +194,8 @@ namespace MapData
         float rimSink = 0.0f;                // 押し込む量
         std::vector<std::string> roofRockModels;   // 洞の上に積む岩のモデル
         std::string torchModel;              // 松明のモデル
+        bool  roofBoulders = false;          // 洞の上の山 = 数個の巨石（EmitRoofBoulders）。false = 2x2 マス毎に積む（版 7）
+        float rimRiseWidth = 0.0f, rimRiseHeight = 0.0f;   // 縁の碗（TerrainBuild::ApplyRimRise。0 = 無し。版 9）
 
         // ---- 起伏の中身（版 6）：素の起伏 = ノイズの丘（reliefParams）+ 丘の部品（hills）→ 傾きを抑える → + 筆の分（sculpt）----
         bool hasReliefParams = false;        // 下の値が入っている（版 6 以降で生成 / 保存した地図）

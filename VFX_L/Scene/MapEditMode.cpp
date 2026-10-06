@@ -116,6 +116,7 @@ bool MapEditMode::Load(const std::string& name)
 bool MapEditMode::Save()
 {
     if (!m_Loaded || !m_NameBuf[0]) return false;
+    FlushPending();
     const bool ok = MapData::Save(m_NameBuf, m_Map);
     if (ok) m_Dirty = false;
     SetStatus(ok ? std::string("Saved ") + m_NameBuf + ".vmap" : std::string("Save failed: ") + m_NameBuf);
@@ -281,7 +282,7 @@ void MapEditMode::RefreshCollision(uint32_t group, MapEdit::Collision mode)
     if (pi < 0) return;
     auto model = GetModel(m_Map.models[(size_t)m_Map.props[(size_t)pi].model]);
     if (!model) return;
-    MapEdit::SetPropCollision(m_Map, group, mode, model->GetBoundsMin(), model->GetBoundsMax());
+    MapEdit::SetPropCollision(m_Map, group, mode, model->GetBoundsMin(), model->GetBoundsMax(), &model->GetHullPoints());
 }
 
 // 選択中を delta だけ動かす。水平にだけ動かした時は地面の高さの差を足す（m_GroundFollow）
@@ -301,19 +302,21 @@ bool MapEditMode::ApplyMove(const Vector3& deltaIn)
     }
     else if (const int hi = MapTerrainEdit::FindHill(m_Map, m_Sel.group); hi >= 0)
     {
-        // 丘の部品：水平に動かして起伏を作り直す。台地などの足元の合わせ直しと見た目は、離した時にまとめて
+        // 丘の部品：水平に位置だけ動かす（輪はデータから描くので付いてくる）。
+        // 起伏の作り直し・台地などの足元の合わせ直し・見た目は、離した時にまとめて（FlushPending）
+        if (!horizontal) return false;
         m_Map.hills[(size_t)hi].x += deltaIn.x;
         m_Map.hills[(size_t)hi].z += deltaIn.z;
-        MapTerrainEdit::RebuildRaw(m_Map);
-        MapTerrainEdit::Rederive(m_Map);
-        m_ViewDirty = m_ReseatDirty = true;
+        m_ReliefDirty = m_ViewDirty = true;
     }
     else if (IsPartGroup(m_Sel.group))
     {
-        // 地形の部品：マス単位で動かす。足元は動かした先の地面に合わせ直し、台座・起伏・高さ場まで作り直す。
-        // 見た目（床のメッシュ）の建て直しは重いので、ギズモを離した時にまとめて（m_ViewDirty）
+        // 地形の部品：マス単位で位置だけ動かす（黄色の線はデータから描くので付いてくる）。
+        // 足元の合わせ直し・台座・起伏・高さ場と見た目の建て直しは、ギズモを離した時にまとめて（FlushPending）
         const int dx = (int)std::lround(deltaIn.x / GridWorld::kCellSize), dz = (int)std::lround(deltaIn.z / GridWorld::kCellSize);
-        if (!MapTerrainEdit::MoveGroup(m_Map, m_Sel.group, dx, dz)) return false;
+        if (m_PartDirty != 0 && m_PartDirty != m_Sel.group) FlushPending();
+        if (!MapTerrainEdit::MoveGroup(m_Map, m_Sel.group, dx, dz, false)) return false;
+        m_PartDirty = m_Sel.group;
         m_ViewDirty = true;
     }
     else if (const int vi = MapEdit::FindVolume(m_Map, m_Sel.group); vi >= 0)
@@ -355,8 +358,28 @@ void MapEditMode::RotateSelection(float deg)
     }
 }
 
+// ドラッグ中に溜めた作り直しを今やる
+void MapEditMode::FlushPending()
+{
+    if (m_PartDirty != 0)
+    {
+        const uint32_t g = m_PartDirty;
+        m_PartDirty = 0;
+        MapTerrainEdit::Refresh(m_Map, g);
+        m_ViewDirty = true;
+    }
+    if (m_ReliefDirty)
+    {
+        m_ReliefDirty = false;
+        MapTerrainEdit::RebuildRaw(m_Map);
+        MapTerrainEdit::Rederive(m_Map);
+        m_ViewDirty = m_ReseatDirty = true;
+    }
+}
+
 void MapEditMode::DeleteSelection()
 {
+    FlushPending();
     if (m_Sel.type == SelType::Group && MapTerrainEdit::FindHill(m_Map, m_Sel.group) >= 0)
     {
         MapTerrainEdit::DeleteHill(m_Map, m_Sel.group);    // 丘の部品
@@ -380,6 +403,7 @@ void MapEditMode::DeleteSelection()
 
 void MapEditMode::DuplicateSelection()
 {
+    FlushPending();
     if (m_Sel.type == SelType::Placement && m_Sel.placement >= 0 && m_Sel.placement < (int)m_Map.placements.size())
     {
         MapData::Placement p = m_Map.placements[(size_t)m_Sel.placement];
@@ -415,6 +439,7 @@ void MapEditMode::DuplicateSelection()
     pos.y += m_Grid.SampleHeight(pos.x, pos.z) - m_Grid.SampleHeight(src.pos.x, src.pos.z);
     const uint32_t g = MapEdit::AddProp(m_Map, m_Map.models[(size_t)src.model], pos, src.yawDeg, src.scale,
         (MapData::Kind)src.tag.kind);
+    m_Map.props.back().stretch = src.stretch;
     RefreshCollision(g, mode);
     m_Sel = { SelType::Group, g, -1 };
     m_Dirty = true;
@@ -434,7 +459,7 @@ void MapEditMode::FocusSelection(FlyCamera& camera)
             const auto& p = m_Map.props[(size_t)pi];
             if (auto model = GetModel(m_Map.models[(size_t)p.model]))
             {
-                radius = (model->GetBoundsMax() - model->GetBoundsMin()).Length() * 0.5f * p.scale;
+                radius = ((model->GetBoundsMax() - model->GetBoundsMin()) * p.stretch).Length() * 0.5f * p.scale;
                 pos = Vector3::Transform(model->GetBoundsCenter(), PropWorld(p));
             }
         }
@@ -504,14 +529,19 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
         const bool part = m_Sel.type == SelType::Group && IsPartGroup(m_Sel.group);
         opt.snap = part ? GridWorld::kCellSize : snap;
         Vector3 pos = pivot;
-        if (Gizmo::Translate("map_edit_selected", pos, opt))
+        const bool moved = Gizmo::Translate("map_edit_selected", pos, opt);
+        if (Gizmo::IsUsing() && !m_GizmoWasUsing) m_GizmoGrabPos = pivot;
+        if (moved)
         {
             Vector3 delta = pos - pivot;
-            // 水平に動かした時の y は地面に任せる（吸着で y が丸まった分を拾わない）
-            if (m_GroundFollow && std::fabs(delta.x) + std::fabs(delta.z) > 1e-4f) delta.y = 0.0f;
+            // ギズモの y は「掴んだ時の高さ」基準。水平に動かしたドラッグでは物の y は地面に付いて変わっているので、
+            // そのまま使うと止まったフレームに掴んだ時の高さへ引き戻される（丘は止まっていても毎フレーム作り直していた）。
+            // 掴んでから水平に動いたドラッグの y は地面に任せる
+            if (m_GroundFollow && std::fabs(pos.x - m_GizmoGrabPos.x) + std::fabs(pos.z - m_GizmoGrabPos.z) > 1e-4f) delta.y = 0.0f;
             ApplyMove(delta);
         }
     }
+    m_GizmoWasUsing = Gizmo::IsUsing();
 
     // ---- 置く物をマウスの下の地面へ ----
     if (placing && !io.WantCaptureMouse && !camera.IsLooking())
@@ -519,7 +549,7 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
         Vector3 hit;
         if (RayGround(hit))
         {
-            if (snap > 0.0f)
+            if (snap > 0.0f && !io.KeyCtrl)   // Ctrl = 吸着なし（ギズモと同じ）
             {
                 hit.x = std::round(hit.x / snap) * snap;
                 hit.z = std::round(hit.z / snap) * snap;
@@ -568,6 +598,7 @@ bool MapEditMode::Update(FlyCamera& camera, const PlaceRequest& place, float sna
     // 地形の部品を変えた後の見た目の建て直し：ギズモ・数値のドラッグが終わってから
     if (m_ViewDirty && !Gizmo::IsUsing() && !ImGui::IsAnyItemActive())
     {
+        FlushPending();
         // 起伏（丘の部品・全体の設定）を変えた後：台地などの足元を今の地面へ合わせ直す
         if (m_ReseatDirty)
         {

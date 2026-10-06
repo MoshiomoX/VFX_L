@@ -53,16 +53,35 @@ static bool ResolveAgainstStatics(
             const Vector3 n = wc.heightField->Normal(foot.x, foot.z);
             const float dy = wc.heightField->Height(foot.x, foot.z) + col.radius / (std::max)(n.y, 0.2f) - foot.y;
             if (dy <= 0.0f) continue;
-            tf.position.y += dy;
-            selfCenter = tf.position + col.offset;
             if (n.y > 0.5f)
             {
+                tf.position.y += dy;
+                selfCenter = tf.position + col.offset;
                 if (rb.velocity.y < 0.0f) rb.velocity.y = 0.0f;
                 if (!grounded || n.y < groundNormal.y) groundNormal = n;
                 grounded = true;
             }
-            else if (rb.response == ResponseMode::Slide)
-                rb.velocity = PhysicsMath::SlideVelocity(rb.velocity, n);
+            else
+            {
+                // 急な起伏（60° より急 = 縁の碗の斜面など。2026-10-06）は壁扱い：真上に押すと押している間に登ってしまうので、
+                // 法線の水平成分の向きへ同じ食い込み分だけ押し返し、壁に向かう速度を消す。接地にはしない（落ちて戻る）
+                Vector3 nh(n.x, 0.0f, n.z);
+                const float len = nh.Length();
+                if (len > 1e-4f)
+                {
+                    nh /= len;
+                    const float push = (std::min)(dy * n.y / len, 2.0f);   // 真上 dy の食い込み = 水平 dy・ny/|nxz|
+                    tf.position += nh * push;
+                    selfCenter = tf.position + col.offset;
+                    if (rb.response == ResponseMode::Slide)
+                        rb.velocity = PhysicsMath::SlideVelocity(rb.velocity, nh);
+                }
+                else
+                {
+                    tf.position.y += dy;
+                    selfCenter = tf.position + col.offset;
+                }
+            }
             continue;
         }
 
@@ -82,6 +101,25 @@ static bool ResolveAgainstStatics(
             // 接地判定（normal.y > 0.5）は 60° までを床扱いにする
             Capsule selfCap{ selfCenter, col.radius, col.height };
             hit = IntersectCapsuleConvex(selfCap, wc.hull, contact);
+            // 壁扱いの凸体（外周の巨石）：法線を水平へ倒して、水平に同じだけ押し返す（上面に乗れない・登れない）。
+            // 真上から当たった（法線がほぼ上）時は凸体の中心から外へ
+            if (hit && wc.wallOnly)
+            {
+                Vector3 nh(contact.normal.x, 0.0f, contact.normal.z);
+                const float len = nh.Length();
+                if (len > 0.2f)
+                {
+                    contact.depth = contact.depth / len;
+                    nh /= len;
+                }
+                else
+                {
+                    nh = Vector3(selfCenter.x - wc.center.x, 0.0f, selfCenter.z - wc.center.z);
+                    if (nh.LengthSquared() < 1e-6f) nh = Vector3(1, 0, 0);
+                    nh.Normalize();
+                }
+                contact.normal = nh;
+            }
         }
         // 他の形状組み合わせは必要になったら追加
 

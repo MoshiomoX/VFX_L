@@ -365,3 +365,6 @@ FodyWeavers.xsd
 # Kept locally only; see VFX_L/Assets/Model/dglopez_WesternDesert/SOURCE.txt (which IS committed).
 VFX_L/Assets/Model/dglopez_WesternDesert/*
 !VFX_L/Assets/Model/dglopez_WesternDesert/SOURCE.txt
+
+# 地図エディタ / 自動テストが作る一時の地図
+VFX_L/Assets/Data/MapData/_*.vmap

@@ -178,7 +178,9 @@ void MapEditMode::DrawPartInspector()
 
     if (changed)
     {
-        MapTerrainEdit::Refresh(m_Map, g);
+        // 作り直し（Refresh）は数値のドラッグを離した時にまとめて（FlushPending）
+        if (m_PartDirty != 0 && m_PartDirty != g) FlushPending();
+        m_PartDirty = g;
         m_Dirty = true;
         m_ViewDirty = true;
     }
@@ -242,7 +244,9 @@ void MapEditMode::DrawZoneRampInspector()
 
     if (changed)
     {
-        MapTerrainEdit::Refresh(m_Map, g);   // 洞窟の坂なら洞の口・岩の壁・屋根も作り直す
+        // 離した時に Refresh（洞窟の坂なら洞の口・岩の壁・屋根も作り直す）
+        if (m_PartDirty != 0 && m_PartDirty != g) FlushPending();
+        m_PartDirty = g;
         m_Dirty = true;
         m_ViewDirty = true;
     }
