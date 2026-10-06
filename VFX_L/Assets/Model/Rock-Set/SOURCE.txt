@@ -1,0 +1,5 @@
+Rock-Set（Rock_2 / Rock_5 / Rock_6 / Rock_7 / Rock_9）
+- 出所: 学校の先生から配布された素材（2026-10-06 ユーザー談。配布元のサイト・作者は不明）
+- 内容: 各 1 つの FBX（+ .blend）と PBR テクスチャ（Base_Color / Normal / Mixed_AO / Specular、jpg）
+- 用途: 戦闘フィールドの外周の岩山・洞窟の上の岩（数個を大きく拡大して山に見せる。2026-10-06〜）
+- 単位: FBX の UnitScaleFactor は Model::GetFileUnitScale() で読む（配置側で掛ける）

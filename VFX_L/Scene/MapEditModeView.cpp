@@ -44,7 +44,7 @@ std::shared_ptr<Model> MapEditMode::GetModel(const std::string& path)
 
 Matrix MapEditMode::PropWorld(const MapData::Prop& p) const
 {
-    return Matrix::CreateScale(p.scale) * Matrix::CreateRotationY(DirectX::XMConvertToRadians(p.yawDeg))
+    return Matrix::CreateScale(p.stretch * p.scale) * Matrix::CreateRotationY(DirectX::XMConvertToRadians(p.yawDeg))
         * Matrix::CreateTranslation(p.pos);
 }
 

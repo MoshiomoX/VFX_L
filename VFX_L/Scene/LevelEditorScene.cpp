@@ -240,7 +240,7 @@ void LevelEditorScene::Update(float dt)
             req.scale = m_GhostScale;
             req.yawDeg = m_GhostYaw;
         }
-        if (m_MapEdit.Update(m_Camera, req, m_Snap)) RerollGhost();
+        if (m_MapEdit.Update(m_Camera, req, m_MapSnap)) RerollGhost();
         if (m_MapEdit.ConsumeStopPlacing()) m_PlaceAsset = -1;
         // 置いている最中の R は次に置く物を回す
         if (m_PlaceAsset >= 0 && !ImGui::GetIO().WantTextInput && !m_Camera.IsLooking()
@@ -658,9 +658,11 @@ void LevelEditorScene::DrawAssetWindow()
     {
         static const float kSnaps[] = { 0.0f, 0.25f, 0.5f, 1.0f, 2.0f };
         static const char* kSnapNames[] = { "Off", "0.25 m", "0.5 m", "1 m", "2 m (grid cell)" };
+        float& snap = m_MapEdit.IsActive() ? m_MapSnap : m_Snap;   // モード毎に覚える
         int cur = 0;
-        for (int i = 0; i < 5; ++i) if (std::fabs(m_Snap - kSnaps[i]) < 1e-4f) cur = i;
-        if (ImGui::Combo("Snap", &cur, kSnapNames, 5)) m_Snap = kSnaps[cur];
+        for (int i = 0; i < 5; ++i) if (std::fabs(snap - kSnaps[i]) < 1e-4f) cur = i;
+        if (ImGui::Combo("Snap", &cur, kSnapNames, 5)) snap = kSnaps[cur];
+        ImGui::SetItemTooltip("Hold Ctrl to place / drag without snapping");
     }
     ImGui::DragFloat("Rotate Step (R)", &m_RotateStep, 1.0f, 1.0f, 180.0f, "%.0f deg");
     if (ImGui::Checkbox("Random Yaw", &m_RandomYaw)) RerollGhost();

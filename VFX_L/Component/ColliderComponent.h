@@ -48,6 +48,9 @@ struct ColliderComponent
     // 回転は見ない（他の形状と同じ約束）。halfExtents はブロードフェーズ用の包囲箱として必ず埋める。
     // 組み立ては CollisionMath::ConvexFromHexahedron 等で
     CollisionMath::Convex hull;
+    // Convex 専用: 水平にしか押し返さない（壁扱い。上面に乗れない・登れない）。外周の巨石（2026-10-06、ユーザー：
+    // 石の上に立つと凸包と形の差で浮いて見える）。物理が法線を水平へ倒し、接地にしない
+    bool wallOnly = false;
 
     // HeightField 専用: 地面の高さの問い合わせ先（世界座標。Entity の位置は使わない）
     std::shared_ptr<const CollisionMath::HeightFieldShape> heightField;

@@ -9,6 +9,7 @@
 #include "Graphics/Renderer/Renderer.h"
 #include "Manager/ResourceManager.h"
 #include "Graphics/Model/MaterialLoader.h"
+#include "Collider/CollisionMath.h"   // DopDirections（衝突用の凸包の点）
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -34,11 +35,44 @@ static Matrix ConvertMatrix(const aiMatrix4x4& m)
 // ============================================================
 // ノードを再帰で辿り、変換を頂点に焼き込んで SubMesh を作る
 // ============================================================
+// 衝突用の凸包の点：CollisionMath::DopDirections の各方向で一番外にある頂点を集める
+struct HullAccum
+{
+    static constexpr int kDirs = CollisionMath::kDopDirs;
+    const Vector3* dir = CollisionMath::DopDirections();
+    float   best[kDirs];
+    Vector3 point[kDirs];
+    HullAccum()
+    {
+        for (int i = 0; i < kDirs; ++i) { best[i] = -FLT_MAX; point[i] = Vector3::Zero; }
+    }
+    void Add(const Vector3& p)
+    {
+        for (int i = 0; i < kDirs; ++i)
+        {
+            const float v = dir[i].Dot(p);
+            if (v > best[i]) { best[i] = v; point[i] = p; }
+        }
+    }
+    std::vector<Vector3> Points() const   // 同じ点は 1 つに
+    {
+        std::vector<Vector3> out;
+        for (int i = 0; i < kDirs; ++i)
+        {
+            if (best[i] == -FLT_MAX) continue;
+            bool dup = false;
+            for (const auto& q : out) if ((q - point[i]).LengthSquared() < 1e-10f) { dup = true; break; }
+            if (!dup) out.push_back(point[i]);
+        }
+        return out;
+    }
+};
+
 static void ProcessNode(
     aiNode* node, const aiScene* scene, ID3D11Device* device,
     std::vector<Model::SubMesh>& subMeshes, const Matrix& parentTransform,
     Vector3& boundsMin, Vector3& boundsMax,
-    const std::vector<std::shared_ptr<Material>>& materials)
+    const std::vector<std::shared_ptr<Material>>& materials, HullAccum& hull)
 {
     const Matrix globalTransform = ConvertMatrix(node->mTransformation) * parentTransform;
 
@@ -75,6 +109,7 @@ static void ProcessNode(
 
             boundsMin = Vector3::Min(boundsMin, pos);
             boundsMax = Vector3::Max(boundsMax, pos);
+            hull.Add(pos);
 
             if (mesh->HasNormals())
             {
@@ -125,7 +160,7 @@ static void ProcessNode(
 
     for (unsigned int i = 0; i < node->mNumChildren; i++)
         ProcessNode(node->mChildren[i], scene, device, subMeshes, globalTransform,
-            boundsMin, boundsMax, materials);
+            boundsMin, boundsMax, materials, hull);
 }
 
 // ============================================================
@@ -338,11 +373,13 @@ bool Model::LoadFromScene(ID3D11Device* device, const aiScene* scene,
     m_BoundsMin = Vector3(FLT_MAX, FLT_MAX, FLT_MAX);
     m_BoundsMax = Vector3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
     // rootTransform は全ノードの一番外側に掛かる（行ベクトル: v * ノード * root）
+    HullAccum hull;
     ProcessNode(scene->mRootNode, scene, device, m_SubMeshes, rootTransform,
-        m_BoundsMin, m_BoundsMax, m_Materials);
+        m_BoundsMin, m_BoundsMax, m_Materials, hull);
     if (m_SubMeshes.empty())
         m_BoundsMin = m_BoundsMax = Vector3::Zero;
     m_BoundsCenter = (m_BoundsMin + m_BoundsMax) * 0.5f;
+    m_HullPoints = hull.Points();
 
     std::cout << "[OK] Model loaded (static)  SubMeshes: " << m_SubMeshes.size()
         << "  Materials: " << m_Materials.size() << std::endl;

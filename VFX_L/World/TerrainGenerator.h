@@ -81,6 +81,12 @@ namespace TerrainGenerator
         float roofRockMin = 8.0f;         // 上に積む岩の高さ（縁 → 真ん中で roofRockMax まで）。
         float roofRockMax = 16.0f;        // 縁も高めにして、外から見た輪郭を箱でなく岩山にする
         int   caveTorchSpacing = 6;       // マス（12m）
+        // 2026-10-06 ユーザー：屋根の上の岩は消して、上に立てる台にし、横に登る坂を付ける
+        bool  roofRocks = false;          // 屋根の上に岩を置く（false = 平らな台）
+        bool  roofWalkable = true;        // 壁・屋根の衝突の上端 = roofTop（上に立てる）。false = roofCollisionTop（見えない高さ）
+        bool  roofRamp = true;            // 岩の塊の一辺の外に、平原から屋根へ登る草の坂（雑魚は登れない）
+        int   roofRampWidth = 4;          // マス
+        float roofRampSlopeDeg = 26.0f;   // 15m なら約 31m
 
         // ---- 1 段目の台地 ----
         int   plateauCount = 14;       // 置こうとする数（場所が無ければ減る）
@@ -133,7 +139,35 @@ namespace TerrainGenerator
         // 外周の見た目を岩山にする（衝突・格子は崖の箱のまま、箱は描かない）。
         // 大きい岩（Res::Mdl::Forest::kCliffRocks）を拡大して外へ 3 列: 手前 8〜13m / 中 15〜22m / 奥 24〜34m
         bool  rockMountains = true;
-        float mountainScale = 1.0f;       // 3 列の高さにまとめて掛ける
+        float mountainScale = 1.0f;       // 高さにまとめて掛ける（巨石・積む岩の両方）
+        // 巨石（2026-10-06、ユーザー：何十個も積むのでなく、数個の石を大きくして山に見せたい）：
+        // Res::Mdl::kBoulders（Rock-Set）を一辺に手前 boulderPerSide 個 + 奥 boulderPerSide + 1 個、辺に沿って引き伸ばして置く
+        // （TerrainBuild::EmitRimBoulders）。false = 以前の「大きい岩を 3 列に積む」
+        bool  boulderMountains = false;   // 10-06 ユーザー：碗の縁の周りの岩も消す（Terrain パネルで戻せる）
+        // 巨石のモデル：false = 面の岩山用の低ポリの岩（Forest / Desert の kCliffRocks。トゥーンの画と揃う、ユーザー 10-06）、
+        // true = Rock-Set（PBR の写実な岩。画風が合わないので既定は切）
+        bool  boulderRealistic = false;
+        // 一辺 boulderPerSide 個を 1 列、石の真ん中を縁の線の上に（+ boulderCenterOut。半分が場内）。四隅に 1 個
+        int   boulderPerSide = 4;
+        float boulderHeightMin = 28.0f;   // 辺の石の高さ（m）
+        float boulderHeightMax = 40.0f;
+        float boulderBackHeightMin = 34.0f;   // 四隅
+        float boulderBackHeightMax = 46.0f;
+        float boulderDepth = 30.0f;       // 石の厚み（縁をまたぐ向き m）
+        float boulderSink = 0.22f;        // 高さに対する埋める割合
+        float boulderCenterOut = 0.0f;    // 石の真ん中を縁から外へ（m。負 = 内へ）
+        // 石を形通りに当てる（ユーザー 10-06：縁の空気壁をやめて石の衝突で止める）：石の凸包（50 面、壁扱い = 登れない）で衝突、
+        // 足元のマスを塞ぐ。縁の空気壁（崖の箱）は作らない
+        bool  boulderCollide = false;
+        // 縁の碗（Megabonk 風、2026-10-06 ユーザー「試してみる」）：地面そのものを縁から rimRiseWidth m 内側で
+        // rimRiseHeight m まで急に持ち上げる（65〜75°。物理が急な起伏を壁扱いにするので登れない。雑魚・弾は格子で止まる）。
+        // 縁の空気壁も石の衝突も要らない。巨石は碗の縁の上の飾り（衝突なし）。草原・砂漠だけ（遺跡は遺跡の壁のまま）
+        bool  rimRise = true;
+        float rimRiseWidth = 11.0f;
+        float rimRiseHeight = 34.0f;      // 10-06 ユーザー「もう一段高く」（24 → 34）
+        float rimClear = 8.0f;            // 斜面の麓から更に内側へ、台地・高台・木・岩・茂みを置かない幅（m）
+        // 洞窟の上の山も巨石 3 個（真ん中 1 個 + 両端。高さは roofRockMax / roofRockMin から）。false = 2x2 マス毎に積む
+        bool  roofBoulders = true;
         // 一番手前の列（2026-10-03、ユーザー：外周の岩に入り込めてめり込みする。少し外へ下げてから衝突を付ける）。
         // 衝突の箱 = 岩と一緒に回した包囲箱の edgeRockShrink 倍（岩は角が丸いので少し小さく）。
         // 箱の内側の面がフィールドの縁から edgeRockIntrudeMin〜Max m 内に入る所に置く（負 = 縁より外）。

@@ -220,13 +220,24 @@ void MapEditMode::DrawInspector(FlyCamera& camera)
             {
                 // 底の高さを保ったまま拡縮する
                 if (auto model = GetModel(path))
-                    p.pos.y += model->GetBoundsMin().y * (p.scale - size);
+                    p.pos.y += model->GetBoundsMin().y * p.stretch.y * (p.scale - size);
                 p.scale = size;
                 changed = true;
             }
+            Vector3 st = p.stretch;
+            if (ImGui::DragFloat3("Stretch (x, y, z)", &st.x, 0.01f, 0.05f, 200.0f, "%.2f"))
+            {
+                // 軸ごとの倍率（モデルのローカル軸）。底の高さは保つ
+                st = Vector3((std::max)(st.x, 0.05f), (std::max)(st.y, 0.05f), (std::max)(st.z, 0.05f));
+                if (auto model = GetModel(path))
+                    p.pos.y += model->GetBoundsMin().y * p.scale * (p.stretch.y - st.y);
+                p.stretch = st;
+                changed = true;
+            }
+            ImGui::SetItemTooltip("Per-axis multiplier on top of Scale (boulders use this to look like a mountain)");
             int m = (int)mode;
-            const char* modes[] = { "None (decor only)", "Trunk (tree: 0.6 m post)", "Footprint (rock: whole base)" };
-            if (ImGui::Combo("Collision", &m, modes, 3)) { mode = (MapEdit::Collision)m; changed = true; }
+            const char* modes[] = { "None (decor only)", "Trunk (tree: 0.6 m post)", "Footprint (rock: whole base)", "Mesh (boulder: model shape)" };
+            if (ImGui::Combo("Collision", &m, modes, 4)) { mode = (MapEdit::Collision)m; changed = true; }
             if (changed)
             {
                 RefreshCollision(m_Sel.group, mode);

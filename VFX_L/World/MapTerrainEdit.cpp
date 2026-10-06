@@ -62,12 +62,25 @@ namespace
         return p;
     }
 
+    // 洞窟の周りを均す重み。区域の表だけで決まり、全体の距離変換が重いので、区域が変わるまで使い回す
+    // （部品を動かす度に Refresh と Rederive で 1 回ずつ計算していた）
+    const std::vector<float>& MineWeights(const MapData::Map& m)
+    {
+        struct Cache { std::vector<uint8_t> zone; int gw = 0, gd = 0, margin = -1; std::vector<float> w; };
+        static Cache c;
+        if (c.gw != m.gw || c.gd != m.gd || c.margin != m.padMargin || c.zone != m.zone)
+        {
+            ComputeMineWeights(m.zone, m.gw, m.gd, m.padMargin, c.w);
+            c.zone = m.zone; c.gw = m.gw; c.gd = m.gd; c.margin = m.padMargin;
+        }
+        return c.w;
+    }
+
     // 素の起伏と台座から、区域の面を全部作る（仕上げの傾きの制限は limit の時だけ）
     void Compose(const MapData::Map& m, std::vector<float>& plain, std::vector<float>& summit, bool limit)
     {
         const int nx = m.gw * kSub + 1, nz = m.gd * kSub + 1;
-        std::vector<float> mineW;
-        ComputeMineWeights(m.zone, m.gw, m.gd, m.padMargin, mineW);
+        const std::vector<float>& mineW = MineWeights(m);
         plain.assign(m.rawPlain.size(), 0.0f);
         summit.assign(m.rawSummit.size(), 0.0f);
         ComposeRelief(plain, m.rawPlain, m.pads, ReliefField::kPlain, &mineW, nx, nz, 0, 0, nx - 1, nz - 1);
@@ -76,6 +89,8 @@ namespace
         const float step = kCs / kSub;
         LimitReliefSlopes(plain, m.pads, ReliefField::kPlain, &mineW, nx, nz, step, m.reliefMaxSlopeDeg);
         LimitReliefSlopes(summit, m.pads, ReliefField::kSummit, nullptr, nx, nz, step, m.reliefMaxSlopeDeg);
+        ApplyRimRise(plain, nx, nz, step, m.rimRiseWidth, m.rimRiseHeight);   // 縁の碗（生成と同じ）
+        ApplyRimRise(summit, nx, nz, step, m.rimRiseWidth, m.rimRiseHeight);
     }
 
     // 矩形（マス）のノードの起伏の平均（TerrainGenerator の avgRelief と同じ範囲）
@@ -222,13 +237,15 @@ namespace MapTerrainEdit
                 for (const auto& p : map.rampParts) EmitRampPart(none, &g, g, p);
             };
         raiseParts();
+        MapEdit::RebuildWalkable(map);   // 下の洞の岩の壁の埋めが「歩けるマス」を見る
 
-        // 洞の岩の壁のマス：一番近い「壁でないマス」の高さで埋める（TerrainGenerator と同じ探し方。歩けないので誰も立たないが、
+        // 洞の岩の壁のマス：一番近い「歩ける（塞いでいない）マス」の高さで埋める（TerrainGenerator と同じ探し方。歩けないので誰も立たないが、
         // 隣の歩けるマスの双線形の高さに混ざる）。元の値を取っておく方式だと、上に部品を置いて消した時に戻らない
         {
-            auto open = [&](int cx, int cz)   // 生成が埋めた時点で歩けたマス = 外周の崖でも洞の岩の壁でもない
+            auto open = [&](int cx, int cz)   // 生成が埋めた時点で歩けたマス（外周の崖・洞の岩の壁・縁の碗の斜面などは塞いである）
                 {
-                    return cx > 0 && cz > 0 && cx < map.gw - 1 && cz < map.gd - 1 && !map.caveRing[(size_t)cz * map.gw + cx];
+                    return cx >= 0 && cz >= 0 && cx < map.gw && cz < map.gd && map.walkable[(size_t)cz * map.gw + cx]
+                        && !map.caveRing[(size_t)cz * map.gw + cx];
                 };
             std::vector<std::pair<int, float>> fill;
             for (int z = 0; z < map.gd; ++z)
@@ -259,8 +276,6 @@ namespace MapTerrainEdit
         }
         const auto tp3 = std::chrono::steady_clock::now();
         map.heights = g.Heights();
-
-        MapEdit::RebuildWalkable(map);
 
         // ---- 草を生やすマス：洞窟・洞の岩の壁・土の坂・登れない台地以外 ----
         map.grassMask.assign((size_t)map.gw * map.gd, 1);
@@ -367,9 +382,8 @@ namespace MapTerrainEdit
                 const Rect r = { body->x, body->z, body->w, body->d };
                 const int nx = map.gw * kSub + 1, nz = map.gd * kSub + 1;
                 const bool onSummit = zone == ReliefField::kSummit;
-                std::vector<float> mineW, arr((size_t)nx * nz, 0.0f);
-                if (!onSummit) ComputeMineWeights(map.zone, map.gw, map.gd, map.padMargin, mineW);
-                ComposeRelief(arr, onSummit ? map.rawSummit : map.rawPlain, map.pads, zone, onSummit ? nullptr : &mineW,
+                std::vector<float> arr((size_t)nx * nz, 0.0f);
+                ComposeRelief(arr, onSummit ? map.rawSummit : map.rawPlain, map.pads, zone, onSummit ? nullptr : &MineWeights(map),
                     nx, nz, r.x * kSub, r.z * kSub, (r.x + r.w) * kSub, (r.z + r.d) * kSub);
                 ground += AvgRelief(map, arr, r);
             }
@@ -421,7 +435,7 @@ namespace MapTerrainEdit
         else Rederive(map);
     }
 
-    bool MoveGroup(MapData::Map& map, uint32_t group, int dx, int dz)
+    bool MoveGroup(MapData::Map& map, uint32_t group, int dx, int dz, bool refresh)
     {
         if (!HasParts(map) || (dx == 0 && dz == 0)) return false;
         auto inside = [&](int x, int z, int w, int d)   // 外周の崖と、その内側 1 マスは使わない
@@ -430,7 +444,7 @@ namespace MapTerrainEdit
         for (const auto& p : map.rampParts) if (p.tag.group == group && !inside(p.x, p.z, p.w, p.d)) return false;
         for (auto& p : map.blockParts) if (p.tag.group == group) { p.x += dx; p.z += dz; }
         for (auto& p : map.rampParts) if (p.tag.group == group) { p.x += dx; p.z += dz; }
-        Refresh(map, group);
+        if (refresh) Refresh(map, group);
         return true;
     }
 

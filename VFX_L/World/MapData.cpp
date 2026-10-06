@@ -118,7 +118,7 @@ namespace MapData
         w.Pod((uint32_t)m.boxes.size());
         for (const auto& b : m.boxes) { w.Tag(b.tag); w.Pod(b.lo); w.Pod(b.hi); w.Pod(b.layer); }
         w.Pod((uint32_t)m.hulls.size());
-        for (const auto& h : m.hulls) { w.Tag(h.tag); for (const auto& v : h.v) w.Pod(v); w.Pod(h.layer); }
+        for (const auto& h : m.hulls) { w.Tag(h.tag); for (const auto& v : h.v) w.Pod(v); w.Pod(h.layer); w.Pod(h.wallOnly); }   // wallOnly は版 10 から
         w.Pod((uint32_t)m.visuals.size());
         for (const auto& v : m.visuals)
         {
@@ -127,7 +127,10 @@ namespace MapData
             w.Pod(v.top); w.Pod(v.side); w.Pod((int32_t)v.topLayer); w.Pod((int32_t)v.sideLayer);
         }
         w.Pod((uint32_t)m.props.size());
-        for (const auto& p : m.props) { w.Tag(p.tag); w.Pod((int32_t)p.model); w.Pod(p.pos); w.Pod(p.yawDeg); w.Pod(p.scale); }
+        for (const auto& p : m.props)   // stretch は版 7、collide は版 8 から
+        {
+            w.Tag(p.tag); w.Pod((int32_t)p.model); w.Pod(p.pos); w.Pod(p.yawDeg); w.Pod(p.scale); w.Pod(p.stretch); w.Pod(p.collide);
+        }
         w.Pod((uint32_t)m.blocks.size());
         for (const auto& b : m.blocks) { w.Tag(b.tag); w.Pod((int32_t)b.x); w.Pod((int32_t)b.z); w.Pod((int32_t)b.w); w.Pod((int32_t)b.d); }
         w.Array(m.torches);
@@ -188,6 +191,11 @@ namespace MapData
         w.Pod((uint32_t)m.hills.size());
         for (const auto& h : m.hills) { w.Tag(h.tag); w.Pod(h.x); w.Pod(h.z); w.Pod(h.radius); w.Pod(h.height); }
         w.Array(m.sculptPlain); w.Array(m.sculptSummit);
+
+        // 版 7 から
+        w.Pod((uint8_t)m.roofBoulders);
+        // 版 9 から
+        w.Pod(m.rimRiseWidth); w.Pod(m.rimRiseHeight);
     }
 
     bool Deserialize(const std::vector<uint8_t>& in, Map& m)
@@ -214,7 +222,7 @@ namespace MapData
         m.boxes.resize(r.Count(34));
         for (auto& b : m.boxes) { r.Tag(b.tag); r.Pod(b.lo); r.Pod(b.hi); r.Pod(b.layer); }
         m.hulls.resize(r.Count(106));
-        for (auto& h : m.hulls) { r.Tag(h.tag); for (auto& v : h.v) r.Pod(v); r.Pod(h.layer); }
+        for (auto& h : m.hulls) { r.Tag(h.tag); for (auto& v : h.v) r.Pod(v); r.Pod(h.layer); if (version >= 10) r.Pod(h.wallOnly); }
         m.visuals.resize(r.Count(142));
         for (auto& v : m.visuals)
         {
@@ -223,7 +231,12 @@ namespace MapData
             r.Pod(v.top); r.Pod(v.side); r.Pod(i32); v.topLayer = i32; r.Pod(i32); v.sideLayer = i32;
         }
         m.props.resize(r.Count(30));
-        for (auto& p : m.props) { r.Tag(p.tag); r.Pod(i32); p.model = i32; r.Pod(p.pos); r.Pod(p.yawDeg); r.Pod(p.scale); }
+        for (auto& p : m.props)
+        {
+            r.Tag(p.tag); r.Pod(i32); p.model = i32; r.Pod(p.pos); r.Pod(p.yawDeg); r.Pod(p.scale);
+            if (version >= 7) r.Pod(p.stretch);
+            if (version >= 8) r.Pod(p.collide);
+        }
         m.blocks.resize(r.Count(22));
         for (auto& b : m.blocks)
         {
@@ -292,6 +305,14 @@ namespace MapData
             m.hills.resize(r.Count(22));
             for (auto& h : m.hills) { r.Tag(h.tag); r.Pod(h.x); r.Pod(h.z); r.Pod(h.radius); r.Pod(h.height); }
             r.Array(m.sculptPlain); r.Array(m.sculptSummit);
+        }
+        if (version >= 7)
+        {
+            r.Pod(u8); m.roofBoulders = u8 != 0;
+        }
+        if (version >= 9)
+        {
+            r.Pod(m.rimRiseWidth); r.Pod(m.rimRiseHeight);
         }
         if (!r.ok) { m.Clear(); return false; }
 

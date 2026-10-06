@@ -643,6 +643,9 @@
     <ClCompile Include="World\TerrainZones.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\TerrainBoulders.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\MapData.cpp">
       <Filter>World</Filter>
     </ClCompile>

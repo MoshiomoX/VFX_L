@@ -126,7 +126,7 @@ namespace TerrainBuild
     namespace
     {
     // 静的な凸体の衝突だけ（世界座標の 8 頂点。見た目は無し）
-    Entity SpawnHullCollider(Registry& reg, const Vector3 world[8], uint32_t layer)
+    Entity SpawnHullCollider(Registry& reg, const Vector3 world[8], uint32_t layer, bool wallOnly = false)
     {
         Vector3 lo = world[0], hi = world[0];
         for (int i = 1; i < 8; ++i)
@@ -146,6 +146,7 @@ namespace TerrainBuild
         ColliderComponent col;
         col.shape = ColliderShape::Convex;
         col.hull = CollisionMath::ConvexFromHexahedron(v);
+        col.wallOnly = wallOnly;
         col.halfExtents = (hi - lo) * 0.5f;   // ブロードフェーズ用の包囲箱
         col.layer = layer;
         col.mask = Layer_All;
@@ -197,13 +198,13 @@ namespace TerrainBuild
         }
     }
 
-    void Emitter::Hull(const Vector3 world[8], uint32_t layer)
+    void Emitter::Hull(const Vector3 world[8], uint32_t layer, bool wallOnly)
     {
-        if (m_Reg) m_Out->push_back(SpawnHullCollider(*m_Reg, world, layer));
+        if (m_Reg) m_Out->push_back(SpawnHullCollider(*m_Reg, world, layer, wallOnly));
         if (m_Rec)
         {
             MapData::Hull h;
-            h.tag = m_Tag; h.layer = layer;
+            h.tag = m_Tag; h.layer = layer; h.wallOnly = wallOnly ? 1 : 0;
             for (int i = 0; i < 8; ++i) h.v[i] = world[i];
             m_Rec->hulls.push_back(h);
         }
@@ -227,7 +228,7 @@ namespace TerrainBuild
     }
 
     void Emitter::Prop(const std::string& path, const std::shared_ptr<Model>& model,
-        const Vector3& pos, float yawDeg, float scale)
+        const Vector3& pos, float yawDeg, float scale, const Vector3& stretch, bool collide)
     {
         if (m_Reg && model)
         {
@@ -235,20 +236,101 @@ namespace TerrainBuild
             TransformComponent tf;
             tf.position = pos;
             tf.rotation = { 0.0f, yawDeg, 0.0f };
-            tf.scale = { scale, scale, scale };
+            tf.scale = stretch * scale;
             m_Reg->Add<TransformComponent>(e, tf);
             ModelComponent mc;
             mc.model = model;
             mc.batched = true;   // シーンの StaticPropRenderer がまとめて描く
             m_Reg->Add<ModelComponent>(e, mc);
             m_Out->push_back(e);
+            // 形通りの衝突（巨石）。Layer_Terrain：カメラの遮蔽の射線も見る（岩の中へカメラが入らない）
+            if (collide && m_PropColliders && !model->GetHullPoints().empty())
+                m_Out->push_back(SpawnPointHullCollider(*m_Reg, PropHullWorld(*model, pos, yawDeg, scale, stretch), Layer_Terrain));
         }
         if (m_Rec)
         {
             MapData::Prop p;
-            p.tag = m_Tag; p.model = m_Rec->ModelIndex(path); p.pos = pos; p.yawDeg = yawDeg; p.scale = scale;
+            p.tag = m_Tag; p.model = m_Rec->ModelIndex(path); p.pos = pos; p.yawDeg = yawDeg; p.scale = scale; p.stretch = stretch;
+            p.collide = collide ? 1 : 0;
             m_Rec->props.push_back(p);
         }
+    }
+
+    // ============================================================
+    // 置物の凸包（巨石の衝突）
+    // ============================================================
+    std::vector<Vector3> PropHullWorld(const Model& model, const Vector3& pos, float yawDeg, float scale, const Vector3& stretch)
+    {
+        const DirectX::SimpleMath::Matrix world = DirectX::SimpleMath::Matrix::CreateScale(stretch * scale)
+            * DirectX::SimpleMath::Matrix::CreateRotationY(DirectX::XMConvertToRadians(yawDeg))
+            * DirectX::SimpleMath::Matrix::CreateTranslation(pos);
+        std::vector<Vector3> out;
+        out.reserve(model.GetHullPoints().size());
+        for (const Vector3& p : model.GetHullPoints()) out.push_back(Vector3::Transform(p, world));
+        return out;
+    }
+
+    Entity SpawnPointHullCollider(Registry& reg, const std::vector<Vector3>& world, uint32_t layer)
+    {
+        Vector3 lo = world[0], hi = world[0];
+        for (const Vector3& p : world) { lo = Vector3::Min(lo, p); hi = Vector3::Max(hi, p); }
+        const Vector3 center = (lo + hi) * 0.5f;
+        std::vector<Vector3> local(world.size());
+        for (size_t i = 0; i < world.size(); ++i) local[i] = world[i] - center;
+
+        Entity e = reg.Create();
+        TransformComponent tf;
+        tf.position = center;
+        reg.Add<TransformComponent>(e, tf);
+
+        ColliderComponent col;
+        col.shape = ColliderShape::Convex;
+        col.hull = CollisionMath::ConvexFromPoints(local.data(), (int)local.size());
+        col.wallOnly = true;   // 巨石：壁扱い（上に乗れない。凸包と形の差で浮いて見えるので）
+        col.halfExtents = (hi - lo) * 0.5f;
+        col.layer = layer;
+        col.mask = Layer_All;
+        reg.Add<ColliderComponent>(e, col);
+
+        RigidbodyComponent rb;
+        rb.isStatic = true;
+        rb.useGravity = false;
+        reg.Add<RigidbodyComponent>(e, rb);
+        return e;
+    }
+
+    int BlockCellsUnderHull(Emitter& emit, GridWorld& grid, const std::vector<Vector3>& world)
+    {
+        if (world.empty()) return 0;
+        Vector3 lo = world[0], hi = world[0];
+        for (const Vector3& p : world) { lo = Vector3::Min(lo, p); hi = Vector3::Max(hi, p); }
+        const Vector3 center = (lo + hi) * 0.5f;
+        std::vector<Vector3> local(world.size());
+        for (size_t i = 0; i < world.size(); ++i) local[i] = world[i] - center;
+        const CollisionMath::Convex hull = CollisionMath::ConvexFromPoints(local.data(), (int)local.size());
+
+        int gx0, gz0, gx1, gz1;
+        grid.WorldToCell({ lo.x, 0.0f, lo.z }, gx0, gz0);
+        grid.WorldToCell({ hi.x, 0.0f, hi.z }, gx1, gz1);
+        const float off[5] = { -0.85f, -0.425f, 0.0f, 0.425f, 0.85f };   // × マスの半分（一番外はマスの縁から 0.15m 内）
+        int blocked = 0;
+        for (int gz = (std::max)(gz0, 1); gz <= (std::min)(gz1, grid.Depth() - 2); ++gz)
+            for (int gx = (std::max)(gx0, 1); gx <= (std::min)(gx1, grid.Width() - 2); ++gx)
+            {
+                const Vector3 cc = grid.CellToWorld(gx, gz);
+                bool hit = false;
+                for (int sz = 0; sz < 5 && !hit; ++sz)
+                    for (int sx = 0; sx < 5 && !hit; ++sx)
+                    {
+                        Vector3 q = cc + Vector3(off[sx], 0.0f, off[sz]) * (kCs * 0.5f);
+                        q.y = grid.SampleHeight(q.x, q.z) + 0.6f;   // 雑魚の腰の高さ
+                        hit = hull.Contains(q - center);
+                    }
+                if (!hit) continue;
+                emit.Block(&grid, gx, gz, 1, 1);
+                ++blocked;
+            }
+        return blocked;
     }
 
     // grid が無い時は記録だけ（通行の表は MapEdit::RebuildWalkable が記録から組む）
@@ -323,9 +405,9 @@ namespace TerrainBuild
 
         // 外周の崖のマスは内側の隣と同じ（フィールドの縁に段の壁を作らない）
         auto zoneAt = [&](int x, int z) { return relief->ZoneAtCell(x, z); };
-        auto isRing = [&](int x, int z)
+        auto isRing = [&](int x, int z)   // 縁のマスも自分の値（坑が縁に接する所は縁のマスが岩の壁）
             {
-                const int cx = std::clamp(x, 1, gw - 2), cz = std::clamp(z, 1, gd - 2);
+                const int cx = std::clamp(x, 0, gw - 1), cz = std::clamp(z, 0, gd - 1);
                 return caveRing[(size_t)cz * gw + cx] != 0;
             };
         auto levelAt = [&](int x, int z) -> float
@@ -359,6 +441,12 @@ namespace TerrainBuild
             {
                 if (isRing(x, z)) return TerrainSurface::Rock;
                 if (zoneAt(x, z) == ReliefField::kMine) return TerrainSurface::CaveFloor;
+                // 縁の碗の斜面（急な所）は崖の層（平原の上面は地面の層に決め打ちなので、ここだけ別に）
+                if (gp.rimWidth > 0.0f)
+                {
+                    const int dc = (std::min)((std::min)(x, gw - 1 - x), (std::min)(z, gd - 1 - z));
+                    if ((dc + 0.5f) * kCs < gp.rimWidth * 0.85f) return TerrainSurface::Cliff;
+                }
                 return gp.relief ? (int)TerrainSurface::Ground : -1;
             };
         auto wallLayer = [&](int hx, int hz, int lx, int lz) -> int
@@ -398,7 +486,7 @@ namespace TerrainBuild
         ColliderComponent col;
         col.shape = ColliderShape::HeightField;
         col.heightField = relief;
-        col.halfExtents = Vector3(W * 0.5f, summitH + 20.0f, D * 0.5f);   // ブロードフェーズ用（フィールド全体 = 大きい物の表）
+        col.halfExtents = Vector3(W * 0.5f + relief->margin, summitH + 20.0f, D * 0.5f + relief->margin);   // ブロードフェーズ用（フィールド全体 + 場外の地面 = 大きい物の表）
         col.layer = Layer_Terrain;
         col.mask = Layer_All;
         reg.Add<ColliderComponent>(e, col);
@@ -492,23 +580,25 @@ namespace TerrainGenerator
 
         Emitter emit(reg, outTerrain, outMap);
         const bool colliders = (parts & kPartColliders) != 0;
+        emit.SetPropColliders(colliders);
         if (colliders)
         for (const auto& b : map.boxes) { emit.SetTag(b.tag); emit.Box(b.lo, b.hi, b.layer); }
         if (colliders)
-        for (const auto& h : map.hulls) { emit.SetTag(h.tag); emit.Hull(h.v, h.layer); }
+        for (const auto& h : map.hulls) { emit.SetTag(h.tag); emit.Hull(h.v, h.layer, h.wallOnly != 0); }
         if (parts & kPartVisuals)
         for (const auto& v : map.visuals) { emit.SetTag(v.tag); emit.Visual(v.v, v.top, v.side, v.topLayer, v.sideLayer); }
         if (parts & kPartProps)
         for (const auto& p : map.props)
         {
             emit.SetTag(p.tag);
-            emit.Prop(map.models[(size_t)p.model], models[(size_t)p.model], p.pos, p.yawDeg, p.scale);
+            emit.Prop(map.models[(size_t)p.model], models[(size_t)p.model], p.pos, p.yawDeg, p.scale, p.stretch, p.collide != 0);
         }
         for (const auto& b : map.blocks) { emit.SetTag(b.tag); emit.Block(&grid, b.x, b.z, b.w, b.d); }
 
         GroundParams gp;
         gp.seed = map.seed; gp.biome = biome; gp.relief = map.relief; gp.reliefSubdiv = map.reliefSubdiv;
         gp.cave = map.cave; gp.roofTopY = map.roofTopY; gp.summitH = map.summitH; gp.mineD = map.mineD;
+        gp.rimWidth = map.rimRiseWidth;
         if (parts & kPartGround) outTerrain.push_back(SpawnGround(reg, device, grid, relief, map.caveRing, gp, refLum));
         if (colliders) outTerrain.push_back(SpawnHeightField(reg, grid, relief, map.summitH));
         emit.FinishVisuals(device, biome, refLum);
@@ -552,6 +642,8 @@ namespace TerrainGenerator
             o.roofRockModels = map.roofRockModels; o.torchModel = map.torchModel;
             o.hasReliefParams = map.hasReliefParams; o.reliefParams = map.reliefParams; o.hills = map.hills;
             o.sculptPlain = map.sculptPlain; o.sculptSummit = map.sculptSummit;
+            o.roofBoulders = map.roofBoulders;
+            o.rimRiseWidth = map.rimRiseWidth; o.rimRiseHeight = map.rimRiseHeight;
         }
 
         std::cout << "[Terrain] built from map: seed " << map.seed << " biome " << map.biome << ", "

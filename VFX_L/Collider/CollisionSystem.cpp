@@ -144,6 +144,7 @@ static CollisionSystem::WorldCollider MakeWorldCollider(Entity e, const Transfor
     wc.halfExtents = col.halfExtents;
     wc.layer = col.layer;
     wc.mask = col.mask;
+    wc.wallOnly = col.wallOnly;
     wc.hasRigidbody = hasRigidbody;
     wc.fixed = fixed;
     if (col.shape == ColliderShape::Convex)

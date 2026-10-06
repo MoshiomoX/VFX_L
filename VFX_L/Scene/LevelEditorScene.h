@@ -109,6 +109,7 @@ private:
 
     // 置き方
     float m_Snap = 1.0f;              // 格子吸着（m）。0 = 無し
+    float m_MapSnap = 0.0f;           // 同、戦闘の地図モード用（木や岩は自由に置きたいので既定は無し）
     float m_RotateStep = 45.0f;       // R キーで回す角度
     bool  m_RandomYaw = true;         // 置く度に向きを乱数（木や岩を自然に）
     bool  m_RandomScale = false;

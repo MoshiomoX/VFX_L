@@ -290,6 +290,27 @@ namespace TerrainBuild
         LimitSlope(arr, nx, nz, step, std::tan(DirectX::XMConvertToRadians(maxSlopeDeg)), &core);
     }
 
+    // 外周の縁を碗のように持ち上げる（傾きの制限の後）
+    void ApplyRimRise(std::vector<float>& arr, int nx, int nz, float step, float width, float height)
+    {
+        if (width <= 0.0f || height <= 0.0f) return;
+        float* H = arr.data();
+        const float W = (nx - 1) * step, D = (nz - 1) * step;
+        for (int iz = 0; iz < nz; ++iz)
+        {
+            const float z = iz * step;
+            const float dz = (std::min)(z, D - z);
+            for (int ix = 0; ix < nx; ++ix)
+            {
+                const float x = ix * step;
+                const float d = (std::min)((std::min)(x, W - x), dz);   // 縁までの距離
+                if (d >= width) continue;
+                const float t = 1.0f - d / width;
+                H[(size_t)iz * nx + ix] += height * std::pow(t, 1.6f);
+            }
+        }
+    }
+
     // ============================================================
     // 地形の部品を建てる（生成・保存した地図の編集が共用）
     // emit へ衝突と見た目を出し、grid があれば高さ場・通行も書く。origin = 格子の原点を知るための格子

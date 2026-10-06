@@ -146,8 +146,12 @@ namespace MapTerrainEdit
             if (cave)
             {
                 std::mt19937 rng(map.seed * 2654435761u + 97u);
-                EmitRoofRocks(rec, origin, map.zone, map.caveRing, map.roofTopY, map.roofRockMin, map.roofRockMax,
-                    map.roofRockModels, rng);
+                if (map.roofBoulders)
+                    EmitRoofBoulders(rec, origin, map.zone, map.caveRing, map.roofTopY, map.roofRockMin, map.roofRockMax,
+                        map.roofRockModels, rng);
+                else
+                    EmitRoofRocks(rec, origin, map.zone, map.caveRing, map.roofTopY, map.roofRockMin, map.roofRockMax,
+                        map.roofRockModels, rng);
                 if (!map.torchModel.empty())
                     EmitCaveTorches(rec, origin,
                         [&](int x, int z)   // 歩ける底（坂・降り口・岩は除く）
