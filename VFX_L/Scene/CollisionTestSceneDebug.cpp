@@ -94,6 +94,7 @@ void CollisionTestScene::DrawDebugUI()
     AudioSystem::Get().DrawImGui();   // 音量・BGM・cue の試聴
     m_Camera.DrawImGui();
     m_Lighting.DrawImGui(PlayerPos());   // 末尾にトゥーンの陰影（Toon Shading）
+    m_Weather.DrawImGui();               // 時刻・天候の出来事（Drive Lighting が入っていると Lighting の手調整は毎フレーム戻る）
     if (ImGui::CollapsingHeader("Toon Outline"))   // トゥーンのアウトライン（2026-10-04）
         m_Outline.DrawImGui();
     m_Shadows.DrawImGui();

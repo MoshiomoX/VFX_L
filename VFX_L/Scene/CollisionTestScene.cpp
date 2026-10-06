@@ -286,6 +286,9 @@ void CollisionTestScene::Init()
     m_BossSlamHits = 0;
     m_Pickups.Init(device);
     RespawnCrates();
+
+    // ---------- 天候（昼 → 夕 → 夜、面毎の出来事。照明を毎フレーム上書きする）----------
+    m_Weather.Init(stageDef, m_Stage.stageTime, m_Lighting, m_AreaVFX, &m_VFXContext, stageDef.grass ? &m_Grass : nullptr, &m_Swarm);
 }
 
 // ============================================================
@@ -294,6 +297,7 @@ void CollisionTestScene::Init()
 void CollisionTestScene::Shutdown()
 {
     m_Audio.StopMusic();   // 次のシーン（タイトル・結果）が自分の曲を流す
+    m_Weather.Shutdown();  // 環境音・粒子を止め、草と経験球の基準値を戻す
     SceneLighting::ClearFog(Application::Get().GetRenderer());   // Renderer は他のシーンと共有
     m_Shadows.Disable(Application::Get().GetRenderer());         // 同上（影を切らないと他のシーンが真っ暗）
     m_Shadows.Unbind(Application::Get().GetGraphics().GetContext());
@@ -882,6 +886,10 @@ void CollisionTestScene::UpdateGameplay(float dt)
     {
         PROFILE_SCOPE_GPU("Particles + lights");
         auto t0 = std::chrono::high_resolution_clock::now();
+
+        // 天候：時刻と出来事で照明を上書き、雨 / 砂嵐の発射器をカメラへ付ける（AreaVFX の Update より前）
+        if (CameraBase* cam = GetCamera())
+            m_Weather.Update(dt, m_RunTime, cam->GetPosition(), cam->GetForward());
 
         // 範囲攻撃・反応のエフェクトの見た目（emitter を積むので粒子の Flush より前）
         const Vector3* pp = PlayerPos();

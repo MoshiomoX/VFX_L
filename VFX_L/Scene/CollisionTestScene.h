@@ -42,6 +42,7 @@
 #include "ECS/System/RewardCrateSystem.h"
 #include "ECS/System/PickupSystem.h"
 #include "ECS/System/FeedbackVFXSystem.h"
+#include "World/WeatherSystem.h"
 #include "Audio/BattleAudio.h"
 #include "Particle/GPUParticleSystem.h"
 #include "VFX_Editor/VFXEffect.h"
@@ -162,6 +163,7 @@ private:
     RewardCrateSystem       m_Crates;              // 報酬の箱
     PickupSystem            m_Pickups;             // 場の拾い物（磁石）
     FeedbackVFXSystem       m_Feedback;            // レベルアップ・開箱・被弾のエフェクト
+    WeatherSystem           m_Weather;             // 時刻（昼 → 夜）と天候の出来事（雨・砂嵐・雷）。照明を毎フレーム上書き
     BattleAudio             m_Audio;               // 戦闘の音（GPU の範囲・プレイヤーの動き・BGM。2026-10-03）
     SceneLighting           m_Lighting;            // 太陽・環境光・シーン光源
     Outline                 m_Outline;             // トゥーンのアウトライン（2026-10-04。不透明な物の後、草の前）

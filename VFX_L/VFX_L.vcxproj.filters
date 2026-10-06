@@ -214,6 +214,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestGround.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -644,6 +647,9 @@
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\TerrainBoulders.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\WeatherSystem.cpp">
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\MapData.cpp">

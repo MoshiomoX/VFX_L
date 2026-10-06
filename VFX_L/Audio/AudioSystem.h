@@ -38,6 +38,9 @@ public:
 
     // BGM。track = Sounds.json の music の名前。同じ曲なら何もしない。空 = フェードして止める
     void PlayMusic(const std::string& track, float fadeSec = 1.5f);
+    // 環境音（雨・風など 1 本のループ。SFX のバス）。file = ファイルのパス（"" で止める）、volume は毎フレーム外から入れる
+    // （フェードは呼ぶ側が音量で作る）。pitch は始める時だけ効く。天候（World/WeatherSystem）が使う
+    void SetAmbient(const std::string& file, float volume, float pitch = 1.0f);
     const std::string& CurrentMusic() const;
 
     float GetVolume(Bus b) const;
