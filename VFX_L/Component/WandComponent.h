@@ -70,9 +70,9 @@ struct OrbUnitStats
     int   maxOrbs = 3;
     float orbInterval = 2.0f;
     float orbLife = 8.0f;
-    float orbitRadius = 1.1f;
-    float orbitHeight = 1.4f;
-    float orbitSpeed = 1.2f;
+    float orbitRadius = 1.1f;   // 出る位置（横）
+    float orbitHeight = 1.4f;   // 出る位置（高さ）
+    float riseSpeed = 0.1f;     // その場で昇る速さ（m/秒。付いて来ない）
     const char* vfxFile = "";
     DirectX::SimpleMath::Vector3 color = { 1, 1, 1 };   // 貯蔵した魔法の色の混色（光球を染める）
     int   storedCount = 0;      // 貯蔵している魔法の数（0 なら光球を出さない）
