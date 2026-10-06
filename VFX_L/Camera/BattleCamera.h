@@ -25,6 +25,8 @@ public:
 
     // 毎フレーム（UI の開閉が決まった後）。要求は毎フレーム出さないと InputManager が放す
     void UpdateMouseCapture(bool cursorNeeded);
+    // カーソルを出した状態で始める（魔法の実験場：パネルを触るのが主）。Alt で戻せる
+    void SetCursorFree(bool free) { m_CursorFree = free; }
 
     // 揺れのきっかけ。hpLost = このフレームに減った HP（0 なら何もしない）
     void OnPlayerHit(float hpLost);

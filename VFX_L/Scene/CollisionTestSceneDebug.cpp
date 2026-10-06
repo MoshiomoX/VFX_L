@@ -82,6 +82,7 @@ void CollisionTestScene::DrawDebugUI()
     DrawWandPanel();
     m_GameUI.DrawDebugUI(m_Registry, m_Player, m_BackpackAggregate);
     m_Stress.DrawImGui(m_Swarm, m_CollisionSystem, m_ParticleSystem);
+    if (!m_LabScene) m_SpellLab.DrawImGui(m_Registry, m_Player, m_Swarm, m_Mobs);   // 実験場では独立した窓（下）
     DrawSwarmPanel();
     DrawItemDatabasePanel();
     DrawTerrainPanel();
@@ -101,6 +102,9 @@ void CollisionTestScene::DrawDebugUI()
     FrameProfiler::Get().DrawImGui();
     DrawBloomPanel();
     ImGui::End();
+
+    // 実験場（F7）：魔法の組み合わせの窓は常に開いている
+    if (m_LabScene) m_SpellLab.DrawWindow(m_Registry, m_Player);
 }
 
 // ============================================================

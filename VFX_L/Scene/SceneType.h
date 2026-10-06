@@ -8,6 +8,7 @@ enum class SceneType
     PROJECTILE_EDITOR,
     LEVEL_EDITOR,
     RESULT,
+    SPELL_LAB,     // 魔法の実験場（戦闘シーンの平地版。2026-10-06）
     // 追加していく
 };
 
@@ -23,6 +24,7 @@ inline const char* SceneTypeName(SceneType type)
     case SceneType::PROJECTILE_EDITOR: return "Projectile Editor";
     case SceneType::LEVEL_EDITOR:      return "Level Editor";
     case SceneType::RESULT:            return "Result";
+    case SceneType::SPELL_LAB:         return "Spell Lab";
     }
     return "Unknown";
 }

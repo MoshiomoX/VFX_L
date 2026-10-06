@@ -58,6 +58,7 @@
 #include "Graphics/PostProcess/Outline.h"
 #include "Graphics/Light/ShadowMap.h"
 #include "Debug/StressTestTools.h"
+#include "Debug/SpellLab.h"
                 
 #include "World/GridWorld.h"
 #include "World/TerrainGenerator.h"
@@ -79,6 +80,10 @@ public:
     void Shutdown() override;
     void Update(float dt) override;
     void Render(Renderer& renderer) override;
+
+protected:
+    // 魔法の実験場（SpellLabScene が立てる。Init で平地・湧きなし・無敵などに分岐する）
+    bool m_LabScene = false;
 
 private:
     // ---- フレーム処理（CollisionTestScene.cpp）----
@@ -174,6 +179,7 @@ private:
     BossAttacks             m_BossAttacks;         // Boss の技（スラムの警告の輪。2026-10-03）
     uint32_t                m_BossSlamHits = 0;    // 自動テストの記録用：スラムがプレイヤーに当たった数
     StressTestTools         m_Stress;              // 負荷テスト・Mesh 発射の確認
+    SpellLab                m_SpellLab;            // 魔法を自由に組み合わせて試す実験場（2026-10-06）
 
     // --- GPU 側 gameplay（雑魚・投射物・オーブ）---
     SwarmSystem m_Swarm;

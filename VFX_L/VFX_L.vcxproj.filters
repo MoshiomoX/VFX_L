@@ -295,6 +295,9 @@
     <ClCompile Include="Debug\StressTestTools.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\SpellLab.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\FrameProfiler.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
@@ -773,6 +776,9 @@
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Debug\StressTestTools.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug\SpellLab.h">
       <Filter>Debug</Filter>
     </ClInclude>
     <ClInclude Include="Debug\AutoTest\BattleAutoTest.h">
@@ -1373,6 +1379,9 @@
       <Filter>Scene</Filter>
     </ClInclude>
     <ClInclude Include="Scene\LevelEditorScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\SpellLabScene.h">
       <Filter>Scene</Filter>
     </ClInclude>
     <ClInclude Include="Swarm\SwarmVFXTable.h" />

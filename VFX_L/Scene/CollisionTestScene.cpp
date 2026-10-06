@@ -172,6 +172,18 @@ void CollisionTestScene::Init()
     m_MapFile = stageDef.mapFile ? stageDef.mapFile : "";
     // 地図エディタ（F6）の「Save and play」で指定された地図（戦闘の Terrain パネルの Regenerate で外れる）
     if (!MapData::PlayOverride().empty()) m_MapFile = MapData::PlayOverride();
+    if (m_LabScene)
+    {
+        // 実験場：縁の碗だけの平らな野原。地図は読まない
+        m_MapFile.clear();
+        m_TerrainConfig.layers = false;
+        m_TerrainConfig.relief = false;
+        m_TerrainConfig.plateauCount = 0;
+        m_TerrainConfig.terraceCount = 0;
+        m_TerrainConfig.treeCount = 0;
+        m_TerrainConfig.rockCount = 0;
+        m_TerrainConfig.bushCount = 0;
+    }
     {
         char env[64] = {};
         if (GetEnvironmentVariableA("VFXL_MAP", env, sizeof(env)) > 0) m_MapFile = env;
@@ -285,10 +297,27 @@ void CollisionTestScene::Init()
     m_BossAttacks.Reset();
     m_BossSlamHits = 0;
     m_Pickups.Init(device);
-    RespawnCrates();
+    if (m_LabScene)
+    {
+        // 実験場：制限時間・エリート・箱・門・磁石なし。箱と門は置かない（RespawnCrates を呼ばない）
+        m_Stage.stageTime = 0.0f;
+        m_Stage.eliteTimes.clear();
+        m_Pickups.initialCount = 0;
+        m_Pickups.maxOnMap = 0;
+    }
+    else
+        RespawnCrates();
 
     // ---------- 天候（昼 → 夕 → 夜、面毎の出来事。照明を毎フレーム上書きする）----------
     m_Weather.Init(stageDef, m_Stage.stageTime, m_Lighting, m_AreaVFX, &m_VFXContext, stageDef.grass ? &m_Grass : nullptr, &m_Swarm);
+    if (m_LabScene)
+    {
+        // 実験場：昼のまま、天候の出来事なし。湧き停止・無敵・MP 無限・経験値 0 と 9x9 の枠は SpellLab が受け持つ
+        m_Weather.driveLighting = false;
+        m_Weather.eventsEnabled = false;
+        m_Camera.SetCursorFree(true);   // パネルを触るのが主なのでカーソルを出しておく（Alt で視点操作に戻す）
+        m_SpellLab.EnterLab(m_Registry, m_Player, m_Swarm, m_Mobs);
+    }
 }
 
 // ============================================================
@@ -692,6 +721,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ---- 負荷テスト（自動補充と小分けの生成）----
     m_Stress.Update(dt, m_Registry, m_Player, m_Swarm);
+    m_SpellLab.Update(m_Registry, m_Player, m_Swarm, m_Grid);   // 実験モードの間：MP 無限・経験値 0・キー操作
 
     // ============================================================
     // System の実行順（固定）
