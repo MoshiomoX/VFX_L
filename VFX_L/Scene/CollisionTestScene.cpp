@@ -94,6 +94,9 @@ void CollisionTestScene::Init()
     if (!m_BeamRenderer.Initialize(device))
         std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
     m_VFXContext.beamRenderer = &m_BeamRenderer;
+    if (!m_MeshRenderer.Initialize(device))
+        std::cout << "[Error] VFXMeshRenderer init failed" << std::endl;
+    m_VFXContext.meshRenderer = &m_MeshRenderer;
     if (!m_LiquidRenderer.Initialize(device))
         std::cout << "[Error] VFXLiquidRenderer init failed" << std::endl;
     m_VFXContext.liquidRenderer = &m_LiquidRenderer;
@@ -1044,7 +1047,8 @@ void CollisionTestScene::Render(Renderer& renderer)
         // ---- 2a) CPU で出した液溜まり（地面なので連番画像より先。高さ場は群れの物を借りる）----
         m_LiquidRenderer.SetTerrain(m_Swarm.GetHeightSRV(), m_Swarm.GetFrameCB());
         m_LiquidRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera(), renderer.GetLightData());
-        // ---- 2) 連番画像（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
+        // ---- 2) Mesh entry（光球の球など。深度は読むだけ）→ 連番画像（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
+        m_MeshRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());   // 光線（加算）
         m_Swarm.RenderSprites(GetCamera());

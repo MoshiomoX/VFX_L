@@ -48,6 +48,7 @@
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXSpriteRenderer.h"
 #include "VFX_Editor/VFXBeamRenderer.h"
+#include "VFX_Editor/VFXMeshRenderer.h"
 #include "VFX_Editor/VFXLiquidRenderer.h"
 #include "ECS/System/ManaSystem.h"
 #include "Enemy/EliteSpawner.h"
@@ -189,6 +190,7 @@ private:
     VFXContext                  m_VFXContext;
     VFXSpriteRenderer           m_SpriteRenderer;   // Sprite entry（連番画像）。レベルアップ・開箱などの CPU エフェクト
     VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
+    VFXMeshRenderer             m_MeshRenderer;     // Mesh entry（水晶玉の光球の球など。2026-10-06 まで戦闘では無かった）
     VFXLiquidRenderer           m_LiquidRenderer;   // Liquid entry（CPU で出す液溜まり。GPU の範囲の物は m_Swarm が描く）
     std::shared_ptr<Texture>    m_ParticleTexture;
     float m_TotalTime = 0.0f;
