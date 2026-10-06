@@ -12,7 +12,7 @@
                0.2,
                0.0
            ],
-    "mirror":  2,
+    "mirror": 3,
     "retargetRadius":  0.0,
     "hitArea":  "VoidPop",
     "hitAreaOnExpire":  false,

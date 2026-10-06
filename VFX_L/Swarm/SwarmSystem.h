@@ -211,7 +211,8 @@ public:
         float damage, float radius, float lifetime,
         uint32_t motion = 0, bool mirror = false,
         uint32_t triggerTag = 0, bool spawnAtPos = false,
-        float areaDamageMul = 1.0f, float areaDurationMul = 1.0f);
+        float areaDamageMul = 1.0f, float areaDurationMul = 1.0f,
+        uint32_t roll = 0);   // 曲線の横ずれの回転（0〜127 = 0〜360 度。ProjectileProfileDB::NextRoll）
 
     // リードバックで届いた誘発（タグ付きの弾が消えた場所）を全部取り出す。2〜3 フレーム古い
     void ConsumeTriggerEvents(std::vector<Swarm::TriggerEvent>& out)

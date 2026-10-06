@@ -35,7 +35,8 @@ struct ProjectileProfile
     {
         Fixed = 0,       // いつも同じ側
         Alternate = 1,   // 1 発ごとに左右交互
-        Random = 2,      // 毎回乱数
+        Random = 2,      // 毎回乱数（左か右）
+        RandomAngle = 3, // 毎回、横ずれの向きを飛行軸の周りで 0〜360 度の乱数に回す（2026-10-06 ユーザー：「毎回ランダムな方向」）
     };
 
     std::string       name = "NewProjectile";
@@ -119,6 +120,9 @@ namespace ProjectileProfileDB
     // GPU へ上げる表。SwarmSystem::SetMotions にそのまま渡す
     std::vector<Swarm::Motion> BuildMotions();
 
-    // この 1 発を左右反転するか。Alternate / Random の状態はここが持つ
+    // この 1 発を左右反転するか。Alternate / Random の状態はここが持つ（RandomAngle は常に false。向きは NextRoll）
     bool NextMirror(int index);
+    // この 1 発の横ずれの回転（0〜127 = 0〜360 度。Mirror::RandomAngle の時だけ乱数、他は 0）。
+    // 生成依頼の uint2.y の bit 1〜7（Swarm::kSpawnRollShift）で GPU へ渡す
+    uint32_t NextRoll(int index);
 }

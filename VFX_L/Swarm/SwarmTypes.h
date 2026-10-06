@@ -135,6 +135,10 @@ namespace Swarm
     // ============================================================
     constexpr uint32_t kMaxTriggerEvents = 128;
     constexpr uint32_t kSpawnAtPos = 1u;
+    // y の bit 1〜7：曲線の横ずれの回転（0〜127 = 0〜360 度。ProjectileProfile::Mirror::RandomAngle、2026-10-06）。
+    // SpawnProjCS が角度にして ProjPath::sideSign（= 回転角 rad。反転は +π）へ入れる。HLSL の SWARM_SPAWN_ROLL_SHIFT と一致させること
+    constexpr uint32_t kSpawnRollShift = 1u;
+    constexpr uint32_t kSpawnRollMask = 0x7Fu;
 
     // ============================================================
     // 死んだ敵の砕け散り（2026-10-02）
@@ -215,7 +219,7 @@ namespace Swarm
         Vector3  p1;
         float    duration = 1.0f;
         Vector3  p2;
-        float    sideSign = 1.0f;
+        float    sideSign = 1.0f;   // 2026-10-06 から「横ずれの回転角（rad）」：0 = 右、π = 左（反転）、他 = 飛行軸の周りに回した向き（RandomAngle）
         Vector3  p3;
         float    speed = 0.0f;
     };
