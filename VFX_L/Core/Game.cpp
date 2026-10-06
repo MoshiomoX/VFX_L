@@ -4,6 +4,7 @@
 #include "Scene/VFXEditorScene.h"
 #include "Scene/ProjectileEditorScene.h"
 #include "Scene/LevelEditorScene.h"
+#include "Scene/SpellLabScene.h"
 #include "Scene/TitleScene.h"
 #include "Scene/ResultScene.h"
 Game::Game()
@@ -23,6 +24,7 @@ bool Game::Initialize(Renderer* renderer)
 	m_SceneManager.RegisterScene<VFXEditorScene>(SceneType::VFX_EDITOR);
 	m_SceneManager.RegisterScene<ProjectileEditorScene>(SceneType::PROJECTILE_EDITOR);
 	m_SceneManager.RegisterScene<LevelEditorScene>(SceneType::LEVEL_EDITOR);
+	m_SceneManager.RegisterScene<SpellLabScene>(SceneType::SPELL_LAB);
 	m_SceneManager.RegisterScene<TitleScene>(SceneType::TITLE);
 	m_SceneManager.RegisterScene<ResultScene>(SceneType::RESULT);
 
@@ -37,6 +39,8 @@ bool Game::Initialize(Renderer* renderer)
         m_SceneManager.ChangeScene(SceneType::LEVEL_EDITOR);   // TEMP-TEST: 地図エディタ（Debug/AutoTest/AutoTestMapEdit）
     else if (GetEnvironmentVariableA("VFXL_PROJ_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::PROJECTILE_EDITOR);
+    else if (GetEnvironmentVariableA("VFXL_SPELL_LAB", autoloadEnv, sizeof(autoloadEnv)) > 0)
+        m_SceneManager.ChangeScene(SceneType::SPELL_LAB);   // TEMP-TEST: 魔法の実験場（F7）へ直行
     else if (GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);   // 戦闘の反応エフェクトの自動テスト
 

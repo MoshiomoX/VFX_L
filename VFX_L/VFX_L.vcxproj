@@ -209,6 +209,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\BattleAutoTest.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestFeedback.cpp" />
     <ClCompile Include="Debug\StressTestTools.cpp" />
+    <ClCompile Include="Debug\SpellLab.cpp" />
     <ClCompile Include="Debug\FrameProfiler.cpp" />
     <ClCompile Include="Enemy\MobSpawner.cpp" />
     <ClCompile Include="Enemy\StageDirector.cpp" />
@@ -402,6 +403,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Renderer\TerrainSurface.h" />
     <ClInclude Include="Graphics\Renderer\FrustumPlanes.h" />
     <ClInclude Include="Debug\StressTestTools.h" />
+    <ClInclude Include="Debug\SpellLab.h" />
     <ClInclude Include="Debug\AutoTest\BattleAutoTest.h" />
     <ClInclude Include="Debug\AutoTest\AutoTestCommon.h" />
     <ClInclude Include="Debug\FrameProfiler.h" />
@@ -446,6 +448,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Scene\ProjectileEditorScene.h" />
     <ClInclude Include="Scene\ItemShapePanel.h" />
     <ClInclude Include="Scene\LevelEditorScene.h" />
+    <ClInclude Include="Scene\SpellLabScene.h" />
     <ClInclude Include="Swarm\SwarmTypes.h" />
     <ClInclude Include="Swarm\SwarmVFXTable.h" />
     <ClInclude Include="UI\BackpackUI.h" />

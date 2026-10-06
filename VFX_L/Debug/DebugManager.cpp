@@ -28,6 +28,7 @@ namespace
         { SceneType::TITLE,          "Title",      VK_F3 },
         { SceneType::PROJECTILE_EDITOR, "Projectile Editor", VK_F4 },
         { SceneType::LEVEL_EDITOR, "Level Editor", VK_F6 },
+        { SceneType::SPELL_LAB, "Spell Lab", VK_F7 },
     };
     constexpr int kReloadKey = VK_F5;
 }

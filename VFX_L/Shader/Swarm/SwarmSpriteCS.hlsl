@@ -77,13 +77,13 @@ void main(uint3 id : SV_DispatchThreadID)
         slot %= g_SpritePoolSize;
 
         uint def = r.spriteStart + k;
-        float scale = SwarmAreaScale(a);   // Magnifier: offset follows the hit radius, the sprite grows with sqrt (see SwarmEmitCS)
+        float scale = SwarmAreaScale(a);   // Magnifier: the whole sprite scaled with its area
         SwarmSprite s;
         s.position = a.center + spriteDefs[def].offset * scale;
         s.age = 0.0;
         s.def = def;
         s.alive = 1u;
-        s.sizeScale = sqrt(scale);
+        s.sizeScale = scale;
         s._pad = 0u;
         sprites[slot] = s;
     }
