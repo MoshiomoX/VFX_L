@@ -493,7 +493,7 @@ namespace BackpackLogic
         if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return false;
         const ItemCommon* def = ItemDatabase::GetCommon(bp.items[itemIndex].id);
         if (!def || def->triggeredBy.empty()) return true;
-        if (StoredBy(bp, itemIndex) >= 0) return true;   // 水晶玉の光球が直接撃つ
+        // 水晶玉に貯蔵されていても前提は要る（2026-10-06 ユーザー：「上級魔法はやはり基本魔法で発動させる」）
 
         const std::vector<int> drivers = GetTriggerDrivers(bp, itemIndex);
         for (ItemID need : def->triggeredBy)

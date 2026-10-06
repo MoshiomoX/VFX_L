@@ -126,12 +126,9 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             }
             ItemInfo::ApplySpellPower(stats, power);
 
-            // 貯蔵（水晶玉）: 杖からは撃たず光球が撃つ。上級魔法でも光球が直接撃つ（triggered にしない）
-            stats.storeUnit = storeInto(i, stats.manaCost, c->color);
-            if (stats.storeUnit >= 0) log.influencedBy.push_back("(stored in crystal ball)");
-
-            // 上級魔法: 前提の基本魔法が全種類届いていなければ撃たない（バックパックでは暗く出る）
-            if (!pdef->common.triggeredBy.empty() && stats.storeUnit < 0)
+            // 上級魔法: 前提の基本魔法が全種類届いていなければ撃たない（バックパックでは暗く出る）。
+            // 水晶玉に貯蔵されていても同じ（10-06 ユーザー：上級魔法はやはり基本魔法で発動させる）
+            if (!pdef->common.triggeredBy.empty())
             {
                 if (!BackpackLogic::IsTriggerReady(bp, (int)i))
                 {
@@ -141,6 +138,10 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 }
                 stats.triggered = true;
             }
+
+            // 貯蔵（水晶玉）: 杖からは撃たず光球の位置から撃つ（上級魔法は誘発された時に光球から）
+            stats.storeUnit = storeInto(i, stats.manaCost, c->color);
+            if (stats.storeUnit >= 0) log.influencedBy.push_back("(stored in crystal ball)");
 
             spellIndexOf[i] = (int)wand.spells.size();
             wand.spells.push_back(stats);
@@ -161,12 +162,8 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             }
             ItemInfo::ApplySpellPower(stats, power);
 
-            // 貯蔵（水晶玉）: 光球の位置から撃つ。上級魔法（光線）でも光球が直接撃つ
-            stats.storeUnit = storeInto(i, stats.manaCost, c->color);
-            if (stats.storeUnit >= 0) log.influencedBy.push_back("(stored in crystal ball)");
-
-            // 上級魔法（光線）: 前提が揃っていなければ出さない（バックパックでは暗く出る）
-            if (!adef->common.triggeredBy.empty() && stats.storeUnit < 0)
+            // 上級魔法（光線）: 前提が揃っていなければ出さない（バックパックでは暗く出る）。貯蔵されていても同じ
+            if (!adef->common.triggeredBy.empty())
             {
                 if (!BackpackLogic::IsTriggerReady(bp, (int)i))
                 {
@@ -176,6 +173,10 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 }
                 stats.triggered = true;
             }
+
+            // 貯蔵（水晶玉）: 光球の位置から撃つ（光線は誘発された時に光球から）
+            stats.storeUnit = storeInto(i, stats.manaCost, c->color);
+            if (stats.storeUnit >= 0) log.influencedBy.push_back("(stored in crystal ball)");
 
             areaIndexOf[i] = (int)wand.areas.size();
             wand.areas.push_back(stats);
