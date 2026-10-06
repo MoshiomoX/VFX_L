@@ -74,7 +74,11 @@ void main(uint3 id : SV_DispatchThreadID)
     uint2 extra = spawnExtra[id.x];
 
     // ---- motion: split the request word, then build the path ----
-    float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? -1.0 : 1.0;
+    // sideSign is the roll of the curve's side offset around the flight axis (radians):
+    // 0 = right, pi = left (the flip bit), anything else = a random direction per shot
+    // (ProjectileProfile Mirror::RandomAngle, 7 bits in extra.y: 0..127 = 0..360 deg. 2026-10-06)
+    float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? 3.14159265 : 0.0;
+    sideSign += (float)((extra.y >> 1) & 0x7Fu) * (6.28318531 / 128.0);
     uint motionIdx = req.motion & SWARM_MOTION_INDEX_MASK;
     req.pathT = 0.0;
 

@@ -309,13 +309,17 @@ void SwarmBuildPath(inout SwarmProjPath path, SwarmMotion m,
     float sideLenSq = dot(side, side);
     side = (sideLenSq > 1e-6) ? side * rsqrt(sideLenSq) : float3(1, 0, 0);
 
+    // the side offset (c.y) is rolled around the flight axis by path.sideSign (radians):
+    // 0 = right, pi = left, other = random direction per shot (2026-10-06). c.z stays world-up
+    float3 lateral = side * cos(path.sideSign) + cross(fwd, side) * sin(path.sideSign);
+
     path.p0 = from;
     path.p3 = to;
     path.p1 = from + fwd * (m.c1.x * dist)
-                   + side * (m.c1.y * dist * path.sideSign)
+                   + lateral * (m.c1.y * dist)
                    + up * (m.c1.z * dist);
     path.p2 = from + fwd * (m.c2.x * dist)
-                   + side * (m.c2.y * dist * path.sideSign)
+                   + lateral * (m.c2.y * dist)
                    + up * (m.c2.z * dist);
     if (keepHeading)
         path.p1 = from + heading * (dist / 3.0);

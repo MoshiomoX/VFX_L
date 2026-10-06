@@ -15,7 +15,7 @@
     "hitAreaOnExpire": true,
     "lifetime": 3.0,
     "mirror": 2,
-    "mode": 1,
+    "mode": 0,
     "name": "Fireball",
     "radius": 0.25,
     "retargetRadius": 0.0,

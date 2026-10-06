@@ -260,9 +260,10 @@ void ProjectileEditorScene::Fire(bool randomCurve)
     }
 
     // 見た目・性能はプロファイル自身の物（ゲーム本体と同じ経路）
+    const uint32_t roll = randomCurve ? 0u : ProjectileProfileDB::NextRoll(m_Selected);
     m_Swarm.SpawnProjectile(p.ResolveVFX(), m_Muzzle, dir * p.speed,
         p.damage, p.radius, p.lifetime,
-        motionRow, mirror);
+        motionRow, mirror, 0u, false, 1.0f, 1.0f, roll);
 }
 
 // ============================================================
@@ -674,9 +675,9 @@ void ProjectileEditorScene::DrawProjectileTab()
         changed |= ImGui::DragFloat3("Control 1", &p.c1.x, 0.01f, -2.0f, 2.0f);
         changed |= ImGui::DragFloat3("Control 2", &p.c2.x, 0.01f, -2.0f, 2.0f);
 
-        const char* mirrorNames[] = { "Fixed side", "Alternate left/right", "Random" };
+        const char* mirrorNames[] = { "Fixed side", "Alternate left/right", "Random left/right", "Random direction (360)" };
         int mirror = (int)p.mirror;
-        if (ImGui::Combo("Mirror", &mirror, mirrorNames, 3))
+        if (ImGui::Combo("Mirror", &mirror, mirrorNames, 4))
         {
             p.mirror = (ProjectileProfile::Mirror)mirror;
             changed = true;

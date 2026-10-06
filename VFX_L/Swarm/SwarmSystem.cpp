@@ -724,7 +724,7 @@ void SwarmSystem::RecycleEnemy(const Vector3& pos, float hp, float moveSpeed, ui
 }
 void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& vel,
     float damage, float radius, float lifetime, uint32_t motion, bool mirror,
-    uint32_t triggerTag, bool spawnAtPos, float areaDamageMul, float areaDurationMul)
+    uint32_t triggerTag, bool spawnAtPos, float areaDamageMul, float areaDurationMul, uint32_t roll)
 {
     if (m_PendingProjectiles.size() >= Swarm::kMaxSpawnProjPerFrame) return;
 
@@ -741,6 +741,7 @@ void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& 
     m_PendingProjectiles.push_back(p);
     m_PendingProjExtra.push_back(triggerTag);
     m_PendingProjExtra.push_back((spawnAtPos ? Swarm::kSpawnAtPos : 0u)
+        | ((roll & Swarm::kSpawnRollMask) << Swarm::kSpawnRollShift)
         | Swarm::PackSpawnBoost(areaDamageMul, areaDurationMul));
     ++m_TotalRequested;
 }

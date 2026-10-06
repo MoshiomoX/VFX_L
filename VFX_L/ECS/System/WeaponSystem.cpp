@@ -426,10 +426,11 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         const int motion = req.profile;
         const VFXId vfx = ProjectileProfileDB::At(motion).ResolveVFX();
         const bool mirror = ProjectileProfileDB::NextMirror(motion);
+        const uint32_t roll = ProjectileProfileDB::NextRoll(motion);   // 横ずれの向き（RandomAngle の時だけ乱数）
 
         m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
             req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
-            req.triggerTag, req.atPos, req.areaDamageMul, req.areaDurationMul);
+            req.triggerTag, req.atPos, req.areaDamageMul, req.areaDurationMul, roll);
         // 撃った音（分裂・二重で同じフレームに何発も出ても、cue の間隔・同時数で間引かれる）
         AudioSystem::Get().Play(ProjectileProfileDB::At(motion).castSound);
     }

@@ -12,7 +12,7 @@
                0.35,
                0.0
            ],
-    "mirror":  1,
+    "mirror": 3,
     "retargetRadius":  0.0,
     "hitArea":  "ArcSpark",
     "hitAreaOnExpire":  false,

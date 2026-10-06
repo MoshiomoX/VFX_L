@@ -90,7 +90,7 @@ void ProjectileProfile::FromJson(const json& j)
     c1 = J3(j.value("c1", json()), c1);
     c2 = J3(j.value("c2", json()), c2);
     const int mi = j.value("mirror", 0);
-    mirror = (mi >= 0 && mi <= 2) ? static_cast<Mirror>(mi) : Mirror::Fixed;
+    mirror = (mi >= 0 && mi <= 3) ? static_cast<Mirror>(mi) : Mirror::Fixed;
     retargetRadius = j.value("retargetRadius", retargetRadius);
     hitArea = j.value("hitArea", hitArea);
     hitAreaOnExpire = j.value("hitAreaOnExpire", hitAreaOnExpire);
@@ -303,6 +303,14 @@ bool ProjectileProfileDB::NextMirror(int index)
     case ProjectileProfile::Mirror::Random:
         return (g_Rng() & 1u) != 0u;
     default:
-        return false;
+        return false;   // Fixed / RandomAngle（向きは NextRoll が出す）
     }
+}
+
+uint32_t ProjectileProfileDB::NextRoll(int index)
+{
+    EnsureBuiltin();
+    if (index < 0 || index >= (int)g_Profiles.size()) return 0u;
+    if (g_Profiles[index].mirror != ProjectileProfile::Mirror::RandomAngle) return 0u;
+    return (uint32_t)g_Rng() & 0x7Fu;   // 128 段 = 2.8 度刻み
 }
