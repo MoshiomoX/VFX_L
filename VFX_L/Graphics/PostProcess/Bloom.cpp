@@ -2,6 +2,7 @@
 // Bloom.cpp
 // ============================================================
 #include "Graphics/PostProcess/Bloom.h"
+#include <cstdlib>
 #include "Graphics/Shader/ComputeShader.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Renderer/RenderStates.h"
@@ -18,6 +19,12 @@ bool Bloom::Initialize(ID3D11Device* device, int width, int height)
     HRESULT hr = ShaderPath::Load(m_CS.get(), device, L"Shader/PostProcess/BloomCS.hlsl");
     std::cout << "[Bloom] BloomCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) { m_CS.reset(); return false; }
+
+    // TEMP-TEST: 比較の撮影用の初期値（2026-10-07、ユーザー「光が強すぎる」）
+    char env[32] = {};
+    if (GetEnvironmentVariableA("VFXL_EXPOSURE", env, sizeof(env)) > 0) m_Params.exposure = (float)std::atof(env);
+    if (GetEnvironmentVariableA("VFXL_GAMMA", env, sizeof(env)) > 0)    m_Params.gammaExp = (float)std::atof(env);
+    if (GetEnvironmentVariableA("VFXL_TONEMAP", env, sizeof(env)) > 0)  m_Params.tonemap = std::atoi(env) != 0;
 
     return CreateMips(device, width, height);
 }
