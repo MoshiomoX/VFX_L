@@ -7,8 +7,6 @@
 #include "Scene/MapEditMode.h"
 #include "Debug/DebugManager.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
 
 using namespace DirectX::SimpleMath;
 

@@ -2,11 +2,9 @@
 // Bloom.cpp
 // ============================================================
 #include "Graphics/PostProcess/Bloom.h"
-#include <cstdlib>
 #include "Graphics/Shader/ComputeShader.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Renderer/RenderStates.h"
-#include <iostream>
 
 namespace
 {

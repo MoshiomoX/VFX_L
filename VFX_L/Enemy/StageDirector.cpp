@@ -14,14 +14,7 @@
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <cstdlib>
 #include "Debug/TestSpawner.h"
-#include <iostream>
-#include <random>
-#include <utility>
-#include <vector>
 
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector3;
@@ -36,6 +29,7 @@ void StageDirector::Init()
     m_PortalModel = ResourceManager::Get().LoadModel(Res::Mdl::Ruins_ArchGate);   // 石の拱（2026-10-03）
     m_Portal = EntityTraits::NULL_ENTITY;
     m_Boss = BossState::None;
+    m_ExitOpen = false;
 }
 
 bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, float hp, SwarmSystem& swarm)
@@ -72,7 +66,7 @@ bool StageDirector::SpawnBoss(const GridWorld& grid, const Vector3& player, Swar
         grid.WorldToCell(pos, gx, gz);
         if (!grid.IsWalkable(gx, gz)) continue;
 
-        swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, m_BossSpawnHp, bossSpeed,
+        swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, m_BossSpawnHp, (m_BossSpeedOverride >= 0.0f) ? m_BossSpeedOverride : bossSpeed,
             Swarm::kEnemyKindBoss);
         std::cout << "[Stage] boss summoned, hp " << m_BossSpawnHp << std::endl;
         return true;
@@ -329,20 +323,64 @@ bool StageDirector::TryUsePortal(Registry& reg, Entity used, const GridWorld& gr
 {
     if (used == EntityTraits::NULL_ENTITY || used != m_Portal || !reg.IsValid(used)) return false;
     if (!reg.Has<InteractableComponent>(used)) return false;
-    if (reg.Get<InteractableComponent>(used).kind != InteractKind::BossPortal) return false;
+    const InteractKind kind = reg.Get<InteractableComponent>(used).kind;
+
+    // ---- 2 回目：Boss を倒した後の出口。使ったら面のクリア（シーンが IsCleared を見て幕 → リザルト）----
+    if (kind == InteractKind::StageExit)
+    {
+        if (m_Boss != BossState::Defeated) return false;
+        m_Boss = BossState::Exited;
+        m_ExitOpen = false;
+        m_Event = "stage exit";
+        std::cout << "[Stage] exit used (stage cleared)" << std::endl;
+        reg.Remove<InteractableComponent>(used);   // 光・目印・渦が消える
+        interaction.ClearFocus();
+        return true;
+    }
+
+    if (kind != InteractKind::BossPortal) return false;
     if (m_Boss != BossState::None) return false;
 
     // HP は呼んだ時の難度で決まる（遅いほど固い。Megabonk と同じ）
     m_BossSpawnHp = bossHp * mobs.GetHpMul();
+    m_BossSpeedOverride = -1.0f;   // 門から呼ぶ Boss はいつも動く
     m_SummonPos = player;
     SpawnBoss(grid, player, swarm);   // 失敗しても Summoned のまま Update が湧かせ直す
     m_Boss = BossState::Summoned;
     m_BossWait = 0.0f;
     m_Event = "boss summoned";
 
-    // 門は使えなくする（モデルは残す。光と画面外の目印は消える）
+    // 門は使えなくする（モデルは残す。光と画面外の目印は消える）。倒した後に OpenExit で出口として戻る
     reg.Remove<InteractableComponent>(used);
     interaction.ClearFocus();
+    return true;
+}
+
+// ============================================================
+// Boss を倒した後：同じ門を「出口」として使えるようにする（2026-10-07）
+// 光は金色（呼ぶ前の紫と区別）。渦の再生はシーン側（色も金）
+// ============================================================
+bool StageDirector::OpenExit(Registry& reg, const wchar_t* prompt)
+{
+    if (m_Boss != BossState::Defeated || m_ExitOpen) return false;
+    if (m_Portal == EntityTraits::NULL_ENTITY || !reg.IsValid(m_Portal)) return false;
+    if (reg.Has<InteractableComponent>(m_Portal)) reg.Remove<InteractableComponent>(m_Portal);
+
+    InteractableComponent it;
+    it.kind = InteractKind::StageExit;
+    it.basePos = m_PortalCenter - Vector3(0.0f, portalHeight * 0.43f, 0.0f);   // 門の足元
+    it.animate = false;
+    it.radius = 3.0f;
+    it.prompt = prompt;
+    it.lightColor = { 1.0f, 0.80f, 0.40f };   // 金
+    it.lightRadius = 7.0f;
+    it.lightIntensity = 1.2f;
+    it.lightHeight = portalHeight * 0.43f;
+    reg.Add<InteractableComponent>(m_Portal, it);
+
+    m_ExitOpen = true;
+    m_Event = "exit opened";
+    std::cout << "[Stage] portal is now the exit" << std::endl;
     return true;
 }
 
@@ -380,7 +418,7 @@ void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
     ImGui::DragFloat("Ghost Glow", &kind.ghostGlow, 0.05f, 0.0f, 6.0f);
     ImGui::DragFloat("Ghost Damage x", &kind.ghostDamageMul, 0.05f, 0.0f, 20.0f);
 
-    static const char* kBossNames[] = { "none", "summoned", "alive", "defeated" };
+    static const char* kBossNames[] = { "none", "summoned", "alive", "defeated", "exited" };
     const Swarm::BossInfo& info = swarm.GetBossInfo();
     ImGui::Text("boss %s  hp %.0f / %.0f  (gpu alive %u)", kBossNames[(int)m_Boss],
         Swarm::HpFromFixed(info.hp > info.maxHp ? 0u : info.hp), Swarm::HpFromFixed(info.maxHp), info.alive);
@@ -388,5 +426,5 @@ void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
     ImGui::DragFloat("Boss Speed", &bossSpeed, 0.1f, 0.0f, 20.0f);
     ImGui::DragFloat("Boss Scale", &kind.bossScale, 0.05f, 1.0f, 10.0f);
     ImGui::DragFloat("Boss Damage x", &kind.bossDamageMul, 0.05f, 0.0f, 20.0f);
-    if (ImGui::Button("Summon Boss Now")) m_DebugBoss = true;
+    if (ImGui::Button("Summon Boss Now")) { m_DebugBoss = true; m_BossSpeedOverride = -1.0f; }
 }

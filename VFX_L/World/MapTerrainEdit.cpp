@@ -4,13 +4,6 @@
 #include "World/MapTerrainEdit.h"
 #include "World/MapEdit.h"
 #include "World/TerrainBuild.h"
-#include <algorithm>
-#include <climits>
-#include <cmath>
-#include <cstdio>
-#include <chrono>
-#include <cstring>
-#include <string>
 
 using namespace TerrainBuild;
 

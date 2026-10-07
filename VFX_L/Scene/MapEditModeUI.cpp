@@ -7,8 +7,6 @@
 #include "Core/Application.h"
 #include "Graphics/Model/Model.h"
 #include "imgui.h"
-#include <algorithm>
-#include <string>
 
 using namespace DirectX::SimpleMath;
 

@@ -23,7 +23,6 @@
 #include "VFX_Editor/VFXId.h"
 #include "ResourcePaths.h"
 #include "imgui.h"
-#include <algorithm>
 
 using DirectX::SimpleMath::Vector3;
 

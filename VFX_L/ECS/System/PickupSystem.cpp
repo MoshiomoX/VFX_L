@@ -12,9 +12,6 @@
 #include "World/GridWorld.h"
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
 
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;

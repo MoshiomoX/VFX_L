@@ -16,7 +16,6 @@
 #include "Graphics/Mesh/Mesh.h"
 #include "Graphics/Material/Texture.h"
 #include "Manager/ResourceManager.h"
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

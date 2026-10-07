@@ -17,9 +17,6 @@
 #include "Camera/CameraBase.h"
 #include "ECS/View.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
 
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector3;

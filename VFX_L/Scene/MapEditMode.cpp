@@ -16,10 +16,6 @@
 #include "ResourcePaths.h"
 #include "World/TerrainGenerator.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cfloat>
-#include <cmath>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

@@ -1,6 +1,5 @@
 #include "Manager/InputManager.h"
 #include "imgui.h"
-#include <algorithm>
 void InputManager::Initialize(HWND hwnd)
 {
     m_hWnd = hwnd;

@@ -5,10 +5,8 @@
 #include "Manager/ResourceManager.h"
 #include "Graphics/Material/Texture.h"
 #include "ResourcePaths.h"
+
 #include <nlohmann/json.hpp>
-#include <algorithm>
-#include <fstream>
-#include <iostream>
 
 namespace
 {

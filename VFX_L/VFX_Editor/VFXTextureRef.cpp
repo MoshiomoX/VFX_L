@@ -6,8 +6,8 @@
 #include "Manager/ResourceManager.h"
 #include "Graphics/Material/Texture.h"
 #include "imgui.h"
+
 #include <sstream>
-#include <iostream>
 
 // ---------------- NoiseRecipe ----------------
 

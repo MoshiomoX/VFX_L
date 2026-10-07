@@ -160,6 +160,7 @@ private:
     LevelUpSystem           m_LevelUpSystem;
     InteractionSystem       m_Interaction;         // 近づいて F で使う物（報酬の箱）
     std::wstring            m_PromptBuf;           // 報酬の箱の案内（値段入り。GameUI はポインタを持つので文字列はここに置く）
+    wchar_t                 m_ObjectiveBuf[96] = {};   // HUD の目標の一行（同上。2026-10-07）
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
     StaticPropRenderer      m_StaticProps;   // 野原の置物（ModelComponent::batched）をまとめて描く

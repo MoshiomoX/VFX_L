@@ -7,8 +7,6 @@
 #include "Component/TransformComponent.h"
 #include "Component/InteractableComponent.h"
 #include "Graphics/Light/PointLightManager.h"
-#include <cfloat>
-#include <cmath>
 
 using DirectX::SimpleMath::Vector3;
 

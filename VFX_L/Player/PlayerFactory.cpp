@@ -9,6 +9,7 @@
 #include "Component/ModelComponent.h"
 #include "Player/LevelComponent.h"
 #include "Player/WalletComponent.h"
+#include "Player/ShieldComponent.h"
 #include "Item/BackpackLogic.h"
 #include "Player/PlayerTag.h"
 #include "Player/PlayerStatsComponent.h"
@@ -26,7 +27,6 @@
 #include "Graphics/Model/SkinnedModelGPU.h"
 #include "Manager/ResourceManager.h"
 #include "Core/Application.h"
-#include <iostream>
 
 namespace PlayerFactory
 {
@@ -147,6 +147,13 @@ namespace PlayerFactory
         hp.max = cfg.maxHealth;
         hp.current = cfg.maxHealth;
         reg.Add<HealthComponent>(e, hp);
+
+        // ---- シールド（HP より先に受ける。PlayerStateSystem が受け止めと回復をする）----
+        ShieldComponent shield;
+        shield.max = cfg.maxShield;
+        shield.current = cfg.maxShield;
+        shield.sinceHit = shield.rechargeDelay;
+        reg.Add<ShieldComponent>(e, shield);
 
         // ---- 魔力 ----
         // ※現時点では HUD 表示のみ。

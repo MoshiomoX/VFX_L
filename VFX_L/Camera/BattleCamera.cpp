@@ -7,10 +7,8 @@
 #include "Manager/InputManager.h"
 #include "ResourcePaths.h"
 #include "imgui.h"
+
 #include <nlohmann/json.hpp>
-#include <algorithm>
-#include <fstream>
-#include <iostream>
 
 // ============================================================
 // 保存する調整値の一覧（保存・読込・既定値に戻す で共用）。

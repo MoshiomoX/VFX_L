@@ -3,7 +3,6 @@
 // 色は全部線形 HDR（SceneLighting と同じ）。sRGB で見せたい色は 2.2 乗した値
 // ============================================================
 #include "World/StageConfig.h"
-#include <algorithm>
 
 namespace
 {

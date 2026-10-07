@@ -6,11 +6,6 @@
 #include "Graphics/Renderer/RenderStates.h"
 #include "Camera/CameraBase.h"
 #include "imgui.h"
-#include <algorithm>
-#include <chrono>
-#include <cfloat>
-#include <cmath>
-#include <iostream>
 
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector3;

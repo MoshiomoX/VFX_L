@@ -3,7 +3,6 @@
 // ============================================================
 #include "Item/BackpackLogic.h"
 #include "Item/ItemDatabase.h"
-#include <algorithm>
 
 namespace BackpackLogic
 {

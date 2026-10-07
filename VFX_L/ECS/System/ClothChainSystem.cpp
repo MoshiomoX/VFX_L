@@ -9,10 +9,8 @@
 #include "Component/SkinnedAnimComponent.h"
 #include "Component/TransformComponent.h"
 #include "Graphics/Model/SkinnedModel.h"
+
 #include <imgui.h>
-#include <algorithm>
-#include <cmath>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

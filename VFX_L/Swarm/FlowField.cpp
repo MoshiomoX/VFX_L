@@ -7,9 +7,6 @@
 //   緩和の時に親の向きも書くので、向き表を作る 2 周目は要らない
 // ============================================================
 #include "Swarm/FlowField.h"
-#include <cfloat>
-#include <cmath>
-#include <algorithm>
 
 using DirectX::SimpleMath::Vector2;
 

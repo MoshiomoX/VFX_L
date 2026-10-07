@@ -5,9 +5,8 @@
 #include "Graphics/Material/Material.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
+
 #include <assimp/scene.h>
-#include <iostream>
-#include <filesystem>
 #include <Windows.h>   // MultiByteToWideChar（UTF-8 のパス）
 
 namespace fs = std::filesystem;

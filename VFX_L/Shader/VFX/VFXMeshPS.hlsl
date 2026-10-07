@@ -30,7 +30,7 @@ cbuffer VFXMeshCB : register(b1)
     uint g_HasNoise;
     uint g_HasMask;
     float g_Shade;             // 0 = flat, 1 = full sphere shading
-    float _pad;
+    float g_NoVertexColor;     // 1 = ignore the vertex color (untextured FBX bake their material color into it)
     float3 g_CamPos;
     float _pad2;
 };
@@ -46,7 +46,8 @@ float4 main(PS_INPUT i) : SV_TARGET
 
     // ---- main, distorted by noise ----
     float2 mainUV = uv * g_MainTiling + g_MainScroll + (n - 0.5) * g_Distortion;
-    float4 c = mainTex.Sample(linearWrap, mainUV) * g_Tint * i.Color;
+    float4 vc = (g_NoVertexColor > 0.5) ? float4(1.0, 1.0, 1.0, 1.0) : i.Color;
+    float4 c = mainTex.Sample(linearWrap, mainUV) * g_Tint * vc;
 
     // ---- mask ----
     if (g_HasMask != 0u)

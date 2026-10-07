@@ -68,6 +68,7 @@ protected:
     GrassRenderer&            m_Grass;
     WeatherSystem&            m_Weather;       // 時刻と天候の出来事
     GameUI&                   m_GameUI;
+    SpellLab&                 m_SpellLab;      // 実験場（トレーニング）
     TerrainGenerator::Config& m_TerrainConfig;
     TerrainGenerator::Layout& m_TerrainLayout;
     MapData::Map&             m_TerrainMap;    // 建てた物の記録

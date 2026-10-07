@@ -10,8 +10,6 @@
 #include "Component/WandComponent.h"
 #include "Component/RigidbodyComponent.h"
 #include "Graphics/Model/SkinnedModel.h"
-#include <algorithm>
-#include <cmath>
 
 namespace
 {

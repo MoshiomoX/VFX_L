@@ -15,14 +15,8 @@
 #include "Graphics/Renderer/TerrainSurface.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
-#include <algorithm>
-#include <climits>
-#include <random>
-#include <cmath>
+
 #include <iomanip>
-#include <iostream>
-#include <memory>
-#include <string>
 
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;
@@ -518,8 +512,13 @@ namespace TerrainGenerator
                     if (x >= band && z >= band && x < gw - band && z < gd - band) continue;
                     uint8_t& o = at(x, z);
                     if (o == kFree || o == kHigh) o = kRim;
-                    // 碗の斜面のマスは雑魚・弾も通らない（高さ場の傾きで止まるが、湧きの候補からも外す）。洞窟の底は平らなので除く
-                    if (rimRise && x >= 1 && z >= 1 && x < gw - 1 && z < gd - 1 && zone[(size_t)z * gw + x] != kZoneMine)
+                    // 碗の斜面のマスは雑魚・弾も通らない（高さ場の傾きで止まるが、湧きの候補からも外す）。洞窟の底は平らなので除く。
+                    // 塞ぐのは中心が斜面の上（縁から rimRiseWidth 未満）のマスだけ。麓の内側 rimClear の帯は平地なので
+                    // 置物を置かない印（kRim）だけにする（2026-10-07 ユーザー報告：以前は帯ごと塞いでいて、
+                    // 縁から 12〜20m の平地に雑魚が入れず、そこに立つと弾も出た瞬間に消えていた）
+                    const int edgeCells = (std::min)((std::min)(x, gw - 1 - x), (std::min)(z, gd - 1 - z));
+                    const bool onSlope = ((float)edgeCells + 0.5f) * kCs < cfg.rimRiseWidth;
+                    if (rimRise && onSlope && x >= 1 && z >= 1 && x < gw - 1 && z < gd - 1 && zone[(size_t)z * gw + x] != kZoneMine)
                         emit.Block(&grid, x, z, 1, 1);
                 }
         }

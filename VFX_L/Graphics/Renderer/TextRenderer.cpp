@@ -3,7 +3,6 @@
 // ============================================================
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Graphics/Renderer/RenderStates.h"
-#include <iostream>
 
 using namespace DirectX;
 using namespace DirectX::SimpleMath;

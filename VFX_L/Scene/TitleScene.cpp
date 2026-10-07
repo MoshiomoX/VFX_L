@@ -10,10 +10,7 @@
 #include "ResourcePaths.h"
 #include "UI/UIDeco.h"
 #include "Audio/AudioSystem.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
-#include <random>
+#include "Core/DevUI.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -69,7 +66,7 @@ void TitleScene::Init()
     if (!m_WhiteTex->CreateSolid(device, 255, 255, 255, 255))
         m_WhiteTex.reset();
 
-    m_Menu.SetItems({ L"はじめる", L"ゲームを終了" });
+    m_Menu.SetItems({ L"はじめる", L"トレーニング", L"ゲームを終了" });   // トレーニング = 魔法の実験場（2026-10-07）
     Layout();
     m_Menu.Open();
     InitDecos();
@@ -94,9 +91,14 @@ void TitleScene::Shutdown()
 // メニューの位置（画面短辺に比例）
 void TitleScene::Layout()
 {
-    const float s = (std::min)(m_ScreenW, m_ScreenH);
-    const Vector2 item = { s * 0.34f, s * 0.07f };
-    m_Menu.Layout({ (m_ScreenW - item.x) * 0.5f, m_ScreenH * 0.58f }, item, s * 0.018f);
+    const float s = (std::min)(m_ScreenW, m_ScreenH) * UIDeco::UIScale();   // UI 全体の倍率（2026-10-07）
+    // 項目が 3 つ（トレーニングを足した、2026-10-07）でも下の操作の案内（画面高さの 90%）に重ならない所まで上げる
+    const Vector2 item = { s * 0.34f, s * 0.062f };
+    const float gap = s * 0.014f;
+    const int n = (std::max)(1, m_Menu.Count());
+    const float height = item.y * (float)n + gap * (float)(n - 1);
+    const float top = (std::min)(m_ScreenH * 0.58f, m_ScreenH * 0.865f - height);
+    m_Menu.Layout({ (m_ScreenW - item.x) * 0.5f, top }, item, gap);
 }
 
 // 飾りの四角を画面全体にばらまく（毎回同じ並び）
@@ -163,6 +165,10 @@ void TitleScene::Update(float dt)
             Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::COLLISION_TEST);
             break;
         case 1:
+            m_Starting = true;
+            Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::SPELL_LAB);
+            break;
+        case 2:
             PostQuitMessage(0);   // 窓の × と同じ終わり方（Esc での即終了は 2026-10-04 に外した）
             break;
         default:
@@ -178,7 +184,7 @@ void TitleScene::Render(Renderer& renderer)
 {
     SceneBase::Render(renderer);
 
-    const float k = (std::min)(m_ScreenW, m_ScreenH) / 900.0f;
+    const float k = (std::min)(m_ScreenW, m_ScreenH) / 900.0f * UIDeco::UIScale();   // UI 全体の倍率（2026-10-07）
 
     m_Sprite.Begin();
     m_Text.Begin();
@@ -245,11 +251,14 @@ void TitleScene::Render(Renderer& renderer)
     const Vector2 howSize = m_Text.Measure(howTo, hs);
     m_Text.Draw(howTo, { (m_ScreenW - howSize.x) * 0.5f, m_ScreenH * 0.90f }, { 0.7f, 0.7f, 0.75f, 0.9f }, hs);
 
-    const std::wstring dev = L"F1: Game   F2: VFX Editor   F3: Title";
-    const float ds = 0.32f * k;
-    const Vector2 devSize = m_Text.Measure(dev, ds);
-    m_Text.Draw(dev, { m_ScreenW - devSize.x - 20.0f, m_ScreenH - devSize.y - 14.0f },
-        { 0.5f, 0.5f, 0.55f, 0.7f }, ds);
+    if constexpr (DevUI::kEnabled)   // Demo ビルドには F キーの切替が無い
+    {
+        const std::wstring dev = L"F1: Game   F2: VFX Editor   F3: Title";
+        const float ds = 0.32f * k;
+        const Vector2 devSize = m_Text.Measure(dev, ds);
+        m_Text.Draw(dev, { m_ScreenW - devSize.x - 20.0f, m_ScreenH - devSize.y - 14.0f },
+            { 0.5f, 0.5f, 0.55f, 0.7f }, ds);
+    }
 
     m_Sprite.End();
     m_Text.End();

@@ -13,9 +13,7 @@
 #include "Component/WandComponent.h"
 #include "Component/ManaComponent.h"
 #include "Debug/DebugManager.h"
-#include "ImGui.h"
-#include <algorithm>
-#include <cmath>
+#include "Core/DevUI.h"
 
 namespace
 {
@@ -83,7 +81,7 @@ void PlayerControlSystem::ApplyKnockback(Registry& reg, unsigned int entity, Vec
 void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
 {
     const bool blocked = !testInput &&
-        (DebugManager::Get().IsUsingDebugCamera() || ImGui::GetIO().WantCaptureKeyboard);
+        (DebugManager::Get().IsUsingDebugCamera() || DevUI::WantKeyboard());
 
     const bool castTrigger = blocked ? false : InputMap::GetCastTrigger();
     const bool surgeTrigger = testInput ? testSurge : (blocked ? false : InputMap::GetManaSurgeTrigger());

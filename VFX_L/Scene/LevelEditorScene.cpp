@@ -13,13 +13,8 @@
 #include "Debug/Gizmo.h"
 #include "Debug/AutoTest/AutoTestMapEdit.h"
 #include "imgui.h"
-#include <algorithm>
+
 #include <cctype>
-#include <cfloat>
-#include <cmath>
-#include <cstring>
-#include <filesystem>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 namespace fs = std::filesystem;

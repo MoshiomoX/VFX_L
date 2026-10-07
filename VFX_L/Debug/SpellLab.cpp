@@ -1,6 +1,7 @@
-// ============================================================
+﻿// ============================================================
 // SpellLab.cpp
-// 魔法の組み合わせを自由に試す実験場（キー操作 + 数値の窓）。説明は SpellLab.h
+// 魔法の組み合わせを自由に試す実験場（トレーニングのメニューの依頼の実行 + 数値の窓）。説明は SpellLab.h
+// ※日本語の文字列リテラルを含むので UTF-8（BOM 付き）で保存する
 // ============================================================
 #include "Debug/SpellLab.h"
 #include "Component/BackpackComponent.h"
@@ -16,12 +17,10 @@
 #include "Swarm/SwarmSystem.h"
 #include "Swarm/SwarmTypes.h"
 #include "Enemy/MobSpawner.h"
+#include "Enemy/StageDirector.h"
+#include "UI/TrainingMenuUI.h"
 #include "World/GridWorld.h"
-#include "Manager/InputManager.h"
 #include "imgui.h"
-#include <cmath>
-#include <cstdio>
-#include <cstring>
 
 using namespace DirectX::SimpleMath;
 
@@ -30,7 +29,7 @@ namespace
     constexpr int kGrid = BackpackComponent::GRID;
 }
 
-void SpellLab::Update(Registry& reg, Entity player, SwarmSystem& swarm, const GridWorld& grid)
+void SpellLab::Update(Registry& reg, Entity player, SwarmSystem& swarm, const MobSpawner& mobs, const GridWorld& grid)
 {
     if (!m_Enabled || !reg.IsValid(player)) return;
     // 経験値は毎フレーム 0 に戻す（レベルアップの四択が実験の邪魔をしない）。MP は満タンを保つ
@@ -41,14 +40,119 @@ void SpellLab::Update(Registry& reg, Entity player, SwarmSystem& swarm, const Gr
         mp.max = 1.0e6f;
         mp.current = mp.max;
     }
-    // 的のキー（ImGui の入力欄に打っている間は取らない）
-    if (ImGui::GetIO().WantTextInput) return;
-    const InputManager& in = InputManager::Get();
-    if (in.GetKeyTrigger('T')) SpawnTargets(reg, player, swarm, grid, 0);
-    if (in.GetKeyTrigger('Y')) SpawnTargets(reg, player, swarm, grid, 1);
-    if (in.GetKeyTrigger('U')) SpawnTargets(reg, player, swarm, grid, 2);
-    if (in.GetKeyTrigger('O')) SpawnTargets(reg, player, swarm, grid, 3);
-    if (in.GetKeyTrigger('K')) { swarm.KillAll(); snprintf(m_Message, sizeof(m_Message), "killed all"); }
+    // 的・群れ・Boss はトレーニングのメニュー（T / パッド RB → Apply）。2026-10-07 まではここで T / Y / U / O / K のキーを読んでいた
+    SpawnSwarmStep(reg, player, swarm, mobs, grid);
+}
+
+// ============================================================
+// トレーニングのメニューの依頼（UI/TrainingMenuUI）。一時停止中にも呼ばれる：
+// 雑魚・的の生成依頼は GPU へ積むだけ（次の gameplay の Flush で湧く）、群れは Update で少しずつ
+// ============================================================
+std::wstring SpellLab::Apply(const TrainingRequest& q, Registry& reg, Entity player, SwarmSystem& swarm,
+    MobSpawner& mobs, StageDirector& stage, const GridWorld& grid)
+{
+    if (!reg.IsValid(player)) return L"";
+    switch (q.kind)
+    {
+    case TrainingRequest::Kind::Targets:
+        SpawnTargets(reg, player, swarm, grid, q.pattern, q.targetHp);
+        return (q.pattern == 0) ? L"正面に的を 3 体置いた"
+            : (q.pattern == 1) ? L"周りに的を 12 体置いた" : L"エリートの的を置いた";
+
+    case TrainingRequest::Kind::Swarm:
+    {
+        m_SwarmLeft += q.count;
+        m_SwarmKind = q.swarmKind;
+        m_SwarmMoving = q.moving;
+        std::wstring s = (q.swarmKind >= 4) ? std::wstring(L"混合の群れ")
+            : std::wstring(TrainingMenuUI::kSwarmKinds[std::clamp(q.swarmKind, 0, TrainingMenuUI::kKindChoices - 1)]);
+        s += L"を " + std::to_wstring(q.count) + L" 体出した";
+        if (!q.moving) s += L"（止まったまま）";
+        return s;
+    }
+
+    case TrainingRequest::Kind::Boss:
+        if (!stage.RequestBoss(q.moving)) return L"ボスはもう出ている";
+        return q.moving ? L"ボスを呼んだ" : L"ボスを呼んだ（止まったまま）";
+
+    case TrainingRequest::Kind::KillAll:
+        swarm.KillAll();
+        m_SwarmLeft = 0;
+        return L"敵を全部消した";
+
+    case TrainingRequest::Kind::AddItem:
+    {
+        if (!reg.Has<SpellbookComponent>(player)) return L"";
+        auto& book = reg.Get<SpellbookComponent>(player);
+        book.Learn(q.item, 1);
+        const ItemCommon* ic = ItemDatabase::GetCommon(q.item);
+        return std::wstring(ic ? ic->displayName : L"?") + L" を木箱に入れた（所持 " + std::to_wstring(book.GetCount(q.item)) + L"）";
+    }
+
+    case TrainingRequest::Kind::AddAll:
+        if (!reg.Has<SpellbookComponent>(player)) return L"";
+        FillChest(reg, player);
+        return L"全部の魔法・ルーンを各 " + std::to_wstring(kCopies) + L" 個にした";
+
+    case TrainingRequest::Kind::ClearChest:
+        if (!reg.Has<SpellbookComponent>(player) || !reg.Has<BackpackComponent>(player)) return L"";
+        ClearChest(reg, player);
+        return L"木箱を空にした（バックパックに置いた物は残る）";
+    }
+    return L"";
+}
+
+// 箱の中 = 所持数のうちバックパックに置いていない分。魔法・ルーン・召喚物だけ（枠は残す）
+void SpellLab::ClearChest(Registry& reg, Entity player)
+{
+    auto& book = reg.Get<SpellbookComponent>(player);
+    const auto& bp = reg.Get<BackpackComponent>(player);
+    const std::vector<SpellbookComponent::Entry> entries = book.entries;   // Forget が消すので写しで回す
+    for (const auto& e : entries)
+    {
+        const ItemCategory c = ItemDatabase::GetCategory(e.id);
+        if (c != ItemCategory::Projectile && c != ItemCategory::Area && c != ItemCategory::Function && c != ItemCategory::Summon) continue;
+        const int extra = e.count - BackpackLogic::CountPlaced(bp, e.id);
+        if (extra > 0) book.Forget(e.id, extra);
+    }
+}
+
+// 群れの残りを kSwarmPerFrame ずつ。プレイヤーの周り 12〜24m の歩けるマス
+void SpellLab::SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, const MobSpawner& mobs, const GridWorld& grid)
+{
+    if (m_SwarmLeft <= 0 || !reg.Has<TransformComponent>(player)) return;
+    const Vector3 pp = reg.Get<TransformComponent>(player).position;
+    const float groundY = swarm.GetAIParams().groundY;
+    std::uniform_real_distribution<float> u01(0.0f, 1.0f);
+    static const uint32_t kKinds[4] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindGhost };
+
+    const int n = (std::min)(m_SwarmLeft, kSwarmPerFrame);
+    for (int i = 0; i < n; ++i)
+    {
+        // 混合 = 雑魚 5 : 自爆兵 2 : スプリッター 2 : 幽霊 1
+        uint32_t kind = kKinds[std::clamp(m_SwarmKind, 0, 3)];
+        if (m_SwarmKind >= 4)
+        {
+            const float r = u01(m_Rng);
+            kind = (r < 0.5f) ? kKinds[0] : (r < 0.7f) ? kKinds[1] : (r < 0.9f) ? kKinds[2] : kKinds[3];
+        }
+        float hp = 15.0f, speed = 3.5f;
+        mobs.KindStats(kind, hp, speed);
+        if (!m_SwarmMoving) speed = 0.0f;
+
+        for (int attempt = 0; attempt < 6; ++attempt)
+        {
+            const float a = u01(m_Rng) * 6.2831853f;
+            const float d = 12.0f + 12.0f * u01(m_Rng);
+            const Vector3 p(pp.x + std::sin(a) * d, 0.0f, pp.z + std::cos(a) * d);
+            int gx = 0, gz = 0;
+            grid.WorldToCell(p, gx, gz);
+            if (kind != Swarm::kEnemyKindGhost && !grid.IsWalkable(gx, gz)) continue;   // 幽霊は壁も素通り
+            swarm.SpawnEnemy({ p.x, grid.SampleHeight(p.x, p.z) + groundY, p.z }, hp, speed, kind);
+            break;
+        }
+    }
+    m_SwarmLeft -= n;
 }
 
 // 全部の魔法・ルーン（枠・能力カード以外）を各 kCopies 個ずつ魔法書へ。既に持っている分は足りない分だけ足す
@@ -114,11 +218,10 @@ void SpellLab::EnterLab(Registry& reg, Entity player, SwarmSystem& swarm, MobSpa
 {
     if (!reg.Has<BackpackComponent>(player) || !reg.Has<SpellbookComponent>(player)) return;
     SetEnabled(reg, player, swarm, mobs, true);
-    FillFrames(reg, player);
-    FillChest(reg, player);
+    FillFrames(reg, player);   // 木箱は空のまま（2026-10-07。入れるのはトレーニングのメニューから）
 }
 
-void SpellLab::SpawnTargets(Registry& reg, Entity player, SwarmSystem& swarm, const GridWorld& grid, int pattern)
+void SpellLab::SpawnTargets(Registry& reg, Entity player, SwarmSystem& swarm, const GridWorld& grid, int pattern, float hp)
 {
     if (!reg.Has<TransformComponent>(player)) return;
     const Vector3 pp = reg.Get<TransformComponent>(player).position;
@@ -126,7 +229,7 @@ void SpellLab::SpawnTargets(Registry& reg, Entity player, SwarmSystem& swarm, co
     auto put = [&](float dx, float dz, uint32_t kind)
     {
         const Vector3 p(pp.x + dx, grid.SampleHeight(pp.x + dx, pp.z + dz) + groundY, pp.z + dz);
-        swarm.SpawnEnemy(p, m_TargetHp, 0.0f, kind);
+        swarm.SpawnEnemy(p, hp, 0.0f, kind);
     };
     switch (pattern)
     {
@@ -150,17 +253,30 @@ void SpellLab::SpawnTargets(Registry& reg, Entity player, SwarmSystem& swarm, co
     }
 }
 
-void SpellLab::DrawImGui(Registry& reg, Entity player, SwarmSystem& swarm, MobSpawner& mobs)
+void SpellLab::DrawImGui(Registry& reg, Entity player, SwarmSystem& swarm, MobSpawner& mobs, const GridWorld& grid)
 {
     if (!ImGui::CollapsingHeader("Spell Lab")) return;
     bool on = m_Enabled;
-    if (ImGui::Checkbox("Lab Mode (no spawns, invincible, infinite MP, no level-ups; keys below work while on)", &on))
+    if (ImGui::Checkbox("Lab Mode (no spawns, invincible, infinite MP, no level-ups)", &on))
         SetEnabled(reg, player, swarm, mobs, on);
     if (m_Enabled && reg.Has<BackpackComponent>(player) && reg.Has<SpellbookComponent>(player))
     {
         if (ImGui::Button("Fill 9x9 with frames")) FillFrames(reg, player);
         ImGui::SameLine();
         if (ImGui::Button("All items into chest")) FillChest(reg, player);
+        // 的（実験場シーンではトレーニングのメニューから。こちらは普通の戦闘の実験モード用）
+        ImGui::SetNextItemWidth(110.0f);
+        ImGui::InputFloat("Target HP", &m_TargetHp, 0.0f, 0.0f, "%.0f");
+        if (ImGui::Button("3 ahead")) SpawnTargets(reg, player, swarm, grid, 0, m_TargetHp);
+        ImGui::SameLine();
+        if (ImGui::Button("Ring of 12")) SpawnTargets(reg, player, swarm, grid, 1, m_TargetHp);
+        ImGui::SameLine();
+        if (ImGui::Button("Elite")) SpawnTargets(reg, player, swarm, grid, 2, m_TargetHp);
+        ImGui::SameLine();
+        if (ImGui::Button("Boss (static)")) SpawnTargets(reg, player, swarm, grid, 3, m_TargetHp);
+        ImGui::SameLine();
+        if (ImGui::Button("Kill all")) { swarm.KillAll(); snprintf(m_Message, sizeof(m_Message), "killed all"); }
+        if (m_Message[0]) ImGui::TextDisabled("%s", m_Message);
     }
     DrawBody(reg, player);
 }
@@ -172,7 +288,7 @@ void SpellLab::DrawWindow(Registry& reg, Entity player)
     if (ImGui::Begin("Spell Lab (F7)"))
     {
         ImGui::TextDisabled("Flat field, no spawns, invincible, infinite MP, no level-ups.");
-        ImGui::TextDisabled("Every spell / rune x%d is in the chest: press Tab and build the backpack yourself.", kCopies);
+        ImGui::TextDisabled("Targets / swarms / boss / items: the in-game Training menu (T or pad RB).");
         DrawBody(reg, player);
     }
     ImGui::End();
@@ -185,13 +301,6 @@ void SpellLab::DrawBody(Registry& reg, Entity player)
         ImGui::TextDisabled("(no player)");
         return;
     }
-    ImGui::SeparatorText("Targets (key)");
-    ImGui::TextDisabled("[T] 3 ahead   [Y] ring of 12   [U] elite   [O] boss   [K] kill all");
-    ImGui::Text("Target HP"); ImGui::SameLine();
-    ImGui::SetNextItemWidth(110.0f);
-    ImGui::InputFloat("##hp", &m_TargetHp, 0.0f, 0.0f, "%.0f");
-    if (m_Message[0]) { ImGui::SameLine(); ImGui::TextDisabled("%s", m_Message); }
-
     ImGui::SeparatorText("Aggregated wand");
     DrawStats(reg, player);
 }

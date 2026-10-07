@@ -4,11 +4,6 @@
 #include "Graphics/PrimitiveBuilder.h"
 #include "Graphics/Model/Model.h"
 #include "Graphics/Mesh/Mesh.h"
-#include <vector>
-#include <cmath>
-#include <cstring>
-#include <algorithm>
-#include <unordered_map>
 
 using namespace DirectX::SimpleMath;
 

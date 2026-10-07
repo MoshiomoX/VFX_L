@@ -5,7 +5,6 @@
 #include "Scene/CollisionTestScene.h"
 #include "Audio/AudioSystem.h"
 #include "Graphics/Renderer/TerrainSurface.h"
-
 #include "Component/TransformComponent.h"
 #include "Component/ClothChainComponent.h"
 #include "Component/ColliderComponent.h"
@@ -18,13 +17,13 @@
 #include "Component/ModelComponent.h"
 #include "Manager/ResourceManager.h"
 #include "Graphics/Model/Model.h"
-#include <filesystem>
 #include "Graphics/Model/SkinnedModel.h"
 #include "Player/PlayerStatsComponent.h"
 #include "Player/PlayerStateComponent.h"
 #include "Player/PlayerFactory.h"
 #include "Player/LevelComponent.h"
 #include "Player/WalletComponent.h"
+#include "Player/ShieldPanel.h"
 #include "ECS/View.h"
 #include "Item/ItemDatabase.h"
 #include "Item/BackpackLogic.h"
@@ -40,13 +39,6 @@
 #include "Debug/FrameProfiler.h"
 #include "Core/Application.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cfloat>
-#include <chrono>
-#include <cmath>
-#include <fstream>   // TEMP-TEST: autotest.log
-#include <random>
-#include <unordered_set>
 
 namespace
 {
@@ -224,6 +216,7 @@ void CollisionTestScene::DrawPlayerPanel()
         sprintf_s(buf, "%.0f / %.0f", hp.current, hp.max);
         ImGui::ProgressBar(hp.current / hp.max, ImVec2(-1, 0), buf);
     }
+    ShieldPanel::Draw(m_Registry, m_Player);   // シールド（HP の次に受ける順）
 
     // ---- 魔力 ----
     // 実行時に書くのは ManaSystem だけ。

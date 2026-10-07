@@ -3,12 +3,6 @@
 // ============================================================
 #include "Swarm/ProjectileProfile.h"
 #include "Swarm/AreaProfile.h"
-#include <algorithm>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <random>
 
 using namespace DirectX::SimpleMath;
 using json = nlohmann::json;

@@ -13,10 +13,6 @@
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <cwchar>
-#include <string>
 
 using namespace DirectX::SimpleMath;
 
@@ -58,8 +54,10 @@ void LevelUpUI::Layout(float screenW, float screenH)
 
     const float shortSide = (screenW < screenH) ? screenW : screenH;
 
-    m_CardW = shortSide * cardWidthRatio;
-    m_CardGap = shortSide * cardGapRatio;
+    // UI 全体の倍率（2026-10-07）。カードの高さ + 下の引き直しボタンが画面の高さの 9 割を超えるなら収まる所まで
+    const float s = UIDeco::FitScale(cardWidthRatio * (cardAspect + 0.30f), 0.90f);
+    m_CardW = shortSide * cardWidthRatio * s;
+    m_CardGap = shortSide * cardGapRatio * s;
     // 候補 fitCards 枚が画面幅の 94% に収まらなければ細くする（縦長・狭い窓でも 4 枚並ぶように）
     const float n = (float)(fitCards < 1 ? 1 : fitCards);
     const float maxW = (screenW * 0.94f - m_CardGap * (n - 1.0f)) / n;

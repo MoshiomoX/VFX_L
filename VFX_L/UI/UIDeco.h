@@ -17,6 +17,21 @@ class Texture;
 
 namespace UIDeco
 {
+    // UI 全体の大きさの倍率（2026-10-07 ユーザー：「全部の UI を 1.5 倍に」）。
+    // HUD の px 値・バックパック / 木箱 / カードの画面比・メニューの文字と行の高さ・tooltip・結果画面に掛ける。
+    // メニューなど画面に収まらなくなる物は各 Layout で画面に合わせて小さくする（FitScale）
+    // 既定 1.5。実行中に変えられる（HUD パネル「UI Scale」、起動時 VFXL_UI_SCALE）。
+    // Layout で使う物（バックパック・木箱・カード・メニュー）は GameUI::Layout を呼び直さないと効かない
+    float  UIScale();
+    void   SetUIScale(float s);
+    // baseRatio = 倍率 1 の時に画面短辺に占める割合。maxRatio を超えない所まで倍率を落とす
+    inline float FitScale(float baseRatio, float maxRatio = 0.95f)
+    {
+        const float k = UIScale();
+        const float s = (baseRatio > 0.0f) ? maxRatio / baseRatio : k;
+        return (s < k) ? (s > 1.0f ? s : 1.0f) : k;
+    }
+
     enum class Tint { Gold, Silver, Arcane, Violet };   // Violet = 召喚物（水晶玉。2026-10-06）
 
     // 線の色（a = 1）。UI は線形で合成されるので、sRGB の見た目の色を線形へ直した値
@@ -64,6 +79,13 @@ namespace UIDeco
     // 魔法陣。中心・直径・回転（ラジアン）
     void DrawCircle(SpriteRenderer& sprite, bool star, const DirectX::SimpleMath::Vector2& center,
         float diameter, const DirectX::SimpleMath::Vector4& tint, float radians);
+
+    // 文字の下敷き（2026-10-07 ユーザー：「HUD の文字だけの所が見にくい、背景を付けて」）。
+    // 暗い半透明の地 + 薄い古金の 1px 枠。pos / size は文字の外接矩形、pad だけ外へ広げて敷く。
+    // 文字は SpriteRenderer の後にまとめて描かれるので、同じ組の中で先に呼べば文字の下になる
+    void DrawTextPlate(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& pos,
+        const DirectX::SimpleMath::Vector2& size, const DirectX::SimpleMath::Vector2& pad,
+        const DirectX::SimpleMath::Vector4& fill, float lineAlpha);
 
     // 魔法陣を回す時計（一時停止中も回るよう実時間、秒）
     float Clock();

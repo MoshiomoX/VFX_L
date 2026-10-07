@@ -5,12 +5,9 @@
 #include "Debug/ImGuiRenderer.h"
 #include "Core/Timer/EngineTimer.h"
 #include "Core/Application.h"
-#include "imgui.h"
+#include "Core/DevUI.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Manager/InputManager.h"
-#include <cmath>
-#include <cstdio>
-#include <iostream>
 
 namespace
 {
@@ -44,11 +41,15 @@ bool DebugManager::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceConte
     m_DebugCamera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 10000.0f);
     m_DebugCamera.LookAt({ 0.0f, 5.0f, -15.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
 
-    m_ImguiRenderer = std::make_unique<ImguiRenderer>();
-    if (!m_ImguiRenderer->Initialize(hwnd, device, context))
+    // Demo ビルド（VFXL_DEMO）では ImGui を作らない（Core/DevUI.h。画面に開発用の窓を一切出さない）
+    if constexpr (DevUI::kEnabled)
     {
-        std::cout << "[Error] ImguiRenderer init failed" << std::endl;
-        return false;
+        m_ImguiRenderer = std::make_unique<ImguiRenderer>();
+        if (!m_ImguiRenderer->Initialize(hwnd, device, context))
+        {
+            std::cout << "[Error] ImguiRenderer init failed" << std::endl;
+            return false;
+        }
     }
     if (!m_LineRenderer.Initialize(device, context))
     {
@@ -65,7 +66,7 @@ void DebugManager::Shutdown()
 {
     if (!m_Initialized) return;
 
-    m_ImguiRenderer->Shutdown();
+    if (m_ImguiRenderer) m_ImguiRenderer->Shutdown();
     m_ImguiRenderer.reset();
     m_Timer = nullptr;
 
@@ -75,7 +76,7 @@ void DebugManager::Shutdown()
 
 void DebugManager::BeginFrame()
 {
-    if (!m_Initialized) return;
+    if (!m_Initialized || !m_ImguiRenderer) return;
 
     m_ImguiRenderer->BeginFrame();
 
@@ -154,7 +155,7 @@ void DebugManager::BeginFrame()
 
 void DebugManager::EndFrame()
 {
-    if (!m_Initialized) return;
+    if (!m_Initialized || !m_ImguiRenderer) return;
     m_ImguiRenderer->EndFrame();
 }
 
@@ -173,8 +174,8 @@ void DebugManager::Update(float dt)
     }
 
     // ---- シーン切替のショートカット ----
-    // ImGui がテキスト入力中の時は無視する（F キーは通常取られないが念のため）
-    if (!ImGui::GetIO().WantTextInput)
+    // ImGui がテキスト入力中の時は無視する（F キーは通常取られないが念のため）。Demo ビルドでは切り替えない
+    if (DevUI::kEnabled && !DevUI::WantTextInput())
     {
         auto& input = InputManager::Get();
         auto& sm = Application::Get().GetGame().GetSceneManager();

@@ -9,12 +9,6 @@
 #include "Graphics/Shader/VertexShader.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <cstdlib>
-#include <iostream>
-#include <string>
-#include <vector>
 
 using DirectX::SimpleMath::Vector4;
 

@@ -32,6 +32,7 @@ enum class UILayer
     Backpack,     // 呪文編成。Tab で開閉
     LevelUp,      // 習得の三択。選ぶまで閉じられない
     Pause,        // 一時停止のメニュー。P / パッド Back で開閉（三択の上には開かない）
+    Training,     // トレーニング（実験場）のメニュー。T / パッド RB で開閉（2026-10-07、実験場だけ）
     // 将来：Shop
 };
 

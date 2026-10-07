@@ -42,9 +42,14 @@ public:
         const DirectX::SimpleMath::Vector3* faceToward = nullptr,
         const DirectX::SimpleMath::Vector4* fixed = nullptr);
     // fixed: 地図に置いてある門（MapData::Placement。xyz = 口の真ん中の地面、w = 向きの度）。あればその通りに置く
-    // 使われた物が門なら Boss を呼ぶ（呼んだら true）。門は使えなくなる（見た目は残す）
+    // 使われた物が門なら Boss を呼ぶ（呼んだら true）。門は使えなくなる（見た目は残す）。
+    // Boss を倒した後（OpenExit で出口になった門）なら面のクリア（IsCleared が true になる）
     bool TryUsePortal(Registry& reg, Entity used, const GridWorld& grid, const DirectX::SimpleMath::Vector3& player,
         const MobSpawner& mobs, SwarmSystem& swarm, InteractionSystem& interaction);
+    // Boss を倒した後、門をもう一度使える物（出口）にする（2026-10-07 ユーザー：1 回目 = Boss を呼ぶ、倒した後にもう一度押して次の面へ）。
+    // prompt = 画面下の案内（「[F] 次のステージへ」など）。既に出口なら何もしない。出口にしたら true
+    bool OpenExit(Registry& reg, const wchar_t* prompt);
+    bool IsExitOpen() const { return m_ExitOpen; }
 
     // 残り時間（0 未満にはしない）
     float Remaining(float runTime) const { return (stageTime - runTime > 0.0f) ? stageTime - runTime : 0.0f; }
@@ -53,9 +58,21 @@ public:
 
     // ---- Boss ----
     bool IsBossAlive() const { return m_Boss == BossState::Alive; }
-    bool IsCleared() const { return m_Boss == BossState::Defeated; }
+    // Boss を倒した（門が出口になる。まだクリアではない）
+    bool IsBossDefeated() const { return m_Boss == BossState::Defeated || m_Boss == BossState::Exited; }
+    // 面のクリア = 倒した後に門をもう一度使った（シーンが「ステージクリア」→ リザルトへ）
+    bool IsCleared() const { return m_Boss == BossState::Exited; }
     float BossHpRatio() const { return m_BossHpRatio; }
     DirectX::SimpleMath::Vector3 BossPos() const { return m_BossPos; }
+    // 門を使わずに Boss を呼ぶ（トレーニング。2026-10-07）。次の Update で湧く。moving = false なら止まったまま。
+    // もう呼んでいる / 生きている間は false（何もしない）
+    bool RequestBoss(bool moving)
+    {
+        if (m_Boss != BossState::None && m_Boss != BossState::Defeated) return false;
+        m_DebugBoss = true;
+        m_BossSpeedOverride = moving ? -1.0f : 0.0f;
+        return true;
+    }
     Entity GetPortal() const { return m_Portal; }
     // 門の向き（度。TransformComponent の yaw = 局所 +Z が向く方）と、渦の中心（世界、門の口の真ん中）
     float GetPortalYaw() const { return m_PortalYaw; }
@@ -95,7 +112,8 @@ public:
     float portalHeight = 5.6f;      // 門の高さ（m。モデルの包囲箱から倍率を出す。石の拱 3.53m → ×1.59、幅 4.9m）
 
 private:
-    enum class BossState { None, Summoned, Alive, Defeated };
+    enum class BossState { None, Summoned, Alive, Defeated, Exited };   // Exited = 倒した後に門を使った（クリア）
+    bool m_ExitOpen = false;   // 門が出口になっている（Defeated の間）
 
     bool SpawnElite(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, float hp, SwarmSystem& swarm);
     bool SpawnBoss(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
@@ -119,4 +137,5 @@ private:
     DirectX::SimpleMath::Vector3 m_BossPos;
     DirectX::SimpleMath::Vector3 m_SummonPos;   // 呼んだ時のプレイヤーの位置（湧かせ直す時に使う）
     bool   m_DebugBoss = false;   // パネルのボタン
+    float  m_BossSpeedOverride = -1.0f;   // >= 0 なら bossSpeed の代わり（RequestBoss の止まった Boss）
 };

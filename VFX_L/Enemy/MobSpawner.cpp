@@ -7,10 +7,6 @@
 #include "World/GridWorld.h"
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <cstdlib>
-#include <vector>
 
 using DirectX::SimpleMath::Vector3;
 
@@ -288,4 +284,18 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Attack Interval", &ai.attackInterval, 0.05f, 0.1f, 5.0f);
     ImGui::DragFloat("Hit Stun (s)", &ai.hitStun, 0.005f, 0.0f, 0.5f);
     ImGui::DragFloat("Hit Flash Gain", &ai.hitFlash, 0.1f, 1.0f, 10.0f);
+}
+
+// 種類毎の今の HP と速さ（トレーニングの「群れを出す」。普段の湧きと同じ値）
+void MobSpawner::KindStats(uint32_t kind, float& hp, float& speed) const
+{
+    switch (kind)
+    {
+    case Swarm::kEnemyKindBomber:    hp = m_BomberHp;    speed = m_BomberSpeed; break;
+    case Swarm::kEnemyKindSplitter:  hp = m_SplitterHp;  speed = m_SplitterSpeed; break;
+    case Swarm::kEnemyKindSplitling: hp = m_SplitlingHp; speed = m_MobSpeed * m_SplitlingSpeedMul; break;
+    case Swarm::kEnemyKindGhost:     hp = m_MobHp;       speed = m_MobSpeed * ghostSpeedMul; break;
+    default:                         hp = m_MobHp;       speed = m_MobSpeed; break;
+    }
+    hp *= m_HpMul;
 }

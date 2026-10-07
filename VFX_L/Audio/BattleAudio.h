@@ -27,6 +27,7 @@ public:
     struct State
     {
         bool bossAlive = false;
+        bool bossDefeated = false;   // 倒した（クリアの音はここ。cleared = 門をもう一度使った、曲を止めるだけ）
         bool finalWave = false;
         bool playerDead = false;
         bool cleared = false;

@@ -4,7 +4,6 @@
 #include "VFX_Editor/VFXPointLightEntry.h"
 #include "Graphics/Light/PointLightManager.h"
 #include "imgui.h"
-#include <cmath>
 
 using namespace DirectX::SimpleMath;
 

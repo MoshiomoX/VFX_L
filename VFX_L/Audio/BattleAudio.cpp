@@ -9,7 +9,6 @@
 #include "Swarm/AreaProfile.h"
 #include "Swarm/SwarmSystem.h"
 #include "Swarm/SwarmVFXTable.h"
-#include <iostream>
 
 void BattleAudio::Init(const SwarmSystem& swarm, int stage)
 {
@@ -79,7 +78,8 @@ void BattleAudio::Update(float dt, SwarmSystem& swarm, Registry& reg, Entity pla
         }
         if (st.finalWave && !m_Prev.finalWave) audio.Play("final_wave");
         if (st.playerDead && !m_Prev.playerDead) audio.Play("player_death");
-        if (st.cleared && !m_Prev.cleared) audio.Play("stage_clear");
+        // 勝利のジングルは Boss を倒した瞬間（2026-10-07 から門をもう一度使うまでは面が続く。使った時は曲が止まるだけ）
+        if (st.bossDefeated && !m_Prev.bossDefeated) audio.Play("stage_clear");
     }
     m_Prev = st;
     m_Started = true;

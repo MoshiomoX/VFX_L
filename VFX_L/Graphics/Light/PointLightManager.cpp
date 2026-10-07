@@ -2,7 +2,6 @@
 // PointLightManager.cpp
 // ============================================================
 #include "Graphics/Light/PointLightManager.h"
-#include <iostream>
 
 namespace
 {

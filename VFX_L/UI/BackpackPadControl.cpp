@@ -13,9 +13,6 @@
 #include "Item/ItemDatabase.h"
 #include "Manager/InputManager.h"
 #include "Audio/AudioSystem.h"
-#include <algorithm>
-#include <cmath>
-#include <string>
 
 using namespace DirectX::SimpleMath;
 
@@ -365,7 +362,7 @@ uint32_t BackpackPadControl::PickBookNeighbor(const SpellbookUI& book, int dx, i
 void BackpackPadControl::Draw(SpriteRenderer& sprite, TextRenderer& text, const BackpackUI& grid,
     const DragContext& drag, const Vector2& screen) const
 {
-    const float k = (std::min)(screen.x, screen.y) / 900.0f;
+    const float k = (std::min)(screen.x, screen.y) / 900.0f * UIDeco::UIScale();
     const bool carrying = drag.IsActive();
 
     // ---- カーソル（明滅する金の枠）----

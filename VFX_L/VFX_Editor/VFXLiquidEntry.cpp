@@ -4,8 +4,6 @@
 #include "VFX_Editor/VFXLiquidEntry.h"
 #include "VFX_Editor/VFXLiquidRenderer.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cstdlib>
 
 using namespace DirectX::SimpleMath;
 

@@ -196,6 +196,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPerch.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestCrystal.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -265,6 +268,12 @@
     <ClCompile Include="Debug\AutoTest\AutoTestSurge.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestShield.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestTraining.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBeamTrack.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -326,6 +335,9 @@
       <Filter>Graphics\Light</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\FeedbackVFXSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\ShieldBubble.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\RewardCrateSystem.cpp">
@@ -589,6 +601,12 @@
     <ClCompile Include="UI\PauseMenuUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\SettingsMenuUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GameSettings.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="UI\MenuList.cpp">
       <Filter>UI</Filter>
     </ClCompile>
@@ -607,6 +625,9 @@
     <ClCompile Include="Player\PlayerStateSystem.cpp">
       <Filter>Player</Filter>
     </ClCompile>
+    <ClCompile Include="Player\ShieldPanel.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
     <ClCompile Include="Player\PlayerAnimSystem.cpp">
       <Filter>Player</Filter>
     </ClCompile>
@@ -623,6 +644,16 @@
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUD.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\HUDShieldBar.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\TrainingMenuUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="UI\TrainingMenuUIDraw.cpp">
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\ManaSystem.cpp">
@@ -818,6 +849,9 @@
       <Filter>Graphics\Light</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\FeedbackVFXSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\ShieldBubble.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\RewardCrateSystem.h">
@@ -1016,6 +1050,7 @@
       <Filter>ECS</Filter>
     </ClInclude>
     <ClInclude Include="ResourcePaths.h" />
+    <ClInclude Include="pch.h" />
     <ClInclude Include="Graphics\Mesh\SkinnedVertex.h">
       <Filter>Graphics\Mesh</Filter>
     </ClInclude>
@@ -1189,6 +1224,12 @@
     <ClInclude Include="UI\PauseMenuUI.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="UI\SettingsMenuUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GameSettings.h">
+      <Filter>Core</Filter>
+    </ClInclude>
     <ClInclude Include="UI\MenuList.h">
       <Filter>UI</Filter>
     </ClInclude>
@@ -1273,6 +1314,9 @@
     <ClInclude Include="Item\Items\SpellPowerUp.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\ShieldUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Component\SpellbookComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
@@ -1280,6 +1324,12 @@
       <Filter>Player</Filter>
     </ClInclude>
     <ClInclude Include="Player\WalletComponent.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\ShieldComponent.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\ShieldPanel.h">
       <Filter>Player</Filter>
     </ClInclude>
     <ClInclude Include="Item\ExpRewardComponent.h">
@@ -1301,6 +1351,9 @@
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\HUD.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\TrainingMenuUI.h">
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\ManaSystem.h">

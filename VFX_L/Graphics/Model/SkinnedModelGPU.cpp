@@ -4,7 +4,6 @@
 #include "Graphics/Light/PointLightManager.h"
 #include "Graphics/Renderer/Renderer.h"   // DissolveCB
 
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

@@ -5,10 +5,8 @@
 #include "Graphics/Mesh/Mesh.h"
 #include "Graphics/Model/Model.h"
 #include "Graphics/PrimitiveBuilder.h"
+
 #include <d3dcompiler.h>
-#include <algorithm>
-#include <cstddef>
-#include <iostream>
 
 #pragma comment(lib, "d3dcompiler.lib")
 

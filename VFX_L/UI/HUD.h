@@ -32,6 +32,7 @@ class SpriteRenderer;
 class TextRenderer;
 class Texture;
 struct HealthComponent;
+struct ShieldComponent;
 struct ManaComponent;
 struct LevelComponent;
 struct WandComponent;
@@ -57,6 +58,8 @@ struct HUDFrameInfo
     int      stage = 0;            // 面の番号（1..）。0 なら出さない
     const wchar_t* stageName = L"";
     int      gold = -1;            // 金貨（2026-10-04）。MP バーの下に出す。負なら出さない
+    const wchar_t* objective = nullptr;    // 目標の一行（撃破数の下。null / 空なら出さない。2026-10-07）
+    const ShieldComponent* shield = nullptr;  // シールド（HP バーの下の細いバー。null / 上限 0 なら出さない）
     const WandComponent* wand = nullptr;   // 魔法の欄。null なら出さない
 
     // 画面外の目印。viewProj は世界 → クリップ（SimpleMath の行ベクトル順 view * proj）
@@ -151,6 +154,18 @@ struct HUDStyle
     DirectX::SimpleMath::Vector4 cooldownColor = { 0.00f, 0.00f, 0.00f, 0.78f };
     DirectX::SimpleMath::Vector4 noManaColor = { 0.010f, 0.020f, 0.14f, 0.70f };   // MP が足りない時に被せる
 
+    // ---- シールド（2026-10-07。HP バーのすぐ下の細いバー。右に絵 + 「今 / 上限」）----
+    // 満タン = 明るい水色、減っている（戻り待ち・戻り中）= 暗い青（Megabonk の配色）。満タンに戻った瞬間に一度光る。
+    // 出している間は MP バーと金貨を shieldBarGap + shieldBarHeight だけ下へずらす
+    bool  showShield = true;
+    float shieldBarHeight = 8.0f;
+    float shieldBarGap = 3.0f;        // HP バーとの間
+    float shieldIconSize = 16.0f;
+    float shieldTextScale = 0.34f;
+    DirectX::SimpleMath::Vector4 shieldColor = { 0.22f, 0.65f, 1.00f, 1.0f };          // 満タン（線形。画面で #82D3FF くらい）
+    DirectX::SimpleMath::Vector4 shieldChargingColor = { 0.025f, 0.09f, 0.30f, 1.0f }; // 減っている（画面で #2D5394 くらい）
+    DirectX::SimpleMath::Vector4 shieldTextColor = { 0.55f, 0.85f, 1.00f, 1.0f };
+
     // ---- 金貨（2026-10-04。MP バーの下、以前の魔力解放の文字の所。アンカーは絵の左上）----
     // 増えた瞬間は少し明るく膨らむ
     bool  showGold = true;
@@ -189,6 +204,23 @@ struct HUDStyle
     bool  showMarkers = true;
     float markerSize = 18.0f;
     float markerMargin = 40.0f;     // 画面の縁からの距離
+
+    // ---- 目標（2026-10-07 ユーザー「任務目標を足す」：撃破数の下に「目標: …」。文はシーンが毎フレーム入れる）----
+    bool  showObjective = true;
+    float objectiveScale = 0.40f;
+    DirectX::SimpleMath::Vector4 objectiveColor = { 1.00f, 0.80f, 0.40f, 1.0f };   // 金（線形）
+
+    // ---- 文字の下敷き（2026-10-07 ユーザー：文字だけの所が草の上で読みにくい）----
+    // Lv・経過時間〜目標の塊・金貨に、暗い半透明の板 + 薄い古金の枠を敷く（バーの中の文字は対象外）。
+    // 色は線形。HDR に混ぜてからトーンマップするので、0.75 だと明るい草が緑に透けた（10-07 自動テストの撮影）→ 0.88
+    bool  textPlates = true;
+    DirectX::SimpleMath::Vector4 plateColor = { 0.003f, 0.0025f, 0.005f, 0.88f };
+    float plateLineAlpha = 0.35f;                          // 枠の濃さ（0 = 枠無し）
+    DirectX::SimpleMath::Vector2 platePad = { 10.0f, 3.0f };   // 文字の外接矩形から外へ（px、倍率が掛かる）
+
+    // px の値・文字の倍率を k 倍した物（UIDeco::UIScale()。画面比・色・比率はそのまま）。
+    // m_Style は ImGui / JSON の元の値のまま、描く時はこの写しを使う
+    HUDStyle Scaled(float k) const;
 };
 
 class HUD
@@ -201,8 +233,9 @@ public:
     // ImGui でいじった値がここで潰れることはない
     void Layout(float screenW, float screenH);
 
-    // 残像の追従。描画しない間（モーダル表示中）も進める
-    void Update(float dt, const HealthComponent& hp, const ManaComponent& mp);
+    // 残像の追従。描画しない間（モーダル表示中）も進める。shield は無ければ null
+    void Update(float dt, const HealthComponent& hp, const ManaComponent& mp,
+        const ShieldComponent* shield = nullptr);
 
     // 魔力解放の状態は魔法の欄の上の大きな欄に出す（解放中は MP バーも金）
     void Draw(SpriteRenderer& sprite, TextRenderer& text,
@@ -221,6 +254,8 @@ public:
 
     HUDStyle& Style() { return m_Style; }
     const HUDStyle& Style() const { return m_Style; }
+    // 実際に描いている大きさ（m_Style × UIDeco::UIScale()。GameUI が案内文字の位置を合わせる時に見る）
+    const HUDStyle& ScaledStyle() const { return m_S; }
 
 private:
     // 減った分だけ遅れて追いつく値（0..1）
@@ -245,6 +280,10 @@ private:
         const DirectX::SimpleMath::Vector2& pos,
         const DirectX::SimpleMath::Vector2& size);
 
+    // 文字の下敷き（textPlates が切れていれば何もしない）。pos / size = 文字の外接矩形
+    void Plate(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& pos,
+        const DirectX::SimpleMath::Vector2& size) const;
+
     // 影付きの一行。影を切ると 1 回分の Draw で済む
     void DrawLabel(TextRenderer& text, const std::wstring& str,
         const DirectX::SimpleMath::Vector2& pos, float scale);
@@ -255,11 +294,16 @@ private:
         const DirectX::SimpleMath::Vector2& barSize);
 
     HUDStyle m_Style;
+    HUDStyle m_S;      // m_Style × UIDeco::UIScale()（Update / Draw の頭で作り直す。描く側はこちらを見る）
 
     std::shared_ptr<Texture> m_WhiteTex;
     std::function<std::shared_ptr<Texture>(ItemID)> m_IconLookup;
     std::shared_ptr<Texture> m_SurgeIcon;   // 魔力解放の欄の絵（Res::Icon::ManaSurge）
     std::shared_ptr<Texture> m_GoldIcon;    // 金貨の絵（Res::Icon::Gold）
+    std::shared_ptr<Texture> m_ShieldIcon;  // シールドの絵（Res::Icon::ShieldUp。能力カードと同じ）
+    BarTrail m_ShieldTrail;
+    bool  m_ShieldWasFull = true;           // 満タンに戻った瞬間を見つける
+    float m_ShieldFullFlash = 0.0f;         // その時の光（1 → 0）
     int   m_LastGold = -1;                  // 増えた瞬間を見つける
     float m_GoldPulseAt = -10.0f;           // 最後に増えた時刻（m_Time）
     float m_Time = 0.0f;   // 明滅用（Update で進める）
@@ -271,7 +315,11 @@ private:
     void DrawSpellBar(SpriteRenderer& sprite,
         const WandComponent& wand, const ManaComponent& mp);
     void DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaComponent& mp);
-    void DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold);
+    void DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold, float yShift);
+    // HP バーの下のシールドのバー（UI/HUDShieldBar.cpp）。戻り値 = 下の物をずらす量（px）
+    float DrawShieldBar(SpriteRenderer& sprite, TextRenderer& text, const ShieldComponent& shield,
+        const DirectX::SimpleMath::Vector2& hpPos);
+    void UpdateShield(float dt, const ShieldComponent* shield);
     void DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp);
     void DrawSurgeVignette(SpriteRenderer& sprite, const ManaComponent& mp);
     // 画面の四辺のぼかし（外端の濃さ edgeAlpha、太さ = 画面短辺 × widthRatio）

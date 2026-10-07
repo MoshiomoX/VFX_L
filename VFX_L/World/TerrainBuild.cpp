@@ -10,9 +10,6 @@
 #include "Debug/TestSpawner.h"
 #include "Graphics/Model/Model.h"
 #include "Manager/ResourceManager.h"
-#include <climits>
-#include <functional>
-#include <iostream>
 
 using namespace TerrainBuild;
 

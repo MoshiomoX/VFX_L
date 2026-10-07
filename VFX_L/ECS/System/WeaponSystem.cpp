@@ -16,8 +16,6 @@
 #include "VFX_Editor/EntryType.h"
 #include "Item/ItemDatabase.h"
 #include "ECS/View.h"
-#include <algorithm>
-#include <cmath>
 
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Matrix;

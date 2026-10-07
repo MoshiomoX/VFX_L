@@ -7,6 +7,8 @@
 #include "Component/TransformComponent.h"
 #include "Player/LevelComponent.h"
 #include "Component/ManaComponent.h"
+#include "Player/ShieldComponent.h"
+#include "Player/PlayerStateComponent.h"
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
 
@@ -20,11 +22,15 @@ namespace
     constexpr const char* kExpPickup = "ExpPickup.json";
     constexpr const char* kSurgeBurst = "ManaSurgeBurst.json";
     constexpr const char* kSurgeAura = "ManaSurgeAura.json";
+    constexpr const char* kShieldHit = "ShieldHit.json";
+    constexpr const char* kShieldBreak = "ShieldBreak.json";
     constexpr float kLevelUpTime = 1.0f;
     constexpr float kCrateOpenTime = 1.8f;
     constexpr float kHurtTime = 0.5f;
     constexpr float kExpPickupTime = 0.6f;
     constexpr float kSurgeBurstTime = 0.8f;
+    constexpr float kShieldHitTime = 0.35f;
+    constexpr float kShieldBreakTime = 0.9f;
 }
 
 void FeedbackVFXSystem::Init(AreaVFXPlayer* player, const VFXContext* ctx)
@@ -36,6 +42,7 @@ void FeedbackVFXSystem::Init(AreaVFXPlayer* player, const VFXContext* ctx)
     m_PickupTimer = 0.0f;
     m_PrevSurgeTime = 0.0f;
     m_SurgeAura = 0;
+    m_ShieldRead = false;
 }
 
 uint32_t FeedbackVFXSystem::Play(const char* file, const Vector3& pos, float duration, bool follow)
@@ -92,6 +99,38 @@ void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpL
         }
         m_PrevSurgeTime = surge;
     }
+
+    // ---- シールドで受けた（2026-10-07）：六角の護罩が一瞬光る / 割れたら護罩が砕けて飛び散る ----
+    // ShieldComponent の累計を前のフレームと比べる（HP は減らないので hpLost では拾えない）
+    if (reg.Has<ShieldComponent>(player))
+    {
+        const auto& sh = reg.Get<ShieldComponent>(player);
+        bool hitNow = false;
+        if (m_ShieldRead && sh.breaks != m_PrevShieldBreaks)
+        {
+            AudioSystem::Get().Play("shield_break");
+            if (m_Shield) Play(kShieldBreak, pos, kShieldBreakTime, false);   // 破片はその場に残す（付いて動かない）
+        }
+        else if (m_ShieldRead && sh.hits != m_PrevShieldHits)
+        {
+            AudioSystem::Get().Play("shield_hit");
+            if (m_Shield) Play(kShieldHit, pos, kShieldHitTime, true);   // 赤い火花と光（護罩そのものの赤は m_Bubble）
+            hitNow = true;
+        }
+        m_PrevShieldHits = sh.hits;
+        m_PrevShieldBreaks = sh.breaks;
+        m_ShieldRead = true;
+
+        // 常に包む護罩（シールドが残っている間。死んだら消す）
+        const bool alive = !reg.Has<PlayerStateComponent>(player) || !reg.Get<PlayerStateComponent>(player).IsDead();
+        m_Bubble.Update(dt, sh.current, hitNow && m_Shield, alive);
+    }
+}
+
+void FeedbackVFXSystem::SubmitMeshes(VFXMeshRenderer& renderer, Registry& reg, Entity player)
+{
+    if (!reg.IsValid(player) || !reg.Has<TransformComponent>(player)) return;
+    m_Bubble.Submit(renderer, reg.Get<TransformComponent>(player).position);
 }
 
 void FeedbackVFXSystem::OnCrateOpened(const Vector3& pos)
@@ -140,8 +179,14 @@ void FeedbackVFXSystem::DrawImGui(Registry& reg, Entity player)
         Play(kSurgeBurst, here, kSurgeBurstTime, true);
         m_SurgeAura = Play(kSurgeAura, here, 3.0f, true);
     }
+    ImGui::Checkbox("Shield hit / break##fx", &m_Shield);
+    ImGui::SameLine(160.0f);
+    if (ImGui::Button("Test##fxShieldHit")) Play(kShieldHit, here, kShieldHitTime, true);
+    ImGui::SameLine();
+    if (ImGui::Button("Test break##fxShieldBreak")) Play(kShieldBreak, here, kShieldBreakTime, false);
+    m_Bubble.DrawImGui();
     ImGui::TextDisabled("Assets/Data/VFXData/LevelUp / CrateOpen / Hurt / ExpPickup.json");
-    ImGui::TextDisabled("  ManaSurgeBurst / ManaSurgeAura.json");
+    ImGui::TextDisabled("  ManaSurgeBurst / ManaSurgeAura / ShieldHit / ShieldBreak.json");
     ImGui::TextDisabled("hits: ArcBolt -> ArcSpark, HomingBolt -> VoidPop (0 damage areas)");
     if (ImGui::Button("Reload json") && m_Player) m_Player->ClearTemplates();
 }

@@ -4,8 +4,6 @@
 #include "Camera/FollowCamera.h"
 #include "Manager/InputManager.h"
 #include "Debug/DebugManager.h"
-#include <cmath>
-#include <algorithm>
 
 namespace
 {

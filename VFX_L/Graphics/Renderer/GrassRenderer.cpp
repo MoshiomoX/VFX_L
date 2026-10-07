@@ -14,9 +14,6 @@
 #include "World/TerrainGenerator.h"
 #include "Camera/CameraBase.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
 
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector2;

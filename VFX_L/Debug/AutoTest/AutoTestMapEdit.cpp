@@ -11,13 +11,8 @@
 #include "Graphics/Model/Model.h"
 #include "World/GridWorld.h"
 #include "World/MapTerrainEdit.h"
+
 #include <Windows.h>
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstdio>
-#include <fstream>
-#include <string>
 
 using DirectX::SimpleMath::Vector3;
 

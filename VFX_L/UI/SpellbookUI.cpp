@@ -14,10 +14,7 @@
 #include "Manager/InputManager.h"
 #include "ResourcePaths.h"
 #include "Audio/AudioSystem.h"
-#include "imgui.h"
-#include <cmath>
-#include <cstdlib>
-#include <algorithm>
+#include "Core/DevUI.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -200,7 +197,8 @@ std::shared_ptr<Texture> SpellbookUI::GetIcon(ItemID id) const
 void SpellbookUI::Layout(float screenW, float screenH)
 {
     const float shortSide = (screenW < screenH) ? screenW : screenH;
-    const float inner = shortSide * boxScreenRatio;
+    // UI 全体の倍率（2026-10-07）。枠込みで画面の高さの 8 割を超えるなら収まる所まで
+    const float inner = shortSide * boxScreenRatio * UIDeco::FitScale(boxScreenRatio * (1.0f + wallRatio * 2.0f), 0.80f);
     const float margin = shortSide * marginRatio;
     m_Wall = inner * wallRatio;
 
@@ -768,7 +766,7 @@ int SpellbookUI::HitTest(const Vector2& p) const
 void SpellbookUI::TryGrab()
 {
     if (!m_Drag || m_Drag->IsActive()) return;
-    if (ImGui::GetIO().WantCaptureMouse) return;
+    if (DevUI::WantMouse()) return;
 
     auto& input = InputManager::Get();
     if (!input.GetMouseTrigger(0)) return;
@@ -872,7 +870,7 @@ void SpellbookUI::Update(const SpellbookComponent& book, const BackpackComponent
             m_HasHover = !(m_Drag && m_Drag->IsActive());
         }
     }
-    else if (!(m_Drag && m_Drag->IsActive()) && !ImGui::GetIO().WantCaptureMouse)
+    else if (!(m_Drag && m_Drag->IsActive()) && !DevUI::WantMouse())
     {
         const auto mp = InputManager::Get().GetMousePos();
         const int i = HitTest(Vector2(mp.x, mp.y));

@@ -31,6 +31,7 @@ From game-icons.net  https://game-icons.net
   ManaRegenUp.png     "Magic swirl"       by Lorc        https://game-icons.net/1x1/lorc/magic-swirl.html
   JumpCountUp.png     "Wingfoot"          by Lorc        https://game-icons.net/1x1/lorc/wingfoot.html
   SpellPowerUp.png    "Crystal wand"      by Lorc        https://game-icons.net/1x1/lorc/crystal-wand.html
+  ShieldUp.png        "Energy shield"     by Lorc        https://game-icons.net/1x1/lorc/energy-shield.html
   Magnet.png          "Magnet"            by Lorc        https://game-icons.net/1x1/lorc/magnet.html
   ManaSurge.png       "Embrassed energy"  by Lorc        https://game-icons.net/1x1/lorc/embrassed-energy.html
   Gold.png            "Two coins"         by Delapouite  https://game-icons.net/1x1/delapouite/two-coins.html

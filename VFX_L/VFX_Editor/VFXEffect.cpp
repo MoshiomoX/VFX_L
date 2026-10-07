@@ -11,11 +11,8 @@
 #include "VFX_Editor/VFXBeamEntry.h"
 #include "VFX_Editor/VFXLiquidEntry.h"
 #include "Particle/GPUParticleSystem.h"
-#include <algorithm>
-#include <iostream>
 
 #include <nlohmann/json.hpp>
-#include <fstream>
 
 using json = nlohmann::json;
 

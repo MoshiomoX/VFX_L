@@ -13,12 +13,6 @@
 #include "Graphics/Material/Material.h"
 #include "Item/ItemDatabase.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <cstring>
-#include <filesystem>
-#include <iostream>
-#include <random>
 
 using namespace DirectX::SimpleMath;
 

@@ -29,7 +29,7 @@ struct VFXMeshParams
     uint32_t hasNoise = 0;
     uint32_t hasMask = 0;
     float shade = 0.0f;                // 球らしい陰影の強さ（0 = 無し。2026-10-06）
-    float _pad = 0.0f;
+    float noVertexColor = 0.0f;        // 1 = 頂点色を掛けない（貼り絵の無い FBX は材質の色が頂点色に焼かれている。2026-10-07）
     DirectX::SimpleMath::Vector3 camPos = { 0, 0, 0 };   // 縁の光用（Render が入れる）
     float _pad2 = 0.0f;
 };

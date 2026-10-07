@@ -4,8 +4,6 @@
 #include "World/MapEdit.h"
 #include "World/GridWorld.h"
 #include "Component/ColliderComponent.h"   // Layer_Prop
-#include <algorithm>
-#include <cmath>
 
 namespace
 {

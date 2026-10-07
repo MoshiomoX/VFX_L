@@ -239,6 +239,7 @@ enum class StatKind
     ManaRegen,    // ManaComponent::regen（1 秒あたりの魔力回復）
     JumpCount,    // PlayerStatsComponent::extraJumps（空中で追加で跳べる回数。amount 回ぶん足す）
     SpellPower,   // PlayerStatsComponent::spellPower（全部の攻撃魔法のダメージの倍率。バックパックを集約し直して効く）
+    Shield,       // ShieldComponent::max（HP より先に受けるシールド。上限と今の値の両方に足す）
 };
 
 struct StatItemDef
