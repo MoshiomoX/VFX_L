@@ -92,7 +92,7 @@ private:
     void UpdateGameplay(float dt);
     float TrackPlayerHpLoss();       // このフレームに減った HP（最初のフレームは 0）
     void UpdateHudMarkers();         // 画面外の目印（報酬の箱 = 黄、エリート = 赤）
-    void UpdateBossAttacks(float dt, const DirectX::SimpleMath::Vector3& player);   // Boss のスラム：輪・爆発・当たり
+    void UpdateBossAttacks(float dt, const DirectX::SimpleMath::Vector3& player);   // Boss の技：輪・衝撃波・突進・当たり（CollisionTestSceneBoss.cpp）
     bool IsPlayerDead();
     const Vector3* PlayerPos();      // プレイヤーの位置（居なければ null）。部品へ渡す用
     void RespawnCrates();            // 報酬の箱をプレイヤーの周りへ並べ直す（開始時・地形の作り直し・パネル）

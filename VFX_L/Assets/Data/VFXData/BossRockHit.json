@@ -1,0 +1,78 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [-360, 360],
+                "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
+                "sheet": 0, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1, 1, 1],
+                "direction": [0, 1, 0],
+                "dragCoeff": 0.3,
+                "emitRate": 150,
+                "emitType": 1,
+                "endColorMax": [0.85, 0.85, 0.85, 1],
+                "endColorMin": [0.75, 0.75, 0.75, 1],
+                "gravity": [0, -18, 0],
+                "innerRadius": 0,
+                "lifetimeRange": [0.5, 0.8],
+                "maxParticles": 400,
+                "position": [0, 0.3, 0],
+                "radius": 0.8,
+                "renderMode": 1,
+                "rotationRange": [0, 360],
+                "sizeRange": [0.2, 0.35, 0.15, 0.25],
+                "speedRange": [4, 7],
+                "spreadAngle": 0,
+                "startColorMax": [0.85, 0.85, 0.85, 1],
+                "startColorMin": [0.75, 0.75, 0.75, 1],
+                "meshGlow": false,
+                "mesh": "Assets/Model/KayKit_Forest/fbx/Rock_2_A_Color1.fbx",
+                "meshFaceVelocity": false,
+                "meshForwardAxis": 2
+            },
+            "duration": 0.08,
+            "startTime": 0,
+            "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-1, 1],
+                "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
+                "sheet": 2, "frameMode": 3, "frameCount": 25, "blend": 1,
+                "toon": { "cut": 0.30, "bands": 2, "shade": 0.65, "outline": true },
+                "boxExtents": [1, 1, 1],
+                "direction": [0, 1, 0],
+                "dragCoeff": 3.0,
+                "emitRate": 260,
+                "emitType": 4,
+                "endColorMax": [0.70, 0.64, 0.58, 0],
+                "endColorMin": [0.70, 0.64, 0.58, 0],
+                "gravity": [0, 0.6, 0],
+                "innerRadius": 0.3,
+                "lifetimeRange": [0.5, 0.8],
+                "maxParticles": 600,
+                "position": [0, 0.3, 0],
+                "radius": 1.0,
+                "renderMode": 0,
+                "rotationRange": [0, 6.28],
+                "sizeRange": [0.6, 0.9, 1.2, 1.7],
+                "speedRange": [4, 6],
+                "spreadAngle": 0,
+                "startColorMax": [0.72, 0.66, 0.60, 0.7],
+                "startColorMin": [0.62, 0.57, 0.52, 0.6]
+            },
+            "duration": 0.08,
+            "startTime": 0,
+            "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 1.0, 0.0], "color": [1.0, 0.4, 0.2], "radius": 4.0,
+                      "intensityStart": 2.5, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 12.0 },
+            "duration": 0.35,
+            "startTime": 0,
+            "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "BossRockHit"
+}

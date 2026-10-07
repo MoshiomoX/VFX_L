@@ -226,6 +226,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -320,6 +323,9 @@
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\BossAttacks.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\BossBrain.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\DifficultyCurve.cpp">
@@ -731,6 +737,9 @@
     <ClCompile Include="Scene\CollisionTestSceneTerrain.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneBoss.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestMapIO.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -834,6 +843,9 @@
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\BossAttacks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\BossBrain.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\DifficultyCurve.h">

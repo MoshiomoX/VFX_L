@@ -53,6 +53,8 @@ void AutoTestBossSlam::Run(float dt)
         m_Stage.bossSpeed = 0.0f;
         m_Stage.bossHp = 1.0e6f;
         m_BossAttacks.firstDelay = 2.5f;   // 最初の技はプレイヤーを置き直した後（3.5 秒）
+        for (int k = 0; k < (int)BossMove::Count; ++k)   // 2026-10-07 から技が 4 つ：この自動テストは重撃だけを見る
+            m_BossAttacks.brain.rules[k].enabled = (k == (int)BossMove::Slam);
         const float yaw = DirectX::XMConvertToRadians(m_Stage.GetPortalYaw());
         const Vector3 p = m_Stage.GetPortalCenter() + Vector3(std::sin(yaw), 0.0f, std::cos(yaw)) * 2.0f;
         tf.position = Vector3(p.x, m_Grid.SampleHeight(p.x, p.z) + 1.0f, p.z);
@@ -124,8 +126,8 @@ void AutoTestBossSlam::Run(float dt)
 
         // 撮影: 輪が 0.6 まで育った所 / 爆発の直後（各段 1 回）
         if (!s_ShotRings[phase])
-            for (const BossAttacks::Ring& r : m_BossAttacks.Rings())
-                if (m_BossAttacks.Progress(r) >= 0.6f)
+            for (const BossAttacks::Visual& v : m_BossAttacks.Visuals())
+                if (v.progress >= 0.6f)
                 {
                     snprintf(line, sizeof(line), "bossslam look rings%s", phaseName);
                     AutoTestLog(line);
@@ -149,7 +151,7 @@ void AutoTestBossSlam::Run(float dt)
         {
             s_NextLog += 0.5f;
             snprintf(line, sizeof(line), "bossslam t %.1f phase %s alive %d rings %d volleys %u placed %u blasts %u hits %u hp %.0f",
-                t, phaseName, m_Stage.IsBossAlive() ? 1 : 0, (int)m_BossAttacks.Rings().size(), m_BossAttacks.volleys,
+                t, phaseName, m_Stage.IsBossAlive() ? 1 : 0, (int)m_BossAttacks.Visuals().size(), m_BossAttacks.volleys,
                 m_BossAttacks.ringsPlaced, m_BossAttacks.blasts, m_BossSlamHits, hp.current);
             AutoTestLog(line);
         }

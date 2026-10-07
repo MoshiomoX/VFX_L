@@ -232,10 +232,13 @@ public:
     {
         DirectX::SimpleMath::Vector3 center;   // 地面の高さ（y = 地形）
         float radius = 3.0f;
-        float progress = 0.0f;                 // 0..1：中の円が広がり、1 で縁に届く（= 爆発）
-        float _pad[3] = {};
+        float progress = 0.0f;                 // 0..1：中の円が広がり、1 で縁に届く（= 爆発）。負 = 縁だけ（中を塗らない）
+        // > 0：半径 radius・幅 band m の帯として描く（Boss の衝撃波。2026-10-07）。帯は一点ずつ地面に沿う
+        // （普通の輪は中心の高さ ±0.6m に抑えるので、半径 20m を超えると丘で浮く / 埋まる）
+        float band = 0.0f;
+        float _pad[2] = {};
     };
-    static constexpr int kMaxWarnCircles = 32;
+    static constexpr int kMaxWarnCircles = 64;   // 2026-10-07：投石雨・突進の道筋で増えた（32 → 64）
     // 今フレームの輪を丸ごと差し替える（毎フレーム呼ぶ。数 0 で消える）
     void SetWarnCircles(const WarnCircle* circles, int count);
 
