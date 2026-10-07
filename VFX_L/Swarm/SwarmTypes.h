@@ -389,8 +389,16 @@ namespace Swarm
         float    splitlingDamageMul = 0.5f;
         float    splitlingExpMul = 0.3f;
         float    _splitlingPad = 0.0f;
+
+        // ---- Boss の突進（2026-10-07、BossAttacks が毎フレーム書く）----
+        // bossChargeOn = 1 の間、Boss は流れ場・追跡を無視して (dirX, dirZ) × bossChargeSpeed で真っ直ぐ動く
+        // （速さ 0 = その場で溜め）。壁は今まで通り止める。プレイヤーにぶつかっても止まらない（突き抜ける）
+        float    bossChargeDirX = 0.0f;
+        float    bossChargeDirZ = 1.0f;
+        float    bossChargeSpeed = 0.0f;
+        float    bossChargeOn = 0.0f;
     };
-    static_assert(sizeof(BomberCB) == 112, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 128, "SwarmBomberCB layout mismatch");
 
     // ============================================================
     // 分裂の環（GPU → CPU）。SwarmCorpseTrackCS がスプリッターの死を見つけたら 1 件書く（先頭 16B = 今までの総数、

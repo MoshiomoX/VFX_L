@@ -663,55 +663,6 @@ void CollisionTestScene::Update(float dt)
 }
 
 // ============================================================
-// Boss のスラム（BossAttacks が拍子と輪を持つ）。爆発した輪にプレイヤーが入っていれば当たり:
-// 水平距離 ≤ 半径、足が輪の地面より kSlamDodgeHeight 以上高ければ外れ（跳べば避けられる）。
-// 被弾の無敵・ノックバック（爆発の強い方）は雑魚の打撃と同じ道。輪は毎フレーム GPU の描画へ
-// ============================================================
-void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
-{
-    constexpr float kSlamDodgeHeight = 1.2f;
-
-    static std::vector<BossAttacks::Blast> s_Blasts;
-    s_Blasts.clear();
-    const int placed = m_BossAttacks.Update(dt, m_Stage.IsBossAlive(), m_Stage.BossHpRatio(), m_Stage.BossPos(),
-        player, m_Mobs.GetDamageMul(), m_Grid, s_Blasts);
-    if (placed > 0) AudioSystem::Get().Play("boss_slam_warn");
-
-    float halfHeight = 0.9f;
-    if (m_Registry.Has<PlayerStatsComponent>(m_Player))
-        halfHeight = m_Registry.Get<PlayerStatsComponent>(m_Player).height * 0.5f;
-    for (const BossAttacks::Blast& b : s_Blasts)
-    {
-        m_AreaVFX.Play("BossSlam.json", b.center, 2.0f, false, m_VFXContext);
-        AudioSystem::Get().Play("boss_slam");
-        m_Camera.OnShakeAreas(1);
-        if (IsPlayerDead()) continue;
-
-        const DirectX::SimpleMath::Vector2 d(player.x - b.center.x, player.z - b.center.z);
-        const float feetAbove = (player.y - halfHeight) - b.center.y;
-        if (d.Length() > b.radius || feetAbove > kSlamDodgeHeight || feetAbove < -2.0f) continue;
-        if (!PlayerStateSystem::TryApplyHit(m_Registry, m_Player, b.damage)) continue;   // 無敵中
-        ++m_BossSlamHits;
-        const DirectX::SimpleMath::Vector2 dir = (d.LengthSquared() > 1e-4f) ? d / d.Length()
-            : DirectX::SimpleMath::Vector2(0.0f, 1.0f);
-        PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, dir, true);
-    }
-
-    // ---- 輪を GPU の描画へ ----
-    SwarmSystem::WarnCircle circles[SwarmSystem::kMaxWarnCircles];
-    int n = 0;
-    for (const BossAttacks::Ring& r : m_BossAttacks.Rings())
-    {
-        if (n >= SwarmSystem::kMaxWarnCircles) break;
-        circles[n].center = r.center;
-        circles[n].radius = r.radius;
-        circles[n].progress = m_BossAttacks.Progress(r);
-        ++n;
-    }
-    m_Swarm.SetWarnCircles(circles, n);
-}
-
-// ============================================================
 // HUD の画面外の目印（報酬の箱 = 黄、エリート = 赤）
 // ============================================================
 void CollisionTestScene::UpdateHudMarkers()
@@ -784,7 +735,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         {
             m_Mobs.Update(m_Grid, *pp, dt, m_RunTime, m_Swarm);
             m_Stage.Update(m_Grid, *pp, m_RunTime, dt, m_Mobs, m_Swarm);   // 時間で起きる出来事（エリート・最終ウェーブ・Boss）
-            UpdateBossAttacks(dt, *pp);                                    // Boss の技（スラムの警告の輪）
+            UpdateBossAttacks(dt, *pp);                                    // Boss の技（CollisionTestSceneBoss.cpp）
         }
     }
     {

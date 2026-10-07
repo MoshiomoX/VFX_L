@@ -627,6 +627,14 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_SplitlingDamageMul;
     float g_SplitlingExpMul;
     float _splitlingPad;
+
+    // ---- boss charge (2026-10-07, BossAttacks writes it every frame) ----
+    // while g_BossChargeOn > 0.5 the boss ignores the flow field / chase and moves
+    // straight along g_BossChargeDir * g_BossChargeSpeed (speed 0 = winding up in place).
+    // Walls still stop it; it does not stop at the player (runs through)
+    float2 g_BossChargeDir;
+    float g_BossChargeSpeed;
+    float g_BossChargeOn;
 };
 
 // body size multiplier of a kind (radius and model)

@@ -37,8 +37,9 @@ struct SwarmWarnCircle
 {
     float3 center;   // on the ground
     float radius;
-    float progress;  // 0..1
-    float3 _pad;
+    float progress;  // 0..1; negative = rim only (nothing filled inside)
+    float band;      // > 0: draw a band of this width (meters) at the radius instead (boss shockwave, 2026-10-07)
+    float2 _pad;
 };
 
 StructuredBuffer<SwarmWarnCircle> circles : register(t0);
@@ -72,6 +73,27 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
     SwarmWarnCircle w = circles[iid];
     float radius = max(w.radius, 0.01);
+
+    // ---- band (boss shockwave): the same 64 quads laid out as 64 segments around the
+    // circle, one quad deep across the band. Every vertex sits on the ground under it
+    // (no clamp to the centre height: a 25 m ring crosses whole hills). The PS sees
+    // r = 1 - edgeWidth .. 1, i.e. the whole band is rim ----
+    if (w.band > 0.0)
+    {
+        float2 c = kCorner[vid % 6u];
+        float a = ((float) quad + c.x) / (float) (WARN_GRID * WARN_GRID) * 6.2831853;
+        float half = 0.5 * w.band;
+        float rr = radius - half + c.y * w.band;
+        float2 bxz = w.center.xz + float2(cos(a), sin(a)) * max(rr, 0.0);
+        float bh = SwarmTerrainHeight(heights, bxz);
+        o.pos = mul(mul(float4(bxz.x, bh + g_RingLift, bxz.y, 1.0), g_RingView), g_RingProj);
+        float ew = 0.999;
+        o.edgeWidth = ew;
+        o.uv = float2(lerp(1.0 - ew, 1.0, c.y), 0.0);
+        o.progress = -1.0;
+        return o;
+    }
+
     float2 xz = w.center.xz + uv * radius;
     float h = SwarmTerrainHeight(heights, xz);
     h = clamp(h, w.center.y - WARN_MAX_STEP, w.center.y + WARN_MAX_STEP);
@@ -79,7 +101,7 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
     o.pos = mul(mul(float4(world, 1.0), g_RingView), g_RingProj);
     o.uv = uv;
-    o.progress = saturate(w.progress);
+    o.progress = (w.progress < 0.0) ? -1.0 : saturate(w.progress);
     o.edgeWidth = g_RingEdgeWidth / radius;
     return o;
 }

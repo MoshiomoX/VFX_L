@@ -190,6 +190,13 @@ void main(uint3 id : SV_DispatchThreadID)
     float k = 1.0 - exp(-g_VelocityLag * g_Step);
     float3 v = lerp(oldV, target, k);
 
+    // ---- boss charge (2026-10-07): the CPU (BossAttacks) steers the boss straight along a line ----
+    // no inertia (snaps into the dash), no slow, no stop at the player: it runs through.
+    // The hard block below still stops it at walls and cliffs
+    bool charging = (extra.kind == SWARM_KIND_BOSS) && (g_BossChargeOn > 0.5);
+    if (charging)
+        v = float3(g_BossChargeDir.x, 0.0, g_BossChargeDir.y) * g_BossChargeSpeed;
+
     // ---- player is solid ----
     // Same idea as the terrain hard block, but against a circle:
     // drop the velocity component that would carry us inside the
@@ -198,7 +205,7 @@ void main(uint3 id : SV_DispatchThreadID)
     // An enemy already overlapping is pushed out gently.
     // Only on the player's level: an enemy on a plateau edge right above the
     // player is not touching it and has to step off and drop (2026-10-01)
-    if (g_PlayerAlive != 0u && abs(g_PlayerPos.y - pos.y) < 1.5)
+    if (g_PlayerAlive != 0u && abs(g_PlayerPos.y - pos.y) < 1.5 && !charging)
     {
         float3 toP = g_PlayerPos - pos;
         toP.y = 0.0;

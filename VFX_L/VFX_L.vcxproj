@@ -246,6 +246,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestGround.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPortal.cpp" />
@@ -278,6 +279,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Enemy\MobSpawner.cpp" />
     <ClCompile Include="Enemy\StageDirector.cpp" />
     <ClCompile Include="Enemy\BossAttacks.cpp" />
+    <ClCompile Include="Enemy\BossBrain.cpp" />
     <ClCompile Include="Enemy\DifficultyCurve.cpp" />
     <ClCompile Include="Enemy\EliteSpawner.cpp" />
     <ClCompile Include="Graphics\Light\SceneLighting.cpp" />
@@ -495,6 +497,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\MapEditModeTerrainUI.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestMapEdit.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneTerrain.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneBoss.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestMapIO.cpp" />
     <ClCompile Include="World\StageConfig.cpp" />
     <ClCompile Include="World\LevelData.cpp" />
@@ -513,6 +516,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Enemy\MobSpawner.h" />
     <ClInclude Include="Enemy\StageDirector.h" />
     <ClInclude Include="Enemy\BossAttacks.h" />
+    <ClInclude Include="Enemy\BossBrain.h" />
     <ClInclude Include="Enemy\DifficultyCurve.h" />
     <ClInclude Include="Enemy\EliteSpawner.h" />
     <ClInclude Include="Graphics\Light\SceneLighting.h" />
