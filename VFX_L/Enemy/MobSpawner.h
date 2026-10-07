@@ -63,6 +63,8 @@ public:
     float splitterRatioEnd = 0.0f;
     float splitterRampEnd = 480.0f;
     float GetSplitterRatio() const { return m_SplitterRatio; }
+    // 種類毎の今の HP（素の値 × 今の HP 倍率）と速さ。トレーニングの「群れを出す」用（2026-10-07）
+    void KindStats(uint32_t kind, float& hp, float& speed) const;
     void QueueDebugSplitters(int n) { m_DebugSplitters += n; }
     // 自動テストの記録用: 届いた分裂の数・湧かせた分裂体の数（累計）
     uint32_t GetSplitEventsSeen() const { return m_SplitEventsSeen; }

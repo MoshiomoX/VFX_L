@@ -5,7 +5,6 @@
 #include "Swarm/AreaProfile.h"
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXEntry.h"
-#include <algorithm>
 
 using namespace DirectX::SimpleMath;
 

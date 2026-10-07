@@ -7,6 +7,7 @@
 #include "Scene/SpellLabScene.h"
 #include "Scene/TitleScene.h"
 #include "Scene/ResultScene.h"
+#include "Core/DevUI.h"
 Game::Game()
 {
     // 初期化 SceneManager（シーン登録）
@@ -21,18 +22,26 @@ bool Game::Initialize(Renderer* renderer)
     if (!m_Renderer) return false;
 
 	m_SceneManager.RegisterScene<CollisionTestScene>(SceneType::COLLISION_TEST);
-	m_SceneManager.RegisterScene<VFXEditorScene>(SceneType::VFX_EDITOR);
-	m_SceneManager.RegisterScene<ProjectileEditorScene>(SceneType::PROJECTILE_EDITOR);
-	m_SceneManager.RegisterScene<LevelEditorScene>(SceneType::LEVEL_EDITOR);
 	m_SceneManager.RegisterScene<SpellLabScene>(SceneType::SPELL_LAB);
+	// エディタ（ImGui で作る）は Demo ビルドには入れない（Core/DevUI.h）
+	if constexpr (DevUI::kEnabled)
+	{
+		m_SceneManager.RegisterScene<VFXEditorScene>(SceneType::VFX_EDITOR);
+		m_SceneManager.RegisterScene<ProjectileEditorScene>(SceneType::PROJECTILE_EDITOR);
+		m_SceneManager.RegisterScene<LevelEditorScene>(SceneType::LEVEL_EDITOR);
+	}
 	m_SceneManager.RegisterScene<TitleScene>(SceneType::TITLE);
 	m_SceneManager.RegisterScene<ResultScene>(SceneType::RESULT);
 
     // 起動はタイトルから。ゲームへ直行したい時は F1（DebugManager のシーン切替）
     m_SceneManager.ChangeScene(SceneType::TITLE);   // TEMP-TEST
     // TEMP-TEST: 粒子テクスチャの自動テスト。VFXL_VFX_AUTOLOAD=<VFXData の json 名> でエフェクト編集へ直行して再生
+    // Demo ビルドでは見ない（エディタが無い・自動テストは ImGui の時計を使う物がある）
     char autoloadEnv[128] = {};
-    if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoloadEnv, sizeof(autoloadEnv)) > 0
+    if (!DevUI::kEnabled)
+    {
+    }
+    else if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoloadEnv, sizeof(autoloadEnv)) > 0
         || GetEnvironmentVariableA("VFXL_REF_MAGE", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::VFX_EDITOR);
     else if (GetEnvironmentVariableA("VFXL_MAPEDIT_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)

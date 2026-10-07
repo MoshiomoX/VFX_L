@@ -7,8 +7,6 @@
 #include "Component/SkinnedAnimComponent.h"
 #include "Component/TransformComponent.h"
 #include "Graphics/Model/SkinnedModel.h"
-#include <algorithm>
-#include <cmath>
 
 using DirectX::SimpleMath::Matrix;
 

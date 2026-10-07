@@ -10,7 +10,6 @@
 #include "Graphics/Model/Model.h"
 #include "Graphics/PrimitiveBuilder.h"
 #include "imgui.h"
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 
@@ -100,6 +99,7 @@ void VFXMeshEntry::Submit(VFXMeshRenderer& renderer, const Vector3& worldOffset)
     item.params.hasNoise = noiseTex.IsValid() ? 1u : 0u;
     item.params.hasMask = maskTex.IsValid() ? 1u : 0u;
     item.params.shade = shade;
+    item.params.noVertexColor = vertexColor ? 0.0f : 1.0f;
 
     item.blend = blend;
     item.twoSided = twoSided;
@@ -137,6 +137,8 @@ void VFXMeshEntry::OnImGui()
     if (modelPath == "@sphere") ImGui::TextDisabled("built-in sphere");
     if (ImGui::SmallButton("Use built-in sphere")) { modelPath = "@sphere"; LoadModel(); }
     ImGui::SliderFloat("Shade (sphere look)", &shade, 0.0f, 1.0f);
+    ImGui::Checkbox("Use model color (vertex color)", &vertexColor);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Untextured FBX bake their material color into the vertex color. Turn off to get exactly the tint.");
     ImGui::Separator();
 
     mainTex.OnImGui("Main", kTexDir);
@@ -207,6 +209,7 @@ json VFXMeshEntry::ToJson() const
     j["blend"] = blend;
     j["twoSided"] = twoSided;
     if (shade > 0.0f) j["shade"] = shade;
+    if (!vertexColor) j["vertexColor"] = false;
 
     j["mainTiling"] = V2(mainTiling);
     j["mainScroll"] = V2(mainScroll);
@@ -242,6 +245,7 @@ void VFXMeshEntry::FromJson(const json& j)
     blend = j.value("blend", blend);
     twoSided = j.value("twoSided", twoSided);
     shade = j.value("shade", 0.0f);
+    vertexColor = j.value("vertexColor", true);
 
     mainTiling = J2(j.value("mainTiling", json()), mainTiling);
     mainScroll = J2(j.value("mainScroll", json()), mainScroll);

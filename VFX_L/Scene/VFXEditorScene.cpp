@@ -12,11 +12,6 @@
 #include "Graphics/Material/Material.h"
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "imgui.h"
-#include <iostream>
-#include <vector>
-#include <chrono>
-#include <fstream>   // TEMP-TEST: refclip.log
-#include <cstddef>
 
 // kLayoutSkinned が SkinnedVertexOut（SkinningCS の出力）の実際の並びと一致していることの保証
 static_assert(sizeof(SkinnedVertexOut) == GPUParticleSystem::kLayoutSkinned.stride, "kLayoutSkinned.stride != sizeof(SkinnedVertexOut)");

@@ -7,7 +7,6 @@
 #include "Graphics/Shader/PixelShader.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Camera/CameraBase.h"
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

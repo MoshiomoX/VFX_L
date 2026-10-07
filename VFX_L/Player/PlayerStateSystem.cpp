@@ -10,9 +10,8 @@
 #include "Component/HealthComponent.h"
 #include "Component/WandComponent.h"
 #include "Player/PlayerStatsComponent.h"
+#include "Player/ShieldComponent.h"
 #include "ECS/View.h"
-#include <algorithm>
-#include <cmath>
 
 namespace
 {
@@ -69,6 +68,9 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
                 // 自然回復（死んだら止める）
                 if (!hp.IsDead() && reg.Has<PlayerStatsComponent>(e))
                     hp.current = (std::min)(hp.max, hp.current + reg.Get<PlayerStatsComponent>(e).healthRegen * dt);
+                // シールドの戻り（最後の被弾から rechargeDelay 秒後に満タンへ）
+                if (!hp.IsDead() && reg.Has<ShieldComponent>(e))
+                    reg.Get<ShieldComponent>(e).Tick(dt);
 
                 // ============================================================
                 // 1) 被損層（最上位。他の層を抑制する）
@@ -158,6 +160,14 @@ bool PlayerStateSystem::TryApplyHit(Registry& reg, unsigned int entity, float da
 
     if (st.IsDead())       return false;
     if (st.IsInvincible()) return false;   // 無敵中は弾く
+
+    // シールドが残っていれば一撃を全部シールドで受ける（溢れた分は消える。Megabonk と同じ）。
+    // 無敵時間は HP で受けた時と同じだけ付ける。硬直（Hurt）にはしない（詠唱も止めない）
+    if (reg.Has<ShieldComponent>(e) && reg.Get<ShieldComponent>(e).Absorb(damage))
+    {
+        st.invincibleTimer = st.invincibleAfterHit;
+        return true;
+    }
 
     hp.current -= damage;
     if (hp.invincible && hp.current < 0.0f)

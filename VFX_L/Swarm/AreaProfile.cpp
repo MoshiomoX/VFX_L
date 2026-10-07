@@ -3,11 +3,6 @@
 // ============================================================
 #include "Swarm/AreaProfile.h"
 #include "Swarm/SwarmVFXTable.h"
-#include <algorithm>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 using json = nlohmann::json;

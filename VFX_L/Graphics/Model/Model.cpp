@@ -10,12 +10,10 @@
 #include "Manager/ResourceManager.h"
 #include "Graphics/Model/MaterialLoader.h"
 #include "Collider/CollisionMath.h"   // DopDirections（衝突用の凸包の点）
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#include <iostream>
-#include <filesystem>
-#include <algorithm>
 
 namespace fs = std::filesystem;
 using namespace DirectX::SimpleMath;

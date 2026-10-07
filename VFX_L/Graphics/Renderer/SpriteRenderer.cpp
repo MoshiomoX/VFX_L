@@ -7,7 +7,6 @@
 #include "Graphics/Shader/PixelShader.h"
 #include "Manager/ResourceManager.h"
 #include "Graphics/Renderer/RenderStates.h"
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

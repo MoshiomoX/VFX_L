@@ -11,7 +11,6 @@
 // ============================================================
 #include "Particle/GPUParticleSystem.h"
 #include "Graphics/Shader/ShaderPath.h"
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

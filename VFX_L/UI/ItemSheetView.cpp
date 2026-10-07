@@ -7,7 +7,6 @@
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Item/ItemDatabase.h"
 #include "UI/UIDeco.h"
-#include <algorithm>
 
 using namespace DirectX::SimpleMath;
 

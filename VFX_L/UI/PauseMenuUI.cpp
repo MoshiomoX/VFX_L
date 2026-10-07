@@ -6,9 +6,8 @@
 #include "Graphics/Renderer/SpriteRenderer.h"
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Manager/InputManager.h"
+#include "Audio/AudioSystem.h"
 #include "UI/UIDeco.h"
-#include <algorithm>
-#include <string>
 
 using namespace DirectX::SimpleMath;
 
@@ -22,7 +21,16 @@ namespace
 
 PauseMenuUI::PauseMenuUI()
 {
-    m_List.SetItems({ L"再開する", L"最初からやり直す", L"タイトルへ戻る" });
+    // 「設定」= 音量とアウトラインの ON / OFF（2026-10-07 ユーザー要望）。SettingsMenuUI のページを重ねる
+    m_List.SetItems({ L"再開する", L"設定", L"最初からやり直す", L"タイトルへ戻る" });
+}
+
+void PauseMenuUI::CloseSettings()
+{
+    if (!m_InSettings) return;
+    m_InSettings = false;
+    m_Settings.Close();   // 変えた物があれば保存
+    AudioSystem::Get().Play("ui_close");
 }
 
 void PauseMenuUI::Layout(float screenW, float screenH)
@@ -30,22 +38,36 @@ void PauseMenuUI::Layout(float screenW, float screenH)
     m_Screen = { screenW, screenH };
     m_Short = (std::min)(screenW, screenH);
 
-    const float pad = m_Short * kPadRatio;
-    const float itemH = m_Short * itemHeightRatio;
-    const float gap = m_Short * itemGapRatio;
+    // UI 全体の倍率（2026-10-07）。箱の高さが画面短辺の 95% を超えるなら収まる所まで
+    const float n = (float)m_List.Count();
+    const float baseH = kPadRatio * 2.0f + kTitleRatio + itemHeightRatio * n + itemGapRatio * (n - 1.0f) + kHintRatio;
+    m_Scale = UIDeco::FitScale(baseH, 0.95f);
+    const float s = m_Short * m_Scale;
+
+    const float pad = s * kPadRatio;
+    const float itemH = s * itemHeightRatio;
+    const float gap = s * itemGapRatio;
     const float listH = itemH * (float)m_List.Count() + gap * (float)(m_List.Count() - 1);
 
-    m_PanelSize = { m_Short * panelWidthRatio,
-        pad + m_Short * kTitleRatio + listH + m_Short * kHintRatio + pad };
+    m_PanelSize = { s * panelWidthRatio,
+        pad + s * kTitleRatio + listH + s * kHintRatio + pad };
     m_PanelPos = { (screenW - m_PanelSize.x) * 0.5f, (screenH - m_PanelSize.y) * 0.5f };
 
-    m_List.Layout({ m_PanelPos.x + pad, m_PanelPos.y + pad + m_Short * kTitleRatio },
+    m_List.Layout({ m_PanelPos.x + pad, m_PanelPos.y + pad + s * kTitleRatio },
         { m_PanelSize.x - pad * 2.0f, itemH }, gap);
     m_List.accentColor = accentColor;
+    m_Settings.Layout(screenW, screenH);
 }
 
 PauseMenuUI::Action PauseMenuUI::HandleInput()
 {
+    // 設定のページ：戻るまでそちらだけ（B / Esc もページを閉じるだけで、メニューは残る）
+    if (m_InSettings)
+    {
+        if (m_Settings.HandleInput()) m_InSettings = false;
+        return Action::None;
+    }
+
     // パッドの B は「戻る」の決まりごとなので、カーソルに関係なく再開
     if (InputManager::Get().GetPadTrigger(XINPUT_GAMEPAD_B))
         return Action::Resume;
@@ -53,8 +75,12 @@ PauseMenuUI::Action PauseMenuUI::HandleInput()
     switch (m_List.HandleInput())
     {
     case 0:  return Action::Resume;
-    case 1:  return Action::Restart;
-    case 2:  return Action::Title;
+    case 1:
+        m_InSettings = true;
+        m_Settings.Open();
+        return Action::None;
+    case 2:  return Action::Restart;
+    case 3:  return Action::Title;
     default: return Action::None;
     }
 }
@@ -65,6 +91,13 @@ PauseMenuUI::Action PauseMenuUI::HandleInput()
 void PauseMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std::shared_ptr<Texture>& white)
 {
     if (!white) return;
+
+    // 設定のページを開いている間はそちらだけ描く（下のメニューは隠す）
+    if (m_InSettings)
+    {
+        m_Settings.Draw(sprite, text, white);
+        return;
+    }
 
     sprite.Draw(white, { 0.0f, 0.0f }, m_Screen, dimColor);
 
@@ -78,14 +111,14 @@ void PauseMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std::sh
         UIDeco::DrawPanel(sprite, m_PanelPos, m_PanelSize, gold, ps);
     }
 
-    const float k = m_Short / 900.0f;
-    const float pad = m_Short * kPadRatio;
+    const float k = m_Short / 900.0f * m_Scale;
+    const float pad = m_Short * m_Scale * kPadRatio;
 
     // ---- 見出し + 百合紋の分割線 ----
     const std::wstring title = L"一時停止";
     const float titleScale = 0.9f * k;
     const Vector2 ts = text.Measure(title, titleScale);
-    const float titleH = m_Short * kTitleRatio;
+    const float titleH = m_Short * m_Scale * kTitleRatio;
     const float titleY = m_PanelPos.y + pad + (titleH - ts.y) * 0.5f - titleH * 0.2f;
     text.Draw(title, { m_PanelPos.x + (m_PanelSize.x - ts.x) * 0.5f, titleY },
         { 0.96f, 0.92f, 0.84f, 1.0f }, titleScale);

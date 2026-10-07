@@ -11,10 +11,6 @@
 #include "Component/ModelComponent.h"
 #include "VFX_Editor/VFXId.h"
 #include "imgui.h"
-#include <cmath>
-#include <cstdlib>
-#include <iostream>
-#include <vector>
 
 using namespace DirectX::SimpleMath;
 

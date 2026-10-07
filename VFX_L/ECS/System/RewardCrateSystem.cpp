@@ -15,10 +15,6 @@
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
-#include <random>
 
 using DirectX::SimpleMath::Vector3;
 

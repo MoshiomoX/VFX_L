@@ -2,7 +2,6 @@
 // RenderStates.cpp
 // ============================================================
 #include "Graphics/Renderer/RenderStates.h"
-#include <iostream>
 
 bool RenderStates::Initialize(ID3D11Device* device)
 {

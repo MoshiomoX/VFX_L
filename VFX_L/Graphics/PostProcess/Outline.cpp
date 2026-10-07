@@ -2,6 +2,7 @@
 // Outline.cpp
 // ============================================================
 #include "Graphics/PostProcess/Outline.h"
+#include "Core/GameSettings.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Renderer/RenderStates.h"
 #include "Graphics/Shader/VertexShader.h"
@@ -9,9 +10,6 @@
 #include "Graphics/Shader/ShaderPath.h"
 #include "Camera/CameraBase.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 
@@ -46,7 +44,9 @@ bool Outline::Initialize(ID3D11Device* device)
 // ============================================================
 void Outline::Render(ID3D11DeviceContext* context, Graphics& graphics, CameraBase* camera)
 {
-    if (!m_Params.enabled || !m_VS || !m_PS || !m_Blend || !context || !camera) return;
+    // enabled = デバッグ用の開閉（ImGui / VFXL_NO_OUTLINE）、GameSettings::outline = プレイヤーの設定（一時停止メニューの「設定」）
+    if (!m_Params.enabled || !GameSettings::Get().outline) return;
+    if (!m_VS || !m_PS || !m_Blend || !context || !camera) return;
     ID3D11ShaderResourceView* depth = graphics.GetDepthSRV();
     ID3D11ShaderResourceView* stencil = graphics.GetStencilSRV();
     ID3D11RenderTargetView* rtv = graphics.GetSceneRTV();

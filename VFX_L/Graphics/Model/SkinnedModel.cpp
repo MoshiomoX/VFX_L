@@ -8,15 +8,11 @@
 #include "Graphics/Mesh/Mesh.h"
 #include "Manager/ResourceManager.h"
 #include "AssimpFlags.h"
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <assimp/config.h>
-#include <filesystem>
-#include <iostream>
-#include <cmath>
-#include <algorithm>
-#include <climits>
 
 namespace fs = std::filesystem;
 using namespace DirectX::SimpleMath;

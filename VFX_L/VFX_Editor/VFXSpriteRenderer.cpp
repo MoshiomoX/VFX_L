@@ -8,9 +8,6 @@
 #include "Graphics/Renderer/RenderStates.h"
 #include "Manager/ResourceManager.h"
 #include "Camera/CameraBase.h"
-#include <algorithm>
-#include <cstring>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

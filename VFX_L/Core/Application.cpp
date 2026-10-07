@@ -2,11 +2,12 @@
 #include "Graphics/Light/PointLightManager.h"
 #include "Debug/DebugManager.h"
 #include "Debug/FrameProfiler.h"
-#include <iostream>
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include "Manager/InputManager.h"
 #include "Audio/AudioSystem.h"
+#include "Core/GameSettings.h"
+#include "UI/UIDeco.h"
 
 
 Application* Application::s_Instance = nullptr;
@@ -55,6 +56,12 @@ bool Application::Initialize()
     ResourceManager::Get().PreloadModelsAsync(std::vector<std::string>(std::begin(Res::Mdl::kPreload), std::end(Res::Mdl::kPreload)));
     InputManager::Get().Initialize(m_Window.GetHandle());
     AudioSystem::Get().Initialize();   // 音（装置が無くても続ける）
+    GameSettings::Get().Load();        // プレイヤーの設定（アウトラインの ON / OFF。無ければ既定値）
+    {
+        char env[16] = {};   // TEMP-TEST: VFXL_UI_SCALE=1.25 など、UI 全体の倍率を起動時に変える（見比べ用。既定 1.5）
+        if (GetEnvironmentVariableA("VFXL_UI_SCALE", env, sizeof(env)) > 0 && env[0])
+            UIDeco::SetUIScale((float)atof(env));
+    }
 	if(!m_Game.Initialize(&m_Renderer)) return false;
     // Timer
     m_Timer.Start();

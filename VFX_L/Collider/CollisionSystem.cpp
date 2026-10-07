@@ -19,8 +19,6 @@
 #include "Component/ColliderComponent.h"
 #include "Component/RigidbodyComponent.h"
 #include "ECS/View.h"
-#include <cmath>
-#include <algorithm>
 
 using DirectX::SimpleMath::Vector3;
 

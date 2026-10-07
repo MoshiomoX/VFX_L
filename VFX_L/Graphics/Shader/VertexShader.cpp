@@ -1,5 +1,4 @@
 #include "Graphics/Shader/VertexShader.h"
-#include <iostream>
 
 VertexShader::VertexShader()
     : Shader(Shader::Vertex)

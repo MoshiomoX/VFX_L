@@ -10,7 +10,6 @@
 #include "Debug/DebugManager.h"
 #include "Debug/Gizmo.h"
 #include "imgui.h"
-#include <cmath>
 
 using namespace DirectX::SimpleMath;
 

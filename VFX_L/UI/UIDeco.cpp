@@ -6,16 +6,16 @@
 #include "Graphics/Material/Texture.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <vector>
 
 using namespace DirectX::SimpleMath;
 
 namespace UIDeco
 {
+    // UI 全体の倍率（2026-10-07 ユーザー「全部の UI を 1.5 倍に」）
+    static float s_UIScale = 1.5f;
+    float UIScale() { return s_UIScale; }
+    void  SetUIScale(float s) { s_UIScale = std::clamp(s, 0.5f, 3.0f); }
+
     // 戦闘の UI はシーンの HDR バッファに描かれ、合成でトーンマップ + ガンマを通る
     // （0.07 が中間の灰色に見えるのはこのため）。色は sRGB の見た目で決めて、ここで線形へ直す
     static Vector4 FromSrgb(float r, float g, float b)
@@ -107,6 +107,22 @@ namespace UIDeco
         sprite.Draw(w, { pos.x, pos.y + size.y - th }, { size.x, th }, color);         // 下
         sprite.Draw(w, { pos.x, pos.y + th }, { th, size.y - th * 2.0f }, color);      // 左
         sprite.Draw(w, { pos.x + size.x - th, pos.y + th }, { th, size.y - th * 2.0f }, color);   // 右
+    }
+
+    void DrawTextPlate(SpriteRenderer& sprite, const Vector2& pos, const Vector2& size,
+        const Vector2& pad, const Vector4& fill, float lineAlpha)
+    {
+        const auto& w = Tex().white;
+        if (!w || size.x <= 0.0f || size.y <= 0.0f) return;
+        const Vector2 p = pos - pad;
+        const Vector2 s = size + pad * 2.0f;
+        sprite.Draw(w, p, s, fill);
+        if (lineAlpha > 0.0f)
+        {
+            Vector4 line = TintColor(Tint::Gold);
+            line.w = lineAlpha;
+            DrawFrameLines(sprite, p, s, line, 1.0f);
+        }
     }
 
     void DrawPanel(SpriteRenderer& sprite, const Vector2& pos, const Vector2& size,

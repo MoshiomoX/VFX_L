@@ -8,8 +8,6 @@
 #include "Camera/FlyCamera.h"
 #include "World/TerrainBuild.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
 
 using namespace DirectX::SimpleMath;
 

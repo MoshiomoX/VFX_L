@@ -13,8 +13,6 @@
 #include "Component/ManaComponent.h"
 #include "Swarm/AreaVFXPlayer.h"
 #include "Swarm/AreaProfile.h"
-#include <algorithm>
-#include <cmath>
 
 using DirectX::SimpleMath::Vector3;
 

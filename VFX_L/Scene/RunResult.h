@@ -38,6 +38,7 @@ inline RunResult g_LastRun;
 #include "Player/PlayerStatsComponent.h"
 #include "Player/LevelComponent.h"
 #include "Player/WalletComponent.h"
+#include "Player/ShieldComponent.h"
 
 struct RunCarry
 {
@@ -49,6 +50,7 @@ struct RunCarry
     WalletComponent      wallet;   
     ManaComponent        mana;
     HealthComponent      health;
+    ShieldComponent      shield;   // 上限と戻りの速さ（面の初めは満タン）
     PlayerStatsComponent stats;
     uint32_t killsBefore = 0;     // 前の面までの撃破（リザルトの表示用）
     void Reset() { *this = RunCarry{}; }

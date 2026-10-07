@@ -10,10 +10,8 @@
 #include "VFX_Editor/SpriteSheets.h"
 #include "Particle/GPUParticleSystem.h"
 #include "Manager/ResourceManager.h"
+
 #include <DirectXTex.h>
-#include <algorithm>
-#include <cstring>
-#include <iostream>
 
 using Microsoft::WRL::ComPtr;
 

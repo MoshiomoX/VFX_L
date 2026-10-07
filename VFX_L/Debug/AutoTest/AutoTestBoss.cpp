@@ -30,11 +30,9 @@ void AutoTestBoss::Run()
         m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;   // 三択で止めない
     m_Registry.Get<HealthComponent>(m_Player).invincible = true;
 
-    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    // 門の手前 2m へ移る（呼ぶ時と、倒した後の出口の時の 2 回）
+    auto gotoPortal = [&](const char* tag)
     {
-        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
-        m_Mobs.Director().enabled = false;
-        m_Swarm.KillAll();
         const Entity portal = m_Stage.GetPortal();
         if (m_Registry.IsValid(portal) && m_Registry.Has<InteractableComponent>(portal))
         {
@@ -47,10 +45,19 @@ void AutoTestBoss::Run()
             if (m_Registry.Has<RigidbodyComponent>(m_Player))
                 m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
             m_Camera.Camera().SnapToTarget();
-            AutoTestLog("boss at portal");
+            AutoTestLog(tag);
+            return true;
         }
-        else
-            AutoTestLog("boss: no portal");
+        AutoTestLog("boss: no portal");
+        return false;
+    };
+
+    if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
+    {
+        m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
+        m_Mobs.Director().enabled = false;
+        m_Swarm.KillAll();
+        gotoPortal("boss at portal");
         m_Stage.bossHp = 300.0f;
         m_AutoStep = 1;
     }
@@ -68,10 +75,36 @@ void AutoTestBoss::Run()
         AutoTestLog(line);
     }
 
-    // 倒した 2 秒後（「ステージクリア」の幕が出ている）に 1 行。外から撮る
+    // 倒した → 門が出口になる（2026-10-07）→ 1 秒後に門へ戻り、もう一度 F → クリア。
+    // クリアの 2 秒後（「ステージクリア」の幕が出ている）に 1 行。外から撮る
+    static float s_DefeatedAt = -1.0f;
     static float s_ClearedAt = -1.0f;
-    if (m_AutoStep == 2 && m_Stage.IsCleared()) { s_ClearedAt = m_AutoTime; m_AutoStep = 3; }
-    if (m_AutoStep == 3 && m_AutoTime >= s_ClearedAt + 2.0f) { AutoTestLog("boss done"); m_AutoStep = 4; }
+    if (m_AutoStep == 2 && m_Stage.IsBossDefeated())
+    {
+        s_DefeatedAt = m_AutoTime;
+        char line[96];
+        snprintf(line, sizeof(line), "boss defeated t %.1f cleared %d exitOpen %d", m_AutoTime,
+            m_Stage.IsCleared() ? 1 : 0, m_Stage.IsExitOpen() ? 1 : 0);
+        AutoTestLog(line);
+        m_AutoStep = 20;
+    }
+    if (m_AutoStep == 20 && m_AutoTime >= s_DefeatedAt + 1.0f)
+    {
+        char line[96];
+        snprintf(line, sizeof(line), "boss exit open %d cleared %d", m_Stage.IsExitOpen() ? 1 : 0, m_Stage.IsCleared() ? 1 : 0);
+        AutoTestLog(line);
+        gotoPortal("boss at exit");
+        AutoTestLog("boss look exit");
+        m_AutoStep = 21;
+    }
+    if (m_AutoStep == 21 && m_AutoTime >= s_DefeatedAt + 2.5f)
+    {
+        m_AutoInteract = true;
+        AutoTestLog("boss press F exit");
+        m_AutoStep = 22;
+    }
+    if (m_AutoStep == 22 && m_Stage.IsCleared()) { s_ClearedAt = m_AutoTime; AutoTestLog("boss cleared"); m_AutoStep = 3; }
+    if (m_AutoStep == 3 && m_AutoTime >= s_ClearedAt + 2.0f) { AutoTestLog("boss look clear"); AutoTestLog("boss done"); m_AutoStep = 4; }
 
     static float s_Log = 0.0f;
     s_Log += ImGui::GetIO().DeltaTime;

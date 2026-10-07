@@ -5,7 +5,6 @@
 // ============================================================
 #include "Scene/CollisionTestScene.h"
 #include "Debug/AutoTest/BattleAutoTest.h"   // TEMP-TEST
-
 #include "Component/TransformComponent.h"
 #include "Component/ColliderComponent.h"
 #include "Component/RigidbodyComponent.h"
@@ -17,7 +16,6 @@
 #include "Player/PlayerFactory.h"
 #include "Graphics/Light/PointLightManager.h"
 #include "UI/UIDeco.h"
-#include <algorithm>
 #include "Player/LevelComponent.h"
 #include "Player/WalletComponent.h"
 #include "Enemy/EnemyTags.h"
@@ -36,11 +34,7 @@
 #include "Manager/ResourceManager.h"
 #include "Core/Application.h"
 #include "ResourcePaths.h"
-#include "imgui.h"
-#include <chrono>
-#include <cstdlib>
-#include <iostream>
-#include <random>
+#include "Core/DevUI.h"
 
 // ============================================================
 // Init
@@ -70,7 +64,7 @@ void CollisionTestScene::Init()
     SetCamera(&m_Camera.Camera());
     {
         char env[16] = {};   // TEMP-TEST
-        m_AutoTest = GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", env, sizeof(env)) > 0;
+        m_AutoTest = DevUI::kEnabled && GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", env, sizeof(env)) > 0;   // Demo では見ない
         m_AutoRunner = m_AutoTest ? BattleAutoTest::Create(env, *this) : nullptr;   // 値 = 自動テストの名前（Debug/AutoTest/）
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
@@ -318,7 +312,9 @@ void CollisionTestScene::Init()
         // 実験場：昼のまま、天候の出来事なし。湧き停止・無敵・MP 無限・経験値 0 と 9x9 の枠は SpellLab が受け持つ
         m_Weather.driveLighting = false;
         m_Weather.eventsEnabled = false;
-        m_Camera.SetCursorFree(true);   // パネルを触るのが主なのでカーソルを出しておく（Alt で視点操作に戻す）
+        // 2026-10-07 から的・群れ・Boss・木箱はゲームの UI（トレーニングのメニュー、T / パッド RB）。
+        // それまでは ImGui の窓を触るのでカーソルを出していた（SetCursorFree(true)）。今は普段どおり視点を回す
+        m_GameUI.SetTrainingEnabled(true);
         m_SpellLab.EnterLab(m_Registry, m_Player, m_Swarm, m_Mobs);
     }
 }
@@ -533,6 +529,11 @@ void CollisionTestScene::Update(float dt)
     // ---- UI（開閉・入力・プレイヤー消失時の後始末は全部 GameUI の中）----
     m_GameUI.Update(m_Registry, m_Player, dt);
 
+    // ---- トレーニング（実験場）のメニューの依頼：的・群れ・Boss・木箱（メニューを開いたまま＝止まっている間も）----
+    if (m_LabScene)
+        for (const TrainingRequest& q : m_GameUI.ConsumeTrainingRequests())
+            m_GameUI.SetTrainingMessage(m_SpellLab.Apply(q, m_Registry, m_Player, m_Swarm, m_Mobs, m_Stage, m_Grid));
+
     // ---- マウスの捕獲（UI の開閉を見るので GameUI の後）----
     // UI（グリッド・三択・一時停止）が開いている間と死んだ後はマウスで操作するのでカーソルを出す
     m_Camera.UpdateMouseCapture(m_GameUI.IsModalOpen() || IsPlayerDead());
@@ -540,8 +541,8 @@ void CollisionTestScene::Update(float dt)
     // ---- 一時停止のメニューで選ばれたシーンの切替 ----
     switch (m_GameUI.ConsumeMenuAction())
     {
-    case PauseMenuUI::Action::Restart:
-        Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::COLLISION_TEST);
+    case PauseMenuUI::Action::Restart:   // 実験場ではやり直しも実験場
+        Application::Get().GetGame().GetSceneManager().RequestChangeScene(m_LabScene ? SceneType::SPELL_LAB : SceneType::COLLISION_TEST);
         break;
     case PauseMenuUI::Action::Title:
         Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::TITLE);
@@ -572,6 +573,7 @@ void CollisionTestScene::Update(float dt)
         // 音：GPU の範囲（命中・爆発・撃破）、プレイヤーの跳び / 着地 / 滑り、BGM の切り替え、一回物
         BattleAudio::State as;
         as.bossAlive = m_Stage.IsBossAlive();
+        as.bossDefeated = m_Stage.IsBossDefeated();
         as.finalWave = m_Stage.stageTime > 0.0f && m_RunTime >= m_Stage.stageTime;
         as.playerDead = IsPlayerDead();
         as.cleared = m_Stage.IsCleared();
@@ -605,6 +607,36 @@ void CollisionTestScene::Update(float dt)
     m_GameUI.SetStage(m_StageIndex, StageConfig::Get(m_StageIndex).name);
     m_GameUI.SetBossBar(m_Stage.IsBossAlive() ? m_Stage.BossHpRatio() : -1.0f);
     UpdateHudMarkers();
+
+    // ---- 目標の一行（2026-10-07 ユーザー「任務目標を足す」）：門の状態で変わる。門までの距離付き ----
+    {
+        const wchar_t* obj = nullptr;
+        if (!m_LabScene)
+        {
+            const Vector3* pp = PlayerPos();
+            float dist = -1.0f;
+            if (pp && m_Registry.IsValid(m_Stage.GetPortal()))
+            {
+                const Vector3 d = m_Stage.GetPortalCenter() - *pp;
+                dist = std::sqrt(d.x * d.x + d.z * d.z);
+            }
+            if (m_Stage.IsCleared())
+                obj = nullptr;
+            else if (m_Stage.IsBossDefeated())
+                swprintf_s(m_ObjectiveBuf, (m_StageIndex < StageConfig::kStageCount)
+                    ? L"門に戻って 次のステージへ　%.0f m" : L"門に戻って 冒険を終える　%.0f m", (std::max)(0.0f, dist));
+            else if (m_Stage.IsBossAlive())
+                swprintf_s(m_ObjectiveBuf, L"ボスを倒す");
+            else if (dist >= 0.0f)
+                swprintf_s(m_ObjectiveBuf, L"ボスの門を見つけて ボスを呼ぶ　%.0f m", dist);
+            else
+                swprintf_s(m_ObjectiveBuf, L"ボスの門を見つけて ボスを呼ぶ");
+            if (!m_Stage.IsCleared()) obj = m_ObjectiveBuf;
+        }
+        else
+            obj = L"T / パッド RB　トレーニングメニュー";   // 実験場：メニューの開き方（画面下の案内は体に重なるのでここ）
+        m_GameUI.SetObjective(obj);
+    }
 
     // ---- 死亡 → 倒れた姿を少し見せてからリザルトへ ----
     // 一時停止中でも進める（三択を開いたまま死ぬ事は無いが、止まると戻れない）
@@ -688,9 +720,11 @@ void CollisionTestScene::UpdateHudMarkers()
     m_Registry.CreateView<InteractableComponent>()
         .Each([&](Entity, InteractableComponent& it)
             {
-                // 箱は黄、Boss の門は紫
+                // 箱は黄、Boss の門は紫、倒した後の出口は金
                 if (it.kind == InteractKind::BossPortal)
                     markers.push_back({ it.basePos + Vector3(0.0f, 2.0f, 0.0f), { 0.75f, 0.35f, 1.0f, 1.0f } });
+                else if (it.kind == InteractKind::StageExit)
+                    markers.push_back({ it.basePos + Vector3(0.0f, 2.0f, 0.0f), { 1.0f, 0.85f, 0.40f, 1.0f } });
                 else
                     markers.push_back({ it.basePos + Vector3(0.0f, 0.6f, 0.0f), { 1.0f, 0.78f, 0.35f, 1.0f } });
             });
@@ -724,7 +758,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ---- 負荷テスト（自動補充と小分けの生成）----
     m_Stress.Update(dt, m_Registry, m_Player, m_Swarm);
-    m_SpellLab.Update(m_Registry, m_Player, m_Swarm, m_Grid);   // 実験モードの間：MP 無限・経験値 0・キー操作
+    m_SpellLab.Update(m_Registry, m_Player, m_Swarm, m_Mobs, m_Grid);   // 実験モードの間：MP 無限・経験値 0・群れの残り
 
     // ============================================================
     // System の実行順（固定）
@@ -802,7 +836,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // ============================================================
     {
         const bool blocked = DebugManager::Get().IsUsingDebugCamera()
-            || ImGui::GetIO().WantCaptureKeyboard;
+            || DevUI::WantKeyboard();
         const bool pressed = !blocked && !IsPlayerDead() && (InputMap::GetInteractTrigger() || m_AutoInteract);
         m_AutoInteract = false;   // TEMP-TEST
 
@@ -825,6 +859,18 @@ void CollisionTestScene::UpdateGameplay(float dt)
         {
             m_AreaVFX.StopInstance(m_PortalVfx);
             m_PortalVfx = 0;
+        }
+        // Boss を倒したら同じ門を出口にする（2026-10-07 ユーザー：もう一度押して次の面へ）。渦は金色で出し直す
+        if (m_Stage.IsBossDefeated() && !m_Stage.IsCleared() && !m_Stage.IsExitOpen())
+        {
+            const wchar_t* prompt = (m_StageIndex < StageConfig::kStageCount) ? L"[F] 次のステージへ" : L"[F] 冒険を終える";
+            if (m_Stage.OpenExit(m_Registry, prompt))
+            {
+                if (m_PortalVfx) m_AreaVFX.StopInstance(m_PortalVfx);
+                m_PortalVfx = m_AreaVFX.Play("BossPortal.json", m_Stage.GetPortalCenter(), 1.0e9f, false, m_VFXContext,
+                    Vector3(1.0f, 0.78f, 0.40f));
+                if (m_PortalVfx) m_AreaVFX.RotateInstance(m_PortalVfx, m_Stage.GetPortalYaw());
+            }
         }
 
         // 磁石（触れたら場の経験値オーブを全部吸い寄せる）
@@ -976,6 +1022,7 @@ void CollisionTestScene::EndRun()
         if (m_Registry.Has<WalletComponent>(m_Player))      g_RunCarry.wallet = m_Registry.Get<WalletComponent>(m_Player);
         if (m_Registry.Has<ManaComponent>(m_Player))        g_RunCarry.mana = m_Registry.Get<ManaComponent>(m_Player);
         if (m_Registry.Has<HealthComponent>(m_Player))      g_RunCarry.health = m_Registry.Get<HealthComponent>(m_Player);
+        if (m_Registry.Has<ShieldComponent>(m_Player))      g_RunCarry.shield = m_Registry.Get<ShieldComponent>(m_Player);
         if (m_Registry.Has<PlayerStatsComponent>(m_Player)) g_RunCarry.stats = m_Registry.Get<PlayerStatsComponent>(m_Player);
         g_RunCarry.killsBefore = g_LastRun.kills;
     }
@@ -1048,6 +1095,7 @@ void CollisionTestScene::Render(Renderer& renderer)
         m_LiquidRenderer.SetTerrain(m_Swarm.GetHeightSRV(), m_Swarm.GetFrameCB());
         m_LiquidRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera(), renderer.GetLightData());
         // ---- 2) Mesh entry（光球の球など。深度は読むだけ）→ 連番画像（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
+        m_Feedback.SubmitMeshes(m_MeshRenderer, m_Registry, m_Player);   // シールドの護罩（一時停止中も見えるようにここで積む）
         m_MeshRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());   // 光線（加算）
@@ -1143,6 +1191,15 @@ void CollisionTestScene::ApplyRunCarry()
         auto& hp = m_Registry.Get<HealthComponent>(m_Player);
         hp.max = g_RunCarry.health.max;
         hp.current = hp.max;
+    }
+    if (m_Registry.Has<ShieldComponent>(m_Player))
+    {
+        auto& sh = m_Registry.Get<ShieldComponent>(m_Player);
+        sh.max = g_RunCarry.shield.max;
+        sh.rechargeDelay = g_RunCarry.shield.rechargeDelay;
+        sh.refillTime = g_RunCarry.shield.refillTime;
+        sh.current = sh.max;
+        sh.sinceHit = sh.rechargeDelay;
     }
     std::cout << "[CollisionTestScene] carried the player over from the previous stage (level "
         << g_RunCarry.level.level << ")" << std::endl;

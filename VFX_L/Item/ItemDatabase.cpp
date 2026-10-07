@@ -25,10 +25,8 @@
 #include "Item/Items/ManaRegenUp.h"
 #include "Item/Items/JumpCountUp.h"
 #include "Item/Items/SpellPowerUp.h"
+#include "Item/Items/ShieldUp.h"
 #include "Item/ItemDataFile.h"
-#include <unordered_map>
-#include <utility>
-#include <iostream>
 
 namespace
 {
@@ -143,6 +141,7 @@ void ItemDatabase::Initialize()
     Register(MakeManaRegenUp());
     Register(MakeJumpCountUp());
     Register(MakeSpellPowerUp());
+    Register(MakeShieldUp());
 
     // ---- 形（占有マス・影響マス）----
     // コードに書いた形を覚えてから、保存済みのアイテムデータ（ItemData/<名前>.json）で上書きする。

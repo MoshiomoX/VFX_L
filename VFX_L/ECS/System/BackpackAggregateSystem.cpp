@@ -11,7 +11,6 @@
 #include "Item/ItemInfo.h"
 #include "Player/PlayerStatsComponent.h"
 #include "ECS/View.h"
-#include <iostream>
 
 void BackpackAggregateSystem::Update(Registry& reg)
 {

@@ -13,6 +13,7 @@ enum class InteractKind
 {
     RewardChoice,   // レベルアップと同じ三択を出す（レベルは上がらない）
     BossPortal,     // 面の Boss を呼ぶ（StageDirector）
+    StageExit,      // Boss を倒した後の同じ門：使うと面のクリア → 次のステージへ（2026-10-07 ユーザー：門は二段階）
 };
 
 struct InteractableComponent

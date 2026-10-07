@@ -19,8 +19,6 @@
 #include "Graphics/PrimitiveBuilder.h"
 #include "Graphics/Renderer/RenderStates.h"
 #include "Manager/ResourceManager.h"
-#include <algorithm>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 

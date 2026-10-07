@@ -8,17 +8,19 @@
 #include "Graphics/Material/Texture.h"
 #include "Manager/InputManager.h"
 #include "ResourcePaths.h"
-#include <cmath>
-#include <cstdio>
-#include <iostream>
+#include "UI/UIDeco.h"
 
 using namespace DirectX::SimpleMath;
 
 namespace
 {
-    constexpr float kHeaderScale = 1.2f;
-    constexpr float kRowScale = 0.6f;
-    constexpr float kPromptScale = 0.45f;
+    // UI 全体の倍率（UIDeco::UIScale()、2026-10-07）を掛けた文字の大きさ
+    inline float kHeaderScaleF() { return 1.2f * UIDeco::UIScale(); }
+    inline float kRowScaleF() { return 0.6f * UIDeco::UIScale(); }
+    inline float kPromptScaleF() { return 0.45f * UIDeco::UIScale(); }
+#define kHeaderScale (kHeaderScaleF())
+#define kRowScale    (kRowScaleF())
+#define kPromptScale (kPromptScaleF())
     constexpr int   kRowCount = 4;
     constexpr float kRowInterval = 0.25f;   // 行が 1 つ出るまでの秒数
     constexpr float kRowFade = 0.3f;        // 行のフェード時間
@@ -174,13 +176,13 @@ void ResultScene::Render(Renderer& renderer)
         header = (g_LastRun.stage >= StageConfig::kStageCount) ? L"全ステージクリア" : L"ステージクリア";
     const Vector2 headerSize = m_Text.Measure(header, kHeaderScale);
     const Vector2 headerPos = { (m_ScreenW - headerSize.x) * 0.5f, m_ScreenH * 0.14f };
-    m_Text.Draw(header, headerPos + Vector2(3.0f, 3.0f), { 0.0f, 0.0f, 0.0f, 0.8f }, kHeaderScale);
+    m_Text.Draw(header, headerPos + Vector2(3.0f, 3.0f) * UIDeco::UIScale(), { 0.0f, 0.0f, 0.0f, 0.8f }, kHeaderScale);
     m_Text.Draw(header, headerPos, { 1.0f, 0.92f, 0.6f, 1.0f }, kHeaderScale);
 
     // ---- 行（ラベル左寄せ、値右寄せ。中央の帯に収める）----
-    const float bandW = 520.0f;
+    const float bandW = 520.0f * UIDeco::UIScale();
     const float bandX = (m_ScreenW - bandW) * 0.5f;
-    const float rowH = m_Text.GetLineHeight(kRowScale) + 18.0f;
+    const float rowH = m_Text.GetLineHeight(kRowScale) + 18.0f * UIDeco::UIScale();
     float y = m_ScreenH * 0.36f;
 
     for (int i = 0; i < kRowCount; ++i)
@@ -189,7 +191,7 @@ void ResultScene::Render(Renderer& renderer)
         if (t <= 0.0f) break;
 
         // 出現中は少し右から滑り込む
-        const float slide = (1.0f - t) * 30.0f;
+        const float slide = (1.0f - t) * 30.0f * UIDeco::UIScale();
         const Vector4 labelColor = { 0.8f, 0.8f, 0.8f, t };
         const Vector4 valueColor = { 1.0f, 1.0f, 1.0f, t };
 

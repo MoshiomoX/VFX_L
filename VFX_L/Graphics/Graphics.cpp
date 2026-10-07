@@ -6,8 +6,7 @@
 #include "Graphics/Shader/PixelShader.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Renderer/RenderStates.h"
-#include <iostream>
-#include <cstdlib>
+
 #include <dxgi.h>
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION

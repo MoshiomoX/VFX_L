@@ -4,11 +4,8 @@
 #include "VFX_Editor/SpriteSheets.h"
 #include "Manager/ResourceManager.h"
 #include "Graphics/Material/Texture.h"
+
 #include <nlohmann/json.hpp>
-#include <algorithm>
-#include <fstream>
-#include <iostream>
-#include <unordered_map>
 
 using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector4;

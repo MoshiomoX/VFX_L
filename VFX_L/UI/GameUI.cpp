@@ -2,6 +2,7 @@
 // GameUI.cpp
 // ============================================================
 #include "UI/GameUI.h"
+#include "UI/UIDeco.h"
 #include "ECS/Registry.h"
 #include "ECS/System/BackpackAggregateSystem.h"
 #include "UI/LevelUpSystem.h"
@@ -17,6 +18,7 @@
 #include "Player/WalletComponent.h"
 #include "Player/PlayerStateComponent.h"
 #include "Player/PlayerStatsComponent.h"
+#include "Player/ShieldComponent.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputMap.h"
 #include "Manager/InputManager.h"
@@ -24,8 +26,7 @@
 #include "ResourcePaths.h"
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
-#include <algorithm>
-#include <iostream>
+#include "Core/DevUI.h"
 
 // ============================================================
 // 初期化
@@ -81,6 +82,8 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
     m_HUD.SetIconLookup([this](ItemID id) { return m_Backpack.FindIcon(id); });
 
     m_Pause.Layout(screenW, screenH);
+    m_Training.Layout(screenW, screenH);
+    m_Training.SetIconLookup([this](ItemID id) { return m_Backpack.FindIcon(id); });
 
     return true;
 }
@@ -109,6 +112,7 @@ void GameUI::Layout(float screenW, float screenH)
     m_LevelUp.Layout(screenW, screenH);
     m_HUD.Layout(screenW, screenH);
     m_Pause.Layout(screenW, screenH);
+    m_Training.Layout(screenW, screenH);
 }
 
 // ============================================================
@@ -142,7 +146,8 @@ void GameUI::Update(Registry& reg, Entity player, float dt)
     // HUD の残像と明滅の時間（モーダル表示中も進める）。
     // 2026-10-01 まで一度も呼ばれておらず、残像は満タンのまま・明滅は止まったままだった
     if (reg.Has<HealthComponent>(player) && reg.Has<ManaComponent>(player))
-        m_HUD.Update(dt, reg.Get<HealthComponent>(player), reg.Get<ManaComponent>(player));
+        m_HUD.Update(dt, reg.Get<HealthComponent>(player), reg.Get<ManaComponent>(player),
+            reg.Has<ShieldComponent>(player) ? &reg.Get<ShieldComponent>(player) : nullptr);
 
     // 死んだら何も開かせない（「力尽きた」の幕 → リザルトへ進むだけ）
     if (reg.Has<PlayerStateComponent>(player) && reg.Get<PlayerStateComponent>(player).IsDead())
@@ -179,7 +184,16 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     // グリッドの上には開ける。閉じればグリッドへ戻る
     if (InputMap::GetPauseToggle())
     {
-        if (m_Stack.Top() == UILayer::Pause)
+        if (m_Stack.Top() == UILayer::Pause && m_Pause.IsInSettings())
+        {
+            m_Pause.CloseSettings();   // 設定のページだけ閉じてメニューへ戻る（保存もここで）
+        }
+        else if (m_Stack.Top() == UILayer::Training)
+        {
+            m_Stack.Pop(UILayer::Training);   // トレーニングのメニューは Esc で閉じるだけ（一時停止を重ねない）
+            AudioSystem::Get().Play("ui_close");
+        }
+        else if (m_Stack.Top() == UILayer::Pause)
         {
             m_Stack.Pop(UILayer::Pause);
             AudioSystem::Get().Play("ui_close");
@@ -202,6 +216,22 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
             m_Stack.Pop(UILayer::Backpack);
             m_Drag.Reset();
             AudioSystem::Get().Play("ui_close");
+        }
+    }
+
+    // ---- 1d. トレーニング（実験場）のメニュー（T / パッド RB）。何も開いていない時か、自分が一番上の時だけ ----
+    if (m_TrainingEnabled && InputMap::GetTrainingToggle())
+    {
+        if (m_Stack.Top() == UILayer::Training)
+        {
+            m_Stack.Pop(UILayer::Training);
+            AudioSystem::Get().Play("ui_close");
+        }
+        else if (m_Stack.IsEmpty())
+        {
+            m_Stack.Push(UILayer::Training);
+            m_Training.Open();
+            AudioSystem::Get().Play("ui_open");
         }
     }
 
@@ -294,6 +324,11 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         break;
     }
 
+    case UILayer::Training:
+        if (m_Training.HandleInput())
+            m_Stack.Pop(UILayer::Training);
+        break;
+
     default:
         break;
     }
@@ -320,30 +355,37 @@ void GameUI::Render(Registry& reg, Entity player)
         const WandComponent* wand = reg.Has<WandComponent>(player)
             ? &reg.Get<WandComponent>(player) : nullptr;
         m_FrameInfo.wand = wand;
+        m_FrameInfo.shield = reg.Has<ShieldComponent>(player) ? &reg.Get<ShieldComponent>(player) : nullptr;
         m_HUD.Draw(m_Sprite, m_Text,
             reg.Get<HealthComponent>(player),
             reg.Get<ManaComponent>(player),
             reg.Get<LevelComponent>(player), m_FrameInfo);
         m_FrameInfo.wand = nullptr;   // 次のフレームまで指したままにしない
+        m_FrameInfo.shield = nullptr;
     }
 
     // ---- 操作案内（画面下の中央。影付き）----
     if (m_Stack.IsEmpty() && m_Prompt && *m_Prompt)
     {
         const std::wstring text = m_Prompt;
-        const float scale = 0.6f;
+        const float scale = 0.6f * UIDeco::UIScale();
         const DirectX::SimpleMath::Vector2 size = m_Text.Measure(text, scale);
-        // 魔力解放の大きな欄（2026-10-04、下の中央）の魔法陣より上に出す（重ならないように）
+        // 魔力解放の大きな欄（2026-10-04、下の中央）の魔法陣より上に出す（重ならないように）。
+        // 欄の実際の大きさは倍率を掛けた ScaledStyle
         float y = m_ScreenH * 0.80f;
-        const HUDStyle& hs = m_HUD.Style();
+        const HUDStyle& hs = m_HUD.ScaledStyle();
         if (hs.showSurgeSkill)
         {
             const float top = hs.surgeSkill.Resolve(m_ScreenW, m_ScreenH).y
                 - hs.surgeSkillSize * (0.5f + 0.5f * (std::max)(1.0f, hs.surgeCircleScale));
-            y = (std::min)(y, top - size.y - 10.0f);
+            y = (std::min)(y, top - size.y - 10.0f * UIDeco::UIScale());
         }
         const DirectX::SimpleMath::Vector2 pos = { (m_ScreenW - size.x) * 0.5f, y };
-        m_Text.Draw(text, { pos.x + 2.0f, pos.y + 2.0f }, { 0.0f, 0.0f, 0.0f, 0.8f }, scale);
+        // 下敷き（2026-10-07、HUD の文字と同じ板。草の上でも読めるように）。左右は少し広め
+        if (hs.textPlates)
+            UIDeco::DrawTextPlate(m_Sprite, pos, size, { hs.platePad.x * 1.6f, hs.platePad.y * 1.5f },
+                hs.plateColor, hs.plateLineAlpha);
+        m_Text.Draw(text, { pos.x + 2.0f * UIDeco::UIScale(), pos.y + 2.0f * UIDeco::UIScale() }, { 0.0f, 0.0f, 0.0f, 0.8f }, scale);
         m_Text.Draw(text, pos, { 1.0f, 0.9f, 0.55f, 1.0f }, scale);
     }
 
@@ -376,7 +418,7 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     const bool pad = m_Pad.IsActive();
     if (m_Stack.CanReceiveInput(UILayer::Backpack) && !m_Drag.IsActive()
         && reg.Has<BackpackComponent>(player)
-        && (pad ? m_Pad.TooltipReady() : !ImGui::GetIO().WantCaptureMouse))
+        && (pad ? m_Pad.TooltipReady() : !DevUI::WantMouse()))
     {
         const auto& bp = reg.Get<BackpackComponent>(player);
         const int item = m_Backpack.GetHoverItemIndex();
@@ -425,8 +467,8 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     {
         const float shortSide = (std::min)(m_ScreenW, m_ScreenH);
         ItemSheetView::DrawTooltip(m_Sprite, m_WhiteTex, m_Text, sheet,
-            anchor, { m_ScreenW, m_ScreenH }, shortSide * 0.36f,
-            m_TooltipStyle.Scaled(shortSide / 900.0f));
+            anchor, { m_ScreenW, m_ScreenH }, shortSide * 0.36f * UIDeco::UIScale(),
+            m_TooltipStyle.Scaled(shortSide / 900.0f * UIDeco::UIScale()));
     }
 
     m_Sprite.End();
@@ -439,6 +481,13 @@ void GameUI::TestShow(int layer)
     m_Stack.Clear();
     if (layer == 1) m_Stack.Push(UILayer::Backpack);
     if (layer == 2) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); }
+    if (layer == 3) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenSettings(); }   // 一時停止 → 設定のページ
+}
+
+void GameUI::TestOpenTraining(bool open)
+{
+    if (open && m_Stack.IsEmpty()) { m_Stack.Push(UILayer::Training); m_Training.Open(); }
+    if (!open && m_Stack.Top() == UILayer::Training) m_Stack.Pop(UILayer::Training);
 }
 
 // ============================================================
@@ -459,7 +508,7 @@ void GameUI::DrawGameOver()
         cleared ? DirectX::SimpleMath::Vector4{ 0.06f, 0.04f, 0.0f, 0.60f * a }
                 : DirectX::SimpleMath::Vector4{ 0.10f, 0.0f, 0.0f, 0.68f * a });
 
-    const float k = (std::min)(m_ScreenW, m_ScreenH) / 900.0f;
+    const float k = (std::min)(m_ScreenW, m_ScreenH) / 900.0f * UIDeco::UIScale();
 
     const std::wstring title = cleared ? L"ステージクリア" : L"力尽きた";
     const float ts = 1.4f * k;
@@ -508,6 +557,11 @@ void GameUI::DrawModals(Registry& reg, Entity player)
             m_Pause.Draw(m_Sprite, m_Text, m_WhiteTex);
             break;
 
+        case UILayer::Training:
+            m_Training.Draw(m_Sprite, m_Text, m_WhiteTex,
+                reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr);
+            break;
+
         default:
             break;
         }
@@ -524,6 +578,16 @@ void GameUI::DrawModals(Registry& reg, Entity player)
 // ============================================================
 void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& aggregate)
 {
+    // ---------- UI 全体の倍率（2026-10-07）。変えたら Layout を呼び直す（バックパック・木箱・カード・メニュー）----
+    {
+        float s = UIDeco::UIScale();
+        if (ImGui::DragFloat("UI Scale (all)", &s, 0.01f, 0.5f, 3.0f))
+        {
+            UIDeco::SetUIScale(s);
+            Layout(m_ScreenW, m_ScreenH);
+        }
+    }
+
     // ---------- HUD ----------
     if (ImGui::CollapsingHeader("HUD"))
         m_HUD.DrawDebugUI();

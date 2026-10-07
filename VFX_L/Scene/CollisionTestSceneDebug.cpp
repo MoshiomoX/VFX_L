@@ -7,9 +7,9 @@
 // ============================================================
 #include "Scene/CollisionTestScene.h"
 #include "Debug/AutoTest/BattleAutoTest.h"   // TEMP-TEST
+#include "Core/DevUI.h"
 #include "Audio/AudioSystem.h"
 #include "Graphics/Renderer/TerrainSurface.h"
-
 #include "Component/TransformComponent.h"
 #include "Component/ClothChainComponent.h"
 #include "Component/ColliderComponent.h"
@@ -22,7 +22,6 @@
 #include "Component/ModelComponent.h"
 #include "Manager/ResourceManager.h"
 #include "Graphics/Model/Model.h"
-#include <filesystem>
 #include "Graphics/Model/SkinnedModel.h"
 #include "Player/PlayerStatsComponent.h"
 #include "Player/PlayerStateComponent.h"
@@ -44,13 +43,6 @@
 #include "Debug/FrameProfiler.h"
 #include "Core/Application.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cfloat>
-#include <chrono>
-#include <cmath>
-#include <fstream>   // TEMP-TEST: autotest.log
-#include <random>
-#include <unordered_set>
 
 
 // ============================================================
@@ -58,6 +50,8 @@
 // ============================================================
 void CollisionTestScene::DrawDebugUI()
 {
+    if (!DevUI::Active()) return;   // Demo ビルド（ImGui が無い）：パネルも目印・ギズモも出さない
+
     // 太陽の目印・シーン光源のギズモ（バックパック・レベルアップ・呪文書を開いている間はギズモを出さない）
     m_Lighting.DrawMarkers(PlayerPos(), m_Grid, GetCamera(), !m_GameUI.ShouldPauseGame());
 
@@ -82,7 +76,7 @@ void CollisionTestScene::DrawDebugUI()
     DrawWandPanel();
     m_GameUI.DrawDebugUI(m_Registry, m_Player, m_BackpackAggregate);
     m_Stress.DrawImGui(m_Swarm, m_CollisionSystem, m_ParticleSystem);
-    if (!m_LabScene) m_SpellLab.DrawImGui(m_Registry, m_Player, m_Swarm, m_Mobs);   // 実験場では独立した窓（下）
+    if (!m_LabScene) m_SpellLab.DrawImGui(m_Registry, m_Player, m_Swarm, m_Mobs, m_Grid);   // 実験場では独立した窓（下）
     DrawSwarmPanel();
     DrawItemDatabasePanel();
     DrawTerrainPanel();

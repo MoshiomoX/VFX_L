@@ -43,6 +43,7 @@ namespace PlayerFactory
         float jumpPower = 12.0f;
 
         float maxHealth = 100.0f;
+        float maxShield = 25.0f;   // シールドの初期値（2026-10-07 ユーザー指定。Megabonk は 0 から）
         float maxMana = 100.0f;
         float manaRegen = 25.0f;
 
@@ -69,7 +70,7 @@ namespace PlayerFactory
     // ============================================================
     // プレイヤーを1体作る
     // 付くもの: Transform / Collider(Capsule) / Rigidbody / SkinnedAnim（無理なら Model）
-    //          / PlayerTag / PlayerStats / PlayerState / Health / Mana
+    //          / PlayerTag / PlayerStats / PlayerState / Health / Shield / Mana
     //          / Level / Spellbook / Wand / Backpack（Config 次第）
     //
     // ※Wand は空で作る。spells / areas はグリッドの集約で埋まる。

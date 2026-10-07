@@ -1,5 +1,4 @@
 #include "Graphics/Shader/ComputeShader.h"
-#include <iostream>
 
 ComputeShader::ComputeShader()
     : Shader(Shader::Compute)

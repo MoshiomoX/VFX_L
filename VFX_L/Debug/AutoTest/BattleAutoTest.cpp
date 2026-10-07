@@ -3,9 +3,6 @@
 // TEMP-TEST: 戦闘シーンの自動テストの土台（シーンの部品への参照・名前の登録）
 // ============================================================
 #include "Debug/AutoTest/BattleAutoTest.h"
-#include <cstring>
-#include <utility>
-#include <vector>
 
 namespace
 {
@@ -44,6 +41,7 @@ BattleAutoTest::BattleAutoTest(CollisionTestScene& scene)
     , m_Grass(scene.m_Grass)
     , m_Weather(scene.m_Weather)
     , m_GameUI(scene.m_GameUI)
+    , m_SpellLab(scene.m_SpellLab)
     , m_TerrainConfig(scene.m_TerrainConfig)
     , m_TerrainLayout(scene.m_TerrainLayout)
     , m_TerrainMap(scene.m_TerrainMap)

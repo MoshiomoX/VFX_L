@@ -2,8 +2,8 @@
 // Texture.cpp
 // ============================================================
 #include "Graphics/Material/Texture.h"
+
 #include <DirectXTex.h>
-#include <iostream>
 
 // ============================================================
 // ファイルから

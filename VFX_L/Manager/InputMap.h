@@ -95,4 +95,11 @@ namespace InputMap
             || input.GetKeyTrigger('E')
             || input.GetPadTrigger(XINPUT_GAMEPAD_START);
     }
+
+    // トレーニング（実験場）のメニューの開閉（T、パッド RB。2026-10-07）。実験場の外では GameUI が見ない
+    inline bool GetTrainingToggle()
+    {
+        auto& input = InputManager::Get();
+        return input.GetKeyTrigger('T') || input.GetPadTrigger(XINPUT_GAMEPAD_RIGHT_SHOULDER);
+    }
 }

@@ -4,7 +4,6 @@
 #include "World/GridWorld.h"
 #include "Manager/InputManager.h"
 #include "Debug/DebugManager.h"
-#include <algorithm>
 
 using DirectX::SimpleMath::Vector3;
 

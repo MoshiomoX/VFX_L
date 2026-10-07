@@ -11,11 +11,9 @@
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
 #include "Player/PlayerStatsComponent.h"
+#include "Player/ShieldComponent.h"
 #include "Component/BackpackComponent.h"
 #include "ECS/View.h"
-#include <algorithm>
-#include <cstdlib>
-#include <iostream>
 
 void LevelUpSystem::Update(Registry& reg)
 {
@@ -284,6 +282,16 @@ void LevelUpSystem::ApplyStat(Registry& reg, Entity player, const StatItemDef& s
             st.spellPower = stat.percent ? st.spellPower * (1.0f + stat.amount) : st.spellPower + stat.amount;
             if (reg.Has<BackpackComponent>(player))
                 reg.Get<BackpackComponent>(player).dirty = true;
+        }
+        break;
+
+    // シールドの上限（HP と同じく今の値も同じだけ足す。PlayerStateSystem が受け止めと回復をする）
+    case StatKind::Shield:
+        if (reg.Has<ShieldComponent>(player))
+        {
+            auto& sh = reg.Get<ShieldComponent>(player);
+            sh.max += stat.amount;
+            sh.current = (std::min)(sh.current + stat.amount, sh.max);
         }
         break;
     }

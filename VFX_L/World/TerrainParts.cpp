@@ -4,7 +4,6 @@
 // 格子の矩形・高さ場の補助、起伏の合成（素の起伏 + 台座）、地形の部品（箱・坂）を建てる
 // ============================================================
 #include "World/TerrainBuild.h"
-#include <climits>
 
 namespace TerrainBuild
 {

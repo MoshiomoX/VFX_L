@@ -2,7 +2,6 @@
 // GPUReadback.cpp
 // ============================================================
 #include "Swarm/GPUReadback.h"
-#include <iostream>
 
 using Microsoft::WRL::ComPtr;
 

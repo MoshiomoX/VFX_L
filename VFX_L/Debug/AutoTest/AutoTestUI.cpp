@@ -84,12 +84,14 @@ void AutoTestUI::Run(float dt)
     {
         m_GameUI.TestShow(1);
         AutoTestLog("ui backpack");
+        AutoTestLog("ui look backpack");
         m_AutoStep = 2;
     }
     else if (m_AutoStep == 2 && m_AutoTime >= 4.0f)
     {
         m_GameUI.TestTooltip(s_MagnifierIndex, { m_ScreenW * 0.62f, m_ScreenH * 0.30f });
         AutoTestLog("ui tooltip");
+        AutoTestLog("ui look tooltip");
         m_AutoStep = 3;
     }
     else if (m_AutoStep == 3 && m_AutoTime >= 6.0f)
@@ -97,12 +99,21 @@ void AutoTestUI::Run(float dt)
         m_GameUI.TestTooltip(-1, { 0.0f, 0.0f });
         m_GameUI.TestShow(2);
         AutoTestLog("ui pause");
+        AutoTestLog("ui look pause");
         m_AutoStep = 4;
     }
-    else if (m_AutoStep == 4 && m_AutoTime >= 8.0f)
+    else if (m_AutoStep == 4 && m_AutoTime >= 7.0f)
+    {
+        // 一時停止の「設定」のページ（音量 + アウトライン、2026-10-07）
+        m_GameUI.TestShow(3);
+        AutoTestLog("ui look settings");
+        m_AutoStep = 40;
+    }
+    else if (m_AutoStep == 40 && m_AutoTime >= 8.0f)
     {
         m_GameUI.TestShow(0);
         AutoTestLog("ui hud");
+        AutoTestLog("ui look hud");
         m_AutoStep = 5;
     }
     else if (m_AutoStep == 5 && m_AutoTime >= 10.0f && m_Registry.Has<LevelComponent>(m_Player))
@@ -120,6 +131,7 @@ void AutoTestUI::Run(float dt)
         {
             lv.pendingChoices = { ItemID::MoveSpeedUp, ItemID::JumpPowerUp, ItemID::MaxHealthUp };
             AutoTestLog("ui levelup choices: MoveSpeedUp / JumpPowerUp / MaxHealthUp");
+            AutoTestLog("ui look levelup");
         }
         m_AutoStep = 7;
     }

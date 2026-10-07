@@ -8,9 +8,6 @@
 #include "Graphics/Renderer/GrassRenderer.h"
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <random>
 
 using namespace DirectX::SimpleMath;
 

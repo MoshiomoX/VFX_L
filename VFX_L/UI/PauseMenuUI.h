@@ -9,6 +9,7 @@
 // ============================================================
 #pragma once
 #include "UI/MenuList.h"
+#include "UI/SettingsMenuUI.h"
 #include <SimpleMath.h>
 #include <memory>
 
@@ -26,12 +27,18 @@ public:
     void Layout(float screenW, float screenH);
 
     // 開いた瞬間に呼ぶ（カーソルを先頭へ、押しっぱなしで即決しない猶予）
-    void Open() { m_List.Open(); }
+    void Open() { m_List.Open(); m_InSettings = false; }
 
-    // 開いている間、毎フレーム呼ぶ
+    // 開いている間、毎フレーム呼ぶ（「設定」のページを開いている間はそちらへ渡す）
     Action HandleInput();
 
     void Draw(SpriteRenderer& sprite, TextRenderer& text, const std::shared_ptr<Texture>& white);
+
+    // 「設定」のページを開いているか。Esc はまず GameUI が見るので、
+    // 開いている時はメニュー全体を閉じずにこのページだけ閉じる（CloseSettings）
+    bool IsInSettings() const { return m_InSettings; }
+    void CloseSettings();
+    void TestOpenSettings() { m_InSettings = true; m_Settings.Open(); }   // TEMP-TEST: 自動テスト ui が設定のページを撮る
 
     // ---- 見た目（画面短辺に対する比率）----
     float panelWidthRatio = 0.46f;
@@ -44,9 +51,12 @@ public:
 
 private:
     MenuList m_List;
+    SettingsMenuUI m_Settings;
+    bool m_InSettings = false;
 
     DirectX::SimpleMath::Vector2 m_Screen = { 1600.0f, 900.0f };
     DirectX::SimpleMath::Vector2 m_PanelPos = { 0.0f, 0.0f };
     DirectX::SimpleMath::Vector2 m_PanelSize = { 0.0f, 0.0f };
     float m_Short = 900.0f;
+    float m_Scale = 1.0f;   // UI 全体の倍率（UIDeco::UIScale()）を画面に収まる所まで落とした値。Layout で決める
 };

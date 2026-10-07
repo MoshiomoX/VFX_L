@@ -10,9 +10,6 @@
 #include "Component/BackpackComponent.h"
 #include "Swarm/ProjectileProfile.h"
 #include "Swarm/AreaProfile.h"
-#include <algorithm>
-#include <cmath>
-#include <cwchar>
 
 namespace
 {
@@ -349,6 +346,7 @@ namespace
         case StatKind::ManaRegen: l.label = L"MP回復"; break;
         case StatKind::JumpCount: l.label = L"ジャンプ回数"; break;
         case StatKind::SpellPower: l.label = L"魔法の威力"; break;
+        case StatKind::Shield:    l.label = L"最大シールド"; break;
         }
         l.value = def.percent ? L"+" + Num(def.amount * 100.0f) + L"%" : L"+" + Num(def.amount);
         l.trend = +1;

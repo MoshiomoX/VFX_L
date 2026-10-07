@@ -7,16 +7,7 @@
 #include "ThirdParty/miniaudio/miniaudio.h"
 #include "imgui.h"
 #include <nlohmann/json.hpp>
-#include <algorithm>
-#include <cmath>
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
 #include <atomic>
-#include <random>
-#include <unordered_map>
-#include <vector>
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX

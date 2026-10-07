@@ -11,8 +11,6 @@
 #include "Item/ItemDataFile.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cstdlib>
 
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;

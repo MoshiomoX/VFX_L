@@ -32,6 +32,7 @@
 #include "UI/ItemSheetView.h"
 #include "UI/PauseMenuUI.h"
 #include "UI/BackpackPadControl.h"
+#include "UI/TrainingMenuUI.h"
 struct ID3D11Device;
 struct ID3D11DeviceContext;
 class Registry;
@@ -113,8 +114,17 @@ public:
     void SetStage(int stage, const wchar_t* name) { m_FrameInfo.stage = stage; m_FrameInfo.stageName = name; }
     // 金貨（2026-10-04）。HUD の MP バーの下に出す（< 0 = 出さない）
     void SetGold(int gold) { m_FrameInfo.gold = gold; }
+    // 目標の一行（撃破数の下、「目標: 」は HUD が付ける）。nullptr で消す。毎フレームシーンが入れ直す（2026-10-07）
+    void SetObjective(const wchar_t* text) { m_FrameInfo.objective = text; }
     // 四択の引き直し（金貨）に使う。無ければ引き直しのボタンを出さない
     void SetLevelUpSystem(LevelUpSystem* sys) { m_LevelUpSystem = sys; }
+    // トレーニング（実験場）のメニュー（2026-10-07）。true の間だけ T / パッド RB で開く。
+    // メニューの依頼はシーンが毎フレーム取り（SpellLab::Apply）、結果の一行を SetTrainingMessage で返す
+    void SetTrainingEnabled(bool on) { m_TrainingEnabled = on; }
+    std::vector<TrainingRequest> ConsumeTrainingRequests() { return m_Training.ConsumeRequests(); }
+    void SetTrainingMessage(const std::wstring& msg) { if (!msg.empty()) m_Training.SetMessage(msg); }
+    TrainingMenuUI& TestTraining() { return m_Training; }   // TEMP-TEST: 自動テスト（training）
+    void TestOpenTraining(bool open);                        // TEMP-TEST
     void SetMarkers(const DirectX::SimpleMath::Matrix& viewProj, std::vector<HUDMarker> markers)
     {
         m_FrameInfo.viewProj = viewProj;
@@ -150,6 +160,8 @@ private:
     HUDFrameInfo   m_FrameInfo;          // SetRunInfo / SetMarkers。wand は Render で入れる
     LevelUpSystem* m_LevelUpSystem = nullptr;   // SetLevelUpSystem（引き直し）
 
+    TrainingMenuUI      m_Training;          // トレーニングのメニュー（実験場だけ）
+    bool                m_TrainingEnabled = false;
     PauseMenuUI         m_Pause;
     PauseMenuUI::Action m_MenuAction = PauseMenuUI::Action::None;
     float               m_GameOverTime = -1.0f;   // SetGameOver

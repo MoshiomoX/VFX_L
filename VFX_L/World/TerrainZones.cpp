@@ -7,7 +7,6 @@
 #include "World/TerrainBuild.h"
 #include "Graphics/Model/Model.h"
 #include "Manager/ResourceManager.h"
-#include <algorithm>
 
 namespace TerrainBuild
 {

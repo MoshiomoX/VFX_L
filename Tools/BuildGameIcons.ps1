@@ -47,6 +47,7 @@ $Icons = [ordered]@{
     'ManaRegenUp'    = 'lorc/magic-swirl'
     'JumpCountUp'    = 'lorc/wingfoot'
     'SpellPowerUp'   = 'lorc/crystal-wand'
+    'ShieldUp'       = 'lorc/energy-shield'
     'Magnet'         = 'lorc/magnet'
     'ManaSurge'      = 'lorc/embrassed-energy'
     'Gold'           = 'delapouite/two-coins'

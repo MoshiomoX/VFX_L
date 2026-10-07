@@ -1,7 +1,6 @@
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Light/PointLightManager.h"
-#include <iostream>
 
 bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 {

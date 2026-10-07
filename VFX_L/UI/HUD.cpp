@@ -12,16 +12,10 @@
 #include "Item/ItemDatabase.h"
 #include "UI/UIDeco.h"
 #include "Manager/ResourceManager.h"
-#include <cmath>
 #include "ResourcePaths.h"
 #include "imgui.h"
 
 #include <nlohmann/json.hpp>
-#include <fstream>
-#include <algorithm>
-#include <cmath>
-#include <cstdio>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 using json = nlohmann::json;
@@ -119,6 +113,7 @@ bool HUD::Initialize(ID3D11Device* device)
     // 魔力解放の欄の絵（無ければ円だけ描く）・金貨の絵
     m_SurgeIcon = ResourceManager::Get().LoadTexture(Res::Icon::ManaSurge);
     m_GoldIcon = ResourceManager::Get().LoadTexture(Res::Icon::Gold);
+    m_ShieldIcon = ResourceManager::Get().LoadTexture(Res::Icon::ShieldUp);
 
     // 保存済みの調整があれば使う。無ければコードの既定値のまま
     LoadStyle();
@@ -155,11 +150,38 @@ void HUD::BarTrail::Update(float dt, float ratio, const HUDStyle& style)
     if (value < ratio) value = ratio;
 }
 
-void HUD::Update(float dt, const HealthComponent& hp, const ManaComponent& mp)
+// ============================================================
+// px の値と文字の倍率を k 倍した写し（UI 全体の倍率。2026-10-07）。
+// アンカーの比率・色・画面比（vignetteWidth 等）・魔法陣の比率はそのまま
+// ============================================================
+HUDStyle HUDStyle::Scaled(float k) const
 {
+    HUDStyle s = *this;
+    auto anchor = [k](HUDAnchor& a) { a.offset *= k; };
+    anchor(s.expBar); anchor(s.lvText); anchor(s.hpBar); anchor(s.mpBar);
+    anchor(s.runInfo); anchor(s.spellBar); anchor(s.goldText); anchor(s.surgeSkill);
+    s.expBarHeight *= k;   s.expBarMargin *= k;
+    s.hpBarSize *= k;      s.mpBarSize *= k;      s.barPadding *= k;
+    s.lvTextScale *= k;    s.barTextScale *= k;   s.barTextOffset *= k;   s.textShadowOffset *= k;
+    s.borderSize *= k;     s.gemSize *= k;
+    s.timerScale *= k;     s.killScale *= k;      s.runDividerWidth *= k;
+    s.slotSize *= k;       s.slotGap *= k;
+    s.goldIconSize *= k;   s.goldTextScale *= k;
+    s.shieldBarHeight *= k; s.shieldBarGap *= k; s.shieldIconSize *= k; s.shieldTextScale *= k;
+    s.surgeSkillSize *= k; s.surgeNumberScale *= k; s.surgeKeyScale *= k;
+    s.markerSize *= k;     s.markerMargin *= k;
+    s.objectiveScale *= k;
+    s.platePad *= k;
+    return s;
+}
+
+void HUD::Update(float dt, const HealthComponent& hp, const ManaComponent& mp, const ShieldComponent* shield)
+{
+    m_S = m_Style.Scaled(UIDeco::UIScale());
     m_Time += dt;
     m_HpTrail.Update(dt, SafeRatio(hp.current, hp.max), m_Style);
     m_MpTrail.Update(dt, SafeRatio(mp.current, mp.max), m_Style);
+    UpdateShield(dt, shield);
 
     // 魔力解放の再使用待ちが明けた瞬間に欄を一度光らせる
     const bool ready = !mp.SurgeActive() && mp.surgeCooldownLeft <= 0.0f;
@@ -176,6 +198,7 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     const LevelComponent& lv, const HUDFrameInfo& info)
 {
     if (!m_WhiteTex) return;
+    m_S = m_Style.Scaled(UIDeco::UIScale());   // ImGui でその場で変えた値も同じフレームで効く
 
     // ---- 一番下の層：瀕死の赤い縁と画面外の目印（バーや文字の下に敷く）----
     DrawLowHpVignette(sprite, hp);
@@ -184,55 +207,63 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
 
     // ---- 経験値バー（既定では最上段の通し）----
     // 選択待ちで持ち越し中は 1.0 を超えるので丸める
-    const Vector2 expPos = m_Style.expBar.Resolve(m_ScreenW, m_ScreenH)
-        + Vector2(m_Style.expBarMargin, 0.0f);
+    const Vector2 expPos = m_S.expBar.Resolve(m_ScreenW, m_ScreenH)
+        + Vector2(m_S.expBarMargin, 0.0f);
     const Vector2 expSize = {
-        m_ScreenW - m_Style.expBarMargin * 2.0f,
-        m_Style.expBarHeight
+        m_ScreenW - m_S.expBarMargin * 2.0f,
+        m_S.expBarHeight
     };
     const float expRatio = Clamp01(lv.Progress());
-    DrawBar(sprite, expPos, expSize, expRatio, expRatio, m_Style.expColor);
+    DrawBar(sprite, expPos, expSize, expRatio, expRatio, m_S.expColor);
 
     // ---- HP / MP バー ----
-    const Vector2 hpPos = m_Style.hpBar.Resolve(m_ScreenW, m_ScreenH);
-    const Vector2 mpPos = m_Style.mpBar.Resolve(m_ScreenW, m_ScreenH);
+    const Vector2 hpPos = m_S.hpBar.Resolve(m_ScreenW, m_ScreenH);
+    Vector2 mpPos = m_S.mpBar.Resolve(m_ScreenW, m_ScreenH);
 
-    DrawBar(sprite, hpPos, m_Style.hpBarSize,
-        SafeRatio(hp.current, hp.max), m_HpTrail.value, m_Style.hpColor, true);
+    DrawBar(sprite, hpPos, m_S.hpBarSize,
+        SafeRatio(hp.current, hp.max), m_HpTrail.value, m_S.hpColor, true);
+    // シールド（HP バーのすぐ下。出している間は MP バーと金貨をその分下げる）
+    float shieldShift = 0.0f;
+    if (m_S.showShield && info.shield)
+        shieldShift = DrawShieldBar(sprite, text, *info.shield, hpPos);
+    mpPos.y += shieldShift;
     // 魔力解放中は金色で脈打つ（減らないことが一目で分かるように）
-    Vector4 mpCol = m_Style.mpColor;
+    Vector4 mpCol = m_S.mpColor;
     if (mp.SurgeActive())
     {
         const float pulse = 0.85f + 0.15f * std::sin(m_Time * 10.0f);
-        mpCol = m_Style.mpSurgeColor * pulse;
-        mpCol.w = m_Style.mpSurgeColor.w;
+        mpCol = m_S.mpSurgeColor * pulse;
+        mpCol.w = m_S.mpSurgeColor.w;
     }
-    DrawBar(sprite, mpPos, m_Style.mpBarSize,
+    DrawBar(sprite, mpPos, m_S.mpBarSize,
         SafeRatio(mp.current, mp.max), m_MpTrail.value, mpCol, true);
 
     // ---- 数値 ----
     wchar_t buf[32];
 
     swprintf_s(buf, L"Lv %d", lv.level);
-    DrawLabel(text, buf, m_Style.lvText.Resolve(m_ScreenW, m_ScreenH),
-        m_Style.lvTextScale);
+    {
+        const Vector2 lp = m_S.lvText.Resolve(m_ScreenW, m_ScreenH);
+        Plate(sprite, lp, text.Measure(buf, m_S.lvTextScale));
+        DrawLabel(text, buf, lp, m_S.lvTextScale);
+    }
 
     swprintf_s(buf, L"HP %d/%d", CeilInt(hp.current), (int)hp.max);
-    DrawBarLabel(text, buf, hpPos, m_Style.hpBarSize);
+    DrawBarLabel(text, buf, hpPos, m_S.hpBarSize);
 
     swprintf_s(buf, L"MP %d/%d", CeilInt(mp.current), (int)mp.max);
-    DrawBarLabel(text, buf, mpPos, m_Style.mpBarSize);
+    DrawBarLabel(text, buf, mpPos, m_S.mpBarSize);
 
     // ---- 金貨（MP バーの下）----
-    if (m_Style.showGold && info.gold >= 0)
-        DrawGold(sprite, text, info.gold);
+    if (m_S.showGold && info.gold >= 0)
+        DrawGold(sprite, text, info.gold, shieldShift);
 
     // ---- 経過時間・撃破数、魔法の欄、その上の魔力解放（Q）----
     // 魔力解放は 2026-10-04 まで MP バーの下の一行の文字だった
     DrawRunInfo(sprite, text, info);
-    if (m_Style.showSpellBar && info.wand)
+    if (m_S.showSpellBar && info.wand)
         DrawSpellBar(sprite, *info.wand, mp);
-    if (m_Style.showSurgeSkill)
+    if (m_S.showSurgeSkill)
         DrawSurgeSkill(sprite, text, mp);
 }
 
@@ -241,7 +272,7 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
 // ============================================================
 void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrameInfo& info)
 {
-    const Vector2 a = m_Style.runInfo.Resolve(m_ScreenW, m_ScreenH);
+    const Vector2 a = m_S.runInfo.Resolve(m_ScreenW, m_ScreenH);
     wchar_t buf[32];
 
     // 制限時間があれば残りを数え下ろす（切り上げ: 0:00 になった瞬間が時間切れ）。
@@ -251,39 +282,74 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
     int total = (int)info.runTime;
     if (countdown)
         total = overtime ? (int)(info.runTime - info.stageTime) : (int)std::ceil(info.stageTime - info.runTime);
+    wchar_t killBuf[128];
     swprintf_s(buf, overtime ? L"+%02d:%02d" : L"%02d:%02d", total / 60, total % 60);
-    const Vector2 ts = text.Measure(buf, m_Style.timerScale);
+    if (info.stage > 0)
+        swprintf_s(killBuf, overtime ? L"ステージ%d %s   最終ウェーブ   撃破 %u" : L"ステージ%d %s   撃破 %u", info.stage, info.stageName, info.kills);
+    else
+        swprintf_s(killBuf, overtime ? L"最終ウェーブ   撃破 %u" : L"撃破 %u", info.kills);
+    std::wstring objLine;
+    const bool hasObj = m_S.showObjective && info.objective && *info.objective;
+    if (hasObj) { objLine = L"目標: "; objLine += info.objective; }
+
+    // ---- 先に塊全体を測る（下敷きを 1 枚で敷くため。2026-10-07）----
+    const Vector2 ts = text.Measure(buf, m_S.timerScale);
+    const Vector2 ks = text.Measure(killBuf, m_S.killScale);
+    const Vector2 os = hasObj ? text.Measure(objLine, m_S.objectiveScale) : Vector2::Zero;
+    const float g = os.y * 0.28f;                          // 目標の菱形の大きさ
+    const float objW = hasObj ? os.x + g * 1.8f : 0.0f;    // 菱形 + 隙間 + 文字
+    const float dividerH = (m_S.runDividerWidth > 0.0f) ? m_S.runDividerWidth * 0.05f * 0.5f : 0.0f;
+    const float objGap = hasObj ? 4.0f * UIDeco::UIScale() : 0.0f;
+    const float blockW = (std::max)((std::max)(ts.x, ks.x), (std::max)(objW, m_S.runDividerWidth));
+    const float blockH = ts.y + dividerH + ks.y + objGap + os.y;
+    Plate(sprite, { a.x - blockW * 0.5f, a.y }, { blockW, blockH });
+
+    // ---- 経過時間 ----
     const Vector2 tp = { a.x - ts.x * 0.5f, a.y };
     if (overtime)
     {
         // 線形の色（HUD はシーンの HDR に描いてからトーンマッピングを通る）
-        const float o = m_Style.textShadowOffset;
-        if (m_Style.textShadow) text.Draw(buf, { tp.x + o, tp.y + o }, m_Style.shadowColor, m_Style.timerScale);
-        text.Draw(buf, tp, { 1.0f, 0.12f, 0.08f, 1.0f }, m_Style.timerScale);
+        const float o = m_S.textShadowOffset;
+        if (m_S.textShadow) text.Draw(buf, { tp.x + o, tp.y + o }, m_S.shadowColor, m_S.timerScale);
+        text.Draw(buf, tp, { 1.0f, 0.12f, 0.08f, 1.0f }, m_S.timerScale);
     }
     else
-        DrawLabel(text, buf, tp, m_Style.timerScale);
+        DrawLabel(text, buf, tp, m_S.timerScale);
 
     float y = a.y + ts.y;
-    if (m_Style.runDividerWidth > 0.0f)
+    if (m_S.runDividerWidth > 0.0f)
     {
-        const float dh = m_Style.runDividerWidth * 0.05f;
-        UIDeco::DrawDivider(sprite, false, { a.x, y }, m_Style.runDividerWidth, m_Style.borderColor);
-        y += dh * 0.5f;
+        UIDeco::DrawDivider(sprite, false, { a.x, y }, m_S.runDividerWidth, m_S.borderColor);
+        y += dividerH;
     }
 
-    if (info.stage > 0)
-        swprintf_s(buf, overtime ? L"ステージ%d %s   最終ウェーブ   撃破 %u" : L"ステージ%d %s   撃破 %u", info.stage, info.stageName, info.kills);
-    else
-        swprintf_s(buf, overtime ? L"最終ウェーブ   撃破 %u" : L"撃破 %u", info.kills);
-    const Vector2 ks = text.Measure(buf, m_Style.killScale);
-    DrawLabel(text, buf, { a.x - ks.x * 0.5f, y }, m_Style.killScale);
+    // ---- 面・撃破数 ----
+    DrawLabel(text, killBuf, { a.x - ks.x * 0.5f, y }, m_S.killScale);
+    y += ks.y;
 
-    // ---- Boss の HP 条（呼んでいる間だけ。撃破数の下に画面幅の 4 割）----
+    // ---- 目標（2026-10-07）：金の菱形 + 「目標: …」。文はシーンが毎フレーム入れる ----
+    if (hasObj)
+    {
+        y += objGap;
+        const float x0 = a.x - objW * 0.5f;
+        const float cy = y + os.y * 0.5f;
+        sprite.Draw(m_WhiteTex, { x0, cy - g * 0.5f }, { g, g }, m_S.objectiveColor, 0.785398f, { x0 + g * 0.5f, cy });
+        const Vector2 op = { x0 + g * 1.8f, y };
+        if (m_S.textShadow)
+        {
+            const float o = m_S.textShadowOffset;
+            text.Draw(objLine, { op.x + o, op.y + o }, m_S.shadowColor, m_S.objectiveScale);
+        }
+        text.Draw(objLine, op, m_S.objectiveColor, m_S.objectiveScale);
+        y += os.y;
+    }
+    y += m_S.textPlates ? m_S.platePad.y : 0.0f;   // Boss の HP 条が下敷きに食い込まないように
+
+    // ---- Boss の HP 条（呼んでいる間だけ。撃破数（目標）の下に画面幅の 4 割）----
     if (info.bossHp >= 0.0f)
     {
-        const Vector2 size = { m_ScreenW * 0.4f, m_Style.hpBarSize.y };
-        const Vector2 pos = { a.x - size.x * 0.5f, y + ks.y + 8.0f };
+        const Vector2 size = { m_ScreenW * 0.4f, m_S.hpBarSize.y };
+        const Vector2 pos = { a.x - size.x * 0.5f, y + 8.0f * UIDeco::UIScale() };
         const float r = Clamp01(info.bossHp);
         DrawBar(sprite, pos, size, r, r, { 0.35f, 0.05f, 0.55f, 1.0f }, true);   // 紫（線形）
         DrawBarLabel(text, L"ボス", pos, size);
@@ -310,10 +376,10 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
         if (o.storedCount > 0) slots.push_back({ o.id, o.spawnTimer, o.orbInterval, 0.0f });
     if (slots.empty()) return;
 
-    const float size = m_Style.slotSize;
-    const float gap = m_Style.slotGap;
+    const float size = m_S.slotSize;
+    const float gap = m_S.slotGap;
     const float totalW = size * (float)slots.size() + gap * (float)(slots.size() - 1);
-    const Vector2 a = m_Style.spellBar.Resolve(m_ScreenW, m_ScreenH);
+    const Vector2 a = m_S.spellBar.Resolve(m_ScreenW, m_ScreenH);
     const float left = a.x - totalW * 0.5f;
     const float top = a.y - size;
     const float iconSize = size * 0.56f;
@@ -332,35 +398,35 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
         const Vector2 center = { x + size * 0.5f, top + size * 0.5f };
 
         // 後ろの魔法陣（アイテムの種類の色。隣同士で逆に回す）。明るい草の上でも見えるよう、暗い円を敷いてから
-        if (m_Style.slotCircleScale > 0.0f)
+        if (m_S.slotCircleScale > 0.0f)
         {
-            const float d = size * m_Style.slotCircleScale;
+            const float d = size * m_S.slotCircleScale;
             sprite.Draw(disc, { center.x - d * 0.5f, center.y - d * 0.5f }, { d, d }, { 0.0f, 0.0f, 0.0f, 0.55f });
             Vector4 ring = UIDeco::CategoryColor(c ? c->category : ItemCategory::Projectile);
             ring.w = 0.85f;
             UIDeco::DrawCircle(sprite, false, center, d, ring, (index % 2) ? -spin : spin);
         }
 
-        sprite.Draw(disc, { x, top }, { size, size }, m_Style.slotBgColor);
+        sprite.Draw(disc, { x, top }, { size, size }, m_S.slotBgColor);
 
         auto icon = m_IconLookup ? m_IconLookup(sl.id) : nullptr;
         const Vector2 ip = { center.x - iconSize * 0.5f, center.y - iconSize * 0.5f };
-        if (icon) sprite.Draw(icon, ip, { iconSize, iconSize }, m_Style.textColor);
+        if (icon) sprite.Draw(icon, ip, { iconSize, iconSize }, m_S.textColor);
         else      sprite.Draw(disc, ip, { iconSize, iconSize }, col);
 
         // クールダウンの残り（castTimer は castInterval から 0 へ減る）。円の上から cd の割合だけ暗く
         const float cd = (sl.interval > 0.0f) ? Clamp01(sl.timer / sl.interval) : 0.0f;
         if (cd > 0.0f)
-            sprite.Draw(disc, { x, top }, { size, size * cd }, m_Style.cooldownColor, { 0.0f, 0.0f, 1.0f, cd });
+            sprite.Draw(disc, { x, top }, { size, size * cd }, m_S.cooldownColor, { 0.0f, 0.0f, 1.0f, cd });
 
         if (!mp.CanAfford(sl.cost))
-            sprite.Draw(disc, { x, top }, { size, size }, m_Style.noManaColor);
+            sprite.Draw(disc, { x, top }, { size, size }, m_S.noManaColor);
         if (wand.castingPaused)
             sprite.Draw(disc, { x, top }, { size, size }, { 0.0f, 0.0f, 0.0f, 0.55f });
 
-        if (m_Style.drawBorder && deco.ring)
-            sprite.Draw(deco.ring, { x, top }, { size, size }, m_Style.borderColor);
-        else if (m_Style.drawBorder)
+        if (m_S.drawBorder && deco.ring)
+            sprite.Draw(deco.ring, { x, top }, { size, size }, m_S.borderColor);
+        else if (m_S.drawBorder)
             DrawBorder(sprite, { x, top }, { size, size });
 
         x += size + gap;
@@ -371,34 +437,41 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
 // ============================================================
 // 金貨（2026-10-04）：硬貨の絵 + 枚数。増えた瞬間は 0.35 秒ほど明るく、少し大きく
 // ============================================================
-void HUD::DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold)
+void HUD::DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold, float yShift)
 {
     if (m_LastGold >= 0 && gold > m_LastGold) m_GoldPulseAt = m_Time;
     m_LastGold = gold;
     const float pulse = std::exp(-(m_Time - m_GoldPulseAt) * 8.0f);   // 1 → 0
 
-    const Vector2 p = m_Style.goldText.Resolve(m_ScreenW, m_ScreenH);
-    const float is = m_Style.goldIconSize;
-    Vector4 col = m_Style.goldColor;
+    const Vector2 p = m_S.goldText.Resolve(m_ScreenW, m_ScreenH) + Vector2(0.0f, yShift);
+    const float is = m_S.goldIconSize;
+    Vector4 col = m_S.goldColor;
     col.x *= 1.0f + 0.6f * pulse;
     col.y *= 1.0f + 0.6f * pulse;
     col.z *= 1.0f + 0.6f * pulse;
-    if (m_GoldIcon)
-    {
-        const float o = m_Style.textShadowOffset + 0.5f;
-        sprite.Draw(m_GoldIcon, { p.x + o, p.y + o }, { is, is }, m_Style.shadowColor);
-        sprite.Draw(m_GoldIcon, p, { is, is }, col);
-    }
 
     wchar_t buf[24];
     swprintf_s(buf, L"%d", gold);
-    const float s = m_Style.goldTextScale * (1.0f + 0.12f * pulse);
+    const float s = m_S.goldTextScale * (1.0f + 0.12f * pulse);
     const Vector2 ts = text.Measure(buf, s);
-    const Vector2 tp = { p.x + is + 6.0f, p.y + (is - ts.y) * 0.5f };
-    if (m_Style.textShadow)
+    const Vector2 tp = { p.x + is + 6.0f * UIDeco::UIScale(), p.y + (is - ts.y) * 0.5f };
+
+    // 下敷きは絵と数字をまとめて（膨らむ演出で揺れないよう、膨らむ前の大きさで測る）
     {
-        const float o = m_Style.textShadowOffset;
-        text.Draw(buf, { tp.x + o, tp.y + o }, m_Style.shadowColor, s);
+        const Vector2 ts0 = text.Measure(buf, m_S.goldTextScale);
+        const float h = (std::max)(is, ts0.y);
+        Plate(sprite, { p.x, p.y + (is - h) * 0.5f }, { (tp.x - p.x) + ts0.x, h });
+    }
+    if (m_GoldIcon)
+    {
+        const float o = m_S.textShadowOffset + 0.5f;
+        sprite.Draw(m_GoldIcon, { p.x + o, p.y + o }, { is, is }, m_S.shadowColor);
+        sprite.Draw(m_GoldIcon, p, { is, is }, col);
+    }
+    if (m_S.textShadow)
+    {
+        const float o = m_S.textShadowOffset;
+        text.Draw(buf, { tp.x + o, tp.y + o }, m_S.shadowColor, s);
     }
     text.Draw(buf, tp, col, s);
 }
@@ -412,8 +485,8 @@ void HUD::DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold)
 // ============================================================
 void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaComponent& mp)
 {
-    const float size = m_Style.surgeSkillSize;
-    const Vector2 a = m_Style.surgeSkill.Resolve(m_ScreenW, m_ScreenH);
+    const float size = m_S.surgeSkillSize;
+    const Vector2 a = m_S.surgeSkill.Resolve(m_ScreenW, m_ScreenH);
     const Vector2 center = { a.x, a.y - size * 0.5f };
     const Vector2 tl = { center.x - size * 0.5f, center.y - size * 0.5f };
 
@@ -424,14 +497,14 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
     const UIDeco::Textures& deco = UIDeco::Tex();
     const auto& disc = deco.disc ? deco.disc : m_WhiteTex;
     const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
-    const Vector4& glow = m_Style.surgeActiveColor;
+    const Vector4& glow = m_S.surgeActiveColor;
     const float breathe = 0.5f + 0.5f * std::sin(m_Time * 2.5f);   // 使える時の息（0..1）
     const float pulse = 0.5f + 0.5f * std::sin(m_Time * 10.0f);    // 解放中の脈（0..1）
 
     // ---- 後ろ：暗い円 → （解放中）金の光 → 魔法陣 ----
-    if (m_Style.surgeCircleScale > 0.0f)
+    if (m_S.surgeCircleScale > 0.0f)
     {
-        const float d = size * m_Style.surgeCircleScale;
+        const float d = size * m_S.surgeCircleScale;
         sprite.Draw(disc, { center.x - d * 0.5f, center.y - d * 0.5f }, { d, d }, { 0.0f, 0.0f, 0.0f, 0.55f });
         if (active)
         {
@@ -447,11 +520,11 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
     }
 
     // ---- 欄の地と絵 ----
-    sprite.Draw(disc, tl, { size, size }, m_Style.slotBgColor);
+    sprite.Draw(disc, tl, { size, size }, m_S.slotBgColor);
 
     const float iconSize = size * 0.62f;
     const Vector2 ip = { center.x - iconSize * 0.5f, center.y - iconSize * 0.5f };
-    Vector4 iconCol = m_Style.textColor;
+    Vector4 iconCol = m_S.textColor;
     if (active)   // 金に沈めて、上に重ねる残り秒（白）を読めるようにする
         iconCol = { glow.x * 0.25f, glow.y * 0.25f, glow.z * 0.25f, 1.0f };
     else if (!ready)
@@ -461,7 +534,7 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
 
     // 再使用待ち：上から残りの割合だけ暗く（魔法の欄と同じ）
     if (cd > 0.0f)
-        sprite.Draw(disc, tl, { size, size * cd }, m_Style.cooldownColor, { 0.0f, 0.0f, 1.0f, cd });
+        sprite.Draw(disc, tl, { size, size * cd }, m_S.cooldownColor, { 0.0f, 0.0f, 1.0f, cd });
 
     // 使えるようになった瞬間の光
     if (m_SurgeReadyFlash > 0.0f)
@@ -470,7 +543,7 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
     // 縁の輪（解放中は金に光る）
     if (deco.ring)
     {
-        Vector4 edge = m_Style.borderColor;
+        Vector4 edge = m_S.borderColor;
         if (active) edge = { glow.x, glow.y, glow.z, 1.0f };
         sprite.Draw(deco.ring, tl, { size, size }, edge);
     }
@@ -485,12 +558,12 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
         swprintf_s(buf, L"%d", CeilInt(mp.surgeCooldownLeft));
     if (buf[0])
     {
-        const float s = m_Style.surgeNumberScale;
+        const float s = m_S.surgeNumberScale;
         const Vector2 ts = text.Measure(buf, s);
         const Vector2 tp = { center.x - ts.x * 0.5f, center.y - ts.y * 0.5f };
-        const float o = m_Style.textShadowOffset + 0.5f;
-        text.Draw(buf, { tp.x + o, tp.y + o }, m_Style.shadowColor, s);
-        text.Draw(buf, tp, active ? Vector4(1.3f, 1.2f, 1.0f, 1.0f) : m_Style.textColor, s);   // 解放中は少し光る白
+        const float o = m_S.textShadowOffset + 0.5f;
+        text.Draw(buf, { tp.x + o, tp.y + o }, m_S.shadowColor, s);
+        text.Draw(buf, tp, active ? Vector4(1.3f, 1.2f, 1.0f, 1.0f) : m_S.textColor, s);   // 解放中は少し光る白
     }
 
     // ---- 下の縁の「Q」の札 ----
@@ -498,10 +571,10 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
         const float k = size * 0.34f;
         const Vector2 kc = { center.x, tl.y + size };
         const Vector2 kp = { kc.x - k * 0.5f, kc.y - k * 0.5f };
-        sprite.Draw(disc, kp, { k, k }, m_Style.slotBgColor);
-        if (deco.ring) sprite.Draw(deco.ring, kp, { k, k }, active ? Vector4(glow.x, glow.y, glow.z, 1.0f) : m_Style.borderColor);
-        const Vector2 ts = text.Measure(L"Q", m_Style.surgeKeyScale);
-        DrawLabel(text, L"Q", { kc.x - ts.x * 0.5f, kc.y - ts.y * 0.5f }, m_Style.surgeKeyScale);
+        sprite.Draw(disc, kp, { k, k }, m_S.slotBgColor);
+        if (deco.ring) sprite.Draw(deco.ring, kp, { k, k }, active ? Vector4(glow.x, glow.y, glow.z, 1.0f) : m_S.borderColor);
+        const Vector2 ts = text.Measure(L"Q", m_S.surgeKeyScale);
+        DrawLabel(text, L"Q", { kc.x - ts.x * 0.5f, kc.y - ts.y * 0.5f }, m_S.surgeKeyScale);
     }
 }
 
@@ -512,16 +585,16 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
 // ============================================================
 void HUD::DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp)
 {
-    if (!m_Style.lowHpVignette || hp.max <= 0.0f || hp.current <= 0.0f) return;
-    if (m_Style.lowHpRatio <= 0.0f) return;
+    if (!m_S.lowHpVignette || hp.max <= 0.0f || hp.current <= 0.0f) return;
+    if (m_S.lowHpRatio <= 0.0f) return;
 
     const float ratio = hp.current / hp.max;
-    if (ratio >= m_Style.lowHpRatio) return;
+    if (ratio >= m_S.lowHpRatio) return;
 
-    const float k = 1.0f - ratio / m_Style.lowHpRatio;   // 0（境目）〜 1（瀕死）
-    const float pulse = 0.7f + 0.3f * std::sin(m_Time * m_Style.vignettePulse);
-    DrawEdgeGlow(sprite, m_Style.vignetteColor, m_Style.vignetteColor.w * (0.35f + 0.65f * k) * pulse,
-        m_Style.vignetteWidth);
+    const float k = 1.0f - ratio / m_S.lowHpRatio;   // 0（境目）〜 1（瀕死）
+    const float pulse = 0.7f + 0.3f * std::sin(m_Time * m_S.vignettePulse);
+    DrawEdgeGlow(sprite, m_S.vignetteColor, m_S.vignetteColor.w * (0.35f + 0.65f * k) * pulse,
+        m_S.vignetteWidth);
 }
 
 // ============================================================
@@ -529,12 +602,12 @@ void HUD::DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp)
 // ============================================================
 void HUD::DrawSurgeVignette(SpriteRenderer& sprite, const ManaComponent& mp)
 {
-    if (!m_Style.surgeVignette || !mp.SurgeActive()) return;
+    if (!m_S.surgeVignette || !mp.SurgeActive()) return;
     const float in = Clamp01((mp.surgeDuration - mp.surgeTime) / 0.2f);
     const float out = Clamp01(mp.surgeTime / 0.4f);
     const float pulse = 0.8f + 0.2f * std::sin(m_Time * 6.0f);
-    DrawEdgeGlow(sprite, m_Style.surgeVignetteColor, m_Style.surgeVignetteColor.w * in * out * pulse,
-        m_Style.surgeVignetteWidth);
+    DrawEdgeGlow(sprite, m_S.surgeVignetteColor, m_S.surgeVignetteColor.w * in * out * pulse,
+        m_S.surgeVignetteWidth);
 }
 
 // ============================================================
@@ -571,10 +644,10 @@ void HUD::DrawEdgeGlow(SpriteRenderer& sprite, const Vector4& color, float edgeA
 // ============================================================
 void HUD::DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info)
 {
-    if (!m_Style.showMarkers || info.markers.empty()) return;
+    if (!m_S.showMarkers || info.markers.empty()) return;
 
     const Vector2 center = { m_ScreenW * 0.5f, m_ScreenH * 0.5f };
-    const float m = m_Style.markerMargin;
+    const float m = m_S.markerMargin;
     const float hx = center.x - m;
     const float hy = center.y - m;
     if (hx <= 0.0f || hy <= 0.0f) return;
@@ -601,7 +674,7 @@ void HUD::DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info)
         const float ang = std::atan2(d.y, d.x);
 
         // 「>」：先端から後ろへ 2 本の棒。回転の中心は先端
-        const float len = m_Style.markerSize;
+        const float len = m_S.markerSize;
         const float thick = (std::max)(2.0f, len * 0.22f);
         Vector4 col = mk.color;
         col.w = 0.95f;
@@ -624,9 +697,9 @@ void HUD::DrawBar(SpriteRenderer& sprite,
     float ratio, float trailRatio, const Vector4& fillColor, bool gems)
 {
     // 背景（枠を兼ねる）
-    sprite.Draw(m_WhiteTex, pos, size, m_Style.bgColor);
+    sprite.Draw(m_WhiteTex, pos, size, m_S.bgColor);
 
-    const float pad = m_Style.barPadding;
+    const float pad = m_S.barPadding;
     const float innerW = size.x - pad * 2.0f;
     const float innerH = size.y - pad * 2.0f;
     if (innerW <= 0.0f || innerH <= 0.0f) return;
@@ -634,14 +707,14 @@ void HUD::DrawBar(SpriteRenderer& sprite,
     const Vector2 innerPos = { pos.x + pad, pos.y + pad };
 
     // 残像（中身より広い分だけ。隠れる部分は描かない）
-    if (m_Style.damageTrail && trailRatio > ratio)
+    if (m_S.damageTrail && trailRatio > ratio)
     {
         const float from = innerW * ratio;
         const float to = innerW * Clamp01(trailRatio);
         sprite.Draw(m_WhiteTex,
             { innerPos.x + from, innerPos.y },
             { to - from, innerH },
-            m_Style.trailColor);
+            m_S.trailColor);
     }
 
     // 中身（下 4 割を少し暗くして厚みを出す）
@@ -653,17 +726,17 @@ void HUD::DrawBar(SpriteRenderer& sprite,
             { 0.0f, 0.0f, 0.0f, 0.30f });
     }
 
-    if (m_Style.drawBorder)
+    if (m_S.drawBorder)
         DrawBorder(sprite, pos, size);
 
     // 両端の菱形（枠の色）
-    if (gems && m_Style.gemSize > 0.0f)
+    if (gems && m_S.gemSize > 0.0f)
     {
-        const float g = m_Style.gemSize;
+        const float g = m_S.gemSize;
         const float cy = pos.y + size.y * 0.5f;
         for (const float cx : { pos.x, pos.x + size.x })
             sprite.Draw(m_WhiteTex, { cx - g * 0.5f, cy - g * 0.5f }, { g, g },
-                m_Style.borderColor, 0.785398f, { cx, cy });
+                m_S.borderColor, 0.785398f, { cx, cy });
     }
 }
 
@@ -671,10 +744,10 @@ void HUD::DrawBar(SpriteRenderer& sprite,
 void HUD::DrawBorder(SpriteRenderer& sprite,
     const Vector2& pos, const Vector2& size)
 {
-    const float t = m_Style.borderSize;
+    const float t = m_S.borderSize;
     if (t <= 0.0f) return;
 
-    const Vector4& c = m_Style.borderColor;
+    const Vector4& c = m_S.borderColor;
     sprite.Draw(m_WhiteTex, pos, { size.x, t }, c);
     sprite.Draw(m_WhiteTex, { pos.x, pos.y + size.y - t }, { size.x, t }, c);
     sprite.Draw(m_WhiteTex, { pos.x, pos.y + t }, { t, size.y - t * 2.0f }, c);
@@ -682,28 +755,34 @@ void HUD::DrawBorder(SpriteRenderer& sprite,
         { t, size.y - t * 2.0f }, c);
 }
 
+void HUD::Plate(SpriteRenderer& sprite, const Vector2& pos, const Vector2& size) const
+{
+    if (!m_S.textPlates) return;
+    UIDeco::DrawTextPlate(sprite, pos, size, m_S.platePad, m_S.plateColor, m_S.plateLineAlpha);
+}
+
 void HUD::DrawLabel(TextRenderer& text, const std::wstring& str,
     const Vector2& pos, float scale)
 {
-    if (m_Style.textShadow)
+    if (m_S.textShadow)
     {
-        const float o = m_Style.textShadowOffset;
-        text.Draw(str, { pos.x + o, pos.y + o }, m_Style.shadowColor, scale);
+        const float o = m_S.textShadowOffset;
+        text.Draw(str, { pos.x + o, pos.y + o }, m_S.shadowColor, scale);
     }
-    text.Draw(str, pos, m_Style.textColor, scale);
+    text.Draw(str, pos, m_S.textColor, scale);
 }
 
 void HUD::DrawBarLabel(TextRenderer& text, const std::wstring& str,
     const Vector2& barPos, const Vector2& barSize)
 {
-    const float scale = m_Style.barTextScale;
+    const float scale = m_S.barTextScale;
 
     Vector2 pos = {
-        barPos.x + m_Style.barTextOffset.x,
-        barPos.y + m_Style.barTextOffset.y
+        barPos.x + m_S.barTextOffset.x,
+        barPos.y + m_S.barTextOffset.y
     };
 
-    if (m_Style.centerBarText)
+    if (m_S.centerBarText)
     {
         const Vector2 sz = text.Measure(str, scale);
         pos.x = barPos.x + (barSize.x - sz.x) * 0.5f;
@@ -751,6 +830,13 @@ void HUD::DrawDebugUI()
     ImGui::Checkbox("Text Shadow", &m_Style.textShadow);
     if (m_Style.textShadow)
         ImGui::DragFloat("Shadow Offset", &m_Style.textShadowOffset, 0.1f, 0.0f, 8.0f);
+    ImGui::Checkbox("Text Plates", &m_Style.textPlates);
+    if (m_Style.textPlates)
+    {
+        ImGui::ColorEdit4("Plate Color", &m_Style.plateColor.x);
+        ImGui::DragFloat("Plate Line Alpha", &m_Style.plateLineAlpha, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat2("Plate Pad", &m_Style.platePad.x, 0.5f, 0.0f, 60.0f);
+    }
 
     ImGui::Separator();
     ImGui::Text("Damage Trail");
@@ -788,6 +874,10 @@ void HUD::DrawDebugUI()
     ImGui::DragFloat("Timer Scale", &m_Style.timerScale, 0.01f, 0.05f, 3.0f);
     ImGui::DragFloat("Kill Scale", &m_Style.killScale, 0.01f, 0.05f, 3.0f);
     ImGui::DragFloat("Divider Width", &m_Style.runDividerWidth, 1.0f, 0.0f, 800.0f);
+    ImGui::Checkbox("Show Objective", &m_Style.showObjective);
+    ImGui::DragFloat("Objective Scale", &m_Style.objectiveScale, 0.01f, 0.05f, 3.0f);
+    ImGui::ColorEdit4("Objective Color", &m_Style.objectiveColor.x);
+    ImGui::TextDisabled("all px / text sizes x%.2f (UIDeco::UIScale())", UIDeco::UIScale());
 
     ImGui::Separator();
     ImGui::Text("Spell Bar");
@@ -799,6 +889,17 @@ void HUD::DrawDebugUI()
     ImGui::ColorEdit4("Slot Bg", &m_Style.slotBgColor.x);
     ImGui::ColorEdit4("Cooldown", &m_Style.cooldownColor.x);
     ImGui::ColorEdit4("No Mana", &m_Style.noManaColor.x);
+
+    ImGui::Separator();
+    ImGui::Text("Shield (under the HP bar)");
+    ImGui::Checkbox("Show Shield", &m_Style.showShield);
+    ImGui::DragFloat("Shield Bar Height", &m_Style.shieldBarHeight, 0.25f, 1.0f, 100.0f);
+    ImGui::DragFloat("Shield Bar Gap", &m_Style.shieldBarGap, 0.25f, 0.0f, 100.0f);
+    ImGui::DragFloat("Shield Icon Size", &m_Style.shieldIconSize, 0.5f, 0.0f, 200.0f);
+    ImGui::DragFloat("Shield Text Scale", &m_Style.shieldTextScale, 0.01f, 0.05f, 3.0f);
+    ImGui::ColorEdit4("Shield (full)", &m_Style.shieldColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+    ImGui::ColorEdit4("Shield (charging)", &m_Style.shieldChargingColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+    ImGui::ColorEdit4("Shield Text", &m_Style.shieldTextColor.x);
 
     ImGui::Separator();
     ImGui::Text("Gold");
@@ -889,6 +990,13 @@ bool HUD::SaveStyle(const char* path) const
     root["timerScale"] = m_Style.timerScale;
     root["killScale"] = m_Style.killScale;
     root["runDividerWidth"] = m_Style.runDividerWidth;
+    root["textPlates"] = m_Style.textPlates;
+    root["plateColor"] = ToJson(m_Style.plateColor);
+    root["plateLineAlpha"] = m_Style.plateLineAlpha;
+    root["platePad"] = ToJson(m_Style.platePad);
+    root["showObjective"] = m_Style.showObjective;
+    root["objectiveScale"] = m_Style.objectiveScale;
+    root["objectiveColor"] = ToJson(m_Style.objectiveColor);
 
     root["showSpellBar"] = m_Style.showSpellBar;
     root["spellBar"] = ToJson(m_Style.spellBar);
@@ -899,6 +1007,14 @@ bool HUD::SaveStyle(const char* path) const
     root["cooldownColor"] = ToJson(m_Style.cooldownColor);
     root["noManaColor"] = ToJson(m_Style.noManaColor);
 
+    root["showShield"] = m_Style.showShield;
+    root["shieldBarHeight"] = m_Style.shieldBarHeight;
+    root["shieldBarGap"] = m_Style.shieldBarGap;
+    root["shieldIconSize"] = m_Style.shieldIconSize;
+    root["shieldTextScale"] = m_Style.shieldTextScale;
+    root["shieldColor"] = ToJson(m_Style.shieldColor);
+    root["shieldChargingColor"] = ToJson(m_Style.shieldChargingColor);
+    root["shieldTextColor"] = ToJson(m_Style.shieldTextColor);
     root["showGold"] = m_Style.showGold;
     root["goldText"] = ToJson(m_Style.goldText);
     root["goldIconSize"] = m_Style.goldIconSize;
@@ -1003,6 +1119,13 @@ bool HUD::LoadStyle(const char* path)
     ReadFloat(root, "timerScale", m_Style.timerScale);
     ReadFloat(root, "killScale", m_Style.killScale);
     ReadFloat(root, "runDividerWidth", m_Style.runDividerWidth);
+    ReadBool(root, "textPlates", m_Style.textPlates);
+    ReadVec4(root, "plateColor", m_Style.plateColor);
+    ReadFloat(root, "plateLineAlpha", m_Style.plateLineAlpha);
+    ReadVec2(root, "platePad", m_Style.platePad);
+    ReadBool(root, "showObjective", m_Style.showObjective);
+    ReadFloat(root, "objectiveScale", m_Style.objectiveScale);
+    ReadVec4(root, "objectiveColor", m_Style.objectiveColor);
 
     ReadBool(root, "showSpellBar", m_Style.showSpellBar);
     ReadAnchor(root, "spellBar", m_Style.spellBar);
@@ -1013,6 +1136,14 @@ bool HUD::LoadStyle(const char* path)
     ReadVec4(root, "cooldownColor", m_Style.cooldownColor);
     ReadVec4(root, "noManaColor", m_Style.noManaColor);
 
+    ReadBool(root, "showShield", m_Style.showShield);
+    ReadFloat(root, "shieldBarHeight", m_Style.shieldBarHeight);
+    ReadFloat(root, "shieldBarGap", m_Style.shieldBarGap);
+    ReadFloat(root, "shieldIconSize", m_Style.shieldIconSize);
+    ReadFloat(root, "shieldTextScale", m_Style.shieldTextScale);
+    ReadVec4(root, "shieldColor", m_Style.shieldColor);
+    ReadVec4(root, "shieldChargingColor", m_Style.shieldChargingColor);
+    ReadVec4(root, "shieldTextColor", m_Style.shieldTextColor);
     ReadBool(root, "showGold", m_Style.showGold);
     ReadAnchor(root, "goldText", m_Style.goldText);
     ReadFloat(root, "goldIconSize", m_Style.goldIconSize);

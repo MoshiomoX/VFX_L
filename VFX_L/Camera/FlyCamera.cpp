@@ -4,8 +4,6 @@
 #include "Camera/FlyCamera.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
 
 namespace
 {

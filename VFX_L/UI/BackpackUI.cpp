@@ -12,9 +12,7 @@
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "Audio/AudioSystem.h"
-#include "imgui.h"
-#include <algorithm>
-#include <cmath>
+#include "Core/DevUI.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -70,7 +68,8 @@ void BackpackUI::Layout(float screenW, float screenH)
     // グリッド全体の目標サイズから 1 マスの大きさを逆算する
     //   extent = cell * GRID + gap * (GRID - 1)、gap = cell * cellGapRatio
     //   → extent = cell * (GRID + cellGapRatio * (GRID - 1))
-    float targetExtent = shortSide * gridScreenRatio;
+    // UI 全体の倍率（2026-10-07）。画面の高さの 8 割を超えるなら収まる所まで
+    float targetExtent = shortSide * gridScreenRatio * UIDeco::FitScale(gridScreenRatio * (1.0f + framePadRatio * 2.0f / (float)GRID_SIZE), 0.80f);
     float denom = (float)GRID_SIZE + cellGapRatio * (float)(GRID_SIZE - 1);
 
     m_CellSize = targetExtent / denom;
@@ -275,7 +274,7 @@ void BackpackUI::HandleInput(BackpackComponent& bp)
     auto& input = InputManager::Get();
 
     // ImGui がマウスを掴んでいる間は何もしない
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (DevUI::WantMouse())
     {
         // ドラッグ中なら取り消す（ImGui の上で離されると迷子になる）
         CancelDrag();

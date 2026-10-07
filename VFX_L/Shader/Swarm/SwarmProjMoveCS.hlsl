@@ -193,7 +193,13 @@ void main(uint3 id : SV_DispatchThreadID)
     // wall is 2m thick anyway, so nothing slips through.
     // ramps are walkable cells with a height: flying below the
     // surface is a hit too (the projectile would be inside the block)
-    if (!SwarmIsWalkable(terrain, p.position)
+    // a blocked cell only stops a shot that flies INTO it from a free cell.
+    // a shot born inside one flies on until it has left it: the player can
+    // stand on a rock / crate (their cells are blocked for the mobs), and
+    // every shot cast from up there used to die on its first step
+    // (2026-10-07). walls are still entered from a free cell, so they still stop shots
+    bool wasFree = SwarmIsWalkable(terrain, projectiles[i].position);
+    if ((wasFree && !SwarmIsWalkable(terrain, p.position))
         || p.position.y < SwarmTerrainHeight(terrainHeight, p.position.xz))
     {
         // blow up at the last free position, not inside the wall

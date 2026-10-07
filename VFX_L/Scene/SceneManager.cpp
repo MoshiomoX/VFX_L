@@ -1,5 +1,4 @@
 #include "Scene/SceneManager.h"
-#include <iostream>
 
 void SceneManager::ChangeScene(SceneType type)
 {

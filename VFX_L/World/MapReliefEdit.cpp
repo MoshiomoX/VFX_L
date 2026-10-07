@@ -7,8 +7,6 @@
 // ============================================================
 #include "World/MapTerrainEdit.h"
 #include "World/TerrainBuild.h"
-#include <algorithm>
-#include <cmath>
 
 using namespace TerrainBuild;
 

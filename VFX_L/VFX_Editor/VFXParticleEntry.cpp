@@ -8,8 +8,6 @@
 #include "Particle/ParticleSheets.h"
 #include "Graphics/Material/Texture.h"
 #include "imgui.h"
-#include <algorithm>
-#include <iostream>
 
 VFXParticleEntry::~VFXParticleEntry()
 {

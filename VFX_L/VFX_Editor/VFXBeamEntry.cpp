@@ -4,8 +4,6 @@
 #include "VFX_Editor/VFXBeamEntry.h"
 #include "VFX_Editor/VFXBeamRenderer.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cstdlib>
 
 using namespace DirectX::SimpleMath;
 

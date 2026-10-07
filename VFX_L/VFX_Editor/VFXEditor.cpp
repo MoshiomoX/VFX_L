@@ -1,14 +1,8 @@
 #include "VFX_Editor/VFXEditor.h"
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "Core/Application.h"
-
 #include "Particle/ParticleSheets.h"
 #include "imgui.h"
-#include <string>
-#include <cstdio>
-#include <cmath>
-#include <fstream>
-#include <algorithm>
 
 namespace
 {
