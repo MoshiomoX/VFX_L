@@ -34,7 +34,7 @@ SettingsMenuUI::SettingsMenuUI()
         { L"効果音",       Kind::Volume, (int)AudioSystem::Bus::Sfx },
         { L"音楽",         Kind::Volume, (int)AudioSystem::Bus::Music },
         { L"UI の音",      Kind::Volume, (int)AudioSystem::Bus::Ui },
-        { L"アウトライン", Kind::Toggle, 0 },
+        { L"敵味方の縁取り", Kind::Toggle, 0 },   // 陣営の線だけ（トゥーンの黒い線は消えない。2026-10-08）
         { L"戻る",         Kind::Back,   0 },
     };
 }
@@ -99,7 +99,7 @@ float SettingsMenuUI::GetValue(const Row& r) const
     switch (r.kind)
     {
     case Kind::Volume: return AudioSystem::Get().GetVolume((AudioSystem::Bus)r.bus);
-    case Kind::Toggle: return GameSettings::Get().outline ? 1.0f : 0.0f;
+    case Kind::Toggle: return GameSettings::Get().factionOutline ? 1.0f : 0.0f;
     default:           return 0.0f;
     }
 }
@@ -119,8 +119,8 @@ void SettingsMenuUI::SetValue(const Row& r, float v)
     case Kind::Toggle:
     {
         const bool on = v > 0.5f;
-        if (GameSettings::Get().outline == on) return;
-        GameSettings::Get().outline = on;
+        if (GameSettings::Get().factionOutline == on) return;
+        GameSettings::Get().factionOutline = on;
         m_Dirty = true;
         break;
     }

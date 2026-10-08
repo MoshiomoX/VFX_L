@@ -520,6 +520,6 @@ namespace Res
         inline constexpr const char* HUD = "Assets/Data/HUD.json";
         inline constexpr const char* Camera = "Assets/Data/Camera.json";   // 戦闘カメラの調整（BattleCamera）
         inline constexpr const char* Difficulty = "Assets/Data/Difficulty.json";   // 経過時間 → 難度の表（DifficultyCurve）
-        inline constexpr const char* Settings = "Assets/Data/Settings.json";       // プレイヤーの設定（GameSettings：アウトラインの ON / OFF）。音量は Audio/Settings.json
+        inline constexpr const char* Settings = "Assets/Data/Settings.json";       // プレイヤーの設定（GameSettings：敵味方の縁取りの ON / OFF）。音量は Audio/Settings.json
     }
 }
