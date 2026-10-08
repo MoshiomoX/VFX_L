@@ -44,6 +44,7 @@ Swarm::Motion ProjectileProfile::ToMotion() const
     m.c1 = c1;
     m.baseRadius = radius;   // これより大きい当たり半径で撃たれたら、見た目と爆発も同じ倍率で大きく（拡大鏡）
     m.c2 = c2;
+    m.freezeTime = freezeTime;
     return m;
 }
 
@@ -63,6 +64,7 @@ json ProjectileProfile::ToJson() const
     j["speed"] = speed;
     j["radius"] = radius;
     j["lifetime"] = lifetime;
+    if (freezeTime > 0.0f) j["freezeTime"] = freezeTime;
 
     j["vfx"] = vfxFile;
     j["castSound"] = castSound;
@@ -102,6 +104,7 @@ void ProjectileProfile::FromJson(const json& j)
     speed = j.value("speed", speed);
     radius = j.value("radius", radius);
     lifetime = j.value("lifetime", lifetime);
+    freezeTime = j.value("freezeTime", freezeTime);
 
     vfxFile = j.value("vfx", vfxFile);
     castSound = j.value("castSound", castSound);

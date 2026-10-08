@@ -80,6 +80,25 @@ public:
     float bruteRampEnd = 540.0f;
     float GetBruteRatio() const { return m_BruteRatio; }
     void QueueDebugBrutes(int n) { m_DebugBrutes += n; }
+
+    // ---- 突撃兵（kEnemyKindCharger）・盾兵（kEnemyKindShield）。2026-10-08 ----
+    // 湧き（新規・転送）のうちの割合。スプリッターと同じ形の直線で、面毎（StageDef::charger / shield、シーンが入れる）。
+    // 第 2 面は突撃兵、第 3 面は盾兵が主力。雑魚と入れ替わる（湧く数は変えない）。
+    // 溜め・突進・盾の装甲の定数は GPU（SwarmSystem::GetBomberParams の charger* / shield*）
+    struct KindRamp
+    {
+        float start = 1.0e9f;      // この秒までは 0
+        float ratioStart = 0.0f;   // start の時の割合
+        float ratioEnd = 0.0f;     // rampEnd 秒の割合（間は直線、以降そのまま）
+        float rampEnd = 480.0f;
+        float At(float runTime) const;
+    };
+    KindRamp chargerMix;
+    KindRamp shieldMix;
+    float GetChargerRatio() const { return m_ChargerRatio; }
+    float GetShieldRatio() const { return m_ShieldRatio; }
+    void QueueDebugChargers(int n) { m_DebugChargers += n; }
+    void QueueDebugShields(int n) { m_DebugShields += n; }
     // 自動テストの記録用: 届いた分裂の数・湧かせた分裂体の数（累計）
     uint32_t GetSplitEventsSeen() const { return m_SplitEventsSeen; }
     uint32_t GetSplitlingsSpawned() const { return m_SplitlingsSpawned; }
@@ -95,6 +114,8 @@ private:
         int& count, float hp, float speed, uint32_t kind);
     // リードバックで届いたスプリッターの死 → 分裂体
     void SpawnSplitlings(const GridWorld& grid, SwarmSystem& swarm);
+    // Enemies パネルの突撃兵・盾兵・凍結の段（MobSpawnerKinds.cpp。2026-10-08）
+    void DrawChargerShieldImGui(SwarmSystem& swarm);
 
     SpawnDirector m_Director;
     float m_MobHp = 15.0f;         // Megabonk 1 面の雑魚（6〜20）の中ほど
@@ -117,6 +138,14 @@ private:
     float m_BruteHp = 45.0f;       // 雑魚の 3 倍（Megabonk の Goblin Tank 40 / 雑魚 7〜20）
     float m_BruteSpeed = 2.8f;     // 雑魚 3.5 の 0.8 倍、プレイヤー 5 の 0.56 倍
     int   m_DebugBrutes = 0;
+    float m_ChargerRatio = 0.0f;   // 今の湧きのうち突撃兵の割合（Update が chargerMix と経過時間から出す）
+    float m_ChargerHp = 20.0f;     // 雑魚の 1.33 倍（突進の後の息切れが倒し時）
+    float m_ChargerSpeed = 3.8f;   // 追いかける速さは雑魚より少し速い（突進は GPU の chargerDashSpeed）
+    int   m_DebugChargers = 0;
+    float m_ShieldRatio = 0.0f;    // 今の湧きのうち盾兵の割合
+    float m_ShieldHp = 30.0f;      // 雑魚の 2 倍。これに 1 発毎の装甲（BomberCB::shieldArmor）が乗る
+    float m_ShieldSpeed = 3.0f;    // 盾が重いので少し遅い
+    int   m_DebugShields = 0;
     uint32_t m_SplitEventsSeen = 0;
     uint32_t m_SplitlingsSpawned = 0;
     int   m_DebugGhosts = 0;

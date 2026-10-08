@@ -13,7 +13,7 @@
 using namespace DirectX::SimpleMath;
 
 const float TrainingMenuUI::kTargetHp[kHpChoices] = { 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f };
-const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"幽霊", L"混合" };
+const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"突撃兵", L"盾兵", L"幽霊", L"混合" };
 const int TrainingMenuUI::kSwarmCounts[kCountChoices] = { 10, 30, 100, 300 };
 
 namespace

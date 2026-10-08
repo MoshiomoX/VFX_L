@@ -33,6 +33,8 @@ enum class VFXId : uint32_t
     PoisonPool,     // 毒の池（範囲 PoisonPool：落ちた所の飛沫 + 泡 + 毒霧 + 緑の光。持続 4 秒）
     MobDeath,       // 敵が死んだ足元の土煙（範囲 MobDeath：威力 0 の見た目だけ。部品の砕け散りと一緒。2026-10-02）
     Beam,           // 魔導光線（溜めの光球 + Beam entry の光線 + 点光源。CPU の AreaVFXPlayer が再生し、終点は WeaponSystem が毎フレーム入れる）
+    IceLance,       // アイスランスの弾（bing.FBX の氷の槍が弾と一緒に飛ぶ + 冷気の粒。2026-10-08）
+    IceLanceHit,    // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片 + 冷気）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };

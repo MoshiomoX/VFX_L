@@ -14,6 +14,14 @@
 // Logic mirrors ChaseAISystem.cpp. Keep them in sync.
 // + player block (solid circle, slide around it)
 // Elites (bigger body) stop farther out: SwarmKindScale.
+//
+// Freeze (Ice Lance, 2026-10-08): HitCS leaves a request in animIndex
+// (SWARM_ANIM_FREEZE_REQ, animTime = seconds); this pass turns it into
+// enemySlow.z and keeps the frozen enemy still.
+// Charger (2026-10-08): the only writer of a charger's enemyExtra.fuse
+// (wind-up -> dash -> recover -> cooldown, see SwarmChargerPhase). The dash
+// direction is the yaw set when the wind-up starts (MoveCS only turns the
+// yaw toward a non-zero velocity, so it holds while the charger stands).
 // ============================================================
 #define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
@@ -23,10 +31,29 @@ StructuredBuffer<uint> terrain : register(t1);
 StructuredBuffer<uint> cellCount : register(t2);   // spatial hash (SwarmEnemyBinCS)
 StructuredBuffer<uint> cellItems : register(t3);
 StructuredBuffer<float2> flowField : register(t4); // per-cell direction to the player (CPU FlowField)
-StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5); // kind + fuse (ContactCS lights it)
 StructuredBuffer<float> terrainHeight : register(t6);         // cliffs block like walls (SwarmSlopeOk)
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
-RWStructuredBuffer<float2> enemySlow : register(u1); // (seconds left, amount) from AreaDamageCS; counted down here
+// slow (x seconds left, y amount; AreaDamageCS) + freeze (z seconds left, w length / immunity), counted down here
+RWStructuredBuffer<float4> enemySlow : register(u1);
+// kind + fuse. ContactCS lights a bomber's fuse; this pass runs a charger's
+RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u2);
+
+// a charger only winds up if the ground along the dash is open up to the player
+// (walkable, no cliff): it would just ram the wall otherwise
+bool ChargeLineClear(float3 pos, float2 dir, float dist)
+{
+    float2 prev = pos.xz;
+    bool ok = true;
+    int n = (int) ceil(dist);
+    for (int k = 1; k <= n && ok; ++k)
+    {
+        float2 q = pos.xz + dir * min((float) k, dist);
+        ok = SwarmIsWalkable(terrain, float3(q.x, 0.0, q.y))
+          && SwarmStepHeightOk(terrainHeight, prev, q, false);
+        prev = q;
+    }
+    return ok;
+}
 
 // straight-line chase inside this many cells of the player: the flow
 // field's per-cell steps would make the ring around the player jitter
@@ -66,29 +93,96 @@ void main(uint3 id : SV_DispatchThreadID)
     if (enemyStates[i] == SWARM_DEAD)
         return;
 
-    // ---- slow (poison pool): count down before any early return ----
+    SwarmEnemyExtra extra = enemyExtra[i];
+    bool big = (extra.kind == SWARM_KIND_ELITE || extra.kind == SWARM_KIND_BOSS);
+
+    // ---- status: slow (poison pool) and freeze (ice). Counted down before any early return ----
+    float4 st = enemySlow[i];
     float slowMul = 1.0;
-    float2 slow = enemySlow[i];
-    if (slow.x > 0.0)
+    if (st.x > 0.0)
     {
-        slowMul = 1.0 - saturate(slow.y);
-        slow.x -= g_Step;
-        enemySlow[i] = (slow.x > 0.0) ? slow : float2(0, 0);
+        slowMul = 1.0 - saturate(st.y);
+        st.x -= g_Step;
+        if (st.x <= 0.0)
+            st.xy = float2(0, 0);
+    }
+    // a freeze HitCS asked for last step. Ignored while frozen or still immune
+    if (enemies[i].animIndex == SWARM_ANIM_FREEZE_REQ)
+    {
+        float want = enemies[i].animTime * (big ? g_FreezeBigMul : 1.0);
+        if (st.z <= 0.0 && st.w <= 0.0 && want > 0.0)
+            st.zw = float2(want, want);
+        enemies[i].animIndex = 0u;
+        enemies[i].animTime = 0.0;
+    }
+    bool frozen = st.z > 0.0;
+    if (frozen)
+    {
+        st.z -= g_Step;
+        if (st.z <= 0.0)
+            st.zw = float2(0.0, g_FreezeImmunity); // thawed: a while before the next freeze
+    }
+    else if (st.w > 0.0)
+        st.w = max(st.w - g_Step, 0.0);
+    enemySlow[i] = st;
+
+    if (frozen)
+    {
+        // a frozen charger forgets its wind-up / dash
+        if (extra.kind == SWARM_KIND_CHARGER && extra.fuse > 0.0)
+            enemyExtra[i].fuse = -0.5 * g_ChargerCooldown;
+        enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
+        return;
     }
 
-    // ---- hit stun / lit bomber: stand still ----
+    float3 pos = enemies[i].position;
+
+    // ---- charger: wind-up -> dash -> recover -> cooldown (fuse) ----
+    uint cphase = SWARM_CHARGE_CHASE;
+    if (extra.kind == SWARM_KIND_CHARGER)
+    {
+        float f = extra.fuse;
+        if (f < 0.0)
+            f = min(f + g_Step, 0.0);
+        else if (f > 0.0)
+        {
+            f += g_Step;
+            if (f > g_ChargerWindup + SwarmChargerDashTime() + g_ChargerRecover)
+                f = -g_ChargerCooldown;
+        }
+        // start a wind-up: the player on our level, in range, nothing in the way. The dash
+        // direction is locked now (yaw), so the band on the ground shows exactly where it goes
+        // (moveSpeed 0 = a training target that must stay put: it never charges)
+        if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != 2u
+            && enemies[i].moveSpeed > 0.01 && abs(g_PlayerPos.y - pos.y) < 1.0)
+        {
+            float2 toP = g_PlayerPos.xz - pos.xz;
+            float dist = length(toP);
+            if (dist >= g_ChargerMinDist && dist <= g_ChargerMaxDist
+                && ChargeLineClear(pos, toP / dist, min(dist + 1.0, g_ChargerDashDist)))
+            {
+                f = g_Step;
+                enemies[i].yaw = atan2(toP.x, toP.y);
+            }
+        }
+        cphase = SwarmChargerPhase(f);
+        extra.fuse = f;
+        enemyExtra[i].fuse = f;
+    }
+
+    // ---- hit stun / lit bomber / charger winding up or catching its breath: stand still ----
     // velocity 0 so the exit ramps back up through the lag below.
-    // A lit bomber stays put until it blows up, so the player can outrun the blast
-    SwarmEnemyExtra extra = enemyExtra[i];
+    // A lit bomber stays put until it blows up, so the player can outrun the blast.
+    // A charger that has started its wind-up does not flinch (it would be pinned by the fire)
     bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
-    if (enemies[i].animIndex == 2u || lit)
+    bool stunned = (enemies[i].animIndex == 2u) && (cphase == SWARM_CHARGE_CHASE);
+    if (stunned || lit || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
     {
         // y is the fall speed (MoveCS owns it): a stunned enemy in mid-air keeps falling
         enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
         return;
     }
 
-    float3 pos = enemies[i].position;
     float3 oldV = enemies[i].velocity; // own slot: written by this thread last step
     float moveSpeed = enemies[i].moveSpeed * slowMul;
 
@@ -196,6 +290,15 @@ void main(uint3 id : SV_DispatchThreadID)
     bool charging = (extra.kind == SWARM_KIND_BOSS) && (g_BossChargeOn > 0.5);
     if (charging)
         v = float3(g_BossChargeDir.x, 0.0, g_BossChargeDir.y) * g_BossChargeSpeed;
+    // ---- charger dash: straight along the yaw locked at the wind-up, through the player ----
+    float dashSpeed = g_ChargerDashSpeed * slowMul;
+    if (cphase == SWARM_CHARGE_DASH)
+    {
+        float ys, yc;
+        sincos(enemies[i].yaw, ys, yc);
+        v = float3(ys, 0.0, yc) * dashSpeed;
+        charging = true;
+    }
 
     // ---- player is solid ----
     // Same idea as the terrain hard block, but against a circle:
@@ -251,8 +354,11 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         float r = SwarmBodyWallRadius(extra.kind);   // same body radius as MoveCS / PushCS
         bool allowDrop = SwarmDropAllowed(terrainHeight, pos.xz);
-        float ax = (v.x != 0.0) ? v.x * g_LookAhead + sign(v.x) * r : 0.0;
-        float az = (v.z != 0.0) ? v.z * g_LookAhead + sign(v.z) * r : 0.0;
+        // a dashing charger looks only a couple of steps ahead: at 14 m/s the usual
+        // look-ahead (0.35 s = 5 m) would end the dash 5 m short of any wall behind the player
+        float look = (cphase == SWARM_CHARGE_DASH) ? 2.0 * g_Step : g_LookAhead;
+        float ax = (v.x != 0.0) ? v.x * look + sign(v.x) * r : 0.0;
+        float az = (v.z != 0.0) ? v.z * look + sign(v.z) * r : 0.0;
 
         bool blockX = ax != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(ax, 0, 0))
                                     || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0), allowDrop));
@@ -289,6 +395,9 @@ void main(uint3 id : SV_DispatchThreadID)
             if (abs(v.x) > abs(v.z)) v.z = 0.0; else v.x = 0.0;
         }
     }
+    // a charger that rams a wall / cliff stops the dash there and catches its breath
+    if (cphase == SWARM_CHARGE_DASH && dot(v.xz, v.xz) < 0.25 * dashSpeed * dashSpeed)
+        enemyExtra[i].fuse = g_ChargerWindup + SwarmChargerDashTime() + g_Step;
     v.y = oldV.y;   // the fall speed is MoveCS's (gravity), the AI only steers xz
     enemies[i].velocity = v;
 }

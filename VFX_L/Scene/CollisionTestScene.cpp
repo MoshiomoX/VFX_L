@@ -227,6 +227,9 @@ void CollisionTestScene::Init()
     m_Mobs.splitterRatioStart = stageDef.splitter.ratioStart;
     m_Mobs.splitterRatioEnd = stageDef.splitter.ratioEnd;
     m_Mobs.splitterRampEnd = stageDef.splitter.rampEnd;
+    // 突撃兵・盾兵の混ざり方（面毎。2026-10-08）
+    m_Mobs.chargerMix = { stageDef.charger.start, stageDef.charger.ratioStart, stageDef.charger.ratioEnd, stageDef.charger.rampEnd };
+    m_Mobs.shieldMix = { stageDef.shield.start, stageDef.shield.ratioStart, stageDef.shield.ratioEnd, stageDef.shield.rampEnd };
     m_WeaponSystem.SetSwarm(&m_Swarm);
 
     // ============================================================

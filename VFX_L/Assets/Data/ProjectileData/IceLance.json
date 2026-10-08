@@ -1,0 +1,19 @@
+{
+    "castSound": "cast_ice",
+    "name": "IceLance",
+    "mode": 0,
+    "c1": [ 0.3, 0.0, 0.0 ],
+    "c2": [ 0.7, 0.0, 0.0 ],
+    "mirror": 0,
+    "retargetRadius": 0.0,
+    "hitArea": "IceLanceHit",
+    "hitAreaOnExpire": false,
+    "damage": 10,
+    "speed": 26.0,
+    "radius": 0.3,
+    "lifetime": 1.0,
+    "freezeTime": 1.2,
+    "vfx": "IceLance.json",
+    "visualSize": 0.9,
+    "visualStretch": 0
+}

@@ -23,7 +23,7 @@ RWStructuredBuffer<uint> enemyMaxHp : register(u2);
 // recycled forgets its fuse
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // poison slow per slot: a recycled enemy is a new one, unslowed
-RWStructuredBuffer<float2> enemySlow : register(u4);
+RWStructuredBuffer<float4> enemySlow : register(u4); // slow + freeze (float4 since 2026-10-08)
 
 cbuffer SwarmRecycleCB : register(b1)
 {
@@ -66,5 +66,5 @@ void main(uint3 id : SV_DispatchThreadID)
     enemies[i] = req;
     enemyMaxHp[i] = req.hp;
     enemyExtra[i] = extra;
-    enemySlow[i] = float2(0, 0);
+    enemySlow[i] = float4(0, 0, 0, 0);
 }

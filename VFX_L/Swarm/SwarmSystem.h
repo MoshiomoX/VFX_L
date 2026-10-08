@@ -133,6 +133,38 @@ public:
         { 1.00f, 0.15f, 0.08f, 0.95f },    // 外周
         { 0.85f, 0.06f, 0.04f, 0.14f } };  // 外周の内側でまだ育っていない所
 
+    // ---- 突撃兵の予告の帯（溜めの間、足元から突進の向きへ。2026-10-08）----
+    // 長さ = 突進の距離 + 体の半径、幅 = 体の 2.8 倍。中の塗りが溜めに合わせて先端へ伸び、届くと突進。
+    // edgeWidth = 両脇の縁の太さ m。PS は SwarmChargeLinePS（「>」の矢羽が突進の向きを指す）
+    BomberRingStyle chargeLine = { true, 0.07f, 0.04f,
+        { 1.00f, 0.22f, 0.06f, 0.42f },    // 伸びる塗り
+        { 1.00f, 0.35f, 0.10f, 0.90f },    // 縁と矢羽
+        { 0.90f, 0.12f, 0.05f, 0.14f } };  // まだ塗られていない所
+
+    // ---- 盾兵の盾（特効モデル dun01.FBX を身体の前に。2026-10-08）----
+    struct ShieldLookStyle
+    {
+        bool  enabled = true;
+        float height = 1.15f;     // 盾の高さ m（体格 1 の時）
+        DirectX::SimpleMath::Vector3 hold = { -0.08f, 0.80f, 0.52f };   // 盾の中心: 右 / 足元から上 / 前 m
+        float yawDeg = 0.0f;      // モデルの向きを回す（飾りの面を前へ）
+        float bob = 0.04f;        // 歩く時の上下 m
+        DirectX::SimpleMath::Vector4 tint = { 0.42f, 0.48f, 0.60f, 1.0f };   // 鋼の青灰（linear）
+    };
+    ShieldLookStyle shieldLook;
+
+    // ---- 凍った敵の氷（特効モデル bingci_02.FBX を足元に前後 2 つ。2026-10-08）----
+    struct IceLookStyle
+    {
+        bool  enabled = true;
+        float height = 1.25f;     // 氷の塊の高さ m（体格 1 の時）
+        float spread = 0.22f;     // 体の中心から塊までの距離 m
+        float sink = 0.1f;        // 足元より下へ埋める m
+        DirectX::SimpleMath::Vector4 color = { 0.55f, 0.85f, 1.30f, 1.0f };   // linear（1 を超えると bloom）
+        float alpha = 0.55f;      // 透け具合（premultiplied の alpha blend）
+    };
+    IceLookStyle iceLook;
+
     // ---- 経験値オーブの見た目（SwarmOrbVS / SwarmOrbPS / SwarmOrbEmitCS）----
     // 自発光の宝石（双角錐）。待機中は浮き沈み・自転・脈動（スロット毎に位相をずらす）。
     // 吸い寄せられると長軸をプレイヤーへ傾けて引き伸ばし、pullColor へ寄って明るくなり、
@@ -299,7 +331,8 @@ public:
     void MagnetAllOrbs(float seconds = 0.3f) { m_MagnetTimer = (std::max)(m_MagnetTimer, seconds); }
     // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（Map で止まる。自動テストの検証だけ。毎フレーム呼ばない）
     bool DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates,
-        std::vector<Swarm::EnemyExtra>* outExtras = nullptr);   // outExtras: 種類（soak 自動テスト）
+        std::vector<Swarm::EnemyExtra>* outExtras = nullptr,    // outExtras: 種類（soak 自動テスト）
+        std::vector<DirectX::SimpleMath::Vector4>* outStatus = nullptr);   // outStatus: 減速・凍結（enemySlow）
     // 光線（カプセル型の範囲）: チャンネル ch の起点 / 終点 / 半径を次の固定ステップから効かせる。
     // 範囲そのものは SpawnArea（flags に kAreaCapsule | ch << kAreaBeamShift）で出す。
     // active = false にすると GPU 側の範囲が次のステップで消える
@@ -381,8 +414,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyExtraUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyExtraSRV;
 
-    // 毒の池の減速（float2 = 残り秒・強さ、スロットと同じ添字。2026-10-01）。
-    // AreaDamageCS が tick の度に書き、AICS が速度に掛けて数え下げる。Spawn / Recycle で 0 に戻す
+    // 敵の状態（float4、スロットと同じ添字。Swarm::kAnimFreezeRequest の説明）。
+    // xy = 毒の池の減速（残り秒・強さ。2026-10-01）：AreaDamageCS が tick の度に書き、AICS が速度に掛けて数え下げる。
+    // zw = 凍結（2026-10-08、アイスランス）：AICS が HitCS の依頼から入れて数え下げる。VS / ContactCS が読む。
+    // Spawn / Recycle で 0 に戻す
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemySlowBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemySlowUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemySlowSRV;
@@ -675,14 +710,50 @@ private:
     std::shared_ptr<Texture> m_BomberAlbedo;   // 自爆兵のテクスチャ（雑魚と同じメッシュ用）。null = 雑魚と同じテクスチャ
     std::shared_ptr<Texture> m_SplitterAlbedo; // スプリッター・分裂体のテクスチャ（黄色い衝突試験人形）。null = 雑魚と同じテクスチャ
     std::shared_ptr<Texture> m_BruteAlbedo;    // 重装兵のテクスチャ（緑のオーク。2026-10-07 夜）。null = 雑魚と同じテクスチャ
+    std::shared_ptr<Texture> m_ChargerAlbedo;  // 突撃兵（黒い忍者。2026-10-08）
+    std::shared_ptr<Texture> m_ShieldAlbedo;   // 盾兵（紺の警官。2026-10-08）
     // 描画リストのテクスチャ（null = 雑魚の材質の物）
     Texture* ListAlbedo(uint32_t list) const
     {
         if (list == Swarm::kDrawListBomber) return m_BomberAlbedo.get();
         if (list == Swarm::kDrawListSplitter) return m_SplitterAlbedo.get();
         if (list == Swarm::kDrawListBrute) return m_BruteAlbedo.get();
+        if (list == Swarm::kDrawListCharger) return m_ChargerAlbedo.get();
+        if (list == Swarm::kDrawListShield) return m_ShieldAlbedo.get();
         return nullptr;
     }
+
+    // ---- 突撃兵・盾兵・凍結の見た目（2026-10-08。中身は SwarmSystemKinds.cpp）----
+    // CompactCS は UAV が 8 本で埋まっているので、突撃兵・盾兵の一覧は SwarmEnemyKindListCS が別に作る
+    std::shared_ptr<ComputeShader> m_KindListCS;
+    // 突撃兵の予告の帯: DrawInstancedIndirect { 24 区間 x 6 頂点, InstanceCount = 突撃兵の一覧の長さ, 0, 0 }
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_ChargeLineArgs;
+    std::shared_ptr<VertexShader> m_ChargeLineVS;
+    std::shared_ptr<PixelShader>  m_ChargeLinePS;
+    // 盾兵の盾 / 凍った敵の氷: 特効モデルを雑魚の PS（既定の白テクスチャ × 頂点色）で描く
+    std::shared_ptr<VertexShader> m_ShieldVS;
+    std::shared_ptr<VertexShader> m_IceVS;
+    std::shared_ptr<Material>     m_ShieldMaterial;
+    std::shared_ptr<Material>     m_IceMaterial;
+    std::shared_ptr<Model>        m_ShieldModel;
+    std::shared_ptr<Model>        m_IceModel;
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_ShieldDrawArgs;   // submesh 毎（InstanceCount = 盾兵の一覧）
+    // SwarmShieldVS / SwarmIceVS の b4
+    struct PropMeshCB
+    {
+        DirectX::SimpleMath::Vector3 anchor;   // モデル座標でこの点を hold に置く
+        float scale;                           // モデルの単位 → m
+        DirectX::SimpleMath::Vector3 hold;
+        float yaw;
+        DirectX::SimpleMath::Vector4 tint;
+        float bob, alpha, _pad[2];
+    };
+    static_assert(sizeof(PropMeshCB) == 64, "PropMeshCB layout mismatch");
+    bool LoadKindAssets(ID3D11Device* device);       // LoadShaders の最後（雑魚のモデルの後）
+    void DispatchKindLists();                        // CompactCS の直後（同じ描画の前準備）
+    void RenderShields(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
+    void RenderIce(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
+    void RenderChargeLines(CameraBase* camera);
 
     // --- Boss の様子（CompactCS が書く 32B → staging 3 枚でリードバック。counter と同じ流儀で待たない）---
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_BossInfoBuffer;

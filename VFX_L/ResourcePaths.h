@@ -58,6 +58,10 @@ namespace Res
     namespace VFX
     {
         inline constexpr const char* Slash = "Assets/VFX/Mesh/Slash.fbx";
+        // 盾兵が身体の前に持つ塔の盾（2026-10-08、SwarmShieldVS）
+        inline constexpr const char* TowerShield = "Assets/VFX/Mesh/dun01.FBX";
+        // 凍った敵の足元の氷の塊（2026-10-08、SwarmIceVS。アイスランスの弾・命中の特効も同じ物）
+        inline constexpr const char* IceSpikes = "Assets/VFX/Mesh/bingci_02.FBX";
 
         inline constexpr const wchar_t* Noise001 = L"Assets/VFX/Tex/Noise_001.png";
         inline constexpr const wchar_t* Noise002 = L"Assets/VFX/Tex/Noise_002.png";
@@ -368,6 +372,12 @@ namespace Res
         // 重装兵（Kenney Blocky の O、牙のある緑のオーク。2026-10-07 夜）
         inline constexpr const wchar_t* Kenney_BlockyOrcAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-o.png";
+        // 突撃兵（Kenney Blocky の R、黒い忍者。2026-10-08）
+        inline constexpr const wchar_t* Kenney_BlockyNinjaAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-r.png";
+        // 盾兵（Kenney Blocky の J、紺の制服の警官。2026-10-08）
+        inline constexpr const wchar_t* Kenney_BlockyPoliceAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-j.png";
 
         // 粒子
         inline constexpr const wchar_t* ParticleSheet =
@@ -425,6 +435,7 @@ namespace Res
         inline constexpr const wchar_t* Meteor = L"Assets/Texture/UI/Icons/Meteor.png";
         inline constexpr const wchar_t* StoneShot = L"Assets/Texture/UI/Icons/StoneShot.png";
         inline constexpr const wchar_t* Poison = L"Assets/Texture/UI/Icons/Poison.png";
+        inline constexpr const wchar_t* IceLance = L"Assets/Texture/UI/Icons/IceLance.png";   // アイスランス（2026-10-08）
         inline constexpr const wchar_t* Beam = L"Assets/Texture/UI/Icons/Beam.png";
         inline constexpr const wchar_t* SplitRune = L"Assets/Texture/UI/Icons/SplitRune.png";
         inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
@@ -496,6 +507,8 @@ namespace Res
         inline constexpr const char* StoneShotHit = "Assets/Data/VFXData/StoneShotHit.json";
         inline constexpr const char* Poison = "Assets/Data/VFXData/Poison.json";           // 毒の弾（緑の毒液の塊 + 滴）
         inline constexpr const char* PoisonPool = "Assets/Data/VFXData/PoisonPool.json";   // 毒の池（範囲 PoisonPool：泡 + 毒霧 + 緑の光）
+        inline constexpr const char* IceLance = "Assets/Data/VFXData/IceLance.json";         // アイスランスの弾（氷の槍 + 冷気の粒）
+        inline constexpr const char* IceLanceHit = "Assets/Data/VFXData/IceLanceHit.json";   // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片）
         inline constexpr const char* MobDeath = "Assets/Data/VFXData/MobDeath.json";       // 敵が死んだ足元の土煙 + 土くれ（範囲 MobDeath）
         inline constexpr const char* Beam = "Assets/Data/VFXData/Beam.json";               // 魔導光線（溜め + Beam entry の光線 + 先端の光）
     }

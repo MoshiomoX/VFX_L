@@ -46,6 +46,7 @@ namespace
         s.grassHeightMax = 0.26f;
         s.difficultyBonus = 0.6f;
         s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };   // スプリッターは第 1 面の主力。ここは少し混ざるだけ
+        s.charger = { 60.0f, 0.08f, 0.18f, 480.0f };      // 砂漠の主力 = 突撃兵（開けた砂地を突っ込んでくる。2026-10-08）
         return s;
     }
 
@@ -74,6 +75,7 @@ namespace
         s.grass = false;
         s.difficultyBonus = 1.2f;
         s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };
+        s.shield = { 60.0f, 0.08f, 0.18f, 480.0f };       // 遺跡の主力 = 盾兵（2026-10-08）
         s.torchLights = 12;
         return s;
     }

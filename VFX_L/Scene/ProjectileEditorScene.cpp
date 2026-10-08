@@ -722,6 +722,8 @@ void ProjectileEditorScene::DrawProjectileTab()
     changed |= ImGui::DragFloat("Lifetime", &p.lifetime, 0.05f, 0.1f, 30.0f);
     changed |= ImGui::DragFloat("Radius", &p.radius, 0.01f, 0.05f, 3.0f);
     changed |= ImGui::DragFloat("Damage", &p.damage, 0.5f, 0.0f, 1000.0f);
+    // 当たった敵を凍らせる秒数（0 = 凍らせない。アイスランス、2026-10-08）
+    changed |= ImGui::DragFloat("Freeze (s)", &p.freezeTime, 0.05f, 0.0f, 10.0f);
 
     // ---- 見た目 ----
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Visual");

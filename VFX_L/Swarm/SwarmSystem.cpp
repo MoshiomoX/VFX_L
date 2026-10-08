@@ -117,8 +117,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(Swarm::EnemyExtra), Swarm::kMaxEnemies,
         m_EnemyExtraBuffer, m_EnemyExtraUAV, m_EnemyExtraSRV, "enemyExtra")) return false;
 
-    // 毒の池の減速（残り秒・強さ）。これも本体の横に持つ
-    if (!makeStructured(sizeof(float) * 2, Swarm::kMaxEnemies,
+    // 敵の状態（float4 = 毒の池の減速の残り秒・強さ + 凍結の残り秒・長さ / 再凍結までの秒。2026-10-08 に float2 から）。これも本体の横に持つ
+    if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
         m_EnemySlowBuffer, m_EnemySlowUAV, m_EnemySlowSRV, "enemySlow")) return false;
 
     if (!makeStructured(sizeof(Swarm::Projectile), Swarm::kMaxProjectiles,
@@ -1269,10 +1269,10 @@ void SwarmSystem::DispatchStep()
         m_EnemyAICS->SetSRV(m_Context, "cellCount", m_CellCountSRV.Get());
         m_EnemyAICS->SetSRV(m_Context, "cellItems", m_CellItemsSRV.Get());
         m_EnemyAICS->SetSRV(m_Context, "flowField", m_FlowSRV.Get());   // 巡路の向き表
-        m_EnemyAICS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 点火した自爆兵は止まる
+        m_EnemyAICS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());   // 点火した自爆兵は止まる・突撃兵の段階を進める
         m_EnemyAICS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());    // 崖は壁と同じく止める
         m_EnemyAICS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
-        m_EnemyAICS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 毒の池の減速（速度に掛けて数え下げる）
+        m_EnemyAICS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 毒の池の減速・凍結（数え下げる）
         m_EnemyAICS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1455,6 +1455,7 @@ void SwarmSystem::DispatchStep()
         m_ContactCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);
         m_ContactCS->Bind(m_Context);
         m_ContactCS->SetSRV(m_Context, "areaDefs", m_AreaDefSRV.Get());
+        m_ContactCS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());   // 凍った敵は殴らない
         m_ContactCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_ContactCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_ContactCS->SetUAV(m_Context, "enemyStates", m_EnemyStateUAV.Get());
@@ -1685,6 +1686,8 @@ void SwarmSystem::DispatchCorpses()
     m_CorpseListCS->SetUAV(m_Context, "ghostCorpses", m_CorpseListUAV[Swarm::kDrawListGhost].Get(), 0);
     m_CorpseListCS->SetUAV(m_Context, "splitterCorpses", m_CorpseListUAV[Swarm::kDrawListSplitter].Get(), 0);
     m_CorpseListCS->SetUAV(m_Context, "bruteCorpses", m_CorpseListUAV[Swarm::kDrawListBrute].Get(), 0);
+    m_CorpseListCS->SetUAV(m_Context, "chargerCorpses", m_CorpseListUAV[Swarm::kDrawListCharger].Get(), 0);
+    m_CorpseListCS->SetUAV(m_Context, "shieldCorpses", m_CorpseListUAV[Swarm::kDrawListShield].Get(), 0);
     m_CorpseListCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxCorpses + 63) / 64, 1, 1);
     m_CorpseListCS->UnbindSRVs(m_Context);
@@ -2177,6 +2180,8 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
         m_EnemyCompactCS->UnbindSRVs(m_Context);
         m_EnemyCompactCS->UnbindUAVs(m_Context);
+        // 突撃兵・盾兵の一覧（CompactCS の UAV が足りない分。2026-10-08）
+        DispatchKindLists();
 
         // Boss の様子を staging へ（読むのは 2 フレーム後の Flush）
         m_Context->CopyResource(m_BossStaging[m_BossStagingWrite].Get(), m_BossInfoBuffer.Get());
@@ -2193,6 +2198,13 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
         if (m_BomberRingArgs)
             m_Context->CopyStructureCount(m_BomberRingArgs.Get(), sizeof(uint32_t) * 1,
                 m_KindListUAV[Swarm::kDrawListBomber].Get());
+        // 突撃兵の予告の帯・盾兵の盾も一覧の長さだけ
+        if (m_ChargeLineArgs)
+            m_Context->CopyStructureCount(m_ChargeLineArgs.Get(), sizeof(uint32_t) * 1,
+                m_KindListUAV[Swarm::kDrawListCharger].Get());
+        for (auto& args : m_ShieldDrawArgs)
+            if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1,
+                m_KindListUAV[Swarm::kDrawListShield].Get());
     }
 
     // sampler は雑魚とオーブで共通。Material::Bind は sampler を触らないので自分で入れる
@@ -2227,6 +2239,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     m_EnemyVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+    m_EnemyVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());   // 凍った敵は姿勢を止めて氷色に
     // 部品アニメの表（無ければ未 bind のまま。VS は enabled = 0 で読まない）
     if (m_PartAnimSRV)
         m_EnemyVS->SetSRV(m_Context, "partAnim", m_PartAnimSRV.Get());
@@ -2272,9 +2285,12 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
             m_Context->OMSetBlendState(RenderStates::Get().Opaque(), bf, 0xFFFFFFFF);
         }
     }
-    m_Context->OMSetDepthStencilState(RenderStates::Get().DepthDefault(), 0);   // 砕け散り・オーブはステンシル無し
     // 次のフレームの Compute が UAV として使うので必ず外す
     m_EnemyVS->UnbindSRVs(m_Context);
+    // 盾兵の盾（敵の一部なのでステンシル 2 のまま。赤い陣営の縁取りが盾まで回る）
+    if (indirect)
+        RenderShields(cb.view, cb.proj);
+    m_Context->OMSetDepthStencilState(RenderStates::Get().DepthDefault(), 0);   // 砕け散り・オーブはステンシル無し
 
     // ---- 死んだ敵の砕け散り（同じ網・同じ PS。VS だけ差し替え）----
     RenderCorpses(cb.view, cb.proj);
@@ -2314,6 +2330,9 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
 
         m_OrbVS->UnbindSRVs(m_Context);
     }
+
+    // ---- 凍った敵の氷（半透明。深度は読むだけなので不透明物の一番最後）----
+    RenderIce(cb.view, cb.proj);
 }
 
 // ============================================================
@@ -2337,6 +2356,8 @@ void SwarmSystem::RenderOverlay(CameraBase* camera, const LightBuffer& light)
         RenderBlobShadows(camera);
     if (indirect)
         RenderBomberRings(camera);
+    if (indirect)
+        RenderChargeLines(camera);
     RenderDropRings(camera);
     RenderWarnRings(camera);
     if (indirect)
@@ -2796,6 +2817,8 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
             for (auto& args : m_EnemyDrawArgs) args.clear();
             for (auto& args : m_CorpseDrawArgs) args.clear();   // 砕け散りも描かない
         }
+        // 突撃兵の帯・盾兵の盾・凍結の氷（2026-10-08。失敗しても出ないだけ）
+        LoadKindAssets(device);
     }
 
     return ok;
@@ -2936,6 +2959,8 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         const wchar_t* bomberAlbedo;  // 自爆兵に貼る物（同じメッシュ・同じ UV）。null = 雑魚と同じ
         const wchar_t* splitterAlbedo;// スプリッター・分裂体に貼る物。null = 雑魚と同じ
         const wchar_t* bruteAlbedo;   // 重装兵に貼る物。null = 雑魚と同じ
+        const wchar_t* chargerAlbedo; // 突撃兵に貼る物。null = 雑魚と同じ
+        const wchar_t* shieldAlbedo;  // 盾兵に貼る物。null = 雑魚と同じ
     };
     const EnemyLook looks[] =
     {
@@ -2943,10 +2968,11 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         // 高さはカプセル（1.8m）より少し低く
         { Res::Mdl::Kenney_BlockyZombie, Res::Tex::Kenney_BlockyZombieAlbedo,
           "walk", "idle", "attack-melee-right", 180.0f, 1.6f, "Kenney Blocky L (zombie)",
-          Res::Tex::Kenney_BlockyRobotAlbedo, Res::Tex::Kenney_BlockyDummyAlbedo, Res::Tex::Kenney_BlockyOrcAlbedo },
+          Res::Tex::Kenney_BlockyRobotAlbedo, Res::Tex::Kenney_BlockyDummyAlbedo, Res::Tex::Kenney_BlockyOrcAlbedo,
+          Res::Tex::Kenney_BlockyNinjaAlbedo, Res::Tex::Kenney_BlockyPoliceAlbedo },
         // KayKit は Blender 出力の -Z が正面 → 180 度回す
         { Res::Mdl::KayKit_SkeletonMinion, Res::Tex::KayKit_SkeletonAlbedo,
-          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion", nullptr, nullptr, nullptr },
+          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion", nullptr, nullptr, nullptr, nullptr, nullptr },
     };
 
     // 焼く前の寸法 → 焼く時に掛ける変換。
@@ -3006,6 +3032,8 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
             m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
             m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
             m_BruteAlbedo = look.bruteAlbedo ? ResourceManager::Get().LoadTexture(look.bruteAlbedo) : nullptr;
+            m_ChargerAlbedo = look.chargerAlbedo ? ResourceManager::Get().LoadTexture(look.chargerAlbedo) : nullptr;
+            m_ShieldAlbedo = look.shieldAlbedo ? ResourceManager::Get().LoadTexture(look.shieldAlbedo) : nullptr;
 
             // 部品アニメの表（待機・歩き・近接攻撃）。作れなければ従来の揺れで動く
             m_AnimClips[0] = look.idleClip;
@@ -3046,6 +3074,8 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
         m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
         m_BruteAlbedo = look.bruteAlbedo ? ResourceManager::Get().LoadTexture(look.bruteAlbedo) : nullptr;
+        m_ChargerAlbedo = look.chargerAlbedo ? ResourceManager::Get().LoadTexture(look.chargerAlbedo) : nullptr;
+        m_ShieldAlbedo = look.shieldAlbedo ? ResourceManager::Get().LoadTexture(look.shieldAlbedo) : nullptr;
         std::cout << "[SwarmSystem] enemy model: " << look.label << " (baked, clip "
             << (clip >= 0 ? sk.GetClipName(clip) : std::string("-"))
             << ", scale " << scale << ")" << std::endl;
@@ -3151,7 +3181,7 @@ bool SwarmSystem::CreateEnemyDrawArgs(ID3D11Device* device)
 // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（staging を作って CopyResource → Map。GPU を待つので自動テストだけ）
 // ============================================================
 bool SwarmSystem::DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates,
-    std::vector<Swarm::EnemyExtra>* outExtras)
+    std::vector<Swarm::EnemyExtra>* outExtras, std::vector<DirectX::SimpleMath::Vector4>* outStatus)
 {
     if (!m_Device || !m_Context || !m_EnemyBuffer || !m_EnemyStateBuffer) return false;
 
@@ -3181,6 +3211,13 @@ bool SwarmSystem::DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::v
         outExtras->resize(Swarm::kMaxEnemies);
         if (!readback(m_EnemyExtraBuffer.Get(), (UINT)(sizeof(Swarm::EnemyExtra) * Swarm::kMaxEnemies), outExtras->data()))
             outExtras->clear();
+    }
+    // 減速・凍結（enemySlow、float4）
+    if (outStatus && m_EnemySlowBuffer)
+    {
+        outStatus->resize(Swarm::kMaxEnemies);
+        if (!readback(m_EnemySlowBuffer.Get(), (UINT)(sizeof(float) * 4 * Swarm::kMaxEnemies), outStatus->data()))
+            outStatus->clear();
     }
     return true;
 }

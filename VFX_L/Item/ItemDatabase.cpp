@@ -11,6 +11,7 @@
 #include "Item/Items/Meteor.h"
 #include "Item/Items/StoneShot.h"
 #include "Item/Items/Poison.h"
+#include "Item/Items/IceLance.h"
 #include "Item/Items/Beam.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
@@ -117,6 +118,7 @@ void ItemDatabase::Initialize()
     Register(MakeGoldenArrow());
     Register(MakeStoneShot());
     Register(MakePoison());
+    Register(MakeIceLance());
     Register(MakeBeam());
 
     // ---- 機能型 ----

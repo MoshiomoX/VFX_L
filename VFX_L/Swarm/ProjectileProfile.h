@@ -61,6 +61,9 @@ struct ProjectileProfile
     float speed = 20.0f;
     float radius = 0.25f;     // 当たり判定
     float lifetime = 3.0f;
+    // 当たった敵をこの秒数凍らせる（0 = 凍らせない。アイスランス、2026-10-08）。エリート・Boss は BomberCB::freezeBigMul 倍、
+    // 解けてから freezeImmunity 秒は凍らない。凍結中は動かず殴らない（SwarmHitCS が依頼 → SwarmEnemyAICS）
+    float freezeTime = 0.0f;
 
     // ---- 見た目 ----
     // VFX json のファイル名（Assets/Data/VFXData/ の中。VFXDatabase に登録済みの物だけ GPU で出る）
