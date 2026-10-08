@@ -264,6 +264,14 @@ namespace
                 }
             }
         }
+        // 凍結（アイスランス。2026-10-08）。長さは profile、エリート・ボスの半分と「解けた直後は凍らない」は GPU の既定（BomberCB）
+        if (pp.freezeTime > 0.0f)
+        {
+            wchar_t buf[200];
+            swprintf_s(buf, L"当たった敵を %ls 秒凍らせる。凍った敵は動けず、攻撃もできない (エリート・ボスは半分。解けた直後はしばらく凍らない)",
+                Num(pp.freezeTime).c_str());
+            s.traits.push_back(buf);
+        }
 
         if (!drop)
             s.stats.push_back(StatLine(L"威力", v.damage, b.damage, L"", +1));

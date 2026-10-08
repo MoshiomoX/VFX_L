@@ -30,6 +30,8 @@ namespace
         { VFXId::Poison, Res::VFX::Poison },
         { VFXId::PoisonPool, Res::VFX::PoisonPool },
         { VFXId::MobDeath, Res::VFX::MobDeath },
+        { VFXId::IceLance, Res::VFX::IceLance },
+        { VFXId::IceLanceHit, Res::VFX::IceLanceHit },
     };
     constexpr int kCount = (int)(sizeof(kTable) / sizeof(kTable[0]));
 }

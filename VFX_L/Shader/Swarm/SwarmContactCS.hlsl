@@ -23,13 +23,20 @@
 // Every hit also records where it came from in playerHits (u6) so the
 // CPU can knock the player back (melee a little, blasts ~3x + a hop).
 //
-// Only writer of Enemy.attackCooldown and SwarmEnemyExtra.fuse.
+// A frozen enemy (enemySlow.z > 0, Ice Lance) does not hit or light its fuse.
+// A dashing charger hits g_ChargerDashDamageMul harder and knocks the player
+// back like a blast (2026-10-08).
+//
+// Only writer of Enemy.attackCooldown and a bomber's SwarmEnemyExtra.fuse
+// (a charger's fuse belongs to AICS).
 // ============================================================
 #define SWARM_AREA_POOL_U u4
 #define SWARM_AREA_STATE_U u5
 #define SWARM_AREA_DEF_T t0
 #define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
+
+StructuredBuffer<float4> enemySlow : register(t1); // z > 0 = frozen
 
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
@@ -122,15 +129,18 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmEnemyExtra extra = enemyExtra[i];
+    bool frozen = enemySlow[i].z > 0.0;
     if (extra.kind == SWARM_KIND_BOMBER)
     {
-        UpdateBomber(i, extra);
+        // frozen: a lit fuse keeps burning (it is a bomb), an unlit one is not lit by touching
+        if (!frozen || extra.fuse > 0.0)
+            UpdateBomber(i, extra);
         return;
     }
 
     float cd = enemies[i].attackCooldown - g_Step;
 
-    if (cd <= 0.0 && g_PlayerAlive != 0u)
+    if (cd <= 0.0 && g_PlayerAlive != 0u && !frozen)
     {
         // elites / boss: bigger capsule, harder hits
         float3 center;
@@ -139,11 +149,15 @@ void main(uint3 id : SV_DispatchThreadID)
         float reach = er + g_PlayerRadius + CONTACT_SKIN;
         if (PlayerWithinCapsule(center, eh, reach))
         {
-            float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind);
+            bool dash = (extra.kind == SWARM_KIND_CHARGER)
+                     && (SwarmChargerPhase(extra.fuse) == SWARM_CHARGE_DASH);
+            float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind)
+                      * (dash ? g_ChargerDashDamageMul : 1.0);
             uint prev;
             counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE,
                                     SwarmHpToFixed(dmg), prev);
-            RecordHit(0u, enemies[i].position);   // melee: from this enemy
+            // melee: from this enemy. A charger's dash knocks back like a blast
+            RecordHit(dash ? 12u : 0u, enemies[i].position);
             cd = g_AttackInterval;
         }
     }

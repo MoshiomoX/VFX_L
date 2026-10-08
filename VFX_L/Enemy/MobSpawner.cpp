@@ -62,6 +62,18 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
         hp = m_BruteHp;
         speed = m_BruteSpeed;
     }
+    else if (roll < m_BomberRatio + m_SplitterRatio + m_BruteRatio + m_ChargerRatio)
+    {
+        kind = Swarm::kEnemyKindCharger;
+        hp = m_ChargerHp;
+        speed = m_ChargerSpeed;
+    }
+    else if (roll < m_BomberRatio + m_SplitterRatio + m_BruteRatio + m_ChargerRatio + m_ShieldRatio)
+    {
+        kind = Swarm::kEnemyKindShield;
+        hp = m_ShieldHp;
+        speed = m_ShieldSpeed;
+    }
     hp *= m_HpMul;   // 湧いた瞬間の難度で決まる
     speed *= finalSpeedMul;
 
@@ -156,6 +168,9 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
         const float t = (std::min)(1.0f, (runTime - bruteStart) / span);
         m_BruteRatio = bruteRatioStart + (bruteRatioEnd - bruteRatioStart) * t;
     }
+    // 突撃兵・盾兵（面毎の表）
+    m_ChargerRatio = chargerMix.At(runTime);
+    m_ShieldRatio = shieldMix.At(runTime);
     swarm.GetAIParams().contactDamage = baseContactDamage * m_DamageMul;
     swarm.GetBomberParams().blastDamage = baseBlastDamage * m_DamageMul;
 
@@ -167,6 +182,8 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
     SpawnDebugKind(grid, player, swarm, m_DebugBombers, m_BomberHp, m_BomberSpeed, Swarm::kEnemyKindBomber);
     SpawnDebugKind(grid, player, swarm, m_DebugSplitters, m_SplitterHp * m_HpMul, m_SplitterSpeed, Swarm::kEnemyKindSplitter);
     SpawnDebugKind(grid, player, swarm, m_DebugBrutes, m_BruteHp * m_HpMul, m_BruteSpeed, Swarm::kEnemyKindBrute);
+    SpawnDebugKind(grid, player, swarm, m_DebugChargers, m_ChargerHp * m_HpMul, m_ChargerSpeed, Swarm::kEnemyKindCharger);
+    SpawnDebugKind(grid, player, swarm, m_DebugShields, m_ShieldHp * m_HpMul, m_ShieldSpeed, Swarm::kEnemyKindShield);
     SpawnSplitlings(grid, swarm);
     SpawnGhosts(player, dt, swarm);
 }
@@ -297,6 +314,8 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     if (ImGui::Button("Spawn 5 Brutes Nearby")) QueueDebugBrutes(5);
     ImGui::Separator();
 
+    DrawChargerShieldImGui(swarm);   // 突撃兵・盾兵・凍結（MobSpawnerKinds.cpp）
+
     // ---- 雑魚 AI（GPU の定数。次の固定ステップから効く）----
     auto& ai = swarm.GetAIParams();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Mob AI (GPU)");
@@ -325,6 +344,8 @@ void MobSpawner::KindStats(uint32_t kind, float& hp, float& speed) const
     case Swarm::kEnemyKindSplitter:  hp = m_SplitterHp;  speed = m_SplitterSpeed; break;
     case Swarm::kEnemyKindSplitling: hp = m_SplitlingHp; speed = m_MobSpeed * m_SplitlingSpeedMul; break;
     case Swarm::kEnemyKindBrute:     hp = m_BruteHp;     speed = m_BruteSpeed; break;
+    case Swarm::kEnemyKindCharger:   hp = m_ChargerHp;   speed = m_ChargerSpeed; break;
+    case Swarm::kEnemyKindShield:    hp = m_ShieldHp;    speed = m_ShieldSpeed; break;
     case Swarm::kEnemyKindGhost:     hp = m_MobHp;       speed = m_MobSpeed * ghostSpeedMul; break;
     default:                         hp = m_MobHp;       speed = m_MobSpeed; break;
     }

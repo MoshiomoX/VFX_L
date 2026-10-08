@@ -24,12 +24,20 @@ Buffer<uint> enemyStates : register(t1);
 // live slot indices (SwarmEnemyCompactCS). InstanceID indexes this, not the pool.
 // The C++ side binds the list of the kind being drawn (mobs, then bombers)
 StructuredBuffer<uint> aliveList : register(t2);
-// kind + fuse per slot: a lit bomber blinks faster and faster and swells up
+// kind + fuse per slot: a lit bomber blinks faster and faster and swells up,
+// a charger blinks red while it winds up (2026-10-08)
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
+// slow + freeze per slot (z > 0 = frozen by the Ice Lance: the pose holds, the body turns icy)
+StructuredBuffer<float4> enemySlow : register(t4);
 
 // bomber blink: starts at this many blinks per second, ends at the second value
 static const float kFuseBlinkStart = 3.0;
 static const float kFuseBlinkEnd = 14.0;
+// charger wind-up blink, same ramp (blinks per second at the start / the end of the wind-up)
+static const float kChargeBlinkStart = 4.0;
+static const float kChargeBlinkEnd = 12.0;
+// frozen: pale blue, times g_FreezeTint
+static const float3 kIceTint = float3(0.75, 1.05, 1.7);
 // elite: dark red tint on the shared zombie texture
 static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
 // boss: violet
@@ -134,6 +142,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float3 tangent = input.Tangent;
     bool moving = dot(e.velocity.xz, e.velocity.xz) > 0.01;
     float phaseOffset = (float) slot * 0.37; // the crowd does not move in lockstep
+    SwarmEnemyExtra extra = enemyExtra[slot];
+    float4 status = enemySlow[slot];
+    bool frozen = status.z > 0.0;
 
     if (g_AnimEnabled != 0u)
     {
@@ -143,12 +154,17 @@ VS_OUTPUT main(VS_INPUT_INST input)
         //            on the damage tick and plays once
         //   walk   : moving; animTime is the per-enemy clock MoveCS advances
         //   idle   : standing (blocked, or waiting at the player between hits)
-        //   hit stun (animIndex 2) holds the first walk frame; the flash below still runs
+        //   hit stun (animIndex 2) and frozen hold a walk frame; the flash below still runs
         uint clip = 0u;
         float t = g_AnimTime + phaseOffset;
         bool loop = true;
         float sinceAttack = g_AttackInterval - e.attackCooldown;
-        if (e.attackCooldown > 0.0 && sinceAttack < g_ClipLength.z)
+        if (frozen)
+        {
+            clip = 1u;
+            t = phaseOffset;
+        }
+        else if (e.attackCooldown > 0.0 && sinceAttack < g_ClipLength.z)
         {
             clip = 2u;
             t = sinceAttack;
@@ -172,7 +188,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         normal = normalize(lerp(XformDir(fa, input.Normal), XformDir(fb, input.Normal), w));
         tangent = lerp(XformDir(fa, input.Tangent), XformDir(fb, input.Tangent), w);
     }
-    else if (e.animIndex != 2u && moving)
+    else if (e.animIndex != 2u && moving && !frozen)
     {
         // ---- procedural walk: the mesh is one baked frame, so fake the gait ----
         // animTime is the per-enemy walk clock (MoveCS advances it while moving,
@@ -186,8 +202,6 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.xy = float2(local.x * rc - local.y * rs, local.x * rs + local.y * rc);
         local.y += bounce;
     }
-
-    SwarmEnemyExtra extra = enemyExtra[slot];
 
     // ---- elite: bigger body, anchored at the feet (SwarmKindCapsule matches) ----
     float kindScale = SwarmKindScale(extra.kind);
@@ -248,5 +262,26 @@ VS_OUTPUT main(VS_INPUT_INST input)
         float g = g_BomberFlashGain;
         o.Color.rgb *= lerp(float3(1, 1, 1), float3(g, g * 0.3, g * 0.2), on);
     }
+
+    // ---- charger: red blink while winding up (faster toward the dash), reddish while dashing ----
+    if (extra.kind == SWARM_KIND_CHARGER)
+    {
+        uint ph = SwarmChargerPhase(extra.fuse);
+        if (ph == SWARM_CHARGE_WINDUP)
+        {
+            float T = max(g_ChargerWindup, 1e-3);
+            float f = extra.fuse;
+            float phase = kChargeBlinkStart * f + 0.5 * (kChargeBlinkEnd - kChargeBlinkStart) / T * f * f;
+            float on = (frac(phase) < 0.5) ? 1.0 : 0.35;
+            float g = g_ChargerGlow;
+            o.Color.rgb *= lerp(float3(1, 1, 1), float3(g, g * 0.25, g * 0.2), on);
+        }
+        else if (ph == SWARM_CHARGE_DASH)
+            o.Color.rgb *= float3(1.8, 0.6, 0.5);
+    }
+
+    // ---- frozen (Ice Lance): pale blue body ----
+    if (frozen)
+        o.Color.rgb *= lerp(float3(1, 1, 1), kIceTint, saturate(g_FreezeTint));
     return o;
 }

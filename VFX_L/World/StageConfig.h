@@ -34,7 +34,7 @@ struct StageDef
 
     // 新しい敵の混ざり方（2026-10-03、ユーザー「面毎の主力 + 面の中で時間で増える」）。
     // 湧き（新規・転送）のうちその種類の割合: start 秒までは 0、start で ratioStart、rampEnd 秒で ratioEnd（間は直線）。
-    // 今はスプリッターだけ（第 1 面の主力）。次の敵を足したら第 2・3 面の主力にする
+    // 第 1 面の主力 = スプリッター、第 2 面 = 突撃兵、第 3 面 = 盾兵（2026-10-08）
     struct EnemyMix
     {
         float start = 1.0e9f;
@@ -43,6 +43,9 @@ struct StageDef
         float rampEnd = 480.0f;
     };
     EnemyMix splitter = { 60.0f, 0.10f, 0.25f, 480.0f };
+    // 突撃兵（第 2 面の主力）・盾兵（第 3 面の主力）。2026-10-08。他の面は少し遅れて少しだけ混ざる
+    EnemyMix charger = { 150.0f, 0.03f, 0.08f, 540.0f };
+    EnemyMix shield = { 180.0f, 0.03f, 0.08f, 540.0f };
 
     // 遺跡の松明（外周の壁に付く）に点光源を付ける数（プレイヤーに近い順。全体の上限 64 を圧迫しないように）
     int torchLights = 12;

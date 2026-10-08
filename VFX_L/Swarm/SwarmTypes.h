@@ -79,22 +79,42 @@ namespace Swarm
     constexpr uint32_t kEnemyKindSplitter = 5; // スプリッター（2026-10-03）：死ぬと小さい分裂体を 3 体出す（SwarmCorpseTrackCS → 分裂の環 → MobSpawner）
     constexpr uint32_t kEnemyKindSplitling = 6;// 分裂体：スプリッターの小さい子。もう分裂しない
     constexpr uint32_t kEnemyKindBrute = 7;    // 重装兵（2026-10-07 夜）：HP 3 倍・遅い・大きい。4 分から雑魚と入れ替わる（Megabonk の Goblin Tank 相当）
+    // 突撃兵（2026-10-08）：近付くと止まって溜め（地面に赤い予告の帯）→ 向きを固定して一直線に突進 → 息切れで立ち止まる。
+    // 段階は EnemyExtra::fuse に持つ（SwarmEnemyAICS が書く。HLSL の SwarmChargerPhase）
+    constexpr uint32_t kEnemyKindCharger = 8;
+    // 盾兵（2026-10-08）：受ける 1 発毎のダメージから BomberCB::shieldArmor を引く（最低 shieldMinFrac 倍は通る）。
+    // 毒の沼・光線の細かい tick はほとんど通らず、一発の重い魔法がよく効く。身体の前に塔の盾（SwarmShieldVS）
+    constexpr uint32_t kEnemyKindShield = 9;
     // 描画リストの数（種類毎にテクスチャを替えて描く）。エリートは雑魚と同じメッシュ・テクスチャなので雑魚のリストで描き、
     // 大きさと色は VS が種類を見て変える
-    constexpr uint32_t kEnemyKinds = 5;
+    constexpr uint32_t kEnemyKinds = 7;
     // 描画リストの添字（種類 → リスト。エリート / Boss は雑魚のリスト、分裂体はスプリッターのリスト）
     constexpr uint32_t kDrawListMob = 0;
     constexpr uint32_t kDrawListBomber = 1;
     constexpr uint32_t kDrawListSplitter = 2;
     constexpr uint32_t kDrawListBrute = 3;    // 重装兵（緑のオーク）
-    constexpr uint32_t kDrawListGhost = 4;    // 最後に alpha blend で描く（必ず最後の番号）
+    constexpr uint32_t kDrawListCharger = 4;  // 突撃兵（黒い忍者）
+    constexpr uint32_t kDrawListShield = 5;   // 盾兵（紺の警官）
+    constexpr uint32_t kDrawListGhost = 6;    // 最後に alpha blend で描く（必ず最後の番号）
 
     struct EnemyExtra
     {
         uint32_t kind = kEnemyKindMob;
-        float    fuse = 0.0f;   // 点火からの秒数。0 = 未点火（点火した瞬間に 1 ステップ分が入る）
+        // 自爆兵：点火からの秒数。0 = 未点火（点火した瞬間に 1 ステップ分が入る）。
+        // 突撃兵：< 0 = 次の突進までの待ち（0 へ数え上げる）、0 = 追いかけ中（突進できる）、> 0 = 溜め始めてからの秒数
+        float    fuse = 0.0f;
     };
     static_assert(sizeof(EnemyExtra) == 8, "SwarmEnemyExtra layout mismatch");
+
+    // ============================================================
+    // 敵の状態（並行バッファ enemySlow、float4。2026-10-08 に float2 → float4）
+    //   x = 減速の残り秒、y = 減速の強さ（毒の沼。SwarmAreaDamageCS が書く）
+    //   z = 凍結の残り秒（> 0 の間は動かない・殴らない）
+    //   w = 凍結中：凍結の長さ（VS の出始め / 溶け際の演出用）、解けた後：再凍結できない残り秒
+    // 凍結の依頼は SwarmHitCS が Enemy::animIndex = kAnimFreezeRequest、animTime = 秒 で置き、
+    // 次のステップの SwarmEnemyAICS が受け取る（Enemy の 48B は変えない）
+    // ============================================================
+    constexpr uint32_t kAnimFreezeRequest = 3u;
 
     struct Projectile
     {
@@ -210,7 +230,7 @@ namespace Swarm
         Vector3  c1 = { 0.33f, 0.0f, 0.0f };
         float    baseRadius = 0.0f;       // profile の当たり半径。これより大きく撃たれた弾は見た目も大きく（拡大鏡）。0 = 倍率 1
         Vector3  c2 = { 0.66f, 0.0f, 0.0f };
-        float    _pad2 = 0.0f;
+        float    freezeTime = 0.0f;       // > 0 = 当たった敵をこの秒数凍らせる（アイスランス。2026-10-08、元 _pad2）
     };
     static_assert(sizeof(Motion) == 48, "SwarmMotion layout mismatch");
 
@@ -405,8 +425,37 @@ namespace Swarm
         float    bruteDamageMul = 1.6f;      // 接触ダメージ（Megabonk の Goblin Tank 30 / 雑魚 15 の手前）
         float    bruteExpMul = 3.0f;         // HP が雑魚の 3 倍なので経験も 3 倍
         float    _brutePad = 0.0f;
+
+        // ---- 突撃兵（kEnemyKindCharger。2026-10-08）----
+        // 追いかけ中、同じ高さでプレイヤーが chargerMinDist〜chargerMaxDist m に居て、突進の線が歩けるマスなら
+        // 止まって chargerWindup 秒溜める（向きはその瞬間に固定、地面に予告の帯）→ chargerDashSpeed m/s で
+        // chargerDashDist m 突進（壁で止まる）→ chargerRecover 秒立ち止まる → chargerCooldown 秒は普通に追いかける
+        float    chargerScale = 1.0f;
+        float    chargerDamageMul = 1.0f;     // 普段の接触
+        float    chargerExpMul = 1.5f;
+        float    chargerDashDamageMul = 1.8f; // 突進中にぶつかった時（ノックバックは爆発と同じ強さ）
+        float    chargerWindup = 0.8f;
+        float    chargerDashSpeed = 14.0f;
+        float    chargerDashDist = 14.0f;
+        float    chargerRecover = 1.2f;
+        float    chargerCooldown = 4.0f;
+        float    chargerMinDist = 6.0f;
+        float    chargerMaxDist = 12.0f;
+        float    chargerGlow = 3.0f;          // VS: 溜めの間の赤い点滅の明るさ
+
+        // ---- 盾兵（kEnemyKindShield。2026-10-08）----
+        float    shieldScale = 1.1f;
+        float    shieldDamageMul = 1.2f;
+        float    shieldExpMul = 2.0f;
+        float    shieldArmor = 5.0f;          // 1 発（弾 1 発・範囲の 1 tick）毎にこれだけ引く
+        float    shieldMinFrac = 0.2f;        // ただし元のダメージのこの割合は必ず通る
+
+        // ---- 凍結（アイスランス。2026-10-08）----
+        float    freezeBigMul = 0.5f;         // エリート・Boss の凍結の長さに掛ける
+        float    freezeImmunity = 3.0f;       // 解けてからこの秒数は凍らない（凍らせ続けられないように）
+        float    freezeTint = 1.0f;           // VS: 凍った体の氷色の強さ（0 = 色を変えない）
     };
-    static_assert(sizeof(BomberCB) == 144, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 224, "SwarmBomberCB layout mismatch");
 
     // ============================================================
     // 分裂の環（GPU → CPU）。SwarmCorpseTrackCS がスプリッターの死を見つけたら 1 件書く（先頭 16B = 今までの総数、
