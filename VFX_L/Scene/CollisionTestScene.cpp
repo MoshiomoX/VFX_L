@@ -299,6 +299,7 @@ void CollisionTestScene::Init()
         // 実験場：制限時間・エリート・箱・門・磁石なし。箱と門は置かない（RespawnCrates を呼ばない）
         m_Stage.stageTime = 0.0f;
         m_Stage.eliteTimes.clear();
+        m_Stage.waves.enabled = false;   // 湧きの波も無し（湧き自体が止まっているが、案内が出ないように）
         m_Pickups.initialCount = 0;
         m_Pickups.maxOnMap = 0;
     }
@@ -637,6 +638,12 @@ void CollisionTestScene::Update(float dt)
             obj = L"T / パッド RB　トレーニングメニュー";   // 実験場：メニューの開き方（画面下の案内は体に重なるのでここ）
         m_GameUI.SetObjective(obj);
     }
+    // 画面の真ん中の案内（押し寄せ・エリート・最終ウェーブ。2026-10-07）
+    {
+        float alpha = 0.0f, age = 0.0f;
+        const wchar_t* ann = m_LabScene ? nullptr : m_Stage.Announce(alpha, age);
+        m_GameUI.SetAnnounce(ann, alpha, age);
+    }
 
     // ---- 死亡 → 倒れた姿を少し見せてからリザルトへ ----
     // 一時停止中でも進める（三択を開いたまま死ぬ事は無いが、止まると戻れない）
@@ -685,6 +692,12 @@ void CollisionTestScene::UpdateHudMarkers()
     // 面の Boss（GPU のリードバックの位置）
     if (m_Stage.IsBossAlive())
         markers.push_back({ m_Stage.BossPos() + Vector3(0.0f, 2.0f, 0.0f), { 0.85f, 0.25f, 1.0f, 1.0f } });
+    // 押し寄せが来る方向（赤橙。プレイヤーから 30m 先。2026-10-07）
+    if (const Vector3* pp = PlayerPos(); pp && m_Stage.SurgeActive(m_RunTime))
+    {
+        const float yaw = m_Stage.SurgeYaw();
+        markers.push_back({ *pp + Vector3(std::cos(yaw) * 30.0f, 1.0f, std::sin(yaw) * 30.0f), { 1.0f, 0.35f, 0.12f, 1.0f } });
+    }
     // 計測用の的（無敵）も EliteTag を持つので外す
     m_Registry.CreateView<EliteTag, TransformComponent, HealthComponent>()
         .Each([&](Entity, EliteTag&, TransformComponent& tf, HealthComponent& hp)

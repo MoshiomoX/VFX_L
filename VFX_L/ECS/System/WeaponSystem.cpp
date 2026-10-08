@@ -60,14 +60,16 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
         return;
     }
 
-    // 分裂: spreadAngle を count 等分し、Y 軸まわりに扇状へ広げる
-    //  例) count=3, spread=30 → -15°, 0°, +15°
-    float step = s.spreadAngle / (float)(count - 1);
-    float start = -s.spreadAngle * 0.5f;
+    // 分裂: 1 発目は必ず狙いの真ん中、2 発目から左右交互に step ずつ広げる（Y 軸まわり）
+    //  例) count=3, spread=30 → 0°, +15°, -15° / count=2, spread=15 → 0°, +15°
+    //  2026-10-08 まで左右対称（count=2 なら ±7.5°）で、曲がらない弾（火球・黄金の矢）は 10m 先の 1 体に
+    //  2 発とも外れていた（spellbench：単体 DPS 0）
+    const float step = s.spreadAngle / (float)(count - 1);
 
     for (int i = 0; i < count; ++i)
     {
-        float deg = start + step * (float)i;
+        const int k = (i + 1) / 2;
+        const float deg = (i == 0) ? 0.0f : ((i % 2) ? 1.0f : -1.0f) * step * (float)k;
         Matrix rot = Matrix::CreateRotationY(DirectX::XMConvertToRadians(deg));
         Vector3 d = Vector3::TransformNormal(dir, rot);
         d.Normalize();

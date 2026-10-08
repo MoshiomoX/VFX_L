@@ -30,6 +30,10 @@ void StageDirector::Init()
     m_Portal = EntityTraits::NULL_ENTITY;
     m_Boss = BossState::None;
     m_ExitOpen = false;
+    waves.Reset(std::random_device{}());
+    m_AnnounceText = nullptr;
+    m_AnnounceLeft = 0.0f;
+    m_FinalWarned = false;
 }
 
 bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, float hp, SwarmSystem& swarm)
@@ -77,6 +81,9 @@ bool StageDirector::SpawnBoss(const GridWorld& grid, const Vector3& player, Swar
 void StageDirector::Update(const GridWorld& grid, const Vector3& player, float runTime, float dt,
     MobSpawner& mobs, SwarmSystem& swarm)
 {
+    // ---- 湧きの波・最終ウェーブの予告・案内（StageDirectorWaves.cpp）----
+    UpdateWaves(runTime, dt, mobs);
+
     // ---- 時間切れの後は最終ウェーブ ----
     auto& director = mobs.Director();
     if (runTime >= stageTime)
@@ -89,6 +96,7 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
             {
                 m_NormalCap = director.spawnCap;
                 m_Event = "final swarm";
+                SetAnnounce(L"最終ウェーブ開始！", 3.5f);
             }
             else
                 m_Event = "final swarm step";
@@ -96,7 +104,9 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
             std::cout << "[Stage] final swarm level " << level << std::endl;
         }
         mobs.finalStatMul = std::pow(finalStepMul, (float)(level - 1));
-        mobs.finalSpawnRate = finalSpawnRate;
+        // 湧きは finalSpawnRateStart から finalRampTime 秒かけて finalSpawnRate へ（2026-10-07 まで一気に 20 体/秒）
+        const float ramp = (finalRampTime > 0.0f) ? (std::min)(1.0f, over / finalRampTime) : 1.0f;
+        mobs.finalSpawnRate = finalSpawnRateStart + (finalSpawnRate - finalSpawnRateStart) * ramp;
         mobs.finalSpeedMul = finalSpeedMul;
         mobs.finalGhostRate = finalGhostRate * std::pow(finalGhostStepMul, (float)(level - 1));   // 幽霊は段毎に数が増える
         director.spawnCap = (over < 120.0f) ? finalCap : finalCapLate;
@@ -121,6 +131,7 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
         {
             ++m_NextElite;
             m_Event = "elite";
+            SetAnnounce(L"エリートが現れた！", 3.0f);
         }
     }
 
@@ -404,6 +415,7 @@ void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
     ImGui::DragFloat("Elite Exp x", &kind.eliteExpMul, 0.5f, 0.0f, 200.0f);
     if (ImGui::Button("Spawn Elite Now")) m_DebugElite = true;
 
+    DrawWavesImGui(runTime);
     ImGui::Text("final swarm level %d", m_FinalLevel);
     ImGui::DragFloat("Final Spawn / s", &finalSpawnRate, 0.5f, 0.0f, 200.0f);
     ImGui::DragFloat("Final Speed x", &finalSpeedMul, 0.01f, 0.1f, 5.0f);

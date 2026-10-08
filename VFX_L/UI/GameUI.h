@@ -116,6 +116,13 @@ public:
     void SetGold(int gold) { m_FrameInfo.gold = gold; }
     // 目標の一行（撃破数の下、「目標: 」は HUD が付ける）。nullptr で消す。毎フレームシーンが入れ直す（2026-10-07）
     void SetObjective(const wchar_t* text) { m_FrameInfo.objective = text; }
+    // 画面の真ん中の案内（2026-10-07。押し寄せ・エリート・最終ウェーブ）。text = null で消す
+    void SetAnnounce(const wchar_t* text, float alpha, float age)
+    {
+        m_FrameInfo.announce = text;
+        m_FrameInfo.announceAlpha = alpha;
+        m_FrameInfo.announceAge = age;
+    }
     // 四択の引き直し（金貨）に使う。無ければ引き直しのボタンを出さない
     void SetLevelUpSystem(LevelUpSystem* sys) { m_LevelUpSystem = sys; }
     // トレーニング（実験場）のメニュー（2026-10-07）。true の間だけ T / パッド RB で開く。

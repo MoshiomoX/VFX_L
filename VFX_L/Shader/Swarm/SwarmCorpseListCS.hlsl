@@ -21,6 +21,7 @@ AppendStructuredBuffer<uint> mobCorpses : register(u0);
 AppendStructuredBuffer<uint> bomberCorpses : register(u1);
 AppendStructuredBuffer<uint> ghostCorpses : register(u2);
 AppendStructuredBuffer<uint> splitterCorpses : register(u3);
+AppendStructuredBuffer<uint> bruteCorpses : register(u4);
 
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -39,6 +40,8 @@ void main(uint3 id : SV_DispatchThreadID)
         ghostCorpses.Append(i);
     else if (c.kind == SWARM_KIND_SPLITTER || c.kind == SWARM_KIND_SPLITLING)
         splitterCorpses.Append(i);
+    else if (c.kind == SWARM_KIND_BRUTE)
+        bruteCorpses.Append(i);
     else
         mobCorpses.Append(i);
 }

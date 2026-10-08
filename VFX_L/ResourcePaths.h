@@ -365,6 +365,9 @@ namespace Res
         // スプリッター・分裂体（Kenney Blocky の D、黄色い衝突試験人形。2026-10-03）
         inline constexpr const wchar_t* Kenney_BlockyDummyAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-d.png";
+        // 重装兵（Kenney Blocky の O、牙のある緑のオーク。2026-10-07 夜）
+        inline constexpr const wchar_t* Kenney_BlockyOrcAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-o.png";
 
         // 粒子
         inline constexpr const wchar_t* ParticleSheet =

@@ -78,14 +78,16 @@ namespace Swarm
     constexpr uint32_t kEnemyKindGhost = 4;    // 最終ウェーブの幽霊（2026-09-30）：雑魚の HP、速い、壁も台地も素通り、半透明の青白
     constexpr uint32_t kEnemyKindSplitter = 5; // スプリッター（2026-10-03）：死ぬと小さい分裂体を 3 体出す（SwarmCorpseTrackCS → 分裂の環 → MobSpawner）
     constexpr uint32_t kEnemyKindSplitling = 6;// 分裂体：スプリッターの小さい子。もう分裂しない
+    constexpr uint32_t kEnemyKindBrute = 7;    // 重装兵（2026-10-07 夜）：HP 3 倍・遅い・大きい。4 分から雑魚と入れ替わる（Megabonk の Goblin Tank 相当）
     // 描画リストの数（種類毎にテクスチャを替えて描く）。エリートは雑魚と同じメッシュ・テクスチャなので雑魚のリストで描き、
     // 大きさと色は VS が種類を見て変える
-    constexpr uint32_t kEnemyKinds = 4;
+    constexpr uint32_t kEnemyKinds = 5;
     // 描画リストの添字（種類 → リスト。エリート / Boss は雑魚のリスト、分裂体はスプリッターのリスト）
     constexpr uint32_t kDrawListMob = 0;
     constexpr uint32_t kDrawListBomber = 1;
     constexpr uint32_t kDrawListSplitter = 2;
-    constexpr uint32_t kDrawListGhost = 3;    // 最後に alpha blend で描く
+    constexpr uint32_t kDrawListBrute = 3;    // 重装兵（緑のオーク）
+    constexpr uint32_t kDrawListGhost = 4;    // 最後に alpha blend で描く（必ず最後の番号）
 
     struct EnemyExtra
     {
@@ -397,8 +399,14 @@ namespace Swarm
         float    bossChargeDirZ = 1.0f;
         float    bossChargeSpeed = 0.0f;
         float    bossChargeOn = 0.0f;
+
+        // ---- 重装兵（kEnemyKindBrute。2026-10-07 夜）----
+        float    bruteScale = 1.3f;          // 体格（モデル・当たり / 接触の半径）
+        float    bruteDamageMul = 1.6f;      // 接触ダメージ（Megabonk の Goblin Tank 30 / 雑魚 15 の手前）
+        float    bruteExpMul = 3.0f;         // HP が雑魚の 3 倍なので経験も 3 倍
+        float    _brutePad = 0.0f;
     };
-    static_assert(sizeof(BomberCB) == 128, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 144, "SwarmBomberCB layout mismatch");
 
     // ============================================================
     // 分裂の環（GPU → CPU）。SwarmCorpseTrackCS がスプリッターの死を見つけたら 1 件書く（先頭 16B = 今までの総数、

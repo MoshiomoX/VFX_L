@@ -65,6 +65,7 @@ namespace
         case SpellParam::Lifetime:
         case SpellParam::ProjectileCount:
         case SpellParam::CastCount:
+        case SpellParam::AreaDamage:
             return +1;
         case SpellParam::CastInterval:
         case SpellParam::ManaCost:
@@ -105,6 +106,7 @@ namespace
         case SpellParam::CastDelay:       return L"連射の間隔";
         case SpellParam::CastInterval:    return L"発動間隔";
         case SpellParam::ManaCost:        return L"消費MP";
+        case SpellParam::AreaDamage:      return L"範囲の威力";
         }
         return L"";
     }

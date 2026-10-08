@@ -59,6 +59,9 @@ struct HUDFrameInfo
     const wchar_t* stageName = L"";
     int      gold = -1;            // 金貨（2026-10-04）。MP バーの下に出す。負なら出さない
     const wchar_t* objective = nullptr;    // 目標の一行（撃破数の下。null / 空なら出さない。2026-10-07）
+    const wchar_t* announce = nullptr;     // 画面の真ん中の案内（null / 空なら出さない。2026-10-07）
+    float announceAlpha = 0.0f;            // 0..1（出入りのフェード）
+    float announceAge = 1.0f;              // 出てからの秒（出た瞬間の大きさの戻り用）
     const ShieldComponent* shield = nullptr;  // シールド（HP バーの下の細いバー。null / 上限 0 なら出さない）
     const WandComponent* wand = nullptr;   // 魔法の欄。null なら出さない
 
@@ -210,6 +213,13 @@ struct HUDStyle
     float objectiveScale = 0.40f;
     DirectX::SimpleMath::Vector4 objectiveColor = { 1.00f, 0.80f, 0.40f, 1.0f };   // 金（線形）
 
+    // ---- 画面の真ん中の案内（2026-10-07：押し寄せ・エリート・最終ウェーブ。文は StageDirector、UI/HUDAnnounce.cpp）----
+    bool  showAnnounce = true;
+    float announceY = 0.30f;        // 画面の高さに対する文字の中心
+    float announceScale = 0.80f;
+    float announcePunch = 0.25f;    // 出た瞬間だけ大きくする量（0.25 = 1.25 倍から縮む）
+    DirectX::SimpleMath::Vector4 announceColor = { 1.00f, 0.32f, 0.12f, 1.0f };   // 赤みの橙（線形）
+
     // ---- 文字の下敷き（2026-10-07 ユーザー：文字だけの所が草の上で読みにくい）----
     // Lv・経過時間〜目標の塊・金貨に、暗い半透明の板 + 薄い古金の枠を敷く（バーの中の文字は対象外）。
     // 色は線形。HDR に混ぜてからトーンマップするので、0.75 だと明るい草が緑に透けた（10-07 自動テストの撮影）→ 0.88
@@ -326,6 +336,9 @@ private:
     void DrawEdgeGlow(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector4& color,
         float edgeAlpha, float widthRatio);
     void DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info);
+    // 画面の真ん中の案内（UI/HUDAnnounce.cpp）
+    void DrawAnnounce(SpriteRenderer& sprite, TextRenderer& text, const HUDFrameInfo& info);
+    void DrawAnnounceImGui();
 
     BarTrail m_HpTrail;
     BarTrail m_MpTrail;

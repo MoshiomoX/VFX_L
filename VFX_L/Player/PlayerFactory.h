@@ -43,9 +43,9 @@ namespace PlayerFactory
         float jumpPower = 12.0f;
 
         float maxHealth = 100.0f;
-        float maxShield = 25.0f;   // シールドの初期値（2026-10-07 ユーザー指定。Megabonk は 0 から）
+        float maxShield = 0.0f;    // シールドの初期値（2026-10-07 夜に 25 → 0 = Megabonk と同じ。シールドは能力アップ「最大シールド +25」だけで得る）
         float maxMana = 100.0f;
-        float manaRegen = 25.0f;
+        float manaRegen = 30.0f;   // 2026-10-07 に 25 → 30（curve 自動テスト：1 分半から杖を全部撃つのに回復の 2 倍要り、MP は平均 12〜25%）
 
         // 杖とバックパックを付けるか
         // ※VFX だけ確認したいシーンでは false にする

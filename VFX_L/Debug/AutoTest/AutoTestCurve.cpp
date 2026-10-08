@@ -4,6 +4,7 @@
 // VFXL_BATTLE_AUTOTEST=curve：難度曲線の実測（2026-10-04）。自動で 8 分遊び、30 秒毎の被弾・撃破・周りの数を記録
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
+#include "Player/ShieldComponent.h"
 
 namespace
 {
@@ -28,6 +29,15 @@ namespace
 // 30 秒毎に `curve t alive kills level items frames mul contact spawn raw eff near3 near8 ttd`
 //   （kills = この 30 秒の撃破、raw / eff = 毎秒の被弾、near = 1 秒毎のリードバックでプレイヤーから 3 / 8m 以内の平均数、
 //    ttd = HP 100 がこの eff で何秒持つか）。2 / 4 / 6 / 8 分で `curve look <分>m`、最後に `curve done`。
+// 2026-10-07 追加（ユーザー「難度曲線がおかしい」の調査）:
+//   ・魔力解放（Q）は使えるようになったらすぐ使う（人が遊ぶ時と同じ）
+//   ・30 秒毎にもう 1 行 `curve mix t mob bomber splitter splitling elite boss ghost near8max shieldHits hpIn dpsCap killRate spawnRate`
+//     （種類毎の生きている数、8m 以内の数の最大、この 30 秒にシールドが受けた回数、
+//      hpIn = この 30 秒に毎秒湧いた HP の平均（自爆兵・スプリッターの割合込み、スプリッターは分裂体 3 体分も足す）、
+//      spawnRate = この 30 秒の平均の湧き（体/秒。湧きの波込み）、
+//      dpsCap = 杖の基本魔法の理論 DPS（威力 × 弾数 × 連発 / 間隔、MP で頭打ち）。
+//   ・押し寄せが始まる度に `curve surge n t rate`
+//      範囲・毒沼・上級魔法の分は入らない大まかな値）
 // 三択の間は gameplay が止まるので Update から呼ぶ
 // ============================================================
 void AutoTestCurve::Run(float dt)
@@ -37,6 +47,10 @@ void AutoTestCurve::Run(float dt)
     static float s_Angle = 0.0f, s_WinStart = 0.0f, s_NextNear = 0.0f, s_EffDmg = 0.0f, s_EndMin = 8.0f;
     static uint32_t s_RawStart = 0, s_KillStart = 0;
     static int s_NearSamples = 0, s_Near3 = 0, s_Near8 = 0, s_NextLook = 2;
+    static int s_Kinds[8] = {}, s_Near8Max = 0;   // 最後のリードバックの種類毎の数（Swarm::kEnemyKind*）・8m 以内の最大
+    static uint32_t s_ShieldHitsStart = 0;
+    static float s_HpInSum = 0.0f, s_SpawnSum = 0.0f;   // この窓で湧いた HP・数
+    static int s_Surges = 0;
     if (s_Done || !m_Registry.IsValid(m_Player)) return;
     if (!m_Registry.Has<BackpackComponent>(m_Player) || !m_Registry.Has<SpellbookComponent>(m_Player)) return;
 
@@ -163,6 +177,46 @@ void AutoTestCurve::Run(float dt)
         m_PlayerControlSystem.testSlide = false;
         m_PlayerControlSystem.testJump = false;
         m_PlayerControlSystem.testMove = Vector2(d.Dot(camR), d.Dot(camF));
+        // 魔力解放：使えるようになったらすぐ
+        if (m_Registry.Has<ManaComponent>(m_Player) && m_Registry.Get<ManaComponent>(m_Player).surgeCooldownLeft <= 0.0f)
+            m_PlayerControlSystem.testSurge = true;
+    }
+
+    // ---- 毎フレーム：湧いた HP の合計（種類の割合込み。スプリッターは分裂体 3 体分も足す）と湧いた数 ----
+    //   湧きの波で湧く速さが毎フレーム変わるので、30 秒の窓で足し合わせて平均する（経過時間で進めるので三択の間は増えない）
+    {
+        static float s_PrevRun = -1.0f;
+        const float step = (s_PrevRun >= 0.0f) ? (std::max)(0.0f, m_RunTime - s_PrevRun) : 0.0f;
+        s_PrevRun = m_RunTime;
+        float hpMob = 0, hpBomber = 0, hpSplitter = 0, hpSplitling = 0, hpBrute = 0, spd = 0;
+        m_Mobs.KindStats(Swarm::kEnemyKindMob, hpMob, spd);
+        m_Mobs.KindStats(Swarm::kEnemyKindBomber, hpBomber, spd);
+        m_Mobs.KindStats(Swarm::kEnemyKindSplitter, hpSplitter, spd);
+        m_Mobs.KindStats(Swarm::kEnemyKindSplitling, hpSplitling, spd);
+        m_Mobs.KindStats(Swarm::kEnemyKindBrute, hpBrute, spd);
+        const float b = m_Mobs.GetBomberRatio(), s = m_Mobs.GetSplitterRatio(), u = m_Mobs.GetBruteRatio();
+        // MobSpawner::Request と同じく 1 回の乱数を 自爆兵 → スプリッター → 重装兵 → 雑魚 の順に区切る（割合は全体に対する値）
+        const float avgHp = b * hpBomber + s * (hpSplitter + 3.0f * hpSplitling) + u * hpBrute + (std::max)(0.0f, 1.0f - b - s - u) * hpMob;
+        const float rate = m_Mobs.Director().spawnPerSecond;
+        s_HpInSum += rate * avgHp * step;
+        s_SpawnSum += rate * step;
+        if (m_Stage.waves.SurgeCount() != s_Surges)
+        {
+            s_Surges = m_Stage.waves.SurgeCount();
+            char line[96];
+            snprintf(line, sizeof(line), "curve surge %d t %.0f rate %.2f", s_Surges, m_RunTime, rate);
+            AutoTestLog(line);
+            if (s_Surges <= 2)
+            {
+                snprintf(line, sizeof(line), "curve look surge%d", s_Surges);   // 案内と方向の目印
+                AutoTestLog(line);
+            }
+        }
+        // 最終ウェーブの予告と始まりの案内
+        static bool s_ShotWarn = false, s_ShotFinal = false;
+        const float st = m_Stage.stageTime;
+        if (!s_ShotWarn && st > 0.0f && m_RunTime >= st - m_Stage.finalWarnTime + 0.5f) { s_ShotWarn = true; AutoTestLog("curve look finalwarn"); }
+        if (!s_ShotFinal && st > 0.0f && m_RunTime >= st + 0.5f) { s_ShotFinal = true; AutoTestLog("curve look finalstart"); }
     }
 
     // ---- 毎フレーム：MP の残りの割合（MP が足りず撃てない時間がどれだけあるか）----
@@ -181,8 +235,11 @@ void AutoTestCurve::Run(float dt)
         s_NextNear = m_RunTime + 1.0f;
         static std::vector<Swarm::Enemy> s_En;
         static std::vector<uint32_t> s_St;
-        if (m_Swarm.DebugReadEnemies(s_En, s_St))
+        static std::vector<Swarm::EnemyExtra> s_Ex;
+        if (m_Swarm.DebugReadEnemies(s_En, s_St, &s_Ex))
         {
+            int near8 = 0;
+            for (int& k : s_Kinds) k = 0;
             for (size_t i = 0; i < s_En.size(); ++i)
             {
                 if (s_St[i] == Swarm::kStateDead) continue;
@@ -190,8 +247,10 @@ void AutoTestCurve::Run(float dt)
                 const float dz = s_En[i].position.z - tf.position.z;
                 const float d2 = dx * dx + dz * dz;
                 if (d2 < 9.0f) ++s_Near3;
-                if (d2 < 64.0f) ++s_Near8;
+                if (d2 < 64.0f) { ++s_Near8; ++near8; }
+                if (i < s_Ex.size() && s_Ex[i].kind < 8) ++s_Kinds[s_Ex[i].kind];
             }
+            s_Near8Max = (std::max)(s_Near8Max, near8);
             ++s_NearSamples;
         }
     }
@@ -225,6 +284,26 @@ void AutoTestCurve::Run(float dt)
         snprintf(line, sizeof(line), "curve mp t %.0f avg %.2f regen %.1f demand %.1f",
             m_RunTime, s_MpSamples > 0 ? s_MpSum / (float)s_MpSamples : 0.0f, regen, demand);
         AutoTestLog(line);
+
+        // 種類の内訳・押し寄せる HP と杖の理論 DPS
+        float dpsCap = 0.0f;
+        if (m_Registry.Has<WandComponent>(m_Player))
+            for (const auto& sp : m_Registry.Get<WandComponent>(m_Player).spells)
+                if (sp.castInterval > 0.0f && !sp.triggered && sp.storeUnit < 0)
+                    dpsCap += sp.damage * (float)sp.projectileCount * (float)sp.castCount / sp.castInterval;
+        if (demand > regen && demand > 0.0f) dpsCap *= regen / demand;
+        uint32_t shieldHits = 0;
+        if (m_Registry.Has<ShieldComponent>(m_Player)) shieldHits = m_Registry.Get<ShieldComponent>(m_Player).hits;
+        snprintf(line, sizeof(line),
+            "curve mix t %.0f mob %d bomber %d splitter %d splitling %d brute %d elite %d boss %d ghost %d near8max %d shieldHits %u hpIn %.0f dpsCap %.0f killRate %.2f spawnRate %.2f",
+            m_RunTime, s_Kinds[Swarm::kEnemyKindMob], s_Kinds[Swarm::kEnemyKindBomber], s_Kinds[Swarm::kEnemyKindSplitter],
+            s_Kinds[Swarm::kEnemyKindSplitling], s_Kinds[Swarm::kEnemyKindBrute], s_Kinds[Swarm::kEnemyKindElite], s_Kinds[Swarm::kEnemyKindBoss],
+            s_Kinds[Swarm::kEnemyKindGhost], s_Near8Max, shieldHits - s_ShieldHitsStart,
+            s_HpInSum / span, dpsCap, (float)(c.killCount - s_KillStart) / span, s_SpawnSum / span);
+        AutoTestLog(line);
+        s_ShieldHitsStart = shieldHits;
+        s_Near8Max = 0;
+        s_HpInSum = s_SpawnSum = 0.0f;
 
         s_WinStart = m_RunTime;
         s_RawStart = c.playerDamage;

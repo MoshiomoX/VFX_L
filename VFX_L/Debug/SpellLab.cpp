@@ -64,7 +64,7 @@ std::wstring SpellLab::Apply(const TrainingRequest& q, Registry& reg, Entity pla
         m_SwarmLeft += q.count;
         m_SwarmKind = q.swarmKind;
         m_SwarmMoving = q.moving;
-        std::wstring s = (q.swarmKind >= 4) ? std::wstring(L"混合の群れ")
+        std::wstring s = (q.swarmKind >= 5) ? std::wstring(L"混合の群れ")
             : std::wstring(TrainingMenuUI::kSwarmKinds[std::clamp(q.swarmKind, 0, TrainingMenuUI::kKindChoices - 1)]);
         s += L"を " + std::to_wstring(q.count) + L" 体出した";
         if (!q.moving) s += L"（止まったまま）";
@@ -124,17 +124,17 @@ void SpellLab::SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, 
     const Vector3 pp = reg.Get<TransformComponent>(player).position;
     const float groundY = swarm.GetAIParams().groundY;
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
-    static const uint32_t kKinds[4] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindGhost };
+    static const uint32_t kKinds[5] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindBrute, Swarm::kEnemyKindGhost };
 
     const int n = (std::min)(m_SwarmLeft, kSwarmPerFrame);
     for (int i = 0; i < n; ++i)
     {
-        // 混合 = 雑魚 5 : 自爆兵 2 : スプリッター 2 : 幽霊 1
-        uint32_t kind = kKinds[std::clamp(m_SwarmKind, 0, 3)];
-        if (m_SwarmKind >= 4)
+        // 混合 = 雑魚 4 : 自爆兵 2 : スプリッター 2 : 重装兵 1 : 幽霊 1
+        uint32_t kind = kKinds[std::clamp(m_SwarmKind, 0, 4)];
+        if (m_SwarmKind >= 5)
         {
             const float r = u01(m_Rng);
-            kind = (r < 0.5f) ? kKinds[0] : (r < 0.7f) ? kKinds[1] : (r < 0.9f) ? kKinds[2] : kKinds[3];
+            kind = (r < 0.4f) ? kKinds[0] : (r < 0.6f) ? kKinds[1] : (r < 0.8f) ? kKinds[2] : (r < 0.9f) ? kKinds[3] : kKinds[4];
         }
         float hp = 15.0f, speed = 3.5f;
         mobs.KindStats(kind, hp, speed);

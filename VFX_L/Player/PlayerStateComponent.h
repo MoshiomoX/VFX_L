@@ -115,7 +115,7 @@ struct PlayerStateComponent
     // ---- 被損層のタイマー ----
     float hurtDuration     = 0.25f;   // 被弾硬直の長さ
     float invincibleTimer  = 0.0f;    // これが 0 より大きい間は無敵
-    float invincibleAfterHit = 0.6f;  // 被弾時に設定する無敵時間
+    float invincibleAfterHit = 0.3f;  // 被弾時に設定する無敵時間（2026-10-07 に 0.6 → 0.3：同類の 0.15〜0.4 秒より長く、シールドと合わせて中盤まで HP がほぼ減らなかった）
 
     // ---- 遷移の記録（デバッグ表示用。実処理には使わない）----
     MoveStateID   prevMove   = MoveStateID::Idle;

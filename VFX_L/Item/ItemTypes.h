@@ -70,6 +70,7 @@ enum class SpellParam
     CastDelay,
     CastInterval,     // 発動間隔
     ManaCost,
+    AreaDamage,       // 弾が落ちた所・当たった所に出す範囲（毒沼・メテオの爆発）の威力の倍率（SpellStats::areaDamageMul。2026-10-08）
 };
 
 // ============================================================

@@ -30,7 +30,7 @@ struct TrainingRequest
     Kind   kind = Kind::Targets;
     int    pattern = 0;            // Targets：0 正面 3 体 / 1 周り 12 体 / 2 エリート
     float  targetHp = 1.0e6f;      // Targets
-    int    swarmKind = 0;          // Swarm：0 雑魚 / 1 自爆兵 / 2 スプリッター / 3 幽霊 / 4 混合
+    int    swarmKind = 0;          // Swarm：0 雑魚 / 1 自爆兵 / 2 スプリッター / 3 重装兵 / 4 幽霊 / 5 混合
     int    count = 30;             // Swarm
     bool   moving = true;          // Swarm / Boss（false = その場に止まったまま）
     ItemID item = ItemID::Unknown; // AddItem
@@ -66,7 +66,7 @@ public:
 
     // 選べる値（描画と依頼で共用）
     static constexpr int kHpChoices = 5;
-    static constexpr int kKindChoices = 5;
+    static constexpr int kKindChoices = 6;
     static constexpr int kCountChoices = 4;
     static const float kTargetHp[kHpChoices];
     static const wchar_t* const kSwarmKinds[kKindChoices];

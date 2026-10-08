@@ -74,6 +74,12 @@ void AutoTestShield::Run(float dt)
         hp.max = 100.0f;
         hp.current = 100.0f;
         hp.invincible = true;
+        // 2026-10-07 夜から開始時のシールドは 0（能力アップでだけ得る）。このテストは 25 から始める
+        if (m_Registry.Has<ShieldComponent>(m_Player))
+        {
+            auto& sh = m_Registry.Get<ShieldComponent>(m_Player);
+            sh.max = sh.current = 25.0f;
+        }
         auto& cam = m_Camera.Camera();
         cam.SetYaw(0.0f);
         cam.distance = 6.0f;
