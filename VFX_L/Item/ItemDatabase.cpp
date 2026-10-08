@@ -293,6 +293,7 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
     case SpellParam::CastDelay:       target = &stats.castDelay;       break;
     case SpellParam::CastInterval:    target = &stats.castInterval;    break;
     case SpellParam::ManaCost:        target = &stats.manaCost;        break;
+    case SpellParam::AreaDamage:      target = &stats.areaDamageMul;   break;
     case SpellParam::ProjectileCount: targetInt = &stats.projectileCount; break;
     case SpellParam::CastCount:       targetInt = &stats.castCount;       break;
 

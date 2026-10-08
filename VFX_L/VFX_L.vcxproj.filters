@@ -226,6 +226,12 @@
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSpellBench.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -652,6 +658,9 @@
     <ClCompile Include="UI\HUD.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\HUDAnnounce.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
     <ClCompile Include="UI\HUDShieldBar.cpp">
       <Filter>UI</Filter>
     </ClCompile>
@@ -751,6 +760,12 @@
     </ClCompile>
     <ClCompile Include="World\GridWorld.cpp">
       <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\SpawnWaves.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\StageDirectorWaves.cpp">
+      <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\SpawnDirector.cpp">
       <Filter>Enemy</Filter>
@@ -1420,6 +1435,9 @@
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\EnemyTags.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\SpawnWaves.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\SpawnDirector.h">

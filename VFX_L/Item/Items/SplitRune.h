@@ -21,7 +21,7 @@ inline FunctionItemDef MakeSplitRune()
     def.common.id = ItemID::SplitRune;
     def.common.name = "Split Rune";
     def.common.displayName = L"分裂のルーン";
-    def.common.description = L"隣の魔法の弾を扇状に増やす。一発あたりの威力は下がる。";
+    def.common.description = L"隣の魔法の弾を扇状に増やす。一発あたりの威力（落ちた所に残る範囲も）は下がる。";
     def.common.category = ItemCategory::Function;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Cross();      // 上下左右
@@ -31,6 +31,9 @@ inline FunctionItemDef MakeSplitRune()
     // ---- 飛行物型への修飾（3つ同時に効く）----
     def.spellModifiers.push_back({ SpellParam::ProjectileCount, ModifyOp::Add,      1.0f });
     def.spellModifiers.push_back({ SpellParam::Damage,          ModifyOp::Multiply, 0.6f });
+    // 弾が落ちた所・当たった所に出す範囲（毒沼・爆発）も 1 つあたり 0.6 倍（2026-10-08）。
+    // これが無いと毒は「毒沼が満額のまま 2 つ」= 2 倍になり、直射の魔法（2 発 × 0.6 = 1.2 倍）との差が広がっていた（spellbench）
+    def.spellModifiers.push_back({ SpellParam::AreaDamage,      ModifyOp::Multiply, 0.6f });
     def.spellModifiers.push_back({ SpellParam::SpreadAngle,     ModifyOp::Add,      15.0f });
 
     // ---- AOE への修飾：範囲を少し広げる ----

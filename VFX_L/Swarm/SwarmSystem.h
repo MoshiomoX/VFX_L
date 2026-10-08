@@ -674,11 +674,13 @@ private:
     bool CreateEnemyDrawArgs(ID3D11Device* device);
     std::shared_ptr<Texture> m_BomberAlbedo;   // 自爆兵のテクスチャ（雑魚と同じメッシュ用）。null = 雑魚と同じテクスチャ
     std::shared_ptr<Texture> m_SplitterAlbedo; // スプリッター・分裂体のテクスチャ（黄色い衝突試験人形）。null = 雑魚と同じテクスチャ
+    std::shared_ptr<Texture> m_BruteAlbedo;    // 重装兵のテクスチャ（緑のオーク。2026-10-07 夜）。null = 雑魚と同じテクスチャ
     // 描画リストのテクスチャ（null = 雑魚の材質の物）
     Texture* ListAlbedo(uint32_t list) const
     {
         if (list == Swarm::kDrawListBomber) return m_BomberAlbedo.get();
         if (list == Swarm::kDrawListSplitter) return m_SplitterAlbedo.get();
+        if (list == Swarm::kDrawListBrute) return m_BruteAlbedo.get();
         return nullptr;
     }
 

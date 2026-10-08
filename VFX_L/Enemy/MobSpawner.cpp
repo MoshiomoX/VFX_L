@@ -56,6 +56,12 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
         hp = m_SplitterHp;
         speed = m_SplitterSpeed;
     }
+    else if (roll < m_BomberRatio + m_SplitterRatio + m_BruteRatio)
+    {
+        kind = Swarm::kEnemyKindBrute;   // 残りの雑魚の枠と入れ替わる（湧く数は同じ）
+        hp = m_BruteHp;
+        speed = m_BruteSpeed;
+    }
     hp *= m_HpMul;   // 湧いた瞬間の難度で決まる
     speed *= finalSpeedMul;
 
@@ -128,7 +134,7 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
         const DifficultyCurve::Sample s = curve.Evaluate(runTime / 60.0f);
         m_HpMul = (s.hpMul + statMulBonus) * finalStatMul;
         m_DamageMul = (s.damageMul + statMulBonus) * finalStatMul;
-        m_Director.spawnPerSecond = (finalSpawnRate > 0.0f) ? finalSpawnRate : s.spawnRate;
+        m_Director.spawnPerSecond = ((finalSpawnRate > 0.0f) ? finalSpawnRate : s.spawnRate) * waveRateMul;
     }
     else
         m_HpMul = m_DamageMul = 1.0f;
@@ -141,6 +147,15 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
         const float t = (std::min)(1.0f, (runTime - splitterStart) / span);
         m_SplitterRatio = splitterRatioStart + (splitterRatioEnd - splitterRatioStart) * t;
     }
+    // 重装兵の割合（全ステージ共通。同じ形の直線）
+    if (runTime < bruteStart)
+        m_BruteRatio = 0.0f;
+    else
+    {
+        const float span = (std::max)(1.0f, bruteRampEnd - bruteStart);
+        const float t = (std::min)(1.0f, (runTime - bruteStart) / span);
+        m_BruteRatio = bruteRatioStart + (bruteRatioEnd - bruteRatioStart) * t;
+    }
     swarm.GetAIParams().contactDamage = baseContactDamage * m_DamageMul;
     swarm.GetBomberParams().blastDamage = baseBlastDamage * m_DamageMul;
 
@@ -151,6 +166,7 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
 
     SpawnDebugKind(grid, player, swarm, m_DebugBombers, m_BomberHp, m_BomberSpeed, Swarm::kEnemyKindBomber);
     SpawnDebugKind(grid, player, swarm, m_DebugSplitters, m_SplitterHp * m_HpMul, m_SplitterSpeed, Swarm::kEnemyKindSplitter);
+    SpawnDebugKind(grid, player, swarm, m_DebugBrutes, m_BruteHp * m_HpMul, m_BruteSpeed, Swarm::kEnemyKindBrute);
     SpawnSplitlings(grid, swarm);
     SpawnGhosts(player, dt, swarm);
 }
@@ -267,6 +283,20 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     if (ImGui::Button("Spawn 5 Splitters Nearby")) QueueDebugSplitters(5);
     ImGui::Separator();
 
+    ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.6f, 1), "Brute (GPU)");
+    ImGui::Text("ratio now %.2f", m_BruteRatio);
+    ImGui::DragFloat("Brute Start (s)", &bruteStart, 5.0f, 0.0f, 1.0e9f);
+    ImGui::DragFloat("Brute Ratio Start", &bruteRatioStart, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Brute Ratio End", &bruteRatioEnd, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Brute Ramp End (s)", &bruteRampEnd, 5.0f, 0.0f, 3600.0f);
+    ImGui::DragFloat("Brute HP", &m_BruteHp, 1.0f, 1.0f, 2000.0f);
+    ImGui::DragFloat("Brute Speed", &m_BruteSpeed, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Brute Scale", &bomb.bruteScale, 0.01f, 0.2f, 3.0f);
+    ImGui::DragFloat("Brute Damage x", &bomb.bruteDamageMul, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Brute Exp x", &bomb.bruteExpMul, 0.05f, 0.0f, 20.0f);
+    if (ImGui::Button("Spawn 5 Brutes Nearby")) QueueDebugBrutes(5);
+    ImGui::Separator();
+
     // ---- 雑魚 AI（GPU の定数。次の固定ステップから効く）----
     auto& ai = swarm.GetAIParams();
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Mob AI (GPU)");
@@ -294,6 +324,7 @@ void MobSpawner::KindStats(uint32_t kind, float& hp, float& speed) const
     case Swarm::kEnemyKindBomber:    hp = m_BomberHp;    speed = m_BomberSpeed; break;
     case Swarm::kEnemyKindSplitter:  hp = m_SplitterHp;  speed = m_SplitterSpeed; break;
     case Swarm::kEnemyKindSplitling: hp = m_SplitlingHp; speed = m_MobSpeed * m_SplitlingSpeedMul; break;
+    case Swarm::kEnemyKindBrute:     hp = m_BruteHp;     speed = m_BruteSpeed; break;
     case Swarm::kEnemyKindGhost:     hp = m_MobHp;       speed = m_MobSpeed * ghostSpeedMul; break;
     default:                         hp = m_MobHp;       speed = m_MobSpeed; break;
     }

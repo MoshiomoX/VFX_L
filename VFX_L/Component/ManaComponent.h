@@ -20,7 +20,8 @@ struct ManaComponent
     float regen = 25.0f;          // 毎秒の回復量（レベル 1 の時。能力アップ「魔力回復」はこれに掛ける）
     // 回復はレベルで伸びる（2026-10-04 ユーザー指定）：実際の回復 = regen × (1 + regenPerLevel × (レベル - 1))。
     // 魔法を増やしても MP が先に尽きて撃てず、撃破の速さが一局を通して頭打ちだった（自動テスト curve：平均 MP 4%）
-    float regenPerLevel = 0.10f;
+    // 2026-10-07 に 0.10 → 0.16（同上。後半に魔法を足すほど強くなるように。レベル 30 で約 5.6 倍）
+    float regenPerLevel = 0.16f;
     float EffectiveRegen(int level) const
     {
         return regen * (1.0f + regenPerLevel * (float)(level > 1 ? level - 1 : 0));

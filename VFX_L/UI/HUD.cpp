@@ -171,6 +171,7 @@ HUDStyle HUDStyle::Scaled(float k) const
     s.surgeSkillSize *= k; s.surgeNumberScale *= k; s.surgeKeyScale *= k;
     s.markerSize *= k;     s.markerMargin *= k;
     s.objectiveScale *= k;
+    s.announceScale *= k;
     s.platePad *= k;
     return s;
 }
@@ -265,6 +266,8 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
         DrawSpellBar(sprite, *info.wand, mp);
     if (m_S.showSurgeSkill)
         DrawSurgeSkill(sprite, text, mp);
+    if (m_S.showAnnounce)
+        DrawAnnounce(sprite, text, info);
 }
 
 // ============================================================
@@ -877,6 +880,7 @@ void HUD::DrawDebugUI()
     ImGui::Checkbox("Show Objective", &m_Style.showObjective);
     ImGui::DragFloat("Objective Scale", &m_Style.objectiveScale, 0.01f, 0.05f, 3.0f);
     ImGui::ColorEdit4("Objective Color", &m_Style.objectiveColor.x);
+    DrawAnnounceImGui();
     ImGui::TextDisabled("all px / text sizes x%.2f (UIDeco::UIScale())", UIDeco::UIScale());
 
     ImGui::Separator();

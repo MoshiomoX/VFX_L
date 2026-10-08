@@ -1684,6 +1684,7 @@ void SwarmSystem::DispatchCorpses()
     m_CorpseListCS->SetUAV(m_Context, "bomberCorpses", m_CorpseListUAV[Swarm::kDrawListBomber].Get(), 0);
     m_CorpseListCS->SetUAV(m_Context, "ghostCorpses", m_CorpseListUAV[Swarm::kDrawListGhost].Get(), 0);
     m_CorpseListCS->SetUAV(m_Context, "splitterCorpses", m_CorpseListUAV[Swarm::kDrawListSplitter].Get(), 0);
+    m_CorpseListCS->SetUAV(m_Context, "bruteCorpses", m_CorpseListUAV[Swarm::kDrawListBrute].Get(), 0);
     m_CorpseListCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxCorpses + 63) / 64, 1, 1);
     m_CorpseListCS->UnbindSRVs(m_Context);
@@ -2170,6 +2171,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
         m_EnemyCompactCS->SetUAV(m_Context, "bomberList", m_KindListUAV[Swarm::kDrawListBomber].Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "ghostList", m_KindListUAV[Swarm::kDrawListGhost].Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "splitterList", m_KindListUAV[Swarm::kDrawListSplitter].Get(), 0);
+        m_EnemyCompactCS->SetUAV(m_Context, "bruteList", m_KindListUAV[Swarm::kDrawListBrute].Get(), 0);
         m_EnemyCompactCS->SetUAV(m_Context, "bossInfo", m_BossInfoUAV.Get());
         m_EnemyCompactCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -2933,6 +2935,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         const char*    label;
         const wchar_t* bomberAlbedo;  // 自爆兵に貼る物（同じメッシュ・同じ UV）。null = 雑魚と同じ
         const wchar_t* splitterAlbedo;// スプリッター・分裂体に貼る物。null = 雑魚と同じ
+        const wchar_t* bruteAlbedo;   // 重装兵に貼る物。null = 雑魚と同じ
     };
     const EnemyLook looks[] =
     {
@@ -2940,10 +2943,10 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         // 高さはカプセル（1.8m）より少し低く
         { Res::Mdl::Kenney_BlockyZombie, Res::Tex::Kenney_BlockyZombieAlbedo,
           "walk", "idle", "attack-melee-right", 180.0f, 1.6f, "Kenney Blocky L (zombie)",
-          Res::Tex::Kenney_BlockyRobotAlbedo, Res::Tex::Kenney_BlockyDummyAlbedo },
+          Res::Tex::Kenney_BlockyRobotAlbedo, Res::Tex::Kenney_BlockyDummyAlbedo, Res::Tex::Kenney_BlockyOrcAlbedo },
         // KayKit は Blender 出力の -Z が正面 → 180 度回す
         { Res::Mdl::KayKit_SkeletonMinion, Res::Tex::KayKit_SkeletonAlbedo,
-          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion", nullptr, nullptr },
+          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion", nullptr, nullptr, nullptr },
     };
 
     // 焼く前の寸法 → 焼く時に掛ける変換。
@@ -3002,6 +3005,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
             m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
             m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
             m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
+            m_BruteAlbedo = look.bruteAlbedo ? ResourceManager::Get().LoadTexture(look.bruteAlbedo) : nullptr;
 
             // 部品アニメの表（待機・歩き・近接攻撃）。作れなければ従来の揺れで動く
             m_AnimClips[0] = look.idleClip;
@@ -3041,6 +3045,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
         m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
         m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
+        m_BruteAlbedo = look.bruteAlbedo ? ResourceManager::Get().LoadTexture(look.bruteAlbedo) : nullptr;
         std::cout << "[SwarmSystem] enemy model: " << look.label << " (baked, clip "
             << (clip >= 0 ? sk.GetClipName(clip) : std::string("-"))
             << ", scale " << scale << ")" << std::endl;

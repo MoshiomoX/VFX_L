@@ -40,10 +40,13 @@ public:
     float finalStatMul = 1.0f;          // HP・ダメージの倍率に更に掛ける
     float finalSpawnRate = 0.0f;        // > 0 なら湧く速さをこれにする（体/秒）
     float finalSpeedMul = 1.0f;         // 新しく湧く雑魚の速さに掛ける
+    // 湧きの波（SpawnWaves。2026-10-07）と最終ウェーブの予告の上乗せ：湧く速さに掛ける。StageDirector が毎フレーム書く
+    float waveRateMul = 1.0f;
     // 最終ウェーブの幽霊（kEnemyKindGhost。2026-09-30 ユーザー「Megabonk の時間切れの幽霊」）：
     // 雑魚と同じ HP（× 難度）、速さ × ghostSpeedMul、壁も台地も素通り。StageDirector が毎フレーム書く（時間切れ前は 0）
     float finalGhostRate = 0.0f;        // 体/秒
-    float ghostSpeedMul = 2.6f;         // 雑魚の速さに掛ける（3.5 → 9.1 m/s。プレイヤーの走り 5、滑り 13）
+    float ghostSpeedMul = 1.57f;        // 雑魚の速さに掛ける（3.5 → 5.5 m/s = プレイヤーの走り 5 の 1.1 倍、滑りなら振り切れる。
+                                        // 2026-10-07 夜に 2.6 → 1.57：同類の幽霊・終盤の速い敵はプレイヤー以下〜1.1 倍、9.1 m/s は飛び抜けていた）
     void QueueDebugGhosts(int n) { m_DebugGhosts += n; }
     // 倍率 1 の時の接触 / 爆発ダメージ。Init で GPU の既定値（AICB / BomberCB）から取る
     float baseContactDamage = 0.0f;
@@ -63,9 +66,20 @@ public:
     float splitterRatioEnd = 0.0f;
     float splitterRampEnd = 480.0f;
     float GetSplitterRatio() const { return m_SplitterRatio; }
+    float GetBomberRatio() const { return m_BomberRatio; }
     // 種類毎の今の HP（素の値 × 今の HP 倍率）と速さ。トレーニングの「群れを出す」用（2026-10-07）
     void KindStats(uint32_t kind, float& hp, float& speed) const;
     void QueueDebugSplitters(int n) { m_DebugSplitters += n; }
+
+    // ---- 重装兵（kEnemyKindBrute。2026-10-07 夜、ユーザー：中盤は数ではなく敵の組み合わせで押す）----
+    // 湧き（新規・転送）の bruteRatio が重装兵（雑魚と入れ替わる。湧く数は変えない）。全ステージ共通:
+    //   bruteStart 秒までは 0、そこで bruteRatioStart、bruteRampEnd 秒で bruteRatioEnd（間は直線、以降そのまま）
+    float bruteStart = 240.0f;
+    float bruteRatioStart = 0.08f;
+    float bruteRatioEnd = 0.22f;
+    float bruteRampEnd = 540.0f;
+    float GetBruteRatio() const { return m_BruteRatio; }
+    void QueueDebugBrutes(int n) { m_DebugBrutes += n; }
     // 自動テストの記録用: 届いた分裂の数・湧かせた分裂体の数（累計）
     uint32_t GetSplitEventsSeen() const { return m_SplitEventsSeen; }
     uint32_t GetSplitlingsSpawned() const { return m_SplitlingsSpawned; }
@@ -99,6 +113,10 @@ private:
     int   m_SplitCount = 3;
     float m_SplitSpread = 0.7f;    // 死んだ所から分裂体までの距離 m
     int   m_DebugSplitters = 0;
+    float m_BruteRatio = 0.0f;     // 今の湧きのうち重装兵の割合（Update が brute* と経過時間から出す）
+    float m_BruteHp = 45.0f;       // 雑魚の 3 倍（Megabonk の Goblin Tank 40 / 雑魚 7〜20）
+    float m_BruteSpeed = 2.8f;     // 雑魚 3.5 の 0.8 倍、プレイヤー 5 の 0.56 倍
+    int   m_DebugBrutes = 0;
     uint32_t m_SplitEventsSeen = 0;
     uint32_t m_SplitlingsSpawned = 0;
     int   m_DebugGhosts = 0;

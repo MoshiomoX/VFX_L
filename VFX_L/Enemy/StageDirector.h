@@ -2,7 +2,7 @@
 // StageDirector.h
 // 1 面の進行（Megabonk 風）。雑魚の湧き・難度そのものは MobSpawner、ここは時間と門で起きる出来事。
 //   ・制限時間 stageTime（10 分）。HUD は残りを数え下ろす
-//   ・決まった経過時間（3:00 / 8:00）にエリートを 1 体（GPU の雑魚の種類 kEnemyKindElite）。
+//   ・決まった経過時間（3:00 / 6:00 / 8:00）にエリートを 1 体（GPU の雑魚の種類 kEnemyKindElite）。
 //     HP は eliteHp × その時の難度の倍率。体格・接触ダメージ・経験値は SwarmSystem::GetBomberParams の elite*
 //   ・時間切れの後は「最終ウェーブ」（Megabonk の Final Swarm）：湧きを finalSpawnRate に上げ、速さ × finalSpeedMul、
 //     finalStepTime 秒毎に強さ × finalStepMul。同時の上限は最初の 2 分 finalCap、その後 finalCapLate。
@@ -14,6 +14,7 @@
 // ============================================================
 #pragma once
 #include "ECS/Entity.h"
+#include "Enemy/SpawnWaves.h"
 #include <SimpleMath.h>
 #include <cstdint>
 #include <memory>
@@ -88,7 +89,7 @@ public:
 
     // ---- 調整値 ----
     float stageTime = 600.0f;                    // 秒（Megabonk の 1 面 10 分）
-    std::vector<float> eliteTimes = { 180.0f, 480.0f };   // エリートを出す経過秒（3:00 / 8:00）
+    std::vector<float> eliteTimes = { 180.0f, 360.0f, 480.0f };   // エリートを出す経過秒（3:00 / 6:00 / 8:00。2026-10-07 に 6:00 を足した）
     float eliteHp = 250.0f;                      // 倍率 1 の時の HP（Megabonk の小ボス）
     float eliteSpeed = 3.2f;                     // m/秒（雑魚 3.5 より少し遅い）
     float eliteRingMin = 18.0f;                  // プレイヤーから m（画面の中に歩いて来るのが見える距離）
@@ -97,11 +98,24 @@ public:
     float finalSpawnRate = 20.0f;   // 最終ウェーブの湧き（体/秒）
     float finalSpeedMul = 1.3f;     // 最終ウェーブで湧く雑魚の速さ
     float finalStepTime = 30.0f;    // 秒毎に 1 段（Megabonk は 30〜40 秒毎に強くなる）
-    float finalStepMul = 1.5f;      // 1 段毎の強さの倍率
+    float finalStepMul = 1.25f;     // 1 段毎の強さの倍率（2026-10-07 に 1.5 → 1.25：30 秒で埋まる壁だった）
     int   finalCap = 400;           // 最初の 2 分の同時上限（Megabonk と同じ）
     int   finalCapLate = 300;       // 2 分より後
     float finalGhostRate = 2.0f;    // 最終ウェーブの幽霊（体/秒。時間切れの直後）。雑魚の湧きとは別枠、上限は共通
-    float finalGhostStepMul = 1.5f; // 1 段毎の幽霊の数の倍率（2 → 3 → 4.5 …）
+    float finalGhostStepMul = 1.25f;// 1 段毎の幽霊の数の倍率（2 → 2.5 → 3.1 …。2026-10-07 に 1.5 → 1.25）
+
+    // ---- 湧きの波と最終ウェーブの予告（2026-10-07、ユーザー「難度曲線がおかしい」→ 波・最終ウェーブを緩く）----
+    SpawnWaves waves;
+    float finalWarnTime = 30.0f;        // 時間切れのこれだけ前に予告を出し、湧きを 1 → finalWarnRateMul 倍へ上げていく
+    float finalWarnRateMul = 1.8f;
+    float finalSpawnRateStart = 10.0f;  // 時間切れの瞬間の湧き（体/秒）。finalRampTime 秒で finalSpawnRate へ
+    float finalRampTime = 60.0f;
+    // 画面の真ん中の案内（押し寄せ・エリート・最終ウェーブ）。出ていなければ nullptr。
+    // alpha = 出入りのフェード（0..1）、age = 出てからの秒
+    const wchar_t* Announce(float& alpha, float& age) const;
+    // 押し寄せの最中（HUD の画面外の目印で方向を見せる）。yaw = ラジアン（x = cos、z = sin）
+    bool  SurgeActive(float runTime) const { return waves.ArcActive() && runTime < stageTime; }
+    float SurgeYaw() const { return waves.ArcYaw(); }
 
     float bossHp = 8000.0f;         // 倍率 1 の時の HP（Megabonk 1 面の Boss 8000〜10000）
     float bossSpeed = 2.8f;         // m/秒
@@ -138,4 +152,14 @@ private:
     DirectX::SimpleMath::Vector3 m_SummonPos;   // 呼んだ時のプレイヤーの位置（湧かせ直す時に使う）
     bool   m_DebugBoss = false;   // パネルのボタン
     float  m_BossSpeedOverride = -1.0f;   // >= 0 なら bossSpeed の代わり（RequestBoss の止まった Boss）
+
+    // ---- 湧きの波・最終ウェーブの予告・画面の真ん中の案内（Enemy/StageDirectorWaves.cpp）----
+    void UpdateWaves(float runTime, float dt, MobSpawner& mobs);
+    void SetAnnounce(const wchar_t* text, float seconds);
+    void DrawWavesImGui(float runTime);
+    wchar_t m_AnnounceBuf[64] = {};
+    const wchar_t* m_AnnounceText = nullptr;
+    float  m_AnnounceLeft = 0.0f;
+    float  m_AnnounceAge = 0.0f;
+    bool   m_FinalWarned = false;   // 「最終ウェーブまで あと…」を出した
 };

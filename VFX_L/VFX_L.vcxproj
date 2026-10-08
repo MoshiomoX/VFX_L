@@ -247,6 +247,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestSpellBench.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPortal.cpp" />
@@ -300,6 +302,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="ECS\System\BackpackAggregateSystem.cpp" />
     <ClCompile Include="ECS\System\ManaSystem.cpp" />
     <ClCompile Include="Enemy\SpawnDirector.cpp" />
+    <ClCompile Include="Enemy\SpawnWaves.cpp" />
+    <ClCompile Include="Enemy\StageDirectorWaves.cpp" />
     <ClCompile Include="Graphics\Model\MaterialLoader.cpp" />
     <ClCompile Include="Graphics\PostProcess\Bloom.cpp" />
     <ClCompile Include="Graphics\PostProcess\Outline.cpp" />
@@ -448,6 +452,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Transform.cpp" />
     <ClCompile Include="UI\HUD.cpp" />
     <ClCompile Include="UI\HUDShieldBar.cpp" />
+    <ClCompile Include="UI\HUDAnnounce.cpp" />
     <ClCompile Include="UI\TrainingMenuUI.cpp" />
     <ClCompile Include="UI\TrainingMenuUIDraw.cpp" />
     <ClCompile Include="UI\SpellbookUI.cpp" />
@@ -542,6 +547,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="ECS\System\ManaSystem.h" />
     <ClInclude Include="Enemy\EnemyTags.h" />
     <ClInclude Include="Enemy\SpawnDirector.h" />
+    <ClInclude Include="Enemy\SpawnWaves.h" />
     <ClInclude Include="Graphics\Model\MaterialLoader.h" />
     <ClInclude Include="Graphics\PostProcess\Bloom.h" />
     <ClInclude Include="Graphics\PostProcess\Outline.h" />
