@@ -21,7 +21,7 @@ namespace
 
 PauseMenuUI::PauseMenuUI()
 {
-    // 「設定」= 音量とアウトラインの ON / OFF（2026-10-07 ユーザー要望）。SettingsMenuUI のページを重ねる
+    // 「設定」= 音量と敵味方の縁取りの ON / OFF（2026-10-07 ユーザー要望、10-08 から縁取りだけ）。SettingsMenuUI のページを重ねる
     m_List.SetItems({ L"再開する", L"設定", L"最初からやり直す", L"タイトルへ戻る" });
 }
 

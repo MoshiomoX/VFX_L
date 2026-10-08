@@ -44,8 +44,9 @@ bool Outline::Initialize(ID3D11Device* device)
 // ============================================================
 void Outline::Render(ID3D11DeviceContext* context, Graphics& graphics, CameraBase* camera)
 {
-    // enabled = デバッグ用の開閉（ImGui / VFXL_NO_OUTLINE）、GameSettings::outline = プレイヤーの設定（一時停止メニューの「設定」）
-    if (!m_Params.enabled || !GameSettings::Get().outline) return;
+    // enabled = デバッグ用の開閉（ImGui / VFXL_NO_OUTLINE）。プレイヤーの設定（一時停止メニューの「設定」）は
+    // 陣営の線だけを切る（下の factionStrength）。トゥーンの黒い線はいつも描く（2026-10-08 ユーザー）
+    if (!m_Params.enabled) return;
     if (!m_VS || !m_PS || !m_Blend || !context || !camera) return;
     ID3D11ShaderResourceView* depth = graphics.GetDepthSRV();
     ID3D11ShaderResourceView* stencil = graphics.GetStencilSRV();
@@ -64,8 +65,9 @@ void Outline::Render(ID3D11DeviceContext* context, Graphics& graphics, CameraBas
     cb.strength = m_Params.strength;
     cb.debugView = m_Params.debugView ? 1.0f : 0.0f;
     cb.tint = m_Params.tint;
-    // 陣営の線（ステンシル 1 = 味方、2 = 敵）。切っている時は濃さ 0 = 全部 tint の線
-    cb.factionStrength = m_Params.factionEnabled ? m_Params.factionStrength : 0.0f;
+    // 陣営の線（ステンシル 1 = 味方、2 = 敵）。デバッグか設定のどちらかで切っている時は濃さ 0 = 全部 tint の線
+    const bool faction = m_Params.factionEnabled && GameSettings::Get().factionOutline;
+    cb.factionStrength = faction ? m_Params.factionStrength : 0.0f;
     cb.friendColor = m_Params.friendColor;
     cb.friendThickness = (std::max)(1.0f, std::round(cb.thickness * m_Params.friendThicknessMul));
     cb.enemyColor = m_Params.enemyColor;
