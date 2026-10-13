@@ -17,6 +17,9 @@ public:
     // （2026-10-08 ユーザー：切った時に消したいのは敵味方の枠だけ。10-07 版はアウトライン全体を消していた）
     bool factionOutline = true;
 
+    // 初回のチュートリアル（UI/TutorialGuide）を終えた / 飛ばした（2026-10-13）。false なら第 1 ステージの始めに出る
+    bool tutorialDone = false;
+
     bool Save() const;
     bool Load();
 };

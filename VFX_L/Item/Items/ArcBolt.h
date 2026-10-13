@@ -19,7 +19,7 @@ inline ProjectileItemDef MakeArcBolt()
     def.common.id = ItemID::ArcBolt;
     def.common.name = "Arc Bolt";
     def.common.displayName = L"アークボルト";
-    def.common.description = L"弧を描いて敵へ向かう魔法弾。撃つたびに左右が入れ替わる。";
+    def.common.description = L"稲妻の魔法弾。撃つ間隔が短く、消費 MP も少ない。";
     def.common.iconPath = Res::Icon::ArcBolt;
     def.common.category = ItemCategory::Projectile;
     // 形は強さで決める（2026-10-04）。単体 DPS 約 27（火球と並んで一番高い）→ 4 マスの稲妻の Z 字

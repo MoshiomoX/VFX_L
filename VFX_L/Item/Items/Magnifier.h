@@ -23,7 +23,7 @@ inline FunctionItemDef MakeMagnifier()
     def.common.id = ItemID::Magnifier;
     def.common.name = "Magnifier";
     def.common.displayName = L"拡大鏡";
-    def.common.description = L"斜めに隣り合う魔法を大きくする。弾と爆発・範囲の大きさが 1.25 倍、弾の威力が 1.15 倍になるが、消費MPも増える。";
+    def.common.description = L"斜めの魔法の弾と範囲を大きくし、威力も少し上げる。MP は多めに使う。";
     def.common.category = ItemCategory::Function;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Diagonal();   // 斜め 4 マス
@@ -39,7 +39,10 @@ inline FunctionItemDef MakeMagnifier()
     def.spellModifiers.push_back({ SpellParam::ManaCost, ModifyOp::Multiply, 1.2f });
 
     // ---- AOE への修飾：範囲を広げる ----
+    // 2026-10-13 ユーザー：「魔導光線に拡大鏡がほとんど効かない」→ 光線は 18m の線なので太さ 0.3m の差では
+    // 当たる敵がほぼ変わらない。射程も同じ倍率で伸ばす（18 → 22.5m）。Length は光線以外では 0 のまま
     def.areaModifiers.push_back({ AreaParam::Radius,   ModifyOp::Multiply, 1.25f });
+    def.areaModifiers.push_back({ AreaParam::Length,   ModifyOp::Multiply, 1.25f });
     def.areaModifiers.push_back({ AreaParam::ManaCost, ModifyOp::Multiply, 1.2f });
 
     return def;

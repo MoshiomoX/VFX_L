@@ -34,6 +34,8 @@ RWStructuredBuffer<SwarmOrb> orbs : register(u3);
 RWBuffer<uint> orbStates : register(u4);
 // x / y = slow (seconds left, amount). AICS reads and counts it down. z / w = freeze (left untouched here)
 RWStructuredBuffer<float4> enemySlow : register(u5);
+// knockback (the Gust, 2026-10-12): xy = velocity away from the player, z = seconds left. AICS applies and decays it
+RWStructuredBuffer<float4> enemyPush : register(u6);
 
 static const uint HP_CORPSE_BIT = 0x80000000u;
 
@@ -57,8 +59,11 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float total = 0.0;
     bool stun = false;
+    float freeze = 0.0;   // longest freeze among the areas this enemy stands in (SwarmAreaFreeze)
+    float iceDamage = 0.0; // strongest freezing area (not summed, see below)
     float slow = 0.0;     // strongest slow among the areas this enemy stands in
     float slowTime = 0.0; // until the next tick of that area, plus a little
+    float push = 0.0;     // strongest knockback among them (SwarmAreaPush)
 
     for (uint k = 0; k < SWARM_MAX_AREAS; ++k)
     {
@@ -87,15 +92,37 @@ void main(uint3 id : SV_DispatchThreadID)
         if (d.x * d.x + d.z * d.z > reach * reach)
             continue;
 
-        total += SwarmArmorDamage(kind, a.damage);
+        // freezing areas (the Ice Spike lays a row of them along a line, all ticking in the
+        // same step and overlapping a little) take the strongest one only, so an enemy where
+        // two of them overlap is not hit twice. Everything else adds up as before.
+        float f = SwarmAreaFreeze(a.flags);
+        if (f > 0.0)
+            iceDamage = max(iceDamage, SwarmArmorDamage(kind, a.damage));
+        else
+            total += SwarmArmorDamage(kind, a.damage);
         if ((a.flags & SWARM_AREA_STUN) != 0u)
             stun = true;
+        freeze = max(freeze, f);
         float s = SwarmAreaSlow(a.flags);
         if (s > 0.0)
         {
             slow = max(slow, s);
             slowTime = max(slowTime, min(a.tickInterval, 2.0) + SWARM_SLOW_LINGER);
         }
+        push = max(push, SwarmAreaPush(a.flags));
+    }
+
+    // ---- knockback: away from the player, the stronger one wins (before the damage early-out) ----
+    push *= SwarmPushKindMul(kind);
+    if (push > 0.0)
+    {
+        float2 away = epos.xz - g_PlayerPos.xz;
+        float len = length(away);
+        away = (len > 1e-3) ? away / len : float2(1.0, 0.0);
+        float2 vel = away * (push * SWARM_PUSH_SPEED);
+        float4 cur = enemyPush[j];
+        if (cur.z <= 0.0 || dot(vel, vel) > dot(cur.xy, cur.xy))
+            enemyPush[j] = float4(vel, SWARM_PUSH_TIME, 0.0);
     }
 
     // ---- slow: refresh, never weaken one that is still running ----
@@ -110,6 +137,7 @@ void main(uint3 id : SV_DispatchThreadID)
         enemySlow[j] = cur;
     }
 
+    total += iceDamage;
     if (total <= 0.0)
         return;
 
@@ -122,7 +150,13 @@ void main(uint3 id : SV_DispatchThreadID)
 
     // the boss never flinches, nor does a charger that has started its wind-up (see HitCS)
     bool noFlinch = (kind == SWARM_KIND_BOSS) || (kind == SWARM_KIND_CHARGER && extra.fuse > 0.0);
-    if (stun && !noFlinch)
+    // an ice area leaves a freeze request instead of the stun (same as a hitting Ice Lance, see HitCS)
+    if (freeze > 0.0)
+    {
+        enemies[j].animIndex = SWARM_ANIM_FREEZE_REQ;
+        enemies[j].animTime = freeze;
+    }
+    else if (stun && !noFlinch)
     {
         enemies[j].animIndex = 2u;
         enemies[j].animTime = 0.0;

@@ -41,6 +41,22 @@ cbuffer GrassCB : register(b0)
     float g_TrampleDecay;   // this frame's multiplier of the old trample, exp(-dt / recover)
     float3 g_Player;
     uint g_MaxBlades;
+    // burnt grass (GrassFireField, 2026-10-12): g_Fire = (temperature, fuel 0..1)
+    float g_FireIgnite;     // temperature where the grass burns (ember glow starts a bit below)
+    float g_FireShrink;     // height lost where the fuel is gone
+    float g_FireGlow;       // HDR brightness of the ember glow at the tip
+    float g_FireOn;         // 0 = no fire map bound, skip the lookup
+    // gust (the Gust spell, 2026-10-12): this frame's outward push stamp on the trample map. radius 0 = none
+    float3 g_GustPos;
+    float g_GustRadius;
+    // directional gust (2026-10-13): a fan from g_GustPos along g_GustDir, g_GustLength m long. length 0 = the disc above
+    float2 g_GustDir;
+    float g_GustLength;
+    float g_GustPad;
+    // environment stamps from the GPU swarm (2026-10-13): x = explosion radius multiplier (area radius x this is
+    // flattened outward), y = beam band half width (x the beam radius), z = enemy footprint strength (0 = off),
+    // w = enemy footprint radius m
+    float4 g_TrampleExtra;
 };
 
 struct GrassBlade

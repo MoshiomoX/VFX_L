@@ -32,7 +32,7 @@ cbuffer VFXMeshCB : register(b1)
     float g_Shade;             // 0 = flat, 1 = full sphere shading
     float g_NoVertexColor;     // 1 = ignore the vertex color (untextured FBX bake their material color into it)
     float3 g_CamPos;
-    float _pad2;
+    float g_Toon;              // (2026-10-09) 1 = toon force field: hard bands by facing (see below)
 };
 
 float4 main(PS_INPUT i) : SV_TARGET
@@ -76,6 +76,24 @@ float4 main(PS_INPUT i) : SV_TARGET
         float spec = pow(saturate(dot(N, H)), 60.0) * 0.35;
         float3 shaded = c.rgb * shadeMul + c.rgb * rim * 0.45 + spec * c.a;
         c.rgb = lerp(c.rgb, shaded, g_Shade);
+    }
+
+    // ---- toon force field (the player's shield bubble, 2026-10-09): the soft additive
+    // glow looked out of place among the toon models. Three hard bands by how much the
+    // surface faces the camera (two-sided: |N.V|): the front is nearly clear, a mid band,
+    // and a bright opaque rim at the silhouette. Meant for the alpha blend (blend 1)
+    if (g_Toon > 0.0)
+    {
+        float3 N = normalize(i.Normal);
+        float3 V = normalize(g_CamPos - i.WorldPos);
+        float f = 1.0 - abs(dot(N, V));            // 0 = faces the camera, 1 = silhouette
+        float w = fwidth(f) + 0.005;               // crisp but not aliased
+        float b1 = smoothstep(0.40 - w, 0.40 + w, f);
+        float b2 = smoothstep(0.70 - w, 0.70 + w, f);
+        float aMul = lerp(lerp(0.3, 1.0, b1), 3.0, b2);
+        float cMul = lerp(lerp(1.0, 1.1, b1), 1.45, b2);
+        c.rgb *= cMul;
+        c.a = saturate(c.a * aMul);
     }
 
     c.rgb *= g_Intensity;

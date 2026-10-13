@@ -21,8 +21,11 @@ cbuffer DissolveCB : register(DISSOLVE_CB_REG)
     float2 g_DissolveScroll;
     float g_DissolveThreshold; // < 0 : off
     float g_DissolveEdge;
-    float2 g_DissolvePad;
-    float4 g_DissolveEdgeColor; // rgb = glow color, a = strength (HDR)
+    // hit flash (2026-10-09, the player when hit): 0..1, only while the dissolve is off.
+    // Pulls the lit color toward g_DissolveEdgeColor.rgb (the flash color then)
+    float g_HitFlash;
+    float g_DissolvePad;
+    float4 g_DissolveEdgeColor; // rgb = glow color, a = strength (HDR). Flash color when g_HitFlash > 0
 };
 
 Texture2D dissolveNoise : register(t5);
@@ -41,6 +44,14 @@ float3 ApplyDissolve(float2 uv)
         glow = g_DissolveEdgeColor.rgb * (edge * g_DissolveEdgeColor.a);
     }
     return glow;
+}
+
+// The hit flash: lerps the final color toward the flash color (no-op when g_HitFlash is 0)
+float3 ApplyHitFlash(float3 c)
+{
+    if (g_DissolveThreshold < 0.0 && g_HitFlash > 0.0)
+        c = lerp(c, g_DissolveEdgeColor.rgb, saturate(g_HitFlash));
+    return c;
 }
 
 #endif

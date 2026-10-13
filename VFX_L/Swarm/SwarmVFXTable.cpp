@@ -11,7 +11,7 @@
 #include "Particle/GPUParticleSystem.h"
 #include "Manager/ResourceManager.h"
 
-#include <DirectXTex.h>
+#include <DirectXTex.h> 
 
 using Microsoft::WRL::ComPtr;
 
@@ -22,7 +22,7 @@ bool SwarmVFXTable::UploadImmutable(ID3D11Device* device, const void* data,
     srv.Reset();
     buf.Reset();
 
-    // 空の表でも1要素は確保する（SRV が null だと CS 側で読めない）
+    // 空の表でも1要素 は確保する（SRV が null だと CS 側で読めない）
     // stride は最大で GPUEmitter の 336 bytes。1 要素分を読んでも溢れない大きさにしておく
     static const uint8_t dummy[1024] = {};
     const UINT n = (count > 0) ? count : 1;
@@ -83,6 +83,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     for (int i = 0; i < VFXDatabase::Count(); ++i)
     {
         const VFXId id = VFXDatabase::At(i);
+        if (!VFXDatabase::IsGpu(id)) continue;   // CPU だけで出す物（プレイヤーの動き・Boss など。2026-10-09 から登録）は表に入れない
         const char* path = VFXDatabase::GetPath(id);
         if (!path) continue;
 

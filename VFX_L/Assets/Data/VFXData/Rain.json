@@ -3,7 +3,7 @@
         {
             "data": {
                 "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 66,
-                "sheet": 1, "frameMode": 1, "frameCount": 1, "blend": 1,
+                "sheet": 1, "frameMode": 1, "frameCount": 1, "blend": 1, "wind": 0.5,
                 "boxExtents": [30.0, 0.5, 30.0], "direction": [0.0, -1.0, 0.0], "dragCoeff": 0.0,
                 "emitRate": 2600.0, "emitType": 3,
                 "endColorMax": [0.62, 0.74, 0.90, 0.45], "endColorMin": [0.55, 0.68, 0.85, 0.40],
@@ -17,7 +17,7 @@
         {
             "data": {
                 "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 66,
-                "sheet": 1, "frameMode": 1, "frameCount": 1, "blend": 1,
+                "sheet": 1, "frameMode": 1, "frameCount": 1, "blend": 1, "wind": 0.5,
                 "boxExtents": [12.0, 0.5, 12.0], "direction": [0.0, -1.0, 0.0], "dragCoeff": 0.0,
                 "emitRate": 900.0, "emitType": 3,
                 "endColorMax": [0.75, 0.85, 1.00, 0.55], "endColorMin": [0.70, 0.80, 0.95, 0.50],

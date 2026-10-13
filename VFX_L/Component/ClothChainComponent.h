@@ -33,9 +33,7 @@ struct ClothChainComponent
     float stiffRoot = 0.12f;      // 元の形（上背に付いたままの形）へ戻す強さ。根 → 先で直線に減る
     float stiffTip = 0.0f;
     float bend = 0.25f;           // 1 つ飛ばしのノードの距離を保つ強さ（急な折れ曲がりを抑える）
-    float windSpeed = 1.2f;       // m/s（風の基本の速さ）
-    float windGust = 0.8f;        // 突風の振れ幅（m/s）
-    DirectX::SimpleMath::Vector3 windDir = { 0.6f, 0.0f, 0.8f };
+    float windMul = 1.0f;         // 世界の風（WindState、ClothChainSystem::wind）に掛ける倍率。2026-10-12：以前は布ごとに別の風を持っていた
     int   iterations = 4;         // 拘束の反復
     float substep = 1.0f / 120.0f;
     float margin = 0.03f;         // 布の厚み（カプセル半径に足す）

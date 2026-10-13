@@ -21,6 +21,7 @@
 #include "ECS/Registry.h"
 #include "ECS/Entity.h"
 #include "ECS/System/ShieldBubble.h"
+#include "VFX_Editor/VFXId.h"
 #include <SimpleMath.h>
 #include <cstdint>
 #include <functional>
@@ -44,7 +45,7 @@ public:
     void SubmitMeshes(VFXMeshRenderer& renderer, Registry& reg, Entity player);
 
     // 1 回出す。follow = プレイヤーに付いて動く（AreaVFXPlayer::Update の followPos）。戻り値はインスタンスの番号（0 = 出せなかった）
-    uint32_t Play(const char* file, const DirectX::SimpleMath::Vector3& pos, float duration, bool follow);
+    uint32_t Play(VFXId id, const DirectX::SimpleMath::Vector3& pos, float duration, bool follow);
 
     void DrawImGui(Registry& reg, Entity player);
 

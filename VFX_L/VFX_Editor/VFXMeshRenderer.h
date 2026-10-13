@@ -31,7 +31,7 @@ struct VFXMeshParams
     float shade = 0.0f;                // 球らしい陰影の強さ（0 = 無し。2026-10-06）
     float noVertexColor = 0.0f;        // 1 = 頂点色を掛けない（貼り絵の無い FBX は材質の色が頂点色に焼かれている。2026-10-07）
     DirectX::SimpleMath::Vector3 camPos = { 0, 0, 0 };   // 縁の光用（Render が入れる）
-    float _pad2 = 0.0f;
+    float toon = 0.0f;                 // 1 = トゥーンの護罩（向きで 3 段の硬い帯。半透明で描く。2026-10-09、シールドの護罩）
 };
 static_assert(sizeof(VFXMeshParams) == 112, "VFXMeshCB layout mismatch");
 

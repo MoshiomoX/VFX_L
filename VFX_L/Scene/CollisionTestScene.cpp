@@ -22,11 +22,11 @@
 #include "ECS/View.h"
 #include "Item/ItemDatabase.h"
 #include "VFX_Editor/VFXId.h"
-#include "VFX_Editor/VFXDatabase.h"
 #include "Swarm/ProjectileProfile.h"
 #include "Swarm/AreaProfile.h"
 #include "World/TerrainGenerator.h"
 #include "Scene/RunResult.h"
+#include "Core/GameSettings.h"
 #include "Debug/DebugManager.h"
 #include "Audio/AudioSystem.h"
 #include "Debug/FrameProfiler.h"
@@ -42,6 +42,13 @@
 void CollisionTestScene::Init()
 {
     std::cout << "[CollisionTestScene] Init" << std::endl;
+    if (m_TitleScene) g_RunCarry.Reset();   // タイトルからは第 1 面を最初から（面の引き継ぎを捨てる）
+    else if (!m_LabScene)
+    {
+        // 新しい面：リザルトの背景の写真を撮り直す
+        SceneSnapshot::Get().Clear();
+        m_Highlight.Reset();
+    }
 
     // DebugManager の y = 0 の参照格子は消す（地面と同じ高さで深度が競り合い、地面に 1m の縞が出ていた。
     // 9-30 から「地面に格子線」と記録していた物の正体）。Shutdown で元に戻す（エディタのシーンは使う）
@@ -64,7 +71,8 @@ void CollisionTestScene::Init()
     SetCamera(&m_Camera.Camera());
     {
         char env[16] = {};   // TEMP-TEST
-        m_AutoTest = DevUI::kEnabled && GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", env, sizeof(env)) > 0;   // Demo では見ない
+        m_AutoTest = DevUI::kEnabled && !m_TitleScene   // Demo では見ない。タイトルでは回さない
+            && GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", env, sizeof(env)) > 0;
         m_AutoRunner = m_AutoTest ? BattleAutoTest::Create(env, *this) : nullptr;   // 値 = 自動テストの名前（Debug/AutoTest/）
         m_AutoStep = 0;
         m_AutoTime = 0.0f;
@@ -132,6 +140,7 @@ void CollisionTestScene::Init()
         if (GetEnvironmentVariableA("VFXL_STAGE", env, sizeof(env)) > 0)
             m_StageIndex = atoi(env);
         m_StageIndex = std::clamp(m_StageIndex,1, StageConfig::kStageCount);
+        if (m_TitleScene) m_StageIndex = 1;   // タイトルの景色はいつも草原
     }
     const StageDef& stageDef = StageConfig::Get(m_StageIndex);
     m_TerrainConfig.biome = stageDef.biome;
@@ -185,6 +194,12 @@ void CollisionTestScene::Init()
         char env[64] = {};
         if (GetEnvironmentVariableA("VFXL_MAP", env, sizeof(env)) > 0) m_MapFile = env;
     }
+    if (m_TitleScene)
+    {
+        // タイトル：決まった seed の草原（地図・環境変数は見ない）
+        m_MapFile.clear();
+        m_TerrainConfig.seed = kTitleSeed;
+    }
     std::vector<uint8_t> grassMask;
     BuildTerrain(grassMask);
     BlockUnreachablePockets();
@@ -204,6 +219,15 @@ void CollisionTestScene::Init()
     m_Grass.GetSettings().heightMin = stageDef.grassHeightMin;
     m_Grass.GetSettings().heightMax = stageDef.grassHeightMax;
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);
+    // 草の延焼（草の無い面では止めておく）
+    if (!m_GrassFire.Initialize(device, context))
+        std::cout << "[Error] GrassFireField init failed" << std::endl;
+    m_GrassFire.SetActive(stageDef.grass && m_Grass.GetSettings().enabled);
+    m_GrassFire.Build(m_Grid);
+    // 地面の落ち葉（風が触れる物。草の高さテクスチャに乗る）
+    if (!m_Debris.Initialize(device, context))
+        std::cout << "[Error] GroundDebris init failed" << std::endl;
+    m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());
 
     // ---------- GPU 側 gameplay（雑魚・投射物・オーブ）----------
     // ※地形の生成後に呼ぶ。格子表をそのまま上げるため
@@ -217,9 +241,16 @@ void CollisionTestScene::Init()
     // 先に範囲：投射物の「命中で出す範囲」が範囲の番号を引くため
     AreaProfileDB::LoadAll();
     m_Swarm.SetAreaDefs(AreaProfileDB::BuildDefs(m_Swarm.GetVFXTable()));
+    m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());   // 範囲の heat → レシピ毎の表（範囲の profile と VFX 表の後）
     ProjectileProfileDB::LoadAll();
     m_Swarm.SetMotions(ProjectileProfileDB::BuildMotions());
     m_WeaponSystem.SetAreaVFX(&m_AreaVFX, &m_VFXContext);
+    // CPU で再生するエフェクトの雛形（と Mesh entry の FBX）を先に読む。初回の再生で読むと 1 フレーム飛ぶ
+    for (int i = 0; i < VFXDatabase::Count(); ++i)
+    {
+        const VFXId id = VFXDatabase::At(i);
+        if (!VFXDatabase::IsGpu(id)) m_AreaVFX.Preload(VFXDatabase::GetFile(id));
+    }
     m_Mobs.Init(m_Swarm);
     m_Audio.Init(m_Swarm, m_StageIndex);   // 範囲の音の表（範囲の profile と VFX 表の後）
     m_Mobs.statMulBonus = stageDef.difficultyBonus;   // 面の難度の下駄
@@ -231,6 +262,7 @@ void CollisionTestScene::Init()
     m_Mobs.chargerMix = { stageDef.charger.start, stageDef.charger.ratioStart, stageDef.charger.ratioEnd, stageDef.charger.rampEnd };
     m_Mobs.shieldMix = { stageDef.shield.start, stageDef.shield.ratioStart, stageDef.shield.ratioEnd, stageDef.shield.rampEnd };
     m_WeaponSystem.SetSwarm(&m_Swarm);
+    m_WeaponSystem.groundHeight = [this](float x, float z) { return m_Grid.SampleHeight(x, z); };   // アイススパイクの線を地面に合わせる
 
     // ============================================================
     // プレイヤー
@@ -285,9 +317,16 @@ void CollisionTestScene::Init()
     m_Player = PlayerFactory::Create(m_Registry, device, pcfg);
     m_ClothChainSystem.groundHeight = [this](float x, float z) { return m_Grid.SampleHeight(x, z); };
     ApplyRunCarry();   // 前の面のバックパック・魔法書・等級・能力値（あれば）
+    if (m_Registry.Has<WalletComponent>(m_Player))
+        m_GoldAtStart = m_Registry.Get<WalletComponent>(m_Player).earned;   // リザルトの「この面で拾った金貨」用
 
     // ---------- 反応のエフェクト（レベルアップ・開箱・被弾）----------
     m_Feedback.Init(&m_AreaVFX, &m_VFXContext);
+    m_PlayerVFX.Init(&m_AreaVFX, &m_VFXContext);
+    m_SpellFx.Init(&m_AreaVFX, &m_VFXContext);
+    // 土煙の色を面に合わせる（草原は土色のまま、砂漠は砂、遺跡は灰）
+    if (stageDef.biome == TerrainGenerator::Biome::Desert)       m_PlayerVFX.dustTint = { 1.18f, 1.08f, 0.86f };
+    else if (stageDef.biome == TerrainGenerator::Biome::Dungeon) m_PlayerVFX.dustTint = { 0.88f, 0.88f, 0.94f };
     if (m_AutoTest)
         m_Feedback.onPlayed = [this](const char* file) { AutoTestLog(file); };   // TEMP-TEST
 
@@ -297,9 +336,9 @@ void CollisionTestScene::Init()
     m_BossAttacks.Reset();
     m_BossSlamHits = 0;
     m_Pickups.Init(device);
-    if (m_LabScene)
+    if (m_LabScene || m_TitleScene)
     {
-        // 実験場：制限時間・エリート・箱・門・磁石なし。箱と門は置かない（RespawnCrates を呼ばない）
+        // 実験場・タイトル：制限時間・エリート・箱・門・磁石なし。箱と門は置かない（RespawnCrates を呼ばない）
         m_Stage.stageTime = 0.0f;
         m_Stage.eliteTimes.clear();
         m_Stage.waves.enabled = false;   // 湧きの波も無し（湧き自体が止まっているが、案内が出ないように）
@@ -310,7 +349,7 @@ void CollisionTestScene::Init()
         RespawnCrates();
 
     // ---------- 天候（昼 → 夕 → 夜、面毎の出来事。照明を毎フレーム上書きする）----------
-    m_Weather.Init(stageDef, m_Stage.stageTime, m_Lighting, m_AreaVFX, &m_VFXContext, stageDef.grass ? &m_Grass : nullptr, &m_Swarm);
+    m_Weather.Init(stageDef, m_Stage.stageTime, m_Lighting, m_AreaVFX, &m_VFXContext, &m_Swarm);
     if (m_LabScene)
     {
         // 実験場：昼のまま、天候の出来事なし。湧き停止・無敵・MP 無限・経験値 0 と 9x9 の枠は SpellLab が受け持つ
@@ -321,6 +360,18 @@ void CollisionTestScene::Init()
         m_GameUI.SetTrainingEnabled(true);
         m_SpellLab.EnterLab(m_Registry, m_Player, m_Swarm, m_Mobs);
     }
+    if (m_TitleScene) InitTitle();   // 丘の上のプレイヤー・夕方の光・回るカメラ・メニュー（CollisionTestSceneTitle.cpp）
+
+    // ---- 初回のチュートリアル（2026-10-13）：タイトルから第 1 ステージに入った最初の 1 回だけ。
+    // 終えた / 飛ばしたら GameSettings::tutorialDone。VFXL_TUTORIAL=1 / 0 で強制（TEMP-TEST）。自動テスト中は出さない
+    if (!m_LabScene && !m_TitleScene)
+    {
+        char env[8] = {};
+        const bool hasEnv = GetEnvironmentVariableA("VFXL_TUTORIAL", env, sizeof(env)) > 0;
+        const bool start = hasEnv ? (env[0] == '1')
+            : (!GameSettings::Get().tutorialDone && m_StageIndex == 1 && !m_AutoTest);
+        if (start) m_Tutorial.Start();
+    }
 }
 
 // ============================================================
@@ -330,14 +381,18 @@ void CollisionTestScene::Shutdown()
 {
     m_Audio.StopMusic();   // 次のシーン（タイトル・結果）が自分の曲を流す
     m_Weather.Shutdown();  // 環境音・粒子を止め、草と経験球の基準値を戻す
+    m_PlayerVFX.Shutdown();   // 速さの尾を離す
     SceneLighting::ClearFog(Application::Get().GetRenderer());   // Renderer は他のシーンと共有
     m_Shadows.Disable(Application::Get().GetRenderer());         // 同上（影を切らないと他のシーンが真っ暗）
     m_Shadows.Unbind(Application::Get().GetGraphics().GetContext());
     m_Shadows.Shutdown();
     m_Swarm.Shutdown();
     m_StaticProps.Shutdown();
+    m_Debris.Shutdown();
+    m_GrassFire.Shutdown();
     m_Grass.Shutdown();
     m_GameUI.Shutdown();
+    m_TitleUI.Shutdown();
     DebugManager::Get().SetShowGrid(m_PrevDebugGrid);   // 参照格子を元に戻す（DebugManager もシーン間で共有）
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
 }
@@ -391,6 +446,38 @@ float CollisionTestScene::TrackPlayerHpLoss()
     return (lost > 0.0f) ? lost : 0.0f;
 }
 
+// 爆発（GPU の範囲・Boss のスラム）：カメラを揺らし、リザルトの写真の山場として数える
+void CollisionTestScene::OnExplosions(int count)
+{
+    m_Camera.OnShakeAreas(count);
+    m_Highlight.OnExplosions(count, m_RunTime);
+}
+
+// ============================================================
+// 世界の風（2026-10-12）：WeatherSystem が作った 1 つの風を、草・マント・粒子へ配る。
+// 以前は 3 か所がそれぞれ別の向き・強さを持っていた
+// ============================================================
+void CollisionTestScene::PushWind()
+{
+    // 天候の Update は粒子の Flush の後なので、ここで配るのは 1 フレーム前の風（風はゆっくりしか変わらない）
+    const WindState& wind = m_Weather.Wind();
+    m_Grass.SetWind(wind);
+    m_ClothChainSystem.wind = wind;
+    m_ClothChainSystem.windTime = m_Grass.Time();
+    m_ParticleSystem.SetWind(wind, m_Grass.Time());
+    m_Debris.SetWind(wind, m_Grass.Time());   // 落ち葉（強い風で舞う）
+
+    // 草の火：風下へ広がる、雨で消える。燃えているマスからの粒子は SwarmSystem の Flush が出す
+    m_GrassFire.SetWind(wind);
+    m_GrassFire.SetRain(m_Weather.RainIntensity());
+    GrassFireEmitInput fire;
+    CameraBase* cam = GetCamera();
+    if (cam && m_GrassFire.FillEmitInput(fire, cam->GetPosition(), m_Grass.GetGroundSRV(), m_Grass.GetHeightSRV()))
+        m_Swarm.SetGrassFire(&fire);
+    else
+        m_Swarm.SetGrassFire(nullptr);
+}
+
 void CollisionTestScene::RespawnCrates()
 {
     const Vector3* p = PlayerPos();
@@ -421,7 +508,7 @@ void CollisionTestScene::RespawnCrates()
     m_PortalVfx = 0;
     if (m_Registry.IsValid(m_Stage.GetPortal()))
     {
-        m_PortalVfx = m_AreaVFX.Play("BossPortal.json", m_Stage.GetPortalCenter(), 1.0e9f, false, m_VFXContext);
+        m_PortalVfx = m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::BossPortal), m_Stage.GetPortalCenter(), 1.0e9f, false, m_VFXContext);
         if (m_PortalVfx) m_AreaVFX.RotateInstance(m_PortalVfx, m_Stage.GetPortalYaw());
     }
     m_Pickups.Reset(m_Registry, m_Grid, p ? *p : Vector3::Zero, m_TerrainConfig.seed);
@@ -525,6 +612,7 @@ void CollisionTestScene::RespawnElites()
 // ============================================================
 void CollisionTestScene::Update(float dt)
 {
+    if (m_TitleScene) { UpdateTitle(dt); return; }   // タイトル：景色とメニューだけ（CollisionTestSceneTitle.cpp）
     SceneBase::Update(dt);
     m_TotalTime += dt;
 
@@ -551,9 +639,37 @@ void CollisionTestScene::Update(float dt)
     case PauseMenuUI::Action::Title:
         Application::Get().GetGame().GetSceneManager().RequestChangeScene(SceneType::TITLE);
         break;
+    case PauseMenuUI::Action::SkipTutorial:
+        m_Tutorial.Skip();
+        break;
     default:
         break;
     }
+
+    // ---- 初回のチュートリアル（止まっている間も進める：バックパックを開いたかを見る）----
+    if (m_Tutorial.Active())
+    {
+        TutorialGuide::Input in;
+        if (const Vector3* pp = PlayerPos()) { in.playerPos = *pp; in.hasPlayer = true; }
+        if (m_Registry.Has<PlayerStateComponent>(m_Player))
+        {
+            const auto& ps = m_Registry.Get<PlayerStateComponent>(m_Player);
+            in.inAir = ps.move == MoveStateID::Jump;
+            in.sliding = ps.slideActive;
+        }
+        in.kills = m_Swarm.GetCounters().killCount;
+        if (m_Registry.Has<LevelComponent>(m_Player)) in.level = m_Registry.Get<LevelComponent>(m_Player).level;
+        if (m_Registry.Has<ManaComponent>(m_Player)) in.surgeActive = m_Registry.Get<ManaComponent>(m_Player).surgeTime > 0.0f;
+        in.backpackOpen = m_GameUI.IsBackpackOpen();
+        in.choosingCard = LevelUpSystem::IsAnyoneChoosing(m_Registry);
+        m_Tutorial.Update(dt, in);
+    }
+    if (m_Tutorial.JustFinished())
+    {
+        GameSettings::Get().tutorialDone = true;
+        GameSettings::Get().Save();
+    }
+    m_GameUI.SetTutorialActive(m_Tutorial.Active());
 
     // ---- 集約: グリッドが変わっていれば杖を組み直す ----
     // UI の直後に置く。編成した結果を同じフレームで反映させるため
@@ -596,7 +712,7 @@ void CollisionTestScene::Update(float dt)
             const int price = m_Crates.Price();
             const int coins = m_Registry.Get<WalletComponent>(m_Player).Coins();
             wchar_t buf[64];
-            if (coins >= price) swprintf_s(buf, L"[F] 開ける     金貨 %d", price);
+            if (coins >= price) swprintf_s(buf, L"<{K:F}|{B}>  開ける     金貨 %d", price);
             else                swprintf_s(buf, L"金貨が足りない     %d / %d", coins, price);
             m_PromptBuf = buf;
             prompt = m_PromptBuf.c_str();
@@ -636,21 +752,34 @@ void CollisionTestScene::Update(float dt)
             else
                 swprintf_s(m_ObjectiveBuf, L"ボスの門を見つけて ボスを呼ぶ");
             if (!m_Stage.IsCleared()) obj = m_ObjectiveBuf;
+            if (m_Tutorial.Active() && m_Tutorial.Hint()) obj = m_Tutorial.Hint();   // チュートリアル中はその段のやる事
         }
         else
-            obj = L"T / パッド RB　トレーニングメニュー";   // 実験場：メニューの開き方（画面下の案内は体に重なるのでここ）
+            obj = L"<{K:T}|{RB}>　トレーニングメニュー";   // 実験場：メニューの開き方（画面下の案内は体に重なるのでここ）
         m_GameUI.SetObjective(obj);
     }
-    // 画面の真ん中の案内（押し寄せ・エリート・最終ウェーブ。2026-10-07）
+    // 画面の真ん中の案内（押し寄せ・エリート・最終ウェーブ。2026-10-07。チュートリアルの段の見出しが優先）
     {
         float alpha = 0.0f, age = 0.0f;
         const wchar_t* ann = m_LabScene ? nullptr : m_Stage.Announce(alpha, age);
+        float ta = 0.0f, tage = 0.0f;
+        if (const wchar_t* t = m_Tutorial.Announce(ta, tage)) { ann = t; alpha = ta; age = tage; }
         m_GameUI.SetAnnounce(ann, alpha, age);
     }
 
     // ---- 死亡 → 倒れた姿を少し見せてからリザルトへ ----
     // 一時停止中でも進める（三択を開いたまま死ぬ事は無いが、止まると戻れない）
     // Boss を倒したら同じ流れで「ステージクリア」の幕 → リザルト（倒した後に死んでもクリア扱い）
+    // 爆発の山場が 1 度も写っていなければ、終わった瞬間をリザルトの背景にする
+    if ((m_Stage.IsCleared() || IsPlayerDead()) && !m_EndShotChecked && !m_LabScene)
+    {
+        m_EndShotChecked = true;
+        if (m_Highlight.Best() <= 0)
+        {
+            m_SnapshotThisFrame = true;
+            m_SnapshotIsHighlight = false;
+        }
+    }
     if (m_Stage.IsCleared())
     {
         m_DeathTimer += dt;
@@ -782,6 +911,8 @@ void CollisionTestScene::UpdateGameplay(float dt)
         const bool sliding = m_Registry.Has<PlayerStateComponent>(m_Player) && m_Registry.Get<PlayerStateComponent>(m_Player).slideActive;
         m_Grass.Update(dt, *pp, grounded, sliding);
     }
+    m_GrassFire.Tick(dt);   // 草の火の時計（一時停止中は進まない）
+    m_Debris.Tick(dt);      // 落ち葉も
 
     m_ManaSystem.Update(m_Registry, dt);
 
@@ -830,11 +961,11 @@ void CollisionTestScene::UpdateGameplay(float dt)
         // Boss を倒したら同じ門を出口にする（2026-10-07 ユーザー：もう一度押して次の面へ）。渦は金色で出し直す
         if (m_Stage.IsBossDefeated() && !m_Stage.IsCleared() && !m_Stage.IsExitOpen())
         {
-            const wchar_t* prompt = (m_StageIndex < StageConfig::kStageCount) ? L"[F] 次のステージへ" : L"[F] 冒険を終える";
+            const wchar_t* prompt = (m_StageIndex < StageConfig::kStageCount) ? L"<{K:F}|{B}>  次のステージへ" : L"<{K:F}|{B}>  冒険を終える";
             if (m_Stage.OpenExit(m_Registry, prompt))
             {
                 if (m_PortalVfx) m_AreaVFX.StopInstance(m_PortalVfx);
-                m_PortalVfx = m_AreaVFX.Play("BossPortal.json", m_Stage.GetPortalCenter(), 1.0e9f, false, m_VFXContext,
+                m_PortalVfx = m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::BossPortal), m_Stage.GetPortalCenter(), 1.0e9f, false, m_VFXContext,
                     Vector3(1.0f, 0.78f, 0.40f));
                 if (m_PortalVfx) m_AreaVFX.RotateInstance(m_PortalVfx, m_Stage.GetPortalYaw());
             }
@@ -849,7 +980,21 @@ void CollisionTestScene::UpdateGameplay(float dt)
     const float hpLost = TrackPlayerHpLoss();
     m_Camera.OnPlayerHit(hpLost);
     m_Feedback.Update(m_Registry, m_Player, dt, hpLost);
-    m_Camera.OnShakeAreas(m_Swarm.ConsumeShakeAreas());   // 爆発・光線だけ（命中の火花・土煙では揺らさない）
+    m_PlayerVFX.Update(m_Registry, m_Player, dt, hpLost, m_WeaponSystem.GetCastFx());   // 詠唱の光・土煙・着地・尾・被弾の閃き
+    for (const auto& g : m_WeaponSystem.GetGustFx())   // 突風：草が一斉に倒れ、落ち葉が舞う
+    {
+        m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
+        m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
+    }
+    m_SpellFx.Update(dt, m_WeaponSystem.GetTriggeredFx(),                                // アイススパイクの氷のトゲ（地面の高さに 1 本ずつ）
+        [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
+    OnExplosions(m_Swarm.ConsumeShakeAreas());   // 爆発・光線だけ（命中の火花・土煙では揺らさない）
+    // リザルトの背景：爆発の山場を写す（生きている間だけ。実験場では撮らない）
+    if (!m_LabScene && !IsPlayerDead() && !m_Stage.IsCleared() && m_Highlight.ShouldCapture(m_RunTime))
+    {
+        m_SnapshotThisFrame = true;
+        m_SnapshotIsHighlight = true;
+    }
 
     // ---- カメラ追従（最後）----
     m_Camera.Update(dt, PlayerPos());
@@ -864,6 +1009,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // リードバックは 1〜2 フレーム古い。被弾は TryApplyHit へ流し、
     // 無敵時間の判定は向こうに任せる（CPU 側の接触ダメージと同じ窓口）
     // ============================================================
+    PushWind();   // 世界の風を草・マント・粒子へ、燃えている草の粒子の入力を GPU へ（Flush の前）
     if (m_Registry.IsValid(m_Player))
     {
         const auto& ptf = m_Registry.Get<TransformComponent>(m_Player);
@@ -976,6 +1122,11 @@ void CollisionTestScene::EndRun()
     g_LastRun.cleared = m_Stage.IsCleared();
     g_LastRun.stage = m_StageIndex;
     g_LastRun.hasNextStage = g_LastRun.cleared && m_StageIndex < StageConfig::kStageCount;
+    g_LastRun.cratesOpened = m_Crates.Opened();
+    g_LastRun.goldEarned = m_Registry.Has<WalletComponent>(m_Player)
+        ? (int)(m_Registry.Get<WalletComponent>(m_Player).earned - m_GoldAtStart) : 0;
+    g_LastRun.backpack = m_Registry.Has<BackpackComponent>(m_Player)
+        ? m_Registry.Get<BackpackComponent>(m_Player) : BackpackComponent{};
 
     // ---- 次の面への引き継ぎ（クリアした時だけ。力尽きたら最初から）----
     g_RunCarry.Reset();
@@ -1045,7 +1196,18 @@ void CollisionTestScene::Render(Renderer& renderer)
         // トゥーンのアウトライン（2026-10-04）：不透明な物を描き終えた深度から。草（葉の一枚一枚に線が付く）と
         // 半透明・粒子・UI は後から描くので線が乗らない
         { PROFILE_SCOPE_GPU("Outline"); m_Outline.Render(ctx, Application::Get().GetGraphics(), GetCamera()); }
-        { PROFILE_SCOPE_GPU("Grass"); if (GetCamera()) m_Grass.Render(renderer, *GetCamera()); }   // 地形の後（深度で埋まる所を描かない）
+        {
+            PROFILE_SCOPE_GPU("Grass");
+            // 草の火を 1 歩進めてから草を描く（GPU の範囲が熱源。Flush の後なので範囲の池は読むだけ）
+            m_GrassFire.Step(m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Grass.GetGroundSRV());
+            m_Grass.SetFire(m_GrassFire.GetSRV(), m_GrassFire.GetSettings().ignite);
+            // 爆発 / 光線 / 雑魚の足元も草を倒す（2026-10-13。池は Flush の後なので読むだけ）
+            m_Grass.SetSwarmSources(m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV(),
+                m_Swarm.GetEnemySRV(), m_Swarm.GetEnemyStateSRV(), m_Swarm.GetEnemyExtraSRV());
+            if (GetCamera()) m_Grass.Render(renderer, *GetCamera());   // 地形の後（深度で埋まる所を描かない）
+            // 落ち葉（1 歩進めて描く。爆発の範囲と光線は読むだけ）
+            if (GetCamera()) m_Debris.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV());
+        }
         { PROFILE_SCOPE_GPU("Swarm overlay"); m_Swarm.RenderOverlay(GetCamera(), renderer.GetLightData()); }
     }
     else
@@ -1063,6 +1225,8 @@ void CollisionTestScene::Render(Renderer& renderer)
         m_LiquidRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera(), renderer.GetLightData());
         // ---- 2) Mesh entry（光球の球など。深度は読むだけ）→ 連番画像（CPU の Sprite entry と、GPU の範囲が出した物）。粒子の前 ----
         m_Feedback.SubmitMeshes(m_MeshRenderer, m_Registry, m_Player);   // シールドの護罩（一時停止中も見えるようにここで積む）
+        m_PlayerVFX.SubmitMeshes(m_MeshRenderer);                        // 詠唱の魔法陣（足元・手の前）
+        m_SpellFx.Submit(m_MeshRenderer);                                // アイススパイクの氷のトゲ
         m_MeshRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());   // 光線（加算）
@@ -1079,11 +1243,30 @@ void CollisionTestScene::Render(Renderer& renderer)
     }
     m_Shadows.Unbind(ctx);   // 次のフレームでシャドウマップを DSV にするので外す
 
+    // ---- リザルトの背景の写真（UI を描く前の画面。2026-10-09）----
+    if (m_SnapshotThisFrame)
+    {
+        m_SnapshotThisFrame = false;
+        SceneSnapshot& snap = SceneSnapshot::Get();
+        if (snap.Capture(gfx))
+        {
+            snap.shotTime = m_RunTime;
+            snap.highlight = m_SnapshotIsHighlight;
+            if (m_AutoTest)
+            {
+                char line[64];
+                snprintf(line, sizeof(line), "snapshot t %.2f highlight %d best %d", m_RunTime, m_SnapshotIsHighlight ? 1 : 0, m_Highlight.Best());
+                AutoTestLog(line);   // TEMP-TEST
+            }
+        }
+    }
+
     // ============================================================
-    // 4) UI（一番手前。Begin/End の管理は GameUI の中）
+    // 4) UI（一番手前。Begin/End の管理は GameUI の中）。タイトルは名前とメニューだけ
     // ============================================================
     PROFILE_SCOPE_GPU("Game UI");
-    m_GameUI.Render(m_Registry, m_Player);
+    if (m_TitleScene) m_TitleUI.Render(gfx);
+    else              m_GameUI.Render(m_Registry, m_Player);
 }
 
 // ============================================================

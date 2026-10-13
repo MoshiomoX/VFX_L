@@ -8,6 +8,7 @@
 // ============================================================
 #pragma once
 #include <cstdint>
+#include "Component/BackpackComponent.h"
 
 struct RunResult
 {
@@ -19,6 +20,10 @@ struct RunResult
     bool     cleared = false;     // Boss を倒して面をクリアした（false = 力尽きた・途中でやめた）
     int      stage = 1;           // 遊んだ面（1..StageConfig::kStageCount）
     bool     hasNextStage = false;   // クリアして次の面がある（リザルトで「次のステージへ」を出す）
+    // ---- リザルトの作り直し（2026-10-09）で足した物 ----
+    int      goldEarned = 0;      // この面で拾った金貨
+    int      cratesOpened = 0;    // この面で開けた報酬の箱
+    BackpackComponent backpack;   // 終わった時のバックパック（リザルトに並べて見せる）
 };
 
 // 直近のプレイの戦績
@@ -31,7 +36,6 @@ inline RunResult g_LastRun;
 //   hasPlayer : true なら下の部品をプレイヤーへ写す（バックパック・魔法書・等級・能力値。HP / MP は満タンから）
 // 戦闘シーンが読んだら hasPlayer を落とす（F5 の再読込で二重に効かないように）
 // ============================================================
-#include "Component/BackpackComponent.h"
 #include "Component/SpellbookComponent.h"
 #include "Component/ManaComponent.h"
 #include "Component/HealthComponent.h"

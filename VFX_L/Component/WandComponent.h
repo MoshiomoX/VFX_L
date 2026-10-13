@@ -49,6 +49,10 @@ struct SpellStats
     // --- 誘発（基本魔法 → 上級魔法。集約が決める）---
     bool     triggered = false;   // 上級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ
     uint32_t triggerMask = 0;     // 基本魔法: この弾が消えたら誘発できる上級魔法（bit 0〜15 = spells の添字、bit 16〜31 = areas の添字（光線））
+    // 上級魔法を「線」で撃つ（アイススパイク。2026-10-10）: 着弾点へ弾を落とす代わりに、撃った所の足元 → 弾が消えた所の
+    // lineOvershoot m 先 の線に沿って、命中の範囲（profile の hitArea）を並べて一度に出す。見た目は SpellFxSystem
+    bool     triggerLine = false;
+    float    lineOvershoot = 1.5f;
 
     // --- 貯蔵（水晶玉。2026-10-06）---
     // 杖からは撃たず、WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光球ごとに計時）。

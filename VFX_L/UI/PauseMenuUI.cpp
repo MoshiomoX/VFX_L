@@ -8,6 +8,7 @@
 #include "Manager/InputManager.h"
 #include "Audio/AudioSystem.h"
 #include "UI/UIDeco.h"
+#include "UI/InputGlyph.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -21,12 +22,34 @@ namespace
 
 PauseMenuUI::PauseMenuUI()
 {
-    // 「設定」= 音量と敵味方の縁取りの ON / OFF（2026-10-07 ユーザー要望、10-08 から縁取りだけ）。SettingsMenuUI のページを重ねる
-    m_List.SetItems({ L"再開する", L"設定", L"最初からやり直す", L"タイトルへ戻る" });
+    BuildItems();
 }
 
-void PauseMenuUI::CloseSettings()
+// 「設定」= 音量と敵味方の縁取りの ON / OFF（2026-10-07 ユーザー要望、10-08 から縁取りだけ）。SettingsMenuUI のページを重ねる。
+// 「遊び方」= HowToPlayUI（2026-10-13）。チュートリアル中だけ最後に「チュートリアルを飛ばす」
+void PauseMenuUI::BuildItems()
 {
+    std::vector<std::wstring> items = { L"再開する", L"設定", L"遊び方", L"最初からやり直す", L"タイトルへ戻る" };
+    if (m_TutorialActive) items.push_back(L"チュートリアルを飛ばす");
+    m_List.SetItems(std::move(items));
+}
+
+void PauseMenuUI::SetTutorialActive(bool on)
+{
+    if (on == m_TutorialActive) return;
+    m_TutorialActive = on;
+    BuildItems();
+    Layout(m_Screen.x, m_Screen.y);
+}
+
+void PauseMenuUI::CloseSubPage()
+{
+    if (m_HowTo.IsOpen())
+    {
+        m_HowTo.Close();
+        AudioSystem::Get().Play("ui_close");
+        return;
+    }
     if (!m_InSettings) return;
     m_InSettings = false;
     m_Settings.Close();   // 変えた物があれば保存
@@ -57,14 +80,20 @@ void PauseMenuUI::Layout(float screenW, float screenH)
         { m_PanelSize.x - pad * 2.0f, itemH }, gap);
     m_List.accentColor = accentColor;
     m_Settings.Layout(screenW, screenH);
+    m_HowTo.Layout(screenW, screenH);
 }
 
 PauseMenuUI::Action PauseMenuUI::HandleInput()
 {
-    // 設定のページ：戻るまでそちらだけ（B / Esc もページを閉じるだけで、メニューは残る）
+    // 設定 / 遊び方のページ：戻るまでそちらだけ（B / Esc もページを閉じるだけで、メニューは残る）
     if (m_InSettings)
     {
         if (m_Settings.HandleInput()) m_InSettings = false;
+        return Action::None;
+    }
+    if (m_HowTo.IsOpen())
+    {
+        m_HowTo.HandleInput();
         return Action::None;
     }
 
@@ -79,8 +108,13 @@ PauseMenuUI::Action PauseMenuUI::HandleInput()
         m_InSettings = true;
         m_Settings.Open();
         return Action::None;
-    case 2:  return Action::Restart;
-    case 3:  return Action::Title;
+    case 2:
+        m_HowTo.Open();
+        AudioSystem::Get().Play("ui_open");
+        return Action::None;
+    case 3:  return Action::Restart;
+    case 4:  return Action::Title;
+    case 5:  return Action::SkipTutorial;
     default: return Action::None;
     }
 }
@@ -92,10 +126,15 @@ void PauseMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std::sh
 {
     if (!white) return;
 
-    // 設定のページを開いている間はそちらだけ描く（下のメニューは隠す）
+    // 設定 / 遊び方のページを開いている間はそちらだけ描く（下のメニューは隠す）
     if (m_InSettings)
     {
         m_Settings.Draw(sprite, text, white);
+        return;
+    }
+    if (m_HowTo.IsOpen())
+    {
+        m_HowTo.Draw(sprite, text, white);
         return;
     }
 
@@ -129,11 +168,11 @@ void PauseMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std::sh
     m_List.Draw(sprite, text, white, 0.55f * k);
 
     // ---- 操作の案内 ----
-    const std::wstring hint = L"Esc / パッド Back で再開";
+    const std::wstring hint = L"<{K:Esc}|{BACK} / {B}> で再開";   // <キーボード|パッド> の絵（InputGlyph）
     const float hintScale = 0.36f * k;
-    const Vector2 hs = text.Measure(hint, hintScale);
+    const Vector2 hs = InputGlyph::Measure(text, hint, hintScale);
     const float hintTop = m_PanelPos.y + pad + titleH + m_List.Height();
     const float hintH = m_PanelPos.y + m_PanelSize.y - hintTop;
-    text.Draw(hint, { m_PanelPos.x + (m_PanelSize.x - hs.x) * 0.5f, hintTop + (hintH - hs.y) * 0.5f },
+    InputGlyph::Draw(sprite, text, hint, { m_PanelPos.x + (m_PanelSize.x - hs.x) * 0.5f, hintTop + (hintH - hs.y) * 0.5f },
         { 0.6f, 0.6f, 0.65f, 1.0f }, hintScale);
 }

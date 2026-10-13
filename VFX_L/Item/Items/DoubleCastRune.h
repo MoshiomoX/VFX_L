@@ -21,7 +21,7 @@ inline FunctionItemDef MakeDoubleCastRune()
     def.common.id = ItemID::DoubleCastRune;
     def.common.name = "Double Cast";
     def.common.displayName = L"二重詠唱のルーン";
-    def.common.description = L"隣の魔法を続けてもう一度撃つ。威力はそのままだが、消費MPも増える。";
+    def.common.description = L"隣の魔法を続けてもう一度撃つ。威力はそのままだが、MP を多めに使う。";
     def.common.category = ItemCategory::Function;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Cross();

@@ -74,6 +74,8 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     if (inheritVelocity) e.renderMode |= ParticleRenderMode::kInheritSourceVelocity;
     if (renderMode == 0 && toon)   // トゥーン（ビルボードだけ）
         e.renderMode |= ParticleRenderMode::PackToon(toonOutline, toonCut, toonBands, toonShade);
+    if (windResponse > 0.0f)       // 世界の風を受ける（ParticleUpdateCS）
+        e.renderMode |= ParticleRenderMode::PackWind(windResponse);
 
 
     // 形状パラメータをemitTypeに応じてパッキング

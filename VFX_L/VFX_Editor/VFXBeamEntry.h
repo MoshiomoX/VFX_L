@@ -25,9 +25,10 @@ public:
     json ToJson() const override;
     void FromJson(const json& j) override;
 
-    // VFXEffect::CollectAndDispatch から毎フレーム。hasEnd = false なら previewDir / previewLength
+    // VFXEffect::CollectAndDispatch から毎フレーム。hasEnd = false なら previewDir / previewLength。
+    // widthMul = 太さの倍率（拡大鏡。VFXEffect::SetBeamWidthMul）
     void Submit(VFXBeamRenderer& renderer, const DirectX::SimpleMath::Vector3& worldOffset,
-        const DirectX::SimpleMath::Vector3& beamEnd, bool hasEnd);
+        const DirectX::SimpleMath::Vector3& beamEnd, bool hasEnd, float widthMul = 1.0f);
 
     // ---- 設定 ----
     DirectX::SimpleMath::Vector3 offset = { 0, 0, 0 };        // 起点のずらし（effect の位置から）

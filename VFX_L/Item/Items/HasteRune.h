@@ -21,7 +21,7 @@ inline FunctionItemDef MakeHasteRune()
     def.common.id = ItemID::HasteRune;
     def.common.name = "Haste";
     def.common.displayName = L"加速のルーン";
-    def.common.description = L"左右に隣り合う魔法を速く撃てるようにする。発動間隔が短くなる。";
+    def.common.description = L"左右の魔法の発動間隔を短くし、速く撃てるようにする。";
     def.common.category = ItemCategory::Function;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Sides();   // 左右 2 マス

@@ -87,6 +87,7 @@ enum class AreaParam
     DamagePerTick,
     CastInterval,
     ManaCost,
+    Length,         // 光線の射程 m（光線以外の範囲魔法では 0 のまま = 効かない。2026-10-13 拡大鏡用）
 };
 
 // ============================================================
@@ -222,7 +223,7 @@ struct SummonItemDef
     float orbitRadius = 1.1f;  // 出る位置：プレイヤーからの横の距離（m）
     float orbitHeight = 1.4f;  // 出る位置：足元からの高さ（m）
     float riseSpeed = 0.1f;    // その場で昇る速さ（m/秒。8 秒で 0.8m）
-    const char* vfxFile = "SpellOrb.json";   // 光球の見た目（VFXData）。色は貯蔵した魔法で染める
+    VFXId vfxId = VFXId::SpellOrb;   // 光球の見た目（エフェクトのデータベース VFXId.h）。色は貯蔵した魔法で染める
 };
 
 // ============================================================

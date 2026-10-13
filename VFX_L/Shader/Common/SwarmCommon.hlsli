@@ -406,6 +406,39 @@ float SwarmAreaSlow(uint flags)
     return (float) ((flags >> SWARM_AREA_SLOW_SHIFT) & 0xFu) / 15.0;
 }
 
+// Freeze (2026-10-10, the Ice Spike): bits 4-7 of flags = q, a tick freezes
+// the enemies inside for q * 0.25 s (0 = none). AreaDamageCS leaves the same
+// freeze request as a hitting Ice Lance (SWARM_ANIM_FREEZE_REQ), so AICS
+// applies the elite / boss half and the immunity after a thaw.
+static const uint SWARM_AREA_FREEZE_SHIFT = 4u; // = Swarm::kAreaFreezeShift
+
+float SwarmAreaFreeze(uint flags)
+{
+    return (float) ((flags >> SWARM_AREA_FREEZE_SHIFT) & 0xFu) * 0.25;
+}
+
+// Push (2026-10-12, the Gust): a non-capsule area keeps its knockback
+// strength q / 15 in the beam-channel bits (8-11, unused unless CAPSULE).
+// AreaDamageCS writes enemyPush[slot] = (velocity xz away from the player,
+// seconds left, 0); AICS adds it to the velocity while it decays.
+// Elites take half, the boss none (SwarmPushKindMul).
+static const float SWARM_PUSH_SPEED = 28.0; // = Swarm::kPushSpeed (m/s at q = 15; the ramp-down makes it speed * time / 2 = 3.5 m)
+static const float SWARM_PUSH_TIME = 0.25;  // = Swarm::kPushTime
+
+float SwarmAreaPush(uint flags)
+{
+    if ((flags & SWARM_AREA_CAPSULE) != 0u)
+        return 0.0;
+    return (float) ((flags >> SWARM_AREA_BEAM_SHIFT) & 0xFu) / 15.0;
+}
+
+float SwarmPushKindMul(uint kind)
+{
+    if (kind == SWARM_KIND_BOSS) return 0.0;
+    if (kind == SWARM_KIND_ELITE) return 0.5;
+    return 1.0;
+}
+
 static const uint SWARM_HITAREA_ON_EXPIRE = 1u; // SwarmMotion.hitAreaFlags
 
 struct SwarmArea

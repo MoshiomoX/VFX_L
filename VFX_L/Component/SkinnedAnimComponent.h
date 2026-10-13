@@ -76,6 +76,9 @@ struct SkinnedAnimComponent
     float leanDeg = 0.0f;
     float scale = 1.0f;
     bool  visible = true;
+    // 被弾の閃き（2026-10-09、PlayerVFXSystem が書いて減らす）。0〜1 で全身の色を hitFlashColor へ寄せる
+    float hitFlash = 0.0f;
+    DirectX::SimpleMath::Vector3 hitFlashColor = { 1.0f, 1.0f, 1.0f };
 
     SkinnedAnimLayer base;
     SkinnedAnimLayer upper;

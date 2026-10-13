@@ -735,6 +735,7 @@ void ProjectileEditorScene::DrawProjectileTab()
             if (ImGui::Selectable("(none)", p.vfxFile.empty())) { p.vfxFile.clear(); changed = true; }
             for (int i = 0; i < VFXDatabase::Count(); ++i)
             {
+                if (!VFXDatabase::IsGpu(VFXDatabase::At(i))) continue;   // CPU だけの物（プレイヤーの動きなど）は弾に付けられない
                 const char* path = VFXDatabase::GetPath(VFXDatabase::At(i));
                 if (!path) continue;
                 const std::string file = std::filesystem::path(path).filename().string();
@@ -950,7 +951,14 @@ void ProjectileEditorScene::DrawAreaTab()
     changed |= ImGui::Checkbox("Follow caster (when cast on the player)", &p.followCaster);
     changed |= ImGui::Checkbox("Hit stun on damage", &p.stun);
     changed |= ImGui::SliderFloat("Slow (per tick)", &p.slow, 0.0f, 1.0f, "%.2f");   // 0.4 = 40% 遅く（エリート・Boss は半分）
+    changed |= ImGui::SliderFloat("Freeze (sec)", &p.freeze, 0.0f, 3.75f, "%.2f");    // 当たった敵を凍らせる（0.25 秒刻み。エリート・Boss は半分）
     changed |= ImGui::Checkbox("Camera Shake", &p.cameraShake);   // 戦闘で出た時にカメラを揺らす（爆発だけ）
+    changed |= ImGui::SliderFloat("Grass Fire (heat)", &p.heat, 0.0f, 1.5f, "%.2f");   // 草に火を付ける熱（GrassFireField。0 = 付けない）
+    if (p.kind != AreaProfile::Kind::Beam)
+    {
+        changed |= ImGui::SliderFloat("Push away (knockback)", &p.push, 0.0f, 1.0f, "%.2f");   // 突風：プレイヤーから離れる方へ（1 = 約 3.5m。エリート半分・ボス 0）
+        changed |= ImGui::DragFloat("Forward offset (m)", &p.forward, 0.05f, 0.0f, 10.0f);     // プレイヤーに出す時、標的の方へ寄せる
+    }
     if (p.stun && p.kind == AreaProfile::Kind::Lasting)
         ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "stun + short tick interval = enemies stay frozen inside");
 

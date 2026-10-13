@@ -31,6 +31,15 @@ public:
     void Initialize(std::shared_ptr<Texture> blockTex);
     void LoadIcons();                        // ItemDatabase の iconPath を読み込む
     void Layout(float screenW, float screenH);
+    // 外枠（縁の余白込み）を左上 framePos・一辺 frameExtent の正方形に収める（リザルトで見せるだけの時。2026-10-09）
+    void PlaceAt(const DirectX::SimpleMath::Vector2& framePos, float frameExtent)
+    {
+        const float denom = (float)GRID_SIZE + cellGapRatio * (float)(GRID_SIZE - 1) + framePadRatio * 2.0f;
+        m_CellSize = frameExtent / denom;
+        m_CellGap = m_CellSize * cellGapRatio;
+        m_FramePad = m_CellSize * framePadRatio;
+        m_Origin = { framePos.x + m_FramePad, framePos.y + m_FramePad };
+    }
 
     // GameUI が Initialize の直後に一度だけ呼ぶ。以後 null にはならない
     void SetDragContext(DragContext* drag) { m_Drag = drag; }

@@ -3,6 +3,7 @@
 // ============================================================
 #include "UI/GameUI.h"
 #include "UI/UIDeco.h"
+#include "UI/InputGlyph.h"
 #include "ECS/Registry.h"
 #include "ECS/System/BackpackAggregateSystem.h"
 #include "UI/LevelUpSystem.h"
@@ -184,9 +185,9 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     // グリッドの上には開ける。閉じればグリッドへ戻る
     if (InputMap::GetPauseToggle())
     {
-        if (m_Stack.Top() == UILayer::Pause && m_Pause.IsInSettings())
+        if (m_Stack.Top() == UILayer::Pause && m_Pause.IsInSubPage())
         {
-            m_Pause.CloseSettings();   // 設定のページだけ閉じてメニューへ戻る（保存もここで）
+            m_Pause.CloseSubPage();   // 設定 / 遊び方のページだけ閉じてメニューへ戻る（設定の保存もここで）
         }
         else if (m_Stack.Top() == UILayer::Training)
         {
@@ -369,7 +370,7 @@ void GameUI::Render(Registry& reg, Entity player)
     {
         const std::wstring text = m_Prompt;
         const float scale = 0.6f * UIDeco::UIScale();
-        const DirectX::SimpleMath::Vector2 size = m_Text.Measure(text, scale);
+        const DirectX::SimpleMath::Vector2 size = InputGlyph::Measure(m_Text, text, scale);   // {B} などはパッドのボタンの絵
         // 魔力解放の大きな欄（2026-10-04、下の中央）の魔法陣より上に出す（重ならないように）。
         // 欄の実際の大きさは倍率を掛けた ScaledStyle
         float y = m_ScreenH * 0.80f;
@@ -385,8 +386,8 @@ void GameUI::Render(Registry& reg, Entity player)
         if (hs.textPlates)
             UIDeco::DrawTextPlate(m_Sprite, pos, size, { hs.platePad.x * 1.6f, hs.platePad.y * 1.5f },
                 hs.plateColor, hs.plateLineAlpha);
-        m_Text.Draw(text, { pos.x + 2.0f * UIDeco::UIScale(), pos.y + 2.0f * UIDeco::UIScale() }, { 0.0f, 0.0f, 0.0f, 0.8f }, scale);
-        m_Text.Draw(text, pos, { 1.0f, 0.9f, 0.55f, 1.0f }, scale);
+        InputGlyph::DrawShadowed(m_Sprite, m_Text, text, pos, { 1.0f, 0.9f, 0.55f, 1.0f }, scale,
+            { 2.0f * UIDeco::UIScale(), 2.0f * UIDeco::UIScale() }, { 0.0f, 0.0f, 0.0f, 0.8f });
     }
 
     if (reg.IsValid(player))
@@ -482,6 +483,7 @@ void GameUI::TestShow(int layer)
     if (layer == 1) m_Stack.Push(UILayer::Backpack);
     if (layer == 2) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); }
     if (layer == 3) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenSettings(); }   // 一時停止 → 設定のページ
+    if (layer == 4) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenHowTo(); }      // 一時停止 → 遊び方のページ（2026-10-13）
 }
 
 void GameUI::TestOpenTraining(bool open)
@@ -543,8 +545,11 @@ void GameUI::DrawModals(Registry& reg, Entity player)
             {
                 m_Spellbook.Draw(m_Sprite);   // 箱が下、グリッドとドラッグ中が上
                 m_Backpack.Draw(m_Sprite, reg.Get<BackpackComponent>(player));
-                if (m_Pad.IsActive() && m_Stack.Top() == UILayer::Backpack)
-                    m_Pad.Draw(m_Sprite, m_Text, m_Backpack, m_Drag, { m_ScreenW, m_ScreenH });
+                if (m_Stack.Top() == UILayer::Backpack)
+                {
+                    if (m_Pad.IsActive()) m_Pad.Draw(m_Sprite, m_Text, m_Backpack, m_Drag, { m_ScreenW, m_ScreenH });
+                    else BackpackPadControl::DrawMouseHint(m_Sprite, m_Text, m_Backpack, m_Drag, { m_ScreenW, m_ScreenH });
+                }
             }
             break;
 

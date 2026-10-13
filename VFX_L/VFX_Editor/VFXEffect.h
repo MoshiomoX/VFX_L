@@ -66,6 +66,8 @@ public:
     void SetGPUTimelineIgnored(bool v) { m_GPUTimelineIgnored = v; }
     // 光線（Beam entry）の終点。入っていなければ entry のプレビュー方向に描く。毎フレーム入れ直す物
     void SetBeamEnd(const DirectX::SimpleMath::Vector3& p) { m_BeamEnd = p; m_HasBeamEnd = true; }
+    // 光線の太さの倍率（Beam entry の width に掛ける。拡大鏡で当たり判定が太くなった分、見た目も太くする。2026-10-13）
+    void SetBeamWidthMul(float m) { m_BeamWidthMul = m; }
     bool IsGPUTimelineIgnored() const { return m_GPUTimelineIgnored; }
 private:
     std::string m_Name = "NewEffect";
@@ -79,6 +81,7 @@ private:
     bool m_GPUTimelineIgnored = false;
     DirectX::SimpleMath::Vector3 m_BeamEnd = { 0, 0, 0 };
     bool m_HasBeamEnd = false;
+    float m_BeamWidthMul = 1.0f;
     // --- ステートマシン（追加）---
     VFXStateMachine m_SM;   
     VFXStateContext m_SMCtx;

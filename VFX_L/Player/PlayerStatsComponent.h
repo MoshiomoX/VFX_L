@@ -19,7 +19,12 @@ struct PlayerStatsComponent
     float healthRegen = 10.0f / 60.0f;   // HP/秒 の自然回復（Megabonk の基礎値 10 / 分）
 
     // --- 移動 ---
-    float moveSpeed = 5.0f;
+    float moveSpeed = 5.5f;             // 2026-10-09 5.0 → 5.5（ユーザー「基本の速さを少し上げる」）
+    // レベルで伸びる基本の速さ（2026-10-09 ユーザー指定、画面には出さない隠しの成長）：
+    // レベルが 10 の倍数に届くたび moveSpeed += speedPerTenLevels（LevelUpSystem）。何回足したかを levelSpeedSteps に覚える
+    // （次の面へ能力値ごと持ち越すので二重に足さない）
+    float speedPerTenLevels = 0.5f;
+    int   levelSpeedSteps = 0;
     float jumpPower = 8.0f;
     // 空中で追加で跳べる回数（レベルアップの「跳躍回数 +1」）。
     // 空中の n 回目は jumpPower × airJumpFalloff^n（0.75 なら 12 → 9 → 6.75 …。0.5 は弱すぎた）
@@ -32,12 +37,12 @@ struct PlayerStatsComponent
     // 跳んだら水平の勢いを持ったまま空中へ。勢い（moveSpeed を超えた分）は momentumDecay で減る
     float slideBoost = 1.6f;            // 平地で入った時の初速（moveSpeed の倍率）
     float slideBoostCooldown = 1.0f;    // 押し出しの再使用待ち 秒（連打で加速し続けない）
-    float slideFriction = 5.0f;         // 滑っている間の減速 m/s^2
+    float slideFriction = 3.0f;         // 滑っている間の減速 m/s^2（2026-10-09 ユーザー「減り方をゆっくりに」5 → 3。平地の滑り 約 1.0 秒 → 1.7 秒）
     float slideGravity = 25.0f;         // 坂の下り加速の強さ m/s^2（28 度の坂で水平 約 10）
     float slideMaxSpeed = 20.0f;        // m/s
     float slideMinSpeed = 3.0f;         // 接地中にこれを切ったら滑りをやめる m/s
     float slideTurnRate = 90.0f;        // 滑っている間に向きを変えられる速さ 度/秒
-    float momentumDecay = 6.0f;         // 滑りをやめた後の勢いの減り方（地上）m/s^2
+    float momentumDecay = 3.5f;         // 滑りをやめた後の勢いの減り方（地上）m/s^2（2026-10-09 6 → 3.5、同上）
     float momentumDecayAir = 1.5f;      // 同（空中）
     float momentumTurnRate = 360.0f;    // 勢いが残っている間の向きの変え方 度/秒
     float faceTurnRate = 720.0f;        // 体を進む方向へ向ける速さ 度/秒（後ろへ走り出すと 0.25 秒で振り向く）

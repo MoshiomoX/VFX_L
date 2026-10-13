@@ -120,6 +120,9 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     // 敵の状態（float4 = 毒の池の減速の残り秒・強さ + 凍結の残り秒・長さ / 再凍結までの秒。2026-10-08 に float2 から）。これも本体の横に持つ
     if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
         m_EnemySlowBuffer, m_EnemySlowUAV, m_EnemySlowSRV, "enemySlow")) return false;
+    // 吹き飛ばし（突風。float4 = 速度 xz・残り秒。2026-10-12）
+    if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
+        m_EnemyPushBuffer, m_EnemyPushUAV, m_EnemyPushSRV, "enemyPush")) return false;
 
     if (!makeStructured(sizeof(Swarm::Projectile), Swarm::kMaxProjectiles,
         m_ProjBuffer, m_ProjUAV, m_ProjSRV, "projectile")) return false;
@@ -469,6 +472,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_EnemyMaxHpUAV.Get(), zero);   // 0 = VS 側で 1 扱い
         m_Context->ClearUnorderedAccessViewUint(m_EnemyExtraUAV.Get(), zero);   // 雑魚・未点火
         m_Context->ClearUnorderedAccessViewUint(m_EnemySlowUAV.Get(), zero);    // 減速なし（0.0f）
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyPushUAV.Get(), zero);    // 吹き飛ばしなし
         m_Context->ClearUnorderedAccessViewUint(m_SpriteUAV.Get(), zero);       // alive = 0
         m_Context->ClearUnorderedAccessViewUint(m_SpriteHeadUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevAliveUAV.Get(), zero);   // 全員「前は死んでいた」
@@ -1170,6 +1174,7 @@ void SwarmSystem::UploadSpawns()
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyMaxHp", m_EnemyMaxHpUAV.Get());   // HP バーの分母
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());   // 種類・導火線
             m_SpawnEnemyCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());     // 新しい敵は減速なし
+            m_SpawnEnemyCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());     // 吹き飛ばしもなし
             m_SpawnEnemyCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((newCount + 63) / 64, 1, 1);
@@ -1199,6 +1204,7 @@ void SwarmSystem::UploadSpawns()
             m_RecycleCS->SetUAV(m_Context, "enemyMaxHp", m_EnemyMaxHpUAV.Get());     // 上書きした分の分母も差し替える
             m_RecycleCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());     // 種類も差し替え、導火線は消える
             m_RecycleCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());       // 減速も消える
+            m_RecycleCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());
             m_RecycleCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1294,6 +1300,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyMoveCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 種類（幽霊は壁を素通り）
         m_EnemyMoveCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_EnemyMoveCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());   // 突風の吹き飛ばし（積分に足して減らす。AI の速度の平滑化を通さない）
         m_EnemyMoveCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1428,6 +1435,7 @@ void SwarmSystem::DispatchStep()
         m_AreaDamageCS->SetUAV(m_Context, "orbs", m_OrbUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "orbStates", m_OrbStateUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 減速の範囲が tick したら書く
+        m_AreaDamageCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());   // 吹き飛ばす範囲（突風）が tick したら書く
         m_AreaDamageCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
         m_AreaDamageCS->UnbindSRVs(m_Context);
@@ -1559,6 +1567,9 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
         m_AreaEmitCS->UnbindSRVs(m_Context);
         m_AreaEmitCS->UnbindUAVs(m_Context);
     }
+
+    // ---- 燃えている草（GrassFireField）。予約は上に続けて積む ----
+    DispatchFireEmit(dt, totalTime);
 
     // ---- 吸い寄せ中の経験値オーブの尾 ----
     // 弾・範囲の後に回す：空きが足りない時に削られるのは見た目だけのこちら
@@ -2670,6 +2681,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     ok &= load(m_AreaTickCS, L"Shader/Swarm/SwarmAreaTickCS.hlsl", "AreaTickCS");
     ok &= load(m_AreaDamageCS, L"Shader/Swarm/SwarmAreaDamageCS.hlsl", "AreaDamageCS");
     ok &= load(m_AreaEmitCS, L"Shader/Swarm/SwarmAreaEmitCS.hlsl", "AreaEmitCS");
+    load(m_FireEmitCS, L"Shader/Grass/GrassFireEmitCS.hlsl", "GrassFireEmitCS");   // 無くても草の火の粒子が出ないだけ
     load(m_OrbEmitCS, L"Shader/Swarm/SwarmOrbEmitCS.hlsl", "OrbEmitCS");   // 無くてもオーブの尾が出ないだけ
     load(m_SpriteCS, L"Shader/Swarm/SwarmSpriteCS.hlsl", "SpriteCS");   // 無くても連番画像が出ないだけ
     load(m_LiquidTrackCS, L"Shader/Swarm/SwarmLiquidTrackCS.hlsl", "LiquidTrackCS");   // 無くても液溜まりが出ないだけ

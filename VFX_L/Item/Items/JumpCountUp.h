@@ -18,7 +18,7 @@ inline StatItemDef MakeJumpCountUp()
     def.common.id = ItemID::JumpCountUp;
     def.common.name = "Extra Jump +1";
     def.common.displayName = L"ジャンプ回数 +1";
-    def.common.description = L"空中でもう一度ジャンプできる。空中ジャンプは回数を重ねるごとに少しずつ弱くなる。";
+    def.common.description = L"空中でもう一度ジャンプできる。";
     def.common.category = ItemCategory::Stat;
     def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};

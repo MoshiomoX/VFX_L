@@ -96,6 +96,9 @@ public:
     int  meshSlot = 0;                // 実行時：GPUParticleSystem のモデル表の番号（登録は entry 側。0 = 立方体）
     // 発射元（GPU の弾など）の速度を初速に足す。弾と一緒に飛ぶ見た目用（GPU の弾の上でだけ効く）。json "inheritVelocity"
     bool inheritVelocity = false;
+    // 世界の風の受けやすさ 0〜1（2026-10-12）。1 = 水平速度が約 0.3 秒で風速に揃う（煙・霧・雨）。0 = 受けない（火花・光）。
+    // ToGPU が renderMode の bits 26-29 へ詰める（ParticleRenderMode::PackWind）。json "wind"
+    float windResponse = 0.0f;
 
     // --- テクスチャ（ビルボードだけ）---
     // textureIndex = ParticleSheets の番号。0 番（旧 6x6）は下の行列を使い、

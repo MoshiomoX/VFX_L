@@ -8,6 +8,9 @@
 
 using DirectX::SimpleMath::Vector2;
 
+// 最後に触った機器（UI の操作案内をキーボードの絵 / パッドの絵で出し分ける）
+enum class InputDevice { KeyboardMouse, Pad };
+
 class InputManager
 {
 public:
@@ -75,6 +78,17 @@ public:
     void SetVibration(float leftMotor, float rightMotor, float duration);
     void StopVibration();
 
+    // ====== 最後に触った機器（2026-10-09）======
+    // パッドのボタンを押した / スティック・トリガーを倒した瞬間 → Pad。
+    // キー・マウスボタンを押した / マウスを動かした / ホイール → KeyboardMouse。
+    // パッドを挿した瞬間は Pad、抜いたら KeyboardMouse。起動時は KeyboardMouse（パッドが挿さっていれば最初の Update で Pad）
+    InputDevice GetLastDevice() const { return m_LastDevice; }
+    bool IsUsingPad() const { return m_LastDevice == InputDevice::Pad; }
+
+    // TEMP-TEST: 機器を固定する（自動テストの撮影用。VFXL_INPUT_DEVICE=pad|kbd でも起動時に固定）
+    void DebugLockDevice(InputDevice d) { m_LastDevice = d; m_DeviceLocked = true; }
+    void DebugUnlockDevice() { m_DeviceLocked = false; }
+
 private:
     InputManager() = default;
     ~InputManager() = default;
@@ -123,4 +137,11 @@ private:
     // 振動管理
     float m_VibrationTimer = 0.0f;
     bool  m_Vibrating = false;
+
+    // 最後に触った機器
+    void UpdateLastDevice(bool active, float rawMove);
+    InputDevice m_LastDevice = InputDevice::KeyboardMouse;
+    bool m_PadWasConnected = false;
+    bool m_DeviceLocked = false;   // TEMP-TEST
+    int  m_CaptureSettle = 0;      // 捕獲の出入りの後、カーソルの移動量を見ないフレーム数（閉じ込めでカーソルが跳ぶ）
 };

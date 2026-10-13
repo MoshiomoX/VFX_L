@@ -18,7 +18,9 @@ enum class ItemID
     StoneShot,        // 石弾：山なりに飛ぶ重い岩（StoneShot プロファイル）。火球と組むとメテオを誘発する基本魔法
     Poison,           // 毒：一番近い敵の足元へ山なりに投げ、減速 + 持続ダメージの池を残す基本魔法（Poison プロファイル、Lob 型。2026-10-01）
     IceLance,         // アイスランス：まっすぐ飛ぶ氷の槍。当たった 1 体を凍らせる基本魔法（IceLance プロファイル、直進。2026-10-08）
+    IceSpike,         // アイススパイク：上級魔法（2026-10-10）。アイスランスとストーンショットの両方に隣り合うと目覚め、弾が消えた所から前へ氷のトゲを突き出して凍らせる（IceSpike プロファイル、Drop 型）
     Beam,             // 魔導光線：上級の範囲魔法（2026-09-30）。追尾弾と弧の両方に隣り合うと目覚め、どちらかの弾が消えた方向へ手から光線を撃つ（Beam プロファイル、カプセル型）
+    Gust,             // 突風：基本の範囲魔法（2026-10-12）。プレイヤーの周りの敵を吹き飛ばす + 少しのダメージ（Gust プロファイル、push）
 
     // --- 修飾ルーン（隣接する出力源を強化。リストには入らない）---
     SplitRune,        // 分裂：一度の発射数 +1、ダメージ分散
@@ -52,5 +54,5 @@ inline bool IsSpellSource(ItemID id)
     return id == ItemID::Fireball || id == ItemID::Lightning
         || id == ItemID::ArcBolt || id == ItemID::HomingBolt || id == ItemID::Meteor
         || id == ItemID::GoldenArrow || id == ItemID::StoneShot || id == ItemID::Poison
-        || id == ItemID::IceLance;
+        || id == ItemID::IceLance || id == ItemID::IceSpike;
 }

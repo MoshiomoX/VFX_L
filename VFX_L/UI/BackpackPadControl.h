@@ -46,6 +46,10 @@ public:
     void Draw(SpriteRenderer& sprite, TextRenderer& text, const BackpackUI& grid, const DragContext& drag,
         const DirectX::SimpleMath::Vector2& screen) const;
 
+    // マウスで操作している間の案内（パッドの案内と同じ場所）
+    static void DrawMouseHint(SpriteRenderer& sprite, TextRenderer& text, const BackpackUI& grid, const DragContext& drag,
+        const DirectX::SimpleMath::Vector2& screen);
+
     // 説明カード：カーソルを止めて少し経ったら出す。出す位置は指している物のそば
     bool TooltipReady() const { return m_Rest >= tooltipDelay; }
     DirectX::SimpleMath::Vector2 TooltipAnchor() const { return m_TooltipAnchor; }
@@ -62,7 +66,7 @@ public:
 
     // TEMP-TEST: 自動テスト（VFXL_BATTLE_AUTOTEST=padbag）。次の Update 1 回分の入力をパッドの代わりに入れる
     enum TestButton : unsigned { kA = 1, kB = 2, kX = 4, kY = 8, kLB = 16, kRB = 32 };
-    void TestPress(int dx, int dy, unsigned buttons) { m_Test = { dx, dy, buttons }; m_HasTest = true; }
+    void TestPress(int dx, int dy, unsigned buttons) { m_Test = { dx, dy, buttons }; m_HasTest = true; m_TestMode = true; }
 
 private:
     struct Input { int dx = 0, dy = 0; unsigned buttons = 0; };
@@ -71,6 +75,7 @@ private:
     bool UpdateGrid(const Input& in, BackpackComponent& bp, BackpackUI& grid, DragContext& drag);
     bool UpdateBook(const Input& in, BackpackComponent& bp, BackpackUI& grid, SpellbookUI& book, DragContext& drag);
     uint32_t PickBookNeighbor(const SpellbookUI& book, int dx, int dy) const;
+    static void DrawHintBar(SpriteRenderer& sprite, TextRenderer& text, const BackpackUI& grid, const wchar_t* hint, float k);
 
     bool  m_Active = false;
     Focus m_Focus = Focus::Grid;
@@ -85,4 +90,5 @@ private:
 
     Input m_Test;
     bool  m_HasTest = false;
+    bool  m_TestMode = false;   // TEMP-TEST: 一度 TestPress したら、その後もパッド扱い（押していないフレームにマウス扱いへ戻らない）
 };

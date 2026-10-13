@@ -66,8 +66,13 @@ protected:
     StressTestTools&          m_Stress;
     StaticPropRenderer&       m_StaticProps;
     GrassRenderer&            m_Grass;
+    GrassFireField&           m_GrassFire;     // 草の延焼（2026-10-12）
+    GroundDebris&             m_Debris;        // 地面の落ち葉（2026-10-13）
     WeatherSystem&            m_Weather;       // 時刻と天候の出来事
+    PlayerVFXSystem&          m_PlayerVFX;     // プレイヤーの動きのエフェクト（2026-10-09）
+    SpellFxSystem&            m_SpellFx;       // 魔法の CPU 側の見た目（アイススパイクのトゲ。2026-10-10）
     GameUI&                   m_GameUI;
+    TutorialGuide&            m_Tutorial;      // 初回のチュートリアル（2026-10-13）
     SpellLab&                 m_SpellLab;      // 実験場（トレーニング）
     TerrainGenerator::Config& m_TerrainConfig;
     TerrainGenerator::Layout& m_TerrainLayout;

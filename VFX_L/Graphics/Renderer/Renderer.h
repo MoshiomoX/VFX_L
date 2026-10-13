@@ -42,7 +42,8 @@ struct DissolveCB
     Vector2 scroll;
     float   threshold;
     float   edge;
-    float   _pad[2];
+    float   hitFlash;   // 0〜1。溶解が切れている時、色を edgeColor.rgb へ寄せる（プレイヤーの被弾の閃き。2026-10-09）
+    float   _pad;
     Vector4 edgeColor;
 };
 static_assert(sizeof(DissolveCB) == 48, "DissolveCB layout mismatch");

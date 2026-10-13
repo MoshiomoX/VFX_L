@@ -18,7 +18,7 @@ inline StatItemDef MakeMoveSpeedUp()
     def.common.id = ItemID::MoveSpeedUp;
     def.common.name = "Move Speed +8%";
     def.common.displayName = L"移動速度 +8%";
-    def.common.description = L"移動速度を上げる。スライディングの初速も同じだけ上がる。";
+    def.common.description = L"移動が速くなる。スライディングの初速も上がる。";
     def.common.category = ItemCategory::Stat;
     def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};

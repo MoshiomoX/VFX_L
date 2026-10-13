@@ -18,7 +18,7 @@ inline StatItemDef MakeJumpPowerUp()
     def.common.id = ItemID::JumpPowerUp;
     def.common.name = "Jump Power +8%";
     def.common.displayName = L"ジャンプ力 +8%";
-    def.common.description = L"ジャンプの勢いを上げる。より高く、より遠くへ跳べる。";
+    def.common.description = L"ジャンプが強くなり、より高く遠くへ跳べる。";
     def.common.category = ItemCategory::Stat;
     def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};

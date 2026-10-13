@@ -3,7 +3,7 @@
         {
             "data": {
                 "angularVelRange": [-1.0, 1.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 52,
-                "sheet": 2, "frameMode": 3, "frameCount": 25, "blend": 1, "toon": { "cut": 0.30, "bands": 2, "shade": 0.70, "outline": true },
+                "sheet": 2, "frameMode": 3, "frameCount": 25, "blend": 1, "toon": { "cut": 0.30, "bands": 2, "shade": 0.70, "outline": true }, "wind": 0.6,
                 "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 3.0,
                 "emitRate": 160.0, "emitType": 1,
                 "endColorMax": [0.70, 0.62, 0.50, 0.0], "endColorMin": [0.64, 0.57, 0.46, 0.0],

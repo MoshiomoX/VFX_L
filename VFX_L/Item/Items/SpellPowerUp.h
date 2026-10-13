@@ -19,7 +19,7 @@ inline StatItemDef MakeSpellPowerUp()
     def.common.id = ItemID::SpellPowerUp;
     def.common.name = "Spell Power +10%";
     def.common.displayName = L"魔法威力 +10%";
-    def.common.description = L"すべての攻撃魔法の威力を上げる。爆発や毒沼、光線にも効果がある。";
+    def.common.description = L"すべての攻撃魔法の威力が上がる。爆発や毒沼にも効く。";
     def.common.category = ItemCategory::Stat;
     def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};

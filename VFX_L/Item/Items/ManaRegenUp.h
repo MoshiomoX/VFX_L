@@ -17,7 +17,7 @@ inline StatItemDef MakeManaRegenUp()
     def.common.id = ItemID::ManaRegenUp;
     def.common.name = "Mana Regen +20%";
     def.common.displayName = L"MP回復 +20%";
-    def.common.description = L"MP の回復を早める。消費の多い構成でも撃ち続けられる。";
+    def.common.description = L"MP の回復が早くなり、魔法を撃ち続けやすくなる。";
     def.common.category = ItemCategory::Stat;
     def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};

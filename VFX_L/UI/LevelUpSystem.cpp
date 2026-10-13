@@ -37,6 +37,24 @@ void LevelUpSystem::Update(Registry& reg)
 }
 
 // ============================================================
+// レベルで伸びる基本の速さ（2026-10-09 ユーザー指定。画面には出さない）：
+// レベルが 10 の倍数に届くたび PlayerStatsComponent::moveSpeed を speedPerTenLevels 足す。
+// 足した回数は levelSpeedSteps に覚える（次の面へ能力値ごと持ち越すので二重に足さない）
+// ============================================================
+static void ApplyLevelSpeed(Registry& reg, Entity player)
+{
+    if (!reg.Has<PlayerStatsComponent>(player) || !reg.Has<LevelComponent>(player)) return;
+    auto& st = reg.Get<PlayerStatsComponent>(player);
+    const int steps = reg.Get<LevelComponent>(player).level / 10;
+    while (st.levelSpeedSteps < steps)
+    {
+        st.moveSpeed += st.speedPerTenLevels;
+        ++st.levelSpeedSteps;
+        std::cout << "[LevelUp] base speed +" << st.speedPerTenLevels << " -> " << st.moveSpeed << std::endl;
+    }
+}
+
+// ============================================================
 // 候補の抽選
 //
 // 池は登録済みの全 ID。習得済みでも候補に入る。
@@ -55,6 +73,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
         // 候補が1つも無いなら、レベルだけ上げて先へ進める。
         // ここで止まると経験値が溜まり続けて動かなくなる。
         lv.ConsumeLevelUp();
+        ApplyLevelSpeed(reg, player);
         ++m_TotalLevelUps;
         std::cout << "[LevelUp] no candidate available" << std::endl;
         return;
@@ -64,6 +83,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
     // 選び終わってから上げる方式にすると、
     // 選択中に経験値が入った場合の扱いが面倒になる。
     lv.ConsumeLevelUp();
+    ApplyLevelSpeed(reg, player);
     ++m_TotalLevelUps;
 
     std::cout << "[LevelUp] level " << lv.level

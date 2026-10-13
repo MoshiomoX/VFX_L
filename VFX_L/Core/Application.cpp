@@ -8,6 +8,8 @@
 #include "Audio/AudioSystem.h"
 #include "Core/GameSettings.h"
 #include "UI/UIDeco.h"
+#include "Graphics/PostProcess/SceneSnapshot.h"
+#include "UI/InputGlyph.h"
 
 
 Application* Application::s_Instance = nullptr;
@@ -115,6 +117,8 @@ void Application::Run()
 
 void Application::Shutdown()
 {
+    SceneSnapshot::Get().Shutdown();   // リザルトの背景の写真（シーンをまたいで持つ。デバイスより先に放す）
+    InputGlyph::Shutdown();            // パッドのボタンの絵（同上）
     AudioSystem::Get().Shutdown();
     FrameProfiler::Get().ShutdownGpu();
     DebugManager::Get().Shutdown();

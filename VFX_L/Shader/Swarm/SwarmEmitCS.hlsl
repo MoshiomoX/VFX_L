@@ -11,13 +11,8 @@
 // the free count. The reservation keeps the consume counter from
 // underflowing when many threads race.
 // ============================================================
-#include "../Particle/Common/ParticleCommon.hlsli"
-#include "../Particle/Common/EmitPoint.hlsli"
-#include "../Particle/Common/EmitSphere.hlsli"
-#include "../Particle/Common/EmitCone.hlsli"
-#include "../Particle/Common/EmitBox.hlsli"
-#include "../Particle/Common/EmitRing.hlsli"
-#include "../Particle/Common/EmitDisc.hlsli"
+// particle init / shapes / StochasticCount are shared with GrassFireEmitCS (EmitInit.hlsli)
+#include "../Particle/Common/EmitInit.hlsli"
 
 // ParticleCommon owns b0 (GlobalCB) and b1 (DeadListCB); ours goes to b2
 #define SWARM_FRAME_CB_REG b2
@@ -53,15 +48,6 @@ RWStructuredBuffer<GPUParticle> particles : register(u0);
 ConsumeStructuredBuffer<uint> deadList : register(u1);
 RWByteAddressBuffer emitBudget : register(u2);
 
-// emit count from a continuous rate without drift
-uint StochasticCount(float rate, float dt, inout uint seed)
-{
-    float f = rate * dt;
-    uint k = (uint) floor(f);
-    if (Random(seed) < frac(f))
-        k += 1u; // ← RandomFloat(seed) から修正
-    return k;
-}
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -142,30 +128,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
             float3 pos = e.position;
             float3 vel = float3(0, 0, 0);
-
-            switch (e.emitType)
-            {
-                case 0:
-                    EmitPoint(e, s, pos, vel);
-                    break;
-                case 1:
-                    EmitSphere(e, s, pos, vel);
-                    break;
-                case 2:
-                    EmitCone(e, s, pos, vel);
-                    break;
-                case 3:
-                    EmitBox(e, s, pos, vel);
-                    break;
-                case 4:
-                    EmitRing(e, s, pos, vel);
-                    break;
-                case 5:
-                    EmitDisc(e, s, pos, vel);
-                    break;
-                default:
-                    break; // mesh emit not supported on this path
-            }
+            EmitShape(e, s, pos, vel);
 
             // sweep emit: the projectile moved about velocity * dt since the
             // last emit, so scatter back along that segment. Without this a
@@ -178,43 +141,8 @@ void main(uint3 id : SV_DispatchThreadID)
             if ((((uint) e.renderMode) & PARTICLE_INHERIT_SOURCE_VELOCITY) != 0u)
                 vel += srcVel;
 
-            // ---- particle init: identical to ParticleEmitCS ----
-            GPUParticle q = (GPUParticle) 0;
-            q.position = pos;
-            q.velocity = vel;
-            q.acceleration = e.gravity;
-            q.drag = e.dragCoeff;
-            q.lifetime = RandomRange(s, e.lifetimeRange.x, e.lifetimeRange.y);
-            q.age = 0.0;
-            q.isAlive = 1.0;
-            q.startColor = RandomColor(s, e.startColorMin, e.startColorMax);
-            q.endColor = RandomColor(s, e.endColorMin, e.endColorMax);
-            q.color = q.startColor;
-            q.startSize = RandomRange(s, e.sizeRange.x, e.sizeRange.y);
-            q.endSize = RandomRange(s, e.sizeRange.z, e.sizeRange.w);
-            q.size = q.startSize;
-            q.rotation = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
-            q.angularVel = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
-
-            // cube: 3 axes share the same ranges (same as ParticleEmitCS)
-            q.renderMode = e.renderMode;
-            q.rot3.x = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
-            q.rot3.y = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
-            q.rot3.z = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
-            q.angVel3.x = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
-            q.angVel3.y = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
-            q.angVel3.z = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
-            q.seed = s;
-            q.textureIndex = e.textureIndex;
-            q.atlasRows = e.atlasRows;
-            q.atlasCols = e.atlasCols;
-            InitParticleFrame(e.frameMode, e.atlasIndex, e.frameCount,
-                              e.atlasRows, e.atlasCols, s, q.uvFrame, q.atlasAnimate);
-            q.colorKeyOffset = e.colorKeyoffset; // static region, offset 0-based
-            q.colorKeyCount = e.colorKeyCount;
-            q.ownerID = 0; // unowned (projectile VFX)
-
-            particles[particleIndex] = q;
+            // ---- particle init: identical to ParticleEmitCS (EmitInit.hlsli) ----
+            particles[particleIndex] = InitParticleFromEmitter(e, s, pos, vel);
         }
     }
 }

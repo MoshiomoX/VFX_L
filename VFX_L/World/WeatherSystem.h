@@ -9,14 +9,16 @@
 //   ・見やすさ：夜・雨の間は経験球と雑魚の体力バーを少し明るくする（ユーザー要望）
 // 照明は毎フレーム SceneLighting::ApplyPreset で上書きする（Lighting パネルの手調整は効かなくなる。driveLighting で切れる）
 // ============================================================
+//   ・風（2026-10-12）：世界の風 WindState を作る。面の基本の風 + 出来事で強く（雨 ×2.4、砂嵐 ×3.2）+ 向きがゆっくり揺れる。
+//     草・マント・粒子はシーン経由でこれを読む（以前は草の設定を直接書き換えていた）
 #pragma once
 #include "Graphics/Light/SceneLighting.h"
+#include "World/WindState.h"
 #include <SimpleMath.h>
 #include <string>
 
 struct StageDef;
 class AreaVFXPlayer;
-class GrassRenderer;
 class SwarmSystem;
 struct VFXContext;
 
@@ -28,7 +30,7 @@ public:
     enum class Kind { None = 0, Rain, Sandstorm, Storm };   // Storm = 濃霧 + 雷（雨なし。遺跡）
 
     void Init(const StageDef& stage, float stageTime, SceneLighting& lighting, AreaVFXPlayer& vfx, const VFXContext* ctx,
-        GrassRenderer* grass, SwarmSystem* swarm);
+        SwarmSystem* swarm);
     void Shutdown();
     // runTime = 遊んでいる時間（止まっている間は進まない）。dt = 実時間（粒子・フェードは止まっている間も動く）
     void Update(float dt, float runTime, const Vector3& camPos, const Vector3& camForward);
@@ -38,6 +40,9 @@ public:
     float Night() const { return m_Night; }
     Kind  CurrentKind() const { return m_Kind; }
     bool  Active() const { return m_State != State::Idle; }
+    // 今フレームの世界の風（Update の後に読む）。雨の強さ（0〜1、雨の面だけ）は草の火を消す側が見る
+    const WindState& Wind() const { return m_Wind; }
+    float RainIntensity() const { return m_Kind == Kind::Rain ? m_Intensity : 0.0f; }
 
     void TriggerNow(float duration = -1.0f);   // 出来事を今始める（パネル・自動テスト）
     void StopNow();
@@ -55,6 +60,12 @@ public:
     float readabilityBoost = 0.6f;            // 夜・天候の最大時に経験球・体力バーを明るくする割合
     float lightningMin = 6.0f, lightningMax = 16.0f;   // 雷の間隔（秒。Storm と雨の強い時）
     float timeOverride = -1.0f;               // >= 0 なら時刻をこの割合（0 昼 〜 1 夕 〜 1.1 夜）に固定（パネル・自動テスト）
+    // 風（WindState の元）。出来事の間は strength が 1 + windEventMul × 強さ になる
+    float windYawDeg = 30.0f;                 // 普段の向き（吹いていく方）
+    float windSpeed = 1.2f, windGust = 0.8f;  // m/s
+    float windDriftDeg = 15.0f;               // 向きの揺れの幅（±）
+    float windDriftPeriod = 75.0f;            // 向きが一往復する秒数
+    float windRainMul = 1.4f, windSandMul = 2.2f, windStormMul = 1.0f;   // 出来事の最大時に足す倍率（草の以前の値）
 
 private:
     enum class State { Idle, FadeIn, Active, FadeOut };
@@ -75,8 +86,8 @@ private:
     SceneLighting* m_Lighting = nullptr;
     AreaVFXPlayer* m_Vfx = nullptr;
     const VFXContext* m_Ctx = nullptr;
-    GrassRenderer* m_Grass = nullptr;
     SwarmSystem*   m_Swarm = nullptr;
+    WindState      m_Wind;
 
     State m_State = State::Idle;
     float m_Intensity = 0.0f;       // 0〜1（フェード込み）
@@ -90,8 +101,6 @@ private:
     uint32_t m_VfxHandle = 0;       // 雨 / 砂嵐の粒子（カメラに付いて回る）
     float m_FlashLeft = 0.0f;       // 雷の白（秒）
     float m_NextLightning = 0.0f;
-    float m_WindYawDeg = 30.0f;
-    float m_BaseGrassWind = 0.35f, m_BaseGrassSpeed = 1.6f;
     float m_BaseOrbEmissive = 1.6f;
     DirectX::SimpleMath::Vector4 m_BaseHpFill = { 0.85f, 0.20f, 0.20f, 1.0f };
     std::string m_AmbientFile;

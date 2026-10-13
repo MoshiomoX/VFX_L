@@ -189,7 +189,7 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         }
         else if (entry->GetType() == EntryType::Beam && ctx.beamRenderer)
         {
-            static_cast<VFXBeamEntry*>(entry.get())->Submit(*ctx.beamRenderer, m_WorldOffset, m_BeamEnd, m_HasBeamEnd);
+            static_cast<VFXBeamEntry*>(entry.get())->Submit(*ctx.beamRenderer, m_WorldOffset, m_BeamEnd, m_HasBeamEnd, m_BeamWidthMul);
         }
         else if (entry->GetType() == EntryType::Liquid && ctx.liquidRenderer)
         {
@@ -457,6 +457,13 @@ void VFXEffect::RotateYaw(float degrees)
         {
             auto* l = static_cast<VFXPointLightEntry*>(entry.get());
             l->offset = DirectX::SimpleMath::Vector3::Transform(l->offset, rot);
+        }
+        else if (entry->GetType() == EntryType::Mesh)
+        {
+            // Mesh entry も回す（突風の前へ吹く渦、2026-10-13）。位置を回し、yaw を足す
+            auto* m = static_cast<VFXMeshEntry*>(entry.get());
+            m->offset = DirectX::SimpleMath::Vector3::Transform(m->offset, rot);
+            m->rotationDeg.y += degrees;
         }
     }
 }

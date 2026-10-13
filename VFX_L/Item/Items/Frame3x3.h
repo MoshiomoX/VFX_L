@@ -21,7 +21,7 @@ inline FrameItemDef MakeFrame3x3()
     def.common.id = ItemID::Frame3x3;
     def.common.name = "Frame 3x3";
     def.common.displayName = L"拡張枠 3x3";
-    def.common.description = L"魔法を置ける場所を 3x3 マス広げる。魔法は枠の上にしか置けない。";
+    def.common.description = L"バックパックの魔法を置ける場所を 3x3 マス広げる。";
     def.common.category = ItemCategory::Frame;
     def.common.occupyCells = ItemShape::Rect(3, 3);
     def.common.influenceCells = {};                        // 枠は何にも影響しない

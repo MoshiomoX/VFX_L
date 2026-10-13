@@ -16,14 +16,14 @@ using DirectX::SimpleMath::Vector3;
 
 namespace
 {
-    constexpr const char* kLevelUp = "LevelUp.json";
-    constexpr const char* kCrateOpen = "CrateOpen.json";
-    constexpr const char* kHurt = "Hurt.json";
-    constexpr const char* kExpPickup = "ExpPickup.json";
-    constexpr const char* kSurgeBurst = "ManaSurgeBurst.json";
-    constexpr const char* kSurgeAura = "ManaSurgeAura.json";
-    constexpr const char* kShieldHit = "ShieldHit.json";
-    constexpr const char* kShieldBreak = "ShieldBreak.json";
+    constexpr VFXId kLevelUp = VFXId::LevelUp;
+    constexpr VFXId kCrateOpen = VFXId::CrateOpen;
+    constexpr VFXId kHurt = VFXId::Hurt;
+    constexpr VFXId kExpPickup = VFXId::ExpPickup;
+    constexpr VFXId kSurgeBurst = VFXId::ManaSurgeBurst;
+    constexpr VFXId kSurgeAura = VFXId::ManaSurgeAura;
+    constexpr VFXId kShieldHit = VFXId::ShieldHit;
+    constexpr VFXId kShieldBreak = VFXId::ShieldBreak;
     constexpr float kLevelUpTime = 1.0f;
     constexpr float kCrateOpenTime = 1.8f;
     constexpr float kHurtTime = 0.5f;
@@ -45,9 +45,10 @@ void FeedbackVFXSystem::Init(AreaVFXPlayer* player, const VFXContext* ctx)
     m_ShieldRead = false;
 }
 
-uint32_t FeedbackVFXSystem::Play(const char* file, const Vector3& pos, float duration, bool follow)
+uint32_t FeedbackVFXSystem::Play(VFXId id, const Vector3& pos, float duration, bool follow)
 {
     if (!m_Player || !m_Ctx) return 0;
+    const char* file = VFXDatabase::GetFile(id);   // エフェクトのデータベース（VFXId.h）から
     const uint32_t handle = m_Player->Play(file, pos, duration, follow, *m_Ctx);
     if (onPlayed) onPlayed(file);
     return handle;

@@ -204,9 +204,8 @@ void SkinnedModelGPU::SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, i
 // ============================================================
 void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model,
     const LightBuffer& light,
-    const Matrix& world, const Matrix& view, const Matrix& proj)
+    const Matrix& world, const Matrix& view, const Matrix& proj, float hitFlash, const Vector3& flashColor)
 {
-  
     if (!ctx) return;
 
     // ModelCommon.hlsli の MVPBuffer と同じ並び
@@ -217,6 +216,8 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model
     LightBuffer lightCopy = light;
     DissolveCB dissolveOff = {};
     dissolveOff.threshold = -1.0f;
+    dissolveOff.hitFlash = hitFlash;   // 被弾の閃き（溶解は切れているので edgeColor は閃きの色に使う）
+    dissolveOff.edgeColor = Vector4(flashColor.x, flashColor.y, flashColor.z, 1.0f);
     PointLightManager::Get().BindPS(ctx);   // t6/t7
 
     ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

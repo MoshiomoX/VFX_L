@@ -14,10 +14,13 @@
 //   動き: 風（風向きに流れる波 + 小さな揺れ）+ 踏み跡。踏み跡はフィールド全体を覆うテクスチャ（GrassTrampleCS）。
 //         毎フレーム古い値を減衰させ、プレイヤーの足元の円（滑り中は大きい）で外向きに押す。
 //         一時停止中は Update が呼ばれないので、風も踏み跡の回復も止まる。
+//         風の向き・速さ・波は世界の風 WindState（WeatherSystem が作る。2026-10-12）。ここにあるのは「葉がどれだけ曲がるか」だけ
+//   燃え跡（2026-10-12、GrassFireField）: 温度・燃料のテクスチャを SetFire で受け取り、葉が燃料の減りで黒く短くなり、
+//         熱い所の先が橙に光る。渡されなければ以前のまま
 //
 // 使い方（シーン）:
 //   Initialize → 地形生成の後 Build(grid, grassMask, seed)（作り直しの度にも）
-//   UpdateGameplay で Update(dt, プレイヤーの位置, 接地, 滑り中)
+//   UpdateGameplay で Update(dt, プレイヤーの位置, 接地, 滑り中)、SetWind(世界の風)
 //   不透明物（地形・置物）の後に Render
 // ============================================================
 #pragma once
@@ -25,6 +28,7 @@
 #include <wrl/client.h>
 #include <SimpleMath.h>
 #include "World/TerrainGenerator.h"
+#include "World/WindState.h"
 #include <memory>
 #include <vector>
 #include <cstdint>
@@ -55,16 +59,21 @@ public:
         float maxSlope = 1.0f;              // これより急な地面（高さ / 水平）には生やさない（45 度）
         DirectX::SimpleMath::Vector3 rootColor = { 0.55f, 0.60f, 0.50f };   // 地面の色に掛ける（根元）
         DirectX::SimpleMath::Vector3 tipColor = { 1.25f, 1.20f, 0.85f };    // （先）
-        // 風
-        float windStrength = 0.35f;         // 強い突風の時の先のずれ / 高さ
-        float windSpeed = 1.6f;             // 波の速さ（rad/s）
-        float windScale = 0.06f;            // 波の細かさ（1m あたりの波の数）
-        float windYawDeg = 30.0f;           // 風が吹いていく向き（xz、度）
+        // 風：世界の風の強さ 1 の時、強い突風での先のずれ / 高さ（向き・速さ・波は WindState）
+        float windStrength = 0.35f;
+        // 燃え跡（GrassFireField の温度 / 燃料から）
+        float fireShrink = 0.65f;           // 燃料が尽きた所の葉の縮み（高さ × (1 - これ)）
+        float fireGlow = 2.0f;              // 熱い所の先の橙の明るさ（HDR）
         // 踏み跡
         float trampleRadius = 0.7f;         // 歩いている時の足元の円 m
         float trampleSlideRadius = 1.1f;    // 滑り中
         float trampleRecover = 2.5f;        // 起き上がる速さ（秒。減衰の時定数）
         float trampleBend = 0.9f;           // 踏まれた所の先のずれ / 高さ
+        // GPU の群れからの押し倒し（2026-10-13、ユーザー：「全部の特効の環境への干渉を強く」）
+        float blastTrample = 1.3f;          // 揺れる範囲（爆発）の半径 × これ の円を外向きに倒す（0 = しない）
+        float beamTrample = 2.0f;           // 光線のカプセルの半径 × これ の帯を横へ倒す（0 = しない）
+        float enemyTrample = 0.65f;         // 雑魚の足元の押し倒しの強さ（0 = しない。プレイヤーは 1）
+        float enemyRadius = 0.45f;          // 雑魚の足元の円 m（エリート 2.2 倍・ボス 3 倍・重装 1.3 倍）
     };
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
@@ -77,14 +86,44 @@ public:
 
     // 毎フレームの gameplay 更新から（一時停止中は呼ばない）
     void Update(float dt, const DirectX::SimpleMath::Vector3& player, bool grounded, bool sliding);
+    // 世界の風（WeatherSystem::Wind）。毎フレーム渡す
+    void SetWind(const WindState& wind) { m_Wind = wind; }
+    // 燃え跡：温度（x）・燃料（y）のテクスチャ（GrassFireField::GetSRV）と、燃えていると見なす温度。null = 無し
+    void SetFire(ID3D11ShaderResourceView* fire, float ignite) { m_FireSRV = fire; m_FireIgnite = ignite; }
+    // 突風（2026-10-12）：次の描画で pos の周り radius の草を外向きに一斉に倒す（踏み跡と同じ仕組み。踏み跡の回復で起き上がる）
+    // 突風：このフレームに 1 回、踏み跡の図へ押し倒しの型を押す。dir / length が 0 なら pos を中心に外向きの円盤、
+    // それ以外は pos から dir へ length m 伸びる扇（根元は細く、先で半径 radius）で、草は風下へ倒れる（2026-10-13）
+    void AddGust(const DirectX::SimpleMath::Vector3& pos, float radius,
+        const DirectX::SimpleMath::Vector2& dir = DirectX::SimpleMath::Vector2::Zero, float length = 0.0f)
+    {
+        m_GustPos = pos; m_GustRadius = (std::max)(m_GustRadius, radius); m_GustDir = dir; m_GustLength = length;
+    }
+
+    // GPU の群れ（SwarmSystem）の池（2026-10-13）：揺れる範囲（爆発）と光線のカプセルは踏み跡に押し型を押し、
+    // 雑魚の足元は GrassStampCS が押す。Render の前に毎フレーム渡す（Flush の後、SRV として読むだけ）。null = その分はしない
+    void SetSwarmSources(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* areaEnds,
+        ID3D11ShaderResourceView* enemies, ID3D11ShaderResourceView* enemyStates, ID3D11ShaderResourceView* enemyExtra)
+    {
+        m_AreaSRV = areas; m_AreaStateSRV = areaStates; m_AreaEndSRV = areaEnds;
+        m_EnemySRV = enemies; m_EnemyStateSRV = enemyStates; m_EnemyExtraSRV = enemyExtra;
+    }
 
     // 不透明物の後: 踏み跡の更新 → 生やして間引く CS → 描画
     void Render(Renderer& renderer, CameraBase& camera);
 
     void DrawImGui();
 
+    // TEMP-TEST（自動テスト用）: 踏み跡のテクスチャを読み戻し、centerXZ の周り radius m の中で強さ ≥ minStrength の texel を数える。
+    // Map で GPU を待つので毎フレームは呼ばない
+    bool DebugTrampleStats(const DirectX::SimpleMath::Vector2& centerXZ, float radius, float minStrength,
+        int& count, float& maxStrength);
+
     Settings& GetSettings() { return m_Settings; }
     uint32_t LastBladeCount() const { return m_LastCount; }
+    float Time() const { return m_Time; }   // 風の波の時計（粒子と波を揃える）
+    // 地形のテクスチャ（Build）。燃え跡の計算（GrassFireField）が同じ物を読む
+    ID3D11ShaderResourceView* GetHeightSRV() const { return m_HeightSRV.Get(); }
+    ID3D11ShaderResourceView* GetGroundSRV() const { return m_GroundSRV.Get(); }   // a = 生やすか（= 燃える物があるか）
 
     // HLSL の GrassCB（Shader/Grass/GrassCommon.hlsli）と同じ並び
     struct GrassCB
@@ -101,6 +140,10 @@ public:
         DirectX::SimpleMath::Vector3 rootColor; float trampleRadius;
         DirectX::SimpleMath::Vector3 tipColor; float trampleDecay;
         DirectX::SimpleMath::Vector3 player; uint32_t maxBlades;
+        float fireIgnite, fireShrink, fireGlow, fireOn;   // 燃え跡（fireOn = 0 なら読まない）
+        DirectX::SimpleMath::Vector3 gustPos; float gustRadius;   // 突風（0 = 無し）
+        DirectX::SimpleMath::Vector2 gustDir; float gustLength; float gustPad;   // 前へ吹く突風（length 0 = 円盤）
+        DirectX::SimpleMath::Vector4 trampleExtra;   // 爆発の半径倍率 / 光線の帯の半幅倍率 / 雑魚の足の強さ / 半径（2026-10-13）
     };
     // HLSL の GrassBlade と同じ並び
     struct GrassBlade
@@ -112,6 +155,7 @@ public:
 private:
     static constexpr uint32_t kMaxBlades = 262144;   // 8MB。近くを見下ろしても収まる（普段は数万本）
     static constexpr int kTrampleSize = 512;          // 踏み跡のテクスチャの辺（200m のフィールドで 0.39m / texel）
+    static constexpr uint32_t kMaxEnemyThreads = 4096; // = Swarm::kMaxEnemies（GrassStampCS は池の大きさを自分で見て余りは返る）
 
     bool CreateBuffers();
 
@@ -119,6 +163,7 @@ private:
     ID3D11DeviceContext* m_Context = nullptr;
     std::shared_ptr<ComputeShader> m_CullCS;
     std::shared_ptr<ComputeShader> m_TrampleCS;
+    std::shared_ptr<ComputeShader> m_StampCS;    // 雑魚の足元（GrassStampCS）
     std::shared_ptr<VertexShader>  m_VS;
     std::shared_ptr<PixelShader>   m_PS;
 
@@ -141,12 +186,27 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_TrampleSRV[2];
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_TrampleUAV[2];
     int m_TrampleCur = 0;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_TrampleStaging;   // DebugTrampleStats（TEMP-TEST）
 
     // Update から
     float m_Time = 0.0f;
     float m_PendingDt = 0.0f;
     DirectX::SimpleMath::Vector3 m_Player;
     float m_TrampleNow = 0.0f;   // 今フレームの踏む円の半径（浮いている時 0）
+    WindState m_Wind;
+    ID3D11ShaderResourceView* m_FireSRV = nullptr;   // 非所有（GrassFireField の物。毎フレーム SetFire で渡される）
+    float m_FireIgnite = 0.4f;
+    DirectX::SimpleMath::Vector3 m_GustPos;
+    float m_GustRadius = 0.0f;   // 次の Render で 1 回だけ押して 0 に戻す
+    DirectX::SimpleMath::Vector2 m_GustDir;
+    float m_GustLength = 0.0f;
+    // 群れの池（非所有。毎フレーム SetSwarmSources で渡される。null = 無し）
+    ID3D11ShaderResourceView* m_AreaSRV = nullptr;
+    ID3D11ShaderResourceView* m_AreaStateSRV = nullptr;
+    ID3D11ShaderResourceView* m_AreaEndSRV = nullptr;
+    ID3D11ShaderResourceView* m_EnemySRV = nullptr;
+    ID3D11ShaderResourceView* m_EnemyStateSRV = nullptr;
+    ID3D11ShaderResourceView* m_EnemyExtraSRV = nullptr;
 
     Settings m_Settings;
 };

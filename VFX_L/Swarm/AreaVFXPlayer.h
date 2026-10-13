@@ -35,6 +35,8 @@ public:
 
     // 光線など、位置と終点を毎フレーム外から入れる物（follow は無視される）。番号が古ければ何もしない
     void SetInstance(uint32_t handle, const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector3& beamEnd);
+    // 光線の太さの倍率（Beam entry の width に掛ける。拡大鏡の分。Play の直後に 1 回。2026-10-13）
+    void SetBeamWidth(uint32_t handle, float widthMul);
     // 早めに止める（発射を止めて、出ている物は自然に消える）
     void StopInstance(uint32_t handle);
     // Y 軸回りに回す（Play の直後に 1 回。Boss の門の渦を門の向きに合わせる）
@@ -53,6 +55,10 @@ public:
 
     // json を編集し直した時用。次の Play で読み直す
     void ClearTemplates() { m_Templates.clear(); }
+    // 雛形を先に読んでおく（Mesh entry の FBX もこの時に読む）。初回の Play で読むと Debug では
+    // 1 フレーム飛んで、短いエフェクトが途中から始まる（突風の渦、2026-10-13）。シーンの Init で CPU の
+    // エフェクトを全部通しておく
+    void Preload(const std::string& vfxFile) { GetTemplate(vfxFile); }
 
 private:
     struct Instance

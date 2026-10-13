@@ -23,7 +23,7 @@ inline SummonItemDef MakeCrystalBall()
     def.common.id = ItemID::CrystalBall;
     def.common.name = "CrystalBall";
     def.common.displayName = L"水晶玉";
-    def.common.description = L"左右に隣接する魔法（2 つまで）を貯蔵する召喚物。貯蔵した魔法は杖からは撃てなくなり、周りを回る光球が代わりに撃つ。";
+    def.common.description = L"左右の魔法を貯めておき、周りに出る光球に代わりに撃たせる。";
     def.common.category = ItemCategory::Summon;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Sides();   // 左右 2 マス = 貯蔵できるのは 2 つまで
@@ -38,7 +38,7 @@ inline SummonItemDef MakeCrystalBall()
     def.orbitRadius = 1.1f;
     def.orbitHeight = 1.4f;
     def.riseSpeed = 0.1f;   // その場でとてもゆっくり昇る（付いて来ない。10-06 ユーザー）
-    def.vfxFile = "SpellOrb.json";
+    def.vfxId = VFXId::SpellOrb;
 
     return def;
 }

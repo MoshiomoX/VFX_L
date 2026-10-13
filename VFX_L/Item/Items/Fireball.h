@@ -22,7 +22,7 @@ inline ProjectileItemDef MakeFireball()
     def.common.id = ItemID::Fireball;
     def.common.name = "Fireball";
     def.common.displayName = L"ファイアボール";
-    def.common.description = L"敵一体を焼く基本の火球。上下左右に隣接する上級魔法を、弾が消えた場所で発動させる。";
+    def.common.description = L"火球で敵一体を焼く、扱いやすい基本の攻撃魔法。";
     def.common.iconPath = Res::Icon::Fireball;
     def.common.category = ItemCategory::Projectile;
     // 形は強さで決める（2026-10-04）。単体 DPS 約 27（弧と並んで一番高い）→ 2x2 の火の玉

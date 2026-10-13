@@ -10,6 +10,7 @@
 #pragma once
 #include "ECS/Entity.h"
 #include "SpellID.h"
+#include <functional>
 #include <string>
 #include <vector>
 #include <SimpleMath.h>
@@ -29,6 +30,8 @@ class WeaponSystem
 public:
     void Update(Registry& reg, float dt, const CollisionSystem& collision);
     void SetSwarm(SwarmSystem* swarm) { m_Swarm = swarm; }
+    // 地面の高さ（x, z → y）。線で撃つ上級魔法（アイススパイク）の範囲を地面に合わせる。無ければ撃った所と着弾点の間を直線で
+    std::function<float(float, float)> groundHeight;
     // 範囲攻撃の見た目の再生先。無ければ判定だけ出る
     void SetAreaVFX(AreaVFXPlayer* player, const VFXContext* ctx) { m_AreaVFX = player; m_AreaVFXCtx = ctx; }
 
@@ -53,6 +56,34 @@ public:
     }
     uint32_t GetOrbCasts() const { return m_OrbCasts; }   // 光球が撃った回数の累計（自動テスト用）
     // 誘発の累計（ImGui・自動テスト用）: 届いた「基本魔法の弾が消えた」数 / それで撃った上級魔法の回数
+    // 今フレームに撃った弾（杖口の光の演出用、PlayerVFXSystem。2026-10-09）。
+    // 誘発の隕石（着弾点へ落とす物）は入らない。分裂の扇は 1 発ずつ入る
+    struct CastFx
+    {
+        ItemID id;
+        DirectX::SimpleMath::Vector3 pos;   // 撃った位置（杖口・光球）
+        DirectX::SimpleMath::Vector3 dir;
+    };
+    const std::vector<CastFx>& GetCastFx() const { return m_CastFx; }
+    // 今フレームにプレイヤーの位置に出した「吹き飛ばす」範囲（突風。2026-10-12）：草を一斉に倒す用（GrassRenderer::AddGust）
+    struct GustFx
+    {
+        DirectX::SimpleMath::Vector3 pos;   // 風の根元（前へ吹く物は詠唱者の位置、それ以外は範囲の中心）
+        float radius;
+        DirectX::SimpleMath::Vector2 dir;   // 吹く向き（xz の単位ベクトル）。length 0 = 向き無し（円盤）
+        float length;                       // 根元から風下の端までの m
+    };
+    const std::vector<GustFx>& GetGustFx() const { return m_GustFx; }
+    // 今フレームに線で撃った上級魔法（SpellStats::triggerLine。2026-10-10、アイススパイクのトゲの見た目用）。
+    // start = 撃った所の足元（地面）、end = 弾が消えた所の lineOvershoot 先（地面）、scale = 拡大鏡などの大きさの倍率
+    struct TriggeredFx
+    {
+        ItemID id;
+        DirectX::SimpleMath::Vector3 start;
+        DirectX::SimpleMath::Vector3 end;
+        float scale = 1.0f;
+    };
+    const std::vector<TriggeredFx>& GetTriggeredFx() const { return m_TriggeredFx; }
     uint32_t GetTriggerEventsSeen() const { return m_TriggerEventsSeen; }
     uint32_t GetTriggeredCasts() const { return m_TriggeredCasts; }
     int GetActiveBeamCount() const { return (int)m_Beams.size(); }
@@ -63,6 +94,13 @@ public:
     {
         if (i < 0 || i >= (int)m_Beams.size()) return false;
         dir = m_Beams[i].dir; hasTarget = m_Beams[i].hasTarget; target = m_Beams[i].targetPos;
+        return true;
+    }
+    // 自動テスト用: i 本目の光線の射程と半径（拡大鏡で伸びた後の値）
+    bool GetBeamDebugSize(int i, float& length, float& radius) const
+    {
+        if (i < 0 || i >= (int)m_Beams.size()) return false;
+        length = m_Beams[i].length; radius = m_Beams[i].radius;
         return true;
     }
 
@@ -90,6 +128,10 @@ private:
     void QueueTriggeredCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& impact,
         const DirectX::SimpleMath::Vector3& muzzle, float durationMul);
+    // 線で撃つ上級魔法 1 本分（triggerLine）。origin の足元 → impact の先 の線に命中の範囲を並べて出す（弾は出さない）
+    void QueueTriggeredLine(const SpellStats& s,
+        const DirectX::SimpleMath::Vector3& impact,
+        const DirectX::SimpleMath::Vector3& origin);
     std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 今フレームにリードバックで届いた誘発
     uint32_t m_TriggerEventsSeen = 0;
     uint32_t m_TriggeredCasts = 0;
@@ -166,5 +208,8 @@ private:
     AreaVFXPlayer* m_AreaVFX = nullptr;
     const VFXContext* m_AreaVFXCtx = nullptr;
     std::vector<CastRequest> m_Requests;
+    std::vector<CastFx> m_CastFx;   // 今フレームに撃った弾（GetCastFx）
+    std::vector<GustFx> m_GustFx;   // 今フレームの吹き飛ばす範囲（GetGustFx）
+    std::vector<TriggeredFx> m_TriggeredFx;   // 今フレームに撃った上級魔法（GetTriggeredFx）
     AimDebug m_AimDebug;   // 可視化用
 };

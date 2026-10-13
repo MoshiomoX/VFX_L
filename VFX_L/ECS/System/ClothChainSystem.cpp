@@ -100,7 +100,7 @@ namespace
     }
 
     void Step(ClothChainComponent& c, SkinnedAnimComponent& a, const TransformComponent& tf, float dt,
-        const std::function<float(float, float)>& groundHeight)
+        const std::function<float(float, float)>& groundHeight, const WindState& worldWind, float windTime)
     {
         std::vector<Matrix> G;
         if (!SkinnedAnimSystem::BuildPose(a, G, false)) return;
@@ -152,18 +152,14 @@ namespace
         }
         const float feetY = W.Translation().y;   // モデルの原点 = 足元
 
-        Vector3 windDir = c.windDir;
-        windDir.y = 0.0f;
-        if (windDir.LengthSquared() > 1e-8f) windDir.Normalize();
-
         const int steps = std::clamp((int)std::ceil(dt / (std::max)(c.substep, 1e-4f)), 1, 8);
         const float h = dt / (float)steps;
         const Vector3 rootFrom = c.lastRoot;
         for (int s = 0; s < steps; ++s)
         {
             c.time += h;
-            const float gust = 0.5f * std::sin(c.time * 1.7f) + 0.5f * std::sin(c.time * 0.63f + 1.3f);
-            const Vector3 wind = windDir * (c.windSpeed + c.windGust * gust);
+            // 世界の風（草と同じ波を根の位置で引く）
+            const Vector3 wind = worldWind.Velocity(windTime, root.x, root.z) * c.windMul;
             const float ratio = h / (std::max)(c.prevH, 1e-5f);
             const float keep = std::pow(1.0f - std::clamp(c.damping, 0.0f, 0.99f), h * 120.0f);
 
@@ -269,7 +265,7 @@ void ClothChainSystem::Update(Registry& reg, float dt)
                     std::cout << "[ClothChain] bones not found (anchor " << c.anchorBone << "), disabled" << std::endl;
                     return;
                 }
-                Step(c, a, tf, dt, groundHeight);
+                Step(c, a, tf, dt, groundHeight, wind, windTime);
             });
 }
 
@@ -299,9 +295,7 @@ void ClothChainSystem::DrawImGui(ClothChainComponent& c)
     ImGui::SliderFloat("Shape Stiffness Root", &c.stiffRoot, 0.0f, 1.0f);
     ImGui::SliderFloat("Shape Stiffness Tip", &c.stiffTip, 0.0f, 1.0f);
     ImGui::SliderFloat("Bend Stiffness", &c.bend, 0.0f, 1.0f);
-    ImGui::SliderFloat("Wind Speed", &c.windSpeed, 0.0f, 8.0f);
-    ImGui::SliderFloat("Wind Gust", &c.windGust, 0.0f, 5.0f);
-    ImGui::DragFloat3("Wind Dir", &c.windDir.x, 0.01f, -1.0f, 1.0f);
+    ImGui::SliderFloat("World Wind x", &c.windMul, 0.0f, 3.0f);   // 向き・速さは Weather パネルの World Wind
     ImGui::SliderInt("Iterations##cape", &c.iterations, 1, 12);
     ImGui::SliderFloat("Margin (cloth thickness)", &c.margin, 0.0f, 0.1f);
     ImGui::SliderFloat("Ground Offset##cape", &c.groundOffset, 0.0f, 0.2f);

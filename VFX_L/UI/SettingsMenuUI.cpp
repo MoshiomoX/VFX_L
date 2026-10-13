@@ -9,6 +9,7 @@
 #include "Audio/AudioSystem.h"
 #include "Core/GameSettings.h"
 #include "UI/UIDeco.h"
+#include "UI/InputGlyph.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -394,12 +395,12 @@ void SettingsMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std:
     }
 
     // ---- 案内 ----
-    const std::wstring hint = L"← → で変更　Enter で決定　Esc / パッド B で戻る";
+    const std::wstring hint = L"<{K:ARROWSH}|{DPADH}> で変更　<{K:Enter}|{A}> で決定　<{K:Esc}|{B}> で戻る";   // <キーボード|パッド> の絵（InputGlyph）
     const float hintScale = 0.36f * k;
-    const Vector2 hs = text.Measure(hint, hintScale);
+    const Vector2 hs = InputGlyph::Measure(text, hint, hintScale);
     const int n = (int)m_Rows.size();
     const float hintTop = m_RowsTop + m_RowH * (float)n + m_Gap * (float)(n - 1);
     const float hintH = m_PanelPos.y + m_PanelSize.y - hintTop;
-    text.Draw(hint, { m_PanelPos.x + (m_PanelSize.x - hs.x) * 0.5f, hintTop + (hintH - hs.y) * 0.5f },
+    InputGlyph::Draw(sprite, text, hint, { m_PanelPos.x + (m_PanelSize.x - hs.x) * 0.5f, hintTop + (hintH - hs.y) * 0.5f },
         { 0.6f, 0.6f, 0.65f, 1.0f }, hintScale);
 }

@@ -39,7 +39,7 @@ void VFXBeamEntry::OnUpdate(float dt, const VFXContext&)
 // 描画に積む。伸びる / 縮むはここで起点・終点を動かして作る
 // ============================================================
 void VFXBeamEntry::Submit(VFXBeamRenderer& renderer, const Vector3& worldOffset,
-    const Vector3& beamEnd, bool hasEnd)
+    const Vector3& beamEnd, bool hasEnd, float widthMul)
 {
     if (!isPlaying) return;
 
@@ -62,7 +62,7 @@ void VFXBeamEntry::Submit(VFXBeamRenderer& renderer, const Vector3& worldOffset,
     VFXBeamItem item;
     item.start = start + (end - start) * t0;
     item.end = start + (end - start) * t1;
-    item.width = width;
+    item.width = width * widthMul;   // 芯 / グローは比率なので一緒に太くなる
     item.coreRatio = coreRatio;
     item.color = color;
     item.coreColor = coreColor;

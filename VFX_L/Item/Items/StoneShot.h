@@ -21,7 +21,7 @@ inline ProjectileItemDef MakeStoneShot()
     def.common.id = ItemID::StoneShot;
     def.common.name = "Stone Shot";
     def.common.displayName = L"ストーンショット";
-    def.common.description = L"重い岩を山なりに投げる。弾は遅いが一撃が重い。上下左右に隣接する上級魔法を、岩が落ちた場所で発動させる。";
+    def.common.description = L"重い岩を投げつける。弾は遅いが、一撃の威力が高い。";
     def.common.iconPath = Res::Icon::StoneShot;
     def.common.category = ItemCategory::Projectile;
     // 形は強さで決める（2026-10-04）。単体 DPS 約 24（一撃が重く当たり判定も大きめ）→ 3 マスの L 字の岩

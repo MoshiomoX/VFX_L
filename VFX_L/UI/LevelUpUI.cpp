@@ -10,6 +10,7 @@
 #include "Item/ItemInfo.h"
 #include "UI/ShapeSprite.h"
 #include "UI/UIDeco.h"
+#include "UI/InputGlyph.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputManager.h"
 #include "imgui.h"
@@ -340,11 +341,11 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
         UIDeco::DrawPanel(sprite, bp, bs, UIDeco::TintColor(UIDeco::Tint::Gold), ps, (m_RerollHover && afford) ? 1.0f : 0.0f);
 
         wchar_t buf[96];
-        swprintf_s(buf, L"R  引き直す     金貨 %d   （所持 %d）", m_RerollCost, m_Gold);
+        swprintf_s(buf, L"<{K:R}|{X}>  引き直す     金貨 %d   （所持 %d）", m_RerollCost, m_Gold);   // <キーボード|パッド> の絵（InputGlyph）
         const float s = rerollTextScale * k;
-        const Vector2 ts = text.Measure(buf, s);
+        const Vector2 ts = InputGlyph::Measure(text, buf, s);
         const Vector4 col = afford ? headingColor : Vector4(0.60f, 0.10f, 0.07f, 1.0f);   // 線形の暗い赤
-        text.Draw(buf, { bp.x + (bs.x - ts.x) * 0.5f, bp.y + (bs.y - ts.y) * 0.5f }, col, s);
+        InputGlyph::Draw(sprite, text, buf, { bp.x + (bs.x - ts.x) * 0.5f, bp.y + (bs.y - ts.y) * 0.5f }, col, s);
     }
 }
 

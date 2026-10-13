@@ -498,6 +498,10 @@ void VFXParticleEntry::OnImGui()
     ImGui::Checkbox("Inherit Source Velocity", &e.inheritVelocity);
     if (e.inheritVelocity)
         ImGui::TextDisabled("adds the GPU projectile's velocity (battle only, not in this preview)");
+    // 世界の風（2026-10-12）：煙・霧・雨・砂は 0.5〜1、火花・光は 0
+    ImGui::SliderFloat("Wind Response", &e.windResponse, 0.0f, 1.0f, "%.2f");
+    if (e.windResponse > 0.0f)
+        ImGui::TextDisabled("horizontal velocity drifts toward the world wind (weather); 1 = within ~0.3 s");
     ImGui::Separator();
 
     ImGui::SliderFloat("Rate", &e.emitRate, 0.0f, 1000.0f);
@@ -671,6 +675,7 @@ json VFXParticleEntry::ToJson() const
     j["edgeMode"] = e.shape.edgeMode;
     j["renderMode"] = e.renderMode;
     if (e.inheritVelocity) j["inheritVelocity"] = true;
+    if (e.windResponse > 0.0f) j["wind"] = e.windResponse;   // 世界の風の受けやすさ（無ければ 0）
     if (e.toon)   // トゥーン（無ければ従来の見た目）
         j["toon"] = { { "cut", e.toonCut }, { "bands", e.toonBands }, { "shade", e.toonShade }, { "outline", e.toonOutline } };
     if (e.renderMode == 1)
@@ -790,6 +795,7 @@ void VFXParticleEntry::FromJson(const json& j)
     e.meshFaceVelocity = j.value("meshFaceVelocity", false);
     e.meshForwardAxis = j.value("meshForwardAxis", 2);
     e.inheritVelocity = j.value("inheritVelocity", false);
+    e.windResponse = std::clamp(j.value("wind", 0.0f), 0.0f, 1.0f);
     e.toon = j.contains("toon") && j["toon"].is_object();
     if (e.toon)
     {

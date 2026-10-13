@@ -12,7 +12,9 @@
 #include "Item/Items/StoneShot.h"
 #include "Item/Items/Poison.h"
 #include "Item/Items/IceLance.h"
+#include "Item/Items/IceSpike.h"
 #include "Item/Items/Beam.h"
+#include "Item/Items/Gust.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Magnifier.h"
@@ -119,7 +121,9 @@ void ItemDatabase::Initialize()
     Register(MakeStoneShot());
     Register(MakePoison());
     Register(MakeIceLance());
+    Register(MakeIceSpike());
     Register(MakeBeam());
+    Register(MakeGust());
 
     // ---- 機能型 ----
     Register(MakeSplitRune());
@@ -348,6 +352,7 @@ void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
     case AreaParam::DamagePerTick: target = &stats.damagePerTick; break;
     case AreaParam::CastInterval:  target = &stats.castInterval;  break;
     case AreaParam::ManaCost:      target = &stats.manaCost;      break;
+    case AreaParam::Length:        target = &stats.length;        break;   // 光線以外は 0 × 倍率 = 0 のまま
 
     default:
         return;

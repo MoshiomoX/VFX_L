@@ -39,7 +39,7 @@ namespace PlayerFactory
         float height = 1.0f;
         Vector4 color = { 0.3f, 0.6f, 1.0f, 1.0f };
 
-        float moveSpeed = 5.0f;
+        float moveSpeed = 5.5f;   // 2026-10-09 5.0 → 5.5
         float jumpPower = 12.0f;
 
         float maxHealth = 100.0f;

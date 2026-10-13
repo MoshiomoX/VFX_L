@@ -16,7 +16,7 @@ inline ProjectileItemDef MakeHomingBolt()
     def.common.id = ItemID::HomingBolt;
     def.common.name = "Homing Bolt";
     def.common.displayName = L"ホーミングボルト";
-    def.common.description = L"敵を追い続ける魔法弾。狙った敵が倒れても次の敵を探す。消費MPは多め。";
+    def.common.description = L"狙った敵を逃さない魔法弾。外れにくいが、MP を多めに使う。";
     def.common.iconPath = Res::Icon::HomingBolt;
     def.common.category = ItemCategory::Projectile;
     // 形は強さで決める（2026-10-04、ユーザー「小さい 1 マスの魔法を色々な形に」）。単体 DPS 約 18 で一番弱い開始時の魔法 → 横 2 マス

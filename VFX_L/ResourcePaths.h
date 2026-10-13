@@ -436,6 +436,8 @@ namespace Res
         inline constexpr const wchar_t* StoneShot = L"Assets/Texture/UI/Icons/StoneShot.png";
         inline constexpr const wchar_t* Poison = L"Assets/Texture/UI/Icons/Poison.png";
         inline constexpr const wchar_t* IceLance = L"Assets/Texture/UI/Icons/IceLance.png";   // アイスランス（2026-10-08）
+        inline constexpr const wchar_t* IceSpike = L"Assets/Texture/UI/Icons/IceSpike.png";   // アイススパイク（2026-10-10）
+        inline constexpr const wchar_t* Gust = L"Assets/Texture/UI/Icons/Gust.png";           // 突風（2026-10-12）
         inline constexpr const wchar_t* Beam = L"Assets/Texture/UI/Icons/Beam.png";
         inline constexpr const wchar_t* SplitRune = L"Assets/Texture/UI/Icons/SplitRune.png";
         inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
@@ -471,6 +473,39 @@ namespace Res
         inline constexpr const wchar_t* ChestFrame = L"Assets/Texture/UI/Chest/ChestFrame.png";   // 9 分割の枠（縁 128/512）
         inline constexpr const wchar_t* ChestBack = L"Assets/Texture/UI/Chest/ChestBack.png";     // 内側の奥の板
         inline constexpr const wchar_t* ChestLock = L"Assets/Texture/UI/Chest/ChestLock.png";     // 前板から下がる錠前
+    }
+
+    // パッドのボタンの絵（2026-10-09、Kenney Input Prompts の Xbox Series、CC0。出典は同じ所の SOURCE.txt）。
+    // UI の文の中の {A} {B} … を UI/InputGlyph がこの絵に替えて描く。色付きなので sRGB で読む
+    namespace PadIcon
+    {
+        inline constexpr const wchar_t* A = L"Assets/Texture/UI/Input/PadA.png";
+        inline constexpr const wchar_t* B = L"Assets/Texture/UI/Input/PadB.png";
+        inline constexpr const wchar_t* X = L"Assets/Texture/UI/Input/PadX.png";
+        inline constexpr const wchar_t* Y = L"Assets/Texture/UI/Input/PadY.png";
+        inline constexpr const wchar_t* LB = L"Assets/Texture/UI/Input/PadLB.png";
+        inline constexpr const wchar_t* RB = L"Assets/Texture/UI/Input/PadRB.png";
+        inline constexpr const wchar_t* Start = L"Assets/Texture/UI/Input/PadStart.png";
+        inline constexpr const wchar_t* Back = L"Assets/Texture/UI/Input/PadBack.png";
+        inline constexpr const wchar_t* Dpad = L"Assets/Texture/UI/Input/PadDpad.png";     // 十字（全部）
+        inline constexpr const wchar_t* DpadV = L"Assets/Texture/UI/Input/PadDpadV.png";   // 十字の上下が赤
+        inline constexpr const wchar_t* DpadH = L"Assets/Texture/UI/Input/PadDpadH.png";   // 十字の左右が赤
+        inline constexpr const wchar_t* LS = L"Assets/Texture/UI/Input/PadLS.png";         // 左スティック
+    }
+
+    // キーボード・マウスの絵（Kenney Input Prompts の Keyboard & Mouse、CC0。2026-10-09）。
+    // キーは Dir + L"Key<名前>.png"（{K:Esc} → KeyEsc.png。Tools/BuildKeyIcons.ps1 が無地のキーに Bebas Neue でキー名を焼き込む。
+    // Kenney の ESC 等の小さな字は案内文の大きさだと潰れて読めない）。絵の無い名前は無地のキー Cap に文字で載せる
+    namespace KeyIcon
+    {
+        inline constexpr const wchar_t* Dir = L"Assets/Texture/UI/Input/";
+        inline constexpr const wchar_t* Cap = L"Assets/Texture/UI/Input/KeyCap.png";          // 無地のキー（keyboard_f の字を塗りつぶした物）
+        inline constexpr const wchar_t* Arrows = L"Assets/Texture/UI/Input/KeyArrows.png";    // 矢印キー 4 つ全部
+        inline constexpr const wchar_t* ArrowsV = L"Assets/Texture/UI/Input/KeyArrowsV.png";  // 上下が赤
+        inline constexpr const wchar_t* ArrowsH = L"Assets/Texture/UI/Input/KeyArrowsH.png";  // 左右が赤
+        inline constexpr const wchar_t* MouseL = L"Assets/Texture/UI/Input/MouseL.png";
+        inline constexpr const wchar_t* MouseR = L"Assets/Texture/UI/Input/MouseR.png";
+        inline constexpr const wchar_t* MouseWheel = L"Assets/Texture/UI/Input/MouseWheel.png";
     }
 
     // ========================================================
@@ -509,8 +544,43 @@ namespace Res
         inline constexpr const char* PoisonPool = "Assets/Data/VFXData/PoisonPool.json";   // 毒の池（範囲 PoisonPool：泡 + 毒霧 + 緑の光）
         inline constexpr const char* IceLance = "Assets/Data/VFXData/IceLance.json";         // アイスランスの弾（氷の槍 + 冷気の粒）
         inline constexpr const char* IceLanceHit = "Assets/Data/VFXData/IceLanceHit.json";   // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片）
+        inline constexpr const char* GrassFire = "Assets/Data/VFXData/GrassFire.json";       // 燃えている草の炎・煙・火の粉（GrassFireEmitCS。2026-10-12）
         inline constexpr const char* MobDeath = "Assets/Data/VFXData/MobDeath.json";       // 敵が死んだ足元の土煙 + 土くれ（範囲 MobDeath）
         inline constexpr const char* Beam = "Assets/Data/VFXData/Beam.json";               // 魔導光線（溜め + Beam entry の光線 + 先端の光）
+
+        // ---- CPU（AreaVFXPlayer）だけで出すエフェクト（2026-10-09 に VFXDatabase へ登録。それまではコードにファイル名を直書き）----
+        // プレイヤーの動き（PlayerVFXSystem）
+        inline constexpr const char* CastFlash = "Assets/Data/VFXData/CastFlash.json";           // 詠唱の手元の光 + 火花
+        inline constexpr const char* CastPulse = "Assets/Data/VFXData/CastPulse.json";           // 詠唱の体の周りの光の粒
+        inline constexpr const char* FootDust = "Assets/Data/VFXData/FootDust.json";             // 走る足元の小石
+        inline constexpr const char* JumpDust = "Assets/Data/VFXData/JumpDust.json";             // 跳んだ足元の小石の輪
+        inline constexpr const char* AirJumpRing = "Assets/Data/VFXData/AirJumpRing.json";       // 空中ジャンプの光の輪
+        inline constexpr const char* LandDust = "Assets/Data/VFXData/LandDust.json";             // 着地の小石
+        inline constexpr const char* LandDustHeavy = "Assets/Data/VFXData/LandDustHeavy.json";   // 高い所からの着地
+        inline constexpr const char* SlideDust = "Assets/Data/VFXData/SlideDust.json";           // スライディングの小石と草
+        inline constexpr const char* SpeedTrail = "Assets/Data/VFXData/SpeedTrail.json";         // 速い時の背中の帯
+        // 魔法（CPU で出す分。判定は GPU の範囲）
+        inline constexpr const char* IceSpikeFrost = "Assets/Data/VFXData/IceSpike.json";            // アイススパイクの冷気・氷の欠片・光（トゲ本体は IceSpikeField）
+        inline constexpr const char* Gust = "Assets/Data/VFXData/Gust.json";                       // 突風の土煙・草屑の輪（2026-10-12）
+        // 戦闘の手応え（FeedbackVFXSystem）
+        inline constexpr const char* LevelUp = "Assets/Data/VFXData/LevelUp.json";
+        inline constexpr const char* CrateOpen = "Assets/Data/VFXData/CrateOpen.json";
+        inline constexpr const char* Hurt = "Assets/Data/VFXData/Hurt.json";
+        inline constexpr const char* ExpPickup = "Assets/Data/VFXData/ExpPickup.json";
+        inline constexpr const char* ManaSurgeBurst = "Assets/Data/VFXData/ManaSurgeBurst.json";
+        inline constexpr const char* ManaSurgeAura = "Assets/Data/VFXData/ManaSurgeAura.json";
+        inline constexpr const char* ShieldHit = "Assets/Data/VFXData/ShieldHit.json";
+        inline constexpr const char* ShieldBreak = "Assets/Data/VFXData/ShieldBreak.json";
+        // Boss（門・技）
+        inline constexpr const char* BossPortal = "Assets/Data/VFXData/BossPortal.json";       // Boss の門の渦
+        inline constexpr const char* BossSlam = "Assets/Data/VFXData/BossSlam.json";           // スラムの岩
+        inline constexpr const char* BossRockFall = "Assets/Data/VFXData/BossRockFall.json";   // 投石雨の落ちてくる岩
+        inline constexpr const char* BossRockHit = "Assets/Data/VFXData/BossRockHit.json";     // 投石雨の着弾
+        // 天気（WeatherSystem）
+        inline constexpr const char* Rain = "Assets/Data/VFXData/Rain.json";
+        inline constexpr const char* Sandstorm = "Assets/Data/VFXData/Sandstorm.json";
+        // 召喚物
+        inline constexpr const char* SpellOrb = "Assets/Data/VFXData/SpellOrb.json";           // 水晶玉の光球
     }
 
     // ========================================================
@@ -519,11 +589,11 @@ namespace Res
     // ========================================================
     namespace ParticleSheet
     {
-        inline constexpr const char* kManifests[] = {
+        inline constexpr const char* kManifests[] =
+        {
             "Assets/Particles/Sheets/Legacy.json",           // 0: 旧 particlesSheet.jpg（6x6）
             "Assets/Particles/Sheets/KenneyParticles.json",  // 1: Kenney Particle Pack（白・染色用）
             "Assets/Particles/Sheets/KenneySmoke.json",      // 2: Kenney Smoke Particles（色付きの煙）
-            // ピクセルの連番（PVFX）は粒子ではなく Sprite entry で使う（Assets/VFX/SpriteSheet）
         };
     }
 

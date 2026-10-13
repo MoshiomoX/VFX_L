@@ -186,7 +186,7 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
                 const Matrix world = SkinnedWorld(tf, a);
 
                 SetStencil(ctx, StencilRefFor(reg, e));   // 陣営のアウトライン（プレイヤー = 味方、エリート = 敵）
-                a.gpu->Render(ctx, *a.model, light, world, view, proj);
+                a.gpu->Render(ctx, *a.model, light, world, view, proj, a.hitFlash, a.hitFlashColor);
                 drewAny = true;
             });
     SetStencil(ctx, 0);

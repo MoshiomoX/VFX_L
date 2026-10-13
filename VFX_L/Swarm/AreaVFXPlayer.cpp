@@ -94,6 +94,16 @@ void AreaVFXPlayer::RemapTimeline(uint32_t handle, float split, float before, fl
     }
 }
 
+void AreaVFXPlayer::SetBeamWidth(uint32_t handle, float widthMul)
+{
+    for (auto& inst : m_Active)
+        if (inst.handle == handle)
+        {
+            inst.effect->SetBeamWidthMul(widthMul);
+            return;
+        }
+}
+
 void AreaVFXPlayer::RotateInstance(uint32_t handle, float yawDeg)
 {
     for (auto& inst : m_Active)

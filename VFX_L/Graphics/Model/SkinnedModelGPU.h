@@ -55,11 +55,14 @@ public:
     void SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, int submeshIndex,
         const std::vector<DirectX::SimpleMath::Matrix>& palette);
 
+    // hitFlash（0〜1）= 色を flashColor へ寄せる（被弾の閃き。Dissolve.hlsli の ApplyHitFlash。2026-10-09）
     void Render(ID3D11DeviceContext* ctx, const SkinnedModel& model,
         const LightBuffer& light,
         const DirectX::SimpleMath::Matrix& world,
         const DirectX::SimpleMath::Matrix& view,
-        const DirectX::SimpleMath::Matrix& proj);
+        const DirectX::SimpleMath::Matrix& proj,
+        float hitFlash = 0.0f,
+        const DirectX::SimpleMath::Vector3& flashColor = DirectX::SimpleMath::Vector3(1.0f, 1.0f, 1.0f));
 
     // シャドウマップへ深度だけ（VS だけ積んで PS を外す）。スキニングは済んでいること
     void RenderDepth(ID3D11DeviceContext* ctx, const SkinnedModel& model,

@@ -57,11 +57,14 @@ void CollisionTestScene::RebuildTerrain()
     BlockUnreachablePockets();
     m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
+    m_GrassFire.Build(m_Grid);   // 火も消す
+    m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());   // 落ち葉も置き直す
 
     // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
     m_Swarm.KillAll();
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
+    m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());
     RespawnElites();
     RespawnCrates();   // 古い位置は新しい壁の中かもしれない
 }

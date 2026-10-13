@@ -66,7 +66,8 @@ public:
     //   sourceModelPath : json "source"。静的モデルを OnPlay で登録する
     //   externalSource  : シーンが実行時に差し込んだ源（参照モデルの骨格等）。
     //                     OnPlay で読み直さず、OnStop でも解除しない（所有はシーン）
-    //   followWorld     : 非所有。非 null なら emitter.world にこれを使い、
+    //   followWorld     : 非所有。非 null なら emitter.world にこ
+    // れを使い、
     //                     effect の worldOffset は足さない（源の世界行列に従う）
     // ============================================
     std::string sourceModelPath;

@@ -2,6 +2,7 @@
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "Core/Application.h"
 #include "Particle/ParticleSheets.h"
+#include "VFX_Editor/VFXId.h"
 #include "imgui.h"
 
 namespace
@@ -317,6 +318,71 @@ void VFXEditor::DrawMenuBar()
     if (ImGui::Button("Load"))
     {
         ImGui::OpenPopup("LoadPopup");
+    }
+
+    // エフェクトのデータベース（VFXId.h / VFXDatabase.cpp）の一覧。2026-10-09、ユーザー：
+    // 「データベースのエフェクトの数が合わない、プレイヤーのエフェクトや足元の小石は入っていないのか」
+    ImGui::SameLine();
+    if (ImGui::Button("Database"))
+    {
+        ImGui::OpenPopup("DatabasePopup");
+    }
+    if (ImGui::BeginPopup("DatabasePopup"))
+    {
+        ImGui::Text("VFX Database: %d effects (VFX_Editor/VFXId.h). Click = load", VFXDatabase::Count());
+        ImGui::Separator();
+        std::vector<std::string> registered;
+        for (int g = 0; g < (int)VFXDatabase::Group::Count; ++g)
+        {
+            const auto group = (VFXDatabase::Group)g;
+            int n = 0;
+            for (int i = 0; i < VFXDatabase::Count(); ++i)
+                if (VFXDatabase::GetGroup(VFXDatabase::At(i)) == group) ++n;
+            if (n == 0) continue;
+            ImGui::TextColored(ImVec4(0.6f, 0.9f, 1.0f, 1.0f), "%s  (%d)", VFXDatabase::GroupName(group), n);
+            ImGui::Indent();
+            for (int i = 0; i < VFXDatabase::Count(); ++i)
+            {
+                const VFXId id = VFXDatabase::At(i);
+                if (VFXDatabase::GetGroup(id) != group) continue;
+                const char* file = VFXDatabase::GetFile(id);
+                registered.push_back(file);
+                if (ImGui::Selectable(file))
+                {
+                    m_Effect->Stop();
+                    m_Effect->LoadFromFile(VFXDatabase::GetPath(id));
+                    // 保存名もこの json に合わせる（そのまま Save で上書きできるように）
+                    std::string stem = file;
+                    if (stem.size() > 5) stem.resize(stem.size() - 5);   // ".json"
+                    strncpy_s(m_SaveFileName, stem.c_str(), _TRUNCATE);
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            ImGui::Unindent();
+        }
+
+        // フォルダにあるが登録されていない物（エディタの試し用）
+        ImGui::Separator();
+        ImGui::TextDisabled("Not in the database (editor tests; the game never plays these):");
+        WIN32_FIND_DATAA fd;
+        HANDLE hFind = FindFirstFileA("Assets/Data/VFXData/*.json", &fd);
+        if (hFind != INVALID_HANDLE_VALUE)
+        {
+            do
+            {
+                if (std::find(registered.begin(), registered.end(), std::string(fd.cFileName)) != registered.end()) continue;
+                ImGui::Indent();
+                if (ImGui::Selectable(fd.cFileName))
+                {
+                    m_Effect->Stop();
+                    m_Effect->LoadFromFile(std::string("Assets/Data/VFXData/") + fd.cFileName);
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::Unindent();
+            } while (FindNextFileA(hFind, &fd));
+            FindClose(hFind);
+        }
+        ImGui::EndPopup();
     }
 
     // Save

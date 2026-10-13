@@ -319,6 +319,16 @@ namespace ParticleRenderMode
         return kToon | (outline ? kToonOutline : 0)
             | (q(cut, 0.05f, 0.05f) << 16) | (b << 20) | (q(shade, 0.0f, 1.0f / 15.0f) << 22);
     }
+
+    // 風の受けやすさ（2026-10-12、ビルボード・メッシュ共通）：bits 26-29 = q、
+    // ParticleUpdateCS が水平速度を世界の風へ q / 15 × PARTICLE_WIND_RATE（1/秒）で寄せる。0 = 風を受けない
+    constexpr int kWindShift = 26;
+    inline int PackWind(float response)
+    {
+        int n = (int)(response * 15.0f + 0.5f);
+        n = n < 0 ? 0 : (n > 15 ? 15 : n);
+        return n << kWindShift;
+    }
 }
 
 // ============================================
@@ -400,7 +410,9 @@ struct ParticleRenderCB
     Matrix   view;
     Matrix   projection;
     Vector3  cameraPosition; // Billboard用
-    float    _pad0;
+    // ビルボードのどれを描くか（GPUParticleVS の g_Pass。2026-10-09、爆発の炎と黒煙のちらつき）：
+    // 0 = 全部（従来）/ 1 = 不透明なトゥーンだけ（深度を書く）/ 2 = それ以外
+    float    pass = 0.0f;
 };
 
 // ============================================

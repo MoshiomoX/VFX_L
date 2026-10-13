@@ -23,7 +23,7 @@ inline AreaItemDef MakeBeam()
     def.common.id = ItemID::Beam;
     def.common.name = "Beam";
     def.common.displayName = L"魔導光線";
-    def.common.description = L"上級魔法。ホーミングボルトとアークボルトの両方に隣接させると使えるようになり、どちらかの弾が消えた方向へ、敵を貫通する光線を放つ。";
+    def.common.description = L"前方の敵をまとめて貫く光線を放つ。";
     def.common.iconPath = Res::Icon::Beam;
     def.common.category = ItemCategory::Area;
     def.common.occupyCells = { { 0, 0 }, { 0, -1 }, { 0, 1 } };   // 横 3 マス（中心 + 左右）

@@ -45,6 +45,7 @@ struct PSInput
     nointerpolation uint alphaBlend : TEXCOORD5;
     nointerpolation uint renderMode : TEXCOORD6;
     nointerpolation float2 toonFade : TEXCOORD7;   // x = life left (erosion), y = opacity
+    nointerpolation uint solidPass : TEXCOORD8;    // 1 = the depth-writing pass of solid toon puffs (GPUParticleVS g_Pass)
 };
 
 // ------------------------------------------------------------
@@ -169,7 +170,16 @@ float4 main(PSInput input) : SV_TARGET
     if (input.renderMode & PARTICLE_TOON)
     {
         float3 straight = ((g_PremulMask & bit) != 0u) ? soft.rgb / max(soft.a, 1e-3) : soft.rgb;
-        return ToonBillboard(straight, soft.a, alphaWidth, input.color, input.toonFade, input.renderMode, input.alphaBlend != 0u);
+        // depth-writing pass: the puff is fully opaque inside (0.85..1 opacity -> 1, so
+        // what shows through no longer depends on the draw order), and only the inside
+        // of the shape writes depth (the soft rim below 0.5 would hide puffs behind it)
+        float2 fade = input.toonFade;
+        if (input.solidPass != 0u)
+            fade.y = 1.0;
+        float4 toon = ToonBillboard(straight, soft.a, alphaWidth, input.color, fade, input.renderMode, input.alphaBlend != 0u);
+        if (input.solidPass != 0u)
+            clip(toon.a - 0.5);
+        return toon;
     }
 
     float a = tex.a * input.color.a;

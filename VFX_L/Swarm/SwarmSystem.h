@@ -24,6 +24,7 @@
 #include "Swarm/SwarmTypes.h"
 #include "Swarm/GPUReadback.h"
 #include "Swarm/SwarmVFXTable.h"
+#include "Swarm/SwarmFireEmit.h"
 #include "Swarm/FlowField.h"
 #include "VFX_Editor/VFXId.h"
 #include "Graphics/Light/LightTypes.h"
@@ -345,6 +346,18 @@ public:
     // リードバックした標的の位置（2〜3 フレーム古い）。serial が違う / 標的が無ければ false
     bool GetBeamTarget(uint32_t ch, uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
 
+    // 燃えている草からの粒子（2026-10-12、GrassFireField）。毎フレーム Flush の前に渡す。null = 出さない。
+    // 発射は弾・範囲の直後（Swarm/SwarmSystemFire.cpp）
+    void SetGrassFire(const GrassFireEmitInput* in);
+    // 範囲の池（GrassFireField が熱源として読む。SRV なので CS の UAV と同じフレームで使わない所で）
+    ID3D11ShaderResourceView* GetAreaSRV() const { return m_AreaSRV.Get(); }
+    ID3D11ShaderResourceView* GetAreaStateSRV() const { return m_AreaStateSRV.Get(); }
+    // 同上（2026-10-13、草の踏み跡と落ち葉）：カプセル（光線）の終点、雑魚の池 / 状態 / 種類
+    ID3D11ShaderResourceView* GetAreaEndSRV() const { return m_AreaEndSRV.Get(); }
+    ID3D11ShaderResourceView* GetEnemySRV() const { return m_EnemySRV.Get(); }
+    ID3D11ShaderResourceView* GetEnemyStateSRV() const { return m_EnemyStateSRV.Get(); }
+    ID3D11ShaderResourceView* GetEnemyExtraSRV() const { return m_EnemyExtraSRV.Get(); }
+
     // ---- ImGui 表示用 ----
     const SwarmVFXTable& GetVFXTable() const { return m_VFX; }
     int GetPendingEnemySpawns() const { return (int)m_PendingEnemies.size(); }
@@ -392,6 +405,9 @@ private:
     void UploadSpawns();          // 溜めた生成依頼を GPU へ
     void DispatchStep();          // 固定ステップ 1 回分の CS 群
     void DispatchEmit(float dt, float totalTime);   // 弾から粒子を発射
+    void DispatchFireEmit(float dt, float totalTime);   // 燃えている草から粒子を発射（SwarmSystemFire.cpp）
+    GrassFireEmitInput m_GrassFire;
+    bool m_HasGrassFire = false;
     void DispatchSprites(float dt);                  // 範囲の連番画像：古い物を進めて、生まれた範囲の分を始める
     void RequestReadback();       // counter の copy を発行
 
@@ -421,6 +437,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemySlowBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemySlowUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemySlowSRV;
+    // 吹き飛ばし（突風。2026-10-12）：float4 = 速度 xz・残り秒。AreaDamageCS が書き、AICS が足して減らす。本体の横に持つ
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPushBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPushUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPushSRV;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjUAV;
@@ -687,6 +707,7 @@ private:
     std::shared_ptr<ComputeShader> m_AreaTickCS;     // 時計を進める・プレイヤーに追従・tick の判定（命中の直後）
     std::shared_ptr<ComputeShader> m_AreaDamageCS;   // tick した範囲の中の雑魚へダメージ
     std::shared_ptr<ComputeShader> m_AreaEmitCS;     // GPU が出した範囲（弾の命中）から粒子を発射
+    std::shared_ptr<ComputeShader> m_FireEmitCS;     // 燃えている草から粒子を発射（Shader/Grass/GrassFireEmitCS）
     std::shared_ptr<ComputeShader> m_LightCollectCS;     // 弾の点光源を PointLightManager へ追記
     std::shared_ptr<ComputeShader> m_AreaLightCollectCS; // 範囲の分
     std::shared_ptr<ComputeShader> m_EnemyCompactCS;     // 活きスロットの一覧（描画の instance 数）

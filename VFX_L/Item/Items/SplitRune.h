@@ -21,7 +21,7 @@ inline FunctionItemDef MakeSplitRune()
     def.common.id = ItemID::SplitRune;
     def.common.name = "Split Rune";
     def.common.displayName = L"分裂のルーン";
-    def.common.description = L"隣の魔法の弾を扇状に増やす。一発あたりの威力（落ちた所に残る範囲も）は下がる。";
+    def.common.description = L"隣の魔法の弾を扇状に 1 発増やす。そのかわり 1 発の威力は下がる。";
     def.common.category = ItemCategory::Function;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Cross();      // 上下左右

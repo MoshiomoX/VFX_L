@@ -14,6 +14,8 @@ struct AreaStats
 
     // --- 範囲 ---
     float radius = 3.0f;          // 影響半径
+    // 光線の射程 m（AreaProfile::length を基礎値に、拡大鏡などの修飾を掛けた物。光線以外は 0。2026-10-13）
+    float length = 0.0f;
 
     // --- 時間 ---
     float duration = 2.0f;    // 発生してから消えるまで

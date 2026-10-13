@@ -6,6 +6,7 @@
 #include "UI/SpellbookUI.h"
 #include "UI/ShapeSprite.h"
 #include "UI/UIDeco.h"
+#include "UI/InputGlyph.h"
 #include "Graphics/Renderer/SpriteRenderer.h"
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Component/BackpackComponent.h"
@@ -19,14 +20,6 @@ using namespace DirectX::SimpleMath;
 namespace
 {
     constexpr float kStickThreshold = 0.5f;
-    constexpr float kMouseWakePx = 2.0f;   // これ以上動いたらマウスへ戻す（捕獲を放した時の微小な動きでは戻さない）
-
-    const WORD kPadButtons[] = {
-        XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y,
-        XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER,
-        XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT,
-        XINPUT_GAMEPAD_START,
-    };
 }
 
 // ============================================================
@@ -34,20 +27,10 @@ namespace
 // ============================================================
 bool BackpackPadControl::DetectDevice()
 {
-    if (m_HasTest) { m_Active = true; return true; }   // TEMP-TEST
+    if (m_HasTest || m_TestMode) { m_Active = true; return true; }   // TEMP-TEST
 
-    auto& input = InputManager::Get();
-
-    bool pad = input.GetPadLeftStick().Length() > kStickThreshold;
-    for (WORD b : kPadButtons)
-        pad = pad || input.GetPadTrigger(b);
-
-    const auto md = input.GetMouseDelta();
-    const bool mouse = std::fabs(md.x) + std::fabs(md.y) > kMouseWakePx
-        || input.GetMouseTrigger(0) || input.GetMouseTrigger(1) || input.GetMouseWheel() != 0.0f;
-
-    if (pad)        m_Active = true;
-    else if (mouse) m_Active = false;
+    // 判定は InputManager にまとめた（2026-10-09。操作案内の絵の出し分けと同じ機器を見る）
+    m_Active = InputManager::Get().IsUsingPad();
     return m_Active;
 }
 
@@ -381,15 +364,36 @@ void BackpackPadControl::Draw(SpriteRenderer& sprite, TextRenderer& text, const 
     }
 
     // ---- 操作の案内（グリッドの外枠の下）----
-    const wchar_t* hint = L"A  つかむ　　X  魔法書へ戻す　　Y  魔法書へ移る　　B  閉じる";
+    // {…} = パッドのボタンの絵（InputGlyph。2026-10-09 から文字の「A」などを絵に）
+    const wchar_t* hint = L"{DPAD} 移動　　{A} つかむ　　{X} 魔法書へ戻す　　{Y} 魔法書へ移る　　{B} 閉じる";
     if (carrying)
-        hint = L"A  置く　　LB / RB  回転　　X  魔法書へ戻す　　B  やめる";
+        hint = L"{DPAD} 移動　　{A} 置く　　{LB} / {RB} 回転　　{X} 魔法書へ戻す　　{B} やめる";
     else if (m_Focus == Focus::Book)
-        hint = L"A  取り出す　　Y  バックパックへ移る　　B  閉じる";
+        hint = L"{DPAD} 選ぶ　　{A} 取り出す　　{Y} バックパックへ移る　　{B} 閉じる";
 
+    DrawHintBar(sprite, text, grid, hint, k);
+}
+
+// ============================================================
+// マウスで操作している間の案内（2026-10-09。パッドの案内と同じ場所・同じ帯）
+// ============================================================
+void BackpackPadControl::DrawMouseHint(SpriteRenderer& sprite, TextRenderer& text, const BackpackUI& grid,
+    const DragContext& drag, const Vector2& screen)
+{
+    const float k = (std::min)(screen.x, screen.y) / 900.0f * UIDeco::UIScale();
+    const wchar_t* hint = drag.IsActive()
+        ? L"{M:L} 離して置く（外なら魔法書へ）　　{M:WHEEL} / {K:R} 回転"
+        : L"{M:L} ドラッグで動かす　　{M:WHEEL} / {K:R} 回転　　{M:R} 魔法書へ戻す　　{K:Tab} 閉じる";
+    DrawHintBar(sprite, text, grid, hint, k);
+}
+
+// 操作の案内の帯（グリッドの外枠の下）
+void BackpackPadControl::DrawHintBar(SpriteRenderer& sprite, TextRenderer& text, const BackpackUI& grid,
+    const wchar_t* hint, float k)
+{
     const float scale = 0.5f * k;
     const float pad = 8.0f * k;
-    const Vector2 size = text.Measure(hint, scale);
+    const Vector2 size = InputGlyph::Measure(text, hint, scale);
     const Vector2 pos = {
         grid.m_Origin.x - grid.m_FramePad + pad,
         grid.m_Origin.y + grid.GridExtent() + grid.m_FramePad + 10.0f * k + pad
@@ -398,6 +402,6 @@ void BackpackPadControl::Draw(SpriteRenderer& sprite, TextRenderer& text, const 
     if (const auto& white = UIDeco::Tex().white)
         sprite.Draw(white, { pos.x - pad, pos.y - pad }, { size.x + pad * 2.0f, size.y + pad * 2.0f },
             { 0.0f, 0.0f, 0.0f, 0.9f });
-    text.Draw(hint, { pos.x + 2.0f, pos.y + 2.0f }, { 0.0f, 0.0f, 0.0f, 0.8f }, scale);
-    text.Draw(hint, pos, { 0.95f, 0.88f, 0.70f, 1.0f }, scale);
+    InputGlyph::DrawShadowed(sprite, text, hint, pos, { 0.95f, 0.88f, 0.70f, 1.0f }, scale,
+        { 2.0f, 2.0f }, { 0.0f, 0.0f, 0.0f, 0.8f });
 }

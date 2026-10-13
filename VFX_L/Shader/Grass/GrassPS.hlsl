@@ -16,11 +16,14 @@ struct GrassOut
     float3 normal : TEXCOORD1;
     float3 color : TEXCOORD2;
     float t : TEXCOORD3;
+    float glow : TEXCOORD4;
 };
 
 float4 main(GrassOut i) : SV_TARGET
 {
     float3 albedo = i.color * lerp(g_RootColor, g_TipColor, i.t);
     float3 lit = ShadeLambert(normalize(i.normal), albedo, i.world);
+    // ember glow of burning grass: orange, brighter toward the tip (HDR -> bloom)
+    lit += float3(1.0, 0.36, 0.05) * (i.glow * g_FireGlow * (0.35 + 0.65 * i.t));
     return float4(lit, 1.0);
 }

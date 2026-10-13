@@ -18,7 +18,7 @@ inline ProjectileItemDef MakeGoldenArrow()
     def.common.id = ItemID::GoldenArrow;
     def.common.name = "Golden Arrow";
     def.common.displayName = L"黄金の矢";
-    def.common.description = L"金色に輝く矢を放つ。曲がらずまっすぐ、速く飛ぶ。";
+    def.common.description = L"速く飛ぶ金色の矢。遠くの敵にもすぐ届く。";
     def.common.iconPath = Res::Icon::GoldenArrow;
     def.common.category = ItemCategory::Projectile;
     // 形は強さで決める（2026-10-04、元は縦 2 マス）。単体 DPS 約 23（追尾弾より強く石弾より少し弱い）→ 縦 3 マスの矢柄

@@ -42,7 +42,8 @@ void ShieldBubble::Submit(VFXMeshRenderer& renderer, const Vector3& pos)
     const float s = (0.85f + 0.15f * grow) * (1.0f + hitScale * m_Hit);
     const float pulse = 1.0f + breathe * std::sin(m_Time * breatheSpeed);
     const Vector3 col = Vector3::Lerp(color, hitColor, m_Hit);
-    const float a = (alpha + (hitAlpha - alpha) * m_Hit) * pulse * grow;
+    const float baseAlpha = toon ? toonAlpha : alpha;
+    const float a = (baseAlpha + (hitAlpha - baseAlpha) * m_Hit) * pulse * grow;
     const float yaw = DirectX::XMConvertToRadians(spinDeg * m_Time);
 
     VFXMeshDrawItem item;
@@ -50,7 +51,8 @@ void ShieldBubble::Submit(VFXMeshRenderer& renderer, const Vector3& pos)
     item.params.tint = Vector4(col.x, col.y, col.z, a);
     item.params.intensity = intensity;
     item.params.noVertexColor = 1.0f;   // fanghuzhao2 の頂点色（材質の濃い青、赤 0）を掛けない。掛けると赤が出ない
-    item.blend = blend;
+    item.params.toon = toon ? 1.0f : 0.0f;
+    item.blend = toon ? 1 : blend;      // トゥーンは半透明（加算だと帯の濃さが出ない）
     item.twoSided = true;
 
     // 上の半球と、上下を返した下の半球（継ぎ目はカプセルの中心の少し下）
@@ -84,7 +86,9 @@ void ShieldBubble::DrawImGui()
     ImGui::ColorEdit3("Color##bubble", &color.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
     ImGui::DragFloat("Alpha##bubble", &alpha, 0.005f, 0.0f, 1.0f);
     ImGui::DragFloat("Intensity##bubble", &intensity, 0.02f, 0.0f, 10.0f);
-    ImGui::Combo("Blend##bubble", &blend, "Additive\0Alpha\0");
+    ImGui::Checkbox("Toon (hard bands)##bubble", &toon);
+    ImGui::DragFloat("Toon alpha##bubble", &toonAlpha, 0.005f, 0.0f, 1.0f);
+    ImGui::Combo("Blend (non-toon)##bubble", &blend, "Additive\0Alpha\0");
     ImGui::DragFloat("Spin deg/s##bubble", &spinDeg, 0.5f, -360.0f, 360.0f);
     ImGui::DragFloat("Breathe##bubble", &breathe, 0.01f, 0.0f, 1.0f);
     ImGui::DragFloat("Breathe speed##bubble", &breatheSpeed, 0.05f, 0.0f, 20.0f);

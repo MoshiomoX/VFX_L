@@ -22,7 +22,7 @@ inline ProjectileItemDef MakeMeteor()
     def.common.id = ItemID::Meteor;
     def.common.name = "Meteor";
     def.common.displayName = L"メテオ";
-    def.common.description = L"上級魔法。ファイアボールとストーンショットの両方に隣接させると使えるようになり、どちらかの弾が消えた場所に隕石を落として、周囲の敵をまとめて吹き飛ばす。";
+    def.common.description = L"空から隕石を落とし、周りの敵をまとめて吹き飛ばす。";
     def.common.iconPath = Res::Icon::Meteor;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = { { 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };   // 十字 5 マス（中心 + 上下左右）

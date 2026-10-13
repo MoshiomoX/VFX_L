@@ -69,7 +69,7 @@ public:
     bool IsModalOpen() const { return !m_Stack.IsEmpty(); }
 
     // TEMP-TEST: 自動テスト（VFXL_BATTLE_AUTOTEST=ui）。マウスを使わずに画面を開閉し、tooltip を指定の位置に出す
-    //   layer: 0 = 全部閉じる / 1 = バックパック / 2 = 一時停止。itemIndex < 0 で tooltip を消す
+    //   layer: 0 = 全部閉じる / 1 = バックパック / 2 = 一時停止 / 3 = 設定のページ / 4 = 遊び方のページ。itemIndex < 0 で tooltip を消す
     void TestShow(int layer);
     const SpellbookUI& GetSpellbook() const { return m_Spellbook; }   // TEMP-TEST: 木箱の物理の記録
     BackpackPadControl& TestPad() { return m_Pad; }          // TEMP-TEST: パッド操作（padbag）
@@ -78,6 +78,11 @@ public:
 
     // 全部下ろす（プレイヤー消失時など）
     void Clear() { m_Stack.Clear(); }
+
+    // バックパックの画面を開いているか（チュートリアルの「開いて置こう」の判定。2026-10-13）
+    bool IsBackpackOpen() const { return m_Stack.Top() == UILayer::Backpack; }
+    // チュートリアル中：一時停止のメニューに「チュートリアルを飛ばす」が出る（ConsumeMenuAction の SkipTutorial）
+    void SetTutorialActive(bool on) { m_Pause.SetTutorialActive(on); }
 
     // 画面下の操作案内（「[F] Open」など）。nullptr で消す。毎フレームシーンが入れ直す。
     // モーダルが開いている間は出さない（HUD と同じ）

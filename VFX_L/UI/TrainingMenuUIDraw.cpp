@@ -10,6 +10,7 @@
 #include "Item/ItemDatabase.h"
 #include "Item/ItemInfo.h"
 #include "UI/UIDeco.h"
+#include "UI/InputGlyph.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -214,9 +215,14 @@ void TrainingMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std:
             (focused != ItemID::Unknown) ? kTextSel : Vector4(1.0f, 0.80f, 0.40f, 1.0f), sc);
     }
 
-    const std::wstring hint = L"↑↓ で選択　← → で変更　Enter / パッド A で決定　T / Esc / パッド B・RB で閉じる";
-    const float hsc = FitText(text, hint, 0.32f * k, rowW);
-    const Vector2 hs = text.Measure(hint, hsc);
-    text.Draw(hint, { m_PanelPos.x + (m_PanelSize.x - hs.x) * 0.5f, footTop + footH * 0.75f - hs.y * 0.5f },
+    // {…} = パッドのボタンの絵（InputGlyph）
+    const std::wstring hint = L"<{K:ARROWSV}|{DPADV}> で選択　<{K:ARROWSH}|{DPADH}> で変更　<{K:Enter}|{A}> で決定　<{K:T} / {K:Esc}|{B} / {RB}> で閉じる";
+    float hsc = 0.32f * k;
+    {
+        const float w = InputGlyph::Measure(text, hint, hsc).x;
+        if (w > rowW && w > 0.0f) hsc *= rowW / w;
+    }
+    const Vector2 hs = InputGlyph::Measure(text, hint, hsc);
+    InputGlyph::Draw(sprite, text, hint, { m_PanelPos.x + (m_PanelSize.x - hs.x) * 0.5f, footTop + footH * 0.75f - hs.y * 0.5f },
         { 0.6f, 0.6f, 0.65f, 1.0f }, hsc);
 }

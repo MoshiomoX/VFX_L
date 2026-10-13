@@ -21,7 +21,7 @@ inline ProjectileItemDef MakeIceLance()
     def.common.id = ItemID::IceLance;
     def.common.name = "Ice Lance";
     def.common.displayName = L"アイスランス";
-    def.common.description = L"氷の槍をまっすぐ放つ。当たった敵はしばらく凍りつき、動くことも攻撃することもできない。";
+    def.common.description = L"氷の槍を放つ。凍った敵は動けず、攻撃もしてこない。";
     def.common.iconPath = Res::Icon::IceLance;
     def.common.category = ItemCategory::Projectile;
     def.common.occupyCells = ItemShape::ColLine(2);

@@ -1,0 +1,27 @@
+{
+    "entries": [
+        {
+            "data": {
+                "offset": [0.0, 0.0, 0.0],
+                "minDistance": 0.12,
+                "lifetime": 0.32,
+                "widthHead": 0.8,
+                "widthTail": 0.12,
+                "colorHead": [0.85, 0.95, 1.0, 0.5],
+                "colorTail": [0.45, 0.7, 1.0, 0.0],
+                "intensity": 1.1,
+                "softEdge": 0.8,
+                "blend": 0,
+                "uvMode": 0,
+                "uvRepeat": 1.0,
+                "uvScroll": 0.0,
+                "tex": { "source": 0 }
+            },
+            "duration": -1.0,
+            "startTime": 0.0,
+            "type": "Trail"
+        }
+    ],
+    "loop": false,
+    "name": "SpeedTrail"
+}

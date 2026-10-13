@@ -29,6 +29,10 @@ public:
     float alpha = 0.10f;
     float intensity = 1.0f;
     int   blend = 0;                 // 0 加算 / 1 半透明
+    // トゥーン（2026-10-09 ユーザー：「盾の違和感が強い、盾そのものにトゥーンを」）：加算のぼんやりした光をやめ、
+    // 半透明で向きによる 3 段の硬い帯（正面はほぼ透明・中間・縁は明るく濃い）。true の間は blend / alpha の代わりにこちら
+    bool  toon = true;
+    float toonAlpha = 0.22f;         // 中間の帯の不透明度（正面 ×0.3、縁 ×3）
     float spinDeg = 15.0f;           // 度/秒
     float breathe = 0.15f;           // 明るさの揺れ（割合）
     float breatheSpeed = 2.0f;       // rad/秒

@@ -19,7 +19,9 @@ From game-icons.net  https://game-icons.net
   StoneShot.png       "Stone sphere"      by Lorc        https://game-icons.net/1x1/lorc/stone-sphere.html
   Poison.png          "Poison bottle"     by Lorc        https://game-icons.net/1x1/lorc/poison-bottle.html
   IceLance.png        "Ice bolt"          by Lorc        https://game-icons.net/1x1/lorc/ice-bolt.html
+  IceSpike.png        "Crystal growth"    by Lorc        https://game-icons.net/1x1/lorc/crystal-growth.html
   Beam.png            "Laser blast"       by Lorc        https://game-icons.net/1x1/lorc/laser-blast.html
+  Gust.png            "Wind slap"         by Lorc        https://game-icons.net/1x1/lorc/wind-slap.html
   SplitRune.png       "Split arrows"      by Delapouite  https://game-icons.net/1x1/delapouite/split-arrows.html
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html

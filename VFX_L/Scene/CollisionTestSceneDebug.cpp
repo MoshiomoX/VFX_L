@@ -81,11 +81,27 @@ void CollisionTestScene::DrawDebugUI()
     DrawItemDatabasePanel();
     DrawTerrainPanel();
     m_Grass.DrawImGui();
+    m_GrassFire.DrawImGui(PlayerPos());   // 草の延焼（点火ボタン・温度の絵）
+    m_Debris.DrawImGui();                 // 地面の落ち葉
     DrawEnemiesPanel();
     if (m_Crates.DrawImGui(m_Interaction, m_LevelUpSystem)) RespawnCrates();
     if (const Vector3* pp = PlayerPos())
         m_Pickups.DrawImGui(m_Registry, m_Grid, *pp);
     m_Feedback.DrawImGui(m_Registry, m_Player);
+    m_PlayerVFX.DrawImGui();          // プレイヤーの動きのエフェクト（詠唱の光・土煙・着地・尾・被弾の閃き）
+    if (ImGui::Begin("Spell FX (CPU)"))   // 魔法の CPU 側の見た目（アイススパイクの氷のトゲ）
+    {
+        // Test cast はプレイヤーの足元から体の向きへ 8m
+        Vector3 pos = Vector3::Zero, dir = Vector3::UnitZ;
+        if (const Vector3* pp = PlayerPos()) pos = *pp;
+        if (m_Registry.IsValid(m_Player) && m_Registry.Has<TransformComponent>(m_Player))
+        {
+            const float yaw = DirectX::XMConvertToRadians(m_Registry.Get<TransformComponent>(m_Player).rotation.y);
+            dir = Vector3(std::sin(yaw), 0.0f, std::cos(yaw));
+        }
+        m_SpellFx.DrawImGui(pos, pos + dir * 8.0f, [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
+    }
+    ImGui::End();
     AudioSystem::Get().DrawImGui();   // 音量・BGM・cue の試聴
     m_Camera.DrawImGui();
     m_Lighting.DrawImGui(PlayerPos());   // 末尾にトゥーンの陰影（Toon Shading）

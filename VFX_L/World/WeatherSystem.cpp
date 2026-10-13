@@ -4,8 +4,8 @@
 #include "World/WeatherSystem.h"
 #include "World/StageConfig.h"
 #include "Swarm/AreaVFXPlayer.h"
+#include "VFX_Editor/VFXId.h"
 #include "Swarm/SwarmSystem.h"
-#include "Graphics/Renderer/GrassRenderer.h"
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
 
@@ -13,8 +13,8 @@ using namespace DirectX::SimpleMath;
 
 namespace
 {
-    constexpr const char* kRainVfx = "Rain.json";
-    constexpr const char* kSandVfx = "Sandstorm.json";
+    constexpr VFXId kRainVfx = VFXId::Rain;   // エフェクトのデータベース（VFXId.h）
+    constexpr VFXId kSandVfx = VFXId::Sandstorm;
     constexpr const char* kRainLoop = "Assets/Audio/SFX/rubberduck_WaterSlime/loop_rain.ogg";
 
     float Clamp01(float v) { return std::clamp(v, 0.0f, 1.0f); }
@@ -153,7 +153,7 @@ void WeatherSystem::ApplyWeatherToPreset(SceneLighting::Preset& p, float w) cons
 // Init / Update
 // ============================================================
 void WeatherSystem::Init(const StageDef& stage, float stageTime, SceneLighting& lighting, AreaVFXPlayer& vfx, const VFXContext* ctx,
-    GrassRenderer* grass, SwarmSystem* swarm)
+    SwarmSystem* swarm)
 {
     Shutdown();
     m_Biome = (int)stage.biome;
@@ -161,7 +161,6 @@ void WeatherSystem::Init(const StageDef& stage, float stageTime, SceneLighting& 
     m_Lighting = &lighting;
     m_Vfx = &vfx;
     m_Ctx = ctx;
-    m_Grass = grass;
     m_Swarm = swarm;
     switch (stage.biome)
     {
@@ -170,12 +169,10 @@ void WeatherSystem::Init(const StageDef& stage, float stageTime, SceneLighting& 
     default:                               m_Kind = Kind::Rain; break;
     }
     BuildTimeOfDay(stage);
-    if (m_Grass)
-    {
-        m_BaseGrassWind = m_Grass->GetSettings().windStrength;
-        m_BaseGrassSpeed = m_Grass->GetSettings().windSpeed;
-        m_WindYawDeg = m_Grass->GetSettings().windYawDeg;
-    }
+    m_Wind = WindState{};
+    m_Wind.SetYawDeg(windYawDeg);
+    m_Wind.speed = windSpeed;
+    m_Wind.gust = windGust;
     if (m_Swarm)
     {
         m_BaseOrbEmissive = m_Swarm->orbLook.emissive;
@@ -195,17 +192,12 @@ void WeatherSystem::Shutdown()
     m_VfxHandle = 0;
     if (!m_AmbientFile.empty()) AudioSystem::Get().SetAmbient("", 0.0f);
     m_AmbientFile.clear();
-    if (m_Grass)
-    {
-        m_Grass->GetSettings().windStrength = m_BaseGrassWind;
-        m_Grass->GetSettings().windSpeed = m_BaseGrassSpeed;
-    }
     if (m_Swarm)
     {
         m_Swarm->orbLook.emissive = m_BaseOrbEmissive;
         m_Swarm->hpBar.fill = m_BaseHpFill;
     }
-    m_Lighting = nullptr; m_Vfx = nullptr; m_Grass = nullptr; m_Swarm = nullptr;
+    m_Lighting = nullptr; m_Vfx = nullptr; m_Swarm = nullptr;
     m_State = State::Idle;
     m_Intensity = 0.0f;
 }
@@ -276,7 +268,7 @@ void WeatherSystem::UpdateVfx(const Vector3& camPos, const Vector3& camForward)
     if (!m_Vfx || !m_Ctx || m_Kind == Kind::Storm) return;
     const bool want = m_Intensity > 0.25f;
     if (want && m_VfxHandle == 0)
-        m_VfxHandle = m_Vfx->Play(m_Kind == Kind::Rain ? kRainVfx : kSandVfx, camPos, 1.0e7f, false, *m_Ctx);
+        m_VfxHandle = m_Vfx->Play(VFXDatabase::GetFile(m_Kind == Kind::Rain ? kRainVfx : kSandVfx), camPos, 1.0e7f, false, *m_Ctx);
     else if (!want && m_VfxHandle != 0)
     {
         m_Vfx->StopInstance(m_VfxHandle);
@@ -339,11 +331,14 @@ void WeatherSystem::Update(float dt, float runTime, const Vector3& camPos, const
         m_Lighting->ApplyPreset(p);
     }
 
-    if (m_Grass)
+    // 世界の風：向きはゆっくり揺れ、出来事の間は強く・波も速く（草・マント・粒子が同じ値を読む）
     {
-        const float gust = (m_Kind == Kind::Sandstorm) ? 2.2f : 1.4f;
-        m_Grass->GetSettings().windStrength = m_BaseGrassWind * (1.0f + gust * m_Intensity);
-        m_Grass->GetSettings().windSpeed = m_BaseGrassSpeed * (1.0f + 0.8f * m_Intensity);
+        const float mul = (m_Kind == Kind::Sandstorm) ? windSandMul : (m_Kind == Kind::Rain) ? windRainMul : windStormMul;
+        m_Wind.SetYawDeg(windYawDeg + windDriftDeg * std::sin(runTime * 6.2831853f / (std::max)(windDriftPeriod, 1.0f)));
+        m_Wind.speed = windSpeed;
+        m_Wind.gust = windGust;
+        m_Wind.strength = 1.0f + mul * m_Intensity;
+        m_Wind.waveSpeed = 1.6f * (1.0f + 0.8f * m_Intensity);
     }
     UpdateVfx(camPos, camForward);
     UpdateAudio(dt);
@@ -382,4 +377,14 @@ void WeatherSystem::DrawImGui()
     ImGui::DragFloat("Night End (phase)", &nightEnd, 0.01f, 1.0f, 2.0f, "%.2f");
     ImGui::DragFloat("Readability Boost", &readabilityBoost, 0.01f, 0.0f, 2.0f);
     ImGui::DragFloatRange2("Lightning Interval", &lightningMin, &lightningMax, 0.5f, 1.0f, 60.0f, "%.0f s");
+    ImGui::SeparatorText("World Wind (grass / cape / particles)");
+    ImGui::Text("now: yaw %.0f deg, %.2f m/s + gust %.2f, strength x%.2f",
+        m_Wind.YawDeg(), m_Wind.speed, m_Wind.gust, m_Wind.strength);
+    ImGui::SliderFloat("Wind Yaw", &windYawDeg, -180.0f, 180.0f, "%.0f deg");
+    ImGui::DragFloat("Wind Speed (m/s)", &windSpeed, 0.02f, 0.0f, 10.0f);
+    ImGui::DragFloat("Wind Gust (m/s)", &windGust, 0.02f, 0.0f, 10.0f);
+    ImGui::DragFloat("Wind Drift (deg)", &windDriftDeg, 0.5f, 0.0f, 90.0f);
+    ImGui::DragFloat("Wind Drift Period (s)", &windDriftPeriod, 1.0f, 5.0f, 600.0f);
+    ImGui::DragFloat("Rain Wind x", &windRainMul, 0.05f, 0.0f, 5.0f);
+    ImGui::DragFloat("Sandstorm Wind x", &windSandMul, 0.05f, 0.0f, 5.0f);
 }

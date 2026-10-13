@@ -9,6 +9,29 @@
 
 #define PARTICLE_MAX_OWNERS 1024
 
+// World wind (2026-10-12): particles whose renderMode bits 26-29 are set
+// drift toward the wind (smoke / mist / rain / sand; sparks stay 0).
+// Must match GPUParticleSystem::ParticleWindCB (b2; b0 / b1 are ParticleCommon's)
+cbuffer ParticleWindCB : register(b2)
+{
+    float2 g_WindDir;       // unit xz, the way the wind blows
+    float g_WindSpeed;      // m/s (base), already times the weather strength
+    float g_WindGust;       // m/s (gust amplitude), same
+    float g_WindWaveScale;  // gust waves per meter
+    float g_WindWaveSpeed;  // radians per second
+    float g_WindTime;       // the grass's wind clock (same waves as the blades)
+    float _windPad;
+};
+
+// world wind at xz (the GrassVS gust formula)
+float2 ParticleWindAt(float2 xz)
+{
+    float phase = dot(xz, g_WindDir) * g_WindWaveScale * 6.2831853 - g_WindTime * g_WindWaveSpeed;
+    float w = sin(phase) * 0.5 + 0.5;
+    w *= w;
+    return g_WindDir * (g_WindSpeed + g_WindGust * w);
+}
+
 StructuredBuffer<ColorKey> colorKeys : register(t0);
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 AppendStructuredBuffer<uint> deadList : register(u1);
@@ -78,6 +101,15 @@ void main(uint3 id : SV_DispatchThreadID)
 
     p.velocity += p.acceleration * g_DeltaTime;
     p.velocity *= (1.0 - p.drag * g_DeltaTime);
+
+    // wind: relax the horizontal velocity toward the world wind (smoke drifts, sparks don't)
+    float windResp = ParticleWindResponse(p.renderMode);
+    if (windResp > 0.0)
+    {
+        float k = saturate(windResp * PARTICLE_WIND_RATE * g_DeltaTime);
+        p.velocity.xz += (ParticleWindAt(p.position.xz) - p.velocity.xz) * k;
+    }
+
     p.position += p.velocity * g_DeltaTime;
 
     if (p.colorKeyCount > 0)

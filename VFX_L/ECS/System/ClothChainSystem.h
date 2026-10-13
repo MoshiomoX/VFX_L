@@ -10,6 +10,7 @@
 //   一時停止中は呼ばれないので止まる
 // ============================================================
 #pragma once
+#include "World/WindState.h"
 #include <functional>
 
 class Registry;
@@ -22,6 +23,9 @@ public:
 
     // 地面の高さ（世界の x, z → y）。無ければ足元（モデルの原点）の高さの平面
     std::function<float(float, float)> groundHeight;
+    // 世界の風（シーンが毎フレーム WeatherSystem::Wind を入れる。2026-10-12）。windTime は波の時計（草と同じ物）
+    WindState wind;
+    float windTime = 0.0f;
 
     // Reallusion CC 骨（Shadowkin）のマント: Cloak1〜8 を CC_Base_Spine02 に付ける
     static ClothChainComponent CCCape();

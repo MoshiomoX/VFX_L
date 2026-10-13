@@ -1,53 +1,17 @@
 // ============================================================
 // TitleScene.h
-// タイトル画面。背景はデバッググリッドの上をカメラがゆっくり回り、
-// 手前をアイテムの色の四角が漂う。
-// メニュー（はじめる / ゲームを終了）は MenuList（一時停止のメニューと共用）。
-// 文字とスプライトは GameUI と同じ SpriteRenderer / TextRenderer を使う。
+// タイトル画面（2026-10-09 作り直し。ユーザー：「タイトルとリザルトが不格好」）。
+// 戦闘シーンそのもの（同じ地形生成・草・空・トゥーン・プレイヤーのモデル）を「タイトル」の設定で立ち上げる：
+//   決まった seed の草原、敵・箱・門・HUD なし、丘の上に立つプレイヤーを夕方の光でカメラがゆっくり回り、
+//   左に名前と文字だけのメニュー（UI/TitleScreenUI）。
+// 実装は CollisionTestScene の m_TitleScene フラグ 1 つ（Init の分岐 + CollisionTestSceneTitle.cpp）。
+// 以前の TitleScene（参照格子の上に色の四角が漂う画面）は git の履歴にある
 // ============================================================
 #pragma once
-#include "Scene/SceneBase.h"
-#include "Camera/CameraBase.h"
-#include "Graphics/Renderer/SpriteRenderer.h"
-#include "Graphics/Renderer/TextRenderer.h"
-#include "UI/MenuList.h"
-#include <memory>
-#include <vector>
+#include "Scene/CollisionTestScene.h"
 
-class Texture;
-
-class TitleScene : public SceneBase
+class TitleScene final : public CollisionTestScene
 {
 public:
-    void Init()     override;
-    void Shutdown() override;
-    void Update(float dt) override;
-    void Render(Renderer& renderer) override;
-
-private:
-    // 漂う四角（飾り）
-    struct Deco
-    {
-        DirectX::SimpleMath::Vector2 pos;
-        DirectX::SimpleMath::Vector4 color;
-        float size = 20.0f;
-        float speed = 30.0f;    // 上へ（px/s）
-        float angle = 0.0f;
-        float spin = 0.5f;      // rad/s
-    };
-
-    void Layout();
-    void InitDecos();
-
-    CameraBase     m_Camera;
-    SpriteRenderer m_Sprite;
-    TextRenderer   m_Text;
-    std::shared_ptr<Texture> m_WhiteTex;   // 暗幕・下線・四角用の 1x1
-    MenuList       m_Menu;
-    std::vector<Deco> m_Decos;
-
-    float m_ScreenW = 1600.0f;
-    float m_ScreenH = 900.0f;
-    float m_Time = 0.0f;        // カメラ回転用
-    bool  m_Starting = false;   // 決定後の二重送信防止
+    TitleScene() { m_TitleScene = true; }
 };

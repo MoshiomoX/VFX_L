@@ -38,10 +38,14 @@
 #include "ECS/System/RenderSystem.h"
 #include "Graphics/Renderer/StaticPropRenderer.h"
 #include "Graphics/Renderer/GrassRenderer.h"
+#include "World/GrassFireField.h"
+#include "World/GroundDebris.h"
 #include "ECS/System/InteractionSystem.h"
 #include "ECS/System/RewardCrateSystem.h"
 #include "ECS/System/PickupSystem.h"
 #include "ECS/System/FeedbackVFXSystem.h"
+#include "ECS/System/PlayerVFXSystem.h"
+#include "ECS/System/SpellFxSystem.h"
 #include "World/WeatherSystem.h"
 #include "Audio/BattleAudio.h"
 #include "Particle/GPUParticleSystem.h"
@@ -68,6 +72,10 @@
 #include "Swarm/SwarmSystem.h"
 
 #include "UI/GameUI.h"
+#include "UI/TutorialGuide.h"
+#include "UI/TitleScreenUI.h"
+#include "Graphics/PostProcess/SceneSnapshot.h"
+#include "Camera/CameraBase.h"
 #include "SpellID.h"      // ItemID
 #include <memory>
 #include <vector>
@@ -85,8 +93,38 @@ public:
 protected:
     // 魔法の実験場（SpellLabScene が立てる。Init で平地・湧きなし・無敵などに分岐する）
     bool m_LabScene = false;
+    // タイトル画面（TitleScene が立てる。2026-10-09）：草原の地形・草・空はそのまま、敵・箱・門・HUD なし。
+    // 丘の上に立つプレイヤーをカメラがゆっくり回り、手前に TitleScreenUI。中身は CollisionTestSceneTitle.cpp
+    bool m_TitleScene = false;
 
 private:
+    // ---- タイトル画面（CollisionTestSceneTitle.cpp）----
+    void InitTitle();               // Init の終わり：プレイヤーを丘の上へ、夕方の光、カメラ、メニュー
+    void UpdateTitle(float dt);     // Update の代わり（操作・湧き・武器は回さない）
+    void UpdateTitleCamera(float dt);
+    // 戦いの見本（2026-10-09 ユーザー：「立っているだけでは意味が分からない、エフェクトが弾ける画面に」）：
+    // 見栄えのする魔法を背嚢に並べ、画面の奥から雑魚・自爆兵を寄せ続け、プレイヤーが自動で撃って吹き飛ばす
+    void InitTitleDemo();
+    void UpdateTitleDemo(float dt);
+    void SpawnTitleEnemies(int count, float minDist, float maxDist);
+    float m_TitleSpawnTimer = 0.0f;
+    float m_TitleMeteorTimer = 0.0f;
+    TitleScreenUI m_TitleUI;
+    CameraBase    m_TitleCam;
+    DirectX::SimpleMath::Vector3 m_TitleFocus;   // プレイヤーの足元（カメラが回る中心）
+    float         m_TitleFacing = 0.0f;          // カメラの振れの真ん中（プレイヤーから見たカメラの方角、度）。敵はこの反対（画面の奥）から来る
+    float         m_TitleTime = 0.0f;
+    static constexpr uint32_t kTitleSeed = 12345;   // タイトルの地形はいつも同じ（見え方を決めて置ける）
+
+    // ---- リザルトの背景の写真（2026-10-09、Graphics/PostProcess/SceneSnapshot）----
+    // 爆発の山場（HighlightPicker）か、それが無ければ力尽きた / クリアの瞬間を、UI を描く前に写す
+    HighlightPicker m_Highlight;
+    bool  m_SnapshotThisFrame = false;   // このフレームの Render で写す
+    bool  m_SnapshotIsHighlight = false;
+    bool  m_EndShotChecked = false;      // 終わった瞬間の写真（山場が無かった時）を決めた
+    float m_GoldAtStart = 0.0f;          // 面の始めの WalletComponent::earned（この面で拾った金貨 = 差）
+    void  OnExplosions(int count);       // 揺れ（カメラ）と山場の数え（写真）を一緒に
+
     // ---- フレーム処理（CollisionTestScene.cpp）----
     void UpdateScreenSize();
     void UpdateGameplay(float dt);
@@ -95,6 +133,7 @@ private:
     void UpdateBossAttacks(float dt, const DirectX::SimpleMath::Vector3& player);   // Boss の技：輪・衝撃波・突進・当たり（CollisionTestSceneBoss.cpp）
     bool IsPlayerDead();
     const Vector3* PlayerPos();      // プレイヤーの位置（居なければ null）。部品へ渡す用
+    void PushWind();                 // 世界の風（WeatherSystem::Wind）を草・マント・粒子・草の火へ渡す（毎フレーム、粒子の Flush の前）
     void RespawnCrates();            // 報酬の箱をプレイヤーの周りへ並べ直す（開始時・地形の作り直し・パネル）
     void RespawnElites();            // エリートの的をプレイヤーの前へ（地形の作り直し・パネル）
     void EndRun();                   // 戦績を書いてリザルトへ
@@ -165,11 +204,16 @@ private:
     RenderSystem            m_RenderSystem;
     StaticPropRenderer      m_StaticProps;   // 野原の置物（ModelComponent::batched）をまとめて描く
     GrassRenderer           m_Grass;         // 野原の草（GPU で生やす葉。風・踏み跡）
+    GrassFireField          m_GrassFire;     // 草の延焼（温度・燃料のテクスチャ。爆発・火球が熱源、見た目だけ。2026-10-12）
+    GroundDebris            m_Debris;        // 地面の落ち葉・草屑・小枝（突風・爆発・強風で舞う。2026-10-13）
 
     // ---- 部品 ----
     RewardCrateSystem       m_Crates;              // 報酬の箱
+    TutorialGuide           m_Tutorial;            // 初回のチュートリアル（2026-10-13。HUD の案内と目標の行に出す）
     PickupSystem            m_Pickups;             // 場の拾い物（磁石）
     FeedbackVFXSystem       m_Feedback;            // レベルアップ・開箱・被弾のエフェクト
+    PlayerVFXSystem         m_PlayerVFX;           // プレイヤーの動きのエフェクト（詠唱の光・土煙・着地・尾・被弾の閃き。2026-10-09）
+    SpellFxSystem           m_SpellFx;             // 魔法の CPU 側の見た目（アイススパイクの氷のトゲ。2026-10-10）
     WeatherSystem           m_Weather;             // 時刻（昼 → 夜）と天候の出来事（雨・砂嵐・雷）。照明を毎フレーム上書き
     BattleAudio             m_Audio;               // 戦闘の音（GPU の範囲・プレイヤーの動き・BGM。2026-10-03）
     SceneLighting           m_Lighting;            // 太陽・環境光・シーン光源

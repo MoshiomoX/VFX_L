@@ -20,9 +20,7 @@ inline StatItemDef MakeShieldUp()
     def.common.id = ItemID::ShieldUp;
     def.common.name = "Max Shield +25";
     def.common.displayName = L"最大シールド +25";
-    def.common.description = L"HP より先にダメージを受けるシールドの上限を上げる。"
-        L"5 秒間ダメージを受けなければ満タンまで回復する。"
-        L"シールドが残っていれば、その一撃で HP は減らない。";
+    def.common.description = L"HP より先にダメージを受け止めるシールドが増える。5 秒攻撃を受けなければ回復する。";
     def.common.category = ItemCategory::Stat;
     def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};

@@ -177,7 +177,7 @@ void BattleCamera::OnShakeAreas(uint32_t count)
 void BattleCamera::Update(float dt, const Vector3* target)
 {
     if (target) m_Camera.SetFollowTarget(*target);
-    m_Camera.Update(dt);
+      m_Camera.Update(dt);
 }
 
 // ============================================================

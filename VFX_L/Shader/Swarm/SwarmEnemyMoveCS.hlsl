@@ -23,6 +23,10 @@ StructuredBuffer<uint> terrain : register(t2); // walkable grid (for the slide /
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3); // kind: ghosts skip the walls
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
+// knockback (the Gust, 2026-10-12): xy = velocity away from the player, z = seconds left.
+// AreaDamageCS writes it; added to this step's motion here (not to the AI's velocity:
+// its smoothing would stretch a 0.25 s shove into several meters) and decayed
+RWStructuredBuffer<float4> enemyPush : register(u2);
 
 // m/s a body that touches a wall / cliff face is eased back out
 static const float kWallPushOut = 2.0;
@@ -119,7 +123,23 @@ void main(uint3 id : SV_DispatchThreadID)
     float radius = SwarmBodyWallRadius(enemyExtra[i].kind);
     bool allowDrop = SwarmDropAllowed(terrainHeight, e.position.xz);
 
-    if (e.animIndex == 2u)
+    // knockback (the Gust): this step's shove, decaying over SWARM_PUSH_TIME. Rides on the
+    // velocity through the integrate below (wall / cliff checks included), taken off before the facing
+    float2 pushV = float2(0.0, 0.0);
+    {
+        float4 pk = enemyPush[i];
+        if (pk.z > 0.0)
+        {
+            pushV = pk.xy * saturate(pk.z / SWARM_PUSH_TIME);
+            pk.z -= g_Step;
+            if (pk.z <= 0.0)
+                pk = float4(0.0, 0.0, 0.0, 0.0);
+            enemyPush[i] = pk;
+        }
+    }
+    e.velocity.xz += pushV;
+
+    if (e.animIndex == 2u && dot(pushV, pushV) < 1e-4)
     {
         // ---- hit stun: hold position and facing, only the clock runs ----
         // HitCS set animTime = 0 when it landed the hit
@@ -255,7 +275,8 @@ void main(uint3 id : SV_DispatchThreadID)
         else
             Settle(e, radius, allowDrop);
 
-        // ---- facing: turn toward the velocity at a bounded rate ----
+        // ---- facing: turn toward the velocity at a bounded rate (the shove is not a direction it chose) ----
+        e.velocity.xz -= pushV;
         if (dot(e.velocity.xz, e.velocity.xz) > 0.01)
         {
             float targetYaw = atan2(e.velocity.x, e.velocity.z);

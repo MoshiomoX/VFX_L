@@ -22,7 +22,7 @@ inline ProjectileItemDef MakePoison()
     def.common.id = ItemID::Poison;
     def.common.name = "Poison";
     def.common.displayName = L"毒";
-    def.common.description = L"毒の瓶を一番近い敵の足元へ投げ、毒沼を残す。毒沼の中の敵は動きが鈍くなり、継続ダメージを受ける。";
+    def.common.description = L"毒の瓶を投げて毒沼を作る。沼の中の敵はじわじわ削られる。";
     def.common.iconPath = Res::Icon::Poison;
     def.common.category = ItemCategory::Projectile;
     // 形は強さで決める（2026-10-04）。池 1 つで敵 1 体に毎秒 6・範囲・減速 40% と、総合では一番強い →

@@ -10,6 +10,7 @@
 #pragma once
 #include "UI/MenuList.h"
 #include "UI/SettingsMenuUI.h"
+#include "UI/HowToPlayUI.h"
 #include <SimpleMath.h>
 #include <memory>
 
@@ -20,25 +21,29 @@ class Texture;
 class PauseMenuUI
 {
 public:
-    enum class Action { None, Resume, Restart, Title };
+    enum class Action { None, Resume, Restart, Title, SkipTutorial };
 
     PauseMenuUI();
 
     void Layout(float screenW, float screenH);
 
     // 開いた瞬間に呼ぶ（カーソルを先頭へ、押しっぱなしで即決しない猶予）
-    void Open() { m_List.Open(); m_InSettings = false; }
+    void Open() { m_List.Open(); m_InSettings = false; m_HowTo.Close(); }
 
-    // 開いている間、毎フレーム呼ぶ（「設定」のページを開いている間はそちらへ渡す）
+    // 開いている間、毎フレーム呼ぶ（「設定」「遊び方」のページを開いている間はそちらへ渡す）
     Action HandleInput();
 
     void Draw(SpriteRenderer& sprite, TextRenderer& text, const std::shared_ptr<Texture>& white);
 
-    // 「設定」のページを開いているか。Esc はまず GameUI が見るので、
-    // 開いている時はメニュー全体を閉じずにこのページだけ閉じる（CloseSettings）
-    bool IsInSettings() const { return m_InSettings; }
-    void CloseSettings();
+    // 「設定」「遊び方」のページを開いているか。Esc はまず GameUI が見るので、
+    // 開いている時はメニュー全体を閉じずにそのページだけ閉じる（CloseSubPage）
+    bool IsInSubPage() const { return m_InSettings || m_HowTo.IsOpen(); }
+    void CloseSubPage();
     void TestOpenSettings() { m_InSettings = true; m_Settings.Open(); }   // TEMP-TEST: 自動テスト ui が設定のページを撮る
+    void TestOpenHowTo() { m_HowTo.Open(); }                               // TEMP-TEST: 同上（遊び方）
+
+    // チュートリアル中は「チュートリアルを飛ばす」の項目を足す（2026-10-13）。毎フレーム呼んでよい（変わった時だけ組み直す）
+    void SetTutorialActive(bool on);
 
     // ---- 見た目（画面短辺に対する比率）----
     float panelWidthRatio = 0.46f;
@@ -50,9 +55,13 @@ public:
     DirectX::SimpleMath::Vector4 accentColor = { 1.0f, 0.80f, 0.35f, 1.0f };
 
 private:
+    void BuildItems();
+
     MenuList m_List;
     SettingsMenuUI m_Settings;
+    HowToPlayUI m_HowTo;
     bool m_InSettings = false;
+    bool m_TutorialActive = false;
 
     DirectX::SimpleMath::Vector2 m_Screen = { 1600.0f, 900.0f };
     DirectX::SimpleMath::Vector2 m_PanelPos = { 0.0f, 0.0f };

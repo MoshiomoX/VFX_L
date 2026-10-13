@@ -87,6 +87,13 @@ void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
 {
     constexpr float kSplitRing = 2.0f;   // 分裂した時の輪の半径（m）。爆発（半径 3）が少し重なる程度
 
+    // 線で撃つ上級魔法（アイススパイク）は弾を落とさず、足元 → 着弾点の先 に範囲を並べる
+    if (s.triggerLine)
+    {
+        QueueTriggeredLine(s, impact, muzzle);
+        return;
+    }
+
     // 向きは Drop 型の予備（着弾点が決まっているので実際には使われない）
     Vector3 dir = impact - muzzle;
     dir.y = 0.0f;
@@ -112,6 +119,63 @@ void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
 }
 
 // ============================================================
+// 線で撃つ上級魔法 1 本分（SpellStats::triggerLine、アイススパイク。2026-10-10、ユーザー：「足元から狙った敵の少し奥まで」）。
+// origin の足元から「origin → impact」の向きへ、impact の lineOvershoot 先までを線にして、
+// 命中の範囲（profile の hitArea）を radius x kLineSpacing 毎に並べ、同じフレームに全部出す
+// （同じステップに tick するので、重なった所の敵は 1 回分しか受けない：凍らせる範囲は SwarmAreaDamageCS が最大を取る）。
+// 分裂（projectileCount > 1）は線を扇に開く。見た目は TriggeredFx → SpellFxSystem
+// ============================================================
+void WeaponSystem::QueueTriggeredLine(const SpellStats& s, const Vector3& impact, const Vector3& origin)
+{
+    constexpr float kStartGap = 0.6f;     // 足元から最初の範囲まで（自分の真下には出さない）
+    constexpr float kLineSpacing = 1.4f;  // 範囲の間隔 = 半径 x これ（隙間なく、重なりは少し）
+    constexpr float kMinLength = 3.0f, kMaxLength = 20.0f;
+    constexpr float kFanDeg = 14.0f;      // 分裂した線の開き（1 本あたり）
+
+    const ProjectileProfile& pp = ProjectileProfileDB::At(s.profile);
+    const int ai = AreaProfileDB::IndexOf(pp.hitArea);
+    if (ai <= 0) return;
+    const AreaProfile& ap = AreaProfileDB::At(ai);
+    // 拡大鏡など：当たり半径が profile より大きければ範囲も同じ倍率（弾の命中と同じ決まり）
+    const float scale = (pp.radius > 0.0f) ? s.radius / pp.radius : 1.0f;
+    const float radius = ap.radius * scale;
+    const float lift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
+
+    // 地面の高さ。無ければ撃った所の足元と着弾点（地面 + lift）の間を直線で
+    const float y0 = impact.y - lift;
+    auto ground = [&](float x, float z) { return groundHeight ? groundHeight(x, z) : y0; };
+
+    Vector3 flat(impact.x - origin.x, 0.0f, impact.z - origin.z);
+    const float toImpact = flat.Length();
+    if (toImpact < 1e-3f) flat = Vector3::UnitZ;
+    else flat /= toImpact;
+    const float length = std::clamp(toImpact + s.lineOvershoot, kMinLength, kMaxLength);
+    const Vector3 start(origin.x, ground(origin.x, origin.z), origin.z);
+
+    const int count = (std::max)(1, s.projectileCount);
+    for (int i = 0; i < count; ++i)
+    {
+        const float yaw = DirectX::XMConvertToRadians(kFanDeg * ((float)i - 0.5f * (float)(count - 1)));
+        const float c = std::cos(yaw), sn = std::sin(yaw);
+        const Vector3 dir(flat.x * c + flat.z * sn, 0.0f, -flat.x * sn + flat.z * c);
+
+        if (m_Swarm)
+            for (float d = kStartGap + radius * 0.5f; d < length + radius * 0.25f; d += radius * kLineSpacing)
+            {
+                Vector3 p = start + dir * (std::min)(d, length);
+                p.y = ground(p.x, p.z) + lift;
+                Swarm::Area area = ap.MakeArea(p, false);
+                area.radius = radius;
+                area.damage = ap.damage * s.areaDamageMul;   // 魔法威力
+                m_Swarm->SpawnArea(area);
+            }
+        Vector3 end = start + dir * length;
+        end.y = ground(end.x, end.z);
+        m_TriggeredFx.push_back({ s.id, start, end, scale });
+    }
+}
+
+// ============================================================
 // Update
 // ※マナは書かない。CanAfford で確認して Reserve で予約するだけ。
 //   引き落としと回復は ManaSystem がこの後で行う。
@@ -119,6 +183,9 @@ void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
 void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collision)
 {
     m_Requests.clear();
+    m_CastFx.clear();
+    m_GustFx.clear();
+    m_TriggeredFx.clear();
 
     // 基本魔法の弾が消えた場所（リードバックなので 2〜3 フレーム古い）。上級魔法はここでだけ撃つ
     m_TriggerEvents.clear();
@@ -372,12 +439,36 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     if (!mana.CanAfford(a.manaCost)) continue;
 
                     const bool atCaster = !a.spawnAtTarget;
-                    const Vector3 center = atCaster ? tf.position : targetPos;
-
                     // 単発/持続・厚み・追従・硬直 はプロファイルから。
                     // 半径・持続・tick・威力 は集約済みの値（修飾ルーン込み）
                     const AreaProfile& ap = AreaProfileDB::At(a.profile);
+                    // 前へ吹く物（突風）は「吹き飛ばせる敵が居る時」だけ撃つ（2026-10-13 ユーザー：「敵が居ないのに風弾が出る」）。
+                    // 標的が無い / 扇の届く距離（forward + 半径）より遠い時は MP を使わず待つ。法環のように自分の周りに
+                    // 出す物（forward 0）は今まで通り標的が要らない
+                    if (atCaster && ap.forward > 0.0f)
+                    {
+                        if (!hasTarget) continue;
+                        Vector3 to = targetPos - tf.position;
+                        to.y = 0.0f;
+                        if (to.Length() > ap.forward + a.radius) continue;
+                    }
+                    Vector3 center = atCaster ? tf.position : targetPos;
+                    Vector3 blowDir = Vector3::Zero;   // 前へ吹く向き（forward 付きの範囲で標的が居る時だけ）
+                    if (atCaster && ap.forward > 0.0f && hasTarget)
+                    {
+                        // 突風：一番近い敵の方へ寄せて「前に吹く」（標的が居なければ自分の周り）
+                        Vector3 to = targetPos - tf.position;
+                        to.y = 0.0f;
+                        if (to.LengthSquared() > 1e-4f) { to.Normalize(); center += to * ap.forward; blowDir = to; }
+                    }
+                    const bool blows = blowDir.LengthSquared() > 0.5f;
                     Swarm::Area area = ap.MakeArea(center, atCaster);
+                    if (ap.push > 0.0f)
+                    {
+                        // 草の倒れ方：前へ吹く物は詠唱者から風下へ伸びる扇、それ以外は中心から外向きの円盤
+                        if (blows) m_GustFx.push_back({ tf.position, a.radius, Vector2(blowDir.x, blowDir.z), ap.forward + a.radius });
+                        else       m_GustFx.push_back({ center, a.radius, Vector2::Zero, 0.0f });
+                    }
                     area.radius = a.radius;
                     area.damage = a.damagePerTick;
                     area.timeLeft = a.duration;
@@ -398,8 +489,13 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                             if (const auto* adef = ItemDatabase::GetArea(a.id))
                                 if (const char* path = VFXDatabase::GetPath(adef->vfxId))
                                     vfx = path;
-                        const uint32_t h = m_AreaVFX->Play(vfx, center, area.timeLeft,
+                        // 前へ吹く物のエフェクトは詠唱者の足元から風下へ（+Z が風下の向きに作ってある）
+                        Vector3 vfxPos = blows ? tf.position : center;
+                        if (blows && groundHeight) vfxPos.y = groundHeight(vfxPos.x, vfxPos.z);
+                        const uint32_t h = m_AreaVFX->Play(vfx, vfxPos, area.timeLeft,
                             (area.flags & Swarm::kAreaFollowPlayer) != 0, *m_AreaVFXCtx);
+                        if (blows && h != 0)
+                            m_AreaVFX->RotateInstance(h, DirectX::XMConvertToDegrees(std::atan2(blowDir.x, blowDir.z)));
                         if (lasting && durationMul != 1.0f)
                             m_AreaVFX->RemapTimeline(h, 0.0f, 1.0f, durationMul);   // 見た目の entry も同じだけ伸ばす
                     }
@@ -431,6 +527,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
             req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
             req.triggerTag, req.atPos, req.areaDamageMul, req.areaDurationMul, roll);
+        if (!req.atPos) m_CastFx.push_back({ req.id, req.muzzle, req.dir });
         // 撃った音（分裂・二重で同じフレームに何発も出ても、cue の間隔・同時数で間引かれる）
         AudioSystem::Get().Play(ProjectileProfileDB::At(motion).castSound);
     }
@@ -461,13 +558,16 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     b.orbSerial = orbSerial;       // 光球から撃った光線は起点が光球に追従する（UpdateBeams）
     b.lastStart = muzzle;
 
-    // 溜め・射程・厚み・硬直はプロファイルから。半径・持続・tick・威力は集約済みの値（修飾ルーン込み）
+    // 溜め・厚み・硬直はプロファイルから。半径・射程・持続・tick・威力は集約済みの値（修飾ルーン込み）
     const AreaProfile& ap = AreaProfileDB::At(a.profile);
     const bool hasProfile = a.profile > 0;
     const float baseCharge = hasProfile ? ap.chargeTime : 0.5f;
     castSpeed = (std::max)(castSpeed, 0.01f);
     b.charge = baseCharge / castSpeed;            // 魔力解放中は溜めも速い
-    b.length = hasProfile ? ap.length : 18.0f;
+    // 射程：拡大鏡で伸びる（AreaStats::length。2026-10-13）。0 ならプロファイルの値
+    b.length = a.length > 0.0f ? a.length : (hasProfile ? ap.length : 18.0f);
+    // 見た目の太さ：当たり判定の半径がプロファイルから何倍になったか（拡大鏡）
+    const float widthMul = (hasProfile && ap.radius > 0.0f) ? a.radius / ap.radius : 1.0f;
     b.halfHeight = hasProfile ? ap.halfHeight : 1.2f;
     b.timeLeft = a.duration * durationMul;        // 魔力解放中に撃った光線は長く出る
     b.radius = a.radius;
@@ -489,6 +589,7 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
         // エフェクトの時間軸は「溜め（baseCharge 秒）→ 光線」で作ってある。溜めを縮め、光線を伸ばして判定と合わせる
         if (castSpeed != 1.0f || durationMul != 1.0f)
             m_AreaVFX->RemapTimeline(b.vfxHandle, baseCharge, 1.0f / castSpeed, durationMul);
+        if (widthMul != 1.0f) m_AreaVFX->SetBeamWidth(b.vfxHandle, widthMul);
         m_AreaVFX->SetInstance(b.vfxHandle, muzzle, muzzle + b.dir * b.length);
     }
 

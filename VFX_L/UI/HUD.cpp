@@ -11,6 +11,7 @@
 #include "Player/LevelComponent.h"
 #include "Item/ItemDatabase.h"
 #include "UI/UIDeco.h"
+#include "UI/InputGlyph.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include "imgui.h"
@@ -298,7 +299,7 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
     // ---- 先に塊全体を測る（下敷きを 1 枚で敷くため。2026-10-07）----
     const Vector2 ts = text.Measure(buf, m_S.timerScale);
     const Vector2 ks = text.Measure(killBuf, m_S.killScale);
-    const Vector2 os = hasObj ? text.Measure(objLine, m_S.objectiveScale) : Vector2::Zero;
+    const Vector2 os = hasObj ? InputGlyph::Measure(text, objLine, m_S.objectiveScale) : Vector2::Zero;   // {RB} などはパッドのボタンの絵
     const float g = os.y * 0.28f;                          // 目標の菱形の大きさ
     const float objW = hasObj ? os.x + g * 1.8f : 0.0f;    // 菱形 + 隙間 + 文字
     const float dividerH = (m_S.runDividerWidth > 0.0f) ? m_S.runDividerWidth * 0.05f * 0.5f : 0.0f;
@@ -341,9 +342,9 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
         if (m_S.textShadow)
         {
             const float o = m_S.textShadowOffset;
-            text.Draw(objLine, { op.x + o, op.y + o }, m_S.shadowColor, m_S.objectiveScale);
+            InputGlyph::Draw(sprite, text, objLine, { op.x + o, op.y + o }, m_S.shadowColor, m_S.objectiveScale, false);
         }
-        text.Draw(objLine, op, m_S.objectiveColor, m_S.objectiveScale);
+        InputGlyph::Draw(sprite, text, objLine, op, m_S.objectiveColor, m_S.objectiveScale);
         y += os.y;
     }
     y += m_S.textPlates ? m_S.platePad.y : 0.0f;   // Boss の HP 条が下敷きに食い込まないように
@@ -569,10 +570,15 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
         text.Draw(buf, tp, active ? Vector4(1.3f, 1.2f, 1.0f, 1.0f) : m_S.textColor, s);   // 解放中は少し光る白
     }
 
-    // ---- 下の縁の「Q」の札 ----
+    // ---- 下の縁の札：キーボードなら「Q」、パッドなら Y の絵（2026-10-09、最後に触った機器で替える）----
     {
         const float k = size * 0.34f;
         const Vector2 kc = { center.x, tl.y + size };
+        if (InputGlyph::UsingPad())
+        {
+            InputGlyph::DrawIcon(sprite, L"Y", kc, k * 0.92f);
+            return;
+        }
         const Vector2 kp = { kc.x - k * 0.5f, kc.y - k * 0.5f };
         sprite.Draw(disc, kp, { k, k }, m_S.slotBgColor);
         if (deco.ring) sprite.Draw(deco.ring, kp, { k, k }, active ? Vector4(glow.x, glow.y, glow.z, 1.0f) : m_S.borderColor);

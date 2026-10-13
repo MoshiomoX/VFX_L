@@ -748,6 +748,17 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     m_UpdateCS->WriteBuffer(context, 0, &m_CachedGlobalCB);
     m_UpdateCS->WriteBuffer(context, 1, &dlcb);
 
+    // 世界の風（b2）。strength は speed / gust に掛けて渡す
+    static_assert(sizeof(ParticleWindCB) == 32, "ParticleWindCB: HLSL 側と不一致");
+    ParticleWindCB wcb = {};
+    wcb.dir = m_Wind.dir;
+    wcb.speed = m_Wind.speed * m_Wind.strength;
+    wcb.gust = m_Wind.gust * m_Wind.strength;
+    wcb.waveScale = m_Wind.waveScale;
+    wcb.waveSpeed = m_Wind.waveSpeed;
+    wcb.time = m_WindTime;
+    m_UpdateCS->WriteBuffer(context, 2, &wcb);
+
     // DrawIndirectArgs リセット（InstanceCount 累積方式）。
     // R32_UINT の UAV を ClearUnorderedAccessViewUint すると 4 要素とも Values[0] になる
     // （InstanceCount まで 6 から数え始める）ので、丸ごと書く
@@ -823,7 +834,7 @@ void GPUParticleSystem::Render(bool litMeshes)
 
     ID3D11SamplerState* samps[2] = { RenderStates::Get().LinearClamp(), RenderStates::Get().PointClamp() };
     context->PSSetSamplers(0, 2, samps);
-    // 乗算済み alpha の混合 1 回で描く。加算の粒子は PS が alpha 0 を書くので、
+    // 乗算済み alpha の混合で描く。加算の粒子は PS が alpha 0 を書くので、
     // 従来の加算（SRC_ALPHA / ONE）と同じ見た目になる
     RenderStates::Get().ApplyAlphaBlend(context);
 
@@ -834,8 +845,29 @@ void GPUParticleSystem::Render(bool litMeshes)
     context->IASetInputLayout(nullptr);
     context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
 
-    // GPU が決めた instanceCount で描画（CPU は数を知らない）
-    context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
+    // GPU が決めた instanceCount で 2 回描く（2026-10-09、爆発の炎と黒煙が交互にちらついた）。
+    // 生きている粒子の一覧は UpdateCS が InterlockedAdd で詰めるので、並びが毎フレーム変わる。
+    // ほぼ不透明なトゥーンの煙（炎・黒煙・土煙）は後に描いた方が前に出るので、重なりの上下が毎フレーム入れ替わっていた。
+    //   1 回目：不透明なトゥーンだけ、深度を書く（内側だけ。重なりは距離で決まる）
+    //   2 回目：それ以外（加算・半透明）を今まで通り深度は読むだけ。1 回目の煙の後ろの火花は隠れる
+    // TEMP-TEST: VFXL_PARTICLE_ONEPASS=1 で以前の 1 回描き（ちらつきの見比べ用）
+    static const bool s_OnePass = []() { char env[8] = {}; return GetEnvironmentVariableA("VFXL_PARTICLE_ONEPASS", env, sizeof(env)) > 0 && env[0] != '0'; }();
+    if (s_OnePass)
+    {
+        context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
+    }
+    else
+    {
+        rcb.pass = 1.0f;
+        m_RenderVS->WriteBuffer(context, 0, &rcb);
+        context->OMSetDepthStencilState(RenderStates::Get().DepthDefault(), 0);
+        context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
+
+        rcb.pass = 2.0f;
+        m_RenderVS->WriteBuffer(context, 0, &rcb);
+        context->OMSetDepthStencilState(RenderStates::Get().DepthReadOnly(), 0);
+        context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
+    }
 
     // 次のパスへステートを持ち越さない
     RenderStates::Get().Restore(context);

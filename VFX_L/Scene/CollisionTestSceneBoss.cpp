@@ -6,6 +6,7 @@
 // ============================================================
 #include "Scene/CollisionTestScene.h"
 #include "Audio/AudioSystem.h"
+#include "VFX_Editor/VFXId.h"
 #include "Player/PlayerControlSystem.h"
 #include "Player/PlayerStateSystem.h"
 #include "Player/PlayerStatsComponent.h"
@@ -51,12 +52,14 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         AudioSystem::Get().Play("boss_summon");   // 溜めの咆哮
     if (out.ringsPlaced > 0) AudioSystem::Get().Play("boss_slam_warn");
     for (const Vector3& p : out.rockFalls)
-        m_AreaVFX.Play("BossRockFall.json", p, 0.6f, false, m_VFXContext);
+        m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::BossRockFall), p, 0.6f, false, m_VFXContext);
     if (out.waveLaunched)
     {
-        m_AreaVFX.Play("BossSlam.json", out.wavePos, 2.0f, false, m_VFXContext);
+        m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::BossSlam), out.wavePos, 2.0f, false, m_VFXContext);
         AudioSystem::Get().Play("boss_impact");
-        m_Camera.OnShakeAreas(1);
+        OnExplosions(1);
+        m_Grass.AddGust(out.wavePos, 4.0f);     // 砕いた所の草が倒れ、落ち葉が舞う（CPU の範囲なので自分で押す。2026-10-13）
+        m_Debris.AddGust(out.wavePos, 4.0f);
     }
     if (out.chargeGo) AudioSystem::Get().Play("boss_slam_warn");
 
@@ -67,7 +70,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         float hp = 1.0f, speed = 1.0f;
         m_Mobs.KindStats(kind, hp, speed);
         m_Swarm.SpawnEnemy(s.pos, hp, speed, kind);
-        m_AreaVFX.Play("MobDeath.json", s.pos, 1.0f, false, m_VFXContext);
+        m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::MobDeath), s.pos, 1.0f, false, m_VFXContext);
     }
     if (!out.summons.empty()) AudioSystem::Get().PlayBurst("boss_slam", (uint32_t)out.summons.size());
 
@@ -77,9 +80,11 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         if (h.ranged)
         {
             const bool rock = (h.kind == BossMove::RockRain);
-            m_AreaVFX.Play(rock ? "BossRockHit.json" : "BossSlam.json", h.center, rock ? 1.2f : 2.0f, false, m_VFXContext);
+            m_AreaVFX.Play(VFXDatabase::GetFile(rock ? VFXId::BossRockHit : VFXId::BossSlam), h.center, rock ? 1.2f : 2.0f, false, m_VFXContext);
             AudioSystem::Get().Play("boss_slam");
-            if (!rock) m_Camera.OnShakeAreas(1);
+            if (!rock) OnExplosions(1);
+            m_Grass.AddGust(h.center, rock ? 2.0f : 3.0f);   // 重撃 / 投石の着弾でも草が倒れる（2026-10-13）
+            m_Debris.AddGust(h.center, rock ? 2.0f : 3.0f);
             if (IsPlayerDead()) continue;
 
             const Vector2 d(player.x - h.center.x, player.z - h.center.z);
@@ -101,7 +106,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
             if (h.kind == BossMove::Charge)
             {
                 AudioSystem::Get().Play("boss_slam");
-                m_Camera.OnShakeAreas(1);
+                OnExplosions(1);
             }
         }
     }

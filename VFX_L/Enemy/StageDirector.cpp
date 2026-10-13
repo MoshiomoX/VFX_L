@@ -258,7 +258,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         it.basePos = pos;
         it.animate = false;
         it.radius = 3.0f;
-        it.prompt = L"[F] ボスを呼ぶ";
+        it.prompt = L"<{K:F}|{B}>  ボスを呼ぶ";
         it.lightColor = { 0.75f, 0.35f, 1.0f };   // 紫（渦のエフェクトにも光がある。こちらは控えめ）
         it.lightRadius = 7.0f;
         it.lightIntensity = 1.0f;

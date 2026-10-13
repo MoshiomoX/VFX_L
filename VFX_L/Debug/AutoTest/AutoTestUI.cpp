@@ -111,6 +111,13 @@ void AutoTestUI::Run(float dt)
     }
     else if (m_AutoStep == 40 && m_AutoTime >= 8.0f)
     {
+        // 一時停止の「遊び方」のページ（2026-10-13）
+        m_GameUI.TestShow(4);
+        AutoTestLog("ui look howto");
+        m_AutoStep = 41;
+    }
+    else if (m_AutoStep == 41 && m_AutoTime >= 9.0f)
+    {
         m_GameUI.TestShow(0);
         AutoTestLog("ui hud");
         AutoTestLog("ui look hud");

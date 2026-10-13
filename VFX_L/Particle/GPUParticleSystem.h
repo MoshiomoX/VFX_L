@@ -14,6 +14,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Graphics/Renderer/RenderStates.h"
 #include "Graphics/Light/LightTypes.h"
+#include "World/WindState.h"
 using Microsoft::WRL::ComPtr;
 
 class Model;
@@ -59,6 +60,17 @@ public:
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
     // 立方体粒子の Lambert 用。Render の前に毎フレーム渡す（渡さなければ既定の上方光）
     void SetLight(const LightBuffer& light) { m_Light = light; }
+    // 世界の風（2026-10-12）。風を受ける発射器（GPUParticleEmitter::windResponse）の粒子が UpdateCS で流される。
+    // time = 草の風の時計（GrassRenderer::Time）。渡さなければ既定の弱い風（エディタの試し見）
+    void SetWind(const WindState& wind, float time) { m_Wind = wind; m_WindTime = time; }
+
+    // ParticleUpdateCS の b2 と同じ並び（32B）
+    struct ParticleWindCB
+    {
+        DirectX::SimpleMath::Vector2 dir;
+        float speed, gust;
+        float waveScale, waveSpeed, time, _pad;
+    };
 
     void RegisterStaticColorKeys(const std::vector<ColorKey>& keys) { m_StaticColorKeys = keys; }
     size_t GetStaticColorKeyCount() const { return m_StaticColorKeys.size(); }
@@ -400,5 +412,7 @@ private:
     CameraBase* m_Camera = nullptr;
     std::shared_ptr<Texture> m_Texture;
     std::vector<ColorKey> m_StaticColorKeys;
+    WindState m_Wind;
+    float     m_WindTime = 0.0f;
     //   ComPtr<ID3D11SamplerState> m_SamplerState;
 };
