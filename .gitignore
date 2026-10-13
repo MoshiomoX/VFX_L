@@ -368,3 +368,10 @@ VFX_L/Assets/Model/dglopez_WesternDesert/*
 
 # 地図エディタ / 自動テストが作る一時の地図
 VFX_L/Assets/Data/MapData/_*.vmap
+
+# プレイヤーの設定（実行時に書く。音量 / 縁取り / チュートリアル済み）
+VFX_L/Assets/Data/Settings.json
+VFX_L/Assets/Data/Audio/Settings.json
+
+# 保存した戦闘の地図（数 MB の二進ファイル。StageConfig で指定した物だけ必要なら個別に add -f）
+VFX_L/Assets/Data/MapData/*.vmap
