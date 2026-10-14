@@ -349,6 +349,9 @@
     <ClCompile Include="Debug\SpellLab.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\SpellLabRandom.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\FrameProfiler.cpp">
       <Filter>Debug</Filter>
     </ClCompile>

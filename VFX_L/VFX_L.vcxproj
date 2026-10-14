@@ -287,6 +287,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestFeedback.cpp" />
     <ClCompile Include="Debug\StressTestTools.cpp" />
     <ClCompile Include="Debug\SpellLab.cpp" />
+    <ClCompile Include="Debug\SpellLabRandom.cpp" />
     <ClCompile Include="Debug\FrameProfiler.cpp" />
     <ClCompile Include="Enemy\MobSpawner.cpp" />
     <ClCompile Include="Enemy\MobSpawnerKinds.cpp" />

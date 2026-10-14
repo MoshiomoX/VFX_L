@@ -3,7 +3,8 @@
 // トレーニング（魔法の実験場）のメニュー（2026-10-07 ユーザー：的・雑魚の群れ・Boss を出す、
 // 魔法を木箱へ入れる、を ImGui ではなくゲームの UI で）。T / パッド RB で開閉、開いている間はゲームが止まる。
 //   行 = 的を置く（正面 3 / 周り 12 / エリート）、的の HP、群れの種類、群れの数、敵が動く、
-//        敵を出す（群れ / ボス / 全部消す）、木箱に入れる（魔法・ルーンの絵の並び）、木箱（全部入れる / 空にする）、戻る
+//        敵を出す（群れ / ボス / 全部消す）、木箱に入れる（魔法・ルーンの絵の並び）、木箱（全部入れる / 空にする）、
+//        ランダムの中身・ランダムの数・バックパック（ランダムに組む / 空にする。2026-10-14）、戻る
 //   キー   : W S / 上下で行、A D / 左右で値・ボタン・絵を選ぶ、Enter / Space で決定、Esc / T で閉じる
 //   パッド : 十字、A で決定、B / RB で閉じる
 //   マウス : 動かした時だけ選ぶ。クリックで決定（値の行は < > の上）
@@ -26,7 +27,7 @@ struct SpellbookComponent;
 // メニューからシーンへの依頼
 struct TrainingRequest
 {
-    enum class Kind { Targets, Swarm, Boss, KillAll, AddItem, AddAll, ClearChest };
+    enum class Kind { Targets, Swarm, Boss, KillAll, AddItem, AddAll, ClearChest, RandomBuild, ClearBackpack };
     Kind   kind = Kind::Targets;
     int    pattern = 0;            // Targets：0 正面 3 体 / 1 周り 12 体 / 2 エリート
     float  targetHp = 1.0e6f;      // Targets
@@ -34,6 +35,8 @@ struct TrainingRequest
     int    count = 30;             // Swarm
     bool   moving = true;          // Swarm / Boss（false = その場に止まったまま）
     ItemID item = ItemID::Unknown; // AddItem
+    int    randomMode = 0;         // RandomBuild：0 基本魔法だけ / 1 魔法 + ルーン / 2 全部（上級魔法・召喚物も）
+    int    randomCount = 6;        // RandomBuild：置く個数（枠に入り切らなければ少なくなる）
 };
 
 class TrainingMenuUI
@@ -55,9 +58,9 @@ public:
     void SetMessage(const std::wstring& msg) { m_Message = msg; m_MessageTime = 2.5f; }
 
     float panelWidthRatio = 1.30f;   // 画面短辺に対する比率（画面幅の 95% までに収める）
-    float rowHeightRatio = 0.058f;
-    float itemRowRatio = 0.085f;     // 絵の行の高さ
-    float rowGapRatio = 0.010f;
+    float rowHeightRatio = 0.050f;   // 2026-10-14 ランダムの 3 行を足して 0.058 → 0.050（1600x900 で収まる所まで詰めた）
+    float itemRowRatio = 0.080f;     // 絵の行の高さ
+    float rowGapRatio = 0.006f;
     DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.80f };
     DirectX::SimpleMath::Vector4 panelColor = { 0.0025f, 0.0020f, 0.0045f, 0.985f };
 
@@ -68,21 +71,25 @@ public:
     static constexpr int kHpChoices = 5;
     static constexpr int kKindChoices = 8;
     static constexpr int kCountChoices = 4;
+    static constexpr int kRandomModes = 3;    // ランダムに組む：中身
+    static constexpr int kRandomCounts = 4;   // ランダムに組む：個数
     static const float kTargetHp[kHpChoices];
     static const wchar_t* const kSwarmKinds[kKindChoices];
     static const int kSwarmCounts[kCountChoices];
+    static const wchar_t* const kRandomModeNames[kRandomModes];
+    static const int kRandomCountValues[kRandomCounts];
 
 private:
     // 箱の中の割合（画面短辺 × 倍率に対して）
-    static constexpr float kPadRatio = 0.035f;
-    static constexpr float kTitleRatio = 0.085f;
-    static constexpr float kFootRatio = 0.11f;    // 下の 2 行（選んでいる物の説明 / 結果、操作の案内）
+    static constexpr float kPadRatio = 0.030f;
+    static constexpr float kTitleRatio = 0.080f;
+    static constexpr float kFootRatio = 0.10f;    // 下の 2 行（選んでいる物の説明 / 結果、操作の案内）
     static constexpr float kLabelRatio = 0.22f;   // 行の幅のうち左の名前が占める割合
     static constexpr int   kItemsPerRow = 9;
 
     void Build();             // 行を組む（魔法の一覧は ItemDatabase から。初期化の後で呼ぶ）
     enum class RowKind { Buttons, Choice, Toggle, Items, Back };
-    enum class RowId { Targets, TargetHp, SwarmKind, SwarmCount, Moving, Spawn, Items, Chest, Back };
+    enum class RowId { Targets, TargetHp, SwarmKind, SwarmCount, Moving, Spawn, Items, Chest, RandomMode, RandomCount, Backpack, Back };
     struct Row
     {
         std::wstring label;
@@ -116,6 +123,8 @@ private:
     int  m_KindIndex = 0;     // kSwarmKinds
     int  m_CountIndex = 1;    // kSwarmCounts
     bool m_Moving = true;
+    int  m_RandomModeIndex = 0;   // kRandomModeNames
+    int  m_RandomCountIndex = 1;  // kRandomCountValues
 
     std::vector<TrainingRequest> m_Requests;
     std::wstring m_Message;

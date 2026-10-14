@@ -10,6 +10,7 @@ namespace
 {
     // TrainingMenuUI::RowId の番号
     constexpr int kRowTargets = 0, kRowSpawn = 5, kRowItems = 6, kRowChest = 7;
+    constexpr int kRowRandomMode = 8, kRowRandomCount = 9, kRowBackpack = 10;   // 値の行は押すと 1 段進む
 
     class AutoTestTraining final : public BattleAutoTest
     {
@@ -21,6 +22,14 @@ namespace
     private:
         void Run(float dt);
     };
+
+    std::string Utf8(const std::wstring& w)
+    {
+        const int n = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+        std::string o(n, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), o.data(), n, nullptr, nullptr);
+        return o;
+    }
 }
 
 // ============================================================
@@ -28,8 +37,11 @@ namespace
 // 2.0 秒: 絵の行の 1 番目と 4 番目を入れる（木箱に 1 個ずつ）→ 2.3 秒 `training look additem`（結果の一行）
 // 2.6 秒: 「全部入れる」→ 3.0 秒: 的（正面 3）・群れ（既定 = 雑魚 30 体、動く）・ボス → 3.3 秒 閉じる
 // 0.5 秒毎に `training t alive boss bossHp chest unplaced`。6 秒 `training look swarm`、9 秒 `training look boss`
-// 10 秒: 開いて「敵を全部消す」「木箱を空にする」→ 10.3 秒 `training look cleared`（メニュー）→ 10.6 秒 閉じる
-// 12 秒 done
+// 10 秒: 開いて「敵を全部消す」「木箱を空にする」→ 10.3 秒 `training look cleared`（メニュー）
+// 10.6 秒: ランダムの中身を「全部」（2 段進める）・数を 8 個（1 段）にして「ランダムに組む」→ `training random placed n: 名前(行,列,向き) 繋がり…`
+//   → 10.9 秒 `training look random`（メニューの結果の一行）→ 11.2 秒 閉じてバックパックを開く → 11.7 秒 `training look randombag`
+//   → 12.0 秒 バックパックを閉じ、メニューで「バックパックを空にする」→ `training random cleared items n` → 12.3 秒 閉じる
+// 13 秒 done
 // ============================================================
 void AutoTestTraining::Run(float dt)
 {
@@ -124,10 +136,65 @@ void AutoTestTraining::Run(float dt)
         }
     }
     else if (s_Step == 8 && s_Real >= 10.3f) { AutoTestLog("training look cleared"); s_Step = 9; }
-    else if (s_Step == 9 && s_Real >= 10.6f) { m_GameUI.TestOpenTraining(false); s_Step = 10; }
-    else if (s_Step == 10 && s_Real >= 12.0f) { AutoTestLog("training done"); s_Step = 11; }
+    else if (s_Step == 9 && s_Real >= 10.6f)
+    {
+        press(kRowRandomMode, 0, "random mode +1");
+        press(kRowRandomMode, 0, "random mode +1 (= all)");
+        press(kRowRandomCount, 0, "random count +1 (= 8)");
+        press(kRowBackpack, 0, "random build");
+        s_Step = 10;
+    }
+    else if (s_Step == 10 && s_Real >= 10.9f)
+    {
+        // 依頼は次のフレームで実行されるので 1 歩後に記録。置かれた物：名前（行, 列, 向き）と繋がり
+        //（上級魔法 = 発動 1 / 0、ルーン = 影響している数、召喚物 = 貯蔵している数）
+        std::string s = "training random placed " + std::to_string(bp.items.size()) + ":";
+        for (int i = 0; i < (int)bp.items.size(); ++i)
+        {
+            const PlacedItem& it = bp.items[i];
+            const ItemCommon* ic = ItemDatabase::GetCommon(it.id);
+            int link = -1;
+            if (ic && !ic->triggeredBy.empty()) link = BackpackLogic::IsTriggerReady(bp, i) ? 1 : 0;
+            else if (ItemDatabase::GetCategory(it.id) == ItemCategory::Function || ItemDatabase::GetCategory(it.id) == ItemCategory::Summon)
+            {
+                link = 0;
+                for (int j = 0; j < (int)bp.items.size(); ++j)
+                {
+                    if (j == i) continue;
+                    const std::vector<int> inf = BackpackLogic::GetInfluencers(bp, j);
+                    if (std::find(inf.begin(), inf.end(), i) != inf.end() || BackpackLogic::StoredBy(bp, j) == i) ++link;
+                }
+            }
+            char buf[64];
+            snprintf(buf, sizeof(buf), "(%d,%d,r%d)", it.row, it.col, it.rotation);
+            s += " " + Utf8(ic ? ic->displayName : L"?") + buf;
+            if (link >= 0) s += " link=" + std::to_string(link);
+        }
+        AutoTestLog(s.c_str());
+        AutoTestLog("training look random");
+        s_Step = 11;
+    }
+    else if (s_Step == 11 && s_Real >= 11.2f) { m_GameUI.TestOpenTraining(false); m_GameUI.TestShow(1); s_Step = 12; }
+    else if (s_Step == 12 && s_Real >= 11.7f) { AutoTestLog("training look randombag"); s_Step = 13; }
+    else if (s_Step == 13 && s_Real >= 12.0f)
+    {
+        m_GameUI.TestShow(0);
+        m_GameUI.TestOpenTraining(true);
+        press(kRowBackpack, 1, "clear backpack");
+        s_Step = 14;
+    }
+    else if (s_Step == 14 && s_Real >= 12.3f)
+    {
+        int total = 0, unplaced = 0;
+        chest(total, unplaced);
+        snprintf(line, sizeof(line), "training random cleared items %d chest %d unplaced %d", (int)bp.items.size(), total, unplaced);
+        AutoTestLog(line);
+        m_GameUI.TestOpenTraining(false);
+        s_Step = 15;
+    }
+    else if (s_Step == 15 && s_Real >= 13.0f) { AutoTestLog("training done"); s_Step = 16; }
 
-    if (s_Step >= 7 && s_Step <= 10 && s_Real >= s_NextLog)
+    if (s_Step >= 7 && s_Step <= 9 && s_Real >= s_NextLog)
     {
         s_NextLog += 0.5f;
         int total = 0, unplaced = 0;

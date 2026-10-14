@@ -15,6 +15,8 @@ using namespace DirectX::SimpleMath;
 const float TrainingMenuUI::kTargetHp[kHpChoices] = { 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f };
 const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"突撃兵", L"盾兵", L"幽霊", L"混合" };
 const int TrainingMenuUI::kSwarmCounts[kCountChoices] = { 10, 30, 100, 300 };
+const wchar_t* const TrainingMenuUI::kRandomModeNames[kRandomModes] = { L"基本魔法だけ", L"魔法 + ルーン", L"全部（上級・召喚も）" };
+const int TrainingMenuUI::kRandomCountValues[kRandomCounts] = { 4, 6, 8, 12 };
 
 namespace
 {
@@ -51,6 +53,10 @@ void TrainingMenuUI::Build()
     }
 
     m_Rows.push_back({ L"木箱", RowKind::Buttons, RowId::Chest, { L"全部入れる（各 3 個）", L"木箱を空にする" }, {} });
+    // バックパックをランダムに組む（2026-10-14 ユーザー：ランダムに魔法を置く選択肢）。中身と個数を選んでボタン
+    m_Rows.push_back({ L"ランダムの中身", RowKind::Choice, RowId::RandomMode, {}, {} });
+    m_Rows.push_back({ L"ランダムの数", RowKind::Choice, RowId::RandomCount, {}, {} });
+    m_Rows.push_back({ L"バックパック", RowKind::Buttons, RowId::Backpack, { L"ランダムに組む", L"バックパックを空にする" }, {} });
     m_Rows.push_back({ L"戻る", RowKind::Back, RowId::Back, {}, {} });
 }
 
@@ -73,7 +79,7 @@ void TrainingMenuUI::Layout(float screenW, float screenH)
     for (const Row& r : m_Rows) rowsRatio += (r.kind == RowKind::Items) ? itemRowRatio : rowHeightRatio;
     const int n = (int)m_Rows.size();
     const float baseH = kPadRatio * 2.0f + kTitleRatio + rowsRatio + rowGapRatio * (float)(n - 1) + kFootRatio;
-    m_Scale = UIDeco::FitScale(baseH, 0.95f);
+    m_Scale = UIDeco::FitScale(baseH, 0.985f);   // 行が多いので画面の高さほぼ一杯まで（FitScale は 1.0 倍より小さくはしない）
     m_Scale = (std::min)(m_Scale, screenW * 0.95f / (m_Short * panelWidthRatio));
     const float s = m_Short * m_Scale;
 
@@ -196,6 +202,8 @@ std::wstring TrainingMenuUI::ValueText(const Row& r) const
     case RowId::SwarmKind:  return kSwarmKinds[m_KindIndex];
     case RowId::SwarmCount: return std::to_wstring(kSwarmCounts[m_CountIndex]) + L" 体";
     case RowId::Moving:     return m_Moving ? L"オン" : L"オフ";
+    case RowId::RandomMode: return kRandomModeNames[m_RandomModeIndex];
+    case RowId::RandomCount: return std::to_wstring(kRandomCountValues[m_RandomCountIndex]) + L" 個";
     default:                return L"";
     }
 }
@@ -223,6 +231,8 @@ void TrainingMenuUI::Step(int dir)
     case RowId::SwarmKind:  m_KindIndex = wrap(m_KindIndex, kKindChoices); break;
     case RowId::SwarmCount: m_CountIndex = wrap(m_CountIndex, kCountChoices); break;
     case RowId::Moving:     m_Moving = !m_Moving; break;
+    case RowId::RandomMode: m_RandomModeIndex = wrap(m_RandomModeIndex, kRandomModes); break;
+    case RowId::RandomCount: m_RandomCountIndex = wrap(m_RandomCountIndex, kRandomCounts); break;
     default: return;
     }
     AudioSystem::Get().Play("ui_hover");
@@ -236,6 +246,8 @@ void TrainingMenuUI::Activate()
     q.swarmKind = m_KindIndex;
     q.count = kSwarmCounts[m_CountIndex];
     q.moving = m_Moving;
+    q.randomMode = m_RandomModeIndex;
+    q.randomCount = kRandomCountValues[m_RandomCountIndex];
     switch (r.id)
     {
     case RowId::Targets:
@@ -254,7 +266,15 @@ void TrainingMenuUI::Activate()
     case RowId::Chest:
         q.kind = (m_Col == 0) ? TrainingRequest::Kind::AddAll : TrainingRequest::Kind::ClearChest;
         break;
-    case RowId::Moving:
+    case RowId::Backpack:
+        q.kind = (m_Col == 0) ? TrainingRequest::Kind::RandomBuild : TrainingRequest::Kind::ClearBackpack;
+        break;
+    case RowId::Moving:        // 値の行は Enter / A で 1 段進める
+    case RowId::TargetHp:
+    case RowId::SwarmKind:
+    case RowId::SwarmCount:
+    case RowId::RandomMode:
+    case RowId::RandomCount:
         Step(+1);
         return;
     default:

@@ -43,6 +43,9 @@ private:
     void FillFrames(Registry& reg, Entity player);
     void FillChest(Registry& reg, Entity player);    // 全部の魔法・ルーンを箱へ（足りない分だけ足す）
     void ClearChest(Registry& reg, Entity player);   // 箱の中（バックパックに置いていない分）を全部捨てる
+    // バックパックをランダムに組む（SpellLabRandom.cpp）。mode = TrainingRequest::randomMode、count = 置く個数。戻り値 = 結果の一行
+    std::wstring RandomBuild(Registry& reg, Entity player, int mode, int count);
+    int  ClearBackpack(Registry& reg, Entity player);  // 置いてある物を全部木箱へ戻す（枠は残す）。戻り値 = 外した数
     void SpawnTargets(Registry& reg, Entity player, SwarmSystem& swarm, const GridWorld& grid, int pattern, float hp);
     void SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, const MobSpawner& mobs, const GridWorld& grid);
     void DrawBody(Registry& reg, Entity player);

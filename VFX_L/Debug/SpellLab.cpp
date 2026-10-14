@@ -98,6 +98,17 @@ std::wstring SpellLab::Apply(const TrainingRequest& q, Registry& reg, Entity pla
         if (!reg.Has<SpellbookComponent>(player) || !reg.Has<BackpackComponent>(player)) return L"";
         ClearChest(reg, player);
         return L"木箱を空にした（バックパックに置いた物は残る）";
+
+    case TrainingRequest::Kind::RandomBuild:
+        if (!reg.Has<SpellbookComponent>(player) || !reg.Has<BackpackComponent>(player)) return L"";
+        return RandomBuild(reg, player, q.randomMode, q.randomCount);
+
+    case TrainingRequest::Kind::ClearBackpack:
+    {
+        if (!reg.Has<BackpackComponent>(player)) return L"";
+        const int n = ClearBackpack(reg, player);
+        return L"バックパックを空にした（" + std::to_wstring(n) + L" 個を木箱へ戻した）";
+    }
     }
     return L"";
 }
@@ -268,6 +279,14 @@ void SpellLab::DrawImGui(Registry& reg, Entity player, SwarmSystem& swarm, MobSp
         if (ImGui::Button("Fill 9x9 with frames")) FillFrames(reg, player);
         ImGui::SameLine();
         if (ImGui::Button("All items into chest")) FillChest(reg, player);
+        // ランダムに組む（トレーニングのメニューと同じ。ここは中身 = 全部、8 個固定）
+        if (ImGui::Button("Random backpack (all, 8)"))
+        {
+            RandomBuild(reg, player, 2, 8);
+            snprintf(m_Message, sizeof(m_Message), "random build: %d items placed", (int)reg.Get<BackpackComponent>(player).items.size());
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear backpack")) snprintf(m_Message, sizeof(m_Message), "cleared %d items", ClearBackpack(reg, player));
         // 的（実験場シーンではトレーニングのメニューから。こちらは普通の戦闘の実験モード用）
         ImGui::SetNextItemWidth(110.0f);
         ImGui::InputFloat("Target HP", &m_TargetHp, 0.0f, 0.0f, "%.0f");
