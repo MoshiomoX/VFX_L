@@ -2,7 +2,7 @@
 // InteractionSystem.h
 // InteractableComponent を持つ物の面倒を見る:
 //   - 浮遊と回転（TransformComponent を書き換える）
-//   - 玩家に一番近い「使える」物を focus にする（画面の案内に使う）
+//   - プレイヤーに一番近い「使える」物を focus にする（画面の案内に使う）
 //   - 押されたら、その Entity を返す
 //   - 目印の点光源を PointLightManager へ積む
 //

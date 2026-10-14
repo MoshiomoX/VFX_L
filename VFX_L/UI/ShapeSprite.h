@@ -123,13 +123,13 @@ namespace ShapeSprite
         }
     }
 
-    // 幻想 UI の道具の見た目：道具の色を暗く沈めた「色ガラス」+ 種類の色の輪郭 + 暖かい白の剪影
-    inline constexpr float kGlassDim = 0.12f;     // 道具の色をどれだけ暗くして地にするか（線形）
+    // 幻想 UI のアイテムの見た目：アイテムの色を暗く沈めた「色ガラス」+ 種類の色の輪郭 + 暖かい白のシルエット
+    inline constexpr float kGlassDim = 0.12f;     // アイテムの色をどれだけ暗くして地にするか（線形）
     inline constexpr float kGlassAlpha = 0.92f;
     inline const DirectX::SimpleMath::Vector4 kIconTint = { 0.97f, 0.94f, 0.87f, 1.0f };
-    inline constexpr float kIconScale = 0.88f;    // アイコンの大きさ（マス比。2026-09-30 0.74 → 0.88、用户要求）
+    inline constexpr float kIconScale = 0.88f;    // アイコンの大きさ（マス比。2026-09-30 0.74 → 0.88、ユーザー要求）
 
-    // 道具 1 個（幻想 UI）。white は無地の白、outline は種類の色（UIDeco::CategoryColor）
+    // アイテム 1 個（幻想 UI）。white は無地の白、outline は種類の色（UIDeco::CategoryColor）
     inline void DrawItemGlass(SpriteRenderer& sprite,
         const std::shared_ptr<Texture>& white, const DirectX::SimpleMath::Vector4& color,
         const DirectX::SimpleMath::Vector4& outline,
@@ -160,7 +160,7 @@ namespace ShapeSprite
     // アイコンを重ねる時の、地のブロックの暗さ（アイコンを浮かせる）
     inline constexpr float kIconBaseDim = 0.55f;
 
-    // 道具 1 個。形は道具の色のブロック（アイコンがある時は暗くして地にする）、
+    // アイテム 1 個。形はアイテムの色のブロック（アイコンがある時は暗くして地にする）、
     // アイコンは中心のマスに 1 つだけ重ねる（マスごとに貼ると多マスの物が同じ絵の繰り返しになる）
     inline void DrawItem(SpriteRenderer& sprite,
         const std::shared_ptr<Texture>& blockTex, const DirectX::SimpleMath::Vector4& color,

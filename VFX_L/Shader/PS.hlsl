@@ -13,5 +13,5 @@ float4 main(PS_INPUT input) : SV_TARGET
     float4 tex = albedoTexture.Sample(samplerState, input.UV);
     float3 albedo = DecodeAlbedo(tex.rgb) * input.Color.rgb;
     float3 lit = ShadeLambert(normalize(input.Normal), albedo, input.WorldPos);
-    return float4(lit + glow, tex.a * input.Color.a);
+    return float4(ApplyHitFlash(lit + glow), tex.a * input.Color.a);
 }

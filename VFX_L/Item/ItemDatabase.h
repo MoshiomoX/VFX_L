@@ -18,6 +18,7 @@ namespace ItemDatabase
     const FunctionItemDef* GetFunction(ItemID id);
     const AreaItemDef* GetArea(ItemID id);
     const FrameItemDef* GetFrame(ItemID id);
+    const SummonItemDef* GetSummon(ItemID id);   // 召喚物（水晶玉。2026-10-06）
 
     // 種類を問わず共通部分だけ取る（表示用に便利）
     const ItemCommon* GetCommon(ItemID id);
@@ -28,7 +29,7 @@ namespace ItemDatabase
     // 設置枠かどうか（バックパック側の判定で使う）
     bool IsFrame(ItemID id);
 
-    // 修飾符を SpellStats / AreaStats へ適用する
+    // 修飾ルーンを SpellStats / AreaStats へ適用する
     void ApplyModifier(SpellStats& stats, const ParamModifier& mod);
     void ApplyModifier(AreaStats& stats, const AreaModifier& mod);
 
@@ -39,7 +40,7 @@ namespace ItemDatabase
     const StatItemDef* GetStat(ItemID id);
     const std::vector<ItemID>& GetLevelUpOnlyIDs();
 
-    // ---- 形（占位格・影響格）の編集（投射物編集器の Item Shapes 頁から使う）----
+    // ---- 形（占有マス・影響マス）の編集（投射物エディタの Item Shapes 頁から使う）----
     // 形を差し替える。置いてある物との整合は呼ぶ側が BackpackLogic::Refit で取る
     void SetShape(ItemID id, const std::vector<CellOffset>& occupy,
         const std::vector<CellOffset>& influence);

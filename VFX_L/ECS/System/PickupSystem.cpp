@@ -10,10 +10,8 @@
 #include "Graphics/Light/PointLightManager.h"
 #include "Swarm/SwarmSystem.h"
 #include "World/GridWorld.h"
+#include "Audio/AudioSystem.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
 
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;
@@ -129,6 +127,7 @@ int PickupSystem::Update(Registry& reg, const GridWorld& grid, const Vector3& pl
         if (dx * dx + dz * dz <= pickupRadius * pickupRadius)
         {
             swarm.MagnetAllOrbs(magnetSeconds);
+            AudioSystem::Get().Play("magnet");
             if (outPicked) *outPicked = m.base;
             reg.Destroy(m.e);
             m_Magnets.erase(m_Magnets.begin() + (ptrdiff_t)i);

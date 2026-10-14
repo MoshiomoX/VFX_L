@@ -7,10 +7,6 @@
 #include "Component/TransformComponent.h"
 #include "Enemy/EnemyTags.h"
 #include "World/GridWorld.h"
-#include <cstdlib>
-#include <cmath>
-#include <algorithm>
-#include <vector>
 
 using DirectX::SimpleMath::Vector3;
 
@@ -41,7 +37,7 @@ void SpawnDirector::Update(const GridWorld& grid,
 
     // ---- 今回の内訳：空き枠に入る分は新規、残りは転送 ----
     // 押し出し（Destroy）はもうしない。溢れた分は GPU が
-    // 「玩家から rMax より遠い雑魚」を選んで湧き位置へ転送する
+    // 「プレイヤーから rMax より遠い雑魚」を選んで湧き位置へ転送する
     const int freeSlots = (std::max)(0, spawnCap - aliveMobs);
     const int newCount = (std::min)(want, freeSlots);
 
@@ -49,7 +45,9 @@ void SpawnDirector::Update(const GridWorld& grid,
     {
         for (int attempt = 0; attempt < 8; ++attempt)
         {
-            const float ang = (float)rand() / RAND_MAX * 6.2831853f;
+            const bool inArc = (arcHalf < 3.14f) && attempt < 6;
+            const float ang = inArc ? arcYaw + ((float)rand() / RAND_MAX * 2.0f - 1.0f) * arcHalf
+                                    : (float)rand() / RAND_MAX * 6.2831853f;
             const float r = rMin + (rMax - rMin) * ((float)rand() / RAND_MAX);
 
             Vector3 pos = playerPos + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
@@ -57,6 +55,8 @@ void SpawnDirector::Update(const GridWorld& grid,
             int gx = 0, gz = 0;
             grid.WorldToCell(pos, gx, gz);
             if (!grid.IsWalkable(gx, gz)) continue;
+            // y = その場所の地面の高さ（山頂・洞窟の底。湧いた所から落ちたり埋まったりしない）
+            pos.y = grid.SampleHeight(pos.x, pos.z);
 
             if (i < newCount) { spawn(pos);   ++m_TotalSpawned; }
             else { recycle(pos); ++m_TotalRecycled; }

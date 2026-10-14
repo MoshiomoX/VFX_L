@@ -9,7 +9,7 @@ class ComputeShader;
 
 // ============================================================
 // Bloom（全部 ComputeShader、シェーダーは BloomCS.hlsl 1本）
-//   prefilter（閾値 + 半分に）→ dual-filter 降採様 ×4 → 昇採様 ×4
+//   prefilter（閾値 + 半分に）→ dual-filter ダウンサンプリング ×4 → アップサンプリング ×4
 // 結果は半解像度。合成 PS が linear で拾って全画面に伸ばす
 // ============================================================
 struct BloomParams
@@ -18,9 +18,11 @@ struct BloomParams
     float threshold = 1.0f;   // HDR で 1.0 = 白。これを超えた分が光る
     float knee = 0.5f;        // 閾値の手前からなだらかに効かせる幅
     float intensity = 0.8f;   // 合成時の倍率
-    float exposure = 1.0f;    // 全体の明るさ倍率
-    bool  tonemap = false;    // ACES。1.0 超えを潰す。既定 off
-    bool  gamma = true;       // pow(1/2.2)。線形 → 表示用
+    float exposure = 0.8f;    // 全体の明るさ倍率（2026-10-07 ユーザー「光が強すぎる」→ 1.0 から下げた）
+    bool  tonemap = true;     // ACES。1.0 超えを白く飛ばさず丸める（同日、既定 on に。それまでは off で明部がそのまま白に切れていた）
+    bool  gamma = true;       // pow(1/gammaExp)。線形 → 表示用
+    float gammaExp = 2.2f;    // 表示ガンマ（2.2 = sRGB 相当。小さいほど中間調が暗い。2026-10-07 ユーザー「光が強すぎる」の実験用）
+    // TEMP-TEST: VFXL_EXPOSURE / VFXL_GAMMA / VFXL_TONEMAP（起動時の初期値。比較の撮影用）
 };
 
 class Bloom
@@ -32,7 +34,7 @@ public:
     bool Resize(ID3D11Device* device, int width, int height);
     void Shutdown();
 
-    // sceneSRV: resolve 済みの HDR 場面（非 MSAA）
+    // sceneSRV: resolve 済みの HDR シーン（非 MSAA）
     void Execute(ID3D11DeviceContext* context, ID3D11ShaderResourceView* sceneSRV);
 
     ID3D11ShaderResourceView* GetResultSRV() const;

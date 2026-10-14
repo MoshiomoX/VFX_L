@@ -18,18 +18,26 @@ From game-icons.net  https://game-icons.net
   GoldenArrow.png     "High shot"         by Lorc        https://game-icons.net/1x1/lorc/high-shot.html
   StoneShot.png       "Stone sphere"      by Lorc        https://game-icons.net/1x1/lorc/stone-sphere.html
   Poison.png          "Poison bottle"     by Lorc        https://game-icons.net/1x1/lorc/poison-bottle.html
+  IceLance.png        "Ice bolt"          by Lorc        https://game-icons.net/1x1/lorc/ice-bolt.html
+  IceSpike.png        "Crystal growth"    by Lorc        https://game-icons.net/1x1/lorc/crystal-growth.html
   Beam.png            "Laser blast"       by Lorc        https://game-icons.net/1x1/lorc/laser-blast.html
+  Gust.png            "Wind slap"         by Lorc        https://game-icons.net/1x1/lorc/wind-slap.html
   SplitRune.png       "Split arrows"      by Delapouite  https://game-icons.net/1x1/delapouite/split-arrows.html
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html
   HasteRune.png       "Stopwatch"         by Lorc        https://game-icons.net/1x1/lorc/stopwatch.html
+  CrystalBall.png     "Crystal ball"      by Lorc        https://game-icons.net/1x1/lorc/crystal-ball.html
   MaxHealthUp.png     "Heart plus"        by Zeromancer  https://game-icons.net/1x1/zeromancer/heart-plus.html
   MaxManaUp.png       "Potion ball"       by Lorc        https://game-icons.net/1x1/lorc/potion-ball.html
   MoveSpeedUp.png     "Sprint"            by Lorc        https://game-icons.net/1x1/lorc/sprint.html
   JumpPowerUp.png     "Jump across"       by Delapouite  https://game-icons.net/1x1/delapouite/jump-across.html
   ManaRegenUp.png     "Magic swirl"       by Lorc        https://game-icons.net/1x1/lorc/magic-swirl.html
   JumpCountUp.png     "Wingfoot"          by Lorc        https://game-icons.net/1x1/lorc/wingfoot.html
+  SpellPowerUp.png    "Crystal wand"      by Lorc        https://game-icons.net/1x1/lorc/crystal-wand.html
+  ShieldUp.png        "Energy shield"     by Lorc        https://game-icons.net/1x1/lorc/energy-shield.html
   Magnet.png          "Magnet"            by Lorc        https://game-icons.net/1x1/lorc/magnet.html
+  ManaSurge.png       "Embrassed energy"  by Lorc        https://game-icons.net/1x1/lorc/embrassed-energy.html
+  Gold.png            "Two coins"         by Delapouite  https://game-icons.net/1x1/delapouite/two-coins.html
 
 Drawn for this project (by the same script, no license needed):
   Frame3x3.png        3x3 grid of squares

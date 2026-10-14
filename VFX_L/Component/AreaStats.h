@@ -14,6 +14,8 @@ struct AreaStats
 
     // --- 範囲 ---
     float radius = 3.0f;          // 影響半径
+    // 光線の射程 m（AreaProfile::length を基礎値に、拡大鏡などの修飾を掛けた物。光線以外は 0。2026-10-13）
+    float length = 0.0f;
 
     // --- 時間 ---
     float duration = 2.0f;    // 発生してから消えるまで
@@ -33,12 +35,15 @@ struct AreaStats
     // --- 実行時状態（AreaSystem が更新）---
     float castTimer = 0.0f;
 
-    // --- 高級魔法（光線）: 自分では撃たず、前提の基礎魔法の弾が消えた時に、その方向へ撃つ ---
-    // 集約時に ItemCommon::triggeredBy が揃っていれば true。基礎魔法側の SpellStats::triggerMask の bit (16 + 添字) が自分
+    // --- 上級魔法（光線）: 自分では撃たず、前提の基本魔法の弾が消えた時に、その方向へ撃つ ---
+    // 集約時に ItemCommon::triggeredBy が揃っていれば true。基本魔法側の SpellStats::triggerMask の bit (16 + 添字) が自分
     bool triggered = false;
 
-    // --- 編集器のプロファイル（AreaProfileDB の番号。0 = 無し）---
-    // 単発か持続か・上下の厚み・玩家への追従・硬直・見た目 はここから引く。
-    // 半径・持続・tick・威力 は上の値を使う（集約時にプロファイルの値を基礎値として入れ、修飾符を掛けてある）
+    // --- 貯蔵（水晶玉。2026-10-06）: WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光線の起点が光球）。-1 = 杖から ---
+    int storeUnit = -1;
+
+    // --- エディタのプロファイル（AreaProfileDB の番号。0 = 無し）---
+    // 単発か持続か・上下の厚み・プレイヤーへの追従・硬直・見た目 はここから引く。
+    // 半径・持続・tick・威力 は上の値を使う（集約時にプロファイルの値を基礎値として入れ、修飾ルーンを掛けてある）
     int profile = 0;
 };

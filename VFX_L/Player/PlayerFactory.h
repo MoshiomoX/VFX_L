@@ -39,12 +39,13 @@ namespace PlayerFactory
         float height = 1.0f;
         Vector4 color = { 0.3f, 0.6f, 1.0f, 1.0f };
 
-        float moveSpeed = 5.0f;
+        float moveSpeed = 5.5f;   // 2026-10-09 5.0 → 5.5
         float jumpPower = 12.0f;
 
         float maxHealth = 100.0f;
+        float maxShield = 0.0f;    // シールドの初期値（2026-10-07 夜に 25 → 0 = Megabonk と同じ。シールドは能力アップ「最大シールド +25」だけで得る）
         float maxMana = 100.0f;
-        float manaRegen = 25.0f;
+        float manaRegen = 30.0f;   // 2026-10-07 に 25 → 30（curve 自動テスト：1 分半から杖を全部撃つのに回復の 2 倍要り、MP は平均 12〜25%）
 
         // 杖とバックパックを付けるか
         // ※VFX だけ確認したいシーンでは false にする
@@ -53,20 +54,23 @@ namespace PlayerFactory
 
         // ---- 見た目（骨付きモデル）----
         // nullptr / "" ならカプセル。読めなかった時もカプセルに落ちる
-        // 2026-09-28 から Quaternius の游侠（白髭）。前の KayKit Mage に戻すなら
-        //   skinnedModel = Res::Mdl::KayKit_Mage、hiddenParts = { "1H_Wand", "Spellbook", "Spellbook_open" }、
-        //   PlayerAnimSystem::ClipNames も KayKit の名前へ
-        const char* skinnedModel = Res::Mdl::Quaternius_Ranger;
-        float modelScale = 1.0f;            // メートル（身長 1.8m ≒ カプセルの高さ）
-        float modelYawOffsetDeg = 0.0f;     // +Z が正面（Tools/BuildPlayerModel.py の FBX。KayKit は -Z が正面で 180）
-        // 隠す部品（ノード名）。游侠は手持ち品が無い
+        // 2026-10-04 から Shadowkin（Reallusion CC 骨。レンジャーのアニメを世界空間で付け替えて使う、
+        //   ResourcePaths.h の kExtraAnims）。cm の FBX なので 0.01、正面がレンジャーの逆なので 180。
+        // レンジャー（Quaternius、2026-09-28〜10-04）に戻すなら skinnedModel = Res::Mdl::Quaternius_Ranger、
+        //   modelScale = 1、modelYawOffsetDeg = 0（戦闘は VFXL_PLAYER=ranger でも戻る）。
+        // 前の KayKit Mage に戻すなら skinnedModel = Res::Mdl::KayKit_Mage、modelScale = 1、180、
+        //   hiddenParts = { "1H_Wand", "Spellbook", "Spellbook_open" }、PlayerAnimSystem::ClipNames も KayKit の名前へ
+        const char* skinnedModel = Res::Mdl::Shadowkin;
+        float modelScale = 0.01f;           // FBX が cm（エンジンは単位を掛けない）→ 身長 1.8m ≒ カプセルの高さ
+        float modelYawOffsetDeg = 180.0f;   // -Z が正面
+        // 隠す部品（ノード名）。レンジャーは手持ち品が無い
         std::vector<const char*> hiddenParts = {};
     };
 
     // ============================================================
     // プレイヤーを1体作る
     // 付くもの: Transform / Collider(Capsule) / Rigidbody / SkinnedAnim（無理なら Model）
-    //          / PlayerTag / PlayerStats / PlayerState / Health / Mana
+    //          / PlayerTag / PlayerStats / PlayerState / Health / Shield / Mana
     //          / Level / Spellbook / Wand / Backpack（Config 次第）
     //
     // ※Wand は空で作る。spells / areas はグリッドの集約で埋まる。

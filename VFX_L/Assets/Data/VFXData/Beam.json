@@ -30,7 +30,8 @@
                 "offset": [0, 0, 0], "width": 0.7, "coreRatio": 0.3, "glowRatio": 2.6, "glowAlpha": 0.22,
                 "color": [0.25, 0.7, 1.1, 0.85], "coreColor": [0.9, 1.0, 1.05, 0.9],
                 "scrollSpeed": 10.0, "noiseScale": 1.4, "noiseStrength": 0.4, "tipFade": 1.2, "rootFade": 0.3,
-                "growTime": 0.1, "shrinkTime": 0.2, "previewLength": 14.0, "previewDir": [0, 0, 1]
+                "growTime": 0.1, "shrinkTime": 0.2, "previewLength": 14.0, "previewDir": [0, 0, 1],
+                "toon": true
             }
         },
         {

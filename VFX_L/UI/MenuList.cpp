@@ -6,6 +6,7 @@
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Manager/InputManager.h"
 #include "UI/UIDeco.h"
+#include "Audio/AudioSystem.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -38,7 +39,17 @@ void MenuList::Open()
 // マウスは「動かした時だけ」カーソルを奪う（キーで選んでいる途中に、
 // 止まっているマウスの位置へ戻されないように）
 // ============================================================
+// 選択の移動・決定の音（2026-10-03）。判定そのものは HandleInputRaw
 int MenuList::HandleInput()
+{
+    const int before = m_Cursor;
+    const int picked = HandleInputRaw();
+    if (picked >= 0) AudioSystem::Get().Play("ui_select");
+    else if (m_Cursor != before && before >= 0) AudioSystem::Get().Play("ui_hover");
+    return picked;
+}
+
+int MenuList::HandleInputRaw()
 {
     const int n = Count();
     if (n <= 0) return -1;
@@ -92,6 +103,11 @@ void MenuList::Draw(SpriteRenderer& sprite, TextRenderer& text,
     const std::shared_ptr<Texture>& white, float textScale) const
 {
     if (!white) return;
+    if (style == Style::Text)
+    {
+        DrawTextStyle(sprite, text, white, textScale);
+        return;
+    }
 
     // 幻想 UI：暗い地 + 古金の細い二重線。選択中は線が明るく光り、両端に菱形
     const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
@@ -119,5 +135,77 @@ void MenuList::Draw(SpriteRenderer& sprite, TextRenderer& text,
         const Vector2 ls = text.Measure(m_Labels[i], textScale);
         text.Draw(m_Labels[i], { p.x + (m_ItemSize.x - ls.x) * 0.5f, p.y + (m_ItemSize.y - ls.y) * 0.5f },
             sel ? Vector4(0.96f, 0.92f, 0.84f, 1.0f) : Vector4(0.50f, 0.46f, 0.40f, 1.0f), textScale);
+    }
+}
+
+// ============================================================
+// 文字だけの一覧（タイトル、2026-10-09）。背景の 3D の景色の上に直に置く。
+// 選んでいる項目：左に古金の菱形、後ろに左から右へ消える金の光、文字の下に線。少し右へずれる。
+// 文字は暗い縁取り（4 方向にずらした影）で、明るい空・草の上でも読めるように
+// ============================================================
+void MenuList::DrawTextStyle(SpriteRenderer& sprite, TextRenderer& text,
+    const std::shared_ptr<Texture>& white, float textScale) const
+{
+    const int n = Count();
+    if ((int)m_SelAnim.size() != n) m_SelAnim.assign(n, 0.0f);
+    const float now = UIDeco::Clock();
+    const float dt = (m_AnimClock < 0.0f) ? 0.0f : (std::min)(0.1f, now - m_AnimClock);
+    m_AnimClock = now;
+
+    const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
+    for (int i = 0; i < n; ++i)
+    {
+        float& s = m_SelAnim[i];
+        const float target = (i == m_Cursor) ? 1.0f : 0.0f;
+        s += (target - s) * (std::min)(1.0f, dt * 12.0f);
+        const float e = s * s * (3.0f - 2.0f * s);
+
+        const Vector2 p = ItemPos(i);
+        const float h = m_ItemSize.y;
+
+        // 後ろの光（左が濃く、右へ消える。細い帯を並べて段々に）
+        if (e > 0.01f)
+        {
+            constexpr int kStrips = 16;
+            const float w = m_ItemSize.x;
+            for (int k = 0; k < kStrips; ++k)
+            {
+                const float t = (float)k / (float)kStrips;
+                const float a = 0.30f * e * (1.0f - t) * (1.0f - t) * fade;
+                sprite.Draw(white, { p.x + w * t, p.y + h * 0.08f }, { w / (float)kStrips + 1.0f, h * 0.84f },
+                    { gold.x, gold.y, gold.z, a });
+            }
+        }
+
+        // 左の菱形
+        {
+            const float g = h * (0.16f + 0.08f * e);
+            const Vector2 c = { p.x + h * 0.32f, p.y + h * 0.5f };
+            Vector4 col = gold;
+            col.w = (0.35f + 0.65f * e) * fade;
+            sprite.Draw(white, { c.x - g * 0.5f, c.y - g * 0.5f }, { g, g }, col, 0.785398f, c);   // 回転の中心はピクセル
+        }
+
+        // 文字（暗い縁取り → 本体）
+        const std::wstring& label = m_Labels[i];
+        const Vector2 ls = text.Measure(label, textScale);
+        const Vector2 tp = { p.x + h * 0.70f + h * 0.22f * e, p.y + (h - ls.y) * 0.5f };
+        const float o = (std::max)(1.0f, h * 0.035f);
+        const Vector4 shadow = { 0.0f, 0.0f, 0.0f, 0.75f * fade };
+        for (const Vector2 d : { Vector2(o, 0.0f), Vector2(-o, 0.0f), Vector2(0.0f, o), Vector2(0.0f, -o), Vector2(o, o) })
+            text.Draw(label, tp + d, shadow, textScale);
+        const Vector4 dim = { 0.70f, 0.64f, 0.55f, 0.90f };
+        const Vector4 lit = { 1.00f, 0.90f, 0.62f, 1.00f };
+        Vector4 col = Vector4::Lerp(dim, lit, e);
+        col.w *= fade;
+        text.Draw(label, tp, col, textScale);
+
+        // 下の線（選んだ時に左から伸びる）
+        if (e > 0.01f)
+        {
+            Vector4 line = gold;
+            line.w = 0.9f * e * fade;
+            sprite.Draw(white, { tp.x, tp.y + ls.y + h * 0.02f }, { ls.x * e, (std::max)(1.0f, h * 0.03f) }, line);
+        }
     }
 }

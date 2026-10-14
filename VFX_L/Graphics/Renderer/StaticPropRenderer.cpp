@@ -17,9 +17,6 @@
 #include "Camera/CameraBase.h"
 #include "ECS/View.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
 
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector3;
@@ -269,7 +266,7 @@ void StaticPropRenderer::Render(Renderer& renderer)
         {
             Material* mat = g.model->GetMaterial(sub.materialIndex);
             if (!mat || !mat->HasPS()) mat = m_FallbackMaterial.get();
-            mat->Bind(ctx);     // PS + 貼図 t0-t4（材質の VS も積まれるので直後に差し替える）
+            mat->Bind(ctx);     // PS + テクスチャ t0-t4（材質の VS も積まれるので直後に差し替える）
             m_VS->Bind(ctx);    // VS + b0/b1
 
             PixelShader* ps = mat->GetPS();
@@ -291,7 +288,7 @@ void StaticPropRenderer::Render(Renderer& renderer)
 }
 
 // ============================================================
-// 影図へ深度だけ
+// シャドウマップへ深度だけ
 // ============================================================
 void StaticPropRenderer::RenderDepth(ID3D11DeviceContext* ctx, const Matrix& view, const Matrix& proj)
 {
@@ -349,7 +346,7 @@ void StaticPropRenderer::RenderDepth(ID3D11DeviceContext* ctx, const Matrix& vie
 }
 
 // ============================================================
-// ImGui（場面の Terrain 欄の中から呼ぶ）
+// ImGui（シーンの Terrain 欄の中から呼ぶ）
 // ============================================================
 void StaticPropRenderer::DrawImGui()
 {

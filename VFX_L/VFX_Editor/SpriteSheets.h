@@ -1,6 +1,6 @@
 // ============================================================
 // SpriteSheets.h
-// 連番絵（sprite sheet）の表。Sprite entry（CPU）と GPU の範囲 sprite が使う。
+// 連番画像（sprite sheet）の表。Sprite entry（CPU）と GPU の範囲 sprite が使う。
 //
 //   PNG の横に同名の json があれば読む：
 //     PVFX Foundry の grid manifest（"schema": "pvfx.export-manifest/..."）
@@ -30,7 +30,7 @@ namespace SpriteSheets
         int   frameCount = 1;
         float frameTime = 0.05f;              // 秒 / コマ
         bool  loop = false;                   // 素材が「繰り返す」前提か（entry 側で上書きできる）
-        bool  point = true;                   // 最近傍で読む（像素絵）
+        bool  point = true;                   // 最近傍で読む（ピクセルアート）
         DirectX::SimpleMath::Vector2 pivot = { 0.5f, 0.5f };   // コマ内の基準点（0..1、左上原点）
 
         float Duration() const { return frameTime * (float)frameCount; }

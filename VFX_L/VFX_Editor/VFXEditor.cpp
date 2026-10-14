@@ -1,19 +1,14 @@
 #include "VFX_Editor/VFXEditor.h"
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "Core/Application.h"
-
 #include "Particle/ParticleSheets.h"
+#include "VFX_Editor/VFXId.h"
 #include "imgui.h"
-#include <string>
-#include <cstdio>
-#include <cmath>
-#include <fstream>
-#include <algorithm>
 
 namespace
 {
     // ビルボード粒子の最初のコマを小さく見せる。
-    // 0 番の貼图はシーンが渡した物（legacy）があればそちら、1 番以降は貼图表から
+    // 0 番のテクスチャはシーンが渡した物（legacy）があればそちら、1 番以降はテクスチャ表から
     void DrawParticleTexturePreview(const GPUParticleEmitter& e, const Texture* legacy)
     {
         if (e.renderMode != 0) return;
@@ -136,7 +131,7 @@ void VFXEditor::DrawTimeline()
         }
     }
 
-    // 各Entryの横条
+    // 各Entryの横縞
     const ImU32 entryColors[] = {
         IM_COL32(70, 130, 230, 200),
         IM_COL32(230, 180, 70, 200),
@@ -147,7 +142,7 @@ void VFXEditor::DrawTimeline()
     };
 
     const ImU32 selectedColor = IM_COL32(255, 255, 255, 80);
-    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
 
     float barY = canvasPos.y + 20.0f;
     for (int i = 0; i < m_Effect->GetEntryCount(); i++)
@@ -163,7 +158,7 @@ void VFXEditor::DrawTimeline()
         int typeIdx = static_cast<int>(entry->GetType());
         ImU32 color = entryColors[typeIdx % 6];
 
-        // 横条
+        // 横縞
         drawList->AddRectFilled(ImVec2(startX, y), ImVec2(endX, y + 22.0f), color, 4.0f);
 
         // 選択ハイライト
@@ -218,10 +213,10 @@ void VFXEditor::DrawEntryList()
 
     if (ImGui::BeginPopup("AddEntryType"))
     {
-        const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
-        for (int t = 0; t < 7; t++)
+        const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
+        for (int t = 0; t < 8; t++)
         {
-            bool enabled = (t != 5);   // Particle / Sprite / Trail / Mesh / Light / Beam（Sound は未実装）
+            bool enabled = (t != 5);   // Particle / Sprite / Trail / Mesh / Light / Beam / Liquid（Sound は未実装）
             if (!enabled) ImGui::BeginDisabled();
             if (ImGui::Selectable(typeNames[t]))
             {
@@ -234,7 +229,7 @@ void VFXEditor::DrawEntryList()
 
     ImGui::Separator();
 
-    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
     int removeIndex = -1;
 
     for (int i = 0; i < m_Effect->GetEntryCount(); i++)
@@ -280,7 +275,7 @@ void VFXEditor::DrawEntryInspector(int index)
     auto* entry = m_Effect->GetEntry(index);
     if (!entry) return;
 
-    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
     int typeIdx = static_cast<int>(entry->GetType());
 
     std::string title = "Inspector - Entry " + std::to_string(index) + " [" + typeNames[typeIdx] + "]";
@@ -323,6 +318,71 @@ void VFXEditor::DrawMenuBar()
     if (ImGui::Button("Load"))
     {
         ImGui::OpenPopup("LoadPopup");
+    }
+
+    // エフェクトのデータベース（VFXId.h / VFXDatabase.cpp）の一覧。2026-10-09、ユーザー：
+    // 「データベースのエフェクトの数が合わない、プレイヤーのエフェクトや足元の小石は入っていないのか」
+    ImGui::SameLine();
+    if (ImGui::Button("Database"))
+    {
+        ImGui::OpenPopup("DatabasePopup");
+    }
+    if (ImGui::BeginPopup("DatabasePopup"))
+    {
+        ImGui::Text("VFX Database: %d effects (VFX_Editor/VFXId.h). Click = load", VFXDatabase::Count());
+        ImGui::Separator();
+        std::vector<std::string> registered;
+        for (int g = 0; g < (int)VFXDatabase::Group::Count; ++g)
+        {
+            const auto group = (VFXDatabase::Group)g;
+            int n = 0;
+            for (int i = 0; i < VFXDatabase::Count(); ++i)
+                if (VFXDatabase::GetGroup(VFXDatabase::At(i)) == group) ++n;
+            if (n == 0) continue;
+            ImGui::TextColored(ImVec4(0.6f, 0.9f, 1.0f, 1.0f), "%s  (%d)", VFXDatabase::GroupName(group), n);
+            ImGui::Indent();
+            for (int i = 0; i < VFXDatabase::Count(); ++i)
+            {
+                const VFXId id = VFXDatabase::At(i);
+                if (VFXDatabase::GetGroup(id) != group) continue;
+                const char* file = VFXDatabase::GetFile(id);
+                registered.push_back(file);
+                if (ImGui::Selectable(file))
+                {
+                    m_Effect->Stop();
+                    m_Effect->LoadFromFile(VFXDatabase::GetPath(id));
+                    // 保存名もこの json に合わせる（そのまま Save で上書きできるように）
+                    std::string stem = file;
+                    if (stem.size() > 5) stem.resize(stem.size() - 5);   // ".json"
+                    strncpy_s(m_SaveFileName, stem.c_str(), _TRUNCATE);
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            ImGui::Unindent();
+        }
+
+        // フォルダにあるが登録されていない物（エディタの試し用）
+        ImGui::Separator();
+        ImGui::TextDisabled("Not in the database (editor tests; the game never plays these):");
+        WIN32_FIND_DATAA fd;
+        HANDLE hFind = FindFirstFileA("Assets/Data/VFXData/*.json", &fd);
+        if (hFind != INVALID_HANDLE_VALUE)
+        {
+            do
+            {
+                if (std::find(registered.begin(), registered.end(), std::string(fd.cFileName)) != registered.end()) continue;
+                ImGui::Indent();
+                if (ImGui::Selectable(fd.cFileName))
+                {
+                    m_Effect->Stop();
+                    m_Effect->LoadFromFile(std::string("Assets/Data/VFXData/") + fd.cFileName);
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::Unindent();
+            } while (FindNextFileA(hFind, &fd));
+            FindClose(hFind);
+        }
+        ImGui::EndPopup();
     }
 
     // Save

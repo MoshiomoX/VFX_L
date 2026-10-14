@@ -65,6 +65,10 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     SwarmMotion m = motions[p.motion & SWARM_MOTION_INDEX_MASK];
     if (m.mode != SWARM_MOTION_DROP)
         return o;
+    // a drop from almost no height (the Ice Spike, 2026-10-10: it lands the next step) gets no warning,
+    // or the ring would only flash for a frame. c1.x = drop height
+    if (m.c1.x < 1.0)
+        return o;
 
     // the blast is scaled with the meteor (SwarmSpawnAreaFromDef), so is the ring
     float radius = (m.hitArea != 0u) ? areaDefs[m.hitArea].radius * SwarmProjScale(p) : 1.0;

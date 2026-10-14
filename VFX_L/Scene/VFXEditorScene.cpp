@@ -1,6 +1,6 @@
 // ============================================================
 // VFXEditorScene.cpp
-// 特効編集用のシーン。粒子 + VFX Mesh + 参照用の骨付きモデル
+// エフェクト編集用のシーン。粒子 + VFX Mesh + 参照用の骨付きモデル
 // ============================================================
 #include "Scene/VFXEditorScene.h"
 #include "Core/Application.h"
@@ -12,11 +12,6 @@
 #include "Graphics/Material/Material.h"
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "imgui.h"
-#include <iostream>
-#include <vector>
-#include <chrono>
-#include <fstream>   // TEMP-TEST: refclip.log
-#include <cstddef>
 
 // kLayoutSkinned が SkinnedVertexOut（SkinningCS の出力）の実際の並びと一致していることの保証
 static_assert(sizeof(SkinnedVertexOut) == GPUParticleSystem::kLayoutSkinned.stride, "kLayoutSkinned.stride != sizeof(SkinnedVertexOut)");
@@ -63,12 +58,15 @@ void VFXEditorScene::Init()
         std::cout << "[Error] VFXSpriteRenderer init failed" << std::endl;
     if (!m_BeamRenderer.Initialize(device))
         std::cout << "[Error] VFXBeamRenderer init failed" << std::endl;
+    if (!m_LiquidRenderer.Initialize(device))
+        std::cout << "[Error] VFXLiquidRenderer init failed" << std::endl;
 
     // ---------- VFX（context は値渡しなので、指針を全部埋めてから渡す）----------
     m_VFXContext.particleSystem = &m_ParticleSystem;
     m_VFXContext.meshRenderer = &m_MeshRenderer;
     m_VFXContext.spriteRenderer = &m_SpriteRenderer;
     m_VFXContext.beamRenderer = &m_BeamRenderer;
+    m_VFXContext.liquidRenderer = &m_LiquidRenderer;
     m_Effect.InitStateMachine(m_VFXContext);
 
     m_Editor.SetEffect(&m_Effect);
@@ -83,8 +81,13 @@ void VFXEditorScene::Init()
     // TEMP-TEST: VFXL_REF_MAGE=<クリップ名,...>（別ファイルのアニメを骨名で当てた結果を見る。Game.cpp と対）
     char refMage[256] = {};
     const bool useMage = GetEnvironmentVariableA("VFXL_REF_MAGE", refMage, sizeof(refMage)) > 0;
-    // 参照はプレイヤーの今のモデル（PlayerFactory::Config::skinnedModel と同じ。2026-09-28 から Quaternius の游侠）
-    auto loaded = ResourceManager::Get().LoadModelAuto(useMage ? Res::Mdl::Quaternius_Ranger : Res::Mdl::Paladin_Idle);
+    // 参照はプレイヤーの今のモデル（PlayerFactory::Config::skinnedModel と同じ。2026-09-28 から Quaternius のレンジャー）
+    // TEMP-TEST: VFXL_REF_MODEL=shadowkin で CC 骨の人形（レンジャーのアニメを付け替えた物、2026-10-04）
+    char refModel[32] = {};
+    const bool useShadowkin = GetEnvironmentVariableA("VFXL_REF_MODEL", refModel, sizeof(refModel)) > 0
+        && _stricmp(refModel, "shadowkin") == 0;
+    auto loaded = ResourceManager::Get().LoadModelAuto(useShadowkin ? Res::Mdl::Shadowkin
+        : (useMage ? Res::Mdl::Quaternius_Ranger : Res::Mdl::Paladin_Idle));
     if (loaded.kind == ModelKind::Skinned && loaded.skinnedModel)
     {
         m_SkinnedModel = loaded.skinnedModel;
@@ -111,7 +114,7 @@ void VFXEditorScene::Init()
             }
             if (!m_RefCycle.empty()) m_PreviewClip = m_RefCycle[0];
             // 実寸（m）のモデル。横から全身が入る所に
-            m_ModelScale[0] = m_ModelScale[1] = m_ModelScale[2] = 1.0f;
+            m_ModelScale[0] = m_ModelScale[1] = m_ModelScale[2] = useShadowkin ? 0.01f : 1.0f;   // Shadowkin は cm
             m_ModelRot[1] = 90.0f;
             m_Camera.SetPosition({ 0.0f, 1.6f, -9.0f });
             m_Camera.SetTarget({ 0.0f, 0.9f, 0.0f });
@@ -132,7 +135,7 @@ void VFXEditorScene::Init()
     // 一括発射の既定値をプール全体に合わせる
     m_BurstCount = (int)m_ParticleSystem.GetMaxParticles();
 
-    // TEMP-TEST: 粒子貼图の自測（Game.cpp の VFXL_VFX_AUTOLOAD と対）
+    // TEMP-TEST: 粒子テクスチャの自動テスト（Game.cpp の VFXL_VFX_AUTOLOAD と対）
     char autoload[128] = {};
     if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoload, sizeof(autoload)) > 0)
     {
@@ -207,7 +210,7 @@ void VFXEditorScene::Update(float dt)
             m_PreviewClip = m_RefCycle[m_RefCycleIndex];
             m_AnimTime = 0.0f;
         }
-        // 切り替えた時刻（系统 ms）とクリップ名を refclip.log へ（画面の連写と突き合わせる）
+        // 切り替えた時刻（システム ms）とクリップ名を refclip.log へ（画面の連写と突き合わせる）
         static int s_Logged = -1;
         if (s_Logged != m_PreviewClip || m_RefCycleTimer == 0.0f)
         {
@@ -324,7 +327,10 @@ void VFXEditorScene::Render(Renderer& renderer)
     // ---- VFX Mesh（光を当てない。深度は読むだけ）----
     m_MeshRenderer.Render(ctx, GetCamera());
 
-    // ---- Sprite（連番絵。深度は読むだけ）----
+    // ---- Liquid（液溜まり。地面なので連番画像より先。地形は無いので effect の高さで平ら）----
+    m_LiquidRenderer.Render(ctx, GetCamera(), renderer.GetLightData());
+
+    // ---- Sprite（連番画像。深度は読むだけ）----
     m_SpriteRenderer.Render(ctx, GetCamera());
     m_BeamRenderer.Render(ctx, GetCamera());   // 光線（Beam entry。加算）
 
@@ -414,7 +420,7 @@ void VFXEditorScene::UpdateFakeProjectile(float dt)
 
 // ============================================================
 // 一括発射：emitter を1つだけ積んで、そこに全弾を担当させる
-// CPU は「何発撃ちたいか」しか書かない。実際の数は EmitCS が決める
+// CPU は「何発射ちたいか」しか書かない。実際の数は EmitCS が決める
 // ============================================================
 void VFXEditorScene::SubmitBurst()
 {

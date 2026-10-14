@@ -9,12 +9,11 @@
 #include "Graphics/Renderer/Renderer.h"
 #include "Manager/ResourceManager.h"
 #include "Graphics/Model/MaterialLoader.h"
+#include "Collider/CollisionMath.h"   // DopDirections（衝突用の凸包の点）
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#include <iostream>
-#include <filesystem>
-#include <algorithm>
 
 namespace fs = std::filesystem;
 using namespace DirectX::SimpleMath;
@@ -34,11 +33,44 @@ static Matrix ConvertMatrix(const aiMatrix4x4& m)
 // ============================================================
 // ノードを再帰で辿り、変換を頂点に焼き込んで SubMesh を作る
 // ============================================================
+// 衝突用の凸包の点：CollisionMath::DopDirections の各方向で一番外にある頂点を集める
+struct HullAccum
+{
+    static constexpr int kDirs = CollisionMath::kDopDirs;
+    const Vector3* dir = CollisionMath::DopDirections();
+    float   best[kDirs];
+    Vector3 point[kDirs];
+    HullAccum()
+    {
+        for (int i = 0; i < kDirs; ++i) { best[i] = -FLT_MAX; point[i] = Vector3::Zero; }
+    }
+    void Add(const Vector3& p)
+    {
+        for (int i = 0; i < kDirs; ++i)
+        {
+            const float v = dir[i].Dot(p);
+            if (v > best[i]) { best[i] = v; point[i] = p; }
+        }
+    }
+    std::vector<Vector3> Points() const   // 同じ点は 1 つに
+    {
+        std::vector<Vector3> out;
+        for (int i = 0; i < kDirs; ++i)
+        {
+            if (best[i] == -FLT_MAX) continue;
+            bool dup = false;
+            for (const auto& q : out) if ((q - point[i]).LengthSquared() < 1e-10f) { dup = true; break; }
+            if (!dup) out.push_back(point[i]);
+        }
+        return out;
+    }
+};
+
 static void ProcessNode(
     aiNode* node, const aiScene* scene, ID3D11Device* device,
     std::vector<Model::SubMesh>& subMeshes, const Matrix& parentTransform,
     Vector3& boundsMin, Vector3& boundsMax,
-    const std::vector<std::shared_ptr<Material>>& materials)
+    const std::vector<std::shared_ptr<Material>>& materials, HullAccum& hull)
 {
     const Matrix globalTransform = ConvertMatrix(node->mTransformation) * parentTransform;
 
@@ -46,9 +78,9 @@ static void ProcessNode(
     {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 
-        // 色の貼図が無い材質（色だけで塗った低ポリ素材。Quaternius・dglopez など）は、
-        // 材質の拡散色を頂点色に焼く。PS は 貼図 × 頂点色 なので、焼かないと白くなる
-        // （Material::m_Color は描画で使っていない）。貼図のある材質は触らない
+        // 色のテクスチャが無い材質（色だけで塗った低ポリ素材。Quaternius・dglopez など）は、
+        // 材質の拡散色を頂点色に焼く。PS は テクスチャ × 頂点色 なので、焼かないと白くなる
+        // （Material::m_Color は描画で使っていない）。テクスチャのある材質は触らない
         // （Blender の FBX は拡散色 0.8 を書くことが多く、掛けると今の素材が暗くなる）
         Vector4 baseColor(1, 1, 1, 1);
         if (mesh->mMaterialIndex < materials.size() && materials[mesh->mMaterialIndex]
@@ -75,6 +107,7 @@ static void ProcessNode(
 
             boundsMin = Vector3::Min(boundsMin, pos);
             boundsMax = Vector3::Max(boundsMax, pos);
+            hull.Add(pos);
 
             if (mesh->HasNormals())
             {
@@ -125,7 +158,7 @@ static void ProcessNode(
 
     for (unsigned int i = 0; i < node->mNumChildren; i++)
         ProcessNode(node->mChildren[i], scene, device, subMeshes, globalTransform,
-            boundsMin, boundsMax, materials);
+            boundsMin, boundsMax, materials, hull);
 }
 
 // ============================================================
@@ -145,8 +178,8 @@ static const aiAnimation* FindAnimation(const aiScene* scene, const std::string&
 }
 
 // ============================================================
-// 節点アニメの 1 時刻を各節点の mTransformation へ書き込む。
-// 骨（skin weights）を持たず、部品を節点で動かす FBX（Kenney Blocky 等）の
+// ノードアニメの 1 時刻を各ノードの mTransformation へ書き込む。
+// 骨（skin weights）を持たず、部品をノードで動かす FBX（Kenney Blocky 等）の
 // 姿勢を焼く・部品アニメを表にするため。前後のキーを補間する
 // （位置・拡縮は線形、回転は球面線形）
 // ============================================================
@@ -185,8 +218,33 @@ static bool ApplyNodePose(aiScene* scene, const std::string& clip, float timeFra
         }
         if (ch->mNumRotationKeys)
         {
-            const float w = bracket(ch->mRotationKeys, ch->mNumRotationKeys, a, b);
-            aiQuaternion::Interpolate(r, ch->mRotationKeys[a].mValue, ch->mRotationKeys[b].mValue, w);
+            const aiQuatKey* keys = ch->mRotationKeys;
+            const unsigned int n = ch->mNumRotationKeys;
+            float w = bracket(keys, n, a, b);
+            // assimp が FBX のオイラー角の曲線から作る回転キーには、角度が 0 を跨ぐ所（時刻が整数でない所）に
+            // 1 個だけ 180 度近く裏返ったキーが挟まることがある（2026-10-03。Kenney Blocky の attack-melee-right で
+            // torso / head の t=12.523 など。攻撃の真ん中で上半身が地面の下へ回っていた）。
+            // 前後どちらのキーとも 120 度以上離れ、前後同士は近いキーは無かった事にして、前後で補間する
+            auto absDot = [](const aiQuaternion& p0, const aiQuaternion& p1)
+                {
+                    return std::fabs(p0.w * p1.w + p0.x * p1.x + p0.y * p1.y + p0.z * p1.z);
+                };
+            auto isSpike = [&](unsigned int i)
+                {
+                    if (i == 0 || i + 1 >= n) return false;
+                    return absDot(keys[i - 1].mValue, keys[i].mValue) < 0.5f
+                        && absDot(keys[i].mValue, keys[i + 1].mValue) < 0.5f
+                        && absDot(keys[i - 1].mValue, keys[i + 1].mValue) > 0.7f;
+                };
+            bool skipped = false;
+            while (a > 0 && isSpike(a)) { --a; skipped = true; }
+            while (b + 1 < n && isSpike(b)) { ++b; skipped = true; }
+            if (skipped)
+            {
+                const double span = keys[b].mTime - keys[a].mTime;
+                w = (span > 1e-9) ? (float)std::clamp((t - keys[a].mTime) / span, 0.0, 1.0) : 0.0f;
+            }
+            aiQuaternion::Interpolate(r, keys[a].mValue, keys[b].mValue, w);
             r.Normalize();
         }
         if (ch->mNumPositionKeys)
@@ -199,7 +257,7 @@ static bool ApplyNodePose(aiScene* scene, const std::string& clip, float timeFra
     return true;
 }
 
-// ProcessNode と同じ順（節点の mesh → 子）で、submesh 毎の全体変換を集める
+// ProcessNode と同じ順（ノードの mesh → 子）で、submesh 毎の全体変換を集める
 static void CollectMeshGlobals(const aiNode* node, const Matrix& parentTransform, std::vector<Matrix>& out)
 {
     const Matrix globalTransform = ConvertMatrix(node->mTransformation) * parentTransform;
@@ -210,7 +268,7 @@ static void CollectMeshGlobals(const aiNode* node, const Matrix& parentTransform
 }
 
 // ============================================================
-// 部品アニメの表を作るための標本取り（Model.h の説明を参照）
+// 部品アニメの表を作るためのサンプリングり（Model.h の説明を参照）
 // ============================================================
 bool Model::SampleSubmeshTransforms(const std::string& filepath, const std::string& clip,
     const std::vector<float>& timeFracs, const Matrix& rootTransform,
@@ -223,7 +281,7 @@ bool Model::SampleSubmeshTransforms(const std::string& filepath, const std::stri
         aiProcess_FlipUVs |
         aiProcess_CalcTangentSpace |
         aiProcess_GenNormals |
-        aiProcess_MakeLeftHanded);   // Load と同じ前処理（節点の並びと座標系を揃える）
+        aiProcess_MakeLeftHanded);   // Load と同じ前処理（ノードの並びと座標系を揃える）
     if (!scene || !scene->mRootNode) return false;
 
     const aiAnimation* anim = FindAnimation(scene, clip);
@@ -287,7 +345,7 @@ bool Model::Load(ID3D11Device* device, const std::string& filepath, const LoadOp
             m_FileUnitScale = f * 0.01f;
     }
 
-    // 節点アニメの姿勢を焼く（importer が持つ scene を書き換える。この関数の中だけで使うので問題ない）
+    // ノードアニメの姿勢を焼く（importer が持つ scene を書き換える。この関数の中だけで使うので問題ない）
     if (!opt.poseClip.empty()
         && !ApplyNodePose(const_cast<aiScene*>(scene), opt.poseClip, opt.poseTimeFrac))
     {
@@ -312,12 +370,14 @@ bool Model::LoadFromScene(ID3D11Device* device, const aiScene* scene,
     // ---------- メッシュ + 包囲ボックス ----------
     m_BoundsMin = Vector3(FLT_MAX, FLT_MAX, FLT_MAX);
     m_BoundsMax = Vector3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-    // rootTransform は全節点の一番外側に掛かる（行ベクトル: v * 節点 * root）
+    // rootTransform は全ノードの一番外側に掛かる（行ベクトル: v * ノード * root）
+    HullAccum hull;
     ProcessNode(scene->mRootNode, scene, device, m_SubMeshes, rootTransform,
-        m_BoundsMin, m_BoundsMax, m_Materials);
+        m_BoundsMin, m_BoundsMax, m_Materials, hull);
     if (m_SubMeshes.empty())
         m_BoundsMin = m_BoundsMax = Vector3::Zero;
     m_BoundsCenter = (m_BoundsMin + m_BoundsMax) * 0.5f;
+    m_HullPoints = hull.Points();
 
     std::cout << "[OK] Model loaded (static)  SubMeshes: " << m_SubMeshes.size()
         << "  Materials: " << m_Materials.size() << std::endl;

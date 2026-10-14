@@ -8,6 +8,8 @@
 #include "Component/RigidbodyComponent.h"
 #include "Component/ModelComponent.h"
 #include "Player/LevelComponent.h"
+#include "Player/WalletComponent.h"
+#include "Player/ShieldComponent.h"
 #include "Item/BackpackLogic.h"
 #include "Player/PlayerTag.h"
 #include "Player/PlayerStatsComponent.h"
@@ -18,12 +20,13 @@
 #include "Component/BackpackComponent.h"
 #include "Component/SpellbookComponent.h"
 #include "Component/SkinnedAnimComponent.h"
+#include "Component/ClothChainComponent.h"
+#include "ECS/System/ClothChainSystem.h"
 #include "Graphics/PrimitiveBuilder.h"
 #include "Graphics/Model/SkinnedModel.h"
 #include "Graphics/Model/SkinnedModelGPU.h"
 #include "Manager/ResourceManager.h"
 #include "Core/Application.h"
-#include <iostream>
 
 namespace PlayerFactory
 {
@@ -65,6 +68,10 @@ namespace PlayerFactory
         // カプセルは中心が原点、モデルは足元が原点。足元をカプセルの底に合わせる
         anim.offset = { 0.0f, -(cfg.height * 0.5f + cfg.radius), 0.0f };
         reg.Add<SkinnedAnimComponent>(e, anim);
+
+        // マントの骨（Reallusion CC の Cloak1〜8）があれば揺らす（2026-10-04、ClothChainSystem）
+        if (loaded.skinnedModel->GetSkeleton().FindBoneIndex("Cloak1") >= 0)
+            reg.Add<ClothChainComponent>(e, ClothChainSystem::CCCape());
         return true;
     }
 
@@ -126,8 +133,9 @@ namespace PlayerFactory
         reg.Add<PlayerStatsComponent>(e, stats);
 
         reg.Add<LevelComponent>(e, {});
+        reg.Add<WalletComponent>(e, {});   // 金貨（2026-10-04。経験値オーブを拾うと増える）
 
-        // ---- 状態機（HSM 3層）----
+        // ---- ステートマシン（HSM 3層）----
         // ※PlayerStateSystem が毎フレーム書く
         reg.Add<PlayerStateComponent>(e, {});
 
@@ -139,6 +147,13 @@ namespace PlayerFactory
         hp.max = cfg.maxHealth;
         hp.current = cfg.maxHealth;
         reg.Add<HealthComponent>(e, hp);
+
+        // ---- シールド（HP より先に受ける。PlayerStateSystem が受け止めと回復をする）----
+        ShieldComponent shield;
+        shield.max = cfg.maxShield;
+        shield.current = cfg.maxShield;
+        shield.sinceHit = shield.rechargeDelay;
+        reg.Add<ShieldComponent>(e, shield);
 
         // ---- 魔力 ----
         // ※現時点では HUD 表示のみ。
@@ -165,8 +180,8 @@ namespace PlayerFactory
             // Rect のアンカーは左上なので GRID/2-1 から 3 マス（9x9 なら 3..5 行 3..5 列）
             const int start = BackpackComponent::GRID / 2 - 1;
             BackpackLogic::PlaceFrame(bpc, ItemID::Frame3x3, start, start, 0);
-            // 初期の魔法は枠の真ん中に置いておく（背包を開かなくても最初から撃つ。Megabonk と同じく武器を持って始まる）。
-            // 2026-09-29 用户の依頼で火球 → 魔法の追尾弾（火球は爆発込みで序盤には強すぎた）
+            // 初期の魔法は枠の真ん中に置いておく（バックパックを開かなくても最初から撃つ。Megabonk と同じく武器を持って始まる）。
+            // 2026-09-29 ユーザーの依頼で火球 → 魔法の追尾弾（火球は爆発込みで序盤には強すぎた）
             BackpackLogic::Place(bpc, ItemID::HomingBolt, start + 1, start + 1, 0);
 
             reg.Add<BackpackComponent>(e, bpc);

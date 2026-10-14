@@ -9,7 +9,7 @@
 //   Damage 層 → over  : Hurt / Dead（全身上書き）
 //
 //   ここはクリップ名を決めるだけ。時計は SkinnedAnimSystem、描画は RenderSystem。
-//   状態機（PlayerStateSystem）はアニメを知らないまま。
+//   ステートマシン（PlayerStateSystem）はアニメを知らないまま。
 //
 //   実行順: PlayerStateSystem → WeaponSystem → ここ。
 //   WeaponSystem の後に置くのは「今フレーム撃った」を
@@ -40,6 +40,7 @@ public:
         std::string dead = "Death01";
         std::string slide = "Slide_Loop";    // 本物の滑りの姿勢（UAL2）
         std::string upperRoot = "spine_02";  // 上半身マスクの根（UE 風の骨名）
+        std::string upperRootAlt = "CC_Base_Spine01";   // 無ければこちら（CC 骨の人形、2026-10-04）
     };
 
     void Update(Registry& reg, float dt);
@@ -63,7 +64,7 @@ public:
     float minPlayRate = 0.5f;
     float maxPlayRate = 2.0f;
 
-    int CurrentGait() const { return m_Gait; }   // 0 Walk / 1 Jog / 2 Sprint（面板の表示用）
+    int CurrentGait() const { return m_Gait; }   // 0 Walk / 1 Jog / 2 Sprint（パネルの表示用）
     float CurrentPlayRate() const { return m_PlayRate; }
 
 private:

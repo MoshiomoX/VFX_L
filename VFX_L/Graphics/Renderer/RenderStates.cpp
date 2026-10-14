@@ -2,7 +2,6 @@
 // RenderStates.cpp
 // ============================================================
 #include "Graphics/Renderer/RenderStates.h"
-#include <iostream>
 
 bool RenderStates::Initialize(ID3D11Device* device)
 {
@@ -17,6 +16,22 @@ bool RenderStates::Initialize(ID3D11Device* device)
     ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     ds.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
     if (FAILED(device->CreateDepthStencilState(&ds, &m_DepthLessEqual)))
+        return false;
+
+    // --- 陣営のアウトライン用：深度は既定どおり（LESS、書き込みあり）+ ステンシルに参照値を書く ---
+    D3D11_DEPTH_STENCIL_DESC st = {};
+    st.DepthEnable = TRUE;
+    st.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    st.DepthFunc = D3D11_COMPARISON_LESS;
+    st.StencilEnable = TRUE;
+    st.StencilReadMask = 0xFF;
+    st.StencilWriteMask = 0xFF;
+    st.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    st.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;      // 深度を通った所だけ陣営の番号
+    st.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    st.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    st.BackFace = st.FrontFace;
+    if (FAILED(device->CreateDepthStencilState(&st, &m_DepthStencilWrite)))
         return false;
 
     // --- 左手系 + CW 巻き順の前提でカリングを定義する ---
@@ -42,6 +57,7 @@ void RenderStates::Shutdown()
 {
     m_Common.reset();
     m_DepthLessEqual.Reset();
+    m_DepthStencilWrite.Reset();
     m_CullBack.Reset();
     m_CullFront.Reset();
     m_Initialized = false;

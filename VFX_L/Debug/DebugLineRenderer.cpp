@@ -1,6 +1,5 @@
 #include "Debug/DebugLineRenderer.h"
 #include "Camera/CameraBase.h"
-#include <iostream>
 
 bool DebugLineRenderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 {

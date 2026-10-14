@@ -40,7 +40,7 @@ public:
 
     void Initialize(ID3D11Device* device);
     void Shutdown();
-    ID3D11Device* GetDevice() const { return m_Device; }   // 無地の貼图を作る所など（UIDeco）
+    ID3D11Device* GetDevice() const { return m_Device; }   // 無地のテクスチャを作る所など（UIDeco）
 
     // Texture
     std::shared_ptr<Texture> LoadTexture(const std::wstring& filepath);

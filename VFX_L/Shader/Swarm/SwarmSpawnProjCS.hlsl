@@ -26,9 +26,14 @@
 // With SWARM_SPAWN_AT_POS (a triggered meteor) the request position IS
 // the impact point (where the fireball / stone shot ended) and it comes
 // in over the player's side.
+// Inside the mine cave (2026-10-03: the ground at the impact is below the
+// plain, and the mine is roofed): fall from right above the impact, under
+// the roof. Coming in over the player's side could start outside the cave
+// and fly through the rock mass.
 //
 // Every claimed slot gets its trigger tag (0 = none) in projTags, so a
-// reused slot never keeps an old tag.
+// reused slot never keeps an old tag. Same for projBoost (the damage /
+// duration multipliers of the areas it leaves, see SwarmBoostDamage).
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -37,12 +42,20 @@ StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
 StructuredBuffer<uint2> spawnExtra : register(t4);   // x = trigger tag, y = SWARM_SPAWN_* flags
+StructuredBuffer<float> terrainHeight : register(t5); // GridWorld::Heights (the mine cave test)
+
+// ground lower than this (m) = the mine floor, under the roof
+static const float kCaveFloorBelow = -1.0;
+// fall height / back offset there (roof underside is ~15m above the floor)
+static const float kCaveDropHeight = 8.0;
+static const float kCaveDropBack = 2.0;
 
 RWStructuredBuffer<SwarmProjectile> projectiles : register(u0);
 RWBuffer<uint> projStates : register(u1);
 RWStructuredBuffer<SwarmProjPath> paths : register(u2);
 RWByteAddressBuffer counters : register(u3);
 RWBuffer<uint> projTags : register(u4);
+RWBuffer<uint> projBoost : register(u5);   // y >> SWARM_SPAWN_BOOST_SHIFT: damage / duration boost of the areas it leaves
 
 cbuffer SwarmSpawnCB : register(b1)
 {
@@ -50,6 +63,20 @@ cbuffer SwarmSpawnCB : register(b1)
     uint g_ScanStart;
     uint2 _spawnPad;
 };
+
+// Does the curve go under the ground (plus a margin) anywhere between the ends?
+// Four samples are enough for the gentle curves the profiles use (c.y <= ~0.45 of the range)
+bool PathHitsGround(SwarmProjPath p)
+{
+    [unroll]
+    for (int i = 1; i <= 4; ++i)
+    {
+        float3 q = SwarmBezier(p, (float)i * 0.2);
+        if (q.y < SwarmTerrainHeight(terrainHeight, q.xz) + 0.4)
+            return true;
+    }
+    return false;
+}
 
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -61,7 +88,11 @@ void main(uint3 id : SV_DispatchThreadID)
     uint2 extra = spawnExtra[id.x];
 
     // ---- motion: split the request word, then build the path ----
-    float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? -1.0 : 1.0;
+    // sideSign is the roll of the curve's side offset around the flight axis (radians):
+    // 0 = right, pi = left (the flip bit), anything else = a random direction per shot
+    // (ProjectileProfile Mirror::RandomAngle, 7 bits in extra.y: 0..127 = 0..360 deg. 2026-10-06)
+    float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? 3.14159265 : 0.0;
+    sideSign += (float)((extra.y >> 1) & 0x7Fu) * (6.28318531 / 128.0);
     uint motionIdx = req.motion & SWARM_MOTION_INDEX_MASK;
     req.pathT = 0.0;
 
@@ -124,7 +155,10 @@ void main(uint3 id : SV_DispatchThreadID)
             float3 back = float3(backFrom.x - impact.x, 0.0, backFrom.z - impact.z);
             float backLenSq = dot(back, back);
             back = (backLenSq > 1e-8) ? back * rsqrt(backLenSq) : -fwd;
-            float3 start = impact + back * m.c1.y + float3(0.0, max(m.c1.x, 1.0), 0.0);
+            bool inCave = SwarmTerrainHeight(terrainHeight, impact.xz) < kCaveFloorBelow;
+            float backDist = inCave ? min(m.c1.y, kCaveDropBack) : m.c1.y;
+            float upDist = inCave ? min(max(m.c1.x, 1.0), kCaveDropHeight) : max(m.c1.x, 1.0);
+            float3 start = impact + back * backDist + float3(0.0, upDist, 0.0);
 
             SwarmBuildDropPath(path, start, impact);
             req.position = start;
@@ -143,6 +177,20 @@ void main(uint3 id : SV_DispatchThreadID)
                 path.target = slot;
                 SwarmBuildPath(path, m, req.position, enemies[slot].position,
                                req.velocity / speed, false);
+
+                // A randomly rolled curve may dip into the ground (2026-10-06, user: check before
+                // firing). Sample the curve; if it goes under the terrain, roll the side offset to
+                // the opposite direction (down -> up); if that still hits, fall back to the flat side
+                if (PathHitsGround(path))
+                {
+                    path.sideSign += 3.14159265;
+                    SwarmBuildPath(path, m, req.position, enemies[slot].position, req.velocity / speed, false);
+                    if (PathHitsGround(path))
+                    {
+                        path.sideSign = 0.0;
+                        SwarmBuildPath(path, m, req.position, enemies[slot].position, req.velocity / speed, false);
+                    }
+                }
 
                 // leave the muzzle along the curve, not along the aim line
                 float3 tan0 = SwarmBezierTangent(path, 0.0);
@@ -170,6 +218,7 @@ void main(uint3 id : SV_DispatchThreadID)
             projectiles[slot] = req;
             paths[slot] = path;
             projTags[slot] = extra.x;
+            projBoost[slot] = extra.y >> SWARM_SPAWN_BOOST_SHIFT;
             return;
         }
     }

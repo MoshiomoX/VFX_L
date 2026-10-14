@@ -51,17 +51,20 @@ public:
 
     bool Initialize(ID3D11DeviceContext* ctx, ID3D11Device* device, const SkinnedModel& model);
 
-    // 新增：对单个 submesh 进行 skinning（上传该 submesh 专用的 palette）
+    // 追加：submesh 1 つ分だけスキニングする（その submesh 専用の palette を上げる）
     void SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, int submeshIndex,
         const std::vector<DirectX::SimpleMath::Matrix>& palette);
 
+    // hitFlash（0〜1）= 色を flashColor へ寄せる（被弾の閃き。Dissolve.hlsli の ApplyHitFlash。2026-10-09）
     void Render(ID3D11DeviceContext* ctx, const SkinnedModel& model,
         const LightBuffer& light,
         const DirectX::SimpleMath::Matrix& world,
         const DirectX::SimpleMath::Matrix& view,
-        const DirectX::SimpleMath::Matrix& proj);
+        const DirectX::SimpleMath::Matrix& proj,
+        float hitFlash = 0.0f,
+        const DirectX::SimpleMath::Vector3& flashColor = DirectX::SimpleMath::Vector3(1.0f, 1.0f, 1.0f));
 
-    // 影図へ深度だけ（VS だけ積んで PS を外す）。蒙皮は済んでいること
+    // シャドウマップへ深度だけ（VS だけ積んで PS を外す）。スキニングは済んでいること
     void RenderDepth(ID3D11DeviceContext* ctx, const SkinnedModel& model,
         const DirectX::SimpleMath::Matrix& world,
         const DirectX::SimpleMath::Matrix& view,

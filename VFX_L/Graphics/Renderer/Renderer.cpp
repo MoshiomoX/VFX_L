@@ -1,7 +1,6 @@
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Light/PointLightManager.h"
-#include <iostream>
 
 bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 {
@@ -137,7 +136,7 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
     else
         vs = m_DefaultVS.get();
 
-    // 影図へ深度だけ：VS（入力配置も）と MVP だけ積んで PS は外す
+    // シャドウマップへ深度だけ：VS（入力配置も）と MVP だけ積んで PS は外す
     if (m_DepthPass)
     {
         vs->Bind(m_Context);

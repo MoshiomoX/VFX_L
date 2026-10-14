@@ -23,6 +23,10 @@ StructuredBuffer<uint> terrain : register(t2); // walkable grid (for the slide /
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3); // kind: ghosts skip the walls
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
+// knockback (the Gust, 2026-10-12): xy = velocity away from the player, z = seconds left.
+// AreaDamageCS writes it; added to this step's motion here (not to the AI's velocity:
+// its smoothing would stretch a 0.25 s shove into several meters) and decayed
+RWStructuredBuffer<float4> enemyPush : register(u2);
 
 // m/s a body that touches a wall / cliff face is eased back out
 static const float kWallPushOut = 2.0;
@@ -50,6 +54,17 @@ bool StepOk(float2 from, float2 to, float radius, bool bodyCheck, bool allowDrop
     if (ok && bodyCheck)
         ok = (SwarmBodyContact(terrain, terrainHeight, to, radius, !allowDrop, footH).z == 0.0);
     return ok;
+}
+
+// the side-step around a corner: StepOk with the body check, but the centre's slope is
+// the raw one. Next to a face the bilinear ground is blurred up (the last 0.25m before
+// it), so stepping away from the face looked like a steep drop to SwarmStepHeightOk and
+// the side-step was refused (soak 2026-10-03: an enemy pinned beside a ramp side)
+bool SideStepOk(float2 from, float2 to, float radius, bool allowDrop, float footH)
+{
+    return SwarmIsWalkable(terrain, float3(to.x, 0.0, to.y))
+        && SwarmRawSlopeOk(terrainHeight, from, to)
+        && SwarmBodyContact(terrain, terrainHeight, to, radius, !allowDrop, footH).z == 0.0;
 }
 
 // a cliff under the body circle: the highest and lowest raw height cell differ by this much
@@ -108,7 +123,23 @@ void main(uint3 id : SV_DispatchThreadID)
     float radius = SwarmBodyWallRadius(enemyExtra[i].kind);
     bool allowDrop = SwarmDropAllowed(terrainHeight, e.position.xz);
 
-    if (e.animIndex == 2u)
+    // knockback (the Gust): this step's shove, decaying over SWARM_PUSH_TIME. Rides on the
+    // velocity through the integrate below (wall / cliff checks included), taken off before the facing
+    float2 pushV = float2(0.0, 0.0);
+    {
+        float4 pk = enemyPush[i];
+        if (pk.z > 0.0)
+        {
+            pushV = pk.xy * saturate(pk.z / SWARM_PUSH_TIME);
+            pk.z -= g_Step;
+            if (pk.z <= 0.0)
+                pk = float4(0.0, 0.0, 0.0, 0.0);
+            enemyPush[i] = pk;
+        }
+    }
+    e.velocity.xz += pushV;
+
+    if (e.animIndex == 2u && dot(pushV, pushV) < 1e-4)
     {
         // ---- hit stun: hold position and facing, only the clock runs ----
         // HitCS set animTime = 0 when it landed the hit
@@ -202,12 +233,38 @@ void main(uint3 id : SV_DispatchThreadID)
             float2 next = from + v * g_Step;
             float2 nx = float2(next.x, from.y);
             float2 nz = float2(from.x, next.y);
+            // both axes carry real speed (a sliver on one axis made that axis' slide "succeed"
+            // with no progress, so the side-step below never ran: soak 2026-10-03)
+            float sp = length(v);
+            bool both = (abs(v.x) > 0.15 * sp) && (abs(v.y) > 0.15 * sp);
             if (StepOk(from, next, radius, bodyCheck, allowDrop, footH))
                 e.position.xz = next;
-            else if (StepOk(from, nx, radius, bodyCheck, allowDrop, footH))
+            else if (both && StepOk(from, nx, radius, bodyCheck, allowDrop, footH))
                 e.position.xz = nx;
-            else if (StepOk(from, nz, radius, bodyCheck, allowDrop, footH))
+            else if (both && StepOk(from, nz, radius, bodyCheck, allowDrop, footH))
                 e.position.xz = nz;
+            else if (bodyCheck)
+            {
+                // corner ahead to the side (2026-10-03, soak test): the AI only probes
+                // straight ahead along each axis, so a wall / plateau corner diagonally
+                // in front lets it keep pushing while the body circle here clips the
+                // corner -> the step and both slides fail and the enemy stood still
+                // for good. Side-step away from the touching points, across the
+                // velocity, until the straight path clears
+                float3 tn = SwarmBodyContact(terrain, terrainHeight, next, radius, !allowDrop, footH);
+                if (tn.z > 0.0 && dot(tn.xy, tn.xy) > 0.01 && sp > 1e-4)
+                {
+                    float2 dirV = v / sp;
+                    float2 away = -normalize(tn.xy);
+                    float2 side = away - dirV * dot(away, dirV);
+                    if (dot(side, side) > 1e-4)
+                    {
+                        float2 ns = from + normalize(side) * sp * g_Step;
+                        if (SideStepOk(from, ns, radius, allowDrop, footH))
+                            e.position.xz = ns;
+                    }
+                }
+            }
         }
         if (enemyExtra[i].kind == SWARM_KIND_GHOST)
         {
@@ -218,7 +275,8 @@ void main(uint3 id : SV_DispatchThreadID)
         else
             Settle(e, radius, allowDrop);
 
-        // ---- facing: turn toward the velocity at a bounded rate ----
+        // ---- facing: turn toward the velocity at a bounded rate (the shove is not a direction it chose) ----
+        e.velocity.xz -= pushV;
         if (dot(e.velocity.xz, e.velocity.xz) > 0.01)
         {
             float targetYaw = atan2(e.velocity.x, e.velocity.z);

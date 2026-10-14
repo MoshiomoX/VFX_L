@@ -40,8 +40,21 @@ public:
 
     DirectX::SimpleMath::Vector4 accentColor = { 1.0f, 0.80f, 0.35f, 1.0f };
 
+    // 見た目（2026-10-09）。Panels = 暗い地 + 古金の枠のボタン（一時停止）、
+    // Text = 文字だけの左寄せの一覧。選んでいる項目は右へ少しずれて明るくなり、左に菱形・後ろに金の光・下に線（タイトル）
+    enum class Style { Panels, Text };
+    Style style = Style::Panels;
+    float fade = 1.0f;   // Text の見た目の濃さ（0〜1。タイトルの出始めにふわっと出す）
+
 private:
     DirectX::SimpleMath::Vector2 ItemPos(int i) const;
+    int HandleInputRaw();   // 判定だけ（HandleInput が音を付ける）
+    void DrawTextStyle(SpriteRenderer& sprite, TextRenderer& text,
+        const std::shared_ptr<Texture>& white, float textScale) const;
+
+    // Text の見た目の選択の度合い（0〜1、項目ごと。描く時に実時間で寄せる）
+    mutable std::vector<float> m_SelAnim;
+    mutable float m_AnimClock = -1.0f;
 
     std::vector<std::wstring> m_Labels;
     DirectX::SimpleMath::Vector2 m_TopLeft = { 0.0f, 0.0f };

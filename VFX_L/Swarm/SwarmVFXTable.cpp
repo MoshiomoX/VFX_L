@@ -6,13 +6,12 @@
 #include "VFX_Editor/VFXParticleEntry.h"
 #include "VFX_Editor/VFXPointLightEntry.h"
 #include "VFX_Editor/VFXSpriteEntry.h"
+#include "VFX_Editor/VFXLiquidEntry.h"
 #include "VFX_Editor/SpriteSheets.h"
 #include "Particle/GPUParticleSystem.h"
 #include "Manager/ResourceManager.h"
-#include <DirectXTex.h>
-#include <algorithm>
-#include <cstring>
-#include <iostream>
+
+#include <DirectXTex.h> 
 
 using Microsoft::WRL::ComPtr;
 
@@ -23,7 +22,7 @@ bool SwarmVFXTable::UploadImmutable(ID3D11Device* device, const void* data,
     srv.Reset();
     buf.Reset();
 
-    // 空の表でも1要素は確保する（SRV が null だと CS 側で読めない）
+    // 空の表でも1要素 は確保する（SRV が null だと CS 側で読めない）
     // stride は最大で GPUEmitter の 336 bytes。1 要素分を読んでも溢れない大きさにしておく
     static const uint8_t dummy[1024] = {};
     const UINT n = (count > 0) ? count : 1;
@@ -69,18 +68,22 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     std::vector<Swarm::VFXLightEntry> lights;
     std::vector<Swarm::VFXSpriteDef>  sprites;
     std::vector<const SpriteSheets::Info*> spriteSheetOf;   // sprites と同じ並び（cellUV を後で決める）
-    std::vector<const SpriteSheets::Info*> slices;          // 貼图配列の 1 枚ずつ
+    std::vector<const SpriteSheets::Info*> slices;          // テクスチャ配列の 1 枚ずつ
+    std::vector<VFXLiquidDef>         liquids;
+    std::vector<uint32_t>             recipeLiquid;          // recipes と同じ並び。def の番号 + 1、0 = 無し
 
     m_Index.clear();
     m_Warnings = 0;
 
-    // index 0 は「何も無い」配方。vfxType が引けない時の逃げ先
+    // index 0 は「何も無い」レシピ。vfxType が引けない時の逃げ先
     recipes.push_back({});
+    recipeLiquid.push_back(0u);
     m_Index.push_back({ VFXId::None, 0 });
 
     for (int i = 0; i < VFXDatabase::Count(); ++i)
     {
         const VFXId id = VFXDatabase::At(i);
+        if (!VFXDatabase::IsGpu(id)) continue;   // CPU だけで出す物（プレイヤーの動き・Boss など。2026-10-09 から登録）は表に入れない
         const char* path = VFXDatabase::GetPath(id);
         if (!path) continue;
 
@@ -95,6 +98,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         std::vector<VFXParticleEntry*> particleEntries;
         std::vector<const VFXPointLightEntry*> lightEntries;
         std::vector<const VFXSpriteEntry*> spriteEntries;
+        const VFXLiquidEntry* liquidEntry = nullptr;   // 1 つの範囲に液溜まりは 1 つ（2 つ目以降は無視）
         for (int k = 0; ; ++k)
         {
             VFXEntry* e = tmpl->GetEntry(k);
@@ -105,8 +109,13 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
                 lightEntries.push_back(static_cast<const VFXPointLightEntry*>(e));
             else if (e->GetType() == EntryType::Sprite)
                 spriteEntries.push_back(static_cast<const VFXSpriteEntry*>(e));
+            else if (e->GetType() == EntryType::Liquid)
+            {
+                if (!liquidEntry) liquidEntry = static_cast<const VFXLiquidEntry*>(e);
+                else std::cout << "[SwarmVFX] warning: " << path << " has more than one Liquid entry; the GPU uses the first" << std::endl;
+            }
         }
-        if (particleEntries.empty() && spriteEntries.empty()) continue;
+        if (particleEntries.empty() && spriteEntries.empty() && !liquidEntry) continue;
 
         Swarm::VFXRecipe r;
         r.particleStart = (uint32_t)emitters.size();
@@ -135,7 +144,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
                 timelineIgnored = true;
 
             GPUEmitter ge = pe->emitterData.ToGPU();
-            // メッシュ粒子の模型はここで登録する（表は場面の間ずっと使うので解除しない）。
+            // メッシュ粒子のモデルはここで登録する（表はシーンの間ずっと使うので解除しない）。
             // particles が無ければ ToGPU のまま（0 番 = 立方体）
             if (pe->emitterData.renderMode != 0 && particles)
                 ge.renderMode = ParticleRenderMode::Pack(
@@ -205,8 +214,18 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
                 << " has timed entries; GPU path ignores start/duration" << std::endl;
         }
 
+        // ---- Liquid entry（GPU の範囲が生きている間、その下に描く。SwarmLiquidVS）----
+        // 時間軸は使わない（範囲の寿命で出て、消える前の dryTime 秒で乾く）
+        uint32_t liquidIndex = 0;
+        if (liquidEntry)
+        {
+            liquids.push_back(liquidEntry->def);
+            liquidIndex = (uint32_t)liquids.size();   // + 1 済み
+        }
+
         m_Index.push_back({ id, (uint32_t)recipes.size() });
         recipes.push_back(r);
+        recipeLiquid.push_back(liquidIndex);
     }
 
     m_EmitterCount = (int)emitters.size();
@@ -221,7 +240,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     if (!UploadImmutable(device, lights.data(), sizeof(Swarm::VFXLightEntry),
         (UINT)lights.size(), m_LightBuffer, m_LightSRV, "light")) return false;
 
-    // ---- Sprite：貼图配列（全部を一番大きい物の大きさに揃える）と 1 コマの uv ----
+    // ---- Sprite：テクスチャ配列（全部を一番大きい物の大きさに揃える）と 1 コマの uv ----
     m_SpriteDefCount = (int)sprites.size();
     if (!BuildSpriteArray(device, slices)) return false;
     for (size_t i = 0; i < sprites.size(); ++i)
@@ -232,12 +251,20 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     if (!UploadImmutable(device, sprites.data(), sizeof(Swarm::VFXSpriteDef),
         (UINT)sprites.size(), m_SpriteDefBuffer, m_SpriteDefSRV, "sprite")) return false;
 
+    // ---- Liquid ----
+    m_LiquidDefCount = (int)liquids.size();
+    if (!UploadImmutable(device, liquids.data(), sizeof(VFXLiquidDef),
+        (UINT)liquids.size(), m_LiquidDefBuffer, m_LiquidDefSRV, "liquid")) return false;
+    if (!UploadImmutable(device, recipeLiquid.data(), sizeof(uint32_t),
+        (UINT)recipeLiquid.size(), m_RecipeLiquidBuffer, m_RecipeLiquidSRV, "recipeLiquid")) return false;
+
     if (particles)
         particles->RegisterStaticColorKeys(keys);
 
     std::cout << "[SwarmVFX] " << recipes.size() - 1 << " recipes, "
         << emitters.size() << " emitters, " << lights.size() << " lights, "
         << sprites.size() << " sprites (" << slices.size() << " sheets), "
+        << liquids.size() << " liquids, "
         << keys.size() << " color keys, "
         << m_Warnings << " warnings" << std::endl;
     return true;
@@ -250,10 +277,10 @@ uint32_t SwarmVFXTable::IndexOf(VFXId id) const
     return 0;
 }
 // ============================================================
-// Sprite の貼图配列
-// 全部を一番大きい貼图の大きさに揃え、各 1 枚の左上に詰める（余りは透明）。
+// Sprite のテクスチャ配列
+// 全部を一番大きいテクスチャの大きさに揃え、各 1 枚の左上に詰める（余りは透明）。
 // uv は SwarmVFXTable::Build が「コマの画素 / 1 枚の大きさ」で入れる。
-// 像素絵なので mipmap は作らない（最近傍で読む）。
+// ピクセルアートなので mipmap は作らない（最近傍で読む）。
 // 使う物が無くても 1x1 の透明を 1 枚作る（SRV を null にしない）
 // ============================================================
 bool SwarmVFXTable::BuildSpriteArray(ID3D11Device* device, const std::vector<const SpriteSheets::Info*>& sheets)

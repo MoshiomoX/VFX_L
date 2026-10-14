@@ -1,0 +1,7 @@
+{
+    "sound": "cast_gust",
+    "cameraShake": false, "damage": 12.0, "duration": 0.75, "followCaster": false, "halfHeight": 1.8, "kind": 0,
+    "name": "Gust", "preview": { "atTarget": false, "interval": 1.5 },
+    "push": 1.0, "forward": 3.2,
+    "radius": 3.4, "stun": false, "tickInterval": 1.0, "vfx": ""
+}

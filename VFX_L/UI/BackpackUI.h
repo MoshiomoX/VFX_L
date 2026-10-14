@@ -31,6 +31,15 @@ public:
     void Initialize(std::shared_ptr<Texture> blockTex);
     void LoadIcons();                        // ItemDatabase の iconPath を読み込む
     void Layout(float screenW, float screenH);
+    // 外枠（縁の余白込み）を左上 framePos・一辺 frameExtent の正方形に収める（リザルトで見せるだけの時。2026-10-09）
+    void PlaceAt(const DirectX::SimpleMath::Vector2& framePos, float frameExtent)
+    {
+        const float denom = (float)GRID_SIZE + cellGapRatio * (float)(GRID_SIZE - 1) + framePadRatio * 2.0f;
+        m_CellSize = frameExtent / denom;
+        m_CellGap = m_CellSize * cellGapRatio;
+        m_FramePad = m_CellSize * framePadRatio;
+        m_Origin = { framePos.x + m_FramePad, framePos.y + m_FramePad };
+    }
 
     // GameUI が Initialize の直後に一度だけ呼ぶ。以後 null にはならない
     void SetDragContext(DragContext* drag) { m_Drag = drag; }
@@ -53,7 +62,7 @@ public:
     void ClearLastEvicted() { m_LastEvicted = 0; }
     bool IsDragging() const { return m_Drag && m_Drag->IsActive(); }
 
-    // 道具のアイコン（無ければ null）。HUD の魔法の欄も同じ物を使う
+    // アイテムのアイコン（無ければ null）。HUD の魔法の欄も同じ物を使う
     std::shared_ptr<Texture> FindIcon(ItemID id) const { return GetIcon(id); }
 
     // ---- マウスが乗っている物（tooltip 用。掴んでいる間は -1）----
@@ -77,7 +86,7 @@ public:
     float cellLineAlpha = 0.30f;   // 置けるマスを囲む月銀の線
     float cornerCells = 1.6f;      // 外枠の四隅の組紐（マス何個分）
 
-    // ---- 影響格の表示 ----
+    // ---- 影響マスの表示 ----
     bool showInfluenceOnHover = true;
     bool highlightInfluenced = true;
     float dragAlpha = 0.75f;
@@ -89,6 +98,9 @@ public:
     int GetAvailableCount(const BackpackComponent& bp, ItemID id) const;
 
 private:
+    // パッド操作はカーソルのマスを仮のマウス位置にして、下のドラッグ処理をそのまま使う
+    friend class BackpackPadControl;
+
     void BeginDrag(BackpackComponent& bp, const DirectX::SimpleMath::Vector2& mousePos);
     void UpdateDrag(BackpackComponent& bp, const DirectX::SimpleMath::Vector2& mousePos);
     void EndDrag(BackpackComponent& bp);
@@ -100,7 +112,7 @@ private:
     std::shared_ptr<Texture> GetIcon(ItemID id) const;
 
     void DrawHoverInfluence(SpriteRenderer& sprite, const BackpackComponent& bp);
-    // 高級魔法（メテオ等）を掴んでいる / 指している間、前提の基礎魔法の影響格を全部見せる（どこに置けば目覚めるか）
+    // 上級魔法（メテオ等）を掴んでいる / 指している間、前提の基本魔法の影響マスを全部見せる（どこに置けば目覚めるか）
     void DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp);
     void DrawDragged(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& mousePos);
     void DrawDropShadow(SpriteRenderer& sprite);

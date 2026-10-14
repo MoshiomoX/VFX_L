@@ -4,16 +4,16 @@
 #include "UI/LevelUpSystem.h"
 #include "ECS/Registry.h"
 #include "Player/LevelComponent.h"
+#include "Player/WalletComponent.h"
 #include "Component/SpellbookComponent.h"
 #include "Player/PlayerTag.h"
 #include "Item/ItemDatabase.h"
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
 #include "Player/PlayerStatsComponent.h"
+#include "Player/ShieldComponent.h"
+#include "Component/BackpackComponent.h"
 #include "ECS/View.h"
-#include <algorithm>
-#include <cstdlib>
-#include <iostream>
 
 void LevelUpSystem::Update(Registry& reg)
 {
@@ -37,6 +37,24 @@ void LevelUpSystem::Update(Registry& reg)
 }
 
 // ============================================================
+// レベルで伸びる基本の速さ（2026-10-09 ユーザー指定。画面には出さない）：
+// レベルが 10 の倍数に届くたび PlayerStatsComponent::moveSpeed を speedPerTenLevels 足す。
+// 足した回数は levelSpeedSteps に覚える（次の面へ能力値ごと持ち越すので二重に足さない）
+// ============================================================
+static void ApplyLevelSpeed(Registry& reg, Entity player)
+{
+    if (!reg.Has<PlayerStatsComponent>(player) || !reg.Has<LevelComponent>(player)) return;
+    auto& st = reg.Get<PlayerStatsComponent>(player);
+    const int steps = reg.Get<LevelComponent>(player).level / 10;
+    while (st.levelSpeedSteps < steps)
+    {
+        st.moveSpeed += st.speedPerTenLevels;
+        ++st.levelSpeedSteps;
+        std::cout << "[LevelUp] base speed +" << st.speedPerTenLevels << " -> " << st.moveSpeed << std::endl;
+    }
+}
+
+// ============================================================
 // 候補の抽選
 //
 // 池は登録済みの全 ID。習得済みでも候補に入る。
@@ -55,6 +73,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
         // 候補が1つも無いなら、レベルだけ上げて先へ進める。
         // ここで止まると経験値が溜まり続けて動かなくなる。
         lv.ConsumeLevelUp();
+        ApplyLevelSpeed(reg, player);
         ++m_TotalLevelUps;
         std::cout << "[LevelUp] no candidate available" << std::endl;
         return;
@@ -64,6 +83,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
     // 選び終わってから上げる方式にすると、
     // 選択中に経験値が入った場合の扱いが面倒になる。
     lv.ConsumeLevelUp();
+    ApplyLevelSpeed(reg, player);
     ++m_TotalLevelUps;
 
     std::cout << "[LevelUp] level " << lv.level
@@ -72,7 +92,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
 
 // ============================================================
 // 報酬の三択（レベルは上がらない。報酬の箱など）
-// 選び方・確定（Choose）・画面は升級とまったく同じ。
+// 選び方・確定（Choose）・画面はレベルアップとまったく同じ。
 // 既に選択待ちなら出さない（候補を上書きすると選ぶ前に消える）
 // ============================================================
 bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
@@ -90,9 +110,35 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
 }
 
 // ============================================================
-// 候補を pendingChoices に詰める（升級と報酬で共通）。詰めた数を返す
+// 金貨で引き直す（2026-10-04）。同じ四択の中で値段が上がる（選んだら LevelComponent::ClearChoices で 0 回へ）
 // ============================================================
-int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book)
+bool LevelUpSystem::Reroll(Registry& reg, Entity player)
+{
+    if (!reg.IsValid(player) || !reg.Has<LevelComponent>(player) || !reg.Has<WalletComponent>(player)) return false;
+    auto& lv = reg.Get<LevelComponent>(player);
+    if (!lv.IsChoosing()) return false;
+    auto& wallet = reg.Get<WalletComponent>(player);
+    const int cost = RerollCost(lv);
+    if (!wallet.CanPay(cost)) return false;
+
+    const std::vector<ItemID> before = lv.pendingChoices;
+    const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
+    const int count = lv.rerollCount;
+    if (FillChoices(lv, book, &before) == 0)
+    {
+        lv.pendingChoices = before;   // 引けなかった（起きないはず）。元に戻して払わない
+        return false;
+    }
+    wallet.Pay(cost);
+    lv.rerollCount = count + 1;
+    std::cout << "[LevelUp] reroll for " << cost << " gold (" << lv.rerollCount << ")" << std::endl;
+    return true;
+}
+
+// ============================================================
+// 候補を pendingChoices に詰める（レベルアップと報酬で共通）。詰めた数を返す
+// ============================================================
+int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book, const std::vector<ItemID>* avoid)
 {
     // 候補の母集団を作る（重み付き）
     struct Entry { ItemID id; float weight; };
@@ -102,7 +148,7 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
         // 定義が取れないものは除く（登録漏れの保険）
         if (!ItemDatabase::GetCommon(id)) continue;
 
-        // 高級魔法（メテオ等）は前提の基礎魔法を 1 つでも持っている時だけ（使えない札を引かせない）
+        // 上級魔法（メテオ等）は前提の基本魔法を 1 つでも持っている時だけ（使えない札を引かせない）
         if (const auto* c = ItemDatabase::GetCommon(id); c && book && !c->triggeredBy.empty())
         {
             bool hasAny = false;
@@ -114,12 +160,21 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
         pool.push_back({ id, 1.0f });
     }
     // 能力値（生命・魔力・速さ・跳躍…）も同じ池に混ぜる。種類が多いので 1 枚ずつの重みは下げる
-    // （全部 1 だと候補の半分近くが能力値になる。2026-09-29 用户「基础数值的东西有点太多了」）
+    // （全部 1 だと候補の半分近くが能力値になる。2026-09-29 ユーザー「能力値のカードが多すぎる」）
     for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
         pool.push_back({ id, statWeight });
 
     // 重みに比例して 1 枚ずつ引く（引いた物は池から外す = 同じ物は並ばない）
     const int want = (choiceCount < 1) ? 1 : choiceCount;
+
+    // 引き直し：今の候補を池から外す（外すと四枚に足りなくなるなら外さない）
+    if (avoid && !avoid->empty())
+    {
+        std::vector<Entry> rest;
+        for (const Entry& e : pool)
+            if (std::find(avoid->begin(), avoid->end(), e.id) == avoid->end()) rest.push_back(e);
+        if ((int)rest.size() >= want) pool = std::move(rest);
+    }
     lv.pendingChoices.clear();
     while ((int)lv.pendingChoices.size() < want && !pool.empty())
     {
@@ -237,6 +292,27 @@ void LevelUpSystem::ApplyStat(Registry& reg, Entity player, const StatItemDef& s
     case StatKind::JumpCount:
         if (reg.Has<PlayerStatsComponent>(player))
             reg.Get<PlayerStatsComponent>(player).extraJumps += (int)(stat.amount + 0.5f);
+        break;
+
+    // 魔法の威力。杖の数値はバックパックの集約で決まるので、集約し直させる（BackpackAggregateSystem が掛ける）
+    case StatKind::SpellPower:
+        if (reg.Has<PlayerStatsComponent>(player))
+        {
+            auto& st = reg.Get<PlayerStatsComponent>(player);
+            st.spellPower = stat.percent ? st.spellPower * (1.0f + stat.amount) : st.spellPower + stat.amount;
+            if (reg.Has<BackpackComponent>(player))
+                reg.Get<BackpackComponent>(player).dirty = true;
+        }
+        break;
+
+    // シールドの上限（HP と同じく今の値も同じだけ足す。PlayerStateSystem が受け止めと回復をする）
+    case StatKind::Shield:
+        if (reg.Has<ShieldComponent>(player))
+        {
+            auto& sh = reg.Get<ShieldComponent>(player);
+            sh.max += stat.amount;
+            sh.current = (std::min)(sh.current + stat.amount, sh.max);
+        }
         break;
     }
 }

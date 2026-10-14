@@ -6,8 +6,6 @@
 #include "VFX_Editor/VFXFileList.h"
 #include "Graphics/Material/Texture.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
 
 using namespace DirectX::SimpleMath;
 

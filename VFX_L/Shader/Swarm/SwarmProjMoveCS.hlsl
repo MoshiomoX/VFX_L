@@ -25,6 +25,8 @@
 #define SWARM_AREA_POOL_U u4
 #define SWARM_AREA_STATE_U u5
 #define SWARM_AREA_DEF_T t4
+// and remembers which way it was flying (a poison flask's puddle splashes that way)
+#define SWARM_AREA_DIR_U u6
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<uint> terrain : register(t0);
@@ -32,6 +34,7 @@ StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
 StructuredBuffer<float> terrainHeight : register(t5);   // ramps (t4 = area defs)
+Buffer<uint> projBoost : register(t6);   // damage / duration boost of the area this shot leaves
 
 RWStructuredBuffer<SwarmProjectile> projectiles : register(u0);
 RWBuffer<uint> projStates : register(u1);
@@ -58,7 +61,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (p.lifetime <= 0.0)
     {
         if (areaOnExpire)
-            SwarmSpawnAreaFromDef(m.hitArea, p.position, i, SwarmProjScale(p));
+            SwarmSpawnAreaFromDef(m.hitArea, p.position, i, SwarmProjScale(p), projBoost[i], p.velocity.xz);
         projStates[i] = SWARM_DEAD;
         return;
     }
@@ -78,7 +81,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (p.pathT >= 1.0)
         {
             if (m.hitArea != 0u)
-                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i, SwarmProjScale(p));
+                SwarmSpawnAreaFromDef(m.hitArea, drop.p3, i, SwarmProjScale(p), projBoost[i], p.velocity.xz);   // the arc's last heading = the throw
             projStates[i] = SWARM_DEAD;
             return;
         }
@@ -190,12 +193,18 @@ void main(uint3 id : SV_DispatchThreadID)
     // wall is 2m thick anyway, so nothing slips through.
     // ramps are walkable cells with a height: flying below the
     // surface is a hit too (the projectile would be inside the block)
-    if (!SwarmIsWalkable(terrain, p.position)
+    // a blocked cell only stops a shot that flies INTO it from a free cell.
+    // a shot born inside one flies on until it has left it: the player can
+    // stand on a rock / crate (their cells are blocked for the mobs), and
+    // every shot cast from up there used to die on its first step
+    // (2026-10-07). walls are still entered from a free cell, so they still stop shots
+    bool wasFree = SwarmIsWalkable(terrain, projectiles[i].position);
+    if ((wasFree && !SwarmIsWalkable(terrain, p.position))
         || p.position.y < SwarmTerrainHeight(terrainHeight, p.position.xz))
     {
         // blow up at the last free position, not inside the wall
         if (areaOnExpire)
-            SwarmSpawnAreaFromDef(m.hitArea, projectiles[i].position, i, SwarmProjScale(p));
+            SwarmSpawnAreaFromDef(m.hitArea, projectiles[i].position, i, SwarmProjScale(p), projBoost[i], p.velocity.xz);
         projStates[i] = SWARM_DEAD;
         return;
     }

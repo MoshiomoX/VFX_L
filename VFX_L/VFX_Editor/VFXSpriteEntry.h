@@ -1,7 +1,7 @@
 // ============================================================
 // VFXSpriteEntry.h
-// Sprite entry：連番絵（sprite sheet、例：PVFX Foundry）を板 1 枚で再生する。
-//   貼图は Assets/VFX/SpriteSheet 以下の PNG。コマ数・速さ・繰り返し・基準点は
+// Sprite entry：連番画像（sprite sheet、例：PVFX Foundry）を板 1 枚で再生する。
+//   テクスチャは Assets/VFX/SpriteSheet 以下の PNG。コマ数・速さ・繰り返し・基準点は
 //   横の json（SpriteSheets）から。entry 側で速さ・繰り返しを上書きできる。
 //   板の向き：カメラを向く / 立てる（Y 軸だけ回る）/ 地面に寝かせる。
 //   描画は VFXSpriteRenderer（CPU）。GPU の範囲（弾の命中で生まれた物）では
@@ -51,7 +51,7 @@ public:
     float speed = 1.0f;                                // 再生速度の倍率
     int   loopMode = (int)LoopMode::FromSheet;
     int   anchor = (int)Anchor::SheetPivot;
-    bool  onTop = false;                               // 深度を見ずに一番手前へ（体に隠れる升級・被弾用）。GPU の範囲では無視
+    bool  onTop = false;                               // 深度を見ずに一番手前へ（体に隠れるレベルアップ・被弾用）。GPU の範囲では無視
 
 private:
     int CurrentFrame() const;   // 終わっていたら -1

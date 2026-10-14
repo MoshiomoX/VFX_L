@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Audio">
+      <UniqueIdentifier>{1793d765-dea2-4793-ac43-f318c5a9265b}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Core">
       <UniqueIdentifier>{3c6e462f-3467-4c11-a3ca-89d848f92a6a}</UniqueIdentifier>
     </Filter>
@@ -15,6 +18,9 @@
     </Filter>
     <Filter Include="Debug">
       <UniqueIdentifier>{5f3639ec-0348-40d7-bb8e-ff1e2d9a0dfe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Debug\AutoTest">
+      <UniqueIdentifier>{76731e09-27d5-4e5e-a0bc-270f40db1f2a}</UniqueIdentifier>
     </Filter>
     <Filter Include="Debug\ImGui">
       <UniqueIdentifier>{059b4fc5-12a6-4151-9213-2fee5042175a}</UniqueIdentifier>
@@ -139,6 +145,9 @@
     <ClCompile Include="Graphics\Renderer\GrassRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="Graphics\Renderer\TerrainSurface.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Renderer\StaticPropRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
@@ -148,7 +157,196 @@
     <ClCompile Include="Scene\CollisionTestSceneDebug.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBomber.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPerf.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMagnifier.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestLoco.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestCape.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestHills.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBalance.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGold.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestCurve.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBoss.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPickup.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPerch.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestCrystal.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestChain.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestResult.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPlayerFx.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestEdge.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestEdgeRock.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossExit.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGround.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSpellBench.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGrassFire.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGust.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestDebris.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestChargeShield.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPortal.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestLayers.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestAssets.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestUI.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSlide.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestShapes.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestChest.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBeam.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestEnvFx.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestTutorial.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestStuck.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestClip.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestKnock.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSurge.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestCards.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestIceSpike.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestShield.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestTraining.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBeamTrack.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestDrop.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGhost.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPoisonPerf.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestScenePlayerPanels.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneWorldPanels.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\BattleAutoTest.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestFeedback.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\StressTestTools.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\SpellLab.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
     <ClCompile Include="Debug\FrameProfiler.cpp">
@@ -157,7 +355,19 @@
     <ClCompile Include="Enemy\MobSpawner.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
+    <ClCompile Include="Enemy\MobSpawnerKinds.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
     <ClCompile Include="Enemy\StageDirector.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\BossAttacks.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\BossBrain.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\DifficultyCurve.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\EliteSpawner.cpp">
@@ -172,6 +382,21 @@
     <ClCompile Include="ECS\System\FeedbackVFXSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
+    <ClCompile Include="ECS\System\PlayerVFXSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\CastCircles.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\IceSpikeField.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\SpellFxSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\ShieldBubble.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
     <ClCompile Include="ECS\System\RewardCrateSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
@@ -184,6 +409,9 @@
     <ClCompile Include="VFX_Editor\VFXSpriteRenderer.cpp">
       <Filter>VFX_Editor</Filter>
     </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXDatabase.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
     <ClCompile Include="VFX_Editor\VFXSpriteEntry.cpp">
       <Filter>VFX_Editor</Filter>
     </ClCompile>
@@ -191,6 +419,12 @@
       <Filter>VFX_Editor</Filter>
     </ClCompile>
     <ClCompile Include="VFX_Editor\VFXBeamEntry.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXLiquidEntry.cpp">
+      <Filter>VFX_Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="VFX_Editor\VFXLiquidRenderer.cpp">
       <Filter>VFX_Editor</Filter>
     </ClCompile>
     <ClCompile Include="VFX_Editor\SpriteSheets.cpp">
@@ -334,7 +568,7 @@
     <ClCompile Include="Scene\CollisionTestScene.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
-    <ClCompile Include="Scene\TitleScene.cpp">
+    <ClCompile Include="Scene\CollisionTestSceneTitle.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Scene\ResultScene.cpp">
@@ -364,6 +598,9 @@
     <ClCompile Include="ECS\System\SkinnedAnimSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
+    <ClCompile Include="ECS\System\ClothChainSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Light\PointLightManager.cpp">
       <Filter>Graphics\Light</Filter>
     </ClCompile>
@@ -374,6 +611,9 @@
       <Filter>VFX_Editor</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\WeaponSystem.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\WeaponSystemOrbs.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="Scene\VFXEditorScene.cpp">
@@ -397,6 +637,15 @@
     <ClCompile Include="UI\BackpackUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\BackpackPadControl.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPadBag.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClInclude Include="UI\BackpackPadControl.h">
+      <Filter>UI</Filter>
+    </ClInclude>
     <ClCompile Include="Item\ItemDatabase.cpp">
       <Filter>Item</Filter>
     </ClCompile>
@@ -406,13 +655,31 @@
     <ClCompile Include="Item\ItemInfo.cpp">
       <Filter>Item</Filter>
     </ClCompile>
+    <ClCompile Include="Item\ItemInfoSheet.cpp">
+      <Filter>Item</Filter>
+    </ClCompile>
     <ClCompile Include="UI\ItemSheetView.cpp">
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\PauseMenuUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\SettingsMenuUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\TutorialGuide.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\HowToPlayUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GameSettings.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="UI\MenuList.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\TitleScreenUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="Item\BackpackLogic.cpp">
@@ -430,6 +697,9 @@
     <ClCompile Include="Player\PlayerStateSystem.cpp">
       <Filter>Player</Filter>
     </ClCompile>
+    <ClCompile Include="Player\ShieldPanel.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
     <ClCompile Include="Player\PlayerAnimSystem.cpp">
       <Filter>Player</Filter>
     </ClCompile>
@@ -442,10 +712,26 @@
     <ClCompile Include="UI\UIDeco.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\InputGlyph.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
     <ClCompile Include="UI\UIManager.cpp">
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUD.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\HUDAnnounce.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\HUDShieldBar.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\TrainingMenuUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="UI\TrainingMenuUIDraw.cpp">
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\ManaSystem.cpp">
@@ -454,11 +740,89 @@
     <ClCompile Include="UI\GameUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="Audio\AudioSystem.cpp">
+      <Filter>Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="Audio\BattleAudio.cpp">
+      <Filter>Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\miniaudio\miniaudio_impl.c">
+      <Filter>Audio</Filter>
+    </ClCompile>
     <ClCompile Include="UI\SpellbookUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="World\TerrainGenerator.cpp">
       <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\TerrainBuild.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\TerrainParts.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\TerrainZones.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\TerrainBoulders.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\WeatherSystem.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\GrassFireField.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\GroundDebris.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\GroundDebrisPanel.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapData.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapTerrainEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapZoneEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapReliefEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MapHillEdit.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditModeTools.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditMode.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditModeUI.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditModeView.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\MapEditModeTerrainUI.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMapEdit.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneTerrain.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneBoss.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMapIO.cpp">
+      <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="World\StageConfig.cpp">
       <Filter>World</Filter>
@@ -469,6 +833,12 @@
     <ClCompile Include="World\GridWorld.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="Enemy\SpawnWaves.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\StageDirectorWaves.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
     <ClCompile Include="Enemy\SpawnDirector.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
@@ -476,6 +846,12 @@
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmSystem.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemKinds.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemFire.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\ProjectileProfile.cpp">
@@ -503,6 +879,12 @@
     <ClCompile Include="Graphics\PostProcess\Bloom.cpp">
       <Filter>Graphics\PostProcess</Filter>
     </ClCompile>
+    <ClCompile Include="Graphics\PostProcess\Outline.cpp">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\PostProcess\SceneSnapshot.cpp">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Model\MaterialLoader.cpp">
       <Filter>Graphics\Model</Filter>
     </ClCompile>
@@ -523,6 +905,9 @@
     <ClInclude Include="Graphics\Renderer\GrassRenderer.h">
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Graphics\Renderer\TerrainSurface.h">
+      <Filter>Graphics\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Graphics\Renderer\FrustumPlanes.h">
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
@@ -535,6 +920,15 @@
     <ClInclude Include="Debug\StressTestTools.h">
       <Filter>Debug</Filter>
     </ClInclude>
+    <ClInclude Include="Debug\SpellLab.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug\AutoTest\BattleAutoTest.h">
+      <Filter>Debug\AutoTest</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug\AutoTest\AutoTestCommon.h">
+      <Filter>Debug\AutoTest</Filter>
+    </ClInclude>
     <ClInclude Include="Debug\FrameProfiler.h">
       <Filter>Debug</Filter>
     </ClInclude>
@@ -542,6 +936,15 @@
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\StageDirector.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\BossAttacks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\BossBrain.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\DifficultyCurve.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\EliteSpawner.h">
@@ -554,6 +957,21 @@
       <Filter>Graphics\Light</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\FeedbackVFXSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\PlayerVFXSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\CastCircles.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\IceSpikeField.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\SpellFxSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\ShieldBubble.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\RewardCrateSystem.h">
@@ -575,6 +993,15 @@
       <Filter>VFX_Editor</Filter>
     </ClInclude>
     <ClInclude Include="VFX_Editor\VFXBeamEntry.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXLiquidDef.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXLiquidEntry.h">
+      <Filter>VFX_Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="VFX_Editor\VFXLiquidRenderer.h">
       <Filter>VFX_Editor</Filter>
     </ClInclude>
     <ClInclude Include="VFX_Editor\SpriteSheets.h">
@@ -743,6 +1170,7 @@
       <Filter>ECS</Filter>
     </ClInclude>
     <ClInclude Include="ResourcePaths.h" />
+    <ClInclude Include="pch.h" />
     <ClInclude Include="Graphics\Mesh\SkinnedVertex.h">
       <Filter>Graphics\Mesh</Filter>
     </ClInclude>
@@ -750,6 +1178,9 @@
       <Filter>Graphics\Model</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Model\Skeleton.h">
+      <Filter>Graphics\Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Model\BoneMaps.h">
       <Filter>Graphics\Model</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Model\SkinnedModelGPU.h">
@@ -787,6 +1218,9 @@
       <Filter>Component</Filter>
     </ClInclude>
     <ClInclude Include="Component\SkinnedAnimComponent.h">
+      <Filter>Component</Filter>
+    </ClInclude>
+    <ClInclude Include="Component\ClothChainComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
     <ClInclude Include="Component\RigidbodyComponent.h">
@@ -829,6 +1263,9 @@
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\SkinnedAnimSystem.h">
+      <Filter>ECS\System</Filter>
+    </ClInclude>
+    <ClInclude Include="ECS\System\ClothChainSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Light\PointLightManager.h">
@@ -892,6 +1329,9 @@
     <ClInclude Include="Item\Items\Beam.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\Gust.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Item\ItemDatabase.h">
       <Filter>Item</Filter>
     </ClInclude>
@@ -901,13 +1341,31 @@
     <ClInclude Include="Item\ItemInfo.h">
       <Filter>Item</Filter>
     </ClInclude>
+    <ClInclude Include="Item\ItemInfoSheet.h">
+      <Filter>Item</Filter>
+    </ClInclude>
     <ClInclude Include="UI\ItemSheetView.h">
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\PauseMenuUI.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="UI\SettingsMenuUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\TutorialGuide.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\HowToPlayUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GameSettings.h">
+      <Filter>Core</Filter>
+    </ClInclude>
     <ClInclude Include="UI\MenuList.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\TitleScreenUI.h">
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="Component\AreaStats.h">
@@ -931,10 +1389,19 @@
     <ClInclude Include="Item\Items\HasteRune.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\CrystalBall.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Item\Items\StoneShot.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\Poison.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\IceLance.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\IceSpike.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\BackpackAggregateSystem.h">
@@ -985,10 +1452,25 @@
     <ClInclude Include="Item\Items\JumpCountUp.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\SpellPowerUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\ShieldUp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Component\SpellbookComponent.h">
       <Filter>Component</Filter>
     </ClInclude>
     <ClInclude Include="Player\LevelComponent.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\WalletComponent.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\ShieldComponent.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\ShieldPanel.h">
       <Filter>Player</Filter>
     </ClInclude>
     <ClInclude Include="Item\ExpRewardComponent.h">
@@ -1003,6 +1485,9 @@
     <ClInclude Include="UI\UIDeco.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="UI\InputGlyph.h">
+      <Filter>UI</Filter>
+    </ClInclude>
     <ClInclude Include="UI\ShapeSprite.h">
       <Filter>UI</Filter>
     </ClInclude>
@@ -1010,6 +1495,9 @@
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\HUD.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\TrainingMenuUI.h">
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\ManaSystem.h">
@@ -1021,6 +1509,15 @@
     <ClInclude Include="UI\DragContext.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="Audio\AudioSystem.h">
+      <Filter>Audio</Filter>
+    </ClInclude>
+    <ClInclude Include="Audio\BattleAudio.h">
+      <Filter>Audio</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\miniaudio\miniaudio.h">
+      <Filter>Audio</Filter>
+    </ClInclude>
     <ClInclude Include="UI\SpellbookUI.h">
       <Filter>UI</Filter>
     </ClInclude>
@@ -1030,6 +1527,39 @@
     <ClInclude Include="World\TerrainGenerator.h">
       <Filter>World</Filter>
     </ClInclude>
+    <ClInclude Include="World\TerrainBuild.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\MapData.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\WindState.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\GrassFireField.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\GroundDebris.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmFireEmit.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="World\WeatherSystem.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\MapEdit.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\MapTerrainEdit.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\MapEditMode.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Debug\AutoTest\AutoTestMapEdit.h">
+      <Filter>Debug\AutoTest</Filter>
+    </ClInclude>
     <ClInclude Include="World\StageConfig.h">
       <Filter>World</Filter>
     </ClInclude>
@@ -1037,6 +1567,9 @@
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\EnemyTags.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\SpawnWaves.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\SpawnDirector.h">
@@ -1072,10 +1605,18 @@
     <ClInclude Include="Scene\LevelEditorScene.h">
       <Filter>Scene</Filter>
     </ClInclude>
+    <ClInclude Include="Scene\SpellLabScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
     <ClInclude Include="Swarm\SwarmVFXTable.h" />
-    <ClInclude Include="VFX_Editor\VFXDatabase.h" />
     <ClInclude Include="VFX_Editor\VFXId.h" />
     <ClInclude Include="Graphics\PostProcess\Bloom.h">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\PostProcess\Outline.h">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\PostProcess\SceneSnapshot.h">
       <Filter>Graphics\PostProcess</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Model\MaterialLoader.h">
@@ -1116,6 +1657,9 @@
     <FxCompile Include="Shader\Swarm\SwarmDropRingVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmWarnRingVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmSpritePS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -1136,6 +1680,27 @@
     </FxCompile>
     <FxCompile Include="Shader\VFX\VFXBeamPS.hlsl">
       <Filter>Graphics\Shader\HLSL\VFX</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\VFX\VFXLiquidVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\VFX</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\VFX\VFXLiquidPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\VFX</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmLiquidVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmLiquidTrackCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmCorpseTrackCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmCorpseListCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmCorpseVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
@@ -1197,10 +1762,31 @@
     <FxCompile Include="Shader\Grass\GrassTrampleCS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Grass\GrassStampCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Grass\GrassFireCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Grass\GrassFireEmitCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Debris\DebrisUpdateCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Debris\DebrisVS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Debris\DebrisPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Grass\GrassVS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Grass\GrassPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Terrain\TerrainPS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PBR_VS.hlsl">
@@ -1281,6 +1867,21 @@
     <FxCompile Include="Shader\Swarm\SwarmLightCollectCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyKindListCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmChargeLineVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmChargeLinePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmShieldVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmIceVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmEnemyCompactCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -1320,6 +1921,12 @@
     <FxCompile Include="Shader\PostProcess\CompositePS.hlsl">
       <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\PostProcess\OutlinePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\BackdropPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\PostProcess\BloomCS.hlsl">
       <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
     </FxCompile>
@@ -1337,6 +1944,12 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="ThirdParty\miniaudio\stb_vorbis.c">
+      <Filter>Audio</Filter>
+    </None>
+    <None Include="ThirdParty\miniaudio\LICENSE">
+      <Filter>Audio</Filter>
+    </None>
     <None Include="Shader\Common\SwarmSprite.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
@@ -1344,6 +1957,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\BeamCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\LiquidCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Particle\Common\ParticleCommon.hlsli">
@@ -1356,6 +1972,9 @@
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
     <None Include="Shader\Particle\Common\EmitDisc.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\EmitInit.hlsli">
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
     <None Include="Shader\Particle\Common\EmitMesh.hlsli">
@@ -1384,6 +2003,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Grass\GrassCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Debris\DebrisCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\ModelCommon.hlsli">

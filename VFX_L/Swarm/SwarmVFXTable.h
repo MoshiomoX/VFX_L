@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmVFXTable.h
-// VFXId → GPU 側の配方（Recipe）と各種テンプレート表。
+// VFXId → GPU 側のレシピ（Recipe）と各種テンプレート表。
 //
 // 起動時に VFXDatabase の全 JSON を読み、entry を種類ごとの表へ振り分ける:
 //   Particle → GPUEmitter 表（今すぐ消費される）
@@ -11,12 +11,13 @@
 // GPU 側の効果には時間軸が無い（一弾一スレッド、無状態）。
 //   entry の startTime / duration は無視される。
 //   ずれている JSON は読み込み時に警告し、VFXEffect に印を付けて
-//   編集器が表示できるようにする。
+//   エディタが表示できるようにする。
 // ============================================================
 #pragma once
 #include "VFX_Editor/VFXId.h"
 #include "Particle/GPUParticleEmitter.h"
 #include "VFX_Editor/SpriteSheets.h"
+#include "VFX_Editor/VFXLiquidDef.h"
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <vector>
@@ -98,7 +99,7 @@ public:
     // colorKey は particles の静的区へ登録する
     bool Build(ID3D11Device* device, GPUParticleSystem* particles);
 
-    // VFXId → Recipe 表の index。無ければ 0（None の空配方）
+    // VFXId → Recipe 表の index。無ければ 0（None の空レシピ）
     uint32_t IndexOf(VFXId id) const;
 
     ID3D11ShaderResourceView* GetRecipeSRV()   const { return m_RecipeSRV.Get(); }
@@ -108,6 +109,10 @@ public:
     ID3D11ShaderResourceView* GetSpriteDefSRV()   const { return m_SpriteDefSRV.Get(); }
     ID3D11ShaderResourceView* GetSpriteArraySRV() const { return m_SpriteArraySRV.Get(); }
     int GetSpriteDefCount() const { return m_SpriteDefCount; }
+    // Liquid entry（2026-10-02）: def の表と、レシピごとの「def の番号 + 1（0 = 液体なし）」
+    ID3D11ShaderResourceView* GetLiquidDefSRV()    const { return m_LiquidDefSRV.Get(); }
+    ID3D11ShaderResourceView* GetRecipeLiquidSRV() const { return m_RecipeLiquidSRV.Get(); }
+    int GetLiquidDefCount() const { return m_LiquidDefCount; }
 
     // ImGui 表示用
     int GetRecipeCount()  const { return (int)m_Index.size(); }
@@ -118,7 +123,7 @@ private:
     bool UploadImmutable(ID3D11Device* device, const void* data, UINT stride, UINT count,
         Microsoft::WRL::ComPtr<ID3D11Buffer>& buf,
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& srv, const char* name);
-    // Sprite entry が使う貼图を Texture2DArray にまとめる（1 枚 = 1 貼图、左上に詰める）
+    // Sprite entry が使うテクスチャを Texture2DArray にまとめる（1 枚 = 1 テクスチャ、左上に詰める）
     bool BuildSpriteArray(ID3D11Device* device, const std::vector<const SpriteSheets::Info*>& sheets);
 
     std::vector<std::pair<VFXId, uint32_t>> m_Index;
@@ -136,6 +141,11 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_SpriteArray;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpriteArraySRV;
     int m_SpriteDefCount = 0;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_LiquidDefBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_LiquidDefSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_RecipeLiquidBuffer;   // レシピと同じ添字の uint（Recipe の 32B は変えない）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_RecipeLiquidSRV;
+    int m_LiquidDefCount = 0;
     int m_SpriteSliceW = 1;
     int m_SpriteSliceH = 1;
 

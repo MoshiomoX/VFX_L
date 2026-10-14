@@ -19,9 +19,9 @@ inline StatItemDef MakeMaxHealthUp()
     def.common.id = ItemID::MaxHealthUp;
     def.common.name = "Max HP +20";
     def.common.displayName = L"最大HP +20";
-    def.common.description = L"HP の上限を上げる。今の HP も同じだけ回復する。";
+    def.common.description = L"HP の上限が増え、増えた分だけ回復する。";
     def.common.category = ItemCategory::Stat;
-    def.common.occupyCells = {};                         // 背包に置かないので形は無い
+    def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};
     def.common.color = { 0.85f, 0.25f, 0.25f, 1.0f };   // HUD の hpColor
     def.common.iconPath = Res::Icon::MaxHealthUp;

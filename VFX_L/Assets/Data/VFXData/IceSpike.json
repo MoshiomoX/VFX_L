@@ -1,0 +1,59 @@
+{
+    "name": "IceSpike",
+    "loop": false,
+    "entries": [
+        {
+            "type": "Particle", "startTime": 0.0, "duration": 0.35,
+            "data": {
+                "angularVelRange": [-0.6, 0.6], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 52,
+                "sheet": 2, "frameMode": 3, "frameCount": 25, "blend": 1,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 2.0,
+                "emitRate": 18.0, "emitType": 5,
+                "endColorMax": [0.86, 0.95, 1.00, 0.0], "endColorMin": [0.82, 0.93, 1.00, 0.0],
+                "gravity": [0.0, 0.25, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.7, 1.1], "maxParticles": 60,
+                "position": [0.0, 0.1, 0.0], "radius": 1.1, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.35, 0.5, 0.8, 1.1], "speedRange": [0.3, 0.8], "spreadAngle": 60.0,
+                "startColorMax": [0.80, 0.92, 1.00, 0.22], "startColorMin": [0.75, 0.88, 1.00, 0.18]
+            }
+        },
+        {
+            "type": "Particle", "startTime": 0.0, "duration": 0.3,
+            "data": {
+                "angularVelRange": [-360, 360], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6,
+                "atlasIndex": 0, "sheet": 0, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1, 1, 1], "direction": [0, 1, 0], "dragCoeff": 0.3, "emitRate": 35, "emitType": 5,
+                "endColorMax": [0.70, 0.92, 1.20, 1], "endColorMin": [0.70, 0.92, 1.20, 1],
+                "gravity": [0, -14, 0], "innerRadius": 0, "lifetimeRange": [0.5, 0.8], "maxParticles": 60,
+                "position": [0, 0.15, 0.0], "radius": 1.1, "renderMode": 1, "rotationRange": [0, 360],
+                "sizeRange": [0.12, 0.2, 0.08, 0.12], "speedRange": [3, 5.5], "spreadAngle": 35,
+                "startColorMax": [0.70, 0.92, 1.20, 1], "startColorMin": [0.70, 0.92, 1.20, 1],
+                "meshGlow": false, "mesh": "Assets/VFX/Mesh/bingci_02.FBX", "meshFaceVelocity": false, "meshForwardAxis": 1
+            }
+        },
+        {
+            "type": "Particle", "startTime": 0.0, "duration": 0.3,
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6,
+                "atlasIndex": 55, "sheet": 1, "frameMode": 3, "frameCount": 9, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 2.0, "emitRate": 45.0, "emitType": 5,
+                "endColorMax": [0.40, 0.70, 1.00, 0], "endColorMin": [0.40, 0.70, 1.00, 0],
+                "gravity": [0.0, 0.5, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.3, 0.6], "maxParticles": 60,
+                "position": [0.0, 0.4, 0.0], "radius": 1.1, "renderMode": 0, "rotationRange": [0.0, 0.3],
+                "sizeRange": [0.18, 0.28, 0.0, 0.02], "speedRange": [1.0, 2.5], "spreadAngle": 40.0,
+                "startColorMax": [0.85, 0.95, 1.00, 1], "startColorMin": [0.75, 0.90, 1.00, 1]
+            }
+        },
+        {
+            "type": "Light", "startTime": 0.0, "duration": 0.6,
+            "data": {
+                "offset": [0.0, 0.6, 0.0],
+                "color": [0.45, 0.75, 1.0],
+                "radius": 4.0,
+                "intensityStart": 1.2,
+                "intensityEnd": 0.0,
+                "flicker": 0.0,
+                "flickerSpeed": 12.0
+            }
+        }
+    ]
+}

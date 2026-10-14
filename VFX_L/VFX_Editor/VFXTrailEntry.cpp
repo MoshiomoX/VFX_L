@@ -59,7 +59,7 @@ void VFXTrailEntry::DetachTrail()
 
 // 帯そのものは Submit で位置が分かってから作る。
 // ループの頭（ResetTimeline は OnStop を呼ばない）で前の帯が残っていたら切り離す：
-// startTime > 0 だと再生されない間に特効が動いていて、繋ぐと直線が引かれるため
+// startTime > 0 だと再生されない間にエフェクトが動いていて、繋ぐと直線が引かれるため
 void VFXTrailEntry::OnPlay(const VFXContext& ctx)
 {
     isPlaying = true;
@@ -129,7 +129,7 @@ void VFXTrailEntry::OnImGui()
 
 std::unique_ptr<VFXEntry> VFXTrailEntry::Clone() const
 {
-    // 設定だけ写す。style と帯の登録は実例ごと（複製先が再生時に自分で登録する）
+    // 設定だけ写す。style と帯の登録はインスタンスごと（複製先が再生時に自分で登録する）
     auto c = std::make_unique<VFXTrailEntry>();
     c->startTime = startTime;
     c->duration = duration;

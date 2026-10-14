@@ -4,19 +4,21 @@
 #include "ECS/System/ManaSystem.h"
 #include "ECS/Registry.h"
 #include "Component/ManaComponent.h"
+#include "Player/LevelComponent.h"
 #include "ECS/View.h"
 
 void ManaSystem::Update(Registry& reg, float dt)
 {
     reg.CreateView<ManaComponent>()
-        .Each([&](Entity, ManaComponent& m)
+        .Each([&](Entity e, ManaComponent& m)
             {
                 // ---- 1) 予約された消費を引き落とす ----
                 m.current -= m.pendingSpend;
                 m.pendingSpend = 0.0f;
 
-                // ---- 2) 回復 ----
-                m.current += m.regen * dt;
+                // ---- 2) 回復（レベルで伸びる）----
+                const int level = reg.Has<LevelComponent>(e) ? reg.Get<LevelComponent>(e).level : 1;
+                m.current += m.EffectiveRegen(level) * dt;
 
                 // ---- 魔力解放の残りと再使用待ち ----
                 if (m.surgeTime > 0.0f) m.surgeTime = (m.surgeTime > dt) ? m.surgeTime - dt : 0.0f;

@@ -1,0 +1,76 @@
+{
+    "entries": [
+        {
+            "data": {
+                "model": "Assets/VFX/Mesh/fanghuzhao2.FBX", "mainTex": {}, "noiseTex": {}, "maskTex": {},
+                "offset": [0.0, -0.2, 0.0], "rotation": [0.0, 0.0, 0.0], "rotSpeed": [0.0, 120.0, 0.0],
+                "scaleStart": [0.036, 0.043, 0.036], "scaleEnd": [0.049, 0.058, 0.049],
+                "tint": [1.0, 0.2, 0.12, 1.0], "alphaStart": 0.7, "alphaEnd": 0.0, "intensity": 2.0,
+                "blend": 0, "twoSided": true, "shade": 0.0, "vertexColor": false,
+                "mainTiling": [1.0, 1.0], "mainScroll": [0.0, 0.0], "noiseTiling": [1.0, 1.0], "noiseScroll": [0.0, 0.0],
+                "distortion": 0.0, "dissolve": false
+            },
+            "duration": 0.2, "startTime": 0.0, "type": "Mesh"
+        },
+        {
+            "data": {
+                "model": "Assets/VFX/Mesh/suipian01.FBX", "mainTex": {}, "noiseTex": {}, "maskTex": {},
+                "offset": [0.0, 0.12, 0.0], "rotation": [0.0, 0.0, 0.0], "rotSpeed": [0.0, 40.0, 0.0],
+                "scaleStart": [0.0003, 0.0003, 0.0003], "scaleEnd": [0.00052, 0.00052, 0.00052],
+                "tint": [0.5, 0.82, 1.0, 1.0], "alphaStart": 1.0, "alphaEnd": 0.0, "intensity": 1.6,
+                "blend": 0, "twoSided": true, "shade": 0.0, "vertexColor": false,
+                "mainTiling": [1.0, 1.0], "mainScroll": [0.0, 0.0], "noiseTiling": [1.0, 1.0], "noiseScroll": [0.0, 0.0],
+                "distortion": 0.0, "dissolve": false
+            },
+            "duration": 0.7, "startTime": 0.0, "type": "Mesh"
+        },
+        {
+            "data": {
+                "model": "Assets/VFX/Mesh/suipian02.FBX", "mainTex": {}, "noiseTex": {}, "maskTex": {},
+                "offset": [0.0, 0.12, 0.0], "rotation": [0.0, 180.0, 0.0], "rotSpeed": [0.0, -40.0, 0.0],
+                "scaleStart": [0.0003, 0.0003, 0.0003], "scaleEnd": [0.00052, 0.00052, 0.00052],
+                "tint": [0.5, 0.82, 1.0, 1.0], "alphaStart": 1.0, "alphaEnd": 0.0, "intensity": 1.6,
+                "blend": 0, "twoSided": true, "shade": 0.0, "vertexColor": false,
+                "mainTiling": [1.0, 1.0], "mainScroll": [0.0, 0.0], "noiseTiling": [1.0, 1.0], "noiseScroll": [0.0, 0.0],
+                "distortion": 0.0, "dissolve": false
+            },
+            "duration": 0.7, "startTime": 0.0, "type": "Mesh"
+        },
+        {
+            "data": {
+                "angularVelRange": [-360.0, 360.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
+                "sheet": 0, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 1.0,
+                "emitRate": 400.0, "emitType": 1,
+                "endColorMax": [0.3, 0.6, 1.0, 0.0], "endColorMin": [0.3, 0.6, 1.0, 0.0],
+                "gravity": [0.0, -9.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.5, 0.8], "maxParticles": 60,
+                "position": [0.0, 0.2, 0.0], "radius": 0.8, "renderMode": 1, "rotationRange": [0.0, 360.0],
+                "sizeRange": [0.06, 0.1, 0.02, 0.04], "speedRange": [3.0, 6.0], "spreadAngle": 0.0,
+                "startColorMax": [0.6, 1.0, 1.6, 1.0], "startColorMin": [0.4, 0.8, 1.3, 1.0],
+                "mesh": "", "meshGlow": true, "meshFaceVelocity": false, "meshForwardAxis": 2
+            },
+            "duration": 0.06, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 55,
+                "sheet": 1, "frameMode": 3, "frameCount": 9, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 2.5,
+                "emitRate": 500.0, "emitType": 1,
+                "endColorMax": [0.4, 0.8, 1.2, 0.0], "endColorMin": [0.4, 0.8, 1.2, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.3, 0.5], "maxParticles": 60,
+                "position": [0.0, 0.0, 0.0], "radius": 1.0, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.2, 0.3, 0.02, 0.05], "speedRange": [2.5, 5.0], "spreadAngle": 0.0,
+                "startColorMax": [0.8, 1.2, 1.8, 1.0], "startColorMin": [0.5, 0.9, 1.5, 1.0]
+            },
+            "duration": 0.06, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 0.0, 0.0], "color": [0.4, 0.75, 1.0], "radius": 6.0,
+                      "intensityStart": 3.0, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 0.0 },
+            "duration": 0.45, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "ShieldBreak"
+}

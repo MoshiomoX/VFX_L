@@ -14,6 +14,8 @@
 #include "Graphics/Material/Texture.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Renderer/RenderStates.h"
+#include "Player/PlayerTag.h"
+#include "Enemy/EnemyTags.h"
 #include "Camera/CameraBase.h"
 #include "Manager/ResourceManager.h"
 #include "ECS/View.h"
@@ -23,19 +25,10 @@ using DirectX::SimpleMath::Vector3;
 
 namespace
 {
-    // 骨付きのモデル → 世界: 拡縮 → 足元を軸に傾ける（滑り）→ offset → Entity の回転 → 位置
-    // （Transform.cpp と同じ Yaw/Pitch/Roll の規約）。
-    // KayKit のモデル空間の正面は -Z なので、X 軸回りの正の角度で頭が後ろへ倒れる
+    // 骨付きのモデル → 世界（揺れ物の系と同じ行列を使うので SkinnedAnimSystem に置いた）
     Matrix SkinnedWorld(const TransformComponent& tf, const SkinnedAnimComponent& a)
     {
-        return Matrix::CreateScale(a.scale)
-            * Matrix::CreateRotationX(DirectX::XMConvertToRadians(a.leanDeg))
-            * Matrix::CreateTranslation(a.offset)
-            * Matrix::CreateFromYawPitchRoll(
-                DirectX::XMConvertToRadians(tf.rotation.y + a.yawOffsetDeg),
-                DirectX::XMConvertToRadians(tf.rotation.x),
-                DirectX::XMConvertToRadians(tf.rotation.z))
-            * Matrix::CreateTranslation(tf.position);
+        return SkinnedAnimSystem::WorldMatrix(tf, a);
     }
 
     // 層を混ぜたポーズ → submesh 毎に SkinningCS
@@ -62,26 +55,40 @@ bool RenderSystem::EnsureSkinningCS()
 }
 
 // ============================================================
-// 影図へ深度だけ
+// シャドウマップへ深度だけ
 // ============================================================
+void RenderSystem::GatherDrawables(Registry& reg)
+{
+    m_Drawables.clear();
+    reg.CreateView<TransformComponent, ModelComponent>()
+        .EachFrom<ModelComponent>([&](Entity e, TransformComponent&, ModelComponent& mc)
+            {
+                if (mc.visible && mc.model && !mc.batched)   // batched は StaticPropRenderer
+                    m_Drawables.push_back(e);
+            });
+    m_DrawablesFresh = true;
+}
+
 void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
 {
-    reg.CreateView<TransformComponent, ModelComponent>()
-        .Each([&](Entity, TransformComponent& tf, ModelComponent& mc)
-            {
-                if (!mc.visible || !mc.model || mc.batched) return;
-                Transform temp;
-                temp.SetPosition(tf.position);
-                temp.SetRotation(tf.rotation);
-                temp.SetScale(tf.scale);
-                mc.model->Draw(renderer, &temp);   // renderer が深度だけにする
-            });
+    if (!m_DrawablesFresh) GatherDrawables(reg);   // 影の最初の段で集め、残りの段と Render で使い回す
+    for (Entity e : m_Drawables)
+    {
+        if (!reg.IsValid(e) || !reg.Has<ModelComponent>(e) || !reg.Has<TransformComponent>(e)) continue;
+        const auto& tf = reg.Get<TransformComponent>(e);
+        auto& mc = reg.Get<ModelComponent>(e);
+        Transform temp;
+        temp.SetPosition(tf.position);
+        temp.SetRotation(tf.rotation);
+        temp.SetScale(tf.scale);
+        mc.model->Draw(renderer, &temp);   // renderer が深度だけにする
+    }
 
     // 深度だけの描画は混合・深度・ラスタライザの状態を触らない（影の深度バイアスを残す）
     ID3D11DeviceContext* ctx = renderer.GetContext();
     if (!ctx || !EnsureSkinningCS()) return;
     reg.CreateView<TransformComponent, SkinnedAnimComponent>()
-        .Each([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
+        .EachFrom<SkinnedAnimComponent>([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
             {
                 if (!a.visible || !a.model || !a.gpu) return;
                 if (skin && !Skin(ctx, m_SkinningCS.get(), a)) return;
@@ -89,48 +96,73 @@ void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
             });
 }
 
+namespace
+{
+    // 陣営のアウトライン（2026-10-06、ユーザー：味方は青、敵は赤）：描く時にステンシルへ書く番号。
+    // 0 = どちらでもない（置物・門・箱）、1 = 味方（プレイヤー）、2 = 敵（エリート・Boss・雑魚の CPU 側の的）。
+    // 画面のアウトライン（PostProcess/Outline）がこの番号で線の色と太さを選ぶ
+    UINT StencilRefFor(Registry& reg, Entity e)
+    {
+        if (reg.Has<PlayerTag>(e)) return RenderSystem::kStencilFriend;
+        if (reg.Has<EliteTag>(e) || reg.Has<MobTag>(e)) return RenderSystem::kStencilEnemy;
+        return 0;
+    }
+    void SetStencil(ID3D11DeviceContext* ctx, UINT ref)
+    {
+        auto& rs = RenderStates::Get();
+        if (ref == 0) ctx->OMSetDepthStencilState(rs.DepthDefault(), 0);
+        else          ctx->OMSetDepthStencilState(rs.DepthStencilWrite(), ref);
+    }
+}
+
 void RenderSystem::Render(Registry& reg, Renderer& renderer)
 {
-    reg.CreateView<TransformComponent, ModelComponent>()
-        .Each([&](Entity e, TransformComponent& tf, ModelComponent& mc)
+    if (!m_DrawablesFresh) GatherDrawables(reg);   // 影を描かないシーンはここで集める
+    ID3D11DeviceContext* ctx = renderer.GetContext();
+    for (Entity e : m_Drawables)
+    {
+        if (!reg.IsValid(e) || !reg.Has<ModelComponent>(e) || !reg.Has<TransformComponent>(e)) continue;
+        const auto& tf = reg.Get<TransformComponent>(e);
+        auto& mc = reg.Get<ModelComponent>(e);
+        if (ctx) SetStencil(ctx, StencilRefFor(reg, e));
+
+        // ECS の TransformComponent を既存 Transform に詰めて Model::Draw へ渡す。
+        // これで描画パイプラインを変えずに ECS 描画が可能になる。
+        Transform temp;
+        temp.SetPosition(tf.position);
+        temp.SetRotation(tf.rotation);
+        temp.SetScale(tf.scale);
+
+        // 溶解中の実体は PS の溶解を掛ける（閾値 = progress）
+        DissolveParams dp;
+        const DissolveParams* pdp = nullptr;
+        if (reg.Has<DissolveComponent>(e))
+        {
+            const auto& d = reg.Get<DissolveComponent>(e);
+            if (d.noise)
             {
-                if (!mc.visible || !mc.model || mc.batched) return;   // batched は StaticPropRenderer
-
-                // ECS の TransformComponent を既存 Transform に詰めて Model::Draw へ渡す。
-                // これで描画管線を変えずに ECS 描画が可能になる。
-                Transform temp;
-                temp.SetPosition(tf.position);
-                temp.SetRotation(tf.rotation);
-                temp.SetScale(tf.scale);
-
-                // 溶解中の実体は PS の溶解を掛ける（閾値 = progress）
-                DissolveParams dp;
-                const DissolveParams* pdp = nullptr;
-                if (reg.Has<DissolveComponent>(e))
-                {
-                    const auto& d = reg.Get<DissolveComponent>(e);
-                    if (d.noise)
-                    {
-                        dp.noise = d.noise->GetSRV();
-                        dp.tiling = d.tiling;
-                        dp.scroll = d.scroll;
-                        dp.threshold = d.Threshold();
-                        dp.edge = d.edge;
-                        dp.edgeColor = d.edgeColor;
-                        pdp = &dp;
-                    }
-                }
-                renderer.SetDissolve(pdp);
-                mc.model->Draw(renderer, &temp);
-                renderer.SetDissolve(nullptr);
-            });
+                dp.noise = d.noise->GetSRV();
+                dp.tiling = d.tiling;
+                dp.scroll = d.scroll;
+                dp.threshold = d.Threshold();
+                dp.edge = d.edge;
+                dp.edgeColor = d.edgeColor;
+                pdp = &dp;
+            }
+        }
+        renderer.SetDissolve(pdp);
+        mc.model->Draw(renderer, &temp);
+        renderer.SetDissolve(nullptr);
+    }
+    if (ctx) SetStencil(ctx, 0);
+    m_DrawablesFresh = false;   // 次のフレームで集め直す
 
     RenderSkinned(reg, renderer);
 }
 
 // ============================================================
 // 骨付き: 層を混ぜたポーズ → SkinningCS → 描画
-// 蒙皮結果は Entity 毎の SkinnedModelGPU に入る（複数体でも干渉しない）
+// スキニング結果は Entity 毎の SkinnedModelGPU に入る（複数体でも干渉しない）
 // ============================================================
 void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
 {
@@ -147,15 +179,17 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
 
     bool drewAny = false;
     reg.CreateView<TransformComponent, SkinnedAnimComponent>()
-        .Each([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
+        .EachFrom<SkinnedAnimComponent>([&](Entity e, TransformComponent& tf, SkinnedAnimComponent& a)
             {
                 if (!a.visible || !a.model || !a.gpu) return;
                 if (!Skin(ctx, m_SkinningCS.get(), a)) return;
                 const Matrix world = SkinnedWorld(tf, a);
 
-                a.gpu->Render(ctx, *a.model, light, world, view, proj);
+                SetStencil(ctx, StencilRefFor(reg, e));   // 陣営のアウトライン（プレイヤー = 味方、エリート = 敵）
+                a.gpu->Render(ctx, *a.model, light, world, view, proj, a.hitFlash, a.hitFlashColor);
                 drewAny = true;
             });
+    SetStencil(ctx, 0);
 
     // SkinnedModelGPU::Render は InputLayout / VB を外すので、後続の通常描画のために戻す
     if (drewAny)

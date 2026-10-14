@@ -1,5 +1,4 @@
 #include "Graphics/Shader/PixelShader.h"
-#include <iostream>
 
 PixelShader::PixelShader()
     : Shader(Shader::Pixel)

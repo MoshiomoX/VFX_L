@@ -1,11 +1,11 @@
 // ============================================================
 // ItemInfo.h
-// 道具の説明（名前・種別・一言・能力値の行）を組み立てる。
-// レベルアップのカードと、背包 / 魔法書の tooltip が同じ中身を使う。
+// アイテムの説明（名前・種別・一言・能力値の行）を組み立てる。
+// レベルアップのカードと、バックパック / 魔法書の tooltip が同じ中身を使う。
 //
 // 数値は手で書かない：
-//   飛行物 … 道具の定義（どう撃つか）+ 投射物プロファイル（弾そのもの）
-//   範囲   … 道具の定義 + 範囲プロファイル
+//   飛行物 … アイテムの定義（どう撃つか）+ 投射物プロファイル（弾そのもの）
+//   範囲   … アイテムの定義 + 範囲プロファイル
 //   置いてある物は、隣のルーンの修飾を掛けた後の値と元の値を並べる
 // 基礎値の組み立てと修飾の掛け方は BackpackAggregateSystem と共用なので、
 // 画面の数字と実際の戦闘の数字はずれない。
@@ -26,9 +26,14 @@ namespace ItemInfo
     std::wstring DisplayName(ItemID id);
     const wchar_t* CategoryLabel(ItemCategory c);
 
-    // 基礎値（道具の定義にプロファイルの値を写したもの）。修飾は掛けていない
+    // 基礎値（アイテムの定義にプロファイルの値を写したもの）。修飾は掛けていない
     SpellStats BaseSpellStats(const ProjectileItemDef& def);
     AreaStats  BaseAreaStats(const AreaItemDef& def);
+
+    // 能力アップ「魔法威力」（PlayerStatsComponent::spellPower）を掛ける。修飾（ルーン）の後に掛ける。
+    // 飛行物は弾の威力と、命中・着弾で出す範囲の威力（areaDamageMul）の両方
+    void ApplySpellPower(SpellStats& s, float power);
+    void ApplySpellPower(AreaStats& a, float power);
 
     // 能力値の 1 行
     struct Line
@@ -51,9 +56,9 @@ namespace ItemInfo
         std::wstring footer;                // 「強化: 分裂のルーン」など
     };
 
-    // 道具そのもの（レベルアップのカード・魔法書の中の物）
+    // アイテムそのもの（レベルアップのカード・魔法書の中の物）
     Sheet Describe(ItemID id);
 
-    // 背包に置いてある物（items の index）。隣のルーンの修飾を反映する
-    Sheet DescribePlaced(const BackpackComponent& bp, int itemIndex);
+    // バックパックに置いてある物（items の index）。隣のルーンの修飾と魔法威力（spellPower）を反映する
+    Sheet DescribePlaced(const BackpackComponent& bp, int itemIndex, float spellPower = 1.0f);
 }

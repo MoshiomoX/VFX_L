@@ -1,5 +1,6 @@
 {
-    "chargeTime": 0.5, "damage": 6.0, "duration": 1.2, "followCaster": true, "halfHeight": 1.2, "kind": 2,
+    "sound": "beam_fire",
+    "chargeTime": 0.5, "cameraShake": true, "damage": 6.0, "duration": 1.2, "followCaster": true, "halfHeight": 1.2, "kind": 2,
     "length": 18.0, "name": "Beam", "preview": { "atTarget": false, "interval": 4.0 },
     "radius": 0.6, "stun": true, "tickInterval": 0.1, "vfx": "Beam.json"
 }

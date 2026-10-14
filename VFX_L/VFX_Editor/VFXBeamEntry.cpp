@@ -4,8 +4,6 @@
 #include "VFX_Editor/VFXBeamEntry.h"
 #include "VFX_Editor/VFXBeamRenderer.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cstdlib>
 
 using namespace DirectX::SimpleMath;
 
@@ -41,7 +39,7 @@ void VFXBeamEntry::OnUpdate(float dt, const VFXContext&)
 // 描画に積む。伸びる / 縮むはここで起点・終点を動かして作る
 // ============================================================
 void VFXBeamEntry::Submit(VFXBeamRenderer& renderer, const Vector3& worldOffset,
-    const Vector3& beamEnd, bool hasEnd)
+    const Vector3& beamEnd, bool hasEnd, float widthMul)
 {
     if (!isPlaying) return;
 
@@ -64,7 +62,7 @@ void VFXBeamEntry::Submit(VFXBeamRenderer& renderer, const Vector3& worldOffset,
     VFXBeamItem item;
     item.start = start + (end - start) * t0;
     item.end = start + (end - start) * t1;
-    item.width = width;
+    item.width = width * widthMul;   // 芯 / グローは比率なので一緒に太くなる
     item.coreRatio = coreRatio;
     item.color = color;
     item.coreColor = coreColor;
@@ -76,6 +74,7 @@ void VFXBeamEntry::Submit(VFXBeamRenderer& renderer, const Vector3& worldOffset,
     item.tipFade = tipFade;
     item.rootFade = rootFade;
     item.seed = m_Seed;
+    item.toon = toon ? 1.0f : 0.0f;
     renderer.Submit(item);
 }
 
@@ -97,6 +96,7 @@ void VFXBeamEntry::OnImGui()
     ImGui::DragFloat("Glow Alpha", &glowAlpha, 0.01f, 0.0f, 2.0f);
     ImGui::ColorEdit4("Color (HDR)", &color.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::ColorEdit4("Core Color", &coreColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+    ImGui::Checkbox("Toon (hard-edged bands)", &toon);   // 2026-10-04
     ImGui::Separator();
 
     ImGui::DragFloat("Scroll Speed (m/s)", &scrollSpeed, 0.1f, -40.0f, 40.0f);
@@ -141,6 +141,7 @@ json VFXBeamEntry::ToJson() const
         { "shrinkTime", shrinkTime },
         { "previewLength", previewLength },
         { "previewDir", V3(previewDir) },
+        { "toon", toon },
     };
 }
 
@@ -162,4 +163,5 @@ void VFXBeamEntry::FromJson(const json& j)
     shrinkTime = j.value("shrinkTime", shrinkTime);
     previewLength = j.value("previewLength", previewLength);
     previewDir = J3(j.value("previewDir", json()), previewDir);
+    toon = j.value("toon", false);   // 古い json には無い = 従来の柔らかい光線
 }

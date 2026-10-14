@@ -1,8 +1,7 @@
 #include "Graphics/Shader/Shader.h"
 #include "Graphics/Material/Texture.h"
-#include <iostream>
+
 #include <stdio.h>
-#include <algorithm>
 
 // ============================================
 // コンストラクタ

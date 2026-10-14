@@ -7,9 +7,6 @@
 #include "Graphics/Renderer/RenderStates.h"
 #include "Manager/ResourceManager.h"
 #include "Camera/CameraBase.h"
-#include <algorithm>
-#include <chrono>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 
@@ -17,7 +14,7 @@ namespace
 {
     constexpr UINT kSegments = 32;                   // VS と同じ（BEAM_SEGMENTS）
     constexpr UINT kVertsPerBeam = kSegments * 6;    // 分割ごとに四角 1 枚
-    constexpr UINT kLayers = 3;                      // 辉光 / 主色 / 白芯
+    constexpr UINT kLayers = 3;                      // グロー / 主色 / 白芯
 }
 
 bool VFXBeamRenderer::Initialize(ID3D11Device* device)

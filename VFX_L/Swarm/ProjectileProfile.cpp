@@ -3,12 +3,6 @@
 // ============================================================
 #include "Swarm/ProjectileProfile.h"
 #include "Swarm/AreaProfile.h"
-#include <algorithm>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <random>
 
 using namespace DirectX::SimpleMath;
 using json = nlohmann::json;
@@ -50,6 +44,7 @@ Swarm::Motion ProjectileProfile::ToMotion() const
     m.c1 = c1;
     m.baseRadius = radius;   // これより大きい当たり半径で撃たれたら、見た目と爆発も同じ倍率で大きく（拡大鏡）
     m.c2 = c2;
+    m.freezeTime = freezeTime;
     return m;
 }
 
@@ -69,8 +64,10 @@ json ProjectileProfile::ToJson() const
     j["speed"] = speed;
     j["radius"] = radius;
     j["lifetime"] = lifetime;
+    if (freezeTime > 0.0f) j["freezeTime"] = freezeTime;
 
     j["vfx"] = vfxFile;
+    j["castSound"] = castSound;
     j["visualSize"] = visualSize;
     j["visualStretch"] = visualStretch;
     return j;
@@ -89,7 +86,7 @@ void ProjectileProfile::FromJson(const json& j)
     c1 = J3(j.value("c1", json()), c1);
     c2 = J3(j.value("c2", json()), c2);
     const int mi = j.value("mirror", 0);
-    mirror = (mi >= 0 && mi <= 2) ? static_cast<Mirror>(mi) : Mirror::Fixed;
+    mirror = (mi >= 0 && mi <= 3) ? static_cast<Mirror>(mi) : Mirror::Fixed;
     retargetRadius = j.value("retargetRadius", retargetRadius);
     hitArea = j.value("hitArea", hitArea);
     hitAreaOnExpire = j.value("hitAreaOnExpire", hitAreaOnExpire);
@@ -107,8 +104,10 @@ void ProjectileProfile::FromJson(const json& j)
     speed = j.value("speed", speed);
     radius = j.value("radius", radius);
     lifetime = j.value("lifetime", lifetime);
+    freezeTime = j.value("freezeTime", freezeTime);
 
     vfxFile = j.value("vfx", vfxFile);
+    castSound = j.value("castSound", castSound);
     visualSize = j.value("visualSize", visualSize);
     visualStretch = j.value("visualStretch", visualStretch);
 }
@@ -116,7 +115,7 @@ void ProjectileProfile::FromJson(const json& j)
 // ============================================================
 // SwarmCommon.hlsli の SwarmBuildPath と同じ式（keepHeading = false の側）。
 // Drop は SwarmSpawnProjCS + SwarmBuildDropPath と同じ（空の始点 → 標的の直線）。
-// 片方だけ直すと編集器の線と実際の弾道がずれるので、必ず揃えること
+// 片方だけ直すとエディタの線と実際の弾道がずれるので、必ず揃えること
 // ============================================================
 void ProjectileProfile::BuildPreview(const Vector3& from, const Vector3& to,
     float sideSign, Vector3 out[4]) const
@@ -201,7 +200,7 @@ void ProjectileProfileDB::LoadAll()
 
     for (const auto& path : files)
     {
-        if ((int)g_Profiles.size() >= kScratchRow) break;   // 最後の行は編集器用
+        if ((int)g_Profiles.size() >= kScratchRow) break;   // 最後の行はエディタ用
 
         std::ifstream in(path);
         if (!in.is_open()) continue;
@@ -251,7 +250,7 @@ int ProjectileProfileDB::IndexOf(const std::string& name)
 int ProjectileProfileDB::Add(const ProjectileProfile& p)
 {
     EnsureBuiltin();
-    if ((int)g_Profiles.size() >= kScratchRow) return -1;   // 最後の行は編集器用
+    if ((int)g_Profiles.size() >= kScratchRow) return -1;   // 最後の行はエディタ用
     g_Profiles.push_back(p);
     g_ShotCount.push_back(0);
     return (int)g_Profiles.size() - 1;
@@ -301,6 +300,14 @@ bool ProjectileProfileDB::NextMirror(int index)
     case ProjectileProfile::Mirror::Random:
         return (g_Rng() & 1u) != 0u;
     default:
-        return false;
+        return false;   // Fixed / RandomAngle（向きは NextRoll が出す）
     }
+}
+
+uint32_t ProjectileProfileDB::NextRoll(int index)
+{
+    EnsureBuiltin();
+    if (index < 0 || index >= (int)g_Profiles.size()) return 0u;
+    if (g_Profiles[index].mirror != ProjectileProfile::Mirror::RandomAngle) return 0u;
+    return (uint32_t)g_Rng() & 0x7Fu;   // 128 段 = 2.8 度刻み
 }

@@ -4,13 +4,13 @@
 #include "Swarm/AreaVFXPlayer.h"
 #include "Swarm/AreaProfile.h"
 #include "VFX_Editor/VFXEffect.h"
-#include <algorithm>
+#include "VFX_Editor/VFXEntry.h"
 
 using namespace DirectX::SimpleMath;
 
 namespace
 {
-    constexpr size_t kMaxActive = 64;   // 溢れたら新しい物を諦める（降級）
+    constexpr size_t kMaxActive = 64;   // 溢れたら新しい物を諦める（格下げ）
 }
 
 AreaVFXPlayer::AreaVFXPlayer() = default;
@@ -34,6 +34,12 @@ std::shared_ptr<VFXEffect> AreaVFXPlayer::GetTemplate(const std::string& vfxFile
 uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
     float duration, bool follow, const VFXContext& ctx)
 {
+    return Play(vfxFile, pos, duration, follow, ctx, Vector3(1.0f, 1.0f, 1.0f));
+}
+
+uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
+    float duration, bool follow, const VFXContext& ctx, const Vector3& tint)
+{
     if (vfxFile.empty() || m_Active.size() >= kMaxActive) return 0;
 
     auto tmpl = GetTemplate(vfxFile);
@@ -42,6 +48,7 @@ uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
     Instance inst;
     inst.effect = std::make_unique<VFXEffect>();
     inst.effect->CloneFrom(*tmpl);
+    if (tint != Vector3(1.0f, 1.0f, 1.0f)) inst.effect->Tint(tint);   // 再生前に染める（粒子の色は OnPlay で GPU へ写る）
     inst.effect->InitStateMachine(ctx);
     inst.effect->SetWorldOffset(pos);
     inst.effect->Play();
@@ -63,6 +70,48 @@ void AreaVFXPlayer::SetInstance(uint32_t handle, const Vector3& pos, const Vecto
         inst.effect->SetBeamEnd(beamEnd);
         return;
     }
+}
+
+void AreaVFXPlayer::RemapTimeline(uint32_t handle, float split, float before, float after)
+{
+    auto remap = [&](float t)
+        {
+            return (t <= split) ? t * before : split * before + (t - split) * after;
+        };
+    for (auto& inst : m_Active)
+    {
+        if (inst.handle != handle) continue;
+        for (int i = 0; i < inst.effect->GetEntryCount(); ++i)
+        {
+            VFXEntry* e = inst.effect->GetEntry(i);
+            if (!e) continue;
+            const float start = remap(e->startTime);
+            if (e->duration >= 0.0f)
+                e->duration = (std::max)(0.0f, remap(e->startTime + e->duration) - start);
+            e->startTime = start;
+        }
+        return;
+    }
+}
+
+void AreaVFXPlayer::SetBeamWidth(uint32_t handle, float widthMul)
+{
+    for (auto& inst : m_Active)
+        if (inst.handle == handle)
+        {
+            inst.effect->SetBeamWidthMul(widthMul);
+            return;
+        }
+}
+
+void AreaVFXPlayer::RotateInstance(uint32_t handle, float yawDeg)
+{
+    for (auto& inst : m_Active)
+        if (inst.handle == handle)
+        {
+            inst.effect->RotateYaw(yawDeg);
+            return;
+        }
 }
 
 void AreaVFXPlayer::StopInstance(uint32_t handle)
@@ -96,9 +145,9 @@ void AreaVFXPlayer::Update(float dt, const Vector3& followPos)
 
     // 捨てる条件：
     //   - Stop を送って少し経った（発射はもう止まっている。出た粒子は GPU の池で勝手に消える）
-    //   - loop しない特効が自分で終わった
+    //   - loop しないエフェクトが自分で終わった
     // ※IsFinishing を待たない。Finishing は「粒子池全体の生存数が 0」で抜ける作りなので、
-    //   戦闘中（他の粒子が常に居る）は永遠に終わらず、実例が溜まり続ける
+    //   戦闘中（他の粒子が常に居る）は永遠に終わらず、インスタンスが溜まり続ける
     m_Active.erase(std::remove_if(m_Active.begin(), m_Active.end(),
         [](const Instance& i)
         {

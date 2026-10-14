@@ -5,8 +5,20 @@ cbuffer ParticleRenderCB : register(b0)
     matrix g_View;
     matrix g_Projection;
     float3 g_CameraPosition;
-    float _pad0;
+    // Which billboards this draw takes (2026-10-09, fire / black smoke flickered):
+    //   0 = all (one blended pass, as before)
+    //   1 = solid toon only (drawn first, depth WRITTEN, PS cuts alpha < 0.5)
+    //   2 = everything except solid toon (blended, depth read only)
+    // The alive list is filled with InterlockedAdd, so its order changes every
+    // frame; nearly opaque toon puffs drawn in that order swap which one is on
+    // top each frame. With depth written they occlude each other by distance.
+    float g_Pass;
 };
+
+// same bit as PARTICLE_TOON in GPUParticlePS (ParticleRenderMode::kToon)
+#define PARTICLE_TOON_BIT (1u << 14)
+// toon puffs at least this opaque (start alpha x 1.3) count as solid
+static const float SOLID_TOON_OPACITY = 0.85;
 
 StructuredBuffer<GPUParticle> particles : register(t0);
 StructuredBuffer<uint> aliveList : register(t1);
@@ -21,6 +33,10 @@ struct VSOutput
     nointerpolation uint uvFrame : TEXCOORD3;
     nointerpolation uint sheet : TEXCOORD4; // ParticleSheets index (particle.textureIndex)
     nointerpolation uint alphaBlend : TEXCOORD5; // 1 = alpha blended, 0 = additive
+    nointerpolation uint renderMode : TEXCOORD6; // toon bits (PARTICLE_TOON_*, GPUParticlePS)
+    // toon: x = life left relative to the start alpha (erodes the shape), y = opacity (start alpha x 1.3)
+    nointerpolation float2 toonFade : TEXCOORD7;
+    nointerpolation uint solidPass : TEXCOORD8;  // 1 = drawn in the depth-writing pass (PS cuts alpha < 0.5)
 };
 
 VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
@@ -57,6 +73,19 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     output.uvFrame = p.uvFrame;
     output.sheet = (uint) max(p.textureIndex, 0);
     output.alphaBlend = (((uint) p.renderMode) & PARTICLE_BILLBOARD_ALPHA) ? 1u : 0u;
+    output.renderMode = (uint) p.renderMode;
+    float startA = max(p.startColor.a, 1e-3);
+    output.toonFade = float2(saturate(p.color.a / startA), saturate(startA * 1.3));
+
+    // pass split (see g_Pass): a particle not taken by this pass becomes a zero-area triangle
+    bool solid = (((uint) p.renderMode) & PARTICLE_TOON_BIT) != 0u && output.alphaBlend != 0u
+              && output.toonFade.y >= SOLID_TOON_OPACITY;
+    if ((g_Pass > 0.5 && g_Pass < 1.5 && !solid) || (g_Pass > 1.5 && solid))
+    {
+        output.position = float4(0, 0, -1, 1);
+        return output;
+    }
+    output.solidPass = (solid && g_Pass > 0.5) ? 1u : 0u;
 
     float3 camRight = float3(g_View[0][0], g_View[1][0], g_View[2][0]);
     float3 camUp = float3(g_View[0][1], g_View[1][1], g_View[2][1]);

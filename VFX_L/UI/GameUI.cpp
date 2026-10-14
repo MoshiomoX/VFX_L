@@ -2,6 +2,8 @@
 // GameUI.cpp
 // ============================================================
 #include "UI/GameUI.h"
+#include "UI/UIDeco.h"
+#include "UI/InputGlyph.h"
 #include "ECS/Registry.h"
 #include "ECS/System/BackpackAggregateSystem.h"
 #include "UI/LevelUpSystem.h"
@@ -14,15 +16,18 @@
 #include "Component/ManaComponent.h"
 #include "Component/WandComponent.h"
 #include "Player/LevelComponent.h"
+#include "Player/WalletComponent.h"
 #include "Player/PlayerStateComponent.h"
+#include "Player/PlayerStatsComponent.h"
+#include "Player/ShieldComponent.h"
 #include "Manager/ResourceManager.h"
 #include "Manager/InputMap.h"
 #include "Manager/InputManager.h"
 #include "Graphics/Material/Texture.h"
 #include "ResourcePaths.h"
+#include "Audio/AudioSystem.h"
 #include "imgui.h"
-#include <algorithm>
-#include <iostream>
+#include "Core/DevUI.h"
 
 // ============================================================
 // 初期化
@@ -48,7 +53,7 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
 
     auto blockTex = ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo);
 
-    // ブロックの貼图は縁に陰影があるので、箱や線は無地の白で描く
+    // ブロックのテクスチャは縁に陰影があるので、箱や線は無地の白で描く
     m_WhiteTex = std::make_shared<Texture>();
     if (!m_WhiteTex->CreateSolid(device, 255, 255, 255, 255))
         m_WhiteTex = blockTex;
@@ -78,6 +83,8 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
     m_HUD.SetIconLookup([this](ItemID id) { return m_Backpack.FindIcon(id); });
 
     m_Pause.Layout(screenW, screenH);
+    m_Training.Layout(screenW, screenH);
+    m_Training.SetIconLookup([this](ItemID id) { return m_Backpack.FindIcon(id); });
 
     return true;
 }
@@ -106,6 +113,7 @@ void GameUI::Layout(float screenW, float screenH)
     m_LevelUp.Layout(screenW, screenH);
     m_HUD.Layout(screenW, screenH);
     m_Pause.Layout(screenW, screenH);
+    m_Training.Layout(screenW, screenH);
 }
 
 // ============================================================
@@ -139,7 +147,8 @@ void GameUI::Update(Registry& reg, Entity player, float dt)
     // HUD の残像と明滅の時間（モーダル表示中も進める）。
     // 2026-10-01 まで一度も呼ばれておらず、残像は満タンのまま・明滅は止まったままだった
     if (reg.Has<HealthComponent>(player) && reg.Has<ManaComponent>(player))
-        m_HUD.Update(dt, reg.Get<HealthComponent>(player), reg.Get<ManaComponent>(player));
+        m_HUD.Update(dt, reg.Get<HealthComponent>(player), reg.Get<ManaComponent>(player),
+            reg.Has<ShieldComponent>(player) ? &reg.Get<ShieldComponent>(player) : nullptr);
 
     // 死んだら何も開かせない（「力尽きた」の幕 → リザルトへ進むだけ）
     if (reg.Has<PlayerStateComponent>(player) && reg.Get<PlayerStateComponent>(player).IsDead())
@@ -176,12 +185,54 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     // グリッドの上には開ける。閉じればグリッドへ戻る
     if (InputMap::GetPauseToggle())
     {
-        if (m_Stack.Top() == UILayer::Pause)
+        if (m_Stack.Top() == UILayer::Pause && m_Pause.IsInSubPage())
+        {
+            m_Pause.CloseSubPage();   // 設定 / 遊び方のページだけ閉じてメニューへ戻る（設定の保存もここで）
+        }
+        else if (m_Stack.Top() == UILayer::Training)
+        {
+            m_Stack.Pop(UILayer::Training);   // トレーニングのメニューは Esc で閉じるだけ（一時停止を重ねない）
+            AudioSystem::Get().Play("ui_close");
+        }
+        else if (m_Stack.Top() == UILayer::Pause)
+        {
             m_Stack.Pop(UILayer::Pause);
+            AudioSystem::Get().Play("ui_close");
+        }
         else if (m_Stack.Top() != UILayer::LevelUp)
         {
             m_Stack.Push(UILayer::Pause);
             m_Pause.Open();
+            AudioSystem::Get().Play("ui_open");
+        }
+    }
+
+    // ---- 1c. パッドの B で閉じる要求（前のフレーム）----
+    // 押したフレームに閉じると、同じフレームの gameplay が B を「近くの物を使う」として拾ってしまう
+    if (m_PadClosePending)
+    {
+        m_PadClosePending = false;
+        if (m_Stack.Top() == UILayer::Backpack)
+        {
+            m_Stack.Pop(UILayer::Backpack);
+            m_Drag.Reset();
+            AudioSystem::Get().Play("ui_close");
+        }
+    }
+
+    // ---- 1d. トレーニング（実験場）のメニュー（T / パッド RB）。何も開いていない時か、自分が一番上の時だけ ----
+    if (m_TrainingEnabled && InputMap::GetTrainingToggle())
+    {
+        if (m_Stack.Top() == UILayer::Training)
+        {
+            m_Stack.Pop(UILayer::Training);
+            AudioSystem::Get().Play("ui_close");
+        }
+        else if (m_Stack.IsEmpty())
+        {
+            m_Stack.Push(UILayer::Training);
+            m_Training.Open();
+            AudioSystem::Get().Play("ui_open");
         }
     }
 
@@ -192,7 +243,11 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         m_Stack.CanReceiveInput(UILayer::Backpack) || m_Stack.IsEmpty();
 
     if (canToggleBackpack && InputMap::GetBackpackToggle())
+    {
         m_Stack.Toggle(UILayer::Backpack);
+        if (!m_Stack.IsOpen(UILayer::Backpack)) m_Drag.Reset();   // 掴んだまま閉じたら元へ戻す
+        AudioSystem::Get().Play(m_Stack.IsOpen(UILayer::Backpack) ? "ui_open" : "ui_close");
+    }
 
     // ---- 3. 一番上にだけ入力を渡す ----
     switch (m_Stack.Top())
@@ -203,18 +258,28 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 
         const auto& lv = reg.Get<LevelComponent>(player);
 
-        // 画面の外で選ばれた（自測など）なら、三択の層だけ残らないよう下ろす
+        // 画面の外で選ばれた（自動テストなど）なら、三択の層だけ残らないよう下ろす
         if (!lv.IsChoosing())
         {
             m_Stack.Pop(UILayer::LevelUp);
             break;
         }
 
+        // 金貨での引き直し（2026-10-04）：値段と所持をボタンへ
+        const WalletComponent* wallet = reg.Has<WalletComponent>(player) ? &reg.Get<WalletComponent>(player) : nullptr;
+        m_LevelUp.SetReroll((m_LevelUpSystem && wallet) ? m_LevelUpSystem->RerollCost(lv) : -1, wallet ? wallet->Coins() : 0);
+
         ItemID picked;
         if (m_LevelUp.HandleInput(lv, picked))
         {
             LevelUpSystem::Choose(reg, player, picked);
             m_Stack.Pop(UILayer::LevelUp);
+            AudioSystem::Get().Play("card_pick");
+        }
+        else if (m_LevelUp.ConsumeRerollRequest() && m_LevelUpSystem)
+        {
+            // 足りなければ何も変わらず、断りの音（鍵が開かない）
+            AudioSystem::Get().Play(m_LevelUpSystem->Reroll(reg, player) ? "card_reroll" : "gold_deny");
         }
         break;
     }
@@ -228,8 +293,25 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 
         // 箱が先（掴み開始）、グリッドが後（ドラッグの継続と着地）。
         // ドラッグの終了は常に BackpackUI 側が行う
+        //
+        // 最後に触った機器がパッドなら、マウスの処理の代わりにパッド操作（マスに吸い付くカーソル）を回す。
+        // 掴んだまま機器を替えたら取り消す（マウス側は「ボタンを離した = 置く」なので、そのまま渡すと勝手に置かれる）
+        const bool wasPad = m_Pad.IsActive();
+        const bool pad = m_Pad.DetectDevice();
+        if (pad != wasPad) m_Drag.Reset();
+
+        m_Spellbook.SetMouseEnabled(!pad);
         m_Spellbook.Update(reg.Get<SpellbookComponent>(player), bp, dt);
-        m_Backpack.HandleInput(bp);
+        if (pad)
+        {
+            if (m_Pad.Update(bp, m_Backpack, m_Spellbook, m_Drag, dt))
+                m_PadClosePending = true;
+            InputManager::Get().RequestHideCursor();
+        }
+        else
+        {
+            m_Backpack.HandleInput(bp);
+        }
         break;
     }
 
@@ -242,6 +324,11 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
             m_MenuAction = action;   // やり直す / タイトルへ：シーンが ConsumeMenuAction で拾う
         break;
     }
+
+    case UILayer::Training:
+        if (m_Training.HandleInput())
+            m_Stack.Pop(UILayer::Training);
+        break;
 
     default:
         break;
@@ -269,22 +356,38 @@ void GameUI::Render(Registry& reg, Entity player)
         const WandComponent* wand = reg.Has<WandComponent>(player)
             ? &reg.Get<WandComponent>(player) : nullptr;
         m_FrameInfo.wand = wand;
+        m_FrameInfo.shield = reg.Has<ShieldComponent>(player) ? &reg.Get<ShieldComponent>(player) : nullptr;
         m_HUD.Draw(m_Sprite, m_Text,
             reg.Get<HealthComponent>(player),
             reg.Get<ManaComponent>(player),
             reg.Get<LevelComponent>(player), m_FrameInfo);
         m_FrameInfo.wand = nullptr;   // 次のフレームまで指したままにしない
+        m_FrameInfo.shield = nullptr;
     }
 
     // ---- 操作案内（画面下の中央。影付き）----
     if (m_Stack.IsEmpty() && m_Prompt && *m_Prompt)
     {
         const std::wstring text = m_Prompt;
-        const float scale = 0.6f;
-        const DirectX::SimpleMath::Vector2 size = m_Text.Measure(text, scale);
-        const DirectX::SimpleMath::Vector2 pos = { (m_ScreenW - size.x) * 0.5f, m_ScreenH * 0.80f };
-        m_Text.Draw(text, { pos.x + 2.0f, pos.y + 2.0f }, { 0.0f, 0.0f, 0.0f, 0.8f }, scale);
-        m_Text.Draw(text, pos, { 1.0f, 0.9f, 0.55f, 1.0f }, scale);
+        const float scale = 0.6f * UIDeco::UIScale();
+        const DirectX::SimpleMath::Vector2 size = InputGlyph::Measure(m_Text, text, scale);   // {B} などはパッドのボタンの絵
+        // 魔力解放の大きな欄（2026-10-04、下の中央）の魔法陣より上に出す（重ならないように）。
+        // 欄の実際の大きさは倍率を掛けた ScaledStyle
+        float y = m_ScreenH * 0.80f;
+        const HUDStyle& hs = m_HUD.ScaledStyle();
+        if (hs.showSurgeSkill)
+        {
+            const float top = hs.surgeSkill.Resolve(m_ScreenW, m_ScreenH).y
+                - hs.surgeSkillSize * (0.5f + 0.5f * (std::max)(1.0f, hs.surgeCircleScale));
+            y = (std::min)(y, top - size.y - 10.0f * UIDeco::UIScale());
+        }
+        const DirectX::SimpleMath::Vector2 pos = { (m_ScreenW - size.x) * 0.5f, y };
+        // 下敷き（2026-10-07、HUD の文字と同じ板。草の上でも読めるように）。左右は少し広め
+        if (hs.textPlates)
+            UIDeco::DrawTextPlate(m_Sprite, pos, size, { hs.platePad.x * 1.6f, hs.platePad.y * 1.5f },
+                hs.plateColor, hs.plateLineAlpha);
+        InputGlyph::DrawShadowed(m_Sprite, m_Text, text, pos, { 1.0f, 0.9f, 0.55f, 1.0f }, scale,
+            { 2.0f * UIDeco::UIScale(), 2.0f * UIDeco::UIScale() }, { 0.0f, 0.0f, 0.0f, 0.8f });
     }
 
     if (reg.IsValid(player))
@@ -295,23 +398,28 @@ void GameUI::Render(Registry& reg, Entity player)
 
     // ---- 覆い層 ----
     // 文字はスプライトの後にまとめて描かれるので、同じ組の中だと
-    // tooltip の箱の上に背包の文字が透けて出る。別の組で最後に描く
+    // tooltip の箱の上にバックパックの文字が透けて出る。別の組で最後に描く
     if (reg.IsValid(player))
         DrawOverlay(reg, player);
 }
 
 // ============================================================
-// 覆い層：背包を操作している間の tooltip
+// 覆い層：バックパックを操作している間の tooltip
 //   グリッドの魔法 → 置いてある状態の値（隣のルーンの強化込み）
-//   グリッドの枠 / 魔法書の中の物 → 道具そのものの値
+//   グリッドの枠 / 魔法書の中の物 → アイテムそのものの値
 // ============================================================
 void GameUI::DrawOverlay(Registry& reg, Entity player)
 {
-    // ---- tooltip の中身（背包を操作している間だけ）----
+    // ---- tooltip の中身（バックパックを操作している間だけ）----
     ItemInfo::Sheet sheet;
     bool tooltip = false;
+    // 置いてある魔法の数字は能力アップ「魔法威力」込み（集約と同じ）
+    const float spellPower = reg.Has<PlayerStatsComponent>(player) ? reg.Get<PlayerStatsComponent>(player).spellPower : 1.0f;
+    // パッド操作中はカーソルを止めて少し経ってから、指している物のそばに出す
+    const bool pad = m_Pad.IsActive();
     if (m_Stack.CanReceiveInput(UILayer::Backpack) && !m_Drag.IsActive()
-        && reg.Has<BackpackComponent>(player) && !ImGui::GetIO().WantCaptureMouse)
+        && reg.Has<BackpackComponent>(player)
+        && (pad ? m_Pad.TooltipReady() : !DevUI::WantMouse()))
     {
         const auto& bp = reg.Get<BackpackComponent>(player);
         const int item = m_Backpack.GetHoverItemIndex();
@@ -320,7 +428,7 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
 
         tooltip = true;
         if (item >= 0 && item < (int)bp.items.size())
-            sheet = ItemInfo::DescribePlaced(bp, item);
+            sheet = ItemInfo::DescribePlaced(bp, item, spellPower);
         else if (frame >= 0 && frame < (int)bp.frames.size())
             sheet = ItemInfo::Describe(bp.frames[frame].id);
         else if (m_Spellbook.GetHoveredItem(bookId))
@@ -329,18 +437,19 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
             tooltip = false;
     }
 
-    // TEMP-TEST: 自測で置いた tooltip（鼠标の位置の代わりに m_TestTooltipPos）
+    // TEMP-TEST: 自動テストで置いた tooltip（マウスの位置の代わりに m_TestTooltipPos）
     DirectX::SimpleMath::Vector2 anchor = { 0.0f, 0.0f };
     {
         const auto mp = InputManager::Get().GetMousePos();
         anchor = { mp.x, mp.y };
+        if (pad) anchor = m_Pad.TooltipAnchor();
     }
     if (m_TestTooltipItem >= 0 && reg.Has<BackpackComponent>(player))
     {
         const auto& bp = reg.Get<BackpackComponent>(player);
         if (m_TestTooltipItem < (int)bp.items.size())
         {
-            sheet = ItemInfo::DescribePlaced(bp, m_TestTooltipItem);
+            sheet = ItemInfo::DescribePlaced(bp, m_TestTooltipItem, spellPower);
             tooltip = true;
             anchor = m_TestTooltipPos;
         }
@@ -359,20 +468,28 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     {
         const float shortSide = (std::min)(m_ScreenW, m_ScreenH);
         ItemSheetView::DrawTooltip(m_Sprite, m_WhiteTex, m_Text, sheet,
-            anchor, { m_ScreenW, m_ScreenH }, shortSide * 0.36f,
-            m_TooltipStyle.Scaled(shortSide / 900.0f));
+            anchor, { m_ScreenW, m_ScreenH }, shortSide * 0.36f * UIDeco::UIScale(),
+            m_TooltipStyle.Scaled(shortSide / 900.0f * UIDeco::UIScale()));
     }
 
     m_Sprite.End();
     m_Text.End();
 }
 
-// TEMP-TEST: 自測で画面を開閉する（VFXL_BATTLE_AUTOTEST=ui）
+// TEMP-TEST: 自動テストで画面を開閉する（VFXL_BATTLE_AUTOTEST=ui）
 void GameUI::TestShow(int layer)
 {
     m_Stack.Clear();
     if (layer == 1) m_Stack.Push(UILayer::Backpack);
     if (layer == 2) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); }
+    if (layer == 3) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenSettings(); }   // 一時停止 → 設定のページ
+    if (layer == 4) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenHowTo(); }      // 一時停止 → 遊び方のページ（2026-10-13）
+}
+
+void GameUI::TestOpenTraining(bool open)
+{
+    if (open && m_Stack.IsEmpty()) { m_Stack.Push(UILayer::Training); m_Training.Open(); }
+    if (!open && m_Stack.Top() == UILayer::Training) m_Stack.Pop(UILayer::Training);
 }
 
 // ============================================================
@@ -393,7 +510,7 @@ void GameUI::DrawGameOver()
         cleared ? DirectX::SimpleMath::Vector4{ 0.06f, 0.04f, 0.0f, 0.60f * a }
                 : DirectX::SimpleMath::Vector4{ 0.10f, 0.0f, 0.0f, 0.68f * a });
 
-    const float k = (std::min)(m_ScreenW, m_ScreenH) / 900.0f;
+    const float k = (std::min)(m_ScreenW, m_ScreenH) / 900.0f * UIDeco::UIScale();
 
     const std::wstring title = cleared ? L"ステージクリア" : L"力尽きた";
     const float ts = 1.4f * k;
@@ -428,6 +545,11 @@ void GameUI::DrawModals(Registry& reg, Entity player)
             {
                 m_Spellbook.Draw(m_Sprite);   // 箱が下、グリッドとドラッグ中が上
                 m_Backpack.Draw(m_Sprite, reg.Get<BackpackComponent>(player));
+                if (m_Stack.Top() == UILayer::Backpack)
+                {
+                    if (m_Pad.IsActive()) m_Pad.Draw(m_Sprite, m_Text, m_Backpack, m_Drag, { m_ScreenW, m_ScreenH });
+                    else BackpackPadControl::DrawMouseHint(m_Sprite, m_Text, m_Backpack, m_Drag, { m_ScreenW, m_ScreenH });
+                }
             }
             break;
 
@@ -438,6 +560,11 @@ void GameUI::DrawModals(Registry& reg, Entity player)
 
         case UILayer::Pause:
             m_Pause.Draw(m_Sprite, m_Text, m_WhiteTex);
+            break;
+
+        case UILayer::Training:
+            m_Training.Draw(m_Sprite, m_Text, m_WhiteTex,
+                reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr);
             break;
 
         default:
@@ -456,6 +583,16 @@ void GameUI::DrawModals(Registry& reg, Entity player)
 // ============================================================
 void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& aggregate)
 {
+    // ---------- UI 全体の倍率（2026-10-07）。変えたら Layout を呼び直す（バックパック・木箱・カード・メニュー）----
+    {
+        float s = UIDeco::UIScale();
+        if (ImGui::DragFloat("UI Scale (all)", &s, 0.01f, 0.5f, 3.0f))
+        {
+            UIDeco::SetUIScale(s);
+            Layout(m_ScreenW, m_ScreenH);
+        }
+    }
+
     // ---------- HUD ----------
     if (ImGui::CollapsingHeader("HUD"))
         m_HUD.DrawDebugUI();
@@ -495,6 +632,7 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
 
     ImGui::Text("Open : %s   (Tab / I / E / Start)",
         m_Stack.IsOpen(UILayer::Backpack) ? "YES" : "no");
+    ImGui::Text("Device : %s", m_Pad.IsActive() ? "pad (A grab/place, B back, LB/RB rotate, X return, Y box)" : "mouse");
     ImGui::Checkbox("Pause On Open", &m_PauseOnBackpack);
     ImGui::TextDisabled("Grab from the box, drop on the grid. RMB: remove");
     ImGui::TextDisabled("Wheel/R: rotate while dragging");

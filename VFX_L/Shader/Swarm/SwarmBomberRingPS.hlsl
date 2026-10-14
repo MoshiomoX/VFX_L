@@ -37,7 +37,9 @@ float4 main(RingIn i) : SV_TARGET
     float fill = 1.0 - smoothstep(i.progress - aa, i.progress, r);
     float rim = smoothstep(1.0 - i.edgeWidth - aa, 1.0 - i.edgeWidth, r);
 
-    float4 c = lerp(g_RingBack, g_RingFill, fill);
+    // negative progress (warn rings only, 2026-10-07) = rim only: nothing inside the rim
+    float4 back = (i.progress < 0.0) ? float4(0, 0, 0, 0) : g_RingBack;
+    float4 c = lerp(back, g_RingFill, fill);
     c = lerp(c, g_RingEdge, rim);
     c.a *= inside;
     return float4(c.rgb * c.a, c.a);

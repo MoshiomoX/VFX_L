@@ -8,8 +8,8 @@
 #include "Graphics/Material/Texture.h"
 #include "Manager/ResourceManager.h"
 #include "Graphics/Model/Model.h"
+#include "Graphics/PrimitiveBuilder.h"
 #include "imgui.h"
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 
@@ -29,7 +29,9 @@ namespace
 void VFXMeshEntry::LoadModel()
 {
     m_Model.reset();
-    if (!modelPath.empty())
+    if (modelPath == "@sphere")   // 組み込みの球（ファイル無し。半径 0.5 = scale 1 で直径 1m）
+        m_Model = PrimitiveBuilder::CreateSphere(ResourceManager::Get().GetDevice(), 0.5f, { 1, 1, 1, 1 }, 24);
+    else if (!modelPath.empty())
         m_Model = ResourceManager::Get().LoadModel(modelPath);
 }
 
@@ -96,6 +98,8 @@ void VFXMeshEntry::Submit(VFXMeshRenderer& renderer, const Vector3& worldOffset)
     item.params.dissolveEdgeColor = dissolveEdgeColor;
     item.params.hasNoise = noiseTex.IsValid() ? 1u : 0u;
     item.params.hasMask = maskTex.IsValid() ? 1u : 0u;
+    item.params.shade = shade;
+    item.params.noVertexColor = vertexColor ? 0.0f : 1.0f;
 
     item.blend = blend;
     item.twoSided = twoSided;
@@ -130,6 +134,11 @@ void VFXMeshEntry::OnImGui()
         LoadModel();
     if (!m_Model && !modelPath.empty())
         ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "load failed");
+    if (modelPath == "@sphere") ImGui::TextDisabled("built-in sphere");
+    if (ImGui::SmallButton("Use built-in sphere")) { modelPath = "@sphere"; LoadModel(); }
+    ImGui::SliderFloat("Shade (sphere look)", &shade, 0.0f, 1.0f);
+    ImGui::Checkbox("Use model color (vertex color)", &vertexColor);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Untextured FBX bake their material color into the vertex color. Turn off to get exactly the tint.");
     ImGui::Separator();
 
     mainTex.OnImGui("Main", kTexDir);
@@ -199,6 +208,8 @@ json VFXMeshEntry::ToJson() const
     j["intensity"] = intensity;
     j["blend"] = blend;
     j["twoSided"] = twoSided;
+    if (shade > 0.0f) j["shade"] = shade;
+    if (!vertexColor) j["vertexColor"] = false;
 
     j["mainTiling"] = V2(mainTiling);
     j["mainScroll"] = V2(mainScroll);
@@ -233,6 +244,8 @@ void VFXMeshEntry::FromJson(const json& j)
     intensity = j.value("intensity", intensity);
     blend = j.value("blend", blend);
     twoSided = j.value("twoSided", twoSided);
+    shade = j.value("shade", 0.0f);
+    vertexColor = j.value("vertexColor", true);
 
     mainTiling = J2(j.value("mainTiling", json()), mainTiling);
     mainScroll = J2(j.value("mainScroll", json()), mainScroll);

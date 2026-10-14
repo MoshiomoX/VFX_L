@@ -24,7 +24,7 @@ namespace Swarm
     constexpr float kFixedStep = 0.02f;
     constexpr int   kMaxSubSteps = 4;   // コマ落ち時の死のスパイラル防止
 
-    // プール容量。溢れたら生成しない（粒子の deadCount 護欄と同じ思想）
+    // プール容量。溢れたら生成しない（粒子の deadCount ガードと同じ思想）
     constexpr uint32_t kMaxEnemies = 4096;
     constexpr uint32_t kMaxProjectiles = 8192;
     constexpr uint32_t kMaxOrbs = 4096;
@@ -73,23 +73,48 @@ namespace Swarm
     // ============================================================
     constexpr uint32_t kEnemyKindMob = 0;      // 普通の雑魚（接触で殴る）
     constexpr uint32_t kEnemyKindBomber = 1;   // 自爆兵（接触で点火 → fuseTime 秒後に爆発）
-    constexpr uint32_t kEnemyKindElite = 2;    // 精英（大きい雑魚。BomberCB の elite* で体格・接触ダメージ・経験値を倍にする）
+    constexpr uint32_t kEnemyKindElite = 2;    // エリート（大きい雑魚。BomberCB の elite* で体格・接触ダメージ・経験値を倍にする）
     constexpr uint32_t kEnemyKindBoss = 3;     // 面の Boss（BomberCB の boss*。怯まない。HP と位置は BossInfo で CPU へ）
-    constexpr uint32_t kEnemyKindGhost = 4;    // 最終波の幽霊（2026-09-30）：雑魚の HP、速い、壁も台地も素通り、半透明の青白
-    // 描画リストの数（種類毎に貼図を替えて描く）。精英は雑魚と同じ網格・貼図なので雑魚のリストで描き、
+    constexpr uint32_t kEnemyKindGhost = 4;    // 最終ウェーブの幽霊（2026-09-30）：雑魚の HP、速い、壁も台地も素通り、半透明の青白
+    constexpr uint32_t kEnemyKindSplitter = 5; // スプリッター（2026-10-03）：死ぬと小さい分裂体を 3 体出す（SwarmCorpseTrackCS → 分裂の環 → MobSpawner）
+    constexpr uint32_t kEnemyKindSplitling = 6;// 分裂体：スプリッターの小さい子。もう分裂しない
+    constexpr uint32_t kEnemyKindBrute = 7;    // 重装兵（2026-10-07 夜）：HP 3 倍・遅い・大きい。4 分から雑魚と入れ替わる（Megabonk の Goblin Tank 相当）
+    // 突撃兵（2026-10-08）：近付くと止まって溜め（地面に赤い予告の帯）→ 向きを固定して一直線に突進 → 息切れで立ち止まる。
+    // 段階は EnemyExtra::fuse に持つ（SwarmEnemyAICS が書く。HLSL の SwarmChargerPhase）
+    constexpr uint32_t kEnemyKindCharger = 8;
+    // 盾兵（2026-10-08）：受ける 1 発毎のダメージから BomberCB::shieldArmor を引く（最低 shieldMinFrac 倍は通る）。
+    // 毒の沼・光線の細かい tick はほとんど通らず、一発の重い魔法がよく効く。身体の前に塔の盾（SwarmShieldVS）
+    constexpr uint32_t kEnemyKindShield = 9;
+    // 描画リストの数（種類毎にテクスチャを替えて描く）。エリートは雑魚と同じメッシュ・テクスチャなので雑魚のリストで描き、
     // 大きさと色は VS が種類を見て変える
-    constexpr uint32_t kEnemyKinds = 3;
-    // 描画リストの添字（種類 → リスト。精英 / Boss は雑魚のリスト）
+    constexpr uint32_t kEnemyKinds = 7;
+    // 描画リストの添字（種類 → リスト。エリート / Boss は雑魚のリスト、分裂体はスプリッターのリスト）
     constexpr uint32_t kDrawListMob = 0;
     constexpr uint32_t kDrawListBomber = 1;
-    constexpr uint32_t kDrawListGhost = 2;    // 最後に alpha blend で描く
+    constexpr uint32_t kDrawListSplitter = 2;
+    constexpr uint32_t kDrawListBrute = 3;    // 重装兵（緑のオーク）
+    constexpr uint32_t kDrawListCharger = 4;  // 突撃兵（黒い忍者）
+    constexpr uint32_t kDrawListShield = 5;   // 盾兵（紺の警官）
+    constexpr uint32_t kDrawListGhost = 6;    // 最後に alpha blend で描く（必ず最後の番号）
 
     struct EnemyExtra
     {
         uint32_t kind = kEnemyKindMob;
-        float    fuse = 0.0f;   // 点火からの秒数。0 = 未点火（点火した瞬間に 1 ステップ分が入る）
+        // 自爆兵：点火からの秒数。0 = 未点火（点火した瞬間に 1 ステップ分が入る）。
+        // 突撃兵：< 0 = 次の突進までの待ち（0 へ数え上げる）、0 = 追いかけ中（突進できる）、> 0 = 溜め始めてからの秒数
+        float    fuse = 0.0f;
     };
     static_assert(sizeof(EnemyExtra) == 8, "SwarmEnemyExtra layout mismatch");
+
+    // ============================================================
+    // 敵の状態（並行バッファ enemySlow、float4。2026-10-08 に float2 → float4）
+    //   x = 減速の残り秒、y = 減速の強さ（毒の沼。SwarmAreaDamageCS が書く）
+    //   z = 凍結の残り秒（> 0 の間は動かない・殴らない）
+    //   w = 凍結中：凍結の長さ（VS の出始め / 溶け際の演出用）、解けた後：再凍結できない残り秒
+    // 凍結の依頼は SwarmHitCS が Enemy::animIndex = kAnimFreezeRequest、animTime = 秒 で置き、
+    // 次のステップの SwarmEnemyAICS が受け取る（Enemy の 48B は変えない）
+    // ============================================================
+    constexpr uint32_t kAnimFreezeRequest = 3u;
 
     struct Projectile
     {
@@ -107,7 +132,7 @@ namespace Swarm
     // ============================================================
     // 投射物の運動（飛び方）
     //
-    // Motion   : 投射物プロファイル 1 個につき 1 行。編集器のデータがここへ入る。
+    // Motion   : 投射物プロファイル 1 個につき 1 行。エディタのデータがここへ入る。
     //            HLSL の SwarmMotion と同じ並び（48B）
     // ProjPath : 投射物スロットと同じ添字。今飛んでいる 3 次ベジェ。
     //            GPU が生成時（と再捕捉時）に組み立てる。CPU は中身を触らない（64B）
@@ -122,16 +147,58 @@ namespace Swarm
     constexpr uint32_t kMotionFlipBit = 0x80000000u;
 
     // ============================================================
-    // 誘発（基礎魔法 → 高級魔法。火球・石弾が消えた所に隕石が落ちる）
+    // 誘発（基本魔法 → 上級魔法。火球・石弾が消えた所に隕石が落ちる）
     //   生成依頼に並行の uint2 を付ける（Projectile の 48B は変えない）:
-    //     x = 誘発タグ。bit k = 「この弾が消えたら、杖の k 番の高級魔法がそこで撃てる」
+    //     x = 誘発タグ。bit k = 「この弾が消えたら、杖の k 番の上級魔法がそこで撃てる」
     //     y = kSpawnAtPos：Drop 型の着弾点を依頼の position にする（最寄りの敵を捕捉しない）
     //   タグはスロット毎の projTags に残り、SwarmProjEndCS が「このステップで消えたタグ付きの弾」を
-    //   環（先頭 16B = 今までに書いた総数、以降 16B × kMaxTriggerEvents）へ書く。CPU は回読して差分を取る。
+    //   環（先頭 16B = 今までに書いた総数、以降 16B × kMaxTriggerEvents）へ書く。CPU はリードバックして差分を取る。
     //   HLSL の SWARM_MAX_TRIGGER_EVENTS / SWARM_SPAWN_AT_POS と一致させること
     // ============================================================
     constexpr uint32_t kMaxTriggerEvents = 128;
     constexpr uint32_t kSpawnAtPos = 1u;
+    // y の bit 1〜7：曲線の横ずれの回転（0〜127 = 0〜360 度。ProjectileProfile::Mirror::RandomAngle、2026-10-06）。
+    // SpawnProjCS が角度にして ProjPath::sideSign（= 回転角 rad。反転は +π）へ入れる。HLSL の SWARM_SPAWN_ROLL_SHIFT と一致させること
+    constexpr uint32_t kSpawnRollShift = 1u;
+    constexpr uint32_t kSpawnRollMask = 0x7Fu;
+
+    // ============================================================
+    // 死んだ敵の砕け散り（2026-10-02）
+    //   SwarmCorpseTrackCS が「前のフレームは生きていて今は DEAD」の槽を見つけ、その時の位置・向き・種類を
+    //   環（kMaxCorpses 枠、先頭は RAW の通し番号）へ 1 つ書く。描画（SwarmCorpseVS）は部品毎に
+    //   (seed, 経過時間) の式で飛び散らせる。状態は持たない。HLSL の SwarmCorpse / SWARM_MAX_CORPSES と一致
+    // ============================================================
+    constexpr uint32_t kMaxCorpses = 512;
+    struct Corpse
+    {
+        Vector3  position;          // 死んだ時の位置（雑魚の position = 地面 + groundY）
+        float    yaw = 0.0f;
+        float    dir[2] = {};       // 飛ばす向き（xz の単位。プレイヤーから離れる向き）
+        float    birth = 0.0f;      // 死んだ時刻（SwarmSystem の時計 m_AnimClock）。0 = 空き
+        uint32_t kind = 0;
+        uint32_t seed = 0;
+        uint32_t cause = 0;         // 予約：死因（火・毒・雷で死に方を変える時用。今は 0）
+        float    _pad[2] = {};
+    };
+    static_assert(sizeof(Corpse) == 48, "SwarmCorpse layout mismatch");
+
+    // ============================================================
+    // 弾が出す範囲（命中・着弾の hitArea）への倍率（2026-10-02）
+    //   y の bit 8〜19 = 威力の倍率、bit 20〜31 = 持続の倍率（どちらも 256 = 1.0、0 は 1.0 扱い）。
+    //   SwarmSpawnProjCS がスロット毎の projBoost へ写し、範囲を出す所（HitCS / ProjMoveCS）が掛ける。
+    //   威力 = 能力アップ「魔法威力」、持続 = 魔力解放中に撃った弾（持続する範囲だけ伸びる）。
+    //   HLSL の SWARM_SPAWN_BOOST_SHIFT / SwarmBoostDamage / SwarmBoostDuration と一致させること
+    // ============================================================
+    constexpr uint32_t kSpawnBoostShift = 8u;
+    inline uint32_t PackSpawnBoost(float damageMul, float durationMul)
+    {
+        auto q = [](float v) -> uint32_t
+            {
+                const float c = (v < 1.0f / 256.0f) ? 1.0f / 256.0f : (v > 4095.0f / 256.0f ? 4095.0f / 256.0f : v);
+                return (uint32_t)(c * 256.0f + 0.5f);
+            };
+        return (q(damageMul) | (q(durationMul) << 12)) << kSpawnBoostShift;
+    }
 
     struct TriggerEvent
     {
@@ -163,7 +230,7 @@ namespace Swarm
         Vector3  c1 = { 0.33f, 0.0f, 0.0f };
         float    baseRadius = 0.0f;       // profile の当たり半径。これより大きく撃たれた弾は見た目も大きく（拡大鏡）。0 = 倍率 1
         Vector3  c2 = { 0.66f, 0.0f, 0.0f };
-        float    _pad2 = 0.0f;
+        float    freezeTime = 0.0f;       // > 0 = 当たった敵をこの秒数凍らせる（アイスランス。2026-10-08、元 _pad2）
     };
     static_assert(sizeof(Motion) == 48, "SwarmMotion layout mismatch");
 
@@ -174,7 +241,7 @@ namespace Swarm
         Vector3  p1;
         float    duration = 1.0f;
         Vector3  p2;
-        float    sideSign = 1.0f;
+        float    sideSign = 1.0f;   // 2026-10-06 から「横ずれの回転角（rad）」：0 = 右、π = 左（反転）、他 = 飛行軸の周りに回した向き（RandomAngle）
         Vector3  p3;
         float    speed = 0.0f;
     };
@@ -189,11 +256,22 @@ namespace Swarm
     //
     // 形は円盤：XZ の距離 <= radius かつ 高さの差 <= halfHeight（+ 雑魚のカプセル）
     // ============================================================
-    constexpr uint32_t kAreaFollowPlayer = 1u;   // 中心が玩家に付いて動く
+    constexpr uint32_t kAreaFollowPlayer = 1u;   // 中心がプレイヤーに付いて動く
     constexpr uint32_t kAreaStun = 2u;           // tick で被弾硬直 + 閃光を入れる
-    constexpr uint32_t kAreaCapsule = 4u;        // 胶囊（光線）：中心 → 終点の線分の周り。起点 / 終点 / 半径は毎ステップ BeamCB から（2026-09-30）
-    constexpr uint32_t kAreaBeamShift = 8u;      // (flags >> 8) & 0xF = 光線のチャンネル（BeamCB の添字）
-    // 減速（2026-10-01、毒の池）: (flags >> 12) & 0xF = q、tick の度に中の敵を q / 15 だけ遅くする（精英・Boss は半分）
+    constexpr uint32_t kAreaCapsule = 4u;        // カプセル（光線）：中心 → 終点の線分の周り。起点 / 終点 / 半径は毎ステップ BeamCB から（2026-09-30）
+    constexpr uint32_t kAreaShake = 8u;          // 出た時にカメラを揺らす（爆発。2026-10-03：命中の火花・死んだ時の土煙・毒の池まで揺らしていた）
+    // 凍結（2026-10-10、アイススパイク）: (flags >> 4) & 0xF = q、tick で当たった敵を q × 0.25 秒凍らせる
+    // （アイスランスの命中と同じ凍結の要求。エリート・Boss は半分、解けた直後は凍らない、は AICS が決める）
+    constexpr uint32_t kAreaFreezeShift = 4u;
+    constexpr float kAreaFreezeStep = 0.25f;
+    // 生まれた範囲を GPU の VFX レシピ（Area::vfxType）毎に数える数（SwarmLiquidTrackCS、音を鳴らす用。2026-10-03）。
+    // レシピ番号がこれ以上の物は最後の枠にまとめる
+    constexpr uint32_t kAreaBirthKinds = 127u;
+    constexpr uint32_t kAreaBeamShift = 8u;      // (flags >> 8) & 0xF = 光線のチャンネル（BeamCB の添字）。
+                                                 // 光線でない範囲ではここが「吹き飛ばしの強さ q / 15」（2026-10-12 突風、SwarmAreaPush）
+    constexpr float kPushSpeed = 28.0f;          // 吹き飛ばしの初速 m/s（HLSL の SWARM_PUSH_SPEED と同じ。三角形に減衰するので距離 = 速さ × 秒 / 2 = 3.5m）
+    constexpr float kPushTime = 0.25f;           // 減衰しきるまでの秒（SWARM_PUSH_TIME）
+    // 減速（2026-10-01、毒の池）: (flags >> 12) & 0xF = q、tick の度に中の敵を q / 15 だけ遅くする（エリート・Boss は半分）
     constexpr uint32_t kAreaSlowShift = 12u;
     constexpr uint32_t kMaxBeams = 4;            // 同時に出せる光線（HLSL の SWARM_MAX_BEAMS と同じ）
     constexpr uint32_t kHitAreaOnExpire = 1u;    // Motion::hitAreaFlags
@@ -208,7 +286,7 @@ namespace Swarm
         float    tickTimer = 0.0f;       // 0 = 出た最初のステップで tick する
         float    halfHeight = 1.5f;
         uint32_t flags = 0;
-        uint32_t vfxType = 0;            // GPU 側で粒子を出す配方。0 = 出さない（CPU が VFX を再生する）
+        uint32_t vfxType = 0;            // GPU 側で粒子を出すレシピ。0 = 出さない（CPU が VFX を再生する）
         uint32_t tickNow = 0;            // GPU が書く
     };
     static_assert(sizeof(Area) == 48, "SwarmArea layout mismatch");
@@ -287,11 +365,11 @@ namespace Swarm
 
         float maxSpeedMul = 1.5f;       // 合成速度の上限 = moveSpeed × これ
         float turnSpeed = 12.0f;        // 旋回の上限（rad/s）
-        float playerPushOut = 10.0f;    // 玩家に食い込んだ時に押し戻す強さ（1/s）
+        float playerPushOut = 10.0f;    // プレイヤーに食い込んだ時に押し戻す強さ（1/s）
         float contactDamage = 15.0f;    // 接触1回のダメージ（Megabonk 1 面の雑魚 8〜25）
 
         float attackInterval = 1.0f;    // 同じ雑魚が次に殴れるまでの秒数
-        float playerCapsuleHalf = 0.5f; // 玩家カプセルの直線部の半分。シーンが毎フレーム入れる
+        float playerCapsuleHalf = 0.5f; // プレイヤーカプセルの直線部の半分。シーンが毎フレーム入れる
         float hitStun = 0.08f;          // 被弾で止まる秒数（HitCS が animIndex=2 を立て、MoveCS が数える）
         float hitFlash = 3.0f;          // 被弾直後の頂点色の倍率。1 へ減衰。Bloom で光る
     };
@@ -299,13 +377,13 @@ namespace Swarm
 
     // ============================================================
     // 自爆兵の調整値（ContactCS は b3、雑魚の VS は b5）
-    // 爆発のダメージは玩家だけ。雑魚には入らない（見た目の範囲は威力 0）
+    // 爆発のダメージはプレイヤーだけ。雑魚には入らない（見た目の範囲は威力 0）
     // ============================================================
     struct BomberCB
     {
         float    fuseTime = 1.0f;       // 点火から爆発までの秒数
         float    triggerMargin = 0.15f; // 接触（半径の和）+ これ以内で点火
-        float    blastRadius = 2.5f;    // 爆発の瞬間に玩家（カプセル）がこの中なら被弾
+        float    blastRadius = 2.5f;    // 爆発の瞬間にプレイヤー（カプセル）がこの中なら被弾
         float    blastDamage = 30.0f;     // Megabonk の Boomer と同じ
 
         uint32_t blastArea = 0;         // 爆発の見た目に出す範囲（AreaDef の番号）。0 = 出さない
@@ -313,8 +391,8 @@ namespace Swarm
         float    flashGain = 4.0f;      // VS: 点滅の明るさ（Bloom で光る）
         float    _pad = 0.0f;
 
-        // ---- 精英（kEnemyKindElite）。種類の規則を読む pass はこの CB を持っているので相乗りする ----
-        float    eliteScale = 2.2f;       // 体格（模型・当たり / 接触の半径・HP 条の高さ）
+        // ---- エリート（kEnemyKindElite）。種類の規則を読む pass はこの CB を持っているので相乗りする ----
+        float    eliteScale = 2.2f;       // 体格（モデル・当たり / 接触の半径・HP 条の高さ）
         float    eliteDamageMul = 40.0f / 15.0f;   // 接触ダメージの倍率（Megabonk の小ボス 40 / 雑魚 15）
         float    eliteExpMul = 20.0f;     // 落とす経験値オーブの倍率（1 個で雑魚 20 体分）
         float    _elitePad = 0.0f;
@@ -325,17 +403,82 @@ namespace Swarm
         float    bossExpMul = 100.0f;
         float    _bossPad = 0.0f;
 
-        // ---- 最終波の幽霊（kEnemyKindGhost）----
+        // ---- 最終ウェーブの幽霊（kEnemyKindGhost）----
         float    ghostHover = 0.7f;          // VS: 地面からこれだけ浮く（判定の位置は地面のまま）
         float    ghostAlpha = 0.55f;         // VS: 頂点 alpha（alpha blend で描く）
         float    ghostGlow = 1.6f;           // VS: 青白の色に掛ける HDR の倍率
         float    ghostDamageMul = 1.0f;      // 接触ダメージの倍率
+
+        // ---- スプリッター（kEnemyKindSplitter）と分裂体（kEnemyKindSplitling）。2026-10-03 ----
+        float    splitterScale = 1.15f;      // 少し大きい
+        float    splitterDamageMul = 1.0f;
+        float    splitterExpMul = 1.5f;      // HP は雑魚の 2 倍、分裂体の分も足すと雑魚 2.4 体分
+        float    _splitterPad = 0.0f;
+        float    splitlingScale = 0.6f;
+        float    splitlingDamageMul = 0.5f;
+        float    splitlingExpMul = 0.3f;
+        float    _splitlingPad = 0.0f;
+
+        // ---- Boss の突進（2026-10-07、BossAttacks が毎フレーム書く）----
+        // bossChargeOn = 1 の間、Boss は流れ場・追跡を無視して (dirX, dirZ) × bossChargeSpeed で真っ直ぐ動く
+        // （速さ 0 = その場で溜め）。壁は今まで通り止める。プレイヤーにぶつかっても止まらない（突き抜ける）
+        float    bossChargeDirX = 0.0f;
+        float    bossChargeDirZ = 1.0f;
+        float    bossChargeSpeed = 0.0f;
+        float    bossChargeOn = 0.0f;
+
+        // ---- 重装兵（kEnemyKindBrute。2026-10-07 夜）----
+        float    bruteScale = 1.3f;          // 体格（モデル・当たり / 接触の半径）
+        float    bruteDamageMul = 1.6f;      // 接触ダメージ（Megabonk の Goblin Tank 30 / 雑魚 15 の手前）
+        float    bruteExpMul = 3.0f;         // HP が雑魚の 3 倍なので経験も 3 倍
+        float    _brutePad = 0.0f;
+
+        // ---- 突撃兵（kEnemyKindCharger。2026-10-08）----
+        // 追いかけ中、同じ高さでプレイヤーが chargerMinDist〜chargerMaxDist m に居て、突進の線が歩けるマスなら
+        // 止まって chargerWindup 秒溜める（向きはその瞬間に固定、地面に予告の帯）→ chargerDashSpeed m/s で
+        // chargerDashDist m 突進（壁で止まる）→ chargerRecover 秒立ち止まる → chargerCooldown 秒は普通に追いかける
+        float    chargerScale = 1.0f;
+        float    chargerDamageMul = 1.0f;     // 普段の接触
+        float    chargerExpMul = 1.5f;
+        float    chargerDashDamageMul = 1.8f; // 突進中にぶつかった時（ノックバックは爆発と同じ強さ）
+        float    chargerWindup = 0.8f;
+        float    chargerDashSpeed = 14.0f;
+        float    chargerDashDist = 14.0f;
+        float    chargerRecover = 1.2f;
+        float    chargerCooldown = 4.0f;
+        float    chargerMinDist = 6.0f;
+        float    chargerMaxDist = 12.0f;
+        float    chargerGlow = 3.0f;          // VS: 溜めの間の赤い点滅の明るさ
+
+        // ---- 盾兵（kEnemyKindShield。2026-10-08）----
+        float    shieldScale = 1.1f;
+        float    shieldDamageMul = 1.2f;
+        float    shieldExpMul = 2.0f;
+        float    shieldArmor = 5.0f;          // 1 発（弾 1 発・範囲の 1 tick）毎にこれだけ引く
+        float    shieldMinFrac = 0.2f;        // ただし元のダメージのこの割合は必ず通る
+
+        // ---- 凍結（アイスランス。2026-10-08）----
+        float    freezeBigMul = 0.5f;         // エリート・Boss の凍結の長さに掛ける
+        float    freezeImmunity = 3.0f;       // 解けてからこの秒数は凍らない（凍らせ続けられないように）
+        float    freezeTint = 1.0f;           // VS: 凍った体の氷色の強さ（0 = 色を変えない）
     };
-    static_assert(sizeof(BomberCB) == 80, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 224, "SwarmBomberCB layout mismatch");
 
     // ============================================================
-    // Boss の様子（GPU → CPU。SwarmEnemyCompactCS が毎フレーム書き、staging で回読）。
-    // Boss HP 条・画面外の目印・倒したかの判定に使う（回読なので 2〜3 フレーム古い）
+    // 分裂の環（GPU → CPU）。SwarmCorpseTrackCS がスプリッターの死を見つけたら 1 件書く（先頭 16B = 今までの総数、
+    // 以降 16B × kMaxSplitEvents）。CPU は誘発の環と同じくリードバックして差分を取り、MobSpawner が分裂体を湧かせる
+    // ============================================================
+    constexpr uint32_t kMaxSplitEvents = 128;
+    struct SplitEvent
+    {
+        Vector3  position;    // 死んだ所（敵の位置 = 地面 + groundY）
+        uint32_t kind = 0;    // 死んだ物の種類（今はスプリッターだけ）
+    };
+    static_assert(sizeof(SplitEvent) == 16, "SwarmSplitEvent layout mismatch");
+
+    // ============================================================
+    // Boss の様子（GPU → CPU。SwarmEnemyCompactCS が毎フレーム書き、staging でリードバック）。
+    // Boss HP 条・画面外の目印・倒したかの判定に使う（リードバックなので 2〜3 フレーム古い）
     // ============================================================
     struct BossInfo
     {
@@ -349,9 +492,9 @@ namespace Swarm
     static_assert(sizeof(BossInfo) == 32, "SwarmBossInfo layout mismatch");
 
     // ============================================================
-    // 玩家が受けた打撃の向き（GPU → CPU、2026-10-01 ノックバック用）。
-    // SwarmContactCS が殴られた / 爆発を受けた度に「敵（爆心）→ 玩家」の単位ベクトル × 1000 と回数を足す。
-    // counters と同じく GPU 上で永久に累加し、CPU は前回値との差分を取る（消さない。読み損ねても取りこぼさない）
+    // プレイヤーが受けた打撃の向き（GPU → CPU、2026-10-01 ノックバック用）。
+    // SwarmContactCS が殴られた / 爆発を受けた度に「敵（爆心）→ プレイヤー」の単位ベクトル × 1000 と回数を足す。
+    // counters と同じく GPU 上で永久に累積し、CPU は前回値との差分を取る（消さない。読み損ねても取りこぼさない）
     // ============================================================
     struct PlayerHitInfo
     {
@@ -382,7 +525,7 @@ namespace Swarm
     static_assert(sizeof(OrbCB) == 32, "SwarmOrbCB layout mismatch");
 
     // ============================================================
-    // 光線（胶囊型の範囲）の起点 / 終点（b3、AreaTickCS）。CPU が毎フレーム書く。
+    // 光線（カプセル型の範囲）の起点 / 終点（b3、AreaTickCS）。CPU が毎フレーム書く。
     // start.w = 半径、end.w = 1 の間だけ生きる（0 にすると GPU 側の範囲が消える）
     // ============================================================
     struct BeamCB
@@ -396,7 +539,7 @@ namespace Swarm
     // 光線の標的（b4、SwarmBeamTargetCS、2026-10-01）。チャンネル毎:
     //   origin.w = asfloat(cmd)（0 = 未使用 / 1 = 開始: seek に一番近い敵を捕まえる / 2 = 追跡: 捕まえた敵が
     //   死んだら・遠くへ行ったら、射程内で光線の向きに一番近い敵へ乗り換える）、dir.w = 射程、seek.w = asfloat(serial)
-    // 結果は 32B × チャンネル（slot, serial, valid, pad, pos.xyz, pad）を staging で回読
+    // 結果は 32B × チャンネル（slot, serial, valid, pad, pos.xyz, pad）を staging でリードバック
     // ============================================================
     enum : uint32_t { kBeamTargetIdle = 0, kBeamTargetStart = 1, kBeamTargetTrack = 2 };
     struct BeamTargetCB
@@ -418,7 +561,7 @@ namespace Swarm
     static_assert(sizeof(BeamTarget) == 32, "SwarmBeamTarget layout mismatch");
     // ============================================================
   // 転送回収用（b1）
-  // 生成キューの [offset, offset+count) を、玩家から minDist より
+  // 生成キューの [offset, offset+count) を、プレイヤーから minDist より
   // 遠い活き雑魚へ上書きする
   // ============================================================
     struct RecycleCB

@@ -1,6 +1,6 @@
 // ============================================================
 // PlayerStateComponent.h
-// プレイヤー状態（純データ）。階層状態機（HSM）の3層構成。
+// プレイヤー状態（純データ）。階層ステートマシン（HSM）の3層構成。
 //
 //    層ごとに独立して遷移する。「走りながら杖を振る」は
 //    Move=Run と Action=Casting が同時に成立している状態。
@@ -19,7 +19,7 @@
 enum class StateLayer : uint32_t
 {
     Move   = 0,   // 最下位：移動と接地
-    Action = 1,   // 中位：施法などの動作
+    Action = 1,   // 中位：詠唱などの動作
     Damage = 2,   // 最上位：被弾と死亡
 };
 
@@ -58,7 +58,7 @@ enum class MoveDirID
 // 動作層：杖を振っているか
 // Casting は Move を抑制しない。
 
-//   ここで移動を止めると走位という唯一の操作が奪われる。
+//   ここで移動を止めると立ち回りという唯一の操作が奪われる。
 // ============================================================
 enum class ActionStateID
 {
@@ -115,7 +115,7 @@ struct PlayerStateComponent
     // ---- 被損層のタイマー ----
     float hurtDuration     = 0.25f;   // 被弾硬直の長さ
     float invincibleTimer  = 0.0f;    // これが 0 より大きい間は無敵
-    float invincibleAfterHit = 0.6f;  // 被弾時に設定する無敵時間
+    float invincibleAfterHit = 0.3f;  // 被弾時に設定する無敵時間（2026-10-07 に 0.6 → 0.3：同類の 0.15〜0.4 秒より長く、シールドと合わせて中盤まで HP がほぼ減らなかった）
 
     // ---- 遷移の記録（デバッグ表示用。実処理には使わない）----
     MoveStateID   prevMove   = MoveStateID::Idle;

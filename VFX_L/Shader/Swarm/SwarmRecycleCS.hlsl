@@ -23,7 +23,8 @@ RWStructuredBuffer<uint> enemyMaxHp : register(u2);
 // recycled forgets its fuse
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // poison slow per slot: a recycled enemy is a new one, unslowed
-RWStructuredBuffer<float2> enemySlow : register(u4);
+RWStructuredBuffer<float4> enemySlow : register(u4); // slow + freeze (float4 since 2026-10-08)
+RWStructuredBuffer<float4> enemyPush : register(u5); // knockback (the Gust, 2026-10-12): cleared with the slow
 
 cbuffer SwarmRecycleCB : register(b1)
 {
@@ -46,8 +47,11 @@ void main(uint3 id : SV_DispatchThreadID)
     float dSq = d.x * d.x + d.z * d.z;
     if (dSq < g_RecycleMinDistSq)
         return;
-    // elites / the boss are never recycled into a plain mob: they keep chasing
-    if (enemyExtra[i].kind >= SWARM_KIND_ELITE)
+    // elites / the boss are never recycled into a plain mob: they keep chasing.
+    // Ghosts neither (they fly straight in). Splitters and splitlings can be (2026-10-03: they are
+    // numbered after the ghost, so the old "kind >= ELITE" test would have pinned them far away)
+    uint kind = enemyExtra[i].kind;
+    if (kind == SWARM_KIND_ELITE || kind == SWARM_KIND_BOSS || kind == SWARM_KIND_GHOST)
         return;
 
     uint prev;
@@ -63,5 +67,6 @@ void main(uint3 id : SV_DispatchThreadID)
     enemies[i] = req;
     enemyMaxHp[i] = req.hp;
     enemyExtra[i] = extra;
-    enemySlow[i] = float2(0, 0);
+    enemySlow[i] = float4(0, 0, 0, 0);
+    enemyPush[i] = float4(0, 0, 0, 0);
 }

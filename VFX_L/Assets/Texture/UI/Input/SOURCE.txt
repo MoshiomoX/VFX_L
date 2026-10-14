@@ -1,0 +1,34 @@
+Kenney Input Prompts 1.5 (Xbox Series / Double = 128px)
+https://kenney.nl/assets/input-prompts
+License: CC0 1.0 (credit not required; "Kenney" / www.kenney.nl)
+Downloaded 2026-10-09.
+
+PadA.png      <- xbox_button_color_a.png
+PadB.png      <- xbox_button_color_b.png
+PadX.png      <- xbox_button_color_x.png
+PadY.png      <- xbox_button_color_y.png
+PadLB.png     <- xbox_lb.png
+PadRB.png     <- xbox_rb.png
+PadStart.png  <- xbox_button_start.png
+PadBack.png   <- xbox_button_back.png
+PadDpad.png   <- xbox_dpad.png
+PadDpadV.png  <- xbox_dpad_vertical.png
+PadDpadH.png  <- xbox_dpad_horizontal.png
+PadLS.png     <- xbox_stick_l.png
+
+Used by UI/InputGlyph (tokens {A} {B} {X} {Y} {LB} {RB} {START} {BACK} {DPAD} {DPADV} {DPADH} {LS} inside UI text).
+Colored images: loaded as sRGB.
+
+---- Keyboard & Mouse (same pack, Keyboard & Mouse / Double = 128px), added 2026-10-09 ----
+KeyCap.png      <- keyboard_f.png with the cut-out letter filled white (blank keycap)
+Key<Name>.png   <- KeyCap.png stretched + key name in Bebas Neue (SIL OFL 1.1, Assets/Fonts/BebasNeue-Regular.ttf),
+                   made by Tools/BuildKeyIcons.ps1 (KeyF / KeyEsc / KeyEnter / KeyTab / KeyBackSpace ...)
+KeyArrows.png   <- keyboard_arrows_all.png
+KeyArrowsV.png  <- keyboard_arrows_vertical.png
+KeyArrowsH.png  <- keyboard_arrows_horizontal.png
+MouseL.png      <- mouse_left.png
+MouseR.png      <- mouse_right.png
+MouseWheel.png  <- mouse_scroll.png
+
+Tokens: {K:<key name>} (Key<Name>.png, e.g. {K:F} {K:Esc}; names without an image get KeyCap.png + text), {K:ARROWS} {K:ARROWSV} {K:ARROWSH}, {M:L} {M:R} {M:WHEEL}.
+<keyboard|pad> in UI text picks one side by the last used input device (InputManager::GetLastDevice).

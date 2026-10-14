@@ -8,12 +8,16 @@
 // travelling along g_WindDir + a small flutter) and the trample map.
 // The blade keeps its length: the more it bends, the lower the tip.
 // The sideways offset grows with t^2 so the blade curves.
+//
+// Fire (g_Fire, GrassFireField): spent fuel chars the blade (dark,
+// shorter), a hot cell makes the tip glow (ember, passed to the PS).
 // ============================================================
 #include "GrassCommon.hlsli"
 
 StructuredBuffer<GrassBlade> g_Blades : register(t0);
 Texture2D<float2> g_Trample : register(t1);
 Texture2D<float4> g_Ground : register(t2);
+Texture2D<float2> g_Fire : register(t3);   // x = temperature, y = fuel left (0..1)
 SamplerState s_Linear : register(s0);
 
 struct GrassOut
@@ -23,6 +27,7 @@ struct GrassOut
     float3 normal : TEXCOORD1;
     float3 color : TEXCOORD2;  // ground color under the blade * its shade
     float t : TEXCOORD3;       // 0 root .. 1 tip
+    float glow : TEXCOORD4;    // ember glow 0..1 (fire)
 };
 
 // x = across the blade (-1..1, times half the width), y = t
@@ -42,6 +47,17 @@ GrassOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float2 side = float2(cos(b.yaw), sin(b.yaw));
     float2 facing = float2(-side.y, side.x);
     float2 uv = (b.pos.xz - g_MapOrigin) / g_MapSize;
+
+    // fire: burnt grass is short and black, a hot cell glows at the tip
+    float burn = 0.0;
+    float glow = 0.0;
+    if (g_FireOn > 0.5)
+    {
+        float2 fire = g_Fire.SampleLevel(s_Linear, uv, 0);
+        burn = saturate(1.0 - fire.y);
+        glow = saturate((fire.x - g_FireIgnite * 0.7) * 1.5);
+        b.height *= 1.0 - g_FireShrink * burn;
+    }
 
     // wind: mostly calm with gusts rolling across the field
     float phase = dot(b.pos.xz, g_WindDir) * g_WindScale * 6.2831853 - g_Time * g_WindSpeed;
@@ -73,7 +89,9 @@ GrassOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     o.pos = mul(float4(p, 1.0), g_ViewProj);
     // mostly up (the field shades like the ground under it), leaning a little with the blade
     o.normal = normalize(float3(0.0, 1.0, 0.0) + float3(facing.x, 0.0, facing.y) * 0.25);
-    o.color = g_Ground.SampleLevel(s_Linear, uv, 0).rgb * b.shade;
+    // charred: the ground colour darkens toward soot (keeps its hue)
+    o.color = g_Ground.SampleLevel(s_Linear, uv, 0).rgb * b.shade * lerp(1.0, 0.06, pow(burn, 0.6));
     o.t = t;
+    o.glow = glow;
     return o;
 }

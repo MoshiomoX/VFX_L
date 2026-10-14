@@ -27,19 +27,25 @@ public:
         copy->isPlaying = false;
         copy->emitterData = emitterData;
         copy->sourceModelPath = sourceModelPath;
-        // 帯の設定は写すが、style の登録は実例ごと（複製先が自分で登録する）
+        // 帯の設定は写すが、style の登録はインスタンスごと（複製先が自分で登録する）
         copy->trailEnabled = trailEnabled;
         copy->trail = trail;
         copy->trailTex = trailTex;
-        // 発射源の登録は実例ごと。複製先は OnPlay で自分の分を登録する
+        // 発射源の登録はインスタンスごと。複製先は OnPlay で自分の分を登録する
         copy->emitterData.shape.sourceId = -1;
         copy->emitterData.shape.sourceCount = 0;
-        // メッシュ粒子の模型も実例ごとに登録する（参照を数えるため）
+        // メッシュ粒子のモデルもインスタンスごとに登録する（参照を数えるため）
         copy->emitterData.meshSlot = 0;
         return copy;
     }
 	json ToJson() const override;
 	void FromJson(const json& j) override;
+    void Tint(const DirectX::SimpleMath::Vector3& c) override
+    {
+        auto mul = [&](DirectX::SimpleMath::Vector4& v) { v.x *= c.x; v.y *= c.y; v.z *= c.z; };
+        mul(emitterData.startColorMin); mul(emitterData.startColorMax);
+        mul(emitterData.endColorMin);   mul(emitterData.endColorMax);
+    }
 
     GPUParticleEmitter emitterData;
     int runtimeID = -1;
@@ -51,7 +57,7 @@ public:
     // ============================================
     bool               trailEnabled = false;
     ParticleTrailStyle trail;
-    VFXTextureRef      trailTex;          // 帯の貼图（json "trail.tex"）。無ければ白
+    VFXTextureRef      trailTex;          // 帯のテクスチャ（json "trail.tex"）。無ければ白
     // GPUEmitter::trailStyle に入れる値（0 = 帯なし）
     int GetTrailSlot() const { return (trailEnabled && m_TrailStyleId >= 0) ? m_TrailStyleId + 1 : 0; }
 
@@ -60,7 +66,8 @@ public:
     //   sourceModelPath : json "source"。静的モデルを OnPlay で登録する
     //   externalSource  : シーンが実行時に差し込んだ源（参照モデルの骨格等）。
     //                     OnPlay で読み直さず、OnStop でも解除しない（所有はシーン）
-    //   followWorld     : 非所有。非 null なら emitter.world にこれを使い、
+    //   followWorld     : 非所有。非 null なら emitter.world にこ
+    // れを使い、
     //                     effect の worldOffset は足さない（源の世界行列に従う）
     // ============================================
     std::string sourceModelPath;
@@ -85,9 +92,9 @@ private:
     GPUParticleSystem*     m_TrailOwner = nullptr;    // 登録先（解除用）
     int                    m_TrailStyleId = -1;
 
-    // メッシュ粒子の模型を登録 / 差し替え / 解除する（Render = Mesh で模型を選んだ時だけ）。
-    // 再生中は毎フレーム呼ぶ（Inspector で模型が変わったら取り直す）。
-    // OnStop では解除しない（生き残った粒子がまだその模型で描かれている）
+    // メッシュ粒子のモデルを登録 / 差し替え / 解除する（Render = Mesh でモデルを選んだ時だけ）。
+    // 再生中は毎フレーム呼ぶ（Inspector でモデルが変わったら取り直す）。
+    // OnStop では解除しない（生き残った粒子がまだそのモデルで描かれている）
     void SyncMeshSlot(const VFXContext& ctx);
     void ReleaseMeshSlot();
 

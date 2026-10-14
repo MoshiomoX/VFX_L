@@ -31,10 +31,13 @@
 #include "UI/SpellbookUI.h"
 #include "UI/ItemSheetView.h"
 #include "UI/PauseMenuUI.h"
+#include "UI/BackpackPadControl.h"
+#include "UI/TrainingMenuUI.h"
 struct ID3D11Device;
 struct ID3D11DeviceContext;
 class Registry;
 class BackpackAggregateSystem;
+class LevelUpSystem;
 
 class GameUI
 {
@@ -65,21 +68,28 @@ public:
     // 開いている間はマウスで操作するので、シーンはカーソルを出す
     bool IsModalOpen() const { return !m_Stack.IsEmpty(); }
 
-    // TEMP-TEST: 自測（VFXL_BATTLE_AUTOTEST=ui）。鼠标を使わずに画面を開閉し、tooltip を指定の位置に出す
-    //   layer: 0 = 全部閉じる / 1 = 背包 / 2 = 一時停止。itemIndex < 0 で tooltip を消す
+    // TEMP-TEST: 自動テスト（VFXL_BATTLE_AUTOTEST=ui）。マウスを使わずに画面を開閉し、tooltip を指定の位置に出す
+    //   layer: 0 = 全部閉じる / 1 = バックパック / 2 = 一時停止 / 3 = 設定のページ / 4 = 遊び方のページ。itemIndex < 0 で tooltip を消す
     void TestShow(int layer);
     const SpellbookUI& GetSpellbook() const { return m_Spellbook; }   // TEMP-TEST: 木箱の物理の記録
+    BackpackPadControl& TestPad() { return m_Pad; }          // TEMP-TEST: パッド操作（padbag）
+    const DragContext& GetDrag() const { return m_Drag; }    // TEMP-TEST
     void TestTooltip(int itemIndex, const DirectX::SimpleMath::Vector2& pos) { m_TestTooltipItem = itemIndex; m_TestTooltipPos = pos; }
 
     // 全部下ろす（プレイヤー消失時など）
     void Clear() { m_Stack.Clear(); }
+
+    // バックパックの画面を開いているか（チュートリアルの「開いて置こう」の判定。2026-10-13）
+    bool IsBackpackOpen() const { return m_Stack.Top() == UILayer::Backpack; }
+    // チュートリアル中：一時停止のメニューに「チュートリアルを飛ばす」が出る（ConsumeMenuAction の SkipTutorial）
+    void SetTutorialActive(bool on) { m_Pause.SetTutorialActive(on); }
 
     // 画面下の操作案内（「[F] Open」など）。nullptr で消す。毎フレームシーンが入れ直す。
     // モーダルが開いている間は出さない（HUD と同じ）
     void SetPrompt(const wchar_t* text) { m_Prompt = text; }
 
     // 一時停止のメニューで選ばれた物（やり直す / タイトルへ）。取ったら None に戻る。
-    // 場面の切替はシーンが行う（GameUI は SceneManager を知らない）
+    // シーンの切替はシーンが行う（GameUI は SceneManager を知らない）
     PauseMenuUI::Action ConsumeMenuAction()
     {
         const auto a = m_MenuAction;
@@ -97,7 +107,7 @@ public:
     // Boss の HP 条（0..1）。負で消す。毎フレームシーンが入れる
     void SetBossBar(float hpRatio) { m_FrameInfo.bossHp = hpRatio; }
 
-    // HUD の経過時間・撃破数と、画面外の目印（箱・精英）。毎フレームシーンが入れ直す
+    // HUD の経過時間・撃破数と、画面外の目印（箱・エリート）。毎フレームシーンが入れ直す
     // stageTime: 面の制限時間（秒）。0 なら経過時間をそのまま出す
     void SetRunInfo(float runTime, uint32_t kills, float stageTime = 0.0f)
     {
@@ -107,6 +117,26 @@ public:
     }
     // 面の番号と名前（撃破数の行の頭に「第 2 面 砂漠」）。stage = 0 なら出さない
     void SetStage(int stage, const wchar_t* name) { m_FrameInfo.stage = stage; m_FrameInfo.stageName = name; }
+    // 金貨（2026-10-04）。HUD の MP バーの下に出す（< 0 = 出さない）
+    void SetGold(int gold) { m_FrameInfo.gold = gold; }
+    // 目標の一行（撃破数の下、「目標: 」は HUD が付ける）。nullptr で消す。毎フレームシーンが入れ直す（2026-10-07）
+    void SetObjective(const wchar_t* text) { m_FrameInfo.objective = text; }
+    // 画面の真ん中の案内（2026-10-07。押し寄せ・エリート・最終ウェーブ）。text = null で消す
+    void SetAnnounce(const wchar_t* text, float alpha, float age)
+    {
+        m_FrameInfo.announce = text;
+        m_FrameInfo.announceAlpha = alpha;
+        m_FrameInfo.announceAge = age;
+    }
+    // 四択の引き直し（金貨）に使う。無ければ引き直しのボタンを出さない
+    void SetLevelUpSystem(LevelUpSystem* sys) { m_LevelUpSystem = sys; }
+    // トレーニング（実験場）のメニュー（2026-10-07）。true の間だけ T / パッド RB で開く。
+    // メニューの依頼はシーンが毎フレーム取り（SpellLab::Apply）、結果の一行を SetTrainingMessage で返す
+    void SetTrainingEnabled(bool on) { m_TrainingEnabled = on; }
+    std::vector<TrainingRequest> ConsumeTrainingRequests() { return m_Training.ConsumeRequests(); }
+    void SetTrainingMessage(const std::wstring& msg) { if (!msg.empty()) m_Training.SetMessage(msg); }
+    TrainingMenuUI& TestTraining() { return m_Training; }   // TEMP-TEST: 自動テスト（training）
+    void TestOpenTraining(bool open);                        // TEMP-TEST
     void SetMarkers(const DirectX::SimpleMath::Matrix& viewProj, std::vector<HUDMarker> markers)
     {
         m_FrameInfo.viewProj = viewProj;
@@ -131,6 +161,8 @@ private:
     LevelUpUI      m_LevelUp;
 	DragContext    m_Drag;
     HUD            m_HUD;
+    BackpackPadControl m_Pad;                  // バックパック画面のパッド操作
+    bool           m_PadClosePending = false;  // B で閉じる要求（次のフレームで閉じる）
 
     bool  m_PauseOnBackpack = true;
     float m_ScreenW = 1920.0f;
@@ -138,7 +170,10 @@ private:
 
     const wchar_t* m_Prompt = nullptr;   // 画面下の操作案内（SetPrompt）
     HUDFrameInfo   m_FrameInfo;          // SetRunInfo / SetMarkers。wand は Render で入れる
+    LevelUpSystem* m_LevelUpSystem = nullptr;   // SetLevelUpSystem（引き直し）
 
+    TrainingMenuUI      m_Training;          // トレーニングのメニュー（実験場だけ）
+    bool                m_TrainingEnabled = false;
     PauseMenuUI         m_Pause;
     PauseMenuUI::Action m_MenuAction = PauseMenuUI::Action::None;
     float               m_GameOverTime = -1.0f;   // SetGameOver

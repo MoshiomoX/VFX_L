@@ -18,9 +18,9 @@ inline StatItemDef MakeMaxManaUp()
     def.common.id = ItemID::MaxManaUp;
     def.common.name = "Max MP +20";
     def.common.displayName = L"最大MP +20";
-    def.common.description = L"MP の上限を上げる。今の MP も同じだけ増える。";
+    def.common.description = L"MP の上限が増え、増えた分だけ回復する。";
     def.common.category = ItemCategory::Stat;
-    def.common.occupyCells = {};                         // 背包に置かないので形は無い
+    def.common.occupyCells = {};                         // バックパックに置かないので形は無い
     def.common.influenceCells = {};
     def.common.color = { 0.30f, 0.50f, 0.95f, 1.0f };   // HUD の mpColor
     def.common.iconPath = Res::Icon::MaxManaUp;

@@ -3,9 +3,8 @@
 // ============================================================
 #include "VFX_Editor/VFXFileList.h"
 #include "imgui.h"
-#include <filesystem>
+
 #include <map>
-#include <algorithm>
 
 namespace fs = std::filesystem;
 

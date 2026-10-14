@@ -3,9 +3,8 @@
 // ============================================================
 #include "Debug/FrameProfiler.h"
 #include "imgui.h"
+
 #include <windows.h>
-#include <algorithm>
-#include <cstdio>
 
 namespace
 {

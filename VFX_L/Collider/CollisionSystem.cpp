@@ -1,16 +1,16 @@
 // ============================================================
 // CollisionSystem.cpp
 //
-// 広相位は uniform grid。ただし格子に載せるのは固定（Rigidbody を持ち isStatic）の collider だけで、
-// 毎フレームは作り直さない（2026-09-28: 毎フレーム全部を unordered_map の格子へ登記し直していた頃は
+// ブロードフェーズは uniform grid。ただし格子に載せるのは固定（Rigidbody を持ち isStatic）の collider だけで、
+// 毎フレームは作り直さない（2026-09-28: 毎フレーム全部を unordered_map の格子へ登録し直していた頃は
 // Debug で 2.5 ms。200m の床の箱 1 つで 2,500 マス、さらに固定同士の対を set で重複除去していた）。
 //   作り直すのは、固定の並び（Entity）が変わった時か、どれかの中心が kFixedSlack 以上動いた時。
-//   各固定は AABB + kFixedSlack が覆うマスに登記するので、報酬の箱の浮き沈み程度では作り直さない。
+//   各固定は AABB + kFixedSlack が覆うマスに登録するので、報酬の箱の浮き沈み程度では作り直さない。
 //   覆うマスが kLargeCells を超える物（床・外周の崖・大きい高台）は格子に載せず、毎回全員と比べる。
 //
 // 対の作り方:
 //   可動 × 固定: 可動の AABB が覆うマスの固定 + 大きい固定。重複はソートで除く
-//   可動 × 可動: 総当たり（可動は玩家・CPU の弾など数個）
+//   可動 × 可動: 総当たり（可動はプレイヤー・CPU の弾など数個）
 //   固定 × 固定: 判定しない
 // 完備性: 交差している可動と固定は、少なくとも 1 マスを共有するか、固定が大きい方の一覧にいる。
 // ============================================================
@@ -19,18 +19,16 @@
 #include "Component/ColliderComponent.h"
 #include "Component/RigidbodyComponent.h"
 #include "ECS/View.h"
-#include <cmath>
-#include <algorithm>
 
 using DirectX::SimpleMath::Vector3;
 
 namespace
 {
-    // 広相位のマスの一辺。
+    // ブロードフェーズのマスの一辺。
     // 大半の動的 collider（半径 0.25~0.5）より十分大きく、
-    // 巨大な静的 AABB（地形・床）は複数マスへまたがって登記される
+    // 巨大な静的 AABB（地形・床）は複数マスへまたがって登録される
     constexpr float kBroadCell = 4.0f;
-    // 固定がこれ以上動いたら格子を作り直す（登記もこの分だけ広げる）
+    // 固定がこれ以上動いたら格子を作り直す（登録もこの分だけ広げる）
     constexpr float kFixedSlack = 0.5f;
     // これより多くのマスを覆う固定は格子に載せない
     constexpr int kLargeCells = 64;
@@ -38,7 +36,7 @@ namespace
     // collider の水平の範囲
     void BoundsOf(const CollisionSystem::WorldCollider& wc, float& minX, float& maxX, float& minZ, float& maxZ)
     {
-        if (wc.shape == ColliderShape::AABB || wc.shape == ColliderShape::Convex)
+        if (wc.shape == ColliderShape::AABB || wc.shape == ColliderShape::Convex || wc.shape == ColliderShape::HeightField)
         {
             minX = wc.center.x - wc.halfExtents.x;
             maxX = wc.center.x + wc.halfExtents.x;
@@ -111,7 +109,7 @@ static bool TestPairShape(const CollisionSystem::WorldCollider& a,
 }
 
 // ============================================================
-// 狭相位: 1対の判定（広相位の格子から呼ばれる）
+// ナローフェーズ: 1対の判定（ブロードフェーズの格子から呼ばれる）
 // レイヤーフィルタ → 形状判定 → 命中なら m_Pairs へ。
 // 中身のロジックは旧の二重ループの内側と同一
 // ============================================================
@@ -130,51 +128,92 @@ void CollisionSystem::TestPair(const WorldCollider& a, const WorldCollider& b)
 // 1) ワールド形状の収集（固定 / 可動に分ける）  2) 固定の格子が古ければ作り直す
 // 3) 可動 × 固定（格子）と 可動 × 可動 だけ判定
 // ============================================================
+// ローカル形状 → ワールド形状
+// ※垂直カプセル/球は回転不変なので rotation は考慮しない
+static CollisionSystem::WorldCollider MakeWorldCollider(Entity e, const TransformComponent& tf,
+    const ColliderComponent& col, bool hasRigidbody, bool fixed)
+{
+    CollisionSystem::WorldCollider wc;
+    wc.entity = e;
+    wc.shape = col.shape;
+    wc.center = tf.position + col.offset;
+    wc.radius = col.radius;
+    wc.height = col.height;
+    wc.halfExtents = col.halfExtents;
+    wc.layer = col.layer;
+    wc.mask = col.mask;
+    wc.wallOnly = col.wallOnly;
+    wc.hasRigidbody = hasRigidbody;
+    wc.fixed = fixed;
+    if (col.shape == ColliderShape::Convex)
+    {
+        // ローカル平面 n·p <= d を中心分だけ平行移動: d' = d + n·center
+        wc.hull = col.hull;
+        for (int i = 0; i < wc.hull.count; ++i)
+            wc.hull.planes[i].d += wc.hull.planes[i].n.Dot(wc.center);
+    }
+    else
+        wc.hull.count = 0;
+    if (col.shape == ColliderShape::HeightField) wc.heightField = col.heightField;
+    return wc;
+}
+
 void CollisionSystem::Update(Registry& reg)
 {
-    m_WorldColliders.clear();
     m_Pairs.clear();
-    m_FixedIdx.clear();
     m_MoverIdx.clear();
 
-    // --- 1) ローカル形状 → ワールド形状へ変換して収集 ---
-    //     ※垂直カプセル/球は回転不変なので rotation は考慮しない
-    reg.CreateView<TransformComponent, ColliderComponent>()
-        .Each([this, &reg](Entity e, TransformComponent& tf, ColliderComponent& col)
+    // --- 1) 走査。固定は (entity, 中心) だけ集め、可動は毎フレーム作る ---
+    // 固定の WorldCollider（凸体は平面 12 枚を持つ）を毎フレーム全部作り直していた。
+    // 外周の岩に衝突を 131 個足した時に Debug で約 0.15 ms 増えたので、固定は前回の物を使い回す（2026-10-03）
+    m_ScanFixed.clear();
+    m_MoverWorld.clear();
+    reg.CreateView<TransformComponent, ColliderComponent>()   // 衝突を持つ物だけ回す（装飾物の Transform は見ない）
+        .EachFrom<ColliderComponent>([this, &reg](Entity e, TransformComponent& tf, ColliderComponent& col)
             {
-                WorldCollider wc;
-                wc.entity = e;
-                wc.shape = col.shape;
-                wc.center = tf.position + col.offset;
-                wc.radius = col.radius;
-                wc.height = col.height;
-                wc.halfExtents = col.halfExtents;
-                wc.layer = col.layer;
-                wc.mask = col.mask;
-                wc.hasRigidbody = reg.Has<RigidbodyComponent>(e);
-                wc.fixed = wc.hasRigidbody && reg.Get<RigidbodyComponent>(e).isStatic;
-                if (col.shape == ColliderShape::Convex)
-                {
-                    // ローカル平面 n·p <= d を中心分だけ平行移動: d' = d + n·center
-                    wc.hull = col.hull;
-                    for (int i = 0; i < wc.hull.count; ++i)
-                        wc.hull.planes[i].d += wc.hull.planes[i].n.Dot(wc.center);
-                }
-                else
-                    wc.hull.count = 0;
-                (wc.fixed ? m_FixedIdx : m_MoverIdx).push_back((int)m_WorldColliders.size());
-                m_WorldColliders.push_back(wc);
+                const bool hasRb = reg.Has<RigidbodyComponent>(e);
+                const bool fixed = hasRb && reg.Get<RigidbodyComponent>(e).isStatic;
+                if (fixed) m_ScanFixed.push_back({ e, tf.position + col.offset });
+                else       m_MoverWorld.push_back(MakeWorldCollider(e, tf, col, hasRb, false));
             });
 
-    // --- 2) 固定の並びが変わったか、どれかが余白以上動いたら格子を作り直す ---
-    bool stale = (m_FixedIdx.size() != m_GridEntity.size());
-    for (size_t k = 0; k < m_FixedIdx.size() && !stale; ++k)
+    // --- 2) 固定：並びが変わったら全部作り直して格子も。位置だけ変わった物はその 1 個を作り直し、
+    //        余白以上動いていたら格子を作り直す ---
+    const size_t nFixed = m_ScanFixed.size();
+    bool structural = (nFixed != m_GridEntity.size()) || (m_WorldColliders.size() < nFixed);
+    for (size_t k = 0; k < nFixed && !structural; ++k)
+        structural = (m_ScanFixed[k].first != m_GridEntity[k]);
+    bool rebuildGrid = structural;
+    m_WorldColliders.resize(nFixed);
+    if (structural)
     {
-        const WorldCollider& wc = m_WorldColliders[m_FixedIdx[k]];
-        stale = (wc.entity != m_GridEntity[k])
-            || (wc.center - m_GridCenter[k]).LengthSquared() > kFixedSlack * kFixedSlack;
+        m_FixedIdx.resize(nFixed);
+        for (size_t k = 0; k < nFixed; ++k)
+        {
+            const Entity e = m_ScanFixed[k].first;
+            m_WorldColliders[k] = MakeWorldCollider(e, reg.Get<TransformComponent>(e), reg.Get<ColliderComponent>(e), true, true);
+            m_FixedIdx[k] = (int)k;
+        }
     }
-    if (stale) BuildFixedGrid();
+    else
+    {
+        for (size_t k = 0; k < nFixed; ++k)
+        {
+            if (m_ScanFixed[k].second == m_WorldColliders[k].center) continue;
+            const Entity e = m_ScanFixed[k].first;
+            m_WorldColliders[k] = MakeWorldCollider(e, reg.Get<TransformComponent>(e), reg.Get<ColliderComponent>(e), true, true);
+            if ((m_WorldColliders[k].center - m_GridCenter[k]).LengthSquared() > kFixedSlack * kFixedSlack)
+                rebuildGrid = true;
+        }
+    }
+    if (rebuildGrid) BuildFixedGrid();
+
+    // 可動は固定の後ろへ
+    for (const WorldCollider& wc : m_MoverWorld)
+    {
+        m_MoverIdx.push_back((int)m_WorldColliders.size());
+        m_WorldColliders.push_back(wc);
+    }
 
     // --- 3) 可動 × 固定、可動 × 可動 ---
     for (size_t m = 0; m < m_MoverIdx.size(); ++m)
@@ -324,6 +363,9 @@ CollisionSystem::RaycastResult CollisionSystem::Raycast(
         case ColliderShape::Convex:
             h = RaycastConvex(ray, wc.hull);
             break;
+        case ColliderShape::HeightField:   // 起伏の地面（カメラの遮蔽・光線の先が丘で止まる）
+            if (wc.heightField) h = RaycastHeightField(ray, *wc.heightField);
+            break;
         default:
             continue;
         }
@@ -369,6 +411,8 @@ std::vector<Entity> CollisionSystem::OverlapSphere(
             break;
         case ColliderShape::Convex:
             hit = IntersectSphereConvex(query, wc.hull);
+            break;
+        case ColliderShape::HeightField:   // 範囲の問い合わせ（敵探し等）は地面を見ない
             break;
         }
         if (hit) result.push_back(wc.entity);

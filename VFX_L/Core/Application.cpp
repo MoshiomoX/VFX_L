@@ -2,10 +2,14 @@
 #include "Graphics/Light/PointLightManager.h"
 #include "Debug/DebugManager.h"
 #include "Debug/FrameProfiler.h"
-#include <iostream>
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
 #include "Manager/InputManager.h"
+#include "Audio/AudioSystem.h"
+#include "Core/GameSettings.h"
+#include "UI/UIDeco.h"
+#include "Graphics/PostProcess/SceneSnapshot.h"
+#include "UI/InputGlyph.h"
 
 
 Application* Application::s_Instance = nullptr;
@@ -53,6 +57,13 @@ bool Application::Initialize()
     // preload skinned models on worker threads (Res::Mdl::kPreload). Scenes that need them wait on the future
     ResourceManager::Get().PreloadModelsAsync(std::vector<std::string>(std::begin(Res::Mdl::kPreload), std::end(Res::Mdl::kPreload)));
     InputManager::Get().Initialize(m_Window.GetHandle());
+    AudioSystem::Get().Initialize();   // 音（装置が無くても続ける）
+    GameSettings::Get().Load();        // プレイヤーの設定（敵味方の縁取りの ON / OFF。無ければ既定値）
+    {
+        char env[16] = {};   // TEMP-TEST: VFXL_UI_SCALE=1.25 など、UI 全体の倍率を起動時に変える（見比べ用。既定 1.5）
+        if (GetEnvironmentVariableA("VFXL_UI_SCALE", env, sizeof(env)) > 0 && env[0])
+            UIDeco::SetUIScale((float)atof(env));
+    }
 	if(!m_Game.Initialize(&m_Renderer)) return false;
     // Timer
     m_Timer.Start();
@@ -71,7 +82,7 @@ void Application::Run()
         if (m_Window.ConsumeResizeFlag())
             m_Graphics.Resize(m_Window.GetWidth(),
                 m_Window.GetHeight());
-        // 各段の CPU / GPU 時間は FrameProfiler（場面の面板の「Frame Profiler」、perf / stress 自己テストの日志）
+        // 各段の CPU / GPU 時間は FrameProfiler（シーンのパネルの「Frame Profiler」、perf / stress 自己テストのログ）
         FrameProfiler::Get().BeginFrame();
         {
             PROFILE_SCOPE("Input + ImGui NewFrame");
@@ -83,6 +94,7 @@ void Application::Run()
         {
             PROFILE_SCOPE_GPU("Update");   // GPU = 雑魚・弾・粒子の compute
             m_Game.Update(dt);
+            AudioSystem::Get().Update(dt);   // 鳴り終わった声の回収・BGM のフェード
         }
         {
             PROFILE_SCOPE_GPU("Render");
@@ -105,6 +117,9 @@ void Application::Run()
 
 void Application::Shutdown()
 {
+    SceneSnapshot::Get().Shutdown();   // リザルトの背景の写真（シーンをまたいで持つ。デバイスより先に放す）
+    InputGlyph::Shutdown();            // パッドのボタンの絵（同上）
+    AudioSystem::Get().Shutdown();
     FrameProfiler::Get().ShutdownGpu();
     DebugManager::Get().Shutdown();
     ResourceManager::Get().Shutdown();

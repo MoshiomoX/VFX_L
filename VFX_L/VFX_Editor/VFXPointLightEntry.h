@@ -3,11 +3,11 @@
 #include <memory>
 
 // ============================================================
-// Light entry: 点光源。特効の位置（+ offset）に 1 灯置く。
+// Light entry: 点光源。エフェクトの位置（+ offset）に 1 灯置く。
 //   寿命中の変化は intensity start → end の線形、
 //   flicker で ±揺らぎ（火の玉らしさ）。
 //
-//   CPU で再生される effect（範囲攻撃・精英・編集器）は
+//   CPU で再生される effect（範囲攻撃・エリート・エディタ）は
 //   VFXEffect::CollectAndDispatch から毎フレーム PointLightManager へ積む。
 //   GPU の弾・範囲は SwarmVFXTable がこの entry を光源表に写し、
 //   SwarmLightCollectCS が同じリストへ追記する（時間軸は無視される）
@@ -23,6 +23,7 @@ public:
     std::unique_ptr<VFXEntry> Clone() const override;
     json ToJson() const override;
     void FromJson(const json& j) override;
+    void Tint(const DirectX::SimpleMath::Vector3& c) override { color.x *= c.x; color.y *= c.y; color.z *= c.z; }
 
     // 今フレームの光を PointLightManager へ積む（再生中のみ）
     void Submit(const DirectX::SimpleMath::Vector3& worldOffset);

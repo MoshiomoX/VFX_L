@@ -20,6 +20,8 @@
 // Elites / the boss have a bigger capsule (SwarmKindCapsule) and drop an
 // orb worth SwarmKindExpMul times more. The kind is only read for enemies
 // that pass a coarse test sized for the biggest body.
+// The shield bearer takes SwarmArmorDamage; a shot whose motion has a
+// freezeTime (Ice Lance) leaves a freeze request in animIndex (2026-10-08).
 // ============================================================
 // the hit may leave an area behind (explosion / burning ground)
 #define SWARM_AREA_POOL_U u6
@@ -30,6 +32,7 @@
 
 StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3);
+Buffer<uint> projBoost : register(t4); // damage / duration boost of the area this shot leaves
 
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 RWBuffer<uint> projStates : register(u0);
@@ -60,7 +63,8 @@ void main(uint3 id : SV_DispatchThreadID)
     float kMax = max(1.0, max(g_EliteScale, g_BossScale));
     float coarse = p.radius + kMax * 2.0 * (g_EnemyRadius + g_EnemyCapsuleHalf);
     float coarseSq = coarse * coarse;
-    uint dmgFixed = SwarmHpToFixed(p.damage);
+    // Ice Lance (2026-10-08): the enemy it hits freezes for this long (AICS takes the request)
+    float freezeTime = motions[p.motion & SWARM_MOTION_INDEX_MASK].freezeTime;
 
     for (uint j = 0; j < g_MaxEnemies; ++j)
     {
@@ -72,7 +76,8 @@ void main(uint3 id : SV_DispatchThreadID)
         if (dot(dc, dc) > coarseSq)
             continue;
 
-        uint kind = enemyExtra[j].kind;
+        SwarmEnemyExtra extra = enemyExtra[j];
+        uint kind = extra.kind;
         float3 center;
         float er, eh;
         SwarmKindCapsule(kind, pos, center, er, eh);
@@ -81,7 +86,8 @@ void main(uint3 id : SV_DispatchThreadID)
         float hitRadius = p.radius + er;
         if (dot(d, d) > hitRadius * hitRadius)
             continue;
-        // ---- hit: apply damage atomically ----
+        // ---- hit: apply damage atomically (the shield bearer's armor first) ----
+        uint dmgFixed = SwarmHpToFixed(SwarmArmorDamage(kind, p.damage));
         uint prev;
         InterlockedAdd(enemies[j].hp, (uint) (-(int) dmgFixed), prev);
 
@@ -91,8 +97,16 @@ void main(uint3 id : SV_DispatchThreadID)
         // ---- hit stun: freeze + flash (MoveCS / AICS / VS read it) ----
         // plain stores: several hits in one step all write the same value.
         // harmless on the killer, its slot goes DEAD right below.
-        // The boss never flinches (it would be pinned by the constant fire)
-        if (kind != SWARM_KIND_BOSS)
+        // The boss never flinches (it would be pinned by the constant fire), nor does a
+        // charger that has started its wind-up (MoveCS would stop the dash on every hit).
+        // An ice shot leaves a freeze request instead of the stun
+        bool noFlinch = (kind == SWARM_KIND_BOSS) || (kind == SWARM_KIND_CHARGER && extra.fuse > 0.0);
+        if (freezeTime > 0.0)
+        {
+            enemies[j].animIndex = SWARM_ANIM_FREEZE_REQ;
+            enemies[j].animTime = freezeTime;
+        }
+        else if (!noFlinch)
         {
             enemies[j].animIndex = 2u;
             enemies[j].animTime = 0.0;
@@ -134,7 +148,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // ---- area on hit (explosion etc.). Ticks in this same step:
         // AreaTickCS / AreaDamageCS run right after this shader ----
         SwarmSpawnAreaFromDef(motions[p.motion & SWARM_MOTION_INDEX_MASK].hitArea,
-                              p.position, i + j, SwarmProjScale(p));
+                              p.position, i + j, SwarmProjScale(p), projBoost[i], p.velocity.xz);
 
         // projectile is consumed either way (no pierce)
         projStates[i] = SWARM_DEAD;

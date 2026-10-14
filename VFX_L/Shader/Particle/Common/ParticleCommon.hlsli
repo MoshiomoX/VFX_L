@@ -29,6 +29,20 @@
 // Must match ParticleRenderMode::kInheritSourceVelocity
 #define PARTICLE_INHERIT_SOURCE_VELOCITY (1u << 13)
 
+// billboard only: toon look, bits 14-25 (2026-10-04). Decoded in
+// GPUParticlePS (PARTICLE_TOON_*), packed by ParticleRenderMode::PackToon
+
+// any render mode: wind response, bits 26-29 = q (2026-10-12). UpdateCS
+// relaxes the horizontal velocity toward the world wind at
+// q / 15 * PARTICLE_WIND_RATE per second. 0 = ignores the wind.
+// Must match ParticleRenderMode::kWindShift / PackWind
+#define PARTICLE_WIND_SHIFT 26u
+#define PARTICLE_WIND_RATE  3.0
+float ParticleWindResponse(int renderMode)
+{
+    return (float) ((((uint) renderMode) >> PARTICLE_WIND_SHIFT) & 15u) / 15.0;
+}
+
 // ============================================
 // Which atlas cell a particle shows (GPUEmitter.frameMode).
 // Must match ParticleFrameMode in GPUParticle.h.

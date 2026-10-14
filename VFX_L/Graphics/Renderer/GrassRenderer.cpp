@@ -14,16 +14,15 @@
 #include "World/TerrainGenerator.h"
 #include "Camera/CameraBase.h"
 #include "imgui.h"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
+
+#include <DirectXPackedVector.h>
 
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;
 
-static_assert(sizeof(GrassRenderer::GrassCB) == 320, "GrassCB layout mismatch");
+static_assert(sizeof(GrassRenderer::GrassCB) == 384, "GrassCB layout mismatch");
 static_assert(sizeof(GrassRenderer::GrassBlade) == 32, "GrassBlade layout mismatch");
 
 bool GrassRenderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
@@ -45,6 +44,7 @@ bool GrassRenderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* contex
         };
     loadCS(m_CullCS, L"Shader/Grass/GrassCullCS.hlsl");
     loadCS(m_TrampleCS, L"Shader/Grass/GrassTrampleCS.hlsl");
+    loadCS(m_StampCS, L"Shader/Grass/GrassStampCS.hlsl");
     m_VS = std::make_shared<VertexShader>();
     if (FAILED(ShaderPath::Load(m_VS.get(), device, L"Shader/Grass/GrassVS.hlsl"))) { m_VS.reset(); ok = false; }
     m_PS = std::make_shared<PixelShader>();
@@ -61,6 +61,7 @@ void GrassRenderer::Shutdown()
 {
     m_CullCS.reset();
     m_TrampleCS.reset();
+    m_StampCS.reset();
     m_VS.reset();
     m_PS.reset();
     m_HeightSRV.Reset();
@@ -126,7 +127,7 @@ bool GrassRenderer::CreateBuffers()
         if (FAILED(m_Device->CreateBuffer(&cd, nullptr, &m_CountStaging[i]))) return false;
     }
 
-    // ---- 踏み跡（場地全体。xy = 押す向き x 強さ）----
+    // ---- 踏み跡（フィールド全体。xy = 押す向き x 強さ）----
     for (int i = 0; i < 2; ++i)
     {
         D3D11_TEXTURE2D_DESC td = {};
@@ -147,7 +148,7 @@ bool GrassRenderer::CreateBuffers()
 }
 
 // ============================================================
-// 地形の貼図（高さ場と同じ 0.5m 格子。texel の中心 = 高さ格子の中心なので、
+// 地形のテクスチャ（高さ場と同じ 0.5m 格子。texel の中心 = 高さ格子の中心なので、
 // 線形補間で引けば GridWorld::SampleHeight と同じ値になる）
 // ============================================================
 void GrassRenderer::Build(const GridWorld& grid, const std::vector<uint8_t>& grassMask, uint32_t seed, TerrainGenerator::Biome biome)
@@ -248,11 +249,11 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     cb.widthMax = (std::max)(s.widthMax, s.widthMin);
     cb.curlMax = s.curlMax;
     cb.maxSlope = s.maxSlope;
-    cb.windStrength = s.windStrength;
-    cb.windSpeed = s.windSpeed;
-    const float yaw = DirectX::XMConvertToRadians(s.windYawDeg);
-    cb.windDir = Vector2(std::cos(yaw), std::sin(yaw));
-    cb.windScale = s.windScale;
+    // 風は世界の風（向き・波・天候の強さ）。葉の曲がり方だけがここの設定
+    cb.windStrength = s.windStrength * m_Wind.strength;
+    cb.windSpeed = m_Wind.waveSpeed;
+    cb.windDir = m_Wind.dir;
+    cb.windScale = m_Wind.waveScale;
     cb.trampleBend = s.trampleBend;
     cb.rootColor = s.rootColor;
     cb.trampleRadius = m_TrampleNow;
@@ -260,17 +261,52 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     cb.trampleDecay = std::exp(-m_PendingDt / (std::max)(s.trampleRecover, 0.05f));
     cb.player = m_Player;
     cb.maxBlades = kMaxBlades;
+    cb.fireIgnite = m_FireIgnite;
+    cb.fireShrink = std::clamp(s.fireShrink, 0.0f, 0.95f);
+    cb.fireGlow = s.fireGlow;
+    cb.fireOn = m_FireSRV ? 1.0f : 0.0f;
+    cb.gustPos = m_GustPos;
+    cb.gustRadius = m_GustRadius;
+    cb.gustDir = m_GustDir;
+    cb.gustLength = m_GustLength;
+    cb.gustPad = 0.0f;
+    // 群れからの押し型（池が無ければ 0 = しない）。一時停止中（dt 0）は雑魚も止まっているので毎フレーム押しても減衰しない
+    const bool haveAreas = m_AreaSRV && m_AreaStateSRV && m_AreaEndSRV;
+    const bool haveEnemies = m_EnemySRV && m_EnemyStateSRV && m_EnemyExtraSRV && m_StampCS;
+    cb.trampleExtra = Vector4(haveAreas ? s.blastTrample : 0.0f, haveAreas ? s.beamTrample : 0.0f,
+        haveEnemies ? s.enemyTrample : 0.0f, (std::max)(s.enemyRadius, 0.05f));
+    m_GustRadius = 0.0f;   // 1 回押したら終わり
     m_PendingDt = 0.0f;   // 一時停止中（Update 無し）は 0 のまま = 踏み跡も止まる
 
-    // ---- 1) 踏み跡: 前の貼図を読んで、もう片方へ書く ----
+    // ---- 1) 踏み跡: 前のテクスチャを読んで、もう片方へ書く（爆発・光線の範囲もここで押す）----
     m_TrampleCS->WriteBuffer(ctx, 0, &cb);
     m_TrampleCS->Bind(ctx);
     m_TrampleCS->SetSRV(ctx, "g_TrampleIn", m_TrampleSRV[m_TrampleCur].Get());
+    if (haveAreas)
+    {
+        m_TrampleCS->SetSRV(ctx, "g_Areas", m_AreaSRV);
+        m_TrampleCS->SetSRV(ctx, "g_AreaStates", m_AreaStateSRV);
+        m_TrampleCS->SetSRV(ctx, "g_AreaEnds", m_AreaEndSRV);
+    }
     m_TrampleCS->SetUAV(ctx, "g_TrampleOut", m_TrampleUAV[1 - m_TrampleCur].Get());
     m_TrampleCS->BindUAVs(ctx);
     ctx->Dispatch((kTrampleSize + 7) / 8, (kTrampleSize + 7) / 8, 1);
     m_TrampleCS->UnbindSRVs(ctx);
     m_TrampleCS->UnbindUAVs(ctx);
+    // 1b) 雑魚の足元（同じ出力へ、1 体 1 スレッドで書き込む）
+    if (haveEnemies && cb.trampleExtra.z > 0.0f)
+    {
+        m_StampCS->WriteBuffer(ctx, 0, &cb);
+        m_StampCS->Bind(ctx);
+        m_StampCS->SetSRV(ctx, "g_Enemies", m_EnemySRV);
+        m_StampCS->SetSRV(ctx, "g_EnemyStates", m_EnemyStateSRV);
+        m_StampCS->SetSRV(ctx, "g_EnemyExtra", m_EnemyExtraSRV);
+        m_StampCS->SetUAV(ctx, "g_TrampleOut", m_TrampleUAV[1 - m_TrampleCur].Get());
+        m_StampCS->BindUAVs(ctx);
+        ctx->Dispatch((kMaxEnemyThreads + 255) / 256, 1, 1);
+        m_StampCS->UnbindSRVs(ctx);
+        m_StampCS->UnbindUAVs(ctx);
+    }
     m_TrampleCur = 1 - m_TrampleCur;
 
     // ---- 2) 生やして間引く ----
@@ -311,6 +347,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     m_VS->SetSRV(ctx, "g_Blades", m_BladeSRV.Get());
     m_VS->SetSRV(ctx, "g_Trample", m_TrampleSRV[m_TrampleCur].Get());
     m_VS->SetSRV(ctx, "g_Ground", m_GroundSRV.Get());
+    if (m_FireSRV) m_VS->SetSRV(ctx, "g_Fire", m_FireSRV);
     ctx->VSSetSamplers(0, 1, &linearClamp);
     PointLightManager::Get().BindPS(ctx);
 
@@ -329,6 +366,46 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     m_VS->UnbindSRVs(ctx);
     PointLightManager::Get().UnbindPS(ctx);
     rs.Restore(ctx);
+}
+
+// TEMP-TEST: 踏み跡の読み戻し（自動テスト envfx）
+bool GrassRenderer::DebugTrampleStats(const Vector2& centerXZ, float radius, float minStrength, int& count, float& maxStrength)
+{
+    count = 0;
+    maxStrength = 0.0f;
+    if (!m_Context || !m_Device || !m_TrampleTex[m_TrampleCur]) return false;
+    if (!m_TrampleStaging)
+    {
+        D3D11_TEXTURE2D_DESC td = {};
+        m_TrampleTex[0]->GetDesc(&td);
+        td.Usage = D3D11_USAGE_STAGING;
+        td.BindFlags = 0;
+        td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        if (FAILED(m_Device->CreateTexture2D(&td, nullptr, &m_TrampleStaging))) return false;
+    }
+    m_Context->CopyResource(m_TrampleStaging.Get(), m_TrampleTex[m_TrampleCur].Get());
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    if (FAILED(m_Context->Map(m_TrampleStaging.Get(), 0, D3D11_MAP_READ, 0, &mapped))) return false;
+    const float texel = m_MapSize.x / (float)kTrampleSize;
+    const int cx = (int)((centerXZ.x - m_MapOrigin.x) / texel), cy = (int)((centerXZ.y - m_MapOrigin.y) / texel);
+    const int r = (int)std::ceil(radius / texel);
+    for (int y = (std::max)(cy - r, 0); y <= (std::min)(cy + r, kTrampleSize - 1); ++y)
+    {
+        const auto* row = reinterpret_cast<const DirectX::PackedVector::HALF*>(
+            static_cast<const uint8_t*>(mapped.pData) + (size_t)y * mapped.RowPitch);
+        for (int x = (std::max)(cx - r, 0); x <= (std::min)(cx + r, kTrampleSize - 1); ++x)
+        {
+            const float wx = m_MapOrigin.x + ((float)x + 0.5f) * texel, wz = m_MapOrigin.y + ((float)y + 0.5f) * texel;
+            if ((wx - centerXZ.x) * (wx - centerXZ.x) + (wz - centerXZ.y) * (wz - centerXZ.y) > radius * radius) continue;
+            const float vx = DirectX::PackedVector::XMConvertHalfToFloat(row[x * 2]);
+            const float vy = DirectX::PackedVector::XMConvertHalfToFloat(row[x * 2 + 1]);
+            const float s = std::sqrt(vx * vx + vy * vy);
+            if (s >= minStrength) ++count;
+            maxStrength = (std::max)(maxStrength, s);
+        }
+    }
+    m_Context->Unmap(m_TrampleStaging.Get(), 0);
+    return true;
 }
 
 void GrassRenderer::DrawImGui()
@@ -350,13 +427,20 @@ void GrassRenderer::DrawImGui()
     ImGui::ColorEdit3("Root Color", &s.rootColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::ColorEdit3("Tip Color", &s.tipColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::SeparatorText("Wind");
-    ImGui::SliderFloat("Strength##wind", &s.windStrength, 0.0f, 1.0f);
-    ImGui::DragFloat("Speed##wind", &s.windSpeed, 0.02f, 0.0f, 10.0f);
-    ImGui::DragFloat("Waves per m", &s.windScale, 0.002f, 0.0f, 1.0f, "%.3f");
-    ImGui::SliderFloat("Direction", &s.windYawDeg, -180.0f, 180.0f, "%.0f deg");
+    ImGui::SliderFloat("Bend at wind x1", &s.windStrength, 0.0f, 1.0f);
+    ImGui::TextDisabled("direction / speed / waves: Weather panel (World Wind), strength now x%.2f", m_Wind.strength);
+    ImGui::SeparatorText("Fire (GrassFireField)");
+    ImGui::SliderFloat("Burnt Shrink", &s.fireShrink, 0.0f, 0.95f);
+    ImGui::DragFloat("Ember Glow", &s.fireGlow, 0.05f, 0.0f, 10.0f);
     ImGui::SeparatorText("Trample");
     ImGui::DragFloat("Radius##trample", &s.trampleRadius, 0.01f, 0.0f, 3.0f, "%.2f m");
     ImGui::DragFloat("Slide Radius", &s.trampleSlideRadius, 0.01f, 0.0f, 3.0f, "%.2f m");
     ImGui::DragFloat("Recover", &s.trampleRecover, 0.05f, 0.05f, 20.0f, "%.2f s");
     ImGui::SliderFloat("Bend##trample", &s.trampleBend, 0.0f, 1.0f);
+    ImGui::SeparatorText("Trample from the swarm");
+    ImGui::DragFloat("Blast Radius x", &s.blastTrample, 0.02f, 0.0f, 3.0f);
+    ImGui::DragFloat("Beam Band x radius", &s.beamTrample, 0.05f, 0.0f, 5.0f);
+    ImGui::SliderFloat("Enemy Feet Strength", &s.enemyTrample, 0.0f, 1.0f);
+    ImGui::DragFloat("Enemy Feet Radius", &s.enemyRadius, 0.01f, 0.05f, 1.5f, "%.2f m");
+    ImGui::TextDisabled("areas %s  enemies %s", m_AreaSRV ? "on" : "off", m_EnemySRV ? "on" : "off");
 }

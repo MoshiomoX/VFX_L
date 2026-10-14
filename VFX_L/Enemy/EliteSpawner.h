@@ -1,9 +1,9 @@
 // ============================================================
 // EliteSpawner.h
-// CPU に残る敵（精英・計測用の的）。雑魚は GPU（SwarmSystem）にしか居ない。
+// CPU に残る敵（エリート・計測用の的）。雑魚は GPU（SwarmSystem）にしか居ない。
 //   ・的は無敵・動かない。累計ダメージを読むためのもので、HP は減るが 0 で止まる
 //   ・見た目は骨付きの KayKit Skeleton_Warrior（Idle ループ）。読めなければカプセル
-//   ・HP が尽きた CPU 実体（精英など。玩家は PlayerStateSystem が扱う）は燃焼消滅
+//   ・HP が尽きた CPU 実体（エリートなど。プレイヤーは PlayerStateSystem が扱う）は燃焼消滅
 //     （DissolveComponent + DeathBurn）。消え終わったら MeshVFXSystem が実体を破棄する
 // ============================================================
 #pragma once
@@ -32,7 +32,7 @@ public:
 
     const std::vector<Entity>& GetElites() const { return m_Elites; }
 
-    // Enemies 面板の精英の段。「Respawn Elites」が押されたら true（呼ぶ側が Respawn する）
+    // Enemies パネルのエリートの段。「Respawn Elites」が押されたら true（呼ぶ側が Respawn する）
     bool DrawImGui(Registry& reg, const MeshVFXSystem& meshVfx);
 
 private:

@@ -1,0 +1,5 @@
+NIIIEMAND's explosion sfx
+Author : NIIIEMAND
+Source : https://niiiemand.itch.io/niiiemands-explosion-sfx
+License: CC0
+Downloaded: 2026-10-03 (files converted to OGG Vorbis where needed, spaces in names replaced with _)

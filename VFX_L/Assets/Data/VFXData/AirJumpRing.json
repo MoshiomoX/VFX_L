@@ -1,0 +1,39 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [-4.0, 4.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 56,
+                "sheet": 1, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 5.0,
+                "emitRate": 800.0, "emitType": 4,
+                "endColorMax": [0.3, 0.6, 1.0, 0.0], "endColorMin": [0.3, 0.6, 1.0, 0.0],
+                "gravity": [0.0, -1.0, 0.0], "innerRadius": 0.3, "lifetimeRange": [0.25, 0.35], "maxParticles": 20,
+                "position": [0.0, 0.2, 0.0], "radius": 0.4, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.28, 0.36, 0.0, 0.03], "speedRange": [3.0, 4.2], "spreadAngle": 0.0,
+                "startColorMax": [0.75, 0.95, 1.2, 1.0], "startColorMin": [0.55, 0.85, 1.1, 1.0]
+            },
+            "duration": 0.02, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 17,
+                "sheet": 1, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.0,
+                "emitRate": 100.0, "emitType": 0,
+                "endColorMax": [0.3, 0.6, 1.0, 0.0], "endColorMin": [0.3, 0.6, 1.0, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.12, 0.14], "maxParticles": 2,
+                "position": [0.0, 0.1, 0.0], "radius": 0.0, "renderMode": 0, "rotationRange": [0.0, 0.0],
+                "sizeRange": [1.6, 1.8, 0.4, 0.5], "speedRange": [0.0, 0.0], "spreadAngle": 0.0,
+                "startColorMax": [0.5, 0.85, 1.0, 0.7], "startColorMin": [0.5, 0.85, 1.0, 0.7]
+            },
+            "duration": 0.02, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 0.2, 0.0], "color": [0.5, 0.8, 1.0], "radius": 4.0,
+                      "intensityStart": 1.5, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 12.0 },
+            "duration": 0.18, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "AirJumpRing"
+}

@@ -13,9 +13,7 @@
 #include "Component/WandComponent.h"
 #include "Component/ManaComponent.h"
 #include "Debug/DebugManager.h"
-#include "ImGui.h"
-#include <algorithm>
-#include <cmath>
+#include "Core/DevUI.h"
 
 namespace
 {
@@ -83,7 +81,7 @@ void PlayerControlSystem::ApplyKnockback(Registry& reg, unsigned int entity, Vec
 void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
 {
     const bool blocked = !testInput &&
-        (DebugManager::Get().IsUsingDebugCamera() || ImGui::GetIO().WantCaptureKeyboard);
+        (DebugManager::Get().IsUsingDebugCamera() || DevUI::WantKeyboard());
 
     const bool castTrigger = blocked ? false : InputMap::GetCastTrigger();
     const bool surgeTrigger = testInput ? testSurge : (blocked ? false : InputMap::GetManaSurgeTrigger());
@@ -96,8 +94,8 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
                 wand.castRequested = castTrigger;
             });
 
-    // 魔力解放（3 秒間魔力を消費しない、30 秒に 1 回。再使用待ちの間は何も起きない）。
-    // 施法の一時停止はプレイヤーの操作から外した（2026-10-01。WandComponent::castingPaused は調試面板・自測用に残る）
+    // 魔力解放（3 秒間魔力を消費しない、20 秒に 1 回。再使用待ちの間は何も起きない）。
+    // 詠唱の一時停止はプレイヤーの操作から外した（2026-10-01。WandComponent::castingPaused はデバッグパネル・自動テスト用に残る）
     if (surgeTrigger)
         reg.CreateView<ManaComponent, PlayerTag>()
             .Each([&](Entity, ManaComponent& mana, PlayerTag&) { mana.TryStartSurge(); });
@@ -115,7 +113,7 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
     Vector3 dir = camR * move.x + camF * move.y;
     reg.CreateView<TransformComponent, RigidbodyComponent,
         PlayerStatsComponent, PlayerStateComponent, PlayerTag>()
-        .Each([&](Entity e, TransformComponent& tf, RigidbodyComponent& rb,
+        .EachFrom<PlayerTag>([&](Entity e, TransformComponent& tf, RigidbodyComponent& rb,
             PlayerStatsComponent& stats, PlayerStateComponent& st, PlayerTag&)
             {
                 // 能力値は Entity が持つ。System は値を持たない

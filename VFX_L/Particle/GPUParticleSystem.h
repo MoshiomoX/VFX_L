@@ -14,6 +14,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Graphics/Renderer/RenderStates.h"
 #include "Graphics/Light/LightTypes.h"
+#include "World/WindState.h"
 using Microsoft::WRL::ComPtr;
 
 class Model;
@@ -40,7 +41,11 @@ public:
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context, uint32_t maxParticles);
 
-    void Render();
+    // litMeshes = false: 光を受けるメッシュ粒子は描かない（RenderLitMeshes で先に描いたシーン用）
+    void Render(bool litMeshes = true);
+    // 光を受けるメッシュ粒子（不透明・深度を書く）だけ。トゥーンのアウトラインの前に描くと石や矢に線が付く（2026-10-04）。
+    // SetCamera / SetLight の後に呼ぶ
+    void RenderLitMeshes();
     void ResetSystem();
 
     // --- 2段階方式 ---
@@ -55,6 +60,17 @@ public:
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
     // 立方体粒子の Lambert 用。Render の前に毎フレーム渡す（渡さなければ既定の上方光）
     void SetLight(const LightBuffer& light) { m_Light = light; }
+    // 世界の風（2026-10-12）。風を受ける発射器（GPUParticleEmitter::windResponse）の粒子が UpdateCS で流される。
+    // time = 草の風の時計（GrassRenderer::Time）。渡さなければ既定の弱い風（エディタの試し見）
+    void SetWind(const WindState& wind, float time) { m_Wind = wind; m_WindTime = time; }
+
+    // ParticleUpdateCS の b2 と同じ並び（32B）
+    struct ParticleWindCB
+    {
+        DirectX::SimpleMath::Vector2 dir;
+        float speed, gust;
+        float waveScale, waveSpeed, time, _pad;
+    };
 
     void RegisterStaticColorKeys(const std::vector<ColorKey>& keys) { m_StaticColorKeys = keys; }
     size_t GetStaticColorKeyCount() const { return m_StaticColorKeys.size(); }
@@ -92,9 +108,9 @@ public:
     // 0 を返すと VFXState_Finishing が即 Stopped へ飛んでしまい、
     // 粒子が空中に残ったまま演出が終わる。
     // よって「まだ居るかもしれない」= 1 を返し、Finishing の終了判定は
-    // VFXStates 側の時間兜底（timeInState > 3.0f）に任せる。
+    // VFXStates 側の時間フォールバック（timeInState > 3.0f）に任せる。
     // 
-    // この 2 つは必ずセットで扱う。片方だけ変えると状態機が壊れる。
+    // この 2 つは必ずセットで扱う。片方だけ変えるとステートマシンが壊れる。
     // ============================================
     uint32_t GetAliveCount() const { return 1; }
 
@@ -140,7 +156,7 @@ public:
     // 1 個ずつ帯を引く。位置の記録も帯への展開も GPU 上で完結する。
     // -1 は失敗（枠が無い / 帯の資源が作れていない）。
     // 登録を解除すると、その style の帯は生きている粒子の分も含めて描かれなくなる
-    // （特効の帯は自分の分の参照を持つので、消え終わるまで style が残る）
+    // （エフェクトの帯は自分の分の参照を持つので、消え終わるまで style が残る）
     // ============================================
     static const int MAX_TRAIL_STYLES = 32;
     int  RegisterTrailStyle(const ParticleTrailStyle& style);
@@ -149,9 +165,9 @@ public:
     bool IsTrailAvailable() const { return m_TrailReady; }
 
     // ============================================
-    // 特効の位置で動く帯（VFX の Trail entry）
+    // エフェクトの位置で動く帯（VFX の Trail entry）
     //
-    // 粒子の帯と違い、先頭は呼び出し側が毎フレーム渡す位置（特効の位置）。
+    // 粒子の帯と違い、先頭は呼び出し側が毎フレーム渡す位置（エフェクトの位置）。
     // CPU が上げるのは帯ごとに位置 1 つだけで、点の追加（minDistance ごと）・
     // 寿命切れ・帯への展開は GPU（EffectTrailCS / EffectTrailVS）。
     // 見た目は粒子の帯と同じ style 表（RegisterTrailStyle の id）。
@@ -167,13 +183,13 @@ public:
     int  GetEffectTrailCount() const;   // 使用中の枠（追従中 + 消えかけ）。ImGui 用
 
     // ============================================
-    // メッシュ粒子の模型表（GPUParticleMesh.cpp）
+    // メッシュ粒子のモデル表（GPUParticleMesh.cpp）
     //
-    // 0 番は組み込みの立方体（常にある）。1.. はファイルの模型を登録して使う。
-    // 模型は包囲ボックスで「最長辺 = 1、中心 = 原点」に揃えて描くので、
+    // 0 番は組み込みの立方体（常にある）。1.. はファイルのモデルを登録して使う。
+    // モデルは包囲ボックスで「最長辺 = 1、中心 = 原点」に揃えて描くので、
     // 粒子の size がそのまま最長辺の長さ（m）になる（ファイルの単位は気にしない）。
     // 同じ path は同じ番号を返し、参照を数える。
-    // Release で 0 になっても、生き残った粒子が別の模型で描かれないよう
+    // Release で 0 になっても、生き残った粒子が別のモデルで描かれないよう
     // 数秒は番号を空けない（同じ path なら即座に戻れる）。
     // 戻り値は番号（ParticleRenderMode::Pack に渡す）。"" は 0（立方体）、枠が無い・読めない時も 0
     // ============================================
@@ -211,14 +227,15 @@ private:
     // メッシュ粒子（GPUParticleMesh.cpp）
     bool CreateMeshResources(ID3D11Device* device);
     bool BuildMeshSlot(int slot, std::shared_ptr<Model> model, const std::string& path);
-    void RenderMeshes(ID3D11DeviceContext* context);   // 光を受ける束 → 発光の束
+    // pass 0 = 光を受ける束、1 = 発光の束（firstPass..lastPass を描く）
+    void RenderMeshes(ID3D11DeviceContext* context, int firstPass = 0, int lastPass = 1);
     bool CreateTrailResources(ID3D11Device* device);
     void UploadTrailStyles(ID3D11DeviceContext* context);
     void DispatchTrail(ID3D11DeviceContext* context);   // UpdateCS の直後
     void RenderTrails(ID3D11DeviceContext* context);
     void AddRefTrailStyle(int id);
 
-    // 特効の帯（GPUParticleEffectTrail.cpp）
+    // エフェクトの帯（GPUParticleEffectTrail.cpp）
     bool CreateEffectTrailResources(ID3D11Device* device);
     void DispatchEffectTrail(ID3D11DeviceContext* context);   // DispatchTrail の直後
     void RenderEffectTrails(ID3D11DeviceContext* context);    // RenderTrails の直後
@@ -235,7 +252,7 @@ private:
     ComPtr<ID3D11UnorderedAccessView> m_ParticleUAV;
     ComPtr<ID3D11ShaderResourceView>  m_ParticleSRV;
 
-    // AliveList（DrawIndirect 用、存活粒子の index を格納）
+    // AliveList（DrawIndirect 用、生存粒子の index を格納）
     ComPtr<ID3D11Buffer>              m_AliveListBuffer;
     ComPtr<ID3D11UnorderedAccessView> m_AliveListUAV;
     ComPtr<ID3D11ShaderResourceView>  m_AliveListSRV;
@@ -250,7 +267,7 @@ private:
 
     ParticleDeadList m_DeadList;
 
-    // 初期化/リセット時にだけ更新される。毎フレームの回読は廃止した。
+    // 初期化/リセット時にだけ更新される。毎フレームのリードバックは廃止した。
     uint32_t m_CurrentDeadCount = 0;
 
     std::shared_ptr<ComputeShader>   m_InitDeadListCS;
@@ -267,7 +284,7 @@ private:
     std::shared_ptr<VertexShader>     m_MeshVS;          // ParticleMeshVS
     std::shared_ptr<PixelShader>      m_MeshLitPS;       // Shader/PS.hlsl（Lambert）
     std::shared_ptr<PixelShader>      m_MeshGlowPS;      // ParticleMeshGlowPS（加算）
-    std::shared_ptr<Texture>          m_WhiteTexture;    // 貼图の無い submesh の albedo（色は粒子から）
+    std::shared_ptr<Texture>          m_WhiteTexture;    // テクスチャの無い submesh の albedo（色は粒子から）
     ComPtr<ID3D11Buffer>              m_AliveMeshBuffer; // kParticleMeshBuckets × kParticleMeshBucketCap
     ComPtr<ID3D11UnorderedAccessView> m_AliveMeshUAV;
     ComPtr<ID3D11ShaderResourceView>  m_AliveMeshSRV;
@@ -279,7 +296,7 @@ private:
     {
         bool  used = false;
         int   refs = 0;              // 0 番（立方体）は数えない
-        float freeAt = 0.0f;         // refs が 0 になった後、この時刻を過ぎたら別の模型に使える
+        float freeAt = 0.0f;         // refs が 0 になった後、この時刻を過ぎたら別のモデルに使える
         std::string path;
         std::shared_ptr<Model> model;
         DirectX::SimpleMath::Vector3 center = { 0, 0, 0 };
@@ -333,7 +350,7 @@ private:
     // ---- 粒子の軌跡（帯）----
     // trailPoints : 粒子 1 個につき kTrailPoints 個の float3（固定対応）
     // trailAlive  : 帯を持つ生存粒子の index。TrailCS が積み、TrailVS が instance として引く
-    // trailArgs   : DrawInstancedIndirect 用。[0] = 2 * (kTrailPoints + 1)、[1] = TrailCS が累加
+    // trailArgs   : DrawInstancedIndirect 用。[0] = 2 * (kTrailPoints + 1)、[1] = TrailCS が累積
     bool                              m_TrailReady = false;
     std::shared_ptr<ComputeShader>    m_TrailCS;
     std::shared_ptr<VertexShader>     m_TrailVS;
@@ -352,12 +369,12 @@ private:
     {
         ParticleTrailStyle style;
         bool               used = false;
-        int                refs = 0;       // 登録者 1 + それを使う特効の帯の数
+        int                refs = 0;       // 登録者 1 + それを使うエフェクトの帯の数
     };
     std::vector<TrailStyleSlot>       m_TrailStyles;        // id = 添字
     bool                              m_TrailStylesDirty = false;
 
-    // ---- 特効の帯 ----
+    // ---- エフェクトの帯 ----
     // anchors : 帯ごとの錨（dynamic、毎フレーム全枠を上げる）
     // states  : 帯ごとの状態（先頭・環の位置・今フレームの尾）。GPU だけが書く
     // points  : 帯ごとに kEffectTrailPoints 点の環
@@ -395,5 +412,7 @@ private:
     CameraBase* m_Camera = nullptr;
     std::shared_ptr<Texture> m_Texture;
     std::vector<ColorKey> m_StaticColorKeys;
+    WindState m_Wind;
+    float     m_WindTime = 0.0f;
     //   ComPtr<ID3D11SamplerState> m_SamplerState;
 };

@@ -6,11 +6,6 @@
 #include "Graphics/Renderer/RenderStates.h"
 #include "Camera/CameraBase.h"
 #include "imgui.h"
-#include <algorithm>
-#include <chrono>
-#include <cfloat>
-#include <cmath>
-#include <iostream>
 
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector3;
@@ -171,7 +166,7 @@ void ShadowMap::Render(ID3D11DeviceContext* ctx, Renderer& renderer, CameraBase&
     Matrix viewProj[kCascades];
     float texelWorld[kCascades] = {};
 
-    // 段の境目は単調に増やす（面板で逆にしても壊れない）
+    // 段の境目は単調に増やす（パネルで逆にしても壊れない）
     float splits[kCascades];
     for (int c = 0; c < kCascades; ++c)
         splits[c] = (std::max)(m_Settings.splits[c], (c > 0 ? splits[c - 1] : 0.0f) + 1.0f);

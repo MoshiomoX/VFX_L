@@ -9,7 +9,7 @@ template <typename T>
 class VertexBuffer
 {
 public:
-    // 作成（静的 or 动的を選択可能）
+    // 作成（静的 or 動的を選択可能）
     bool Create(
         ID3D11Device* device,
         const std::vector<T>& vertices,

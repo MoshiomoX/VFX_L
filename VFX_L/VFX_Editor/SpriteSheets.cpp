@@ -4,11 +4,8 @@
 #include "VFX_Editor/SpriteSheets.h"
 #include "Manager/ResourceManager.h"
 #include "Graphics/Material/Texture.h"
+
 #include <nlohmann/json.hpp>
-#include <algorithm>
-#include <fstream>
-#include <iostream>
-#include <unordered_map>
 
 using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector4;
@@ -47,7 +44,7 @@ namespace
             }
         }
         s.loop = (j.value("loop_mode", std::string("none")) == "loop");
-        s.point = true;   // 像素絵（IMPORTING.md: nearest-neighbor）
+        s.point = true;   // ピクセルアート（IMPORTING.md: nearest-neighbor）
 
         int srcW = s.cellW, srcH = s.cellH;
         if (j.contains("source_size") && j["source_size"].size() >= 2)

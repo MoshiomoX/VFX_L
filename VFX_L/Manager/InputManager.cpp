@@ -1,6 +1,5 @@
 #include "Manager/InputManager.h"
 #include "imgui.h"
-#include <algorithm>
 void InputManager::Initialize(HWND hwnd)
 {
     m_hWnd = hwnd;
@@ -20,6 +19,12 @@ void InputManager::Initialize(HWND hwnd)
     rid.dwFlags = 0;
     rid.hwndTarget = hwnd;
     RegisterRawInputDevices(&rid, 1, sizeof(rid));
+
+    // TEMP-TEST: 操作案内の絵を固定する（自動テストの撮影用。入力を送らないので機器が決まらない）
+    char dev[16] = {};
+    size_t len = 0;
+    if (getenv_s(&len, dev, sizeof(dev), "VFXL_INPUT_DEVICE") == 0 && len > 0)
+        DebugLockDevice((dev[0] == 'p' || dev[0] == 'P') ? InputDevice::Pad : InputDevice::KeyboardMouse);
 }
 void InputManager::Update()
 {
@@ -60,6 +65,22 @@ void InputManager::Update()
     const bool wasCaptured = m_Captured;
     ApplyMouseCapture(m_CaptureRequested && active);
     m_CaptureRequested = false;
+    if (m_Captured != wasCaptured) m_CaptureSettle = 2;
+    else if (m_CaptureSettle > 0) --m_CaptureSettle;
+
+    // ---- カーソルを隠すだけの要求（パッドで UI を操作中）。ShowCursor は表示カウンタなので出入りで 1 回ずつ ----
+    {
+        const bool hide = m_HideRequested && active && !m_Captured;
+        m_HideRequested = false;
+        if (hide != m_CursorHidden)
+        {
+            m_CursorHidden = hide;
+            ShowCursor(hide ? FALSE : TRUE);
+        }
+    }
+
+    // 機器の判定用：マウスの生の移動量（Raw Input は物理的な動きだけ。カーソルの閉じ込めで跳んだ分は入らない）
+    const float rawMove = std::fabs(m_RawAccum.x) + std::fabs(m_RawAccum.y);
 
     // 捕獲を始めたフレームの分は捨てる（捕獲前の動きで視点が跳ねないように）
     if (m_Captured && wasCaptured) m_LookDelta = m_RawAccum;
@@ -103,7 +124,54 @@ void InputManager::Update()
             StopVibration();
     }
 
+    UpdateLastDevice(active, rawMove);
+}
 
+// ============================================================
+// 最後に触った機器
+// スティック・トリガーは「閾値を越えた瞬間」だけ数える（倒したままキーを打っても行き来しない）。
+// カーソルの移動量は、捕獲の出入り直後（閉じ込めでカーソルが中央へ跳ぶ）と捕獲中は見ない。
+// 捕獲中のマウスは Raw Input の生の移動量で拾う
+// ============================================================
+void InputManager::UpdateLastDevice(bool active, float rawMove)
+{
+    constexpr float kRawWake = 4.0f;      // Raw Input のカウント（センサーの微小な揺れでは替えない）
+    constexpr float kCursorWake = 2.0f;   // px
+    constexpr float kAnalogWake = 0.5f;   // スティック・トリガー
+
+    const bool plugged = m_PadConnected && !m_PadWasConnected;
+    const bool unplugged = !m_PadConnected && m_PadWasConnected;
+    m_PadWasConnected = m_PadConnected;
+    if (m_DeviceLocked) return;
+    if (plugged)   { m_LastDevice = InputDevice::Pad; return; }
+    if (unplugged) { m_LastDevice = InputDevice::KeyboardMouse; return; }
+    if (!active) return;
+
+    bool pad = false;
+    if (m_PadConnected)
+    {
+        const WORD pressed = m_PadState.Gamepad.wButtons & ~m_PadStateOld.Gamepad.wButtons;
+        auto analog = [this](const XINPUT_STATE& s) -> unsigned
+        {
+            unsigned bits = 0;
+            const XINPUT_GAMEPAD& g = s.Gamepad;
+            if (ProcessStick(g.sThumbLX, g.sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE).Length() > kAnalogWake) bits |= 1;
+            if (ProcessStick(g.sThumbRX, g.sThumbRY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE).Length() > kAnalogWake) bits |= 2;
+            if (g.bLeftTrigger / 255.0f > kAnalogWake) bits |= 4;
+            if (g.bRightTrigger / 255.0f > kAnalogWake) bits |= 8;
+            return bits;
+        };
+        pad = pressed != 0 || (analog(m_PadState) & ~analog(m_PadStateOld)) != 0;
+    }
+
+    bool kbm = rawMove > kRawWake || m_MouseWheel != 0.0f;
+    if (!kbm && !m_Captured && m_CaptureSettle == 0)
+        kbm = std::fabs(m_MouseDelta.x) + std::fabs(m_MouseDelta.y) > kCursorWake;
+    for (int vk = 1; vk < 256 && !kbm; ++vk)   // マウスのボタン（VK_LBUTTON など）も入る
+        kbm = GetKeyTrigger(vk);
+
+    if (pad)      m_LastDevice = InputDevice::Pad;
+    else if (kbm) m_LastDevice = InputDevice::KeyboardMouse;
 }
 bool InputManager::GetKeyPress(int key) const
 {

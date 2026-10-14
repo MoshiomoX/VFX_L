@@ -88,12 +88,32 @@ static const uint SWARM_KIND_BOMBER = 1u; // contact lights a fuse, blows up g_B
 static const uint SWARM_KIND_ELITE = 2u;  // big mob: g_EliteScale body, g_EliteDamageMul melee, g_EliteExpMul orb
 static const uint SWARM_KIND_BOSS = 3u;   // stage boss: g_Boss*, never hit-stunned, reported in SwarmBossInfo
 static const uint SWARM_KIND_GHOST = 4u;  // final-swarm ghost: mob hp, fast, flies straight through walls and plateaus (2026-09-30)
+static const uint SWARM_KIND_SPLITTER = 5u;  // splits into 3 splitlings on death (SwarmCorpseTrackCS -> split ring -> CPU) (2026-10-03)
+static const uint SWARM_KIND_SPLITLING = 6u; // small child of a splitter, does not split again
+static const uint SWARM_KIND_BRUTE = 7u;     // heavy mob: 3x hp, slow, big; replaces mobs from minute 4 (2026-10-07)
+static const uint SWARM_KIND_CHARGER = 8u;   // stops, winds up (red band on the ground), dashes in a locked line (2026-10-08)
+static const uint SWARM_KIND_SHIELD = 9u;    // every hit loses g_ShieldArmor (at least g_ShieldMinFrac goes through) (2026-10-08)
 
 struct SwarmEnemyExtra
 {
     uint kind;
-    float fuse; // seconds since the fuse was lit. 0 = not lit (lighting adds one step)
+    // bomber : seconds since the fuse was lit. 0 = not lit (lighting adds one step)
+    // charger: < 0 = cooldown left (counts up to 0), 0 = chasing, > 0 = seconds since the wind-up began
+    //          (SwarmChargerPhase splits it into wind-up / dash / recover)
+    float fuse;
 };
+
+// ------------------------------------------------------------
+// Enemy status side buffer enemySlow (float4, 2026-10-08; was float2):
+//   x = slow seconds left, y = slow amount (poison pool, AreaDamageCS)
+//   z = frozen seconds left (> 0: does not move, does not hit)
+//   w = while frozen: the length of this freeze (the VS grows / melts the ice);
+//       after it thaws: seconds left before it can freeze again
+// A freeze is requested by HitCS: animIndex = SWARM_ANIM_FREEZE_REQ and
+// animTime = seconds. The next step's AICS takes it (SwarmEnemy stays 48B).
+// Must match Swarm::kAnimFreezeRequest
+// ------------------------------------------------------------
+static const uint SWARM_ANIM_FREEZE_REQ = 3u;
 
 // ============================================================
 // Projectile: 48 bytes
@@ -174,6 +194,49 @@ static const uint SWARM_MAX_TRIGGER_EVENTS = 128u;
 static const uint SWARM_SPAWN_AT_POS = 1u;
 
 // ------------------------------------------------------------
+// Boost on the areas a projectile leaves (2026-10-02). y bits 8-19 =
+// damage multiplier, bits 20-31 = duration multiplier, 256 = 1.0 (0 reads
+// as 1.0). SpawnProjCS keeps y >> SWARM_SPAWN_BOOST_SHIFT per slot in
+// projBoost; HitCS / ProjMoveCS hand it to SwarmSpawnAreaFromDef.
+// Damage = the "spell power" stat card, duration = shots cast during a
+// mana surge (only lasting areas get longer).
+// Must match Swarm::kSpawnBoostShift / PackSpawnBoost in SwarmTypes.h
+// ------------------------------------------------------------
+static const uint SWARM_SPAWN_BOOST_SHIFT = 8u;
+
+// ------------------------------------------------------------
+// A dead enemy shattering into its rigid parts (2026-10-02).
+// SwarmCorpseTrackCS writes one when a slot that was alive last frame is
+// DEAD now; SwarmCorpseVS throws the parts as a closed-form function of
+// (seed, age). Must match Swarm::Corpse / kMaxCorpses in SwarmTypes.h
+// ------------------------------------------------------------
+static const uint SWARM_MAX_CORPSES = 512u;
+
+struct SwarmCorpse
+{
+    float3 position; // where it died (enemy position = ground + groundY)
+    float yaw;
+    float2 dir;      // throw direction, unit xz (away from the player)
+    float birth;     // time of death on SwarmSystem's clock, 0 = empty
+    uint kind;
+    uint seed;
+    uint cause;      // reserved: cause of death (fire / poison / lightning variants), 0 for now
+    float2 _pad;
+};
+
+float SwarmBoostDamage(uint boost)
+{
+    uint q = boost & 0xFFFu;
+    return (q == 0u) ? 1.0 : (float) q / 256.0;
+}
+
+float SwarmBoostDuration(uint boost)
+{
+    uint q = (boost >> 12) & 0xFFFu;
+    return (q == 0u) ? 1.0 : (float) q / 256.0;
+}
+
+// ------------------------------------------------------------
 // Size scale of one projectile / area (the Magnifier item).
 // A projectile's scale = its hit radius / its profile's radius
 // (SwarmMotion.baseRadius), worked out once in SwarmSpawnProjCS and
@@ -214,7 +277,7 @@ struct SwarmMotion
     float baseRadius; // the profile's hit radius: a shot bigger than this is drawn bigger
 
     float3 c2;
-    float _pad2;
+    float freezeTime; // > 0: the enemy this hits freezes for this long (Ice Lance, 2026-10-08; was _pad2)
 };
 
 struct SwarmProjPath
@@ -264,13 +327,17 @@ void SwarmBuildPath(inout SwarmProjPath path, SwarmMotion m,
     float sideLenSq = dot(side, side);
     side = (sideLenSq > 1e-6) ? side * rsqrt(sideLenSq) : float3(1, 0, 0);
 
+    // the side offset (c.y) is rolled around the flight axis by path.sideSign (radians):
+    // 0 = right, pi = left, other = random direction per shot (2026-10-06). c.z stays world-up
+    float3 lateral = side * cos(path.sideSign) + cross(fwd, side) * sin(path.sideSign);
+
     path.p0 = from;
     path.p3 = to;
     path.p1 = from + fwd * (m.c1.x * dist)
-                   + side * (m.c1.y * dist * path.sideSign)
+                   + lateral * (m.c1.y * dist)
                    + up * (m.c1.z * dist);
     path.p2 = from + fwd * (m.c2.x * dist)
-                   + side * (m.c2.y * dist * path.sideSign)
+                   + lateral * (m.c2.y * dist)
                    + up * (m.c2.z * dist);
     if (keepHeading)
         path.p1 = from + heading * (dist / 3.0);
@@ -318,6 +385,9 @@ static const uint SWARM_AREA_STUN = 2u; // a tick freezes + flashes the enemy (h
 // radius around it. Start / end / radius come from SwarmBeamCB every step
 // (AreaTickCS), channel = bits 8-11 of flags. Only the CPU spawns these.
 static const uint SWARM_AREA_CAPSULE = 4u;
+// shakes the camera when it appears (explosions; = Swarm::kAreaShake, 2026-10-03).
+// Counted by SwarmLiquidTrackCS, which already spots every newly born area
+static const uint SWARM_AREA_SHAKE = 8u;
 static const uint SWARM_AREA_BEAM_SHIFT = 8u; // (flags >> shift) & 0xF = beam channel
 static const uint SWARM_MAX_BEAMS = 4u; // = Swarm::kMaxBeams
 
@@ -334,6 +404,39 @@ static const float SWARM_SLOW_BIG_MUL = 0.5;
 float SwarmAreaSlow(uint flags)
 {
     return (float) ((flags >> SWARM_AREA_SLOW_SHIFT) & 0xFu) / 15.0;
+}
+
+// Freeze (2026-10-10, the Ice Spike): bits 4-7 of flags = q, a tick freezes
+// the enemies inside for q * 0.25 s (0 = none). AreaDamageCS leaves the same
+// freeze request as a hitting Ice Lance (SWARM_ANIM_FREEZE_REQ), so AICS
+// applies the elite / boss half and the immunity after a thaw.
+static const uint SWARM_AREA_FREEZE_SHIFT = 4u; // = Swarm::kAreaFreezeShift
+
+float SwarmAreaFreeze(uint flags)
+{
+    return (float) ((flags >> SWARM_AREA_FREEZE_SHIFT) & 0xFu) * 0.25;
+}
+
+// Push (2026-10-12, the Gust): a non-capsule area keeps its knockback
+// strength q / 15 in the beam-channel bits (8-11, unused unless CAPSULE).
+// AreaDamageCS writes enemyPush[slot] = (velocity xz away from the player,
+// seconds left, 0); AICS adds it to the velocity while it decays.
+// Elites take half, the boss none (SwarmPushKindMul).
+static const float SWARM_PUSH_SPEED = 28.0; // = Swarm::kPushSpeed (m/s at q = 15; the ramp-down makes it speed * time / 2 = 3.5 m)
+static const float SWARM_PUSH_TIME = 0.25;  // = Swarm::kPushTime
+
+float SwarmAreaPush(uint flags)
+{
+    if ((flags & SWARM_AREA_CAPSULE) != 0u)
+        return 0.0;
+    return (float) ((flags >> SWARM_AREA_BEAM_SHIFT) & 0xFu) / 15.0;
+}
+
+float SwarmPushKindMul(uint kind)
+{
+    if (kind == SWARM_KIND_BOSS) return 0.0;
+    if (kind == SWARM_KIND_ELITE) return 0.5;
+    return 1.0;
 }
 
 static const uint SWARM_HITAREA_ON_EXPIRE = 1u; // SwarmMotion.hitAreaFlags
@@ -383,21 +486,33 @@ struct SwarmAreaDef
 RWStructuredBuffer<SwarmArea> areas : register(SWARM_AREA_POOL_U);
 RWBuffer<uint> areaStates : register(SWARM_AREA_STATE_U);
 StructuredBuffer<SwarmAreaDef> areaDefs : register(SWARM_AREA_DEF_T);
+// Optional: the direction the spawner was travelling, per area slot
+// (xy = unit xz, w = 1 "fresh"). SwarmLiquidTrackCS reads it once when it
+// first sees the area and clears w. A shader with a UAV to spare #defines
+// SWARM_AREA_DIR_U (ProjMoveCS: a LOB poison flask lands there). HitCS has
+// no UAV left, so its areas carry no direction (a liquid picks an angle)
+#ifdef SWARM_AREA_DIR_U
+RWStructuredBuffer<float4> areaDirs : register(SWARM_AREA_DIR_U);
+#endif
 
 // Same CAS scan as the other pools. Pool full -> no area (degrade, never corrupt).
 // scale: the size scale of whatever spawned it (a projectile's SwarmProjScale, 1 = as authored)
-void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale)
+// boost: the projectile's projBoost (SwarmBoostDamage / SwarmBoostDuration), 0 = none.
+//        The duration part only stretches lasting areas (a one-shot ticks once anyway)
+// dir  : the spawner's velocity in xz (any length). Kept only with SWARM_AREA_DIR_U
+void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint boost, float2 dir)
 {
     if (defId == 0u)
         return;
 
     SwarmAreaDef d = areaDefs[defId];
+    bool lasting = d.tickInterval < d.duration;
 
     SwarmArea a = (SwarmArea) 0;
     a.center = pos;
     a.radius = d.radius * scale;
-    a.damage = d.damage;
-    a.timeLeft = d.duration;
+    a.damage = d.damage * SwarmBoostDamage(boost);
+    a.timeLeft = d.duration * (lasting ? SwarmBoostDuration(boost) : 1.0);
     a.tickInterval = d.tickInterval;
     a.tickTimer = 0.0;
     a.halfHeight = d.halfHeight * scale;
@@ -415,6 +530,10 @@ void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale)
         if (was == SWARM_DEAD)
         {
             areas[slot] = a;
+#ifdef SWARM_AREA_DIR_U
+            float dirLenSq = dot(dir, dir);
+            areaDirs[slot] = float4((dirLenSq > 1e-8) ? dir * rsqrt(dirLenSq) : float2(0.0, 0.0), 0.0, 1.0);
+#endif
             return;
         }
     }
@@ -549,13 +668,68 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_GhostAlpha; // VS: vertex alpha (drawn with alpha blend)
     float g_GhostGlow; // VS: HDR gain on the cyan tint
     float g_GhostDamageMul; // melee damage = g_ContactDamage * this
+
+    // ---- splitter (SWARM_KIND_SPLITTER) and its splitlings (2026-10-03) ----
+    float g_SplitterScale;
+    float g_SplitterDamageMul;
+    float g_SplitterExpMul;
+    float _splitterPad;
+    float g_SplitlingScale;
+    float g_SplitlingDamageMul;
+    float g_SplitlingExpMul;
+    float _splitlingPad;
+
+    // ---- boss charge (2026-10-07, BossAttacks writes it every frame) ----
+    // while g_BossChargeOn > 0.5 the boss ignores the flow field / chase and moves
+    // straight along g_BossChargeDir * g_BossChargeSpeed (speed 0 = winding up in place).
+    // Walls still stop it; it does not stop at the player (runs through)
+    float2 g_BossChargeDir;
+    float g_BossChargeSpeed;
+    float g_BossChargeOn;
+
+    // ---- brute (SWARM_KIND_BRUTE, 2026-10-07) ----
+    float g_BruteScale;
+    float g_BruteDamageMul;
+    float g_BruteExpMul;
+    float _brutePad;
+
+    // ---- charger (SWARM_KIND_CHARGER, 2026-10-08) ----
+    float g_ChargerScale;
+    float g_ChargerDamageMul;     // plain melee
+    float g_ChargerExpMul;
+    float g_ChargerDashDamageMul; // hitting the player during the dash (knocked back like a blast)
+    float g_ChargerWindup;        // seconds standing still with the band on the ground
+    float g_ChargerDashSpeed;
+    float g_ChargerDashDist;
+    float g_ChargerRecover;       // seconds standing still after the dash
+    float g_ChargerCooldown;      // seconds of plain chasing before the next wind-up
+    float g_ChargerMinDist;       // starts a wind-up with the player this far .. g_ChargerMaxDist away
+    float g_ChargerMaxDist;
+    float g_ChargerGlow;          // VS: red blink during the wind-up
+
+    // ---- shield bearer (SWARM_KIND_SHIELD, 2026-10-08) ----
+    float g_ShieldScale;
+    float g_ShieldDamageMul;
+    float g_ShieldExpMul;
+    float g_ShieldArmor;          // taken off every hit (one projectile, one area tick)
+
+    float g_ShieldMinFrac;        // ... but at least this fraction of it goes through
+    // ---- freeze (Ice Lance, 2026-10-08) ----
+    float g_FreezeBigMul;         // elites / the boss freeze this much shorter
+    float g_FreezeImmunity;       // seconds after a thaw with no new freeze
+    float g_FreezeTint;           // VS: how icy a frozen body looks (0 = no tint)
 };
 
 // body size multiplier of a kind (radius and model)
 float SwarmKindScale(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteScale
-         : (kind == SWARM_KIND_BOSS) ? g_BossScale : 1.0;
+         : (kind == SWARM_KIND_BOSS) ? g_BossScale
+         : (kind == SWARM_KIND_SPLITTER) ? g_SplitterScale
+         : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingScale
+         : (kind == SWARM_KIND_BRUTE) ? g_BruteScale
+         : (kind == SWARM_KIND_CHARGER) ? g_ChargerScale
+         : (kind == SWARM_KIND_SHIELD) ? g_ShieldScale : 1.0;
 }
 
 // melee damage multiplier of a kind (times g_ContactDamage)
@@ -563,14 +737,53 @@ float SwarmKindDamageMul(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteDamageMul
          : (kind == SWARM_KIND_BOSS) ? g_BossDamageMul
-         : (kind == SWARM_KIND_GHOST) ? g_GhostDamageMul : 1.0;
+         : (kind == SWARM_KIND_GHOST) ? g_GhostDamageMul
+         : (kind == SWARM_KIND_SPLITTER) ? g_SplitterDamageMul
+         : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingDamageMul
+         : (kind == SWARM_KIND_BRUTE) ? g_BruteDamageMul
+         : (kind == SWARM_KIND_CHARGER) ? g_ChargerDamageMul
+         : (kind == SWARM_KIND_SHIELD) ? g_ShieldDamageMul : 1.0;
 }
 
 // exp orb value multiplier of a kind (times g_OrbAmount)
 float SwarmKindExpMul(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteExpMul
-         : (kind == SWARM_KIND_BOSS) ? g_BossExpMul : 1.0;
+         : (kind == SWARM_KIND_BOSS) ? g_BossExpMul
+         : (kind == SWARM_KIND_SPLITTER) ? g_SplitterExpMul
+         : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingExpMul
+         : (kind == SWARM_KIND_BRUTE) ? g_BruteExpMul
+         : (kind == SWARM_KIND_CHARGER) ? g_ChargerExpMul
+         : (kind == SWARM_KIND_SHIELD) ? g_ShieldExpMul : 1.0;
+}
+
+// damage one hit (a projectile, one area tick) really does to this kind.
+// The shield bearer takes g_ShieldArmor off every hit, so many small ticks
+// (poison pool, beam) barely scratch it and one heavy hit works (2026-10-08)
+float SwarmArmorDamage(uint kind, float dmg)
+{
+    return (kind == SWARM_KIND_SHIELD && dmg > 0.0)
+        ? max(dmg - g_ShieldArmor, dmg * g_ShieldMinFrac) : dmg;
+}
+
+// ---- charger phases, from SwarmEnemyExtra.fuse ----
+static const uint SWARM_CHARGE_CHASE = 0u;   // fuse <= 0 (cooldown counts up to 0)
+static const uint SWARM_CHARGE_WINDUP = 1u;
+static const uint SWARM_CHARGE_DASH = 2u;
+static const uint SWARM_CHARGE_RECOVER = 3u;
+
+float SwarmChargerDashTime()
+{
+    return g_ChargerDashDist / max(g_ChargerDashSpeed, 0.1);
+}
+
+uint SwarmChargerPhase(float fuse)
+{
+    float w = g_ChargerWindup;
+    float d = w + SwarmChargerDashTime();
+    return (fuse <= 0.0) ? SWARM_CHARGE_CHASE
+         : (fuse <= w) ? SWARM_CHARGE_WINDUP
+         : (fuse <= d) ? SWARM_CHARGE_DASH : SWARM_CHARGE_RECOVER;
 }
 
 // Body capsule of an enemy of this kind. The model is scaled about its

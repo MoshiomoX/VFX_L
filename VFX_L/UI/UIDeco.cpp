@@ -6,17 +6,17 @@
 #include "Graphics/Material/Texture.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <vector>
 
 using namespace DirectX::SimpleMath;
 
 namespace UIDeco
 {
-    // 戦闘の UI は場面の HDR バッファに描かれ、合成でトーンマップ + ガンマを通る
+    // UI 全体の倍率（2026-10-07 ユーザー「全部の UI を 1.5 倍に」）
+    static float s_UIScale = 1.5f;
+    float UIScale() { return s_UIScale; }
+    void  SetUIScale(float s) { s_UIScale = std::clamp(s, 0.5f, 3.0f); }
+
+    // 戦闘の UI はシーンの HDR バッファに描かれ、合成でトーンマップ + ガンマを通る
     // （0.07 が中間の灰色に見えるのはこのため）。色は sRGB の見た目で決めて、ここで線形へ直す
     static Vector4 FromSrgb(float r, float g, float b)
     {
@@ -29,6 +29,7 @@ namespace UIDeco
         {
         case Tint::Silver: return FromSrgb(0.80f, 0.84f, 0.89f);   // 月銀 #CBD5E3
         case Tint::Arcane: return FromSrgb(0.44f, 0.88f, 0.85f);   // 奥術青 #6FE0DA
+        case Tint::Violet: return FromSrgb(0.78f, 0.62f, 0.96f);   // 菫 #C79EF5（召喚物）
         default:           return FromSrgb(0.85f, 0.71f, 0.42f);   // 古金 #D8B46A
         }
     }
@@ -38,6 +39,7 @@ namespace UIDeco
         switch (c)
         {
         case ItemCategory::Function: return Tint::Arcane;
+        case ItemCategory::Summon:   return Tint::Violet;
         case ItemCategory::Frame:
         case ItemCategory::Stat:     return Tint::Silver;
         default:                     return Tint::Gold;   // 攻撃魔法・範囲魔法・不明
@@ -105,6 +107,22 @@ namespace UIDeco
         sprite.Draw(w, { pos.x, pos.y + size.y - th }, { size.x, th }, color);         // 下
         sprite.Draw(w, { pos.x, pos.y + th }, { th, size.y - th * 2.0f }, color);      // 左
         sprite.Draw(w, { pos.x + size.x - th, pos.y + th }, { th, size.y - th * 2.0f }, color);   // 右
+    }
+
+    void DrawTextPlate(SpriteRenderer& sprite, const Vector2& pos, const Vector2& size,
+        const Vector2& pad, const Vector4& fill, float lineAlpha)
+    {
+        const auto& w = Tex().white;
+        if (!w || size.x <= 0.0f || size.y <= 0.0f) return;
+        const Vector2 p = pos - pad;
+        const Vector2 s = size + pad * 2.0f;
+        sprite.Draw(w, p, s, fill);
+        if (lineAlpha > 0.0f)
+        {
+            Vector4 line = TintColor(Tint::Gold);
+            line.w = lineAlpha;
+            DrawFrameLines(sprite, p, s, line, 1.0f);
+        }
     }
 
     void DrawPanel(SpriteRenderer& sprite, const Vector2& pos, const Vector2& size,

@@ -3,7 +3,7 @@
 // フレーム単位の点光源リスト。全モデル PS が t6/t7 から読む
 // （Shader/Common/PointLights.hlsli）。
 //
-//   CPU 側（VFX の Light entry、編集器のプレビュー、CPU 施放の範囲攻撃）は
+//   CPU 側（VFX の Light entry、エディタのプレビュー、CPU 発動の範囲攻撃）は
 //   Add() で積む。GPU 側（弾・範囲）は SwarmSystem が同じバッファに
 //   CS で追記する（SwarmLightCollectCS）。PS はどちらも区別しない。
 //

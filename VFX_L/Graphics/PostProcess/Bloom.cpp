@@ -5,7 +5,6 @@
 #include "Graphics/Shader/ComputeShader.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Renderer/RenderStates.h"
-#include <iostream>
 
 namespace
 {
@@ -18,6 +17,12 @@ bool Bloom::Initialize(ID3D11Device* device, int width, int height)
     HRESULT hr = ShaderPath::Load(m_CS.get(), device, L"Shader/PostProcess/BloomCS.hlsl");
     std::cout << "[Bloom] BloomCS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) { m_CS.reset(); return false; }
+
+    // TEMP-TEST: 比較の撮影用の初期値（2026-10-07、ユーザー「光が強すぎる」）
+    char env[32] = {};
+    if (GetEnvironmentVariableA("VFXL_EXPOSURE", env, sizeof(env)) > 0) m_Params.exposure = (float)std::atof(env);
+    if (GetEnvironmentVariableA("VFXL_GAMMA", env, sizeof(env)) > 0)    m_Params.gammaExp = (float)std::atof(env);
+    if (GetEnvironmentVariableA("VFXL_TONEMAP", env, sizeof(env)) > 0)  m_Params.tonemap = std::atoi(env) != 0;
 
     return CreateMips(device, width, height);
 }
@@ -80,9 +85,9 @@ bool Bloom::CreateMips(ID3D11Device* device, int width, int height)
 
 // ============================================================
 // 1 dispatch 分
-// src    : t0（mode 0 は場面の SRV、それ以外は srcMip の SRV）
-// srcMip : texel サイズを取るため。mode 0 なら nullptr（場面は dst の 2 倍として扱う）
-// baseMip: mode 2 のみ。dst と同サイズの降採様結果
+// src    : t0（mode 0 はシーンの SRV、それ以外は srcMip の SRV）
+// srcMip : texel サイズを取るため。mode 0 なら nullptr（シーンは dst の 2 倍として扱う）
+// baseMip: mode 2 のみ。dst と同サイズのダウンサンプリング結果
 // ============================================================
 void Bloom::Run(ID3D11DeviceContext* context, Mode mode,
     ID3D11ShaderResourceView* src, const Mip* srcMip,
@@ -123,14 +128,14 @@ void Bloom::Execute(ID3D11DeviceContext* context, ID3D11ShaderResourceView* scen
 
     const int N = kMipCount;
 
-    // 1) prefilter: 場面 → Down[0]
+    // 1) prefilter: シーン → Down[0]
     Run(context, Prefilter, sceneSRV, nullptr, nullptr, m_Down[0]);
 
-    // 2) 降採様: Down[i] → Down[i+1]
+    // 2) ダウンサンプリング: Down[i] → Down[i+1]
     for (int i = 0; i < N - 1; ++i)
         Run(context, Downsample, m_Down[i].srv.Get(), &m_Down[i], nullptr, m_Down[i + 1]);
 
-    // 3) 昇採様: Up[i] = Down[i] + blur(小さい方)。一番下は Down[N-1] を小さい方にする
+    // 3) アップサンプリング: Up[i] = Down[i] + blur(小さい方)。一番下は Down[N-1] を小さい方にする
     for (int i = N - 2; i >= 0; --i)
     {
         const Mip& lower = (i == N - 2) ? m_Down[N - 1] : m_Up[i + 1];

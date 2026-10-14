@@ -43,7 +43,7 @@ public:
     ItemSheetView::Style textStyle;
     float centerY = 0.50f;   // 画面高さに対する中心位置
 
-    // 戦闘の UI は場面の HDR バッファに描かれ、トーンマップ + ガンマを通る（線形の値）。
+    // 戦闘の UI はシーンの HDR バッファに描かれ、トーンマップ + ガンマを通る（線形の値）。
     // 画面で 72% 暗くしたいなら 1 - 0.28^2.2 ≒ 0.94
     DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.94f };
     // 地は不透明に近く（少し透けると明るい草が混ざって灰色になる）。画面で #0E0C16 くらい
@@ -53,19 +53,29 @@ public:
     // ---- 幻想 UI の飾り（UIDeco）----
     float headingScale = 1.10f;   // 見出し「レベルアップ」（カード幅 270px の時）
     DirectX::SimpleMath::Vector4 headingColor = { 0.96f, 0.92f, 0.84f, 1.0f };   // 名前・見出しの暖かい白
-    DirectX::SimpleMath::Vector4 iconColor = { 0.97f, 0.94f, 0.87f, 1.0f };      // 白い剪影に掛ける色
+    DirectX::SimpleMath::Vector4 iconColor = { 0.97f, 0.94f, 0.87f, 1.0f };      // 白いシルエットに掛ける色
     float cornerRatio = 0.26f;    // 四隅の組紐の大きさ（カード幅に対して）
     float circleSpin = 0.12f;     // 魔法陣の回転（rad / 秒、選択中は倍）
 
     // 選択中の index（キーボード / パッド用）
     int GetCursor() const { return m_Cursor; }
 
-    // 区切り線などに使う無地の白（無ければブロックの貼图で代用）
+    // ---- 金貨での引き直し（2026-10-04）----
+    // カードの下のボタン（R / パッド X / クリック）。GameUI が毎フレーム値段と所持を渡す（cost < 0 なら出さない）
+    void SetReroll(int cost, int gold) { m_RerollCost = cost; m_Gold = gold; }
+    // 押された（足りるかは見ない。GameUI が LevelUpSystem::Reroll を呼び、足りなければ断りの音）
+    bool ConsumeRerollRequest() { const bool r = m_RerollRequested; m_RerollRequested = false; return r; }
+    float rerollWidthRatio = 1.60f;   // ボタンの幅（カード幅に対して）
+    float rerollTextScale = 0.40f;    // カード幅 270px の時
+
+    // 区切り線などに使う無地の白（無ければブロックのテクスチャで代用）
     void SetWhiteTexture(std::shared_ptr<Texture> tex) { m_WhiteTex = tex; }
 
 private:
     DirectX::SimpleMath::Vector2 CardPosition(int index, int total) const;
     DirectX::SimpleMath::Vector2 CardSize() const;
+    // 引き直しのボタン（カードの列の下の中央）の左上と大きさ
+    void RerollRect(int total, DirectX::SimpleMath::Vector2& pos, DirectX::SimpleMath::Vector2& size) const;
     std::shared_ptr<Texture> GetIcon(ItemID id) const;
     void DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
         const DirectX::SimpleMath::Vector2& areaPos,
@@ -86,4 +96,9 @@ private:
     // 表示された直後に押しっぱなしの入力で確定してしまうのを防ぐ猶予
     float m_InputDelay = 0.0f;
     bool  m_WasChoosing = false;
+
+    int   m_RerollCost = -1;        // SetReroll（< 0 = ボタンを出さない）
+    int   m_Gold = 0;
+    bool  m_RerollRequested = false;
+    bool  m_RerollHover = false;
 };

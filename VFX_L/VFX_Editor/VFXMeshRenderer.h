@@ -28,9 +28,12 @@ struct VFXMeshParams
     DirectX::SimpleMath::Vector4 dissolveEdgeColor = { 1, 0.5f, 0.1f, 1 };
     uint32_t hasNoise = 0;
     uint32_t hasMask = 0;
-    float _pad[2] = {};
+    float shade = 0.0f;                // 球らしい陰影の強さ（0 = 無し。2026-10-06）
+    float noVertexColor = 0.0f;        // 1 = 頂点色を掛けない（貼り絵の無い FBX は材質の色が頂点色に焼かれている。2026-10-07）
+    DirectX::SimpleMath::Vector3 camPos = { 0, 0, 0 };   // 縁の光用（Render が入れる）
+    float toon = 0.0f;                 // 1 = トゥーンの護罩（向きで 3 段の硬い帯。半透明で描く。2026-10-09、シールドの護罩）
 };
-static_assert(sizeof(VFXMeshParams) == 96, "VFXMeshCB layout mismatch");
+static_assert(sizeof(VFXMeshParams) == 112, "VFXMeshCB layout mismatch");
 
 // 1 回の描画
 struct VFXMeshDrawItem
@@ -69,7 +72,8 @@ private:
 
     std::shared_ptr<VertexShader> m_VS;
     std::shared_ptr<PixelShader> m_PS;
-    std::shared_ptr<Texture> m_White;   // 貼图無しの既定
+    DirectX::SimpleMath::Vector3 m_CamPos = { 0, 0, 0 };   // Render で入れ、Draw が params.camPos に写す
+    std::shared_ptr<Texture> m_White;   // テクスチャ無しの既定
 
     ComPtr<ID3D11BlendState> m_BlendAdditive;
     ComPtr<ID3D11BlendState> m_BlendAlpha;

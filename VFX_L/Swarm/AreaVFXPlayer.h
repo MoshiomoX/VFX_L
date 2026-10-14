@@ -25,15 +25,28 @@ public:
     ~AreaVFXPlayer();
 
     // vfxFile: Assets/Data/VFXData/ の json のファイル名。空や読めない時は何もしない。
-    // duration 秒後に Stop する（loop の特効でも止まる）。follow = 毎フレーム followPos へ動かす
-    // 戻り値は実例の番号（0 = 出せなかった）。SetInstance / StopInstance で後から動かせる
+    // duration 秒後に Stop する（loop のエフェクトでも止まる）。follow = 毎フレーム followPos へ動かす
+    // 戻り値はインスタンスの番号（0 = 出せなかった）。SetInstance / StopInstance で後から動かせる
     uint32_t Play(const std::string& vfxFile, const DirectX::SimpleMath::Vector3& pos,
         float duration, bool follow, const VFXContext& ctx);
+    // 同上 + 色を掛けて出す（粒子の開始 / 終了色と点光源。水晶玉の光球を貯蔵した魔法の色で染める。2026-10-06）
+    uint32_t Play(const std::string& vfxFile, const DirectX::SimpleMath::Vector3& pos,
+        float duration, bool follow, const VFXContext& ctx, const DirectX::SimpleMath::Vector3& tint);
 
     // 光線など、位置と終点を毎フレーム外から入れる物（follow は無視される）。番号が古ければ何もしない
     void SetInstance(uint32_t handle, const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector3& beamEnd);
+    // 光線の太さの倍率（Beam entry の width に掛ける。拡大鏡の分。Play の直後に 1 回。2026-10-13）
+    void SetBeamWidth(uint32_t handle, float widthMul);
     // 早めに止める（発射を止めて、出ている物は自然に消える）
     void StopInstance(uint32_t handle);
+    // Y 軸回りに回す（Play の直後に 1 回。Boss の門の渦を門の向きに合わせる）
+    void RotateInstance(uint32_t handle, float yawDeg);
+
+    // 時間軸を伸び縮みさせる（Play の直後、まだ Update していないインスタンスに使う）。
+    // 各 entry の開始 / 終了の時刻 t を、t <= split なら t × before、それより後は
+    // split × before + (t - split) × after に写す。光線の溜め（split = 溜め）を短く・光線を長くする時用
+    // （魔力解放、2026-10-02）。持続が -1（無限）の entry は開始だけ写す
+    void RemapTimeline(uint32_t handle, float split, float before, float after);
 
     void Update(float dt, const DirectX::SimpleMath::Vector3& followPos);
 
@@ -42,6 +55,10 @@ public:
 
     // json を編集し直した時用。次の Play で読み直す
     void ClearTemplates() { m_Templates.clear(); }
+    // 雛形を先に読んでおく（Mesh entry の FBX もこの時に読む）。初回の Play で読むと Debug では
+    // 1 フレーム飛んで、短いエフェクトが途中から始まる（突風の渦、2026-10-13）。シーンの Init で CPU の
+    // エフェクトを全部通しておく
+    void Preload(const std::string& vfxFile) { GetTemplate(vfxFile); }
 
 private:
     struct Instance

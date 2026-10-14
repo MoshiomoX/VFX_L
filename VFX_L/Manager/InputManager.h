@@ -8,6 +8,9 @@
 
 using DirectX::SimpleMath::Vector2;
 
+// 最後に触った機器（UI の操作案内をキーボードの絵 / パッドの絵で出し分ける）
+enum class InputDevice { KeyboardMouse, Pad };
+
 class InputManager
 {
 public:
@@ -37,7 +40,7 @@ public:
     // ====== マウスの捕獲（TPS の視点操作）======
     // 捕獲中はカーソルを隠してウィンドウ中央の 1px に閉じ込め、ImGui にもマウスを渡さない。
     // 毎フレーム RequestMouseCapture を呼んでいる間だけ有効で、呼ばなくなった次のフレームで放す
-    // （場面を抜けた時に戻し忘れて、タイトルでカーソルが消えたままになるのを防ぐ）。
+    // （シーンを抜けた時に戻し忘れて、タイトルでカーソルが消えたままになるのを防ぐ）。
     // ウィンドウが前面に無い間は、要求があっても放しておく
     void RequestMouseCapture() { m_CaptureRequested = true; }
     bool IsMouseCaptured() const { return m_Captured; }
@@ -46,6 +49,10 @@ public:
     // 加速の掛からない生の値なので、カーソルが画面端に着いても止まらない
     DirectX::XMFLOAT2 GetMouseLookDelta() const { return m_LookDelta; }
     void OnRawInput(HRAWINPUT handle);   // WM_INPUT から
+
+    // カーソルを隠すだけ（閉じ込めない。パッドで UI を操作している間）。
+    // 捕獲と同じく、毎フレーム呼んでいる間だけ有効
+    void RequestHideCursor() { m_HideRequested = true; }
 
     // Alt の単押し：押してから離すまでに他のキー・マウスボタンが押されなかった時、離したフレームだけ true。
     // Alt+Tab / Alt+F4 / Alt+クリック（デバッグカメラ）では立たない
@@ -70,6 +77,17 @@ public:
     // 振動（強度 0〜1、duration 秒後に自動停止）
     void SetVibration(float leftMotor, float rightMotor, float duration);
     void StopVibration();
+
+    // ====== 最後に触った機器（2026-10-09）======
+    // パッドのボタンを押した / スティック・トリガーを倒した瞬間 → Pad。
+    // キー・マウスボタンを押した / マウスを動かした / ホイール → KeyboardMouse。
+    // パッドを挿した瞬間は Pad、抜いたら KeyboardMouse。起動時は KeyboardMouse（パッドが挿さっていれば最初の Update で Pad）
+    InputDevice GetLastDevice() const { return m_LastDevice; }
+    bool IsUsingPad() const { return m_LastDevice == InputDevice::Pad; }
+
+    // TEMP-TEST: 機器を固定する（自動テストの撮影用。VFXL_INPUT_DEVICE=pad|kbd でも起動時に固定）
+    void DebugLockDevice(InputDevice d) { m_LastDevice = d; m_DeviceLocked = true; }
+    void DebugUnlockDevice() { m_DeviceLocked = false; }
 
 private:
     InputManager() = default;
@@ -102,6 +120,8 @@ private:
     bool IsWindowActive() const;
     bool m_CaptureRequested = false;   // 今フレーム要求された（次の Update で反映して下ろす）
     bool m_Captured = false;
+    bool m_HideRequested = false;      // RequestHideCursor（次の Update で反映して下ろす）
+    bool m_CursorHidden = false;
     DirectX::XMFLOAT2 m_RawAccum = {};    // WM_INPUT の合計（Update で取り出す）
     DirectX::XMFLOAT2 m_LookDelta = {};
 
@@ -117,4 +137,11 @@ private:
     // 振動管理
     float m_VibrationTimer = 0.0f;
     bool  m_Vibrating = false;
+
+    // 最後に触った機器
+    void UpdateLastDevice(bool active, float rawMove);
+    InputDevice m_LastDevice = InputDevice::KeyboardMouse;
+    bool m_PadWasConnected = false;
+    bool m_DeviceLocked = false;   // TEMP-TEST
+    int  m_CaptureSettle = 0;      // 捕獲の出入りの後、カーソルの移動量を見ないフレーム数（閉じ込めでカーソルが跳ぶ）
 };

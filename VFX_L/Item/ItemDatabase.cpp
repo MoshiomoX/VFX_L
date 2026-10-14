@@ -11,11 +11,15 @@
 #include "Item/Items/Meteor.h"
 #include "Item/Items/StoneShot.h"
 #include "Item/Items/Poison.h"
+#include "Item/Items/IceLance.h"
+#include "Item/Items/IceSpike.h"
 #include "Item/Items/Beam.h"
+#include "Item/Items/Gust.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Magnifier.h"
 #include "Item/Items/HasteRune.h"
+#include "Item/Items/CrystalBall.h"
 #include "Item/Items/Frame3x3.h"
 #include "Item/Items/MaxHealthUp.h"
 #include "Item/Items/MaxManaUp.h"
@@ -23,10 +27,9 @@
 #include "Item/Items/JumpPowerUp.h"
 #include "Item/Items/ManaRegenUp.h"
 #include "Item/Items/JumpCountUp.h"
+#include "Item/Items/SpellPowerUp.h"
+#include "Item/Items/ShieldUp.h"
 #include "Item/ItemDataFile.h"
-#include <unordered_map>
-#include <utility>
-#include <iostream>
 
 namespace
 {
@@ -35,13 +38,14 @@ namespace
     std::unordered_map<ItemID, FunctionItemDef>   g_Functions;
     std::unordered_map<ItemID, AreaItemDef>       g_Areas;
     std::unordered_map<ItemID, FrameItemDef>      g_Frames;
+    std::unordered_map<ItemID, SummonItemDef>     g_Summons;   // 召喚物（水晶玉。2026-10-06）
     std::unordered_map<ItemID, StatItemDef>       g_Stats;
 
     std::vector<ItemID> g_AllIDs;          // 全ID（UI の一覧表示用）。能力値は入れない
     std::vector<ItemID> g_LevelUpOnlyIDs;  // レベルアップの候補にだけ出る物（能力値）
     bool g_Initialized = false;
 
-    // Items/*.h に書いてある形（json で上書きする前）。編集器の「コードの既定に戻す」用
+    // Items/*.h に書いてある形（json で上書きする前）。エディタの「コードの既定に戻す」用
     std::unordered_map<ItemID,
         std::pair<std::vector<CellOffset>, std::vector<CellOffset>>> g_CodeShapes;
 
@@ -52,6 +56,7 @@ namespace
         if (auto it = g_Functions.find(id);   it != g_Functions.end())   return &it->second.common;
         if (auto it = g_Areas.find(id);       it != g_Areas.end())       return &it->second.common;
         if (auto it = g_Frames.find(id);      it != g_Frames.end())      return &it->second.common;
+        if (auto it = g_Summons.find(id);     it != g_Summons.end())     return &it->second.common;
         return nullptr;
     }
 
@@ -76,8 +81,13 @@ namespace
         g_Frames[def.common.id] = def;
         g_AllIDs.push_back(def.common.id);
     }
-    // 能力値は g_AllIDs に入れない。背包・呪文書・デバッグの一覧は GetAllIDs を回すので、
-    // 入れると「背包に置ける物」として扱われてしまう
+    void Register(const SummonItemDef& def)
+    {
+        g_Summons[def.common.id] = def;
+        g_AllIDs.push_back(def.common.id);
+    }
+    // 能力値は g_AllIDs に入れない。バックパック・呪文書・デバッグの一覧は GetAllIDs を回すので、
+    // 入れると「バックパックに置ける物」として扱われてしまう
     void Register(const StatItemDef& def)
     {
         g_Stats[def.common.id] = def;
@@ -97,6 +107,7 @@ void ItemDatabase::Initialize()
     g_Functions.clear();
     g_Areas.clear();
     g_Frames.clear();
+    g_Summons.clear();
     g_Stats.clear();
     g_AllIDs.clear();
     g_LevelUpOnlyIDs.clear();
@@ -109,13 +120,19 @@ void ItemDatabase::Initialize()
     Register(MakeGoldenArrow());
     Register(MakeStoneShot());
     Register(MakePoison());
+    Register(MakeIceLance());
+    Register(MakeIceSpike());
     Register(MakeBeam());
+    Register(MakeGust());
 
     // ---- 機能型 ----
     Register(MakeSplitRune());
     Register(MakeDoubleCastRune());
     Register(MakeMagnifier());
     Register(MakeHasteRune());
+
+    // ---- 召喚物（2026-10-06）----
+    Register(MakeCrystalBall());
 
     // ---- AOE 型（未実装）----
 
@@ -129,10 +146,12 @@ void ItemDatabase::Initialize()
     Register(MakeJumpPowerUp());
     Register(MakeManaRegenUp());
     Register(MakeJumpCountUp());
+    Register(MakeSpellPowerUp());
+    Register(MakeShieldUp());
 
-    // ---- 形（占位格・影響格）----
-    // コードに書いた形を覚えてから、保存済みの道具データ（ItemData/<名前>.json）で上書きする。
-    // 能力値は背包に置かないので形を持たない（g_AllIDs に入っていない）
+    // ---- 形（占有マス・影響マス）----
+    // コードに書いた形を覚えてから、保存済みのアイテムデータ（ItemData/<名前>.json）で上書きする。
+    // 能力値はバックパックに置かないので形を持たない（g_AllIDs に入っていない）
     g_CodeShapes.clear();
     int shapeFiles = 0;
     for (ItemID id : g_AllIDs)
@@ -163,6 +182,7 @@ ItemCategory ItemDatabase::GetCategory(ItemID id)
     if (g_Functions.count(id))   return ItemCategory::Function;
     if (g_Areas.count(id))       return ItemCategory::Area;
     if (g_Frames.count(id))      return ItemCategory::Frame;
+    if (g_Summons.count(id))     return ItemCategory::Summon;
     if (g_Stats.count(id))       return ItemCategory::Stat;
 
     // どこにも無ければ Unknown。
@@ -194,6 +214,12 @@ const FrameItemDef* ItemDatabase::GetFrame(ItemID id)
     return (it != g_Frames.end()) ? &it->second : nullptr;
 }
 
+const SummonItemDef* ItemDatabase::GetSummon(ItemID id)
+{
+    auto it = g_Summons.find(id);
+    return (it != g_Summons.end()) ? &it->second : nullptr;
+}
+
 const StatItemDef* ItemDatabase::GetStat(ItemID id)
 {
     auto it = g_Stats.find(id);
@@ -206,6 +232,7 @@ const ItemCommon* ItemDatabase::GetCommon(ItemID id)
     if (auto* f = GetFunction(id))   return &f->common;
     if (auto* a = GetArea(id))       return &a->common;
     if (auto* fr = GetFrame(id))     return &fr->common;
+    if (auto* su = GetSummon(id))    return &su->common;
     if (auto* s = GetStat(id))       return &s->common;
     return nullptr;
 }
@@ -272,6 +299,7 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
     case SpellParam::CastDelay:       target = &stats.castDelay;       break;
     case SpellParam::CastInterval:    target = &stats.castInterval;    break;
     case SpellParam::ManaCost:        target = &stats.manaCost;        break;
+    case SpellParam::AreaDamage:      target = &stats.areaDamageMul;   break;
     case SpellParam::ProjectileCount: targetInt = &stats.projectileCount; break;
     case SpellParam::CastCount:       targetInt = &stats.castCount;       break;
 
@@ -324,6 +352,7 @@ void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
     case AreaParam::DamagePerTick: target = &stats.damagePerTick; break;
     case AreaParam::CastInterval:  target = &stats.castInterval;  break;
     case AreaParam::ManaCost:      target = &stats.manaCost;      break;
+    case AreaParam::Length:        target = &stats.length;        break;   // 光線以外は 0 × 倍率 = 0 のまま
 
     default:
         return;

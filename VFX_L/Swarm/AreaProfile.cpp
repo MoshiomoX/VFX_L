@@ -3,11 +3,6 @@
 // ============================================================
 #include "Swarm/AreaProfile.h"
 #include "Swarm/SwarmVFXTable.h"
-#include <algorithm>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
 
 using namespace DirectX::SimpleMath;
 using json = nlohmann::json;
@@ -45,8 +40,17 @@ uint32_t AreaProfile::Flags(bool atCaster) const
     uint32_t f = 0;
     if (atCaster && followCaster) f |= Swarm::kAreaFollowPlayer;
     if (stun) f |= Swarm::kAreaStun;
+    if (cameraShake) f |= Swarm::kAreaShake;
     const uint32_t q = (uint32_t)std::lround(std::clamp(slow, 0.0f, 1.0f) * 15.0f);
     f |= q << Swarm::kAreaSlowShift;
+    const uint32_t fq = (uint32_t)std::lround(std::clamp(freeze, 0.0f, 15.0f * Swarm::kAreaFreezeStep) / Swarm::kAreaFreezeStep);
+    f |= fq << Swarm::kAreaFreezeShift;
+    // 吹き飛ばし：光線チャンネルの 4 bit を借りる（光線でない範囲ではそこは空いている。SwarmAreaPush）
+    if (!IsBeam())
+    {
+        const uint32_t pq = (uint32_t)std::lround(std::clamp(push, 0.0f, 1.0f) * 15.0f);
+        f |= pq << Swarm::kAreaBeamShift;
+    }
     return f;
 }
 
@@ -78,9 +82,15 @@ json AreaProfile::ToJson() const
     j["followCaster"] = followCaster;
     j["stun"] = stun;
     j["slow"] = slow;
+    j["freeze"] = freeze;
+    j["cameraShake"] = cameraShake;
+    if (heat > 0.0f) j["heat"] = heat;
+    if (push > 0.0f) j["push"] = push;
+    if (forward != 0.0f) j["forward"] = forward;
     j["length"] = length;
     j["chargeTime"] = chargeTime;
     j["vfx"] = vfxFile;
+    j["sound"] = sound;
 
     json pv;
     pv["atTarget"] = previewAtTarget;
@@ -102,9 +112,15 @@ void AreaProfile::FromJson(const json& j)
     followCaster = j.value("followCaster", followCaster);
     stun = j.value("stun", stun);
     slow = j.value("slow", slow);
+    freeze = j.value("freeze", freeze);
+    cameraShake = j.value("cameraShake", cameraShake);
+    heat = j.value("heat", heat);
+    push = j.value("push", push);
+    forward = j.value("forward", forward);
     length = j.value("length", length);
     chargeTime = j.value("chargeTime", chargeTime);
     vfxFile = j.value("vfx", vfxFile);
+    sound = j.value("sound", sound);
 
     if (j.contains("preview"))
     {
@@ -216,6 +232,7 @@ VFXId AreaProfileDB::FindVFXId(const std::string& vfxFile)
     for (int i = 0; i < VFXDatabase::Count(); ++i)
     {
         const VFXId id = VFXDatabase::At(i);
+        if (!VFXDatabase::IsGpu(id)) continue;   // GPU の表に入る物だけ（CPU だけの物は弾・範囲の見た目にならない）
         const char* path = VFXDatabase::GetPath(id);
         if (path && FileKey(path) == key) return id;
     }
@@ -236,7 +253,7 @@ std::vector<Swarm::AreaDef> AreaProfileDB::BuildDefs(const SwarmVFXTable& vfxTab
         d.damage = p.damage;
         d.duration = p.duration;
         d.tickInterval = p.EffectiveTickInterval();
-        d.flags = p.Flags(false);   // 命中で出る範囲は玩家に付いて動かない
+        d.flags = p.Flags(false);   // 命中で出る範囲はプレイヤーに付いて動かない
         d.vfxType = vfxTable.IndexOf(FindVFXId(p.vfxFile));
         out.push_back(d);
     }

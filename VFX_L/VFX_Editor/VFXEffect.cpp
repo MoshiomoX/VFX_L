@@ -1,6 +1,6 @@
 // ============================================================
 // VFXEffect.cpp
-// 状態機（HSM）駆動版
+// ステートマシン（HSM）駆動版
 // ============================================================
 #include "VFX_Editor/VFXEffect.h"
 #include "VFX_Editor/VFXParticleEntry.h"
@@ -9,12 +9,10 @@
 #include "VFX_Editor/VFXTrailEntry.h"
 #include "VFX_Editor/VFXSpriteEntry.h"
 #include "VFX_Editor/VFXBeamEntry.h"
+#include "VFX_Editor/VFXLiquidEntry.h"
 #include "Particle/GPUParticleSystem.h"
-#include <algorithm>
-#include <iostream>
 
 #include <nlohmann/json.hpp>
-#include <fstream>
 
 using json = nlohmann::json;
 
@@ -41,6 +39,8 @@ int VFXEffect::AddEntry(EntryType type, float startTime, float duration)
         entry = std::make_unique<VFXSpriteEntry>(); break;
     case EntryType::Beam:
         entry = std::make_unique<VFXBeamEntry>(); break;
+    case EntryType::Liquid:
+        entry = std::make_unique<VFXLiquidEntry>(); break;
     default:
         return -1;
     }
@@ -77,7 +77,7 @@ float VFXEffect::GetTotalDuration() const
 }
 
 // ============================================================
-// 状態機から呼ばれるメソッド（既存 Update から切り出し）
+// ステートマシンから呼ばれるメソッド（既存 Update から切り出し）
 // ============================================================
 
 void VFXEffect::AdvanceTime(float dt)
@@ -189,7 +189,11 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         }
         else if (entry->GetType() == EntryType::Beam && ctx.beamRenderer)
         {
-            static_cast<VFXBeamEntry*>(entry.get())->Submit(*ctx.beamRenderer, m_WorldOffset, m_BeamEnd, m_HasBeamEnd);
+            static_cast<VFXBeamEntry*>(entry.get())->Submit(*ctx.beamRenderer, m_WorldOffset, m_BeamEnd, m_HasBeamEnd, m_BeamWidthMul);
+        }
+        else if (entry->GetType() == EntryType::Liquid && ctx.liquidRenderer)
+        {
+            static_cast<VFXLiquidEntry*>(entry.get())->Submit(*ctx.liquidRenderer, m_WorldOffset);
         }
         else if (entry->GetType() == EntryType::Light)
         {
@@ -259,7 +263,7 @@ uint32_t VFXEffect::GetAliveCount(const VFXContext& ctx) const
 }
 
 // ============================================================
-// 状態機駆動（新 API）
+// ステートマシン駆動（新 API）
 // ============================================================
 
 void VFXEffect::InitStateMachine(const VFXContext& ctx)
@@ -289,7 +293,7 @@ void VFXEffect::Stop()
 }
 
 // ============================================================
-// SetLooping（状態機版：Playing 中に Loop OFF → Finishing へ遷移要求）
+// SetLooping（ステートマシン版：Playing 中に Loop OFF → Finishing へ遷移要求）
 // ============================================================
 
 void VFXEffect::SetLooping(bool loop)
@@ -316,7 +320,7 @@ bool VFXEffect::SaveToFile(const std::string& filepath) const
     root["loop"] = m_Loop;
 
     json entries = json::array();
-    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam" };
+    const char* typeNames[] = { "Particle", "Sprite", "Trail", "Mesh", "Light", "Sound", "Beam", "Liquid" };
 
     for (auto& entry : m_Entries)
     {
@@ -397,6 +401,7 @@ bool VFXEffect::LoadFromFile(const std::string& filepath)
             else if (type == "Light") entryType = EntryType::Light;
             else if (type == "Sound") entryType = EntryType::Sound;
             else if (type == "Beam") entryType = EntryType::Beam;
+            else if (type == "Liquid") entryType = EntryType::Liquid;
 
             int idx = AddEntry(entryType, st, dur);
             if (idx >= 0 && e.contains("data"))
@@ -430,4 +435,35 @@ void VFXEffect::CloneFrom(const VFXEffect& src)
     m_CurrentTime = 0.0f;
     m_SMCtx.current = VFXStateID::Idle;
     m_SMCtx.timeInState = 0.0f;
+}
+
+// ============================================================
+// Y 軸回りに回す（2026-10-03、Boss の門の渦を門の向きに合わせる）。
+// 粒子 entry の発射位置（effect からの相対）と発射の向き、点光源の位置を回す。
+// 重力は世界の向きのまま。回転は TransformComponent の yaw と同じ（局所 +Z → (sin, 0, cos)）
+// ============================================================
+void VFXEffect::RotateYaw(float degrees)
+{
+    const auto rot = DirectX::SimpleMath::Matrix::CreateRotationY(DirectX::XMConvertToRadians(degrees));
+    for (auto& entry : m_Entries)
+    {
+        if (entry->GetType() == EntryType::Particle)
+        {
+            auto& e = static_cast<VFXParticleEntry*>(entry.get())->emitterData;
+            e.position = DirectX::SimpleMath::Vector3::Transform(e.position, rot);
+            e.direction = DirectX::SimpleMath::Vector3::TransformNormal(e.direction, rot);
+        }
+        else if (entry->GetType() == EntryType::Light)
+        {
+            auto* l = static_cast<VFXPointLightEntry*>(entry.get());
+            l->offset = DirectX::SimpleMath::Vector3::Transform(l->offset, rot);
+        }
+        else if (entry->GetType() == EntryType::Mesh)
+        {
+            // Mesh entry も回す（突風の前へ吹く渦、2026-10-13）。位置を回し、yaw を足す
+            auto* m = static_cast<VFXMeshEntry*>(entry.get());
+            m->offset = DirectX::SimpleMath::Vector3::Transform(m->offset, rot);
+            m->rotationDeg.y += degrees;
+        }
+    }
 }
