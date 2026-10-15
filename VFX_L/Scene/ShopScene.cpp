@@ -11,6 +11,7 @@
 #include "Item/ItemDatabase.h"
 #include "Item/ItemInfo.h"
 #include "Manager/InputManager.h"
+#include "Manager/InputMap.h"
 #include "Manager/ResourceManager.h"
 #include "Audio/AudioSystem.h"
 #include "ResourcePaths.h"
@@ -112,6 +113,15 @@ void ShopScene::Init()
     m_Stock.Generate(g_RunCarry);
     m_LastCoins = g_RunCarry.wallet.Coins();
 
+    // バックパックの画面（戦闘の GameUI をそのまま）。entity は開く時に引き継ぎから写す
+    m_Player = m_Registry.Create();
+    m_Registry.Add<BackpackComponent>(m_Player, g_RunCarry.backpack);
+    m_Registry.Add<SpellbookComponent>(m_Player, g_RunCarry.spellbook);
+    if (!m_UI.Initialize(device, context, m_ScreenW, m_ScreenH))
+        std::cout << "[Error] ShopScene: GameUI init failed" << std::endl;
+    m_BagOpen = false;
+    m_BagJustClosed = false;
+
     char env[8] = {};
     m_AutoTest = GetEnvironmentVariableA("VFXL_SHOP_AUTOTEST", env, sizeof(env)) > 0;   // TEMP-TEST
     m_AutoStep = 0;
@@ -131,6 +141,8 @@ void ShopScene::Init()
 
 void ShopScene::Shutdown()
 {
+    if (m_BagOpen) CloseBackpack();   // 開いたまま出たら置いた物を書き戻す
+    m_UI.Shutdown();
     m_Text.Shutdown();
     m_Sprite.Shutdown();
     std::cout << "[ShopScene] Shutdown" << std::endl;
@@ -165,11 +177,12 @@ void ShopScene::Layout()
     m_ListPos = { x0, m_ScreenH * 0.26f };
     m_ListSize = { m_ScreenW * 0.36f, m_ListPad * 2.0f + m_RowH * (float)rows + m_RowGap * (float)(rows - 1) };
 
-    // 右のカード。下にはみ出すなら上へ
-    m_CardPos = { m_ListPos.x + m_ListSize.x + m_ScreenW * 0.035f, m_ScreenH * 0.22f };
+    // 右のカード（値段と持っている数の行はカードの上）。下にはみ出すなら上へ
+    m_CardPos = { m_ListPos.x + m_ListSize.x + m_ScreenW * 0.035f, m_ScreenH * 0.245f };
     const float maxBottom = m_ScreenH * 0.96f;
-    if (m_CardPos.y + cs.y > maxBottom) m_CardPos.y = (std::max)(m_ScreenH * 0.10f, maxBottom - cs.y);
+    if (m_CardPos.y + cs.y > maxBottom) m_CardPos.y = (std::max)(m_ScreenH * 0.12f, maxBottom - cs.y);
 
+    m_UI.Layout(m_ScreenW, m_ScreenH);
     BuildButtons();
 }
 
@@ -189,20 +202,59 @@ void ShopScene::BuildButtons()
     m_Buttons[kReroll].key = L"<{K:R}|{X}>";
     m_Buttons[kLeave].label = L"次のステージへ";
     m_Buttons[kLeave].key = L"<{K:BackSpace}|{B}>";
+    m_Buttons[kBag].label = L"バックパック";
+    m_Buttons[kBag].key = L"<{K:Tab}|{START}>";
 
     const float labelScale = 0.44f * k;
     const float keyScale = 0.30f * k;
     const Vector2 pad = { 14.0f * k, 7.0f * k };
+    auto measure = [&](Button& b)
+        {
+            const Vector2 ks = InputGlyph::Measure(m_Text, b.key, keyScale);
+            const Vector2 ls = m_Text.Measure(b.label, labelScale);
+            b.size = { pad.x * 2.0f + ks.x + 12.0f * k + ls.x, pad.y * 2.0f + (std::max)(ks.y, ls.y) };
+        };
+    // 一覧の下に 3 つ（買う / 品揃え / 次へ）
     float x = m_ListPos.x;
     const float y = m_ListPos.y + m_ListSize.y + 16.0f * k;
-    for (Button& b : m_Buttons)
+    for (int i = kBuy; i <= kLeave; ++i)
     {
-        const Vector2 ks = InputGlyph::Measure(m_Text, b.key, keyScale);
-        const Vector2 ls = m_Text.Measure(b.label, labelScale);
+        Button& b = m_Buttons[i];
+        measure(b);
         b.pos = { x, y };
-        b.size = { pad.x * 2.0f + ks.x + 12.0f * k + ls.x, pad.y * 2.0f + (std::max)(ks.y, ls.y) };
         x += b.size.x + 14.0f * k;
     }
+    // バックパックは右上（金貨の下）
+    {
+        Button& b = m_Buttons[kBag];
+        measure(b);
+        b.pos = { m_ScreenW * 0.94f - b.size.x, m_ScreenH * 0.07f + 56.0f * k };
+    }
+}
+
+// ============================================================
+// バックパック（戦闘の GameUI）。開く時に引き継ぎを entity へ写し、閉じた時に書き戻す
+// ============================================================
+void ShopScene::OpenBackpack()
+{
+    if (m_BagOpen) return;
+    m_Registry.Get<BackpackComponent>(m_Player) = g_RunCarry.backpack;
+    m_Registry.Get<BackpackComponent>(m_Player).dirty = true;
+    m_Registry.Get<SpellbookComponent>(m_Player) = g_RunCarry.spellbook;
+    m_UI.TestShow(1);
+    m_BagOpen = true;
+    m_HoverButton = -1;
+    AudioSystem::Get().Play("ui_open");
+}
+
+void ShopScene::CloseBackpack()
+{
+    if (!m_BagOpen) return;
+    m_UI.Clear();
+    g_RunCarry.backpack = m_Registry.Get<BackpackComponent>(m_Player);
+    g_RunCarry.spellbook = m_Registry.Get<SpellbookComponent>(m_Player);
+    m_BagOpen = false;
+    m_BagJustClosed = true;
 }
 
 // ============================================================
@@ -302,8 +354,26 @@ void ShopScene::Update(float dt)
         return;
     }
 
+    // ---- バックパックが開いている間は GameUI に任せる（Tab / Start / パッド B で閉じる）----
+    if (m_BagOpen)
+    {
+        m_UI.Update(m_Registry, m_Player, dt);
+        // Esc は GameUI が一時停止のメニューを積む。ここでは「閉じる」扱い
+        if (m_UI.IsModalOpen() && !m_UI.IsBackpackOpen()) m_UI.Clear();
+        if (!m_UI.IsModalOpen()) CloseBackpack();
+        return;
+    }
+    const bool justClosed = m_BagJustClosed;
+    m_BagJustClosed = false;
+
     auto& input = InputManager::Get();
     const int n = m_Stock.Count();
+
+    if (!justClosed && InputMap::GetBackpackToggle())
+    {
+        OpenBackpack();
+        return;
+    }
 
     // ---- 行の移動（W S / 上下 / 十字）----
     if (n > 0)
@@ -342,6 +412,7 @@ void ShopScene::Update(float dt)
     {
         if (m_HoverButton == kBuy) TryBuy();
         else if (m_HoverButton == kReroll) TryReroll();
+        else if (m_HoverButton == kBag) OpenBackpack();
         else Leave();
         return;
     }
@@ -404,10 +475,11 @@ void ShopScene::Render(Renderer& renderer)
     }
 
     DrawGold();
-    DrawRows();
+    // バックパックを開いている間は一覧・カード・ボタンを描かない（上に乗る GameUI と混ざって読めない）
+    if (!m_BagOpen) DrawRows();
 
     // ---- 右：選んでいる品のカード ----
-    if (m_Stock.Count() > 0)
+    if (m_Stock.Count() > 0 && !m_BagOpen)
     {
         const ShopStock::Slot& s = m_Stock.At(m_Cursor);
         const Vector2 cs = m_Cards.CardSize();
@@ -421,7 +493,7 @@ void ShopScene::Render(Renderer& renderer)
             DrawOutlined(m_Text, t, { m_CardPos.x + (cs.x - sz.x) * 0.5f, m_CardPos.y + (cs.y - sz.y) * 0.5f },
                 { 0.80f, 0.76f, 0.70f, 1.0f }, ts, 2.0f * k);
         }
-        // カードの下：値段と持っている数
+        // カードの上：値段と持っている数
         {
             wchar_t buf[96];
             const int owned = ItemDatabase::GetStat(s.id) ? -1 : g_RunCarry.spellbook.GetCount(s.id);
@@ -429,15 +501,15 @@ void ShopScene::Render(Renderer& renderer)
             else            swprintf_s(buf, L"金貨 %d　　その場で効く", s.price);
             const float ts = 0.38f * k;
             const Vector2 sz = m_Text.Measure(buf, ts);
-            DrawOutlined(m_Text, buf, { m_CardPos.x + (cs.x - sz.x) * 0.5f, m_CardPos.y + cs.y + 8.0f * k },
+            DrawOutlined(m_Text, buf, { m_CardPos.x + (cs.x - sz.x) * 0.5f, m_CardPos.y - sz.y - 6.0f * k },
                 { gold.x, gold.y, gold.z, 1.0f }, ts, 1.5f * k);
         }
     }
 
-    DrawButtons();
+    if (!m_BagOpen) DrawButtons();
 
     // ---- 一言（買った / 足りない）----
-    if (m_MsgTime > 0.0f && !m_Msg.empty())
+    if (m_MsgTime > 0.0f && !m_Msg.empty() && !m_BagOpen)
     {
         const float a = Clamp01(m_MsgTime / 0.4f);
         const float ts = 0.40f * k;
@@ -460,6 +532,9 @@ void ShopScene::Render(Renderer& renderer)
 
     m_Sprite.End();
     m_Text.End();
+
+    // ---- バックパック（戦闘の GameUI。自分の組の後に描くので上に乗る）----
+    if (m_BagOpen) m_UI.Render(m_Registry, m_Player);
 }
 
 // ============================================================
@@ -670,7 +745,23 @@ void ShopScene::AutoTest()
     } break;
     case 5: if (t > 4.6f) { m_Cursor = 0; TryBuy(); buyLine("shop buy again"); ++m_AutoStep; } break;
     case 6: if (t > 5.2f) { TestLog("shop look deny"); ++m_AutoStep; } break;
-    case 7: if (t > 6.0f)
+    case 7: if (t > 5.8f) { OpenBackpack(); ++m_AutoStep; } break;
+    case 8: if (t > 6.6f) { TestLog("shop look bag"); ++m_AutoStep; } break;
+    case 9: if (t > 7.2f)
+    {
+        // 置かれている数と木箱（未配置）の数を見てから閉じる。買った物は木箱に落ちているはず
+        const auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+        const auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
+        int owned = 0;
+        for (const auto& e : book.entries) owned += e.count;
+        char buf[160];
+        snprintf(buf, sizeof(buf), "shop bag open %d items placed %d frames %d owned %d",
+            (int)m_BagOpen, (int)bp.items.size(), (int)bp.frames.size(), owned);
+        TestLog(buf);
+        CloseBackpack();
+        ++m_AutoStep;
+    } break;
+    case 10: if (t > 7.8f)
     {
         char buf[200];
         int books = 0;

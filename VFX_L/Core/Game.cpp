@@ -9,6 +9,8 @@
 #include "Scene/ResultScene.h"
 #include "Scene/ShopScene.h"
 #include "Scene/RunResult.h"
+#include "Item/ItemDatabase.h"
+#include "Item/BackpackLogic.h"
 #include "Core/DevUI.h"
 Game::Game()
 {
@@ -54,6 +56,11 @@ bool Game::Initialize(Renderer* renderer)
         g_RunCarry.spellbook.Learn(ItemID::HomingBolt, 1);
         g_RunCarry.spellbook.Learn(ItemID::Fireball, 1);
         g_RunCarry.spellbook.Learn(ItemID::Frame3x3, 1);
+        // バックパックは開始時と同じ（真ん中に 3x3 の枠 + 追尾弾。PlayerFactory と同じ置き方）
+        ItemDatabase::Initialize();
+        const int start = BackpackComponent::GRID / 2 - 1;
+        BackpackLogic::PlaceFrame(g_RunCarry.backpack, ItemID::Frame3x3, start, start, 0);
+        BackpackLogic::Place(g_RunCarry.backpack, ItemID::HomingBolt, start + 1, start + 1, 0);
         g_RunCarry.health.max = 100.0f;
         g_RunCarry.health.current = 100.0f;
         g_RunCarry.mana.max = 100.0f;

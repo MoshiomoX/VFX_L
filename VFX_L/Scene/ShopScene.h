@@ -15,6 +15,8 @@
 #include "Graphics/Renderer/TextRenderer.h"
 #include "UI/LevelUpUI.h"
 #include "UI/ShopStock.h"
+#include "UI/GameUI.h"
+#include "ECS/Registry.h"
 #include <SimpleMath.h>
 #include <memory>
 #include <string>
@@ -31,7 +33,7 @@ public:
     void Render(Renderer& renderer) override;
 
 private:
-    enum Btn { kBuy = 0, kReroll = 1, kLeave = 2, kButtonCount = 3 };
+    enum Btn { kBuy = 0, kReroll = 1, kLeave = 2, kBag = 3, kButtonCount = 4 };   // kBag = 右上（金貨の下）
     struct Button
     {
         std::wstring label;
@@ -45,6 +47,11 @@ private:
     void TryBuy();
     void TryReroll();
     void Leave();
+    // バックパック（2026-10-15 ユーザー：買った物をその場で置けるように）。
+    // 戦闘の GameUI をそのまま使う：この場面だけの Registry にバックパックと魔法書を持つ entity を 1 つ作り、
+    // 開く時に引き継ぎ（g_RunCarry）から写し、閉じた時に書き戻す
+    void OpenBackpack();
+    void CloseBackpack();
     void SetMessage(const std::wstring& s, bool good);
     std::shared_ptr<Texture> GetIcon(ItemID id) const;
     DirectX::SimpleMath::Vector2 RowPos(int i) const;
@@ -65,6 +72,11 @@ private:
     std::vector<std::pair<ItemID, std::shared_ptr<Texture>>> m_Icons;
     LevelUpUI m_Cards;    // 右のカード（描くだけ。入力はこのシーンが持つ）
     ShopStock m_Stock;
+    Registry  m_Registry;     // バックパックの画面用（entity 1 つだけ）
+    Entity    m_Player = {};
+    GameUI    m_UI;
+    bool      m_BagOpen = false;
+    bool      m_BagJustClosed = false;   // 閉じたフレームの Tab を開く操作として拾わない
 
     int m_Cursor = 0;         // 選んでいる行
     int m_HoverRow = -1;

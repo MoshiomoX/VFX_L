@@ -19,18 +19,26 @@ namespace
 // ============================================================
 int ShopStock::PriceOf(ItemID id) const
 {
-    if (ItemDatabase::GetStat(id)) return priceStat;
-    const ItemCommon* c = ItemDatabase::GetCommon(id);
-    if (!c) return 0;
-    switch (c->category)
+    int base = 0;
+    if (ItemDatabase::GetStat(id)) base = priceStat;
+    else if (const ItemCommon* c = ItemDatabase::GetCommon(id))
     {
-    case ItemCategory::Projectile:
-    case ItemCategory::Area:     return c->triggeredBy.empty() ? priceBasic : priceAdvanced;
-    case ItemCategory::Function: return priceRune;
-    case ItemCategory::Summon:   return priceSummon;
-    case ItemCategory::Frame:    return priceFrame;
-    default:                     return priceBasic;
+        switch (c->category)
+        {
+        case ItemCategory::Projectile:
+        case ItemCategory::Area:     base = c->triggeredBy.empty() ? priceBasic : priceAdvanced; break;
+        case ItemCategory::Function: base = priceRune; break;
+        case ItemCategory::Summon:   base = priceSummon; break;
+        case ItemCategory::Frame:    base = priceFrame; break;
+        default:                     base = priceBasic; break;
+        }
     }
+    return (int)std::lround((float)base * m_StageMul);
+}
+
+int ShopStock::RerollCost() const
+{
+    return (int)std::lround((float)(rerollBaseCost + rerollStepCost * m_RerollCount) * m_StageMul);
 }
 
 // ============================================================
@@ -41,27 +49,48 @@ void ShopStock::Generate(const RunCarry& carry)
     m_Slots.clear();
     const SpellbookComponent& book = carry.spellbook;
 
-    // [0..3] 魔法・ルーン・召喚物（LevelUpSystem::FillChoices と同じ絞り方。設置枠は別の欄に出す）
-    std::vector<ItemID> pool, frames;
+    // 面の倍率：第 2 面へ向かう商店が 1、以降 1 面ごとに stagePriceGrowth 倍
+    const int steps = (std::max)(0, carry.stage - 2);
+    m_StageMul = std::pow((std::max)(1.0f, stagePriceGrowth), (float)steps);
+
+    // [0..3] 魔法・ルーン・召喚物（LevelUpSystem::FillChoices と同じ絞り方。設置枠は別の欄に出す）。
+    // 種類ごとの重みで引く（基本魔法 > ルーン > 上級 > 召喚物、持っている物は下げる）
+    struct Entry { ItemID id; float weight; };
+    std::vector<Entry> pool;
+    std::vector<ItemID> frames;
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
         const ItemCommon* c = ItemDatabase::GetCommon(id);
         if (!c) continue;
         if (c->category == ItemCategory::Frame) { frames.push_back(id); continue; }
+        float w = weightBasic;
         if (!c->triggeredBy.empty())
         {
             bool hasAny = false;
             for (ItemID need : c->triggeredBy)
                 if (book.HasLearned(need)) { hasAny = true; break; }
             if (!hasAny) continue;
+            w = weightAdvanced;
         }
-        pool.push_back(id);
+        else if (c->category == ItemCategory::Function) w = weightRune;
+        else if (c->category == ItemCategory::Summon)   w = weightSummon;
+        if (book.HasLearned(id)) w *= weightOwnedMul;
+        pool.push_back({ id, w });
     }
     for (int i = 0; i < 4 && !pool.empty(); ++i)
     {
-        const int pick = RandBelow((int)pool.size());
-        m_Slots.push_back({ pool[pick], PriceOf(pool[pick]), false });
-        pool.erase(pool.begin() + pick);
+        float total = 0.0f;
+        for (const Entry& e : pool) total += (std::max)(e.weight, 0.0f);
+        if (total <= 0.0f) break;
+        float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
+        size_t pick = pool.size() - 1;
+        for (size_t j = 0; j < pool.size(); ++j)
+        {
+            r -= (std::max)(pool[j].weight, 0.0f);
+            if (r < 0.0f) { pick = j; break; }
+        }
+        m_Slots.push_back({ pool[pick].id, PriceOf(pool[pick].id), false });
+        pool.erase(pool.begin() + (ptrdiff_t)pick);
     }
 
     // [4] 設置枠
