@@ -479,6 +479,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Transform.cpp" />
     <ClCompile Include="UI\HUD.cpp" />
     <ClCompile Include="UI\HUDShieldBar.cpp" />
+    <ClCompile Include="UI\HUDExpBar.cpp" />
     <ClCompile Include="UI\HUDAnnounce.cpp" />
     <ClCompile Include="UI\TrainingMenuUI.cpp" />
     <ClCompile Include="UI\TrainingMenuUIDraw.cpp" />

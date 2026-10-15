@@ -38,7 +38,11 @@ void AutoTestUI::Run(float dt)
         mp.max = mp.current = 1.0e6f;
     }
     if (m_AutoStep < 5 && m_Registry.Has<LevelComponent>(m_Player))
-        m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
+    {
+        // 上がらない範囲で 62% 溜めておく（経験値バーの中身が写るように。2026-10-15）
+        auto& lv = m_Registry.Get<LevelComponent>(m_Player);
+        lv.experience = lv.ExpToNext() * 0.62f;
+    }
 
     static int s_MagnifierIndex = -1;
     if (m_AutoStep == 0 && m_AutoTime >= 1.0f)

@@ -95,8 +95,11 @@ struct HUDStyle
 {
     // ---- レイアウト ----
     HUDAnchor expBar = { { 0.0f, 0.0f }, {  0.0f,  0.0f } };
-    float expBarHeight = 10.0f;
+    float expBarHeight = 16.0f;   // 2026-10-15 10 → 16（見にくいと言われたので太く、文字が入る高さに）
     float expBarMargin = 0.0f;    // 左右の余白。幅 = 画面幅 - margin * 2
+    float expTextScale = 0.30f;   // バーの真ん中の「次のレベルまで 今 / 必要」
+    bool  expShowText = true;
+    bool  expTipGlow = true;      // 中身の先端の光
 
     HUDAnchor lvText = { { 0.0f, 0.0f }, { 20.0f, 16.0f } };
     HUDAnchor hpBar = { { 0.0f, 0.0f }, { 20.0f, 44.0f } };
@@ -134,7 +137,7 @@ struct HUDStyle
     DirectX::SimpleMath::Vector4 hpColor = { 0.55f, 0.035f, 0.030f, 1.0f };    // 見た目 #C0342F くらい
     DirectX::SimpleMath::Vector4 mpColor = { 0.050f, 0.16f, 0.75f, 1.0f };     // 見た目 #3F6FE0 くらい
     DirectX::SimpleMath::Vector4 mpSurgeColor = { 1.10f, 0.70f, 0.10f, 1.0f }; // 魔力解放中（金。1 を少し超えて光る。脈打つ）
-    DirectX::SimpleMath::Vector4 expColor = { 0.79f, 0.49f, 0.07f, 1.0f };     // 見た目 #E6B84D くらい
+    DirectX::SimpleMath::Vector4 expColor = { 0.95f, 0.60f, 0.10f, 1.0f };     // 明るい金（2026-10-15 に少し上げた。見た目 #FCCB5A くらい）
     DirectX::SimpleMath::Vector4 trailColor = { 1.00f, 0.85f, 0.60f, 0.50f };
     DirectX::SimpleMath::Vector4 borderColor = { 0.69f, 0.47f, 0.15f, 0.90f }; // 古金（UIDeco と同じ）
     DirectX::SimpleMath::Vector4 textColor = { 0.91f, 0.84f, 0.70f, 1.0f };    // 暖かい白
@@ -316,6 +319,10 @@ private:
     float m_ShieldFullFlash = 0.0f;         // その時の光（1 → 0）
     int   m_LastGold = -1;                  // 増えた瞬間を見つける
     float m_GoldPulseAt = -10.0f;           // 最後に増えた時刻（m_Time）
+    float m_LastExp = -1.0f;                // 経験値バー：拾った瞬間（脈）と上がった瞬間（光）を見つける（HUDExpBar.cpp）
+    int   m_LastLevel = -1;
+    float m_ExpPulseAt = -10.0f;
+    float m_ExpFlashAt = -10.0f;
     float m_Time = 0.0f;   // 明滅用（Update で進める）
     // 魔力解放が使えるようになった瞬間の光（1 → 0）。開始時は使える状態なので光らせない
     bool  m_SurgeWasReady = true;
@@ -326,6 +333,7 @@ private:
         const WandComponent& wand, const ManaComponent& mp);
     void DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaComponent& mp);
     void DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold, float yShift);
+    void DrawExpBar(SpriteRenderer& sprite, TextRenderer& text, const LevelComponent& lv);   // HUDExpBar.cpp
     // HP バーの下のシールドのバー（UI/HUDShieldBar.cpp）。戻り値 = 下の物をずらす量（px）
     float DrawShieldBar(SpriteRenderer& sprite, TextRenderer& text, const ShieldComponent& shield,
         const DirectX::SimpleMath::Vector2& hpPos);

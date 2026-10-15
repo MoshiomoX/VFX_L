@@ -161,7 +161,7 @@ HUDStyle HUDStyle::Scaled(float k) const
     auto anchor = [k](HUDAnchor& a) { a.offset *= k; };
     anchor(s.expBar); anchor(s.lvText); anchor(s.hpBar); anchor(s.mpBar);
     anchor(s.runInfo); anchor(s.spellBar); anchor(s.goldText); anchor(s.surgeSkill);
-    s.expBarHeight *= k;   s.expBarMargin *= k;
+    s.expBarHeight *= k;   s.expBarMargin *= k;   s.expTextScale *= k;
     s.hpBarSize *= k;      s.mpBarSize *= k;      s.barPadding *= k;
     s.lvTextScale *= k;    s.barTextScale *= k;   s.barTextOffset *= k;   s.textShadowOffset *= k;
     s.borderSize *= k;     s.gemSize *= k;
@@ -207,16 +207,8 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     DrawSurgeVignette(sprite, mp);
     DrawMarkers(sprite, info);
 
-    // ---- 経験値バー（既定では最上段の通し）----
-    // 選択待ちで持ち越し中は 1.0 を超えるので丸める
-    const Vector2 expPos = m_S.expBar.Resolve(m_ScreenW, m_ScreenH)
-        + Vector2(m_S.expBarMargin, 0.0f);
-    const Vector2 expSize = {
-        m_ScreenW - m_S.expBarMargin * 2.0f,
-        m_S.expBarHeight
-    };
-    const float expRatio = Clamp01(lv.Progress());
-    DrawBar(sprite, expPos, expSize, expRatio, expRatio, m_S.expColor);
+    // ---- 経験値バー（既定では最上段の通し。HUDExpBar.cpp）----
+    DrawExpBar(sprite, text, lv);
 
     // ---- HP / MP バー ----
     const Vector2 hpPos = m_S.hpBar.Resolve(m_ScreenW, m_ScreenH);
@@ -819,6 +811,10 @@ void HUD::DrawDebugUI()
     DragAnchor("Exp Bar", m_Style.expBar);
     ImGui::DragFloat("Exp Height", &m_Style.expBarHeight, 0.5f, 1.0f, 200.0f);
     ImGui::DragFloat("Exp Margin", &m_Style.expBarMargin, 1.0f, 0.0f, 800.0f);
+    ImGui::DragFloat("Exp Text Scale", &m_Style.expTextScale, 0.01f, 0.1f, 1.0f);
+    ImGui::Checkbox("Exp Text", &m_Style.expShowText);
+    ImGui::SameLine();
+    ImGui::Checkbox("Exp Tip Glow", &m_Style.expTipGlow);
     DragAnchor("Lv Text", m_Style.lvText);
     DragAnchor("HP Bar", m_Style.hpBar);
     DragAnchor("MP Bar", m_Style.mpBar);
@@ -964,6 +960,9 @@ bool HUD::SaveStyle(const char* path) const
     root["expBar"] = ToJson(m_Style.expBar);
     root["expBarHeight"] = m_Style.expBarHeight;
     root["expBarMargin"] = m_Style.expBarMargin;
+    root["expTextScale"] = m_Style.expTextScale;
+    root["expShowText"] = m_Style.expShowText;
+    root["expTipGlow"] = m_Style.expTipGlow;
     root["lvText"] = ToJson(m_Style.lvText);
     root["hpBar"] = ToJson(m_Style.hpBar);
     root["mpBar"] = ToJson(m_Style.mpBar);
@@ -1090,6 +1089,9 @@ bool HUD::LoadStyle(const char* path)
     ReadAnchor(root, "expBar", m_Style.expBar);
     ReadFloat(root, "expBarHeight", m_Style.expBarHeight);
     ReadFloat(root, "expBarMargin", m_Style.expBarMargin);
+    ReadFloat(root, "expTextScale", m_Style.expTextScale);
+    ReadBool(root, "expShowText", m_Style.expShowText);
+    ReadBool(root, "expTipGlow", m_Style.expTipGlow);
     ReadAnchor(root, "lvText", m_Style.lvText);
     ReadAnchor(root, "hpBar", m_Style.hpBar);
     ReadAnchor(root, "mpBar", m_Style.mpBar);

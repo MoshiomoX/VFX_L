@@ -736,6 +736,9 @@
     <ClCompile Include="UI\HUDShieldBar.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\HUDExpBar.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
     <ClCompile Include="UI\TrainingMenuUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
