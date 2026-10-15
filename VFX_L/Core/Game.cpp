@@ -7,6 +7,8 @@
 #include "Scene/SpellLabScene.h"
 #include "Scene/TitleScene.h"
 #include "Scene/ResultScene.h"
+#include "Scene/ShopScene.h"
+#include "Scene/RunResult.h"
 #include "Core/DevUI.h"
 Game::Game()
 {
@@ -32,6 +34,7 @@ bool Game::Initialize(Renderer* renderer)
 	}
 	m_SceneManager.RegisterScene<TitleScene>(SceneType::TITLE);
 	m_SceneManager.RegisterScene<ResultScene>(SceneType::RESULT);
+	m_SceneManager.RegisterScene<ShopScene>(SceneType::SHOP);
 
     // 起動はタイトルから。ゲームへ直行したい時は F1（DebugManager のシーン切替）
     m_SceneManager.ChangeScene(SceneType::TITLE);   // TEMP-TEST
@@ -40,6 +43,23 @@ bool Game::Initialize(Renderer* renderer)
     char autoloadEnv[128] = {};
     if (!DevUI::kEnabled)
     {
+    }
+    else if (GetEnvironmentVariableA("VFXL_SHOP_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
+    {
+        // TEMP-TEST: 商店の自動テスト。第 1 面をクリアした体の引き継ぎを積んで商店へ直行（Scene/ShopScene::AutoTest）
+        g_RunCarry.Reset();
+        g_RunCarry.stage = 2;
+        g_RunCarry.hasPlayer = true;
+        g_RunCarry.wallet.gold = 100.0f;
+        g_RunCarry.spellbook.Learn(ItemID::HomingBolt, 1);
+        g_RunCarry.spellbook.Learn(ItemID::Fireball, 1);
+        g_RunCarry.spellbook.Learn(ItemID::Frame3x3, 1);
+        g_RunCarry.health.max = 100.0f;
+        g_RunCarry.health.current = 100.0f;
+        g_RunCarry.mana.max = 100.0f;
+        g_RunCarry.mana.current = 100.0f;
+        g_RunCarry.mana.regen = 30.0f;
+        m_SceneManager.ChangeScene(SceneType::SHOP);
     }
     else if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoloadEnv, sizeof(autoloadEnv)) > 0
         || GetEnvironmentVariableA("VFXL_REF_MAGE", autoloadEnv, sizeof(autoloadEnv)) > 0)

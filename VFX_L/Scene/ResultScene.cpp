@@ -184,9 +184,15 @@ void ResultScene::Leave(int button)
     auto& sm = Application::Get().GetGame().GetSceneManager();
     if (button == 0)
     {
-        // クリアして次の面があれば、戦闘シーンが積んだ引き継ぎ（g_RunCarry）のまま次へ。無ければ最初から
-        if (!g_LastRun.hasNextStage) g_RunCarry.Reset();
-        sm.RequestChangeScene(SceneType::COLLISION_TEST);
+        // クリアして次の面があれば、戦闘シーンが積んだ引き継ぎ（g_RunCarry）のまま商店へ（2026-10-15。商店から次の面へ）。
+        // 無ければ最初から
+        if (g_LastRun.hasNextStage)
+            sm.RequestChangeScene(SceneType::SHOP);
+        else
+        {
+            g_RunCarry.Reset();
+            sm.RequestChangeScene(SceneType::COLLISION_TEST);
+        }
     }
     else
     {

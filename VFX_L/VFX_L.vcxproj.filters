@@ -577,6 +577,9 @@
     <ClCompile Include="Scene\ResultScene.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Scene\ShopScene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\TestSpawner.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
@@ -710,6 +713,9 @@
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\LevelUpUI.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\ShopStock.cpp">
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\UIDeco.cpp">
@@ -1211,6 +1217,9 @@
     <ClInclude Include="Scene\ResultScene.h">
       <Filter>Scene</Filter>
     </ClInclude>
+    <ClInclude Include="Scene\ShopScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
     <ClInclude Include="Scene\RunResult.h">
       <Filter>Scene</Filter>
     </ClInclude>
@@ -1483,6 +1492,9 @@
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\LevelUpUI.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\ShopStock.h">
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\UIDeco.h">

@@ -60,6 +60,12 @@ public:
     // 選択中の index（キーボード / パッド用）
     int GetCursor() const { return m_Cursor; }
 
+    // カード 1 枚（種別 → 名前 → 魔法陣の中のアイコン + 形 → 説明）。pos = 左上。
+    // レベルアップの四択と商店（ShopScene）で共用（2026-10-15）。大きさは Layout で決めた CardSize
+    void DrawCard(SpriteRenderer& sprite, TextRenderer& text, ItemID id,
+        const DirectX::SimpleMath::Vector2& pos, bool selected) const;
+    DirectX::SimpleMath::Vector2 CardSize() const;
+
     // ---- 金貨での引き直し（2026-10-04）----
     // カードの下のボタン（R / パッド X / クリック）。GameUI が毎フレーム値段と所持を渡す（cost < 0 なら出さない）
     void SetReroll(int cost, int gold) { m_RerollCost = cost; m_Gold = gold; }
@@ -73,7 +79,6 @@ public:
 
 private:
     DirectX::SimpleMath::Vector2 CardPosition(int index, int total) const;
-    DirectX::SimpleMath::Vector2 CardSize() const;
     // 引き直しのボタン（カードの列の下の中央）の左上と大きさ
     void RerollRect(int total, DirectX::SimpleMath::Vector2& pos, DirectX::SimpleMath::Vector2& size) const;
     std::shared_ptr<Texture> GetIcon(ItemID id) const;

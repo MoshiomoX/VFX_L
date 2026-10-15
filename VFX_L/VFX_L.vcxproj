@@ -347,6 +347,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\CollisionTestScene.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneTitle.cpp" />
     <ClCompile Include="Scene\ResultScene.cpp" />
+    <ClCompile Include="Scene\ShopScene.cpp" />
     <ClCompile Include="Graphics\Shader\ComputeShader.cpp" />
     <ClCompile Include="Camera\DebugCamera.cpp" />
     <ClCompile Include="Debug\DebugLineRenderer.cpp">
@@ -390,6 +391,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="UI\GameUI.cpp" />
     <ClCompile Include="UI\LevelUpSystem.cpp" />
     <ClCompile Include="UI\LevelUpUI.cpp" />
+    <ClCompile Include="UI\ShopStock.cpp" />
     <ClCompile Include="UI\UIDeco.cpp" />
     <ClCompile Include="UI\InputGlyph.cpp" />
     <ClCompile Include="Core\main.cpp" />
@@ -610,6 +612,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Scene\CollisionTestScene.h" />
     <ClInclude Include="Scene\TitleScene.h" />
     <ClInclude Include="Scene\ResultScene.h" />
+    <ClInclude Include="Scene\ShopScene.h" />
     <ClInclude Include="Scene\RunResult.h" />
     <ClInclude Include="Graphics\Shader\ComputeShader.h" />
     <ClInclude Include="Camera\DebugCamera.h" />
@@ -692,6 +695,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Player\ShieldPanel.h" />
     <ClInclude Include="UI\LevelUpSystem.h" />
     <ClInclude Include="UI\LevelUpUI.h" />
+    <ClInclude Include="UI\ShopStock.h" />
     <ClInclude Include="UI\UIDeco.h" />
     <ClInclude Include="UI\InputGlyph.h" />
     <ClInclude Include="UI\ShapeSprite.h" />

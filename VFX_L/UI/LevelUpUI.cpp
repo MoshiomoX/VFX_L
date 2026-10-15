@@ -216,9 +216,7 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
     const auto& flat = m_WhiteTex ? m_WhiteTex : m_BlockTex;   // 暗幕とカードの地は無地（文字を読みやすく）
     sprite.Draw(flat, { 0.0f, 0.0f }, m_ScreenSize, dimColor);
 
-    const Vector2 cardSize = CardSize();
     const float k = m_CardW / 270.0f;   // 文字や飾りの大きさの基準（カード幅 270px の時 1）
-    const float spin = UIDeco::Clock() * circleSpin;
 
     // ---- 見出し「レベルアップ」+ 百合紋の分割線（HUD・メニューと同じ古金）----
     {
@@ -236,14 +234,47 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
 
     for (int i = 0; i < total; ++i)
     {
-        const ItemID id = lv.pendingChoices[i];
-        const ItemCommon* c = ItemDatabase::GetCommon(id);
-        if (!c) continue;
-
         const bool selected = (i == m_Cursor);
         Vector2 pos = CardPosition(i, total);
         if (selected) pos.y -= m_CardH * 0.015f;   // 選択中は少し浮かせる
+        DrawCard(sprite, text, lv.pendingChoices[i], pos, selected);
+    }
 
+    // ---- 金貨で引き直すボタン（2026-10-04）。足りない時は文字を暗い赤に ----
+    if (m_RerollCost >= 0)
+    {
+        Vector2 bp, bs;
+        RerollRect(total, bp, bs);
+        const bool afford = m_Gold >= m_RerollCost;
+        UIDeco::PanelStyle ps;
+        ps.fill = m_RerollHover ? hoverColor : cardColor;
+        ps.innerInset = 4.0f * k;
+        UIDeco::DrawPanel(sprite, bp, bs, UIDeco::TintColor(UIDeco::Tint::Gold), ps, (m_RerollHover && afford) ? 1.0f : 0.0f);
+
+        wchar_t buf[96];
+        swprintf_s(buf, L"<{K:R}|{X}>  引き直す     金貨 %d   （所持 %d）", m_RerollCost, m_Gold);   // <キーボード|パッド> の絵（InputGlyph）
+        const float s = rerollTextScale * k;
+        const Vector2 ts = InputGlyph::Measure(text, buf, s);
+        const Vector4 col = afford ? headingColor : Vector4(0.60f, 0.10f, 0.07f, 1.0f);   // 線形の暗い赤
+        InputGlyph::Draw(sprite, text, buf, { bp.x + (bs.x - ts.x) * 0.5f, bp.y + (bs.y - ts.y) * 0.5f }, col, s);
+    }
+}
+
+// ============================================================
+// カード 1 枚（レベルアップの四択と商店で共用。2026-10-15 に Draw から切り出した）
+// ============================================================
+void LevelUpUI::DrawCard(SpriteRenderer& sprite, TextRenderer& text, ItemID id,
+    const Vector2& pos, bool selected) const
+{
+    if (!m_BlockTex) return;
+    const ItemCommon* c = ItemDatabase::GetCommon(id);
+    if (!c) return;
+
+    const Vector2 cardSize = CardSize();
+    const float k = m_CardW / 270.0f;   // 文字や飾りの大きさの基準（カード幅 270px の時 1）
+    const float spin = UIDeco::Clock() * circleSpin;
+
+    {
         // ---- カード本体：種類の色の二重線 + 四隅の組紐。選択中は光らせる ----
         const Vector4 tint = UIDeco::CategoryColor(c->category);
         UIDeco::PanelStyle ps;
@@ -327,25 +358,6 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
         const ItemSheetView::Style body = (need > avail && need > 0.0f)
             ? st.Scaled((std::max)(0.6f, avail / need)) : st;
         ItemSheetView::DrawBody(&sprite, m_WhiteTex ? m_WhiteTex : m_BlockTex, text, sheet, { pos.x + pad, y }, inner, body, true);
-    }
-
-    // ---- 金貨で引き直すボタン（2026-10-04）。足りない時は文字を暗い赤に ----
-    if (m_RerollCost >= 0)
-    {
-        Vector2 bp, bs;
-        RerollRect(total, bp, bs);
-        const bool afford = m_Gold >= m_RerollCost;
-        UIDeco::PanelStyle ps;
-        ps.fill = m_RerollHover ? hoverColor : cardColor;
-        ps.innerInset = 4.0f * k;
-        UIDeco::DrawPanel(sprite, bp, bs, UIDeco::TintColor(UIDeco::Tint::Gold), ps, (m_RerollHover && afford) ? 1.0f : 0.0f);
-
-        wchar_t buf[96];
-        swprintf_s(buf, L"<{K:R}|{X}>  引き直す     金貨 %d   （所持 %d）", m_RerollCost, m_Gold);   // <キーボード|パッド> の絵（InputGlyph）
-        const float s = rerollTextScale * k;
-        const Vector2 ts = InputGlyph::Measure(text, buf, s);
-        const Vector4 col = afford ? headingColor : Vector4(0.60f, 0.10f, 0.07f, 1.0f);   // 線形の暗い赤
-        InputGlyph::Draw(sprite, text, buf, { bp.x + (bs.x - ts.x) * 0.5f, bp.y + (bs.y - ts.y) * 0.5f }, col, s);
     }
 }
 
