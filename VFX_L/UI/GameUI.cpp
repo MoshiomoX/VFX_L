@@ -176,9 +176,25 @@ void GameUI::Update(Registry& reg, Entity player, float dt)
 void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 {
     // ---- 1. 三択の割り込み ----
-    // 二重に積まれないよう、Push 側が既存を弾いてくれる
+    // 二重に積まれないよう、Push 側が既存を弾いてくれる。
+    // レベルアップの直後は choiceDelay の間だけ待つ（ゲームは止めず「レベルアップ！」の案内だけ。2026-10-15）
+    m_LevelUpWait = false;
     if (LevelUpSystem::IsAnyoneChoosing(reg))
-        m_Stack.Push(UILayer::LevelUp, UIManager::CloseMode::Forced);
+    {
+        LevelComponent* lv = reg.Has<LevelComponent>(player) ? &reg.Get<LevelComponent>(player) : nullptr;
+        if (lv && lv->choiceDelay > 0.0f && !m_Stack.IsOpen(UILayer::LevelUp))
+        {
+            if (m_LevelUpWaitAge < 0.0f) m_LevelUpWaitAge = 0.0f;
+            m_LevelUpWaitAge += dt;
+            lv->choiceDelay -= dt;
+            m_LevelUpWait = true;
+        }
+        else
+        {
+            m_Stack.Push(UILayer::LevelUp, UIManager::CloseMode::Forced);
+        }
+    }
+    if (!m_LevelUpWait) m_LevelUpWaitAge = -1.0f;
 
     // ---- 1b. 一時停止のメニュー（P / パッド Back）----
     // 三択の上には開かない（選ぶまで閉じられない物の上に積むと戻り方がややこしい）。
@@ -237,10 +253,10 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     }
 
     // ---- 2. グリッドの開閉 ----
-    // 何も開いていない時か、自分が一番上の時だけ Tab を受ける。
-    // 三択が乗っている間はグリッドを閉じられない。
+    // 何も開いていない時か、自分が一番上の時、または四択が一番上の時（四択の上に開いて見る・置ける。
+    // 閉じれば四択へ戻る。2026-10-15 ユーザー：「レベルアップの時もバックパックを見たい」）だけ Tab を受ける
     const bool canToggleBackpack =
-        m_Stack.CanReceiveInput(UILayer::Backpack) || m_Stack.IsEmpty();
+        m_Stack.CanReceiveInput(UILayer::Backpack) || m_Stack.IsEmpty() || m_Stack.Top() == UILayer::LevelUp;
 
     if (canToggleBackpack && InputMap::GetBackpackToggle())
     {
@@ -357,6 +373,13 @@ void GameUI::Render(Registry& reg, Entity player)
             ? &reg.Get<WandComponent>(player) : nullptr;
         m_FrameInfo.wand = wand;
         m_FrameInfo.shield = reg.Has<ShieldComponent>(player) ? &reg.Get<ShieldComponent>(player) : nullptr;
+        // レベルアップ直後の間（四択を出すまで）は画面の真ん中に「レベルアップ！」（シーンの案内より優先）
+        if (m_LevelUpWait)
+        {
+            m_FrameInfo.announce = L"レベルアップ！";
+            m_FrameInfo.announceAlpha = (std::min)(1.0f, m_LevelUpWaitAge / 0.15f);
+            m_FrameInfo.announceAge = m_LevelUpWaitAge;
+        }
         m_HUD.Draw(m_Sprite, m_Text,
             reg.Get<HealthComponent>(player),
             reg.Get<ManaComponent>(player),
@@ -486,6 +509,11 @@ void GameUI::TestShow(int layer)
     if (layer == 4) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenHowTo(); }      // 一時停止 → 遊び方のページ（2026-10-13）
 }
 
+void GameUI::TestPushBackpack()
+{
+    m_Stack.Push(UILayer::Backpack);   // 今の一番上（四択）の上に重ねる（2026-10-15）
+}
+
 void GameUI::TestOpenTraining(bool open)
 {
     if (open && m_Stack.IsEmpty()) { m_Stack.Push(UILayer::Training); m_Training.Open(); }
@@ -554,7 +582,12 @@ void GameUI::DrawModals(Registry& reg, Entity player)
             break;
 
         case UILayer::LevelUp:
-            if (reg.Has<LevelComponent>(player))
+            if (!reg.Has<LevelComponent>(player)) break;
+            // 四択の上にバックパックが乗っている間は暗幕だけ（文字はスプライトの後にまとめて描かれるので、
+            // カードの文字がバックパックの上に浮いてしまう。2026-10-15）
+            if (m_Stack.IsOpen(UILayer::Backpack) && m_Stack.Top() != UILayer::LevelUp)
+                m_Sprite.Draw(m_WhiteTex, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH }, m_LevelUp.dimColor);
+            else
                 m_LevelUp.Draw(m_Sprite, m_Text, reg.Get<LevelComponent>(player));
             break;
 

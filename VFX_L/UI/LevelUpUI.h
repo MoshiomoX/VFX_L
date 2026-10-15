@@ -102,6 +102,11 @@ private:
     float m_InputDelay = 0.0f;
     bool  m_WasChoosing = false;
 
+    // 出た瞬間の動き（2026-10-15）：暗幕が濃くなり、カードが下から浮き上がる（実時間 UIDeco::Clock）
+    mutable bool  m_Shown = false;
+    mutable float m_ShownAt = 0.0f;
+    float appearTime = 0.35f;
+
     int   m_RerollCost = -1;        // SetReroll（< 0 = ボタンを出さない）
     int   m_Gold = 0;
     bool  m_RerollRequested = false;

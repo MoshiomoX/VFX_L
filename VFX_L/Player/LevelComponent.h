@@ -55,6 +55,11 @@ struct LevelComponent
     // 今の四択で金貨を払って選び直した回数（2026-10-04。値段が回数で上がる。選んだら 0 に戻る）
     int rerollCount = 0;
 
+    // 四択の画面を出すまでの残り秒（2026-10-15 ユーザー：「レベルアップが急すぎる」）。
+    // レベルアップで候補を引いた時に LevelUpSystem::levelUpDelay が入り、その間はゲームを止めず
+    // 「レベルアップ！」の案内だけ出す（GameUI が減らす）。報酬の箱の四択は 0（すぐ出す）
+    float choiceDelay = 0.0f;
+
     // 連続レベルアップは1回ずつ処理する。
     // まとめて上げると三択が何度も連続で出て、選ぶ作業だけが続く。
     // 余った経験値は持ち越して、選び終わってから次のレベルへ進む。
@@ -65,5 +70,5 @@ struct LevelComponent
         ++level;
     }
 
-    void ClearChoices() { pendingChoices.clear(); rerollCount = 0; }
+    void ClearChoices() { pendingChoices.clear(); rerollCount = 0; choiceDelay = 0.0f; }
 };

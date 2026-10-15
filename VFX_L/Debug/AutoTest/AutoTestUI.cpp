@@ -24,7 +24,8 @@ namespace
 // TEMP-TEST: 幻想 UI の見た目（VFXL_BATTLE_AUTOTEST=ui）
 // 1 秒: 湧き停止、バックパックへ火球・隕石・拡大鏡・分裂のルーンを置く（MP 無限、経験値 0）
 // 2 秒: バックパックを開く "ui backpack" / 4 秒: 拡大鏡の tooltip "ui tooltip" / 6 秒: 一時停止 "ui pause"
-// 8 秒: 全部閉じる "ui hud" / 10 秒: 経験値を渡して三択 "ui levelup" / 13 秒 "ui done"
+// 8 秒: 全部閉じる "ui hud" / 10 秒: 経験値を渡して三択 "ui levelup"（10.5 秒は待ちの案内 levelupwait、
+// 11.9 秒にカード levelup、12.6 秒に四択の上のバックパック levelupbag）/ 14.4 秒 "ui done"
 // バックパック・一時停止の間は gameplay が止まるので Update から呼ぶ（dt は止まっていても進む）
 // ============================================================
 void AutoTestUI::Run(float dt)
@@ -138,11 +139,33 @@ void AutoTestUI::Run(float dt)
         {
             lv.pendingChoices = { ItemID::MoveSpeedUp, ItemID::JumpPowerUp, ItemID::MaxHealthUp };
             AutoTestLog("ui levelup choices: MoveSpeedUp / JumpPowerUp / MaxHealthUp");
-            AutoTestLog("ui look levelup");
+            // 2026-10-15：四択は 1.2 秒待ってから出る。この時点は「レベルアップ！」の案内だけ（ゲームは動いている）
+            char line[96];
+            snprintf(line, sizeof(line), "ui levelup wait choiceDelay %.2f modal %d", lv.choiceDelay, (int)m_GameUI.IsModalOpen());
+            AutoTestLog(line);
+            AutoTestLog("ui look levelupwait");
         }
+        m_AutoStep = 60;
+    }
+    else if (m_AutoStep == 60 && m_AutoTime >= 11.9f)
+    {
+        char line[96];
+        snprintf(line, sizeof(line), "ui levelup shown modal %d", (int)m_GameUI.IsModalOpen());
+        AutoTestLog(line);
+        AutoTestLog("ui look levelup");
+        m_AutoStep = 61;
+    }
+    else if (m_AutoStep == 61 && m_AutoTime >= 12.6f)
+    {
+        // 四択の上にバックパックを重ねる（Tab / Start と同じ）
+        m_GameUI.TestPushBackpack();
+        char line[96];
+        snprintf(line, sizeof(line), "ui levelup backpack over: backpackOpen %d", (int)m_GameUI.IsBackpackOpen());
+        AutoTestLog(line);
+        AutoTestLog("ui look levelupbag");
         m_AutoStep = 7;
     }
-    else if (m_AutoStep == 7 && m_AutoTime >= 12.0f && m_Registry.Has<PlayerStatsComponent>(m_Player))
+    else if (m_AutoStep == 7 && m_AutoTime >= 13.4f && m_Registry.Has<PlayerStatsComponent>(m_Player))
     {
         // 実際に選んで、速さと跳ぶ力が上がるかを記録する
         auto& lv = m_Registry.Get<LevelComponent>(m_Player);
@@ -157,7 +180,7 @@ void AutoTestUI::Run(float dt)
         AutoTestLog(line);
         m_AutoStep = 8;
     }
-    else if (m_AutoStep == 8 && m_AutoTime >= 13.0f)
+    else if (m_AutoStep == 8 && m_AutoTime >= 14.4f)
     {
         AutoTestLog("ui done");
         m_AutoStep = 9;

@@ -47,6 +47,7 @@ public:
     float statWeight = 0.35f;   // 能力値の札 1 枚の出やすさ（魔法・ルーン 1 枚 = 1）
     int rerollBaseCost = 10;    // 引き直し 1 回目の金貨
     int rerollStepCost = 10;    // 同じ四択で引き直す度に上がる分
+    float levelUpDelay = 1.2f;  // レベルアップしてから四択を出すまでの間（秒。その間は遊べる。2026-10-15）
 
     // ---- 統計（ImGui 表示用）----
     int GetTotalLevelUps() const { return m_TotalLevelUps; }

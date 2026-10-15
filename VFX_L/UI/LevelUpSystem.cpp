@@ -85,6 +85,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
     lv.ConsumeLevelUp();
     ApplyLevelSpeed(reg, player);
     ++m_TotalLevelUps;
+    lv.choiceDelay = levelUpDelay;   // すぐ止めずに「レベルアップ！」を見せてから四択（GameUI）
 
     std::cout << "[LevelUp] level " << lv.level
         << " : " << lv.pendingChoices.size() << " choices" << std::endl;
@@ -103,6 +104,7 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
     if (lv.IsChoosing()) return false;
     const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
     if (FillChoices(lv, book) == 0) return false;
+    lv.choiceDelay = 0.0f;   // 箱を開けた四択はすぐ出す
 
     ++m_TotalOffers;
     std::cout << "[LevelUp] reward offer : " << lv.pendingChoices.size() << " choices" << std::endl;

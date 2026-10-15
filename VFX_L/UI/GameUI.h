@@ -71,6 +71,7 @@ public:
     // TEMP-TEST: 自動テスト（VFXL_BATTLE_AUTOTEST=ui）。マウスを使わずに画面を開閉し、tooltip を指定の位置に出す
     //   layer: 0 = 全部閉じる / 1 = バックパック / 2 = 一時停止 / 3 = 設定のページ / 4 = 遊び方のページ。itemIndex < 0 で tooltip を消す
     void TestShow(int layer);
+    void TestPushBackpack();   // TEMP-TEST: 四択の上にバックパックを重ねる（ui）
     const SpellbookUI& GetSpellbook() const { return m_Spellbook; }   // TEMP-TEST: 木箱の物理の記録
     BackpackPadControl& TestPad() { return m_Pad; }          // TEMP-TEST: パッド操作（padbag）
     const DragContext& GetDrag() const { return m_Drag; }    // TEMP-TEST
@@ -163,6 +164,8 @@ private:
     HUD            m_HUD;
     BackpackPadControl m_Pad;                  // バックパック画面のパッド操作
     bool           m_PadClosePending = false;  // B で閉じる要求（次のフレームで閉じる）
+    bool           m_LevelUpWait = false;      // レベルアップ直後、四択を出すまでの間（LevelComponent::choiceDelay）
+    float          m_LevelUpWaitAge = -1.0f;   // その経過秒（案内の出方）
 
     bool  m_PauseOnBackpack = true;
     float m_ScreenW = 1920.0f;

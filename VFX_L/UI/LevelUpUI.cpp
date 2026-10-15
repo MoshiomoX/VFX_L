@@ -209,14 +209,24 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
     if (!m_BlockTex) return;
 
     const int total = (int)lv.pendingChoices.size();
-    if (total <= 0) return;
+    if (total <= 0) { m_Shown = false; return; }
+
+    // 出た瞬間（0 → 1）。暗幕は薄い所から、カードは下から浮き上がる
+    const float now = UIDeco::Clock();
+    if (!m_Shown) { m_Shown = true; m_ShownAt = now; }
+    float in = (appearTime > 0.0f) ? (now - m_ShownAt) / appearTime : 1.0f;
+    in = in < 0.0f ? 0.0f : (in > 1.0f ? 1.0f : in);
+    const float ease = 1.0f - (1.0f - in) * (1.0f - in) * (1.0f - in);
 
     // ---- 背景を暗くする ----
     // 戦闘画面が明るいままだとカードが読めない。
     const auto& flat = m_WhiteTex ? m_WhiteTex : m_BlockTex;   // 暗幕とカードの地は無地（文字を読みやすく）
-    sprite.Draw(flat, { 0.0f, 0.0f }, m_ScreenSize, dimColor);
+    Vector4 dim = dimColor;
+    dim.w *= ease;
+    sprite.Draw(flat, { 0.0f, 0.0f }, m_ScreenSize, dim);
 
     const float k = m_CardW / 270.0f;   // 文字や飾りの大きさの基準（カード幅 270px の時 1）
+    const float slide = (1.0f - ease) * m_CardH * 0.12f;   // 下からの浮き上がり（px）
 
     // ---- 見出し「レベルアップ」+ 百合紋の分割線（HUD・メニューと同じ古金）----
     {
@@ -228,8 +238,12 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
         const float divW = m_CardW * 1.25f;
         const float divH = divW * 0.10f;
         const float headY = cardTop - hs.y - divH - m_CardW * 0.10f;
-        text.Draw(head, { (m_ScreenSize.x - hs.x) * 0.5f, headY }, headingColor, s);
-        UIDeco::DrawDivider(sprite, true, { m_ScreenSize.x * 0.5f, headY + hs.y + divH * 0.45f }, divW, gold);
+        Vector4 hc = headingColor;
+        hc.w *= ease;
+        Vector4 gc = gold;
+        gc.w *= ease;
+        text.Draw(head, { (m_ScreenSize.x - hs.x) * 0.5f, headY }, hc, s);
+        UIDeco::DrawDivider(sprite, true, { m_ScreenSize.x * 0.5f, headY + hs.y + divH * 0.45f }, divW, gc);
     }
 
     for (int i = 0; i < total; ++i)
@@ -237,7 +251,20 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
         const bool selected = (i == m_Cursor);
         Vector2 pos = CardPosition(i, total);
         if (selected) pos.y -= m_CardH * 0.015f;   // 選択中は少し浮かせる
+        pos.y += slide;
         DrawCard(sprite, text, lv.pendingChoices[i], pos, selected);
+    }
+
+    // ---- 下の案内：Tab / Start でバックパックを見る（四択の上に開く。2026-10-15）----
+    {
+        const float s = rerollTextScale * 0.85f * k;
+        const wchar_t* hint = L"<{K:Tab}|{START}>  バックパックを見る・置く";
+        const Vector2 ts = InputGlyph::Measure(text, hint, s);
+        Vector2 bp, bs;
+        RerollRect(total, bp, bs);
+        const float y = (m_RerollCost >= 0) ? bp.y + bs.y + 10.0f * k : bp.y;
+        InputGlyph::Draw(sprite, text, hint, { (m_ScreenSize.x - ts.x) * 0.5f, y },
+            { 0.78f, 0.74f, 0.66f, 0.9f * ease }, s);
     }
 
     // ---- 金貨で引き直すボタン（2026-10-04）。足りない時は文字を暗い赤に ----
