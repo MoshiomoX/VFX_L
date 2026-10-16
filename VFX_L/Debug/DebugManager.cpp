@@ -28,6 +28,7 @@ namespace
         { SceneType::SPELL_LAB, "Spell Lab", VK_F7 },
     };
     constexpr int kReloadKey = VK_F5;
+    constexpr int kPanelsKey = VK_F10;   // デバッグパネルの表示切替（2026-10-16）
 }
 
 DebugManager::~DebugManager() = default;
@@ -79,6 +80,9 @@ void DebugManager::BeginFrame()
     if (!m_Initialized || !m_ImguiRenderer) return;
 
     m_ImguiRenderer->BeginFrame();
+
+    // パネルを全部隠している時（既定。F10 で表示）は Debug Info も出さない（2026-10-16 ユーザー：「ImGui が多すぎて探せない、全部閉じて」）
+    if (!m_ShowPanels) return;
 
     ImGui::Begin("Debug Info");
     ImGui::Text("FPS: %.1f", m_Timer->GetFPS());
@@ -191,6 +195,9 @@ void DebugManager::Update(float dt)
         {
             RequestScene(sm.GetCurrentSceneType());
         }
+        // F10 = デバッグパネル（Debug Info・戦闘シーンの Game Test 等）の表示 / 非表示。既定は非表示
+        if (input.GetKeyTrigger(kPanelsKey))
+            m_ShowPanels = !m_ShowPanels;
     }
 }
 

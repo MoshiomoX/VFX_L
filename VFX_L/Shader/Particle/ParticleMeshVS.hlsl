@@ -66,6 +66,8 @@ float3x3 FaceDirection(float3 fwd, uint axis)
         R = float3x3(z, y, -x); // local +X -> fwd
     else if (axis == 1u)
         R = float3x3(x, z, -y); // local +Y -> fwd
+    else if (axis == 3u)
+        R = float3x3(-x, y, -z); // local -Z -> fwd (local +Y stays up: a rock modelled lying on the ground keeps lying)
     return R;
 }
 
@@ -95,6 +97,11 @@ VS_OUTPUT main(VS_INPUT input, uint instanceID : SV_InstanceID)
     o.Position = mul(mul(float4(worldPos, 1.0), View), Projection);
     o.Normal = normalize(mul(input.Normal, R));
     o.Tangent = normalize(mul(input.Tangent, R));
+    // glow pass: ParticleMeshGlowPS never reads the tangent, so .x carries
+    // the "back faces only" flag (PARTICLE_MESH_BEHIND). Lit particles keep
+    // the real tangent for PS.hlsl
+    if (((mode >> 8u) & 1u) != 0u)
+        o.Tangent = float3((mode & PARTICLE_MESH_BEHIND) != 0u ? 1.0 : 0.0, 0.0, 0.0);
     o.UV = input.UV;
     // lit pass: opaque, alpha unused. glow pass: alpha fades it out
     o.Color = p.color;

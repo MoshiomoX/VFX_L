@@ -84,6 +84,13 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     srcPos = projectiles[i].position;
     srcVel = projectiles[i].velocity;
+    // held shot (pathT < 0, Stone Shot): it is not moving yet. Keep only the
+    // direction (a crawl) so the body still faces the target (2026-10-16)
+    if (projectiles[i].pathT < 0.0)
+    {
+        float vLenSq = dot(srcVel, srcVel);
+        srcVel = (vLenSq > 1e-8) ? srcVel * (rsqrt(vLenSq) * 0.01) : float3(0, 0, 0);
+    }
     srcVfx = projectiles[i].vfxType;
     srcScale = SwarmProjScale(projectiles[i]);
 #endif
@@ -108,9 +115,18 @@ void main(uint3 id : SV_DispatchThreadID)
         e.emitRate *= srcScale;
         e.position = srcPos + e.position; // follows the source; the entry position is an offset (layers)
 
-        uint k = StochasticCount(e.emitRate, g_DeltaTime, seed);
+        // single body (rock, arrow, crystal): exactly one per frame, alive
+        // until the next frame's update kills it (lifetime between 1 and 2
+        // frames) = always exactly one copy drawn, no stacking flicker (2026-10-16)
+        bool single = (((uint) e.renderMode) & PARTICLE_SINGLE_BODY) != 0u;
+        uint k = single ? 1u : StochasticCount(e.emitRate, g_DeltaTime, seed);
         if (k == 0u)
             continue;
+        if (single)
+        {
+            e.lifetimeRange = float2(g_DeltaTime * 1.02, g_DeltaTime * 1.02); // > 1 frame so it is drawn, < 2 so the next frame kills it even after a long frame
+            e.speedRange = float2(0, 0);
+        }
 
         // ---- reserve from the free pool ----
         uint mine;
@@ -134,11 +150,14 @@ void main(uint3 id : SV_DispatchThreadID)
             // last emit, so scatter back along that segment. Without this a
             // fast projectile leaves a dotted trail. Own seed so the
             // attribute stream below stays unchanged
+            // a particle that flies along with the source (arrow body, rock,
+            // crystal) is the body itself: it spawns exactly at the source, no
+            // sweep, or the copies of one body smear along the path (2026-10-16)
             uint sweepSeed = s ^ 0x9E3779B9u;
-            pos -= srcVel * (g_DeltaTime * Random(sweepSeed));
-
-            // flies along with the source (arrow body etc.)
-            if ((((uint) e.renderMode) & PARTICLE_INHERIT_SOURCE_VELOCITY) != 0u)
+            bool inherit = (((uint) e.renderMode) & PARTICLE_INHERIT_SOURCE_VELOCITY) != 0u;
+            if (!inherit)
+                pos -= srcVel * (g_DeltaTime * Random(sweepSeed));
+            else
                 vel += srcVel;
 
             // ---- particle init: identical to ParticleEmitCS (EmitInit.hlsli) ----

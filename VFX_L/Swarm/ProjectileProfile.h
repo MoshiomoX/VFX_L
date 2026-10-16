@@ -64,6 +64,10 @@ struct ProjectileProfile
     // 当たった敵をこの秒数凍らせる（0 = 凍らせない。アイスランス、2026-10-08）。エリート・Boss は BomberCB::freezeBigMul 倍、
     // 解けてから freezeImmunity 秒は凍らない。凍結中は動かず殴らない（SwarmHitCS が依頼 → SwarmEnemyAICS）
     float freezeTime = 0.0f;
+    // 生成後、杖先で止まっている秒数（0 = 止まらない。ストーンショット、2026-10-16：岩が一瞬浮いてから飛ぶ）。0.02 秒刻み・最大 5.1 秒
+    float holdTime = 0.0f;
+    // 曲線の進みを 2 乗にする = 速度 0 から始まり、終点で公称の 2 倍（同じ所要時間）。止まった後に「勢いよく飛ぶ」感じ用
+    bool easeIn = false;
 
     // ---- 見た目 ----
     // VFX json のファイル名（Assets/Data/VFXData/ の中。VFXDatabase に登録済みの物だけ GPU で出る）

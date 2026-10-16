@@ -724,6 +724,9 @@ void ProjectileEditorScene::DrawProjectileTab()
     changed |= ImGui::DragFloat("Damage", &p.damage, 0.5f, 0.0f, 1000.0f);
     // 当たった敵を凍らせる秒数（0 = 凍らせない。アイスランス、2026-10-08）
     changed |= ImGui::DragFloat("Freeze (s)", &p.freezeTime, 0.05f, 0.0f, 10.0f);
+    // 生成後に止まる秒数と、止まった後の加速（ストーンショット、2026-10-16）
+    changed |= ImGui::DragFloat("Hold (s)", &p.holdTime, 0.02f, 0.0f, 5.0f);
+    changed |= ImGui::Checkbox("Ease In (start slow, arrive at 2x speed)", &p.easeIn);
 
     // ---- 見た目 ----
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Visual");

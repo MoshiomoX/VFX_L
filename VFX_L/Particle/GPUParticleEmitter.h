@@ -92,10 +92,15 @@ public:
     std::string meshPath;             // モデルのファイル（"" = 立方体）。json "mesh"
     bool meshGlow = false;            // 発光（加算・光を受けない）。false = 不透明・光を受ける
     bool meshFaceVelocity = false;    // 前方の軸を進行方向へ向ける（回転の範囲は使わない）
-    int  meshForwardAxis = 2;         // モデルの前方の軸（0 = +X / 1 = +Y / 2 = +Z）
+    // 発光の時だけ（2026-10-16）：裏面だけ描く = 本体の後ろの縁取りに見える（石弾の紫の殻）。json "meshBehind"
+    bool meshBehind = false;
+    int  meshForwardAxis = 2;         // モデルの前方の軸（0 = +X / 1 = +Y / 2 = +Z / 3 = −Z。+Z / −Z はモデルの Y が上のまま）
     int  meshSlot = 0;                // 実行時：GPUParticleSystem のモデル表の番号（登録は entry 側。0 = 立方体）
     // 発射元（GPU の弾など）の速度を初速に足す。弾と一緒に飛ぶ見た目用（GPU の弾の上でだけ効く）。json "inheritVelocity"
     bool inheritVelocity = false;
+    // 単体（2026-10-16）：GPU の弾の上で毎フレーム 1 個だけ出し、次のフレームまでしか生きない = 常にちょうど 1 つ。
+    // 本体（岩・矢・水晶）用。emitRate / lifetime は無視。json "single"
+    bool singleBody = false;
     // 世界の風の受けやすさ 0〜1（2026-10-12）。1 = 水平速度が約 0.3 秒で風速に揃う（煙・霧・雨）。0 = 受けない（火花・光）。
     // ToGPU が renderMode の bits 26-29 へ詰める（ParticleRenderMode::PackWind）。json "wind"
     float windResponse = 0.0f;

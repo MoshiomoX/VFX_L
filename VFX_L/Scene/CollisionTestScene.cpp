@@ -1231,6 +1231,7 @@ void CollisionTestScene::Render(Renderer& renderer)
         m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());   // 光線（加算）
         m_Swarm.RenderSprites(GetCamera());
+        m_Swarm.RenderProjTrails(GetCamera());   // GPU の弾が引く帯（Trail entry、2026-10-15）
     }
 
     // ---- 3) 粒子（VFX 本体）----

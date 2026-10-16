@@ -7,6 +7,7 @@
 #include "VFX_Editor/VFXPointLightEntry.h"
 #include "VFX_Editor/VFXSpriteEntry.h"
 #include "VFX_Editor/VFXLiquidEntry.h"
+#include "VFX_Editor/VFXTrailEntry.h"
 #include "VFX_Editor/SpriteSheets.h"
 #include "Particle/GPUParticleSystem.h"
 #include "Manager/ResourceManager.h"
@@ -71,6 +72,9 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     std::vector<const SpriteSheets::Info*> slices;          // テクスチャ配列の 1 枚ずつ
     std::vector<VFXLiquidDef>         liquids;
     std::vector<uint32_t>             recipeLiquid;          // recipes と同じ並び。def の番号 + 1、0 = 無し
+    std::vector<ParticleTrailStyleGPU> trailStyles;         // Trail entry（2026-10-15）：弾が引く帯の style
+    std::vector<uint32_t>             recipeTrail;           // recipes と同じ並び。style の番号 + 1、0 = 無し
+    m_TrailLooks.clear();
 
     m_Index.clear();
     m_Warnings = 0;
@@ -78,6 +82,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     // index 0 は「何も無い」レシピ。vfxType が引けない時の逃げ先
     recipes.push_back({});
     recipeLiquid.push_back(0u);
+    recipeTrail.push_back(0u);
     m_Index.push_back({ VFXId::None, 0 });
 
     for (int i = 0; i < VFXDatabase::Count(); ++i)
@@ -99,6 +104,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         std::vector<const VFXPointLightEntry*> lightEntries;
         std::vector<const VFXSpriteEntry*> spriteEntries;
         const VFXLiquidEntry* liquidEntry = nullptr;   // 1 つの範囲に液溜まりは 1 つ（2 つ目以降は無視）
+        VFXTrailEntry* trailEntry = nullptr;           // 弾 1 発に帯は 1 本（2 本目以降は無視。2026-10-15）
         for (int k = 0; ; ++k)
         {
             VFXEntry* e = tmpl->GetEntry(k);
@@ -114,8 +120,12 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
                 if (!liquidEntry) liquidEntry = static_cast<const VFXLiquidEntry*>(e);
                 else std::cout << "[SwarmVFX] warning: " << path << " has more than one Liquid entry; the GPU uses the first" << std::endl;
             }
+            else if (e->GetType() == EntryType::Trail)
+            {
+                if (!trailEntry) trailEntry = static_cast<VFXTrailEntry*>(e);
+            }
         }
-        if (particleEntries.empty() && spriteEntries.empty() && !liquidEntry) continue;
+        if (particleEntries.empty() && spriteEntries.empty() && !liquidEntry && !trailEntry) continue;
 
         Swarm::VFXRecipe r;
         r.particleStart = (uint32_t)emitters.size();
@@ -145,13 +155,16 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
 
             GPUEmitter ge = pe->emitterData.ToGPU();
             // メッシュ粒子のモデルはここで登録する（表はシーンの間ずっと使うので解除しない）。
-            // particles が無ければ ToGPU のまま（0 番 = 立方体）
+            // particles が無ければ ToGPU のまま（0 番 = 立方体）。
+            // 差し替えるのは下位 12 bit（番号 / 発光 / 向き / 軸）だけ。上位の継承速度・単体・裏面だけ・風は
+            // ToGPU が詰めた物をそのまま残す（2026-10-16：以前は丸ごと作り直していて「単体」が GPU に届かず、
+            // 石弾の紫の殻が 2〜3 個重なってちらついていた）
             if (pe->emitterData.renderMode != 0 && particles)
-                ge.renderMode = ParticleRenderMode::Pack(
-                    particles->RegisterParticleMesh(pe->emitterData.meshPath),
-                    pe->emitterData.meshGlow, pe->emitterData.meshFaceVelocity,
-                    pe->emitterData.meshForwardAxis)
-                    | (pe->emitterData.inheritVelocity ? ParticleRenderMode::kInheritSourceVelocity : 0);
+                ge.renderMode = (ge.renderMode & ~0xFFF)
+                    | ParticleRenderMode::Pack(
+                        particles->RegisterParticleMesh(pe->emitterData.meshPath),
+                        pe->emitterData.meshGlow, pe->emitterData.meshFaceVelocity,
+                        pe->emitterData.meshForwardAxis);
             ge.isActive = 1.0f;
             ge.ownerID = 0;
             ge.colorKeyOffset = (int)keys.size();   // 静的区は offset 0 起点
@@ -223,9 +236,22 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
             liquidIndex = (uint32_t)liquids.size();   // + 1 済み
         }
 
+        // ---- Trail：弾の槽ごとの帯（SwarmProjTrailCS / VS）。style は粒子の帯と同じ TrailStyle ----
+        uint32_t trailIndex = 0u;
+        if (trailEntry)
+        {
+            trailEntry->tex.Resolve();
+            ParticleTrailStyle st = trailEntry->style;
+            st.texture = trailEntry->tex.texture;
+            trailStyles.push_back(st.ToGPU());
+            m_TrailLooks.push_back({ st.texture, st.blend == 1 });
+            trailIndex = (uint32_t)trailStyles.size();
+        }
+
         m_Index.push_back({ id, (uint32_t)recipes.size() });
         recipes.push_back(r);
         recipeLiquid.push_back(liquidIndex);
+        recipeTrail.push_back(trailIndex);
     }
 
     m_EmitterCount = (int)emitters.size();
@@ -258,6 +284,12 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     if (!UploadImmutable(device, recipeLiquid.data(), sizeof(uint32_t),
         (UINT)recipeLiquid.size(), m_RecipeLiquidBuffer, m_RecipeLiquidSRV, "recipeLiquid")) return false;
 
+    // ---- Trail ----
+    if (!UploadImmutable(device, trailStyles.data(), sizeof(ParticleTrailStyleGPU),
+        (UINT)trailStyles.size(), m_TrailStyleBuffer, m_TrailStyleSRV, "trailStyle")) return false;
+    if (!UploadImmutable(device, recipeTrail.data(), sizeof(uint32_t),
+        (UINT)recipeTrail.size(), m_RecipeTrailBuffer, m_RecipeTrailSRV, "recipeTrail")) return false;
+
     if (particles)
         particles->RegisterStaticColorKeys(keys);
 
@@ -265,6 +297,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         << emitters.size() << " emitters, " << lights.size() << " lights, "
         << sprites.size() << " sprites (" << slices.size() << " sheets), "
         << liquids.size() << " liquids, "
+        << trailStyles.size() << " trails, "
         << keys.size() << " color keys, "
         << m_Warnings << " warnings" << std::endl;
     return true;

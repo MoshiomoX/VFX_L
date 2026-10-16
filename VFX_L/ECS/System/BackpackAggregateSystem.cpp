@@ -196,6 +196,10 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             const int d = spellIndexOf[drv];
             if (d >= 0 && !wand.spells[d].triggered)
                 wand.spells[d].triggerMask |= 1u << k;
+            // 基本の範囲魔法（アークボルトの稲妻）も駆動できる（2026-10-15）：稲妻が届いた所で誘発
+            const int da = areaIndexOf[drv];
+            if (da >= 0 && !wand.areas[da].triggered)
+                wand.areas[da].triggerMask |= 1u << k;
         }
     }
     // 同じく上級の範囲魔法（光線）j は bit (16 + j)
@@ -209,6 +213,9 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             const int d = spellIndexOf[drv];
             if (d >= 0 && !wand.spells[d].triggered)
                 wand.spells[d].triggerMask |= 1u << (16 + j);
+            const int da = areaIndexOf[drv];
+            if (da >= 0 && da != j && !wand.areas[da].triggered)
+                wand.areas[da].triggerMask |= 1u << (16 + j);
         }
     }
 

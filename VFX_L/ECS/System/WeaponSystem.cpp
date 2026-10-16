@@ -190,6 +190,9 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     // 基本魔法の弾が消えた場所（リードバックなので 2〜3 フレーム古い）。上級魔法はここでだけ撃つ
     m_TriggerEvents.clear();
     if (m_Swarm) m_Swarm->ConsumeTriggerEvents(m_TriggerEvents);
+    // CPU 側の誘発（アークボルトの稲妻の終点）も同じ列に
+    m_TriggerEvents.insert(m_TriggerEvents.end(), m_CpuTriggerEvents.begin(), m_CpuTriggerEvents.end());
+    m_CpuTriggerEvents.clear();
     m_TriggerEventsSeen += (uint32_t)m_TriggerEvents.size();
     // 環に入るのは地面の高さ。普段の隕石の標的（雑魚の位置 = 地面 + groundY）と同じ高さへ上げる
     const float triggerLift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
@@ -438,6 +441,29 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     if (a.spawnAtTarget && !hasTarget) continue;
                     if (!mana.CanAfford(a.manaCost)) continue;
 
+                    // ---- 誘発されない光線型（アークボルト、2026-10-15）：杖先から一番近い敵へ一瞬の稲妻 ----
+                    // 魔導光線と同じ仕組み（カプセル型範囲 + Beam entry）を溜め 0・短い持続で使う。
+                    // 射程は標的の体で止め、終点に命中の火花を出し、終点を「弾が消えた所」として上級魔法へ連鎖する
+                    if (a.profile > 0 && AreaProfileDB::At(a.profile).IsBeam())
+                    {
+                        if (!hasTarget) continue;
+                        const AreaProfile& bp = AreaProfileDB::At(a.profile);
+                        const Vector3 impact = targetPos;
+                        Vector3 dir = impact - muzzle;
+                        const float dist = dir.Length();
+                        if (dist > 1e-3f) dir /= dist;
+                        if (!StartBeam(a, muzzle, impact, castSpeed, durationMul, 0, dist + 0.6f)) continue;
+                        mana.Reserve(a.manaCost);
+                        wand.castAnimTimer = wand.castAnimDuration;
+                        a.castTimer = a.castInterval;
+                        m_CastFx.push_back({ a.id, muzzle, dir });
+                        if (m_AreaVFX && m_AreaVFXCtx && !bp.hitVfxFile.empty())
+                            m_AreaVFX->Play(bp.hitVfxFile, impact, 0.8f, false, *m_AreaVFXCtx);
+                        if (a.triggerMask != 0)
+                            m_CpuTriggerEvents.push_back({ Vector3(impact.x, impact.y - triggerLift, impact.z), a.triggerMask });
+                        continue;
+                    }
+
                     const bool atCaster = !a.spawnAtTarget;
                     // 単発/持続・厚み・追従・硬直 はプロファイルから。
                     // 半径・持続・tick・威力 は集約済みの値（修飾ルーン込み）
@@ -539,7 +565,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 // 終点は Beam entry のエフェクトにも同じ物を入れる（当たり判定と見た目が一致する）
 // ============================================================
 bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Vector3& impact,
-    float castSpeed, float durationMul, uint32_t orbSerial)
+    float castSpeed, float durationMul, uint32_t orbSerial, float lengthOverride)
 {
     // 空いているチャンネル
     uint32_t used = 0;
@@ -566,6 +592,7 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     b.charge = baseCharge / castSpeed;            // 魔力解放中は溜めも速い
     // 射程：拡大鏡で伸びる（AreaStats::length。2026-10-13）。0 ならプロファイルの値
     b.length = a.length > 0.0f ? a.length : (hasProfile ? ap.length : 18.0f);
+    if (lengthOverride > 0.0f) b.length = (std::min)(b.length, lengthOverride);   // 標的の体で止める（アークボルト）
     // 見た目の太さ：当たり判定の半径がプロファイルから何倍になったか（拡大鏡）
     const float widthMul = (hasProfile && ap.radius > 0.0f) ? a.radius / ap.radius : 1.0f;
     b.halfHeight = hasProfile ? ap.halfHeight : 1.2f;
@@ -594,7 +621,8 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     }
 
     m_Beams.push_back(b);
-    AudioSystem::Get().Play("beam_charge");   // 溜め（撃った瞬間の音は溜め終わりに範囲の sound）
+    if (b.charge > 0.0f)
+        AudioSystem::Get().Play("beam_charge");   // 溜め（撃った瞬間の音は溜め終わりに範囲の sound）
     return true;
 }
 
@@ -638,10 +666,11 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
         const auto hit = collision.Raycast(ray, Layer_Terrain);
         if (hit.hit) end = hit.point;
 
-        if (b.charge > 0.0f)
+        // 溜め 0 の光線（アークボルト）も通る：始めた次のフレームに範囲を出す
+        if (!b.spawned)
         {
             b.charge -= dt;
-            if (b.charge <= 0.0f && !b.spawned && m_Swarm)
+            if (b.charge <= 0.0f && m_Swarm)
             {
                 // 溜め終わり：GPU のカプセル型の範囲を 1 個。中心 / 半径 / 終点は毎ステップ BeamCB から写される
                 Swarm::Area area;

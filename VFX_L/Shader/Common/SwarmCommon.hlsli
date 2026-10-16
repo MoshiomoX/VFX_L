@@ -440,6 +440,22 @@ float SwarmPushKindMul(uint kind)
 }
 
 static const uint SWARM_HITAREA_ON_EXPIRE = 1u; // SwarmMotion.hitAreaFlags
+// hold / ease-in (2026-10-16, Stone Shot: the rock hangs in the air for a
+// moment, then is flung with a big acceleration). Packed into the spare
+// bits of hitAreaFlags so the 48-byte SwarmMotion layout stays put.
+//   bits 8-15 : hold time in 0.02 s units (0 = none). SpawnProjCS stores
+//               -hold in pathT; ProjMoveCS counts it up to 0 before flying
+//   bit 16    : ease-in: the curve parameter is squared (starts at 0 speed,
+//               ends at 2x the nominal speed, same total time)
+static const uint SWARM_HITAREA_HOLD_SHIFT = 8u;
+static const uint SWARM_HITAREA_HOLD_MASK = 0xFFu;
+static const float SWARM_HITAREA_HOLD_UNIT = 0.02;
+static const uint SWARM_HITAREA_EASE_IN = 1u << 16u;
+static const float SWARM_HOLD_FORWARD = 1.0; // a held shot is born this far ahead of the muzzle (m)
+float SwarmMotionHold(SwarmMotion m)
+{
+    return (float) ((m.hitAreaFlags >> SWARM_HITAREA_HOLD_SHIFT) & SWARM_HITAREA_HOLD_MASK) * SWARM_HITAREA_HOLD_UNIT;
+}
 
 struct SwarmArea
 {

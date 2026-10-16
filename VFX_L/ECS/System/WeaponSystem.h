@@ -133,6 +133,8 @@ private:
         const DirectX::SimpleMath::Vector3& impact,
         const DirectX::SimpleMath::Vector3& origin);
     std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 今フレームにリードバックで届いた誘発
+    // CPU 側で起きた誘発（アークボルトの稲妻が届いた所。2026-10-15）。次のフレームの m_TriggerEvents に足す
+    std::vector<Swarm::TriggerEvent> m_CpuTriggerEvents;
     uint32_t m_TriggerEventsSeen = 0;
     uint32_t m_TriggeredCasts = 0;
 
@@ -198,9 +200,10 @@ private:
     // 誘発で光線を始める（チャンネルが空いていなければ false = 撃たない）
     // castSpeed / durationMul = 撃った時の魔力解放（溜めを castSpeed 倍速く、光線を durationMul 倍長く。エフェクトの時間軸も合わせる）
     // orbSerial = 光球から撃つ時はその通し番号（起点が光球に追従する）
+    // lengthOverride > 0 = 射程をこの長さまでに縮める（アークボルト：標的の体で止める。2026-10-15）
     bool StartBeam(const AreaStats& a, const DirectX::SimpleMath::Vector3& muzzle,
         const DirectX::SimpleMath::Vector3& impact, float castSpeed = 1.0f, float durationMul = 1.0f,
-        uint32_t orbSerial = 0);
+        uint32_t orbSerial = 0, float lengthOverride = 0.0f);
     // 溜め・判定の出現・起点 / 終点の更新・終了
     void UpdateBeams(float dt, const DirectX::SimpleMath::Vector3& muzzle, const CollisionSystem& collision);
 

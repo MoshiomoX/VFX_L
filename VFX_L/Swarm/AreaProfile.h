@@ -58,6 +58,8 @@ struct AreaProfile
 
     // 見た目。Assets/Data/VFXData/ の json のファイル名（拡張子込み）。空 = 無し
     std::string vfxFile;
+    // 光線型で、終点（標的）に CPU で再生する見た目（json "hitVfx"。空 = 無し。アークボルトの命中の火花。2026-10-15）
+    std::string hitVfxFile;
     // 出た時の音（Assets/Data/Audio/Sounds.json の cue の名前。空 = 鳴らさない。2026-10-03）。
     // GPU で生まれた範囲は vfxFile のレシピ毎に数えて鳴らす（同じ vfxFile の範囲は同じ音になる）
     std::string sound;

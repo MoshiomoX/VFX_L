@@ -41,6 +41,10 @@ Swarm::Motion ProjectileProfile::ToMotion() const
     m.retargetRadius = retargetRadius;
     m.hitArea = (uint32_t)AreaProfileDB::IndexOf(hitArea);   // 無ければ 0 = 出さない
     m.hitAreaFlags = hitAreaOnExpire ? Swarm::kHitAreaOnExpire : 0u;
+    // 止まる秒数・加速（空いている bit に詰める。SwarmCommon.hlsli の SWARM_HITAREA_HOLD_* / EASE_IN と一致）
+    const uint32_t holdQ = (uint32_t)std::clamp((int)std::lround(holdTime / 0.02f), 0, 255);
+    m.hitAreaFlags |= holdQ << 8;
+    if (easeIn) m.hitAreaFlags |= 1u << 16;
     m.c1 = c1;
     m.baseRadius = radius;   // これより大きい当たり半径で撃たれたら、見た目と爆発も同じ倍率で大きく（拡大鏡）
     m.c2 = c2;
@@ -65,6 +69,8 @@ json ProjectileProfile::ToJson() const
     j["radius"] = radius;
     j["lifetime"] = lifetime;
     if (freezeTime > 0.0f) j["freezeTime"] = freezeTime;
+    if (holdTime > 0.0f) j["holdTime"] = holdTime;
+    if (easeIn) j["easeIn"] = true;
 
     j["vfx"] = vfxFile;
     j["castSound"] = castSound;
@@ -105,6 +111,8 @@ void ProjectileProfile::FromJson(const json& j)
     radius = j.value("radius", radius);
     lifetime = j.value("lifetime", lifetime);
     freezeTime = j.value("freezeTime", freezeTime);
+    holdTime = j.value("holdTime", holdTime);
+    easeIn = j.value("easeIn", easeIn);
 
     vfxFile = j.value("vfx", vfxFile);
     castSound = j.value("castSound", castSound);

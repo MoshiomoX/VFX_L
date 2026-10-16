@@ -23,6 +23,7 @@ namespace
 // 1 秒: 湧き停止・全消し・無敵・MP 無限、正面 14m に動かない的 3 体、バックパックを黄金の矢だけにする。
 //       カメラは 14m・見下ろし 15 度で、プレイヤーの右 90 度から見る（矢が画面を横切る。VFXL_ARROW_FAR で 30m・40 度）
 // 3 秒から 0.06 秒毎に "arrow look" を 16 回（外から連写）→ "arrow done"
+// VFXL_ARROW_ITEM=homing / arc / ice / fire / stone：黄金の矢の代わりにその魔法を置く（弾の見た目の確認用）。VFXL_ARROW_NEAR：9m・12 度で寄る。VFXL_ARROW_DIST / VFXL_ARROW_PITCH で距離・角度を直接指定
 // ============================================================
 void AutoTestArrow::Run()
 {
@@ -53,7 +54,23 @@ void AutoTestArrow::Run()
             auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
             const int lo = BackpackComponent::GRID / 2 - 1;
             ClearBackpackItems(bp);
-            BackpackLogic::Place(bp, ItemID::GoldenArrow, lo + 1, lo + 1, 0);
+            ItemID id = ItemID::GoldenArrow;
+            char itemEnv[32] = {};
+            if (GetEnvironmentVariableA("VFXL_ARROW_ITEM", itemEnv, sizeof(itemEnv)) > 0)
+            {
+                if (strcmp(itemEnv, "homing") == 0) id = ItemID::HomingBolt;
+                else if (strcmp(itemEnv, "arc") == 0) id = ItemID::ArcBolt;
+                else if (strcmp(itemEnv, "ice") == 0) id = ItemID::IceLance;
+                else if (strcmp(itemEnv, "fire") == 0) id = ItemID::Fireball;
+                else if (strcmp(itemEnv, "stone") == 0) id = ItemID::StoneShot;
+            }
+            // 形が違うので 3x3 枠の中の置ける場所・向きを探す
+            bool placed = false;
+            for (int rot = 0; rot < 4 && !placed; ++rot)
+                for (int r = lo; r < lo + 3 && !placed; ++r)
+                    for (int c = lo; c < lo + 3 && !placed; ++c)
+                        placed = BackpackLogic::Place(bp, id, r, c, rot) >= 0;
+            if (!placed) AutoTestLog("arrow place FAILED");
             bp.dirty = true;
             m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
         }
@@ -62,6 +79,10 @@ void AutoTestArrow::Run()
         cam.distance = 14.0f;
         cam.SetPitch(15.0f);
         if (GetEnvironmentVariableA("VFXL_ARROW_FAR", nullptr, 0) > 0) { cam.distance = 30.0f; cam.SetPitch(40.0f); }
+        if (GetEnvironmentVariableA("VFXL_ARROW_NEAR", nullptr, 0) > 0) { cam.distance = 9.0f; cam.SetPitch(12.0f); }
+        char numEnv[32] = {};   // VFXL_ARROW_DIST / VFXL_ARROW_PITCH：距離・見下ろし角を直接指定
+        if (GetEnvironmentVariableA("VFXL_ARROW_DIST", numEnv, sizeof(numEnv)) > 0) cam.distance = (float)atof(numEnv);
+        if (GetEnvironmentVariableA("VFXL_ARROW_PITCH", numEnv, sizeof(numEnv)) > 0) cam.SetPitch((float)atof(numEnv));
         cam.avoidOcclusion = false;
         cam.SnapToTarget();
         AutoTestLog("arrow start");
@@ -74,7 +95,7 @@ void AutoTestArrow::Run()
         snprintf(line, sizeof(line), "arrow look %d shots %u areas %u", s_Shots, c.aliveProjectiles, c.aliveAreas);
         AutoTestLog(line);
         s_Next += 0.06f;
-        if (++s_Shots >= 16) { AutoTestLog("arrow done"); m_AutoStep = 2; }
+        if (++s_Shots >= 24) { AutoTestLog("arrow done"); m_AutoStep = 2; }
     }
 }
 

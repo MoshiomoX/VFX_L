@@ -67,7 +67,7 @@
                 "sizeRange": [1.2, 1.2, 1.2, 1.2], "speedRange": [0, 0], "spreadAngle": 0,
                 "startColorMax": [0.75, 1.00, 1.35, 1], "startColorMin": [0.75, 1.00, 1.35, 1],
                 "meshGlow": false, "mesh": "Assets/VFX/Mesh/bing.FBX", "meshFaceVelocity": true, "meshForwardAxis": 0,
-                "inheritVelocity": true
+                "inheritVelocity": true, "single": true
             }
         },
         {
@@ -82,7 +82,7 @@
                 "sizeRange": [1.35, 1.35, 1.35, 1.35], "speedRange": [0, 0], "spreadAngle": 0,
                 "startColorMax": [0.35, 0.70, 1.20, 0.5], "startColorMin": [0.35, 0.70, 1.20, 0.5],
                 "meshGlow": true, "mesh": "Assets/VFX/Mesh/bing.FBX", "meshFaceVelocity": true, "meshForwardAxis": 0,
-                "inheritVelocity": true
+                "inheritVelocity": true, "single": true
             }
         },
         {

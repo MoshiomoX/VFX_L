@@ -66,6 +66,25 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
+    // ---- hold: hangs where it was spawned (pathT < 0 = seconds left. 2026-10-16) ----
+    if (p.pathT < 0.0)
+    {
+        p.pathT += g_Step;
+        if (p.pathT < 0.0)
+        {
+            // velocity stays as aimed (a straight shot needs it after the hold; the
+            // body particles use its direction to face the target. EmitCS shrinks it)
+            projectiles[i].lifetime = p.lifetime;
+            projectiles[i].pathT = p.pathT;
+            uint holdCount;
+            counters.InterlockedAdd(SWARM_CNT_ALIVE_PROJ, 1u, holdCount);
+            return;
+        }
+        p.pathT = 0.0;
+        // the spawn velocity was kept in the path (a curve) or in the projectile (straight)
+    }
+    bool easeIn = (m.hitAreaFlags & SWARM_HITAREA_EASE_IN) != 0u;
+
     // ---- DROP / LOB: fall onto the impact point fixed at spawn ----
     // No enemy collision on the way (HitCS skips DROP) and no terrain test:
     // the walkability test is 2D, so flying over a tree or a plateau would
@@ -160,6 +179,8 @@ void main(uint3 id : SV_DispatchThreadID)
 
             p.pathT += g_Step / path.duration;
             float t = min(p.pathT, 1.0);
+            if (easeIn)
+                t = t * t; // starts from rest, arrives at 2x the nominal speed
 
             float3 newPos = SwarmBezier(path, t);
             p.velocity = (newPos - p.position) / g_Step;

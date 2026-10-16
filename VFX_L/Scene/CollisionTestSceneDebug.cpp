@@ -51,6 +51,7 @@
 void CollisionTestScene::DrawDebugUI()
 {
     if (!DevUI::Active()) return;   // Demo ビルド（ImGui が無い）：パネルも目印・ギズモも出さない
+    if (!DebugManager::Get().GetShowPanels()) return;   // 既定は全部隠す。F10 で表示（2026-10-16）
 
     // 太陽の目印・シーン光源のギズモ（バックパック・レベルアップ・呪文書を開いている間はギズモを出さない）
     m_Lighting.DrawMarkers(PlayerPos(), m_Grid, GetCamera(), !m_GameUI.ShouldPauseGame());

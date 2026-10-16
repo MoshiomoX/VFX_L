@@ -296,6 +296,8 @@ namespace ItemInfoSheet
         const bool beam = v.profile > 0 && AreaProfileDB::At(v.profile).IsBeam();
         if (!beam)
             s.traits.push_back(v.spawnAtTarget ? L"敵の足元に出る" : L"自分の周りに出る");
+        else if (AreaProfileDB::At(v.profile).chargeTime <= 0.0f && v.duration < 0.5f)
+            s.traits.push_back(L"一番近い敵へ一瞬で届く");   // アークボルト（溜め 0 の稲妻。2026-10-15）
         if (v.profile > 0 && AreaProfileDB::At(v.profile).push > 0.0f)
             s.traits.push_back(L"前方の敵を吹き飛ばす");   // 突風（エリートは半分、ボスは動かない）
 

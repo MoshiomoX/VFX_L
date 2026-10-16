@@ -1,0 +1,20 @@
+{
+    "name": "ArcBolt",
+    "kind": 2,
+    "radius": 0.3,
+    "halfHeight": 1.2,
+    "damage": 10.0,
+    "duration": 0.12,
+    "tickInterval": 1.0,
+    "followCaster": true,
+    "stun": true,
+    "slow": 0.0,
+    "freeze": 0.0,
+    "cameraShake": false,
+    "length": 14.0,
+    "chargeTime": 0.0,
+    "vfx": "ArcBolt.json",
+    "hitVfx": "ArcBoltHit.json",
+    "sound": "cast_arc",
+    "preview": { "atTarget": false, "interval": 1.0 }
+}

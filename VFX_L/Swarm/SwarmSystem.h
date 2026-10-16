@@ -74,6 +74,8 @@ public:
 
     // GPU の範囲（弾の命中）が出した連番画像（Sprite entry）。不透明物の後・粒子の前に呼ぶ
     void RenderSprites(CameraBase* camera);
+    // GPU の弾が引く帯（VFX の Trail entry。2026-10-15）。RenderSprites の直後に呼ぶ（加算、深度は読むだけ）
+    void RenderProjTrails(CameraBase* camera);
 
     // ---- 雑魚の頭上の HP バー（Render の最後、雑魚とオーブの後に描く）----
     // 大きさは世界の寸法（遠いほど小さい。モデルと同じ比率）。全員に常に出す
@@ -409,6 +411,7 @@ private:
     GrassFireEmitInput m_GrassFire;
     bool m_HasGrassFire = false;
     void DispatchSprites(float dt);                  // 範囲の連番画像：古い物を進めて、生まれた範囲の分を始める
+    void DispatchProjTrails();                       // 弾の帯：槽ごとの位置の環を進める（固定ステップ、弾の積分の直後。SwarmSystemTrail.cpp）
     void RequestReadback();       // counter の copy を発行
 
     ID3D11Device* m_Device = nullptr;
@@ -557,6 +560,23 @@ private:
     std::shared_ptr<ComputeShader> m_SpriteCS;
     std::shared_ptr<VertexShader>  m_SpriteVS;
     std::shared_ptr<PixelShader>   m_SpritePS;
+
+    // ---- 弾の帯（Trail entry、2026-10-15。SwarmSystemTrail.cpp）----
+    // 弾の槽ごとに kTrailPoints 個の位置の環（粒子の帯と同じ ParticleTrail.hlsli）。
+    // trailState = 環の書き込み位置 / 有効な点の数、trailAge = 槽が生きてからの秒（記録の時計）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_ProjTrailPoints;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjTrailPointsUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjTrailPointsSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_ProjTrailState;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjTrailStateUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjTrailStateSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_ProjTrailAge;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjTrailAgeUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjTrailAgeSRV;
+    std::shared_ptr<ComputeShader> m_ProjTrailCS;
+    std::shared_ptr<VertexShader>  m_ProjTrailVS;
+    std::shared_ptr<PixelShader>   m_ProjTrailPS;   // 粒子の帯と同じ ParticleTrailPS
+    std::shared_ptr<Texture>       m_TrailWhite;    // テクスチャの無い style 用
 
     // ---- 液溜まり（Liquid entry、2026-10-02）----
     // areaDirs   : 範囲を出した物が飛んでいた向き（xy = 単位 xz、w = 1 未読）。ProjMoveCS が書き、追跡が読んで w を消す

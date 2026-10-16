@@ -236,6 +236,14 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(uint32_t), Swarm::kMaxAreas,
         m_AreaSeenBuffer, m_AreaSeenUAV, m_AreaSeenSRV, "areaSeen")) return false;
 
+    // ---- 弾の帯（Trail entry、2026-10-15）：槽ごとの位置の環と状態 ----
+    if (!makeStructured(sizeof(float) * 3, Swarm::kMaxProjectiles * kTrailPoints,
+        m_ProjTrailPoints, m_ProjTrailPointsUAV, m_ProjTrailPointsSRV, "projTrailPoints")) return false;
+    if (!makeStructured(sizeof(uint32_t), Swarm::kMaxProjectiles,
+        m_ProjTrailState, m_ProjTrailStateUAV, m_ProjTrailStateSRV, "projTrailState")) return false;
+    if (!makeStructured(sizeof(float), Swarm::kMaxProjectiles,
+        m_ProjTrailAge, m_ProjTrailAgeUAV, m_ProjTrailAgeSRV, "projTrailAge")) return false;
+
     // ---- RAW UAV（counter と発射予約。両方とも InterlockedAdd 用）----
     auto makeRaw = [&](UINT bytes,
         ComPtr<ID3D11Buffer>& buf,
@@ -1356,6 +1364,8 @@ void SwarmSystem::DispatchStep()
         m_ProjMoveCS->UnbindSRVs(m_Context);
         m_ProjMoveCS->UnbindUAVs(m_Context);
     }
+    // ---- 3b) 弾の帯：進んだ位置を槽ごとの環へ（Trail entry。2026-10-15）----
+    DispatchProjTrails();
 
     // ---- 4) 命中: 弾 × 雑魚 ----
    // 位置は今の子ステップで確定済み。hp は固定小数なので InterlockedAdd
@@ -2684,6 +2694,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     load(m_FireEmitCS, L"Shader/Grass/GrassFireEmitCS.hlsl", "GrassFireEmitCS");   // 無くても草の火の粒子が出ないだけ
     load(m_OrbEmitCS, L"Shader/Swarm/SwarmOrbEmitCS.hlsl", "OrbEmitCS");   // 無くてもオーブの尾が出ないだけ
     load(m_SpriteCS, L"Shader/Swarm/SwarmSpriteCS.hlsl", "SpriteCS");   // 無くても連番画像が出ないだけ
+    load(m_ProjTrailCS, L"Shader/Swarm/SwarmProjTrailCS.hlsl", "ProjTrailCS");   // 無くても弾の帯が出ないだけ
     load(m_LiquidTrackCS, L"Shader/Swarm/SwarmLiquidTrackCS.hlsl", "LiquidTrackCS");   // 無くても液溜まりが出ないだけ
     load(m_CorpseTrackCS, L"Shader/Swarm/SwarmCorpseTrackCS.hlsl", "CorpseTrackCS");   // 無くても死体が砕けないだけ
     load(m_CorpseListCS, L"Shader/Swarm/SwarmCorpseListCS.hlsl", "CorpseListCS");
@@ -2758,6 +2769,16 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     hr = ShaderPath::Load(m_SpriteVS.get(), device, L"Shader/Swarm/SwarmSpriteVS.hlsl");
     std::cout << "[SwarmSystem] SpriteVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) m_SpriteVS.reset();
+
+    // 弾の帯（2026-10-15）。PS は粒子の帯の物をそのまま使う
+    m_ProjTrailVS = std::make_shared<VertexShader>();
+    hr = ShaderPath::Load(m_ProjTrailVS.get(), device, L"Shader/Swarm/SwarmProjTrailVS.hlsl");
+    std::cout << "[SwarmSystem] ProjTrailVS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_ProjTrailVS.reset();
+    m_ProjTrailPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_ProjTrailPS.get(), device, L"Shader/Particle/ParticleTrailPS.hlsl");
+    std::cout << "[SwarmSystem] ProjTrailPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_ProjTrailPS.reset();
 
     m_SpritePS = std::make_shared<PixelShader>();
     hr = ShaderPath::Load(m_SpritePS.get(), device, L"Shader/Swarm/SwarmSpritePS.hlsl");

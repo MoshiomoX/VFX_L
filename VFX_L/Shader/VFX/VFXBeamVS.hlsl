@@ -50,13 +50,22 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float d = t * len;
     float3 p = b.start + axis * d;
 
+    // lightning: kink the boundary sideways (2026-10-15)
+    float flicker = 1.0;
+    if (b.jitter > 0.0)
+    {
+        float phase = BeamLightningPhase(b, g_Time);
+        p += BeamLightningOffset(b, seg + c.x, t, axis, phase);
+        flicker = 0.7 + 0.6 * BeamHash(float2(phase, 3.3));
+    }
+
     // ribbon faces the camera around the axis
     float3 toCam = g_CamPos - p;
     float3 side = cross(axis, toCam);
     float sl = length(side);
     side = (sl > 1e-4) ? side / sl : float3(0, 1, 0);
 
-    float hw = BeamHalfWidth(b, o.layer, d, len);
+    float hw = BeamHalfWidth(b, o.layer, d, len) * flicker;
     float3 world = p + side * (hw * c.y);
 
     o.position = mul(float4(world, 1.0), g_ViewProj);

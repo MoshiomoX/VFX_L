@@ -1,189 +1,54 @@
 {
-    "entries":  [
-                    {
-                        "data":  {
-                                     "angularVelRange":  [
-                                                             0,
-                                                             0
-                                                         ],
-                                     "atlasAnimate":  false,
-                                     "atlasCols":  6,
-                                     "atlasRows":  6,
-                                     "atlasIndex":  0,
-                                     "sheet":  0,
-                                     "frameMode":  1,
-                                     "frameCount":  1,
-                                     "blend":  0,
-                                     "boxExtents":  [
-                                                        1,
-                                                        1,
-                                                        1
-                                                    ],
-                                     "direction":  [
-                                                       0,
-                                                       1,
-                                                       0
-                                                   ],
-                                     "dragCoeff":  0,
-                                     "emitRate":  100,
-                                     "emitType":  0,
-                                     "endColorMax":  [
-                                                         0.62,
-                                                         0.55,
-                                                         0.47,
-                                                         1
-                                                     ],
-                                     "endColorMin":  [
-                                                         0.62,
-                                                         0.55,
-                                                         0.47,
-                                                         1
-                                                     ],
-                                     "gravity":  [
-                                                     0,
-                                                     0,
-                                                     0
-                                                 ],
-                                     "innerRadius":  0,
-                                     "lifetimeRange":  [
-                                                           0.04,
-                                                           0.04
-                                                       ],
-                                     "maxParticles":  2000,
-                                     "position":  [
-                                                      0,
-                                                      0,
-                                                      0
-                                                  ],
-                                     "radius":  0.15,
-                                     "renderMode":  1,
-                                     "rotationRange":  [
-                                                           0,
-                                                           0
-                                                       ],
-                                     "sizeRange":  [
-                                                       0.55,
-                                                       0.55,
-                                                       0.55,
-                                                       0.55
-                                                   ],
-                                     "speedRange":  [
-                                                        0,
-                                                        0
-                                                    ],
-                                     "spreadAngle":  0,
-                                     "startColorMax":  [
-                                                           0.62,
-                                                           0.55,
-                                                           0.47,
-                                                           1
-                                                       ],
-                                     "startColorMin":  [
-                                                           0.62,
-                                                           0.55,
-                                                           0.47,
-                                                           1
-                                                       ],
-                                     "meshGlow":  false,
-                                     "mesh":  "Assets/VFX/Mesh/Rock_2.fbx",
-                                     "meshFaceVelocity":  false,
-                                     "meshForwardAxis":  1,
-                                     "inheritVelocity":  true
-                                 },
-                        "duration":  -1,
-                        "startTime":  0,
-                        "type":  "Particle"
-                    },
-                    {
-                        "data":  {
-                                     "angularVelRange":  [
-                                                             -1,
-                                                             1
-                                                         ],
-                                     "atlasAnimate":  false,
-                                     "atlasCols":  6,
-                                     "atlasRows":  6,
-                                     "atlasIndex":  0,
-                                     "sheet":  2,
-                                     "frameMode":  3,
-                                     "frameCount":  25,
-                                     "blend":  1,
-                                     "boxExtents":  [
-                                                        1,
-                                                        1,
-                                                        1
-                                                    ],
-                                     "direction":  [
-                                                       0,
-                                                       1,
-                                                       0
-                                                   ],
-                                     "dragCoeff":  0,
-                                     "emitRate":  16,
-                                     "emitType":  1,
-                                     "endColorMax":  [
-                                                         0.5,
-                                                         0.42,
-                                                         0.32,
-                                                         0
-                                                     ],
-                                     "endColorMin":  [
-                                                         0.5,
-                                                         0.42,
-                                                         0.32,
-                                                         0
-                                                     ],
-                                     "gravity":  [
-                                                     0,
-                                                     0.8,
-                                                     0
-                                                 ],
-                                     "innerRadius":  0,
-                                     "lifetimeRange":  [
-                                                           0.55,
-                                                           0.8
-                                                       ],
-                                     "maxParticles":  2000,
-                                     "position":  [
-                                                      0,
-                                                      0,
-                                                      0
-                                                  ],
-                                     "radius":  0.15,
-                                     "renderMode":  0,
-                                     "rotationRange":  [
-                                                           0,
-                                                           6.28
-                                                       ],
-                                     "sizeRange":  [
-                                                       0.35,
-                                                       0.5,
-                                                       0.9,
-                                                       1.2
-                                                   ],
-                                     "speedRange":  [
-                                                        0.1,
-                                                        0.4
-                                                    ],
-                                     "spreadAngle":  0,
-                                     "startColorMax":  [
-                                                           0.5,
-                                                           0.42,
-                                                           0.32,
-                                                           0.4
-                                                       ],
-                                     "startColorMin":  [
-                                                           0.5,
-                                                           0.42,
-                                                           0.32,
-                                                           0.4
-                                                       ]
-                                 },
-                        "duration":  -1,
-                        "startTime":  0,
-                        "type":  "Particle"
-                    }
-                ],
-    "loop":  true,
-    "name":  "StoneShot"
+  "name": "StoneShot",
+  "loop": true,
+  "entries": [
+    {
+      "type": "Particle", "startTime": 0, "duration": -1,
+      "data": {
+        "sheet": 0, "atlasIndex": 0, "frameMode": 1, "frameCount": 1, "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "blend": 0,
+        "emitType": 0, "position": [0, 0, 0], "direction": [0, 1, 0], "radius": 0, "innerRadius": 0, "spreadAngle": 0, "boxExtents": [1, 1, 1],
+        "emitRate": 50, "maxParticles": 2000, "lifetimeRange": [0.04, 0.04], "speedRange": [0, 0],
+        "sizeRange": [0.62, 0.62, 0.62, 0.62], "rotationRange": [0, 0], "angularVelRange": [0, 0],
+        "startColorMin": [0.2, 0.15, 0.22, 1], "startColorMax": [0.2, 0.15, 0.22, 1], "endColorMin": [0.2, 0.15, 0.22, 1], "endColorMax": [0.2, 0.15, 0.22, 1],
+        "gravity": [0, 0, 0], "dragCoeff": 0, "renderMode": 1, "mesh": "Assets/VFX/Mesh/Rock_2.fbx", "meshGlow": false, "meshFaceVelocity": true, "meshForwardAxis": 3, "inheritVelocity": true, "single": true
+      }
+    },
+    {
+      "type": "Particle", "startTime": 0, "duration": -1,
+      "data": {
+        "sheet": 0, "atlasIndex": 0, "frameMode": 1, "frameCount": 1, "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "blend": 0,
+        "emitType": 0, "position": [0, 0, 0], "direction": [0, 1, 0], "radius": 0, "innerRadius": 0, "spreadAngle": 0, "boxExtents": [1, 1, 1],
+        "emitRate": 50, "maxParticles": 2000, "lifetimeRange": [0.04, 0.04], "speedRange": [0, 0],
+        "sizeRange": [0.9, 0.9, 0.9, 0.9], "rotationRange": [0, 0], "angularVelRange": [0, 0],
+        "startColorMin": [0.42, 0.05, 1.1, 0.6], "startColorMax": [0.42, 0.05, 1.1, 0.6], "endColorMin": [0.42, 0.05, 1.1, 0.6], "endColorMax": [0.42, 0.05, 1.1, 0.6],
+        "gravity": [0, 0, 0], "dragCoeff": 0, "renderMode": 1, "mesh": "Assets/VFX/Mesh/Rock_2.fbx", "meshGlow": true, "meshFaceVelocity": true, "meshForwardAxis": 3, "inheritVelocity": true, "single": true
+      }
+    },
+    {
+      "type": "Particle", "startTime": 0, "duration": -1,
+      "data": {
+        "sheet": 1, "atlasIndex": 20, "frameMode": 3, "frameCount": 5, "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "blend": 0,
+        "emitType": 1, "position": [0, 0, 0], "direction": [0, 1, 0], "radius": 0.45, "innerRadius": 0, "spreadAngle": 0, "boxExtents": [1, 1, 1],
+        "emitRate": 50, "maxParticles": 2000, "lifetimeRange": [0.25, 0.45], "speedRange": [0.3, 1.0],
+        "sizeRange": [0.18, 0.3, 0.05, 0.1], "rotationRange": [0, 6.28], "angularVelRange": [-6, 6],
+        "startColorMin": [0.5, 0.15, 1.2, 1], "startColorMax": [0.7, 0.3, 1.4, 1], "endColorMin": [0.3, 0.05, 1.0, 0], "endColorMax": [0.3, 0.05, 1.0, 0],
+        "gravity": [0, 0.5, 0], "dragCoeff": 1.5, "renderMode": 0
+      }
+    },
+    {
+      "type": "Particle", "startTime": 0, "duration": -1,
+      "data": {
+        "sheet": 0, "atlasIndex": 0, "frameMode": 1, "frameCount": 1, "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "blend": 0,
+        "emitType": 1, "position": [0, 0, 0], "direction": [0, 1, 0], "radius": 0.35, "innerRadius": 0, "spreadAngle": 0, "boxExtents": [1, 1, 1],
+        "emitRate": 16, "maxParticles": 2000, "lifetimeRange": [0.4, 0.7], "speedRange": [0.2, 0.8],
+        "sizeRange": [0.08, 0.14, 0.06, 0.1], "rotationRange": [0, 360], "angularVelRange": [-360, 360],
+        "startColorMin": [0.38, 0.32, 0.3, 1], "startColorMax": [0.45, 0.38, 0.34, 1], "endColorMin": [0.38, 0.32, 0.3, 1], "endColorMax": [0.45, 0.38, 0.34, 1],
+        "gravity": [0, -9, 0], "dragCoeff": 0.3, "renderMode": 1, "mesh": "Assets/VFX/Mesh/Rock_2.fbx", "meshGlow": false, "meshFaceVelocity": false, "meshForwardAxis": 2
+      }
+    },
+    {
+      "type": "Light", "startTime": 0, "duration": 1.0,
+      "data": { "offset": [0, 0, 0], "color": [0.4, 0.1, 1.0], "radius": 4.0, "intensityStart": 1.0, "intensityEnd": 1.0, "flicker": 0.15, "flickerSpeed": 12 }
+    }
+  ]
 }

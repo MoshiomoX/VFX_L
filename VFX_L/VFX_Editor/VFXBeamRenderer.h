@@ -37,7 +37,10 @@ struct VFXBeamItem
     float seed = 0.0f;                      // 本ごとのノイズのずれ
     // トゥーン（2026-10-04）：断面をなだらかな減衰ではなく縁のはっきりした段に、流れる明暗も 2 値に
     float toon = 0.0f;                      // 1 = トゥーン
-    float toonPad[3] = { 0.0f, 0.0f, 0.0f };
+    // 稲妻（2026-10-15）：区切り毎に横へずらしてギザギザにする。0 = まっすぐ（従来の光線）
+    float jitter = 0.0f;                    // 大きなうねりの振幅（m）
+    float jitterRate = 24.0f;               // 形を取り直す回数（1/秒）
+    float jitterFine = 0.5f;                // 区切り毎の細かい折れの振幅（jitter 比）
 };
 static_assert(sizeof(VFXBeamItem) == 112, "BeamItem layout mismatch");
 

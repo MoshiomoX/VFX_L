@@ -2,25 +2,17 @@
     "castSound": "cast_stone",
     "name":  "StoneShot",
     "mode":  1,
-    "c1":  [
-               0.3,
-               0.0,
-               0.3
-           ],
-    "c2":  [
-               0.7,
-               0.0,
-               0.25
-           ],
+    "c1": [ 0.33, 0.0, 0.0 ],
+    "c2": [ 0.66, 0.0, 0.0 ],
     "mirror":  0,
     "retargetRadius":  0.0,
     "hitArea":  "StoneShotHit",
     "hitAreaOnExpire":  true,
     "damage":  22,
-    "speed":  13.0,
+    "speed":  22.0,
     "radius":  0.35,
     "lifetime":  3.0,
-    "vfx":  "StoneShot.json",
+    "holdTime": 0.4, "easeIn": true, "vfx": "StoneShot.json",
     "visualSize":  0.6,
     "visualStretch":  0
 }

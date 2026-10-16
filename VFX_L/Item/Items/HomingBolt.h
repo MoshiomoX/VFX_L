@@ -23,7 +23,7 @@ inline ProjectileItemDef MakeHomingBolt()
     // （3x3 枠の真ん中に置いても枠に収まる）
     def.common.occupyCells = ItemShape::RowLine(2);
     def.common.influenceCells = ItemShape::Around4(def.common.occupyCells);   // 誘発の届く範囲（形の上下左右。弧と組んで魔導光線を目覚めさせる）
-    def.common.color = { 0.75f, 0.45f, 1.00f, 1.0f };   // 紫
+    def.common.color = { 0.40f, 0.58f, 1.00f, 1.0f };   // 輝石の青（2026-10-15 紫から変更。弾の見た目に合わせた）
 
     // ---- どう撃つか（弾の威力・速さ・見た目は profile 側）----
     def.baseStats.id = ItemID::HomingBolt;

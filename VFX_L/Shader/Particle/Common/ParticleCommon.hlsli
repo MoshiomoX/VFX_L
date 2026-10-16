@@ -13,7 +13,7 @@
 //   bits 0-7   : 0 = billboard / 1.. = mesh table index + 1 (0 = built-in cube)
 //   bit  8     : glow (additive, unlit, fades with colour alpha)
 //   bit  9     : face the velocity (forward axis follows it, rot3 unused)
-//   bits 10-11 : forward axis (0 = +X / 1 = +Y / 2 = +Z)
+//   bits 10-11 : forward axis (0 = +X / 1 = +Y / 2 = +Z / 3 = -Z, model Y stays up)
 // Mesh particles are sorted into buckets = table index * 2 + glow; every
 // bucket owns PARTICLE_MESH_BUCKET_CAP entries of the alive-mesh list
 // ============================================
@@ -28,6 +28,18 @@
 // to the initial velocity. Only SwarmEmitCS reads it.
 // Must match ParticleRenderMode::kInheritSourceVelocity
 #define PARTICLE_INHERIT_SOURCE_VELOCITY (1u << 13)
+
+// mesh glow only (2026-10-16): draw back faces only, so the mesh shows as a
+// rim behind the opaque body (stone shot's purple shell). Same bit as the
+// billboard toon flag; meshes never use the toon bits. Must match
+// ParticleRenderMode::kMeshBehind. ParticleMeshVS passes it to the glow PS
+#define PARTICLE_MESH_BEHIND (1u << 14)
+
+// single body (2026-10-16): on a GPU projectile exactly one particle per
+// frame, alive until the next frame = always exactly one drawn (rock, arrow,
+// crystal). Emit rate / lifetime of the emitter are ignored. Only
+// SwarmEmitCS reads it. Must match ParticleRenderMode::kSingleBody
+#define PARTICLE_SINGLE_BODY (1u << 30)
 
 // billboard only: toon look, bits 14-25 (2026-10-04). Decoded in
 // GPUParticlePS (PARTICLE_TOON_*), packed by ParticleRenderMode::PackToon

@@ -21,9 +21,11 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <vector>
+#include <memory>
 #include <cstdint>
 
 class GPUParticleSystem;
+class Texture;
 
 namespace Swarm
 {
@@ -113,6 +115,17 @@ public:
     ID3D11ShaderResourceView* GetLiquidDefSRV()    const { return m_LiquidDefSRV.Get(); }
     ID3D11ShaderResourceView* GetRecipeLiquidSRV() const { return m_RecipeLiquidSRV.Get(); }
     int GetLiquidDefCount() const { return m_LiquidDefCount; }
+    // Trail entry（2026-10-15、GPU の弾が引く切れない帯）: style 表（ParticleTrailStyleGPU = HLSL の TrailStyle）と、
+    // レシピごとの「style の番号 + 1（0 = 帯なし）」。見た目（テクスチャ・混合）は CPU 側の表 GetTrailLook
+    struct TrailLook
+    {
+        std::shared_ptr<Texture> texture;   // null = 白
+        bool alpha = false;                 // true = 半透明（乗算済み）/ false = 加算
+    };
+    ID3D11ShaderResourceView* GetTrailStyleSRV()  const { return m_TrailStyleSRV.Get(); }
+    ID3D11ShaderResourceView* GetRecipeTrailSRV() const { return m_RecipeTrailSRV.Get(); }
+    int GetTrailStyleCount() const { return (int)m_TrailLooks.size(); }
+    const TrailLook& GetTrailLook(int i) const { return m_TrailLooks[i]; }
 
     // ImGui 表示用
     int GetRecipeCount()  const { return (int)m_Index.size(); }
@@ -146,6 +159,12 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_RecipeLiquidBuffer;   // レシピと同じ添字の uint（Recipe の 32B は変えない）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_RecipeLiquidSRV;
     int m_LiquidDefCount = 0;
+    // Trail（2026-10-15）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_TrailStyleBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_TrailStyleSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_RecipeTrailBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_RecipeTrailSRV;
+    std::vector<TrailLook> m_TrailLooks;
     int m_SpriteSliceW = 1;
     int m_SpriteSliceH = 1;
 

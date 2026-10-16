@@ -97,6 +97,16 @@ void main(uint3 id : SV_DispatchThreadID)
     req.pathT = 0.0;
 
     SwarmMotion m = motions[motionIdx];
+    // hold: hang in front of the caster for this long before flying (pathT < 0 = seconds left. 2026-10-16).
+    // A held shot is born SWARM_HOLD_FORWARD m ahead along the aim, not inside the body
+    float hold = SwarmMotionHold(m);
+    req.pathT = -hold;
+    if (hold > 0.0)
+    {
+        float aimLenSq = dot(req.velocity, req.velocity);
+        if (aimLenSq > 1e-8)
+            req.position += req.velocity * (rsqrt(aimLenSq) * SWARM_HOLD_FORWARD);
+    }
 
     // size scale (the Magnifier item): this shot's hit radius against the
     // profile's. Kept in the motion word so every shader after this sees it

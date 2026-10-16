@@ -866,6 +866,9 @@
     <ClCompile Include="Swarm\SwarmSystemFire.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemTrail.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
     <ClCompile Include="Swarm\ProjectileProfile.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
@@ -1687,6 +1690,12 @@
     <FxCompile Include="Shader\Swarm\SwarmSpriteCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmProjTrailCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmProjTrailVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\VFX\VFXSpritePS.hlsl">
       <Filter>Graphics\Shader\HLSL\VFX</Filter>
     </FxCompile>
@@ -1969,6 +1978,9 @@
       <Filter>Audio</Filter>
     </None>
     <None Include="Shader\Common\SwarmSprite.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmProjTrail.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\SpriteQuad.hlsli">

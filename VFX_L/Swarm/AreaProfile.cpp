@@ -90,6 +90,7 @@ json AreaProfile::ToJson() const
     j["length"] = length;
     j["chargeTime"] = chargeTime;
     j["vfx"] = vfxFile;
+    if (!hitVfxFile.empty()) j["hitVfx"] = hitVfxFile;
     j["sound"] = sound;
 
     json pv;
@@ -120,6 +121,7 @@ void AreaProfile::FromJson(const json& j)
     length = j.value("length", length);
     chargeTime = j.value("chargeTime", chargeTime);
     vfxFile = j.value("vfx", vfxFile);
+    hitVfxFile = j.value("hitVfx", hitVfxFile);
     sound = j.value("sound", sound);
 
     if (j.contains("preview"))

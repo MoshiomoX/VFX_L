@@ -47,6 +47,11 @@ public:
     float shrinkTime = 0.2f;                                   // 消える時、根元から縮む秒数（duration の末尾）
     float previewLength = 12.0f;                               // 終点が入らない時の長さ（エディタ）
     bool  toon = false;                                        // トゥーン：断面を縁のはっきりした段に（json "toon"、2026-10-04）
+    // 稲妻（json "jitter" / "jitterRate" / "jitterFine"、2026-10-15）：区切り毎に横へずらしてギザギザの稲妻にする。
+    // jitter = うねりの振幅 m（0 = まっすぐ）、jitterRate = 形を取り直す回数 /秒、jitterFine = 細かい折れの振幅（jitter 比）
+    float jitter = 0.0f;
+    float jitterRate = 24.0f;
+    float jitterFine = 0.5f;
     DirectX::SimpleMath::Vector3 previewDir = { 0, 0, 1 };
 
 private:

@@ -7,6 +7,7 @@
 // ============================================================
 #pragma once
 #include "SpellID.h"
+#include <cstdint>
 
 struct AreaStats
 {
@@ -38,6 +39,8 @@ struct AreaStats
     // --- 上級魔法（光線）: 自分では撃たず、前提の基本魔法の弾が消えた時に、その方向へ撃つ ---
     // 集約時に ItemCommon::triggeredBy が揃っていれば true。基本魔法側の SpellStats::triggerMask の bit (16 + 添字) が自分
     bool triggered = false;
+    // --- 基本の範囲魔法（アークボルトの稲妻）が届いた所で誘発できる上級魔法（SpellStats::triggerMask と同じ bit 割り当て。2026-10-15）---
+    uint32_t triggerMask = 0;
 
     // --- 貯蔵（水晶玉。2026-10-06）: WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光線の起点が光球）。-1 = 杖から ---
     int storeUnit = -1;

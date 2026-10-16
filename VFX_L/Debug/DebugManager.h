@@ -34,6 +34,11 @@ public:
     bool GetShowGrid() const { return m_ShowGrid; }
     void SetShowGrid(bool show) { m_ShowGrid = show; }
 
+    // デバッグパネル（Debug Info と、戦闘シーンの Game Test 等）の表示。既定は隠す、F10 で切替（2026-10-16）。
+    // エディタのシーン（F2 / F4 / F6）の窓は自分の物なのでこれを見ない
+    bool GetShowPanels() const { return m_ShowPanels; }
+    void SetShowPanels(bool show) { m_ShowPanels = show; }
+
     // シーン切替を依頼する（実行は次の SceneManager::Update）。
     // デバッグカメラは旧シーンのカメラを指しているので、切替前に必ず解除する
     void RequestScene(SceneType type);
@@ -69,6 +74,7 @@ private:
 	bool m_UseDebugCamera = false;
 
     bool m_ShowGrid = true;
+    bool m_ShowPanels = false;
     float m_GridSize = 50.0f;
     float m_GridStep = 1.0f;
     float m_AxisLength = 3.0f;

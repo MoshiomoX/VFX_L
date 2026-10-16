@@ -468,10 +468,17 @@ void VFXParticleEntry::OnImGui()
         if (ImGui::Combo("Shading", &shading, shadingNames, IM_ARRAYSIZE(shadingNames)))
             e.meshGlow = (shading == 1);
 
+        if (e.meshGlow)
+        {
+            // 裏面だけ（2026-10-16）：本体（光を受けるメッシュ）より大きい殻を、本体の後ろの縁取りとして見せる
+            ImGui::Checkbox("Behind body (back faces only = rim)", &e.meshBehind);
+            if (e.meshBehind)
+                ImGui::TextDisabled("front faces are discarded: the glow shows only around an opaque body in front");
+        }
         ImGui::Checkbox("Face Velocity", &e.meshFaceVelocity);
         if (e.meshFaceVelocity)
         {
-            const char* axisNames[] = { "+X", "+Y", "+Z" };
+            const char* axisNames[] = { "+X", "+Y", "+Z", "-Z (model Y stays up)" };
             ImGui::Combo("Forward Axis", &e.meshForwardAxis, axisNames, IM_ARRAYSIZE(axisNames));
         }
 
@@ -498,6 +505,10 @@ void VFXParticleEntry::OnImGui()
     ImGui::Checkbox("Inherit Source Velocity", &e.inheritVelocity);
     if (e.inheritVelocity)
         ImGui::TextDisabled("adds the GPU projectile's velocity (battle only, not in this preview)");
+    // 単体（2026-10-16）：岩・矢・水晶の本体。毎フレーム 1 個だけ、次のフレームまで = 常にちょうど 1 つ
+    ImGui::Checkbox("Single Body (exactly one, GPU projectile only)", &e.singleBody);
+    if (e.singleBody)
+        ImGui::TextDisabled("emit rate / lifetime are ignored in battle: one particle per frame, alive one frame");
     // 世界の風（2026-10-12）：煙・霧・雨・砂は 0.5〜1、火花・光は 0
     ImGui::SliderFloat("Wind Response", &e.windResponse, 0.0f, 1.0f, "%.2f");
     if (e.windResponse > 0.0f)
@@ -675,6 +686,7 @@ json VFXParticleEntry::ToJson() const
     j["edgeMode"] = e.shape.edgeMode;
     j["renderMode"] = e.renderMode;
     if (e.inheritVelocity) j["inheritVelocity"] = true;
+    if (e.singleBody) j["single"] = true;
     if (e.windResponse > 0.0f) j["wind"] = e.windResponse;   // 世界の風の受けやすさ（無ければ 0）
     if (e.toon)   // トゥーン（無ければ従来の見た目）
         j["toon"] = { { "cut", e.toonCut }, { "bands", e.toonBands }, { "shade", e.toonShade }, { "outline", e.toonOutline } };
@@ -684,6 +696,7 @@ json VFXParticleEntry::ToJson() const
         j["meshGlow"] = e.meshGlow;
         j["meshFaceVelocity"] = e.meshFaceVelocity;
         j["meshForwardAxis"] = e.meshForwardAxis;
+        if (e.meshBehind) j["meshBehind"] = true;   // 裏面だけ（無ければ従来どおり両面）
     }
 
     if (e.colorKeyCount > 0)
@@ -794,7 +807,9 @@ void VFXParticleEntry::FromJson(const json& j)
     e.meshGlow = j.value("meshGlow", false);
     e.meshFaceVelocity = j.value("meshFaceVelocity", false);
     e.meshForwardAxis = j.value("meshForwardAxis", 2);
+    e.meshBehind = j.value("meshBehind", false);
     e.inheritVelocity = j.value("inheritVelocity", false);
+    e.singleBody = j.value("single", false);
     e.windResponse = std::clamp(j.value("wind", 0.0f), 0.0f, 1.0f);
     e.toon = j.contains("toon") && j["toon"].is_object();
     if (e.toon)

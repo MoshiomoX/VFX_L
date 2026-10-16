@@ -72,6 +72,9 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
         ? (alphaBlend ? ParticleRenderMode::kBillboardAlpha : 0)
         : ParticleRenderMode::Pack(meshSlot, meshGlow, meshFaceVelocity, meshForwardAxis);
     if (inheritVelocity) e.renderMode |= ParticleRenderMode::kInheritSourceVelocity;
+    if (singleBody) e.renderMode |= ParticleRenderMode::kSingleBody;   // 弾の本体：常にちょうど 1 つ（2026-10-16）
+    if (renderMode != 0 && meshGlow && meshBehind)   // 発光メッシュの裏面だけ = 本体の後ろの縁取り（2026-10-16）
+        e.renderMode |= ParticleRenderMode::kMeshBehind;
     if (renderMode == 0 && toon)   // トゥーン（ビルボードだけ）
         e.renderMode |= ParticleRenderMode::PackToon(toonOutline, toonCut, toonBands, toonShade);
     if (windResponse > 0.0f)       // 世界の風を受ける（ParticleUpdateCS）

@@ -448,7 +448,7 @@
                                      "mesh":  "Assets/VFX/Mesh/gonjian.FBX",
                                      "meshFaceVelocity":  true,
                                      "meshForwardAxis":  1,
-                                     "inheritVelocity":  true
+                                     "inheritVelocity":  true, "single": true
                                  },
                         "duration":  -1,
                         "startTime":  0,
@@ -542,7 +542,7 @@
                                      "mesh":  "Assets/VFX/Mesh/gonjian.FBX",
                                      "meshFaceVelocity":  true,
                                      "meshForwardAxis":  1,
-                                     "inheritVelocity":  true
+                                     "inheritVelocity":  true, "single": true
                                  },
                         "duration":  -1,
                         "startTime":  0,

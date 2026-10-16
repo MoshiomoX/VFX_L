@@ -275,7 +275,7 @@ struct ParticleTrailStyle
 //   bits 0-7   : 0 = ビルボード / 1.. = メッシュ表の番号 + 1（番号 0 は組み込みの立方体）
 //   bit  8     : 発光（加算・光を受けない。色の alpha で消える）
 //   bit  9     : 進行方向を向く（rot3 を使わず、前方の軸を速度に合わせる）
-//   bits 10-11 : 前方の軸（0 = +X / 1 = +Y / 2 = +Z）
+//   bits 10-11 : 前方の軸（0 = +X / 1 = +Y / 2 = +Z / 3 = −Z（2026-10-16、石弾：寝たまま尖った端を前へ））
 // 旧データの renderMode = 1 は「立方体・光を受ける」のまま読める。
 // Shader/Particle/Common/ParticleCommon.hlsli の PARTICLE_MESH_* と一致させる
 // ============================================
@@ -294,6 +294,11 @@ namespace ParticleRenderMode
             | ((forwardAxis & 3) << 10);
     }
 
+    // メッシュの発光だけ（2026-10-16）：裏面だけ描く = 本体（光を受けるメッシュ）の後ろに回った縁取りに見える
+    // （石弾の紫の殻。表面は本体に重ならない）。ビルボードのトゥーン bit 14 と同じ位置だが、
+    // メッシュはトゥーンの bit を使わないので衝突しない。json "meshBehind"。ParticleMeshVS / ParticleMeshGlowPS が読む
+    constexpr int kMeshBehind = 1 << 14;
+
     // ビルボード（下位 8bit = 0）の半透明。立てなければ加算（従来どおり光る）。
     // 粒子の描画は乗算済み alpha の混合 1 回で、加算の粒子は alpha 0 を書くことで両立させる
     // （GPUParticlePS / PARTICLE_BILLBOARD_ALPHA）
@@ -302,6 +307,9 @@ namespace ParticleRenderMode
     // 発射元（GPU の弾・範囲・オーブ）の速度を粒子の初速に足す（ビルボード・メッシュ共通）。
     // 弾と一緒に飛ぶ見た目（矢の本体など）に使う。SwarmEmitCS だけが読む（CPU の発射器には発射元の速度が無い）
     constexpr int kInheritSourceVelocity = 1 << 13;
+    // 単体（2026-10-16）：GPU の弾の上で「毎フレーム 1 個だけ、次のフレームまでの寿命」= 常にちょうど 1 つ描かれる
+    // 本体用（岩・矢・水晶）。発射率・寿命の設定は無視される。SwarmEmitCS だけが読む。json "single"
+    constexpr int kSingleBody = 1 << 30;
 
     // ビルボードのトゥーン（2026-10-04。GPUParticlePS の PARTICLE_TOON_* と一致）
     //   bit 14 = トゥーン、bit 15 = 外周の線、bits 16-19 = alpha の境（0.05 + 0.05 × n）、

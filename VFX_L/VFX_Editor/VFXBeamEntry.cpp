@@ -75,6 +75,9 @@ void VFXBeamEntry::Submit(VFXBeamRenderer& renderer, const Vector3& worldOffset,
     item.rootFade = rootFade;
     item.seed = m_Seed;
     item.toon = toon ? 1.0f : 0.0f;
+    item.jitter = jitter * widthMul;
+    item.jitterRate = jitterRate;
+    item.jitterFine = jitterFine;
     renderer.Submit(item);
 }
 
@@ -97,6 +100,12 @@ void VFXBeamEntry::OnImGui()
     ImGui::ColorEdit4("Color (HDR)", &color.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::ColorEdit4("Core Color", &coreColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::Checkbox("Toon (hard-edged bands)", &toon);   // 2026-10-04
+    ImGui::Separator();
+    // 稲妻（2026-10-15）
+    ImGui::DragFloat("Lightning Jitter (m)", &jitter, 0.01f, 0.0f, 5.0f);
+    ImGui::DragFloat("Lightning Rate (1/s)", &jitterRate, 0.5f, 1.0f, 120.0f);
+    ImGui::DragFloat("Lightning Fine", &jitterFine, 0.01f, 0.0f, 2.0f);
+    ImGui::TextDisabled("jitter > 0: the ribbon kinks sideways at every segment (re-rolled Rate times a second)");
     ImGui::Separator();
 
     ImGui::DragFloat("Scroll Speed (m/s)", &scrollSpeed, 0.1f, -40.0f, 40.0f);
@@ -142,6 +151,9 @@ json VFXBeamEntry::ToJson() const
         { "previewLength", previewLength },
         { "previewDir", V3(previewDir) },
         { "toon", toon },
+        { "jitter", jitter },
+        { "jitterRate", jitterRate },
+        { "jitterFine", jitterFine },
     };
 }
 
@@ -164,4 +176,7 @@ void VFXBeamEntry::FromJson(const json& j)
     previewLength = j.value("previewLength", previewLength);
     previewDir = J3(j.value("previewDir", json()), previewDir);
     toon = j.value("toon", false);   // 古い json には無い = 従来の柔らかい光線
+    jitter = j.value("jitter", 0.0f);
+    jitterRate = j.value("jitterRate", jitterRate);
+    jitterFine = j.value("jitterFine", jitterFine);
 }
