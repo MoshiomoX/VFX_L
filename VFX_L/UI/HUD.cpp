@@ -101,8 +101,10 @@ namespace
 // ============================================================
 // 初期化
 // ============================================================
-bool HUD::Initialize(ID3D11Device* device)
+bool HUD::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 {
+    m_Device = device;
+    m_Context = context;
     m_WhiteTex = std::make_shared<Texture>();
     if (!m_WhiteTex->CreateSolid(device, 255, 255, 255, 255))
     {
@@ -171,6 +173,7 @@ HUDStyle HUDStyle::Scaled(float k) const
     s.shieldBarHeight *= k; s.shieldBarGap *= k; s.shieldIconSize *= k; s.shieldTextScale *= k;
     s.surgeSkillSize *= k; s.surgeNumberScale *= k; s.surgeKeyScale *= k;
     s.markerSize *= k;     s.markerMargin *= k;
+    anchor(s.minimap);     s.minimapSize *= k;    s.minimapMarkerSize *= k;   s.minimapPlayerSize *= k;   s.minimapNorthScale *= k;
     s.objectiveScale *= k;
     s.announceScale *= k;
     s.platePad *= k;
@@ -209,6 +212,9 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
 
     // ---- 経験値バー（既定では最上段の通し。HUDExpBar.cpp）----
     DrawExpBar(sprite, text, lv);
+
+    // ---- ミニマップ（右上。HUDMinimap.cpp）----
+    m_Minimap.Draw(sprite, text, m_Context, m_S, info, m_S.minimap.Resolve(m_ScreenW, m_ScreenH), m_WhiteTex);
 
     // ---- HP / MP バー ----
     const Vector2 hpPos = m_S.hpBar.Resolve(m_ScreenW, m_ScreenH);
@@ -946,6 +952,20 @@ void HUD::DrawDebugUI()
     ImGui::DragFloat("Marker Margin", &m_Style.markerMargin, 0.5f, 0.0f, 400.0f);
 
     ImGui::Separator();
+    ImGui::Text("Minimap (top right)");
+    ImGui::Checkbox("Show Minimap", &m_Style.showMinimap);
+    DragAnchor("Minimap Center", m_Style.minimap);
+    ImGui::DragFloat("Minimap Size", &m_Style.minimapSize, 1.0f, 40.0f, 600.0f);
+    ImGui::DragFloat("Minimap Range (m)", &m_Style.minimapRange, 0.5f, 10.0f, 200.0f);
+    ImGui::DragFloat("Minimap Marker Size", &m_Style.minimapMarkerSize, 0.25f, 2.0f, 40.0f);
+    ImGui::DragFloat("Minimap Player Size", &m_Style.minimapPlayerSize, 0.25f, 4.0f, 60.0f);
+    ImGui::DragFloat("Minimap North Scale", &m_Style.minimapNorthScale, 0.01f, 0.0f, 2.0f);
+    ImGui::SliderFloat("Minimap Alpha", &m_Style.minimapAlpha, 0.0f, 1.0f);
+    ImGui::ColorEdit4("Minimap Background", &m_Style.minimapBgColor.x);
+    ImGui::ColorEdit4("Minimap Player", &m_Style.minimapPlayerColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+    ImGui::Text("map baked: %s", m_Minimap.HasMap() ? "yes" : "no");
+
+    ImGui::Separator();
     ImGui::Text("Screen : %.0f x %.0f", m_ScreenW, m_ScreenH);
 }
 
@@ -1050,6 +1070,17 @@ bool HUD::SaveStyle(const char* path) const
     root["showMarkers"] = m_Style.showMarkers;
     root["markerSize"] = m_Style.markerSize;
     root["markerMargin"] = m_Style.markerMargin;
+
+    root["showMinimap"] = m_Style.showMinimap;
+    root["minimap"] = ToJson(m_Style.minimap);
+    root["minimapSize"] = m_Style.minimapSize;
+    root["minimapRange"] = m_Style.minimapRange;
+    root["minimapMarkerSize"] = m_Style.minimapMarkerSize;
+    root["minimapPlayerSize"] = m_Style.minimapPlayerSize;
+    root["minimapNorthScale"] = m_Style.minimapNorthScale;
+    root["minimapAlpha"] = m_Style.minimapAlpha;
+    root["minimapBgColor"] = ToJson(m_Style.minimapBgColor);
+    root["minimapPlayerColor"] = ToJson(m_Style.minimapPlayerColor);
 
     std::ofstream ofs(file);
     if (!ofs.is_open())
@@ -1182,6 +1213,17 @@ bool HUD::LoadStyle(const char* path)
     ReadBool(root, "showMarkers", m_Style.showMarkers);
     ReadFloat(root, "markerSize", m_Style.markerSize);
     ReadFloat(root, "markerMargin", m_Style.markerMargin);
+
+    ReadBool(root, "showMinimap", m_Style.showMinimap);
+    ReadAnchor(root, "minimap", m_Style.minimap);
+    ReadFloat(root, "minimapSize", m_Style.minimapSize);
+    ReadFloat(root, "minimapRange", m_Style.minimapRange);
+    ReadFloat(root, "minimapMarkerSize", m_Style.minimapMarkerSize);
+    ReadFloat(root, "minimapPlayerSize", m_Style.minimapPlayerSize);
+    ReadFloat(root, "minimapNorthScale", m_Style.minimapNorthScale);
+    ReadFloat(root, "minimapAlpha", m_Style.minimapAlpha);
+    ReadVec4(root, "minimapBgColor", m_Style.minimapBgColor);
+    ReadVec4(root, "minimapPlayerColor", m_Style.minimapPlayerColor);
 
     std::cout << "[OK] HUD style loaded: " << file << std::endl;
     return true;

@@ -187,8 +187,20 @@ public:
         float growTime = 0.3f;    // 生まれて伸びる / 消える前に縮む秒
         float heave = 0.08f;      // 面のうねり（頂点をノイズで出し入れする量、半径の割合）
         bool  dust = true;        // 足元の砂埃（SwarmTornadoEmitCS、TornadoDust.json）
-        float dustRate = 1.0f;    // 配方の発射率に掛ける
+        float dustRate = 1.0f;    // 配方の発射率に掛ける（sandAmount の分を掛けた上で）
         float dustSwirl = 5.0f;   // 砂埃に足す軸回りの速さ m/s（砂が巻き上がって見える）
+        // 砂の量 0〜1（2026-10-19 ユーザー：細かい砂粒だけだと重い → 砂粒は上限まで、それを超えた分は「砂霭」になる）。
+        //   0〜0.5：砂粒が 0 → 配方の量まで増える、霭なし。0.5〜1：砂粒はそのまま、風柱の内側に薄い砂色の膜（霭）が hazeMax まで濃くなる
+        float sandAmount = 0.8f;
+        float hazeMax = 0.22f;    // 霭の最大の不透明度（下端。上へ薄くなる）
+        // 風源（2026-10-19 ユーザー：「風そのものが風の係数を持って世界の風に影響する」）。砂旋 1 本 = Swarm::WindSource 1 つ：
+        // 届く距離 = 当たりの半径 × windRadiusMul、縁の接線の速さ windSwirl、芯の上昇 windUpdraft、縁の吸い込み windInflow。
+        // 草が輪になってなびき、フィールドの落ち葉 / 砂屑が巻き上がり、煙が周りを回る（GrassVS / DebrisUpdateCS / ParticleUpdateCS）
+        bool  windSource = true;
+        float windRadiusMul = 8.0f;   // 当たりの半径 0.48m × 8 ≒ 3.8m（見た目の幕の半径 1.5m の 2.5 倍）
+        float windSwirl = 7.0f;       // m/s
+        float windUpdraft = 3.0f;     // m/s（落ち葉の終端の落下 2.5 m/s より速い = 芯の近くは浮く）
+        float windInflow = 1.2f;      // m/s
         DirectX::SimpleMath::Vector4 tint = { 0.88f, 0.74f, 0.50f, 0.85f };   // 砂色、a = 全体の不透明度
     };
     TornadoLookStyle tornadoLook;
@@ -404,6 +416,8 @@ public:
     ID3D11ShaderResourceView* GetAreaStateSRV() const { return m_AreaStateSRV.Get(); }
     // 同上（2026-10-13、草の踏み跡と落ち葉）：カプセル（光線）の終点、雑魚の池 / 状態 / 種類
     ID3D11ShaderResourceView* GetAreaEndSRV() const { return m_AreaEndSRV.Get(); }
+    // 局所の風源の表（Swarm::WindSource × kMaxWindSources。草・落ち葉・粒子が Flush の後に読む。2026-10-19）
+    ID3D11ShaderResourceView* GetWindSourceSRV() const { return m_WindSourceSRV.Get(); }
     ID3D11ShaderResourceView* GetEnemySRV() const { return m_EnemySRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyStateSRV() const { return m_EnemyStateSRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyExtraSRV() const { return m_EnemyExtraSRV.Get(); }
@@ -883,6 +897,14 @@ private:
     uint32_t m_TornadoDustVfx = 0;                   // レシピ表の番号。0 = 無し
     float    m_TornadoTime = 0.0f;                   // Flush の totalTime（描画のスクロールに使う）
     void DispatchTornadoEmit(float dt, float totalTime);   // Flush の中、草の火の発射の直後
+    // 局所の風源（2026-10-19）：砂旋 → Swarm::WindSource の表（kMaxWindSources 枠）。Flush の中、砂埃の直後
+    std::shared_ptr<ComputeShader> m_WindSourceCS;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindSourceBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindSourceSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindSourceCount;   // RAW 4B（InterlockedAdd の枠取り）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceCountUAV;
+    void DispatchWindSources();
     // SwarmShieldVS / SwarmIceVS の b4
     struct PropMeshCB
     {

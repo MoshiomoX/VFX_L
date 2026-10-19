@@ -254,6 +254,22 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::SameLine();
         if (ImGui::Button("Random")) tc.seed = std::random_device{}() % 100000u;
 
+        // 段々の台地（2026-10-19、PokéBonk 風）。既定の地形
+        ImGui::SeparatorText("Step Terraces (PokeBonk style)");
+        ImGui::Checkbox("Step Terraces", &tc.steps);
+        ImGui::DragFloat("Step Height", &tc.stepHeight, 0.05f, 1.0f, 6.0f, "%.2f m");
+        ImGui::SliderFloat("Step Coverage", &tc.stepCoverage, 0.0f, 0.7f, "%.2f");
+        ImGui::SetItemTooltip("Share of the field (outside the rim band) that is raised by at least one step");
+        ImGui::DragFloat("Step Noise Scale", &tc.stepScale, 0.5f, 8.0f, 120.0f, "%.0f m");
+        ImGui::SliderInt("Step Max Level", &tc.stepMaxLevel, 1, 5);
+        ImGui::SliderInt("Step Ramp Width (cells)", &tc.stepRampWidth, 1, 6);
+        ImGui::SliderFloat("Step Ramp Slope", &tc.stepRampSlopeDeg, 8.0f, 30.0f, "%.0f deg");
+        ImGui::SliderInt("Rim Levels", &tc.stepRimLevels, 0, 4);
+        ImGui::SliderInt("Rim Band (cells / level)", &tc.stepRimBand, 1, 6);
+        ImGui::SliderInt("Step Min Cells", &tc.stepMinCells, 1, 40);
+        ImGui::SliderFloat("Pond Coverage", &tc.pondCoverage, 0.0f, 0.2f, "%.3f");
+        ImGui::DragFloat("Pond Depth", &tc.pondDepth, 0.02f, 0.0f, 2.0f, "%.2f m");
+
         // 三層（山頂・平原・洞窟）。隅の組は seed で決まる
         ImGui::SeparatorText("Layers (summit / plain / mine)");
         ImGui::Checkbox("Layers", &tc.layers);

@@ -63,6 +63,8 @@ public:
     // 世界の風（2026-10-12）。風を受ける発射器（GPUParticleEmitter::windResponse）の粒子が UpdateCS で流される。
     // time = 草の風の時計（GrassRenderer::Time）。渡さなければ既定の弱い風（エディタの試し見）
     void SetWind(const WindState& wind, float time) { m_Wind = wind; m_WindTime = time; }
+    // 局所の風源（砂旋。SwarmSystem::GetWindSourceSRV、2026-10-19）。null = 無し。ParticleUpdateCS の t1
+    void SetWindSources(ID3D11ShaderResourceView* srv) { m_WindSourceSRV = srv; }
 
     // ParticleUpdateCS の b2 と同じ並び（32B）
     struct ParticleWindCB
@@ -414,5 +416,6 @@ private:
     std::vector<ColorKey> m_StaticColorKeys;
     WindState m_Wind;
     float     m_WindTime = 0.0f;
+    ID3D11ShaderResourceView* m_WindSourceSRV = nullptr;   // 局所の風源（非所有。SetWindSources）
     //   ComPtr<ID3D11SamplerState> m_SamplerState;
 };

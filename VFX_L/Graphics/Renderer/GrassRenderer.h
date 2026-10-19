@@ -88,6 +88,8 @@ public:
     void Update(float dt, const DirectX::SimpleMath::Vector3& player, bool grounded, bool sliding);
     // 世界の風（WeatherSystem::Wind）。毎フレーム渡す
     void SetWind(const WindState& wind) { m_Wind = wind; }
+    // 局所の風源（砂旋。SwarmSystem::GetWindSourceSRV、2026-10-19）。Render の前に毎フレーム。null = 無し
+    void SetWindSources(ID3D11ShaderResourceView* srv) { m_WindSourceSRV = srv; }
     // 燃え跡：温度（x）・燃料（y）のテクスチャ（GrassFireField::GetSRV）と、燃えていると見なす温度。null = 無し
     void SetFire(ID3D11ShaderResourceView* fire, float ignite) { m_FireSRV = fire; m_FireIgnite = ignite; }
     // 突風（2026-10-12）：次の描画で pos の周り radius の草を外向きに一斉に倒す（踏み跡と同じ仕組み。踏み跡の回復で起き上がる）
@@ -207,6 +209,7 @@ private:
     ID3D11ShaderResourceView* m_EnemySRV = nullptr;
     ID3D11ShaderResourceView* m_EnemyStateSRV = nullptr;
     ID3D11ShaderResourceView* m_EnemyExtraSRV = nullptr;
+    ID3D11ShaderResourceView* m_WindSourceSRV = nullptr;   // 局所の風源（非所有）
 
     Settings m_Settings;
 };

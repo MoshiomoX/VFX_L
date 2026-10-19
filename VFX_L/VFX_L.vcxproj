@@ -248,6 +248,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestResult.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPlayerFx.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestEdge.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestSteps.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestEdgeRock.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossExit.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp" />
@@ -492,6 +493,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Transform.cpp" />
     <ClCompile Include="UI\HUD.cpp" />
     <ClCompile Include="UI\HUDShieldBar.cpp" />
+    <ClCompile Include="UI\HUDMinimap.cpp" />
     <ClCompile Include="UI\HUDExpBar.cpp" />
     <ClCompile Include="UI\DamageNumbers.cpp" />
     <ClCompile Include="UI\HUDAnnounce.cpp" />
@@ -535,6 +537,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="World\GroundDebris.cpp" />
     <ClCompile Include="World\GroundDebrisPanel.cpp" />
     <ClCompile Include="World\MapData.cpp" />
+    <ClCompile Include="World\MinimapBake.cpp" />
+    <ClCompile Include="World\TerrainSteps.cpp" />
     <ClCompile Include="World\MapEdit.cpp" />
     <ClCompile Include="World\MapTerrainEdit.cpp" />
     <ClCompile Include="World\MapZoneEdit.cpp" />
@@ -817,6 +821,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Transform.h" />
     <ClInclude Include="Component\TransformComponent.h" />
     <ClInclude Include="UI\HUD.h" />
+    <ClInclude Include="UI\HUDMinimap.h" />
     <ClInclude Include="UI\DamageNumbers.h" />
     <ClInclude Include="UI\TrainingMenuUI.h" />
     <ClInclude Include="Component\ManaComponent.h" />
@@ -843,6 +848,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="World\TerrainGenerator.h" />
     <ClInclude Include="World\TerrainBuild.h" />
     <ClInclude Include="World\MapData.h" />
+    <ClInclude Include="World\MinimapBake.h" />
     <ClInclude Include="World\WindState.h" />
     <ClInclude Include="World\WeatherSystem.h" />
     <ClInclude Include="World\MapEdit.h" />
@@ -2105,6 +2111,23 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmWindSourceCS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>

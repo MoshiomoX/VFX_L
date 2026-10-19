@@ -73,8 +73,10 @@ public:
 
     // 草の後（アウトラインの後）：1 歩進めて描く。areas / areaStates / areaEnds = SwarmSystem::GetAreaSRV / GetAreaStateSRV /
     // GetAreaEndSRV（爆発と、光線のカプセルの終点）
+    // windSources = SwarmSystem::GetWindSourceSRV（砂旋の風源。2026-10-19。null = 無し）
     void Render(Renderer& renderer, CameraBase& camera,
-        ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* areaEnds);
+        ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* areaEnds,
+        ID3D11ShaderResourceView* windSources = nullptr);
 
     void DrawImGui();   // GroundDebrisPanel.cpp
     Settings& GetSettings() { return m_Settings; }

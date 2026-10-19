@@ -27,10 +27,13 @@
 #include <vector>
 #include <SimpleMath.h>
 #include "SpellID.h"
+#include "UI/HUDMinimap.h"
 
 class SpriteRenderer;
 class TextRenderer;
 class Texture;
+class GridWorld;
+namespace MapData { struct Map; }
 struct HealthComponent;
 struct ShieldComponent;
 struct ManaComponent;
@@ -68,6 +71,11 @@ struct HUDFrameInfo
     // 画面外の目印。viewProj は世界 → クリップ（SimpleMath の行ベクトル順 view * proj）
     DirectX::SimpleMath::Matrix viewProj;
     std::vector<HUDMarker> markers;
+
+    // ミニマップ（2026-10-19）：プレイヤーの位置と向き（TransformComponent::rotation.y、度）。GameUI::Render が入れる
+    bool  hasPlayer = false;
+    DirectX::SimpleMath::Vector3 playerPos;
+    float playerYawDeg = 0.0f;
 };
 
 // ============================================================
@@ -211,6 +219,19 @@ struct HUDStyle
     float markerSize = 18.0f;
     float markerMargin = 40.0f;     // 画面の縁からの距離
 
+    // ---- ミニマップ（2026-10-19 ユーザー「右上に小さい地図を」。右上の丸い地図、北が上。UI/HUDMinimap.cpp）----
+    // アンカーは円の中心。地形の縮図 + プレイヤーの矢印 + 目印（画面外の矢印と同じ物・同じ色）
+    bool  showMinimap = true;
+    HUDAnchor minimap = { { 1.0f, 0.0f }, { -115.0f, 140.0f } };
+    float minimapSize = 180.0f;         // 直径（px）
+    float minimapRange = 60.0f;         // 半径（m）。円の縁 = この距離
+    float minimapMarkerSize = 9.0f;     // 目印の菱形
+    float minimapPlayerSize = 14.0f;    // プレイヤーの矢印
+    float minimapNorthScale = 0.42f;    // 上の「N」の文字（0 = 出さない）
+    float minimapAlpha = 0.92f;         // 地形の絵の濃さ
+    DirectX::SimpleMath::Vector4 minimapBgColor = { 0.003f, 0.0025f, 0.005f, 0.90f };
+    DirectX::SimpleMath::Vector4 minimapPlayerColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+
     // ---- 目標（2026-10-07 ユーザー「任務目標を足す」：撃破数の下に「目標: …」。文はシーンが毎フレーム入れる）----
     bool  showObjective = true;
     float objectiveScale = 0.40f;
@@ -239,7 +260,14 @@ struct HUDStyle
 class HUD
 {
 public:
-    bool Initialize(ID3D11Device* device);
+    // context はミニマップの窓の書き換えに使う（null なら地図は出ない）
+    bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context = nullptr);
+
+    // ミニマップの地形の絵を焼く（地形を建てた後にシーンが GameUI 経由で呼ぶ。biome = TerrainGenerator::Biome）
+    void BakeMinimap(const GridWorld& grid, const MapData::Map& map, int biome, uint32_t seed)
+    {
+        m_Minimap.Bake(m_Device, grid, map, biome, seed);
+    }
 
     // 画面サイズを記録する（リサイズ時にも呼ぶ）
     // 実際の位置は Draw の時に HUDStyle から解決するので、
@@ -308,6 +336,10 @@ private:
 
     HUDStyle m_Style;
     HUDStyle m_S;      // m_Style × UIDeco::UIScale()（Update / Draw の頭で作り直す。描く側はこちらを見る）
+
+    ID3D11Device* m_Device = nullptr;
+    ID3D11DeviceContext* m_Context = nullptr;
+    HUDMinimap m_Minimap;   // 右上の丸い地図（UI/HUDMinimap.cpp）
 
     std::shared_ptr<Texture> m_WhiteTex;
     std::function<std::shared_ptr<Texture>(ItemID)> m_IconLookup;

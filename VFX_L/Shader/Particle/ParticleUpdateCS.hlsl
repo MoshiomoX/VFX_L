@@ -6,6 +6,7 @@
 // ============================================
 
 #include "Common/ParticleCommon.hlsli"
+#include "../Common/WindSources.hlsli"
 
 #define PARTICLE_MAX_OWNERS 1024
 
@@ -33,6 +34,7 @@ float2 ParticleWindAt(float2 xz)
 }
 
 StructuredBuffer<ColorKey> colorKeys : register(t0);
+StructuredBuffer<WindSource> g_WindSources : register(t1);   // local wind: the sand tornadoes (SwarmWindSourceCS, 2026-10-19)
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 AppendStructuredBuffer<uint> deadList : register(u1);
 RWBuffer<uint> g_DrawArgs : register(u2);
@@ -107,7 +109,12 @@ void main(uint3 id : SV_DispatchThreadID)
     if (windResp > 0.0)
     {
         float k = saturate(windResp * PARTICLE_WIND_RATE * g_DeltaTime);
-        p.velocity.xz += (ParticleWindAt(p.position.xz) - p.velocity.xz) * k;
+        float vortexLift;
+        float3 vortexAir = WindSourceAir(g_WindSources, p.position.xz, vortexLift);
+        float2 wind = ParticleWindAt(p.position.xz) + vortexAir.xz;
+        p.velocity.xz += (wind - p.velocity.xz) * k;
+        if (vortexLift > 0.0)   // the updraft only inside a source (no pull toward 0 elsewhere)
+            p.velocity.y += (vortexAir.y - p.velocity.y) * k * vortexLift;
     }
 
     p.position += p.velocity * g_DeltaTime;

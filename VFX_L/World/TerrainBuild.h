@@ -90,6 +90,78 @@ namespace TerrainBuild
         std::vector<uint8_t> zone;       // マス毎の区域
         std::vector<float> plain, summit;   // ノード毎の起伏（区域の基準の高さからの差）
 
+        // ---- 段々の台地と水たまり（2026-10-19、PokéBonk 風。TerrainSteps.cpp が決める）----
+        // マス毎の段 level（0..）。面 = 区域の起伏 + stepH × 段。段の境は崖（マスの境の縦の壁、段々のメッシュと衝突の箱）。
+        // 坂（ramps）のマスは低い端の段 lo から高い端まで位置で補間（崖に沿った草の坂）。水たまりは地面を pondDepth 下げる。
+        // 外周のマスは内側の隣と同じ（ZoneAtCell と同じ丸め）。stepH = 0 なら無し
+        float stepH = 0.0f;
+        std::vector<uint8_t>  level;
+        std::vector<int16_t>  rampAt;    // マス毎の坂の番号（-1 = 無し）
+        std::vector<MapData::StepRamp> ramps;
+        std::vector<uint8_t>  pond;      // 1 = 水たまり
+        float pondDepth = 0.5f;
+        bool HasSteps() const { return stepH > 0.0f && level.size() == (size_t)gw * gd; }
+        bool IsPond(int gx, int gz) const
+        {
+            if (pond.size() != (size_t)gw * gd) return false;
+            gx = std::clamp(gx, 1, gw - 2); gz = std::clamp(gz, 1, gd - 2);
+            return pond[(size_t)gz * gw + gx] != 0;
+        }
+        int LevelAtCell(int gx, int gz) const
+        {
+            if (!HasSteps()) return 0;
+            gx = std::clamp(gx, 1, gw - 2); gz = std::clamp(gz, 1, gd - 2);
+            return level[(size_t)gz * gw + gx];
+        }
+        int RampAtCell(int gx, int gz) const
+        {
+            if (rampAt.size() != (size_t)gw * gd) return -1;
+            gx = std::clamp(gx, 1, gw - 2); gz = std::clamp(gz, 1, gd - 2);
+            return rampAt[(size_t)gz * gw + gx];
+        }
+        // マスの段の高さ（m）。坂は真ん中の高さ（段々のメッシュが「どちらが高い側か」を決める用）
+        float StepOffsetCell(int gx, int gz) const
+        {
+            if (IsPond(gx, gz)) return -pondDepth;
+            if (!HasSteps()) return 0.0f;
+            const int r = RampAtCell(gx, gz);
+            if (r >= 0 && r < (int)ramps.size()) return stepH * (ramps[(size_t)r].lo + 0.5f);
+            return stepH * LevelAtCell(gx, gz);
+        }
+        // マス (gx, gz) の式で (x, z) の段の高さ。坂は低い端 0 → 高い端 1 で補間（はみ出した所は 0..1 に丸める）
+        float StepOffset(int gx, int gz, float x, float z) const
+        {
+            if (IsPond(gx, gz)) return -pondDepth;
+            if (!HasSteps()) return 0.0f;
+            const int r = RampAtCell(gx, gz);
+            if (r >= 0 && r < (int)ramps.size())
+            {
+                const MapData::StepRamp& rp = ramps[(size_t)r];
+                const float x0 = ox + rp.x * kCs, x1 = x0 + rp.w * kCs;
+                const float z0 = oz + rp.z * kCs, z1 = z0 + rp.d * kCs;
+                float t = 0.0f;
+                switch (rp.side)
+                {
+                case 0: t = (x1 - x) / (x1 - x0); break;   // +x へ下る：高い端は x0 側
+                case 1: t = (x - x0) / (x1 - x0); break;
+                case 2: t = (z1 - z) / (z1 - z0); break;
+                default: t = (z - z0) / (z1 - z0); break;
+                }
+                return stepH * (rp.lo + std::clamp(t, 0.0f, 1.0f));
+            }
+            return stepH * LevelAtCell(gx, gz);
+        }
+        // マス (gx, gz) の式で (x, z) の面の高さ（区域の起伏 + 段）。地面の衝突・高さ場・段々のメッシュは全部これ
+        float SurfaceAt(int gx, int gz, float x, float z) const
+        {
+            return SurfaceIn(ZoneAtCell(gx, gz), x, z) + StepOffset(gx, gz, x, z);
+        }
+        void CellOf(float x, float z, int& gx, int& gz) const
+        {
+            gx = (int)std::floor((x - ox) / kCs);
+            gz = (int)std::floor((z - oz) / kCs);
+        }
+
         void Init(const GridWorld& g, const std::vector<uint8_t>& zones, float summitHeight, float mineDepth)
         {
             gw = g.Width(); gd = g.Depth();
@@ -143,13 +215,19 @@ namespace TerrainBuild
         {
             return x >= ox - margin && z >= oz - margin && x <= ox + gw * kCs + margin && z <= oz + gd * kCs + margin;
         }
-        float Height(float x, float z) const override { return SurfaceIn(ZoneAt(x, z), x, z); }
+        float Height(float x, float z) const override
+        {
+            int gx, gz;
+            CellOf(x, z, gx, gz);
+            return SurfaceAt(gx, gz, x, z);
+        }
+        // 傾き：各点をその点のマスの式で取る（段の境をまたぐと急な法線 = 物理が壁扱いにする。
+        // 区域の境も同じだが、そこは床の箱が止めるので変わらない）
         Vector3 Normal(float x, float z) const override
         {
-            const uint8_t k = ZoneAt(x, z);
             const float e = step * 0.5f;
-            const float dx = (SurfaceIn(k, x + e, z) - SurfaceIn(k, x - e, z)) / (2.0f * e);
-            const float dz = (SurfaceIn(k, x, z + e) - SurfaceIn(k, x, z - e)) / (2.0f * e);
+            const float dx = (Height(x + e, z) - Height(x - e, z)) / (2.0f * e);
+            const float dz = (Height(x, z + e) - Height(x, z - e)) / (2.0f * e);
             Vector3 n(-dx, 1.0f, -dz);
             n.Normalize();
             return n;
@@ -184,8 +262,11 @@ namespace TerrainBuild
             const Vector3& pos, float yawDeg, float scale, const Vector3& stretch = Vector3::One, bool collide = false);
         void SetPropColliders(bool on) { m_PropColliders = on; }   // false = collide の置物でも衝突を建てない（エディタの表示）
         void Block(GridWorld* grid, int x, int z, int w, int d);                 // 格子を塞ぐ（grid が無ければ記録だけ）
+        // 水面の六面体（2026-10-19、水たまり）。地形のテクスチャを掛けない別のモデルに積む（頂点色の青がそのまま出る）。
+        // 記録しない（BuildFromMap が ReliefField::pond から作り直す）
+        void Water(const Vector3 world[8], const Vector4& top, const Vector4& side);
 
-        // 積んだ見た目を 1 つのモデルの実体にする（最後に 1 回）
+        // 積んだ見た目を 1 つのモデルの実体にする（最後に 1 回）。水面があれば別の実体をもう 1 つ
         void FinishVisuals(ID3D11Device* device, TerrainGenerator::Biome biome, const float* refLum);
 
         MapData::Map* Rec() const { return m_Rec; }
@@ -199,7 +280,39 @@ namespace TerrainBuild
         uint32_t m_NextGroup = 1;   // rec が無い時用
         bool m_PropColliders = true;
         PrimitiveBuilder::HexahedronBatch m_Batch;
+        PrimitiveBuilder::HexahedronBatch m_WaterBatch;
     };
+
+    // ============================================================
+    // 段々の台地（2026-10-19、ユーザー「PokéBonk の地図をそのまま持ってくる」。TerrainSteps.cpp）
+    // 平らな草原に、ノイズで決めた曲がりくねった輪郭の台地を 1 段 stepH ずつ積む（最大 maxLevel 段）。
+    // 段と段は幅 rampWidth マスの草の坂で結ぶ（どの台地にも必ず 1 本以上。置けない台地は 1 段下げる）。
+    // 外周は rimLevels 段の帯（登れない縁）。低い所に水たまり
+    // ============================================================
+    struct StepParams
+    {
+        float stepH = 2.5f;          // 1 段の高さ（m）
+        float coverage = 0.30f;      // 1 段以上の台地がフィールドに占める割合
+        float scale = 30.0f;         // 輪郭のノイズの大きさ（m）
+        int   maxLevel = 3;
+        int   rampWidth = 3;         // マス
+        float rampSlopeDeg = 18.0f;
+        int   rimLevels = 2;         // 外周の帯の段数（0 = 無し）
+        int   rimBand = 3;           // 1 段あたりの帯の幅（マス）
+        int   minCells = 8;          // これより小さい台地は消す
+        int   spawnClear = 8;        // 中央のこの半径（マス）は 0 段のまま
+        float pondCoverage = 0.04f;  // 水たまりが 0 段の平地に占める割合
+        float pondDepth = 0.5f;
+    };
+    // level / rampAt / ramps / pond を決める（zone が平原のマスだけ）。rng は構造物の乱数列（坂の候補の順）
+    void GenerateSteps(ReliefField& rf, const StepParams& P, uint32_t seed, std::mt19937& rng);
+    // 縁の帯のマスか（登れない外周。塞ぐ・置物を置かない）
+    bool StepRimCell(const ReliefField& rf, const StepParams& P, int gx, int gz);
+    // 崖の衝突：段の境の上の段の内側に薄い箱（上面は上の段の地面より少し下 = 上を歩く時に引っ掛からない。
+    // 下の段から見ると壁。登り降りの坂の端には付けない）。付けた数を返す
+    int EmitStepCliffs(Emitter& emit, const GridWorld& grid, const ReliefField& rf);
+    // 水たまりの見た目（Emitter::Water）。水面 = 起伏 - 0.15m
+    void EmitPonds(Emitter& emit, const GridWorld& grid, const ReliefField& rf, TerrainGenerator::Biome biome);
 
     // ---- 置物の凸包（巨石の衝突。2026-10-06）----
     // モデルの凸包の点を世界へ（pos / yaw / scale × stretch。Emitter::Prop と同じ置き方）

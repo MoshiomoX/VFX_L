@@ -773,6 +773,7 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
 
     // SRV は即時バインド
     m_UpdateCS->SetSRV(context, "colorKeys", m_ColorKeySRV.Get());
+    if (m_WindSourceSRV) m_UpdateCS->SetSRV(context, "g_WindSources", m_WindSourceSRV);   // 局所の風源（砂旋）
 
     // UAV はキューに溜めて一括バインド
     m_UpdateCS->SetUAV(context, "particles", m_ParticleUAV.Get());

@@ -192,6 +192,13 @@ namespace MapData
         w.Pod((uint8_t)m.roofBoulders);
         // 版 9 から
         w.Pod(m.rimRiseWidth); w.Pod(m.rimRiseHeight);
+        // 版 11 から：段々の台地と水たまり
+        w.Pod(m.stepH);
+        w.Array(m.stepLevel); w.Array(m.stepRampAt);
+        w.Pod((uint32_t)m.stepRamps.size());
+        for (const auto& s : m.stepRamps) { w.Pod((int32_t)s.x); w.Pod((int32_t)s.z); w.Pod((int32_t)s.w); w.Pod((int32_t)s.d); w.Pod(s.side); w.Pod(s.lo); }
+        w.Array(m.pond);
+        w.Pod(m.pondDepth);
     }
 
     bool Deserialize(const std::vector<uint8_t>& in, Map& m)
@@ -310,6 +317,19 @@ namespace MapData
         {
             r.Pod(m.rimRiseWidth); r.Pod(m.rimRiseHeight);
         }
+        if (version >= 11)
+        {
+            r.Pod(m.stepH);
+            r.Array(m.stepLevel); r.Array(m.stepRampAt);
+            m.stepRamps.resize(r.Count(18));
+            for (auto& s : m.stepRamps)
+            {
+                r.Pod(i32); s.x = i32; r.Pod(i32); s.z = i32; r.Pod(i32); s.w = i32; r.Pod(i32); s.d = i32;
+                r.Pod(s.side); r.Pod(s.lo);
+            }
+            r.Array(m.pond);
+            r.Pod(m.pondDepth);
+        }
         if (!r.ok) { m.Clear(); return false; }
 
         // 大きさの辻褄（壊れたファイルで配列の外を読まない）
@@ -319,7 +339,10 @@ namespace MapData
         const bool sizesOk = m.gw > 0 && m.gd > 0
             && m.zone.size() == cells && m.caveRing.size() == cells && m.walkable.size() == cells
             && m.grassMask.size() == cells && m.heights.size() == cells * kSub * kSub
-            && m.reliefPlain.size() == nodes && m.reliefSummit.size() == nodes;
+            && m.reliefPlain.size() == nodes && m.reliefSummit.size() == nodes
+            && (m.stepLevel.empty() || m.stepLevel.size() == cells)
+            && (m.stepRampAt.empty() || m.stepRampAt.size() == cells)
+            && (m.pond.empty() || m.pond.size() == cells);
         bool modelsOk = true;
         for (const auto& p : m.props) modelsOk = modelsOk && p.model >= 0 && p.model < (int)m.models.size();
         if (!sizesOk || !modelsOk) { m.Clear(); return false; }

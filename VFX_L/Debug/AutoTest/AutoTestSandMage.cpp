@@ -100,8 +100,8 @@ void AutoTestSandMage::Run()
             }
             if (tornadoes > 0 && s_FirstTornadoAt < 0.0f) s_FirstTornadoAt = m_AutoTime;
             s_TornadoesSeen = (std::max)(s_TornadoesSeen, (int)m_Mobs.GetTornadoesSpawned());
-            snprintf(line, sizeof(line), "sandmage t %.2f fuse %.2f dist %.2f tornadoes %d tdist %.2f tfuse %.2f lift %.2f hits %d",
-                m_AutoTime, fuse, dist, tornadoes, tornadoes > 0 ? tdist : -1.0f, tfuse, lift, s_Hits);
+            snprintf(line, sizeof(line), "sandmage t %.2f fuse %.2f dist %.2f tornadoes %d tdist %.2f tfuse %.2f lift %.2f hits %d fps %.0f",
+                m_AutoTime, fuse, dist, tornadoes, tornadoes > 0 ? tdist : -1.0f, tfuse, lift, s_Hits, ImGui::GetIO().Framerate);
             AutoTestLog(line);
             if (!s_LookWindup && mage && fuse > 0.3f) { AutoTestLog("sandmage look windup"); s_LookWindup = true; }
         }

@@ -281,6 +281,55 @@ bool Texture::CreateSolid(ID3D11Device* device,
 }
 
 // ============================================================
+// 毎フレーム書き換える絵（DYNAMIC + CPU 書き込み）
+// ============================================================
+bool Texture::CreateDynamic(ID3D11Device* device, UINT width, UINT height, DXGI_FORMAT format)
+{
+    if (!device || width == 0 || height == 0) return false;
+
+    D3D11_TEXTURE2D_DESC td = {};
+    td.Width = width;
+    td.Height = height;
+    td.MipLevels = 1;
+    td.ArraySize = 1;
+    td.Format = format;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_DYNAMIC;
+    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    td.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    ComPtr<ID3D11Texture2D> tex;
+    if (FAILED(device->CreateTexture2D(&td, nullptr, &tex))) return false;
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
+    sd.Format = format;
+    sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    sd.Texture2D.MipLevels = 1;
+    if (FAILED(device->CreateShaderResourceView(tex.Get(), &sd, &m_ShaderResourceView)))
+        return false;
+
+    m_Dynamic = tex;
+    m_Width = (int)width;
+    m_Height = (int)height;
+    return true;
+}
+
+bool Texture::Update(ID3D11DeviceContext* context, const void* pixels, UINT rowBytes)
+{
+    if (!context || !m_Dynamic || !pixels) return false;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    if (FAILED(context->Map(m_Dynamic.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return false;
+    const uint8_t* src = (const uint8_t*)pixels;
+    uint8_t* dst = (uint8_t*)mapped.pData;
+    const UINT copy = (std::min)(rowBytes, mapped.RowPitch);
+    for (int y = 0; y < m_Height; ++y)
+        std::memcpy(dst + (size_t)y * mapped.RowPitch, src + (size_t)y * rowBytes, copy);
+    context->Unmap(m_Dynamic.Get(), 0);
+    return true;
+}
+
+// ============================================================
 // bind
 // ============================================================
 void Texture::Bind(ID3D11DeviceContext* context, UINT slot)

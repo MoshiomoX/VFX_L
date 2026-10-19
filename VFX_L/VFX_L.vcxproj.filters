@@ -217,6 +217,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestEdge.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSteps.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestEdgeRock.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -754,6 +757,9 @@
     <ClCompile Include="UI\HUDShieldBar.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\HUDMinimap.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
     <ClCompile Include="UI\HUDExpBar.cpp">
       <Filter>UI</Filter>
     </ClCompile>
@@ -813,6 +819,12 @@
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\MapData.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MinimapBake.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\TerrainSteps.cpp">
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\MapEdit.cpp">
@@ -1551,6 +1563,9 @@
     <ClInclude Include="UI\HUD.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="UI\HUDMinimap.h">
+      <Filter>UI</Filter>
+    </ClInclude>
     <ClInclude Include="UI\DamageNumbers.h">
       <Filter>UI</Filter>
     </ClInclude>
@@ -1588,6 +1603,9 @@
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\MapData.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\MinimapBake.h">
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\WindState.h">
@@ -1958,6 +1976,9 @@
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmTornadoEmitCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmWindSourceCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmIceVS.hlsl">

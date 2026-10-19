@@ -13,11 +13,13 @@
 // shorter), a hot cell makes the tip glow (ember, passed to the PS).
 // ============================================================
 #include "GrassCommon.hlsli"
+#include "../Common/WindSources.hlsli"
 
 StructuredBuffer<GrassBlade> g_Blades : register(t0);
 Texture2D<float2> g_Trample : register(t1);
 Texture2D<float4> g_Ground : register(t2);
 Texture2D<float2> g_Fire : register(t3);   // x = temperature, y = fuel left (0..1)
+StructuredBuffer<WindSource> g_WindSources : register(t4);   // local wind: the sand tornadoes (2026-10-19)
 SamplerState s_Linear : register(s0);
 
 struct GrassOut
@@ -66,8 +68,17 @@ GrassOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float flutter = sin(g_Time * 3.1 + b.yaw * 5.0) * 0.15;
     float2 trample = g_Trample.SampleLevel(s_Linear, uv, 0);
 
+    // local wind (tornadoes): the air speed in m/s becomes a bend like the world wind's (2 m/s ~ one full gust).
+    // Capped so the blades lie flat around the core instead of stretching
+    float vortexLift;
+    float3 vortexAir = WindSourceAir(g_WindSources, b.pos.xz, vortexLift);
+    float2 vortexBend = vortexAir.xz * (g_WindStrength * 0.5);
+    float vb = length(vortexBend);
+    if (vb > g_WindStrength * 2.0) vortexBend *= g_WindStrength * 2.0 / vb;
+
     float2 bend = facing * b.curl
         + g_WindDir * (g_WindStrength * (0.25 + gust + flutter))
+        + vortexBend
         + trample * g_TrampleBend;
     bend *= b.height;
     float bl = length(bend);

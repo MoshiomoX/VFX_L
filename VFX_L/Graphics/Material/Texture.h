@@ -44,6 +44,12 @@ public:
     bool CreateSolid(ID3D11Device* device,
         uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255);
 
+    // 毎フレーム CPU から書き換える絵（ミニマップの窓。2026-10-19）。mipmap 無し、4 byte/pixel の形式のみ。
+    // 中身は Update で入れる（Map WRITE_DISCARD → 行ごとにコピー）
+    bool CreateDynamic(ID3D11Device* device, UINT width, UINT height,
+        DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM);
+    bool Update(ID3D11DeviceContext* context, const void* pixels, UINT rowBytes);
+
     void Bind(ID3D11DeviceContext* context, UINT slot = 0);
     void Unbind(ID3D11DeviceContext* context, UINT slot = 0);
 
@@ -64,6 +70,7 @@ private:
         const std::wstring& nameForLog);
 
     ComPtr<ID3D11ShaderResourceView> m_ShaderResourceView;
+    ComPtr<ID3D11Texture2D> m_Dynamic;   // CreateDynamic の本体（Update が Map する）。他の経路では空
     int m_Width = 0;
     int m_Height = 0;
 };

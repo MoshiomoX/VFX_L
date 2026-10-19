@@ -59,8 +59,8 @@ public:
     // 増やしたら BattleCamera.cpp の CAMERA_FLOATS / CAMERA_BOOLS にも足す（保存・読込・既定値に戻す）
     float fov = 45.0f;             // 縦の画角（度）
     float defaultYaw = 0.0f;       // 始めの向き（度）
-    float defaultPitch = 32.0f;    // 始めの見下ろし角（度、正 = 見下ろす）
-    float distance = 10.0f;   // 対象からの距離（爆発で自分の周りが隠れないよう少し引く）
+    float defaultPitch = 45.0f;    // 始めの見下ろし角（度、正 = 見下ろす）。2026-10-19 PokéBonk 風に高く遠く（32° / 10m → 45° / 14m）
+    float distance = 14.0f;   // 対象からの距離（爆発で自分の周りが隠れないよう少し引く）
     float height = 1.5f;    // 注視点の高さオフセット（足元でなく胸あたりを見る）
     float shoulderOffset = 0.5f;    // 右肩へのずらし（m）。負で左肩、0 で真後ろ
     float stickSensitivity = 150.0f;  // 度/秒

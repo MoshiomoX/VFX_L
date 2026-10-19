@@ -42,7 +42,7 @@ void SwarmSystem::DispatchTornadoEmit(float dt, float totalTime)
     } tcb;
     static_assert(sizeof(TornadoEmitCB) == 32, "TornadoEmitCB: HLSL 側と不一致");
     tcb.footY = -(m_CachedAICB.enemyRadius + m_CachedAICB.enemyCapsuleHalf);
-    tcb.rateMul = tornadoLook.dustRate;
+    tcb.rateMul = tornadoLook.dustRate * std::clamp(tornadoLook.sandAmount / 0.5f, 0.0f, 1.0f);   // 砂粒は sandAmount 0.5 で頭打ち
     tcb.vfx = m_TornadoDustVfx;
     tcb.swirl = tornadoLook.dustSwirl;
     tcb.footRadius = m_CachedAICB.enemyRadius * m_CachedBomberCB.tornadoScale;
@@ -65,6 +65,48 @@ void SwarmSystem::DispatchTornadoEmit(float dt, float totalTime)
     m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
     m_TornadoEmitCS->UnbindSRVs(m_Context);
     m_TornadoEmitCS->UnbindUAVs(m_Context);
+}
+
+// ============================================================
+// 局所の風源の表（Flush の中、砂埃の直後）
+// 表と枠取りの数を 0 に戻してから、生きている砂旋 1 本 = 1 つ書く（SwarmWindSourceCS）。
+// 読む側（GrassVS / DebrisUpdateCS / ParticleUpdateCS）は radius 0 の枠を飛ばす
+// ============================================================
+void SwarmSystem::DispatchWindSources()
+{
+    if (!m_WindSourceUAV || !m_WindSourceCountUAV) return;
+    const UINT zeros[4] = { 0, 0, 0, 0 };
+    m_Context->ClearUnorderedAccessViewUint(m_WindSourceUAV.Get(), zeros);
+    m_Context->ClearUnorderedAccessViewUint(m_WindSourceCountUAV.Get(), zeros);
+    if (!m_WindSourceCS || !tornadoLook.windSource) return;
+
+    // SwarmWindSourceCS の b0 と同じ並び（32B）
+    struct WindSourceCB
+    {
+        float footY, radiusMul, hitRadius, swirl;
+        float updraft, inflow, growTime; uint32_t slotCount;
+    } cb;
+    static_assert(sizeof(WindSourceCB) == 32, "WindSourceCB: HLSL 側と不一致");
+    cb.footY = -(m_CachedAICB.enemyRadius + m_CachedAICB.enemyCapsuleHalf);
+    cb.radiusMul = tornadoLook.windRadiusMul;
+    cb.hitRadius = m_CachedAICB.enemyRadius * m_CachedBomberCB.tornadoScale;
+    cb.swirl = tornadoLook.windSwirl;
+    cb.updraft = tornadoLook.windUpdraft;
+    cb.inflow = tornadoLook.windInflow;
+    cb.growTime = tornadoLook.growTime;
+    cb.slotCount = Swarm::kMaxEnemies;
+
+    m_WindSourceCS->WriteBuffer(m_Context, 0, &cb);
+    m_WindSourceCS->Bind(m_Context);
+    m_WindSourceCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_WindSourceCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_WindSourceCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+    m_WindSourceCS->SetUAV(m_Context, "windSources", m_WindSourceUAV.Get());
+    m_WindSourceCS->SetUAV(m_Context, "windCount", m_WindSourceCountUAV.Get());
+    m_WindSourceCS->BindUAVs(m_Context);
+    m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+    m_WindSourceCS->UnbindSRVs(m_Context);
+    m_WindSourceCS->UnbindUAVs(m_Context);
 }
 
 // ============================================================
@@ -99,7 +141,10 @@ void SwarmSystem::RenderTornadoes(const Matrix& view, const Matrix& proj)
 
     const float hitDiameter = 2.0f * m_CachedAICB.enemyRadius * m_CachedBomberCB.tornadoScale;
     const auto& subs = m_TornadoModel->GetSubMeshes();
-    for (int layer = 0; layer < 2; ++layer)
+    // 砂霭（層 2）：sandAmount が 0.5 を超えた分だけ濃くなる薄い膜。0 なら描かない
+    const float haze = tornadoLook.hazeMax * std::clamp((tornadoLook.sandAmount - 0.5f) / 0.5f, 0.0f, 1.0f);
+    const int layers = haze > 0.005f ? 3 : 2;
+    for (int layer = 0; layer < layers; ++layer)
     {
         PropMeshCB p = {};
         p.anchor = Vector3::Zero;
@@ -109,6 +154,7 @@ void SwarmSystem::RenderTornadoes(const Matrix& view, const Matrix& proj)
         p.tint = tornadoLook.tint;
         p.bob = tornadoLook.spin;
         p.alpha = tornadoLook.growTime;
+        p._pad[0] = haze;   // 霭の不透明度（VS が頂点色の a に掛ける）
         m_TornadoVS->WriteBuffer(m_Context, 4, &p);
         for (size_t i = 0; i < subs.size() && i < m_TornadoDrawArgs.size(); ++i)
             if (subs[i].mesh && m_TornadoDrawArgs[i])

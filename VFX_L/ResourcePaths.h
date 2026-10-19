@@ -69,6 +69,8 @@ namespace Res
         inline constexpr const wchar_t* Noise002 = L"Assets/VFX/Tex/Noise_002.png";
         inline constexpr const wchar_t* Noise003 = L"Assets/VFX/Tex/Noise_003.png";
         inline constexpr const wchar_t* Noise008 = L"Assets/VFX/Tex/Noise_008.png";   // 柔らかい雲ノイズ（砂旋の 2 枚目。2026-10-19）
+        // 風の流線（細い縦の筋の繰り返しテクスチャ。Tools/BuildWindStreaks.ps1 で生成。砂旋・突風の風柱。2026-10-19 ユーザー「斜めの流線で風の流れを」）
+        inline constexpr const wchar_t* WindStreaks = L"Assets/VFX/Tex/WindStreaks.png";
     }
     // ========================================================
     // モデル（char）

@@ -40,7 +40,8 @@ cbuffer SwarmPropMeshCB : register(b4)
     float4 g_ShieldTint; // sand colour, a = overall opacity
     float g_BobAmount;   // spin rad/s
     float g_PropAlpha;   // seconds to grow out of the ground / shrink away at the end
-    float2 _propPad;
+    float g_HazeAlpha;   // layer 2 (sand haze): opacity at the foot (SwarmSystem::tornadoLook.sandAmount above 0.5)
+    float _propPad;
 };
 
 struct VS_INPUT_INST
@@ -87,16 +88,19 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float grow = max(g_PropAlpha, 1e-3);
     float s = saturate(e.animTime / grow) * saturate(max(ex.fuse, 0.0) / grow);
 
-    float layer = saturate(g_HoldOffset.y);
-    float width = g_HoldOffset.x * lerp(1.0, 0.55, layer);
-    float height = g_MeshScale * lerp(1.0, 0.94, layer);
+    // layer 0 = outer veil, 1 = core, 2 = sand haze (a soft film just inside the veil; 2026-10-19)
+    float layerId = g_HoldOffset.y;
+    bool haze = layerId > 1.5;
+    float layer = haze ? 0.0 : saturate(layerId);
+    float width = g_HoldOffset.x * (haze ? 0.82 : lerp(1.0, 0.55, layer));
+    float height = g_MeshScale * (haze ? 0.9 : lerp(1.0, 0.94, layer));
     float t = g_MeshYaw + (float) slot * 0.37;   // every tornado heaves / scrolls in its own phase
 
     // ---- heave: push the ring in / out with a noise that drifts up the spiral ----
     float2 uv = input.UV;
     float speed = lerp(1.0, 1.5, layer);
     float nv = ValueNoise(float2(uv.x * 3.0 + t * 0.4, uv.y * 2.5 - t * 1.2 * speed));
-    float d = 1.0 + (nv - 0.5) * 2.0 * g_HoldOffset.z;
+    float d = 1.0 + (nv - 0.5) * 2.0 * g_HoldOffset.z * (haze ? 0.5 : 1.0);
     float3 local = float3(input.Position.x * d, input.Position.y, input.Position.z * d)
                  * float3(width * 0.5, height, width * 0.5) * s;
 
@@ -112,8 +116,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
     o.WorldPos = worldPos;
     o.Position = mul(mul(float4(worldPos, 1.0), View), Projection);
     o.Normal = n;
-    o.Tangent = float3(layer, nv, t);   // read by SwarmTornadoPS
+    o.Tangent = float3(haze ? 2.0 : layer, nv, t);   // read by SwarmTornadoPS (2 = haze)
     o.UV = uv;
-    o.Color = float4(g_ShieldTint.rgb, input.Color.a * g_ShieldTint.a);
+    // the haze carries its own opacity (sandAmount) instead of the tint's
+    o.Color = float4(g_ShieldTint.rgb, input.Color.a * (haze ? g_HazeAlpha : g_ShieldTint.a));
     return o;
 }

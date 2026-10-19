@@ -95,6 +95,7 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
     // t0 / t1 = ノイズ 2 枚（Material の albedo / normal の枠を借りる）。足元の砂埃は SwarmTornadoEmitCS。Swarm/SwarmSystemTornado.cpp
     m_TornadoPS = LoadShader<PixelShader>(device, L"Shader/Swarm/SwarmTornadoPS.hlsl", "TornadoPS");
     m_TornadoEmitCS = LoadShader<ComputeShader>(device, L"Shader/Swarm/SwarmTornadoEmitCS.hlsl", "TornadoEmitCS");   // 無くても砂埃が出ないだけ
+    m_WindSourceCS = LoadShader<ComputeShader>(device, L"Shader/Swarm/SwarmWindSourceCS.hlsl", "WindSourceCS");      // 無くても風源が空のまま
     m_TornadoModel.reset();
     m_TornadoMaterial.reset();
     if (m_TornadoVS && m_TornadoPS)
@@ -105,7 +106,7 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
             m_TornadoMaterial = std::make_shared<Material>();
             m_TornadoMaterial->SetVertexShader(m_TornadoVS);
             m_TornadoMaterial->SetPixelShader(m_TornadoPS);
-            m_TornadoMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(Res::VFX::Noise001));   // 雲ノイズ A
+            m_TornadoMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(Res::VFX::WindStreaks));   // 風の流線（2026-10-19、雲ノイズ A から）
             m_TornadoMaterial->SetNormalTexture(ResourceManager::Get().LoadTexture(Res::VFX::Noise008));   // 雲ノイズ B（柔らかい方）
         }
     }

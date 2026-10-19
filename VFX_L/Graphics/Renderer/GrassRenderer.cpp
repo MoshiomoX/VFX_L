@@ -348,6 +348,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     m_VS->SetSRV(ctx, "g_Trample", m_TrampleSRV[m_TrampleCur].Get());
     m_VS->SetSRV(ctx, "g_Ground", m_GroundSRV.Get());
     if (m_FireSRV) m_VS->SetSRV(ctx, "g_Fire", m_FireSRV);
+    if (m_WindSourceSRV) m_VS->SetSRV(ctx, "g_WindSources", m_WindSourceSRV);
     ctx->VSSetSamplers(0, 1, &linearClamp);
     PointLightManager::Get().BindPS(ctx);
 

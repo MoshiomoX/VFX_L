@@ -21,7 +21,7 @@
 
 namespace MapData
 {
-    inline constexpr uint32_t kVersion = 10;   // 2 = placements、3 = volumes、4 = 地形の部品、5 = 区域の作り直し用の値、6 = 起伏の中身（丘の部品）、7 = 置物の stretch・洞の上の巨石、8 = 置物の凸包の衝突、9 = 縁の碗、10 = 凸体の wallOnly。古い版も読める
+    inline constexpr uint32_t kVersion = 11;   // 2 = placements、3 = volumes、4 = 地形の部品、5 = 区域の作り直し用の値、6 = 起伏の中身（丘の部品）、7 = 置物の stretch・洞の上の巨石、8 = 置物の凸包の衝突、9 = 縁の碗、10 = 凸体の wallOnly、11 = 段々の台地と水たまり。古い版も読める
 
     // 何の一部か（エディタの一覧・選別用）
     enum Kind : uint16_t
@@ -43,7 +43,12 @@ namespace MapData
         kRoofRock,       // 洞の上に積んだ岩
         kManual,         // エディタで足した物
         kHill,           // 丘の部品（起伏に足す盛り上がり）
+        kStep,           // 段々の台地（PokéBonk 風、2026-10-19）の崖の衝突・縁の帯と水たまりの塞いだマス
     };
+
+    // 段々の台地を結ぶ草の坂（2026-10-19）。マスの矩形、side = 下る向き（0 +x / 1 -x / 2 +z / 3 -z）、lo = 低い端の段。
+    // 面の高さ = 起伏 + 段の高さ × (lo + 坂に沿った割合)（TerrainBuild::ReliefField::StepOffset）
+    struct StepRamp { int x = 0, z = 0, w = 1, d = 1; uint8_t side = 0; uint8_t lo = 0; };
 
     struct Tag { uint16_t kind = kFloor; uint32_t group = 0; };
 
@@ -196,6 +201,16 @@ namespace MapData
         std::string torchModel;              // 松明のモデル
         bool  roofBoulders = false;          // 洞の上の山 = 数個の巨石（EmitRoofBoulders）。false = 2x2 マス毎に積む（版 7）
         float rimRiseWidth = 0.0f, rimRiseHeight = 0.0f;   // 縁の碗（TerrainBuild::ApplyRimRise。0 = 無し。版 9）
+
+        // ---- 段々の台地と水たまり（版 11、PokéBonk 風。TerrainBuild::ReliefField の同名の物をそのまま保存）----
+        // 面の高さ = 区域の起伏 + stepH × 段（坂は補間）、水たまりは pondDepth 下げる。stepH = 0 なら無し。
+        // 崖の衝突の箱と塞いだマスは boxes / blocks に kStep で入っている（他の記録と同じに建てる）。水たまりの見た目はここから作り直す
+        float stepH = 0.0f;
+        std::vector<uint8_t>  stepLevel;     // gw * gd（空 = 無し）
+        std::vector<int16_t>  stepRampAt;    // gw * gd：坂の番号（-1 = 無し）
+        std::vector<StepRamp> stepRamps;
+        std::vector<uint8_t>  pond;          // gw * gd：1 = 水たまり
+        float pondDepth = 0.5f;
 
         // ---- 起伏の中身（版 6）：素の起伏 = ノイズの丘（reliefParams）+ 丘の部品（hills）→ 傾きを抑える → + 筆の分（sculpt）----
         bool hasReliefParams = false;        // 下の値が入っている（版 6 以降で生成 / 保存した地図）

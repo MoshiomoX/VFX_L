@@ -50,12 +50,30 @@ namespace TerrainGenerator
         uint32_t seed = 1;
         Biome biome = Biome::Grassland;
 
+        // ---- 段々の台地（2026-10-19、ユーザー「PokéBonk の地図をそのまま持ってくる」。TerrainBuild::StepParams、TerrainSteps.cpp）----
+        // 開けた草原 + ノイズで決めた曲がりくねった輪郭の台地（1 段 stepHeight、最大 stepMaxLevel 段、面積の stepCoverage）、
+        // 段と段は草の坂（必ず 1 本以上）、外周は stepRimLevels 段の帯、低い所に水たまり。
+        // これを既定にし、三層（山頂・洞窟）・矩形の台地・高台・縁の碗は切った（コードは残っている。Terrain パネルで戻せる）
+        bool  steps = true;
+        float stepHeight = 2.5f;          // m（1 回のジャンプでぎりぎり届く = 登れる段差）
+        float stepCoverage = 0.30f;       // 1 段以上の面積の割合（ユーザー 10-19：30%）
+        float stepScale = 30.0f;          // 輪郭のノイズの大きさ（m）
+        int   stepMaxLevel = 3;
+        int   stepRampWidth = 3;          // マス（6m）
+        float stepRampSlopeDeg = 18.0f;   // 2.5m / tan 18° ≒ 7.7m → 4 マス（17.4°）
+        int   stepRimLevels = 2;          // 外周の帯（登れない縁）の段数
+        int   stepRimBand = 3;            // 1 段あたりの帯の幅（マス）
+        int   stepMinCells = 8;           // これより小さい台地は消す
+        float pondCoverage = 0.04f;       // 水たまりが 0 段の平地に占める割合
+        float pondDepth = 0.5f;           // 水たまりの深さ（m。プレイヤーは歩いて入れる、雑魚は入らない）
+
         // ---- フィールドの三層（山頂・平原・洞窟）----
         // 隅の組（どちらの対角か、どちらが山頂か）は seed で決まる。
         // 形 = 隅の正方形（一辺 size マス、外周の崖の内側から）+ 内側の二辺の出っ張り・凹み + 内側の角の面取り。
         // 2026-10-02 は 300m のフィールドで作り、10-03 に 200m へ戻した（ユーザー：高低差はそのまま、水平だけ 2/3）。
         // 坂も長さが 2/3 になったので急になった（山頂 18〜22° → 26〜31°、洞窟 22° → 31°。雑魚は 40°、フローフィールドは 1 マス 1.5m まで）
-        bool  layers = true;
+        // 2026-10-19 から既定は切（段々の台地に変えた）
+        bool  layers = false;
         int   summitSize = 33;            // マス（66m）
         float summitHeight = 16.0f;       // m
         int   summitRamps = 3;            // 平原へ下りる長い坂の数（場所が無ければ減る）
@@ -88,8 +106,8 @@ namespace TerrainGenerator
         int   roofRampWidth = 4;          // マス
         float roofRampSlopeDeg = 26.0f;   // 15m なら約 31m
 
-        // ---- 1 段目の台地 ----
-        int   plateauCount = 14;       // 置こうとする数（場所が無ければ減る）
+        // ---- 1 段目の台地（2026-10-19 から既定は 0：段々の台地に変えた）----
+        int   plateauCount = 0;        // 置こうとする数（場所が無ければ減る）
         int   plateauMin = 5;          // 一辺（マス）
         int   plateauMax = 12;
         float heightMin = 2.5f;        // 高さ m（跳躍では届かない）
@@ -108,7 +126,7 @@ namespace TerrainGenerator
         // ---- 高台（一面だけが長い坂、残り三面は崖）----
         // 台地より先に置く（場所を取るので後回しにすると入らない）。坂の向きは高台ごとにランダム。
         // 坂の長さ = 高さ / tan(角度)：6m・18° で約 18m
-        int   terraceCount = 4;
+        int   terraceCount = 0;          // 2026-10-19 から既定は 0（段々の台地に変えた）
         float terraceHeightMin = 5.0f;
         float terraceHeightMax = 7.0f;
         float terraceSlopeMin = 16.0f;   // 度（雑魚の 40°、フローフィールドの 1 マス 1.5m より十分緩い）
@@ -162,7 +180,7 @@ namespace TerrainGenerator
         // 縁の碗（Megabonk 風、2026-10-06 ユーザー「試してみる」）：地面そのものを縁から rimRiseWidth m 内側で
         // rimRiseHeight m まで急に持ち上げる（65〜75°。物理が急な起伏を壁扱いにするので登れない。雑魚・弾は格子で止まる）。
         // 縁の空気壁も石の衝突も要らない。巨石は碗の縁の上の飾り（衝突なし）。草原・砂漠だけ（遺跡は遺跡の壁のまま）
-        bool  rimRise = true;
+        bool  rimRise = false;            // 2026-10-19 から既定は切（段々の台地の外周の帯 + 岩山に変えた）
         float rimRiseWidth = 11.0f;
         float rimRiseHeight = 34.0f;      // 10-06 ユーザー「もう一段高く」（24 → 34）
         float rimClear = 8.0f;            // 斜面の麓から更に内側へ、台地・高台・木・岩・茂みを置かない幅（m）
@@ -189,16 +207,18 @@ namespace TerrainGenerator
         // 面ごとの倍率: 砂漠 1.25（砂丘）、遺跡 0.5（石畳）
         // 2026-10-05 ユーザー「起伏をもう少し大きく、坂ももう少し急に」→ 丘 2.2 → 3.8m（高低差 4 → 7〜8m）、
         // 土饅頭も大きく。上限は雑魚の 40°・フローフィールドの 1 マス 1.5m（≒ 37°）
+        // 2026-10-19 段々の台地に合わせて控えめに（丘 4.2 → 2.0m、うねり 1.0 → 0.5m、土饅頭 70 → 30 個・高さ 2.0 → 1.2m）：
+        // 2.5m の段の上に 4m の丘が載ると段が読めない
         bool  relief = true;
-        float hillHeight = 4.2f;          // m（丘の振れ幅。勾配ノイズ ≒ ±1 × これ）
+        float hillHeight = 2.0f;          // m（丘の振れ幅。勾配ノイズ ≒ ±1 × これ）
         float hillScale = 46.0f;          // m（丘の大きさ）
-        float hillDetailHeight = 1.0f;    // m（細かいうねり）
+        float hillDetailHeight = 0.5f;    // m（細かいうねり）
         float hillDetailScale = 18.0f;    // m
-        float bumpCount = 70.0f;          // 土饅頭の数（200m 四方あたり）
+        float bumpCount = 30.0f;          // 土饅頭の数（200m 四方あたり）
         float bumpRadiusMin = 3.0f;       // m（直径 6〜12m）
         float bumpRadiusMax = 6.0f;
-        float bumpHeightMin = 0.8f;       // m
-        float bumpHeightMax = 2.0f;
+        float bumpHeightMin = 0.6f;       // m
+        float bumpHeightMax = 1.2f;
         float bumpMaxSlope = 0.33f;       // 高さ ≤ 半径 × これ（一番急な所 ≒ 27°。雑魚は 40° まで、プレイヤーは 60° まで歩ける）
         int   padMargin = 5;              // 台座の芯から元の起伏へ戻すマス数（起伏が大きいほど長くしないと境が急になる）
         float reliefMaxSlopeDeg = 30.0f;  // 隣のノードとの傾きの上限（軸方向。素の起伏は -2°、斜めは最大 √2 倍 ≒ 39°）

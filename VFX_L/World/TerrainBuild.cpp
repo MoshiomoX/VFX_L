@@ -224,6 +224,11 @@ namespace TerrainBuild
         }
     }
 
+    void Emitter::Water(const Vector3 world[8], const Vector4& top, const Vector4& side)
+    {
+        if (m_Reg) m_WaterBatch.Append(world, top, side);
+    }
+
     void Emitter::Prop(const std::string& path, const std::shared_ptr<Model>& model,
         const Vector3& pos, float yawDeg, float scale, const Vector3& stretch, bool collide)
     {
@@ -346,15 +351,29 @@ namespace TerrainBuild
     void Emitter::FinishVisuals(ID3D11Device* device, TerrainGenerator::Biome biome, const float* refLum)
     {
         if (!m_Reg) return;
-        auto model = m_Batch.Build(device);
-        if (!model) return;
-        TerrainSurface::Get().Apply(device, *model, (int)biome, refLum);
-        Entity e = m_Reg->Create();
-        m_Reg->Add<TransformComponent>(e, TransformComponent{});
-        ModelComponent mc;
-        mc.model = model;
-        m_Reg->Add<ModelComponent>(e, mc);
-        m_Out->push_back(e);
+        if (auto model = m_Batch.Build(device))
+        {
+            TerrainSurface::Get().Apply(device, *model, (int)biome, refLum);
+            Entity e = m_Reg->Create();
+            m_Reg->Add<TransformComponent>(e, TransformComponent{});
+            ModelComponent mc;
+            mc.model = model;
+            m_Reg->Add<ModelComponent>(e, mc);
+            m_Out->push_back(e);
+        }
+        // 水面（水たまり）：地形のテクスチャを掛けない = 頂点色の青がそのまま出る（通常の PS でトゥーンの 2 階調）
+        if (!m_WaterBatch.Empty())
+        {
+            if (auto water = m_WaterBatch.Build(device))
+            {
+                Entity e = m_Reg->Create();
+                m_Reg->Add<TransformComponent>(e, TransformComponent{});
+                ModelComponent mc;
+                mc.model = water;
+                m_Reg->Add<ModelComponent>(e, mc);
+                m_Out->push_back(e);
+            }
+        }
     }
 
     // ============================================================
@@ -407,11 +426,13 @@ namespace TerrainBuild
                 const int cx = std::clamp(x, 0, gw - 1), cz = std::clamp(z, 0, gd - 1);
                 return caveRing[(size_t)cz * gw + cx] != 0;
             };
+        // マスの「段の値」：区域の基準 + 段々の台地の段（坂は真ん中）。違うマス同士の境に壁が張られ、高い方が決まる
         auto levelAt = [&](int x, int z) -> float
             {
                 if (isRing(x, z)) return gp.roofTopY;   // 洞の岩の壁（高さ場は 0 のまま、塞いだマス）
                 const uint8_t id = zoneAt(x, z);
-                return (id == ReliefField::kSummit) ? gp.summitH : (id == ReliefField::kMine) ? -gp.mineD : 0.0f;
+                const float base = (id == ReliefField::kSummit) ? gp.summitH : (id == ReliefField::kMine) ? -gp.mineD : 0.0f;
+                return base + relief->StepOffsetCell(x, z);
             };
         auto topColor = [&P, s, bm, cave, rockLevel, cliffHigh](float x, float z, float level)
             {
@@ -450,11 +471,11 @@ namespace TerrainBuild
             {
                 return (isRing(hx, hz) || zoneAt(lx, lz) == ReliefField::kMine) ? (int)TerrainSurface::Rock : -1;
             };
-        // 頂点の高さ = そのマスの区域の起伏の面（洞の岩の壁は平らな roofTopY）
+        // 頂点の高さ = そのマスの区域の起伏の面 + 段々の台地の段（洞の岩の壁は平らな roofTopY）
         auto heightAt = [&](int gx, int gz, float x, float z) -> float
             {
                 if (isRing(gx, gz)) return gp.roofTopY;
-                return relief->SurfaceIn(zoneAt(gx, gz), x, z);
+                return relief->SurfaceAt(gx, gz, x, z);
             };
 
         Entity e = reg.Create();
@@ -565,6 +586,13 @@ namespace TerrainGenerator
         relief->Init(grid, map.zone, map.summitH, map.mineD);
         relief->plain = map.reliefPlain;
         relief->summit = map.reliefSummit;
+        // 段々の台地と水たまり（版 11。無い地図は空のまま = 無し）
+        relief->stepH = map.stepH;
+        relief->level = map.stepLevel;
+        relief->rampAt = map.stepRampAt;
+        relief->ramps = map.stepRamps;
+        relief->pond = map.pond;
+        relief->pondDepth = map.pondDepth;
 
         std::vector<std::shared_ptr<Model>> models;
         models.reserve(map.models.size());
@@ -598,6 +626,7 @@ namespace TerrainGenerator
         gp.rimWidth = map.rimRiseWidth;
         if (parts & kPartGround) outTerrain.push_back(SpawnGround(reg, device, grid, relief, map.caveRing, gp, refLum));
         if (colliders) outTerrain.push_back(SpawnHeightField(reg, grid, relief, map.summitH));
+        if (parts & kPartVisuals) EmitPonds(emit, grid, *relief, biome);   // 水面は記録しない（pond から作り直す）
         emit.FinishVisuals(device, biome, refLum);
 
         if (outGrassMask) *outGrassMask = map.grassMask;
@@ -641,6 +670,8 @@ namespace TerrainGenerator
             o.sculptPlain = map.sculptPlain; o.sculptSummit = map.sculptSummit;
             o.roofBoulders = map.roofBoulders;
             o.rimRiseWidth = map.rimRiseWidth; o.rimRiseHeight = map.rimRiseHeight;
+            o.stepH = map.stepH; o.stepLevel = map.stepLevel; o.stepRampAt = map.stepRampAt; o.stepRamps = map.stepRamps;
+            o.pond = map.pond; o.pondDepth = map.pondDepth;
         }
 
         std::cout << "[Terrain] built from map: seed " << map.seed << " biome " << map.biome << ", "

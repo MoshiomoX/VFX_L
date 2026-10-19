@@ -15,6 +15,7 @@
 //      the air. Lands on the height map, one small bounce, then rests.
 // ============================================================
 #include "DebrisCommon.hlsli"
+#include "../Common/WindSources.hlsli"
 
 // = SwarmArea (Shader/Common/SwarmCommon.hlsli), 48 bytes. Only center / radius / flags are read
 struct DebrisArea
@@ -35,6 +36,7 @@ Texture2D<float> g_Height : register(t0);          // GridWorld heights (GrassRe
 StructuredBuffer<DebrisArea> g_Areas : register(t1);
 Buffer<uint> g_AreaStates : register(t2);          // 0 = dead
 StructuredBuffer<float4> g_AreaEnds : register(t3); // capsule (beam) end per slot, from AreaTickCS
+StructuredBuffer<WindSource> g_WindSources : register(t4);   // local wind: the sand tornadoes (SwarmWindSourceCS, 2026-10-19)
 SamplerState s_Linear : register(s0);
 #define DEBRIS_AREA_CAPSULE 4u   // SWARM_AREA_CAPSULE: the beam. Its centre is the muzzle, the body is the segment
 RWStructuredBuffer<Debris> g_Debris : register(u0);
@@ -195,6 +197,9 @@ void main(uint3 id : SV_DispatchThreadID)
     float gustLift, blastLift;
     float3 gustAir = GustAir(d.pos.xz, gustLift);
     float3 blast = BlastAccel(d.pos, blastLift);
+    // local wind sources (the sand tornadoes): swirl around + updraft near the core
+    float vortexLift;
+    float3 vortexAir = WindSourceAir(g_WindSources, d.pos.xz, vortexLift);
 
     // ---- 2) resting: lift? ----
     if (d.air < 0.5)
@@ -211,6 +216,15 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             lift = true;
             kick = blast * 0.08 + float3(0, 2.0 + 2.0 * DebrisRand(rs), 0);
+        }
+        else if (vortexLift > 0.12 && d.restT > 0.1)
+        {
+            // a tornado passing over: pieces peel off one after another (chance grows toward the core)
+            if (DebrisRand(rs) < vortexLift * 4.0 * g_Dt)
+            {
+                lift = true;
+                kick = vortexAir * 0.6 + float3(0, 0.8 + 1.2 * DebrisRand(rs), 0);
+            }
         }
         else
         {
@@ -243,7 +257,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     // ---- 3) airborne ----
     d.restT += g_Dt;
-    float3 air = float3(wind.x, 0, wind.y) + gustAir;
+    float3 air = float3(wind.x, 0, wind.y) + gustAir + vortexAir;
     float3 acc = float3(0, -g_Gravity, 0) + blast + (air - d.vel) * g_Drag;
     d.vel += acc * g_Dt;
     d.pos += d.vel * g_Dt;
@@ -255,7 +269,7 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         d.pos.y = ground + 0.015;
         float sp = length(d.vel);
-        if (sp > 2.0 && gustLift < 0.5 && blastLift < 0.5)
+        if (sp > 2.0 && gustLift < 0.5 && blastLift < 0.5 && vortexLift < 0.3)
         {
             // one small skip along the ground
             d.vel.y = -d.vel.y * 0.3;

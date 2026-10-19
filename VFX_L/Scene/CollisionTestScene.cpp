@@ -184,6 +184,7 @@ void CollisionTestScene::Init()
         m_MapFile.clear();
         m_TerrainConfig.layers = false;
         m_TerrainConfig.relief = false;
+        m_TerrainConfig.steps = false;   // 段々の台地も無し（平らな実験場）
         m_TerrainConfig.plateauCount = 0;
         m_TerrainConfig.terraceCount = 0;
         m_TerrainConfig.treeCount = 0;
@@ -203,6 +204,7 @@ void CollisionTestScene::Init()
     std::vector<uint8_t> grassMask;
     BuildTerrain(grassMask);
     BlockUnreachablePockets();
+    m_GameUI.BakeMinimap(m_Grid, m_TerrainMap, (int)m_TerrainConfig.biome, m_TerrainConfig.seed);   // 右上のミニマップの絵
     // 置物（木・岩・茂み）はモデル毎の instanced 描画へ
     if (!m_StaticProps.Initialize(device))
         std::cout << "[Error] StaticPropRenderer init failed" << std::endl;
@@ -472,6 +474,7 @@ void CollisionTestScene::PushWind()
     m_ClothChainSystem.wind = wind;
     m_ClothChainSystem.windTime = m_Grass.Time();
     m_ParticleSystem.SetWind(wind, m_Grass.Time());
+    m_ParticleSystem.SetWindSources(m_Swarm.GetWindSourceSRV());   // 砂旋の風源（煙が周りを回る。2026-10-19）
     m_Debris.SetWind(wind, m_Grass.Time());   // 落ち葉（強い風で舞う）
 
     // 草の火：風下へ広がる、雨で消える。燃えているマスからの粒子は SwarmSystem の Flush が出す
@@ -1230,9 +1233,11 @@ void CollisionTestScene::Render(Renderer& renderer)
             // 爆発 / 光線 / 雑魚の足元も草を倒す（2026-10-13。池は Flush の後なので読むだけ）
             m_Grass.SetSwarmSources(m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV(),
                 m_Swarm.GetEnemySRV(), m_Swarm.GetEnemyStateSRV(), m_Swarm.GetEnemyExtraSRV());
+            m_Grass.SetWindSources(m_Swarm.GetWindSourceSRV());   // 砂旋の風源（草が輪になびく。2026-10-19）
             if (GetCamera()) m_Grass.Render(renderer, *GetCamera());   // 地形の後（深度で埋まる所を描かない）
             // 落ち葉（1 歩進めて描く。爆発の範囲と光線は読むだけ）
-            if (GetCamera()) m_Debris.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV());
+            if (GetCamera()) m_Debris.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV(),
+                m_Swarm.GetWindSourceSRV());   // 砂旋の風源（落ち葉 / 砂屑が巻き上がる）
         }
         { PROFILE_SCOPE_GPU("Swarm overlay"); m_Swarm.RenderOverlay(GetCamera(), renderer.GetLightData()); }
     }

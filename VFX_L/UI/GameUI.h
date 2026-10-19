@@ -145,6 +145,11 @@ public:
         m_FrameInfo.viewProj = viewProj;
         m_FrameInfo.markers = std::move(markers);
     }
+    // ミニマップの地形の絵（2026-10-19）。地形を建てた / 建て直した後にシーンが呼ぶ。biome = TerrainGenerator::Biome
+    void BakeMinimap(const GridWorld& grid, const MapData::Map& map, int biome, uint32_t seed)
+    {
+        m_HUD.BakeMinimap(grid, map, biome, seed);
+    }
 
 private:
     void UpdateStack(Registry& reg, Entity player, float dt);   // 開閉と入力の振り分け

@@ -55,6 +55,7 @@ void CollisionTestScene::RebuildTerrain()
     std::vector<uint8_t> grassMask;
     BuildTerrain(grassMask);
     BlockUnreachablePockets();
+    m_GameUI.BakeMinimap(m_Grid, m_TerrainMap, (int)m_TerrainConfig.biome, m_TerrainConfig.seed);   // ミニマップも新しい地形に
     m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
     m_GrassFire.Build(m_Grid);   // 火も消す

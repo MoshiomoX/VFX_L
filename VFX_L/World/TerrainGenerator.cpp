@@ -284,6 +284,17 @@ namespace TerrainGenerator
         MapData::ReliefParams reliefParams;   // 起伏の全体の設定と丘の部品（記録へ。地図エディタが変える）
         std::vector<MapData::Hill> hills;
         if (cfg.relief) BuildRelief(*relief, cfg, emit, reliefParams, hills);
+
+        // ---------- 段々の台地（2026-10-19、ユーザー「PokéBonk の地図をそのまま持ってくる」。TerrainSteps.cpp）----------
+        // マス毎の段・坂・水たまりを決める。面の高さは ReliefField::SurfaceAt（区域の起伏 + 段）で、高さ場・段々のメッシュ・
+        // 地面の衝突が同じ式を見る。崖の衝突の箱は起伏が全部決まってから（下）。平原の区域だけ
+        const bool steps = cfg.steps && cfg.stepHeight > 0.0f;
+        StepParams stepP;
+        stepP.stepH = cfg.stepHeight; stepP.coverage = cfg.stepCoverage; stepP.scale = cfg.stepScale;
+        stepP.maxLevel = cfg.stepMaxLevel; stepP.rampWidth = cfg.stepRampWidth; stepP.rampSlopeDeg = cfg.stepRampSlopeDeg;
+        stepP.rimLevels = cfg.stepRimLevels; stepP.rimBand = cfg.stepRimBand; stepP.minCells = cfg.stepMinCells;
+        stepP.spawnClear = cfg.spawnClearRadius; stepP.pondCoverage = cfg.pondCoverage; stepP.pondDepth = cfg.pondDepth;
+        if (steps) GenerateSteps(*relief, stepP, cfg.seed, rng);
         const int hsub = GridWorld::kHeightSub;
         constexpr float kPadSink = 0.5f;   // 台座に載せる箱の底を埋める深さ（台座の縁の起伏との隙間を見せない）
         std::vector<uint8_t> raised((size_t)gw * gd, 0);   // 台地・坂・高台が高さ場を上げたマス
@@ -342,7 +353,7 @@ namespace TerrainGenerator
                         const size_t c = (size_t)(hz / hsub) * gw + (hx / hsub);
                         if (raised[c] || caveRing[c]) continue;
                         const Vector3 p = grid.HeightCellToWorld(hx, hz);
-                        grid.SetHeightExact(hx, hz, relief->SurfaceIn(relief->ZoneAtCell(hx / hsub, hz / hsub), p.x, p.z));
+                        grid.SetHeightExact(hx, hz, relief->SurfaceAt(hx / hsub, hz / hsub, p.x, p.z));
                     }
             };
         // 矩形（マス）のノードの起伏の平均（区域の基準からの差）
@@ -414,7 +425,12 @@ namespace TerrainGenerator
         // 高さ場: 山頂は上げる、洞窟はそのまま -mineDepth を書く（坂は後で高い方を書く）。
         // 床は格子に登録しない（上を歩くものなので通行を塞がない）
         float floorPlainTop = 0.0f, floorSummitTop = 0.0f;   // 床の箱の上面（記録へ。区域を塗り替えた時に同じ高さで作り直す）
-        const float floorBottom = -mineD - 1.0f;
+        // 床の箱の底：洞窟の底の下、かつ起伏の一番低い所より下（三層を切った時 -1m のままだと起伏の谷が -1.4m で
+        // 箱の上面が底より下 = 裏返った AABB になり、衝突の std::clamp が落ちた。2026-10-19）
+        float floorBottom = -mineD - 1.0f;
+        if (cfg.relief)
+            floorBottom = (std::min)(floorBottom, (std::min)(*std::min_element(relief->plain.begin(), relief->plain.end()),
+                summitH + *std::min_element(relief->summit.begin(), relief->summit.end())) - 3.0f);
         {
             // 起伏（2026-10-04）: 歩く面は高さ場の衝突（下の relief）。箱は上面を起伏の一番低い所より下げ、
             // 崖（山頂の縁・坑の壁）の縦の壁としてだけ残す。山頂の箱は底を floorBottom まで伸ばす
@@ -443,10 +459,12 @@ namespace TerrainGenerator
         const bool boulderCollide = cfg.rockMountains && !ruinWalls && cfg.boulderMountains && cfg.boulderCollide && !cfg.rimRise;
         const bool rimRise = cfg.relief && cfg.rimRise && !ruinWalls;   // 草原・砂漠だけ（遺跡は遺跡の壁のまま。10-06 ユーザー）
         const bool noAirWall = rimRise || boulderCollide;
+        // 段々の台地の外周の帯の分だけ壁を高く（帯の上に跳び乗って外へ出られないように）
+        const float rimExtra = steps ? relief->stepH * (std::max)(cfg.stepRimLevels, 0) : 0.0f;
         auto wall = [&](int x, int z, int w, int d)
             {
                 const Vector3 lo = RectMin(grid, { x, z, w, d }) + Vector3(0.0f, floorBottom - 1.0f, 0.0f);
-                const Vector3 hi = RectMin(grid, { x, z, w, d }) + Vector3(w * kCs, summitH + cfg.wallHeight, d * kCs);
+                const Vector3 hi = RectMin(grid, { x, z, w, d }) + Vector3(w * kCs, summitH + cfg.wallHeight + rimExtra, d * kCs);
                 if (noAirWall)
                     ;   // 衝突なし
                 else if (cfg.rockMountains || ruinWalls)
@@ -499,6 +517,22 @@ namespace TerrainGenerator
         // プレイヤーの初期地点（フィールド中央）の周りは平らに空ける
         const int cr = cfg.spawnClearRadius;
         mark({ gw / 2 - cr, gd / 2 - cr, cr * 2, cr * 2 }, kSpawn);
+
+        // 段々の台地の占有：坂 = kSlope（置物を置かない、草は生やす）、水たまり = kRamp 扱い（草・茂み・置物なし）+ 塞ぐ、
+        // 外周の帯 = kRim（置物なし）+ 塞ぐ（雑魚は上に湧かない・登らない。プレイヤーはジャンプで登れるが外周の壁で止まる）
+        int stepRimCells = 0, stepPondCells = 0;
+        if (steps)
+        {
+            emit.Begin(MapData::kStep);
+            for (int z = 1; z < gd - 1; ++z)
+                for (int x = 1; x < gw - 1; ++x)
+                {
+                    uint8_t& o = at(x, z);
+                    if (relief->RampAtCell(x, z) >= 0) { if (o == kFree || o == kSpawn) o = kSlope; }
+                    else if (relief->IsPond(x, z)) { o = kRamp; emit.Block(&grid, x, z, 1, 1); ++stepPondCells; }
+                    else if (StepRimCell(*relief, stepP, x, z)) { if (o == kFree) o = kRim; emit.Block(&grid, x, z, 1, 1); ++stepRimCells; }
+                }
+        }
 
         // 外周の巨石の下（縁から石の厚みの半分 + 1m）/ 縁の碗の斜面は空けておく：木・岩・茂み・台地・高台を置かない（草は生やす）。
         // 2026-10-06 ユーザー：石が場内へ入るようになって、壁際の置物が石に埋まった
@@ -1024,6 +1058,14 @@ namespace TerrainGenerator
             writeBase(0, 0, gw * hsub - 1, gd * hsub - 1);
         }
 
+        // ---------- 段々の台地の崖の衝突（起伏が全部決まってから。薄い箱、TerrainSteps.cpp）----------
+        int stepCliffBoxes = 0;
+        if (steps)
+        {
+            emit.Begin(MapData::kStep);
+            stepCliffBoxes = EmitStepCliffs(emit, grid, *relief);
+        }
+
         // ---------- 床の見た目（段々のメッシュ + 起伏）----------
         // 台座が全部決まってから作る（2026-10-04 に高台・台地の後へ移した）。中身は TerrainBuild::SpawnGround
         GroundParams groundParams;
@@ -1073,6 +1115,7 @@ namespace TerrainGenerator
 
         // ---------- 地面の衝突（高さ場、2026-10-04）と、積んだ見た目（外周・台地・坂道・高台）の 1 つのモデル ----------
         outTerrain.push_back(SpawnHeightField(reg, grid, relief, summitH));
+        if (steps) EmitPonds(emit, grid, *relief, cfg.biome);   // 水面（別のモデル。記録はしない = pond から作り直す）
         emit.FinishVisuals(device, cfg.biome, terrainRefLum);
 
         // ---------- 自然物（KayKit Forest）----------
@@ -1638,6 +1681,9 @@ namespace TerrainGenerator
             m.roofBoulders = cfg.roofBoulders;
             m.rimRiseWidth = rimRise ? cfg.rimRiseWidth : 0.0f;
             m.rimRiseHeight = rimRise ? cfg.rimRiseHeight : 0.0f;
+            // 段々の台地と水たまり（版 11）
+            m.stepH = relief->stepH; m.stepLevel = relief->level; m.stepRampAt = relief->rampAt; m.stepRamps = relief->ramps;
+            m.pond = relief->pond; m.pondDepth = relief->pondDepth;
             m.hasReliefParams = cfg.relief; m.reliefParams = reliefParams; m.hills = hills;
             m.walkable = grid.Walkable(); m.heights = grid.Heights();
             m.grassMask = grassMask;
@@ -1692,6 +1738,7 @@ namespace TerrainGenerator
             << mountainRocks << " mountain rocks (" << edgeRockColliders << " edge colliders, "
             << edgeRockCells << " cells blocked), " << ruinPieces << " ruin pieces, roof ramp " << roofRampMade
             << ", zone inset " << zoneInset
+            << ", step cliff boxes " << stepCliffBoxes << " (rim " << stepRimCells << " cells, pond " << stepPondCells << " cells)"
             << ", biome " << (int)cfg.biome << ", grid "
             << gw << "x" << gd << std::endl;
 

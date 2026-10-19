@@ -146,6 +146,15 @@ void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Tornado Heave", &tor.heave, 0.01f, 0.0f, 0.4f);
     ImGui::ColorEdit4("Tornado Tint", &tor.tint.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
     ImGui::Checkbox("Tornado Dust", &tor.dust);
+    ImGui::Checkbox("Tornado Wind Source (grass / debris / particles)", &tor.windSource);
+    ImGui::DragFloat("Tornado Wind Radius x", &tor.windRadiusMul, 0.1f, 1.0f, 30.0f);
+    ImGui::SetItemTooltip("Reach = hit radius x this");
+    ImGui::DragFloat("Tornado Wind Swirl (m/s)", &tor.windSwirl, 0.1f, 0.0f, 30.0f);
+    ImGui::DragFloat("Tornado Wind Updraft (m/s)", &tor.windUpdraft, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Tornado Wind Inflow (m/s)", &tor.windInflow, 0.1f, 0.0f, 10.0f);
+    ImGui::SliderFloat("Tornado Sand Amount", &tor.sandAmount, 0.0f, 1.0f);
+    ImGui::SetItemTooltip("0-0.5: grains ramp up to the recipe's rate. 0.5-1: grains stay, a sand haze film inside the column thickens");
+    ImGui::DragFloat("Tornado Haze Max", &tor.hazeMax, 0.01f, 0.0f, 0.8f);
     ImGui::DragFloat("Tornado Dust Rate x", &tor.dustRate, 0.05f, 0.0f, 5.0f);
     ImGui::DragFloat("Tornado Dust Swirl (m/s)", &tor.dustSwirl, 0.1f, 0.0f, 20.0f);
     if (ImGui::Button("Spawn 5 Sand Mages Nearby")) QueueDebugSandMages(5);

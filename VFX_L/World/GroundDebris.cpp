@@ -137,7 +137,8 @@ void GroundDebris::AddGust(const Vector3& pos, float radius, const Vector2& dir,
 }
 
 void GroundDebris::Render(Renderer& renderer, CameraBase& camera,
-    ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* areaEnds)
+    ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* areaEnds,
+    ID3D11ShaderResourceView* windSources)
 {
     ID3D11DeviceContext* ctx = m_Context;
     if (!Ready() || !ctx || !m_UpdateCS || !m_VS || !m_PS || !m_HeightSRV) return;
@@ -204,6 +205,7 @@ void GroundDebris::Render(Renderer& renderer, CameraBase& camera,
     m_UpdateCS->SetSRV(ctx, "g_Areas", areas);
     m_UpdateCS->SetSRV(ctx, "g_AreaStates", areaStates);
     m_UpdateCS->SetSRV(ctx, "g_AreaEnds", areaEnds);
+    if (windSources) m_UpdateCS->SetSRV(ctx, "g_WindSources", windSources);
     ctx->CSSetSamplers(0, 1, &linearClamp);
     m_UpdateCS->SetUAV(ctx, "g_Debris", m_UAV.Get());
     m_UpdateCS->BindUAVs(ctx);

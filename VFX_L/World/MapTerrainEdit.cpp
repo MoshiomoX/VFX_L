@@ -213,6 +213,9 @@ namespace MapTerrainEdit
         rf.Init(g, map.zone, map.summitH, map.mineD);
         rf.plain = map.reliefPlain;
         rf.summit = map.reliefSummit;
+        // 段々の台地と水たまり（版 11）はそのまま載せる（エディタでは編集できない。面の式に入れておくだけ）
+        rf.stepH = map.stepH; rf.level = map.stepLevel; rf.rampAt = map.stepRampAt; rf.ramps = map.stepRamps;
+        rf.pond = map.pond; rf.pondDepth = map.pondDepth;
         const int hw = map.gw * kSub, hd = map.gd * kSub;
         for (int hz = 0; hz < hd; ++hz)
             for (int hx = 0; hx < hw; ++hx)
@@ -220,7 +223,7 @@ namespace MapTerrainEdit
                 const size_t c = (size_t)(hz / kSub) * map.gw + (hx / kSub);
                 if (map.caveRing[c]) { g.SetHeightExact(hx, hz, 0.0f); continue; }   // 下でまとめて埋める
                 const DirectX::SimpleMath::Vector3 p = g.HeightCellToWorld(hx, hz);
-                g.SetHeightExact(hx, hz, rf.SurfaceIn(rf.ZoneAtCell(hx / kSub, hz / kSub), p.x, p.z));
+                g.SetHeightExact(hx, hz, rf.SurfaceAt(hx / kSub, hz / kSub, p.x, p.z));
             }
         const auto tp2 = std::chrono::steady_clock::now();
         Emitter none(nullptr);   // 何も記録しない（高さ場だけ書く）

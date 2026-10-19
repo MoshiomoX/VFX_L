@@ -15,6 +15,7 @@
 #include "Component/HealthComponent.h"
 #include "Component/ManaComponent.h"
 #include "Component/WandComponent.h"
+#include "Component/TransformComponent.h"
 #include "Player/LevelComponent.h"
 #include "Player/WalletComponent.h"
 #include "Player/PlayerStateComponent.h"
@@ -79,7 +80,7 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
     m_LevelUp.LoadIcons();
     m_LevelUp.Layout(screenW, screenH);
 
-    if (!m_HUD.Initialize(device))
+    if (!m_HUD.Initialize(device, context))
     {
         std::cout << "[Error] GameUI: HUD init failed" << std::endl;
         return false;
@@ -380,6 +381,14 @@ void GameUI::Render(Registry& reg, Entity player)
             ? &reg.Get<WandComponent>(player) : nullptr;
         m_FrameInfo.wand = wand;
         m_FrameInfo.shield = reg.Has<ShieldComponent>(player) ? &reg.Get<ShieldComponent>(player) : nullptr;
+        // ミニマップの中心と矢印の向き
+        m_FrameInfo.hasPlayer = reg.Has<TransformComponent>(player);
+        if (m_FrameInfo.hasPlayer)
+        {
+            const auto& tf = reg.Get<TransformComponent>(player);
+            m_FrameInfo.playerPos = tf.position;
+            m_FrameInfo.playerYawDeg = tf.rotation.y;
+        }
         // レベルアップ直後の間（四択を出すまで）は画面の真ん中に「レベルアップ！」（シーンの案内より優先）
         if (m_LevelUpWait)
         {

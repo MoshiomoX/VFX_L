@@ -287,6 +287,10 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_CorpseBuffer, m_CorpseUAV, m_CorpseSRV, "corpse")) return false;
     if (!makeRaw(16, m_CorpseHead, m_CorpseHeadUAV, "corpseHead")) return false;
     if (!makeRaw(sizeof(Swarm::BossInfo), m_BossInfoBuffer, m_BossInfoUAV, "bossInfo")) return false;
+    // 局所の風源の表（2026-10-19。砂旋 → 草・落ち葉・粒子）
+    if (!makeStructured(sizeof(Swarm::WindSource), Swarm::kMaxWindSources,
+        m_WindSourceBuffer, m_WindSourceUAV, m_WindSourceSRV, "windSources")) return false;
+    if (!makeRaw(16, m_WindSourceCount, m_WindSourceCountUAV, "windSourceCount")) return false;
     {
         // Boss の様子のリードバック（GPUReadback と同じく 3 枚を輪転）
         D3D11_BUFFER_DESC sd = {};
@@ -1624,6 +1628,8 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
     DispatchFireEmit(dt, totalTime);
     // ---- 砂旋の足元の砂埃（2026-10-19）----
     DispatchTornadoEmit(dt, totalTime);
+    // ---- 局所の風源の表（砂旋 → 草・落ち葉・粒子。2026-10-19）----
+    DispatchWindSources();
 
     // ---- 吸い寄せ中の経験値オーブの尾 ----
     // 弾・範囲の後に回す：空きが足りない時に削られるのは見た目だけのこちら

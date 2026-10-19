@@ -589,6 +589,24 @@ namespace Swarm
 
     // ============================================================
     // Boss の様子（GPU → CPU。SwarmEnemyCompactCS が毎フレーム書き、staging でリードバック）。
+    // ============================================================
+    // 局所の風源（2026-10-19、ユーザー「風そのものが風の係数を持って世界の風に影響する」）。
+    // SwarmWindSourceCS が毎フレーム生きている砂旋から kMaxWindSources 枠の表に書く（空き = radius 0）。
+    // 草（GrassVS）・落ち葉（DebrisUpdateCS）・粒子（ParticleUpdateCS）が WindSources.hlsli の式で世界の風に足す。
+    // HLSL の WindSource と同じ並び（32B）
+    // ============================================================
+    constexpr uint32_t kMaxWindSources = 16;
+    struct WindSource
+    {
+        float pos[3];      // 足元の中心
+        float radius;      // 届く距離 m（0 = 空き）
+        float swirl;       // 芯の縁での接線の速さ m/s（上から見て反時計回り）
+        float updraft;     // 芯の近くの上昇の速さ m/s
+        float inflow;      // 縁で中心へ向かう速さ m/s
+        float fade;        // 0〜1（生まれ / 消え）
+    };
+    static_assert(sizeof(WindSource) == 32, "WindSource layout mismatch");
+
     // Boss HP 条・画面外の目印・倒したかの判定に使う（リードバックなので 2〜3 フレーム古い）
     // ============================================================
     struct BossInfo
