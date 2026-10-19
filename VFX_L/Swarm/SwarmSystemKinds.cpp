@@ -419,7 +419,7 @@ void SwarmSystem::RenderMounds(const Matrix& view, const Matrix& proj)
     m_MoundVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_MoundVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_MoundVS->SetSRV(m_Context, "burrowerList", m_KindListSRV[Swarm::kDrawListBurrower].Get());
-    m_MoundVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
+    // enemySlow は SwarmMoundVS が読まない（宣言だけで最適化で消え、毎フレーム「SRV not found」が出ていた。2026-10-20）
     m_MoundVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     const auto& subs = m_MoundModel->GetSubMeshes();

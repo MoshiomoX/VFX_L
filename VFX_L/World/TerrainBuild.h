@@ -294,6 +294,10 @@ namespace TerrainBuild
         float stepH = 2.5f;          // 1 段の高さ（m）
         float coverage = 0.30f;      // 1 段以上の台地がフィールドに占める割合
         float scale = 30.0f;         // 輪郭のノイズの大きさ（m）
+        // 輪郭を決めるノイズの種類（2026-10-20、ユーザー「地図生成のノイズを何種類か試して、使える物は残す」）：
+        //   0 = 勾配ノイズ 2 層（既定）、1 = 域の歪み付き fBm（流れるような曲がった輪郭）、
+        //   2 = セル（Worley）ノイズ（島のように丸い台地が点在）（尾根型も試したが台地が細長い帯ばかりになり没）
+        int   noise = 0;
         int   maxLevel = 3;
         int   rampWidth = 3;         // マス
         float rampSlopeDeg = 18.0f;

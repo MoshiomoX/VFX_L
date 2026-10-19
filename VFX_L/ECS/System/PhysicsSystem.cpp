@@ -51,20 +51,42 @@ static bool ResolveAgainstStatics(
             if (!wc.heightField->Contains(foot.x, foot.z)) continue;
             ground = wc.heightField.get();
             const Vector3 n = wc.heightField->Normal(foot.x, foot.z);
-            const float dy = wc.heightField->Height(foot.x, foot.z) + col.radius / (std::max)(n.y, 0.2f) - foot.y;
-            if (dy <= 0.0f) continue;
+            const float h = wc.heightField->Height(foot.x, foot.z);
             if (n.y > 0.5f)
             {
+                // 歩ける傾き：下の半球が接平面から半径だけ上に来るまで真上へ
+                const float dy = h + col.radius / n.y - foot.y;
+                if (dy <= 0.0f) continue;
                 tf.position.y += dy;
                 selfCenter = tf.position + col.offset;
                 if (rb.velocity.y < 0.0f) rb.velocity.y = 0.0f;
                 if (!grounded || n.y < groundNormal.y) groundNormal = n;
                 grounded = true;
+                continue;
             }
-            else
+
+            // 急な起伏（60° より急）。食い込みは「素の縦の隙間」で測る（2026-10-20）：以前は半径 / max(ny, 0.2) で膨らませていて、
+            // 崖の縁から 0.25m 以内で跳んでいる最中（足元の面より 1m 上）でも「陥っている」と判定され、数フレーム毎に 0.3m 押し戻されて
+            // 揺れた（ユーザー「縁で 2 回揺れる」）。本当に面より下にいる時だけ触る
+            constexpr float kStepUp = 0.6f;
+            const float gap = h + col.radius - foot.y;
+            if (gap <= 0.0f) continue;
+            // 段差の上端の近く（隙間 kStepUp 以内、ほぼ垂直な段 = 法線 y < 0.25 ≒ 76° 以上、上昇中でない）は壁でなく「乗る」：
+            // 段々の台地にジャンプで届いた時に縁で足が引っ掛からない。崖の衝突の箱も上面を地面より kStepUp 下げてあるので残りはここで登る。
+            // 立って歩いて当たる崖（隙間 2.5m）や 65〜75° の碗の斜面は従来通り壁
+            if (n.y < 0.25f && gap <= kStepUp && rb.velocity.y <= 1.0f)
             {
-                // 急な起伏（60° より急 = 縁の碗の斜面など。2026-10-06）は壁扱い：真上に押すと押している間に登ってしまうので、
-                // 法線の水平成分の向きへ同じ食い込み分だけ押し返し、壁に向かう速度を消す。接地にはしない（落ちて戻る）
+                tf.position.y += gap;
+                selfCenter = tf.position + col.offset;
+                if (rb.velocity.y < 0.0f) rb.velocity.y = 0.0f;
+                if (!grounded) groundNormal = Vector3(0.0f, 1.0f, 0.0f);
+                grounded = true;
+                continue;
+            }
+            {
+                // 壁扱い（2026-10-06）：真上に押すと押している間に登ってしまうので、法線の水平成分の向きへ食い込み分だけ押し返し、
+                // 壁に向かう速度を消す。接地にはしない（落ちて戻る）
+                const float dy = gap;
                 Vector3 nh(n.x, 0.0f, n.z);
                 const float len = nh.Length();
                 if (len > 1e-4f)

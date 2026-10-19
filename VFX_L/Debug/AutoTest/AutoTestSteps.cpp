@@ -27,6 +27,27 @@ namespace
         bool  m_RampClimbed = false, m_CliffBlocked = false, m_JumpedUp = false;
         float m_CliffBaseY = 0.0f;
         bool  m_Jumped = false;
+        // 揺れの計測（2026-10-20 ユーザー「縁で 2 回揺れる」）：歩いている段の毎フレームの y の増減の符号が変わった回数と、
+        // 1 フレームの一番大きい上下
+        float m_PrevY = 0.0f, m_PrevDy = 0.0f, m_MaxUp = 0.0f, m_MaxDown = 0.0f;
+        int   m_Flips = 0, m_Frames = 0;
+        void JitterReset(float y) { m_PrevY = y; m_PrevDy = 0.0f; m_MaxUp = m_MaxDown = 0.0f; m_Flips = 0; m_Frames = 0; }
+        void JitterSample(float y)
+        {
+            const float dy = y - m_PrevY;
+            if (m_Frames > 0 && std::fabs(dy) > 0.004f && std::fabs(m_PrevDy) > 0.004f && dy * m_PrevDy < 0.0f) ++m_Flips;
+            if (std::fabs(dy) > 0.004f) m_PrevDy = dy;
+            m_MaxUp = (std::max)(m_MaxUp, dy);
+            m_MaxDown = (std::min)(m_MaxDown, dy);
+            m_PrevY = y;
+            ++m_Frames;
+        }
+        void JitterLog(const char* tag)
+        {
+            char line[160];
+            snprintf(line, sizeof(line), "steps jitter %s frames %d flips %d maxUp %.3f maxDown %.3f", tag, m_Frames, m_Flips, m_MaxUp, m_MaxDown);
+            AutoTestLog(line);
+        }
     };
 }
 
@@ -101,12 +122,13 @@ void AutoTestSteps::Run(float dt)
         m_AutoStep = 1;
         m_Phase = 0.0f;
     }
-    else if (m_AutoStep == 1 && m_AutoTime >= 2.5f) { AutoTestLog("steps look ramp"); m_AutoStep = 2; m_Phase = 0.0f; m_NextLog = 0.0f; }
+    else if (m_AutoStep == 1 && m_AutoTime >= 2.5f) { AutoTestLog("steps look ramp"); m_AutoStep = 2; m_Phase = 0.0f; m_NextLog = 0.0f; JitterReset(tf.position.y); }
     else if (m_AutoStep == 2)
     {
         // 高い端へ歩く（最長 4 秒：坂 8m + 手前 3m = 11m、5.5 m/s）。
         // 登れた = 坂の先の 1 段のマス（坂ではない）に接地した。先の台地が狭いと向こうへ落ちるので、登れた所で止める
         m_Phase += dt;
+        JitterSample(tf.position.y);
         if (m_Phase >= m_NextLog) { logPos("walk"); m_NextLog += 0.25f; }
         {
             int gx, gz;
@@ -121,6 +143,7 @@ void AutoTestSteps::Run(float dt)
         {
             pcs.testInput = false;
             char line[96];
+            JitterLog("ramp");
             snprintf(line, sizeof(line), "steps ramp climbed %d (dy %.2f, %.2f s)", m_RampClimbed ? 1 : 0, tf.position.y - m_Start.y, m_Phase);
             AutoTestLog(line);
             AutoTestLog("steps look top");
@@ -194,16 +217,27 @@ void AutoTestSteps::Run(float dt)
         m_AutoStep = 6;
         m_Phase = 0.0f;
         m_NextLog = 0.0f;
+        JitterReset(tf.position.y);
     }
     else if (m_AutoStep == 6)
     {
         // 歩きながら 1 回ジャンプ → 上に乗れたか
         m_Phase += dt;
+        JitterSample(tf.position.y);
+        if (m_Phase < 1.3f)   // 毎フレーム：縁に乗る瞬間の y / 縦の速度（2026-10-20 揺れの調査）
+        {
+            const float vy = m_Registry.Has<RigidbodyComponent>(m_Player) ? m_Registry.Get<RigidbodyComponent>(m_Player).velocity.y : 0.0f;
+            char jl[160];
+            snprintf(jl, sizeof(jl), "steps jf t %.3f x %.2f y %.3f vy %.2f ground %.3f", m_Phase, tf.position.x, tf.position.y, vy,
+                m_Grid.SampleHeight(tf.position.x, tf.position.z));
+            AutoTestLog(jl);
+        }
         if (m_Phase >= m_NextLog) { logPos("jump"); m_NextLog += 0.25f; }
         if (m_Phase >= 2.0f)
         {
             m_JumpedUp = tf.position.y - m_CliffBaseY >= stepH * 0.8f;
             char line[128];
+            JitterLog("jump");
             snprintf(line, sizeof(line), "steps jumped up %d (dy %.2f)", m_JumpedUp ? 1 : 0, tf.position.y - m_CliffBaseY);
             AutoTestLog(line);
             AutoTestLog("steps look jumped");

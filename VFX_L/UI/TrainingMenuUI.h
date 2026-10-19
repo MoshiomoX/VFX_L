@@ -27,7 +27,7 @@ struct SpellbookComponent;
 // メニューからシーンへの依頼
 struct TrainingRequest
 {
-    enum class Kind { Targets, Swarm, Boss, KillAll, AddItem, AddAll, ClearChest, RandomBuild, ClearBackpack };
+    enum class Kind { Targets, Swarm, Boss, KillAll, AddItem, AddAll, ClearChest, RandomBuild, ClearBackpack, Field };
     Kind   kind = Kind::Targets;
     int    pattern = 0;            // Targets：0 正面 3 体 / 1 周り 12 体 / 2 エリート
     float  targetHp = 1.0e6f;      // Targets
@@ -37,6 +37,10 @@ struct TrainingRequest
     ItemID item = ItemID::Unknown; // AddItem
     int    randomMode = 0;         // RandomBuild：0 基本魔法だけ / 1 魔法 + ルーン / 2 全部（上級魔法・召喚物も）
     int    randomCount = 6;        // RandomBuild：置く個数（枠に入り切らなければ少なくなる）
+    // Field（2026-10-20 ユーザー「トレーニングからフィールドに入る。モードはトレーニングのまま」）：
+    // 0 = 平地（実験場の既定）/ 1 草原 / 2 砂漠 / 3 遺跡 = その面の地形（段々の台地・置物・照明・草）を建て直す。
+    // 無敵・MP 無限・湧き停止・メニューで的を置く、はそのまま
+    int    field = 0;
 };
 
 class TrainingMenuUI
@@ -58,9 +62,9 @@ public:
     void SetMessage(const std::wstring& msg) { m_Message = msg; m_MessageTime = 2.5f; }
 
     float panelWidthRatio = 1.30f;   // 画面短辺に対する比率（画面幅の 95% までに収める）
-    float rowHeightRatio = 0.050f;   // 2026-10-14 ランダムの 3 行を足して 0.058 → 0.050（1600x900 で収まる所まで詰めた）
+    float rowHeightRatio = 0.046f;   // 2026-10-14 ランダムの 3 行を足して 0.058 → 0.050、10-20 フィールドの行を足して 0.046
     float itemRowRatio = 0.080f;     // 絵の行の高さ
-    float rowGapRatio = 0.006f;
+    float rowGapRatio = 0.005f;
     DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.80f };
     DirectX::SimpleMath::Vector4 panelColor = { 0.0025f, 0.0020f, 0.0045f, 0.985f };
 
@@ -89,7 +93,8 @@ private:
 
     void Build();             // 行を組む（魔法の一覧は ItemDatabase から。初期化の後で呼ぶ）
     enum class RowKind { Buttons, Choice, Toggle, Items, Back };
-    enum class RowId { Targets, TargetHp, SwarmKind, SwarmCount, Moving, Spawn, Items, Chest, RandomMode, RandomCount, Backpack, Back };
+    // Field は末尾（自動テスト training が番号で行を指す。並び順は Build の方で決める）
+    enum class RowId { Targets, TargetHp, SwarmKind, SwarmCount, Moving, Spawn, Items, Chest, RandomMode, RandomCount, Backpack, Back, Field };
     struct Row
     {
         std::wstring label;

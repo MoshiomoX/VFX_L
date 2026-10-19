@@ -303,6 +303,10 @@ private:
     void BuildTerrain(std::vector<uint8_t>& grassMask);
     // 古い地形を消して建て直し、後処理（置物の描画表・草・GPU の格子表・箱）まで行う（Terrain パネル・自動テスト）
     void RebuildTerrain();
+    // トレーニング（実験場）のフィールド切替（2026-10-20、ユーザー「トレーニングからフィールドに入る。モードはそのまま」）：
+    // field 0 = 平地の実験場、1〜3 = その面の本番の地形（段々の台地・置物・照明・草）。プレイヤーは中央へ。
+    // 無敵・MP 無限・湧き停止・箱 / 門 / 磁石なしのトレーニングのまま。戻り値 = メニューに出す一行
+    std::wstring EnterTrainingField(int field);
     // 今ある報酬の箱と Boss の門を m_TerrainMap の placements へ（その種類がまだ 1 つも無い時だけ）
     void BakePlacements();
 

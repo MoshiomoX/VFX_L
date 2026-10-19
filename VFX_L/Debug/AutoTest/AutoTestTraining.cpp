@@ -192,7 +192,19 @@ void AutoTestTraining::Run(float dt)
         m_GameUI.TestOpenTraining(false);
         s_Step = 15;
     }
-    else if (s_Step == 15 && s_Real >= 13.0f) { AutoTestLog("training done"); s_Step = 16; }
+    // フィールド切替（2026-10-20）：行 12 = RowId::Field、列 1 = 草原。地形を建て直してプレイヤーを中央へ
+    else if (s_Step == 15 && s_Real >= 13.0f) { press(12, 1, "field grassland"); s_Step = 17; }
+    else if (s_Step == 17 && s_Real >= 15.0f)
+    {
+        const auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+        snprintf(line, sizeof(line), "training field stage %d biome %d steps %d player %.1f %.1f %.1f ground %.2f",
+            m_StageIndex, (int)m_TerrainConfig.biome, m_TerrainConfig.steps ? 1 : 0,
+            tf.position.x, tf.position.y, tf.position.z, m_Grid.SampleHeight(tf.position.x, tf.position.z));
+        AutoTestLog(line);
+        AutoTestLog("training look field");
+        s_Step = 18;
+    }
+    else if (s_Step == 18 && s_Real >= 15.8f) { AutoTestLog("training done"); s_Step = 16; }
 
     if (s_Step >= 7 && s_Step <= 9 && s_Real >= s_NextLog)
     {

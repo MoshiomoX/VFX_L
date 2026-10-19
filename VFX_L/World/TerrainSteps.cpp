@@ -53,6 +53,46 @@ namespace TerrainBuild
             dx = (side == 0) ? 1 : (side == 1) ? -1 : 0;
             dz = (side == 2) ? 1 : (side == 3) ? -1 : 0;
         }
+
+        // ---- 輪郭のノイズ（StepParams::noise）。どれも「大きいほど高い段」の 1 つの値。分位で切るので値域は揃えなくてよい ----
+        // fBm：勾配ノイズを 3 層（倍の細かさ、半分の振れ幅）
+        float Fbm(float x, float z, uint32_t seed)
+        {
+            return GradNoise(x, z, seed) + 0.5f * GradNoise(x * 2.03f + 11.7f, z * 2.03f - 4.1f, seed + 7u)
+                + 0.25f * GradNoise(x * 4.11f - 7.3f, z * 4.11f + 2.9f, seed + 13u);
+        }
+        // 域の歪み：座標そのものを別のノイズでずらしてから fBm を引く（Inigo Quilez の domain warping）。流れるような曲線になる
+        float WarpedFbm(float x, float z, uint32_t seed)
+        {
+            const float qx = Fbm(x + 0.0f, z + 0.0f, seed + 101u);
+            const float qz = Fbm(x + 5.2f, z + 1.3f, seed + 103u);
+            return Fbm(x + 0.9f * qx, z + 0.9f * qz, seed + 107u);
+        }
+        // セル（Worley）：格子ごとに 1 点、一番近い点までの距離 F1。点の近くが高い（= 丸い島）。少し勾配ノイズで縁を崩す
+        float Cellular(float x, float z, uint32_t seed)
+        {
+            const int ix = (int)std::floor(x), iz = (int)std::floor(z);
+            float f1 = 1.0e9f;
+            for (int dz = -1; dz <= 1; ++dz)
+                for (int dx = -1; dx <= 1; ++dx)
+                {
+                    const int cx = ix + dx, cz = iz + dz;
+                    const float px = cx + Hash01(cx, cz, seed + 211u);
+                    const float pz = cz + Hash01(cx, cz, seed + 223u);
+                    const float d = (px - x) * (px - x) + (pz - z) * (pz - z);
+                    f1 = (std::min)(f1, d);
+                }
+            return (1.0f - std::sqrt(f1)) + 0.25f * GradNoise(x * 2.5f, z * 2.5f, seed + 227u);
+        }
+        float StepNoise(int kind, float x, float z, uint32_t seed)
+        {
+            switch (kind)
+            {
+            case 1:  return WarpedFbm(x, z, seed);
+            case 2:  return Cellular(x * 0.55f, z * 0.55f, seed);   // 1 セル ≒ 1.8 x scale（島 1 つが台地 1 つ）
+            default: return GradNoise(x, z, seed + 101u) + 0.5f * GradNoise(x / 0.45f + 7.3f, z / 0.45f - 3.1f, seed + 103u);
+            }
+        }
     }
 
     bool StepRimCell(const ReliefField& rf, const StepParams& P, int gx, int gz)
@@ -89,13 +129,13 @@ namespace TerrainBuild
         {
             std::vector<float> n(N, -1.0e9f), vals;
             vals.reserve(N);
-            const float s1 = (std::max)(P.scale, 4.0f), s2 = s1 * 0.45f;
+            const float s1 = (std::max)(P.scale, 4.0f);
             for (int z = 0; z < gd; ++z)
                 for (int x = 0; x < gw; ++x)
                 {
                     if (!plain(x, z) || rim(x, z) || spawn(x, z)) continue;
                     const float wx = rf.ox + (x + 0.5f) * kCs, wz = rf.oz + (z + 0.5f) * kCs;
-                    const float v = GradNoise(wx / s1, wz / s1, seed + 101u) + 0.5f * GradNoise(wx / s2 + 7.3f, wz / s2 - 3.1f, seed + 103u);
+                    const float v = StepNoise(P.noise, wx / s1, wz / s1, seed);
                     n[idx(x, z)] = v;
                     vals.push_back(v);
                 }
@@ -372,6 +412,9 @@ namespace TerrainBuild
         constexpr float kThick = 0.4f;
         constexpr float kMinDrop = 0.6f;
         constexpr int kMaxRun = 4;
+        // 箱の上面は上の段の地面よりこれだけ下：残りの段差は地面の衝突（PhysicsSystem の kStepUp = 0.6）が「乗る」扱いにする。
+        // 0.05 だと、ジャンプで足が縁のすぐ下に届いた時に箱の側面に引っ掛かって押し戻された（2026-10-20 ユーザー報告）
+        constexpr float kStepUp = 0.6f;
         int count = 0;
 
         // 境 (ax, az) | (bx, bz) の 3 点（辺の両端と中央）での両側の高さ
@@ -431,7 +474,7 @@ namespace TerrainBuild
             float runTop = 1.0e9f, runBottom = 1.0e9f;
             auto flush = [&]()
                 {
-                    if (runLen > 0) emitBox(true, x, runStart, runLen, runHighNeg, runTop - 0.05f, runBottom - 0.6f);
+                    if (runLen > 0) emitBox(true, x, runStart, runLen, runHighNeg, runTop - kStepUp, runBottom - 0.6f);
                     runStart = -1; runLen = 0; runTop = runBottom = 1.0e9f;
                 };
             for (int z = 1; z < gd - 1; ++z)
@@ -455,7 +498,7 @@ namespace TerrainBuild
             float runTop = 1.0e9f, runBottom = 1.0e9f;
             auto flush = [&]()
                 {
-                    if (runLen > 0) emitBox(false, runStart, z, runLen, runHighNeg, runTop - 0.05f, runBottom - 0.6f);
+                    if (runLen > 0) emitBox(false, runStart, z, runLen, runHighNeg, runTop - kStepUp, runBottom - 0.6f);
                     runStart = -1; runLen = 0; runTop = runBottom = 1.0e9f;
                 };
             for (int x = 1; x < gw - 1; ++x)

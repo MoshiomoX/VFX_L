@@ -58,6 +58,7 @@ namespace TerrainGenerator
         float stepHeight = 2.5f;          // m（1 回のジャンプでぎりぎり届く = 登れる段差）
         float stepCoverage = 0.30f;       // 1 段以上の面積の割合（ユーザー 10-19：30%）
         float stepScale = 30.0f;          // 輪郭のノイズの大きさ（m）
+        int   stepNoise = 0;              // 輪郭のノイズの種類（TerrainBuild::StepParams::noise：0 勾配 2 層 / 1 域の歪み fBm / 2 セル）
         int   stepMaxLevel = 3;
         int   stepRampWidth = 3;          // マス（6m）
         float stepRampSlopeDeg = 18.0f;   // 2.5m / tan 18° ≒ 7.7m → 4 マス（17.4°）

@@ -21,7 +21,7 @@
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> burrowerList : register(t2);
-StructuredBuffer<float4> enemySlow : register(t4);
+// (enemySlow at t4 was declared here but never read: the compiler dropped it and the C++ bind warned every frame. Removed 2026-10-20)
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
 // C++ mirror: SwarmSystem::PropMeshCB (same block as SwarmShieldVS)

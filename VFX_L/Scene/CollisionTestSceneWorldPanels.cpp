@@ -261,6 +261,7 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::SliderFloat("Step Coverage", &tc.stepCoverage, 0.0f, 0.7f, "%.2f");
         ImGui::SetItemTooltip("Share of the field (outside the rim band) that is raised by at least one step");
         ImGui::DragFloat("Step Noise Scale", &tc.stepScale, 0.5f, 8.0f, 120.0f, "%.0f m");
+        ImGui::Combo("Step Noise", &tc.stepNoise, "Gradient x2 (default)\0Domain-warped fBm\0Cellular (Worley)\0");
         ImGui::SliderInt("Step Max Level", &tc.stepMaxLevel, 1, 5);
         ImGui::SliderInt("Step Ramp Width (cells)", &tc.stepRampWidth, 1, 6);
         ImGui::SliderFloat("Step Ramp Slope", &tc.stepRampSlopeDeg, 8.0f, 30.0f, "%.0f deg");

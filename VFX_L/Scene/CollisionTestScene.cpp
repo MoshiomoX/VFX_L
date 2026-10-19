@@ -167,6 +167,9 @@ void CollisionTestScene::Init()
         // TEMP-TEST: VFXL_NO_RELIEF=1 で起伏を切る（2026-10-04 以前の平らな地面と見比べる用）
         if (GetEnvironmentVariableA("VFXL_NO_RELIEF", env, sizeof(env)) > 0)
             m_TerrainConfig.relief = false;
+        // TEMP-TEST: VFXL_STEP_NOISE=n 段々の台地の輪郭のノイズの種類（見比べる用。2026-10-20）
+        if (GetEnvironmentVariableA("VFXL_STEP_NOISE", env, sizeof(env)) > 0)
+            m_TerrainConfig.stepNoise = std::clamp(atoi(env), 0, 2);
         // TEMP-TEST: 外周の岩を縁から内に入れない = 岩の衝突 0 個（衝突の有無で fps を比べる用）
         if (GetEnvironmentVariableA("VFXL_NO_EDGE_COLLIDERS", env, sizeof(env)) > 0)
         {
@@ -634,7 +637,13 @@ void CollisionTestScene::Update(float dt)
     // ---- トレーニング（実験場）のメニューの依頼：的・群れ・Boss・木箱（メニューを開いたまま＝止まっている間も）----
     if (m_LabScene)
         for (const TrainingRequest& q : m_GameUI.ConsumeTrainingRequests())
-            m_GameUI.SetTrainingMessage(m_SpellLab.Apply(q, m_Registry, m_Player, m_Swarm, m_Mobs, m_Stage, m_Grid));
+        {
+            // フィールドの切替は地形ごと建て直すのでシーンが受け持つ（2026-10-20）。他は SpellLab
+            if (q.kind == TrainingRequest::Kind::Field)
+                m_GameUI.SetTrainingMessage(EnterTrainingField(q.field));
+            else
+                m_GameUI.SetTrainingMessage(m_SpellLab.Apply(q, m_Registry, m_Player, m_Swarm, m_Mobs, m_Stage, m_Grid));
+        }
 
     // ---- マウスの捕獲（UI の開閉を見るので GameUI の後）----
     // UI（グリッド・三択・一時停止）が開いている間と死んだ後はマウスで操作するのでカーソルを出す

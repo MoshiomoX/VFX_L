@@ -36,6 +36,8 @@ void TrainingMenuUI::Build()
     m_Rows.push_back({ L"群れの数", RowKind::Choice, RowId::SwarmCount, {}, {} });
     m_Rows.push_back({ L"敵が動く", RowKind::Toggle, RowId::Moving, {}, {} });
     m_Rows.push_back({ L"敵を出す", RowKind::Buttons, RowId::Spawn, { L"群れを出す", L"ボスを呼ぶ", L"敵を全部消す" }, {} });
+    // フィールド（2026-10-20）：平地の実験場か、本番の面の地形か。トレーニングのモード（無敵・MP 無限・湧き停止）はそのまま
+    m_Rows.push_back({ L"フィールド", RowKind::Buttons, RowId::Field, { L"平地", L"草原", L"砂漠", L"遺跡" }, {} });
 
     // 魔法・ルーン・召喚物（枠と能力カードは除く。SpellLab::FillChest と同じ選び方）を kItemsPerRow 個ずつの行に
     std::vector<ItemID> items;
@@ -79,7 +81,10 @@ void TrainingMenuUI::Layout(float screenW, float screenH)
     for (const Row& r : m_Rows) rowsRatio += (r.kind == RowKind::Items) ? itemRowRatio : rowHeightRatio;
     const int n = (int)m_Rows.size();
     const float baseH = kPadRatio * 2.0f + kTitleRatio + rowsRatio + rowGapRatio * (float)(n - 1) + kFootRatio;
-    m_Scale = UIDeco::FitScale(baseH, 0.985f);   // 行が多いので画面の高さほぼ一杯まで（FitScale は 1.0 倍より小さくはしない）
+    m_Scale = UIDeco::FitScale(baseH, 0.985f);   // 行が多いので画面の高さほぼ一杯まで
+    // FitScale は 1.0 倍より小さくしないが、このメニューは行が多くて 1 倍でも画面より高い（1600x900 で上下が切れていた。
+    // 2026-10-20 フィールドの行を足した時に直した）：高さが収まる所まで 1 倍未満にも縮める
+    if (baseH > 0.0f) m_Scale = (std::min)(m_Scale, 0.985f / baseH);
     m_Scale = (std::min)(m_Scale, screenW * 0.95f / (m_Short * panelWidthRatio));
     const float s = m_Short * m_Scale;
 
@@ -268,6 +273,10 @@ void TrainingMenuUI::Activate()
         break;
     case RowId::Backpack:
         q.kind = (m_Col == 0) ? TrainingRequest::Kind::RandomBuild : TrainingRequest::Kind::ClearBackpack;
+        break;
+    case RowId::Field:
+        q.kind = TrainingRequest::Kind::Field;
+        q.field = m_Col;   // 0 平地 / 1 草原 / 2 砂漠 / 3 遺跡
         break;
     case RowId::Moving:        // 値の行は Enter / A で 1 段進める
     case RowId::TargetHp:

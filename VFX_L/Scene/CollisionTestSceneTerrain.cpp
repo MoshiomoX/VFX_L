@@ -6,6 +6,7 @@
 #include "Core/Application.h"
 #include "Component/InteractableComponent.h"
 #include "Component/TransformComponent.h"
+#include "Component/RigidbodyComponent.h"
 #include "ECS/View.h"
 
 // ============================================================
@@ -67,7 +68,64 @@ void CollisionTestScene::RebuildTerrain()
     m_Swarm.BuildVFXTable();
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());
     RespawnElites();
-    RespawnCrates();   // 古い位置は新しい壁の中かもしれない
+    if (!m_LabScene && !m_TitleScene) RespawnCrates();   // 古い位置は新しい壁の中かもしれない。実験場・タイトルは箱 / 門 / 磁石なし
+}
+
+// ============================================================
+// トレーニングのフィールド切替（2026-10-20）
+// 面の見た目（Biome・照明・草）を入れ替えて地形を建て直す。平地 = 実験場の既定（Init と同じ切り方）
+// ============================================================
+std::wstring CollisionTestScene::EnterTrainingField(int field)
+{
+    const bool flat = field <= 0;
+    const int stage = flat ? 1 : std::clamp(field, 1, StageConfig::kStageCount);
+    const StageDef& def = StageConfig::Get(stage);
+    m_StageIndex = stage;
+
+    TerrainGenerator::Config cfg;   // 既定 = 段々の台地の野原
+    cfg.seed = std::random_device{}() % 100000u;
+    cfg.biome = def.biome;
+    if (flat)
+    {
+        cfg.layers = false;
+        cfg.relief = false;
+        cfg.steps = false;
+        cfg.plateauCount = 0;
+        cfg.terraceCount = 0;
+        cfg.treeCount = 0;
+        cfg.rockCount = 0;
+        cfg.bushCount = 0;
+    }
+    m_TerrainConfig = cfg;
+    m_MapFile.clear();
+    MapData::PlayOverride().clear();
+
+    // 面の照明と草（Init と同じ所から取る）。天候は実験場では照明を上書きしない
+    m_Lighting.ApplyPreset(def.light);
+    auto& gs = m_Grass.GetSettings();
+    gs.enabled = def.grass;
+    gs.spacing = def.grassSpacing;
+    gs.rootColor = def.grassRoot;
+    gs.tipColor = def.grassTip;
+    gs.heightMin = def.grassHeightMin;
+    gs.heightMax = def.grassHeightMax;
+    m_GrassFire.SetActive(def.grass && gs.enabled);
+    m_Audio.Init(m_Swarm, m_StageIndex);   // 面の曲（範囲の音の表も作り直す。中身は同じ）
+
+    RebuildTerrain();   // 実験場なので箱 / 門 / 磁石は置かない（RebuildTerrain が m_LabScene を見る）
+
+    // プレイヤーは中央の地面へ（前の地形の高さのままだと埋まる / 浮く）
+    if (m_Registry.IsValid(m_Player) && m_Registry.Has<TransformComponent>(m_Player))
+    {
+        auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+        tf.position = Vector3(0.0f, m_Grid.SampleHeight(0.0f, 0.0f) + 1.0f, 0.0f);
+        if (m_Registry.Has<RigidbodyComponent>(m_Player)) m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+        m_Camera.Camera().SnapToTarget();
+    }
+
+    wchar_t buf[96];
+    swprintf_s(buf, L"フィールド：%ls（seed %u）", flat ? L"平地" : def.name, cfg.seed);
+    return buf;
 }
 
 // ============================================================

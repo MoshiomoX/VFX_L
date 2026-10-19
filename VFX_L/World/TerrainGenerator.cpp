@@ -290,7 +290,7 @@ namespace TerrainGenerator
         // 地面の衝突が同じ式を見る。崖の衝突の箱は起伏が全部決まってから（下）。平原の区域だけ
         const bool steps = cfg.steps && cfg.stepHeight > 0.0f;
         StepParams stepP;
-        stepP.stepH = cfg.stepHeight; stepP.coverage = cfg.stepCoverage; stepP.scale = cfg.stepScale;
+        stepP.stepH = cfg.stepHeight; stepP.coverage = cfg.stepCoverage; stepP.scale = cfg.stepScale; stepP.noise = cfg.stepNoise;
         stepP.maxLevel = cfg.stepMaxLevel; stepP.rampWidth = cfg.stepRampWidth; stepP.rampSlopeDeg = cfg.stepRampSlopeDeg;
         stepP.rimLevels = cfg.stepRimLevels; stepP.rimBand = cfg.stepRimBand; stepP.minCells = cfg.stepMinCells;
         stepP.spawnClear = cfg.spawnClearRadius; stepP.pondCoverage = cfg.pondCoverage; stepP.pondDepth = cfg.pondDepth;
