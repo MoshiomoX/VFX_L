@@ -1,0 +1,44 @@
+{
+    "entries": [
+        {
+            "data": { "sheet": "Assets/VFX/SpriteSheet/PVFX/acid-splash.png", "offset": [0.0, -0.9, 0.0], "size": 2.4,
+                      "facing": 1, "rotation": 0.0, "color": [0.75, 0.55, 0.30, 1.0], "blend": 0, "speed": 1.0, "loopMode": 1, "anchor": 0, "onTop": false },
+            "duration": 0.9, "startTime": 0.0, "type": "Sprite"
+        },
+        {
+            "data": {
+                "deepColor": [0.070, 0.045, 0.018, 0.92], "edgeColor": [0.30, 0.22, 0.10, 0.85],
+                "glowColor": [0.020, 0.014, 0.005, 0.4], "skyColor": [0.35, 0.40, 0.38, 0.5],
+                "radius": 0.0, "fill": 0.92, "spread": 0.6, "wobble": 0.03,
+                "blend": 0.18, "rimWidth": 0.16, "depthWidth": 0.35, "bump": 0.08,
+                "splashTime": 0.22, "dryTime": 0.7, "specGain": 0.6, "roughness": 0.55,
+                "bubbles": 0.0, "bubbleGain": 0.0, "swirl": 0.15, "swirlScale": 1.6,
+                "lift": 0.035, "cliff": 0.6, "haloWidth": 0.2, "haloGain": 0.2,
+                "lobes": 7, "spatter": 4, "pointGain": 0.0,
+                "offset": [0.0, -0.86, 0.0], "previewDir": [0.0, 0.0, 1.0]
+            },
+            "duration": 3.0, "startTime": 0.0, "type": "Liquid"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 5,
+                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 1.5,
+                "emitRate": 60.0, "emitType": 5,
+                "endColorMax": [0.35, 0.26, 0.12, 0.0], "endColorMin": [0.35, 0.26, 0.12, 0.0],
+                "gravity": [0.0, -7.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.4, 0.7], "maxParticles": 40,
+                "position": [0.0, -0.8, 0.0], "radius": 1.2, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.10, 0.18, 0.06, 0.10], "speedRange": [2.0, 4.5], "spreadAngle": 0.0,
+                "startColorMax": [0.55, 0.42, 0.20, 1.0], "startColorMin": [0.45, 0.33, 0.15, 1.0]
+            },
+            "duration": 0.15, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, -0.4, 0.0], "color": [0.6, 0.45, 0.25], "radius": 2.5,
+                      "intensityStart": 0.12, "intensityEnd": 0.12, "flicker": 0.1, "flickerSpeed": 4.0 },
+            "duration": 1.0, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "SwampPool"
+}

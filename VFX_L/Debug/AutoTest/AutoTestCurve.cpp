@@ -5,6 +5,8 @@
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 #include "Player/ShieldComponent.h"
+#include "Player/PlayerStatsComponent.h"
+#include "Player/LevelComponent.h"
 
 namespace
 {
@@ -70,6 +72,26 @@ void AutoTestCurve::Run(float dt)
         {
             m_Mobs.curve.points = { { 0.0f, 1.0f, 1.0f, 1.0f }, { 10.0f, 8.0f, 2.2f, 2.2f } };
             AutoTestLog("curve uses the old linear difficulty");
+        }
+        // VFXL_CURVE_CARRY=1：第 1 面を勝ち切った持ち物で次の面へ入った状態（2026-10-17、面毎の難度の調整用。VFXL_STAGE=2 と一緒に）：
+        // レベル 30（MP 回復もそれに応じて上がる）、魔法威力 ×1.1^4、9×9 の枠、shapes 自動テストと同じ並び
+        // （メテオ組 + 魔導光線組 + 猛毒の沼組 + 黄金の矢）+ 拡大鏡。以降の四択は普段どおり bot が選ぶ
+        if (GetEnvironmentVariableA("VFXL_CURVE_CARRY", nullptr, 0) > 0)
+        {
+            if (m_Registry.Has<LevelComponent>(m_Player)) m_Registry.Get<LevelComponent>(m_Player).level = 30;
+            if (m_Registry.Has<PlayerStatsComponent>(m_Player)) m_Registry.Get<PlayerStatsComponent>(m_Player).spellPower = 1.4641f;
+            ClearBackpackItems(bp);
+            FillAllFrames(bp);
+            struct P { ItemID id; int r, c; };
+            const P layout[] = {
+                { ItemID::Meteor, 2, 2 }, { ItemID::Fireball, 0, 3 }, { ItemID::StoneShot, 3, 1 },
+                { ItemID::Beam, 6, 5 }, { ItemID::HomingBolt, 5, 4 }, { ItemID::ArcBolt, 7, 6 },
+                { ItemID::Poison, 1, 7 }, { ItemID::Spore, 2, 6 }, { ItemID::Swamp, 2, 7 },
+                { ItemID::GoldenArrow, 3, 8 }, { ItemID::Magnifier, 1, 1 },
+            };
+            for (const P& p : layout) BackpackLogic::Place(bp, p.id, p.r, p.c, 0);
+            bp.dirty = true;
+            AutoTestLog("curve carry: level 30, spell power x1.46, full 9x9 build (meteor / beam / poison sets + arrow + magnifier)");
         }
         s_Center = tf.position;
         hp.max = hp.current = kBigHp;

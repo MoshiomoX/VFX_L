@@ -46,6 +46,10 @@ struct SpellStats
     // 範囲の威力は GPU の範囲定義が持つので、弾ごとに渡す（能力アップ「魔法威力」。ItemInfo::ApplySpellPower）
     float areaDamageMul = 1.0f;
 
+    // 連鎖（連鎖のルーン。2026-10-16）: 敵に当たっても消えず、近くの別の敵へこの回数まで跳ぶ（GPU の HitCS / ProjMoveCS。
+    // Drop / Lob 型には効かない）。生成依頼の pathT に乗せて渡す
+    int   chainCount = 0;
+
     // --- 誘発（基本魔法 → 上級魔法。集約が決める）---
     bool     triggered = false;   // 上級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ
     uint32_t triggerMask = 0;     // 基本魔法: この弾が消えたら誘発できる上級魔法（bit 0〜15 = spells の添字、bit 16〜31 = areas の添字（光線））

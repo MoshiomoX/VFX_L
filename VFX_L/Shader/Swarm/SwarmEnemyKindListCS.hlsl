@@ -16,6 +16,11 @@ Buffer<uint> enemyStates : register(t0);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t1);
 AppendStructuredBuffer<uint> chargerList : register(u0);
 AppendStructuredBuffer<uint> shieldList : register(u1);
+AppendStructuredBuffer<uint> spikeBallList : register(u2); // SWARM_KIND_SPIKEBALL: own mesh, no blocky body (2026-10-17)
+AppendStructuredBuffer<uint> burrowerList : register(u3); // SWARM_KIND_BURROWER (own texture + the mound) (2026-10-17)
+AppendStructuredBuffer<uint> sandMageList : register(u4); // SWARM_KIND_SANDMAGE (own texture) (2026-10-17)
+AppendStructuredBuffer<uint> tornadoList : register(u5);  // SWARM_KIND_TORNADO: own mesh (SwarmTornadoVS), no blocky body (2026-10-17)
+AppendStructuredBuffer<uint> dashBomberList : register(u6); // SWARM_KIND_DASHBOMBER (own texture) (2026-10-18)
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -30,4 +35,14 @@ void main(uint3 id : SV_DispatchThreadID)
         chargerList.Append(i);
     else if (kind == SWARM_KIND_SHIELD)
         shieldList.Append(i);
+    else if (kind == SWARM_KIND_SPIKEBALL)
+        spikeBallList.Append(i);
+    else if (kind == SWARM_KIND_BURROWER)
+        burrowerList.Append(i);
+    else if (kind == SWARM_KIND_SANDMAGE)
+        sandMageList.Append(i);
+    else if (kind == SWARM_KIND_TORNADO)
+        tornadoList.Append(i);
+    else if (kind == SWARM_KIND_DASHBOMBER)
+        dashBomberList.Append(i);
 }

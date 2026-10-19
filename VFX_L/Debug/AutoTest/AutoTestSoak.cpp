@@ -136,7 +136,7 @@ void AutoTestSoak::Run(float dt)
             ClearBackpackItems(bp);
             BackpackLogic::Place(bp, ItemID::HomingBolt, lo + 1, lo + 1, 0);
             BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
-            BackpackLogic::Place(bp, ItemID::Poison, lo + 2, lo + 2, 0);
+            BackpackLogic::Place(bp, ItemID::Swamp, lo + 2, lo + 1, 0);   // 2026-10-17：毒は上級魔法になったので基本の泥沼（横 2）に
         }
 
         // 塞がったマスの塊（6 マス以下 = 木・岩。大きい塊と外周 = 見える壁）

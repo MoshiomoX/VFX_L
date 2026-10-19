@@ -44,9 +44,12 @@ namespace
         s.grassTip = { 1.05f, 0.95f, 0.60f };
         s.grassHeightMin = 0.12f;
         s.grassHeightMax = 0.26f;
-        s.difficultyBonus = 0.6f;
+        s.difficultyTimeOffsetMin = 10.0f; s.difficultyHpMul = 2.5f; s.difficultyDamageMul = 1.6f; s.difficultySpawnMul = 1.3f;   // 第 1 面の終わりの続き × 面の倍率（2026-10-17）
         s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };   // スプリッターは第 1 面の主力。ここは少し混ざるだけ
         s.charger = { 60.0f, 0.08f, 0.18f, 480.0f };      // 砂漠の主力 = 突撃兵（開けた砂地を突っ込んでくる。2026-10-08）
+        s.spikeBall = { 45.0f, 0.06f, 0.14f, 480.0f };   // トゲ玉（2026-10-17）：45 秒から 6% → 8 分で 14%
+        s.burrower = { 90.0f, 0.05f, 0.12f, 480.0f };    // 砂潜り（2026-10-17）：90 秒から 5% → 8 分で 12%
+        s.sandMage = { 120.0f, 0.04f, 0.10f, 480.0f };   // 砂嵐の術師（2026-10-17）：2 分から 4% → 8 分で 10%
         return s;
     }
 
@@ -73,7 +76,7 @@ namespace
         s.light.fogEnd = 70.0f;
         s.light.fogMax = 0.92f;
         s.grass = false;
-        s.difficultyBonus = 1.2f;
+        s.difficultyTimeOffsetMin = 20.0f; s.difficultyHpMul = 2.8f; s.difficultyDamageMul = 1.6f; s.difficultySpawnMul = 1.3f;   // ×6 / ×2.4 / ×1.6 は壁（curve 持ち越しで 1 秒で死ぬ）、×3.2 / ×1.8 / ×1.35 でも毎秒 12〜51 減る。第 1 面の持ち物での計測なので少し甘く
         s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };
         s.shield = { 60.0f, 0.08f, 0.18f, 480.0f };       // 遺跡の主力 = 盾兵（2026-10-08）
         s.torchLights = 12;

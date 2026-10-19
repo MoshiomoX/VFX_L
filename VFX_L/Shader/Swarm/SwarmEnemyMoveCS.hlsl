@@ -164,7 +164,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // in) is walked toward the nearest free cell instead, ignoring the
         // walls on the way (they are what it is escaping from).
         float2 from = e.position.xz;
-        if (enemyExtra[i].kind == SWARM_KIND_GHOST)
+        if (SwarmIsGhost(enemyExtra[i].kind) || enemyExtra[i].kind == SWARM_KIND_TORNADO)   // the tornado flies like a ghost (2026-10-17)
         {
             // ghost: flies straight, through walls and over plateaus (y still follows the ground below)
             e.position.xz = from + e.velocity.xz * g_Step;
@@ -266,7 +266,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 }
             }
         }
-        if (enemyExtra[i].kind == SWARM_KIND_GHOST)
+        if (SwarmIsGhost(enemyExtra[i].kind) || enemyExtra[i].kind == SWARM_KIND_TORNADO)   // the tornado flies like a ghost (2026-10-17)
         {
             // ghosts hover over everything: snap to the ground below, no falling
             e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
@@ -302,5 +302,6 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 dp = e.position - g_PlayerPos;
     float dist = sqrt(dp.x * dp.x + dp.z * dp.z);
     uint key = (asuint(dist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK);
-    counters.InterlockedMin(SWARM_CNT_NEAREST_KEY, key, prev);
+    if (!SwarmUntargetable(enemyExtra[i]))   // a burrower under the sand / a tornado is not a target (2026-10-17)
+        counters.InterlockedMin(SWARM_CNT_NEAREST_KEY, key, prev);
 }

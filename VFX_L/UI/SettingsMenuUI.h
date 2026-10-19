@@ -1,7 +1,7 @@
 // ============================================================
 // SettingsMenuUI.h
 // 一時停止メニューの「設定」ページ（2026-10-07 ユーザー：音量とアウトラインの ON / OFF をプレイヤーが選べるように）。
-//   行 = 主音量 / 効果音 / 音楽 / UI の音（0〜100 のスライダー）、敵味方の縁取り（オン / オフ。10-08 からトゥーンの黒い線は消さない）、戻る。
+//   行 = 主音量 / 効果音 / 音楽 / UI の音（0〜100 のスライダー）、敵味方の縁取り（オン / オフ。10-08 からトゥーンの黒い線は消さない）、ダメージの数字（オン / オフ、2026-10-19）、戻る。
 //   キー   : W S / 上下で行を選ぶ、A D / 左右で値を変える（押しっぱなしで連続）、Enter で切替 / 戻る
 //   パッド : 十字の上下左右、A で切替 / 戻る、B で戻る
 //   マウス : 動かした時だけ行を選ぶ。◀ ▶ をクリックで 1 段、スライダーの上をクリック / ドラッグで直接
@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+class GameSettings;
 class SpriteRenderer;
 class TextRenderer;
 class Texture;
@@ -50,6 +51,7 @@ private:
         std::wstring label;
         Kind kind = Kind::Volume;
         int  bus = 0;      // Kind::Volume：AudioSystem::Bus
+        bool GameSettings::* flag = nullptr;   // Kind::Toggle：GameSettings のどの値か（2026-10-19）
     };
 
     float GetValue(const Row& r) const;  // Volume 0〜1 / Toggle 0 or 1

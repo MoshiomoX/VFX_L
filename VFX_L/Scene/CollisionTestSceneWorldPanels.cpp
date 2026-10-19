@@ -91,6 +91,14 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
+        // ---- ダメージの数字（GPU 側のまとめ方。見た目は GameUI の Damage Numbers。2026-10-17）----
+        if (ImGui::TreeNode("Damage Text (GPU)"))
+        {
+            ImGui::Checkbox("Enabled##dtx", &m_Swarm.damageText.enabled);
+            ImGui::DragFloat("Merge Window (s)", &m_Swarm.damageText.merge, 0.01f, 0.0f, 1.0f);
+            ImGui::DragFloat("Poison Merge (s)", &m_Swarm.damageText.poisonMerge, 0.01f, 0.0f, 3.0f);
+            ImGui::TreePop();
+        }
         // ---- 死んだ敵の砕け散り（2026-10-02）----
         if (ImGui::TreeNode("Death Shatter"))
         {

@@ -93,6 +93,20 @@ static const uint SWARM_KIND_SPLITLING = 6u; // small child of a splitter, does 
 static const uint SWARM_KIND_BRUTE = 7u;     // heavy mob: 3x hp, slow, big; replaces mobs from minute 4 (2026-10-07)
 static const uint SWARM_KIND_CHARGER = 8u;   // stops, winds up (red band on the ground), dashes in a locked line (2026-10-08)
 static const uint SWARM_KIND_SHIELD = 9u;    // every hit loses g_ShieldArmor (at least g_ShieldMinFrac goes through) (2026-10-08)
+static const uint SWARM_KIND_SPIKEBALL = 10u; // desert spike ball (2026-10-17): thick, slow, rolls; touching it throws the player (ContactCS -> playerHits spike slot). Never flinches, cannot be blown away
+static const uint SWARM_KIND_BURROWER = 11u;  // desert burrower (2026-10-17): travels under the sand (only a mound shows, cannot be hit, does not bite), surfaces next to the player for g_BurrowSurfaceTime, then digs in again. fuse > 0 = seconds left on the surface, <= 0 = -(seconds buried)
+static const uint SWARM_KIND_SANDMAGE = 12u;  // desert sand mage (2026-10-17): keeps its distance, winds up and casts a tornado (castEvents -> CPU spawns a SWARM_KIND_TORNADO). fuse > 0 = seconds into the wind-up, < 0 = cooldown left, 0 = ready
+static const uint SWARM_KIND_TORNADO = 13u;   // the sand mage's tornado (2026-10-17): an "enemy projectile". Flies straight along its yaw (through walls like a ghost), cannot be hit or targeted, throws the player up on touch, dies when fuse runs out. fuse = seconds left (0 = just spawned, < 0 = expired)
+static const uint SWARM_KIND_DASHBOMBER = 15u; // dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger, then sprints at the player (re-aimed every step) and blows up on touch or when g_DashBomberFuse runs out (ContactCS). fuse > 0 = seconds since lit (AICS counts). Invulnerable while lit, like the bomber
+static const uint SWARM_KIND_DARKGHOST = 14u; // final-swarm dark ghost (2026-10-18, Megabonk's black ghost): a ghost with huge hp, faster than the player, bigger, hits x g_DarkGhostDamageMul and knocks back like a blast. Flies through walls like the white ghost; neither ghost flinches, freezes, slows or gets blown away
+
+// both final-swarm ghosts (2026-10-18): fly straight at the player through walls and plateaus (AICS / MoveCS / PushCS),
+// never flinch (HitCS / AreaDamageCS), never slowed / frozen (AICS), never pushed by the gust (SwarmPushKindMul),
+// never recycled (RecycleCS). Drawn translucent from the ghost list (CompactCS)
+bool SwarmIsGhost(uint kind)
+{
+    return kind == SWARM_KIND_GHOST || kind == SWARM_KIND_DARKGHOST;
+}
 
 struct SwarmEnemyExtra
 {
@@ -203,6 +217,34 @@ static const uint SWARM_SPAWN_AT_POS = 1u;
 // Must match Swarm::kSpawnBoostShift / PackSpawnBoost in SwarmTypes.h
 // ------------------------------------------------------------
 static const uint SWARM_SPAWN_BOOST_SHIFT = 8u;
+
+// ------------------------------------------------------------
+// Chain rune (2026-10-16): a shot with chains left is not consumed by a
+// live hit. ProjMoveCS then aims it at the nearest other enemy within
+// SWARM_CHAIN_RADIUS and builds a new curve from where it is.
+// HitCS has no UAV left for a per-slot buffer, so the chain state rides
+// in projStates (every other reader only tests == / != SWARM_DEAD):
+//   bit 31     : SWARM_PROJ_CHAINED (an alive value, never SWARM_DEAD)
+//   bit 30     : SWARM_PROJ_CHAIN_PENDING: HitCS hit something this step,
+//                ProjMoveCS has to pick the next enemy (and clears it)
+//   bits 16-23 : chains left
+//   bits 0-15  : the enemy hit last (skipped by HitCS. 0xFFFF = none)
+// The count arrives in the spawn request's pathT (unused there:
+// SpawnProjCS overwrites it). SwarmSystem::SpawnProjectile(chainCount)
+// ------------------------------------------------------------
+static const uint SWARM_PROJ_CHAINED = 0x80000000u;
+static const uint SWARM_PROJ_CHAIN_PENDING = 0x40000000u;
+static const uint SWARM_PROJ_CHAIN_LEFT_SHIFT = 16u;
+static const uint SWARM_PROJ_CHAIN_LEFT_MASK = 0xFFu;
+static const uint SWARM_PROJ_CHAIN_LAST_MASK = 0xFFFFu;
+static const uint SWARM_PROJ_CHAIN_NO_LAST = 0xFFFFu;
+static const float SWARM_CHAIN_RADIUS = 8.0;
+uint SwarmProjChainState(uint left, uint lastHit)
+{
+    return SWARM_PROJ_CHAINED
+         | ((left & SWARM_PROJ_CHAIN_LEFT_MASK) << SWARM_PROJ_CHAIN_LEFT_SHIFT)
+         | (lastHit & SWARM_PROJ_CHAIN_LAST_MASK);
+}
 
 // ------------------------------------------------------------
 // A dead enemy shattering into its rigid parts (2026-10-02).
@@ -432,11 +474,70 @@ float SwarmAreaPush(uint flags)
     return (float) ((flags >> SWARM_AREA_BEAM_SHIFT) & 0xFu) / 15.0;
 }
 
+// burrower under the sand: cannot be hit, does not bite, is not targeted (2026-10-17)
+static const float SWARM_BURROW_RISE_TIME = 0.3; // seconds the body takes to rise out / sink in (look only)
+bool SwarmBuried(SwarmEnemyExtra ex)
+{
+    return ex.kind == SWARM_KIND_BURROWER && ex.fuse <= 0.0;
+}
+// a bomber / dash bomber whose fuse is lit (2026-10-18, user: "every enemy is invulnerable while blowing itself up"):
+// takes no damage (HitCS / AreaDamageCS skip it through SwarmUntargetable), never flinches, is not slowed / frozen (AICS).
+// Before it is lit it dies like any mob
+bool SwarmInvulnerable(SwarmEnemyExtra ex)
+{
+    return (ex.kind == SWARM_KIND_BOMBER || ex.kind == SWARM_KIND_DASHBOMBER) && ex.fuse > 0.0;
+}
+// cannot be hit by anything, is not targeted by spells / beams / the nearest-enemy search, has no HP bar:
+// a buried burrower, the sand mage's tornado (2026-10-17), a lit bomber / dash bomber (2026-10-18)
+bool SwarmUntargetable(SwarmEnemyExtra ex)
+{
+    return SwarmBuried(ex) || ex.kind == SWARM_KIND_TORNADO || SwarmInvulnerable(ex);
+}
+
 float SwarmPushKindMul(uint kind)
 {
     if (kind == SWARM_KIND_BOSS) return 0.0;
+    if (kind == SWARM_KIND_SPIKEBALL) return 0.0; // too heavy to blow away
+    if (kind == SWARM_KIND_BURROWER) return 0.0;  // under the sand
+    if (kind == SWARM_KIND_TORNADO) return 0.0;   // wind does not push wind
+    if (SwarmIsGhost(kind)) return 0.0;           // the final swarm cannot be blown away (2026-10-18)
     if (kind == SWARM_KIND_ELITE) return 0.5;
     return 1.0;
+}
+
+// ------------------------------------------------------------
+// Per-area extras packed into SwarmArea.tickNow (2026-10-17, the Swamp
+// and the poison pool). The 48-byte SwarmArea has no spare field and its flags
+// are full, so the high bits of tickNow carry two more per-area values.
+// AreaTickCS owns the low byte (tick state) and never touches the rest;
+// the spawners put SwarmAreaDef.extra (GPU) / the request's tickNow (CPU,
+// AreaProfile::Extra) there. Must match Swarm::kAreaExtra* in SwarmTypes.h
+//   bit 0     : SWARM_AREA_TICK_NOW   deals damage this step
+//   bit 1     : SWARM_AREA_TICK_FIRST this step is the area's first tick
+//   bit 2     : SWARM_AREA_TICK_SEEN  has ticked before (persistent)
+//   bits 8-11 : toxin q / 15: this share of a tick's damage is not dealt at
+//               once but stored on the enemy (enemyPoison) and drained over
+//               SWARM_TOXIN_TIME. Areas with toxin do not stack on one enemy:
+//               the strongest one counts (the poison pools)
+//   bit 12    : SWARM_AREA_EXTRA_SPLASH: damage only on the first tick
+//               (the Swamp: a splash on landing, afterwards only the slow)
+// ------------------------------------------------------------
+static const uint SWARM_AREA_TICK_NOW = 1u;
+static const uint SWARM_AREA_TICK_FIRST = 2u;
+static const uint SWARM_AREA_TICK_SEEN = 4u;
+static const uint SWARM_AREA_TICK_MASK = 0xFFu;
+static const uint SWARM_AREA_EXTRA_TOXIN_SHIFT = 8u;
+static const uint SWARM_AREA_EXTRA_SPLASH = 1u << 12u;
+static const uint SWARM_AREA_EXTRA_ELEMENT_SHIFT = 16u;   // bits 16..19: damage element (damage number colour, 2026-10-17)
+uint SwarmAreaElement(uint tickNow)
+{
+    return (tickNow >> SWARM_AREA_EXTRA_ELEMENT_SHIFT) & 0xFu;
+}
+static const float SWARM_TOXIN_TIME = 1.0; // seconds a dose of toxin takes to drain
+
+float SwarmAreaToxin(uint tickNow)
+{
+    return (float) ((tickNow >> SWARM_AREA_EXTRA_TOXIN_SHIFT) & 0xFu) / 15.0;
 }
 
 static const uint SWARM_HITAREA_ON_EXPIRE = 1u; // SwarmMotion.hitAreaFlags
@@ -451,6 +552,21 @@ static const uint SWARM_HITAREA_HOLD_SHIFT = 8u;
 static const uint SWARM_HITAREA_HOLD_MASK = 0xFFu;
 static const float SWARM_HITAREA_HOLD_UNIT = 0.02;
 static const uint SWARM_HITAREA_EASE_IN = 1u << 16u;
+// bits 20..23: the damage element of the shot (0 none, 1 fire, 2 ice, 3 lightning, 4 arcane, 5 earth, 6 poison, 7 wind, 8 light).
+// Only the colour of the damage number (2026-10-17): HitCS stores it in the enemy's state word, SwarmDamageTextCS reads it
+static const uint SWARM_HITAREA_ELEMENT_SHIFT = 20u;
+uint SwarmMotionElement(SwarmMotion m)
+{
+    return (m.hitAreaFlags >> SWARM_HITAREA_ELEMENT_SHIFT) & 0xFu;
+}
+// enemy state word: SWARM_DEAD / SWARM_ALIVE in the low byte, bits 8..11 = element of the last hit (damage number colour).
+// Every reader compares against SWARM_DEAD only; the damage passes write the element with a CAS so a DEAD written
+// meanwhile by the killer is never overwritten
+static const uint SWARM_STATE_ELEMENT_SHIFT = 8u;
+uint SwarmStateElement(uint state)
+{
+    return (state >> SWARM_STATE_ELEMENT_SHIFT) & 0xFu;
+}
 static const float SWARM_HOLD_FORWARD = 1.0; // a held shot is born this far ahead of the muzzle (m)
 float SwarmMotionHold(SwarmMotion m)
 {
@@ -470,7 +586,7 @@ struct SwarmArea
     float halfHeight;
     uint flags; // bits 0-15 = SWARM_AREA_*, 16-31 = size scale (SwarmAreaScale)
     uint vfxType; // recipe index for GPU-side particles. 0 = none (the CPU plays the VFX)
-    uint tickNow; // 1 while this step deals damage. written by AreaTickCS
+    uint tickNow; // low byte = tick state (SWARM_AREA_TICK_*, written by AreaTickCS), high bits = extras set at spawn (toxin, splash)
 };
 
 // size scale of an area (1 = as authored). radius / halfHeight already include it
@@ -489,7 +605,7 @@ struct SwarmAreaDef
     float tickInterval;
     uint flags;
     uint vfxType;
-    uint _pad;
+    uint extra; // goes to SwarmArea.tickNow (toxin share, splash-only. see SWARM_AREA_EXTRA_*)
 };
 
 // ---- GPU-side spawn ----
@@ -535,7 +651,7 @@ void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint 
     a.flags = (d.flags & 0xFFFFu & ~SWARM_AREA_FOLLOW_PLAYER) // born from a hit: stays where it is
         | (SwarmPackScale(scale, 0xFFFFu) << SWARM_SCALE_SHIFT);
     a.vfxType = d.vfxType;
-    a.tickNow = 0u;
+    a.tickNow = d.extra & ~SWARM_AREA_TICK_MASK; // extras only; the tick state starts clean
 
     uint start = (salt * 97u) % SWARM_MAX_AREAS;
     for (uint k = 0; k < SWARM_MAX_AREAS; ++k)
@@ -734,6 +850,58 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_FreezeBigMul;         // elites / the boss freeze this much shorter
     float g_FreezeImmunity;       // seconds after a thaw with no new freeze
     float g_FreezeTint;           // VS: how icy a frozen body looks (0 = no tint)
+    // ---- spike ball (SWARM_KIND_SPIKEBALL, 2026-10-17) ----
+    float g_SpikeBallScale;
+    float g_SpikeBallDamageMul;
+    float g_SpikeBallExpMul;
+    float _spikeBallPad;
+    // ---- burrower (SWARM_KIND_BURROWER, 2026-10-17) ----
+    float g_BurrowScale;
+    float g_BurrowDamageMul;
+    float g_BurrowExpMul;
+    float g_BurrowSurfaceDist;     // surfaces when the player is within this (m)
+
+    float g_BurrowSurfaceTime;     // seconds on the surface
+    float g_BurrowMinBuried;       // must stay under at least this long before surfacing again
+    float g_BurrowBuriedSpeedMul;  // speed under the sand
+    float g_BurrowSurfaceSpeedMul; // speed while out
+
+    float g_BurrowBiteRadius;      // the one bite on surfacing reaches this far (m, from the body centre)
+    float g_BurrowBiteDelay;       // seconds after surfacing before the bite lands (the body rises first)
+    float2 _burrowPad;
+
+    // ---- sand mage (SWARM_KIND_SANDMAGE) and its tornado (SWARM_KIND_TORNADO), 2026-10-17 ----
+    float g_SandMageScale;
+    float g_SandMageDamageMul;     // (it never melees; kept for the kind table)
+    float g_SandMageExpMul;
+    float g_SandMageKeepMin;       // closer than this: backs away from the player (m)
+
+    float g_SandMageKeepMax;       // farther than this: walks toward the player; between = stands and casts
+    float g_SandMageCastRange;     // casts only with the player within this (m)
+    float g_SandMageWindup;        // seconds standing still before the tornado leaves (the body glows)
+    float g_SandMageCooldown;      // seconds between casts
+
+    float g_TornadoScale;          // body size of the tornado (hit radius = g_EnemyRadius x this)
+    float g_TornadoDamageMul;      // contact damage x this when it catches the player
+    float g_TornadoExpMul;         // unused (it is never killed by the player)
+    float g_TornadoLife;           // seconds it travels before it blows out
+
+    // ---- dark ghost (SWARM_KIND_DARKGHOST, 2026-10-18) ----
+    float g_DarkGhostScale;        // body size (the white ghost is 1)
+    float g_DarkGhostDamageMul;    // melee damage = g_ContactDamage * this (the white ghost uses g_GhostDamageMul)
+    float g_DarkGhostExpMul;       // its orb, should anyone kill one
+    float g_DarkGhostAlpha;        // VS: vertex alpha (more opaque than the white ghost)
+
+    // ---- dash bomber (SWARM_KIND_DASHBOMBER, 2026-10-18) ----
+    float g_DashBomberScale;       // body size
+    float g_DashBomberDamageMul;   // blast damage = g_BomberBlastDamage * this (it never melees)
+    float g_DashBomberExpMul;      // its orb (only if killed before it lights)
+    float g_DashBomberTrigger;     // lights itself with the player within this (m, on its level)
+
+    float g_DashBomberFuse;        // seconds from lighting to the blast if it never touches the player
+    float g_DashBomberDashSpeed;   // m/s while lit (AICS, re-aimed at the player every step)
+    float g_DashBomberBlastRadius; // m (the look reuses g_BomberBlastArea scaled by radius / g_BomberBlastRadius)
+    float _dashBomberPad;
 };
 
 // body size multiplier of a kind (radius and model)
@@ -745,7 +913,13 @@ float SwarmKindScale(uint kind)
          : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingScale
          : (kind == SWARM_KIND_BRUTE) ? g_BruteScale
          : (kind == SWARM_KIND_CHARGER) ? g_ChargerScale
-         : (kind == SWARM_KIND_SHIELD) ? g_ShieldScale : 1.0;
+         : (kind == SWARM_KIND_SHIELD) ? g_ShieldScale
+         : (kind == SWARM_KIND_SPIKEBALL) ? g_SpikeBallScale
+         : (kind == SWARM_KIND_BURROWER) ? g_BurrowScale
+         : (kind == SWARM_KIND_SANDMAGE) ? g_SandMageScale
+         : (kind == SWARM_KIND_TORNADO) ? g_TornadoScale
+         : (kind == SWARM_KIND_DARKGHOST) ? g_DarkGhostScale
+         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberScale : 1.0;
 }
 
 // melee damage multiplier of a kind (times g_ContactDamage)
@@ -758,7 +932,13 @@ float SwarmKindDamageMul(uint kind)
          : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingDamageMul
          : (kind == SWARM_KIND_BRUTE) ? g_BruteDamageMul
          : (kind == SWARM_KIND_CHARGER) ? g_ChargerDamageMul
-         : (kind == SWARM_KIND_SHIELD) ? g_ShieldDamageMul : 1.0;
+         : (kind == SWARM_KIND_SHIELD) ? g_ShieldDamageMul
+         : (kind == SWARM_KIND_SPIKEBALL) ? g_SpikeBallDamageMul
+         : (kind == SWARM_KIND_BURROWER) ? g_BurrowDamageMul
+         : (kind == SWARM_KIND_SANDMAGE) ? g_SandMageDamageMul
+         : (kind == SWARM_KIND_TORNADO) ? g_TornadoDamageMul
+         : (kind == SWARM_KIND_DARKGHOST) ? g_DarkGhostDamageMul
+         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberDamageMul : 1.0;
 }
 
 // exp orb value multiplier of a kind (times g_OrbAmount)
@@ -770,7 +950,23 @@ float SwarmKindExpMul(uint kind)
          : (kind == SWARM_KIND_SPLITLING) ? g_SplitlingExpMul
          : (kind == SWARM_KIND_BRUTE) ? g_BruteExpMul
          : (kind == SWARM_KIND_CHARGER) ? g_ChargerExpMul
-         : (kind == SWARM_KIND_SHIELD) ? g_ShieldExpMul : 1.0;
+         : (kind == SWARM_KIND_SHIELD) ? g_ShieldExpMul
+         : (kind == SWARM_KIND_SPIKEBALL) ? g_SpikeBallExpMul
+         : (kind == SWARM_KIND_BURROWER) ? g_BurrowExpMul
+         : (kind == SWARM_KIND_SANDMAGE) ? g_SandMageExpMul
+         : (kind == SWARM_KIND_TORNADO) ? g_TornadoExpMul
+         : (kind == SWARM_KIND_DARKGHOST) ? g_DarkGhostExpMul
+         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberExpMul : 1.0;
+}
+
+// kinds that never take the hit stun (HitCS / AreaDamageCS): the boss (it would be pinned by the constant
+// fire), the spike ball, a charger that has started its wind-up (MoveCS would stop the dash on every hit),
+// and both final-swarm ghosts (2026-10-18: the swarm must not be held off by fire)
+bool SwarmNoFlinch(SwarmEnemyExtra extra)
+{
+    uint kind = extra.kind;
+    return (kind == SWARM_KIND_BOSS) || (kind == SWARM_KIND_SPIKEBALL) || SwarmIsGhost(kind)
+        || (kind == SWARM_KIND_CHARGER && extra.fuse > 0.0) || SwarmInvulnerable(extra);
 }
 
 // damage one hit (a projectile, one area tick) really does to this kind.

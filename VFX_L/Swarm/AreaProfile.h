@@ -51,6 +51,10 @@ struct AreaProfile
     float push = 0.0f;             // tick で中の敵をプレイヤーから離れる方へ吹き飛ばす強さ（0〜1、15 段階。1 = 約 3.5m。エリート半分・ボス 0。
                                    // flags の光線チャンネルの 4 bit を使うので光線（Beam）とは併用不可。2026-10-12 突風）
     float forward = 0.0f;          // プレイヤーの位置に出す時、一番近い敵の方へこれだけ（m）寄せる（突風の「前に吹く」感じ。標的が居なければ 0）
+    float toxin = 0.0f;            // 1 tick の威力のうちこの割合（0〜1、15 段階）はすぐに与えず「毒素」として敵に溜め、1 秒かけて削る（2026-10-17 猛毒の沼）。
+                                   // 毒素を持つ範囲は同じ敵に重ならない（一番強い 1 つだけ）
+    bool  splashOnly = false;      // 最初の tick だけダメージ、残りの tick は減速などだけ（泥沼：落ちた時の飛沫。2026-10-17）
+    int   element = 0;             // ダメージの属性（Swarm::DamageElement。json "element"。ダメージの数字の色だけ。2026-10-17）
 
     // ---- Beam のみ ----
     float length = 18.0f;          // 射程（m）。地形に当たればそこまで
@@ -72,6 +76,8 @@ struct AreaProfile
     float EffectiveTickInterval() const { return (kind == Kind::OneShot) ? 1.0e9f : tickInterval; }
     bool  IsBeam() const { return kind == Kind::Beam; }
     uint32_t Flags(bool atCaster) const;
+    // 追加値（毒素の割合・飛沫だけ）。Area::tickNow の上位 / AreaDef::extra に入れる（Swarm::kAreaExtra*）
+    uint32_t Extra() const;
 
     // CPU から出す時の形。vfxType は 0（見た目は CPU が再生する）
     Swarm::Area MakeArea(const DirectX::SimpleMath::Vector3& center, bool atCaster) const;

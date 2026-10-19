@@ -123,6 +123,9 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     // 吹き飛ばし（突風。float4 = 速度 xz・残り秒。2026-10-12）
     if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
         m_EnemyPushBuffer, m_EnemyPushUAV, m_EnemyPushSRV, "enemyPush")) return false;
+    // 毒素（毒沼。float4 = 残りダメージ・毎秒の削り・経過秒。2026-10-17）
+    if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
+        m_EnemyPoisonBuffer, m_EnemyPoisonUAV, m_EnemyPoisonSRV, "enemyPoison")) return false;
 
     if (!makeStructured(sizeof(Swarm::Projectile), Swarm::kMaxProjectiles,
         m_ProjBuffer, m_ProjUAV, m_ProjSRV, "projectile")) return false;
@@ -394,6 +397,31 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_SplitEvents.clear();
     }
     {
+        // ダメージの数字（2026-10-17）：槽毎の前フレームの hp・溜め、環（先頭 16B = 総数 + 16B × kMaxDamageTexts）と staging
+        if (!makeState(Swarm::kMaxEnemies, m_EnemyPrevHpBuffer, m_EnemyPrevHpUAV, m_EnemyPrevHpSRV, "prevHp")) return false;
+        if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
+            m_DamagePendingBuffer, m_DamagePendingUAV, m_DamagePendingSRV, "damagePending")) return false;
+        const UINT bytes = 16u + sizeof(Swarm::DamageText) * Swarm::kMaxDamageTexts;
+        if (!makeRaw(bytes, m_DamageTextBuffer, m_DamageTextUAV, "damageText")) return false;
+        const UINT zero[4] = { 0, 0, 0, 0 };
+        m_Context->ClearUnorderedAccessViewUint(m_DamageTextUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevHpUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_DamagePendingUAV.Get(), zero);
+
+        D3D11_BUFFER_DESC sd = {};
+        sd.ByteWidth = bytes;
+        sd.Usage = D3D11_USAGE_STAGING;
+        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        for (int i = 0; i < kTriggerStaging; ++i)
+        {
+            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_DamageTextStaging[i]))) return false;
+            m_DamageTextStagingFilled[i] = false;
+        }
+        m_DamageTextStagingWrite = 0;
+        m_DamageTextRead = 0;
+        m_DamageTexts.clear();
+    }
+    {
         // 地面の警告の輪（CPU が毎フレーム書く。動的の StructuredBuffer）
         D3D11_BUFFER_DESC bd = {};
         bd.ByteWidth = sizeof(WarnCircle) * kMaxWarnCircles;
@@ -481,6 +509,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_EnemyExtraUAV.Get(), zero);   // 雑魚・未点火
         m_Context->ClearUnorderedAccessViewUint(m_EnemySlowUAV.Get(), zero);    // 減速なし（0.0f）
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPushUAV.Get(), zero);    // 吹き飛ばしなし
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyPoisonUAV.Get(), zero);  // 毒素なし
         m_Context->ClearUnorderedAccessViewUint(m_SpriteUAV.Get(), zero);       // alive = 0
         m_Context->ClearUnorderedAccessViewUint(m_SpriteHeadUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevAliveUAV.Get(), zero);   // 全員「前は死んでいた」
@@ -701,6 +730,7 @@ bool SwarmSystem::BuildVFXTable()
     const bool ok = m_VFX.Build(m_Device, m_Particles);
     // 吸い寄せ中のオーブの尾。json が無い・読めない時は 0（尾が出ないだけ）
     m_OrbTrailVfx = m_VFX.IndexOf(VFXId::ExpOrbTrail);
+    m_TornadoDustVfx = m_VFX.IndexOf(VFXId::TornadoDust);   // 砂旋の足元の砂埃（2026-10-19）
     return ok;
 }
 
@@ -710,12 +740,13 @@ bool SwarmSystem::BuildVFXTable()
 //   state buffer 側で InterlockedCompareExchange して立てる
 // ============================================================
 // ※種類は依頼の animIndex に入れて運ぶ（SpawnEnemyCS / RecycleCS が並行バッファへ移す）
-void SwarmSystem::SpawnEnemy(const Vector3& pos, float hp, float moveSpeed, uint32_t kind)
+void SwarmSystem::SpawnEnemy(const Vector3& pos, float hp, float moveSpeed, uint32_t kind, float yaw)
 {
     if (m_PendingEnemies.size() >= Swarm::kMaxSpawnEnemyPerFrame) return;
 
     Swarm::Enemy e = {};
     e.position = pos;
+    e.yaw = yaw;   // SpawnEnemyCS は依頼をそのまま槽へ写すので残る（砂旋の飛ぶ向き。2026-10-17）
     e.hp = Swarm::HpToFixed(hp);
     e.moveSpeed = moveSpeed;
     e.animIndex = kind;
@@ -733,7 +764,7 @@ void SwarmSystem::RecycleEnemy(const Vector3& pos, float hp, float moveSpeed, ui
 }
 void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& vel,
     float damage, float radius, float lifetime, uint32_t motion, bool mirror,
-    uint32_t triggerTag, bool spawnAtPos, float areaDamageMul, float areaDurationMul, uint32_t roll)
+    uint32_t triggerTag, bool spawnAtPos, float areaDamageMul, float areaDurationMul, uint32_t roll, uint32_t chainCount)
 {
     if (m_PendingProjectiles.size() >= Swarm::kMaxSpawnProjPerFrame) return;
 
@@ -747,6 +778,8 @@ void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& 
     // 表の外は直進へ落とす。bit31 は SpawnProjCS が剥がす
     p.motion = (motion < Swarm::kMaxMotions) ? motion : 0u;
     if (mirror) p.motion |= Swarm::kMotionFlipBit;
+    // 連鎖のルーン: 跳ぶ回数は依頼の pathT で渡す（SpawnProjCS が読んでから 0 / -hold に戻す）
+    p.pathT = (float) (std::min) (chainCount, 255u);
     m_PendingProjectiles.push_back(p);
     m_PendingProjExtra.push_back(triggerTag);
     m_PendingProjExtra.push_back((spawnAtPos ? Swarm::kSpawnAtPos : 0u)
@@ -831,6 +864,7 @@ void SwarmSystem::DispatchBeamTargets()
     m_BeamTargetCS->Bind(m_Context);
     m_BeamTargetCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_BeamTargetCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_BeamTargetCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 潜っている砂潜りは狙わない（2026-10-17）
     m_BeamTargetCS->SetUAV(m_Context, "beamTargets", m_BeamTargetUAV.Get());
     m_BeamTargetCS->BindUAVs(m_Context);
     m_Context->Dispatch(Swarm::kMaxBeams, 1, 1);
@@ -965,6 +999,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     ReadBeamTargets();
     ReadTriggerEvents();
     ReadSplitEvents();
+    ReadDamageTexts();
     if (m_MagnetTimer > 0.0f) m_MagnetTimer -= dt;
 
     // ---- 2) 定数と生成依頼を上げる ----
@@ -1002,6 +1037,8 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
 
     // 死んだ敵の砕け散り（このフレームの固定ステップで死んだ物を環へ。描く一覧も作る）
     DispatchCorpses();
+    // ダメージの数字（槽毎の hp の減り → 環。2026-10-17）
+    DispatchDamageText(dt);
 
     // ---- 5) counter の写しを発行（CopyResource だけ。待たない）----
     RequestReadback();
@@ -1183,6 +1220,7 @@ void SwarmSystem::UploadSpawns()
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());   // 種類・導火線
             m_SpawnEnemyCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());     // 新しい敵は減速なし
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());     // 吹き飛ばしもなし
+            m_SpawnEnemyCS->SetUAV(m_Context, "enemyPoison", m_EnemyPoisonUAV.Get()); // 毒素もなし
             m_SpawnEnemyCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((newCount + 63) / 64, 1, 1);
@@ -1213,6 +1251,7 @@ void SwarmSystem::UploadSpawns()
             m_RecycleCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());     // 種類も差し替え、導火線は消える
             m_RecycleCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());       // 減速も消える
             m_RecycleCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());
+            m_RecycleCS->SetUAV(m_Context, "enemyPoison", m_EnemyPoisonUAV.Get());
             m_RecycleCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1287,6 +1326,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyAICS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());    // 崖は壁と同じく止める
         m_EnemyAICS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyAICS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 毒の池の減速・凍結（数え下げる）
+        m_EnemyAICS->SetUAV(m_Context, "castEvents", m_SplitUAV.Get());     // 砂嵐の術師の詠唱 → 分裂の環（CPU が砂旋を湧かせる。2026-10-17）
         m_EnemyAICS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1347,6 +1387,7 @@ void SwarmSystem::DispatchStep()
         m_ProjMoveCS->SetSRV(m_Context, "motions", m_MotionSRV.Get());
         m_ProjMoveCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
         m_ProjMoveCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_ProjMoveCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 潜っている砂潜りは狙わない（2026-10-17）
         m_ProjMoveCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 斜面に潜ったら命中
         m_ProjMoveCS->SetUAV(m_Context, "paths", m_PathUAV.Get());
         // 寿命切れ・壁で範囲を出すプロファイル用
@@ -1446,6 +1487,7 @@ void SwarmSystem::DispatchStep()
         m_AreaDamageCS->SetUAV(m_Context, "orbStates", m_OrbStateUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 減速の範囲が tick したら書く
         m_AreaDamageCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());   // 吹き飛ばす範囲（突風）が tick したら書く
+        m_AreaDamageCS->SetUAV(m_Context, "enemyPoison", m_EnemyPoisonUAV.Get()); // 毒素：範囲の tick で盛り、毎ステップ削る（毒沼）
         m_AreaDamageCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
         m_AreaDamageCS->UnbindSRVs(m_Context);
@@ -1580,6 +1622,8 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
 
     // ---- 燃えている草（GrassFireField）。予約は上に続けて積む ----
     DispatchFireEmit(dt, totalTime);
+    // ---- 砂旋の足元の砂埃（2026-10-19）----
+    DispatchTornadoEmit(dt, totalTime);
 
     // ---- 吸い寄せ中の経験値オーブの尾 ----
     // 弾・範囲の後に回す：空きが足りない時に削られるのは見た目だけのこちら
@@ -1709,6 +1753,7 @@ void SwarmSystem::DispatchCorpses()
     m_CorpseListCS->SetUAV(m_Context, "bruteCorpses", m_CorpseListUAV[Swarm::kDrawListBrute].Get(), 0);
     m_CorpseListCS->SetUAV(m_Context, "chargerCorpses", m_CorpseListUAV[Swarm::kDrawListCharger].Get(), 0);
     m_CorpseListCS->SetUAV(m_Context, "shieldCorpses", m_CorpseListUAV[Swarm::kDrawListShield].Get(), 0);
+    m_CorpseListCS->SetUAV(m_Context, "burrowerCorpses", m_CorpseListUAV[Swarm::kDrawListBurrower].Get(), 0);   // 2026-10-17
     m_CorpseListCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxCorpses + 63) / 64, 1, 1);
     m_CorpseListCS->UnbindSRVs(m_Context);
@@ -1899,6 +1944,13 @@ void SwarmSystem::RequestReadback()
         m_SplitStagingFilled[m_SplitStagingWrite] = true;
         m_SplitStagingWrite = (m_SplitStagingWrite + 1) % kTriggerStaging;
     }
+    // ダメージの数字の環も（2026-10-17）
+    if (m_DamageTextBuffer)
+    {
+        m_Context->CopyResource(m_DamageTextStaging[m_DamageTextStagingWrite].Get(), m_DamageTextBuffer.Get());
+        m_DamageTextStagingFilled[m_DamageTextStagingWrite] = true;
+        m_DamageTextStagingWrite = (m_DamageTextStagingWrite + 1) % kTriggerStaging;
+    }
 }
 
 // ============================================================
@@ -1962,6 +2014,57 @@ void SwarmSystem::ReadSplitEvents()
 }
 
 // ============================================================
+// ダメージの数字（2026-10-17）。槽毎に hp の減りを溜め、merge 秒で 1 件にして環へ。死んだ槽は残りを「倒した」で出す
+// ============================================================
+void SwarmSystem::DispatchDamageText(float dt)
+{
+    if (!m_DamageTextCS || !m_DamageTextBuffer) return;
+    DamageTextCB cb = { dt, damageText.merge, damageText.enabled ? 1u : 0u, damageText.poisonMerge };
+    m_DamageTextCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+    m_DamageTextCS->WriteBuffer(m_Context, 2, &m_CachedAICB);       // 体の半径（頭の高さ）
+    m_DamageTextCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 体格
+    m_DamageTextCS->WriteBuffer(m_Context, 4, &cb);
+    m_DamageTextCS->Bind(m_Context);
+    m_DamageTextCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_DamageTextCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_DamageTextCS->SetSRV(m_Context, "enemyPoison", m_EnemyPoisonSRV.Get());
+    m_DamageTextCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+    m_DamageTextCS->SetUAV(m_Context, "prevHp", m_EnemyPrevHpUAV.Get());
+    m_DamageTextCS->SetUAV(m_Context, "pending", m_DamagePendingUAV.Get());
+    m_DamageTextCS->SetUAV(m_Context, "dmgEvents", m_DamageTextUAV.Get());
+    m_DamageTextCS->BindUAVs(m_Context);
+    m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
+    m_DamageTextCS->UnbindSRVs(m_Context);
+    m_DamageTextCS->UnbindUAVs(m_Context);
+}
+
+void SwarmSystem::ReadDamageTexts()
+{
+    const int readIndex = m_DamageTextStagingWrite;   // 次に書く = 一番古い
+    if (!m_DamageTextStagingFilled[readIndex] || !m_DamageTextStaging[readIndex]) return;
+
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    const HRESULT hr = m_Context->Map(m_DamageTextStaging[readIndex].Get(), 0,
+        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
+    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
+
+    const auto* bytes = static_cast<const uint8_t*>(mapped.pData);
+    const uint32_t total = *reinterpret_cast<const uint32_t*>(bytes);
+    const auto* ring = reinterpret_cast<const Swarm::DamageText*>(bytes + 16);
+
+    uint32_t from = m_DamageTextRead;
+    if (total - from > Swarm::kMaxDamageTexts) from = total - Swarm::kMaxDamageTexts;   // 溢れた分は捨てる
+    for (uint32_t n = from; n != total; ++n)
+        m_DamageTexts.push_back(ring[n % Swarm::kMaxDamageTexts]);
+    m_DamageTextRead = total;
+
+    m_Context->Unmap(m_DamageTextStaging[readIndex].Get(), 0);
+
+    if (m_DamageTexts.size() > Swarm::kMaxDamageTexts)
+        m_DamageTexts.erase(m_DamageTexts.begin(), m_DamageTexts.end() - Swarm::kMaxDamageTexts);
+}
+
+// ============================================================
 // 地面の警告の輪（CPU から毎フレーム）
 // ============================================================
 void SwarmSystem::SetWarnCircles(const WarnCircle* circles, int count)
@@ -2017,6 +2120,10 @@ void SwarmSystem::ReadPlayerHits()
     p.blastDir += Vector2((float)diff(now.blastX, m_LastPlayerHits.blastX), (float)diff(now.blastZ, m_LastPlayerHits.blastZ)) * s;
     p.melee += now.meleeCount - m_LastPlayerHits.meleeCount;
     p.blasts += now.blastCount - m_LastPlayerHits.blastCount;
+    p.spikeDir += Vector2((float)diff(now.spikeX, m_LastPlayerHits.spikeX), (float)diff(now.spikeZ, m_LastPlayerHits.spikeZ)) * s;   // トゲ玉（2026-10-17）
+    p.spikes += now.spikeCount - m_LastPlayerHits.spikeCount;
+    p.windDir += Vector2((float)diff(now.windX, m_LastPlayerHits.windX), (float)diff(now.windZ, m_LastPlayerHits.windZ)) * s;   // 砂旋（2026-10-17）
+    p.winds += now.windCount - m_LastPlayerHits.windCount;
     m_LastPlayerHits = now;
 }
 
@@ -2095,6 +2202,8 @@ void SwarmSystem::KillAll()
     m_Context->ClearUnorderedAccessViewUint(m_AreaDirUAV.Get(), zero);
     // 「前は生きていた」も消す：全消しで全員が一度に砕け散らないように
     m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevAliveUAV.Get(), zero);
+    m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevHpUAV.Get(), zero);      // ダメージの数字：全消しで「倒した」数字を出さない（2026-10-17）
+    m_Context->ClearUnorderedAccessViewUint(m_DamagePendingUAV.Get(), zero);
     m_PendingAreas.clear();
 
     // まだ GPU に上げていない依頼も捨てる（消した直後に湧き直さないように）
@@ -2219,6 +2328,9 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
         if (m_BomberRingArgs)
             m_Context->CopyStructureCount(m_BomberRingArgs.Get(), sizeof(uint32_t) * 1,
                 m_KindListUAV[Swarm::kDrawListBomber].Get());
+        if (m_DashBomberRingArgs)   // 突撃爆弾兵の警告の輪（2026-10-19）
+            m_Context->CopyStructureCount(m_DashBomberRingArgs.Get(), sizeof(uint32_t) * 1,
+                m_KindListUAV[Swarm::kDrawListDashBomber].Get());
         // 突撃兵の予告の帯・盾兵の盾も一覧の長さだけ
         if (m_ChargeLineArgs)
             m_Context->CopyStructureCount(m_ChargeLineArgs.Get(), sizeof(uint32_t) * 1,
@@ -2226,6 +2338,12 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
         for (auto& args : m_ShieldDrawArgs)
             if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1,
                 m_KindListUAV[Swarm::kDrawListShield].Get());
+        for (auto& args : m_SpikeBallDrawArgs)   // トゲ玉の球（2026-10-17）
+            if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_SpikeBallListUAV.Get());
+        for (auto& args : m_MoundDrawArgs)   // 砂潜りの砂の山（2026-10-17）
+            if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_KindListUAV[Swarm::kDrawListBurrower].Get());
+        for (auto& args : m_TornadoDrawArgs)   // 砂旋（2026-10-17）
+            if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_TornadoListUAV.Get());
     }
 
     // sampler は雑魚とオーブで共通。Material::Bind は sampler を触らないので自分で入れる
@@ -2261,6 +2379,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     m_EnemyVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());   // 凍った敵は姿勢を止めて氷色に
+    m_EnemyVS->SetSRV(m_Context, "enemyPoison", m_EnemyPoisonSRV.Get()); // 毒素が残っている敵は緑に
     // 部品アニメの表（無ければ未 bind のまま。VS は enabled = 0 で読まない）
     if (m_PartAnimSRV)
         m_EnemyVS->SetSRV(m_Context, "partAnim", m_PartAnimSRV.Get());
@@ -2310,7 +2429,12 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     m_EnemyVS->UnbindSRVs(m_Context);
     // 盾兵の盾（敵の一部なのでステンシル 2 のまま。赤い陣営の縁取りが盾まで回る）
     if (indirect)
+    {
         RenderShields(cb.view, cb.proj);
+        RenderSpikeBalls(cb.view, cb.proj);   // トゲ玉の体（2026-10-17）
+        RenderMounds(cb.view, cb.proj);       // 砂潜りの砂の山（2026-10-17）
+        // 砂嵐の術師の砂旋は半透明になったので RenderOverlay で描く（2026-10-19。縁取り無し）
+    }
     m_Context->OMSetDepthStencilState(RenderStates::Get().DepthDefault(), 0);   // 砕け散り・オーブはステンシル無し
 
     // ---- 死んだ敵の砕け散り（同じ網・同じ PS。VS だけ差し替え）----
@@ -2381,6 +2505,9 @@ void SwarmSystem::RenderOverlay(CameraBase* camera, const LightBuffer& light)
         RenderChargeLines(camera);
     RenderDropRings(camera);
     RenderWarnRings(camera);
+    // ---- 砂嵐の術師の砂旋（半透明の筒 2 層。輪の後・HP バーの前。2026-10-19）----
+    if (indirect)
+        RenderTornadoes(camera->GetViewMatrix(), camera->GetProjectionMatrix());
     if (indirect)
         RenderHpBars(camera);
 }
@@ -2499,10 +2626,8 @@ void SwarmSystem::RenderBomberRings(CameraBase* camera)
 
     m_BomberRingVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_BomberRingVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
-    m_BomberRingVS->SetSRV(m_Context, "bomberList", m_KindListSRV[Swarm::kDrawListBomber].Get());
     m_BomberRingVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
-    m_BomberRingVS->Bind(m_Context);
     m_BomberRingPS->Bind(m_Context);
     m_Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_Context->IASetInputLayout(nullptr);
@@ -2514,7 +2639,18 @@ void SwarmSystem::RenderBomberRings(CameraBase* camera)
     m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);
     m_Context->RSSetState(rs.CullNone());
 
-    m_Context->DrawInstancedIndirect(m_BomberRingArgs.Get(), 0);
+    // 自爆兵の一覧、次に突撃爆弾兵の一覧（VS が種類で半径と導火線の長さを選ぶ。2026-10-19）
+    const struct { uint32_t list; ID3D11Buffer* args; } passes[] = {
+        { Swarm::kDrawListBomber, m_BomberRingArgs.Get() },
+        { Swarm::kDrawListDashBomber, m_DashBomberRingArgs.Get() },
+    };
+    for (const auto& pass : passes)
+    {
+        if (!pass.args) continue;
+        m_BomberRingVS->SetSRV(m_Context, "bomberList", m_KindListSRV[pass.list].Get());
+        m_BomberRingVS->Bind(m_Context);
+        m_Context->DrawInstancedIndirect(pass.args, 0);
+    }
 
     // 次のフレームの Compute が UAV として使うので外す
     m_BomberRingVS->UnbindSRVs(m_Context);
@@ -2697,6 +2833,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     load(m_ProjTrailCS, L"Shader/Swarm/SwarmProjTrailCS.hlsl", "ProjTrailCS");   // 無くても弾の帯が出ないだけ
     load(m_LiquidTrackCS, L"Shader/Swarm/SwarmLiquidTrackCS.hlsl", "LiquidTrackCS");   // 無くても液溜まりが出ないだけ
     load(m_CorpseTrackCS, L"Shader/Swarm/SwarmCorpseTrackCS.hlsl", "CorpseTrackCS");   // 無くても死体が砕けないだけ
+    load(m_DamageTextCS, L"Shader/Swarm/SwarmDamageTextCS.hlsl", "DamageTextCS");   // 無くてもダメージの数字が出ないだけ（2026-10-17）
     load(m_CorpseListCS, L"Shader/Swarm/SwarmCorpseListCS.hlsl", "CorpseListCS");
     ok &= load(m_LightCollectCS, L"Shader/Swarm/SwarmLightCollectCS.hlsl", "LightCollectCS");
     ok &= load(m_AreaLightCollectCS, L"Shader/Swarm/SwarmAreaLightCollectCS.hlsl", "AreaLightCollectCS");
@@ -2994,6 +3131,9 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         const wchar_t* bruteAlbedo;   // 重装兵に貼る物。null = 雑魚と同じ
         const wchar_t* chargerAlbedo; // 突撃兵に貼る物。null = 雑魚と同じ
         const wchar_t* shieldAlbedo;  // 盾兵に貼る物。null = 雑魚と同じ
+        const wchar_t* burrowerAlbedo; // 砂潜りに貼る物。null = 雑魚と同じ（2026-10-17）
+        const wchar_t* sandMageAlbedo; // 砂嵐の術師に貼る物。null = 雑魚と同じ（2026-10-17）
+        const wchar_t* dashBomberAlbedo; // 突撃爆弾兵に貼る物。null = 雑魚と同じ（2026-10-18）
     };
     const EnemyLook looks[] =
     {
@@ -3002,10 +3142,11 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         { Res::Mdl::Kenney_BlockyZombie, Res::Tex::Kenney_BlockyZombieAlbedo,
           "walk", "idle", "attack-melee-right", 180.0f, 1.6f, "Kenney Blocky L (zombie)",
           Res::Tex::Kenney_BlockyRobotAlbedo, Res::Tex::Kenney_BlockyDummyAlbedo, Res::Tex::Kenney_BlockyOrcAlbedo,
-          Res::Tex::Kenney_BlockyNinjaAlbedo, Res::Tex::Kenney_BlockyPoliceAlbedo },
+          Res::Tex::Kenney_BlockyNinjaAlbedo, Res::Tex::Kenney_BlockyPoliceAlbedo, Res::Tex::Kenney_BlockyBurrowerAlbedo,
+          Res::Tex::Kenney_BlockySandMageAlbedo, Res::Tex::Kenney_BlockyDashBomberAlbedo },
         // KayKit は Blender 出力の -Z が正面 → 180 度回す
         { Res::Mdl::KayKit_SkeletonMinion, Res::Tex::KayKit_SkeletonAlbedo,
-          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion", nullptr, nullptr, nullptr, nullptr, nullptr },
+          "Walking_A", "Idle", "", 180.0f, 0.0f, "Skeleton_Minion", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr },
     };
 
     // 焼く前の寸法 → 焼く時に掛ける変換。
@@ -3067,6 +3208,9 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
             m_BruteAlbedo = look.bruteAlbedo ? ResourceManager::Get().LoadTexture(look.bruteAlbedo) : nullptr;
             m_ChargerAlbedo = look.chargerAlbedo ? ResourceManager::Get().LoadTexture(look.chargerAlbedo) : nullptr;
             m_ShieldAlbedo = look.shieldAlbedo ? ResourceManager::Get().LoadTexture(look.shieldAlbedo) : nullptr;
+            m_BurrowerAlbedo = look.burrowerAlbedo ? ResourceManager::Get().LoadTexture(look.burrowerAlbedo) : nullptr;
+            m_SandMageAlbedo = look.sandMageAlbedo ? ResourceManager::Get().LoadTexture(look.sandMageAlbedo) : nullptr;
+            m_DashBomberAlbedo = look.dashBomberAlbedo ? ResourceManager::Get().LoadTexture(look.dashBomberAlbedo) : nullptr;
 
             // 部品アニメの表（待機・歩き・近接攻撃）。作れなければ従来の揺れで動く
             m_AnimClips[0] = look.idleClip;
@@ -3109,6 +3253,9 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         m_BruteAlbedo = look.bruteAlbedo ? ResourceManager::Get().LoadTexture(look.bruteAlbedo) : nullptr;
         m_ChargerAlbedo = look.chargerAlbedo ? ResourceManager::Get().LoadTexture(look.chargerAlbedo) : nullptr;
         m_ShieldAlbedo = look.shieldAlbedo ? ResourceManager::Get().LoadTexture(look.shieldAlbedo) : nullptr;
+        m_BurrowerAlbedo = look.burrowerAlbedo ? ResourceManager::Get().LoadTexture(look.burrowerAlbedo) : nullptr;
+        m_SandMageAlbedo = look.sandMageAlbedo ? ResourceManager::Get().LoadTexture(look.sandMageAlbedo) : nullptr;
+        m_DashBomberAlbedo = look.dashBomberAlbedo ? ResourceManager::Get().LoadTexture(look.dashBomberAlbedo) : nullptr;
         std::cout << "[SwarmSystem] enemy model: " << look.label << " (baked, clip "
             << (clip >= 0 ? sk.GetClipName(clip) : std::string("-"))
             << ", scale " << scale << ")" << std::endl;
@@ -3160,6 +3307,8 @@ bool SwarmSystem::CreateEnemyDrawArgs(ID3D11Device* device)
     if (!makeList(m_AliveListBuffer, m_AliveListUAV, m_AliveListSRV)) return false;
     for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
         if (!makeList(m_KindListBuffer[k], m_KindListUAV[k], m_KindListSRV[k])) return false;
+    if (!makeList(m_SpikeBallListBuffer, m_SpikeBallListUAV, m_SpikeBallListSRV)) return false;   // トゲ玉の一覧（2026-10-17）
+    if (!makeList(m_TornadoListBuffer, m_TornadoListUAV, m_TornadoListSRV)) return false;   // 砂旋の一覧（2026-10-17）
     // 砕け散り中の尸の一覧（見た目毎。大きさは敵と同じで足りる）
     for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
         if (!makeList(m_CorpseListBuffer[k], m_CorpseListUAV[k], m_CorpseListSRV[k])) return false;
@@ -3204,8 +3353,9 @@ bool SwarmSystem::CreateEnemyDrawArgs(ID3D11Device* device)
         D3D11_SUBRESOURCE_DATA sd = {};
         sd.pSysMem = init;
         if (FAILED(device->CreateBuffer(&desc, &sd, &m_HpBarArgs))) return false;
-        // 自爆兵の警告の輪も同じ形（InstanceCount は自爆兵の一覧から）
+        // 自爆兵の警告の輪も同じ形（InstanceCount は自爆兵の一覧から）。突撃爆弾兵の分はその一覧から（2026-10-19）
         if (FAILED(device->CreateBuffer(&desc, &sd, &m_BomberRingArgs))) return false;
+        if (FAILED(device->CreateBuffer(&desc, &sd, &m_DashBomberRingArgs))) return false;
     }
     return true;
 }

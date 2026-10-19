@@ -50,6 +50,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
                 s.speed, s.radius, s.damage, s.lifetime, s.triggerMask };
             req.areaDamageMul = s.areaDamageMul;
             req.areaDurationMul = durationMul;
+            req.chainCount = s.chainCount;
             m_Requests.push_back(req);
         };
 
@@ -114,6 +115,7 @@ void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
         req.atPos = true;
         req.areaDamageMul = s.areaDamageMul;
         req.areaDurationMul = durationMul;
+        req.chainCount = s.chainCount;
         m_Requests.push_back(req);
     }
 }
@@ -457,6 +459,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         wand.castAnimTimer = wand.castAnimDuration;
                         a.castTimer = a.castInterval;
                         m_CastFx.push_back({ a.id, muzzle, dir });
+                        // 終点の見た目（命中の火花。アークボルト）
                         if (m_AreaVFX && m_AreaVFXCtx && !bp.hitVfxFile.empty())
                             m_AreaVFX->Play(bp.hitVfxFile, impact, 0.8f, false, *m_AreaVFXCtx);
                         if (a.triggerMask != 0)
@@ -552,7 +555,8 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
         m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
             req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
-            req.triggerTag, req.atPos, req.areaDamageMul, req.areaDurationMul, roll);
+            req.triggerTag, req.atPos, req.areaDamageMul, req.areaDurationMul, roll,
+            (uint32_t) (std::max) (0, req.chainCount));
         if (!req.atPos) m_CastFx.push_back({ req.id, req.muzzle, req.dir });
         // 撃った音（分裂・二重で同じフレームに何発も出ても、cue の間隔・同時数で間引かれる）
         AudioSystem::Get().Play(ProjectileProfileDB::At(motion).castSound);
@@ -603,6 +607,7 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     b.flags = Swarm::kAreaCapsule | (ch << Swarm::kAreaBeamShift);
     if (!hasProfile || ap.stun) b.flags |= Swarm::kAreaStun;
     if (hasProfile && ap.cameraShake) b.flags |= Swarm::kAreaShake;   // 光線が出た瞬間に揺らす
+    b.extra = hasProfile ? ap.Extra() : 0;   // 毒素の割合（AreaProfile::toxin。2026-10-17）。範囲の tickNow の上位へ
     if (hasProfile) b.sound = ap.sound;
 
     if (m_AreaVFX && m_AreaVFXCtx)
@@ -683,6 +688,7 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
                 area.halfHeight = b.halfHeight;
                 area.flags = b.flags;
                 area.vfxType = 0;
+                area.tickNow = b.extra;   // 上位 = 毒素の割合など（AreaProfile::Extra。SpawnAreaCS が下位の tick 状態だけ 0 にする）
                 m_Swarm->SetBeam(b.channel, start, end, b.radius, true);
                 m_Swarm->SpawnArea(area);
                 b.spawned = true;

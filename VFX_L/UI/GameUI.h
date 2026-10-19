@@ -27,6 +27,7 @@
 #include "UI/BackpackUI.h"
 #include "UI/LevelUpUI.h"
 #include "UI/HUD.h"
+#include "UI/DamageNumbers.h"
 #include "UI/DragContext.h"
 #include "UI/SpellbookUI.h"
 #include "UI/ItemSheetView.h"
@@ -122,6 +123,7 @@ public:
     void SetGold(int gold) { m_FrameInfo.gold = gold; }
     // 目標の一行（撃破数の下、「目標: 」は HUD が付ける）。nullptr で消す。毎フレームシーンが入れ直す（2026-10-07）
     void SetObjective(const wchar_t* text) { m_FrameInfo.objective = text; }
+    DamageNumbers& Damage() { return m_Damage; }   // 場面が Add / Update する（gameplay の dt）
     // 画面の真ん中の案内（2026-10-07。押し寄せ・エリート・最終ウェーブ）。text = null で消す
     void SetAnnounce(const wchar_t* text, float alpha, float age)
     {
@@ -156,12 +158,14 @@ private:
 
     SpriteRenderer m_Sprite;
     TextRenderer   m_Text;
+    TextRenderer   m_DamageText;   // ダメージの数字専用（Res::Fnt::Damage。2026-10-18）。HUD の文字の後に描く
     UIManager      m_Stack;
     BackpackUI     m_Backpack;
     SpellbookUI    m_Spellbook;
     LevelUpUI      m_LevelUp;
 	DragContext    m_Drag;
     HUD            m_HUD;
+    DamageNumbers  m_Damage;                   // ダメージの数字（HUD と同じ画面座標で描く。2026-10-17）
     BackpackPadControl m_Pad;                  // バックパック画面のパッド操作
     bool           m_PadClosePending = false;  // B で閉じる要求（次のフレームで閉じる）
     bool           m_LevelUpWait = false;      // レベルアップ直後、四択を出すまでの間（LevelComponent::choiceDelay）

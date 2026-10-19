@@ -527,4 +527,140 @@ namespace PrimitiveBuilder
         model->AddSubMesh(mesh);
         return model;
     }
+
+
+    // ========================================================
+    // トゲ玉（砂漠の敵 kEnemyKindSpikeBall。2026-10-17）：低ポリの球（半径 radius）の表面に
+    // spikes 本の四角錐のトゲ（長さ spikeLen、フィボナッチ球で均等に）。球は bodyColor、
+    // トゲは根元 bodyColor → 先端 spikeColor。トゲは面毎に法線を分ける（稜がはっきり出る）。
+    // SwarmSpikeBallVS が半径 1 で作った物を体格に合わせて拡大して描く
+    // ========================================================
+    // ========================================================
+    // 竜巻の筒（2026-10-19）：回転体。半径 r(v) = (waist + (1 - waist)(2v - 1)^2) × (0.85 + 0.15v)
+    //   v = 0（下）0.85、v = 0.5 waist 付近、v = 1（上）1.0。法線は回転体の式から（外向き、r' で上下に傾く）
+    //   上から下へ環を並べ、球と同じ三角形の巻き順（CullNone で描くので裏表はどちらでも良い）
+    // ========================================================
+    std::shared_ptr<Model> CreateTornadoShell(ID3D11Device* device, int segments, int rings, float waist, float twist,
+        const Vector4& color)
+    {
+        if (segments < 3) segments = 3;
+        if (rings < 1) rings = 1;
+        std::vector<VERTEX_3D> verts;
+        std::vector<unsigned int> indices;
+        verts.reserve((rings + 1) * (segments + 1));
+
+        auto radiusAt = [&](float v) {
+            const float c = 2.0f * v - 1.0f;
+            return (waist + (1.0f - waist) * c * c) * (0.85f + 0.15f * v);
+        };
+
+        for (int i = 0; i <= rings; ++i)
+        {
+            const float v = 1.0f - (float)i / rings;   // 上（1）→ 下（0）
+            const float r = radiusAt(v);
+            const float dr = (radiusAt((std::min)(v + 0.01f, 1.0f)) - radiusAt((std::max)(v - 0.01f, 0.0f))) / 0.02f;   // dr/dv
+            // 端のフェード：下 0 → 0.14 で立ち上がり、0.8 → 1 で消える
+            float fade = 1.0f;
+            if (v < 0.14f) fade = v / 0.14f;
+            else if (v > 0.80f) fade = (1.0f - v) / 0.20f;
+            fade = fade * fade * (3.0f - 2.0f * fade);
+            for (int j = 0; j <= segments; ++j)
+            {
+                const float theta = 2.0f * PI * j / segments;
+                const float cs = std::cos(theta), sn = std::sin(theta);
+                Vector3 n(cs, -dr, sn);
+                n.Normalize();
+                Vector4 c = color;
+                c.w *= fade;
+                verts.push_back(MakeVertex(Vector3(r * cs, v, r * sn), n,
+                    { (float)j / segments + v * twist, v }, c));
+            }
+        }
+        for (int i = 0; i < rings; ++i)
+        {
+            for (int j = 0; j < segments; ++j)
+            {
+                unsigned int a = i * (segments + 1) + j;
+                unsigned int b = a + segments + 1;
+                indices.push_back(a);     indices.push_back(a + 1); indices.push_back(b);
+                indices.push_back(a + 1); indices.push_back(b + 1); indices.push_back(b);
+            }
+        }
+        auto mesh = std::make_shared<Mesh>();
+        if (!mesh->Create(device, verts, indices)) return nullptr;
+        auto model = std::make_shared<Model>();
+        model->AddSubMesh(mesh);
+        return model;
+    }
+
+    std::shared_ptr<Model> CreateSpikeBall(ID3D11Device* device, float radius, float spikeLen, int spikes,
+        const Vector4& bodyColor, const Vector4& spikeColor)
+    {
+        std::vector<VERTEX_3D> verts;
+        std::vector<unsigned int> indices;
+
+        // 球（CreateSphere と同じ格子）
+        const int stacks = 7, slices = 14;
+        for (int i = 0; i <= stacks; ++i)
+        {
+            const float phi = PI * i / stacks;
+            const float y = std::cos(phi), r = std::sin(phi);
+            for (int j = 0; j <= slices; ++j)
+            {
+                const float theta = 2.0f * PI * j / slices;
+                const Vector3 n(r * std::cos(theta), y, r * std::sin(theta));
+                verts.push_back(MakeVertex(n * radius, n, { (float)j / slices, (float)i / stacks }, bodyColor));
+            }
+        }
+        for (int i = 0; i < stacks; ++i)
+            for (int j = 0; j < slices; ++j)
+            {
+                const unsigned int a = i * (slices + 1) + j;
+                const unsigned int b = a + slices + 1;
+                indices.push_back(a);     indices.push_back(a + 1); indices.push_back(b);
+                indices.push_back(a + 1); indices.push_back(b + 1); indices.push_back(b);
+            }
+
+        // トゲ（CreateBipyramid と同じ巻き方：法線が外を向くように）
+        auto addFace = [&](const Vector3& p0, const Vector3& p1, const Vector3& p2,
+            const Vector4& c0, const Vector4& c1, const Vector4& c2)
+            {
+                Vector3 n = (p1 - p0).Cross(p2 - p0);
+                n.Normalize();
+                const Vector3 center = (p0 + p1 + p2) / 3.0f;
+                const bool flip = n.Dot(center) > 0.0f;
+                if (!flip) n = -n;
+                const unsigned int base = (unsigned int)verts.size();
+                verts.push_back(MakeVertex(p0, n, { 0.0f, 1.0f }, c0));
+                verts.push_back(MakeVertex(p1, n, { 1.0f, 1.0f }, c1));
+                verts.push_back(MakeVertex(p2, n, { 0.5f, 0.0f }, c2));
+                indices.push_back(base);
+                indices.push_back(flip ? base + 2 : base + 1);
+                indices.push_back(flip ? base + 1 : base + 2);
+            };
+        spikes = (std::max)(spikes, 1);
+        for (int s = 0; s < spikes; ++s)
+        {
+            const float t = ((float)s + 0.5f) / (float)spikes;
+            const float y = 1.0f - 2.0f * t;
+            const float r = std::sqrt((std::max)(0.0f, 1.0f - y * y));
+            const float phi = (float)s * 2.399963f;   // 黄金角
+            const Vector3 d(r * std::cos(phi), y, r * std::sin(phi));
+            Vector3 u = (std::fabs(d.y) < 0.9f) ? Vector3(0, 1, 0).Cross(d) : Vector3(1, 0, 0).Cross(d);
+            u.Normalize();
+            const Vector3 w = d.Cross(u);
+            const float br = radius * 0.22f;
+            const Vector3 base = d * (radius * 0.92f);
+            const Vector3 tip = d * (radius + spikeLen);
+            const Vector3 ring[4] = { base + u * br, base + w * br, base - u * br, base - w * br };
+            for (int q = 0; q < 4; ++q)
+                addFace(ring[q], ring[(q + 1) % 4], tip, bodyColor, bodyColor, spikeColor);
+        }
+
+        auto mesh = std::make_shared<Mesh>();
+        if (!mesh->Create(device, verts, indices)) return nullptr;
+        auto model = std::make_shared<Model>();
+        model->AddSubMesh(mesh);
+        return model;
+    }
 }

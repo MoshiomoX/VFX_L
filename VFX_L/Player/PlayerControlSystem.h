@@ -23,7 +23,13 @@ public:
     // 被弾のノックバック（2026-10-01）。dir = 打たれた向き（敵 / 爆心 → プレイヤー、XZ。長さは問わない）、
     // blast = 爆発（遠くへ、少し浮く）。距離・時間は PlayerStatsComponent の knock*。
     // 入れた後の knockDuration 秒は水平速度に上乗せし、入力の効きは 0 から戻す
-    static void ApplyKnockback(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, bool blast);
+    // 何に当たったか（距離・時間・上へ弾く初速が違う。PlayerStatsComponent::knock*）
+    enum class KnockKind { Melee, Blast, Spike, Wind };   // Spike = トゲ玉（2026-10-17。爆発より遠く高く）、Wind = 砂旋（高く吹き上げる）
+    static void ApplyKnockback(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, KnockKind kind);
+    static void ApplyKnockback(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, bool blast)
+    {
+        ApplyKnockback(reg, entity, dir, blast ? KnockKind::Blast : KnockKind::Melee);
+    }
 
     // TEMP-TEST: 自動テスト（VFXL_BATTLE_AUTOTEST=slide）が入力の代わりに入れる
     bool testInput = false;

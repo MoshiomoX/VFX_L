@@ -18,6 +18,14 @@
 // enemy's enemySlow entry (2026-10-01, the Poison pool).
 // The shield bearer's armor comes off every area's tick separately
 // (SwarmArmorDamage, 2026-10-08): three pools are three small hits.
+//
+// Toxin (2026-10-17, the poison pools): an area with a toxin
+// share (SwarmAreaToxin of a.tickNow) deals only the rest at once; the
+// share is added to enemyPoison[slot] = (damage left, damage per second,
+// seconds since the last dose) and drained here every step, through the
+// same kill path. Areas with toxin do not stack on one enemy (strongest
+// wins, like the freezing ones). A splash-only area (the Swamp) deals its
+// damage on its first tick only.
 // ============================================================
 #define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
@@ -36,6 +44,8 @@ RWBuffer<uint> orbStates : register(u4);
 RWStructuredBuffer<float4> enemySlow : register(u5);
 // knockback (the Gust, 2026-10-12): xy = velocity away from the player, z = seconds left. AICS applies and decays it
 RWStructuredBuffer<float4> enemyPush : register(u6);
+// stored toxin (2026-10-17): x = damage still to drain, y = damage per second, z = seconds since the last dose (the look)
+RWStructuredBuffer<float4> enemyPoison : register(u7);
 
 static const uint HP_CORPSE_BIT = 0x80000000u;
 
@@ -45,33 +55,41 @@ void main(uint3 id : SV_DispatchThreadID)
     uint j = id.x;
     if (j >= g_MaxEnemies)
         return;
-    if (counters.Load(SWARM_CNT_TICKING_AREAS) == 0u)
-        return;
+    bool ticking = counters.Load(SWARM_CNT_TICKING_AREAS) != 0u;
     if (enemyStates[j] == SWARM_DEAD)
+        return;
+    float4 poison = enemyPoison[j];
+    if (!ticking && poison.x <= 0.0)
         return;
 
     float3 epos = enemies[j].position;
     SwarmEnemyExtra extra = enemyExtra[j];
     uint kind = extra.kind;
+    if (SwarmUntargetable(extra))
+        return; // under the sand: areas do not reach it, the toxin waits (2026-10-17)
     float3 ecenter;
     float er, eh;
     SwarmKindCapsule(kind, epos, ecenter, er, eh);
+    uint hitElem = 0u;        // damage number colour: element of the area that hit hardest this step
+    float hitElemDmg = 0.0;
 
     float total = 0.0;
     bool stun = false;
     float freeze = 0.0;   // longest freeze among the areas this enemy stands in (SwarmAreaFreeze)
     float iceDamage = 0.0; // strongest freezing area (not summed, see below)
+    float poisonDamage = 0.0; // strongest toxin-carrying area (not summed either: two pools on one enemy count once)
+    float poisonShare = 0.0;  // its toxin share
     float slow = 0.0;     // strongest slow among the areas this enemy stands in
     float slowTime = 0.0; // until the next tick of that area, plus a little
     float push = 0.0;     // strongest knockback among them (SwarmAreaPush)
 
-    for (uint k = 0; k < SWARM_MAX_AREAS; ++k)
+    for (uint k = 0; ticking && k < SWARM_MAX_AREAS; ++k)
     {
         if (areaStates[k] == SWARM_DEAD)
             continue;
 
         SwarmArea a = areas[k];
-        if (a.tickNow == 0u)
+        if ((a.tickNow & SWARM_AREA_TICK_NOW) == 0u)
             continue;
 
         // capsule (beam): measure from the closest point of the segment centre -> end
@@ -96,11 +114,26 @@ void main(uint3 id : SV_DispatchThreadID)
         // same step and overlapping a little) take the strongest one only, so an enemy where
         // two of them overlap is not hit twice. Everything else adds up as before.
         float f = SwarmAreaFreeze(a.flags);
+        float dmg = SwarmArmorDamage(kind, a.damage);
+        // the element of the hardest-hitting area this step colours the damage number (2026-10-17)
+        if (dmg > hitElemDmg) { hitElemDmg = dmg; hitElem = SwarmAreaElement(a.tickNow); }
+        // splash-only (the Swamp): the landing hits, the lingering pool only slows
+        if ((a.tickNow & SWARM_AREA_EXTRA_SPLASH) != 0u && (a.tickNow & SWARM_AREA_TICK_FIRST) == 0u)
+            dmg = 0.0;
+        float tox = SwarmAreaToxin(a.tickNow);
         if (f > 0.0)
-            iceDamage = max(iceDamage, SwarmArmorDamage(kind, a.damage));
+            iceDamage = max(iceDamage, dmg);
+        else if (tox > 0.0)
+        {
+            if (dmg > poisonDamage)
+            {
+                poisonDamage = dmg;
+                poisonShare = tox;
+            }
+        }
         else
-            total += SwarmArmorDamage(kind, a.damage);
-        if ((a.flags & SWARM_AREA_STUN) != 0u)
+            total += dmg;
+        if ((a.flags & SWARM_AREA_STUN) != 0u && dmg > 0.0)
             stun = true;
         freeze = max(freeze, f);
         float s = SwarmAreaSlow(a.flags);
@@ -138,6 +171,32 @@ void main(uint3 id : SV_DispatchThreadID)
     }
 
     total += iceDamage;
+
+    // ---- toxin: drain what is stored (from earlier doses), then store this step's share ----
+    float toxinAdd = poisonDamage * poisonShare;
+    total += poisonDamage - toxinAdd;
+    bool poisonDirty = false;
+    if (poison.x > 0.0)
+    {
+        float drained = min(poison.x, poison.y * g_Step);
+        total += drained;
+        poison.x -= drained;
+        poison.z += g_Step;
+        if (poison.x <= 1e-3)
+            poison = float4(0, 0, 0, 0); // dose finished: the rate resets with it
+        poisonDirty = true;
+    }
+    if (toxinAdd > 0.0)
+    {
+        // every dose drains over SWARM_TOXIN_TIME; a second dose on top adds its own rate
+        poison.x += toxinAdd;
+        poison.y += toxinAdd / SWARM_TOXIN_TIME;
+        poison.z = 0.0;
+        poisonDirty = true;
+    }
+    if (poisonDirty)
+        enemyPoison[j] = poison;
+
     if (total <= 0.0)
         return;
 
@@ -149,7 +208,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return; // already a corpse
 
     // the boss never flinches, nor does a charger that has started its wind-up (see HitCS)
-    bool noFlinch = (kind == SWARM_KIND_BOSS) || (kind == SWARM_KIND_CHARGER && extra.fuse > 0.0);
+    bool noFlinch = SwarmNoFlinch(extra);   // (+ both final-swarm ghosts, 2026-10-18)
     // an ice area leaves a freeze request instead of the stun (same as a hitting Ice Lance, see HitCS)
     if (freeze > 0.0)
     {
@@ -160,6 +219,19 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         enemies[j].animIndex = 2u;
         enemies[j].animTime = 0.0;
+    }
+
+    if (prev > dmgFixed && hitElemDmg > 0.0)
+    {
+        // not the killer and an area really hit this step (not just the toxin draining, which would
+        // wipe the element every step): remember what hit it (damage number colour). CAS, see HitCS (2026-10-17)
+        uint cur = enemyStates[j];
+        if (cur != SWARM_DEAD)
+        {
+            uint wasState;
+            InterlockedCompareExchange(enemyStates[j], cur,
+                SWARM_ALIVE | (hitElem << SWARM_STATE_ELEMENT_SHIFT), wasState);
+        }
     }
 
     if (prev <= dmgFixed)

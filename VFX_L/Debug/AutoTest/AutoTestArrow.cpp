@@ -63,6 +63,7 @@ void AutoTestArrow::Run()
                 else if (strcmp(itemEnv, "ice") == 0) id = ItemID::IceLance;
                 else if (strcmp(itemEnv, "fire") == 0) id = ItemID::Fireball;
                 else if (strcmp(itemEnv, "stone") == 0) id = ItemID::StoneShot;
+                else if (strcmp(itemEnv, "spore") == 0) id = ItemID::Spore;   // 胞子（2026-10-17）
             }
             // 形が違うので 3x3 枠の中の置ける場所・向きを探す
             bool placed = false;

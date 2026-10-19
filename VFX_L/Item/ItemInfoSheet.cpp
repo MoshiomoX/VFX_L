@@ -46,6 +46,7 @@ namespace
         case SpellParam::ProjectileCount:
         case SpellParam::CastCount:
         case SpellParam::AreaDamage:
+        case SpellParam::ChainCount:
             return +1;
         case SpellParam::CastInterval:
         case SpellParam::ManaCost:
@@ -88,6 +89,7 @@ namespace
         case SpellParam::CastInterval:    return L"発動間隔";
         case SpellParam::ManaCost:        return L"消費MP";
         case SpellParam::AreaDamage:      return L"範囲の威力";
+        case SpellParam::ChainCount:      return L"連鎖";
         }
         return L"";
     }
@@ -118,6 +120,7 @@ namespace
         case SpellParam::CastInterval: return L"秒";
         case SpellParam::SpreadAngle:  return L"度";
         case SpellParam::CastCount:    return L"回";
+        case SpellParam::ChainCount:   return L"回";
         default:                       return L"";
         }
     }
@@ -213,13 +216,16 @@ namespace ItemInfoSheet
         const bool blast = ap && ap->kind == AreaProfile::Kind::OneShot;
         // 凍らせる一撃の範囲（アイススパイクの氷のトゲ。2026-10-10）は「爆発」と書かない
         const bool ice = blast && ap->freeze > 0.0f;
+        // 落ちた時だけ傷つけ、残る範囲は減速だけ（泥沼。2026-10-17）
+        const bool splash = ap && !blast && ap->splashOnly;
 
         // ---- 文：飛び方。足元に落ちる物は範囲と 1 文にまとめる ----
         if (b.triggerLine)   // 線で撃つ上級魔法（アイススパイク）：弾は飛ばない
             s.traits.push_back(ice ? L"足元から連鎖した場所の奥まで、氷のトゲが走る" : L"足元から連鎖した場所の奥まで、範囲が走る");
         else if (drop)
         {
-            const std::wstring what = !ap ? L"に落ちる" : ice ? L"から前へ氷が突き出る" : blast ? L"で爆発する" : L"に範囲を残す";
+            const std::wstring what = !ap ? L"に落ちる" : ice ? L"から前へ氷が突き出る" : blast ? L"で爆発する"
+                : splash ? L"で飛沫を上げ、沼を残す" : L"に範囲を残す";
             s.traits.push_back(kAtFeet + what);
         }
         else
@@ -233,12 +239,23 @@ namespace ItemInfoSheet
             }
             if (ap) s.traits.push_back(blast ? L"当たると爆発する" : L"当たった所に範囲を残す");
         }
+        // 連鎖のルーン（2026-10-16）: 当たっても消えず、近くの別の敵へ跳ぶ（Drop / Lob には効かない）
+        if (v.chainCount > 0 && !drop)
+            s.traits.push_back(L"当たった敵から近くの別の敵へ跳ぶ");
         // 減速（毒の池）。15 段階に丸めた実際の値を出す（AreaProfile::Flags）
         if (ap && ap->slow > 0.0f)
         {
             const int pct = (int)std::lround(std::lround(std::clamp(ap->slow, 0.0f, 1.0f) * 15.0f) / 15.0f * 100.0f);
             wchar_t buf[64];
             swprintf_s(buf, L"中の敵を %d%% 遅くする", pct);
+            s.traits.push_back(buf);
+        }
+        // 毒素（猛毒の沼。2026-10-17）：威力の一部は毒になって 1 秒かけて効く（15 段階に丸めた値）
+        if (ap && ap->toxin > 0.0f)
+        {
+            const int pct = (int)std::lround(std::lround(std::clamp(ap->toxin, 0.0f, 1.0f) * 15.0f) / 15.0f * 100.0f);
+            wchar_t buf[64];
+            if (pct >= 100) wcscpy_s(buf, L"傷は全部毒になって 1 秒かけて効く"); else swprintf_s(buf, L"傷の %d%% は毒になって 1 秒かけて効く", pct);
             s.traits.push_back(buf);
         }
         // 凍結（アイスランスの弾 2026-10-08 / アイススパイクの範囲 2026-10-10）。エリート・ボスは半分、解けた直後は凍らない、は書かない
@@ -251,7 +268,7 @@ namespace ItemInfoSheet
         }
 
         // ---- 能力値の行 ----
-        if (!drop)
+        if (!drop && b.damage > 0.0f)   // 弾そのものに威力が無い物（胞子：霧だけ）は行を出さない
             s.stats.push_back(StatLine(L"威力", v.damage, b.damage, L"", +1));
         float areaRadius = 0.0f, baseAreaRadius = 0.0f;
         if (ap)
@@ -264,6 +281,12 @@ namespace ItemInfoSheet
             const float dmg = ap->damage * v.areaDamageMul, baseDmg = ap->damage * b.areaDamageMul;
             if (blast)
                 s.stats.push_back(StatLine(ice ? L"威力" : L"爆発の威力", dmg, baseDmg, L"", +1));
+            else if (splash)
+            {
+                // 泥沼：傷つけるのは落ちた時の 1 回だけ。沼そのものは減速だけなので持続は別に出す
+                s.stats.push_back(StatLine(L"飛沫の威力", dmg, baseDmg, L"", +1));
+                s.stats.push_back(StatLine(L"沼の持続", ap->duration, ap->duration, L"秒", +1));
+            }
             else
             {
                 // 威力は「1 回分 / 間隔」で 1 行に
@@ -276,6 +299,9 @@ namespace ItemInfoSheet
             s.stats.push_back(StatLine(L"弾数", (float)v.projectileCount, (float)b.projectileCount, L"", +1));
         if (v.castCount != 1 || v.castCount != b.castCount)
             s.stats.push_back(StatLine(L"連射", (float)v.castCount, (float)b.castCount, L"回", +1));
+        // 連鎖のルーン（2026-10-16）: 跳ぶ回数。付いている時だけ出す
+        if (!drop && (v.chainCount > 0 || v.chainCount != b.chainCount))
+            s.stats.push_back(StatLine(L"連鎖", (float)v.chainCount, (float)b.chainCount, L"回", +1));
         s.stats.push_back(StatLine(L"発動間隔", v.castInterval, b.castInterval, L"秒", -1));
         // 連射の分も毎回払う（WeaponSystem）ので、1 回の発動で減る量を出す
         s.stats.push_back(StatLine(L"消費MP", v.manaCost * (float)v.castCount,
@@ -298,6 +324,14 @@ namespace ItemInfoSheet
             s.traits.push_back(v.spawnAtTarget ? L"敵の足元に出る" : L"自分の周りに出る");
         else if (AreaProfileDB::At(v.profile).chargeTime <= 0.0f && v.duration < 0.5f)
             s.traits.push_back(L"一番近い敵へ一瞬で届く");   // アークボルト（溜め 0 の稲妻。2026-10-15）
+        // 毒素（猛毒の沼。2026-10-17）：威力の一部は毒になって 1 秒かけて効く
+        if (v.profile > 0 && AreaProfileDB::At(v.profile).toxin > 0.0f)
+        {
+            const int pct = (int)std::lround(std::lround(std::clamp(AreaProfileDB::At(v.profile).toxin, 0.0f, 1.0f) * 15.0f) / 15.0f * 100.0f);
+            wchar_t buf[64];
+            if (pct >= 100) wcscpy_s(buf, L"傷は全部毒になって 1 秒かけて効く"); else swprintf_s(buf, L"傷の %d%% は毒になって 1 秒かけて効く", pct);
+            s.traits.push_back(buf);
+        }
         if (v.profile > 0 && AreaProfileDB::At(v.profile).push > 0.0f)
             s.traits.push_back(L"前方の敵を吹き飛ばす");   // 突風（エリートは半分、ボスは動かない）
 

@@ -1,0 +1,6 @@
+{
+    "sound": "poison_splash",
+    "damage": 10.0, "duration": 3.0, "followCaster": false, "halfHeight": 1.5, "kind": 1,
+    "name": "SwampPool", "element": 6, "preview": { "atTarget": true, "interval": 2.0 },
+    "radius": 2.2, "slow": 0.4, "splashOnly": true, "stun": false, "tickInterval": 0.5, "vfx": "SwampPool.json"
+}

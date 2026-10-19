@@ -55,6 +55,12 @@ struct PlayerStatsComponent
     float knockBlastBodies = 0.9f;      // 自爆兵の爆発
     float knockBlastTime = 0.28f;
     float knockBlastLift = 4.0f;        // 爆発で上へ弾く初速 m/s（重力 25 で 0.32m・0.32 秒浮く）
+    float knockSpikeBodies = 3.5f;      // トゲ玉に触れた時（2026-10-17。「弾き飛ばされる」）
+    float knockSpikeTime = 0.4f;
+    float knockSpikeLift = 8.5f;        // 上へ弾く初速 m/s（重力 25 で約 1.4m 浮く）
+    float knockWindBodies = 2.0f;       // 砂旋に巻かれた時（2026-10-17。「吹き上げられる」：横は少なめ、上が主）
+    float knockWindTime = 0.5f;
+    float knockWindLift = 13.0f;        // 上へ吹き上げる初速 m/s（重力 25 で約 3.4m・1 秒浮く）
 
     // --- 魔法の威力（2026-10-02、能力アップ「魔法威力」で掛け算）---
     // 全部の攻撃魔法のダメージに掛かる（弾の命中・着弾の範囲・光線）。

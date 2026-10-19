@@ -10,9 +10,11 @@
 //   - CAPSULE areas (beams) take start / radius / end from SwarmBeamCB
 //     (b3, written by the CPU every frame) and die when the CPU marks
 //     the channel inactive. The end goes to areaEnds (u3) for AreaDamageCS
-//   - tickNow = 1 marks "deals damage this step"
+//   - tickNow bit 0 marks "deals damage this step", bit 1 "first tick";
+//     the high bits are the area's extras (toxin / splash, set at spawn)
+//     and are left alone (SWARM_AREA_TICK_* in SwarmCommon.hlsli)
 //
-// Only writer of SwarmArea.tickNow / tickTimer / timeLeft.
+// Only writer of SwarmArea.tickNow's tick bits / tickTimer / timeLeft.
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -65,11 +67,14 @@ void main(uint3 id : SV_DispatchThreadID)
         areaEnds[i] = float4(e.xyz, 1.0);
     }
 
-    a.tickNow = 0u;
+    // the high bits of tickNow are the area's extras (toxin, splash-only): keep them, only the tick bits change
+    a.tickNow &= ~(SWARM_AREA_TICK_NOW | SWARM_AREA_TICK_FIRST);
     a.tickTimer -= g_Step;
     if (a.tickTimer <= 0.0)
     {
-        a.tickNow = 1u;
+        a.tickNow |= SWARM_AREA_TICK_NOW;
+        if ((a.tickNow & SWARM_AREA_TICK_SEEN) == 0u)
+            a.tickNow |= SWARM_AREA_TICK_FIRST | SWARM_AREA_TICK_SEEN; // the Swamp deals damage on this tick only
         a.tickTimer += max(a.tickInterval, g_Step);
     }
 
@@ -79,6 +84,6 @@ void main(uint3 id : SV_DispatchThreadID)
 
     uint prev;
     counters.InterlockedAdd(SWARM_CNT_ALIVE_AREAS, 1u, prev);
-    if (a.tickNow != 0u)
+    if ((a.tickNow & SWARM_AREA_TICK_NOW) != 0u)
         counters.InterlockedAdd(SWARM_CNT_TICKING_AREAS, 1u, prev);
 }

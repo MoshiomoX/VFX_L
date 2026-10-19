@@ -34,6 +34,7 @@ void StageDirector::Init()
     m_AnnounceText = nullptr;
     m_AnnounceLeft = 0.0f;
     m_FinalWarned = false;
+    m_DarkGhostsWarned = false;
 }
 
 bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, float hp, SwarmSystem& swarm)
@@ -109,6 +110,16 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
         mobs.finalSpawnRate = finalSpawnRateStart + (finalSpawnRate - finalSpawnRateStart) * ramp;
         mobs.finalSpeedMul = finalSpeedMul;
         mobs.finalGhostRate = finalGhostRate * std::pow(finalGhostStepMul, (float)(level - 1));   // 幽霊は段毎に数が増える
+        // 黒幽霊は時間切れ finalDarkGhostStart 秒後から（2026-10-18）
+        const bool dark = over >= finalDarkGhostStart;
+        mobs.finalDarkGhostRate = dark ? finalDarkGhostRate * std::pow(finalDarkGhostStepMul, (float)(level - 1)) : 0.0f;
+        if (dark && !m_DarkGhostsWarned)
+        {
+            m_DarkGhostsWarned = true;
+            m_Event = "dark ghosts";
+            SetAnnounce(L"黒い幽霊が現れた…", 3.5f);
+            std::cout << "[Stage] dark ghosts" << std::endl;
+        }
         director.spawnCap = (over < 120.0f) ? finalCap : finalCapLate;
     }
     else if (m_FinalLevel != 0)
@@ -119,6 +130,8 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
         mobs.finalSpawnRate = 0.0f;
         mobs.finalSpeedMul = 1.0f;
         mobs.finalGhostRate = 0.0f;
+        mobs.finalDarkGhostRate = 0.0f;
+        m_DarkGhostsWarned = false;
         if (m_NormalCap >= 0) director.spawnCap = m_NormalCap;
     }
 
@@ -425,6 +438,9 @@ void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
     ImGui::DragInt("Final Cap (later)", &finalCapLate, 1, 0, 4096);
     ImGui::DragFloat("Final Ghosts / s", &finalGhostRate, 0.1f, 0.0f, 50.0f);
     ImGui::DragFloat("Final Ghost Step x", &finalGhostStepMul, 0.01f, 1.0f, 5.0f);
+    ImGui::DragFloat("Dark Ghost Start (s after time up)", &finalDarkGhostStart, 1.0f, 0.0f, 600.0f);
+    ImGui::DragFloat("Dark Ghosts / s", &finalDarkGhostRate, 0.05f, 0.0f, 20.0f);
+    ImGui::DragFloat("Dark Ghost Step x", &finalDarkGhostStepMul, 0.01f, 1.0f, 5.0f);
     ImGui::DragFloat("Ghost Hover", &kind.ghostHover, 0.05f, 0.0f, 3.0f);
     ImGui::DragFloat("Ghost Alpha", &kind.ghostAlpha, 0.01f, 0.0f, 1.0f);
     ImGui::DragFloat("Ghost Glow", &kind.ghostGlow, 0.05f, 0.0f, 6.0f);

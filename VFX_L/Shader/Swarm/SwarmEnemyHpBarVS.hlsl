@@ -55,7 +55,7 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     BarOut o = (BarOut) 0;
 
     uint slot = aliveList[iid];
-    if (enemyStates[slot] == SWARM_DEAD)
+    if (enemyStates[slot] == SWARM_DEAD || SwarmUntargetable(enemyExtra[slot]))   // no bar on a burrower under the sand (2026-10-17)
     {
         o.pos = float4(0, 0, -1, 1); // clipped
         return o;

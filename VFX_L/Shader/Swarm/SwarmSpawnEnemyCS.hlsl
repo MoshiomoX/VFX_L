@@ -23,6 +23,7 @@ RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // poison slow per slot (see SwarmAreaDamageCS): a new enemy starts unslowed
 RWStructuredBuffer<float4> enemySlow : register(u4); // slow + freeze (float4 since 2026-10-08)
 RWStructuredBuffer<float4> enemyPush : register(u5); // knockback (the Gust, 2026-10-12): a new enemy has none
+RWStructuredBuffer<float4> enemyPoison : register(u6); // stored toxin (the poison pools, 2026-10-17): none either
 
 cbuffer SwarmSpawnCB : register(b1)
 {
@@ -62,6 +63,7 @@ void main(uint3 id : SV_DispatchThreadID)
             enemyExtra[slot] = extra;
             enemySlow[slot] = float4(0, 0, 0, 0);
             enemyPush[slot] = float4(0, 0, 0, 0);
+            enemyPoison[slot] = float4(0, 0, 0, 0);
             return;
         }
     }

@@ -79,6 +79,13 @@ void main(uint3 id : SV_DispatchThreadID)
         splitEvents.Store3(at, asuint(e.position));
         splitEvents.Store(at + 12u, kind);
     }
+    // the sand mage's tornado (2026-10-17) just blows out: the dust puff, no shatter (it has no blocky body)
+    if (kind == SWARM_KIND_TORNADO)
+    {
+        if (g_DeathArea != 0u)
+            SwarmSpawnAreaFromDef(g_DeathArea, e.position, i, 1.0, 0u, float2(0.0, 0.0));
+        return;
+    }
     if (g_CorpseOn == 0u)
         return;
 

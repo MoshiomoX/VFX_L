@@ -94,6 +94,8 @@ void main(uint3 id : SV_DispatchThreadID)
     float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? 3.14159265 : 0.0;
     sideSign += (float)((extra.y >> 1) & 0x7Fu) * (6.28318531 / 128.0);
     uint motionIdx = req.motion & SWARM_MOTION_INDEX_MASK;
+    // chain rune: the request's pathT carries how many more enemies this shot may jump to (2026-10-16)
+    uint chains = (uint) clamp(req.pathT, 0.0, (float) SWARM_PROJ_CHAIN_LEFT_MASK);
     req.pathT = 0.0;
 
     SwarmMotion m = motions[motionIdx];
@@ -142,7 +144,7 @@ void main(uint3 id : SV_DispatchThreadID)
             if (key != SWARM_NO_TARGET_KEY)
             {
                 uint slot = key & SWARM_SLOT_MASK;
-                if (slot < g_MaxEnemies && enemyStates[slot] == SWARM_ALIVE)
+                if (slot < g_MaxEnemies && enemyStates[slot] != SWARM_DEAD)
                 {
                     impact = enemies[slot].position;
                     path.target = slot;
@@ -182,7 +184,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (key != SWARM_NO_TARGET_KEY)
         {
             uint slot = key & SWARM_SLOT_MASK;
-            if (slot < g_MaxEnemies && enemyStates[slot] == SWARM_ALIVE)
+            if (slot < g_MaxEnemies && enemyStates[slot] != SWARM_DEAD)
             {
                 path.target = slot;
                 SwarmBuildPath(path, m, req.position, enemies[slot].position,
@@ -229,6 +231,9 @@ void main(uint3 id : SV_DispatchThreadID)
             paths[slot] = path;
             projTags[slot] = extra.x;
             projBoost[slot] = extra.y >> SWARM_SPAWN_BOOST_SHIFT;
+            // chain rune: an alive-but-chained state (HitCS / ProjMoveCS read it, everyone else sees "not DEAD")
+            if (chains > 0u)
+                projStates[slot] = SwarmProjChainState(chains, SWARM_PROJ_CHAIN_NO_LAST);
             return;
         }
     }

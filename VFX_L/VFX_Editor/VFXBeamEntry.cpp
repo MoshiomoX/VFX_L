@@ -64,8 +64,8 @@ void VFXBeamEntry::Submit(VFXBeamRenderer& renderer, const Vector3& worldOffset,
     item.end = start + (end - start) * t1;
     item.width = width * widthMul;   // 芯 / グローは比率なので一緒に太くなる
     item.coreRatio = coreRatio;
-    item.color = color;
-    item.coreColor = coreColor;
+    item.color = Vector4(color.x, color.y, color.z, color.w);
+    item.coreColor = Vector4(coreColor.x, coreColor.y, coreColor.z, coreColor.w);
     item.glowRatio = glowRatio;
     item.glowAlpha = glowAlpha;
     item.scroll = m_Age * scrollSpeed;

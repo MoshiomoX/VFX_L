@@ -1,6 +1,6 @@
 {
     "castSound": "cast_ice",
-    "name": "IceLance",
+    "name": "IceLance", "element": 2,
     "mode": 0,
     "c1": [ 0.3, 0.0, 0.0 ],
     "c2": [ 0.7, 0.0, 0.0 ],

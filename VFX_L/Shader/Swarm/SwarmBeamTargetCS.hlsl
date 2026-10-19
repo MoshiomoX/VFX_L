@@ -25,6 +25,7 @@ cbuffer BeamTargetCB : register(b4)
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2); // a buried burrower is not a target (2026-10-17)
 // per channel 32 bytes: slot, serial, valid, pad, pos.xyz, pad
 RWByteAddressBuffer beamTargets : register(u0);
 
@@ -70,7 +71,7 @@ void main(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
         fwd = (fl > 1e-4) ? fwd / fl : float2(0.0, 1.0);
         for (uint i = gi; i < g_MaxEnemies; i += 256u)
         {
-            if (enemyStates[i] == SWARM_DEAD)
+            if (enemyStates[i] == SWARM_DEAD || SwarmUntargetable(enemyExtra[i]))
                 continue;
             float3 p = enemies[i].position;
             float score;

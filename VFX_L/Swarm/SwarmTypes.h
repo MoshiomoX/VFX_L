@@ -85,9 +85,34 @@ namespace Swarm
     // 盾兵（2026-10-08）：受ける 1 発毎のダメージから BomberCB::shieldArmor を引く（最低 shieldMinFrac 倍は通る）。
     // 毒の沼・光線の細かい tick はほとんど通らず、一発の重い魔法がよく効く。身体の前に塔の盾（SwarmShieldVS）
     constexpr uint32_t kEnemyKindShield = 9;
+    // トゲ玉（2026-10-17、砂漠の敵）：厚くて遅い転がるトゲの玉。触れたプレイヤーを弾き飛ばす（PlayerHitInfo の spike）。
+    // 怯まない・突風で押せない。雑魚のメッシュは描かず SwarmSpikeBallVS が球 + トゲを描く。HP・速さは MobSpawner::m_SpikeBall*
+    constexpr uint32_t kEnemyKindSpikeBall = 10;
+    // 砂潜り（2026-10-17、砂漠の敵）：砂の下を進む（砂の山だけ見える・当たらない・噛まない・狙われない）、プレイヤーの
+    // 足元で顔を出し、burrowBiteDelay 秒後に周り burrowBiteRadius を 1 回噛んで（ダメージ ×2 + 小さなノックバック）、
+    // burrowSurfaceTime 秒でまた潜る（出ている間は動かない・追わない。ユーザー 10-17「冒头一咬就走」）。EnemyExtra.fuse > 0 = 出ている残り秒、<= 0 = -(潜っている秒)
+    constexpr uint32_t kEnemyKindBurrower = 11;
+    // 砂嵐の術師（2026-10-17、砂漠の敵。ユーザー「能把玩家吹飞的」→ 四案から「飛ぶ砂旋」）：プレイヤーから距離を取り
+    // （sandMageKeepMin〜Max の間に立つ）、sandMageWindup 秒溜めて砂旋（kEnemyKindTornado）を 1 つ放つ。放つ瞬間は AICS が
+    // 分裂の環（castEvents）に書き、CPU（MobSpawner::SpawnFromEvents）がプレイヤーへ向けて湧かせる。EnemyExtra.fuse > 0 = 溜めの経過秒、< 0 = クールダウンの残り
+    constexpr uint32_t kEnemyKindSandMage = 12;
+    // 砂旋（2026-10-17）：敵の「弾」を敵の 1 種類として実装した物。yaw の向きへ moveSpeed で一直線（幽霊と同じく壁も台地も素通り）、
+    // 撃っても当たらない・狙われない・HP バー無し、触れたプレイヤーを高く吹き飛ばす（PlayerHitInfo の wind）、tornadoLife 秒で消える
+    // （ContactCS が DEAD にする。撃破に数えない・経験値無し・砕け散らない、死亡の土煙だけ出る）。描画は SwarmTornadoVS（竜巻のモデル）
+    constexpr uint32_t kEnemyKindTornado = 13;
+    // 黒幽霊（2026-10-18、Megabonk の黒い幽霊。ユーザー「十分過ぎても死なない → 幽霊を強化、黒幽霊も」）：最終ウェーブの時間切れ
+    // finalDarkGhostStart 秒後から出る、幽霊の上位。HP = 雑魚 × darkGhostHpMul（普通のビルドでは倒せない）、速さ = 雑魚 × darkGhostSpeedMul
+    // （走りより速く、スライディングなら振り切れる）、体格 darkGhostScale、接触 × darkGhostDamageMul + 爆発級のノックバック。
+    // 白幽霊と同じく壁も台地も素通り・怯まない・凍らない・遅くならない・突風で飛ばない（SwarmIsGhost）。描画は幽霊のリスト（VS が種類で色を変える）
+    constexpr uint32_t kEnemyKindDarkGhost = 14;
+    // 突撃爆弾兵（2026-10-18、ユーザー「点火したら直接プレイヤーへ突っ込む自爆兵」）：プレイヤーが dashBomberTrigger 内に入ると自分で点火し、
+    // dashBomberDashSpeed で毎ステップ向きを直しながら突っ込む。触れた瞬間、または dashBomberFuse 秒で爆発（半径 dashBomberBlastRadius、
+    // 自爆兵の爆発 × dashBomberDamageMul + 爆発級のノックバック）。**点火中は無敵**（自爆兵も同じ。SwarmInvulnerable：撃っても当たらない・
+    // 狙われない・怯まない・凍らない）。EnemyExtra.fuse > 0 = 点火からの秒（AICS が数える）。皮は Kenney Blocky H（灰色ロボット）
+    constexpr uint32_t kEnemyKindDashBomber = 15;
     // 描画リストの数（種類毎にテクスチャを替えて描く）。エリートは雑魚と同じメッシュ・テクスチャなので雑魚のリストで描き、
     // 大きさと色は VS が種類を見て変える
-    constexpr uint32_t kEnemyKinds = 7;
+    constexpr uint32_t kEnemyKinds = 10;
     // 描画リストの添字（種類 → リスト。エリート / Boss は雑魚のリスト、分裂体はスプリッターのリスト）
     constexpr uint32_t kDrawListMob = 0;
     constexpr uint32_t kDrawListBomber = 1;
@@ -95,7 +120,10 @@ namespace Swarm
     constexpr uint32_t kDrawListBrute = 3;    // 重装兵（緑のオーク）
     constexpr uint32_t kDrawListCharger = 4;  // 突撃兵（黒い忍者）
     constexpr uint32_t kDrawListShield = 5;   // 盾兵（紺の警官）
-    constexpr uint32_t kDrawListGhost = 6;    // 最後に alpha blend で描く（必ず最後の番号）
+    constexpr uint32_t kDrawListBurrower = 6; // 砂潜り（自分のテクスチャ + 砂の山。2026-10-17）
+    constexpr uint32_t kDrawListSandMage = 7; // 砂嵐の術師（自分のテクスチャ。2026-10-17。砂旋は雑魚のメッシュを描かないので表の外 = SwarmSystem::m_TornadoList*）
+    constexpr uint32_t kDrawListDashBomber = 8; // 突撃爆弾兵（灰色ロボット。2026-10-18）
+    constexpr uint32_t kDrawListGhost = 9;    // 最後に alpha blend で描く（必ず最後の番号。白幽霊と黒幽霊の両方）
 
     struct EnemyExtra
     {
@@ -154,6 +182,8 @@ namespace Swarm
     //   タグはスロット毎の projTags に残り、SwarmProjEndCS が「このステップで消えたタグ付きの弾」を
     //   環（先頭 16B = 今までに書いた総数、以降 16B × kMaxTriggerEvents）へ書く。CPU はリードバックして差分を取る。
     //   HLSL の SWARM_MAX_TRIGGER_EVENTS / SWARM_SPAWN_AT_POS と一致させること
+    //   連鎖のルーン（2026-10-16）: 跳ぶ回数は依頼の Projectile::pathT に乗せる（生成後は使われない欄）。SpawnProjCS が読んで
+    //   projStates に「連鎖中」の状態値を書く（HLSL の SWARM_PROJ_CHAIN*。CPU は projStates を読まない）
     // ============================================================
     constexpr uint32_t kMaxTriggerEvents = 128;
     constexpr uint32_t kSpawnAtPos = 1u;
@@ -275,6 +305,15 @@ namespace Swarm
     constexpr uint32_t kAreaSlowShift = 12u;
     constexpr uint32_t kMaxBeams = 4;            // 同時に出せる光線（HLSL の SWARM_MAX_BEAMS と同じ）
     constexpr uint32_t kHitAreaOnExpire = 1u;    // Motion::hitAreaFlags
+    constexpr uint32_t kHitAreaElementShift = 20u;   // bits 20〜23 = 弾の属性（ダメージの数字の色。DamageElement。2026-10-17）
+    // 範囲の追加値（2026-10-17、毒沼）: Area には空きが無く flags も埋まっているので、GPU が書く tickNow の上位ビットに乗せる。
+    // 下位 1 バイトは AreaTickCS の tick 状態（HLSL の SWARM_AREA_TICK_*）、CPU から出す時は Area::tickNow、
+    // GPU が出す時は AreaDef::extra に入れる（AreaProfile::Extra）
+    constexpr uint32_t kAreaTickMask = 0xFFu;
+    constexpr uint32_t kAreaExtraToxinShift = 8u;   // (tickNow >> 8) & 0xF = q、1 tick の威力の q / 15 を毒素として敵に溜め、1 秒かけて削る
+    constexpr uint32_t kAreaExtraSplashOnly = 1u << 12;   // 最初の tick だけダメージ（泥沼：落ちた時の飛沫。残る沼は減速だけ）
+    constexpr uint32_t kAreaExtraElementShift = 16u;   // bits 16〜19 = 範囲の属性（ダメージの数字の色。2026-10-17）
+    constexpr float kToxinTime = 1.0f;           // 毒素 1 回分が削り切られる秒（HLSL の SWARM_TOXIN_TIME）
 
     struct Area
     {
@@ -287,7 +326,7 @@ namespace Swarm
         float    halfHeight = 1.5f;
         uint32_t flags = 0;
         uint32_t vfxType = 0;            // GPU 側で粒子を出すレシピ。0 = 出さない（CPU が VFX を再生する）
-        uint32_t tickNow = 0;            // GPU が書く
+        uint32_t tickNow = 0;            // 下位 1 バイトは GPU が書く tick 状態。上位は出す時に入れる追加値（kAreaExtra*。2026-10-17）
     };
     static_assert(sizeof(Area) == 48, "SwarmArea layout mismatch");
 
@@ -300,7 +339,7 @@ namespace Swarm
         float    tickInterval = 1.0e9f;
         uint32_t flags = 0;
         uint32_t vfxType = 0;
-        uint32_t _pad = 0;
+        uint32_t extra = 0;              // 出た範囲の tickNow の上位へ（毒素の割合・飛沫だけ。kAreaExtra*）
     };
     static_assert(sizeof(AreaDef) == 32, "SwarmAreaDef layout mismatch");
     
@@ -407,7 +446,7 @@ namespace Swarm
         float    ghostHover = 0.7f;          // VS: 地面からこれだけ浮く（判定の位置は地面のまま）
         float    ghostAlpha = 0.55f;         // VS: 頂点 alpha（alpha blend で描く）
         float    ghostGlow = 1.6f;           // VS: 青白の色に掛ける HDR の倍率
-        float    ghostDamageMul = 1.0f;      // 接触ダメージの倍率
+        float    ghostDamageMul = 1.5f;      // 接触ダメージの倍率（2026-10-18 に 1.0 → 1.5：最終ウェーブで死ななかった）
 
         // ---- スプリッター（kEnemyKindSplitter）と分裂体（kEnemyKindSplitling）。2026-10-03 ----
         float    splitterScale = 1.15f;      // 少し大きい
@@ -461,8 +500,57 @@ namespace Swarm
         float    freezeBigMul = 0.5f;         // エリート・Boss の凍結の長さに掛ける
         float    freezeImmunity = 3.0f;       // 解けてからこの秒数は凍らない（凍らせ続けられないように）
         float    freezeTint = 1.0f;           // VS: 凍った体の氷色の強さ（0 = 色を変えない）
+
+        // ---- トゲ玉（kEnemyKindSpikeBall。2026-10-17）----
+        float    spikeBallScale = 1.4f;       // 体格（当たり / 接触の半径。見た目の半径は SwarmSystem::spikeBallLook.radius × これ）
+        float    spikeBallDamageMul = 1.0f;   // 接触ダメージ（弾き飛ばしが本体）
+        float    spikeBallExpMul = 4.0f;      // HP 60 = 雑魚 4 倍
+        float    _spikeBallPad = 0.0f;
+
+        // ---- 砂潜り（kEnemyKindBurrower。2026-10-17）----
+        float    burrowScale = 1.0f;
+        float    burrowDamageMul = 2.0f;      // 顔を出した時の一噛み（1 回だけ）
+        float    burrowExpMul = 2.0f;
+        float    burrowSurfaceDist = 2.0f;    // プレイヤーがこの距離に入ったら顔を出す（m）
+        float    burrowSurfaceTime = 3.0f;    // 出ている秒 = 潜りのクールダウン（噛んだ後もここまで外で動かず、撃てる。ユーザー 10-17「潜行要 CD」）
+        float    burrowMinBuried = 1.5f;      // 潜ってからこの秒数は出ない
+        float    burrowBuriedSpeedMul = 1.3f; // 砂の下の速さ
+        float    burrowSurfaceSpeedMul = 0.8f;// 出ている時の速さ
+        float    burrowBiteRadius = 2.4f;     // 出た時の一噛みの届く範囲（体の中心から m。surfaceDist より広く = 止まっていれば必ず当たる）
+        float    burrowBiteDelay = 0.3f;      // 出てから噛むまでの秒（体が出て来る間。ここで離れれば避けられる）
+        float    _burrowPad[2] = {};
+
+        // ---- 砂嵐の術師（kEnemyKindSandMage）と砂旋（kEnemyKindTornado）。2026-10-17 ----
+        float    sandMageScale = 1.0f;
+        float    sandMageDamageMul = 1.0f;    // 殴らないので使わない（種類の表の為）
+        float    sandMageExpMul = 2.5f;       // HP 20 だが遠くに立つので倒しにくい
+        float    sandMageKeepMin = 7.0f;      // これより近いとプレイヤーから下がる（m）
+        float    sandMageKeepMax = 11.0f;     // これより遠いと寄って来る。間では立ち止まって詠唱
+        float    sandMageCastRange = 14.0f;   // プレイヤーがこの距離の中にいる時だけ放つ（m）
+        float    sandMageWindup = 0.9f;       // 溜めの秒（立ち止まって体が黄色く光る。ここで横へ逃げる）
+        float    sandMageCooldown = 5.0f;     // 次の砂旋までの秒
+        float    tornadoScale = 1.2f;         // 砂旋の体格（当たりの半径 = 雑魚の半径 × これ）
+        float    tornadoDamageMul = 0.6f;     // 触れた時のダメージ（接触 × これ。本体は吹き飛ばし）
+        float    tornadoExpMul = 0.0f;        // 使わない（プレイヤーには倒せない）
+        float    tornadoLife = 4.0f;          // 飛ぶ秒（速さ MobSpawner::m_TornadoSpeed 3.5 m/s × 4 秒 = 14m）
+
+        // ---- 黒幽霊（kEnemyKindDarkGhost。2026-10-18）。HP・速さは MobSpawner の darkGhost* ----
+        float    darkGhostScale = 1.3f;       // 体格（白幽霊は 1）
+        float    darkGhostDamageMul = 3.0f;   // 接触ダメージの倍率（白幽霊は ghostDamageMul）
+        float    darkGhostExpMul = 10.0f;     // 倒せた時の経験値（HP 40 倍なので滅多に無い）
+        float    darkGhostAlpha = 0.85f;      // VS: 頂点 alpha（白幽霊より濃い）
+
+        // ---- 突撃爆弾兵（kEnemyKindDashBomber。2026-10-18）。HP・平時の速さは MobSpawner の m_DashBomber* ----
+        float    dashBomberScale = 1.0f;
+        float    dashBomberDamageMul = 1.2f;  // 爆発のダメージ = 自爆兵の爆発 × これ
+        float    dashBomberExpMul = 1.5f;     // 点火前に倒せた時の経験値
+        float    dashBomberTrigger = 9.0f;    // プレイヤーがこの距離（m）に入ると点火して突っ込む
+        float    dashBomberFuse = 1.5f;       // 点火から爆発までの秒（触れればその場で爆発）
+        float    dashBomberDashSpeed = 12.0f; // 突っ込む速さ m/s（突撃兵 14、プレイヤーのスライディング 13 なら振り切れる）
+        float    dashBomberBlastRadius = 2.5f;
+        float    _dashBomberPad = 0.0f;
     };
-    static_assert(sizeof(BomberCB) == 224, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 384, "SwarmBomberCB layout mismatch");
 
     // ============================================================
     // 分裂の環（GPU → CPU）。SwarmCorpseTrackCS がスプリッターの死を見つけたら 1 件書く（先頭 16B = 今までの総数、
@@ -472,9 +560,32 @@ namespace Swarm
     struct SplitEvent
     {
         Vector3  position;    // 死んだ所（敵の位置 = 地面 + groundY）
-        uint32_t kind = 0;    // 死んだ物の種類（今はスプリッターだけ）
+        uint32_t kind = 0;    // 種類：kEnemyKindSplitter = スプリッターの死（分裂体を出す）、kEnemyKindSandMage = 術師の詠唱（砂旋を出す。2026-10-17）
     };
     static_assert(sizeof(SplitEvent) == 16, "SwarmSplitEvent layout mismatch");
+
+    // ============================================================
+    // ダメージの数字（GPU → CPU。2026-10-17）。SwarmDamageTextCS が槽毎の hp の減りをまとめて 1 件書く
+    // （先頭 16B = 総数、以降 16B × kMaxDamageTexts）。CPU は分裂の環と同じくリードバックし、UI/DamageNumbers が描く
+    // ============================================================
+    constexpr uint32_t kMaxDamageTexts = 512;
+    struct DamageText
+    {
+        Vector3  position;    // 頭の上
+        uint32_t packed = 0;  // 下 24 bit = 量 × 10、kDtxPoison / kDtxKill
+    };
+    static_assert(sizeof(DamageText) == 16, "SwarmDamageText layout mismatch");
+    constexpr uint32_t kDtxAmountMask = 0x00FFFFFFu;
+    constexpr uint32_t kDtxPoison = 1u << 24;   // 大半が毒素の削り → 緑
+    constexpr uint32_t kDtxKill = 1u << 25;     // その敵が死んだ → 大きく
+    constexpr uint32_t kDtxElementShift = 26u;   // bits 26〜29 = 最後に当てた物の属性（DamageElement）
+    // ダメージの属性（ProjectileProfile / AreaProfile の element。数字の色だけに使う。順番は HLSL の SwarmCommon と同じ）
+    enum class DamageElement : uint32_t { None = 0, Fire, Ice, Lightning, Arcane, Earth, Poison, Wind, Light, Count };
+    inline const char* DamageElementName(uint32_t e)
+    {
+        static const char* kNames[] = { "none", "fire", "ice", "lightning", "arcane", "earth", "poison", "wind", "light" };
+        return e < (uint32_t)DamageElement::Count ? kNames[e] : "?";
+    }
 
     // ============================================================
     // Boss の様子（GPU → CPU。SwarmEnemyCompactCS が毎フレーム書き、staging でリードバック）。
@@ -485,9 +596,9 @@ namespace Swarm
         uint32_t alive = 0;    // 生きている Boss の数
         uint32_t hp = 0;       // 固定小数（HpFromFixed で戻す）。複数居たら最後に書いた 1 体
         uint32_t maxHp = 0;
-        uint32_t _pad = 0;
+        uint32_t ghosts = 0;      // 生きている白幽霊の数（2026-10-18。CompactCS が空いていた語に数える。MobSpawner の幽霊の上限用）
         float    pos[3] = {};
-        float    _pad2 = 0.0f;
+        uint32_t darkGhosts = 0;  // 生きている黒幽霊の数（同上）
     };
     static_assert(sizeof(BossInfo) == 32, "SwarmBossInfo layout mismatch");
 
@@ -502,9 +613,12 @@ namespace Swarm
         uint32_t meleeCount = 0;
         int32_t  blastX = 0, blastZ = 0;   // 爆発の向きの和
         uint32_t blastCount = 0;
-        uint32_t _pad[2] = {};
+        int32_t  spikeX = 0, spikeZ = 0;   // トゲ玉の向きの和（2026-10-17。爆発より遠く高く飛ぶ）
+        uint32_t spikeCount = 0;
+        int32_t  windX = 0, windZ = 0;     // 砂旋の向きの和（2026-10-17。高く吹き上げる）
+        uint32_t windCount = 0;
     };
-    static_assert(sizeof(PlayerHitInfo) == 32, "SwarmPlayerHitInfo layout mismatch");
+    static_assert(sizeof(PlayerHitInfo) == 48, "SwarmPlayerHitInfo layout mismatch");
     constexpr float kHitDirScale = 1000.0f;   // = SwarmContactCS の HIT_DIR_SCALE
 
     // ============================================================

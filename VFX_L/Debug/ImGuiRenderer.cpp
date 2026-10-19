@@ -2,6 +2,7 @@
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
+#include "ResourcePaths.h"
 
 bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceContext* context)
 {
@@ -15,7 +16,7 @@ bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceCont
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
-      // ViewportsEnable���A�E�B���h�E�O�ł������ڂ𓝈�
+      // ViewportsEnable時、ウィンドウ外でも見た目を統一
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
         ImGuiStyle& style = ImGui::GetStyle();
@@ -23,6 +24,27 @@ bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceCont
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
 
+    // 日本語の字体（2026-10-18 ユーザー「ImGui の日本語字体を加えて」「簡体字も」）：既定の ProggyClean には CJK の字形が無く、
+    // デバッグパネルに日本語 / 中国語を書くと「?」になっていた。Noto Sans JP（OFL、可変フォント = 既定の Regular）を主に、
+    // JP に無い字（「简」など簡体字だけの字）は Noto Sans SC を MergeMode で後ろに繋いで補う。ImGui 1.92 の動的な図集なので
+    // 範囲は指定しない（使った字だけその時に作られる）。読めなければ既定の字体に戻る
+    {
+        ImFontConfig cfg;
+        cfg.OversampleH = 2;
+        cfg.OversampleV = 1;
+        if (io.Fonts->AddFontFromFileTTF(Res::Fnt::ImGuiJP, 16.0f, &cfg))
+        {
+            ImFontConfig sc = cfg;
+            sc.MergeMode = true;
+            if (!io.Fonts->AddFontFromFileTTF(Res::Fnt::ImGuiSC, 16.0f, &sc))
+                std::cout << "[Warn] ImGui: Simplified Chinese fallback font not found (" << Res::Fnt::ImGuiSC << ")" << std::endl;
+        }
+        else
+        {
+            std::cout << "[Warn] ImGui: Japanese font not found (" << Res::Fnt::ImGuiJP << "), using the default font" << std::endl;
+            io.Fonts->AddFontDefault();
+        }
+    }
     if (!ImGui_ImplWin32_Init(hwnd))
     {
         std::cout << "[Error] ImGui Win32 init failed" << std::endl;
@@ -66,7 +88,7 @@ void ImguiRenderer::EndFrame()
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-	// Viewport�X�V�i�E�B���h�E�O�`��Ή��j
+	// Viewport更新（ウィンドウ外描画対応）
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
 	{

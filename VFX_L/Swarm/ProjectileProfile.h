@@ -68,6 +68,8 @@ struct ProjectileProfile
     float holdTime = 0.0f;
     // 曲線の進みを 2 乗にする = 速度 0 から始まり、終点で公称の 2 倍（同じ所要時間）。止まった後に「勢いよく飛ぶ」感じ用
     bool easeIn = false;
+    // ダメージの属性（Swarm::DamageElement の番号。json "element"。ダメージの数字の色だけ。2026-10-17）
+    int element = 0;
 
     // ---- 見た目 ----
     // VFX json のファイル名（Assets/Data/VFXData/ の中。VFXDatabase に登録済みの物だけ GPU で出る）

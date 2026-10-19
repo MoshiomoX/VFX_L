@@ -29,8 +29,13 @@ struct StageDef
     DirectX::SimpleMath::Vector3 grassTip = { 1.25f, 1.20f, 0.85f };
     float grassHeightMin = 0.28f, grassHeightMax = 0.55f;   // 葉の高さ m
 
-    // 難度の下駄：MobSpawner の倍率 (1 + 0.12 × 分) に足す（第 2 面 +0.6 = 第 1 面の 5 分相当から始まる）
-    float difficultyBonus = 0.0f;
+    // 面毎の難度（2026-10-17、ユーザー「第 1 面を勝ち切って第 2 面に入ると無双になる」）。
+    // 難度表（Difficulty.json）を difficultyTimeOffsetMin 分だけ進めた所から始め（第 2 面 = 第 1 面の 10 分の続き）、
+    // 表の HP・ダメージ・湧きの値に面の倍率を掛ける。以前は HP・ダメージに +0.6 / +1.2 を足すだけで、第 2 面の開始が第 1 面の終わりより緩かった
+    float difficultyTimeOffsetMin = 0.0f;
+    float difficultyHpMul = 1.0f;
+    float difficultyDamageMul = 1.0f;
+    float difficultySpawnMul = 1.0f;
 
     // 新しい敵の混ざり方（2026-10-03、ユーザー「面毎の主力 + 面の中で時間で増える」）。
     // 湧き（新規・転送）のうちその種類の割合: start 秒までは 0、start で ratioStart、rampEnd 秒で ratioEnd（間は直線）。
@@ -46,6 +51,10 @@ struct StageDef
     // 突撃兵（第 2 面の主力）・盾兵（第 3 面の主力）。2026-10-08。他の面は少し遅れて少しだけ混ざる
     EnemyMix charger = { 150.0f, 0.03f, 0.08f, 540.0f };
     EnemyMix shield = { 180.0f, 0.03f, 0.08f, 540.0f };
+    EnemyMix spikeBall = { 1.0e9f, 0.0f, 0.0f, 480.0f };   // トゲ玉（砂漠の敵。2026-10-17。砂漠以外は出ない）
+    EnemyMix burrower = { 1.0e9f, 0.0f, 0.0f, 480.0f };    // 砂潜り（砂漠の敵。2026-10-17。砂漠以外は出ない）
+    EnemyMix sandMage = { 1.0e9f, 0.0f, 0.0f, 480.0f };    // 砂嵐の術師（砂漠の敵。2026-10-17。砂漠以外は出ない）
+    EnemyMix dashBomber = { 150.0f, 0.03f, 0.08f, 480.0f }; // 突撃爆弾兵（全ステージ。2026-10-18）：150 秒から 3% → 8 分で 8%
 
     // 遺跡の松明（外周の壁に付く）に点光源を付ける数（プレイヤーに近い順。全体の上限 64 を圧迫しないように）
     int torchLights = 12;

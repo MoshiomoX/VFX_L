@@ -71,6 +71,7 @@ enum class SpellParam
     CastInterval,     // 発動間隔
     ManaCost,
     AreaDamage,       // 弾が落ちた所・当たった所に出す範囲（毒沼・メテオの爆発）の威力の倍率（SpellStats::areaDamageMul。2026-10-08）
+    ChainCount,       // 連鎖：敵に当たった後に近くの別の敵へ跳ぶ回数（連鎖のルーン。2026-10-16）
 };
 
 // ============================================================
@@ -302,6 +303,12 @@ namespace ItemShape
     inline std::vector<CellOffset> Sides()
     {
         return { { 0, -1 }, { 0, 1 } };
+    }
+
+    // 上下 2 マス（縦一列の両隣。Sides と対。連鎖のルーン。2026-10-16）
+    inline std::vector<CellOffset> Vertical()
+    {
+        return { { -1, 0 }, { 1, 0 } };
     }
 
     // 周囲8マス（斜め込み）

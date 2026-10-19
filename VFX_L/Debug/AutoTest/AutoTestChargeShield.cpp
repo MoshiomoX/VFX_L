@@ -185,9 +185,9 @@ void AutoTestChargeShield::Run()
     }
     if (m_AutoStep == 31)
     {
-        // s_Run: 0 毒 × 雑魚 / 1 毒 × 盾兵 / 2 石弾 × 雑魚 / 3 石弾 × 盾兵
+        // s_Run: 0 泥沼 × 雑魚 / 1 泥沼 × 盾兵 / 2 石弾 × 雑魚 / 3 石弾 × 盾兵（2026-10-17：毒は上級魔法になったので基本の泥沼で）
         clearField();
-        useSpell(s_Run < 2 ? ItemID::Poison : ItemID::StoneShot);
+        useSpell(s_Run < 2 ? ItemID::Swamp : ItemID::StoneShot);
         const uint32_t kind = (s_Run % 2) ? Swarm::kEnemyKindShield : Swarm::kEnemyKindMob;
         for (int k = 0; k < 3; ++k)
             spawnAt(((float)k - 1.0f) * 1.6f, 9.0f, kind, kTargetHp, 0.0f);

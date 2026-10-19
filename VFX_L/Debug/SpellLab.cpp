@@ -135,20 +135,21 @@ void SpellLab::SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, 
     const Vector3 pp = reg.Get<TransformComponent>(player).position;
     const float groundY = swarm.GetAIParams().groundY;
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
-    static const uint32_t kKinds[7] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindBrute,
-        Swarm::kEnemyKindCharger, Swarm::kEnemyKindShield, Swarm::kEnemyKindGhost };
+    static const uint32_t kKinds[12] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindBrute,
+        Swarm::kEnemyKindCharger, Swarm::kEnemyKindShield, Swarm::kEnemyKindGhost, Swarm::kEnemyKindSpikeBall, Swarm::kEnemyKindBurrower,
+        Swarm::kEnemyKindSandMage, Swarm::kEnemyKindDarkGhost, Swarm::kEnemyKindDashBomber };
 
     const int n = (std::min)(m_SwarmLeft, kSwarmPerFrame);
     for (int i = 0; i < n; ++i)
     {
-        // 混合 = 雑魚 35 : 自爆兵 15 : スプリッター 15 : 重装兵 10 : 突撃兵 10 : 盾兵 10 : 幽霊 5
-        uint32_t kind = kKinds[std::clamp(m_SwarmKind, 0, 6)];
-        if (m_SwarmKind >= 7)
+        // 混合 = 雑魚 26 : 自爆兵 10 : スプリッター 12 : 重装兵 9 : 突撃兵 9 : 盾兵 9 : 幽霊 5 : トゲ玉 6 : 砂潜り 5 : 砂嵐の術師 3 : 黒幽霊 2 : 突撃爆弾兵 4（2026-10-18）
+        uint32_t kind = kKinds[std::clamp(m_SwarmKind, 0, 11)];
+        if (m_SwarmKind >= 12)
         {
-            static const float kCum[6] = { 0.35f, 0.50f, 0.65f, 0.75f, 0.85f, 0.95f };
+            static const float kCum[11] = { 0.26f, 0.36f, 0.48f, 0.57f, 0.66f, 0.75f, 0.80f, 0.86f, 0.91f, 0.94f, 0.96f };
             const float r = u01(m_Rng);
             int k = 0;
-            while (k < 6 && r >= kCum[k]) ++k;
+            while (k < 11 && r >= kCum[k]) ++k;
             kind = kKinds[k];
         }
         float hp = 15.0f, speed = 3.5f;
@@ -162,7 +163,7 @@ void SpellLab::SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, 
             const Vector3 p(pp.x + std::sin(a) * d, 0.0f, pp.z + std::cos(a) * d);
             int gx = 0, gz = 0;
             grid.WorldToCell(p, gx, gz);
-            if (kind != Swarm::kEnemyKindGhost && !grid.IsWalkable(gx, gz)) continue;   // 幽霊は壁も素通り
+            if (kind != Swarm::kEnemyKindGhost && kind != Swarm::kEnemyKindDarkGhost && !grid.IsWalkable(gx, gz)) continue;   // 幽霊は壁も素通り
             swarm.SpawnEnemy({ p.x, grid.SampleHeight(p.x, p.z) + groundY, p.z }, hp, speed, kind);
             break;
         }

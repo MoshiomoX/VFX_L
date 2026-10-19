@@ -31,6 +31,8 @@ void VFXMeshEntry::LoadModel()
     m_Model.reset();
     if (modelPath == "@sphere")   // 組み込みの球（ファイル無し。半径 0.5 = scale 1 で直径 1m）
         m_Model = PrimitiveBuilder::CreateSphere(ResourceManager::Get().GetDevice(), 0.5f, { 1, 1, 1, 1 }, 24);
+    else if (modelPath == "@tornado")   // 組み込みの竜巻の筒（y 0〜1、半径 1、両端で頂点 a が 0 に落ちる。突風の旋風。2026-10-19）
+        m_Model = PrimitiveBuilder::CreateTornadoShell(ResourceManager::Get().GetDevice(), 32, 14, 0.62f, 0.35f);
     else if (!modelPath.empty())
         m_Model = ResourceManager::Get().LoadModel(modelPath);
 }

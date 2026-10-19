@@ -47,15 +47,28 @@ void main(uint3 id : SV_DispatchThreadID)
     uint kind = enemyExtra[i].kind;
     if (kind == SWARM_KIND_BOMBER)
         bomberList.Append(i);
-    else if (kind == SWARM_KIND_GHOST)
-        ghostList.Append(i);
+    else if (SwarmIsGhost(kind))
+        ghostList.Append(i);   // the dark ghost shares the list (same mesh, drawn translucent; the VS tints it by kind)
     else if (kind == SWARM_KIND_SPLITTER || kind == SWARM_KIND_SPLITLING)
         splitterList.Append(i);
     else if (kind == SWARM_KIND_BRUTE)
         bruteList.Append(i);
-    else if (kind != SWARM_KIND_CHARGER && kind != SWARM_KIND_SHIELD)
+    else if (kind != SWARM_KIND_CHARGER && kind != SWARM_KIND_SHIELD && kind != SWARM_KIND_SPIKEBALL && kind != SWARM_KIND_BURROWER
+          && kind != SWARM_KIND_SANDMAGE && kind != SWARM_KIND_TORNADO && kind != SWARM_KIND_DASHBOMBER) // spike balls / tornadoes have no blocky body (SwarmSpikeBallVS / SwarmTornadoVS); the rest have their own list in SwarmEnemyKindListCS
         mobList.Append(i);
 
+    // the final-swarm ghosts are counted per kind in the two spare words of bossInfo (offsets 12 / 28):
+    // the CPU gives each its own cap (2026-10-18; before, ghosts shared the mob cap and barely spawned)
+    if (kind == SWARM_KIND_GHOST)
+    {
+        uint prev;
+        bossInfo.InterlockedAdd(12, 1u, prev);
+    }
+    else if (kind == SWARM_KIND_DARKGHOST)
+    {
+        uint prev;
+        bossInfo.InterlockedAdd(28, 1u, prev);
+    }
     if (kind == SWARM_KIND_BOSS)
     {
         uint prev;

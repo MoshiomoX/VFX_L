@@ -29,6 +29,9 @@ StructuredBuffer<uint> aliveList : register(t2);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 // slow + freeze per slot (z > 0 = frozen by the Ice Lance: the pose holds, the body turns icy)
 StructuredBuffer<float4> enemySlow : register(t4);
+// stored toxin per slot (x = damage still to drain, the poison pools, 2026-10-17): the body turns a sickly green
+StructuredBuffer<float4> enemyPoison : register(t6);
+static const float3 kPoisonTint = float3(0.55, 1.15, 0.45);
 
 // bomber blink: starts at this many blinks per second, ends at the second value
 static const float kFuseBlinkStart = 3.0;
@@ -44,6 +47,8 @@ static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
 static const float3 kBossTint = float3(1.1, 0.5, 1.5);
 // ghost: translucent cyan-white, drawn with alpha blend (SwarmSystem draws its list last)
 static const float3 kGhostTint = float3(0.55, 1.25, 1.6);
+// dark ghost (2026-10-18): near-black violet, more opaque, with a slow purple pulse
+static const float3 kDarkGhostTint = float3(0.10, 0.03, 0.24);
 
 // ---- rigid part animation (models whose parts hang off animated nodes,
 // e.g. Kenney Blocky: 6 rigid parts, no skin weights) ----
@@ -213,8 +218,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
 
     // ---- lit bomber: swell toward the blast, anchored at the feet ----
-    bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
-    float fuseU = lit ? saturate(extra.fuse / max(g_BomberFuseTime, 1e-3)) : 0.0;
+    bool lit = SwarmInvulnerable(extra);   // a lit bomber / dash bomber (2026-10-18)
+    float fuseT = (extra.kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberFuse : g_BomberFuseTime;
+    float fuseU = lit ? saturate(extra.fuse / max(fuseT, 1e-3)) : 0.0;
     if (lit)
     {
         float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
@@ -223,9 +229,18 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y = footY + (local.y - footY) * grow;
     }
 
+    // ---- burrower: the body is under the sand while buried, rises out when it surfaces and sinks back (2026-10-17) ----
+    if (extra.kind == SWARM_KIND_BURROWER)
+    {
+        float down = (extra.fuse > 0.0) ? 1.0 - saturate((g_BurrowSurfaceTime - extra.fuse) / SWARM_BURROW_RISE_TIME)
+                                        : saturate(-extra.fuse / SWARM_BURROW_RISE_TIME);
+        float bodyH = (g_EnemyRadius + g_EnemyCapsuleHalf) * 2.0 * kindScale + 0.6;
+        local.y -= bodyH * down;
+    }
+
     float3 worldPos = RotateY(local, s, c) + e.position;
     // ghost: hovers and bobs (the gameplay position stays on the ground)
-    if (extra.kind == SWARM_KIND_GHOST)
+    if (SwarmIsGhost(extra.kind))
         worldPos.y += g_GhostHover + 0.15 * sin(g_AnimTime * 3.0 + (float) slot * 0.7);
     o.WorldPos = worldPos;
     o.Position = mul(mul(float4(worldPos, 1.0), View), Projection);
@@ -242,6 +257,12 @@ VS_OUTPUT main(VS_INPUT_INST input)
         o.Color.rgb *= kGhostTint * g_GhostGlow;
         o.Color.a = g_GhostAlpha;
     }
+    else if (extra.kind == SWARM_KIND_DARKGHOST)
+    {
+        float pulse = 0.75 + 0.25 * sin(g_AnimTime * 2.2 + (float) slot * 1.3);
+        o.Color.rgb *= kDarkGhostTint * pulse;
+        o.Color.a = g_DarkGhostAlpha;
+    }
 
     // ---- hit flash: overbright vertex color during the stun, decays to 1 ----
     // PS multiplies albedo by Color, so > 1 goes HDR and bloom picks it up
@@ -255,7 +276,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     // end, so the phase is its integral over the fuse time ----
     if (lit)
     {
-        float T = max(g_BomberFuseTime, 1e-3);
+        float T = max(fuseT, 1e-3);
         float f = extra.fuse;
         float phase = kFuseBlinkStart * f + 0.5 * (kFuseBlinkEnd - kFuseBlinkStart) / T * f * f;
         float on = (frac(phase) < 0.5) ? 1.0 : 0.0;
@@ -280,8 +301,21 @@ VS_OUTPUT main(VS_INPUT_INST input)
             o.Color.rgb *= float3(1.8, 0.6, 0.5);
     }
 
+    // ---- sand mage: sand-yellow glow swelling through the wind-up, a last flash right before the tornado leaves (2026-10-17) ----
+    if (extra.kind == SWARM_KIND_SANDMAGE && extra.fuse > 0.0)
+    {
+        float u = saturate(extra.fuse / max(g_SandMageWindup, 1e-3));
+        float pulse = 0.5 + 0.5 * sin(extra.fuse * (12.0 + 30.0 * u));
+        float g = 1.0 + (0.6 + 1.6 * u) * pulse;
+        o.Color.rgb *= float3(g, g * 0.85, 1.0 + (g - 1.0) * 0.3);
+    }
+
     // ---- frozen (Ice Lance): pale blue body ----
     if (frozen)
         o.Color.rgb *= lerp(float3(1, 1, 1), kIceTint, saturate(g_FreezeTint));
+    // ---- poisoned (toxin still draining): sickly green, stronger with more toxin stored ----
+    float toxin = enemyPoison[slot].x;
+    if (toxin > 0.0)
+        o.Color.rgb *= lerp(float3(1, 1, 1), kPoisonTint, saturate(toxin * 0.5) * 0.85);
     return o;
 }

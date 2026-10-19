@@ -51,10 +51,10 @@ void AutoTestPoisonPerf::Setup()
     if (m_Registry.Has<BackpackComponent>(m_Player))
     {
         auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
-        const int lo = BackpackComponent::GRID / 2 - 1;
         ClearBackpackItems(bp);
-        BackpackLogic::Place(bp, ItemID::Poison, lo + 1, lo + 1, 0);
-        bp.dirty = true;
+        // 2026-10-17：毒は上級魔法「猛毒の沼」になった → 前提の泥沼・胞子と一式で置く
+        FillAllFrames(bp);
+        PlacePoisonSet(bp);
     }
     m_Camera.Camera().SetYaw(0.0f);
     m_Camera.Camera().SnapToTarget();

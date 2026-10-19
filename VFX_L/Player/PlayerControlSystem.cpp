@@ -43,7 +43,7 @@ namespace
     }
 }
 
-void PlayerControlSystem::ApplyKnockback(Registry& reg, unsigned int entity, Vector2 dir, bool blast)
+void PlayerControlSystem::ApplyKnockback(Registry& reg, unsigned int entity, Vector2 dir, KnockKind kind)
 {
     const Entity e = (Entity)entity;
     if (!reg.IsValid(e) || !reg.Has<PlayerStateComponent>(e) || !reg.Has<PlayerStatsComponent>(e)) return;
@@ -53,8 +53,10 @@ void PlayerControlSystem::ApplyKnockback(Registry& reg, unsigned int entity, Vec
     dir.Normalize();
 
     // 止まっている時に dist だけ下がる初速（直線的に 0 へ減るので 平均 = 初速 / 2）
-    const float bodies = blast ? stats.knockBlastBodies : stats.knockMeleeBodies;
-    const float duration = (std::max)(0.01f, blast ? stats.knockBlastTime : stats.knockMeleeTime);
+    const bool wind = (kind == KnockKind::Wind), spike = (kind == KnockKind::Spike), blast = (kind == KnockKind::Blast);
+    const float bodies = wind ? stats.knockWindBodies : spike ? stats.knockSpikeBodies : blast ? stats.knockBlastBodies : stats.knockMeleeBodies;
+    const float duration = (std::max)(0.01f, wind ? stats.knockWindTime : spike ? stats.knockSpikeTime : blast ? stats.knockBlastTime : stats.knockMeleeTime);
+    const float lift = wind ? stats.knockWindLift : spike ? stats.knockSpikeLift : blast ? stats.knockBlastLift : 0.0f;
     const float dist = bodies * stats.radius * 2.0f;
     const float v0 = 2.0f * dist / duration;
 
@@ -67,12 +69,12 @@ void PlayerControlSystem::ApplyKnockback(Registry& reg, unsigned int entity, Vec
     st.knockZ = dir.y * v0;
     st.knockTime = st.knockDuration = duration;
 
-    if (blast && reg.Has<RigidbodyComponent>(e))
+    if (lift > 0.0f && reg.Has<RigidbodyComponent>(e))
     {
         auto& rb = reg.Get<RigidbodyComponent>(e);
-        if (rb.velocity.y < stats.knockBlastLift)
+        if (rb.velocity.y < lift)
         {
-            rb.velocity.y = stats.knockBlastLift;
+            rb.velocity.y = lift;
             rb.isGrounded = false;
         }
     }

@@ -18,6 +18,8 @@ From game-icons.net  https://game-icons.net
   GoldenArrow.png     "High shot"         by Lorc        https://game-icons.net/1x1/lorc/high-shot.html
   StoneShot.png       "Stone sphere"      by Lorc        https://game-icons.net/1x1/lorc/stone-sphere.html
   Poison.png          "Poison bottle"     by Lorc        https://game-icons.net/1x1/lorc/poison-bottle.html
+  Swamp.png           "Swamp"             by Delapouite  https://game-icons.net/1x1/delapouite/swamp.html
+  Spore.png           "Poison gas"        by Lorc        https://game-icons.net/1x1/lorc/poison-gas.html
   IceLance.png        "Ice bolt"          by Lorc        https://game-icons.net/1x1/lorc/ice-bolt.html
   IceSpike.png        "Crystal growth"    by Lorc        https://game-icons.net/1x1/lorc/crystal-growth.html
   Beam.png            "Laser blast"       by Lorc        https://game-icons.net/1x1/lorc/laser-blast.html
@@ -26,6 +28,7 @@ From game-icons.net  https://game-icons.net
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html
   HasteRune.png       "Stopwatch"         by Lorc        https://game-icons.net/1x1/lorc/stopwatch.html
+  ChainRune.png       "Lightning branches" by Lorc        https://game-icons.net/1x1/lorc/lightning-branches.html
   CrystalBall.png     "Crystal ball"      by Lorc        https://game-icons.net/1x1/lorc/crystal-ball.html
   MaxHealthUp.png     "Heart plus"        by Zeromancer  https://game-icons.net/1x1/zeromancer/heart-plus.html
   MaxManaUp.png       "Potion ball"       by Lorc        https://game-icons.net/1x1/lorc/potion-ball.html

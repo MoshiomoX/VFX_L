@@ -117,6 +117,7 @@ private:
         bool     atPos = false;    // 誘発の隕石: muzzle に落とす
         float    areaDamageMul = 1.0f;     // 命中・着弾で出す範囲の威力（SpellStats::areaDamageMul = 魔法威力）
         float    areaDurationMul = 1.0f;   // 同じく持続（魔力解放中に撃った弾。持続する範囲だけ伸びる）
+        int      chainCount = 0;           // 連鎖のルーン: 当たった後に別の敵へ跳ぶ回数（SpellStats::chainCount。2026-10-16）
     };
 
     // 1回の詠唱ぶんの発射要求を積む（分裂の扇状展開もここで行う）。
@@ -153,6 +154,7 @@ private:
         float damage = 0.0f;         // 1 tick
         float tickInterval = 0.1f;
         uint32_t flags = 0;          // kAreaCapsule | channel | (stun)
+        uint32_t extra = 0;          // 範囲の tickNow の上位に乗せる追加値（毒素の割合。AreaProfile::Extra。2026-10-17）
         bool spawned = false;        // GPU の範囲を出したか（溜めが終わった時に 1 回）
         uint32_t vfxHandle = 0;      // AreaVFXPlayer のインスタンス
         std::string sound;           // 溜め終わり（撃った瞬間）の音 = 範囲の sound

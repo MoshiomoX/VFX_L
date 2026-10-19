@@ -27,7 +27,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmArea req = spawnRequests[id.x];
-    req.tickNow = 0u;
+    req.tickNow &= ~SWARM_AREA_TICK_MASK; // the CPU put the extras (toxin, splash) in the high bits; the tick state starts clean
 
     uint start = (g_ScanStart + id.x * 97u) % SWARM_MAX_AREAS;
     for (uint k = 0; k < SWARM_MAX_AREAS; ++k)

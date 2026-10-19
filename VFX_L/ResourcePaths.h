@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // ResourcePaths.h
 // ゲーム資源のパス/IDを一元管理する
 // 文字列の直書きを避け、変更箇所を1ファイルに集約する
@@ -62,10 +62,13 @@ namespace Res
         inline constexpr const char* TowerShield = "Assets/VFX/Mesh/dun01.FBX";
         // 凍った敵の足元の氷の塊（2026-10-08、SwarmIceVS。アイスランスの弾・命中の特効も同じ物）
         inline constexpr const char* IceSpikes = "Assets/VFX/Mesh/bingci_02.FBX";
+        // 砂嵐の術師の砂旋（2026-10-17、SwarmTornadoVS。突風の特効も同じ物）
+        inline constexpr const char* Tornado = "Assets/VFX/Mesh/Tornado03_A.FBX";
 
         inline constexpr const wchar_t* Noise001 = L"Assets/VFX/Tex/Noise_001.png";
         inline constexpr const wchar_t* Noise002 = L"Assets/VFX/Tex/Noise_002.png";
         inline constexpr const wchar_t* Noise003 = L"Assets/VFX/Tex/Noise_003.png";
+        inline constexpr const wchar_t* Noise008 = L"Assets/VFX/Tex/Noise_008.png";   // 柔らかい雲ノイズ（砂旋の 2 枚目。2026-10-19）
     }
     // ========================================================
     // モデル（char）
@@ -378,6 +381,15 @@ namespace Res
         // 盾兵（Kenney Blocky の J、紺の制服の警官。2026-10-08）
         inline constexpr const wchar_t* Kenney_BlockyPoliceAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-j.png";
+        // 砂潜り（Kenney Blocky の K。2026-10-17）
+        inline constexpr const wchar_t* Kenney_BlockyBurrowerAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-k.png";
+        // 砂嵐の術師（2026-10-17）：赤い帽子に青緑の衣（texture-n）
+        inline constexpr const wchar_t* Kenney_BlockySandMageAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-n.png";
+        // 突撃爆弾兵（2026-10-18）：灰色のロボット（自爆兵の赤いロボットと同じ系統）
+        inline constexpr const wchar_t* Kenney_BlockyDashBomberAlbedo =
+            L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-h.png";
 
         // 粒子
         inline constexpr const wchar_t* ParticleSheet =
@@ -435,6 +447,8 @@ namespace Res
         inline constexpr const wchar_t* Meteor = L"Assets/Texture/UI/Icons/Meteor.png";
         inline constexpr const wchar_t* StoneShot = L"Assets/Texture/UI/Icons/StoneShot.png";
         inline constexpr const wchar_t* Poison = L"Assets/Texture/UI/Icons/Poison.png";
+        inline constexpr const wchar_t* Swamp = L"Assets/Texture/UI/Icons/Swamp.png";       // 泥沼（2026-10-17）
+        inline constexpr const wchar_t* Spore = L"Assets/Texture/UI/Icons/Spore.png";       // 胞子（2026-10-17）
         inline constexpr const wchar_t* IceLance = L"Assets/Texture/UI/Icons/IceLance.png";   // アイスランス（2026-10-08）
         inline constexpr const wchar_t* IceSpike = L"Assets/Texture/UI/Icons/IceSpike.png";   // アイススパイク（2026-10-10）
         inline constexpr const wchar_t* Gust = L"Assets/Texture/UI/Icons/Gust.png";           // 突風（2026-10-12）
@@ -443,6 +457,7 @@ namespace Res
         inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
         inline constexpr const wchar_t* Magnifier = L"Assets/Texture/UI/Icons/Magnifier.png";
         inline constexpr const wchar_t* HasteRune = L"Assets/Texture/UI/Icons/HasteRune.png";
+        inline constexpr const wchar_t* ChainRune = L"Assets/Texture/UI/Icons/ChainRune.png";   // 連鎖のルーン（2026-10-16）
         inline constexpr const wchar_t* CrystalBall = L"Assets/Texture/UI/Icons/CrystalBall.png";   // 水晶玉（召喚物。2026-10-06）
         inline constexpr const wchar_t* Frame3x3 = L"Assets/Texture/UI/Icons/Frame3x3.png";
         inline constexpr const wchar_t* MaxHealthUp = L"Assets/Texture/UI/Icons/MaxHealthUp.png";
@@ -516,6 +531,13 @@ namespace Res
         // 毛筆体 Yuji Syuku（OFL、2026-09-28 ユーザー決定）。Tools/BuildSpriteFont.ps1 で TTF から作る（32px、BC2）。
         // 旧 NotoSansJP.spritefont は比較用に残してある
         inline constexpr const wchar_t* JP = L"Assets/Fonts/YujiSyuku.spritefont";
+        // ImGui（デバッグパネル）の日本語字体：Noto Sans JP の可変 TTF（OFL、同じ所の NotoSansJP-OFL.txt）。2026-10-18
+        inline constexpr const char* ImGuiJP = "Assets/Fonts/NotoSansJP-Variable.ttf";
+        // 同じく簡体字の後備（JP に無い字だけ。OFL、NotoSansSC-OFL.txt）。2026-10-18
+        inline constexpr const char* ImGuiSC = "Assets/Fonts/NotoSansSC-Variable.ttf";
+        // ダメージの数字の字体（2026-10-18。数字だけ使うので ASCII のみ、48px、BC2）。候補 Chakra Petch Bold Italic / Squada One（どちらも OFL）を
+        // ユーザーが実機で見比べ中：環境変数 VFXL_DAMAGE_FONT=<名> で Assets/Fonts/<名>.spritefont に差し替えられる（GameUI::Initialize、TEMP-TEST）
+        inline constexpr const wchar_t* Damage = L"Assets/Fonts/ChakraPetch.spritefont";
     }
 
     // ========================================================
@@ -542,9 +564,14 @@ namespace Res
         inline constexpr const char* StoneShotHit = "Assets/Data/VFXData/StoneShotHit.json";
         inline constexpr const char* Poison = "Assets/Data/VFXData/Poison.json";           // 毒の弾（緑の毒液の塊 + 滴）
         inline constexpr const char* PoisonPool = "Assets/Data/VFXData/PoisonPool.json";   // 毒の池（範囲 PoisonPool：泡 + 毒霧 + 緑の光）
+        inline constexpr const char* Swamp = "Assets/Data/VFXData/Swamp.json";             // 泥沼の弾（泥の塊 + 滴。2026-10-17）
+        inline constexpr const char* SwampPool = "Assets/Data/VFXData/SwampPool.json";     // 泥沼（範囲 SwampPool：飛沫 + 泥の液面）
+        inline constexpr const char* Spore = "Assets/Data/VFXData/Spore.json";             // 胞子の弾（黄緑の塊 + 漂う胞子。2026-10-17）
+        inline constexpr const char* SporeCloud = "Assets/Data/VFXData/SporeCloud.json";   // 胞子の霧（範囲 SporeCloud：漂う胞子 + 薄い靄 + 緑の光。2 秒）
         inline constexpr const char* IceLance = "Assets/Data/VFXData/IceLance.json";         // アイスランスの弾（氷の槍 + 冷気の粒）
         inline constexpr const char* IceLanceHit = "Assets/Data/VFXData/IceLanceHit.json";   // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片）
         inline constexpr const char* GrassFire = "Assets/Data/VFXData/GrassFire.json";       // 燃えている草の炎・煙・火の粉（GrassFireEmitCS。2026-10-12）
+        inline constexpr const char* TornadoDust = "Assets/Data/VFXData/TornadoDust.json";   // 砂旋の足元の砂埃（SwarmTornadoEmitCS。2026-10-19）
         inline constexpr const char* MobDeath = "Assets/Data/VFXData/MobDeath.json";       // 敵が死んだ足元の土煙 + 土くれ（範囲 MobDeath）
         inline constexpr const char* Beam = "Assets/Data/VFXData/Beam.json";               // 魔導光線（溜め + Beam entry の光線 + 先端の光）
 

@@ -253,7 +253,10 @@ void CollisionTestScene::Init()
     }
     m_Mobs.Init(m_Swarm);
     m_Audio.Init(m_Swarm, m_StageIndex);   // 範囲の音の表（範囲の profile と VFX 表の後）
-    m_Mobs.statMulBonus = stageDef.difficultyBonus;   // 面の難度の下駄
+    m_Mobs.stageTimeOffsetMin = stageDef.difficultyTimeOffsetMin;   // 面毎の難度（表を進める + 倍率。2026-10-17）
+    m_Mobs.stageHpMul = stageDef.difficultyHpMul;
+    m_Mobs.stageDamageMul = stageDef.difficultyDamageMul;
+    m_Mobs.stageSpawnMul = stageDef.difficultySpawnMul;
     m_Mobs.splitterStart = stageDef.splitter.start;   // スプリッターの混ざり方（面毎）
     m_Mobs.splitterRatioStart = stageDef.splitter.ratioStart;
     m_Mobs.splitterRatioEnd = stageDef.splitter.ratioEnd;
@@ -261,6 +264,10 @@ void CollisionTestScene::Init()
     // 突撃兵・盾兵の混ざり方（面毎。2026-10-08）
     m_Mobs.chargerMix = { stageDef.charger.start, stageDef.charger.ratioStart, stageDef.charger.ratioEnd, stageDef.charger.rampEnd };
     m_Mobs.shieldMix = { stageDef.shield.start, stageDef.shield.ratioStart, stageDef.shield.ratioEnd, stageDef.shield.rampEnd };
+    m_Mobs.spikeBallMix = { stageDef.spikeBall.start, stageDef.spikeBall.ratioStart, stageDef.spikeBall.ratioEnd, stageDef.spikeBall.rampEnd };   // トゲ玉（砂漠。2026-10-17）
+    m_Mobs.burrowerMix = { stageDef.burrower.start, stageDef.burrower.ratioStart, stageDef.burrower.ratioEnd, stageDef.burrower.rampEnd };   // 砂潜り（砂漠。2026-10-17）
+    m_Mobs.sandMageMix = { stageDef.sandMage.start, stageDef.sandMage.ratioStart, stageDef.sandMage.ratioEnd, stageDef.sandMage.rampEnd };   // 砂嵐の術師（砂漠。2026-10-17）
+    m_Mobs.dashBomberMix = { stageDef.dashBomber.start, stageDef.dashBomber.ratioStart, stageDef.dashBomber.ratioEnd, stageDef.dashBomber.rampEnd };   // 突撃爆弾兵（全ステージ。2026-10-18）
     m_WeaponSystem.SetSwarm(&m_Swarm);
     m_WeaponSystem.groundHeight = [this](float x, float z) { return m_Grid.SampleHeight(x, z); };   // アイススパイクの線を地面に合わせる
 
@@ -978,6 +985,22 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ---- 被弾とレベルアップの反応（揺れ・斬撃・レベルアップの光）----
     const float hpLost = TrackPlayerHpLoss();
+    // ダメージの数字（2026-10-17）：敵の分は GPU のリードバック、プレイヤーの分は hpLost
+    {
+        auto& dn = m_GameUI.Damage();
+        dn.Update(dt);
+        std::vector<Swarm::DamageText> texts;
+        m_Swarm.ConsumeDamageTexts(texts);
+        for (const auto& d : texts)
+        {
+            const float amount = (float)(d.packed & Swarm::kDtxAmountMask) * 0.1f;
+            const DamageNumbers::Kind kind = (d.packed & Swarm::kDtxKill) ? DamageNumbers::Kind::Kill
+                : (d.packed & Swarm::kDtxPoison) ? DamageNumbers::Kind::Poison : DamageNumbers::Kind::Normal;
+            dn.Add(d.position, amount, kind, (int)((d.packed >> Swarm::kDtxElementShift) & 0xFu));
+        }
+        if (hpLost > 0.0f && m_Registry.Has<TransformComponent>(m_Player))
+            dn.Add(m_Registry.Get<TransformComponent>(m_Player).position + Vector3(0.0f, 1.2f, 0.0f), hpLost, DamageNumbers::Kind::Player);
+    }
     m_Camera.OnPlayerHit(hpLost);
     m_Feedback.Update(m_Registry, m_Player, dt, hpLost);
     m_PlayerVFX.Update(m_Registry, m_Player, dt, hpLost, m_WeaponSystem.GetCastFx());   // 詠唱の光・土煙・着地・尾・被弾の閃き
@@ -1038,14 +1061,17 @@ void CollisionTestScene::UpdateGameplay(float dt)
         // 無敵中は下がらない。ただし無敵が始まったばかり（この打撃のダメージが先に届いた）なら下がる。
         // 同じフレームに爆発があれば爆発の方（遠く・少し浮く）
         const auto hits = m_Swarm.ConsumePlayerHits();
-        if ((hits.melee > 0 || hits.blasts > 0) && playerAlive && m_Registry.Has<PlayerStateComponent>(m_Player))
+        if ((hits.melee > 0 || hits.blasts > 0 || hits.spikes > 0 || hits.winds > 0) && playerAlive && m_Registry.Has<PlayerStateComponent>(m_Player))
         {
             const auto& st = m_Registry.Get<PlayerStateComponent>(m_Player);
             const bool fresh = !st.IsInvincible() || st.invincibleTimer > st.invincibleAfterHit - 0.2f;
             if (fresh)
             {
-                if (hits.blasts > 0) PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.blastDir, true);
-                else                 PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.meleeDir, false);
+                // 砂旋 > トゲ玉 > 爆発 > 殴り（2026-10-17）
+                if (hits.winds > 0)       PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.windDir, PlayerControlSystem::KnockKind::Wind);
+                else if (hits.spikes > 0) PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.spikeDir, PlayerControlSystem::KnockKind::Spike);
+                else if (hits.blasts > 0) PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.blastDir, PlayerControlSystem::KnockKind::Blast);
+                else                      PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.meleeDir, PlayerControlSystem::KnockKind::Melee);
             }
         }
         // GPU 上で拾った経験値を CPU のプレイヤーへ反映。

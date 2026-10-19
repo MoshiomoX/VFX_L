@@ -101,8 +101,12 @@ public:
     float finalStepMul = 1.25f;     // 1 段毎の強さの倍率（2026-10-07 に 1.5 → 1.25：30 秒で埋まる壁だった）
     int   finalCap = 400;           // 最初の 2 分の同時上限（Megabonk と同じ）
     int   finalCapLate = 300;       // 2 分より後
-    float finalGhostRate = 2.0f;    // 最終ウェーブの幽霊（体/秒。時間切れの直後）。雑魚の湧きとは別枠、上限は共通
-    float finalGhostStepMul = 1.25f;// 1 段毎の幽霊の数の倍率（2 → 2.5 → 3.1 …。2026-10-07 に 1.5 → 1.25）
+    float finalGhostRate = 4.0f;    // 最終ウェーブの幽霊（体/秒。時間切れの直後）。雑魚の湧きとは別枠・上限も別（MobSpawner::ghostCap）。2026-10-18 に 2 → 4
+    float finalGhostStepMul = 1.4f; // 1 段毎の幽霊の数の倍率（4 → 5.6 → 7.8 …。2026-10-07 に 1.5 → 1.25、10-18 に 1.4）
+    // 黒幽霊（kEnemyKindDarkGhost。2026-10-18、Megabonk の黒い幽霊 = 時間切れ 1 分後）：時間切れからこれだけ後に出始める。案内を出す
+    float finalDarkGhostStart = 60.0f;
+    float finalDarkGhostRate = 0.3f;     // 体/秒（出始めの段）
+    float finalDarkGhostStepMul = 1.4f;  // 1 段毎の倍率
 
     // ---- 湧きの波と最終ウェーブの予告（2026-10-07、ユーザー「難度曲線がおかしい」→ 波・最終ウェーブを緩く）----
     SpawnWaves waves;
@@ -162,4 +166,5 @@ private:
     float  m_AnnounceLeft = 0.0f;
     float  m_AnnounceAge = 0.0f;
     bool   m_FinalWarned = false;   // 「最終ウェーブまで あと…」を出した
+    bool   m_DarkGhostsWarned = false; // 「黒い幽霊が現れた」を出した（最終ウェーブ中に 1 回）
 };

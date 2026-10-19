@@ -156,6 +156,43 @@ public:
     };
     ShieldLookStyle shieldLook;
 
+    // ---- トゲ玉の体（コードで作った球 + トゲ。SwarmSpikeBallVS。2026-10-17）----
+    struct SpikeBallLookStyle
+    {
+        bool  enabled = true;
+        float radius = 0.6f;      // 体格 1 の時の球の半径 m（トゲは別に +45%）。中心 = 足元 + これ
+        float rollRate = 1.0f;    // 転がる速さの倍率（1 = 進んだ距離どおり）
+        DirectX::SimpleMath::Vector4 tint = { 1.0f, 1.0f, 1.0f, 1.0f };   // 頂点色（砂色の球 + 褐色のトゲ）に掛ける
+    };
+    SpikeBallLookStyle spikeBallLook;
+
+    // ---- 砂潜りの砂の山（コードで作った球を潰した物。SwarmMoundVS。2026-10-17）----
+    struct MoundLookStyle
+    {
+        bool  enabled = true;
+        float radius = 1.0f;      // 体格 1 の時の半径 m（草原の草に埋もれないよう大きめ）
+        float height = 0.45f;     // 盛り上がりの高さ m
+        float bob = 0.05f;        // 進んでいる時の上下 m
+        DirectX::SimpleMath::Vector4 tint = { 1.0f, 1.0f, 1.0f, 1.0f };   // 頂点色（砂色）に掛ける
+    };
+    MoundLookStyle moundLook;
+
+    // ---- 砂嵐の術師の砂旋（特効モデル Tornado03_A.FBX。SwarmTornadoVS。2026-10-17）----
+    struct TornadoLookStyle
+    {
+        bool  enabled = true;
+        float height = 3.4f;      // 見た目の高さ m（当たりは BomberCB::tornadoScale × 雑魚の半径）
+        float widthMul = 3.2f;    // 見た目の幅 = 当たりの直径 × これ（外側の幕の上端。芯はその 0.55 倍）
+        float spin = 2.0f;        // 筒そのものが回る速さ rad/s（風の流れは PS のスクロールが出す。速いと固体が回って見える）
+        float growTime = 0.3f;    // 生まれて伸びる / 消える前に縮む秒
+        float heave = 0.08f;      // 面のうねり（頂点をノイズで出し入れする量、半径の割合）
+        bool  dust = true;        // 足元の砂埃（SwarmTornadoEmitCS、TornadoDust.json）
+        float dustRate = 1.0f;    // 配方の発射率に掛ける
+        float dustSwirl = 5.0f;   // 砂埃に足す軸回りの速さ m/s（砂が巻き上がって見える）
+        DirectX::SimpleMath::Vector4 tint = { 0.88f, 0.74f, 0.50f, 0.85f };   // 砂色、a = 全体の不透明度
+    };
+    TornadoLookStyle tornadoLook;
+
     // ---- 凍った敵の氷（特効モデル bingci_02.FBX を足元に前後 2 つ。2026-10-08）----
     struct IceLookStyle
     {
@@ -230,8 +267,9 @@ public:
 
     // ---- CPU 側から生成を依頼する（Flush でまとめて反映）----
     // kind: Swarm::kEnemyKindMob / kEnemyKindBomber
+    // yaw : 向き（rad、+Z が 0）。砂旋（kEnemyKindTornado）はこの向きへ飛ぶ。他の種類は AI が上書きする（2026-10-17）
     void SpawnEnemy(const DirectX::SimpleMath::Vector3& pos, float hp, float moveSpeed,
-        uint32_t kind = Swarm::kEnemyKindMob);
+        uint32_t kind = Swarm::kEnemyKindMob, float yaw = 0.0f);
     // motion  : SetMotions で上げた表の番号（0 = 直進）
     // mirror  : 曲線を左右反転して撃つ（交互撃ち・乱数撃ちは呼ぶ側が決める）
     // 曲線の型では vel の「速さ」だけが使われ、向きは曲線が決める。
@@ -247,7 +285,8 @@ public:
         uint32_t motion = 0, bool mirror = false,
         uint32_t triggerTag = 0, bool spawnAtPos = false,
         float areaDamageMul = 1.0f, float areaDurationMul = 1.0f,
-        uint32_t roll = 0);   // 曲線の横ずれの回転（0〜127 = 0〜360 度。ProjectileProfileDB::NextRoll）
+        uint32_t roll = 0,   // 曲線の横ずれの回転（0〜127 = 0〜360 度。ProjectileProfileDB::NextRoll）
+        uint32_t chainCount = 0);   // 連鎖のルーン: 当たった後に近くの別の敵へ跳ぶ回数（依頼の pathT に乗せる。2026-10-16）
 
     // リードバックで届いた誘発（タグ付きの弾が消えた場所）を全部取り出す。2〜3 フレーム古い
     void ConsumeTriggerEvents(std::vector<Swarm::TriggerEvent>& out)
@@ -261,6 +300,15 @@ public:
         out.insert(out.end(), m_SplitEvents.begin(), m_SplitEvents.end());
         m_SplitEvents.clear();
     }
+    // リードバックで届いたダメージの数字（UI/DamageNumbers が描く）を全部取り出す。2〜3 フレーム遅れ（2026-10-17）
+    void ConsumeDamageTexts(std::vector<Swarm::DamageText>& out)
+    {
+        out.insert(out.end(), m_DamageTexts.begin(), m_DamageTexts.end());
+        m_DamageTexts.clear();
+    }
+    // ダメージの数字の出し方（SwarmDamageTextCS）。merge = 同じ敵への連続ヒットをこの秒数まとめて 1 つに
+    struct DamageTextSettings { bool enabled = true; float merge = 0.12f; float poisonMerge = 0.5f; };   // poisonMerge = 毒素の削り（細かい）はこの秒数まとめる
+    DamageTextSettings damageText;
 
     // ---- 地面の警告の輪（CPU が置く。Boss のスラム。2026-10-03）----
     struct WarnCircle
@@ -324,7 +372,7 @@ public:
     float ConsumePlayerDamage();
     // プレイヤーが受けた打撃（ノックバック用）を取り出して 0 に戻す。
     // dir = 「敵 / 爆心 → プレイヤー」の単位ベクトルの和（XZ）、count = 回数。リードバックなので 2〜3 フレーム古い
-    struct PlayerHits { DirectX::SimpleMath::Vector2 meleeDir, blastDir; uint32_t melee = 0, blasts = 0; };
+    struct PlayerHits { DirectX::SimpleMath::Vector2 meleeDir, blastDir, spikeDir, windDir; uint32_t melee = 0, blasts = 0, spikes = 0, winds = 0; };   // spikes = トゲ玉、winds = 砂旋（2026-10-17）
     PlayerHits ConsumePlayerHits();
     // 前回からの間に出た「カメラを揺らす範囲」（爆発・光線。AreaProfile::cameraShake）の数（2〜3 フレーム遅れ）
     uint32_t ConsumeShakeAreas();
@@ -444,6 +492,11 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPushBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPushUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPushSRV;
+    // 毒素（毒沼。2026-10-17）：float4 = 残りダメージ・毎秒の削り・最後に盛られてからの秒。
+    // AreaDamageCS が範囲の tick で盛って毎ステップ削る（倒した時の扱いは範囲ダメージと同じ）。VS が緑に染める。Spawn / Recycle で 0
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPoisonBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPoisonUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPoisonSRV;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjUAV;
@@ -523,6 +576,25 @@ private:
     uint32_t m_SplitRead = 0;
     std::vector<Swarm::SplitEvent> m_SplitEvents;
     void ReadSplitEvents();
+
+    // ダメージの数字の環（SwarmDamageTextCS が書く）→ 同じく staging 3 枚でリードバック（2026-10-17）
+    std::shared_ptr<ComputeShader> m_DamageTextCS;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevHpBuffer;     // 槽毎に前フレームの hp（死んだ槽は 0）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPrevHpUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPrevHpSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_DamagePendingBuffer;   // float4 = 直接 / 毒素 / 経過秒 / 前フレームの毒素
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_DamagePendingUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_DamagePendingSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_DamageTextBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_DamageTextUAV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_DamageTextStaging[kTriggerStaging];
+    bool m_DamageTextStagingFilled[kTriggerStaging] = {};
+    int  m_DamageTextStagingWrite = 0;
+    uint32_t m_DamageTextRead = 0;
+    std::vector<Swarm::DamageText> m_DamageTexts;
+    struct DamageTextCB { float step; float merge; uint32_t on; float poisonMerge; };
+    void DispatchDamageText(float dt);   // Flush の砕け散りの後
+    void ReadDamageTexts();
 
     // 地面の警告の輪（CPU の WarnCircle を毎フレーム書く動的 buffer → SwarmWarnRingVS + SwarmBomberRingPS）
     Microsoft::WRL::ComPtr<ID3D11Buffer>             m_WarnCircleBuffer;
@@ -753,6 +825,9 @@ private:
     std::shared_ptr<Texture> m_BruteAlbedo;    // 重装兵のテクスチャ（緑のオーク。2026-10-07 夜）。null = 雑魚と同じテクスチャ
     std::shared_ptr<Texture> m_ChargerAlbedo;  // 突撃兵（黒い忍者。2026-10-08）
     std::shared_ptr<Texture> m_ShieldAlbedo;   // 盾兵（紺の警官。2026-10-08）
+    std::shared_ptr<Texture> m_BurrowerAlbedo; // 砂潜り（2026-10-17）
+    std::shared_ptr<Texture> m_SandMageAlbedo; // 砂嵐の術師（2026-10-17）
+    std::shared_ptr<Texture> m_DashBomberAlbedo; // 突撃爆弾兵（灰色ロボット。2026-10-18）
     // 描画リストのテクスチャ（null = 雑魚の材質の物）
     Texture* ListAlbedo(uint32_t list) const
     {
@@ -761,6 +836,9 @@ private:
         if (list == Swarm::kDrawListBrute) return m_BruteAlbedo.get();
         if (list == Swarm::kDrawListCharger) return m_ChargerAlbedo.get();
         if (list == Swarm::kDrawListShield) return m_ShieldAlbedo.get();
+        if (list == Swarm::kDrawListBurrower) return m_BurrowerAlbedo.get();
+        if (list == Swarm::kDrawListSandMage) return m_SandMageAlbedo.get();
+        if (list == Swarm::kDrawListDashBomber) return m_DashBomberAlbedo.get();
         return nullptr;
     }
 
@@ -779,6 +857,32 @@ private:
     std::shared_ptr<Model>        m_ShieldModel;
     std::shared_ptr<Model>        m_IceModel;
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_ShieldDrawArgs;   // submesh 毎（InstanceCount = 盾兵の一覧）
+    // トゲ玉（2026-10-17）：一覧は m_KindList* の外（雑魚のメッシュを描かないので描画リストの表に入れない）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpikeBallListBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpikeBallListUAV;   // APPEND
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_SpikeBallListSRV;
+    std::shared_ptr<VertexShader> m_SpikeBallVS;
+    std::shared_ptr<Material>     m_SpikeBallMaterial;
+    std::shared_ptr<Model>        m_SpikeBallModel;     // PrimitiveBuilder::CreateSpikeBall（半径 1）
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_SpikeBallDrawArgs;
+    // 砂潜りの砂の山（2026-10-17）：一覧は m_KindList[kDrawListBurrower]（体は雑魚のメッシュで描くので表の中）
+    std::shared_ptr<VertexShader> m_MoundVS;
+    std::shared_ptr<Material>     m_MoundMaterial;
+    std::shared_ptr<Model>        m_MoundModel;      // PrimitiveBuilder::CreateSphere（半径 1）
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_MoundDrawArgs;
+    // 砂嵐の術師の砂旋（2026-10-17）：一覧は m_KindList* の外（雑魚のメッシュを描かず、竜巻のモデルを SwarmTornadoVS が描く）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_TornadoListBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_TornadoListUAV;   // APPEND
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_TornadoListSRV;
+    std::shared_ptr<VertexShader> m_TornadoVS;
+    std::shared_ptr<PixelShader>  m_TornadoPS;       // 2 枚の雲ノイズを螺旋に流して削る（2026-10-19、SwarmSystemTornado.cpp）
+    std::shared_ptr<ComputeShader> m_TornadoEmitCS;  // 足元の砂埃（TornadoDust の配方）
+    std::shared_ptr<Material>     m_TornadoMaterial;
+    std::shared_ptr<Model>        m_TornadoModel;    // PrimitiveBuilder::CreateTornadoShell（y 0〜1、半径 1）
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_TornadoDrawArgs;
+    uint32_t m_TornadoDustVfx = 0;                   // レシピ表の番号。0 = 無し
+    float    m_TornadoTime = 0.0f;                   // Flush の totalTime（描画のスクロールに使う）
+    void DispatchTornadoEmit(float dt, float totalTime);   // Flush の中、草の火の発射の直後
     // SwarmShieldVS / SwarmIceVS の b4
     struct PropMeshCB
     {
@@ -793,6 +897,9 @@ private:
     bool LoadKindAssets(ID3D11Device* device);       // LoadShaders の最後（雑魚のモデルの後）
     void DispatchKindLists();                        // CompactCS の直後（同じ描画の前準備）
     void RenderShields(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
+    void RenderSpikeBalls(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // 盾の後（2026-10-17）
+    void RenderMounds(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // トゲ玉の後（2026-10-17）
+    void RenderTornadoes(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // 砂の山の後（2026-10-17）
     void RenderIce(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
     void RenderChargeLines(CameraBase* camera);
 
@@ -890,6 +997,7 @@ private:
     // --- 自爆兵の警告の輪 ---
     // DrawInstancedIndirect: { 6 頂点, InstanceCount = 自爆兵の一覧の長さ, 0, 0 }。点火していない分は VS が捨てる
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_BomberRingArgs;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_DashBomberRingArgs;   // 同じ輪を突撃爆弾兵の一覧からもう一度（2026-10-19）
     std::shared_ptr<VertexShader> m_BomberRingVS;
     std::shared_ptr<PixelShader>  m_BomberRingPS;
     void RenderBomberRings(CameraBase* camera);

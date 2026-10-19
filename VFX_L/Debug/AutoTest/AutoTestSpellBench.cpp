@@ -54,7 +54,8 @@ namespace
         struct Basic { const char* name; ItemID id; int r, c; };
         const Basic basics[] = {
             { "homing", ItemID::HomingBolt, 4, 4 }, { "arc", ItemID::ArcBolt, 4, 4 }, { "fireball", ItemID::Fireball, 4, 4 },
-            { "stone", ItemID::StoneShot, 4, 4 }, { "arrow", ItemID::GoldenArrow, 3, 4 }, { "poison", ItemID::Poison, 4, 4 },
+            { "stone", ItemID::StoneShot, 4, 4 }, { "arrow", ItemID::GoldenArrow, 3, 4 },
+            { "swamp", ItemID::Swamp, 4, 4 }, { "spore", ItemID::Spore, 4, 4 },   // 2026-10-17：毒は上級魔法になり、下位の泥沼・胞子が基本魔法に
         };
         if (!runes)
         {
@@ -62,6 +63,7 @@ namespace
             // 置き場所は shapes 自動テストと同じ（上級魔法は前提の影響マスが届く並び）
             t.push_back({ "meteor+fireball+stone", { { ItemID::Meteor, 2, 2 }, { ItemID::Fireball, 0, 3 }, { ItemID::StoneShot, 3, 1 } }, {} });
             t.push_back({ "beam+homing+arc", { { ItemID::Beam, 6, 5 }, { ItemID::HomingBolt, 5, 4 }, { ItemID::ArcBolt, 7, 6 } }, {} });
+            t.push_back({ "poison+swamp+spore", { { ItemID::Poison, 4, 4 }, { ItemID::Swamp, 2, 3 }, { ItemID::Spore, 5, 3 } }, {} });   // PlacePoisonSet と同じ並び
             return t;
         }
         struct Cfg { const char* name; std::vector<ItemID> runes; };

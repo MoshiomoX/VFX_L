@@ -87,6 +87,8 @@ void DebugManager::BeginFrame()
     ImGui::Begin("Debug Info");
     ImGui::Text("FPS: %.1f", m_Timer->GetFPS());
     ImGui::Text("Delta: %.4f ms", m_Timer->DeltaTime() * 1000.0f);
+    // 日本語の字体の確認（Noto Sans JP。2026-10-18）。/utf-8 なので文字列リテラルはそのまま UTF-8
+    ImGui::TextDisabled("字体: Noto Sans JP + Noto Sans SC（日本語・简体中文：这是简体字测试）  F10 でパネル切替");
 
     // ---- 表示の同期（swap chain は Graphics）----
     // 可変リフレッシュの画面なら VSync を切って FPS Cap を少し下（165Hz なら 160）にすると、

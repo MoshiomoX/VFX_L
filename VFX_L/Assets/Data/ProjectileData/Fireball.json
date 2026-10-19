@@ -16,7 +16,7 @@
     "lifetime": 3.0,
     "mirror": 2,
     "mode": 0,
-    "name": "Fireball",
+    "name": "Fireball", "element": 1,
     "radius": 0.25,
     "retargetRadius": 0.0,
     "speed": 20.0,

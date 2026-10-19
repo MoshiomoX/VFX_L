@@ -50,6 +50,11 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
         std::cout << "[Error] GameUI: TextRenderer init failed" << std::endl;
         return false;
     }
+    if (!m_DamageText.Initialize(device, context, Res::Fnt::Damage))
+    {
+        std::cout << "[Error] GameUI: damage TextRenderer init failed" << std::endl;
+        return false;
+    }
 
     auto blockTex = ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo);
 
@@ -91,6 +96,7 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
 
 void GameUI::Shutdown()
 {
+    m_DamageText.Shutdown();
     m_Text.Shutdown();
     m_Sprite.Shutdown();
 }
@@ -357,6 +363,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 // ============================================================
 void GameUI::Render(Registry& reg, Entity player)
 {
+    bool drawDamage = false;
     m_Sprite.Begin();
     m_Text.Begin();
 
@@ -386,6 +393,7 @@ void GameUI::Render(Registry& reg, Entity player)
             reg.Get<LevelComponent>(player), m_FrameInfo);
         m_FrameInfo.wand = nullptr;   // 次のフレームまで指したままにしない
         m_FrameInfo.shield = nullptr;
+        drawDamage = true;   // ダメージの数字は専用の字体で、HUD の文字の後に描く（下）
     }
 
     // ---- 操作案内（画面下の中央。影付き）----
@@ -418,6 +426,14 @@ void GameUI::Render(Registry& reg, Entity player)
 
     m_Sprite.End();
     m_Text.End();
+
+    // ---- ダメージの数字（2026-10-17）。専用の字体（Res::Fnt::Damage。2026-10-18）なので別の TextRenderer、HUD の文字の上 ----
+    if (drawDamage)
+    {
+        m_DamageText.Begin();
+        m_Damage.Draw(m_DamageText, m_FrameInfo.viewProj, m_ScreenW, m_ScreenH);
+        m_DamageText.End();
+    }
 
     // ---- 覆い層 ----
     // 文字はスプライトの後にまとめて描かれるので、同じ組の中だと
@@ -625,6 +641,8 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
             Layout(m_ScreenW, m_ScreenH);
         }
     }
+
+    if (ImGui::CollapsingHeader("Damage Numbers")) m_Damage.DrawImGui();   // 2026-10-17
 
     // ---------- HUD ----------
     if (ImGui::CollapsingHeader("HUD"))

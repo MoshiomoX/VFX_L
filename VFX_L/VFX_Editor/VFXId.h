@@ -34,11 +34,16 @@ enum class VFXId : uint32_t
     StoneShotHit,   // 石弾の命中（範囲 StoneShotHit：威力 0 の見た目だけ。土煙 + 岩の欠片）
     Poison,         // 毒の弾（緑の毒液の塊 + 滴。Lob 型で山なりに飛ぶ）
     PoisonPool,     // 毒の池（範囲 PoisonPool：落ちた所の飛沫 + 泡 + 毒霧 + 緑の光。持続 4 秒）
+    Swamp,          // 泥沼の弾（泥の塊 + 滴。Lob 型。2026-10-17）
+    SwampPool,      // 泥沼（範囲 SwampPool：落ちた所の飛沫 + 泥の液面。減速だけ）
+    Spore,          // 胞子の弾（黄緑の塊 + 漂う胞子。直進・遅い。2026-10-17）
+    SporeCloud,     // 胞子の霧（範囲 SporeCloud：漂う胞子 + 薄い靄。ダメージは全部毒素）
     MobDeath,       // 敵が死んだ足元の土煙（範囲 MobDeath：威力 0 の見た目だけ。部品の砕け散りと一緒。2026-10-02）
     Beam,           // 魔導光線（溜めの光球 + Beam entry の光線 + 点光源。CPU の AreaVFXPlayer が再生し、終点は WeaponSystem が毎フレーム入れる）
     IceLance,       // アイスランスの弾（bing.FBX の氷の槍が弾と一緒に飛ぶ + 冷気の粒。2026-10-08）
     IceLanceHit,    // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片 + 冷気）
     GrassFire,      // 燃えている草の炎・煙・火の粉（GrassFireEmitCS が燃えているマスから出す。アイテムは使わない。2026-10-12）
+    TornadoDust,    // 砂嵐の術師の砂旋の足元の砂埃（SwarmTornadoEmitCS が砂旋の足元から出す。アイテムは使わない。2026-10-19）
 
     // ---- ここから CPU（AreaVFXPlayer）だけで出す物（2026-10-09 に登録。それまではコードにファイル名を直書きしていて、
     //      ユーザーに「プレイヤーのエフェクトや足元の小石がデータベースに入っていない」と言われた）。GPU の表には入れない ----

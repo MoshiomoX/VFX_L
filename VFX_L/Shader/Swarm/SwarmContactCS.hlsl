@@ -43,7 +43,7 @@ RWByteAddressBuffer counters : register(u1);
 RWBuffer<uint> enemyStates : register(u2);
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // direction of the hits the player took, for the CPU knockback (2026-10-01).
-// Swarm::PlayerHitInfo: melee x, z, count, blast x, z, count (+ 2 pad).
+// Swarm::PlayerHitInfo: melee x, z, count, blast x, z, count, spike x, z, count, wind x, z, count (2026-10-17).
 // x / z = sum of unit vectors (enemy or blast centre -> player) * HIT_DIR_SCALE.
 // Never cleared: the CPU diffs it like the counters
 RWByteAddressBuffer playerHits : register(u6);
@@ -85,6 +85,21 @@ bool PlayerWithin(float3 pos, float reach)
     return PlayerWithinCapsule(pos, g_EnemyCapsuleHalf, reach);
 }
 
+// the blast of a bomber / dash bomber: the player within `radius` takes `dmg` and a blast knockback, the slot goes DEAD
+// (no kill, no orb), the look is the BomberBlast area scaled by `scale` (its own radius is the bomber's)
+void Explode(uint i, float3 pos, float radius, float dmg, float scale)
+{
+    if (g_PlayerAlive != 0u && PlayerWithin(pos, radius + g_PlayerRadius))
+    {
+        uint prev;
+        counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE, SwarmHpToFixed(dmg), prev);
+        RecordHit(12u, pos);   // blast: from the bomber
+    }
+    enemyStates[i] = SWARM_DEAD;
+    enemyExtra[i].fuse = 0.0;
+    SwarmSpawnAreaFromDef(g_BomberBlastArea, pos, i, scale, 0u, float2(0.0, 0.0));
+}
+
 void UpdateBomber(uint i, SwarmEnemyExtra extra)
 {
     float3 pos = enemies[i].position;
@@ -107,16 +122,21 @@ void UpdateBomber(uint i, SwarmEnemyExtra extra)
         return;
     }
 
-    if (g_PlayerAlive != 0u && PlayerWithin(pos, g_BomberBlastRadius + g_PlayerRadius))
-    {
-        uint prev;
-        counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE,
-                                SwarmHpToFixed(g_BomberBlastDamage), prev);
-        RecordHit(12u, pos);   // blast: from the bomber
-    }
-    enemyStates[i] = SWARM_DEAD;
-    enemyExtra[i].fuse = 0.0;
-    SwarmSpawnAreaFromDef(g_BomberBlastArea, pos, i, 1.0, 0u, float2(0.0, 0.0));
+    Explode(i, pos, g_BomberBlastRadius, g_BomberBlastDamage, 1.0);
+}
+
+// dash bomber (2026-10-18): AICS lights it and sprints it at the player (fuse counts up there);
+// here it blows up the step it touches the player, or when the fuse runs out. Never melees
+void UpdateDashBomber(uint i, SwarmEnemyExtra extra)
+{
+    if (extra.fuse <= 0.0)
+        return;
+    float3 pos = enemies[i].position;
+    float reach = g_EnemyRadius * g_DashBomberScale + g_PlayerRadius + CONTACT_SKIN;
+    bool touch = g_PlayerAlive != 0u && PlayerWithinCapsule(pos, g_EnemyCapsuleHalf * g_DashBomberScale, reach);
+    if (touch || extra.fuse >= g_DashBomberFuse)
+        Explode(i, pos, g_DashBomberBlastRadius, g_BomberBlastDamage * g_DashBomberDamageMul,
+                g_DashBomberBlastRadius / max(g_BomberBlastRadius, 0.1));
 }
 
 [numthreads(256, 1, 1)]
@@ -135,6 +155,70 @@ void main(uint3 id : SV_DispatchThreadID)
         // frozen: a lit fuse keeps burning (it is a bomb), an unlit one is not lit by touching
         if (!frozen || extra.fuse > 0.0)
             UpdateBomber(i, extra);
+        return;
+    }
+    if (extra.kind == SWARM_KIND_DASHBOMBER)
+    {
+        UpdateDashBomber(i, extra);   // (2026-10-18) a lit one cannot be frozen (AICS); an unlit one never melees
+        return;
+    }
+    if (extra.kind == SWARM_KIND_BURROWER)
+    {
+        // burrower: never bites by touch. One bite when it surfaces: g_BurrowBiteDelay seconds after
+        // coming out (fuse counts down from g_BurrowSurfaceTime, this is the step it crosses the
+        // threshold) everyone within g_BurrowBiteRadius takes a hit, then it digs back in (2026-10-17)
+        float f = extra.fuse;
+        float thr = g_BurrowSurfaceTime - g_BurrowBiteDelay;
+        if (f > 0.0 && f <= thr && f + g_Step > thr && g_PlayerAlive != 0u && !frozen)
+        {
+            float3 center;
+            float er, eh;
+            SwarmKindCapsule(extra.kind, enemies[i].position, center, er, eh);
+            if (PlayerWithinCapsule(center, eh, g_BurrowBiteRadius + g_PlayerRadius))
+            {
+                float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind);
+                uint prev;
+                counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE, SwarmHpToFixed(dmg), prev);
+                RecordHit(0u, enemies[i].position);   // melee-sized knockback
+                enemies[i].attackCooldown = g_AttackInterval;   // the VS plays the attack swing from this
+            }
+        }
+        else
+            enemies[i].attackCooldown = max(enemies[i].attackCooldown - g_Step, 0.0);
+        return;
+    }
+    if (extra.kind == SWARM_KIND_SANDMAGE)
+    {
+        // sand mage: never melees. The attack swing plays while it winds up (fuse > 0, AICS) (2026-10-17)
+        enemies[i].attackCooldown = (extra.fuse > 0.0) ? g_AttackInterval : max(enemies[i].attackCooldown - g_Step, 0.0);
+        return;
+    }
+    if (extra.kind == SWARM_KIND_TORNADO)
+    {
+        // tornado: expired (AICS set fuse < 0) -> the slot dies here, no kill, no orb (the player did not kill it).
+        // Touching the player: contact damage x g_TornadoDamageMul and the "wind" knockback (slot 36: high up).
+        // Own cooldown so one tornado does not hit every step while the player is inside it (2026-10-17)
+        if (extra.fuse < 0.0)
+        {
+            enemyStates[i] = SWARM_DEAD;
+            return;
+        }
+        float cd = enemies[i].attackCooldown - g_Step;
+        if (cd <= 0.0 && g_PlayerAlive != 0u)
+        {
+            float3 center;
+            float er, eh;
+            SwarmKindCapsule(extra.kind, enemies[i].position, center, er, eh);
+            if (PlayerWithinCapsule(center, eh, er + g_PlayerRadius + CONTACT_SKIN))
+            {
+                float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind);
+                uint prev;
+                counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE, SwarmHpToFixed(dmg), prev);
+                RecordHit(36u, enemies[i].position);
+                cd = g_AttackInterval;
+            }
+        }
+        enemies[i].attackCooldown = max(cd, 0.0);
         return;
     }
 
@@ -156,8 +240,11 @@ void main(uint3 id : SV_DispatchThreadID)
             uint prev;
             counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE,
                                     SwarmHpToFixed(dmg), prev);
-            // melee: from this enemy. A charger's dash knocks back like a blast
-            RecordHit(dash ? 12u : 0u, enemies[i].position);
+            // melee: from this enemy. A charger's dash knocks back like a blast; a spike ball throws
+            // the player (its own slot at 24: the CPU knocks back farther and higher) (2026-10-17).
+            // Both final-swarm ghosts hit like a blast too (2026-10-18, Megabonk's ghosts slap the player across the map)
+            uint slotBase = (extra.kind == SWARM_KIND_SPIKEBALL) ? 24u : ((dash || SwarmIsGhost(extra.kind)) ? 12u : 0u);
+            RecordHit(slotBase, enemies[i].position);
             cd = g_AttackInterval;
         }
     }

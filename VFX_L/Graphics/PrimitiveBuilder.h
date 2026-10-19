@@ -93,4 +93,17 @@ namespace PrimitiveBuilder
     std::shared_ptr<Model> CreateBipyramid(ID3D11Device* device,
         float radius, float top, float bottom, int sides,
         const Vector4& color = { 1, 1, 1, 1 });
+
+    // トゲ玉（球 + 表面の四角錐のトゲ。砂漠の敵 kEnemyKindSpikeBall、2026-10-17）。球 bodyColor、トゲの先端 spikeColor
+    std::shared_ptr<Model> CreateSpikeBall(ID3D11Device* device,
+        float radius, float spikeLen, int spikes,
+        const Vector4& bodyColor = { 1, 1, 1, 1 }, const Vector4& spikeColor = { 1, 1, 1, 1 });
+
+    // 竜巻の筒（砂旋 / 突風の旋風。2026-10-19、ユーザー「上下が広くて真ん中が少し細い」）。
+    // 高さ 1（y 0 → 1）、上端の半径 1、下端 0.85、腰（y 0.5）は waist 倍。uv.x = 周（y に応じて twist 周ぶんずれる = 螺旋に
+    // 沿ってテクスチャが流れる）、uv.y = 下 → 上。頂点色の a は両端で 0 へ落ちる（端のフェード。rgb は color）。
+    // 表面は「上宽下窄」の円錐ではなく、ノイズを流す土台。蓋は無い（中は空）
+    std::shared_ptr<Model> CreateTornadoShell(ID3D11Device* device,
+        int segments = 32, int rings = 14, float waist = 0.62f, float twist = 0.35f,
+        const Vector4& color = { 1, 1, 1, 1 });
 }

@@ -18,6 +18,7 @@ bool GameSettings::Save() const
 {
     json j;
     j["factionOutline"] = factionOutline;
+    j["damageNumbers"] = damageNumbers;
     j["tutorialDone"] = tutorialDone;
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::path(Res::Cfg::Settings).parent_path(), ec);
@@ -38,6 +39,7 @@ bool GameSettings::Load()
         // 10-07 版のファイルは "outline"（アウトライン全体の ON / OFF）。切っていた人は敵味方の枠を切りたかったはずなので引き継ぐ
         factionOutline = j.value("outline", factionOutline);
         factionOutline = j.value("factionOutline", factionOutline);
+        damageNumbers = j.value("damageNumbers", damageNumbers);
         tutorialDone = j.value("tutorialDone", tutorialDone);
     }
     catch (const std::exception& e)

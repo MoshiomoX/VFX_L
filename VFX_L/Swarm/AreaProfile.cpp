@@ -54,6 +54,16 @@ uint32_t AreaProfile::Flags(bool atCaster) const
     return f;
 }
 
+uint32_t AreaProfile::Extra() const
+{
+    uint32_t e = 0;
+    const uint32_t tq = (uint32_t)std::lround(std::clamp(toxin, 0.0f, 1.0f) * 15.0f);
+    e |= tq << Swarm::kAreaExtraToxinShift;
+    if (splashOnly) e |= Swarm::kAreaExtraSplashOnly;
+    e |= (uint32_t)std::clamp(element, 0, 15) << Swarm::kAreaExtraElementShift;   // 属性（数字の色）
+    return e;
+}
+
 Swarm::Area AreaProfile::MakeArea(const Vector3& center, bool atCaster) const
 {
     Swarm::Area a;
@@ -66,6 +76,7 @@ Swarm::Area AreaProfile::MakeArea(const Vector3& center, bool atCaster) const
     a.halfHeight = halfHeight;
     a.flags = Flags(atCaster);
     a.vfxType = 0;   // CPU から出す範囲の見た目は CPU が再生する
+    a.tickNow = Extra();   // 上位 = 追加値（SpawnAreaCS が下位の tick 状態だけ 0 にする）
     return a;
 }
 
@@ -87,6 +98,9 @@ json AreaProfile::ToJson() const
     if (heat > 0.0f) j["heat"] = heat;
     if (push > 0.0f) j["push"] = push;
     if (forward != 0.0f) j["forward"] = forward;
+    if (toxin > 0.0f) j["toxin"] = toxin;
+    if (splashOnly) j["splashOnly"] = true;
+    if (element != 0) j["element"] = element;
     j["length"] = length;
     j["chargeTime"] = chargeTime;
     j["vfx"] = vfxFile;
@@ -118,6 +132,9 @@ void AreaProfile::FromJson(const json& j)
     heat = j.value("heat", heat);
     push = j.value("push", push);
     forward = j.value("forward", forward);
+    toxin = j.value("toxin", toxin);
+    splashOnly = j.value("splashOnly", splashOnly);
+    element = j.value("element", element);
     length = j.value("length", length);
     chargeTime = j.value("chargeTime", chargeTime);
     vfxFile = j.value("vfx", vfxFile);
@@ -257,6 +274,7 @@ std::vector<Swarm::AreaDef> AreaProfileDB::BuildDefs(const SwarmVFXTable& vfxTab
         d.tickInterval = p.EffectiveTickInterval();
         d.flags = p.Flags(false);   // 命中で出る範囲はプレイヤーに付いて動かない
         d.vfxType = vfxTable.IndexOf(FindVFXId(p.vfxFile));
+        d.extra = p.Extra();        // 毒素の割合・飛沫だけ（GPU が出す範囲の tickNow の上位へ）
         out.push_back(d);
     }
     return out;

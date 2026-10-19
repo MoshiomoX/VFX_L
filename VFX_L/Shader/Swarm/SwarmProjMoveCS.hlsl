@@ -35,6 +35,7 @@ StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
 StructuredBuffer<float> terrainHeight : register(t5);   // ramps (t4 = area defs)
 Buffer<uint> projBoost : register(t6);   // damage / duration boost of the area this shot leaves
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t7); // kind: a buried burrower is not a target (2026-10-17)
 
 RWStructuredBuffer<SwarmProjectile> projectiles : register(u0);
 RWBuffer<uint> projStates : register(u1);
@@ -85,6 +86,49 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     bool easeIn = (m.hitAreaFlags & SWARM_HITAREA_EASE_IN) != 0u;
 
+    // ---- chain rune (2026-10-16): HitCS hit an enemy last step and left the shot alive.
+    // Aim it at the nearest OTHER living enemy within reach and build a new curve from
+    // here, leaving along the current heading. Nobody in reach: let go and fly on
+    // (a TRACK shot searches again on its own; HitCS keeps skipping the last enemy) ----
+    uint state = projStates[i];
+    bool chained = (state & SWARM_PROJ_CHAINED) != 0u;
+    if ((state & SWARM_PROJ_CHAIN_PENDING) != 0u)
+    {
+        projStates[i] = state & ~SWARM_PROJ_CHAIN_PENDING;
+        uint lastHit = state & SWARM_PROJ_CHAIN_LAST_MASK;
+        float bestSq = SWARM_CHAIN_RADIUS * SWARM_CHAIN_RADIUS;
+        uint best = SWARM_NO_TARGET;
+        for (uint j = 0; j < g_MaxEnemies; ++j)
+        {
+            if (j == lastHit || enemyStates[j] == SWARM_DEAD || SwarmUntargetable(enemyExtra[j]))
+                continue;
+            float3 d = enemies[j].position - p.position;
+            float dSq = dot(d, d);
+            if (dSq < bestSq)
+            {
+                bestSq = dSq;
+                best = j;
+            }
+        }
+        SwarmProjPath chainPath = paths[i];
+        if (best != SWARM_NO_TARGET)
+        {
+            float vLenSq = dot(p.velocity, p.velocity);
+            float3 heading = (vLenSq > 1e-8) ? p.velocity * rsqrt(vLenSq) : float3(0, 0, 1);
+            chainPath.target = best;
+            if (chainPath.speed <= 0.01)
+                chainPath.speed = max(sqrt(vLenSq), 1.0);
+            SwarmBuildPath(chainPath, m, p.position, enemies[best].position, heading, true);
+            p.pathT = 0.0;
+            p.lifetime = max(p.lifetime, chainPath.duration + 0.25);
+        }
+        else
+        {
+            chainPath.target = SWARM_NO_TARGET;
+        }
+        paths[i] = chainPath;
+    }
+
     // ---- DROP / LOB: fall onto the impact point fixed at spawn ----
     // No enemy collision on the way (HitCS skips DROP) and no terrain test:
     // the walkability test is 2D, so flying over a tree or a plateau would
@@ -116,7 +160,8 @@ void main(uint3 id : SV_DispatchThreadID)
 
     bool onCurve = false;
 
-    if (m.mode != SWARM_MOTION_STRAIGHT)
+    // a chained straight shot (golden arrow + chain rune) follows the curve the chain built
+    if (m.mode != SWARM_MOTION_STRAIGHT || chained)
     {
         SwarmProjPath path = paths[i];
         bool pathDirty = false;
@@ -124,7 +169,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // ---- target lost? ----
         if (path.target != SWARM_NO_TARGET)
         {
-            if (path.target >= g_MaxEnemies || enemyStates[path.target] != SWARM_ALIVE)
+            if (path.target >= g_MaxEnemies || enemyStates[path.target] == SWARM_DEAD || SwarmUntargetable(enemyExtra[path.target]))
             {
                 path.target = SWARM_NO_TARGET;
                 pathDirty = true;
@@ -145,7 +190,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
             for (uint j = 0; j < g_MaxEnemies; ++j)
             {
-                if (enemyStates[j] != SWARM_ALIVE)
+                if (enemyStates[j] == SWARM_DEAD || SwarmUntargetable(enemyExtra[j]))
                     continue;
                 float3 d = enemies[j].position - p.position;
                 float dSq = dot(d, d);

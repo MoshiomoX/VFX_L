@@ -11,6 +11,8 @@
 #include "Item/Items/Meteor.h"
 #include "Item/Items/StoneShot.h"
 #include "Item/Items/Poison.h"
+#include "Item/Items/Swamp.h"
+#include "Item/Items/Spore.h"
 #include "Item/Items/IceLance.h"
 #include "Item/Items/IceSpike.h"
 #include "Item/Items/Beam.h"
@@ -19,6 +21,7 @@
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Magnifier.h"
 #include "Item/Items/HasteRune.h"
+#include "Item/Items/ChainRune.h"
 #include "Item/Items/CrystalBall.h"
 #include "Item/Items/Frame3x3.h"
 #include "Item/Items/MaxHealthUp.h"
@@ -120,6 +123,8 @@ void ItemDatabase::Initialize()
     Register(MakeGoldenArrow());
     Register(MakeStoneShot());
     Register(MakePoison());
+    Register(MakeSwamp());
+    Register(MakeSpore());
     Register(MakeIceLance());
     Register(MakeIceSpike());
     Register(MakeBeam());
@@ -130,6 +135,7 @@ void ItemDatabase::Initialize()
     Register(MakeDoubleCastRune());
     Register(MakeMagnifier());
     Register(MakeHasteRune());
+    Register(MakeChainRune());
 
     // ---- 召喚物（2026-10-06）----
     Register(MakeCrystalBall());
@@ -302,6 +308,7 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
     case SpellParam::AreaDamage:      target = &stats.areaDamageMul;   break;
     case SpellParam::ProjectileCount: targetInt = &stats.projectileCount; break;
     case SpellParam::CastCount:       targetInt = &stats.castCount;       break;
+    case SpellParam::ChainCount:      targetInt = &stats.chainCount;      break;
 
     default:
         return;
@@ -332,7 +339,9 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
 
         case ModifyOp::Set:      *targetInt = (int)mod.value; break;
         }
-        if (*targetInt < 1) *targetInt = 1;   // 最低1は確保する
+        // 最低 1 は確保する（弾数・連射）。連鎖は 0 = 跳ばない、なので 0 まで
+        const int lowest = (mod.param == SpellParam::ChainCount) ? 0 : 1;
+        if (*targetInt < lowest) *targetInt = lowest;
     }
 }
 // ============================================================

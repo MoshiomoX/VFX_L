@@ -726,6 +726,7 @@ void ProjectileEditorScene::DrawProjectileTab()
     changed |= ImGui::DragFloat("Freeze (s)", &p.freezeTime, 0.05f, 0.0f, 10.0f);
     // 生成後に止まる秒数と、止まった後の加速（ストーンショット、2026-10-16）
     changed |= ImGui::DragFloat("Hold (s)", &p.holdTime, 0.02f, 0.0f, 5.0f);
+    { static const char* kElem[] = { "none", "fire", "ice", "lightning", "arcane", "earth", "poison", "wind", "light" }; changed |= ImGui::Combo("Element (damage number colour)", &p.element, kElem, 9); }   // 2026-10-17
     changed |= ImGui::Checkbox("Ease In (start slow, arrive at 2x speed)", &p.easeIn);
 
     // ---- 見た目 ----
@@ -955,6 +956,10 @@ void ProjectileEditorScene::DrawAreaTab()
     changed |= ImGui::Checkbox("Hit stun on damage", &p.stun);
     changed |= ImGui::SliderFloat("Slow (per tick)", &p.slow, 0.0f, 1.0f, "%.2f");   // 0.4 = 40% 遅く（エリート・Boss は半分）
     changed |= ImGui::SliderFloat("Freeze (sec)", &p.freeze, 0.0f, 3.75f, "%.2f");    // 当たった敵を凍らせる（0.25 秒刻み。エリート・Boss は半分）
+    changed |= ImGui::SliderFloat("Toxin share (drains over 1 s)", &p.toxin, 0.0f, 1.0f, "%.2f");   // 威力のこの割合は毒素として溜め、1 秒かけて削る（猛毒の沼。2026-10-17）
+    { static const char* kElem[] = { "none", "fire", "ice", "lightning", "arcane", "earth", "poison", "wind", "light" }; changed |= ImGui::Combo("Element (damage number colour)", &p.element, kElem, 9); }   // 2026-10-17
+    if (p.kind == AreaProfile::Kind::Lasting)
+        changed |= ImGui::Checkbox("Splash only (damage on the first tick)", &p.splashOnly);   // 泥沼：落ちた時だけダメージ、残る沼は減速だけ
     changed |= ImGui::Checkbox("Camera Shake", &p.cameraShake);   // 戦闘で出た時にカメラを揺らす（爆発だけ）
     changed |= ImGui::SliderFloat("Grass Fire (heat)", &p.heat, 0.0f, 1.5f, "%.2f");   // 草に火を付ける熱（GrassFireField。0 = 付けない）
     if (p.kind != AreaProfile::Kind::Beam)

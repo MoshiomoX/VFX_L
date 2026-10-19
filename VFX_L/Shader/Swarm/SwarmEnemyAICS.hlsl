@@ -37,6 +37,10 @@ RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWStructuredBuffer<float4> enemySlow : register(u1);
 // kind + fuse. ContactCS lights a bomber's fuse; this pass runs a charger's
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u2);
+// the split ring (SwarmCorpseTrackCS writes a splitter's death here): a sand mage that finishes its
+// wind-up writes its position + SWARM_KIND_SANDMAGE, the CPU spawns the tornado toward the player (2026-10-17)
+RWByteAddressBuffer castEvents : register(u3);
+static const uint SWARM_MAX_SPLIT_EVENTS = 128u;   // Swarm::kMaxSplitEvents
 
 // a charger only winds up if the ground along the dash is open up to the player
 // (walkable, no cliff): it would just ram the wall otherwise
@@ -96,6 +100,21 @@ void main(uint3 id : SV_DispatchThreadID)
     SwarmEnemyExtra extra = enemyExtra[i];
     bool big = (extra.kind == SWARM_KIND_ELITE || extra.kind == SWARM_KIND_BOSS);
 
+    // ---- tornado (2026-10-17): straight along its yaw at moveSpeed until the life runs out. No slow, no freeze,
+    //      no separation, no walls (MoveCS treats it like a ghost). fuse: 0 = just spawned, > 0 = seconds left,
+    //      < 0 = expired (ContactCS turns the slot DEAD this step) ----
+    if (extra.kind == SWARM_KIND_TORNADO)
+    {
+        float f = extra.fuse;
+        if (f == 0.0) f = g_TornadoLife;
+        else if (f > 0.0) { f -= g_Step; if (f <= 0.0) f = -1.0; }
+        enemyExtra[i].fuse = f;
+        float ys, yc;
+        sincos(enemies[i].yaw, ys, yc);
+        enemies[i].velocity = (f > 0.0) ? float3(ys, 0.0, yc) * enemies[i].moveSpeed : float3(0, 0, 0);
+        return;
+    }
+
     // ---- status: slow (poison pool) and freeze (ice). Counted down before any early return ----
     float4 st = enemySlow[i];
     float slowMul = 1.0;
@@ -124,6 +143,14 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     else if (st.w > 0.0)
         st.w = max(st.w - g_Step, 0.0);
+    // the final-swarm ghosts are never slowed or frozen (2026-10-18: ice / poison must not hold the swarm off);
+    // neither is a lit bomber / dash bomber (it is a bomb now)
+    if (SwarmIsGhost(extra.kind) || SwarmInvulnerable(extra))
+    {
+        slowMul = 1.0;
+        frozen = false;
+        st = float4(0, 0, 0, 0);
+    }
     enemySlow[i] = st;
 
     if (frozen)
@@ -170,13 +197,99 @@ void main(uint3 id : SV_DispatchThreadID)
         enemyExtra[i].fuse = f;
     }
 
+    // ---- burrower: under the sand (fuse <= 0, counts down) -> surfaces next to the player (fuse = g_BurrowSurfaceTime,
+    //      counts down) -> digs in again. moveSpeed 0 = training target: stays under (2026-10-17) ----
+    bool buried = false;
+    if (extra.kind == SWARM_KIND_BURROWER)
+    {
+        float f = extra.fuse;
+        if (f > 0.0)
+        {
+            f -= g_Step;
+            if (f <= 0.0) f = -g_Step;
+        }
+        else
+        {
+            f -= g_Step;
+            if (g_PlayerAlive != 0u && -f >= g_BurrowMinBuried && enemies[i].moveSpeed > 0.01 && abs(g_PlayerPos.y - pos.y) < 1.5)
+            {
+                float2 toP = g_PlayerPos.xz - pos.xz;
+                if (dot(toP, toP) <= g_BurrowSurfaceDist * g_BurrowSurfaceDist)
+                    f = g_BurrowSurfaceTime;
+            }
+        }
+        extra.fuse = f;
+        enemyExtra[i].fuse = f;
+        buried = f <= 0.0;
+    }
+
+    // ---- sand mage: ready (fuse 0) -> wind-up (fuse counts up to g_SandMageWindup, stands still) -> cast
+    //      (castEvents, the CPU spawns the tornado) -> cooldown (fuse < 0 counts up to 0). Only with the player on our
+    //      level and within g_SandMageCastRange; moveSpeed 0 = training target: never casts (2026-10-17) ----
+    bool casting = false;
+    if (extra.kind == SWARM_KIND_SANDMAGE)
+    {
+        float f = extra.fuse;
+        if (f < 0.0)
+            f = min(f + g_Step, 0.0);
+        else if (f > 0.0)
+        {
+            f += g_Step;
+            if (f >= g_SandMageWindup)
+            {
+                uint s;
+                castEvents.InterlockedAdd(0, 1u, s);
+                uint at = 16u + (s % SWARM_MAX_SPLIT_EVENTS) * 16u;
+                castEvents.Store3(at, asuint(pos));
+                castEvents.Store(at + 12u, SWARM_KIND_SANDMAGE);
+                f = -g_SandMageCooldown;
+            }
+        }
+        if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != 2u && enemies[i].moveSpeed > 0.01
+            && abs(g_PlayerPos.y - pos.y) < 1.5)
+        {
+            float2 toP = g_PlayerPos.xz - pos.xz;
+            if (dot(toP, toP) <= g_SandMageCastRange * g_SandMageCastRange)
+            {
+                f = g_Step;
+                enemies[i].yaw = atan2(toP.x, toP.y);   // faces the player while winding up
+            }
+        }
+        extra.fuse = f;
+        enemyExtra[i].fuse = f;
+        casting = f > 0.0;
+    }
+
+    // ---- dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger on our level, then sprints
+    //      straight at the player (re-aimed every step, see the dash below) until it touches / the fuse runs out
+    //      (ContactCS blows it up). fuse > 0 = seconds since lit (counted here, read by ContactCS / VS).
+    //      moveSpeed 0 = training target: never lights ----
+    bool dashing = false;
+    if (extra.kind == SWARM_KIND_DASHBOMBER)
+    {
+        float f = extra.fuse;
+        if (f > 0.0)
+            f += g_Step;
+        else if (g_PlayerAlive != 0u && enemies[i].moveSpeed > 0.01 && abs(g_PlayerPos.y - pos.y) < 1.5)
+        {
+            float2 toP = g_PlayerPos.xz - pos.xz;
+            if (dot(toP, toP) <= g_DashBomberTrigger * g_DashBomberTrigger)
+                f = g_Step;
+        }
+        extra.fuse = f;
+        enemyExtra[i].fuse = f;
+        dashing = f > 0.0;
+    }
+
     // ---- hit stun / lit bomber / charger winding up or catching its breath: stand still ----
     // velocity 0 so the exit ramps back up through the lag below.
     // A lit bomber stays put until it blows up, so the player can outrun the blast.
     // A charger that has started its wind-up does not flinch (it would be pinned by the fire)
     bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
-    bool stunned = (enemies[i].animIndex == 2u) && (cphase == SWARM_CHARGE_CHASE);
-    if (stunned || lit || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
+    bool stunned = (enemies[i].animIndex == 2u) && (cphase == SWARM_CHARGE_CHASE) && !dashing;
+    // a surfaced burrower stands where it came out (bites once, then digs in)
+    bool surfaced = (extra.kind == SWARM_KIND_BURROWER) && !buried;
+    if (stunned || lit || surfaced || casting || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
     {
         // y is the fall speed (MoveCS owns it): a stunned enemy in mid-air keeps falling
         enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
@@ -185,6 +298,8 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float3 oldV = enemies[i].velocity; // own slot: written by this thread last step
     float moveSpeed = enemies[i].moveSpeed * slowMul;
+    if (extra.kind == SWARM_KIND_BURROWER)
+        moveSpeed *= buried ? g_BurrowBuriedSpeedMul : g_BurrowSurfaceSpeedMul;
 
     // ---- seek: follow the flow field, chase directly when close ----
     // the field routes around boxes and walls (the straight line used
@@ -203,12 +318,21 @@ void main(uint3 id : SV_DispatchThreadID)
         // the straight line runs into the cliff, keep following the field to a ramp
         bool sameLevel = abs(g_PlayerPos.y - pos.y) < 1.0;
         bool useFlow = (lenSq > direct * direct || !sameLevel) && (dot(flow, flow) > 0.01);
-        if (extra.kind == SWARM_KIND_GHOST)
+        if (SwarmIsGhost(extra.kind))
             useFlow = false; // ghosts fly straight at the player (through walls and over plateaus)
         if (useFlow)
             moveDir = normalize(float3(flow.x, 0.0, flow.y));
         else if (lenSq > 1e-6)
             moveDir = toPlayer * rsqrt(lenSq);
+        // sand mage: keeps its distance. Too close = backs away (the hard block below still stops it at walls),
+        // in the band = stands (separation only), too far = the usual chase (2026-10-17)
+        if (extra.kind == SWARM_KIND_SANDMAGE && sameLevel)
+        {
+            if (lenSq < g_SandMageKeepMin * g_SandMageKeepMin)
+                moveDir = (lenSq > 1e-6) ? -toPlayer * rsqrt(lenSq) : float3(0, 0, 0);
+            else if (lenSq <= g_SandMageKeepMax * g_SandMageKeepMax)
+                moveDir = float3(0, 0, 0);
+        }
     }
 
     // ---- separation: live neighbours in the 3x3 cells around us ----
@@ -252,7 +376,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
 
     // ---- avoid: soft push away from blocked neighbour cells (not for ghosts) ----
-    bool ghost = (extra.kind == SWARM_KIND_GHOST);
+    bool ghost = SwarmIsGhost(extra.kind);
     float3 avoid = float3(0, 0, 0);
     float cs = g_CellSize;
     if (!ghost)
@@ -297,6 +421,15 @@ void main(uint3 id : SV_DispatchThreadID)
         float ys, yc;
         sincos(enemies[i].yaw, ys, yc);
         v = float3(ys, 0.0, yc) * dashSpeed;
+        charging = true;
+    }
+    // ---- lit dash bomber: sprints at the player, re-aimed every step, runs into them (ContactCS blows it up) ----
+    if (dashing)
+    {
+        float3 toP = g_PlayerPos - pos;
+        toP.y = 0.0;
+        float l = length(toP);
+        v = (l > 1e-4) ? toP / l * g_DashBomberDashSpeed : float3(0, 0, 0);
         charging = true;
     }
 
@@ -356,7 +489,7 @@ void main(uint3 id : SV_DispatchThreadID)
         bool allowDrop = SwarmDropAllowed(terrainHeight, pos.xz);
         // a dashing charger looks only a couple of steps ahead: at 14 m/s the usual
         // look-ahead (0.35 s = 5 m) would end the dash 5 m short of any wall behind the player
-        float look = (cphase == SWARM_CHARGE_DASH) ? 2.0 * g_Step : g_LookAhead;
+        float look = (cphase == SWARM_CHARGE_DASH || dashing) ? 2.0 * g_Step : g_LookAhead;
         float ax = (v.x != 0.0) ? v.x * look + sign(v.x) * r : 0.0;
         float az = (v.z != 0.0) ? v.z * look + sign(v.z) * r : 0.0;
 

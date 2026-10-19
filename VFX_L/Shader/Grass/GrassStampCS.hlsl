@@ -33,6 +33,7 @@ struct StampExtra
 #define STAMP_KIND_ELITE 2u
 #define STAMP_KIND_BOSS 3u
 #define STAMP_KIND_GHOST 4u
+#define STAMP_KIND_DARKGHOST 14u
 #define STAMP_KIND_BRUTE 7u
 
 StructuredBuffer<StampEnemy> g_Enemies : register(t0);
@@ -51,7 +52,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (g_EnemyStates[j] == 0u)
         return;
     uint kind = g_EnemyExtra[j].kind;
-    if (kind == STAMP_KIND_GHOST)   // floats above the grass
+    if (kind == STAMP_KIND_GHOST || kind == STAMP_KIND_DARKGHOST)   // floats above the grass
         return;
 
     // footprint: the body radius by kind (the big ones press a wider disc)

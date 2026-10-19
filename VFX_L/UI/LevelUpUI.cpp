@@ -228,11 +228,12 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
     const float k = m_CardW / 270.0f;   // 文字や飾りの大きさの基準（カード幅 270px の時 1）
     const float slide = (1.0f - ease) * m_CardH * 0.12f;   // 下からの浮き上がり（px）
 
-    // ---- 見出し「レベルアップ」+ 百合紋の分割線（HUD・メニューと同じ古金）----
+    // ---- 見出し「レベルアップ」/「宝箱の報酬」+ 百合紋の分割線（HUD・メニューと同じ古金）。
+    //      箱から出た四択は見出しを変える（2026-10-18 ユーザー：箱でも「レベルアップ」と出ていた）----
     {
         const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
         const float s = headingScale * k;
-        const std::wstring head = L"レベルアップ";
+        const std::wstring head = lv.choiceFromCrate ? L"宝箱の報酬" : L"レベルアップ";
         const Vector2 hs = text.Measure(head, s);
         const float cardTop = CardPosition(0, total).y;
         const float divW = m_CardW * 1.25f;

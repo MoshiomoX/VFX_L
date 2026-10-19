@@ -34,10 +34,15 @@ namespace
         { VFXId::Beam, Res::VFX::Beam, Group::Spell },
         { VFXId::Poison, Res::VFX::Poison, Group::Spell },
         { VFXId::PoisonPool, Res::VFX::PoisonPool, Group::Spell },
+        { VFXId::Swamp, Res::VFX::Swamp, Group::Spell },
+        { VFXId::SwampPool, Res::VFX::SwampPool, Group::Spell },
+        { VFXId::Spore, Res::VFX::Spore, Group::Spell },
+        { VFXId::SporeCloud, Res::VFX::SporeCloud, Group::Spell },
         { VFXId::MobDeath, Res::VFX::MobDeath, Group::Spell },
         { VFXId::IceLance, Res::VFX::IceLance, Group::Spell },
         { VFXId::IceLanceHit, Res::VFX::IceLanceHit, Group::Spell },
         { VFXId::GrassFire, Res::VFX::GrassFire, Group::Spell },
+        { VFXId::TornadoDust, Res::VFX::TornadoDust, Group::Spell },
 
         // ---- プレイヤーの動き（CPU、PlayerVFXSystem）----
         { VFXId::CastFlash, Res::VFX::CastFlash, Group::Player },

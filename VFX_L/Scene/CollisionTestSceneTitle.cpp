@@ -370,8 +370,10 @@ void CollisionTestScene::InitTitleDemo()
             { ItemID::Beam, 6, 5 },          // 横 3
             { ItemID::HomingBolt, 5, 4 },    // 光線の上
             { ItemID::ArcBolt, 7, 6 },       // 光線の下
-            { ItemID::Poison, 1, 7 },
+            { ItemID::Poison, 1, 7 },        // 猛毒の沼（2026-10-17 から上級魔法）：(0,7)(1,6)(1,7)(1,8)
             { ItemID::GoldenArrow, 3, 8 },
+            { ItemID::Swamp, 2, 7 },         // (2,7)(2,8)：上 = 沼 (1,7)(1,8)
+            { ItemID::Spore, 2, 6 },         // 縦 2 (2,6)(3,6)：上 = 沼 (1,6)
         };
         int index[(int)std::size(layout)];
         for (int i = 0; i < (int)std::size(layout); ++i)

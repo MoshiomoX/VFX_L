@@ -196,6 +196,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestChainRune.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestPerch.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -248,6 +251,21 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestChargeShield.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestDamageText.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSpikeBall.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBurrower.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSandMage.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestDashBomber.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp">
@@ -739,6 +757,9 @@
     <ClCompile Include="UI\HUDExpBar.cpp">
       <Filter>UI</Filter>
     </ClCompile>
+    <ClCompile Include="UI\DamageNumbers.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
     <ClCompile Include="UI\TrainingMenuUI.cpp">
       <Filter>UI</Filter>
     </ClCompile>
@@ -864,6 +885,9 @@
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmSystemFire.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemTornado.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmSystemTrail.cpp">
@@ -1407,6 +1431,15 @@
     <ClInclude Include="Item\Items\HasteRune.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\ChainRune.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\Swamp.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\Spore.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Item\Items\CrystalBall.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
@@ -1516,6 +1549,9 @@
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\HUD.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\DamageNumbers.h">
       <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\TrainingMenuUI.h">
@@ -1723,6 +1759,9 @@
     <FxCompile Include="Shader\Swarm\SwarmCorpseTrackCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmDamageTextCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmCorpseListCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -1904,6 +1943,21 @@
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmShieldVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmSpikeBallVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmMoundVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmTornadoVS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmTornadoPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmTornadoEmitCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmIceVS.hlsl">

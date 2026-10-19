@@ -1,6 +1,6 @@
 {
     "castSound": "cast_arrow",
-    "name":  "GoldenArrow",
+    "name":  "GoldenArrow", "element": 8,
     "mode":  0,
     "c1":  [
                0.3,

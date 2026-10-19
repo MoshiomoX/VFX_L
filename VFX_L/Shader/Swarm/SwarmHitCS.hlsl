@@ -65,10 +65,18 @@ void main(uint3 id : SV_DispatchThreadID)
     float coarseSq = coarse * coarse;
     // Ice Lance (2026-10-08): the enemy it hits freezes for this long (AICS takes the request)
     float freezeTime = motions[p.motion & SWARM_MOTION_INDEX_MASK].freezeTime;
+    // chain rune (2026-10-16): a chained shot survives a live hit while it has jumps left,
+    // and never hits the enemy it jumped from again (see SwarmCommon.hlsli)
+    uint state = projStates[i];
+    bool chained = (state & SWARM_PROJ_CHAINED) != 0u;
+    uint chainsLeft = chained ? ((state >> SWARM_PROJ_CHAIN_LEFT_SHIFT) & SWARM_PROJ_CHAIN_LEFT_MASK) : 0u;
+    uint lastHit = chained ? (state & SWARM_PROJ_CHAIN_LAST_MASK) : SWARM_PROJ_CHAIN_NO_LAST;
 
     for (uint j = 0; j < g_MaxEnemies; ++j)
     {
         if (enemyStates[j] == SWARM_DEAD)
+            continue;
+        if (j == lastHit)
             continue;
 
         float3 pos = enemies[j].position;
@@ -78,6 +86,8 @@ void main(uint3 id : SV_DispatchThreadID)
 
         SwarmEnemyExtra extra = enemyExtra[j];
         uint kind = extra.kind;
+        if (SwarmUntargetable(extra))
+            continue; // under the sand: cannot be hit (2026-10-17)
         float3 center;
         float er, eh;
         SwarmKindCapsule(kind, pos, center, er, eh);
@@ -100,7 +110,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // The boss never flinches (it would be pinned by the constant fire), nor does a
         // charger that has started its wind-up (MoveCS would stop the dash on every hit).
         // An ice shot leaves a freeze request instead of the stun
-        bool noFlinch = (kind == SWARM_KIND_BOSS) || (kind == SWARM_KIND_CHARGER && extra.fuse > 0.0);
+        bool noFlinch = SwarmNoFlinch(extra);   // (+ both final-swarm ghosts, 2026-10-18)
         if (freezeTime > 0.0)
         {
             enemies[j].animIndex = SWARM_ANIM_FREEZE_REQ;
@@ -110,6 +120,19 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             enemies[j].animIndex = 2u;
             enemies[j].animTime = 0.0;
+        }
+
+        if (prev > dmgFixed)
+        {
+            // not the killer: remember what hit it (the damage number's colour). CAS so a DEAD written meanwhile
+            // by another thread's killing hit is never turned back into ALIVE (2026-10-17)
+            uint cur = enemyStates[j];
+            if (cur != SWARM_DEAD)
+            {
+                uint wasState;
+                InterlockedCompareExchange(enemyStates[j], cur,
+                    SWARM_ALIVE | (SwarmMotionElement(motions[p.motion & SWARM_MOTION_INDEX_MASK]) << SWARM_STATE_ELEMENT_SHIFT), wasState);
+            }
         }
 
         if (prev <= dmgFixed)
@@ -150,8 +173,12 @@ void main(uint3 id : SV_DispatchThreadID)
         SwarmSpawnAreaFromDef(motions[p.motion & SWARM_MOTION_INDEX_MASK].hitArea,
                               p.position, i + j, SwarmProjScale(p), projBoost[i], p.velocity.xz);
 
-        // projectile is consumed either way (no pierce)
-        projStates[i] = SWARM_DEAD;
+        // projectile is consumed either way (no pierce) -- unless it still has chain jumps:
+        // then it stays alive, remembers this enemy and asks ProjMoveCS for the next one
+        if (chainsLeft > 0u)
+            projStates[i] = SwarmProjChainState(chainsLeft - 1u, j) | SWARM_PROJ_CHAIN_PENDING;
+        else
+            projStates[i] = SWARM_DEAD;
         return;
     }
 }

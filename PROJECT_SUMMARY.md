@@ -226,6 +226,8 @@ ImGui、shader 反射、HSM + ECS、PBR、骨骼蒙皮、天空盒、调试相�
 | miniaudio + stb_vorbis | 公有领域 / MIT-0 | 音频库（`ThirdParty/miniaudio/`） |
 | UI 线稿原图 | CC0 / 公有领域 | `Assets/Texture/UI/Deco/`（出处见同目录 README） |
 | Yuji Syuku 字体 | OFL | UI 文字 |
+| Chakra Petch / Squada One 字体 | OFL | 伤害数字（用户在比，定了删一套；`Assets/Fonts/*-OFL.txt`） |
+| Noto Sans JP / SC 字体 | OFL | ImGui 调试面板的日文 + 简体中文（`Assets/Fonts/NotoSans*-OFL.txt`） |
 | game-icons.net | **CC BY 3.0** | 道具图标（每个作者写进 README，需 Credits 画面） |
 
 **生成脚本**（`Tools/`）：`BuildSpriteFont.ps1`、`BuildGameIcons.ps1`、`BuildUIDeco.ps1`、`BuildParticleSheets.ps1`、`BuildPlayerModel.py`（Blender 后台）。素材都不手改，改表重跑。

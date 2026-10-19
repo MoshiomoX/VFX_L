@@ -14,6 +14,10 @@
 // = terrain height, see SwarmEnemyMoveCS) plus g_RingLift. On a ramp
 // part of it may sink under the slope.
 //
+// Drawn a second time from the dash bomber list (2026-10-19): a lit dash
+// bomber gets the same ring with its own radius (g_DashBomberBlastRadius)
+// and fuse (g_DashBomberFuse). It runs, so the ring runs along under it.
+//
 // C++ mirror of the cbuffer: SwarmSystem::BomberRingCB
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
@@ -59,14 +63,16 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
     uint slot = bomberList[iid];
     SwarmEnemyExtra extra = enemyExtra[slot];
-    bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
+    bool dash = (extra.kind == SWARM_KIND_DASHBOMBER);
+    bool lit = (extra.kind == SWARM_KIND_BOMBER || dash) && (extra.fuse > 0.0);
     if (enemyStates[slot] == SWARM_DEAD || !lit)
     {
         o.pos = float4(0, 0, -1, 1); // clipped
         return o;
     }
 
-    float radius = max(g_BomberBlastRadius, 0.01);
+    float radius = max(dash ? g_DashBomberBlastRadius : g_BomberBlastRadius, 0.01);
+    float fuseTime = dash ? g_DashBomberFuse : g_BomberFuseTime;
     float3 p = enemies[slot].position;
     float2 c = kCorner[vid];
     float3 world = float3(p.x + c.x * radius,
@@ -75,7 +81,7 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
     o.pos = mul(mul(float4(world, 1.0), g_RingView), g_RingProj);
     o.uv = c;
-    o.progress = saturate(extra.fuse / max(g_BomberFuseTime, 1e-3));
+    o.progress = saturate(extra.fuse / max(fuseTime, 1e-3));
     o.edgeWidth = g_RingEdgeWidth / radius;
     return o;
 }

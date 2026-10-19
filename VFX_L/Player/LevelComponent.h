@@ -60,6 +60,9 @@ struct LevelComponent
     // 「レベルアップ！」の案内だけ出す（GameUI が減らす）。報酬の箱の四択は 0（すぐ出す）
     float choiceDelay = 0.0f;
 
+    // 今の四択が報酬の箱から出た物か（2026-10-18 ユーザー：「箱から出ても見出しがレベルアップになっている」→ 見出しを変える）
+    bool choiceFromCrate = false;
+
     // 連続レベルアップは1回ずつ処理する。
     // まとめて上げると三択が何度も連続で出て、選ぶ作業だけが続く。
     // 余った経験値は持ち越して、選び終わってから次のレベルへ進む。
@@ -70,5 +73,5 @@ struct LevelComponent
         ++level;
     }
 
-    void ClearChoices() { pendingChoices.clear(); rerollCount = 0; choiceDelay = 0.0f; }
+    void ClearChoices() { pendingChoices.clear(); rerollCount = 0; choiceDelay = 0.0f; choiceFromCrate = false; }
 };

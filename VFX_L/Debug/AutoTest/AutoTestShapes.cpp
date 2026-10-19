@@ -35,7 +35,7 @@ void AutoTestShapes::Run(float dt)
         m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
     auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
     char line[300];
-    static int s_Meteor = -1, s_Beam = -1, s_Arc = -1;
+    static int s_Meteor = -1, s_Beam = -1, s_Arc = -1, s_Poison = -1;
 
     if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
     {
@@ -58,7 +58,9 @@ void AutoTestShapes::Run(float dt)
             { ItemID::Beam, 6, 5, "beam" },           // (6,4)(6,5)(6,6)
             { ItemID::HomingBolt, 5, 4, "homing" },   // (5,4)(5,5)：真下が光線
             { ItemID::ArcBolt, 7, 6, "arc" },         // (7,6)(7,7)(8,7)(8,8)：(7,6) の上 = 光線 (6,6)
-            { ItemID::Poison, 1, 7, "poison" },       // (0,7)(1,6)(1,7)(1,8)
+            { ItemID::Poison, 1, 7, "poison" },       // (0,7)(1,6)(1,7)(1,8)：2026-10-17 から上級魔法（猛毒の沼）
+            { ItemID::Swamp, 2, 7, "swamp" },         // (2,7)(2,8)：上 = 沼 (1,7)(1,8)
+            { ItemID::Spore, 2, 6, "spore" },         // 縦 2 (2,6)(3,6)：上 = 沼 (1,6)
             { ItemID::GoldenArrow, 3, 8, "arrow" },   // (3,8)(4,8)(5,8)
         };
         for (const P& p : layout)
@@ -71,10 +73,12 @@ void AutoTestShapes::Run(float dt)
             if (p.id == ItemID::Meteor) s_Meteor = idx;
             if (p.id == ItemID::Beam) s_Beam = idx;
             if (p.id == ItemID::ArcBolt) s_Arc = idx;
+            if (p.id == ItemID::Poison) s_Poison = idx;
         }
-        snprintf(line, sizeof(line), "shapes trigger meteor %d beam %d",
+        snprintf(line, sizeof(line), "shapes trigger meteor %d beam %d poison %d",
             s_Meteor >= 0 ? (int)BackpackLogic::IsTriggerReady(bp, s_Meteor) : -1,
-            s_Beam >= 0 ? (int)BackpackLogic::IsTriggerReady(bp, s_Beam) : -1);
+            s_Beam >= 0 ? (int)BackpackLogic::IsTriggerReady(bp, s_Beam) : -1,
+            s_Poison >= 0 ? (int)BackpackLogic::IsTriggerReady(bp, s_Poison) : -1);
         AutoTestLog(line);
         bp.dirty = true;
         m_GameUI.TestShow(1);

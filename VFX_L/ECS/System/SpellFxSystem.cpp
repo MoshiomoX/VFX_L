@@ -14,8 +14,7 @@ void SpellFxSystem::Update(float dt, const std::vector<WeaponSystem::TriggeredFx
 {
     for (const auto& f : fx)
     {
-        if (f.id != ItemID::IceSpike) continue;
-        CastIceSpike(f.start, f.end, f.scale, heightAt);
+        if (f.id == ItemID::IceSpike) CastIceSpike(f.start, f.end, f.scale, heightAt);
     }
     m_IceSpikes.Update(dt);
 }

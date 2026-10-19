@@ -1,14 +1,12 @@
 ﻿// ============================================================
 // Items/Poison.h
-// 毒：基本魔法（2026-10-01）。一番近い敵の足元へ毒の塊を山なりに投げ、落ちた所に毒の池を残す。
-//
-// 設計意図（ユーザー 10-01：錬金術の毒瓶のような効果。瓶のモデルである必要は無い）：
-//   ・弾は Lob 型（profile "Poison"）：撃った時の最寄りの敵の位置へ銃口から山なりに飛び、
-//     途中の敵には当たらない。威力は池だけ
-//   ・池（範囲 PoisonPool）：4 秒、0.5 秒ごとに威力 3、中の敵は移動が 40% 遅くなる
-//     （エリート・ボスは半分。ユーザー 10-01 決定）。池を重ねるとダメージは重なり、減速は一番強い物だけ
-//   ・基本魔法。形は 4 マスの凸字（2026-10-04、強さで形を決めた時に一番強い組）、影響マスは形の上下左右
-//     （今のところ誘発する上級魔法は無い）
+// 猛毒の沼：上級魔法（2026-10-17 に基本魔法「毒」から格上げ。ユーザー：「今の毒を強化して、下位を 2 つ考える」）。
+//   泥沼と胞子の両方に隣り合っている時だけ発動し、どちらかの弾が消えた所（泥沼の落点 / 胞子の命中点）へ
+//   プレイヤーの手から毒の瓶を山なりに投げ（Lob 型 + 着弾点指定）、落ちた所に大きな毒沼を残す。
+//   ・沼（範囲 PoisonPool）：半径 3、6 秒、0.5 秒ごとに威力 6、減速 50%。威力の半分はすぐ、半分は毒素として溜めて 1 秒で削る
+//     （AreaProfile::toxin）。毒素を持つ沼は同じ敵に重ならない（一番強い 1 つだけ）
+//   ・2026-10-01〜10-16 は基本魔法「毒」（4 秒、0.5 秒ごとに 3、減速 40%、1.2 秒 / MP 12）だった。
+//     単体 20 / 群れ 195 で「単体も弱くない + 群れに圧倒的 + 一番安い」と突出していたので、上級の段へ
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
@@ -21,14 +19,13 @@ inline ProjectileItemDef MakePoison()
     // ---- 共通 ----
     def.common.id = ItemID::Poison;
     def.common.name = "Poison";
-    def.common.displayName = L"毒";
-    def.common.description = L"毒の瓶を投げて毒沼を作る。沼の中の敵はじわじわ削られる。";
+    def.common.displayName = L"猛毒の沼";
+    def.common.description = L"連鎖した場所へ猛毒の瓶を投げ、大きな毒沼を残す。沼の中の敵は遅くなり、毒がじわじわ回る。";
     def.common.iconPath = Res::Icon::Poison;
     def.common.category = ItemCategory::Projectile;
-    // 形は強さで決める（2026-10-04）。池 1 つで敵 1 体に毎秒 6・範囲・減速 40% と、総合では一番強い →
-    // 4 マスで一番詰めにくい凸字（首 + 胴 = 薬瓶）
+    // 4 マスの凸字（首 + 胴 = 薬瓶）。上級魔法は他を誘発しないので影響マスは無し
     def.common.occupyCells = { { -1, 0 }, { 0, -1 }, { 0, 0 }, { 0, 1 } };
-    def.common.influenceCells = ItemShape::Around4(def.common.occupyCells);   // 誘発の届く範囲（形の上下左右）
+    def.common.influenceCells = {};
     def.common.color = { 0.35f, 0.80f, 0.25f, 1.0f };   // 毒の緑
 
     // ---- どう撃つか ----
@@ -37,11 +34,14 @@ inline ProjectileItemDef MakePoison()
     def.baseStats.spreadAngle = 0.0f;
     def.baseStats.castCount = 1;
     def.baseStats.castDelay = 0.12f;
-    def.baseStats.castInterval = 1.2f;
-    def.baseStats.manaCost = 12.0f;
+    def.baseStats.castInterval = 2.0f;    // 誘発のクールダウン（メテオ 1.8 / アイススパイク 2.0 と同じ段）
+    def.baseStats.manaCost = 20.0f;
 
     // ---- 何を撃つか ----
-    def.profile = "Poison";   // Assets/Data/ProjectileData/Poison.json
+    def.profile = "Poison";   // Assets/Data/ProjectileData/Poison.json（Lob 型、hitArea = PoisonPool）
+
+    // ---- 前提の基本魔法（両方の影響マスが届いている時だけ有効）----
+    def.common.triggeredBy = { ItemID::Swamp, ItemID::Spore };
 
     return def;
 }

@@ -69,3 +69,27 @@ inline void ClearBackpackItems(BackpackComponent& bp)
         BackpackLogic::Remove(bp, (int)bp.items.size() - 1);
     bp.dirty = true;
 }
+
+// 9×9 全面に 3×3 枠を敷く（多マスの魔法や上級魔法 + 前提を置く自動テスト用）
+inline void FillAllFrames(BackpackComponent& bp)
+{
+    bp.frames.clear();
+    BackpackLogic::RebuildFrameOccupancy(bp);
+    for (int r = 0; r < BackpackComponent::GRID; ++r)
+        for (int c = 0; c < BackpackComponent::GRID; ++c)
+            BackpackLogic::PlaceFrame(bp, ItemID::Frame3x3, r, c, 0);
+}
+
+// 猛毒の沼一式（2026-10-17：上級魔法 + 前提の泥沼・胞子）を決まった並びで置く。枠は 9×9 に敷いてあること。
+//   猛毒の沼 (4,4) 凸字 → (3,4)(4,3)(4,4)(4,5)
+//   泥沼     (2,3) 横 2 → (2,3)(2,4)：影響マス（形の上下左右）の下 = (3,4) = 沼の首
+//   胞子     (5,3) 縦 2 → (5,3)(6,3)：影響マスの上 = (4,3) = 沼の胴
+// 戻り値 = 猛毒の沼の index（置けなければ -1）
+inline int PlacePoisonSet(BackpackComponent& bp)
+{
+    const int poison = BackpackLogic::Place(bp, ItemID::Poison, 4, 4, 0);
+    BackpackLogic::Place(bp, ItemID::Swamp, 2, 3, 0);
+    BackpackLogic::Place(bp, ItemID::Spore, 5, 3, 0);
+    bp.dirty = true;
+    return poison;
+}

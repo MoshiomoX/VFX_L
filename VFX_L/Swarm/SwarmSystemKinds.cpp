@@ -16,6 +16,7 @@
 #include "Graphics/Renderer/RenderStates.h"
 #include "Camera/CameraBase.h"
 #include "Graphics/Model/Model.h"
+#include "Graphics/PrimitiveBuilder.h"
 #include "Graphics/Material/Material.h"
 #include "Graphics/Mesh/Mesh.h"
 #include "Manager/ResourceManager.h"
@@ -63,6 +64,9 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
     m_ChargeLinePS = LoadShader<PixelShader>(device, L"Shader/Swarm/SwarmChargeLinePS.hlsl", "ChargeLinePS");
     m_ShieldVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmShieldVS.hlsl", "ShieldVS");
     m_IceVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmIceVS.hlsl", "IceVS");
+    m_SpikeBallVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmSpikeBallVS.hlsl", "SpikeBallVS");   // トゲ玉（2026-10-17）
+    m_MoundVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmMoundVS.hlsl", "MoundVS");   // 砂潜り（2026-10-17）
+    m_TornadoVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmTornadoVS.hlsl", "TornadoVS");   // 砂旋（2026-10-17）
 
     // 突撃兵の帯: { 区間 x 6 頂点, InstanceCount = 突撃兵の一覧（CopyStructureCount）, 0, 0 }
     const uint32_t lineInit[4] = { kChargeLineSegs * 6, 0, 0, 0 };
@@ -87,6 +91,24 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
         };
     makeProp(m_ShieldVS, Res::VFX::TowerShield, m_ShieldMaterial, m_ShieldModel);
     makeProp(m_IceVS, Res::VFX::IceSpikes, m_IceMaterial, m_IceModel);
+    // 砂旋（2026-10-19 作り直し）：コードで作った筒（上下が広く腰が少し細い）+ 専用 PS（2 枚の雲ノイズを螺旋に流す）。
+    // t0 / t1 = ノイズ 2 枚（Material の albedo / normal の枠を借りる）。足元の砂埃は SwarmTornadoEmitCS。Swarm/SwarmSystemTornado.cpp
+    m_TornadoPS = LoadShader<PixelShader>(device, L"Shader/Swarm/SwarmTornadoPS.hlsl", "TornadoPS");
+    m_TornadoEmitCS = LoadShader<ComputeShader>(device, L"Shader/Swarm/SwarmTornadoEmitCS.hlsl", "TornadoEmitCS");   // 無くても砂埃が出ないだけ
+    m_TornadoModel.reset();
+    m_TornadoMaterial.reset();
+    if (m_TornadoVS && m_TornadoPS)
+    {
+        m_TornadoModel = PrimitiveBuilder::CreateTornadoShell(device, 32, 14, 0.62f, 0.35f);
+        if (m_TornadoModel)
+        {
+            m_TornadoMaterial = std::make_shared<Material>();
+            m_TornadoMaterial->SetVertexShader(m_TornadoVS);
+            m_TornadoMaterial->SetPixelShader(m_TornadoPS);
+            m_TornadoMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(Res::VFX::Noise001));   // 雲ノイズ A
+            m_TornadoMaterial->SetNormalTexture(ResourceManager::Get().LoadTexture(Res::VFX::Noise008));   // 雲ノイズ B（柔らかい方）
+        }
+    }
 
     // 盾: submesh 毎（IndexCount が違う）。InstanceCount は盾兵の一覧から
     m_ShieldDrawArgs.clear();
@@ -99,7 +121,55 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
             m_ShieldDrawArgs.push_back(MakeArgs(device, init, 5));
         }
     }
-    return m_KindListCS && m_ChargeLineVS && m_ChargeLinePS && m_ShieldModel && m_IceModel;
+    // トゲ玉：コードで作った球 + トゲ（半径 1、砂色の球 + 褐色のトゲ。2026-10-17）。InstanceCount はトゲ玉の一覧から
+    m_SpikeBallDrawArgs.clear();
+    if (m_SpikeBallVS && m_EnemyPS)
+    {
+        m_SpikeBallModel = PrimitiveBuilder::CreateSpikeBall(device, 1.0f, 0.45f, 26,
+            { 0.60f, 0.47f, 0.27f, 1.0f }, { 0.30f, 0.21f, 0.12f, 1.0f });
+        if (m_SpikeBallModel)
+        {
+            m_SpikeBallMaterial = std::make_shared<Material>();
+            m_SpikeBallMaterial->SetVertexShader(m_SpikeBallVS);
+            m_SpikeBallMaterial->SetPixelShader(m_EnemyPS);
+            for (const auto& sub : m_SpikeBallModel->GetSubMeshes())
+            {
+                if (!sub.mesh) { m_SpikeBallDrawArgs.emplace_back(); continue; }
+                const uint32_t init[5] = { sub.mesh->GetIndexCount(), 0, 0, 0, 0 };
+                m_SpikeBallDrawArgs.push_back(MakeArgs(device, init, 5));
+            }
+        }
+    }
+    // 砂潜りの砂の山：単位球（砂色）。VS が (半径, 高さ, 半径) に潰して足元に置く
+    m_MoundDrawArgs.clear();
+    if (m_MoundVS && m_EnemyPS)
+    {
+        m_MoundModel = PrimitiveBuilder::CreateSphere(device, 1.0f, { 0.72f, 0.58f, 0.36f, 1.0f }, 10);
+        if (m_MoundModel)
+        {
+            m_MoundMaterial = std::make_shared<Material>();
+            m_MoundMaterial->SetVertexShader(m_MoundVS);
+            m_MoundMaterial->SetPixelShader(m_EnemyPS);
+            for (const auto& sub : m_MoundModel->GetSubMeshes())
+            {
+                if (!sub.mesh) { m_MoundDrawArgs.emplace_back(); continue; }
+                const uint32_t init[5] = { sub.mesh->GetIndexCount(), 0, 0, 0, 0 };
+                m_MoundDrawArgs.push_back(MakeArgs(device, init, 5));
+            }
+        }
+    }
+    // 砂旋: submesh 毎。InstanceCount は砂旋の一覧から
+    m_TornadoDrawArgs.clear();
+    if (m_TornadoModel)
+    {
+        for (const auto& sub : m_TornadoModel->GetSubMeshes())
+        {
+            if (!sub.mesh) { m_TornadoDrawArgs.emplace_back(); continue; }
+            const uint32_t init[5] = { sub.mesh->GetIndexCount(), 0, 0, 0, 0 };
+            m_TornadoDrawArgs.push_back(MakeArgs(device, init, 5));
+        }
+    }
+    return m_KindListCS && m_ChargeLineVS && m_ChargeLinePS && m_ShieldModel && m_IceModel && m_SpikeBallModel && m_MoundModel && m_TornadoModel;
 }
 
 // ============================================================
@@ -115,6 +185,11 @@ void SwarmSystem::DispatchKindLists()
     // initialCount = 0 で bind → append の数が 0 に戻る
     m_KindListCS->SetUAV(m_Context, "chargerList", m_KindListUAV[Swarm::kDrawListCharger].Get(), 0);
     m_KindListCS->SetUAV(m_Context, "shieldList", m_KindListUAV[Swarm::kDrawListShield].Get(), 0);
+    m_KindListCS->SetUAV(m_Context, "spikeBallList", m_SpikeBallListUAV.Get(), 0);   // トゲ玉（2026-10-17）
+    m_KindListCS->SetUAV(m_Context, "burrowerList", m_KindListUAV[Swarm::kDrawListBurrower].Get(), 0);   // 砂潜り（2026-10-17）
+    m_KindListCS->SetUAV(m_Context, "sandMageList", m_KindListUAV[Swarm::kDrawListSandMage].Get(), 0);   // 砂嵐の術師（2026-10-17）
+    m_KindListCS->SetUAV(m_Context, "tornadoList", m_TornadoListUAV.Get(), 0);   // 砂旋（2026-10-17）
+    m_KindListCS->SetUAV(m_Context, "dashBomberList", m_KindListUAV[Swarm::kDrawListDashBomber].Get(), 0);   // 突撃爆弾兵（2026-10-18）
     m_KindListCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
     m_KindListCS->UnbindSRVs(m_Context);
@@ -264,4 +339,92 @@ void SwarmSystem::RenderChargeLines(CameraBase* camera)
     // 次のフレームの Compute が UAV として使うので外す
     m_ChargeLineVS->UnbindSRVs(m_Context);
     rs.Restore(m_Context);
+}
+
+// ============================================================
+// トゲ玉の体（RenderOpaque の盾の後、ステンシル 2 のまま。2026-10-17）。
+// 雑魚のメッシュは描かず（CompactCS が mobList に入れない）、コードで作った球 + トゲ（PrimitiveBuilder::CreateSpikeBall、半径 1）を
+// 体格に合わせて拡大し、速度の向きに転がして描く。色は頂点色 × spikeBallLook.tint
+// ============================================================
+void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
+{
+    if (!spikeBallLook.enabled || !m_SpikeBallMaterial || !m_SpikeBallModel || m_SpikeBallDrawArgs.empty()) return;
+
+    m_SpikeBallMaterial->Bind(m_Context);
+    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
+    m_Context->PSSetSamplers(0, 1, &samp);
+
+    EnemyRenderCB cb;
+    cb.view = view;
+    cb.proj = proj;
+    m_SpikeBallVS->WriteBuffer(m_Context, 0, &cb);
+    m_SpikeBallVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 体の半径（足元の高さ）・被弾の閃光
+    m_SpikeBallVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);  // 体格・凍結の色
+
+    PropMeshCB p = {};
+    p.anchor = Vector3::Zero;
+    p.scale = spikeBallLook.radius;                        // メッシュの半径 1 → m（体格 1 の時）
+    p.hold = Vector3(0.0f, spikeBallLook.radius, 0.0f);    // 中心 = 足元 + 半径
+    p.yaw = 0.0f;
+    p.tint = spikeBallLook.tint;
+    p.bob = spikeBallLook.rollRate;
+    p.alpha = 1.0f;
+    m_SpikeBallVS->WriteBuffer(m_Context, 4, &p);
+
+    m_SpikeBallVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_SpikeBallVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_SpikeBallVS->SetSRV(m_Context, "spikeBallList", m_SpikeBallListSRV.Get());
+    m_SpikeBallVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
+    m_SpikeBallVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+
+    const auto& subs = m_SpikeBallModel->GetSubMeshes();
+    for (size_t i = 0; i < subs.size() && i < m_SpikeBallDrawArgs.size(); ++i)
+        if (subs[i].mesh && m_SpikeBallDrawArgs[i])
+            subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_SpikeBallDrawArgs[i].Get(), 0);
+
+    // 次のフレームの Compute が UAV として使うので外す
+    m_SpikeBallVS->UnbindSRVs(m_Context);
+}
+
+// ============================================================
+// 砂潜りの砂の山（RenderOpaque のトゲ玉の後、ステンシル 2 のまま。2026-10-17）。
+// 潜っている間は体が地面の下（SwarmEnemyVS）なので、代わりに足元の低い丘を描く。出ている間は VS が畳む
+// ============================================================
+void SwarmSystem::RenderMounds(const Matrix& view, const Matrix& proj)
+{
+    if (!moundLook.enabled || !m_MoundMaterial || !m_MoundModel || m_MoundDrawArgs.empty()) return;
+
+    m_MoundMaterial->Bind(m_Context);
+    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
+    m_Context->PSSetSamplers(0, 1, &samp);
+
+    EnemyRenderCB cb;
+    cb.view = view;
+    cb.proj = proj;
+    m_MoundVS->WriteBuffer(m_Context, 0, &cb);
+    m_MoundVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 体の半径（足元の高さ）
+    m_MoundVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);  // 体格・出ている秒
+
+    PropMeshCB p = {};
+    p.anchor = Vector3::Zero;
+    p.scale = moundLook.radius;
+    p.hold = Vector3(0.0f, moundLook.height, 0.0f);
+    p.yaw = 0.0f;
+    p.tint = moundLook.tint;
+    p.bob = moundLook.bob;
+    p.alpha = 1.0f;
+    m_MoundVS->WriteBuffer(m_Context, 4, &p);
+
+    m_MoundVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
+    m_MoundVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_MoundVS->SetSRV(m_Context, "burrowerList", m_KindListSRV[Swarm::kDrawListBurrower].Get());
+    m_MoundVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
+    m_MoundVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+
+    const auto& subs = m_MoundModel->GetSubMeshes();
+    for (size_t i = 0; i < subs.size() && i < m_MoundDrawArgs.size(); ++i)
+        if (subs[i].mesh && m_MoundDrawArgs[i])
+            subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_MoundDrawArgs[i].Get(), 0);
+
+    m_MoundVS->UnbindSRVs(m_Context);   // 次のフレームの Compute が UAV として使うので外す
 }

@@ -78,6 +78,95 @@ void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
     if (ImGui::Button("Spawn 5 Shield Bearers Nearby")) QueueDebugShields(5);
     ImGui::Separator();
 
+    // ---- トゲ玉：厚くて遅い、触れたプレイヤーを弾き飛ばす（2026-10-17。砂漠の敵の 1 つ目）----
+    ImGui::TextColored(ImVec4(0.85f, 0.7f, 0.4f, 1), "Spike Ball (GPU)");
+    ImGui::Text("ratio now %.2f", m_SpikeBallRatio);
+    drawRamp("spikeball", spikeBallMix);
+    ImGui::DragFloat("Spike Ball HP", &m_SpikeBallHp, 1.0f, 1.0f, 5000.0f);
+    ImGui::DragFloat("Spike Ball Speed", &m_SpikeBallSpeed, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Spike Ball Scale", &bomb.spikeBallScale, 0.01f, 0.2f, 4.0f);
+    ImGui::DragFloat("Spike Ball Damage x", &bomb.spikeBallDamageMul, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Spike Ball Exp x", &bomb.spikeBallExpMul, 0.05f, 0.0f, 20.0f);
+    auto& ball = swarm.spikeBallLook;
+    ImGui::Checkbox("Show Spike Ball Mesh", &ball.enabled);
+    ImGui::DragFloat("Ball Radius (m)", &ball.radius, 0.01f, 0.1f, 3.0f);
+    ImGui::DragFloat("Roll Rate", &ball.rollRate, 0.05f, 0.0f, 5.0f);
+    ImGui::ColorEdit3("Ball Tint", &ball.tint.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+    if (ImGui::Button("Spawn 5 Spike Balls Nearby")) QueueDebugSpikeBalls(5);
+    ImGui::Separator();
+
+    // ---- 砂潜り：砂の下を寄って来て、足元で顔を出して噛み、また潜る（2026-10-17。砂漠の敵の 2 つ目）----
+    ImGui::TextColored(ImVec4(0.9f, 0.75f, 0.45f, 1), "Burrower (GPU)");
+    ImGui::Text("ratio now %.2f", m_BurrowerRatio);
+    drawRamp("burrower", burrowerMix);
+    ImGui::DragFloat("Burrower HP", &m_BurrowerHp, 1.0f, 1.0f, 5000.0f);
+    ImGui::DragFloat("Burrower Speed", &m_BurrowerSpeed, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Burrower Scale", &bomb.burrowScale, 0.01f, 0.2f, 4.0f);
+    ImGui::DragFloat("Burrower Damage x", &bomb.burrowDamageMul, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Burrower Exp x", &bomb.burrowExpMul, 0.05f, 0.0f, 20.0f);
+    ImGui::DragFloat("Surface Dist (m)", &bomb.burrowSurfaceDist, 0.1f, 0.5f, 20.0f);
+    ImGui::DragFloat("Surface Time (s)", &bomb.burrowSurfaceTime, 0.1f, 0.3f, 20.0f);
+    ImGui::DragFloat("Min Buried (s)", &bomb.burrowMinBuried, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Buried Speed x", &bomb.burrowBuriedSpeedMul, 0.05f, 0.0f, 5.0f);
+    ImGui::DragFloat("Surfaced Speed x", &bomb.burrowSurfaceSpeedMul, 0.05f, 0.0f, 5.0f);
+    ImGui::DragFloat("Bite Radius (m)", &bomb.burrowBiteRadius, 0.1f, 0.3f, 10.0f);
+    ImGui::DragFloat("Bite Delay (s)", &bomb.burrowBiteDelay, 0.05f, 0.0f, 3.0f);
+    auto& mound = swarm.moundLook;
+    ImGui::Checkbox("Show Mound", &mound.enabled);
+    ImGui::DragFloat("Mound Radius (m)", &mound.radius, 0.01f, 0.1f, 3.0f);
+    ImGui::DragFloat("Mound Height (m)", &mound.height, 0.01f, 0.02f, 2.0f);
+    ImGui::DragFloat("Mound Bob (m)", &mound.bob, 0.005f, 0.0f, 0.5f);
+    ImGui::ColorEdit3("Mound Tint", &mound.tint.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+    if (ImGui::Button("Spawn 5 Burrowers Nearby")) QueueDebugBurrowers(5);
+    ImGui::Separator();
+
+    // ---- 砂嵐の術師：距離を取って立ち、溜めて砂旋（敵の弾 = kEnemyKindTornado）を放つ（2026-10-17。砂漠の敵の 3 つ目）----
+    ImGui::TextColored(ImVec4(0.9f, 0.75f, 0.45f, 1), "Sand Mage (GPU)");
+    ImGui::Text("ratio now %.2f   tornadoes %u", m_SandMageRatio, m_TornadoesSpawned);
+    drawRamp("sandmage", sandMageMix);
+    ImGui::DragFloat("Sand Mage HP", &m_SandMageHp, 1.0f, 1.0f, 5000.0f);
+    ImGui::DragFloat("Sand Mage Speed", &m_SandMageSpeed, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Sand Mage Scale", &bomb.sandMageScale, 0.01f, 0.2f, 4.0f);
+    ImGui::DragFloat("Sand Mage Exp x", &bomb.sandMageExpMul, 0.05f, 0.0f, 20.0f);
+    ImGui::DragFloat("Keep Min (m)", &bomb.sandMageKeepMin, 0.1f, 0.0f, 30.0f);
+    ImGui::DragFloat("Keep Max (m)", &bomb.sandMageKeepMax, 0.1f, 0.0f, 40.0f);
+    ImGui::DragFloat("Cast Range (m)", &bomb.sandMageCastRange, 0.1f, 1.0f, 50.0f);
+    ImGui::DragFloat("Windup (s)", &bomb.sandMageWindup, 0.05f, 0.1f, 5.0f);
+    ImGui::DragFloat("Cast Cooldown (s)", &bomb.sandMageCooldown, 0.1f, 0.5f, 30.0f);
+    ImGui::DragFloat("Tornado Speed (m/s)", &tornadoSpeed, 0.1f, 0.5f, 20.0f);
+    ImGui::DragFloat("Tornado Life (s)", &bomb.tornadoLife, 0.1f, 0.3f, 20.0f);
+    ImGui::DragFloat("Tornado Scale", &bomb.tornadoScale, 0.05f, 0.2f, 5.0f);
+    ImGui::DragFloat("Tornado Damage x", &bomb.tornadoDamageMul, 0.05f, 0.0f, 5.0f);
+    auto& tor = swarm.tornadoLook;
+    ImGui::Checkbox("Show Tornado Mesh", &tor.enabled);
+    ImGui::DragFloat("Tornado Height (m)", &tor.height, 0.05f, 0.3f, 10.0f);
+    ImGui::DragFloat("Tornado Width x", &tor.widthMul, 0.05f, 0.3f, 6.0f);
+    ImGui::DragFloat("Tornado Spin (rad/s)", &tor.spin, 0.1f, 0.0f, 40.0f);
+    ImGui::DragFloat("Tornado Grow (s)", &tor.growTime, 0.05f, 0.05f, 2.0f);
+    ImGui::DragFloat("Tornado Heave", &tor.heave, 0.01f, 0.0f, 0.4f);
+    ImGui::ColorEdit4("Tornado Tint", &tor.tint.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+    ImGui::Checkbox("Tornado Dust", &tor.dust);
+    ImGui::DragFloat("Tornado Dust Rate x", &tor.dustRate, 0.05f, 0.0f, 5.0f);
+    ImGui::DragFloat("Tornado Dust Swirl (m/s)", &tor.dustSwirl, 0.1f, 0.0f, 20.0f);
+    if (ImGui::Button("Spawn 5 Sand Mages Nearby")) QueueDebugSandMages(5);
+    ImGui::Separator();
+
+    // ---- 突撃爆弾兵：プレイヤーが近づくと点火して突っ込み、触れた瞬間に爆発。点火中は無敵（2026-10-18）----
+    ImGui::TextColored(ImVec4(0.75f, 0.75f, 0.85f, 1), "Dash Bomber (GPU)");
+    ImGui::Text("ratio now %.2f", m_DashBomberRatio);
+    drawRamp("dashbomber", dashBomberMix);
+    ImGui::DragFloat("Dash Bomber HP", &m_DashBomberHp, 1.0f, 1.0f, 5000.0f);
+    ImGui::DragFloat("Dash Bomber Speed", &m_DashBomberSpeed, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Dash Bomber Scale", &bomb.dashBomberScale, 0.01f, 0.2f, 4.0f);
+    ImGui::DragFloat("Dash Bomber Exp x", &bomb.dashBomberExpMul, 0.05f, 0.0f, 20.0f);
+    ImGui::DragFloat("Trigger Range (m)", &bomb.dashBomberTrigger, 0.1f, 1.0f, 40.0f);
+    ImGui::DragFloat("Dash Fuse (s)", &bomb.dashBomberFuse, 0.05f, 0.2f, 10.0f);
+    ImGui::DragFloat("Dash Speed (m/s)", &bomb.dashBomberDashSpeed, 0.1f, 1.0f, 40.0f);
+    ImGui::DragFloat("Dash Blast Radius (m)", &bomb.dashBomberBlastRadius, 0.05f, 0.5f, 10.0f);
+    ImGui::DragFloat("Dash Blast Damage x", &bomb.dashBomberDamageMul, 0.05f, 0.0f, 10.0f);
+    if (ImGui::Button("Spawn 5 Dash Bombers Nearby")) QueueDebugDashBombers(5);
+    ImGui::Separator();
+
     // ---- 凍結（アイスランス）----
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1.0f, 1), "Freeze (GPU)");
     ImGui::DragFloat("Elite / Boss Freeze x", &bomb.freezeBigMul, 0.05f, 0.0f, 1.0f);
