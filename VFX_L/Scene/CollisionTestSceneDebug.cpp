@@ -294,6 +294,11 @@ void CollisionTestScene::DrawBloomPanel()
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90.0f);
     ImGui::DragFloat("Gamma Exp", &bp.gammaExp, 0.01f, 1.0f, 3.0f, "%.2f");   // 2.2 = sRGB 相当
+    // 画面の歪み（2026-10-20、風の空気の揺らぎ。粒子の distort が書いたずれ × この倍率）
+    auto& dp = Application::Get().GetGraphics().GetDistortion();
+    ImGui::Separator();
+    ImGui::Checkbox("Distortion (wind refraction)", &dp.enabled);
+    ImGui::DragFloat("Distortion Strength", &dp.strength, 0.01f, 0.0f, 4.0f, "%.2f");
 
     // ---- 調整用の当たり値 ----
     ImGui::SeparatorText("Presets");

@@ -23,11 +23,15 @@ cbuffer SwarmWindSourceCB : register(b0)
     float g_Inflow;       // m/s
     float g_GrowTime;     // seconds to grow / shrink (tornadoLook.growTime)
     uint g_SlotCount;     // kMaxEnemies
+    uint g_CpuCount;      // CPU sources (SwarmSystem::AddWindBurst) in cpuSources, appended first (2026-10-20)
+    uint g_TornadoOn;     // 0 = the tornadoes are not wind sources (tornadoLook.windSource)
+    float2 _wsPad;
 };
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2);
+StructuredBuffer<WindSource> cpuSources : register(t3);   // the CPU bursts of this frame (fade already applied)
 
 RWStructuredBuffer<WindSource> windSources : register(u0);
 RWByteAddressBuffer windCount : register(u1);
@@ -36,7 +40,15 @@ RWByteAddressBuffer windCount : register(u1);
 void main(uint3 id : SV_DispatchThreadID)
 {
     uint i = id.x;
-    if (i >= g_SlotCount)
+    // the CPU sources ride on the first threads (one each)
+    if (i < g_CpuCount)
+    {
+        uint cslot;
+        windCount.InterlockedAdd(0, 1u, cslot);
+        if (cslot < WIND_MAX_SOURCES)
+            windSources[cslot] = cpuSources[i];
+    }
+    if (i >= g_SlotCount || g_TornadoOn == 0u)
         return;
     if (enemyStates[i] == SWARM_DEAD)
         return;
@@ -60,5 +72,8 @@ void main(uint3 id : SV_DispatchThreadID)
     w.updraft = g_Updraft;
     w.inflow = g_Inflow;
     w.fade = fade;
+    w.pushDir = float2(0.0, 0.0);
+    w.push = 0.0;
+    w._pad = 0.0;
     windSources[slot] = w;
 }

@@ -76,6 +76,9 @@ struct HUDFrameInfo
     bool  hasPlayer = false;
     DirectX::SimpleMath::Vector3 playerPos;
     float playerYawDeg = 0.0f;
+
+    // FPS（2026-10-20 ユーザー「ImGui が無い時も fps を画面に出したい」）。EngineTimer の 1 秒平均。0 以下なら出さない。GameUI::Render が入れる
+    float fps = 0.0f;
 };
 
 // ============================================================
@@ -237,6 +240,14 @@ struct HUDStyle
     float objectiveScale = 0.40f;
     DirectX::SimpleMath::Vector4 objectiveColor = { 1.00f, 0.80f, 0.40f, 1.0f };   // 金（線形）
 
+    // ---- FPS の表示（2026-10-20 ユーザー「ImGui の無い環境でも fps を画面に」。ミニマップの真下に「FPS 143  7.0 ms」。UI/HUDFps.cpp）----
+    // 出すかどうかは「この showFps && 設定画面の GameSettings::showFps」。アンカーは文字の中心（x）/ 上端（y）
+    bool  showFps = true;
+    HUDAnchor fpsText = { { 1.0f, 0.0f }, { -115.0f, 238.0f } };   // ミニマップ（中心 y 140、半径 90）の下 8px
+    float fpsScale = 0.34f;
+    float fpsWarnBelow = 50.0f;     // これより低いと赤くする（0 = 色を変えない）
+    DirectX::SimpleMath::Vector4 fpsWarnColor = { 1.00f, 0.25f, 0.18f, 1.0f };
+
     // ---- 画面の真ん中の案内（2026-10-07：押し寄せ・エリート・最終ウェーブ。文は StageDirector、UI/HUDAnnounce.cpp）----
     bool  showAnnounce = true;
     float announceY = 0.30f;        // 画面の高さに対する文字の中心
@@ -366,6 +377,7 @@ private:
     void DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaComponent& mp);
     void DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold, float yShift);
     void DrawExpBar(SpriteRenderer& sprite, TextRenderer& text, const LevelComponent& lv);   // HUDExpBar.cpp
+    void DrawFps(SpriteRenderer& sprite, TextRenderer& text, float fps);                     // HUDFps.cpp
     // HP バーの下のシールドのバー（UI/HUDShieldBar.cpp）。戻り値 = 下の物をずらす量（px）
     float DrawShieldBar(SpriteRenderer& sprite, TextRenderer& text, const ShieldComponent& shield,
         const DirectX::SimpleMath::Vector2& hpPos);

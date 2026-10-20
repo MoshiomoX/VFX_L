@@ -328,6 +328,32 @@ namespace ParticleRenderMode
             | (q(cut, 0.05f, 0.05f) << 16) | (b << 20) | (q(shade, 0.0f, 1.0f / 15.0f) << 22);
     }
 
+    // 流線（2026-10-20、エルデンリングの嵐系の風の質感）：ビルボードだけ。四角形をカメラ向きではなく
+    // 粒子の速度の向きに伸ばす（長さ = 速さ × stretch 秒、最低でも size）。bit 9（メッシュの「速度を向く」と同じ位置、
+    // ビルボードは使っていなかった）+ bits 16-23 = stretch（0.004 秒刻み、最大 1.02 秒）。トゥーン（16-25）とは排他。
+    // json "streak" / "stretch"。GPUParticleVS が読む（PARTICLE_STREAK）
+    constexpr int kStreak = 1 << 9;
+    constexpr int kStretchShift = 16;
+    inline int PackStreak(float stretchSec)
+    {
+        int n = (int)(stretchSec / 0.004f + 0.5f);
+        n = n < 0 ? 0 : (n > 255 ? 255 : n);
+        return kStreak | (n << kStretchShift);
+    }
+
+    // 画面の歪み（屈折、2026-10-20）：ビルボードだけ。bits 10-11 = 強さ 0〜3（メッシュは前方の軸に使う）、
+    // bit 15 = 歪みだけ（色のパスでは描かない。トゥーンの外周の線の bit、トゥーン無しでは意味が無い）。
+    // GPUParticleVS の g_Pass 3 が強さ > 0 の粒子だけを歪みの RT へ描き（ParticleDistortPS）、合成がその分だけ画面をずらす。
+    // json "distort" / "distortOnly"
+    constexpr int kDistortShift = 10;
+    constexpr int kDistortOnly = 1 << 15;
+    inline int PackDistort(int level, bool only)
+    {
+        level = level < 0 ? 0 : (level > 3 ? 3 : level);
+        if (level == 0) return 0;
+        return (level << kDistortShift) | (only ? kDistortOnly : 0);
+    }
+
     // 風の受けやすさ（2026-10-12、ビルボード・メッシュ共通）：bits 26-29 = q、
     // ParticleUpdateCS が水平速度を世界の風へ q / 15 × PARTICLE_WIND_RATE（1/秒）で寄せる。0 = 風を受けない
     constexpr int kWindShift = 26;

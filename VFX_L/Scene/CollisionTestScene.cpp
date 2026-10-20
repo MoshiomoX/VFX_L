@@ -469,6 +469,27 @@ void CollisionTestScene::OnExplosions(int count)
 // 世界の風（2026-10-12）：WeatherSystem が作った 1 つの風を、草・マント・粒子へ配る。
 // 以前は 3 か所がそれぞれ別の向き・強さを持っていた
 // ============================================================
+// ============================================================
+// 突風を風源にする（2026-10-20、エルデンリングの嵐系の質感）：渦の中心は Gust.json の旋風と同じ身前 0.9m、
+// 届く距離 2.6m、縁の接線 9 m/s + 芯の上昇 2.5 m/s + 風下へ 7 m/s の押し、0.45 秒（sin で出入り）。
+// 流線の粒子（wind 1 + 流線）がこれに巻かれて弧を描き、草・落ち葉・煙も同じ風を受ける。向き無し（円盤）なら押さない
+// ============================================================
+void CollisionTestScene::AddGustWindBurst(const Vector3& pos, const Vector2& dir, float length)
+{
+    SwarmSystem::WindBurst b;
+    const bool hasDir = dir.LengthSquared() > 1e-4f;
+    b.pos = hasDir ? pos + Vector3(dir.x, 0.0f, dir.y) * 0.9f : pos;
+    // 10-20：筒 / 大きな板の粒子を無くし、風は「屈折 + 薄い白」と環境の反応だけに → 風源を強く・長く（2.6 / 9 / 2.5 / 0.8 / 7 / 0.45 秒 → 下）
+    b.radius = hasDir ? 3.4f : (std::max)(length, 2.0f);
+    b.swirl = 11.0f;
+    b.updraft = 3.5f;
+    b.inflow = 1.2f;
+    b.dir = hasDir ? dir : Vector2::Zero;
+    b.push = hasDir ? 11.0f : 0.0f;
+    b.life = 0.8f;
+    m_Swarm.AddWindBurst(b);
+}
+
 void CollisionTestScene::PushWind()
 {
     // 天候の Update は粒子の Flush の後なので、ここで配るのは 1 フレーム前の風（風はゆっくりしか変わらない）
@@ -1020,6 +1041,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     {
         m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
         m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
+        AddGustWindBurst(g.pos, g.dir, g.length);
     }
     m_SpellFx.Update(dt, m_WeaponSystem.GetTriggeredFx(),                                // アイススパイクの氷のトゲ（地面の高さに 1 本ずつ）
         [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
@@ -1281,6 +1303,13 @@ void CollisionTestScene::Render(Renderer& renderer)
         m_ParticleSystem.SetCamera(GetCamera());
         m_ParticleSystem.SetLight(renderer.GetLightData());   // 立方体粒子の Lambert 用
         m_ParticleSystem.Render(!m_ShowMesh);   // 光を受けるメッシュ粒子はアウトラインの前に描き済み（m_ShowMesh の時）
+        // 画面の歪み（2026-10-20、風の空気の揺らぎ）：歪みの強さを持つ粒子だけを別の RT へ。合成がその分ずらす
+        if (gfx.BeginDistortion())
+        {
+            m_ParticleSystem.RenderDistortion();
+            gfx.RestoreRenderTarget();
+            gfx.ApplyDistortion();   // UI を描く前にシーンへ掛ける（UI は歪まない）
+        }
     }
     m_Shadows.Unbind(ctx);   // 次のフレームでシャドウマップを DSV にするので外す
 

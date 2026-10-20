@@ -66,7 +66,6 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
     m_IceVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmIceVS.hlsl", "IceVS");
     m_SpikeBallVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmSpikeBallVS.hlsl", "SpikeBallVS");   // トゲ玉（2026-10-17）
     m_MoundVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmMoundVS.hlsl", "MoundVS");   // 砂潜り（2026-10-17）
-    m_TornadoVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmTornadoVS.hlsl", "TornadoVS");   // 砂旋（2026-10-17）
 
     // 突撃兵の帯: { 区間 x 6 頂点, InstanceCount = 突撃兵の一覧（CopyStructureCount）, 0, 0 }
     const uint32_t lineInit[4] = { kChargeLineSegs * 6, 0, 0, 0 };
@@ -91,25 +90,9 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
         };
     makeProp(m_ShieldVS, Res::VFX::TowerShield, m_ShieldMaterial, m_ShieldModel);
     makeProp(m_IceVS, Res::VFX::IceSpikes, m_IceMaterial, m_IceModel);
-    // 砂旋（2026-10-19 作り直し）：コードで作った筒（上下が広く腰が少し細い）+ 専用 PS（2 枚の雲ノイズを螺旋に流す）。
-    // t0 / t1 = ノイズ 2 枚（Material の albedo / normal の枠を借りる）。足元の砂埃は SwarmTornadoEmitCS。Swarm/SwarmSystemTornado.cpp
-    m_TornadoPS = LoadShader<PixelShader>(device, L"Shader/Swarm/SwarmTornadoPS.hlsl", "TornadoPS");
+    // 砂旋（2026-10-20 筒のモデルを廃止）：足元の砂埃 SwarmTornadoEmitCS と風源 SwarmWindSourceCS だけ。Swarm/SwarmSystemTornado.cpp
     m_TornadoEmitCS = LoadShader<ComputeShader>(device, L"Shader/Swarm/SwarmTornadoEmitCS.hlsl", "TornadoEmitCS");   // 無くても砂埃が出ないだけ
     m_WindSourceCS = LoadShader<ComputeShader>(device, L"Shader/Swarm/SwarmWindSourceCS.hlsl", "WindSourceCS");      // 無くても風源が空のまま
-    m_TornadoModel.reset();
-    m_TornadoMaterial.reset();
-    if (m_TornadoVS && m_TornadoPS)
-    {
-        m_TornadoModel = PrimitiveBuilder::CreateTornadoShell(device, 32, 14, 0.62f, 0.35f);
-        if (m_TornadoModel)
-        {
-            m_TornadoMaterial = std::make_shared<Material>();
-            m_TornadoMaterial->SetVertexShader(m_TornadoVS);
-            m_TornadoMaterial->SetPixelShader(m_TornadoPS);
-            m_TornadoMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(Res::VFX::WindStreaks));   // 風の流線（2026-10-19、雲ノイズ A から）
-            m_TornadoMaterial->SetNormalTexture(ResourceManager::Get().LoadTexture(Res::VFX::Noise008));   // 雲ノイズ B（柔らかい方）
-        }
-    }
 
     // 盾: submesh 毎（IndexCount が違う）。InstanceCount は盾兵の一覧から
     m_ShieldDrawArgs.clear();
@@ -159,18 +142,7 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
             }
         }
     }
-    // 砂旋: submesh 毎。InstanceCount は砂旋の一覧から
-    m_TornadoDrawArgs.clear();
-    if (m_TornadoModel)
-    {
-        for (const auto& sub : m_TornadoModel->GetSubMeshes())
-        {
-            if (!sub.mesh) { m_TornadoDrawArgs.emplace_back(); continue; }
-            const uint32_t init[5] = { sub.mesh->GetIndexCount(), 0, 0, 0, 0 };
-            m_TornadoDrawArgs.push_back(MakeArgs(device, init, 5));
-        }
-    }
-    return m_KindListCS && m_ChargeLineVS && m_ChargeLinePS && m_ShieldModel && m_IceModel && m_SpikeBallModel && m_MoundModel && m_TornadoModel;
+    return m_KindListCS && m_ChargeLineVS && m_ChargeLinePS && m_ShieldModel && m_IceModel && m_SpikeBallModel && m_MoundModel;
 }
 
 // ============================================================

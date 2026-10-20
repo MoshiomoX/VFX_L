@@ -43,6 +43,9 @@ public:
 
     // litMeshes = false: 光を受けるメッシュ粒子は描かない（RenderLitMeshes で先に描いたシーン用）
     void Render(bool litMeshes = true);
+    // 画面の歪みのパス（2026-10-20）：歪みの強さを持つビルボードだけを、今 bind されている歪みの RT（Graphics::BeginDistortion）へ描く。
+    // Render の後、シーンが Graphics::BeginDistortion() → これ → RestoreRenderTarget() の順で呼ぶ
+    void RenderDistortion();
     // 光を受けるメッシュ粒子（不透明・深度を書く）だけ。トゥーンのアウトラインの前に描くと石や矢に線が付く（2026-10-04）。
     // SetCamera / SetLight の後に呼ぶ
     void RenderLitMeshes();
@@ -278,6 +281,7 @@ private:
     std::shared_ptr<ComputeShader>   m_EdgeFilterCS;
     std::shared_ptr<VertexShader>    m_RenderVS;
     std::shared_ptr<PixelShader>     m_RenderPS;
+    std::shared_ptr<PixelShader>     m_DistortPS;   // 画面の歪み（ParticleDistortPS、2026-10-20。無ければ歪みのパスは何もしない）
 
     // ---- メッシュ粒子（renderMode の下位 8bit != 0。GPUParticleMesh.cpp）----
     // UpdateCS が束（番号 × 光を受ける / 発光）ごとに aliveMesh の区画へ振り分け、

@@ -491,9 +491,25 @@ void VFXParticleEntry::OnImGui()
     else
     {
         DrawSheetUI(e);
+        // 流線（2026-10-20）：風の筋。速度の向きに伸びる四角形（トゥーンとは排他）
+        ImGui::Checkbox("Streak (stretched along velocity)", &e.streak);
+        if (e.streak)
+        {
+            ImGui::SliderFloat("Stretch (s)", &e.streakStretch, 0.0f, 1.0f, "%.3f");
+            ImGui::TextDisabled("length = speed x stretch (at least the size); uv top = the head. No toon");
+        }
+        // 画面の歪み（2026-10-20）：空気の揺らぎ。粒子の形の分だけ画面を外へ押し広げる
+        const char* distortNames[] = { "Off", "Weak", "Medium", "Strong" };
+        ImGui::Combo("Distortion", &e.distortLevel, distortNames, IM_ARRAYSIZE(distortNames));
+        if (e.distortLevel > 0)
+        {
+            ImGui::Checkbox("Distortion only (invisible in colour)", &e.distortOnly);
+            ImGui::TextDisabled("needs the distortion pass of the scene (battle / this editor). Not with toon");
+        }
         // トゥーン（2026-10-04）：煙・土・毒霧向け。光る物は切ると紙っぽくなる
-        ImGui::Checkbox("Toon (crisp cartoon look)", &e.toon);
-        if (e.toon)
+        if (!e.streak)
+            ImGui::Checkbox("Toon (crisp cartoon look)", &e.toon);
+        if (e.toon && !e.streak)
         {
             ImGui::SliderFloat("Toon Cut (alpha)", &e.toonCut, 0.05f, 0.80f, "%.2f");
             ImGui::SliderInt("Toon Bands", &e.toonBands, 1, 3);
@@ -688,6 +704,8 @@ json VFXParticleEntry::ToJson() const
     if (e.inheritVelocity) j["inheritVelocity"] = true;
     if (e.singleBody) j["single"] = true;
     if (e.windResponse > 0.0f) j["wind"] = e.windResponse;   // 世界の風の受けやすさ（無ければ 0）
+    if (e.streak) { j["streak"] = true; j["stretch"] = e.streakStretch; }   // 流線（2026-10-20）
+    if (e.distortLevel > 0) { j["distort"] = e.distortLevel; if (e.distortOnly) j["distortOnly"] = true; }   // 画面の歪み（2026-10-20）
     if (e.toon)   // トゥーン（無ければ従来の見た目）
         j["toon"] = { { "cut", e.toonCut }, { "bands", e.toonBands }, { "shade", e.toonShade }, { "outline", e.toonOutline } };
     if (e.renderMode == 1)
@@ -811,6 +829,10 @@ void VFXParticleEntry::FromJson(const json& j)
     e.inheritVelocity = j.value("inheritVelocity", false);
     e.singleBody = j.value("single", false);
     e.windResponse = std::clamp(j.value("wind", 0.0f), 0.0f, 1.0f);
+    e.streak = j.value("streak", false);
+    e.streakStretch = std::clamp(j.value("stretch", 0.06f), 0.0f, 1.02f);
+    e.distortLevel = std::clamp(j.value("distort", 0), 0, 3);
+    e.distortOnly = j.value("distortOnly", false);
     e.toon = j.contains("toon") && j["toon"].is_object();
     if (e.toon)
     {

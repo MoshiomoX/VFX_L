@@ -61,6 +61,21 @@ public:
     float GetAspect() const { return m_Viewport.Width / m_Viewport.Height; }
     BloomParams& GetBloomParams() { return m_Bloom.Params(); }
 
+    // ---- 画面の歪み（2026-10-20、エルデンリングの風の「空気の揺らぎ」）----
+    // 粒子（GPUParticleSystem::RenderDistortion）が uv のずれを R16G16 の RT（シーンと同じ MSAA、深度を共有）へ描き、
+    // BeginUI が resolve して合成 PS がその分だけシーンをずらして読む。UI も HDR RT の中なので一緒に歪む（場所が被ればの話）
+    struct DistortionParams
+    {
+        bool  enabled = true;
+        float strength = 1.0f;   // 粒子が書いたずれに掛ける倍率
+    };
+    DistortionParams& GetDistortion() { return m_Distortion; }
+    // 歪みの RT を bind する（シーンの深度付き）。false = 無効 / 未作成なので何も描かなくてよい。描き終えたら RestoreRenderTarget
+    bool BeginDistortion();
+    // 歪みをシーンに掛ける（UI を描く前に呼ぶ。3D の最後 = RenderDistortion の後）：シーンを resolve して、ずらした物を
+    // HDR RT へ書き戻す。これで UI は歪まない（10-20 ユーザー「UI まで歪んでいる」。合成でやっていたのを前倒し）
+    void ApplyDistortion();
+
     // ---- 表示の同期（Debug Info 欄で切り替える）----
     struct PresentSettings
     {
@@ -93,9 +108,18 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_DepthSRV;   // 同じ深度を読む（画面のアウトライン）
     ComPtr<ID3D11ShaderResourceView> m_StencilSRV; // 同じ資源のステンシル（陣営のアウトライン）
 
+    // ---- 画面の歪み（2026-10-20）：R16G16_FLOAT の MSAA RT と resolve 先 ----
+    DistortionParams m_Distortion;
+    ComPtr<ID3D11Texture2D> m_DistortTex;
+    ComPtr<ID3D11RenderTargetView> m_DistortRTV;
+    ComPtr<ID3D11Texture2D> m_DistortResolved;
+    ComPtr<ID3D11ShaderResourceView> m_DistortSRV;
+    bool m_DistortDrawn = false;   // このフレームに BeginDistortion が呼ばれた（呼ばれなければ合成はずらさない）
+
     // ---- 合成（全画面三角形）----
     std::shared_ptr<VertexShader> m_CompositeVS;
     std::shared_ptr<PixelShader> m_CompositePS;
+    std::shared_ptr<PixelShader> m_DistortApplyPS;   // 歪みをシーンへ掛ける（UI の前。2026-10-20）
 
     // ---- 表示の同期 ----
     PresentSettings m_Present;

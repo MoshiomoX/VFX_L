@@ -244,6 +244,24 @@ bool Graphics::CreateSceneTargets(int width, int height)
     hr = m_Device->CreateShaderResourceView(depthTex.Get(), &dsrv, &m_StencilSRV);
     DX_CHECK(hr, "CreateShaderResourceView(stencil) failed");
 
+    // ---- 画面の歪み（2026-10-20）：uv のずれ。シーンと同じ MSAA（深度を共有する）+ resolve 先 ----
+    D3D11_TEXTURE2D_DESC xd = td;   // td は上で resolve 先用に Count 1 / SRV にしてある
+    xd.Format = DXGI_FORMAT_R16G16_FLOAT;
+    xd.SampleDesc.Count = m_SampleCount;
+    xd.SampleDesc.Quality = m_SampleQuality;
+    xd.BindFlags = D3D11_BIND_RENDER_TARGET;
+    hr = m_Device->CreateTexture2D(&xd, nullptr, &m_DistortTex);
+    DX_CHECK(hr, "CreateTexture2D(distort) failed");
+    hr = m_Device->CreateRenderTargetView(m_DistortTex.Get(), nullptr, &m_DistortRTV);
+    DX_CHECK(hr, "CreateRenderTargetView(distort) failed");
+    xd.SampleDesc.Count = 1;
+    xd.SampleDesc.Quality = 0;
+    xd.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    hr = m_Device->CreateTexture2D(&xd, nullptr, &m_DistortResolved);
+    DX_CHECK(hr, "CreateTexture2D(distortResolved) failed");
+    hr = m_Device->CreateShaderResourceView(m_DistortResolved.Get(), nullptr, &m_DistortSRV);
+    DX_CHECK(hr, "CreateShaderResourceView(distortResolved) failed");
+
     m_Viewport.Width = (float)width;
     m_Viewport.Height = (float)height;
     m_Viewport.TopLeftX = 0.0f;
@@ -270,6 +288,15 @@ bool Graphics::LoadPostShaders()
     std::cout << "[Graphics] CompositePS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
+    // 歪みをシーンへ掛ける（UI の前。2026-10-20）。読めなければ歪み無しで続ける
+    m_DistortApplyPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_DistortApplyPS.get(), m_Device.Get(),
+        L"Shader/PostProcess/DistortApplyPS.hlsl");
+    std::cout << "[Graphics] DistortApplyPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_DistortApplyPS.reset();
+    hr = S_OK;
+    if (FAILED(hr)) return false;
+
     return true;
 }
 
@@ -287,6 +314,66 @@ void Graphics::BeginFrame()
 
     m_Context->OMSetRenderTargets(1, m_SceneRTV.GetAddressOf(), m_DepthStencilView.Get());
     m_Context->RSSetViewports(1, &m_Viewport);
+
+    // 歪みの RT は「ずれ 0」で始める（描く物が無いフレームは合成がずらさない）
+    m_DistortDrawn = false;
+    if (m_DistortRTV)
+    {
+        const float zero[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        m_Context->ClearRenderTargetView(m_DistortRTV.Get(), zero);
+    }
+}
+
+// ============================================================
+// 画面の歪みの RT を bind（2026-10-20）。シーンの深度はそのまま（粒子は読むだけ）
+// ============================================================
+bool Graphics::BeginDistortion()
+{
+    if (!m_Distortion.enabled || !m_DistortRTV || m_InUIPhase) return false;
+    m_Context->OMSetRenderTargets(1, m_DistortRTV.GetAddressOf(), m_DepthStencilView.Get());
+    m_Context->RSSetViewports(1, &m_Viewport);
+    m_DistortDrawn = true;
+    return true;
+}
+
+// ============================================================
+// 歪みをシーンに掛ける（2026-10-20、UI を描く前）：シーンと歪みを resolve → 全画面三角形で
+// 「ずらして読んだシーン」を HDR RT（MSAA）へ書き戻す。深度は触らない。合成はもう歪まない
+// ============================================================
+void Graphics::ApplyDistortion()
+{
+    if (!m_DistortDrawn || !m_Distortion.enabled || !m_DistortApplyPS || m_InUIPhase) return;
+    m_DistortDrawn = false;   // 合成側ではずらさない
+
+    m_Context->ResolveSubresource(m_SceneResolved.Get(), 0, m_SceneTex.Get(), 0, kSceneFormat);
+    m_Context->ResolveSubresource(m_DistortResolved.Get(), 0, m_DistortTex.Get(), 0, DXGI_FORMAT_R16G16_FLOAT);
+
+    m_Context->OMSetRenderTargets(1, m_SceneRTV.GetAddressOf(), nullptr);
+    m_Context->RSSetViewports(1, &m_Viewport);
+
+    struct DistortApplyCB { float strength; float aspect; float pad[2]; } cb = {};
+    cb.strength = m_Distortion.strength;
+    cb.aspect = m_Viewport.Height > 0.0f ? m_Viewport.Width / m_Viewport.Height : 1.0f;
+    m_DistortApplyPS->WriteBuffer(m_Context.Get(), 0, &cb);
+
+    ID3D11SamplerState* samp = RenderStates::Get().LinearClamp();
+    m_Context->PSSetSamplers(0, 1, &samp);
+    ID3D11ShaderResourceView* srvs[2] = { m_SceneSRV.Get(), m_DistortSRV.Get() };
+    m_Context->PSSetShaderResources(0, 2, srvs);
+
+    RenderStates::Get().ApplyOpaque(m_Context.Get());
+    m_Context->OMSetDepthStencilState(RenderStates::Get().DepthNone(), 0);
+    m_CompositeVS->Bind(m_Context.Get());
+    m_DistortApplyPS->Bind(m_Context.Get());
+    m_Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_Context->IASetInputLayout(nullptr);
+    m_Context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
+    m_Context->Draw(3, 0);
+
+    ID3D11ShaderResourceView* nullSRVs[2] = { nullptr, nullptr };
+    m_Context->PSSetShaderResources(0, 2, nullSRVs);
+    RenderStates::Get().Restore(m_Context.Get());
+    RestoreRenderTarget();
 }
 
 // ============================================================
@@ -309,17 +396,26 @@ void Graphics::BeginUI()
     m_Context->OMSetRenderTargets(1, m_BackbufferRTV.GetAddressOf(), nullptr);
     m_Context->RSSetViewports(1, &m_Viewport);
 
-    struct CompositeCB { float intensity; float exposure; uint32_t tonemap; float gamma; } ccb = {};   // gamma = 指数（0 = 無し）
+    // 2b) 画面の歪み（2026-10-20）：粒子が書いたずれを resolve。描かれていないフレームは倍率 0
+    const bool distort = m_DistortDrawn && m_Distortion.enabled && m_DistortResolved;
+    if (distort)
+        m_Context->ResolveSubresource(m_DistortResolved.Get(), 0, m_DistortTex.Get(), 0, DXGI_FORMAT_R16G16_FLOAT);
+
+    struct CompositeCB { float intensity; float exposure; uint32_t tonemap; float gamma;
+                         float distortStrength; float aspect; float pad[2]; } ccb = {};   // gamma = 指数（0 = 無し）
+    static_assert(sizeof(CompositeCB) == 32, "CompositeCB: HLSL 側と不一致");
     ccb.intensity = bp.enabled ? bp.intensity : 0.0f;
     ccb.exposure = bp.exposure;
     ccb.tonemap = bp.tonemap ? 1u : 0u;
     ccb.gamma = bp.gamma ? bp.gammaExp : 0.0f;
+    ccb.distortStrength = distort ? m_Distortion.strength : 0.0f;
+    ccb.aspect = m_Viewport.Height > 0.0f ? m_Viewport.Width / m_Viewport.Height : 1.0f;
     m_CompositePS->WriteBuffer(m_Context.Get(), 0, &ccb);
 
     ID3D11SamplerState* samp = RenderStates::Get().LinearClamp();
     m_Context->PSSetSamplers(0, 1, &samp);
-    ID3D11ShaderResourceView* srvs[2] = { m_SceneSRV.Get(), m_Bloom.GetResultSRV() };
-    m_Context->PSSetShaderResources(0, 2, srvs);
+    ID3D11ShaderResourceView* srvs[3] = { m_SceneSRV.Get(), m_Bloom.GetResultSRV(), m_DistortSRV.Get() };
+    m_Context->PSSetShaderResources(0, 3, srvs);
 
     RenderStates::Get().ApplyOpaque(m_Context.Get());
     m_CompositeVS->Bind(m_Context.Get());
@@ -331,8 +427,8 @@ void Graphics::BeginUI()
     m_Context->Draw(3, 0);
 
     // 次のフレームで RT / UAV になるので SRV から外す
-    ID3D11ShaderResourceView* nullSRVs[2] = { nullptr, nullptr };
-    m_Context->PSSetShaderResources(0, 2, nullSRVs);
+    ID3D11ShaderResourceView* nullSRVs[3] = { nullptr, nullptr, nullptr };
+    m_Context->PSSetShaderResources(0, 3, nullSRVs);
     RenderStates::Get().Restore(m_Context.Get());
 }
 
@@ -439,6 +535,10 @@ bool Graphics::Resize(int width, int height)
     m_DepthStencilView.Reset();
     m_DepthSRV.Reset();
     m_StencilSRV.Reset();
+    m_DistortRTV.Reset();
+    m_DistortTex.Reset();
+    m_DistortSRV.Reset();
+    m_DistortResolved.Reset();
 
     HRESULT hr = m_SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, m_SwapChainFlags);
     if (FAILED(hr))

@@ -108,7 +108,10 @@ void main(uint3 id : SV_DispatchThreadID)
     float windResp = ParticleWindResponse(p.renderMode);
     if (windResp > 0.0)
     {
-        float k = saturate(windResp * PARTICLE_WIND_RATE * g_DeltaTime);
+        // a wind streak (2026-10-20) is the air itself: it takes the local air speed about
+        // five times faster than smoke, so the spiral of a vortex shows within 0.1 s
+        float rate = ParticleIsStreak(p.renderMode) ? PARTICLE_WIND_RATE * 5.0 : PARTICLE_WIND_RATE;
+        float k = saturate(windResp * rate * g_DeltaTime);
         float vortexLift;
         float3 vortexAir = WindSourceAir(g_WindSources, p.position.xz, vortexLift);
         float2 wind = ParticleWindAt(p.position.xz) + vortexAir.xz;

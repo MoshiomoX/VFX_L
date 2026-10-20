@@ -177,31 +177,24 @@ public:
     };
     MoundLookStyle moundLook;
 
-    // ---- 砂嵐の術師の砂旋（特効モデル Tornado03_A.FBX。SwarmTornadoVS。2026-10-17）----
+    // ---- 砂嵐の術師の砂旋の見た目（2026-10-17。10-20 筒のモデルを廃止：ユーザー「筒は要らない、空間の歪み + 薄い白で足りる」）----
+    // 砂旋そのものは描かない。見えるのは足元の砂埃（SwarmTornadoEmitCS が TornadoDust.json を出す：屈折 + 薄い白の煙団と砂粒）と、
+    // 風源の表（Swarm::WindSource）に書いた風で草 / 落ち葉 / 粒子が巻かれる所だけ（Swarm/SwarmSystemTornado.cpp）
     struct TornadoLookStyle
     {
-        bool  enabled = true;
-        float height = 3.4f;      // 見た目の高さ m（当たりは BomberCB::tornadoScale × 雑魚の半径）
-        float widthMul = 3.2f;    // 見た目の幅 = 当たりの直径 × これ（外側の幕の上端。芯はその 0.55 倍）
-        float spin = 2.0f;        // 筒そのものが回る速さ rad/s（風の流れは PS のスクロールが出す。速いと固体が回って見える）
-        float growTime = 0.3f;    // 生まれて伸びる / 消える前に縮む秒
-        float heave = 0.08f;      // 面のうねり（頂点をノイズで出し入れする量、半径の割合）
+        float growTime = 0.3f;    // 生まれて風が強まる / 消える前に弱まる秒（風源の fade）
         bool  dust = true;        // 足元の砂埃（SwarmTornadoEmitCS、TornadoDust.json）
-        float dustRate = 1.0f;    // 配方の発射率に掛ける（sandAmount の分を掛けた上で）
-        float dustSwirl = 5.0f;   // 砂埃に足す軸回りの速さ m/s（砂が巻き上がって見える）
-        // 砂の量 0〜1（2026-10-19 ユーザー：細かい砂粒だけだと重い → 砂粒は上限まで、それを超えた分は「砂霭」になる）。
-        //   0〜0.5：砂粒が 0 → 配方の量まで増える、霭なし。0.5〜1：砂粒はそのまま、風柱の内側に薄い砂色の膜（霭）が hazeMax まで濃くなる
-        float sandAmount = 0.8f;
-        float hazeMax = 0.22f;    // 霭の最大の不透明度（下端。上へ薄くなる）
+        float dustRate = 1.0f;    // 配方の発射率に掛ける
+        float dustSwirl = 6.0f;   // 砂埃に足す軸回りの速さ m/s（砂と煙団が巻き上がって見える）
         // 風源（2026-10-19 ユーザー：「風そのものが風の係数を持って世界の風に影響する」）。砂旋 1 本 = Swarm::WindSource 1 つ：
         // 届く距離 = 当たりの半径 × windRadiusMul、縁の接線の速さ windSwirl、芯の上昇 windUpdraft、縁の吸い込み windInflow。
-        // 草が輪になってなびき、フィールドの落ち葉 / 砂屑が巻き上がり、煙が周りを回る（GrassVS / DebrisUpdateCS / ParticleUpdateCS）
+        // 草が輪になってなびき、フィールドの落ち葉 / 砂屑が巻き上がり、煙が周りを回る（GrassVS / DebrisUpdateCS / ParticleUpdateCS）。
+        // 10-20 筒を無くしたので風源を強めた（8 / 10 / 3 / 1.2 → 11 / 13 / 4.5 / 1.8）：見えるのは環境の反応だけ
         bool  windSource = true;
-        float windRadiusMul = 8.0f;   // 当たりの半径 0.48m × 8 ≒ 3.8m（見た目の幕の半径 1.5m の 2.5 倍）
-        float windSwirl = 7.0f;       // m/s
-        float windUpdraft = 3.0f;     // m/s（落ち葉の終端の落下 2.5 m/s より速い = 芯の近くは浮く）
-        float windInflow = 1.2f;      // m/s
-        DirectX::SimpleMath::Vector4 tint = { 0.88f, 0.74f, 0.50f, 0.85f };   // 砂色、a = 全体の不透明度
+        float windRadiusMul = 11.0f;  // 当たりの半径 0.48m × 11 ≒ 5.3m
+        float windSwirl = 13.0f;      // m/s
+        float windUpdraft = 4.5f;     // m/s（落ち葉の終端の落下 2.5 m/s より速い = 芯の近くは浮く）
+        float windInflow = 1.8f;      // m/s
     };
     TornadoLookStyle tornadoLook;
 
@@ -421,6 +414,19 @@ public:
     ID3D11ShaderResourceView* GetAreaEndSRV() const { return m_AreaEndSRV.Get(); }
     // 局所の風源の表（Swarm::WindSource × kMaxWindSources。草・落ち葉・粒子が Flush の後に読む。2026-10-19）
     ID3D11ShaderResourceView* GetWindSourceSRV() const { return m_WindSourceSRV.Get(); }
+    // CPU の風源（2026-10-20、突風を風源にする）：life 秒だけ表に載る渦（swirl / updraft / inflow）+ 一方向の押し（dir × push）。
+    // fade は出入りで滑らかに（sin）。一度に kMaxWindSources − 砂旋の数まで。Flush の中で歳を進める
+    struct WindBurst
+    {
+        DirectX::SimpleMath::Vector3 pos;
+        float radius = 2.5f;
+        float swirl = 8.0f, updraft = 2.0f, inflow = 0.8f;
+        DirectX::SimpleMath::Vector2 dir;   // 押す向き（xz 単位。0 = 押さない）
+        float push = 0.0f;
+        float life = 0.4f;
+        float age = 0.0f;
+    };
+    void AddWindBurst(const WindBurst& b) { if (m_WindBursts.size() < Swarm::kMaxWindSources) m_WindBursts.push_back(b); }
     ID3D11ShaderResourceView* GetEnemySRV() const { return m_EnemySRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyStateSRV() const { return m_EnemyStateSRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyExtraSRV() const { return m_EnemyExtraSRV.Get(); }
@@ -887,18 +893,12 @@ private:
     std::shared_ptr<Material>     m_MoundMaterial;
     std::shared_ptr<Model>        m_MoundModel;      // PrimitiveBuilder::CreateSphere（半径 1）
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_MoundDrawArgs;
-    // 砂嵐の術師の砂旋（2026-10-17）：一覧は m_KindList* の外（雑魚のメッシュを描かず、竜巻のモデルを SwarmTornadoVS が描く）
+    // 砂嵐の術師の砂旋（2026-10-17）：一覧は m_KindList* の外（雑魚のメッシュを描かない。10-20 から砂旋は何も描かず、砂埃と風源だけ）
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_TornadoListBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_TornadoListUAV;   // APPEND
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_TornadoListSRV;
-    std::shared_ptr<VertexShader> m_TornadoVS;
-    std::shared_ptr<PixelShader>  m_TornadoPS;       // 2 枚の雲ノイズを螺旋に流して削る（2026-10-19、SwarmSystemTornado.cpp）
     std::shared_ptr<ComputeShader> m_TornadoEmitCS;  // 足元の砂埃（TornadoDust の配方）
-    std::shared_ptr<Material>     m_TornadoMaterial;
-    std::shared_ptr<Model>        m_TornadoModel;    // PrimitiveBuilder::CreateTornadoShell（y 0〜1、半径 1）
-    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_TornadoDrawArgs;
     uint32_t m_TornadoDustVfx = 0;                   // レシピ表の番号。0 = 無し
-    float    m_TornadoTime = 0.0f;                   // Flush の totalTime（描画のスクロールに使う）
     void DispatchTornadoEmit(float dt, float totalTime);   // Flush の中、草の火の発射の直後
     // 局所の風源（2026-10-19）：砂旋 → Swarm::WindSource の表（kMaxWindSources 枠）。Flush の中、砂埃の直後
     std::shared_ptr<ComputeShader> m_WindSourceCS;
@@ -907,7 +907,11 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindSourceSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindSourceCount;   // RAW 4B（InterlockedAdd の枠取り）
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceCountUAV;
-    void DispatchWindSources();
+    // CPU の風源（AddWindBurst）：毎フレーム生きている物を Swarm::WindSource にして DYNAMIC の buffer へ（CS の t3）
+    std::vector<WindBurst> m_WindBursts;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindBurstBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindBurstSRV;
+    void DispatchWindSources(float dt);
     // SwarmShieldVS / SwarmIceVS の b4
     struct PropMeshCB
     {
@@ -924,7 +928,6 @@ private:
     void RenderShields(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
     void RenderSpikeBalls(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // 盾の後（2026-10-17）
     void RenderMounds(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // トゲ玉の後（2026-10-17）
-    void RenderTornadoes(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // 砂の山の後（2026-10-17）
     void RenderIce(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
     void RenderChargeLines(CameraBase* camera);
 

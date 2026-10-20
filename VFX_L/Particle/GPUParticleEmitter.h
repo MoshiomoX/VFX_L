@@ -101,6 +101,14 @@ public:
     // 単体（2026-10-16）：GPU の弾の上で毎フレーム 1 個だけ出し、次のフレームまでしか生きない = 常にちょうど 1 つ。
     // 本体（岩・矢・水晶）用。emitRate / lifetime は無視。json "single"
     bool singleBody = false;
+    // 流線（2026-10-20、ビルボードだけ）：四角形を速度の向きに伸ばす（長さ = 速さ × streakStretch 秒）。
+    // 風の筋（突風・砂旋）用。トゥーンとは排他。json "streak" / "stretch"
+    bool  streak = false;
+    float streakStretch = 0.06f;
+    // 画面の歪み（2026-10-20、ビルボードだけ）：0 = 無し / 1〜3 = 弱・中・強。粒子の形（テクスチャの alpha × 色の alpha）の分だけ
+    // 画面を外へ押し広げる（空気の揺らぎ）。distortOnly = 歪みだけで色は描かない。json "distort" / "distortOnly"
+    int   distortLevel = 0;
+    bool  distortOnly = false;
     // 世界の風の受けやすさ 0〜1（2026-10-12）。1 = 水平速度が約 0.3 秒で風速に揃う（煙・霧・雨）。0 = 受けない（火花・光）。
     // ToGPU が renderMode の bits 26-29 へ詰める（ParticleRenderMode::PackWind）。json "wind"
     float windResponse = 0.0f;

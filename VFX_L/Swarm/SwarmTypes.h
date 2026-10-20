@@ -595,7 +595,9 @@ namespace Swarm
     // 局所の風源（2026-10-19、ユーザー「風そのものが風の係数を持って世界の風に影響する」）。
     // SwarmWindSourceCS が毎フレーム生きている砂旋から kMaxWindSources 枠の表に書く（空き = radius 0）。
     // 草（GrassVS）・落ち葉（DebrisUpdateCS）・粒子（ParticleUpdateCS）が WindSources.hlsli の式で世界の風に足す。
-    // HLSL の WindSource と同じ並び（32B）
+    // 2026-10-20：一方向へ押す分（pushDir × push、中心で最大・縁で 0）も持てる = 突風（前へ吹く渦）。
+    // CPU の風源（SwarmSystem::AddWindBurst）も同じ CS が表に足す。
+    // HLSL の WindSource と同じ並び（48B）
     // ============================================================
     constexpr uint32_t kMaxWindSources = 16;
     struct WindSource
@@ -606,8 +608,11 @@ namespace Swarm
         float updraft;     // 芯の近くの上昇の速さ m/s
         float inflow;      // 縁で中心へ向かう速さ m/s
         float fade;        // 0〜1（生まれ / 消え）
+        float pushDir[2];  // 押す向き（xz 単位ベクトル。0 = 押さない）
+        float push;        // 中心での押す速さ m/s
+        float _pad;
     };
-    static_assert(sizeof(WindSource) == 32, "WindSource layout mismatch");
+    static_assert(sizeof(WindSource) == 48, "WindSource layout mismatch");
 
     // Boss HP 条・画面外の目印・倒したかの判定に使う（リードバックなので 2〜3 フレーム古い）
     // ============================================================

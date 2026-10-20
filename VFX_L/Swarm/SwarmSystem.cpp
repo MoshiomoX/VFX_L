@@ -292,6 +292,22 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_WindSourceBuffer, m_WindSourceUAV, m_WindSourceSRV, "windSources")) return false;
     if (!makeRaw(16, m_WindSourceCount, m_WindSourceCountUAV, "windSourceCount")) return false;
     {
+        // CPU の風源（突風。2026-10-20）：毎フレーム Map で書く DYNAMIC の structured buffer
+        D3D11_BUFFER_DESC bd = {};
+        bd.ByteWidth = sizeof(Swarm::WindSource) * Swarm::kMaxWindSources;
+        bd.Usage = D3D11_USAGE_DYNAMIC;
+        bd.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+        bd.StructureByteStride = sizeof(Swarm::WindSource);
+        if (FAILED(m_Device->CreateBuffer(&bd, nullptr, &m_WindBurstBuffer))) return false;
+        D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
+        sd.Format = DXGI_FORMAT_UNKNOWN;
+        sd.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+        sd.Buffer.NumElements = Swarm::kMaxWindSources;
+        if (FAILED(m_Device->CreateShaderResourceView(m_WindBurstBuffer.Get(), &sd, &m_WindBurstSRV))) return false;
+    }
+    {
         // Boss の様子のリードバック（GPUReadback と同じく 3 枚を輪転）
         D3D11_BUFFER_DESC sd = {};
         sd.ByteWidth = sizeof(Swarm::BossInfo);
@@ -1639,8 +1655,8 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
     DispatchFireEmit(dt, totalTime);
     // ---- 砂旋の足元の砂埃（2026-10-19）----
     DispatchTornadoEmit(dt, totalTime);
-    // ---- 局所の風源の表（砂旋 → 草・落ち葉・粒子。2026-10-19）----
-    DispatchWindSources();
+    // ---- 局所の風源の表（砂旋 + CPU の風源 → 草・落ち葉・粒子。2026-10-19）----
+    DispatchWindSources(dt);
 
     // ---- 吸い寄せ中の経験値オーブの尾 ----
     // 弾・範囲の後に回す：空きが足りない時に削られるのは見た目だけのこちら
@@ -2359,8 +2375,6 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
             if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_SpikeBallListUAV.Get());
         for (auto& args : m_MoundDrawArgs)   // 砂潜りの砂の山（2026-10-17）
             if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_KindListUAV[Swarm::kDrawListBurrower].Get());
-        for (auto& args : m_TornadoDrawArgs)   // 砂旋（2026-10-17）
-            if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_TornadoListUAV.Get());
     }
 
     // sampler は雑魚とオーブで共通。Material::Bind は sampler を触らないので自分で入れる
@@ -2522,9 +2536,6 @@ void SwarmSystem::RenderOverlay(CameraBase* camera, const LightBuffer& light)
         RenderChargeLines(camera);
     RenderDropRings(camera);
     RenderWarnRings(camera);
-    // ---- 砂嵐の術師の砂旋（半透明の筒 2 層。輪の後・HP バーの前。2026-10-19）----
-    if (indirect)
-        RenderTornadoes(camera->GetViewMatrix(), camera->GetProjectionMatrix());
     if (indirect)
         RenderHpBars(camera);
 }

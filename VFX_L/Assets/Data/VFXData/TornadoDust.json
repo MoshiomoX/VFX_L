@@ -2,11 +2,39 @@
     "entries": [
         {
             "data": {
+                "angularVelRange": [-0.4, 0.4], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1, "wind": 1.0, "distort": 2, "distortOnly": false,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.3,
+                "emitRate": 38.0, "emitType": 4, "innerRadius": 0.9, "radius": 2.6, "spreadAngle": 0.0,
+                "gravity": [0.0, 1.8, 0.0], "lifetimeRange": [0.8, 1.2], "maxParticles": 60,
+                "position": [0.0, 0.5, 0.0], "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [2.2, 3.3, 3.4, 4.8], "speedRange": [0.3, 0.8],
+                "startColorMin": [0.92, 0.70, 0.28, 0.42], "startColorMax": [1.0, 0.80, 0.36, 0.42],
+                "endColorMin": [0.92, 0.70, 0.28, 0.0], "endColorMax": [1.0, 0.80, 0.36, 0.0]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-0.4, 0.4], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1, "wind": 1.0, "distort": 2, "distortOnly": false,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.3,
+                "emitRate": 28.0, "emitType": 4, "innerRadius": 0.7, "radius": 2.2, "spreadAngle": 0.0,
+                "gravity": [0.0, 1.4, 0.0], "lifetimeRange": [0.8, 1.2], "maxParticles": 45,
+                "position": [0.0, 1.9, 0.0], "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [2.0, 3.0, 3.1, 4.5], "speedRange": [0.2, 0.6],
+                "startColorMin": [0.94, 0.72, 0.30, 0.34], "startColorMax": [1.0, 0.82, 0.40, 0.34],
+                "endColorMin": [0.94, 0.72, 0.30, 0.0], "endColorMax": [1.0, 0.82, 0.40, 0.0]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
                 "angularVelRange": [-8.0, 8.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 5,
                 "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1, "wind": 0.3,
                 "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.6,
-                "emitRate": 110.0, "emitType": 4, "innerRadius": 0.7, "radius": 1.2, "spreadAngle": 0.0,
-                "gravity": [0.0, 2.6, 0.0], "lifetimeRange": [0.7, 1.3], "maxParticles": 600,
+                "emitRate": 80.0, "emitType": 4, "innerRadius": 0.7, "radius": 1.2, "spreadAngle": 0.0,
+                "gravity": [0.0, 2.6, 0.0], "lifetimeRange": [0.7, 1.3], "maxParticles": 400,
                 "position": [0.0, 0.05, 0.0], "renderMode": 0, "rotationRange": [0.0, 6.28],
                 "sizeRange": [0.05, 0.11, 0.03, 0.07], "speedRange": [0.3, 0.9],
                 "startColorMin": [0.62, 0.50, 0.32, 0.95], "startColorMax": [0.78, 0.66, 0.44, 0.95],
@@ -19,8 +47,8 @@
                 "angularVelRange": [-3.0, 3.0], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 5,
                 "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1, "wind": 0.2,
                 "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 1.2,
-                "emitRate": 35.0, "emitType": 4, "innerRadius": 1.0, "radius": 1.6, "spreadAngle": 0.0,
-                "gravity": [0.0, 0.8, 0.0], "lifetimeRange": [0.5, 0.9], "maxParticles": 200,
+                "emitRate": 30.0, "emitType": 4, "innerRadius": 1.0, "radius": 1.6, "spreadAngle": 0.0,
+                "gravity": [0.0, 0.8, 0.0], "lifetimeRange": [0.5, 0.9], "maxParticles": 150,
                 "position": [0.0, 0.02, 0.0], "renderMode": 0, "rotationRange": [0.0, 6.28],
                 "sizeRange": [0.10, 0.18, 0.04, 0.08], "speedRange": [0.2, 0.5],
                 "startColorMin": [0.55, 0.44, 0.28, 0.8], "startColorMax": [0.70, 0.58, 0.38, 0.8],

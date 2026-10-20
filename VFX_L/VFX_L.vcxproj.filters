@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Audio">
@@ -761,6 +761,9 @@
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUDExpBar.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\HUDFps.cpp">
       <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\DamageNumbers.cpp">
@@ -1831,6 +1834,9 @@
     <FxCompile Include="Shader\Particle\GPUParticlePS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Particle\ParticleDistortPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Particle</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Particle\GPUParticleVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
@@ -1969,12 +1975,6 @@
     <FxCompile Include="Shader\Swarm\SwarmMoundVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\Swarm\SwarmTornadoVS.hlsl">
-      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\Swarm\SwarmTornadoPS.hlsl">
-      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
-    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmTornadoEmitCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -2021,6 +2021,9 @@
       <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PostProcess\CompositePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\DistortApplyPS.hlsl">
       <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PostProcess\OutlinePS.hlsl">

@@ -29,6 +29,7 @@
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
 #include "Core/DevUI.h"
+#include "Core/Application.h"
 
 // ============================================================
 // 初期化
@@ -389,6 +390,8 @@ void GameUI::Render(Registry& reg, Entity player)
             m_FrameInfo.playerPos = tf.position;
             m_FrameInfo.playerYawDeg = tf.rotation.y;
         }
+        // FPS（ミニマップの下。EngineTimer の 1 秒平均。2026-10-20）
+        m_FrameInfo.fps = Application::Get().GetTimer().GetFPS();
         // レベルアップ直後の間（四択を出すまで）は画面の真ん中に「レベルアップ！」（シーンの案内より優先）
         if (m_LevelUpWait)
         {

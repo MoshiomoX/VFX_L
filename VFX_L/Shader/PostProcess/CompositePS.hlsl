@@ -5,6 +5,8 @@
 // ============================================================
 Texture2D sceneTex : register(t0);
 Texture2D bloomTex : register(t1);
+// screen distortion (2026-10-20): uv offset written by the particles (ParticleDistortPS), resolved
+Texture2D distortTex : register(t2);
 SamplerState linearClamp : register(s0);
 
 cbuffer CompositeCB : register(b0)
@@ -13,6 +15,9 @@ cbuffer CompositeCB : register(b0)
     float g_Exposure;
     uint g_Tonemap; // 0 = off, 1 = ACES
     float g_Gamma; // display gamma exponent (2.2 = sRGB-like); <= 0 = off
+    float g_DistortStrength; // 0 = no distortion this frame
+    float g_Aspect;          // width / height (the offset is isotropic on screen)
+    float2 _cpad;
 };
 
 struct PSInput
@@ -29,8 +34,15 @@ float3 ACES(float3 x)
 
 float4 main(PSInput i) : SV_TARGET
 {
-    float3 scene = sceneTex.Sample(linearClamp, i.uv).rgb;
-    float3 bloom = bloomTex.Sample(linearClamp, i.uv).rgb;
+    float2 uv = i.uv;
+    if (g_DistortStrength > 0.0)
+    {
+        float2 d = distortTex.Sample(linearClamp, i.uv).xy * g_DistortStrength;
+        d.y *= g_Aspect;   // the same pixel distance in both directions
+        uv = saturate(i.uv + d);
+    }
+    float3 scene = sceneTex.Sample(linearClamp, uv).rgb;
+    float3 bloom = bloomTex.Sample(linearClamp, uv).rgb;
 
     float3 c = (scene + bloom * g_BloomIntensity) * g_Exposure;
 

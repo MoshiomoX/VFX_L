@@ -21,6 +21,10 @@ public:
     // ImGui の「Damage Numbers」のチェック（デバッグ）とは別：描く側は「デバッグの開閉 && この設定」
     bool damageNumbers = true;
 
+    // 画面右上（ミニマップの下）の FPS 表示（UI/HUDFps.cpp。2026-10-20 ユーザー「ImGui の無い環境でも fps を見たい」）。
+    // ImGui の HUD パネルの「Show FPS」とは別：描く側は「HUDStyle::showFps && この設定」
+    bool showFps = true;
+
     // 初回のチュートリアル（UI/TutorialGuide）を終えた / 飛ばした（2026-10-13）。false なら第 1 ステージの始めに出る
     bool tutorialDone = false;
 

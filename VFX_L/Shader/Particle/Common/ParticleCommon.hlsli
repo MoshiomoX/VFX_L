@@ -44,6 +44,47 @@
 // billboard only: toon look, bits 14-25 (2026-10-04). Decoded in
 // GPUParticlePS (PARTICLE_TOON_*), packed by ParticleRenderMode::PackToon
 
+// billboard only (2026-10-20, the Elden Ring style wind streaks): the quad is
+// stretched along the particle's velocity instead of facing the camera
+// upright. bit 9 (meshes use it for "face the velocity"; billboards never
+// did) = streak, bits 16-23 = stretch in PARTICLE_STRETCH_UNIT seconds
+// (length = speed x stretch, at least the size). Excludes the toon bits
+// (16-25), so a streak is never toon. Must match ParticleRenderMode::kStreak
+#define PARTICLE_STREAK (1u << 9)
+#define PARTICLE_STRETCH_SHIFT 16u
+#define PARTICLE_STRETCH_UNIT 0.004
+bool ParticleIsStreak(int renderMode)
+{
+    uint m = (uint) renderMode;
+    return (m & 0xFFu) == 0u && (m & PARTICLE_STREAK) != 0u;
+}
+float ParticleStretch(int renderMode)
+{
+    return (float) ((((uint) renderMode) >> PARTICLE_STRETCH_SHIFT) & 255u) * PARTICLE_STRETCH_UNIT;
+}
+
+// billboard only (2026-10-20): screen distortion (refraction) pass.
+// bits 10-11 = strength level 0..3 (meshes use them for the forward axis),
+// bit 15 = distortion only (invisible in the colour passes; the toon outline
+// bit, meaningless without the toon bit 14). GPUParticleVS g_Pass 3 draws
+// only the particles with a level > 0 into the offset target
+// (ParticleDistortPS); the composite bends the scene by it.
+// Must match ParticleRenderMode::kDistortShift / kDistortOnly
+#define PARTICLE_DISTORT_SHIFT 10u
+#define PARTICLE_DISTORT_ONLY (1u << 15)
+uint ParticleDistortLevel(int renderMode)
+{
+    uint m = (uint) renderMode;
+    if ((m & 0xFFu) != 0u)
+        return 0u;
+    return (m >> PARTICLE_DISTORT_SHIFT) & 3u;
+}
+bool ParticleDistortOnly(int renderMode)
+{
+    uint m = (uint) renderMode;
+    return (m & 0xFFu) == 0u && (m & (1u << 14)) == 0u && (m & PARTICLE_DISTORT_ONLY) != 0u;
+}
+
 // any render mode: wind response, bits 26-29 = q (2026-10-12). UpdateCS
 // relaxes the horizontal velocity toward the world wind at
 // q / 15 * PARTICLE_WIND_RATE per second. 0 = ignores the wind.

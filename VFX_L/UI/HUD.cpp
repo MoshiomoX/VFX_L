@@ -175,6 +175,7 @@ HUDStyle HUDStyle::Scaled(float k) const
     s.markerSize *= k;     s.markerMargin *= k;
     anchor(s.minimap);     s.minimapSize *= k;    s.minimapMarkerSize *= k;   s.minimapPlayerSize *= k;   s.minimapNorthScale *= k;
     s.objectiveScale *= k;
+    anchor(s.fpsText);     s.fpsScale *= k;
     s.announceScale *= k;
     s.platePad *= k;
     return s;
@@ -215,6 +216,9 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
 
     // ---- ミニマップ（右上。HUDMinimap.cpp）----
     m_Minimap.Draw(sprite, text, m_Context, m_S, info, m_S.minimap.Resolve(m_ScreenW, m_ScreenH), m_WhiteTex);
+
+    // ---- FPS（ミニマップの下。HUDFps.cpp）----
+    DrawFps(sprite, text, info.fps);
 
     // ---- HP / MP バー ----
     const Vector2 hpPos = m_S.hpBar.Resolve(m_ScreenW, m_ScreenH);
@@ -966,6 +970,14 @@ void HUD::DrawDebugUI()
     ImGui::Text("map baked: %s", m_Minimap.HasMap() ? "yes" : "no");
 
     ImGui::Separator();
+    ImGui::Text("FPS (below minimap; also needs the settings toggle)");
+    ImGui::Checkbox("Show FPS", &m_Style.showFps);
+    DragAnchor("FPS Text", m_Style.fpsText);
+    ImGui::DragFloat("FPS Scale", &m_Style.fpsScale, 0.01f, 0.05f, 3.0f);
+    ImGui::DragFloat("FPS Warn Below", &m_Style.fpsWarnBelow, 1.0f, 0.0f, 240.0f);
+    ImGui::ColorEdit4("FPS Warn Color", &m_Style.fpsWarnColor.x);
+
+    ImGui::Separator();
     ImGui::Text("Screen : %.0f x %.0f", m_ScreenW, m_ScreenH);
 }
 
@@ -1081,6 +1093,12 @@ bool HUD::SaveStyle(const char* path) const
     root["minimapAlpha"] = m_Style.minimapAlpha;
     root["minimapBgColor"] = ToJson(m_Style.minimapBgColor);
     root["minimapPlayerColor"] = ToJson(m_Style.minimapPlayerColor);
+
+    root["showFps"] = m_Style.showFps;
+    root["fpsText"] = ToJson(m_Style.fpsText);
+    root["fpsScale"] = m_Style.fpsScale;
+    root["fpsWarnBelow"] = m_Style.fpsWarnBelow;
+    root["fpsWarnColor"] = ToJson(m_Style.fpsWarnColor);
 
     std::ofstream ofs(file);
     if (!ofs.is_open())
@@ -1224,6 +1242,12 @@ bool HUD::LoadStyle(const char* path)
     ReadFloat(root, "minimapAlpha", m_Style.minimapAlpha);
     ReadVec4(root, "minimapBgColor", m_Style.minimapBgColor);
     ReadVec4(root, "minimapPlayerColor", m_Style.minimapPlayerColor);
+
+    ReadBool(root, "showFps", m_Style.showFps);
+    ReadAnchor(root, "fpsText", m_Style.fpsText);
+    ReadFloat(root, "fpsScale", m_Style.fpsScale);
+    ReadFloat(root, "fpsWarnBelow", m_Style.fpsWarnBelow);
+    ReadVec4(root, "fpsWarnColor", m_Style.fpsWarnColor);
 
     std::cout << "[OK] HUD style loaded: " << file << std::endl;
     return true;

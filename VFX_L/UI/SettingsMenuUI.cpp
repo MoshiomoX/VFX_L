@@ -37,6 +37,7 @@ SettingsMenuUI::SettingsMenuUI()
         { L"UI の音",      Kind::Volume, (int)AudioSystem::Bus::Ui },
         { L"敵味方の縁取り", Kind::Toggle, 0, &GameSettings::factionOutline },   // 陣営の線だけ（トゥーンの黒い線は消えない。2026-10-08）
         { L"ダメージの数字", Kind::Toggle, 0, &GameSettings::damageNumbers },    // 敵の頭の上の数字 + 受けた赤い数字（2026-10-19）
+        { L"FPS の表示",     Kind::Toggle, 0, &GameSettings::showFps },          // 右上のミニマップの下（2026-10-20）
         { L"戻る",         Kind::Back,   0 },
     };
 }

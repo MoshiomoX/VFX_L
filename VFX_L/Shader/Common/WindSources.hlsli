@@ -8,7 +8,11 @@
 // (ParticleUpdateCS) add WindSourceAir() to the world wind, so one tornado
 // bends the grass in a circle, lifts the sand and litter of the field and
 // drags the smoke around it.
-// C++ mirror: Swarm::WindSource (32 bytes), Swarm::kMaxWindSources
+// 2026-10-20: a source can also push the air one way (pushDir x push,
+// strongest at the centre, gone at the rim) - the gust spell is a vortex
+// that blows forward. CPU sources (SwarmSystem::AddWindBurst) are appended
+// to the table by the same CS.
+// C++ mirror: Swarm::WindSource (48 bytes), Swarm::kMaxWindSources
 // ============================================================
 #ifndef WIND_SOURCES_HLSLI
 #define WIND_SOURCES_HLSLI
@@ -23,6 +27,9 @@ struct WindSource
     float updraft;   // upward speed near the core (m/s)
     float inflow;    // speed toward the centre at the rim (m/s)
     float fade;      // 0..1 (birth / death)
+    float2 pushDir;  // unit xz: the air is blown this way (gust). 0 = none
+    float push;      // m/s at the centre
+    float _pad;
 };
 
 // air velocity of all sources at a ground point xz (y = 0 plane). lift = strongest influence 0..1
@@ -47,9 +54,11 @@ float3 WindSourceAir(StructuredBuffer<WindSource> sources, float2 xz, out float 
         float sw = saturate(r / 0.3) * saturate((1.0 - r) / 0.7);
         float up = saturate((1.0 - r) / 0.6);
         float inw = saturate((r - 0.25) / 0.75) * (1.0 - r);
+        float ps = 1.0 - r * r;   // the push: full at the centre, gone at the rim
         air += float3(tang.x, 0.0, tang.y) * (w.swirl * sw * w.fade)
              + float3(0.0, w.updraft * up * w.fade, 0.0)
-             - float3(outw.x, 0.0, outw.y) * (w.inflow * inw * w.fade);
+             - float3(outw.x, 0.0, outw.y) * (w.inflow * inw * w.fade)
+             + float3(w.pushDir.x, 0.0, w.pushDir.y) * (w.push * ps * w.fade);
         lift = max(lift, (1.0 - r) * w.fade);
     }
     return air;

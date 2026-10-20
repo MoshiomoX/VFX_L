@@ -1,20 +1,12 @@
 // ============================================================
 // SwarmSystemTornado.cpp
-// 砂嵐の術師の砂旋（kEnemyKindTornado）の見た目（2026-10-19 作り直し。ユーザー「風の感じが全く無い」）。
-// 体 = PrimitiveBuilder::CreateTornadoShell の筒（上下が広く腰が少し細い）を SwarmTornadoVS / PS で 2 層描く：
-// 外側の薄い幕 + 内側の細く速い芯。風の動きは PS が 2 枚の雲ノイズを螺旋に沿って上へ流して削る所から出る
-// （80.lv「Creating a tornado in Unity」等の定石）。半透明（premultiplied）、深度は読むだけ、ステンシルは書かない
-// （= 赤い陣営の縁取りは出ない）。足元の砂埃は SwarmTornadoEmitCS が TornadoDust の配方で毎フレーム出す。
-// 読み込み（モデル・材質・シェーダ）は SwarmSystemKinds.cpp の LoadKindAssets
+// 砂嵐の術師の砂旋（kEnemyKindTornado）の見た目。10-19 に筒のモデル（CreateTornadoShell + 流線のテクスチャ）で作り直したが、
+// 10-20 ユーザー「線の感じが過ぎる、筒は要らない。空間の歪みに薄い白を足せば足りる」→ 筒は廃止。砂旋そのものは何も描かない。
+// 見えるのは ① 足元の砂埃（SwarmTornadoEmitCS が TornadoDust.json を毎フレーム出す：屈折 + 薄い白の煙団が軸の周りを回り上がる、
+// 少量の砂粒）② 風源の表（SwarmWindSourceCS）で草 / 落ち葉 / 粒子が巻かれる所。シェーダは SwarmSystemKinds.cpp の LoadKindAssets
 // ============================================================
 #include "Swarm/SwarmSystem.h"
 #include "Graphics/Shader/ComputeShader.h"
-#include "Graphics/Shader/VertexShader.h"
-#include "Graphics/Shader/PixelShader.h"
-#include "Graphics/Renderer/RenderStates.h"
-#include "Graphics/Model/Model.h"
-#include "Graphics/Material/Material.h"
-#include "Graphics/Mesh/Mesh.h"
 #include "Particle/GPUParticleSystem.h"
 
 using namespace DirectX::SimpleMath;
@@ -24,7 +16,6 @@ using namespace DirectX::SimpleMath;
 // ============================================================
 void SwarmSystem::DispatchTornadoEmit(float dt, float totalTime)
 {
-    m_TornadoTime = totalTime;   // 描画の流れ（スクロール）にも使う
     if (!m_TornadoEmitCS || !m_Particles || m_TornadoDustVfx == 0 || !tornadoLook.dust) return;
     if (!m_VFX.GetRecipeSRV() || !m_VFX.GetEmitterSRV()) return;
 
@@ -42,7 +33,7 @@ void SwarmSystem::DispatchTornadoEmit(float dt, float totalTime)
     } tcb;
     static_assert(sizeof(TornadoEmitCB) == 32, "TornadoEmitCB: HLSL 側と不一致");
     tcb.footY = -(m_CachedAICB.enemyRadius + m_CachedAICB.enemyCapsuleHalf);
-    tcb.rateMul = tornadoLook.dustRate * std::clamp(tornadoLook.sandAmount / 0.5f, 0.0f, 1.0f);   // 砂粒は sandAmount 0.5 で頭打ち
+    tcb.rateMul = tornadoLook.dustRate;
     tcb.vfx = m_TornadoDustVfx;
     tcb.swirl = tornadoLook.dustSwirl;
     tcb.footRadius = m_CachedAICB.enemyRadius * m_CachedBomberCB.tornadoScale;
@@ -72,21 +63,54 @@ void SwarmSystem::DispatchTornadoEmit(float dt, float totalTime)
 // 表と枠取りの数を 0 に戻してから、生きている砂旋 1 本 = 1 つ書く（SwarmWindSourceCS）。
 // 読む側（GrassVS / DebrisUpdateCS / ParticleUpdateCS）は radius 0 の枠を飛ばす
 // ============================================================
-void SwarmSystem::DispatchWindSources()
+void SwarmSystem::DispatchWindSources(float dt)
 {
     if (!m_WindSourceUAV || !m_WindSourceCountUAV) return;
     const UINT zeros[4] = { 0, 0, 0, 0 };
     m_Context->ClearUnorderedAccessViewUint(m_WindSourceUAV.Get(), zeros);
     m_Context->ClearUnorderedAccessViewUint(m_WindSourceCountUAV.Get(), zeros);
-    if (!m_WindSourceCS || !tornadoLook.windSource) return;
+    if (!m_WindSourceCS) return;
 
-    // SwarmWindSourceCS の b0 と同じ並び（32B）
+    // ---- CPU の風源（突風。2026-10-20）：歳を進め、生きている物を表の形にして上げる ----
+    uint32_t cpuCount = 0;
+    if (m_WindBurstBuffer)
+    {
+        Swarm::WindSource cpu[Swarm::kMaxWindSources] = {};
+        for (size_t i = 0; i < m_WindBursts.size();)
+        {
+            WindBurst& b = m_WindBursts[i];
+            b.age += dt;
+            if (b.age >= b.life) { m_WindBursts.erase(m_WindBursts.begin() + i); continue; }
+            if (cpuCount < Swarm::kMaxWindSources)
+            {
+                Swarm::WindSource& w = cpu[cpuCount++];
+                w.pos[0] = b.pos.x; w.pos[1] = b.pos.y; w.pos[2] = b.pos.z;
+                w.radius = b.radius;
+                w.swirl = b.swirl; w.updraft = b.updraft; w.inflow = b.inflow;
+                w.fade = std::sin(3.14159265f * (b.age / b.life));   // 出てすぐ強く、終わりで 0
+                w.pushDir[0] = b.dir.x; w.pushDir[1] = b.dir.y;
+                w.push = b.push;
+            }
+            ++i;
+        }
+        D3D11_MAPPED_SUBRESOURCE mapped = {};
+        if (SUCCEEDED(m_Context->Map(m_WindBurstBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+        {
+            memcpy(mapped.pData, cpu, sizeof(cpu));
+            m_Context->Unmap(m_WindBurstBuffer.Get(), 0);
+        }
+        else cpuCount = 0;
+    }
+    if (cpuCount == 0 && !tornadoLook.windSource) return;
+
+    // SwarmWindSourceCS の b0 と同じ並び（48B）
     struct WindSourceCB
     {
         float footY, radiusMul, hitRadius, swirl;
         float updraft, inflow, growTime; uint32_t slotCount;
-    } cb;
-    static_assert(sizeof(WindSourceCB) == 32, "WindSourceCB: HLSL 側と不一致");
+        uint32_t cpuCount, tornadoOn; float pad[2];
+    } cb = {};
+    static_assert(sizeof(WindSourceCB) == 48, "WindSourceCB: HLSL 側と不一致");
     cb.footY = -(m_CachedAICB.enemyRadius + m_CachedAICB.enemyCapsuleHalf);
     cb.radiusMul = tornadoLook.windRadiusMul;
     cb.hitRadius = m_CachedAICB.enemyRadius * m_CachedBomberCB.tornadoScale;
@@ -95,12 +119,15 @@ void SwarmSystem::DispatchWindSources()
     cb.inflow = tornadoLook.windInflow;
     cb.growTime = tornadoLook.growTime;
     cb.slotCount = Swarm::kMaxEnemies;
+    cb.cpuCount = cpuCount;
+    cb.tornadoOn = tornadoLook.windSource ? 1u : 0u;
 
     m_WindSourceCS->WriteBuffer(m_Context, 0, &cb);
     m_WindSourceCS->Bind(m_Context);
     m_WindSourceCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_WindSourceCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_WindSourceCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+    m_WindSourceCS->SetSRV(m_Context, "cpuSources", m_WindBurstSRV.Get());
     m_WindSourceCS->SetUAV(m_Context, "windSources", m_WindSourceUAV.Get());
     m_WindSourceCS->SetUAV(m_Context, "windCount", m_WindSourceCountUAV.Get());
     m_WindSourceCS->BindUAVs(m_Context);
@@ -109,58 +136,3 @@ void SwarmSystem::DispatchWindSources()
     m_WindSourceCS->UnbindUAVs(m_Context);
 }
 
-// ============================================================
-// 描画（RenderOverlay：警告の輪の後・HP バーの前。半透明なので不透明物の後）
-// 外側の幕 → 内側の芯の 2 回。数は砂旋の一覧（m_TornadoListUAV）から間接引数で
-// ============================================================
-void SwarmSystem::RenderTornadoes(const Matrix& view, const Matrix& proj)
-{
-    if (!tornadoLook.enabled || !m_TornadoMaterial || !m_TornadoModel || m_TornadoDrawArgs.empty()) return;
-
-    m_TornadoMaterial->Bind(m_Context);   // VS + PS、t0 / t1 = 2 枚の雲ノイズ
-    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
-    m_Context->PSSetSamplers(0, 1, &samp);
-
-    EnemyRenderCB cb;
-    cb.view = view;
-    cb.proj = proj;
-    m_TornadoVS->WriteBuffer(m_Context, 0, &cb);
-    m_TornadoVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 体の半径（足元の高さ）
-    m_TornadoVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);  // 体格・飛ぶ秒
-
-    m_TornadoVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
-    m_TornadoVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
-    m_TornadoVS->SetSRV(m_Context, "tornadoList", m_TornadoListSRV.Get());
-    m_TornadoVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
-
-    auto& rs = RenderStates::Get();
-    const float blendFactor[4] = { 0, 0, 0, 0 };
-    m_Context->OMSetBlendState(rs.AlphaBlend(), blendFactor, 0xFFFFFFFF);   // premultiplied
-    m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);               // ステンシル無し = 縁取り無し
-    m_Context->RSSetState(rs.CullNone());                                    // 薄い幕なので裏も描く
-
-    const float hitDiameter = 2.0f * m_CachedAICB.enemyRadius * m_CachedBomberCB.tornadoScale;
-    const auto& subs = m_TornadoModel->GetSubMeshes();
-    // 砂霭（層 2）：sandAmount が 0.5 を超えた分だけ濃くなる薄い膜。0 なら描かない
-    const float haze = tornadoLook.hazeMax * std::clamp((tornadoLook.sandAmount - 0.5f) / 0.5f, 0.0f, 1.0f);
-    const int layers = haze > 0.005f ? 3 : 2;
-    for (int layer = 0; layer < layers; ++layer)
-    {
-        PropMeshCB p = {};
-        p.anchor = Vector3::Zero;
-        p.scale = tornadoLook.height;
-        p.hold = Vector3(hitDiameter * tornadoLook.widthMul, (float)layer, tornadoLook.heave);
-        p.yaw = m_TornadoTime;
-        p.tint = tornadoLook.tint;
-        p.bob = tornadoLook.spin;
-        p.alpha = tornadoLook.growTime;
-        p._pad[0] = haze;   // 霭の不透明度（VS が頂点色の a に掛ける）
-        m_TornadoVS->WriteBuffer(m_Context, 4, &p);
-        for (size_t i = 0; i < subs.size() && i < m_TornadoDrawArgs.size(); ++i)
-            if (subs[i].mesh && m_TornadoDrawArgs[i])
-                subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_TornadoDrawArgs[i].Get(), 0);
-    }
-
-    m_TornadoVS->UnbindSRVs(m_Context);   // 次のフレームの Compute が UAV として使うので外す
-    rs.Restore(m_Context);
-}

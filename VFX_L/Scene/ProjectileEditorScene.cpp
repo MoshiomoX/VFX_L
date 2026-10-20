@@ -1086,4 +1086,12 @@ void ProjectileEditorScene::Render(Renderer& renderer)
     m_ParticleSystem.SetCamera(GetCamera());
     m_ParticleSystem.SetLight(renderer.GetLightData());
     m_ParticleSystem.Render();
+    // 画面の歪み（2026-10-20）
+    Graphics& gfx = Application::Get().GetGraphics();
+    if (gfx.BeginDistortion())
+    {
+        m_ParticleSystem.RenderDistortion();
+        gfx.RestoreRenderTarget();
+        gfx.ApplyDistortion();
+    }
 }

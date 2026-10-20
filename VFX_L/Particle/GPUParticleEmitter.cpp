@@ -75,8 +75,12 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     if (singleBody) e.renderMode |= ParticleRenderMode::kSingleBody;   // 弾の本体：常にちょうど 1 つ（2026-10-16）
     if (renderMode != 0 && meshGlow && meshBehind)   // 発光メッシュの裏面だけ = 本体の後ろの縁取り（2026-10-16）
         e.renderMode |= ParticleRenderMode::kMeshBehind;
-    if (renderMode == 0 && toon)   // トゥーン（ビルボードだけ）
+    if (renderMode == 0 && streak)   // 流線（ビルボードだけ。トゥーンとは排他、2026-10-20）
+        e.renderMode |= ParticleRenderMode::PackStreak(streakStretch);
+    else if (renderMode == 0 && toon)   // トゥーン（ビルボードだけ）
         e.renderMode |= ParticleRenderMode::PackToon(toonOutline, toonCut, toonBands, toonShade);
+    if (renderMode == 0 && !toon && distortLevel > 0)   // 画面の歪み（ビルボードだけ。bit 15 はトゥーンの線と同じ位置なのでトゥーン無しの時だけ）
+        e.renderMode |= ParticleRenderMode::PackDistort(distortLevel, distortOnly);
     if (windResponse > 0.0f)       // 世界の風を受ける（ParticleUpdateCS）
         e.renderMode |= ParticleRenderMode::PackWind(windResponse);
 

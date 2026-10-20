@@ -272,6 +272,7 @@ void CollisionTestScene::UpdateTitle(float dt)
     {
         m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
         m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
+        AddGustWindBurst(g.pos, g.dir, g.length);
     }
     m_PlayerAnimSystem.Update(m_Registry, gdt);
     m_SkinnedAnimSystem.Update(m_Registry, gdt);

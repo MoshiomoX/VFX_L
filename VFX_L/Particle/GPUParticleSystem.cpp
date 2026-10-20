@@ -541,6 +541,12 @@ bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
     std::cout << "[LoadShaders] RenderPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
+    // 画面の歪み（2026-10-20）。読めなくても粒子本体は描ける
+    m_DistortPS = std::make_shared<PixelShader>();
+    hr = ShaderPath::Load(m_DistortPS.get(), device, L"Shader/Particle/ParticleDistortPS.hlsl");
+    std::cout << "[LoadShaders] DistortPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
+    if (FAILED(hr)) m_DistortPS.reset();
+
     return true;
 }
 // ============================================
@@ -797,6 +803,60 @@ void GPUParticleSystem::RenderLitMeshes()
 {
     if (!m_Camera) return;
     RenderMeshes(m_Context, 0, 0);
+}
+
+// ============================================================
+// 画面の歪みのパス（2026-10-20、エルデンリングの風の「空気の揺らぎ」）
+// GPUParticleVS の g_Pass 3 = 歪みの強さを持つビルボードだけ（それ以外は面積 0）、
+// PS は ParticleDistortPS（形の分だけ外向きの uv のずれを書く）。ONE / ONE で足し合わせ、
+// 深度は読むだけ。RT はシーンが Graphics::BeginDistortion で bind 済み
+// ============================================================
+void GPUParticleSystem::RenderDistortion()
+{
+    if (!m_Camera || !m_DistortPS) return;
+    if (!m_RenderVS || !m_RenderVS->IsValid()) return;
+
+    auto context = m_Context;
+    ParticleRenderCB rcb = {};
+    rcb.view = m_Camera->GetViewMatrix().Transpose();
+    rcb.projection = m_Camera->GetProjectionMatrix().Transpose();
+    rcb.cameraPosition = m_Camera->GetPosition();
+    rcb.pass = 3.0f;
+    m_RenderVS->WriteBuffer(context, 0, &rcb);
+    m_RenderVS->SetSRV(context, "particles", m_ParticleSRV.Get());
+    m_RenderVS->SetSRV(context, "aliveList", m_AliveListSRV.Get());
+
+    ParticleSheets::Load();
+    ID3D11ShaderResourceView* sheets[ParticleSheets::kMaxSheets] = {};
+    struct { uint32_t pointMask, premulMask, pad[2]; } scb = {};
+    for (int i = 0; i < ParticleSheets::Count() && i < ParticleSheets::kMaxSheets; ++i)
+    {
+        const auto* s = ParticleSheets::Get(i);
+        const Texture* tex = (i == 0 && m_Texture) ? m_Texture.get() : s->texture.get();
+        sheets[i] = tex ? tex->GetSRV() : nullptr;
+        if (s->point)         scb.pointMask |= 1u << i;
+        if (s->premultiplied) scb.premulMask |= 1u << i;
+    }
+    context->PSSetShaderResources(0, ParticleSheets::kMaxSheets, sheets);
+    m_DistortPS->WriteBuffer(context, 0, &scb);
+    ID3D11SamplerState* samps[2] = { RenderStates::Get().LinearClamp(), RenderStates::Get().PointClamp() };
+    context->PSSetSamplers(0, 2, samps);
+
+    // ONE / ONE（SRC_ALPHA / ONE の加算ビルボード：PS は alpha 1 を書くので同じ）、深度は読むだけ
+    RenderStates::Get().ApplyAdditiveBillboard(context);
+    context->OMSetDepthStencilState(RenderStates::Get().DepthReadOnly(), 0);
+
+    m_RenderVS->Bind(context);
+    m_DistortPS->Bind(context);
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context->IASetInputLayout(nullptr);
+    context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
+    context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
+
+    RenderStates::Get().Restore(context);
+    m_RenderVS->UnbindSRVs(context);
+    ID3D11ShaderResourceView* nullSheets[ParticleSheets::kMaxSheets] = {};
+    context->PSSetShaderResources(0, ParticleSheets::kMaxSheets, nullSheets);
 }
 
 void GPUParticleSystem::Render(bool litMeshes)

@@ -134,6 +134,8 @@ private:
     bool IsPlayerDead();
     const Vector3* PlayerPos();      // プレイヤーの位置（居なければ null）。部品へ渡す用
     void PushWind();                 // 世界の風（WeatherSystem::Wind）を草・マント・粒子・草の火へ渡す（毎フレーム、粒子の Flush の前）
+    // 突風を風源にする（2026-10-20）：プレイヤーの前に渦 + 風下へ押す風（SwarmSystem::AddWindBurst）。流線の粒子・草・落ち葉・煙が巻かれる
+    void AddGustWindBurst(const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector2& dir, float length);
     void RespawnCrates();            // 報酬の箱をプレイヤーの周りへ並べ直す（開始時・地形の作り直し・パネル）
     void RespawnElites();            // エリートの的をプレイヤーの前へ（地形の作り直し・パネル）
     void EndRun();                   // 戦績を書いてリザルトへ
