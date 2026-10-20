@@ -219,7 +219,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
 
     // ---- lit bomber: swell toward the blast, anchored at the feet ----
     bool lit = SwarmInvulnerable(extra);   // a lit bomber / dash bomber (2026-10-18)
-    float fuseT = (extra.kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberFuse : g_BomberFuseTime;
+    float fuseT = (extra.kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberWindup + g_DashBomberFuse : g_BomberFuseTime;
     float fuseU = lit ? saturate(extra.fuse / max(fuseT, 1e-3)) : 0.0;
     if (lit)
     {

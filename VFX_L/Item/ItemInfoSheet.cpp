@@ -64,6 +64,7 @@ namespace
         case AreaParam::Duration:
         case AreaParam::DamagePerTick:
         case AreaParam::Length:
+        case AreaParam::ChainCount:
             return +1;
         case AreaParam::TickInterval:
         case AreaParam::CastInterval:
@@ -105,6 +106,7 @@ namespace
         case AreaParam::CastInterval:  return L"発動間隔";
         case AreaParam::ManaCost:      return L"消費MP";
         case AreaParam::Length:        return L"射程";
+        case AreaParam::ChainCount:    return L"連鎖";
         }
         return L"";
     }
@@ -134,6 +136,7 @@ namespace
         case AreaParam::Duration:
         case AreaParam::TickInterval:
         case AreaParam::CastInterval: return L"秒";
+        case AreaParam::ChainCount:   return L"回";
         default:                      return L"";
         }
     }
@@ -324,6 +327,9 @@ namespace ItemInfoSheet
             s.traits.push_back(v.spawnAtTarget ? L"敵の足元に出る" : L"自分の周りに出る");
         else if (AreaProfileDB::At(v.profile).chargeTime <= 0.0f && v.duration < 0.5f)
             s.traits.push_back(L"一番近い敵へ一瞬で届く");   // アークボルト（溜め 0 の稲妻。2026-10-15）
+        // 連鎖のルーン（2026-10-20）: 稲妻が届いた敵から近くの別の敵へ跳ぶ
+        if (v.chainCount > 0)
+            s.traits.push_back(L"届いた敵から近くの別の敵へ跳ぶ");
         // 毒素（猛毒の沼。2026-10-17）：威力の一部は毒になって 1 秒かけて効く
         if (v.profile > 0 && AreaProfileDB::At(v.profile).toxin > 0.0f)
         {
@@ -348,6 +354,8 @@ namespace ItemInfoSheet
             s.stats.push_back(StatLine(L"射程", v.length, b.length, L"m", +1));
         if (beam && Changed(v.radius, b.radius))
             s.stats.push_back(StatLine(L"太さ", v.radius * 2.0f, b.radius * 2.0f, L"m", +1));
+        if (v.chainCount > 0 || v.chainCount != b.chainCount)
+            s.stats.push_back(StatLine(L"連鎖", (float)v.chainCount, (float)b.chainCount, L"回", +1));
         if (!beam && Changed(v.radius, b.radius))
             s.stats.push_back(StatLine(L"範囲", v.radius, b.radius, L"m", +1));
     }
@@ -359,7 +367,8 @@ namespace ItemInfoSheet
                 s.stats.push_back(ModifierLine(m.param, m.op, m.value));
         if (HasAreaItems())
             for (const auto& m : def.areaModifiers)
-                s.stats.push_back(ModifierLine(m.param, m.op, m.value, L"範囲魔法の"));
+                if (!m.chainOnly)   // 連鎖のルーンのアークボルト用の分は弾の行と同じ数字なので出さない（説明文に書いてある）
+                    s.stats.push_back(ModifierLine(m.param, m.op, m.value, L"範囲魔法の"));
     }
 
     void FillFrame(Sheet& s, const ItemCommon& c)

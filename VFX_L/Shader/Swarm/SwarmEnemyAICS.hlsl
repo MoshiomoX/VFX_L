@@ -260,11 +260,12 @@ void main(uint3 id : SV_DispatchThreadID)
         casting = f > 0.0;
     }
 
-    // ---- dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger on our level, then sprints
-    //      straight at the player (re-aimed every step, see the dash below) until it touches / the fuse runs out
-    //      (ContactCS blows it up). fuse > 0 = seconds since lit (counted here, read by ContactCS / VS).
-    //      moveSpeed 0 = training target: never lights ----
-    bool dashing = false;
+    // ---- dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger on our level, locks its
+    //      yaw at the player, stands still g_DashBomberWindup seconds (flashing), then sprints straight along that yaw
+    //      (see the dash below) until it touches / the fuse runs out (ContactCS blows it up).
+    //      2026-10-20: it used to re-aim every step at 12 m/s = nearly impossible to dodge; now a side step is enough.
+    //      fuse > 0 = seconds since lit (counted here, read by ContactCS / VS). moveSpeed 0 = training target: never lights ----
+    bool dashing = false, dashWindup = false;
     if (extra.kind == SWARM_KIND_DASHBOMBER)
     {
         float f = extra.fuse;
@@ -274,11 +275,15 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             float2 toP = g_PlayerPos.xz - pos.xz;
             if (dot(toP, toP) <= g_DashBomberTrigger * g_DashBomberTrigger)
+            {
                 f = g_Step;
+                enemies[i].yaw = atan2(toP.x, toP.y);   // the dash direction, locked now
+            }
         }
         extra.fuse = f;
         enemyExtra[i].fuse = f;
-        dashing = f > 0.0;
+        dashWindup = f > 0.0 && f <= g_DashBomberWindup;
+        dashing = f > g_DashBomberWindup;
     }
 
     // ---- hit stun / lit bomber / charger winding up or catching its breath: stand still ----
@@ -289,7 +294,7 @@ void main(uint3 id : SV_DispatchThreadID)
     bool stunned = (enemies[i].animIndex == 2u) && (cphase == SWARM_CHARGE_CHASE) && !dashing;
     // a surfaced burrower stands where it came out (bites once, then digs in)
     bool surfaced = (extra.kind == SWARM_KIND_BURROWER) && !buried;
-    if (stunned || lit || surfaced || casting || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
+    if (stunned || lit || surfaced || casting || dashWindup || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
     {
         // y is the fall speed (MoveCS owns it): a stunned enemy in mid-air keeps falling
         enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
@@ -423,13 +428,13 @@ void main(uint3 id : SV_DispatchThreadID)
         v = float3(ys, 0.0, yc) * dashSpeed;
         charging = true;
     }
-    // ---- lit dash bomber: sprints at the player, re-aimed every step, runs into them (ContactCS blows it up) ----
+    // ---- lit dash bomber (wind-up over): sprints straight along the yaw locked when it lit, through where the player
+    //      was (ContactCS blows it up on touch). MoveCS turns the yaw toward the velocity, which is this yaw = no drift ----
     if (dashing)
     {
-        float3 toP = g_PlayerPos - pos;
-        toP.y = 0.0;
-        float l = length(toP);
-        v = (l > 1e-4) ? toP / l * g_DashBomberDashSpeed : float3(0, 0, 0);
+        float ys, yc;
+        sincos(enemies[i].yaw, ys, yc);
+        v = float3(ys, 0.0, yc) * g_DashBomberDashSpeed;
         charging = true;
     }
 

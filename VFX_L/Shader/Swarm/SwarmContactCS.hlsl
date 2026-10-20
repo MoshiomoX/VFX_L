@@ -125,8 +125,9 @@ void UpdateBomber(uint i, SwarmEnemyExtra extra)
     Explode(i, pos, g_BomberBlastRadius, g_BomberBlastDamage, 1.0);
 }
 
-// dash bomber (2026-10-18): AICS lights it and sprints it at the player (fuse counts up there);
-// here it blows up the step it touches the player, or when the fuse runs out. Never melees
+// dash bomber (2026-10-18): AICS lights it, holds it g_DashBomberWindup seconds, then sprints it along its yaw
+// (fuse counts up there); here it blows up the step it touches the player, or g_DashBomberFuse seconds after
+// the wind-up (it ran past). Never melees
 void UpdateDashBomber(uint i, SwarmEnemyExtra extra)
 {
     if (extra.fuse <= 0.0)
@@ -134,7 +135,7 @@ void UpdateDashBomber(uint i, SwarmEnemyExtra extra)
     float3 pos = enemies[i].position;
     float reach = g_EnemyRadius * g_DashBomberScale + g_PlayerRadius + CONTACT_SKIN;
     bool touch = g_PlayerAlive != 0u && PlayerWithinCapsule(pos, g_EnemyCapsuleHalf * g_DashBomberScale, reach);
-    if (touch || extra.fuse >= g_DashBomberFuse)
+    if (touch || extra.fuse >= g_DashBomberWindup + g_DashBomberFuse)
         Explode(i, pos, g_DashBomberBlastRadius, g_BomberBlastDamage * g_DashBomberDamageMul,
                 g_DashBomberBlastRadius / max(g_BomberBlastRadius, 0.1));
 }

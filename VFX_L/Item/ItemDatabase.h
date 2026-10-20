@@ -32,6 +32,9 @@ namespace ItemDatabase
     // 修飾ルーンを SpellStats / AreaStats へ適用する
     void ApplyModifier(SpellStats& stats, const ParamModifier& mod);
     void ApplyModifier(AreaStats& stats, const AreaModifier& mod);
+    // 連鎖できる範囲魔法か（溜め 0 の光線型 = アークボルトの稲妻。2026-10-20）。
+    // AreaParam::ChainCount と chainOnly の修飾はこれが true の時だけ掛かる
+    bool AreaCanChain(const AreaStats& stats);
 
     // 登録済み全ID（UI の一覧表示用）。能力値（Stat）は含まない
     const std::vector<ItemID>& GetAllIDs();

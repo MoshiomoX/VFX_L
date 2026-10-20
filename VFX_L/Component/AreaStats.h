@@ -45,6 +45,11 @@ struct AreaStats
     // --- 貯蔵（水晶玉。2026-10-06）: WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光線の起点が光球）。-1 = 杖から ---
     int storeUnit = -1;
 
+    // --- 連鎖（連鎖のルーン。2026-10-20）: 一瞬の稲妻（アークボルト）が届いた敵から、近くの別の敵へ跳ぶ回数。
+    // 溜め 0 の光線型だけに効く（ItemDatabase::AreaCanChain）。跳ぶ先は GPU（SwarmBeamTargetCS の cmd 3）が探し、
+    // WeaponSystem::UpdateBeams が届いた敵の位置から次の光線を始める ---
+    int chainCount = 0;
+
     // --- エディタのプロファイル（AreaProfileDB の番号。0 = 無し）---
     // 単発か持続か・上下の厚み・プレイヤーへの追従・硬直・見た目 はここから引く。
     // 半径・持続・tick・威力 は上の値を使う（集約時にプロファイルの値を基礎値として入れ、修飾ルーンを掛けてある）

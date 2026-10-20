@@ -148,6 +148,7 @@ void WeaponSystem::UpdateOrbs(float dt, float castDt, float castSpeed, float dur
             const bool beam = a.profile > 0 && AreaProfileDB::At(a.profile).IsBeam();
             if (!beam) continue;
             if (!StartBeam(a, o.pos, targetPos, castSpeed, durationMul, o.serial)) continue;
+            SetupBeamChain(a, castSpeed, durationMul);   // 連鎖のルーン × アークボルト（2026-10-20）
             mana.Reserve(a.manaCost);
             ++m_OrbCasts;
             timer = a.castInterval;

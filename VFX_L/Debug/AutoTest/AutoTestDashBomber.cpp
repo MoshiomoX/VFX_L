@@ -26,8 +26,10 @@ namespace
 // 7 秒: B = 同じ配置で詠唱を戻す（点火後に撃っても HP が減らないか：`hpAtLit` と爆発直前の HP を比べる）
 // 13 秒: C = 正面 3m に自爆兵 1 体（触れて点火 → 1 秒燃える間に撃たれても HP が減らないか）
 // 18 秒: D = 正面 8m に 1 体（9m の点火範囲の中）。点火を見た瞬間プレイヤーを −Z へ 20m 飛ばす = 触れられない。
-//         導火線 dashBomberFuse 秒で勝手に爆発して消えるか（blastAt − litAt ≈ 1.5、hits 0）。2026-10-19 ユーザー「触れないと消えない」
-// 24 秒: done
+//         導火線（溜め + dashBomberFuse）秒で勝手に爆発して消えるか（blastAt − litAt ≈ 1.45、hits 0）。2026-10-19 ユーザー「触れないと消えない」
+// 24 秒: E = A と同じ配置、点火を見たらカメラの右へ走る（溜め 0.45 秒の間に一歩横へ）。向きが固定されているので hits 0 のはず
+//         （2026-10-20 ユーザー「ほぼ 100% 当たる」→ 毎ステップ狙い直し → 向き固定 + 溜め）。`look Edash` は走り出した 0.3 秒後
+// 30 秒: done
 // ============================================================
 void AutoTestDashBomber::Run()
 {
@@ -35,8 +37,9 @@ void AutoTestDashBomber::Run()
     auto& tf = m_Registry.Get<TransformComponent>(m_Player);
     static float s_NextLog = 0.0f, s_LastHp = 0.0f, s_Lost = 0.0f, s_HpAtLit = -1.0f, s_LastEnemyHp = 0.0f, s_BlastAt = -1.0f, s_LitAt = -1.0f;
     static int s_Hits = 0;
-    static bool s_LookLit = false, s_LookBlast = false, s_Exploded = false, s_Teleported = false;
+    static bool s_LookLit = false, s_LookBlast = false, s_LookDash = false, s_Exploded = false, s_Teleported = false, s_Dodging = false;
     static const char* s_Phase = "A";
+    auto& pcs = m_PlayerControlSystem;
 
     auto spawnAt = [&](float dz, uint32_t kind)
     {
@@ -54,7 +57,8 @@ void AutoTestDashBomber::Run()
         m_Swarm.KillAll();
         if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = !casting;
         s_Hits = 0; s_Lost = 0.0f; s_HpAtLit = -1.0f; s_LastEnemyHp = 0.0f; s_BlastAt = -1.0f; s_LitAt = -1.0f;
-        s_LookLit = s_LookBlast = s_Exploded = s_Teleported = false;
+        s_LookLit = s_LookBlast = s_LookDash = s_Exploded = s_Teleported = s_Dodging = false;
+        pcs.testMove = Vector2::Zero;
         s_NextLog = m_AutoTime + 0.25f;
         spawnAt(dz, kind);
     };
@@ -81,10 +85,12 @@ void AutoTestDashBomber::Run()
         cam.distance = 12.0f;
         cam.avoidOcclusion = false;
         cam.SnapToTarget();
+        pcs.testInput = true;
+        pcs.testMove = Vector2::Zero;
         beginPhase("A", 14.0f, Swarm::kEnemyKindDashBomber, false);
         m_AutoStep = 1;
     }
-    if (m_AutoStep == 0 || m_AutoStep >= 5) return;
+    if (m_AutoStep == 0 || m_AutoStep >= 6) return;
 
     if (m_Registry.Has<HealthComponent>(m_Player))
     {
@@ -129,6 +135,19 @@ void AutoTestDashBomber::Run()
                     snprintf(line, sizeof(line), "dashbomber D teleported t %.2f fuse %.2f", m_AutoTime, fuse);
                     AutoTestLog(line);
                 }
+                // E: 点火を見たらカメラの右へ走る（溜めの間に横へずれる = 固定された向きから外れる）
+                if (fuse > 0.0f && !s_Dodging && s_Phase[0] == 'E')
+                {
+                    s_Dodging = true;
+                    pcs.testMove = Vector2(1.0f, 0.0f);
+                    snprintf(line, sizeof(line), "dashbomber E dodge t %.2f fuse %.2f dist %.2f", m_AutoTime, fuse, dist);
+                    AutoTestLog(line);
+                }
+                if (!s_LookDash && s_Phase[0] == 'E' && fuse > m_Swarm.GetBomberParams().dashBomberWindup + 0.3f)
+                {
+                    s_LookDash = true;
+                    AutoTestLog("dashbomber look Edash");
+                }
             }
             else if (s_LitAt >= 0.0f && !s_Exploded) { s_Exploded = true; s_BlastAt = m_AutoTime; }
             snprintf(line, sizeof(line), "dashbomber %s t %.2f fuse %.2f dist %.2f speed %.2f hp %.0f alive %d hits %d lost %.0f",
@@ -172,8 +191,16 @@ void AutoTestDashBomber::Run()
     else if (m_AutoStep == 4 && m_AutoTime >= 24.0f)
     {
         result();
-        AutoTestLog("dashbomber done");
+        beginPhase("E", 14.0f, Swarm::kEnemyKindDashBomber, false);
         m_AutoStep = 5;
+    }
+    else if (m_AutoStep == 5 && m_AutoTime >= 30.0f)
+    {
+        result();
+        pcs.testMove = Vector2::Zero;
+        pcs.testInput = false;
+        AutoTestLog("dashbomber done");
+        m_AutoStep = 6;
     }
 }
 

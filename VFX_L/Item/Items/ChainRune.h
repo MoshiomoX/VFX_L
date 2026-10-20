@@ -4,7 +4,10 @@
 // 上下 2 マスの魔法の弾が、敵に当たっても消えずに近くの別の敵へ跳ぶ（最大 2 回）。
 // そのかわり 1 発の威力は下がる。GPU 側: SwarmHitCS が当たった弾を生かしたまま
 // projStates に「連鎖中」を書き、SwarmProjMoveCS が次の敵へ曲線を組み直す（SwarmCommon.hlsli の SWARM_PROJ_CHAIN*）。
-// Drop / Lob 型（メテオ・毒）と範囲魔法には効かない
+// Drop / Lob 型（メテオ・毒）と範囲魔法には効かない。
+// 例外 = アークボルト（2026-10-20、ユーザー：「電弧も跳ねるように」）：溜め 0 の光線型（AreaStats::chainCount）は
+// 届いた敵から近くの別の敵へ稲妻をもう一本走らせる（WeaponSystem::UpdateBeams の連鎖、跳ぶ先は SwarmBeamTargetCS の cmd 3）。
+// 毒沼・突風・魔導光線にはルーンの代価も掛からない（AreaModifier::chainOnly）
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
@@ -18,7 +21,7 @@ inline FunctionItemDef MakeChainRune()
     def.common.id = ItemID::ChainRune;
     def.common.name = "Chain Rune";
     def.common.displayName = L"連鎖のルーン";
-    def.common.description = L"上下の魔法の弾が、当たった敵から近くの別の敵へ 2 回まで跳ぶ。そのかわり 1 発の威力は下がる。";
+    def.common.description = L"上下の魔法の弾（アークボルトの稲妻も）が、当たった敵から近くの別の敵へ 2 回まで跳ぶ。そのかわり 1 発の威力は下がる。";
     def.common.category = ItemCategory::Function;
     def.common.occupyCells = ItemShape::Single();
     def.common.influenceCells = ItemShape::Vertical();   // 上下 2 マス（分裂・二重の十字、拡大鏡の斜め、加速の左右と重ならない）
@@ -30,7 +33,9 @@ inline FunctionItemDef MakeChainRune()
     def.spellModifiers.push_back({ SpellParam::ChainCount, ModifyOp::Add,      2.0f });
     def.spellModifiers.push_back({ SpellParam::Damage,     ModifyOp::Multiply, 0.75f });
 
-    // ---- AOE への修飾：無し（範囲魔法は跳ばない）----
+    // ---- AOE への修飾：アークボルト（溜め 0 の光線）だけ。他の範囲魔法には ItemDatabase::ApplyModifier が掛けない ----
+    def.areaModifiers.push_back({ AreaParam::ChainCount,    ModifyOp::Add,      2.0f,  true });
+    def.areaModifiers.push_back({ AreaParam::DamagePerTick, ModifyOp::Multiply, 0.75f, true });
 
     return def;
 }

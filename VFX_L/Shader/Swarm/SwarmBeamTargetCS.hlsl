@@ -10,6 +10,11 @@
 //   cmd 2 = track: keep the locked enemy while it is alive and within
 //           reach; otherwise pick the alive enemy within the beam length
 //           whose direction is closest to the beam (smallest turn)
+//   cmd 3 = chain (2026-10-20, chain rune on the arc bolt): the alive
+//           enemy nearest to the seek point (where the bolt landed)
+//           within SWARM_CHAIN_RADIUS, excluding the slots in
+//           asuint(dir.xyz) (the enemies this chain already reached).
+//           valid = 0 if none
 // The result (slot, serial, valid, position) stays in beamTargets, which
 // is also the state for the next frame (the locked slot). serial tells
 // the CPU which beam the answer belongs to (a channel is reused).
@@ -80,6 +85,16 @@ void main(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
                 // start: nearest to the seek point
                 score = length(p.xz - seek.xz);
                 if (score > kLockRadius)
+                    continue;
+            }
+            else if (cmd == 3u)
+            {
+                // chain: nearest to the enemy just hit, but none of the
+                // enemies this chain already reached (dir.xyz = slots)
+                if (i == asuint(dir.x) || i == asuint(dir.y) || i == asuint(dir.z))
+                    continue;
+                score = length(p.xz - seek.xz);
+                if (score > SWARM_CHAIN_RADIUS)
                     continue;
             }
             else

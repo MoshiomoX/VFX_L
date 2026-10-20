@@ -848,6 +848,17 @@ bool SwarmSystem::GetBeamTarget(uint32_t ch, uint32_t serial, Vector3& pos) cons
     return true;
 }
 
+int SwarmSystem::QueryBeamTarget(uint32_t ch, uint32_t serial, Vector3& pos, uint32_t& slot) const
+{
+    if (ch >= Swarm::kMaxBeams) return -1;
+    const Swarm::BeamTarget& t = m_BeamTargets[ch];
+    if (t.serial != serial) return -1;
+    if (t.valid == 0) return 0;
+    pos = { t.pos[0], t.pos[1], t.pos[2] };
+    slot = t.slot;
+    return 1;
+}
+
 // ============================================================
 // 光線の標的を決める（1 チャンネル 1 グループ）→ staging へ写す。使っている光線が無ければ何もしない
 // ============================================================

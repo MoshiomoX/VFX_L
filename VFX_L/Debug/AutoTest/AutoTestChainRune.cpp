@@ -151,10 +151,72 @@ void AutoTestChainRune::Run()
             m_AutoStep = 5;
         }
     }
+    // ---- C / D 段：アークボルト（2026-10-20、稲妻も跳ぶ）。置き方は Z 字を枠の左上に、ルーンはその下 ----
     else if (m_AutoStep == 5 && m_AutoTime >= 13.0f)
     {
-        AutoTestLog("chainrune done");
+        SpawnTargets();
+        auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+        ClearBackpackItems(bp);
+        // Z 字 {0,0}{0,1}{1,1}{1,2} を (lo, lo) に。ルーンは (lo+2, lo+1)：その上のマス (lo+1, lo+1) が稲妻
+        if (BackpackLogic::Place(bp, ItemID::ArcBolt, lo, lo, 0) < 0)
+            AutoTestLog("chainrune place arc FAILED");
+        bp.dirty = true;
+        AutoTestLog("chainrune C start (arc bolt, no rune)");
         m_AutoStep = 6;
+    }
+    else if (m_AutoStep == 6 && m_AutoTime >= 18.5f)
+    {
+        int damaged = 0;
+        if (ReadHp(&s_LostA, &damaged))
+        {
+            s_LostA = 5.0f * 100000.0f - s_LostA;
+            snprintf(line, sizeof(line), "chainrune C lost %.1f damaged %d", s_LostA, damaged);
+            AutoTestLog(line);
+        }
+        SpawnTargets();
+        auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
+        if (BackpackLogic::Place(bp, ItemID::ChainRune, lo + 2, lo + 1, 0) < 0)
+            AutoTestLog("chainrune place rune (arc) FAILED");
+        bp.dirty = true;
+        m_AutoStep = 7;
+    }
+    else if (m_AutoStep == 7 && m_AutoTime >= 19.0f)
+    {
+        const auto& wand = m_Registry.Get<WandComponent>(m_Player);
+        for (const auto& a : wand.areas)
+        {
+            snprintf(line, sizeof(line), "chainrune area chain %d damage %.2f interval %.3f", a.chainCount, a.damagePerTick, a.castInterval);
+            AutoTestLog(line);
+        }
+        s_Look = 0;
+        m_AutoStep = 8;
+    }
+    else if (m_AutoStep == 8)
+    {
+        if (s_Look < 3 && m_AutoTime >= 20.0f + 1.0f * (float)s_Look)
+        {
+            snprintf(line, sizeof(line), "chainrune look arc%d beams %d", s_Look, m_WeaponSystem.GetActiveBeamCount());
+            AutoTestLog(line);
+            ++s_Look;
+        }
+        if (m_AutoTime >= 24.0f)
+        {
+            float total = 0.0f;
+            int damaged = 0;
+            if (ReadHp(&total, &damaged))
+            {
+                const float lostD = 5.0f * 100000.0f - total;
+                snprintf(line, sizeof(line), "chainrune D lost %.1f damaged %d ratio %.2f", lostD, damaged,
+                    (s_LostA > 0.5f) ? lostD / s_LostA : 0.0f);
+                AutoTestLog(line);
+            }
+            m_AutoStep = 9;
+        }
+    }
+    else if (m_AutoStep == 9 && m_AutoTime >= 24.5f)
+    {
+        AutoTestLog("chainrune done");
+        m_AutoStep = 10;
     }
 }
 

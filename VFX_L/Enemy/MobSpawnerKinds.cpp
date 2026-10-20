@@ -169,7 +169,8 @@ void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Dash Bomber Scale", &bomb.dashBomberScale, 0.01f, 0.2f, 4.0f);
     ImGui::DragFloat("Dash Bomber Exp x", &bomb.dashBomberExpMul, 0.05f, 0.0f, 20.0f);
     ImGui::DragFloat("Trigger Range (m)", &bomb.dashBomberTrigger, 0.1f, 1.0f, 40.0f);
-    ImGui::DragFloat("Dash Fuse (s)", &bomb.dashBomberFuse, 0.05f, 0.2f, 10.0f);
+    ImGui::DragFloat("Dash Windup (s)", &bomb.dashBomberWindup, 0.05f, 0.0f, 5.0f);
+    ImGui::DragFloat("Dash Fuse after windup (s)", &bomb.dashBomberFuse, 0.05f, 0.2f, 10.0f);
     ImGui::DragFloat("Dash Speed (m/s)", &bomb.dashBomberDashSpeed, 0.1f, 1.0f, 40.0f);
     ImGui::DragFloat("Dash Blast Radius (m)", &bomb.dashBomberBlastRadius, 0.05f, 0.5f, 10.0f);
     ImGui::DragFloat("Dash Blast Damage x", &bomb.dashBomberDamageMul, 0.05f, 0.0f, 10.0f);

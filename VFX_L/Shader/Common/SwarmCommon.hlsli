@@ -97,7 +97,7 @@ static const uint SWARM_KIND_SPIKEBALL = 10u; // desert spike ball (2026-10-17):
 static const uint SWARM_KIND_BURROWER = 11u;  // desert burrower (2026-10-17): travels under the sand (only a mound shows, cannot be hit, does not bite), surfaces next to the player for g_BurrowSurfaceTime, then digs in again. fuse > 0 = seconds left on the surface, <= 0 = -(seconds buried)
 static const uint SWARM_KIND_SANDMAGE = 12u;  // desert sand mage (2026-10-17): keeps its distance, winds up and casts a tornado (castEvents -> CPU spawns a SWARM_KIND_TORNADO). fuse > 0 = seconds into the wind-up, < 0 = cooldown left, 0 = ready
 static const uint SWARM_KIND_TORNADO = 13u;   // the sand mage's tornado (2026-10-17): an "enemy projectile". Flies straight along its yaw (through walls like a ghost), cannot be hit or targeted, throws the player up on touch, dies when fuse runs out. fuse = seconds left (0 = just spawned, < 0 = expired)
-static const uint SWARM_KIND_DASHBOMBER = 15u; // dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger, then sprints at the player (re-aimed every step) and blows up on touch or when g_DashBomberFuse runs out (ContactCS). fuse > 0 = seconds since lit (AICS counts). Invulnerable while lit, like the bomber
+static const uint SWARM_KIND_DASHBOMBER = 15u; // dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger, locks its yaw, stands g_DashBomberWindup seconds, then sprints straight along that yaw (2026-10-20: no re-aiming, a side step dodges it) and blows up on touch or g_DashBomberFuse seconds after the wind-up (ContactCS). fuse > 0 = seconds since lit (AICS counts). Invulnerable while lit, like the bomber
 static const uint SWARM_KIND_DARKGHOST = 14u; // final-swarm dark ghost (2026-10-18, Megabonk's black ghost): a ghost with huge hp, faster than the player, bigger, hits x g_DarkGhostDamageMul and knocks back like a blast. Flies through walls like the white ghost; neither ghost flinches, freezes, slows or gets blown away
 
 // both final-swarm ghosts (2026-10-18): fly straight at the player through walls and plateaus (AICS / MoveCS / PushCS),
@@ -898,10 +898,10 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_DashBomberExpMul;      // its orb (only if killed before it lights)
     float g_DashBomberTrigger;     // lights itself with the player within this (m, on its level)
 
-    float g_DashBomberFuse;        // seconds from lighting to the blast if it never touches the player
-    float g_DashBomberDashSpeed;   // m/s while lit (AICS, re-aimed at the player every step)
+    float g_DashBomberFuse;        // seconds from the end of the wind-up to the blast if it never touches the player (= dash time)
+    float g_DashBomberDashSpeed;   // m/s while dashing (AICS, straight along the yaw locked when it lit)
     float g_DashBomberBlastRadius; // m (the look reuses g_BomberBlastArea scaled by radius / g_BomberBlastRadius)
-    float _dashBomberPad;
+    float g_DashBomberWindup;      // seconds it stands still (flashing) after lighting before the dash (2026-10-20)
 };
 
 // body size multiplier of a kind (radius and model)

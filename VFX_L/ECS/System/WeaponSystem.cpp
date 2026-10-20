@@ -455,6 +455,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         const float dist = dir.Length();
                         if (dist > 1e-3f) dir /= dist;
                         if (!StartBeam(a, muzzle, impact, castSpeed, durationMul, 0, dist + 0.6f)) continue;
+                        SetupBeamChain(a, castSpeed, durationMul);   // 連鎖のルーン：届いた敵から別の敵へ跳ぶ（2026-10-20）
                         mana.Reserve(a.manaCost);
                         wand.castAnimTimer = wand.castAnimDuration;
                         a.castTimer = a.castInterval;
@@ -631,35 +632,120 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     return true;
 }
 
+// ============================================================
+// 連鎖（連鎖のルーン × アークボルト。2026-10-20）
+// SetupBeamChain: 今始めた光線（m_Beams.back()）に「あと何回跳ぶか」と次の光線の元を付ける。
+// StartChainBeam: 前の稲妻が届いた敵の位置から、GPU が探した別の敵へもう一本（残り回数 − 1）。
+// 届いた所の火花と上級魔法への誘発は、杖から撃った時と同じに出す
+// ============================================================
+void WeaponSystem::SetupBeamChain(const AreaStats& a, float castSpeed, float durationMul)
+{
+    if (m_Beams.empty() || a.chainCount <= 0) return;
+    ActiveBeam& b = m_Beams.back();
+    b.chainLeft = a.chainCount;
+    b.chainStats = a;
+    b.chainCastSpeed = castSpeed;
+    b.chainDurationMul = durationMul;
+    b.chainHitVfx = (a.profile > 0) ? AreaProfileDB::At(a.profile).hitVfxFile : std::string();
+    b.chainTriggerMask = a.triggerMask;
+}
+
+void WeaponSystem::StartChainBeam(const ActiveBeam& prev, const Vector3& next)
+{
+    const ActiveBeam p = prev;   // StartBeam の push_back で prev が無効になるので写しを取る
+    Vector3 dir = next - p.chainSeek;   // 届いた敵の位置 → 次の敵
+    float dist = dir.Length();
+    if (dist > 1e-3f) dir /= dist;
+    // 起点は届いた敵の体の外（中心から 1m 先）。中心から出すとカプセルがその敵をもう一度叩く
+    const float back = (std::min)(1.0f, dist * 0.4f);
+    const Vector3 from = p.chainSeek + dir * back;
+    dist -= back;
+    if (!StartBeam(p.chainStats, from, next, p.chainCastSpeed, p.chainDurationMul, 0, dist + 0.6f)) return;
+    ActiveBeam& b = m_Beams.back();
+    b.fixedStart = true;
+    b.startPos = from;
+    b.chainLeft = p.chainLeft - 1;
+    b.chainStats = p.chainStats;
+    b.chainCastSpeed = p.chainCastSpeed;
+    b.chainDurationMul = p.chainDurationMul;
+    b.chainHitVfx = p.chainHitVfx;
+    b.chainTriggerMask = p.chainTriggerMask;
+    b.chainVisited[0] = p.lockedSlot;        // 前の稲妻が届いた敵と、その前の敵へは戻らない
+    b.chainVisited[1] = p.chainVisited[0];
+    if (m_AreaVFX && m_AreaVFXCtx && !p.chainHitVfx.empty())
+        m_AreaVFX->Play(p.chainHitVfx, next, 0.8f, false, *m_AreaVFXCtx);
+    if (p.chainTriggerMask != 0)
+    {
+        const float triggerLift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
+        m_CpuTriggerEvents.push_back({ Vector3(next.x, next.y - triggerLift, next.z), p.chainTriggerMask });
+    }
+}
+
 void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionSystem& collision)
 {
-    for (auto& b : m_Beams)
+    std::vector<std::pair<size_t, Vector3>> jumps;   // 連鎖の次の稲妻（走査の後で始める：push_back で参照が無効になる）
+    for (size_t bi = 0; bi < m_Beams.size(); ++bi)
     {
-        // 起点：杖先。光球から撃った物は光球（消えた後は最後の位置に留まる）
+        ActiveBeam& b = m_Beams[bi];
+        // 起点：杖先。光球から撃った物は光球（消えた後は最後の位置に留まる）。跳んだ稲妻は前の敵の位置に固定
         Vector3 start = muzzle;
-        if (b.orbSerial != 0)
+        if (b.fixedStart)
+            start = b.startPos;
+        else if (b.orbSerial != 0)
         {
             if (FindOrb(b.orbSerial, start)) b.lastStart = start;
             else start = b.lastStart;
         }
 
         // 標的へ向きを回す（瞬間には向けない。beamTurnRate 度/秒まで）。
-        // 標的は GPU のリードバック（2〜3 フレーム古い）。読めない間（始めの数フレーム・射程内に敵が居ない）は今の向きのまま
+        // 標的は GPU のリードバック（2〜3 フレーム古い）。読めない間（始めの数フレーム・射程内に敵が居ない）は今の向きのまま。
+        // 連鎖の問い合わせ（chainSerial）を出した後は、チャンネルの答えはそちらの物（標的の追跡は要らない = 一瞬の稲妻）
         Vector3 tp;
-        b.hasTarget = m_Swarm && m_Swarm->GetBeamTarget(b.channel, b.serial, tp);
-        if (b.hasTarget)
+        uint32_t slot = Swarm::kBeamNoSlot;
+        if (b.chainSerial != 0)
         {
-            b.targetPos = tp;
-            Vector3 want = tp - start;
-            if (want.LengthSquared() > 1e-4f)
+            b.hasTarget = false;
+            if (b.chainAnswer < 0 && m_Swarm)
+                b.chainAnswer = m_Swarm->QueryBeamTarget(b.channel, b.chainSerial, b.chainNext, slot);
+        }
+        else
+        {
+            b.hasTarget = m_Swarm && m_Swarm->QueryBeamTarget(b.channel, b.serial, tp, slot) == 1;
+            if (b.hasTarget)
             {
-                want.Normalize();
-                b.dir = RotateToward(b.dir, want, DirectX::XMConvertToRadians(beamTurnRate) * dt);
+                b.targetPos = tp;
+                b.lockedSlot = slot;
+                Vector3 want = tp - start;
+                if (want.LengthSquared() > 1e-4f)
+                {
+                    want.Normalize();
+                    b.dir = RotateToward(b.dir, want, DirectX::XMConvertToRadians(beamTurnRate) * dt);
+                }
             }
         }
         if (m_Swarm)
-            m_Swarm->SetBeamTarget(b.channel, b.targetStarted ? Swarm::kBeamTargetTrack : Swarm::kBeamTargetStart,
-                start, b.dir, b.length, b.seek, b.serial);
+        {
+            // 連鎖：捕まえた敵の slot が読めたら、その近くで別の敵を探してもらう（答えは 2〜3 フレーム後）
+            if (b.chainLeft > 0 && b.chainSerial == 0 && b.lockedSlot != Swarm::kBeamNoSlot)
+            {
+                b.chainSerial = ++m_BeamSerial;
+                b.chainSeek = b.targetPos;
+                b.chainAnswer = -1;
+            }
+            if (b.chainSerial != 0)
+            {
+                // dir.xyz = 除外する slot（asfloat）: 今届いた敵 + この連鎖で前に届いた 2 体
+                float ex[3];
+                memcpy(&ex[0], &b.lockedSlot, sizeof(float));
+                memcpy(&ex[1], &b.chainVisited[0], sizeof(float));
+                memcpy(&ex[2], &b.chainVisited[1], sizeof(float));
+                m_Swarm->SetBeamTarget(b.channel, b.chainAnswer < 0 ? Swarm::kBeamTargetChain : Swarm::kBeamTargetIdle,
+                    start, Vector3(ex[0], ex[1], ex[2]), b.length, b.chainSeek, b.chainSerial);
+            }
+            else
+                m_Swarm->SetBeamTarget(b.channel, b.targetStarted ? Swarm::kBeamTargetTrack : Swarm::kBeamTargetStart,
+                    start, b.dir, b.length, b.seek, b.serial);
+        }
         b.targetStarted = true;
 
         // 終点：射程の先。地形に当たればそこまで
@@ -702,12 +788,34 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
         }
 
         if (m_AreaVFX) m_AreaVFX->SetInstance(b.vfxHandle, start, end);
+
+        // ---- 連鎖：光線が終わったら、跳ぶ先の答えを見て次の稲妻へ（まだなら kChainWaitMax 秒だけ待つ）----
+        if (b.spawned && b.timeLeft <= 0.0f && b.chainLeft > 0)
+        {
+            if (b.chainAnswer == 1)
+            {
+                jumps.push_back({ bi, b.chainNext });
+                b.chainAnswer = 2;   // 跳んだ（chainLeft は StartChainBeam が残り回数を写してから 0 にする）
+            }
+            else
+            {
+                b.chainWait += dt;
+                // 居ない（0）/ 捕まえた敵が読めないまま・答えが来ないまま時間切れ → 跳ばずに終わる
+                if (b.chainAnswer == 0 || b.chainWait > kChainWaitMax) b.chainLeft = 0;
+            }
+        }
     }
 
-    // 終わった光線のチャンネルは標的探しも止める
+    for (const auto& j : jumps)
+    {
+        StartChainBeam(m_Beams[j.first], j.second);
+        m_Beams[j.first].chainLeft = 0;   // 跳んだので前の稲妻は終わり
+    }
+
+    // 終わった光線のチャンネルは標的探しも止める（連鎖の答えを待っている物はまだ終わっていない）
+    auto finished = [](const ActiveBeam& b) { return b.charge <= 0.0f && b.timeLeft <= 0.0f && b.chainLeft <= 0; };
     for (const auto& b : m_Beams)
-        if (b.charge <= 0.0f && b.timeLeft <= 0.0f && m_Swarm)
+        if (finished(b) && m_Swarm)
             m_Swarm->SetBeamTarget(b.channel, Swarm::kBeamTargetIdle, Vector3::Zero, Vector3::Zero, 0.0f, Vector3::Zero, 0);
-    m_Beams.erase(std::remove_if(m_Beams.begin(), m_Beams.end(),
-        [](const ActiveBeam& b) { return b.charge <= 0.0f && b.timeLeft <= 0.0f; }), m_Beams.end());
+    m_Beams.erase(std::remove_if(m_Beams.begin(), m_Beams.end(), finished), m_Beams.end());
 }

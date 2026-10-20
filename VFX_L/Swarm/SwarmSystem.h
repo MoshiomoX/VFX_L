@@ -407,6 +407,9 @@ public:
         const DirectX::SimpleMath::Vector3& dir, float length, const DirectX::SimpleMath::Vector3& seek, uint32_t serial);
     // リードバックした標的の位置（2〜3 フレーム古い）。serial が違う / 標的が無ければ false
     bool GetBeamTarget(uint32_t ch, uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
+    // 同上、答えの有無も見分ける（連鎖の跳ぶ先。2026-10-20）: -1 = まだ答えが来ていない（serial が違う）、
+    // 0 = 答えは来たが敵が居ない、1 = 居る（pos / slot に入る）
+    int QueryBeamTarget(uint32_t ch, uint32_t serial, DirectX::SimpleMath::Vector3& pos, uint32_t& slot) const;
 
     // 燃えている草からの粒子（2026-10-12、GrassFireField）。毎フレーム Flush の前に渡す。null = 出さない。
     // 発射は弾・範囲の直後（Swarm/SwarmSystemFire.cpp）

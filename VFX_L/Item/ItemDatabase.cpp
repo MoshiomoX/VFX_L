@@ -33,6 +33,7 @@
 #include "Item/Items/SpellPowerUp.h"
 #include "Item/Items/ShieldUp.h"
 #include "Item/ItemDataFile.h"
+#include "Swarm/AreaProfile.h"   // AreaCanChain（溜め 0 の光線か）
 
 namespace
 {
@@ -349,9 +350,32 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
 // SpellStats 側とは完全に独立した処理。
 // パラメータが増えても switch に case を1個足すだけで済む
 // ============================================================
+bool ItemDatabase::AreaCanChain(const AreaStats& stats)
+{
+    if (stats.profile <= 0) return false;
+    const AreaProfile& ap = AreaProfileDB::At(stats.profile);
+    return ap.IsBeam() && ap.chargeTime <= 0.0f;   // 一瞬の稲妻だけ（溜めのある魔導光線は跳ばない）
+}
+
 void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
 {
     float* target = nullptr;
+
+    // 連鎖（2026-10-20）: 跳べない範囲魔法には回数も、連鎖のルーンの代価（chainOnly）も掛けない
+    if (mod.param == AreaParam::ChainCount || mod.chainOnly)
+        if (!AreaCanChain(stats)) return;
+    if (mod.param == AreaParam::ChainCount)
+    {
+        int& n = stats.chainCount;
+        switch (mod.op)
+        {
+        case ModifyOp::Add:      n += (int)mod.value; break;
+        case ModifyOp::Multiply: n = (int)(n * mod.value + 0.5f); break;
+        case ModifyOp::Set:      n = (int)mod.value; break;
+        }
+        if (n < 0) n = 0;   // 0 = 跳ばない
+        return;
+    }
 
     switch (mod.param)
     {

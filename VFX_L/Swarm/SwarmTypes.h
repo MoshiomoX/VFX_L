@@ -106,7 +106,9 @@ namespace Swarm
     // 白幽霊と同じく壁も台地も素通り・怯まない・凍らない・遅くならない・突風で飛ばない（SwarmIsGhost）。描画は幽霊のリスト（VS が種類で色を変える）
     constexpr uint32_t kEnemyKindDarkGhost = 14;
     // 突撃爆弾兵（2026-10-18、ユーザー「点火したら直接プレイヤーへ突っ込む自爆兵」）：プレイヤーが dashBomberTrigger 内に入ると自分で点火し、
-    // dashBomberDashSpeed で毎ステップ向きを直しながら突っ込む。触れた瞬間、または dashBomberFuse 秒で爆発（半径 dashBomberBlastRadius、
+    // その瞬間の向き（Enemy.yaw）を固定 → dashBomberWindup 秒その場で溜め → 固定した向きへ dashBomberDashSpeed で一直線に突っ込む
+    // （2026-10-20 ユーザー「ほぼ 100% 当たる」→ 毎ステップ狙い直すのをやめて突撃兵と同じ「向き固定 + 溜め」に。横へ一歩で躱せる）。
+    // 触れた瞬間、または溜めの後 dashBomberFuse 秒で爆発（半径 dashBomberBlastRadius、
     // 自爆兵の爆発 × dashBomberDamageMul + 爆発級のノックバック）。**点火中は無敵**（自爆兵も同じ。SwarmInvulnerable：撃っても当たらない・
     // 狙われない・怯まない・凍らない）。EnemyExtra.fuse > 0 = 点火からの秒（AICS が数える）。皮は Kenney Blocky H（灰色ロボット）
     constexpr uint32_t kEnemyKindDashBomber = 15;
@@ -545,10 +547,10 @@ namespace Swarm
         float    dashBomberDamageMul = 1.2f;  // 爆発のダメージ = 自爆兵の爆発 × これ
         float    dashBomberExpMul = 1.5f;     // 点火前に倒せた時の経験値
         float    dashBomberTrigger = 9.0f;    // プレイヤーがこの距離（m）に入ると点火して突っ込む
-        float    dashBomberFuse = 1.5f;       // 点火から爆発までの秒（触れればその場で爆発）
+        float    dashBomberFuse = 1.0f;       // 溜めが終わってから爆発までの秒 = 突っ込む時間（12 m/s × 1.0 = 12m、点火距離 9m を走り抜ける）。触れればその場で爆発
         float    dashBomberDashSpeed = 12.0f; // 突っ込む速さ m/s（突撃兵 14、プレイヤーのスライディング 13 なら振り切れる）
         float    dashBomberBlastRadius = 2.5f;
-        float    _dashBomberPad = 0.0f;
+        float    dashBomberWindup = 0.45f;    // 点火してから走り出すまでの溜め秒（その場で赤く点滅。2026-10-20）
     };
     static_assert(sizeof(BomberCB) == 384, "SwarmBomberCB layout mismatch");
 
@@ -673,7 +675,10 @@ namespace Swarm
     //   死んだら・遠くへ行ったら、射程内で光線の向きに一番近い敵へ乗り換える）、dir.w = 射程、seek.w = asfloat(serial)
     // 結果は 32B × チャンネル（slot, serial, valid, pad, pos.xyz, pad）を staging でリードバック
     // ============================================================
-    enum : uint32_t { kBeamTargetIdle = 0, kBeamTargetStart = 1, kBeamTargetTrack = 2 };
+    //   3 = 連鎖（2026-10-20、連鎖のルーン × アークボルト）: seek（届いた敵の位置）から SWARM_CHAIN_RADIUS 内で
+    //   一番近い「別の」敵（dir.xyz = asfloat(除外する slot × 3) = この連鎖で既に届いた敵）。答えは同じ 32B（valid = 0 なら居ない）
+    enum : uint32_t { kBeamTargetIdle = 0, kBeamTargetStart = 1, kBeamTargetTrack = 2, kBeamTargetChain = 3 };
+    constexpr uint32_t kBeamNoSlot = 0xFFFFFFFFu;
     struct BeamTargetCB
     {
         DirectX::SimpleMath::Vector4 origin[kMaxBeams];

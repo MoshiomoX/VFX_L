@@ -16,7 +16,7 @@
 //
 // Drawn a second time from the dash bomber list (2026-10-19): a lit dash
 // bomber gets the same ring with its own radius (g_DashBomberBlastRadius)
-// and fuse (g_DashBomberFuse). It runs, so the ring runs along under it.
+// and fuse (g_DashBomberWindup + g_DashBomberFuse). It runs, so the ring runs along under it.
 //
 // C++ mirror of the cbuffer: SwarmSystem::BomberRingCB
 // ============================================================
@@ -72,7 +72,7 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     }
 
     float radius = max(dash ? g_DashBomberBlastRadius : g_BomberBlastRadius, 0.01);
-    float fuseTime = dash ? g_DashBomberFuse : g_BomberFuseTime;
+    float fuseTime = dash ? g_DashBomberWindup + g_DashBomberFuse : g_BomberFuseTime;
     float3 p = enemies[slot].position;
     float2 c = kCorner[vid];
     float3 world = float3(p.x + c.x * radius,

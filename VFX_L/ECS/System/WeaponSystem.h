@@ -15,11 +15,11 @@
 #include <vector>
 #include <SimpleMath.h>
 #include "Swarm/SwarmTypes.h"
+#include "Component/AreaStats.h"   // ActiveBeam::chainStats（連鎖の次の光線の元。2026-10-20）
 
 class Registry;
 class CollisionSystem;
 struct SpellStats;
-struct AreaStats;
 struct WandComponent;
 struct ManaComponent;
 class SwarmSystem;
@@ -167,9 +167,33 @@ private:
         DirectX::SimpleMath::Vector3 targetPos = { 0, 0, 0 };
         uint32_t orbSerial = 0;      // 光球から撃った光線（0 = 杖から）。光球が生きている間は起点がそれに追従する
         DirectX::SimpleMath::Vector3 lastStart = { 0, 0, 0 };   // 光球が消えた後の起点（最後の位置に留まる）
+        // 連鎖（連鎖のルーン × アークボルト。2026-10-20）: 稲妻が届いた敵から近くの別の敵へ、もう一本の稲妻を走らせる。
+        // 流れ: 捕まえた敵の slot が読めたら GPU に「その敵の近くで別の敵」を探させ（kBeamTargetChain、chainSerial で
+        // 見分ける）、光線が終わった時に答えが来ていれば届いた敵の位置から次の光線（chainLeft − 1）を始める。
+        // 答えがまだなら chainWaitMax 秒だけ待つ（判定も見た目も終わった後、次の稲妻が出るまでの間）
+        int chainLeft = 0;                 // あと何回跳べるか（0 = 跳ばない）
+        AreaStats chainStats;              // 次の光線の元（威力・太さ・持続はルーン込み）
+        float chainCastSpeed = 1.0f;
+        float chainDurationMul = 1.0f;
+        std::string chainHitVfx;           // 届いた所の火花（AreaProfile::hitVfxFile）
+        uint32_t chainTriggerMask = 0;     // 届いた所を「弾が消えた所」として上級魔法へ
+        bool fixedStart = false;           // 起点を杖先ではなく startPos に固定（跳んだ稲妻は前の敵から出る）
+        DirectX::SimpleMath::Vector3 startPos = { 0, 0, 0 };
+        uint32_t lockedSlot = 0xFFFFFFFFu; // 捕まえた敵の slot（跳ぶ先から除外する）
+        uint32_t chainVisited[2] = { 0xFFFFFFFFu, 0xFFFFFFFFu };   // この連鎖で前に届いた敵（A → B → A と戻らないように除外）
+        uint32_t chainSerial = 0;          // 跳ぶ先の問い合わせの通し番号（0 = まだ出していない）
+        DirectX::SimpleMath::Vector3 chainSeek = { 0, 0, 0 };   // 問い合わせの中心 = 捕まえた敵の位置
+        int chainAnswer = -1;              // -1 待ち / 0 居ない / 1 居る（chainNext）/ 2 跳んだ
+        DirectX::SimpleMath::Vector3 chainNext = { 0, 0, 0 };
+        float chainWait = 0.0f;            // 光線が終わってから答えを待った秒
     };
     std::vector<ActiveBeam> m_Beams;
     uint32_t m_BeamSerial = 0;
+    static constexpr float kChainWaitMax = 0.25f;   // リードバックは 2〜3 フレーム遅れる。これ以上待っても来なければ諦める
+    // 直前に始めた光線（m_Beams.back()）に連鎖の設定を付ける（アークボルトを撃った所で呼ぶ）
+    void SetupBeamChain(const AreaStats& a, float castSpeed, float durationMul);
+    // 連鎖の次の稲妻：prev が届いた敵の位置から next へ（prev.chainLeft − 1 回残して）
+    void StartChainBeam(const ActiveBeam& prev, const DirectX::SimpleMath::Vector3& next);
 
     // ---- 光球（水晶玉の召喚物、2026-10-06。WeaponSystemOrbs.cpp）----
     // WandComponent::orbs[unit] の設定で出る。貯蔵された魔法（SpellStats / AreaStats の storeUnit == unit）を
