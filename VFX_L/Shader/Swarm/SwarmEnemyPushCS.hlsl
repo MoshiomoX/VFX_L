@@ -133,9 +133,12 @@ void main(uint3 id : SV_DispatchThreadID)
             return;   // would end up in a wall or over a cliff edge: stay put this step
     }
 
-    // on the ground: follow it. Falling off a plateau (MoveCS): keep the height, gravity lands it
+    // on the ground: follow it up, never down (2026-10-20): the bilinear ground dips halfway down
+    // the face within 0.25m of a plateau edge, and a push there used to sink the enemy into it
+    // (MoveCS's Settle holds the feet at the plateau instead; it also lands the next step on a
+    // way down a ramp). Falling off a plateau (MoveCS): keep the height, gravity lands it
     float groundNow = g_GroundY + SwarmTerrainHeight(terrainHeight, pos.xz);
     bool falling = (pos.y > groundNow + 0.25);   // = MoveCS kSnapDown
-    np.y = falling ? pos.y : g_GroundY + SwarmTerrainHeight(terrainHeight, np.xz);
+    np.y = falling ? pos.y : max(pos.y, g_GroundY + SwarmTerrainHeight(terrainHeight, np.xz));
     enemies[i].position = np;
 }

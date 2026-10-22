@@ -50,7 +50,8 @@ bool StepOk(float2 from, float2 to, float radius, bool bodyCheck, bool allowDrop
 {
     bool ok = SwarmIsWalkable(terrain, float3(to.x, 0.0, to.y));
     if (ok)
-        ok = bodyCheck ? SwarmStepHeightOk(terrainHeight, from, to, allowDrop) : SwarmRawSlopeOk(terrainHeight, from, to);
+        ok = bodyCheck ? (SwarmStepHeightOk(terrainHeight, from, to, allowDrop) || SwarmRawStepOk(terrainHeight, from, to, allowDrop))
+                       : SwarmRawSlopeOk(terrainHeight, from, to);
     if (ok && bodyCheck)
         ok = (SwarmBodyContact(terrain, terrainHeight, to, radius, !allowDrop, footH).z == 0.0);
     return ok;
@@ -78,7 +79,8 @@ static const float kEdgeCliff = 0.8;
 void Settle(inout SwarmEnemy e, float radius, bool allowDrop)
 {
     float ground = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
-    if (allowDrop)
+    // the hold applies whether or not a drop is open (2026-10-20, was allowDrop only): an enemy
+    // standing at a plateau edge used to sink into the bilinear dip there (up to half the face)
     {
         float feet = e.position.y - g_GroundY;
         float hi = SwarmTerrainHeightRaw(terrainHeight, e.position.xz), lo = hi;
@@ -90,9 +92,12 @@ void Settle(inout SwarmEnemy e, float radius, bool allowDrop)
             hi = max(hi, h);
             lo = min(lo, h);
         }
-        // still standing on the edge (feet level with the high side), not a body
-        // at the cliff foot that only touches the face
-        if (hi - lo > kEdgeCliff && feet >= hi - kSnapDown)
+        // still standing on the edge (feet level with the high side, or the centre's own
+        // raw cell IS the high side: spawned / pushed into the bilinear dip at the edge, the
+        // feet start below the plateau and would otherwise stay there, 2026-10-20), not a
+        // body at the cliff foot that only touches the face
+        float rawHere = SwarmTerrainHeightRaw(terrainHeight, e.position.xz);
+        if (hi - lo > kEdgeCliff && (feet >= hi - kSnapDown || rawHere >= hi - SWARM_BODY_CLIFF_RISE))
             ground = max(ground, g_GroundY + hi);
     }
     if (e.position.y > ground + kSnapDown)
@@ -121,7 +126,7 @@ void main(uint3 id : SV_DispatchThreadID)
     SwarmEnemy e = enemies[i];
     // body radius against walls, and whether cliffs going down are open (player lower down)
     float radius = SwarmBodyWallRadius(enemyExtra[i].kind);
-    bool allowDrop = SwarmDropAllowed(terrainHeight, e.position.xz);
+    bool allowDrop = SwarmDropAllowed(terrainHeight, e.position.xz, e.position.y - g_GroundY);
 
     // knockback (the Gust): this step's shove, decaying over SWARM_PUSH_TIME. Rides on the
     // velocity through the integrate below (wall / cliff checks included), taken off before the facing
@@ -262,6 +267,17 @@ void main(uint3 id : SV_DispatchThreadID)
                         float2 ns = from + normalize(side) * sp * g_Step;
                         if (SideStepOk(from, ns, radius, allowDrop, footH))
                             e.position.xz = ns;
+                    }
+                    else
+                    {
+                        // the push-out points straight back along the velocity (two touching points
+                        // either side of the heading, e.g. a terrace corner dead ahead): no side to
+                        // prefer, so try both perpendiculars and take the first that is open (2026-10-20)
+                        float2 perp = float2(-dirV.y, dirV.x) * sp * g_Step;
+                        if (SideStepOk(from, from + perp, radius, allowDrop, footH))
+                            e.position.xz = from + perp;
+                        else if (SideStepOk(from, from - perp, radius, allowDrop, footH))
+                            e.position.xz = from - perp;
                     }
                 }
             }

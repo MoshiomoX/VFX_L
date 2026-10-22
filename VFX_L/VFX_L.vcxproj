@@ -360,6 +360,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Collider\CollisionSystem.cpp" />
     <ClCompile Include="Scene\CollisionTestScene.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneTitle.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneSelect.cpp" />
     <ClCompile Include="Scene\ResultScene.cpp" />
     <ClCompile Include="Scene\ShopScene.cpp" />
     <ClCompile Include="Graphics\Shader\ComputeShader.cpp" />
@@ -400,6 +401,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="UI\TutorialGuide.cpp" />
     <ClCompile Include="UI\HowToPlayUI.cpp" />
     <ClCompile Include="Core\GameSettings.cpp" />
+    <ClCompile Include="Core\GameProgress.cpp" />
+    <ClCompile Include="UI\StageSelectUI.cpp" />
     <ClCompile Include="UI\MenuList.cpp" />
     <ClCompile Include="UI\TitleScreenUI.cpp" />
     <ClCompile Include="UI\GameUI.cpp" />
@@ -633,6 +636,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Scene\TitleScene.h" />
     <ClInclude Include="Scene\ResultScene.h" />
     <ClInclude Include="Scene\ShopScene.h" />
+    <ClInclude Include="Scene\StageSelectScene.h" />
     <ClInclude Include="Scene\RunResult.h" />
     <ClInclude Include="Graphics\Shader\ComputeShader.h" />
     <ClInclude Include="Camera\DebugCamera.h" />
@@ -709,6 +713,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="UI\TutorialGuide.h" />
     <ClInclude Include="UI\HowToPlayUI.h" />
     <ClInclude Include="Core\GameSettings.h" />
+    <ClInclude Include="Core\GameProgress.h" />
+    <ClInclude Include="UI\StageSelectUI.h" />
     <ClInclude Include="UI\MenuList.h" />
     <ClInclude Include="UI\TitleScreenUI.h" />
     <ClInclude Include="Item\ItemTypes.h" />

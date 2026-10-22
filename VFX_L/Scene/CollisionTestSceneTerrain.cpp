@@ -31,6 +31,7 @@ void CollisionTestScene::BuildTerrain(std::vector<uint8_t>& grassMask)
             m_TerrainConfig.seed = file.seed;
             m_TerrainConfig.biome = (TerrainGenerator::Biome)file.biome;
             m_MapLoaded = true;
+            m_GrassMask = grassMask;
             return;
         }
         std::cout << "[CollisionTestScene] map '" << m_MapFile << "' could not be used; generating from seed" << std::endl;
@@ -38,6 +39,7 @@ void CollisionTestScene::BuildTerrain(std::vector<uint8_t>& grassMask)
 
     TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches,
         &m_TerrainLayout, &m_TerrainMap);
+    m_GrassMask = grassMask;
 }
 
 // ============================================================
@@ -53,29 +55,51 @@ void CollisionTestScene::RebuildTerrain()
     m_Grid.ClearAll();
     m_PropBlocks.clear();   // 新しい格子に古い置物のマスを戻さない
 
+    // TEMP-TEST：各段の ms（ステージ選択の切替が重い、2026-10-21）
+    using Clock = std::chrono::steady_clock;
+    auto t = Clock::now();
+    char prof[256] = {};
+    auto lap = [&](const char* name)
+        {
+            const auto now = Clock::now();
+            const double ms = std::chrono::duration<double, std::milli>(now - t).count();
+            t = now;
+            char buf[48];
+            snprintf(buf, sizeof(buf), "%s %.0f ", name, ms);
+            strncat_s(prof, buf, _TRUNCATE);
+        };
+
     std::vector<uint8_t> grassMask;
     BuildTerrain(grassMask);
+    lap("gen");
     BlockUnreachablePockets();
-    m_GameUI.BakeMinimap(m_Grid, m_TerrainMap, (int)m_TerrainConfig.biome, m_TerrainConfig.seed);   // ミニマップも新しい地形に
+    lap("pockets");
+    if (!IsMenuScene())   // タイトル・ステージ選択は HUD が無い（Debug で 190 ms。2026-10-21）
+        m_GameUI.BakeMinimap(m_Grid, m_TerrainMap, (int)m_TerrainConfig.biome, m_TerrainConfig.seed);   // ミニマップも新しい地形に
+    lap("minimap");
     m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
+    lap("props");
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
     m_GrassFire.Build(m_Grid);   // 火も消す
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());   // 落ち葉も置き直す
+    lap("grass");
 
     // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
     m_Swarm.KillAll();
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());
-    RespawnElites();
-    if (!m_LabScene && !m_TitleScene) RespawnCrates();   // 古い位置は新しい壁の中かもしれない。実験場・タイトルは箱 / 門 / 磁石なし
+    lap("swarm");
+    m_RebuildProfile = prof;
+    if (!IsMenuScene()) RespawnElites();   // デバッグの的（無敵のエリート）を置き直す。ステージ選択の景色には出さない（2026-10-21：切替後に浮いた骸骨が見えていた）
+    if (!m_LabScene && !IsMenuScene()) RespawnCrates();   // 古い位置は新しい壁の中かもしれない。実験場・タイトル・ステージ選択は箱 / 門 / 磁石なし
 }
 
 // ============================================================
 // トレーニングのフィールド切替（2026-10-20）
 // 面の見た目（Biome・照明・草）を入れ替えて地形を建て直す。平地 = 実験場の既定（Init と同じ切り方）
 // ============================================================
-std::wstring CollisionTestScene::EnterTrainingField(int field)
+std::wstring CollisionTestScene::EnterTrainingField(int field, uint32_t seed)
 {
     const bool flat = field <= 0;
     const int stage = flat ? 1 : std::clamp(field, 1, StageConfig::kStageCount);
@@ -83,7 +107,7 @@ std::wstring CollisionTestScene::EnterTrainingField(int field)
     m_StageIndex = stage;
 
     TerrainGenerator::Config cfg;   // 既定 = 段々の台地の野原
-    cfg.seed = std::random_device{}() % 100000u;
+    cfg.seed = (seed != 0) ? seed : std::random_device{}() % 100000u;   // ステージ選択は決まった seed（2026-10-21）
     cfg.biome = def.biome;
     if (flat)
     {

@@ -47,11 +47,24 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
         flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
+    // 11_1 を先頭に明示する（nullptr の既定リストには 11_1 が入っておらず、対応 GPU でも 11_0 になっていた）。
+    // 11_1 なら全ステージで UAV が 64 スロット使える（11_0 は CS / PS で 8）。
+    // u8 以上を使う shader は 11_0 のデバイスでは作れないので、使い始めたら起動時に gotLevel を見て止めること
+    const D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
+    D3D_FEATURE_LEVEL gotLevel = D3D_FEATURE_LEVEL_11_0;
     HRESULT hr = D3D11CreateDevice(
         nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
-        nullptr, 0, D3D11_SDK_VERSION,
-        &m_Device, nullptr, &m_Context);
+        levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
+        &m_Device, &gotLevel, &m_Context);
+    // 11.1 を知らない古いランタイム（更新プログラムなしの Windows 7）は E_INVALIDARG を返すので、11_0 だけで作り直す
+    if (hr == E_INVALIDARG)
+        hr = D3D11CreateDevice(
+            nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
+            &levels[1], 1, D3D11_SDK_VERSION,
+            &m_Device, &gotLevel, &m_Context);
     DX_CHECK(hr, "D3D11CreateDevice failed");
+    std::cout << "[Info] Feature level: " << ((gotLevel >= D3D_FEATURE_LEVEL_11_1) ? "11_1" : "11_0")
+              << " (UAV slots: " << ((gotLevel >= D3D_FEATURE_LEVEL_11_1) ? 64 : 8) << ")" << std::endl;
 
     // ---- MSAA: backbuffer と HDR RT の両方が対応する品質を取る ----
     UINT qBack = 0, qScene = 0;

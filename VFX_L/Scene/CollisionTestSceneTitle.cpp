@@ -67,7 +67,23 @@ void CollisionTestScene::InitTitle()
 {
     auto& gfx = Application::Get().GetGraphics();
     m_Mobs.Director().enabled = false;   // 湧かない
+    PlaceTitleStand();
+    ApplyTitleLight(StageConfig::Get(1).light);
+    InitTitleDemo();
 
+    // ---- カメラ・メニュー・曲 ----
+    m_TitleTime = 0.0f;
+    SetCamera(&m_TitleCam);
+    UpdateTitleCamera(0.0f);
+    m_TitleUI.Initialize(gfx.GetDevice(), gfx.GetContext(), m_ScreenW, m_ScreenH);
+    AudioSystem::Get().PlayMusic("title");   // 戦闘・リザルトから戻った時は前の曲から交差フェード
+}
+
+// ============================================================
+// 立つ所とカメラの向きを選んでプレイヤーを置く（タイトル・ステージ選択で共用。2026-10-21 に InitTitle から分けた）
+// ============================================================
+void CollisionTestScene::PlaceTitleStand()
+{
     // ---- 立つ所とカメラの向きを一緒に選ぶ：カメラから見てプレイヤーの向こう（背景）が一番開けている組 ----
     // 背景の開け具合 = 画面の幅（カメラの振れも込みで ±54°）の中で、6〜55m 先の地面がカメラの目の高さから
     // どれだけ持ち上がって見えるか（傾き）の最大。小さいほど近くに台地の壁・山頂の崖・洞窟の岩山が立たない。
@@ -184,15 +200,21 @@ void CollisionTestScene::InitTitle()
             m_Registry.Get<HealthComponent>(m_Player).invincible = true;
     }
 
-    // ---- 午後遅くの光：草原の昼の照明から、太陽を低く暖かく、霧を遠く薄く。太陽はカメラの側の斜めから ----
+}
+
+// ============================================================
+// 午後遅くの光：草原の昼の照明から、太陽を低く暖かく、霧を遠く薄く。太陽はカメラの側の斜めから
+// ============================================================
+void CollisionTestScene::ApplyTitleLight(const SceneLighting::Preset& base)
+{
     // 天候は照明を上書きしない・出来事を起こさない
     m_Weather.driveLighting = false;
     m_Weather.eventsEnabled = false;
     {
-        SceneLighting::Preset p = StageConfig::Get(1).light;
+        SceneLighting::Preset p = base;
         p.sunPitch = 30.0f;
         // 光の進む向き（水平）= カメラ → プレイヤーを横へ回した向き。SceneLighting::SunDirection の yaw と同じ決まり
-        p.sunYaw = camYaw + 180.0f + kSunFromCamDeg;
+        p.sunYaw = m_TitleFacing + 180.0f + kSunFromCamDeg;
         p.lightColor = { 1.0f, 0.86f, 0.66f };
         p.lightIntensity *= 1.05f;
         p.skyZenith = { 0.12f, 0.30f, 0.70f };
@@ -205,15 +227,6 @@ void CollisionTestScene::InitTitle()
         p.fogMax = 0.8f;
         m_Lighting.ApplyPreset(p);
     }
-
-    InitTitleDemo();
-
-    // ---- カメラ・メニュー・曲 ----
-    m_TitleTime = 0.0f;
-    SetCamera(&m_TitleCam);
-    UpdateTitleCamera(0.0f);
-    m_TitleUI.Initialize(gfx.GetDevice(), gfx.GetContext(), m_ScreenW, m_ScreenH);
-    AudioSystem::Get().PlayMusic("title");   // 戦闘・リザルトから戻った時は前の曲から交差フェード
 }
 
 // ============================================================
@@ -244,14 +257,14 @@ void CollisionTestScene::UpdateTitleCamera(float dt)
 // ============================================================
 // Update の代わり（操作・湧き・武器・UI・音の選曲は回さない）
 // ============================================================
-void CollisionTestScene::UpdateTitle(float dt)
+void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
 {
     SceneBase::Update(dt);
     m_TitleTime += dt;   // カメラ・メニューは実時間
     UpdateScreenSize();
 
-    // 戦いはスローモーション：物理・アニメ・杖・GPU・粒子・範囲のエフェクト・草の風を全部 gdt で進める
-    const float gdt = dt * kSlowMo;
+    // 戦いはスローモーション：物理・アニメ・杖・GPU・粒子・範囲のエフェクト・草の風を全部 gdt で進める（ステージ選択は等速、見本なし）
+    const float gdt = dt * (demo ? kSlowMo : 1.0f);
     m_TotalTime += gdt;
 
     m_Lighting.SubmitPointLights();
@@ -265,14 +278,17 @@ void CollisionTestScene::UpdateTitle(float dt)
     m_PhysicsSystem.SetGravity(m_Gravity);
     m_PhysicsSystem.Update(m_Registry, gdt, m_CollisionSystem);
     m_PlayerStateSystem.Update(m_Registry, gdt);
-    UpdateTitleDemo(gdt);   // 敵を寄せる・メテオを落とす・体を敵へ向ける・MP を満たす
-    m_WeaponSystem.Update(m_Registry, gdt, m_CollisionSystem);
-    m_PlayerVFX.Update(m_Registry, m_Player, gdt, 0.0f, m_WeaponSystem.GetCastFx());   // 詠唱の光（タイトルでも）
-    for (const auto& g : m_WeaponSystem.GetGustFx())
+    if (demo)
     {
-        m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
-        m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
-        AddGustWindBurst(g.pos, g.dir, g.length);
+        UpdateTitleDemo(gdt);   // 敵を寄せる・メテオを落とす・体を敵へ向ける・MP を満たす
+        m_WeaponSystem.Update(m_Registry, gdt, m_CollisionSystem);
+        m_PlayerVFX.Update(m_Registry, m_Player, gdt, 0.0f, m_WeaponSystem.GetCastFx());   // 詠唱の光（タイトルでも）
+        for (const auto& g : m_WeaponSystem.GetGustFx())
+        {
+            m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
+            m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
+            AddGustWindBurst(g.pos, g.dir, g.length);
+        }
     }
     m_PlayerAnimSystem.Update(m_Registry, gdt);
     m_SkinnedAnimSystem.Update(m_Registry, gdt);
@@ -303,6 +319,14 @@ void CollisionTestScene::UpdateTitle(float dt)
     m_AreaVFX.Update(gdt, pp ? *pp : Vector3::Zero);
     m_ParticleSystem.Flush(gdt, m_TotalTime);
     m_Swarm.CollectLights();
+}
+
+// ============================================================
+// Update の代わり：景色（スローモーションの戦い）+ メニュー
+// ============================================================
+void CollisionTestScene::UpdateTitle(float dt)
+{
+    UpdateTitleWorld(dt, true);
 
     // ---- メニュー ----
     auto& sm = Application::Get().GetGame().GetSceneManager();
@@ -321,7 +345,7 @@ void CollisionTestScene::UpdateTitle(float dt)
     {
     case TitleScreenUI::kStart:
         g_RunCarry.Reset();
-        sm.RequestChangeScene(SceneType::COLLISION_TEST);
+        sm.RequestChangeScene(SceneType::STAGE_SELECT);   // マップ × Tier を選んでから出発（2026-10-21、Megabonk に倣う）
         break;
     case TitleScreenUI::kTraining:
         sm.RequestChangeScene(SceneType::SPELL_LAB);

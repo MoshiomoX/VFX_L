@@ -290,8 +290,10 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
         total = overtime ? (int)(info.runTime - info.stageTime) : (int)std::ceil(info.stageTime - info.runTime);
     wchar_t killBuf[128];
     swprintf_s(buf, overtime ? L"+%02d:%02d" : L"%02d:%02d", total / 60, total % 60);
-    if (info.stage > 0)
-        swprintf_s(killBuf, overtime ? L"ステージ%d %s   最終ウェーブ   撃破 %u" : L"ステージ%d %s   撃破 %u", info.stage, info.stageName, info.kills);
+    if (info.stage > 0 && info.stageTotal > 1)
+        swprintf_s(killBuf, overtime ? L"ステージ%d/%d %s   最終ウェーブ   撃破 %u" : L"ステージ%d/%d %s   撃破 %u", info.stage, info.stageTotal, info.stageName, info.kills);
+    else if (info.stage > 0)
+        swprintf_s(killBuf, overtime ? L"%s   最終ウェーブ   撃破 %u" : L"%s   撃破 %u", info.stageName, info.kills);
     else
         swprintf_s(killBuf, overtime ? L"最終ウェーブ   撃破 %u" : L"撃破 %u", info.kills);
     std::wstring objLine;

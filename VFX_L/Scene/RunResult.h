@@ -20,6 +20,8 @@ struct RunResult
     bool     cleared = false;     // Boss を倒して面をクリアした（false = 力尽きた・途中でやめた）
     int      stage = 1;           // 遊んだ面（1..StageConfig::kStageCount）
     bool     hasNextStage = false;   // クリアして次の面がある（リザルトで「次のステージへ」を出す）
+    int      startStage = 1;      // このプレイの開始マップと Tier（ステージ選択。2026-10-21）
+    int      tier = 1;
     // ---- リザルトの作り直し（2026-10-09）で足した物 ----
     int      goldEarned = 0;      // この面で拾った金貨
     int      cratesOpened = 0;    // この面で開けた報酬の箱
@@ -47,6 +49,10 @@ inline RunResult g_LastRun;
 struct RunCarry
 {
     int  stage = 1;
+    // プレイの計画（ステージ選択で決める。2026-10-21）：startStage から tier 面続けて戦う（草原 → 砂漠 → 遺跡 の順）。
+    // 最後の面 = startStage + tier - 1。クリアしたか力尽きたかに関わらず、リザルトから選択画面へ戻るまで持つ
+    int  startStage = 1;
+    int  tier = 1;
     bool hasPlayer = false;
     BackpackComponent    backpack;
     SpellbookComponent   spellbook;
@@ -58,5 +64,8 @@ struct RunCarry
     PlayerStatsComponent stats;
     uint32_t killsBefore = 0;     // 前の面までの撃破（リザルトの表示用）
     void Reset() { *this = RunCarry{}; }
+    // 計画（開始マップ・Tier）だけ残して捨てる（面の終わりに。次の面の有無はシーンが計画から決める）
+    void ResetKeepPlan() { const int s = startStage, t = tier; Reset(); startStage = s; tier = t; }
+    int  LastStage() const { return startStage + tier - 1; }
 };
 inline RunCarry g_RunCarry;

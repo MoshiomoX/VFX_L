@@ -59,6 +59,7 @@ struct HUDFrameInfo
     float    bossHp = -1.0f;       // Boss の HP 条（0..1）。負なら出さない
     uint32_t kills = 0;            // 撃破数（GPU counter の累計）
     int      stage = 0;            // 面の番号（1..）。0 なら出さない
+    int      stageTotal = 0;       // このプレイの面数（Tier。2026-10-21）。2 以上なら「ステージ n/N」、それ以外は名前だけ
     const wchar_t* stageName = L"";
     int      gold = -1;            // 金貨（2026-10-04）。MP バーの下に出す。負なら出さない
     const wchar_t* objective = nullptr;    // 目標の一行（撃破数の下。null / 空なら出さない。2026-10-07）

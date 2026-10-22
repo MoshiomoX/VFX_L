@@ -10,6 +10,7 @@
 #include "World/TerrainGenerator.h"
 #include "Graphics/Light/SceneLighting.h"
 #include <SimpleMath.h>
+#include <algorithm>
 
 struct StageDef
 {
@@ -29,9 +30,9 @@ struct StageDef
     DirectX::SimpleMath::Vector3 grassTip = { 1.25f, 1.20f, 0.85f };
     float grassHeightMin = 0.28f, grassHeightMax = 0.55f;   // 葉の高さ m
 
-    // 面毎の難度（2026-10-17、ユーザー「第 1 面を勝ち切って第 2 面に入ると無双になる」）。
-    // 難度表（Difficulty.json）を difficultyTimeOffsetMin 分だけ進めた所から始め（第 2 面 = 第 1 面の 10 分の続き）、
-    // 表の HP・ダメージ・湧きの値に面の倍率を掛ける。以前は HP・ダメージに +0.6 / +1.2 を足すだけで、第 2 面の開始が第 1 面の終わりより緩かった
+    // マップそのものの難しさ（2026-10-21 から）。Megabonk の「砂漠は上級」のように、開始マップとして選んだ時にも効く小さな倍率。
+    // 「何面目か」による難度（表を進める + 大きな倍率。2026-10-17 の値）は StageConfig::PosDifficulty（プレイの中の位置で決まる）、
+    // Tier の倍率は StageConfig::TierMul。実際の倍率 = 表 × PosDifficulty × これ × Tier（CollisionTestScene::Init）
     float difficultyTimeOffsetMin = 0.0f;
     float difficultyHpMul = 1.0f;
     float difficultyDamageMul = 1.0f;
@@ -66,4 +67,30 @@ namespace StageConfig
 
     // 1..kStageCount。範囲外は端に丸める
     const StageDef& Get(int stage);
+
+    // ---- ステージ選択（2026-10-21 ユーザー：「Megabonk に完全に倣う」）----
+    // マップ（開始ステージ）を選び、Tier n = そこから n 面続けて戦う（順番は草原 → 砂漠 → 遺跡で固定）。
+    // 最大の Tier = 残りの面数（草原 3 / 砂漠 2 / 遺跡 1）
+    inline constexpr int kMaxTier = 3;
+    inline int MaxTier(int startStage) { return kStageCount - std::clamp(startStage, 1, kStageCount) + 1; }
+
+    // 「プレイの中で何面目か」による難度（2026-10-17 の面毎の難度をそのまま位置に付け替えた物）：
+    // 2 面目は難度表を 10 分進めた所から × HP 2.5 …、3 面目は 20 分 × 2.8 …（持ち物を抱えて来る前提）
+    struct RunDifficulty
+    {
+        float timeOffsetMin = 0.0f;
+        float hpMul = 1.0f;
+        float damageMul = 1.0f;
+        float spawnMul = 1.0f;
+    };
+    const RunDifficulty& PosDifficulty(int posInRun);   // 0 = 1 面目
+
+    // Tier の倍率（ユーザー 10-21：Tier 2 = 敵 HP・攻撃 ×1.2、Tier 3 = ×1.45。経験値も少し増える）
+    struct TierDifficulty
+    {
+        float hpMul = 1.0f;
+        float damageMul = 1.0f;
+        float expMul = 1.0f;
+    };
+    const TierDifficulty& TierMul(int tier);   // 1..kMaxTier
 }

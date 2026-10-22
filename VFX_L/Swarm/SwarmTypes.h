@@ -396,7 +396,7 @@ namespace Swarm
     {
         float separationRadius = 1.2f;
         float separationPower = 4.0f;
-        float avoidPower = 6.0f;
+        float avoidPower = 2.0f;        // 2026-10-20：6 → 2。流場が木を避けるので、追いかける速度（3.5）を上回る押しは要らない（木の隣の台地の角へ押し込んでいた）
         float lookAhead = 0.35f;        // 秒。速度 × これ で先読み距離
 
         float groundY = 0.9f;

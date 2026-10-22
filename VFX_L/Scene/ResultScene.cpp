@@ -112,7 +112,7 @@ void ResultScene::BuildRows()
     m_Rows[5] = { L"開けた宝箱", (float)r.cratesOpened, false, v };
 
     const bool next = r.valid && r.hasNextStage;
-    m_Buttons[0].label = next ? L"次のステージへ" : L"もう一度遊ぶ";
+    m_Buttons[0].label = next ? L"次のステージへ" : L"ステージ選択へ";   // 2026-10-21：終わったらステージ選択（Megabonk の hub に戻るのと同じ）
     m_Buttons[0].key = L"<{K:Enter}|{A}>";   // <キーボード|パッド> の絵（InputGlyph。機器が替わったら Layout し直す）
     m_Buttons[1].label = L"タイトルへ";
     m_Buttons[1].key = L"<{K:BackSpace}|{B}>";
@@ -191,7 +191,7 @@ void ResultScene::Leave(int button)
         else
         {
             g_RunCarry.Reset();
-            sm.RequestChangeScene(SceneType::COLLISION_TEST);
+            sm.RequestChangeScene(SceneType::STAGE_SELECT);
         }
     }
     else
@@ -303,8 +303,13 @@ void ResultScene::Render(Renderer& renderer)
     {
         std::wstring header = L"リザルト";
         Vector4 color = { 1.0f, 0.86f, 0.52f, headerIn };
+        wchar_t tierBuf[32] = {};
         if (r.valid && r.cleared)
-            header = (r.stage >= StageConfig::kStageCount) ? L"全ステージクリア" : L"ステージクリア";
+        {
+            // Tier を最後まで戦い抜いた時はその Tier のクリア（2026-10-21、ステージ選択）。途中の面は「ステージクリア」
+            if (!r.hasNextStage && r.tier > 1) { swprintf_s(tierBuf, L"Tier %d クリア", r.tier); header = tierBuf; }
+            else header = L"ステージクリア";
+        }
         else if (r.valid)
         {
             header = L"力尽きた";
@@ -326,7 +331,7 @@ void ResultScene::Render(Renderer& renderer)
         {
             const StageDef& def = StageConfig::Get(std::clamp(r.stage, 1, StageConfig::kStageCount));
             wchar_t buf[64];
-            swprintf_s(buf, L"第%dステージ　%ls", r.stage, def.name);
+            swprintf_s(buf, L"%ls　Tier %d　ステージ %d / %d", def.name, r.tier, r.stage - r.startStage + 1, r.tier);
             DrawOutlined(m_Text, buf, { x0, y }, { 0.86f, 0.84f, 0.80f, headerIn }, 0.42f * k, 1.5f * k);
         }
     }

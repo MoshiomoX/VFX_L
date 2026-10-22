@@ -15,10 +15,8 @@ using namespace DirectX::SimpleMath;
 
 namespace
 {
-    // ゲームの名前は仮。決まったらここだけ書き換える
-    constexpr const wchar_t* kGameTitle = L"ルーンパック";
-    constexpr const wchar_t* kTagline1 = L"魔法をバックパックに詰めて、";
-    constexpr const wchar_t* kTagline2 = L"押し寄せる群れを生き抜け";
+    // ゲームの名前は仮。決まったらここだけ書き換える（英語表記、2026-10-21）
+    constexpr const wchar_t* kGameTitle = L"Rune Pack";
 
     constexpr float kFadeIn = 1.2f;   // 黒からふわっと出る秒数
 
@@ -45,6 +43,8 @@ bool TitleScreenUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* contex
         std::cout << "[Error] TitleScreenUI: SpriteRenderer init failed" << std::endl;
     if (!m_Text.Initialize(device, context, Res::Fnt::JP))
         std::cout << "[Error] TitleScreenUI: TextRenderer init failed" << std::endl;
+    if (!m_TitleText.Initialize(device, context, Res::Fnt::Title))   // ゲーム名の字体
+        std::cout << "[Error] TitleScreenUI: title font init failed" << std::endl;
 
     m_White = std::make_shared<Texture>();
     if (!m_White->CreateSolid(device, 255, 255, 255, 255))
@@ -64,6 +64,7 @@ bool TitleScreenUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* contex
 void TitleScreenUI::Shutdown()
 {
     if (!m_Ready) return;
+    m_TitleText.Shutdown();
     m_Text.Shutdown();
     m_Sprite.Shutdown();
     m_Ready = false;
@@ -127,16 +128,41 @@ void TitleScreenUI::Render(Graphics& gfx)
 
     m_Sprite.Begin();
     m_Text.Begin();
+    m_TitleText.Begin();
 
-    // ---- 名前（左上）→ 百合紋の分割線 → 一言（2 行）----
+    // ---- 名前（左上）→ 百合紋の分割線（紹介文は 2026-10-21 に削除）----
+    // 2026-10-21 ユーザー：「字体が硬い、魔法っぽく」→ 専用字体 Mystery Quest（m_TitleText）+ 後ろで回る魔法陣（八芒星 + 内側に逆回転の花）
+    // + 暖色の後光（8 方向にずらした薄い文字 = ぼかしの代わり）+ 暗い縁取り + HDR の金色（bloom で光る）。明るさはゆっくり息をする
     const std::wstring title = kGameTitle;
-    const float titleScale = 1.75f * k;
-    const Vector2 titleSize = m_Text.Measure(title, titleScale);
+    const float titleScale = 0.80f * k;   // 96px の字体 → 約 77px × k
+    const Vector2 titleSize = m_TitleText.Measure(title, titleScale);
     const float rise = (1.0f - titleIn) * 18.0f * k;   // 少し下から上がってくる
     const Vector2 titlePos = { m_Left, m_ScreenH * 0.12f + rise };
-    DrawOutlined(m_Text, title, titlePos, { 1.0f, 0.86f, 0.52f, titleIn }, titleScale, 3.0f * k);
+    const Vector2 titleCenter = titlePos + titleSize * 0.5f;
+    const float breath = 0.5f + 0.5f * std::sin(m_Time * 1.3f);   // 0〜1
+    if (m_White)
+    {
+        const float spin = UIDeco::Clock() * 0.18f;
+        Vector4 ring = UIDeco::TintColor(UIDeco::Tint::Gold);
+        ring.w = (0.20f + 0.08f * breath) * titleIn;
+        const float d = titleSize.y * 3.0f;
+        UIDeco::DrawCircle(m_Sprite, true, titleCenter, d, ring, spin);
+        ring.w *= 0.7f;
+        UIDeco::DrawCircle(m_Sprite, false, titleCenter, d * 0.62f, ring, -spin * 1.6f);
+    }
+    {
+        const float g = 5.0f * k;
+        const Vector4 halo = { 1.0f, 0.62f, 0.22f, (0.10f + 0.05f * breath) * titleIn };
+        for (int i = 0; i < 8; ++i)
+        {
+            const float a = static_cast<float>(i) * 6.2831853f / 8.0f;
+            m_TitleText.Draw(title, titlePos + Vector2(std::cos(a), std::sin(a)) * g, halo, titleScale);
+        }
+        const float hdr = 1.15f + 0.25f * breath;
+        DrawOutlined(m_TitleText, title, titlePos, { 1.0f * hdr, 0.84f * hdr, 0.46f * hdr, titleIn }, titleScale, 3.0f * k);
+    }
 
-    float y = titlePos.y + titleSize.y + 4.0f * k;
+    const float y = titlePos.y + titleSize.y + 4.0f * k;
     if (m_White)
     {
         const float lineW = titleSize.x * 1.05f;
@@ -144,13 +170,7 @@ void TitleScreenUI::Render(Graphics& gfx)
         Vector4 tint = UIDeco::TintColor(UIDeco::Tint::Gold);
         tint.w = titleIn;
         UIDeco::DrawDivider(m_Sprite, true, { m_Left + lineW * 0.5f, y + lineH * 0.5f }, lineW, tint);
-        y += lineH + 10.0f * k;
     }
-    const float tagScale = 0.46f * k;
-    const Vector4 tagColor = { 0.88f, 0.86f, 0.82f, 0.95f * titleIn };
-    DrawOutlined(m_Text, kTagline1, { m_Left, y }, tagColor, tagScale, 1.5f * k);
-    y += m_Text.GetLineHeight(tagScale);
-    DrawOutlined(m_Text, kTagline2, { m_Left, y }, tagColor, tagScale, 1.5f * k);
 
     // ---- メニュー（決定後は「読み込み中」）----
     if (m_Starting)
@@ -186,5 +206,6 @@ void TitleScreenUI::Render(Graphics& gfx)
         m_Sprite.Draw(m_White, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH }, { 0.0f, 0.0f, 0.0f, black });
 
     m_Sprite.End();
+    m_TitleText.End();   // 名前は他の文字より先（魔法陣の上、幕の上）
     m_Text.End();
 }

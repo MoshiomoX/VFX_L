@@ -460,7 +460,7 @@ void AutoTestSoak::Run(float dt)
         auto moveDiag = [&](char* out, size_t outSize)
             {
                 const float step = 1.0f / 60.0f;
-                const bool allowDrop = m_Grid.SampleHeight(pp.x, pp.z) <= ground - 1.0f;
+                const bool allowDrop = m_Grid.SampleHeight(pp.x, pp.z) <= (std::max)(ground, foot) - 1.0f;   // 2026-10-20：GPU と同じく足の高さも見る
                 const float rawHere = rawH(p.x, p.z);
                 const float footH = allowDrop ? (std::max)(rawHere, foot) : rawHere;
                 auto contact = [&](float cx, float cz, char* o8)
@@ -489,7 +489,9 @@ void AutoTestSoak::Run(float dt)
                         const float lim = 0.84f * run + 0.05f;
                         const float riseB = m_Grid.SampleHeight(tx, tz) - ground;
                         const float riseR = std::fabs(rawH(tx, tz) - rawHere);
-                        const bool hOk = bodyCheck ? (riseB <= lim && (allowDrop || -riseB <= lim))
+                        const float riseRs = rawH(tx, tz) - rawHere;   // 2026-10-20：GPU と同じく生の高さマスでも通れば可
+                        const bool rawOk = riseRs <= 0.84f * run + 0.35f && (allowDrop || -riseRs <= 0.84f * run + 0.35f);
+                        const bool hOk = bodyCheck ? ((riseB <= lim && (allowDrop || -riseB <= lim)) || rawOk)
                                                    : (riseR <= 0.84f * run + 0.35f);
                         if (!hOk) { strcpy_s(why, 12, "H"); return false; }
                         if (bodyCheck)

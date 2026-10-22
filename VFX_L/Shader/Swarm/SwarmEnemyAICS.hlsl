@@ -59,6 +59,29 @@ bool ChargeLineClear(float3 pos, float2 dir, float dist)
     return ok;
 }
 
+// The hard block's probe (2026-10-20): the probe point is open when its cell is walkable, the
+// slope from here is walkable (a cliff = wall, a drop is open only with allowDrop) AND the body
+// circle there touches nothing (SwarmBodyContact, the same test MoveCS applies to every step).
+// The centre-line slope test alone, over a look-ahead of 1.5-2 m, passed the 0.6 m ledge along
+// a terrace ramp's side and the corner of a plateau cell (its cell is walkable), so the AI kept
+// pushing into what MoveCS then refused every step (soak on the step terraces).
+// Rises are measured from the probe's own ground (walking up a ramp is no wall); with a drop
+// open, from the feet if higher (stepping off an edge: the plateau behind is no wall, and the
+// low ground under the circle does not count)
+bool ProbeBlocked(float3 pos, float2 probe, float r, bool allowDrop, float feet)
+{
+    if (!SwarmIsWalkable(terrain, float3(probe.x, 0.0, probe.y)))
+        return true;
+    // bilinear OR raw (same as MoveCS's StepOk): from inside the bilinear dip at a plateau edge
+    // the bilinear test alone calls every step back onto the plateau a climb too steep
+    if (!SwarmStepHeightOk(terrainHeight, pos.xz, probe, allowDrop) && !SwarmRawStepOk(terrainHeight, pos.xz, probe, allowDrop))
+        return true;
+    float footH = SwarmTerrainHeightRaw(terrainHeight, probe);
+    if (allowDrop)
+        footH = max(footH, feet);
+    return SwarmBodyContact(terrain, terrainHeight, probe, r, !allowDrop, footH).z > 0.0;
+}
+
 // straight-line chase inside this many cells of the player: the flow
 // field's per-cell steps would make the ring around the player jitter
 static const float kDirectChaseCells = 1.5;
@@ -66,8 +89,13 @@ static const float kDirectChaseCells = 1.5;
 // flow direction at a world xz: bilinear over the 4 nearest cell centres
 // so enemies do not snap to a new heading at every cell border.
 // (0,0) cells (unreachable / target) pull the blend toward zero, which
-// the caller treats as "no path, chase directly"
-float2 FlowAt(float2 xz)
+// the caller treats as "no path, chase directly".
+// Cells on another level (centre more than kFlowLevelStep above / below the
+// enemy's ground) are left out (2026-10-20): beside a step terrace the blend
+// mixed in the plateau cell's heading - a route the enemy cannot take from
+// down here - which steered it into the face / corner, where it twitched
+static const float kFlowLevelStep = 1.5;   // = FlowField::maxStep
+float2 FlowAt(float2 xz, float groundH)
 {
     float fx = (xz.x - g_GridOrigin.x) / g_CellSize - 0.5;
     float fz = (xz.y - g_GridOrigin.z) / g_CellSize - 0.5;
@@ -76,15 +104,22 @@ float2 FlowAt(float2 xz)
     int w = (int) g_GridW, d = (int) g_GridD;
 
     float2 sum = float2(0, 0);
+    float wsum = 0.0;
     [unroll]
     for (int k = 0; k < 4; ++k)
     {
         int cx = ix + (k & 1), cz = iz + (k >> 1);
         float wgt = ((k & 1) ? tx : 1.0 - tx) * ((k >> 1) ? tz : 1.0 - tz);
         bool inside = (cx >= 0 && cx < w && cz >= 0 && cz < d);
-        sum += inside ? flowField[cz * w + cx] * wgt : float2(0, 0);
+        float2 centre = float2(g_GridOrigin.x + (cx + 0.5) * g_CellSize, g_GridOrigin.z + (cz + 0.5) * g_CellSize);
+        bool sameLevel = abs(SwarmTerrainHeight(terrainHeight, centre) - groundH) <= kFlowLevelStep;
+        if (inside && sameLevel)
+        {
+            sum += flowField[cz * w + cx] * wgt;
+            wsum += wgt;
+        }
     }
-    return sum;
+    return (wsum > 1e-4) ? sum / wsum : float2(0, 0);
 }
 
 
@@ -318,7 +353,9 @@ void main(uint3 id : SV_DispatchThreadID)
         float lenSq = dot(toPlayer, toPlayer);
         float direct = kDirectChaseCells * g_CellSize;
 
-        float2 flow = FlowAt(pos.xz);
+        // the level = the raw height cell under the centre (not the feet: an enemy held on the edge
+        // while stepping off has its feet up on the plateau but belongs to the low cells' route now)
+        float2 flow = FlowAt(pos.xz, SwarmTerrainHeightRaw(terrainHeight, pos.xz));
         // near but on another level (player on a plateau above / below):
         // the straight line runs into the cliff, keep following the field to a ramp
         bool sameLevel = abs(g_PlayerPos.y - pos.y) < 1.0;
@@ -384,6 +421,10 @@ void main(uint3 id : SV_DispatchThreadID)
     bool ghost = SwarmIsGhost(extra.kind);
     float3 avoid = float3(0, 0, 0);
     float cs = g_CellSize;
+    // cliffs going down are open while the player stands lower (SwarmDropAllowed); the avoid and the hard block share it
+    bool allowDrop = SwarmDropAllowed(terrainHeight, pos.xz, pos.y - g_GroundY);
+    // (cliff faces are deliberately not avoided: tried 2026-10-20, the push away from a terrace
+    // side shoved enemies into the trees diagonally beside it, where they jammed)
     if (!ghost)
     {
         if (!SwarmIsWalkable(terrain, pos + float3(cs, 0, 0)))
@@ -491,17 +532,15 @@ void main(uint3 id : SV_DispatchThreadID)
     if (!ghost && SwarmIsWalkable(terrain, pos))
     {
         float r = SwarmBodyWallRadius(extra.kind);   // same body radius as MoveCS / PushCS
-        bool allowDrop = SwarmDropAllowed(terrainHeight, pos.xz);
+        float feet = pos.y - g_GroundY;
         // a dashing charger looks only a couple of steps ahead: at 14 m/s the usual
         // look-ahead (0.35 s = 5 m) would end the dash 5 m short of any wall behind the player
         float look = (cphase == SWARM_CHARGE_DASH || dashing) ? 2.0 * g_Step : g_LookAhead;
         float ax = (v.x != 0.0) ? v.x * look + sign(v.x) * r : 0.0;
         float az = (v.z != 0.0) ? v.z * look + sign(v.z) * r : 0.0;
 
-        bool blockX = ax != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(ax, 0, 0))
-                                    || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(ax, 0), allowDrop));
-        bool blockZ = az != 0.0 && (!SwarmIsWalkable(terrain, pos + float3(0, 0, az))
-                                    || !SwarmStepHeightOk(terrainHeight, pos.xz, pos.xz + float2(0, az), allowDrop));
+        bool blockX = ax != 0.0 && ProbeBlocked(pos, pos.xz + float2(ax, 0), r, allowDrop, feet);
+        bool blockZ = az != 0.0 && ProbeBlocked(pos, pos.xz + float2(0, az), r, allowDrop, feet);
         float lostX = blockX ? v.x : 0.0;
         float lostZ = blockZ ? v.z : 0.0;
         if (blockX) v.x = 0.0;
@@ -509,25 +548,37 @@ void main(uint3 id : SV_DispatchThreadID)
         // The probe runs along the centre line. With the centre right on a cell border beside a
         // blocked cell (x exactly -28.00 next to a tree cell) it lands in that cell, so the axis
         // toward the open lane beside it was dropped and the enemy stood still or turned on the
-        // spot for minutes (soak 2026-10-03). Probe a body radius to each side: if only one side
-        // is open, slide that way at the speed that was dropped (MoveCS side-steps the corner)
-        if (blockZ && abs(v.x) < 0.25 * abs(lostZ))
+        // spot for minutes (soak 2026-10-03). Probe to each side: if only one side is open, slide
+        // that way (MoveCS side-steps the corner).
+        // 2026-10-20: the side probes use the body test too (ProbeBlocked), a body radius plus a
+        // margin out (at exactly one radius the body there still grazed the corner), and the slide
+        // runs at least half the move speed: the blocked axis restarts from 0 every step (the
+        // smoothing), so the speed it lost was ~0.5 m/s and the old "only when the other axis is
+        // nearly still" rule hardly ever fired - the enemy sat beside the corner twitching
+        // Only while the other axis is nearly still (relative to the move speed, not to the lost
+        // speed): a slide that overrides a real velocity on the other axis fought the flow and the
+        // enemy twitched back and forth (tried 2026-10-20)
+        float side = r + 0.25;
+        float slide = max(0.5 * moveSpeed, 0.0);
+        if (blockZ && abs(v.x) < 0.25 * moveSpeed)
         {
-            float2 l = pos.xz + float2(-r, az), rr = pos.xz + float2(r, az);
-            bool openL = SwarmIsWalkable(terrain, float3(l.x, 0, l.y)) && SwarmStepHeightOk(terrainHeight, pos.xz, l, allowDrop);
-            bool openR = SwarmIsWalkable(terrain, float3(rr.x, 0, rr.y)) && SwarmStepHeightOk(terrainHeight, pos.xz, rr, allowDrop);
+            bool openL = !ProbeBlocked(pos, pos.xz + float2(-side, az), r, allowDrop, feet);
+            bool openR = !ProbeBlocked(pos, pos.xz + float2(side, az), r, allowDrop, feet);
             if (openL != openR)
-                v.x = (openL ? -1.0 : 1.0) * abs(lostZ);
+                v.x = (openL ? -1.0 : 1.0) * max(abs(lostZ), slide);
         }
-        if (blockX && abs(v.z) < 0.25 * abs(lostX))
+        if (blockX && abs(v.z) < 0.25 * moveSpeed)
         {
-            float2 l = pos.xz + float2(ax, -r), rr = pos.xz + float2(ax, r);
-            bool openL = SwarmIsWalkable(terrain, float3(l.x, 0, l.y)) && SwarmStepHeightOk(terrainHeight, pos.xz, l, allowDrop);
-            bool openR = SwarmIsWalkable(terrain, float3(rr.x, 0, rr.y)) && SwarmStepHeightOk(terrainHeight, pos.xz, rr, allowDrop);
+            bool openL = !ProbeBlocked(pos, pos.xz + float2(ax, -side), r, allowDrop, feet);
+            bool openR = !ProbeBlocked(pos, pos.xz + float2(ax, side), r, allowDrop, feet);
             if (openL != openR)
-                v.z = (openL ? -1.0 : 1.0) * abs(lostX);
+                v.z = (openL ? -1.0 : 1.0) * max(abs(lostX), slide);
         }
-        if (v.x != 0.0 && v.z != 0.0 && !SwarmIsWalkable(terrain, pos + float3(ax, 0, az)))
+        // a cliff counts as a corner too (2026-10-20): plateau cells are walkable, so the walkable
+        // test alone let an enemy push diagonally into the corner of a step terrace. The body
+        // circle in MoveCS then clipped the corner on the step and on both slides, and its
+        // side-step had no direction (the push-out pointed straight back along the velocity)
+        if (v.x != 0.0 && v.z != 0.0 && ProbeBlocked(pos, pos.xz + float2(ax, az), r, allowDrop, feet))
         {
             // corner: keep the axis that has more room, drop the other
             if (abs(v.x) > abs(v.z)) v.z = 0.0; else v.x = 0.0;

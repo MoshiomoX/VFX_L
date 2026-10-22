@@ -540,6 +540,9 @@ namespace Res
         // ダメージの数字の字体（2026-10-18。数字だけ使うので ASCII のみ、48px、BC2）。候補 Chakra Petch Bold Italic / Squada One（どちらも OFL）を
         // ユーザーが実機で見比べ中：環境変数 VFXL_DAMAGE_FONT=<名> で Assets/Fonts/<名>.spritefont に差し替えられる（GameUI::Initialize、TEMP-TEST）
         inline constexpr const wchar_t* Damage = L"Assets/Fonts/ChakraPetch.spritefont";
+        // タイトル画面のゲーム名の字体 Mystery Quest（OFL、MysteryQuest-OFL.txt。2026-10-21 ユーザーが 20 候補から選定）。
+        // 英語の名前だけに使うので ASCII のみ、96px、BC2（`-EmPx 96 -AtlasWidth 1024 -Ranges @(0x20, 0x7E)`）
+        inline constexpr const wchar_t* Title = L"Assets/Fonts/MysteryQuest.spritefont";
     }
 
     // ========================================================
@@ -636,5 +639,6 @@ namespace Res
         inline constexpr const char* Camera = "Assets/Data/Camera.json";   // 戦闘カメラの調整（BattleCamera）
         inline constexpr const char* Difficulty = "Assets/Data/Difficulty.json";   // 経過時間 → 難度の表（DifficultyCurve）
         inline constexpr const char* Settings = "Assets/Data/Settings.json";       // プレイヤーの設定（GameSettings：敵味方の縁取りの ON / OFF）。音量は Audio/Settings.json
+        inline constexpr const char* Progress = "Assets/Data/Progress.json";       // 進み具合（GameProgress：開いたマップ・クリアした Tier。2026-10-21）
     }
 }

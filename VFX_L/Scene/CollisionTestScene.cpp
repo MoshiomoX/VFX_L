@@ -27,7 +27,7 @@
 #include "World/TerrainGenerator.h"
 #include "Scene/RunResult.h"
 #include "Core/GameSettings.h"
-#include "Debug/DebugManager.h"
+#include "Debug/DebugManager.h" 
 #include "Audio/AudioSystem.h"
 #include "Debug/FrameProfiler.h"
 #include "Manager/InputMap.h"
@@ -42,7 +42,7 @@
 void CollisionTestScene::Init()
 {
     std::cout << "[CollisionTestScene] Init" << std::endl;
-    if (m_TitleScene) g_RunCarry.Reset();   // タイトルからは第 1 面を最初から（面の引き継ぎを捨てる）
+    if (IsMenuScene()) g_RunCarry.Reset();   // タイトル・ステージ選択からは最初から（面の引き継ぎを捨てる）
     else if (!m_LabScene)
     {
         // 新しい面：リザルトの背景の写真を撮り直す
@@ -71,7 +71,7 @@ void CollisionTestScene::Init()
     SetCamera(&m_Camera.Camera());
     {
         char env[16] = {};   // TEMP-TEST
-        m_AutoTest = DevUI::kEnabled && !m_TitleScene   // Demo では見ない。タイトルでは回さない
+        m_AutoTest = DevUI::kEnabled && !IsMenuScene()   // Demo では見ない。タイトル・ステージ選択では回さない
             && GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", env, sizeof(env)) > 0;
         m_AutoRunner = m_AutoTest ? BattleAutoTest::Create(env, *this) : nullptr;   // 値 = 自動テストの名前（Debug/AutoTest/）
         m_AutoStep = 0;
@@ -133,15 +133,32 @@ void CollisionTestScene::Init()
         std::cout << "[Error] ShadowMap init failed" << std::endl;
 
     // ---------- 面（草原 / 砂漠 / 遺跡）----------
-    // 前の面から引き継いだ番号（g_RunCarry.stage。タイトルから来た時は 1）。VFXL_STAGE=n で上書き（デバッグ）
+    // 前の面から引き継いだ番号（g_RunCarry.stage。ステージ選択で決めた開始マップから始まる）。
+    // VFXL_STAGE=n で上書き（デバッグ：その面だけ = Tier 1。VFXL_TIER=n で Tier も）
     m_StageIndex = g_RunCarry.stage;
+    m_RunStart = g_RunCarry.startStage;
+    m_RunTier = g_RunCarry.tier;
+    bool stageFromEnv = false;
     {
         char env[16] = {};
         if (GetEnvironmentVariableA("VFXL_STAGE", env, sizeof(env)) > 0)
+        {
             m_StageIndex = atoi(env);
-        m_StageIndex = std::clamp(m_StageIndex,1, StageConfig::kStageCount);
+            m_RunStart = m_StageIndex;
+            m_RunTier = 1;
+            stageFromEnv = true;
+            if (GetEnvironmentVariableA("VFXL_TIER", env, sizeof(env)) > 0) m_RunTier = atoi(env);
+        }
+        m_StageIndex = std::clamp(m_StageIndex, 1, StageConfig::kStageCount);
         if (m_TitleScene) m_StageIndex = 1;   // タイトルの景色はいつも草原
+        if (m_SelectScene) m_StageIndex = std::clamp(GameProgress::Get().lastMap, 1, StageConfig::kStageCount);   // 前回選んだマップの景色から
+        m_RunStart = std::clamp(m_RunStart, 1, m_StageIndex);
+        m_RunTier = std::clamp(m_RunTier, 1, StageConfig::MaxTier(m_RunStart));
+        if (m_StageIndex > m_RunStart + m_RunTier - 1) m_RunTier = m_StageIndex - m_RunStart + 1;   // 計画より先の面に来た（デバッグ）
     }
+    // 進み具合：プレイの中でこの面に入った → 開始マップとして解放（2026-10-21、Megabonk の「2 面目に入ると砂漠が開く」）
+    if (!m_LabScene && !IsMenuScene() && !stageFromEnv && GameProgress::Get().OnStageEntered(m_StageIndex))
+        GameProgress::Get().Save();
     const StageDef& stageDef = StageConfig::Get(m_StageIndex);
     m_TerrainConfig.biome = stageDef.biome;
     m_Lighting.ApplyPreset(stageDef.light);
@@ -198,9 +215,9 @@ void CollisionTestScene::Init()
         char env[64] = {};
         if (GetEnvironmentVariableA("VFXL_MAP", env, sizeof(env)) > 0) m_MapFile = env;
     }
-    if (m_TitleScene)
+    if (IsMenuScene())
     {
-        // タイトル：決まった seed の草原（地図・環境変数は見ない）
+        // タイトル・ステージ選択：決まった seed（地図・環境変数は見ない）
         m_MapFile.clear();
         m_TerrainConfig.seed = kTitleSeed;
     }
@@ -258,10 +275,19 @@ void CollisionTestScene::Init()
     }
     m_Mobs.Init(m_Swarm);
     m_Audio.Init(m_Swarm, m_StageIndex);   // 範囲の音の表（範囲の profile と VFX 表の後）
-    m_Mobs.stageTimeOffsetMin = stageDef.difficultyTimeOffsetMin;   // 面毎の難度（表を進める + 倍率。2026-10-17）
-    m_Mobs.stageHpMul = stageDef.difficultyHpMul;
-    m_Mobs.stageDamageMul = stageDef.difficultyDamageMul;
-    m_Mobs.stageSpawnMul = stageDef.difficultySpawnMul;
+    {
+        // 難度 = 表 × 「何面目か」（PosDifficulty。2026-10-17 の面毎の値）× マップ自体（StageDef）× Tier（2026-10-21、ステージ選択）
+        const auto& pos = StageConfig::PosDifficulty(m_StageIndex - m_RunStart);
+        const auto& tier = StageConfig::TierMul(m_RunTier);
+        m_Mobs.stageTimeOffsetMin = pos.timeOffsetMin + stageDef.difficultyTimeOffsetMin;
+        m_Mobs.stageHpMul = pos.hpMul * stageDef.difficultyHpMul * tier.hpMul;
+        m_Mobs.stageDamageMul = pos.damageMul * stageDef.difficultyDamageMul * tier.damageMul;
+        m_Mobs.stageSpawnMul = pos.spawnMul * stageDef.difficultySpawnMul;
+        m_ExpMul = tier.expMul;
+        std::cout << "[CollisionTestScene] run start " << m_RunStart << " tier " << m_RunTier << " pos " << (m_StageIndex - m_RunStart)
+            << " -> table +" << m_Mobs.stageTimeOffsetMin << " min HP x" << m_Mobs.stageHpMul << " dmg x" << m_Mobs.stageDamageMul
+            << " spawn x" << m_Mobs.stageSpawnMul << " exp x" << m_ExpMul << std::endl;
+    }
     m_Mobs.splitterStart = stageDef.splitter.start;   // スプリッターの混ざり方（面毎）
     m_Mobs.splitterRatioStart = stageDef.splitter.ratioStart;
     m_Mobs.splitterRatioEnd = stageDef.splitter.ratioEnd;
@@ -348,9 +374,9 @@ void CollisionTestScene::Init()
     m_BossAttacks.Reset();
     m_BossSlamHits = 0;
     m_Pickups.Init(device);
-    if (m_LabScene || m_TitleScene)
+    if (m_LabScene || IsMenuScene())
     {
-        // 実験場・タイトル：制限時間・エリート・箱・門・磁石なし。箱と門は置かない（RespawnCrates を呼ばない）
+        // 実験場・タイトル・ステージ選択：制限時間・エリート・箱・門・磁石なし。箱と門は置かない（RespawnCrates を呼ばない）
         m_Stage.stageTime = 0.0f;
         m_Stage.eliteTimes.clear();
         m_Stage.waves.enabled = false;   // 湧きの波も無し（湧き自体が止まっているが、案内が出ないように）
@@ -372,11 +398,12 @@ void CollisionTestScene::Init()
         m_GameUI.SetTrainingEnabled(true);
         m_SpellLab.EnterLab(m_Registry, m_Player, m_Swarm, m_Mobs);
     }
-    if (m_TitleScene) InitTitle();   // 丘の上のプレイヤー・夕方の光・回るカメラ・メニュー（CollisionTestSceneTitle.cpp）
+    if (m_TitleScene) InitTitle();     // 丘の上のプレイヤー・夕方の光・回るカメラ・メニュー（CollisionTestSceneTitle.cpp）
+    if (m_SelectScene) InitSelect();   // 同じ景色 + ステージ選択の画面（CollisionTestSceneSelect.cpp）
 
     // ---- 初回のチュートリアル（2026-10-13）：タイトルから第 1 ステージに入った最初の 1 回だけ。
     // 終えた / 飛ばしたら GameSettings::tutorialDone。VFXL_TUTORIAL=1 / 0 で強制（TEMP-TEST）。自動テスト中は出さない
-    if (!m_LabScene && !m_TitleScene)
+    if (!m_LabScene && !IsMenuScene())
     {
         char env[8] = {};
         const bool hasEnv = GetEnvironmentVariableA("VFXL_TUTORIAL", env, sizeof(env)) > 0;
@@ -405,6 +432,7 @@ void CollisionTestScene::Shutdown()
     m_Grass.Shutdown();
     m_GameUI.Shutdown();
     m_TitleUI.Shutdown();
+    m_SelectUI.Shutdown();
     DebugManager::Get().SetShowGrid(m_PrevDebugGrid);   // 参照格子を元に戻す（DebugManager もシーン間で共有）
     std::cout << "[CollisionTestScene] Shutdown" << std::endl;
 }
@@ -646,7 +674,8 @@ void CollisionTestScene::RespawnElites()
 // ============================================================
 void CollisionTestScene::Update(float dt)
 {
-    if (m_TitleScene) { UpdateTitle(dt); return; }   // タイトル：景色とメニューだけ（CollisionTestSceneTitle.cpp）
+    if (m_TitleScene) { UpdateTitle(dt); return; }     // タイトル：景色とメニューだけ（CollisionTestSceneTitle.cpp）
+    if (m_SelectScene) { UpdateSelect(dt); return; }   // ステージ選択：景色と選択の画面（CollisionTestSceneSelect.cpp）
     SceneBase::Update(dt);
     m_TotalTime += dt;
 
@@ -764,7 +793,7 @@ void CollisionTestScene::Update(float dt)
 
     // ---- HUD：経過時間・撃破数と、画面外の目印 ----
     m_GameUI.SetRunInfo(m_RunTime, m_Swarm.GetCounters().killCount, m_Stage.stageTime);
-    m_GameUI.SetStage(m_StageIndex, StageConfig::Get(m_StageIndex).name);
+    m_GameUI.SetStage(m_StageIndex - m_RunStart + 1, m_RunTier, StageConfig::Get(m_StageIndex).name);   // 「ステージ n/Tier 名前」
     m_GameUI.SetBossBar(m_Stage.IsBossAlive() ? m_Stage.BossHpRatio() : -1.0f);
     UpdateHudMarkers();
 
@@ -783,7 +812,7 @@ void CollisionTestScene::Update(float dt)
             if (m_Stage.IsCleared())
                 obj = nullptr;
             else if (m_Stage.IsBossDefeated())
-                swprintf_s(m_ObjectiveBuf, (m_StageIndex < StageConfig::kStageCount)
+                swprintf_s(m_ObjectiveBuf, HasNextStage()
                     ? L"門に戻って 次のステージへ　%.0f m" : L"門に戻って 冒険を終える　%.0f m", (std::max)(0.0f, dist));
             else if (m_Stage.IsBossAlive())
                 swprintf_s(m_ObjectiveBuf, L"ボスを倒す");
@@ -1001,7 +1030,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         // Boss を倒したら同じ門を出口にする（2026-10-07 ユーザー：もう一度押して次の面へ）。渦は金色で出し直す
         if (m_Stage.IsBossDefeated() && !m_Stage.IsCleared() && !m_Stage.IsExitOpen())
         {
-            const wchar_t* prompt = (m_StageIndex < StageConfig::kStageCount) ? L"<{K:F}|{B}>  次のステージへ" : L"<{K:F}|{B}>  冒険を終える";
+            const wchar_t* prompt = HasNextStage() ? L"<{K:F}|{B}>  次のステージへ" : L"<{K:F}|{B}>  冒険を終える";   // 計画（Tier）の最後の面なら終える
             if (m_Stage.OpenExit(m_Registry, prompt))
             {
                 if (m_PortalVfx) m_AreaVFX.StopInstance(m_PortalVfx);
@@ -1110,7 +1139,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         }
         // GPU 上で拾った経験値を CPU のプレイヤーへ反映。
         // レベルアップの判定は LevelUpSystem（次フレーム頭）に任せて、ここは足すだけ
-        const float gpuExp = m_Swarm.ConsumeExp();
+        const float gpuExp = m_Swarm.ConsumeExp() * m_ExpMul;   // Tier の経験値倍率（2026-10-21）。金貨も同じ値から
         if (gpuExp > 0.0f) m_ExpGained += gpuExp;   // 戦績用
         if (gpuExp > 0.0f) m_Feedback.OnExpPicked(ptf.position);   // 拾った時のきらめき
         if (gpuExp > 0.0f && m_Registry.Has<LevelComponent>(m_Player))
@@ -1181,15 +1210,25 @@ void CollisionTestScene::EndRun()
     g_LastRun.expGained = m_ExpGained;
     g_LastRun.cleared = m_Stage.IsCleared();
     g_LastRun.stage = m_StageIndex;
-    g_LastRun.hasNextStage = g_LastRun.cleared && m_StageIndex < StageConfig::kStageCount;
+    g_LastRun.startStage = m_RunStart;
+    g_LastRun.tier = m_RunTier;
+    g_LastRun.hasNextStage = g_LastRun.cleared && HasNextStage();
+    // 進み具合：Tier を最後まで戦い抜いた → 次の Tier が開く（2026-10-21、ステージ選択）
+    if (g_LastRun.cleared && !g_LastRun.hasNextStage && !m_LabScene)
+    {
+        GameProgress::Get().OnTierCleared(m_RunStart, m_RunTier);
+        GameProgress::Get().Save();
+    }
     g_LastRun.cratesOpened = m_Crates.Opened();
     g_LastRun.goldEarned = m_Registry.Has<WalletComponent>(m_Player)
         ? (int)(m_Registry.Get<WalletComponent>(m_Player).earned - m_GoldAtStart) : 0;
     g_LastRun.backpack = m_Registry.Has<BackpackComponent>(m_Player)
         ? m_Registry.Get<BackpackComponent>(m_Player) : BackpackComponent{};
 
-    // ---- 次の面への引き継ぎ（クリアした時だけ。力尽きたら最初から）----
+    // ---- 次の面への引き継ぎ（クリアした時だけ。力尽きたら最初から）。計画（開始マップ・Tier）はリザルトが見るので残す ----
     g_RunCarry.Reset();
+    g_RunCarry.startStage = m_RunStart;
+    g_RunCarry.tier = m_RunTier;
     if (g_LastRun.hasNextStage && m_Registry.IsValid(m_Player))
     {
         g_RunCarry.stage = m_StageIndex + 1;
@@ -1335,8 +1374,9 @@ void CollisionTestScene::Render(Renderer& renderer)
     // 4) UI（一番手前。Begin/End の管理は GameUI の中）。タイトルは名前とメニューだけ
     // ============================================================
     PROFILE_SCOPE_GPU("Game UI");
-    if (m_TitleScene) m_TitleUI.Render(gfx);
-    else              m_GameUI.Render(m_Registry, m_Player);
+    if (m_TitleScene)       m_TitleUI.Render(gfx);
+    else if (m_SelectScene) m_SelectUI.Render(gfx);
+    else                    m_GameUI.Render(m_Registry, m_Player);
 }
 
 // ============================================================

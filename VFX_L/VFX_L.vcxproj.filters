@@ -595,6 +595,9 @@
     <ClCompile Include="Scene\CollisionTestSceneTitle.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneSelect.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Scene\ResultScene.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
@@ -702,6 +705,12 @@
     </ClCompile>
     <ClCompile Include="Core\GameSettings.cpp">
       <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GameProgress.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\StageSelectUI.cpp">
+      <Filter>UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\MenuList.cpp">
       <Filter>UI</Filter>
@@ -1265,6 +1274,9 @@
     <ClInclude Include="Scene\ShopScene.h">
       <Filter>Scene</Filter>
     </ClInclude>
+    <ClInclude Include="Scene\StageSelectScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
     <ClInclude Include="Scene\RunResult.h">
       <Filter>Scene</Filter>
     </ClInclude>
@@ -1418,6 +1430,12 @@
     </ClInclude>
     <ClInclude Include="Core\GameSettings.h">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GameProgress.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\StageSelectUI.h">
+      <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\MenuList.h">
       <Filter>UI</Filter>

@@ -7,6 +7,7 @@
 #include "Manager/InputManager.h"
 #include "Audio/AudioSystem.h"
 #include "Core/GameSettings.h"
+#include "Core/GameProgress.h"
 #include "UI/UIDeco.h"
 #include "Graphics/PostProcess/SceneSnapshot.h"
 #include "UI/InputGlyph.h"
@@ -59,6 +60,7 @@ bool Application::Initialize()
     InputManager::Get().Initialize(m_Window.GetHandle());
     AudioSystem::Get().Initialize();   // 音（装置が無くても続ける）
     GameSettings::Get().Load();        // プレイヤーの設定（敵味方の縁取りの ON / OFF。無ければ既定値）
+    GameProgress::Get().Load();        // 進み具合（開いたマップ・クリアした Tier。無ければ草原 Tier 1 だけ。2026-10-21）
     {
         char env[16] = {};   // TEMP-TEST: VFXL_UI_SCALE=1.25 など、UI 全体の倍率を起動時に変える（見比べ用。既定 1.5）
         if (GetEnvironmentVariableA("VFXL_UI_SCALE", env, sizeof(env)) > 0 && env[0])

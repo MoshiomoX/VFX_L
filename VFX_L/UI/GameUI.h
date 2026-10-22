@@ -118,7 +118,7 @@ public:
         m_FrameInfo.stageTime = stageTime;
     }
     // 面の番号と名前（撃破数の行の頭に「第 2 面 砂漠」）。stage = 0 なら出さない
-    void SetStage(int stage, const wchar_t* name) { m_FrameInfo.stage = stage; m_FrameInfo.stageName = name; }
+    void SetStage(int stage, int total, const wchar_t* name) { m_FrameInfo.stage = stage; m_FrameInfo.stageTotal = total; m_FrameInfo.stageName = name; }   // stage = 何面目、total = Tier
     // 金貨（2026-10-04）。HUD の MP バーの下に出す（< 0 = 出さない）
     void SetGold(int gold) { m_FrameInfo.gold = gold; }
     // 目標の一行（撃破数の下、「目標: 」は HUD が付ける）。nullptr で消す。毎フレームシーンが入れ直す（2026-10-07）

@@ -74,6 +74,8 @@
 #include "UI/GameUI.h"
 #include "UI/TutorialGuide.h"
 #include "UI/TitleScreenUI.h"
+#include "UI/StageSelectUI.h"
+#include "Core/GameProgress.h"
 #include "Graphics/PostProcess/SceneSnapshot.h"
 #include "Camera/CameraBase.h"
 #include "SpellID.h"      // ItemID
@@ -96,12 +98,40 @@ protected:
     // タイトル画面（TitleScene が立てる。2026-10-09）：草原の地形・草・空はそのまま、敵・箱・門・HUD なし。
     // 丘の上に立つプレイヤーをカメラがゆっくり回り、手前に TitleScreenUI。中身は CollisionTestSceneTitle.cpp
     bool m_TitleScene = false;
+    // ステージ選択（StageSelectScene が立てる。2026-10-21）：タイトルと同じ作り（選んだマップの景色をカメラが回る）で手前に StageSelectUI。
+    // 中身は CollisionTestSceneSelect.cpp
+    bool m_SelectScene = false;
+    bool IsMenuScene() const { return m_TitleScene || m_SelectScene; }   // 敵・箱・門・HUD・自動テストを回さない画面
 
 private:
     // ---- タイトル画面（CollisionTestSceneTitle.cpp）----
     void InitTitle();               // Init の終わり：プレイヤーを丘の上へ、夕方の光、カメラ、メニュー
     void UpdateTitle(float dt);     // Update の代わり（操作・湧き・武器は回さない）
     void UpdateTitleCamera(float dt);
+    void PlaceTitleStand();         // 立つ所とカメラの向きを選んでプレイヤーを置く（m_TitleFocus / m_TitleFacing。選択画面と共用）
+    void ApplyTitleLight(const SceneLighting::Preset& base);   // 午後遅くの光（太陽はカメラの側の斜めから）
+    void UpdateTitleWorld(float dt, bool demo);   // 景色の更新（物理・アニメ・草・GPU・粒子）。demo = 戦いの見本をスローで回す
+
+    // ---- ステージ選択（CollisionTestSceneSelect.cpp。2026-10-21）----
+    void InitSelect();
+    void UpdateSelect(float dt);
+    void ApplySelectLight();        // 草原はタイトルの午後の光、他はそのマップの照明
+    StageSelectUI m_SelectUI;
+    std::string m_RebuildProfile;        // TEMP-TEST：RebuildTerrain の各段の ms（コンソールと select 自動テストの記録用）
+    // 3 つのマップの地形を最初に全部建てておき、切替は「出す / しまう」だけ（2026-10-21 ユーザー：「切替の度に読み直すな、3 つ同時に持て」）。
+    // しまう = その地形の実体から ModelComponent / ColliderComponent を外して預かる（描かれず・当たらず）、出す = 戻す。
+    // 中身は CollisionTestSceneSelect.cpp（SelectWorlds）
+    struct SelectWorlds;
+    std::shared_ptr<SelectWorlds> m_SelectWorlds;
+    void BuildSelectWorlds();            // Init で建った地形を 1 つ目として預かり、残りの 2 つも建てて預かる
+    void ActivateSelectWorld(int map);   // そのマップを出して、格子・置物・草・GPU の表・立つ所・光を差し替える
+    std::vector<uint8_t> m_GrassMask;    // 今の地形の草の生える所（BuildTerrain が記録。地形の出し入れで草を建て直す）
+
+    // ---- プレイの計画（ステージ選択で決まる。2026-10-21）：m_RunStart から m_RunTier 面続ける ----
+    int   m_RunStart = 1;
+    int   m_RunTier = 1;
+    float m_ExpMul = 1.0f;          // Tier の経験値倍率（GPU から受け取った経験値に掛ける）
+    bool  HasNextStage() const { return m_StageIndex < StageConfig::kStageCount && m_StageIndex < m_RunStart + m_RunTier - 1; }
     // 戦いの見本（2026-10-09 ユーザー：「立っているだけでは意味が分からない、エフェクトが弾ける画面に」）：
     // 見栄えのする魔法を背嚢に並べ、画面の奥から雑魚・自爆兵を寄せ続け、プレイヤーが自動で撃って吹き飛ばす
     void InitTitleDemo();
@@ -308,7 +338,7 @@ private:
     // トレーニング（実験場）のフィールド切替（2026-10-20、ユーザー「トレーニングからフィールドに入る。モードはそのまま」）：
     // field 0 = 平地の実験場、1〜3 = その面の本番の地形（段々の台地・置物・照明・草）。プレイヤーは中央へ。
     // 無敵・MP 無限・湧き停止・箱 / 門 / 磁石なしのトレーニングのまま。戻り値 = メニューに出す一行
-    std::wstring EnterTrainingField(int field);
+    std::wstring EnterTrainingField(int field, uint32_t seed = 0);   // seed 0 = 毎回違う。ステージ選択は決まった seed（2026-10-21）
     // 今ある報酬の箱と Boss の門を m_TerrainMap の placements へ（その種類がまだ 1 つも無い時だけ）
     void BakePlacements();
 

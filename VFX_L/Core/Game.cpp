@@ -8,6 +8,7 @@
 #include "Scene/TitleScene.h"
 #include "Scene/ResultScene.h"
 #include "Scene/ShopScene.h"
+#include "Scene/StageSelectScene.h"
 #include "Scene/RunResult.h"
 #include "Item/ItemDatabase.h"
 #include "Item/BackpackLogic.h"
@@ -37,6 +38,7 @@ bool Game::Initialize(Renderer* renderer)
 	m_SceneManager.RegisterScene<TitleScene>(SceneType::TITLE);
 	m_SceneManager.RegisterScene<ResultScene>(SceneType::RESULT);
 	m_SceneManager.RegisterScene<ShopScene>(SceneType::SHOP);
+	m_SceneManager.RegisterScene<StageSelectScene>(SceneType::STAGE_SELECT);   // マップ × Tier の選択（2026-10-21）
 
     // 起動はタイトルから。ゲームへ直行したい時は F1（DebugManager のシーン切替）
     m_SceneManager.ChangeScene(SceneType::TITLE);   // TEMP-TEST
@@ -68,6 +70,8 @@ bool Game::Initialize(Renderer* renderer)
         g_RunCarry.mana.regen = 30.0f;
         m_SceneManager.ChangeScene(SceneType::SHOP);
     }
+    else if (GetEnvironmentVariableA("VFXL_SELECT_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
+        m_SceneManager.ChangeScene(SceneType::STAGE_SELECT);   // TEMP-TEST: ステージ選択の自動テスト（CollisionTestSceneSelect.cpp）
     else if (GetEnvironmentVariableA("VFXL_VFX_AUTOLOAD", autoloadEnv, sizeof(autoloadEnv)) > 0
         || GetEnvironmentVariableA("VFXL_REF_MAGE", autoloadEnv, sizeof(autoloadEnv)) > 0)
         m_SceneManager.ChangeScene(SceneType::VFX_EDITOR);

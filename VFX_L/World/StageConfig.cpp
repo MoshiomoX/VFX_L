@@ -44,7 +44,7 @@ namespace
         s.grassTip = { 1.05f, 0.95f, 0.60f };
         s.grassHeightMin = 0.12f;
         s.grassHeightMax = 0.26f;
-        s.difficultyTimeOffsetMin = 10.0f; s.difficultyHpMul = 2.5f; s.difficultyDamageMul = 1.6f; s.difficultySpawnMul = 1.3f;   // 第 1 面の終わりの続き × 面の倍率（2026-10-17）
+        s.difficultyHpMul = 1.15f; s.difficultyDamageMul = 1.10f;   // マップ自体が少し硬い（開始マップとして選んだ時にも効く。2026-10-21。「何面目か」の倍率は PosDifficulty）
         s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };   // スプリッターは第 1 面の主力。ここは少し混ざるだけ
         s.charger = { 60.0f, 0.08f, 0.18f, 480.0f };      // 砂漠の主力 = 突撃兵（開けた砂地を突っ込んでくる。2026-10-08）
         s.spikeBall = { 45.0f, 0.06f, 0.14f, 480.0f };   // トゲ玉（2026-10-17）：45 秒から 6% → 8 分で 14%
@@ -76,7 +76,7 @@ namespace
         s.light.fogEnd = 70.0f;
         s.light.fogMax = 0.92f;
         s.grass = false;
-        s.difficultyTimeOffsetMin = 20.0f; s.difficultyHpMul = 2.8f; s.difficultyDamageMul = 1.6f; s.difficultySpawnMul = 1.3f;   // ×6 / ×2.4 / ×1.6 は壁（curve 持ち越しで 1 秒で死ぬ）、×3.2 / ×1.8 / ×1.35 でも毎秒 12〜51 減る。第 1 面の持ち物での計測なので少し甘く
+        s.difficultyHpMul = 1.30f; s.difficultyDamageMul = 1.20f; s.difficultySpawnMul = 1.05f;   // 一番硬いマップ（2026-10-21。「何面目か」の倍率は PosDifficulty）
         s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };
         s.shield = { 60.0f, 0.08f, 0.18f, 480.0f };       // 遺跡の主力 = 盾兵（2026-10-08）
         s.torchLights = 12;
@@ -95,5 +95,27 @@ namespace StageConfig
     const StageDef& Get(int stage)
     {
         return Table(std::clamp(stage, 1, kStageCount) - 1);
+    }
+
+    const RunDifficulty& PosDifficulty(int posInRun)
+    {
+        // 2026-10-17 の値：2 面目 = 表 +10 分 × HP 2.5 / ダメージ 1.6 / 湧き 1.3、3 面目 = +20 分 × 2.8 / 1.6 / 1.3
+        // （×6 / ×2.4 / ×1.6 は壁、×3.2 / ×1.8 / ×1.35 でも毎秒 12〜51 減る。第 1 面の持ち物での計測なので少し甘く）
+        static const RunDifficulty kPos[kStageCount] = {
+            { 0.0f, 1.0f, 1.0f, 1.0f },
+            { 10.0f, 2.5f, 1.6f, 1.3f },
+            { 20.0f, 2.8f, 1.6f, 1.3f },
+        };
+        return kPos[std::clamp(posInRun, 0, kStageCount - 1)];
+    }
+
+    const TierDifficulty& TierMul(int tier)
+    {
+        static const TierDifficulty kTier[kMaxTier] = {
+            { 1.0f, 1.0f, 1.0f },
+            { 1.2f, 1.2f, 1.1f },
+            { 1.45f, 1.45f, 1.2f },
+        };
+        return kTier[std::clamp(tier, 1, kMaxTier) - 1];
     }
 }

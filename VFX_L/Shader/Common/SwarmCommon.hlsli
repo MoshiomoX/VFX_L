@@ -1125,13 +1125,24 @@ bool SwarmSlopeOk(StructuredBuffer<float> heights, float2 from, float2 to)
 // the cliffs stay walls both ways. FlowField (CPU) uses the same rule,
 // so the field never routes an enemy off an edge the GPU will not let
 // it take. The crowd push (PushCS) never drops anyone.
+// feet = the enemy's feet height (terrain space, position.y - g_GroundY).
+// The enemy's height is the higher of the ground under its centre and its
+// feet (2026-10-20): the bilinear ground is blurred down over the last
+// 0.25m before an edge, and on the step terraces (2.5m steps on rolling
+// ground) a plateau is often only 1.5-2m above the player's ground, so
+// the centre's ground alone fell under the margin right at the edge and
+// the drop flipped off again: the body was eased back up, next step
+// allowed again -> enemies bobbed on the edge for good (soak). Settle
+// keeps the feet level with the plateau until the whole body is past the
+// edge, so the feet carry the decision through the drop
 // ============================================================
 static const float SWARM_DROP_MIN_BELOW = 1.0;
 
-bool SwarmDropAllowed(StructuredBuffer<float> heights, float2 enemyXZ)
+bool SwarmDropAllowed(StructuredBuffer<float> heights, float2 enemyXZ, float feet)
 {
+    float h = max(SwarmTerrainHeight(heights, enemyXZ), feet);
     return g_PlayerAlive != 0u
-        && SwarmTerrainHeight(heights, g_PlayerPos.xz) <= SwarmTerrainHeight(heights, enemyXZ) - SWARM_DROP_MIN_BELOW;
+        && SwarmTerrainHeight(heights, g_PlayerPos.xz) <= h - SWARM_DROP_MIN_BELOW;
 }
 
 // SwarmSlopeOk, but a drop of any height passes when allowDrop
@@ -1212,6 +1223,21 @@ bool SwarmRawSlopeOk(StructuredBuffer<float> heights, float2 from, float2 to)
 {
     float rise = abs(SwarmTerrainHeightRaw(heights, to) - SwarmTerrainHeightRaw(heights, from));
     return rise <= SWARM_MAX_WALK_SLOPE * length(to - from) + SWARM_BODY_CLIFF_RISE;
+}
+
+// SwarmStepHeightOk on the raw height cells (2026-10-20): a step passes when the raw ground
+// does not step up more than a walkable slope + the ramp margin; down likewise, or anything
+// with allowDrop. MoveCS accepts a step when this OR the bilinear test passes: within 0.25m
+// of a plateau edge the bilinear ground dips halfway down the face, so an enemy whose feet
+// had followed it there could never step back toward the plateau (every step "climbed" too
+// steeply) and hung on the edge for good. The raw cells have no such dip; climbing the real
+// face still fails here (a whole step inside one 0.5m cell) and the body test keeps the
+// centre off the face line anyway
+bool SwarmRawStepOk(StructuredBuffer<float> heights, float2 from, float2 to, bool allowDrop)
+{
+    float rise = SwarmTerrainHeightRaw(heights, to) - SwarmTerrainHeightRaw(heights, from);
+    float lim = SWARM_MAX_WALK_SLOPE * length(to - from) + SWARM_BODY_CLIFF_RISE;
+    return rise <= lim && (allowDrop || -rise <= lim);
 }
 
 #ifdef SWARM_BOMBER_CB_REG

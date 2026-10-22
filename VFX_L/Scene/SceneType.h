@@ -10,6 +10,7 @@ enum class SceneType
     RESULT,
     SPELL_LAB,     // 魔法の実験場（戦闘シーンの平地版。2026-10-06）
     SHOP,          // 面と面の間の商店（リザルトの「次のステージへ」の後。2026-10-15）
+    STAGE_SELECT,  // ステージ選択（マップ × Tier。タイトルの「はじめる」の後。2026-10-21）
     // 追加していく
 };
 
@@ -27,6 +28,7 @@ inline const char* SceneTypeName(SceneType type)
     case SceneType::RESULT:            return "Result";
     case SceneType::SPELL_LAB:         return "Spell Lab";
     case SceneType::SHOP:              return "Shop";
+    case SceneType::STAGE_SELECT:      return "Stage Select";
     }
     return "Unknown";
 }

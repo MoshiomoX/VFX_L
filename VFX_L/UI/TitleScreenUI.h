@@ -33,6 +33,7 @@ public:
 private:
     SpriteRenderer m_Sprite;
     TextRenderer   m_Text;
+    TextRenderer   m_TitleText;   // ゲーム名専用（Res::Fnt::Title = Mystery Quest、ASCII のみ。2026-10-21）
     std::shared_ptr<Texture> m_White;
     MenuList       m_Menu;
     HowToPlayUI    m_HowTo;
