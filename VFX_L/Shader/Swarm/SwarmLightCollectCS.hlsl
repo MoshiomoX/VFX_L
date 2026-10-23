@@ -5,9 +5,9 @@
 // frame's light list (PointLights.hlsli). The list already holds the
 // CPU-side lights; the counter continues from there.
 //
-// The list is capped (MAX_POINT_LIGHTS). Slots are first come first
-// served -- with hundreds of fireballs only the first 64 shine, which
-// is fine: the PS could not afford more anyway.
+// The list is capped (MAX_POINT_LIGHTS, 256 since the clustered lights
+// of 2026-10-23). Slots are first come first served -- with hundreds of
+// fireballs only the first ones shine.
 //
 // SwarmAreaLightCollectCS.hlsl #defines SWARM_LIGHT_AREAS and includes
 // this file: same code, sources are the live areas.

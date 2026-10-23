@@ -358,6 +358,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestPoisonPerf.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestLightPerf.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -642,6 +645,9 @@
     </ClCompile>
     <ClCompile Include="ECS\System\ClothChainSystem.cpp">
       <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Light\LightClusters.cpp">
+      <Filter>Graphics\Light</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Light\PointLightManager.cpp">
       <Filter>Graphics\Light</Filter>
@@ -1361,6 +1367,9 @@
     <ClInclude Include="ECS\System\ClothChainSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
+    <ClInclude Include="Graphics\Light\LightClusters.h">
+      <Filter>Graphics\Light</Filter>
+    </ClInclude>
     <ClInclude Include="Graphics\Light\PointLightManager.h">
       <Filter>Graphics\Light</Filter>
     </ClInclude>
@@ -1927,6 +1936,9 @@
     <FxCompile Include="Shader\Debris\DebrisPS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Light\LightClusterCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Dandelion\DandelionUpdateCS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
@@ -2189,6 +2201,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\Lighting.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\LightClusters.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\PointLights.hlsli">

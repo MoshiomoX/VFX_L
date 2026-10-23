@@ -49,11 +49,14 @@ bool PointLightManager::Initialize(ID3D11Device* device)
     }
     m_Cpu.reserve(kMaxLights);
     std::cout << "[OK] PointLightManager: " << kMaxLights << " lights" << std::endl;
+    // クラスタ分け（Forward+）。作れなくても PS は全部の光を回すだけなので失敗にしない
+    m_Clusters.Initialize(device, kMaxLights);
     return true;
 }
 
 void PointLightManager::Shutdown()
 {
+    m_Clusters.Shutdown();
     m_Cpu.clear();
     m_LightUAV.Reset(); m_LightSRV.Reset(); m_LightBuffer.Reset();
     m_CountUAV.Reset(); m_CountSRV.Reset(); m_CountBuffer.Reset();
@@ -63,6 +66,7 @@ void PointLightManager::BeginFrame()
 {
     m_Cpu.clear();
     m_Uploaded = false;
+    m_Clusters.BeginFrame();
 }
 
 void PointLightManager::Add(const PointLight& light)
@@ -88,11 +92,18 @@ void PointLightManager::Upload(ID3D11DeviceContext* ctx)
     ctx->UpdateSubresource(m_CountBuffer.Get(), 0, nullptr, &n, 0, 0);
 }
 
+void PointLightManager::BuildClusters(ID3D11DeviceContext* ctx, CameraBase& camera)
+{
+    Upload(ctx);   // CPU 分がまだなら（同フレーム 2 回目以降は何もしない）
+    m_Clusters.Build(ctx, camera, m_LightSRV.Get(), m_CountSRV.Get());
+}
+
 void PointLightManager::BindPS(ID3D11DeviceContext* ctx)
 {
     if (!ctx) return;
     ID3D11ShaderResourceView* srvs[2] = { m_LightSRV.Get(), m_CountSRV.Get() };
     ctx->PSSetShaderResources(kLightSlot, 2, srvs);
+    m_Clusters.BindPS(ctx);   // t10 / t11（作っていないフレームは null = PS は全部の光を回す）
 }
 
 void PointLightManager::UnbindPS(ID3D11DeviceContext* ctx)
@@ -100,4 +111,5 @@ void PointLightManager::UnbindPS(ID3D11DeviceContext* ctx)
     if (!ctx) return;
     ID3D11ShaderResourceView* nulls[2] = { nullptr, nullptr };
     ctx->PSSetShaderResources(kLightSlot, 2, nulls);
+    m_Clusters.UnbindPS(ctx);
 }

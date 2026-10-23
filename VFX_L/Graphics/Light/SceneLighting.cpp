@@ -254,6 +254,13 @@ void SceneLighting::DrawImGui(const Vector3* player)
         m_SceneLightPos = *player + Vector3(0.0f, 4.0f, 0.0f);
     ImGui::TextDisabled("Gizmo: left-drag the handles (camera is right-drag)");
 
+    // ---- 点光源の表とクラスタ分け（Forward+、2026-10-23）----
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.5f, 1.0f), "Point Light List (clustered)");
+    ImGui::TextDisabled("CPU lights this frame: %d / %u (GPU projectiles / areas add more)",
+        PointLightManager::Get().GetCpuCount(), PointLightManager::kMaxLights);
+    PointLightManager::Get().Clusters().DrawImGui();
+
     // ---- 空と霧（線形 HDR）----
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Sky & Fog");

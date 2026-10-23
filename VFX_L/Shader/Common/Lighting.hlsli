@@ -24,6 +24,7 @@
 #endif
 
 #include "PointLights.hlsli"
+#include "LightClusters.hlsli"   // Forward+: which lights reach the pixel's cluster (t10 / t11)
 
 struct DirectionalLight
 {
@@ -277,7 +278,33 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
 // one loop.
 //   diffuse  : sum of radiance * N.L   (caller multiplies the albedo)
 //   specular : sum of GGX lobe * radiance * N.L   (final)
+// With the clusters built this frame (LightClusters.hlsli, Forward+)
+// only the lights whose sphere touches the pixel's cluster are visited;
+// otherwise (editor scenes, switched off) the whole list, as before.
 // ------------------------------------------------------------
+void PointLightAccum(PointLight l, float3 worldPos, float3 N, float3 V,
+                     float roughness, float3 F0,
+                     inout float3 diffuse, inout float3 specular)
+{
+    // no early returns here or in PointLightShade: fxc reports them as
+    // "potentially uninitialized" in every caller. The range test comes
+    // first and is cheap (squared distance): out-of-range lights do nothing else
+    float3 d = l.position - worldPos;
+    float dist2 = dot(d, d);
+    if (dist2 < l.radius * l.radius)
+    {
+        float dist = sqrt(dist2);
+        float3 L = d / max(dist, 1e-4);
+        float NdotL = max(dot(N, L), 0.0);
+        if (NdotL > 0.0)
+        {
+            float3 radiance = l.color * (l.intensity * PointLightAttenuation(dist, l.radius));
+            diffuse += radiance * NdotL;
+            specular += SpecularGGX(N, V, L, roughness, F0) * radiance * NdotL;
+        }
+    }
+}
+
 void PointLightShade(float3 worldPos, float3 N, float3 V,
                      float roughness, float3 F0,
                      out float3 diffuse, out float3 specular)
@@ -286,21 +313,32 @@ void PointLightShade(float3 worldPos, float3 N, float3 V,
     specular = float3(0, 0, 0);
 
     uint count = min(g_PointLightCount[0], MAX_POINT_LIGHTS);
-    for (uint i = 0u; i < count; ++i)
+    LightClusterInfo info = g_LightClusterInfo[0];
+    if (count > 0u && info.enabled != 0u)
     {
-        PointLight l = g_PointLights[i];
-        float3 d = l.position - worldPos;
-        float dist = length(d);
-        if (dist >= l.radius)
-            continue;
-        float3 L = d / max(dist, 1e-4);
-        float NdotL = max(dot(N, L), 0.0);
-        if (NdotL <= 0.0)
-            continue;
-
-        float3 radiance = l.color * (l.intensity * PointLightAttenuation(dist, l.radius));
-        diffuse += radiance * NdotL;
-        specular += SpecularGGX(N, V, L, roughness, F0) * radiance * NdotL;
+        uint base = LightClusterOf(info, worldPos) * LIGHT_CLUSTER_WORDS;
+        uint words = (count + 31u) >> 5;
+        uint visited = 0u;
+        [loop]
+        for (uint w = 0u; w < words; ++w)
+        {
+            uint m = g_LightClusterMasks[base + w];
+            [loop]
+            while (m != 0u)
+            {
+                uint j = firstbitlow(m);
+                m &= m - 1u;
+                PointLightAccum(g_PointLights[w * 32u + j], worldPos, N, V, roughness, F0, diffuse, specular);
+                ++visited;
+            }
+        }
+        if (info.debugView != 0u)
+            specular += LightClusterHeat(visited);   // specular is not multiplied by the albedo
+    }
+    else
+    {
+        for (uint i = 0u; i < count; ++i)
+            PointLightAccum(g_PointLights[i], worldPos, N, V, roughness, F0, diffuse, specular);
     }
 }
 

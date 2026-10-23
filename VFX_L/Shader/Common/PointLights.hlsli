@@ -10,13 +10,16 @@
 // count lives in a 1-element buffer so the PS loops only over live
 // lights. Unbound SRVs read as 0, so a scene without lights costs
 // one buffer read.
+// Since 2026-10-23 the PS does not loop over the whole list any more:
+// LightClusterCS sorts the lights into screen clusters (LightClusters.hlsli),
+// so the cap went 64 -> 256 (must stay a multiple of 32: one mask bit per light).
 //
 // C++ mirror: Graphics/Light/PointLightManager.h (PointLight, 32 bytes)
 // ============================================================
 #ifndef POINT_LIGHTS_HLSLI
 #define POINT_LIGHTS_HLSLI
 
-#define MAX_POINT_LIGHTS 64u
+#define MAX_POINT_LIGHTS 256u
 
 struct PointLight
 {
