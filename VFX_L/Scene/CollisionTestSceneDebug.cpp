@@ -84,6 +84,8 @@ void CollisionTestScene::DrawDebugUI()
     m_Grass.DrawImGui();
     m_GrassFire.DrawImGui(PlayerPos());   // 草の延焼（点火ボタン・温度の絵）
     m_Debris.DrawImGui();                 // 地面の落ち葉
+    m_Dandelions.DrawImGui();             // タンポポ（2026-10-22）
+    m_Tumbleweeds.DrawImGui(m_Registry, m_Grid, PlayerPos() ? *PlayerPos() : Vector3::Zero);   // 転がり草
     DrawEnemiesPanel();
     if (m_Crates.DrawImGui(m_Interaction, m_LevelUpSystem)) RespawnCrates();
     if (const Vector3* pp = PlayerPos())

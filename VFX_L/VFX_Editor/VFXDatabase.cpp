@@ -38,6 +38,8 @@ namespace
         { VFXId::SwampPool, Res::VFX::SwampPool, Group::Spell },
         { VFXId::Spore, Res::VFX::Spore, Group::Spell },
         { VFXId::SporeCloud, Res::VFX::SporeCloud, Group::Spell },
+        { VFXId::VoidVortex, Res::VFX::VoidVortex, Group::Spell },
+        { VFXId::VoidVortexPull, Res::VFX::VoidVortexPull, Group::Spell },
         { VFXId::MobDeath, Res::VFX::MobDeath, Group::Spell },
         { VFXId::IceLance, Res::VFX::IceLance, Group::Spell },
         { VFXId::IceLanceHit, Res::VFX::IceLanceHit, Group::Spell },
@@ -58,6 +60,7 @@ namespace
         // ---- 魔法の CPU 側の見た目（判定は GPU の範囲）----
         { VFXId::IceSpike, Res::VFX::IceSpikeFrost, Group::SpellCpu },
         { VFXId::Gust, Res::VFX::Gust, Group::SpellCpu },
+        { VFXId::Twister, Res::VFX::Twister, Group::SpellCpu },
 
         // ---- 戦闘の手応え（CPU、FeedbackVFXSystem）----
         { VFXId::LevelUp, Res::VFX::LevelUp, Group::Feedback },

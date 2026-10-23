@@ -474,6 +474,19 @@ float SwarmAreaPush(uint flags)
     return (float) ((flags >> SWARM_AREA_BEAM_SHIFT) & 0xFu) / 15.0;
 }
 
+// Pull (2026-10-22, the Void Vortex): an area with SWARM_AREA_EXTRA_PULL in
+// tickNow reads the same 4 bits as a pull toward its own centre. AreaDamageCS
+// writes enemyPush[slot] = (velocity toward the centre, seconds, 1);
+// w = 1 marks a pull, which never overrides a running push (the Gust wins).
+// One pulse lasts the area's tick interval (at least SWARM_PUSH_TIME), so the
+// pull does not stop between ticks: MoveCS keeps the full speed until the last
+// SWARM_PUSH_TIME and then ramps it down, the way covered is
+// speed x (seconds - SWARM_PUSH_TIME / 2). The speed is chosen so that one pulse
+// covers q x SWARM_PULL_SHARE of the distance: it never overshoots the centre.
+// Inside SWARM_PULL_DEAD nothing pulls (no jitter).
+static const float SWARM_PULL_SHARE = 0.62; // share of the distance per pulse at q = 15
+static const float SWARM_PULL_DEAD = 0.35;  // m
+
 // burrower under the sand: cannot be hit, does not bite, is not targeted (2026-10-17)
 static const float SWARM_BURROW_RISE_TIME = 0.3; // seconds the body takes to rise out / sink in (look only)
 bool SwarmBuried(SwarmEnemyExtra ex)
@@ -521,6 +534,8 @@ float SwarmPushKindMul(uint kind)
 //               the strongest one counts (the poison pools)
 //   bit 12    : SWARM_AREA_EXTRA_SPLASH: damage only on the first tick
 //               (the Swamp: a splash on landing, afterwards only the slow)
+//   bit 13    : SWARM_AREA_EXTRA_PULL: the push bits of flags pull toward
+//               the area's centre instead (the Void Vortex, 2026-10-22)
 // ------------------------------------------------------------
 static const uint SWARM_AREA_TICK_NOW = 1u;
 static const uint SWARM_AREA_TICK_FIRST = 2u;
@@ -528,6 +543,7 @@ static const uint SWARM_AREA_TICK_SEEN = 4u;
 static const uint SWARM_AREA_TICK_MASK = 0xFFu;
 static const uint SWARM_AREA_EXTRA_TOXIN_SHIFT = 8u;
 static const uint SWARM_AREA_EXTRA_SPLASH = 1u << 12u;
+static const uint SWARM_AREA_EXTRA_PULL = 1u << 13u;   // = Swarm::kAreaExtraPull
 static const uint SWARM_AREA_EXTRA_ELEMENT_SHIFT = 16u;   // bits 16..19: damage element (damage number colour, 2026-10-17)
 uint SwarmAreaElement(uint tickNow)
 {

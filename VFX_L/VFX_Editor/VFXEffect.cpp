@@ -148,7 +148,8 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         if (entry->GetType() == EntryType::Particle && entry->isPlaying)
         {
             auto* pEntry = static_cast<VFXParticleEntry*>(entry.get());
-            pEntry->emitterData.Update(dt);
+            // 出現 / 消える途中は、ずっと出ている entry の発射数を減らす（SetPresence）
+            pEntry->emitterData.Update(entry->duration < 0.0f ? dt * m_Presence : dt);
             GPUEmitter ge = pEntry->emitterData.ToGPU();
 
             // 源の世界行列に従う場合は worldOffset を足さない（二重になる）
@@ -181,7 +182,13 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         }
         else if (entry->GetType() == EntryType::Mesh && ctx.meshRenderer)
         {
-            static_cast<VFXMeshEntry*>(entry.get())->Submit(*ctx.meshRenderer, m_WorldOffset);
+            auto* m = static_cast<VFXMeshEntry*>(entry.get());
+            if (m->duration < 0.0f)
+            {
+                m->presence = m_Presence;
+                m->presenceLeaving = m_PresenceLeaving;
+            }
+            m->Submit(*ctx.meshRenderer, m_WorldOffset);
         }
         else if (entry->GetType() == EntryType::Sprite && ctx.spriteRenderer)
         {
@@ -198,7 +205,8 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
         else if (entry->GetType() == EntryType::Light)
         {
             // 点光源は PointLightManager（全体で 1 つ）へ。ctx を経由しない
-            static_cast<VFXPointLightEntry*>(entry.get())->Submit(m_WorldOffset);
+            static_cast<VFXPointLightEntry*>(entry.get())->Submit(m_WorldOffset,
+                entry->duration < 0.0f ? m_Presence : 1.0f);
         }
         else if (entry->GetType() == EntryType::Trail)
         {
@@ -464,6 +472,58 @@ void VFXEffect::RotateYaw(float degrees)
             auto* m = static_cast<VFXMeshEntry*>(entry.get());
             m->offset = DirectX::SimpleMath::Vector3::Transform(m->offset, rot);
             m->rotationDeg.y += degrees;
+        }
+    }
+}
+
+// ============================================================
+// 全体の大きさを s 倍に（2026-10-22、拡大鏡で広がった竜巻・突風の見た目）。
+// 位置・長さ・速さ・加速度を同じ倍率にすれば、粒子は同じ時間で s 倍の所まで届く（形がそのまま大きくなる）。
+// 発射数・寿命・色はそのまま
+// ============================================================
+void VFXEffect::Scale(float s)
+{
+    if (s <= 0.0f || std::abs(s - 1.0f) < 1e-3f) return;
+    for (auto& entry : m_Entries)
+    {
+        switch (entry->GetType())
+        {
+        case EntryType::Particle:
+        {
+            auto& e = static_cast<VFXParticleEntry*>(entry.get())->emitterData;
+            e.position *= s;
+            e.shape.radius *= s;
+            e.shape.innerRadius *= s;
+            e.shape.boxExtents *= s;
+            e.speedRange *= s;
+            e.sizeRange *= s;
+            e.gravity *= s;
+            break;
+        }
+        case EntryType::Light:
+        {
+            auto* l = static_cast<VFXPointLightEntry*>(entry.get());
+            l->offset *= s;
+            l->radius *= s;
+            break;
+        }
+        case EntryType::Mesh:
+        {
+            auto* m = static_cast<VFXMeshEntry*>(entry.get());
+            m->offset *= s;
+            m->scaleStart *= s;
+            m->scaleEnd *= s;
+            break;
+        }
+        case EntryType::Sprite:
+        {
+            auto* sp = static_cast<VFXSpriteEntry*>(entry.get());
+            sp->offset *= s;
+            sp->size *= s;
+            break;
+        }
+        default:
+            break;   // 光線は SetBeamWidthMul、液溜まり・Trail はそのまま
         }
     }
 }

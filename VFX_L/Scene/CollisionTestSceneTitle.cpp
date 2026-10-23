@@ -287,7 +287,7 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
         {
             m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
             m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
-            AddGustWindBurst(g.pos, g.dir, g.length);
+            AddGustWindBurst(g.pos, g.dir, g.length, g.radius);
         }
     }
     m_PlayerAnimSystem.Update(m_Registry, gdt);
@@ -301,6 +301,7 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
     }
     m_GrassFire.Tick(gdt);
     m_Debris.Tick(gdt);
+    UpdateWindToys(gdt);   // 転がり草・タンポポ（2026-10-22）
     m_ManaSystem.Update(m_Registry, gdt);
 
     UpdateTitleCamera(dt);

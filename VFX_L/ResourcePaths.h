@@ -451,9 +451,11 @@ namespace Res
         inline constexpr const wchar_t* Poison = L"Assets/Texture/UI/Icons/Poison.png";
         inline constexpr const wchar_t* Swamp = L"Assets/Texture/UI/Icons/Swamp.png";       // 泥沼（2026-10-17）
         inline constexpr const wchar_t* Spore = L"Assets/Texture/UI/Icons/Spore.png";       // 胞子（2026-10-17）
+        inline constexpr const wchar_t* VoidVortex = L"Assets/Texture/UI/Icons/VoidVortex.png";   // 渦（2026-10-22）
         inline constexpr const wchar_t* IceLance = L"Assets/Texture/UI/Icons/IceLance.png";   // アイスランス（2026-10-08）
         inline constexpr const wchar_t* IceSpike = L"Assets/Texture/UI/Icons/IceSpike.png";   // アイススパイク（2026-10-10）
         inline constexpr const wchar_t* Gust = L"Assets/Texture/UI/Icons/Gust.png";           // 突風（2026-10-12）
+        inline constexpr const wchar_t* Twister = L"Assets/Texture/UI/Icons/Twister.png";     // 竜巻（2026-10-22）
         inline constexpr const wchar_t* Beam = L"Assets/Texture/UI/Icons/Beam.png";
         inline constexpr const wchar_t* SplitRune = L"Assets/Texture/UI/Icons/SplitRune.png";
         inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
@@ -573,6 +575,8 @@ namespace Res
         inline constexpr const char* SwampPool = "Assets/Data/VFXData/SwampPool.json";     // 泥沼（範囲 SwampPool：飛沫 + 泥の液面）
         inline constexpr const char* Spore = "Assets/Data/VFXData/Spore.json";             // 胞子の弾（黄緑の塊 + 漂う胞子。2026-10-17）
         inline constexpr const char* SporeCloud = "Assets/Data/VFXData/SporeCloud.json";   // 胞子の霧（範囲 SporeCloud：漂う胞子 + 薄い靄 + 緑の光。2 秒）
+        inline constexpr const char* VoidVortex = "Assets/Data/VFXData/VoidVortex.json";           // 渦の弾（紫の小さな渦。旧ホーミングボルトの見た目。2026-10-22）
+        inline constexpr const char* VoidVortexPull = "Assets/Data/VFXData/VoidVortexPull.json";   // 渦（範囲 VoidVortexPull：回る渦 + 吸い込まれる光 + 屈折）
         inline constexpr const char* IceLance = "Assets/Data/VFXData/IceLance.json";         // アイスランスの弾（氷の槍 + 冷気の粒）
         inline constexpr const char* IceLanceHit = "Assets/Data/VFXData/IceLanceHit.json";   // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片）
         inline constexpr const char* GrassFire = "Assets/Data/VFXData/GrassFire.json";       // 燃えている草の炎・煙・火の粉（GrassFireEmitCS。2026-10-12）
@@ -594,6 +598,7 @@ namespace Res
         // 魔法（CPU で出す分。判定は GPU の範囲）
         inline constexpr const char* IceSpikeFrost = "Assets/Data/VFXData/IceSpike.json";            // アイススパイクの冷気・氷の欠片・光（トゲ本体は IceSpikeField）
         inline constexpr const char* Gust = "Assets/Data/VFXData/Gust.json";                       // 突風の土煙・草屑の輪（2026-10-12）
+        inline constexpr const char* Twister = "Assets/Data/VFXData/Twister.json";                 // 竜巻（longjuanfeng2.FBX の柱 + 屈折の煙団 + 巻き上がる草屑。竜巻に付いて動く。2026-10-22）
         // 戦闘の手応え（FeedbackVFXSystem）
         inline constexpr const char* LevelUp = "Assets/Data/VFXData/LevelUp.json";
         inline constexpr const char* CrateOpen = "Assets/Data/VFXData/CrateOpen.json";

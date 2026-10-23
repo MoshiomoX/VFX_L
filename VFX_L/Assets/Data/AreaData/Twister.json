@@ -1,0 +1,7 @@
+{
+    "sound": "cast_gust",
+    "damage": 10.0, "duration": 4.0, "followCaster": false, "halfHeight": 2.0, "kind": 3,
+    "name": "Twister", "element": 7, "preview": { "atTarget": true, "interval": 4.0 },
+    "radius": 2.8, "slow": 0.3, "pull": 1.0, "stun": false, "tickInterval": 0.5, "roamSpeed": 3.0,
+    "cameraShake": false, "vfx": "Twister.json"
+}

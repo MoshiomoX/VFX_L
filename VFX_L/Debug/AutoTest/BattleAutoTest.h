@@ -68,6 +68,8 @@ protected:
     GrassRenderer&            m_Grass;
     GrassFireField&           m_GrassFire;     // 草の延焼（2026-10-12）
     GroundDebris&             m_Debris;        // 地面の落ち葉（2026-10-13）
+    Tumbleweeds&              m_Tumbleweeds;   // 転がり草（2026-10-22）
+    DandelionField&           m_Dandelions;    // タンポポ（2026-10-22）
     WeatherSystem&            m_Weather;       // 時刻と天候の出来事
     PlayerVFXSystem&          m_PlayerVFX;     // プレイヤーの動きのエフェクト（2026-10-09）
     SpellFxSystem&            m_SpellFx;       // 魔法の CPU 側の見た目（アイススパイクのトゲ。2026-10-10）

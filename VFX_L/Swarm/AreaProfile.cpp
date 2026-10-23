@@ -45,10 +45,12 @@ uint32_t AreaProfile::Flags(bool atCaster) const
     f |= q << Swarm::kAreaSlowShift;
     const uint32_t fq = (uint32_t)std::lround(std::clamp(freeze, 0.0f, 15.0f * Swarm::kAreaFreezeStep) / Swarm::kAreaFreezeStep);
     f |= fq << Swarm::kAreaFreezeShift;
-    // 吹き飛ばし：光線チャンネルの 4 bit を借りる（光線でない範囲ではそこは空いている。SwarmAreaPush）
+    // 吹き飛ばし：光線チャンネルの 4 bit を借りる（光線でない範囲ではそこは空いている。SwarmAreaPush）。
+    // 引き寄せも同じ 4 bit（向きは Extra の kAreaExtraPull で区別する）
     if (!IsBeam())
     {
-        const uint32_t pq = (uint32_t)std::lround(std::clamp(push, 0.0f, 1.0f) * 15.0f);
+        const float s = (push > 0.0f) ? push : pull;
+        const uint32_t pq = (uint32_t)std::lround(std::clamp(s, 0.0f, 1.0f) * 15.0f);
         f |= pq << Swarm::kAreaBeamShift;
     }
     return f;
@@ -60,6 +62,7 @@ uint32_t AreaProfile::Extra() const
     const uint32_t tq = (uint32_t)std::lround(std::clamp(toxin, 0.0f, 1.0f) * 15.0f);
     e |= tq << Swarm::kAreaExtraToxinShift;
     if (splashOnly) e |= Swarm::kAreaExtraSplashOnly;
+    if (pull > 0.0f && push <= 0.0f && !IsBeam()) e |= Swarm::kAreaExtraPull;   // 吹き飛ばしの 4 bit を中心へ引く強さとして読ませる
     e |= (uint32_t)std::clamp(element, 0, 15) << Swarm::kAreaExtraElementShift;   // 属性（数字の色）
     return e;
 }
@@ -97,12 +100,14 @@ json AreaProfile::ToJson() const
     j["cameraShake"] = cameraShake;
     if (heat > 0.0f) j["heat"] = heat;
     if (push > 0.0f) j["push"] = push;
+    if (pull > 0.0f) j["pull"] = pull;
     if (forward != 0.0f) j["forward"] = forward;
     if (toxin > 0.0f) j["toxin"] = toxin;
     if (splashOnly) j["splashOnly"] = true;
     if (element != 0) j["element"] = element;
     j["length"] = length;
     j["chargeTime"] = chargeTime;
+    if (kind == Kind::Roam) j["roamSpeed"] = roamSpeed;
     j["vfx"] = vfxFile;
     if (!hitVfxFile.empty()) j["hitVfx"] = hitVfxFile;
     j["sound"] = sound;
@@ -118,7 +123,7 @@ void AreaProfile::FromJson(const json& j)
 {
     name = j.value("name", name);
     const int k = j.value("kind", 0);
-    kind = (k == 2) ? Kind::Beam : (k == 1) ? Kind::Lasting : Kind::OneShot;
+    kind = (k == 3) ? Kind::Roam : (k == 2) ? Kind::Beam : (k == 1) ? Kind::Lasting : Kind::OneShot;
     radius = j.value("radius", radius);
     halfHeight = j.value("halfHeight", halfHeight);
     damage = j.value("damage", damage);
@@ -131,12 +136,14 @@ void AreaProfile::FromJson(const json& j)
     cameraShake = j.value("cameraShake", cameraShake);
     heat = j.value("heat", heat);
     push = j.value("push", push);
+    pull = j.value("pull", pull);
     forward = j.value("forward", forward);
     toxin = j.value("toxin", toxin);
     splashOnly = j.value("splashOnly", splashOnly);
     element = j.value("element", element);
     length = j.value("length", length);
     chargeTime = j.value("chargeTime", chargeTime);
+    roamSpeed = j.value("roamSpeed", roamSpeed);
     vfxFile = j.value("vfx", vfxFile);
     hitVfxFile = j.value("hitVfx", hitVfxFile);
     sound = j.value("sound", sound);

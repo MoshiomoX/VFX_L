@@ -114,6 +114,26 @@ void AreaVFXPlayer::RotateInstance(uint32_t handle, float yawDeg)
         }
 }
 
+void AreaVFXPlayer::ScaleInstance(uint32_t handle, float s)
+{
+    for (auto& inst : m_Active)
+        if (inst.handle == handle)
+        {
+            inst.effect->Scale(s);
+            return;
+        }
+}
+
+void AreaVFXPlayer::SetPresence(uint32_t handle, float k, bool leaving)
+{
+    for (auto& inst : m_Active)
+        if (inst.handle == handle)
+        {
+            inst.effect->SetPresence(k, leaving);
+            return;
+        }
+}
+
 void AreaVFXPlayer::StopInstance(uint32_t handle)
 {
     for (auto& inst : m_Active)

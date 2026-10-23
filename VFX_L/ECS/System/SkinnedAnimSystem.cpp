@@ -12,6 +12,8 @@ using DirectX::SimpleMath::Matrix;
 
 namespace
 {
+    int s_PoseHits = 0, s_PoseMisses = 0;
+
     // 1 層分の時計を進める
     void TickLayer(SkinnedAnimLayer& L, const SkinnedModel& model, float dt)
     {
@@ -60,6 +62,26 @@ namespace
         }
     }
 
+    // 素のポーズを決める層の状態（同じなら BuildPose の結果は同じ）
+    SkinnedAnimComponent::PoseKey MakePoseKey(const SkinnedAnimComponent& a)
+    {
+        SkinnedAnimComponent::PoseKey k{};
+        size_t n = 0;
+        for (const SkinnedAnimLayer* L : { &a.base, &a.upper, &a.over })
+        {
+            k.v[n++] = (float)L->clip;
+            k.v[n++] = L->time;
+            k.v[n++] = (float)L->prevClip;
+            k.v[n++] = L->prevTime;
+            k.v[n++] = L->fade;
+            k.v[n++] = L->weight;
+        }
+        k.model = a.model.get();
+        k.mask = a.upperMask.empty() ? nullptr : a.upperMask.data();
+        k.maskSize = a.upperMask.size();
+        return k;
+    }
+
     // 1 層のポーズ（前クリップとのクロスフェード込み）
     void SampleLayer(const SkinnedAnimLayer& L, const SkinnedModel& model,
         std::vector<BoneLocal>& out, std::vector<BoneLocal>& scratch)
@@ -101,11 +123,31 @@ Matrix SkinnedAnimSystem::WorldMatrix(const TransformComponent& tf, const Skinne
         * Matrix::CreateTranslation(tf.position);
 }
 
+void SkinnedAnimSystem::PoseCacheStats(int& hits, int& misses)
+{
+    hits = s_PoseHits;
+    misses = s_PoseMisses;
+}
+
 bool SkinnedAnimSystem::BuildPose(const SkinnedAnimComponent& a, std::vector<Matrix>& outGlobal, bool applyOverrides)
 {
     if (!a.model) return false;
     const SkinnedModel& model = *a.model;
 
+    // 同じフレームの 2 回目以降（マント → 描画 → 影 → 尾の根元）は層の状態が同じなので、素のポーズを使い回す
+    // （2026-10-23。Debug で 1 回 0.7ms。マントを 5 列にして骨が 151 → 183 本に増えた分を取り返す）
+    const SkinnedAnimComponent::PoseKey key = MakePoseKey(a);
+    if (a.poseCacheValid && a.poseCacheKey == key && a.poseCache.size() == (size_t)model.GetSkeleton().GetBoneCount())
+    {
+        ++s_PoseHits;
+        outGlobal = a.poseCache;
+        if (applyOverrides)
+            for (const auto& [bone, m] : a.boneOverrides)
+                if (bone >= 0 && bone < (int)outGlobal.size()) outGlobal[bone] = m;
+        return true;
+    }
+
+    ++s_PoseMisses;
     std::vector<BoneLocal> pose, layer, scratch;
 
     // base（クリップ無しなら bind）
@@ -126,6 +168,9 @@ bool SkinnedAnimSystem::BuildPose(const SkinnedAnimComponent& a, std::vector<Mat
     }
 
     model.BuildGlobals(pose, outGlobal);
+    a.poseCache = outGlobal;
+    a.poseCacheKey = key;
+    a.poseCacheValid = true;
 
     // 揺れ物（マント等）の結果で差し替え
     if (applyOverrides)

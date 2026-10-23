@@ -26,6 +26,7 @@
 #include "Swarm/SwarmVFXTable.h"
 #include "Swarm/SwarmFireEmit.h"
 #include "Swarm/FlowField.h"
+#include "World/LocalWind.h"
 #include "VFX_Editor/VFXId.h"
 #include "Graphics/Light/LightTypes.h"
 #include <d3d11.h>
@@ -197,6 +198,21 @@ public:
         float windInflow = 1.8f;      // m/s
     };
     TornadoLookStyle tornadoLook;
+
+    // ---- 引き寄せの範囲（渦。2026-10-22）も風源にする ----
+    // 渦 1 つ = Swarm::WindSource 1 つ（中心 = 範囲の中心を地面へ、届く距離 = 範囲の半径 × radiusMul）。
+    // 草が渦の方へなびいて回り、落ち葉 / 砂屑と受風の粒子が中心へ吸い込まれる。消える前 fadeTime 秒で弱まる
+    struct VortexWindStyle
+    {
+        bool  enabled = true;
+        float radiusMul = 1.6f;   // 範囲の半径 × これ = 風の届く距離（敵を引く範囲より少し広い）
+        float swirl = 9.0f;       // m/s
+        float updraft = 1.5f;     // m/s
+        float inflow = 7.0f;      // m/s（吸い込みが主役）
+        float groundY = -0.9f;    // 範囲の中心（弾の高さ）→ 地面
+        float fadeTime = 0.35f;   // 消える前に弱まる秒
+    };
+    VortexWindStyle vortexWind;
 
     // ---- 凍った敵の氷（特効モデル bingci_02.FBX を足元に前後 2 つ。2026-10-08）----
     struct IceLookStyle
@@ -427,6 +443,10 @@ public:
         float age = 0.0f;
     };
     void AddWindBurst(const WindBurst& b) { if (m_WindBursts.size() < Swarm::kMaxWindSources) m_WindBursts.push_back(b); }
+    // このフレームだけの CPU の風源（2026-10-22、動く竜巻）：毎フレーム出し直す物。次の Flush で表に載せて捨てる
+    void AddFrameWindSource(const Swarm::WindSource& w) { if (m_FrameWindSources.size() < Swarm::kMaxWindSources) m_FrameWindSources.push_back(w); }
+    // 風源の表の CPU の写し（2026-10-22、マント・転がり草が読む。2〜3 フレーム遅れ。Flush の後に読める）
+    const LocalWind& GetLocalWind() const { return m_LocalWind; }
     ID3D11ShaderResourceView* GetEnemySRV() const { return m_EnemySRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyStateSRV() const { return m_EnemyStateSRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyExtraSRV() const { return m_EnemyExtraSRV.Get(); }
@@ -909,9 +929,19 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceCountUAV;
     // CPU の風源（AddWindBurst）：毎フレーム生きている物を Swarm::WindSource にして DYNAMIC の buffer へ（CS の t3）
     std::vector<WindBurst> m_WindBursts;
+    std::vector<Swarm::WindSource> m_FrameWindSources;   // AddFrameWindSource（DispatchWindSources で表に足して空にする）
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindBurstBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindBurstSRV;
     void DispatchWindSources(float dt);
+    // 風源の表のリードバック（2026-10-22。CPU のマント・転がり草用）：DispatchWindSources の後に写し、次の Flush の頭で読む
+    static constexpr int kWindReadbackCount = 3;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_WindSourceStaging[kWindReadbackCount];
+    bool m_WindSourceStagingFilled[kWindReadbackCount] = {};
+    int  m_WindSourceStagingWrite = 0;
+    LocalWind m_LocalWind;
+    bool CreateWindSourceReadback(ID3D11Device* device);
+    void CopyWindSourcesForCPU();
+    void ReadWindSources();
     // SwarmShieldVS / SwarmIceVS の b4
     struct PropMeshCB
     {

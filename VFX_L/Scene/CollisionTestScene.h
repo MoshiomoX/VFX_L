@@ -40,6 +40,8 @@
 #include "Graphics/Renderer/GrassRenderer.h"
 #include "World/GrassFireField.h"
 #include "World/GroundDebris.h"
+#include "World/Tumbleweeds.h"
+#include "World/DandelionField.h"
 #include "ECS/System/InteractionSystem.h"
 #include "ECS/System/RewardCrateSystem.h"
 #include "ECS/System/PickupSystem.h"
@@ -165,7 +167,7 @@ private:
     const Vector3* PlayerPos();      // プレイヤーの位置（居なければ null）。部品へ渡す用
     void PushWind();                 // 世界の風（WeatherSystem::Wind）を草・マント・粒子・草の火へ渡す（毎フレーム、粒子の Flush の前）
     // 突風を風源にする（2026-10-20）：プレイヤーの前に渦 + 風下へ押す風（SwarmSystem::AddWindBurst）。流線の粒子・草・落ち葉・煙が巻かれる
-    void AddGustWindBurst(const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector2& dir, float length);
+    void AddGustWindBurst(const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector2& dir, float length, float radius);
     void RespawnCrates();            // 報酬の箱をプレイヤーの周りへ並べ直す（開始時・地形の作り直し・パネル）
     void RespawnElites();            // エリートの的をプレイヤーの前へ（地形の作り直し・パネル）
     void EndRun();                   // 戦績を書いてリザルトへ
@@ -238,6 +240,10 @@ private:
     GrassRenderer           m_Grass;         // 野原の草（GPU で生やす葉。風・踏み跡）
     GrassFireField          m_GrassFire;     // 草の延焼（温度・燃料のテクスチャ。爆発・火球が熱源、見た目だけ。2026-10-12）
     GroundDebris            m_Debris;        // 地面の落ち葉・草屑・小枝（突風・爆発・強風で舞う。2026-10-13）
+    Tumbleweeds             m_Tumbleweeds;   // 転がり草（砂漠・遺跡。風・竜巻・渦・突風に転がされ巻き上げられる。2026-10-22）
+    DandelionField          m_Dandelions;    // タンポポの綿毛（草原。風源・強い風・踏み跡でほどけて飛ぶ。2026-10-22）
+    void BuildWindToys();            // 地形を建てた / 出し入れした後：転がり草とタンポポを置き直す（CollisionTestSceneTerrain.cpp）
+    void UpdateWindToys(float dt);   // 毎フレーム（止まっている間は呼ばない）：転がり草を動かし、タンポポの時計を進める
 
     // ---- 部品 ----
     RewardCrateSystem       m_Crates;              // 報酬の箱

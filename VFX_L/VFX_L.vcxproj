@@ -260,9 +260,12 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestGrassFire.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGust.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDebris.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestWindToys.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestChargeShield.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDamageText.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSpikeBall.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestVortex.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestTwister.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBurrower.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSandMage.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDashBomber.cpp" />
@@ -439,6 +442,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\SceneManager.cpp" />
     <ClCompile Include="Graphics\Shader\Shader.cpp" />
     <ClCompile Include="Graphics\Model\SkinnedModel.cpp" />
+    <ClCompile Include="Graphics\Model\SkinnedModelCloth.cpp" />
     <ClCompile Include="Graphics\Model\SkinnedModelGPU.cpp" />
     <ClCompile Include="Graphics\Renderer\SpriteRenderer.cpp" />
     <ClCompile Include="Graphics\Renderer\TextRenderer.cpp" />
@@ -528,6 +532,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="VFX_Editor\VFXStates.cpp" />
     <ClCompile Include="ECS\System\WeaponSystem.cpp" />
     <ClCompile Include="ECS\System\WeaponSystemOrbs.cpp" />
+    <ClCompile Include="ECS\System\WeaponSystemTwister.cpp" />
     <ClCompile Include="Core\Window.cpp" />
     <ClCompile Include="VFX_Editor\VFXTextureRef.cpp" />
     <ClCompile Include="World\GridWorld.cpp" />
@@ -540,6 +545,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="World\GrassFireField.cpp" />
     <ClCompile Include="World\GroundDebris.cpp" />
     <ClCompile Include="World\GroundDebrisPanel.cpp" />
+    <ClCompile Include="World\Tumbleweeds.cpp" />
+    <ClCompile Include="World\DandelionField.cpp" />
+    <ClCompile Include="World\DandelionFieldPanel.cpp" />
     <ClCompile Include="World\MapData.cpp" />
     <ClCompile Include="World\MinimapBake.cpp" />
     <ClCompile Include="World\TerrainSteps.cpp" />
@@ -626,6 +634,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Swarm\SwarmFireEmit.h" />
     <ClInclude Include="World\GrassFireField.h" />
     <ClInclude Include="World\GroundDebris.h" />
+    <ClInclude Include="World\Tumbleweeds.h" />
+    <ClInclude Include="World\DandelionField.h" />
+    <ClInclude Include="World\LocalWind.h" />
     <ClInclude Include="UI\BackpackUI.h" />
     <ClInclude Include="UI\BackpackPadControl.h" />
     <ClInclude Include="Camera\CameraBase.h" />
@@ -667,11 +678,13 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\Meteor.h" />
     <ClInclude Include="Item\Items\Beam.h" />
     <ClInclude Include="Item\Items\Gust.h" />
+    <ClInclude Include="Item\Items\Twister.h" />
     <ClInclude Include="Item\Items\Magnifier.h" />
     <ClInclude Include="Item\Items\HasteRune.h" />
     <ClInclude Include="Item\Items\ChainRune.h" />
     <ClInclude Include="Item\Items\Swamp.h" />
     <ClInclude Include="Item\Items\Spore.h" />
+    <ClInclude Include="Item\Items\VoidVortex.h" />
     <ClInclude Include="Item\Items\CrystalBall.h" />
     <ClInclude Include="Item\Items\StoneShot.h" />
     <ClInclude Include="Item\Items\Poison.h" />
@@ -1086,6 +1099,57 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Debris/%(Filename).cso</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Debris/%(Filename).cso</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Debris/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Dandelion\DandelionUpdateCS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Dandelion\DandelionVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Vertex</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Dandelion\DandelionPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Dandelion/%(Filename).cso</ObjectFileOutput>
     </FxCompile>
     <FxCompile Include="Shader\Grass\GrassVS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
@@ -2711,6 +2775,13 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">true</ExcludedFromBuild>
     </None>
     <None Include="Shader\Debris\DebrisCommon.hlsli">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="Shader\Dandelion\DandelionCommon.hlsli">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>

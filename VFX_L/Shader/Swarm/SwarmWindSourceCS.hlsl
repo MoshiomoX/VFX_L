@@ -7,6 +7,9 @@
 // One thread per enemy slot, first come first served into WIND_MAX_SOURCES
 // slots (the table and the counter are zeroed by the CPU before the dispatch).
 // Read by GrassVS / DebrisUpdateCS / ParticleUpdateCS through WindSources.hlsli.
+// 2026-10-22: every live pulling area (the Void Vortex, SWARM_AREA_EXTRA_PULL)
+// is a source too (one per area slot, on the first g_AreaCount threads):
+// mostly inflow, so the grass leans in and the litter is sucked to the centre.
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #include "../Common/SwarmCommon.hlsli"
@@ -25,6 +28,14 @@ cbuffer SwarmWindSourceCB : register(b0)
     uint g_SlotCount;     // kMaxEnemies
     uint g_CpuCount;      // CPU sources (SwarmSystem::AddWindBurst) in cpuSources, appended first (2026-10-20)
     uint g_TornadoOn;     // 0 = the tornadoes are not wind sources (tornadoLook.windSource)
+    uint g_VortexOn;      // 0 = the pulling areas are not wind sources (vortexWind.enabled)
+    uint g_AreaCount;     // kMaxAreas
+    float g_VRadiusMul;   // reach = area radius x this
+    float g_VSwirl;       // m/s
+    float g_VUpdraft;     // m/s
+    float g_VInflow;      // m/s
+    float g_VGroundY;     // area centre (shot height) -> ground
+    float g_VFadeTime;    // seconds it weakens before it ends
     float2 _wsPad;
 };
 
@@ -32,6 +43,8 @@ StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2);
 StructuredBuffer<WindSource> cpuSources : register(t3);   // the CPU bursts of this frame (fade already applied)
+StructuredBuffer<SwarmArea> areas : register(t4);
+Buffer<uint> areaStates : register(t5);
 
 RWStructuredBuffer<WindSource> windSources : register(u0);
 RWByteAddressBuffer windCount : register(u1);
@@ -47,6 +60,30 @@ void main(uint3 id : SV_DispatchThreadID)
         windCount.InterlockedAdd(0, 1u, cslot);
         if (cslot < WIND_MAX_SOURCES)
             windSources[cslot] = cpuSources[i];
+    }
+    // the pulling areas ride on the first threads too (one per area slot)
+    if (g_VortexOn != 0u && i < g_AreaCount && areaStates[i] != SWARM_DEAD)
+    {
+        SwarmArea a = areas[i];
+        if ((a.tickNow & SWARM_AREA_EXTRA_PULL) != 0u && a.timeLeft > 0.0)
+        {
+            uint vslot;
+            windCount.InterlockedAdd(0, 1u, vslot);
+            if (vslot < WIND_MAX_SOURCES)
+            {
+                WindSource v;
+                v.pos = a.center + float3(0.0, g_VGroundY, 0.0);
+                v.radius = a.radius * g_VRadiusMul;
+                v.swirl = g_VSwirl;
+                v.updraft = g_VUpdraft;
+                v.inflow = g_VInflow;
+                v.fade = saturate(a.timeLeft / max(g_VFadeTime, 1e-3));
+                v.pushDir = float2(0.0, 0.0);
+                v.push = 0.0;
+                v._pad = 0.0;
+                windSources[vslot] = v;
+            }
+        }
     }
     if (i >= g_SlotCount || g_TornadoOn == 0u)
         return;

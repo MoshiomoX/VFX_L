@@ -75,3 +75,14 @@ inline constexpr BoneMapEntry kBoneMapCCFromUE[] = {
     { "CC_Base_R_Foot",      "foot_r" },
     { "CC_Base_R_ToeBase",   "ball_r" },
 };
+
+// Reallusion CC 骨（Shadowkin）のマント（2026-10-23）。
+//   元は Cloak1〜8 の 1 本鎖（Cloak1 は親の無い骨）。読み込み時に SkinnedModel::SplitClothChain が
+//   横 kCCCapeColumns 列の骨に分け（真ん中の列 = 元の骨）、ClothChainSystem が布の格子として揺らす。
+//   kCCCapeAnchorKeepEnd = 背骨（kCCCapeAnchor）の重みを残す範囲（鎖の根 0 → 先 1）。元のマントの頂点は
+//   背骨にも重み 1.0 が付いていて、正規化すると半分しか骨に付いて行かなかった（鎖が 40cm 動いても画面では 20cm）
+inline constexpr const char* kCCCapeAnchor = "CC_Base_Spine02";
+inline constexpr const char* kCCCapeChain[] = {
+    "Cloak1", "Cloak2", "Cloak3", "Cloak4", "Cloak5", "Cloak6", "Cloak7", "Cloak8", "Cloak8_end" };
+inline constexpr int   kCCCapeColumns = 5;
+inline constexpr float kCCCapeAnchorKeepEnd = 0.15f;

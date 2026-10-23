@@ -291,6 +291,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(Swarm::WindSource), Swarm::kMaxWindSources,
         m_WindSourceBuffer, m_WindSourceUAV, m_WindSourceSRV, "windSources")) return false;
     if (!makeRaw(16, m_WindSourceCount, m_WindSourceCountUAV, "windSourceCount")) return false;
+    if (!CreateWindSourceReadback(device)) return false;   // CPU のマント・転がり草が読む写し（2026-10-22）
     {
         // CPU の風源（突風。2026-10-20）：毎フレーム Map で書く DYNAMIC の structured buffer
         D3D11_BUFFER_DESC bd = {};
@@ -1028,6 +1029,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     ReadPlayerHits();
     ReadAreaBirths();
     ReadBeamTargets();
+    ReadWindSources();   // 風源の表の CPU の写し（マント・転がり草。SwarmSystemTornado.cpp）
     ReadTriggerEvents();
     ReadSplitEvents();
     ReadDamageTexts();
@@ -1657,6 +1659,7 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
     DispatchTornadoEmit(dt, totalTime);
     // ---- 局所の風源の表（砂旋 + CPU の風源 → 草・落ち葉・粒子。2026-10-19）----
     DispatchWindSources(dt);
+    CopyWindSourcesForCPU();   // 出来た表を CPU へ写す（読むのは 2〜3 フレーム後）
 
     // ---- 吸い寄せ中の経験値オーブの尾 ----
     // 弾・範囲の後に回す：空きが足りない時に削られるのは見た目だけのこちら

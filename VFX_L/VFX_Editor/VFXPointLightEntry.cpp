@@ -36,11 +36,11 @@ void VFXPointLightEntry::OnUpdate(float dt, const VFXContext&)
     m_Age += dt;
 }
 
-void VFXPointLightEntry::Submit(const Vector3& worldOffset)
+void VFXPointLightEntry::Submit(const Vector3& worldOffset, float intensityMul)
 {
-    if (!isPlaying) return;
+    if (!isPlaying || intensityMul <= 0.0f) return;
 
-    float intensity = intensityStart + (intensityEnd - intensityStart) * Progress();
+    float intensity = (intensityStart + (intensityEnd - intensityStart) * Progress()) * intensityMul;
     if (flicker > 0.0f)
     {
         // 2 つの正弦を重ねた安い揺らぎ（乱数だとフレーム毎にちらつき過ぎる）

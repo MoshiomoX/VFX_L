@@ -117,6 +117,20 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
+        // ---- 引き寄せの範囲（渦）の風源（2026-10-22）----
+        if (ImGui::TreeNode("Vortex Wind (pulling areas)"))
+        {
+            auto& vw = m_Swarm.vortexWind;
+            ImGui::Checkbox("Enabled##vwind", &vw.enabled);
+            ImGui::DragFloat("Radius x##vwind", &vw.radiusMul, 0.05f, 0.5f, 5.0f);
+            ImGui::DragFloat("Swirl (m/s)##vwind", &vw.swirl, 0.1f, 0.0f, 30.0f);
+            ImGui::DragFloat("Updraft (m/s)##vwind", &vw.updraft, 0.1f, 0.0f, 10.0f);
+            ImGui::DragFloat("Inflow (m/s)##vwind", &vw.inflow, 0.1f, 0.0f, 30.0f);
+            ImGui::DragFloat("Ground Y##vwind", &vw.groundY, 0.02f, -3.0f, 1.0f);
+            ImGui::DragFloat("Fade Time (s)##vwind", &vw.fadeTime, 0.01f, 0.0f, 2.0f);
+            ImGui::TreePop();
+        }
+
         // ---- 液溜まり（Liquid entry。見た目は VFX の json、ここは描くかどうかだけ）----
         ImGui::Checkbox("Liquids (GPU areas)", &m_Swarm.liquids);
         ImGui::SameLine();

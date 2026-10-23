@@ -392,7 +392,9 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        if (!StartBeam(a, origin, impact, castSpeed, durationMul, orbSerial)) continue;   // チャンネルが全部埋まっている
+                        if (a.profile > 0 && AreaProfileDB::At(a.profile).IsRoam())
+                            StartTwister(a, impact, tf.position, durationMul);   // 竜巻（2026-10-22）：弾が消えた所・突風の吹いた所に出て外へ進む
+                        else if (!StartBeam(a, origin, impact, castSpeed, durationMul, orbSerial)) continue;   // チャンネルが全部埋まっている
                         mana.Reserve(a.manaCost);
                         wand.castAnimTimer = wand.castAnimDuration;
                         ++m_TriggeredCasts;
@@ -431,6 +433,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 // 標的の足元に出す物は標的が要る。プレイヤーの位置に出す物は標的が居なくても出る
                 // ============================================================
                 UpdateBeams(dt, muzzle, collision);   // 出ている光線（溜め → 判定 → 終了）
+                UpdateTwisters(dt, tf.position, hasTarget, targetPos);   // 出ている竜巻（進む → 短い範囲を出し直す → 終了）
 
                 for (auto& a : wand.areas)
                 {
@@ -510,6 +513,9 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     }
                     m_Swarm->SpawnArea(area);
                     AudioSystem::Get().Play(ap.sound);   // CPU から出す範囲の音（GPU の命中で出る物は BattleAudio が鳴らす）
+                    // 範囲の出た所を「弾が消えた所」として上級魔法へ（突風 → 竜巻。2026-10-22）。環と同じく地面の高さで積む
+                    if (a.triggerMask != 0)
+                        m_CpuTriggerEvents.push_back({ Vector3(center.x, center.y - triggerLift, center.z), a.triggerMask });
 
                     if (m_AreaVFX && m_AreaVFXCtx)
                     {
@@ -526,6 +532,9 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                             (area.flags & Swarm::kAreaFollowPlayer) != 0, *m_AreaVFXCtx);
                         if (blows && h != 0)
                             m_AreaVFX->RotateInstance(h, DirectX::XMConvertToDegrees(std::atan2(blowDir.x, blowDir.z)));
+                        // 拡大鏡で広がった分、見た目も同じ倍率に（突風。2026-10-22）
+                        if (h != 0 && ap.radius > 0.0f)
+                            m_AreaVFX->ScaleInstance(h, a.radius / ap.radius);
                         if (lasting && durationMul != 1.0f)
                             m_AreaVFX->RemapTimeline(h, 0.0f, 1.0f, durationMul);   // 見た目の entry も同じだけ伸ばす
                     }

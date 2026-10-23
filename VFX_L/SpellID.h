@@ -19,9 +19,11 @@ enum class ItemID
     Poison,           // 猛毒の沼：上級魔法（2026-10-17 に基本魔法「毒」から格上げ）。泥沼に隣り合うと発動し、弾が消えた所へ毒の瓶を投げて大きな毒沼を残す（Poison プロファイル、Lob 型）
     Swamp,            // 泥沼：一番近い敵の足元へ山なりに投げ、落ちた時だけ飛沫のダメージ、残る沼は減速だけの基本魔法（Swamp プロファイル、Lob 型。2026-10-17）
     Spore,            // 胞子：毒の胞子の塊をゆっくり飛ばし、当たった所に 2 秒だけ全部毒素の霧を残す基本魔法（Spore プロファイル、直進）。泥沼と組んで猛毒の沼を発動させる（2026-10-17、茨の代わり）
+    VoidVortex,       // 渦：紫の渦をゆっくり飛ばし、当たった所で 2 秒開いて周りの敵を中心へ引き寄せる基本魔法（VoidVortex プロファイル、直進。2026-10-22）
     IceLance,         // アイスランス：まっすぐ飛ぶ氷の槍。当たった 1 体を凍らせる基本魔法（IceLance プロファイル、直進。2026-10-08）
     IceSpike,         // アイススパイク：上級魔法（2026-10-10）。アイスランスとストーンショットの両方に隣り合うと目覚め、弾が消えた所から前へ氷のトゲを突き出して凍らせる（IceSpike プロファイル、Drop 型）
     Beam,             // 魔導光線：上級の範囲魔法（2026-09-30）。追尾弾と弧の両方に隣り合うと目覚め、どちらかの弾が消えた方向へ手から光線を撃つ（Beam プロファイル、カプセル型）
+    Twister,          // 竜巻：上級の範囲魔法（2026-10-22）。渦と突風の両方に隣り合うと目覚め、渦の弾が消えた所・突風の吹いた所に竜巻を起こし、敵の方へ進みながら巻き込む（Twister プロファイル、Roam 型）
     Gust,             // 突風：基本の範囲魔法（2026-10-12）。プレイヤーの周りの敵を吹き飛ばす + 少しのダメージ（Gust プロファイル、push）
 
     // --- 修飾ルーン（隣接する出力源を強化。リストには入らない）---
@@ -57,5 +59,6 @@ inline bool IsSpellSource(ItemID id)
     return id == ItemID::Fireball || id == ItemID::Lightning
         || id == ItemID::ArcBolt || id == ItemID::HomingBolt || id == ItemID::Meteor
         || id == ItemID::GoldenArrow || id == ItemID::StoneShot || id == ItemID::Poison
-        || id == ItemID::IceLance || id == ItemID::IceSpike || id == ItemID::Swamp || id == ItemID::Spore;
+        || id == ItemID::IceLance || id == ItemID::IceSpike || id == ItemID::Swamp || id == ItemID::Spore
+        || id == ItemID::VoidVortex;
 }

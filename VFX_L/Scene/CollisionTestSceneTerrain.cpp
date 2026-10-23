@@ -82,6 +82,7 @@ void CollisionTestScene::RebuildTerrain()
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
     m_GrassFire.Build(m_Grid);   // 火も消す
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());   // 落ち葉も置き直す
+    BuildWindToys();   // 転がり草・タンポポも
     lap("grass");
 
     // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
@@ -150,6 +151,25 @@ std::wstring CollisionTestScene::EnterTrainingField(int field, uint32_t seed)
     wchar_t buf[96];
     swprintf_s(buf, L"フィールド：%ls（seed %u）", flat ? L"平地" : def.name, cfg.seed);
     return buf;
+}
+
+// ============================================================
+// 風に流される物（2026-10-22）：転がり草（砂漠・遺跡、CPU の実体）を今のプレイヤーの周りへ置き直し、
+// タンポポ（草原、GPU）に新しい草の高さ・生える所を渡す。地形を建てた / 出し入れした後に呼ぶ
+// ============================================================
+void CollisionTestScene::BuildWindToys()
+{
+    const Vector3* pp = PlayerPos();
+    m_Tumbleweeds.Reset(m_Registry, m_Grid, m_TerrainConfig.biome, m_TerrainConfig.seed, pp ? *pp : Vector3::Zero);
+    m_Dandelions.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV(), m_Grass.GetGroundSRV());
+}
+
+void CollisionTestScene::UpdateWindToys(float dt)
+{
+    m_Dandelions.Tick(dt);
+    Vector3 vel = Vector3::Zero;
+    if (m_Registry.Has<RigidbodyComponent>(m_Player)) vel = m_Registry.Get<RigidbodyComponent>(m_Player).velocity;
+    m_Tumbleweeds.Update(m_Registry, m_Grid, dt, m_Weather.Wind(), m_Grass.Time(), &m_Swarm.GetLocalWind(), PlayerPos(), vel);
 }
 
 // ============================================================

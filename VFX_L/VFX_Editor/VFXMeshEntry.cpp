@@ -73,8 +73,33 @@ void VFXMeshEntry::Submit(VFXMeshRenderer& renderer, const Vector3& worldOffset)
     VFXMeshDrawItem item;
     item.model = m_Model.get();
 
+    // ---- 出現 / 消える途中（presence < 1）：大きさ・不透明度・溶解の倍率 ----
+    Vector3 presenceScale(1.0f, 1.0f, 1.0f);
+    float presenceAlpha = 1.0f;
+    float presenceDissolve = 1.0f;   // 1 = 普段の閾値、0 = 全部溶けている
+    const float k = std::clamp(presence, 0.0f, 1.0f);
+    if (k < 1.0f)
+    {
+        const float e = k * k * (3.0f - 2.0f * k);   // smoothstep
+        if (!presenceLeaving)
+        {
+            const float rise = 1.0f - (1.0f - k) * (1.0f - k);   // 高さは先に伸びる（ease-out）
+            const float w = 0.3f + 0.7f * e;
+            presenceScale = Vector3(w, 0.06f + 0.94f * rise, w);
+            presenceAlpha = std::sqrt(e);
+            presenceDissolve = rise;
+        }
+        else
+        {
+            const float w = 0.5f + 0.5f * e;
+            presenceScale = Vector3(w, 1.0f + 0.25f * (1.0f - e), w);
+            presenceAlpha = e;
+            presenceDissolve = e;
+        }
+    }
+
     const Vector3 rot = rotationDeg + rotSpeedDeg * m_Age;
-    const Vector3 scl = Vector3::Lerp(scaleStart, scaleEnd, p);
+    const Vector3 scl = Vector3::Lerp(scaleStart, scaleEnd, p) * presenceScale;
     item.world = Matrix::CreateScale(scl)
         * Matrix::CreateFromYawPitchRoll(
             DirectX::XMConvertToRadians(rot.y),
@@ -87,15 +112,17 @@ void VFXMeshEntry::Submit(VFXMeshRenderer& renderer, const Vector3& worldOffset)
     item.maskTex = maskTex.texture.get();
 
     item.params.tint = tint;
-    item.params.tint.w *= alphaStart + (alphaEnd - alphaStart) * p;
+    item.params.tint.w *= (alphaStart + (alphaEnd - alphaStart) * p) * presenceAlpha;
     item.params.intensity = intensity;
     item.params.mainTiling = mainTiling;
     item.params.mainScroll = mainScroll * m_Age;
     item.params.noiseTiling = noiseTiling;
     item.params.noiseScroll = noiseScroll * m_Age;
     item.params.distortion = distortion;
+    // 出現 / 消える途中は閾値を「全部溶けた」（1 + 縁の幅）の方へ寄せる
     item.params.dissolveThreshold = dissolveEnabled
-        ? dissolveStart + (dissolveEnd - dissolveStart) * p : -1.0f;   // 負 = 無効
+        ? (1.0f + dissolveEdge) + (dissolveStart + (dissolveEnd - dissolveStart) * p - (1.0f + dissolveEdge)) * presenceDissolve
+        : -1.0f;   // 負 = 無効
     item.params.dissolveEdge = dissolveEdge;
     item.params.dissolveEdgeColor = dissolveEdgeColor;
     item.params.hasNoise = noiseTex.IsValid() ? 1u : 0u;

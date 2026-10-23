@@ -50,6 +50,9 @@ public:
     void CloneFrom(const VFXEffect& src);
     // インスタンスを Y 軸回りに回す（粒子の発射位置・向き、点光源の位置）。複製した直後に 1 回
     void RotateYaw(float degrees);
+    // インスタンス全体を s 倍の大きさにする（粒子の発射位置・形・速さ・大きさ・重力、Mesh の位置と縮尺、
+    // 点光源の位置と半径、Sprite の大きさと位置）。複製した直後に 1 回（拡大鏡で広がった範囲の見た目。2026-10-22）
+    void Scale(float s);
     // 色を掛ける（粒子の開始 / 終了色、点光源の色）。複製した直後に 1 回（水晶玉の光球。2026-10-06）
     void Tint(const DirectX::SimpleMath::Vector3& c) { for (auto& e : m_Entries) e->Tint(c); }
 
@@ -68,6 +71,10 @@ public:
     void SetBeamEnd(const DirectX::SimpleMath::Vector3& p) { m_BeamEnd = p; m_HasBeamEnd = true; }
     // 光線の太さの倍率（Beam entry の width に掛ける。拡大鏡で当たり判定が太くなった分、見た目も太くする。2026-10-13）
     void SetBeamWidthMul(float m) { m_BeamWidthMul = m; }
+    // 出現 / 消える途中の度合い 0〜1（2026-10-22、竜巻。ユーザー「出る時と消える時が急すぎる」）。入れた値がそのまま使われ続ける。
+    // duration < 0 の（ずっと出ている）entry にだけ効く：Mesh = 足元から伸び上がる / ほどける（VFXMeshEntry::presence）、
+    // 粒子 = 発射数 × k、点光源 = 強さ × k。出た瞬間だけの entry（duration ≥ 0）は自分の時間軸どおり
+    void SetPresence(float k, bool leaving) { m_Presence = k; m_PresenceLeaving = leaving; }
     bool IsGPUTimelineIgnored() const { return m_GPUTimelineIgnored; }
 private:
     std::string m_Name = "NewEffect";
@@ -82,6 +89,8 @@ private:
     DirectX::SimpleMath::Vector3 m_BeamEnd = { 0, 0, 0 };
     bool m_HasBeamEnd = false;
     float m_BeamWidthMul = 1.0f;
+    float m_Presence = 1.0f;
+    bool m_PresenceLeaving = false;
     // --- ステートマシン（追加）---
     VFXStateMachine m_SM;   
     VFXStateContext m_SMCtx;

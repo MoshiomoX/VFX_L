@@ -24,6 +24,14 @@ public:
     json ToJson() const override;
     void FromJson(const json& j) override;
 
+    // 出現 / 消える途中の度合い（2026-10-22、竜巻。ユーザー「出る時と消える時が急すぎる」）。保存しない。
+    // VFXEffect::SetPresence が duration < 0 の（ずっと出ている）entry にだけ入れる。1 = 普段どおり。
+    //   出る時（leaving = false）：足元から伸び上がる（高さが先に、太さと不透明度が後から付いてくる。溶解は全部溶けた所から戻る）
+    //   消える時（leaving = true）：細くなりながら少し伸びて、溶解が進んで上へほどける
+    // モデルの原点が足元にある前提（竜巻の柱）。原点が中心のモデルだと中心から膨らむ / しぼむ
+    float presence = 1.0f;
+    bool  presenceLeaving = false;
+
     // VFXEffect::CollectAndDispatch から毎フレーム呼ばれる
     void Submit(VFXMeshRenderer& renderer, const DirectX::SimpleMath::Vector3& worldOffset);
 

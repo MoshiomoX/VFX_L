@@ -32,6 +32,8 @@ struct AreaProfile
         Lasting = 1,   // 法環・燃える地面
         Beam = 2,      // 光線（2026-09-30）：プレイヤーの手から length m のカプセル。duration の間 tickInterval ごとにダメージ。
                        // 判定は GPU のカプセル型範囲（Swarm::kAreaCapsule）、起点は毎フレームプレイヤーに付く。見た目は VFX の Beam entry
+        Roam = 3,      // 動く持続範囲（2026-10-22、竜巻）：出た所から roamSpeed m/s で敵の方へ進む。duration の間、
+                       // WeaponSystem が今の位置に短い範囲を出し続ける（引き寄せ・減速は毎回、威力は tickInterval ごと）。見た目は CPU の VFX が付いて動く
     };
 
     std::string name = "NewArea";
@@ -50,6 +52,8 @@ struct AreaProfile
     float heat = 0.0f;             // 草に火を付ける熱（0 = 付けない、1 = 爆発。GrassFireField が vfxFile のレシピ毎に表にして読む。2026-10-12）
     float push = 0.0f;             // tick で中の敵をプレイヤーから離れる方へ吹き飛ばす強さ（0〜1、15 段階。1 = 約 3.5m。エリート半分・ボス 0。
                                    // flags の光線チャンネルの 4 bit を使うので光線（Beam）とは併用不可。2026-10-12 突風）
+    float pull = 0.0f;             // tick で中の敵を範囲の中心へ引き寄せる強さ（0〜1、15 段階。吹き飛ばしと同じ 4 bit を使うので push とは併用不可、
+                                   // push が優先。エリート半分・ボス 0。2026-10-22 渦）
     float forward = 0.0f;          // プレイヤーの位置に出す時、一番近い敵の方へこれだけ（m）寄せる（突風の「前に吹く」感じ。標的が居なければ 0）
     float toxin = 0.0f;            // 1 tick の威力のうちこの割合（0〜1、15 段階）はすぐに与えず「毒素」として敵に溜め、1 秒かけて削る（2026-10-17 猛毒の沼）。
                                    // 毒素を持つ範囲は同じ敵に重ならない（一番強い 1 つだけ）
@@ -59,6 +63,9 @@ struct AreaProfile
     // ---- Beam のみ ----
     float length = 18.0f;          // 射程（m）。地形に当たればそこまで
     float chargeTime = 0.5f;       // 撃つ前の溜め（秒）。この間は判定が無く、VFX だけ出ている
+
+    // ---- Roam のみ（竜巻。2026-10-22）----
+    float roamSpeed = 3.0f;        // 進む速さ m/s（プレイヤーに一番近い敵の方へ向きを回しながら）
 
     // 見た目。Assets/Data/VFXData/ の json のファイル名（拡張子込み）。空 = 無し
     std::string vfxFile;
@@ -75,6 +82,7 @@ struct AreaProfile
     // 実際の tick 間隔（OneShot は 2 回目が来ない値）
     float EffectiveTickInterval() const { return (kind == Kind::OneShot) ? 1.0e9f : tickInterval; }
     bool  IsBeam() const { return kind == Kind::Beam; }
+    bool  IsRoam() const { return kind == Kind::Roam; }
     uint32_t Flags(bool atCaster) const;
     // 追加値（毒素の割合・飛沫だけ）。Area::tickNow の上位 / AreaDef::extra に入れる（Swarm::kAreaExtra*）
     uint32_t Extra() const;

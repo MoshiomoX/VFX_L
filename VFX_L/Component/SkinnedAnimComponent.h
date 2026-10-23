@@ -87,4 +87,22 @@ struct SkinnedAnimComponent
 
     // 層を混ぜた後で差し替える骨の global（モデル空間）。揺れ物の結果（ClothChainSystem が毎フレーム書く）
     std::vector<std::pair<int, DirectX::SimpleMath::Matrix>> boneOverrides;
+
+    // ---- SkinnedAnimSystem::BuildPose の素のポーズ（差し替え前）の使い回し（2026-10-23）----
+    // 層の状態（クリップ・時刻・フェード・重み）が前回と同じなら計算し直さない
+    struct PoseKey
+    {
+        float v[18] = {};
+        const void* model = nullptr;
+        const float* mask = nullptr;
+        size_t maskSize = 0;
+        bool operator==(const PoseKey& o) const
+        {
+            for (int i = 0; i < 18; ++i) if (v[i] != o.v[i]) return false;
+            return model == o.model && mask == o.mask && maskSize == o.maskSize;
+        }
+    };
+    mutable std::vector<DirectX::SimpleMath::Matrix> poseCache;
+    mutable PoseKey poseCacheKey;
+    mutable bool poseCacheValid = false;
 };

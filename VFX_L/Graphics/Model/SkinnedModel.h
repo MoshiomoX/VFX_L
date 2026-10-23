@@ -97,6 +97,17 @@ public:
     int AddAnimationsFromFile(const std::string& filepath,
         const struct BoneMapEntry* map = nullptr, int mapCount = 0);
 
+    // ---- マントを横の列に分ける（SkinnedModelCloth.cpp、2026-10-23）----
+    // 骨の 1 本鎖 chain（根 → 先。最後は重みの無い終点でもよい）を横 columns 列（奇数、真ん中 = 元の骨）にする。
+    //   列の骨 = 元の骨を体の左右へずらした物（親 = 同じ段の元の骨、名前 = ClothColumnBoneName）。
+    //   鎖に重みを持つ頂点は、左右の位置で隣の 2 列に割り振り（強い 2 段 × 2 列）、anchor（上背）の重みは
+    //   鎖の根から anchorKeepEnd（根 0 → 先 1）までで 0 へ減らして鎖へ回す。
+    //   GPU（SkinnedModelGPU::Initialize）より前に呼ぶこと（骨の数と頂点が変わる）。分け済みなら何もしない。
+    //   戻り値 = 足した骨の数
+    int SplitClothChain(const std::string& anchorBone, const std::vector<std::string>& chain,
+        int columns, float anchorKeepEnd);
+    static std::string ClothColumnBoneName(const std::string& chainBone, int column);
+
     const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
 
     // スキニングした時の骨の global（モデル空間）= Invert(offset) * mesh ノード。

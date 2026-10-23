@@ -20,10 +20,12 @@ From game-icons.net  https://game-icons.net
   Poison.png          "Poison bottle"     by Lorc        https://game-icons.net/1x1/lorc/poison-bottle.html
   Swamp.png           "Swamp"             by Delapouite  https://game-icons.net/1x1/delapouite/swamp.html
   Spore.png           "Poison gas"        by Lorc        https://game-icons.net/1x1/lorc/poison-gas.html
+  VoidVortex.png      "Vortex"            by Lorc        https://game-icons.net/1x1/lorc/vortex.html
   IceLance.png        "Ice bolt"          by Lorc        https://game-icons.net/1x1/lorc/ice-bolt.html
   IceSpike.png        "Crystal growth"    by Lorc        https://game-icons.net/1x1/lorc/crystal-growth.html
   Beam.png            "Laser blast"       by Lorc        https://game-icons.net/1x1/lorc/laser-blast.html
   Gust.png            "Wind slap"         by Lorc        https://game-icons.net/1x1/lorc/wind-slap.html
+  Twister.png         "Tornado"           by Lorc        https://game-icons.net/1x1/lorc/tornado.html
   SplitRune.png       "Split arrows"      by Delapouite  https://game-icons.net/1x1/delapouite/split-arrows.html
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html

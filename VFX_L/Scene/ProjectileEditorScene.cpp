@@ -922,9 +922,10 @@ void ProjectileEditorScene::DrawAreaTab()
         PushMotions();   // 投射物の hitArea は名前で引くので、表を作り直す
     }
 
-    const char* kindNames[] = { "One shot (explosion)", "Lasting (circle / burning ground)", "Beam (capsule from the player)" };
+    const char* kindNames[] = { "One shot (explosion)", "Lasting (circle / burning ground)", "Beam (capsule from the player)",
+        "Roam (moving, the Twister)" };
     int kind = (int)p.kind;
-    if (ImGui::Combo("Kind", &kind, kindNames, 3))
+    if (ImGui::Combo("Kind", &kind, kindNames, 4))
     {
         p.kind = (AreaProfile::Kind)kind;
         changed = true;
@@ -946,6 +947,11 @@ void ProjectileEditorScene::DrawAreaTab()
         ImGui::TextDisabled("about %.0f ticks, %.0f damage in total, %.1f dps",
             ticks, ticks * p.damage, p.damage / (std::max)(p.tickInterval, 0.02f));
     }
+    if (p.kind == AreaProfile::Kind::Roam)
+    {
+        changed |= ImGui::DragFloat("Roam Speed (m/s)", &p.roamSpeed, 0.05f, 0.0f, 20.0f);   // 竜巻：プレイヤーに一番近い敵の方へ進む
+        ImGui::TextDisabled("battle only: the test cast here is a still circle");
+    }
     if (p.kind == AreaProfile::Kind::Beam)
     {
         changed |= ImGui::DragFloat("Length (m)", &p.length, 0.1f, 1.0f, 80.0f);
@@ -965,6 +971,9 @@ void ProjectileEditorScene::DrawAreaTab()
     if (p.kind != AreaProfile::Kind::Beam)
     {
         changed |= ImGui::SliderFloat("Push away (knockback)", &p.push, 0.0f, 1.0f, "%.2f");   // 突風：プレイヤーから離れる方へ（1 = 約 3.5m。エリート半分・ボス 0）
+        changed |= ImGui::SliderFloat("Pull to centre", &p.pull, 0.0f, 1.0f, "%.2f");          // 渦：範囲の中心へ（push と同じ 4 bit、push が優先）
+        if (p.push > 0.0f && p.pull > 0.0f)
+            ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "push and pull share the same bits: push wins");
         changed |= ImGui::DragFloat("Forward offset (m)", &p.forward, 0.05f, 0.0f, 10.0f);     // プレイヤーに出す時、標的の方へ寄せる
     }
     if (p.stun && p.kind == AreaProfile::Kind::Lasting)

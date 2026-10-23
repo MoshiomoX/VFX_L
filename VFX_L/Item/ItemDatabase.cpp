@@ -13,10 +13,12 @@
 #include "Item/Items/Poison.h"
 #include "Item/Items/Swamp.h"
 #include "Item/Items/Spore.h"
+#include "Item/Items/VoidVortex.h"
 #include "Item/Items/IceLance.h"
 #include "Item/Items/IceSpike.h"
 #include "Item/Items/Beam.h"
 #include "Item/Items/Gust.h"
+#include "Item/Items/Twister.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Magnifier.h"
@@ -126,10 +128,12 @@ void ItemDatabase::Initialize()
     Register(MakePoison());
     Register(MakeSwamp());
     Register(MakeSpore());
+    Register(MakeVoidVortex());
     Register(MakeIceLance());
     Register(MakeIceSpike());
     Register(MakeBeam());
     Register(MakeGust());
+    Register(MakeTwister());
 
     // ---- 機能型 ----
     Register(MakeSplitRune());

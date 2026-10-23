@@ -41,6 +41,10 @@ public:
     void StopInstance(uint32_t handle);
     // Y 軸回りに回す（Play の直後に 1 回。Boss の門の渦を門の向きに合わせる）
     void RotateInstance(uint32_t handle, float yawDeg);
+    // 全体を s 倍の大きさに（Play の直後に 1 回。拡大鏡で広がった竜巻・突風。2026-10-22）
+    void ScaleInstance(uint32_t handle, float s);
+    // 出現 / 消える途中の度合い 0〜1（VFXEffect::SetPresence。竜巻が足元から伸び上がる / ほどける。2026-10-22）
+    void SetPresence(uint32_t handle, float k, bool leaving);
 
     // 時間軸を伸び縮みさせる（Play の直後、まだ Update していないインスタンスに使う）。
     // 各 entry の開始 / 終了の時刻 t を、t <= split なら t × before、それより後は

@@ -25,8 +25,8 @@ public:
     void FromJson(const json& j) override;
     void Tint(const DirectX::SimpleMath::Vector3& c) override { color.x *= c.x; color.y *= c.y; color.z *= c.z; }
 
-    // 今フレームの光を PointLightManager へ積む（再生中のみ）
-    void Submit(const DirectX::SimpleMath::Vector3& worldOffset);
+    // 今フレームの光を PointLightManager へ積む（再生中のみ）。intensityMul = エフェクトの出現 / 消える途中の度合い
+    void Submit(const DirectX::SimpleMath::Vector3& worldOffset, float intensityMul = 1.0f);
 
     DirectX::SimpleMath::Vector3 offset = { 0, 0, 0 };
     DirectX::SimpleMath::Vector3 color = { 1.0f, 0.6f, 0.2f };

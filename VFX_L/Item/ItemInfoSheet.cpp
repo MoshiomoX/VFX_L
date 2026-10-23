@@ -214,7 +214,8 @@ namespace ItemInfoSheet
         if (!pp.hitArea.empty())
         {
             const int ai = AreaProfileDB::IndexOf(pp.hitArea);
-            if (ai > 0 && AreaProfileDB::At(ai).damage > 0.0f) ap = &AreaProfileDB::At(ai);
+            // 威力 0 でも敵を引き寄せる範囲（渦。2026-10-22）は説明に出す
+            if (ai > 0 && (AreaProfileDB::At(ai).damage > 0.0f || AreaProfileDB::At(ai).pull > 0.0f)) ap = &AreaProfileDB::At(ai);
         }
         const bool blast = ap && ap->kind == AreaProfile::Kind::OneShot;
         // 凍らせる一撃の範囲（アイススパイクの氷のトゲ。2026-10-10）は「爆発」と書かない
@@ -253,6 +254,9 @@ namespace ItemInfoSheet
             swprintf_s(buf, L"中の敵を %d%% 遅くする", pct);
             s.traits.push_back(buf);
         }
+        // 引き寄せ（渦。2026-10-22）。エリートは半分、ボスは動かない、は書かない
+        if (ap && ap->pull > 0.0f && ap->push <= 0.0f)
+            s.traits.push_back(L"周りの敵を中心へ引き寄せる");
         // 毒素（猛毒の沼。2026-10-17）：威力の一部は毒になって 1 秒かけて効く（15 段階に丸めた値）
         if (ap && ap->toxin > 0.0f)
         {
@@ -292,9 +296,10 @@ namespace ItemInfoSheet
             }
             else
             {
-                // 威力は「1 回分 / 間隔」で 1 行に
+                // 威力は「1 回分 / 間隔」で 1 行に（威力 0 の範囲 = 引き寄せるだけの渦は持続だけ）
                 const std::wstring per = L" / " + Num(ap->tickInterval) + L"秒";
-                s.stats.push_back(StatLine(L"範囲の威力", dmg, baseDmg, per.c_str(), +1));
+                if (ap->damage > 0.0f)
+                    s.stats.push_back(StatLine(L"範囲の威力", dmg, baseDmg, per.c_str(), +1));
                 s.stats.push_back(StatLine(L"範囲の持続", ap->duration, ap->duration, L"秒", +1));
             }
         }
@@ -323,7 +328,15 @@ namespace ItemInfoSheet
     {
         // 光線（AreaProfile::Kind::Beam）: 手から貫くカプセル。範囲の代わりに太さと射程
         const bool beam = v.profile > 0 && AreaProfileDB::At(v.profile).IsBeam();
-        if (!beam)
+        // 竜巻（AreaProfile::Kind::Roam。2026-10-22）: 連鎖した所に出て敵の方へ進み、周りの敵を引き寄せる
+        const bool roam = v.profile > 0 && AreaProfileDB::At(v.profile).IsRoam();
+        if (roam)
+        {
+            s.traits.push_back(L"連鎖した所に竜巻が起き、敵の方へ進む");
+            if (AreaProfileDB::At(v.profile).pull > 0.0f)
+                s.traits.push_back(L"周りの敵を中心へ引き寄せる");
+        }
+        else if (!beam)
             s.traits.push_back(v.spawnAtTarget ? L"敵の足元に出る" : L"自分の周りに出る");
         else if (AreaProfileDB::At(v.profile).chargeTime <= 0.0f && v.duration < 0.5f)
             s.traits.push_back(L"一番近い敵へ一瞬で届く");   // アークボルト（溜め 0 の稲妻。2026-10-15）

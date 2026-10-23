@@ -38,6 +38,8 @@ enum class VFXId : uint32_t
     SwampPool,      // 泥沼（範囲 SwampPool：落ちた所の飛沫 + 泥の液面。減速だけ）
     Spore,          // 胞子の弾（黄緑の塊 + 漂う胞子。直進・遅い。2026-10-17）
     SporeCloud,     // 胞子の霧（範囲 SporeCloud：漂う胞子 + 薄い靄。ダメージは全部毒素）
+    VoidVortex,     // 渦の弾（紫の小さな渦 + 光の粒の尾。旧ホーミングボルトの見た目を流用。2026-10-22）
+    VoidVortexPull, // 渦（範囲 VoidVortexPull：回る紫の渦 + 中心へ吸い込まれる光 + 屈折。周りの敵を引き寄せる）
     MobDeath,       // 敵が死んだ足元の土煙（範囲 MobDeath：威力 0 の見た目だけ。部品の砕け散りと一緒。2026-10-02）
     Beam,           // 魔導光線（溜めの光球 + Beam entry の光線 + 点光源。CPU の AreaVFXPlayer が再生し、終点は WeaponSystem が毎フレーム入れる）
     IceLance,       // アイスランスの弾（bing.FBX の氷の槍が弾と一緒に飛ぶ + 冷気の粒。2026-10-08）
@@ -60,6 +62,7 @@ enum class VFXId : uint32_t
     // 魔法（CPU で出す分。判定は GPU の範囲、ここは見た目だけ）
     IceSpike,       // アイススパイクの冷気・氷の欠片・光（トゲ本体は IceSpikeField が地面に合わせて描く。2026-10-10）
     Gust,           // 突風の土煙と草屑の輪（判定は GPU の範囲、草が倒れるのは GrassRenderer::AddGust。2026-10-12）
+    Twister,        // 竜巻（longjuanfeng2.FBX の柱 2 枚 + 屈折の煙団 + 巻き上がる草屑。WeaponSystem が毎フレーム竜巻の位置へ動かす。2026-10-22）
     // 戦闘の手応え（FeedbackVFXSystem）
     LevelUp,
     CrateOpen,

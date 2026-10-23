@@ -96,6 +96,31 @@ public:
         dir = m_Beams[i].dir; hasTarget = m_Beams[i].hasTarget; target = m_Beams[i].targetPos;
         return true;
     }
+    // ---- 竜巻（動く範囲、AreaProfile::Kind::Roam。2026-10-22）の風源と向きの回り方 ----
+    struct TwisterLook
+    {
+        float windRadiusMul = 2.2f;   // 風の届く距離 = 範囲の半径 × これ
+        float windSwirl = 14.0f;      // m/s
+        float windUpdraft = 5.0f;     // m/s（落ち葉が巻き上がる）
+        float windInflow = 3.0f;      // m/s
+        float turnRate = 90.0f;       // 前方の標的の方へ向きを回す速さ（度/秒）
+        float seekCone = 60.0f;       // 標的がこの角度（度）より前にある時だけ向きを回す（後ろの敵へは戻らない）
+        float keepAway = 4.0f;        // プレイヤーからこの距離（m）以内に入ったら外へ向ける（敵をプレイヤーへ引きずらない）
+        // 出る / 消える移り変わり（2026-10-22、ユーザー「出る時と消える時が急すぎる」）。
+        // 出た直後 introTime 秒で柱が足元から伸び上がり、風・煙・光・進む速さも 0 から付いてくる（引き寄せと威力は最初から）。
+        // 寿命が尽きたら outroTime 秒かけて細くなりながら上へほどけて止まる（この間は引き寄せも威力も出さない）
+        float introTime = 0.45f;
+        float outroTime = 0.7f;
+    };
+    TwisterLook twisterLook;
+    // 自動テスト用: 出ている竜巻の数と i 個目の位置（中心 = 地面）
+    int GetTwisterCount() const { return (int)m_Twisters.size(); }
+    bool GetTwisterPos(int i, DirectX::SimpleMath::Vector3& pos) const
+    {
+        if (i < 0 || i >= (int)m_Twisters.size()) return false;
+        pos = m_Twisters[i].pos;
+        return true;
+    }
     // 自動テスト用: i 本目の光線の射程と半径（拡大鏡で伸びた後の値）
     bool GetBeamDebugSize(int i, float& length, float& radius) const
     {
@@ -194,6 +219,37 @@ private:
     void SetupBeamChain(const AreaStats& a, float castSpeed, float durationMul);
     // 連鎖の次の稲妻：prev が届いた敵の位置から next へ（prev.chainLeft − 1 回残して）
     void StartChainBeam(const ActiveBeam& prev, const DirectX::SimpleMath::Vector3& next);
+
+    // ---- 竜巻（上級の範囲魔法、AreaProfile::Kind::Roam。2026-10-22。WeaponSystemTwister.cpp）----
+    // 誘発された所（渦の弾が消えた所・突風の吹いた所）に出て、プレイヤーから離れる向きに roamSpeed で進み、
+    // 前方にいる敵の方へは少しずつ曲がる（寄ってくる群れを突っ切り、巻き込んだ敵をプレイヤーから引き離す）。
+    // GPU の範囲は動かせないので、kTwisterPulse 秒ごとに今の位置へ短い範囲（その間だけ生きる）を出し直す：
+    // 引き寄せ・減速は毎回、威力は tickInterval ごと（数字が出過ぎないように）。見た目（CPU の VFX）と風源は毎フレーム付いて動く
+    struct ActiveTwister
+    {
+        ItemID id = ItemID::Unknown;
+        int profile = 0;               // AreaProfileDB の番号
+        DirectX::SimpleMath::Vector3 pos = { 0, 0, 0 };   // 地面の上の中心
+        DirectX::SimpleMath::Vector3 dir = { 0, 0, 1 };   // 進む向き（xz）
+        float speed = 3.0f;
+        float age = 0.0f;
+        float life = 4.0f;
+        float radius = 2.8f;
+        float damage = 0.0f;           // 1 回（tickInterval ごと）
+        float tickInterval = 0.5f;
+        float pulseTimer = 0.0f;       // 次の短い範囲まで
+        float damageTimer = 0.0f;      // 次に威力を乗せるまで
+        float outro = -1.0f;           // < 0 = まだ消え始めていない、≥ 0 = 寿命が尽きて消え始めてからの秒
+        uint32_t vfxHandle = 0;
+    };
+    std::vector<ActiveTwister> m_Twisters;
+    static constexpr float kTwisterPulse = 0.25f;   // 短い範囲を出し直す間隔（= 引き寄せの 1 回の長さ）
+    // 誘発で竜巻を出す（at = 地面の高さ + 標的の高さ、playerPos = 進む向きの基準）。durationMul = 魔力解放の持続倍率
+    void StartTwister(const AreaStats& a, const DirectX::SimpleMath::Vector3& at,
+        const DirectX::SimpleMath::Vector3& playerPos, float durationMul);
+    // 進む・短い範囲を出す・見た目と風源を付けて動かす・終わったら止める
+    void UpdateTwisters(float dt, const DirectX::SimpleMath::Vector3& playerPos,
+        bool hasTarget, const DirectX::SimpleMath::Vector3& targetPos);
 
     // ---- 光球（水晶玉の召喚物、2026-10-06。WeaponSystemOrbs.cpp）----
     // WandComponent::orbs[unit] の設定で出る。貯蔵された魔法（SpellStats / AreaStats の storeUnit == unit）を

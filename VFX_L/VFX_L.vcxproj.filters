@@ -253,6 +253,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestDebris.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestWindToys.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestChargeShield.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -260,6 +263,12 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSpikeBall.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestVortex.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestTwister.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBurrower.cpp">
@@ -583,6 +592,9 @@
     <ClCompile Include="Graphics\Model\SkinnedModel.cpp">
       <Filter>Graphics\Model</Filter>
     </ClCompile>
+    <ClCompile Include="Graphics\Model\SkinnedModelCloth.cpp">
+      <Filter>Graphics\Model</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Model\SkinnedModelGPU.cpp">
       <Filter>Graphics\Model</Filter>
     </ClCompile>
@@ -644,6 +656,9 @@
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\WeaponSystemOrbs.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\WeaponSystemTwister.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="Scene\VFXEditorScene.cpp">
@@ -828,6 +843,15 @@
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\GroundDebrisPanel.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\Tumbleweeds.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\DandelionField.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\DandelionFieldPanel.cpp">
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\MapData.cpp">
@@ -1401,6 +1425,9 @@
     <ClInclude Include="Item\Items\Gust.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\Twister.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Item\ItemDatabase.h">
       <Filter>Item</Filter>
     </ClInclude>
@@ -1471,6 +1498,9 @@
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\Spore.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\VoidVortex.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\CrystalBall.h">
@@ -1636,6 +1666,15 @@
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\GroundDebris.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\Tumbleweeds.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\DandelionField.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\LocalWind.h">
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="Swarm\SwarmFireEmit.h">
@@ -1888,6 +1927,15 @@
     <FxCompile Include="Shader\Debris\DebrisPS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Dandelion\DandelionUpdateCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Dandelion\DandelionVS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Dandelion\DandelionPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Grass\GrassVS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
@@ -2132,6 +2180,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Debris\DebrisCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Dandelion\DandelionCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\ModelCommon.hlsli">

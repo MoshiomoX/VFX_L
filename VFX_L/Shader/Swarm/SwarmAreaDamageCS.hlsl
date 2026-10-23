@@ -42,7 +42,8 @@ RWStructuredBuffer<SwarmOrb> orbs : register(u3);
 RWBuffer<uint> orbStates : register(u4);
 // x / y = slow (seconds left, amount). AICS reads and counts it down. z / w = freeze (left untouched here)
 RWStructuredBuffer<float4> enemySlow : register(u5);
-// knockback (the Gust, 2026-10-12): xy = velocity away from the player, z = seconds left. AICS applies and decays it
+// knockback (the Gust, 2026-10-12): xy = velocity away from the player, z = seconds left. AICS applies and decays it.
+// w = 1: a pull toward a vortex centre instead (2026-10-22), which a push overrides
 RWStructuredBuffer<float4> enemyPush : register(u6);
 // stored toxin (2026-10-17): x = damage still to drain, y = damage per second, z = seconds since the last dose (the look)
 RWStructuredBuffer<float4> enemyPoison : register(u7);
@@ -82,6 +83,9 @@ void main(uint3 id : SV_DispatchThreadID)
     float slow = 0.0;     // strongest slow among the areas this enemy stands in
     float slowTime = 0.0; // until the next tick of that area, plus a little
     float push = 0.0;     // strongest knockback among them (SwarmAreaPush)
+    float pull = 0.0;     // strongest pull toward an area centre (SWARM_AREA_EXTRA_PULL, the Void Vortex)
+    float2 pullTo = float2(0.0, 0.0); // that area's centre
+    float pullTime = SWARM_PUSH_TIME; // that area's tick interval (one pulse lasts until the next tick)
 
     for (uint k = 0; ticking && k < SWARM_MAX_AREAS; ++k)
     {
@@ -142,11 +146,19 @@ void main(uint3 id : SV_DispatchThreadID)
             slow = max(slow, s);
             slowTime = max(slowTime, min(a.tickInterval, 2.0) + SWARM_SLOW_LINGER);
         }
-        push = max(push, SwarmAreaPush(a.flags));
+        float pq = SwarmAreaPush(a.flags);
+        if ((a.tickNow & SWARM_AREA_EXTRA_PULL) != 0u)
+        {
+            if (pq > pull) { pull = pq; pullTo = c.xz; pullTime = clamp(a.tickInterval, SWARM_PUSH_TIME, 1.0); }
+        }
+        else
+            push = max(push, pq);
     }
 
     // ---- knockback: away from the player, the stronger one wins (before the damage early-out) ----
-    push *= SwarmPushKindMul(kind);
+    float kindMul = SwarmPushKindMul(kind);
+    push *= kindMul;
+    pull *= kindMul;
     if (push > 0.0)
     {
         float2 away = epos.xz - g_PlayerPos.xz;
@@ -154,8 +166,21 @@ void main(uint3 id : SV_DispatchThreadID)
         away = (len > 1e-3) ? away / len : float2(1.0, 0.0);
         float2 vel = away * (push * SWARM_PUSH_SPEED);
         float4 cur = enemyPush[j];
-        if (cur.z <= 0.0 || dot(vel, vel) > dot(cur.xy, cur.xy))
+        if (cur.z <= 0.0 || cur.w > 0.5 || dot(vel, vel) > dot(cur.xy, cur.xy))
             enemyPush[j] = float4(vel, SWARM_PUSH_TIME, 0.0);
+    }
+    else if (pull > 0.0)
+    {
+        // ---- pull toward the vortex centre: a share of the distance per pulse, never past the centre ----
+        float2 to = pullTo - epos.xz;
+        float len = length(to);
+        float4 cur = enemyPush[j];
+        // a running push (w = 0) is left alone; an older pull is replaced by this step's one
+        if (len > SWARM_PULL_DEAD && (cur.z <= 0.0 || cur.w > 0.5))
+        {
+            float speed = pull * SWARM_PULL_SHARE * len / (pullTime - 0.5 * SWARM_PUSH_TIME);
+            enemyPush[j] = float4(to / len * min(speed, pull * SWARM_PUSH_SPEED), pullTime, 1.0);
+        }
     }
 
     // ---- slow: refresh, never weaken one that is still running ----

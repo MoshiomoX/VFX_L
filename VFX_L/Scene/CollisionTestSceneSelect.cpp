@@ -167,6 +167,7 @@ void CollisionTestScene::ActivateSelectWorld(int map)
 
     // ---- 立つ所・カメラの中心・光 ----
     PlaceTitleStand();
+    BuildWindToys();   // 転がり草（砂漠・遺跡）・タンポポ（草原）を立つ所の周りへ（2026-10-22）
     ApplySelectLight();
     m_TitleTime = 0.0f;   // カメラは最初の向きから
 }

@@ -126,6 +126,8 @@ public:
     // 地形のテクスチャ（Build）。燃え跡の計算（GrassFireField）が同じ物を読む
     ID3D11ShaderResourceView* GetHeightSRV() const { return m_HeightSRV.Get(); }
     ID3D11ShaderResourceView* GetGroundSRV() const { return m_GroundSRV.Get(); }   // a = 生やすか（= 燃える物があるか）
+    // 今の踏み跡（float2 = 倒す向き × 強さ。草を描いた後に読む物。タンポポの綿毛がほどける。2026-10-22）
+    ID3D11ShaderResourceView* GetTrampleSRV() const { return m_TrampleSRV[m_TrampleCur].Get(); }
 
     // HLSL の GrassCB（Shader/Grass/GrassCommon.hlsli）と同じ並び
     struct GrassCB

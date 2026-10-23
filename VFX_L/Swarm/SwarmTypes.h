@@ -314,6 +314,8 @@ namespace Swarm
     constexpr uint32_t kAreaTickMask = 0xFFu;
     constexpr uint32_t kAreaExtraToxinShift = 8u;   // (tickNow >> 8) & 0xF = q、1 tick の威力の q / 15 を毒素として敵に溜め、1 秒かけて削る
     constexpr uint32_t kAreaExtraSplashOnly = 1u << 12;   // 最初の tick だけダメージ（泥沼：落ちた時の飛沫。残る沼は減速だけ）
+    // 引き寄せ（2026-10-22、渦）：flags の吹き飛ばしの 4 bit を「範囲の中心へ引く強さ」として読む（HLSL の SWARM_AREA_EXTRA_PULL）
+    constexpr uint32_t kAreaExtraPull = 1u << 13;
     constexpr uint32_t kAreaExtraElementShift = 16u;   // bits 16〜19 = 範囲の属性（ダメージの数字の色。2026-10-17）
     constexpr float kToxinTime = 1.0f;           // 毒素 1 回分が削り切られる秒（HLSL の SWARM_TOXIN_TIME）
 

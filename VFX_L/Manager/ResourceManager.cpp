@@ -166,6 +166,12 @@ LoadedModel ResourceManager::ImportModelAuto(const std::string& filepath)
         for (const auto& extra : Res::Mdl::kExtraAnims)
             if (filepath == extra.model)
                 out.skinnedModel->AddAnimationsFromFile(extra.animFile, extra.map, extra.mapCount);
+        // CC 骨のマント（Cloak1〜8）を横の列に分ける（ClothChainSystem が布の格子として揺らす。2026-10-23）。
+        // アニメの付け替えの後（足した列の骨はクリップにチャンネルが無い = 同じ段の元の骨に付いて行く）
+        if (out.skinnedModel->GetSkeleton().FindBoneIndex(kCCCapeChain[0]) >= 0)
+            out.skinnedModel->SplitClothChain(kCCCapeAnchor,
+                std::vector<std::string>(std::begin(kCCCapeChain), std::end(kCCCapeChain)),
+                kCCCapeColumns, kCCCapeAnchorKeepEnd);
         std::cout << "[LoadModelAuto] -> Skinned : " << filepath << std::endl;
     }
     else

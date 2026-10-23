@@ -250,6 +250,11 @@ void CollisionTestScene::Init()
     if (!m_Debris.Initialize(device, context))
         std::cout << "[Error] GroundDebris init failed" << std::endl;
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());
+    // 風に流される物（2026-10-22）：砂漠・遺跡の転がり草、草原のタンポポ
+    m_Tumbleweeds.Init(device);
+    if (!m_Dandelions.Initialize(device, context))
+        std::cout << "[Error] DandelionField init failed" << std::endl;
+    BuildWindToys();
 
     // ---------- GPU 側 gameplay（雑魚・投射物・オーブ）----------
     // ※地形の生成後に呼ぶ。格子表をそのまま上げるため
@@ -427,6 +432,8 @@ void CollisionTestScene::Shutdown()
     m_Shadows.Shutdown();
     m_Swarm.Shutdown();
     m_StaticProps.Shutdown();
+    m_Tumbleweeds.Clear(m_Registry);   // 実体を消す（次の Init の実体と番号が被らないうちに）
+    m_Dandelions.Shutdown();
     m_Debris.Shutdown();
     m_GrassFire.Shutdown();
     m_Grass.Shutdown();
@@ -502,13 +509,14 @@ void CollisionTestScene::OnExplosions(int count)
 // 届く距離 2.6m、縁の接線 9 m/s + 芯の上昇 2.5 m/s + 風下へ 7 m/s の押し、0.45 秒（sin で出入り）。
 // 流線の粒子（wind 1 + 流線）がこれに巻かれて弧を描き、草・落ち葉・煙も同じ風を受ける。向き無し（円盤）なら押さない
 // ============================================================
-void CollisionTestScene::AddGustWindBurst(const Vector3& pos, const Vector2& dir, float length)
+void CollisionTestScene::AddGustWindBurst(const Vector3& pos, const Vector2& dir, float length, float radius)
 {
     SwarmSystem::WindBurst b;
     const bool hasDir = dir.LengthSquared() > 1e-4f;
     b.pos = hasDir ? pos + Vector3(dir.x, 0.0f, dir.y) * 0.9f : pos;
     // 10-20：筒 / 大きな板の粒子を無くし、風は「屈折 + 薄い白」と環境の反応だけに → 風源を強く・長く（2.6 / 9 / 2.5 / 0.8 / 7 / 0.45 秒 → 下）
-    b.radius = hasDir ? 3.4f : (std::max)(length, 2.0f);
+    // 前へ吹く物の届く距離 = 範囲の半径（突風 3.4m。拡大鏡で広がれば一緒に。2026-10-22）
+    b.radius = hasDir ? radius : (std::max)(length, 2.0f);
     b.swirl = 11.0f;
     b.updraft = 3.5f;
     b.inflow = 1.2f;
@@ -525,9 +533,11 @@ void CollisionTestScene::PushWind()
     m_Grass.SetWind(wind);
     m_ClothChainSystem.wind = wind;
     m_ClothChainSystem.windTime = m_Grass.Time();
+    m_ClothChainSystem.localWind = &m_Swarm.GetLocalWind();   // 竜巻・渦・砂旋・突風にマントも巻かれる（2026-10-22）
     m_ParticleSystem.SetWind(wind, m_Grass.Time());
     m_ParticleSystem.SetWindSources(m_Swarm.GetWindSourceSRV());   // 砂旋の風源（煙が周りを回る。2026-10-19）
     m_Debris.SetWind(wind, m_Grass.Time());   // 落ち葉（強い風で舞う）
+    m_Dandelions.SetWind(wind, m_Grass.Time());   // タンポポ（強い風で綿毛がほどける。2026-10-22）
 
     // 草の火：風下へ広がる、雨で消える。燃えているマスからの粒子は SwarmSystem の Flush が出す
     m_GrassFire.SetWind(wind);
@@ -982,6 +992,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     }
     m_GrassFire.Tick(dt);   // 草の火の時計（一時停止中は進まない）
     m_Debris.Tick(dt);      // 落ち葉も
+    UpdateWindToys(dt);     // 転がり草・タンポポ（2026-10-22）
 
     m_ManaSystem.Update(m_Registry, dt);
 
@@ -1070,7 +1081,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     {
         m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
         m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
-        AddGustWindBurst(g.pos, g.dir, g.length);
+        AddGustWindBurst(g.pos, g.dir, g.length, g.radius);
     }
     m_SpellFx.Update(dt, m_WeaponSystem.GetTriggeredFx(),                                // アイススパイクの氷のトゲ（地面の高さに 1 本ずつ）
         [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
@@ -1308,6 +1319,8 @@ void CollisionTestScene::Render(Renderer& renderer)
             // 落ち葉（1 歩進めて描く。爆発の範囲と光線は読むだけ）
             if (GetCamera()) m_Debris.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV(),
                 m_Swarm.GetWindSourceSRV());   // 砂旋の風源（落ち葉 / 砂屑が巻き上がる）
+            // タンポポ（草の踏み跡は今フレームの物。風源で綿毛がほどけて飛ぶ。2026-10-22）
+            if (GetCamera()) m_Dandelions.Render(renderer, *GetCamera(), m_Grass.GetTrampleSRV(), m_Swarm.GetWindSourceSRV(), PlayerPos());
         }
         { PROFILE_SCOPE_GPU("Swarm overlay"); m_Swarm.RenderOverlay(GetCamera(), renderer.GetLightData()); }
     }

@@ -1,0 +1,6 @@
+{
+    "sound": "cast_gust",
+    "damage": 0.0, "duration": 2.0, "followCaster": false, "halfHeight": 1.5, "kind": 1,
+    "name": "VoidVortexPull", "element": 4, "preview": { "atTarget": true, "interval": 2.0 },
+    "radius": 3.2, "slow": 0.4, "pull": 0.8, "stun": false, "tickInterval": 0.5, "vfx": "VoidVortexPull.json"
+}
