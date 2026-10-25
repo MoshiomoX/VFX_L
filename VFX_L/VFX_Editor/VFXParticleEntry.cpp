@@ -44,9 +44,10 @@ void VFXParticleEntry::SyncMeshSlot(const VFXContext& ctx)
     emitterData.meshSlot = m_MeshSlot;
 }
 
+// 返却先の粒子系がもう破棄されていたら何もしない（シーンのメンバの破棄の順番で、entry が粒子系より後に消える時。2026-10-25）
 void VFXParticleEntry::ReleaseMeshSlot()
 {
-    if (m_MeshSlot > 0 && m_MeshOwner)
+    if (m_MeshSlot > 0 && m_MeshOwner && GPUParticleSystem::IsAlive(m_MeshOwner))
         m_MeshOwner->ReleaseParticleMesh(m_MeshSlot);
     m_MeshSlot = -1;
     m_MeshOwner = nullptr;
@@ -82,7 +83,7 @@ void VFXParticleEntry::SyncTrailStyle(const VFXContext& ctx)
 
 void VFXParticleEntry::ReleaseTrailStyle()
 {
-    if (m_TrailStyleId >= 0 && m_TrailOwner)
+    if (m_TrailStyleId >= 0 && m_TrailOwner && GPUParticleSystem::IsAlive(m_TrailOwner))
         m_TrailOwner->UnregisterTrailStyle(m_TrailStyleId);
     m_TrailStyleId = -1;
     m_TrailOwner = nullptr;
@@ -153,7 +154,7 @@ void VFXParticleEntry::RegisterFileSource(const VFXContext& ctx)
 
 void VFXParticleEntry::UnregisterFileSource()
 {
-    if (m_SourceId >= 0 && m_SourceOwner)
+    if (m_SourceId >= 0 && m_SourceOwner && GPUParticleSystem::IsAlive(m_SourceOwner))
         m_SourceOwner->UnregisterEmitSource(m_SourceId);
     m_SourceId = -1;
     m_SourceOwner = nullptr;
@@ -532,7 +533,8 @@ void VFXParticleEntry::OnImGui()
     ImGui::Separator();
 
     ImGui::SliderFloat("Rate", &e.emitRate, 0.0f, 1000.0f);
-    ImGui::DragInt("Max Particles", &e.maxParticles, 100, 100, 50000);
+    if (e.emitRate < 0.0f) e.emitRate = 0.0f;   // Ctrl+クリックで負の値も打てる（負の発射数は GPU 側で全スレッドを奪う）
+    // 「Max Particles」の欄は消した（2026-10-25）：GPUEmitter::maxParticles は HLSL が読まず、効いていなかった。json の値はそのまま残す
     ImGui::DragFloat2("Speed", &e.speedRange.x, 0.1f, 0.0f, 50.0f);
     ImGui::DragFloat2("Lifetime", &e.lifetimeRange.x, 0.1f, 0.1f, 10.0f);
     ImGui::Separator();
@@ -758,55 +760,56 @@ void VFXParticleEntry::FromJson(const json& j)
 {
     auto& e = emitterData;
 
+    // 配列の欄：数値の配列で要素が足りている時だけ読む（足りない・型違いは既定値。2026-10-25、
+    // 以前は短い配列で範囲外の添字になった）。型の違うスカラーは j.value が投げ、VFXEffect::LoadFromFile が
+    // この entry だけ捨てる
+    auto read2 = [&](const char* key, float x, float y) -> Vector2
+        {
+            float v[2] = { x, y };
+            VFXJson::ReadFloats(j, key, v, 2);
+            return Vector2(v[0], v[1]);
+        };
+    auto read3 = [&](const char* key, float x, float y, float z) -> Vector3
+        {
+            float v[3] = { x, y, z };
+            VFXJson::ReadFloats(j, key, v, 3);
+            return Vector3(v[0], v[1], v[2]);
+        };
+    auto read4 = [&](const char* key, float x, float y, float z, float w) -> Vector4
+        {
+            float v[4] = { x, y, z, w };
+            VFXJson::ReadFloats(j, key, v, 4);
+            return Vector4(v[0], v[1], v[2], v[3]);
+        };
+
     e.emitType = static_cast<EmitType>(j.value("emitType", 0));
 
-    auto pos = j.value("position", std::vector<float>{0, 0, 0});
-    e.position = { pos[0], pos[1], pos[2] };
-
-    auto dir = j.value("direction", std::vector<float>{0, 1, 0});
-    e.direction = { dir[0], dir[1], dir[2] };
+    e.position = read3("position", 0, 0, 0);
+    e.direction = read3("direction", 0, 1, 0);
 
     e.shape.spreadAngle = j.value("spreadAngle", 0.0f);
     e.shape.radius = j.value("radius", 1.0f);
     e.shape.innerRadius = j.value("innerRadius", 0.0f);
 
-    auto box = j.value("boxExtents", std::vector<float>{1, 1, 1});
-    e.shape.boxExtents = { box[0], box[1], box[2] };
+    e.shape.boxExtents = read3("boxExtents", 1, 1, 1);
 
-    e.emitRate = j.value("emitRate", 10.0f);
-    e.maxParticles = j.value("maxParticles", 1000);
+    // 負の発射率は 0（負の発射数は GPU の発射 CS で全スレッドを 1 つの発射器が奪う）
+    e.emitRate = (std::max)(0.0f, j.value("emitRate", 10.0f));
+    e.maxParticles = j.value("maxParticles", 1000);   // HLSL は読まない（保存し直しても値が変わらないように残すだけ）
 
-    auto spd = j.value("speedRange", std::vector<float>{1, 3});
-    e.speedRange = { spd[0], spd[1] };
-
-    auto life = j.value("lifetimeRange", std::vector<float>{1, 3});
-    e.lifetimeRange = { life[0], life[1] };
-
-    auto sz = j.value("sizeRange", std::vector<float>{0.1f, 0.3f, 0.0f, 0.1f});
-    e.sizeRange = { sz[0], sz[1], sz[2], sz[3] };
-
-    auto scmin = j.value("startColorMin", std::vector<float>{1, 1, 1, 1});
-    e.startColorMin = { scmin[0], scmin[1], scmin[2], scmin[3] };
-
-    auto scmax = j.value("startColorMax", std::vector<float>{1, 1, 1, 1});
-    e.startColorMax = { scmax[0], scmax[1], scmax[2], scmax[3] };
-
-    auto ecmin = j.value("endColorMin", std::vector<float>{1, 1, 1, 0});
-    e.endColorMin = { ecmin[0], ecmin[1], ecmin[2], ecmin[3] };
-
-    auto ecmax = j.value("endColorMax", std::vector<float>{1, 1, 1, 0});
-    e.endColorMax = { ecmax[0], ecmax[1], ecmax[2], ecmax[3] };
-
-    auto grav = j.value("gravity", std::vector<float>{0, -9.81f, 0});
-    e.gravity = { grav[0], grav[1], grav[2] };
+    e.speedRange = read2("speedRange", 1, 3);
+    e.lifetimeRange = read2("lifetimeRange", 1, 3);
+    e.sizeRange = read4("sizeRange", 0.1f, 0.3f, 0.0f, 0.1f);
+    e.startColorMin = read4("startColorMin", 1, 1, 1, 1);
+    e.startColorMax = read4("startColorMax", 1, 1, 1, 1);
+    e.endColorMin = read4("endColorMin", 1, 1, 1, 0);
+    e.endColorMax = read4("endColorMax", 1, 1, 1, 0);
+    e.gravity = read3("gravity", 0, -9.81f, 0);
 
     e.dragCoeff = j.value("dragCoeff", 0.0f);
 
-    auto rot = j.value("rotationRange", std::vector<float>{0, 0});
-    e.rotationRange = { rot[0], rot[1] };
-
-    auto angvel = j.value("angularVelRange", std::vector<float>{0, 0});
-    e.angularVelRange = { angvel[0], angvel[1] };
+    e.rotationRange = read2("rotationRange", 0, 0);
+    e.angularVelRange = read2("angularVelRange", 0, 0);
 
     e.atlasRows = j.value("atlasRows", 1);
     e.atlasCols = j.value("atlasCols", 1);
@@ -846,15 +849,24 @@ void VFXParticleEntry::FromJson(const json& j)
     e.shape.sourceId = -1;      // 登録は OnPlay で
     e.shape.sourceCount = 0;
 
-    if (j.contains("colorKeys"))
+    // 色の鍵：上限（MAX_COLOR_KEYS）で打ち切る（2026-10-25。以前は数を json の個数のまま入れていて、
+    // 9 個以上あると colorKeys[8] を越えて読んでいた）。object でない鍵は飛ばし、欠けた欄は既定値
     {
-        auto& keys = j["colorKeys"];
-        e.colorKeyCount = static_cast<int>(keys.size());
-        for (int k = 0; k < e.colorKeyCount && k < GPUParticleEmitter::MAX_COLOR_KEYS; k++)
+        const auto keysIt = j.find("colorKeys");
+        if (keysIt != j.end() && keysIt->is_array())
         {
-            auto col = keys[k]["color"].get<std::vector<float>>();
-            e.colorKeys[k].color = { col[0], col[1], col[2], col[3] };
-            e.colorKeys[k].time = keys[k]["time"];
+            e.colorKeyCount = 0;
+            for (const auto& key : *keysIt)
+            {
+                if (e.colorKeyCount >= GPUParticleEmitter::MAX_COLOR_KEYS) break;
+                if (!key.is_object()) continue;
+                float col[4] = { 1, 1, 1, 1 };
+                VFXJson::ReadFloats(key, "color", col, 4);
+                const auto timeIt = key.find("time");
+                ColorKey& ck = e.colorKeys[e.colorKeyCount++];
+                ck.color = { col[0], col[1], col[2], col[3] };
+                ck.time = (timeIt != key.end() && timeIt->is_number()) ? timeIt->get<float>() : 0.0f;
+            }
         }
     }
 
@@ -867,10 +879,12 @@ void VFXParticleEntry::FromJson(const json& j)
         trail.widthHead = t.value("widthHead", trail.widthHead);
         trail.widthTail = t.value("widthTail", trail.widthTail);
         trail.inheritSize = t.value("inheritSize", trail.inheritSize);
-        auto ch = t.value("colorHead", std::vector<float>{1, 1, 1, 1});
-        if (ch.size() >= 4) trail.colorHead = { ch[0], ch[1], ch[2], ch[3] };
-        auto ct = t.value("colorTail", std::vector<float>{1, 1, 1, 0});
-        if (ct.size() >= 4) trail.colorTail = { ct[0], ct[1], ct[2], ct[3] };
+        float ch[4] = { 1, 1, 1, 1 };
+        VFXJson::ReadFloats(t, "colorHead", ch, 4);
+        trail.colorHead = { ch[0], ch[1], ch[2], ch[3] };
+        float ct[4] = { 1, 1, 1, 0 };
+        VFXJson::ReadFloats(t, "colorTail", ct, 4);
+        trail.colorTail = { ct[0], ct[1], ct[2], ct[3] };
         trail.inheritColor = t.value("inheritColor", trail.inheritColor);
         trail.intensity = t.value("intensity", trail.intensity);
         trail.softEdge = t.value("softEdge", trail.softEdge);

@@ -28,7 +28,8 @@ public:
     // ---- 名前 → 自動テスト ----
     using Factory = std::shared_ptr<BattleAutoTest>(*)(CollisionTestScene&);
     static bool Register(const char* name, Factory factory);
-    // 名前が登録に無ければ既定の自動テスト（"feedback"：レベルアップ・開箱の反応エフェクト）
+    // 名前が空か "1" なら既定の自動テスト（"feedback"：レベルアップ・開箱の反応エフェクト）。
+    // 登録に無い名前は null（何も走らせない）を返し、autotest.log とコンソールに警告を 1 行出す（2026-10-25）
     static std::shared_ptr<BattleAutoTest> Create(const char* name, CollisionTestScene& scene);
 
 protected:
@@ -54,6 +55,11 @@ protected:
     StageDirector&            m_Stage;
     BossAttacks&              m_BossAttacks;
     uint32_t&                 m_BossSlamHits;
+    uint32_t&                 m_BossMoundVfx;    // 潜砂の砂丘のエフェクトの番号（2026-10-24）
+    uint32_t&                 m_ChainHits;       // 鎖の番人の鎖が当たった数（2026-10-25）
+    EliteAttacks&             m_StageElites;     // 面の固定エリート（2026-10-25）
+    uint32_t&                 m_EliteHits;       // エリートの技が当たった数
+    LifestealHeal&            m_Lifesteal;       // 吸血のルーンの回復（2026-10-25）
     CollisionSystem&          m_CollisionSystem;
     PlayerControlSystem&      m_PlayerControlSystem;
     PlayerAnimSystem&         m_PlayerAnimSystem;
@@ -70,6 +76,9 @@ protected:
     GroundDebris&             m_Debris;        // 地面の落ち葉（2026-10-13）
     Tumbleweeds&              m_Tumbleweeds;   // 転がり草（2026-10-22）
     DandelionField&           m_Dandelions;    // タンポポ（2026-10-22）
+    GrassShreds&              m_GrassShreds;   // 風源の草屑（2026-10-23）
+    AreaVFXPlayer&            m_AreaVFX;       // CPU のエフェクト（負荷試験で竜巻の見た目を出す。2026-10-23）
+    VFXContext&               m_VFXContext;
     WeatherSystem&            m_Weather;       // 時刻と天候の出来事
     PlayerVFXSystem&          m_PlayerVFX;     // プレイヤーの動きのエフェクト（2026-10-09）
     SpellFxSystem&            m_SpellFx;       // 魔法の CPU 側の見た目（アイススパイクのトゲ。2026-10-10）

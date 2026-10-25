@@ -47,6 +47,7 @@ $Icons = [ordered]@{
     'Magnifier'      = 'lorc/magnifying-glass'
     'HasteRune'      = 'lorc/stopwatch'
     'ChainRune'      = 'lorc/lightning-branches'
+    'LifestealRune'  = 'lorc/bleeding-heart'
     'CrystalBall'    = 'lorc/crystal-ball'
     'MaxHealthUp'    = 'zeromancer/heart-plus'
     'MaxManaUp'      = 'lorc/potion-ball'
@@ -59,6 +60,13 @@ $Icons = [ordered]@{
     'Magnet'         = 'lorc/magnet'
     'ManaSurge'      = 'lorc/embrassed-energy'
     'Gold'           = 'delapouite/two-coins'
+    # 地図の目印（ミニマップと画面外の矢印。2026-10-24 ユーザー「物ごとに違うアイコンを」。磁石は 'Magnet' を使い回す）
+    'MapChest'       = 'lorc/locked-chest'
+    'MapPortal'      = 'lorc/magic-portal'
+    'MapExit'        = 'delapouite/exit-door'
+    'MapBoss'        = 'lorc/crowned-skull'
+    'MapElite'       = 'lorc/daemon-skull'
+    'MapSurge'       = 'lorc/crossed-swords'
     'Frame3x3'       = '@grid3'
 }
 

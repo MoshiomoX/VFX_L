@@ -98,33 +98,36 @@ void ResourceManager::PreloadModelsAsync(const std::vector<std::string>& paths)
                 // DirectXTex の WIC 読み込みはスレッド毎に COM が要る
                 const HRESULT co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
-                LoadedModel result = ImportModelAuto(path);
+                // スレッドの外へ例外が抜けると std::terminate。失敗しても空の結果で「終わった」にする
+                // （待っている LoadModelAuto は空を受け取り、次に頼まれた時に主スレッドで読み直す）
+                LoadedModel result;
+                bool failed = false;
+                try
                 {
+                    result = ImportModelAuto(path);
                     std::lock_guard<std::recursive_mutex> lock(m_Mutex);
                     if (result.staticModel || result.skinnedModel)
                         m_AutoModels[path] = result;
                 }
+                catch (const std::exception& e)
+                {
+                    failed = true;
+                    result = LoadedModel{};
+                    std::cout << "[Preload] failed: " << path << " (" << e.what() << ")" << std::endl;
+                }
+                catch (...)
+                {
+                    failed = true;
+                    result = LoadedModel{};
+                    std::cout << "[Preload] failed: " << path << " (unknown exception)" << std::endl;
+                }
                 promise->set_value(result);
-                std::cout << "[Preload] done: " << path << std::endl;
+                if (!failed) std::cout << "[Preload] done: " << path << std::endl;
 
                 if (SUCCEEDED(co)) CoUninitialize();
             });
     }
     std::cout << "[Preload] " << paths.size() << " model(s) queued" << std::endl;
-}
-
-bool ResourceManager::IsPreloadDone() const
-{
-    return GetPreloadPending() == 0;
-}
-
-int ResourceManager::GetPreloadPending() const
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-    int n = 0;
-    for (const auto& kv : m_AutoPending)
-        if (kv.second.wait_for(std::chrono::seconds(0)) != std::future_status::ready) ++n;
-    return n;
 }
 
 // ============================================================
@@ -135,6 +138,10 @@ LoadedModel ResourceManager::ImportModelAuto(const std::string& filepath)
 {
     LoadedModel out;
 
+    // import の flag は AssimpFlags.h（SkinnedModel::Load 用）とは別に、ここに書いてある物が全部。
+    //   PopulateArmatureData：骨の armature 情報を埋める（今のプレイヤー・敵の骨とアニメはこれで合わせてある。外さない）
+    //   LimitBoneWeights は付けていない → 下の LBW_MAX_WEIGHTS は効いていない。1 頂点 5 本以上の骨は
+    //   SkinnedVertex::AddBone が強い方の 4 本だけ残す（NormalizeWeights で和を 1 に戻す）
     Assimp::Importer importer;
     importer.SetPropertyInteger(AI_CONFIG_PP_LBW_MAX_WEIGHTS, 4);
     importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
@@ -209,43 +216,57 @@ void ResourceManager::Shutdown()
 // ============================================================
 // Texture
 // ============================================================
+// lock は cache の出し入れの間だけ握る。WIC の解読と mipmap 作りは lock の外（先読みスレッドが 2K の画像を
+// 読んでいる間に主スレッドの LoadTexture / LoadVS などが止まらないように）。Texture::Load は device しか使わない
+// （D3D11 の device はスレッド安全、immediate context は触らない）。同じパスを 2 人が同時に読んだら先に入れた方を使う
 std::shared_ptr<Texture> ResourceManager::LoadTexture(const std::wstring& filepath)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
-    auto it = m_Textures.find(filepath);
-    if (it != m_Textures.end())
-        return it->second;
-
-    auto texture = std::make_shared<Texture>();
-    if (texture->Load(m_Device, filepath))
     {
-        m_Textures[filepath] = texture;
-        return texture;
+        std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+        auto it = m_Textures.find(filepath);
+        if (it != m_Textures.end())
+            return it->second;
     }
 
-    std::wcout << L"[Error] Texture load failed: " << filepath << std::endl;
-    return nullptr;
+    auto texture = std::make_shared<Texture>();
+    if (!texture->Load(m_Device, filepath))
+    {
+        std::wcout << L"[Error] Texture load failed: " << filepath << std::endl;
+        return nullptr;
+    }
+
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+    auto it = m_Textures.find(filepath);
+    if (it != m_Textures.end())
+        return it->second;   // 読んでいる間に別のスレッドが入れた
+    m_Textures[filepath] = texture;
+    return texture;
 }
 
+// LoadTexture と同じく、解読（LoadFromMemory）は lock の外
 std::shared_ptr<Texture> ResourceManager::LoadEmbeddedTexture(const std::wstring& key,
     const void* data, size_t size, const char* formatHint)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
-    auto it = m_Textures.find(key);
-    if (it != m_Textures.end())
-        return it->second;
-
-    auto texture = std::make_shared<Texture>();
-    if (texture->LoadFromMemory(m_Device, data, size, formatHint))
     {
-        m_Textures[key] = texture;
-        return texture;
+        std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+        auto it = m_Textures.find(key);
+        if (it != m_Textures.end())
+            return it->second;
     }
 
-    std::wcout << L"[Error] Embedded texture load failed: " << key << std::endl;
-    return nullptr;
+    auto texture = std::make_shared<Texture>();
+    if (!texture->LoadFromMemory(m_Device, data, size, formatHint))
+    {
+        std::wcout << L"[Error] Embedded texture load failed: " << key << std::endl;
+        return nullptr;
+    }
+
+    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
+    auto it = m_Textures.find(key);
+    if (it != m_Textures.end())
+        return it->second;   // 読んでいる間に別のスレッドが入れた
+    m_Textures[key] = texture;
+    return texture;
 }
 
 // ============================================================
@@ -317,19 +338,6 @@ std::shared_ptr<Texture> ResourceManager::LoadNoiseTexture(const NoiseRecipe& re
     return texture;
 }
 
-std::future<std::shared_ptr<Texture>> ResourceManager::LoadTextureAsync(const std::wstring& filepath)
-{
-    return std::async(std::launch::async, [this, filepath]() {
-        return LoadTexture(filepath);
-        });
-}
-
-void ResourceManager::UnloadTexture(const std::wstring& filepath)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-    m_Textures.erase(filepath);
-}
-
 // ============================================================
 // VertexShader
 // Debug / Release とも cso を読む。hlslPath は ShaderPath::ToCso で
@@ -351,26 +359,6 @@ std::shared_ptr<VertexShader> ResourceManager::LoadVS(
     {
         std::wcout << L"[Error] VS load failed: " << name
             << L" (" << std::wstring(csoPath.begin(), csoPath.end()) << L")" << std::endl;
-        return nullptr;
-    }
-
-    m_VertexShaders[name] = vs;
-    return vs;
-}
-
-std::shared_ptr<VertexShader> ResourceManager::LoadVS_CSO(
-    const std::wstring& name, const std::string& csoPath)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
-    auto it = m_VertexShaders.find(name);
-    if (it != m_VertexShaders.end())
-        return it->second;
-
-    auto vs = std::make_shared<VertexShader>();
-    if (FAILED(vs->Load(m_Device, csoPath.c_str())))
-    {
-        std::wcout << L"[Error] VS cso load failed: " << name << std::endl;
         return nullptr;
     }
 
@@ -404,26 +392,6 @@ std::shared_ptr<PixelShader> ResourceManager::LoadPS(
     return ps;
 }
 
-std::shared_ptr<PixelShader> ResourceManager::LoadPS_CSO(
-    const std::wstring& name, const std::string& csoPath)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
-    auto it = m_PixelShaders.find(name);
-    if (it != m_PixelShaders.end())
-        return it->second;
-
-    auto ps = std::make_shared<PixelShader>();
-    if (FAILED(ps->Load(m_Device, csoPath.c_str())))
-    {
-        std::wcout << L"[Error] PS cso load failed: " << name << std::endl;
-        return nullptr;
-    }
-
-    m_PixelShaders[name] = ps;
-    return ps;
-}
-
 // ============================================================
 // ComputeShader
 // ============================================================
@@ -450,93 +418,6 @@ std::shared_ptr<ComputeShader> ResourceManager::LoadCS(
     return cs;
 }
 
-std::shared_ptr<ComputeShader> ResourceManager::LoadCS_CSO(
-    const std::wstring& name, const std::string& csoPath)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
-    auto it = m_ComputeShaders.find(name);
-    if (it != m_ComputeShaders.end())
-        return it->second;
-
-    auto cs = std::make_shared<ComputeShader>();
-    if (FAILED(cs->Load(m_Device, csoPath.c_str())))
-    {
-        std::wcout << L"[Error] CS cso load failed: " << name << std::endl;
-        return nullptr;
-    }
-
-    m_ComputeShaders[name] = cs;
-    return cs;
-}
-
-// ============================================================
-// Mesh
-// ============================================================
-std::shared_ptr<Mesh> ResourceManager::LoadMesh(
-    const std::wstring& name,
-    const std::vector<VERTEX_3D>& vertices,
-    const std::vector<unsigned int>& indices)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
-    auto it = m_Meshes.find(name);
-    if (it != m_Meshes.end())
-        return it->second;
-
-    auto mesh = std::make_shared<Mesh>();
-    if (!mesh->Create(m_Device, vertices, indices))
-    {
-        std::wcout << L"[Error] Mesh create failed: " << name << std::endl;
-        return nullptr;
-    }
-
-    m_Meshes[name] = mesh;
-    return mesh;
-}
-
-void ResourceManager::UnloadMesh(const std::wstring& name)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-    m_Meshes.erase(name);
-}
-
-// ============================================================
-// Material
-// ============================================================
-std::shared_ptr<Material> ResourceManager::LoadMaterial(
-    const std::wstring& name,
-    const std::wstring& vsName,
-    const std::wstring& psName,
-    const std::wstring& texturePath)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-
-    auto it = m_Materials.find(name);
-    if (it != m_Materials.end())
-        return it->second;
-
-    auto vsIt = m_VertexShaders.find(vsName);
-    auto psIt = m_PixelShaders.find(psName);
-
-    if (vsIt == m_VertexShaders.end() || psIt == m_PixelShaders.end())
-    {
-        std::wcout << L"[Error] Shader not found for material: " << name << std::endl;
-        return nullptr;
-    }
-
-    auto texture = LoadTexture(texturePath);
-
-    auto material = std::make_shared<Material>();
-    material->SetVertexShader(vsIt->second);
-    material->SetPixelShader(psIt->second);
-    if (texture)
-        material->SetTexture(texture);
-
-    m_Materials[name] = material;
-    return material;
-}
-
 // ============================================================
 // Model（静的）
 // ============================================================
@@ -559,12 +440,6 @@ std::shared_ptr<Model> ResourceManager::LoadModel(const std::string& filepath)
     return model;
 }
 
-void ResourceManager::UnloadModel(const std::string& filepath)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-    m_Models.erase(filepath);
-}
-
 // ============================================================
 // 一括解放
 // ============================================================
@@ -575,8 +450,6 @@ void ResourceManager::UnloadAll()
     m_VertexShaders.clear();
     m_PixelShaders.clear();
     m_ComputeShaders.clear();
-    m_Meshes.clear();
-    m_Materials.clear();
     m_Models.clear();
     std::cout << "[OK] All resources unloaded" << std::endl;
 }
@@ -623,10 +496,4 @@ std::shared_ptr<VFXEffect> ResourceManager::LoadVFXTemplate(const std::string& f
     m_VFXTemplates[filepath] = effect;
     std::cout << "[OK] VFX template cached: " << filepath << std::endl;
     return effect;
-}
-
-void ResourceManager::UnloadVFXTemplate(const std::string& filepath)
-{
-    std::lock_guard<std::recursive_mutex> lock(m_Mutex);
-    m_VFXTemplates.erase(filepath);
 }

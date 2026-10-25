@@ -77,10 +77,46 @@ namespace
         { VFXId::BossSlam, Res::VFX::BossSlam, Group::Boss },
         { VFXId::BossRockFall, Res::VFX::BossRockFall, Group::Boss },
         { VFXId::BossRockHit, Res::VFX::BossRockHit, Group::Boss },
+        { VFXId::BossQuicksand, Res::VFX::BossQuicksand, Group::Boss },   // 砂の守護者（2026-10-24）
+        { VFXId::BossSandMound, Res::VFX::BossSandMound, Group::Boss },
+        { VFXId::BossSandBurst, Res::VFX::BossSandBurst, Group::Boss },
+        { VFXId::BossSandSpear, Res::VFX::BossSandSpear, Group::Boss },
+        { VFXId::BossSandAura, Res::VFX::BossSandAura, Group::Boss },
+        { VFXId::BossStoneAura, Res::VFX::BossStoneAura, Group::Boss },
+
+        // ---- 敵（CPU。遺跡の敵の出来事、2026-10-25）----
+        { VFXId::RuinsArmorFall, Res::VFX::RuinsArmorFall, Group::Enemy },
+        { VFXId::RuinsArmorRise, Res::VFX::RuinsArmorRise, Group::Enemy },
+        { VFXId::RuinsGargoyleWake, Res::VFX::RuinsGargoyleWake, Group::Enemy },
+        { VFXId::RuinsGargoyleDive, Res::VFX::RuinsGargoyleDive, Group::Enemy },
+        { VFXId::RuinsGargoyleLand, Res::VFX::RuinsGargoyleLand, Group::Enemy },
+        { VFXId::RuinsNecroCast, Res::VFX::RuinsNecroCast, Group::Enemy },
+        { VFXId::RuinsRaiseMark, Res::VFX::RuinsRaiseMark, Group::Enemy },
+        { VFXId::RuinsSkeletonRise, Res::VFX::RuinsSkeletonRise, Group::Enemy },
+        { VFXId::RuinsChainHit, Res::VFX::RuinsChainHit, Group::Enemy },
+        { VFXId::EliteSpawn, Res::VFX::EliteSpawn, Group::Enemy },
+        { VFXId::EliteAxeSpin, Res::VFX::EliteAxeSpin, Group::Enemy },
+        { VFXId::EliteArrow, Res::VFX::EliteArrow, Group::Enemy },
+        { VFXId::EliteArrowHit, Res::VFX::EliteArrowHit, Group::Enemy },
+        { VFXId::EliteRiderDash, Res::VFX::EliteRiderDash, Group::Enemy },
+        { VFXId::EliteFlameBreath, Res::VFX::EliteFlameBreath, Group::Enemy },
+        { VFXId::EliteShadeBlink, Res::VFX::EliteShadeBlink, Group::Enemy },
+        { VFXId::EliteShadeSlash, Res::VFX::EliteShadeSlash, Group::Enemy },
+        { VFXId::EliteCurseOrb, Res::VFX::EliteCurseOrb, Group::Enemy },
+        { VFXId::EliteCurseOrbBlast, Res::VFX::EliteCurseOrbBlast, Group::Enemy },
+        { VFXId::EliteThunder, Res::VFX::EliteThunder, Group::Enemy },
+        { VFXId::EliteShield, Res::VFX::EliteShield, Group::Enemy },
+        { VFXId::EliteShieldBreak, Res::VFX::EliteShieldBreak, Group::Enemy },
+        { VFXId::EliteSwift, Res::VFX::EliteSwift, Group::Enemy },
+        { VFXId::EliteBerserk, Res::VFX::EliteBerserk, Group::Enemy },
+        { VFXId::EliteBerserkAura, Res::VFX::EliteBerserkAura, Group::Enemy },
+        { VFXId::EliteChest, Res::VFX::EliteChest, Group::Enemy },
+        { VFXId::LifestealAbsorb, Res::VFX::LifestealAbsorb, Group::Player },
 
         // ---- 天気（CPU、WeatherSystem）----
         { VFXId::Rain, Res::VFX::Rain, Group::Weather },
         { VFXId::Sandstorm, Res::VFX::Sandstorm, Group::Weather },
+        { VFXId::GrassShred, Res::VFX::GrassShred, Group::Weather },   // 風源の草屑（World/GrassShreds、2026-10-23）
 
         // ---- 召喚物（CPU）----
         { VFXId::SpellOrb, Res::VFX::SpellOrb, Group::Summon },
@@ -128,6 +164,7 @@ namespace VFXDatabase
         case Group::Weather:  return "Weather (CPU)";
         case Group::Summon:   return "Summons (CPU)";
         case Group::SpellCpu: return "Spells, CPU side (CPU)";
+        case Group::Enemy:    return "Enemies (CPU)";
         default:              return "?";
         }
     }

@@ -382,9 +382,9 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::SetItemTooltip("Bump height <= radius x this (steepest part ~ 1.54 x height / radius)");
         ImGui::DragFloat("Summit Relief x", &tc.summitReliefMul, 0.02f, 0.0f, 2.0f);
         ImGui::SliderInt("Pad Margin (cells)", &tc.padMargin, 1, 10);
+        ImGui::SetItemTooltip("How far the flattened ground under plateaus / ramps blends back into the hills");
         ImGui::DragFloat("Max Slope", &tc.reliefMaxSlopeDeg, 0.5f, 10.0f, 45.0f, "%.1f deg");
         ImGui::SetItemTooltip("Per-axis limit between neighbour nodes (diagonal up to 1.41x). Mobs walk up to 40 deg");
-        ImGui::SetItemTooltip("How far the flattened ground under plateaus / ramps blends back into the hills");
         ImGui::SliderInt("Mesh Subdiv", &tc.reliefSubdiv, 1, 4);
 
         if (ImGui::Button("Regenerate"))

@@ -72,19 +72,24 @@ void View<Components...>::Each(Func func)
     // 参照で受ける（コピーしない＝高速）
     const auto& entities = basePool.GetEntities();
 
-    // entities は basePool 内部への参照。
-    // ループ中に構造を変えると壊れるので、func 内での増減は禁止。
-    for (size_t i = 0; i < entities.size(); ++i)
-    {
-        Entity e = entities[i];
-
-        // 全 Component を持っているか（畳み込み式: Contains<C1> && Contains<C2> && ...）
-        if ((m_Registry.GetPool<Components>().Contains(e) && ...))
+    // 各 Component の pool はループの外で 1 回だけ取る（実体ごとに GetPool を引き直さない）。
+    // pool 本体は unique_ptr の先にあるので、func の中で別の型の pool が新しく作られても参照は無効にならない
+    std::apply([&](auto&... pools)
         {
-            // 全 Component の参照を展開して func に渡す
-            func(e, m_Registry.GetPool<Components>().Get(e)...);
-        }
-    }
+            // entities は basePool 内部への参照。
+            // ループ中に構造を変えると壊れるので、func 内での増減は禁止。
+            for (size_t i = 0; i < entities.size(); ++i)
+            {
+                Entity e = entities[i];
+
+                // 全 Component を持っているか（畳み込み式: Contains<C1> && Contains<C2> && ...）
+                if ((pools.Contains(e) && ...))
+                {
+                    // 全 Component の参照を展開して func に渡す
+                    func(e, pools.Get(e)...);
+                }
+            }
+        }, std::tuple<SparseSet<Components>&...>(m_Registry.GetPool<Components>()...));
 }
 
 template<typename... Components>
@@ -92,12 +97,16 @@ template<typename Base, typename Func>
 void View<Components...>::EachFrom(Func func)
 {
     const auto& entities = m_Registry.GetPool<Base>().GetEntities();
-    for (size_t i = 0; i < entities.size(); ++i)
-    {
-        Entity e = entities[i];
-        if ((m_Registry.GetPool<Components>().Contains(e) && ...))
-            func(e, m_Registry.GetPool<Components>().Get(e)...);
-    }
+    // pool はループの外で 1 回だけ取る（Each と同じ）
+    std::apply([&](auto&... pools)
+        {
+            for (size_t i = 0; i < entities.size(); ++i)
+            {
+                Entity e = entities[i];
+                if ((pools.Contains(e) && ...))
+                    func(e, pools.Get(e)...);
+            }
+        }, std::tuple<SparseSet<Components>&...>(m_Registry.GetPool<Components>()...));
 }
 
 // --- 安全版：コピー走査 ---

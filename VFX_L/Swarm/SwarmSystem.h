@@ -65,7 +65,7 @@ public:
     // Regenerate した時はもう一度呼ぶこと
     void UploadTerrain(const GridWorld& grid);
     // 通行マップだけを上げ直してフローフィールドを作り直させる（置物の下を塞ぐ / 開けた箱の下を戻す時）。
-    // 寸法は変わらない前提（空間ハッシュ・高さ場・向き表の buffer はそのまま）
+    // 空間ハッシュ・高さ場・向き表の buffer はそのまま。格子の寸法が UploadTerrain の時と違えば UploadTerrain で全部作り直す（2026-10-25）
     void RefreshWalkable(const GridWorld& grid);
 
     // VFXDatabase からレシピ表を作る。ItemDatabase / VFXDatabase の後に1回
@@ -340,11 +340,46 @@ public:
         // > 0：半径 radius・幅 band m の帯として描く（Boss の衝撃波。2026-10-07）。帯は一点ずつ地面に沿う
         // （普通の輪は中心の高さ ±0.6m に抑えるので、半径 20m を超えると丘で浮く / 埋まる）
         float band = 0.0f;
-        float _pad[2] = {};
+        // 円以外の形（2026-10-25、面の固定エリートの予告）：yaw = 向き（ラジアン、+Z が 0）、shape > 0 = 扇（半角 rad、半径 radius。
+        // 炎のブレス）、shape < 0 = 帯（幅 -shape m、中心から yaw の向きへ長さ radius。矢・突進）。どちらも progress で根元から先へ塗る
+        float yaw = 0.0f;
+        float shape = 0.0f;
     };
+    static_assert(sizeof(WarnCircle) == 32, "WarnCircle: SwarmWarnRingVS の SwarmWarnCircle（32B）と不一致");
     static constexpr int kMaxWarnCircles = 64;   // 2026-10-07：投石雨・突進の道筋で増えた（32 → 64）
     // 今フレームの輪を丸ごと差し替える（毎フレーム呼ぶ。数 0 で消える）
     void SetWarnCircles(const WarnCircle* circles, int count);
+
+    // ---- 面の Boss の見た目（2026-10-24、ユーザー「Boss を区別する」。中身は SwarmSystemBoss.cpp）----
+    // Boss は自分の描画リスト（kDrawListBoss）で、皮（albedo。null = 雑魚の皮）を貼って描き、続けて飾りを描く。
+    // 飾りは焼いた雑魚の網と同じ空間（足元 = カプセルの下、+Z が正面）で作ったモデル（頂点色で塗る）。
+    // part の部品と一緒に動く（VS は同じ SwarmEnemyVS で g_AnimPart = part）。part = kDecoOrbit なら部品に付けず、
+    // 体の軸の周りを orbitSpeed で回る。体格・潜砂・点滅・凍った色は体と同じに掛かる
+    static constexpr uint32_t kDecoOrbit = 0xFFFFu;
+    struct BossDecoration
+    {
+        std::shared_ptr<Model> model;
+        uint32_t part = 0;
+        float orbitSpeed = 0.0f;   // rad/s（kDecoOrbit の時）
+        // ガーゴイルの翼（2026-10-25）：w != 0 なら part の動きの前に、xyz（焼いた網の空間の付け根）を通る前向きの軸の周りに
+        // 回す（VS の g_AnimMode 2。眠り / 着地では垂れ、飛ぶ間は羽ばたき、急降下で上へ畳む）。w = +1 右の翼 / -1 左の翼
+        DirectX::SimpleMath::Vector4 flap = { 0.0f, 0.0f, 0.0f, 0.0f };
+    };
+    void SetBossLook(std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations)
+    {
+        SetListLook(Swarm::kDrawListBoss, std::move(albedo), std::move(decorations));
+    }
+    // 描画リスト毎の皮と飾り（2026-10-25 に Boss 専用から一般化。遺跡の敵が使う）。albedo = null は今までの皮のまま。
+    // 飾りは砕け散りにも付いて行く（part に付けた物だけ。回る物・翼は消える）
+    void SetListLook(uint32_t list, std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations);
+    // 飾りを作る側は GetEnemyModel() の部品の寸法（Model::SubMesh の boundsMin / Max・nodeName）を見る。
+    // 部品の付け根（焼いた姿勢のノードの原点 = 首・肩・股）。焼いた歩きの姿勢では腕が振れているので、
+    // 肩当ては包囲ボックスでなくこの点に合わせる
+    DirectX::SimpleMath::Vector3 GetPartPivot(uint32_t part) const
+    {
+        return (part < 8) ? DirectX::SimpleMath::Vector3(m_PartPivots[part].x, m_PartPivots[part].y, m_PartPivots[part].z)
+                          : DirectX::SimpleMath::Vector3::Zero;
+    }
 
     // 運動表を丸ごと差し替える。添字がそのまま SpawnProjectile の motion。
     // 飛んでいる弾も次のステップから新しい値で動く（エディタで調整中の反映用）
@@ -382,6 +417,11 @@ public:
     const SwarmCounters& GetCounters() const { return m_Readback.Latest(); }
     // Boss の数・HP・位置（描画の CompactCS が書くので 2〜3 フレーム古い）
     const Swarm::BossInfo& GetBossInfo() const { return m_BossInfo; }
+    // 面の固定エリートの槽・種類・HP・位置（同じく 2〜3 フレーム古い）。serial は新しく読めた度に増える（2026-10-25）
+    const Swarm::EliteInfoBlock& GetEliteInfo() const { return m_EliteInfo; }
+    uint32_t GetEliteInfoSerial() const { return m_EliteInfoSerial; }
+    // 吸血の印の付いた敵が前回から失った HP の合計（取り出して 0 に戻す。2〜3 フレーム遅れ。2026-10-25）
+    float ConsumeLifesteal();
     Swarm::AICB& GetAIParams() { return m_CachedAICB; }
     // フローフィールド（探索範囲などの定数。次にプレイヤーのマスが変わった時の作り直しから効く）
     FlowField& GetFlowField() { return m_Flow; }
@@ -469,8 +509,11 @@ public:
     float ConsumeExp();
 
     // GPU 上の雑魚・弾・オーブを全部消す（地形の作り直し用）。
-    // state を DEAD にするだけ。counter は触らない（累積値の差分が狂う）
+    // state を DEAD にするだけ。counter は触らない（累積値の差分が狂う）。
+    // まだ届いていない環の出来事（分裂・誘発・数字・吸血・生まれた範囲）と取り出し待ちの物は捨てる（2026-10-25）
     void KillAll();
+    // KillAll を呼んだ回数（CPU で敵を追っている物が「全部消された」を知る。2026-10-25）
+    uint32_t GetKillAllCount() const { return m_KillAllCount; }
 
     // 弾だけ消す（負荷テストのリセット用）
     void ClearProjectiles();
@@ -531,7 +574,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemySlowBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemySlowUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemySlowSRV;
-    // 吹き飛ばし（突風。2026-10-12）：float4 = 速度 xz・残り秒。AreaDamageCS が書き、AICS が足して減らす。本体の横に持つ
+    // 吹き飛ばし（突風。2026-10-12）：float4 = 速度 xz・残り秒。AreaDamageCS が書き、MoveCS がそのステップの移動に足して減らす。本体の横に持つ
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPushBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPushUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPushSRV;
@@ -540,6 +583,11 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPoisonBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPoisonUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPoisonSRV;
+    // トゲ玉の向き（四元数。2026-10-25）：MoveCS が毎ステップ実際に進んだ分の転がりを掛け足し、SwarmSpikeBallVS が読む。
+    // 0 = まだ転がっていない（槽毎の決まった姿勢）。向きに意味は無いので生成 / 転送で戻さない
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyRollBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyRollUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyRollSRV;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjUAV;
@@ -605,6 +653,9 @@ private:
     static constexpr int kTriggerStaging = 3;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_TriggerStaging[kTriggerStaging];
     bool m_TriggerStagingFilled[kTriggerStaging] = {};
+    // KillAll の前に写した staging（2026-10-25）：読めても読んだ位置 / 前回値を進めるだけで出来事は捨てる
+    // （消した後に分裂体・蘇った鎧・砂旋・骸骨・隕石・数字が湧かないように）。分裂・数字・吸血・生まれた範囲の環も同じ
+    bool m_TriggerStagingStale[kTriggerStaging] = {};
     int  m_TriggerStagingWrite = 0;
     uint32_t m_TriggerRead = 0;                         // 読み終えた総数
     std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 読んだが、まだ誰も取り出していない物
@@ -615,6 +666,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SplitUAV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SplitStaging[kTriggerStaging];
     bool m_SplitStagingFilled[kTriggerStaging] = {};
+    bool m_SplitStagingStale[kTriggerStaging] = {};
     int  m_SplitStagingWrite = 0;
     uint32_t m_SplitRead = 0;
     std::vector<Swarm::SplitEvent> m_SplitEvents;
@@ -622,7 +674,7 @@ private:
 
     // ダメージの数字の環（SwarmDamageTextCS が書く）→ 同じく staging 3 枚でリードバック（2026-10-17）
     std::shared_ptr<ComputeShader> m_DamageTextCS;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevHpBuffer;     // 槽毎に前フレームの hp（死んだ槽は 0）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevHpBuffer;     // 槽毎に前フレームの hp（死んだ槽は 0。RecycleCS が上書きした槽は新しい hp + 印 SWARM_PREVHP_RECYCLED。2026-10-25）
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPrevHpUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPrevHpSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_DamagePendingBuffer;   // float4 = 直接 / 毒素 / 経過秒 / 前フレームの毒素
@@ -632,6 +684,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_DamageTextUAV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_DamageTextStaging[kTriggerStaging];
     bool m_DamageTextStagingFilled[kTriggerStaging] = {};
+    bool m_DamageTextStagingStale[kTriggerStaging] = {};
     int  m_DamageTextStagingWrite = 0;
     uint32_t m_DamageTextRead = 0;
     std::vector<Swarm::DamageText> m_DamageTexts;
@@ -871,9 +924,58 @@ private:
     std::shared_ptr<Texture> m_BurrowerAlbedo; // 砂潜り（2026-10-17）
     std::shared_ptr<Texture> m_SandMageAlbedo; // 砂嵐の術師（2026-10-17）
     std::shared_ptr<Texture> m_DashBomberAlbedo; // 突撃爆弾兵（灰色ロボット。2026-10-18）
+    // 描画リスト毎の皮・飾り（SetListLook。2026-10-24 の面の Boss から一般化、10-25）。
+    // 飾りの submesh 毎の間接引数は生きている一覧用と砕け中の一覧用の 2 組（InstanceCount はそのリストの一覧から）
+    std::shared_ptr<Texture> m_ListLookAlbedo[Swarm::kEnemyKinds];
+    std::vector<BossDecoration> m_ListDecos[Swarm::kEnemyKinds];
+    std::vector<std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>>> m_ListDecoArgs[Swarm::kEnemyKinds];
+    std::vector<std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>>> m_ListDecoCorpseArgs[Swarm::kEnemyKinds];
+    std::shared_ptr<Texture> m_DecoWhite;       // 飾りは頂点色だけで塗るので t0 は白
+    void CopyListDecoCounts();                  // RenderOpaque：一覧の長さ → 飾りの InstanceCount（遺跡の敵の予告の帯も）
+    void CopyCorpseDecoCounts();                // DispatchCorpses：砕け中の一覧の長さ → 飾りの InstanceCount
+    void RenderListDecorations(uint32_t list);  // RenderOpaque：そのリストの体の直後（VS・CB・SRV はそのまま使う）
+    // ---- 遺跡の敵（2026-10-25。中身は SwarmSystemRuins.cpp）----
+    std::shared_ptr<ComputeShader> m_KindList2CS;     // 生きている一覧（呪いの鎧 / ガーゴイル / 死霊術師 / 骸骨 / 鎖の番人）
+    std::shared_ptr<ComputeShader> m_CorpseList2CS;   // 砕け中の一覧（Boss・砂嵐の術師・突撃爆弾兵・遺跡の敵）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_WardenLineArgs;     // 鎖の番人の予告の帯（突撃兵の帯と同じ VS）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_GargoyleLineArgs;   // ガーゴイルの急降下の帯
+    bool LoadRuinsAssets(ID3D11Device* device);
+    void DispatchKindLists2();
+    void DispatchCorpseList2(const void* corpseListCB);
+    // ---- 面の固定エリート（2026-10-25。中身は SwarmSystemElites.cpp）----
+    std::shared_ptr<ComputeShader> m_CorpseList3CS;   // 砕け中の一覧（固定エリート A / B）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EliteInfoBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EliteInfoUAV;
+    static constexpr int kEliteStaging = 3;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EliteStaging[kEliteStaging];
+    bool m_EliteStagingFilled[kEliteStaging] = {};
+    int  m_EliteStagingWrite = 0;
+    Swarm::EliteInfoBlock m_EliteInfo;
+    uint32_t m_EliteInfoSerial = 0;
+    uint32_t m_KillAllCount = 0;
+    bool LoadEliteAssets(ID3D11Device* device);
+    void ClearEliteInfo();
+    void CopyEliteInfoForCPU();
+    void ReadEliteInfo();
+    void DispatchCorpseList3(const void* corpseListCB);
+    // ---- 吸血のルーン（2026-10-25。中身は SwarmSystemLifesteal.cpp）----
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_LifestealBuffer;   // +0: 吸血の印の敵が失った HP（固定小数、永久に累積）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LifestealUAV;
+    static constexpr int kLifestealStaging = 3;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_LifestealStaging[kLifestealStaging];
+    bool m_LifestealStagingFilled[kLifestealStaging] = {};
+    bool m_LifestealStagingStale[kLifestealStaging] = {};   // KillAll の前の写し（前回値だけ進める。m_TriggerStagingStale）
+    int  m_LifestealStagingWrite = 0;
+    uint32_t m_LifestealLast = 0;
+    bool  m_LifestealSeen = false;
+    float m_LifestealPending = 0.0f;
+    bool CreateLifestealReadback(ID3D11Device* device);
+    void CopyLifestealForCPU();
+    void ReadLifesteal();
     // 描画リストのテクスチャ（null = 雑魚の材質の物）
     Texture* ListAlbedo(uint32_t list) const
     {
+        if (list < Swarm::kEnemyKinds && m_ListLookAlbedo[list]) return m_ListLookAlbedo[list].get();
         if (list == Swarm::kDrawListBomber) return m_BomberAlbedo.get();
         if (list == Swarm::kDrawListSplitter) return m_SplitterAlbedo.get();
         if (list == Swarm::kDrawListBrute) return m_BruteAlbedo.get();
@@ -900,6 +1002,7 @@ private:
     std::shared_ptr<Model>        m_ShieldModel;
     std::shared_ptr<Model>        m_IceModel;
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_ShieldDrawArgs;   // submesh 毎（InstanceCount = 盾兵の一覧）
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_IceDrawArgs;      // submesh 毎（InstanceCount = 生きている敵の一覧。2026-10-25、前は池全体 x 2）
     // トゲ玉（2026-10-17）：一覧は m_KindList* の外（雑魚のメッシュを描かないので描画リストの表に入れない）
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpikeBallListBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpikeBallListUAV;   // APPEND
@@ -913,10 +1016,7 @@ private:
     std::shared_ptr<Material>     m_MoundMaterial;
     std::shared_ptr<Model>        m_MoundModel;      // PrimitiveBuilder::CreateSphere（半径 1）
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_MoundDrawArgs;
-    // 砂嵐の術師の砂旋（2026-10-17）：一覧は m_KindList* の外（雑魚のメッシュを描かない。10-20 から砂旋は何も描かず、砂埃と風源だけ）
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_TornadoListBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_TornadoListUAV;   // APPEND
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_TornadoListSRV;
+    // 砂嵐の術師の砂旋（2026-10-17）：10-20 から砂旋は何も描かず、砂埃と風源だけ（一覧も 2026-10-25 に廃止。誰も読んでいなかった）
     std::shared_ptr<ComputeShader> m_TornadoEmitCS;  // 足元の砂埃（TornadoDust の配方）
     uint32_t m_TornadoDustVfx = 0;                   // レシピ表の番号。0 = 無し
     void DispatchTornadoEmit(float dt, float totalTime);   // Flush の中、草の火の発射の直後
@@ -972,7 +1072,7 @@ private:
     float m_MagnetTimer = 0.0f;   // MagnetAllOrbs の残り秒（> 0 の間 OrbMoveCS の吸い寄せ半径を場全体に）
     void ReadBossInfo();   // 一番古い staging を読めたら m_BossInfo を更新（Flush の頭）
 
-    // --- プレイヤーが受けた打撃の向き（ContactCS u6 が永久に累積する 32B → staging 3 枚、CPU は差分）---
+    // --- プレイヤーが受けた打撃の向き（ContactCS u6 が永久に累積する 48B = Swarm::PlayerHitInfo → staging 3 枚、CPU は差分）---
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_PlayerHitBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_PlayerHitUAV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_PlayerHitStaging[kBossStaging];
@@ -990,6 +1090,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaBirthUAV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaBirthStaging[kBossStaging];
     bool     m_AreaBirthStagingFilled[kBossStaging] = {};
+    bool     m_AreaBirthStagingStale[kBossStaging] = {};   // KillAll の前の写し（前回値だけ進める。m_TriggerStagingStale）
     int      m_AreaBirthStagingWrite = 0;
     std::array<uint32_t, kAreaBirthSlots> m_LastAreaBirths = {};
     uint32_t m_PendingShakes = 0;
@@ -1016,15 +1117,17 @@ private:
         uint32_t part = 0;           // 今描いている submesh（描画毎に書き換える）
         uint32_t partCount = 0;
         uint32_t enabled = 0;        // 0 = 表が無い → VS は従来の procedural な揺れ
-        uint32_t _pad = 0;
+        uint32_t mode = 0;           // 0 = 部品（part）と一緒に動く、1 = Boss の飾りで体の軸の周りを回る（2026-10-24、元 _pad）
         uint32_t clipStart[4] = {};  // 表の中の最初のフレーム番号
         uint32_t clipFrames[4] = {};
         float    clipLength[4] = {}; // 秒
         float    time = 0.0f;        // 待機に使う時計（秒）
         float    walkRate = 1.0f;    // 歩きの再生速度
-        float    _pad2[2] = {};
+        float    orbitSpeed = 0.0f;  // mode 1 の回る速さ rad/s（元 _pad2[0]）
+        float    _pad2 = 0.0f;
+        float    flap[4] = {};       // mode 2（ガーゴイルの翼、2026-10-25）：付け根 xyz、w = +1 右 / -1 左
     };
-    static_assert(sizeof(EnemyAnimCB) == 80, "EnemyAnimCB layout mismatch");
+    static_assert(sizeof(EnemyAnimCB) == 96, "EnemyAnimCB layout mismatch");
     EnemyAnimCB m_EnemyAnim;
     const char* m_AnimClips[3] = { "", "", "" };   // 待機 / 歩き / 攻撃 のクリップ名（BuildEnemyModel が入れる）
     Microsoft::WRL::ComPtr<ID3D11Buffer>             m_PartAnimBuffer;
@@ -1110,6 +1213,8 @@ private:
     // SwarmCorpseTrackCS / SwarmCorpseListCS の b4
     struct CorpseTrackCB { float time; uint32_t on; uint32_t deathArea; uint32_t _pad; };
     struct CorpseListCB { float time; float life; float _pad[2]; };
+    // RenderCorpses：そのリストの砕け散りの直後（SwarmCorpseVS、part に付いた飾りだけ。2026-10-25）
+    void RenderCorpseDecorations(uint32_t list, CorpseCB& ccb);
     // SwarmBomberRingVS / PS の b0（row_major なので Transpose しない）
     struct BomberRingCB
     {

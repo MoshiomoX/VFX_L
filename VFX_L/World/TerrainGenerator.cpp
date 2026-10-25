@@ -1,5 +1,10 @@
 // ============================================================
 // TerrainGenerator.cpp
+//
+// 注意（2026-10-25）：関数の呼び出しの実引数の中で乱数を 2 回以上引いている所がある（「評価順に依存」の印）。
+// C++ では実引数の評価順は決まっていないが、MSVC では固定なので同じ seed から同じ地形になる。
+// 引数を変数に出す・並べ替えると乱数を引く順が変わり、同じ seed の地形が変わるので触らないこと
+// （{} の初期化子の中は左から順と決まっているので印は付けていない）
 // ============================================================
 #include "World/TerrainGenerator.h"
 #include "World/TerrainBuild.h"
@@ -235,6 +240,7 @@ namespace TerrainGenerator
                         for (int i = 0; i < lobes; ++i)
                         {
                             const int len = randi(size / 6, size / 3);
+                            // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
                             onEdge(randi(3, size - ch - len - 2), len, 0, randi(3, (std::max)(3, size / 7)), true);
                         }
                         const int len = randi(size / 8, size / 5);
@@ -441,6 +447,11 @@ namespace TerrainGenerator
                 plainTop = *std::min_element(relief->plain.begin(), relief->plain.end()) - 0.1f;
                 summitTop = summitH + *std::min_element(relief->summit.begin(), relief->summit.end()) - 0.1f;
             }
+            // 水たまり（段々の台地）は地面を pondDepth 下げるので、平原の箱の上面もその分下げる（2026-10-25。
+            // 以前は起伏を切ると水たまりの上 y = 0 に見えない床があり、起伏があっても谷底から 0.4m 以内の水たまりは箱に載っていた）。
+            // 地図エディタの筆の後（MapReliefEdit の FinishBrush）も同じ式
+            if (AnyPond(relief->pond)) plainTop -= relief->pondDepth;
+            floorBottom = FloorBottomBelowTops(floorBottom, plainTop, summitTop, mineD);   // 区域の作り直し（RegenZones）と同じ決まり
             emit.Begin(MapData::kFloor);
             EmitFloorBoxes(emit, grid, zone, floorBottom, plainTop, summitTop, mineD);
             floorPlainTop = plainTop; floorSummitTop = summitTop;
@@ -918,6 +929,7 @@ namespace TerrainGenerator
             padRect(kZonePlain, p, 1, cfg.padMargin, base);
             padRect(kZonePlain, sr, 1, cfg.padMargin, base);
             padRect(kZonePlain, apron, 0, cfg.padMargin, base);
+            // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             addBlock(p, base - kPadSink, base + h1, base,
                 Jitter(gPlateauTop, rng, 0.02f), Jitter(gCliff, rng, 0.015f), true, true);
             addRamp(sr, s, base, base + h1, Jitter(gGroundLight, rng, 0.02f), true, true, 0, 0);
@@ -928,6 +940,7 @@ namespace TerrainGenerator
                 const int v0 = randi(1, across - 1 - w2);
                 const Rect t = LocalRect(p, s, 2 + run2, top2, v0, w2);
                 const Rect s2 = LocalRect(p, s, 2, run2, v0, w2);
+                // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
                 addBlock(t, base + h1, base + h1 + h2, base + h1,
                     Jitter(gPlateauTop, rng, 0.02f), Jitter(gCliffHigh, rng, 0.015f), true, false);
                 addRamp(s2, s, base + h1, base + h1 + h2, Jitter(gGroundLight, rng, 0.02f), true, false, 1, 0);   // 2 段目の幅いっぱい
@@ -1001,6 +1014,7 @@ namespace TerrainGenerator
         for (const auto& p : plateaus)
         {
             emit.SetTag(p.tag);
+            // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             addBlock(p.r, p.base - kPadSink, p.top, p.base,
                 Jitter(gPlateauTop, rng, 0.02f), Jitter(gCliff, rng, 0.015f), p.reachable, true);
             if (!p.reachable) ++blocked;
@@ -1036,6 +1050,7 @@ namespace TerrainGenerator
 
             const float top = p.top + rise;
             emit.SetTag(p.tag);
+            // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             addBlock(t, p.top, top, p.top,
                 Jitter(gPlateauTop, rng, 0.02f), Jitter(gCliffHigh, rng, 0.015f), true, false);
             placeRamp(t, s, p.top, top, false);
@@ -1049,8 +1064,10 @@ namespace TerrainGenerator
         {
             LimitReliefSlopes(relief->plain, pads, kZonePlain, &mineW, relief->nx, relief->nz, relief->step, cfg.reliefMaxSlopeDeg);
             LimitReliefSlopes(relief->summit, pads, kZoneSummit, nullptr, relief->nx, relief->nz, relief->step, cfg.reliefMaxSlopeDeg);
-            // 外周の縁を碗のように持ち上げる（Megabonk 風の縁。2026-10-06）。傾きの制限の後なので均されない
-            if (cfg.rimRise)
+            // 外周の縁を碗のように持ち上げる（Megabonk 風の縁。2026-10-06）。傾きの制限の後なので均されない。
+            // 遺跡を除いた方の rimRise（上の局所変数）を見る：cfg.rimRise だと遺跡でも碗が立つのに格子を塞がず、
+            // 記録の rimRiseWidth も 0 なので、保存して読み直す / Rederive すると碗が消えていた（2026-10-25）
+            if (rimRise)
             {
                 ApplyRimRise(relief->plain, relief->nx, relief->nz, relief->step, cfg.rimRiseWidth, cfg.rimRiseHeight);
                 ApplyRimRise(relief->summit, relief->nx, relief->nz, relief->step, cfg.rimRiseWidth, cfg.rimRiseHeight);
@@ -1274,6 +1291,7 @@ namespace TerrainGenerator
             const bool bare = !bareTrees.empty() && randf(0.0f, 1.0f) < set.bareRatio;
             const auto& list = bare ? bareTrees : trees;
             const PropModel& pm = list[randi(0, (int)list.size() - 1)];
+            // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             if (placeBlocker(pm, randf(0.9f, 1.3f), randf(0.0f, 360.0f), x, z, true)) ++treesPlaced;
         }
 
@@ -1283,6 +1301,7 @@ namespace TerrainGenerator
             float x, z;
             randomPoint(x, z);
             const PropModel& pm = rocks[randi(0, (int)rocks.size() - 1)];
+            // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             if (placeBlocker(pm, randf(0.8f, 1.5f), randf(0.0f, 360.0f), x, z, false)) ++rocksPlaced;
         }
 
@@ -1299,6 +1318,7 @@ namespace TerrainGenerator
                 const int c = pit[randi(0, (int)pit.size() - 1)];
                 const Vector3 p = grid.CellToWorld(c % gw, c / gw);
                 const PropModel& pm = rocks[randi(0, (int)rocks.size() - 1)];
+                // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
                 if (placeBlocker(pm, randf(0.9f, 1.8f), randf(0.0f, 360.0f),
                         p.x + randf(-0.6f, 0.6f), p.z + randf(-0.6f, 0.6f), false))
                     ++mineRocksPlaced;
@@ -1328,6 +1348,7 @@ namespace TerrainGenerator
                 h = (std::min)(h, s);
             }
             if (stepped) continue;
+            // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             spawnVisual(bushes[randi(0, (int)bushes.size() - 1)], randf(0.8f, 1.3f), randf(0.0f, 360.0f), x, z, h, MapData::kBush);
             ++bushesPlaced;
         }
@@ -1349,8 +1370,9 @@ namespace TerrainGenerator
             };
 
         // ---------- 外周の岩山（rockMountains）----------
-        // 大きい岩を拡大して、崖の箱の外側へ 3 列に隙間なく積む（見た目だけ。衝突・格子は崖の箱）。
-        // 手前の列は内側の面がフィールドの縁（崖のマスの内側）に来るように置き、奥ほど高く。
+        // 大きい岩を拡大して、崖の箱の外側へ 3 列に隙間なく積む（奥の 2 列は見た目だけ。衝突・格子は崖の箱）。
+        // 手前の列は箱の内側の面がフィールドの縁から edgeRockIntrudeMin〜Max だけ内に入るように置き、奥ほど高く。
+        // 手前の列で場内へ入り込む岩は足元のマスを塞ぎ（0.15m 以上）、プレイヤーの半径近くまで入る物（0.35m 超）は凸体の衝突も付ける。
         // 四辺とも角の先まで伸ばして、角に穴が開かないようにする。
         // 底は縁の地面の高さ（洞窟の脇は洞窟の底から）、高さは平原（山頂の脇は山頂）から測る
         int mountainRocks = 0;
@@ -1387,6 +1409,9 @@ namespace TerrainGenerator
         else if (cfg.rockMountains && !ruinWalls && set.nCliff > 0 && !rimRise)   // 碗の縁では岩を積まない
         {
             const auto cliffRocks = loadModels(set.cliff, set.nCliff);
+            // 表に名前があっても全部読めなかった時は積まない（空の表から randi(0, -1) で引いていた。2026-10-25）
+            if (cliffRocks.empty())
+                std::cout << "[Warning] Terrain: no cliff rock model could be loaded, rock mountains skipped" << std::endl;
             struct Row { float offset, step, hMin, hMax; };
             const Row rows[] = {
                 { 0.0f, 4.5f, 8.0f, 13.0f },
@@ -1402,6 +1427,7 @@ namespace TerrainGenerator
                 { { 1, 0, 0 }, { 0, 0, 1 }, halfW, halfD },
                 { { -1, 0, 0 }, { 0, 0, 1 }, halfW, halfD },
             };
+            if (!cliffRocks.empty())
             for (const Side& sd : sides)
                 for (int ri = 0; ri < (int)std::size(rows); ++ri)
                 {

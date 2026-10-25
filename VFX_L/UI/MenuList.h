@@ -30,8 +30,9 @@ public:
     // 開いた瞬間に呼ぶ（カーソルを先頭へ、押しっぱなしの決定キーで即決しない猶予）
     void Open();
 
-    // 決まった項目の番号。まだなら -1
-    int HandleInput();
+    // 決まった項目の番号。まだなら -1。
+    // dt = 実時間の秒（開いた直後の猶予を減らす。止まっている間も渡す）
+    int HandleInput(float dt = 0.016f);
 
     void Draw(SpriteRenderer& sprite, TextRenderer& text,
         const std::shared_ptr<Texture>& white, float textScale) const;
@@ -48,7 +49,7 @@ public:
 
 private:
     DirectX::SimpleMath::Vector2 ItemPos(int i) const;
-    int HandleInputRaw();   // 判定だけ（HandleInput が音を付ける）
+    int HandleInputRaw(float dt);   // 判定だけ（HandleInput が音を付ける）
     void DrawTextStyle(SpriteRenderer& sprite, TextRenderer& text,
         const std::shared_ptr<Texture>& white, float textScale) const;
 

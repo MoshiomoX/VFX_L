@@ -67,6 +67,12 @@ namespace TerrainBuild
         }
     }
 
+    float FloorBottomBelowTops(float bottom, float plainTop, float summitTop, float mineD)
+    {
+        const float lowestTop = (std::min)((std::min)(plainTop, summitTop), -mineD);
+        return (std::min)(bottom, lowestTop - 1.0f);
+    }
+
     // ============================================================
     // 洞の岩の壁 = 坑の 8 近傍の、坑でも洞の口でもないマス（外周の崖のマスは除く）
     // ============================================================

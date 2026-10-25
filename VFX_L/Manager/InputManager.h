@@ -133,6 +133,7 @@ private:
     XINPUT_STATE m_PadState = {};
     XINPUT_STATE m_PadStateOld = {};
     bool m_PadConnected = false;
+    ULONGLONG m_PadNextPollMs = 0;   // 繋がっていない間、次に XInputGetState で確かめる時刻（GetTickCount64）
 
     // 振動管理
     float m_VibrationTimer = 0.0f;

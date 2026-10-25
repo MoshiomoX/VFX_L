@@ -26,6 +26,11 @@ RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 RWStructuredBuffer<float4> enemySlow : register(u4); // slow + freeze (float4 since 2026-10-08)
 RWStructuredBuffer<float4> enemyPush : register(u5); // knockback (the Gust, 2026-10-12): cleared with the slow
 RWStructuredBuffer<float4> enemyPoison : register(u6); // stored toxin (2026-10-17): cleared too
+// the damage numbers' hp of last frame (SwarmDamageTextCS, 2026-10-25): the new spawn hp + SWARM_PREVHP_RECYCLED, so the
+// old hp minus the new one is not printed as damage here and the old enemy's pending numbers are dropped.
+// (No UAV is left for the state word: its element / lifesteal bits stay until the new enemy's first hit rewrites them,
+// and every hp loss comes with that rewrite, the toxin having been cleared above)
+RWBuffer<uint> prevHp : register(u7);
 
 cbuffer SwarmRecycleCB : register(b1)
 {
@@ -52,7 +57,7 @@ void main(uint3 id : SV_DispatchThreadID)
     // Ghosts neither (they fly straight in). Splitters and splitlings can be (2026-10-03: they are
     // numbered after the ghost, so the old "kind >= ELITE" test would have pinned them far away)
     uint kind = enemyExtra[i].kind;
-    if (kind == SWARM_KIND_ELITE || kind == SWARM_KIND_BOSS || SwarmIsGhost(kind) || kind == SWARM_KIND_TORNADO)
+    if (SwarmIsBigElite(kind) || kind == SWARM_KIND_BOSS || SwarmIsGhost(kind) || kind == SWARM_KIND_TORNADO)
         return;
 
     uint prev;
@@ -71,4 +76,5 @@ void main(uint3 id : SV_DispatchThreadID)
     enemySlow[i] = float4(0, 0, 0, 0);
     enemyPush[i] = float4(0, 0, 0, 0);
     enemyPoison[i] = float4(0, 0, 0, 0);
+    prevHp[i] = SWARM_PREVHP_RECYCLED | (req.hp & ~SWARM_PREVHP_RECYCLED);
 }

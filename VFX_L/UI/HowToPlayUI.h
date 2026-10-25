@@ -31,7 +31,8 @@ public:
     bool IsOpen() const { return m_Open; }
 
     // 開いている間、毎フレーム呼ぶ。閉じたら true
-    bool HandleInput();
+    // dt = 実時間の秒（止まっている間も渡す。開いた直後の猶予・押しっぱなしの連続に使う）
+    bool HandleInput(float dt = 0.016f);
     void Close() { m_Open = false; }
 
     void Draw(SpriteRenderer& sprite, TextRenderer& text, const std::shared_ptr<Texture>& white);

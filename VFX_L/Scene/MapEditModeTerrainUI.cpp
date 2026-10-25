@@ -81,8 +81,9 @@ void MapEditMode::DrawPartInspector()
         int size[2] = { b->w, b->d };
         if (ImGui::DragInt2("Size (cells, 2 m)", size, 0.1f, 1, 40))
         {
-            b->w = std::clamp(size[0], 1, m_Map.gw - 4 - b->x + 2);
-            b->d = std::clamp(size[1], 1, m_Map.gd - 4 - b->z + 2);
+            // 上限は外周の 2 マスの手前まで。位置が端に寄っていて上限が 1 を割っても 1（clamp の上下が逆になると Debug で止まる）
+            b->w = std::clamp(size[0], 1, (std::max)(1, m_Map.gw - 2 - b->x));
+            b->d = std::clamp(size[1], 1, (std::max)(1, m_Map.gd - 2 - b->z));
             changed = true;
         }
         float height = b->top - b->base;
@@ -104,7 +105,11 @@ void MapEditMode::DrawPartInspector()
             int pos[2] = { b->x, b->z };
             if (ImGui::DragInt2("Cell (x, z)", pos, 0.1f, 2, (std::max)(m_Map.gw, m_Map.gd)))
             {
-                b->x = pos[0]; b->z = pos[1];
+                // 外周の 2 マスには置かない（Size の上限と同じ決まり）。大きさも端からはみ出さない所まで縮める
+                b->x = std::clamp(pos[0], 2, (std::max)(2, m_Map.gw - 3));
+                b->z = std::clamp(pos[1], 2, (std::max)(2, m_Map.gd - 3));
+                b->w = std::clamp(b->w, 1, (std::max)(1, m_Map.gw - 2 - b->x));
+                b->d = std::clamp(b->d, 1, (std::max)(1, m_Map.gd - 2 - b->z));
                 changed = true;
             }
         }

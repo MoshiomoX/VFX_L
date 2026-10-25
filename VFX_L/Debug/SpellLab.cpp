@@ -77,6 +77,7 @@ std::wstring SpellLab::Apply(const TrainingRequest& q, Registry& reg, Entity pla
 
     case TrainingRequest::Kind::KillAll:
         swarm.KillAll();
+        mobs.ClearRuinsPending();   // 鎧の蘇り・骸骨の起き上がり待ちも捨てる（2026-10-25）
         m_SwarmLeft = 0;
         return L"敵を全部消した";
 
@@ -135,21 +136,23 @@ void SpellLab::SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, 
     const Vector3 pp = reg.Get<TransformComponent>(player).position;
     const float groundY = swarm.GetAIParams().groundY;
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
-    static const uint32_t kKinds[12] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindBrute,
+    static const uint32_t kKinds[17] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindBrute,
         Swarm::kEnemyKindCharger, Swarm::kEnemyKindShield, Swarm::kEnemyKindGhost, Swarm::kEnemyKindSpikeBall, Swarm::kEnemyKindBurrower,
-        Swarm::kEnemyKindSandMage, Swarm::kEnemyKindDarkGhost, Swarm::kEnemyKindDashBomber };
+        Swarm::kEnemyKindSandMage, Swarm::kEnemyKindDarkGhost, Swarm::kEnemyKindDashBomber,
+        Swarm::kEnemyKindArmor, Swarm::kEnemyKindGargoyle, Swarm::kEnemyKindNecro, Swarm::kEnemyKindSkeleton, Swarm::kEnemyKindWarden };   // 遺跡の敵（2026-10-25）
 
     const int n = (std::min)(m_SwarmLeft, kSwarmPerFrame);
     for (int i = 0; i < n; ++i)
     {
-        // 混合 = 雑魚 26 : 自爆兵 10 : スプリッター 12 : 重装兵 9 : 突撃兵 9 : 盾兵 9 : 幽霊 5 : トゲ玉 6 : 砂潜り 5 : 砂嵐の術師 3 : 黒幽霊 2 : 突撃爆弾兵 4（2026-10-18）
-        uint32_t kind = kKinds[std::clamp(m_SwarmKind, 0, 11)];
-        if (m_SwarmKind >= 12)
+        // 混合 = 雑魚 22 : 自爆兵 8 : スプリッター 10 : 重装兵 8 : 突撃兵 8 : 盾兵 8 : 幽霊 4 : トゲ玉 5 : 砂潜り 4 : 砂嵐の術師 3 : 黒幽霊 2 : 突撃爆弾兵 4
+        // : 呪いの鎧 5 : ガーゴイル 3 : 死霊術師 2 : 骸骨 2 : 鎖の番人 2（2026-10-25）
+        uint32_t kind = kKinds[std::clamp(m_SwarmKind, 0, 16)];
+        if (m_SwarmKind >= 17)
         {
-            static const float kCum[11] = { 0.26f, 0.36f, 0.48f, 0.57f, 0.66f, 0.75f, 0.80f, 0.86f, 0.91f, 0.94f, 0.96f };
+            static const float kCum[16] = { 0.22f, 0.30f, 0.40f, 0.48f, 0.56f, 0.64f, 0.68f, 0.73f, 0.77f, 0.80f, 0.82f, 0.86f, 0.91f, 0.94f, 0.96f, 0.98f };
             const float r = u01(m_Rng);
             int k = 0;
-            while (k < 11 && r >= kCum[k]) ++k;
+            while (k < 16 && r >= kCum[k]) ++k;
             kind = kKinds[k];
         }
         float hp = 15.0f, speed = 3.5f;
@@ -209,6 +212,7 @@ void SpellLab::SetEnabled(Registry& reg, Entity player, SwarmSystem& swarm, MobS
         m_WasSpawning = mobs.Director().enabled;
         mobs.Director().enabled = false;
         swarm.KillAll();
+        mobs.ClearRuinsPending();
         if (reg.Has<HealthComponent>(player))
         {
             auto& hp = reg.Get<HealthComponent>(player);

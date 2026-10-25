@@ -29,6 +29,15 @@
 // a tornado that is "untargetable". Those print nothing (2026-10-19: the
 // tornado used to print "1000000 killed" when it faded). The kill flag only
 // goes on when the hp really reached zero this frame.
+//
+// 2026-10-25:
+// - the kill number takes the element of the killing hit, which HitCS /
+//   AreaDamageCS leave in the dead slot's attackCooldown (SwarmKillElement):
+//   the state word is plain DEAD by then.
+// - a slot RecycleCS overwrote since last frame has SWARM_PREVHP_RECYCLED in
+//   prevHp (+ the new enemy's spawn hp): the old enemy's pending numbers and
+//   toxin are forgotten, the drop is measured from the new spawn hp (a brute
+//   recycled into a mob used to print the hp difference as damage there).
 // ============================================================
 #define SWARM_AI_CB_REG b2
 #define SWARM_BOMBER_CB_REG b3
@@ -50,6 +59,7 @@ StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3);
 RWBuffer<uint> prevHp : register(u0);                  // hp (fixed) seen last frame, 0 for a dead slot
 RWStructuredBuffer<float4> pending : register(u1);     // x direct, y poison (hp), z seconds since the first drop, w toxin seen last frame
 RWByteAddressBuffer dmgEvents : register(u2);
+RWByteAddressBuffer lifesteal : register(u3);   // +0: hp (fixed) taken from enemies marked by a lifesteal spell, ACCUMULATES forever (the CPU takes the delta. 2026-10-25)
 
 static const uint SWARM_MAX_DAMAGE_TEXTS = 512u;   // Swarm::kMaxDamageTexts
 static const uint SWARM_DTX_AMOUNT_MASK = 0x00FFFFFFu;   // amount x 10
@@ -72,7 +82,7 @@ void Emit(uint i, float direct, float poison, bool kill, uint elem)
     uint kind = enemyExtra[i].kind;
     float3 center;
     float er, eh;
-    SwarmKindCapsule(kind, e.position, center, er, eh);
+    SwarmSlotCapsule(i, kind, e.position, center, er, eh);   // a berserk elite is bigger (2026-10-25)
     float3 pos = center + float3(0.0, eh + er + 0.25, 0.0);   // just above the head
 
     uint amount = min((uint) round(total * 10.0), SWARM_DTX_AMOUNT_MASK);
@@ -98,12 +108,32 @@ void main(uint3 id : SV_DispatchThreadID)
     uint hpRaw = enemies[i].hp;
     uint state = enemyStates[i];
     bool dead = state == SWARM_DEAD;
-    uint elem = SwarmStateElement(state);
+    // a dead slot's state word is plain DEAD: the killer left its element in attackCooldown (2026-10-25)
+    uint elem = dead ? SwarmKillElement(enemies[i].attackCooldown) : SwarmStateElement(state);
     uint prevRaw = prevHp[i];
     float4 p = pending[i];
+    if ((prevRaw & SWARM_PREVHP_RECYCLED) != 0u)
+    {
+        // RecycleCS put a new enemy here since last frame (2026-10-25): measure from its spawn hp,
+        // forget what the old one had pending (numbers and the toxin seen)
+        prevRaw &= ~SWARM_PREVHP_RECYCLED;
+        p = float4(0.0, 0.0, 0.0, 0.0);
+    }
     float toxinNow = enemyPoison[i].x;
     float drain = max(0.0, p.w - toxinNow);   // toxin that drained this frame (a new dose only raises it)
     p.w = toxinNow;
+
+    // ---- lifesteal (2026-10-25): the last hit came from a lifesteal spell (SWARM_STATE_LIFESTEAL, HitCS / AreaDamageCS)
+    //      -> this frame's hp loss goes to the player's heal. A killing hit leaves the slot DEAD (no mark): not counted ----
+    if ((state & SWARM_STATE_LIFESTEAL) != 0u && prevRaw != 0u)
+    {
+        float lost = HpOf(prevRaw) - HpOf(hpRaw);
+        if (lost > 0.0)
+        {
+            uint was;
+            lifesteal.InterlockedAdd(0, SwarmHpToFixed(lost), was);
+        }
+    }
 
     if (g_DtxOn == 0u)
     {

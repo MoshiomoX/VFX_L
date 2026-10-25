@@ -11,6 +11,7 @@
 #include "UI/UIDeco.h"
 #include "Graphics/PostProcess/SceneSnapshot.h"
 #include "UI/InputGlyph.h"
+#include "Core/VideoCapture.h"
 
 
 Application* Application::s_Instance = nullptr;
@@ -19,8 +20,9 @@ bool Application::Initialize()
 {
     s_Instance = this;
 
-    // Window
-    if (!m_Window.Create(1600, 900, L"VFX Engine"))
+    // Window（動画の書き出し中は VFXL_CAPTURE_W / H、既定 1920×1080。Core/VideoCapture）
+    const VideoCapture& capture = VideoCapture::Get();
+    if (!m_Window.Create(capture.Enabled() ? capture.Width() : 1600, capture.Enabled() ? capture.Height() : 900, L"VFX Engine"))
     {
         std::cout << "[Error] Window creation failed" << std::endl;
         return false;
@@ -58,7 +60,9 @@ bool Application::Initialize()
     // preload skinned models on worker threads (Res::Mdl::kPreload). Scenes that need them wait on the future
     ResourceManager::Get().PreloadModelsAsync(std::vector<std::string>(std::begin(Res::Mdl::kPreload), std::end(Res::Mdl::kPreload)));
     InputManager::Get().Initialize(m_Window.GetHandle());
-    AudioSystem::Get().Initialize();   // 音（装置が無くても続ける）
+    AudioSystem::Get().Initialize(capture.Enabled());   // 音（装置が無くても続ける。書き出し中は装置を開かない）
+    if (capture.Enabled() && !capture.CaptureMusic())
+        AudioSystem::Get().SetVolume(AudioSystem::Bus::Music, 0.0f);   // BGM は編集で 1 本通して乗せる（保存はしない）
     GameSettings::Get().Load();        // プレイヤーの設定（敵味方の縁取りの ON / OFF。無ければ既定値）
     GameProgress::Get().Load();        // 進み具合（開いたマップ・クリアした Tier。無ければ草原 Tier 1 だけ。2026-10-21）
     {
@@ -66,7 +70,14 @@ bool Application::Initialize()
         if (GetEnvironmentVariableA("VFXL_UI_SCALE", env, sizeof(env)) > 0 && env[0])
             UIDeco::SetUIScale((float)atof(env));
     }
-	if(!m_Game.Initialize(&m_Renderer)) return false;
+	if (!m_Game.Initialize(&m_Renderer))
+    {
+        // 先読みのスレッドが動いている：join せずに戻ると ResourceManager の静的な破棄で std::terminate になる。
+        // device（m_Graphics）が生きている今のうちに待って片付ける
+        m_Game.Shutdown();
+        ResourceManager::Get().Shutdown();
+        return false;
+    }
     // Timer
     m_Timer.Start();
 
@@ -81,6 +92,8 @@ void Application::Run()
     {
         m_Timer.Tick();
         float dt = m_Timer.DeltaTime();
+        if (VideoCapture::Get().Enabled())
+            dt = VideoCapture::Get().FrameDt() * VideoCapture::Get().TimeScale();   // 書き出し中は 1/60 秒ずつ（重くてもコマ落ちしない。スローは TimeScale）
         if (m_Window.ConsumeResizeFlag())
             m_Graphics.Resize(m_Window.GetWidth(),
                 m_Window.GetHeight());
@@ -97,6 +110,7 @@ void Application::Run()
             PROFILE_SCOPE_GPU("Update");   // GPU = 雑魚・弾・粒子の compute
             m_Game.Update(dt);
             AudioSystem::Get().Update(dt);   // 鳴り終わった声の回収・BGM のフェード
+            VideoCapture::Get().PumpAudio();  // 書き出し中：このフレームの 1/60 秒ぶんの音を読み出す
         }
         {
             PROFILE_SCOPE_GPU("Render");
@@ -119,6 +133,8 @@ void Application::Run()
 
 void Application::Shutdown()
 {
+    m_Game.Shutdown();                 // 今のシーンを先に片付ける（音・ImGui・ResourceManager・Renderer がまだ生きている内に）
+    VideoCapture::Get().Finish();      // 書き出し中なら閉じる（ffmpeg の終了を待つ）
     SceneSnapshot::Get().Shutdown();   // リザルトの背景の写真（シーンをまたいで持つ。デバイスより先に放す）
     InputGlyph::Shutdown();            // パッドのボタンの絵（同上）
     AudioSystem::Get().Shutdown();

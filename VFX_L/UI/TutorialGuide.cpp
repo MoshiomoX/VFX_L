@@ -38,7 +38,7 @@ void TutorialGuide::Start()
     m_HavePrev = false;
     m_Moved = 0.0f;
     m_Jumped = m_Slid = m_WasInAir = false;
-    m_BackpackSeen = m_LevelUpSeen = false;
+    m_BackpackSeen = false;
     m_DoneLeft = 0.0f;
     Enter(Step::Move);
 }
@@ -97,7 +97,6 @@ void TutorialGuide::Update(float dt, const Input& in)
     m_WasInAir = in.inAir;
     if (in.sliding) m_Slid = true;
     if (in.backpackOpen) m_BackpackSeen = true;
-    if (in.choosingCard) m_LevelUpSeen = true;
 
     // ---- 条件 → 次の段 ----
     // 真ん中の案内が出ている間は進めない（「まずは動いてみよう」を読む前に終わらないように）
@@ -127,6 +126,8 @@ void TutorialGuide::Update(float dt, const Input& in)
 
     // 次の段の記録を始める
     const Step n = (Step)((int)m_Step + 1);
+    // 移動の段の間に跳んだ / 滑った分は数えない（この段に入ってから両方やる）
+    if (n == Step::JumpSlide) m_Jumped = m_Slid = false;
     if (n == Step::AutoAttack) m_KillsAtStart = in.kills;
     if (n == Step::Backpack) m_BackpackSeen = in.backpackOpen;   // 四択の直後に開いていなければ false
     Enter(n);

@@ -32,8 +32,8 @@ void VFXEditorScene::Init()
     auto* context = Application::Get().GetGraphics().GetContext();
 
     // ---------- Camera ----------
-    // 少し引いた位置から原点を見る（VFX は原点付近で作る想定）
-    m_Camera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 10000.0f);
+    // 少し引いた位置から原点を見る（VFX は原点付近で作る想定）。投影の縦横比は窓に合わせる（UpdateProjection）
+    UpdateProjection();
     m_Camera.SetPosition({ 0.0f, 3.0f, -10.0f });
     m_Camera.SetTarget({ 0.0f, 1.0f, 0.0f });
     SetCamera(&m_Camera);
@@ -178,10 +178,28 @@ void VFXEditorScene::Shutdown()
 // ============================================================
 // Update
 // ============================================================
+// 窓の大きさが変わったら投影を作り直す（最初は Init から）。最小化中（0）はそのまま
+void VFXEditorScene::UpdateProjection()
+{
+    auto& gfx = Application::Get().GetGraphics();
+    const float w = (float)gfx.GetWidth();
+    const float h = (float)gfx.GetHeight();
+    if (w <= 0.0f || h <= 0.0f)
+    {
+        if (m_ScreenW <= 0.0f) m_Camera.Init(45.0f, 16.0f / 9.0f, 0.1f, 10000.0f);   // まだ一度も作っていない
+        return;
+    }
+    if (w == m_ScreenW && h == m_ScreenH) return;
+    m_ScreenW = w;
+    m_ScreenH = h;
+    m_Camera.Init(45.0f, w / h, 0.1f, 10000.0f);
+}
+
 void VFXEditorScene::Update(float dt)
 {
     SceneBase::Update(dt);
     m_TotalTime += dt;
+    UpdateProjection();
 
     // ---- 仮想投射物の移動（追従の確認用）----
     UpdateFakeProjectile(dt);
@@ -304,14 +322,14 @@ void VFXEditorScene::Render(Renderer& renderer)
     // ---- 参照モデル（骨付き）----
     if (m_ShowModel && m_SkinnedModel && m_SkinningCS)
     {
-        std::vector<Matrix> globals, palette;
-        m_SkinnedModel->SampleAnimation(m_AnimTime, globals, m_PreviewClip);
+        // 姿勢と骨の行列表はメンバーを使い回す（毎フレーム確保しない）
+        m_SkinnedModel->SampleAnimation(m_AnimTime, m_PoseGlobals, m_PreviewClip);
 
         const int subCount = (int)m_SkinnedGPU.GetSubMeshes().size();
         for (int s = 0; s < subCount; ++s)
         {
-            m_SkinnedModel->BuildSubmeshPalette(s, globals, palette);
-            m_SkinnedGPU.SkinSubmesh(ctx, m_SkinningCS.get(), s, palette);
+            m_SkinnedModel->BuildSubmeshPalette(s, m_PoseGlobals, m_Palette);
+            m_SkinnedGPU.SkinSubmesh(ctx, m_SkinningCS.get(), s, m_Palette);
         }
 
         LightBuffer l = renderer.GetLightData();
@@ -340,7 +358,7 @@ void VFXEditorScene::Render(Renderer& renderer)
     m_ParticleSystem.Render();
     // 画面の歪み（2026-10-20）：プレビューでも見えるように
     Graphics& gfx = Application::Get().GetGraphics();
-    if (gfx.BeginDistortion())
+    if (m_ParticleSystem.HasDistortion() && gfx.BeginDistortion())
     {
         m_ParticleSystem.RenderDistortion();
         gfx.RestoreRenderTarget();

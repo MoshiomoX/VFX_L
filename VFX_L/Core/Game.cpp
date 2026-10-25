@@ -47,6 +47,10 @@ bool Game::Initialize(Renderer* renderer)
     char autoloadEnv[128] = {};
     if (!DevUI::kEnabled)
     {
+        // Demo は負荷試験だけ（DevUI::AutoTestAllowed。2026-10-23）
+        if (GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0
+            && DevUI::AutoTestAllowed(autoloadEnv))
+            m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);
     }
     else if (GetEnvironmentVariableA("VFXL_SHOP_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0)
     {
@@ -94,6 +98,12 @@ void Game::Update(float dt)
         return;
 
     m_SceneManager.Update(dt);
+}
+
+void Game::Shutdown()
+{
+    m_IsRunning = false;
+    m_SceneManager.Shutdown();
 }
 
 void Game::Render()

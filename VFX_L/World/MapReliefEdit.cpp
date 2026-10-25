@@ -105,8 +105,15 @@ namespace MapTerrainEdit
     {
         if (!HasParts(map)) return;
         Rederive(map);
+        LowerFloorsBelowRelief(map);
+    }
+
+    void LowerFloorsBelowRelief(MapData::Map& map)
+    {
         if (!map.relief || !map.hasZoneParams) return;
-        const float plainMin = *std::min_element(map.reliefPlain.begin(), map.reliefPlain.end()) - 0.1f;
+        // 水たまりがあればその分も下げる（生成の TerrainGenerator と同じ式。2026-10-25）
+        const float plainMin = *std::min_element(map.reliefPlain.begin(), map.reliefPlain.end()) - 0.1f
+            - (AnyPond(map.pond) ? map.pondDepth : 0.0f);
         const float summitMin = map.summitH + *std::min_element(map.reliefSummit.begin(), map.reliefSummit.end()) - 0.1f;
         if (plainMin < map.floorPlainTop || summitMin < map.floorSummitTop)
         {

@@ -16,7 +16,10 @@ using namespace DirectX::SimpleMath;
 
 namespace
 {
-    constexpr float kFrame = 0.016f;        // 止まっている間も使うので固定の 1 フレーム
+    // 開いた直後の猶予・押しっぱなしの連続は実時間で減らす（以前は 1 フレーム 0.016 秒の決め打ちで、
+    // 144 fps だと猶予が半分以下・連続が 2 倍以上速かった）。1 フレームだけ長い時（読み込みの引っ掛かり）に
+    // 猶予を食い尽くさないよう 0.1 秒で頭打ち
+    float FrameStep(float dt) { return (std::min)((std::max)(dt, 0.0f), 0.1f); }
     constexpr float kPadRatio = 0.04f;      // 余白（画面短辺に対する比率）
     constexpr float kTitleRatio = 0.09f;    // 見出しの高さ
     constexpr float kBodyRatio = 0.40f;     // 本文の高さ（6 行 + 題）
@@ -84,8 +87,9 @@ void HowToPlayUI::Flip(int dir)
     AudioSystem::Get().Play("ui_hover");
 }
 
-bool HowToPlayUI::HandleInput()
+bool HowToPlayUI::HandleInput(float dt)
 {
+    const float frameDt = FrameStep(dt);
     if (!m_Open) return true;
     auto& input = InputManager::Get();
 
@@ -97,7 +101,7 @@ bool HowToPlayUI::HandleInput()
     }
     if (m_InputDelay > 0.0f)
     {
-        m_InputDelay -= kFrame;
+        m_InputDelay -= frameDt;
         return false;
     }
 

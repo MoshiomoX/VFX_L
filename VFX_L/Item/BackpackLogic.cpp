@@ -131,6 +131,7 @@ namespace BackpackLogic
     // ========================================================
     void RebuildOccupancy(BackpackComponent& bp)
     {
+        bp.Touch();   // 中身が変わった印（UI の覚え書きを作り直させる）
         bp.occupancy.fill(-1);
 
         for (size_t i = 0; i < bp.items.size(); ++i)
@@ -273,8 +274,9 @@ namespace BackpackLogic
         RebuildOccupancy(bp);
 
         // 4. 足場を失ったものを手元へ戻す
-        //    キャンバス外に出たもの、他の魔法と重なったものがここで消える
-        const int evicted = ValidateItems(bp);
+        //    キャンバス外に出たもの、他の魔法と重なったものがここで消える。
+        //    重なった時に退くのは一緒に動いた側（riders）。動いていない物は残す
+        const int evicted = ValidateItems(bp, &riders);
         if (outEvicted) *outEvicted = evicted;
 
         bp.dirty = true;
@@ -286,6 +288,7 @@ namespace BackpackLogic
     // ========================================================
     void RebuildFrameOccupancy(BackpackComponent& bp)
     {
+        bp.Touch();   // 中身が変わった印
         bp.frameOccupancy.fill(-1);
 
         for (size_t i = 0; i < bp.frames.size(); ++i)
@@ -314,31 +317,48 @@ namespace BackpackLogic
     // 使える数 = 所持数 - グリッド上の数 を毎回数えるので、
     // グリッドから消えれば自動的に取り出せるようになる。
     //
-    // 後ろから走査する理由:
-    //   erase すると後ろの index が詰まる。
-    //   前から走査すると詰まった分を読み飛ばしてしまう。
+    // 重なりの判定は占有表を使わず、ここで「取ったマス」の表を作りながら見る（2026-10-25）:
+    //   以前は組み直し済みの占有表（1 マスに 1 個しか入らない）を後ろから見て、消すたびに組み直さなかった。
+    //   そのため ① 足場を失って消えた物の古い番号が表に残り、重なっていた隣の物まで一緒に消える、
+    //   ② 重なった時に消えるのが番号の小さい方（動いていない方のこともある）、が起きた。
+    //   今は 動いていない物 → moved（枠と一緒に動いた物）の順に見て、先に取られたマスへ重なった物を消す。
+    //   消す物を全部決めてから後ろから erase し、最後に 1 回だけ組み直す
     // ========================================================
-    int ValidateItems(BackpackComponent& bp)
+    int ValidateItems(BackpackComponent& bp, const std::vector<int>* moved)
     {
-        int removed = 0;
+        const int n = (int)bp.items.size();
+        constexpr int G = BackpackComponent::GRID;
 
-        for (int i = (int)bp.items.size() - 1; i >= 0; --i)
+        auto isMoved = [&](int i)
+        {
+            return moved && std::find(moved->begin(), moved->end(), i) != moved->end();
+        };
+        std::vector<int> order;
+        order.reserve(n);
+        for (int i = 0; i < n; ++i) if (!isMoved(i)) order.push_back(i);
+        for (int i = 0; i < n; ++i) if (isMoved(i))  order.push_back(i);
+
+        std::array<int, G * G> claimed;
+        claimed.fill(-1);
+        std::vector<char> remove(n, 0);
+
+        for (int i : order)
         {
             const auto& item = bp.items[i];
             const ItemCommon* c = ItemDatabase::GetCommon(item.id);
 
             bool ok = (c != nullptr);
+            std::vector<CellOffset> cells;
             if (ok)
             {
-                auto cells = RotateShape(c->occupyCells, item.rotation);
+                cells = RotateShape(c->occupyCells, item.rotation);
                 for (const auto& off : cells)
                 {
                     const int r = item.row + off.row;
                     const int cc = item.col + off.col;
 
                     // キャンバス外
-                    if (r < 0 || r >= BackpackComponent::GRID ||
-                        cc < 0 || cc >= BackpackComponent::GRID)
+                    if (r < 0 || r >= G || cc < 0 || cc >= G)
                     {
                         ok = false;
                         break;
@@ -353,10 +373,8 @@ namespace BackpackLogic
 
                     // 他の魔法と重なっている
                     // 枠の移動で追従した魔法が、別の枠の魔法の上に乗ることがある。
-                    // 占有表は移動後に組み直してあるので、
-                    // 自分の index 以外が入っていれば重なりと判定できる。
-                    const int occ = bp.GetOccupant(r, cc);
-                    if (occ >= 0 && occ != i)
+                    // 先に見た物（動いていない物）が取ったマスなら、こちらが退く
+                    if (claimed[r * G + cc] >= 0)
                     {
                         ok = false;
                         break;
@@ -366,9 +384,20 @@ namespace BackpackLogic
 
             if (!ok)
             {
-                bp.items.erase(bp.items.begin() + i);
-                ++removed;
+                remove[i] = 1;
+                continue;
             }
+            for (const auto& off : cells)
+                claimed[(item.row + off.row) * G + (item.col + off.col)] = i;
+        }
+
+        // 後ろから消す（erase すると後ろの index が詰まるので、前から消すと番号がずれる）
+        int removed = 0;
+        for (int i = n - 1; i >= 0; --i)
+        {
+            if (!remove[i]) continue;
+            bp.items.erase(bp.items.begin() + i);
+            ++removed;
         }
 
         if (removed > 0)

@@ -164,7 +164,7 @@ void CollisionSystem::Update(Registry& reg)
     m_MoverIdx.clear();
 
     // --- 1) 走査。固定は (entity, 中心) だけ集め、可動は毎フレーム作る ---
-    // 固定の WorldCollider（凸体は平面 12 枚を持つ）を毎フレーム全部作り直していた。
+    // 固定の WorldCollider（凸体は平面を最大 kMaxConvexPlanes = 50 枚持つ）を毎フレーム全部作り直していた。
     // 外周の岩に衝突を 131 個足した時に Debug で約 0.15 ms 増えたので、固定は前回の物を使い回す（2026-10-03）
     m_ScanFixed.clear();
     m_MoverWorld.clear();
@@ -185,14 +185,13 @@ void CollisionSystem::Update(Registry& reg)
         structural = (m_ScanFixed[k].first != m_GridEntity[k]);
     bool rebuildGrid = structural;
     m_WorldColliders.resize(nFixed);
+    m_FixedCount = nFixed;
     if (structural)
     {
-        m_FixedIdx.resize(nFixed);
         for (size_t k = 0; k < nFixed; ++k)
         {
             const Entity e = m_ScanFixed[k].first;
             m_WorldColliders[k] = MakeWorldCollider(e, reg.Get<TransformComponent>(e), reg.Get<ColliderComponent>(e), true, true);
-            m_FixedIdx[k] = (int)k;
         }
     }
     else
@@ -201,8 +200,15 @@ void CollisionSystem::Update(Registry& reg)
         {
             if (m_ScanFixed[k].second == m_WorldColliders[k].center) continue;
             const Entity e = m_ScanFixed[k].first;
+            const WorldCollider& old = m_WorldColliders[k];
+            const ColliderShape oldShape = old.shape;
+            const Vector3 oldHalf = old.halfExtents;
+            const float oldRadius = old.radius;
             m_WorldColliders[k] = MakeWorldCollider(e, reg.Get<TransformComponent>(e), reg.Get<ColliderComponent>(e), true, true);
-            if ((m_WorldColliders[k].center - m_GridCenter[k]).LengthSquared() > kFixedSlack * kFixedSlack)
+            const WorldCollider& now = m_WorldColliders[k];
+            // 格子は登録した時の大きさ + 余白で載せている：大きさ・形が変わったら余白の内でも作り直す（2026-10-25）
+            if ((now.center - m_GridCenter[k]).LengthSquared() > kFixedSlack * kFixedSlack
+                || now.shape != oldShape || now.halfExtents != oldHalf || now.radius != oldRadius)
                 rebuildGrid = true;
         }
     }
@@ -221,9 +227,9 @@ void CollisionSystem::Update(Registry& reg)
         const WorldCollider& a = m_WorldColliders[m_MoverIdx[m]];
         float minX, maxX, minZ, maxZ;
         BoundsOf(a, minX, maxX, minZ, maxZ);
-        GatherFixed(minX, maxX, minZ, maxZ);
+        GatherFixed(minX, maxX, minZ, maxZ, m_Scratch);
         for (int k : m_Scratch)
-            TestPair(a, m_WorldColliders[m_FixedIdx[k]]);
+            TestPair(a, m_WorldColliders[k]);
 
         for (size_t n = m + 1; n < m_MoverIdx.size(); ++n)
             TestPair(a, m_WorldColliders[m_MoverIdx[n]]);
@@ -235,8 +241,7 @@ void CollisionSystem::Update(Registry& reg)
 // ============================================================
 void CollisionSystem::BuildFixedGrid()
 {
-    ++m_FixedRebuilds;
-    const size_t n = m_FixedIdx.size();
+    const size_t n = m_FixedCount;
     m_GridEntity.resize(n);
     m_GridCenter.resize(n);
     m_LargeFixed.clear();
@@ -248,7 +253,7 @@ void CollisionSystem::BuildFixedGrid()
     int gx0 = 0, gx1 = -1, gz0 = 0, gz1 = -1;
     for (size_t k = 0; k < n; ++k)
     {
-        const WorldCollider& wc = m_WorldColliders[m_FixedIdx[k]];
+        const WorldCollider& wc = m_WorldColliders[k];
         m_GridEntity[k] = wc.entity;
         m_GridCenter[k] = wc.center;
         float minX, maxX, minZ, maxZ;
@@ -302,9 +307,9 @@ bool CollisionSystem::GridRange(float minX, float maxX, float minZ, float maxZ,
     return x0 <= x1 && z0 <= z1;
 }
 
-void CollisionSystem::GatherFixed(float minX, float maxX, float minZ, float maxZ) const
+void CollisionSystem::GatherFixed(float minX, float maxX, float minZ, float maxZ, std::vector<int>& out) const
 {
-    m_Scratch.clear();
+    out.clear();
     int x0, x1, z0, z1;
     if (GridRange(minX, maxX, minZ, maxZ, x0, x1, z0, z1))
     {
@@ -313,19 +318,19 @@ void CollisionSystem::GatherFixed(float minX, float maxX, float minZ, float maxZ
             {
                 const size_t c = (size_t)z * m_GridW + x;
                 for (int i = m_CellStart[c]; i < m_CellStart[c + 1]; ++i)
-                    m_Scratch.push_back(m_CellItems[i]);
+                    out.push_back(m_CellItems[i]);
             }
     }
-    m_Scratch.insert(m_Scratch.end(), m_LargeFixed.begin(), m_LargeFixed.end());
-    std::sort(m_Scratch.begin(), m_Scratch.end());
-    m_Scratch.erase(std::unique(m_Scratch.begin(), m_Scratch.end()), m_Scratch.end());
+    out.insert(out.end(), m_LargeFixed.begin(), m_LargeFixed.end());
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
 }
 
 void CollisionSystem::GatherStaticNear(const Vector3& center, float reach, std::vector<int>& out) const
 {
     out.clear();
-    GatherFixed(center.x - reach, center.x + reach, center.z - reach, center.z + reach);
-    for (int k : m_Scratch) out.push_back(m_FixedIdx[k]);
+    GatherFixed(center.x - reach, center.x + reach, center.z - reach, center.z + reach, m_Scratch);
+    out.insert(out.end(), m_Scratch.begin(), m_Scratch.end());   // 固定の k 番目 = m_WorldColliders[k]
     // Rigidbody を持たない collider は物理では静的扱い（今は CPU の弾だけ。形が球なので押し出しには効かない）
     for (int i : m_MoverIdx)
         if (!m_WorldColliders[i].hasRigidbody) out.push_back(i);
@@ -333,8 +338,10 @@ void CollisionSystem::GatherStaticNear(const Vector3& center, float reach, std::
 
 // ============================================================
 // シーン全体レイキャスト（最近命中を返す）
-// ※以下の3つのクエリは m_WorldColliders の線形走査のまま。
-//   毎フレーム数回しか呼ばれないので格子に載せる必要が無い
+// 固定は格子から、射線（起点〜maxDist の先）の水平の範囲に掛かるマスの物 + 大きい物だけを見る（2026-10-25。
+// カメラの遮蔽で毎フレーム 6 本、以前は全部の collider を順に見ていた）。可動は全部。
+// 当たるには射線の上の点が collider の水平の範囲に入る必要があり、格子は範囲 + 余白 kFixedSlack で載せているので、
+// 見落とす物は無い。見る順も添字の小さい順（固定 → 可動）= 全部を順に見るのと同じなので、同じ距離の当たりで選ばれる物も同じ
 // ============================================================
 CollisionSystem::RaycastResult CollisionSystem::Raycast(
     const CollisionMath::Ray& ray, uint32_t layerMask) const
@@ -343,83 +350,65 @@ CollisionSystem::RaycastResult CollisionSystem::Raycast(
     RaycastResult best;
     best.t = ray.maxDist;   // これより近い命中だけ採用
 
-    for (const auto& wc : m_WorldColliders)
+    auto test = [&](const WorldCollider& wc)
+        {
+            // レイヤーフィルタ
+            if (!(wc.layer & layerMask)) return;
+
+            RayHit h;
+            switch (wc.shape)
+            {
+            case ColliderShape::Sphere:
+                h = RaycastSphere(ray, { wc.center, wc.radius });
+                break;
+            case ColliderShape::Capsule:
+                h = RaycastCapsule(ray, { wc.center, wc.radius, wc.height });
+                break;
+            case ColliderShape::AABB:
+                h = RaycastAABB(ray, { wc.center - wc.halfExtents, wc.center + wc.halfExtents });
+                break;
+            case ColliderShape::Convex:
+                h = RaycastConvex(ray, wc.hull);
+                break;
+            case ColliderShape::HeightField:   // 起伏の地面（カメラの遮蔽・光線の先が丘で止まる）
+                if (wc.heightField) h = RaycastHeightField(ray, *wc.heightField);
+                break;
+            default:
+                return;
+            }
+
+            if (h.hit && h.t < best.t)
+            {
+                best.hit = true;
+                best.entity = wc.entity;
+                best.t = h.t;
+                best.point = h.point;
+                best.normal = h.normal;
+            }
+        };
+
+    // 射線の水平の範囲。値がおかしい（NaN・巨大）時はマスに直せないので、前と同じく全部を順に見る
+    const Vector3 end = ray.origin + ray.dir * ray.maxDist;
+    constexpr float kSaneCoord = 1.0e6f;
+    const bool sane = std::isfinite(end.x) && std::isfinite(end.z) && std::isfinite(ray.origin.x) && std::isfinite(ray.origin.z)
+        && std::fabs(end.x) < kSaneCoord && std::fabs(end.z) < kSaneCoord
+        && std::fabs(ray.origin.x) < kSaneCoord && std::fabs(ray.origin.z) < kSaneCoord;
+    if (!sane)
     {
-        // レイヤーフィルタ
-        if (!(wc.layer & layerMask)) continue;
-
-        RayHit h;
-        switch (wc.shape)
-        {
-        case ColliderShape::Sphere:
-            h = RaycastSphere(ray, { wc.center, wc.radius });
-            break;
-        case ColliderShape::Capsule:
-            h = RaycastCapsule(ray, { wc.center, wc.radius, wc.height });
-            break;
-        case ColliderShape::AABB:
-            h = RaycastAABB(ray, { wc.center - wc.halfExtents, wc.center + wc.halfExtents });
-            break;
-        case ColliderShape::Convex:
-            h = RaycastConvex(ray, wc.hull);
-            break;
-        case ColliderShape::HeightField:   // 起伏の地面（カメラの遮蔽・光線の先が丘で止まる）
-            if (wc.heightField) h = RaycastHeightField(ray, *wc.heightField);
-            break;
-        default:
-            continue;
-        }
-
-        if (h.hit && h.t < best.t)
-        {
-            best.hit = true;
-            best.entity = wc.entity;
-            best.t = h.t;
-            best.point = h.point;
-            best.normal = h.normal;
-        }
+        for (const auto& wc : m_WorldColliders) test(wc);
+        return best;
     }
+
+    GatherFixed((std::min)(ray.origin.x, end.x), (std::max)(ray.origin.x, end.x),
+        (std::min)(ray.origin.z, end.z), (std::max)(ray.origin.z, end.z), m_RayScratch);
+    for (int k : m_RayScratch) test(m_WorldColliders[k]);
+    for (int i : m_MoverIdx) test(m_WorldColliders[i]);
     return best;
 }
 
 // ============================================================
-// 範囲クエリ（gameplay からの能動的な問い合わせ）
+// 範囲クエリ（gameplay からの能動的な問い合わせ。m_WorldColliders の線形走査のまま）
 // ============================================================
-std::vector<Entity> CollisionSystem::OverlapSphere(
-    const Vector3& center, float radius, uint32_t layerMask) const
-{
-    using namespace CollisionMath;
-    Sphere query{ center, radius };
-    std::vector<Entity> result;
-
-    for (const auto& wc : m_WorldColliders)
-    {
-        if (!(wc.layer & layerMask)) continue;
-
-        bool hit = false;
-        switch (wc.shape)
-        {
-        case ColliderShape::Sphere:
-            hit = IntersectSphereSphere(query, { wc.center, wc.radius });
-            break;
-        case ColliderShape::Capsule:
-            hit = IntersectSphereCapsule(query, { wc.center, wc.radius, wc.height });
-            break;
-        case ColliderShape::AABB:
-            hit = IntersectSphereAABB(query,
-                { wc.center - wc.halfExtents, wc.center + wc.halfExtents });
-            break;
-        case ColliderShape::Convex:
-            hit = IntersectSphereConvex(query, wc.hull);
-            break;
-        case ColliderShape::HeightField:   // 範囲の問い合わせ（敵探し等）は地面を見ない
-            break;
-        }
-        if (hit) result.push_back(wc.entity);
-    }
-    return result;
-}
-
 bool CollisionSystem::FindNearestEntity(
     const Vector3& center, float radius, uint32_t layerMask, Entity& outEntity) const
 {

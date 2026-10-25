@@ -61,7 +61,6 @@ private:
     bool  m_Jumped = false, m_Slid = false, m_WasInAir = false;
     uint32_t m_KillsAtStart = 0;
     bool  m_BackpackSeen = false;
-    bool  m_LevelUpSeen = false;
 
     // 真ん中の案内
     const wchar_t* m_SayText = nullptr;

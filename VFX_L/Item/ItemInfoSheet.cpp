@@ -47,6 +47,7 @@ namespace
         case SpellParam::CastCount:
         case SpellParam::AreaDamage:
         case SpellParam::ChainCount:
+        case SpellParam::Lifesteal:
             return +1;
         case SpellParam::CastInterval:
         case SpellParam::ManaCost:
@@ -65,6 +66,7 @@ namespace
         case AreaParam::DamagePerTick:
         case AreaParam::Length:
         case AreaParam::ChainCount:
+        case AreaParam::Lifesteal:
             return +1;
         case AreaParam::TickInterval:
         case AreaParam::CastInterval:
@@ -91,6 +93,7 @@ namespace
         case SpellParam::ManaCost:        return L"消費MP";
         case SpellParam::AreaDamage:      return L"範囲の威力";
         case SpellParam::ChainCount:      return L"連鎖";
+        case SpellParam::Lifesteal:       return L"吸血";
         }
         return L"";
     }
@@ -107,6 +110,7 @@ namespace
         case AreaParam::ManaCost:      return L"消費MP";
         case AreaParam::Length:        return L"射程";
         case AreaParam::ChainCount:    return L"連鎖";
+        case AreaParam::Lifesteal:     return L"吸血";
         }
         return L"";
     }
@@ -123,6 +127,7 @@ namespace
         case SpellParam::SpreadAngle:  return L"度";
         case SpellParam::CastCount:    return L"回";
         case SpellParam::ChainCount:   return L"回";
+        case SpellParam::Lifesteal:    return L"%";
         default:                       return L"";
         }
     }
@@ -137,9 +142,14 @@ namespace
         case AreaParam::TickInterval:
         case AreaParam::CastInterval: return L"秒";
         case AreaParam::ChainCount:   return L"回";
+        case AreaParam::Lifesteal:    return L"%";
         default:                      return L"";
         }
     }
+
+    // 割合で見せるパラメータ（吸血 0.03 → 3%。2026-10-25）
+    float ShowScale(SpellParam p) { return (p == SpellParam::Lifesteal) ? 100.0f : 1.0f; }
+    float ShowScale(AreaParam p) { return (p == AreaParam::Lifesteal) ? 100.0f : 1.0f; }
 
     // 修飾 1 件を「+1」「x0.6」「=5」の形の行に（ルーンの説明用）
     template <class P>
@@ -151,7 +161,7 @@ namespace
         switch (op)
         {
         case ModifyOp::Add:
-            l.value = (value >= 0.0f ? L"+" : L"") + Num(value) + Unit(param);
+            l.value = (value >= 0.0f ? L"+" : L"") + Num(value * ShowScale(param)) + Unit(param);
             dir = (value > 0.0f) - (value < 0.0f);
             break;
         case ModifyOp::Multiply:
@@ -159,7 +169,7 @@ namespace
             dir = (value > 1.0f) - (value < 1.0f);
             break;
         case ModifyOp::Set:
-            l.value = L"=" + Num(value) + Unit(param);
+            l.value = L"=" + Num(value * ShowScale(param)) + Unit(param);
             break;
         }
         l.trend = dir * Better(param);
@@ -246,6 +256,8 @@ namespace ItemInfoSheet
         // 連鎖のルーン（2026-10-16）: 当たっても消えず、近くの別の敵へ跳ぶ（Drop / Lob には効かない）
         if (v.chainCount > 0 && !drop)
             s.traits.push_back(L"当たった敵から近くの別の敵へ跳ぶ");
+        if (v.lifesteal > 0.0f)   // 吸血のルーン（2026-10-25）
+            s.traits.push_back(L"与えたダメージの一部で HP が回復する");
         // 減速（毒の池）。15 段階に丸めた実際の値を出す（AreaProfile::Flags）
         if (ap && ap->slow > 0.0f)
         {
@@ -310,6 +322,8 @@ namespace ItemInfoSheet
         // 連鎖のルーン（2026-10-16）: 跳ぶ回数。付いている時だけ出す
         if (!drop && (v.chainCount > 0 || v.chainCount != b.chainCount))
             s.stats.push_back(StatLine(L"連鎖", (float)v.chainCount, (float)b.chainCount, L"回", +1));
+        if (v.lifesteal > 0.0f)
+            s.stats.push_back(StatLine(L"吸血", v.lifesteal * 100.0f, b.lifesteal * 100.0f, L"%", +1));
         s.stats.push_back(StatLine(L"発動間隔", v.castInterval, b.castInterval, L"秒", -1));
         // 連射の分も毎回払う（WeaponSystem）ので、1 回の発動で減る量を出す
         s.stats.push_back(StatLine(L"消費MP", v.manaCost * (float)v.castCount,
@@ -343,6 +357,8 @@ namespace ItemInfoSheet
         // 連鎖のルーン（2026-10-20）: 稲妻が届いた敵から近くの別の敵へ跳ぶ
         if (v.chainCount > 0)
             s.traits.push_back(L"届いた敵から近くの別の敵へ跳ぶ");
+        if (v.lifesteal > 0.0f)   // 吸血のルーン（2026-10-25）
+            s.traits.push_back(L"与えたダメージの一部で HP が回復する");
         // 毒素（猛毒の沼。2026-10-17）：威力の一部は毒になって 1 秒かけて効く
         if (v.profile > 0 && AreaProfileDB::At(v.profile).toxin > 0.0f)
         {
@@ -367,6 +383,8 @@ namespace ItemInfoSheet
             s.stats.push_back(StatLine(L"射程", v.length, b.length, L"m", +1));
         if (beam && Changed(v.radius, b.radius))
             s.stats.push_back(StatLine(L"太さ", v.radius * 2.0f, b.radius * 2.0f, L"m", +1));
+        if (v.lifesteal > 0.0f)
+            s.stats.push_back(StatLine(L"吸血", v.lifesteal * 100.0f, b.lifesteal * 100.0f, L"%", +1));
         if (v.chainCount > 0 || v.chainCount != b.chainCount)
             s.stats.push_back(StatLine(L"連鎖", (float)v.chainCount, (float)b.chainCount, L"回", +1));
         if (!beam && Changed(v.radius, b.radius))

@@ -529,38 +529,42 @@ namespace CollisionMath
     // 凸包の方向の組（k-DOP）：軸・辺・角の 26 方向 + 辺の中間（(±1, ±2, 0) の並べ替え）24 方向 = 50。
     // Model が頂点から極値点を取る時と ConvexFromPoints が面を作る時で同じ組を使う
     constexpr int kDopDirs = 50;
+    // 表は関数内の static の物（初期化はスレッド安全。2026-10-25：以前は bool の印で遅延初期化していて、
+    // モデルの先読みのスレッドと本体のスレッドが同時に Model の凸包の点を取ると競合した）
     inline const Vector3* DopDirections()
     {
-        static Vector3 dirs[kDopDirs];
-        static bool init = false;
-        if (!init)
+        struct Table
         {
-            int n = 0;
-            for (int z = -1; z <= 1; ++z)
-                for (int y = -1; y <= 1; ++y)
-                    for (int x = -1; x <= 1; ++x)
+            Vector3 dirs[kDopDirs];
+            Table()
+            {
+                int n = 0;
+                for (int z = -1; z <= 1; ++z)
+                    for (int y = -1; y <= 1; ++y)
+                        for (int x = -1; x <= 1; ++x)
+                        {
+                            if (x == 0 && y == 0 && z == 0) continue;
+                            Vector3 d((float)x, (float)y, (float)z);
+                            d.Normalize();
+                            dirs[n++] = d;
+                        }
+                const int perm[6][3] = { { 1, 2, 0 }, { 2, 1, 0 }, { 1, 0, 2 }, { 2, 0, 1 }, { 0, 1, 2 }, { 0, 2, 1 } };
+                for (int p = 0; p < 6; ++p)
+                    for (int s = 0; s < 4; ++s)
                     {
-                        if (x == 0 && y == 0 && z == 0) continue;
-                        Vector3 d((float)x, (float)y, (float)z);
+                        float v[3] = { (float)perm[p][0], (float)perm[p][1], (float)perm[p][2] };
+                        // 0 でない 2 つの成分に符号を付ける
+                        int k = 0;
+                        for (int i = 0; i < 3; ++i)
+                            if (v[i] != 0.0f) { if ((s >> k) & 1) v[i] = -v[i]; ++k; }
+                        Vector3 d(v[0], v[1], v[2]);
                         d.Normalize();
                         dirs[n++] = d;
                     }
-            const int perm[6][3] = { { 1, 2, 0 }, { 2, 1, 0 }, { 1, 0, 2 }, { 2, 0, 1 }, { 0, 1, 2 }, { 0, 2, 1 } };
-            for (int p = 0; p < 6; ++p)
-                for (int s = 0; s < 4; ++s)
-                {
-                    float v[3] = { (float)perm[p][0], (float)perm[p][1], (float)perm[p][2] };
-                    // 0 でない 2 つの成分に符号を付ける
-                    int k = 0;
-                    for (int i = 0; i < 3; ++i)
-                        if (v[i] != 0.0f) { if ((s >> k) & 1) v[i] = -v[i]; ++k; }
-                    Vector3 d(v[0], v[1], v[2]);
-                    d.Normalize();
-                    dirs[n++] = d;
-                }
-            init = true;
-        }
-        return dirs;
+            }
+        };
+        static const Table table;
+        return table.dirs;
     }
 
     // 点の集まりを包む凸体（kDopDirs 方向の支持平面。2026-10-06、巨石の衝突）。
@@ -606,53 +610,6 @@ namespace CollisionMath
             h.planes[f] = pl;
         }
         return h;
-    }
-
-    // ========================================================
-    // Capsule vs Capsule（Contact の A = cap1）
-    // ========================================================
-    inline bool IntersectCapsuleCapsule(const Capsule& cap1, const Capsule& cap2)
-    {
-        Vector3 a1, b1, a2, b2;
-        CapsuleSegment(cap1, a1, b1);
-        CapsuleSegment(cap2, a2, b2);
-        Vector3 c1, c2;
-        float distSq = ClosestPtSegmentSegment(a1, b1, a2, b2, c1, c2);
-        float r = cap1.radius + cap2.radius;
-        return distSq <= r * r;
-    }
-    inline bool IntersectCapsuleCapsule(const Capsule& cap1, const Capsule& cap2, Contact& out)
-    {
-        Vector3 a1, b1, a2, b2;
-        CapsuleSegment(cap1, a1, b1);
-        CapsuleSegment(cap2, a2, b2);
-        Vector3 c1, c2;
-        float distSq = ClosestPtSegmentSegment(a1, b1, a2, b2, c1, c2);
-        float r = cap1.radius + cap2.radius;
-        if (distSq > r * r) return false;
-        float dist = std::sqrt(distSq);
-        Vector3 d = c1 - c2;
-        out.normal = (dist > 1e-6f) ? d / dist : Vector3(0, 1, 0);
-        out.depth = r - dist;
-        out.point = c2 + out.normal * cap2.radius;
-        return true;
-    }
-
-    // ========================================================
-    // Segment vs Sphere / Capsule（bool のみ。命中判定用）
-    //   Segment は「太さ0の線分」として扱う
-    // ========================================================
-    inline bool IntersectSegmentSphere(const Segment& seg, const Sphere& s)
-    {
-        Vector3 closest = ClosestPointOnSegment(s.center, seg.start, seg.end);
-        return (s.center - closest).LengthSquared() <= s.radius * s.radius;
-    }
-    inline bool IntersectSegmentCapsule(const Segment& seg, const Capsule& cap)
-    {
-        Vector3 a, b; CapsuleSegment(cap, a, b);
-        Vector3 c1, c2;
-        float distSq = ClosestPtSegmentSegment(seg.start, seg.end, a, b, c1, c2);
-        return distSq <= cap.radius * cap.radius;
     }
 
     // ========================================================
@@ -751,7 +708,7 @@ namespace CollisionMath
         // 最近点までの距離
         float tClosest = (c1 - ray.origin).Dot(ray.dir);   // 射線に沿った距離
         // 表面までの手前分だけ戻す（三平方: sqrt(半径^2 - 最近距離^2)）
-        float back = std::sqrt(max(0.0f, rr - distSq));
+        float back = std::sqrt((std::max)(0.0f, rr - distSq));
         float t = tClosest - back;
 
         if (t < 0.0f) t = 0.0f;               // 起点がカプセル内 → t=0

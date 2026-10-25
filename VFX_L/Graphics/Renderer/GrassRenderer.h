@@ -8,7 +8,7 @@
 //   間引き: fullDensityDistance m から先は距離で間引き、残った葉を太くする。
 //           間引かれかけの葉は先に縮めるので、境目で葉が急に消えない。
 //           土の坂道・外周・登れない台地（Build の grassMask）と、崖の面（高さ場が急な所）には生やさない。
-//   葉の形: 1 枚 3 三角形（根元の四角が半分の高さで 0.6 倍に細り、先は三角）。両面。
+//   葉の形: 1 枚 21 頂点 = 7 三角形（背骨の t = 0, 1/4, 2/4, 3/4 の 4 段で四角 3 つ、先は三角。幅は先へ細る）。両面。
 //           色 = 地面の色（地形生成の GroundColor をテクスチャにした物）x 根元は暗く・先は明るく黄色寄り。
 //           光は Lighting.hlsli（太陽の影・霧も効く）。草は影を落とさない。
 //   動き: 風（風向きに流れる波 + 小さな揺れ）+ 踏み跡。踏み跡はフィールド全体を覆うテクスチャ（GrassTrampleCS）。
@@ -17,6 +17,11 @@
 //         風の向き・速さ・波は世界の風 WindState（WeatherSystem が作る。2026-10-12）。ここにあるのは「葉がどれだけ曲がるか」だけ
 //   燃え跡（2026-10-12、GrassFireField）: 温度・燃料のテクスチャを SetFire で受け取り、葉が燃料の減りで黒く短くなり、
 //         熱い所の先が橙に光る。渡されなければ以前のまま
+//   細部（2026-10-23、ユーザー：「草地をもう少し細かく、風に巻き上げられるとか」）:
+//         葉の動き（風・風源・踏み跡・燃え跡）は GrassCullCS が 1 本に 1 回計算し、背骨を 3 次ベジェ（根元・c1・c2・先）で
+//         渡す（以前は VS が頂点ごとに計算。葉は 9 → 21 頂点 = 4 段）。風源（竜巻・渦・砂旋・突風）の近くでは葉が流れの
+//         向きへ寝て震え、芯の上昇気流の中では先が上と芯へ巻き上がってねじれる。風は大小 2 つの波で、強い突風の所は
+//         葉が裏返って明るい裏側が見える（sheen）。1 割弱は枯れた黄色い葉。風源が通った跡は踏み跡に渦を巻いて残る
 //
 // 使い方（シーン）:
 //   Initialize → 地形生成の後 Build(grid, grassMask, seed)（作り直しの度にも）
@@ -74,6 +79,27 @@ public:
         float beamTrample = 2.0f;           // 光線のカプセルの半径 × これ の帯を横へ倒す（0 = しない）
         float enemyTrample = 0.65f;         // 雑魚の足元の押し倒しの強さ（0 = しない。プレイヤーは 1）
         float enemyRadius = 0.45f;          // 雑魚の足元の円 m（エリート 2.2 倍・ボス 3 倍・重装 1.3 倍）
+        // ---- 細部（2026-10-23）----
+        // 2 つ目の風の波（世界の風の波に重ねる小さな波）
+        float wave2Angle = 35.0f;           // 世界の風の向きから何度ずらすか
+        float wave2ScaleMul = 2.6f;         // 波の細かさ（1 m あたりの波の数）の倍率
+        float wave2SpeedMul = 1.7f;         // 速さの倍率
+        float wave2Weight = 0.45f;          // 混ぜる強さ 0〜1
+        // 突風で葉が裏返ると明るい裏側が見える（草の上を明るい帯が流れる）。風源に巻かれた葉も
+        DirectX::SimpleMath::Vector3 sheenColor = { 1.65f, 1.60f, 1.20f };   // 色に掛ける
+        float sheenAmount = 1.0f;           // 0 = 裏返らない（0.55 だとトゥーンの 2 段の下でほとんど見えなかった）
+        // 風源（竜巻・渦・砂旋・突風）
+        float vortexLaySpeed = 6.0f;        // 横の風がこの m/s で葉が流れの向きへ寝きる
+        float vortexLiftSpeed = 3.0f;       // 上昇の風がこの m/s で先が上と芯へ巻き上がりきる
+        float vortexFlutter = 0.22f;        // 風源の中の震え（先のずれ / 高さ。10 m/s の時）
+        float vortexTwist = 1.6f;           // 巻き上がった葉のねじれ rad
+        float trailStrength = 0.85f;        // 風源が通った跡を踏み跡へ押す強さ（0 = しない）
+        float trailSpeed = 7.0f;            // この m/s の風で跡が一番強い
+        // 葉の形
+        float twistMax = 0.6f;              // 普段のねじれ（± rad、1 本ずつばらばら）
+        float dryShare = 0.10f;             // 枯れた葉の割合
+        DirectX::SimpleMath::Vector3 dryColor = { 1.50f, 1.15f, 0.50f };     // 枯れた葉の色（掛ける。先ほど強く）
+        float debugWindMul = 1.0f;          // TEMP-TEST：世界の風の強さに掛ける（強い風の草の見た目を確かめる用）
     };
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
@@ -92,14 +118,13 @@ public:
     void SetWindSources(ID3D11ShaderResourceView* srv) { m_WindSourceSRV = srv; }
     // 燃え跡：温度（x）・燃料（y）のテクスチャ（GrassFireField::GetSRV）と、燃えていると見なす温度。null = 無し
     void SetFire(ID3D11ShaderResourceView* fire, float ignite) { m_FireSRV = fire; m_FireIgnite = ignite; }
-    // 突風（2026-10-12）：次の描画で pos の周り radius の草を外向きに一斉に倒す（踏み跡と同じ仕組み。踏み跡の回復で起き上がる）
-    // 突風：このフレームに 1 回、踏み跡の図へ押し倒しの型を押す。dir / length が 0 なら pos を中心に外向きの円盤、
-    // それ以外は pos から dir へ length m 伸びる扇（根元は細く、先で半径 radius）で、草は風下へ倒れる（2026-10-13）
+    // 突風（2026-10-12）：次の描画で 1 回、踏み跡の図へ押し倒しの型を押す（踏み跡の回復で起き上がる）。
+    // dir / length が 0 なら pos を中心に外向きの円盤、それ以外は pos から dir へ length m 伸びる扇
+    // （根元は細く、先で半径 radius）で、草は風下へ倒れる（2026-10-13）。
+    // 1 フレームに kMaxGusts 個まで別々に押す（2026-10-25：投石雨で同じフレームに何個落ちても、それぞれの所が倒れる）。
+    // それを超えたら半径の小さい物から置き換える
     void AddGust(const DirectX::SimpleMath::Vector3& pos, float radius,
-        const DirectX::SimpleMath::Vector2& dir = DirectX::SimpleMath::Vector2::Zero, float length = 0.0f)
-    {
-        m_GustPos = pos; m_GustRadius = (std::max)(m_GustRadius, radius); m_GustDir = dir; m_GustLength = length;
-    }
+        const DirectX::SimpleMath::Vector2& dir = DirectX::SimpleMath::Vector2::Zero, float length = 0.0f);
 
     // GPU の群れ（SwarmSystem）の池（2026-10-13）：揺れる範囲（爆発）と光線のカプセルは踏み跡に押し型を押し、
     // 雑魚の足元は GrassStampCS が押す。Render の前に毎フレーム渡す（Flush の後、SRV として読むだけ）。null = その分はしない
@@ -129,6 +154,8 @@ public:
     // 今の踏み跡（float2 = 倒す向き × 強さ。草を描いた後に読む物。タンポポの綿毛がほどける。2026-10-22）
     ID3D11ShaderResourceView* GetTrampleSRV() const { return m_TrampleSRV[m_TrampleCur].Get(); }
 
+    static constexpr int kMaxGusts = 4;   // 1 フレームの突風の数 = HLSL の GRASS_MAX_GUSTS
+
     // HLSL の GrassCB（Shader/Grass/GrassCommon.hlsli）と同じ並び
     struct GrassCB
     {
@@ -145,19 +172,30 @@ public:
         DirectX::SimpleMath::Vector3 tipColor; float trampleDecay;
         DirectX::SimpleMath::Vector3 player; uint32_t maxBlades;
         float fireIgnite, fireShrink, fireGlow, fireOn;   // 燃え跡（fireOn = 0 なら読まない）
-        DirectX::SimpleMath::Vector3 gustPos; float gustRadius;   // 突風（0 = 無し）
-        DirectX::SimpleMath::Vector2 gustDir; float gustLength; float gustPad;   // 前へ吹く突風（length 0 = 円盤）
+        DirectX::SimpleMath::Vector4 gustA[kMaxGusts];    // 突風：(根元 x, z, 向き x, z)
+        DirectX::SimpleMath::Vector4 gustB[kMaxGusts];    // 突風：(長さ, 半径, 0, 0)。半径 0 = 無し、長さ 0 = 円盤
         DirectX::SimpleMath::Vector4 trampleExtra;   // 爆発の半径倍率 / 光線の帯の半幅倍率 / 雑魚の足の強さ / 半径（2026-10-13）
+        // 細部（2026-10-23）
+        DirectX::SimpleMath::Vector4 wave2;          // xy = 2 つ目の波の向き, z = 1 m あたりの波の数, w = rad / 秒
+        DirectX::SimpleMath::Vector4 sheen;          // rgb = 裏返った葉の色の倍率, a = 量
+        DirectX::SimpleMath::Vector4 vortex;         // 寝きる風速 / 巻き上がる上昇風速 / 震え / ねじれ
+        DirectX::SimpleMath::Vector4 bladeShape;     // 普段のねじれ / 枯れ葉の割合 / 2 つ目の波の重み / 風源の跡の強さ
+        DirectX::SimpleMath::Vector4 dryColor;       // rgb = 枯れ葉の色, a = 跡が一番強くなる風速
     };
-    // HLSL の GrassBlade と同じ並び
+    // HLSL の GrassBlade と同じ並び（96 bytes。GrassCullCS が 1 本ずつ動かして書く。背骨は 3 次ベジェ、根元からの相対）
     struct GrassBlade
     {
         DirectX::SimpleMath::Vector3 pos; float height;
-        float yaw, width, curl, shade;
+        DirectX::SimpleMath::Vector3 c1; float width;
+        DirectX::SimpleMath::Vector3 c2; float twist;
+        DirectX::SimpleMath::Vector3 tip; float sheen;
+        DirectX::SimpleMath::Vector2 side; float shade, dry;
+        float burn, glow, pad[2];
     };
 
 private:
-    static constexpr uint32_t kMaxBlades = 262144;   // 8MB。近くを見下ろしても収まる（普段は数万本）
+    static constexpr uint32_t kMaxBlades = 262144;   // 24MB（1 本 96B）。近くを見下ろしても収まる（普段は数万本）
+    static constexpr uint32_t kBladeVertices = 21;   // 3 段の四角 + 先の三角（GrassVS）
     static constexpr int kTrampleSize = 512;          // 踏み跡のテクスチャの辺（200m のフィールドで 0.39m / texel）
     static constexpr uint32_t kMaxEnemyThreads = 4096; // = Swarm::kMaxEnemies（GrassStampCS は池の大きさを自分で見て余りは返る）
 
@@ -180,7 +218,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_BladeBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_BladeUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_BladeSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_Args;                     // { 9, 本数, 0, 0 }
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_Args;                     // { kBladeVertices（21）, 本数, 0, 0 }
+    // 葉の枠の予約数（GrassCullCS がグループ毎に足し、kMaxBlades を超えた分は Append しない。2026-10-25）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_BudgetBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_BudgetUAV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_CountStaging[2];          // 本数の読み戻し（1 フレーム遅れ）
     int m_Frame = 0;
     uint32_t m_LastCount = 0;
@@ -200,10 +241,16 @@ private:
     WindState m_Wind;
     ID3D11ShaderResourceView* m_FireSRV = nullptr;   // 非所有（GrassFireField の物。毎フレーム SetFire で渡される）
     float m_FireIgnite = 0.4f;
-    DirectX::SimpleMath::Vector3 m_GustPos;
-    float m_GustRadius = 0.0f;   // 次の Render で 1 回だけ押して 0 に戻す
-    DirectX::SimpleMath::Vector2 m_GustDir;
-    float m_GustLength = 0.0f;
+    // 突風（AddGust）。次の Render で 1 回だけ押して 0 本に戻す
+    struct PendingGust
+    {
+        DirectX::SimpleMath::Vector3 pos;
+        float radius = 0.0f;
+        DirectX::SimpleMath::Vector2 dir;
+        float length = 0.0f;
+    };
+    PendingGust m_Gusts[kMaxGusts];
+    int m_GustCount = 0;
     // 群れの池（非所有。毎フレーム SetSwarmSources で渡される。null = 無し）
     ID3D11ShaderResourceView* m_AreaSRV = nullptr;
     ID3D11ShaderResourceView* m_AreaStateSRV = nullptr;

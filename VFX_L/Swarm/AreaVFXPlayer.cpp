@@ -165,9 +165,9 @@ void AreaVFXPlayer::Update(float dt, const Vector3& followPos)
 
     // 捨てる条件：
     //   - Stop を送って少し経った（発射はもう止まっている。出た粒子は GPU の池で勝手に消える）
-    //   - loop しないエフェクトが自分で終わった
-    // ※IsFinishing を待たない。Finishing は「粒子池全体の生存数が 0」で抜ける作りなので、
-    //   戦闘中（他の粒子が常に居る）は永遠に終わらず、インスタンスが溜まり続ける
+    //   - loop しないエフェクトが自分で終わった（Playing → Finishing → Stopped）
+    // ※Finishing は「この effect の粒子が消え切る時間」（VFXEffect::GetFinishWait）を待って Stopped へ抜ける
+    //   （2026-10-25。それまでは粒子池全体の生存数 = 常に 1 を待っていて永遠に抜けず、ここは timeLeft でしか捨てられなかった）
     m_Active.erase(std::remove_if(m_Active.begin(), m_Active.end(),
         [](const Instance& i)
         {
@@ -176,8 +176,18 @@ void AreaVFXPlayer::Update(float dt, const Vector3& followPos)
         }), m_Active.end());
 }
 
+void AreaVFXPlayer::SubmitStill()
+{
+    // Stop を送った物は（次の Update で Finishing になって）もう描かないので積まない
+    for (auto& inst : m_Active)
+        if (!inst.stopped) inst.effect->SubmitStill();
+}
+
 void AreaVFXPlayer::StopAll()
 {
+    // その場で全部捨てる。entry の後始末（帯・モデル・発射源の登録の返却）は破棄の時に粒子系へ届くので、
+    // 粒子系（GPUParticleSystem）が生きている間に呼ぶこと。呼んだ後に残るのは雛形だけで、
+    // 雛形は再生していない = 粒子系に何も登録していないので、この後いつ破棄しても粒子系には触らない
     for (auto& inst : m_Active)
         inst.effect->Stop();
     m_Active.clear();

@@ -30,6 +30,7 @@
 #include "imgui.h"
 #include "Core/DevUI.h"
 #include "Core/Application.h"
+#include "Debug/FrameProfiler.h"
 
 // ============================================================
 // 初期化
@@ -57,6 +58,8 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
         std::cout << "[Error] GameUI: damage TextRenderer init failed" << std::endl;
         return false;
     }
+    // ダメージの数字の縁取りはシェーダーで（2026-10-23）。字体は余白 6px で焼いてある → 5 texel まで拾う
+    m_DamageText.EnableOutline(5.0f);
 
     auto blockTex = ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo);
 
@@ -148,7 +151,7 @@ void GameUI::Update(Registry& reg, Entity player, float dt)
     // ============================================================
     if (!reg.IsValid(player))
     {
-        m_Stack.Clear();
+        Clear();   // 層と一緒に、掴んでいる物・閉じる要求・「レベルアップ！」の待ちも下ろす
         return;
     }
 
@@ -158,10 +161,12 @@ void GameUI::Update(Registry& reg, Entity player, float dt)
         m_HUD.Update(dt, reg.Get<HealthComponent>(player), reg.Get<ManaComponent>(player),
             reg.Has<ShieldComponent>(player) ? &reg.Get<ShieldComponent>(player) : nullptr);
 
-    // 死んだら何も開かせない（「力尽きた」の幕 → リザルトへ進むだけ）
+    // 死んだら何も開かせない（「力尽きた」の幕 → リザルトへ進むだけ）。
+    // UpdateStack を通らないので、ここで待ちの状態も下ろす（下ろさないと、待ちの 1.2 秒の間に死んだ時
+    // 「レベルアップ！」の案内がリザルトまで HUD に残っていた）
     if (reg.Has<PlayerStateComponent>(player) && reg.Get<PlayerStateComponent>(player).IsDead())
     {
-        m_Stack.Clear();
+        Clear();
         return;
     }
 
@@ -193,18 +198,25 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         if (lv && lv->choiceDelay > 0.0f && !m_Stack.IsOpen(UILayer::LevelUp))
         {
             if (m_LevelUpWaitAge < 0.0f) m_LevelUpWaitAge = 0.0f;
-            m_LevelUpWaitAge += dt;
-            lv->choiceDelay -= dt;
+            // 待ちはゲームが動いている間だけ進める（一時停止のメニュー・止める設定のバックパックを開いている間は止める。
+            // 以前は実時間で進み、時間が来ると四択が一時停止のメニューの上に積まれていた = 1b の「四択の上には開かない」と逆の順）
+            if (!ShouldPauseGame())
+            {
+                m_LevelUpWaitAge += dt;
+                lv->choiceDelay -= dt;
+            }
             m_LevelUpWait = true;
         }
-        else
+        else if (!m_Stack.IsOpen(UILayer::LevelUp) && m_Stack.Top() != UILayer::Pause)
         {
+            // 一時停止のメニューの上には積まない（待ちが尽きた同じフレームに Esc を押した時など。閉じたら積む）
             m_Stack.Push(UILayer::LevelUp, UIManager::CloseMode::Forced);
+            m_LevelUp.OnOpen();   // 出る時の動き（暗幕・カードの浮き上がり）を毎回やり直す
         }
     }
     if (!m_LevelUpWait) m_LevelUpWaitAge = -1.0f;
 
-    // ---- 1b. 一時停止のメニュー（P / パッド Back）----
+    // ---- 1b. 一時停止のメニュー（Esc / パッド Back）----
     // 三択の上には開かない（選ぶまで閉じられない物の上に積むと戻り方がややこしい）。
     // グリッドの上には開ける。閉じればグリッドへ戻る
     if (InputMap::GetPauseToggle())
@@ -273,6 +285,13 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         AudioSystem::Get().Play(m_Stack.IsOpen(UILayer::Backpack) ? "ui_open" : "ui_close");
     }
 
+    // ---- 2b. バックパックが一番上でなくなったら、掴んでいる物は元へ戻す（マウスでもパッドでも同じ DragContext）----
+    // 四択（待ちが尽きた時）や一時停止のメニューが上に積まれても m_Drag が残っていると、戻ってきた次のフレームに
+    // BackpackUI が「ボタンが離れている = 置く」として今のカーソルの所へ落とし、置けない所ならグリッドから掴んだ物が
+    // 魔法書へ戻ってしまっていた。データは掴んだだけでは書き換えていないので、取り消せば元の位置に残る
+    if (m_Stack.Top() != UILayer::Backpack && m_Drag.IsActive())
+        m_Drag.Reset();
+
     // ---- 3. 一番上にだけ入力を渡す ----
     switch (m_Stack.Top())
     {
@@ -294,7 +313,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         m_LevelUp.SetReroll((m_LevelUpSystem && wallet) ? m_LevelUpSystem->RerollCost(lv) : -1, wallet ? wallet->Coins() : 0);
 
         ItemID picked;
-        if (m_LevelUp.HandleInput(lv, picked))
+        if (m_LevelUp.HandleInput(lv, picked, dt))
         {
             LevelUpSystem::Choose(reg, player, picked);
             m_Stack.Pop(UILayer::LevelUp);
@@ -341,7 +360,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 
     case UILayer::Pause:
     {
-        const auto action = m_Pause.HandleInput();
+        const auto action = m_Pause.HandleInput(dt);
         if (action == PauseMenuUI::Action::Resume)
             m_Stack.Pop(UILayer::Pause);
         else if (action != PauseMenuUI::Action::None)
@@ -350,7 +369,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     }
 
     case UILayer::Training:
-        if (m_Training.HandleInput())
+        if (m_Training.HandleInput(dt))
             m_Stack.Pop(UILayer::Training);
         break;
 
@@ -365,6 +384,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 // ============================================================
 void GameUI::Render(Registry& reg, Entity player)
 {
+    if (hideAll) return;
     bool drawDamage = false;
     m_Sprite.Begin();
     m_Text.Begin();
@@ -378,6 +398,7 @@ void GameUI::Render(Registry& reg, Entity player)
         && reg.Has<ManaComponent>(player)
         && reg.Has<LevelComponent>(player))
     {
+        PROFILE_SCOPE("UI HUD");
         const WandComponent* wand = reg.Has<WandComponent>(player)
             ? &reg.Get<WandComponent>(player) : nullptr;
         m_FrameInfo.wand = wand;
@@ -434,14 +455,25 @@ void GameUI::Render(Registry& reg, Entity player)
     }
 
     if (reg.IsValid(player))
+    {
+        PROFILE_SCOPE("UI Modals");
         DrawModals(reg, player);
+    }
 
-    m_Sprite.End();
-    m_Text.End();
+    // 区間ごとの計時（2026-10-23。Debug の負荷試験で「Game UI」が敵の数で伸びる原因を切り分ける）
+    {
+        PROFILE_SCOPE("UI Sprite End");
+        m_Sprite.End();
+    }
+    {
+        PROFILE_SCOPE("UI Text End");
+        m_Text.End();
+    }
 
     // ---- ダメージの数字（2026-10-17）。専用の字体（Res::Fnt::Damage。2026-10-18）なので別の TextRenderer、HUD の文字の上 ----
     if (drawDamage)
     {
+        PROFILE_SCOPE("UI Damage Numbers");
         m_DamageText.Begin();
         m_Damage.Draw(m_DamageText, m_FrameInfo.viewProj, m_ScreenW, m_ScreenH);
         m_DamageText.End();
@@ -451,7 +483,10 @@ void GameUI::Render(Registry& reg, Entity player)
     // 文字はスプライトの後にまとめて描かれるので、同じ組の中だと
     // tooltip の箱の上にバックパックの文字が透けて出る。別の組で最後に描く
     if (reg.IsValid(player))
+    {
+        PROFILE_SCOPE("UI Overlay");
         DrawOverlay(reg, player);
+    }
 }
 
 // ============================================================
@@ -461,29 +496,35 @@ void GameUI::Render(Registry& reg, Entity player)
 // ============================================================
 void GameUI::DrawOverlay(Registry& reg, Entity player)
 {
-    // ---- tooltip の中身（バックパックを操作している間だけ）----
-    ItemInfo::Sheet sheet;
+    // ---- tooltip に出す物（バックパックを操作している間だけ）----
+    // placed = バックパックに置いてある物（index）、それ以外はアイテムそのもの（descId）
     bool tooltip = false;
+    bool placed = false;
+    int placedIndex = -1;
+    ItemID descId = ItemID::Unknown;
+    const BackpackComponent* bp = reg.Has<BackpackComponent>(player) ? &reg.Get<BackpackComponent>(player) : nullptr;
     // 置いてある魔法の数字は能力アップ「魔法威力」込み（集約と同じ）
     const float spellPower = reg.Has<PlayerStatsComponent>(player) ? reg.Get<PlayerStatsComponent>(player).spellPower : 1.0f;
     // パッド操作中はカーソルを止めて少し経ってから、指している物のそばに出す
     const bool pad = m_Pad.IsActive();
     if (m_Stack.CanReceiveInput(UILayer::Backpack) && !m_Drag.IsActive()
-        && reg.Has<BackpackComponent>(player)
+        && bp
         && (pad ? m_Pad.TooltipReady() : !DevUI::WantMouse()))
     {
-        const auto& bp = reg.Get<BackpackComponent>(player);
         const int item = m_Backpack.GetHoverItemIndex();
         const int frame = m_Backpack.GetHoverFrameIndex();
         ItemID bookId = ItemID::Fireball;
 
         tooltip = true;
-        if (item >= 0 && item < (int)bp.items.size())
-            sheet = ItemInfo::DescribePlaced(bp, item, spellPower);
-        else if (frame >= 0 && frame < (int)bp.frames.size())
-            sheet = ItemInfo::Describe(bp.frames[frame].id);
+        if (item >= 0 && item < (int)bp->items.size())
+        {
+            placed = true;
+            placedIndex = item;
+        }
+        else if (frame >= 0 && frame < (int)bp->frames.size())
+            descId = bp->frames[frame].id;
         else if (m_Spellbook.GetHoveredItem(bookId))
-            sheet = ItemInfo::Describe(bookId);
+            descId = bookId;
         else
             tooltip = false;
     }
@@ -495,12 +536,12 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
         anchor = { mp.x, mp.y };
         if (pad) anchor = m_Pad.TooltipAnchor();
     }
-    if (m_TestTooltipItem >= 0 && reg.Has<BackpackComponent>(player))
+    if (m_TestTooltipItem >= 0 && bp)
     {
-        const auto& bp = reg.Get<BackpackComponent>(player);
-        if (m_TestTooltipItem < (int)bp.items.size())
+        if (m_TestTooltipItem < (int)bp->items.size())
         {
-            sheet = ItemInfo::DescribePlaced(bp, m_TestTooltipItem, spellPower);
+            placed = true;
+            placedIndex = m_TestTooltipItem;
             tooltip = true;
             anchor = m_TestTooltipPos;
         }
@@ -517,10 +558,41 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
 
     if (tooltip)
     {
+        // ---- 中身：指している物・バックパックの番号・形の番号・魔法威力が前と同じなら作り直さない ----
+        TooltipCache& tc = m_TooltipCache;
+        const uint32_t bpRev = (placed && bp) ? bp->revision : 0;
+        const uint32_t shapeRev = ItemDatabase::ShapeRevision();
+        if (!tc.valid || tc.placed != placed || tc.index != placedIndex || tc.id != descId
+            || tc.bpRevision != bpRev || tc.shapeRevision != shapeRev || tc.spellPower != spellPower)
+        {
+            tc.sheet = placed ? ItemInfo::DescribePlaced(*bp, placedIndex, spellPower) : ItemInfo::Describe(descId);
+            tc.valid = true;
+            tc.placed = placed;
+            tc.index = placedIndex;
+            tc.id = descId;
+            tc.bpRevision = bpRev;
+            tc.shapeRevision = shapeRev;
+            tc.spellPower = spellPower;
+            tc.layoutValid = false;
+        }
+
+        // ---- 折り返し：幅と文字の大きさ（画面の大きさ・UI の倍率で変わる）も同じなら使い回す ----
         const float shortSide = (std::min)(m_ScreenW, m_ScreenH);
-        ItemSheetView::DrawTooltip(m_Sprite, m_WhiteTex, m_Text, sheet,
-            anchor, { m_ScreenW, m_ScreenH }, shortSide * 0.36f * UIDeco::UIScale(),
-            m_TooltipStyle.Scaled(shortSide / 900.0f * UIDeco::UIScale()));
+        const float width = shortSide * 0.36f * UIDeco::UIScale();
+        const ItemSheetView::Style st = m_TooltipStyle.Scaled(shortSide / 900.0f * UIDeco::UIScale());
+        if (!tc.layoutValid || tc.layoutWidth != width || tc.layoutBody != st.bodyScale
+            || tc.layoutSmall != st.smallScale || tc.layoutPad != st.pad)
+        {
+            tc.layout = ItemSheetView::LayoutTooltip(m_Text, tc.sheet, width, st);
+            tc.layoutValid = true;
+            tc.layoutWidth = width;
+            tc.layoutBody = st.bodyScale;
+            tc.layoutSmall = st.smallScale;
+            tc.layoutPad = st.pad;
+        }
+
+        ItemSheetView::DrawTooltipLaidOut(m_Sprite, m_WhiteTex, m_Text, tc.sheet, tc.layout,
+            anchor, { m_ScreenW, m_ScreenH }, width, st);
     }
 
     m_Sprite.End();

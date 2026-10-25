@@ -5,7 +5,7 @@
 // 全体で1組だけ作って使い回す（各モジュールで作らない）。
 //
 // 基本は DirectXTK の CommonStates を利用し、
-// 足りないもの（Skybox 用 depth 等）と「用途別プリセット」だけ自前で持つ。
+// 足りないもの（ステンシルを書く深度・自前の背面カリング）と「用途別プリセット」だけ自前で持つ。
 // ============================================================
 #pragma once
 #include <d3d11.h>
@@ -33,13 +33,11 @@ public:
     ID3D11DepthStencilState* DepthDefault()  const { return m_Common->DepthDefault(); }
     ID3D11DepthStencilState* DepthReadOnly() const { return m_Common->DepthRead(); }
     ID3D11DepthStencilState* DepthNone()     const { return m_Common->DepthNone(); }
-    ID3D11DepthStencilState* DepthLessEqual() const { return m_DepthLessEqual.Get(); }  // Skybox 用
     // 深度は普通どおり + ステンシルに参照値を書く（陣営のアウトライン。2026-10-06）。
     // OMSetDepthStencilState(DepthStencilWrite(), 陣営の番号)。Restore で元（ステンシル無し）に戻る
     ID3D11DepthStencilState* DepthStencilWrite() const { return m_DepthStencilWrite.Get(); }
 
     ID3D11RasterizerState* CullBack()  const { return m_CullBack.Get(); }
-    ID3D11RasterizerState* CullFront() const { return m_CullFront.Get(); }
     ID3D11RasterizerState* CullNone()  const { return m_Common->CullNone(); }
     ID3D11RasterizerState* Wireframe() const { return m_Common->Wireframe(); }
 
@@ -57,9 +55,6 @@ public:
     // 半透明（UI・フェード等）：アルファ合成、深度読むだけ
     void ApplyAlphaBlend(ID3D11DeviceContext* ctx) const;
 
-    // Skybox：前面カリング、深度 LESS_EQUAL
-    void ApplySkybox(ID3D11DeviceContext* ctx) const;
-
 	// UI：アルファ合成、深度無し
     void ApplyUI(ID3D11DeviceContext* ctx) const;
     
@@ -75,10 +70,8 @@ private:
     std::unique_ptr<DirectX::CommonStates> m_Common;
 
     // CommonStates に無いもの
-    Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_DepthLessEqual;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_DepthStencilWrite;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState>   m_CullBack;
-    Microsoft::WRL::ComPtr<ID3D11RasterizerState>   m_CullFront;
 
     bool m_Initialized = false;
 };

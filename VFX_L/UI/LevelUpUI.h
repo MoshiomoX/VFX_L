@@ -28,7 +28,12 @@ public:
     void Layout(float screenW, float screenH);
 
     // 選ばれた ID を返す。まだ選ばれていなければ false。
-    bool HandleInput(const LevelComponent& lv, ItemID& outPicked);
+    // dt = 実時間の秒（出た直後の猶予を減らす。ゲームが止まっている間も渡す）
+    bool HandleInput(const LevelComponent& lv, ItemID& outPicked, float dt = 0.016f);
+
+    // 四択の層を積んだ時に GameUI が呼ぶ（出る時の動き・カーソル・猶予を毎回やり直す）。
+    // 以前は Draw が候補 0 枚を見た時にしか戻さず、選んだ同じフレームに層が下りるので、動きは最初の 1 回しか出なかった
+    void OnOpen() { m_Shown = false; m_WasChoosing = false; }
 
     // text は能力値のカード（形が無い物）の文字に使う。SpriteRenderer の後に描かれる
     void Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComponent& lv);

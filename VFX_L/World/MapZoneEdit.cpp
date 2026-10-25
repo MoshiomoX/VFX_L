@@ -54,18 +54,25 @@ namespace
         info.top.y = p.top;
         return info;
     }
+
+    // 区域の形から決まる物を作り直せる地図か（版 5 以降。三層が無くてもよい）
+    bool HasZoneParams(const MapData::Map& map)
+    {
+        return MapTerrainEdit::HasParts(map) && map.hasZoneParams;
+    }
 }
 
 namespace MapTerrainEdit
 {
     bool CanEditZones(const MapData::Map& map)
     {
-        return HasParts(map) && map.hasZoneParams;
+        // 三層を切った地図は summitH / mineD / roofTopY が 0（2026-10-25）：塗れても高さの無い区域になるので塗らせない
+        return HasZoneParams(map) && map.summitH > 0.0f && map.mineD > 0.0f;
     }
 
     int PaintZone(MapData::Map& map, int cx, int cz, int radius, uint8_t zone)
     {
-        if (zone > 2) return 0;
+        if (zone > 2 || !CanEditZones(map)) return 0;
         int changed = 0;
         const float r2 = ((float)radius + 0.5f) * ((float)radius + 0.5f);
         for (int z = cz - radius; z <= cz + radius; ++z)
@@ -84,7 +91,7 @@ namespace MapTerrainEdit
 
     void RegenZones(MapData::Map& map, bool regenProps)
     {
-        if (!CanEditZones(map)) return;
+        if (!HasZoneParams(map)) return;   // 三層の無い地図も床の箱は作り直す（筆で地面を下げた後）
         const int gw = map.gw, gd = map.gd;
         GridWorld origin;
         origin.Init(gw, gd);
@@ -93,13 +100,25 @@ namespace MapTerrainEdit
         MineRampRects(map, mineRamps, mouths, landings);
 
         // ---- 記録の札：今ある物を引き継ぐ（無ければ新しく振る）----
+        // 床の箱の底も今の箱から引き継ぐ：生成の式は台座で均す前の起伏の一番低い所を見るので、記録からは同じ値を作り直せない。
+        // 箱が無ければ洞窟の底の 1m 下。どちらも上面（平原・山頂・洞窟の底）より 1m 以上下へ（FloorBottomBelowTops は生成と共通。
+        // 2026-10-25。以前は -mineD - 1 固定で、三層を切った地図（mineD = 0）では上面（起伏の谷 - 0.1m）が -1m より下になり、
+        // 箱が裏返って戦闘で衝突の std::clamp が落ちた）
         MapData::Tag floorTag, roofTag;
         bool hasFloor = false, hasRoof = false;
+        float floorBottom = -map.mineD - 1.0f;
         for (const auto& b : map.boxes)
         {
-            if (b.tag.kind == MapData::kFloor && !hasFloor) { floorTag = b.tag; hasFloor = true; }
+            if (b.tag.kind == MapData::kFloor)
+            {
+                const float bottom = (std::min)(b.lo.y, b.hi.y);   // 前の版が作った裏返った箱でも低い方
+                floorBottom = hasFloor ? (std::min)(floorBottom, bottom) : bottom;
+                if (!hasFloor) floorTag = b.tag;
+                hasFloor = true;
+            }
             if (b.tag.kind == MapData::kCaveRoof && !hasRoof) { roofTag = b.tag; hasRoof = true; }
         }
+        floorBottom = FloorBottomBelowTops(floorBottom, map.floorPlainTop, map.floorSummitTop, map.mineD);
         if (!hasFloor) { floorTag.kind = (uint16_t)MapData::kFloor; floorTag.group = map.nextGroup++; }
         if (!hasRoof) { roofTag.kind = (uint16_t)MapData::kCaveRoof; roofTag.group = map.nextGroup++; }
 
@@ -118,7 +137,7 @@ namespace MapTerrainEdit
 
         Emitter rec(&map);
         rec.SetTag(floorTag);
-        EmitFloorBoxes(rec, origin, map.zone, -map.mineD - 1.0f, map.floorPlainTop, map.floorSummitTop, map.mineD);
+        EmitFloorBoxes(rec, origin, map.zone, floorBottom, map.floorPlainTop, map.floorSummitTop, map.mineD);
         if (cave)
         {
             rec.SetTag(roofTag);
@@ -206,7 +225,7 @@ namespace MapTerrainEdit
 // 岩・松明は置き直さない（乱数の並びが生成と違うので比べない）
 bool MapTerrainEdit::detail::ZonesMatch(const MapData::Map& map)
 {
-    if (!CanEditZones(map)) return false;
+    if (!HasZoneParams(map)) return false;
     MapData::Map copy = map;
     RegenZones(copy, false);
     auto sameRamps = [](const std::vector<MapData::Ramp>& a, const std::vector<MapData::Ramp>& b)

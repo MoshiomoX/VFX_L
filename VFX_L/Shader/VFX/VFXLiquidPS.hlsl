@@ -70,7 +70,21 @@ float4 main(LiquidVSOut i) : SV_TARGET
     float slope = L.bump * 6.0 * x * (1.0 - x) / max(L.depthWidth, 1e-3);
     float2 gw = g.x * fwd + g.y * lft;   // local -> world xz
     // slow swirl: brightness and a small ripple (finite differences of the noise)
-    float2 sp = i.local * L.swirlScale + float2(g_LTime * 0.15, -g_LTime * 0.11);
+    // vortex (2026-10-24, the sand guardian's quicksand): twist the noise around the centre by its distance and
+    // turn it all, so spiral arms wind around. Turns from forward toward left = the same way as a wind source's swirl
+    float2 q = i.local;
+    float2 drift = float2(g_LTime * 0.15, -g_LTime * 0.11);
+    if (L.flags != 0u)
+    {
+        float vSpin = (float) (L.flags & 0xFFFFu) * 0.01;
+        float vTwist = (float) (L.flags >> 16) * 0.01;
+        float va = vTwist * length(q) - vSpin * g_LTime;
+        float vs, vc;
+        sincos(va, vs, vc);
+        q = float2(q.x * vc - q.y * vs, q.x * vs + q.y * vc);
+        drift = float2(0.0, 0.0);
+    }
+    float2 sp = q * L.swirlScale + drift;
     float n0 = LiquidNoise(sp);
     float nx = LiquidNoise(sp + float2(0.25, 0.0));
     float ny = LiquidNoise(sp + float2(0.0, 0.25));

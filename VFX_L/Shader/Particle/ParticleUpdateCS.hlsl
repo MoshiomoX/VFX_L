@@ -1,14 +1,16 @@
 // ============================================
 // ParticleUpdateCS.hlsl
-// 粒子更新CS — 寿命処理 / 物理 / 色補間 / AliveList 構築
+// Particle update CS: lifetime / physics / colour over life / alive lists.
 //
-// 所有者別の生存数もここで数える（VFX状態機の Finishing 判定用）
+// Also counts the alive billboards that carry a screen distortion level
+// (g_Stats[0], read back by GPUParticleSystem::HasDistortion, 2026-10-25),
+// so the scene runs the distortion pass only while there is something to bend.
+// (The per-owner alive count that used to live here was never bound by the
+// C++ side and was removed 2026-10-25.)
 // ============================================
 
 #include "Common/ParticleCommon.hlsli"
 #include "../Common/WindSources.hlsli"
-
-#define PARTICLE_MAX_OWNERS 1024
 
 // World wind (2026-10-12): particles whose renderMode bits 26-29 are set
 // drift toward the wind (smoke / mist / rain / sand; sparks stay 0).
@@ -38,8 +40,8 @@ StructuredBuffer<WindSource> g_WindSources : register(t1);   // local wind: the 
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 AppendStructuredBuffer<uint> deadList : register(u1);
 RWBuffer<uint> g_DrawArgs : register(u2);
-RWStructuredBuffer<uint> aliveList : register(u3); // 存活粒子 index リスト (billboard)
-RWBuffer<uint> ownerAlive : register(u4); // 所有者ごとの生存数
+RWStructuredBuffer<uint> aliveList : register(u3); // alive particle indices (billboards)
+RWBuffer<uint> g_Stats : register(u4);             // [0] = alive billboards with a distortion level (cleared every frame by the C++ side)
 RWStructuredBuffer<uint> aliveMesh : register(u5); // alive mesh particles, PARTICLE_MESH_BUCKET_CAP per bucket
 RWBuffer<uint> meshCounts : register(u6); // particles per bucket (copied into each submesh's draw args)
 
@@ -64,8 +66,8 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // --- 生存確定：DrawArgs に +1、AliveList に index を追加 ---
-    // renderMode で billboard / mesh に振り分ける（描画パスが別）
+    // --- alive: count it into the draw args and add its index to an alive list ---
+    // billboards and meshes have separate lists (separate draw passes), chosen by renderMode
     uint instanceIndex;
     if (ParticleMeshSlotPlusOne(p.renderMode) != 0u)
     {
@@ -81,16 +83,12 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         InterlockedAdd(g_DrawArgs[1], 1, instanceIndex);
         aliveList[instanceIndex] = id.x;
+
+        // the same test as GPUParticleVS g_Pass 3 (only these are drawn into the distortion target)
+        if (ParticleDistortLevel(p.renderMode) != 0u)
+            InterlockedAdd(g_Stats[0], 1u);
     }
 
-    // --- 所有者別に数える（死んだ粒子は数えない）---
-    // ※範囲外/負値は 0（無主バケツ）へ落とす。
-    //   clamp で MAX-1 に寄せると正規の所有者と混ざるので不可。
-    uint oid = (p.ownerID >= 0 && p.ownerID < PARTICLE_MAX_OWNERS)
-             ? (uint) p.ownerID : 0u;
-    InterlockedAdd(ownerAlive[oid], 1);
-
-    // --- 以下は既存のまま ---
     float t = GetLifeRatio(p);
 
     // atlasAnimate = (first << 12) | count (see InitParticleFrame)
@@ -131,7 +129,8 @@ void main(uint3 id : SV_DispatchThreadID)
             ColorKey next = colorKeys[p.colorKeyOffset + k];
             if (t >= prev.time && t <= next.time)
             {
-                float localT = (t - prev.time) / (next.time - prev.time);
+                // two keys at the same time: no division by zero (a NaN colour would be spread by the bloom)
+                float localT = (t - prev.time) / max(next.time - prev.time, 1e-5);
                 result = lerp(prev.color, next.color, localT);
                 break;
             }

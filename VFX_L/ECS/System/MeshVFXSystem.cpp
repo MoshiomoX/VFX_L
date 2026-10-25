@@ -168,8 +168,10 @@ void MeshVFXSystem::Update(Registry& reg, float dt, const VFXContext& ctx)
             });
 
     // ---- 2) VFX の追従と emitter の積み上げ ----
+    // MeshVFXComponent を持つ物（燃えているエリートなど数体）だけ回す（Each だと Transform を持つ全実体を見る）。
+    // この中では実体も MeshVFXComponent も消さない（消すのは 3) で、走査の後）
     reg.CreateView<TransformComponent, ModelComponent, MeshVFXComponent>()
-        .Each([&](Entity e, TransformComponent& tf, ModelComponent& mc, MeshVFXComponent& comp)
+        .EachFrom<MeshVFXComponent>([&](Entity e, TransformComponent& tf, ModelComponent& mc, MeshVFXComponent& comp)
             {
                 if (!comp.effect || !comp.world) return;
 

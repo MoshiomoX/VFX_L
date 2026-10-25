@@ -69,7 +69,9 @@ VS_OUTPUT ModelVS(VS_INPUT input)
     o.WorldPos = worldPos.xyz;
     o.Position = mul(mul(worldPos, View), Projection);
     o.Normal = normalize(mul(input.Normal, (float3x3) World));
-    o.Tangent = normalize(mul(input.Tangent, (float3x3) World));
+    // a mesh without tangents (zero vector) stays 0 instead of NaN; PerturbNormal then keeps the normal
+    float3 tw = mul(input.Tangent, (float3x3) World);
+    o.Tangent = (dot(tw, tw) > 1e-12) ? normalize(tw) : float3(0.0, 0.0, 0.0);
     o.UV = input.UV;
     o.Color = input.Color;
     return o;

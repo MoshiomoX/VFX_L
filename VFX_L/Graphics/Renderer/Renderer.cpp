@@ -11,7 +11,7 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_Context = context;
 
     m_DefaultVS = std::make_shared<VertexShader>();
-    // ?Debug/Release ?? cso ???(ShaderPath ??)
+    // 構成（Debug / Release）に合った cso を読む（ShaderPath が選ぶ）
     HRESULT hrVS = ShaderPath::Load(m_DefaultVS.get(), device, L"Shader/VS.hlsl");
     if (FAILED(hrVS))
     {
@@ -27,7 +27,7 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     }
 
     m_DefaultTexture = std::make_shared<Texture>();
-    m_DefaultTexture->CreateSolid(device, 255, 255, 255, 255);   // ?1x1
+    m_DefaultTexture->CreateSolid(device, 255, 255, 255, 255);   // 白の 1x1（材質の無いメッシュの t0）
     m_LightData.directionalLight.direction = Vector3(0.5f, -1.0f, 0.5f);
     m_LightData.directionalLight.direction.Normalize();
     m_LightData.directionalLight.color = Vector3(1.0f, 1.0f, 1.0f);
@@ -36,21 +36,7 @@ bool Renderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_LightData.groundAmbientColor = m_LightData.ambientColor;
 
     std::cout << "[OK] Renderer initialized" << std::endl;
-    // ????????(???? + WRAP)?PBR?t0~t4???
-    //D3D11_SAMPLER_DESC sd = {};
-    //sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    //sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    //sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    //sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    //sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    //sd.MinLOD = 0;
-    //sd.MaxLOD = D3D11_FLOAT32_MAX;
-
-    //if (FAILED(device->CreateSamplerState(&sd, &m_DefaultSampler)))
-    //{
-    //    std::cout << "[Error] Default sampler create failed" << std::endl;
-    //    return false;
-    //}
+    // サンプラーは RenderStates の共通の物（LinearWrap）を DrawMesh で s0 に張る
     if (!RenderStates::Get().Initialize(device))
     {
         std::cout << "[Error] RenderStates init failed" << std::endl;
@@ -163,7 +149,7 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
     {
         vs->Bind(m_Context);
         ps->Bind(m_Context);
-        // ??????? ? ??????? t0 ?(?????????)
+        // 材質が無い時は白のテクスチャを t0 へ（テクスチャ × 頂点色 = 頂点色のまま）
         if (m_DefaultTexture)
             m_DefaultTexture->Bind(m_Context, 0);
     }
@@ -177,7 +163,7 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
     mvp.Projection = m_Camera->GetProjectionMatrix();
     vs->WriteBuffer(m_Context, 0, &mvp);
 
-    // PS CBuffer (b0): Light
+    // PS CBuffer (b0): Light（中身が前と同じなら Shader::WriteBuffer が書き直さない）
     m_LightData.cameraPosition = m_Camera->GetPosition();
     ps->WriteBuffer(m_Context, 0, &m_LightData);
 
@@ -200,10 +186,30 @@ void Renderer::DrawMesh(Mesh* mesh, Transform* transform, Material* material)
 
     // t6/t7: 今フレームの点光源（無い PS では無視される）
     auto& lights = PointLightManager::Get();
+    if (m_LightBatch > 0)
+    {
+        // 続けて描く並びの中: 最初の 1 回だけ張る（外すのは EndLightBatch）
+        if (!m_LightBatchBound)
+        {
+            lights.BindPS(m_Context);
+            m_LightBatchBound = true;
+        }
+        mesh->Draw(m_Context);
+        return;
+    }
     lights.BindPS(m_Context);
     mesh->Draw(m_Context);
     // 次フレームの Update で CS が UAV にするので外す（HAZARD 警告を出さない）
     lights.UnbindPS(m_Context);
+}
+
+void Renderer::EndLightBatch()
+{
+    if (m_LightBatch <= 0) return;
+    if (--m_LightBatch > 0) return;   // 入れ子の内側
+    if (m_LightBatchBound)
+        PointLightManager::Get().UnbindPS(m_Context);
+    m_LightBatchBound = false;
 }
 
 void Renderer::End()

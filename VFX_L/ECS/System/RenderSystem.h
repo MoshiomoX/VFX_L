@@ -39,4 +39,7 @@ private:
     std::shared_ptr<ComputeShader> m_SkinningCS;   // 初回描画時に ResourceManager から取る
     std::vector<uint32_t> m_Drawables;              // Entity
     bool m_DrawablesFresh = false;                  // このフレームで集めた（Render の最後で戻す）
+    // 描画フレームの印（GatherDrawables で進める）。骨付きの実体はこの印のフレームに 1 回だけスキニングする
+    // （影のカスケード 0 と本描画で同じ姿勢を 2 回 SkinningCS に掛けていた。SkinnedModelGPU::GetSkinnedStamp）
+    uint32_t m_FrameStamp = 0;
 };

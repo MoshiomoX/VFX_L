@@ -42,6 +42,7 @@ private:
     std::array<std::string, Swarm::kAreaBirthKinds> m_RecipeCue;   // VFX レシピ番号 → cue
     std::array<uint32_t, Swarm::kAreaBirthKinds> m_Births = {};
     int  m_Stage = 1;
+    std::string m_StageTrack = "stage1";   // 面の曲の名前（Init で作る）
     bool m_PrevGrounded = true;
     bool m_PrevSlide = false;
     int  m_PrevAirJumps = 0;

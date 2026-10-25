@@ -6,8 +6,9 @@
 // writes an offset (in uv units, before the composite's strength) into the
 // R16G16 target: the shape (texture alpha x colour alpha, the VS folded the
 // level into the alpha) pushes the picture outward from the quad's centre.
-// Added with ONE / ONE so overlapping puffs sum. The composite
-// (CompositePS) samples the scene at uv + offset x strength.
+// Added with ONE / ONE so overlapping puffs sum. Graphics::ApplyDistortion
+// (DistortApplyPS, after the 3D scene and before the UI, so the HUD is never
+// bent) samples the scene at uv + offset x strength.
 // ============================================================
 
 Texture2D g_Sheet0 : register(t0);

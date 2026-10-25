@@ -34,6 +34,14 @@ public:
     bool IsAllEntriesDone() const;
     void ResetTimeline();
     uint32_t GetAliveCount(const VFXContext& ctx) const;
+    // Finishing（発射を止めた後）で待つ秒数（2026-10-25）。粒子池全体の生存数は CPU に分からないので、
+    // この effect が出した物が消え切るまでの時間 = 一番長い粒子の寿命（帯付きなら + 帯の長さ）・Trail entry の長さ + 余裕
+    float GetFinishWait() const;
+
+    // 一時停止中用（2026-10-25）：時間を進めず、粒子も出さず、Mesh / Sprite / 光線 / 液溜まり / 点光源を
+    // 今の状態のままもう一度積む。各 Renderer と PointLightManager は毎フレーム空になるので、
+    // Update を呼ばないフレームに呼ぶと見た目が消えない。Playing の時だけ何かする
+    void SubmitStill();
 
     // --- ステートマシン駆動（新しい API）---
     void InitStateMachine(const VFXContext& ctx);
@@ -48,12 +56,13 @@ public:
 
     // テンプレートからインスタンスを複製する（entries を深くコピー）
     void CloneFrom(const VFXEffect& src);
-    // インスタンスを Y 軸回りに回す（粒子の発射位置・向き、点光源の位置）。複製した直後に 1 回
+    // インスタンスを Y 軸回りに回す（粒子の発射位置・向き、点光源・Mesh・Sprite・Trail・光線・液溜まりのずらし、
+    // Mesh の yaw、光線・液溜まりのプレビューの向き）。複製した直後に 1 回
     void RotateYaw(float degrees);
     // インスタンス全体を s 倍の大きさにする（粒子の発射位置・形・速さ・大きさ・重力、Mesh の位置と縮尺、
     // 点光源の位置と半径、Sprite の大きさと位置）。複製した直後に 1 回（拡大鏡で広がった範囲の見た目。2026-10-22）
     void Scale(float s);
-    // 色を掛ける（粒子の開始 / 終了色、点光源の色）。複製した直後に 1 回（水晶玉の光球。2026-10-06）
+    // 色を掛ける（粒子の開始 / 終了色、点光源の色、Mesh entry の tint）。複製した直後に 1 回（水晶玉の光球。2026-10-06）
     void Tint(const DirectX::SimpleMath::Vector3& c) { for (auto& e : m_Entries) e->Tint(c); }
 
     // 全 emitter に加算されるワールド位置（投射物追従用）
@@ -77,6 +86,9 @@ public:
     void SetPresence(float k, bool leaving) { m_Presence = k; m_PresenceLeaving = leaving; }
     bool IsGPUTimelineIgnored() const { return m_GPUTimelineIgnored; }
 private:
+    // 粒子以外の見た目（Mesh / Sprite / 光線 / 液溜まり / 点光源）を各描画先へ積む。CollectAndDispatch と SubmitStill の共通部分
+    void SubmitDrawables(const VFXContext& ctx);
+
     std::string m_Name = "NewEffect";
     std::vector<std::unique_ptr<VFXEntry>> m_Entries;
     bool m_Loop = false;

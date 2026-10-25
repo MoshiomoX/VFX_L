@@ -1,7 +1,7 @@
-    // ============================================
+// ============================================
 // ParticleCommon.hlsli
-// GPU粒子システム共通定義
-// 構造体 + 乱数関数 + ユーティリティ
+// Shared definitions of the GPU particle system:
+// structs + random functions + utilities
 // ============================================
 
 #ifndef PARTICLE_COMMON_HLSLI
@@ -68,7 +68,9 @@ float ParticleStretch(int renderMode)
 // bit 15 = distortion only (invisible in the colour passes; the toon outline
 // bit, meaningless without the toon bit 14). GPUParticleVS g_Pass 3 draws
 // only the particles with a level > 0 into the offset target
-// (ParticleDistortPS); the composite bends the scene by it.
+// (ParticleDistortPS); Graphics::ApplyDistortion then bends the scene by it,
+// after the 3D scene and before the UI (so the HUD is never bent).
+// UpdateCS counts these particles (GPUParticleSystem::HasDistortion).
 // Must match ParticleRenderMode::kDistortShift / kDistortOnly
 #define PARTICLE_DISTORT_SHIFT 10u
 #define PARTICLE_DISTORT_ONLY (1u << 15)
@@ -122,8 +124,8 @@ uint ParticleMeshBucket(int renderMode)
 }
 
 // ============================================
-// GPU粒子構造体 (C++側のGPUParticleと一致)
-// 128バイト
+// GPU particle (matches the C++ GPUParticle)
+// 192 bytes (the static_assert in GPUParticle.h is the real guard)
 // ============================================
 struct GPUParticle
 {
@@ -161,7 +163,8 @@ struct GPUParticle
     uint trailState; // bits 0-7 ring write position / bits 8-15 valid sample count
 };
 // ============================================
-// GPU発射器構造体 (C++側のGPUEmitterと一致)
+// GPU emitter (matches the C++ GPUEmitter, 336 bytes).
+// maxParticles / particleOffset are never read by any shader (layout only)
 // ============================================
 struct GPUEmitter
 {
@@ -227,7 +230,7 @@ struct EmitSourceLayout
     uint _pad1;
 };
 // ============================================
-// ColorKey構造体 (色変化のキーフレーム用)
+// ColorKey (a key frame of the colour over the lifetime)
 // ============================================
 struct ColorKey
 {
@@ -238,15 +241,15 @@ struct ColorKey
     float _pad2;
 };
 // ============================================
-// GPU衝突体構造体 (C++側のGPUColliderと一致)
-// 48バイト
+// GPU collider (the C++ GPUCollider was removed; nothing uses this struct)
+// 48 bytes
 // ============================================
 struct GPUCollider
 {
-    float3 center; // Sphere:中心 / AABB:min / Capsule:始点
-    float radius; // Sphere/Capsule:半径
+    float3 center; // Sphere: centre / AABB: min / Capsule: start
+    float radius; // Sphere / Capsule: radius
 
-    float3 extent; // AABB:max / Capsule:終点
+    float3 extent; // AABB: max / Capsule: end
     int type; // 0=Sphere, 1=AABB, 2=Capsule
 
     float _pad0;
@@ -255,7 +258,7 @@ struct GPUCollider
     float _pad3;
 };
 // ============================================
-// 定数バッファ (Buffer宣言は各.hlslで行う)
+// Constant buffers (the buffers themselves are declared in each .hlsl)
 // ============================================
 cbuffer GlobalCB : register(b0)
 {
@@ -275,7 +278,7 @@ cbuffer DeadListCB : register(b1)
 
 
 // ============================================
-// 乱数生成 (Wang Hash)
+// Random numbers (Wang hash)
 // ============================================
 uint WangHash(uint seed)
 {
@@ -287,14 +290,14 @@ uint WangHash(uint seed)
     return seed;
 }
 
-// シードを進めて0.0~1.0の乱数を返す
+// advance the seed and return a random number in 0.0 .. 1.0
 float Random(inout uint seed)
 {
     seed = WangHash(seed);
     return float(seed) / 4294967295.0;
 }
 
-// min~maxの範囲の乱数
+// a random number in min .. max
 float RandomRange(inout uint seed, float minVal, float maxVal)
 {
     return lerp(minVal, maxVal, Random(seed));
@@ -329,7 +332,7 @@ void InitParticleFrame(int frameMode, int atlasIndex, int frameCount,
     }
 }
 
-// -1~1の範囲のfloat3乱数
+// a random float3, each component in -1 .. 1
 float3 RandomFloat3(inout uint seed)
 {
     float x = Random(seed) * 2.0 - 1.0;
@@ -338,7 +341,7 @@ float3 RandomFloat3(inout uint seed)
     return float3(x, y, z);
 }
 
-// 単位球面上のランダムな方向
+// a random direction on the unit sphere
 float3 RandomOnSphere(inout uint seed)
 {
     float z = Random(seed) * 2.0 - 1.0;
@@ -347,7 +350,7 @@ float3 RandomOnSphere(inout uint seed)
     return float3(r * cos(phi), r * sin(phi), z);
 }
 
-// 単位球内のランダムな点
+// a random point inside the unit sphere
 float3 RandomInSphere(inout uint seed)
 {
     float3 dir = RandomOnSphere(seed);
@@ -355,7 +358,7 @@ float3 RandomInSphere(inout uint seed)
     return dir * t;
 }
 
-// 指定方向を中心に拡散角内のランダムな方向
+// a random direction within the spread angle around dir
 float3 RandomInCone(inout uint seed, float3 dir, float angleInDegrees)
 {
     float angleRad = radians(angleInDegrees);
@@ -373,7 +376,7 @@ float3 RandomInCone(inout uint seed, float3 dir, float angleInDegrees)
     return right * localDir.x + up * localDir.y + dir * localDir.z;
 }
 
-// float4の色をmin~maxでランダム生成
+// a random float4 colour between min and max (per channel)
 float4 RandomColor(inout uint seed, float4 minColor, float4 maxColor)
 {
     float4 c;
@@ -384,7 +387,7 @@ float4 RandomColor(inout uint seed, float4 minColor, float4 maxColor)
     return c;
 }
 
-// 寿命比率 (0.0 ~ 1.0)
+// age / lifetime (0.0 .. 1.0)
 float GetLifeRatio(GPUParticle p)
 {
     return (p.lifetime > 0.0) ? saturate(p.age / p.lifetime) : 1.0;

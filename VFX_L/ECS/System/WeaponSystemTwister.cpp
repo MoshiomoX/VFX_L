@@ -33,6 +33,7 @@ void WeaponSystem::StartTwister(const AreaStats& a, const Vector3& at, const Vec
     t.radius = a.radius;                 // 拡大鏡で広がる
     t.damage = a.damagePerTick;          // 魔法威力込み
     t.tickInterval = (std::max)(a.tickInterval, kTwisterPulse);
+    t.lifesteal = a.lifesteal > 0.0f;
     // 最初の向き = プレイヤー → 出た所（寄ってくる群れを外へ突っ切る）。重なっている時は +Z
     Vector3 out = t.pos - playerPos;
     out.y = 0.0f;
@@ -131,6 +132,7 @@ void WeaponSystem::UpdateTwisters(float dt, const Vector3& playerPos, bool hasTa
             const AreaProfile& ap = AreaProfileDB::At(t.profile);
             Swarm::Area area = ap.MakeArea(t.pos + Vector3(0.0f, lift, 0.0f), false);
             area.radius = t.radius;
+            if (t.lifesteal) area.tickNow |= Swarm::kAreaExtraLifesteal;   // 吸血のルーン（2026-10-25）
             area.damage = 0.0f;
             if (t.damageTimer <= 0.0f)
             {

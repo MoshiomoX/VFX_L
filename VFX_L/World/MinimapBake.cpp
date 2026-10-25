@@ -23,7 +23,7 @@ namespace MinimapBake
         // 崖とみなす傾き（1m 進んで何 m 上がるか）。tan 42° あたりから崖の色へ混ぜ始め、tan 65° で崖一色
         constexpr float kCliffStart = 0.9f;
         constexpr float kCliffFull = 2.1f;
-        // 陰影の強さ（傾き 1 あたり）。光は北西（-x, +z）から
+        // 陰影の強さ（傾き 1 あたり）。光はミニマップの左上（ワールドの +x, +z。右手系を真上から見ると +x は左）から
         constexpr float kShade = 0.18f;
         // 高さ 1m あたりの明るさの変化（台地 3m で +12%、丘の頂 4m で +16%）
         constexpr float kHeightTint = 0.04f;
@@ -102,8 +102,9 @@ namespace MinimapBake
                 const float cliffT = std::clamp((slope - kCliffStart) / (kCliffFull - kCliffStart), 0.0f, 1.0f);
                 c = TerrainBuild::LerpColor(c, cliff, cliffT);
 
-                // ---- 陰影：北西（-x, +z）から光が当たっている体 ----
-                const float lit = std::clamp(1.0f + kShade * (std::clamp(-dx, -2.0f, 2.0f) + std::clamp(dz, -2.0f, 2.0f)), 0.55f, 1.45f);
+                // ---- 陰影：ミニマップの左上（+x, +z）から光が当たっている体。+x・+z へ下る面（傾きが負）が明るい ----
+                // （2026-10-23 まで dz の符号が逆で、画面の下側から照らしていた = 台地がへこんで見えた）
+                const float lit = std::clamp(1.0f + kShade * (std::clamp(-dx, -2.0f, 2.0f) + std::clamp(-dz, -2.0f, 2.0f)), 0.55f, 1.45f);
                 c = Mul(c, lit);
 
                 // ---- 塞がったマス（木・岩・箱・登れない台地）は暗い点に。崖はそのまま ----

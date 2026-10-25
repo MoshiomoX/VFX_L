@@ -1,0 +1,32 @@
+{
+    "entries": [
+        {
+            "data": {
+                "model": "Assets/VFX/Mesh/fanghuzhao2.FBX", "mainTex": {}, "noiseTex": {}, "maskTex": {},
+                "offset": [0.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0], "rotSpeed": [0.0, 25.0, 0.0],
+                "scaleStart": [0.062, 0.11, 0.062], "scaleEnd": [0.062, 0.11, 0.062],
+                "tint": [0.35, 0.65, 1.0, 1.0], "alphaStart": 0.16, "alphaEnd": 0.16, "intensity": 1.2,
+                "blend": 0, "twoSided": true, "shade": 0.0, "vertexColor": false,
+                "mainTiling": [1.0, 1.0], "mainScroll": [0.0, 0.0], "noiseTiling": [1.0, 1.0], "noiseScroll": [0.0, 0.0],
+                "distortion": 0.0, "dissolve": false
+            },
+            "duration": -1.0, "startTime": 0.0, "type": "Mesh"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 55,
+                "sheet": 1, "frameMode": 3, "frameCount": 4, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.5,
+                "emitRate": 14.0, "emitType": 4,
+                "endColorMax": [0.3, 0.6, 1.2, 0.0], "endColorMin": [0.3, 0.6, 1.2, 0.0],
+                "gravity": [0.0, 0.8, 0.0], "innerRadius": 1.6, "lifetimeRange": [0.6, 1.0], "maxParticles": 30,
+                "position": [0.0, 1.2, 0.0], "radius": 1.9, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.12, 0.2, 0.03, 0.05], "speedRange": [0.2, 0.5], "spreadAngle": 0.0,
+                "startColorMax": [0.6, 1.2, 2.4, 1.0], "startColorMin": [0.4, 0.9, 2.0, 1.0]
+            },
+            "duration": -1.0, "startTime": 0.0, "type": "Particle"
+        }
+    ],
+    "loop": true,
+    "name": "EliteShield"
+}

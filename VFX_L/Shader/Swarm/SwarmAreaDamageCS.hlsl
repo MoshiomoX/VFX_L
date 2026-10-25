@@ -42,7 +42,7 @@ RWStructuredBuffer<SwarmOrb> orbs : register(u3);
 RWBuffer<uint> orbStates : register(u4);
 // x / y = slow (seconds left, amount). AICS reads and counts it down. z / w = freeze (left untouched here)
 RWStructuredBuffer<float4> enemySlow : register(u5);
-// knockback (the Gust, 2026-10-12): xy = velocity away from the player, z = seconds left. AICS applies and decays it.
+// knockback (the Gust, 2026-10-12): xy = velocity away from the player, z = seconds left. MoveCS applies and decays it.
 // w = 1: a pull toward a vortex centre instead (2026-10-22), which a push overrides
 RWStructuredBuffer<float4> enemyPush : register(u6);
 // stored toxin (2026-10-17): x = damage still to drain, y = damage per second, z = seconds since the last dose (the look)
@@ -57,7 +57,8 @@ void main(uint3 id : SV_DispatchThreadID)
     if (j >= g_MaxEnemies)
         return;
     bool ticking = counters.Load(SWARM_CNT_TICKING_AREAS) != 0u;
-    if (enemyStates[j] == SWARM_DEAD)
+    uint stateNow = enemyStates[j];   // only this thread writes it in this pass
+    if (stateNow == SWARM_DEAD)
         return;
     float4 poison = enemyPoison[j];
     if (!ticking && poison.x <= 0.0)
@@ -70,8 +71,9 @@ void main(uint3 id : SV_DispatchThreadID)
         return; // under the sand: areas do not reach it, the toxin waits (2026-10-17)
     float3 ecenter;
     float er, eh;
-    SwarmKindCapsule(kind, epos, ecenter, er, eh);
+    SwarmSlotCapsule(j, kind, epos, ecenter, er, eh);   // + the berserk elite's growth (2026-10-25)
     uint hitElem = 0u;        // damage number colour: element of the area that hit hardest this step
+    bool stealHit = false;    // a lifesteal area dealt damage this step (SWARM_AREA_EXTRA_LIFESTEAL, 2026-10-25)
     float hitElemDmg = 0.0;
 
     float total = 0.0;
@@ -118,12 +120,16 @@ void main(uint3 id : SV_DispatchThreadID)
         // same step and overlapping a little) take the strongest one only, so an enemy where
         // two of them overlap is not hit twice. Everything else adds up as before.
         float f = SwarmAreaFreeze(a.flags);
-        float dmg = SwarmArmorDamage(kind, a.damage);
-        // the element of the hardest-hitting area this step colours the damage number (2026-10-17)
-        if (dmg > hitElemDmg) { hitElemDmg = dmg; hitElem = SwarmAreaElement(a.tickNow); }
+        float dmg = SwarmTakenDamage(j, kind, a.damage);
         // splash-only (the Swamp): the landing hits, the lingering pool only slows
         if ((a.tickNow & SWARM_AREA_EXTRA_SPLASH) != 0u && (a.tickNow & SWARM_AREA_TICK_FIRST) == 0u)
             dmg = 0.0;
+        // the element of the hardest-hitting area this step colours the damage number (2026-10-17).
+        // After the splash-only zeroing (2026-10-25): a lingering Swamp pool hits nothing, so it must not
+        // repaint the element or clear the lifesteal mark of what really hit
+        if (dmg > hitElemDmg) { hitElemDmg = dmg; hitElem = SwarmAreaElement(a.tickNow); }
+        if (dmg > 0.0 && (a.tickNow & SWARM_AREA_EXTRA_LIFESTEAL) != 0u)
+            stealHit = true;
         float tox = SwarmAreaToxin(a.tickNow);
         if (f > 0.0)
             iceDamage = max(iceDamage, dmg);
@@ -186,7 +192,7 @@ void main(uint3 id : SV_DispatchThreadID)
     // ---- slow: refresh, never weaken one that is still running ----
     if (slow > 0.0)
     {
-        if (kind == SWARM_KIND_ELITE || kind == SWARM_KIND_BOSS)
+        if (SwarmIsBigElite(kind) || kind == SWARM_KIND_BOSS)
             slow *= SWARM_SLOW_BIG_MUL;
         float4 cur = enemySlow[j];
         if (cur.x <= 0.0)
@@ -255,7 +261,7 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             uint wasState;
             InterlockedCompareExchange(enemyStates[j], cur,
-                SWARM_ALIVE | (hitElem << SWARM_STATE_ELEMENT_SHIFT), wasState);
+                SWARM_ALIVE | (hitElem << SWARM_STATE_ELEMENT_SHIFT) | (stealHit ? SWARM_STATE_LIFESTEAL : 0u), wasState);
         }
     }
 
@@ -263,6 +269,9 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         // ---- killed by the area ----
         enemyStates[j] = SWARM_DEAD;
+        // the kill number's colour (2026-10-25): the hardest-hitting area of this step, or, killed by the toxin
+        // draining alone, the element of the last hit (the pool that dosed it)
+        enemies[j].attackCooldown = SwarmKillElementMark((hitElemDmg > 0.0) ? hitElem : SwarmStateElement(stateNow));
         counters.InterlockedAdd(SWARM_CNT_KILLS, 1u, prev);
 
         SwarmOrb orb;

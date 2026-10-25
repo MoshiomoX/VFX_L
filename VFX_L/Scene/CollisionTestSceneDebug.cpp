@@ -85,6 +85,7 @@ void CollisionTestScene::DrawDebugUI()
     m_GrassFire.DrawImGui(PlayerPos());   // 草の延焼（点火ボタン・温度の絵）
     m_Debris.DrawImGui();                 // 地面の落ち葉
     m_Dandelions.DrawImGui();             // タンポポ（2026-10-22）
+    m_GrassShreds.DrawImGui();            // 風源の草屑（2026-10-23）
     m_Tumbleweeds.DrawImGui(m_Registry, m_Grid, PlayerPos() ? *PlayerPos() : Vector3::Zero);   // 転がり草
     DrawEnemiesPanel();
     if (m_Crates.DrawImGui(m_Interaction, m_LevelUpSystem)) RespawnCrates();
@@ -162,6 +163,15 @@ void CollisionTestScene::DrawEnemiesPanel()
     ImGui::Separator();
     m_Stage.DrawImGui(m_Swarm, m_RunTime);
     m_BossAttacks.DrawImGui();
+    {
+        // 面の固定エリート（2026-10-25）：A / B を詞缀付きで呼ぶ・調整値
+        int spawn = -1;
+        uint32_t affixes = 0;
+        m_StageElites.DrawImGui(spawn, affixes);
+        if (spawn >= 0)
+            if (const Vector3* pp = PlayerPos())
+                m_StageElites.Spawn(m_Grid, m_Swarm, *pp, spawn == 1, affixes, m_Stage.eliteHp * m_Mobs.GetHpMul(), 10.0f, 14.0f);
+    }
     ImGui::Separator();
 
     if (m_Elites.DrawImGui(m_Registry, m_MeshVFXSystem)) RespawnElites();
@@ -374,8 +384,21 @@ void CollisionTestScene::AutoTestLog(const char* what)
         f << " player " << pp.x << "," << pp.y << "," << pp.z;
     }
     f << std::endl;
-    // 自動テストの終わり（"... done"）には音の統計も（どの cue が何回鳴った / 間引かれたか。2026-10-03）
     const std::string w = what;
+    // TEMP-TEST: VFXL_SELF_SHOT=<フォルダ> の時、「... look <名>」の行でこのフレームの画面を <フォルダ>/<名前の空白を _ に>.png へ
+    // （2026-10-23。外のスクリプトはゲームが前面でないと撮れない = ユーザーが PC を使っている間は撮れなかった）
+    {
+        static char shotDir[260] = {};
+        static const bool shot = GetEnvironmentVariableA("VFXL_SELF_SHOT", shotDir, sizeof(shotDir)) > 0;
+        if (shot && w.find(" look ") != std::string::npos)
+        {
+            std::string name = w;
+            for (char& c : name) if (c == ' ' || c == ':' || c == '/' || c == '\\') c = '_';
+            const std::string path = std::string(shotDir) + "\\" + name + ".png";
+            Application::Get().GetGraphics().RequestScreenshot(std::wstring(path.begin(), path.end()));
+        }
+    }
+    // 自動テストの終わり（"... done"）には音の統計も（どの cue が何回鳴った / 間引かれたか。2026-10-03）
     if (w.size() >= 4 && w.compare(w.size() - 4, 4, "done") == 0)
         f << ms << " audio " << AudioSystem::Get().DebugStats() << std::endl;
 }

@@ -20,37 +20,70 @@ void DamageNumbers::Add(const Vector3& worldPos, float amount, Kind kind, int el
     it.kind = kind;
     it.element = (element > 0 && element < 9) ? element : 0;
     it.drift = u(m_Rng) * 0.4f;
-    if ((int)m_Items.size() >= (std::max)(style.maxCount, 1))
-        m_Items.erase(m_Items.begin());
-    m_Items.push_back(it);
+    FitRing();
+    const int cap = (int)m_Ring.size();
+    if (m_Count >= cap)   // 一杯なら一番古い物を捨てる
+    {
+        m_Head = (m_Head + 1) % cap;
+        --m_Count;
+    }
+    m_Ring[(size_t)((m_Head + m_Count) % cap)] = it;
+    ++m_Count;
     ++m_TotalAdded;
     ++m_ElementCounts[it.element];
 }
 
+// ============================================================
+// 環の大きさを style.maxCount に合わせる（ImGui で変えた時。新しい方から残す）
+// ============================================================
+void DamageNumbers::FitRing()
+{
+    const int cap = (std::max)(style.maxCount, 1);
+    if ((int)m_Ring.size() == cap) return;
+
+    const int keep = (std::min)(m_Count, cap);
+    std::vector<Item> ring((size_t)cap);
+    for (int i = 0; i < keep; ++i)
+        ring[(size_t)i] = At(m_Count - keep + i);
+    m_Ring.swap(ring);
+    m_Head = 0;
+    m_Count = keep;
+}
+
 void DamageNumbers::Update(float dt)
 {
-    for (auto& it : m_Items)
+    FitRing();
+    for (int i = 0; i < m_Count; ++i)
     {
+        Item& it = At(i);
         it.age += dt;
         it.pos.y += style.rise * dt;
         it.pos.x += it.drift * dt;
     }
-    m_Items.erase(std::remove_if(m_Items.begin(), m_Items.end(),
-        [&](const Item& it) { return it.age >= style.life; }), m_Items.end());
+    // 寿命の尽きた物を古い側から捨てる（全部同じ速さで歳を取るので、古い物ほど先に尽きる）
+    while (m_Count > 0 && At(0).age >= style.life)
+    {
+        m_Head = (m_Head + 1) % (int)m_Ring.size();
+        --m_Count;
+    }
 }
 
 // ============================================================
-// 世界 → 画面。カメラの後ろ・画面外は描かない。文字は中央揃え、影を右下に 1 回
+// 世界 → 画面。カメラの後ろ・画面外は描かない。文字は中央揃え。
+// 縁取りはシェーダー（TextRenderer::DrawOutline）、右下の影は style.shadow の時か縁取りが 0 の時だけ
 // ============================================================
 void DamageNumbers::Draw(TextRenderer& text, const Matrix& viewProj, float screenW, float screenH)
 {
-    if (!style.enabled || !GameSettings::Get().damageNumbers || m_Items.empty()) return;
+    if (!style.enabled || !GameSettings::Get().damageNumbers || m_Count <= 0) return;
     const float ui = UIDeco::UIScale() * (std::min)(screenW, screenH) / 900.0f;
     // 字体を替えても見た目の高さが変わらないように、倍率は「毛筆体 32px の行の高さ 46.34px」を基準に正規化する（2026-10-18）
     const float fontNorm = 46.34f / (std::max)(text.GetLineHeight(1.0f), 1.0f);
     wchar_t buf[32];
-    for (const auto& it : m_Items)
+    const float o = style.outlinePx * ui;   // 縁の太さ（画面 px）
+    text.SetOutlinePx(o);
+    for (int i = 0; i < m_Count; ++i)
     {
+        const Item& it = At(i);
         const Vector4 clip = Vector4::Transform(Vector4(it.pos.x, it.pos.y, it.pos.z, 1.0f), viewProj);
         if (clip.w <= 1.0e-4f) continue;
         const Vector2 p = { (clip.x / clip.w * 0.5f + 0.5f) * screenW, (0.5f - clip.y / clip.w * 0.5f) * screenH };
@@ -64,6 +97,7 @@ void DamageNumbers::Draw(TextRenderer& text, const Matrix& viewProj, float scree
         case Kind::Poison: col = style.poisonColor; break;
         case Kind::Kill:   if (it.element == 0) col = style.killColor; s = style.killScale * fontNorm; break;
         case Kind::Player: col = style.playerColor; s = style.playerScale * fontNorm; break;
+        case Kind::Heal:   col = style.healColor; s = style.playerScale * fontNorm; break;
         default: break;
         }
         if (it.amount >= style.bigAt) s *= style.bigMul;
@@ -74,26 +108,25 @@ void DamageNumbers::Draw(TextRenderer& text, const Matrix& viewProj, float scree
         const float alpha = (t < style.fadeFrom) ? 1.0f : (std::max)(0.0f, 1.0f - (t - style.fadeFrom) / (std::max)(1.0f - style.fadeFrom, 1e-3f));
         col.w *= alpha;
 
-        swprintf_s(buf, L"%.0f", (std::max)(1.0f, std::round(it.amount)));   // 整数で（1 未満の毒の削りも 1）
-        const Vector2 size = text.Measure(buf, s);
+        swprintf_s(buf, (it.kind == Kind::Heal) ? L"+%.0f" : L"%.0f", (std::max)(1.0f, std::round(it.amount)));   // 整数で（1 未満の毒の削りも 1）。回復は「+」
+        const std::wstring str = buf;
+        const Vector2 size = text.Measure(str, s);
         const Vector2 at = { p.x - size.x * 0.5f, p.y - size.y * 0.5f };
-        // 縁取り：8 方向に縁の色で描いてから本体（影は任意）
-        const float o = style.outlinePx * ui;
+        // 縁取り → 本体（影は任意）。縁は TextRenderer のシェーダーが字の周りを拾って作る（2026-10-23。以前は 8 方向にずらして 8 回）
         if (o > 0.01f)
         {
             Vector4 oc = style.outlineColor;
             oc.w *= alpha;
-            static const Vector2 kDirs[8] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.71f, 0.71f }, { -0.71f, 0.71f }, { 0.71f, -0.71f }, { -0.71f, -0.71f } };
-            for (const Vector2& d : kDirs) text.Draw(buf, at + d * o, oc, s);
+            text.DrawOutline(str, at, oc, s);
         }
         if (style.shadow || o <= 0.01f)
         {
             Vector4 shadow = style.shadowColor;
             shadow.w *= alpha;
             const float off = (std::max)(1.0f, 2.0f * s / 0.5f);
-            text.Draw(buf, at + Vector2(off, off), shadow, s);
+            text.Draw(str, at + Vector2(off, off), shadow, s);
         }
-        text.Draw(buf, at, col, s);
+        text.Draw(str, at, col, s);
     }
 }
 
@@ -116,6 +149,7 @@ void DamageNumbers::DrawImGui()
     ImGui::ColorEdit4("Poison", &style.poisonColor.x);
     ImGui::ColorEdit4("Kill", &style.killColor.x);
     ImGui::ColorEdit4("Player", &style.playerColor.x);
+    ImGui::ColorEdit4("Heal", &style.healColor.x);
     ImGui::ColorEdit4("Shadow", &style.shadowColor.x);
     ImGui::Checkbox("Shadow too", &style.shadow);
     ImGui::DragFloat("Outline (px)", &style.outlinePx, 0.1f, 0.0f, 6.0f);

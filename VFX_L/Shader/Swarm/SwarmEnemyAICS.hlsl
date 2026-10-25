@@ -42,6 +42,49 @@ RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u2);
 RWByteAddressBuffer castEvents : register(u3);
 static const uint SWARM_MAX_SPLIT_EVENTS = 128u;   // Swarm::kMaxSplitEvents
 
+// one entry on the split ring: position + kind (low 16 bits) | what happened (high 16 bits, 2026-10-25)
+void CastEvent(float3 pos, uint word)
+{
+    uint s;
+    castEvents.InterlockedAdd(0, 1u, s);
+    uint at = 16u + (s % SWARM_MAX_SPLIT_EVENTS) * 16u;
+    castEvents.Store3(at, asuint(pos));
+    castEvents.Store(at + 12u, word);
+}
+
+// a caster (sand mage / necromancer / chain warden, 2026-10-25 shared): fuse 0 = ready -> > 0 = wind-up (counts up,
+// stands still, faces the player locked at the start) -> at `windup` the cast event (the CPU does the rest) -> < 0 =
+// cooldown (counts up to 0). Starts only with the player on our level and within `range`; moveSpeed 0 = training
+// target: never casts. withYaw: the event carries the locked yaw in its high 16 bits (the warden's chain line)
+float CasterStep(uint i, float3 pos, float f, float windup, float cooldown, float range, uint kind, bool withYaw)
+{
+    if (f < 0.0)
+        f = min(f + g_Step, 0.0);
+    else if (f > 0.0)
+    {
+        f += g_Step;
+        if (f >= windup)
+        {
+            uint word = kind;
+            if (withYaw)
+                word |= ((uint) (frac(enemies[i].yaw / 6.2831853 + 1.0) * 65535.0 + 0.5) & 0xFFFFu) << 16;
+            CastEvent(pos, word);
+            f = -cooldown;
+        }
+    }
+    if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != 2u && enemies[i].moveSpeed > 0.01
+        && abs(g_PlayerPos.y - pos.y) < 1.5)
+    {
+        float2 toP = g_PlayerPos.xz - pos.xz;
+        if (dot(toP, toP) <= range * range)
+        {
+            f = g_Step;
+            enemies[i].yaw = atan2(toP.x, toP.y);   // faces the player while winding up (the warden's chain goes this way)
+        }
+    }
+    return f;
+}
+
 // a charger only winds up if the ground along the dash is open up to the player
 // (walkable, no cliff): it would just ram the wall otherwise
 bool ChargeLineClear(float3 pos, float2 dir, float dist)
@@ -133,7 +176,24 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmEnemyExtra extra = enemyExtra[i];
-    bool big = (extra.kind == SWARM_KIND_ELITE || extra.kind == SWARM_KIND_BOSS);
+    bool big = (SwarmIsBigElite(extra.kind) || extra.kind == SWARM_KIND_BOSS);
+
+    // ---- stage boss: how far under the sand it is (sand guardian's burrow, 2026-10-24). The CPU (BossAttacks)
+    //      drives g_BossBurrow; the boss's fuse = -burrow so SwarmBuried / the VS see it like a burrower's ----
+    if (extra.kind == SWARM_KIND_BOSS)
+    {
+        extra.fuse = -saturate(g_BossBurrow);
+        enemyExtra[i].fuse = extra.fuse;
+    }
+    // ---- the stage's fixed elites (2026-10-25): the CPU (EliteAttacks) runs the moves through g_EliteCmd. How far it has
+    //      vanished goes into fuse (-hide: SwarmUntargetable from half, the VS shrinks it into the ground) ----
+    int eliteRow = -1;
+    if (SwarmIsFixedElite(extra.kind))
+    {
+        eliteRow = SwarmEliteEntry(i);
+        extra.fuse = (eliteRow >= 0) ? -saturate(g_EliteMove[eliteRow].w) : 0.0;
+        enemyExtra[i].fuse = extra.fuse;
+    }
 
     // ---- tornado (2026-10-17): straight along its yaw at moveSpeed until the life runs out. No slow, no freeze,
     //      no separation, no walls (MoveCS treats it like a ghost). fuse: 0 = just spawned, > 0 = seconds left,
@@ -264,35 +324,77 @@ void main(uint3 id : SV_DispatchThreadID)
     bool casting = false;
     if (extra.kind == SWARM_KIND_SANDMAGE)
     {
-        float f = extra.fuse;
-        if (f < 0.0)
-            f = min(f + g_Step, 0.0);
-        else if (f > 0.0)
-        {
-            f += g_Step;
-            if (f >= g_SandMageWindup)
-            {
-                uint s;
-                castEvents.InterlockedAdd(0, 1u, s);
-                uint at = 16u + (s % SWARM_MAX_SPLIT_EVENTS) * 16u;
-                castEvents.Store3(at, asuint(pos));
-                castEvents.Store(at + 12u, SWARM_KIND_SANDMAGE);
-                f = -g_SandMageCooldown;
-            }
-        }
-        if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != 2u && enemies[i].moveSpeed > 0.01
-            && abs(g_PlayerPos.y - pos.y) < 1.5)
-        {
-            float2 toP = g_PlayerPos.xz - pos.xz;
-            if (dot(toP, toP) <= g_SandMageCastRange * g_SandMageCastRange)
-            {
-                f = g_Step;
-                enemies[i].yaw = atan2(toP.x, toP.y);   // faces the player while winding up
-            }
-        }
+        float f = CasterStep(i, pos, extra.fuse, g_SandMageWindup, g_SandMageCooldown, g_SandMageCastRange, SWARM_KIND_SANDMAGE, false);
         extra.fuse = f;
         enemyExtra[i].fuse = f;
         casting = f > 0.0;
+    }
+    // ---- necromancer (2026-10-25): the same caster as the sand mage; the cast raises skeletons (CPU, MobSpawner) ----
+    if (extra.kind == SWARM_KIND_NECRO)
+    {
+        float f = CasterStep(i, pos, extra.fuse, g_NecroWindup, g_NecroCooldown, g_NecroCastRange, SWARM_KIND_NECRO, false);
+        extra.fuse = f;
+        enemyExtra[i].fuse = f;
+        casting = f > 0.0;
+    }
+    // ---- chain warden (2026-10-25): winds up with its yaw locked (the band on the ground, SwarmChargeLineVS), throws at the
+    //      end (the event carries the yaw; the scene flies the hook), then stands g_WardenHold while the chain is out ----
+    if (extra.kind == SWARM_KIND_WARDEN)
+    {
+        float f = CasterStep(i, pos, extra.fuse, g_WardenWindup, g_WardenCooldown, g_WardenRange, SWARM_KIND_WARDEN, true);
+        extra.fuse = f;
+        enemyExtra[i].fuse = f;
+        casting = f > 0.0 || f < -(g_WardenCooldown - g_WardenHold);
+    }
+
+    // ---- stone gargoyle (2026-10-25): asleep = a statue (fuse <= 0 counts down) -> wakes with the player within
+    //      g_GargoyleWakeDist or after g_GargoyleAutoWake -> waking (shakes, rises) -> flies at the player like a ghost
+    //      -> with the player within g_GargoyleDiveRange: locks its yaw, hangs (the band on the ground), dives along it,
+    //      lands and stands g_GargoyleLandTime (the time to hit it) -> rises and flies again. Wake / dive / land go to the
+    //      split ring (the CPU's stone crumbs, dust and sounds). moveSpeed 0 = training target: never wakes ----
+    bool gargStand = false, gargDive = false;
+    if (extra.kind == SWARM_KIND_GARGOYLE)
+    {
+        float f = extra.fuse;
+        float2 toP = g_PlayerPos.xz - pos.xz;
+        float distSq = dot(toP, toP);
+        float landAt = g_GargoyleDiveWindup + g_GargoyleDiveTime;
+        if (f <= 0.0)
+        {
+            f -= g_Step;
+            bool near = (g_PlayerAlive != 0u) && distSq <= g_GargoyleWakeDist * g_GargoyleWakeDist;
+            if (enemies[i].moveSpeed > 0.01 && (near || -f >= g_GargoyleAutoWake))
+            {
+                f = g_Step;
+                CastEvent(pos, SWARM_KIND_GARGOYLE | (0u << 16));
+            }
+        }
+        else if (f < SWARM_GARGOYLE_DIVE)
+        {
+            f = min(f + g_Step, SWARM_GARGOYLE_DIVE - 1.0);
+            if (f >= g_GargoyleWakeTime + g_GargoyleFlyMin && g_PlayerAlive != 0u
+                && distSq <= g_GargoyleDiveRange * g_GargoyleDiveRange && distSq >= g_GargoyleDiveMin * g_GargoyleDiveMin)
+            {
+                f = SWARM_GARGOYLE_DIVE + g_Step;
+                enemies[i].yaw = atan2(toP.x, toP.y);   // the dive line, locked now
+                CastEvent(pos, SWARM_KIND_GARGOYLE | (1u << 16));
+            }
+        }
+        else
+        {
+            float d0 = f - SWARM_GARGOYLE_DIVE;
+            f += g_Step;
+            float d1 = f - SWARM_GARGOYLE_DIVE;
+            if (d0 < landAt && d1 >= landAt)
+                CastEvent(pos, SWARM_KIND_GARGOYLE | (2u << 16));
+            // flies again: from just past the shake of the waking, so it rises smoothly (SwarmGargoyleHover)
+            if (d1 >= landAt + g_GargoyleLandTime)
+                f = 0.36 * g_GargoyleWakeTime;
+        }
+        extra.fuse = f;
+        enemyExtra[i].fuse = f;
+        gargDive = SwarmGargoyleDiving(extra);
+        gargStand = (f < g_GargoyleWakeTime) || (f >= SWARM_GARGOYLE_DIVE && !gargDive);
     }
 
     // ---- dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger on our level, locks its
@@ -321,6 +423,28 @@ void main(uint3 id : SV_DispatchThreadID)
         dashing = f > g_DashBomberWindup;
     }
 
+    // ---- fixed elite told to stand (a wind-up, the flame breath, the vanish): stands, turning toward the player or along
+    //      the CPU's locked direction (a run order with speed 0) ----
+    if (eliteRow >= 0)
+    {
+        uint ecmd = g_EliteCmd[eliteRow].z;
+        float4 emv = g_EliteMove[eliteRow];
+        if (ecmd == SWARM_ELITE_CMD_STAND || ecmd == SWARM_ELITE_CMD_TELEPORT || (ecmd == SWARM_ELITE_CMD_MOVE && emv.z <= 0.01))
+        {
+            float2 face = (ecmd == SWARM_ELITE_CMD_MOVE) ? emv.xy : (g_PlayerPos.xz - pos.xz);
+            if (dot(face, face) > 1e-6)
+            {
+                float want = atan2(face.x, face.y);
+                float dy = want - enemies[i].yaw;
+                dy -= 6.2831853 * floor((dy + 3.14159265) / 6.2831853);   // wrap to -pi..pi
+                float turn = (ecmd == SWARM_ELITE_CMD_MOVE) ? 30.0 : 9.0;  // a locked line snaps, facing the player turns
+                enemies[i].yaw += clamp(dy, -turn * g_Step, turn * g_Step);
+            }
+            enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
+            return;
+        }
+    }
+
     // ---- hit stun / lit bomber / charger winding up or catching its breath: stand still ----
     // velocity 0 so the exit ramps back up through the lag below.
     // A lit bomber stays put until it blows up, so the player can outrun the blast.
@@ -329,7 +453,7 @@ void main(uint3 id : SV_DispatchThreadID)
     bool stunned = (enemies[i].animIndex == 2u) && (cphase == SWARM_CHARGE_CHASE) && !dashing;
     // a surfaced burrower stands where it came out (bites once, then digs in)
     bool surfaced = (extra.kind == SWARM_KIND_BURROWER) && !buried;
-    if (stunned || lit || surfaced || casting || dashWindup || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
+    if (stunned || lit || surfaced || casting || dashWindup || gargStand || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
     {
         // y is the fall speed (MoveCS owns it): a stunned enemy in mid-air keeps falling
         enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
@@ -338,6 +462,12 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float3 oldV = enemies[i].velocity; // own slot: written by this thread last step
     float moveSpeed = enemies[i].moveSpeed * slowMul;
+    if (eliteRow >= 0)   // the fixed elites' affixes (2026-10-25)
+    {
+        uint efl = g_EliteCmd[eliteRow].y;
+        if ((efl & SWARM_ELITE_SWIFT) != 0u) moveSpeed *= g_EliteSwiftMul;
+        if ((efl & SWARM_ELITE_ENRAGED) != 0u) moveSpeed *= g_EliteEnragedSpeedMul;
+    }
     if (extra.kind == SWARM_KIND_BURROWER)
         moveSpeed *= buried ? g_BurrowBuriedSpeedMul : g_BurrowSurfaceSpeedMul;
 
@@ -360,20 +490,36 @@ void main(uint3 id : SV_DispatchThreadID)
         // the straight line runs into the cliff, keep following the field to a ramp
         bool sameLevel = abs(g_PlayerPos.y - pos.y) < 1.0;
         bool useFlow = (lenSq > direct * direct || !sameLevel) && (dot(flow, flow) > 0.01);
-        if (SwarmIsGhost(extra.kind))
-            useFlow = false; // ghosts fly straight at the player (through walls and over plateaus)
+        if (SwarmFliesThrough(extra))
+            useFlow = false; // ghosts / a flying gargoyle fly straight at the player (through walls and over plateaus)
         if (useFlow)
             moveDir = normalize(float3(flow.x, 0.0, flow.y));
         else if (lenSq > 1e-6)
             moveDir = toPlayer * rsqrt(lenSq);
-        // sand mage: keeps its distance. Too close = backs away (the hard block below still stops it at walls),
-        // in the band = stands (separation only), too far = the usual chase (2026-10-17)
-        if (extra.kind == SWARM_KIND_SANDMAGE && sameLevel)
+        // casters keep their distance (sand mage 2026-10-17, necromancer / chain warden 2026-10-25). Too close = backs away
+        // (the hard block below still stops it at walls), in the band = stands (separation only), too far = the usual chase
+        float keepMin = 0.0, keepMax = 0.0;
+        if (extra.kind == SWARM_KIND_SANDMAGE) { keepMin = g_SandMageKeepMin; keepMax = g_SandMageKeepMax; }
+        else if (extra.kind == SWARM_KIND_NECRO) { keepMin = g_NecroKeepMin; keepMax = g_NecroKeepMax; }
+        else if (extra.kind == SWARM_KIND_WARDEN) { keepMin = g_WardenKeepMin; keepMax = g_WardenKeepMax; }
+        else if (extra.kind == SWARM_KIND_ELITE_B) { keepMin = g_FixedEliteKeepMin; keepMax = g_FixedEliteKeepMax; }   // the ranged fixed elite (2026-10-25)
+        if (keepMax > 0.0 && sameLevel)
         {
-            if (lenSq < g_SandMageKeepMin * g_SandMageKeepMin)
+            if (lenSq < keepMin * keepMin)
                 moveDir = (lenSq > 1e-6) ? -toPlayer * rsqrt(lenSq) : float3(0, 0, 0);
-            else if (lenSq <= g_SandMageKeepMax * g_SandMageKeepMax)
+            else if (lenSq <= keepMax * keepMax)
                 moveDir = float3(0, 0, 0);
+        }
+        // a flying gargoyle (2026-10-25) circles the player between g_GargoyleDiveMin and 0.9 x the dive range, so
+        // the dive starts from out there and comes down on the player (from right above it passed over the head)
+        if (extra.kind == SWARM_KIND_GARGOYLE && extra.fuse < SWARM_GARGOYLE_DIVE && lenSq > 1e-6)
+        {
+            float3 n = toPlayer * rsqrt(lenSq);
+            float spin = ((i & 1u) != 0u) ? 1.0 : -1.0;
+            if (lenSq < g_GargoyleDiveMin * g_GargoyleDiveMin)
+                moveDir = normalize(-n + float3(-n.z, 0.0, n.x) * (0.6 * spin));
+            else if (lenSq <= 0.81 * g_GargoyleDiveRange * g_GargoyleDiveRange)
+                moveDir = float3(-n.z, 0.0, n.x) * (0.7 * spin);
         }
     }
 
@@ -417,8 +563,8 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // ---- avoid: soft push away from blocked neighbour cells (not for ghosts) ----
-    bool ghost = SwarmIsGhost(extra.kind);
+    // ---- avoid: soft push away from blocked neighbour cells (not for ghosts / a flying gargoyle) ----
+    bool ghost = SwarmFliesThrough(extra);
     float3 avoid = float3(0, 0, 0);
     float cs = g_CellSize;
     // cliffs going down are open while the player stands lower (SwarmDropAllowed); the avoid and the hard block share it
@@ -460,6 +606,15 @@ void main(uint3 id : SV_DispatchThreadID)
     bool charging = (extra.kind == SWARM_KIND_BOSS) && (g_BossChargeOn > 0.5);
     if (charging)
         v = float3(g_BossChargeDir.x, 0.0, g_BossChargeDir.y) * g_BossChargeSpeed;
+    // ---- fixed elite's run order (the rider's charges, 2026-10-25): straight along the CPU's line, through the player ----
+    bool eliteDash = false;
+    if (eliteRow >= 0 && g_EliteCmd[eliteRow].z == SWARM_ELITE_CMD_MOVE)
+    {
+        float4 emv = g_EliteMove[eliteRow];
+        v = float3(emv.x, 0.0, emv.y) * emv.z;
+        charging = true;
+        eliteDash = emv.z > 6.0;
+    }
     // ---- charger dash: straight along the yaw locked at the wind-up, through the player ----
     float dashSpeed = g_ChargerDashSpeed * slowMul;
     if (cphase == SWARM_CHARGE_DASH)
@@ -478,6 +633,14 @@ void main(uint3 id : SV_DispatchThreadID)
         v = float3(ys, 0.0, yc) * g_DashBomberDashSpeed;
         charging = true;
     }
+    // ---- gargoyle's dive (2026-10-25): straight along the yaw locked at the start, coming down (MoveCS lowers it) ----
+    if (gargDive)
+    {
+        float ys, yc;
+        sincos(enemies[i].yaw, ys, yc);
+        v = float3(ys, 0.0, yc) * g_GargoyleDiveSpeed;
+        charging = true;
+    }
 
     // ---- player is solid ----
     // Same idea as the terrain hard block, but against a circle:
@@ -492,7 +655,7 @@ void main(uint3 id : SV_DispatchThreadID)
         float3 toP = g_PlayerPos - pos;
         toP.y = 0.0;
         float dist = length(toP);
-        float contact = g_PlayerRadius + g_EnemyRadius * SwarmKindScale(extra.kind);
+        float contact = g_PlayerRadius + g_EnemyRadius * SwarmSlotScale(i, extra.kind);   // a berserk fixed elite stops farther out (2026-10-25)
 
         float3 n;
         if (dist > 1e-4)
@@ -535,7 +698,7 @@ void main(uint3 id : SV_DispatchThreadID)
         float feet = pos.y - g_GroundY;
         // a dashing charger looks only a couple of steps ahead: at 14 m/s the usual
         // look-ahead (0.35 s = 5 m) would end the dash 5 m short of any wall behind the player
-        float look = (cphase == SWARM_CHARGE_DASH || dashing) ? 2.0 * g_Step : g_LookAhead;
+        float look = (cphase == SWARM_CHARGE_DASH || dashing || eliteDash) ? 2.0 * g_Step : g_LookAhead;
         float ax = (v.x != 0.0) ? v.x * look + sign(v.x) * r : 0.0;
         float az = (v.z != 0.0) ? v.z * look + sign(v.z) * r : 0.0;
 

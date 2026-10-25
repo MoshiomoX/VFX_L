@@ -71,7 +71,8 @@ void main(uint3 id : SV_DispatchThreadID)
     SkinnedVertexOut o;
     o.position = p;
     o.normal = normalize(n);
-    o.tangent = normalize(t);
+    // a mesh without tangents (zero vector) stays 0 instead of NaN; PerturbNormal then keeps the normal
+    o.tangent = (dot(t, t) > 1e-12) ? normalize(t) : float3(0.0, 0.0, 0.0);
     o.uv = v.uv;
     o._pad0 = 0;
     o._pad1 = 0;

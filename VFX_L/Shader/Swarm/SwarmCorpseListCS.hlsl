@@ -37,7 +37,9 @@ void main(uint3 id : SV_DispatchThreadID)
     if (c.birth <= 0.0 || age < 0.0 || age >= g_CorpseLife)
         return;
 
-    if (c.kind == SWARM_KIND_BOMBER || c.kind == SWARM_KIND_DASHBOMBER)   // the dash bomber shatters in the red robot's texture (no UAV left for its own list)
+    if (SwarmInCorpseList2(c.kind))
+        return;   // the boss, sand mage, dash bomber and the ruins kinds: SwarmCorpseList2CS (own skins, 2026-10-25)
+    if (c.kind == SWARM_KIND_BOMBER)
         bomberCorpses.Append(i);
     else if (c.kind == SWARM_KIND_GHOST || c.kind == SWARM_KIND_DARKGHOST)
         ghostCorpses.Append(i);

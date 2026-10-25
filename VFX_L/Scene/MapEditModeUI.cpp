@@ -15,7 +15,8 @@ namespace
     const char* KindName(uint16_t kind)
     {
         static const char* kNames[] = { "Floor", "Outer Wall", "Summit Ramp", "Mine Ramp", "Cave Roof", "Terrace", "Plateau",
-            "Skirt", "Tree", "Rock", "Bush", "Edge Rock", "Ruin Wall", "Torch", "Roof Rock", "Placed (editor)", "Hill" };
+            "Skirt", "Tree", "Rock", "Bush", "Edge Rock", "Ruin Wall", "Torch", "Roof Rock", "Placed (editor)", "Hill",
+            "Step Terrace" };   // MapData::Kind と同じ順
         return kind < std::size(kNames) ? kNames[kind] : "?";
     }
 }

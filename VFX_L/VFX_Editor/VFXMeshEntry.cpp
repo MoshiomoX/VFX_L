@@ -293,10 +293,12 @@ void VFXMeshEntry::FromJson(const json& j)
 
 std::unique_ptr<VFXEntry> VFXMeshEntry::Clone() const
 {
-    auto c = std::make_unique<VFXMeshEntry>();
-    c->FromJson(ToJson());   // 参照解決込みで複製
-    c->startTime = startTime;
-    c->duration = duration;
+    // メンバをそのまま写す（モデルとテクスチャは shared_ptr なので雛形と共有）。
+    // 以前は FromJson(ToJson()) で読み直していて、"@sphere" / "@tornado" は Play の度に GPU の網を作り直していた（2026-10-25）
+    auto c = std::make_unique<VFXMeshEntry>(*this);
     c->isPlaying = false;
+    c->m_Age = 0.0f;
+    c->presence = 1.0f;
+    c->presenceLeaving = false;
     return c;
 }

@@ -156,6 +156,7 @@ private:
     std::string  m_GhostPath;
 
     std::unordered_map<std::string, std::shared_ptr<Model>> m_Models;
+    std::vector<std::shared_ptr<Model>> m_PropModels;   // m_Map.models の番号 → モデル（Render が引き足す。地図を開き直したら捨てる）
 
     char m_NameBuf[64] = "map01";
     int  m_GenSeed = 12345;

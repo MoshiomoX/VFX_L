@@ -173,5 +173,6 @@ int SkinnedModel::SplitClothChain(const std::string& anchorBone, const std::vect
     std::cout << "[ClothSplit] " << chain[0] << ": " << columns << " columns, +" << added << " bones, "
         << verts << " verts, width " << (2.0f * W) << ", anchor weight avg "
         << (verts ? anchorBefore / verts : 0.0) << " -> " << (verts ? anchorAfter / verts : 0.0) << std::endl;
+    RebuildSampleCache();   // 骨が増えた（SampleLocal の表を骨の数に合わせる）
     return added;
 }

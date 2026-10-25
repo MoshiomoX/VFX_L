@@ -115,11 +115,6 @@ void VFXEffect::UpdateEntries(float dt, const VFXContext& ctx)
 
 void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
 {
-    // Emitter データ収集
-    std::vector<GPUEmitter> emitters;
-    std::vector<ColorKey> colorKeys;
-    int colorKeyOffset = 0;
-
     // ---- 掃引ベクトル（今フレームの位置 → 前フレームの位置）----
     // 1フレームで kMaxSweep より動いた時は瞬間移動とみなして掃引しない
     // （プールからの再利用などで、移動前後が粒子の線で結ばれるのを防ぐ）
@@ -161,9 +156,7 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
                 ge.sweep = sweep;
             }
 
-            ge.colorKeyOffset = colorKeyOffset;
             ge.trailStyle = pEntry->GetTrailSlot();   // 0 = 帯なし
-            emitters.push_back(ge);
 
             // 縁モード：今フレームの溶解パラメータで頂点表を作ってもらう
             if (ge.emitType == static_cast<int>(EmitType::Mesh) && ge.edgeMode == 1
@@ -174,13 +167,29 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
                     ctx.particleSystem->SetSourceEdgeParams(ge.sourceId, ep);
             }
 
-            for (int k = 0; k < pEntry->emitterData.colorKeyCount; k++)
+            // GPU へ 1 つずつ直接積む（一時の配列を作らない。色の鍵の位置は SubmitEmitter が付け直す）
+            if (ctx.particleSystem)
             {
-                colorKeys.push_back(pEntry->emitterData.colorKeys[k]);
+                const int keyCount = (std::min)(pEntry->emitterData.colorKeyCount, (int)GPUParticleEmitter::MAX_COLOR_KEYS);
+                ctx.particleSystem->SubmitEmitter(ge, pEntry->emitterData.colorKeys, keyCount);
             }
-            colorKeyOffset += pEntry->emitterData.colorKeyCount;
         }
-        else if (entry->GetType() == EntryType::Mesh && ctx.meshRenderer)
+        else if (entry->GetType() == EntryType::Trail)
+        {
+            // 先頭の位置だけ渡す。点の記録と描画は GPUParticleSystem（GPU）
+            static_cast<VFXTrailEntry*>(entry.get())->Submit(m_WorldOffset, jumped);
+        }
+    }
+
+    // 粒子以外の見た目（Mesh / Sprite / 光線 / 液溜まり / 点光源）
+    SubmitDrawables(ctx);
+}
+
+void VFXEffect::SubmitDrawables(const VFXContext& ctx)
+{
+    for (auto& entry : m_Entries)
+    {
+        if (entry->GetType() == EntryType::Mesh && ctx.meshRenderer)
         {
             auto* m = static_cast<VFXMeshEntry*>(entry.get());
             if (m->duration < 0.0f)
@@ -208,18 +217,42 @@ void VFXEffect::CollectAndDispatch(float dt, const VFXContext& ctx)
             static_cast<VFXPointLightEntry*>(entry.get())->Submit(m_WorldOffset,
                 entry->duration < 0.0f ? m_Presence : 1.0f);
         }
+    }
+}
+
+// ============================================================
+// 一時停止中（Update を呼ばないフレーム）の描き直し（2026-10-25）。
+// 各 entry の Submit は自分の年齢（OnUpdate でだけ進む）から見た目を作るので、ここで呼んでも
+// Sprite のコマ・光線の伸び・液溜まりの広がり・Mesh の変化は止まったまま。粒子と帯は GPU の池に
+// 残っているので積み直さない（emitter を積むと Flush の無いフレームに溜まり続ける）
+// ============================================================
+void VFXEffect::SubmitStill()
+{
+    if (!m_SMCtx.vfxCtx || m_SMCtx.current != VFXStateID::Playing) return;
+    SubmitDrawables(*m_SMCtx.vfxCtx);
+}
+
+float VFXEffect::GetFinishWait() const
+{
+    constexpr float kMargin = 0.25f;     // 1〜2 フレームの遅れ + 丸め
+    constexpr float kLongest = 30.0f;    // 壊れた値でいつまでも待たないように
+    float longest = 0.0f;
+    for (const auto& entry : m_Entries)
+    {
+        float t = 0.0f;
+        if (entry->GetType() == EntryType::Particle)
+        {
+            const auto* p = static_cast<const VFXParticleEntry*>(entry.get());
+            t = (std::max)(p->emitterData.lifetimeRange.x, p->emitterData.lifetimeRange.y);
+            if (p->trailEnabled) t += p->trail.lifetime;
+        }
         else if (entry->GetType() == EntryType::Trail)
         {
-            // 先頭の位置だけ渡す。点の記録と描画は GPUParticleSystem（GPU）
-            static_cast<VFXTrailEntry*>(entry.get())->Submit(m_WorldOffset, jumped);
+            t = static_cast<const VFXTrailEntry*>(entry.get())->style.lifetime;
         }
+        if (longest < t) longest = t;   // NaN は無視される
     }
-
-    // GPU に送信（発射 + 粒子更新）
-    if (ctx.particleSystem)
-    {
-        ctx.particleSystem->SubmitEmitters(emitters, colorKeys);
-    }
+    return (std::min)(longest, kLongest) + kMargin;
 }
 
 void VFXEffect::DispatchUpdateOnly(float dt, const VFXContext& ctx)
@@ -377,45 +410,71 @@ bool VFXEffect::LoadFromFile(const std::string& filepath)
 
     m_Entries.clear();
 
-    if (root.contains("name"))
+    // 型の違う欄（数字が文字列・null など）があっても落とさない（2026-10-25。以前は type_error が
+    // どこでも捕まらず、シーンの Init の Preload で起動ごと abort した）。読めない欄は既定値、
+    // 壊れた entry はその 1 つだけ捨ててログに 1 行出す
     {
-        m_Name = root["name"];
-    }
-    else
-    {
-        size_t lastSlash = filepath.find_last_of("/\\");
-        size_t lastDot = filepath.find_last_of('.');
-        size_t start = (lastSlash != std::string::npos) ? lastSlash + 1 : 0;
-        if (lastDot != std::string::npos && lastDot > start)
-            m_Name = filepath.substr(start, lastDot - start);
-        else
-            m_Name = "NewEffect";
-    }
-
-    m_Loop = root.value("loop", false);
-
-    if (root.contains("entries"))
-    {
-        for (auto& e : root["entries"])
+        const auto nameIt = root.find("name");   // root が object でなければ end
+        if (nameIt != root.end() && nameIt->is_string())
         {
-            std::string type = e.value("type", "Particle");
-            float st = e.value("startTime", 0.0f);
-            float dur = e.value("duration", -1.0f);
+            m_Name = nameIt->get<std::string>();
+        }
+        else
+        {
+            size_t lastSlash = filepath.find_last_of("/\\");
+            size_t lastDot = filepath.find_last_of('.');
+            size_t start = (lastSlash != std::string::npos) ? lastSlash + 1 : 0;
+            if (lastDot != std::string::npos && lastDot > start)
+                m_Name = filepath.substr(start, lastDot - start);
+            else
+                m_Name = "NewEffect";
+        }
 
-            EntryType entryType = EntryType::Particle;
-            if (type == "Sprite") entryType = EntryType::Sprite;
-            else if (type == "Trail") entryType = EntryType::Trail;
-            else if (type == "Mesh") entryType = EntryType::Mesh;
-            else if (type == "Light") entryType = EntryType::Light;
-            else if (type == "Sound") entryType = EntryType::Sound;
-            else if (type == "Beam") entryType = EntryType::Beam;
-            else if (type == "Liquid") entryType = EntryType::Liquid;
+        const auto loopIt = root.find("loop");
+        m_Loop = (loopIt != root.end() && loopIt->is_boolean()) ? loopIt->get<bool>() : false;
+    }
 
-            int idx = AddEntry(entryType, st, dur);
-            if (idx >= 0 && e.contains("data"))
+    const auto entriesIt = root.find("entries");
+    if (entriesIt != root.end() && entriesIt->is_array())
+    {
+        int index = 0;
+        for (const auto& e : *entriesIt)
+        {
+            const size_t before = m_Entries.size();
+            try
             {
-                m_Entries[idx]->FromJson(e["data"]);
+                if (!e.is_object())
+                {
+                    std::cout << "[Warn] VFX " << filepath << ": entry " << index << " skipped (not an object)" << std::endl;
+                    ++index;
+                    continue;
+                }
+                const std::string type = e.value("type", std::string("Particle"));
+                const float st = e.value("startTime", 0.0f);
+                const float dur = e.value("duration", -1.0f);
+
+                EntryType entryType = EntryType::Particle;
+                if (type == "Sprite") entryType = EntryType::Sprite;
+                else if (type == "Trail") entryType = EntryType::Trail;
+                else if (type == "Mesh") entryType = EntryType::Mesh;
+                else if (type == "Light") entryType = EntryType::Light;
+                else if (type == "Sound") entryType = EntryType::Sound;
+                else if (type == "Beam") entryType = EntryType::Beam;
+                else if (type == "Liquid") entryType = EntryType::Liquid;
+
+                const int idx = AddEntry(entryType, st, dur);
+                const auto dataIt = e.find("data");
+                if (idx >= 0 && dataIt != e.end())
+                    m_Entries[idx]->FromJson(*dataIt);
             }
+            catch (const std::exception& ex)
+            {
+                // 作りかけの entry も消す
+                if (m_Entries.size() > before)
+                    m_Entries.erase(m_Entries.begin() + (std::ptrdiff_t)before, m_Entries.end());
+                std::cout << "[Warn] VFX " << filepath << ": entry " << index << " skipped (" << ex.what() << ")" << std::endl;
+            }
+            ++index;
         }
     }
 
@@ -447,7 +506,8 @@ void VFXEffect::CloneFrom(const VFXEffect& src)
 
 // ============================================================
 // Y 軸回りに回す（2026-10-03、Boss の門の渦を門の向きに合わせる）。
-// 粒子 entry の発射位置（effect からの相対）と発射の向き、点光源の位置を回す。
+// 粒子 entry の発射位置（effect からの相対）と発射の向き、点光源・Mesh・Sprite・Trail・光線・液溜まりのずらし、
+// 光線・液溜まりのプレビューの向きを回す（2026-10-25 に Sprite / Trail / 光線 / 液溜まりを追加）。
 // 重力は世界の向きのまま。回転は TransformComponent の yaw と同じ（局所 +Z → (sin, 0, cos)）
 // ============================================================
 void VFXEffect::RotateYaw(float degrees)
@@ -472,6 +532,31 @@ void VFXEffect::RotateYaw(float degrees)
             auto* m = static_cast<VFXMeshEntry*>(entry.get());
             m->offset = DirectX::SimpleMath::Vector3::Transform(m->offset, rot);
             m->rotationDeg.y += degrees;
+        }
+        else if (entry->GetType() == EntryType::Sprite)
+        {
+            // 板のずらしだけ回す（板の面内の回転は向きと関係が無い）
+            auto* s = static_cast<VFXSpriteEntry*>(entry.get());
+            s->offset = DirectX::SimpleMath::Vector3::Transform(s->offset, rot);
+        }
+        else if (entry->GetType() == EntryType::Trail)
+        {
+            auto* t = static_cast<VFXTrailEntry*>(entry.get());
+            t->offset = DirectX::SimpleMath::Vector3::Transform(t->offset, rot);
+        }
+        else if (entry->GetType() == EntryType::Beam)
+        {
+            // 起点のずらしと、終点が外から入らない時の向き
+            auto* b = static_cast<VFXBeamEntry*>(entry.get());
+            b->offset = DirectX::SimpleMath::Vector3::Transform(b->offset, rot);
+            b->previewDir = DirectX::SimpleMath::Vector3::TransformNormal(b->previewDir, rot);
+        }
+        else if (entry->GetType() == EntryType::Liquid)
+        {
+            // 中心のずらしと「投げた向き」（0 のままなら seed の角度のまま）
+            auto* l = static_cast<VFXLiquidEntry*>(entry.get());
+            l->offset = DirectX::SimpleMath::Vector3::Transform(l->offset, rot);
+            l->previewDir = DirectX::SimpleMath::Vector3::TransformNormal(l->previewDir, rot);
         }
     }
 }

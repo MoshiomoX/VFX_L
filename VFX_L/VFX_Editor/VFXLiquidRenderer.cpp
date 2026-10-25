@@ -7,6 +7,7 @@
 #include "Graphics/Renderer/RenderStates.h"
 #include "Manager/ResourceManager.h"
 #include "Camera/CameraBase.h"
+#include "Core/VideoCapture.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -105,7 +106,8 @@ void VFXLiquidRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera, con
     cam.viewProj = camera->GetViewMatrix() * camera->GetProjectionMatrix();
     cam.hasTerrain = m_Heights ? 1u : 0u;
     FrameCB frame;
-    frame.time = std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count();
+    frame.time = VideoCapture::Get().Enabled() ? (float)VideoCapture::Get().Time()   // 動画の書き出し中は 1/60 秒ずつ
+        : std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count();
     LightBuffer l = light;
     l.cameraPosition = camera->GetPosition();
 

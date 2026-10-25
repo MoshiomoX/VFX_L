@@ -19,8 +19,10 @@ AppendStructuredBuffer<uint> shieldList : register(u1);
 AppendStructuredBuffer<uint> spikeBallList : register(u2); // SWARM_KIND_SPIKEBALL: own mesh, no blocky body (2026-10-17)
 AppendStructuredBuffer<uint> burrowerList : register(u3); // SWARM_KIND_BURROWER (own texture + the mound) (2026-10-17)
 AppendStructuredBuffer<uint> sandMageList : register(u4); // SWARM_KIND_SANDMAGE (own texture) (2026-10-17)
-AppendStructuredBuffer<uint> tornadoList : register(u5);  // SWARM_KIND_TORNADO: own mesh (SwarmTornadoVS), no blocky body (2026-10-17)
+// u5 is free: the tornado's list went with its mesh (2026-10-20: a tornado draws nothing; its dust and wind come from
+// SwarmTornadoEmitCS / SwarmWindSourceCS. CompactCS leaves it out of mobList)
 AppendStructuredBuffer<uint> dashBomberList : register(u6); // SWARM_KIND_DASHBOMBER (own texture) (2026-10-18)
+AppendStructuredBuffer<uint> bossList : register(u7);       // SWARM_KIND_BOSS: the stage's boss skin + its decorations (2026-10-24)
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -41,8 +43,8 @@ void main(uint3 id : SV_DispatchThreadID)
         burrowerList.Append(i);
     else if (kind == SWARM_KIND_SANDMAGE)
         sandMageList.Append(i);
-    else if (kind == SWARM_KIND_TORNADO)
-        tornadoList.Append(i);
     else if (kind == SWARM_KIND_DASHBOMBER)
         dashBomberList.Append(i);
+    else if (kind == SWARM_KIND_BOSS)
+        bossList.Append(i);
 }

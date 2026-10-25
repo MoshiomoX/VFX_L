@@ -96,6 +96,7 @@ static void ProcessNode(
         std::vector<VERTEX_3D> vertices;
         std::vector<unsigned int> indices;
         vertices.reserve(mesh->mNumVertices);
+        Vector3 subMin(FLT_MAX, FLT_MAX, FLT_MAX), subMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 
         for (unsigned int v = 0; v < mesh->mNumVertices; v++)
         {
@@ -107,6 +108,8 @@ static void ProcessNode(
 
             boundsMin = Vector3::Min(boundsMin, pos);
             boundsMax = Vector3::Max(boundsMax, pos);
+            subMin = Vector3::Min(subMin, pos);
+            subMax = Vector3::Max(subMax, pos);
             hull.Add(pos);
 
             if (mesh->HasNormals())
@@ -153,6 +156,9 @@ static void ProcessNode(
         Model::SubMesh sub;
         sub.mesh = meshPtr;
         sub.materialIndex = (int)mesh->mMaterialIndex;
+        sub.nodeName = node->mName.C_Str();
+        sub.boundsMin = (mesh->mNumVertices > 0) ? subMin : Vector3::Zero;
+        sub.boundsMax = (mesh->mNumVertices > 0) ? subMax : Vector3::Zero;
         subMeshes.push_back(sub);
     }
 
@@ -389,6 +395,8 @@ bool Model::LoadFromScene(ID3D11Device* device, const aiScene* scene,
 // ============================================================
 void Model::Draw(Renderer& renderer, Transform* transform)
 {
+    // submesh を続けて描く間、点光源は 1 回だけ張る（間に別の描画は入らない）
+    renderer.BeginLightBatch();
     for (auto& sub : m_SubMeshes)
     {
         Material* mat = nullptr;
@@ -396,6 +404,7 @@ void Model::Draw(Renderer& renderer, Transform* transform)
             mat = m_Materials[sub.materialIndex].get();
         renderer.DrawMesh(sub.mesh.get(), transform, mat);
     }
+    renderer.EndLightBatch();
 }
 
 void Model::SetMaterial(int index, std::shared_ptr<Material> material)

@@ -99,8 +99,15 @@ void InputManager::Update()
     m_PadStateOld = m_PadState;
     ZeroMemory(&m_PadState, sizeof(XINPUT_STATE));
 
-    DWORD result = XInputGetState(0, &m_PadState);   // 0 = 1台目
-    m_PadConnected = (result == ERROR_SUCCESS);
+    // 繋がっていない時の XInputGetState は重いので 1.5 秒毎にだけ確かめる（挿した後は毎フレーム）
+    constexpr ULONGLONG kPadPollIntervalMs = 1500;
+    const ULONGLONG nowMs = GetTickCount64();
+    if (m_PadConnected || nowMs >= m_PadNextPollMs)
+    {
+        DWORD result = XInputGetState(0, &m_PadState);   // 0 = 1台目
+        m_PadConnected = (result == ERROR_SUCCESS);
+        if (!m_PadConnected) m_PadNextPollMs = nowMs + kPadPollIntervalMs;
+    }
 
     // 未接続なら状態をゼロに（前フレームの残留を防ぐ）
     if (!m_PadConnected)

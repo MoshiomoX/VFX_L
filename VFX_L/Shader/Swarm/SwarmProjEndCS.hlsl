@@ -42,6 +42,10 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     projTags[i] = 0u;
+    // the lifesteal mark (2026-10-25) rides in the top bit: it is not a trigger, the CPU never hears about it
+    tag &= ~SWARM_TAG_LIFESTEAL;
+    if (tag == 0u)
+        return;
 
     float3 pos = projectiles[i].position;
     pos.y = SwarmTerrainHeight(terrainHeight, pos.xz);

@@ -3,7 +3,8 @@
 // ステージ選択（StageSelectScene = m_SelectScene。2026-10-21 ユーザー：「ステージ選択を Megabonk に完全に倣う」→ 独立したシーン）。
 //   景色はタイトルと同じ作り（PlaceTitleStand / UpdateTitleWorld / UpdateTitleCamera）：選んだマップの地形（決まった seed）を
 //   プレイヤーの周りでカメラが回る。戦いの見本は無し。手前に StageSelectUI（マップ × Tier）。
-//   マップのカーソルが動いたら EnterTrainingField で地形・光・草を作り直す（Debug で 1〜2 秒止まる）。
+//   3 つのマップの地形は入った時に全部建てて預かり（BuildSelectWorlds）、マップを変えたら出し入れするだけ
+//   （ActivateSelectWorld：前のマップの実体をしまい、選んだマップの物を出して格子・草・光を差し替える。建て直さない）。
 //   出発：g_RunCarry に計画（開始マップ・Tier）を積んで戦闘へ。戻る：タイトルへ。
 //   Debug（F10 のパネル表示中）：「Unlock all」「Reset progress」の小さな ImGui 窓
 // ============================================================
@@ -11,6 +12,11 @@
 #include "Scene/RunResult.h"
 #include "Component/ModelComponent.h"
 #include "Component/ColliderComponent.h"
+#include "Component/TransformComponent.h"
+#include "Component/RigidbodyComponent.h"
+#include "Component/HealthComponent.h"
+#include "Player/PlayerStatsComponent.h"
+#include "Graphics/Renderer/TerrainSurface.h"
 #include "Core/GameProgress.h"
 #include "Core/DevUI.h"
 #include "Core/Application.h"
@@ -53,6 +59,10 @@ struct CollisionTestScene::SelectWorlds
         std::vector<std::pair<Entity, ModelComponent>> parkedModels;
         std::vector<std::pair<Entity, ColliderComponent>> parkedColliders;
         bool parked = false;
+        // 立つ所（PlaceTitleStand の結果）。地形は決まった seed で変わらないので、初めて出した時に覚えて使い回す
+        bool standKnown = false;
+        Vector3 stand;
+        float standYaw = 0.0f;
     };
     World worlds[StageConfig::kStageCount];
     int active = -1;   // worlds の添字。-1 = まだ
@@ -164,9 +174,39 @@ void CollisionTestScene::ActivateSelectWorld(int map)
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());
     m_Swarm.KillAll();
     m_Swarm.UploadTerrain(m_Grid);
+    // 地形の PS の定数（面毎の明るさ合わせ）は 3 つの面で共用：最後に建てた面の値のままなので、出した面の値へ書き直す
+    TerrainSurface::Get().Activate((int)m_TerrainConfig.biome);
 
     // ---- 立つ所・カメラの中心・光 ----
-    PlaceTitleStand();
+    // 立つ所の探し方は重い（SampleHeight を最悪 270 万回）。2 回目からは覚えた結果で置くだけ（PlaceTitleStand と同じ置き方）
+    if (!w.standKnown)
+    {
+        PlaceTitleStand();
+        w.stand = m_TitleFocus;
+        w.standYaw = m_TitleFacing;
+        w.standKnown = true;
+    }
+    else
+    {
+        m_TitleFocus = w.stand;
+        m_TitleFacing = w.standYaw;
+        if (m_Registry.IsValid(m_Player) && m_Registry.Has<TransformComponent>(m_Player))
+        {
+            auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+            float lift = 1.3f;
+            if (m_Registry.Has<PlayerStatsComponent>(m_Player))
+            {
+                const auto& st = m_Registry.Get<PlayerStatsComponent>(m_Player);
+                lift = st.height * 0.5f + st.radius + 0.05f;
+            }
+            tf.position = { w.stand.x, w.stand.y + lift, w.stand.z };
+            tf.rotation.y = w.standYaw + 180.0f;
+            if (m_Registry.Has<RigidbodyComponent>(m_Player))
+                m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+            if (m_Registry.Has<HealthComponent>(m_Player))
+                m_Registry.Get<HealthComponent>(m_Player).invincible = true;
+        }
+    }
     BuildWindToys();   // 転がり草（砂漠・遺跡）・タンポポ（草原）を立つ所の周りへ（2026-10-22）
     ApplySelectLight();
     m_TitleTime = 0.0f;   // カメラは最初の向きから

@@ -384,9 +384,10 @@ namespace PrimitiveBuilder
             {
                 unsigned int a = i * (slices + 1) + j;
                 unsigned int b = a + slices + 1;
-                // 左手系 CW 巻き順
-                indices.push_back(a);     indices.push_back(a + 1); indices.push_back(b);
-                indices.push_back(a + 1); indices.push_back(b + 1); indices.push_back(b);
+                // CreateBox と同じ巻き順（cross(p1 - p0, p2 - p0) が内側 = 外から見て表）。
+                // 2026-10-25 以前は逆で、背面カリングすると奥側の内壁だけが描かれていた
+                indices.push_back(a);     indices.push_back(b); indices.push_back(a + 1);
+                indices.push_back(a + 1); indices.push_back(b); indices.push_back(b + 1);
             }
         }
 
@@ -458,15 +459,15 @@ namespace PrimitiveBuilder
             ++totalRings;
         }
 
-        // リング間を三角形で繋ぐ（左手系 CW）
+        // リング間を三角形で繋ぐ（CreateSphere と同じ = CreateBox と同じ巻き順。2026-10-25 に逆だったのを直した）
         for (int i = 0; i < totalRings - 1; ++i)
         {
             for (int j = 0; j < slices; ++j)
             {
                 unsigned int a = i * (slices + 1) + j;
                 unsigned int b = a + slices + 1;
-                indices.push_back(a);     indices.push_back(a + 1); indices.push_back(b);
-                indices.push_back(a + 1); indices.push_back(b + 1); indices.push_back(b);
+                indices.push_back(a);     indices.push_back(b); indices.push_back(a + 1);
+                indices.push_back(a + 1); indices.push_back(b); indices.push_back(b + 1);
             }
         }
 
@@ -538,7 +539,8 @@ namespace PrimitiveBuilder
     // ========================================================
     // 竜巻の筒（2026-10-19）：回転体。半径 r(v) = (waist + (1 - waist)(2v - 1)^2) × (0.85 + 0.15v)
     //   v = 0（下）0.85、v = 0.5 waist 付近、v = 1（上）1.0。法線は回転体の式から（外向き、r' で上下に傾く）
-    //   上から下へ環を並べ、球と同じ三角形の巻き順（CullNone で描くので裏表はどちらでも良い）
+    //   上から下へ環を並べる。三角形の巻き順は外から見て裏（2026-10-25 に直す前の球と同じ）。
+    //   CullNone で描く前提なので裏表はどちらでも良い
     // ========================================================
     std::shared_ptr<Model> CreateTornadoShell(ID3D11Device* device, int segments, int rings, float waist, float twist,
         const Vector4& color)
@@ -617,8 +619,8 @@ namespace PrimitiveBuilder
             {
                 const unsigned int a = i * (slices + 1) + j;
                 const unsigned int b = a + slices + 1;
-                indices.push_back(a);     indices.push_back(a + 1); indices.push_back(b);
-                indices.push_back(a + 1); indices.push_back(b + 1); indices.push_back(b);
+                indices.push_back(a);     indices.push_back(b); indices.push_back(a + 1);
+                indices.push_back(a + 1); indices.push_back(b); indices.push_back(b + 1);
             }
 
         // トゲ（CreateBipyramid と同じ巻き方：法線が外を向くように）

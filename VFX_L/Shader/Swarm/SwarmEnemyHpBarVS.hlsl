@@ -76,7 +76,8 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float3 up = float3(g_BarView._12, g_BarView._22, g_BarView._32);
 
     // elites are scaled about the feet: the bar goes up with the head and gets wider
-    float k = SwarmKindScale(enemyExtra[slot].kind);
+    // (a berserk fixed elite is drawn bigger again, SwarmSlotScale, 2026-10-25)
+    float k = SwarmSlotScale(slot, enemyExtra[slot].kind);
     float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
     float offset = footY + (g_BarOffset - footY) * k;
     float width = g_BarWidth * (k > 1.0 ? 1.5 : 1.0);

@@ -18,8 +18,21 @@ enum class BossMove : int
     Shockwave,    // 衝撃波：Boss が地面を叩き、地面を這う光の帯が外へ広がる（跳んで避ける）
     Charge,       // 突進：道筋の輪が出た後、Boss が一直線に走る（横へ避ける）
     Summon,       // 召喚：Boss が止まって吠え、周りの小さな輪から雑魚・自爆兵が湧く（2026-10-07）
+    // ---- 砂の守護者（砂漠の Boss）だけの技（2026-10-24。BossType::SandGuardian の時だけ enabled）----
+    SandSpear,    // 砂の槍：Boss からプレイヤーへ線上に輪 → 足元から先へ石のトゲが突き出る（横へ避ける）
+    Burrow,       // 潜砂奇襲：砂に潜って（撃てない）砂丘だけがプレイヤーを追う → 止まって輪 → 飛び出して叩く（輪から走って出る）
+    Quicksand,    // 流沙：Boss の周りに回る砂の渦。中では遅くなり中心へ引かれる（跳んでいる間は効かない）。渦は技の後も残る
     Count
 };
+
+// どの Boss か（面毎。StageDef::boss）。技の組み合わせ・召喚する敵・体の色が変わる（BossAttacks::Configure）
+enum class BossType : int
+{
+    StoneGiant = 0,   // 草原（今までの Boss。重撃 / 投石雨 / 衝撃波 / 突進 / 召喚）
+    SandGuardian,     // 砂漠「砂の守護者」：共通の 5 つ + 砂の槍 / 潜砂奇襲 / 流沙、召喚はトゲ玉・砂潜り
+    Count
+};
+const char* BossTypeName(BossType t);
 
 const char* BossMoveName(BossMove m);
 

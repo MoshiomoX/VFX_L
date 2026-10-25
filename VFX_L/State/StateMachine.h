@@ -144,9 +144,13 @@ public:
         m_EventQueue.push(requested);
     }
 
-    // 外部からの強制遷移（即時実行）
+    // 外部からの強制遷移（即時実行）。
+    // これより前に積まれた Event は古い指示なので捨てる（例：Stop() の Finishing が残ったまま
+    // 同じフレームに Play() すると、次の Update でその Finishing が新しい再生を止めてしまう）。
+    // 遷移中の onExit / onEnter が積んだ Event は残る（捨てるのは遷移の前）
     void ChangeState(TContext& ctx, TOwner& owner, StateID next)
     {
+        std::queue<StateID>().swap(m_EventQueue);
         DoChange(ctx, owner, next);
     }
 
@@ -211,9 +215,12 @@ private:
         auto toPath = GetPathFromRoot(next);  // [最上位 ... next]
 
         // --- LCA 計算：根から辿り、最後に一致した深さが LCA ---
-        size_t minLen = (std::min)(fromPath.size(), toPath.size());
-        size_t lcaDepth = 0;
-        for (size_t i = 0; i < minLen; ++i)
+        // 経路に ROOT は入っていないので、最上位どうしの遷移（共通の祖先なし）は -1。
+        // その時は from の経路を全部 Exit、to の経路を全部 Enter する
+        //（0 から始めると最上位の状態の onExit / onEnter が呼ばれなかった）
+        const int minLen = (int)(std::min)(fromPath.size(), toPath.size());
+        int lcaDepth = -1;
+        for (int i = 0; i < minLen; ++i)
         {
             if (fromPath[i] == toPath[i])
             {
@@ -226,7 +233,7 @@ private:
         }
 
         // --- Exit：現在状態から LCA の下一層まで退出（子→親）---
-        for (int i = (int)fromPath.size() - 1; i > (int)lcaDepth; --i)
+        for (int i = (int)fromPath.size() - 1; i > lcaDepth; --i)
         {
             if (auto* b = Find(fromPath[i]); b && b->onExit)
             {
@@ -243,7 +250,7 @@ private:
         }
 
         // --- Enter：LCA の下一層から目標状態まで突入（親→子）---
-        for (size_t i = lcaDepth + 1; i < toPath.size(); ++i)
+        for (int i = lcaDepth + 1; i < (int)toPath.size(); ++i)
         {
             if (auto* b = Find(toPath[i]); b && b->onEnter)
             {

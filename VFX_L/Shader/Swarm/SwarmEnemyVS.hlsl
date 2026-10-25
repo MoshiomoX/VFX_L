@@ -43,8 +43,7 @@ static const float kChargeBlinkEnd = 12.0;
 static const float3 kIceTint = float3(0.75, 1.05, 1.7);
 // elite: dark red tint on the shared zombie texture
 static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
-// boss: violet
-static const float3 kBossTint = float3(1.1, 0.5, 1.5);
+// boss: g_BossTint (BomberCB, per stage: grassland violet, desert sandstone. 2026-10-24)
 // ghost: translucent cyan-white, drawn with alpha blend (SwarmSystem draws its list last)
 static const float3 kGhostTint = float3(0.55, 1.25, 1.6);
 // dark ghost (2026-10-18): near-black violet, more opaque, with a slow purple pulse
@@ -62,13 +61,15 @@ cbuffer SwarmEnemyAnimCB : register(b4)
     uint g_AnimPart;       // submesh being drawn
     uint g_AnimPartCount;
     uint g_AnimEnabled;    // 0 = no table: fall back to the procedural sway
-    uint _animPad;
+    uint g_AnimMode;       // 0 = moves with part g_AnimPart, 1 = a boss decoration orbiting the body axis (2026-10-24)
     uint4 g_ClipStart;     // first frame of each clip in the table
     uint4 g_ClipFrames;
     float4 g_ClipLength;   // seconds
     float g_AnimTime;      // clock for idle (seconds)
     float g_WalkRate;      // walk playback speed
-    float2 _animPad2;
+    float g_OrbitSpeed;    // rad/s for g_AnimMode 1
+    float _animPad2;
+    float4 g_Flap;         // g_AnimMode 2 (a gargoyle's wing, 2026-10-25): hinge (baked mesh space) xyz, w = +1 right wing / -1 left
 };
 
 struct PartXform
@@ -150,8 +151,63 @@ VS_OUTPUT main(VS_INPUT_INST input)
     SwarmEnemyExtra extra = enemyExtra[slot];
     float4 status = enemySlow[slot];
     bool frozen = status.z > 0.0;
+    // a sleeping gargoyle is a statue: no motion at all (2026-10-25); the first part of its waking only shakes
+    bool statue = (extra.kind == SWARM_KIND_GARGOYLE) && extra.fuse < 0.35 * g_GargoyleWakeTime;
+    // the stage's fixed elites (2026-10-25): the CPU's flags (attack loop, spin, enraged) and its wind-up glow
+    uint eliteFlags = 0u;
+    float eliteGlow = 0.0;
+    if (SwarmIsFixedElite(extra.kind))
+    {
+        int erow = SwarmEliteEntry(slot);
+        if (erow >= 0)
+        {
+            eliteFlags = g_EliteCmd[erow].y;
+            eliteGlow = (float) g_EliteCmd[erow].w / 1000.0;
+        }
+    }
+    bool eliteAttack = (eliteFlags & SWARM_ELITE_ATTACK) != 0u;
+    if ((eliteFlags & SWARM_ELITE_SPIN) != 0u)
+        sincos(e.yaw + g_AnimTime * 15.0, s, c);   // the axe's whirl: the whole body turns
 
-    if (g_AnimEnabled != 0u)
+    // ---- a gargoyle's wing (g_AnimMode 2, 2026-10-25): turned about the forward axis through the hinge before the
+    //      part's own animation. Hangs while a statue / landed, flaps in the air, swept up through the dive ----
+    float3 inPos = input.Position;
+    float3 inNrm = input.Normal;
+    float3 inTan = input.Tangent;
+    if (g_AnimMode == 2u)
+    {
+        float ang = -0.25;
+        if (SwarmGargoyleAirborne(extra))
+        {
+            if (extra.fuse >= SWARM_GARGOYLE_DIVE)
+                ang = SwarmGargoyleDiving(extra) ? 0.95 : 0.6;
+            else
+                ang = 0.15 + g_GargoyleFlap * sin(g_AnimTime * 9.0 + phaseOffset);
+        }
+        float as, ac;
+        sincos(ang * g_Flap.w, as, ac);
+        float2 r = inPos.xy - g_Flap.xy;
+        inPos.xy = g_Flap.xy + float2(r.x * ac - r.y * as, r.x * as + r.y * ac);
+        inNrm.xy = float2(inNrm.x * ac - inNrm.y * as, inNrm.x * as + inNrm.y * ac);
+        inTan.xy = float2(inTan.x * ac - inTan.y * as, inTan.x * as + inTan.y * ac);
+        local = inPos;
+        normal = inNrm;
+        tangent = inTan;
+    }
+
+    if (g_AnimMode == 1u)
+    {
+        // ---- boss decoration orbiting the body (the sand guardian's floating rocks, 2026-10-24): spin the whole
+        //      ring around the vertical axis and bob it a little. Not frozen with the body: it is a spell, not a limb ----
+        float a = g_AnimTime * g_OrbitSpeed;
+        float os, oc;
+        sincos(a, os, oc);
+        local = float3(input.Position.x * oc + input.Position.z * os, input.Position.y + 0.06 * sin(g_AnimTime * 1.7),
+                       -input.Position.x * os + input.Position.z * oc);
+        normal = float3(input.Normal.x * oc + input.Normal.z * os, input.Normal.y, -input.Normal.x * os + input.Normal.z * oc);
+        tangent = float3(input.Tangent.x * oc + input.Tangent.z * os, input.Tangent.y, -input.Tangent.x * os + input.Tangent.z * oc);
+    }
+    else if (g_AnimEnabled != 0u)
     {
         // ---- rigid part animation: pick the clip from the enemy state ----
         //   attack : ContactCS just hit the player (attackCooldown was reset to
@@ -164,10 +220,22 @@ VS_OUTPUT main(VS_INPUT_INST input)
         float t = g_AnimTime + phaseOffset;
         bool loop = true;
         float sinceAttack = g_AttackInterval - e.attackCooldown;
-        if (frozen)
+        if (statue)
+        {
+            clip = 0u;
+            t = 0.0;
+        }
+        else if (frozen)
         {
             clip = 1u;
             t = phaseOffset;
+        }
+        else if (eliteAttack)
+        {
+            // a fixed elite's move: the swing over and over
+            clip = 2u;
+            t = fmod(g_AnimTime * 1.3 + phaseOffset, max(g_ClipLength.z, 0.05));
+            loop = false;
         }
         else if (e.attackCooldown > 0.0 && sinceAttack < g_ClipLength.z)
         {
@@ -189,9 +257,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
         PartXform fa, fb;
         float w;
         SamplePart(clip, t, loop, fa, fb, w);
-        local = lerp(XformPoint(fa, input.Position), XformPoint(fb, input.Position), w);
-        normal = normalize(lerp(XformDir(fa, input.Normal), XformDir(fb, input.Normal), w));
-        tangent = lerp(XformDir(fa, input.Tangent), XformDir(fb, input.Tangent), w);
+        local = lerp(XformPoint(fa, inPos), XformPoint(fb, inPos), w);
+        normal = normalize(lerp(XformDir(fa, inNrm), XformDir(fb, inNrm), w));
+        tangent = lerp(XformDir(fa, inTan), XformDir(fb, inTan), w);
     }
     else if (e.animIndex != 2u && moving && !frozen)
     {
@@ -217,6 +285,16 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y = footY + (local.y - footY) * kindScale;
     }
 
+    // ---- fixed elite: bigger when enraged, shrinks into the ground as it vanishes (the shadow swordsman, 2026-10-25) ----
+    if (SwarmIsFixedElite(extra.kind))
+    {
+        float hide = saturate(-extra.fuse);
+        float grow = (((eliteFlags & SWARM_ELITE_ENRAGED) != 0u) ? g_EliteEnragedScale : 1.0) * (1.0 - hide);
+        float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
+        local.xz *= grow;
+        local.y = footY + (local.y - footY) * grow;
+    }
+
     // ---- lit bomber: swell toward the blast, anchored at the feet ----
     bool lit = SwarmInvulnerable(extra);   // a lit bomber / dash bomber (2026-10-18)
     float fuseT = (extra.kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberWindup + g_DashBomberFuse : g_BomberFuseTime;
@@ -237,11 +315,24 @@ VS_OUTPUT main(VS_INPUT_INST input)
         float bodyH = (g_EnemyRadius + g_EnemyCapsuleHalf) * 2.0 * kindScale + 0.6;
         local.y -= bodyH * down;
     }
+    // ---- sand guardian burrowing (2026-10-24): fuse = -burrow 0..1 (AICS from g_BossBurrow), the body sinks the same way ----
+    if (extra.kind == SWARM_KIND_BOSS && extra.fuse < 0.0)
+    {
+        float bodyH = (g_EnemyRadius + g_EnemyCapsuleHalf) * 2.0 * kindScale + 0.6;
+        local.y -= bodyH * saturate(-extra.fuse);
+    }
 
     float3 worldPos = RotateY(local, s, c) + e.position;
     // ghost: hovers and bobs (the gameplay position stays on the ground)
     if (SwarmIsGhost(extra.kind))
         worldPos.y += g_GhostHover + 0.15 * sin(g_AnimTime * 3.0 + (float) slot * 0.7);
+    // a waking gargoyle shakes the stone off (2026-10-25)
+    if (extra.kind == SWARM_KIND_GARGOYLE && extra.fuse > 0.0 && extra.fuse < 0.35 * g_GargoyleWakeTime)
+    {
+        float k = 0.06 * (1.0 - extra.fuse / (0.35 * g_GargoyleWakeTime + 1e-3));
+        worldPos.x += k * sin(g_AnimTime * 61.0 + (float) slot);
+        worldPos.z += k * sin(g_AnimTime * 53.0 + (float) slot * 1.7);
+    }
     o.WorldPos = worldPos;
     o.Position = mul(mul(float4(worldPos, 1.0), View), Projection);
     o.Normal = RotateY(normal, s, c);
@@ -251,7 +342,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     if (extra.kind == SWARM_KIND_ELITE)
         o.Color.rgb *= kEliteTint;
     else if (extra.kind == SWARM_KIND_BOSS)
-        o.Color.rgb *= kBossTint;
+        o.Color.rgb *= g_BossTint;
     else if (extra.kind == SWARM_KIND_GHOST)
     {
         o.Color.rgb *= kGhostTint * g_GhostGlow;
@@ -308,6 +399,40 @@ VS_OUTPUT main(VS_INPUT_INST input)
         float pulse = 0.5 + 0.5 * sin(extra.fuse * (12.0 + 30.0 * u));
         float g = 1.0 + (0.6 + 1.6 * u) * pulse;
         o.Color.rgb *= float3(g, g * 0.85, 1.0 + (g - 1.0) * 0.3);
+    }
+
+    // ---- ruins enemies (2026-10-25) ----
+    // sleeping gargoyle: a dull grey statue (the glowing eyes go out), lights up as it wakes
+    if (statue)
+    {
+        float l = dot(o.Color.rgb, float3(0.3, 0.59, 0.11));
+        o.Color.rgb = min(lerp(o.Color.rgb, l.xxx, 0.8), 0.7);
+    }
+    // necromancer winding up: a sickly green glow swelling toward the cast
+    if (extra.kind == SWARM_KIND_NECRO && extra.fuse > 0.0)
+    {
+        float u = saturate(extra.fuse / max(g_NecroWindup, 1e-3));
+        float pulse = 0.5 + 0.5 * sin(extra.fuse * (8.0 + 22.0 * u));
+        float g = 1.0 + (0.5 + 1.5 * u) * pulse;
+        o.Color.rgb *= float3(1.0 + (g - 1.0) * 0.45, g, 1.0 + (g - 1.0) * 0.6);
+    }
+    // chain warden winding up the throw: an orange glow (with the band on the ground)
+    if (extra.kind == SWARM_KIND_WARDEN && extra.fuse > 0.0)
+    {
+        float u = saturate(extra.fuse / max(g_WardenWindup, 1e-3));
+        float g = 1.0 + 1.6 * u * (0.6 + 0.4 * sin(extra.fuse * 30.0));
+        o.Color.rgb *= float3(g, 1.0 + (g - 1.0) * 0.45, 1.0 + (g - 1.0) * 0.1);
+    }
+    // the revived cursed armor: a slow violet pulse (it came back once)
+    if (extra.kind == SWARM_KIND_ARMOR2)
+        o.Color.rgb *= float3(1.15, 0.8, 1.45) * (0.9 + 0.25 * sin(g_AnimTime * 3.0 + (float) slot));
+    // fixed elites (2026-10-25): enraged = a red pulse, winding up a move = a hot flicker that brightens toward the hit
+    if ((eliteFlags & SWARM_ELITE_ENRAGED) != 0u)
+        o.Color.rgb *= float3(1.55, 0.6, 0.5) * (0.9 + 0.2 * sin(g_AnimTime * 7.0 + (float) slot));
+    if (eliteGlow > 0.0)
+    {
+        float g = 1.0 + eliteGlow * (1.3 + 0.7 * sin(g_AnimTime * 28.0));
+        o.Color.rgb *= float3(g, 1.0 + (g - 1.0) * 0.55, 1.0 + (g - 1.0) * 0.35);
     }
 
     // ---- frozen (Ice Lance): pale blue body ----

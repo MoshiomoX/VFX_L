@@ -9,6 +9,7 @@
 #pragma once
 #include "World/TerrainGenerator.h"
 #include "Graphics/Light/SceneLighting.h"
+#include "Enemy/BossBrain.h"
 #include <SimpleMath.h>
 #include <algorithm>
 
@@ -40,7 +41,7 @@ struct StageDef
 
     // 新しい敵の混ざり方（2026-10-03、ユーザー「面毎の主力 + 面の中で時間で増える」）。
     // 湧き（新規・転送）のうちその種類の割合: start 秒までは 0、start で ratioStart、rampEnd 秒で ratioEnd（間は直線）。
-    // 第 1 面の主力 = スプリッター、第 2 面 = 突撃兵、第 3 面 = 盾兵（2026-10-08）
+    // 第 1 面の主力 = スプリッター、第 2 面 = 突撃兵、第 3 面 = 呪いの鎧（2026-10-25 から。それまでの盾兵は 5〜10% に下げた）
     struct EnemyMix
     {
         float start = 1.0e9f;
@@ -49,15 +50,23 @@ struct StageDef
         float rampEnd = 480.0f;
     };
     EnemyMix splitter = { 60.0f, 0.10f, 0.25f, 480.0f };
-    // 突撃兵（第 2 面の主力）・盾兵（第 3 面の主力）。2026-10-08。他の面は少し遅れて少しだけ混ざる
+    // 突撃兵（第 2 面の主力）・盾兵（2026-10-08 は第 3 面の主力、10-25 から遺跡の敵に枠を譲った）。他の面は少し遅れて少しだけ混ざる
     EnemyMix charger = { 150.0f, 0.03f, 0.08f, 540.0f };
     EnemyMix shield = { 180.0f, 0.03f, 0.08f, 540.0f };
     EnemyMix spikeBall = { 1.0e9f, 0.0f, 0.0f, 480.0f };   // トゲ玉（砂漠の敵。2026-10-17。砂漠以外は出ない）
     EnemyMix burrower = { 1.0e9f, 0.0f, 0.0f, 480.0f };    // 砂潜り（砂漠の敵。2026-10-17。砂漠以外は出ない）
     EnemyMix sandMage = { 1.0e9f, 0.0f, 0.0f, 480.0f };    // 砂嵐の術師（砂漠の敵。2026-10-17。砂漠以外は出ない）
     EnemyMix dashBomber = { 150.0f, 0.03f, 0.08f, 480.0f }; // 突撃爆弾兵（全ステージ。2026-10-18）：150 秒から 3% → 8 分で 8%
+    // 遺跡の敵（2026-10-25。遺跡以外は出ない）：呪いの鎧・石像ガーゴイル・死霊術師（骸骨を起こす）・鎖の番人
+    EnemyMix armor = { 1.0e9f, 0.0f, 0.0f, 480.0f };
+    EnemyMix gargoyle = { 1.0e9f, 0.0f, 0.0f, 480.0f };
+    EnemyMix necro = { 1.0e9f, 0.0f, 0.0f, 480.0f };
+    EnemyMix warden = { 1.0e9f, 0.0f, 0.0f, 480.0f };
 
-    // 遺跡の松明（外周の壁に付く）に点光源を付ける数（プレイヤーに近い順。全体の上限 64 を圧迫しないように）
+    // 面の Boss（2026-10-24、ユーザー「面毎に専用の Boss」）。技の組み合わせ・召喚する敵・体の色（BossAttacks::Configure）
+    BossType boss = BossType::StoneGiant;
+
+    // 遺跡の松明（外周の壁に付く）に点光源を付ける数（プレイヤーに近い順。点光源の表（上限 256）を圧迫しないように）
     int torchLights = 12;
 };
 

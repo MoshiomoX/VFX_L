@@ -235,16 +235,21 @@ void GPUParticleSystem::RenderMeshes(ID3D11DeviceContext* context, int firstPass
     if (!m_MeshLitPS || !m_MeshLitPS->IsValid() || !m_MeshGlowPS || !m_MeshGlowPS->IsValid()) return;
 
     // ---- 束の数を、その束を描く submesh の args の InstanceCount（+4 byte）へ写す ----
-    for (int i = 0; i < (int)kParticleMeshSlots; ++i)
+    // 1 フレームに 2 回呼ばれる（RenderLitMeshes と Render）ので、UpdateCS の後の最初の 1 回だけ両方の束を写す（2026-10-25）
+    if (m_MeshArgsFresh)
     {
-        const MeshSlot& s = m_MeshSlots[i];
-        if (!s.used) continue;
-        for (int pass = 0; pass < 2; ++pass)
+        m_MeshArgsFresh = false;
+        for (int i = 0; i < (int)kParticleMeshSlots; ++i)
         {
-            const UINT bucket = (UINT)i * 2u + (UINT)pass;
-            const D3D11_BOX box = { bucket * 4u, 0, 0, bucket * 4u + 4u, 1, 1 };
-            for (const auto& args : s.args[pass])
-                context->CopySubresourceRegion(args.Get(), 0, 4, 0, 0, m_MeshCountBuffer.Get(), 0, &box);
+            const MeshSlot& s = m_MeshSlots[i];
+            if (!s.used) continue;
+            for (int pass = 0; pass < 2; ++pass)
+            {
+                const UINT bucket = (UINT)i * 2u + (UINT)pass;
+                const D3D11_BOX box = { bucket * 4u, 0, 0, bucket * 4u + 4u, 1, 1 };
+                for (const auto& args : s.args[pass])
+                    context->CopySubresourceRegion(args.Get(), 0, 4, 0, 0, m_MeshCountBuffer.Get(), 0, &box);
+            }
         }
     }
 

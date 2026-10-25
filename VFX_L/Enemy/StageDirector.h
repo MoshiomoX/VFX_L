@@ -8,7 +8,8 @@
 //     finalStepTime 秒毎に強さ × finalStepMul。同時の上限は最初の 2 分 finalCap、その後 finalCapLate。
 //     MobSpawner の final* に書いて効かせる
 //   ・Boss の門：開始時にプレイヤーから離れた所へ 1 つ。近づいて F で面の Boss（kEnemyKindBoss）を呼ぶ。
-//     いつ呼んでもよい（遅いほど難度の倍率で HP が高い）。Boss を倒すと面をクリア
+//     いつ呼んでもよい（遅いほど難度の倍率で HP が高い）。クリアは 2 段（2026-10-07）：
+//     Boss を倒すと同じ門が出口になり（OpenExit、StageExit）、もう一度門で F を押すと面をクリア（IsCleared）
 //     （Boss の生死は GPU からのリードバック SwarmSystem::GetBossInfo で見る）
 // 時間は戦闘の経過秒（一時停止・バックパック・三択の間は進まない。HUD の計時と同じ）
 // ============================================================
@@ -21,6 +22,7 @@
 #include <vector>
 
 class GridWorld;
+class EliteAttacks;
 class SwarmSystem;
 class MobSpawner;
 class Registry;
@@ -94,6 +96,9 @@ public:
     float eliteSpeed = 3.2f;                     // m/秒（雑魚 3.5 より少し遅い）
     float eliteRingMin = 18.0f;                  // プレイヤーから m（画面の中に歩いて来るのが見える距離）
     float eliteRingMax = 24.0f;
+    // 面の固定エリート（2026-10-25）。シーンが入れる。有れば eliteTimes の 1 体目 = A（近接）詞缀 0、2 体目 = B（遠距離）詞缀 1、
+    // 3 体目 = B 詞缀 2（どの詞缀かは乱数）。無ければ昔の大きい雑魚（kEnemyKindElite）
+    EliteAttacks* elites = nullptr;
 
     float finalSpawnRate = 20.0f;   // 最終ウェーブの湧き（体/秒）
     float finalSpeedMul = 1.3f;     // 最終ウェーブで湧く雑魚の速さ
@@ -133,7 +138,7 @@ private:
     enum class BossState { None, Summoned, Alive, Defeated, Exited };   // Exited = 倒した後に門を使った（クリア）
     bool m_ExitOpen = false;   // 門が出口になっている（Defeated の間）
 
-    bool SpawnElite(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, float hp, SwarmSystem& swarm);
+    bool SpawnElite(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, float hp, SwarmSystem& swarm, int index);
     bool SpawnBoss(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
 
     size_t m_NextElite = 0;       // eliteTimes の次に待つ番号

@@ -45,11 +45,20 @@ DifficultyCurve::Sample DifficultyCurve::Evaluate(float minutes) const
     while (i + 1 < points.size() && minutes > points[i].minute) ++i;
     const Point& a = points[i - 1];
     const Point& b = points[i];
-    const float span = (std::max)(1.0e-4f, b.minute - a.minute);
-    const float t = (minutes - a.minute) / span;   // 最後の区間では 1 を超えてよい（延長）
-    s.spawnRate = a.spawnRate + (b.spawnRate - a.spawnRate) * t;
-    s.hpMul = a.hpMul + (b.hpMul - a.hpMul) * t;
-    s.damageMul = a.damageMul + (b.damageMul - a.damageMul) * t;
+    const float span = b.minute - a.minute;
+    if (span < 1.0e-4f)
+    {
+        // 同じ分の点が 2 つ（最後の区間の長さが 0）：傾きが出せないので伸ばさず、後の点の値のまま
+        //（以前は span を 1e-4 にして割り、延長した値が桁違いに膨らんでいた）
+        s = at(b);
+    }
+    else
+    {
+        const float t = (minutes - a.minute) / span;   // 最後の区間では 1 を超えてよい（延長）
+        s.spawnRate = a.spawnRate + (b.spawnRate - a.spawnRate) * t;
+        s.hpMul = a.hpMul + (b.hpMul - a.hpMul) * t;
+        s.damageMul = a.damageMul + (b.damageMul - a.damageMul) * t;
+    }
     s.spawnRate = (std::max)(0.0f, s.spawnRate);
     s.hpMul = (std::max)(0.05f, s.hpMul);
     s.damageMul = (std::max)(0.0f, s.damageMul);
@@ -85,20 +94,24 @@ bool DifficultyCurve::Load(const char* path)
     std::ifstream ifs(file);
     if (!ifs.is_open()) return false;   // 未保存はエラーではない（既定値のまま）
 
-    json root;
-    try { ifs >> root; }
+    // 読み込みから値の取り出しまで全部 try の中（数でない値の get<float> は type_error を投げる）。
+    // 壊れたファイルは読まなかった扱い（今の値 = 既定値のまま）
+    std::vector<Point> loaded;
+    try
+    {
+        json root;
+        ifs >> root;
+        if (!root.contains("points") || !root["points"].is_array()) return false;
+        for (const auto& j : root["points"])
+        {
+            if (!j.is_array() || j.size() < 4) continue;
+            loaded.push_back({ j[0].get<float>(), j[1].get<float>(), j[2].get<float>(), j[3].get<float>() });
+        }
+    }
     catch (const json::exception& e)
     {
-        std::cout << "[Error] Difficulty: json parse error: " << e.what() << std::endl;
+        std::cout << "[Error] Difficulty: bad json, keeping the current table: " << e.what() << std::endl;
         return false;
-    }
-    if (!root.contains("points") || !root["points"].is_array()) return false;
-
-    std::vector<Point> loaded;
-    for (const auto& j : root["points"])
-    {
-        if (!j.is_array() || j.size() < 4) continue;
-        loaded.push_back({ j[0].get<float>(), j[1].get<float>(), j[2].get<float>(), j[3].get<float>() });
     }
     if (loaded.empty()) return false;
     std::sort(loaded.begin(), loaded.end(), [](const Point& a, const Point& b) { return a.minute < b.minute; });
@@ -110,7 +123,7 @@ bool DifficultyCurve::Load(const char* path)
 // ============================================================
 // ImGui：点の表 + 「毎秒湧く HP（湧き × HP）」とダメージの曲線
 // ============================================================
-void DifficultyCurve::DrawImGui(float nowMinutes)
+void DifficultyCurve::DrawImGui(float nowMinutes, float offsetMinutes)
 {
     const Sample now = Evaluate(nowMinutes);
     ImGui::Text("now %.1f min: spawn %.2f /s  HP x%.2f  damage x%.2f", nowMinutes, now.spawnRate, now.hpMul, now.damageMul);
@@ -154,20 +167,23 @@ void DifficultyCurve::DrawImGui(float nowMinutes)
     ImGui::SameLine();
     if (ImGui::Button("Reset##diff")) Reset();
 
-    // 0〜12 分を 0.5 分刻みで。「湧き × HP」= 毎秒片付けるべき HP の目安（雑魚 1 体 HP 15 を 1 として）
+    // この面の 0〜12 分（表では offsetMinutes 分進めた所から）を 0.5 分刻みで。nowMinutes と同じ物差しで読む。
+    // 「湧き × HP」= 毎秒片付けるべき HP の目安（雑魚 1 体 HP 15 を 1 として）
     constexpr int kN = 25;
     float load[kN], dmg[kN];
     float maxLoad = 0.0f;
     for (int k = 0; k < kN; ++k)
     {
-        const Sample s = Evaluate(0.5f * (float)k);
+        const Sample s = Evaluate(offsetMinutes + 0.5f * (float)k);
         load[k] = s.spawnRate * s.hpMul;
         dmg[k] = s.damageMul;
         maxLoad = (std::max)(maxLoad, load[k]);
     }
-    char overlay[64];
-    snprintf(overlay, sizeof(overlay), "spawn x HP (0-12 min)  now %.1f", now.spawnRate * now.hpMul);
+    char overlay[96];
+    snprintf(overlay, sizeof(overlay), "spawn x HP (table %.0f-%.0f min)  now %.1f",
+        offsetMinutes, offsetMinutes + 12.0f, now.spawnRate * now.hpMul);
     ImGui::PlotLines("##load", load, kN, 0, overlay, 0.0f, maxLoad * 1.1f, ImVec2(0.0f, 70.0f));
-    snprintf(overlay, sizeof(overlay), "damage x (0-12 min)  now %.2f", now.damageMul);
+    snprintf(overlay, sizeof(overlay), "damage x (table %.0f-%.0f min)  now %.2f",
+        offsetMinutes, offsetMinutes + 12.0f, now.damageMul);
     ImGui::PlotLines("##dmg", dmg, kN, 0, overlay, 0.0f, 3.0f, ImVec2(0.0f, 50.0f));
 }

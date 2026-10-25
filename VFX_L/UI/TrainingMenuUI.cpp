@@ -13,7 +13,8 @@
 using namespace DirectX::SimpleMath;
 
 const float TrainingMenuUI::kTargetHp[kHpChoices] = { 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f };
-const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"突撃兵", L"盾兵", L"幽霊", L"トゲ玉", L"砂潜り", L"砂嵐の術師", L"黒幽霊", L"突撃爆弾兵", L"混合" };
+const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"突撃兵", L"盾兵", L"幽霊", L"トゲ玉", L"砂潜り", L"砂嵐の術師", L"黒幽霊", L"突撃爆弾兵",
+    L"呪いの鎧", L"石像ガーゴイル", L"死霊術師", L"骸骨", L"鎖の番人", L"混合" };
 const int TrainingMenuUI::kSwarmCounts[kCountChoices] = { 10, 30, 100, 300 };
 const wchar_t* const TrainingMenuUI::kRandomModeNames[kRandomModes] = { L"基本魔法だけ", L"魔法 + ルーン", L"全部（上級・召喚も）" };
 const int TrainingMenuUI::kRandomCountValues[kRandomCounts] = { 4, 6, 8, 12 };
@@ -22,7 +23,10 @@ namespace
 {
     constexpr float kRepeatFirst = 0.30f;  // 押しっぱなしで動き出すまで
     constexpr float kRepeatNext = 0.08f;
-    constexpr float kFrame = 0.016f;       // 止まっている間も使うので固定の 1 フレーム
+    // 開いた直後の猶予・押しっぱなしの連続は実時間で減らす（以前は 1 フレーム 0.016 秒の決め打ちで、
+    // 144 fps だと猶予が半分以下・連続が 2 倍以上速かった）。1 フレームだけ長い時（読み込みの引っ掛かり）に
+    // 猶予を食い尽くさないよう 0.1 秒で頭打ち
+    float FrameStep(float dt) { return (std::min)((std::max)(dt, 0.0f), 0.1f); }
 }
 
 TrainingMenuUI::TrainingMenuUI() = default;
@@ -35,7 +39,7 @@ void TrainingMenuUI::Build()
     m_Rows.push_back({ L"群れの種類", RowKind::Choice, RowId::SwarmKind, {}, {} });
     m_Rows.push_back({ L"群れの数", RowKind::Choice, RowId::SwarmCount, {}, {} });
     m_Rows.push_back({ L"敵が動く", RowKind::Toggle, RowId::Moving, {}, {} });
-    m_Rows.push_back({ L"敵を出す", RowKind::Buttons, RowId::Spawn, { L"群れを出す", L"ボスを呼ぶ", L"敵を全部消す" }, {} });
+    m_Rows.push_back({ L"敵を出す", RowKind::Buttons, RowId::Spawn, { L"群れを出す", L"ボスを呼ぶ", L"敵を全部消す", L"近接エリート", L"遠隔エリート" }, {} });
     // フィールド（2026-10-20）：平地の実験場か、本番の面の地形か。トレーニングのモード（無敵・MP 無限・湧き停止）はそのまま
     m_Rows.push_back({ L"フィールド", RowKind::Buttons, RowId::Field, { L"平地", L"草原", L"砂漠", L"遺跡" }, {} });
 
@@ -261,7 +265,9 @@ void TrainingMenuUI::Activate()
         break;
     case RowId::Spawn:
         q.kind = (m_Col == 0) ? TrainingRequest::Kind::Swarm
-            : (m_Col == 1) ? TrainingRequest::Kind::Boss : TrainingRequest::Kind::KillAll;
+            : (m_Col == 1) ? TrainingRequest::Kind::Boss
+            : (m_Col == 2) ? TrainingRequest::Kind::KillAll : TrainingRequest::Kind::Elite;
+        q.eliteRanged = (m_Col == 4);   // 面の固定エリート（2026-10-25）
         break;
     case RowId::Items:
         if (m_Col < 0 || m_Col >= (int)r.items.size()) return;
@@ -309,12 +315,13 @@ void TrainingMenuUI::TestActivate(int rowId, int col)
 // ============================================================
 // 入力。閉じるなら true
 // ============================================================
-bool TrainingMenuUI::HandleInput()
+bool TrainingMenuUI::HandleInput(float dt)
 {
+    const float frameDt = FrameStep(dt);
     if (m_Rows.empty()) Build();
     auto& input = InputManager::Get();
     const int n = (int)m_Rows.size();
-    if (m_MessageTime > 0.0f) m_MessageTime -= kFrame;
+    if (m_MessageTime > 0.0f) m_MessageTime -= frameDt;
 
     // B で閉じる（Esc・T・RB は GameUI が先に見て閉じる）
     if (input.GetPadTrigger(XINPUT_GAMEPAD_B))
@@ -330,7 +337,7 @@ bool TrainingMenuUI::HandleInput()
 
     if (m_InputDelay > 0.0f)
     {
-        m_InputDelay -= kFrame;
+        m_InputDelay -= frameDt;
         return false;
     }
 
@@ -370,7 +377,7 @@ bool TrainingMenuUI::HandleInput()
     }
     else if (leftHeld || rightHeld)
     {
-        m_RepeatDelay -= kFrame;
+        m_RepeatDelay -= frameDt;
         if (m_RepeatDelay <= 0.0f)
         {
             dir = rightHeld ? +1 : -1;

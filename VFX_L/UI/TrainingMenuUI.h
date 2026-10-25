@@ -27,7 +27,7 @@ struct SpellbookComponent;
 // メニューからシーンへの依頼
 struct TrainingRequest
 {
-    enum class Kind { Targets, Swarm, Boss, KillAll, AddItem, AddAll, ClearChest, RandomBuild, ClearBackpack, Field };
+    enum class Kind { Targets, Swarm, Boss, KillAll, AddItem, AddAll, ClearChest, RandomBuild, ClearBackpack, Field, Elite };
     Kind   kind = Kind::Targets;
     int    pattern = 0;            // Targets：0 正面 3 体 / 1 周り 12 体 / 2 エリート
     float  targetHp = 1.0e6f;      // Targets
@@ -41,6 +41,7 @@ struct TrainingRequest
     // 0 = 平地（実験場の既定）/ 1 草原 / 2 砂漠 / 3 遺跡 = その面の地形（段々の台地・置物・照明・草）を建て直す。
     // 無敵・MP 無限・湧き停止・メニューで的を置く、はそのまま
     int    field = 0;
+    bool   eliteRanged = false;    // Elite（2026-10-25）：面の固定エリートの A（近接）/ B（遠距離）。詞缀は 0〜2 個を乱数で
 };
 
 class TrainingMenuUI
@@ -51,7 +52,8 @@ public:
     void Layout(float screenW, float screenH);
     void Open();
     // 開いている間、毎フレーム。閉じる（戻る / B / Esc）なら true
-    bool HandleInput();
+    // dt = 実時間の秒（止まっている間も渡す。開いた直後の猶予・押しっぱなしの連続に使う）
+    bool HandleInput(float dt = 0.016f);
     // book = 木箱の中身（絵の右下に個数を出す。null なら出さない）
     void Draw(SpriteRenderer& sprite, TextRenderer& text, const std::shared_ptr<Texture>& white,
         const SpellbookComponent* book);
@@ -73,7 +75,7 @@ public:
 
     // 選べる値（描画と依頼で共用）
     static constexpr int kHpChoices = 5;
-    static constexpr int kKindChoices = 13;
+    static constexpr int kKindChoices = 18;   // 2026-10-25 に遺跡の敵 5 種を足した
     static constexpr int kCountChoices = 4;
     static constexpr int kRandomModes = 3;    // ランダムに組む：中身
     static constexpr int kRandomCounts = 4;   // ランダムに組む：個数

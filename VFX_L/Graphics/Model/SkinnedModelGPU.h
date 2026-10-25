@@ -1,6 +1,7 @@
 #pragma once
 #include <d3d11.h>
 #include <wrl/client.h>
+#include <cstdint>
 #include <vector>
 #include <SimpleMath.h>
 #include "Graphics/Model/SkinnedModel.h"
@@ -109,6 +110,11 @@ public:
         return (index >= 0 && index < (int)m_SubMeshes.size()) ? m_SubMeshes[index].visible : false;
     }
 
+    // 最後にスキニングした描画フレームの印（RenderSystem が入れる。2026-10-25）。
+    // 同じフレームの影（カスケード 0）と本描画で姿勢は同じなので、2 回目は SkinningCS を飛ばして結果を使い回す
+    uint32_t GetSkinnedStamp() const { return m_SkinnedStamp; }
+    void SetSkinnedStamp(uint32_t stamp) { m_SkinnedStamp = stamp; }
+
 private:
     bool CreateSubMeshBuffers(ID3D11Device* device, const SkinnedModel::SubMesh& src);
     bool CreatePaletteBuffer(ID3D11Device* device, UINT boneCount);
@@ -118,4 +124,5 @@ private:
     ComPtr<ID3D11Buffer>             m_PaletteBuffer;
     ComPtr<ID3D11ShaderResourceView> m_PaletteSRV;
     UINT m_BoneCount = 0;
+    uint32_t m_SkinnedStamp = 0;     // 0 = まだスキニングしていない
 };

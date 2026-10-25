@@ -107,7 +107,7 @@ public:
     // マウスホイールで距離を変える（捕獲中だけ。パネルの Distance と同じ値を動かすので保存される）
     bool  wheelZoom = true;
     float zoomMin = 3.0f;
-    float zoomMax = 14.0f;
+    float zoomMax = 21.0f;            // 既定の distance（14m）の 1.5 倍（2026-10-25。14 のままだとホイールで寄るしかできなかった）
     float zoomStep = 0.6f;            // 1 ノッチあたり（m）
 
 private:

@@ -179,8 +179,14 @@ namespace TerrainBuild
         return m_Tag;
     }
 
-    void Emitter::Box(const Vector3& lo, const Vector3& hi, uint32_t layer)
+    void Emitter::Box(const Vector3& loIn, const Vector3& hiIn, uint32_t layer)
     {
+        // 裏返った箱（どこかの軸で lo > hi）は直してから建てる・記録する（2026-10-25。区域の作り直しが床の箱の底を
+        // 上面より上にしていて、衝突の std::clamp が落ちた。直した後でも出たら作った側を直すこと）
+        const Vector3 lo = Vector3::Min(loIn, hiIn), hi = Vector3::Max(loIn, hiIn);
+        if (loIn.x > hiIn.x || loIn.y > hiIn.y || loIn.z > hiIn.z)
+            std::cout << "[Warning] TerrainBuild: flipped box fixed (kind " << m_Tag.kind << ", lo " << loIn.x << ", " << loIn.y
+                << ", " << loIn.z << " / hi " << hiIn.x << ", " << hiIn.y << ", " << hiIn.z << ")" << std::endl;
         if (m_Reg)
         {
             Entity e = TestSpawner::SpawnStaticBox(*m_Reg, (lo + hi) * 0.5f, (hi - lo) * 0.5f);

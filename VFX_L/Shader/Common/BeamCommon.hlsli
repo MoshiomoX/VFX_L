@@ -1,6 +1,6 @@
 // ============================================================
 // BeamCommon.hlsli
-// Shared by VFXBeamVS / VFXBeamPS: the beam item (C++ VFXBeamItem, 96 bytes),
+// Shared by VFXBeamVS / VFXBeamPS: the beam item (C++ VFXBeamItem, 112 bytes),
 // the layer table and the value noise that makes the beam "flow".
 // ============================================================
 #ifndef BEAM_COMMON_HLSLI

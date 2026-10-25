@@ -42,9 +42,10 @@ void VFXTrailEntry::SyncStyle(const VFXContext& ctx)
     }
 }
 
+// 返却先の粒子系がもう破棄されていたら何もしない（シーンのメンバの破棄の順番で、entry が粒子系より後に消える時。2026-10-25）
 void VFXTrailEntry::ReleaseStyle()
 {
-    if (m_StyleId >= 0 && m_Owner)
+    if (m_StyleId >= 0 && m_Owner && GPUParticleSystem::IsAlive(m_Owner))
         m_Owner->UnregisterTrailStyle(m_StyleId);
     m_StyleId = -1;
     m_Owner = nullptr;
@@ -52,7 +53,7 @@ void VFXTrailEntry::ReleaseStyle()
 
 void VFXTrailEntry::DetachTrail()
 {
-    if (m_TrailId >= 0 && m_Owner)
+    if (m_TrailId >= 0 && m_Owner && GPUParticleSystem::IsAlive(m_Owner))
         m_Owner->ReleaseEffectTrail(m_TrailId);
     m_TrailId = -1;
 }

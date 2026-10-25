@@ -14,7 +14,14 @@ void GPUParticleEmitter::Update(float deltaTime)
         return;
     }
 
-    m_EmitAccumulator += emitRate * deltaTime;
+    // 負の発射率（Inspector の Ctrl+クリック・壊れた json）は 0 扱い（2026-10-25）。負の発射数が GPU へ行くと、
+    // 発射 CS が uint に読んで約 40 億になり、最初の発射器が空きを全部奪っていた。
+    // 溜まりすぎ（巨大な発射率・NaN）も int へ直す前に抑える
+    constexpr float kMaxPerFrame = 1.0e6f;
+    const float add = emitRate * deltaTime;
+    if (add > 0.0f) m_EmitAccumulator += add;
+    if (!(m_EmitAccumulator >= 0.0f)) m_EmitAccumulator = 0.0f;   // NaN もここで 0
+    if (m_EmitAccumulator > kMaxPerFrame) m_EmitAccumulator = kMaxPerFrame;
     m_PendingEmitCount = static_cast<int>(m_EmitAccumulator);
     m_EmitAccumulator -= static_cast<float>(m_PendingEmitCount);
 }
@@ -27,7 +34,7 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.emitType = static_cast<int>(emitType);
     e.direction = direction;
     e._pad0 = 0.0f;
-    e.emitCount = m_PendingEmitCount;
+    e.emitCount = (m_PendingEmitCount > 0) ? m_PendingEmitCount : 0;
     e.maxParticles = maxParticles;
     e.particleOffset = particleOffset;
     e.emitRate = emitRate;
@@ -61,7 +68,7 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
             e.atlasCols = sheet->cols;
         }
 	e.colorKeyOffset = m_ColorKeyOffset;
-    e.colorKeyCount = colorKeyCount;    
+    e.colorKeyCount = std::clamp(colorKeyCount, 0, (int)MAX_COLOR_KEYS);   // colorKeys[] の大きさを越えない
 
     // Mesh 発射用。Mesh 以外の形状では読まれない
     e.world = world;
@@ -75,11 +82,15 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     if (singleBody) e.renderMode |= ParticleRenderMode::kSingleBody;   // 弾の本体：常にちょうど 1 つ（2026-10-16）
     if (renderMode != 0 && meshGlow && meshBehind)   // 発光メッシュの裏面だけ = 本体の後ろの縁取り（2026-10-16）
         e.renderMode |= ParticleRenderMode::kMeshBehind;
+    // 実際に詰めるトゥーン（流線と排他。流線が付いていればトゥーンの欄が true でも詰めない）
+    const bool packToon = (renderMode == 0 && !streak && toon);
     if (renderMode == 0 && streak)   // 流線（ビルボードだけ。トゥーンとは排他、2026-10-20）
         e.renderMode |= ParticleRenderMode::PackStreak(streakStretch);
-    else if (renderMode == 0 && toon)   // トゥーン（ビルボードだけ）
+    else if (packToon)   // トゥーン（ビルボードだけ）
         e.renderMode |= ParticleRenderMode::PackToon(toonOutline, toonCut, toonBands, toonShade);
-    if (renderMode == 0 && !toon && distortLevel > 0)   // 画面の歪み（ビルボードだけ。bit 15 はトゥーンの線と同じ位置なのでトゥーン無しの時だけ）
+    // 画面の歪み（ビルボードだけ。bit 15 はトゥーンの線と同じ位置なのでトゥーンを詰めない時だけ）。
+    // 判定は「実際に詰めたトゥーン」で見る（2026-10-25。流線 + トゥーンの欄が残っていると歪みが黙って消えていた）
+    if (renderMode == 0 && !packToon && distortLevel > 0)
         e.renderMode |= ParticleRenderMode::PackDistort(distortLevel, distortOnly);
     if (windResponse > 0.0f)       // 世界の風を受ける（ParticleUpdateCS）
         e.renderMode |= ParticleRenderMode::PackWind(windResponse);

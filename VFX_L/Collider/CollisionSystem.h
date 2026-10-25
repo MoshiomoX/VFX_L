@@ -59,7 +59,6 @@ public:
     // 全件を回さずに済ませる（重複無し）
     void GatherStaticNear(const DirectX::SimpleMath::Vector3& center, float reach, std::vector<int>& out) const;
 
-    int GetFixedGridRebuilds() const { return m_FixedRebuilds; }   // 固定の格子を作り直した回数（調整用）
     // レイキャスト結果（命中 Entity 付き）
     struct RaycastResult
     {
@@ -71,10 +70,8 @@ public:
     };
 
     // シーン全体へレイキャスト。layerMask に含まれる層のみ対象。最も近い命中を返す。
+    // 固定は格子から射線の水平の範囲に掛かる物だけ見る（全部を順に見るのと同じ結果・同じ順）
     RaycastResult Raycast(const CollisionMath::Ray& ray, uint32_t layerMask = 0xFFFFFFFF) const;
-    // 範囲内の Entity を取得（AOE / 索敵用）
-    std::vector<Entity> OverlapSphere(const DirectX::SimpleMath::Vector3& center,
-        float radius, uint32_t layerMask) const;
 
     // 範囲内で最も近い Entity を1つ取得。見つかれば true。
     bool FindNearestEntity(const DirectX::SimpleMath::Vector3& center,
@@ -84,18 +81,19 @@ private:
     // ナローフェーズ: 1対の判定（ブロードフェーズの格子から呼ばれる）
     void TestPair(const WorldCollider& a, const WorldCollider& b);
 
-    // 固定の格子（CSR）を今の m_FixedIdx から作り直す
+    // 固定の格子（CSR）を今の固定（m_WorldColliders の前の m_FixedCount 個）から作り直す
     void BuildFixedGrid();
     // 格子のマス範囲（格子の外へはみ出す分は切る。重ならなければ false）
     bool GridRange(float minX, float maxX, float minZ, float maxZ, int& x0, int& x1, int& z0, int& z1) const;
-    // 固定の k 番目のうち、水平範囲に掛かり得る物を m_Scratch へ（重複無し）
-    void GatherFixed(float minX, float maxX, float minZ, float maxZ) const;
+    // 固定の k 番目のうち、水平範囲に掛かり得る物を out へ（小さい順・重複無し）
+    void GatherFixed(float minX, float maxX, float minZ, float maxZ, std::vector<int>& out) const;
 
-    // 固定が前（0〜固定の数-1、並びが変わらない限り作り直さない）、可動が後ろ（毎フレーム）
+    // 固定が前（0〜固定の数-1、並びが変わらない限り作り直さない）、可動が後ろ（毎フレーム）。
+    // 固定の k 番目 = m_WorldColliders[k]
     std::vector<WorldCollider> m_WorldColliders;
     std::vector<CollisionPair> m_Pairs;
 
-    std::vector<int> m_FixedIdx;     // 固定の k 番目 → m_WorldColliders の添字（= k）
+    size_t m_FixedCount = 0;         // 固定の数
     std::vector<int> m_MoverIdx;     // 可動（毎フレーム）
     std::vector<std::pair<Entity, DirectX::SimpleMath::Vector3>> m_ScanFixed;   // 毎フレームの走査：固定の (entity, 中心)
     std::vector<WorldCollider> m_MoverWorld;                                     // 同：可動
@@ -106,5 +104,5 @@ private:
     std::vector<int> m_CellItems;    // 固定の k
     std::vector<int> m_LargeFixed;   // 格子に載せない大きい固定（床・外周の崖）: k
     mutable std::vector<int> m_Scratch;
-    int m_FixedRebuilds = 0;
+    mutable std::vector<int> m_RayScratch;   // Raycast 用（m_Scratch を使う問い合わせの途中で呼ばれても壊さない）
 };

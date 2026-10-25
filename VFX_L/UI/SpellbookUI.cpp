@@ -24,7 +24,6 @@ namespace
     constexpr float kMaxAccum = 0.1f;     // コマ落ち時の積算上限（死のスパイラル防止）
     constexpr float kLinearDamp = 0.999f;   // 1ステップあたり
     constexpr float kAngularDamp = 0.995f;
-    constexpr float kPickupLerp = 12.0f;    // visAngle / visScale の収束速度
 
     constexpr float kAllowedPenetration = 0.5f;   // px。これ以下のめり込みは押し戻さない（震え防止）
     constexpr float kBiasFactor = 0.2f;           // めり込みを 1 ステップで戻す割合
@@ -519,9 +518,11 @@ void SpellbookUI::StepPhysics(float dt)
     walls[2] = { { center.x, m_BoxMin.y - ht }, { half.x + kWallThick, ht } };
     walls[3] = { { center.x, m_BoxMax.y + ht }, { half.x + kWallThick, ht } };
 
-    // ---- マスの四角を先に全部作る ----
-    std::vector<int> firstBox(m_Bodies.size() + 1, 0);
-    std::vector<Box> boxes;
+    // ---- マスの四角を先に全部作る（列は使い回す）----
+    std::vector<int>& firstBox = m_FirstBox;
+    std::vector<Box>& boxes = m_CellBoxes;
+    firstBox.assign(m_Bodies.size() + 1, 0);
+    boxes.clear();
     for (size_t i = 0; i < m_Bodies.size(); ++i)
     {
         firstBox[i] = (int)boxes.size();
@@ -531,35 +532,45 @@ void SpellbookUI::StepPhysics(float dt)
     firstBox[m_Bodies.size()] = (int)boxes.size();
 
     // ---- 接触 ----
-    std::map<uint64_t, Arbiter> next;
+    // 前のステップの接触（m_Arbiters、key 昇順）から同じキーを二分探索で探し、特徴番号が同じ点のインパルスを引き継ぐ。
+    // キーは「uid の組 + マス番号の組」で 1 組につき 1 回しか作らないので重ならない（map の emplace と同じ結果）
+    std::vector<KeyedArbiter>& next = m_NextArbiters;
+    next.clear();
     auto key = [](uint32_t uidA, int cellA, uint32_t uidB, int cellB)
     {
         return ((uint64_t)(uidA & 0xFFFFFF) << 40) | ((uint64_t)(cellA & 0xFF) << 32)
             | ((uint64_t)(uidB & 0xFFFFFF) << 8) | (uint64_t)(cellB & 0xFF);
+    };
+    auto findOld = [&](uint64_t k) -> const Arbiter*
+    {
+        auto it = std::lower_bound(m_Arbiters.begin(), m_Arbiters.end(), k,
+            [](const KeyedArbiter& e, uint64_t v) { return e.key < v; });
+        return (it != m_Arbiters.end() && it->key == k) ? &it->arb : nullptr;
     };
     auto addPair = [&](uint64_t k, int ia, int ib, const Box& A, const Box& B)
     {
         Contact cs[2];
         const int num = Collide(cs, A, B);
         if (num == 0) return;
-        Arbiter arb;
+        KeyedArbiter& e = next.emplace_back();
+        e.key = k;
+        Arbiter& arb = e.arb;
         arb.a = ia;
         arb.b = ib;
         arb.numContacts = num;
-        auto old = m_Arbiters.find(k);
+        const Arbiter* old = findOld(k);
         for (int i = 0; i < num; ++i)
         {
             arb.contacts[i] = cs[i];
-            if (old == m_Arbiters.end()) continue;
-            for (int j = 0; j < old->second.numContacts; ++j)
+            if (!old) continue;
+            for (int j = 0; j < old->numContacts; ++j)
             {
-                if (old->second.contacts[j].feature != cs[i].feature) continue;
-                arb.contacts[i].Pn = old->second.contacts[j].Pn;
-                arb.contacts[i].Pt = old->second.contacts[j].Pt;
+                if (old->contacts[j].feature != cs[i].feature) continue;
+                arb.contacts[i].Pn = old->contacts[j].Pn;
+                arb.contacts[i].Pt = old->contacts[j].Pt;
                 break;
             }
         }
-        next.emplace(k, arb);
     };
 
     for (int i = 0; i < (int)m_Bodies.size(); ++i)
@@ -594,6 +605,9 @@ void SpellbookUI::StepPhysics(float dt)
                         ia, ib, boxes[ka], boxes[kb]);
         }
     }
+    // 解く順を map の時と同じ key 昇順にそろえてから入れ替える（古い列は次のステップの作業用になる）
+    std::sort(next.begin(), next.end(),
+        [](const KeyedArbiter& x, const KeyedArbiter& y) { return x.key < y.key; });
     m_Arbiters.swap(next);
 
     // ---- 重力 ----
@@ -612,7 +626,7 @@ void SpellbookUI::StepPhysics(float dt)
     m_ContactCount = 0;
     for (auto& kv : m_Arbiters)
     {
-        Arbiter& arb = kv.second;
+        Arbiter& arb = kv.arb;
         const float mA = invMass(arb.a), mB = invMass(arb.b);
         const float iA = invI(arb.a), iB = invI(arb.b);
         for (int k = 0; k < arb.numContacts; ++k)
@@ -653,7 +667,7 @@ void SpellbookUI::StepPhysics(float dt)
     {
         for (auto& kv : m_Arbiters)
         {
-            Arbiter& arb = kv.second;
+            Arbiter& arb = kv.arb;
             const float mA = invMass(arb.a), mB = invMass(arb.b);
             const float iA = invI(arb.a), iB = invI(arb.b);
             for (int k = 0; k < arb.numContacts; ++k)
@@ -791,13 +805,6 @@ void SpellbookUI::GrabBody(int i)
     // ブロックの中心がマウスに来るように、アンカーマスの中心を掴んだ扱いにする
     m_Drag->grabOffset = { m_CellSize * 0.5f, m_CellSize * 0.5f };
 
-    // 見た目: 箱の中の角度と縮小率から、正立・等倍へ収束していく
-    float a = std::fmod(b.angle, 6.2831853f);
-    if (a > 3.1415926f)  a -= 6.2831853f;
-    if (a < -3.1415926f) a += 6.2831853f;
-    m_Drag->visAngle = a;
-    m_Drag->visScale = boxScale;
-
     m_Bodies.erase(m_Bodies.begin() + i);
     Wake();
 }
@@ -826,20 +833,11 @@ bool SpellbookUI::GrabByUid(uint32_t uid)
 }
 
 // ============================================================
-// Update: 同期 → 拾い上げ演出の収束 → 物理（固定ステップ）→ 掴み
+// Update: 同期 → 物理（固定ステップ）→ 掴み
 // ============================================================
 void SpellbookUI::Update(const SpellbookComponent& book, const BackpackComponent& bp, float dt)
 {
     SyncBodies(book, bp);
-
-    // ---- 拾い上げの見た目を 0 / 1 へ寄せる ----
-    // 出どころに関係なく寄せて良い（Spellbook 以外は最初から 0 / 1）
-    if (m_Drag && m_Drag->IsActive())
-    {
-        const float k = (std::min)(1.0f, dt * kPickupLerp);
-        m_Drag->visAngle += (0.0f - m_Drag->visAngle) * k;
-        m_Drag->visScale += (1.0f - m_Drag->visScale) * k;
-    }
 
     // ---- 物理（固定ステップ。眠っている間は回さない）----
     if (!allowSleep) m_Asleep = false;

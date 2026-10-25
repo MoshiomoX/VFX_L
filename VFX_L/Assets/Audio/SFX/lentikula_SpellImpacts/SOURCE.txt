@@ -5,3 +5,4 @@ Source : https://lentikula.itch.io/freecc0-basic-spell-impacts-sfx
          https://lentikula.itch.io/healing-spell-impacts
 License: CC0 ("use it in whatever project without attribution")
 Downloaded: 2026-10-03. 48 kHz / 24-bit WAV converted to OGG Vorbis. *_short.ogg = first 1.2 s with a 0.4 s fade-out (for frequent hits)
+Lightning_Crack_1 / _2.ogg (2026-10-24): cut from Lightning_Spell_Impact_1 / _2 starting at the strike (0.455 s / 0.945 s; the files open with a rising crackle), 0.6 s, 5 ms fade-in + 0.3 s fade-out. Used by the instant Arc Bolt (cue cast_arc).

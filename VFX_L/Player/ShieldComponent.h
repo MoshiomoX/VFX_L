@@ -5,7 +5,9 @@
 //     （Megabonk：一撃でシールドと HP の両方は削れない。溢れた分は消える）
 //   ・最後に被弾してから rechargeDelay 秒（Megabonk の 5 秒）経つと、refillTime 秒かけて満タンまで戻る
 //     （戻る速さは Megabonk の数値が見つからなかったので自前で決めた）
-//   ・初期値 25（ユーザー指定）、レベルアップの能力カード「最大シールド +25」で増える（Megabonk のシールドの書と同じ量）
+//   ・開始時は 0（2026-10-07 夜に 25 → 0：PlayerFactory::Config::maxShield。Megabonk も 0）。
+//     レベルアップの能力カード「最大シールド +25」で増える（Megabonk のシールドの書と同じ量）。
+//     下の max / current の 25 は Component 単体の既定値で、PlayerFactory が Config の値で上書きする
 //   ・次の面へ持ち越す（g_RunCarry。面の初めは満タン）
 // 被弾の窓口は PlayerStateSystem::TryApplyHit（無敵時間と同じ所）、回復は PlayerStateSystem::Update
 // ============================================================

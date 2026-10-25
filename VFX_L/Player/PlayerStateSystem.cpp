@@ -52,9 +52,10 @@ namespace
 
 void PlayerStateSystem::Update(Registry& reg, float dt)
 {
+    // プレイヤーの数だけ回す（Each は先頭の Rigidbody の pool = 地形の剛体まで数百個を見る）
     reg.CreateView<RigidbodyComponent, HealthComponent,
         PlayerStateComponent, PlayerTag>()
-        .Each([&](Entity e, RigidbodyComponent& rb, HealthComponent& hp,
+        .EachFrom<PlayerTag>([&](Entity e, RigidbodyComponent& rb, HealthComponent& hp,
             PlayerStateComponent& st, PlayerTag&)
             {
                 // ---- 各層の滞在時間を進める ----
@@ -145,7 +146,7 @@ void PlayerStateSystem::Update(Registry& reg, float dt)
 
 // ============================================================
 // 被弾の通知
-// 無敵判定はここに閉じ込める。HitEvent を消費する側はこれを呼ぶだけ。
+// 無敵判定はここに閉じ込める。ダメージを与える側はこれを呼ぶだけ。
 //   判定を2ヶ所に書くと必ず片方だけ直されて食い違う。
 // ============================================================
 bool PlayerStateSystem::TryApplyHit(Registry& reg, unsigned int entity, float damage)

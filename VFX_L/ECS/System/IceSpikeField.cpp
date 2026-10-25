@@ -22,7 +22,7 @@ void IceSpikeField::EnsureModel()
 {
     if (m_Tried) return;
     m_Tried = true;
-    m_Model = ResourceManager::Get().LoadModelAuto(Res::VFX::IceSpikes).staticModel;
+    m_Model = ResourceManager::Get().LoadModelAuto(modelPath ? modelPath : Res::VFX::IceSpikes).staticModel;
     if (!m_Model) return;
     // 塊の底の中心を根元にして、高さを測る（Y が上。凍った敵の足元の氷と同じ扱い）
     const Vector3 bmin = m_Model->GetBoundsMin(), bmax = m_Model->GetBoundsMax();
@@ -93,7 +93,7 @@ void IceSpikeField::Submit(VFXMeshRenderer& renderer)
 
     VFXMeshDrawItem item;
     item.model = m_Model.get();
-    item.blend = 1;   // 半透明（遠い順に並べて描かれる）
+    item.blend = blend;   // 1 = 半透明（遠い順に並べて描かれる）
     item.twoSided = false;
     item.params.noVertexColor = 1.0f;   // 材質の色が頂点色に焼かれている FBX（色は color で決める）
     item.params.shade = shade;

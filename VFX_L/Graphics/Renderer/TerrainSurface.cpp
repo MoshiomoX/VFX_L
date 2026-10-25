@@ -120,10 +120,22 @@ bool TerrainSurface::Apply(ID3D11Device* device, Model& model, int biome, const 
     if (!EnsureShaders(device) || !EnsureBiome(device, biome)) return false;
 
     m_Biome = biome;
-    for (int i = 0; i < LayerCount; ++i) m_RefLum[i] = refLum[i];
+    BiomeSet& b = m_Biomes[biome];
+    for (int i = 0; i < LayerCount; ++i) m_RefLum[i] = b.refLum[i] = refLum[i];
+    b.hasRef = true;
     WriteCB();
-    model.SetSingleMaterial(m_Biomes[biome].material);
+    model.SetSingleMaterial(b.material);
     return true;
+}
+
+void TerrainSurface::Activate(int biome)
+{
+    if (biome < 0 || biome >= kBiomes) return;
+    const BiomeSet& b = m_Biomes[biome];
+    if (!b.hasRef || !b.material) return;
+    m_Biome = biome;
+    for (int i = 0; i < LayerCount; ++i) m_RefLum[i] = b.refLum[i];
+    WriteCB();
 }
 
 void TerrainSurface::WriteCB()

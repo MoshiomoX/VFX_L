@@ -5,7 +5,10 @@
 // ============================================================
 Texture2D sceneTex : register(t0);
 Texture2D bloomTex : register(t1);
-// screen distortion (2026-10-20): uv offset written by the particles (ParticleDistortPS), resolved
+// screen distortion (2026-10-20): uv offset written by the particles (ParticleDistortPS), resolved.
+// Fallback only: normally Graphics::ApplyDistortion (DistortApplyPS) already bends the scene before the
+// UI is drawn and clears the flag, so g_DistortStrength is 0 here. Only when DistortApplyPS failed to
+// load does this path bend the image (and then the UI drawn into the HDR target bends with it)
 Texture2D distortTex : register(t2);
 SamplerState linearClamp : register(s0);
 

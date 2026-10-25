@@ -1,0 +1,39 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 25,
+                "sheet": 1, "frameMode": 3, "frameCount": 5, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.5,
+                "emitRate": 200.0, "emitType": 0,
+                "endColorMax": [1.0, 0.1, 0.05, 0.0], "endColorMin": [1.0, 0.1, 0.05, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.18, 0.25], "maxParticles": 10,
+                "position": [0.0, 1.2, 0.0], "radius": 0.5, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [2.4, 3.0, 3.4, 4.0], "speedRange": [0.0, 0.1], "spreadAngle": 0.0,
+                "startColorMax": [3.0, 0.4, 0.2, 1.0], "startColorMin": [2.4, 0.3, 0.15, 1.0]
+            },
+            "duration": 0.05, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 48,
+                "sheet": 1, "frameMode": 3, "frameCount": 7, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 1.5,
+                "emitRate": 800.0, "emitType": 1,
+                "endColorMax": [1.0, 0.1, 0.05, 0.0], "endColorMin": [1.0, 0.1, 0.05, 0.0],
+                "gravity": [0.0, 1.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.5, 0.9], "maxParticles": 80,
+                "position": [0.0, 1.2, 0.0], "radius": 0.8, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.15, 0.25, 0.03, 0.06], "speedRange": [3.0, 7.0], "spreadAngle": 0.0,
+                "startColorMax": [3.0, 0.6, 0.2, 1.0], "startColorMin": [2.2, 0.4, 0.15, 1.0]
+            },
+            "duration": 0.08, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 1.2, 0.0], "color": [1.0, 0.2, 0.1], "radius": 7.0,
+                      "intensityStart": 4.0, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 0.0 },
+            "duration": 0.6, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "EliteBerserk"
+}

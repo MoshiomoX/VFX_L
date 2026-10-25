@@ -54,6 +54,14 @@ public:
 
     void Update(float dt, const DirectX::SimpleMath::Vector3& followPos);
 
+    // 一時停止中（Update を呼ばないフレーム）に毎フレーム呼ぶ（2026-10-25）。時間を進めず粒子も出さず、
+    // 再生中のインスタンスの Mesh / Sprite / 光線 / 液溜まり / 点光源を今の状態のままもう一度積む
+    // （各 Renderer と点光源の表は毎フレーム空になるので、呼ばないと止めている間それらだけ消える）。
+    // Update と同じフレームには呼ばない（二重に積まれる）
+    void SubmitStill();
+
+    // 全インスタンスをその場で捨てる。粒子系が生きているうちに呼ぶ（シーンの Shutdown。entry の後始末が粒子系へ届く）。
+    // 呼んだ後は粒子系に何も残らないので、このクラスの破棄が粒子系より後でも構わない
     void StopAll();
     size_t GetActiveCount() const { return m_Active.size(); }
 

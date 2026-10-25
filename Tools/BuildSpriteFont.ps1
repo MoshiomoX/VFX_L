@@ -30,6 +30,10 @@ param(
 
     [int]$AtlasWidth = 4096,
 
+    # empty pixels around every glyph. Fonts drawn with a shader outline need
+    # room for it (the damage numbers use 6, 2026-10-23)
+    [int]$Pad = 1,
+
     [int[]]$Ranges = @(
         0x0020, 0x007E, 0x00A0, 0x00FF, 0x2000, 0x206F, 0x2190, 0x21FF,
         0x2200, 0x22FF, 0x2460, 0x24FF, 0x25A0, 0x26FF, 0x3000, 0x30FF,
@@ -59,7 +63,7 @@ public static class SpriteFontBuilder
         public bool Blank;
     }
 
-    public static string Build(string ttfPath, string outPath, double emPx, int atlasWidth, int[] ranges)
+    public static string Build(string ttfPath, string outPath, double emPx, int atlasWidth, int[] ranges, int pad)
     {
         var gt = new GlyphTypeface(new Uri(Path.GetFullPath(ttfPath)));
         double ascent = gt.Baseline * emPx;
@@ -78,16 +82,16 @@ public static class SpriteFontBuilder
         }
         items.Sort((a, b) => a.Code.CompareTo(b.Code));
 
-        // ---- measure ink boxes (1 px padding all round) ----
+        // ---- measure ink boxes (pad px of padding all round) ----
         foreach (var it in items)
         {
             var run = MakeRun(gt, it.Glyph, emPx, new Point(0, 0));
             Rect ink = run.ComputeInkBoundingBox();
             if (ink.IsEmpty || ink.Width < 0.01 || ink.Height < 0.01) { it.Blank = true; continue; }
-            int x0 = (int)Math.Floor(ink.Left) - 1;
-            int x1 = (int)Math.Ceiling(ink.Right) + 1;
-            int y0 = (int)Math.Floor(ascent + ink.Top) - 1;
-            int y1 = (int)Math.Ceiling(ascent + ink.Bottom) + 1;
+            int x0 = (int)Math.Floor(ink.Left) - pad;
+            int x1 = (int)Math.Ceiling(ink.Right) + pad;
+            int y0 = (int)Math.Floor(ascent + ink.Top) - pad;
+            int y1 = (int)Math.Ceiling(ascent + ink.Bottom) + pad;
             it.X0 = x0; it.Y0 = y0; it.W = x1 - x0; it.H = y1 - y0;
         }
 
@@ -188,5 +192,5 @@ public static class SpriteFontBuilder
 
 $fontPath = (Resolve-Path $Font).Path
 $outPath = [IO.Path]::GetFullPath((Join-Path (Get-Location) $Out))
-[SpriteFontBuilder]::Build($fontPath, $outPath, $EmPx, $AtlasWidth, $Ranges)
+[SpriteFontBuilder]::Build($fontPath, $outPath, $EmPx, $AtlasWidth, $Ranges, $Pad)
 Write-Host "wrote $outPath ($((Get-Item $outPath).Length) bytes)"

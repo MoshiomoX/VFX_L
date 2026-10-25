@@ -5,6 +5,7 @@
 //   PROFILE_SCOPE_GPU("名前") … CPU 時間 + GPU 時間（D3D11 の timestamp query。数フレーム遅れで読む）
 //   区間の時間を積み、1 秒ごとに「1 フレームあたりの平均 ms」にまとめる。
 //   名前は文字列リテラル（ポインタで見分ける）。入れ子にしてよい（表示は字下げ）。
+//   1 フレームに同じ区間へ何度も入ると、CPU も GPU もその合計になる（同じ名前を自分の中に入れ子にするのは不可）。
 //   Application::Run の頭で BeginFrame、最後で EndFrame。シーンのパネルから DrawImGui、自己テストは Summary をログへ。
 // GPU の値は区間の始めと終わりの GPU 時刻の差。CPU が遅くて GPU が命令待ちで遊んでいる時（Debug）は
 // その待ちも入るので大きく出る。GPU が詰まっている時（Release）に意味がある
@@ -39,18 +40,27 @@ public:
 private:
     static constexpr int kGpuSlots = 4;   // GPU の結果を読むまでのフレーム数（リング）
 
+    // 同じ区間に 1 フレームで何回入ってもよい（2026-10-25）：CPU も GPU も入った分を足す。
+    // GPU の timestamp の組は 1 回に 1 組（以前は区間ごとに 1 組で、2 回目が 1 回目を上書きし、GPU だけ最後の 1 回分になっていた）
+    static constexpr int kMaxPairsPerFrame = 32;   // 1 区間・1 フレームの組の上限（超えた分の GPU は測らない）
+
     struct Section
     {
         const char* name; int depth;
         double accum; int64_t start;
-        bool gpu;                 // 今フレーム GPU も測った
+        bool gpu;                 // 今入っている回で GPU も測っている
         double gpuAccum; int gpuFrames;
+        int gpuPair;              // 今入っている回の組の番号
+    };
+    struct QueryPair
+    {
+        Microsoft::WRL::ComPtr<ID3D11Query> begin, end;
     };
     struct GpuSlot
     {
         Microsoft::WRL::ComPtr<ID3D11Query> disjoint;
-        std::vector<Microsoft::WRL::ComPtr<ID3D11Query>> begin, end;   // 区間の添字ごと
-        std::vector<uint8_t> issued;
+        std::vector<std::vector<QueryPair>> pairs;   // 区間の添字ごと × そのフレームで入った回
+        std::vector<uint16_t> issued;                // 区間の添字ごと、このフレームで使った組の数
         bool used = false;
     };
     int FindIndex(const char* name);

@@ -1,10 +1,11 @@
 // ============================================================
 // BossAttacks.cpp
 // 技の流れ（選ぶ → 出す → 終わったら間を空ける）と、輪・衝撃波・突進の当たり。説明は BossAttacks.h
+// 砂の守護者の技は BossAttacksSand.cpp、調整パネルは BossAttacksPanel.cpp
 // ============================================================
 #include "Enemy/BossAttacks.h"
+#include "Swarm/SwarmTypes.h"
 #include "World/GridWorld.h"
-#include "imgui.h"
 
 using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector3;
@@ -41,7 +42,58 @@ void BossAttacks::Reset()
     m_WaveRadius = 0.0f;
     m_ChargeHitDone = false;
     m_SummonPoints.clear();
+    m_SpearDirs.clear();
+    m_SpearHitDone = false;
+    m_BurrowPhase = 0;
+    m_BurrowPhaseTime = 0.0f;
+    m_BurrowSink = 0.0f;
+    m_SandField = QuicksandField{};
+    m_SandAge = 0.0f;
     brain.Reset();
+}
+
+// ============================================================
+// 面毎の Boss。技の有り / 無しは BossBrain の rules[].enabled、他の数値（冷却・重み）は BossBrain の既定のまま
+// ============================================================
+void BossAttacks::Configure(BossType t)
+{
+    m_Type = t;
+    const bool sand = (t == BossType::SandGuardian);
+    brain.rules[(int)BossMove::SandSpear].enabled = sand;
+    brain.rules[(int)BossMove::Burrow].enabled = sand;
+    brain.rules[(int)BossMove::Quicksand].enabled = sand;
+    if (sand)
+    {
+        // 砂の守護者：トゲ玉と砂潜り（砂漠の敵）を呼ぶ。体は自分の砂岩の皮（BossLooks）なので色は掛けない
+        summonPicks[0] = { Swarm::kEnemyKindSpikeBall, 0.5f };
+        summonPicks[1] = { Swarm::kEnemyKindBurrower, 0.5f };
+        summonPicks[2] = { Swarm::kEnemyKindMob, 0.0f };
+        bodyTint = { 1.0f, 1.0f, 1.0f };
+    }
+    else
+    {
+        summonPicks[0] = { Swarm::kEnemyKindMob, 0.7f };
+        summonPicks[1] = { Swarm::kEnemyKindBomber, 0.3f };
+        summonPicks[2] = { Swarm::kEnemyKindMob, 0.0f };
+        bodyTint = { 1.0f, 1.0f, 1.0f };   // 苔むした岩の皮（BossLooks。2026-10-25 まではゾンビの皮 × 紫）
+    }
+}
+
+uint32_t BossAttacks::PickSummonKind()
+{
+    float total = 0.0f;
+    for (const SummonPick& p : summonPicks) total += (std::max)(p.weight, 0.0f);
+    if (total <= 0.0f) return Swarm::kEnemyKindMob;
+    std::uniform_real_distribution<float> u(0.0f, total);
+    float pick = u(m_Rng);
+    for (const SummonPick& p : summonPicks)
+    {
+        const float w = (std::max)(p.weight, 0.0f);
+        if (w <= 0.0f) continue;
+        if (pick < w) return p.kind;
+        pick -= w;
+    }
+    return summonPicks[0].kind;
 }
 
 void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
@@ -88,7 +140,10 @@ void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
     }
 
     UpdateWave(in, grid, out);
+    UpdateQuicksandField(in.dt);
     if (m_Move != BossMove::None) UpdateMove(in, grid, out);
+    if (m_Move != BossMove::Burrow) m_BurrowSink = 0.0f;   // 潜砂の途中で技が切れても地上へ戻す
+    out.bossBurrow = m_BurrowSink;
 
     // ---- 次の技（技を出していない間だけ間を数える）----
     if (m_Move == BossMove::None)
@@ -164,7 +219,7 @@ void BossAttacks::StartMove(BossMove m, const Input& in, const GridWorld& grid, 
                 if (!grid.IsWalkable(gx, gz)) continue;
                 Output::Summon sp;
                 sp.pos = Ground(grid, x, z);
-                sp.bomber = (u01(m_Rng) < summonBomberChance);
+                sp.kind = PickSummonKind();
                 m_SummonPoints.push_back(sp);
                 break;
             }
@@ -173,6 +228,19 @@ void BossAttacks::StartMove(BossMove m, const Input& in, const GridWorld& grid, 
         ringsPlaced += (uint32_t)m_SummonPoints.size();
         break;
     }
+    case BossMove::SandSpear:
+        StartSandSpear(in, grid);
+        out.ringsPlaced += (int)m_SpearDirs.size();
+        break;
+    case BossMove::Burrow:
+        StartBurrow(in);
+        out.burrowSank = true;
+        break;
+    case BossMove::Quicksand:
+        StartQuicksand(in, grid);
+        out.quicksandStarted = true;
+        out.quicksandPos = m_SandField.center;
+        break;
     default:
         break;
     }
@@ -298,20 +366,32 @@ void BossAttacks::UpdateMove(const Input& in, const GridWorld& grid, Output& out
         }
         break;
 
+    case BossMove::SandSpear:
+        done = UpdateSandSpear(in, grid, out, prevTime);
+        break;
+    case BossMove::Burrow:
+        done = UpdateBurrow(in, grid, out);
+        break;
+    case BossMove::Quicksand:
+        done = UpdateQuicksandMove(in, out);
+        break;
+
     default:
         done = true;
         break;
     }
 
-    if (done)
-    {
-        m_Move = BossMove::None;
-        std::uniform_real_distribution<float> u01(0.0f, 1.0f);
-        if (Enraged(in))
-            m_Gap = (u01(m_Rng) < comboChance) ? 0.3f : gapEnraged;
-        else
-            m_Gap = gap;
-    }
+    if (done) FinishMove(in);
+}
+
+void BossAttacks::FinishMove(const Input& in)
+{
+    m_Move = BossMove::None;
+    std::uniform_real_distribution<float> u01(0.0f, 1.0f);
+    if (Enraged(in))
+        m_Gap = (u01(m_Rng) < comboChance) ? 0.3f : gapEnraged;
+    else
+        m_Gap = gap;
 }
 
 // 衝撃波：帯を広げ、通った瞬間に足が地面近くならプレイヤーに当たり（1 回だけ）
@@ -371,85 +451,5 @@ void BossAttacks::BuildVisuals(const Input& in, const GridWorld& grid)
         for (const Output::Summon& s : m_SummonPoints)
             m_Visuals.push_back({ s.pos, summonRingRadius, p, 0.0f });
     }
-}
-
-void BossAttacks::DrawImGui()
-{
-    ImGui::TextColored(ImVec4(0.85f, 0.4f, 1.0f, 1), "Boss Attacks");
-    ImGui::Text("move %s (%.1f s)  next in %.1f s  rings %d  wave %s  | volleys %u blasts %u",
-        BossMoveName(m_Move), m_MoveTime, m_Gap, (int)m_Rings.size(), m_WaveOn ? "on" : "off", volleys, blasts);
-    ImGui::Checkbox("Enabled##boss", &enabled);
-    ImGui::DragFloat("First Delay (s)##boss", &firstDelay, 0.1f, 0.0f, 60.0f);
-    ImGui::DragFloat("Gap (s)##boss", &gap, 0.1f, 0.0f, 60.0f);
-    ImGui::DragFloat("Gap Enraged (s)##boss", &gapEnraged, 0.1f, 0.0f, 60.0f);
-    ImGui::SliderFloat("Enrage HP Ratio##boss", &enrageHpRatio, 0.0f, 1.0f);
-    ImGui::SliderFloat("Combo Chance (enraged)##boss", &comboChance, 0.0f, 1.0f);
-    ImGui::DragFloat("Range (m)##boss", &range, 0.5f, 1.0f, 200.0f);
-    if (ImGui::Button("Slam Now")) QueueMove(BossMove::Slam);
-    ImGui::SameLine();
-    if (ImGui::Button("Rock Rain Now")) QueueMove(BossMove::RockRain);
-    ImGui::SameLine();
-    if (ImGui::Button("Shockwave Now")) QueueMove(BossMove::Shockwave);
-    ImGui::SameLine();
-    if (ImGui::Button("Charge Now")) QueueMove(BossMove::Charge);
-    ImGui::SameLine();
-    if (ImGui::Button("Summon Now")) QueueMove(BossMove::Summon);
-
-    if (ImGui::TreeNode("Choosing (BossBrain)"))
-    {
-        brain.DrawImGui();
-        ImGui::TreePop();
-    }
-    if (ImGui::TreeNode("Slam"))
-    {
-        ImGui::DragInt("Rings", &count, 1, 1, 12);
-        ImGui::DragFloat("Spacing (s)", &spacing, 0.01f, 0.0f, 3.0f);
-        ImGui::DragFloat("Warn Time (s)", &warnTime, 0.05f, 0.1f, 5.0f);
-        ImGui::DragFloat("Radius (m)", &radius, 0.05f, 0.5f, 10.0f);
-        ImGui::DragFloat("Damage (base)", &damage, 0.5f, 0.0f, 500.0f);
-        ImGui::TreePop();
-    }
-    if (ImGui::TreeNode("Rock Rain"))
-    {
-        ImGui::DragInt("Rocks", &rockCount, 1, 1, 40);
-        ImGui::DragFloat("Spacing (s)", &rockSpacing, 0.01f, 0.0f, 2.0f);
-        ImGui::DragFloat("Warn Time (s)", &rockWarn, 0.05f, 0.1f, 5.0f);
-        ImGui::DragFloat("Radius (m)", &rockRadius, 0.05f, 0.3f, 10.0f);
-        ImGui::DragFloat("Spread (m)", &rockSpread, 0.1f, 0.0f, 40.0f);
-        ImGui::DragFloat("Damage (base)", &rockDamage, 0.5f, 0.0f, 500.0f);
-        ImGui::DragFloat("Fall Time (s)", &rockFallTime, 0.01f, 0.0f, 2.0f);
-        ImGui::TreePop();
-    }
-    if (ImGui::TreeNode("Shockwave"))
-    {
-        ImGui::DragFloat("Windup (s)", &waveWindup, 0.05f, 0.0f, 5.0f);
-        ImGui::DragFloat("Windup Ring (m)", &waveWindupRadius, 0.1f, 0.5f, 20.0f);
-        ImGui::DragFloat("Speed (m/s)", &waveSpeed, 0.1f, 1.0f, 60.0f);
-        ImGui::DragFloat("Max Radius (m)", &waveMaxRadius, 0.5f, 2.0f, 100.0f);
-        ImGui::DragFloat("Band (m)", &waveBand, 0.05f, 0.1f, 10.0f);
-        ImGui::DragFloat("Dodge Height (m)", &waveDodgeHeight, 0.05f, 0.0f, 5.0f);
-        ImGui::DragFloat("Damage (base)", &waveDamage, 0.5f, 0.0f, 500.0f);
-        ImGui::TreePop();
-    }
-    if (ImGui::TreeNode("Charge"))
-    {
-        ImGui::DragFloat("Windup (s)", &chargeWindup, 0.05f, 0.0f, 5.0f);
-        ImGui::DragFloat("Speed (m/s)", &chargeSpeed, 0.5f, 1.0f, 80.0f);
-        ImGui::DragFloat("Length (m)", &chargeLength, 0.5f, 1.0f, 100.0f);
-        ImGui::DragFloat("Lane Ring (m)", &chargeLaneRadius, 0.05f, 0.2f, 10.0f);
-        ImGui::DragFloat("Lane Spacing (m)", &chargeLaneSpacing, 0.05f, 0.5f, 10.0f);
-        ImGui::DragFloat("Hit Radius (m)", &chargeHitRadius, 0.05f, 0.5f, 10.0f);
-        ImGui::DragFloat("Damage (base)", &chargeDamage, 0.5f, 0.0f, 500.0f);
-        ImGui::TreePop();
-    }
-    if (ImGui::TreeNode("Summon"))
-    {
-        ImGui::DragFloat("Windup (s)", &summonWindup, 0.05f, 0.0f, 5.0f);
-        ImGui::DragInt("Count", &summonCount, 1, 1, 30);
-        ImGui::DragInt("Count Enraged", &summonCountEnraged, 1, 1, 30);
-        ImGui::SliderFloat("Bomber Chance", &summonBomberChance, 0.0f, 1.0f);
-        ImGui::DragFloat2("Ring Min / Max (m)", &summonRingMin, 0.1f, 0.5f, 30.0f);
-        ImGui::DragFloat("Spawn Ring (m)", &summonRingRadius, 0.05f, 0.2f, 5.0f);
-        ImGui::TreePop();
-    }
+    BuildSandVisuals(grid);
 }

@@ -217,6 +217,7 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::ProgressBar(hp.current / hp.max, ImVec2(-1, 0), buf);
     }
     ShieldPanel::Draw(m_Registry, m_Player);   // シールド（HP の次に受ける順）
+    m_Lifesteal.DrawImGui();   // 吸血のルーン（2026-10-25）
 
     // ---- 魔力 ----
     // 実行時に書くのは ManaSystem だけ。
@@ -373,7 +374,6 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::DragFloat("Jump Power", &stats.jumpPower, 0.1f, 0.0f, 30.0f);
         ImGui::DragInt("Extra Jumps", &stats.extraJumps, 0.1f, 0, 10);
         ImGui::DragFloat("Air Jump Falloff", &stats.airJumpFalloff, 0.01f, 0.0f, 1.0f);
-        ImGui::Text("Jump CD : %.2f", stats.jumpCooldown);
 
         // ---- 滑り（左 Ctrl / パッド X）----
         if (ImGui::TreeNode("Slide"))

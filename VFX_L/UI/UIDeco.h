@@ -24,12 +24,15 @@ namespace UIDeco
     // Layout で使う物（バックパック・木箱・カード・メニュー）は GameUI::Layout を呼び直さないと効かない
     float  UIScale();
     void   SetUIScale(float s);
-    // baseRatio = 倍率 1 の時に画面短辺に占める割合。maxRatio を超えない所まで倍率を落とす
+    // baseRatio = 倍率 1 の時に画面短辺に占める割合。maxRatio を超えない所まで倍率を落とす。
+    // 落とすのは 1 倍まで（それでも入らない時は 1 倍のまま）。ただし頼まれた倍率（UIScale）より大きくはしない
+    // （以前は UIScale < 1 で入らない時に 1 を返し、頼んだより大きくなっていた）
     inline float FitScale(float baseRatio, float maxRatio = 0.95f)
     {
         const float k = UIScale();
         const float s = (baseRatio > 0.0f) ? maxRatio / baseRatio : k;
-        return (s < k) ? (s > 1.0f ? s : 1.0f) : k;
+        const float fit = (s > 1.0f) ? s : 1.0f;
+        return (fit < k) ? fit : k;
     }
 
     enum class Tint { Gold, Silver, Arcane, Violet };   // Violet = 召喚物（水晶玉。2026-10-06）

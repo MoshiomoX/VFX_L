@@ -21,6 +21,7 @@
 #include "Graphics/Model/SkinnedModelGPU.h"
 #include "Graphics/Shader/ComputeShader.h"
 #include <memory>
+#include <vector>
 
 class VFXEditorScene : public SceneBase
 {
@@ -35,6 +36,7 @@ private:
     void UpdateFakeProjectile(float dt);   // 投射物追従テスト
     void SubmitBurst();      // 一括発射の emitter を積む
     void DrawStressUI();     // 負荷テストのパネル
+    void UpdateProjection(); // 窓の大きさが変わったら投影（縦横比）を作り直す
 
 private:
 
@@ -65,6 +67,7 @@ private:
     double m_FlushMsAvg = 0.0;
     double m_FlushMsPeak = 0.0;
     CameraBase m_Camera;
+    float m_ScreenW = 0.0f, m_ScreenH = 0.0f;   // 投影を作った時の窓の大きさ（UpdateProjection）
 
     // --- Particle / VFX ---
     GPUParticleSystem        m_ParticleSystem;
@@ -90,6 +93,7 @@ private:
     std::shared_ptr<ComputeShader> m_SkinningCS;
     float m_AnimTime = 0.0f;
     int   m_PreviewClip = 0;   // 参照モデルの再生クリップ
+    std::vector<Matrix> m_PoseGlobals, m_Palette;   // Render の作業用（毎フレーム確保しないように持っておく）
     // TEMP-TEST: VFXL_REF_MAGE=<クリップ名,...> で参照モデルをプレイヤーの Mage にし、この順に 3 秒ずつ流す
     std::vector<int> m_RefCycle;
     int   m_RefCycleIndex = 0;

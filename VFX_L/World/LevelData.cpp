@@ -69,24 +69,49 @@ bool LevelIO::Load(const std::string& name, LevelData& out)
         return false;
     }
 
-    LevelData level;
-    level.name = root.value("name", name);
-    if (root.contains("objects") && root["objects"].is_array())
+    // 読み取りも try の中（2026-10-25）：項目の型が違うと value() / get<float>() が type_error を投げて落ちていた。
+    // 壊れた置物は 1 個ずつ飛ばす。名前が文字列でなければファイル名のまま。全体の形が違う（root が配列など）時は読めない扱い
+    if (!root.is_object())
     {
-        for (const auto& j : root["objects"])
+        std::cout << "[LevelIO] bad data: " << path << " : root is not an object" << std::endl;
+        return false;
+    }
+    LevelData level;
+    int skipped = 0;
+    try
+    {
+        level.name = (root.contains("name") && root["name"].is_string()) ? root["name"].get<std::string>() : name;
+        if (root.contains("objects") && root["objects"].is_array())
         {
-            LevelObject o;
-            o.model = j.value("model", std::string());
-            if (o.model.empty()) continue;   // モデル無しは置けない
-            if (j.contains("pos")) o.position = Vec3From(j["pos"], o.position);
-            if (j.contains("rot")) o.rotation = Vec3From(j["rot"], o.rotation);
-            o.scale = j.value("scale", 1.0f);
-            level.objects.push_back(std::move(o));
+            for (const auto& j : root["objects"])
+            {
+                try
+                {
+                    LevelObject o;
+                    o.model = j.value("model", std::string());
+                    if (o.model.empty()) continue;   // モデル無しは置けない
+                    if (j.contains("pos")) o.position = Vec3From(j["pos"], o.position);
+                    if (j.contains("rot")) o.rotation = Vec3From(j["rot"], o.rotation);
+                    o.scale = j.value("scale", 1.0f);
+                    level.objects.push_back(std::move(o));
+                }
+                catch (const json::exception&)
+                {
+                    ++skipped;
+                }
+            }
         }
+    }
+    catch (const json::exception& e)
+    {
+        std::cout << "[LevelIO] bad data: " << path << " : " << e.what() << std::endl;
+        return false;
     }
 
     out = std::move(level);
-    std::cout << "[LevelIO] loaded: " << path << " (" << out.objects.size() << " objects)" << std::endl;
+    std::cout << "[LevelIO] loaded: " << path << " (" << out.objects.size() << " objects";
+    if (skipped > 0) std::cout << ", skipped " << skipped << " broken";
+    std::cout << ")" << std::endl;
     return true;
 }
 

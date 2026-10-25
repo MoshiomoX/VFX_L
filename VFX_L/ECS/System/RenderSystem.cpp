@@ -31,10 +31,15 @@ namespace
         return SkinnedAnimSystem::WorldMatrix(tf, a);
     }
 
-    // 層を混ぜたポーズ → submesh 毎に SkinningCS
-    bool Skin(ID3D11DeviceContext* ctx, ComputeShader* cs, SkinnedAnimComponent& a)
+    // 層を混ぜたポーズ → submesh 毎に SkinningCS。
+    // stamp = 描画フレームの印。このフレームにもうスキニングした実体（影のカスケード 0 の後の本描画）は
+    // 姿勢が同じなので SkinningCS を飛ばし、結果のバッファをそのまま使う（2026-10-25）。
+    // 被弾の閃き・溶解などは PS だけの値なのでスキニングし直す必要は無い
+    bool Skin(ID3D11DeviceContext* ctx, ComputeShader* cs, SkinnedAnimComponent& a, uint32_t stamp)
     {
-        std::vector<Matrix> globals, palette;
+        if (a.gpu->GetSkinnedStamp() == stamp) return true;
+        // 作業用の配列は使い回す（毎回確保し直さない。描画はメインスレッドだけ）
+        static std::vector<Matrix> globals, palette;
         if (!SkinnedAnimSystem::BuildPose(a, globals)) return false;
         const int subCount = (int)a.gpu->GetSubMeshes().size();
         for (int s = 0; s < subCount; ++s)
@@ -43,6 +48,7 @@ namespace
             a.model->BuildSubmeshPalette(s, globals, palette);
             a.gpu->SkinSubmesh(ctx, cs, s, palette);
         }
+        a.gpu->SetSkinnedStamp(stamp);
         return true;
     }
 }
@@ -59,6 +65,8 @@ bool RenderSystem::EnsureSkinningCS()
 // ============================================================
 void RenderSystem::GatherDrawables(Registry& reg)
 {
+    // 集めるのは 1 描画フレームに 1 回（影の最初の段か、影が無ければ Render）。スキニングの使い回しの印もここで進める
+    if (++m_FrameStamp == 0) m_FrameStamp = 1;   // 0 は「まだスキニングしていない」
     m_Drawables.clear();
     reg.CreateView<TransformComponent, ModelComponent>()
         .EachFrom<ModelComponent>([&](Entity e, TransformComponent&, ModelComponent& mc)
@@ -91,7 +99,7 @@ void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
         .EachFrom<SkinnedAnimComponent>([&](Entity, TransformComponent& tf, SkinnedAnimComponent& a)
             {
                 if (!a.visible || !a.model || !a.gpu) return;
-                if (skin && !Skin(ctx, m_SkinningCS.get(), a)) return;
+                if (skin && !Skin(ctx, m_SkinningCS.get(), a, m_FrameStamp)) return;
                 a.gpu->RenderDepth(ctx, *a.model, SkinnedWorld(tf, a), renderer.DepthView(), renderer.DepthProj());
             });
 }
@@ -182,7 +190,7 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
         .EachFrom<SkinnedAnimComponent>([&](Entity e, TransformComponent& tf, SkinnedAnimComponent& a)
             {
                 if (!a.visible || !a.model || !a.gpu) return;
-                if (!Skin(ctx, m_SkinningCS.get(), a)) return;
+                if (!Skin(ctx, m_SkinningCS.get(), a, m_FrameStamp)) return;   // 影で済んでいれば使い回す
                 const Matrix world = SkinnedWorld(tf, a);
 
                 SetStencil(ctx, StencilRefFor(reg, e));   // 陣営のアウトライン（プレイヤー = 味方、エリート = 敵）

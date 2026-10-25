@@ -224,8 +224,21 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Graphics\Renderer\SkyRenderer.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestLifesteal.cpp" />
+    <ClCompile Include="Player\LifestealHeal.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemLifesteal.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestElites.cpp" />
+    <ClCompile Include="UI\HUDEliteBars.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneElites.cpp" />
+    <ClCompile Include="Enemy\EliteLooks.cpp" />
+    <ClCompile Include="Enemy\EliteAttacksPanel.cpp" />
+    <ClCompile Include="Enemy\EliteAffixes.cpp" />
+    <ClCompile Include="Enemy\EliteMoves.cpp" />
+    <ClCompile Include="Enemy\EliteAttacks.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemElites.cpp" />
     <ClCompile Include="Graphics\Renderer\StaticPropRenderer.cpp" />
     <ClCompile Include="Graphics\Renderer\GrassRenderer.cpp" />
+    <ClCompile Include="Graphics\Renderer\GrassRendererPanel.cpp" />
     <ClCompile Include="Graphics\Renderer\TerrainSurface.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneDebug.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBomber.cpp" />
@@ -256,11 +269,21 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBossLook.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestRuinsFoes.cpp" />
+    <ClCompile Include="Enemy\EnemyLooks.cpp" />
+    <ClCompile Include="Enemy\MobSpawnerRuins.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemRuins.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneRuins.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGrassFire.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGust.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDebris.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestWindToys.cpp" />
+    <ClCompile Include="Debug\AutoTest\VideoShot.cpp" />
+    <ClCompile Include="Debug\AutoTest\VideoShotsCombat.cpp" />
+    <ClCompile Include="Debug\AutoTest\VideoShotsRead.cpp" />
+    <ClCompile Include="Debug\AutoTest\VideoShotsWorld.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestChargeShield.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDamageText.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSpikeBall.cpp" />
@@ -296,6 +319,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPoisonPerf.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestLightPerf.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestGrassFx.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestStressFx.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp" />
     <ClCompile Include="Scene\CollisionTestScenePlayerPanels.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneWorldPanels.cpp" />
@@ -309,6 +334,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Enemy\MobSpawnerKinds.cpp" />
     <ClCompile Include="Enemy\StageDirector.cpp" />
     <ClCompile Include="Enemy\BossAttacks.cpp" />
+    <ClCompile Include="Enemy\BossAttacksPanel.cpp" />
+    <ClCompile Include="Enemy\BossAttacksSand.cpp" />
+    <ClCompile Include="Enemy\BossLooks.cpp" />
     <ClCompile Include="Enemy\BossBrain.cpp" />
     <ClCompile Include="Enemy\DifficultyCurve.cpp" />
     <ClCompile Include="Enemy\EliteSpawner.cpp" />
@@ -345,6 +373,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Swarm\GPUReadback.cpp" />
     <ClCompile Include="Swarm\SwarmSystem.cpp" />
     <ClCompile Include="Swarm\SwarmSystemKinds.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemBoss.cpp" />
     <ClCompile Include="Swarm\SwarmSystemFire.cpp" />
     <ClCompile Include="Swarm\SwarmSystemTornado.cpp" />
     <ClCompile Include="Swarm\SwarmSystemTrail.cpp" />
@@ -363,6 +392,11 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Camera\CameraBase.cpp" />
     <ClCompile Include="Collider\CollisionSystem.cpp" />
     <ClCompile Include="Scene\CollisionTestScene.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneInit.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneUpdate.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneGameplay.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneRender.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneField.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneTitle.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneSelect.cpp" />
     <ClCompile Include="Scene\ResultScene.cpp" />
@@ -406,6 +440,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="UI\HowToPlayUI.cpp" />
     <ClCompile Include="Core\GameSettings.cpp" />
     <ClCompile Include="Core\GameProgress.cpp" />
+    <ClCompile Include="Core\VideoCapture.cpp" />
     <ClCompile Include="UI\StageSelectUI.cpp" />
     <ClCompile Include="UI\MenuList.cpp" />
     <ClCompile Include="UI\TitleScreenUI.cpp" />
@@ -548,6 +583,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="World\GroundDebris.cpp" />
     <ClCompile Include="World\GroundDebrisPanel.cpp" />
     <ClCompile Include="World\Tumbleweeds.cpp" />
+    <ClCompile Include="World\GrassShreds.cpp" />
     <ClCompile Include="World\DandelionField.cpp" />
     <ClCompile Include="World\DandelionFieldPanel.cpp" />
     <ClCompile Include="World\MapData.cpp" />
@@ -572,6 +608,10 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Graphics\Renderer\SkyRenderer.h" />
+    <ClInclude Include="Item\Items\LifestealRune.h" />
+    <ClInclude Include="Player\LifestealHeal.h" />
+    <ClInclude Include="Enemy\EliteLooks.h" />
+    <ClInclude Include="Enemy\EliteAttacks.h" />
     <ClInclude Include="Graphics\Renderer\StaticPropRenderer.h" />
     <ClInclude Include="Graphics\Renderer\GrassRenderer.h" />
     <ClInclude Include="Graphics\Renderer\TerrainSurface.h" />
@@ -580,10 +620,14 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Debug\SpellLab.h" />
     <ClInclude Include="Debug\AutoTest\BattleAutoTest.h" />
     <ClInclude Include="Debug\AutoTest\AutoTestCommon.h" />
+    <ClInclude Include="Debug\AutoTest\VideoShot.h" />
     <ClInclude Include="Debug\FrameProfiler.h" />
     <ClInclude Include="Enemy\MobSpawner.h" />
     <ClInclude Include="Enemy\StageDirector.h" />
     <ClInclude Include="Enemy\BossAttacks.h" />
+    <ClInclude Include="Enemy\BossLooks.h" />
+    <ClInclude Include="Enemy\EnemyLooks.h" />
+    <ClInclude Include="Enemy\LookBuilder.h" />
     <ClInclude Include="Enemy\BossBrain.h" />
     <ClInclude Include="Enemy\DifficultyCurve.h" />
     <ClInclude Include="Enemy\EliteSpawner.h" />
@@ -637,6 +681,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="World\GrassFireField.h" />
     <ClInclude Include="World\GroundDebris.h" />
     <ClInclude Include="World\Tumbleweeds.h" />
+    <ClInclude Include="World\GrassShreds.h" />
     <ClInclude Include="World\DandelionField.h" />
     <ClInclude Include="World\LocalWind.h" />
     <ClInclude Include="UI\BackpackUI.h" />
@@ -729,6 +774,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="UI\HowToPlayUI.h" />
     <ClInclude Include="Core\GameSettings.h" />
     <ClInclude Include="Core\GameProgress.h" />
+    <ClInclude Include="Core\VideoCapture.h" />
     <ClInclude Include="UI\StageSelectUI.h" />
     <ClInclude Include="UI\MenuList.h" />
     <ClInclude Include="UI\TitleScreenUI.h" />
@@ -1627,19 +1673,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
     </FxCompile>
-    <FxCompile Include="Shader\Particle\ParticlePS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-    </FxCompile>
     <FxCompile Include="Shader\Particle\ParticleTrailCS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
@@ -1749,19 +1782,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
-    </FxCompile>
-    <FxCompile Include="Shader\Particle\ParticleVS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
@@ -2108,6 +2128,57 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmEnemyKindListCS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyKindList2CS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmCorpseList2CS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmCorpseList3CS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
@@ -2652,6 +2723,19 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Swarm/%(Filename).cso</ObjectFileOutput>
     </FxCompile>
     <FxCompile Include="Shader\UI\SpritePS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)%(RelativeDir)%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\UI\TextOutlinePS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>

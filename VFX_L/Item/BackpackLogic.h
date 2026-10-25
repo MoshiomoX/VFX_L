@@ -80,7 +80,9 @@ namespace BackpackLogic
     //   使える数 = 所持数 - グリッド上の数 を毎回数えるので、
     //   グリッドから消えれば自動的に取り出せるようになる。
     // 枠を減らす操作の後に必ず呼ぶ。
-    int ValidateItems(BackpackComponent& bp);
+    // moved = 今動かした物（items の index。枠と一緒に動いた魔法）。重なった時はこちらが退き、動いていない物は残る。
+    // 占有表は見ないので、呼ぶ前に組み直してある必要は無い
+    int ValidateItems(BackpackComponent& bp, const std::vector<int>* moved = nullptr);
 
     // 形が変わった後に全部置き直す（エディタで形・付け替えを変えた時用）。
     // 枠 → 魔法の順に、元の順番・位置・向きのまま置けるものだけ残す。

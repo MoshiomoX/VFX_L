@@ -119,8 +119,22 @@ bool BattleCamera::LoadSettings(const char* path)
 #define X(m, key) if (j.contains(key) && j[key].is_boolean()) m = j[key].get<bool>();
     CAMERA_TRIGGER_BOOLS(X)
 #undef X
+    SanitizeSettings();
     std::cout << "[OK] Camera settings loaded: " << file << std::endl;
     return true;
+}
+
+// 読んだ値の辻褄を合わせる（2026-10-25）。範囲の下限 > 上限だと FollowCamera::Update の std::clamp が毎フレーム落ちる。
+// 距離はホイールの範囲に入れる（範囲の外の距離だと、最初のホイールで端へ飛ぶ）
+void BattleCamera::SanitizeSettings()
+{
+    FollowCamera& c = m_Camera;
+    if (c.pitchMin > c.pitchMax) std::swap(c.pitchMin, c.pitchMax);
+    if (c.zoomMin > c.zoomMax) std::swap(c.zoomMin, c.zoomMax);
+    c.zoomMin = (std::max)(c.zoomMin, 0.1f);
+    c.zoomMax = (std::max)(c.zoomMax, c.zoomMin);
+    if (c.distance > c.zoomMax) c.zoomMax = c.distance;   // 保存した距離はそのまま。上限の方を広げる
+    if (c.distance < c.zoomMin) c.zoomMin = c.distance;
 }
 
 void BattleCamera::ResetSettings()
@@ -176,8 +190,9 @@ void BattleCamera::OnShakeAreas(uint32_t count)
 
 void BattleCamera::Update(float dt, const Vector3* target)
 {
-    if (target) m_Camera.SetFollowTarget(*target);
-      m_Camera.Update(dt);
+    if (m_HasOverride) m_Camera.SetFollowTarget(m_Override);
+    else if (target) m_Camera.SetFollowTarget(*target);
+    m_Camera.Update(dt);
 }
 
 // ============================================================

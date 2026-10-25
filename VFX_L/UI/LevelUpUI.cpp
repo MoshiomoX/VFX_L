@@ -102,7 +102,7 @@ Vector2 LevelUpUI::CardPosition(int index, int total) const
 // マウスで直接クリック、または左右キー + 決定。
 // どちらでも選べるようにする。
 // ============================================================
-bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked)
+bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float dt)
 {
     const int total = (int)lv.pendingChoices.size();
     if (total <= 0)
@@ -126,9 +126,10 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked)
 
     if (m_InputDelay > 0.0f)
     {
-        // 一時停止中なので dt が無い。固定値で減らす。
-        // 厳密である必要は無く、数フレーム待てればよい。
-        m_InputDelay -= 0.016f;
+        // 実時間で減らす（ゲームは止まっているが GameUI は実時間の dt をくれる）。
+        // 以前は 1 フレーム 0.016 秒の決め打ちで、144 fps だと 0.25 秒の猶予が 0.11 秒ほどしか無かった。
+        // 1 フレームだけ長い時（読み込みの引っ掛かり）に猶予を食い尽くさないよう 0.1 秒で頭打ち
+        m_InputDelay -= (std::min)((std::max)(dt, 0.0f), 0.1f);
         return false;
     }
 

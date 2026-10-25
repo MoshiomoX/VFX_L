@@ -50,24 +50,35 @@ bool ItemDataFile::LoadShape(const char* itemName,
     std::ifstream in(path);
     if (!in.is_open()) return false;
 
-    json j;
-    try { in >> j; }
+    // 読み取りは全部 try の中（一番外が object でないと j.value が type_error を投げる。
+    // 起動時の ItemDatabase::Initialize から呼ばれるので、ここで投げると捕まえる所が無い）
+    try
+    {
+        json j;
+        in >> j;
+        if (!j.is_object())
+        {
+            std::cout << "[ItemData] not a json object, ignored: " << path << std::endl;
+            return false;
+        }
+
+        std::vector<CellOffset> occ = CellsFromJson(j.value("occupy", json::array()));
+        if (occ.empty())
+        {
+            std::cout << "[ItemData] no occupy cell, ignored: " << path << std::endl;
+            return false;
+        }
+
+        std::vector<CellOffset> infl = CellsFromJson(j.value("influence", json::array()));
+        occupy = std::move(occ);
+        influence = std::move(infl);
+        return true;
+    }
     catch (const json::exception& e)
     {
-        std::cout << "[ItemData] parse error: " << path << " : " << e.what() << std::endl;
+        std::cout << "[ItemData] read error: " << path << " : " << e.what() << std::endl;
         return false;
     }
-
-    std::vector<CellOffset> occ = CellsFromJson(j.value("occupy", json::array()));
-    if (occ.empty())
-    {
-        std::cout << "[ItemData] no occupy cell, ignored: " << path << std::endl;
-        return false;
-    }
-
-    occupy = std::move(occ);
-    influence = CellsFromJson(j.value("influence", json::array()));
-    return true;
 }
 
 // ============================================================

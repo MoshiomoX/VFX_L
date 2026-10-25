@@ -9,37 +9,30 @@
 // replaces whatever the gather pass wrote there. With hundreds of
 // enemies walking through the grass this is what makes the field
 // look walked on.
+// 2026-10-25: the kinds come from SwarmCommon.hlsli (the old local table
+// missed the stage's fixed elites and the kinds that are not on the
+// grass). No footprint for: both final-swarm ghosts (they float), the
+// sand mage's tornado (its wind source already presses the grass), a
+// buried burrower / sand guardian, a vanished shadow swordsman, and
+// anything whose feet are clearly above the ground under it (a flying or
+// diving gargoyle, a mob dropping off a terrace).
 // ============================================================
+// SwarmCommon's cbuffers are not used here; moved off b0 (GrassCB)
+#define SWARM_FRAME_CB_REG b1
+#define SWARM_AI_CB_REG b2
+#define SWARM_ORB_CB_REG b3
+#include "../Common/SwarmCommon.hlsli"
 #include "GrassCommon.hlsli"
 
-// = SwarmEnemy (Shader/Common/SwarmCommon.hlsli), 48 bytes. Only position is read
-struct StampEnemy
-{
-    float3 position;
-    uint hp;
-    float3 velocity;
-    float moveSpeed;
-    float yaw;
-    float animTime;
-    uint animIndex;
-    float attackCooldown;
-};
-// = SwarmEnemyExtra, 8 bytes
-struct StampExtra
-{
-    uint kind;
-    float fuse;
-};
-#define STAMP_KIND_ELITE 2u
-#define STAMP_KIND_BOSS 3u
-#define STAMP_KIND_GHOST 4u
-#define STAMP_KIND_DARKGHOST 14u
-#define STAMP_KIND_BRUTE 7u
-
-StructuredBuffer<StampEnemy> g_Enemies : register(t0);
+StructuredBuffer<SwarmEnemy> g_Enemies : register(t0);
 Buffer<uint> g_EnemyStates : register(t1);         // 0 = dead
-StructuredBuffer<StampExtra> g_EnemyExtra : register(t2);
+StructuredBuffer<SwarmEnemyExtra> g_EnemyExtra : register(t2);
+Texture2D<float> g_Height : register(t3);          // GridWorld heights, texel = height cell (GrassCullCS reads the same)
 RWTexture2D<float2> g_TrampleOut : register(u0);
+
+// feet this far above the raw height cell under the centre = in the air (no footprint). A terrace step is
+// 2.5m, an enemy standing on its edge is level with the raw cell, a flying gargoyle is g_GargoyleHover up
+static const float STAMP_AIR_HEIGHT = 0.8;
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -49,22 +42,32 @@ void main(uint3 id : SV_DispatchThreadID)
     g_Enemies.GetDimensions(count, stride);
     if (j >= count || g_TrampleExtra.z <= 0.0)
         return;
-    if (g_EnemyStates[j] == 0u)
+    if (g_EnemyStates[j] == SWARM_DEAD)
         return;
-    uint kind = g_EnemyExtra[j].kind;
-    if (kind == STAMP_KIND_GHOST || kind == STAMP_KIND_DARKGHOST)   // floats above the grass
+    SwarmEnemyExtra ex = g_EnemyExtra[j];
+    uint kind = ex.kind;
+    if (SwarmIsGhost(kind) || kind == SWARM_KIND_TORNADO || SwarmBuried(ex)
+        || (SwarmIsFixedElite(kind) && ex.fuse < -0.5))   // the shadow swordsman vanished (= SwarmUntargetable)
+        return;
+
+    float3 p = g_Enemies[j].position;
+    uint hw, hh;
+    g_Height.GetDimensions(hw, hh);
+    int2 hc = int2(floor((p.xz - g_MapOrigin) / g_MapSize * float2(hw, hh)));
+    hc = clamp(hc, int2(0, 0), int2((int) hw - 1, (int) hh - 1));
+    if (p.y - g_Height.Load(int3(hc, 0)) > STAMP_AIR_HEIGHT)
         return;
 
     // footprint: the body radius by kind (the big ones press a wider disc)
     float r = g_TrampleExtra.w;
-    if (kind == STAMP_KIND_BOSS) r *= 3.0;
-    else if (kind == STAMP_KIND_ELITE) r *= 2.2;
-    else if (kind == STAMP_KIND_BRUTE) r *= 1.3;
+    if (kind == SWARM_KIND_BOSS) r *= 3.0;
+    else if (SwarmIsBigElite(kind)) r *= 2.2;   // the elite and the stage's fixed elites
+    else if (kind == SWARM_KIND_BRUTE) r *= 1.3;
 
     uint w, h;
     g_TrampleOut.GetDimensions(w, h);
     float2 texel = g_MapSize / float2(w, h);
-    float2 c = g_Enemies[j].position.xz;
+    float2 c = p.xz;
     float2 cuv = (c - g_MapOrigin) / texel;        // texel space
     int2 lo = int2(floor(cuv - r / texel));
     int2 hi = int2(floor(cuv + r / texel));

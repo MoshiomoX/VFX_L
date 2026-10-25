@@ -99,6 +99,18 @@ static const uint SWARM_KIND_SANDMAGE = 12u;  // desert sand mage (2026-10-17): 
 static const uint SWARM_KIND_TORNADO = 13u;   // the sand mage's tornado (2026-10-17): an "enemy projectile". Flies straight along its yaw (through walls like a ghost), cannot be hit or targeted, throws the player up on touch, dies when fuse runs out. fuse = seconds left (0 = just spawned, < 0 = expired)
 static const uint SWARM_KIND_DASHBOMBER = 15u; // dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger, locks its yaw, stands g_DashBomberWindup seconds, then sprints straight along that yaw (2026-10-20: no re-aiming, a side step dodges it) and blows up on touch or g_DashBomberFuse seconds after the wind-up (ContactCS). fuse > 0 = seconds since lit (AICS counts). Invulnerable while lit, like the bomber
 static const uint SWARM_KIND_DARKGHOST = 14u; // final-swarm dark ghost (2026-10-18, Megabonk's black ghost): a ghost with huge hp, faster than the player, bigger, hits x g_DarkGhostDamageMul and knocks back like a blast. Flies through walls like the white ghost; neither ghost flinches, freezes, slows or gets blown away
+// ---- ruins enemies (2026-10-25, user: "make the ruins mobs" -> cursed armor, stone gargoyle, necromancer, chain warden) ----
+static const uint SWARM_KIND_ARMOR = 16u;         // cursed armor: tough and slow. Its first death does not shatter: it collapses (CorpseTrackCS -> split ring) and the CPU raises SWARM_KIND_ARMOR2 there with half its hp
+static const uint SWARM_KIND_ARMOR2 = 17u;        // the revived cursed armor: shatters as usual
+static const uint SWARM_KIND_GARGOYLE = 18u;      // stone gargoyle: a statue until the player comes close (cannot be hit), then flies (through walls, g_GargoyleHover up), dives at the player and lands for a while. fuse: <= 0 asleep, (0, wake) waking, [wake, SWARM_GARGOYLE_DIVE) flying, >= SWARM_GARGOYLE_DIVE diving (wind-up -> dive -> landed)
+static const uint SWARM_KIND_NECRO = 19u;         // necromancer: keeps its distance like the sand mage; the cast raises skeletons (CPU) from the latest corpses near it
+static const uint SWARM_KIND_SKELETON = 20u;      // skeleton raised by a necromancer: fast and fragile
+static const uint SWARM_KIND_WARDEN = 21u;        // chain warden: stops at mid range, locks its yaw and winds up (the charge band shows the line); at the end the CPU throws the chain hook along that yaw
+// the stage's fixed elites (2026-10-25). A = melee (axe / rider / shadow swordsman), B = ranged (archer / flame mage / librarian; keeps
+// g_FixedEliteKeepMin..Max). The CPU (EliteAttacks) runs their moves and drives them through g_EliteCmd / g_EliteMove
+static const uint SWARM_KIND_ELITE_A = 22u;
+static const uint SWARM_KIND_ELITE_B = 23u;
+static const float SWARM_GARGOYLE_DIVE = 1000.0;  // a gargoyle's fuse from here on = the dive (fuse - this = seconds into it)
 
 // both final-swarm ghosts (2026-10-18): fly straight at the player through walls and plateaus (AICS / MoveCS / PushCS),
 // never flinch (HitCS / AreaDamageCS), never slowed / frozen (AICS), never pushed by the gust (SwarmPushKindMul),
@@ -106,6 +118,27 @@ static const uint SWARM_KIND_DARKGHOST = 14u; // final-swarm dark ghost (2026-10
 bool SwarmIsGhost(uint kind)
 {
     return kind == SWARM_KIND_GHOST || kind == SWARM_KIND_DARKGHOST;
+}
+bool SwarmIsFixedElite(uint kind)
+{
+    return kind == SWARM_KIND_ELITE_A || kind == SWARM_KIND_ELITE_B;
+}
+// the elite-sized kinds: half the freeze / slow / gust push
+bool SwarmIsBigElite(uint kind)
+{
+    return kind == SWARM_KIND_ELITE || SwarmIsFixedElite(kind);
+}
+
+// kinds whose live / shattering draw lists come from the later list passes (SwarmEnemyKindList2CS /
+// SwarmCorpseList2CS / SwarmCorpseList3CS, 2026-10-25): the first ones already bind 8 UAVs each.
+// The first passes leave these kinds out
+bool SwarmInKindList2(uint kind)
+{
+    return (kind >= SWARM_KIND_ARMOR && kind <= SWARM_KIND_WARDEN) || SwarmIsFixedElite(kind);
+}
+bool SwarmInCorpseList2(uint kind)
+{
+    return SwarmInKindList2(kind) || kind == SWARM_KIND_BOSS || kind == SWARM_KIND_SANDMAGE || kind == SWARM_KIND_DASHBOMBER;
 }
 
 struct SwarmEnemyExtra
@@ -331,7 +364,7 @@ struct SwarmProjPath
     float duration; // seconds from p0 to p3
 
     float3 p2;
-    float sideSign; // +1 / -1, fixed per shot
+    float sideSign; // roll of the side offset around the flight axis, radians, fixed per shot (0 = right, pi = left, else random. SwarmBuildPath)
 
     float3 p3;
     float speed; // nominal speed, restored when the curve lets go
@@ -462,7 +495,7 @@ float SwarmAreaFreeze(uint flags)
 // Push (2026-10-12, the Gust): a non-capsule area keeps its knockback
 // strength q / 15 in the beam-channel bits (8-11, unused unless CAPSULE).
 // AreaDamageCS writes enemyPush[slot] = (velocity xz away from the player,
-// seconds left, 0); AICS adds it to the velocity while it decays.
+// seconds left, 0); MoveCS adds it to the step's motion while it decays.
 // Elites take half, the boss none (SwarmPushKindMul).
 static const float SWARM_PUSH_SPEED = 28.0; // = Swarm::kPushSpeed (m/s at q = 15; the ramp-down makes it speed * time / 2 = 3.5 m)
 static const float SWARM_PUSH_TIME = 0.25;  // = Swarm::kPushTime
@@ -491,7 +524,8 @@ static const float SWARM_PULL_DEAD = 0.35;  // m
 static const float SWARM_BURROW_RISE_TIME = 0.3; // seconds the body takes to rise out / sink in (look only)
 bool SwarmBuried(SwarmEnemyExtra ex)
 {
-    return ex.kind == SWARM_KIND_BURROWER && ex.fuse <= 0.0;
+    return (ex.kind == SWARM_KIND_BURROWER && ex.fuse <= 0.0)
+        || (ex.kind == SWARM_KIND_BOSS && ex.fuse < -0.5);   // the sand guardian more than half under the sand (2026-10-24)
 }
 // a bomber / dash bomber whose fuse is lit (2026-10-18, user: "every enemy is invulnerable while blowing itself up"):
 // takes no damage (HitCS / AreaDamageCS skip it through SwarmUntargetable), never flinches, is not slowed / frozen (AICS).
@@ -504,18 +538,22 @@ bool SwarmInvulnerable(SwarmEnemyExtra ex)
 // a buried burrower, the sand mage's tornado (2026-10-17), a lit bomber / dash bomber (2026-10-18)
 bool SwarmUntargetable(SwarmEnemyExtra ex)
 {
-    return SwarmBuried(ex) || ex.kind == SWARM_KIND_TORNADO || SwarmInvulnerable(ex);
+    return SwarmBuried(ex) || ex.kind == SWARM_KIND_TORNADO || SwarmInvulnerable(ex)
+        || (ex.kind == SWARM_KIND_GARGOYLE && ex.fuse <= 0.0)   // a sleeping gargoyle is a statue (2026-10-25)
+        || (SwarmIsFixedElite(ex.kind) && ex.fuse < -0.5);       // the shadow swordsman vanished (AICS: fuse = -hide)
 }
 
 float SwarmPushKindMul(uint kind)
 {
-    if (kind == SWARM_KIND_BOSS) return 0.0;
-    if (kind == SWARM_KIND_SPIKEBALL) return 0.0; // too heavy to blow away
-    if (kind == SWARM_KIND_BURROWER) return 0.0;  // under the sand
-    if (kind == SWARM_KIND_TORNADO) return 0.0;   // wind does not push wind
-    if (SwarmIsGhost(kind)) return 0.0;           // the final swarm cannot be blown away (2026-10-18)
-    if (kind == SWARM_KIND_ELITE) return 0.5;
-    return 1.0;
+    // one exit (2026-10-25: the early returns made fxc warn X4000)
+    bool none = (kind == SWARM_KIND_BOSS)
+             || (kind == SWARM_KIND_SPIKEBALL)   // too heavy to blow away
+             || (kind == SWARM_KIND_BURROWER)    // under the sand
+             || (kind == SWARM_KIND_TORNADO)     // wind does not push wind
+             || SwarmIsGhost(kind)               // the final swarm cannot be blown away (2026-10-18)
+             || (kind == SWARM_KIND_GARGOYLE);   // stone (2026-10-25)
+    bool half = (SwarmIsBigElite(kind) || kind == SWARM_KIND_ARMOR || kind == SWARM_KIND_ARMOR2);
+    return none ? 0.0 : (half ? 0.5 : 1.0);
 }
 
 // ------------------------------------------------------------
@@ -544,6 +582,8 @@ static const uint SWARM_AREA_TICK_MASK = 0xFFu;
 static const uint SWARM_AREA_EXTRA_TOXIN_SHIFT = 8u;
 static const uint SWARM_AREA_EXTRA_SPLASH = 1u << 12u;
 static const uint SWARM_AREA_EXTRA_PULL = 1u << 13u;   // = Swarm::kAreaExtraPull
+static const uint SWARM_AREA_EXTRA_LIFESTEAL = 1u << 14u;   // = Swarm::kAreaExtraLifesteal: marks the enemies it hits (lifesteal rune, 2026-10-25)
+static const uint SWARM_TAG_LIFESTEAL = 0x80000000u;      // = Swarm::kTagLifesteal: top bit of a projectile's trigger tag (projTags)
 static const uint SWARM_AREA_EXTRA_ELEMENT_SHIFT = 16u;   // bits 16..19: damage element (damage number colour, 2026-10-17)
 uint SwarmAreaElement(uint tickNow)
 {
@@ -579,10 +619,27 @@ uint SwarmMotionElement(SwarmMotion m)
 // Every reader compares against SWARM_DEAD only; the damage passes write the element with a CAS so a DEAD written
 // meanwhile by the killer is never overwritten
 static const uint SWARM_STATE_ELEMENT_SHIFT = 8u;
+static const uint SWARM_STATE_LIFESTEAL = 1u << 12u;   // the last hit came from a lifesteal spell (SwarmDamageTextCS adds this enemy's hp loss to the lifesteal total)
 uint SwarmStateElement(uint state)
 {
     return (state >> SWARM_STATE_ELEMENT_SHIFT) & 0xFu;
 }
+// The element of the killing hit (2026-10-25). The killer writes SWARM_DEAD, so the state word cannot carry it:
+// HitCS / AreaDamageCS leave it in the dead slot's attackCooldown as -(1 + element). A live enemy's cooldown is never
+// negative (ContactCS clamps it at 0), and nothing reads a dead slot's cooldown until SpawnEnemyCS / RecycleCS overwrite
+// the slot. SwarmDamageTextCS colours the kill number with it
+float SwarmKillElementMark(uint elem)
+{
+    return -1.0 - (float) elem;
+}
+uint SwarmKillElement(float attackCooldown)
+{
+    return (attackCooldown < -0.5) ? (uint) (-attackCooldown - 0.5) : 0u;
+}
+// SwarmDamageTextCS's prevHp (hp seen last frame, fixed point) with this bit set: RecycleCS has put a new enemy in the slot
+// since (the low bits = its spawn hp). The old enemy's pending numbers are dropped and the drop is measured from the new hp.
+// A live enemy's hp never has it (only a killing hit wraps hp past zero, and that slot is DEAD by then)
+static const uint SWARM_PREVHP_RECYCLED = 0x80000000u;
 static const float SWARM_HOLD_FORWARD = 1.0; // a held shot is born this far ahead of the muzzle (m)
 float SwarmMotionHold(SwarmMotion m)
 {
@@ -648,7 +705,8 @@ RWStructuredBuffer<float4> areaDirs : register(SWARM_AREA_DIR_U);
 // boost: the projectile's projBoost (SwarmBoostDamage / SwarmBoostDuration), 0 = none.
 //        The duration part only stretches lasting areas (a one-shot ticks once anyway)
 // dir  : the spawner's velocity in xz (any length). Kept only with SWARM_AREA_DIR_U
-void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint boost, float2 dir)
+// extraOr: more SWARM_AREA_EXTRA_* bits for this one area (the lifesteal mark of the shot that left it, 2026-10-25)
+void SwarmSpawnAreaFromDefX(uint defId, float3 pos, uint salt, float scale, uint boost, float2 dir, uint extraOr)
 {
     if (defId == 0u)
         return;
@@ -667,7 +725,7 @@ void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint 
     a.flags = (d.flags & 0xFFFFu & ~SWARM_AREA_FOLLOW_PLAYER) // born from a hit: stays where it is
         | (SwarmPackScale(scale, 0xFFFFu) << SWARM_SCALE_SHIFT);
     a.vfxType = d.vfxType;
-    a.tickNow = d.extra & ~SWARM_AREA_TICK_MASK; // extras only; the tick state starts clean
+    a.tickNow = (d.extra | extraOr) & ~SWARM_AREA_TICK_MASK; // extras only; the tick state starts clean
 
     uint start = (salt * 97u) % SWARM_MAX_AREAS;
     for (uint k = 0; k < SWARM_MAX_AREAS; ++k)
@@ -685,6 +743,10 @@ void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint 
             return;
         }
     }
+}
+void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint boost, float2 dir)
+{
+    SwarmSpawnAreaFromDefX(defId, pos, salt, scale, boost, dir, 0u);
 }
 #endif
 
@@ -870,7 +932,7 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_SpikeBallScale;
     float g_SpikeBallDamageMul;
     float g_SpikeBallExpMul;
-    float _spikeBallPad;
+    float g_SpikeBallRollPerMeter; // MoveCS: radians a body-size-1 ball turns per meter rolled (look roll rate / look radius. 2026-10-25, was a pad)
     // ---- burrower (SWARM_KIND_BURROWER, 2026-10-17) ----
     float g_BurrowScale;
     float g_BurrowDamageMul;
@@ -918,6 +980,76 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_DashBomberDashSpeed;   // m/s while dashing (AICS, straight along the yaw locked when it lit)
     float g_DashBomberBlastRadius; // m (the look reuses g_BomberBlastArea scaled by radius / g_BomberBlastRadius)
     float g_DashBomberWindup;      // seconds it stands still (flashing) after lighting before the dash (2026-10-20)
+
+    // ---- the stage boss per stage (2026-10-24, BossAttacks::Configure / Output::bossBurrow) ----
+    float3 g_BossTint;             // multiplies the mob mesh colour (grassland purple, desert sandstone)
+    float g_BossBurrow;            // 0 = on the ground, 1 = under the sand (sand guardian's burrow). AICS copies it into the boss's fuse as -burrow
+
+    // ---- cursed armor (SWARM_KIND_ARMOR / ARMOR2, 2026-10-25) ----
+    float g_ArmorScale;
+    float g_ArmorDamageMul;
+    float g_ArmorExpMul;           // first death (only collapses)
+    float g_ArmorRevivedExpMul;
+
+    // ---- stone gargoyle (SWARM_KIND_GARGOYLE, 2026-10-25) ----
+    float g_GargoyleScale;
+    float g_GargoyleDamageMul;     // melee while landed
+    float g_GargoyleExpMul;
+    float g_GargoyleWakeDist;      // wakes with the player this close (horizontal m)
+    float g_GargoyleAutoWake;      // wakes by itself after this many seconds asleep
+    float g_GargoyleWakeTime;      // seconds of waking (shakes, rises)
+    float g_GargoyleHover;         // flying height above the ground (the position itself is raised)
+    float g_GargoyleDiveRange;     // dives with the player this close (horizontal)
+    float g_GargoyleDiveWindup;    // hangs in the air this long before the dive (band on the ground)
+    float g_GargoyleDiveSpeed;     // horizontal m/s of the dive
+    float g_GargoyleDiveTime;      // seconds of the dive
+    float g_GargoyleLandTime;      // seconds on the ground after the dive
+    float g_GargoyleFlyMin;        // flies at least this long before the next dive
+    float g_GargoyleDiveDamageMul; // touching the player during the dive (knocks back like a blast)
+    float g_GargoyleFlap;          // VS: wing flap amplitude (rad)
+    float g_GargoyleDiveMin;       // while flying it circles between this and g_GargoyleDiveRange * 0.9 (diving from right above passed over the head)
+
+    // ---- necromancer (SWARM_KIND_NECRO) and skeleton (SWARM_KIND_SKELETON), 2026-10-25 ----
+    float g_NecroScale;
+    float g_NecroDamageMul;
+    float g_NecroExpMul;
+    float g_NecroKeepMin;
+    float g_NecroKeepMax;
+    float g_NecroCastRange;
+    float g_NecroWindup;
+    float g_NecroCooldown;
+    float g_SkeletonScale;
+    float g_SkeletonDamageMul;
+    float g_SkeletonExpMul;
+    float _skeletonPad;
+
+    // ---- chain warden (SWARM_KIND_WARDEN, 2026-10-25). The chain itself is CPU (the scene) ----
+    float g_WardenScale;
+    float g_WardenDamageMul;
+    float g_WardenExpMul;
+    float g_WardenKeepMin;
+    float g_WardenKeepMax;
+    float g_WardenRange;           // chain reach = the band's length = the cast range
+    float g_WardenWindup;
+    float g_WardenHold;            // stands after the throw (the chain is out)
+    float g_WardenCooldown;        // from the throw to the next wind-up (the hold included)
+    float3 _wardenPad;
+    // ---- the stage's fixed elites (SWARM_KIND_ELITE_A / B, 2026-10-25). Body sizes per stage (EliteAttacks::Configure) ----
+    float g_FixedEliteAScale;
+    float g_FixedEliteBScale;
+    float g_FixedEliteDamageMul;    // melee only; the moves hit from the CPU
+    float g_FixedEliteExpMul;
+    float g_FixedEliteKeepMin;      // the ranged one (B) stands between these
+    float g_FixedEliteKeepMax;
+    float g_EliteSwiftMul;          // swift affix: walk speed
+    float g_EliteEnragedSpeedMul;   // berserk affix below half hp: walk speed
+    float g_EliteShieldDamageMul;   // iron affix: damage taken while the shield holds
+    float g_EliteEnragedScale;      // berserk: drawn this much bigger (from the feet)
+    float2 _fixedElitePad;
+    // the CPU's orders, one row per elite: x = slot + 1 (0 = empty), y = SWARM_ELITE_* flags, z = SWARM_ELITE_CMD_*,
+    // w = wind-up glow x 1000. g_EliteMove: xy = direction (the target for a teleport), z = run speed, w = hidden 0..1
+    uint4 g_EliteCmd[4];
+    float4 g_EliteMove[4];
 };
 
 // body size multiplier of a kind (radius and model)
@@ -935,7 +1067,14 @@ float SwarmKindScale(uint kind)
          : (kind == SWARM_KIND_SANDMAGE) ? g_SandMageScale
          : (kind == SWARM_KIND_TORNADO) ? g_TornadoScale
          : (kind == SWARM_KIND_DARKGHOST) ? g_DarkGhostScale
-         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberScale : 1.0;
+         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberScale
+         : (kind == SWARM_KIND_ARMOR || kind == SWARM_KIND_ARMOR2) ? g_ArmorScale
+         : (kind == SWARM_KIND_GARGOYLE) ? g_GargoyleScale
+         : (kind == SWARM_KIND_NECRO) ? g_NecroScale
+         : (kind == SWARM_KIND_SKELETON) ? g_SkeletonScale
+         : (kind == SWARM_KIND_WARDEN) ? g_WardenScale
+         : (kind == SWARM_KIND_ELITE_A) ? g_FixedEliteAScale
+         : (kind == SWARM_KIND_ELITE_B) ? g_FixedEliteBScale : 1.0;
 }
 
 // melee damage multiplier of a kind (times g_ContactDamage)
@@ -954,7 +1093,13 @@ float SwarmKindDamageMul(uint kind)
          : (kind == SWARM_KIND_SANDMAGE) ? g_SandMageDamageMul
          : (kind == SWARM_KIND_TORNADO) ? g_TornadoDamageMul
          : (kind == SWARM_KIND_DARKGHOST) ? g_DarkGhostDamageMul
-         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberDamageMul : 1.0;
+         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberDamageMul
+         : (kind == SWARM_KIND_ARMOR || kind == SWARM_KIND_ARMOR2) ? g_ArmorDamageMul
+         : (kind == SWARM_KIND_GARGOYLE) ? g_GargoyleDamageMul
+         : (kind == SWARM_KIND_NECRO) ? g_NecroDamageMul
+         : (kind == SWARM_KIND_SKELETON) ? g_SkeletonDamageMul
+         : (kind == SWARM_KIND_WARDEN) ? g_WardenDamageMul
+         : SwarmIsFixedElite(kind) ? g_FixedEliteDamageMul : 1.0;
 }
 
 // exp orb value multiplier of a kind (times g_OrbAmount)
@@ -972,7 +1117,54 @@ float SwarmKindExpMul(uint kind)
          : (kind == SWARM_KIND_SANDMAGE) ? g_SandMageExpMul
          : (kind == SWARM_KIND_TORNADO) ? g_TornadoExpMul
          : (kind == SWARM_KIND_DARKGHOST) ? g_DarkGhostExpMul
-         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberExpMul : 1.0;
+         : (kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberExpMul
+         : (kind == SWARM_KIND_ARMOR) ? g_ArmorExpMul
+         : (kind == SWARM_KIND_ARMOR2) ? g_ArmorRevivedExpMul
+         : (kind == SWARM_KIND_GARGOYLE) ? g_GargoyleExpMul
+         : (kind == SWARM_KIND_NECRO) ? g_NecroExpMul
+         : (kind == SWARM_KIND_SKELETON) ? g_SkeletonExpMul
+         : (kind == SWARM_KIND_WARDEN) ? g_WardenExpMul
+         : SwarmIsFixedElite(kind) ? g_FixedEliteExpMul : 1.0;
+}
+
+// ---- stone gargoyle helpers (2026-10-25). fuse: <= 0 asleep, (0, wake) waking, [wake, DIVE) flying,
+//      DIVE + [0, windup) hanging before the dive, + [windup, windup + dive) diving, then landed ----
+float SwarmGargoyleDiveT(SwarmEnemyExtra ex) { return ex.fuse - SWARM_GARGOYLE_DIVE; }
+bool SwarmGargoyleDiving(SwarmEnemyExtra ex)
+{
+    float d = SwarmGargoyleDiveT(ex);
+    return ex.kind == SWARM_KIND_GARGOYLE && d >= g_GargoyleDiveWindup && d < g_GargoyleDiveWindup + g_GargoyleDiveTime;
+}
+bool SwarmGargoyleLanded(SwarmEnemyExtra ex)
+{
+    return ex.kind == SWARM_KIND_GARGOYLE && SwarmGargoyleDiveT(ex) >= g_GargoyleDiveWindup + g_GargoyleDiveTime;
+}
+// height above the ground: rises while waking, flies at g_GargoyleHover, comes down in a straight line during the dive
+float SwarmGargoyleHover(SwarmEnemyExtra ex)
+{
+    // one exit (an early return makes fxc warn X4000 at every caller)
+    float k = 0.0;
+    if (ex.kind == SWARM_KIND_GARGOYLE && ex.fuse > 0.0)
+    {
+        float d = SwarmGargoyleDiveT(ex);
+        if (ex.fuse < g_GargoyleWakeTime)
+            k = smoothstep(0.35 * g_GargoyleWakeTime, g_GargoyleWakeTime, ex.fuse);
+        else if (ex.fuse < SWARM_GARGOYLE_DIVE || d < g_GargoyleDiveWindup)
+            k = 1.0;
+        else
+            k = 1.0 - saturate((d - g_GargoyleDiveWindup) / max(0.65 * g_GargoyleDiveTime, 1e-3));   // down in the first 65%, then skims the ground
+    }
+    return g_GargoyleHover * k;
+}
+// in the air (waking up past the shake, flying, the dive): flies through walls like a ghost (MoveCS / PushCS / AICS)
+bool SwarmGargoyleAirborne(SwarmEnemyExtra ex)
+{
+    return ex.kind == SWARM_KIND_GARGOYLE && ex.fuse > 0.35 * g_GargoyleWakeTime && !SwarmGargoyleLanded(ex);
+}
+// flies straight through walls and over plateaus (the final-swarm ghosts, the tornado, a gargoyle in the air)
+bool SwarmFliesThrough(SwarmEnemyExtra ex)
+{
+    return SwarmIsGhost(ex.kind) || ex.kind == SWARM_KIND_TORNADO || SwarmGargoyleAirborne(ex);
 }
 
 // kinds that never take the hit stun (HitCS / AreaDamageCS): the boss (it would be pinned by the constant
@@ -982,7 +1174,9 @@ bool SwarmNoFlinch(SwarmEnemyExtra extra)
 {
     uint kind = extra.kind;
     return (kind == SWARM_KIND_BOSS) || (kind == SWARM_KIND_SPIKEBALL) || SwarmIsGhost(kind)
-        || (kind == SWARM_KIND_CHARGER && extra.fuse > 0.0) || SwarmInvulnerable(extra);
+        || (kind == SWARM_KIND_CHARGER && extra.fuse > 0.0) || SwarmInvulnerable(extra)
+        || (kind == SWARM_KIND_GARGOYLE)    // stone (2026-10-25)
+        || SwarmIsFixedElite(kind);         // the fixed elites wind up their moves (2026-10-25)
 }
 
 // damage one hit (a projectile, one area tick) really does to this kind.
@@ -992,6 +1186,46 @@ float SwarmArmorDamage(uint kind, float dmg)
 {
     return (kind == SWARM_KIND_SHIELD && dmg > 0.0)
         ? max(dmg - g_ShieldArmor, dmg * g_ShieldMinFrac) : dmg;
+}
+
+// ---- the CPU's orders to a fixed elite (2026-10-25). Must match Swarm::kEliteCmd* / kEliteFlag* ----
+static const uint SWARM_ELITE_CMD_AI = 0u;        // the usual AI (A chases, B keeps its distance)
+static const uint SWARM_ELITE_CMD_STAND = 1u;     // stands, facing the player
+static const uint SWARM_ELITE_CMD_MOVE = 2u;      // runs along g_EliteMove.xy at .z (0 = stands facing that way)
+static const uint SWARM_ELITE_CMD_TELEPORT = 3u;  // MoveCS puts it at g_EliteMove.xy on the ground, facing the player
+static const uint SWARM_ELITE_SWIFT = 1u;
+static const uint SWARM_ELITE_SHIELD = 2u;
+static const uint SWARM_ELITE_ENRAGED = 4u;
+static const uint SWARM_ELITE_NO_CONTACT = 8u;    // no melee (vanished, in the middle of a move)
+static const uint SWARM_ELITE_ATTACK = 16u;       // loops the attack clip (a move is running)
+static const uint SWARM_ELITE_SPIN = 32u;         // the whole body spins (the axe's whirl)
+
+// the row of g_EliteCmd for this slot, -1 = none (one exit: fxc warns X4000 on early returns)
+int SwarmEliteEntry(uint slot)
+{
+    int found = -1;
+    [unroll]
+    for (int k = 0; k < 4; ++k)
+    {
+        if (g_EliteCmd[k].x == slot + 1u)
+            found = k;
+    }
+    return found;
+}
+uint SwarmEliteFlags(uint slot)
+{
+    int k = SwarmEliteEntry(slot);
+    return (k >= 0) ? g_EliteCmd[k].y : 0u;
+}
+
+// damage one hit really does to the enemy in this slot: the shield bearer's armor, then the iron elite's
+// shield (half until the CPU sees it break)
+float SwarmTakenDamage(uint slot, uint kind, float dmg)
+{
+    float d = SwarmArmorDamage(kind, dmg);
+    if (SwarmIsFixedElite(kind) && (SwarmEliteFlags(slot) & SWARM_ELITE_SHIELD) != 0u)
+        d *= g_EliteShieldDamageMul;
+    return d;
 }
 
 // ---- charger phases, from SwarmEnemyExtra.fuse ----
@@ -1025,7 +1259,54 @@ void SwarmKindCapsule(uint kind, float3 pos, out float3 center, out float radius
     center = pos;
     center.y += (k - 1.0) * (g_EnemyRadius + g_EnemyCapsuleHalf);
 }
+
+// Body size of the enemy in one slot: the kind's, times g_EliteEnragedScale for a berserk fixed elite (2026-10-25:
+// SwarmEnemyVS draws it that much bigger from the feet; the hits, the contact and the HP bar used to keep the old size)
+float SwarmSlotScale(uint slot, uint kind)
+{
+    float k = SwarmKindScale(kind);
+    if (SwarmIsFixedElite(kind) && (SwarmEliteFlags(slot) & SWARM_ELITE_ENRAGED) != 0u)
+        k *= g_EliteEnragedScale;
+    return k;
+}
+// SwarmKindCapsule with SwarmSlotScale
+void SwarmSlotCapsule(uint slot, uint kind, float3 pos, out float3 center, out float radius, out float halfLen)
+{
+    float k = SwarmSlotScale(slot, kind);
+    radius = g_EnemyRadius * k;
+    halfLen = g_EnemyCapsuleHalf * k;
+    center = pos;
+    center.y += (k - 1.0) * (g_EnemyRadius + g_EnemyCapsuleHalf);
+}
 #endif
+
+// ============================================================
+// Quaternions (xyz = axis * sin(a / 2), w = cos(a / 2)). The spike
+// ball's roll (2026-10-25): MoveCS chains this step's roll onto the
+// slot's orientation (enemyRoll), SwarmSpikeBallVS turns the mesh by it
+// ============================================================
+float4 SwarmQuatAxisAngle(float3 axis, float angle)
+{
+    float s, c;
+    sincos(0.5 * angle, s, c);
+    return float4(axis * s, c);
+}
+// a * b = first b, then a
+float4 SwarmQuatMul(float4 a, float4 b)
+{
+    return float4(a.w * b.xyz + b.w * a.xyz + cross(a.xyz, b.xyz), a.w * b.w - dot(a.xyz, b.xyz));
+}
+float3 SwarmQuatRotate(float4 q, float3 v)
+{
+    float3 t = 2.0 * cross(q.xyz, v);
+    return v + q.w * t + cross(q.xyz, t);
+}
+// the stored orientation of a spike ball. Never written yet (zero) = the fixed pose per slot it had at rest before
+float4 SwarmSpikeBallRoll(float4 stored, uint slot)
+{
+    return (dot(stored, stored) > 0.25) ? stored
+         : SwarmQuatAxisAngle(normalize(float3(0.3, 1.0, 0.2)), (float) slot * 1.7);
+}
 
 // ============================================================
 // Exp orb tuning. Default register b2. HitCS (spawns orbs) and

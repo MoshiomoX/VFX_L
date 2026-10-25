@@ -7,17 +7,14 @@
 // 持つもの:
 //   SpriteRenderer / TextRenderer（描画資源）
 //   UIManager（モーダルの排他。スタック順がそのまま優先度）
-//   BackpackUI / LevelUpUI / HUD（各画面）
+//   BackpackUI / SpellbookUI / LevelUpUI / HUD / 一時停止 / トレーニング（各画面）
+//   DragContext（BackpackUI と SpellbookUI が共有する。「魔法書からグリッドへ跨ぐドラッグ」の状態を
+//   2 つの UI の上に置くための器がこのクラス）
 //
 // 持たないもの:
 //   BackpackAggregateSystem。あれは gameplay の System なのでシーンに残す。
 //   ImGui の Backpack パネルが集約ログを出すために、
 //   DrawDebugUI で参照を借りるだけにする。
-//
-// ※次の拡張:
-//   SpellbookUI と、BackpackUI と共有する DragContext をここに足す。
-//   「魔法書からグリッドへ跨ぐドラッグ」の状態を
-//   2つの UI の上に置くための器がこのクラス。
 // ============================================================
 #pragma once
 #include "ECS/Entity.h"
@@ -51,12 +48,15 @@ public:
     // 画面サイズが変わった時にシーンから呼ぶ
     void Layout(float screenW, float screenH);
 
-    // 入力処理。割り込みの受け付け → 開閉 → 一番上にだけ入力を渡す
-    // ※dt は今は未使用。魔法書の 2D 物理を入れる時に使う
+    // 入力処理。割り込みの受け付け → 開閉 → 一番上にだけ入力を渡す。
+    // dt = 実時間の秒（ゲームが止まっている間も渡す）。魔法書の 2D 物理・HUD の残像・
+    // レベルアップの待ち（ゲームが動いている間だけ）・メニューの猶予と長押しに使う
     void Update(Registry& reg, Entity player, float dt);
 
     // スプライトと文字をまとめて 1 batch で描く（HUD + モーダル）
     void Render(Registry& reg, Entity player);
+    // TEMP-TEST: 動画の書き出しで UI を丸ごと描かない（冒頭・締めの映像。Debug/AutoTest/VideoShot）
+    bool hideAll = false;
 
     // ImGui。UI 内部のデバッグ表示はここに集める。
     // 集約ログの表示と Force Rebuild のために aggregate を借りる
@@ -78,8 +78,15 @@ public:
     const DragContext& GetDrag() const { return m_Drag; }    // TEMP-TEST
     void TestTooltip(int itemIndex, const DirectX::SimpleMath::Vector2& pos) { m_TestTooltipItem = itemIndex; m_TestTooltipPos = pos; }
 
-    // 全部下ろす（プレイヤー消失時など）
-    void Clear() { m_Stack.Clear(); }
+    // 全部下ろす（プレイヤー消失時など）。掴んでいる物・パッドの閉じる要求・「レベルアップ！」の待ちの表示も下ろす
+    void Clear()
+    {
+        m_Stack.Clear();
+        m_Drag.Reset();
+        m_PadClosePending = false;
+        m_LevelUpWait = false;
+        m_LevelUpWaitAge = -1.0f;
+    }
 
     // バックパックの画面を開いているか（チュートリアルの「開いて置こう」の判定。2026-10-13）
     bool IsBackpackOpen() const { return m_Stack.Top() == UILayer::Backpack; }
@@ -108,6 +115,7 @@ public:
     }
     // Boss の HP 条（0..1）。負で消す。毎フレームシーンが入れる
     void SetBossBar(float hpRatio) { m_FrameInfo.bossHp = hpRatio; }
+    void SetEliteBars(std::vector<HUDEliteBar>&& bars) { m_FrameInfo.elites = std::move(bars); }   // 面の固定エリート（2026-10-25）
 
     // HUD の経過時間・撃破数と、画面外の目印（箱・エリート）。毎フレームシーンが入れ直す
     // stageTime: 面の制限時間（秒）。0 なら経過時間をそのまま出す
@@ -160,6 +168,26 @@ private:
     ItemSheetView::Style     m_TooltipStyle;          // 画面短辺 900px の時の大きさ
     int m_TestTooltipItem = -1;                       // TEMP-TEST: TestTooltip
     DirectX::SimpleMath::Vector2 m_TestTooltipPos = { 0.0f, 0.0f };
+
+    // tooltip の中身と折り返しの覚え書き（2026-10-25）。以前は指している間、毎フレーム DescribePlaced
+    // （影響の組み合わせを全部回す）と 1 字ずつの折り返しを、測る段・描く段で 2 回やり直していた。
+    // 指している物・バックパックの番号・形の番号・魔法威力が同じ間は中身を、幅と文字の大きさも同じなら折り返しも使い回す
+    struct TooltipCache
+    {
+        bool     valid = false;
+        bool     placed = false;           // true = バックパックに置いてある物（DescribePlaced）/ false = アイテムそのもの（Describe）
+        int      index = -1;               // placed の時の items の index
+        ItemID   id = ItemID::Unknown;     // placed でない時
+        uint32_t bpRevision = 0;
+        uint32_t shapeRevision = 0;
+        float    spellPower = 1.0f;
+        ItemInfo::Sheet sheet;
+
+        bool     layoutValid = false;
+        float    layoutWidth = 0.0f, layoutBody = 0.0f, layoutSmall = 0.0f, layoutPad = 0.0f;
+        ItemSheetView::BodyLayout layout;
+    };
+    TooltipCache m_TooltipCache;
 
     SpriteRenderer m_Sprite;
     TextRenderer   m_Text;

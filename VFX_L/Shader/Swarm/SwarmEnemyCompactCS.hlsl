@@ -11,8 +11,9 @@
 // the kinds share the mesh but not the texture, so the mesh is drawn
 // once per kind list. aliveList (all kinds) feeds the HP bars.
 //
-// Elites and the boss share the mob mesh + texture, so they go to mobList
-// (the VS scales and tints them by kind).
+// Elites share the mob mesh + texture, so they go to mobList (the VS
+// scales and tints them by kind). The boss has its own list since
+// 2026-10-24 (SwarmEnemyKindListCS: the stage's skin + decorations).
 //
 // The boss also reports itself to bossInfo (Swarm::BossInfo, 32 bytes,
 // cleared by the CPU before this dispatch, read back through staging):
@@ -54,7 +55,8 @@ void main(uint3 id : SV_DispatchThreadID)
     else if (kind == SWARM_KIND_BRUTE)
         bruteList.Append(i);
     else if (kind != SWARM_KIND_CHARGER && kind != SWARM_KIND_SHIELD && kind != SWARM_KIND_SPIKEBALL && kind != SWARM_KIND_BURROWER
-          && kind != SWARM_KIND_SANDMAGE && kind != SWARM_KIND_TORNADO && kind != SWARM_KIND_DASHBOMBER) // spike balls / tornadoes have no blocky body (SwarmSpikeBallVS / SwarmTornadoVS); the rest have their own list in SwarmEnemyKindListCS
+          && kind != SWARM_KIND_SANDMAGE && kind != SWARM_KIND_TORNADO && kind != SWARM_KIND_DASHBOMBER
+          && kind != SWARM_KIND_BOSS && !SwarmInKindList2(kind)) // spike balls have no blocky body (SwarmSpikeBallVS), tornadoes draw nothing (2026-10-20); the rest have their own list in SwarmEnemyKindListCS (the boss too, 2026-10-24: its own skin + decorations per stage)
         mobList.Append(i);
 
     // the final-swarm ghosts are counted per kind in the two spare words of bossInfo (offsets 12 / 28):

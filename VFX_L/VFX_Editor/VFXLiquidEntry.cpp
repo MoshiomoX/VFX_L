@@ -29,6 +29,7 @@ json VFXLiquidDef::ToJson() const
         { "bubbles", bubbles }, { "bubbleGain", bubbleGain }, { "swirl", swirl }, { "swirlScale", swirlScale },
         { "lift", lift }, { "cliff", cliff }, { "haloWidth", haloWidth }, { "haloGain", haloGain },
         { "lobes", lobes }, { "spatter", spatter }, { "pointGain", pointGain },
+        { "vortex", Vortex() }, { "twist", Twist() },
     };
 }
 
@@ -61,6 +62,7 @@ void VFXLiquidDef::FromJson(const json& j)
     lobes = (std::min)(j.value("lobes", lobes), 7u);
     spatter = (std::min)(j.value("spatter", spatter), 8u);
     pointGain = j.value("pointGain", pointGain);
+    SetVortex(j.value("vortex", Vortex()), j.value("twist", Twist()));
 }
 
 void VFXLiquidDef::DrawImGui()
@@ -91,6 +93,10 @@ void VFXLiquidDef::DrawImGui()
     ImGui::ColorEdit4("Sky Reflection (a = gain)", &skyColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::DragFloat("Swirl", &swirl, 0.01f, 0.0f, 1.0f);
     ImGui::DragFloat("Swirl Scale (1/m)", &swirlScale, 0.05f, 0.05f, 10.0f);
+    float vortex = Vortex(), twist = Twist();   // 渦（流沙。2026-10-24）
+    bool vChanged = ImGui::DragFloat("Vortex Spin (rad/s)", &vortex, 0.01f, 0.0f, 20.0f);
+    vChanged |= ImGui::DragFloat("Vortex Twist (rad/m)", &twist, 0.01f, 0.0f, 20.0f);
+    if (vChanged) SetVortex(vortex, twist);
     ImGui::DragFloat("Bubbles", &bubbles, 0.01f, 0.0f, 1.0f);
     ImGui::DragFloat("Bubble Gain", &bubbleGain, 0.01f, 0.0f, 3.0f);
 

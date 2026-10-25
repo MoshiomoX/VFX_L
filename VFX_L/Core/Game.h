@@ -12,6 +12,8 @@ public:
     bool Initialize(Renderer* renderer);
     void Update(float dt);
     void Render();
+    // 終了時（Application::Shutdown の最初）：今のシーンを Shutdown して壊す。以後 Update / Render は何もしない
+    void Shutdown();
 
     SceneManager& GetSceneManager() { return m_SceneManager; }
 

@@ -61,9 +61,9 @@ public:
     Matrix   world = Matrix::Identity;
 
     // --- 発射パラメータ ---
-    float    emitRate = 10.0f;
-    int      maxParticles = 1000;
-    int      particleOffset = 0;
+    float    emitRate = 10.0f;         // 毎秒の発射数（負は Update / FromJson で 0 扱い）
+    int      maxParticles = 1000;      // 未使用（HLSL は読まない。json の値を保つだけ。2026-10-25 に Inspector の欄を消した）
+    int      particleOffset = 0;       // 未使用
 
     // --- 速度 & 寿命 ---
     Vector2  speedRange = { 1.0f, 3.0f };

@@ -228,7 +228,7 @@ Vector3 PlayerVFXSystem::BackAnchor(Registry& reg, Entity player, const Vector3&
             if ((m_BackBone = a.model->GetSkeleton().FindBoneIndex(name)) >= 0) break;
     }
     if (m_BackBone < 0) return center;
-    std::vector<Matrix> G;
+    std::vector<Matrix>& G = m_Pose;
     if (!SkinnedAnimSystem::BuildPose(a, G) || m_BackBone >= (int)G.size()) return center;
     const Matrix W = SkinnedAnimSystem::WorldMatrix(reg.Get<TransformComponent>(player), a);
     return Vector3::Transform(G[m_BackBone].Translation(), W);

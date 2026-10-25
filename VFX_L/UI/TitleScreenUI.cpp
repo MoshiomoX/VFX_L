@@ -10,6 +10,7 @@
 #include "UI/InputGlyph.h"
 #include "ResourcePaths.h"
 #include "Core/DevUI.h"
+#include "Core/VideoCapture.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -91,10 +92,10 @@ int TitleScreenUI::Update(float dt)
     if (m_Starting || m_Time < kFadeIn * 0.5f) return kNone;   // 出てくる途中は受けない
     if (m_HowTo.IsOpen())   // 遊び方のページ：閉じるまでそちらだけ
     {
-        m_HowTo.HandleInput();
+        m_HowTo.HandleInput(dt);
         return kNone;
     }
-    const int picked = m_Menu.HandleInput();
+    const int picked = m_Menu.HandleInput(dt);
     if (picked == kStart || picked == kTraining) m_Starting = true;
     if (picked == kHowTo)
     {
@@ -170,6 +171,23 @@ void TitleScreenUI::Render(Graphics& gfx)
         Vector4 tint = UIDeco::TintColor(UIDeco::Tint::Gold);
         tint.w = titleIn;
         UIDeco::DrawDivider(m_Sprite, true, { m_Left + lineW * 0.5f, y + lineH * 0.5f }, lineW, tint);
+    }
+
+    // TEMP-TEST: 動画の書き出し中（作品紹介の動画のタイトル）：メニュー・案内の代わりに一言と作品の説明
+    if (VideoCapture::Get().Enabled())
+    {
+        const float lineIn = Smooth(1.2f, 2.4f, m_Time);
+        const float smallIn = Smooth(1.8f, 3.0f, m_Time);
+        DrawOutlined(m_Text, L"並べ方で、魔法が化ける。", { m_Left, y + 26.0f * k }, { 1.0f, 0.93f, 0.78f, lineIn }, 0.78f * k, 2.0f * k);
+        DrawOutlined(m_Text, L"3D サバイバーアクション　／　C++・DirectX 11 自作エンジン　／　1 人制作",
+            { m_Left, y + 90.0f * k }, { 0.90f, 0.88f, 0.84f, 0.95f * smallIn }, 0.50f * k, 1.6f * k);
+        const float black = 1.0f - Smooth(0.0f, kFadeIn, m_Time);
+        if (black > 0.0f && m_White)
+            m_Sprite.Draw(m_White, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH }, { 0.0f, 0.0f, 0.0f, black });
+        m_Sprite.End();
+        m_TitleText.End();
+        m_Text.End();
+        return;
     }
 
     // ---- メニュー（決定後は「読み込み中」）----

@@ -36,7 +36,7 @@ public:
         const DirectX::SimpleMath::Vector2& size,
         const DirectX::SimpleMath::Vector4& color = { 1, 1, 1, 1 },
         const DirectX::SimpleMath::Vector4& uvRect = { 0, 0, 1, 1 });
-	// 回転付き。pivot は 0-1 の比率で指定（0,0=左上、1,1=右下）
+	// 回転付き。pivot は回転の中心の画面座標（ピクセル。矩形の中なら左上 + size × 比率。UIDeco は円の中心を渡す）
     void Draw(std::shared_ptr<Texture> tex,
         const DirectX::SimpleMath::Vector2& pos,
         const DirectX::SimpleMath::Vector2& size,
@@ -47,7 +47,7 @@ public:
     UINT GetLastSpriteCount() const { return m_LastSpriteCount; }
 
 private:
-    // HLSL の SpriteInstance と一致（48 bytes）
+    // HLSL の SpriteInstance（Shader/UI/SpriteVS.hlsl）と一致（64 bytes）
     struct SpriteInstance
     {
         DirectX::SimpleMath::Vector2 position;
@@ -55,10 +55,11 @@ private:
         DirectX::SimpleMath::Vector4 color;
         DirectX::SimpleMath::Vector4 uvRect;
 
-        DirectX::SimpleMath::Vector2 pivot = { 0.0f, 0.0f };
+        DirectX::SimpleMath::Vector2 pivot = { 0.0f, 0.0f };   // 回転の中心（画面のピクセル）
         float cosA = 1.0f;
         float sinA = 0.0f;
     };
+    static_assert(sizeof(SpriteInstance) == 64, "SpriteInstance layout mismatch (SpriteVS.hlsl)");
 
     struct SpriteCB
     {

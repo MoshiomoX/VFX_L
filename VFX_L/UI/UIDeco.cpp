@@ -6,6 +6,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
+#include "Core/VideoCapture.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -94,6 +95,7 @@ namespace UIDeco
 
     float Clock()
     {
+        if (VideoCapture::Get().Enabled()) return (float)VideoCapture::Get().Time();   // 動画の書き出し中は 1/60 秒ずつの時計
         static const auto start = std::chrono::steady_clock::now();
         return std::chrono::duration<float>(std::chrono::steady_clock::now() - start).count();
     }

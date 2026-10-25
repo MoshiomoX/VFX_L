@@ -9,7 +9,7 @@ using namespace DirectX::SimpleMath;
 
 // ============================================
 // GPU粒子構造体 (StructuredBuffer用)
-// 160バイト (4バイト x 40) / 16バイト境界に整列
+// 192バイト (4バイト x 48) / 16バイト境界に整列
 // ※ サイズの真実は sizeof()。この注釈は参考値。
 //    ファイル末尾の static_assert が唯一の保証。
 // ============================================
@@ -54,7 +54,7 @@ struct GPUParticle
 
 // ============================================
 // Mesh 発射源の頂点レイアウト (StructuredBuffer用)
-// 16バイト
+// 32バイト
 //
 // 発射源は「GPU 上に既にある頂点 buffer」を raw view で読む。
 // 頂点形式が統一されていない（VERTEX_3D と SkinnedVertexOut）ので、
@@ -88,9 +88,9 @@ struct GPUEmitter
     float    spreadAngle;    // 拡散角度
     Vector3  shapeSize;      // 形状パラメータ
     float    _pad0;
-    int      emitCount;      // 今回の発射数
-    int      maxParticles;   // 最大粒子数
-    int      particleOffset; // 粒子Buffer内開始位置
+    int      emitCount;      // 今回の発射数（0 以上。負は GPU が uint で読んで壊れるので GPUParticleSystem が 0 にする）
+    int      maxParticles;   // 未使用（HLSL は読まない。並びのためだけに残す）
+    int      particleOffset; // 未使用（同上）
     float    emitRate;       // 毎秒発射数
     Vector2  speedRange;     // x=min, y=max
     Vector2  lifetimeRange;  // x=min, y=max

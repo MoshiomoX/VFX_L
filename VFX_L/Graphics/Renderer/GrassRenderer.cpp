@@ -13,17 +13,15 @@
 #include "World/GridWorld.h"
 #include "World/TerrainGenerator.h"
 #include "Camera/CameraBase.h"
-#include "imgui.h"
-
-#include <DirectXPackedVector.h>
 
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;
 
-static_assert(sizeof(GrassRenderer::GrassCB) == 384, "GrassCB layout mismatch");
-static_assert(sizeof(GrassRenderer::GrassBlade) == 32, "GrassBlade layout mismatch");
+static_assert(sizeof(GrassRenderer::GrassCB) == 560, "GrassCB layout mismatch");   // 2026-10-25: 突風 1 → 4 個（464 → 560）
+static_assert(offsetof(GrassRenderer::GrassCB, gustA) == 336, "GrassCB gust block offset mismatch");
+static_assert(sizeof(GrassRenderer::GrassBlade) == 96, "GrassBlade layout mismatch");
 
 bool GrassRenderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 {
@@ -70,6 +68,8 @@ void GrassRenderer::Shutdown()
     m_BladeUAV.Reset();
     m_BladeSRV.Reset();
     m_Args.Reset();
+    m_BudgetBuffer.Reset();
+    m_BudgetUAV.Reset();
     for (int i = 0; i < 2; ++i)
     {
         m_CountStaging[i].Reset();
@@ -112,10 +112,23 @@ bool GrassRenderer::CreateBuffers()
         ad.Usage = D3D11_USAGE_DEFAULT;
         ad.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
         ad.MiscFlags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
-        const uint32_t init[4] = { 9, 0, 0, 0 };
+        const uint32_t init[4] = { kBladeVertices, 0, 0, 0 };
         D3D11_SUBRESOURCE_DATA init0 = {};
         init0.pSysMem = init;
         if (FAILED(m_Device->CreateBuffer(&ad, &init0, &m_Args))) return false;
+    }
+    // ---- 葉の枠の予約数（R32_UINT 1 個。毎フレーム 0 に消してから GrassCullCS が足す）----
+    {
+        D3D11_BUFFER_DESC bdb = {};
+        bdb.ByteWidth = sizeof(uint32_t) * 4;
+        bdb.Usage = D3D11_USAGE_DEFAULT;
+        bdb.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+        if (FAILED(m_Device->CreateBuffer(&bdb, nullptr, &m_BudgetBuffer))) return false;
+        D3D11_UNORDERED_ACCESS_VIEW_DESC bu = {};
+        bu.Format = DXGI_FORMAT_R32_UINT;
+        bu.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+        bu.Buffer.NumElements = 4;
+        if (FAILED(m_Device->CreateUnorderedAccessView(m_BudgetBuffer.Get(), &bu, &m_BudgetUAV))) return false;
     }
     // ---- 本数の読み戻し（ImGui 用。1 フレーム前の分を待たずに読む）----
     for (int i = 0; i < 2; ++i)
@@ -207,6 +220,26 @@ void GrassRenderer::Build(const GridWorld& grid, const std::vector<uint8_t>& gra
         if (m_TrampleUAV[i]) m_Context->ClearUnorderedAccessViewFloat(m_TrampleUAV[i].Get(), zero);
 }
 
+void GrassRenderer::AddGust(const Vector3& pos, float radius, const Vector2& dir, float length)
+{
+    if (radius <= 0.0f) return;
+    int slot = m_GustCount;
+    if (slot >= kMaxGusts)
+    {
+        // 一杯：一番小さい物より大きければ置き換える（大きい押し型を優先して残す）
+        slot = 0;
+        for (int i = 1; i < kMaxGusts; ++i)
+            if (m_Gusts[i].radius < m_Gusts[slot].radius) slot = i;
+        if (m_Gusts[slot].radius >= radius) return;
+    }
+    else
+        ++m_GustCount;
+    m_Gusts[slot].pos = pos;
+    m_Gusts[slot].radius = radius;
+    m_Gusts[slot].dir = dir;
+    m_Gusts[slot].length = length;
+}
+
 void GrassRenderer::Update(float dt, const Vector3& player, bool grounded, bool sliding)
 {
     m_Time += dt;
@@ -219,7 +252,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
 {
     ID3D11DeviceContext* ctx = m_Context;
     if (!m_Settings.enabled || !ctx || !m_CullCS || !m_TrampleCS || !m_VS || !m_PS
-        || !m_HeightSRV || !m_GroundSRV)
+        || !m_HeightSRV || !m_GroundSRV || !m_BladeUAV || !m_BudgetUAV)
         return;
 
     auto& s = m_Settings;
@@ -250,7 +283,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     cb.curlMax = s.curlMax;
     cb.maxSlope = s.maxSlope;
     // 風は世界の風（向き・波・天候の強さ）。葉の曲がり方だけがここの設定
-    cb.windStrength = s.windStrength * m_Wind.strength;
+    cb.windStrength = s.windStrength * m_Wind.strength * (std::max)(s.debugWindMul, 0.0f);
     cb.windSpeed = m_Wind.waveSpeed;
     cb.windDir = m_Wind.dir;
     cb.windScale = m_Wind.waveScale;
@@ -265,17 +298,30 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     cb.fireShrink = std::clamp(s.fireShrink, 0.0f, 0.95f);
     cb.fireGlow = s.fireGlow;
     cb.fireOn = m_FireSRV ? 1.0f : 0.0f;
-    cb.gustPos = m_GustPos;
-    cb.gustRadius = m_GustRadius;
-    cb.gustDir = m_GustDir;
-    cb.gustLength = m_GustLength;
-    cb.gustPad = 0.0f;
+    for (int i = 0; i < kMaxGusts; ++i)
+    {
+        const bool used = i < m_GustCount;
+        const PendingGust& g = m_Gusts[i];
+        cb.gustA[i] = used ? Vector4(g.pos.x, g.pos.z, g.dir.x, g.dir.y) : Vector4::Zero;
+        cb.gustB[i] = used ? Vector4(g.length, g.radius, 0.0f, 0.0f) : Vector4::Zero;
+    }
     // 群れからの押し型（池が無ければ 0 = しない）。一時停止中（dt 0）は雑魚も止まっているので毎フレーム押しても減衰しない
     const bool haveAreas = m_AreaSRV && m_AreaStateSRV && m_AreaEndSRV;
     const bool haveEnemies = m_EnemySRV && m_EnemyStateSRV && m_EnemyExtraSRV && m_StampCS;
     cb.trampleExtra = Vector4(haveAreas ? s.blastTrample : 0.0f, haveAreas ? s.beamTrample : 0.0f,
         haveEnemies ? s.enemyTrample : 0.0f, (std::max)(s.enemyRadius, 0.05f));
-    m_GustRadius = 0.0f;   // 1 回押したら終わり
+    // 細部（2026-10-23）：2 つ目の波は世界の風の向きを回し、細かく・速く
+    {
+        const float a = DirectX::XMConvertToRadians(s.wave2Angle);
+        const Vector2 d(m_Wind.dir.x * std::cos(a) - m_Wind.dir.y * std::sin(a), m_Wind.dir.x * std::sin(a) + m_Wind.dir.y * std::cos(a));
+        cb.wave2 = Vector4(d.x, d.y, m_Wind.waveScale * s.wave2ScaleMul, m_Wind.waveSpeed * s.wave2SpeedMul);
+    }
+    cb.sheen = Vector4(s.sheenColor.x, s.sheenColor.y, s.sheenColor.z, (std::max)(s.sheenAmount, 0.0f));
+    cb.vortex = Vector4((std::max)(s.vortexLaySpeed, 0.1f), (std::max)(s.vortexLiftSpeed, 0.1f), s.vortexFlutter, s.vortexTwist);
+    cb.bladeShape = Vector4(s.twistMax, std::clamp(s.dryShare, 0.0f, 1.0f), std::clamp(s.wave2Weight, 0.0f, 1.0f),
+        m_WindSourceSRV ? (std::max)(s.trailStrength, 0.0f) : 0.0f);
+    cb.dryColor = Vector4(s.dryColor.x, s.dryColor.y, s.dryColor.z, (std::max)(s.trailSpeed, 0.1f));
+    m_GustCount = 0;   // 1 回押したら終わり
     m_PendingDt = 0.0f;   // 一時停止中（Update 無し）は 0 のまま = 踏み跡も止まる
 
     // ---- 1) 踏み跡: 前のテクスチャを読んで、もう片方へ書く（爆発・光線の範囲もここで押す）----
@@ -288,6 +334,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
         m_TrampleCS->SetSRV(ctx, "g_AreaStates", m_AreaStateSRV);
         m_TrampleCS->SetSRV(ctx, "g_AreaEnds", m_AreaEndSRV);
     }
+    if (m_WindSourceSRV) m_TrampleCS->SetSRV(ctx, "g_WindSources", m_WindSourceSRV);   // 風源の通った跡（2026-10-23）
     m_TrampleCS->SetUAV(ctx, "g_TrampleOut", m_TrampleUAV[1 - m_TrampleCur].Get());
     m_TrampleCS->BindUAVs(ctx);
     ctx->Dispatch((kTrampleSize + 7) / 8, (kTrampleSize + 7) / 8, 1);
@@ -301,6 +348,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
         m_StampCS->SetSRV(ctx, "g_Enemies", m_EnemySRV);
         m_StampCS->SetSRV(ctx, "g_EnemyStates", m_EnemyStateSRV);
         m_StampCS->SetSRV(ctx, "g_EnemyExtra", m_EnemyExtraSRV);
+        m_StampCS->SetSRV(ctx, "g_Height", m_HeightSRV.Get());   // 足が地面から浮いている物は押さない（2026-10-25）
         m_StampCS->SetUAV(ctx, "g_TrampleOut", m_TrampleUAV[1 - m_TrampleCur].Get());
         m_StampCS->BindUAVs(ctx);
         ctx->Dispatch((kMaxEnemyThreads + 255) / 256, 1, 1);
@@ -309,14 +357,21 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     }
     m_TrampleCur = 1 - m_TrampleCur;
 
-    // ---- 2) 生やして間引く ----
+    // ---- 2) 生やして間引き、残った葉を動かす（風・風源・踏み跡・燃え跡。2026-10-23 に VS から移した）----
     ID3D11SamplerState* linearClamp = RenderStates::Get().LinearClamp();
     m_CullCS->WriteBuffer(ctx, 0, &cb);
     m_CullCS->Bind(ctx);
     m_CullCS->SetSRV(ctx, "g_Height", m_HeightSRV.Get());
     m_CullCS->SetSRV(ctx, "g_Ground", m_GroundSRV.Get());
+    m_CullCS->SetSRV(ctx, "g_Trample", m_TrampleSRV[m_TrampleCur].Get());
+    if (m_FireSRV) m_CullCS->SetSRV(ctx, "g_Fire", m_FireSRV);
+    if (m_WindSourceSRV) m_CullCS->SetSRV(ctx, "g_WindSources", m_WindSourceSRV);
     ctx->CSSetSamplers(0, 1, &linearClamp);
+    // 枠の予約数を 0 から（kMaxBlades を超えた葉は Append しない = 描く本数がバッファを超えない。2026-10-25）
+    const UINT zeros[4] = { 0, 0, 0, 0 };
+    ctx->ClearUnorderedAccessViewUint(m_BudgetUAV.Get(), zeros);
     m_CullCS->SetUAV(ctx, "g_OutBlades", m_BladeUAV.Get(), 0);   // 数を 0 から
+    m_CullCS->SetUAV(ctx, "g_BladeBudget", m_BudgetUAV.Get());
     m_CullCS->BindUAVs(ctx);
     ctx->Dispatch((count + 15) / 16, (count + 15) / 16, 1);
     m_CullCS->UnbindSRVs(ctx);
@@ -336,7 +391,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     }
     ++m_Frame;
 
-    // ---- 3) 描く（頂点バッファ無し。葉 1 本 = 9 頂点）----
+    // ---- 3) 描く（頂点バッファ無し。葉 1 本 = kBladeVertices 頂点。形は CS が決めた背骨から）----
     LightBuffer light = renderer.GetLightData();
     light.cameraPosition = cam;
     m_VS->WriteBuffer(ctx, 0, &cb);
@@ -345,10 +400,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     m_VS->Bind(ctx);
     m_PS->Bind(ctx);
     m_VS->SetSRV(ctx, "g_Blades", m_BladeSRV.Get());
-    m_VS->SetSRV(ctx, "g_Trample", m_TrampleSRV[m_TrampleCur].Get());
     m_VS->SetSRV(ctx, "g_Ground", m_GroundSRV.Get());
-    if (m_FireSRV) m_VS->SetSRV(ctx, "g_Fire", m_FireSRV);
-    if (m_WindSourceSRV) m_VS->SetSRV(ctx, "g_WindSources", m_WindSourceSRV);
     ctx->VSSetSamplers(0, 1, &linearClamp);
     PointLightManager::Get().BindPS(ctx);
 
@@ -367,81 +419,4 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     m_VS->UnbindSRVs(ctx);
     PointLightManager::Get().UnbindPS(ctx);
     rs.Restore(ctx);
-}
-
-// TEMP-TEST: 踏み跡の読み戻し（自動テスト envfx）
-bool GrassRenderer::DebugTrampleStats(const Vector2& centerXZ, float radius, float minStrength, int& count, float& maxStrength)
-{
-    count = 0;
-    maxStrength = 0.0f;
-    if (!m_Context || !m_Device || !m_TrampleTex[m_TrampleCur]) return false;
-    if (!m_TrampleStaging)
-    {
-        D3D11_TEXTURE2D_DESC td = {};
-        m_TrampleTex[0]->GetDesc(&td);
-        td.Usage = D3D11_USAGE_STAGING;
-        td.BindFlags = 0;
-        td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        if (FAILED(m_Device->CreateTexture2D(&td, nullptr, &m_TrampleStaging))) return false;
-    }
-    m_Context->CopyResource(m_TrampleStaging.Get(), m_TrampleTex[m_TrampleCur].Get());
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    if (FAILED(m_Context->Map(m_TrampleStaging.Get(), 0, D3D11_MAP_READ, 0, &mapped))) return false;
-    const float texel = m_MapSize.x / (float)kTrampleSize;
-    const int cx = (int)((centerXZ.x - m_MapOrigin.x) / texel), cy = (int)((centerXZ.y - m_MapOrigin.y) / texel);
-    const int r = (int)std::ceil(radius / texel);
-    for (int y = (std::max)(cy - r, 0); y <= (std::min)(cy + r, kTrampleSize - 1); ++y)
-    {
-        const auto* row = reinterpret_cast<const DirectX::PackedVector::HALF*>(
-            static_cast<const uint8_t*>(mapped.pData) + (size_t)y * mapped.RowPitch);
-        for (int x = (std::max)(cx - r, 0); x <= (std::min)(cx + r, kTrampleSize - 1); ++x)
-        {
-            const float wx = m_MapOrigin.x + ((float)x + 0.5f) * texel, wz = m_MapOrigin.y + ((float)y + 0.5f) * texel;
-            if ((wx - centerXZ.x) * (wx - centerXZ.x) + (wz - centerXZ.y) * (wz - centerXZ.y) > radius * radius) continue;
-            const float vx = DirectX::PackedVector::XMConvertHalfToFloat(row[x * 2]);
-            const float vy = DirectX::PackedVector::XMConvertHalfToFloat(row[x * 2 + 1]);
-            const float s = std::sqrt(vx * vx + vy * vy);
-            if (s >= minStrength) ++count;
-            maxStrength = (std::max)(maxStrength, s);
-        }
-    }
-    m_Context->Unmap(m_TrampleStaging.Get(), 0);
-    return true;
-}
-
-void GrassRenderer::DrawImGui()
-{
-    if (!ImGui::CollapsingHeader("Grass")) return;
-
-    auto& s = m_Settings;
-    ImGui::Checkbox("Enabled##grass", &s.enabled);
-    ImGui::SameLine();
-    ImGui::Text("blades %u / %u", m_LastCount, kMaxBlades);
-    ImGui::DragFloat("Spacing", &s.spacing, 0.005f, 0.05f, 1.0f, "%.3f m");
-    ImGui::DragFloat("Max Distance##grass", &s.maxDistance, 0.5f, 5.0f, 150.0f, "%.0f m");
-    ImGui::DragFloat("Full Density To", &s.fullDensityDistance, 0.5f, 0.0f, 150.0f, "%.0f m");
-    ImGui::SliderFloat("Far Density", &s.farDensity, 0.0f, 1.0f);
-    ImGui::DragFloatRange2("Height##grass", &s.heightMin, &s.heightMax, 0.005f, 0.02f, 2.0f, "%.2f m");
-    ImGui::DragFloatRange2("Width##grass", &s.widthMin, &s.widthMax, 0.001f, 0.005f, 0.3f, "%.3f m");
-    ImGui::SliderFloat("Curl", &s.curlMax, 0.0f, 0.9f);
-    ImGui::DragFloat("Max Slope##grass", &s.maxSlope, 0.02f, 0.1f, 5.0f);
-    ImGui::ColorEdit3("Root Color", &s.rootColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
-    ImGui::ColorEdit3("Tip Color", &s.tipColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
-    ImGui::SeparatorText("Wind");
-    ImGui::SliderFloat("Bend at wind x1", &s.windStrength, 0.0f, 1.0f);
-    ImGui::TextDisabled("direction / speed / waves: Weather panel (World Wind), strength now x%.2f", m_Wind.strength);
-    ImGui::SeparatorText("Fire (GrassFireField)");
-    ImGui::SliderFloat("Burnt Shrink", &s.fireShrink, 0.0f, 0.95f);
-    ImGui::DragFloat("Ember Glow", &s.fireGlow, 0.05f, 0.0f, 10.0f);
-    ImGui::SeparatorText("Trample");
-    ImGui::DragFloat("Radius##trample", &s.trampleRadius, 0.01f, 0.0f, 3.0f, "%.2f m");
-    ImGui::DragFloat("Slide Radius", &s.trampleSlideRadius, 0.01f, 0.0f, 3.0f, "%.2f m");
-    ImGui::DragFloat("Recover", &s.trampleRecover, 0.05f, 0.05f, 20.0f, "%.2f s");
-    ImGui::SliderFloat("Bend##trample", &s.trampleBend, 0.0f, 1.0f);
-    ImGui::SeparatorText("Trample from the swarm");
-    ImGui::DragFloat("Blast Radius x", &s.blastTrample, 0.02f, 0.0f, 3.0f);
-    ImGui::DragFloat("Beam Band x radius", &s.beamTrample, 0.05f, 0.0f, 5.0f);
-    ImGui::SliderFloat("Enemy Feet Strength", &s.enemyTrample, 0.0f, 1.0f);
-    ImGui::DragFloat("Enemy Feet Radius", &s.enemyRadius, 0.01f, 0.05f, 1.5f, "%.2f m");
-    ImGui::TextDisabled("areas %s  enemies %s", m_AreaSRV ? "on" : "off", m_EnemySRV ? "on" : "off");
 }

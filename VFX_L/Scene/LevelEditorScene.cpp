@@ -311,7 +311,7 @@ void LevelEditorScene::UpdateEditing()
         }
     }
 
-    // ---- ショートカット（文字入力中・見回し中は無し。Esc はアプリ終了なので使わない）----
+    // ---- ショートカット（文字入力中・見回し中は無し。Esc は使わない：戦闘では一時停止の鍵で、ImGui も受け取る）----
     if (io.WantTextInput || m_Camera.IsLooking()) return;
     const bool ctrl = input.GetKeyPress(VK_CONTROL);
     const bool shift = input.GetKeyPress(VK_SHIFT);
@@ -534,7 +534,7 @@ void LevelEditorScene::SetStatus(const std::string& msg)
 // ============================================================
 void LevelEditorScene::Render(Renderer& renderer)
 {
-    // 太陽（Unity の Directional Light を右手系へ写した向き。CollisionTestScene::SunDirection と同じ式）
+    // 太陽（Unity の Directional Light を右手系へ写した向き。SceneLighting::SunDirection と同じ式。このシーンは SceneLighting を持たない）
     const float p = DirectX::XMConvertToRadians(m_SunPitch);
     const float y = DirectX::XMConvertToRadians(m_SunYaw);
     Vector3 sunDir(std::sin(y) * std::cos(p), -std::sin(p), std::cos(y) * std::cos(p));
@@ -813,7 +813,7 @@ void LevelEditorScene::DrawLevelWindow()
         ImGui::BulletText("R / Shift+R: rotate,  F: focus");
         ImGui::BulletText("Ctrl+D: duplicate,  Del: delete");
         ImGui::BulletText("X: stop placing / deselect,  Ctrl+S: save");
-        ImGui::BulletText("Esc quits the app (engine-wide)");
+        ImGui::BulletText("Esc is not used here (it no longer quits; close the window to exit)");
     }
 
     ImGui::End();

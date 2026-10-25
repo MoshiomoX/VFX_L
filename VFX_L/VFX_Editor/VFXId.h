@@ -19,8 +19,8 @@ enum class VFXId : uint32_t
     Fireball,
     DeathBurn,      // 燃焼消滅（Mesh 発射 + 溶解の縁。MeshVFXSystem::StartBurn）
     Explosion,      // 爆発。弾の命中で GPU が出す範囲（hitArea）の粒子。GPU 側は登録済みの VFX しか出せない
-    ArcBolt,        // アークボルトの弾（電撃）
-    HomingBolt,     // ホーミングボルトの弾（紫の渦）
+    ArcBolt,        // アークボルト（2026-10-15 から弾ではなく、杖先から一番近い敵へ一瞬で届く稲妻 = Beam entry の稲妻 + 杖先の閃光）
+    HomingBolt,     // ホーミングボルトの弾（輝石の魔術風：青い水晶 bing.FBX + 光る殻 + 途切れない HDR の帯。2026-10-15）
     Meteor,         // メテオの弾（大きな火球 + 岩）
     MeteorBlast,    // メテオの着弾（Explosion の大きい版 + 岩の破片）
     FireCircle,     // 火の輪（範囲・術者に追従）
@@ -33,7 +33,7 @@ enum class VFXId : uint32_t
     StoneShot,      // 石弾の弾（Rock_2.fbx の岩が弾と一緒に飛ぶ + 土煙）
     StoneShotHit,   // 石弾の命中（範囲 StoneShotHit：威力 0 の見た目だけ。土煙 + 岩の欠片）
     Poison,         // 毒の弾（緑の毒液の塊 + 滴。Lob 型で山なりに飛ぶ）
-    PoisonPool,     // 毒の池（範囲 PoisonPool：落ちた所の飛沫 + 泡 + 毒霧 + 緑の光。持続 4 秒）
+    PoisonPool,     // 猛毒の沼（範囲 PoisonPool：落ちた所の飛沫 + 液面 + 泡 + 緑の光。持続 6 秒。毒霧は 2026-10-05 に削除）
     Swamp,          // 泥沼の弾（泥の塊 + 滴。Lob 型。2026-10-17）
     SwampPool,      // 泥沼（範囲 SwampPool：落ちた所の飛沫 + 泥の液面。減速だけ）
     Spore,          // 胞子の弾（黄緑の塊 + 漂う胞子。直進・遅い。2026-10-17）
@@ -82,6 +82,44 @@ enum class VFXId : uint32_t
     Sandstorm,
     // 召喚物（水晶玉の光球。SummonItemDef::orbVfx）
     SpellOrb,
+    // 環境（風）
+    GrassShred,     // 風源（竜巻・渦・砂旋・突風）が草地から引きちぎって巻き上げる草屑（World/GrassShreds が風源ごとに出して動かす。2026-10-23）
+    // Boss「砂の守護者」の技（CollisionTestSceneBoss、2026-10-24）
+    BossQuicksand,  // 流沙の渦
+    BossSandMound,  // 潜砂の砂丘（ループ。Boss に付いて動く）
+    BossSandBurst,  // 潜る・飛び出す時の砂の噴き上げ
+    BossSandSpear,  // 砂の槍のトゲの根元の砂煙
+    BossSandAura,   // 砂の守護者の体の周りに舞う砂（ループ。地上に居る間ずっと）
+    BossStoneAura,  // 岩の巨人の肩から舞い落ちる葉と花粉（ループ。2026-10-25）
+    // 遺跡の敵（2026-10-25、CPU。MobSpawner の出来事 → CollisionTestSceneRuins.cpp）
+    RuinsArmorFall,     // 呪いの鎧が崩れた鎧の山 + 紫の靄（蘇るまで）
+    RuinsArmorRise,     // 蘇る瞬間の紫の炎
+    RuinsGargoyleWake,  // 石像が目覚めて石の欠片が剥がれる
+    RuinsGargoyleDive,  // 急降下の溜めの赤い火花
+    RuinsGargoyleLand,  // 着地の土煙
+    RuinsNecroCast,     // 死霊術師の詠唱の緑の光
+    RuinsRaiseMark,     // 骸骨が起きる所の緑の印
+    RuinsSkeletonRise,  // 骸骨が土から起きる
+    RuinsChainHit,      // 鎖の鉤が当たった火花
+    // 面の固定エリート（2026-10-25、CPU。Enemy/EliteAttacks が出す）
+    EliteSpawn,         // 現れた瞬間の暗い赤の煙と火花
+    EliteAxeSpin,       // 大斧の回転斬り（輪の大きさの斬撃と土煙）
+    EliteArrow,         // 森の弓手の矢（ループ。矢のモデル + 緑の尾）
+    EliteArrowHit,      // 矢が当たった / 刺さった
+    EliteRiderDash,     // 砂塵の騎兵の突進の砂煙（ループ）
+    EliteFlameBreath,   // 炎砂の術師の炎の息（ループ。+Z へ噴く）
+    EliteShadeBlink,    // 影の剣士が消える / 現れる黒い煙
+    EliteShadeSlash,    // 背後からの斬撃
+    EliteCurseOrb,      // 呪いの司書の暗い紫の玉（ループ）
+    EliteCurseOrbBlast, // 玉が爆ぜる
+    EliteThunder,       // 雷光の雷
+    EliteShield,        // 鉄壁の盾（ループ）
+    EliteShieldBreak,   // 盾が割れる
+    EliteSwift,         // 疾風の残像の風（ループ）
+    EliteBerserk,       // 狂暴になった瞬間
+    EliteBerserkAura,   // 狂暴の赤い火の粉（ループ）
+    EliteChest,         // 金色の宝箱の光の粒（ループ）
+    LifestealAbsorb,    // 吸血のルーンで HP が戻る時、周りから赤い光が体へ吸い込まれる（2026-10-25）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };
@@ -98,6 +136,7 @@ namespace VFXDatabase
         Weather,    // 天気（CPU）
         Summon,     // 召喚物（CPU）
         SpellCpu,   // 魔法の CPU 側の見た目（アイススパイク。判定は GPU）
+        Enemy,      // 敵の CPU 側の見た目（遺跡の敵。2026-10-25）
         Count
     };
 

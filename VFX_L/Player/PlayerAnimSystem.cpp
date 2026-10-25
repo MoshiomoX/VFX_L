@@ -20,6 +20,26 @@ namespace
     constexpr float kDeadFade = 0.10f;
 }
 
+const PlayerAnimSystem::ClipCache& PlayerAnimSystem::ResolveClips(const SkinnedModel& model)
+{
+    if (!m_NamesDirty && m_Clips.model == &model && m_Clips.clipCount == model.GetClipCount())
+        return m_Clips;
+    m_Clips.model = &model;
+    m_Clips.clipCount = model.GetClipCount();
+    m_Clips.idle = model.FindClip(m_Names.idle);
+    m_Clips.walk = model.FindClip(m_Names.walk);
+    m_Clips.run = model.FindClip(m_Names.run);
+    m_Clips.sprint = model.FindClip(m_Names.sprint);
+    m_Clips.jump = model.FindClip(m_Names.jump);
+    m_Clips.fall = model.FindClip(m_Names.fall);
+    m_Clips.cast = model.FindClip(m_Names.cast);
+    m_Clips.hurt = model.FindClip(m_Names.hurt);
+    m_Clips.dead = model.FindClip(m_Names.dead);
+    m_Clips.slide = model.FindClip(m_Names.slide);
+    m_NamesDirty = false;
+    return m_Clips;
+}
+
 void PlayerAnimSystem::Update(Registry& reg, float dt)
 {
     reg.CreateView<PlayerStateComponent, SkinnedAnimComponent, PlayerTag>()
@@ -27,6 +47,7 @@ void PlayerAnimSystem::Update(Registry& reg, float dt)
             {
                 if (!a.model) return;
                 const SkinnedModel& model = *a.model;
+                const ClipCache& clips = ResolveClips(model);   // クリップの番号（名前で引くのはモデルが変わった時だけ）
 
                 // 上半身マスクは初回に作る（モデルが決まってからでないと骨が分からない）
                 if (a.upperMask.empty() && !model.BuildBoneMask(m_Names.upperRoot, a.upperMask))
@@ -44,7 +65,7 @@ void PlayerAnimSystem::Update(Registry& reg, float dt)
                         hSpeed = std::sqrt(rb.velocity.x * rb.velocity.x + rb.velocity.z * rb.velocity.z);
                     }
 
-                    const std::string* name = &m_Names.idle;
+                    int clip = clips.idle;
                     const bool gait = (st.move == MoveStateID::Run);
                     switch (st.move)
                     {
@@ -56,21 +77,20 @@ void PlayerAnimSystem::Update(Registry& reg, float dt)
                         const bool jog = above(walkToJog, m_Gait >= 1);
                         const bool sprint = above(jogToSprint, m_Gait >= 2);
                         m_Gait = sprint ? 2 : (jog ? 1 : 0);
-                        name = (m_Gait == 2) ? &m_Names.sprint : (m_Gait == 1) ? &m_Names.run : &m_Names.walk;
+                        clip = (m_Gait == 2) ? clips.sprint : (m_Gait == 1) ? clips.run : clips.walk;
                         break;
                     }
-                    case MoveStateID::Jump: name = &m_Names.jump; break;
-                    case MoveStateID::Fall: name = &m_Names.fall; break;
-                    case MoveStateID::Slide: name = &m_Names.slide; break;
+                    case MoveStateID::Jump: clip = clips.jump; break;
+                    case MoveStateID::Fall: clip = clips.fall; break;
+                    case MoveStateID::Slide: clip = clips.slide; break;
                     default: break;
                     }
-                    const int clip = model.FindClip(*name);
                     if (clip >= 0)
                     {
                         // 歩様どうしの切り替えは足の位相を引き継ぐ（左足接地 → 左足接地）
-                        const int walkClip = model.FindClip(m_Names.walk);
-                        const int jogClip = model.FindClip(m_Names.run);
-                        const int sprintClip = model.FindClip(m_Names.sprint);
+                        const int walkClip = clips.walk;
+                        const int jogClip = clips.run;
+                        const int sprintClip = clips.sprint;
                         auto isGaitClip = [&](int c) { return c >= 0 && (c == walkClip || c == jogClip || c == sprintClip); };
 
                         const int prev = a.base.clip;
@@ -108,7 +128,7 @@ void PlayerAnimSystem::Update(Registry& reg, float dt)
                 // 撃った瞬間に頭出し。連射中も 1 発ごとに振り直す
                 // ============================================================
                 {
-                    const int castClip = model.FindClip(m_Names.cast);
+                    const int castClip = clips.cast;
                     a.upper.fadeDuration = kCastFade;
 
                     if (st.action == ActionStateID::Casting && castClip >= 0)
@@ -143,7 +163,7 @@ void PlayerAnimSystem::Update(Registry& reg, float dt)
                 {
                 case DamageStateID::Hurt:
                 {
-                    const int clip = model.FindClip(m_Names.hurt);
+                    const int clip = clips.hurt;
                     const bool entered = (a.over.targetWeight <= 0.0f);
                     if (clip >= 0) a.over.Play(clip, false, 1.0f, kHurtFade, entered);
                     a.over.fadeDuration = kHurtFade;
@@ -152,7 +172,7 @@ void PlayerAnimSystem::Update(Registry& reg, float dt)
                 }
                 case DamageStateID::Dead:
                 {
-                    const int clip = model.FindClip(m_Names.dead);
+                    const int clip = clips.dead;
                     if (clip >= 0) a.over.Play(clip, false, 1.0f, kDeadFade);
                     a.over.fadeDuration = kDeadFade;
                     a.over.targetWeight = 1.0f;

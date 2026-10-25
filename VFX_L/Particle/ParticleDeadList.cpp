@@ -5,7 +5,7 @@ bool ParticleDeadList::Initialize(ID3D11Device* device, uint32_t maxParticles)
     m_MaxParticles = maxParticles;
 
     // ----------------------------------------
-    // 1. Buffer?? (AppendStructuredBuffer<uint>)
+    // 1. 本体の Buffer（AppendStructuredBuffer<uint> = 空いている粒子の番号の表）
     // ----------------------------------------
     D3D11_BUFFER_DESC bufferDesc = {};
     bufferDesc.ByteWidth = sizeof(uint32_t) * maxParticles;
@@ -18,20 +18,20 @@ bool ParticleDeadList::Initialize(ID3D11Device* device, uint32_t maxParticles)
     if (FAILED(hr)) return false;
 
     // ----------------------------------------
-    // 2. UAV (APPEND??)
+    // 2. UAV（APPEND 付き）
     // ----------------------------------------
     D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.Format = DXGI_FORMAT_UNKNOWN;
     uavDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
     uavDesc.Buffer.FirstElement = 0;
     uavDesc.Buffer.NumElements = maxParticles;
-    uavDesc.Buffer.Flags = D3D11_BUFFER_UAV_FLAG_APPEND; // ? Append/Consume??
+    uavDesc.Buffer.Flags = D3D11_BUFFER_UAV_FLAG_APPEND; // Append / Consume の数（隠しカウンター）を持たせる
 
     hr = device->CreateUnorderedAccessView(m_Buffer.Get(), &uavDesc, &m_UAV);
     if (FAILED(hr)) return false;
 
     // ----------------------------------------
-    // 3. SRV (??????????????????)
+    // 3. SRV（shader から表の中身を読む時用）
     // ----------------------------------------
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -43,8 +43,8 @@ bool ParticleDeadList::Initialize(ID3D11Device* device, uint32_t maxParticles)
     if (FAILED(hr)) return false;
 
     // ----------------------------------------
-    // 4. ???????????????????
-    //    UAV????????CPU????????
+    // 4. 数の読み戻し用の staging buffer（uint 1 個）
+    //    UAV の隠しカウンターを CopyStructureCount で写し、CPU が Map して読む
     // ----------------------------------------
     D3D11_BUFFER_DESC stagingDesc = {};
     stagingDesc.ByteWidth = sizeof(uint32_t);
@@ -59,10 +59,10 @@ bool ParticleDeadList::Initialize(ID3D11Device* device, uint32_t maxParticles)
 
 uint32_t ParticleDeadList::ReadDeadCount(ID3D11DeviceContext* context)
 {
-    // UAV??????????????????????
+    // UAV の隠しカウンター（今の空きの数）を staging へ写す
     context->CopyStructureCount(m_CountStaging.Get(), 0, m_UAV.Get());
 
-    // CPU??????
+    // CPU で読む（Map READ は GPU の完了を待つ。初期化・リセットの時にだけ使う）
     D3D11_MAPPED_SUBRESOURCE mapped = {};
     HRESULT hr = context->Map(m_CountStaging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
     if (FAILED(hr)) return 0;
@@ -80,7 +80,7 @@ void ParticleDeadList::BindCSUAV(ID3D11DeviceContext* context, uint32_t slot, ui
 
 void ParticleDeadList::UnbindCSUAV(ID3D11DeviceContext* context, uint32_t slot)
 {
-    // ???:???? GPU ??????? 0 ?????
+    // 外す時は initialCount = -1（そのまま）。0 を渡すと GPU が保っている空きの数が 0 に戻ってしまう
     ID3D11UnorderedAccessView* nullUAV = nullptr;
     UINT keep = (UINT)-1;
     context->CSSetUnorderedAccessViews(slot, 1, &nullUAV, &keep);

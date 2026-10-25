@@ -46,6 +46,7 @@ struct RingOut
     float2 uv : TEXCOORD0;       // -1..1 across the area radius
     float progress : TEXCOORD1;  // fall 0..1 = radius of the filled disc in uv units
     float edgeWidth : TEXCOORD2; // rim thickness in uv units
+    float2 shapeFill : TEXCOORD3; // always 0 here: a round ring (SwarmBomberRingPS. Only the warn sectors / lanes set it)
 };
 
 static const float2 kCorner[6] =

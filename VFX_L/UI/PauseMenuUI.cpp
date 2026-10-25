@@ -83,17 +83,17 @@ void PauseMenuUI::Layout(float screenW, float screenH)
     m_HowTo.Layout(screenW, screenH);
 }
 
-PauseMenuUI::Action PauseMenuUI::HandleInput()
+PauseMenuUI::Action PauseMenuUI::HandleInput(float dt)
 {
     // 設定 / 遊び方のページ：戻るまでそちらだけ（B / Esc もページを閉じるだけで、メニューは残る）
     if (m_InSettings)
     {
-        if (m_Settings.HandleInput()) m_InSettings = false;
+        if (m_Settings.HandleInput(dt)) m_InSettings = false;
         return Action::None;
     }
     if (m_HowTo.IsOpen())
     {
-        m_HowTo.HandleInput();
+        m_HowTo.HandleInput(dt);
         return Action::None;
     }
 
@@ -101,7 +101,7 @@ PauseMenuUI::Action PauseMenuUI::HandleInput()
     if (InputManager::Get().GetPadTrigger(XINPUT_GAMEPAD_B))
         return Action::Resume;
 
-    switch (m_List.HandleInput())
+    switch (m_List.HandleInput(dt))
     {
     case 0:  return Action::Resume;
     case 1:

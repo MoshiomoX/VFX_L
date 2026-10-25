@@ -65,7 +65,6 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     std::vector<Swarm::VFXRecipe>     recipes;
     std::vector<GPUEmitter>           emitters;
     std::vector<ColorKey>             keys;
-    std::vector<Swarm::VFXModelEntry> models;
     std::vector<Swarm::VFXLightEntry> lights;
     std::vector<Swarm::VFXSpriteDef>  sprites;
     std::vector<const SpriteSheets::Info*> spriteSheetOf;   // sprites と同じ並び（cellUV を後で決める）
@@ -129,7 +128,6 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
 
         Swarm::VFXRecipe r;
         r.particleStart = (uint32_t)emitters.size();
-        r.modelStart = (uint32_t)models.size();
         r.lightStart = (uint32_t)lights.size();
 
         // ---- 光源表（時間軸は無いので intensityStart だけ）----
@@ -261,8 +259,6 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         (UINT)recipes.size(), m_RecipeBuffer, m_RecipeSRV, "recipe")) return false;
     if (!UploadImmutable(device, emitters.data(), sizeof(GPUEmitter),
         (UINT)emitters.size(), m_EmitterBuffer, m_EmitterSRV, "emitter")) return false;
-    if (!UploadImmutable(device, models.data(), sizeof(Swarm::VFXModelEntry),
-        (UINT)models.size(), m_ModelBuffer, m_ModelSRV, "model")) return false;
     if (!UploadImmutable(device, lights.data(), sizeof(Swarm::VFXLightEntry),
         (UINT)lights.size(), m_LightBuffer, m_LightSRV, "light")) return false;
 

@@ -13,7 +13,9 @@
 #pragma once
 #include "SpellID.h"
 #include "Component/BackpackComponent.h"   // static_assert で GRID を縛るために必要
+#include "Item/ItemTypes.h"                // CellOffset（置いてある物の覚え書き）
 #include "UI/DragContext.h"
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <SimpleMath.h>
@@ -116,6 +118,20 @@ private:
     void DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp);
     void DrawDragged(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& mousePos);
     void DrawDropShadow(SpriteRenderer& sprite);
+
+    // 置いてある魔法ごとの覚え書き（回した占有マス・上級魔法が目覚めているか。2026-10-25）。
+    // 以前は毎フレーム全部の物に IsTriggerReady（中の GetInfluencers が全部の組を回して形を回し直す）を呼んでいた。
+    // バックパックの番号（BackpackComponent::revision）と形の番号（ItemDatabase::ShapeRevision）が同じ間は使い回す
+    struct ItemDrawCache
+    {
+        std::vector<CellOffset> cells;   // 回した占有マス（アンカーからの相対）
+        bool triggerReady = true;
+    };
+    void RefreshItemCache(const BackpackComponent& bp);
+    std::vector<ItemDrawCache> m_ItemCache;
+    uint32_t m_CacheRevision = 0;
+    uint32_t m_CacheShapeRevision = 0;
+    bool     m_CacheValid = false;
 
     std::shared_ptr<Texture> m_BlockTex;
     std::vector<std::pair<ItemID, std::shared_ptr<Texture>>> m_Icons;

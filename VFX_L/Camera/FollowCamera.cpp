@@ -148,12 +148,20 @@ void FollowCamera::Update(float dt)
 
     // ============================================================
     // 対象の水平の速さ（移動量 / dt を均す）。ワープ・開始時は 0 から
-    // 止まっている間（dt = 0）は前の値のまま
+    // 止まっている間（dt = 0）は前の値のまま。ただし Snap は dt = 0 でも前の位置を合わせる
+    // （下の追従が dt = 0 のフレームで Snap を使い切るので、ここで合わせないと次のフレームにワープ分の移動が速さに出て、
+    //  画角・距離が一瞬跳ねる。2026-10-25）
     // ============================================================
-    if (dt > 0.0f)
+    if (m_Snap)
+    {
+        m_Vel = m_VelVel = Vector3::Zero;
+        m_LookAhead = m_LookAheadVel = Vector3::Zero;
+        m_PrevTarget = m_FollowTarget;
+    }
+    else if (dt > 0.0f)
     {
         const Vector3 step = m_FollowTarget - m_PrevTarget;
-        if (m_Snap || step.Length() > snapDistance)
+        if (step.Length() > snapDistance)
         {
             m_Vel = m_VelVel = Vector3::Zero;
             m_LookAhead = m_LookAheadVel = Vector3::Zero;

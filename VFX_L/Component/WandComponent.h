@@ -19,9 +19,24 @@ enum class CastMode
     Manual,      // 入力があった時だけ撃つ。照準は自動のまま
     DebugBurst,  // castInterval を無視して撃ち続ける（マナは消費する）
 };
+
+// SpellStats / AreaStats::triggerMask の bit の割り当て（集約と WeaponSystem で同じ値を使う。2026-10-25）
+//   bit 0〜15  = wand.spells の添字（上級の飛行物魔法）
+//   bit 16〜30 = wand.areas の添字（上級の範囲魔法：光線・竜巻）
+//   bit 31     = 吸血の印（Swarm::kTagLifesteal）。誘発には使わない
+namespace TriggerBits
+{
+    constexpr uint32_t kSpellCount = 16;   // spells は添字 0〜15 まで
+    constexpr uint32_t kAreaShift = 16;    // areas の添字 j は bit (kAreaShift + j)
+    constexpr uint32_t kAreaCount = 15;    // areas は添字 0〜14 まで（bit 31 を使わない）
+}
+
 struct SpellStats
 {
     ItemID id = ItemID::Fireball;
+    // バックパックの中で同じ道具の何個目か（items の順。集約が入れる）。組み替えの前後で同じ魔法を見分け、
+    // クールダウンなどの計時を引き継ぐのに使う（BackpackAggregateSystem::Rebuild、光球の計時）
+    int dupIndex = 0;
 
     // --- 分裂（空間展開: 同フレームに複数発）---
     int   projectileCount = 1;      // 一度に出る数
@@ -50,9 +65,13 @@ struct SpellStats
     // Drop / Lob 型には効かない）。生成依頼の pathT に乗せて渡す
     int   chainCount = 0;
 
+    // 吸血（吸血のルーン。2026-10-25）: この魔法（と着弾で出す範囲）が敵に与えたダメージのこの割合をプレイヤーの HP に戻す。
+    // GPU には「吸血の弾」の印だけ渡す（生成依頼の tag の最上位 bit = Swarm::kTagLifesteal）。回る割合は LifestealHeal が持つ
+    float lifesteal = 0.0f;
+
     // --- 誘発（基本魔法 → 上級魔法。集約が決める）---
     bool     triggered = false;   // 上級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ
-    uint32_t triggerMask = 0;     // 基本魔法: この弾が消えたら誘発できる上級魔法（bit 0〜15 = spells の添字、bit 16〜31 = areas の添字（光線））
+    uint32_t triggerMask = 0;     // 基本魔法: この弾が消えたら誘発できる上級魔法（bit 0〜15 = spells の添字、bit 16〜30 = areas の添字（光線・竜巻）。TriggerBits）
     // 上級魔法を「線」で撃つ（アイススパイク。2026-10-10）: 着弾点へ弾を落とす代わりに、撃った所の足元 → 弾が消えた所の
     // lineOvershoot m 先 の線に沿って、命中の範囲（profile の hitArea）を並べて一度に出す。見た目は SpellFxSystem
     bool     triggerLine = false;
@@ -68,12 +87,17 @@ struct SpellStats
     int   pendingCasts = 0;         // 連発の残り回数
     float delayTimer = 0.0f;      // 次の連発までの残り
     DirectX::SimpleMath::Vector3 triggerPos;   // 上級魔法: 連発（二重詠唱）の続きを撃つ場所
+    // 上級魔法: 連発の続きを撃ち出す所（2026-10-25）。光球から撃った物はその光球（triggerOrbSerial）の今の位置、
+    // 光球が消えていれば triggerOrigin（最初に撃った時の位置）。杖から撃った物（serial 0）は今の杖先
+    uint32_t triggerOrbSerial = 0;
+    DirectX::SimpleMath::Vector3 triggerOrigin;
 };
 
 // 召喚物（水晶玉。2026-10-06）1 個分の集約結果。光球の実体（位置・寿命・エフェクト）は WeaponSystem が持つ
 struct OrbUnitStats
 {
     ItemID id = ItemID::Unknown;
+    int   dupIndex = 0;         // 同じ道具の何個目か（SpellStats::dupIndex と同じ。組み替えの前後で同じ水晶玉を見分ける）
     int   itemIndex = -1;       // BackpackComponent::items の添字
     int   maxOrbs = 3;
     float orbInterval = 2.0f;
@@ -97,7 +121,8 @@ struct WandComponent
     CastMode castMode = CastMode::Auto;
     bool     castRequested = false;
 
-    // プレイヤーが詠唱を止めている（Q / パッド Y で切替）。
+    // 詠唱を止めている（デバッグ用：Game Test パネル「Casting Paused (debug)」と自動テストだけが切り替える。
+    // 2026-10-01 から Q / パッド Y は魔力解放で、プレイヤーはこれを切り替えられない）。
     // 止めている間は新しい詠唱をしない = 魔力を使わずに溜められる。
     // 撃ち始めた連発（二重詠唱の残り）は最後まで撃ち切る。
     // 集約（BackpackAggregateSystem）は spells / areas しか作り直さないので、バックパックを組み替えても残る

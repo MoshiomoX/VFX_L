@@ -28,6 +28,7 @@
 #include "Player/PlayerControlSystem.h"
 #include "Player/PlayerStateSystem.h"
 #include "Player/PlayerAnimSystem.h"
+#include "Player/LifestealHeal.h"
 #include "ECS/System/SkinnedAnimSystem.h"
 #include "ECS/System/ClothChainSystem.h"
 #include "ECS/System/WeaponSystem.h"
@@ -42,6 +43,7 @@
 #include "World/GroundDebris.h"
 #include "World/Tumbleweeds.h"
 #include "World/DandelionField.h"
+#include "World/GrassShreds.h"
 #include "ECS/System/InteractionSystem.h"
 #include "ECS/System/RewardCrateSystem.h"
 #include "ECS/System/PickupSystem.h"
@@ -61,6 +63,7 @@
 #include "Enemy/MobSpawner.h"
 #include "Enemy/StageDirector.h"
 #include "Enemy/BossAttacks.h"
+#include "Enemy/EliteAttacks.h"
 #include "Graphics/Light/SceneLighting.h"
 #include "Graphics/PostProcess/Outline.h"
 #include "Graphics/Light/ShadowMap.h"
@@ -135,7 +138,7 @@ private:
     float m_ExpMul = 1.0f;          // Tier の経験値倍率（GPU から受け取った経験値に掛ける）
     bool  HasNextStage() const { return m_StageIndex < StageConfig::kStageCount && m_StageIndex < m_RunStart + m_RunTier - 1; }
     // 戦いの見本（2026-10-09 ユーザー：「立っているだけでは意味が分からない、エフェクトが弾ける画面に」）：
-    // 見栄えのする魔法を背嚢に並べ、画面の奥から雑魚・自爆兵を寄せ続け、プレイヤーが自動で撃って吹き飛ばす
+    // 見栄えのする魔法をバックパックに並べ、画面の奥から雑魚・自爆兵を寄せ続け、プレイヤーが自動で撃って吹き飛ばす
     void InitTitleDemo();
     void UpdateTitleDemo(float dt);
     void SpawnTitleEnemies(int count, float minDist, float maxDist);
@@ -157,7 +160,16 @@ private:
     float m_GoldAtStart = 0.0f;          // 面の始めの WalletComponent::earned（この面で拾った金貨 = 差）
     void  OnExplosions(int count);       // 揺れ（カメラ）と山場の数え（写真）を一緒に
 
-    // ---- フレーム処理（CollisionTestScene.cpp）----
+    // ---- Init の各段（CollisionTestSceneInit.cpp。Init が上から順に呼ぶ）----
+    void InitRenderers(ID3D11Device* device, ID3D11DeviceContext* context);   // 粒子・VFX の描画・UI・アウトライン・影
+    void InitStage();                                                         // 何面目か・Tier・面の照明
+    void InitTerrainWorld(const StageDef& stageDef, ID3D11Device* device, ID3D11DeviceContext* context);
+    void InitSwarm(const StageDef& stageDef, ID3D11Device* device, ID3D11DeviceContext* context);
+    void InitPlayer(const StageDef& stageDef, ID3D11Device* device);
+    void InitStageFlow(const StageDef& stageDef, ID3D11Device* device);
+
+    // ---- フレーム処理（Update / HUD の目印 / EndRun = CollisionTestSceneUpdate.cpp、UpdateGameplay = ...Gameplay.cpp、
+    //      風・箱・門・マスの塞ぎ = ...Field.cpp、問い合わせ = CollisionTestScene.cpp）----
     void UpdateScreenSize();
     void UpdateGameplay(float dt);
     float TrackPlayerHpLoss();       // このフレームに減った HP（最初のフレームは 0）
@@ -202,6 +214,7 @@ private:
     BattleCamera m_Camera;   // FollowCamera は m_Camera.Camera()
     Registry     m_Registry;
     float        m_PrevPlayerHp = -1.0f;   // -1 = まだ読んでいない（最初のフレームで揺らさない）
+    LifestealHeal m_Lifesteal;             // 吸血のルーン：GPU の吸血の累計 → HP（2026-10-25）
     bool         m_PrevDebugGrid = true;   // 入る前の DebugManager の参照格子（Shutdown で戻す）
     uint32_t     m_PortalVfx = 0;          // Boss の門の渦（AreaVFXPlayer のインスタンス。0 = 無し）
 
@@ -242,6 +255,7 @@ private:
     GroundDebris            m_Debris;        // 地面の落ち葉・草屑・小枝（突風・爆発・強風で舞う。2026-10-13）
     Tumbleweeds             m_Tumbleweeds;   // 転がり草（砂漠・遺跡。風・竜巻・渦・突風に転がされ巻き上げられる。2026-10-22）
     DandelionField          m_Dandelions;    // タンポポの綿毛（草原。風源・強い風・踏み跡でほどけて飛ぶ。2026-10-22）
+    GrassShreds             m_GrassShreds;   // 風源が草地から巻き上げる草屑（2026-10-23）
     void BuildWindToys();            // 地形を建てた / 出し入れした後：転がり草とタンポポを置き直す（CollisionTestSceneTerrain.cpp）
     void UpdateWindToys(float dt);   // 毎フレーム（止まっている間は呼ばない）：転がり草を動かし、タンポポの時計を進める
 
@@ -262,6 +276,42 @@ private:
     StageDirector           m_Stage;               // 1 面の進行（制限時間・エリートの時間表）
     BossAttacks             m_BossAttacks;         // Boss の技（スラムの警告の輪。2026-10-03）
     uint32_t                m_BossSlamHits = 0;    // 自動テストの記録用：スラムがプレイヤーに当たった数
+    // ---- 砂の守護者の技の見た目（CollisionTestSceneBoss.cpp。2026-10-24）----
+    IceSpikeField           m_SandSpikes;          // 「砂の槍」の石のトゲ（IceSpikeField を石の地刺のモデルで）
+    uint32_t                m_BossMoundVfx = 0;    // 潜砂の砂丘（Boss に付いて動く。0 = 出ていない）
+    uint32_t                m_BossAuraVfx = 0;     // 砂の守護者の体の周りに舞う砂（地上に居る間ずっと。0 = 出ていない）
+    struct BossDelayedVfx { float wait = 0.0f; int id = 0; DirectX::SimpleMath::Vector3 pos; };
+    std::vector<BossDelayedVfx> m_BossDelayedVfx;  // 砂の槍の根元の砂煙（トゲの前線が通る時刻に出す）
+    void InitBossFx(BossType type);                // 面の Boss に合わせる（技の組み合わせ・石のトゲの見た目）
+    void UpdateBossSandFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);   // 流沙の効き・風源・砂丘・槍のトゲ・砂煙
+
+    // ---- 遺跡の敵（2026-10-25。CollisionTestSceneRuins.cpp）----
+    // 鎖の番人の投げた鎖：鉤が向きの先へ飛び（当たり = 鉤の線とプレイヤーの横の距離）、当たればプレイヤーを番人の前へ引き寄せ、戻る。
+    // 見た目は ECS のモデル（鎖の区切り + 鉤、卡通・赤い縁取り付き）を毎フレーム並べ直す
+    struct ChainHook
+    {
+        DirectX::SimpleMath::Vector3 origin;   // 根元（番人の手の高さ）
+        DirectX::SimpleMath::Vector3 dir;      // 水平の向き（単位）
+        float out = 0.0f;                      // 根元から鉤までの長さ（m）
+        float reach = 12.0f;                   // 届く長さ（BomberCB::wardenRange）
+        int   state = 0;                       // 0 = 飛ぶ、1 = 引っ掛けて引く、2 = 戻る
+        float timer = 0.0f;
+    };
+    std::vector<ChainHook> m_Chains;
+    std::vector<Entity> m_ChainSegEntities;    // 鎖の区切りの実体（使い回し。使わない物は見えなくする）
+    std::vector<Entity> m_ChainHookEntities;
+    std::shared_ptr<Model> m_ChainSegModel, m_ChainHookModel;
+    uint32_t m_ChainHits = 0;                  // 自動テスト用（累計）
+    void UpdateRuinsFoes(float dt, const DirectX::SimpleMath::Vector3& player);   // 出来事の見た目・鎖
+    void LayoutChains();                       // 鎖の実体を並べる
+    void ClearRuinsFoes();                     // 鎖の実体を消す（Shutdown・場を消す時）
+    // ---- 面の固定エリート（2026-10-25。CollisionTestSceneElites.cpp）----
+    EliteAttacks m_StageElites;
+    std::vector<SwarmSystem::WarnCircle> m_WarnCircles;        // Boss とエリートの地面の予告（まとめて SetWarnCircles）
+    std::vector<std::pair<Entity, uint32_t>> m_EliteChestFx;   // 金色の宝箱と光の粒のエフェクト
+    uint32_t m_EliteHits = 0;                                  // 自動テスト用（技が当たった累計）
+    void InitElites();                                         // 面の個体・皮と飾り（InitBossFx から）
+    void UpdateElites(float dt, const DirectX::SimpleMath::Vector3& player);   // 技・当たり・宝箱・HUD の条
     StressTestTools         m_Stress;              // 負荷テスト・Mesh 発射の確認
     SpellLab                m_SpellLab;            // 魔法を自由に組み合わせて試す実験場（2026-10-06）
 

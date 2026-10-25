@@ -6,8 +6,11 @@
 #include "Graphics/Shader/PixelShader.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Renderer/RenderStates.h"
+#include "Core/VideoCapture.h"
 
 #include <dxgi.h>
+#include <ScreenGrab.h>
+#include <wincodec.h>
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
 #define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002   // Windows 10 1803+（古い SDK には無い）
@@ -79,7 +82,7 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
 
     // ---- 表示の同期の初期値 ----
     // TEMP-TEST: VFXL_NO_VSYNC で垂直同期を切る、VFXL_FPS_CAP=<数> で上限 fps（負荷の計測用）
-    if (GetEnvironmentVariableA("VFXL_NO_VSYNC", nullptr, 0) > 0)
+    if (GetEnvironmentVariableA("VFXL_NO_VSYNC", nullptr, 0) > 0 || VideoCapture::Get().Enabled())   // 書き出し中は待たずに回す
         m_Present.vsync = false;
     {
         char env[16] = {};
@@ -92,6 +95,7 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
         m_FrameTimer = CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
 
     if (!CreateSceneTargets(width, height)) return false;
+    m_TargetsValid = true;
     if (!LoadPostShaders()) return false;
     if (!m_Bloom.Initialize(m_Device.Get(), width, height)) return false;
     m_Context->OMSetRenderTargets(1, m_SceneRTV.GetAddressOf(), m_DepthStencilView.Get());
@@ -306,9 +310,7 @@ bool Graphics::LoadPostShaders()
     hr = ShaderPath::Load(m_DistortApplyPS.get(), m_Device.Get(),
         L"Shader/PostProcess/DistortApplyPS.hlsl");
     std::cout << "[Graphics] DistortApplyPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
-    if (FAILED(hr)) m_DistortApplyPS.reset();
-    hr = S_OK;
-    if (FAILED(hr)) return false;
+    if (FAILED(hr)) m_DistortApplyPS.reset();   // 起動は止めない（合成 PS の t2 の道で歪ませる）
 
     return true;
 }
@@ -319,6 +321,13 @@ bool Graphics::LoadPostShaders()
 void Graphics::BeginFrame()
 {
     m_InUIPhase = false;
+    m_DistortDrawn = false;
+    // Resize で作り直せなかった間は空の RT に触らない（描画は RT 無しで捨てられる）
+    if (!m_TargetsValid)
+    {
+        m_Context->OMSetRenderTargets(0, nullptr, nullptr);
+        return;
+    }
 
     const float clearColor[] = { 0.1f, 0.1f, 0.1f, 1.0f };
     m_Context->ClearRenderTargetView(m_SceneRTV.Get(), clearColor);
@@ -329,7 +338,6 @@ void Graphics::BeginFrame()
     m_Context->RSSetViewports(1, &m_Viewport);
 
     // 歪みの RT は「ずれ 0」で始める（描く物が無いフレームは合成がずらさない）
-    m_DistortDrawn = false;
     if (m_DistortRTV)
     {
         const float zero[] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -342,7 +350,7 @@ void Graphics::BeginFrame()
 // ============================================================
 bool Graphics::BeginDistortion()
 {
-    if (!m_Distortion.enabled || !m_DistortRTV || m_InUIPhase) return false;
+    if (!m_TargetsValid || !m_Distortion.enabled || !m_DistortRTV || m_InUIPhase) return false;
     m_Context->OMSetRenderTargets(1, m_DistortRTV.GetAddressOf(), m_DepthStencilView.Get());
     m_Context->RSSetViewports(1, &m_Viewport);
     m_DistortDrawn = true;
@@ -355,7 +363,7 @@ bool Graphics::BeginDistortion()
 // ============================================================
 void Graphics::ApplyDistortion()
 {
-    if (!m_DistortDrawn || !m_Distortion.enabled || !m_DistortApplyPS || m_InUIPhase) return;
+    if (!m_TargetsValid || !m_DistortDrawn || !m_Distortion.enabled || !m_DistortApplyPS || m_InUIPhase) return;
     m_DistortDrawn = false;   // 合成側ではずらさない
 
     m_Context->ResolveSubresource(m_SceneResolved.Get(), 0, m_SceneTex.Get(), 0, kSceneFormat);
@@ -391,11 +399,16 @@ void Graphics::ApplyDistortion()
 
 // ============================================================
 // シーン描画の終わり: resolve → 合成 → backbuffer を bind
-// これ以降の描画（UI / ImGui）は backbuffer に乗る
+// ゲームの UI はこれより前に HDR RT へ描き終わっている。これ以降の描画（ImGui）は backbuffer に乗る
 // ============================================================
 void Graphics::BeginUI()
 {
     m_InUIPhase = true;
+    if (!m_TargetsValid)   // Resize の作り直しに失敗中: 空の RT に触らない
+    {
+        m_Context->OMSetRenderTargets(0, nullptr, nullptr);
+        return;
+    }
 
     // 1) MSAA を解く
     m_Context->ResolveSubresource(m_SceneResolved.Get(), 0, m_SceneTex.Get(), 0, kSceneFormat);
@@ -449,8 +462,41 @@ void Graphics::EndFrame()
 {
     WaitForFrameCap();
 
+    // 自動テストの写真（RequestScreenshot）：Present の直前のバックバッファ = UI まで描いた画面
+    if (!m_ShotPath.empty())
+    {
+        ComPtr<ID3D11Texture2D> back;
+        if (SUCCEEDED(m_SwapChain->GetBuffer(0, IID_PPV_ARGS(&back))))
+        {
+            const HRESULT shr = DirectX::SaveWICTextureToFile(m_Context.Get(), back.Get(), GUID_ContainerFormatPng, m_ShotPath.c_str());
+            if (FAILED(shr))
+                std::cout << "[Warning] screenshot failed (HRESULT: 0x" << std::hex << shr << std::dec << ")" << std::endl;
+        }
+        m_ShotPath.clear();
+    }
+
+    // 動画の書き出し（VFXL_CAPTURE）：UI まで描いたバックバッファを ffmpeg へ
+    if (VideoCapture::Get().Recording())
+    {
+        ComPtr<ID3D11Texture2D> back;
+        if (SUCCEEDED(m_SwapChain->GetBuffer(0, IID_PPV_ARGS(&back))))
+            VideoCapture::Get().OnFrame(m_Device.Get(), m_Context.Get(), back.Get());
+    }
+
+    if (m_DeviceLost) return;   // もう終わる所（WM_QUIT を出した後）
     const bool tear = !m_Present.vsync && m_TearingSupported;
     const HRESULT hr = m_SwapChain->Present(m_Present.vsync ? 1 : 0, tear ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    // GPU が外れた（ドライバの再起動・ハング・取り外し）：原因を出して終了を要求する。
+    // 作り直しは対応していないので、このまま描き続けても何も出ない
+    if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+    {
+        const HRESULT reason = m_Device->GetDeviceRemovedReason();
+        std::cout << "[DX ERROR] Present: device lost (HRESULT: 0x" << std::hex << hr
+            << ", reason: 0x" << reason << std::dec << "). Quitting." << std::endl;
+        m_DeviceLost = true;
+        PostQuitMessage(1);
+        return;
+    }
     static bool s_Reported = false;   // 毎フレーム出さない
     if (FAILED(hr) && !s_Reported)
     {
@@ -533,12 +579,8 @@ void Graphics::RestoreRenderTarget()
 // ============================================================
 // リサイズ: 全部作り直す
 // ============================================================
-bool Graphics::Resize(int width, int height)
+void Graphics::ReleaseSceneTargets()
 {
-    if (!m_SwapChain || width <= 0 || height <= 0) return false;
-    if ((float)width == m_Viewport.Width && (float)height == m_Viewport.Height)
-        return true;
-
     m_Context->OMSetRenderTargets(0, nullptr, nullptr);
     m_BackbufferRTV.Reset();
     m_SceneRTV.Reset();
@@ -552,16 +594,42 @@ bool Graphics::Resize(int width, int height)
     m_DistortTex.Reset();
     m_DistortSRV.Reset();
     m_DistortResolved.Reset();
+}
+
+bool Graphics::Resize(int width, int height)
+{
+    if (!m_SwapChain || width <= 0 || height <= 0) return false;
+    // 前回の作り直しに失敗していたら、同じ大きさでももう一度試す
+    if (m_TargetsValid && (float)width == m_Viewport.Width && (float)height == m_Viewport.Height)
+        return true;
+
+    const int oldW = (int)m_Viewport.Width, oldH = (int)m_Viewport.Height;
+    ReleaseSceneTargets();
+    m_TargetsValid = false;   // 揃うまで BeginFrame / BeginUI は空の RT に触らない
 
     HRESULT hr = m_SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, m_SwapChainFlags);
     if (FAILED(hr))
     {
-        std::cout << "[Error] ResizeBuffers failed" << std::endl;
+        std::cout << "[Error] ResizeBuffers failed (HRESULT: 0x" << std::hex << hr << std::dec << ")" << std::endl;
+        // backbuffer は元の大きさのまま。元の大きさで作り直して続ける
+        if (oldW > 0 && oldH > 0 && CreateSceneTargets(oldW, oldH))
+        {
+            m_TargetsValid = true;
+            RestoreRenderTarget();
+        }
+        else
+            ReleaseSceneTargets();
         return false;
     }
 
-    if (!CreateSceneTargets(width, height)) return false;
-    if (!m_Bloom.Resize(m_Device.Get(), width, height)) return false;
+    if (!CreateSceneTargets(width, height))
+    {
+        ReleaseSceneTargets();   // 途中まで作った物を残さない（次の Resize でやり直す）
+        return false;
+    }
+    m_TargetsValid = true;
+    if (!m_Bloom.Resize(m_Device.Get(), width, height))
+        std::cout << "[Error] Bloom resize failed (bloom off)" << std::endl;   // シーンは描ける
     m_Context->OMSetRenderTargets(1, m_SceneRTV.GetAddressOf(), m_DepthStencilView.Get());
     m_Context->RSSetViewports(1, &m_Viewport);
 

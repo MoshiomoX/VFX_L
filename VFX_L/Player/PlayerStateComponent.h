@@ -68,8 +68,9 @@ enum class ActionStateID
 
 // ============================================================
 // 被損層：無敵時間と死亡
-// Hurt は Action を抑制する（被弾中は詠唱を止める）が Move は残す。
-//   Dead は全部抑制する。
+// Hurt は Action 層（詠唱の状態・アニメ）を抑制するが Move は残す。
+//   杖の自動発射（WeaponSystem）は Hurt では止めない（被弾中も撃ち続ける）。
+//   Dead は全部抑制する（WeaponSystem も死んでいる間は新しく撃たない）。
 // ============================================================
 enum class DamageStateID
 {
@@ -106,6 +107,15 @@ struct PlayerStateComponent
     float knockTime = 0.0f;            // 残り秒
     float knockDuration = 0.0f;
     float knockAppliedX = 0.0f, knockAppliedZ = 0.0f;   // 前フレームに速度へ足した分（滑りの勢いに混ざらないよう次で引く）
+    // 前フレームに PlayerControlSystem が入れた水平速度（足した分込み）。物理が壁などで削った量をここから測り、
+    // 足した分を引き戻す時に「削られた分は足した分から先に削れた」とみなす（2026-10-25。引き過ぎて壁から弾き返されないように）
+    float setVelX = 0.0f, setVelZ = 0.0f;
+
+    // ---- 足元の効き（2026-10-24、砂の守護者の流沙）。シーンが毎フレーム入れ直す（入れなければ効かない）----
+    // 地面に居る間だけ：走り（滑りの勢いも）の速さ × groundSlow、さらに groundPull（水平 m/s）で流される。
+    // ノックバックと同じく「足した分」として次のフレームで引くので、勢いは削らない
+    float groundSlow = 1.0f;
+    float groundPullX = 0.0f, groundPullZ = 0.0f;
 
     // ---- 進む方向（PlayerControlSystem が書く）----
     // カメラの前から見た進む方向（度。0 = 前、+90 = 右、±180 = 後ろ）。体はこの方向へ振り向く

@@ -54,6 +54,9 @@ private:
     void CloseBackpack();
     void SetMessage(const std::wstring& s, bool good);
     std::shared_ptr<Texture> GetIcon(ItemID id) const;
+    // 一覧の行の名前・種別（ItemInfo::Describe は品の id だけで決まるので、品毎に 1 回だけ作って覚える）
+    struct RowText { ItemID id; std::wstring title; std::wstring category; };
+    const RowText& GetRowText(ItemID id);
     DirectX::SimpleMath::Vector2 RowPos(int i) const;
     void DrawRows();
     void DrawGold();
@@ -70,6 +73,7 @@ private:
     std::shared_ptr<Texture> m_White;
     std::shared_ptr<Texture> m_GoldIcon;
     std::vector<std::pair<ItemID, std::shared_ptr<Texture>>> m_Icons;
+    std::vector<RowText> m_RowTexts;   // GetRowText の覚え（返した参照は次に呼ぶまでだけ使う。足すと動くので）
     LevelUpUI m_Cards;    // 右のカード（描くだけ。入力はこのシーンが持つ）
     ShopStock m_Stock;
     Registry  m_Registry;     // バックパックの画面用（entity 1 つだけ）

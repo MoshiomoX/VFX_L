@@ -40,16 +40,16 @@ void MenuList::Open()
 // 止まっているマウスの位置へ戻されないように）
 // ============================================================
 // 選択の移動・決定の音（2026-10-03）。判定そのものは HandleInputRaw
-int MenuList::HandleInput()
+int MenuList::HandleInput(float dt)
 {
     const int before = m_Cursor;
-    const int picked = HandleInputRaw();
+    const int picked = HandleInputRaw(dt);
     if (picked >= 0) AudioSystem::Get().Play("ui_select");
     else if (m_Cursor != before && before >= 0) AudioSystem::Get().Play("ui_hover");
     return picked;
 }
 
-int MenuList::HandleInputRaw()
+int MenuList::HandleInputRaw(float dt)
 {
     const int n = Count();
     if (n <= 0) return -1;
@@ -62,7 +62,9 @@ int MenuList::HandleInputRaw()
 
     if (m_InputDelay > 0.0f)
     {
-        m_InputDelay -= 0.016f;
+        // 実時間で減らす（以前は 1 フレーム 0.016 秒の決め打ちで、144 fps だと猶予が半分以下になっていた）。
+        // 1 フレームだけ長い時（読み込みの引っ掛かり）に猶予を食い尽くさないよう 0.1 秒で頭打ち
+        m_InputDelay -= (std::min)((std::max)(dt, 0.0f), 0.1f);
         return -1;
     }
 

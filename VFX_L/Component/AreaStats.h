@@ -12,6 +12,8 @@
 struct AreaStats
 {
     ItemID id = ItemID::Fireball;
+    // バックパックの中で同じ道具の何個目か（SpellStats::dupIndex と同じ。組み替えの前後で計時を引き継ぐ）
+    int dupIndex = 0;
 
     // --- 範囲 ---
     float radius = 3.0f;          // 影響半径
@@ -33,11 +35,12 @@ struct AreaStats
     // 敵の足元に出すか、プレイヤー中心に出すか
     bool spawnAtTarget = true;
 
-    // --- 実行時状態（AreaSystem が更新）---
+    // --- 実行時状態（WeaponSystem が更新）---
     float castTimer = 0.0f;
 
     // --- 上級魔法（光線）: 自分では撃たず、前提の基本魔法の弾が消えた時に、その方向へ撃つ ---
     // 集約時に ItemCommon::triggeredBy が揃っていれば true。基本魔法側の SpellStats::triggerMask の bit (16 + 添字) が自分
+    // （添字は 0〜14 まで。bit 31 は吸血の印。TriggerBits / WandComponent.h）
     bool triggered = false;
     // --- 基本の範囲魔法（アークボルトの稲妻）が届いた所で誘発できる上級魔法（SpellStats::triggerMask と同じ bit 割り当て。2026-10-15）---
     uint32_t triggerMask = 0;
@@ -49,6 +52,9 @@ struct AreaStats
     // 溜め 0 の光線型だけに効く（ItemDatabase::AreaCanChain）。跳ぶ先は GPU（SwarmBeamTargetCS の cmd 3）が探し、
     // WeaponSystem::UpdateBeams が届いた敵の位置から次の光線を始める ---
     int chainCount = 0;
+
+    // --- 吸血（吸血のルーン。2026-10-25）: この範囲が敵に与えたダメージのこの割合をプレイヤーの HP に戻す（GPU には tickNow の印）---
+    float lifesteal = 0.0f;
 
     // --- エディタのプロファイル（AreaProfileDB の番号。0 = 無し）---
     // 単発か持続か・上下の厚み・プレイヤーへの追従・硬直・見た目 はここから引く。

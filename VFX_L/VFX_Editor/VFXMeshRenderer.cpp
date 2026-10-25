@@ -64,15 +64,20 @@ bool VFXMeshRenderer::Initialize(ID3D11Device* device)
 // ============================================================
 void VFXMeshRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
 {
-    if (m_Items.empty() || !camera || !m_VS || !m_PS) return;
+    if (m_Items.empty()) return;
+    // 描けない時も積んだ物は捨てる（残すと Model の生ポインタが次のフレームまで残り、その間に消えると宙に浮く）
+    if (!camera || !m_VS || !m_PS) { m_Items.clear(); return; }
 
     const Matrix view = camera->GetViewMatrix();
     const Matrix proj = camera->GetProjectionMatrix();
     const Vector3 camPos = camera->GetPosition();
     m_CamPos = camPos;
 
-    // alpha は遠 → 近。additive は順不同なので後ろにまとめる
-    std::vector<const VFXMeshDrawItem*> alpha, additive;
+    // alpha は遠 → 近。additive は順不同なので後ろにまとめる（並べ替え用の配列は毎フレーム使い回す）
+    auto& alpha = m_AlphaList;
+    auto& additive = m_AdditiveList;
+    alpha.clear();
+    additive.clear();
     for (auto& it : m_Items)
         (it.blend == 1 ? alpha : additive).push_back(&it);
 
@@ -101,6 +106,8 @@ void VFXMeshRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
     ctx->PSSetShaderResources(0, 3, nulls);
     RenderStates::Get().Restore(ctx);
 
+    alpha.clear();      // m_Items を指しているので一緒に空にする
+    additive.clear();
     m_Items.clear();
 }
 

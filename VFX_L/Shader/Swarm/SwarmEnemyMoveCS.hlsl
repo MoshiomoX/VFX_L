@@ -27,6 +27,23 @@ RWByteAddressBuffer counters : register(u1);
 // AreaDamageCS writes it; added to this step's motion here (not to the AI's velocity:
 // its smoothing would stretch a 0.25 s shove into several meters) and decayed
 RWStructuredBuffer<float4> enemyPush : register(u2);
+// spike ball's orientation (quaternion, 2026-10-25): every step's roll is chained onto it here, SwarmSpikeBallVS draws
+// with it. Zero = never rolled (SwarmSpikeBallRoll gives the slot's resting pose). Not reset on spawn: a ball's
+// orientation has no meaning, a reused slot just starts from where the last ball stopped
+RWStructuredBuffer<float4> enemyRoll : register(u3);
+
+// counts the enemy for the readback and lets it compete for "closest to the player"
+// (XZ distance only, same as everything else in this pipeline)
+void CountAlive(uint i, float3 pos)
+{
+    uint prev;
+    counters.InterlockedAdd(SWARM_CNT_ALIVE_ENEMIES, 1u, prev);
+    float3 dp = pos - g_PlayerPos;
+    float dist = sqrt(dp.x * dp.x + dp.z * dp.z);
+    uint key = (asuint(dist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK);
+    if (!SwarmUntargetable(enemyExtra[i]))   // a burrower under the sand / a tornado is not a target (2026-10-17)
+        counters.InterlockedMin(SWARM_CNT_NEAREST_KEY, key, prev);
+}
 
 // m/s a body that touches a wall / cliff face is eased back out
 static const float kWallPushOut = 2.0;
@@ -124,6 +141,24 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmEnemy e = enemies[i];
+    // ---- a fixed elite's teleport (the shadow swordsman, 2026-10-25): onto the ground at the CPU's spot, facing the player ----
+    if (SwarmIsFixedElite(enemyExtra[i].kind))
+    {
+        int row = SwarmEliteEntry(i);
+        if (row >= 0 && g_EliteCmd[row].z == SWARM_ELITE_CMD_TELEPORT)
+        {
+            float2 t = g_EliteMove[row].xy;
+            float2 toP = g_PlayerPos.xz - t;
+            float3 tp = float3(t.x, SwarmTerrainHeight(terrainHeight, t) + g_GroundY, t.y);
+            enemies[i].position = tp;
+            enemies[i].velocity = float3(0, 0, 0);
+            if (dot(toP, toP) > 1e-6)
+                enemies[i].yaw = atan2(toP.x, toP.y);
+            CountAlive(i, tp);   // still alive this step (2026-10-25: the early return used to skip the count)
+            return;
+        }
+    }
+    float2 startXZ = e.position.xz;   // where this step starts (the spike ball rolls by what it really moved)
     // body radius against walls, and whether cliffs going down are open (player lower down)
     float radius = SwarmBodyWallRadius(enemyExtra[i].kind);
     bool allowDrop = SwarmDropAllowed(terrainHeight, e.position.xz, e.position.y - g_GroundY);
@@ -169,7 +204,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // in) is walked toward the nearest free cell instead, ignoring the
         // walls on the way (they are what it is escaping from).
         float2 from = e.position.xz;
-        if (SwarmIsGhost(enemyExtra[i].kind) || enemyExtra[i].kind == SWARM_KIND_TORNADO)   // the tornado flies like a ghost (2026-10-17)
+        if (SwarmFliesThrough(enemyExtra[i]))   // the tornado (2026-10-17) and a flying gargoyle (2026-10-25) fly like a ghost
         {
             // ghost: flies straight, through walls and over plateaus (y still follows the ground below)
             e.position.xz = from + e.velocity.xz * g_Step;
@@ -282,10 +317,10 @@ void main(uint3 id : SV_DispatchThreadID)
                 }
             }
         }
-        if (SwarmIsGhost(enemyExtra[i].kind) || enemyExtra[i].kind == SWARM_KIND_TORNADO)   // the tornado flies like a ghost (2026-10-17)
+        if (SwarmFliesThrough(enemyExtra[i]))   // the tornado (2026-10-17) and a flying gargoyle (2026-10-25) fly like a ghost
         {
-            // ghosts hover over everything: snap to the ground below, no falling
-            e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
+            // ghosts hover over everything: snap to the ground below, no falling (a gargoyle at its flying height)
+            e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz) + SwarmGargoyleHover(enemyExtra[i]);
             e.velocity.y = 0.0;
         }
         else
@@ -301,8 +336,24 @@ void main(uint3 id : SV_DispatchThreadID)
             float maxTurn = g_TurnSpeed * g_Step;
             e.yaw += clamp(delta, -maxTurn, maxTurn);
         }
-        // ---- animation clock (nobody reads it yet) ----
+        // ---- animation clock (the enemy VS's walk cycle, the shield / mound bob, the wind source's fade-in read it) ----
         e.animTime += g_Step;
+    }
+
+    // ---- spike ball (2026-10-25): chain this step's roll onto its orientation. The VS used to turn it by
+    //      animTime x speed / radius, which multiplied every small change of speed by the time walked and snapped
+    //      the pose on every turn. Rolling d meters about up x travel turns it d / radius ----
+    if (enemyExtra[i].kind == SWARM_KIND_SPIKEBALL)
+    {
+        float2 moved = e.position.xz - startXZ;
+        float dist = length(moved);
+        if (dist > 1e-5)
+        {
+            float3 axis = normalize(cross(float3(0, 1, 0), float3(moved.x, 0.0, moved.y) / dist));
+            float angle = dist * g_SpikeBallRollPerMeter / max(SwarmKindScale(SWARM_KIND_SPIKEBALL), 1e-3);
+            float4 q = SwarmQuatMul(SwarmQuatAxisAngle(axis, angle), SwarmSpikeBallRoll(enemyRoll[i], i));
+            enemyRoll[i] = normalize(q);
+        }
     }
 
     enemies[i].position = e.position;
@@ -311,13 +362,5 @@ void main(uint3 id : SV_DispatchThreadID)
     enemies[i].animTime = e.animTime;
     enemies[i].animIndex = e.animIndex;
 
-    uint prev;
-    counters.InterlockedAdd(SWARM_CNT_ALIVE_ENEMIES, 1u, prev);
-     // ---- aim: compete for "closest to the player" ----
-    // XZ distance only, same as everything else in this pipeline
-    float3 dp = e.position - g_PlayerPos;
-    float dist = sqrt(dp.x * dp.x + dp.z * dp.z);
-    uint key = (asuint(dist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK);
-    if (!SwarmUntargetable(enemyExtra[i]))   // a burrower under the sand / a tornado is not a target (2026-10-17)
-        counters.InterlockedMin(SWARM_CNT_NEAREST_KEY, key, prev);
+    CountAlive(i, e.position);
 }

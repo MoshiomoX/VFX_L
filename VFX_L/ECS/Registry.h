@@ -73,7 +73,9 @@ public:
         }
 
         // generation を進める → 古い handle は以降 IsValid で弾かれる
-        m_Generations[idx]++;
+        // （ハンドル側は 12bit しか持てないので、ここでも同じマスクで回す。
+        //   マスクしないと 4096 回再利用した index が永久に IsValid = false になる）
+        m_Generations[idx] = (m_Generations[idx] + 1) & EntityTraits::GENERATION_MASK;
         m_FreeIndices.push_back(idx);
     }
 

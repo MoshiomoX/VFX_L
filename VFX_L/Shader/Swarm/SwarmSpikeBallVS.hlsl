@@ -9,10 +9,13 @@
 // so the colour is vertex colour x g_ShieldTint.
 //
 // The ball sits on the ground (centre = feet + radius), scaled by the
-// kind's body size (SwarmKindScale) and rolls about the axis
-// perpendicular to its velocity: the angle comes from the distance it
-// walked (animTime x speed / radius, animTime advances while walking).
-// Hit flash and ice tint like the body. Frozen = stops rolling.
+// kind's body size (SwarmKindScale) and turned by its orientation in
+// enemyRoll (2026-10-25): SwarmEnemyMoveCS chains every step's roll
+// (distance moved / radius about up x travel) onto it, so speeding up,
+// slowing down and turning never snap the pose (it used to be animTime x
+// speed / radius about the current velocity). A ball that has never rolled
+// keeps a fixed pose per slot. Hit flash and ice tint like the body.
+// Frozen = stops rolling.
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -24,6 +27,7 @@
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> spikeBallList : register(t2);
+StructuredBuffer<float4> enemyRoll : register(t3);   // orientation (quaternion) per slot, SwarmEnemyMoveCS
 StructuredBuffer<float4> enemySlow : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
@@ -35,7 +39,7 @@ cbuffer SwarmPropMeshCB : register(b4)
     float3 g_HoldOffset; // y = centre height above the feet at scale 1
     float g_MeshYaw;     // unused
     float4 g_ShieldTint; // multiplies the vertex colour
-    float g_BobAmount;   // roll rate multiplier (1 = exact rolling)
+    float g_BobAmount;   // unused (the roll rate goes to MoveCS as BomberCB's g_SpikeBallRollPerMeter, 2026-10-25)
     float g_PropAlpha;   // unused
     float2 _propPad;
 };
@@ -51,14 +55,6 @@ struct VS_INPUT_INST
 };
 
 static const float3 kIceTint = float3(0.75, 1.05, 1.7); // same as SwarmEnemyVS
-
-// Rodrigues rotation of p about the unit axis by angle a
-float3 RotateAxis(float3 p, float3 axis, float a)
-{
-    float s, c;
-    sincos(a, s, c);
-    return p * c + cross(axis, p) * s + axis * dot(axis, p) * (1.0 - c);
-}
 
 VS_OUTPUT main(VS_INPUT_INST input)
 {
@@ -76,26 +72,10 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float k = SwarmKindScale(ex.kind);
     float radius = g_MeshScale * k;
 
-    // rolling: axis = up x travel direction, angle = distance / radius
-    float2 v = e.velocity.xz;
-    float speed = length(v);
-    float3 local = input.Position * radius;
-    float3 normal = input.Normal;
-    if (speed > 0.05)
-    {
-        float3 dir = float3(v.x / speed, 0.0, v.y / speed);
-        float3 axis = normalize(cross(float3(0, 1, 0), dir));
-        float angle = e.animTime * speed / max(radius, 1e-3) * g_BobAmount + (float) slot * 1.7;
-        local = RotateAxis(local, axis, angle);
-        normal = RotateAxis(normal, axis, angle);
-    }
-    else
-    {
-        // at rest (or frozen): keep a fixed random pose per slot so it does not snap
-        float3 axis = normalize(float3(0.3, 1.0, 0.2));
-        local = RotateAxis(local, axis, (float) slot * 1.7);
-        normal = RotateAxis(normal, axis, (float) slot * 1.7);
-    }
+    // rolling: the orientation MoveCS has built up from the distance it really moved (see the header)
+    float4 roll = SwarmSpikeBallRoll(enemyRoll[slot], slot);
+    float3 local = SwarmQuatRotate(roll, input.Position * radius);
+    float3 normal = SwarmQuatRotate(roll, input.Normal);
 
     float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
     float3 worldPos = e.position + float3(0.0, footY + g_HoldOffset.y * k, 0.0) + local;

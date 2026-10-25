@@ -595,6 +595,7 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         m_Drag && m_Drag->source == DragSource::BackpackGrid
         && !ItemDatabase::IsFrame(m_Drag->id);
 
+    RefreshItemCache(bp);   // 回した形と「目覚めているか」は中身が変わった時だけ作り直す
     for (size_t i = 0; i < bp.items.size(); ++i)
     {
         if (hideOriginalItem && (int)i == m_Drag->originalIndex)
@@ -605,13 +606,13 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         if (!c) continue;
 
         // 異形は隙間も塗って 1 枚に見せる。アイコンは中心のマスに 1 つだけ。輪郭は種類の色
-        auto cells = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
+        const ItemDrawCache& cache = m_ItemCache[i];
         ShapeSprite::DrawItemGlass(sprite, white, c->color, UIDeco::CategoryColor(c->category),
-            GetIcon(item.id), cells, CellPosition(item.row, item.col), m_CellSize, m_CellGap);
+            GetIcon(item.id), cache.cells, CellPosition(item.row, item.col), m_CellSize, m_CellGap);
 
         // 目覚めていない上級魔法（前提の基本魔法が届いていない = 撃たない）は暗く沈める
-        if (!BackpackLogic::IsTriggerReady(bp, (int)i))
-            ShapeSprite::DrawConnected(sprite, white, { 0.0f, 0.0f, 0.0f, 0.6f }, cells,
+        if (!cache.triggerReady)
+            ShapeSprite::DrawConnected(sprite, white, { 0.0f, 0.0f, 0.0f, 0.6f }, cache.cells,
                 CellPosition(item.row, item.col), m_CellSize, m_CellGap);
     }
 
@@ -640,4 +641,31 @@ int BackpackUI::GetAvailableCount(const BackpackComponent& bp, ItemID id) const
         : BackpackLogic::CountPlaced(bp, id);
 
     return owned - placed;
+}
+
+// ============================================================
+// 置いてある物の覚え書き（回した形・上級魔法が目覚めているか）
+// バックパックの番号と形の番号が前と同じなら何もしない。
+// 番号はプロセス全体で一意なので、別のバックパック（リザルトの最終構成など）を描いても取り違えない
+// ============================================================
+void BackpackUI::RefreshItemCache(const BackpackComponent& bp)
+{
+    const uint32_t shapeRev = ItemDatabase::ShapeRevision();
+    if (m_CacheValid && m_CacheRevision == bp.revision && m_CacheShapeRevision == shapeRev
+        && m_ItemCache.size() == bp.items.size())
+        return;
+
+    m_ItemCache.resize(bp.items.size());
+    for (size_t i = 0; i < bp.items.size(); ++i)
+    {
+        const auto& item = bp.items[i];
+        ItemDrawCache& cache = m_ItemCache[i];
+        const ItemCommon* c = ItemDatabase::GetCommon(item.id);
+        if (c) cache.cells = BackpackLogic::RotateShape(c->occupyCells, item.rotation);
+        else   cache.cells.clear();
+        cache.triggerReady = BackpackLogic::IsTriggerReady(bp, (int)i);
+    }
+    m_CacheRevision = bp.revision;
+    m_CacheShapeRevision = shapeRev;
+    m_CacheValid = true;
 }

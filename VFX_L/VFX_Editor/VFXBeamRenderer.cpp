@@ -7,6 +7,7 @@
 #include "Graphics/Renderer/RenderStates.h"
 #include "Manager/ResourceManager.h"
 #include "Camera/CameraBase.h"
+#include "Core/VideoCapture.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -79,7 +80,8 @@ void VFXBeamRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
     cb.viewProj = camera->GetViewMatrix() * camera->GetProjectionMatrix();
     cb.camPos = camera->GetPosition();
     cb.first = 0;
-    cb.time = std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count();
+    cb.time = VideoCapture::Get().Enabled() ? (float)VideoCapture::Get().Time()   // 動画の書き出し中は 1/60 秒ずつ
+        : std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count();
 
     m_VS->Bind(ctx);
     m_PS->Bind(ctx);

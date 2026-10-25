@@ -17,9 +17,8 @@
 //   壁 4 枚は動かない大きな四角。全部が止まったら箱ごと眠る（出し入れで起きる）。
 //   固定ステップ 1/120 で積分（コマ落ちでも床を抜けない）。
 //
-// 掴んだ瞬間に body を消して DragContext へ引き渡す。
-//   角度と縮小率は visAngle / visScale に入れ、Update が 0 / 1 へ寄せる
-//   （「雑然と積まれた物を、正して持ち上げる」の見た目）。
+// 掴んだ瞬間に body を消して DragContext へ引き渡す（掴んだ物は正立・等倍でグリッドの上に描かれる。
+//   箱の中の角度・縮小から寄せていく演出は無い）。
 //
 // 見た目は木箱（Assets/Texture/UI/Chest、Tools/BuildChestUI.ps1 が生成）:
 //   奥の板 → 中身 → 9 分割の枠（中身の縁に被さる）→ 前板の錠前
@@ -28,7 +27,6 @@
 #include "SpellID.h"
 #include "UI/DragContext.h"
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <vector>
 #include <SimpleMath.h>
@@ -163,7 +161,18 @@ private:
     DragContext* m_Drag = nullptr;
 
     std::vector<BodyState> m_Bodies;
-    std::map<uint64_t, Arbiter> m_Arbiters;
+    // 接触はキー（uid とマス番号）の昇順に並べた平らな列（2026-10-25。以前は std::map で、1/120 秒ごとに
+    // 接触 1 つにつき 1 回確保していた）。解く順は map と同じキー順のまま。
+    // 作業用の列・マスの四角も毎ステップ作らず使い回す
+    struct KeyedArbiter
+    {
+        uint64_t key = 0;
+        Arbiter  arb;
+    };
+    std::vector<KeyedArbiter> m_Arbiters;       // 今のステップの接触（key 昇順）
+    std::vector<KeyedArbiter> m_NextArbiters;   // 作業用（次の接触を集める）
+    std::vector<int> m_FirstBox;                // body ごとの最初のマスの四角（m_CellBoxes の添字）
+    std::vector<Box> m_CellBoxes;               // 全部の body のマスの四角
     uint32_t m_NextUid = 16;      // 1〜4 は壁
     float m_PhysAccum = 0.0f;
     bool  m_Asleep = false;

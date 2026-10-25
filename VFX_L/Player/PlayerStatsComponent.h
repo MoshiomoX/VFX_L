@@ -71,11 +71,4 @@ struct PlayerStatsComponent
     // ※成長対象ではない。調整用。
     float radius = 0.4f;
     float height = 1.0f;
-
-    // --- ジャンプの再入防止 ---
-    // ※isGrounded に頼らない。PhysicsSystem が同フレーム内で
-    //   上書きするため、PlayerControlSystem 側で false を書いても消える。
-    //   実際に二重ジャンプを防いでいたのは「移動で地面から離れる」偶然で、
-    //   高フレームレートでは dt が小さく離れきらない可能性がある。
-    float jumpCooldown = 0.0f;
 };

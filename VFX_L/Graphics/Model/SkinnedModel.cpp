@@ -95,6 +95,49 @@ static Quaternion InterpQuat(const std::vector<QuatKey>& keys, float t, const Qu
     return keys.back().value;
 }
 
+// ---- キーが時刻順（広義単調増加）の時の版（2026-10-25）----
+// 上の線形版が選ぶ区間 i =「t < keys[i + 1].time を満たす最初の i」を二分探索で選ぶ（結果は線形版と同じ）。
+// 呼ぶ前に keys.size() >= 2 と t > keys.front().time を確かめておくこと
+template <class Key>
+static size_t KeySpanSorted(const std::vector<Key>& keys, float t)
+{
+    auto it = std::upper_bound(keys.begin() + 1, keys.end(), t,
+        [](float tt, const Key& k) { return tt < k.time; });
+    return (size_t)(it - keys.begin()) - 1;   // 見つからない（it == end）時は size - 1 = 最後のキー
+}
+
+template <class Key>
+static bool KeysSorted(const std::vector<Key>& keys)
+{
+    for (size_t i = 1; i < keys.size(); ++i)
+        if (!(keys[i - 1].time <= keys[i].time)) return false;   // NaN も「順ではない」扱い
+    return true;
+}
+
+static Vector3 InterpVecSorted(const std::vector<VectorKey>& keys, float t, const Vector3& fb)
+{
+    if (keys.empty())           return fb;
+    if (keys.size() == 1)       return keys[0].value;
+    if (t <= keys.front().time) return keys.front().value;
+    const size_t i = KeySpanSorted(keys, t);
+    if (i + 1 >= keys.size())   return keys.back().value;
+    float dt = keys[i + 1].time - keys[i].time;
+    float f = (dt > 0.0f) ? std::clamp((t - keys[i].time) / dt, 0.0f, 1.0f) : 0.0f;
+    return Vector3::Lerp(keys[i].value, keys[i + 1].value, f);
+}
+
+static Quaternion InterpQuatSorted(const std::vector<QuatKey>& keys, float t, const Quaternion& fb)
+{
+    if (keys.empty())           return fb;
+    if (keys.size() == 1)       return keys[0].value;
+    if (t <= keys.front().time) return keys.front().value;
+    const size_t i = KeySpanSorted(keys, t);
+    if (i + 1 >= keys.size())   return keys.back().value;
+    float dt = keys[i + 1].time - keys[i].time;
+    float f = (dt > 0.0f) ? std::clamp((t - keys[i].time) / dt, 0.0f, 1.0f) : 0.0f;
+    return Quaternion::Slerp(keys[i].value, keys[i + 1].value, f);
+}
+
 // ============================================================
 // import 済みの scene から組み立てる（LoadModelAuto もここに来る）
 // ============================================================
@@ -289,6 +332,7 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
 
     // 4. アニメ
     LoadAnimations(scene);
+    RebuildSampleCache();
 
     std::cout << "[SkinnedModel] Load finished. SubMeshes=" << m_SubMeshes.size()
         << " Bones=" << m_Skeleton.GetBoneCount()
@@ -390,7 +434,11 @@ int SkinnedModel::AddAnimationsFromFile(const std::string& filepath, const BoneM
     }
     if (!scene->HasAnimations()) return 0;
     if (map && mapCount > 0)
-        return RetargetAnimations(scene, filepath, map, mapCount);
+    {
+        const int retargeted = RetargetAnimations(scene, filepath, map, mapCount);
+        RebuildSampleCache();   // クリップが増えた
+        return retargeted;
+    }
 
     // 向こうの bind（ノード名 → 親基準の行列）
     std::unordered_map<std::string, Matrix> srcBind;
@@ -484,6 +532,7 @@ int SkinnedModel::AddAnimationsFromFile(const std::string& filepath, const BoneM
     }
     std::cout << "[SkinnedModel] extra anims: " << added << " clips from " << filepath
         << " (translation scale " << tScale << ", " << dropped << " channels without a bone)" << std::endl;
+    RebuildSampleCache();   // クリップが増えた
     return added;
 }
 
@@ -917,23 +966,99 @@ void SkinnedModel::SampleLocal(int clipIndex, float timeSec, std::vector<BoneLoc
     if (clip && clip->ticksPerSecond > 0.0f && clip->duration > 0.0f)
         tick = std::fmod(timeSec * clip->ticksPerSecond, clip->duration);
 
+    // 下ごしらえ（RebuildSampleCache）が今の骨の数と合っている時だけ使う。合わなければ元の道（毎回計算）
+    const bool bindCached = (int)m_BindLocal.size() == boneCount && (int)m_BindLocalOk.size() == boneCount;
+    const std::vector<int>* chOfBone = nullptr;
+    bool sortedKeys = false;
+    if (clip && clipIndex < (int)m_ClipChannelOfBone.size()
+        && (int)m_ClipChannelOfBone[clipIndex].size() == boneCount
+        && clipIndex < (int)m_ClipKeysSorted.size())
+    {
+        chOfBone = &m_ClipChannelOfBone[clipIndex];
+        sortedKeys = m_ClipKeysSorted[clipIndex] != 0;
+    }
+
     for (int i = 0; i < boneCount; ++i)
     {
         const Bone& bone = bones[i];
         BoneLocal& o = outLocal[i];
 
-        // bind を S/R/T に割る（Decompose は非 const なのでコピー）
-        Matrix bindCopy = bone.localBindTransform;
-        bindCopy.Decompose(o.scale, o.rotation, o.translation);
+        // bind を S/R/T に割る（Decompose は非 const なのでコピー）。
+        // 割れなかった骨は元どおり Decompose を呼ぶ（その時 o は書き換わらない = 以前と同じ振る舞い）
+        if (bindCached && m_BindLocalOk[i])
+            o = m_BindLocal[i];
+        else
+        {
+            Matrix bindCopy = bone.localBindTransform;
+            bindCopy.Decompose(o.scale, o.rotation, o.translation);
+        }
 
         if (!clip) continue;
-        auto it = clip->nodeToChannel.find(bone.name);
-        if (it == clip->nodeToChannel.end()) continue;
+        int chIndex = -1;
+        if (chOfBone)
+            chIndex = (*chOfBone)[i];
+        else
+        {
+            auto it = clip->nodeToChannel.find(bone.name);
+            if (it != clip->nodeToChannel.end()) chIndex = it->second;
+        }
+        if (chIndex < 0) continue;
 
-        const BoneChannel& ch = clip->channels[it->second];
-        o.scale       = InterpVec(ch.scales, tick, o.scale);
-        o.rotation    = InterpQuat(ch.rotations, tick, o.rotation);
-        o.translation = InterpVec(ch.positions, tick, o.translation);
+        const BoneChannel& ch = clip->channels[chIndex];
+        if (sortedKeys)
+        {
+            o.scale       = InterpVecSorted(ch.scales, tick, o.scale);
+            o.rotation    = InterpQuatSorted(ch.rotations, tick, o.rotation);
+            o.translation = InterpVecSorted(ch.positions, tick, o.translation);
+        }
+        else
+        {
+            o.scale       = InterpVec(ch.scales, tick, o.scale);
+            o.rotation    = InterpQuat(ch.rotations, tick, o.rotation);
+            o.translation = InterpVec(ch.positions, tick, o.translation);
+        }
+    }
+}
+
+// ============================================================
+// SampleLocal の下ごしらえ（2026-10-25）：骨ごとの bind の S/R/T、クリップ毎の「骨 → channel」表、
+// キーが時刻順かどうか。毎フレーム骨ごとに Decompose・名前の検索・キーの線形探索をしていたのを省く
+// ============================================================
+void SkinnedModel::RebuildSampleCache()
+{
+    const auto& bones = m_Skeleton.GetBones();
+    const int boneCount = (int)bones.size();
+
+    m_BindLocal.assign(boneCount, BoneLocal{});
+    m_BindLocalOk.assign(boneCount, 0);
+    for (int i = 0; i < boneCount; ++i)
+    {
+        Matrix bindCopy = bones[i].localBindTransform;
+        BoneLocal& b = m_BindLocal[i];
+        m_BindLocalOk[i] = bindCopy.Decompose(b.scale, b.rotation, b.translation) ? 1 : 0;
+    }
+
+    const size_t clipCount = m_Animations.size();
+    m_ClipChannelOfBone.assign(clipCount, std::vector<int>());
+    m_ClipKeysSorted.assign(clipCount, 0);
+    for (size_t c = 0; c < clipCount; ++c)
+    {
+        const AnimationClip& clip = m_Animations[c];
+        std::vector<int>& table = m_ClipChannelOfBone[c];
+        table.assign(boneCount, -1);
+        for (int i = 0; i < boneCount; ++i)
+        {
+            auto it = clip.nodeToChannel.find(bones[i].name);
+            if (it != clip.nodeToChannel.end()) table[i] = it->second;
+        }
+        bool sorted = true;
+        for (const BoneChannel& ch : clip.channels)
+            if (!KeysSorted(ch.positions) || !KeysSorted(ch.rotations) || !KeysSorted(ch.scales))
+            {
+                sorted = false;
+                break;
+            }
+        m_ClipKeysSorted[c] = sorted ? 1 : 0;
     }
 }
 

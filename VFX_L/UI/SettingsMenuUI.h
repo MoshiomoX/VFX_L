@@ -30,7 +30,8 @@ public:
     void Open();
 
     // 開いている間、毎フレーム呼ぶ。閉じる（戻る）なら true（保存はここで済ませる）
-    bool HandleInput();
+    // dt = 実時間の秒（止まっている間も渡す。開いた直後の猶予・押しっぱなしの連続に使う）
+    bool HandleInput(float dt = 0.016f);
 
     // 外から閉じる時（GameUI が Esc を先に取った時）：変えた物があれば保存
     void Close();

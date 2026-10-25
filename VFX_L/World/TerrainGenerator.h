@@ -155,13 +155,14 @@ namespace TerrainGenerator
 
         // ---- 外周の崖 ----
         float wallHeight = 7.0f;
-        // 外周の見た目を岩山にする（衝突・格子は崖の箱のまま、箱は描かない）。
+        // 外周の見た目を岩山にする（衝突・格子は崖の箱のまま、箱は描かない。場内へ入り込む手前の岩は
+        // 足元のマスを塞ぎ、深く入る物は凸体の衝突も付ける）。
         // 大きい岩（Res::Mdl::Forest::kCliffRocks）を拡大して外へ 3 列: 手前 8〜13m / 中 15〜22m / 奥 24〜34m
         bool  rockMountains = true;
         float mountainScale = 1.0f;       // 高さにまとめて掛ける（巨石・積む岩の両方）
         // 巨石（2026-10-06、ユーザー：何十個も積むのでなく、数個の石を大きくして山に見せたい）：
-        // Res::Mdl::kBoulders（Rock-Set）を一辺に手前 boulderPerSide 個 + 奥 boulderPerSide + 1 個、辺に沿って引き伸ばして置く
-        // （TerrainBuild::EmitRimBoulders）。false = 以前の「大きい岩を 3 列に積む」
+        // 一辺に 1 列 boulderPerSide 個 + 四隅に 1 個、辺に沿って引き伸ばして置く（TerrainBuild::EmitRimBoulders）。
+        // 既定は見た目だけ、boulderCollide なら石の凸包で当てて足元のマスを塞ぐ。false = 以前の「大きい岩を 3 列に積む」
         bool  boulderMountains = false;   // 10-06 ユーザー：碗の縁の周りの岩も消す（Terrain パネルで戻せる）
         // 巨石のモデル：false = 面の岩山用の低ポリの岩（Forest / Desert の kCliffRocks。トゥーンの画と揃う、ユーザー 10-06）、
         // true = Rock-Set（PBR の写実な岩。画風が合わないので既定は切）
@@ -203,7 +204,7 @@ namespace TerrainGenerator
 
         // ---- 起伏（2026-10-04、ユーザー：純平地をやめて緩い丘 + 小さい土饅頭。推奨値）----
         // 平原と山頂の上面: 大きい丘（波長 hillScale m、±hillHeight m）+ 細かいうねり + 土饅頭。洞窟の底は平ら。
-        // 台地・坂・高台の足元は「台座」で局所の平均の高さに均し（縁 1 マス + 3 マスで元の起伏へ戻る）、
+        // 台地・坂・高台の足元は「台座」で局所の平均の高さに均し（縁 1 マス + padMargin マス（既定 5）で元の起伏へ戻る）、
         // 構造物はその高さに載る。洞窟の周り（岩の壁・洞の口）は平原の 0 に均す。
         // 面ごとの倍率: 砂漠 1.25（砂丘）、遺跡 0.5（石畳）
         // 2026-10-05 ユーザー「起伏をもう少し大きく、坂ももう少し急に」→ 丘 2.2 → 3.8m（高低差 4 → 7〜8m）、

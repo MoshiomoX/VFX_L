@@ -55,24 +55,25 @@ namespace ItemSheetView
                 continue;
             }
 
-            const std::wstring trial = line + ch;
-            if (line.empty() || IsNoLineStart(ch) || text.Measure(trial, scale).x <= maxWidth)
-            {
-                line = trial;
+            // 1 字足して測る（字ごとに新しい文字列を作らず、入らなければ外す）
+            const bool wasEmpty = line.empty();
+            line.push_back(ch);
+            if (wasEmpty || IsNoLineStart(ch) || text.Measure(line, scale).x <= maxWidth)
                 continue;
-            }
+            line.pop_back();
 
             // はみ出す。英単語の途中なら直前の空白で切って、単語ごと次の行へ送る
             const size_t sp = line.rfind(L' ');
             if (IsWordChar(ch) && sp != std::wstring::npos && sp > 0 && IsWordChar(line.back()))
             {
                 lines.push_back(line.substr(0, sp));
-                line = line.substr(sp + 1) + ch;
+                line.erase(0, sp + 1);
+                line.push_back(ch);
             }
             else
             {
                 lines.push_back(line);
-                line = std::wstring(1, ch);
+                line.assign(1, ch);
             }
         }
         if (!line.empty()) lines.push_back(line);
@@ -87,9 +88,42 @@ namespace ItemSheetView
         return lines;
     }
 
+    BodyLayout LayoutBody(const TextRenderer& text, const ItemInfo::Sheet& sheet,
+        float width, const Style& st, bool withDescription)
+    {
+        BodyLayout lay;
+        lay.hasDescription = withDescription && !sheet.description.empty();
+        if (lay.hasDescription)
+            lay.description = Wrap(text, sheet.description, width, st.bodyScale);
+        if (!sheet.traits.empty())
+        {
+            lay.bulletWidth = text.Measure(L"・", st.bodyScale).x;
+            lay.traits.reserve(sheet.traits.size());
+            for (const auto& t : sheet.traits)
+                lay.traits.push_back(Wrap(text, t, width - lay.bulletWidth, st.bodyScale));
+        }
+        if (!sheet.footer.empty())
+            lay.footer = Wrap(text, sheet.footer, width, st.smallScale);
+        return lay;
+    }
+
+    BodyLayout LayoutTooltip(const TextRenderer& text, const ItemInfo::Sheet& sheet,
+        float width, const Style& st)
+    {
+        return LayoutBody(text, sheet, width - st.pad * 2.0f, st, true);
+    }
+
     float DrawBody(SpriteRenderer* sprite, const std::shared_ptr<Texture>& white,
         TextRenderer& text, const ItemInfo::Sheet& sheet,
         const Vector2& pos, float width, const Style& st, bool draw, bool withDescription)
+    {
+        const BodyLayout lay = LayoutBody(text, sheet, width, st, withDescription);
+        return DrawBodyLaidOut(sprite, white, text, sheet, lay, pos, width, st, draw);
+    }
+
+    float DrawBodyLaidOut(SpriteRenderer* sprite, const std::shared_ptr<Texture>& white,
+        TextRenderer& text, const ItemInfo::Sheet& sheet, const BodyLayout& lay,
+        const Vector2& pos, float width, const Style& st, bool draw)
     {
         const float bodyH = text.GetLineHeight(st.bodyScale);
         const float smallH = text.GetLineHeight(st.smallScale);
@@ -97,9 +131,9 @@ namespace ItemSheetView
         bool any = false;
 
         // ---- 説明 ----
-        if (withDescription && !sheet.description.empty())
+        if (lay.hasDescription)
         {
-            for (const auto& l : Wrap(text, sheet.description, width, st.bodyScale))
+            for (const auto& l : lay.description)
             {
                 if (draw) text.Draw(l, { pos.x, y }, st.descColor, st.bodyScale);
                 y += bodyH + st.lineGap;
@@ -108,14 +142,13 @@ namespace ItemSheetView
         }
 
         // ---- 特性（飛び方・爆発など）。「・」の後ろで折り返しを揃える ----
-        if (!sheet.traits.empty())
+        if (!lay.traits.empty())
         {
             if (any) y += st.sectionGap;
-            const std::wstring bullet = L"・";
-            const float bw = text.Measure(bullet, st.bodyScale).x;
-            for (const auto& t : sheet.traits)
+            static const std::wstring bullet = L"・";
+            const float bw = lay.bulletWidth;
+            for (const auto& lines : lay.traits)
             {
-                const auto lines = Wrap(text, t, width - bw, st.bodyScale);
                 for (size_t i = 0; i < lines.size(); ++i)
                 {
                     if (draw)
@@ -165,7 +198,7 @@ namespace ItemSheetView
         if (!sheet.footer.empty())
         {
             if (any) y += st.sectionGap;
-            for (const auto& l : Wrap(text, sheet.footer, width, st.smallScale))
+            for (const auto& l : lay.footer)
             {
                 if (draw) text.Draw(l, { pos.x, y }, st.footerColor, st.smallScale);
                 y += smallH + st.lineGap;
@@ -179,12 +212,21 @@ namespace ItemSheetView
         TextRenderer& text, const ItemInfo::Sheet& sheet,
         const Vector2& anchor, const Vector2& screen, float width, const Style& st)
     {
+        const BodyLayout lay = LayoutTooltip(text, sheet, width, st);
+        DrawTooltipLaidOut(sprite, white, text, sheet, lay, anchor, screen, width, st);
+    }
+
+    void DrawTooltipLaidOut(SpriteRenderer& sprite, const std::shared_ptr<Texture>& white,
+        TextRenderer& text, const ItemInfo::Sheet& sheet, const BodyLayout& lay,
+        const Vector2& anchor, const Vector2& screen, float width, const Style& st)
+    {
         const float inner = width - st.pad * 2.0f;
         const float titleH = text.GetLineHeight(st.titleScale);
         const float smallH = text.GetLineHeight(st.smallScale);
         const float headGap = st.sectionGap * 0.75f;
 
-        const float bodyH = DrawBody(nullptr, white, text, sheet, { 0.0f, 0.0f }, inner, st, false);
+        // 測る段と描く段で同じ折り返しを使う（以前はどちらも 1 字ずつ測り直していた）
+        const float bodyH = DrawBodyLaidOut(nullptr, white, text, sheet, lay, { 0.0f, 0.0f }, inner, st, false);
         const float h = st.pad + titleH + headGap + bodyH + st.pad;
 
         // ---- 位置：マウスの右下。はみ出すなら左 / 上へ ----
@@ -211,6 +253,6 @@ namespace ItemSheetView
         text.Draw(sheet.category, { p.x + width - st.pad - cw, y + (titleH - smallH) }, tint, st.smallScale);
         y += titleH + headGap;
 
-        DrawBody(&sprite, white, text, sheet, { x, y }, inner, st, true);
+        DrawBodyLaidOut(&sprite, white, text, sheet, lay, { x, y }, inner, st, true);
     }
 }

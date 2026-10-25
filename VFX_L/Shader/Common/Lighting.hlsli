@@ -89,15 +89,20 @@ static const float3 DIELECTRIC_F0 = float3(0.04, 0.04, 0.04);
 // ------------------------------------------------------------
 // Normal map (OpenGL convention, G flipped for DX) -> world normal
 // ------------------------------------------------------------
+// No usable tangent (0 = the mesh has none, or parallel to the normal): the normal
+// is returned unperturbed instead of NaN. Single exit (fxc warns X4000 on early returns)
 float3 PerturbNormal(float3 N, float3 T, float3 normalMapSample)
 {
     float3 nm = normalMapSample * 2.0 - 1.0;
     nm.y = -nm.y;
     N = normalize(N);
-    T = normalize(T - dot(T, N) * N);
+    float3 t = T - dot(T, N) * N;
+    bool hasTangent = dot(t, t) > 1e-8;   // false for NaN too
+    T = normalize(hasTangent ? t : float3(1.0, 0.0, 0.0));
     float3 B = cross(N, T);
     float3x3 TBN = float3x3(T, B, N);
-    return normalize(mul(nm, TBN));
+    float3 perturbed = normalize(mul(nm, TBN));
+    return hasTangent ? perturbed : N;
 }
 
 // ------------------------------------------------------------

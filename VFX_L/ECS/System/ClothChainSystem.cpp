@@ -90,6 +90,21 @@ namespace
         p.x += dx * k; p.y += dy * k; p.z += dz * k;
     }
 
+    // 毎フレームの作業用の配列（2026-10-25）。毎回確保し直さないように使い回す（中身は毎回全部書き直す。
+    // 呼ぶのはメインスレッドの ClothChainSystem::Update だけ）
+    struct Scratch
+    {
+        std::vector<Matrix> G, restG;
+        std::vector<Vector3> target, m;
+        std::vector<float> groundY, rowPull;
+        std::vector<Cap> caps;
+    };
+    Scratch& Work()
+    {
+        static Scratch s;
+        return s;
+    }
+
     void BuildLinks(ClothChainComponent& c)
     {
         c.links.clear();
@@ -211,7 +226,9 @@ namespace
     // 揺らさない時（無効）：上背に付いたままの形を書く（元の重みは背骨に半分付いていたが、今は鎖だけなので）
     void WriteRest(const ClothChainComponent& c, SkinnedAnimComponent& a)
     {
-        std::vector<Matrix> G, restG;
+        Scratch& w = Work();
+        std::vector<Matrix>& G = w.G;
+        std::vector<Matrix>& restG = w.restG;
         if (!RestShape(c, a, G, restG)) return;
         for (size_t i = 0; i < restG.size(); ++i)
             if (c.bones[i] >= 0) a.boneOverrides.push_back({ c.bones[i], restG[i] });
@@ -276,7 +293,9 @@ namespace
         const std::function<float(float, float)>& groundHeight, const WindState& worldWind, float windTime,
         const LocalWind* localWind)
     {
-        std::vector<Matrix> G, restG;
+        Scratch& w = Work();
+        std::vector<Matrix>& G = w.G;
+        std::vector<Matrix>& restG = w.restG;
         const auto poseT0 = std::chrono::steady_clock::now();
         if (!RestShape(c, a, G, restG)) return;
 
@@ -286,7 +305,8 @@ namespace
         const int center = c.CenterCol();
 
         // 目標の形 = 鎖を上背に付けたまま動かした物
-        std::vector<Vector3> target(N);
+        std::vector<Vector3>& target = w.target;
+        target.resize(N);
         for (int i = 0; i < N; ++i) target[i] = Vector3::Transform(restG[i].Translation(), W);
         if (!c.links.empty() && c.links[0].rest < 0.0f)
             for (auto& l : c.links) l.rest = (target[l.b] - target[l.a]).Length();
@@ -308,7 +328,8 @@ namespace
             c.prevH = c.substep;
         }
 
-        std::vector<Cap> caps;
+        std::vector<Cap>& caps = w.caps;
+        caps.clear();
         for (const auto& col : c.colliders)
         {
             if (col.a < 0 || col.b < 0 || col.a >= (int)G.size() || col.b >= (int)G.size()) continue;
@@ -326,8 +347,10 @@ namespace
         const int steps = std::clamp((int)std::ceil(dt / (std::max)(c.substep, 1e-4f)), 1, 8);
         const float h = dt / (float)steps;
         const Vector3 rootMove = root - c.lastRoot;
-        std::vector<float> groundY(N);
-        std::vector<float> rowPull(c.rows, 0.0f);   // 段ごとの「元の形へ戻す」割合（1 刻みあたり）
+        std::vector<float>& groundY = w.groundY;
+        groundY.assign(N, 0.0f);
+        std::vector<float>& rowPull = w.rowPull;   // 段ごとの「元の形へ戻す」割合（1 刻みあたり）
+        rowPull.assign(c.rows, 0.0f);
         for (int k = 1; k < c.rows; ++k)
         {
             const float t = (float)k / (float)(c.rows - 1);
@@ -434,7 +457,8 @@ namespace
 
         // ---- 骨へ書き戻す（モデル空間）----
         const Matrix invW = W.Invert();
-        std::vector<Vector3> m(N);
+        std::vector<Vector3>& m = w.m;
+        m.resize(N);
         for (int i = 0; i < N; ++i) m[i] = Vector3::Transform(c.pos[i], invW);
         WriteBones(c, a, restG, m);
     }

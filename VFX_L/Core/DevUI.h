@@ -9,6 +9,7 @@
 // ============================================================
 #pragma once
 #include "imgui.h"
+#include <cstring>
 
 namespace DevUI
 {
@@ -17,6 +18,13 @@ namespace DevUI
 #else
     constexpr bool kEnabled = true;
 #endif
+
+    // その名前の戦闘の自動テスト（VFXL_BATTLE_AUTOTEST）を回してよいか。Demo でも負荷試験の 2 つだけは回す
+    // （2026-10-23、ユーザー：「Debug と Demo で負荷試験を」。環境変数を立てた時だけで、普通に遊ぶ時は何も変わらない）
+    inline bool AutoTestAllowed(const char* name)
+    {
+        return kEnabled || std::strcmp(name, "stress") == 0 || std::strcmp(name, "stressfx") == 0;
+    }
 
     // ImGui が動いているか（Demo では常に false）
     inline bool Active() { return ImGui::GetCurrentContext() != nullptr; }

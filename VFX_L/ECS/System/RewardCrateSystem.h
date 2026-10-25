@@ -12,6 +12,7 @@
 #include "ECS/Entity.h"
 #include <SimpleMath.h>
 #include <memory>
+#include <algorithm>
 #include <vector>
 #include <cstdint>
 
@@ -43,6 +44,10 @@ public:
     bool TryOpen(Registry& reg, Entity used, Entity player, LevelUpSystem& levelUp,
         InteractionSystem& interaction, DirectX::SimpleMath::Vector3& openedPos);
 
+    // 倒した面の固定エリートの金色の宝箱（2026-10-25）：pos（地面）に 1 個。開けるのに金貨は要らず、次の箱の値段も上げない
+    Entity SpawnFree(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& pos);
+    bool IsFree(Entity e) const { return std::find(m_FreeCrates.begin(), m_FreeCrates.end(), e) != m_FreeCrates.end(); }
+
     const std::vector<Entity>& GetCrates() const { return m_Crates; }
 
     // 次に開ける箱の値段（金貨）
@@ -62,6 +67,9 @@ public:
 private:
     std::vector<Entity> m_Crates;
     std::shared_ptr<Model> m_Model;
+    std::vector<Entity> m_FreeCrates;      // m_Crates の中の金色の宝箱（無料）
+    std::shared_ptr<Model> m_GoldModel;    // Quaternius Modular Ruins の Chest_Gold
+    float m_GoldSize = 1.1f;               // 金色の宝箱の高さ（m）
     // 2026-10-04 金貨で買う物になったので各 2 → 4（全部で 12 個）
     int   m_Count = 4;                // スポーン地点の周り
     int   m_SummitCount = 4;

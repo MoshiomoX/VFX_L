@@ -3,6 +3,8 @@
 // ============================================================
 #include "Graphics/Renderer/TextRenderer.h"
 #include "Graphics/Renderer/RenderStates.h"
+#include "Graphics/Shader/PixelShader.h"
+#include "Manager/ResourceManager.h"
 
 using namespace DirectX;
 using namespace DirectX::SimpleMath;
@@ -37,8 +39,38 @@ bool TextRenderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context
     return true;
 }
 
+bool TextRenderer::EnableOutline(float maxTexels)
+{
+    m_OutlinePS = ResourceManager::Get().LoadPS(L"TextOutlinePS", L"Shader/UI/TextOutlinePS.hlsl");
+    m_OutlineCB.maxTexels = maxTexels;
+    if (!m_OutlinePS) std::cout << "[Warning] TextRenderer: outline shader missing, outlines fall back to 8 offset copies" << std::endl;
+    return m_OutlinePS != nullptr;
+}
+
+void TextRenderer::DrawOutline(const std::wstring& text,
+    const Vector2& position, const Vector4& outlineColor, float scale)
+{
+    if (!m_InBegin || text.empty()) return;
+    if (!m_OutlinePS)
+    {
+        // シェーダーが無い時の代わり：8 方向にずらして縁の色で描く（2026-10-23 以前のやり方）
+        static const Vector2 kDirs[8] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.71f, 0.71f }, { -0.71f, 0.71f }, { 0.71f, -0.71f }, { -0.71f, -0.71f } };
+        for (const Vector2& d : kDirs) Draw(text, position + d * m_OutlineCB.outlinePx, outlineColor, scale);
+        return;
+    }
+    // alpha を負にした印で TextOutlinePS が縁として描く（rgb は乗算済み）
+    TextEntry entry;
+    entry.text = text;
+    entry.position = position;
+    const float a = outlineColor.w;
+    entry.color = { outlineColor.x * a, outlineColor.y * a, outlineColor.z * a, -a };
+    entry.scale = scale;
+    m_Queue.push_back(std::move(entry));
+}
+
 void TextRenderer::Shutdown()
 {
+    m_OutlinePS.reset();
     m_Queue.clear();
     m_Font.reset();
     m_Batch.reset();
@@ -61,7 +93,17 @@ void TextRenderer::End()
     m_InBegin = false;
     if (m_Queue.empty() || !m_Batch || !m_Font || !m_Context) return;
 
-    m_Batch->Begin();
+    if (m_OutlinePS)
+    {
+        // 縁取りの PS に差し替える（SpriteBatch が既定のステートを積んだ後に呼ばれる）
+        m_Batch->Begin(SpriteSortMode_Deferred, nullptr, nullptr, nullptr, nullptr, [this]()
+            {
+                m_OutlinePS->Bind(m_Context);
+                m_OutlinePS->WriteBuffer(m_Context, 0, &m_OutlineCB);
+            });
+    }
+    else
+        m_Batch->Begin();
     for (const auto& e : m_Queue)
     {
         m_Font->DrawString(m_Batch.get(), e.text.c_str(),

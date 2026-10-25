@@ -148,7 +148,12 @@ bool SkinnedAnimSystem::BuildPose(const SkinnedAnimComponent& a, std::vector<Mat
     }
 
     ++s_PoseMisses;
-    std::vector<BoneLocal> pose, layer, scratch;
+    // 作業用の配列は使い回す（毎回確保し直さない。呼ぶのはメインスレッドだけ）。
+    // 最初に空にして、新しく作った時と同じ状態から始める（SampleLocal は bind を割れない骨には書き込まない）
+    static std::vector<BoneLocal> pose, layer, scratch;
+    pose.clear();
+    layer.clear();
+    scratch.clear();
 
     // base（クリップ無しなら bind）
     SampleLayer(a.base, model, pose, scratch);

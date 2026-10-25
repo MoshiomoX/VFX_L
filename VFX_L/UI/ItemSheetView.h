@@ -50,16 +50,42 @@ namespace ItemSheetView
     std::vector<std::wstring> Wrap(const TextRenderer& text, const std::wstring& s,
         float maxWidth, float scale);
 
+    // 本文（説明・特性・footer）を折り返した結果（2026-10-25）。折り返しは 1 字ずつ測るので重い。
+    // 同じ Sheet・幅・文字の大きさの間は作り直さずに使い回せる（GameUI の tooltip が覚えておく）
+    struct BodyLayout
+    {
+        bool hasDescription = false;
+        std::vector<std::wstring> description;
+        std::vector<std::vector<std::wstring>> traits;   // sheet.traits の 1 つずつ（「・」の後ろの幅で折り返した物）
+        std::vector<std::wstring> footer;
+        float bulletWidth = 0.0f;                        // 「・」の幅
+    };
+    BodyLayout LayoutBody(const TextRenderer& text, const ItemInfo::Sheet& sheet,
+        float width, const Style& style, bool withDescription = true);
+    // tooltip の本文の折り返し（DrawTooltipLaidOut に渡す。width は箱の幅）
+    BodyLayout LayoutTooltip(const TextRenderer& text, const ItemInfo::Sheet& sheet,
+        float width, const Style& style);
+
     // 説明（description）・特性（traits）・能力値（stats）・footer を pos から下へ積む。
     // 使った高さを返す。sprite が null なら区切り線を描かない。draw = false なら測るだけ
     float DrawBody(SpriteRenderer* sprite, const std::shared_ptr<Texture>& white,
         TextRenderer& text, const ItemInfo::Sheet& sheet,
         const DirectX::SimpleMath::Vector2& pos, float width,
         const Style& style, bool draw = true, bool withDescription = true);
+    // 同じ。折り返しは layout（LayoutBody で同じ sheet・幅・style から作った物）を使う
+    float DrawBodyLaidOut(SpriteRenderer* sprite, const std::shared_ptr<Texture>& white,
+        TextRenderer& text, const ItemInfo::Sheet& sheet, const BodyLayout& layout,
+        const DirectX::SimpleMath::Vector2& pos, float width,
+        const Style& style, bool draw = true);
 
     // 名前つきの箱。anchor（マウス位置）の右下に出し、画面からはみ出す時は反対側へ寄せる
     void DrawTooltip(SpriteRenderer& sprite, const std::shared_ptr<Texture>& white,
         TextRenderer& text, const ItemInfo::Sheet& sheet,
+        const DirectX::SimpleMath::Vector2& anchor,
+        const DirectX::SimpleMath::Vector2& screen, float width, const Style& style);
+    // 同じ。本文の折り返しは layout（LayoutTooltip で同じ sheet・width・style から作った物）を使う
+    void DrawTooltipLaidOut(SpriteRenderer& sprite, const std::shared_ptr<Texture>& white,
+        TextRenderer& text, const ItemInfo::Sheet& sheet, const BodyLayout& layout,
         const DirectX::SimpleMath::Vector2& anchor,
         const DirectX::SimpleMath::Vector2& screen, float width, const Style& style);
 }

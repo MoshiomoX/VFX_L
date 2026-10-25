@@ -46,7 +46,8 @@ public:
 
     // 種類で決まる値段 × 面の倍率（並べる時に使う。未登録の ID は 0）
     int PriceOf(ItemID id) const;
-    // 面の倍率（第 2 面へ向かう商店 = 1、第 3 面へ = stagePriceGrowth）。Generate が carry.stage から決める
+    // 面の倍率（プレイの 2 面目へ向かう商店 = 1、3 面目へ = stagePriceGrowth）。
+    // Generate が carry.stage - carry.startStage（プレイの中の何面目か）から決める
     float StageMul() const { return m_StageMul; }
 
     // ---- 調整値 ----

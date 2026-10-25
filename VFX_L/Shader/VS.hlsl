@@ -1,6 +1,6 @@
 // ============================================================
-// PBR_VS.hlsl - same as VS.hlsl; kept as a separate name so
-// Material can still pair it with PBR_PS
+// VS.hlsl - the standard model VS (ModelVS in ModelCommon.hlsli).
+// PBR_VS.hlsl is the same code under another name for PBR_PS
 // ============================================================
 #include "Common/ModelCommon.hlsli"
 

@@ -1,0 +1,97 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [-180, 180], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
+                "sheet": 0, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1, 1, 1], "direction": [0, 1, 0], "dragCoeff": 0,
+                "emitRate": 70, "emitType": 5,
+                "endColorMax": [1.0, 0.84, 0.62, 1], "endColorMin": [0.90, 0.75, 0.55, 1],
+                "gravity": [0, -26, 0], "innerRadius": 0, "lifetimeRange": [0.6, 0.8], "maxParticles": 40,
+                "position": [0, -0.2, 0], "radius": 1.6, "renderMode": 1, "rotationRange": [0, 360],
+                "sizeRange": [0.8, 1.2, 0.5, 0.8], "speedRange": [7, 10], "spreadAngle": 22,
+                "startColorMax": [1.0, 0.84, 0.62, 1], "startColorMin": [0.90, 0.75, 0.55, 1],
+                "meshGlow": false, "mesh": "Assets/Model/KayKit_Forest/fbx/Rock_1_A_Color1.fbx",
+                "meshFaceVelocity": false, "meshForwardAxis": 2
+            },
+            "duration": 0.1, "startTime": 0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-360, 360], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
+                "sheet": 0, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1, 1, 1], "direction": [0, 1, 0], "dragCoeff": 0.3,
+                "emitRate": 240, "emitType": 1,
+                "endColorMax": [1.0, 0.84, 0.62, 1], "endColorMin": [0.90, 0.75, 0.55, 1],
+                "gravity": [0, -18, 0], "innerRadius": 0, "lifetimeRange": [0.7, 1.0], "maxParticles": 200,
+                "position": [0, 0.3, 0], "radius": 1.0, "renderMode": 1, "rotationRange": [0, 360],
+                "sizeRange": [0.22, 0.4, 0.18, 0.3], "speedRange": [5, 9], "spreadAngle": 0,
+                "startColorMax": [1.0, 0.84, 0.62, 1], "startColorMin": [0.90, 0.75, 0.55, 1],
+                "meshGlow": false, "mesh": "Assets/Model/KayKit_Forest/fbx/Rock_2_A_Color1.fbx",
+                "meshFaceVelocity": false, "meshForwardAxis": 2
+            },
+            "duration": 0.1, "startTime": 0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 5,
+                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.4,
+                "emitRate": 1400.0, "emitType": 5,
+                "endColorMax": [0.62, 0.47, 0.27, 0.0], "endColorMin": [0.55, 0.41, 0.23, 0.0],
+                "gravity": [0.0, -20.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.8, 1.2], "maxParticles": 400,
+                "position": [0.0, 0.2, 0.0], "radius": 1.3, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.08, 0.15, 0.05, 0.09], "speedRange": [8.0, 13.0], "spreadAngle": 20.0,
+                "startColorMax": [0.88, 0.70, 0.44, 1.0], "startColorMin": [0.76, 0.58, 0.35, 1.0]
+            },
+            "duration": 0.12, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-1.0, 1.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1, "wind": 0.6,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 2.5,
+                "emitRate": 300.0, "emitType": 4,
+                "endColorMax": [0.74, 0.60, 0.42, 0.0], "endColorMin": [0.68, 0.55, 0.38, 0.0],
+                "gravity": [0.0, 0.8, 0.0], "innerRadius": 0.5, "lifetimeRange": [0.9, 1.4], "maxParticles": 200,
+                "position": [0.0, 0.3, 0.0], "radius": 1.6, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [1.2, 1.8, 2.6, 3.6], "speedRange": [5.0, 8.0], "spreadAngle": 0.0,
+                "startColorMax": [0.80, 0.64, 0.44, 0.0], "startColorMin": [0.72, 0.58, 0.40, 0.0],
+                "colorKeys": [
+                    { "time": 0.0, "color": [0.72, 0.58, 0.40, 0.0] },
+                    { "time": 0.12, "color": [0.76, 0.61, 0.43, 0.46] },
+                    { "time": 0.55, "color": [0.78, 0.63, 0.45, 0.24] },
+                    { "time": 1.0, "color": [0.80, 0.66, 0.48, 0.0] }
+                ]
+            },
+            "duration": 0.12, "startTime": 0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-0.5, 0.5], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1, "wind": 0.6,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 1.0,
+                "emitRate": 160.0, "emitType": 5,
+                "endColorMax": [0.74, 0.60, 0.42, 0.0], "endColorMin": [0.68, 0.55, 0.38, 0.0],
+                "gravity": [0.0, 1.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [1.0, 1.5], "maxParticles": 100,
+                "position": [0.0, 0.6, 0.0], "radius": 0.9, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [1.4, 2.0, 3.0, 4.0], "speedRange": [4.0, 7.0], "spreadAngle": 12.0,
+                "startColorMax": [0.80, 0.64, 0.44, 0.0], "startColorMin": [0.72, 0.58, 0.40, 0.0],
+                "colorKeys": [
+                    { "time": 0.0, "color": [0.72, 0.58, 0.40, 0.0] },
+                    { "time": 0.15, "color": [0.76, 0.61, 0.43, 0.38] },
+                    { "time": 0.6, "color": [0.78, 0.63, 0.45, 0.18] },
+                    { "time": 1.0, "color": [0.80, 0.66, 0.48, 0.0] }
+                ]
+            },
+            "duration": 0.15, "startTime": 0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 1.0, 0.0], "color": [1.0, 0.72, 0.38], "radius": 6.0,
+                      "intensityStart": 2.5, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 12.0 },
+            "duration": 0.4, "startTime": 0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "BossSandBurst"
+}

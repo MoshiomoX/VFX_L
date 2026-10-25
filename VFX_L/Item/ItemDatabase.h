@@ -6,6 +6,7 @@
 // ============================================================
 #pragma once
 #include "Item/ItemTypes.h"
+#include <cstdint>
 
 namespace ItemDatabase
 {
@@ -50,4 +51,6 @@ namespace ItemDatabase
     // Items/*.h に書いてある形（json で上書きする前）。無い ID なら false
     bool GetCodeShape(ItemID id, std::vector<CellOffset>& occupy,
         std::vector<CellOffset>& influence);
+    // 形が変わるたびに進む番号（Initialize / SetShape）。UI が形から作った物（回した形など）を覚えておく時の目印（2026-10-25）
+    uint32_t ShapeRevision();
 }

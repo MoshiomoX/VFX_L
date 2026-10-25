@@ -42,7 +42,11 @@ static_assert(sizeof(PointLight) == 32, "PointLight layout mismatch");
 class PointLightManager
 {
 public:
-    static constexpr uint32_t kMaxLights = 256;  // = MAX_POINT_LIGHTS（32 の倍数：クラスタのビット 1 つ = 光 1 つ）
+    // = MAX_POINT_LIGHTS（Shader/Common/PointLights.hlsli）。32 の倍数：クラスタのビット 1 つ = 光 1 つ、
+    // 1 クラスタの語数は C++ が kMaxLights / 32（LightClusters::m_Words）、HLSL が MAX_POINT_LIGHTS / 32（LIGHT_CLUSTER_WORDS）。
+    // 変える時は両方を同じ値に
+    static constexpr uint32_t kMaxLights = 256;
+    static_assert(kMaxLights % 32 == 0, "kMaxLights must be a multiple of 32 (one mask bit per light)");
     static constexpr UINT kLightSlot = 6;        // PS t6
     static constexpr UINT kCountSlot = 7;        // PS t7
 

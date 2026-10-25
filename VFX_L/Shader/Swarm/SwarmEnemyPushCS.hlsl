@@ -46,6 +46,8 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     if (enemyExtra[i].kind == SWARM_KIND_TORNADO)
         return;   // the crowd does not shove the tornado (it shoves them) (2026-10-17)
+    if (enemyExtra[i].kind == SWARM_KIND_GARGOYLE && enemyExtra[i].fuse <= 0.0)
+        return;   // nor a sleeping gargoyle (a statue, 2026-10-25)
 
     float3 pos = enemies[i].position;
     float minDist = 2.0 * g_EnemyRadius * kPushDistMul;
@@ -106,7 +108,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float3 np = pos + push;
     uint kind = enemyExtra[i].kind;
-    bool ghost = SwarmIsGhost(kind);   // ghosts ignore walls and cliffs
+    bool ghost = SwarmFliesThrough(enemyExtra[i]);   // ghosts / a flying gargoyle ignore walls and cliffs
     if (!ghost)
     {
         // the body circle must not be pushed into a wall / cliff face either

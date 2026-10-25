@@ -94,6 +94,11 @@ public:
     void DrawMesh(Mesh* mesh, Transform* transform, Material* material = nullptr);
     void End();
 
+    // 続けて描く間、点光源（t6/t7、クラスタの t10/t11）を最初の DrawMesh で 1 回だけ張り、EndLightBatch で外す
+    // （2026-10-25。普段は DrawMesh の度に張って外す）。間に別の描画を挟まない所だけで使う（Model::Draw の submesh の並び）
+    void BeginLightBatch() { ++m_LightBatch; }
+    void EndLightBatch();
+
     ID3D11Device* GetDevice() const { return m_Device; }
     ID3D11DeviceContext* GetContext() const { return m_Context; }
     const LightBuffer& GetLightData() const { return m_LightData; }
@@ -111,4 +116,7 @@ private:
     bool   m_DepthPass = false;
     Matrix m_DepthView;
     Matrix m_DepthProj;
+
+    int  m_LightBatch = 0;            // BeginLightBatch の入れ子の深さ
+    bool m_LightBatchBound = false;   // この並びの中で点光源を張った
 };

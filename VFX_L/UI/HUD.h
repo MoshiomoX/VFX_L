@@ -42,11 +42,34 @@ struct WandComponent;
 
 // ============================================================
 // 画面外の目印を出したい物（世界座標）。シーンが毎フレーム積む
+// 種類ごとにアイコンが違う（ミニマップと画面外の矢印。2026-10-24 ユーザー「物ごとに違うアイコンを」）
 // ============================================================
+enum class HUDMarkerKind : uint8_t
+{
+    Chest = 0,   // 報酬の箱（lorc/locked-chest）
+    Portal,      // Boss の門（lorc/magic-portal）
+    Exit,        // 倒した後の出口（delapouite/exit-door）
+    Magnet,      // 拾う磁石（lorc/magnet）
+    Boss,        // 面の Boss（lorc/crowned-skull）
+    Elite,       // エリート（lorc/daemon-skull）
+    Surge,       // 押し寄せが来る方向（lorc/crossed-swords）
+    Count
+};
+
+// 面の固定エリートの HP 条（2026-10-25）。Boss の条の下に並べる
+struct HUDEliteBar
+{
+    wchar_t name[64] = {};
+    float hp = 1.0f;        // 0..1
+    bool  shield = false;   // 鉄壁の盾が残っている（条を青く縁取る）
+    bool  enraged = false;  // 狂暴になった（条が明るい赤で脈打つ）
+};
+
 struct HUDMarker
 {
     DirectX::SimpleMath::Vector3 position;
     DirectX::SimpleMath::Vector4 color = { 1, 1, 1, 1 };
+    HUDMarkerKind kind = HUDMarkerKind::Chest;
 };
 
 // ============================================================
@@ -57,6 +80,7 @@ struct HUDFrameInfo
     float    runTime = 0.0f;       // 経過時間（止まっている間は進まない物）
     float    stageTime = 0.0f;     // 面の制限時間。> 0 なら残りを数え下ろし、過ぎたら超過分を赤く「+」で出す
     float    bossHp = -1.0f;       // Boss の HP 条（0..1）。負なら出さない
+    std::vector<HUDEliteBar> elites;   // 面の固定エリート（2026-10-25）。空なら出さない
     uint32_t kills = 0;            // 撃破数（GPU counter の累計）
     int      stage = 0;            // 面の番号（1..）。0 なら出さない
     int      stageTotal = 0;       // このプレイの面数（Tier。2026-10-21）。2 以上なら「ステージ n/N」、それ以外は名前だけ
@@ -220,7 +244,7 @@ struct HUDStyle
 
     // ---- 画面外の目印（画面の縁に、その方向を指す矢印）----
     bool  showMarkers = true;
-    float markerSize = 18.0f;
+    float markerSize = 18.0f;       // 矢印の長さ。後ろの種類のアイコンはこの 1.15 倍
     float markerMargin = 40.0f;     // 画面の縁からの距離
 
     // ---- ミニマップ（2026-10-19 ユーザー「右上に小さい地図を」。右上の丸い地図、北が上。UI/HUDMinimap.cpp）----
@@ -229,7 +253,7 @@ struct HUDStyle
     HUDAnchor minimap = { { 1.0f, 0.0f }, { -115.0f, 140.0f } };
     float minimapSize = 180.0f;         // 直径（px）
     float minimapRange = 60.0f;         // 半径（m）。円の縁 = この距離
-    float minimapMarkerSize = 9.0f;     // 目印の菱形
+    float minimapMarkerSize = 15.0f;    // 目印のアイコン（暗い丸の上に種類の絵。2026-10-24 まで 9px の菱形）
     float minimapPlayerSize = 14.0f;    // プレイヤーの矢印
     float minimapNorthScale = 0.42f;    // 上の「N」の文字（0 = 出さない）
     float minimapAlpha = 0.92f;         // 地形の絵の濃さ
@@ -358,6 +382,7 @@ private:
     std::shared_ptr<Texture> m_SurgeIcon;   // 魔力解放の欄の絵（Res::Icon::ManaSurge）
     std::shared_ptr<Texture> m_GoldIcon;    // 金貨の絵（Res::Icon::Gold）
     std::shared_ptr<Texture> m_ShieldIcon;  // シールドの絵（Res::Icon::ShieldUp。能力カードと同じ）
+    std::shared_ptr<Texture> m_MarkerIcons[(int)HUDMarkerKind::Count];   // 目印の種類の絵（ミニマップと画面外の矢印）
     BarTrail m_ShieldTrail;
     bool  m_ShieldWasFull = true;           // 満タンに戻った瞬間を見つける
     float m_ShieldFullFlash = 0.0f;         // その時の光（1 → 0）
@@ -373,6 +398,7 @@ private:
     float m_SurgeReadyFlash = 0.0f;
 
     void DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrameInfo& info);
+    void DrawEliteBars(SpriteRenderer& sprite, TextRenderer& text, const HUDFrameInfo& info, float centerX, float top);   // HUDEliteBars.cpp
     void DrawSpellBar(SpriteRenderer& sprite,
         const WandComponent& wand, const ManaComponent& mp);
     void DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaComponent& mp);

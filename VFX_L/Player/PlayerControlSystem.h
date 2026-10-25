@@ -26,6 +26,8 @@ public:
     // 何に当たったか（距離・時間・上へ弾く初速が違う。PlayerStatsComponent::knock*）
     enum class KnockKind { Melee, Blast, Spike, Wind };   // Spike = トゲ玉（2026-10-17。爆発より遠く高く）、Wind = 砂旋（高く吹き上げる）
     static void ApplyKnockback(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, KnockKind kind);
+    // 引き寄せ（鎖の番人の鎖、2026-10-25）：dir の向きへ time 秒で distance m 動かす（ノックバックと同じ速さの仕組み、強さに関係なく上書き）
+    static void ApplyPull(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, float distance, float time);
     static void ApplyKnockback(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, bool blast)
     {
         ApplyKnockback(reg, entity, dir, blast ? KnockKind::Blast : KnockKind::Melee);
@@ -37,9 +39,4 @@ public:
     bool testJump = false;   // 1 フレームだけ立てる
     bool testSurge = false;  // 魔力解放（1 フレームだけ立てる。読んだら下ろす）
     DirectX::SimpleMath::Vector2 testMove = { 0.0f, 0.0f };
-    void SetMoveSpeed(float s) { m_MoveSpeed = s; }
-    void SetJumpPower(float p) { m_JumpPower = p; }
-private:
-    float m_JumpPower = 8.0f;
-    float m_MoveSpeed = 5.0f;   // 水平移動速度
 };

@@ -22,6 +22,7 @@ namespace
         s.index = 2;
         s.name = L"砂漠";
         s.biome = TerrainGenerator::Biome::Desert;
+        s.boss = BossType::SandGuardian;   // 砂の守護者（2026-10-24）
         // 砂塵で霞んだ砂漠（2026-10-05：日差しが強すぎた → 太陽を弱め、空は砂色に濁らせ、靄を近くから濃く）
         s.light.sunPitch = 55.0f;
         s.light.sunYaw = 20.0f;
@@ -77,8 +78,13 @@ namespace
         s.light.fogMax = 0.92f;
         s.grass = false;
         s.difficultyHpMul = 1.30f; s.difficultyDamageMul = 1.20f; s.difficultySpawnMul = 1.05f;   // 一番硬いマップ（2026-10-21。「何面目か」の倍率は PosDifficulty）
-        s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };
-        s.shield = { 60.0f, 0.08f, 0.18f, 480.0f };       // 遺跡の主力 = 盾兵（2026-10-08）
+        s.splitter = { 120.0f, 0.04f, 0.08f, 480.0f };
+        s.shield = { 60.0f, 0.05f, 0.10f, 480.0f };       // 盾兵（2026-10-08 は遺跡の主力 0.08 → 0.18。10-25 に遺跡の敵へ枠を譲った）
+        // 遺跡の敵（2026-10-25）：主力は呪いの鎧、ガーゴイル・術師・番人が時間で混ざる
+        s.armor = { 60.0f, 0.05f, 0.12f, 480.0f };
+        s.gargoyle = { 90.0f, 0.03f, 0.06f, 480.0f };
+        s.necro = { 120.0f, 0.02f, 0.05f, 480.0f };
+        s.warden = { 120.0f, 0.03f, 0.06f, 480.0f };
         s.torchLights = 12;
         return s;
     }

@@ -145,6 +145,45 @@
     <ClCompile Include="Graphics\Renderer\GrassRenderer.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestLifesteal.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Player\LifestealHeal.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemLifesteal.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestElites.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\HUDEliteBars.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneElites.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\EliteLooks.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\EliteAttacksPanel.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\EliteAffixes.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\EliteMoves.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\EliteAttacks.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemElites.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Renderer\GrassRendererPanel.cpp">
+      <Filter>Graphics\Renderer</Filter>
+    </ClCompile>
     <ClCompile Include="Graphics\Renderer\TerrainSurface.cpp">
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
@@ -256,6 +295,18 @@
     <ClCompile Include="Debug\AutoTest\AutoTestWindToys.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\VideoShot.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\VideoShotsCombat.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\VideoShotsRead.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\VideoShotsWorld.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestChargeShield.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -282,6 +333,24 @@
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp">
       <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossLook.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestRuinsFoes.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\EnemyLooks.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\MobSpawnerRuins.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemRuins.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneRuins.cpp">
+      <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp">
       <Filter>Debug\AutoTest</Filter>
@@ -361,6 +430,12 @@
     <ClCompile Include="Debug\AutoTest\AutoTestLightPerf.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGrassFx.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestStressFx.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -398,6 +473,15 @@
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\BossAttacks.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\BossAttacksPanel.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\BossAttacksSand.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\BossLooks.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\BossBrain.cpp">
@@ -607,6 +691,21 @@
     <ClCompile Include="Scene\CollisionTestScene.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneInit.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneUpdate.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneGameplay.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneRender.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneField.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneTitle.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
@@ -697,6 +796,18 @@
     <ClInclude Include="UI\BackpackPadControl.h">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\LifestealRune.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\LifestealHeal.h">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\EliteLooks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\EliteAttacks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
     <ClCompile Include="Item\ItemDatabase.cpp">
       <Filter>Item</Filter>
     </ClCompile>
@@ -728,6 +839,9 @@
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="Core\GameProgress.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\VideoCapture.cpp">
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="UI\StageSelectUI.cpp">
@@ -854,6 +968,9 @@
     <ClCompile Include="World\Tumbleweeds.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\GrassShreds.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\DandelionField.cpp">
       <Filter>World</Filter>
     </ClCompile>
@@ -938,6 +1055,9 @@
     <ClCompile Include="Swarm\SwarmSystemKinds.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemBoss.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
     <ClCompile Include="Swarm\SwarmSystemFire.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
@@ -1019,6 +1139,9 @@
     <ClInclude Include="Debug\AutoTest\BattleAutoTest.h">
       <Filter>Debug\AutoTest</Filter>
     </ClInclude>
+    <ClInclude Include="Debug\AutoTest\VideoShot.h">
+      <Filter>Debug\AutoTest</Filter>
+    </ClInclude>
     <ClInclude Include="Debug\AutoTest\AutoTestCommon.h">
       <Filter>Debug\AutoTest</Filter>
     </ClInclude>
@@ -1032,6 +1155,15 @@
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\BossAttacks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\BossLooks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\EnemyLooks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\LookBuilder.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\BossBrain.h">
@@ -1470,6 +1602,9 @@
     <ClInclude Include="Core\GameProgress.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="Core\VideoCapture.h">
+      <Filter>Core</Filter>
+    </ClInclude>
     <ClInclude Include="UI\StageSelectUI.h">
       <Filter>UI</Filter>
     </ClInclude>
@@ -1680,6 +1815,9 @@
     <ClInclude Include="World\Tumbleweeds.h">
       <Filter>World</Filter>
     </ClInclude>
+    <ClInclude Include="World\GrassShreds.h">
+      <Filter>World</Filter>
+    </ClInclude>
     <ClInclude Include="World\DandelionField.h">
       <Filter>World</Filter>
     </ClInclude>
@@ -1861,12 +1999,6 @@
     <FxCompile Include="Shader\Particle\InitDeadListCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\Particle\ParticlePS.hlsl">
-      <Filter>Graphics\Shader\HLSL\Particle</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\Particle\ParticleVS.hlsl">
-      <Filter>Graphics\Shader\HLSL\Particle</Filter>
-    </FxCompile>
     <FxCompile Include="Shader\Particle\ParticleEmitCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Particle</Filter>
     </FxCompile>
@@ -1969,6 +2101,9 @@
     <FxCompile Include="Shader\UI\SpritePS.hlsl">
       <Filter>Graphics\Shader\HLSL\UI</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\UI\TextOutlinePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\UI</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\UI\SpriteVS.hlsl">
       <Filter>Graphics\Shader\HLSL\UI</Filter>
     </FxCompile>
@@ -2036,6 +2171,15 @@
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmEnemyKindListCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmEnemyKindList2CS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmCorpseList2CS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmCorpseList3CS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmChargeLineVS.hlsl">

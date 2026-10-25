@@ -49,8 +49,11 @@ void ShopStock::Generate(const RunCarry& carry)
     m_Slots.clear();
     const SpellbookComponent& book = carry.spellbook;
 
-    // 面の倍率：第 2 面へ向かう商店が 1、以降 1 面ごとに stagePriceGrowth 倍
-    const int steps = (std::max)(0, carry.stage - 2);
+    // 面の倍率：このプレイの何面目へ向かう商店か（難度の StageConfig::PosDifficulty と同じ数え方）で決める。
+    // プレイの 2 面目へ向かう商店が 1、以降 1 面ごとに stagePriceGrowth 倍。
+    // （以前は carry.stage = マップの番号から数えていて、砂漠から始めた Tier 2 の最初の商店がもう 1.5 倍だった）
+    const int posNext = carry.stage - carry.startStage;   // 次の面がこのプレイの何面目か（0 = 1 面目）
+    const int steps = (std::max)(0, posNext - 1);
     m_StageMul = std::pow((std::max)(1.0f, stagePriceGrowth), (float)steps);
 
     // [0..3] 魔法・ルーン・召喚物（LevelUpSystem::FillChoices と同じ絞り方。設置枠は別の欄に出す）。

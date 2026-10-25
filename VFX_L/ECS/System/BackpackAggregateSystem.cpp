@@ -48,6 +48,22 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
     m_Log.clear();
 
+    // 組み替え前の計時（クールダウン・連発の残り・光球の出る待ち）。最後に同じ魔法（道具 ID と、同じ道具の何個目か）へ写し戻す。
+    // 写さないとバックパックを触る / 能力アップを取るたびにクールダウンが 0 に戻り、隕石・光線・竜巻がすぐまた撃てた
+    std::vector<SpellStats> oldSpells = std::move(wand.spells);
+    std::vector<AreaStats> oldAreas = std::move(wand.areas);
+    std::vector<OrbUnitStats> oldOrbs = std::move(wand.orbs);
+
+    // 同じ道具の何個目か（items の順）。攻撃魔法と召喚物は ID が重ならないので 1 つの表で数える
+    std::vector<std::pair<ItemID, int>> dupCount;
+    auto nextDup = [&](ItemID id) -> int
+        {
+            for (auto& p : dupCount)
+                if (p.first == id) return p.second++;
+            dupCount.push_back({ id, 1 });
+            return 0;
+        };
+
     // ---- 攻撃ブロックごとに出力を組む ----
     wand.spells.clear();
     wand.areas.clear();
@@ -62,6 +78,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         if (!sdef) continue;
         OrbUnitStats u;
         u.id = sdef->common.id;
+        u.dupIndex = nextDup(u.id);
         u.itemIndex = (int)i;
         u.maxOrbs = sdef->maxOrbs;
         u.orbInterval = sdef->orbInterval;
@@ -98,6 +115,8 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
         const ItemCommon* c = ItemDatabase::GetCommon(item.id);
         if (!c) continue;
+        // 発動していない上級魔法も数える（発動の有無で他の魔法の番号がずれないように）
+        const int dup = nextDup(item.id);
 
         // このブロックに影響を与えているブロック（items の順。同じ相手は 1 回だけ）
         const std::vector<int> influencers = BackpackLogic::GetInfluencers(bp, (int)i);
@@ -112,6 +131,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         if (auto* pdef = ItemDatabase::GetProjectile(item.id))
         {
             SpellStats stats = ItemInfo::BaseSpellStats(*pdef);
+            stats.dupIndex = dup;
 
             for (int srcIdx : influencers)
             {
@@ -148,6 +168,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         else if (auto* adef = ItemDatabase::GetArea(item.id))
         {
             AreaStats stats = ItemInfo::BaseAreaStats(*adef);
+            stats.dupIndex = dup;
 
             for (int srcIdx : influencers)
             {
@@ -189,7 +210,8 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
     for (size_t i = 0; i < bp.items.size(); ++i)
     {
         const int k = spellIndexOf[i];
-        if (k < 0 || k >= 32 || !wand.spells[k].triggered) continue;
+        // spells が使える bit は 0〜15（16〜30 は areas、31 は吸血の印。TriggerBits）
+        if (k < 0 || k >= (int)TriggerBits::kSpellCount || !wand.spells[k].triggered) continue;
 
         for (int drv : BackpackLogic::GetTriggerDrivers(bp, (int)i))
         {
@@ -202,20 +224,21 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 wand.areas[da].triggerMask |= 1u << k;
         }
     }
-    // 同じく上級の範囲魔法（光線）j は bit (16 + j)
+    // 同じく上級の範囲魔法（光線・竜巻）j は bit (16 + j)。j は 0〜14 まで（bit 31 は吸血の印 Swarm::kTagLifesteal）
     for (size_t i = 0; i < bp.items.size(); ++i)
     {
         const int j = areaIndexOf[i];
-        if (j < 0 || j >= 16 || !wand.areas[j].triggered) continue;
+        if (j < 0 || j >= (int)TriggerBits::kAreaCount || !wand.areas[j].triggered) continue;
+        const uint32_t bit = 1u << (TriggerBits::kAreaShift + (uint32_t)j);
 
         for (int drv : BackpackLogic::GetTriggerDrivers(bp, (int)i))
         {
             const int d = spellIndexOf[drv];
             if (d >= 0 && !wand.spells[d].triggered)
-                wand.spells[d].triggerMask |= 1u << (16 + j);
+                wand.spells[d].triggerMask |= bit;
             const int da = areaIndexOf[drv];
             if (da >= 0 && da != j && !wand.areas[da].triggered)
-                wand.areas[da].triggerMask |= 1u << (16 + j);
+                wand.areas[da].triggerMask |= bit;
         }
     }
 
@@ -225,6 +248,39 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         if (u.storedCount > 0) u.color /= (float)u.storedCount;
         else if (const ItemCommon* c = ItemDatabase::GetCommon(u.id)) u.color = { c->color.x, c->color.y, c->color.z };
     }
+
+    // ---- 組み替え前の計時を同じ魔法へ写し戻す（新しく置いた物は 0 = すぐ撃てる）----
+    // 残りは新しい間隔を超えないように詰める（加速のルーンを付けた直後など）
+    for (SpellStats& s : wand.spells)
+        for (const SpellStats& o : oldSpells)
+        {
+            if (o.id != s.id || o.dupIndex != s.dupIndex) continue;
+            s.castTimer = (std::min)(o.castTimer, s.castInterval);
+            // 連発の残りは撃つ所（杖 / 光球）の種類が変わらない時だけ持ち越す
+            if ((o.storeUnit < 0) == (s.storeUnit < 0))
+            {
+                s.pendingCasts = (std::min)(o.pendingCasts, (std::max)(0, s.castCount - 1));
+                s.delayTimer = o.delayTimer;
+                s.triggerPos = o.triggerPos;
+                s.triggerOrbSerial = o.triggerOrbSerial;
+                s.triggerOrigin = o.triggerOrigin;
+            }
+            break;
+        }
+    for (AreaStats& a : wand.areas)
+        for (const AreaStats& o : oldAreas)
+            if (o.id == a.id && o.dupIndex == a.dupIndex)
+            {
+                a.castTimer = (std::min)(o.castTimer, a.castInterval);
+                break;
+            }
+    for (OrbUnitStats& u : wand.orbs)
+        for (const OrbUnitStats& o : oldOrbs)
+            if (o.id == u.id && o.dupIndex == u.dupIndex)
+            {
+                u.spawnTimer = (std::min)(o.spawnTimer, u.orbInterval);
+                break;
+            }
 
     bp.dirty = false;
     ++m_RebuildCount;

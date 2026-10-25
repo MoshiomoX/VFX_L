@@ -1,15 +1,14 @@
 // ============================================================
 // SwarmAimResolveCS.hlsl
-// Runs right after EnemyMoveCS, before ProjMove / Hit. The key was
-// written by an enemy that was alive at Move time; if HitCS kills it
-// later in the same step the CPU fires one shot at a corpse, which
-// is harmless. Not checking state here avoids reporting "no target"
-// every time the closest enemy dies.
+// Step 5 of DispatchStep: after the hits and the area damage (4 / 4c),
+// before the contact (6). The key was written by MoveCS (step 2) for an
+// enemy that was alive then; if HitCS / AreaDamageCS killed it since, the
+// CPU fires one shot at a corpse, which is harmless. Not checking state
+// here avoids reporting "no target" every time the closest enemy dies.
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
-Buffer<uint> enemyStates : register(t1);
 RWByteAddressBuffer counters : register(u0);
 
 [numthreads(1, 1, 1)]

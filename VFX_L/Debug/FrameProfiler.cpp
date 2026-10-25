@@ -50,7 +50,7 @@ int FrameProfiler::FindIndex(const char* name)
 {
     for (int i = 0; i < (int)m_Sections.size(); ++i)
         if (m_Sections[i].name == name) return i;
-    m_Sections.push_back({ name, m_Depth, 0.0, 0, false, 0.0, 0 });
+    m_Sections.push_back({ name, m_Depth, 0.0, 0, false, 0.0, 0, 0 });
     return (int)m_Sections.size() - 1;
 }
 
@@ -63,14 +63,28 @@ void FrameProfiler::ResolveGpuSlot(GpuSlot& slot)
     if (m_Context->GetData(slot.disjoint.Get(), &dj, sizeof(dj), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK
         || dj.Disjoint || dj.Frequency == 0)
         return;
-    for (size_t i = 0; i < slot.issued.size() && i < m_Sections.size(); ++i)
+    for (size_t i = 0; i < slot.issued.size() && i < m_Sections.size() && i < slot.pairs.size(); ++i)
     {
-        if (!slot.issued[i]) continue;
-        UINT64 t0 = 0, t1 = 0;
-        if (m_Context->GetData(slot.begin[i].Get(), &t0, sizeof(t0), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) continue;
-        if (m_Context->GetData(slot.end[i].Get(), &t1, sizeof(t1), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) continue;
-        if (t1 < t0) continue;
-        m_Sections[i].gpuAccum += (double)(t1 - t0) * 1000.0 / (double)dj.Frequency;
+        const int n = (std::min)((int)slot.issued[i], (int)slot.pairs[i].size());
+        if (n <= 0) continue;
+        // そのフレームで入った回を全部足す（1 組でも読めなければそのフレームは数えない）
+        double sum = 0.0;
+        bool ok = true;
+        for (int k = 0; k < n && ok; ++k)
+        {
+            UINT64 t0 = 0, t1 = 0;
+            const QueryPair& qp = slot.pairs[i][k];
+            if (m_Context->GetData(qp.begin.Get(), &t0, sizeof(t0), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK
+                || m_Context->GetData(qp.end.Get(), &t1, sizeof(t1), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK
+                || t1 < t0)
+            {
+                ok = false;
+                break;
+            }
+            sum += (double)(t1 - t0) * 1000.0 / (double)dj.Frequency;
+        }
+        if (!ok) continue;
+        m_Sections[i].gpuAccum += sum;
         ++m_Sections[i].gpuFrames;
     }
 }
@@ -80,7 +94,7 @@ void FrameProfiler::BeginFrame()
     if (!m_Context) return;
     GpuSlot& slot = m_Gpu[m_GpuCur];
     ResolveGpuSlot(slot);
-    std::fill(slot.issued.begin(), slot.issued.end(), (uint8_t)0);
+    std::fill(slot.issued.begin(), slot.issued.end(), (uint16_t)0);
     m_Context->Begin(slot.disjoint.Get());
     slot.used = true;
     m_GpuInFrame = true;
@@ -95,26 +109,32 @@ void FrameProfiler::Begin(const char* name, bool gpu)
     if (s.gpu)
     {
         GpuSlot& slot = m_Gpu[m_GpuCur];
-        if (slot.begin.size() <= (size_t)i)
+        if (slot.pairs.size() <= (size_t)i)
         {
-            slot.begin.resize(i + 1);
-            slot.end.resize(i + 1);
+            slot.pairs.resize(i + 1);
             slot.issued.resize(i + 1, 0);
         }
-        if (!slot.begin[i])
+        // このフレームで何回目か。回ごとに別の組を使う（足し合わせは ResolveGpuSlot）
+        const int k = slot.issued[i];
+        std::vector<QueryPair>& list = slot.pairs[i];
+        if (k >= kMaxPairsPerFrame)
         {
+            s.gpu = false;
+        }
+        else if ((int)list.size() <= k)
+        {
+            QueryPair qp;
             D3D11_QUERY_DESC qd = { D3D11_QUERY_TIMESTAMP, 0 };
-            if (FAILED(m_Device->CreateQuery(&qd, &slot.begin[i])) || FAILED(m_Device->CreateQuery(&qd, &slot.end[i])))
-            {
-                slot.begin[i].Reset();
-                slot.end[i].Reset();
+            if (FAILED(m_Device->CreateQuery(&qd, &qp.begin)) || FAILED(m_Device->CreateQuery(&qd, &qp.end)))
                 s.gpu = false;
-            }
+            else
+                list.push_back(qp);
         }
         if (s.gpu)
         {
-            m_Context->End(slot.begin[i].Get());   // timestamp は End で打つ
-            slot.issued[i] = 1;
+            m_Context->End(list[k].begin.Get());   // timestamp は End で打つ
+            s.gpuPair = k;
+            slot.issued[i] = (uint16_t)(k + 1);
         }
     }
     ++m_Depth;
@@ -128,7 +148,7 @@ void FrameProfiler::End(const char* name)
     s.accum += (double)(Now() - s.start);
     if (s.gpu)
     {
-        m_Context->End(m_Gpu[m_GpuCur].end[i].Get());
+        m_Context->End(m_Gpu[m_GpuCur].pairs[i][s.gpuPair].end.Get());
         s.gpu = false;
     }
 }
@@ -191,6 +211,7 @@ void FrameProfiler::DrawImGui()
     if (!ImGui::CollapsingHeader("Frame Profiler")) return;
     ImGui::Text("frame %.2f ms (1 s average).  CPU ms / GPU ms", m_ReportFrameMs);
     ImGui::TextDisabled("GPU = timestamp gap; includes GPU idle time when the CPU is the bottleneck");
+    ImGui::TextDisabled("a section entered several times a frame: CPU and GPU are both the sum of the visits");
     for (const Row& r : m_Report)
     {
         ImGui::Indent(12.0f * r.depth + 1.0f);

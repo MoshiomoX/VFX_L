@@ -60,10 +60,30 @@ static const float2 kCorner[6] =
 LineOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 {
     LineOut o = (LineOut) 0;
+    // the same band for the chain warden's throw and the gargoyle's dive (2026-10-25): the C++ side draws it once per
+    // list (chargers, wardens, gargoyles) with that list bound as chargerList
     uint slot = chargerList[iid];
     SwarmEnemyExtra ex = enemyExtra[slot];
-    if (enemyStates[slot] == SWARM_DEAD || ex.kind != SWARM_KIND_CHARGER
-        || SwarmChargerPhase(ex.fuse) != SWARM_CHARGE_WINDUP)
+    float r = g_EnemyRadius * SwarmKindScale(ex.kind);
+    float len = 0.0, halfW = r * LINE_WIDTH_MUL, progress = -1.0;
+    if (ex.kind == SWARM_KIND_CHARGER && SwarmChargerPhase(ex.fuse) == SWARM_CHARGE_WINDUP)
+    {
+        len = g_ChargerDashDist + r;
+        progress = ex.fuse / max(g_ChargerWindup, 1e-3);
+    }
+    else if (ex.kind == SWARM_KIND_WARDEN && ex.fuse > 0.0)
+    {
+        len = g_WardenRange;
+        halfW = 0.55;   // the hook (CPU: hit radius 0.55 + the player's)
+        progress = ex.fuse / max(g_WardenWindup, 1e-3);
+    }
+    else if (ex.kind == SWARM_KIND_GARGOYLE && ex.fuse >= SWARM_GARGOYLE_DIVE
+             && SwarmGargoyleDiveT(ex) < g_GargoyleDiveWindup)
+    {
+        len = g_GargoyleDiveSpeed * g_GargoyleDiveTime + r;
+        progress = SwarmGargoyleDiveT(ex) / max(g_GargoyleDiveWindup, 1e-3);
+    }
+    if (enemyStates[slot] == SWARM_DEAD || progress < 0.0)
     {
         o.pos = float4(0, 0, -1, 1); // clipped
         return o;
@@ -74,9 +94,6 @@ LineOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     sincos(e.yaw, ys, yc);
     float2 dir = float2(ys, yc);
     float2 side = float2(dir.y, -dir.x);
-    float r = g_EnemyRadius * SwarmKindScale(ex.kind);
-    float len = g_ChargerDashDist + r;
-    float halfW = r * LINE_WIDTH_MUL;
 
     uint quad = vid / 6u;
     float2 c = kCorner[vid % 6u];
@@ -87,7 +104,7 @@ LineOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
     o.pos = mul(mul(float4(xz.x, h + g_RingLift, xz.y, 1.0), g_RingView), g_RingProj);
     o.uv = float2(s, across);
-    o.progress = saturate(ex.fuse / max(g_ChargerWindup, 1e-3));
+    o.progress = saturate(progress);
     o.size = float2(len, g_RingEdgeWidth / max(halfW, 1e-3));
     return o;
 }

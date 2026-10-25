@@ -31,6 +31,7 @@ From game-icons.net  https://game-icons.net
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html
   HasteRune.png       "Stopwatch"         by Lorc        https://game-icons.net/1x1/lorc/stopwatch.html
   ChainRune.png       "Lightning branches" by Lorc        https://game-icons.net/1x1/lorc/lightning-branches.html
+  LifestealRune.png   "Bleeding heart"    by Lorc        https://game-icons.net/1x1/lorc/bleeding-heart.html
   CrystalBall.png     "Crystal ball"      by Lorc        https://game-icons.net/1x1/lorc/crystal-ball.html
   MaxHealthUp.png     "Heart plus"        by Zeromancer  https://game-icons.net/1x1/zeromancer/heart-plus.html
   MaxManaUp.png       "Potion ball"       by Lorc        https://game-icons.net/1x1/lorc/potion-ball.html
@@ -43,6 +44,12 @@ From game-icons.net  https://game-icons.net
   Magnet.png          "Magnet"            by Lorc        https://game-icons.net/1x1/lorc/magnet.html
   ManaSurge.png       "Embrassed energy"  by Lorc        https://game-icons.net/1x1/lorc/embrassed-energy.html
   Gold.png            "Two coins"         by Delapouite  https://game-icons.net/1x1/delapouite/two-coins.html
+  MapChest.png        "Locked chest"      by Lorc        https://game-icons.net/1x1/lorc/locked-chest.html
+  MapPortal.png       "Magic portal"      by Lorc        https://game-icons.net/1x1/lorc/magic-portal.html
+  MapExit.png         "Exit door"         by Delapouite  https://game-icons.net/1x1/delapouite/exit-door.html
+  MapBoss.png         "Crowned skull"     by Lorc        https://game-icons.net/1x1/lorc/crowned-skull.html
+  MapElite.png        "Daemon skull"      by Lorc        https://game-icons.net/1x1/lorc/daemon-skull.html
+  MapSurge.png        "Crossed swords"    by Lorc        https://game-icons.net/1x1/lorc/crossed-swords.html
 
 Drawn for this project (by the same script, no license needed):
   Frame3x3.png        3x3 grid of squares

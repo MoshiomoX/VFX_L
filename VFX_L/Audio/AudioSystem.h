@@ -26,8 +26,11 @@ public:
 
     static AudioSystem& Get();
 
-    bool Initialize();
+    // offline = 音の装置を開かず、ReadOffline で外から読み出す（動画の書き出し。Core/VideoCapture）
+    bool Initialize(bool offline = false);
     void Shutdown();
+    // offline の時だけ: 混ぜた後の音（リミッター込み、float のステレオ）を frames 個読む。戻り値 = 読んだ数
+    uint32_t ReadOffline(float* out, uint32_t frames);
     void Update(float dt);   // 鳴り終わった声の回収・BGM のフェード（毎フレーム）
     bool IsAvailable() const;
 
@@ -36,12 +39,13 @@ public:
     // 同じフレームに count 回分のイベントをまとめて受けた時（GPU の命中・撃破）。1 回だけ、数が多いほど少し大きく鳴らす
     bool PlayBurst(const std::string& cue, uint32_t count);
 
-    // BGM。track = Sounds.json の music の名前。同じ曲なら何もしない。空 = フェードして止める
+    // BGM。track = Sounds.json の music の名前。同じ曲なら何もしない。空 = フェードして止める。
+    // 見つからない / 読めない曲は今の曲を止めて何も鳴らさない（CurrentMusic は空）。同じ名前は ReloadCues まで試し直さない
     void PlayMusic(const std::string& track, float fadeSec = 1.5f);
     // 環境音（雨・風など 1 本のループ。SFX のバス）。file = ファイルのパス（"" で止める）、volume は毎フレーム外から入れる
     // （フェードは呼ぶ側が音量で作る）。pitch は始める時だけ効く。天候（World/WeatherSystem）が使う
     void SetAmbient(const std::string& file, float volume, float pitch = 1.0f);
-    const std::string& CurrentMusic() const;
+    const std::string& CurrentMusic() const;   // 今鳴っている曲の名前（鳴らせなかった時は空）
 
     float GetVolume(Bus b) const;
     void  SetVolume(Bus b, float v);   // 0..1

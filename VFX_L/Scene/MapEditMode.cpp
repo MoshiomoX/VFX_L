@@ -59,6 +59,7 @@ void MapEditMode::Shutdown()
         if (m_Reg.IsValid(e)) m_Reg.Destroy(e);
     m_Terrain.clear();
     m_Models.clear();
+    m_PropModels.clear();
     m_Loaded = false;
 }
 
@@ -83,6 +84,7 @@ bool MapEditMode::Generate(uint32_t seed, int biome)
     cfg.seed = seed;
     cfg.biome = (TerrainGenerator::Biome)std::clamp(biome, 0, 2);
     TerrainGenerator::Generate(tmp, device, grid, cfg, ents, nullptr, nullptr, nullptr, &m_Map);
+    m_PropModels.clear();   // モデルの番号は地図毎
     m_Sel = {};
     m_Loaded = true;
     m_Dirty = true;
@@ -100,6 +102,7 @@ bool MapEditMode::Load(const std::string& name)
         return false;
     }
     m_Map = std::move(loaded);
+    m_PropModels.clear();   // モデルの番号は地図毎
     m_Sel = {};
     m_Loaded = true;
     m_Dirty = false;

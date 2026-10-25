@@ -122,6 +122,8 @@ namespace MapTerrainEdit
         for (uint32_t g : groups) Refresh(map, g, false);
         if (CanEditZones(map)) RegenZones(map, false);   // 最後に Rederive（洞窟の坂の高さは変わらないが、まとめて 1 回）
         else Rederive(map);
+        // 起伏が深くなって床の箱の上面が地面から出た所は、筆と同じく床を下げる（見えない段差にしない。2026-10-25）
+        LowerFloorsBelowRelief(map);
     }
 }
 

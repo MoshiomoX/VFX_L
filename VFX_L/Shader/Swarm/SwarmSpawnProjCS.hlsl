@@ -56,6 +56,10 @@ RWStructuredBuffer<SwarmProjPath> paths : register(u2);
 RWByteAddressBuffer counters : register(u3);
 RWBuffer<uint> projTags : register(u4);
 RWBuffer<uint> projBoost : register(u5);   // y >> SWARM_SPAWN_BOOST_SHIFT: damage / duration boost of the areas it leaves
+// the slot's ribbon (SwarmProjTrailCS, 2026-10-25): a shot killed by HitCS in the last step of a frame is reused here
+// before the trail pass has seen it die, and the new shot's ribbon used to start from the old one's points
+RWStructuredBuffer<uint> trailState : register(u6);
+RWStructuredBuffer<float> trailAge : register(u7);
 
 cbuffer SwarmSpawnCB : register(b1)
 {
@@ -231,6 +235,8 @@ void main(uint3 id : SV_DispatchThreadID)
             paths[slot] = path;
             projTags[slot] = extra.x;
             projBoost[slot] = extra.y >> SWARM_SPAWN_BOOST_SHIFT;
+            trailState[slot] = 0u;   // a fresh ribbon (the old shot's points are dropped)
+            trailAge[slot] = 0.0;
             // chain rune: an alive-but-chained state (HitCS / ProjMoveCS read it, everyone else sees "not DEAD")
             if (chains > 0u)
                 projStates[slot] = SwarmProjChainState(chains, SWARM_PROJ_CHAIN_NO_LAST);

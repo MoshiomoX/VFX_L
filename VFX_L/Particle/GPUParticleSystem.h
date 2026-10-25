@@ -36,8 +36,13 @@ struct EdgeFilterParams
 class GPUParticleSystem
 {
 public:
-    GPUParticleSystem() = default;
-    ~GPUParticleSystem() = default;
+    // 生きている粒子系の表に出し入れする（IsAlive 用。2026-10-25）
+    GPUParticleSystem();
+    ~GPUParticleSystem();
+
+    // この粒子系がまだ生きているか。entry（VFXParticleEntry / VFXTrailEntry）の後始末（帯・モデル・発射源の登録の返却）が、
+    // シーンのメンバの破棄の順番で粒子系より後になっても、死んだ粒子系に触らないための確認（2026-10-25）
+    static bool IsAlive(const GPUParticleSystem* system);
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context, uint32_t maxParticles);
 
@@ -56,8 +61,23 @@ public:
     void SubmitEmitters(const std::vector<GPUEmitter>& emitters,
         const std::vector<ColorKey>& colorKeys);
 
+    // 1 つずつ積む（VFXEffect 用、2026-10-25。毎フレームの一時配列と写し直しを省く）。
+    // keys（keyCount 個）を今フレームの色の鍵の表の後ろへ足し、emitter.colorKeyOffset / colorKeyCount はここで付け直す。
+    // 負の emitCount は 0 にする。戻り値 false = 上限（MAX_EMITTERS）で捨てた
+    bool SubmitEmitter(const GPUEmitter& emitter, const ColorKey* keys, int keyCount);
+
     // 1フレームに1度だけ呼ぶ。積まれた全 emitter で Emit + Update を実行
     void Flush(float dt, float totalTime);
+
+    // ============================================
+    // 画面の歪みを持つ粒子が今いるか（2026-10-25、歪みのパスを要る時だけ回す）
+    //
+    // ParticleUpdateCS が「歪みの強さ > 0 の生きたビルボード」を数え（CPU の発射器も Swarm の GPU の発射も
+    // 同じ粒子の池なので両方入る）、3 枚の staging を回して待たずに読む = 2〜3 フレーム遅れ。
+    // まだ一度も読めていない間は true（安全側）。CPU の発射器が歪みの粒子を出したフレームから数フレームも true
+    // （読み戻しの遅れの間に出始めの粒子が歪まない、を防ぐ）。Swarm の GPU の発射の出始めだけは 2〜3 フレーム遅れる
+    // ============================================
+    bool HasDistortion() const { return m_DistortHint > 0 || !m_DistortKnown || m_DistortCount > 0; }
 
     void SetCamera(CameraBase* camera) { m_Camera = camera; }
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
@@ -113,8 +133,9 @@ public:
     // 0 を返すと VFXState_Finishing が即 Stopped へ飛んでしまい、
     // 粒子が空中に残ったまま演出が終わる。
     // よって「まだ居るかもしれない」= 1 を返し、Finishing の終了判定は
-    // VFXStates 側の時間フォールバック（timeInState > 3.0f）に任せる。
-    // 
+    // VFXState_Finishing::Update の時間の逃げ道（timeInState >= VFXEffect::GetFinishWait() =
+    // その effect の一番長い粒子の寿命 + 余裕。2026-10-25 に足した。それまでは逃げ道が無く Stopped へ行けなかった）に任せる。
+    //
     // この 2 つは必ずセットで扱う。片方だけ変えるとステートマシンが壊れる。
     // ============================================
     uint32_t GetAliveCount() const { return 1; }
@@ -209,7 +230,6 @@ private:
     bool CreateParticleBuffer(ID3D11Device* device);
     bool CreateEmitterBuffer(ID3D11Device* device);
     bool LoadShaders(ID3D11Device* device);
-    bool CreateRenderStates(ID3D11Device* device);
     bool CreateColorKeyBuffer(ID3D11Device* device);
     bool CreateDrawIndirectBuffer(ID3D11Device* device);
     bool CreateAliveListBuffer(ID3D11Device* device, uint32_t maxParticles);
@@ -224,6 +244,10 @@ private:
     // 1 pass = 1 Dispatch。activeSource < 0 は Mesh 以外の pass
     void DispatchEmitPass(ID3D11DeviceContext* context, int activeSource, uint32_t requestedEmit);
     void DispatchUpdate(ID3D11DeviceContext* context);
+
+    // 粒子の統計（歪みを持つ生きた粒子の数。HasDistortion）。作れなくても粒子は動く（HasDistortion がずっと true なだけ）
+    bool CreateStatsResources(ID3D11Device* device);
+    void ReadbackStats(ID3D11DeviceContext* context);   // DispatchUpdate の直後
 
     bool CreateSourceLayoutBuffer(ID3D11Device* device);
     void UploadSourceLayouts(ID3D11DeviceContext* context);
@@ -296,7 +320,23 @@ private:
     ComPtr<ID3D11ShaderResourceView>  m_AliveMeshSRV;
     ComPtr<ID3D11Buffer>              m_MeshCountBuffer; // kParticleMeshBuckets 個の uint
     ComPtr<ID3D11UnorderedAccessView> m_MeshCountUAV;
+    // 今フレームの束の数（UpdateCS の結果）をまだ submesh の args へ写していない（2026-10-25）。
+    // RenderMeshes は 1 フレームに 2 回呼ばれる（RenderLitMeshes と Render）ので、写すのは最初の 1 回だけにする。
+    // DispatchUpdate / ResetSystem で立てる。Flush の無いフレーム（一時停止）は数も変わらないので写さない
+    bool                              m_MeshArgsFresh = false;
     LightBuffer                       m_Light;
+
+    // ---- 粒子の統計（HasDistortion）----
+    // stats[0] = 歪みの強さを持つ生きたビルボードの数（ParticleUpdateCS の g_Stats）。毎フレーム 0 にしてから数える
+    static const int kStatsRing = 3;
+    ComPtr<ID3D11Buffer>              m_StatsBuffer;
+    ComPtr<ID3D11UnorderedAccessView> m_StatsUAV;
+    ComPtr<ID3D11Buffer>              m_StatsStaging[kStatsRing];   // 待たずに読むための輪（2〜3 フレーム遅れ）
+    bool                              m_StatsPending[kStatsRing] = {};
+    int                               m_StatsWrite = 0;
+    uint32_t                          m_DistortCount = 0;
+    bool                              m_DistortKnown = false;   // 一度でも読めたか
+    int                               m_DistortHint = 0;        // CPU の発射器が歪みの粒子を出してから残り何回の Flush の間 true にするか
 
     struct MeshSlot
     {

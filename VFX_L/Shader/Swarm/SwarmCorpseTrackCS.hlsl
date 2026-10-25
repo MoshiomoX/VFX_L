@@ -21,6 +21,7 @@
 // ============================================================
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
+#define SWARM_BOMBER_CB_REG b5   // the gargoyle's flying height (its corpse falls from the ground, 2026-10-25)
 #define SWARM_AREA_POOL_U u3
 #define SWARM_AREA_STATE_U u4
 #define SWARM_AREA_DEF_T t3
@@ -70,7 +71,21 @@ void main(uint3 id : SV_DispatchThreadID)
 
     // ---- died since last frame ----
     SwarmEnemy e = enemies[i];
-    uint kind = enemyExtra[i].kind;
+    SwarmEnemyExtra ex = enemyExtra[i];
+    uint kind = ex.kind;
+    // a gargoyle killed in the air (2026-10-25): its pieces and dust start from the ground under it
+    e.position.y -= SwarmGargoyleHover(ex);
+    // the cursed armor's first death (2026-10-25): it collapses into a heap instead of shattering, and the CPU
+    // (MobSpawner) raises the revived armor here a few seconds later. The heap / dust are the CPU's effects
+    if (kind == SWARM_KIND_ARMOR)
+    {
+        uint s;
+        splitEvents.InterlockedAdd(0, 1u, s);
+        uint at = 16u + (s % SWARM_MAX_SPLIT_EVENTS) * 16u;
+        splitEvents.Store3(at, asuint(e.position));
+        splitEvents.Store(at + 12u, kind);
+        return;
+    }
     if (kind == SWARM_KIND_SPLITTER)
     {
         uint s;

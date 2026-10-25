@@ -1,0 +1,40 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [-360, 360], "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "atlasIndex": 0,
+                "sheet": 0, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1, 1, 1], "direction": [0, 1, 0], "dragCoeff": 0.3,
+                "emitRate": 500, "emitType": 1,
+                "endColorMax": [0.62, 0.62, 0.58, 1], "endColorMin": [0.46, 0.46, 0.43, 1],
+                "gravity": [0, -20, 0], "innerRadius": 0, "lifetimeRange": [0.5, 0.75], "maxParticles": 50,
+                "position": [0, 1.0, 0], "radius": 0.55, "renderMode": 1, "rotationRange": [0, 360],
+                "sizeRange": [0.08, 0.16, 0.06, 0.12], "speedRange": [2.0, 4.5], "spreadAngle": 0,
+                "startColorMax": [0.62, 0.62, 0.58, 1], "startColorMin": [0.46, 0.46, 0.43, 1],
+                "meshGlow": false, "mesh": "Assets/Model/KayKit_Forest/fbx/Rock_2_A_Color1.fbx", "meshFaceVelocity": false, "meshForwardAxis": 2
+            },
+            "duration": 0.08, "startTime": 0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-0.5, 0.5], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1, "wind": 0.6,
+                "boxExtents": [1, 1, 1], "direction": [0, 1, 0], "dragCoeff": 2.0,
+                "emitRate": 220, "emitType": 1,
+                "endColorMax": [0.55, 0.55, 0.52, 0.0], "endColorMin": [0.48, 0.48, 0.45, 0.0],
+                "gravity": [0, 0.4, 0], "innerRadius": 0, "lifetimeRange": [0.8, 1.2], "maxParticles": 40,
+                "position": [0, 0.9, 0], "radius": 0.6, "renderMode": 0, "rotationRange": [0, 6.28],
+                "sizeRange": [0.5, 0.8, 1.2, 1.6], "speedRange": [1.0, 2.0], "spreadAngle": 0,
+                "startColorMax": [0.60, 0.60, 0.57, 0.5], "startColorMin": [0.52, 0.52, 0.49, 0.4]
+            },
+            "duration": 0.12, "startTime": 0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 1.2, 0.0], "color": [1.0, 0.35, 0.1], "radius": 3.0,
+                      "intensityStart": 2.0, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 0.0 },
+            "duration": 0.5, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "RuinsGargoyleWake"
+}

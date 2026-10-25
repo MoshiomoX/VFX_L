@@ -64,4 +64,27 @@ float3 WindSourceAir(StructuredBuffer<WindSource> sources, float2 xz, out float 
     return air;
 }
 
+// the same air, plus the direction (unit xz) toward the core of the source that acts
+// strongest here (2026-10-23: grass blades near a twister curl their tips toward it)
+float3 WindSourceAirCore(StructuredBuffer<WindSource> sources, float2 xz, out float lift, out float2 toCore)
+{
+    float3 air = WindSourceAir(sources, xz, lift);
+    toCore = float2(0.0, 0.0);
+    float best = 0.0;
+    [loop]
+    for (uint k = 0u; k < WIND_MAX_SOURCES; ++k)
+    {
+        WindSource w = sources[k];
+        float2 d = w.pos.xz - xz;
+        float dist = length(d);
+        float s = w.radius > 0.0 ? saturate(1.0 - dist / max(w.radius, 1e-3)) * w.fade : 0.0;
+        if (s > best && dist > 1e-3)
+        {
+            best = s;
+            toCore = d / dist;
+        }
+    }
+    return air;
+}
+
 #endif

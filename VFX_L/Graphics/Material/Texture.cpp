@@ -337,8 +337,13 @@ void Texture::Bind(ID3D11DeviceContext* context, UINT slot)
     if (!context) return;
     context->PSSetShaderResources(slot, 1, m_ShaderResourceView.GetAddressOf());
 
-    ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
-    context->PSSetSamplers(slot, 1, &samp);
+    // サンプラーは s0（共通の線形サンプラー）の時だけ設定する。
+    // 同じ番号の s スロットに入れると、slot 2 では影の比較サンプラー（s2）を上書きしてしまう
+    if (slot == 0)
+    {
+        ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
+        context->PSSetSamplers(0, 1, &samp);
+    }
 }
 
 void Texture::Unbind(ID3D11DeviceContext* context, UINT slot)

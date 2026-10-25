@@ -58,7 +58,6 @@ cbuffer SwarmCorpseCB : register(b4)
 
 // elite / boss / ghost tints, the same as SwarmEnemyVS
 static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
-static const float3 kBossTint = float3(1.1, 0.5, 1.5);
 static const float3 kGhostTint = float3(0.55, 1.25, 1.6);
 
 struct VS_INPUT_INST
@@ -181,7 +180,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     if (cp.kind == SWARM_KIND_ELITE)
         o.Color.rgb *= kEliteTint;
     else if (cp.kind == SWARM_KIND_BOSS)
-        o.Color.rgb *= kBossTint;
+        o.Color.rgb *= g_BossTint;
     else if (cp.kind == SWARM_KIND_GHOST)
     {
         o.Color.rgb *= kGhostTint * g_GhostGlow;

@@ -61,6 +61,10 @@ public:
     float shade = 1.0f;            // 固定の光での 2 段の陰影 + 縁の光（VFXMeshPS）
     bool  toon = true;             // ガラスのような向きの帯（正面は透け、縁は明るい。シールドの護罩と同じ）
 
+    // ---- 別のトゲに使う時（2026-10-24、砂の守護者の「砂の槍」= 石のトゲ。最初の Spawn までに入れる）----
+    const char* modelPath = nullptr;   // null = 氷（Res::VFX::IceSpikes）
+    int   blend = 1;                   // VFXMeshDrawItem::blend（0 加算 / 1 半透明）
+
 private:
     void EnsureModel();
 

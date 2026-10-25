@@ -27,6 +27,11 @@ BattleAutoTest::BattleAutoTest(CollisionTestScene& scene)
     , m_Stage(scene.m_Stage)
     , m_BossAttacks(scene.m_BossAttacks)
     , m_BossSlamHits(scene.m_BossSlamHits)
+    , m_BossMoundVfx(scene.m_BossMoundVfx)
+    , m_ChainHits(scene.m_ChainHits)
+    , m_StageElites(scene.m_StageElites)
+    , m_EliteHits(scene.m_EliteHits)
+    , m_Lifesteal(scene.m_Lifesteal)
     , m_CollisionSystem(scene.m_CollisionSystem)
     , m_PlayerControlSystem(scene.m_PlayerControlSystem)
     , m_PlayerAnimSystem(scene.m_PlayerAnimSystem)
@@ -43,6 +48,9 @@ BattleAutoTest::BattleAutoTest(CollisionTestScene& scene)
     , m_Debris(scene.m_Debris)
     , m_Tumbleweeds(scene.m_Tumbleweeds)
     , m_Dandelions(scene.m_Dandelions)
+    , m_GrassShreds(scene.m_GrassShreds)
+    , m_AreaVFX(scene.m_AreaVFX)
+    , m_VFXContext(scene.m_VFXContext)
     , m_Weather(scene.m_Weather)
     , m_PlayerVFX(scene.m_PlayerVFX)
     , m_SpellFx(scene.m_SpellFx)
@@ -87,13 +95,26 @@ bool BattleAutoTest::Register(const char* name, Factory factory)
 
 std::shared_ptr<BattleAutoTest> BattleAutoTest::Create(const char* name, CollisionTestScene& scene)
 {
-    Factory fallback = nullptr;
+    if (!name) name = "";
+    Factory feedback = nullptr;
     for (const auto& [n, factory] : Table())
     {
         if (std::strcmp(n, name) == 0) return factory(scene);
-        if (std::strcmp(n, "feedback") == 0) fallback = factory;
+        if (std::strcmp(n, "feedback") == 0) feedback = factory;
     }
-    return fallback ? fallback(scene) : nullptr;
+
+    // 名前を書かない呼び方（VFXL_BATTLE_AUTOTEST=1 / 空）は昔からの既定 = feedback
+    if (name[0] == '\0' || std::strcmp(name, "1") == 0)
+        return feedback ? feedback(scene) : nullptr;
+
+    // 登録に無い名前（打ち間違い・切れた名前）は走らせない（2026-10-25。以前は黙って feedback を走らせ、
+    // 名前を間違えても「正常な」ログが出来ていた）。autotest.log とコンソールにはっきり書く
+    std::string msg = std::string("[Warn] autotest: unknown name \"") + name + "\" - nothing runs. Registered:";
+    for (const auto& entry : Table())
+        msg += std::string(" ") + entry.first;
+    std::cout << msg << std::endl;
+    scene.AutoTestLog((std::string("autotest unknown \"") + name + "\" (not registered, nothing runs)").c_str());
+    return nullptr;
 }
 
 void BattleAutoTest::RebuildTerrain()

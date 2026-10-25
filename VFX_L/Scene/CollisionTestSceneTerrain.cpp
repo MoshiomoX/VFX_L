@@ -87,6 +87,7 @@ void CollisionTestScene::RebuildTerrain()
 
     // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
     m_Swarm.KillAll();
+    m_Mobs.ClearRuinsPending();   // 鎧の蘇り・骸骨の起き上がり待ちも捨てる（古い地形の位置に湧かないように）
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());
@@ -136,6 +137,7 @@ std::wstring CollisionTestScene::EnterTrainingField(int field, uint32_t seed)
     gs.heightMax = def.grassHeightMax;
     m_GrassFire.SetActive(def.grass && gs.enabled);
     m_Audio.Init(m_Swarm, m_StageIndex);   // 面の曲（範囲の音の表も作り直す。中身は同じ）
+    InitBossFx(def.boss);   // トレーニングで呼ぶ Boss もその面の Boss（2026-10-24）
 
     RebuildTerrain();   // 実験場なので箱 / 門 / 磁石は置かない（RebuildTerrain が m_LabScene を見る）
 
@@ -162,6 +164,7 @@ void CollisionTestScene::BuildWindToys()
     const Vector3* pp = PlayerPos();
     m_Tumbleweeds.Reset(m_Registry, m_Grid, m_TerrainConfig.biome, m_TerrainConfig.seed, pp ? *pp : Vector3::Zero);
     m_Dandelions.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV(), m_Grass.GetGroundSRV());
+    m_GrassShreds.Clear(m_AreaVFX);
 }
 
 void CollisionTestScene::UpdateWindToys(float dt)
@@ -170,6 +173,13 @@ void CollisionTestScene::UpdateWindToys(float dt)
     Vector3 vel = Vector3::Zero;
     if (m_Registry.Has<RigidbodyComponent>(m_Player)) vel = m_Registry.Get<RigidbodyComponent>(m_Player).velocity;
     m_Tumbleweeds.Update(m_Registry, m_Grid, dt, m_Weather.Wind(), m_Grass.Time(), &m_Swarm.GetLocalWind(), PlayerPos(), vel);
+
+    // 風源が巻き上げる草屑（2026-10-23）：面の草の色に染める（砂漠は枯れ草、遺跡はくすんだ緑）
+    // 草より明るい黄緑（同じ緑だと草の上で見えなかった）
+    Vector3 shredTint(0.80f, 1.00f, 0.38f);
+    if (m_TerrainConfig.biome == TerrainGenerator::Biome::Desert) shredTint = Vector3(0.95f, 0.82f, 0.48f);
+    else if (m_TerrainConfig.biome == TerrainGenerator::Biome::Dungeon) shredTint = Vector3(0.72f, 0.82f, 0.44f);
+    m_GrassShreds.Update(dt, m_Swarm.GetLocalWind(), m_Grid, m_Grass.GetSettings().enabled, shredTint, m_AreaVFX, m_VFXContext);
 }
 
 // ============================================================
@@ -188,7 +198,8 @@ void CollisionTestScene::BakePlacements()
         {
             MapData::Placement p;
             p.pos = it.basePos;
-            if (it.kind == InteractKind::RewardChoice && !hasCrate)
+            // 倒したエリートの金色の箱（無料）も RewardChoice。地図に入れると次から金貨の要る箱になるので入れない
+            if (it.kind == InteractKind::RewardChoice && !hasCrate && !m_Crates.IsFree(e))
             {
                 p.type = MapData::kPlaceCrate;
                 if (m_Registry.Has<TransformComponent>(e)) p.yawDeg = m_Registry.Get<TransformComponent>(e).rotation.y;

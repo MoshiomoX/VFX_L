@@ -31,7 +31,11 @@ bool Bloom::Resize(ID3D11Device* device, int width, int height)
 {
     m_Down.clear();
     m_Up.clear();
-    return CreateMips(device, width, height);
+    if (CreateMips(device, width, height)) return true;
+    // 途中まで作った mip を残さない（空なら Execute は何もせず、GetResultSRV は null = bloom 無し）
+    m_Down.clear();
+    m_Up.clear();
+    return false;
 }
 
 void Bloom::Shutdown()

@@ -2,6 +2,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <memory>
+#include <string>
 #include <dxgi1_5.h>
 #include "Graphics/PostProcess/Bloom.h"
 #pragma comment(lib, "d3d11.lib")
@@ -15,13 +16,15 @@ class PixelShader;
 // ============================================================
 // Graphics
 // シーンは HDR のオフスクリーン RT（R16G16B16A16_FLOAT, MSAA）へ描く。
-// BeginUI で resolve → 合成 PS で backbuffer へ。UI はその後に描く。
+// ゲームの UI（HUD・メニュー・スプライト・文字）も BeginUI の前に同じ HDR RT へ描く
+// （シーンと一緒にトーンマップ・ガンマを通る）。BeginUI で resolve → 合成 PS で backbuffer へ。
+// BeginUI の後に描くのは ImGui（DebugManager::EndFrame）だけ。
 //
 // フレームの流れ:
 //   BeginFrame  … HDR RT を clear して bind
-//   (シーン描画)
-//   BeginUI     … resolve → 合成 → backbuffer を bind
-//   (UI / ImGui 描画)
+//   (シーン描画 → ApplyDistortion → ゲームの UI)
+//   BeginUI     … resolve → bloom → 合成 → backbuffer を bind
+//   (ImGui 描画)
 //   EndFrame    … (上限 fps の待ち) → Present
 //
 // swap chain は flip 型（FLIP_DISCARD、3 枚、backbuffer は MSAA 無し）。
@@ -63,7 +66,9 @@ public:
 
     // ---- 画面の歪み（2026-10-20、エルデンリングの風の「空気の揺らぎ」）----
     // 粒子（GPUParticleSystem::RenderDistortion）が uv のずれを R16G16 の RT（シーンと同じ MSAA、深度を共有）へ描き、
-    // BeginUI が resolve して合成 PS がその分だけシーンをずらして読む。UI も HDR RT の中なので一緒に歪む（場所が被ればの話）
+    // UI を描く前に ApplyDistortion がシーンと一緒に resolve して、ずらしたシーンを HDR RT へ書き戻す（UI は歪まない）。
+    // 合成 PS にも同じずれを読む道（t2）が残っているが、ApplyDistortion が済むと m_DistortDrawn が落ちるので倍率 0。
+    // DistortApplyPS が読めなかった時だけ、合成の方でずらす（その時は UI も歪む）
     struct DistortionParams
     {
         bool  enabled = true;
@@ -85,8 +90,15 @@ public:
     PresentSettings& GetPresentSettings() { return m_Present; }
     bool IsTearingSupported() const { return m_TearingSupported; }
     bool IsFlipModel() const { return m_FlipModel; }
+
+    // TEMP-TEST: 自動テストの写真（2026-10-23）。次の Present の直前にバックバッファを PNG で保存する。
+    // 外のスクリプトが画面を撮る方法と違い、ウィンドウが前面に無くても（ユーザーが別の窓を使っていても）撮れる
+    void RequestScreenshot(const std::wstring& path) { m_ShotPath = path; }
+    // GPU が外れた（Present が DEVICE_REMOVED / RESET を返した）。終了の要求は Graphics が出す（WM_QUIT）
+    bool IsDeviceLost() const { return m_DeviceLost; }
 private:
     bool CreateSceneTargets(int width, int height);
+    void ReleaseSceneTargets();
     bool LoadPostShaders();
     bool CreateSwapChain(HWND hWnd, int width, int height);
     void WaitForFrameCap();
@@ -95,6 +107,7 @@ private:
     ComPtr<ID3D11Device> m_Device;
     ComPtr<ID3D11DeviceContext> m_Context;
     ComPtr<IDXGISwapChain> m_SwapChain;
+    std::wstring m_ShotPath;   // RequestScreenshot（空 = 撮らない）
 
     // ---- backbuffer（UI と合成結果の行き先）----
     ComPtr<ID3D11RenderTargetView> m_BackbufferRTV;
@@ -132,6 +145,9 @@ private:
     UINT m_SampleCount = 1;
     UINT m_SampleQuality = 0;
     bool m_InUIPhase = false;
+    // RT / 深度が揃っているか（Resize の作り直しに失敗すると false。その間は clear・resolve・合成を飛ばす = 空の RT に触らない）
+    bool m_TargetsValid = false;
+    bool m_DeviceLost = false;
 
     D3D11_VIEWPORT m_Viewport = {};
 };

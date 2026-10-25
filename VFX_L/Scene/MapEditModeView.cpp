@@ -166,14 +166,20 @@ void MapEditMode::Render(Renderer& renderer)
         if (mc.model) mc.model->Draw(renderer, &identity);
     }
 
+    // 置物のモデルは記録の番号（p.model）で引く。毎フレーム物の数だけパスで探さないよう、番号 → モデルの表を持つ。
+    // 番号は足されるだけなので、増えた分だけ引き足す（地図を開き直した時は Generate / Load が表を捨てる）
+    if (m_PropModels.size() > m_Map.models.size()) m_PropModels.clear();
+    while (m_PropModels.size() < m_Map.models.size())
+        m_PropModels.push_back(GetModel(m_Map.models[m_PropModels.size()]));
     for (const auto& p : m_Map.props)
     {
-        auto model = GetModel(m_Map.models[(size_t)p.model]);
+        if (p.model < 0 || (size_t)p.model >= m_PropModels.size()) continue;
+        const auto& model = m_PropModels[(size_t)p.model];
         if (!model) continue;
         Transform t;
         t.SetPosition(p.pos);
         t.SetRotation({ 0.0f, p.yawDeg, 0.0f });
-        t.SetScale({ p.scale, p.scale, p.scale });
+        t.SetScale(p.stretch * p.scale);   // 軸ごとの倍率も（PropWorld・衝突・戦闘と同じ）
         model->Draw(renderer, &t);
     }
 

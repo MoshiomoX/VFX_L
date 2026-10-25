@@ -22,6 +22,6 @@ public:
     void Update(Registry& reg, float dt);
 
     // 被弾を通知する。無敵中なら false を返し、ダメージ側は何もしない。
-    // ※HitEvent を消費する側から呼ぶ。
+    // ※被弾は全部ここを通す（GPU の雑魚の接触・自爆、Boss・エリートの技、デバッグ）。
     static bool TryApplyHit(Registry& reg, unsigned int entity, float damage);
 };

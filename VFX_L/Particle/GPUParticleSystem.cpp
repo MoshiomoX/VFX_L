@@ -17,6 +17,39 @@ static_assert(offsetof(VERTEX_3D, normal) == GPUParticleSystem::kLayoutStatic.no
 static_assert(offsetof(VERTEX_3D, uv) == GPUParticleSystem::kLayoutStatic.uvOffset, "kLayoutStatic.uvOffset");
 
 // ============================================
+// 生きている粒子系の表（IsAlive。2026-10-25）
+//   シーンのメンバの破棄の順番で、entry（帯・モデル・発射源の登録を持つ）が粒子系より後に消えても
+//   死んだ粒子系に触らないように。表はわざと解放しない（プログラム終了時の静的破棄の順番に左右されない）。
+//   使うのはメインスレッドだけ
+// ============================================
+namespace
+{
+    std::vector<const GPUParticleSystem*>& LiveSystems()
+    {
+        static auto* s = new std::vector<const GPUParticleSystem*>();
+        return *s;
+    }
+}
+
+GPUParticleSystem::GPUParticleSystem()
+{
+    LiveSystems().push_back(this);
+}
+
+GPUParticleSystem::~GPUParticleSystem()
+{
+    auto& v = LiveSystems();
+    v.erase(std::remove(v.begin(), v.end(), this), v.end());
+}
+
+bool GPUParticleSystem::IsAlive(const GPUParticleSystem* system)
+{
+    if (!system) return false;
+    const auto& v = LiveSystems();
+    return std::find(v.begin(), v.end(), system) != v.end();
+}
+
+// ============================================
 // 初期化
 // ============================================
 bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* context, uint32_t maxParticles)
@@ -31,7 +64,6 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     if (!m_DeadList.Initialize(device, maxParticles)) return false;
 
     if (!LoadShaders(device))                return false;
-    // if (!CreateRenderStates(device))         return false;
     if (!CreateColorKeyBuffer(device))       return false;
     if (!CreateDrawIndirectBuffer(device))   return false;
     if (!CreateAliveListBuffer(device, maxParticles)) return false;
@@ -39,6 +71,7 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
     CreateTrailResources(device);   // 失敗しても粒子は動く（帯が出ないだけ）
     if (m_TrailReady)               // エフェクトの帯は style 表と TrailPS を共用する
         CreateEffectTrailResources(device);
+    CreateStatsResources(device);   // 失敗しても粒子は動く（HasDistortion がずっと true なだけ）
 
     // DispatchEmit が使うので、必ず初回発射より前に作る。
     //   ここを忘れると deadCount が null → 全スレッドが return して
@@ -589,20 +622,35 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime,
     // 意味を持たなかった。
     // Mesh 発射器は発射源ごとに Dispatch を分けるので、pass 別に数える。
     // 未登録の sourceId を指す Mesh 発射器はどの pass にも入らない（静かに捨てる）
+    // 足し算は粒子池の大きさで頭打ち（それ以上のスレッドは deadCount で必ず止まる。2026-10-25、
+    // 以前は uint へ int を足していて、負の数が来ると約 40 億に回り込み、スレッド群の数が 65535 を超えていた）
+    auto addCapped = [this](uint32_t& sum, int count)
+        {
+            if (count <= 0) return;
+            const uint32_t n = (uint32_t)count;
+            sum = (sum >= m_MaxParticles || n >= m_MaxParticles - sum) ? m_MaxParticles : sum + n;
+        };
+
+    // CPU の発射器が歪みの粒子を出し始めたら、読み戻しが追いつくまで HasDistortion を true に保つ
+    if (m_DistortHint > 0) --m_DistortHint;
+
     uint32_t requestedPlain = 0;
     uint32_t requestedPerSource[MAX_EMIT_SOURCES] = {};
     for (auto& e : emitters)
     {
-        if (e.isActive <= 0.5f) continue;
+        if (e.isActive <= 0.5f || e.emitCount <= 0) continue;
 
         if (e.emitType == static_cast<int>(EmitType::Mesh))
         {
             if (IsEmitSourceValid(e.sourceId))
-                requestedPerSource[e.sourceId] += e.emitCount;
+                addCapped(requestedPerSource[e.sourceId], e.emitCount);
         }
         else
         {
-            requestedPlain += e.emitCount;
+            addCapped(requestedPlain, e.emitCount);
+            const uint32_t mode = (uint32_t)e.renderMode;
+            if ((mode & 0xFFu) == 0u && ((mode >> ParticleRenderMode::kDistortShift) & 3u) != 0u)
+                m_DistortHint = kStatsRing + 1;
         }
     }
 
@@ -774,6 +822,9 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     // メッシュ粒子の束ごとの数も毎フレーム 0 へ（全部 0 なので Clear でよい）
     const UINT zeros[4] = { 0, 0, 0, 0 };
     context->ClearUnorderedAccessViewUint(m_MeshCountUAV.Get(), zeros);
+    m_MeshArgsFresh = true;   // 新しい数を、この後の最初の RenderMeshes で args へ写す
+    // 統計（歪みを持つ粒子の数）も毎フレーム数え直す
+    if (m_StatsUAV) context->ClearUnorderedAccessViewUint(m_StatsUAV.Get(), zeros);
 
     m_UpdateCS->Bind(context);
 
@@ -788,12 +839,80 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     m_UpdateCS->SetUAV(context, "aliveList", m_AliveListUAV.Get());
     m_UpdateCS->SetUAV(context, "meshCounts", m_MeshCountUAV.Get());
     m_UpdateCS->SetUAV(context, "aliveMesh", m_AliveMeshUAV.Get());
+    if (m_StatsUAV) m_UpdateCS->SetUAV(context, "g_Stats", m_StatsUAV.Get());
     m_UpdateCS->BindUAVs(context);
 
     context->Dispatch((m_MaxParticles + 255) / 256, 1, 1);
 
     m_UpdateCS->UnbindSRVs(context);
     m_UpdateCS->UnbindUAVs(context);
+
+    ReadbackStats(context);
+}
+
+// ============================================
+// 粒子の統計（HasDistortion。2026-10-25）
+//   stats    : uint 4 個（[0] = 歪みの強さを持つ生きたビルボード）。UpdateCS が InterlockedAdd
+//   staging  : kStatsRing 枚を回す。今フレームの数を写し、一番古い（kStatsRing - 1 フレーム前の）物を
+//              DO_NOT_WAIT で読む（GPU を待たない。まだ終わっていなければ前の値のまま）
+// ============================================
+bool GPUParticleSystem::CreateStatsResources(ID3D11Device* device)
+{
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = sizeof(uint32_t) * 4;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+    if (FAILED(device->CreateBuffer(&desc, nullptr, &m_StatsBuffer))) { m_StatsBuffer.Reset(); return false; }
+
+    D3D11_UNORDERED_ACCESS_VIEW_DESC ud = {};
+    ud.Format = DXGI_FORMAT_R32_UINT;
+    ud.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+    ud.Buffer.NumElements = 4;
+    if (FAILED(device->CreateUnorderedAccessView(m_StatsBuffer.Get(), &ud, &m_StatsUAV)))
+    {
+        m_StatsBuffer.Reset();
+        m_StatsUAV.Reset();
+        return false;
+    }
+
+    D3D11_BUFFER_DESC sd = {};
+    sd.ByteWidth = sizeof(uint32_t) * 4;
+    sd.Usage = D3D11_USAGE_STAGING;
+    sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    for (int i = 0; i < kStatsRing; ++i)
+    {
+        if (FAILED(device->CreateBuffer(&sd, nullptr, &m_StatsStaging[i])))
+        {
+            m_StatsBuffer.Reset();
+            m_StatsUAV.Reset();
+            for (auto& s : m_StatsStaging) s.Reset();
+            return false;
+        }
+        m_StatsPending[i] = false;
+    }
+    m_StatsWrite = 0;
+    m_DistortKnown = false;
+    return true;
+}
+
+void GPUParticleSystem::ReadbackStats(ID3D11DeviceContext* context)
+{
+    if (!m_StatsBuffer || !m_StatsUAV) return;
+
+    context->CopyResource(m_StatsStaging[m_StatsWrite].Get(), m_StatsBuffer.Get());
+    m_StatsPending[m_StatsWrite] = true;
+    m_StatsWrite = (m_StatsWrite + 1) % kStatsRing;
+
+    // 次に書く枠 = 一番古く写した枠
+    const int read = m_StatsWrite;
+    if (!m_StatsPending[read]) return;
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    if (context->Map(m_StatsStaging[read].Get(), 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped) != S_OK)
+        return;   // まだ GPU が終わっていない（DXGI_ERROR_WAS_STILL_DRAWING）。前の値のまま
+    m_DistortCount = static_cast<const uint32_t*>(mapped.pData)[0];
+    m_DistortKnown = true;
+    context->Unmap(m_StatsStaging[read].Get(), 0);
+    m_StatsPending[read] = false;
 }
 
 // ============================================
@@ -982,6 +1101,7 @@ void GPUParticleSystem::ResetSystem()
 
     const UINT zeros[4] = { 0, 0, 0, 0 };
     m_Context->ClearUnorderedAccessViewUint(m_MeshCountUAV.Get(), zeros);
+    m_MeshArgsFresh = true;   // 0 にした数を args へ写し直す（前の粒子の数で描かない）
 }
 
 // ============================================
@@ -1009,11 +1129,32 @@ void GPUParticleSystem::SubmitEmitters(const std::vector<GPUEmitter>& emitters,
     {
         GPUEmitter e = emitters[i];
         e.colorKeyOffset += baseOffset;   // ローカル offset → 全体 offset へ補正
+        if (e.emitCount < 0) e.emitCount = 0;   // 発射 CS は uint で読む（負 = 約 40 億 = 空きを全部奪う）
         m_PendingEmitters.push_back(e);
     }
 
     for (const auto& k : colorKeys)
         m_PendingColorKeys.push_back(k);
+}
+
+bool GPUParticleSystem::SubmitEmitter(const GPUEmitter& emitter, const ColorKey* keys, int keyCount)
+{
+    if (m_PendingEmitters.size() >= MAX_EMITTERS)
+    {
+        ++m_DroppedEmitters;   // 格下げ：このエフェクトのこの粒子が出ないだけ
+        return false;
+    }
+
+    GPUEmitter e = emitter;
+    if (e.emitCount < 0) e.emitCount = 0;
+    if (!keys || keyCount < 0) keyCount = 0;
+    // 色の鍵は「静的区（Swarm）→ 今フレームの pending」の順に並ぶ。自分の鍵はその末尾
+    e.colorKeyOffset = static_cast<int>(m_StaticColorKeys.size() + m_PendingColorKeys.size());
+    e.colorKeyCount = keyCount;
+    m_PendingEmitters.push_back(e);
+    for (int k = 0; k < keyCount; ++k)
+        m_PendingColorKeys.push_back(keys[k]);
+    return true;
 }
 
 // ============================================

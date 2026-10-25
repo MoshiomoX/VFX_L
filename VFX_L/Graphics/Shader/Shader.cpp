@@ -16,7 +16,17 @@ Shader::Shader(Kind kind)
 Shader::~Shader()
 {
     m_Buffers.clear();
-    m_Textures.clear();
+}
+
+namespace
+{
+    // 一括解除用の null の並び（API の上限ぶん）
+    constexpr UINT kSRVSlotLimit = D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT;   // 128
+    constexpr UINT kUAVSlotLimit = 64;   // D3D11_1_UAV_SLOT_COUNT（FL 11_1。11_0 は 8 まで）
+    ID3D11ShaderResourceView* const  kNullSRVs[kSRVSlotLimit] = {};
+    ID3D11UnorderedAccessView* const kNullUAVs[kUAVSlotLimit] = {};
+    struct KeepCounts { UINT v[kUAVSlotLimit]; constexpr KeepCounts() : v() { for (UINT& x : v) x = (UINT)-1; } };
+    constexpr KeepCounts kKeepCounts;   // initialCount = -1 = append のカウンタを変えない
 }
 
 // ============================================
@@ -136,10 +146,12 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
     pReflection->GetDesc(&shaderDesc);
 
     m_Buffers.clear();
+    m_BufferShadow.clear();
     m_SRVSlotMap.clear();
     m_UAVSlotMap.clear();
     m_MaxSRVSlot = 0;
     m_MaxUAVSlot = 0;
+    m_HasSRV = false;
 
     std::cout << "=== Shader Reflection ===" << std::endl;
 
@@ -173,8 +185,10 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
                 if (m_Buffers.size() <= bindDesc.BindPoint)
                 {
                     m_Buffers.resize(bindDesc.BindPoint + 1);
+                    m_BufferShadow.resize(bindDesc.BindPoint + 1);
                 }
                 m_Buffers[bindDesc.BindPoint] = buffer;
+                m_BufferShadow[bindDesc.BindPoint].clear();   // まだ何も書いていない（最初の WriteBuffer は必ず書く）
             }
         }
         // --- SRV：スロット情報を記録（t レジスタ）---
@@ -187,8 +201,11 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
                 << " (t" << bindDesc.BindPoint << ")" << std::endl;
 
             m_SRVSlotMap[bindDesc.Name] = bindDesc.BindPoint;
-            if (bindDesc.BindPoint > m_MaxSRVSlot)
-                m_MaxSRVSlot = bindDesc.BindPoint;
+            // 配列（Texture2D t[4] 等）は BindCount 個のスロットを使う
+            const UINT last = bindDesc.BindPoint + (std::max)(bindDesc.BindCount, 1u) - 1;
+            if (last > m_MaxSRVSlot)
+                m_MaxSRVSlot = last;
+            m_HasSRV = true;
         }
         // --- UAV：スロット情報を記録（u レジスタ）---
         else if (bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED ||
@@ -201,14 +218,13 @@ HRESULT Shader::Make(ID3D11Device* device, void* pData, UINT size)
                 << " (u" << bindDesc.BindPoint << ")" << std::endl;
 
             m_UAVSlotMap[bindDesc.Name] = bindDesc.BindPoint;
-            if (bindDesc.BindPoint > m_MaxUAVSlot)
-                m_MaxUAVSlot = bindDesc.BindPoint;
+            const UINT last = bindDesc.BindPoint + (std::max)(bindDesc.BindCount, 1u) - 1;
+            if (last > m_MaxUAVSlot)
+                m_MaxUAVSlot = last;
         }
     }
 
     std::cout << "=========================" << std::endl;
-
-    m_Textures.resize(shaderDesc.BoundResources, nullptr);
 
     return MakeShader(device, pData, size);
 }
@@ -223,7 +239,18 @@ void Shader::WriteBuffer(ID3D11DeviceContext* context, UINT slot, void* pData)
 
     if (slot < m_Buffers.size() && m_Buffers[slot])
     {
-        context->UpdateSubresource(m_Buffers[slot].Get(), 0, nullptr, pData, 0, 0);
+        // 前に書いた中身と同じなら書き直さない（2026-10-25。Renderer::DrawMesh は描く度に同じ光の 416B を書いていた）。
+        // この CBuffer に書くのはここだけなので、控えは GPU 側の中身と常に同じ
+        D3D11_BUFFER_DESC bd = {};
+        m_Buffers[slot]->GetDesc(&bd);
+        std::vector<uint8_t>& shadow = m_BufferShadow[slot];
+        const uint8_t* src = static_cast<const uint8_t*>(pData);
+        if (shadow.size() != bd.ByteWidth || std::memcmp(shadow.data(), src, bd.ByteWidth) != 0)
+        {
+            context->UpdateSubresource(m_Buffers[slot].Get(), 0, nullptr, pData, 0, 0);
+            if (shadow.size() != bd.ByteWidth) shadow.resize(bd.ByteWidth);
+            std::memcpy(shadow.data(), src, bd.ByteWidth);
+        }
 
         switch (m_Kind)
         {
@@ -248,11 +275,12 @@ void Shader::SetTexture(ID3D11DeviceContext* context, UINT slot, Texture* tex)
     if (!context)
         return;
 
-    if (slot >= m_Textures.size())
+    // このシェーダーが使う t スロットの範囲外は触らない。
+    // （以前はリソースの総数（CBuffer・サンプラー込み）で判定していて、t9 等の大きい番号を弾く事があった）
+    if (!m_HasSRV || slot > m_MaxSRVSlot || slot >= kSRVSlotLimit)
         return;
 
     ID3D11ShaderResourceView* pSRV = tex ? tex->GetSRV() : nullptr;
-    m_Textures[slot] = pSRV;
 
     switch (m_Kind)
     {
@@ -271,7 +299,7 @@ void Shader::SetTexture(ID3D11DeviceContext* context, UINT slot, Texture* tex)
 // ============================================
 // SRV バインド（名前指定）
 // ============================================
-void Shader::SetSRV(ID3D11DeviceContext* context, const std::string& name, ID3D11ShaderResourceView* srv)
+void Shader::SetSRV(ID3D11DeviceContext* context, std::string_view name, ID3D11ShaderResourceView* srv)
 {
     int slot = FindSRVSlot(name);
     if (slot < 0)
@@ -306,7 +334,7 @@ void Shader::SetSRV(ID3D11DeviceContext* context, UINT slot, ID3D11ShaderResourc
 // ============================================
 // UAV 登録（名前指定、キューに溜める）
 // ============================================
-void Shader::SetUAV(ID3D11DeviceContext* context, const std::string& name,
+void Shader::SetUAV(ID3D11DeviceContext* context, std::string_view name,
     ID3D11UnorderedAccessView* uav, UINT initialCount)
 {
     int slot = FindUAVSlot(name);
@@ -336,85 +364,81 @@ void Shader::BindUAVs(ID3D11DeviceContext* context)
     if (m_PendingUAVs.empty()) return;
     if (!context) { m_PendingUAVs.clear(); return; }
 
-    // スロット範囲を求める
-    UINT minSlot = m_PendingUAVs[0].slot;
-    UINT maxSlot = m_PendingUAVs[0].slot;
+    // スロット範囲を求める（API の上限を超える番号は無効なので捨てる）
+    UINT minSlot = kUAVSlotLimit, maxSlot = 0;
     for (auto& p : m_PendingUAVs)
     {
+        if (p.slot >= kUAVSlotLimit) continue;
         if (p.slot < minSlot) minSlot = p.slot;
         if (p.slot > maxSlot) maxSlot = p.slot;
     }
+    if (minSlot >= kUAVSlotLimit) { m_PendingUAVs.clear(); return; }
 
-    UINT count = maxSlot - minSlot + 1;
+    const UINT count = maxSlot - minSlot + 1;
 
-    // 配列を初期化（nullptr = バインドしない、initialCount = -1 = リセットしない）
-    std::vector<ID3D11UnorderedAccessView*> uavs(count, nullptr);
-    std::vector<UINT> initialCounts(count, (UINT)-1);
+    // 配列を初期化（nullptr = バインドしない、initialCount = -1 = リセットしない）。定長でヒープを使わない
+    ID3D11UnorderedAccessView* uavs[kUAVSlotLimit] = {};
+    UINT initialCounts[kUAVSlotLimit];
+    for (UINT i = 0; i < count; ++i) initialCounts[i] = (UINT)-1;
 
     // キューの内容を配列に埋め込む
     for (auto& p : m_PendingUAVs)
     {
-        UINT idx = p.slot - minSlot;
+        if (p.slot >= kUAVSlotLimit) continue;
+        const UINT idx = p.slot - minSlot;
         uavs[idx] = p.uav;
         initialCounts[idx] = p.initialCount;
     }
 
     // 一括バインド
-    context->CSSetUnorderedAccessViews(minSlot, count, uavs.data(), initialCounts.data());
+    context->CSSetUnorderedAccessViews(minSlot, count, uavs, initialCounts);
 
     m_PendingUAVs.clear();
 }
 
 // ============================================
-// SRV 一括解除
+// SRV 一括解除（0〜最大スロットを 1 回の呼び出しで null にする）
 // ============================================
 void Shader::UnbindSRVs(ID3D11DeviceContext* context)
 {
     if (!context) return;
 
-    for (UINT i = 0; i <= m_MaxSRVSlot; ++i)
+    const UINT count = (std::min)(m_MaxSRVSlot + 1, kSRVSlotLimit);
+    switch (m_Kind)
     {
-        ID3D11ShaderResourceView* nullSRV = nullptr;
-        switch (m_Kind)
-        {
-        case Vertex:
-            context->VSSetShaderResources(i, 1, &nullSRV);
-            break;
-        case Pixel:
-            context->PSSetShaderResources(i, 1, &nullSRV);
-            break;
-        case Compute:
-            context->CSSetShaderResources(i, 1, &nullSRV);
-            break;
-        }
+    case Vertex:
+        context->VSSetShaderResources(0, count, kNullSRVs);
+        break;
+    case Pixel:
+        context->PSSetShaderResources(0, count, kNullSRVs);
+        break;
+    case Compute:
+        context->CSSetShaderResources(0, count, kNullSRVs);
+        break;
     }
 }
 
 // ============================================
-// UAV 一括解除
+// UAV 一括解除（0〜最大スロットを 1 回の呼び出しで null にする）
 // ============================================
 void Shader::UnbindUAVs(ID3D11DeviceContext* context)
 {
     if (!context) return;
 
-    for (UINT i = 0; i <= m_MaxUAVSlot; ++i)
-    {
-        ID3D11UnorderedAccessView* nullUAV = nullptr;
-        UINT keep = (UINT)-1;
-        context->CSSetUnorderedAccessViews(i, 1, &nullUAV, &keep);
-    }
+    const UINT count = (std::min)(m_MaxUAVSlot + 1, kUAVSlotLimit);
+    context->CSSetUnorderedAccessViews(0, count, kNullUAVs, kKeepCounts.v);
 }
 
 // ============================================
 // スロット逆引き
 // ============================================
-int Shader::FindSRVSlot(const std::string& name) const
+int Shader::FindSRVSlot(std::string_view name) const
 {
     auto it = m_SRVSlotMap.find(name);
     return (it != m_SRVSlotMap.end()) ? static_cast<int>(it->second) : -1;
 }
 
-int Shader::FindUAVSlot(const std::string& name) const
+int Shader::FindUAVSlot(std::string_view name) const
 {
     auto it = m_UAVSlotMap.find(name);
     return (it != m_UAVSlotMap.end()) ? static_cast<int>(it->second) : -1;

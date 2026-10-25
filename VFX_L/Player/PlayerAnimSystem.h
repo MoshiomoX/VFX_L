@@ -45,7 +45,8 @@ public:
 
     void Update(Registry& reg, float dt);
 
-    ClipNames& Names() { return m_Names; }
+    // 名前を書き換えたら次の Update で番号を引き直す（触るたびに印を立てる）
+    ClipNames& Names() { m_NamesDirty = true; return m_Names; }
 
     // 滑りの姿勢: slide クリップ（屈んだ姿勢）を足元を軸に後ろへ傾ける（度）。0 で傾けない
     float slideLeanDeg = 0.0f;   // Slide_Loop は最初から後ろへ倒れた姿勢（KayKit の Crouching の時は 15）
@@ -68,7 +69,19 @@ public:
     float CurrentPlayRate() const { return m_PlayRate; }
 
 private:
+    // クリップの番号（2026-10-25）。名前で引く（FindClip、毎回文字列を作って全クリップと比べる）のは 1 フレームに 7 回ほどあったので、
+    // モデル・クリップの数・名前が変わった時だけ引き直して覚えておく
+    struct ClipCache
+    {
+        const SkinnedModel* model = nullptr;
+        int clipCount = -1;
+        int idle = -1, walk = -1, run = -1, sprint = -1, jump = -1, fall = -1, cast = -1, hurt = -1, dead = -1, slide = -1;
+    };
+    const ClipCache& ResolveClips(const SkinnedModel& model);
+
     ClipNames m_Names;
+    bool  m_NamesDirty = true;
+    ClipCache m_Clips;
     int   m_Gait = 1;
     float m_PlayRate = 1.0f;
 };

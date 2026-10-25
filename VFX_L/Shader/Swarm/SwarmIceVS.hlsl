@@ -1,9 +1,11 @@
 // ============================================================
 // SwarmIceVS.hlsl
 // Ice crystals around a frozen enemy (Ice Lance, 2026-10-08).
-// Two instances per enemy slot (DrawIndexedInstanced over the whole
-// pool x 2); slots that are dead or not frozen (enemySlow.z <= 0) are
-// collapsed. The mesh is a VFX model (Assets/VFX/Mesh/bingci_02.FBX, a
+// One instance per live enemy (the alive list of SwarmEnemyCompactCS,
+// DrawIndexedInstancedIndirect; 2026-10-25, it used to be the whole pool
+// x 2 every frame), drawn twice: g_IceVariant = which of the two clusters.
+// Enemies that are not frozen (enemySlow.z <= 0) are collapsed.
+// The mesh is a VFX model (Assets/VFX/Mesh/bingci_02.FBX, a
 // cluster of upright spikes) drawn with the enemy pixel shader and the
 // default white texture, alpha blended (premultiplied: a glowing,
 // see-through ice).
@@ -23,6 +25,7 @@
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
+StructuredBuffer<uint> aliveList : register(t2);   // live slots (SwarmEnemyCompactCS)
 StructuredBuffer<float4> enemySlow : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
@@ -34,7 +37,7 @@ cbuffer SwarmPropMeshCB : register(b4)
     float3 g_HoldOffset; // x = distance of each cluster from the body centre, y = sink below the feet
     float g_MeshYaw;     // unused
     float4 g_IceColor;   // linear, may go above 1 (bloom)
-    float g_BobAmount;   // unused
+    float g_IceVariant;  // 0 = the cluster in front, 1 = the one behind (one draw each. 2026-10-25, was the unused bob)
     float g_IceAlpha;
     float2 _propPad;
 };
@@ -60,8 +63,8 @@ float3 RotateY(float3 p, float s, float c)
 VS_OUTPUT main(VS_INPUT_INST input)
 {
     VS_OUTPUT o = (VS_OUTPUT) 0;
-    uint slot = input.InstanceID >> 1;
-    uint variant = input.InstanceID & 1u;
+    uint slot = aliveList[input.InstanceID];
+    uint variant = (g_IceVariant > 0.5) ? 1u : 0u;
     float4 st = (slot < g_MaxEnemies) ? enemySlow[slot] : float4(0, 0, 0, 0);
     if (slot >= g_MaxEnemies || enemyStates[slot] == SWARM_DEAD || st.z <= 0.0)
     {

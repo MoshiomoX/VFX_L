@@ -49,6 +49,15 @@ void SceneManager::Update(float dt)
     }
 }
 
+void SceneManager::Shutdown()
+{
+    m_PendingScene = SceneType::NONE;   // 終わる時に切り替えの依頼が残っていても作らない
+    if (!m_CurrentScene) return;
+    m_CurrentScene->Shutdown();
+    m_CurrentScene.reset();
+    m_CurrentSceneType = SceneType::NONE;
+}
+
 void SceneManager::Render(Renderer& renderer)
 {
     if (m_CurrentScene)

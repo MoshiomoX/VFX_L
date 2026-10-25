@@ -207,11 +207,25 @@ namespace
         flush();
     }
 
-    std::vector<Part> Split(const std::wstring& s)
+    // 分けた結果を「文字列 × 今の機器」ごとに覚えておく（2026-10-25。以前は Measure / Draw のたびに分け直して
+    // 片の文字列を確保していた。DrawOutlined は 1 回で 6 回）。
+    // 片が指す絵（g_Glyphs / g_KeyImages）は Shutdown まで動かないので、そのまま覚えて良い。
+    // 数字の入る文（距離・金貨）は毎フレーム変わるので、溜まり過ぎたら丸ごと捨てる。
+    // 返す参照は次に Split を呼ぶまで有効（捨てるのは新しい文を入れる時だけ）
+    constexpr size_t kSplitCacheMax = 256;
+    std::unordered_map<std::wstring, std::vector<Part>> g_SplitCache[2];   // [0] キーボード・マウス / [1] パッド
+
+    const std::vector<Part>& Split(const std::wstring& s)
     {
+        const bool pad = InputManager::Get().IsUsingPad();
+        auto& cache = g_SplitCache[pad ? 1 : 0];
+        auto it = cache.find(s);
+        if (it != cache.end()) return it->second;
+        if (cache.size() >= kSplitCacheMax) cache.clear();
+
         std::vector<Part> parts;
-        Parse(s, 0, s.size(), InputManager::Get().IsUsingPad(), parts);
-        return parts;
+        Parse(s, 0, s.size(), pad, parts);
+        return cache.emplace(s, std::move(parts)).first->second;
     }
 
     float KeyLabelScale(float scale) { return scale * InputGlyph::keyLabelScale; }
@@ -329,7 +343,8 @@ namespace InputGlyph
         return { w - (std::max)(0.0f, lastText), h };
     }
 
-    void Draw(SpriteRenderer& sprite, TextRenderer& text, const std::wstring& s,
+    // 分け終えた片を描く（Draw / DrawShadowed / DrawOutlined が共用。影・縁の段で分け直さない）
+    static void DrawParts(SpriteRenderer& sprite, TextRenderer& text, const std::vector<Part>& parts,
         const Vector2& pos, const Vector4& color, float scale, bool icons)
     {
         const float lineH = text.GetLineHeight(scale);
@@ -338,7 +353,7 @@ namespace InputGlyph
         const Vector4 tint = { iconGain, iconGain, iconGain, color.w };
         const Vector4 keyTint = { keyGain, keyGain, keyGain, color.w };   // キーボード・マウスの白い絵（ブルームで滲まないように）
         float x = pos.x;
-        for (const Part& p : Split(s))
+        for (const Part& p : parts)
         {
             if (p.keyImage)
             {
@@ -367,21 +382,29 @@ namespace InputGlyph
         }
     }
 
+    void Draw(SpriteRenderer& sprite, TextRenderer& text, const std::wstring& s,
+        const Vector2& pos, const Vector4& color, float scale, bool icons)
+    {
+        DrawParts(sprite, text, Split(s), pos, color, scale, icons);
+    }
+
     void DrawShadowed(SpriteRenderer& sprite, TextRenderer& text, const std::wstring& s,
         const Vector2& pos, const Vector4& color, float scale,
         const Vector2& shadowOffset, const Vector4& shadowColor)
     {
-        Draw(sprite, text, s, pos + shadowOffset, shadowColor, scale, false);
-        Draw(sprite, text, s, pos, color, scale, true);
+        const std::vector<Part>& parts = Split(s);   // 1 回だけ分ける
+        DrawParts(sprite, text, parts, pos + shadowOffset, shadowColor, scale, false);
+        DrawParts(sprite, text, parts, pos, color, scale, true);
     }
 
     void DrawOutlined(SpriteRenderer& sprite, TextRenderer& text, const std::wstring& s,
         const Vector2& pos, const Vector4& color, float scale, float o)
     {
+        const std::vector<Part>& parts = Split(s);   // 1 回だけ分ける（以前は縁 5 回 + 本体 1 回分け直していた）
         const Vector4 shadow = { 0.0f, 0.0f, 0.0f, 0.75f * color.w };
         for (const Vector2 d : { Vector2(o, 0.0f), Vector2(-o, 0.0f), Vector2(0.0f, o), Vector2(0.0f, -o), Vector2(o * 1.5f, o * 1.5f) })
-            Draw(sprite, text, s, pos + d, shadow, scale, false);
-        Draw(sprite, text, s, pos, color, scale, true);
+            DrawParts(sprite, text, parts, pos + d, shadow, scale, false);
+        DrawParts(sprite, text, parts, pos, color, scale, true);
     }
 
     void DrawIcon(SpriteRenderer& sprite, const wchar_t* token, const Vector2& center, float size, float alpha)
@@ -405,6 +428,7 @@ namespace InputGlyph
         }
         g_KeyCap.tex.reset();
         g_KeyCap.tried = false;
+        for (auto& cache : g_SplitCache) cache.clear();   // 片が g_KeyImages を指しているので先に捨てる
         g_KeyImages.clear();
     }
 }

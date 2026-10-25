@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // RewardCrateSystem.cpp
 // ============================================================
 #include "ECS/System/RewardCrateSystem.h"
@@ -22,6 +22,8 @@ void RewardCrateSystem::Init()
 {
     m_Crates.clear();
     m_Model = ResourceManager::Get().LoadModel(Res::Mdl::Kenney_RewardCrate);
+    m_GoldModel = ResourceManager::Get().LoadModel(Res::Mdl::Ruins_ChestGold);   // 倒したエリートの宝箱（2026-10-25）
+    m_FreeCrates.clear();
 }
 
 // ============================================================
@@ -45,6 +47,7 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
     m_Crates.clear();
     interaction.ClearFocus();
     m_Opened = 0;   // 並べ直したら値段も最初から（面の始まり）
+    m_FreeCrates.clear();
 
     if (!m_Model)
     {
@@ -188,8 +191,10 @@ bool RewardCrateSystem::TryOpen(Registry& reg, Entity used, Entity player, Level
     const auto& it = reg.Get<InteractableComponent>(used);
     if (it.kind != InteractKind::RewardChoice) return false;
 
+    // 倒したエリートの金色の宝箱は無料・値段も上げない（2026-10-25）
+    const bool free = IsFree(used);
     // 金貨（2026-10-04）。足りなければ箱は残す。払うのは三択が出せた時だけ
-    const int price = Price();
+    const int price = free ? 0 : Price();
     WalletComponent* wallet = reg.Has<WalletComponent>(player) ? &reg.Get<WalletComponent>(player) : nullptr;
     if (wallet && !wallet->CanPay(price))
     {
@@ -197,14 +202,73 @@ bool RewardCrateSystem::TryOpen(Registry& reg, Entity used, Entity player, Level
         return false;
     }
     if (!levelUp.OfferChoices(reg, player)) return false;
-    if (wallet) wallet->Pay(price);
-    ++m_Opened;
+    if (wallet && price > 0) wallet->Pay(price);
+    if (!free) ++m_Opened;
 
     openedPos = it.basePos;
     reg.Destroy(used);
     m_Crates.erase(std::remove(m_Crates.begin(), m_Crates.end(), used), m_Crates.end());
+    m_FreeCrates.erase(std::remove(m_FreeCrates.begin(), m_FreeCrates.end(), used), m_FreeCrates.end());
     interaction.ClearFocus();
     return true;
+}
+
+// ============================================================
+// 倒した面の固定エリートの金色の宝箱（2026-10-25）。死んだ所（地面）に 1 個。金貨は要らない
+// ============================================================
+Entity RewardCrateSystem::SpawnFree(Registry& reg, const GridWorld& grid, const Vector3& pos)
+{
+    const std::shared_ptr<Model>& model = m_GoldModel ? m_GoldModel : m_Model;
+    if (!model) return EntityTraits::NULL_ENTITY;
+    const Vector3 lo = model->GetBoundsMin();
+    const Vector3 hi = model->GetBoundsMax();
+    const float height = hi.y - lo.y;
+    const float size = m_GoldModel ? m_GoldSize : m_Size;
+    const float scale = (height > 1e-4f) ? size / height : 1.0f;
+    const Vector3 ext = (hi - lo) * scale * 0.5f;
+    const Vector3 at(pos.x, grid.SampleHeight(pos.x, pos.z), pos.z);
+
+    Entity e = reg.Create();
+    TransformComponent tf;
+    tf.position = at;
+    tf.rotation = { 0.0f, (float)(rand() % 360), 0.0f };
+    tf.scale = { scale, scale, scale };
+    reg.Add<TransformComponent>(e, tf);
+
+    ModelComponent mc;
+    mc.model = model;
+    reg.Add<ModelComponent>(e, mc);
+
+    ColliderComponent col;
+    col.shape = ColliderShape::AABB;
+    const float half = (std::max)(ext.x, ext.z) * 0.8f;
+    col.halfExtents = { half, size * 0.5f, half };
+    col.offset = { 0.0f, size * 0.5f, 0.0f };
+    col.layer = Layer_Terrain;
+    col.mask = Layer_All;
+    reg.Add<ColliderComponent>(e, col);
+
+    RigidbodyComponent rb;
+    rb.isStatic = true;
+    rb.useGravity = false;
+    reg.Add<RigidbodyComponent>(e, rb);
+
+    InteractableComponent it;
+    it.kind = InteractKind::RewardChoice;
+    it.basePos = at;
+    it.phase = (float)(rand() % 100) * 0.06f;
+    it.radius = half + 1.8f;
+    it.prompt = L"<{K:F}|{B}>  開ける（無料）";
+    it.lightColor = { 1.0f, 0.82f, 0.32f };
+    it.lightRadius = 4.5f;
+    it.lightIntensity = 1.8f;
+    it.lightHeight = 1.2f;
+    reg.Add<InteractableComponent>(e, it);
+
+    m_Crates.push_back(e);
+    m_FreeCrates.push_back(e);
+    std::cout << "[RewardCrateSystem] golden chest at (" << at.x << ", " << at.z << ")" << std::endl;
+    return e;
 }
 
 int RewardCrateSystem::Price() const

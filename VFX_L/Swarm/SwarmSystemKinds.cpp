@@ -105,6 +105,17 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
             m_ShieldDrawArgs.push_back(MakeArgs(device, init, 5));
         }
     }
+    // 氷: submesh 毎。InstanceCount は生きている敵の一覧から（2026-10-25、前は池全体 x 2 を毎フレーム描いていた）
+    m_IceDrawArgs.clear();
+    if (m_IceModel)
+    {
+        for (const auto& sub : m_IceModel->GetSubMeshes())
+        {
+            if (!sub.mesh) { m_IceDrawArgs.emplace_back(); continue; }
+            const uint32_t init[5] = { sub.mesh->GetIndexCount(), 0, 0, 0, 0 };
+            m_IceDrawArgs.push_back(MakeArgs(device, init, 5));
+        }
+    }
     // トゲ玉：コードで作った球 + トゲ（半径 1、砂色の球 + 褐色のトゲ。2026-10-17）。InstanceCount はトゲ玉の一覧から
     m_SpikeBallDrawArgs.clear();
     if (m_SpikeBallVS && m_EnemyPS)
@@ -142,6 +153,8 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
             }
         }
     }
+    LoadRuinsAssets(device);   // 遺跡の敵の一覧 CS・予告の帯（2026-10-25。無くても遺跡の敵が雑魚の一覧に入らないだけ）
+    LoadEliteAssets(device);   // 面の固定エリートの砕け中の一覧・様子のリードバック（2026-10-25）
     return m_KindListCS && m_ChargeLineVS && m_ChargeLinePS && m_ShieldModel && m_IceModel && m_SpikeBallModel && m_MoundModel;
 }
 
@@ -161,12 +174,16 @@ void SwarmSystem::DispatchKindLists()
     m_KindListCS->SetUAV(m_Context, "spikeBallList", m_SpikeBallListUAV.Get(), 0);   // トゲ玉（2026-10-17）
     m_KindListCS->SetUAV(m_Context, "burrowerList", m_KindListUAV[Swarm::kDrawListBurrower].Get(), 0);   // 砂潜り（2026-10-17）
     m_KindListCS->SetUAV(m_Context, "sandMageList", m_KindListUAV[Swarm::kDrawListSandMage].Get(), 0);   // 砂嵐の術師（2026-10-17）
-    m_KindListCS->SetUAV(m_Context, "tornadoList", m_TornadoListUAV.Get(), 0);   // 砂旋（2026-10-17）
+    // u5 は空き（砂旋は何も描かないので一覧を廃止。2026-10-25）
     m_KindListCS->SetUAV(m_Context, "dashBomberList", m_KindListUAV[Swarm::kDrawListDashBomber].Get(), 0);   // 突撃爆弾兵（2026-10-18）
+    m_KindListCS->SetUAV(m_Context, "bossList", m_KindListUAV[Swarm::kDrawListBoss].Get(), 0);   // 面の Boss（自分の皮 + 飾り。2026-10-24）
     m_KindListCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
     m_KindListCS->UnbindSRVs(m_Context);
     m_KindListCS->UnbindUAVs(m_Context);
+    ClearEliteInfo();
+    DispatchKindLists2();   // 遺跡の敵（2026-10-25。この pass も UAV が 8 本で埋まった）
+    CopyEliteInfoForCPU();   // 面の固定エリートの様子（KindList2CS が書く。2026-10-25）
 }
 
 // ============================================================
@@ -220,11 +237,12 @@ void SwarmSystem::RenderShields(const Matrix& view, const Matrix& proj)
 
 // ============================================================
 // 凍った敵の氷（RenderOpaque の最後。半透明・深度は読むだけ）。
-// 池全体 x 2 を DrawInstanced し、凍っていない・死んだ槽は VS が畳む
+// 生きている敵の一覧（CompactCS）から間接描画で、前後の 2 つの塊を 1 回ずつ。凍っていない槽は VS が畳む
+// （2026-10-25、前は池全体 x 2 = 8192 個を凍った敵が居なくても毎フレーム描いていた）
 // ============================================================
 void SwarmSystem::RenderIce(const Matrix& view, const Matrix& proj)
 {
-    if (!iceLook.enabled || !m_IceMaterial || !m_IceModel) return;
+    if (!iceLook.enabled || !m_IceMaterial || !m_IceModel || m_IceDrawArgs.empty() || !m_AliveListSRV) return;
 
     m_IceMaterial->Bind(m_Context);
     ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
@@ -247,10 +265,10 @@ void SwarmSystem::RenderIce(const Matrix& view, const Matrix& proj)
     p.hold = Vector3(iceLook.spread, iceLook.sink, 0.0f);
     p.tint = iceLook.color;
     p.alpha = iceLook.alpha;
-    m_IceVS->WriteBuffer(m_Context, 4, &p);
 
     m_IceVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_IceVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+    m_IceVS->SetSRV(m_Context, "aliveList", m_AliveListSRV.Get());
     m_IceVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
     m_IceVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
@@ -258,9 +276,15 @@ void SwarmSystem::RenderIce(const Matrix& view, const Matrix& proj)
     const float bf[4] = { 0, 0, 0, 0 };
     m_Context->OMSetBlendState(rs.AlphaBlend(), bf, 0xFFFFFFFF);   // 乗算済み: 色は足され、alpha 分だけ奥が消える
     m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);
-    for (const auto& sub : m_IceModel->GetSubMeshes())
-        if (sub.mesh)
-            sub.mesh->DrawInstanced(m_Context, Swarm::kMaxEnemies * 2);
+    const auto& subs = m_IceModel->GetSubMeshes();
+    for (int variant = 0; variant < 2; ++variant)   // 前の塊 / 後ろの塊（VS の g_IceVariant）
+    {
+        p.bob = (float)variant;
+        m_IceVS->WriteBuffer(m_Context, 4, &p);
+        for (size_t i = 0; i < subs.size() && i < m_IceDrawArgs.size(); ++i)
+            if (subs[i].mesh && m_IceDrawArgs[i])
+                subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_IceDrawArgs[i].Get(), 0);
+    }
     m_Context->OMSetBlendState(rs.Opaque(), bf, 0xFFFFFFFF);
     m_Context->OMSetDepthStencilState(rs.DepthDefault(), 0);
 
@@ -308,6 +332,19 @@ void SwarmSystem::RenderChargeLines(CameraBase* camera)
     m_Context->RSSetState(rs.CullNone());
 
     m_Context->DrawInstancedIndirect(m_ChargeLineArgs.Get(), 0);
+    // 同じ帯を鎖の番人（投げの溜め）・ガーゴイル（急降下の溜め）の一覧からもう一度ずつ（2026-10-25）
+    if (m_WardenLineArgs)
+    {
+        m_ChargeLineVS->SetSRV(m_Context, "chargerList", m_KindListSRV[Swarm::kDrawListWarden].Get());
+        m_ChargeLineVS->Bind(m_Context);
+        m_Context->DrawInstancedIndirect(m_WardenLineArgs.Get(), 0);
+    }
+    if (m_GargoyleLineArgs)
+    {
+        m_ChargeLineVS->SetSRV(m_Context, "chargerList", m_KindListSRV[Swarm::kDrawListGargoyle].Get());
+        m_ChargeLineVS->Bind(m_Context);
+        m_Context->DrawInstancedIndirect(m_GargoyleLineArgs.Get(), 0);
+    }
 
     // 次のフレームの Compute が UAV として使うので外す
     m_ChargeLineVS->UnbindSRVs(m_Context);
@@ -317,7 +354,7 @@ void SwarmSystem::RenderChargeLines(CameraBase* camera)
 // ============================================================
 // トゲ玉の体（RenderOpaque の盾の後、ステンシル 2 のまま。2026-10-17）。
 // 雑魚のメッシュは描かず（CompactCS が mobList に入れない）、コードで作った球 + トゲ（PrimitiveBuilder::CreateSpikeBall、半径 1）を
-// 体格に合わせて拡大し、速度の向きに転がして描く。色は頂点色 × spikeBallLook.tint
+// 体格に合わせて拡大し、MoveCS が積み上げた向き（m_EnemyRoll*。2026-10-25）で回して描く。色は頂点色 × spikeBallLook.tint
 // ============================================================
 void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
 {
@@ -340,13 +377,14 @@ void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
     p.hold = Vector3(0.0f, spikeBallLook.radius, 0.0f);    // 中心 = 足元 + 半径
     p.yaw = 0.0f;
     p.tint = spikeBallLook.tint;
-    p.bob = spikeBallLook.rollRate;
+    p.bob = 0.0f;   // 転がる速さは MoveCS へ（BomberCB::spikeBallRollPerMeter。2026-10-25）
     p.alpha = 1.0f;
     m_SpikeBallVS->WriteBuffer(m_Context, 4, &p);
 
     m_SpikeBallVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "spikeBallList", m_SpikeBallListSRV.Get());
+    m_SpikeBallVS->SetSRV(m_Context, "enemyRoll", m_EnemyRollSRV.Get());   // 転がった向き（MoveCS が積み上げる。2026-10-25）
     m_SpikeBallVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 

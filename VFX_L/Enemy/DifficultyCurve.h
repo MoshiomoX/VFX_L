@@ -40,6 +40,7 @@ struct DifficultyCurve
     bool Save(const char* path = nullptr) const;
     bool Load(const char* path = nullptr);
 
-    // 表の編集・保存のボタン・曲線（nowMinutes に縦線の代わりの印）
-    void DrawImGui(float nowMinutes);
+    // 表の編集・保存のボタン・曲線。nowMinutes = 表で今読んでいる分（面の進め分込み）、
+    // offsetMinutes = 面の進め分（曲線は表の offsetMinutes〜+12 分 = その面の 0〜12 分を描く）
+    void DrawImGui(float nowMinutes, float offsetMinutes = 0.0f);
 };

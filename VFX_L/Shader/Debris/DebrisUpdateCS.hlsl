@@ -94,55 +94,75 @@ float3 GustAir(float2 xz, out float lift)
     return air;
 }
 
+// live shaking areas of this step, one bit per area slot (built once per group at the top of main, 2026-10-25:
+// before this every piece read all 256 area states). BlastAccel walks the set bits in slot order, so the sum
+// is added up in the same order as the old full loop
+#define DEBRIS_SHAKE_WORDS (DEBRIS_MAX_AREAS / 32u)
+groupshared uint gs_ShakeMask[DEBRIS_SHAKE_WORDS];
+
 // outward acceleration of the live explosion areas (Swarm::kAreaShake). lift = 1 inside one
 float3 BlastAccel(float3 pos, out float lift)
 {
     float3 acc = 0;
     lift = 0.0;
-    for (uint a = 0u; a < DEBRIS_MAX_AREAS; ++a)
+    for (uint w = 0u; w < DEBRIS_SHAKE_WORDS; ++w)
     {
-        if (g_AreaStates[a] == 0u)
-            continue;
-        DebrisArea ar = g_Areas[a];
-        if ((ar.flags & DEBRIS_AREA_SHAKE) == 0u)
-            continue;
-        // the beam (2026-10-13): pushed sideways off the segment, a little along it, over a band 2.5 x its
-        // radius. Before this it was treated as a disc at its centre = the muzzle, so the leaves burst out
-        // from the player's feet instead of along the beam
-        if ((ar.flags & DEBRIS_AREA_CAPSULE) != 0u)
+        uint bits = gs_ShakeMask[w];
+        while (bits != 0u)
         {
-            float2 seg = g_AreaEnds[a].xz - ar.center.xz;
-            float segLen = length(seg);
-            if (segLen < 1e-3)
+            uint a = w * 32u + firstbitlow(bits);
+            bits &= bits - 1u;
+            DebrisArea ar = g_Areas[a];
+            // the beam (2026-10-13): pushed sideways off the segment, a little along it, over a band 2.5 x its
+            // radius. Before this it was treated as a disc at its centre = the muzzle, so the leaves burst out
+            // from the player's feet instead of along the beam
+            if ((ar.flags & DEBRIS_AREA_CAPSULE) != 0u)
+            {
+                float2 seg = g_AreaEnds[a].xz - ar.center.xz;
+                float segLen = length(seg);
+                if (segLen < 1e-3)
+                    continue;
+                float t = saturate(dot(pos.xz - ar.center.xz, seg) / (segLen * segLen));
+                float2 d = pos.xz - (ar.center.xz + seg * t);
+                float side = length(d);
+                float r = ar.radius * 2.5;
+                if (side > r || abs(pos.y - ar.center.y) > ar.halfHeight + 3.0)
+                    continue;
+                float2 out2 = side > 1e-3 ? d / side : float2(seg.y, -seg.x) / segLen;
+                float f = g_BlastAccel * 0.5 * (1.0 - side / r);
+                acc += float3(out2.x * f, f * 0.4, out2.y * f) + float3(seg.x, 0.0, seg.y) / segLen * (f * 0.3);
+                lift = 1.0;
                 continue;
-            float t = saturate(dot(pos.xz - ar.center.xz, seg) / (segLen * segLen));
-            float2 d = pos.xz - (ar.center.xz + seg * t);
-            float side = length(d);
-            float r = ar.radius * 2.5;
-            if (side > r || abs(pos.y - ar.center.y) > ar.halfHeight + 3.0)
+            }
+            float r = ar.radius * 1.5;
+            float2 d = pos.xz - ar.center.xz;
+            float dist = length(d);
+            if (dist > r || abs(pos.y - ar.center.y) > ar.halfHeight + 3.0)
                 continue;
-            float2 out2 = side > 1e-3 ? d / side : float2(seg.y, -seg.x) / segLen;
-            float f = g_BlastAccel * 0.5 * (1.0 - side / r);
-            acc += float3(out2.x * f, f * 0.4, out2.y * f) + float3(seg.x, 0.0, seg.y) / segLen * (f * 0.3);
+            float2 out2 = dist > 1e-3 ? d / dist : float2(0, 1);
+            float f = g_BlastAccel * (1.0 - dist / r);
+            acc += float3(out2.x * f, f * 0.55, out2.y * f);
             lift = 1.0;
-            continue;
         }
-        float r = ar.radius * 1.5;
-        float2 d = pos.xz - ar.center.xz;
-        float dist = length(d);
-        if (dist > r || abs(pos.y - ar.center.y) > ar.halfHeight + 3.0)
-            continue;
-        float2 out2 = dist > 1e-3 ? d / dist : float2(0, 1);
-        float f = g_BlastAccel * (1.0 - dist / r);
-        acc += float3(out2.x * f, f * 0.55, out2.y * f);
-        lift = 1.0;
     }
     return acc;
 }
 
 [numthreads(256, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID)
+void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 {
+    // ---- the live shaking areas as a bit mask (every thread of the group takes part, before any return) ----
+    if (gi < DEBRIS_SHAKE_WORDS)
+        gs_ShakeMask[gi] = 0u;
+    GroupMemoryBarrierWithGroupSync();
+    // DEBRIS_MAX_AREAS <= 256 = one area per thread (a loop here unrolls to one pass: X3557)
+    if (gi < DEBRIS_MAX_AREAS)
+    {
+        if (g_AreaStates[gi] != 0u && (g_Areas[gi].flags & DEBRIS_AREA_SHAKE) != 0u)
+            InterlockedOr(gs_ShakeMask[gi >> 5], 1u << (gi & 31u));
+    }
+    GroupMemoryBarrierWithGroupSync();
+
     uint i = id.x;
     if (i >= g_Side * g_Side)
         return;

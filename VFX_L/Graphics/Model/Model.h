@@ -19,6 +19,10 @@ public:
     {
         std::shared_ptr<Mesh> mesh;
         int materialIndex = -1;
+        // 読み込み時（rootTransform・焼いた姿勢を掛けた後）の頂点の包囲ボックスと、メッシュが付いていたノードの名前。
+        // 雑魚の部品（頭・胴・腕）に飾りを載せる時の寸法に使う（2026-10-24、Boss の見た目）
+        std::string nodeName;
+        Vector3 boundsMin, boundsMax;
     };
 
   //  bool Load(ID3D11Device* device, const std::string& filepath);
@@ -42,7 +46,7 @@ public:
     float GetFileUnitScale() const { return m_FileUnitScale; }
 
     const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
-    // 衝突用の凸包の点（2026-10-06）：全頂点のうち 26 方向それぞれで一番外にある物（最大 26 点、モデルの座標、
+    // 衝突用の凸包の点（2026-10-06）：全頂点のうち CollisionMath::kDopDirs（50）方向それぞれで一番外にある物（最大 50 点、モデルの座標、
     // 包囲ボックスと同じく拡縮前）。CollisionMath::ConvexFromPoints で凸体にする（巨石を形通りに当てる）
     const std::vector<Vector3>& GetHullPoints() const { return m_HullPoints; }
     bool Load(ID3D11Device* device, const std::string& filepath);
@@ -99,7 +103,7 @@ private:
     Vector3 m_BoundsMin = { 0, 0, 0 };
     Vector3 m_BoundsMax = { 0, 0, 0 };
     Vector3 m_BoundsCenter = { 0, 0, 0 };
-    std::vector<Vector3> m_HullPoints;   // 26 方向の極値点（GetHullPoints）
+    std::vector<Vector3> m_HullPoints;   // kDopDirs（50）方向の極値点（GetHullPoints）
 
     float m_FileUnitScale = 1.0f;   // Load() が FBX の UnitScaleFactor から決める
 };

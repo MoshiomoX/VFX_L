@@ -25,6 +25,7 @@
 #include "Swarm/ProjectileProfile.h"
 #include "Audio/AudioSystem.h"
 #include "Core/Application.h"
+#include "Core/VideoCapture.h"
 
 #include <Windows.h>
 
@@ -328,6 +329,29 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
 void CollisionTestScene::UpdateTitle(float dt)
 {
     UpdateTitleWorld(dt, true);
+
+    // TEMP-TEST: 動画の書き出し（VFXL_CAPTURE、自動テスト無し）：黒からの出だしから VFXL_TITLE_SECONDS 秒（既定 8）書き出して閉じる。
+    // メニューと操作の案内は TitleScreenUI が描かない（作品紹介の動画のタイトル）
+    if (VideoCapture::Get().Enabled())
+    {
+        static float s_Rec = 0.0f;
+        static bool s_Closed = false;
+        char env[16] = {};
+        const float len = GetEnvironmentVariableA("VFXL_TITLE_SECONDS", env, sizeof(env)) > 0 ? (float)atof(env) : 8.0f;
+        if (!s_Closed)
+        {
+            VideoCapture::Get().SetRecording(true);
+            s_Rec += VideoCapture::Get().FrameDt();
+            if (s_Rec >= len)
+            {
+                s_Closed = true;
+                VideoCapture::Get().Finish();
+                PostQuitMessage(0);
+            }
+        }
+        m_TitleUI.Update(dt);   // 出だしのフェード・名前の動きは進める（選択は捨てる）
+        return;
+    }
 
     // ---- メニュー ----
     auto& sm = Application::Get().GetGame().GetSceneManager();

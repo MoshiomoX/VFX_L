@@ -16,9 +16,9 @@
 // the fuse; g_BomberFuseTime later the bomber blows up: the player takes
 // g_BomberBlastDamage if still inside g_BomberBlastRadius, the slot goes
 // DEAD (no kill count, no orb: the player did not kill it) and a damage-0
-// area is left behind only for the GPU explosion VFX. A bomber killed
-// during the fuse dies in HitCS / AreaDamageCS first (normal kill + orb)
-// and never reaches this pass lit.
+// area is left behind only for the GPU explosion VFX. Once lit, a bomber
+// (and a dash bomber) cannot be hurt (SwarmInvulnerable, 2026-10-18): it
+// can only be killed (normal kill + orb) before it lights.
 //
 // Every hit also records where it came from in playerHits (u6) so the
 // CPU can knock the player back (melee a little, blasts ~3x + a hop).
@@ -27,8 +27,10 @@
 // A dashing charger hits g_ChargerDashDamageMul harder and knocks the player
 // back like a blast (2026-10-08).
 //
-// Only writer of Enemy.attackCooldown and a bomber's SwarmEnemyExtra.fuse
-// (a charger's fuse belongs to AICS).
+// Only writer of a live enemy's Enemy.attackCooldown (the killers in HitCS /
+// AreaDamageCS leave the kill element in a dead slot's, SwarmKillElementMark),
+// of the plain bomber's SwarmEnemyExtra.fuse, and of the dash bomber's when it
+// blows up (resets it to 0). Every other kind's fuse belongs to AICS.
 // ============================================================
 #define SWARM_AREA_POOL_U u4
 #define SWARM_AREA_STATE_U u5
@@ -163,6 +165,14 @@ void main(uint3 id : SV_DispatchThreadID)
         UpdateDashBomber(i, extra);   // (2026-10-18) a lit one cannot be frozen (AICS); an unlit one never melees
         return;
     }
+    if (extra.kind == SWARM_KIND_BOSS && SwarmBuried(extra))
+        return;   // the sand guardian under the sand does not touch (its eruption is the hit, judged by the CPU. 2026-10-24)
+    // a fixed elite in the middle of a move / vanished does not melee: the move's own hit is judged by the CPU (2026-10-25)
+    if (SwarmIsFixedElite(extra.kind) && (SwarmEliteFlags(i) & SWARM_ELITE_NO_CONTACT) != 0u)
+    {
+        enemies[i].attackCooldown = max(enemies[i].attackCooldown - g_Step, 0.0);
+        return;
+    }
     if (extra.kind == SWARM_KIND_BURROWER)
     {
         // burrower: never bites by touch. One bite when it surfaces: g_BurrowBiteDelay seconds after
@@ -188,10 +198,24 @@ void main(uint3 id : SV_DispatchThreadID)
             enemies[i].attackCooldown = max(enemies[i].attackCooldown - g_Step, 0.0);
         return;
     }
-    if (extra.kind == SWARM_KIND_SANDMAGE)
+    if (extra.kind == SWARM_KIND_SANDMAGE || extra.kind == SWARM_KIND_NECRO)
     {
-        // sand mage: never melees. The attack swing plays while it winds up (fuse > 0, AICS) (2026-10-17)
+        // sand mage / necromancer: never melee. The attack swing plays while winding up (fuse > 0, AICS) (2026-10-17 / 10-25)
         enemies[i].attackCooldown = (extra.fuse > 0.0) ? g_AttackInterval : max(enemies[i].attackCooldown - g_Step, 0.0);
+        return;
+    }
+    if (extra.kind == SWARM_KIND_WARDEN && extra.fuse > 0.0)
+    {
+        // chain warden winding up the throw: swings (the hook in its hand), no melee (2026-10-25)
+        enemies[i].attackCooldown = g_AttackInterval;
+        return;
+    }
+    // stone gargoyle (2026-10-25): no touch while asleep / waking / flying (it is up in the air). The dive hits
+    // like the charger's dash (below); landed it melees as usual
+    bool gargDive = SwarmGargoyleDiving(extra);
+    if (extra.kind == SWARM_KIND_GARGOYLE && !gargDive && !SwarmGargoyleLanded(extra))
+    {
+        enemies[i].attackCooldown = max(enemies[i].attackCooldown - g_Step, 0.0);
         return;
     }
     if (extra.kind == SWARM_KIND_TORNADO)
@@ -227,17 +251,18 @@ void main(uint3 id : SV_DispatchThreadID)
 
     if (cd <= 0.0 && g_PlayerAlive != 0u && !frozen)
     {
-        // elites / boss: bigger capsule, harder hits
+        // elites / boss: bigger capsule, harder hits (a berserk fixed elite grows, 2026-10-25)
         float3 center;
         float er, eh;
-        SwarmKindCapsule(extra.kind, enemies[i].position, center, er, eh);
+        SwarmSlotCapsule(i, extra.kind, enemies[i].position, center, er, eh);
         float reach = er + g_PlayerRadius + CONTACT_SKIN;
         if (PlayerWithinCapsule(center, eh, reach))
         {
-            bool dash = (extra.kind == SWARM_KIND_CHARGER)
+            bool charge = (extra.kind == SWARM_KIND_CHARGER)
                      && (SwarmChargerPhase(extra.fuse) == SWARM_CHARGE_DASH);
+            bool dash = charge || gargDive;   // the gargoyle's dive hits like the charger's dash (2026-10-25)
             float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind)
-                      * (dash ? g_ChargerDashDamageMul : 1.0);
+                      * (charge ? g_ChargerDashDamageMul : gargDive ? g_GargoyleDiveDamageMul : 1.0);
             uint prev;
             counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE,
                                     SwarmHpToFixed(dmg), prev);

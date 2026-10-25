@@ -13,7 +13,20 @@ const char* BossMoveName(BossMove m)
     case BossMove::Shockwave: return "shockwave";
     case BossMove::Charge:    return "charge";
     case BossMove::Summon:    return "summon";
+    case BossMove::SandSpear: return "sandspear";
+    case BossMove::Burrow:    return "burrow";
+    case BossMove::Quicksand: return "quicksand";
     default:                  return "none";
+    }
+}
+
+const char* BossTypeName(BossType t)
+{
+    switch (t)
+    {
+    case BossType::StoneGiant:   return "stone giant";
+    case BossType::SandGuardian: return "sand guardian";
+    default:                     return "?";
     }
 }
 
@@ -29,6 +42,13 @@ BossBrain::BossBrain()
     rules[(int)BossMove::Charge] = { true, 9.0f, 0.0f, 2.0f, 3.0f, 5.0f, 30.0f };
     // 召喚：たまに（冷却長め）。遠いと少し多め（距離を詰められない間に数で押す）
     rules[(int)BossMove::Summon] = { true, 14.0f, 1.0f, 1.0f, 2.0f, 0.0f, 35.0f };
+    // ---- 砂の守護者だけの技（既定では切っておき、BossAttacks::Configure が点ける）----
+    // 砂の槍：中〜遠（線は 22m。目の前では横へ避ける間が無い）
+    rules[(int)BossMove::SandSpear] = { false, 7.0f, 0.5f, 3.0f, 2.0f, 4.0f, 24.0f };
+    // 潜砂奇襲：遠いほど多め（離れたプレイヤーへ距離を詰める技）
+    rules[(int)BossMove::Burrow] = { false, 12.0f, 0.3f, 1.5f, 3.0f, 6.0f, 35.0f };
+    // 流沙：近〜中（渦は半径 10m。それより遠いと届かない）。冷却は渦の長さより長く
+    rules[(int)BossMove::Quicksand] = { false, 15.0f, 3.0f, 2.0f, 0.0f, 0.0f, 10.0f };
     Reset();
 }
 

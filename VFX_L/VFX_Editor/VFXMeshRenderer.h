@@ -13,7 +13,7 @@ class VertexShader;
 class PixelShader;
 using Microsoft::WRL::ComPtr;
 
-// PS b1。HLSL の VFXMeshCB と同じ並び（96B）
+// PS b1。HLSL の VFXMeshCB と同じ並び（112B）
 struct VFXMeshParams
 {
     DirectX::SimpleMath::Vector4 tint = { 1, 1, 1, 1 };
@@ -69,6 +69,9 @@ private:
         const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
 
     std::vector<VFXMeshDrawItem> m_Items;
+    // Render の作業用（alpha の並べ替え / additive）。毎フレーム作り直さず使い回す（中身は m_Items を指すので Render の外では空）
+    std::vector<const VFXMeshDrawItem*> m_AlphaList;
+    std::vector<const VFXMeshDrawItem*> m_AdditiveList;
 
     std::shared_ptr<VertexShader> m_VS;
     std::shared_ptr<PixelShader> m_PS;

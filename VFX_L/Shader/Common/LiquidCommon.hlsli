@@ -59,7 +59,7 @@ struct LiquidDef
 
     uint lobes;         // lobes around the body (0..7)
     uint spatter;       // small drops flung forward (0..8)
-    uint flags;         // reserved
+    uint flags;         // vortex (quicksand, 2026-10-24): low 16 bits = spin rad/s x 100, high 16 bits = twist rad/m x 100 (VFXLiquidDef::SetVortex)
     float pointGain;    // how much point lights (diffuse + highlight) act on the liquid
 };
 
@@ -153,11 +153,13 @@ LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, floa
     float ang, dist, rad, stretch;
     if (i == 0u)
     {
-        // the body: big, a little forward of the impact
+        // the body: big, a little forward of the impact.
+        // A vortex pool (flags != 0, the sand guardian's quicksand. 2026-10-24) is one round body filling the reach
+        bool vortexPool = (L.flags != 0u);
         ang = 0.0;
-        dist = 0.10 * reach;
-        rad = 0.42 * reach;
-        stretch = 1.0 + 0.25 * L.spread;
+        dist = vortexPool ? 0.0 : 0.10 * reach;
+        rad = (vortexPool ? 0.97 : 0.42) * reach;
+        stretch = vortexPool ? 1.0 : 1.0 + 0.25 * L.spread;
     }
     else if (!spatter)
     {

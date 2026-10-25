@@ -56,13 +56,14 @@ namespace Swarm
         float    moveSpeed = 3.5f;
         float    yaw = 0.0f;
 
-        // ---- 将来のアニメーション用（今は誰も読まない）----
-        // VAT（頂点アニメーションテクスチャ）方式を想定。
-        // CS が animTime を進め、VS がテクスチャから引く形なら、
-        // 骨の計算そのものが実行時に存在しなくなる
+        // ---- アニメーション ----
+        // animTime は MoveCS が進める時計（雑魚の VS の歩き・盾や砂の山の揺れ・風源の出だしが読む）。
+        // 将来の VAT（頂点アニメーションテクスチャ）も、CS が animTime を進めて VS が引く形を想定
         float    animTime = 0.0f;
         uint32_t animIndex = 0;   // 0=待機 1=歩行 2=被弾（HitCS が書く。animTime が経過秒。VS が閃光に使う）
-        float    attackCooldown = 0.0f;   // 接触攻撃の残り待ち時間。ContactCS だけが書く
+        // 接触攻撃の残り待ち時間（生きている敵では ContactCS だけが書く。0 以上）。
+        // 倒された槽には HitCS / AreaDamageCS が倒した一撃の属性を -(1 + 属性) で残す（ダメージの数字の色。2026-10-25）
+        float    attackCooldown = 0.0f;
     };
     static_assert(sizeof(Enemy) == 48, "SwarmEnemy layout mismatch");
 
@@ -98,7 +99,8 @@ namespace Swarm
     constexpr uint32_t kEnemyKindSandMage = 12;
     // 砂旋（2026-10-17）：敵の「弾」を敵の 1 種類として実装した物。yaw の向きへ moveSpeed で一直線（幽霊と同じく壁も台地も素通り）、
     // 撃っても当たらない・狙われない・HP バー無し、触れたプレイヤーを高く吹き飛ばす（PlayerHitInfo の wind）、tornadoLife 秒で消える
-    // （ContactCS が DEAD にする。撃破に数えない・経験値無し・砕け散らない、死亡の土煙だけ出る）。描画は SwarmTornadoVS（竜巻のモデル）
+    // （ContactCS が DEAD にする。撃破に数えない・経験値無し・砕け散らない、死亡の土煙だけ出る）。体は描かない
+    // （2026-10-20 にモデルを廃止。見えるのは足元の砂埃 SwarmTornadoEmitCS と、風源 SwarmWindSourceCS で巻かれる草・粒子）
     constexpr uint32_t kEnemyKindTornado = 13;
     // 黒幽霊（2026-10-18、Megabonk の黒い幽霊。ユーザー「十分過ぎても死なない → 幽霊を強化、黒幽霊も」）：最終ウェーブの時間切れ
     // finalDarkGhostStart 秒後から出る、幽霊の上位。HP = 雑魚 × darkGhostHpMul（普通のビルドでは倒せない）、速さ = 雑魚 × darkGhostSpeedMul
@@ -112,10 +114,41 @@ namespace Swarm
     // 自爆兵の爆発 × dashBomberDamageMul + 爆発級のノックバック）。**点火中は無敵**（自爆兵も同じ。SwarmInvulnerable：撃っても当たらない・
     // 狙われない・怯まない・凍らない）。EnemyExtra.fuse > 0 = 点火からの秒（AICS が数える）。皮は Kenney Blocky H（灰色ロボット）
     constexpr uint32_t kEnemyKindDashBomber = 15;
+    // ---- 遺跡の敵（2026-10-25、ユーザー「遺跡の雑魚を作って」→ 呪いの鎧・石像ガーゴイル・死霊術師・鎖の番人を選んだ）----
+    // 呪いの鎧：硬くて遅い。1 回目の死では砕けず崩れ落ち（SwarmCorpseTrackCS が分裂の環に書く）、CPU（MobSpawner）が
+    // armorReviveDelay 秒後に同じ所へ「蘇った鎧」を HP 半分で湧かせる。蘇った鎧は普通に砕ける
+    constexpr uint32_t kEnemyKindArmor = 16;
+    constexpr uint32_t kEnemyKindArmorRevived = 17;
+    // 石像ガーゴイル：プレイヤーの近くに石像（動かない・撃っても当たらない・狙われない）で湧き、近付かれる / 時間が経つと
+    // 目覚めて飛ぶ（壁も台地も素通り、高さ gargoyleHover）→ 近くで向きを固定して急降下（爆発級のノックバック）→ 着地して
+    // しばらく地上で殴れる → また飛ぶ。EnemyExtra.fuse（AICS が唯一の書き手）：<= 0 眠り（-経過秒）、(0, wakeTime) 目覚め、
+    // [wakeTime, SWARM_GARGOYLE_DIVE) 飛行、>= SWARM_GARGOYLE_DIVE 急降下（溜め → 降下 → 着地）
+    constexpr uint32_t kEnemyKindGargoyle = 18;
+    // 死霊術師：砂嵐の術師と同じく距離を取って溜め、詠唱の瞬間に分裂の環に書く → CPU が近くの最近の死体の所から
+    // 骸骨（kEnemyKindSkeleton）を起こす（死体が無ければ自分の周り）
+    constexpr uint32_t kEnemyKindNecro = 19;
+    constexpr uint32_t kEnemyKindSkeleton = 20;   // 速くて脆い・経験値少し（死霊術師が起こす）
+    // 鎖の番人：中距離で止まり、向きを固定して溜め（地面に予告の帯 = 突撃兵と同じ VS）→ 溜めの終わりに分裂の環に
+    // 「種類 | 向き << 16」を書く → CPU（シーン）が鎖の鉤を投げ、当たったプレイヤーを番人の前へ引き寄せる
+    constexpr uint32_t kEnemyKindWarden = 21;
+    // ---- 面の固定エリート（2026-10-25、ユーザー「エリートを区別化」→ 各面 2 体、どれも「予告を避ける」型）----
+    // A = 近接型（草原 大斧の戦鬼 / 砂漠 砂塵の騎兵 / 遺跡 影の剣士）、B = 遠距離型（森の弓手 / 炎砂の術師 / 呪いの司書。
+    // BomberCB::fixedEliteKeepMin〜Max に立つ）。どの個体かは面で決まり、皮と飾りは面毎に描画リストへ入れる（Enemy/EliteLooks.cpp）。
+    // 技の流れ・当たり・予告・詞缀（疾風 / 鉄壁 / 雷光 / 狂暴）は CPU（Enemy/EliteAttacks）が持ち、BomberCB::eliteCmd / eliteMove で
+    // 「立つ・決めた向きへ走る・瞬間移動・隠れる・盾で半減・怒りで大きく」を GPU に伝える。生死・HP・位置は EliteInfo で CPU へ
+    constexpr uint32_t kEnemyKindEliteA = 22;
+    constexpr uint32_t kEnemyKindEliteB = 23;
+    inline bool IsFixedElite(uint32_t kind) { return kind == kEnemyKindEliteA || kind == kEnemyKindEliteB; }
+    // 分裂の環の kind の上 16 bit（出来事の中身）。下 16 bit が種類
+    constexpr uint32_t kSplitKindMask = 0xFFFFu;
+    constexpr uint32_t kGargoyleEventWake = 0u;   // ガーゴイル：目覚めた
+    constexpr uint32_t kGargoyleEventDive = 1u;   // 急降下を始めた（溜めの頭）
+    constexpr uint32_t kGargoyleEventLand = 2u;   // 着地した
     // 描画リストの数（種類毎にテクスチャを替えて描く）。エリートは雑魚と同じメッシュ・テクスチャなので雑魚のリストで描き、
     // 大きさと色は VS が種類を見て変える
-    constexpr uint32_t kEnemyKinds = 10;
-    // 描画リストの添字（種類 → リスト。エリート / Boss は雑魚のリスト、分裂体はスプリッターのリスト）
+    constexpr uint32_t kEnemyKinds = 18;
+    // 描画リストの添字（種類 → リスト。エリートは雑魚のリスト、分裂体はスプリッターのリスト。
+    // Boss は 2026-10-24 から自分のリスト（面毎の皮と飾り。SwarmSystem::SetBossLook））
     constexpr uint32_t kDrawListMob = 0;
     constexpr uint32_t kDrawListBomber = 1;
     constexpr uint32_t kDrawListSplitter = 2;
@@ -123,9 +156,20 @@ namespace Swarm
     constexpr uint32_t kDrawListCharger = 4;  // 突撃兵（黒い忍者）
     constexpr uint32_t kDrawListShield = 5;   // 盾兵（紺の警官）
     constexpr uint32_t kDrawListBurrower = 6; // 砂潜り（自分のテクスチャ + 砂の山。2026-10-17）
-    constexpr uint32_t kDrawListSandMage = 7; // 砂嵐の術師（自分のテクスチャ。2026-10-17。砂旋は雑魚のメッシュを描かないので表の外 = SwarmSystem::m_TornadoList*）
+    constexpr uint32_t kDrawListSandMage = 7; // 砂嵐の術師（自分のテクスチャ。2026-10-17。砂旋は何も描かないので描画リストを持たない）
     constexpr uint32_t kDrawListDashBomber = 8; // 突撃爆弾兵（灰色ロボット。2026-10-18）
-    constexpr uint32_t kDrawListGhost = 9;    // 最後に alpha blend で描く（必ず最後の番号。白幽霊と黒幽霊の両方）
+    constexpr uint32_t kDrawListBoss = 9;     // 面の Boss（2026-10-24。皮は面毎、体の後に飾りも描く）
+    // 遺跡の敵（2026-10-25）。生きている一覧は SwarmEnemyKindList2CS、砕け中の一覧は SwarmCorpseList2CS
+    // （Boss・砂嵐の術師・突撃爆弾兵の砕け中もこちら = 自分の皮で砕ける）
+    constexpr uint32_t kDrawListArmor = 10;   // 呪いの鎧（蘇った鎧も）
+    constexpr uint32_t kDrawListGargoyle = 11;
+    constexpr uint32_t kDrawListNecro = 12;
+    constexpr uint32_t kDrawListSkeleton = 13;
+    constexpr uint32_t kDrawListWarden = 14;
+    // 面の固定エリート（2026-10-25）。生きている一覧は SwarmEnemyKindList2CS、砕け中は SwarmCorpseList3CS
+    constexpr uint32_t kDrawListEliteA = 15;
+    constexpr uint32_t kDrawListEliteB = 16;
+    constexpr uint32_t kDrawListGhost = 17;   // 最後に alpha blend で描く（必ず最後の番号。白幽霊と黒幽霊の両方）
 
     struct EnemyExtra
     {
@@ -316,6 +360,12 @@ namespace Swarm
     constexpr uint32_t kAreaExtraSplashOnly = 1u << 12;   // 最初の tick だけダメージ（泥沼：落ちた時の飛沫。残る沼は減速だけ）
     // 引き寄せ（2026-10-22、渦）：flags の吹き飛ばしの 4 bit を「範囲の中心へ引く強さ」として読む（HLSL の SWARM_AREA_EXTRA_PULL）
     constexpr uint32_t kAreaExtraPull = 1u << 13;
+    // 吸血（吸血のルーン。2026-10-25）：この範囲が当てた敵の状態に吸血の印を付ける（SwarmDamageTextCS が HP の減りを吸血の累計へ）
+    constexpr uint32_t kAreaExtraLifesteal = 1u << 14;
+    // 弾の生成依頼の tag（= SpellStats::triggerMask）の最上位 bit：吸血の弾（誘発の環には報告しない。triggerMask は bit 30 まで）
+    constexpr uint32_t kTagLifesteal = 1u << 31;
+    // 吸血の割合（ルーンを重ねても増えない。GPU には印だけ渡すので 1 つの値。LifestealHeal と ItemDatabase が使う）
+    constexpr float kLifestealRatio = 0.03f;
     constexpr uint32_t kAreaExtraElementShift = 16u;   // bits 16〜19 = 範囲の属性（ダメージの数字の色。2026-10-17）
     constexpr float kToxinTime = 1.0f;           // 毒素 1 回分が削り切られる秒（HLSL の SWARM_TOXIN_TIME）
 
@@ -509,7 +559,8 @@ namespace Swarm
         float    spikeBallScale = 1.4f;       // 体格（当たり / 接触の半径。見た目の半径は SwarmSystem::spikeBallLook.radius × これ）
         float    spikeBallDamageMul = 1.0f;   // 接触ダメージ（弾き飛ばしが本体）
         float    spikeBallExpMul = 4.0f;      // HP 60 = 雑魚 4 倍
-        float    _spikeBallPad = 0.0f;
+        // MoveCS：体格 1 の玉が 1m 転がる毎に回る角度（rad）= spikeBallLook.rollRate / radius。SwarmSystem が毎ステップ入れる（2026-10-25、元 _pad）
+        float    spikeBallRollPerMeter = 1.0f / 0.6f;
 
         // ---- 砂潜り（kEnemyKindBurrower。2026-10-17）----
         float    burrowScale = 1.0f;
@@ -553,8 +604,114 @@ namespace Swarm
         float    dashBomberDashSpeed = 12.0f; // 突っ込む速さ m/s（突撃兵 14、プレイヤーのスライディング 13 なら振り切れる）
         float    dashBomberBlastRadius = 2.5f;
         float    dashBomberWindup = 0.45f;    // 点火してから走り出すまでの溜め秒（その場で赤く点滅。2026-10-20）
+
+        // ---- 面毎の Boss（2026-10-24。BossAttacks::Configure / Output::bossBurrow をシーンが毎フレーム書く）----
+        float    bossTint[3] = { 1.1f, 0.5f, 1.5f };   // 雑魚の網の色に掛ける（草原 = 紫、砂漠 = 砂岩）
+        float    bossBurrow = 0.0f;           // 0 = 地上、1 = 砂の下（砂の守護者の潜砂。AICS が Boss の fuse へ -burrow で写す）
+
+        // ---- 呪いの鎧（kEnemyKindArmor / ArmorRevived。2026-10-25）。HP・速さ・蘇るまでの秒は MobSpawner ----
+        float    armorScale = 1.25f;
+        float    armorDamageMul = 1.5f;
+        float    armorExpMul = 1.0f;          // 1 回目の死（崩れるだけ）
+        float    armorRevivedExpMul = 2.5f;   // 蘇った鎧を倒した時
+
+        // ---- 石像ガーゴイル（kEnemyKindGargoyle。2026-10-25）----
+        float    gargoyleScale = 1.1f;
+        float    gargoyleDamageMul = 1.0f;    // 着地している時の殴り
+        float    gargoyleExpMul = 3.0f;
+        float    gargoyleWakeDist = 7.0f;     // プレイヤーがこの距離（水平 m）に来ると目覚める
+        float    gargoyleAutoWake = 10.0f;    // 眠ってからこの秒で勝手に目覚める（湧いた石像が置き去りにならないように）
+        float    gargoyleWakeTime = 0.8f;     // 目覚め（震えて石が剥がれ、浮き上がる）の秒
+        float    gargoyleHover = 2.2f;        // 飛ぶ高さ（地面から m。位置そのものを上げる = 弾も上を狙う）
+        float    gargoyleDiveRange = 7.5f;    // プレイヤーがこの距離（水平）に入ったら急降下
+        float    gargoyleDiveWindup = 0.45f;  // 急降下の溜め（空中で止まり、地面に予告の帯）
+        float    gargoyleDiveSpeed = 15.0f;   // 急降下の速さ（水平 m/s）
+        float    gargoyleDiveTime = 0.55f;    // 急降下の秒（15 × 0.55 = 8.3m、狙った所を少し過ぎて着地）
+        float    gargoyleLandTime = 1.4f;     // 着地してから地上にいる秒（ここが倒し時）
+        float    gargoyleFlyMin = 1.5f;       // 飛び始めてからこの秒は急降下しない
+        float    gargoyleDiveDamageMul = 1.8f;// 急降下でぶつかった時（ノックバックは爆発と同じ強さ）
+        float    gargoyleFlap = 0.7f;         // VS: 翼の羽ばたきの振れ幅（rad）
+        float    gargoyleDiveMin = 4.5f;      // 飛んでいる間はプレイヤーからこれ〜diveRange × 0.9 の間を回る（真上から急降下すると頭の上を素通りした）
+
+        // ---- 死霊術師（kEnemyKindNecro）と骸骨（kEnemyKindSkeleton）。2026-10-25 ----
+        float    necroScale = 1.0f;
+        float    necroDamageMul = 1.0f;       // 殴らないので使わない（種類の表の為）
+        float    necroExpMul = 3.0f;
+        float    necroKeepMin = 8.0f;         // これより近いとプレイヤーから下がる（m）
+        float    necroKeepMax = 13.0f;        // これより遠いと寄って来る
+        float    necroCastRange = 16.0f;
+        float    necroWindup = 1.2f;          // 溜めの秒（立ち止まって杖を掲げ、体が緑に光る）
+        float    necroCooldown = 7.0f;
+        float    skeletonScale = 0.92f;
+        float    skeletonDamageMul = 0.8f;
+        float    skeletonExpMul = 0.3f;
+        float    _skeletonPad = 0.0f;
+
+        // ---- 鎖の番人（kEnemyKindWarden。2026-10-25）。鎖そのもの（飛ぶ速さ・当たり・引き寄せ）は CPU（シーン）----
+        float    wardenScale = 1.15f;
+        float    wardenDamageMul = 1.2f;      // 殴り・鎖が当たった時（接触 × これ）
+        float    wardenExpMul = 2.5f;
+        float    wardenKeepMin = 5.0f;
+        float    wardenKeepMax = 10.0f;
+        float    wardenRange = 12.0f;         // 鎖の届く長さ = 予告の帯の長さ・投げ始める距離（m）
+        float    wardenWindup = 0.9f;         // 溜め（向きを固定、地面に帯）。ここで横へ避ける
+        float    wardenHold = 1.4f;           // 投げてから立ったままの秒（鎖が戻るまで）
+        float    wardenCooldown = 6.0f;       // 投げてから次の溜めまで（hold を含む）
+        float    _wardenPad[3] = {};
+        // ---- 面の固定エリート（kEnemyKindEliteA / EliteB。2026-10-25）。体格は面毎（EliteAttacks::Configure が入れる）----
+        float    fixedEliteAScale = 2.0f;
+        float    fixedEliteBScale = 1.7f;
+        float    fixedEliteDamageMul = 40.0f / 15.0f;   // 殴り（接触 × これ）。技の当たりは CPU
+        float    fixedEliteExpMul = 20.0f;
+        float    fixedEliteKeepMin = 8.0f;    // B（遠距離型）が立つ距離
+        float    fixedEliteKeepMax = 13.0f;
+        float    eliteSwiftMul = 1.6f;        // 疾風：歩く速さ
+        float    eliteEnragedSpeedMul = 1.3f; // 狂暴（HP 半分以下）：歩く速さ
+        float    eliteShieldDamageMul = 0.5f; // 鉄壁：盾が残っている間に受けるダメージ
+        float    eliteEnragedScale = 1.2f;    // 狂暴：見た目の大きさ（足元が基点）
+        float    _fixedElitePad[2] = {};
+        // CPU の指示（kMaxEliteCmd 体分）。[k][0] = 槽 + 1（0 = 空き）、[1] = kEliteFlag*、[2] = kEliteCmd*、[3] = 溜めの光 × 1000
+        uint32_t eliteCmd[4][4] = {};
+        // [k] = xz（向き、瞬間移動の時は行き先）、走る速さ m/s、隠れ具合 0..1（影の剣士の消え）
+        float    eliteMove[4][4] = {};
     };
-    static_assert(sizeof(BomberCB) == 384, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 752, "SwarmBomberCB layout mismatch");
+
+    // 固定エリートへの指示（BomberCB::eliteCmd。HLSL の SWARM_ELITE_* と同じ値）
+    constexpr uint32_t kMaxEliteCmd = 4;
+    constexpr uint32_t kEliteCmdAI = 0;        // いつもの AI（A は追い、B は距離を取る）
+    constexpr uint32_t kEliteCmdStand = 1;     // その場に立ってプレイヤーを向く
+    constexpr uint32_t kEliteCmdMove = 2;      // eliteMove の向きへ速さで走る（速さ 0 = その向きで立つ。壁は普段通り止まる）
+    constexpr uint32_t kEliteCmdTeleport = 3;  // MoveCS が eliteMove の xz（地面の上）へ置き、プレイヤーを向かせる
+    constexpr uint32_t kEliteFlagSwift = 1u;
+    constexpr uint32_t kEliteFlagShield = 2u;
+    constexpr uint32_t kEliteFlagEnraged = 4u;
+    constexpr uint32_t kEliteFlagNoContact = 8u;  // 殴らない（消えている間・技の最中）
+    constexpr uint32_t kEliteFlagAttack = 16u;    // 攻撃の動きを繰り返す（技の最中）
+    constexpr uint32_t kEliteFlagSpin = 32u;      // 体ごと回る（大斧の回転斬り）
+
+    // ============================================================
+    // 固定エリートの様子（GPU → CPU。SwarmEnemyKindList2CS が毎フレーム書き、staging でリードバック。2026-10-25）
+    // 先頭 16B = 数、以降 32B × kMaxEliteInfo（槽・種類・HP・最大 HP（固定小数）・位置・fuse）
+    // ============================================================
+    constexpr uint32_t kMaxEliteInfo = 4;
+    struct EliteInfo
+    {
+        uint32_t slot = 0;
+        uint32_t kind = 0;
+        uint32_t hp = 0;
+        uint32_t maxHp = 0;
+        float    pos[3] = {};
+        float    fuse = 0.0f;
+    };
+    static_assert(sizeof(EliteInfo) == 32, "SwarmEliteInfo layout mismatch");
+    struct EliteInfoBlock
+    {
+        uint32_t count = 0;
+        uint32_t _pad[3] = {};
+        EliteInfo e[kMaxEliteInfo];
+    };
+    static_assert(sizeof(EliteInfoBlock) == 16 + 32 * kMaxEliteInfo, "SwarmEliteInfoBlock layout mismatch");
 
     // ============================================================
     // 分裂の環（GPU → CPU）。SwarmCorpseTrackCS がスプリッターの死を見つけたら 1 件書く（先頭 16B = 今までの総数、

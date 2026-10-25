@@ -287,6 +287,19 @@ namespace MapTerrainEdit
             };
         for (const auto& p : map.rampParts) if (!p.grassy) clear(p.x, p.z, p.w, p.d);
         for (const auto& p : map.blockParts) if (!p.raise) clear(p.x, p.z, p.w, p.d);
+        // 水たまり（段々の台地の地図）：生成と同じく、外周の崖の内側で段の坂でないマス（TerrainGenerator の占有で kRamp 扱い。2026-10-25。
+        // 以前はここで外していなかったので、部品を触ると水の中に草が生え、Verify の grassSame が常に 0 だった）
+        {
+            const size_t cells = (size_t)map.gw * map.gd;
+            if (map.pond.size() == cells)
+                for (int z = 1; z < map.gd - 1; ++z)
+                    for (int x = 1; x < map.gw - 1; ++x)
+                    {
+                        const size_t i = (size_t)z * map.gw + x;
+                        const bool stepRamp = map.stepRampAt.size() == cells && map.stepRampAt[i] >= 0;
+                        if (map.pond[i] && !stepRamp) map.grassMask[i] = 0;
+                    }
+        }
         {
             const auto tp4 = std::chrono::steady_clock::now();
             auto ms = [](auto a, auto b) { return std::chrono::duration<float, std::milli>(b - a).count(); };

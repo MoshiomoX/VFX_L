@@ -98,7 +98,7 @@ void MapEditMode::DrawToolsUI(FlyCamera& camera)
     // ---- 区域（平原 / 山頂 / 洞窟）を塗る ----
     ImGui::SeparatorText("Zones (paint summit / plain / mine)");
     if (!MapTerrainEdit::CanEditZones(m_Map))
-        ImGui::TextDisabled("This map was saved before zone editing existed: generate it again.");
+        ImGui::TextDisabled("Zones need the three layers (summit / mine): this map has none, or was saved before zone editing.");
     else
     {
         const char* modes[] = { "Off (select)", "Plain", "Summit (+16 m)", "Mine (-10 m, cave)" };

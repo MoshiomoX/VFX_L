@@ -72,14 +72,6 @@ public:
         return m_Walkable[(size_t)gz * m_GridW + gx] != 0;
     }
 
-    bool IsAreaWalkable(int gx, int gz, int w, int d) const
-    {
-        for (int z = gz; z < gz + d; ++z)
-            for (int x = gx; x < gx + w; ++x)
-                if (!IsWalkable(x, z)) return false;
-        return true;
-    }
-
     // ワールド座標がそのまま通行可能マスか（敵の回避判定用）
     bool IsWalkableAt(const DirectX::SimpleMath::Vector3& p) const
     {
@@ -178,8 +170,6 @@ public:
     // デバッグ可視化（Ctrl+F3 で切替）
     // ============================================================
     void DrawDebug(const DirectX::SimpleMath::Vector3& center, int viewRadius = 15);
-
-    bool IsDebugVisible() const { return m_DebugVisible; }
 
 private:
     int m_GridW = 0;

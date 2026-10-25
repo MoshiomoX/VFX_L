@@ -55,9 +55,11 @@ private:
     void RespawnTargets();        // 標的を並べ直す（弾も消える）
     void PushMotions();           // 編集中の値を GPU の運動表へ
     void SelectProfile(int index);
+    void UpdateProjection();      // 窓の大きさが変わったら投影（縦横比）を作り直す
 
 private:
     CameraBase m_Camera;
+    float m_ScreenW = 0.0f, m_ScreenH = 0.0f;   // 投影を作った時の窓の大きさ（UpdateProjection）
 
     GPUParticleSystem        m_ParticleSystem;
     std::shared_ptr<Texture> m_ParticleTexture;

@@ -80,6 +80,20 @@ void PlayerControlSystem::ApplyKnockback(Registry& reg, unsigned int entity, Vec
     }
 }
 
+void PlayerControlSystem::ApplyPull(Registry& reg, unsigned int entity, Vector2 dir, float distance, float time)
+{
+    const Entity e = (Entity)entity;
+    if (!reg.IsValid(e) || !reg.Has<PlayerStateComponent>(e)) return;
+    auto& st = reg.Get<PlayerStateComponent>(e);
+    if (st.IsDead() || dir.LengthSquared() < 1e-6f || distance <= 0.0f) return;
+    dir.Normalize();
+    const float duration = (std::max)(0.01f, time);
+    const float v0 = 2.0f * distance / duration;   // 直線的に 0 へ減るので 平均 = 初速 / 2
+    st.knockX = dir.x * v0;
+    st.knockZ = dir.y * v0;
+    st.knockTime = st.knockDuration = duration;
+}
+
 void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
 {
     const bool blocked = !testInput &&
@@ -102,12 +116,13 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
         reg.CreateView<ManaComponent, PlayerTag>()
             .Each([&](Entity, ManaComponent& mana, PlayerTag&) { mana.TryStartSurge(); });
 
-    if (blocked) return;
     if (!camera) return;
 
-    const Vector2 move = testInput ? testMove : InputMap::GetMoveInput();
-    const bool slideHeld = testInput ? testSlide : InputMap::GetSlideHeld();
-    const bool jumpPressed = testInput ? testJump : InputMap::GetJumpTrigger();
+    // ImGui がキーボードを取っている / デバッグカメラの間は入力を 0 として普段どおり進める
+    //（以前はここで return していて、最後の速度（ノックバック込み）のまま走り続けた）
+    const Vector2 move = testInput ? testMove : (blocked ? Vector2::Zero : InputMap::GetMoveInput());
+    const bool slideHeld = testInput ? testSlide : (!blocked && InputMap::GetSlideHeld());
+    const bool jumpPressed = testInput ? testJump : (!blocked && InputMap::GetJumpTrigger());
 
     Vector3 camF = camera->GetForward(); camF.y = 0; camF.Normalize();
     Vector3 camR = camera->GetRight();   camR.y = 0; camR.Normalize();
@@ -119,8 +134,24 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
             PlayerStatsComponent& stats, PlayerStateComponent& st, PlayerTag&)
             {
                 // 能力値は Entity が持つ。System は値を持たない
-                // 前フレームに足したノックバックは引いて戻す（滑り・勢いの持ち越しに混ざらないように）
-                Vector3 hv(rb.velocity.x - st.knockAppliedX, 0.0f, rb.velocity.z - st.knockAppliedZ);
+                // 前フレームに足したノックバック・流沙は引いて戻す（滑り・勢いの持ち越しに混ざらないように）。
+                // ただし物理が壁などで速度を削っていたら、削れた分は足した分から先に削れたとみなす
+                //（そのまま引くと、壁に押し付けられて消えた分まで引いて逆向きの速度が残り、壁から弾き返された）。
+                // 何にも当たっていなければ削れた量は 0 で、今までと同じに全部引く
+                const Vector3 vNow(rb.velocity.x, 0.0f, rb.velocity.z);
+                Vector3 applied(st.knockAppliedX, 0.0f, st.knockAppliedZ);
+                if (applied.LengthSquared() > 1e-8f)
+                {
+                    const Vector3 removed = Vector3(st.setVelX, 0.0f, st.setVelZ) - vNow;   // 前フレームに入れた速度から物理が削った分
+                    const float r = removed.Length();
+                    if (r > 1e-5f)
+                    {
+                        const Vector3 d = removed / r;          // 削られた向き（壁へ向かう向き）
+                        const float into = applied.Dot(d);      // 足した分のうち、その向きへ向かっていた量
+                        if (into > 0.0f) applied -= d * (std::min)(into, r);
+                    }
+                }
+                Vector3 hv = vNow - applied;
                 st.knockAppliedX = st.knockAppliedZ = 0.0f;
                 const bool grounded = rb.isGrounded;
                 const bool canMove = !st.IsSuppressed(Mask_Move);
@@ -201,11 +232,23 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
                     if (!st.slideActive && !st.carryMomentum) hv *= (1.0f - f);
                     st.knockTime = (std::max)(0.0f, st.knockTime - dt);
                 }
-                st.knockAppliedX = knock.x;
-                st.knockAppliedZ = knock.z;
+                // ---- 足元の効き（流沙）：地面に居る間だけ遅く・流される。足した分は次のフレームで引く ----
+                Vector3 ground = Vector3::Zero;
+                if (grounded)
+                {
+                    const float slow = std::clamp(st.groundSlow, 0.0f, 1.0f);
+                    ground = Vector3(hv.x * (slow - 1.0f) + st.groundPullX, 0.0f, hv.z * (slow - 1.0f) + st.groundPullZ);
+                }
+                st.groundSlow = 1.0f;
+                st.groundPullX = st.groundPullZ = 0.0f;
 
-                rb.velocity.x = hv.x + knock.x;
-                rb.velocity.z = hv.z + knock.z;
+                st.knockAppliedX = knock.x + ground.x;
+                st.knockAppliedZ = knock.z + ground.z;
+
+                rb.velocity.x = hv.x + knock.x + ground.x;
+                rb.velocity.z = hv.z + knock.z + ground.z;
+                st.setVelX = rb.velocity.x;   // 次のフレームに物理が削った量を測る基準
+                st.setVelZ = rb.velocity.z;
 
                 // 向き: カメラの前から見て 前 / 右 / 後 / 左 のどちらへ進んでいるかを出し、体をその方向へ振り向かせる
                 // （後ろへ走ればカメラの方を向いて走る）。止まっている間は最後の向きのまま。

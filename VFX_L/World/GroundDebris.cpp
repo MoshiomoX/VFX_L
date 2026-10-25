@@ -183,10 +183,12 @@ void GroundDebris::Render(Renderer& renderer, CameraBase& camera,
     cb.gustSpeed = s.gustSpeed;
     cb.colorTwig = s.colorTwig;
     cb.time = m_Time;
+    // GPU へは新しい方から kMaxGusts 個（2026-10-25。以前は古い方から 4 個で、投石雨のように 4 個を超えて続くと
+    // 新しい突風が前の物が消えるまで（最大 gustTime）効かなかった）。新しい物ほど強い（年齢が若い）
     uint32_t n = 0;
-    for (const auto& g : m_Gusts)
+    for (auto it = m_Gusts.rbegin(); it != m_Gusts.rend() && n < (uint32_t)kMaxGusts; ++it)
     {
-        if (n >= (uint32_t)kMaxGusts) break;
+        const GustSrc& g = *it;
         cb.gustA[n] = Vector4(g.pos.x, g.pos.z, g.dir.x, g.dir.y);
         cb.gustB[n] = Vector4(g.length, g.radius, 1.0f - g.age / (std::max)(s.gustTime, 0.01f), 0.0f);
         ++n;

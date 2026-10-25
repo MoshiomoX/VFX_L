@@ -345,7 +345,13 @@ namespace MapData
             && (m.pond.empty() || m.pond.size() == cells);
         bool modelsOk = true;
         for (const auto& p : m.props) modelsOk = modelsOk && p.model >= 0 && p.model < (int)m.models.size();
-        if (!sizesOk || !modelsOk) { m.Clear(); return false; }
+        // 段の坂の大きさ（0 だと ReliefField::StepOffset が 0 で割り、NaN が衝突へ入る）と、
+        // 地面のメッシュの細かさ（大きすぎると頂点が桁違いに増える。パネルは 1〜4）。2026-10-25
+        bool stepRampsOk = true;
+        for (const auto& s : m.stepRamps)
+            stepRampsOk = stepRampsOk && s.w > 0 && s.d > 0;
+        const bool subdivOk = !m.relief || (m.reliefSubdiv >= 1 && m.reliefSubdiv <= 8);
+        if (!sizesOk || !modelsOk || !stepRampsOk || !subdivOk) { m.Clear(); return false; }
         return true;
     }
 
@@ -388,7 +394,16 @@ namespace MapData
     {
         std::ifstream f(PathFor(name), std::ios::binary | std::ios::ate);
         if (!f) { std::cout << "[MapData] not found: " << PathFor(name) << std::endl; return false; }
-        std::vector<uint8_t> bytes((size_t)f.tellg());
+        // 大きさが取れない（tellg が -1）・桁違いに大きい時は読まない（-1 を size_t にすると巨大な確保になる。2026-10-25）。
+        // 普通の地図は 2〜4MB
+        constexpr std::streamoff kMaxBytes = 256ll * 1024 * 1024;
+        const std::streamoff size = f.tellg();
+        if (size < 0 || size > kMaxBytes)
+        {
+            std::cout << "[MapData] bad file size (" << (long long)size << " bytes): " << PathFor(name) << std::endl;
+            return false;
+        }
+        std::vector<uint8_t> bytes((size_t)size);
         f.seekg(0);
         f.read(reinterpret_cast<char*>(bytes.data()), (std::streamsize)bytes.size());
         if (!Deserialize(bytes, map))

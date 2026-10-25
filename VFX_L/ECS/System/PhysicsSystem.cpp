@@ -12,7 +12,7 @@
 
 using DirectX::SimpleMath::Vector3;
 
-// 1つの動的 Entity を、全静的 collider に対して押し出す（分軸の1軸ぶん）
+// 1つの動的 Entity を、近くの静的 collider に対して押し出す（移動を全部適用した後に 1 回。軸ごとには分けない）
 // 戻り値: 接地したか（上向き法線に当たったか）
 static bool ResolveAgainstStatics(
     Registry& reg, Entity self,

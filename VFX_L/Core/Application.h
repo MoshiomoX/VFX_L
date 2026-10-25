@@ -4,8 +4,6 @@
 #include "Core/Timer/EngineTimer.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Core/Game.h"
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
 
 class Application
 {

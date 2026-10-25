@@ -53,7 +53,9 @@ void DebugLineRenderer::AddLine(const Vector3& start, const Vector3& end, const 
 
 void DebugLineRenderer::Render()
 {
-    if (m_LineVerts.empty() || !m_Camera) return;
+    if (m_LineVerts.empty()) return;
+    // カメラが無くて描けない時も積んだ線は捨てる（残すと次のフレームの線と重なって溜まる）
+    if (!m_Camera) { m_LineVerts.clear(); return; }
 
     // 行列設定
     m_Effect->SetWorld(Matrix::Identity);

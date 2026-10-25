@@ -12,6 +12,7 @@
 #pragma once
 #include <SimpleMath.h>
 #include <nlohmann/json.hpp>
+#include <algorithm>
 #include <cstdint>
 
 struct VFXLiquidDef
@@ -48,10 +49,21 @@ struct VFXLiquidDef
 
     uint32_t lobes = 7;        // 本体の周りの液滴（0〜7）
     uint32_t spatter = 4;      // 前へ飛ぶ小さな飛沫（0〜8）
-    uint32_t flags = 0;        // 予約
+    // 渦（2026-10-24、砂の守護者の流沙。渦の時は本体 1 つを真ん中に置いて reach いっぱいの丸い溜まりにする）：下 16 bit = 回る速さ rad/s × 100、上 16 bit = ねじれ rad/m × 100。0 = 回らない。
+    // 表面のノイズを「中心からの距離に比例してねじった上で、全体を回す」= 渦巻きの腕が回る（Vortex / SetVortex）
+    uint32_t flags = 0;
     // 点光源の効き（拡散 + 照り返し）。毒の池は自分の緑の点光源を 0.5m 上に持つので、
     // そのままだと液面に強い照り返しが出る（10-02 ユーザー「明るすぎた」）
     float    pointGain = 0.3f;
+
+    float Vortex() const { return (float)(flags & 0xFFFFu) * 0.01f; }
+    float Twist() const { return (float)(flags >> 16) * 0.01f; }
+    void  SetVortex(float spin, float twist)
+    {
+        const uint32_t s = (uint32_t)(std::clamp(spin, 0.0f, 655.0f) * 100.0f + 0.5f);
+        const uint32_t t = (uint32_t)(std::clamp(twist, 0.0f, 655.0f) * 100.0f + 0.5f);
+        flags = (s & 0xFFFFu) | (t << 16);
+    }
 
     nlohmann::json ToJson() const;
     void FromJson(const nlohmann::json& j);

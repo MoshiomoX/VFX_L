@@ -52,7 +52,9 @@ namespace MapTerrainEdit
     uint32_t GroupAt(const MapData::Map& map, float x, float z);
 
     // ---- 区域（平原 / 山頂 / 洞窟）の塗り替え（4 歩目の 2 段目）----
-    // 区域を塗り替えられる地図か（版 5 以降で生成 / 保存した物）
+    // 区域を塗り替えられる地図か（版 5 以降で生成 / 保存した物で、三層を作った物）。
+    // 三層を切って作った地図（段々の台地の既定）は山頂の高さ・洞窟の深さが 0 で、塗っても高さが付かないので false。
+    // RegenZones 自体は版 5 以降なら三層が無くても動く（筆で地面を下げた後の床の箱の作り直しに使う）
     bool CanEditZones(const MapData::Map& map);
     // マス (cx, cz) を中心に半径 radius マスの円を zone（0 平原 / 1 山頂 / 2 洞窟）で塗る。外周の崖のマスは塗らない。
     // 変えたマスの数を返す。区域の表を書き換えるだけなので、塗り終わったら RegenZones を呼ぶ
@@ -74,6 +76,8 @@ namespace MapTerrainEdit
     // 台座で均す前の素の起伏を書き換えるだけなので、塗り終わったら FinishBrush を呼ぶ
     int BrushRelief(MapData::Map& map, float x, float z, float radius, BrushMode mode, float amount, float target = 0.0f);
     void FinishBrush(MapData::Map& map);
+    // 起伏が床の箱の上面より低くなった所があれば床を下げて作り直す（Rederive の後に呼ぶ。筆・ReseatAll が使う）
+    void LowerFloorsBelowRelief(MapData::Map& map);
 
     // ---- 起伏の中身：全体の設定と丘の部品（MapHillEdit.cpp）----
     // 素の起伏 = ノイズの丘（Map::reliefParams）+ 丘の部品（Map::hills）→ 傾きを抑える → + 筆の分（Map::sculpt*）

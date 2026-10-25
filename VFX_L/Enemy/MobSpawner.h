@@ -16,8 +16,10 @@
 #pragma once
 #include "Enemy/DifficultyCurve.h"
 #include "Enemy/SpawnDirector.h"
+#include "Swarm/SwarmTypes.h"
 #include <SimpleMath.h>
 #include <cstdint>
+#include <vector>
 
 class GridWorld;
 class SwarmSystem;
@@ -134,10 +136,84 @@ public:
     uint32_t GetSplitEventsSeen() const { return m_SplitEventsSeen; }
     uint32_t GetSplitlingsSpawned() const { return m_SplitlingsSpawned; }
 
+    // ---- 遺跡の敵（2026-10-25。中身は MobSpawnerRuins.cpp）----
+    // 湧きの割合（面毎、StageDef の armor / gargoyle / necro / warden）。骸骨は死霊術師が起こすだけ
+    KindRamp armorMix;
+    KindRamp gargoyleMix;
+    KindRamp necroMix;
+    KindRamp wardenMix;
+    float armorReviveDelay = 3.0f;      // 呪いの鎧が崩れてから蘇るまでの秒
+    float armorReviveHpFrac = 0.5f;     // 蘇った鎧の HP（鎧の HP × 今の倍率 × これ）
+    int   necroRaiseCount = 3;          // 1 回の詠唱で起こす骸骨の数
+    float necroRaiseRadius = 12.0f;     // 死霊術師からこの距離の最近の死体から起こす（足りなければ自分の周り）
+    float necroRaiseDelay = 0.8f;       // 地面に印が出てから骸骨が立つまでの秒
+    float corpseMemory = 20.0f;         // 死体を覚えておく秒
+    float gargoyleSpawnMin = 14.0f;     // 石像を置く距離（プレイヤーから m。普通の湧きの輪 37〜52m では目覚めを見られない）
+    float gargoyleSpawnMax = 24.0f;
+    // シーンが見た目・音を出す出来事（Consume で取り出す）
+    enum class RuinsFxKind { ArmorFall, ArmorRise, GargoyleWake, GargoyleDive, GargoyleLand, NecroCast, RaiseMark, SkeletonRise };
+    struct RuinsFx
+    {
+        RuinsFxKind kind;
+        DirectX::SimpleMath::Vector3 pos;   // 地面の高さ
+    };
+    void ConsumeRuinsFx(std::vector<RuinsFx>& out) { out.insert(out.end(), m_RuinsFx.begin(), m_RuinsFx.end()); m_RuinsFx.clear(); }
+    // 鎖の番人の投げ（GPU の溜めの終わり。向きは溜めの頭で固定した yaw）。鉤を飛ばすのはシーン
+    struct ChainThrow
+    {
+        DirectX::SimpleMath::Vector3 pos;   // 番人の位置（敵の中心の高さ）
+        float yaw = 0.0f;
+    };
+    void ConsumeChainThrows(std::vector<ChainThrow>& out) { out.insert(out.end(), m_ChainThrows.begin(), m_ChainThrows.end()); m_ChainThrows.clear(); }
+    // 敵が死んだ所（シーンがダメージの数字の「倒した」から渡す。死霊術師が骸骨を起こす場所）
+    void NoteKill(const DirectX::SimpleMath::Vector3& groundPos);
+    void QueueDebugRuins(uint32_t kind, int n);
+    void ClearRuinsPending();   // 場を消す時（トレーニングの「敵を全部消す」）：蘇り待ち・起き上がり待ちを捨てる
+    float GetArmorRatio() const { return m_ArmorRatio; }
+    float GetGargoyleRatio() const { return m_GargoyleRatio; }
+    float GetNecroRatio() const { return m_NecroRatio; }
+    float GetWardenRatio() const { return m_WardenRatio; }
+    // 自動テストの記録用（累計）
+    uint32_t GetArmorsRevived() const { return m_ArmorsRevived; }
+    uint32_t GetSkeletonsRaised() const { return m_SkeletonsRaised; }
+    uint32_t GetChainThrowsSeen() const { return m_ChainThrowsSeen; }
+    uint32_t GetGargoyleWakes() const { return m_GargoyleWakes; }
+    uint32_t GetGargoyleDives() const { return m_GargoyleDives; }
+
     // Enemies パネルの湧き管理・雑魚の初期値・自爆兵・Mob AI の段
     void DrawImGui(SwarmSystem& swarm);
 
 private:
+    // 遺跡の敵（MobSpawnerRuins.cpp）
+    void UpdateRuins(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, float dt, SwarmSystem& swarm);
+    // 分裂の環の遺跡の出来事（鎧の崩れ・ガーゴイル・死霊術師の詠唱・鎖の投げ）。扱ったら true
+    bool HandleRuinsEvent(const Swarm::SplitEvent& ev, const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
+    // ガーゴイルの石像を置く所（プレイヤーの周り gargoyleSpawnMin〜Max の歩けるマス。無ければ普通の湧きの所）
+    DirectX::SimpleMath::Vector3 GargoyleSpot(const DirectX::SimpleMath::Vector3& fallback, float groundY) const;
+    void DrawRuinsImGui(SwarmSystem& swarm);
+    float m_ArmorHp = 50.0f;      // 雑魚の 3.3 倍（さらに蘇る）
+    float m_ArmorSpeed = 2.4f;    // 遅い
+    float m_GargoyleHp = 30.0f;
+    float m_GargoyleSpeed = 4.5f; // 飛ぶ速さ（急降下は BomberCB::gargoyleDiveSpeed）
+    float m_NecroHp = 25.0f;
+    float m_NecroSpeed = 3.0f;
+    float m_SkeletonHp = 8.0f;    // 脆い
+    float m_SkeletonSpeed = 4.2f; // 速い
+    float m_WardenHp = 40.0f;
+    float m_WardenSpeed = 2.8f;
+    float m_ArmorRatio = 0.0f, m_GargoyleRatio = 0.0f, m_NecroRatio = 0.0f, m_WardenRatio = 0.0f;
+    struct Pending { DirectX::SimpleMath::Vector3 pos; float timer; float hp; };
+    std::vector<Pending> m_ArmorPending;
+    std::vector<Pending> m_RaisePending;
+    struct Kill { DirectX::SimpleMath::Vector3 pos; float time; };
+    std::vector<Kill> m_RecentKills;
+    std::vector<RuinsFx> m_RuinsFx;
+    std::vector<ChainThrow> m_ChainThrows;
+    int m_DebugRuins[6] = {};     // kEnemyKindArmor〜Warden の順
+    const GridWorld* m_Grid = nullptr;
+    DirectX::SimpleMath::Vector3 m_Player = { 0.0f, 0.0f, 0.0f };
+    uint32_t m_ArmorsRevived = 0, m_SkeletonsRaised = 0, m_ChainThrowsSeen = 0, m_GargoyleWakes = 0, m_GargoyleDives = 0;
+
     // 1 体分の依頼（種類は m_BomberRatio・m_SplitterRatio で抽選）
     void Request(SwarmSystem& swarm, const DirectX::SimpleMath::Vector3& pos, bool recycle);
     // パネルのボタンの分：プレイヤーの周り（kDebugRingMin〜Max m の歩けるマス）に自爆兵・スプリッターを湧かせる

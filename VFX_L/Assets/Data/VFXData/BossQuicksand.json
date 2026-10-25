@@ -1,0 +1,75 @@
+{
+    "entries": [
+        {
+            "data": {
+                "deepColor": [0.42, 0.29, 0.15, 0.96], "edgeColor": [0.70, 0.53, 0.31, 0.92],
+                "glowColor": [0.010, 0.007, 0.003, 0.0], "skyColor": [0.62, 0.56, 0.46, 0.15],
+                "radius": 10.0, "fill": 0.97, "spread": 0.0, "wobble": 0.0,
+                "blend": 0.2, "rimWidth": 0.55, "depthWidth": 6.5, "bump": 0.18,
+                "splashTime": 0.8, "dryTime": 0.8, "specGain": 0.12, "roughness": 0.85,
+                "bubbles": 0.0, "bubbleGain": 0.0, "swirl": 0.32, "swirlScale": 0.42,
+                "vortex": 0.9, "twist": 0.55,
+                "lift": 0.05, "cliff": 4.0, "haloWidth": 0.7, "haloGain": 0.08,
+                "lobes": 0, "spatter": 0, "pointGain": 0.0,
+                "offset": [0.0, 0.0, 0.0], "previewDir": [0.0, 0.0, 1.0]
+            },
+            "duration": 6.8, "startTime": 0.0, "type": "Liquid"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 5,
+                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1, "wind": 1.0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.4,
+                "emitRate": 150.0, "emitType": 4,
+                "endColorMax": [0.62, 0.47, 0.27, 0.0], "endColorMin": [0.55, 0.41, 0.23, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 8.5, "lifetimeRange": [2.4, 3.2], "maxParticles": 600,
+                "position": [0.0, 0.18, 0.0], "radius": 10.0, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.09, 0.15, 0.05, 0.08], "speedRange": [-3.2, -2.2], "spreadAngle": 0.0,
+                "startColorMax": [0.86, 0.68, 0.42, 1.0], "startColorMin": [0.74, 0.57, 0.34, 1.0]
+            },
+            "duration": 6.6, "startTime": 0.2, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-0.4, 0.4], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1, "wind": 1.0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.8,
+                "emitRate": 16.0, "emitType": 5,
+                "endColorMax": [0.72, 0.58, 0.40, 0.0], "endColorMin": [0.66, 0.53, 0.36, 0.0],
+                "gravity": [0.0, 0.3, 0.0], "innerRadius": 0.0, "lifetimeRange": [1.6, 2.3], "maxParticles": 80,
+                "position": [0.0, 0.3, 0.0], "radius": 8.5, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [1.8, 2.6, 3.0, 4.2], "speedRange": [0.2, 0.6], "spreadAngle": 20.0,
+                "startColorMax": [0.78, 0.63, 0.43, 0.0], "startColorMin": [0.70, 0.56, 0.38, 0.0],
+                "colorKeys": [
+                    { "time": 0.0, "color": [0.70, 0.56, 0.38, 0.0] },
+                    { "time": 0.25, "color": [0.74, 0.60, 0.41, 0.24] },
+                    { "time": 0.7, "color": [0.76, 0.62, 0.44, 0.14] },
+                    { "time": 1.0, "color": [0.78, 0.64, 0.46, 0.0] }
+                ]
+            },
+            "duration": 6.4, "startTime": 0.2, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [-1.0, 1.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1, "wind": 0.6,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 2.5,
+                "emitRate": 260.0, "emitType": 4,
+                "endColorMax": [0.74, 0.60, 0.42, 0.0], "endColorMin": [0.68, 0.55, 0.38, 0.0],
+                "gravity": [0.0, 0.5, 0.0], "innerRadius": 0.3, "lifetimeRange": [0.8, 1.2], "maxParticles": 200,
+                "position": [0.0, 0.3, 0.0], "radius": 1.2, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [1.0, 1.4, 2.4, 3.2], "speedRange": [9.0, 13.0], "spreadAngle": 0.0,
+                "startColorMax": [0.80, 0.64, 0.44, 0.0], "startColorMin": [0.72, 0.58, 0.40, 0.0],
+                "colorKeys": [
+                    { "time": 0.0, "color": [0.72, 0.58, 0.40, 0.0] },
+                    { "time": 0.12, "color": [0.76, 0.61, 0.43, 0.40] },
+                    { "time": 0.6, "color": [0.78, 0.63, 0.45, 0.20] },
+                    { "time": 1.0, "color": [0.80, 0.66, 0.48, 0.0] }
+                ]
+            },
+            "duration": 0.15, "startTime": 0.0, "type": "Particle"
+        }
+    ],
+    "loop": false,
+    "name": "BossQuicksand"
+}

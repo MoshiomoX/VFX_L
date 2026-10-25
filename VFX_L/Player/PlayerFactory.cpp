@@ -140,9 +140,8 @@ namespace PlayerFactory
         reg.Add<PlayerStateComponent>(e, {});
 
         // ---- 体力 ----
-        // プレイヤーも敵と同じ HealthComponent を使う。
-        //   HitEvent の消費側が Has<HealthComponent> で振り分けるので、
-        //   プレイヤー専用の体力型を作る必要はない。
+        // プレイヤーも敵（CPU のエリート靶子）と同じ HealthComponent を使う。
+        //   被弾の窓口は PlayerStateSystem::TryApplyHit（無敵時間・シールドもそこ）。
         HealthComponent hp;
         hp.max = cfg.maxHealth;
         hp.current = cfg.maxHealth;
@@ -156,9 +155,8 @@ namespace PlayerFactory
         reg.Add<ShieldComponent>(e, shield);
 
         // ---- 魔力 ----
-        // ※現時点では HUD 表示のみ。
-        //   実際の消費・回復は WandComponent::manaCurrent で行われていて、
-        //   この Component とは繋がっていない（二重管理。要統合）。
+        // 魔力はこの Component だけが持つ（杖は持たない）。WeaponSystem が CanAfford / Reserve で予約し、
+        // 引き落としと回復は ManaSystem が行う。HUD もここを読む
         ManaComponent mana;
         mana.max = cfg.maxMana;
         mana.current = cfg.maxMana;

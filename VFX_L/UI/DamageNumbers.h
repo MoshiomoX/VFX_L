@@ -5,7 +5,8 @@
 //     環に書く → SwarmSystem がリードバック（2〜3 フレーム遅れ）→ 場面が Add する
 //   ・プレイヤーの分（受けたダメージ、赤）は場面が TrackPlayerHpLoss から Add する
 // 描くのは GameUI::Render（HUD と同じ画面座標。viewProj で世界 → 画面）。
-// 見た目：出た瞬間少し大きく、上へ昇りながら最後の 35% で薄れる。倒した一撃は大きく金色、毒は緑
+// 見た目：出た瞬間少し大きく、上へ昇りながら最後の 35% で薄れる。色は魔法の属性の色（属性が無ければ種類の色）。
+// 倒した一撃は大きく（属性が無い時だけ金色）、毒は緑、プレイヤーの被弾は赤、吸血の回復は緑の「+」
 // ============================================================
 #pragma once
 #include <SimpleMath.h>
@@ -17,14 +18,14 @@ class TextRenderer;
 class DamageNumbers
 {
 public:
-    enum class Kind { Normal, Poison, Kill, Player };
+    enum class Kind { Normal, Poison, Kill, Player, Heal };   // Heal = 吸血のルーンでプレイヤーが回復した量（緑の「+」。2026-10-25）
 
     // element = Swarm::DamageElement（0 = 無し → 種類の色。それ以外は elementColors の色）
     void Add(const DirectX::SimpleMath::Vector3& worldPos, float amount, Kind kind, int element = 0);
     void Update(float dt);          // gameplay の dt（一時停止中は止まる）
     void Draw(TextRenderer& text, const DirectX::SimpleMath::Matrix& viewProj, float screenW, float screenH);
-    void Clear() { m_Items.clear(); }
-    int  ActiveCount() const { return (int)m_Items.size(); }
+    void Clear() { m_Head = 0; m_Count = 0; }
+    int  ActiveCount() const { return m_Count; }
     uint32_t TotalAdded() const { return m_TotalAdded; }   // 自動テスト用
     uint32_t ElementCount(int e) const { return (e >= 0 && e < 9) ? m_ElementCounts[e] : 0; }   // 自動テスト用：属性毎の累計
     void DrawImGui();
@@ -47,8 +48,9 @@ public:
         DirectX::SimpleMath::Vector4 poisonColor = { 0.55f, 1.0f, 0.35f, 1.0f };
         DirectX::SimpleMath::Vector4 killColor = { 1.0f, 0.80f, 0.25f, 1.0f };
         DirectX::SimpleMath::Vector4 playerColor = { 1.0f, 0.30f, 0.25f, 1.0f };
+        DirectX::SimpleMath::Vector4 healColor = { 0.40f, 1.0f, 0.45f, 1.0f };
         DirectX::SimpleMath::Vector4 shadowColor = { 0.0f, 0.0f, 0.0f, 0.75f };
-        // 縁取り（8 方向に同じ文字を描く。px は画面短辺 900 の時）。0 = 影だけ
+        // 縁取り（TextRenderer のシェーダーが字の周りを拾って作る。px は画面短辺 900 の時）。0 = 影だけ
         float outlinePx = 1.8f;      // 太い字体に合わせて 1.6 → 1.8（2026-10-18）
         DirectX::SimpleMath::Vector4 outlineColor = { 0.05f, 0.03f, 0.08f, 1.0f };
         bool  shadow = false;        // 縁取りの上に右下の影も（縁取りが 0 の時の代わり）
@@ -70,7 +72,14 @@ private:
         float age = 0.0f;
         float drift = 0.0f;   // 横へ流れる m/s（少し散らす）
     };
-    std::vector<Item> m_Items;
+    // 環（2026-10-25）。m_Head = 一番古い物、そこから m_Count 個が出た順に並ぶ（描く順も同じ = 新しい物が上）。
+    // 以前は vector の先頭を erase していたので、上限に着いた後は Add のたびに全部ずらしていた。
+    // 寿命は全部同じ速さで進むので、消える物はいつも古い側（先頭）から
+    std::vector<Item> m_Ring;   // 大きさ = style.maxCount（変わったら FitRing が新しい物を残して詰め直す）
+    int m_Head = 0;
+    int m_Count = 0;
+    Item& At(int i) { return m_Ring[(size_t)((m_Head + i) % (int)m_Ring.size())]; }   // i = 古い方から何番目か
+    void FitRing();
     std::mt19937 m_Rng{ 4242u };
     uint32_t m_TotalAdded = 0;
     uint32_t m_ElementCounts[9] = {};

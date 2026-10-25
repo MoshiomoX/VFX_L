@@ -165,10 +165,20 @@ private:
     int RetargetAnimations(const aiScene* scene, const std::string& filepath,
         const struct BoneMapEntry* map, int mapCount);
 
+    // ---- SampleLocal の下ごしらえ（2026-10-25）----
+    // 骨やクリップを変える関数（LoadFromScene / AddAnimationsFromFile / SplitClothChain）の最後で作り直す。
+    // 骨の数と合わない（作り直し忘れ）時は、SampleLocal が毎回 Decompose・名前引きをする元の道を通る
+    void RebuildSampleCache();
+
     std::vector<SubMesh>                    m_SubMeshes;
     std::vector<std::shared_ptr<Material>>  m_Materials;
     Skeleton                                m_Skeleton;
     std::vector<AnimationClip>              m_Animations;
     DirectX::SimpleMath::Matrix             m_GlobalInverse = DirectX::SimpleMath::Matrix::Identity;
     std::string                             m_Directory;
+
+    std::vector<BoneLocal>                  m_BindLocal;          // 骨ごとの bind を S/R/T に割った物
+    std::vector<char>                       m_BindLocalOk;        // Decompose に成功したか（失敗した骨は毎回元の道）
+    std::vector<std::vector<int>>           m_ClipChannelOfBone;  // [clip][骨] = channel index（無ければ -1）
+    std::vector<char>                       m_ClipKeysSorted;     // そのクリップのキーが全部時刻順か（二分探索してよいか）
 };

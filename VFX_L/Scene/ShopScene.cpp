@@ -155,6 +155,16 @@ std::shared_ptr<Texture> ShopScene::GetIcon(ItemID id) const
     return nullptr;
 }
 
+// 一覧の行の名前・種別。ItemInfo::Describe（説明文・数値の行まで全部作る）は重いので、品毎に初めての時だけ
+const ShopScene::RowText& ShopScene::GetRowText(ItemID id)
+{
+    for (const RowText& r : m_RowTexts)
+        if (r.id == id) return r;
+    const ItemInfo::Sheet sheet = ItemInfo::Describe(id);
+    m_RowTexts.push_back({ id, sheet.title, sheet.category });
+    return m_RowTexts.back();
+}
+
 // ============================================================
 // 画面から位置を決める（1600x900 で UI 倍率 1.5 の時に収まる比率）
 // ============================================================
@@ -622,8 +632,8 @@ void ShopScene::DrawRows()
             m_Sprite.Draw(icon, { center.x - sz * 0.5f, center.y - sz * 0.5f }, { sz, sz }, { 0.97f * dim, 0.94f * dim, 0.87f * dim, 1.0f });
         }
 
-        // 名前 + 種別（2 行）
-        const ItemInfo::Sheet sheet = ItemInfo::Describe(s.id);
+        // 名前 + 種別（2 行）。品の id だけで決まるので、品毎に 1 回作って覚えておく（毎フレーム Describe しない）
+        const RowText& sheet = GetRowText(s.id);
         const float nameScale = 0.42f * k;
         const float catScale = 0.28f * k;
         const float nameH = m_Text.GetLineHeight(nameScale);

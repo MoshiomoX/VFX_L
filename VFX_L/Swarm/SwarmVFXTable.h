@@ -3,9 +3,10 @@
 // VFXId → GPU 側のレシピ（Recipe）と各種テンプレート表。
 //
 // 起動時に VFXDatabase の全 JSON を読み、entry を種類ごとの表へ振り分ける:
-//   Particle → GPUEmitter 表（今すぐ消費される）
-//   Mesh     → モデル表（表だけ。描画は敵AIの後に接続）
-//   Light    → 光源表（同上）
+//   Particle → GPUEmitter 表（SwarmEmitCS が消費する）
+//   Light    → 光源表（SwarmLightCollectCS）
+//   Sprite / Liquid / Trail → それぞれの表（範囲の連番画像・液溜まり・弾の帯）
+//   Mesh     → 表は作らない（2026-10-25 に空のままだったモデル表を削除。Recipe の modelStart / modelCount は常に 0）
 // Recipe は「この vfxType が各表のどこからどこまでを持つか」。
 //
 // GPU 側の効果には時間軸が無い（一弾一スレッド、無状態）。
@@ -34,7 +35,7 @@ namespace Swarm
     {
         uint32_t particleStart = 0;
         uint32_t particleCount = 0;
-        uint32_t modelStart = 0;
+        uint32_t modelStart = 0;    // 使っていない（モデル表は無い。HLSL の SwarmRecipe と並びを合わせるだけ）
         uint32_t modelCount = 0;
         uint32_t lightStart = 0;
         uint32_t lightCount = 0;
@@ -74,16 +75,6 @@ namespace Swarm
     };
     static_assert(sizeof(SpriteInstance) == 32, "SwarmSprite layout mismatch");
 
-    // ---- 将来の表（今は形だけ。描画側が出来たら埋める）----
-    struct VFXModelEntry
-    {
-        uint32_t meshId = 0;
-        float    scale = 1.0f;
-        float    _pad[2] = {};
-        float    offset[4] = {};
-    };
-    static_assert(sizeof(VFXModelEntry) == 32, "VFXModelEntry layout mismatch");
-
     struct VFXLightEntry
     {
         float color[4] = { 1, 1, 1, 1 };
@@ -106,7 +97,6 @@ public:
 
     ID3D11ShaderResourceView* GetRecipeSRV()   const { return m_RecipeSRV.Get(); }
     ID3D11ShaderResourceView* GetEmitterSRV()  const { return m_EmitterSRV.Get(); }
-    ID3D11ShaderResourceView* GetModelSRV()    const { return m_ModelSRV.Get(); }
     ID3D11ShaderResourceView* GetLightSRV()    const { return m_LightSRV.Get(); }
     ID3D11ShaderResourceView* GetSpriteDefSRV()   const { return m_SpriteDefSRV.Get(); }
     ID3D11ShaderResourceView* GetSpriteArraySRV() const { return m_SpriteArraySRV.Get(); }
@@ -145,8 +135,6 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_RecipeSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EmitterBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_EmitterSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_ModelBuffer;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_ModelSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_LightBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_LightSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpriteDefBuffer;

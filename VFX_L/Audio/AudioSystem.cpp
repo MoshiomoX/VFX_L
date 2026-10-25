@@ -150,6 +150,7 @@ struct AudioSystem::Impl
 
     ma_engine engine{};
     bool ok = false;
+    bool offline = false;   // 装置なし（ReadOffline で読み出す）
     ma_sound_group groups[3]{};   // Sfx / Music / Ui（Master は ma_engine の音量）
     bool groupOk[3] = {};
     float volumes[(int)Bus::Count] = { 1.0f, 0.8f, 0.6f, 0.8f };
@@ -160,7 +161,10 @@ struct AudioSystem::Impl
     std::vector<std::unique_ptr<Voice>> voices;
 
     std::unique_ptr<ma_sound> music, musicOld;
-    std::string musicName;
+    std::string musicName;     // 今鳴っている曲（鳴らせた時だけ書く）
+    std::string musicFailed;   // 見つからない / 読めなかった曲。同じ名前を毎フレーム読み直さない（ReloadCues で忘れる）
+    bool  muteTest = false;          // TEMP-TEST: VFXL_AUDIO_MUTE で主音量を 0 にした
+    float masterBeforeMute = 1.0f;   // その前の主音量（保存する時はこちらを書く）
     std::unique_ptr<ma_sound> ambient;   // 環境音のループ（SetAmbient）
     std::string ambientFile;
     float oldLeft = 0.0f;   // 前の曲がフェードし終わるまでの秒
@@ -211,12 +215,20 @@ AudioSystem& AudioSystem::Get()
 AudioSystem::AudioSystem() : m(std::make_unique<Impl>()) {}
 AudioSystem::~AudioSystem() { Shutdown(); }
 
-bool AudioSystem::Initialize()
+bool AudioSystem::Initialize(bool offline)
 {
     if (m->ok) return true;
     ma_engine_config cfg = ma_engine_config_init();
     cfg.onProcess = &Impl::Limiter::Process;   // 全部を混ぜた後のリミット（Setup までは channels = 0 で素通し）
     cfg.pProcessUserData = &m->limiter;
+    if (offline)
+    {
+        // 動画の書き出し：装置を開かず、1 フレームごとに 1/60 秒ぶんを読み出す（映像と音がずれない）
+        cfg.noDevice = MA_TRUE;
+        cfg.channels = 2;
+        cfg.sampleRate = 48000;
+    }
+    m->offline = offline;
     if (ma_engine_init(&cfg, &m->engine) != MA_SUCCESS)
     {
         std::cout << "[Audio] no audio device (sound off)" << std::endl;
@@ -235,7 +247,12 @@ bool AudioSystem::Initialize()
         size_t len = 0;
         if (_dupenv_s(&mute, &len, "VFXL_AUDIO_MUTE") == 0 && mute)
         {
-            if (mute[0] == '1') m->volumes[(int)Bus::Master] = 0.0f;
+            if (mute[0] == '1')
+            {
+                m->muteTest = true;
+                m->masterBeforeMute = m->volumes[(int)Bus::Master];
+                m->volumes[(int)Bus::Master] = 0.0f;
+            }
             free(mute);
         }
     }
@@ -266,6 +283,14 @@ void AudioSystem::Shutdown()
 }
 
 bool AudioSystem::IsAvailable() const { return m->ok; }
+
+uint32_t AudioSystem::ReadOffline(float* out, uint32_t frames)
+{
+    if (!m->ok || !m->offline || !out || frames == 0) return 0;
+    ma_uint64 read = 0;
+    ma_engine_read_pcm_frames(&m->engine, out, frames, &read);
+    return (uint32_t)read;
+}
 
 void AudioSystem::Update(float dt)
 {
@@ -330,6 +355,8 @@ bool AudioSystem::PlayBurst(const std::string& cue, uint32_t count)
 void AudioSystem::PlayMusic(const std::string& track, float fadeSec)
 {
     if (!m->ok || track == m->musicName) return;
+    // 前に読めなかった曲は、別の曲を挟むか ReloadCues するまで試し直さない（呼ぶ側は毎フレーム同じ名前を渡す）
+    if (!track.empty() && track == m->musicFailed) return;
     const ma_uint64 fadeMs = (ma_uint64)((std::max)(fadeSec, 0.0f) * 1000.0f);
 
     // 前の前の曲（まだフェード中）は即座に止める。今の曲はフェードアウトへ
@@ -340,13 +367,16 @@ void AudioSystem::PlayMusic(const std::string& track, float fadeSec)
         m->musicOld = std::move(m->music);
         m->oldLeft = fadeSec + 0.2f;
     }
-    m->musicName = track;
+    // 名前は鳴らせた時だけ書く（先に書くと、読めなかった曲が「鳴っている」ことになり、二度と試し直さない）
+    m->musicName.clear();
+    m->musicFailed.clear();
     if (track.empty()) return;
 
     auto it = m->tracks.find(track);
     if (it == m->tracks.end() || it->second.file.empty())
     {
         std::cout << "[Audio] music not found: " << track << std::endl;
+        m->musicFailed = track;
         return;
     }
     auto s = std::make_unique<ma_sound>();
@@ -354,6 +384,7 @@ void AudioSystem::PlayMusic(const std::string& track, float fadeSec)
             m->Group(Bus::Music), nullptr, s.get()) != MA_SUCCESS)
     {
         std::cout << "[Audio] music load failed: " << it->second.file << std::endl;
+        m->musicFailed = track;
         return;
     }
     ma_sound_set_looping(s.get(), MA_TRUE);
@@ -370,6 +401,7 @@ void AudioSystem::PlayMusic(const std::string& track, float fadeSec)
     ma_sound_set_fade_in_milliseconds(s.get(), 0.0f, 1.0f, fadeMs);
     ma_sound_start(s.get());
     m->music = std::move(s);
+    m->musicName = track;
 }
 
 const std::string& AudioSystem::CurrentMusic() const { return m->musicName; }
@@ -412,7 +444,14 @@ void AudioSystem::SetVolume(Bus b, float v)
 bool AudioSystem::SaveSettings() const
 {
     json j;
-    for (int i = 0; i < (int)Bus::Count; ++i) j[kBusName[i]] = m->volumes[i];
+    for (int i = 0; i < (int)Bus::Count; ++i)
+    {
+        float v = m->volumes[i];
+        // VFXL_AUDIO_MUTE で 0 にした主音量は書かない（自動テストの後でユーザーの設定が無音にならないように）。
+        // 静音中に主音量を自分で動かした時は、その値を書く
+        if (i == (int)Bus::Master && m->muteTest && v == 0.0f) v = m->masterBeforeMute;
+        j[kBusName[i]] = v;
+    }
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::path(kSettingsPath).parent_path(), ec);
     std::ofstream out(kSettingsPath);
@@ -448,6 +487,7 @@ bool AudioSystem::ReloadCues()
     m->Unregister();
     m->cues.clear();
     m->tracks.clear();
+    m->musicFailed.clear();   // 曲の一覧が変わるので、読めなかった曲も試し直す
 
     std::ifstream in(kCuePath);
     if (!in.is_open())

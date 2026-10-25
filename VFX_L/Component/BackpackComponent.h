@@ -19,6 +19,7 @@
 #include "SpellID.h"
 #include <vector>
 #include <array>
+#include <cstdint>
 
 // 配置済みアイテム1個ぶん（これが真データ）
 struct PlacedItem
@@ -45,10 +46,25 @@ struct BackpackComponent
     // 集約結果が古くなったか（true なら再計算が必要）
     bool dirty = true;
 
+    // 中身（items / frames）が変わるたびに変わる番号（2026-10-25）。UI が毎フレーム作り直していた物
+    // （上級魔法が目覚めているか・回した形・説明の文）を、番号が同じ間は覚えておくための目印。
+    // 占有表の組み直し（BackpackLogic::RebuildOccupancy / RebuildFrameOccupancy）で進むので、
+    // BackpackLogic を通した変更は全部ここに載る。items / frames を直接書き換えた時は、
+    // その後に占有表を組み直す（組み直さないと占有表自体がずれる）か Touch を呼ぶこと。
+    // 番号はプロセス全体で一意（別の物をコピーしてきた時も、中身が同じなら同じ番号のままで良い）
+    uint32_t revision = 0;
+    void Touch() { revision = NextRevision(); }
+    static uint32_t NextRevision()
+    {
+        static uint32_t s_Counter = 0;
+        return ++s_Counter;
+    }
+
     BackpackComponent()
     {
         occupancy.fill(-1);
         frameOccupancy.fill(-1);
+        Touch();
     }
 
     // ---- 魔法の占有 ----

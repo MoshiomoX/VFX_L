@@ -22,7 +22,10 @@ namespace
     constexpr float kVolumeStep = 0.05f;   // 1 段 = 5%
     constexpr float kRepeatFirst = 0.30f;  // 押しっぱなしで動き出すまで
     constexpr float kRepeatNext = 0.06f;   // それ以降の間隔
-    constexpr float kFrame = 0.016f;       // 止まっている間も使うので固定の 1 フレーム
+    // 開いた直後の猶予・押しっぱなしの連続は実時間で減らす（以前は 1 フレーム 0.016 秒の決め打ちで、
+    // 144 fps だと猶予が半分以下・連続が 2 倍以上速かった）。1 フレームだけ長い時（読み込みの引っ掛かり）に
+    // 猶予を食い尽くさないよう 0.1 秒で頭打ち
+    float FrameStep(float dt) { return (std::min)((std::max)(dt, 0.0f), 0.1f); }
 
     const Vector4 kTextSel = { 0.96f, 0.92f, 0.84f, 1.0f };
     const Vector4 kTextDim = { 0.50f, 0.46f, 0.40f, 1.0f };
@@ -158,8 +161,9 @@ void SettingsMenuUI::Activate()
 // ============================================================
 // 入力。戻るなら true
 // ============================================================
-bool SettingsMenuUI::HandleInput()
+bool SettingsMenuUI::HandleInput(float dt)
 {
+    const float frameDt = FrameStep(dt);
     auto& input = InputManager::Get();
     const int n = (int)m_Rows.size();
 
@@ -178,7 +182,7 @@ bool SettingsMenuUI::HandleInput()
 
     if (m_InputDelay > 0.0f)
     {
-        m_InputDelay -= kFrame;
+        m_InputDelay -= frameDt;
         return false;
     }
 
@@ -222,7 +226,7 @@ bool SettingsMenuUI::HandleInput()
     }
     else if ((leftHeld || rightHeld) && m_Rows[m_Cursor].kind == Kind::Volume)
     {
-        m_RepeatDelay -= kFrame;
+        m_RepeatDelay -= frameDt;
         if (m_RepeatDelay <= 0.0f)
         {
             Step(rightHeld ? +1 : -1);

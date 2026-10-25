@@ -23,18 +23,23 @@ struct RingIn
     float2 uv : TEXCOORD0;
     float progress : TEXCOORD1;
     float edgeWidth : TEXCOORD2;
+    // x = 1: a warn sector / lane (SwarmWarnRingVS, 2026-10-25): the fill grows over y (how far along) instead of r.
+    // 0 for every round ring (the bomber / meteor VS leave it zero)
+    float2 shapeFill : TEXCOORD3;
 };
 
 float4 main(RingIn i) : SV_TARGET
 {
     float r = length(i.uv);
     float aa = max(fwidth(r), 1e-4); // one pixel, keeps the edges smooth at any distance
+    float fr = (i.shapeFill.x > 0.5) ? i.shapeFill.y : r;   // what the fill grows over
+    float aaFill = max(fwidth(fr), 1e-4);
 
     float inside = 1.0 - smoothstep(1.0 - aa, 1.0, r);
     if (inside <= 0.0)
         discard;
 
-    float fill = 1.0 - smoothstep(i.progress - aa, i.progress, r);
+    float fill = 1.0 - smoothstep(i.progress - aaFill, i.progress, fr);
     float rim = smoothstep(1.0 - i.edgeWidth - aa, 1.0 - i.edgeWidth, r);
 
     // negative progress (warn rings only, 2026-10-07) = rim only: nothing inside the rim

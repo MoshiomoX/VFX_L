@@ -10,14 +10,6 @@ bool RenderStates::Initialize(ID3D11Device* device)
 
     m_Common = std::make_unique<DirectX::CommonStates>(device);
 
-    // --- Skybox 用：球の内側を描くため深度は LESS_EQUAL、書き込みあり ---
-    D3D11_DEPTH_STENCIL_DESC ds = {};
-    ds.DepthEnable = TRUE;
-    ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-    ds.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-    if (FAILED(device->CreateDepthStencilState(&ds, &m_DepthLessEqual)))
-        return false;
-
     // --- 陣営のアウトライン用：深度は既定どおり（LESS、書き込みあり）+ ステンシルに参照値を書く ---
     D3D11_DEPTH_STENCIL_DESC st = {};
     st.DepthEnable = TRUE;
@@ -45,9 +37,6 @@ bool RenderStates::Initialize(ID3D11Device* device)
     rd.CullMode = D3D11_CULL_BACK;
     if (FAILED(device->CreateRasterizerState(&rd, &m_CullBack))) return false;
 
-    rd.CullMode = D3D11_CULL_FRONT;
-    if (FAILED(device->CreateRasterizerState(&rd, &m_CullFront))) return false;
-
     m_Initialized = true;
     std::cout << "[OK] RenderStates initialized" << std::endl;
     return true;
@@ -56,10 +45,8 @@ bool RenderStates::Initialize(ID3D11Device* device)
 void RenderStates::Shutdown()
 {
     m_Common.reset();
-    m_DepthLessEqual.Reset();
     m_DepthStencilWrite.Reset();
     m_CullBack.Reset();
-    m_CullFront.Reset();
     m_Initialized = false;
 }
 
@@ -93,14 +80,6 @@ void RenderStates::ApplyAlphaBlend(ID3D11DeviceContext* ctx) const
     ctx->OMSetBlendState(AlphaBlend(), kBlendFactor, 0xFFFFFFFF);
     ctx->OMSetDepthStencilState(DepthReadOnly(), 0);
     ctx->RSSetState(CullNone());
-}
-
-void RenderStates::ApplySkybox(ID3D11DeviceContext* ctx) const
-{
-    if (!ctx || !m_Initialized) return;
-    ctx->OMSetBlendState(Opaque(), kBlendFactor, 0xFFFFFFFF);
-    ctx->OMSetDepthStencilState(DepthLessEqual(), 0);
-    ctx->RSSetState(CullFront());
 }
 
 void RenderStates::ApplyUI(ID3D11DeviceContext* ctx) const

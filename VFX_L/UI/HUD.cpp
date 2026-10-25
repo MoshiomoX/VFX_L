@@ -14,6 +14,7 @@
 #include "UI/InputGlyph.h"
 #include "Manager/ResourceManager.h"
 #include "ResourcePaths.h"
+#include "Debug/FrameProfiler.h"
 #include "imgui.h"
 
 #include <nlohmann/json.hpp>
@@ -117,6 +118,14 @@ bool HUD::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
     m_SurgeIcon = ResourceManager::Get().LoadTexture(Res::Icon::ManaSurge);
     m_GoldIcon = ResourceManager::Get().LoadTexture(Res::Icon::Gold);
     m_ShieldIcon = ResourceManager::Get().LoadTexture(Res::Icon::ShieldUp);
+    // 目印の種類の絵（HUDMarkerKind の順。読めない物は丸だけになる）
+    {
+        const wchar_t* files[(int)HUDMarkerKind::Count] = {
+            Res::Icon::MapChest, Res::Icon::MapPortal, Res::Icon::MapExit, Res::Icon::Magnet,
+            Res::Icon::MapBoss, Res::Icon::MapElite, Res::Icon::MapSurge };
+        for (int i = 0; i < (int)HUDMarkerKind::Count; ++i)
+            m_MarkerIcons[i] = ResourceManager::Get().LoadTexture(files[i]);
+    }
 
     // 保存済みの調整があれば使う。無ければコードの既定値のまま
     LoadStyle();
@@ -215,7 +224,10 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
     DrawExpBar(sprite, text, lv);
 
     // ---- ミニマップ（右上。HUDMinimap.cpp）----
-    m_Minimap.Draw(sprite, text, m_Context, m_S, info, m_S.minimap.Resolve(m_ScreenW, m_ScreenH), m_WhiteTex);
+    {
+        PROFILE_SCOPE("UI Minimap");
+        m_Minimap.Draw(sprite, text, m_Context, m_S, info, m_S.minimap.Resolve(m_ScreenW, m_ScreenH), m_WhiteTex, m_MarkerIcons);
+    }
 
     // ---- FPS（ミニマップの下。HUDFps.cpp）----
     DrawFps(sprite, text, info.fps);
@@ -361,6 +373,12 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
         const float r = Clamp01(info.bossHp);
         DrawBar(sprite, pos, size, r, r, { 0.35f, 0.05f, 0.55f, 1.0f }, true);   // 紫（線形）
         DrawBarLabel(text, L"ボス", pos, size);
+    }
+    // ---- 面の固定エリートの HP 条（Boss の条の下。2026-10-25）----
+    if (!info.elites.empty())
+    {
+        const float top = (info.bossHp >= 0.0f) ? y + 8.0f * UIDeco::UIScale() + m_S.hpBarSize.y : y;
+        DrawEliteBars(sprite, text, info, a.x, top);
     }
 }
 
@@ -697,11 +715,12 @@ void HUD::DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info)
                 col, ang + 3.14159265f + spread, tip);
         }
 
-        // 後ろに小さな菱形（何の目印か色で分かるように）
-        const float gem = len * 0.55f;
-        const Vector2 gc = tip - Vector2(std::cos(ang), std::sin(ang)) * (len * 1.25f);
-        sprite.Draw(m_WhiteTex, { gc.x - gem * 0.5f, gc.y - gem * 0.5f }, { gem, gem },
-            col, 0.785398f, gc);
+        // 後ろに種類の絵（ミニマップと同じ。2026-10-24 まで色だけの小さな菱形）
+        const float icon = len * 1.15f;
+        const Vector2 gc = tip - Vector2(std::cos(ang), std::sin(ang)) * (len * 0.6f + icon * 0.85f);
+        const int k = (int)mk.kind;
+        if (k >= 0 && k < (int)HUDMarkerKind::Count)
+            HUDMinimap::DrawMarkerBadge(sprite, m_MarkerIcons[k], gc, icon, mk.color);
     }
 }
 

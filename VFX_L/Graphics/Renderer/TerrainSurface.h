@@ -43,6 +43,10 @@ public:
     // refLum = 層毎の「元の頂点色の基準の明るさ」（その面の配色から）。失敗したら何もしない（頂点色のまま）
     bool Apply(ID3D11Device* device, Model& model, int biome, const float refLum[LayerCount]);
 
+    // その面の最後の Apply の値（refLum）で定数を書き直す。PS の b2 は 3 つの面で 1 つを共用しているので、
+    // 建てておいた地形を出し入れするだけの時（ステージ選択）に呼ぶ。その面でまだ Apply していなければ何もしない
+    void Activate(int biome);
+
     // Terrain パネルの「Ground Textures」。変えたら定数を書き直す
     void DrawImGui();
 
@@ -53,6 +57,8 @@ private:
         std::shared_ptr<Texture> albedo, normal;
         std::shared_ptr<Material> material;
         float texLum[LayerCount] = {};   // 層毎のテクスチャの平均の明るさ（線形）
+        float refLum[LayerCount] = {};   // この面の最後の Apply の基準の明るさ（Activate で戻す）
+        bool hasRef = false;
         bool tried = false;
     };
 

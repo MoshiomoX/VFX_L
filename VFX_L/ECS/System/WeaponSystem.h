@@ -238,6 +238,7 @@ private:
         float damage = 0.0f;           // 1 回（tickInterval ごと）
         float tickInterval = 0.5f;
         float pulseTimer = 0.0f;       // 次の短い範囲まで
+        bool  lifesteal = false;       // 吸血のルーン（2026-10-25）
         float damageTimer = 0.0f;      // 次に威力を乗せるまで
         float outro = -1.0f;           // < 0 = まだ消え始めていない、≥ 0 = 寿命が尽きて消え始めてからの秒
         uint32_t vfxHandle = 0;
@@ -256,25 +257,41 @@ private:
     // 光球ごとの計時で、光球の位置から撃つ。見た目は AreaVFXPlayer のインスタンス（貯蔵した魔法の色で染める）
     struct Orb
     {
-        int unit = 0;
+        int unit = 0;                // 今の wand.orbs の添字（SyncOrbUnits が unitId / unitDup から毎フレーム引き直す）
+        ItemID unitId = ItemID::Unknown;   // どの水晶玉の光球か（バックパックを組み替えても同じ水晶玉を指す）
+        int unitDup = 0;
         uint32_t serial = 0;
         float age = 0.0f;
         float life = 8.0f;
-        float phase = 0.0f;          // 回る角度（rad）。出た時に決めて orbitSpeed で進む
+        float phase = 0.0f;          // 出た時の向き（rad）。出る位置を決めるだけ（回らない）
         DirectX::SimpleMath::Vector3 pos = { 0, 0, 0 };
         uint32_t vfxHandle = 0;
-        struct Timer { float castTimer = 0.0f; int pendingCasts = 0; float delayTimer = 0.0f; };
-        std::vector<Timer> spellTimers;   // wand.spells と同じ添字（貯蔵されている物だけ使う）
-        std::vector<float> areaTimers;    // wand.areas と同じ添字
+        // 貯蔵された魔法ごとの計時。魔法は道具 ID と同じ道具の何個目か（SpellStats / AreaStats::dupIndex）で見分ける
+        // （wand.spells / areas の添字は組み替えでずれるので使わない）
+        struct Timer { ItemID id = ItemID::Unknown; int dup = 0; float castTimer = 0.0f; int pendingCasts = 0; float delayTimer = 0.0f; };
+        struct AreaTimer { ItemID id = ItemID::Unknown; int dup = 0; float timer = 0.0f; };
+        std::vector<Timer> spellTimers;
+        std::vector<AreaTimer> areaTimers;
     };
     std::vector<Orb> m_Orbs;
     uint32_t m_OrbSerial = 0;
     uint32_t m_OrbCasts = 0;
-    // 光球の出現・移動・消滅と、貯蔵された魔法の発射（Update の走査の中、範囲攻撃の後）
+    // 光球と水晶玉（wand.orbs）の対応を引き直す。水晶玉が無くなった / 何も貯蔵していない光球は消えるようにする
+    void SyncOrbUnits(const WandComponent& wand);
+    // 光球の出現・移動・消滅と、貯蔵された魔法の発射（Update の走査の中、範囲攻撃の後）。
+    // allowPending = false なら連発の残りも撃たずに捨てる（死んだ時）
     void UpdateOrbs(float dt, float castDt, float castSpeed, float durationMul,
         const DirectX::SimpleMath::Vector3& playerPos, WandComponent& wand, ManaComponent& mana,
-        bool allowNewCast, bool ignoreCooldown, bool hasTarget,
+        bool allowNewCast, bool allowPending, bool ignoreCooldown, bool hasTarget,
         const DirectX::SimpleMath::Vector3& targetPos, const DirectX::SimpleMath::Vector3& targetVel);
+    // 誘発されない範囲魔法を 1 回撃つ（杖と光球で共通：アークボルトの稲妻、突風などの範囲）。
+    // origin = 撃つ所（杖先 / 光球）、caster = 足元に出す範囲の中心・前へ吹く根元（プレイヤー / 光球の真下）、
+    // followCaster = プレイヤーに付いて動く範囲を許す（光球は false）、orbSerial = 光球の通し番号（杖は 0）。
+    // 撃てたら true（MP の予約・クールダウンは呼ぶ側）
+    bool CastArea(const AreaStats& a, const DirectX::SimpleMath::Vector3& origin,
+        const DirectX::SimpleMath::Vector3& caster, bool followCaster,
+        bool hasTarget, const DirectX::SimpleMath::Vector3& targetPos,
+        float castSpeed, float durationMul, uint32_t orbSerial);
     // 光球の位置（生きていれば true）
     bool FindOrb(uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
     // 水晶玉 unit の生きている光球の先頭（貯蔵された上級魔法を誘発で撃つ時の起点）。無ければ false

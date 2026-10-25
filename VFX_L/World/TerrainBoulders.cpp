@@ -3,7 +3,10 @@
 // 外周の岩山と洞窟の上の山を、数個の巨石（Rock-Set）を拡大して作る（2026-10-06、ユーザー：
 // 岩を何十個も積むのでなく、1 個か数個の石を大きくして山に見せたい）。
 // 石は軸ごとに違う倍率で引き伸ばす（MapData::Prop::stretch）：辺に沿って長く、外へ厚く、上へ高く。
-// 衝突・格子は外周の崖の箱・洞の屋根の箱のまま（石は見た目だけ）
+// 外周の石は既定では見た目だけ（衝突・格子は外周の崖の箱）。RimBoulderParams::collide（Config::boulderCollide）の時は
+// 石の凸包で当てて足元のマスを塞ぐ（縁の空気壁は作らない）。洞の上の石は見た目だけ（衝突は洞の屋根の箱）。
+// 注意：FitRock の実引数の中で乱数を 2 回引いている所がある（「評価順に依存」の印）。MSVC では評価順が固定なので
+// 同じ seed から同じ並びになるが、引数を変数に出す・並べ替えると同じ seed の地形が変わる
 // ============================================================
 #include "World/TerrainBuild.h"
 #include "Manager/ResourceManager.h"
@@ -74,8 +77,8 @@ namespace TerrainBuild
     }
 
     // ============================================================
-    // 外周の岩山：四辺それぞれ 2 列（手前 perSide 個、奥は半周期ずらして perSide + 1 個、奥ほど高く厚く）+ 四隅に 1 個。
-    // 手前の列は箱の内側の面が縁から intrude だけ内（負 = 外）に来る所。底は縁の地面、高さは平原（山頂の脇は山頂）から
+    // 外周の岩山：四辺それぞれ 1 列 perSide 個（箱の真ん中が縁の線 + centerOut）+ 四隅に 1 個（+ 石の後ろの岩色の壁）。
+    // collide なら石の凸包で当てて足元のマスを塞ぐ。底は縁の地面、高さは平原（山頂の脇は山頂）から
     // ============================================================
     int EmitRimBoulders(Emitter& emit, GridWorld* grid, float halfW, float halfD, const RimBoulderParams& P,
         const std::vector<std::string>& modelPaths, const EdgeSpanFn& edgeSpan, std::mt19937& rng, int* outBlocked)
@@ -152,6 +155,7 @@ namespace TerrainBuild
             edgeSpan({ sx, 0, 0 }, { 0, 0, 1 }, halfW, sz * halfD, 4.0f, lo, hi);
             const float targetH = randf(P.backHMin, P.backHMax) * P.heightMul + ((std::max)(hi, 0.0f) - lo);
             // 長い軸を x に合わせてから 45° 回す = 隅を斜めに横切る向き
+            // 実引数の中で乱数を 2 回引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             const Fit f = FitRock(r, Vector3(1, 0, 0), P.depth * 1.6f, P.depth * 1.2f, targetH, randi(0, 1) != 0,
                 45.0f * sx * sz + randf(-P.yawJitterDeg, P.yawJitterDeg));
             const float c = P.centerOut * 0.7071f;
@@ -197,6 +201,7 @@ namespace TerrainBuild
             // 真ん中：塊をほぼ覆う。高さは roofRockMax
             const Rock& r = rocks[(size_t)randi(0, (int)rocks.size() - 1)];
             const float h = rockMax * 1.4f * randf(0.95f, 1.05f);
+            // 実引数の中で乱数を 2 回引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             const Fit f = FitRock(r, t, longE * 2.0f * 1.08f, shortE * 2.0f * 1.08f, h, randi(0, 1) != 0, randf(-6.0f, 6.0f));
             Put(emit, r, f, c, roofTopY - h * 0.4f, MapData::kRoofRock);
             ++placed;
@@ -206,6 +211,7 @@ namespace TerrainBuild
             // 両端：低めの石を少し外へ（輪郭が 1 個の塊に見えないように）
             const Rock& r = rocks[(size_t)randi(0, (int)rocks.size() - 1)];
             const float h = rockMin * 1.3f * randf(0.9f, 1.1f);
+            // 実引数の中で乱数を 2 回引く：評価順に依存（MSVC で固定）。順番を変えると同じ seed の地形が変わる
             const Fit f = FitRock(r, t, longE * 1.1f, shortE * 1.5f, h, randi(0, 1) != 0, randf(-20.0f, 20.0f));
             const Vector3 center = c + t * (k * longE * 0.5f) + (alongX ? Vector3(0, 0, 1) : Vector3(1, 0, 0)) * randf(-shortE * 0.25f, shortE * 0.25f);
             Put(emit, r, f, center, roofTopY - h * 0.35f, MapData::kRoofRock);

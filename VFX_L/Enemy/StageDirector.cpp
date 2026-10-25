@@ -2,6 +2,7 @@
 // StageDirector.cpp
 // ============================================================
 #include "Enemy/StageDirector.h"
+#include "Enemy/EliteAttacks.h"
 #include "Enemy/MobSpawner.h"
 #include "Swarm/SwarmSystem.h"
 #include "World/GridWorld.h"
@@ -37,8 +38,28 @@ void StageDirector::Init()
     m_DarkGhostsWarned = false;
 }
 
-bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, float hp, SwarmSystem& swarm)
+bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, float hp, SwarmSystem& swarm, int index)
 {
+    // 面の固定エリート（2026-10-25）：1 体目 = A（詞缀 0）、2 体目 = B（詞缀 1）、3 体目以降 = B（詞缀 2）。詞缀は乱数で被らず
+    if (elites)
+    {
+        const bool ranged = index >= 1;
+        const int want = (std::min)(index, 2);
+        uint32_t affixes = 0;
+        for (int n = 0, guard = 0; n < want && guard < 32; ++guard)
+        {
+            const uint32_t bit = 1u << (rand() % kEliteAffixCount);
+            if (affixes & bit) continue;
+            affixes |= bit;
+            ++n;
+        }
+        if (!elites->Spawn(grid, swarm, player, ranged, affixes, hp, eliteRingMin, eliteRingMax)) return false;
+        ++m_ElitesSpawned;
+        swprintf_s(m_AnnounceBuf, L"%ls が現れた！", elites->LastSpawnName());
+        SetAnnounce(m_AnnounceBuf, 3.5f);
+        return true;
+    }
+
     const float groundY = swarm.GetAIParams().groundY;
     for (int attempt = 0; attempt < 16; ++attempt)
     {
@@ -140,15 +161,15 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
     // ---- 決まった時間にエリート ----
     if (m_NextElite < eliteTimes.size() && runTime >= eliteTimes[m_NextElite])
     {
-        if (SpawnElite(grid, player, hp, swarm))
+        if (SpawnElite(grid, player, hp, swarm, (int)m_NextElite))
         {
             ++m_NextElite;
             m_Event = "elite";
-            SetAnnounce(L"エリートが現れた！", 3.0f);
+            if (!elites) SetAnnounce(L"エリートが現れた！", 3.0f);   // 固定エリートは名前入りの案内を SpawnElite が出す
         }
     }
 
-    if (m_DebugElite && SpawnElite(grid, player, hp, swarm))
+    if (m_DebugElite && SpawnElite(grid, player, hp, swarm, m_ElitesSpawned % 3))
     {
         m_DebugElite = false;
         m_Event = "elite (button)";

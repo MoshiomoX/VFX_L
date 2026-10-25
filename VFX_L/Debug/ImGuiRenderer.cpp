@@ -3,6 +3,7 @@
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
 #include "ResourcePaths.h"
+#include "Core/VideoCapture.h"
 
 bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceContext* context)
 {
@@ -14,7 +15,14 @@ bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceCont
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    if (VideoCapture::Get().Enabled())
+    {
+        // 動画の書き出し：パネルを別の OS 窓にせずゲームの画面の中に描く（書き出すのはバックバッファだけ）。
+        // 並びは書き出し用の ini（普段の imgui.ini は読み書きしない）
+        io.IniFilename = "imgui_capture.ini";
+    }
+    else
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
       // ViewportsEnable時、ウィンドウ外でも見た目を統一
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -45,14 +53,18 @@ bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceCont
             io.Fonts->AddFontDefault();
         }
     }
+    // 失敗した時は作った物を片付けてから返す（Shutdown は m_Initialized を見て何もしないので、ここで放さないと残る）
     if (!ImGui_ImplWin32_Init(hwnd))
     {
         std::cout << "[Error] ImGui Win32 init failed" << std::endl;
+        ImGui::DestroyContext();
         return false;
     }
     if (!ImGui_ImplDX11_Init(device, context))
     {
         std::cout << "[Error] ImGui DX11 init failed" << std::endl;
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
         return false;
     }
 

@@ -39,7 +39,8 @@ struct SwarmWarnCircle
     float radius;
     float progress;  // 0..1; negative = rim only (nothing filled inside)
     float band;      // > 0: draw a band of this width (meters) at the radius instead (boss shockwave, 2026-10-07)
-    float2 _pad;
+    float yaw;       // sector / lane direction (radians, 0 = +Z) (2026-10-25, the fixed elites)
+    float shape;     // > 0: a sector with this half angle (radians) and radius `radius`; < 0: a lane -shape m wide, `radius` long
 };
 
 StructuredBuffer<SwarmWarnCircle> circles : register(t0);
@@ -54,6 +55,7 @@ struct RingOut
     float2 uv : TEXCOORD0;       // -1..1 across the radius
     float progress : TEXCOORD1;  // radius of the filled disc in uv units
     float edgeWidth : TEXCOORD2; // rim thickness in uv units
+    float2 shapeFill : TEXCOORD3; // x = 1: a sector / lane, y = how far along it (0 root .. 1 tip) = what the fill grows over
 };
 
 static const float2 kCorner[6] =
@@ -91,6 +93,42 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
         o.edgeWidth = ew;
         o.uv = float2(lerp(1.0 - ew, 1.0, c.y), 0.0);
         o.progress = -1.0;
+        return o;
+    }
+
+    // ---- sector (flame breath) / lane (arrows, charges), 2026-10-25: the 8 x 8 quads laid over the shape, every vertex on
+    // the ground. The rim uses r = how far along or how close to a side, whichever is larger, so it runs round the
+    // outline. The fill grows over how far along only (shapeFill.y): with r it only started where the sides are
+    // near the radius away, i.e. at the very end of the wind-up on a long lane, and 2/3 out on a sector ----
+    if (w.shape != 0.0)
+    {
+        float2 c = kCorner[vid % 6u];
+        float u = ((float) qx + c.x) / (float) WARN_GRID;   // across 0..1
+        float f = ((float) qz + c.y) / (float) WARN_GRID;   // along 0..1
+        float ys, yc;
+        float2 sxz;
+        float sideDist;
+        if (w.shape > 0.0)
+        {
+            float a = w.yaw + (u * 2.0 - 1.0) * w.shape;
+            sincos(a, ys, yc);
+            sxz = w.center.xz + float2(ys, yc) * (f * radius);
+            sideDist = f * radius * sin(w.shape * (1.0 - abs(u * 2.0 - 1.0)));
+        }
+        else
+        {
+            float halfW = -0.5 * w.shape;
+            sincos(w.yaw, ys, yc);
+            float across = (u * 2.0 - 1.0) * halfW;
+            sxz = w.center.xz + float2(ys, yc) * (f * radius) + float2(yc, -ys) * across;
+            sideDist = halfW - abs(across);
+        }
+        float sh = SwarmTerrainHeight(heights, sxz);
+        o.pos = mul(mul(float4(sxz.x, sh + g_RingLift, sxz.y, 1.0), g_RingView), g_RingProj);
+        o.uv = float2(max(f, 1.0 - sideDist / radius), 0.0);
+        o.progress = (w.progress < 0.0) ? -1.0 : saturate(w.progress);
+        o.edgeWidth = g_RingEdgeWidth / radius;
+        o.shapeFill = float2(1.0, f);
         return o;
     }
 

@@ -386,6 +386,15 @@ namespace TerrainBuild
     // 床の縦の壁になる衝突の箱（平原・洞窟の底・山頂）
     void EmitFloorBoxes(Emitter& emit, const GridWorld& origin, const std::vector<uint8_t>& zone,
         float floorBottom, float plainTop, float summitTop, float mineD);
+    // 床の箱の底を、平原・山頂の上面と洞窟の底（-mineD）のどれよりも 1m 以上下へ（生成と区域の作り直しで共通、2026-10-25）。
+    // 生成の式（洞窟の底の 1m 下、起伏があれば起伏の一番低い所の 3m 下）は元からこれを満たすので、生成の結果は変わらない。
+    // 区域を作り直す時に底が上面より上へ来て箱が裏返る（衝突の std::clamp が落ちる）のを防ぐ
+    float FloorBottomBelowTops(float bottom, float plainTop, float summitTop, float mineD);
+    // 水たまりのマスが 1 つでもあるか（あれば平原の床の箱の上面を pondDepth 下げる。生成・筆の後の作り直しで共通）
+    inline bool AnyPond(const std::vector<uint8_t>& pond)
+    {
+        return std::any_of(pond.begin(), pond.end(), [](uint8_t v) { return v != 0; });
+    }
     // 洞の岩の壁（坑の 8 近傍、口を除く）と口の印
     void ComputeCaveRing(const std::vector<uint8_t>& zone, const std::vector<Rect>& mouths, int gw, int gd,
         std::vector<uint8_t>& ring, std::vector<uint8_t>& mouthMask);

@@ -41,13 +41,6 @@ struct DragContext
     int  dropCol = 0;
     bool canDrop = false;
 
-    // ---- 拾い上げの見た目（判定には一切使わない）----
-    // 箱から掴んだ瞬間に body の角度と縮小率が入り、
-    // SpellbookUI::Update が毎フレーム 0 / 1 へ寄せていく。
-    // BackpackUI::DrawDragged が描画に反映する。
-    float visAngle = 0.0f;   // rad。0 へ収束
-    float visScale = 1.0f;   // 1 へ収束
-
     bool IsActive() const { return source != DragSource::None; }
     void Reset() { *this = DragContext{}; }
 };

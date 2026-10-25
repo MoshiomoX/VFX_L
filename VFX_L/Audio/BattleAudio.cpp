@@ -13,6 +13,7 @@
 void BattleAudio::Init(const SwarmSystem& swarm, int stage)
 {
     m_Stage = stage;
+    m_StageTrack = "stage" + std::to_string(stage);
     for (auto& c : m_RecipeCue) c.clear();
     m_Births = {};
     m_Prev = State{};
@@ -84,15 +85,15 @@ void BattleAudio::Update(float dt, SwarmSystem& swarm, Registry& reg, Entity pla
     m_Prev = st;
     m_Started = true;
 
-    // ---- BGM ----
+    // ---- BGM ----（曲の名前は毎フレーム組み立てない。面の曲は Init で作っておく）
     if (!musicAuto) return;
-    std::string track;
-    if (st.playerDead || st.cleared) track.clear();
-    else if (st.bossAlive) track = "boss";
-    else if (st.finalWave) track = "final";
-    else track = "stage" + std::to_string(m_Stage);
+    static const std::string kNoTrack, kBossTrack = "boss", kFinalTrack = "final";
+    const std::string& track = (st.playerDead || st.cleared) ? kNoTrack
+        : st.bossAlive ? kBossTrack
+        : st.finalWave ? kFinalTrack
+        : m_StageTrack;
     // 切り替えの交差フェード: 死んだら短め、Boss は 0.05 秒（衝撃音と同時に Boss 曲の頭が鳴る）、他は 1.5 秒
-    const float fade = st.playerDead ? 0.6f : (track == "boss") ? 0.05f : 1.5f;
+    const float fade = st.playerDead ? 0.6f : (track == kBossTrack) ? 0.05f : 1.5f;
     audio.PlayMusic(track, fade);
 }
 

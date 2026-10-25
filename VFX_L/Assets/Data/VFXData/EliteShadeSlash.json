@@ -1,0 +1,39 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 34,
+                "sheet": 1, "frameMode": 3, "frameCount": 4, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.5,
+                "emitRate": 300.0, "emitType": 0,
+                "endColorMax": [0.6, 0.1, 1.2, 0.0], "endColorMin": [0.6, 0.1, 1.2, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.15, 0.22], "maxParticles": 12,
+                "position": [0.0, 0.0, 0.0], "radius": 0.5, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [2.2, 2.8, 2.6, 3.2], "speedRange": [0.0, 0.1], "spreadAngle": 0.0,
+                "startColorMax": [1.6, 0.6, 3.0, 1.0], "startColorMin": [1.2, 0.5, 2.4, 1.0]
+            },
+            "duration": 0.05, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 48,
+                "sheet": 1, "frameMode": 3, "frameCount": 7, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 1.5,
+                "emitRate": 500.0, "emitType": 1,
+                "endColorMax": [0.5, 0.1, 1.0, 0.0], "endColorMin": [0.5, 0.1, 1.0, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.3, 0.5], "maxParticles": 40,
+                "position": [0.0, 0.0, 0.0], "radius": 0.6, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.15, 0.25, 0.03, 0.05], "speedRange": [3.0, 6.0], "spreadAngle": 0.0,
+                "startColorMax": [1.6, 0.6, 3.0, 1.0], "startColorMin": [1.6, 0.6, 3.0, 1.0]
+            },
+            "duration": 0.06, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 0.0, 0.0], "color": [0.6, 0.25, 1.0], "radius": 5.0,
+                      "intensityStart": 3.0, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 0.0 },
+            "duration": 0.3, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "EliteShadeSlash"
+}

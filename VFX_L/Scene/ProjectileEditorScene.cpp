@@ -76,8 +76,8 @@ void ProjectileEditorScene::Init()
     auto* device = Application::Get().GetGraphics().GetDevice();
     auto* context = Application::Get().GetGraphics().GetContext();
 
-    // ---------- Camera：銃口の後ろ上から標的の方を見る ----------
-    m_Camera.Init(45.0f, 1600.0f / 900.0f, 0.1f, 10000.0f);
+    // ---------- Camera：銃口の後ろ上から標的の方を見る。投影の縦横比は窓に合わせる（UpdateProjection）----------
+    UpdateProjection();
     m_Camera.SetPosition({ 0.0f, 14.0f, -22.0f });
     m_Camera.SetTarget({ 0.0f, 0.0f, 0.0f });
     SetCamera(&m_Camera);
@@ -261,12 +261,32 @@ void ProjectileEditorScene::Fire(bool randomCurve)
 }
 
 // ============================================================
+// 窓の大きさが変わったら投影を作り直す（最初は Init から）。最小化中（0）はそのまま
+// ============================================================
+void ProjectileEditorScene::UpdateProjection()
+{
+    auto& gfx = Application::Get().GetGraphics();
+    const float w = (float)gfx.GetWidth();
+    const float h = (float)gfx.GetHeight();
+    if (w <= 0.0f || h <= 0.0f)
+    {
+        if (m_ScreenW <= 0.0f) m_Camera.Init(45.0f, 16.0f / 9.0f, 0.1f, 10000.0f);   // まだ一度も作っていない
+        return;
+    }
+    if (w == m_ScreenW && h == m_ScreenH) return;
+    m_ScreenW = w;
+    m_ScreenH = h;
+    m_Camera.Init(45.0f, w / h, 0.1f, 10000.0f);
+}
+
+// ============================================================
 // Update
 // ============================================================
 void ProjectileEditorScene::Update(float dt)
 {
     SceneBase::Update(dt);
     m_TotalTime += dt;
+    UpdateProjection();
 
     // ---- 1 / 2 / 3 キーで頁を切り替える。C キーで範囲を 1 回出す（文字入力中は無効）----
     if (!ImGui::GetIO().WantTextInput)
@@ -1097,7 +1117,7 @@ void ProjectileEditorScene::Render(Renderer& renderer)
     m_ParticleSystem.Render();
     // 画面の歪み（2026-10-20）
     Graphics& gfx = Application::Get().GetGraphics();
-    if (gfx.BeginDistortion())
+    if (m_ParticleSystem.HasDistortion() && gfx.BeginDistortion())
     {
         m_ParticleSystem.RenderDistortion();
         gfx.RestoreRenderTarget();

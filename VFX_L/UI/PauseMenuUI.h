@@ -1,8 +1,8 @@
 // ============================================================
 // PauseMenuUI.h
-// 一時停止のメニュー（再開 / やり直す / タイトルへ）。
+// 一時停止のメニュー（再開 / 設定 / 遊び方 / やり直す / タイトルへ）。
 //
-// 開閉は GameUI が決める（P / パッド Back。Esc は Window.cpp で終了に使われているので使わない）。
+// 開閉は GameUI が決める（Esc / パッド Back。2026-10-05 に P から Esc へ替えた。P は割り当てていない）。
 // ここは開いている間の入力と描画だけ。項目の操作は MenuList、
 // パッドの B は「再開」の近道。
 // 決定した結果は Action で返し、シーンの切替はシーン側に任せる
@@ -30,8 +30,9 @@ public:
     // 開いた瞬間に呼ぶ（カーソルを先頭へ、押しっぱなしで即決しない猶予）
     void Open() { m_List.Open(); m_InSettings = false; m_HowTo.Close(); }
 
-    // 開いている間、毎フレーム呼ぶ（「設定」「遊び方」のページを開いている間はそちらへ渡す）
-    Action HandleInput();
+    // 開いている間、毎フレーム呼ぶ（「設定」「遊び方」のページを開いている間はそちらへ渡す）。
+    // dt = 実時間の秒（止まっている間も進む。開いた直後の猶予・長押しの連続に使う）
+    Action HandleInput(float dt = 0.016f);
 
     void Draw(SpriteRenderer& sprite, TextRenderer& text, const std::shared_ptr<Texture>& white);
 

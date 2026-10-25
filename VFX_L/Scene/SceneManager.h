@@ -31,6 +31,10 @@ public:
     void Update(float dt);
     void Render(Renderer& renderer);
 
+    // 終了時（Game::Shutdown から）：今のシーンの Shutdown を呼んで壊す。音・ImGui・ResourceManager・Renderer が
+    // まだ生きている内に片付けるため。2 回呼んでも 2 回目は何もしない（シーンはもう無い）
+    void Shutdown();
+
     SceneBase* GetCurrentScene() const { return m_CurrentScene.get(); }
     SceneType GetCurrentSceneType() const { return m_CurrentSceneType; }
 

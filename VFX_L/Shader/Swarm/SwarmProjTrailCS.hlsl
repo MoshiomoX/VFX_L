@@ -8,7 +8,10 @@
 // whose recipe has a Trail entry (recipeTrail[vfxType] != 0) pushes
 // its position into the ring whenever its age crosses the sampling
 // grid of lifetime / (TRAIL_POINTS - 1). A dead slot is reset, so the
-// next projectile that lands in it starts a fresh ribbon.
+// next projectile that lands in it starts a fresh ribbon. SwarmSpawnProjCS
+// also clears the state when it reuses a slot (2026-10-25): a shot killed
+// by HitCS in the last step of a frame is reused before this pass has seen
+// it die, and the new ribbon used to start from the old shot's points.
 //
 // trailState : bits 0-7 ring write position, bits 8-15 valid samples,
 //              bit 16 = draining (the projectile died; the ribbon keeps

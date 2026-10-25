@@ -106,6 +106,7 @@ private:
     bool     m_TrailOn = false;
     uint32_t m_Trail = 0;            // 背中の帯（AreaVFXPlayer のインスタンス）
     int      m_BackBone = -2;        // 上背の骨の番号（-2 = まだ探していない、-1 = 無い）
+    std::vector<DirectX::SimpleMath::Matrix> m_Pose;   // BackAnchor の骨のポーズ（毎フレーム確保し直さないよう使い回す）
 
     CastCircles m_Circles;           // 足元・手の前の魔法陣
     float m_LastPulse = -1.0e9f;
