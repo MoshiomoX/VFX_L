@@ -11,6 +11,8 @@ namespace
         StageDef s;
         s.index = 1;
         s.name = L"草原";
+        s.boss2 = BossType::Werewolf;   // 2 面目は月下の狼人（2026-10-26。飛びかかり / 爪の三連 / 遠吠え）
+        s.boss3 = BossType::Stag;   // 3 面目は雷鳴の雄鹿（2026-10-26、方块の動物の試作）
         s.biome = TerrainGenerator::Biome::Grassland;
         // 照明・草は SceneLighting / GrassRenderer の既定値のまま（晴れた昼の野原）
         return s;
@@ -23,6 +25,8 @@ namespace
         s.name = L"砂漠";
         s.biome = TerrainGenerator::Biome::Desert;
         s.boss = BossType::SandGuardian;   // 砂の守護者（2026-10-24）
+        s.boss2 = BossType::Scorpion;      // 2 面目は大サソリ（2026-10-26。毒針 / 鋏 / 潜砂 / 召喚）
+        // 3 面目はまだ岩の巨人（砂嵐の魔神は未着手）
         // 砂塵で霞んだ砂漠（2026-10-05：日差しが強すぎた → 太陽を弱め、空は砂色に濁らせ、靄を近くから濃く）
         s.light.sunPitch = 55.0f;
         s.light.sunYaw = 20.0f;
@@ -60,6 +64,7 @@ namespace
         s.index = 3;
         s.name = L"遺跡";
         s.biome = TerrainGenerator::Biome::Dungeon;
+        s.boss = BossType::CryptKnight;   // 1 面目は墓守の騎士（2026-10-26。双鎖 / 重撃 / 衝撃波 / 鎧の召喚、1 回蘇る）。2・3 面目はまだ岩の巨人
         // 空は無い（黒に近い天井）。弱い青い月明かりを主光にして、松明の点光源が主役
         s.light.sunPitch = 70.0f;
         s.light.sunYaw = 30.0f;
@@ -107,10 +112,11 @@ namespace StageConfig
     {
         // 2026-10-17 の値：2 面目 = 表 +10 分 × HP 2.5 / ダメージ 1.6 / 湧き 1.3、3 面目 = +20 分 × 2.8 / 1.6 / 1.3
         // （×6 / ×2.4 / ×1.6 は壁、×3.2 / ×1.8 / ×1.35 でも毎秒 12〜51 減る。第 1 面の持ち物での計測なので少し甘く）
+        // 10-26 ユーザー「敵が溜まり過ぎ」：湧き ×1.3 を外した（2 面目 / 3 面目の難度は HP・ダメージの倍率で。湧きは MobSpawner::maxSpawnPerSecond でも止める）
         static const RunDifficulty kPos[kStageCount] = {
             { 0.0f, 1.0f, 1.0f, 1.0f },
-            { 10.0f, 2.5f, 1.6f, 1.3f },
-            { 20.0f, 2.8f, 1.6f, 1.3f },
+            { 10.0f, 2.5f, 1.6f, 1.0f },
+            { 20.0f, 2.8f, 1.6f, 1.0f },
         };
         return kPos[std::clamp(posInRun, 0, kStageCount - 1)];
     }

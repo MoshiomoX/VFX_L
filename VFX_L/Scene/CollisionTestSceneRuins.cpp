@@ -91,6 +91,7 @@ void CollisionTestScene::UpdateRuinsFoes(float dt, const Vector3& player)
         c.origin = t.pos + Vector3(0.0f, kChainHandUp, 0.0f);
         c.dir = Vector3(std::sin(t.yaw), 0.0f, std::cos(t.yaw));
         c.reach = bomb.wardenRange;
+        c.pullStop = kChainPullStop;
         m_Chains.push_back(c);
     }
 
@@ -110,11 +111,11 @@ void CollisionTestScene::UpdateRuinsFoes(float dt, const Vector3& player)
             const bool inSpan = along >= prev - playerR && along <= c.out + playerR;
             if (havePlayer && inSpan && side.Length() <= kChainHitRadius + playerR && std::fabs(rel.y) <= kChainHitHeight)
             {
-                const float dmg = m_Swarm.GetAIParams().contactDamage * bomb.wardenDamageMul;
+                const float dmg = (c.damage >= 0.0f) ? c.damage : m_Swarm.GetAIParams().contactDamage * bomb.wardenDamageMul;
                 if (PlayerStateSystem::TryApplyHit(m_Registry, m_Player, dmg))
                 {
-                    // 番人の前まで引き寄せる
-                    const Vector3 stop = c.origin + c.dir * kChainPullStop;
+                    // 番人（Boss なら Boss）の前まで引き寄せる
+                    const Vector3 stop = c.origin + c.dir * c.pullStop;
                     Vector2 pull(stop.x - player.x, stop.z - player.z);
                     const float dist = pull.Length();
                     if (dist > 0.05f)
@@ -122,6 +123,7 @@ void CollisionTestScene::UpdateRuinsFoes(float dt, const Vector3& player)
                     m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::RuinsChainHit), player, 0.4f, false, m_VFXContext);
                     AudioSystem::Get().Play("chain_hit");
                     ++m_ChainHits;
+                    if (c.boss) m_BossAttacks.OnChainCaught();   // 墓守の騎士：引き寄せたらすぐ重撃（2026-10-26）
                     c.state = 1;
                     c.timer = kChainPullTime;
                 }

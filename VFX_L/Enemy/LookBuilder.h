@@ -35,6 +35,16 @@ namespace LookBuilder
     {
         PrimitiveBuilder::HexahedronBatch batch;
         int boxes = 0;
+        // 全体の拡大（2026-10-26、雄鹿「体をもう少し大きく」）：積む前に pivot の周りに scale 倍する。1 = そのまま
+        float scale = 1.0f;
+        Vec3 pivot = { 0.0f, 0.0f, 0.0f };
+        Vec3 Xf(const Vec3& p) const { return pivot + (p - pivot) * scale; }
+        void Append8(Vec3 v[8], const Vec4& top, const Vec4& side)
+        {
+            if (scale != 1.0f) for (int i = 0; i < 8; ++i) v[i] = Xf(v[i]);
+            batch.Append(v, top, side);
+            ++boxes;
+        }
         // jitter > 0 = 角を少しずつずらす（石の削り出しの不揃い）
         void Box(const Vec3& lo, const Vec3& hi, const Vec4& top, const Vec4& side, float jitter = 0.0f, std::mt19937* rng = nullptr)
         {
@@ -46,8 +56,7 @@ namespace LookBuilder
                 std::uniform_real_distribution<float> u(-jitter, jitter);
                 for (Vec3& p : v) p += Vec3(u(*rng), u(*rng), u(*rng));
             }
-            batch.Append(v, top, side);
-            ++boxes;
+            Append8(v, top, side);
         }
         void Box(const Vec3& lo, const Vec3& hi, const Vec4& c) { Box(lo, hi, c, c); }
         // 向きのある箱（中心 c、軸 ax / ay / az（単位）に沿った半分の大きさ h）。腕の向きに沿わせる拳など
@@ -63,8 +72,7 @@ namespace LookBuilder
                 std::uniform_real_distribution<float> u(-jitter, jitter);
                 for (Vec3& p : v) p += Vec3(u(*rng), u(*rng), u(*rng));
             }
-            batch.Append(v, top, side);
-            ++boxes;
+            Append8(v, top, side);
         }
         // n 本の縞（a / b 交互）。y = 上下に積む、x = 左右に並べる
         void StripesY(const Vec3& lo, const Vec3& hi, int n, const Vec4& a, const Vec4& b)
@@ -90,8 +98,7 @@ namespace LookBuilder
         {
             const float vol = (v[1] - v[0]).Cross(v[3] - v[0]).Dot(v[4] - v[0]);
             if (vol > 0.0f) { std::swap(v[1], v[3]); std::swap(v[5], v[7]); }
-            batch.Append(v, top, side);
-            ++boxes;
+            Append8(v, top, side);
         }
         // a → b の角柱（断面 w × w、先の太さ w2。負 = 同じ）。骨・角・杖・鎖の輪の辺
         void Beam(const Vec3& a, const Vec3& b, float w, const Vec4& c, float w2 = -1.0f)
@@ -144,6 +151,55 @@ namespace LookBuilder
                 Beam(e1 - p * halfW, e1 + p * halfW, thick, c);
             }
         }
+        // ---- 丸い物（2026-10-26、ユーザー「四角と三角だけでなく円柱・球も使っていい」）。六面体を扇形に並べて作る ----
+        // a → b の円柱（断面は segs 角形。半径 r0 → r1。中は少し細い同心の輪 = 外から見て詰まって見える）。脚・尾の節・腕
+        void Tube(const Vec3& a, const Vec3& b, float r0, float r1, const Vec4& c, int segs = 8)
+        {
+            Vec3 d = b - a;
+            const float len = d.Length();
+            if (len < 1e-5f) return;
+            d /= len;
+            const Vec3 up = (std::fabs(d.y) < 0.9f) ? Vec3(0.0f, 1.0f, 0.0f) : Vec3(1.0f, 0.0f, 0.0f);
+            Vec3 s1 = d.Cross(up);
+            s1.Normalize();
+            Vec3 s2 = s1.Cross(d);
+            s2.Normalize();
+            segs = (std::max)(segs, 3);
+            const float inner = 0.3f;   // 内側の輪の半径の割合（面は外側だけ見える）
+            for (int i = 0; i < segs; ++i)
+            {
+                const float t0 = 6.2831853f * (float)i / (float)segs, t1 = 6.2831853f * (float)(i + 1) / (float)segs;
+                const Vec3 o0 = s1 * std::cos(t0) + s2 * std::sin(t0), o1 = s1 * std::cos(t1) + s2 * std::sin(t1);
+                Vec3 v[8] = {
+                    a + o0 * (r0 * inner), a + o0 * r0, a + o1 * r0, a + o1 * (r0 * inner),
+                    b + o0 * (r1 * inner), b + o0 * r1, b + o1 * r1, b + o1 * (r1 * inner) };
+                Hex(v, c, c);
+            }
+        }
+        // 中心 c・半径 r の球（経線 segs × 緯線 rings の殻）。関節・目・毒嚢
+        void Ball(const Vec3& c, float r, const Vec4& col, int segs = 8, int rings = 4)
+        {
+            segs = (std::max)(segs, 3);
+            rings = (std::max)(rings, 2);
+            const float inner = 0.55f;
+            auto dir = [](float phi, float th) { return Vec3(std::cos(phi) * std::cos(th), std::sin(phi), std::cos(phi) * std::sin(th)); };
+            for (int j = 0; j < rings; ++j)
+            {
+                const float p0 = -1.5707963f + 3.1415927f * (float)j / (float)rings;
+                const float p1 = -1.5707963f + 3.1415927f * (float)(j + 1) / (float)rings;
+                for (int i = 0; i < segs; ++i)
+                {
+                    const float t0 = 6.2831853f * (float)i / (float)segs, t1 = 6.2831853f * (float)(i + 1) / (float)segs;
+                    const Vec3 d00 = dir(p0, t0), d01 = dir(p0, t1), d10 = dir(p1, t0), d11 = dir(p1, t1);
+                    Vec3 v[8] = {
+                        c + d00 * (r * inner), c + d00 * r, c + d01 * r, c + d01 * (r * inner),
+                        c + d10 * (r * inner), c + d10 * r, c + d11 * r, c + d11 * (r * inner) };
+                    Hex(v, col, col);
+                }
+            }
+        }
+        // 先の尖った棘：根元 a（太さ w）から先 b へ（先は点）。甲羅の縁・尾の節の背
+        void Spike(const Vec3& a, const Vec3& b, float w, const Vec4& c) { Beam(a, b, w, c, 0.004f); }
         std::shared_ptr<Model> Build(ID3D11Device* device) const { return boxes ? batch.Build(device) : nullptr; }
     };
 

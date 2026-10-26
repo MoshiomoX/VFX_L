@@ -331,7 +331,7 @@ void ResultScene::Render(Renderer& renderer)
         {
             const StageDef& def = StageConfig::Get(std::clamp(r.stage, 1, StageConfig::kStageCount));
             wchar_t buf[64];
-            swprintf_s(buf, L"%ls　Tier %d　ステージ %d / %d", def.name, r.tier, r.stage - r.startStage + 1, r.tier);
+            swprintf_s(buf, L"%ls　Tier %d　ステージ %d / %d", def.name, r.tier, r.pos, r.tier);
             DrawOutlined(m_Text, buf, { x0, y }, { 0.86f, 0.84f, 0.80f, headerIn }, 0.42f * k, 1.5f * k);
         }
     }

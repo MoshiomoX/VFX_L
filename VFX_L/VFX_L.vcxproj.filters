@@ -119,6 +119,15 @@
     <Filter Include="Enemy">
       <UniqueIdentifier>{a2fdf0f4-0329-4d42-bbb0-9464a4d1feb8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Enemy\Boss">
+      <UniqueIdentifier>{E72B5462-24E7-4EA8-AEDE-4DAC1ADB160C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Enemy\Elite">
+      <UniqueIdentifier>{94659397-90AB-4DD8-8362-73C8262932E5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Enemy\Spawn">
+      <UniqueIdentifier>{70F54B85-7584-4048-AE49-387FCFF68FFB}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Swarm">
       <UniqueIdentifier>{6aa772b7-4a05-47e2-847c-d33ddf6eb730}</UniqueIdentifier>
     </Filter>
@@ -163,23 +172,23 @@
     <ClCompile Include="Scene\CollisionTestSceneElites.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\EliteLooks.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Elite\EliteLooks.cpp">
+      <Filter>Enemy\Elite</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\SandTornadoFx.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\EliteAttacksPanel.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Elite\EliteAttacksPanel.cpp">
+      <Filter>Enemy\Elite</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\EliteAffixes.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Elite\EliteAffixes.cpp">
+      <Filter>Enemy\Elite</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\EliteMoves.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Elite\EliteMoves.cpp">
+      <Filter>Enemy\Elite</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\EliteAttacks.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Elite\EliteAttacks.cpp">
+      <Filter>Enemy\Elite</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmSystemElites.cpp">
       <Filter>Swarm</Filter>
@@ -200,6 +209,12 @@
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBomber.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestAim.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestTerrainLook.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp">
@@ -322,8 +337,8 @@
     <ClCompile Include="Enemy\EnemyLooks.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\MobSpawnerRuins.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Spawn\MobSpawnerRuins.cpp">
+      <Filter>Enemy\Spawn</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmSystemRuins.cpp">
       <Filter>Swarm</Filter>
@@ -424,35 +439,74 @@
     <ClCompile Include="Debug\FrameProfiler.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\MobSpawner.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Spawn\MobSpawner.cpp">
+      <Filter>Enemy\Spawn</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\MobSpawnerKinds.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Spawn\MobSpawnerKinds.cpp">
+      <Filter>Enemy\Spawn</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\StageDirector.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Spawn\StageDirector.cpp">
+      <Filter>Enemy\Spawn</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\BossAttacks.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Boss\BossAttacks.cpp">
+      <Filter>Enemy\Boss</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\BossAttacksPanel.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Boss\BossAttacksPanel.cpp">
+      <Filter>Enemy\Boss</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\BossAttacksSand.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Boss\BossAttacksSand.cpp">
+      <Filter>Enemy\Boss</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\BossLooks.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Boss\BossAttacksWolf.cpp">
+      <Filter>Enemy\Boss</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\BossBrain.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Boss\BossLooksWolf.cpp">
+      <Filter>Enemy\Boss</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\DifficultyCurve.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Boss\BossAttacksKnight.cpp">
+      <Filter>Enemy\Boss</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\EliteSpawner.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Boss\BossLooksKnight.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossAttacksStag.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossLooksSand.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossLooksScorpion.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossLooksStag.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Elite\EliteLooksGrass.cpp">
+      <Filter>Enemy\Elite</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Elite\EliteLooksDesert.cpp">
+      <Filter>Enemy\Elite</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Elite\EliteLooksRuins.cpp">
+      <Filter>Enemy\Elite</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Elite\EliteMovesRuins.cpp">
+      <Filter>Enemy\Elite</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossAttacksScorpion.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossLooks.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossBrain.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Spawn\DifficultyCurve.cpp">
+      <Filter>Enemy\Spawn</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Elite\EliteSpawner.cpp">
+      <Filter>Enemy\Elite</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Light\SceneLighting.cpp">
       <Filter>Graphics\Light</Filter>
@@ -763,14 +817,14 @@
     <ClInclude Include="Player\LifestealHeal.h">
       <Filter>Player</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\EliteLooks.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Elite\EliteLooks.h">
+      <Filter>Enemy\Elite</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\SandTornadoFx.h">
       <Filter>Enemy</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\EliteAttacks.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Elite\EliteAttacks.h">
+      <Filter>Enemy\Elite</Filter>
     </ClInclude>
     <ClCompile Include="Item\ItemDatabase.cpp">
       <Filter>Item</Filter>
@@ -950,6 +1004,9 @@
     <ClCompile Include="World\TerrainSteps.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\TerrainBiomeProfile.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\MapEdit.cpp">
       <Filter>World</Filter>
     </ClCompile>
@@ -1001,14 +1058,14 @@
     <ClCompile Include="World\GridWorld.cpp">
       <Filter>World</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\SpawnWaves.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Spawn\SpawnWaves.cpp">
+      <Filter>Enemy\Spawn</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\StageDirectorWaves.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Spawn\StageDirectorWaves.cpp">
+      <Filter>Enemy\Spawn</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\SpawnDirector.cpp">
-      <Filter>Enemy</Filter>
+    <ClCompile Include="Enemy\Spawn\SpawnDirector.cpp">
+      <Filter>Enemy\Spawn</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\GPUReadback.cpp">
       <Filter>Swarm</Filter>
@@ -1112,17 +1169,26 @@
     <ClInclude Include="Debug\FrameProfiler.h">
       <Filter>Debug</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\MobSpawner.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Spawn\MobSpawner.h">
+      <Filter>Enemy\Spawn</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\StageDirector.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Spawn\StageDirector.h">
+      <Filter>Enemy\Spawn</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\BossAttacks.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Boss\BossAttacks.h">
+      <Filter>Enemy\Boss</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\BossLooks.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Boss\BossLooks.h">
+      <Filter>Enemy\Boss</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\Boss\BossLooksCommon.h">
+      <Filter>Enemy\Boss</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\Elite\EliteLooksCommon.h">
+      <Filter>Enemy\Elite</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\Elite\EliteMovesCommon.h">
+      <Filter>Enemy\Elite</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\EnemyLooks.h">
       <Filter>Enemy</Filter>
@@ -1130,14 +1196,14 @@
     <ClInclude Include="Enemy\LookBuilder.h">
       <Filter>Enemy</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\BossBrain.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Boss\BossBrain.h">
+      <Filter>Enemy\Boss</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\DifficultyCurve.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Spawn\DifficultyCurve.h">
+      <Filter>Enemy\Spawn</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\EliteSpawner.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Elite\EliteSpawner.h">
+      <Filter>Enemy\Elite</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Light\SceneLighting.h">
       <Filter>Graphics\Light</Filter>
@@ -1665,9 +1731,6 @@
     <ClInclude Include="Item\Items\MoveSpeedUp.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
-    <ClInclude Include="Item\Items\JumpPowerUp.h">
-      <Filter>Item\Items</Filter>
-    </ClInclude>
     <ClInclude Include="Item\Items\ManaRegenUp.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
@@ -1815,11 +1878,11 @@
     <ClInclude Include="Enemy\EnemyTags.h">
       <Filter>Enemy</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\SpawnWaves.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Spawn\SpawnWaves.h">
+      <Filter>Enemy\Spawn</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\SpawnDirector.h">
-      <Filter>Enemy</Filter>
+    <ClInclude Include="Enemy\Spawn\SpawnDirector.h">
+      <Filter>Enemy\Spawn</Filter>
     </ClInclude>
     <ClInclude Include="Swarm\GPUReadback.h">
       <Filter>Swarm</Filter>

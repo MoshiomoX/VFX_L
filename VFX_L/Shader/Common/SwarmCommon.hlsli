@@ -1052,7 +1052,41 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     // w = wind-up glow x 1000. g_EliteMove: xy = direction (the target for a teleport), z = run speed, w = hidden 0..1
     uint4 g_EliteCmd[4];
     float4 g_EliteMove[4];
+    // wand aim priority (2026-10-26): see SwarmAimKeyDist
+    float g_AimCloseRadius;
+    float g_AimPriorityRange;
+    float g_AimPriorityOn;
+    float _aimPad;
+    // the thunder stag's charge pose (2026-10-26, BossAttacks::Output::chargePose): 0 normal, 0..1 wind-up (head down,
+    // legs spread, crouch), 1 dashing (head down, body leaning forward, fast gait), 1..1.3 the toss of the head on a hit,
+    // 1 -> 0 after the dash. Read by the enemy VS; only written for a quadruped boss
+    float g_BossChargePose;
+    float g_BossLeanPivotY;        // pivot (baked mesh space y / z) and angle (rad at pose 1) of the dash lean, per boss (CPU)
+    float g_BossLeanPivotZ;
+    float g_BossLeanAngle;
+    float g_BossJumpHeight;        // the werewolf's pounce (2026-10-26): > 0 = the body rises on a parabola of this height (world m) over pose 0..1
+    float g_BossNoContact;         // > 0.5 = the boss does not melee by touch (the pounce: its body runs through the player)
+    float2 _wolfPad;
 };
+
+// The distance the wand's "nearest enemy" race (MoveCS, SWARM_CNT_NEAREST_KEY) keys on (2026-10-26, user: "if a boss is in
+// range hit the boss first; three tiers of priority; but if a mob is too close to the player hit the mob first").
+// Bands (smaller wins): a mob within g_AimCloseRadius keeps its real distance (0..R); a boss within g_AimPriorityRange
+// sits at R + dist/100 (beats every mob that is not close); an elite at R + 0.5 + dist/100; everything else
+// (far mobs, a boss / elite out of range) at R + 1 + dist, so those still sort by distance. One exit (X4000)
+float SwarmAimKeyDist(uint kind, float dist)
+{
+    float r = g_AimCloseRadius;
+    bool boss = (kind == SWARM_KIND_BOSS);
+    bool elite = (kind == SWARM_KIND_ELITE) || SwarmIsFixedElite(kind);
+    bool mobClose = !boss && !elite && dist <= r;
+    bool inRange = dist <= g_AimPriorityRange;
+    float keyed = r + 1.0 + dist;
+    if (boss && inRange) keyed = r + dist * 0.01;
+    else if (elite && inRange) keyed = r + 0.5 + dist * 0.01;
+    else if (mobClose) keyed = dist;
+    return (g_AimPriorityOn > 0.5) ? keyed : dist;
+}
 
 // body size multiplier of a kind (radius and model)
 float SwarmKindScale(uint kind)

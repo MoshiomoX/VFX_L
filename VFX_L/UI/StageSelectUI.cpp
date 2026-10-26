@@ -36,8 +36,8 @@ namespace
     {
         switch (map)
         {
-        case 2:  return L"草原の Tier 2 で 2 面目（砂漠）に入ると解放";
-        case 3:  return L"砂漠の Tier 2 か 草原の Tier 3 で 遺跡に入ると解放";
+        case 2:  return L"草原の Tier 2 をクリアすると解放";
+        case 3:  return L"砂漠の Tier 2 をクリアすると解放";
         default: return L"";
         }
     }
@@ -226,12 +226,13 @@ std::wstring StageSelectUI::TierDescription(int tier) const
         swprintf_s(buf, L"Tier %d をクリアすると解放", tier - 1);
         return buf;
     }
-    // 続く面の名前：草原 → 砂漠 → 遺跡
+    // 続く面の名前：同じマップを続ける（草原 → 草原 2 → 草原 3。10-26）
     std::wstring chain;
     for (int i = 0; i < tier; ++i)
     {
         if (i > 0) chain += L" → ";
-        chain += StageConfig::Get(m_Map + i).name;
+        chain += StageConfig::Get(m_Map).name;
+        if (i > 0) { wchar_t nb[8]; swprintf_s(nb, L" %d", i + 1); chain += nb; }
     }
     const auto& tm = StageConfig::TierMul(tier);
     if (tier == 1)

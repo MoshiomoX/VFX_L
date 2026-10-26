@@ -1,0 +1,39 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 55,
+                "sheet": 1, "frameMode": 3, "frameCount": 9, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.8,
+                "emitRate": 30.0, "emitType": 4,
+                "endColorMax": [0.2, 0.9, 0.2, 0.0], "endColorMin": [0.1, 0.7, 0.1, 0.0],
+                "gravity": [0.0, 1.6, 0.0], "innerRadius": 0.25, "lifetimeRange": [0.7, 1.1], "maxParticles": 80,
+                "position": [0.0, -0.8, 0.0], "radius": 0.5, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.1, 0.16, 0.02, 0.04], "speedRange": [0.1, 0.3], "spreadAngle": 0.0,
+                "startColorMax": [0.5, 1.2, 0.35, 1.0], "startColorMin": [0.3, 1.0, 0.25, 1.0]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 17,
+                "sheet": 1, "frameMode": 1, "frameCount": 1, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.0,
+                "emitRate": 10.0, "emitType": 0,
+                "endColorMax": [0.2, 0.6, 0.1, 0.0], "endColorMin": [0.2, 0.6, 0.1, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.45, 0.6], "maxParticles": 10,
+                "position": [0.0, -0.1, 0.0], "radius": 0.0, "renderMode": 0, "rotationRange": [0.0, 0.0],
+                "sizeRange": [1.4, 1.6, 1.8, 2.0], "speedRange": [0.0, 0.0], "spreadAngle": 0.0,
+                "startColorMax": [0.25, 0.8, 0.15, 0.16], "startColorMin": [0.2, 0.7, 0.1, 0.12]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 0.4, 0.0], "color": [0.35, 1.0, 0.3], "radius": 3.5,
+                      "intensityStart": 0.8, "intensityEnd": 0.8, "flicker": 0.2, "flickerSpeed": 6.0 },
+            "duration": 1.0, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": true,
+    "name": "BossVenom"
+}

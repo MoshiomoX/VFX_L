@@ -59,11 +59,11 @@
 #include "VFX_Editor/VFXMeshRenderer.h"
 #include "VFX_Editor/VFXLiquidRenderer.h"
 #include "ECS/System/ManaSystem.h"
-#include "Enemy/EliteSpawner.h"
-#include "Enemy/MobSpawner.h"
-#include "Enemy/StageDirector.h"
-#include "Enemy/BossAttacks.h"
-#include "Enemy/EliteAttacks.h"
+#include "Enemy/Elite/EliteSpawner.h"
+#include "Enemy/Spawn/MobSpawner.h"
+#include "Enemy/Spawn/StageDirector.h"
+#include "Enemy/Boss/BossAttacks.h"
+#include "Enemy/Elite/EliteAttacks.h"
 #include "Enemy/SandTornadoFx.h"
 #include "Graphics/Light/SceneLighting.h"
 #include "Graphics/PostProcess/Outline.h"
@@ -133,11 +133,11 @@ private:
     void ActivateSelectWorld(int map);   // そのマップを出して、格子・置物・草・GPU の表・立つ所・光を差し替える
     std::vector<uint8_t> m_GrassMask;    // 今の地形の草の生える所（BuildTerrain が記録。地形の出し入れで草を建て直す）
 
-    // ---- プレイの計画（ステージ選択で決まる。2026-10-21）：m_RunStart から m_RunTier 面続ける ----
-    int   m_RunStart = 1;
+    // ---- プレイの計画（ステージ選択で決まる。2026-10-21、10-26 から同じマップを続ける）：m_StageIndex のマップを m_RunTier 面続ける、今は m_RunPos 面目 ----
+    int   m_RunPos = 1;             // 何面目か（1 始まり）。難度（StageConfig::PosDifficulty）と商店の値段はこれで決まる
     int   m_RunTier = 1;
     float m_ExpMul = 1.0f;          // Tier の経験値倍率（GPU から受け取った経験値に掛ける）
-    bool  HasNextStage() const { return m_StageIndex < StageConfig::kStageCount && m_StageIndex < m_RunStart + m_RunTier - 1; }
+    bool  HasNextStage() const { return m_RunPos < m_RunTier; }
     // 戦いの見本（2026-10-09 ユーザー：「立っているだけでは意味が分からない、エフェクトが弾ける画面に」）：
     // 見栄えのする魔法をバックパックに並べ、画面の奥から雑魚・自爆兵を寄せ続け、プレイヤーが自動で撃って吹き飛ばす
     void InitTitleDemo();
@@ -281,6 +281,7 @@ private:
     IceSpikeField           m_SandSpikes;          // 「砂の槍」の石のトゲ（IceSpikeField を石の地刺のモデルで）
     uint32_t                m_BossMoundVfx = 0;    // 潜砂の砂丘（Boss に付いて動く。0 = 出ていない）
     uint32_t                m_BossAuraVfx = 0;     // 砂の守護者の体の周りに舞う砂（地上に居る間ずっと。0 = 出ていない）
+    uint32_t                m_PlayerVenomVfx = 0;  // 大サソリの毒に掛かっている間、プレイヤーに付く緑の泡（0 = 出ていない。2026-10-26）
     SandTornadoFx           m_SandTornadoes;       // 砂嵐の術師の砂旋の本体（CPU が同じ直線で追う砂色の柱。2026-10-26）
     uint32_t                m_SandTornadoKillSerial = 0;   // KillAll の回数（変わったら柱を全部消す）
     struct BossDelayedVfx { float wait = 0.0f; int id = 0; DirectX::SimpleMath::Vector3 pos; };
@@ -299,6 +300,11 @@ private:
         float reach = 12.0f;                   // 届く長さ（BomberCB::wardenRange）
         int   state = 0;                       // 0 = 飛ぶ、1 = 引っ掛けて引く、2 = 戻る
         float timer = 0.0f;
+        // 墓守の騎士の双鎖（2026-10-26）：根元の前 pullStop まで引く、damage ≥ 0 ならその値（< 0 = 番人の接触 × wardenDamageMul）、
+        // boss = 掛かったら BossAttacks::OnChainCaught（すぐ重撃）
+        float pullStop = 1.6f;
+        float damage = -1.0f;
+        bool  boss = false;
     };
     std::vector<ChainHook> m_Chains;
     std::vector<Entity> m_ChainSegEntities;    // 鎖の区切りの実体（使い回し。使わない物は見えなくする）

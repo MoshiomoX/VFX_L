@@ -165,8 +165,8 @@ void main(uint3 id : SV_DispatchThreadID)
         UpdateDashBomber(i, extra);   // (2026-10-18) a lit one cannot be frozen (AICS); an unlit one never melees
         return;
     }
-    if (extra.kind == SWARM_KIND_BOSS && SwarmBuried(extra))
-        return;   // the sand guardian under the sand does not touch (its eruption is the hit, judged by the CPU. 2026-10-24)
+    if (extra.kind == SWARM_KIND_BOSS && (SwarmBuried(extra) || g_BossNoContact > 0.5))
+        return;   // the sand guardian under the sand / the werewolf mid-pounce does not touch (the move's own hit is judged by the CPU)
     // a fixed elite in the middle of a move / vanished does not melee: the move's own hit is judged by the CPU (2026-10-25)
     if (SwarmIsFixedElite(extra.kind) && (SwarmEliteFlags(i) & SWARM_ELITE_NO_CONTACT) != 0u)
     {

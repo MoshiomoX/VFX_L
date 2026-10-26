@@ -1162,6 +1162,7 @@ namespace TerrainGenerator
             const char* const* bushes; size_t nBushes;
             const char* const* cliff; size_t nCliff;
             float treeMul, rockMul, bushMul, bareRatio;
+            const char* const* pillars = nullptr; size_t nPillars = 0;   // 場内の岩柱 / 峡谷の壁（砂漠。無ければ cliff）
         };
         namespace F = Res::Mdl::Forest;
         namespace Ds = Res::Mdl::Desert;
@@ -1172,7 +1173,8 @@ namespace TerrainGenerator
         if (cfg.biome == Biome::Desert)
             set = { Ds::kTrees, std::size(Ds::kTrees), Ds::kBareTrees, std::size(Ds::kBareTrees),
                 Ds::kRocks, std::size(Ds::kRocks), Ds::kBushes, std::size(Ds::kBushes),
-                Ds::kCliffRocks, std::size(Ds::kCliffRocks), 0.6f, 1.4f, 1.1f, 0.55f };
+                Ds::kCliffRocks, std::size(Ds::kCliffRocks), 0.6f, 1.4f, 1.1f, 0.55f,
+                Ds::kPillarRocks, std::size(Ds::kPillarRocks) };
         else if (cfg.biome == Biome::Dungeon)
             set = { Ru::kTrees, std::size(Ru::kTrees), Ru::kBareTrees, std::size(Ru::kBareTrees),
                 Ru::kRocks, std::size(Ru::kRocks), Ru::kBushes, std::size(Ru::kBushes),
@@ -1279,6 +1281,133 @@ namespace TerrainGenerator
                 x = grid.OriginX() + randf(2.0f * kCs, (gw - 2) * kCs);
                 z = grid.OriginZ() + randf(2.0f * kCs, (gd - 2) * kCs);
             };
+
+        // ---------- 場内の岩柱と峡谷の壁（砂漠。2026-10-26、マップ毎の地形の第 2 段）----------
+        // 崖の岩（set.cliff）を引き伸ばして場内に立てる（TerrainBuild::EmitFieldRock：凸包の衝突 + 足元のマスを塞ぐ）。
+        // 岩柱 = 1 個を高く細く、峡谷の壁 = 軸に沿って（± canyonJitterDeg）3〜5 個を一直線に並べた長い壁。
+        // 置く前に足跡（+1 マス）が空き地（kFree）・歩ける・置物無し・段差 1.5m 以内かを確かめ、置いたら propAt に印
+        // （木・岩が寄らない）。中央の出生地（kSpawn）と他の柱からは離す。草原 / 遺跡は数が 0 なので乱数も引かない
+        int pillarsPlaced = 0, canyonsPlaced = 0, pillarCells = 0;
+        if ((cfg.pillarCount > 0 || cfg.canyonCount > 0) && set.nCliff > 0)
+        {
+            // 柱の岩は砂漠専用の橙岩の表（kPillarRocks。読めた物だけ）。1 つも無ければ外周と同じ崖の岩（2026-10-26）
+            std::vector<std::string> pillarPaths;
+            for (size_t i = 0; i < set.nPillars; ++i)
+                if (ResourceManager::Get().LoadModel(set.pillars[i])) pillarPaths.push_back(set.pillars[i]);
+            if (pillarPaths.empty()) pillarPaths.assign(set.cliff, set.cliff + set.nCliff);
+            std::vector<Vector3> placedCenters;
+            // 足跡（中心 c、半幅 hx / hz）が置ける所か。outBase = 足跡の一番低い地面
+            auto footprintOk = [&](const Vector3& c, float hx, float hz, float& outBase) -> bool
+                {
+                    int gx0, gz0, gx1, gz1, cx, cz;
+                    grid.WorldToCell({ c.x - hx, 0.0f, c.z - hz }, gx0, gz0);
+                    grid.WorldToCell({ c.x + hx, 0.0f, c.z + hz }, gx1, gz1);
+                    grid.WorldToCell(c, cx, cz);
+                    if (cx < 2 || cz < 2 || cx >= gw - 2 || cz >= gd - 2) return false;
+                    const float h0 = cellHeight(cx, cz);
+                    float lo = h0;
+                    for (int zz = gz0 - 1; zz <= gz1 + 1; ++zz)
+                        for (int xx = gx0 - 1; xx <= gx1 + 1; ++xx)
+                        {
+                            if (xx < 2 || zz < 2 || xx >= gw - 2 || zz >= gd - 2) return false;
+                            if (at(xx, zz) != kFree || !grid.IsWalkable(xx, zz) || propAt[(size_t)zz * gw + xx]) return false;
+                            const float h = cellHeight(xx, zz);
+                            if (std::fabs(h - h0) > 1.5f) return false;
+                            lo = (std::min)(lo, h);
+                        }
+                    outBase = lo;
+                    return true;
+                };
+            auto markFootprint = [&](const Vector3& c, float hx, float hz)
+                {
+                    int gx0, gz0, gx1, gz1;
+                    grid.WorldToCell({ c.x - hx, 0.0f, c.z - hz }, gx0, gz0);
+                    grid.WorldToCell({ c.x + hx, 0.0f, c.z + hz }, gx1, gz1);
+                    for (int zz = gz0 - 1; zz <= gz1 + 1; ++zz)
+                        for (int xx = gx0 - 1; xx <= gx1 + 1; ++xx)
+                            if (xx >= 0 && zz >= 0 && xx < gw && zz < gd) propAt[(size_t)zz * gw + xx] = 1;
+                    placedCenters.push_back(c);
+                };
+            auto farFromOthers = [&](const Vector3& c, float minDist) -> bool
+                {
+                    for (const Vector3& p : placedCenters)
+                    {
+                        const float dx = p.x - c.x, dz = p.z - c.z;
+                        if (dx * dx + dz * dz < minDist * minDist) return false;
+                    }
+                    return true;
+                };
+            // 回した箱の半幅（placeBlocker と同じ式）
+            auto halfExtents = [](float yawDeg, float ex, float ez, float& hx, float& hz)
+                {
+                    const float yaw = DirectX::XMConvertToRadians(yawDeg);
+                    const float cs = std::fabs(std::cos(yaw)), sn = std::fabs(std::sin(yaw));
+                    hx = cs * ex + sn * ez;
+                    hz = sn * ex + cs * ez;
+                };
+
+            // 峡谷の壁（先に：長いので場所が要る）
+            for (int attempt = 0; attempt < cfg.canyonCount * 60 && canyonsPlaced < cfg.canyonCount; ++attempt)
+            {
+                float x, z;
+                randomPoint(x, z);
+                const Vector3 c(x, 0.0f, z);
+                const Vector3 axis = (randi(0, 1) != 0) ? Vector3(1, 0, 0) : Vector3(0, 0, 1);
+                const float jitter = randf(-cfg.canyonJitterDeg, cfg.canyonJitterDeg);
+                const float length = randf(cfg.canyonLengthMin, cfg.canyonLengthMax);
+                if (!farFromOthers(c, length * 0.5f + 12.0f)) continue;
+                // 回した後の壁の向き（FitRock と同じ式）
+                const Vector3 dir = Vector3::TransformNormal(axis, DirectX::SimpleMath::Matrix::CreateRotationY(DirectX::XMConvertToRadians(jitter)));
+                const int segs = (std::max)(2, (int)std::ceil(length / 9.0f));
+                const float segLen = length / (float)segs;
+                const float exAlong = segLen * 0.6f, ezAcross = cfg.canyonThickness * 0.6f;
+                const bool axisIsX = axis.x > 0.5f;
+                float hx = 0.0f, hz = 0.0f;
+                halfExtents(jitter, axisIsX ? exAlong : ezAcross, axisIsX ? ezAcross : exAlong, hx, hz);
+                // 全部の節の足跡を先に確かめる（1 つでも駄目なら置かない）
+                bool ok = true;
+                float base = 1e9f;
+                std::vector<Vector3> centers;
+                for (int i = 0; i < segs && ok; ++i)
+                {
+                    const Vector3 sc = c + dir * ((i - (segs - 1) * 0.5f) * segLen);
+                    float b = 0.0f;
+                    ok = footprintOk(sc, hx, hz, b);
+                    base = (std::min)(base, b);
+                    centers.push_back(sc);
+                }
+                if (!ok) continue;
+                for (size_t i = 0; i < centers.size(); ++i)
+                {
+                    const Vector3& sc = centers[i];
+                    // 実引数の中で乱数を 2 回引く：評価順に依存（MSVC で固定）。2 節目からは同じ group（1 枚の壁）
+                    pillarCells += EmitFieldRock(emit, grid, pillarPaths, sc, axis, jitter, segLen * 1.2f,
+                        cfg.canyonThickness * randf(0.85f, 1.15f), cfg.canyonHeight * randf(0.85f, 1.15f), base - 0.6f, rng, MapData::kPillar,
+                        i == 0);
+                    markFootprint(sc, hx, hz);
+                }
+                ++canyonsPlaced;
+            }
+            // 岩柱
+            for (int attempt = 0; attempt < cfg.pillarCount * 40 && pillarsPlaced < cfg.pillarCount; ++attempt)
+            {
+                float x, z;
+                randomPoint(x, z);
+                const Vector3 c(x, 0.0f, z);
+                if (!farFromOthers(c, 10.0f)) continue;
+                const float w = randf(cfg.pillarWidthMin, cfg.pillarWidthMax);
+                float base = 0.0f;
+                if (!footprintOk(c, w * 0.6f, w * 0.6f, base)) continue;
+                const Vector3 axis = (randi(0, 1) != 0) ? Vector3(1, 0, 0) : Vector3(0, 0, 1);
+                // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）
+                pillarCells += EmitFieldRock(emit, grid, pillarPaths, c, axis, randf(0.0f, 360.0f), w, w * randf(0.7f, 1.0f),
+                    randf(cfg.pillarHeightMin, cfg.pillarHeightMax), base - 0.6f, rng, MapData::kPillar);
+                markFootprint(c, w * 0.6f, w * 0.6f);
+                ++pillarsPlaced;
+            }
+            std::cout << "[Terrain] pillars " << pillarsPlaced << " / " << cfg.pillarCount << ", canyon walls " << canyonsPlaced
+                << " / " << cfg.canyonCount << ", blocked cells " << pillarCells << std::endl;
+        }
 
         // 木：林（大きいノイズの高い所）に固まり、所々に 1 本。枯れ木を 1 割
         int treesPlaced = 0;
@@ -1612,6 +1741,140 @@ namespace TerrainGenerator
                         }
                     }
                 }
+
+                // ---------- 内側の部屋と廊下（2026-10-26、マップ毎の地形の第 2 段）----------
+                // 空き地（周り 2 マスも空き・歩ける・置物無し・段差 0.9m 以内）に矩形の部屋を cfg.ruinRoomCount 個。
+                // 外周 1 マスが壁：Wall 片を ruinInnerWallHeight まで積み（一番上は崩れた縁）、マスいっぱいの箱で当てて塞ぐ。
+                // 角は柱。各辺の角以外に戸口を 1 つ（壁を置かない = 歩ける）。内側の面に 4 マス毎に松明（点光源はシーンが近い物に付ける）。
+                // 部屋同士は 2 マス以上離す = その間が廊下。木・岩は先に置いてあるので部屋はそれを避ける
+                int roomsPlaced = 0, roomWallCells = 0, roomCentres = 0, roomDecos = 0;
+                int failOcc = 0, failWalk = 0, failProp = 0, failHeight = 0, failOverlap = 0;   // 置けなかった理由（ログ用）
+                std::vector<Rect> rooms;
+                for (int attempt = 0; attempt < cfg.ruinRoomCount * 60 && roomsPlaced < cfg.ruinRoomCount; ++attempt)
+                {
+                    const int rw = randi(cfg.ruinRoomMinCells, cfg.ruinRoomMaxCells);
+                    const int rd = randi(cfg.ruinRoomMinCells, cfg.ruinRoomMaxCells);
+                    const int x0 = randi(3, gw - 4 - rw), z0 = randi(3, gd - 4 - rd);
+                    bool ok = true;
+                    const float h0 = cellHeight(x0 + rw / 2, z0 + rd / 2);
+                    for (int z = z0 - 2; z <= z0 + rd + 1 && ok; ++z)
+                        for (int x = x0 - 2; x <= x0 + rw + 1 && ok; ++x)
+                        {
+                            const uint8_t o = at(x, z);
+                            if (o != kFree && o != kPlateau) { ++failOcc; ok = false; }
+                            else if (!grid.IsWalkable(x, z)) { ++failWalk; ok = false; }
+                            else if (propAt[(size_t)z * gw + x]) { ++failProp; ok = false; }
+                            else if (std::fabs(cellHeight(x, z) - h0) >= 0.9f) { ++failHeight; ok = false; }
+                        }
+                    if (!ok) continue;
+                    for (const Rect& r : rooms)
+                        if (x0 < r.x + r.w + 2 && x0 + rw + 2 > r.x && z0 < r.z + r.d + 2 && z0 + rd + 2 > r.z) { ok = false; break; }
+                    if (!ok) { ++failOverlap; continue; }
+                    // 戸口：各辺の角以外に 1 つ
+                    const int doorN = randi(x0 + 1, x0 + rw - 2), doorS = randi(x0 + 1, x0 + rw - 2);
+                    const int doorE = randi(z0 + 1, z0 + rd - 2), doorW = randi(z0 + 1, z0 + rd - 2);
+                    const int rows = (std::max)(1, (int)std::ceil(cfg.ruinInnerWallHeight / (std::max)(ph, 0.5f)));
+                    const float wallTop = rows * ph;
+                    emit.Begin(MapData::kRuinWall);   // 部屋 1 つ = 1 group
+                    for (int z = z0; z < z0 + rd; ++z)
+                        for (int x = x0; x < x0 + rw; ++x)
+                        {
+                            const bool edgeN = z == z0 + rd - 1, edgeS = z == z0, edgeE = x == x0 + rw - 1, edgeW = x == x0;
+                            if (!(edgeN || edgeS || edgeE || edgeW)) continue;
+                            const bool corner = (edgeN || edgeS) && (edgeE || edgeW);
+                            const bool door = !corner && ((edgeN && x == doorN) || (edgeS && x == doorS) || (edgeE && z == doorE) || (edgeW && z == doorW));
+                            if (door) continue;
+                            const Vector3 c = grid.CellToWorld(x, z);
+                            const float ground = cellHeight(x, z);
+                            const bool alongX = edgeN || edgeS;   // 壁が x に沿う（N / S の辺）
+                            const float yaw = corner ? 0.0f : (alongX ? (edgeN ? 0.0f : 180.0f) : (edgeE ? 90.0f : 270.0f));
+                            float h = wallTop;
+                            if (corner && !columns.empty())
+                            {
+                                const PropModel& cm = columns[0];
+                                spawnVisual(cm, 1.0f, 0.0f, c.x, c.z, ground, MapData::kRuinWall);
+                                h = (std::max)(wallTop, (cm.hi.y - cm.lo.y) * cm.unit);
+                            }
+                            else
+                            {
+                                for (int r = 0; r < rows; ++r)
+                                {
+                                    const bool top = (r == rows - 1) && !tops.empty();
+                                    const auto& list = top ? tops : walls;
+                                    spawnVisual(list[randi(0, (int)list.size() - 1)], 1.0f, yaw, c.x, c.z, ground + r * ph, MapData::kRuinWall);
+                                }
+                            }
+                            ++ruinPieces;
+                            // 衝突：マスいっぱいの箱（厚みは壁の奥行き、角は柱の幅）。雑魚はマスごと塞ぐ
+                            const Vector3 half = corner ? Vector3(0.6f, h * 0.5f, 0.6f)
+                                : (alongX ? Vector3(kCs * 0.5f, h * 0.5f, (std::max)(pd, 0.4f) * 0.5f) : Vector3((std::max)(pd, 0.4f) * 0.5f, h * 0.5f, kCs * 0.5f));
+                            const Vector3 cc(c.x, ground + h * 0.5f, c.z);
+                            emit.Box(cc - half, cc + half, Layer_Terrain);
+                            emit.Block(&grid, x, z, 1, 1);
+                            propAt[(size_t)z * gw + x] = 1;
+                            ++roomWallCells;
+                            // 松明：辺の 4 マス毎、内側の面
+                            if (!corner && !torches.empty() && (((alongX ? x - x0 : z - z0) % 4) == 2))
+                            {
+                                const Vector3 in = edgeN ? Vector3(0, 0, -1) : edgeS ? Vector3(0, 0, 1) : edgeE ? Vector3(-1, 0, 0) : Vector3(1, 0, 0);
+                                const PropModel& tm = torches[0];
+                                const float td = (tm.hi.z - tm.lo.z) * tm.unit;
+                                const Vector3 p = c + in * (half.z * (alongX ? 1.0f : 0.0f) + half.x * (alongX ? 0.0f : 1.0f) + td * 0.5f);
+                                spawnVisual(tm, 1.0f, yaw + 180.0f, p.x, p.z, ground + 2.0f, MapData::kTorch);
+                                torchList.push_back(Vector3(p.x, ground + 2.7f, p.z) + in * 0.4f);
+                            }
+                        }
+                    // ---- 部屋の中身（2026-10-26）：真ん中に 1 つ「主」（彫像 / 柱 = 木の枠、本棚 / 荷車 = 岩の枠。塞ぐ・衝突付き。
+                    //      placeBlocker が周り 1 マスの空きを見るので、内側 3×3 の部屋でも壁との間に 1 マスの通路が残る）、
+                    //      壁際の内側のマスに壺・蝋燭・骸骨・樽（見た目だけ）。戸口の正面のマスには置かない ----
+                    {
+                        const int cx = x0 + rw / 2, cz = z0 + rd / 2;
+                        const int inner = (std::min)(rw, rd) - 2;
+                        const float pick = randf(0.0f, 1.0f);
+                        if (pick < 0.5f && !trees.empty())
+                        {
+                            const Vector3 c = grid.CellToWorld(cx, cz);
+                            const PropModel& pm = trees[randi(0, (int)trees.size() - 1)];
+                            if (placeBlocker(pm, randf(1.0f, 1.3f), randf(0.0f, 360.0f), c.x, c.z, true)) ++roomCentres;
+                        }
+                        else if (pick < 0.8f && !rocks.empty() && inner >= 5)
+                        {
+                            const Vector3 c = grid.CellToWorld(cx, cz);
+                            const PropModel& pm = rocks[randi(0, (int)rocks.size() - 1)];
+                            if (placeBlocker(pm, randf(0.9f, 1.2f), (float)randi(0, 3) * 90.0f, c.x, c.z, false)) ++roomCentres;
+                        }
+                        auto doorFront = [&](int x, int z)
+                            {
+                                return (x == doorN && z == z0 + rd - 2) || (x == doorS && z == z0 + 1)
+                                    || (z == doorE && x == x0 + rw - 2) || (z == doorW && x == x0 + 1);
+                            };
+                        int placedHere = 0;
+                        const int cap = randi(2, 6);
+                        for (int z = z0 + 1; z < z0 + rd - 1 && placedHere < cap && !bushes.empty(); ++z)
+                            for (int x = x0 + 1; x < x0 + rw - 1 && placedHere < cap; ++x)
+                            {
+                                const bool wallN = z == z0 + rd - 2, wallS = z == z0 + 1, wallE = x == x0 + rw - 2, wallW = x == x0 + 1;
+                                if (!(wallN || wallS || wallE || wallW) || doorFront(x, z)) continue;
+                                if (propAt[(size_t)z * gw + x]) continue;
+                                if (randf(0.0f, 1.0f) > 0.3f) continue;
+                                // 壁へ 0.5m 寄せる（角は両方）
+                                const Vector3 c = grid.CellToWorld(x, z);
+                                const float px = c.x + (wallE ? 0.5f : 0.0f) - (wallW ? 0.5f : 0.0f);
+                                const float pz = c.z + (wallN ? 0.5f : 0.0f) - (wallS ? 0.5f : 0.0f);
+                                const PropModel& pm = bushes[randi(0, (int)bushes.size() - 1)];
+                                // 実引数の中で乱数を 2 回以上引く：評価順に依存（MSVC で固定）
+                                spawnVisual(pm, randf(0.9f, 1.2f), randf(0.0f, 360.0f), px, pz, cellHeight(x, z), MapData::kBush);
+                                ++placedHere;
+                            }
+                        roomDecos += placedHere;
+                    }
+                    rooms.push_back({ x0, z0, rw, rd });
+                    ++roomsPlaced;
+                }
+                if (cfg.ruinRoomCount > 0)
+                    std::cout << "[Terrain] ruin rooms " << roomsPlaced << " / " << cfg.ruinRoomCount << ", wall cells " << roomWallCells
+                        << ", centrepieces " << roomCentres << ", decorations " << roomDecos
+                        << " (failed: occ " << failOcc << " walk " << failWalk << " prop " << failProp << " height " << failHeight << " overlap " << failOverlap << ")" << std::endl;
             }
         }
 

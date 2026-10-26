@@ -44,7 +44,9 @@ GameProgress& GameProgress::Get()
 
 bool GameProgress::IsMapUnlocked(int map) const
 {
-    return MapOk(map) && mapUnlocked[map - 1];
+    // 草原はいつも。砂漠 / 遺跡は前のマップの Tier 2 をクリアすると（10-26。mapUnlocked は保存の互換と UnlockAll 用）
+    if (!MapOk(map)) return false;
+    return map == 1 || mapUnlocked[map - 1] || IsTierCleared(map - 1, 2);
 }
 
 bool GameProgress::IsTierCleared(int map, int tier) const
@@ -58,14 +60,6 @@ bool GameProgress::IsTierOpen(int map, int tier) const
     return tier == 1 || tierCleared[map - 1][tier - 2];
 }
 
-bool GameProgress::OnStageEntered(int stage)
-{
-    if (!MapOk(stage) || mapUnlocked[stage - 1]) return false;
-    mapUnlocked[stage - 1] = true;
-    std::cout << "[Progress] map " << stage << " unlocked" << std::endl;
-    return true;
-}
-
 bool GameProgress::OnTierCleared(int map, int tier)
 {
     if (!MapOk(map) || !TierOk(tier)) return false;
@@ -73,7 +67,14 @@ bool GameProgress::OnTierCleared(int map, int tier)
     if (tierCleared[map - 1][tier - 1]) return false;
     tierCleared[map - 1][tier - 1] = true;
     std::cout << "[Progress] map " << map << " tier " << tier << " cleared" << std::endl;
-    return tier < MaxTier(map);   // 次の Tier が開いた
+    bool opened = tier < MaxTier(map);   // 次の Tier が開いた
+    if (tier >= 2 && map < kMaps && !mapUnlocked[map])
+    {
+        mapUnlocked[map] = true;   // 次のマップが開いた（10-26：草原 Tier 2 → 砂漠、砂漠 Tier 2 → 遺跡）
+        std::cout << "[Progress] map " << (map + 1) << " unlocked" << std::endl;
+        opened = true;
+    }
+    return opened;
 }
 
 void GameProgress::UnlockAll()

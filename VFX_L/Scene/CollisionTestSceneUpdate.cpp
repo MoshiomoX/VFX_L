@@ -166,7 +166,7 @@ void CollisionTestScene::Update(float dt)
 
     // ---- HUD：経過時間・撃破数と、画面外の目印 ----
     m_GameUI.SetRunInfo(m_RunTime, m_Swarm.GetCounters().killCount, m_Stage.stageTime);
-    m_GameUI.SetStage(m_StageIndex - m_RunStart + 1, m_RunTier, StageConfig::Get(m_StageIndex).name);   // 「ステージ n/Tier 名前」
+    m_GameUI.SetStage(m_RunPos, m_RunTier, StageConfig::Get(m_StageIndex).name);   // 「ステージ n/Tier 名前」
     m_GameUI.SetBossBar(m_Stage.IsBossAlive() ? m_Stage.BossHpRatio() : -1.0f);
     UpdateHudMarkers();
 
@@ -307,13 +307,13 @@ void CollisionTestScene::EndRun()
     g_LastRun.expGained = m_ExpGained;
     g_LastRun.cleared = m_Stage.IsCleared();
     g_LastRun.stage = m_StageIndex;
-    g_LastRun.startStage = m_RunStart;
+    g_LastRun.pos = m_RunPos;
     g_LastRun.tier = m_RunTier;
     g_LastRun.hasNextStage = g_LastRun.cleared && HasNextStage();
-    // 進み具合：Tier を最後まで戦い抜いた → 次の Tier が開く（2026-10-21、ステージ選択）
+    // 進み具合：Tier を最後まで戦い抜いた → 次の Tier が開く、Tier 2 なら次のマップも（2026-10-21 / 10-26、ステージ選択）
     if (g_LastRun.cleared && !g_LastRun.hasNextStage && !m_LabScene)
     {
-        GameProgress::Get().OnTierCleared(m_RunStart, m_RunTier);
+        GameProgress::Get().OnTierCleared(m_StageIndex, m_RunTier);
         GameProgress::Get().Save();
     }
     g_LastRun.cratesOpened = m_Crates.Opened();
@@ -322,13 +322,13 @@ void CollisionTestScene::EndRun()
     g_LastRun.backpack = m_Registry.Has<BackpackComponent>(m_Player)
         ? m_Registry.Get<BackpackComponent>(m_Player) : BackpackComponent{};
 
-    // ---- 次の面への引き継ぎ（クリアした時だけ。力尽きたら最初から）。計画（開始マップ・Tier）はリザルトが見るので残す ----
+    // ---- 次の面への引き継ぎ（クリアした時だけ。力尽きたら最初から）。計画（マップ・何面目・Tier）はリザルトと商店が見るので残す ----
     g_RunCarry.Reset();
-    g_RunCarry.startStage = m_RunStart;
+    g_RunCarry.stage = m_StageIndex;
+    g_RunCarry.pos = m_RunPos + 1;   // 次は何面目か（同じマップ）
     g_RunCarry.tier = m_RunTier;
     if (g_LastRun.hasNextStage && m_Registry.IsValid(m_Player))
     {
-        g_RunCarry.stage = m_StageIndex + 1;
         g_RunCarry.hasPlayer = true;
         if (m_Registry.Has<BackpackComponent>(m_Player))    g_RunCarry.backpack = m_Registry.Get<BackpackComponent>(m_Player);
         if (m_Registry.Has<SpellbookComponent>(m_Player))   g_RunCarry.spellbook = m_Registry.Get<SpellbookComponent>(m_Player);

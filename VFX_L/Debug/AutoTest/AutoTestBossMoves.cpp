@@ -53,6 +53,31 @@ namespace
         { BossMove::Quicksand,  7.0f, Dodge::Away, 0.5f, 2.5f, 4.5f, "quicksand-away", 0.9f, 3.2f },
         { BossMove::Summon,    14.0f, Dodge::None, 1.0f, 2.2f, 3.5f, "summon-sand" },
     };
+    // 大サソリ（2026-10-26）：毒針は 12m（突っ込み 8m なので届く）、鋏は 4m（扇 5.5m）。横 / 後ろへ逃げる方も
+    const Trial kScorpionTrials[] = {
+        { BossMove::Sting,     10.0f, Dodge::None, 0.5f, 0.95f, 3.0f, "sting" },
+        { BossMove::Sting,     10.0f, Dodge::Side, 0.5f, 0.95f, 3.0f, "sting-side", 0.3f, 1.0f },
+        { BossMove::ClawSweep,  4.0f, Dodge::None, 0.6f, 0.9f, 2.5f, "claw" },
+        { BossMove::ClawSweep,  4.0f, Dodge::Away, 0.6f, 0.9f, 2.5f, "claw-away", 0.2f, 1.0f },
+        { BossMove::Burrow,    14.0f, Dodge::None, 1.2f, 2.6f, 4.8f, "burrow-scorpion" },
+        { BossMove::Summon,    14.0f, Dodge::None, 1.0f, 2.2f, 3.5f, "summon-scorpion" },
+    };
+    // 墓守の騎士（2026-10-26）：双鎖は 10m（届く 14m）、掛かれば引き寄せてすぐ重撃（chainpull の後の 2 秒で輪が爆発）。横へ逃げる方も
+    const Trial kKnightTrials[] = {
+        { BossMove::ChainPull, 10.0f, Dodge::None, 0.7f, 1.3f, 4.5f, "chainpull" },
+        { BossMove::ChainPull, 10.0f, Dodge::Side, 0.7f, 1.3f, 4.5f, "chainpull-side", 0.3f, 1.2f },
+        { BossMove::Slam,      14.0f, Dodge::None, 0.9f, 1.4f, 3.0f, "slam-knight" },
+        { BossMove::Shockwave, 14.0f, Dodge::Jump, 1.9f, 2.0f, 3.5f, "shockwave-jump-knight" },
+        { BossMove::Summon,    14.0f, Dodge::None, 1.0f, 2.2f, 3.5f, "summon-knight" },
+    };
+    // 月下の狼人（2026-10-26）：飛びかかりは 12m（空中 0.6 秒、着地の輪 3m = 跳び始めてから横へ 1 秒走れば出る）、三連は 5m
+    const Trial kWolfTrials[] = {
+        { BossMove::Pounce,    12.0f, Dodge::None, 0.4f, 0.85f, 3.0f, "pounce" },
+        { BossMove::Pounce,    12.0f, Dodge::Side, 0.4f, 0.85f, 3.0f, "pounce-side", 0.55f, 1.0f },
+        { BossMove::ClawCombo,  5.0f, Dodge::None, 0.3f, 0.9f, 4.0f, "clawcombo" },
+        { BossMove::ClawCombo,  5.0f, Dodge::Side, 0.3f, 0.9f, 4.0f, "clawcombo-side", 0.2f, 2.5f },
+        { BossMove::Howl,      14.0f, Dodge::None, 0.8f, 1.5f, 3.5f, "howl" },
+    };
 }
 
 // ============================================================
@@ -78,8 +103,14 @@ void AutoTestBossMoves::Run()
     auto& tf = m_Registry.Get<TransformComponent>(m_Player);
     auto& pcs = m_PlayerControlSystem;
     const bool sand = (m_BossAttacks.Type() == BossType::SandGuardian);
-    const Trial* trials = sand ? kSandTrials : kTrials;
-    const int trialCount = sand ? (int)(sizeof(kSandTrials) / sizeof(kSandTrials[0])) : (int)(sizeof(kTrials) / sizeof(kTrials[0]));
+    const bool scorpion = (m_BossAttacks.Type() == BossType::Scorpion);
+    const bool knight = (m_BossAttacks.Type() == BossType::CryptKnight);
+    const bool wolf = (m_BossAttacks.Type() == BossType::Werewolf);
+    const Trial* trials = sand ? kSandTrials : scorpion ? kScorpionTrials : knight ? kKnightTrials : wolf ? kWolfTrials : kTrials;
+    const int trialCount = sand ? (int)(sizeof(kSandTrials) / sizeof(kSandTrials[0]))
+        : scorpion ? (int)(sizeof(kScorpionTrials) / sizeof(kScorpionTrials[0]))
+        : knight ? (int)(sizeof(kKnightTrials) / sizeof(kKnightTrials[0]))
+        : wolf ? (int)(sizeof(kWolfTrials) / sizeof(kWolfTrials[0])) : (int)(sizeof(kTrials) / sizeof(kTrials[0]));
 
     if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
     {
@@ -88,7 +119,7 @@ void AutoTestBossMoves::Run()
         m_Swarm.KillAll();
         if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
         m_BossAttacks.enabled = false;
-        m_Stage.bossHp = 1.0e6f;
+        m_Stage.bossHp = knight ? 3000.0f : 1.0e6f;   // 騎士は試しの後で削り殺して復活を見る（範囲 150 × 0.2 秒 = 600/秒 → 5 秒）
         // 実験場でなく本番の面（VFXL_STAGE=2 の砂漠など）でも死なないように
         auto& hp = m_Registry.Get<HealthComponent>(m_Player);
         hp.max = hp.current = 100000.0f;
@@ -105,6 +136,53 @@ void AutoTestBossMoves::Run()
         s_Trial = -1;
         s_Base = m_AutoTime - 100.0f;   // すぐ最初の試しへ
     }
+    // ---- 墓守の騎士の復活（m_AutoStep 10 = 削る → 11 = 倒れた（蘇るのを待つ）→ 12 = 蘇った後を削る → done）----
+    if (m_AutoStep >= 10 && m_AutoStep <= 12)
+    {
+        static float s_NextChip = 0.0f;
+        static bool s_Shot = false;
+        const float t = m_AutoTime - s_Base;
+        if (m_Stage.IsBossAlive() && m_AutoTime >= s_NextChip)
+        {
+            s_NextChip = m_AutoTime + 0.25f;
+            Swarm::Area a;
+            a.center = m_Stage.BossPos();
+            a.radius = 3.0f;
+            a.damage = 150.0f;
+            a.tickInterval = 0.2f;
+            a.timeLeft = 0.22f;
+            m_Swarm.SpawnArea(a);
+        }
+        if (m_AutoStep == 10 && m_Stage.IsBossReviving())
+        {
+            snprintf(line, sizeof(line), "bossmoves knight fell t %.2f livesUsed %d", t, m_Stage.BossLivesUsed());
+            AutoTestLog(line);
+            AutoTestLog("bossmoves look knightfell");
+            m_AutoStep = 11;
+            s_Shot = false;
+        }
+        else if (m_AutoStep == 11 && m_Stage.IsBossAlive())
+        {
+            snprintf(line, sizeof(line), "bossmoves knight revived t %.2f hpRatio %.2f enraged %d tint %.2f", t, m_Stage.BossHpRatio(),
+                m_BossAttacks.forceEnraged ? 1 : 0, m_BossAttacks.bodyTint.z);
+            AutoTestLog(line);
+            m_AutoStep = 12;
+            s_Base = m_AutoTime;
+        }
+        else if (m_AutoStep == 12)
+        {
+            if (!s_Shot && t >= 0.8f) { s_Shot = true; AutoTestLog("bossmoves look knightrevived"); }
+            if (m_Stage.IsBossDefeated())
+            {
+                snprintf(line, sizeof(line), "bossmoves knight defeated t %.2f livesUsed %d", t, m_Stage.BossLivesUsed());
+                AutoTestLog(line);
+                AutoTestLog("bossmoves done");
+                m_AutoStep = 3;
+            }
+        }
+        if (t > 40.0f) { AutoTestLog("bossmoves knight timeout"); AutoTestLog("bossmoves done"); m_AutoStep = 3; }
+        return;
+    }
     if (m_AutoStep != 2) return;
 
     const float t = m_AutoTime - s_Base;
@@ -118,10 +196,10 @@ void AutoTestBossMoves::Run()
         {
             const Trial& tr = trials[s_Trial];
             const Vector3 d = boss - s_BossBefore;
-            snprintf(line, sizeof(line), "bossmoves %s hits %u bossMoved %.1f hp %.0f summoned %u alive %u playerDist %.1f",
+            snprintf(line, sizeof(line), "bossmoves %s hits %u bossMoved %.1f hp %.0f summoned %u alive %u playerDist %.1f poison %.1f",
                 tr.name, m_BossSlamHits - s_HitsBefore,
                 std::sqrt(d.x * d.x + d.z * d.z), m_Registry.Get<HealthComponent>(m_Player).current,
-                m_BossAttacks.summoned - s_SummonedBefore, m_Swarm.GetCounters().aliveEnemies, flatDist());
+                m_BossAttacks.summoned - s_SummonedBefore, m_Swarm.GetCounters().aliveEnemies, flatDist(), m_BossAttacks.PoisonLeft());
             AutoTestLog(line);
         }
         ++s_Trial;
@@ -129,6 +207,15 @@ void AutoTestBossMoves::Run()
         if (s_Trial >= trialCount)
         {
             pcs.testInput = false;
+            if (knight)
+            {
+                // 墓守の騎士の復活：Boss の所に傷の範囲を置き続けて倒す → 倒れた / 立ち上がった / 本当に倒した を記録
+                m_BossAttacks.enabled = true;
+                s_Base = m_AutoTime;
+                m_AutoStep = 10;
+                AutoTestLog("bossmoves knight chip start");
+                return;
+            }
             AutoTestLog("bossmoves done");
             m_AutoStep = 3;
             return;
@@ -145,9 +232,9 @@ void AutoTestBossMoves::Run()
         m_Registry.Get<PlayerStateComponent>(m_Player).invincibleTimer = 0.0f;
         auto& cam = m_Camera.Camera();
         // 背中から Boss の方へ（前 = (-sin yaw, cos yaw)）。砂の技は斜め横から（真後ろだと Boss が上の HP 条に隠れる）
-        cam.SetYaw(DirectX::XMConvertToDegrees(std::atan2(away.x, -away.z)) + (sand ? 40.0f : 0.0f));
-        cam.SetPitch(sand ? 38.0f : 50.0f);
-        cam.distance = sand ? 24.0f : 20.0f;
+        cam.SetYaw(DirectX::XMConvertToDegrees(std::atan2(away.x, -away.z)) + ((sand || scorpion) ? 40.0f : 0.0f));
+        cam.SetPitch((sand || scorpion) ? 38.0f : 50.0f);
+        cam.distance = scorpion ? 18.0f : sand ? 24.0f : 20.0f;
         cam.avoidOcclusion = false;
         cam.SnapToTarget();
         m_BossAttacks.QueueMove(tr.move);

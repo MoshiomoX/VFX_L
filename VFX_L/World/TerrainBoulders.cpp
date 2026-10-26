@@ -63,10 +63,10 @@ namespace TerrainBuild
         }
         // 箱の真ん中（xz）が center、底が base になるよう置く。collide なら凸包の衝突 + 足元のマスを塞ぐ（grid があれば）
         void Put(Emitter& emit, const Rock& r, const Fit& f, const Vector3& center, float base, MapData::Kind kind,
-            bool collide = false, GridWorld* grid = nullptr, int* outBlocked = nullptr)
+            bool collide = false, GridWorld* grid = nullptr, int* outBlocked = nullptr, bool newGroup = true)
         {
             const Vector3 pos(center.x - f.mid.x, base - r.lo.y * r.unit * f.stretch.y, center.z - f.mid.z);
-            emit.Begin(kind);
+            if (newGroup) emit.Begin(kind);   // false = 前の石と同じ group（峡谷の壁の節。エディタで 1 枚として動かせる）
             emit.Prop(*r.path, r.model, pos, f.yawDeg, r.unit, f.stretch, collide);
             if (collide && grid)
             {
@@ -164,6 +164,24 @@ namespace TerrainBuild
             ++placed;
         }
         return placed;
+    }
+
+    // ============================================================
+    // 場内の岩 1 個（砂漠の岩柱・峡谷の壁。2026-10-26）。石は表から 1 つ引く（flip も乱数）
+    // ============================================================
+    int EmitFieldRock(Emitter& emit, GridWorld& grid, const std::vector<std::string>& modelPaths, const Vector3& center,
+        const Vector3& axis, float yawDeg, float length, float depth, float height, float base, std::mt19937& rng, MapData::Kind kind,
+        bool newGroup)
+    {
+        const std::vector<Rock> rocks = LoadRocks(modelPaths);
+        if (rocks.empty()) return 0;
+        auto randi = [&](int a, int b) { return (b <= a) ? a : std::uniform_int_distribution<int>(a, b)(rng); };
+        const Rock& r = rocks[(size_t)randi(0, (int)rocks.size() - 1)];
+        const bool flip = randi(0, 1) != 0;
+        const Fit f = FitRock(r, axis, length, depth, height, flip, yawDeg);
+        int blocked = 0;
+        Put(emit, r, f, center, base, kind, true, &grid, &blocked, newGroup);
+        return blocked;
     }
 
     // ============================================================

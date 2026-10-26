@@ -111,6 +111,7 @@ std::wstring CollisionTestScene::EnterTrainingField(int field, uint32_t seed)
     TerrainGenerator::Config cfg;   // 既定 = 段々の台地の野原
     cfg.seed = (seed != 0) ? seed : std::random_device{}() % 100000u;   // ステージ選択は決まった seed（2026-10-21）
     cfg.biome = def.biome;
+    if (!flat) TerrainGenerator::ApplyBiomeProfile(cfg);   // マップ毎の地形の規則（2026-10-26）
     if (flat)
     {
         cfg.layers = false;

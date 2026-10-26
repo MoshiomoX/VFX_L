@@ -674,8 +674,28 @@ namespace Swarm
         uint32_t eliteCmd[4][4] = {};
         // [k] = xz（向き、瞬間移動の時は行き先）、走る速さ m/s、隠れ具合 0..1（影の剣士の消え）
         float    eliteMove[4][4] = {};
+        // ---- 杖の狙いの優先度（2026-10-26 ユーザー「範囲に Boss が居れば Boss を先に、ただし雑魚が近過ぎれば雑魚を先に」）----
+        // MoveCS の「一番近い敵」の鍵に使う距離を種類で付け替える（SwarmAimKeyDist）：雑魚が aimCloseRadius 以内 → その雑魚、
+        // 無ければ aimPriorityRange 以内の Boss → エリート → 残りは距離順。aimPriorityOn 0 で以前通り純粋な最寄り
+        float    aimCloseRadius = 3.5f;
+        float    aimPriorityRange = 30.0f;
+        float    aimPriorityOn = 1.0f;
+        float    _aimPad = 0.0f;
+        // ---- 雷鳴の雄鹿の突進の姿勢（2026-10-26。BossAttacks::Output::chargePose をシーンが毎フレーム写す）----
+        // 0 = 普段、0→1 = 溜め（頭を下げ、脚を開いて腰を落とす）、1 = 突進中（頭は下げたまま、胴を前へ傾け脚を速く振る）、
+        // 1〜1.3 = 当てた瞬間の頭の振り上げ、突進が終わると 1→0 で頭が上がる。VS が直接読む（四足の Boss の時だけ CPU が書く）
+        float    bossChargePose = 0.0f;
+        // 走りの前傾の支点（焼いた網の空間の y / z）と角度（rad、pose 1 の時）。Boss 毎に CPU が入れる：雄鹿 = 臀 (0.5, -0.6) 0.17、
+        // 大サソリ = 低い胴 (-0.6, 0) 0.08、他は 0 = 傾けない（雄鹿の値で決め打ちだった時、蝎子は頭から砂に突っ込んだ）
+        float    bossLeanPivotY = 0.0f;
+        float    bossLeanPivotZ = 0.0f;
+        float    bossLeanAngle = 0.0f;
+        // 狼人の飛びかかり（2026-10-26）：> 0 の間、VS が bossChargePose（0 → 1）の放物線で体をこの高さ（世界 m）まで持ち上げる
+        float    bossJumpHeight = 0.0f;
+        float    bossNoContact = 0.0f;        // 1 = Boss が体で殴らない（飛びかかりの間。ContactCS）
+        float    _wolfPad[2] = {};
     };
-    static_assert(sizeof(BomberCB) == 752, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 800, "SwarmBomberCB layout mismatch");
 
     // 固定エリートへの指示（BomberCB::eliteCmd。HLSL の SWARM_ELITE_* と同じ値）
     constexpr uint32_t kMaxEliteCmd = 4;

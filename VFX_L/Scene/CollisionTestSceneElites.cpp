@@ -11,7 +11,7 @@
 #include "Audio/AudioSystem.h"
 #include "Component/TransformComponent.h"
 #include "Core/Application.h"
-#include "Enemy/EliteLooks.h"
+#include "Enemy/Elite/EliteLooks.h"
 #include "Player/PlayerControlSystem.h"
 #include "Player/PlayerStateSystem.h"
 #include "Player/PlayerStatsComponent.h"

@@ -83,6 +83,8 @@ namespace
         { VFXId::BossSandSpear, Res::VFX::BossSandSpear, Group::Boss },
         { VFXId::BossSandAura, Res::VFX::BossSandAura, Group::Boss },
         { VFXId::BossStoneAura, Res::VFX::BossStoneAura, Group::Boss },
+        { VFXId::BossVenom, Res::VFX::BossVenom, Group::Boss },
+        { VFXId::BossVenomAura, Res::VFX::BossVenomAura, Group::Boss },
 
         // ---- 敵（CPU。遺跡の敵の出来事、2026-10-25）----
         { VFXId::RuinsArmorFall, Res::VFX::RuinsArmorFall, Group::Enemy },

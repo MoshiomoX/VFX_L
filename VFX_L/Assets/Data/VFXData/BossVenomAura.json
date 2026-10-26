@@ -1,0 +1,40 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [-20.0, 20.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+                "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 1.2,
+                "emitRate": 14.0, "emitType": 4,
+                "endColorMax": [0.2, 0.6, 0.1, 0.0], "endColorMin": [0.15, 0.5, 0.08, 0.0],
+                "gravity": [0.0, 0.25, 0.0], "innerRadius": 0.8, "lifetimeRange": [1.6, 2.4], "maxParticles": 50,
+                "position": [0.0, 0.2, 0.0], "radius": 2.6, "renderMode": 0, "rotationRange": [0.0, 360.0],
+                "sizeRange": [1.4, 2.2, 2.2, 3.2], "speedRange": [0.1, 0.4], "spreadAngle": 0.0,
+                "startColorMax": [0.30, 0.85, 0.15, 0.22], "startColorMin": [0.22, 0.7, 0.1, 0.16],
+                "wind": 0.6
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 55,
+                "sheet": 1, "frameMode": 3, "frameCount": 9, "blend": 0,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.8,
+                "emitRate": 40.0, "emitType": 4,
+                "endColorMax": [0.2, 0.9, 0.2, 0.0], "endColorMin": [0.1, 0.7, 0.1, 0.0],
+                "gravity": [0.0, 1.4, 0.0], "innerRadius": 0.6, "lifetimeRange": [1.0, 1.6], "maxParticles": 90,
+                "position": [0.0, 0.1, 0.0], "radius": 2.2, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.12, 0.2, 0.03, 0.06], "speedRange": [0.1, 0.4], "spreadAngle": 0.0,
+                "startColorMax": [0.5, 1.2, 0.35, 1.0], "startColorMin": [0.3, 1.0, 0.25, 1.0]
+            },
+            "duration": 1.0, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 1.2, 0.0], "color": [0.35, 1.0, 0.3], "radius": 9.0,
+                      "intensityStart": 1.2, "intensityEnd": 1.2, "flicker": 0.15, "flickerSpeed": 5.0 },
+            "duration": 1.0, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": true,
+    "name": "BossVenomAura"
+}

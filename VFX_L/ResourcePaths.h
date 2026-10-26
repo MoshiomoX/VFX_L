@@ -261,6 +261,15 @@ namespace Res
                 "Assets/Model/dglopez_WesternDesert/FBX/eroded_rock.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/plain_rock.fbx",
             };
+            // 場内の岩柱 / 峡谷の壁（2026-10-26）：橙色の dglopez だけ（Quaternius の Rock_4/6/7 は灰白で、砂の上に混ざると
+            // 色がばらばらに見えた）。dglopez は git に無い（SOURCE.txt）ので、1 つも読めない時は kCliffRocks に戻す
+            inline constexpr const char* kPillarRocks[] = {
+                "Assets/Model/dglopez_WesternDesert/FBX/big_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/eroded_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/plain_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/spiky_rock.fbx",
+                "Assets/Model/dglopez_WesternDesert/FBX/medium_rock.fbx",
+            };
             inline constexpr const char* kBushes[] = {         // 見た目だけ：サボテン・枯れ草・骨
                 "Assets/Model/Quaternius_UltimateNature/FBX/Cactus_1.fbx",
                 "Assets/Model/Quaternius_UltimateNature/FBX/Cactus_2.fbx",
@@ -635,6 +644,8 @@ namespace Res
         inline constexpr const char* BossSandSpear = "Assets/Data/VFXData/BossSandSpear.json";   // 砂の槍のトゲの根元の砂煙
         inline constexpr const char* BossSandAura = "Assets/Data/VFXData/BossSandAura.json";     // 体の周りに舞う砂（ループ）
         inline constexpr const char* BossStoneAura = "Assets/Data/VFXData/BossStoneAura.json";   // 岩の巨人の肩から舞い落ちる葉と花粉（ループ。2026-10-25）
+        inline constexpr const char* BossVenom = "Assets/Data/VFXData/BossVenom.json";           // 大サソリの毒（プレイヤーの周りの緑の泡。ループ。2026-10-26）
+        inline constexpr const char* BossVenomAura = "Assets/Data/VFXData/BossVenomAura.json";   // 大サソリの足元の毒の靄（ループ。2026-10-26）
         // 遺跡の敵（2026-10-25）
         inline constexpr const char* RuinsArmorFall = "Assets/Data/VFXData/RuinsArmorFall.json";
         inline constexpr const char* RuinsArmorRise = "Assets/Data/VFXData/RuinsArmorRise.json";

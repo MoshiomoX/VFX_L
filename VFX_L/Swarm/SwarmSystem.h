@@ -364,14 +364,27 @@ public:
         // ガーゴイルの翼（2026-10-25）：w != 0 なら part の動きの前に、xyz（焼いた網の空間の付け根）を通る前向きの軸の周りに
         // 回す（VS の g_AnimMode 2。眠り / 着地では垂れ、飛ぶ間は羽ばたき、急降下で上へ畳む）。w = +1 右の翼 / -1 左の翼
         DirectX::SimpleMath::Vector4 flap = { 0.0f, 0.0f, 0.0f, 0.0f };
+        // サソリの尾（2026-10-26）：true なら VS の g_AnimMode 3 = flap.xyz（付け根）を通る横軸の周りに縦に揺れ、
+        // 殴りの動作の間は flap.w（rad）だけ前へ振り下ろす（毒針で刺す）。part の動きはその後に掛かる
+        bool tail = false;
+        // 四足の脚（2026-10-26、雄鹿）：true なら VS の g_AnimMode 4 = flap.xyz（脚の付け根）を通る横軸の周りに、歩きの時計で
+        // 前後に振る（振幅 0.5 rad、位相 flap.w：左前 + 右後 0、右前 + 左後 π = 斜対歩）。止まっている時は真っ直ぐ。
+        // 部品には付けない（torso に付けて体の上下だけ貰う）。以前は腕 / 脚の部品に付けていたが、部品の軸（肩・股）から
+        // 離れた所に描いた脚が振り子のように上下に暴れた（ユーザー「脚が乱れている」）
+        bool leg = false;
+        // 虫の脚（2026-10-26、大サソリ）：true なら VS の g_AnimMode 5 = flap.xyz（脚の付け根）を通る縦軸の周りに、歩きの時計で
+        // 前後に掻く（振幅 0.38 rad、位相 flap.w。前へ戻す間は先ほど持ち上がる）。torso に付ける。
+        // 以前は方块人の 2 つの leg 部品に 4 本ずつ付けていた = 股の横軸で振れるので、横へ伸びた脚は上下に暴れた（ユーザー「蝎子动画不对」）
+        bool insectLeg = false;
     };
-    void SetBossLook(std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations)
+    void SetBossLook(std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations, bool hideBody = false)
     {
-        SetListLook(Swarm::kDrawListBoss, std::move(albedo), std::move(decorations));
+        SetListLook(Swarm::kDrawListBoss, std::move(albedo), std::move(decorations), hideBody);
     }
     // 描画リスト毎の皮と飾り（2026-10-25 に Boss 専用から一般化。遺跡の敵が使う）。albedo = null は今までの皮のまま。
-    // 飾りは砕け散りにも付いて行く（part に付けた物だけ。回る物・翼は消える）
-    void SetListLook(uint32_t list, std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations);
+    // 飾りは砕け散りにも付いて行く（part に付けた物だけ。回る物・翼は消える）。
+    // hideBody = 方块人の体を描かない（砕け散りも）：部品を骨にして飾りだけで組む敵（大サソリ、2026-10-26）
+    void SetListLook(uint32_t list, std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations, bool hideBody = false);
     // 飾りを作る側は GetEnemyModel() の部品の寸法（Model::SubMesh の boundsMin / Max・nodeName）を見る。
     // 部品の付け根（焼いた姿勢のノードの原点 = 首・肩・股）。焼いた歩きの姿勢では腕が振れているので、
     // 肩当ては包囲ボックスでなくこの点に合わせる
@@ -928,6 +941,7 @@ private:
     // 飾りの submesh 毎の間接引数は生きている一覧用と砕け中の一覧用の 2 組（InstanceCount はそのリストの一覧から）
     std::shared_ptr<Texture> m_ListLookAlbedo[Swarm::kEnemyKinds];
     std::vector<BossDecoration> m_ListDecos[Swarm::kEnemyKinds];
+    bool m_ListHideBody[Swarm::kEnemyKinds] = {};   // 体を描かないリスト（飾りだけの敵。2026-10-26）
     std::vector<std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>>> m_ListDecoArgs[Swarm::kEnemyKinds];
     std::vector<std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>>> m_ListDecoCorpseArgs[Swarm::kEnemyKinds];
     std::shared_ptr<Texture> m_DecoWhite;       // 飾りは頂点色だけで塗るので t0 は白

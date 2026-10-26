@@ -153,6 +153,13 @@ VS_OUTPUT main(VS_INPUT_INST input)
     bool frozen = status.z > 0.0;
     // a sleeping gargoyle is a statue: no motion at all (2026-10-25); the first part of its waking only shakes
     bool statue = (extra.kind == SWARM_KIND_GARGOYLE) && extra.fuse < 0.35 * g_GargoyleWakeTime;
+    // ---- the thunder stag's charge (2026-10-26, g_BossChargePose from BossAttacks): 0..1 wind-up, 1 dashing, 1..1.3 the
+    //      toss of the head on a hit, 1 -> 0 after. Only a quadruped boss gets a pose > 0 ----
+    float cpose = (extra.kind == SWARM_KIND_BOSS) ? g_BossChargePose : 0.0;
+    float headDown = min(cpose, 1.0);                 // the head lowered (antlers forward), antlers glowing
+    float headToss = saturate((cpose - 1.0) / 0.3);   // thrown up on the hit
+    float dashK = saturate((cpose - 0.85) / 0.15);    // 1 while dashing: lean, fast gait
+    bool bracing = (extra.kind == SWARM_KIND_BOSS) && (g_BossChargeOn > 0.5) && (g_BossChargeSpeed <= 0.0);   // standing in a wind-up
     // the stage's fixed elites (2026-10-25): the CPU's flags (attack loop, spin, enraged) and its wind-up glow
     uint eliteFlags = 0u;
     float eliteGlow = 0.0;
@@ -190,6 +197,85 @@ VS_OUTPUT main(VS_INPUT_INST input)
         inPos.xy = g_Flap.xy + float2(r.x * ac - r.y * as, r.x * as + r.y * ac);
         inNrm.xy = float2(inNrm.x * ac - inNrm.y * as, inNrm.x * as + inNrm.y * ac);
         inTan.xy = float2(inTan.x * ac - inTan.y * as, inTan.x * as + inTan.y * ac);
+        local = inPos;
+        normal = inNrm;
+        tangent = inTan;
+    }
+
+    // ---- a scorpion's tail (g_AnimMode 3, 2026-10-26): pitched about the sideways axis through the hinge (g_Flap.xyz)
+    //      before the torso's own animation. Sways slowly; whips forward over the head on the melee swing (g_Flap.w rad,
+    //      same timing as the attack clip), then comes back ----
+    if (g_AnimMode == 3u)
+    {
+        float ang = 0.12 * sin(g_AnimTime * 1.6 + phaseOffset);
+        float sinceStab = g_AttackInterval - e.attackCooldown;
+        if (e.attackCooldown > 0.0 && sinceStab < g_ClipLength.z)
+        {
+            float u = saturate(sinceStab / max(g_ClipLength.z, 0.05));
+            ang += g_Flap.w * sin(u * 3.14159);
+        }
+        // the stag's charge: the head goes down for the wind-up and stays down through the dash, is thrown up on the hit
+        ang += g_Flap.w * (headDown - 2.2 * headToss);
+        float ts, tc;
+        sincos(ang, ts, tc);
+        float2 r = inPos.yz - g_Flap.yz;
+        inPos.yz = g_Flap.yz + float2(r.x * tc - r.y * ts, r.x * ts + r.y * tc);
+        inNrm.yz = float2(inNrm.y * tc - inNrm.z * ts, inNrm.y * ts + inNrm.z * tc);
+        inTan.yz = float2(inTan.y * tc - inTan.z * ts, inTan.y * ts + inTan.z * tc);
+        local = inPos;
+        normal = inNrm;
+        tangent = inTan;
+    }
+
+    // ---- a quadruped's leg (g_AnimMode 4, 2026-10-26, the stag): swung about the sideways axis through its own top
+    //      (g_Flap.xyz) by the walk clock, phase g_Flap.w (front-left + hind-right 0, the other pair pi). Straight
+    //      while standing. The torso's own animation (its bob) is applied after this ----
+    if (g_AnimMode == 4u)
+    {
+        float ang = 0.0;
+        if (moving && !frozen)
+        {
+            float stride = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);   // walk loops = strides
+            // the charge (dashK): the legs swing faster and wider (a gallop)
+            ang = (0.5 + 0.25 * dashK) * sin(stride * 6.2831853 * (1.0 + 0.8 * dashK) + g_Flap.w);
+        }
+        else if (bracing)
+        {
+            // the wind-up: the front legs forward, the hind legs back (braced, g_Flap.z > 0 = a front leg)
+            ang = 0.22 * headDown * ((g_Flap.z > 0.0) ? -1.0 : 1.0);
+        }
+        float ls, lc;
+        sincos(ang, ls, lc);
+        float2 r = inPos.yz - g_Flap.yz;
+        inPos.yz = g_Flap.yz + float2(r.x * lc - r.y * ls, r.x * ls + r.y * lc);
+        inNrm.yz = float2(inNrm.y * lc - inNrm.z * ls, inNrm.y * ls + inNrm.z * lc);
+        inTan.yz = float2(inTan.y * lc - inTan.z * ls, inTan.y * ls + inTan.z * lc);
+        local = inPos;
+        normal = inNrm;
+        tangent = inTan;
+    }
+
+    // ---- an insect's leg (g_AnimMode 5, 2026-10-26, the scorpion): swept about the VERTICAL axis through its own root
+    //      (g_Flap.xyz) by the walk clock, phase g_Flap.w (a tripod gait: alternate legs on each side). Lifted a little
+    //      while it swings forward (the return stroke). +x legs sweep forward with a negative angle ----
+    if (g_AnimMode == 5u)
+    {
+        float ang = 0.0;
+        float lift = 0.0;
+        if (moving && !frozen)
+        {
+            float stride = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);
+            float ph = stride * 6.2831853 * (1.0 + 0.8 * dashK) + g_Flap.w;
+            ang = 0.38 * sin(ph) * ((g_Flap.x < 0.0) ? 1.0 : -1.0);
+            lift = 0.10 * max(0.0, cos(ph));
+        }
+        float ls, lc;
+        sincos(ang, ls, lc);
+        float2 r = inPos.xz - g_Flap.xz;
+        inPos.xz = g_Flap.xz + float2(r.x * lc + r.y * ls, -r.x * ls + r.y * lc);
+        inPos.y += lift * saturate(abs(r.x) / 0.75);
+        inNrm.xz = float2(inNrm.x * lc + inNrm.z * ls, -inNrm.x * ls + inNrm.z * lc);
+        inTan.xz = float2(inTan.x * lc + inTan.z * ls, -inTan.x * ls + inTan.z * lc);
         local = inPos;
         normal = inNrm;
         tangent = inTan;
@@ -276,6 +362,30 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y += bounce;
     }
 
+    // ---- the thunder stag's charge (2026-10-26): the whole body (every decoration passes through here) crouches a
+    //      little in the wind-up and pitches forward about the hips while dashing. Hips = (y 0.5, z -0.6) in the baked
+    //      mesh space (the hind legs' hinge after the stag's 1.15x scale) ----
+    if (cpose > 0.0)
+    {
+        // the werewolf's pounce: a parabola of g_BossJumpHeight (world m; the kind scale is applied below, so divide it out)
+        if (g_BossJumpHeight > 0.0)
+        {
+            float p = min(cpose, 1.0);
+            local.y += g_BossJumpHeight * 4.0 * p * (1.0 - p) / max(SwarmKindScale(extra.kind), 1.0);
+        }
+        local.y -= 0.08 * headDown * (1.0 - dashK);
+        // the pivot and angle come from the CPU per boss (g_BossLeanPivot* / g_BossLeanAngle: the stag's hips (0.5, -0.6) 0.17,
+        // the scorpion's low body (-0.6, 0) 0.08. 0 = no lean)
+        float lean = g_BossLeanAngle * dashK;
+        float ps, pc;
+        sincos(lean, ps, pc);
+        float2 hips = float2(g_BossLeanPivotY, g_BossLeanPivotZ);
+        float2 r = local.yz - hips;
+        local.yz = hips + float2(r.x * pc - r.y * ps, r.x * ps + r.y * pc);
+        normal.yz = float2(normal.y * pc - normal.z * ps, normal.y * ps + normal.z * pc);
+        tangent.yz = float2(tangent.y * pc - tangent.z * ps, tangent.y * ps + tangent.z * pc);
+    }
+
     // ---- elite: bigger body, anchored at the feet (SwarmKindCapsule matches) ----
     float kindScale = SwarmKindScale(extra.kind);
     if (kindScale != 1.0)
@@ -342,7 +452,14 @@ VS_OUTPUT main(VS_INPUT_INST input)
     if (extra.kind == SWARM_KIND_ELITE)
         o.Color.rgb *= kEliteTint;
     else if (extra.kind == SWARM_KIND_BOSS)
+    {
         o.Color.rgb *= g_BossTint;
+        // the thunder stag: its glowing parts (HDR vertex colour = the antler edges and eyes) flare up through the
+        // wind-up and the dash (2026-10-26)
+        float glowy = max(max(input.Color.r, input.Color.g), input.Color.b);
+        if (glowy > 1.2)
+            o.Color.rgb *= 1.0 + 1.0 * headDown;
+    }
     else if (extra.kind == SWARM_KIND_GHOST)
     {
         o.Color.rgb *= kGhostTint * g_GhostGlow;

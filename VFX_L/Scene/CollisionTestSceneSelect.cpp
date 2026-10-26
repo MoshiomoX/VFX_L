@@ -119,6 +119,7 @@ void CollisionTestScene::BuildSelectWorlds()
         TerrainGenerator::Config cfg;
         cfg.seed = kTitleSeed;
         cfg.biome = StageConfig::Get(stage).biome;
+        TerrainGenerator::ApplyBiomeProfile(cfg);   // マップ毎の地形の規則（2026-10-26）
         m_TerrainConfig = cfg;
         m_MapFile.clear();
         m_StageIndex = stage;
@@ -342,10 +343,10 @@ void CollisionTestScene::UpdateSelect(float dt)
         p.lastTier = m_SelectUI.Tier();
         if (!SelectAutoTest()) p.Save();
         g_RunCarry.Reset();
-        g_RunCarry.startStage = m_SelectUI.Map();
-        g_RunCarry.tier = m_SelectUI.Tier();
         g_RunCarry.stage = m_SelectUI.Map();
-        std::cout << "[StageSelect] start map " << g_RunCarry.startStage << " tier " << g_RunCarry.tier << std::endl;
+        g_RunCarry.pos = 1;
+        g_RunCarry.tier = m_SelectUI.Tier();
+        std::cout << "[StageSelect] start map " << g_RunCarry.stage << " tier " << g_RunCarry.tier << std::endl;
         sm.RequestChangeScene(SceneType::COLLISION_TEST);
         break;
     }

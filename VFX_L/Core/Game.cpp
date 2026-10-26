@@ -56,7 +56,9 @@ bool Game::Initialize(Renderer* renderer)
     {
         // TEMP-TEST: 商店の自動テスト。第 1 面をクリアした体の引き継ぎを積んで商店へ直行（Scene/ShopScene::AutoTest）
         g_RunCarry.Reset();
-        g_RunCarry.stage = 2;
+        g_RunCarry.stage = 1;   // 草原の Tier 2、2 面目へ向かう商店（10-26 から同じマップを続ける）
+        g_RunCarry.pos = 2;
+        g_RunCarry.tier = 2;
         g_RunCarry.hasPlayer = true;
         g_RunCarry.wallet.gold = 100.0f;
         g_RunCarry.spellbook.Learn(ItemID::HomingBolt, 1);

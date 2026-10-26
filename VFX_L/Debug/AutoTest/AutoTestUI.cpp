@@ -141,8 +141,8 @@ void AutoTestUI::Run(float dt)
         auto& lv = m_Registry.Get<LevelComponent>(m_Player);
         if (lv.IsChoosing())
         {
-            lv.pendingChoices = { ItemID::MoveSpeedUp, ItemID::JumpPowerUp, ItemID::MaxHealthUp };
-            AutoTestLog("ui levelup choices: MoveSpeedUp / JumpPowerUp / MaxHealthUp");
+            lv.pendingChoices = { ItemID::MoveSpeedUp, ItemID::MaxManaUp, ItemID::MaxHealthUp };   // JumpPowerUp は 10-26 に削除
+            AutoTestLog("ui levelup choices: MoveSpeedUp / MaxManaUp / MaxHealthUp");
             // 2026-10-15：四択は 1.2 秒待ってから出る。この時点は「レベルアップ！」の案内だけ（ゲームは動いている）
             char line[96];
             snprintf(line, sizeof(line), "ui levelup wait choiceDelay %.2f modal %d", lv.choiceDelay, (int)m_GameUI.IsModalOpen());
@@ -178,8 +178,8 @@ void AutoTestUI::Run(float dt)
         snprintf(line, sizeof(line), "ui stat before: moveSpeed %.3f jumpPower %.3f", st.moveSpeed, st.jumpPower);
         AutoTestLog(line);
         LevelUpSystem::Choose(m_Registry, m_Player, ItemID::MoveSpeedUp);
-        lv.pendingChoices = { ItemID::JumpPowerUp };
-        LevelUpSystem::Choose(m_Registry, m_Player, ItemID::JumpPowerUp);
+        lv.pendingChoices = { ItemID::MaxManaUp };
+        LevelUpSystem::Choose(m_Registry, m_Player, ItemID::MaxManaUp);
         snprintf(line, sizeof(line), "ui stat after : moveSpeed %.3f jumpPower %.3f", st.moveSpeed, st.jumpPower);
         AutoTestLog(line);
         m_AutoStep = 8;

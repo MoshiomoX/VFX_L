@@ -152,6 +152,23 @@ namespace TerrainGenerator
         // 道を塞ぐのは大きい物だけにする）。値は拡縮後の大きさ
         float treeBlockMinHeight = 3.0f;   // m（木の高さ）
         float rockBlockMinSize = 1.2f;     // m（岩の足跡の長い辺）
+        // ---- 場内の岩柱と峡谷の壁（砂漠。2026-10-26 マップ毎の地形の第 2 段、TerrainBuild::EmitFieldRock）----
+        // 崖の岩（PropSet の cliff）を引き伸ばして場内に立てる：凸包の衝突 + 足元のマスを塞ぐ。岩柱 = 1 個を高く細く、
+        // 峡谷の壁 = 軸に沿って（±jitter）3〜5 個を一直線に並べた長い壁。既定 0 = 無し（TerrainBiomeProfile が砂漠で入れる）
+        int   pillarCount = 0;
+        float pillarHeightMin = 6.0f, pillarHeightMax = 11.0f;   // m
+        float pillarWidthMin = 3.0f, pillarWidthMax = 5.5f;      // 足跡の一辺 m
+        int   canyonCount = 0;
+        float canyonLengthMin = 22.0f, canyonLengthMax = 38.0f;  // m
+        float canyonHeight = 8.0f;                               // m
+        float canyonThickness = 4.0f;                            // m
+        float canyonJitterDeg = 12.0f;                           // 軸からの傾き
+        // ---- 遺跡の内側の部屋と廊下（2026-10-26 マップ毎の地形の第 2 段。Biome::Dungeon の外周の壁と同じ Wall 片）----
+        // 空き地に矩形の部屋：外周 1 マスを壁（Wall 片を積む + 箱の衝突 + 塞ぐ）、角は柱、各辺に戸口 1 つ、内側の面に松明。
+        // 部屋同士は 2 マス以上離す = その間が廊下。既定 0 = 無し（TerrainBiomeProfile が遺跡で入れる）
+        int   ruinRoomCount = 0;
+        int   ruinRoomMinCells = 5, ruinRoomMaxCells = 9;        // 一辺のマス数（壁のマスを含む。5 = 10m）
+        float ruinInnerWallHeight = 3.5f;                        // m（Wall 片を積む高さ）
 
         // ---- 外周の崖 ----
         float wallHeight = 7.0f;
@@ -239,6 +256,10 @@ namespace TerrainGenerator
         struct Ramp { DirectX::SimpleMath::Vector3 top, down; };
         std::vector<Ramp> summitRamps, mineRamps;
     };
+
+    // マップ毎の地形の生成規則（World/TerrainBiomeProfile.cpp、2026-10-26）：cfg.biome を決めた直後に呼んで
+    // 段々の台地・起伏・水たまり・置物の数を砂漠 / 遺跡向けに上書きする（草原は既定のまま）
+    void ApplyBiomeProfile(Config& cfg);
 
     // 床・外周・台地・坂道・高台を生成し、grid に占有と高さを登録する。
     // 生成した Entity は outTerrain に積む（シーンが破棄用に持つ）。

@@ -49,11 +49,12 @@ namespace
     }
 }
 
-void SwarmSystem::SetListLook(uint32_t list, std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations)
+void SwarmSystem::SetListLook(uint32_t list, std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations, bool hideBody)
 {
     if (list >= Swarm::kEnemyKinds) return;
     m_ListLookAlbedo[list] = std::move(albedo);
     m_ListDecos[list] = std::move(decorations);
+    m_ListHideBody[list] = hideBody;
     m_ListDecoArgs[list].clear();
     m_ListDecoCorpseArgs[list].clear();
     if (!m_Device) return;
@@ -101,7 +102,7 @@ void SwarmSystem::RenderListDecorations(uint32_t list)
         const bool orbit = (deco.part == kDecoOrbit);
         const bool flap = (deco.flap.w != 0.0f);
         m_EnemyAnim.part = orbit ? 0u : deco.part;
-        m_EnemyAnim.mode = orbit ? 1u : (flap ? 2u : 0u);
+        m_EnemyAnim.mode = orbit ? 1u : (deco.insectLeg ? 5u : (deco.leg ? 4u : (deco.tail ? 3u : (flap ? 2u : 0u))));   // 3 = 尾 / 首、4 = 四足の脚、5 = 虫の脚（2026-10-26）
         m_EnemyAnim.orbitSpeed = deco.orbitSpeed;
         m_EnemyAnim.flap[0] = deco.flap.x;
         m_EnemyAnim.flap[1] = deco.flap.y;
@@ -129,7 +130,7 @@ void SwarmSystem::RenderCorpseDecorations(uint32_t list, CorpseCB& ccb)
     for (size_t d = 0; d < decos.size() && d < argsList.size(); ++d)
     {
         const BossDecoration& deco = decos[d];
-        if (!deco.model || deco.part == kDecoOrbit || deco.flap.w != 0.0f) continue;
+        if (!deco.model || deco.part == kDecoOrbit || deco.flap.w != 0.0f || deco.tail || deco.leg || deco.insectLeg) continue;
         ccb.part = deco.part;
         m_CorpseVS->WriteBuffer(m_Context, 4, &ccb);
         const auto& subs = deco.model->GetSubMeshes();

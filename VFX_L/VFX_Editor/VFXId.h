@@ -91,6 +91,8 @@ enum class VFXId : uint32_t
     BossSandSpear,  // 砂の槍のトゲの根元の砂煙
     BossSandAura,   // 砂の守護者の体の周りに舞う砂（ループ。地上に居る間ずっと）
     BossStoneAura,  // 岩の巨人の肩から舞い落ちる葉と花粉（ループ。2026-10-25）
+    BossVenom,      // 大サソリの毒針に刺されたプレイヤーの周りの毒の泡（ループ、プレイヤーに付く。2026-10-26）
+    BossVenomAura,  // 大サソリの足元に漂う毒の靄と緑の光（ループ。地上に居る間ずっと。2026-10-26）
     // 遺跡の敵（2026-10-25、CPU。MobSpawner の出来事 → CollisionTestSceneRuins.cpp）
     RuinsArmorFall,     // 呪いの鎧が崩れた鎧の山 + 紫の靄（蘇るまで）
     RuinsArmorRise,     // 蘇る瞬間の紫の炎

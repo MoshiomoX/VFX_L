@@ -82,34 +82,30 @@ void CollisionTestScene::InitRenderers(ID3D11Device* device, ID3D11DeviceContext
 void CollisionTestScene::InitStage()
 {
     // ---------- 面（草原 / 砂漠 / 遺跡）----------
-    // 前の面から引き継いだ番号（g_RunCarry.stage。ステージ選択で決めた開始マップから始まる）。
-    // VFXL_STAGE=n で上書き（デバッグ：その面だけ = Tier 1。VFXL_TIER=n で Tier も）
+    // マップ（g_RunCarry.stage。ステージ選択で決める、プレイの間ずっと同じ）と何面目か（g_RunCarry.pos）、Tier。
+    // VFXL_STAGE=n で上書き（デバッグ：そのマップ。VFXL_TIER=n で Tier、VFXL_POS=n で何面目か = 2 面目・3 面目の難度を見る）
     m_StageIndex = g_RunCarry.stage;
-    m_RunStart = g_RunCarry.startStage;
+    m_RunPos = g_RunCarry.pos;
     m_RunTier = g_RunCarry.tier;
-    bool stageFromEnv = false;
     {
         char env[16] = {};
         if (GetEnvironmentVariableA("VFXL_STAGE", env, sizeof(env)) > 0)
         {
             m_StageIndex = atoi(env);
-            m_RunStart = m_StageIndex;
+            m_RunPos = 1;
             m_RunTier = 1;
-            stageFromEnv = true;
             if (GetEnvironmentVariableA("VFXL_TIER", env, sizeof(env)) > 0) m_RunTier = atoi(env);
+            if (GetEnvironmentVariableA("VFXL_POS", env, sizeof(env)) > 0) m_RunPos = atoi(env);
         }
         m_StageIndex = std::clamp(m_StageIndex, 1, StageConfig::kStageCount);
         if (m_TitleScene) m_StageIndex = 1;   // タイトルの景色はいつも草原
         if (m_SelectScene) m_StageIndex = std::clamp(GameProgress::Get().lastMap, 1, StageConfig::kStageCount);   // 前回選んだマップの景色から
-        m_RunStart = std::clamp(m_RunStart, 1, m_StageIndex);
-        m_RunTier = std::clamp(m_RunTier, 1, StageConfig::MaxTier(m_RunStart));
-        if (m_StageIndex > m_RunStart + m_RunTier - 1) m_RunTier = m_StageIndex - m_RunStart + 1;   // 計画より先の面に来た（デバッグ）
+        m_RunTier = std::clamp(m_RunTier, 1, StageConfig::kMaxTier);
+        m_RunPos = std::clamp(m_RunPos, 1, m_RunTier);
     }
-    // 進み具合：プレイの中でこの面に入った → 開始マップとして解放（2026-10-21、Megabonk の「2 面目に入ると砂漠が開く」）
-    if (!m_LabScene && !IsMenuScene() && !stageFromEnv && GameProgress::Get().OnStageEntered(m_StageIndex))
-        GameProgress::Get().Save();
     const StageDef& stageDef = StageConfig::Get(m_StageIndex);
     m_TerrainConfig.biome = stageDef.biome;
+    TerrainGenerator::ApplyBiomeProfile(m_TerrainConfig);   // マップ毎の地形の規則（2026-10-26）
     m_Lighting.ApplyPreset(stageDef.light);
     std::cout << "[CollisionTestScene] stage " << m_StageIndex << " biome " << (int)stageDef.biome << std::endl;
     if (m_AutoTest)
@@ -243,14 +239,14 @@ void CollisionTestScene::InitSwarm(const StageDef& stageDef, ID3D11Device* devic
     m_Audio.Init(m_Swarm, m_StageIndex);   // 範囲の音の表（範囲の profile と VFX 表の後）
     {
         // 難度 = 表 × 「何面目か」（PosDifficulty。2026-10-17 の面毎の値）× マップ自体（StageDef）× Tier（2026-10-21、ステージ選択）
-        const auto& pos = StageConfig::PosDifficulty(m_StageIndex - m_RunStart);
+        const auto& pos = StageConfig::PosDifficulty(m_RunPos - 1);
         const auto& tier = StageConfig::TierMul(m_RunTier);
         m_Mobs.stageTimeOffsetMin = pos.timeOffsetMin + stageDef.difficultyTimeOffsetMin;
         m_Mobs.stageHpMul = pos.hpMul * stageDef.difficultyHpMul * tier.hpMul;
         m_Mobs.stageDamageMul = pos.damageMul * stageDef.difficultyDamageMul * tier.damageMul;
         m_Mobs.stageSpawnMul = pos.spawnMul * stageDef.difficultySpawnMul;
         m_ExpMul = tier.expMul;
-        std::cout << "[CollisionTestScene] run start " << m_RunStart << " tier " << m_RunTier << " pos " << (m_StageIndex - m_RunStart)
+        std::cout << "[CollisionTestScene] run map " << m_StageIndex << " tier " << m_RunTier << " pos " << m_RunPos
             << " -> table +" << m_Mobs.stageTimeOffsetMin << " min HP x" << m_Mobs.stageHpMul << " dmg x" << m_Mobs.stageDamageMul
             << " spawn x" << m_Mobs.stageSpawnMul << " exp x" << m_ExpMul << std::endl;
     }
@@ -355,7 +351,7 @@ void CollisionTestScene::InitStageFlow(const StageDef& stageDef, ID3D11Device* d
     m_Crates.Init();
     m_Stage.Init();
     m_BossAttacks.Reset();
-    InitBossFx(stageDef.boss);   // 面の Boss（技の組み合わせ・召喚・体の色。2026-10-24）
+    InitBossFx(stageDef.BossAt(m_RunPos));   // 面の Boss（技の組み合わせ・召喚・体の色。2026-10-24。何面目かで替わる 10-26）
     m_BossSlamHits = 0;
     m_Pickups.Init(device);
     if (m_LabScene || IsMenuScene())

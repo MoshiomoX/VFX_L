@@ -40,7 +40,10 @@ void CountAlive(uint i, float3 pos)
     counters.InterlockedAdd(SWARM_CNT_ALIVE_ENEMIES, 1u, prev);
     float3 dp = pos - g_PlayerPos;
     float dist = sqrt(dp.x * dp.x + dp.z * dp.z);
-    uint key = (asuint(dist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK);
+    // the key sorts by SwarmAimKeyDist (boss / elite first unless a mob is close, 2026-10-26); AimResolveCS
+    // writes the winner's real distance back for the CPU
+    float keyDist = SwarmAimKeyDist(enemyExtra[i].kind, dist);
+    uint key = (asuint(keyDist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK);
     if (!SwarmUntargetable(enemyExtra[i]))   // a burrower under the sand / a tornado is not a target (2026-10-17)
         counters.InterlockedMin(SWARM_CNT_NEAREST_KEY, key, prev);
 }

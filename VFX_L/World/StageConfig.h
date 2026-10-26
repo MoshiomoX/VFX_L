@@ -9,7 +9,7 @@
 #pragma once
 #include "World/TerrainGenerator.h"
 #include "Graphics/Light/SceneLighting.h"
-#include "Enemy/BossBrain.h"
+#include "Enemy/Boss/BossBrain.h"
 #include <SimpleMath.h>
 #include <algorithm>
 
@@ -65,6 +65,14 @@ struct StageDef
 
     // 面の Boss（2026-10-24、ユーザー「面毎に専用の Boss」）。技の組み合わせ・召喚する敵・体の色（BossAttacks::Configure）
     BossType boss = BossType::StoneGiant;
+    // 2 面目・3 面目の Boss（2026-10-26 から同じマップを続けるので面毎に別の Boss。Count = 1 面目と同じ）
+    BossType boss2 = BossType::Count;
+    BossType boss3 = BossType::Count;
+    BossType BossAt(int pos) const   // pos = 何面目か（1 始まり）
+    {
+        const BossType b = (pos >= 3) ? boss3 : (pos == 2) ? boss2 : boss;
+        return (b == BossType::Count) ? boss : b;
+    }
 
     // 遺跡の松明（外周の壁に付く）に点光源を付ける数（プレイヤーに近い順。点光源の表（上限 256）を圧迫しないように）
     int torchLights = 12;
@@ -77,11 +85,11 @@ namespace StageConfig
     // 1..kStageCount。範囲外は端に丸める
     const StageDef& Get(int stage);
 
-    // ---- ステージ選択（2026-10-21 ユーザー：「Megabonk に完全に倣う」）----
-    // マップ（開始ステージ）を選び、Tier n = そこから n 面続けて戦う（順番は草原 → 砂漠 → 遺跡で固定）。
-    // 最大の Tier = 残りの面数（草原 3 / 砂漠 2 / 遺跡 1）
+    // ---- ステージ選択（2026-10-21 ユーザー：「Megabonk に完全に倣う」。10-26 ユーザー「三つのマップを完全に分ける」）----
+    // マップを選び、Tier n = 同じマップを n 面続けて戦う（森林 → 森林 2 → 森林 3。以前は草原 → 砂漠 → 遺跡 の順に続けていた）。
+    // どのマップも Tier 1〜3。2 面目 / 3 面目の難度は PosDifficulty、マップの解放は Core/GameProgress
     inline constexpr int kMaxTier = 3;
-    inline int MaxTier(int startStage) { return kStageCount - std::clamp(startStage, 1, kStageCount) + 1; }
+    inline int MaxTier(int) { return kMaxTier; }
 
     // 「プレイの中で何面目か」による難度（2026-10-17 の面毎の難度をそのまま位置に付け替えた物）：
     // 2 面目は難度表を 10 分進めた所から × HP 2.5 …、3 面目は 20 分 × 2.8 …（持ち物を抱えて来る前提）

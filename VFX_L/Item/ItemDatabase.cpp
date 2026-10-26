@@ -31,7 +31,6 @@
 #include "Item/Items/MaxHealthUp.h"
 #include "Item/Items/MaxManaUp.h"
 #include "Item/Items/MoveSpeedUp.h"
-#include "Item/Items/JumpPowerUp.h"
 #include "Item/Items/ManaRegenUp.h"
 #include "Item/Items/JumpCountUp.h"
 #include "Item/Items/SpellPowerUp.h"
@@ -212,7 +211,7 @@ void ItemDatabase::Initialize()
     Register(MakeMaxHealthUp());
     Register(MakeMaxManaUp());
     Register(MakeMoveSpeedUp());
-    Register(MakeJumpPowerUp());
+    // 跳躍力 +8%（JumpPowerUp）は 2026-10-26 に削除（ユーザー「釣り合いを壊している」）。ItemID / StatKind::JumpPower は残る（引き継ぎの stats.jumpPower は変えない）
     Register(MakeManaRegenUp());
     Register(MakeJumpCountUp());
     Register(MakeSpellPowerUp());

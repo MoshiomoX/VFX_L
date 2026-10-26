@@ -375,6 +375,13 @@ namespace TerrainBuild
     // grid = 衝突を付ける時に足元のマスを塞ぐ先（null = 塞がない）。outBlocked に塞いだマスの数
     int EmitRimBoulders(Emitter& emit, GridWorld* grid, float halfW, float halfD, const RimBoulderParams& P,
         const std::vector<std::string>& modelPaths, const EdgeSpanFn& edgeSpan, std::mt19937& rng, int* outBlocked = nullptr);
+    // 場内の岩 1 個（岩柱 / 峡谷の壁の 1 節。2026-10-26）：箱の真ん中（xz）center、長い軸を axis（(1,0,0) か (0,0,1)）に
+    // 合わせてから yawDeg 回す、axis 方向に length・直交に depth・高さ height、底 base。凸包の衝突 + 足元のマスを塞ぐ。
+    // 戻り値 = 塞いだマスの数。回した後の長い軸の向き = TransformNormal(axis, CreateRotationY(yawDeg))（FitRock と同じ式）
+    // newGroup = false なら前の記録と同じ group に入れる（峡谷の壁の 2 節目以降 = 1 枚の壁として記録）
+    int EmitFieldRock(Emitter& emit, GridWorld& grid, const std::vector<std::string>& modelPaths, const Vector3& center,
+        const Vector3& axis, float yawDeg, float length, float depth, float height, float base, std::mt19937& rng, MapData::Kind kind,
+        bool newGroup = true);
     // 洞窟の上の山：塊の包囲矩形に真ん中 1 個 + 両端 1 個ずつ（rockMax / rockMin は EmitRoofRocks と同じ意味の高さ）
     int EmitRoofBoulders(Emitter& emit, const GridWorld& origin, const std::vector<uint8_t>& zone,
         const std::vector<uint8_t>& ring, float roofTopY, float rockMin, float rockMax,

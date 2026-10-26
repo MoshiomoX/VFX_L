@@ -1898,7 +1898,7 @@ void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
             bindVS();   // 自分のテクスチャが無い種類は雑魚のテクスチャに戻す
         m_CorpseVS->SetSRV(m_Context, "corpseList", m_CorpseListSRV[k].Get());
 
-        for (size_t i = 0; i < subs.size() && i < m_CorpseDrawArgs[k].size(); ++i)
+        for (size_t i = 0; !m_ListHideBody[k] && i < subs.size() && i < m_CorpseDrawArgs[k].size(); ++i)   // 飾りだけの敵（2026-10-26）
         {
             if (!subs[i].mesh || !m_CorpseDrawArgs[k][i]) continue;
             ccb.part = (uint32_t)i;
@@ -2531,7 +2531,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
             m_Context->OMSetBlendState(RenderStates::Get().AlphaBlend(), bf, 0xFFFFFFFF);
         }
 
-        for (size_t i = 0; i < subs.size() && i < m_EnemyDrawArgs[k].size(); ++i)
+        for (size_t i = 0; !m_ListHideBody[k] && i < subs.size() && i < m_EnemyDrawArgs[k].size(); ++i)   // 飾りだけの敵は体を描かない（2026-10-26）
         {
             if (!subs[i].mesh || !m_EnemyDrawArgs[k][i]) continue;
             // VS b4: どの部品を描いているか（部品アニメの表の列）

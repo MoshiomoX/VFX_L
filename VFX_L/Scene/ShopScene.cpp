@@ -480,7 +480,7 @@ void ShopScene::Render(Renderer& renderer)
 
         const int stage = std::clamp(g_RunCarry.stage, 1, StageConfig::kStageCount);
         wchar_t buf[96];
-        swprintf_s(buf, L"次は %ls（ステージ %d / %d）　向かう前に", StageConfig::Get(stage).name, stage - g_RunCarry.startStage + 1, g_RunCarry.tier);
+        swprintf_s(buf, L"次は %ls %d（ステージ %d / %d）　向かう前に", StageConfig::Get(stage).name, g_RunCarry.pos, g_RunCarry.pos, g_RunCarry.tier);
         DrawOutlined(m_Text, buf, { x0, y }, { 0.86f, 0.84f, 0.80f, 1.0f }, 0.42f * k, 1.5f * k);
     }
 
