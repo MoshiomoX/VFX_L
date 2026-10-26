@@ -94,6 +94,7 @@ namespace
         { VFXId::RuinsRaiseMark, Res::VFX::RuinsRaiseMark, Group::Enemy },
         { VFXId::RuinsSkeletonRise, Res::VFX::RuinsSkeletonRise, Group::Enemy },
         { VFXId::RuinsChainHit, Res::VFX::RuinsChainHit, Group::Enemy },
+        { VFXId::SandTornado, Res::VFX::SandTornado, Group::Enemy },   // 砂旋の本体（2026-10-26）
         { VFXId::EliteSpawn, Res::VFX::EliteSpawn, Group::Enemy },
         { VFXId::EliteAxeSpin, Res::VFX::EliteAxeSpin, Group::Enemy },
         { VFXId::EliteArrow, Res::VFX::EliteArrow, Group::Enemy },

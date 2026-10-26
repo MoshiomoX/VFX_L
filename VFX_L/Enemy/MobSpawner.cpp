@@ -143,6 +143,7 @@ void MobSpawner::SpawnFromEvents(const GridWorld& grid, const Vector3& player, S
             const Vector3 p = ev.position + dir * 1.0f;
             swarm.SpawnEnemy(p, 1000000.0f, tornadoSpeed * finalSpeedMul, Swarm::kEnemyKindTornado, yaw);
             ++m_TornadoesSpawned;
+            m_TornadoBirths.push_back({ p, yaw, tornadoSpeed * finalSpeedMul });   // 見た目（SandTornadoFx）用
             AudioSystem::Get().Play("cast_gust");
             continue;
         }

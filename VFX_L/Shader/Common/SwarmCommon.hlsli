@@ -520,7 +520,8 @@ float SwarmAreaPush(uint flags)
 static const float SWARM_PULL_SHARE = 0.62; // share of the distance per pulse at q = 15
 static const float SWARM_PULL_DEAD = 0.35;  // m
 
-// burrower under the sand: cannot be hit, does not bite, is not targeted (2026-10-17)
+// burrower under the sand: projectiles and beams cannot hit it, it does not bite, is not targeted (2026-10-17);
+// ground areas (meteor blast, poison pool, ice spikes...) still reach it (2026-10-26, AreaDamageCS)
 static const float SWARM_BURROW_RISE_TIME = 0.3; // seconds the body takes to rise out / sink in (look only)
 bool SwarmBuried(SwarmEnemyExtra ex)
 {
@@ -534,7 +535,8 @@ bool SwarmInvulnerable(SwarmEnemyExtra ex)
 {
     return (ex.kind == SWARM_KIND_BOMBER || ex.kind == SWARM_KIND_DASHBOMBER) && ex.fuse > 0.0;
 }
-// cannot be hit by anything, is not targeted by spells / beams / the nearest-enemy search, has no HP bar:
+// cannot be hit by projectiles / beams, is not targeted by spells / beams / the nearest-enemy search, has no HP bar
+// (exception: a buried one is hit by ground areas and keeps its bar, see AreaDamageCS / HpBarVS):
 // a buried burrower, the sand mage's tornado (2026-10-17), a lit bomber / dash bomber (2026-10-18)
 bool SwarmUntargetable(SwarmEnemyExtra ex)
 {

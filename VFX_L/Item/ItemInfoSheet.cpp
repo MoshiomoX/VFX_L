@@ -234,8 +234,8 @@ namespace ItemInfoSheet
         const bool splash = ap && !blast && ap->splashOnly;
 
         // ---- 文：飛び方。足元に落ちる物は範囲と 1 文にまとめる ----
-        if (b.triggerLine)   // 線で撃つ上級魔法（アイススパイク）：弾は飛ばない
-            s.traits.push_back(ice ? L"足元から連鎖した場所の奥まで、氷のトゲが走る" : L"足元から連鎖した場所の奥まで、範囲が走る");
+        if (b.triggerLine)   // 線で撃つ上級魔法（アイススパイク）：弾は飛ばない。向きは一番近い敵、長さは固定（2026-10-26）
+            s.traits.push_back(ice ? L"足元から一番近い敵の方へ、氷のトゲが走る" : L"足元から一番近い敵の方へ、範囲が走る");
         else if (drop)
         {
             const std::wstring what = !ap ? L"に落ちる" : ice ? L"から前へ氷が突き出る" : blast ? L"で爆発する"
@@ -314,6 +314,12 @@ namespace ItemInfoSheet
                     s.stats.push_back(StatLine(L"範囲の威力", dmg, baseDmg, per.c_str(), +1));
                 s.stats.push_back(StatLine(L"範囲の持続", ap->duration, ap->duration, L"秒", +1));
             }
+        }
+        // 線で撃つ上級魔法（アイススパイク）：線の長さ。当たり半径の倍率（拡大鏡）で伸びる（WeaponSystem::QueueTriggeredLine と同じ式）
+        if (b.triggerLine)
+        {
+            const float mul = (pp.radius > 0.0f) ? v.radius / pp.radius : 1.0f, baseMul = (pp.radius > 0.0f) ? b.radius / pp.radius : 1.0f;
+            s.stats.push_back(StatLine(L"射程", v.lineLength * mul, b.lineLength * baseMul, L"m", +1));
         }
         if (v.projectileCount != 1 || v.projectileCount != b.projectileCount)
             s.stats.push_back(StatLine(L"弾数", (float)v.projectileCount, (float)b.projectileCount, L"", +1));

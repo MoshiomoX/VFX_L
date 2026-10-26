@@ -64,6 +64,7 @@
 #include "Enemy/StageDirector.h"
 #include "Enemy/BossAttacks.h"
 #include "Enemy/EliteAttacks.h"
+#include "Enemy/SandTornadoFx.h"
 #include "Graphics/Light/SceneLighting.h"
 #include "Graphics/PostProcess/Outline.h"
 #include "Graphics/Light/ShadowMap.h"
@@ -280,6 +281,8 @@ private:
     IceSpikeField           m_SandSpikes;          // 「砂の槍」の石のトゲ（IceSpikeField を石の地刺のモデルで）
     uint32_t                m_BossMoundVfx = 0;    // 潜砂の砂丘（Boss に付いて動く。0 = 出ていない）
     uint32_t                m_BossAuraVfx = 0;     // 砂の守護者の体の周りに舞う砂（地上に居る間ずっと。0 = 出ていない）
+    SandTornadoFx           m_SandTornadoes;       // 砂嵐の術師の砂旋の本体（CPU が同じ直線で追う砂色の柱。2026-10-26）
+    uint32_t                m_SandTornadoKillSerial = 0;   // KillAll の回数（変わったら柱を全部消す）
     struct BossDelayedVfx { float wait = 0.0f; int id = 0; DirectX::SimpleMath::Vector3 pos; };
     std::vector<BossDelayedVfx> m_BossDelayedVfx;  // 砂の槍の根元の砂煙（トゲの前線が通る時刻に出す）
     void InitBossFx(BossType type);                // 面の Boss に合わせる（技の組み合わせ・石のトゲの見た目）

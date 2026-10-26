@@ -25,7 +25,7 @@ void VFXParticleEntry::SyncMeshSlot(const VFXContext& ctx)
 {
     if (emitterData.renderMode == 0 || emitterData.meshPath.empty())
     {
-        ReleaseMeshSlot();
+        ReleaseMeshSlot();  
         emitterData.meshSlot = 0;
         return;
     }

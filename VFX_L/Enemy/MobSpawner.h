@@ -132,6 +132,9 @@ public:
     // 砂嵐の術師が放つ砂旋の速さ m/s（砂旋 = kEnemyKindTornado。飛ぶ秒は BomberCB::tornadoLife）
     float tornadoSpeed = 3.5f;
     uint32_t GetTornadoesSpawned() const { return m_TornadoesSpawned; }   // 自動テスト用（累計）
+    // 砂旋が生まれた所・向き・速さ（見た目は CPU：Enemy/SandTornadoFx が同じ直線で追って柱を描く。2026-10-26）。場面が毎フレーム取り出す
+    struct TornadoBirth { DirectX::SimpleMath::Vector3 pos; float yaw = 0.0f; float speed = 0.0f; };
+    void ConsumeTornadoBirths(std::vector<TornadoBirth>& out) { out.swap(m_TornadoBirths); m_TornadoBirths.clear(); }
     // 自動テストの記録用: 届いた分裂の数・湧かせた分裂体の数（累計）
     uint32_t GetSplitEventsSeen() const { return m_SplitEventsSeen; }
     uint32_t GetSplitlingsSpawned() const { return m_SplitlingsSpawned; }
@@ -270,6 +273,7 @@ private:
     float m_DashBomberSpeed = 3.6f;  // 平時の追いかけ（点火後は BomberCB::dashBomberDashSpeed）
     int   m_DebugDashBombers = 0;
     uint32_t m_TornadoesSpawned = 0;
+    std::vector<TornadoBirth> m_TornadoBirths;   // 今フレーム生まれた砂旋（ConsumeTornadoBirths で空になる）
     uint32_t m_SplitEventsSeen = 0;
     uint32_t m_SplitlingsSpawned = 0;
     int   m_DebugGhosts = 0;

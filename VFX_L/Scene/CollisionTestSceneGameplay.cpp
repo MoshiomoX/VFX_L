@@ -59,6 +59,19 @@ void CollisionTestScene::UpdateGameplay(float dt)
         if (const Vector3* pp = PlayerPos())
         {
             m_Mobs.Update(m_Grid, *pp, dt, m_RunTime, m_Swarm);
+            {
+                // 砂旋の本体（Enemy/SandTornadoFx。2026-10-26）：生まれた砂旋を同じ直線で追いかけて砂色の柱を描く。全消しで消す
+                static std::vector<MobSpawner::TornadoBirth> s_TornadoBirths;
+                m_Mobs.ConsumeTornadoBirths(s_TornadoBirths);
+                for (const MobSpawner::TornadoBirth& b : s_TornadoBirths)
+                    m_SandTornadoes.Spawn(m_AreaVFX, m_VFXContext, b.pos, b.yaw, b.speed, m_Swarm.GetBomberParams().tornadoLife);
+                if (m_Swarm.GetKillAllCount() != m_SandTornadoKillSerial)
+                {
+                    m_SandTornadoKillSerial = m_Swarm.GetKillAllCount();
+                    m_SandTornadoes.Clear(m_AreaVFX);
+                }
+                m_SandTornadoes.Update(dt, m_AreaVFX, [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
+            }
             m_Stage.Update(m_Grid, *pp, m_RunTime, dt, m_Mobs, m_Swarm);   // 時間で起きる出来事（エリート・最終ウェーブ・Boss）
             UpdateBossAttacks(dt, *pp);                                    // Boss の技（CollisionTestSceneBoss.cpp）
             UpdateRuinsFoes(dt, *pp);                                      // 遺跡の敵の出来事・鎖（CollisionTestSceneRuins.cpp。2026-10-25）

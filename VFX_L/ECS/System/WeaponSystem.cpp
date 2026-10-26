@@ -85,14 +85,16 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
 // 分裂（projectileCount > 1）は着弾点を impact の周りの輪に並べる（扇に開くと同じ所に重なるだけなので）
 // ============================================================
 void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
-    const Vector3& impact, const Vector3& muzzle, float durationMul)
+    const Vector3& impact, const Vector3& muzzle, float durationMul,
+    bool hasTarget, const Vector3& targetPos)
 {
     constexpr float kSplitRing = 2.0f;   // 分裂した時の輪の半径（m）。爆発（半径 3）が少し重なる程度
 
-    // 線で撃つ上級魔法（アイススパイク）は弾を落とさず、足元 → 着弾点の先 に範囲を並べる
+    // 線で撃つ上級魔法（アイススパイク）は弾を落とさず、足元から一番近い敵の向きへ固定の長さで範囲を並べる
+    // （2026-10-26 ユーザー：「一番近い敵の奥までではなく、一番近い敵を向きにする」）。敵が読めない時は弾が消えた所を向く
     if (s.triggerLine)
     {
-        QueueTriggeredLine(s, impact, muzzle);
+        QueueTriggeredLine(s, hasTarget ? targetPos : impact, muzzle);
         return;
     }
 
@@ -122,17 +124,18 @@ void WeaponSystem::QueueTriggeredCast(const SpellStats& s,
 }
 
 // ============================================================
-// 線で撃つ上級魔法 1 本分（SpellStats::triggerLine、アイススパイク。2026-10-10、ユーザー：「足元から狙った敵の少し奥まで」）。
-// origin の足元から「origin → impact」の向きへ、impact の lineOvershoot 先までを線にして、
+// 線で撃つ上級魔法 1 本分（SpellStats::triggerLine、アイススパイク。2026-10-10、ユーザー：「足元から狙った敵の少し奥まで」
+// → 2026-10-26「一番近い敵は向きだけ。長さは固定」）。
+// origin の足元から「origin → aimAt」の向きへ lineLength x 倍率（拡大鏡）の線を引き、
 // 命中の範囲（profile の hitArea）を radius x kLineSpacing 毎に並べ、同じフレームに全部出す
 // （同じステップに tick するので、重なった所の敵は 1 回分しか受けない：凍らせる範囲は SwarmAreaDamageCS が最大を取る）。
 // 分裂（projectileCount > 1）は線を扇に開く。見た目は TriggeredFx → SpellFxSystem
 // ============================================================
-void WeaponSystem::QueueTriggeredLine(const SpellStats& s, const Vector3& impact, const Vector3& origin)
+void WeaponSystem::QueueTriggeredLine(const SpellStats& s, const Vector3& aimAt, const Vector3& origin)
 {
     constexpr float kStartGap = 0.6f;     // 足元から最初の範囲まで（自分の真下には出さない）
     constexpr float kLineSpacing = 1.4f;  // 範囲の間隔 = 半径 x これ（隙間なく、重なりは少し）
-    constexpr float kMinLength = 3.0f, kMaxLength = 20.0f;
+    constexpr float kMinLength = 3.0f, kMaxLength = 30.0f;
     constexpr float kFanDeg = 14.0f;      // 分裂した線の開き（1 本あたり）
 
     const ProjectileProfile& pp = ProjectileProfileDB::At(s.profile);
@@ -144,15 +147,16 @@ void WeaponSystem::QueueTriggeredLine(const SpellStats& s, const Vector3& impact
     const float radius = ap.radius * scale;
     const float lift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
 
-    // 地面の高さ。無ければ撃った所の足元と着弾点（地面 + lift）の間を直線で
-    const float y0 = impact.y - lift;
+    // 地面の高さ。無ければ狙った所の足元（地面 + lift の逆）で平らに
+    const float y0 = aimAt.y - lift;
     auto ground = [&](float x, float z) { return groundHeight ? groundHeight(x, z) : y0; };
 
-    Vector3 flat(impact.x - origin.x, 0.0f, impact.z - origin.z);
-    const float toImpact = flat.Length();
-    if (toImpact < 1e-3f) flat = Vector3::UnitZ;
-    else flat /= toImpact;
-    const float length = std::clamp(toImpact + s.lineOvershoot, kMinLength, kMaxLength);
+    // 向きだけ aimAt から取る。長さは固定（拡大鏡の倍率で伸びる = 光線の射程と同じ決まり）
+    Vector3 flat(aimAt.x - origin.x, 0.0f, aimAt.z - origin.z);
+    const float toAim = flat.Length();
+    if (toAim < 1e-3f) flat = Vector3::UnitZ;
+    else flat /= toAim;
+    const float length = std::clamp(s.lineLength * scale, kMinLength, kMaxLength);
     const Vector3 start(origin.x, ground(origin.x, origin.z), origin.z);
 
     const int count = (std::max)(1, s.projectileCount);
@@ -350,7 +354,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                                     Vector3 origin = muzzle;
                                     if (s.triggerOrbSerial != 0 && !FindOrb(s.triggerOrbSerial, origin))
                                         origin = s.triggerOrigin;
-                                    QueueTriggeredCast(s, s.triggerPos, origin, durationMul);
+                                    QueueTriggeredCast(s, s.triggerPos, origin, durationMul, hasTarget, targetPos);
                                     mana.Reserve(s.manaCost);
                                 }
                             }
@@ -433,7 +437,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        QueueTriggeredCast(s, impact, origin, durationMul);
+                        QueueTriggeredCast(s, impact, origin, durationMul, hasTarget, targetPos);
                         mana.Reserve(s.manaCost);
                         ++m_TriggeredCasts;
 

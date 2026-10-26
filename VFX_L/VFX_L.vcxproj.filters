@@ -166,6 +166,9 @@
     <ClCompile Include="Enemy\EliteLooks.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
+    <ClCompile Include="Enemy\SandTornadoFx.cpp">
+      <Filter>Enemy</Filter>
+    </ClCompile>
     <ClCompile Include="Enemy\EliteAttacksPanel.cpp">
       <Filter>Enemy</Filter>
     </ClCompile>
@@ -199,25 +202,13 @@
     <ClCompile Include="Debug\AutoTest\AutoTestBomber.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestPerf.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestMagnifier.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestLoco.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestCape.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestHills.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestBalance.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestGold.cpp">
@@ -253,22 +244,10 @@
     <ClCompile Include="Debug\AutoTest\AutoTestPlayerFx.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestEdge.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSteps.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestEdgeRock.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestBossExit.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestGround.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp">
@@ -358,15 +337,6 @@
     <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestPortal.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestLayers.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestAssets.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestUI.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -394,9 +364,6 @@
     <ClCompile Include="Debug\AutoTest\AutoTestClip.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestKnock.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSurge.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -422,12 +389,6 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestPoisonPerf.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestLightPerf.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestGrassFx.cpp">
@@ -803,6 +764,9 @@
       <Filter>Player</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\EliteLooks.h">
+      <Filter>Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\SandTornadoFx.h">
       <Filter>Enemy</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\EliteAttacks.h">

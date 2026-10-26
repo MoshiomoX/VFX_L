@@ -75,7 +75,7 @@ public:
     };
     const std::vector<GustFx>& GetGustFx() const { return m_GustFx; }
     // 今フレームに線で撃った上級魔法（SpellStats::triggerLine。2026-10-10、アイススパイクのトゲの見た目用）。
-    // start = 撃った所の足元（地面）、end = 弾が消えた所の lineOvershoot 先（地面）、scale = 拡大鏡などの大きさの倍率
+    // start = 撃った所の足元（地面）、end = 一番近い敵の向きへ lineLength x 倍率 先（地面）、scale = 拡大鏡などの大きさの倍率
     struct TriggeredFx
     {
         ItemID id;
@@ -150,13 +150,16 @@ private:
     void QueueOneCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& muzzle,
         const DirectX::SimpleMath::Vector3& dir, float durationMul);
-    // 上級魔法 1 回分（誘発。impact に落とす。分裂は着弾点を輪に並べる）
+    // 上級魔法 1 回分（誘発。impact に落とす。分裂は着弾点を輪に並べる）。
+    // hasTarget / targetPos = この時の杖の狙い（一番近い敵）。線で撃つ物（アイススパイク）の向きに使う
     void QueueTriggeredCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& impact,
-        const DirectX::SimpleMath::Vector3& muzzle, float durationMul);
-    // 線で撃つ上級魔法 1 本分（triggerLine）。origin の足元 → impact の先 の線に命中の範囲を並べて出す（弾は出さない）
+        const DirectX::SimpleMath::Vector3& muzzle, float durationMul,
+        bool hasTarget, const DirectX::SimpleMath::Vector3& targetPos);
+    // 線で撃つ上級魔法 1 本分（triggerLine）。origin の足元から aimAt の向きへ lineLength x 倍率 の線に
+    // 命中の範囲を並べて出す（弾は出さない）。aimAt = 一番近い敵（読めなければ弾が消えた所）
     void QueueTriggeredLine(const SpellStats& s,
-        const DirectX::SimpleMath::Vector3& impact,
+        const DirectX::SimpleMath::Vector3& aimAt,
         const DirectX::SimpleMath::Vector3& origin);
     std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 今フレームにリードバックで届いた誘発
     // CPU 側で起きた誘発（アークボルトの稲妻が届いた所。2026-10-15）。次のフレームの m_TriggerEvents に足す

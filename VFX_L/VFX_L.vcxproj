@@ -231,6 +231,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="UI\HUDEliteBars.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneElites.cpp" />
     <ClCompile Include="Enemy\EliteLooks.cpp" />
+    <ClCompile Include="Enemy\SandTornadoFx.cpp" />
     <ClCompile Include="Enemy\EliteAttacksPanel.cpp" />
     <ClCompile Include="Enemy\EliteAffixes.cpp" />
     <ClCompile Include="Enemy\EliteMoves.cpp" />
@@ -242,13 +243,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Graphics\Renderer\TerrainSurface.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneDebug.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBomber.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestPerf.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestMagnifier.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestLoco.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestCape.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestHills.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestBalance.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGold.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestCurve.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBoss.cpp" />
@@ -260,12 +257,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestChain.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestResult.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPlayerFx.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestEdge.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSteps.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestEdgeRock.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestBossExit.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestGround.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp" />
@@ -295,9 +288,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestSpellBench.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestPortal.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestLayers.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestAssets.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestUI.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSlide.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestShapes.cpp" />
@@ -307,7 +297,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestTutorial.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestStuck.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestClip.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestKnock.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSurge.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestCards.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestIceSpike.cpp" />
@@ -317,8 +306,6 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestDrop.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGhost.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestPoisonPerf.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestLightPerf.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGrassFx.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestStressFx.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp" />
@@ -611,6 +598,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\LifestealRune.h" />
     <ClInclude Include="Player\LifestealHeal.h" />
     <ClInclude Include="Enemy\EliteLooks.h" />
+    <ClInclude Include="Enemy\SandTornadoFx.h" />
     <ClInclude Include="Enemy\EliteAttacks.h" />
     <ClInclude Include="Graphics\Renderer\StaticPropRenderer.h" />
     <ClInclude Include="Graphics\Renderer\GrassRenderer.h" />

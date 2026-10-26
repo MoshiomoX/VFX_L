@@ -1,6 +1,6 @@
 {
     "sound": "",
-    "damage": 4.0, "duration": 2.0, "followCaster": false, "halfHeight": 1.5, "kind": 1,
+    "damage": 6.0, "duration": 2.0, "followCaster": false, "halfHeight": 1.5, "kind": 1,
     "name": "SporeCloud", "element": 6, "preview": { "atTarget": true, "interval": 2.0 },
     "radius": 1.8, "slow": 0.0, "toxin": 1.0, "stun": false, "tickInterval": 0.5, "vfx": "SporeCloud.json"
 }

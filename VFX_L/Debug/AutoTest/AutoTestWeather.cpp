@@ -33,6 +33,16 @@ void AutoTestWeather::Run()
         m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
+        // 10-26: 正面 8 / 14 / 20 / 26m に動かない雑魚を置く = 霧の中でどこまで見えるかの目安（ユーザー「砂嵐の時は何も見えない」）
+        {
+            const auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+            const float groundY = m_Swarm.GetAIParams().groundY;
+            for (int k = 0; k < 4; ++k)
+            {
+                const float x = tf.position.x + (k - 1.5f) * 1.5f, z = tf.position.z + 8.0f + 6.0f * k;
+                m_Swarm.SpawnEnemy(DirectX::SimpleMath::Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), 100000.0f, 0.0f);
+            }
+        }
         m_Registry.Get<HealthComponent>(m_Player).invincible = true;
         if (m_Registry.Has<LevelComponent>(m_Player)) m_Registry.Get<LevelComponent>(m_Player).experience = 0.0f;
         if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = true;

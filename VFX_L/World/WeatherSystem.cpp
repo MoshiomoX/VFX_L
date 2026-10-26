@@ -109,7 +109,7 @@ SceneLighting::Preset WeatherSystem::PresetAt(float phase) const
     return m_NightPreset;
 }
 
-// 天候で照明を弱める：太陽を落とし、空と霧を曇りの色へ、霧を近くから
+// 天候で照明を弱める：太陽を落とし、空と霧を曇りの色へ、霧を近くから（砂嵐だけは黄色い光で霧の距離はそのまま。2026-10-26）
 void WeatherSystem::ApplyWeatherToPreset(SceneLighting::Preset& p, float w) const
 {
     if (w <= 0.0f) return;
@@ -124,7 +124,8 @@ void WeatherSystem::ApplyWeatherToPreset(SceneLighting::Preset& p, float w) cons
         break;
     case Kind::Sandstorm:
         overcast = { 0.62f, 0.50f, 0.32f }; fogTo = { 0.66f, 0.54f, 0.36f };
-        fogStartMul = 0.3f; fogEndMul = 0.35f; fogMaxTo = 0.97f;
+        // 10-26 ユーザー「砂嵐は霧を無くして黄色い光に」：霧の距離は昼のまま（下の砂嵐専用の分岐で色だけ黄砂に）
+        fogStartMul = 1.0f; fogEndMul = 1.0f; fogMaxTo = p.fogMax;
         break;
     default:   // Storm（濃霧）
         overcast = fogBase; fogTo = fogBase * 1.3f;
@@ -133,6 +134,22 @@ void WeatherSystem::ApplyWeatherToPreset(SceneLighting::Preset& p, float w) cons
     }
     // 夜は曇りの色も暗く（照明の明るさに合わせる）
     const float lum = std::clamp(p.lightIntensity + p.ambientSky.y * 1.5f, 0.15f, 1.6f);
+    if (m_Kind == Kind::Sandstorm)
+    {
+        // 砂嵐 = 黄色い光（2026-10-26）：太陽と環境光と空を黄砂の色へ、明るさはほとんど落とさない。霧の距離は昼のまま、色だけ黄砂
+        const float k = (std::min)(lum, 1.0f);
+        p.lightColor = LerpV(p.lightColor, Vector3(1.0f, 0.80f, 0.40f), w);
+        p.lightIntensity *= 1.0f - 0.15f * w;
+        p.ambientSky = LerpV(p.ambientSky, Vector3(0.80f, 0.62f, 0.30f) * k, 0.7f * w);
+        p.ambientGround = LerpV(p.ambientGround, Vector3(0.48f, 0.36f, 0.16f) * k, 0.5f * w);
+        p.skyZenith = LerpV(p.skyZenith, Vector3(0.82f, 0.62f, 0.28f) * k, w);
+        p.skyHorizon = LerpV(p.skyHorizon, Vector3(0.98f, 0.80f, 0.42f) * k, w);
+        p.skyBelow = LerpV(p.skyBelow, Vector3(0.72f, 0.54f, 0.26f) * k, w);
+        p.sunGlow *= 1.0f - 0.5f * w;
+        p.fogUseHorizon = false;
+        p.fogColor = LerpV(fogBase, Vector3(0.95f, 0.78f, 0.42f) * k, w);
+        return;
+    }
     overcast = overcast * (std::min)(lum, 1.0f);
     fogTo = fogTo * (std::min)(lum, 1.0f);
     p.lightIntensity *= 1.0f - 0.55f * w;

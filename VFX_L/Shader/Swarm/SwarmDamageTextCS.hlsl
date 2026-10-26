@@ -160,7 +160,7 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         // was alive last frame and the hp really ran out: everything pending goes out flagged as the kill.
         // Died with hp left (blew itself up, tornado faded): whatever was pending goes out as a plain number
-        if (prevRaw != 0u && !SwarmUntargetable(enemyExtra[i]))
+        if (prevRaw != 0u && (!SwarmUntargetable(enemyExtra[i]) || SwarmBuried(enemyExtra[i])))   // a buried one can die to a ground area (2026-10-26)
             Emit(i, p.x, p.y, hp <= 0.0, elem);
         p.xyz = float3(0.0, 0.0, 0.0);
     }

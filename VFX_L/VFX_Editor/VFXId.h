@@ -120,6 +120,7 @@ enum class VFXId : uint32_t
     EliteBerserkAura,   // 狂暴の赤い火の粉（ループ）
     EliteChest,         // 金色の宝箱の光の粒（ループ）
     LifestealAbsorb,    // 吸血のルーンで HP が戻る時、周りから赤い光が体へ吸い込まれる（2026-10-25）
+    SandTornado,        // 砂嵐の術師の砂旋の本体（砂色の柱 2 枚。Enemy/SandTornadoFx が砂旋と同じ直線で動かす。2026-10-26）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };

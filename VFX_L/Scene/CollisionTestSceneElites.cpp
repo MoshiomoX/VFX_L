@@ -93,6 +93,16 @@ void CollisionTestScene::UpdateElites(float dt, const Vector3& player)
         c.shape = w.shape;
         m_WarnCircles.push_back(c);
     }
+    // ---- 砂嵐の術師の砂旋の足元の赤い輪（2026-10-26 ユーザー「砂旋の下にも赤い輪を」）：位置は CPU の柱（Enemy/SandTornadoFx）と同じ ----
+    for (const SandTornadoFx::Inst& t : m_SandTornadoes.Instances())
+    {
+        if ((int)m_WarnCircles.size() >= SwarmSystem::kMaxWarnCircles) break;
+        SwarmSystem::WarnCircle c;
+        c.center = t.pos;
+        c.radius = m_SandTornadoes.look.ringRadius * (0.3f + 0.7f * t.presence);
+        c.progress = (m_SandTornadoes.look.ringFill > 0.0f) ? m_SandTornadoes.look.ringFill : -1.0f;
+        m_WarnCircles.push_back(c);
+    }
     m_Swarm.SetWarnCircles(m_WarnCircles.data(), (int)m_WarnCircles.size());
 
     // ---- HUD の HP 条 ----

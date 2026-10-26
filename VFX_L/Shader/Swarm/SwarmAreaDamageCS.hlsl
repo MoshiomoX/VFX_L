@@ -23,9 +23,11 @@
 // share (SwarmAreaToxin of a.tickNow) deals only the rest at once; the
 // share is added to enemyPoison[slot] = (damage left, damage per second,
 // seconds since the last dose) and drained here every step, through the
-// same kill path. Areas with toxin do not stack on one enemy (strongest
-// wins, like the freezing ones). A splash-only area (the Swamp) deals its
-// damage on its first tick only.
+// same kill path. Toxin areas of the SAME recipe (vfxType) do not stack on
+// one enemy (strongest wins: two Poison Pools from a double cast count once),
+// but different recipes do (2026-10-26: a Spore cloud on top of a Poison Pool
+// is both). A splash-only area (the Swamp) deals its damage on its first
+// tick only.
 // ============================================================
 #define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
@@ -67,8 +69,12 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 epos = enemies[j].position;
     SwarmEnemyExtra extra = enemyExtra[j];
     uint kind = extra.kind;
-    if (SwarmUntargetable(extra))
-        return; // under the sand: areas do not reach it, the toxin waits (2026-10-17)
+    // buried (a burrower under the sand, the burrowing sand guardian): ground areas still reach it (2026-10-26,
+    // user: "the burrower can hardly be hit, let ground spells hit it"); beams (capsules) pass over the sand (loop below).
+    // The other untargetables (tornado, lit bomber, sleeping gargoyle, vanished elite) stay out of reach
+    bool buried = SwarmBuried(extra);
+    if (SwarmUntargetable(extra) && !buried)
+        return;
     float3 ecenter;
     float er, eh;
     SwarmSlotCapsule(j, kind, epos, ecenter, er, eh);   // + the berserk elite's growth (2026-10-25)
@@ -80,8 +86,13 @@ void main(uint3 id : SV_DispatchThreadID)
     bool stun = false;
     float freeze = 0.0;   // longest freeze among the areas this enemy stands in (SwarmAreaFreeze)
     float iceDamage = 0.0; // strongest freezing area (not summed, see below)
-    float poisonDamage = 0.0; // strongest toxin-carrying area (not summed either: two pools on one enemy count once)
-    float poisonShare = 0.0;  // its toxin share
+    // toxin-carrying areas: the strongest one PER RECIPE (two pools of the same spell on one enemy count once,
+    // a Spore cloud and a Poison Pool both count). SWARM_TOXIN_KINDS slots, keyed by vfxType; more kinds than
+    // slots fold into the last one (there are 2 toxin recipes today)
+    #define SWARM_TOXIN_KINDS 3
+    float poisonDamage[SWARM_TOXIN_KINDS] = { 0.0, 0.0, 0.0 };
+    float poisonShare[SWARM_TOXIN_KINDS] = { 0.0, 0.0, 0.0 };
+    uint  poisonKind[SWARM_TOXIN_KINDS] = { 0xffffffffu, 0xffffffffu, 0xffffffffu };
     float slow = 0.0;     // strongest slow among the areas this enemy stands in
     float slowTime = 0.0; // until the next tick of that area, plus a little
     float push = 0.0;     // strongest knockback among them (SwarmAreaPush)
@@ -98,6 +109,8 @@ void main(uint3 id : SV_DispatchThreadID)
         if ((a.tickNow & SWARM_AREA_TICK_NOW) == 0u)
             continue;
 
+        if (buried && (a.flags & SWARM_AREA_CAPSULE) != 0u)
+            continue; // a beam flies over the sand, it never reaches a buried enemy
         // capsule (beam): measure from the closest point of the segment centre -> end
         float3 c = a.center;
         if ((a.flags & SWARM_AREA_CAPSULE) != 0u)
@@ -135,10 +148,17 @@ void main(uint3 id : SV_DispatchThreadID)
             iceDamage = max(iceDamage, dmg);
         else if (tox > 0.0)
         {
-            if (dmg > poisonDamage)
+            // find this recipe's slot (or a free one; none free -> the last slot)
+            uint slot = SWARM_TOXIN_KINDS - 1;
+            [unroll] for (uint q = 0; q < SWARM_TOXIN_KINDS; ++q)
             {
-                poisonDamage = dmg;
-                poisonShare = tox;
+                if (poisonKind[q] == a.vfxType || poisonKind[q] == 0xffffffffu) { slot = q; break; }
+            }
+            if (poisonKind[slot] == 0xffffffffu) poisonKind[slot] = a.vfxType;
+            if (dmg > poisonDamage[slot])
+            {
+                poisonDamage[slot] = dmg;
+                poisonShare[slot] = tox;
             }
         }
         else
@@ -204,8 +224,13 @@ void main(uint3 id : SV_DispatchThreadID)
     total += iceDamage;
 
     // ---- toxin: drain what is stored (from earlier doses), then store this step's share ----
-    float toxinAdd = poisonDamage * poisonShare;
-    total += poisonDamage - toxinAdd;
+    float toxinAdd = 0.0;
+    [unroll] for (uint q = 0; q < SWARM_TOXIN_KINDS; ++q)
+    {
+        float add = poisonDamage[q] * poisonShare[q];
+        toxinAdd += add;
+        total += poisonDamage[q] - add;
+    }
     bool poisonDirty = false;
     if (poison.x > 0.0)
     {
@@ -238,6 +263,8 @@ void main(uint3 id : SV_DispatchThreadID)
     if (prev == 0u || prev >= HP_CORPSE_BIT)
         return; // already a corpse
 
+    // under the sand the hit still counts, but it neither freezes nor flinches (nothing to see there)
+    if (buried) { freeze = 0.0; stun = false; }
     // the boss never flinches, nor does a charger that has started its wind-up (see HitCS)
     bool noFlinch = SwarmNoFlinch(extra);   // (+ both final-swarm ghosts, 2026-10-18)
     // an ice area leaves a freeze request instead of the stun (same as a hitting Ice Lance, see HitCS)

@@ -645,6 +645,7 @@ namespace Res
         inline constexpr const char* RuinsRaiseMark = "Assets/Data/VFXData/RuinsRaiseMark.json";
         inline constexpr const char* RuinsSkeletonRise = "Assets/Data/VFXData/RuinsSkeletonRise.json";
         inline constexpr const char* RuinsChainHit = "Assets/Data/VFXData/RuinsChainHit.json";
+        inline constexpr const char* SandTornado = "Assets/Data/VFXData/SandTornado.json";   // 砂嵐の術師の砂旋の本体（砂色の柱。Enemy/SandTornadoFx。2026-10-26）
         // 面の固定エリート（2026-10-25、Enemy/EliteAttacks）
         inline constexpr const char* EliteSpawn = "Assets/Data/VFXData/EliteSpawn.json";
         inline constexpr const char* EliteAxeSpin = "Assets/Data/VFXData/EliteAxeSpin.json";
