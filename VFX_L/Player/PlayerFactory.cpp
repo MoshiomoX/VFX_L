@@ -180,7 +180,8 @@ namespace PlayerFactory
             BackpackLogic::PlaceFrame(bpc, ItemID::Frame3x3, start, start, 0);
             // 初期の魔法は枠の真ん中に置いておく（バックパックを開かなくても最初から撃つ。Megabonk と同じく武器を持って始まる）。
             // 2026-09-29 ユーザーの依頼で火球 → 魔法の追尾弾（火球は爆発込みで序盤には強すぎた）
-            BackpackLogic::Place(bpc, ItemID::HomingBolt, start + 1, start + 1, 0);
+            // → 2026-10-28 ユーザー「初期の魔法を火球に」で火球へ戻す（今の火球は爆発なし・2x2。枠の右下 2x2 に置く）
+            BackpackLogic::Place(bpc, ItemID::Fireball, start + 1, start + 1, 0);
 
             reg.Add<BackpackComponent>(e, bpc);
         }
@@ -188,7 +189,7 @@ namespace PlayerFactory
         // ---- 魔法書 ----
         // 初期装備。グリッドに置く前の「持っている」状態を作る
         SpellbookComponent book;
-        book.Learn(ItemID::HomingBolt, 1);
+        book.Learn(ItemID::Fireball, 1);
         book.Learn(ItemID::Frame3x3, 1);   // 初期枠の分を1つ持たせる
         reg.Add<SpellbookComponent>(e, book);
         std::cout << "[PlayerFactory] player created (entity " << e << ")" << std::endl;
