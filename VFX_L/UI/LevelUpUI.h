@@ -62,6 +62,24 @@ public:
     float cornerRatio = 0.26f;    // 四隅の組紐の大きさ（カード幅に対して）
     float circleSpin = 0.12f;     // 魔法陣の回転（rad / 秒、選択中は倍）
 
+    // ---- 稀有度の縁（2026-10-28。ユーザー：面の色は魔法の種類のまま、報酬の時にカードへ縁を付けて稀有度を見せる）----
+    // カードの外側 rarityGap px に太さ rarityWidth の枠（カード幅 270px の時）。レア・レジェンドは外へ光をにじませ、
+    // レジェンドは脈打つ。枠の上の真ん中に稀有度の名前の札。色は線形（UI は HDR に描かれるので 1 を超えると bloom で光る）
+    float rarityGap = 4.0f;
+    float rarityWidth = 3.0f;
+    float rarityGlow = 0.45f;          // にじむ光の濃さ（一番内側の層）
+    float rarityTextScale = 0.36f;
+    DirectX::SimpleMath::Vector4 rarityColor[3] = {
+        { 0.16f, 0.16f, 0.19f, 1.0f },    // ノーマル：暗い灰（光らない。0.36 だと銀色に見えて珍しい物に見えた）
+        { 0.20f, 0.52f, 1.60f, 1.0f },    // レア：青（少し bloom）
+        { 1.90f, 1.05f, 0.18f, 1.0f },    // レジェンド：金（bloom）
+    };
+    DirectX::SimpleMath::Vector4 rarityTextColor[3] = {
+        { 0.70f, 0.70f, 0.74f, 1.0f },
+        { 0.50f, 0.78f, 1.00f, 1.0f },
+        { 1.00f, 0.82f, 0.36f, 1.0f },
+    };
+
     // 選択中の index（キーボード / パッド用）
     int GetCursor() const { return m_Cursor; }
 
@@ -70,6 +88,7 @@ public:
     void DrawCard(SpriteRenderer& sprite, TextRenderer& text, ItemID id,
         const DirectX::SimpleMath::Vector2& pos, bool selected) const;
     DirectX::SimpleMath::Vector2 CardSize() const;
+    bool showRarity = true;   // 稀有度の縁（DrawCard の中で描く）
 
     // ---- 金貨での引き直し（2026-10-04）----
     // カードの下のボタン（R / パッド X / クリック）。GameUI が毎フレーム値段と所持を渡す（cost < 0 なら出さない）

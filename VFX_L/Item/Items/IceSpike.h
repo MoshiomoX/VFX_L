@@ -46,8 +46,7 @@ inline ProjectileItemDef MakeIceSpike()
 
     def.profile = "IceSpike";   // Assets/Data/ProjectileData/IceSpike.json（弾は出さない。hitArea = 並べる範囲、radius = 拡大鏡の倍率の基準）
 
-    // ---- 前提の基本魔法（両方の影響マスが届いている時だけ有効）----
-    def.common.triggeredBy = { ItemID::IceLance, ItemID::StoneShot };
+    // 前提の基本魔法（アイスランス + 石弾）は 2026-10-28 に外した（稀有度へ移行。レアの魔法として単独で一番近い敵の方へ走らせる）
 
     return def;
 }

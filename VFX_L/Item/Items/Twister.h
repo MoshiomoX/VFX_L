@@ -42,8 +42,7 @@ inline AreaItemDef MakeTwister()
     def.vfxId = VFXId::Twister;
     def.profile = "Twister";   // Assets/Data/AreaData/Twister.json
 
-    // ---- 前提の基本魔法（両方の影響マスが届いている時だけ有効）----
-    def.common.triggeredBy = { ItemID::VoidVortex, ItemID::Gust };
+    // 前提の基本魔法（渦 + 突風）は 2026-10-28 に外した（稀有度へ移行。レアの魔法として単独で敵の方に起こす）
 
     return def;
 }

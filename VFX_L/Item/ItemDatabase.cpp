@@ -239,6 +239,31 @@ void ItemDatabase::Initialize()
     }
     std::cout << "[ItemDatabase] shape files: " << shapeFiles << " (" << ItemDataFile::kDir << ")" << std::endl;
 
+    // ---- 稀有度（2026-10-28、ItemRarity.h）。表に無い物はノーマル ----
+    // レア / レジェンドの魔法 = 以前の上級魔法（前提なしで単独で撃つ）。能力値の札（四択・商店に出さない）は表に入れない
+    {
+        static const std::pair<ItemID, ItemRarity> kRarityTable[] = {
+            // レア
+            { ItemID::Poison,       ItemRarity::Rare },        // 猛毒の沼
+            { ItemID::IceSpike,     ItemRarity::Rare },
+            { ItemID::Twister,      ItemRarity::Rare },        // 竜巻
+            { ItemID::SplitRune,    ItemRarity::Rare },
+            { ItemID::ChainRune,    ItemRarity::Rare },
+            { ItemID::Frame3x3,     ItemRarity::Rare },
+            { ItemID::FrameArea,    ItemRarity::Rare },
+            { ItemID::FrameFocus,   ItemRarity::Rare },
+            { ItemID::FrameHaste,   ItemRarity::Rare },
+            // レジェンド
+            { ItemID::Meteor,         ItemRarity::Legendary },
+            { ItemID::Beam,           ItemRarity::Legendary }, // 魔導光線
+            { ItemID::DoubleCastRune, ItemRarity::Legendary },
+            { ItemID::FrameLifesteal, ItemRarity::Legendary },
+            { ItemID::CrystalBall,    ItemRarity::Legendary },
+        };
+        for (const auto& [id, r] : kRarityTable)
+            if (ItemCommon* c = MutableCommon(id)) c->rarity = r;
+    }
+
     BuildFlat();
     ++g_ShapeRevision;
     g_Initialized = true;

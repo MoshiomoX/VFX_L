@@ -23,20 +23,10 @@ int ShopStock::PriceOf(ItemID id) const
     if (ItemDatabase::GetStat(id)) base = priceStat;
     else if (const ItemCommon* c = ItemDatabase::GetCommon(id))
     {
-        switch (c->category)
-        {
-        case ItemCategory::Projectile:
-        case ItemCategory::Area:     base = c->triggeredBy.empty() ? priceBasic : priceAdvanced; break;
-        case ItemCategory::Function: base = priceRune; break;
-        case ItemCategory::Summon:   base = priceSummon; break;
-        case ItemCategory::Frame:
-        {
-            const FrameItemDef* fd = ItemDatabase::GetFrame(id);
-            base = (int)std::lround((float)priceFrame * (fd ? fd->priceMul : 1.0f));
-            break;
-        }
-        default:                     base = priceBasic; break;
-        }
+        // 稀有度で決める（2026-10-28）。設置枠は枠ごとの倍率（2x3 など大きい物は少し高い）
+        base = priceByRarity[std::clamp((int)c->rarity, 0, Rarity::kCount - 1)];
+        if (const FrameItemDef* fd = ItemDatabase::GetFrame(id))
+            base = (int)std::lround((float)base * fd->priceMul);
     }
     return (int)std::lround((float)base * m_StageMul);
 }
@@ -61,8 +51,8 @@ void ShopStock::Generate(const RunCarry& carry)
     const int steps = (std::max)(0, posNext - 1);
     m_StageMul = std::pow((std::max)(1.0f, stagePriceGrowth), (float)steps);
 
-    // [0..3] 魔法・ルーン・召喚物（LevelUpSystem::FillChoices と同じ絞り方。設置枠は別の欄に出す）。
-    // 種類ごとの重みで引く（基本魔法 > ルーン > 上級 > 召喚物、持っている物は下げる）
+    // [0..3] 魔法・ルーン・召喚物（設置枠は別の欄に出す）。稀有度の重みで引く（持っている物は下げる。2026-10-28）
+    const float boost = shopRarityBoost + 0.5f * (float)(std::max)(0, posNext - 1);
     struct Entry { ItemID id; float weight; };
     std::vector<Entry> pool;
     std::vector<ItemID> frames;
@@ -71,17 +61,7 @@ void ShopStock::Generate(const RunCarry& carry)
         const ItemCommon* c = ItemDatabase::GetCommon(id);
         if (!c) continue;
         if (c->category == ItemCategory::Frame) { frames.push_back(id); continue; }
-        float w = weightBasic;
-        if (!c->triggeredBy.empty())
-        {
-            bool hasAny = false;
-            for (ItemID need : c->triggeredBy)
-                if (book.HasLearned(need)) { hasAny = true; break; }
-            if (!hasAny) continue;
-            w = weightAdvanced;
-        }
-        else if (c->category == ItemCategory::Function) w = weightRune;
-        else if (c->category == ItemCategory::Summon)   w = weightSummon;
+        float w = Rarity::Weight(c->rarity, boost, rarityOdds);
         if (book.HasLearned(id)) w *= weightOwnedMul;
         pool.push_back({ id, w });
     }
@@ -104,16 +84,19 @@ void ShopStock::Generate(const RunCarry& carry)
     // [4] 設置枠
     if (!frames.empty())
     {
-        // 枠ごとの重み（FrameItemDef::weight。3x3 は珍しい。2026-10-27）
+        // 枠ごとの重み（FrameItemDef::weight）× 稀有度（3x3・効果の枠はレア、吸血はレジェンド。2026-10-28）
+        auto frameW = [&](ItemID f)
+            {
+                const FrameItemDef* fd = ItemDatabase::GetFrame(f);
+                return fd ? (std::max)(fd->weight, 0.0f) * Rarity::Weight(fd->common.rarity, boost, rarityOdds) : 0.0f;
+            };
         float total = 0.0f;
-        for (ItemID f : frames)
-            if (const FrameItemDef* fd = ItemDatabase::GetFrame(f)) total += (std::max)(fd->weight, 0.0f);
+        for (ItemID f : frames) total += frameW(f);
         float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
         ItemID id = frames.back();
         for (ItemID f : frames)
         {
-            const FrameItemDef* fd = ItemDatabase::GetFrame(f);
-            r -= fd ? (std::max)(fd->weight, 0.0f) : 0.0f;
+            r -= frameW(f);
             if (r < 0.0f) { id = f; break; }
         }
         m_Slots.push_back({ id, PriceOf(id), false });

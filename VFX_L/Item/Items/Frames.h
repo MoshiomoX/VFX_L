@@ -86,7 +86,7 @@ inline FrameItemDef MakeFrameArea()
     def.spellModifiers.push_back({ SpellParam::Radius, ModifyOp::Multiply, 1.2f });
     def.areaModifiers.push_back({ AreaParam::Radius, ModifyOp::Multiply, 1.2f });
     def.weight = 0.9f;
-    def.priceMul = 1.5f;
+    def.priceMul = 1.0f;   // 値段は稀有度で決まる（2026-10-28。以前は 1.5 で効果の枠を高くしていた）
     return def;
 }
 
@@ -100,7 +100,7 @@ inline FrameItemDef MakeFrameFocus()
     def.spellModifiers.push_back({ SpellParam::Damage, ModifyOp::Multiply, 1.25f });
     def.areaModifiers.push_back({ AreaParam::DamagePerTick, ModifyOp::Multiply, 1.25f, true });
     def.weight = 0.9f;
-    def.priceMul = 1.5f;
+    def.priceMul = 1.0f;   // 値段は稀有度で決まる（2026-10-28。以前は 1.5 で効果の枠を高くしていた）
     return def;
 }
 
@@ -112,7 +112,7 @@ inline FrameItemDef MakeFrameHaste()
     def.spellModifiers.push_back({ SpellParam::CastInterval, ModifyOp::Multiply, 0.85f });
     def.areaModifiers.push_back({ AreaParam::CastInterval, ModifyOp::Multiply, 0.85f });
     def.weight = 0.9f;
-    def.priceMul = 1.5f;
+    def.priceMul = 1.0f;   // 値段は稀有度で決まる（2026-10-28。以前は 1.5 で効果の枠を高くしていた）
     return def;
 }
 
@@ -123,7 +123,7 @@ inline FrameItemDef MakeFrameLifesteal()
         { 0.85f, 0.15f, 0.22f, 1.0f }, Res::Icon::FrameLifesteal);
     def.spellModifiers.push_back({ SpellParam::Lifesteal, ModifyOp::Add, 0.03f });
     def.areaModifiers.push_back({ AreaParam::Lifesteal, ModifyOp::Add, 0.03f });
-    def.weight = 0.7f;
-    def.priceMul = 1.5f;
+    def.weight = 2.5f;     // レジェンドの枠はこれだけ。frameWeight 0.2 と掛けてもレジェンドの札の 1 割ほどは出るように（2026-10-28）
+    def.priceMul = 1.0f;   // 値段は稀有度で決まる（2026-10-28。以前は 1.5 で効果の枠を高くしていた）
     return def;
 }

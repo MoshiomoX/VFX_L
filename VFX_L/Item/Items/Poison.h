@@ -20,7 +20,7 @@ inline ProjectileItemDef MakePoison()
     def.common.id = ItemID::Poison;
     def.common.name = "Poison";
     def.common.displayName = L"猛毒の沼";
-    def.common.description = L"連鎖した場所へ猛毒の瓶を投げ、大きな毒沼を残す。沼の中の敵は遅くなり、毒がじわじわ回る。";
+    def.common.description = L"敵の足元へ猛毒の瓶を投げ、大きな毒沼を残す。沼の中の敵は遅くなり、毒がじわじわ回る。";
     def.common.iconPath = Res::Icon::Poison;
     def.common.category = ItemCategory::Projectile;
     // 4 マスの凸字（首 + 胴 = 薬瓶）。上級魔法は他を誘発しないので影響マスは無し
@@ -40,8 +40,7 @@ inline ProjectileItemDef MakePoison()
     // ---- 何を撃つか ----
     def.profile = "Poison";   // Assets/Data/ProjectileData/Poison.json（Lob 型、hitArea = PoisonPool）
 
-    // ---- 前提の基本魔法（両方の影響マスが届いている時だけ有効）----
-    def.common.triggeredBy = { ItemID::Swamp, ItemID::Spore };
+    // 前提の基本魔法（泥沼 + 胞子）は 2026-10-28 に外した（稀有度へ移行。レアの魔法として単独で一番近い敵へ投げる）
 
     return def;
 }

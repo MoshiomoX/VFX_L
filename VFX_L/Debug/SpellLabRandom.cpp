@@ -19,10 +19,11 @@ namespace
 {
     constexpr int kGrid = BackpackComponent::GRID;
 
+    // レア以上の魔法（2026-10-28 に稀有度へ移った。以前は前提の基本魔法が要る上級魔法）
     bool IsUpperSpell(ItemID id)
     {
         const ItemCommon* c = ItemDatabase::GetCommon(id);
-        return c && !c->triggeredBy.empty();
+        return c && (c->rarity != ItemRarity::Common || !c->triggeredBy.empty());
     }
 
     // index の物が他の物と「繋がっている」か（置き場所の優先に使う）

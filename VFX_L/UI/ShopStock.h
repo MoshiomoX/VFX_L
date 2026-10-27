@@ -6,14 +6,15 @@
 //   能力値の札は carry の各部品にその場で効かせる（次の面の始まりに ApplyRunCarry が写す）。
 //
 // 品揃え（まずは簡単に。ユーザー 10-15「売る物は適当に少し置けばいい」）：
-//   [0..3] 魔法・ルーン・召喚物から無作為に 4 つ（同じ物は並ばない。上級魔法は前提の基本魔法を 1 つでも持っている時だけ）
+//   [0..3] 魔法・ルーン・召喚物から無作為に 4 つ（同じ物は並ばない。2026-10-28 から稀有度の重みで引く）
 //   [4]    設置枠を 1 つ（種類は無作為）
 //   [5]    能力値の札を 1 つ（無作為）→ 2026-10-27 ユーザー「商店の能力値の札も外す」で statSlot = false（出さない）
-// 値段は種類で固定（PriceOf。設置枠は枠ごとの priceMul を掛ける）。品揃えの引き直しは 60 + 40 × 回数。
+// 値段は稀有度で固定（PriceOf。設置枠は枠ごとの priceMul を掛ける。2026-10-28 までは種類で決めていた）。品揃えの引き直しは 60 + 40 × 回数。
 // 2026-10-27 ユーザー「商店が安すぎて一度入ると無敵」→ 値段・引き直しを全部 4 倍
 // ============================================================
 #pragma once
 #include "SpellID.h"
+#include "Item/ItemRarity.h"
 #include <vector>
 
 struct RunCarry;
@@ -55,17 +56,12 @@ public:
     int rerollBaseCost = 60;    // 10-27 に 15 → 60（全部 4 倍）
     int rerollStepCost = 40;
     float stagePriceGrowth = 1.5f;   // 次の面が 1 つ進むごとに値段 ×（後の商店ほど高い。引き直しも同じ倍率）
-    // 魔法・ルーン・召喚物の欄（[0..3]）の出やすさ。基本魔法 1 を基準に
-    float weightBasic = 1.0f;
-    float weightRune = 0.8f;
-    float weightAdvanced = 0.7f;   // 上級魔法（前提を持っている時だけ並ぶ）
-    float weightSummon = 0.5f;
+    // 出やすさと値段は稀有度で決める（2026-10-28、ItemRarity.h。以前は 基本魔法 / ルーン / 上級 / 召喚物 / 枠 の種類毎）。
+    // 重み = 稀有度の重み（商店は 1 面目を終えた所なので boost = shopRarityBoost + 0.5 × (次の面 − 2)）
+    Rarity::Odds rarityOdds;
+    float shopRarityBoost = 1.0f;
     float weightOwnedMul = 0.6f;   // 既に魔法書にある物はこれを掛ける（同じ物ばかり並ばないように）
-    int priceBasic = 120;     // 基本魔法（弾・範囲）
-    int priceAdvanced = 240;  // 上級魔法（前提が要る物）
-    int priceRune = 160;      // ルーン
-    int priceSummon = 240;    // 召喚物（水晶玉）
-    int priceFrame = 160;     // 設置枠
+    int priceByRarity[Rarity::kCount] = { 120, 200, 320 };   // ノーマル / レア / レジェンド（設置枠は FrameItemDef::priceMul を掛ける）
     int priceStat = 100;      // 能力値の札
     bool statSlot = false;    // [5] 能力値の札を並べるか（2026-10-27 に外した。四択の LevelUpSystem::statCards と同じ）
 

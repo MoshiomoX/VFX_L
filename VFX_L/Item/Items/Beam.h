@@ -43,8 +43,7 @@ inline AreaItemDef MakeBeam()
     def.vfxId = VFXId::Beam;
     def.profile = "Beam";   // Assets/Data/AreaData/Beam.json
 
-    // ---- 前提の基本魔法（両方の影響マスが届いている時だけ有効）----
-    def.common.triggeredBy = { ItemID::HomingBolt, ItemID::ArcBolt };
+    // 前提の基本魔法（追尾弾 + 弧）は 2026-10-28 に外した（稀有度へ移行。レジェンドの魔法として単独で一番近い敵の方へ撃つ）
 
     return def;
 }

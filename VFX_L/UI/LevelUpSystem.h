@@ -13,6 +13,7 @@
 #pragma once
 #include "ECS/Entity.h"
 #include "SpellID.h"
+#include "Item/ItemRarity.h"
 #include "Player/LevelComponent.h"
 #include <vector>
 
@@ -51,6 +52,11 @@ public:
     // 設置枠 1 種類の出やすさ × その枠の FrameItemDef::weight（2026-10-27、枠が 9 種類になった。全部 1 だと候補の 3 割近くが枠になる。
     // 合計でおよそ魔法 1.4 枚ぶん。3x3 は weight 0.25 で珍しい）
     float frameWeight = 0.2f;
+    // 稀有度（2026-10-28、ItemRarity.h）：札の重み = 稀有度の重み × 上の種類の重み。
+    // 稀有度の重みは先へ進むほど（レベル・この局の何面目か・宝箱）珍しい物が伸びる（Rarity::Boost）
+    Rarity::Odds rarityOdds;
+    float crateRarityBoost = 0.5f;   // 宝箱の四択に足す boost
+    int   runPos = 1;                // この局の何面目か（シーンが入れる。2 面目から boost +0.5）
     int rerollBaseCost = 10;    // 引き直し 1 回目の金貨
     int rerollStepCost = 10;    // 同じ四択で引き直す度に上がる分
     float levelUpDelay = 1.2f;  // レベルアップしてから四択を出すまでの間（秒。その間は遊べる。2026-10-15）
@@ -58,14 +64,17 @@ public:
     // ---- 統計（ImGui 表示用）----
     int GetTotalLevelUps() const { return m_TotalLevelUps; }
     int GetTotalOffers() const { return m_TotalOffers; }
+    // TEMP-TEST: 四択の候補だけを詰める（自動テスト rarity が稀有度の出方を数える。レベル・経験値は触らない）
+    int DebugFill(LevelComponent& lv, const struct SpellbookComponent* book, bool crate) { return FillChoices(lv, book, nullptr, crate); }
 
 private:
     void RollChoices(Registry& reg, Entity player);
     // 候補を pendingChoices に詰める（レベルアップと報酬で共通）。詰めた数を返す
     // book: 持っている物（上級魔法は前提の基本魔法を 1 つでも持っていないと出さない）。null = 絞らない
     // avoid: 池から外す物（引き直しで同じ札ばかり出ないように）。外すと足りない時は外さずに引く
+    // crate: 宝箱の四択（稀有度が少し出やすい。crateRarityBoost）
     int FillChoices(LevelComponent& lv, const struct SpellbookComponent* book,
-        const std::vector<ItemID>* avoid = nullptr);
+        const std::vector<ItemID>* avoid = nullptr, bool crate = false);
     int m_TotalOffers = 0;   // 報酬の三択を出した回数
 
     // 能力値（生命・魔力の上限）をその場で適用する

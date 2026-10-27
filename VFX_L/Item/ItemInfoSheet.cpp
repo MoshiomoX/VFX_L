@@ -352,7 +352,7 @@ namespace ItemInfoSheet
         const bool roam = v.profile > 0 && AreaProfileDB::At(v.profile).IsRoam();
         if (roam)
         {
-            s.traits.push_back(L"連鎖した所に竜巻が起き、敵の方へ進む");
+            s.traits.push_back(L"敵の方に竜巻が起き、外へ進みながら巻き込む");
             if (AreaProfileDB::At(v.profile).pull > 0.0f)
                 s.traits.push_back(L"周りの敵を中心へ引き寄せる");
         }

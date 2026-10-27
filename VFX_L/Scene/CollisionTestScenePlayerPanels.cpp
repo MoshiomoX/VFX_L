@@ -255,6 +255,20 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::Text("Level ups : %d", m_LevelUpSystem.GetTotalLevelUps());
         ImGui::DragInt("Choice Count", &m_LevelUpSystem.choiceCount, 1, 1, 5);
         ImGui::DragFloat("Stat Card Weight", &m_LevelUpSystem.statWeight, 0.01f, 0.0f, 2.0f);
+        // 稀有度（2026-10-28）：重み = base × (1 + grow × boost)、boost = (レベル − 1) / 29 + 0.5 × (この局の何面目 − 1)（+ 宝箱）
+        if (ImGui::TreeNode("Rarity (cards)"))
+        {
+            auto& o = m_LevelUpSystem.rarityOdds;
+            const float boostNow = Rarity::Boost(lv.level, m_LevelUpSystem.runPos);
+            ImGui::Text("boost now %.2f (level %d, run stage %d)  ->  weights N %.2f / R %.2f / L %.3f", boostNow, lv.level,
+                m_LevelUpSystem.runPos, Rarity::Weight(ItemRarity::Common, boostNow, o),
+                Rarity::Weight(ItemRarity::Rare, boostNow, o), Rarity::Weight(ItemRarity::Legendary, boostNow, o));
+            ImGui::DragFloat3("Base (N/R/L)", o.base, 0.005f, 0.0f, 2.0f);
+            ImGui::DragFloat3("Grow (N/R/L)", o.grow, 0.05f, 0.0f, 10.0f);
+            ImGui::DragFloat("Crate Boost", &m_LevelUpSystem.crateRarityBoost, 0.05f, 0.0f, 3.0f);
+            ImGui::DragFloat("Frame Weight", &m_LevelUpSystem.frameWeight, 0.01f, 0.0f, 2.0f);
+            ImGui::TreePop();
+        }
         // 金貨（2026-10-04）：経験値 × goldPerExp で増える。引き直しの値段 = base + step × 回数
         if (m_Registry.Has<WalletComponent>(m_Player))
         {

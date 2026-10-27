@@ -303,6 +303,30 @@ void LevelUpUI::DrawCard(SpriteRenderer& sprite, TextRenderer& text, ItemID id,
     const float k = m_CardW / 270.0f;   // 文字や飾りの大きさの基準（カード幅 270px の時 1）
     const float spin = UIDeco::Clock() * circleSpin;
 
+    // ---- 稀有度の縁（2026-10-28）：カードの外に稀有度の色の枠。レア・レジェンドは外へ光をにじませ、レジェンドは脈打つ。
+    //      面（下の本体）の色は魔法の種類のまま。名前の札は本体の後に描く（本体の地に隠れないように）----
+    const int rarity = std::clamp((int)c->rarity, 0, 2);
+    const float edgeOut = (rarityGap + rarityWidth) * k;
+    if (showRarity)
+    {
+        const float pulse = (c->rarity == ItemRarity::Legendary) ? 0.70f + 0.30f * std::sin(UIDeco::Clock() * 3.2f) : 1.0f;
+        if (c->rarity != ItemRarity::Common)
+        {
+            const int layers = (c->rarity == ItemRarity::Legendary) ? 4 : 3;
+            const float step = 3.0f * k;
+            for (int l = layers; l >= 1; --l)
+            {
+                const float o = edgeOut + step * (float)l;
+                Vector4 g = rarityColor[rarity];
+                g.w = rarityGlow * pulse * (1.0f - (float)l / (float)(layers + 1));
+                UIDeco::DrawFrameLines(sprite, pos - Vector2(o, o), cardSize + Vector2(o, o) * 2.0f, g, step);
+            }
+        }
+        Vector4 e = rarityColor[rarity];
+        e.x *= pulse; e.y *= pulse; e.z *= pulse;
+        UIDeco::DrawFrameLines(sprite, pos - Vector2(edgeOut, edgeOut), cardSize + Vector2(edgeOut, edgeOut) * 2.0f, e, rarityWidth * k);
+    }
+
     {
         // ---- カード本体：種類の色の二重線 + 四隅の組紐。選択中は光らせる ----
         const Vector4 tint = UIDeco::CategoryColor(c->category);
@@ -311,6 +335,19 @@ void LevelUpUI::DrawCard(SpriteRenderer& sprite, TextRenderer& text, ItemID id,
         ps.innerInset = 5.0f * k;
         ps.cornerSize = m_CardW * cornerRatio;
         UIDeco::DrawPanel(sprite, pos, cardSize, tint, ps, selected ? 1.0f : 0.0f);
+
+        // 稀有度の名前の札：縁の上辺の真ん中（暗い地 + 稀有度の色の細い枠 + 名前）
+        if (showRarity)
+        {
+            const wchar_t* name = Rarity::Name(c->rarity);
+            const float sc = rarityTextScale * k;
+            const Vector2 ts = text.Measure(name, sc);
+            const Vector2 pad(8.0f * k, 2.0f * k);
+            const Vector2 tp(pos.x + cardSize.x * 0.5f - ts.x * 0.5f, pos.y - edgeOut - ts.y * 0.5f);
+            UIDeco::DrawTextPlate(sprite, tp, ts, pad, cardColor, 0.0f);
+            UIDeco::DrawFrameLines(sprite, tp - pad, ts + pad * 2.0f, rarityColor[rarity], (std::max)(1.0f, 1.5f * k));
+            text.Draw(name, tp, rarityTextColor[rarity], sc);
+        }
 
         // ---- 中身：種別 → 名前 → 魔法陣の中のアイコン + 形（能力値は「+20」）→ 分割線 → 説明・特性・能力値 ----
         // 文字の大きさはカード幅に比例させる（基準は幅 270px の時の ItemSheetView::Style）

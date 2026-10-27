@@ -103,6 +103,7 @@ void CollisionTestScene::InitStage()
         m_RunTier = std::clamp(m_RunTier, 1, StageConfig::kMaxTier);
         m_RunPos = std::clamp(m_RunPos, 1, m_RunTier);
     }
+    m_LevelUpSystem.runPos = m_RunPos;   // 2 面目以降は珍しい札が出やすい（稀有度。2026-10-28）
     const StageDef& stageDef = StageConfig::Get(m_StageIndex);
     m_TerrainConfig.biome = stageDef.biome;
     TerrainGenerator::ApplyBiomeProfile(m_TerrainConfig);   // マップ毎の地形の規則（2026-10-26）

@@ -292,6 +292,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestBossIntro.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestRarity.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestWater.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -1601,6 +1604,9 @@
     </ClInclude>
     <ClInclude Include="UI\BackpackUI.h">
       <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\ItemRarity.h">
+      <Filter>Item</Filter>
     </ClInclude>
     <ClInclude Include="Item\ItemTypes.h">
       <Filter>Item</Filter>

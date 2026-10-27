@@ -104,7 +104,7 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
     auto& lv = reg.Get<LevelComponent>(player);
     if (lv.IsChoosing()) return false;
     const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
-    if (FillChoices(lv, book) == 0) return false;
+    if (FillChoices(lv, book, nullptr, true) == 0) return false;
     lv.choiceDelay = 0.0f;   // 箱を開けた四択はすぐ出す
     lv.choiceFromCrate = true;   // 見出しが「宝箱の報酬」になる（2026-10-18）
 
@@ -128,7 +128,7 @@ bool LevelUpSystem::Reroll(Registry& reg, Entity player)
     const std::vector<ItemID> before = lv.pendingChoices;
     const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
     const int count = lv.rerollCount;
-    if (FillChoices(lv, book, &before) == 0)
+    if (FillChoices(lv, book, &before, lv.choiceFromCrate) == 0)
     {
         lv.pendingChoices = before;   // 引けなかった（起きないはず）。元に戻して払わない
         return false;
@@ -142,11 +142,12 @@ bool LevelUpSystem::Reroll(Registry& reg, Entity player)
 // ============================================================
 // 候補を pendingChoices に詰める（レベルアップと報酬で共通）。詰めた数を返す
 // ============================================================
-int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book, const std::vector<ItemID>* avoid)
+int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book, const std::vector<ItemID>* avoid, bool crate)
 {
     // 候補の母集団を作る（重み付き）
     struct Entry { ItemID id; float weight; };
     std::vector<Entry> pool;
+    const float boost = Rarity::Boost(lv.level, runPos, crate ? crateRarityBoost : 0.0f);
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
         // 定義が取れないものは除く（登録漏れの保険）
@@ -164,6 +165,7 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
         // 設置枠は種類が多いので 1 種類ずつの重みを下げる（2026-10-27）
         float w = 1.0f;
         if (const FrameItemDef* fd = ItemDatabase::GetFrame(id)) w = frameWeight * fd->weight;
+        w *= Rarity::Weight(ItemDatabase::GetCommon(id)->rarity, boost, rarityOdds);   // 稀有度（2026-10-28）
         pool.push_back({ id, w });
     }
     // 能力値（生命・魔力・速さ・跳躍…）も同じ池に混ぜる。種類が多いので 1 枚ずつの重みは下げる

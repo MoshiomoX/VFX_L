@@ -44,6 +44,15 @@ namespace
 void WeaponSystem::QueueOneCast(const SpellStats& s,
     const Vector3& muzzle, const Vector3& dir, float durationMul)
 {
+    // 線で撃つ魔法（アイススパイク）は弾を出さず、足元から一番近い敵（優先度なし）の向きへ範囲を並べる。
+    // 2026-10-28 に稀有度へ移って単独で撃つようになった（以前は基本魔法の弾が消えた所で誘発）
+    if (s.triggerLine)
+    {
+        QueueTriggeredLine(s, m_HasClose ? m_ClosePos : muzzle + dir * 8.0f, muzzle);
+        m_CastFx.push_back({ s.id, muzzle, dir });
+        return;
+    }
+
     int count = (std::max)(1, s.projectileCount);
     auto push = [&](const Vector3& d)
         {
@@ -557,7 +566,9 @@ bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vec
         Vector3 dir = impact - origin;
         const float dist = dir.Length();
         if (dist > 1e-3f) dir /= dist;
-        if (!StartBeam(a, origin, impact, castSpeed, durationMul, orbSerial, dist + 0.6f)) return false;
+        // 標的の体で止めるのは溜め無しの稲妻（アークボルト）だけ。溜めて撃つ魔導光線（2026-10-28 から単独で撃つ）は射程いっぱいに貫く
+        const float lengthOverride = (bp.chargeTime > 0.0f) ? 0.0f : dist + 0.6f;
+        if (!StartBeam(a, origin, impact, castSpeed, durationMul, orbSerial, lengthOverride)) return false;
         SetupBeamChain(a, castSpeed, durationMul);   // 連鎖のルーン：届いた敵から別の敵へ跳ぶ（2026-10-20）
         m_CastFx.push_back({ a.id, origin, dir });
         // 終点の見た目（命中の火花。アークボルト）
@@ -565,6 +576,23 @@ bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vec
             m_AreaVFX->Play(bp.hitVfxFile, impact, 0.8f, false, *m_AreaVFXCtx);
         if (a.triggerMask != 0)
             m_CpuTriggerEvents.push_back({ Vector3(impact.x, impact.y - triggerLift, impact.z), a.triggerMask });
+        return true;
+    }
+
+    // ---- 竜巻（Kind::Roam）：敵の方（最大 kTwisterReach m 先）に起こし、外へ進ませる ----
+    // 2026-10-28 に稀有度へ移って単独で撃つ（以前は基本魔法の弾が消えた所・突風の吹いた所で誘発）。
+    // 敵の真上に出すと外へ進んで群れから離れてしまうので、遠い時は手前に出して寄ってくる群れを突っ切らせる
+    if (a.profile > 0 && AreaProfileDB::At(a.profile).IsRoam())
+    {
+        if (!hasTarget) return false;
+        constexpr float kTwisterReach = 7.0f;
+        Vector3 to = targetPos - caster;
+        to.y = 0.0f;
+        const float dist = to.Length();
+        Vector3 at = targetPos;
+        if (dist > kTwisterReach) at = caster + to * (kTwisterReach / dist);
+        StartTwister(a, at, caster, durationMul);
+        m_CastFx.push_back({ a.id, origin, dist > 1e-3f ? to / dist : Vector3::UnitZ });
         return true;
     }
 

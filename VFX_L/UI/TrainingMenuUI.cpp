@@ -20,7 +20,7 @@ const int TrainingMenuUI::kBossTypes[kBossChoices] = { -1, (int)BossType::StoneG
 const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"突撃兵", L"盾兵", L"幽霊", L"トゲ玉", L"砂潜り", L"砂嵐の術師", L"黒幽霊", L"突撃爆弾兵",
     L"呪いの鎧", L"石像ガーゴイル", L"死霊術師", L"骸骨", L"鎖の番人", L"混合" };
 const int TrainingMenuUI::kSwarmCounts[kCountChoices] = { 10, 30, 100, 300 };
-const wchar_t* const TrainingMenuUI::kRandomModeNames[kRandomModes] = { L"基本魔法だけ", L"魔法 + ルーン", L"全部（上級・召喚も）" };
+const wchar_t* const TrainingMenuUI::kRandomModeNames[kRandomModes] = { L"ノーマルの魔法だけ", L"魔法 + ルーン", L"全部（レア・召喚も）" };
 const int TrainingMenuUI::kRandomCountValues[kRandomCounts] = { 4, 6, 8, 12 };
 
 namespace

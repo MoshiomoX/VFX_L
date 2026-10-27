@@ -40,8 +40,7 @@ inline ProjectileItemDef MakeMeteor()
 
     def.profile = "Meteor";   // Assets/Data/ProjectileData/Meteor.json
 
-    // ---- 前提の基本魔法（両方の影響マスが届いている時だけ有効）----
-    def.common.triggeredBy = { ItemID::Fireball, ItemID::StoneShot };
+    // 前提の基本魔法（火球 + 石弾）は 2026-10-28 に外した（稀有度へ移行。レジェンドの魔法として単独で一番近い敵へ落とす）
 
     return def;
 }

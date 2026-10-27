@@ -12,7 +12,8 @@
 // ============================================================
 #pragma once
 #include "SpellID.h"
-#include "VFX_Editor/VFXId.h"          
+#include "Item/ItemRarity.h"
+#include "VFX_Editor/VFXId.h"
 #include <string>
 #include "Component/WandComponent.h"   // SpellStats を借りる
 #include "Component/AreaStats.h"
@@ -143,7 +144,12 @@ struct ItemCommon
 
     DirectX::SimpleMath::Vector4 color = { 1, 1, 1, 1 };   // UI 表示色
 
+    // 稀有度（2026-10-28。ItemRarity.h。値は ItemDatabase.cpp の kRarityTable が入れる）
+    ItemRarity   rarity = ItemRarity::Common;
+
     // 上級魔法の前提（2026-09-30）。空 = 基本魔法（自分で撃つ）。
+    // 2026-10-28 に稀有度へ移って、どの魔法も空（前提なしで単独で撃つ）。仕組み（誘発・BackpackLogic::IsTriggerReady）は残してある
+    // 以下は当時の説明：
     // 空でなければ自分では撃たず、ここに並ぶ基本魔法が「全種類」影響マスをこのブロックに届かせている時だけ有効になる。
     // 有効な時は、届いている基本魔法の弾が消えた場所（命中・寿命・壁）で撃つ（隕石ならそこへ落ちる、光線ならそこへ向けて撃つ）。
     // 飛行物型（隕石）と範囲型（光線）の両方が持てるのでここ（ItemCommon）にある。
@@ -217,7 +223,7 @@ struct FrameItemDef
     bool HasEffect() const { return !spellModifiers.empty() || !areaModifiers.empty(); }
 
     float weight = 1.0f;     // 札・商店で引かれる重み（同じ種類の中の相対値。3x3 は珍しい）
-    float priceMul = 1.0f;   // 商店の値段の倍率（ShopStock::priceFrame に掛ける）
+    float priceMul = 1.0f;   // 商店の値段の倍率（稀有度の値段 ShopStock::priceByRarity に掛ける）
 };
 
 // ============================================================
