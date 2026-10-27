@@ -352,6 +352,7 @@ namespace Swarm
     constexpr uint32_t kMaxBeams = 4;            // 同時に出せる光線（HLSL の SWARM_MAX_BEAMS と同じ）
     constexpr uint32_t kHitAreaOnExpire = 1u;    // Motion::hitAreaFlags
     constexpr uint32_t kHitAreaElementShift = 20u;   // bits 20〜23 = 弾の属性（ダメージの数字の色。DamageElement。2026-10-17）
+    constexpr uint32_t kHitAreaPierceShift = 24u;    // bits 24〜27 = 貫く敵の数（0〜15。黄金の矢、2026-10-28。HLSL の SWARM_HITAREA_PIERCE_SHIFT）
     // 範囲の追加値（2026-10-17、毒沼）: Area には空きが無く flags も埋まっているので、GPU が書く tickNow の上位ビットに乗せる。
     // 下位 1 バイトは AreaTickCS の tick 状態（HLSL の SWARM_AREA_TICK_*）、CPU から出す時は Area::tickNow、
     // GPU が出す時は AreaDef::extra に入れる（AreaProfile::Extra）

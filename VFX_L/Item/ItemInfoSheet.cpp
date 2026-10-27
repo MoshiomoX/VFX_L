@@ -253,6 +253,9 @@ namespace ItemInfoSheet
             }
             if (ap) s.traits.push_back(blast ? L"当たると爆発する" : L"当たった所に範囲を残す");
         }
+        // 貫通（2026-10-28、黄金の矢）: 当たっても消えず、後ろの敵にも当たる（連鎖のルーンが付くと跳ぶ方になる）
+        if (pp.pierce > 0 && !drop && v.chainCount == 0)
+            s.traits.push_back(L"敵を貫いて後ろの敵にも当たる（貫く度に威力が下がる）");
         // 連鎖のルーン（2026-10-16）: 当たっても消えず、近くの別の敵へ跳ぶ（Drop / Lob には効かない）
         if (v.chainCount > 0 && !drop)
             s.traits.push_back(L"当たった敵から近くの別の敵へ跳ぶ");
@@ -325,9 +328,12 @@ namespace ItemInfoSheet
             s.stats.push_back(StatLine(L"弾数", (float)v.projectileCount, (float)b.projectileCount, L"", +1));
         if (v.castCount != 1 || v.castCount != b.castCount)
             s.stats.push_back(StatLine(L"連射", (float)v.castCount, (float)b.castCount, L"回", +1));
-        // 連鎖のルーン（2026-10-16）: 跳ぶ回数。付いている時だけ出す
+        // 貫通（2026-10-28）: 最初の 1 体の後に貫く数（連鎖のルーンが付いた時は跳ぶ回数に足されるので、そちらで出す）
+        if (!drop && pp.pierce > 0 && v.chainCount == 0)
+            s.stats.push_back(StatLine(L"貫通", (float)pp.pierce, (float)pp.pierce, L"体", +1));
+        // 連鎖のルーン（2026-10-16）: 跳ぶ回数。付いている時だけ出す。貫通の弾は貫く数も跳ぶ回数になる（SwarmSpawnProjCS）
         if (!drop && (v.chainCount > 0 || v.chainCount != b.chainCount))
-            s.stats.push_back(StatLine(L"連鎖", (float)v.chainCount, (float)b.chainCount, L"回", +1));
+            s.stats.push_back(StatLine(L"連鎖", (float)(v.chainCount + (v.chainCount > 0 ? pp.pierce : 0)), (float)b.chainCount, L"回", +1));
         if (v.lifesteal > 0.0f)
             s.stats.push_back(StatLine(L"吸血", v.lifesteal * 100.0f, b.lifesteal * 100.0f, L"%", +1));
         s.stats.push_back(StatLine(L"発動間隔", v.castInterval, b.castInterval, L"秒", -1));

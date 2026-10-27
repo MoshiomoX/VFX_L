@@ -70,6 +70,9 @@ struct ProjectileProfile
     bool easeIn = false;
     // ダメージの属性（Swarm::DamageElement の番号。json "element"。ダメージの数字の色だけ。2026-10-17）
     int element = 0;
+    // 貫通（2026-10-28、黄金の矢）：最初に当たった後、さらにこの数の敵を貫いて飛び続ける（0〜15）。
+    // 1 体貫く毎に威力 x0.8（HLSL の SWARM_PIERCE_FALLOFF）。曲がらない弾向け（追う弾は狙い直さない）
+    int pierce = 0;
 
     // ---- 見た目 ----
     // VFX json のファイル名（Assets/Data/VFXData/ の中。VFXDatabase に登録済みの物だけ GPU で出る）

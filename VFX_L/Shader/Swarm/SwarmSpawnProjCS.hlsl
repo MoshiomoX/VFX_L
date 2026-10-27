@@ -103,6 +103,9 @@ void main(uint3 id : SV_DispatchThreadID)
     req.pathT = 0.0;
 
     SwarmMotion m = motions[motionIdx];
+    // pierce (2026-10-28, golden arrow): passes through this many more enemies. With chain jumps too,
+    // the pierces add to the jumps and the shot jumps (chain behaviour)
+    uint pierce = SwarmMotionPierce(m);
     // hold: hang in front of the caster for this long before flying (pathT < 0 = seconds left. 2026-10-16).
     // A held shot is born SWARM_HOLD_FORWARD m ahead along the aim, not inside the body
     float hold = SwarmMotionHold(m);
@@ -239,7 +242,9 @@ void main(uint3 id : SV_DispatchThreadID)
             trailAge[slot] = 0.0;
             // chain rune: an alive-but-chained state (HitCS / ProjMoveCS read it, everyone else sees "not DEAD")
             if (chains > 0u)
-                projStates[slot] = SwarmProjChainState(chains, SWARM_PROJ_CHAIN_NO_LAST);
+                projStates[slot] = SwarmProjChainState(chains + pierce, SWARM_PROJ_CHAIN_NO_LAST);
+            else if (pierce > 0u)
+                projStates[slot] = SwarmProjChainState(pierce, SWARM_PROJ_CHAIN_NO_LAST) | SWARM_PROJ_PIERCE;
             return;
         }
     }

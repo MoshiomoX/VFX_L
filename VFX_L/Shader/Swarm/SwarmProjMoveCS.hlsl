@@ -96,7 +96,8 @@ void main(uint3 id : SV_DispatchThreadID)
     // here, leaving along the current heading. Nobody in reach: let go and fly on
     // (a TRACK shot searches again on its own; HitCS keeps skipping the last enemy) ----
     uint state = projStates[i];
-    bool chained = (state & SWARM_PROJ_CHAINED) != 0u;
+    // a piercing shot (golden arrow, 2026-10-28) uses the same state but is never re-aimed: it stays on its line
+    bool chained = (state & SWARM_PROJ_CHAINED) != 0u && (state & SWARM_PROJ_PIERCE) == 0u;
     if ((state & SWARM_PROJ_CHAIN_PENDING) != 0u)
     {
         projStates[i] = state & ~SWARM_PROJ_CHAIN_PENDING;

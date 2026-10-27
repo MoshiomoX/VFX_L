@@ -748,6 +748,8 @@ void ProjectileEditorScene::DrawProjectileTab()
     changed |= ImGui::DragFloat("Hold (s)", &p.holdTime, 0.02f, 0.0f, 5.0f);
     { static const char* kElem[] = { "none", "fire", "ice", "lightning", "arcane", "earth", "poison", "wind", "light" }; changed |= ImGui::Combo("Element (damage number colour)", &p.element, kElem, 9); }   // 2026-10-17
     changed |= ImGui::Checkbox("Ease In (start slow, arrive at 2x speed)", &p.easeIn);
+    // 貫通（2026-10-28、黄金の矢）：最初の命中の後に貫く敵の数。1 体毎に威力 x0.8
+    changed |= ImGui::SliderInt("Pierce (extra enemies)", &p.pierce, 0, 15);
 
     // ---- 見た目 ----
     ImGui::TextColored(ImVec4(0.6f, 0.9f, 1, 1), "Visual");

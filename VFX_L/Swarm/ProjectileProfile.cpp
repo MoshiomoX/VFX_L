@@ -46,6 +46,7 @@ Swarm::Motion ProjectileProfile::ToMotion() const
     m.hitAreaFlags |= holdQ << 8;
     if (easeIn) m.hitAreaFlags |= 1u << 16;
     m.hitAreaFlags |= (uint32_t)std::clamp(element, 0, 15) << Swarm::kHitAreaElementShift;   // 属性（数字の色）
+    m.hitAreaFlags |= (uint32_t)std::clamp(pierce, 0, 15) << Swarm::kHitAreaPierceShift;     // 貫く敵の数（2026-10-28）
     m.c1 = c1;
     m.baseRadius = radius;   // これより大きい当たり半径で撃たれたら、見た目と爆発も同じ倍率で大きく（拡大鏡）
     m.c2 = c2;
@@ -73,6 +74,7 @@ json ProjectileProfile::ToJson() const
     if (holdTime > 0.0f) j["holdTime"] = holdTime;
     if (easeIn) j["easeIn"] = true;
     if (element != 0) j["element"] = element;
+    if (pierce > 0) j["pierce"] = pierce;
 
     j["vfx"] = vfxFile;
     j["castSound"] = castSound;
@@ -116,6 +118,7 @@ void ProjectileProfile::FromJson(const json& j)
     holdTime = j.value("holdTime", holdTime);
     easeIn = j.value("easeIn", easeIn);
     element = j.value("element", element);
+    pierce = j.value("pierce", pierce);
 
     vfxFile = j.value("vfx", vfxFile);
     castSound = j.value("castSound", castSound);

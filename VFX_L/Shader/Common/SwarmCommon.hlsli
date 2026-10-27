@@ -278,6 +278,15 @@ uint SwarmProjChainState(uint left, uint lastHit)
          | ((left & SWARM_PROJ_CHAIN_LEFT_MASK) << SWARM_PROJ_CHAIN_LEFT_SHIFT)
          | (lastHit & SWARM_PROJ_CHAIN_LAST_MASK);
 }
+// Pierce (2026-10-28, the golden arrow): the same chained state plus this
+// bit. A live hit leaves the shot alive with one pierce less and the hit
+// enemy remembered (skipped while the shot passes through it), but nothing
+// is re-aimed: no PENDING, and ProjMoveCS keeps a straight shot straight.
+// Each pierce scales the damage by SWARM_PIERCE_FALLOFF. The count comes
+// from the profile (SwarmMotionPierce). With the chain rune on top, the
+// pierces are added to the jumps and the shot jumps (chain behaviour)
+static const uint SWARM_PROJ_PIERCE = 0x20000000u;
+static const float SWARM_PIERCE_FALLOFF = 0.8;
 
 // ------------------------------------------------------------
 // A dead enemy shattering into its rigid parts (2026-10-02).
@@ -616,6 +625,13 @@ static const uint SWARM_HITAREA_ELEMENT_SHIFT = 20u;
 uint SwarmMotionElement(SwarmMotion m)
 {
     return (m.hitAreaFlags >> SWARM_HITAREA_ELEMENT_SHIFT) & 0xFu;
+}
+// bits 24..27: how many enemies the shot passes through after the first hit (0..15, 2026-10-28, golden arrow).
+// Must match Swarm::kHitAreaPierceShift
+static const uint SWARM_HITAREA_PIERCE_SHIFT = 24u;
+uint SwarmMotionPierce(SwarmMotion m)
+{
+    return (m.hitAreaFlags >> SWARM_HITAREA_PIERCE_SHIFT) & 0xFu;
 }
 // enemy state word: SWARM_DEAD / SWARM_ALIVE in the low byte, bits 8..11 = element of the last hit (damage number colour).
 // Every reader compares against SWARM_DEAD only; the damage passes write the element with a CAS so a DEAD written

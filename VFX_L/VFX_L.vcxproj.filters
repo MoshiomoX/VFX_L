@@ -292,6 +292,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestBossIntro.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPierce.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestRarity.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>

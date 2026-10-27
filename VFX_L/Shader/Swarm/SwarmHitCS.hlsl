@@ -128,6 +128,7 @@ void main(uint3 id : SV_DispatchThreadID)
     // and never hits the enemy it jumped from again (see SwarmCommon.hlsli)
     uint state = projStates[i];
     bool chained = (state & SWARM_PROJ_CHAINED) != 0u;
+    bool pierced = chained && (state & SWARM_PROJ_PIERCE) != 0u;   // passes through instead of jumping (2026-10-28)
     uint chainsLeft = chained ? ((state >> SWARM_PROJ_CHAIN_LEFT_SHIFT) & SWARM_PROJ_CHAIN_LEFT_MASK) : 0u;
     uint lastHit = chained ? (state & SWARM_PROJ_CHAIN_LAST_MASK) : SWARM_PROJ_CHAIN_NO_LAST;
 
@@ -221,7 +222,11 @@ void main(uint3 id : SV_DispatchThreadID)
         SwarmEnemyExtra extra = enemyExtra[j];
         uint kind = extra.kind;
         // ---- hit: apply damage atomically (the shield bearer's armor first) ----
-        uint dmgFixed = SwarmHpToFixed(SwarmTakenDamage(j, kind, p.damage));
+        // a piercing shot (golden arrow, 2026-10-28) loses SWARM_PIERCE_FALLOFF per enemy it has already passed through
+        float shotDamage = p.damage;
+        if (pierced)
+            shotDamage *= pow(SWARM_PIERCE_FALLOFF, (float) (SwarmMotionPierce(motions[p.motion & SWARM_MOTION_INDEX_MASK]) - min(chainsLeft, 15u)));
+        uint dmgFixed = SwarmHpToFixed(SwarmTakenDamage(j, kind, shotDamage));
         uint prev;
         InterlockedAdd(enemies[j].hp, (uint) (-(int) dmgFixed), prev);
 
@@ -305,10 +310,11 @@ void main(uint3 id : SV_DispatchThreadID)
                                p.position, i + j, SwarmProjScale(p), projBoost[i], p.velocity.xz,
                                ((projTags[i] & SWARM_TAG_LIFESTEAL) != 0u) ? SWARM_AREA_EXTRA_LIFESTEAL : 0u);
 
-        // projectile is consumed either way (no pierce) -- unless it still has chain jumps:
-        // then it stays alive, remembers this enemy and asks ProjMoveCS for the next one
+        // projectile is consumed either way -- unless it still has chain jumps / pierces:
+        // then it stays alive and remembers this enemy. A chained shot asks ProjMoveCS for the next one,
+        // a piercing shot just flies on (2026-10-28)
         if (chainsLeft > 0u)
-            projStates[i] = SwarmProjChainState(chainsLeft - 1u, j) | SWARM_PROJ_CHAIN_PENDING;
+            projStates[i] = SwarmProjChainState(chainsLeft - 1u, j) | (pierced ? SWARM_PROJ_PIERCE : SWARM_PROJ_CHAIN_PENDING);
         else
             projStates[i] = SWARM_DEAD;
         return;

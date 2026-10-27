@@ -279,6 +279,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestDebris.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestWater.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestRarity.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestPierce.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestWindToys.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShot.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShotsCombat.cpp" />
