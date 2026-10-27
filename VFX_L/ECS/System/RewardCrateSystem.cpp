@@ -7,8 +7,6 @@
 #include "World/GridWorld.h"
 #include "Component/TransformComponent.h"
 #include "Component/ModelComponent.h"
-#include "Component/ColliderComponent.h"
-#include "Component/RigidbodyComponent.h"
 #include "Component/InteractableComponent.h"
 #include "Player/WalletComponent.h"
 #include "Graphics/Model/Model.h"
@@ -81,18 +79,8 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
         mc.model = m_Model;
         reg.Add<ModelComponent>(e, mc);
 
-        ColliderComponent col;
-        col.shape = ColliderShape::AABB;
-        col.halfExtents = { half, half, half };
-        col.offset = { 0.0f, half, 0.0f };   // モデルの原点が底なので、箱の中心は半分上
-        col.layer = Layer_Terrain;
-        col.mask = Layer_All;
-        reg.Add<ColliderComponent>(e, col);
-
-        RigidbodyComponent rb;
-        rb.isStatic = true;
-        rb.useGravity = false;
-        reg.Add<RigidbodyComponent>(e, rb);
+        // 衝突の箱は付けない（2026-10-28 ユーザー「道具の箱の当たりを外して」）：プレイヤーも雑魚も弾も素通り。
+        // 以前は AABB + 下のマスを雑魚用に塞いでいた（塞いだマスに入った GPU の弾が壁扱いで消えていた）
 
         InteractableComponent it;
         it.kind = InteractKind::RewardChoice;
@@ -239,19 +227,8 @@ Entity RewardCrateSystem::SpawnFree(Registry& reg, const GridWorld& grid, const 
     mc.model = model;
     reg.Add<ModelComponent>(e, mc);
 
-    ColliderComponent col;
-    col.shape = ColliderShape::AABB;
+    // 衝突の箱は付けない（2026-10-28、普通の箱と同じ）。half は開けられる距離にだけ使う
     const float half = (std::max)(ext.x, ext.z) * 0.8f;
-    col.halfExtents = { half, size * 0.5f, half };
-    col.offset = { 0.0f, size * 0.5f, 0.0f };
-    col.layer = Layer_Terrain;
-    col.mask = Layer_All;
-    reg.Add<ColliderComponent>(e, col);
-
-    RigidbodyComponent rb;
-    rb.isStatic = true;
-    rb.useGravity = false;
-    reg.Add<RigidbodyComponent>(e, rb);
 
     InteractableComponent it;
     it.kind = InteractKind::RewardChoice;

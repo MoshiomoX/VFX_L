@@ -390,7 +390,7 @@ C++ / DirectX 11 自制引擎的 3D roguelite（幸存者类）。雑魚、投�
 ## 6. 可交互道具（已完成）
 
 - `Component/InteractableComponent`（kind / 半径 / 案内文字 / 浮动与光的参数）+ `ECS/System/InteractionSystem`（浮动旋转、找最近的 focus、返回被按下的实体、积点光源）。效果由场景按 `kind` 分派。
-- 报酬箱：`ECS/System/RewardCrateSystem`（`Spawn` 摆放、`TryOpen` 开箱），开局在玩家周围 6〜22m 的可走格子（周围 3x3 也可走、且高度相同）放 4 个，用完即消失、不刷新；地形重建时重新摆。像素木箱 `Kenney_RetroFantasy/fbx/detail-crate.fbx`，缩放到 0.9m，带静态 AABB 和暖黄点光源。
+- 报酬箱：`ECS/System/RewardCrateSystem`（`Spawn` 摆放、`TryOpen` 开箱），开局在玩家周围 6〜22m 的可走格子（周围 3x3 也可走、且高度相同）放 4 个，用完即消失、不刷新；地形重建时重新摆。像素木箱 `Kenney_RetroFantasy/fbx/detail-crate.fbx`，缩放到 0.9m，带暖黄点光源。**2026-10-28 起没有碰撞箱**（用户：「去掉道具箱子的碰撞箱」）：普通箱和精英的金宝箱都不挂 `ColliderComponent / RigidbodyComponent`，玩家、雑魚、GPU 弹都穿过去；`BlockPropCells` 也不再给箱子封格（只封 Boss 门柱）。以前封格的副作用：刷在箱子格里的雑魚出不来、飞进封格的弹被当成撞墙消掉（10-28 `tutorial` 自测的 3 只靶子正好刷在箱子上，开局火球 85 秒一只都打不到，改后 2.3 秒打完）。`perch` 自测（站在箱子顶上施法）因此不再有意义。
 - 靠近后画面下方出「[F] Open」（`GameUI::SetPrompt`），F / 手柄 B 触发 → `LevelUpSystem::OfferChoices`：和升级一样的三选一，但不升级、不扣经验；选择中不能再开（箱子保留）。**四选一的标题按来源变（2026-10-18，用户：「箱子出来的也写着レベルアップ」）**：`LevelComponent::choiceFromCrate`（`OfferChoices` 置 true、升级置 false、`ClearChoices` 清）→ `LevelUpUI::Draw` 的见出し 升级 =「レベルアップ」、开箱 =「宝箱の報酬」；`gold` 自测截图确认。
 - 调参在战斗场景「Reward Crates」面板。
 - **金币（2026-10-04，用户问要不要做土豆兄弟那样的金币；我建议按 Megabonk 式「开箱花钱 + 刷新花钱」做最小版，用户三项都选推荐）**：`Player/WalletComponent`（玩家身上，`gold` 带小数、`Coins()` 取整，`earned / spent` 记录，随 `g_RunCarry` 带到下一关）。

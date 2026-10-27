@@ -110,8 +110,9 @@ void CollisionTestScene::RespawnCrates()
 
 // ============================================================
 // 置物の下のマスを雑魚用に塞ぐ（2026-10-03、通し検査 soak で見つけた）。
-// 報酬の箱・Boss の門の柱の衝突はプレイヤーにしか効かず、GPU の雑魚は格子しか見ないので素通りしていた。
-// 木・岩と同じく、衝突の箱が掛かるマスを塞ぐ（元から塞がっていたマスは覚えない = 戻さない）
+// Boss の門の柱の衝突はプレイヤーにしか効かず、GPU の雑魚は格子しか見ないので素通りしていた。
+// 木・岩と同じく、衝突の箱が掛かるマスを塞ぐ（元から塞がっていたマスは覚えない = 戻さない）。
+// 報酬の箱は 2026-10-28 から衝突の箱が無い（ユーザーの依頼）ので塞がない
 // ============================================================
 void CollisionTestScene::BlockPropCells()
 {
@@ -120,7 +121,7 @@ void CollisionTestScene::BlockPropCells()
         for (int c : b.cells) m_Grid.SetWalkable(c % W, c / W, true);
     m_PropBlocks.clear();
 
-    auto block = [&](Entity e, bool crate)
+    auto block = [&](Entity e)
         {
             if (!m_Registry.IsValid(e) || !m_Registry.Has<ColliderComponent>(e) || !m_Registry.Has<TransformComponent>(e))
                 return;
@@ -130,7 +131,7 @@ void CollisionTestScene::BlockPropCells()
             int x0, z0, x1, z1;
             m_Grid.WorldToCell(c - h, x0, z0);
             m_Grid.WorldToCell(c + h, x1, z1);
-            PropBlock b{ e, crate, {} };
+            PropBlock b{ e, {} };
             for (int z = z0; z <= z1; ++z)
                 for (int x = x0; x <= x1; ++x)
                     if (m_Grid.IsWalkable(x, z))
@@ -140,8 +141,7 @@ void CollisionTestScene::BlockPropCells()
                     }
             m_PropBlocks.push_back(std::move(b));
         };
-    for (Entity e : m_Crates.GetCrates()) block(e, true);
-    for (Entity e : m_Stage.GetPortalPillars()) block(e, false);
+    for (Entity e : m_Stage.GetPortalPillars()) block(e);
     m_Swarm.RefreshWalkable(m_Grid);
 }
 
@@ -185,9 +185,7 @@ void CollisionTestScene::UpdatePropBlocks()
     bool changed = false;
     for (auto it = m_PropBlocks.begin(); it != m_PropBlocks.end();)
     {
-        const bool gone = !m_Registry.IsValid(it->entity)
-            || (it->crate && !m_Registry.Has<InteractableComponent>(it->entity));
-        if (!gone) { ++it; continue; }
+        if (m_Registry.IsValid(it->entity)) { ++it; continue; }
         for (int c : it->cells) m_Grid.SetWalkable(c % W, c / W, true);
         it = m_PropBlocks.erase(it);
         changed = true;

@@ -146,7 +146,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
             AudioSystem::Get().Play("gold_deny");    // 金貨が足りない（鍵が開かない音）
         else if (const Vector3* pp = PlayerPos())
             m_Stage.TryUsePortal(m_Registry, used, m_Grid, *pp, m_Mobs, m_Swarm, m_Interaction);
-        UpdatePropBlocks();   // 開けた箱の下のマスを雑魚に戻す
+        UpdatePropBlocks();   // 消えた門の柱の下のマスを雑魚に戻す
 
         // 門が使われた（Boss を呼んだ。パネルの「Summon Boss Now」も含めて、門から使える印が消えた）ら渦を止める
         const Entity portal = m_Stage.GetPortal();

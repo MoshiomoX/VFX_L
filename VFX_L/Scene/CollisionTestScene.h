@@ -223,12 +223,12 @@ private:
     bool         m_PrevDebugGrid = true;   // 入る前の DebugManager の参照格子（Shutdown で戻す）
     uint32_t     m_PortalVfx = 0;          // Boss の門の渦（AreaVFXPlayer のインスタンス。0 = 無し）
 
-    // 置物（報酬の箱・門の柱）の下で雑魚用に塞いだマス（2026-10-03）。元は歩けたマスだけ覚え、
-    // 箱が開いて消えたら戻す。crate = 箱（InteractableComponent が外れたら消えた扱い）
-    struct PropBlock { Entity entity; bool crate; std::vector<int> cells; };
+    // 置物（Boss の門の柱）の下で雑魚用に塞いだマス（2026-10-03）。元は歩けたマスだけ覚え、
+    // 柱が消えたら戻す（報酬の箱も塞いでいたが、2026-10-28 から箱に衝突が無いので塞がない）
+    struct PropBlock { Entity entity; std::vector<int> cells; };   // Boss の門の柱（報酬の箱は 10-28 から塞がない）
     std::vector<PropBlock> m_PropBlocks;
     void BlockPropCells();     // RespawnCrates の最後（前の分は戻してから塞ぎ直す）
-    void UpdatePropBlocks();   // 毎フレーム：消えた箱の分を戻す
+    void UpdatePropBlocks();   // 毎フレーム：消えた柱の分を戻す
     void BlockUnreachablePockets();   // 地形の直後：フィールドの真ん中へ歩いて行けないマスを塞ぐ
 
     // ============================================================
