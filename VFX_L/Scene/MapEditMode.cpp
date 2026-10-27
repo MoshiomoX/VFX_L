@@ -132,7 +132,7 @@ void MapEditMode::RebuildView()
     m_Grid.Init(m_Map.gw, m_Map.gd);
     auto* device = Application::Get().GetGraphics().GetDevice();
     TerrainGenerator::BuildFromMap(m_Reg, device, m_Grid, m_Map, m_Terrain, nullptr, nullptr, nullptr, nullptr,
-        TerrainGenerator::kPartVisuals | TerrainGenerator::kPartGround);
+        TerrainGenerator::kPartVisuals | TerrainGenerator::kPartGround | TerrainGenerator::kPartWater);
 }
 
 bool MapEditMode::TestOpen(uint32_t seed, int biome)

@@ -8,8 +8,9 @@
 // 品揃え（まずは簡単に。ユーザー 10-15「売る物は適当に少し置けばいい」）：
 //   [0..3] 魔法・ルーン・召喚物から無作為に 4 つ（同じ物は並ばない。上級魔法は前提の基本魔法を 1 つでも持っている時だけ）
 //   [4]    設置枠を 1 つ（種類は無作為）
-//   [5]    能力値の札を 1 つ（無作為）
-// 値段は種類で固定（PriceOf）。品揃えの引き直しは 15 + 10 × 回数（四択の引き直しと同じ上がり方）
+//   [5]    能力値の札を 1 つ（無作為）→ 2026-10-27 ユーザー「商店の能力値の札も外す」で statSlot = false（出さない）
+// 値段は種類で固定（PriceOf。設置枠は枠ごとの priceMul を掛ける）。品揃えの引き直しは 60 + 40 × 回数。
+// 2026-10-27 ユーザー「商店が安すぎて一度入ると無敵」→ 値段・引き直しを全部 4 倍
 // ============================================================
 #pragma once
 #include "SpellID.h"
@@ -21,7 +22,7 @@ struct StatItemDef;
 class ShopStock
 {
 public:
-    static constexpr int kSlots = 6;
+    static constexpr int kSlots = 5;   // 並ぶ欄の数（一覧の高さ）。能力値の札（statSlot）を戻すなら 6 に
 
     struct Slot
     {
@@ -51,8 +52,8 @@ public:
     float StageMul() const { return m_StageMul; }
 
     // ---- 調整値 ----
-    int rerollBaseCost = 15;
-    int rerollStepCost = 10;
+    int rerollBaseCost = 60;    // 10-27 に 15 → 60（全部 4 倍）
+    int rerollStepCost = 40;
     float stagePriceGrowth = 1.5f;   // 次の面が 1 つ進むごとに値段 ×（後の商店ほど高い。引き直しも同じ倍率）
     // 魔法・ルーン・召喚物の欄（[0..3]）の出やすさ。基本魔法 1 を基準に
     float weightBasic = 1.0f;
@@ -60,12 +61,13 @@ public:
     float weightAdvanced = 0.7f;   // 上級魔法（前提を持っている時だけ並ぶ）
     float weightSummon = 0.5f;
     float weightOwnedMul = 0.6f;   // 既に魔法書にある物はこれを掛ける（同じ物ばかり並ばないように）
-    int priceBasic = 30;      // 基本魔法（弾・範囲）
-    int priceAdvanced = 60;   // 上級魔法（前提が要る物）
-    int priceRune = 40;       // ルーン
-    int priceSummon = 60;     // 召喚物（水晶玉）
-    int priceFrame = 40;      // 設置枠
-    int priceStat = 25;       // 能力値の札
+    int priceBasic = 120;     // 基本魔法（弾・範囲）
+    int priceAdvanced = 240;  // 上級魔法（前提が要る物）
+    int priceRune = 160;      // ルーン
+    int priceSummon = 240;    // 召喚物（水晶玉）
+    int priceFrame = 160;     // 設置枠
+    int priceStat = 100;      // 能力値の札
+    bool statSlot = false;    // [5] 能力値の札を並べるか（2026-10-27 に外した。四択の LevelUpSystem::statCards と同じ）
 
 private:
     // 能力値の札を引き継ぎの部品へ効かせる（LevelUpSystem::ApplyStat の RunCarry 版。

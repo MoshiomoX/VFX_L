@@ -26,6 +26,7 @@
 #pragma once
 #include "SpellID.h"
 #include "UI/DragContext.h"
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -48,11 +49,37 @@ public:
 
     // グリッドとマス寸を揃える（ドラッグ中に大きさが跳ばないように）
     void SetCellSize(float cellSize) { m_CellSize = cellSize; }
+    // グリッドの 1 マスの送り（マス + 隙間）。ドラッグ中の絵の位置から、離した所に物を出す時に使う（2026-10-27）
+    void SetCellPitch(float pitch) { m_CellPitch = pitch; }
+    // TEMP-TEST：マウスで離したのと同じ落とし所を置く（自動テストはマウスを動かさないので）
+    void TestDropHint(ItemID id, const DirectX::SimpleMath::Vector2& center, int rotation)
+    {
+        m_DropHint.valid = true;
+        m_DropHint.id = id;
+        m_DropHint.center = center;
+        m_DropHint.angle = (float)(rotation & 3) * 1.5707963f;
+        m_DropHint.ttl = 0.3f;
+    }
 
     // 同期 → 物理 → 掴み判定。Backpack 層が開いている間だけ呼ばれる
     void Update(const SpellbookComponent& book, const BackpackComponent& bp, float dt);
 
     void Draw(SpriteRenderer& sprite);
+
+    // 画面の縁が壁 + 蓋の無い木箱（2026-10-27、ユーザー「箱の蓋を取って画面の縁全体で当たるように」→
+    // 「箱はやっぱり要る、少し下に置いて、魔法が多い時は箱からこぼれ落ちるように」）。
+    // true = 物理の範囲は画面全体（4 辺が壁）。木箱は右下に置き、左の板・右の板・底の 3 枚だけが壁（上は開いている）。
+    //        新しい物は箱の真上の画面の上から降ってきて箱に入り、溢れた分は箱の縁から画面へこぼれる。
+    //        SetObstacle の四角（バックパックの列）も壁。false = 以前の右の真ん中の閉じた木箱
+    bool screenWalls = true;
+    // 画面の縁の時に、中身が入らない四角（バックパックの盤面の列）。GameUI が Layout の後に渡す。max <= min なら無し
+    void SetObstacle(const DirectX::SimpleMath::Vector2& min, const DirectX::SimpleMath::Vector2& max)
+    {
+        m_ObstacleMin = min;
+        m_ObstacleMax = max;
+        m_HasObstacle = (max.x > min.x && max.y > min.y);
+        Wake();
+    }
 
     // ---- 見た目の調整（ImGui から触る）----
     float boxScreenRatio = 0.42f;    // 箱の内寸が画面短辺に占める割合
@@ -192,6 +219,37 @@ private:
     DirectX::SimpleMath::Vector2 m_BoxMin = { 0, 0 };
     DirectX::SimpleMath::Vector2 m_BoxMax = { 0, 0 };
     float m_Wall = 12.0f;
+    // 物理の範囲（外側の 4 枚の壁）。screenWalls の時は画面全体、そうでなければ箱の内寸と同じ
+    DirectX::SimpleMath::Vector2 m_AreaMin = { 0, 0 };
+    DirectX::SimpleMath::Vector2 m_AreaMax = { 0, 0 };
+    DirectX::SimpleMath::Vector2 m_ObstacleMin = { 0, 0 };   // SetObstacle（画面の縁の時だけ当たる）
+    DirectX::SimpleMath::Vector2 m_ObstacleMax = { 0, 0 };
+    bool m_HasObstacle = false;
+    bool Blocked() const { return screenWalls && m_HasObstacle; }
+    // 重心を障害物の外（右）へ出す
+    void PushOutOfObstacle(DirectX::SimpleMath::Vector2& p, float r) const
+    {
+        if (!Blocked()) return;
+        if (p.x - r < m_ObstacleMax.x && p.y + r > m_ObstacleMin.y && p.x + r > m_ObstacleMin.x && p.y - r < m_ObstacleMax.y)
+            p.x = (std::max)(p.x, m_ObstacleMax.x + r);
+    }
 
     float m_CellSize = 56.0f;   // グリッドと同じマス寸（フルサイズ）
+    float m_CellPitch = 60.0f;  // グリッドの 1 マスの送り（SetCellPitch）
+
+    // ---- マウスで離した所から落とす（2026-10-27、ユーザー「マウスで離した時、箱の上に湧くのではなく、その場から落ちるように」）----
+    // ドラッグ中は毎フレーム、絵（DrawDragged と同じ = マウス − grabOffset が要のマスの左上）の重心と向きを覚えておき、
+    // ドラッグが終わったフレームに「落とし所」にする。直後に同じ物を出す時（SyncBodies）はそこに、その向きで出す
+    struct DropHint
+    {
+        bool   valid = false;
+        ItemID id = ItemID::Fireball;
+        DirectX::SimpleMath::Vector2 center = { 0, 0 };   // 形の重心（画面 px）
+        float  angle = 0.0f;                               // rotation × 90 度
+        float  ttl = 0.0f;                                 // 秒。切れたら捨てる（グリッドに置けた時など）
+    };
+    bool     m_DragSeen = false;   // 前のフレームにマウスでドラッグ中だったか
+    DropHint m_DragNow;            // ドラッグ中の今の位置（終わったら m_DropHint へ）
+    DropHint m_DropHint;
+    void TrackDrag(float dt);
 };

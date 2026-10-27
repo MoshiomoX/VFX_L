@@ -108,6 +108,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     }
     m_GrassFire.Tick(dt);   // 草の火の時計（一時停止中は進まない）
     m_Debris.Tick(dt);      // 落ち葉も
+    m_Water.Tick(dt);       // 水面の波紋も
     UpdateWindToys(dt);     // 転がり草・タンポポ（2026-10-22）
 
     m_ManaSystem.Update(m_Registry, dt);

@@ -42,6 +42,9 @@ struct TrainingRequest
     // 無敵・MP 無限・湧き停止・メニューで的を置く、はそのまま
     int    field = 0;
     bool   eliteRanged = false;    // Elite（2026-10-25）：面の固定エリートの A（近接）/ B（遠距離）。詞缀は 0〜2 個を乱数で
+    // Boss（2026-10-27 ユーザー「各 Boss をトレーニングの選択肢に」）：BossType の番号。-1 = そのフィールドの Boss（今まで通り）。
+    // シーンが呼ぶ前に InitBossFx で技・見た目を替える（Boss が出ている間は替えない）
+    int    bossType = -1;
 };
 
 class TrainingMenuUI
@@ -79,7 +82,9 @@ public:
     static constexpr int kCountChoices = 4;
     static constexpr int kRandomModes = 3;    // ランダムに組む：中身
     static constexpr int kRandomCounts = 4;   // ランダムに組む：個数
+    static constexpr int kBossChoices = 7;    // ボスの種類：この面の Boss + 6 体（2026-10-27）
     static const float kTargetHp[kHpChoices];
+    static const int kBossTypes[kBossChoices];   // 各選択肢の BossType（-1 = この面の Boss）
     static const wchar_t* const kSwarmKinds[kKindChoices];
     static const int kSwarmCounts[kCountChoices];
     static const wchar_t* const kRandomModeNames[kRandomModes];
@@ -96,7 +101,7 @@ private:
     void Build();             // 行を組む（魔法の一覧は ItemDatabase から。初期化の後で呼ぶ）
     enum class RowKind { Buttons, Choice, Toggle, Items, Back };
     // Field は末尾（自動テスト training が番号で行を指す。並び順は Build の方で決める）
-    enum class RowId { Targets, TargetHp, SwarmKind, SwarmCount, Moving, Spawn, Items, Chest, RandomMode, RandomCount, Backpack, Back, Field };
+    enum class RowId { Targets, TargetHp, SwarmKind, SwarmCount, Moving, Spawn, Items, Chest, RandomMode, RandomCount, Backpack, Back, Field, BossKind };
     struct Row
     {
         std::wstring label;
@@ -132,6 +137,7 @@ private:
     bool m_Moving = true;
     int  m_RandomModeIndex = 0;   // kRandomModeNames
     int  m_RandomCountIndex = 1;  // kRandomCountValues
+    int  m_BossIndex = 0;         // kBossTypes（0 = この面の Boss）
 
     std::vector<TrainingRequest> m_Requests;
     std::wstring m_Message;

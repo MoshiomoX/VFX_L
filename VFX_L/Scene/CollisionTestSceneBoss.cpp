@@ -60,11 +60,11 @@ namespace
 // ============================================================
 // 面の Boss に合わせる（Init・トレーニングのフィールド切替）。VFXL_BOSS_TYPE=sand / stone で替えられる（TEMP-TEST）
 // ============================================================
-void CollisionTestScene::InitBossFx(BossType type)
+void CollisionTestScene::InitBossFx(BossType type, bool ignoreEnv)
 {
     BossType t = type;
     char env[16] = {};
-    if (DevUI::kEnabled && GetEnvironmentVariableA("VFXL_BOSS_TYPE", env, sizeof(env)) > 0)
+    if (!ignoreEnv && DevUI::kEnabled && GetEnvironmentVariableA("VFXL_BOSS_TYPE", env, sizeof(env)) > 0)
     {
         if (_stricmp(env, "sand") == 0) t = BossType::SandGuardian;
         else if (_stricmp(env, "stone") == 0) t = BossType::StoneGiant;
@@ -103,9 +103,12 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         feetDrop = st.height * 0.5f + st.radius;
     }
 
+    // 門から呼んだ時の登場の演出（2026-10-27）。その間は技を出さない（BossAttacks には居ない扱い = 歩き終わってから最初の溜めを数える）
+    const BossIntro::Frame intro = UpdateBossIntro(dt);
+
     BossAttacks::Input in;
     in.dt = dt;
-    in.bossAlive = m_Stage.IsBossAlive();
+    in.bossAlive = m_Stage.IsBossAlive() && !intro.active;
     in.bossHpRatio = m_Stage.BossHpRatio();
     in.bossPos = m_Stage.BossPos();
     in.player = player;
@@ -129,8 +132,10 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
     bomber.bossLeanPivotY = m_BossAttacks.leanPivotY;   // 前傾の支点と角度（Boss 毎）
     bomber.bossLeanPivotZ = m_BossAttacks.leanPivotZ;
     bomber.bossLeanAngle = m_BossAttacks.leanAngle;
+    bomber.bossScale = m_BossAttacks.bodyScale;          // 体の大きさ（Boss 毎。2026-10-27）
     bomber.bossJumpHeight = out.jumpHeight;             // 狼人の飛びかかりの放物線（技の間だけ > 0）
     bomber.bossNoContact = out.noContact ? 1.0f : 0.0f; // 飛びかかりの間は体で殴らない
+    ApplyBossIntroSteer(intro);                          // 登場の演出の間は門をくぐって歩く・殴らない（上の指示を上書き）
 
     UpdateBossSandFx(dt, in, out);
 
@@ -203,6 +208,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         OnExplosions(1);
         m_Grass.AddGust(out.wavePos, 4.0f);     // 砕いた所の草が倒れ、落ち葉が舞う（CPU の範囲なので自分で押す。2026-10-13）
         m_Debris.AddGust(out.wavePos, 4.0f);
+        m_Water.AddRipple(out.wavePos, 2.4f, m_Water.GetSettings().blastStrength);   // 水たまりの上なら大きな波紋（2026-10-27）
     }
     if (out.chargeGo) AudioSystem::Get().Play("boss_slam_warn");
     if (out.thunderStruck) AudioSystem::Get().Play("elite_thunder_warn");   // 雄鹿の道筋の雷の予告（精鋭の雷光と同じ音）
@@ -240,6 +246,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
                 if (!rock) OnExplosions(1);
                 m_Grass.AddGust(h.center, rock ? 2.0f : 3.0f);   // 重撃 / 投石の着弾でも草が倒れる（2026-10-13）
                 m_Debris.AddGust(h.center, rock ? 2.0f : 3.0f);
+                m_Water.AddRipple(h.center, rock ? 1.2f : 1.8f, m_Water.GetSettings().blastStrength * (rock ? 0.6f : 1.0f));
             }
             if (IsPlayerDead()) continue;
 

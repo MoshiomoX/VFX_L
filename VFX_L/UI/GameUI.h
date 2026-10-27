@@ -74,6 +74,7 @@ public:
     void TestShow(int layer);
     void TestPushBackpack();   // TEMP-TEST: 四択の上にバックパックを重ねる（ui）
     const SpellbookUI& GetSpellbook() const { return m_Spellbook; }   // TEMP-TEST: 木箱の物理の記録
+    SpellbookUI& GetSpellbookMutable() { return m_Spellbook; }        // TEMP-TEST: 離した所から落とす確認（TestDropHint）
     BackpackPadControl& TestPad() { return m_Pad; }          // TEMP-TEST: パッド操作（padbag）
     const DragContext& GetDrag() const { return m_Drag; }    // TEMP-TEST
     void TestTooltip(int itemIndex, const DirectX::SimpleMath::Vector2& pos) { m_TestTooltipItem = itemIndex; m_TestTooltipPos = pos; }
@@ -160,6 +161,15 @@ public:
     }
 
 private:
+    // 魔法書（画面の縁が壁）の中身が入らない四角 = バックパックの盤面の列（画面の左端から盤面の右 + 少し、上下いっぱい）。
+    // 盤面の上に物が積もって見えなくならないように（2026-10-27）
+    void SetSpellbookObstacle()
+    {
+        DirectX::SimpleMath::Vector2 mn, mx;
+        m_Backpack.PanelRect(mn, mx);
+        const float gap = m_Backpack.GetCellSize() * 0.25f;
+        m_Spellbook.SetObstacle({ -10.0f, -10.0f }, { mx.x + gap, m_ScreenH + 10.0f });
+    }
     void UpdateStack(Registry& reg, Entity player, float dt);   // 開閉と入力の振り分け
     void DrawModals(Registry& reg, Entity player);    // スタック順に描く
     void DrawOverlay(Registry& reg, Entity player);   // tooltip（本体の文字より上に出す別の組）

@@ -10,10 +10,27 @@
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 RWByteAddressBuffer counters : register(u0);
+// the plain closest enemy (2026-10-27, MoveCS u4): +0 key, +4 pos, +16 dist. The key is reset here for the next step
+RWByteAddressBuffer closeTarget : register(u1);
 
 [numthreads(1, 1, 1)]
 void main()
 {
+    // the plain closest (no boss / elite priority)
+    {
+        uint ckey = closeTarget.Load(0);
+        if (ckey == SWARM_NO_TARGET_KEY)
+            closeTarget.Store(16, asuint(1e30));
+        else
+        {
+            SwarmEnemy c = enemies[ckey & SWARM_SLOT_MASK];
+            float3 cp = c.position - g_PlayerPos;
+            closeTarget.Store3(4, asuint(c.position));
+            closeTarget.Store(16, asuint(sqrt(cp.x * cp.x + cp.z * cp.z)));
+        }
+        closeTarget.Store(0, SWARM_NO_TARGET_KEY);
+    }
+
     uint key = counters.Load(SWARM_CNT_NEAREST_KEY);
     uint slot = key & SWARM_SLOT_MASK;
 

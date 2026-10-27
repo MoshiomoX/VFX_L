@@ -123,11 +123,66 @@ namespace ShapeSprite
         }
     }
 
+    // つながった 1 枚を、外周だけ inset（px）内側へ縮めて塗る（2026-10-27、ユーザー「魔法とルーンの絵を少し小さくして、
+    // バックパックの縁が少し見えるように。そうすれば半透明でなくていい」）。
+    // マス 1 個を縁 inset で 3x3 に割り、中央は必ず、辺は隣があれば、角は 2 辺の隣と斜めの隣が全部あれば塗る
+    // （L 字の内側の角も正しく削れる）。隙間の帯も同じ考えで、帯の端は両側の隣が揃っている時だけ塗る
+    inline void DrawConnectedInset(SpriteRenderer& sprite,
+        const std::shared_ptr<Texture>& tex, const DirectX::SimpleMath::Vector4& color,
+        const std::vector<CellOffset>& cells,
+        const DirectX::SimpleMath::Vector2& origin, float cell, float gap, float inset)
+    {
+        auto has = [&](int r, int c)
+            {
+                return std::any_of(cells.begin(), cells.end(),
+                    [&](const CellOffset& o) { return o.row == r && o.col == c; });
+            };
+        const float in = (std::max)(0.0f, (std::min)(inset, cell * 0.45f));
+        const float pitch = cell + gap;
+        auto box = [&](float x0, float y0, float x1, float y1)
+            {
+                if (x1 > x0 && y1 > y0) sprite.Draw(tex, { x0, y0 }, { x1 - x0, y1 - y0 }, color);
+            };
+        for (const auto& o : cells)
+        {
+            const int r = o.row, c = o.col;
+            const float x = origin.x + (float)c * pitch;
+            const float y = origin.y + (float)r * pitch;
+            const bool T = has(r - 1, c), B = has(r + 1, c), L = has(r, c - 1), R = has(r, c + 1);
+            const float xa = x + in, xb = x + cell - in, ya = y + in, yb = y + cell - in;
+            box(xa, ya, xb, yb);                                   // 中央
+            if (T) box(xa, y, xb, ya);                              // 上の辺
+            if (B) box(xa, yb, xb, y + cell);                       // 下の辺
+            if (L) box(x, ya, xa, yb);                              // 左の辺
+            if (R) box(xb, ya, x + cell, yb);                       // 右の辺
+            if (T && L && has(r - 1, c - 1)) box(x, y, xa, ya);     // 角
+            if (T && R && has(r - 1, c + 1)) box(xb, y, x + cell, ya);
+            if (B && L && has(r + 1, c - 1)) box(x, yb, xa, y + cell);
+            if (B && R && has(r + 1, c + 1)) box(xb, yb, x + cell, y + cell);
+            if (gap <= 0.0f) continue;
+            // 右の隙間の帯（中は必ず、上下の端は上下の隣が両方ある時だけ）
+            if (R)
+            {
+                const bool up = T && has(r - 1, c + 1), dn = B && has(r + 1, c + 1);
+                box(x + cell, up ? y : ya, x + pitch, dn ? y + cell : yb);
+            }
+            // 下の隙間の帯
+            if (B)
+            {
+                const bool lf = L && has(r + 1, c - 1), rt = R && has(r + 1, c + 1);
+                box(lf ? x : xa, y + cell, rt ? x + cell : xb, y + pitch);
+            }
+            // 2x2 が全部埋まっている時の真ん中の小さい隙間
+            if (R && B && has(r + 1, c + 1)) box(x + cell, y + cell, x + pitch, y + pitch);
+        }
+    }
+
     // 幻想 UI のアイテムの見た目：アイテムの色を暗く沈めた「色ガラス」+ 種類の色の輪郭 + 暖かい白のシルエット
     inline constexpr float kGlassDim = 0.12f;     // アイテムの色をどれだけ暗くして地にするか（線形）
-    inline constexpr float kGlassAlpha = 0.92f;
+    inline constexpr float kGlassAlpha = 1.0f;    // 2026-10-27 0.92 → 1（縮めて縁を見せるので半透明にしない）
+    inline constexpr float kGlassInset = 0.07f;   // 外周をマスのこの割合だけ内側へ（下のマスの縁・枠の色が見える。2026-10-27）
     inline const DirectX::SimpleMath::Vector4 kIconTint = { 0.97f, 0.94f, 0.87f, 1.0f };
-    inline constexpr float kIconScale = 0.88f;    // アイコンの大きさ（マス比。2026-09-30 0.74 → 0.88、ユーザー要求）
+    inline constexpr float kIconScale = 0.88f;    // アイコンの大きさ（縮めた後のマスに対する比。2026-09-30 0.74 → 0.88、ユーザー要求）
 
     // アイテム 1 個（幻想 UI）。white は無地の白、outline は種類の色（UIDeco::CategoryColor）
     inline void DrawItemGlass(SpriteRenderer& sprite,
@@ -138,18 +193,21 @@ namespace ShapeSprite
     {
         if (cells.empty()) return;
 
-        DirectX::SimpleMath::Vector4 base = { color.x * kGlassDim, color.y * kGlassDim, color.z * kGlassDim,
-            kGlassAlpha * alpha };
-        DrawConnected(sprite, white, base, cells, origin, cell, gap);
-
+        // 外周を縮めた 1 枚：まず種類の色で塗り、その内側を輪郭の太さだけさらに縮めて地の色で塗る = 縮めた形の輪郭
+        // （L 字の内側の角でも輪郭が切れない。地は不透明なので重ねて描ける）
+        const float inset = cell * kGlassInset;
+        const float th = (std::max)(1.0f, cell * 0.035f);
         DirectX::SimpleMath::Vector4 line = outline;
         line.w = 0.95f * alpha;
-        DrawOutline(sprite, white, line, cells, origin, cell, gap, (std::max)(1.0f, cell * 0.035f));
+        DrawConnectedInset(sprite, white, line, cells, origin, cell, gap, inset);
+        DirectX::SimpleMath::Vector4 base = { color.x * kGlassDim, color.y * kGlassDim, color.z * kGlassDim,
+            kGlassAlpha * alpha };
+        DrawConnectedInset(sprite, white, base, cells, origin, cell, gap, inset + th);
 
         if (!icon) return;
         const CellOffset c = CenterCell(cells);
         const float pitch = cell + gap;
-        const float s = cell * kIconScale;
+        const float s = (cell - inset * 2.0f) * kIconScale;
         DirectX::SimpleMath::Vector4 ic = kIconTint;
         ic.w = alpha;
         sprite.Draw(icon,

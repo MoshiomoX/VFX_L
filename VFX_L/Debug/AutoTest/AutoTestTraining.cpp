@@ -11,6 +11,7 @@ namespace
     // TrainingMenuUI::RowId の番号
     constexpr int kRowTargets = 0, kRowSpawn = 5, kRowItems = 6, kRowChest = 7;
     constexpr int kRowRandomMode = 8, kRowRandomCount = 9, kRowBackpack = 10;   // 値の行は押すと 1 段進む
+    constexpr int kRowBossKind = 13;   // ボスの種類（2026-10-27。Field = 12 の後ろ）
 
     class AutoTestTraining final : public BattleAutoTest
     {
@@ -112,6 +113,9 @@ void AutoTestTraining::Run(float dt)
     {
         press(kRowTargets, 0, "targets ahead");
         press(kRowSpawn, 0, "swarm");
+        // ボスの種類を 2 段進める（この面の Boss → 岩の巨人 → 月下の狼人）→ 呼ぶ（2026-10-27）
+        press(kRowBossKind, 0, "boss kind +1");
+        press(kRowBossKind, 0, "boss kind +1 (= werewolf)");
         press(kRowSpawn, 1, "boss");
         press(kRowSpawn, 1, "boss again (should refuse)");
         s_Step = 6;
@@ -126,7 +130,13 @@ void AutoTestTraining::Run(float dt)
     {
         static bool s_SwarmShot = false, s_BossShot = false;
         if (!s_SwarmShot && s_Real >= 6.0f) { AutoTestLog("training look swarm"); s_SwarmShot = true; }
-        if (!s_BossShot && s_Real >= 9.0f) { AutoTestLog("training look boss"); s_BossShot = true; }
+        if (!s_BossShot && s_Real >= 9.0f)
+        {
+            snprintf(line, sizeof(line), "training boss type %s alive %d", BossTypeName(m_BossAttacks.Type()), m_Stage.IsBossAlive() ? 1 : 0);
+            AutoTestLog(line);
+            AutoTestLog("training look boss");
+            s_BossShot = true;
+        }
         if (s_Real >= 10.0f)
         {
             m_GameUI.TestOpenTraining(true);

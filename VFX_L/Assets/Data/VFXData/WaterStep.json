@@ -1,0 +1,19 @@
+{
+    "name": "WaterStep",
+    "loop": false,
+    "entries": [
+        { "type": "Particle", "startTime": 0.0, "duration": 0.02, "data": {
+            "sheet": 1, "atlasIndex": 4, "frameMode": 1, "frameCount": 1, "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8,
+            "blend": 1, "renderMode": 0,
+            "toon": { "cut": 0.35, "bands": 2, "shade": 0.80, "outline": false },
+            "emitType": 2, "emitRate": 900.0, "maxParticles": 20,
+            "position": [0.0, 0.02, 0.0], "direction": [0.0, 1.0, 0.0], "radius": 0.12, "innerRadius": 0.0, "spreadAngle": 38.0, "boxExtents": [1.0, 1.0, 1.0],
+            "speedRange": [1.8, 3.2], "gravity": [0.0, -15.0, 0.0], "dragCoeff": 0.2,
+            "lifetimeRange": [0.30, 0.46],
+            "sizeRange": [0.07, 0.11, 0.03, 0.05],
+            "rotationRange": [0.0, 6.28], "angularVelRange": [0.0, 0.0],
+            "startColorMin": [0.78, 0.90, 1.00, 0.95], "startColorMax": [0.92, 0.98, 1.05, 0.95],
+            "endColorMin": [0.78, 0.90, 1.00, 0.70], "endColorMax": [0.92, 0.98, 1.05, 0.70]
+        } }
+    ]
+}

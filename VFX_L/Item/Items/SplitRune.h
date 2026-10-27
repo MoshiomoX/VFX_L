@@ -21,25 +21,25 @@ inline FunctionItemDef MakeSplitRune()
     def.common.id = ItemID::SplitRune;
     def.common.name = "Split Rune";
     def.common.displayName = L"分裂のルーン";
-    def.common.description = L"隣の魔法の弾を扇状に 1 発増やす。そのかわり 1 発の威力は下がる。";
+    def.common.description = L"光るマスに置いた魔法の弾を扇状に 1 発増やす。そのかわり 1 発の威力は下がる。";
     def.common.category = ItemCategory::Function;
-    def.common.occupyCells = ItemShape::Single();
-    def.common.influenceCells = ItemShape::Cross();      // 上下左右
+    def.common.occupyCells = { { 0, 0 }, { 0, 1 } };   // 横 2 マス（2026-10-27 ユーザー「ルーンにも形を、影響マスは減らす」）
+    def.common.influenceCells = { { 0, -1 }, { 0, 2 } };   // 両端の 1 マスずつ（十字 4 → 2）
     def.common.color = { 0.30f, 0.90f, 0.90f, 1.0f }; // 青緑
     def.common.iconPath = Res::Icon::SplitRune;
 
     // ---- 飛行物型への修飾（3つ同時に効く）----
     def.spellModifiers.push_back({ SpellParam::ProjectileCount, ModifyOp::Add,      1.0f });
-    def.spellModifiers.push_back({ SpellParam::Damage,          ModifyOp::Multiply, 0.6f });
+    def.spellModifiers.push_back({ SpellParam::Damage,          ModifyOp::Multiply, 0.55f });
     // 弾が落ちた所・当たった所に出す範囲（毒沼・爆発）も 1 つあたり 0.6 倍（2026-10-08）。
     // これが無いと毒は「毒沼が満額のまま 2 つ」= 2 倍になり、直射の魔法（2 発 × 0.6 = 1.2 倍）との差が広がっていた（spellbench）
-    def.spellModifiers.push_back({ SpellParam::AreaDamage,      ModifyOp::Multiply, 0.6f });
+    def.spellModifiers.push_back({ SpellParam::AreaDamage,      ModifyOp::Multiply, 0.55f });
     def.spellModifiers.push_back({ SpellParam::SpreadAngle,     ModifyOp::Add,      15.0f });
 
     // ---- AOE への修飾：範囲を少し広げる ----
     // ※「分裂」は AOE では「範囲拡大」として解釈する
-    def.areaModifiers.push_back({ AreaParam::Radius,        ModifyOp::Multiply, 1.25f });
-    def.areaModifiers.push_back({ AreaParam::DamagePerTick, ModifyOp::Multiply, 0.8f });
+    def.areaModifiers.push_back({ AreaParam::Radius,        ModifyOp::Multiply, 1.2f });
+    def.areaModifiers.push_back({ AreaParam::DamagePerTick, ModifyOp::Multiply, 0.75f });
 
     return def;
 }

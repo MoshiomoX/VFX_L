@@ -296,6 +296,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeRaw(16, m_WindSourceCount, m_WindSourceCountUAV, "windSourceCount")) return false;
     if (!CreateWindSourceReadback(device)) return false;   // CPU のマント・転がり草が読む写し（2026-10-22）
     if (!CreateLifestealReadback(device)) return false;    // 吸血のルーンの累計（2026-10-25）
+    if (!CreateCloseTargetReadback(device)) return false;  // 優先度なしの一番近い敵（2026-10-27）
     {
         // CPU の風源（突風。2026-10-20）：毎フレーム Map で書く DYNAMIC の structured buffer
         D3D11_BUFFER_DESC bd = {};
@@ -1055,6 +1056,7 @@ void SwarmSystem::Flush(const Vector3& playerPos, float playerRadius,
     ReadSplitEvents();
     ReadDamageTexts();
     ReadLifesteal();
+    ReadCloseTarget();   // 優先度なしの一番近い敵（近距離の範囲魔法の狙い。2026-10-27）
     if (m_MagnetTimer > 0.0f) m_MagnetTimer -= dt;
 
     // ---- 2) 定数と生成依頼を上げる ----
@@ -1413,6 +1415,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_EnemyMoveCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());   // 突風の吹き飛ばし（積分に足して減らす。AI の速度の平滑化を通さない）
         m_EnemyMoveCS->SetUAV(m_Context, "enemyRoll", m_EnemyRollUAV.Get());   // トゲ玉の向き（実際に進んだ分だけ転がす。2026-10-25）
+        m_EnemyMoveCS->SetUAV(m_Context, "closeTarget", m_CloseTargetUAV.Get());   // 優先度なしの一番近い敵の競争（2026-10-27）
         m_EnemyMoveCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1569,6 +1572,7 @@ void SwarmSystem::DispatchStep()
         m_AimResolveCS->Bind(m_Context);
         m_AimResolveCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
         m_AimResolveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_AimResolveCS->SetUAV(m_Context, "closeTarget", m_CloseTargetUAV.Get());   // 優先度なしの一番近い敵の位置（2026-10-27）
         m_AimResolveCS->BindUAVs(m_Context);
         m_Context->Dispatch(1, 1, 1);
         m_AimResolveCS->UnbindSRVs(m_Context);
@@ -2037,6 +2041,7 @@ void SwarmSystem::RequestReadback()
         m_DamageTextStagingWrite = (m_DamageTextStagingWrite + 1) % kTriggerStaging;
     }
     CopyLifestealForCPU();   // 吸血の累計（2026-10-25）
+    CopyCloseTargetForCPU(); // 優先度なしの一番近い敵（2026-10-27）
 }
 
 // ============================================================

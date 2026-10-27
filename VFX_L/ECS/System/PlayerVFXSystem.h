@@ -15,6 +15,8 @@
 //     体の周りに魔法の色の光の粒が昇る（CastPulse.json）と、体がほんのり魔法の色に光る（hitFlash を弱く使う）
 // 足元の土煙は小石に替えた（同日ユーザー：「灰色の霧ではなく、巻き上がる小石」。KayKit の岩の Mesh 粒子）。
 // 小石の色は面で変える（dustTint。シーンが Init の後に入れる）。
+// 水たまりの中（足が水面より下。water = シーンの WaterSurface）では小石の代わりに水しぶき（WaterStep / WaterLand / WaterSlide）+
+// 水面の波紋 + 水の足音（water_step / water_land）。水の中を進むと航跡の波紋（2026-10-27）。
 // 再生はシーンの AreaVFXPlayer（FeedbackVFXSystem と同じ）。魔法陣は SubmitMeshes で VFXMeshRenderer へ
 // ============================================================
 #pragma once
@@ -29,6 +31,7 @@
 
 class AreaVFXPlayer;
 class VFXMeshRenderer;
+class WaterSurface;
 struct VFXContext;
 
 class PlayerVFXSystem
@@ -54,6 +57,8 @@ public:
     bool  hitFlash = true;
     bool  castCircles = true;      // 足元・手の前の魔法陣
     bool  castPulse = true;        // 体の周りの光の粒 + 体のほのかな光
+    bool  waterFx = true;          // 水たまりの中の水しぶき・波紋・足音
+    WaterSurface* water = nullptr; // シーンが入れる（無ければ水の判定をしない）
     float pulseGap = 0.2f;         // 体の光の粒の最短間隔（秒）
     float castGlowStrength = 0.07f;   // 撃った時に体を魔法の色へ寄せる割合（被弾の閃きより弱く。0.12 だと撃ち続けで体が紫のままに見えた）
     float castGlowTime = 0.18f;
@@ -88,6 +93,7 @@ private:
 
     bool  m_Read = false;            // 前のフレームの値を読んだか（最初のフレームは比べない）
     bool  m_PrevGrounded = true;
+    bool  m_PrevInWater = false;
     float m_AirTime = 0.0f;
     float m_MinVy = 0.0f;            // 空中で一番速く落ちた速さ（負）
     int   m_PrevAirJumps = 0;

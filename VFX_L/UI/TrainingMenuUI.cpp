@@ -9,10 +9,14 @@
 #include "Item/ItemDatabase.h"
 #include "Item/ItemTypes.h"
 #include "UI/UIDeco.h"
+#include "Enemy/Boss/BossBrain.h"
 
 using namespace DirectX::SimpleMath;
 
 const float TrainingMenuUI::kTargetHp[kHpChoices] = { 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f };
+// ボスの種類（2026-10-27）：この面の Boss → 草原の 3 体 → 砂漠の 2 体 → 遺跡の 1 体（面の順）
+const int TrainingMenuUI::kBossTypes[kBossChoices] = { -1, (int)BossType::StoneGiant, (int)BossType::Werewolf, (int)BossType::Stag,
+    (int)BossType::SandGuardian, (int)BossType::Scorpion, (int)BossType::CryptKnight };
 const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"突撃兵", L"盾兵", L"幽霊", L"トゲ玉", L"砂潜り", L"砂嵐の術師", L"黒幽霊", L"突撃爆弾兵",
     L"呪いの鎧", L"石像ガーゴイル", L"死霊術師", L"骸骨", L"鎖の番人", L"混合" };
 const int TrainingMenuUI::kSwarmCounts[kCountChoices] = { 10, 30, 100, 300 };
@@ -39,6 +43,8 @@ void TrainingMenuUI::Build()
     m_Rows.push_back({ L"群れの種類", RowKind::Choice, RowId::SwarmKind, {}, {} });
     m_Rows.push_back({ L"群れの数", RowKind::Choice, RowId::SwarmCount, {}, {} });
     m_Rows.push_back({ L"敵が動く", RowKind::Toggle, RowId::Moving, {}, {} });
+    // ボスの種類（2026-10-27 ユーザー「各 Boss をトレーニングの選択肢に」）：「ボスを呼ぶ」で出す Boss。この面の Boss か、6 体のどれか
+    m_Rows.push_back({ L"ボスの種類", RowKind::Choice, RowId::BossKind, {}, {} });
     m_Rows.push_back({ L"敵を出す", RowKind::Buttons, RowId::Spawn, { L"群れを出す", L"ボスを呼ぶ", L"敵を全部消す", L"近接エリート", L"遠隔エリート" }, {} });
     // フィールド（2026-10-20）：平地の実験場か、本番の面の地形か。トレーニングのモード（無敵・MP 無限・湧き停止）はそのまま
     m_Rows.push_back({ L"フィールド", RowKind::Buttons, RowId::Field, { L"平地", L"草原", L"砂漠", L"遺跡" }, {} });
@@ -213,6 +219,7 @@ std::wstring TrainingMenuUI::ValueText(const Row& r) const
     case RowId::Moving:     return m_Moving ? L"オン" : L"オフ";
     case RowId::RandomMode: return kRandomModeNames[m_RandomModeIndex];
     case RowId::RandomCount: return std::to_wstring(kRandomCountValues[m_RandomCountIndex]) + L" 個";
+    case RowId::BossKind:   return (kBossTypes[m_BossIndex] < 0) ? L"この面の Boss" : BossDisplayName((BossType)kBossTypes[m_BossIndex]);
     default:                return L"";
     }
 }
@@ -242,6 +249,7 @@ void TrainingMenuUI::Step(int dir)
     case RowId::Moving:     m_Moving = !m_Moving; break;
     case RowId::RandomMode: m_RandomModeIndex = wrap(m_RandomModeIndex, kRandomModes); break;
     case RowId::RandomCount: m_RandomCountIndex = wrap(m_RandomCountIndex, kRandomCounts); break;
+    case RowId::BossKind:   m_BossIndex = wrap(m_BossIndex, kBossChoices); break;
     default: return;
     }
     AudioSystem::Get().Play("ui_hover");
@@ -257,6 +265,7 @@ void TrainingMenuUI::Activate()
     q.moving = m_Moving;
     q.randomMode = m_RandomModeIndex;
     q.randomCount = kRandomCountValues[m_RandomCountIndex];
+    q.bossType = kBossTypes[m_BossIndex];
     switch (r.id)
     {
     case RowId::Targets:
@@ -290,6 +299,7 @@ void TrainingMenuUI::Activate()
     case RowId::SwarmCount:
     case RowId::RandomMode:
     case RowId::RandomCount:
+    case RowId::BossKind:
         Step(+1);
         return;
     default:

@@ -21,18 +21,18 @@ inline FunctionItemDef MakeHasteRune()
     def.common.id = ItemID::HasteRune;
     def.common.name = "Haste";
     def.common.displayName = L"加速のルーン";
-    def.common.description = L"左右の魔法の発動間隔を短くし、速く撃てるようにする。";
+    def.common.description = L"光るマスの魔法の発動間隔を短くし、速く撃てるようにする。";
     def.common.category = ItemCategory::Function;
-    def.common.occupyCells = ItemShape::Single();
-    def.common.influenceCells = ItemShape::Sides();   // 左右 2 マス
+    def.common.occupyCells = { { 0, 0 }, { 1, 0 } };   // 縦 2 マス（2026-10-27）
+    def.common.influenceCells = { { 0, 1 }, { 1, 1 } };   // 右の 2 マス
     def.common.color = { 0.55f, 1.00f, 0.40f, 1.0f };   // 若草
     def.common.iconPath = Res::Icon::HasteRune;
 
     // ---- 飛行物型への修飾 ----
-    def.spellModifiers.push_back({ SpellParam::CastInterval, ModifyOp::Multiply, 0.75f });
+    def.spellModifiers.push_back({ SpellParam::CastInterval, ModifyOp::Multiply, 0.8f });
 
     // ---- AOE への修飾 ----
-    def.areaModifiers.push_back({ AreaParam::CastInterval, ModifyOp::Multiply, 0.75f });
+    def.areaModifiers.push_back({ AreaParam::CastInterval, ModifyOp::Multiply, 0.8f });
 
     return def;
 }

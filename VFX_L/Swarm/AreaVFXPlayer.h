@@ -41,6 +41,8 @@ public:
     void StopInstance(uint32_t handle);
     // Y 軸回りに回す（Play の直後に 1 回。Boss の門の渦を門の向きに合わせる）
     void RotateInstance(uint32_t handle, float yawDeg);
+    // TEMP-TEST（2026-10-27 突風の全体テスト）：再生中のインスタンス（無ければ null）
+    VFXEffect* DebugEffect(uint32_t handle) { for (auto& inst : m_Active) if (inst.handle == handle) return inst.effect.get(); return nullptr; }
     // 全体を s 倍の大きさに（Play の直後に 1 回。拡大鏡で広がった竜巻・突風。2026-10-22）
     void ScaleInstance(uint32_t handle, float s);
     // 出現 / 消える途中の度合い 0〜1（VFXEffect::SetPresence。竜巻が足元から伸び上がる / ほどける。2026-10-22）

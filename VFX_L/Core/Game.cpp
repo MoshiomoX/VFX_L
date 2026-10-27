@@ -60,7 +60,7 @@ bool Game::Initialize(Renderer* renderer)
         g_RunCarry.pos = 2;
         g_RunCarry.tier = 2;
         g_RunCarry.hasPlayer = true;
-        g_RunCarry.wallet.gold = 100.0f;
+        g_RunCarry.wallet.gold = 400.0f;   // 10-27 商店の値段 4 倍に合わせて 100 → 400（買う → 引き直し → 足りない の流れが通るように）
         g_RunCarry.spellbook.Learn(ItemID::HomingBolt, 1);
         g_RunCarry.spellbook.Learn(ItemID::Fireball, 1);
         g_RunCarry.spellbook.Learn(ItemID::Frame3x3, 1);

@@ -47,7 +47,6 @@ $Icons = [ordered]@{
     'Magnifier'      = 'lorc/magnifying-glass'
     'HasteRune'      = 'lorc/stopwatch'
     'ChainRune'      = 'lorc/lightning-branches'
-    'LifestealRune'  = 'lorc/bleeding-heart'
     'CrystalBall'    = 'lorc/crystal-ball'
     'MaxHealthUp'    = 'zeromancer/heart-plus'
     'MaxManaUp'      = 'lorc/potion-ball'
@@ -68,6 +67,11 @@ $Icons = [ordered]@{
     'MapElite'       = 'lorc/daemon-skull'
     'MapSurge'       = 'lorc/crossed-swords'
     'Frame3x3'       = '@grid3'
+    # 効果のある設置枠（2026-10-27。FrameLifesteal は元の吸血のルーンの絵）
+    'FrameArea'      = 'lorc/expanded-rays'
+    'FrameFocus'     = 'lorc/archery-target'
+    'FrameHaste'     = 'lorc/sands-of-time'
+    'FrameLifesteal' = 'lorc/bleeding-heart'
 }
 
 $cache = Join-Path $env:TEMP 'vfxl_gameicons'

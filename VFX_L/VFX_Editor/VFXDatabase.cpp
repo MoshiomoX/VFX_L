@@ -56,6 +56,9 @@ namespace
         { VFXId::LandDustHeavy, Res::VFX::LandDustHeavy, Group::Player },
         { VFXId::SlideDust, Res::VFX::SlideDust, Group::Player },
         { VFXId::SpeedTrail, Res::VFX::SpeedTrail, Group::Player },
+        { VFXId::WaterStep, Res::VFX::WaterStep, Group::Player },
+        { VFXId::WaterLand, Res::VFX::WaterLand, Group::Player },
+        { VFXId::WaterSlide, Res::VFX::WaterSlide, Group::Player },
 
         // ---- 魔法の CPU 側の見た目（判定は GPU の範囲）----
         { VFXId::IceSpike, Res::VFX::IceSpikeFrost, Group::SpellCpu },

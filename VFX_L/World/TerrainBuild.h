@@ -315,8 +315,13 @@ namespace TerrainBuild
     // 崖の衝突：段の境の上の段の内側に薄い箱（上面は上の段の地面より少し下 = 上を歩く時に引っ掛からない。
     // 下の段から見ると壁。登り降りの坂の端には付けない）。付けた数を返す
     int EmitStepCliffs(Emitter& emit, const GridWorld& grid, const ReliefField& rf);
-    // 水たまりの見た目（Emitter::Water）。水面 = 起伏 - 0.15m
+    // 水たまりの見た目（Emitter::Water）。水面 = 起伏 - 0.15m（kPondSurface）。2026-10-27 からはエディタの表示だけ（戦闘は WaterSurface）
     void EmitPonds(Emitter& emit, const GridWorld& grid, const ReliefField& rf, TerrainGenerator::Biome biome);
+    inline constexpr float kPondSurface = -0.15f;   // 水面の高さ = 水たまりで下げる前の起伏 + これ
+
+    // 地図の記録から起伏の面を組み直す（BuildFromMap と、戦闘の水面 WaterSurface が使う）。
+    // grid は map と同じ大きさのこと（原点・大きさ・高さ格子の細かさだけ読む）
+    std::shared_ptr<ReliefField> ReliefFromMap(const GridWorld& grid, const MapData::Map& map);
 
     // ---- 置物の凸包（巨石の衝突。2026-10-06）----
     // モデルの凸包の点を世界へ（pos / yaw / scale × stretch。Emitter::Prop と同じ置き方）

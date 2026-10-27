@@ -163,6 +163,9 @@
     <ClCompile Include="Swarm\SwarmSystemLifesteal.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemCloseTarget.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestElites.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -281,6 +284,15 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestGust.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestGustAll.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossIntro.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestWater.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestDebris.cpp">
@@ -811,7 +823,7 @@
     <ClInclude Include="UI\BackpackPadControl.h">
       <Filter>UI</Filter>
     </ClInclude>
-    <ClInclude Include="Item\Items\LifestealRune.h">
+    <ClInclude Include="Item\Items\Frames.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Player\LifestealHeal.h">
@@ -977,6 +989,15 @@
     <ClCompile Include="World\GrassFireField.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\WaterSurface.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\WaterRipples.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\WaterSurfacePanel.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\GroundDebris.cpp">
       <Filter>World</Filter>
     </ClCompile>
@@ -1045,6 +1066,12 @@
     </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneBoss.cpp">
       <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneBossIntro.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossIntro.cpp">
+      <Filter>Enemy\Boss</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestMapIO.cpp">
       <Filter>Debug\AutoTest</Filter>
@@ -1176,6 +1203,9 @@
       <Filter>Enemy\Spawn</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\Boss\BossAttacks.h">
+      <Filter>Enemy\Boss</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\Boss\BossIntro.h">
       <Filter>Enemy\Boss</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\Boss\BossLooks.h">
@@ -1836,6 +1866,9 @@
     <ClInclude Include="World\GrassFireField.h">
       <Filter>World</Filter>
     </ClInclude>
+    <ClInclude Include="World\WaterSurface.h">
+      <Filter>World</Filter>
+    </ClInclude>
     <ClInclude Include="World\GroundDebris.h">
       <Filter>World</Filter>
     </ClInclude>
@@ -2093,6 +2126,15 @@
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Debris\DebrisPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Water\WaterVS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Water\WaterPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Water\WaterRippleCS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Light\LightClusterCS.hlsl">
@@ -2360,6 +2402,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Grass\GrassCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Water\WaterCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Debris\DebrisCommon.hlsli">

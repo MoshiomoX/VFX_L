@@ -478,9 +478,13 @@ namespace Res
         inline constexpr const wchar_t* Magnifier = L"Assets/Texture/UI/Icons/Magnifier.png";
         inline constexpr const wchar_t* HasteRune = L"Assets/Texture/UI/Icons/HasteRune.png";
         inline constexpr const wchar_t* ChainRune = L"Assets/Texture/UI/Icons/ChainRune.png";   // 連鎖のルーン（2026-10-16）
-        inline constexpr const wchar_t* LifestealRune = L"Assets/Texture/UI/Icons/LifestealRune.png";   // 吸血のルーン（2026-10-25）
         inline constexpr const wchar_t* CrystalBall = L"Assets/Texture/UI/Icons/CrystalBall.png";   // 水晶玉（召喚物。2026-10-06）
         inline constexpr const wchar_t* Frame3x3 = L"Assets/Texture/UI/Icons/Frame3x3.png";
+        // 効果のある設置枠（2026-10-27、Items/Frames.h。ただの拡張枠は Frame3x3 の絵を使い回す）
+        inline constexpr const wchar_t* FrameArea = L"Assets/Texture/UI/Icons/FrameArea.png";
+        inline constexpr const wchar_t* FrameFocus = L"Assets/Texture/UI/Icons/FrameFocus.png";
+        inline constexpr const wchar_t* FrameHaste = L"Assets/Texture/UI/Icons/FrameHaste.png";
+        inline constexpr const wchar_t* FrameLifesteal = L"Assets/Texture/UI/Icons/FrameLifesteal.png";   // 元は吸血のルーンの絵（lorc/bleeding-heart）
         inline constexpr const wchar_t* MaxHealthUp = L"Assets/Texture/UI/Icons/MaxHealthUp.png";
         inline constexpr const wchar_t* MaxManaUp = L"Assets/Texture/UI/Icons/MaxManaUp.png";
         inline constexpr const wchar_t* MoveSpeedUp = L"Assets/Texture/UI/Icons/MoveSpeedUp.png";
@@ -619,6 +623,9 @@ namespace Res
         inline constexpr const char* LandDustHeavy = "Assets/Data/VFXData/LandDustHeavy.json";   // 高い所からの着地
         inline constexpr const char* SlideDust = "Assets/Data/VFXData/SlideDust.json";           // スライディングの小石と草
         inline constexpr const char* SpeedTrail = "Assets/Data/VFXData/SpeedTrail.json";         // 速い時の背中の帯
+        inline constexpr const char* WaterStep = "Assets/Data/VFXData/WaterStep.json";           // 水たまりの中の一歩の水しぶき（2026-10-27）
+        inline constexpr const char* WaterLand = "Assets/Data/VFXData/WaterLand.json";           // 水たまりへの着地・跳び出しの水しぶき
+        inline constexpr const char* WaterSlide = "Assets/Data/VFXData/WaterSlide.json";         // 水たまりの中のスライディングの水しぶき
         // 魔法（CPU で出す分。判定は GPU の範囲）
         inline constexpr const char* IceSpikeFrost = "Assets/Data/VFXData/IceSpike.json";            // アイススパイクの冷気・氷の欠片・光（トゲ本体は IceSpikeField）
         inline constexpr const char* Gust = "Assets/Data/VFXData/Gust.json";                       // 突風の土煙・草屑の輪（2026-10-12）

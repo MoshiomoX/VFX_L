@@ -208,6 +208,16 @@ struct AreaItemDef
 struct FrameItemDef
 {
     ItemCommon common;
+
+    // 枠の効果（2026-10-27、ユーザー「設置枠が置いた魔法に効くように。範囲強化・単体強化など」）。
+    // この枠に一マスでも乗っている攻撃魔法に、ルーンと同じ形の修飾を掛ける（ルーンの後、魔法威力の前）。
+    // 同じ種類の枠に何枚乗っても 1 回だけ（BackpackLogic::GetEffectFrames が種類で重複を除く）。空 = ただの拡張枠
+    std::vector<ParamModifier> spellModifiers;
+    std::vector<AreaModifier>  areaModifiers;
+    bool HasEffect() const { return !spellModifiers.empty() || !areaModifiers.empty(); }
+
+    float weight = 1.0f;     // 札・商店で引かれる重み（同じ種類の中の相対値。3x3 は珍しい）
+    float priceMul = 1.0f;   // 商店の値段の倍率（ShopStock::priceFrame に掛ける）
 };
 
 // ============================================================

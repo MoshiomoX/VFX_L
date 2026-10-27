@@ -23,7 +23,8 @@ namespace DevUI
     // （2026-10-23、ユーザー：「Debug と Demo で負荷試験を」。環境変数を立てた時だけで、普通に遊ぶ時は何も変わらない）
     inline bool AutoTestAllowed(const char* name)
     {
-        return kEnabled || std::strcmp(name, "stress") == 0 || std::strcmp(name, "stressfx") == 0;
+        return kEnabled || std::strcmp(name, "stress") == 0 || std::strcmp(name, "stressfx") == 0
+            || std::strcmp(name, "gustall") == 0;   // TEMP-TEST（2026-10-27 突風の全体テストを Demo でも）
     }
 
     // ImGui が動いているか（Demo では常に false）

@@ -41,6 +41,7 @@
 #include "Graphics/Renderer/GrassRenderer.h"
 #include "World/GrassFireField.h"
 #include "World/GroundDebris.h"
+#include "World/WaterSurface.h"
 #include "World/Tumbleweeds.h"
 #include "World/DandelionField.h"
 #include "World/GrassShreds.h"
@@ -63,6 +64,7 @@
 #include "Enemy/Spawn/MobSpawner.h"
 #include "Enemy/Spawn/StageDirector.h"
 #include "Enemy/Boss/BossAttacks.h"
+#include "Enemy/Boss/BossIntro.h"
 #include "Enemy/Elite/EliteAttacks.h"
 #include "Enemy/SandTornadoFx.h"
 #include "Graphics/Light/SceneLighting.h"
@@ -176,6 +178,8 @@ private:
     float TrackPlayerHpLoss();       // このフレームに減った HP（最初のフレームは 0）
     void UpdateHudMarkers();         // 画面外の目印（報酬の箱 = 黄、エリート = 赤）
     void UpdateBossAttacks(float dt, const DirectX::SimpleMath::Vector3& player);   // Boss の技：輪・衝撃波・突進・当たり（CollisionTestSceneBoss.cpp）
+    BossIntro::Frame UpdateBossIntro(float dt);                 // 門から呼んだ Boss の登場の演出（CollisionTestSceneBossIntro.cpp。2026-10-27）
+    void ApplyBossIntroSteer(const BossIntro::Frame& f);        // 演出の間の Boss の歩き / 殴らないを GPU へ（BossAttacks の指示の上書き）
     bool IsPlayerDead();
     const Vector3* PlayerPos();      // プレイヤーの位置（居なければ null）。部品へ渡す用
     void PushWind();                 // 世界の風（WeatherSystem::Wind）を草・マント・粒子・草の火へ渡す（毎フレーム、粒子の Flush の前）
@@ -254,6 +258,7 @@ private:
     GrassRenderer           m_Grass;         // 野原の草（GPU で生やす葉。風・踏み跡）
     GrassFireField          m_GrassFire;     // 草の延焼（温度・燃料のテクスチャ。爆発・火球が熱源、見た目だけ。2026-10-12）
     GroundDebris            m_Debris;        // 地面の落ち葉・草屑・小枝（突風・爆発・強風で舞う。2026-10-13）
+    WaterSurface            m_Water;         // 水たまりの水面（風・足・雨・爆発の時だけ動く。2026-10-27）
     Tumbleweeds             m_Tumbleweeds;   // 転がり草（砂漠・遺跡。風・竜巻・渦・突風に転がされ巻き上げられる。2026-10-22）
     DandelionField          m_Dandelions;    // タンポポの綿毛（草原。風源・強い風・踏み跡でほどけて飛ぶ。2026-10-22）
     GrassShreds             m_GrassShreds;   // 風源が草地から巻き上げる草屑（2026-10-23）
@@ -276,6 +281,8 @@ private:
     MobSpawner              m_Mobs;                // 雑魚の湧き（GPU へ依頼）
     StageDirector           m_Stage;               // 1 面の進行（制限時間・エリートの時間表）
     BossAttacks             m_BossAttacks;         // Boss の技（スラムの警告の輪。2026-10-03）
+    BossIntro               m_BossIntro;           // 門から呼んだ Boss の登場（2026-10-27）
+    uint32_t                m_BossIntroVfx = 0;    // その間の赤く荒れた門の渦
     uint32_t                m_BossSlamHits = 0;    // 自動テストの記録用：スラムがプレイヤーに当たった数
     // ---- 砂の守護者の技の見た目（CollisionTestSceneBoss.cpp。2026-10-24）----
     IceSpikeField           m_SandSpikes;          // 「砂の槍」の石のトゲ（IceSpikeField を石の地刺のモデルで）
@@ -286,7 +293,8 @@ private:
     uint32_t                m_SandTornadoKillSerial = 0;   // KillAll の回数（変わったら柱を全部消す）
     struct BossDelayedVfx { float wait = 0.0f; int id = 0; DirectX::SimpleMath::Vector3 pos; };
     std::vector<BossDelayedVfx> m_BossDelayedVfx;  // 砂の槍の根元の砂煙（トゲの前線が通る時刻に出す）
-    void InitBossFx(BossType type);                // 面の Boss に合わせる（技の組み合わせ・石のトゲの見た目）
+    // 面の Boss に合わせる（技の組み合わせ・石のトゲの見た目）。ignoreEnv = トレーニングのメニューで選んだ時（VFXL_BOSS_TYPE より優先）
+    void InitBossFx(BossType type, bool ignoreEnv = false);
     void UpdateBossSandFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);   // 流沙の効き・風源・砂丘・槍のトゲ・砂煙
 
     // ---- 遺跡の敵（2026-10-25。CollisionTestSceneRuins.cpp）----

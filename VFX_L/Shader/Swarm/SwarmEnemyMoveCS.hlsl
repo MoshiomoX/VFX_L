@@ -31,6 +31,10 @@ RWStructuredBuffer<float4> enemyPush : register(u2);
 // with it. Zero = never rolled (SwarmSpikeBallRoll gives the slot's resting pose). Not reset on spawn: a ball's
 // orientation has no meaning, a reused slot just starts from where the last ball stopped
 RWStructuredBuffer<float4> enemyRoll : register(u3);
+// the plain closest enemy (2026-10-27): same race as SWARM_CNT_NEAREST_KEY but on the real distance, no boss / elite
+// priority. +0 key (AimResolveCS reads it and resets it to SWARM_NO_TARGET_KEY), +4 pos, +16 dist. Short-reach spells
+// (the Gust, the Ice Spike line) aim with it; the wand aims with the priority one (SwarmCounters is full)
+RWByteAddressBuffer closeTarget : register(u4);
 
 // counts the enemy for the readback and lets it compete for "closest to the player"
 // (XZ distance only, same as everything else in this pipeline)
@@ -45,7 +49,10 @@ void CountAlive(uint i, float3 pos)
     float keyDist = SwarmAimKeyDist(enemyExtra[i].kind, dist);
     uint key = (asuint(keyDist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK);
     if (!SwarmUntargetable(enemyExtra[i]))   // a burrower under the sand / a tornado is not a target (2026-10-17)
+    {
         counters.InterlockedMin(SWARM_CNT_NEAREST_KEY, key, prev);
+        closeTarget.InterlockedMin(0, (asuint(dist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK), prev);
+    }
 }
 
 // m/s a body that touches a wall / cliff face is eased back out

@@ -46,6 +46,7 @@ namespace
         if (const ItemCommon* c = ItemDatabase::GetCommon(id))
         {
             if (!c->triggeredBy.empty()) s.category = L"上級魔法";   // 前提の基本魔法が要る物（隕石・光線）
+            if (const FrameItemDef* fd = ItemDatabase::GetFrame(id); fd && fd->HasEffect()) s.category = L"効果の枠";   // 2026-10-27
             s.color = c->color;
             s.description = c->description ? c->description : L"";
         }
@@ -197,7 +198,7 @@ namespace ItemInfo
         else if (auto* d = ItemDatabase::GetFunction(id))
             FillFunction(s, *d);
         else if (auto* d = ItemDatabase::GetFrame(id))
-            FillFrame(s, d->common);
+            FillFrame(s, *d);
         else if (auto* d = ItemDatabase::GetStat(id))
             FillStat(s, *d);
         else if (auto* d = ItemDatabase::GetSummon(id))
@@ -226,6 +227,13 @@ namespace ItemInfo
                 for (const auto& m : f->spellModifiers) ItemDatabase::ApplyModifier(v, m);
                 by.push_back(DisplayName(f->common.id));
             }
+            for (int fi : BackpackLogic::GetEffectFrames(bp, itemIndex))   // 乗っている効果のある設置枠（集約と同じ順）
+            {
+                const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[fi].id);
+                if (!fr) continue;
+                for (const auto& m : fr->spellModifiers) ItemDatabase::ApplyModifier(v, m);
+                by.push_back(DisplayName(fr->common.id));
+            }
             ApplySpellPower(v, spellPower);   // 集約と同じく修飾の後
             // 貯蔵（水晶玉）: 消費 MP の倍率（集約と同じ）
             if (const int unit = BackpackLogic::StoredBy(bp, itemIndex); unit >= 0)
@@ -248,6 +256,13 @@ namespace ItemInfo
                 if (!f) continue;
                 for (const auto& m : f->areaModifiers) ItemDatabase::ApplyModifier(v, m);
                 by.push_back(DisplayName(f->common.id));
+            }
+            for (int fi : BackpackLogic::GetEffectFrames(bp, itemIndex))
+            {
+                const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[fi].id);
+                if (!fr) continue;
+                for (const auto& m : fr->areaModifiers) ItemDatabase::ApplyModifier(v, m);
+                by.push_back(DisplayName(fr->common.id));
             }
             ApplySpellPower(v, spellPower);
             if (const int unit = BackpackLogic::StoredBy(bp, itemIndex); unit >= 0)

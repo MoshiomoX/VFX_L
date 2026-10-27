@@ -283,6 +283,9 @@ public:
     DirectX::SimpleMath::Vector3 bodyTint = { 1.1f, 0.5f, 1.5f };
     // 走り（chargePose 1）の前傾の支点（焼いた網の空間 y / z）と角度 rad（BomberCB::bossLean*。Configure が Boss 毎に入れる。2026-10-26）
     float leanPivotY = 0.0f, leanPivotZ = 0.0f, leanAngle = 0.0f;
+    // 体の大きさ（BomberCB::bossScale。雑魚の網に掛ける倍率。Configure が Boss 毎に入れる。2026-10-27 ユーザー「狼人を少し大きく」：
+    // 狼人 3.8、他は 3.0。当たり・血条・止まる距離も一緒に大きくなる）
+    float bodyScale = 3.0f;
 
     void Reset();
     void Update(const Input& in, const GridWorld& grid, Output& out);

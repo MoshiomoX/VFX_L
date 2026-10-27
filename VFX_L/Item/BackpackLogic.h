@@ -96,6 +96,10 @@ namespace BackpackLogic
     // 集約（BackpackAggregateSystem）と UI の説明が同じ判定を使う
     std::vector<int> GetInfluencers(const BackpackComponent& bp, int itemIndex);
 
+    // このブロックが一マスでも乗っている効果のある設置枠（frames の index。同じ種類の枠は最初の 1 枚だけ。2026-10-27）。
+    // 集約と UI の説明が同じ判定を使う。ただの拡張枠は入らない
+    std::vector<int> GetEffectFrames(const BackpackComponent& bp, int itemIndex);
+
     // 上級魔法（ItemCommon::triggeredBy がある物。隕石・光線）を誘発する基本魔法（items の index）。
     // 影響マスがこのブロックに届いていて、id が triggeredBy に入っている物。上級魔法でなければ空
     std::vector<int> GetTriggerDrivers(const BackpackComponent& bp, int itemIndex);

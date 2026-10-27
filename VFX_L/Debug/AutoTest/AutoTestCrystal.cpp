@@ -73,7 +73,7 @@ void AutoTestCrystal::Run()
             place(ItemID::CrystalBall, 4, 4);
             place(ItemID::HomingBolt, 4, 2);
             place(ItemID::Meteor, 4, 6);
-            place(ItemID::SplitRune, 3, 2);
+            place(ItemID::SplitRune, 4, 0);   // 2026-10-27 横 2 マス・影響は両端 → 右端の影響 (4,2) がホーミングボルト
             // メテオの前提（貯蔵されていても要る）: ファイアボール 2x2 を (5,7)（メテオの (4,7) の下）、
             // ストーンショット L を (1,6)（(2,6) がメテオの (3,6) の上）。どちらも杖から撃つ（貯蔵されない）
             place(ItemID::Fireball, 5, 7);

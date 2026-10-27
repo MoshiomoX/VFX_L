@@ -181,16 +181,21 @@ void ShopScene::Layout()
 
     const float x0 = m_ScreenW * 0.06f;
     const int rows = ShopStock::kSlots;
-    m_RowH = 44.0f * k;
     m_RowGap = 5.0f * k;
     m_ListPad = 14.0f * k;
     m_ListPos = { x0, m_ScreenH * 0.26f };
-    m_ListSize = { m_ScreenW * 0.36f, m_ListPad * 2.0f + m_RowH * (float)rows + m_RowGap * (float)(rows - 1) };
+    const float listW = m_ScreenW * 0.36f;
 
     // 右のカード（値段と持っている数の行はカードの上）。下にはみ出すなら上へ
-    m_CardPos = { m_ListPos.x + m_ListSize.x + m_ScreenW * 0.035f, m_ScreenH * 0.245f };
+    m_CardPos = { m_ListPos.x + listW + m_ScreenW * 0.035f, m_ScreenH * 0.245f };
     const float maxBottom = m_ScreenH * 0.96f;
     if (m_CardPos.y + cs.y > maxBottom) m_CardPos.y = (std::max)(m_ScreenH * 0.12f, maxBottom - cs.y);
+
+    // 行の高さ：一覧の下の縁がカードの下の縁に揃うように伸ばす（2026-10-27 能力値の札を外して 5 行になり、
+    // 一覧とボタンの間が空いた。ユーザー「空きができた、何か並べるか大きさで釣り合いを」→ 大きさで。44〜64 px × k）
+    const float want = (m_CardPos.y + cs.y - m_ListPos.y - m_ListPad * 2.0f - m_RowGap * (float)(rows - 1)) / (float)rows;
+    m_RowH = std::clamp(want, 44.0f * k, 64.0f * k);
+    m_ListSize = { listW, m_ListPad * 2.0f + m_RowH * (float)rows + m_RowGap * (float)(rows - 1) };
 
     m_UI.Layout(m_ScreenW, m_ScreenH);
     BuildButtons();
@@ -225,8 +230,9 @@ void ShopScene::BuildButtons()
             b.size = { pad.x * 2.0f + ks.x + 12.0f * k + ls.x, pad.y * 2.0f + (std::max)(ks.y, ls.y) };
         };
     // 一覧の下に 3 つ（買う / 品揃え / 次へ）
+    // 一覧とカードの低い方の下（2026-10-27 一覧が 5 行になって、右端の「次へ」がカードの下の縁に重なった）
     float x = m_ListPos.x;
-    const float y = m_ListPos.y + m_ListSize.y + 16.0f * k;
+    const float y = (std::max)(m_ListPos.y + m_ListSize.y, m_CardPos.y + m_Cards.CardSize().y) + 16.0f * k;
     for (int i = kBuy; i <= kLeave; ++i)
     {
         Button& b = m_Buttons[i];

@@ -38,10 +38,25 @@ namespace LookBuilder
         // 全体の拡大（2026-10-26、雄鹿「体をもう少し大きく」）：積む前に pivot の周りに scale 倍する。1 = そのまま
         float scale = 1.0f;
         Vec3 pivot = { 0.0f, 0.0f, 0.0f };
-        Vec3 Xf(const Vec3& p) const { return pivot + (p - pivot) * scale; }
+        // 全体の仰角（2026-10-27、狼人の頭）：pivot を通る横軸の周りに pitch rad 回す（正 = 前が上がる）。0 = そのまま
+        float pitch = 0.0f;
+        // 最後の平行移動（2026-10-27、狼人の足を地面 y -0.9 へ下ろす）
+        Vec3 move = { 0.0f, 0.0f, 0.0f };
+        Vec3 Xf(const Vec3& p) const
+        {
+            Vec3 q = pivot + (p - pivot) * scale;
+            if (pitch != 0.0f)
+            {
+                const float s = std::sin(pitch), c = std::cos(pitch);
+                const float y = q.y - pivot.y, z = q.z - pivot.z;
+                q.y = pivot.y + y * c + z * s;
+                q.z = pivot.z - y * s + z * c;
+            }
+            return q + move;
+        }
         void Append8(Vec3 v[8], const Vec4& top, const Vec4& side)
         {
-            if (scale != 1.0f) for (int i = 0; i < 8; ++i) v[i] = Xf(v[i]);
+            if (scale != 1.0f || pitch != 0.0f || move != Vec3(0.0f, 0.0f, 0.0f)) for (int i = 0; i < 8; ++i) v[i] = Xf(v[i]);
             batch.Append(v, top, side);
             ++boxes;
         }

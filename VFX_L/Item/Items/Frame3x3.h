@@ -27,6 +27,8 @@ inline FrameItemDef MakeFrame3x3()
     def.common.influenceCells = {};                        // 枠は何にも影響しない
     def.common.color = { 0.55f, 0.75f, 0.95f, 1.0f };   // 淡い青
     def.common.iconPath = Res::Icon::Frame3x3;
+    def.weight = 0.25f;     // 札・商店では珍しい（2026-10-27 ユーザー「3x3 だけだと強すぎる」。9 マスを一度にくれるので）
+    def.priceMul = 2.0f;
 
     return def;
 }

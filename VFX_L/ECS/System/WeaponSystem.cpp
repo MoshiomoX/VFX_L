@@ -193,6 +193,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     m_Requests.clear();
     m_CastFx.clear();
     m_GustFx.clear();
+    m_GustDebug.clear();   // TEMP-TEST
     m_TriggeredFx.clear();
 
     // 基本魔法の弾が消えた場所（リードバックなので 2〜3 フレーム古い）。上級魔法はここでだけ撃つ
@@ -294,6 +295,29 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                         return dir;
                     };
 
+                m_DbgTargetIsGpu = targetIsGpu;   // TEMP-TEST
+
+                // --- 近距離の範囲魔法の狙い：優先度なしで一番近い敵（2026-10-27）---
+                // 杖の狙いは Boss / エリートを優先する（遠くの Boss を撃ち続ける）。突風・アイススパイクの線のように
+                // 届く距離が短い物は、すぐ周りの敵へ向かないと空振りする。エリートの的（CPU）は元から距離だけで選んでいる
+                m_HasClose = false;
+                {
+                    float closeBest = wand.range;
+                    if (cpuTarget != 0)
+                    {
+                        Vector3 tp = reg.Get<TransformComponent>(cpuTarget).position;
+                        if (reg.Has<ColliderComponent>(cpuTarget)) tp += reg.Get<ColliderComponent>(cpuTarget).offset;
+                        const float d = (tp - muzzle).Length();
+                        if (d < closeBest) { closeBest = d; m_ClosePos = tp; m_HasClose = true; }
+                    }
+                    Vector3 cp;
+                    float cd = 0.0f;
+                    if (m_Swarm && m_Swarm->GetCloseEnemy(cp, cd))
+                    {
+                        const float d = (cp - muzzle).Length();
+                        if (d < closeBest) { closeBest = d; m_ClosePos = cp; m_HasClose = true; }
+                    }
+                }
                 // 可視化用は先読み量なしの素の方向
                 const Vector3 aimDir = hasTarget ? aimFor(0.0f) : Vector3(0, 0, 1);
 
@@ -354,7 +378,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                                     Vector3 origin = muzzle;
                                     if (s.triggerOrbSerial != 0 && !FindOrb(s.triggerOrbSerial, origin))
                                         origin = s.triggerOrigin;
-                                    QueueTriggeredCast(s, s.triggerPos, origin, durationMul, hasTarget, targetPos);
+                                    QueueTriggeredCast(s, s.triggerPos, origin, durationMul, m_HasClose, m_ClosePos);   // 線の向き = 一番近い敵
                                     mana.Reserve(s.manaCost);
                                 }
                             }
@@ -437,7 +461,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        QueueTriggeredCast(s, impact, origin, durationMul, hasTarget, targetPos);
+                        QueueTriggeredCast(s, impact, origin, durationMul, m_HasClose, m_ClosePos);   // 線の向き = 一番近い敵（優先度なし）
                         mana.Reserve(s.manaCost);
                         ++m_TriggeredCasts;
 
@@ -515,7 +539,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 // 撃てたら true（MP の予約とクールダウンは呼ぶ側）
 // ============================================================
 bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vector3& caster, bool followCaster,
-    bool hasTarget, const Vector3& targetPos, float castSpeed, float durationMul, uint32_t orbSerial)
+    bool hasTarget, Vector3 targetPos, float castSpeed, float durationMul, uint32_t orbSerial)
 {
     if (!m_Swarm) return false;
     if (a.spawnAtTarget && !hasTarget) return false;
@@ -548,6 +572,13 @@ bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vec
     // 単発/持続・厚み・追従・硬直 はプロファイルから。
     // 半径・持続・tick・威力 は集約済みの値（修飾ルーン込み）
     const AreaProfile& ap = AreaProfileDB::At(a.profile);
+    // 前へ吹く物（突風）は届く距離が短いので、杖の狙い（Boss / エリート優先）ではなく優先度なしの一番近い敵へ（2026-10-27。
+    // 以前は 12m 先の Boss を狙って届かず撃たない / 同じ距離のエリートだけを吹いていた）
+    if (atCaster && ap.forward > 0.0f)
+    {
+        hasTarget = m_HasClose;
+        targetPos = m_ClosePos;
+    }
     // 前へ吹く物（突風）は「吹き飛ばせる敵が居る時」だけ撃つ（2026-10-13 ユーザー：「敵が居ないのに風弾が出る」）。
     // 標的が無い / 扇の届く距離（forward + 半径）より遠い時は MP を使わず待つ。法環のように自分の周りに
     // 出す物（forward 0）は今まで通り標的が要らない
@@ -574,6 +605,10 @@ bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vec
         // 草の倒れ方：前へ吹く物は詠唱者から風下へ伸びる扇、それ以外は中心から外向きの円盤
         if (blows) m_GustFx.push_back({ caster, a.radius, Vector2(blowDir.x, blowDir.z), ap.forward + a.radius });
         else       m_GustFx.push_back({ center, a.radius, Vector2::Zero, 0.0f });
+        GustDebug gd;   // TEMP-TEST
+        gd.caster = caster; gd.target = targetPos; gd.center = center; gd.blowDir = blowDir;
+        gd.blows = blows; gd.targetIsGpu = m_DbgTargetIsGpu; gd.fromOrb = (orbSerial != 0); gd.radius = a.radius;
+        m_GustDebug.push_back(gd);
     }
     area.radius = a.radius;
     area.damage = a.damagePerTick;
@@ -611,6 +646,12 @@ bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vec
             m_AreaVFX->ScaleInstance(h, a.radius / ap.radius);
         if (lasting && durationMul != 1.0f)
             m_AreaVFX->RemapTimeline(h, 0.0f, 1.0f, durationMul);   // 見た目の entry も同じだけ伸ばす
+        if (ap.push > 0.0f && !m_GustDebug.empty() && m_GustDebug.back().vfxHandle == 0)
+        {
+            m_GustDebug.back().vfxHandle = h;   // TEMP-TEST
+            m_GustDebug.back().vfxYawDeg = blows ? DirectX::XMConvertToDegrees(std::atan2(blowDir.x, blowDir.z)) : 0.0f;
+            m_GustDebug.back().vfxScale = ap.radius > 0.0f ? a.radius / ap.radius : 1.0f;
+        }
     }
     return true;
 }

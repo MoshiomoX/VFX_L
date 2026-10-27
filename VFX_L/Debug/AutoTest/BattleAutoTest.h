@@ -54,6 +54,7 @@ protected:
     MobSpawner&               m_Mobs;
     StageDirector&            m_Stage;
     BossAttacks&              m_BossAttacks;
+    BossIntro&                m_BossIntro;       // 門から呼んだ Boss の登場（2026-10-27）
     uint32_t&                 m_BossSlamHits;
     uint32_t&                 m_BossMoundVfx;    // 潜砂の砂丘のエフェクトの番号（2026-10-24）
     uint32_t&                 m_ChainHits;       // 鎖の番人の鎖が当たった数（2026-10-25）
@@ -74,6 +75,7 @@ protected:
     GrassRenderer&            m_Grass;
     GrassFireField&           m_GrassFire;     // 草の延焼（2026-10-12）
     GroundDebris&             m_Debris;        // 地面の落ち葉（2026-10-13）
+    WaterSurface&             m_Water;         // 水たまりの水面（2026-10-27）
     Tumbleweeds&              m_Tumbleweeds;   // 転がり草（2026-10-22）
     DandelionField&           m_Dandelions;    // タンポポ（2026-10-22）
     GrassShreds&              m_GrassShreds;   // 風源の草屑（2026-10-23）

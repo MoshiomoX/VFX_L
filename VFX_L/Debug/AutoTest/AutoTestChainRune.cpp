@@ -84,7 +84,7 @@ void AutoTestChainRune::Run()
             auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
             ClearBackpackItems(bp);
             // 中段の左 2 マス（横 2）。ルーンは後でその左のマスの上に置く
-            if (BackpackLogic::Place(bp, ItemID::HomingBolt, lo + 1, lo, 0) < 0)
+            if (BackpackLogic::Place(bp, ItemID::HomingBolt, lo + 2, lo, 0) < 0)
                 AutoTestLog("chainrune place homing FAILED");
             bp.dirty = true;
             m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
@@ -157,7 +157,7 @@ void AutoTestChainRune::Run()
         SpawnTargets();
         auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
         ClearBackpackItems(bp);
-        // Z 字 {0,0}{0,1}{1,1}{1,2} を (lo, lo) に。ルーンは (lo+2, lo+1)：その上のマス (lo+1, lo+1) が稲妻
+        // Z 字 {0,0}{0,1}{1,1}{1,2} を (lo, lo) に。ルーン（縦 2・影響は上下の端。2026-10-27）は (lo+1, lo)：上の端 (lo, lo) が稲妻
         if (BackpackLogic::Place(bp, ItemID::ArcBolt, lo, lo, 0) < 0)
             AutoTestLog("chainrune place arc FAILED");
         bp.dirty = true;
@@ -175,7 +175,7 @@ void AutoTestChainRune::Run()
         }
         SpawnTargets();
         auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
-        if (BackpackLogic::Place(bp, ItemID::ChainRune, lo + 2, lo + 1, 0) < 0)
+        if (BackpackLogic::Place(bp, ItemID::ChainRune, lo + 1, lo, 0) < 0)
             AutoTestLog("chainrune place rune (arc) FAILED");
         bp.dirty = true;
         m_AutoStep = 7;

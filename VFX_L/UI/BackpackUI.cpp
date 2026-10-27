@@ -455,8 +455,8 @@ void BackpackUI::DrawHoverInfluence(SpriteRenderer& sprite, const BackpackCompon
         if (!tc) continue;
 
         auto tcells = BackpackLogic::RotateShape(tc->occupyCells, t.rotation);
-        ShapeSprite::DrawConnected(sprite, white, glow, tcells,
-            CellPosition(t.row, t.col), m_CellSize, m_CellGap);
+        ShapeSprite::DrawConnectedInset(sprite, white, glow, tcells,
+            CellPosition(t.row, t.col), m_CellSize, m_CellGap, m_CellSize * ShapeSprite::kGlassInset);
     }
 }
 
@@ -568,6 +568,45 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         }
     }
 
+    // ---- 効果のある設置枠（2026-10-27）：マスを枠の色で薄く塗り、縁を枠の色に、真ん中のマスに薄く絵を出す ----
+    // （魔法はこの後に描くので、乗っている所では魔法の下に隠れる）
+    for (const auto& f : bp.frames)
+    {
+        const FrameItemDef* fd = ItemDatabase::GetFrame(f.id);
+        if (!fd || !fd->HasEffect()) continue;
+        Vector4 fill = fd->common.color;
+        fill.w = 0.20f;
+        Vector4 edge = fd->common.color;
+        edge.w = 0.75f;
+        const auto cells = BackpackLogic::RotateShape(fd->common.occupyCells, f.rotation);
+        Vector2 centre = { 0.0f, 0.0f };
+        for (const auto& off : cells)
+        {
+            const Vector2 p = CellPosition(f.row + off.row, f.col + off.col);
+            sprite.Draw(white, p, cellSizeVec, fill);
+            UIDeco::DrawFrameLines(sprite, p, cellSizeVec, edge);
+            centre += p;
+        }
+        if (!cells.empty())
+        {
+            // 形の重心に一番近いマスに絵
+            centre /= (float)cells.size();
+            Vector2 best = CellPosition(f.row + cells[0].row, f.col + cells[0].col);
+            for (const auto& off : cells)
+            {
+                const Vector2 p = CellPosition(f.row + off.row, f.col + off.col);
+                if ((p - centre).LengthSquared() < (best - centre).LengthSquared()) best = p;
+            }
+            if (const auto& icon = GetIcon(f.id))
+            {
+                Vector4 ic = fd->common.color;
+                ic.w = 0.55f;
+                const float s = m_CellSize * 0.7f;
+                sprite.Draw(icon, best + Vector2((m_CellSize - s) * 0.5f, (m_CellSize - s) * 0.5f), { s, s }, ic);
+            }
+        }
+    }
+
     // ---- マウスが乗っている枠をハイライト ----
     // 魔法が乗っているマスでは光らせない
     // （掴むと魔法の方が取れるので、枠が取れると誤解させない）
@@ -612,8 +651,8 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
 
         // 目覚めていない上級魔法（前提の基本魔法が届いていない = 撃たない）は暗く沈める
         if (!cache.triggerReady)
-            ShapeSprite::DrawConnected(sprite, white, { 0.0f, 0.0f, 0.0f, 0.6f }, cache.cells,
-                CellPosition(item.row, item.col), m_CellSize, m_CellGap);
+            ShapeSprite::DrawConnectedInset(sprite, white, { 0.0f, 0.0f, 0.0f, 0.6f }, cache.cells,
+                CellPosition(item.row, item.col), m_CellSize, m_CellGap, m_CellSize * ShapeSprite::kGlassInset);
     }
 
     // ---- 影響マス ----

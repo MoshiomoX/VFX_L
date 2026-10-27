@@ -12,6 +12,7 @@ void BossAttacks::DrawImGui()
     ImGui::Text("move %s (%.1f s)  next in %.1f s  rings %d  wave %s  | volleys %u blasts %u",
         BossMoveName(m_Move), m_MoveTime, m_Gap, (int)m_Rings.size(), m_WaveOn ? "on" : "off", volleys, blasts);
     ImGui::Checkbox("Enabled##boss", &enabled);
+    ImGui::DragFloat("Body Scale##boss", &bodyScale, 0.05f, 1.0f, 8.0f);   // Boss 毎（Configure が入れる。狼人 3.8）
     ImGui::DragFloat("First Delay (s)##boss", &firstDelay, 0.1f, 0.0f, 60.0f);
     ImGui::DragFloat("Gap (s)##boss", &gap, 0.1f, 0.0f, 60.0f);
     ImGui::DragFloat("Gap Enraged (s)##boss", &gapEnraged, 0.1f, 0.0f, 60.0f);

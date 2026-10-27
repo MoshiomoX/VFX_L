@@ -50,6 +50,8 @@ enum class BossType : int
     Count
 };
 const char* BossTypeName(BossType t);
+// 画面に出す名前（日本語。トレーニングのメニューの「ボスの種類」など。2026-10-27）
+const wchar_t* BossDisplayName(BossType t);
 
 const char* BossMoveName(BossMove m);
 

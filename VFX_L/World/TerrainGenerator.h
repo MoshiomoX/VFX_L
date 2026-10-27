@@ -272,8 +272,9 @@ namespace TerrainGenerator
         std::vector<DirectX::SimpleMath::Vector3>* outTorches = nullptr, Layout* outLayout = nullptr,
         MapData::Map* outMap = nullptr);
 
-    // BuildFromMap が建てる部分（エディタは見た目だけ欲しい：kPartVisuals | kPartGround）
-    enum BuildParts : uint32_t { kPartColliders = 1, kPartVisuals = 2, kPartProps = 4, kPartGround = 8, kPartAll = 15 };
+    // BuildFromMap が建てる部分（エディタは見た目だけ欲しい：kPartVisuals | kPartGround | kPartWater）
+    // kPartWater = 水たまりの青い六面体（2026-10-19 の見た目）。戦闘は WaterSurface（2026-10-27）が水面を描くので kPartAll に入れない
+    enum BuildParts : uint32_t { kPartColliders = 1, kPartVisuals = 2, kPartProps = 4, kPartGround = 8, kPartAll = 15, kPartWater = 16 };
 
     // 記録（保存した地図）から同じ物を建てる。乱数は使わない。格子の大きさが合わなければ false（何も作らない）。
     // outMap: 建て直した物をもう一度記録する（読んだ地図と同じ内容になる。確認・編集の元）。map と同じ物は渡さない

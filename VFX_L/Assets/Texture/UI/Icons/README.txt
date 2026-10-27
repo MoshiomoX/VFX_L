@@ -31,7 +31,10 @@ From game-icons.net  https://game-icons.net
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html
   HasteRune.png       "Stopwatch"         by Lorc        https://game-icons.net/1x1/lorc/stopwatch.html
   ChainRune.png       "Lightning branches" by Lorc        https://game-icons.net/1x1/lorc/lightning-branches.html
-  LifestealRune.png   "Bleeding heart"    by Lorc        https://game-icons.net/1x1/lorc/bleeding-heart.html
+  FrameLifesteal.png  "Bleeding heart"    by Lorc        https://game-icons.net/1x1/lorc/bleeding-heart.html
+  FrameArea.png       "Expanded rays"     by Lorc        https://game-icons.net/1x1/lorc/expanded-rays.html
+  FrameFocus.png      "Archery target"    by Lorc        https://game-icons.net/1x1/lorc/archery-target.html
+  FrameHaste.png      "Sands of time"     by Lorc        https://game-icons.net/1x1/lorc/sands-of-time.html
   CrystalBall.png     "Crystal ball"      by Lorc        https://game-icons.net/1x1/lorc/crystal-ball.html
   MaxHealthUp.png     "Heart plus"        by Zeromancer  https://game-icons.net/1x1/zeromancer/heart-plus.html
   MaxManaUp.png       "Potion ball"       by Lorc        https://game-icons.net/1x1/lorc/potion-ball.html

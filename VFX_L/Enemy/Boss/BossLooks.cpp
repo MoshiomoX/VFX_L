@@ -227,26 +227,51 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
     }
     if (type == BossType::Werewolf)
     {
-        // 月下の狼人（草原 2 面目、2026-10-26）：体は隠し、頭・胴・腕 × 2・脚 × 2 それぞれに毛皮の部品（部品の動きに付いて来る）
-        int legA = -1, legB = -1;
+        // 月下の狼人（草原 2 面目、2026-10-26。10-27 参考画に合わせて作り直し）：体は隠し、全部を胴の部品に付ける（体の上下だけ貰う）。
+        // 胴・頭・腕は腰を軸に kHunch 前へ倒す（猫背）。脚と腕は自分の付け根で歩きの時計に振る（mode 4）：左脚 + 右腕が位相 0、
+        // 右脚 + 左腕が π。脚は前へ振る間に膝が折れる
+        const float kHunch = 0.45f;          // 立っている時の猫背（rad）。歩くと VS が 1.45 倍まで深くする
+        const float kKneeBend = 0.65f;       // 脚を前へ振る間の膝の曲げ（rad）
+        const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
+        const DirectX::SimpleMath::Vector4 hips(kWolfHips.x, kWolfHips.y, kWolfHips.z, 0.0f);
+        auto addHunched = [&](std::shared_ptr<Model> m)
+            {
+                if (!m) return;
+                SwarmSystem::BossDecoration d;
+                d.model = std::move(m);
+                d.part = torsoPart;
+                d.hunch = kHunch;
+                d.hinge = hips;
+                decos.push_back(std::move(d));
+            };
+        addHunched(BuildWolfTorso(device));
+        addHunched(BuildWolfHead(device, 0.55f));   // 首で起こす分 ≒ 歩いている時の猫背の平均
+        for (int i = 0; i < 2; ++i)
         {
-            const auto& subs = model->GetSubMeshes();
-            for (int i = 0; i < (int)subs.size(); ++i)
-                if (NameHas(subs[i].nodeName, "leg")) { if (legA < 0) legA = i; else if (legB < 0) legB = i; }
-        }
-        if (head.Valid()) add(BuildWolfHead(device, head), (uint32_t)head.index);
-        if (torso.Valid()) add(BuildWolfTorso(device, torso), (uint32_t)torso.index);
-        if (armA.Valid()) add(BuildWolfArm(device, armA, swarm.GetPartPivot((uint32_t)armA.index)), (uint32_t)armA.index);
-        if (armB.Valid()) add(BuildWolfArm(device, armB, swarm.GetPartPivot((uint32_t)armB.index)), (uint32_t)armB.index);
-        const auto& subs = model->GetSubMeshes();
-        for (int li : { legA, legB })
-        {
-            if (li < 0) continue;
-            Part L;
-            L.index = li;
-            L.lo = subs[(size_t)li].boundsMin;
-            L.hi = subs[(size_t)li].boundsMax;
-            add(BuildWolfLeg(device, L, swarm.GetPartPivot((uint32_t)li)), (uint32_t)li);
+            const float sx = i ? 1.0f : -1.0f;
+            {
+                // 脚（猫背にしない）：股で振る + 膝
+                SwarmSystem::BossDecoration d;
+                d.model = BuildWolfLeg(device, sx);
+                d.part = torsoPart;
+                d.leg = true;
+                const Vec3 h = WolfHipRoot(sx), k = WolfKnee(sx);
+                d.flap = { h.x, h.y, h.z, (sx < 0.0f) ? 0.0f : 3.14159f };
+                d.hinge = { k.x, k.y, k.z, kKneeBend };
+                if (d.model) decos.push_back(std::move(d));
+            }
+            {
+                // 腕：肩で振る（同じ側の脚と逆の位相）。猫背は VS が肩で戻して真下へ垂らす
+                SwarmSystem::BossDecoration d;
+                d.model = BuildWolfArm(device, sx);
+                d.part = torsoPart;
+                d.leg = true;
+                d.hunch = kHunch;
+                d.hinge = hips;
+                const Vec3 s = WolfShoulder(sx);
+                d.flap = { s.x, s.y, s.z, ((sx < 0.0f) ? 3.14159f : 0.0f) - 0.35f };   // 同じ側の脚と逆、少し遅れて揺れる（垂れた腕）
+                if (d.model) decos.push_back(std::move(d));
+            }
         }
         swarm.SetBossLook(nullptr, std::move(decos), true);   // 方块人の体は描かない
         return;

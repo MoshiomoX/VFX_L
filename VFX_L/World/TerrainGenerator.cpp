@@ -1132,7 +1132,8 @@ namespace TerrainGenerator
 
         // ---------- 地面の衝突（高さ場、2026-10-04）と、積んだ見た目（外周・台地・坂道・高台）の 1 つのモデル ----------
         outTerrain.push_back(SpawnHeightField(reg, grid, relief, summitH));
-        if (steps) EmitPonds(emit, grid, *relief, cfg.biome);   // 水面（別のモデル。記録はしない = pond から作り直す）
+        // 水面はここでは建てない（2026-10-27〜 戦闘の水面は WaterSurface が地図の記録 pond から作って描く。
+        // エディタの見た目だけ BuildFromMap の kPartWater で以前の青い六面体）
         emit.FinishVisuals(device, cfg.biome, terrainRefLum);
 
         // ---------- 自然物（KayKit Forest）----------

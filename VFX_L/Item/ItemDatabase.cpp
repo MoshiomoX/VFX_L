@@ -25,9 +25,9 @@
 #include "Item/Items/Magnifier.h"
 #include "Item/Items/HasteRune.h"
 #include "Item/Items/ChainRune.h"
-#include "Item/Items/LifestealRune.h"
 #include "Item/Items/CrystalBall.h"
 #include "Item/Items/Frame3x3.h"
+#include "Item/Items/Frames.h"
 #include "Item/Items/MaxHealthUp.h"
 #include "Item/Items/MaxManaUp.h"
 #include "Item/Items/MoveSpeedUp.h"
@@ -197,7 +197,6 @@ void ItemDatabase::Initialize()
     Register(MakeMagnifier());
     Register(MakeHasteRune());
     Register(MakeChainRune());
-    Register(MakeLifestealRune());
 
     // ---- 召喚物（2026-10-06）----
     Register(MakeCrystalBall());
@@ -206,6 +205,14 @@ void ItemDatabase::Initialize()
 
     // ---- 設置枠 ----
     Register(MakeFrame3x3());
+    Register(MakeFrame2x3());
+    Register(MakeFrameL());
+    Register(MakeFrameCross());
+    Register(MakeFrameLine4());
+    Register(MakeFrameArea());
+    Register(MakeFrameFocus());
+    Register(MakeFrameHaste());
+    Register(MakeFrameLifesteal());
 
     // ---- 能力値（レベルアップ専用）----
     Register(MakeMaxHealthUp());

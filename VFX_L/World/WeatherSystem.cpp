@@ -170,11 +170,15 @@ void WeatherSystem::ApplyWeatherToPreset(SceneLighting::Preset& p, float w) cons
 // Init / Update
 // ============================================================
 void WeatherSystem::Init(const StageDef& stage, float stageTime, SceneLighting& lighting, AreaVFXPlayer& vfx, const VFXContext* ctx,
-    SwarmSystem* swarm)
+    SwarmSystem* swarm, int runPos)
 {
     Shutdown();
     m_Biome = (int)stage.biome;
     m_StageTime = (std::max)(stageTime, 1.0f);
+    // 1 面目 0 → duskEnd（昼 → 夕）、2 面目 duskEnd → nightEnd（夕 → 夜）、3 面目以降 nightEnd（夜のまま）
+    if (runPos <= 1)      { m_PhaseFrom = 0.0f;     m_PhaseTo = duskEnd; }
+    else if (runPos == 2) { m_PhaseFrom = duskEnd;  m_PhaseTo = nightEnd; }
+    else                  { m_PhaseFrom = nightEnd; m_PhaseTo = nightEnd; }
     m_Lighting = &lighting;
     m_Vfx = &vfx;
     m_Ctx = ctx;
@@ -327,7 +331,7 @@ void WeatherSystem::Update(float dt, float runTime, const Vector3& camPos, const
 {
     if (!m_Lighting) return;
     dt = (std::min)(dt, 0.1f);
-    m_Phase = (timeOverride >= 0.0f) ? timeOverride : runTime / m_StageTime;
+    m_Phase = (timeOverride >= 0.0f) ? timeOverride : m_PhaseFrom + (m_PhaseTo - m_PhaseFrom) * (runTime / m_StageTime);
     m_Night = Clamp01((m_Phase - duskEnd) / (std::max)(nightEnd - duskEnd, 0.01f));
     UpdateEvent(dt, runTime);
 

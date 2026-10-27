@@ -520,6 +520,22 @@ namespace TerrainBuild
         reg.Add<RigidbodyComponent>(e, rb);
         return e;
     }
+
+    std::shared_ptr<ReliefField> ReliefFromMap(const GridWorld& grid, const MapData::Map& map)
+    {
+        auto relief = std::make_shared<ReliefField>();
+        relief->Init(grid, map.zone, map.summitH, map.mineD);
+        relief->plain = map.reliefPlain;
+        relief->summit = map.reliefSummit;
+        // 段々の台地と水たまり（版 11。無い地図は空のまま = 無し）
+        relief->stepH = map.stepH;
+        relief->level = map.stepLevel;
+        relief->rampAt = map.stepRampAt;
+        relief->ramps = map.stepRamps;
+        relief->pond = map.pond;
+        relief->pondDepth = map.pondDepth;
+        return relief;
+    }
 }
 
 namespace TerrainGenerator
@@ -588,17 +604,7 @@ namespace TerrainGenerator
 
         grid.SetData(map.walkable, map.heights);
 
-        auto relief = std::make_shared<ReliefField>();
-        relief->Init(grid, map.zone, map.summitH, map.mineD);
-        relief->plain = map.reliefPlain;
-        relief->summit = map.reliefSummit;
-        // 段々の台地と水たまり（版 11。無い地図は空のまま = 無し）
-        relief->stepH = map.stepH;
-        relief->level = map.stepLevel;
-        relief->rampAt = map.stepRampAt;
-        relief->ramps = map.stepRamps;
-        relief->pond = map.pond;
-        relief->pondDepth = map.pondDepth;
+        auto relief = ReliefFromMap(grid, map);
 
         std::vector<std::shared_ptr<Model>> models;
         models.reserve(map.models.size());
@@ -632,7 +638,7 @@ namespace TerrainGenerator
         gp.rimWidth = map.rimRiseWidth;
         if (parts & kPartGround) outTerrain.push_back(SpawnGround(reg, device, grid, relief, map.caveRing, gp, refLum));
         if (colliders) outTerrain.push_back(SpawnHeightField(reg, grid, relief, map.summitH));
-        if (parts & kPartVisuals) EmitPonds(emit, grid, *relief, biome);   // 水面は記録しない（pond から作り直す）
+        if (parts & kPartWater) EmitPonds(emit, grid, *relief, biome);   // 水面は記録しない（pond から作り直す）。戦闘は WaterSurface
         emit.FinishVisuals(device, biome, refLum);
 
         if (outGrassMask) *outGrassMask = map.grassMask;

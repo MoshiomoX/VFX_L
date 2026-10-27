@@ -14,6 +14,12 @@ namespace
         s.boss2 = BossType::Werewolf;   // 2 面目は月下の狼人（2026-10-26。飛びかかり / 爪の三連 / 遠吠え）
         s.boss3 = BossType::Stag;   // 3 面目は雷鳴の雄鹿（2026-10-26、方块の動物の試作）
         s.biome = TerrainGenerator::Biome::Grassland;
+        // 何面目かの倍率（2026-10-27）。共通の値（HP 2.5 / 2.8、ダメージ 1.6 / 1.6）だと、表の進み（+10 / +20 分）と掛けて
+        // 実際の HP は 1 面 1.0→1.75 | 2 面 4.4→6.25 | 3 面 7.0→9.1、ダメージは 1.0→1.25 | 2.0→2.4 | 2.4→2.8：1→2 で跳ね、2→3 はほぼ平ら（ダメージは同じ）。
+        // 面の境で「前の面の終わり × 一定」になるように：HP x1.6 / ダメージ x1.25 →
+        // HP 1.0→1.75 | 2.8→4.0 | 6.4→8.3、ダメージ 1.0→1.25 | 1.56→1.88 | 2.34→2.73
+        s.posHpMul[0] = 1.0f; s.posHpMul[1] = 1.6f; s.posHpMul[2] = 2.56f;
+        s.posDamageMul[0] = 1.0f; s.posDamageMul[1] = 1.25f; s.posDamageMul[2] = 1.56f;
         // 照明・草は SceneLighting / GrassRenderer の既定値のまま（晴れた昼の野原）
         return s;
     }

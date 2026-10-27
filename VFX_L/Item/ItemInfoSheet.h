@@ -18,7 +18,7 @@ namespace ItemInfoSheet
     void FillProjectile(ItemInfo::Sheet& s, const SpellStats& v, const SpellStats& b);
     void FillArea(ItemInfo::Sheet& s, const AreaStats& v, const AreaStats& b);
     void FillFunction(ItemInfo::Sheet& s, const FunctionItemDef& def);
-    void FillFrame(ItemInfo::Sheet& s, const ItemCommon& c);
+    void FillFrame(ItemInfo::Sheet& s, const FrameItemDef& def);
     void FillStat(ItemInfo::Sheet& s, const StatItemDef& def);
     void FillSummon(ItemInfo::Sheet& s, const SummonItemDef& def);
 

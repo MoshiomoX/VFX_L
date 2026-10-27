@@ -533,7 +533,7 @@ namespace TerrainBuild
         case TerrainGenerator::Biome::Dungeon: top = { 0.015f, 0.05f, 0.09f, 1.0f }; side = { 0.008f, 0.02f, 0.04f, 1.0f }; break; // 暗い水
         default:                               top = { 0.05f, 0.24f, 0.36f, 1.0f }; side = { 0.02f, 0.10f, 0.16f, 1.0f }; break;   // 草原の池
         }
-        constexpr float kSurface = -0.15f, kDepth = 0.8f;
+        constexpr float kSurface = kPondSurface, kDepth = 0.8f;
         for (int z = 0; z < rf.gd; ++z)
             for (int x = 0; x < rf.gw; ++x)
             {

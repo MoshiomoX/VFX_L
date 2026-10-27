@@ -41,7 +41,7 @@ namespace
     constexpr float kQuietSmooth = 0.25f;         // 秒。速さを均す時定数
 
     constexpr float kWallThick = 400.0f;          // 壁の四角の厚さ（px。薄いと速い物が抜ける）
-    constexpr uint32_t kWallUid[4] = { 1, 2, 3, 4 };   // 左 右 上 床
+    constexpr uint32_t kWallUid[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };   // 左 右 上 床 + バックパックの列 + 木箱の左・右・底（画面の縁の時。2026-10-27）
 
     // 木箱の枠の絵の縁（512 のうち 128）
     constexpr float kFrameBorderUV = 128.0f / 512.0f;
@@ -135,8 +135,9 @@ namespace
 
     // 9 分割で描く（四隅は等倍、辺は伸ばす）。border は画面上の縁の太さ
     void DrawNineSlice(SpriteRenderer& sprite, const std::shared_ptr<Texture>& tex,
-        const Vector2& pos, const Vector2& size, float border, float borderUV, const Vector4& color)
+        const Vector2& pos, const Vector2& size, float border, float borderUV, const Vector4& color, bool openTop = false)
     {
+        // openTop（2026-10-27、蓋の無い箱）：上の段を描かず、左右の縦の辺を上の端まで伸ばす
         const float xs[3] = { pos.x, pos.x + border, pos.x + size.x - border };
         const float ws[3] = { border, size.x - border * 2.0f, border };
         const float ys[3] = { pos.y, pos.y + border, pos.y + size.y - border };
@@ -147,7 +148,10 @@ namespace
             for (int i = 0; i < 3; ++i)
             {
                 if (i == 1 && j == 1) continue;   // 真ん中は透明（中身が見える）
-                sprite.Draw(tex, { xs[i], ys[j] }, { ws[i], hs[j] }, color, { us[i], us[j], uw[i], uw[j] });
+                if (openTop && j == 0) continue;
+                const float y = (openTop && j == 1) ? pos.y : ys[j];
+                const float h = (openTop && j == 1) ? hs[j] + border : hs[j];
+                sprite.Draw(tex, { xs[i], y }, { ws[i], h }, color, { us[i], us[j], uw[i], uw[j] });
             }
     }
 }
@@ -204,20 +208,37 @@ void SpellbookUI::Layout(float screenW, float screenH)
     const Vector2 oldMin = m_BoxMin;
     const bool hadLayout = m_BoxMax.x > m_BoxMin.x;
 
-    // 右端から枠の分を空けて内寸を置く
+    // 右端から枠の分を空けて内寸を置く。画面の縁が壁の時は下に寄せる（錠前の分 + 余白を空ける。2026-10-27「少し下に」）
     m_BoxMax.x = screenW - margin - m_Wall;
     m_BoxMin.x = m_BoxMax.x - inner;
-    m_BoxMin.y = (screenH - inner) * 0.5f;
-    m_BoxMax.y = m_BoxMin.y + inner;
+    if (screenWalls)
+        m_BoxMax.y = screenH - margin - m_Wall * (1.0f + lockScale * kLockAspect * 0.55f);
+    else
+        m_BoxMax.y = (screenH + inner) * 0.5f;
+    m_BoxMin.y = m_BoxMax.y - inner;
+
+    // 物理の範囲（外の 4 枚の壁）
+    if (screenWalls)
+    {
+        m_AreaMin = { 0.0f, 0.0f };
+        m_AreaMax = { screenW, screenH };
+    }
+    else
+    {
+        m_AreaMin = m_BoxMin;
+        m_AreaMax = m_BoxMax;
+    }
 
     // 箱が動いたら中身も一緒に動かし、はみ出た分は範囲内へ寄せる
     const float cellPx = CellPx();
+    const float halfMin = 0.5f * (std::min)(m_AreaMax.x - m_AreaMin.x, m_AreaMax.y - m_AreaMin.y);
     for (auto& b : m_Bodies)
     {
         if (hadLayout) b.pos += m_BoxMin - oldMin;
-        const float r = (std::min)(b.bound * cellPx, inner * 0.5f);
-        b.pos.x = std::clamp(b.pos.x, m_BoxMin.x + r, m_BoxMax.x - r);
-        b.pos.y = std::clamp(b.pos.y, m_BoxMin.y + r, m_BoxMax.y - r);
+        const float r = (std::min)(b.bound * cellPx, halfMin);
+        b.pos.x = std::clamp(b.pos.x, m_AreaMin.x + r, m_AreaMax.x - r);
+        b.pos.y = std::clamp(b.pos.y, m_AreaMin.y + r, m_AreaMax.y - r);
+        PushOutOfObstacle(b.pos, r);
     }
     Wake();
 }
@@ -274,15 +295,17 @@ void SpellbookUI::SpawnBody(ItemID id)
 
     const float cellPx = CellPx();
     const float r = b.bound * cellPx;
+    // 箱の真上から降らせる（画面の縁の時は画面の上から = 箱に入り、満杯なら縁からこぼれる。2026-10-27）
     const float x0 = m_BoxMin.x + r;
     const float x1 = (std::max)(x0, m_BoxMax.x - r);
+    const float yTop = screenWalls ? m_AreaMin.y : m_BoxMin.y;
 
     // 何回か試して、既存とぶつからない位置を探す（外接円で粗く）。
     // 見つからなくても最後の候補で出す（押し戻しが少しずつ押し分ける）
     for (int attempt = 0; attempt < 12; ++attempt)
     {
         b.pos.x = x0 + (x1 - x0) * ((float)rand() / RAND_MAX);
-        b.pos.y = m_BoxMin.y + r + ((float)rand() / RAND_MAX) * r;
+        b.pos.y = yTop + r + ((float)rand() / RAND_MAX) * r;
 
         bool overlap = false;
         for (const auto& o : m_Bodies)
@@ -301,8 +324,58 @@ void SpellbookUI::SpawnBody(ItemID id)
     b.vel = { ((float)rand() / RAND_MAX - 0.5f) * 120.0f, 0.0f };
     b.angVel = ((float)rand() / RAND_MAX - 0.5f) * 4.0f;
 
+    // マウスで離した直後の同じ物：離した所から、掴んでいた向きのまま、そっと落とす（2026-10-27）
+    if (m_DropHint.valid && m_DropHint.id == id)
+    {
+        b.pos = m_DropHint.center;
+        b.angle = m_DropHint.angle;
+        b.vel = { 0.0f, 0.0f };
+        b.angVel = 0.0f;
+        m_DropHint.valid = false;
+        const float rr = (std::min)(r, 0.5f * (std::min)(m_AreaMax.x - m_AreaMin.x, m_AreaMax.y - m_AreaMin.y));
+        b.pos.x = std::clamp(b.pos.x, m_AreaMin.x + rr, m_AreaMax.x - rr);
+        b.pos.y = std::clamp(b.pos.y, m_AreaMin.y + rr, m_AreaMax.y - rr);
+        PushOutOfObstacle(b.pos, r);   // バックパックの上で離した時は列の右へ
+    }
+
     m_Bodies.push_back(std::move(b));
     Wake();
+}
+
+// ============================================================
+// ドラッグの追跡（2026-10-27）。Update の最初に呼ぶ（ドラッグは Update の後の BackpackUI で終わるので、
+// 終わったことはこの次のフレームの頭で分かる → そのまま SyncBodies が出す物に使う）
+// ============================================================
+void SpellbookUI::TrackDrag(float dt)
+{
+    if (m_DropHint.valid)
+    {
+        m_DropHint.ttl -= dt;
+        if (m_DropHint.ttl <= 0.0f) m_DropHint.valid = false;
+    }
+    if (m_Drag && m_Drag->IsActive() && m_MouseEnabled)
+    {
+        // DrawDragged と同じ：マウス − grabOffset = 要のマスの左上。回した形の重心はそこから（列, 行）+ 0.5 マス
+        const ItemCommon* c = ItemDatabase::GetCommon(m_Drag->id);
+        std::vector<CellOffset> cells = c ? BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation) : std::vector<CellOffset>{};
+        if (cells.empty()) cells.push_back({ 0, 0 });
+        Vector2 mean = { 0.0f, 0.0f };
+        for (const auto& o : cells) mean += Vector2((float)o.col, (float)o.row);
+        mean /= (float)cells.size();
+        const auto mp = InputManager::Get().GetMousePos();
+        const Vector2 topLeft = Vector2(mp.x, mp.y) - m_Drag->grabOffset;
+        m_DragNow.valid = true;
+        m_DragNow.id = m_Drag->id;
+        m_DragNow.center = topLeft + (mean + Vector2(0.5f, 0.5f)) * m_CellPitch;
+        m_DragNow.angle = (float)(m_Drag->rotation & 3) * 1.5707963f;
+        m_DragSeen = true;
+    }
+    else if (m_DragSeen)
+    {
+        m_DragSeen = false;
+        m_DropHint = m_DragNow;
+        m_DropHint.ttl = 0.3f;
+    }
 }
 
 // ============================================================
@@ -508,15 +581,36 @@ void SpellbookUI::StepPhysics(float dt)
     const float invDt = 1.0f / dt;
     const float cellPx = CellPx();
 
-    // ---- 壁（左 右 上 床）。内寸の外側に置いた動かない大きな四角 ----
-    const Vector2 center = (m_BoxMin + m_BoxMax) * 0.5f;
-    const Vector2 half = (m_BoxMax - m_BoxMin) * 0.5f;
+    // ---- 壁（左 右 上 床）。物理の範囲（m_Area）の外側に置いた動かない大きな四角 ----
+    const Vector2 center = (m_AreaMin + m_AreaMax) * 0.5f;
+    const Vector2 half = (m_AreaMax - m_AreaMin) * 0.5f;
     const float ht = kWallThick * 0.5f;
-    Box walls[4];
-    walls[0] = { { m_BoxMin.x - ht, center.y }, { ht, half.y + kWallThick } };
-    walls[1] = { { m_BoxMax.x + ht, center.y }, { ht, half.y + kWallThick } };
-    walls[2] = { { center.x, m_BoxMin.y - ht }, { half.x + kWallThick, ht } };
-    walls[3] = { { center.x, m_BoxMax.y + ht }, { half.x + kWallThick, ht } };
+    Box walls[8];
+    Vector2 wallMin[8], wallMax[8];   // 外接の四角（近いかどうかの粗い判定）
+    int wallCount = 0;
+    auto addWall = [&](const Vector2& c, const Vector2& h)
+        {
+            walls[wallCount] = { c, h };
+            wallMin[wallCount] = c - h;
+            wallMax[wallCount] = c + h;
+            ++wallCount;
+        };
+    addWall({ m_AreaMin.x - ht, center.y }, { ht, half.y + kWallThick });
+    addWall({ m_AreaMax.x + ht, center.y }, { ht, half.y + kWallThick });
+    addWall({ center.x, m_AreaMin.y - ht }, { half.x + kWallThick, ht });
+    addWall({ center.x, m_AreaMax.y + ht }, { half.x + kWallThick, ht });
+    // 画面の縁の時（2026-10-27）：5 枚目 = バックパックの列、6〜8 枚目 = 蓋の無い木箱の左の板・右の板・底（上は開いている）
+    if (screenWalls)
+    {
+        if (Blocked()) addWall((m_ObstacleMin + m_ObstacleMax) * 0.5f, (m_ObstacleMax - m_ObstacleMin) * 0.5f);
+        else addWall({ -1.0e5f, -1.0e5f }, { 1.0f, 1.0f });   // 番号（uid）を揃えるための届かない壁
+        const float w = (std::max)(m_Wall, 6.0f) * 0.5f;
+        const float sideH = (m_BoxMax.y + m_Wall * 2.0f - m_BoxMin.y) * 0.5f;   // 上の端（m_BoxMin.y - m_Wall）〜底の下
+        const float sideY = m_BoxMin.y - m_Wall + sideH;
+        addWall({ m_BoxMin.x - w, sideY }, { w, sideH });
+        addWall({ m_BoxMax.x + w, sideY }, { w, sideH });
+        addWall({ (m_BoxMin.x + m_BoxMax.x) * 0.5f, m_BoxMax.y + w }, { (m_BoxMax.x - m_BoxMin.x) * 0.5f + m_Wall, w });
+    }
 
     // ---- マスの四角を先に全部作る（列は使い回す）----
     std::vector<int>& firstBox = m_FirstBox;
@@ -579,12 +673,10 @@ void SpellbookUI::StepPhysics(float dt)
         const float r = bi.bound * cellPx;
 
         // 壁（外接円が届く壁だけ）
-        const bool nearWall[4] = {
-            bi.pos.x - r < m_BoxMin.x, bi.pos.x + r > m_BoxMax.x,
-            bi.pos.y - r < m_BoxMin.y, bi.pos.y + r > m_BoxMax.y };
-        for (int w = 0; w < 4; ++w)
+        for (int w = 0; w < wallCount; ++w)
         {
-            if (!nearWall[w]) continue;
+            // 外接円の四角が壁の四角に掛かっていれば
+            if (bi.pos.x + r < wallMin[w].x || bi.pos.x - r > wallMax[w].x || bi.pos.y + r < wallMin[w].y || bi.pos.y - r > wallMax[w].y) continue;
             for (int k = firstBox[i]; k < firstBox[i + 1]; ++k)
                 addPair(key(kWallUid[w], 0, bi.uid, k - firstBox[i]), -1, i, walls[w], boxes[k]);
         }
@@ -710,8 +802,9 @@ void SpellbookUI::StepPhysics(float dt)
         b.vel *= kLinearDamp;
         b.angVel *= kAngularDamp;
 
-        b.pos.x = std::clamp(b.pos.x, m_BoxMin.x, m_BoxMax.x);
-        b.pos.y = std::clamp(b.pos.y, m_BoxMin.y, m_BoxMax.y);
+        b.pos.x = std::clamp(b.pos.x, m_AreaMin.x, m_AreaMax.x);
+        b.pos.y = std::clamp(b.pos.y, m_AreaMin.y, m_AreaMax.y);
+        PushOutOfObstacle(b.pos, 0.0f);   // 重心がバックパックの列に入ったら右へ出す（保険）
 
         maxV = (std::max)(maxV, b.vel.Length());
         maxW = (std::max)(maxW, std::fabs(b.angVel));
@@ -837,6 +930,7 @@ bool SpellbookUI::GrabByUid(uint32_t uid)
 // ============================================================
 void SpellbookUI::Update(const SpellbookComponent& book, const BackpackComponent& bp, float dt)
 {
+    TrackDrag(dt);   // マウスで離した物を、離した所から落とすため（SyncBodies より前）
     SyncBodies(book, bp);
 
     // ---- 物理（固定ステップ。眠っている間は回さない）----
@@ -974,7 +1068,7 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
 
     // ---- 枠（中身の縁に被さる）+ 前板の錠前 ----
     if (m_FrameTex)
-        DrawNineSlice(sprite, m_FrameTex, outerPos, outerSize, m_Wall, kFrameBorderUV, frameTint);
+        DrawNineSlice(sprite, m_FrameTex, outerPos, outerSize, m_Wall, kFrameBorderUV, frameTint, screenWalls);   // 画面の縁の時は蓋（上の辺）無し
     if (m_LockTex)
     {
         const float lw = m_Wall * lockScale;

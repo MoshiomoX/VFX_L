@@ -38,6 +38,10 @@ struct StageDef
     float difficultyHpMul = 1.0f;
     float difficultyDamageMul = 1.0f;
     float difficultySpawnMul = 1.0f;
+    // このマップでの「何面目か」の HP / ダメージの倍率（2026-10-27、ユーザー「草原 1→2→3 の難度曲線を直す、後でマップ毎に差別化」）。
+    // [0] = 1 面目。0 = 共通の StageConfig::PosDifficulty を使う（表を進める分 timeOffsetMin は共通のまま）
+    float posHpMul[3] = { 0.0f, 0.0f, 0.0f };
+    float posDamageMul[3] = { 0.0f, 0.0f, 0.0f };
 
     // 新しい敵の混ざり方（2026-10-03、ユーザー「面毎の主力 + 面の中で時間で増える」）。
     // 湧き（新規・転送）のうちその種類の割合: start 秒までは 0、start で ratioStart、rampEnd 秒で ratioEnd（間は直線）。

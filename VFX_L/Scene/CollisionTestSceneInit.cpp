@@ -201,6 +201,10 @@ void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device
     if (!m_Debris.Initialize(device, context))
         std::cout << "[Error] GroundDebris init failed" << std::endl;
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());
+    // 水たまりの水面（2026-10-27。地図の記録の pond から）
+    if (!m_Water.Initialize(device, context))
+        std::cout << "[Error] WaterSurface init failed" << std::endl;
+    m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);
     // 風に流される物（2026-10-22）：砂漠・遺跡の転がり草、草原のタンポポ
     m_Tumbleweeds.Init(device);
     if (!m_Dandelions.Initialize(device, context))
@@ -242,8 +246,12 @@ void CollisionTestScene::InitSwarm(const StageDef& stageDef, ID3D11Device* devic
         const auto& pos = StageConfig::PosDifficulty(m_RunPos - 1);
         const auto& tier = StageConfig::TierMul(m_RunTier);
         m_Mobs.stageTimeOffsetMin = pos.timeOffsetMin + stageDef.difficultyTimeOffsetMin;
-        m_Mobs.stageHpMul = pos.hpMul * stageDef.difficultyHpMul * tier.hpMul;
-        m_Mobs.stageDamageMul = pos.damageMul * stageDef.difficultyDamageMul * tier.damageMul;
+        // マップ毎の「何面目か」の倍率があればそちら（2026-10-27、草原から）
+        const int pi = std::clamp(m_RunPos - 1, 0, 2);
+        const float posHp = stageDef.posHpMul[pi] > 0.0f ? stageDef.posHpMul[pi] : pos.hpMul;
+        const float posDmg = stageDef.posDamageMul[pi] > 0.0f ? stageDef.posDamageMul[pi] : pos.damageMul;
+        m_Mobs.stageHpMul = posHp * stageDef.difficultyHpMul * tier.hpMul;
+        m_Mobs.stageDamageMul = posDmg * stageDef.difficultyDamageMul * tier.damageMul;
         m_Mobs.stageSpawnMul = pos.spawnMul * stageDef.difficultySpawnMul;
         m_ExpMul = tier.expMul;
         std::cout << "[CollisionTestScene] run map " << m_StageIndex << " tier " << m_RunTier << " pos " << m_RunPos
@@ -333,6 +341,7 @@ void CollisionTestScene::InitPlayer(const StageDef& stageDef, ID3D11Device* devi
     // ---------- 反応のエフェクト（レベルアップ・開箱・被弾）----------
     m_Feedback.Init(&m_AreaVFX, &m_VFXContext);
     m_PlayerVFX.Init(&m_AreaVFX, &m_VFXContext);
+    m_PlayerVFX.water = &m_Water;   // 水たまりの中の足は水しぶき・波紋・水の足音（2026-10-27）
     m_SpellFx.Init(&m_AreaVFX, &m_VFXContext);
     // 土煙の色を面に合わせる（草原は土色のまま、砂漠は砂、遺跡は灰）
     if (stageDef.biome == TerrainGenerator::Biome::Desert)       m_PlayerVFX.dustTint = { 1.18f, 1.08f, 0.86f };
@@ -367,7 +376,7 @@ void CollisionTestScene::InitStageFlow(const StageDef& stageDef, ID3D11Device* d
         RespawnCrates();
 
     // ---------- 天候（昼 → 夕 → 夜、面毎の出来事。照明を毎フレーム上書きする）----------
-    m_Weather.Init(stageDef, m_Stage.stageTime, m_Lighting, m_AreaVFX, &m_VFXContext, &m_Swarm);
+    m_Weather.Init(stageDef, m_Stage.stageTime, m_Lighting, m_AreaVFX, &m_VFXContext, &m_Swarm, m_RunPos);
     if (m_LabScene)
     {
         // 実験場：昼のまま、天候の出来事なし。湧き停止・無敵・MP 無限・経験値 0 と 9x9 の枠は SpellLab が受け持つ

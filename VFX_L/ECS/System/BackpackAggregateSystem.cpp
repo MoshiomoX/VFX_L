@@ -143,6 +143,15 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
                 log.influencedBy.push_back(fdef->common.name);
             }
+            // 乗っている効果のある設置枠（ルーンの後、魔法威力の前。2026-10-27）
+            for (int f : BackpackLogic::GetEffectFrames(bp, (int)i))
+            {
+                const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[f].id);
+                if (!fr) continue;
+                for (const auto& mod : fr->spellModifiers)
+                    ItemDatabase::ApplyModifier(stats, mod);
+                log.influencedBy.push_back(fr->common.name);
+            }
             ItemInfo::ApplySpellPower(stats, power);
 
             // 上級魔法: 前提の基本魔法が全種類届いていなければ撃たない（バックパックでは暗く出る）。
@@ -179,6 +188,14 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                     ItemDatabase::ApplyModifier(stats, mod);
 
                 log.influencedBy.push_back(fdef->common.name);
+            }
+            for (int f : BackpackLogic::GetEffectFrames(bp, (int)i))
+            {
+                const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[f].id);
+                if (!fr) continue;
+                for (const auto& mod : fr->areaModifiers)
+                    ItemDatabase::ApplyModifier(stats, mod);
+                log.influencedBy.push_back(fr->common.name);
             }
             ItemInfo::ApplySpellPower(stats, power);
 

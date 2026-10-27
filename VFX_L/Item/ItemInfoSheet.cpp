@@ -408,8 +408,9 @@ namespace ItemInfoSheet
                     s.stats.push_back(ModifierLine(m.param, m.op, m.value, L"範囲魔法の"));
     }
 
-    void FillFrame(Sheet& s, const ItemCommon& c)
+    void FillFrame(Sheet& s, const FrameItemDef& def)
     {
+        const ItemCommon& c = def.common;
         int minR = 0, maxR = 0, minC = 0, maxC = 0;
         for (size_t i = 0; i < c.occupyCells.size(); ++i)
         {
@@ -423,6 +424,14 @@ namespace ItemInfoSheet
         l.value = Num((float)(maxC - minC + 1)) + L"x" + Num((float)(maxR - minR + 1))
             + L" (" + Num((float)c.occupyCells.size()) + L" マス)";
         s.stats.push_back(l);
+        // 効果のある枠（2026-10-27）：乗っている魔法に掛かる修飾をルーンと同じ書き方で並べる
+        if (def.HasEffect())
+        {
+            s.traits.push_back(L"一マスでも乗っている魔法に効く（同じ枠は重ならない）");
+            for (const auto& m : def.spellModifiers)
+                s.stats.push_back(ModifierLine(m.param, m.op, m.value));
+            // 範囲魔法への修飾は弾と同じ数字なので出さない（説明文に「範囲」と書いてある）
+        }
     }
 
     void FillStat(Sheet& s, const StatItemDef& def)

@@ -29,7 +29,12 @@ int ShopStock::PriceOf(ItemID id) const
         case ItemCategory::Area:     base = c->triggeredBy.empty() ? priceBasic : priceAdvanced; break;
         case ItemCategory::Function: base = priceRune; break;
         case ItemCategory::Summon:   base = priceSummon; break;
-        case ItemCategory::Frame:    base = priceFrame; break;
+        case ItemCategory::Frame:
+        {
+            const FrameItemDef* fd = ItemDatabase::GetFrame(id);
+            base = (int)std::lround((float)priceFrame * (fd ? fd->priceMul : 1.0f));
+            break;
+        }
         default:                     base = priceBasic; break;
         }
     }
@@ -99,13 +104,24 @@ void ShopStock::Generate(const RunCarry& carry)
     // [4] 設置枠
     if (!frames.empty())
     {
-        const ItemID id = frames[RandBelow((int)frames.size())];
+        // 枠ごとの重み（FrameItemDef::weight。3x3 は珍しい。2026-10-27）
+        float total = 0.0f;
+        for (ItemID f : frames)
+            if (const FrameItemDef* fd = ItemDatabase::GetFrame(f)) total += (std::max)(fd->weight, 0.0f);
+        float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
+        ItemID id = frames.back();
+        for (ItemID f : frames)
+        {
+            const FrameItemDef* fd = ItemDatabase::GetFrame(f);
+            r -= fd ? (std::max)(fd->weight, 0.0f) : 0.0f;
+            if (r < 0.0f) { id = f; break; }
+        }
         m_Slots.push_back({ id, PriceOf(id), false });
     }
 
-    // [5] 能力値の札
+    // [5] 能力値の札（statSlot = false の間は出さない）
     const auto& stats = ItemDatabase::GetLevelUpOnlyIDs();
-    if (!stats.empty())
+    if (statSlot && !stats.empty())
     {
         const ItemID id = stats[RandBelow((int)stats.size())];
         m_Slots.push_back({ id, PriceOf(id), false });

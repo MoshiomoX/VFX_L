@@ -173,6 +173,7 @@ void CollisionTestScene::ActivateSelectWorld(int map)
     m_GrassFire.Build(m_Grid);
     m_GrassFire.SetActive(def.grass && gs.enabled);
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());
+    m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);   // 水たまりの水面（2026-10-27）
     m_Swarm.KillAll();
     m_Swarm.UploadTerrain(m_Grid);
     // 地形の PS の定数（面毎の明るさ合わせ）は 3 つの面で共用：最後に建てた面の値のままなので、出した面の値へ書き直す

@@ -91,6 +91,8 @@ void BossAttacks::Configure(BossType t)
     if (t == BossType::Stag) { leanPivotY = 0.5f; leanPivotZ = -0.6f; leanAngle = 0.17f; }
     else if (scorpion) { leanPivotY = -0.6f; leanPivotZ = 0.0f; leanAngle = 0.08f; }
     else { leanPivotY = leanPivotZ = leanAngle = 0.0f; }
+    // 体の大きさ：狼人は猫背で背が低くなったので大きく（10-27「圧が無い、小さい」）
+    bodyScale = (t == BossType::Werewolf) ? 3.8f : 3.0f;
     if (sand || scorpion)
     {
         // 砂の守護者：トゲ玉と砂潜り（砂漠の敵）を呼ぶ。体は自分の砂岩の皮（BossLooks）なので色は掛けない

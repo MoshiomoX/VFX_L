@@ -95,6 +95,7 @@ void CollisionTestScene::Shutdown()
     m_GrassShreds.Clear(m_AreaVFX);    // 草屑の発生源の番号を捨てる（AreaVFXPlayer はシーンと一緒に終わる）
     m_Dandelions.Shutdown();
     m_Debris.Shutdown();
+    m_Water.Shutdown();
     m_GrassFire.Shutdown();
     m_Grass.Shutdown();
     m_GameUI.Shutdown();

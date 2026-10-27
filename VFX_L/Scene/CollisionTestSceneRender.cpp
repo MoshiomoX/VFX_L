@@ -72,6 +72,11 @@ void CollisionTestScene::Render(Renderer& renderer)
             // タンポポ（草の踏み跡は今フレームの物。風源で綿毛がほどけて飛ぶ。2026-10-22）
             if (GetCamera()) m_Dandelions.Render(renderer, *GetCamera(), m_Grass.GetTrampleSRV(), m_Swarm.GetWindSourceSRV(), PlayerPos());
         }
+        {
+            // 水たまりの水面（2026-10-27）：半透明。草・落ち葉の後（水の縁の草の上に被らない）、群れの重ね描き（警告の輪・体力バー）の前
+            PROFILE_SCOPE_GPU("Water");
+            if (GetCamera()) m_Water.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetWindSourceSRV());
+        }
         { PROFILE_SCOPE_GPU("Swarm overlay"); m_Swarm.RenderOverlay(GetCamera(), renderer.GetLightData()); }
     }
     else

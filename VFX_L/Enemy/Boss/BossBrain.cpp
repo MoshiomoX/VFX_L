@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // BossBrain.cpp
 // ============================================================
 #include "Enemy/Boss/BossBrain.h"
@@ -37,6 +37,20 @@ const char* BossTypeName(BossType t)
     case BossType::CryptKnight:  return "crypt knight";
     case BossType::Werewolf:     return "werewolf";
     default:                     return "?";
+    }
+}
+
+const wchar_t* BossDisplayName(BossType t)
+{
+    switch (t)
+    {
+    case BossType::StoneGiant:   return L"岩の巨人";
+    case BossType::SandGuardian: return L"砂の守護者";
+    case BossType::Scorpion:     return L"大サソリ";
+    case BossType::Stag:         return L"雷鳴の雄鹿";
+    case BossType::CryptKnight:  return L"墓守の騎士";
+    case BossType::Werewolf:     return L"月下の狼人";
+    default:                     return L"?";
     }
 }
 

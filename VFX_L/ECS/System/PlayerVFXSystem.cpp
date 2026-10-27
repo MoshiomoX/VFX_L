@@ -12,6 +12,8 @@
 #include "Player/ShieldComponent.h"
 #include "Item/ItemDatabase.h"
 #include "Swarm/AreaVFXPlayer.h"
+#include "World/WaterSurface.h"
+#include "Audio/AudioSystem.h"
 #include "imgui.h"
 
 using namespace DirectX::SimpleMath;
@@ -95,6 +97,12 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
     const float speed = hv.Length();
     const float moveYaw = (speed > 0.1f) ? YawOf(hv) : tf.rotation.y;
 
+    // 水たまりの中か（足が水面より下）。中なら小石の代わりに水しぶき・波紋・水の足音（2026-10-27）
+    float waterY = 0.0f;
+    const bool inWater = waterFx && water && water->WaterAt(feet.x, feet.z, waterY) && feet.y < waterY - 0.03f;
+    const Vector3 surf(feet.x, waterY, feet.z);   // 足元の水面（inWater の時だけ意味がある）
+    const Vector3 white(1.0f, 1.0f, 1.0f);
+
     // ---- 被弾の閃き（HP が減った = 白、シールドで受けた = 水色）----
     uint32_t shieldHits = reg.Has<ShieldComponent>(player) ? reg.Get<ShieldComponent>(player).hits : 0;
     if (enabled && hitFlash && m_Read)
@@ -129,20 +137,45 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
 
     if (m_Read && jumpLand)
     {
-        // 跳んだ（地面を離れた瞬間に上向き）・空中ジャンプ
+        // 跳んだ（地面を離れた瞬間に上向き）・空中ジャンプ。水の中から跳んだら水しぶき
         if (m_PrevGrounded && !grounded && vel.y > 2.0f)
-            Play(kJumpDust, feet, 0.0f, 1.0f, dustTint);
+        {
+            float wy = 0.0f;
+            if (waterFx && water && m_PrevInWater && water->WaterAt(feet.x, feet.z, wy))
+            {
+                const Vector3 s(feet.x, wy, feet.z);
+                Play(VFXId::WaterStep, s, 0.0f, 1.0f, white);
+                water->AddRipple(s, water->GetSettings().stepRadius * 1.5f, water->GetSettings().stepStrength * 1.6f);
+                AudioSystem::Get().Play("water_step");
+            }
+            else
+                Play(kJumpDust, feet, 0.0f, 1.0f, dustTint);
+        }
         if (airJumps > m_PrevAirJumps)
-            Play(kAirJumpRing, feet, 0.0f, 0.8f, Vector3(1.0f, 1.0f, 1.0f));
-        // 着地
+            Play(kAirJumpRing, feet, 0.0f, 0.8f, white);
+        // 着地（水の中なら大きな水しぶき + 波紋。速く落ちたほど大きい）
         if (!m_PrevGrounded && grounded && m_AirTime >= landMinAir)
-            Play(-m_MinVy >= landHeavySpeed ? kLandDustHeavy : kLandDust, feet, 0.0f, 1.2f, dustTint);
+        {
+            const bool heavy = -m_MinVy >= landHeavySpeed;
+            if (inWater)
+            {
+                const auto& ws = water->GetSettings();
+                Play(VFXId::WaterLand, surf, 0.0f, 1.2f, white);
+                water->AddRipple(surf, ws.landRadius * (heavy ? 1.4f : 1.0f), ws.landStrength * (heavy ? 1.6f : 1.0f));
+                AudioSystem::Get().Play("water_land");
+            }
+            else
+                Play(heavy ? kLandDustHeavy : kLandDust, feet, 0.0f, 1.2f, dustTint);
+        }
     }
+    // 水の中を進む：足元を少しずつ押し下げ続ける = 後ろに航跡の波紋が残る（止まっていれば何も起きない）
+    if (inWater && grounded && speed > 0.3f)
+        water->AddRipple(surf, water->GetSettings().stepRadius * 1.3f, water->GetSettings().wadeStrength * speed * dt);
     if (grounded) { m_AirTime = 0.0f; m_MinVy = 0.0f; }
     else { m_AirTime += dt; m_MinVy = (std::min)(m_MinVy, vel.y); }
 
     // ---- 走る小石（左右の足を交互に）----
-    if (footDust && grounded && !sliding && speed >= footMinSpeed)
+    if ((footDust || inWater) && grounded && !sliding && speed >= footMinSpeed)
     {
         m_FootTimer -= dt * (speed / (std::max)(footRefSpeed, 0.1f));
         if (m_FootTimer <= 0.0f)
@@ -151,7 +184,16 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
             m_FootSide ^= 1;
             const float a = DirectX::XMConvertToRadians(moveYaw);
             const Vector3 right(std::cos(a), 0.0f, -std::sin(a));   // 進む向き (sin, cos) の横
-            Play(kFootDust, feet + right * (m_FootSide ? 0.12f : -0.12f), moveYaw, 1.0f, dustTint);
+            const Vector3 side = right * (m_FootSide ? 0.12f : -0.12f);
+            if (inWater)
+            {
+                const auto& ws = water->GetSettings();
+                Play(VFXId::WaterStep, surf + side, moveYaw, 1.0f, white);
+                water->AddRipple(surf + side, ws.stepRadius, ws.stepStrength);
+                AudioSystem::Get().Play("water_step");
+            }
+            else
+                Play(kFootDust, feet + side, moveYaw, 1.0f, dustTint);
         }
     }
     else
@@ -165,7 +207,13 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
         {
             const float t = std::clamp((speed - 5.0f) / 12.0f, 0.0f, 1.0f);
             m_SlideTimer = slideIntervalSlow + (slideIntervalFast - slideIntervalSlow) * t;
-            Play(kSlideDust, feet, moveYaw, 1.0f, dustTint);
+            if (inWater)
+            {
+                Play(VFXId::WaterSlide, surf, moveYaw, 1.0f, white);
+                water->AddRipple(surf, water->GetSettings().stepRadius * 1.6f, water->GetSettings().stepStrength * 0.8f);
+            }
+            else
+                Play(kSlideDust, feet, moveYaw, 1.0f, dustTint);
         }
     }
     else
@@ -176,6 +224,7 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
     UpdateTrail(trail, trail ? BackAnchor(reg, player, tf.position) : tf.position);
 
     m_PrevGrounded = grounded;
+    m_PrevInWater = inWater;
     m_PrevAirJumps = airJumps;
     m_Read = true;
 }
@@ -262,7 +311,10 @@ void PlayerVFXSystem::DrawImGui()
     ImGui::Checkbox("Jump / land", &jumpLand); ImGui::SameLine();
     ImGui::Checkbox("Slide pebbles", &slideDust);
     ImGui::Checkbox("Speed trail", &speedTrail); ImGui::SameLine();
-    ImGui::Checkbox("Hit flash", &hitFlash);
+    ImGui::Checkbox("Hit flash", &hitFlash); ImGui::SameLine();
+    ImGui::Checkbox("Water splash", &waterFx);
+    ImGui::SameLine();
+    ImGui::TextDisabled(m_PrevInWater ? "(in water)" : "");
     ImGui::DragFloat("Cast min gap (s)", &castMinGap, 0.005f, 0.0f, 0.5f);
     ImGui::DragFloat("Cast tint gain", &castTintGain, 0.05f, 0.2f, 4.0f);
     ImGui::DragFloat("Cast pulse gap (s)", &pulseGap, 0.01f, 0.0f, 2.0f);

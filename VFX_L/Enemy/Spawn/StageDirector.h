@@ -77,13 +77,27 @@ public:
     // 倒れた瞬間（倒れた所）/ 立ち上がった瞬間（シーンが見た目・音を出す。1 回だけ true）
     bool  ConsumeBossFell(DirectX::SimpleMath::Vector3& pos) { if (!m_BossFell) return false; m_BossFell = false; pos = m_RevivePos; return true; }
     bool  ConsumeBossRevived() { const bool r = m_BossRevived; m_BossRevived = false; return r; }
+    // 門から呼んだ時の登場（2026-10-27、ユーザー「突然湧いて門から出てこないのが違和感」）：門を使った瞬間に 1 回だけ true。
+    // gate = 門の口の真ん中の地面、walkDir = 門から出てくる向き（プレイヤーの居る側。xz の単位）、spawn = 湧く所。
+    // Boss は bossIntroDelay 秒後に門の口のすぐ前（gate + walkDir × bossIntroFront）に湧く。歩かせるのはシーン（BossIntro）。
+    // 門の奥に湧かせると柱の下の塞いだマスで拱の口が 1 マス分しか空かず、大きな Boss はくぐれずに止まった（2026-10-27 の自動テスト）
+    bool  ConsumeBossIntro(DirectX::SimpleMath::Vector3& gate, DirectX::SimpleMath::Vector3& walkDir, DirectX::SimpleMath::Vector3& spawn)
+    {
+        if (!m_IntroStarted) return false;
+        m_IntroStarted = false;
+        gate = m_IntroGate;
+        walkDir = m_IntroDir;
+        spawn = m_IntroSpawn;
+        return true;
+    }
     // 画面の真ん中の案内（StageDirectorWaves.cpp。シーンからも出せる：Boss の復活など。2026-10-26 に public へ）
     void SetAnnounce(const wchar_t* text, float seconds);
     // 門を使わずに Boss を呼ぶ（トレーニング。2026-10-07）。次の Update で湧く。moving = false なら止まったまま。
     // もう呼んでいる / 生きている間は false（何もしない）
+    bool CanRequestBoss() const { return m_Boss == BossState::None || m_Boss == BossState::Defeated; }
     bool RequestBoss(bool moving)
     {
-        if (m_Boss != BossState::None && m_Boss != BossState::Defeated) return false;
+        if (!CanRequestBoss()) return false;
         m_DebugBoss = true;
         m_BossSpeedOverride = moving ? -1.0f : 0.0f;
         return true;
@@ -142,6 +156,8 @@ public:
     float bossSpeed = 2.8f;         // m/秒
     float bossRingMin = 12.0f;      // 呼んだ時のプレイヤーからの距離（m）
     float bossRingMax = 16.0f;
+    float bossIntroDelay = 1.0f;    // 門を使ってから Boss が門の奥に湧くまで（その間は門が赤く荒れる）
+    float bossIntroFront = 2.5f;    // 湧く所 = 門の口から前へこの m（柱の下の塞いだマスの外）
     float portalMinDist = 35.0f;    // 門を置く距離（開始時のプレイヤーから m）
     float portalMaxDist = 55.0f;
     float portalHeight = 5.6f;      // 門の高さ（m。モデルの包囲箱から倍率を出す。石の拱 3.53m → ×1.59、幅 4.9m）
@@ -154,6 +170,9 @@ private:
     bool SpawnBoss(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
     bool SpawnBossAt(const GridWorld& grid, const DirectX::SimpleMath::Vector3& pos, SwarmSystem& swarm);   // その場（歩けなければ周り）
 
+    float m_SpawnDelay = 0.0f;    // > 0 = 門から呼んだ Boss が湧くまでの残り秒（その間は Summoned のまま待つ）
+    DirectX::SimpleMath::Vector3 m_IntroSpawn, m_IntroGate, m_IntroDir;
+    bool  m_IntroStarted = false;
     int   m_LivesUsed = 0;        // 蘇った回数
     float m_ReviveTimer = 0.0f;
     DirectX::SimpleMath::Vector3 m_RevivePos;   // 倒れた所

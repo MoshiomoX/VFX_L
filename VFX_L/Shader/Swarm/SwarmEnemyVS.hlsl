@@ -68,8 +68,9 @@ cbuffer SwarmEnemyAnimCB : register(b4)
     float g_AnimTime;      // clock for idle (seconds)
     float g_WalkRate;      // walk playback speed
     float g_OrbitSpeed;    // rad/s for g_AnimMode 1
-    float _animPad2;
+    float g_Hunch;         // the werewolf's hunch (2026-10-27): rad the piece is pitched forward about the hips (g_Hinge.xyz) before the part's own motion; 0 = none
     float4 g_Flap;         // g_AnimMode 2 (a gargoyle's wing, 2026-10-25): hinge (baked mesh space) xyz, w = +1 right wing / -1 left
+    float4 g_Hinge;        // g_AnimMode 4's second joint (2026-10-27, the werewolf's knee): xyz, w = bend rad while the leg lifts (0 = none). With g_Hunch: xyz = the hips
 };
 
 struct PartXform
@@ -178,6 +179,21 @@ VS_OUTPUT main(VS_INPUT_INST input)
 
     // ---- a gargoyle's wing (g_AnimMode 2, 2026-10-25): turned about the forward axis through the hinge before the
     //      part's own animation. Hangs while a statue / landed, flaps in the air, swept up through the dive ----
+    // the werewolf's hunch (g_Hunch != 0, 2026-10-27): deeper while it runs (applied below, after the limb swings)
+    float hunchEff = 0.0;
+    if (g_Hunch != 0.0)
+        hunchEff = g_Hunch * (1.0 + 0.45 * ((frozen || statue) ? 0.0 : saturate(length(e.velocity.xz) / 2.5)));
+    // a procedural biped (the werewolf, 2026-10-27): every piece has g_Hunch (the upper body) or a knee (the legs). It is not
+    // moved by the Kenney part clips (the torso's bob and twist made the hunched body and the legs wobble); instead the whole
+    // body sinks by what the planted leg's swing lifts it, so one foot stays on the ground (the hips are 0.43 above the feet)
+    bool biped = (g_Hunch != 0.0) || (g_AnimMode == 4u && g_Hinge.w > 0.0);
+    float bipedDrop = 0.0;
+    if (biped && moving && !frozen)
+    {
+        float stride0 = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);
+        float legAng = 0.65 * (0.5 + 0.25 * dashK) * sin(stride0 * 6.2831853 * (1.0 + 0.8 * dashK));
+        bipedDrop = 0.43 * (1.0 - cos(legAng));
+    }
     float3 inPos = input.Position;
     float3 inNrm = input.Normal;
     float3 inTan = input.Tangent;
@@ -233,16 +249,46 @@ VS_OUTPUT main(VS_INPUT_INST input)
     if (g_AnimMode == 4u)
     {
         float ang = 0.0;
+        float bend = 0.0;   // the werewolf's knee (g_Hinge.w > 0, 2026-10-27): folds while the leg swings forward (lifted)
         if (moving && !frozen)
         {
             float stride = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);   // walk loops = strides
             // the charge (dashK): the legs swing faster and wider (a gallop)
-            ang = (0.5 + 0.25 * dashK) * sin(stride * 6.2831853 * (1.0 + 0.8 * dashK) + g_Flap.w);
+            float ph = stride * 6.2831853 * (1.0 + 0.8 * dashK) + g_Flap.w;
+            ang = (0.5 + 0.25 * dashK) * sin(ph);
+            if (g_Hinge.w > 0.0)
+                ang *= 0.65;   // a biped's leg (the werewolf): a shorter stride than a quadruped's
+            bend = g_Hinge.w * max(0.0, -cos(ph));
         }
         else if (bracing)
         {
             // the wind-up: the front legs forward, the hind legs back (braced, g_Flap.z > 0 = a front leg)
             ang = 0.22 * headDown * ((g_Flap.z > 0.0) ? -1.0 : 1.0);
+        }
+        // a hunched biped's arm (g_Hunch != 0, the werewolf): turned back by half the hunch about the shoulder, so the
+        // hand hangs beside the knee (the full hunch left the hands dangling far out in front, 2026-10-27). The walk
+        // swing is 0.6 of a leg's (0.3 looked the same on both arms); the melee swing throws the left claw in the first
+        // half of the clip and the right in the second (both at once looked like one arm)
+        if (g_Hunch != 0.0)
+            ang = ang * 0.6 - 0.5 * hunchEff;
+        if (g_Hunch != 0.0 && e.attackCooldown > 0.0)
+        {
+            float sinceSwing = g_AttackInterval - e.attackCooldown;
+            if (sinceSwing < g_ClipLength.z)
+            {
+                float u = saturate(sinceSwing / max(g_ClipLength.z, 0.05)) * 2.0 - ((g_Flap.x < 0.0) ? 0.0 : 1.0);
+                ang -= 1.6 * sin(saturate(u) * 3.14159);
+            }
+        }
+        if (bend > 0.0 && g_Hinge.w > 0.0 && inPos.y < g_Hinge.y)
+        {
+            // below the knee: the shin swings back about the knee (same sense as the hip)
+            float ks, kc;
+            sincos(bend, ks, kc);
+            float2 rk = inPos.yz - g_Hinge.yz;
+            inPos.yz = g_Hinge.yz + float2(rk.x * kc - rk.y * ks, rk.x * ks + rk.y * kc);
+            inNrm.yz = float2(inNrm.y * kc - inNrm.z * ks, inNrm.y * ks + inNrm.z * kc);
+            inTan.yz = float2(inTan.y * kc - inTan.z * ks, inTan.y * ks + inTan.z * kc);
         }
         float ls, lc;
         sincos(ang, ls, lc);
@@ -281,6 +327,21 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
+    // ---- the werewolf's hunch (g_Hunch != 0, 2026-10-27): the piece (torso / head / arm, already swung above) is pitched
+    //      forward about the hips (g_Hinge.yz) before the part's own motion. Deeper while it runs (the speed smooths it) ----
+    if (g_Hunch != 0.0)
+    {
+        float hs, hc;
+        sincos(hunchEff, hs, hc);
+        float2 rh = inPos.yz - g_Hinge.yz;
+        inPos.yz = g_Hinge.yz + float2(rh.x * hc - rh.y * hs, rh.x * hs + rh.y * hc);
+        inNrm.yz = float2(inNrm.y * hc - inNrm.z * hs, inNrm.y * hs + inNrm.z * hc);
+        inTan.yz = float2(inTan.y * hc - inTan.z * hs, inTan.y * hs + inTan.z * hc);
+        local = inPos;
+        normal = inNrm;
+        tangent = inTan;
+    }
+
     if (g_AnimMode == 1u)
     {
         // ---- boss decoration orbiting the body (the sand guardian's floating rocks, 2026-10-24): spin the whole
@@ -292,6 +353,16 @@ VS_OUTPUT main(VS_INPUT_INST input)
                        -input.Position.x * os + input.Position.z * oc);
         normal = float3(input.Normal.x * oc + input.Normal.z * os, input.Normal.y, -input.Normal.x * os + input.Normal.z * oc);
         tangent = float3(input.Tangent.x * oc + input.Tangent.z * os, input.Tangent.y, -input.Tangent.x * os + input.Tangent.z * oc);
+    }
+    else if (biped)
+    {
+        // the procedural biped (above): no part clip, the body sinks with the stride and the upper body breathes a little
+        local = inPos;
+        normal = inNrm;
+        tangent = inTan;
+        local.y -= bipedDrop;
+        if (g_Hunch != 0.0)
+            local.y += 0.006 * sin(g_AnimTime * 2.2 + phaseOffset);
     }
     else if (g_AnimEnabled != 0u)
     {

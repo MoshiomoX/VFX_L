@@ -74,6 +74,16 @@ public:
         float length;                       // 根元から風下の端までの m
     };
     const std::vector<GustFx>& GetGustFx() const { return m_GustFx; }
+    // TEMP-TEST（2026-10-27 突風の全体テスト）：今フレームの突風 1 発ごとの標的・向き・見た目の回転
+    struct GustDebug
+    {
+        DirectX::SimpleMath::Vector3 caster, target, center;
+        DirectX::SimpleMath::Vector3 blowDir;
+        bool blows = false, targetIsGpu = false, fromOrb = false;
+        float radius = 0.0f, vfxYawDeg = 0.0f, vfxScale = 1.0f;
+        uint32_t vfxHandle = 0;
+    };
+    const std::vector<GustDebug>& GetGustDebug() const { return m_GustDebug; }
     // 今フレームに線で撃った上級魔法（SpellStats::triggerLine。2026-10-10、アイススパイクのトゲの見た目用）。
     // start = 撃った所の足元（地面）、end = 一番近い敵の向きへ lineLength x 倍率 先（地面）、scale = 拡大鏡などの大きさの倍率
     struct TriggeredFx
@@ -293,7 +303,7 @@ private:
     // 撃てたら true（MP の予約・クールダウンは呼ぶ側）
     bool CastArea(const AreaStats& a, const DirectX::SimpleMath::Vector3& origin,
         const DirectX::SimpleMath::Vector3& caster, bool followCaster,
-        bool hasTarget, const DirectX::SimpleMath::Vector3& targetPos,
+        bool hasTarget, DirectX::SimpleMath::Vector3 targetPos,
         float castSpeed, float durationMul, uint32_t orbSerial);
     // 光球の位置（生きていれば true）
     bool FindOrb(uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
@@ -314,6 +324,12 @@ private:
     const VFXContext* m_AreaVFXCtx = nullptr;
     std::vector<CastRequest> m_Requests;
     std::vector<CastFx> m_CastFx;   // 今フレームに撃った弾（GetCastFx）
+    // 近距離の範囲魔法（突風・アイススパイクの線）の狙い = 優先度なしで一番近い敵（2026-10-27）。
+    // 杖の狙い（hasTarget / targetPos）は Boss / エリートを優先するので別に持つ。Update の索敵で毎フレーム決める
+    bool m_HasClose = false;
+    DirectX::SimpleMath::Vector3 m_ClosePos;
+    std::vector<GustDebug> m_GustDebug;   // TEMP-TEST
+    bool m_DbgTargetIsGpu = false;        // TEMP-TEST
     std::vector<GustFx> m_GustFx;   // 今フレームの吹き飛ばす範囲（GetGustFx）
     std::vector<TriggeredFx> m_TriggeredFx;   // 今フレームに撃った上級魔法（GetTriggeredFx）
     AimDebug m_AimDebug;   // 可視化用

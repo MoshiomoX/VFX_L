@@ -108,6 +108,11 @@ void SwarmSystem::RenderListDecorations(uint32_t list)
         m_EnemyAnim.flap[1] = deco.flap.y;
         m_EnemyAnim.flap[2] = deco.flap.z;
         m_EnemyAnim.flap[3] = deco.flap.w;
+        m_EnemyAnim.hunch = deco.hunch;
+        m_EnemyAnim.hinge[0] = deco.hinge.x;
+        m_EnemyAnim.hinge[1] = deco.hinge.y;
+        m_EnemyAnim.hinge[2] = deco.hinge.z;
+        m_EnemyAnim.hinge[3] = deco.hinge.w;
         m_EnemyVS->WriteBuffer(m_Context, 4, &m_EnemyAnim);
         const auto& subs = deco.model->GetSubMeshes();
         for (size_t i = 0; i < subs.size() && i < argsList[d].size(); ++i)
@@ -117,6 +122,8 @@ void SwarmSystem::RenderListDecorations(uint32_t list)
     m_EnemyAnim.mode = 0u;
     m_EnemyAnim.orbitSpeed = 0.0f;
     m_EnemyAnim.flap[0] = m_EnemyAnim.flap[1] = m_EnemyAnim.flap[2] = m_EnemyAnim.flap[3] = 0.0f;
+    m_EnemyAnim.hunch = 0.0f;
+    m_EnemyAnim.hinge[0] = m_EnemyAnim.hinge[1] = m_EnemyAnim.hinge[2] = m_EnemyAnim.hinge[3] = 0.0f;
 }
 
 // RenderCorpses のそのリストの砕け散りの直後。SwarmCorpseVS は bind されたまま（corpseList もそのリスト）、

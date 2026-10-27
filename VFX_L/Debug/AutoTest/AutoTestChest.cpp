@@ -91,8 +91,55 @@ void AutoTestChest::Run(float dt)
     }
     else if (m_AutoStep == 4 && m_AutoTime >= 11.0f)
     {
-        AutoTestLog("chest done");
+        // 2026-10-27：蓋の無い箱。もっと入れて、箱の縁から画面へこぼれるか見る
+        if (m_Registry.Has<SpellbookComponent>(m_Player))
+        {
+            auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
+            for (int k = 0; k < 4; ++k)
+                for (ItemID id : { ItemID::Meteor, ItemID::StoneShot, ItemID::IceLance, ItemID::Poison, ItemID::Fireball })
+                    book.Learn(id);
+        }
+        AutoTestLog("chest add 20");
         m_AutoStep = 5;
+    }
+    else if (m_AutoStep == 5 && m_AutoTime >= 17.0f)
+    {
+        AutoTestLog("chest look overflow");
+        m_AutoStep = 6;
+    }
+    else if (m_AutoStep == 6 && m_AutoTime >= 18.0f)
+    {
+        // 2026-10-27：マウスで離したのと同じ落とし所（画面の真ん中より少し右上・縦向き）に黄金の矢を 1 本出す → その場から落ちるか
+        auto& sb = m_GameUI.GetSpellbookMutable();
+        sb.TestDropHint(ItemID::GoldenArrow, { m_ScreenW * 0.55f, m_ScreenH * 0.22f }, 1);
+        if (m_Registry.Has<SpellbookComponent>(m_Player))
+            m_Registry.Get<SpellbookComponent>(m_Player).Learn(ItemID::GoldenArrow);
+        AutoTestLog("chest drop hint");
+        m_AutoStep = 7;
+    }
+    else if (m_AutoStep == 7 && m_AutoTime >= 18.1f)
+    {
+        auto& sb = m_GameUI.GetSpellbookMutable();
+        uint32_t uid = 0;
+        DirectX::SimpleMath::Vector2 pos;
+        char line[128];
+        if (sb.GetBodyInfo(sb.GetBodyCount() - 1, uid, pos))
+        {
+            snprintf(line, sizeof(line), "chest drop spawned at %.0f,%.0f (hint %.0f,%.0f)", pos.x, pos.y, m_ScreenW * 0.55f, m_ScreenH * 0.22f);
+            AutoTestLog(line);
+        }
+        AutoTestLog("chest look drop0");
+        m_AutoStep = 8;
+    }
+    else if (m_AutoStep == 8 && m_AutoTime >= 19.0f)
+    {
+        AutoTestLog("chest look drop1");
+        m_AutoStep = 9;
+    }
+    else if (m_AutoStep == 9 && m_AutoTime >= 19.5f)
+    {
+        AutoTestLog("chest done");
+        m_AutoStep = 10;
     }
 }
 

@@ -66,6 +66,10 @@ public:
     };
     void ApplyPreset(const Preset& p);
 
+    // 今の空の色（線形。水面の映り込み、2026-10-27）
+    DirectX::SimpleMath::Vector3 SkyZenith() const { return { m_SkyZenith[0], m_SkyZenith[1], m_SkyZenith[2] }; }
+    DirectX::SimpleMath::Vector3 SkyHorizon() const { return { m_SkyHorizon[0], m_SkyHorizon[1], m_SkyHorizon[2] }; }
+
 private:
     void DrawSunMarker(const DirectX::SimpleMath::Vector3& player) const;
     void DrawSceneLightGizmo(const GridWorld& grid, CameraBase* camera, bool allowGizmo);

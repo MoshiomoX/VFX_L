@@ -25,6 +25,18 @@ void CollisionTestScene::PushWind()
     m_ParticleSystem.SetWindSources(m_Swarm.GetWindSourceSRV());   // 砂旋の風源（煙が周りを回る。2026-10-19）
     m_Debris.SetWind(wind, m_Grass.Time());   // 落ち葉（強い風で舞う）
     m_Dandelions.SetWind(wind, m_Grass.Time());   // タンポポ（強い風で綿毛がほどける。2026-10-22）
+    // 水面（2026-10-27）：草と同じ 2 つの突風の波で、風の強い所だけさざ波が立つ。雨 = 雨粒の波紋、砂嵐 = 濁り
+    {
+        const auto& gs = m_Grass.GetSettings();
+        const float a = DirectX::XMConvertToRadians(gs.wave2Angle);
+        const Vector2 d(wind.dir.x * std::cos(a) - wind.dir.y * std::sin(a), wind.dir.x * std::sin(a) + wind.dir.y * std::cos(a));
+        m_Water.SetWind(wind, m_Grass.Time(),
+            DirectX::SimpleMath::Vector4(d.x, d.y, wind.waveScale * gs.wave2ScaleMul, wind.waveSpeed * gs.wave2SpeedMul),
+            std::clamp(gs.wave2Weight, 0.0f, 1.0f));
+        const bool sand = m_Weather.CurrentKind() == WeatherSystem::Kind::Sandstorm;
+        m_Water.SetWeather(m_Weather.RainIntensity(), sand ? m_Weather.Intensity() : 0.0f);
+        m_Water.SetSky(m_Lighting.SkyZenith(), m_Lighting.SkyHorizon());
+    }
 
     // 草の火：風下へ広がる、雨で消える。燃えているマスからの粒子は SwarmSystem の Flush が出す
     m_GrassFire.SetWind(wind);

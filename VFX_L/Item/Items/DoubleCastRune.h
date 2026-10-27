@@ -21,10 +21,10 @@ inline FunctionItemDef MakeDoubleCastRune()
     def.common.id = ItemID::DoubleCastRune;
     def.common.name = "Double Cast";
     def.common.displayName = L"二重詠唱のルーン";
-    def.common.description = L"隣の魔法を続けてもう一度撃つ。威力はそのままだが、MP を多めに使う。";
+    def.common.description = L"光るマスに置いた魔法を続けてもう一度撃つ。威力はそのままだが、間隔が少し延び、MP を多めに使う。";
     def.common.category = ItemCategory::Function;
-    def.common.occupyCells = ItemShape::Single();
-    def.common.influenceCells = ItemShape::Cross();
+    def.common.occupyCells = { { 0, 0 }, { 0, 1 } };   // 横 2 マス（2026-10-27）
+    def.common.influenceCells = { { -1, 0 }, { -1, 1 } };   // 上の 2 マス（十字 4 → 2）
     def.common.color = { 0.80f, 0.40f, 1.00f, 1.0f }; // 紫
     def.common.iconPath = Res::Icon::DoubleCastRune;
 
@@ -32,7 +32,7 @@ inline FunctionItemDef MakeDoubleCastRune()
     // ※マナ消費は WeaponSystem 側で manaCost × castCount として扱われるため、
     //   ここで manaCost を上げる必要はない
     def.spellModifiers.push_back({ SpellParam::CastCount,    ModifyOp::Add,      1.0f });
-    def.spellModifiers.push_back({ SpellParam::CastInterval, ModifyOp::Multiply, 1.15f });
+    def.spellModifiers.push_back({ SpellParam::CastInterval, ModifyOp::Multiply, 1.25f });
 
     // ---- AOE への修飾：持続時間を延ばす ----
     def.areaModifiers.push_back({ AreaParam::Duration, ModifyOp::Multiply, 1.5f });

@@ -29,8 +29,10 @@ public:
 
     enum class Kind { None = 0, Rain, Sandstorm, Storm };   // Storm = 濃霧 + 雷（雨なし。遺跡）
 
+    // runPos = このプレイの何面目か（1 始まり）。時刻はプレイ全体で 1 日として進む（2026-10-27、ユーザー「1→2→3 で 昼→夕→夜」）：
+    //   1 面目 = 昼 → 夕（制限時間の終わりで夕）、2 面目 = 夕 → 夜、3 面目以降 = ずっと夜。時間切れの後も同じ速さで先へ進む
     void Init(const StageDef& stage, float stageTime, SceneLighting& lighting, AreaVFXPlayer& vfx, const VFXContext* ctx,
-        SwarmSystem* swarm);
+        SwarmSystem* swarm, int runPos = 1);
     void Shutdown();
     // runTime = 遊んでいる時間（止まっている間は進まない）。dt = 実時間（粒子・フェードは止まっている間も動く）
     void Update(float dt, float runTime, const Vector3& camPos, const Vector3& camForward);
@@ -82,6 +84,7 @@ private:
     Kind m_Kind = Kind::None;
     int  m_Biome = 0;
     float m_StageTime = 600.0f;
+    float m_PhaseFrom = 0.0f, m_PhaseTo = 1.0f;   // この面の始め / 制限時間の終わりの時刻の割合（runPos で決まる）
     SceneLighting::Preset m_Day, m_Dusk, m_NightPreset;
     SceneLighting* m_Lighting = nullptr;
     AreaVFXPlayer* m_Vfx = nullptr;

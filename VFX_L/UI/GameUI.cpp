@@ -78,6 +78,8 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
     m_Spellbook.Layout(screenW, screenH);
     m_Spellbook.SetDragContext(&m_Drag);
     m_Spellbook.SetCellSize(m_Backpack.GetCellSize());
+    m_Spellbook.SetCellPitch(m_Backpack.GetCellPitch());
+    SetSpellbookObstacle();
 
     m_LevelUp.Initialize(blockTex);
     m_LevelUp.SetWhiteTexture(m_WhiteTex);
@@ -120,6 +122,8 @@ void GameUI::Layout(float screenW, float screenH)
 
     m_Spellbook.Layout(screenW, screenH);
     m_Spellbook.SetCellSize(m_Backpack.GetCellSize());
+    m_Spellbook.SetCellPitch(m_Backpack.GetCellPitch());
+    SetSpellbookObstacle();
 
     m_LevelUp.Layout(screenW, screenH);
     m_HUD.Layout(screenW, screenH);
@@ -935,6 +939,8 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
         ImGui::SameLine();
         ImGui::TextDisabled(m_Spellbook.IsAsleep() ? "(asleep)" : "(awake, %d contacts)", m_Spellbook.GetContactCount());
         ImGui::DragFloat("Box Scale##sb", &m_Spellbook.boxScale, 0.01f, 0.3f, 1.0f);
+        if (ImGui::Checkbox("Screen edges are the walls (no chest)##sb", &m_Spellbook.screenWalls))
+            Layout(m_ScreenW, m_ScreenH);
 
         ImGui::TreePop();
     }

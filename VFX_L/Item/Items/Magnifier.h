@@ -23,10 +23,10 @@ inline FunctionItemDef MakeMagnifier()
     def.common.id = ItemID::Magnifier;
     def.common.name = "Magnifier";
     def.common.displayName = L"拡大鏡";
-    def.common.description = L"斜めの魔法の弾と範囲を大きくし、威力も少し上げる。MP は多めに使う。";
+    def.common.description = L"光るマスの魔法の弾と範囲を大きくし、威力も少し上げる。MP は多めに使う。";
     def.common.category = ItemCategory::Function;
-    def.common.occupyCells = ItemShape::Single();
-    def.common.influenceCells = ItemShape::Diagonal();   // 斜め 4 マス
+    def.common.occupyCells = { { 0, 0 }, { 0, 1 } };   // 横 2 マス（2026-10-27）
+    def.common.influenceCells = { { -1, -1 }, { 1, 2 } };   // 対角の 2 隅（斜め 4 → 2）
     def.common.color = { 1.00f, 0.82f, 0.35f, 1.0f };   // 金
     def.common.iconPath = Res::Icon::Magnifier;
 
@@ -34,16 +34,16 @@ inline FunctionItemDef MakeMagnifier()
     // 当たり半径を上げると、GPU 側で爆発の範囲と見た目も同じ倍率になる
     // 2026-10-08：半径 1.5 → 1.25 倍（面積 2.25 → 1.56 倍）・消費 1.3 → 1.2 倍、弾の威力 1.15 倍を足した。
     // 以前は単体の魔法には何も足さず（当たり判定が大きくなるだけ）、毒沼だけが群れに 1.6 倍だった（spellbench）
-    def.spellModifiers.push_back({ SpellParam::Radius,   ModifyOp::Multiply, 1.25f });
-    def.spellModifiers.push_back({ SpellParam::Damage,   ModifyOp::Multiply, 1.15f });   // 弾そのもの（落ちた所の範囲には効かない）
-    def.spellModifiers.push_back({ SpellParam::ManaCost, ModifyOp::Multiply, 1.2f });
+    def.spellModifiers.push_back({ SpellParam::Radius,   ModifyOp::Multiply, 1.2f });
+    def.spellModifiers.push_back({ SpellParam::Damage,   ModifyOp::Multiply, 1.1f });   // 弾そのもの（落ちた所の範囲には効かない）
+    def.spellModifiers.push_back({ SpellParam::ManaCost, ModifyOp::Multiply, 1.25f });
 
     // ---- AOE への修飾：範囲を広げる ----
     // 2026-10-13 ユーザー：「魔導光線に拡大鏡がほとんど効かない」→ 光線は 18m の線なので太さ 0.3m の差では
     // 当たる敵がほぼ変わらない。射程も同じ倍率で伸ばす（18 → 22.5m）。Length は光線以外では 0 のまま
-    def.areaModifiers.push_back({ AreaParam::Radius,   ModifyOp::Multiply, 1.25f });
-    def.areaModifiers.push_back({ AreaParam::Length,   ModifyOp::Multiply, 1.25f });
-    def.areaModifiers.push_back({ AreaParam::ManaCost, ModifyOp::Multiply, 1.2f });
+    def.areaModifiers.push_back({ AreaParam::Radius,   ModifyOp::Multiply, 1.2f });
+    def.areaModifiers.push_back({ AreaParam::Length,   ModifyOp::Multiply, 1.2f });
+    def.areaModifiers.push_back({ AreaParam::ManaCost, ModifyOp::Multiply, 1.25f });
 
     return def;
 }

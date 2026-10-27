@@ -59,6 +59,9 @@ enum class VFXId : uint32_t
     LandDustHeavy,  // 高い所から / 速く落ちた着地
     SlideDust,      // スライディングの小石と草
     SpeedTrail,     // 速い時に背中から引く大きな帯（Trail entry）
+    WaterStep,      // 水たまりの中の一歩の水しぶき（2026-10-27。波紋は WaterSurface）
+    WaterLand,      // 水たまりへの着地・跳び出しの水しぶき + 白い靄
+    WaterSlide,     // 水たまりの中のスライディングの水しぶき（後ろへ）
     // 魔法（CPU で出す分。判定は GPU の範囲、ここは見た目だけ）
     IceSpike,       // アイススパイクの冷気・氷の欠片・光（トゲ本体は IceSpikeField が地面に合わせて描く。2026-10-10）
     Gust,           // 突風の土煙と草屑の輪（判定は GPU の範囲、草が倒れるのは GrassRenderer::AddGust。2026-10-12）

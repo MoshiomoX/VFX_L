@@ -376,6 +376,11 @@ public:
         // 前後に掻く（振幅 0.38 rad、位相 flap.w。前へ戻す間は先ほど持ち上がる）。torso に付ける。
         // 以前は方块人の 2 つの leg 部品に 4 本ずつ付けていた = 股の横軸で振れるので、横へ伸びた脚は上下に暴れた（ユーザー「蝎子动画不对」）
         bool insectLeg = false;
+        // 猫背（2026-10-27、月下の狼人）：0 以外なら hinge.xyz（腰）を通る横軸の周りに hunch rad 前へ倒してから部品の動きを掛ける
+        // （胴・頭・腕。歩く間は VS が 1.45 倍まで深くする）。leg と一緒なら hinge = 膝（xyz）+ 曲げ（w）= 脚を上げる間に膝が折れる、
+        // 腕（leg + hunch）は殴りの動作で前へ振る
+        float hunch = 0.0f;
+        DirectX::SimpleMath::Vector4 hinge = { 0.0f, 0.0f, 0.0f, 0.0f };
     };
     void SetBossLook(std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations, bool hideBody = false)
     {
@@ -435,6 +440,9 @@ public:
     uint32_t GetEliteInfoSerial() const { return m_EliteInfoSerial; }
     // 吸血の印の付いた敵が前回から失った HP の合計（取り出して 0 に戻す。2〜3 フレーム遅れ。2026-10-25）
     float ConsumeLifesteal();
+    // 優先度なしで一番近い敵（2026-10-27。突風・アイススパイクの線のような近距離の範囲が狙う。杖の狙い = GetNearestEnemy は
+    // Boss / エリートを優先する）。リードバックなので 2〜3 フレーム古い。居なければ false（SwarmSystemCloseTarget.cpp）
+    bool GetCloseEnemy(DirectX::SimpleMath::Vector3& pos, float& dist) const;
     Swarm::AICB& GetAIParams() { return m_CachedAICB; }
     // フローフィールド（探索範囲などの定数。次にプレイヤーのマスが変わった時の作り直しから効く）
     FlowField& GetFlowField() { return m_Flow; }
@@ -984,6 +992,18 @@ private:
     bool  m_LifestealSeen = false;
     float m_LifestealPending = 0.0f;
     bool CreateLifestealReadback(ID3D11Device* device);
+    // ---- 優先度なしの一番近い敵（2026-10-27。中身は SwarmSystemCloseTarget.cpp）----
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CloseTargetBuffer;   // +0 key / +4 位置 / +16 距離（MoveCS u4 → AimResolveCS u1）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CloseTargetUAV;
+    static constexpr int kCloseTargetStaging = 3;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_CloseTargetStaging[kCloseTargetStaging];
+    bool m_CloseTargetStagingFilled[kCloseTargetStaging] = {};
+    int  m_CloseTargetStagingWrite = 0;
+    DirectX::SimpleMath::Vector3 m_CloseTargetPos;
+    float m_CloseTargetDist = 1.0e30f;
+    bool CreateCloseTargetReadback(ID3D11Device* device);
+    void CopyCloseTargetForCPU();
+    void ReadCloseTarget();
     void CopyLifestealForCPU();
     void ReadLifesteal();
     // 描画リストのテクスチャ（null = 雑魚の材質の物）
@@ -1138,10 +1158,11 @@ private:
         float    time = 0.0f;        // 待機に使う時計（秒）
         float    walkRate = 1.0f;    // 歩きの再生速度
         float    orbitSpeed = 0.0f;  // mode 1 の回る速さ rad/s（元 _pad2[0]）
-        float    _pad2 = 0.0f;
+        float    hunch = 0.0f;       // 猫背（2026-10-27、狼人）：0 以外なら hinge.xyz（腰）を通る横軸の周りに部品ごと前へ倒す rad（歩くと更に深く）
         float    flap[4] = {};       // mode 2（ガーゴイルの翼、2026-10-25）：付け根 xyz、w = +1 右 / -1 左
+        float    hinge[4] = {};      // mode 4 の第 2 関節（2026-10-27、狼人の膝）：xyz = 膝、w = 曲げ rad（0 = 無し）。hunch の時は xyz = 腰
     };
-    static_assert(sizeof(EnemyAnimCB) == 96, "EnemyAnimCB layout mismatch");
+    static_assert(sizeof(EnemyAnimCB) == 112, "EnemyAnimCB layout mismatch");
     EnemyAnimCB m_EnemyAnim;
     const char* m_AnimClips[3] = { "", "", "" };   // 待機 / 歩き / 攻撃 のクリップ名（BuildEnemyModel が入れる）
     Microsoft::WRL::ComPtr<ID3D11Buffer>             m_PartAnimBuffer;

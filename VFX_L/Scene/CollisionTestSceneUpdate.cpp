@@ -15,6 +15,8 @@
 #include "Enemy/EnemyTags.h"
 #include "ECS/View.h"
 #include "Scene/RunResult.h"
+#include "World/StageConfig.h"
+#include "Enemy/Boss/BossBrain.h"
 #include "Core/GameSettings.h"
 #include "Debug/FrameProfiler.h"
 #include "Core/Application.h"
@@ -56,6 +58,18 @@ void CollisionTestScene::Update(float dt)
                 const Vector3* pp = PlayerPos();
                 const bool ok = pp && m_StageElites.Spawn(m_Grid, m_Swarm, *pp, q.eliteRanged, affixes, m_Stage.eliteHp * m_Mobs.GetHpMul(), 10.0f, 14.0f);
                 m_GameUI.SetTrainingMessage(ok ? std::wstring(m_StageElites.LastSpawnName()) + L" を呼んだ" : std::wstring(L"エリートを置ける所が無い"));
+            }
+            else if (q.kind == TrainingRequest::Kind::Boss)
+            {
+                // ボスの種類（2026-10-27 ユーザー「各 Boss をトレーニングの選択肢に」）：呼ぶ前に技・皮・飾りをその Boss に替える。
+                // -1 = このフィールドの Boss（EnterTrainingField と同じ 1 面目の Boss）。出ている間は替えない（Apply が「もう出ている」を返す）
+                const bool bossOut = !m_Stage.CanRequestBoss();
+                const BossType want = (q.bossType >= 0 && q.bossType < (int)BossType::Count)
+                    ? (BossType)q.bossType : StageConfig::Get(m_StageIndex).boss;
+                if (!bossOut && want != m_BossAttacks.Type()) InitBossFx(want, true);
+                std::wstring msg = m_SpellLab.Apply(q, m_Registry, m_Player, m_Swarm, m_Mobs, m_Stage, m_Grid);
+                if (msg.rfind(L"ボスを呼んだ", 0) == 0) msg = std::wstring(BossDisplayName(m_BossAttacks.Type())) + L" " + msg.substr(2);
+                m_GameUI.SetTrainingMessage(msg);
             }
             else
                 m_GameUI.SetTrainingMessage(m_SpellLab.Apply(q, m_Registry, m_Player, m_Swarm, m_Mobs, m_Stage, m_Grid));
@@ -187,7 +201,7 @@ void CollisionTestScene::Update(float dt)
             else if (m_Stage.IsBossDefeated())
                 swprintf_s(m_ObjectiveBuf, HasNextStage()
                     ? L"門に戻って 次のステージへ　%.0f m" : L"門に戻って 冒険を終える　%.0f m", (std::max)(0.0f, dist));
-            else if (m_Stage.IsBossAlive())
+            else if (m_Stage.IsBossAlive() || m_BossIntro.Active())   // 門を使った後の登場の演出の間も（2026-10-27）
                 swprintf_s(m_ObjectiveBuf, L"ボスを倒す");
             else if (dist >= 0.0f)
                 swprintf_s(m_ObjectiveBuf, L"ボスの門を見つけて ボスを呼ぶ　%.0f m", dist);

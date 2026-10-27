@@ -82,6 +82,7 @@ void CollisionTestScene::RebuildTerrain()
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
     m_GrassFire.Build(m_Grid);   // 火も消す
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());   // 落ち葉も置き直す
+    m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);   // 水たまりの水面も
     BuildWindToys();   // 転がり草・タンポポも
     lap("grass");
 
@@ -93,7 +94,9 @@ void CollisionTestScene::RebuildTerrain()
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());
     lap("swarm");
     m_RebuildProfile = prof;
-    if (!IsMenuScene()) RespawnElites();   // デバッグの的（無敵のエリート）を置き直す。ステージ選択の景色には出さない（2026-10-21：切替後に浮いた骸骨が見えていた）
+    // デバッグの的（無敵のエリート）は自動では置かない（2026-10-27、ユーザー：突風がいつも同じ向きへ吹く → トレーニングのフィールド切替で
+    // 目の前 8m に置かれた的を杖が狙い続けていた）。パネルで置いた物も古い地形の位置なので消すだけ。置くのは F10 の「Respawn Elites」
+    m_Elites.Respawn(m_Registry, nullptr);
     if (!m_LabScene && !IsMenuScene()) RespawnCrates();   // 古い位置は新しい壁の中かもしれない。実験場・タイトル・ステージ選択は箱 / 門 / 磁石なし
 }
 

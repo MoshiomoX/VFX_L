@@ -53,13 +53,16 @@ namespace BossLooksDetail
     inline const Vec4 kKChain = { 0.30f, 0.29f, 0.28f, 1.0f };
     inline const Vec4 kKBone = { 0.55f, 0.50f, 0.40f, 1.0f };
     // 草原 2 面目「月下の狼人」（2026-10-26）：灰の毛皮、明るい腹、黒い鼻、赤く光る目、骨色の爪
-    inline const Vec4 kWolfFur = { 0.20f, 0.19f, 0.21f, 1.0f };
-    inline const Vec4 kWolfFurLight = { 0.34f, 0.33f, 0.34f, 1.0f };
-    inline const Vec4 kWolfFurDark = { 0.09f, 0.09f, 0.10f, 1.0f };
-    inline const Vec4 kWolfBelly = { 0.46f, 0.44f, 0.41f, 1.0f };
+    // 10-27 参考画（MC の狼人 mod）に寄せた：青みの灰の毛皮、明るい灰の前腕 / 脛 / 鼻面、首の白い襟毛、褐色の革の巻き帯、白い爪
+    inline const Vec4 kWolfFur = { 0.10f, 0.105f, 0.125f, 1.0f };
+    inline const Vec4 kWolfFurLight = { 0.44f, 0.45f, 0.47f, 1.0f };
+    inline const Vec4 kWolfFurDark = { 0.045f, 0.047f, 0.055f, 1.0f };
+    inline const Vec4 kWolfBelly = { 0.50f, 0.49f, 0.47f, 1.0f };
+    inline const Vec4 kWolfRuff = { 0.62f, 0.62f, 0.60f, 1.0f };
+    inline const Vec4 kWolfWrap = { 0.28f, 0.19f, 0.10f, 1.0f };
     inline const Vec4 kWolfEye = { 3.5f, 0.4f, 0.2f, 1.0f };
     inline const Vec4 kWolfNose = { 0.02f, 0.02f, 0.02f, 1.0f };
-    inline const Vec4 kWolfClaw = { 0.60f, 0.56f, 0.46f, 1.0f };
+    inline const Vec4 kWolfClaw = { 0.72f, 0.70f, 0.64f, 1.0f };
     inline const Vec4 kWolfTongue = { 0.55f, 0.10f, 0.14f, 1.0f };
     // 草原 3 面目「雷鳴の雄鹿」（2026-10-26）：雷の鹿なので体も青（ユーザー「青いなら体も青に」）：藍の毛並み、
     // 明るい青の腹、黒い蹄、氷のような淡青の角、青白く光る目と角の先
@@ -119,11 +122,16 @@ namespace BossLooksDetail
     std::shared_ptr<Model> BuildKnightTorso(ID3D11Device* device, const Part& T);
     std::shared_ptr<Model> BuildKnightSwordArm(ID3D11Device* device, const Part& A, const Vec3& pivot);
     std::shared_ptr<Model> BuildKnightChainArm(ID3D11Device* device, const Part& A, const Vec3& pivot);
-    // ---- 月下の狼人（BossLooksWolf.cpp。体は隠し、部品毎に毛皮の部品を付ける）----
-    std::shared_ptr<Model> BuildWolfHead(ID3D11Device* device, const Part& H);
-    std::shared_ptr<Model> BuildWolfTorso(ID3D11Device* device, const Part& T);
-    std::shared_ptr<Model> BuildWolfArm(ID3D11Device* device, const Part& A, const Vec3& pivot);
-    std::shared_ptr<Model> BuildWolfLeg(ID3D11Device* device, const Part& L, const Vec3& pivot);
+    // ---- 月下の狼人（BossLooksWolf.cpp。体は隠し、全部を胴の部品に付ける。上半身は腰で前へ倒す = 猫背）----
+    extern const Vec3 kWolfHips;     // 猫背の軸（腰）
+    extern const Vec3 kWolfNeck;     // 頭を起こす軸（首の付け根）
+    Vec3 WolfHipRoot(float sx);      // 脚の付け根（sx = -1 左 / +1 右）
+    Vec3 WolfKnee(float sx);
+    Vec3 WolfShoulder(float sx);
+    std::shared_ptr<Model> BuildWolfHead(ID3D11Device* device, float pitch);
+    std::shared_ptr<Model> BuildWolfTorso(ID3D11Device* device);
+    std::shared_ptr<Model> BuildWolfArm(ID3D11Device* device, float sx);
+    std::shared_ptr<Model> BuildWolfLeg(ID3D11Device* device, float sx);
     // ---- 岩の巨人（BossLooks.cpp）----
     std::shared_ptr<Model> BuildStoneHead(ID3D11Device* device, const Part& H);
     std::shared_ptr<Model> BuildStoneTorso(ID3D11Device* device, const Part& T);

@@ -500,6 +500,28 @@ namespace BackpackLogic
         return out;
     }
 
+    std::vector<int> GetEffectFrames(const BackpackComponent& bp, int itemIndex)
+    {
+        std::vector<int> out;
+        if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return out;
+        const auto& target = bp.items[itemIndex];
+        const ItemCommon* tc = ItemDatabase::GetCommon(target.id);
+        if (!tc) return out;
+        for (const auto& o : RotateShape(tc->occupyCells, target.rotation))
+        {
+            const int f = bp.GetFrameAt(target.row + o.row, target.col + o.col);
+            if (f < 0 || f >= (int)bp.frames.size()) continue;
+            const FrameItemDef* fd = ItemDatabase::GetFrame(bp.frames[f].id);
+            if (!fd || !fd->HasEffect()) continue;
+            // 同じ種類の枠は 1 回だけ（2 枚に跨っても重ならない）
+            bool dup = false;
+            for (int k : out)
+                if (bp.frames[k].id == bp.frames[f].id) { dup = true; break; }
+            if (!dup) out.push_back(f);
+        }
+        return out;
+    }
+
     std::vector<int> GetTriggerDrivers(const BackpackComponent& bp, int itemIndex)
     {
         std::vector<int> out;

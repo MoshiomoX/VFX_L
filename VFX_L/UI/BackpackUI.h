@@ -43,6 +43,14 @@ public:
         m_Origin = { framePos.x + m_FramePad, framePos.y + m_FramePad };
     }
 
+    // 盤面の外枠（縁の余白込み）の左上と右下（2026-10-27、魔法書の中身がここに入らないように）
+    void PanelRect(DirectX::SimpleMath::Vector2& outMin, DirectX::SimpleMath::Vector2& outMax) const
+    {
+        outMin = { m_Origin.x - m_FramePad, m_Origin.y - m_FramePad };
+        const float e = GridExtent() + m_FramePad * 2.0f;
+        outMax = { outMin.x + e, outMin.y + e };
+    }
+
     // GameUI が Initialize の直後に一度だけ呼ぶ。以後 null にはならない
     void SetDragContext(DragContext* drag) { m_Drag = drag; }
 
@@ -95,6 +103,7 @@ public:
 
     // ---- 読み取り用 ----
     float GetCellSize() const { return m_CellSize; }
+    float GetCellPitch() const { return m_CellSize + m_CellGap; }   // マス + 隙間（ドラッグ中の絵の 1 マスの送り）
     float GetCellGap()  const { return m_CellGap; }
     void SetSpellbook(const SpellbookComponent* book) { m_Spellbook = book; }
     int GetAvailableCount(const BackpackComponent& bp, ItemID id) const;

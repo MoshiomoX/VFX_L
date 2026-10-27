@@ -161,12 +161,17 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
             if (!hasAny) continue;
         }
 
-        pool.push_back({ id, 1.0f });
+        // 設置枠は種類が多いので 1 種類ずつの重みを下げる（2026-10-27）
+        float w = 1.0f;
+        if (const FrameItemDef* fd = ItemDatabase::GetFrame(id)) w = frameWeight * fd->weight;
+        pool.push_back({ id, w });
     }
     // 能力値（生命・魔力・速さ・跳躍…）も同じ池に混ぜる。種類が多いので 1 枚ずつの重みは下げる
     // （全部 1 だと候補の半分近くが能力値になる。2026-09-29 ユーザー「能力値のカードが多すぎる」）
-    for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
-        pool.push_back({ id, statWeight });
+    // 2026-10-27 ユーザー「数値が伸びるだけの選択肢を全部外す」→ statCards = false で四択（レベルアップ・宝箱）に出さない
+    if (statCards)
+        for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
+            pool.push_back({ id, statWeight });
 
     // 重みに比例して 1 枚ずつ引く（引いた物は池から外す = 同じ物は並ばない）
     const int want = (choiceCount < 1) ? 1 : choiceCount;

@@ -84,6 +84,7 @@ void CollisionTestScene::DrawDebugUI()
     m_Grass.DrawImGui();
     m_GrassFire.DrawImGui(PlayerPos());   // 草の延焼（点火ボタン・温度の絵）
     m_Debris.DrawImGui();                 // 地面の落ち葉
+    m_Water.DrawImGui();                  // 水たまりの水面（2026-10-27）
     m_Dandelions.DrawImGui();             // タンポポ（2026-10-22）
     m_GrassShreds.DrawImGui();            // 風源の草屑（2026-10-23）
     m_Tumbleweeds.DrawImGui(m_Registry, m_Grid, PlayerPos() ? *PlayerPos() : Vector3::Zero);   // 転がり草
