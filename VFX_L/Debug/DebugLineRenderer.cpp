@@ -1,5 +1,6 @@
 #include "Debug/DebugLineRenderer.h"
 #include "Camera/CameraBase.h"
+#include "Graphics/Renderer/RenderStates.h"
 
 bool DebugLineRenderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context)
 {
@@ -62,7 +63,12 @@ void DebugLineRenderer::Render()
     m_Effect->SetView(m_Camera->GetViewMatrix());
     m_Effect->SetProjection(m_Camera->GetProjectionMatrix());
 
-    // パイプライン設定
+    // パイプライン設定。奥行きは見るが書かない（地形の向こうの線は隠れ、後で描く物の邪魔をしない。
+    // 2026-10-28：シーンの後で描くようになったので、前の描画の状態を引き継がないように決める）
+    const auto& rs = RenderStates::Get();
+    m_Context->OMSetBlendState(rs.Opaque(), nullptr, 0xFFFFFFFF);
+    m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);
+    m_Context->RSSetState(rs.CullNone());
     m_Effect->Apply(m_Context);
     m_Context->IASetInputLayout(m_InputLayout.Get());
     m_Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);

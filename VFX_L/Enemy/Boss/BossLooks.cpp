@@ -4,6 +4,7 @@
 // （頭・胴・腕。名前で探し、無ければ位置で推す）に対する割合で決める = 網の大きさが変わっても付いて来る。
 // 網の空間：足元 = カプセルの下（y ≒ -0.9）、高さ 1.6、+Z が正面。Boss は VS がこれを体格倍（3 倍）にする
 // 2026-10-26 に 700 行を分けた：砂の守護者 = BossLooksSand.cpp、大サソリ = BossLooksScorpion.cpp、雄鹿 = BossLooksStag.cpp、
+// 魔神 = BossLooksDjinn.cpp・骸の王 = BossLooksKing.cpp（2026-10-29）、
 // 色と共通の小物と宣言 = BossLooksCommon.h。ここに残るのは岩の巨人と Apply（Boss 毎に飾りを挿げ替える所）
 // ============================================================
 #include "Enemy/Boss/BossLooks.h"
@@ -222,6 +223,105 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
             d.flap = { hinge.x, hinge.y, hinge.z, 1.1f };   // w = 刺す時に前へ振る角度（rad）
             if (d.model) decos.push_back(std::move(d));
         }
+        swarm.SetBossLook(nullptr, std::move(decos), true);   // 方块人の体は描かない
+        return;
+    }
+    if (type == BossType::StoneBeast)
+    {
+        // 石の守護獣（遺跡 2 面目、2026-10-29）：体は隠し、全部を胴の部品に付ける。脚 = 雄鹿と同じ斜対歩（mode 4）、
+        // 首 + 頭・尾 = 付け根の横軸で縦に揺れ、技（bossChargePose）で頭は前下へ・尾は上へ（mode 3）、
+        // 翼 = 付け根の前後の軸で回す（mode 2。角度は CPU の BomberCB::bossWing）
+        const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
+        add(BuildBeastBody(device), torsoPart);
+        for (int i = 0; i < 4; ++i)
+        {
+            const bool front = i < 2;
+            const float sx = (i & 1) ? 1.0f : -1.0f;
+            SwarmSystem::BossDecoration d;
+            d.model = BuildBeastLeg(device, i);
+            d.part = torsoPart;
+            d.leg = true;
+            const bool pairA = (front && sx < 0.0f) || (!front && sx > 0.0f);
+            const Vec3 h = BeastLegRoot(i);
+            d.flap = { h.x, h.y, h.z, pairA ? 0.0f : 3.14159f };
+            if (d.model) decos.push_back(std::move(d));
+        }
+        auto addHinged = [&](std::shared_ptr<Model> m, const Vec3& hinge, float swing)
+            {
+                if (!m) return;
+                SwarmSystem::BossDecoration d;
+                d.model = std::move(m);
+                d.part = torsoPart;
+                d.tail = true;
+                d.flap = { hinge.x, hinge.y, hinge.z, swing };
+                decos.push_back(std::move(d));
+            };
+        addHinged(BuildBeastHead(device), kBeastNeck, 0.6f);       // 息・急降下で頭を前下へ
+        addHinged(BuildBeastTail(device), kBeastTailRoot, 0.5f);   // 尾は持ち上がる（付け根より後ろの物は + で上へ）
+        for (int i = 0; i < 2; ++i)
+        {
+            const float sx = i ? 1.0f : -1.0f;
+            SwarmSystem::BossDecoration d;
+            d.model = BuildBeastWing(device, sx);
+            d.part = torsoPart;
+            const Vec3 h = BeastWingRoot(sx);
+            d.flap = { h.x, h.y, h.z, sx };   // w = +1 右の翼 / -1 左の翼
+            if (d.model) decos.push_back(std::move(d));
+        }
+        swarm.SetBossLook(nullptr, std::move(decos), true);   // 方块人の体は描かない
+        return;
+    }
+    if (type == BossType::BoneKing)
+    {
+        // 骸の王（遺跡 3 面目、2026-10-29。ウォルニール風）：体は隠し、全部を胴の部品に付けて浮く魔神と同じ動き（VS の mode 6）。
+        // 腕は普段は地面に突いたまま。詠唱で肩から前上へ振り上げ（flap.w）、前腕は肘（hinge.xyz）で hinge.w rad 上へ折れる
+        const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
+        auto addFloating = [&](std::shared_ptr<Model> m, const DirectX::SimpleMath::Vector4& flap, const DirectX::SimpleMath::Vector4& elbow)
+            {
+                if (!m) return;
+                SwarmSystem::BossDecoration d;
+                d.model = std::move(m);
+                d.part = torsoPart;
+                d.floating = true;
+                d.flap = flap;
+                d.hinge = elbow;
+                decos.push_back(std::move(d));
+            };
+        addFloating(BuildKingBody(device), { 0.0f, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f });
+        for (int i = 0; i < 2; ++i)
+        {
+            const float sx = i ? 1.0f : -1.0f;
+            const Vec3 sh = KingShoulder(sx);
+            const Vec3 el = KingElbow(sx);
+            addFloating(BuildKingArm(device, sx), { sh.x, sh.y, sh.z, -1.4f }, { el.x, el.y, el.z, -1.0f });
+        }
+        swarm.SetBossLook(nullptr, std::move(decos), true);   // 方块人の体は描かない
+        return;
+    }    if (type == BossType::Djinn)
+    {
+        // 砂嵐の魔神（砂漠 3 面目、2026-10-29）：体は隠し、全部を胴の部品に付けて浮く魔神の動き（VS の mode 6：部品のクリップを掛けない）。
+        // 腕は肩を軸に、詠唱（bossChargePose）で前上へ振り上げる。下半身の砂の螺旋と腰の砂の輪は体の軸の周りを逆向きに回る
+        const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
+        auto addFloating = [&](std::shared_ptr<Model> m, const DirectX::SimpleMath::Vector4& flap)
+            {
+                if (!m) return;
+                SwarmSystem::BossDecoration d;
+                d.model = std::move(m);
+                d.part = torsoPart;
+                d.floating = true;
+                d.flap = flap;
+                decos.push_back(std::move(d));
+            };
+        addFloating(BuildDjinnBody(device), { 0.0f, 0.0f, 0.0f, 0.0f });
+        const float kArmRaise = -2.3f;   // 詠唱で振り上げる角度（rad、負 = 前上へ）
+        for (int i = 0; i < 2; ++i)
+        {
+            const float sx = i ? 1.0f : -1.0f;
+            const Vec3 sh = DjinnShoulder(sx);
+            addFloating(BuildDjinnArm(device, sx), { sh.x, sh.y, sh.z, kArmRaise });
+        }
+        add(BuildDjinnTail(device), SwarmSystem::kDecoOrbit, 2.6f);
+        add(BuildDjinnRing(device), SwarmSystem::kDecoOrbit, -1.3f);
         swarm.SetBossLook(nullptr, std::move(decos), true);   // 方块人の体は描かない
         return;
     }

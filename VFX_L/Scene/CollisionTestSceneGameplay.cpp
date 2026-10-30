@@ -158,7 +158,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         // Boss を倒したら同じ門を出口にする（2026-10-07 ユーザー：もう一度押して次の面へ）。渦は金色で出し直す
         if (m_Stage.IsBossDefeated() && !m_Stage.IsCleared() && !m_Stage.IsExitOpen())
         {
-            const wchar_t* prompt = HasNextStage() ? L"<{K:F}|{B}>  次のステージへ" : L"<{K:F}|{B}>  冒険を終える";   // 計画（Tier）の最後の面なら終える
+            const wchar_t* prompt = HasNextStage() ? L"<{K:F}|{X}>  次のステージへ" : L"<{K:F}|{X}>  冒険を終える";   // 計画（Tier）の最後の面なら終える
             if (m_Stage.OpenExit(m_Registry, prompt))
             {
                 if (m_PortalVfx) m_AreaVFX.StopInstance(m_PortalVfx);

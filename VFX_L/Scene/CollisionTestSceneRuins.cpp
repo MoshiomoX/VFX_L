@@ -92,6 +92,7 @@ void CollisionTestScene::UpdateRuinsFoes(float dt, const Vector3& player)
         c.dir = Vector3(std::sin(t.yaw), 0.0f, std::cos(t.yaw));
         c.reach = bomb.wardenRange;
         c.pullStop = kChainPullStop;
+        c.hitRadius = kChainHitRadius;
         m_Chains.push_back(c);
     }
 
@@ -109,7 +110,7 @@ void CollisionTestScene::UpdateRuinsFoes(float dt, const Vector3& player)
             const float along = rel.x * c.dir.x + rel.z * c.dir.z;
             const Vector2 side(rel.x - c.dir.x * along, rel.z - c.dir.z * along);
             const bool inSpan = along >= prev - playerR && along <= c.out + playerR;
-            if (havePlayer && inSpan && side.Length() <= kChainHitRadius + playerR && std::fabs(rel.y) <= kChainHitHeight)
+            if (havePlayer && inSpan && side.Length() <= c.hitRadius + playerR && std::fabs(rel.y) <= kChainHitHeight)
             {
                 const float dmg = (c.damage >= 0.0f) ? c.damage : m_Swarm.GetAIParams().contactDamage * bomb.wardenDamageMul;
                 if (PlayerStateSystem::TryApplyHit(m_Registry, m_Player, dmg))

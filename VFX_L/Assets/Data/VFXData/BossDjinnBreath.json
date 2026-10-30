@@ -1,0 +1,65 @@
+{
+    "name": "BossDjinnBreath",
+    "loop": true,
+    "entries": [
+        { "type": "Particle", "startTime": 0.0, "duration": -1.0, "data": {
+            "angularVelRange": [-2.0, 2.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 10,
+            "sheet": 1, "frameMode": 3, "frameCount": 6, "blend": 1,
+            "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, -0.66, 0.75], "dragCoeff": 0.3,
+            "emitRate": 220.0, "emitType": 2,
+            "endColorMax": [0.6, 0.08, 0.02, 0.0], "endColorMin": [0.6, 0.08, 0.02, 0.0],
+            "gravity": [0.0, -2.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.32, 0.42], "maxParticles": 200,
+            "position": [0.0, 3.9, 0.7], "radius": 0.25, "renderMode": 0, "rotationRange": [0.0, 6.28],
+            "sizeRange": [0.5, 0.8, 1.6, 2.2], "speedRange": [14.0, 17.0], "spreadAngle": 12.0,
+            "startColorMax": [1.5, 0.42, 0.07, 0.95], "startColorMin": [1.2, 0.26, 0.04, 0.95]
+        } },
+        { "type": "Particle", "startTime": 0.0, "duration": -1.0, "data": {
+            "angularVelRange": [-2.0, 2.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 10,
+            "sheet": 1, "frameMode": 3, "frameCount": 6, "blend": 1,
+            "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 0.12, 1.0], "dragCoeff": 0.6,
+            "emitRate": 340.0, "emitType": 2,
+            "endColorMax": [0.55, 0.06, 0.02, 0.0], "endColorMin": [0.55, 0.06, 0.02, 0.0],
+            "gravity": [0.0, 1.8, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.5, 0.7], "maxParticles": 360,
+            "position": [0.0, 0.5, 3.6], "radius": 0.6, "renderMode": 0, "rotationRange": [0.0, 6.28],
+            "sizeRange": [0.8, 1.2, 2.0, 2.9], "speedRange": [10.0, 13.0], "spreadAngle": 24.0,
+            "startColorMax": [1.4, 0.36, 0.06, 0.9], "startColorMin": [1.05, 0.22, 0.04, 0.9]
+        } },
+        { "type": "Particle", "startTime": 0.0, "duration": -1.0, "data": {
+            "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 5,
+            "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1, "wind": 0.6,
+            "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 0.25, 1.0], "dragCoeff": 0.4,
+            "emitRate": 140.0, "emitType": 2,
+            "endColorMax": [0.62, 0.47, 0.27, 0.0], "endColorMin": [0.55, 0.41, 0.23, 0.0],
+            "gravity": [0.0, -3.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.6, 0.9], "maxParticles": 160,
+            "position": [0.0, 0.6, 3.4], "radius": 0.6, "renderMode": 0, "rotationRange": [0.0, 6.28],
+            "sizeRange": [0.08, 0.14, 0.05, 0.09], "speedRange": [9.0, 13.0], "spreadAngle": 28.0,
+            "startColorMax": [0.90, 0.70, 0.40, 1.0], "startColorMin": [0.75, 0.56, 0.32, 1.0]
+        } },
+        { "type": "Particle", "startTime": 0.0, "duration": -1.0, "data": {
+            "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 38,
+            "sheet": 1, "frameMode": 3, "frameCount": 10, "blend": 1, "wind": 0.8,
+            "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 0.3, 1.0], "dragCoeff": 1.2,
+            "emitRate": 36.0, "emitType": 2,
+            "endColorMax": [0.40, 0.33, 0.26, 0.0], "endColorMin": [0.40, 0.33, 0.26, 0.0],
+            "gravity": [0.0, 1.4, 0.0], "innerRadius": 0.0, "lifetimeRange": [1.0, 1.4], "maxParticles": 70,
+            "position": [0.0, 0.6, 4.0], "radius": 0.5, "renderMode": 0, "rotationRange": [0.0, 6.28],
+            "sizeRange": [0.9, 1.3, 2.6, 3.4], "speedRange": [5.0, 8.0], "spreadAngle": 30.0,
+            "startColorMax": [0.30, 0.22, 0.16, 0.32], "startColorMin": [0.30, 0.22, 0.16, 0.32]
+        } },
+        { "type": "Particle", "startTime": 0.0, "duration": -1.0, "data": {
+            "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 8,
+            "sheet": 1, "frameMode": 3, "frameCount": 2, "blend": 0,
+            "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 0.0, 1.0], "dragCoeff": 0.5,
+            "emitRate": 40.0, "emitType": 1,
+            "endColorMax": [1.0, 0.3, 0.06, 0.0], "endColorMin": [1.0, 0.3, 0.06, 0.0],
+            "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.15, 0.25], "maxParticles": 30,
+            "position": [0.0, 3.9, 0.7], "radius": 0.2, "renderMode": 0, "rotationRange": [0.0, 6.28],
+            "sizeRange": [0.6, 0.9, 1.0, 1.4], "speedRange": [0.2, 0.6], "spreadAngle": 0.0,
+            "startColorMax": [2.2, 1.4, 0.45, 1.0], "startColorMin": [1.8, 1.1, 0.35, 1.0]
+        } },
+        { "type": "Light", "startTime": 0.0, "duration": -1.0, "data": {
+            "offset": [0.0, 1.0, 5.0], "color": [1.0, 0.5, 0.15], "radius": 8.0,
+            "intensityStart": 1.4, "intensityEnd": 1.4, "flicker": 0.3, "flickerSpeed": 18.0
+        } }
+    ]
+}

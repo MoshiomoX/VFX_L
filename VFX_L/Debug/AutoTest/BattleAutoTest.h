@@ -57,6 +57,11 @@ protected:
     BossIntro&                m_BossIntro;       // 門から呼んだ Boss の登場（2026-10-27）
     uint32_t&                 m_BossSlamHits;
     uint32_t&                 m_BossMoundVfx;    // 潜砂の砂丘のエフェクトの番号（2026-10-24）
+    uint32_t&                 m_KingRaised;      // 骸の王の大起尸で起こした骸骨の数（2026-10-29）
+    uint32_t&                 m_BeastPetrified;  // 石の守護獣の石化の息で石になった回数（2026-10-29）
+    uint32_t&                 m_BossRageVfx;     // 狂暴の火の粉のエフェクトの番号（2026-10-29）
+    float&                    m_DefeatSlowLeft;  // 倒した瞬間のスローの残り（実時間の秒）
+    float&                    m_DefeatWaveR;     // 倒した所から広がる波の半径（< 0 = 無し）
     uint32_t&                 m_ChainHits;       // 鎖の番人の鎖が当たった数（2026-10-25）
     EliteAttacks&             m_StageElites;     // 面の固定エリート（2026-10-25）
     uint32_t&                 m_EliteHits;       // エリートの技が当たった数
@@ -76,6 +81,7 @@ protected:
     GrassFireField&           m_GrassFire;     // 草の延焼（2026-10-12）
     GroundDebris&             m_Debris;        // 地面の落ち葉（2026-10-13）
     WaterSurface&             m_Water;         // 水たまりの水面（2026-10-27）
+    FlowDebugView&            m_FlowDebug;     // F8 の流れの矢印（2026-10-28）
     Tumbleweeds&              m_Tumbleweeds;   // 転がり草（2026-10-22）
     DandelionField&           m_Dandelions;    // タンポポ（2026-10-22）
     GrassShreds&              m_GrassShreds;   // 風源の草屑（2026-10-23）

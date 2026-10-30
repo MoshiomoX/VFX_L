@@ -128,11 +128,14 @@ public:
 
     // GPU の群れ（SwarmSystem）の池（2026-10-13）：揺れる範囲（爆発）と光線のカプセルは踏み跡に押し型を押し、
     // 雑魚の足元は GrassStampCS が押す。Render の前に毎フレーム渡す（Flush の後、SRV として読むだけ）。null = その分はしない
+    // enemyGroundY = SwarmSystem::GetAIParams().groundY（雑魚の position.y = 足 + これ。足が浮いている物を除くのに使う）
     void SetSwarmSources(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* areaEnds,
-        ID3D11ShaderResourceView* enemies, ID3D11ShaderResourceView* enemyStates, ID3D11ShaderResourceView* enemyExtra)
+        ID3D11ShaderResourceView* enemies, ID3D11ShaderResourceView* enemyStates, ID3D11ShaderResourceView* enemyExtra,
+        float enemyGroundY)
     {
         m_AreaSRV = areas; m_AreaStateSRV = areaStates; m_AreaEndSRV = areaEnds;
         m_EnemySRV = enemies; m_EnemyStateSRV = enemyStates; m_EnemyExtraSRV = enemyExtra;
+        m_EnemyGroundY = enemyGroundY;
     }
 
     // 不透明物の後: 踏み跡の更新 → 生やして間引く CS → 描画
@@ -181,6 +184,7 @@ public:
         DirectX::SimpleMath::Vector4 vortex;         // 寝きる風速 / 巻き上がる上昇風速 / 震え / ねじれ
         DirectX::SimpleMath::Vector4 bladeShape;     // 普段のねじれ / 枯れ葉の割合 / 2 つ目の波の重み / 風源の跡の強さ
         DirectX::SimpleMath::Vector4 dryColor;       // rgb = 枯れ葉の色, a = 跡が一番強くなる風速
+        DirectX::SimpleMath::Vector4 swarmExtra;     // x = 雑魚の position.y と足の差（AICB groundY）、yzw = 空き（2026-10-28）
     };
     // HLSL の GrassBlade と同じ並び（96 bytes。GrassCullCS が 1 本ずつ動かして書く。背骨は 3 次ベジェ、根元からの相対）
     struct GrassBlade
@@ -258,6 +262,7 @@ private:
     ID3D11ShaderResourceView* m_EnemySRV = nullptr;
     ID3D11ShaderResourceView* m_EnemyStateSRV = nullptr;
     ID3D11ShaderResourceView* m_EnemyExtraSRV = nullptr;
+    float m_EnemyGroundY = 0.9f;
     ID3D11ShaderResourceView* m_WindSourceSRV = nullptr;   // 局所の風源（非所有）
 
     Settings m_Settings;

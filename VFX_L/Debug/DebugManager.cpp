@@ -242,7 +242,13 @@ void DebugManager::Render()
     }
     m_LineRenderer.SetCamera(cam);
 
-    if (m_ShowGrid)
+    // 参照の格子はエディタ（F2 / F4 / F6）だけ。2026-10-28：線をシーンの後に描くようにしてから、
+    // リザルト・商店の画面（2D の画面で、戦闘シーンが消した格子の設定が元に戻っている）の上に格子が出ていた。
+    // 以前はシーンの前に描いていて、2D の画面の背景に塗り潰されて見えなかっただけ
+    const SceneType type = Application::Get().GetGame().GetSceneManager().GetCurrentSceneType();
+    const bool editor = type == SceneType::VFX_EDITOR || type == SceneType::PROJECTILE_EDITOR ||
+        type == SceneType::LEVEL_EDITOR;
+    if (m_ShowGrid && editor)
     {
         // 座標軸
         m_LineRenderer.AddLine({ 0,0,0 }, { m_AxisLength,0,0 }, Color(1, 0, 0, 1));
@@ -257,8 +263,13 @@ void DebugManager::Render()
             m_LineRenderer.AddLine({ -m_GridSize, 0, i }, { m_GridSize, 0, i }, gridColor);
         }
     }
+    // 描くのは RenderLines（シーンの後。シーンの前に描くと戦闘の空・地面に塗り潰される）
+}
 
-    m_LineRenderer.Render();
+void DebugManager::RenderLines()
+{
+    if (!m_Initialized) return;
+    m_LineRenderer.Render();   // 積んだ線が無ければ何もしない（描いたら空にする）
 }
 
 void DebugManager::SetUseDebugCamera(bool use)

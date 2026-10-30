@@ -55,7 +55,9 @@ void main(uint3 id : SV_DispatchThreadID)
     g_Height.GetDimensions(hw, hh);
     int2 hc = int2(floor((p.xz - g_MapOrigin) / g_MapSize * float2(hw, hh)));
     hc = clamp(hc, int2(0, 0), int2((int) hw - 1, (int) hh - 1));
-    if (p.y - g_Height.Load(int3(hc, 0)) > STAMP_AIR_HEIGHT)
+    // position.y is the capsule's centre (feet + groundY): from 10-25 to 10-28 this compared it with the ground
+    // as it was, every enemy stood 0.9m up = "in the air", and no enemy pressed the grass at all
+    if (p.y - g_SwarmExtra.x - g_Height.Load(int3(hc, 0)) > STAMP_AIR_HEIGHT)
         return;
 
     // footprint: the body radius by kind (the big ones press a wider disc)

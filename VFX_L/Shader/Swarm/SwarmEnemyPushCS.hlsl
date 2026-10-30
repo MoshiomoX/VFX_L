@@ -26,6 +26,7 @@ StructuredBuffer<uint> cellCount : register(t2);
 StructuredBuffer<uint> cellItems : register(t3);
 StructuredBuffer<float> terrainHeight : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5); // kind: ghosts ignore walls and cliffs
+StructuredBuffer<float4> enemyClimb : register(t6);   // x > 0 = climbing a wall (MoveCS, 2026-10-29): left where it is
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 
 // how much of the penetration to close per step (1 = all of it, jittery)
@@ -48,6 +49,8 @@ void main(uint3 id : SV_DispatchThreadID)
         return;   // the crowd does not shove the tornado (it shoves them) (2026-10-17)
     if (enemyExtra[i].kind == SWARM_KIND_GARGOYLE && enemyExtra[i].fuse <= 0.0)
         return;   // nor a sleeping gargoyle (a statue, 2026-10-25)
+    if (enemyClimb[i].x > 0.0)
+        return;   // nor a body climbing a wall: shoved off the face it would let go and fall (2026-10-29)
 
     float3 pos = enemies[i].position;
     float minDist = 2.0 * g_EnemyRadius * kPushDistMul;

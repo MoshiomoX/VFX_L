@@ -222,6 +222,15 @@ void ResultScene::Update(float dt)
     if (m_Leaving) return;
 
     {
+        // TEMP-TEST: VFXL_SELF_SHOT=<フォルダ> の時、出てから 4 秒（全部出きった後）の画面を result_screen.png に（2026-10-28）
+        char dir[260] = {};
+        if (!m_ShotTaken && m_Time > 4.0f && GetEnvironmentVariableA("VFXL_SELF_SHOT", dir, sizeof(dir)) > 0)
+        {
+            m_ShotTaken = true;
+            const std::string path = std::string(dir) + "\\result_screen.png";
+            Application::Get().GetGraphics().RequestScreenshot(std::wstring(path.begin(), path.end()));
+        }
+
         // TEMP-TEST: VFXL_RESULT_AUTOLEAVE=<0..1> で 5 秒後にそのボタン（0 = 次へ / もう一度、1 = タイトルへ）
         char env[8] = {};
         if (m_Time > 5.0f && GetEnvironmentVariableA("VFXL_RESULT_AUTOLEAVE", env, sizeof(env)) > 0)

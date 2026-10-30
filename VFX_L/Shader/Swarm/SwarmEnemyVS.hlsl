@@ -61,7 +61,7 @@ cbuffer SwarmEnemyAnimCB : register(b4)
     uint g_AnimPart;       // submesh being drawn
     uint g_AnimPartCount;
     uint g_AnimEnabled;    // 0 = no table: fall back to the procedural sway
-    uint g_AnimMode;       // 0 = moves with part g_AnimPart, 1 = a boss decoration orbiting the body axis (2026-10-24)
+    uint g_AnimMode;       // 0 = moves with part g_AnimPart, 1 = a boss decoration orbiting the body axis (2026-10-24); 2 wing, 3 tail / neck, 4 leg, 5 insect leg, 6 a floating djinn's piece (2026-10-29)
     uint4 g_ClipStart;     // first frame of each clip in the table
     uint4 g_ClipFrames;
     float4 g_ClipLength;   // seconds
@@ -176,6 +176,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
     bool eliteAttack = (eliteFlags & SWARM_ELITE_ATTACK) != 0u;
     if ((eliteFlags & SWARM_ELITE_SPIN) != 0u)
         sincos(e.yaw + g_AnimTime * 15.0, s, c);   // the axe's whirl: the whole body turns
+    if (extra.kind == SWARM_KIND_BOSS && g_BossSpin != 0.0)
+        sincos(e.yaw + g_BossSpin, s, c);   // the stone beast's tail sweep (2026-10-29): one full turn from the CPU
 
     // ---- a gargoyle's wing (g_AnimMode 2, 2026-10-25): turned about the forward axis through the hinge before the
     //      part's own animation. Hangs while a statue / landed, flaps in the air, swept up through the dive ----
@@ -200,7 +202,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
     if (g_AnimMode == 2u)
     {
         float ang = -0.25;
-        if (SwarmGargoyleAirborne(extra))
+        if (extra.kind == SWARM_KIND_BOSS)
+            ang = g_BossWing;   // the stone beast's wings (2026-10-29): the CPU flaps / raises / folds them
+        else if (SwarmGargoyleAirborne(extra))
         {
             if (extra.fuse >= SWARM_GARGOYLE_DIVE)
                 ang = SwarmGargoyleDiving(extra) ? 0.95 : 0.6;
@@ -327,6 +331,47 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
+    // ---- a floating djinn's piece (g_AnimMode 6, 2026-10-29): no part clip (it does not walk, it hangs over its
+    //      sand vortex). g_Flap.w != 0 = an arm: pitched about the sideways axis through the shoulder (g_Flap.xyz):
+    //      sways a little (not with an elbow), raised by g_Flap.w rad for a cast (g_BossChargePose 0..1), swung down to 0.25 of
+    //      that = forward and down on the slam (pose 1..1.3), and forward on a touch hit (the attack clip's timing) ----
+    if (g_AnimMode == 6u && g_Flap.w != 0.0)
+    {
+        // an arm with an elbow (g_Hinge.w != 0, the bone king, 2026-10-29) is planted on the ground: no idle sway
+        // (the sway made its straight arms look like they waved all the time)
+        float ang = (g_Hinge.w != 0.0) ? 0.0 : 0.10 * sin(g_AnimTime * 1.3 + phaseOffset + g_Flap.x * 1.7);
+        float lift = headDown - 0.75 * headToss;
+        ang += g_Flap.w * lift;
+        float sinceSwing = g_AttackInterval - e.attackCooldown;
+        float swing = 0.0;
+        if (e.attackCooldown > 0.0 && sinceSwing < g_ClipLength.z)
+            swing = sin(saturate(sinceSwing / max(g_ClipLength.z, 0.05)) * 3.14159);
+        ang += 0.5 * g_Flap.w * swing;
+        // ---- the elbow (2026-10-29, user: "bend the elbow when it raises the arms, the straight swing is gross"): the
+        //      forearm (past the plane through g_Hinge.xyz across the upper arm) folds about the sideways axis through the
+        //      elbow by g_Hinge.w rad as the arm rises (and on a touch swing), before the shoulder turns the whole arm ----
+        if (g_Hinge.w != 0.0)
+        {
+            float3 upper = normalize(g_Hinge.xyz - g_Flap.xyz);
+            if (dot(inPos - g_Hinge.xyz, upper) > 0.0)
+            {
+                float bend = g_Hinge.w * saturate(max(lift, swing));
+                float es, ec;
+                sincos(bend, es, ec);
+                float2 re = inPos.yz - g_Hinge.yz;
+                inPos.yz = g_Hinge.yz + float2(re.x * ec - re.y * es, re.x * es + re.y * ec);
+                inNrm.yz = float2(inNrm.y * ec - inNrm.z * es, inNrm.y * es + inNrm.z * ec);
+                inTan.yz = float2(inTan.y * ec - inTan.z * es, inTan.y * es + inTan.z * ec);
+            }
+        }
+        float as, ac;
+        sincos(ang, as, ac);
+        float2 r = inPos.yz - g_Flap.yz;
+        inPos.yz = g_Flap.yz + float2(r.x * ac - r.y * as, r.x * as + r.y * ac);
+        inNrm.yz = float2(inNrm.y * ac - inNrm.z * as, inNrm.y * as + inNrm.z * ac);
+        inTan.yz = float2(inTan.y * ac - inTan.z * as, inTan.y * as + inTan.z * ac);
+    }
+
     // ---- the werewolf's hunch (g_Hunch != 0, 2026-10-27): the piece (torso / head / arm, already swung above) is pitched
     //      forward about the hips (g_Hinge.yz) before the part's own motion. Deeper while it runs (the speed smooths it) ----
     if (g_Hunch != 0.0)
@@ -363,6 +408,14 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y -= bipedDrop;
         if (g_Hunch != 0.0)
             local.y += 0.006 * sin(g_AnimTime * 2.2 + phaseOffset);
+    }
+    else if (g_AnimMode == 6u)
+    {
+        // the floating djinn (above): no part clip, the whole upper body breathes slowly
+        local = inPos;
+        normal = inNrm;
+        tangent = inTan;
+        local.y += 0.012 * sin(g_AnimTime * 1.6 + phaseOffset);
     }
     else if (g_AnimEnabled != 0u)
     {
@@ -504,6 +557,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
 
     float3 worldPos = RotateY(local, s, c) + e.position;
+    // the floating sand djinn (2026-10-29): drawn g_BossHover above its ground position, bobbing slowly
+    if (extra.kind == SWARM_KIND_BOSS && g_BossHover > 0.0)
+        worldPos.y += g_BossHover + 0.18 * saturate(g_BossHover) * sin(g_AnimTime * 1.3);
     // ghost: hovers and bobs (the gameplay position stays on the ground)
     if (SwarmIsGhost(extra.kind))
         worldPos.y += g_GhostHover + 0.15 * sin(g_AnimTime * 3.0 + (float) slot * 0.7);

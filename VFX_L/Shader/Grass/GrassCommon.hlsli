@@ -69,6 +69,7 @@ cbuffer GrassCB : register(b0)
     float4 g_BladeShape;    // x = own twist (+- rad), y = share of dry blades 0..1, z = weight of the second wave 0..1,
                             // w = wind-source trail on the trample map (strength, 0 = off)
     float4 g_DryColor;      // rgb = multiplies a dry blade, a = air speed (m/s) for the strongest trail stamp
+    float4 g_SwarmExtra;    // x = an enemy's position.y minus its feet (the swarm's AICB groundY, 0.9), yzw = unused (2026-10-28)
 };
 
 // one blade (96 bytes), animated by GrassCullCS. The spine is a cubic Bezier from the

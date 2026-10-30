@@ -88,6 +88,15 @@ namespace
         { VFXId::BossStoneAura, Res::VFX::BossStoneAura, Group::Boss },
         { VFXId::BossVenom, Res::VFX::BossVenom, Group::Boss },
         { VFXId::BossVenomAura, Res::VFX::BossVenomAura, Group::Boss },
+        { VFXId::BossStagBolt, Res::VFX::BossStagBolt, Group::Boss },   // 雄鹿の角の雷撃（2026-10-29）
+        { VFXId::BossDjinnVortex, Res::VFX::BossDjinnVortex, Group::Boss },   // 砂嵐の魔神の下半身の砂旋（2026-10-29）
+        { VFXId::BossDjinnBreath, Res::VFX::BossDjinnBreath, Group::Boss },   // 砂嵐の魔神の炎の息
+        { VFXId::BossKingMist, Res::VFX::BossKingMist, Group::Boss },         // 骸の王の足元の闇（2026-10-29）
+        { VFXId::BossCurseFloor, Res::VFX::BossCurseFloor, Group::Boss },     // 骸の王の呪いの床
+        { VFXId::BossBeastDust, Res::VFX::BossBeastDust, Group::Boss },       // 石の守護獣の羽ばたきの土埃（2026-10-29）
+        { VFXId::BossPetrifyBreath, Res::VFX::BossPetrifyBreath, Group::Boss },   // 石の守護獣の石化の息
+        { VFXId::BossPetrify, Res::VFX::BossPetrify, Group::Boss },           // 石化したプレイヤーの欠片
+        { VFXId::BossStoneShard, Res::VFX::BossStoneShard, Group::Boss },     // 石羽の散弾の羽根
 
         // ---- 敵（CPU。遺跡の敵の出来事、2026-10-25）----
         { VFXId::RuinsArmorFall, Res::VFX::RuinsArmorFall, Group::Enemy },

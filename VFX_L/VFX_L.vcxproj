@@ -245,24 +245,15 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\CollisionTestSceneDebug.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBomber.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestAim.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestTerrainLook.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestCape.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestHills.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGold.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestCurve.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBoss.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestPickup.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestChainRune.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestPerch.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestCrystal.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestChain.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestResult.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestPlayerFx.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestSteps.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossLook.cpp" />
@@ -272,21 +263,18 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Swarm\SwarmSystemRuins.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneRuins.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestGrassFire.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestGust.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGustAll.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossIntro.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestDebris.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBossDrama.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestPondMobs.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestWater.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestRarity.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPierce.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestWindToys.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShot.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShotsCombat.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShotsRead.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShotsWorld.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestChargeShield.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestDamageText.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSpikeBall.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestVortex.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestTwister.cpp" />
@@ -294,35 +282,31 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestSandMage.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDashBomber.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSpellBench.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestSchoolBench.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestUI.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestSlide.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestShapes.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestChest.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBeam.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestEnvFx.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestTutorial.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestStuck.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestClip.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestSurge.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestCards.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestIceSpike.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestShield.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestTraining.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestBeamTrack.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDrop.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestClimb.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGhost.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestGrassFx.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestStressFx.cpp" />
-    <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp" />
     <ClCompile Include="Scene\CollisionTestScenePlayerPanels.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneWorldPanels.cpp" />
     <ClCompile Include="Debug\AutoTest\BattleAutoTest.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestFeedback.cpp" />
     <ClCompile Include="Debug\StressTestTools.cpp" />
     <ClCompile Include="Debug\SpellLab.cpp" />
+    <ClCompile Include="Debug\FlowDebugView.cpp" />
     <ClCompile Include="Debug\SpellLabRandom.cpp" />
     <ClCompile Include="Debug\FrameProfiler.cpp" />
     <ClCompile Include="Enemy\Spawn\MobSpawner.cpp" />
@@ -336,9 +320,18 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Enemy\Boss\BossAttacksKnight.cpp" />
     <ClCompile Include="Enemy\Boss\BossLooksKnight.cpp" />
     <ClCompile Include="Enemy\Boss\BossAttacksStag.cpp" />
+    <ClCompile Include="Enemy\Boss\BossAttacksDjinn.cpp" />
+    <ClCompile Include="Enemy\Boss\BossAttacksKing.cpp" />
+    <ClCompile Include="Enemy\Boss\BossAttacksBeast.cpp" />
+    <ClCompile Include="Enemy\Boss\BossAttacksBeastSky.cpp" />
+    <ClCompile Include="Enemy\Boss\BossAttacksConfig.cpp" />
+    <ClCompile Include="Enemy\Boss\BossAttacksCommon.cpp" />
     <ClCompile Include="Enemy\Boss\BossLooksSand.cpp" />
     <ClCompile Include="Enemy\Boss\BossLooksScorpion.cpp" />
     <ClCompile Include="Enemy\Boss\BossLooksStag.cpp" />
+    <ClCompile Include="Enemy\Boss\BossLooksDjinn.cpp" />
+    <ClCompile Include="Enemy\Boss\BossLooksKing.cpp" />
+    <ClCompile Include="Enemy\Boss\BossLooksBeast.cpp" />
     <ClCompile Include="Enemy\Elite\EliteLooksGrass.cpp" />
     <ClCompile Include="Enemy\Elite\EliteLooksDesert.cpp" />
     <ClCompile Include="Enemy\Elite\EliteLooksRuins.cpp" />
@@ -384,6 +377,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Swarm\SwarmSystemBoss.cpp" />
     <ClCompile Include="Swarm\SwarmSystemFire.cpp" />
     <ClCompile Include="Swarm\SwarmSystemTornado.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemClimb.cpp" />
     <ClCompile Include="Swarm\SwarmSystemTrail.cpp" />
     <ClCompile Include="Swarm\ProjectileProfile.cpp" />
     <ClCompile Include="Swarm\FlowField.cpp" />
@@ -581,6 +575,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Core\Window.cpp" />
     <ClCompile Include="VFX_Editor\VFXTextureRef.cpp" />
     <ClCompile Include="World\GridWorld.cpp" />
+    <ClCompile Include="World\ClimbMap.cpp" />
     <ClCompile Include="World\TerrainGenerator.cpp" />
     <ClCompile Include="World\TerrainBuild.cpp" />
     <ClCompile Include="World\TerrainParts.cpp" />
@@ -615,6 +610,11 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\CollisionTestSceneTerrain.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneBoss.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneBossIntro.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneBossDrama.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneBossDjinn.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneBossKing.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneBossBeast.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneBossSignals.cpp" />
     <ClCompile Include="Enemy\Boss\BossIntro.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestMapIO.cpp" />
     <ClCompile Include="World\StageConfig.cpp" />
@@ -633,6 +633,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Graphics\Renderer\FrustumPlanes.h" />
     <ClInclude Include="Debug\StressTestTools.h" />
     <ClInclude Include="Debug\SpellLab.h" />
+    <ClInclude Include="Debug\FlowDebugView.h" />
     <ClInclude Include="Debug\AutoTest\BattleAutoTest.h" />
     <ClInclude Include="Debug\AutoTest\AutoTestCommon.h" />
     <ClInclude Include="Debug\AutoTest\VideoShot.h" />
@@ -643,6 +644,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Enemy\Boss\BossIntro.h" />
     <ClInclude Include="Enemy\Boss\BossLooks.h" />
     <ClInclude Include="Enemy\Boss\BossLooksCommon.h" />
+    <ClInclude Include="Enemy\Boss\BossDjinn.h" />
+    <ClInclude Include="Enemy\Boss\BossKing.h" />
+    <ClInclude Include="Enemy\Boss\BossBeast.h" />
     <ClInclude Include="Enemy\Elite\EliteLooksCommon.h" />
     <ClInclude Include="Enemy\Elite\EliteMovesCommon.h" />
     <ClInclude Include="Enemy\EnemyLooks.h" />
@@ -934,6 +938,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Core\Window.h" />
     <ClInclude Include="VFX_Editor\VFXTextureRef.h" />
     <ClInclude Include="World\GridWorld.h" />
+    <ClInclude Include="World\ClimbMap.h" />
     <ClInclude Include="World\TerrainGenerator.h" />
     <ClInclude Include="World\TerrainBuild.h" />
     <ClInclude Include="World\MapData.h" />
@@ -1204,6 +1209,23 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Water/%(Filename).cso</ObjectFileOutput>
     </FxCompile>
     <FxCompile Include="Shader\Water\WaterRippleCS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Water/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Water/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Water/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Water/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Water/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Water\WaterStirCS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>

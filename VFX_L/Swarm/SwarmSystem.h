@@ -67,6 +67,7 @@ public:
     // 通行マップだけを上げ直してフローフィールドを作り直させる（置物の下を塞ぐ / 開けた箱の下を戻す時）。
     // 空間ハッシュ・高さ場・向き表の buffer はそのまま。格子の寸法が UploadTerrain の時と違えば UploadTerrain で全部作り直す（2026-10-25）
     void RefreshWalkable(const GridWorld& grid);
+    // 雑魚が壁を登る（2026-10-29、SwarmSystemClimb.cpp）：速さは GetBomberParams().climbSpeed、登れる障害物は GridWorld::SetClimb
 
     // VFXDatabase からレシピ表を作る。ItemDatabase / VFXDatabase の後に1回
     bool BuildVFXTable();
@@ -381,6 +382,11 @@ public:
         // 腕（leg + hunch）は殴りの動作で前へ振る
         float hunch = 0.0f;
         DirectX::SimpleMath::Vector4 hinge = { 0.0f, 0.0f, 0.0f, 0.0f };
+        // 浮く魔神（2026-10-29、砂嵐の魔神）：true なら VS の g_AnimMode 6 = 部品の動き（歩き・殴りのクリップ）を掛けず、ゆっくり息をする。
+        // flap.w != 0 なら腕：flap.xyz（肩）を通る横軸の周りに、詠唱（bossChargePose 0→1）で flap.w rad 振り上げ、
+        // 叩き付け（1→1.3）で前下へ振り下ろす。hinge.w != 0 = 肘の有る腕（骸の王、10-29）：hinge.xyz = 肘、腕を上げると前腕が
+        // 肘で hinge.w rad 折れる（真っ直ぐの棒で振ると気持ち悪い = ユーザー）。待機の揺れも無し（手は地面に突いたまま）。torso に付ける
+        bool floating = false;
     };
     void SetBossLook(std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations, bool hideBody = false)
     {
@@ -810,6 +816,19 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_TerrainSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_HeightBuffer;      // 高さ場（GridWorld::Heights）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_HeightSRV;
+    // 雑魚用の通行表・高さ場（2026-10-29、SwarmSystemClimb.cpp）：登れる障害物のマスは通れて、その上面が高さ。
+    // 雑魚の AI / 積分 / 押し合いだけがこれを見る（弾・経験球・描画は上の普通の物）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_MobTerrainBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_MobTerrainSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_MobHeightBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_MobHeightSRV;
+    void UploadMobTerrain(const GridWorld& grid);   // 上の 2 つを作り、流れ場の格子もこれにする
+    // 壁を登っている状態（float4 per slot：x 登っている秒（0 = 登っていない）、y 登る先の上面、zw 向き）。MoveCS だけが読み書き
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyClimbBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyClimbUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_EnemyClimbSRV;
+    ID3D11ShaderResourceView* MobTerrainSRV() const { return m_MobTerrainSRV ? m_MobTerrainSRV.Get() : m_TerrainSRV.Get(); }
+    ID3D11ShaderResourceView* MobHeightSRV() const { return m_MobHeightSRV ? m_MobHeightSRV.Get() : m_HeightSRV.Get(); }
 
     // --- 雑魚の空間ハッシュ（地形と同じ格子。毎ステップ BinCS が詰め直す）---
     // cellCount[cell] = そのマスの活き数、cellItems[cell*CAP + k] = スロット番号。

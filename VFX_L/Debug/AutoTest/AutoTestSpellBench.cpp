@@ -14,6 +14,9 @@
 // 行：`spellbench <名前> <single|crowd> dps <値>`、`spellbench <名前> fodder clear <秒> left <残り>`、魔法毎に `spellbench info …`（集約後の数値）、
 //   最後に `spellbench table <名前> single crowd ratio clear left mpps cells` を並べて `spellbench done`
 // MP は実験場なので無限（MP の頭打ちは無い。mpps は「全部撃ち続けた時の消費」。誘発される上級魔法の分は入らない）
+// VFXL_BENCH_SOLO=1（2026-10-29、稀有度の倍率を決めるため）：攻撃魔法を全部 1 つずつ単独で（稀有度の分岐では上級魔法も単独で撃つ）、
+//   空きマスへ自動で置いて測る。表の行に稀有度（N / R / L）が付く。突風は届く距離が短いので的を 5m に置く（他は 10m）
+//   2026-10-29 から mpps に範囲魔法（アークボルト・突風など）の消費も入る（以前は弾の魔法だけだった）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 
@@ -29,12 +32,13 @@ namespace
         void Run();
     };
 
-    struct Piece { ItemID id; int r, c; };
+    struct Piece { ItemID id; int r, c; };   // r < 0 = 空きマスへ自動で（真ん中に近い所から）
     struct Trial
     {
         std::string name;
         std::vector<Piece> pieces;     // 決まった所に置く物（先頭が測る魔法）
         std::vector<ItemID> runes;     // 先頭の魔法に影響が届く所を探して置くルーン
+        float dist = 10.0f;            // 的までの距離 m
     };
     constexpr float kWarm = 2.0f;
     constexpr float kMeasure = 8.0f;
@@ -48,9 +52,28 @@ namespace
 
     struct Result { float single = 0.0f, crowd = 0.0f, clear = 0.0f, mpps = 0.0f; int cells = 0, left = 0; };
 
-    std::vector<Trial> BuildTrials(bool runes)
+    std::vector<Trial> BuildTrials(bool runes, bool solo)
     {
         std::vector<Trial> t;
+        if (solo)
+        {
+            struct Solo { const char* name; ItemID id; float dist; };
+            const Solo list[] = {
+                { "homing", ItemID::HomingBolt, 10.0f }, { "arc", ItemID::ArcBolt, 10.0f }, { "fireball", ItemID::Fireball, 10.0f },
+                { "stone", ItemID::StoneShot, 10.0f }, { "arrow", ItemID::GoldenArrow, 10.0f }, { "icelance", ItemID::IceLance, 10.0f },
+                { "swamp", ItemID::Swamp, 10.0f }, { "spore", ItemID::Spore, 10.0f }, { "vortex", ItemID::VoidVortex, 10.0f },
+                { "gust", ItemID::Gust, 5.0f },
+                { "poison", ItemID::Poison, 10.0f }, { "icespike", ItemID::IceSpike, 10.0f }, { "twister", ItemID::Twister, 10.0f },
+                { "meteor", ItemID::Meteor, 10.0f }, { "beam", ItemID::Beam, 10.0f },
+            };
+            for (const Solo& s : list)
+            {
+                Trial tr{ s.name, { { s.id, -1, -1 } }, {} };
+                tr.dist = s.dist;
+                t.push_back(tr);
+            }
+            return t;
+        }
         struct Basic { const char* name; ItemID id; int r, c; };
         const Basic basics[] = {
             { "homing", ItemID::HomingBolt, 4, 4 }, { "arc", ItemID::ArcBolt, 4, 4 }, { "fireball", ItemID::Fireball, 4, 4 },
@@ -114,7 +137,8 @@ void AutoTestSpellBench::Run()
     {
         if (m_AutoTime < 1.0f) return;
         const bool runes = GetEnvironmentVariableA("VFXL_BENCH_RUNES", nullptr, 0) > 0;
-        s_Trials = BuildTrials(runes);
+        const bool solo = GetEnvironmentVariableA("VFXL_BENCH_SOLO", nullptr, 0) > 0;
+        s_Trials = BuildTrials(runes, solo);
         s_Results.assign(s_Trials.size(), Result{});
         s_Scenes = runes ? 2 : 3;
         m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
@@ -153,8 +177,11 @@ void AutoTestSpellBench::Run()
         for (size_t i = 0; i < s_Trials.size(); ++i)
         {
             const Result& r = s_Results[i];
-            snprintf(line, sizeof(line), "spellbench table %s single %.1f crowd %.1f ratio %.2f clear %.2f left %d mpps %.1f cells %d",
-                s_Trials[i].name.c_str(), r.single, r.crowd, r.single > 0.0f ? r.crowd / r.single : 0.0f, r.clear, r.left, r.mpps, r.cells);
+            const ItemCommon* ic = s_Trials[i].pieces.empty() ? nullptr : ItemDatabase::GetCommon(s_Trials[i].pieces[0].id);
+            const char rar = !ic ? '?' : ic->rarity == ItemRarity::Rare ? 'R' : ic->rarity == ItemRarity::Legendary ? 'L' : 'N';
+            snprintf(line, sizeof(line), "spellbench table %s rarity %c single %.1f crowd %.1f ratio %.2f clear %.2f left %d mpps %.1f cells %d dist %.0f",
+                s_Trials[i].name.c_str(), rar, r.single, r.crowd, r.single > 0.0f ? r.crowd / r.single : 0.0f, r.clear, r.left, r.mpps, r.cells,
+                s_Trials[i].dist);
             AutoTestLog(line);
         }
         m_Swarm.KillAll();
@@ -176,7 +203,21 @@ void AutoTestSpellBench::Run()
             int spellIdx = -1;
             for (const Piece& p : tr.pieces)
             {
-                const int idx = BackpackLogic::CanPlace(bp, p.id, p.r, p.c, 0) ? BackpackLogic::Place(bp, p.id, p.r, p.c, 0) : -1;
+                int idx = -1;
+                if (p.r >= 0)
+                    idx = BackpackLogic::CanPlace(bp, p.id, p.r, p.c, 0) ? BackpackLogic::Place(bp, p.id, p.r, p.c, 0) : -1;
+                else
+                {
+                    // 空きマスへ自動：真ん中（4,4）に近い所から、4 向きを試す
+                    for (int ring = 0; ring <= 4 && idx < 0; ++ring)
+                        for (int r = 4 - ring; r <= 4 + ring && idx < 0; ++r)
+                            for (int c = 4 - ring; c <= 4 + ring && idx < 0; ++c)
+                            {
+                                if ((std::max)(std::abs(r - 4), std::abs(c - 4)) != ring) continue;
+                                for (int rot = 0; rot < 4 && idx < 0; ++rot)
+                                    if (BackpackLogic::CanPlace(bp, p.id, r, c, rot)) idx = BackpackLogic::Place(bp, p.id, r, c, rot);
+                            }
+                }
                 if (spellIdx < 0) spellIdx = idx;
                 if (idx < 0)
                 {
@@ -208,7 +249,7 @@ void AutoTestSpellBench::Run()
         }
         wand.castingPaused = false;
         const float gy = m_Swarm.GetAIParams().groundY;
-        const Vector3 c = tf.position + Vector3(0.0f, 0.0f, 10.0f);
+        const Vector3 c = tf.position + Vector3(0.0f, 0.0f, tr.dist);
         if (s_Scene == 0)
             m_Swarm.SpawnEnemy(Vector3(c.x, m_Grid.SampleHeight(c.x, c.z) + gy, c.z), kSingleHp, 0.0f);
         else
@@ -271,6 +312,7 @@ void AutoTestSpellBench::Run()
             }
             for (const AreaStats& a : wand.areas)
             {
+                if (!a.triggered && a.castInterval > 0.0f) mpps += a.manaCost / a.castInterval;
                 snprintf(line, sizeof(line), "spellbench info %s area %s interval %.3f tick %.1f / %.2f s duration %.2f mana %.2f triggered %d",
                     name, ItemDatabase::GetCommon(a.id)->name, a.castInterval, a.damagePerTick, a.tickInterval, a.duration,
                     a.manaCost, a.triggered ? 1 : 0);

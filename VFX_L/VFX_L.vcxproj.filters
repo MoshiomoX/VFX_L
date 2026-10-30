@@ -217,16 +217,7 @@
     <ClCompile Include="Debug\AutoTest\AutoTestAim.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestTerrainLook.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestCape.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestHills.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestGold.cpp">
@@ -238,16 +229,10 @@
     <ClCompile Include="Debug\AutoTest\AutoTestBoss.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestPickup.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestArrow.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestChainRune.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestPerch.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestCrystal.cpp">
@@ -256,19 +241,7 @@
     <ClCompile Include="Debug\AutoTest\AutoTestChain.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestResult.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestPlayerFx.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestSteps.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSplit.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestWeather.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBossSlam.cpp">
@@ -277,13 +250,10 @@
     <ClCompile Include="Debug\AutoTest\AutoTestSpellBench.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSchoolBench.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestGrassFire.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestGust.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestGustAll.cpp">
@@ -292,19 +262,19 @@
     <ClCompile Include="Debug\AutoTest\AutoTestBossIntro.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestBossDrama.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestPierce.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestRarity.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPondMobs.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestWater.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestDebris.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestWindToys.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\VideoShot.cpp">
@@ -320,9 +290,6 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestChargeShield.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestDamageText.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSpikeBall.cpp">
@@ -364,16 +331,10 @@
     <ClCompile Include="Scene\CollisionTestSceneRuins.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestMusic.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSoak.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestUI.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestSlide.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestShapes.cpp">
@@ -385,9 +346,6 @@
     <ClCompile Include="Debug\AutoTest\AutoTestBeam.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestEnvFx.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestTutorial.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -395,9 +353,6 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestClip.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestSurge.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestCards.cpp">
@@ -412,7 +367,7 @@
     <ClCompile Include="Debug\AutoTest\AutoTestTraining.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestBeamTrack.cpp">
+    <ClCompile Include="Debug\AutoTest\AutoTestClimb.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestDrop.cpp">
@@ -424,13 +379,7 @@
     <ClCompile Include="Debug\AutoTest\AutoTestPoison.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestGrassFx.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestStressFx.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestDeath.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Scene\CollisionTestScenePlayerPanels.cpp">
@@ -449,6 +398,9 @@
       <Filter>Debug</Filter>
     </ClCompile>
     <ClCompile Include="Debug\SpellLab.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\FlowDebugView.cpp">
       <Filter>Debug</Filter>
     </ClCompile>
     <ClCompile Include="Debug\SpellLabRandom.cpp">
@@ -490,6 +442,24 @@
     <ClCompile Include="Enemy\Boss\BossAttacksStag.cpp">
       <Filter>Enemy\Boss</Filter>
     </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossAttacksDjinn.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossAttacksKing.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossAttacksBeast.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossAttacksBeastSky.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossAttacksConfig.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossAttacksCommon.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
     <ClCompile Include="Enemy\Boss\BossLooksSand.cpp">
       <Filter>Enemy\Boss</Filter>
     </ClCompile>
@@ -497,6 +467,15 @@
       <Filter>Enemy\Boss</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\Boss\BossLooksStag.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossLooksDjinn.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossLooksKing.cpp">
+      <Filter>Enemy\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy\Boss\BossLooksBeast.cpp">
       <Filter>Enemy\Boss</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\Elite\EliteLooksGrass.cpp">
@@ -1076,6 +1055,21 @@
     <ClCompile Include="Scene\CollisionTestSceneBossIntro.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneBossDrama.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneBossDjinn.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneBossKing.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneBossBeast.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneBossSignals.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Enemy\Boss\BossIntro.cpp">
       <Filter>Enemy\Boss</Filter>
     </ClCompile>
@@ -1089,6 +1083,9 @@
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\GridWorld.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\ClimbMap.cpp">
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="Enemy\Spawn\SpawnWaves.cpp">
@@ -1116,6 +1113,9 @@
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmSystemTornado.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemClimb.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmSystemTrail.cpp">
@@ -1190,6 +1190,9 @@
     <ClInclude Include="Debug\SpellLab.h">
       <Filter>Debug</Filter>
     </ClInclude>
+    <ClInclude Include="Debug\FlowDebugView.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
     <ClInclude Include="Debug\AutoTest\BattleAutoTest.h">
       <Filter>Debug\AutoTest</Filter>
     </ClInclude>
@@ -1218,6 +1221,15 @@
       <Filter>Enemy\Boss</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\Boss\BossLooksCommon.h">
+      <Filter>Enemy\Boss</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\Boss\BossDjinn.h">
+      <Filter>Enemy\Boss</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\Boss\BossKing.h">
+      <Filter>Enemy\Boss</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy\Boss\BossBeast.h">
       <Filter>Enemy\Boss</Filter>
     </ClInclude>
     <ClInclude Include="Enemy\Elite\EliteLooksCommon.h">
@@ -1857,6 +1869,9 @@
     <ClInclude Include="World\GridWorld.h">
       <Filter>World</Filter>
     </ClInclude>
+    <ClInclude Include="World\ClimbMap.h">
+      <Filter>World</Filter>
+    </ClInclude>
     <ClInclude Include="World\TerrainGenerator.h">
       <Filter>World</Filter>
     </ClInclude>
@@ -2144,6 +2159,9 @@
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Water\WaterRippleCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Water\WaterStirCS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Light\LightClusterCS.hlsl">

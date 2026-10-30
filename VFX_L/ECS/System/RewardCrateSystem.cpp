@@ -98,7 +98,7 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
         bool open = true;
         for (int dz = -1; dz <= 1 && open; ++dz)
             for (int dx = -1; dx <= 1 && open; ++dx)
-                open = grid.IsWalkable(gx + dx, gz + dz);
+                open = grid.IsDryWalkable(gx + dx, gz + dz);   // 水たまりは歩けるが箱は置かない
         if (!open) return false;
 
         Vector3 pos = grid.CellToWorld(gx, gz);
@@ -235,7 +235,7 @@ Entity RewardCrateSystem::SpawnFree(Registry& reg, const GridWorld& grid, const 
     it.basePos = at;
     it.phase = (float)(rand() % 100) * 0.06f;
     it.radius = half + 1.8f;
-    it.prompt = L"<{K:F}|{B}>  開ける（無料）";
+    it.prompt = L"<{K:F}|{X}>  開ける（無料）";
     it.lightColor = { 1.0f, 0.82f, 0.32f };
     it.lightRadius = 4.5f;
     it.lightIntensity = 1.8f;

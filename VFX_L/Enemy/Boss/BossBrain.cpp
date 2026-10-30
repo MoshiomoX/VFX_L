@@ -22,6 +22,22 @@ const char* BossMoveName(BossMove m)
     case BossMove::Pounce:    return "pounce";
     case BossMove::ClawCombo: return "clawcombo";
     case BossMove::Howl:      return "howl";
+    case BossMove::AntlerToss: return "antlertoss";
+    case BossMove::AntlerBolt: return "antlerbolt";
+    case BossMove::DustDevils: return "dustdevils";
+    case BossMove::DjinnBreath: return "djinnbreath";
+    case BossMove::DjinnShift: return "djinnshift";
+    case BossMove::SandFist:  return "sandfist";
+    case BossMove::CurseOrbs: return "curseorbs";
+    case BossMove::RaiseDead: return "raisedead";
+    case BossMove::ShadowStep: return "shadowstep";
+    case BossMove::CurseFloor: return "cursefloor";
+    case BossMove::BeastDive: return "beastdive";
+    case BossMove::PetrifyBreath: return "petrifybreath";
+    case BossMove::WingGust:  return "winggust";
+    case BossMove::TailSweep: return "tailsweep";
+    case BossMove::SkyCrush:  return "skycrush";
+    case BossMove::FeatherShards: return "feathershards";
     default:                  return "none";
     }
 }
@@ -36,6 +52,9 @@ const char* BossTypeName(BossType t)
     case BossType::Stag:         return "thunder stag";
     case BossType::CryptKnight:  return "crypt knight";
     case BossType::Werewolf:     return "werewolf";
+    case BossType::Djinn:        return "djinn";
+    case BossType::BoneKing:     return "bone king";
+    case BossType::StoneBeast:   return "stone beast";
     default:                     return "?";
     }
 }
@@ -50,6 +69,9 @@ const wchar_t* BossDisplayName(BossType t)
     case BossType::Stag:         return L"雷鳴の雄鹿";
     case BossType::CryptKnight:  return L"墓守の騎士";
     case BossType::Werewolf:     return L"月下の狼人";
+    case BossType::Djinn:        return L"砂嵐の魔神";
+    case BossType::BoneKing:     return L"骸の王";
+    case BossType::StoneBeast:   return L"石の守護獣";
     default:                     return L"?";
     }
 }
@@ -88,6 +110,42 @@ BossBrain::BossBrain()
     rules[(int)BossMove::ClawCombo] = { false, 5.0f, 3.0f, 2.0f, 0.5f, 0.0f, 12.0f };
     // 遠吠え：たまに。遠いと多め
     rules[(int)BossMove::Howl] = { false, 16.0f, 1.0f, 1.0f, 2.0f, 0.0f, 35.0f };
+    // ---- 雷鳴の雄鹿だけの技（2026-10-29）----
+    // 角の振り上げ：近く（扇は 5m。突進は 5m 未満で出ないので、目の前に居る間はこれ）
+    rules[(int)BossMove::AntlerToss] = { false, 5.0f, 3.0f, 0.5f, 0.0f, 0.0f, 7.0f };
+    // 角の雷撃：中〜遠（帯は 18m。目の前では帯の間が狭すぎる）
+    rules[(int)BossMove::AntlerBolt] = { false, 7.0f, 0.5f, 2.5f, 3.0f, 6.0f, 22.0f };
+    // ---- 砂嵐の魔神だけの技（2026-10-29）。一段目 / 二段目の入れ替えは BossAttacks（BossAttacksDjinn.cpp）----
+    // 砂嵐召喚：どこでも（輪の中心は足元）。冷却は砂旋が消えるまで（約 6.6 秒）より長く
+    rules[(int)BossMove::DustDevils] = { false, 11.0f, 1.5f, 2.0f, 2.0f, 0.0f, 30.0f };
+    // 炎の息：中くらい（扇は 11m。遠いと届かない）
+    rules[(int)BossMove::DjinnBreath] = { false, 6.0f, 2.0f, 3.0f, 0.5f, 0.0f, 12.0f };
+    // 砂渡り：遠いほど多め（離れたら向こう側へ回り込んで息）
+    rules[(int)BossMove::DjinnShift] = { false, 10.0f, 0.5f, 1.0f, 3.0f, 4.0f, 30.0f };
+    // 砂の拳：近く（扇は 6.5m）
+    rules[(int)BossMove::SandFist] = { false, 4.5f, 3.0f, 1.0f, 0.0f, 0.0f, 8.0f };
+    // ---- 骸の王だけの技（2026-10-29）----
+    // 呪いの玉：どこでも（玉は 7 秒追う）
+    rules[(int)BossMove::CurseOrbs] = { false, 6.0f, 2.0f, 3.0f, 2.0f, 0.0f, 1.0e4f };
+    // 大起尸：たまに（冷却長め）。骸の王は真ん中から動かないので、技はどの距離でも出す
+    rules[(int)BossMove::RaiseDead] = { false, 16.0f, 1.0f, 1.5f, 1.5f, 0.0f, 1.0e4f };
+    // 影へ消える：近いほど多め（寄られたら別の側へ逃げて撃つ）
+    rules[(int)BossMove::ShadowStep] = { false, 9.0f, 3.0f, 1.0f, 0.5f, 0.0f, 30.0f };
+    // 呪いの床：中〜遠（足元に置く）。冷却は床が残る秒より長く
+    rules[(int)BossMove::CurseFloor] = { false, 12.0f, 1.0f, 2.0f, 2.0f, 0.0f, 1.0e4f };
+    // ---- 石の守護獣だけの技（2026-10-29）。一段目 / 二段目の入れ替えは BossAttacks（BossAttacksBeast.cpp）----
+    // 急降下：中〜遠（目の前では滑空する距離が無い）
+    rules[(int)BossMove::BeastDive] = { false, 7.0f, 0.3f, 2.5f, 3.0f, 6.0f, 30.0f };
+    // 石化の息：近〜中（扇は 10m）
+    rules[(int)BossMove::PetrifyBreath] = { false, 7.0f, 2.0f, 3.0f, 0.5f, 0.0f, 12.0f };
+    // 翼の突風：近〜中（扇は 13m）
+    rules[(int)BossMove::WingGust] = { false, 8.0f, 3.0f, 2.0f, 0.3f, 0.0f, 13.0f };
+    // 尾の薙ぎ払い（二段目）：近く（輪は 7.5m）
+    rules[(int)BossMove::TailSweep] = { false, 5.0f, 3.0f, 0.5f, 0.0f, 0.0f, 7.5f };
+    // 天からの圧殺：どこでも（影が追う）。冷却長め
+    rules[(int)BossMove::SkyCrush] = { false, 11.0f, 1.5f, 2.0f, 2.0f, 0.0f, 30.0f };
+    // 石羽の散弾：中〜遠（目の前では扇の隙間が狭い）
+    rules[(int)BossMove::FeatherShards] = { false, 7.0f, 0.5f, 2.5f, 2.5f, 4.0f, 25.0f };
     Reset();
 }
 

@@ -205,7 +205,8 @@ namespace MapData
 
         // ---- 段々の台地と水たまり（版 11、PokéBonk 風。TerrainBuild::ReliefField の同名の物をそのまま保存）----
         // 面の高さ = 区域の起伏 + stepH × 段（坂は補間）、水たまりは pondDepth 下げる。stepH = 0 なら無し。
-        // 崖の衝突の箱と塞いだマスは boxes / blocks に kStep で入っている（他の記録と同じに建てる）。水たまりの見た目はここから作り直す
+        // 崖の衝突の箱と塞いだマスは boxes / blocks に kStep で入っている（他の記録と同じに建てる）。水たまりの見た目はここから作り直す。
+        // 水たまりのマスは 2026-10-28 から塞がない（walkable = GridWorld::kWaterCell：雑魚も入る・弾も通る）。それ以前の地図は blocks で塞いだまま
         float stepH = 0.0f;
         std::vector<uint8_t>  stepLevel;     // gw * gd（空 = 無し）
         std::vector<int16_t>  stepRampAt;    // gw * gd：坂の番号（-1 = 無し）

@@ -19,7 +19,7 @@ using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;
 
-static_assert(sizeof(GrassRenderer::GrassCB) == 560, "GrassCB layout mismatch");   // 2026-10-25: 突風 1 → 4 個（464 → 560）
+static_assert(sizeof(GrassRenderer::GrassCB) == 576, "GrassCB layout mismatch");   // 2026-10-25: 突風 1 → 4 個（464 → 560）、10-28: swarmExtra（→ 576）
 static_assert(offsetof(GrassRenderer::GrassCB, gustA) == 336, "GrassCB gust block offset mismatch");
 static_assert(sizeof(GrassRenderer::GrassBlade) == 96, "GrassBlade layout mismatch");
 
@@ -321,6 +321,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     cb.bladeShape = Vector4(s.twistMax, std::clamp(s.dryShare, 0.0f, 1.0f), std::clamp(s.wave2Weight, 0.0f, 1.0f),
         m_WindSourceSRV ? (std::max)(s.trailStrength, 0.0f) : 0.0f);
     cb.dryColor = Vector4(s.dryColor.x, s.dryColor.y, s.dryColor.z, (std::max)(s.trailSpeed, 0.1f));
+    cb.swarmExtra = Vector4(m_EnemyGroundY, 0.0f, 0.0f, 0.0f);
     m_GustCount = 0;   // 1 回押したら終わり
     m_PendingDt = 0.0f;   // 一時停止中（Update 無し）は 0 のまま = 踏み跡も止まる
 

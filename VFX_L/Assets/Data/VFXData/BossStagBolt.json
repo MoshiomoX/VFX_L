@@ -1,0 +1,52 @@
+{
+  "name": "BossStagBolt",
+  "loop": false,
+  "entries": [
+    {
+      "type": "Beam", "startTime": 0, "duration": 0.3,
+      "data": {
+        "offset": [0, 0, 0], "width": 0.6, "coreRatio": 0.4, "glowRatio": 2.2, "glowAlpha": 0.16,
+        "color": [0.3, 0.6, 1.0, 1.0], "coreColor": [0.9, 0.95, 1.05, 1.0],
+        "scrollSpeed": 30.0, "noiseScale": 1.2, "noiseStrength": 0.25, "tipFade": 0.1, "rootFade": 0.1,
+        "growTime": 0.05, "shrinkTime": 0.1, "previewLength": 18.0, "previewDir": [0, 0, 1], "toon": false,
+        "jitter": 1.1, "jitterRate": 24.0, "jitterFine": 0.5
+      }
+    },
+    {
+      "type": "Beam", "startTime": 0.02, "duration": 0.24,
+      "data": {
+        "offset": [0, 0, 0], "width": 0.28, "coreRatio": 0.45, "glowRatio": 2.0, "glowAlpha": 0.12,
+        "color": [0.35, 0.65, 1.0, 1.0], "coreColor": [0.85, 0.9, 1.0, 1.0],
+        "scrollSpeed": 36.0, "noiseScale": 2.0, "noiseStrength": 0.3, "tipFade": 0.2, "rootFade": 0.1,
+        "growTime": 0.05, "shrinkTime": 0.08, "previewLength": 18.0, "previewDir": [0, 0, 1], "toon": false,
+        "jitter": 1.6, "jitterRate": 32.0, "jitterFine": 0.6
+      }
+    },
+    {
+      "type": "Particle", "startTime": 0, "duration": 0.1,
+      "data": {
+        "sheet": 1, "atlasIndex": 4, "frameMode": 1, "frameCount": 1, "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "blend": 0,
+        "emitType": 0, "position": [0, 0, 0], "direction": [0, 1, 0], "radius": 0, "innerRadius": 0, "spreadAngle": 0, "boxExtents": [1, 1, 1],
+        "emitRate": 60, "maxParticles": 200, "lifetimeRange": [0.12, 0.18], "speedRange": [0, 0],
+        "sizeRange": [1.4, 1.8, 0.6, 0.8], "rotationRange": [0, 0], "angularVelRange": [0, 0],
+        "startColorMin": [0.7, 0.85, 1.0, 1], "startColorMax": [0.7, 0.85, 1.0, 1], "endColorMin": [0.4, 0.7, 1.0, 0], "endColorMax": [0.4, 0.7, 1.0, 0],
+        "gravity": [0, 0, 0], "dragCoeff": 0, "renderMode": 0
+      }
+    },
+    {
+      "type": "Particle", "startTime": 0, "duration": 0.2,
+      "data": {
+        "sheet": 1, "atlasIndex": 48, "frameMode": 3, "frameCount": 4, "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "blend": 0,
+        "emitType": 1, "position": [0, 0, 0], "direction": [0, 1, 0], "radius": 0.6, "innerRadius": 0, "spreadAngle": 0, "boxExtents": [1, 1, 1],
+        "emitRate": 90, "maxParticles": 200, "lifetimeRange": [0.08, 0.16], "speedRange": [0, 0],
+        "sizeRange": [1.2, 1.8, 0.6, 0.9], "rotationRange": [0, 6.28], "angularVelRange": [0, 0],
+        "startColorMin": [0.55, 0.8, 1.0, 0.8], "startColorMax": [0.55, 0.8, 1.0, 0.8], "endColorMin": [0.3, 0.55, 1.0, 0], "endColorMax": [0.3, 0.55, 1.0, 0],
+        "gravity": [0, 0, 0], "dragCoeff": 0, "renderMode": 0
+      }
+    },
+    {
+      "type": "Light", "startTime": 0, "duration": 0.3,
+      "data": { "offset": [0, 0, 0], "color": [0.5, 0.8, 1.0], "radius": 6.0, "intensityStart": 1.2, "intensityEnd": 0.0, "flicker": 0.5, "flickerSpeed": 40 }
+    }
+  ]
+}

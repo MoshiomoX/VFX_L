@@ -60,6 +60,38 @@ Vector3 MobSpawner::GargoyleSpot(const Vector3& fallback, float groundY) const
     return fallback;
 }
 
+// 死体から骸骨を起こす（死霊術師の詠唱、骸の王の大起尸。2026-10-29 に死霊術師の所から分けた）：center から radius m の
+// 最近の死体を新しい順に最大 maxCount（使った死体は消す = 同じ死体から二度起こさない）、足りなければ center の周り
+// fillMin〜fillMax m の歩けるマスから minCount まで。印は今、骸骨は necroRaiseDelay 秒後（同時上限は UpdateRuins が見る）
+int MobSpawner::RaiseCorpsesAround(const Vector3& center, float radius, int maxCount, int minCount, float fillMin, float fillMax, const GridWorld& grid)
+{
+    int raised = 0;
+    const float r2 = radius * radius;
+    for (int i = (int)m_RecentKills.size() - 1; i >= 0 && raised < maxCount; --i)
+    {
+        const Vector3 d = m_RecentKills[i].pos - center;
+        if (d.x * d.x + d.z * d.z > r2 || m_RunTime - m_RecentKills[i].time > corpseMemory) continue;
+        m_RaisePending.push_back({ m_RecentKills[i].pos, necroRaiseDelay + 0.12f * (float)raised, m_SkeletonHp * m_HpMul });
+        m_RuinsFx.push_back({ RuinsFxKind::RaiseMark, m_RecentKills[i].pos });
+        m_RecentKills.erase(m_RecentKills.begin() + i);
+        ++raised;
+    }
+    for (int attempt = 0; raised < minCount && attempt < 6 * (std::max)(minCount, 1); ++attempt)
+    {
+        const float ang = Rand01() * 6.2831853f;
+        const float r = fillMin + (fillMax - fillMin) * Rand01();
+        Vector3 q = center + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
+        int gx = 0, gz = 0;
+        grid.WorldToCell(q, gx, gz);
+        if (!grid.IsWalkable(gx, gz)) continue;
+        q.y = grid.SampleHeight(q.x, q.z);
+        m_RaisePending.push_back({ q, necroRaiseDelay + 0.12f * (float)raised, m_SkeletonHp * m_HpMul });
+        m_RuinsFx.push_back({ RuinsFxKind::RaiseMark, q });
+        ++raised;
+    }
+    return raised;
+}
+
 bool MobSpawner::HandleRuinsEvent(const Swarm::SplitEvent& ev, const GridWorld& grid, const Vector3& player, SwarmSystem& swarm)
 {
     const uint32_t kind = ev.kind & Swarm::kSplitKindMask;
@@ -100,31 +132,8 @@ bool MobSpawner::HandleRuinsEvent(const Swarm::SplitEvent& ev, const GridWorld& 
         // 近くの最近の死体（新しい順）から起こす。使った死体は消す（同じ死体から二度起こさない）
         m_RuinsFx.push_back({ RuinsFxKind::NecroCast, ground });
         audio.Play("necro_cast");
-        int raised = 0;
-        const float r2 = necroRaiseRadius * necroRaiseRadius;
-        for (int i = (int)m_RecentKills.size() - 1; i >= 0 && raised < necroRaiseCount; --i)
-        {
-            const Vector3 d = m_RecentKills[i].pos - ground;
-            if (d.x * d.x + d.z * d.z > r2 || m_RunTime - m_RecentKills[i].time > corpseMemory) continue;
-            m_RaisePending.push_back({ m_RecentKills[i].pos, necroRaiseDelay + 0.12f * (float)raised, m_SkeletonHp * m_HpMul });
-            m_RuinsFx.push_back({ RuinsFxKind::RaiseMark, m_RecentKills[i].pos });
-            m_RecentKills.erase(m_RecentKills.begin() + i);
-            ++raised;
-        }
         // 足りなければ術師の周り（1.5〜3.5m の歩けるマス）
-        for (int attempt = 0; raised < necroRaiseCount && attempt < 16; ++attempt)
-        {
-            const float ang = Rand01() * 6.2831853f;
-            const float r = 1.5f + 2.0f * Rand01();
-            Vector3 q = ground + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
-            int gx = 0, gz = 0;
-            grid.WorldToCell(q, gx, gz);
-            if (!grid.IsWalkable(gx, gz)) continue;
-            q.y = grid.SampleHeight(q.x, q.z);
-            m_RaisePending.push_back({ q, necroRaiseDelay + 0.12f * (float)raised, m_SkeletonHp * m_HpMul });
-            m_RuinsFx.push_back({ RuinsFxKind::RaiseMark, q });
-            ++raised;
-        }
+        RaiseCorpsesAround(ground, necroRaiseRadius, necroRaiseCount, necroRaiseCount, 1.5f, 3.5f, grid);
         return true;
     }
 

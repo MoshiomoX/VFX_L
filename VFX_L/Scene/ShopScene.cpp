@@ -370,7 +370,7 @@ void ShopScene::Update(float dt)
         return;
     }
 
-    // ---- バックパックが開いている間は GameUI に任せる（Tab / Start / パッド B で閉じる）----
+    // ---- バックパックが開いている間は GameUI に任せる（Tab / Start で閉じる。パッド B は 10-28 から「素早く外す」）----
     if (m_BagOpen)
     {
         m_UI.Update(m_Registry, m_Player, dt);
@@ -720,6 +720,17 @@ void ShopScene::TestLog(const char* what)
         std::chrono::system_clock::now().time_since_epoch()).count();
     std::ofstream f("autotest.log", std::ios::app);
     f << ms << " " << what << " (shop " << m_Time << " s)\n";
+
+    // VFXL_SELF_SHOT=<フォルダ> の時、「... look <名>」の行でこのフレームの画面を撮る（戦闘の自動テストと同じ。2026-10-28）
+    char dir[260] = {};
+    const std::string w = what;
+    if (w.find(" look ") != std::string::npos && GetEnvironmentVariableA("VFXL_SELF_SHOT", dir, sizeof(dir)) > 0)
+    {
+        std::string name = w;
+        for (char& c : name) if (c == ' ' || c == ':' || c == '/' || c == '\\') c = '_';
+        const std::string path = std::string(dir) + "\\" + name + ".png";
+        Application::Get().GetGraphics().RequestScreenshot(std::wstring(path.begin(), path.end()));
+    }
 }
 
 void ShopScene::AutoTest()

@@ -118,6 +118,12 @@ public:
     void SetPadSelection(uint32_t uid) { m_PadSelUid = uid; }
     // uid の物を掴んで DragContext へ渡す（マウスの掴みと同じ）。無ければ false
     bool GrabByUid(uint32_t uid);
+    // 画面の点に乗っている物の uid（0 = 無し）。パッドのカーソルの下の物を選ぶのに使う
+    uint32_t BodyAt(const DirectX::SimpleMath::Vector2& p) const;
+    // パッドのカーソルの位置（2026-10-28）。マウスの代わりに「離した所から落とす」の位置に使う
+    void SetPadPointer(const DirectX::SimpleMath::Vector2& p) { m_PadPointer = p; }
+    // 箱の内寸の中心（パッドの Y でカーソルを箱へ飛ばす先）
+    DirectX::SimpleMath::Vector2 BoxCenter() const { return (m_BoxMin + m_BoxMax) * 0.5f; }
 
 private:
     // ============================================================
@@ -214,6 +220,7 @@ private:
 
     bool     m_MouseEnabled = true;   // SetMouseEnabled
     uint32_t m_PadSelUid = 0;         // SetPadSelection
+    DirectX::SimpleMath::Vector2 m_PadPointer = { 0, 0 };   // SetPadPointer
 
     // 箱の内寸（Layout で確定。枠の内側）
     DirectX::SimpleMath::Vector2 m_BoxMin = { 0, 0 };

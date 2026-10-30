@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // StageDirector.cpp
 // ============================================================
 #include "Enemy/Spawn/StageDirector.h"
@@ -344,7 +344,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         it.basePos = pos;
         it.animate = false;
         it.radius = 3.0f;
-        it.prompt = L"<{K:F}|{B}>  ボスを呼ぶ";
+        it.prompt = L"<{K:F}|{X}>  ボスを呼ぶ";
         it.lightColor = { 0.75f, 0.35f, 1.0f };   // 紫（渦のエフェクトにも光がある。こちらは控えめ）
         it.lightRadius = 7.0f;
         it.lightIntensity = 1.0f;
@@ -365,7 +365,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         for (int dz = -1; dz <= 1 && ok; ++dz)
             for (int dx = -1; dx <= 1 && ok; ++dx)
             {
-                if (!grid.IsWalkable(gx + dx, gz + dz)) { ok = false; break; }
+                if (!grid.IsDryWalkable(gx + dx, gz + dz)) { ok = false; break; }   // 水たまりの中には置かない
                 const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
                 ok = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.6f;   // 起伏の斜面は可（2026-10-04、0.2 → 0.6）
             }
@@ -454,6 +454,15 @@ bool StageDirector::TryUsePortal(Registry& reg, Entity used, const GridWorld& gr
         m_IntroGate = gate;
         m_IntroDir = dir;
         m_IntroSpawn = gate + dir * bossIntroFront;   // 歩けなければ SpawnBossAt が門の周りの環に湧かせる
+        if (bossAtCenter)
+        {
+            // 骸の王：門は荒れるだけで、Boss はフィールドの真ん中に湧いて動かない（出てくる向き = 真ん中からプレイヤーへ）
+            m_IntroSpawn = Vector3(0.0f, 0.0f, 0.0f);
+            Vector3 out = player - m_IntroSpawn;
+            out.y = 0.0f;
+            if (out.LengthSquared() > 1e-4f) { out.Normalize(); m_IntroDir = out; }
+            m_BossSpeedOverride = 0.0f;
+        }
         m_SummonPos = gate;
         m_SpawnDelay = (std::max)(bossIntroDelay, 0.01f);
         m_IntroStarted = true;

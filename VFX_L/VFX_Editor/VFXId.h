@@ -126,6 +126,15 @@ enum class VFXId : uint32_t
     EliteChest,         // 金色の宝箱の光の粒（ループ）
     LifestealAbsorb,    // 吸血のルーンで HP が戻る時、周りから赤い光が体へ吸い込まれる（2026-10-25）
     SandTornado,        // 砂嵐の術師の砂旋の本体（砂色の柱 2 枚。Enemy/SandTornadoFx が砂旋と同じ直線で動かす。2026-10-26）
+    BossStagBolt,       // 雷鳴の雄鹿の角の雷撃：角から帯の先まで走る太い稲妻（光線の Beam 2 本 + 角の閃光。2026-10-29）
+    BossDjinnVortex,    // 砂嵐の魔神の下半身の砂旋（ループ。浮いている間 Boss に付く。二段目は広く低く。2026-10-29）
+    BossDjinnBreath,    // 砂嵐の魔神の炎の息（ループ。口から前下へ砂混じりの炎、+Z が前）
+    BossKingMist,       // 骸の王の足元の闇の水溜まりと黒い靄（ループ。Boss に付く。2026-10-29）
+    BossCurseFloor,     // 骸の王の呪いの床（紫の渦の液面 + 靄 + 紫の火の粉。半径 7m・6.8 秒）
+    BossBeastDust,      // 石の守護獣が飛んでいる間、羽ばたきが足元に巻き上げる土埃と小石（ループ。Boss に付く。2026-10-29）
+    BossPetrifyBreath,  // 石の守護獣の石化の息（ループ。頭から前下へ灰色の息、+Z が前）
+    BossPetrify,        // 石化が溜まっているプレイヤーに付く灰色の欠片と埃（ループ。溜まりに合わせて SetPresence）
+    BossStoneShard,     // 石の守護獣の石羽の散弾の羽根 1 枚（ループ。石のトゲ + 砂埃の尾、+Z が飛ぶ向き。2026-10-29）
     // ---- 追加はここに。VFXDatabase.cpp の表にも1行足す ----
     Count
 };

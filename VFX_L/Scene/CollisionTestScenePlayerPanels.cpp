@@ -255,17 +255,19 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::Text("Level ups : %d", m_LevelUpSystem.GetTotalLevelUps());
         ImGui::DragInt("Choice Count", &m_LevelUpSystem.choiceCount, 1, 1, 5);
         ImGui::DragFloat("Stat Card Weight", &m_LevelUpSystem.statWeight, 0.01f, 0.0f, 2.0f);
-        // 稀有度（2026-10-28）：重み = base × (1 + grow × boost)、boost = (レベル − 1) / 29 + 0.5 × (この局の何面目 − 1)（+ 宝箱）
+        // 稀有度（2026-10-29 から先に段を引く）：1 枚がレア / レジェンドになる率をレベルの点で決め、間は直線。宝箱は + Crate Levels
         if (ImGui::TreeNode("Rarity (cards)"))
         {
             auto& o = m_LevelUpSystem.rarityOdds;
-            const float boostNow = Rarity::Boost(lv.level, m_LevelUpSystem.runPos);
-            ImGui::Text("boost now %.2f (level %d, run stage %d)  ->  weights N %.2f / R %.2f / L %.3f", boostNow, lv.level,
-                m_LevelUpSystem.runPos, Rarity::Weight(ItemRarity::Common, boostNow, o),
-                Rarity::Weight(ItemRarity::Rare, boostNow, o), Rarity::Weight(ItemRarity::Legendary, boostNow, o));
-            ImGui::DragFloat3("Base (N/R/L)", o.base, 0.005f, 0.0f, 2.0f);
-            ImGui::DragFloat3("Grow (N/R/L)", o.grow, 0.05f, 0.0f, 10.0f);
-            ImGui::DragFloat("Crate Boost", &m_LevelUpSystem.crateRarityBoost, 0.05f, 0.0f, 3.0f);
+            float now[Rarity::kCount], crate[Rarity::kCount];
+            Rarity::Chances((float)lv.level, o, now);
+            Rarity::Chances((float)lv.level + m_LevelUpSystem.crateLevelBonus, o, crate);
+            ImGui::Text("level %d: per card N %.1f%% / R %.1f%% / L %.1f%%   (crate: R %.1f%% / L %.1f%%)", lv.level,
+                now[0] * 100.0f, now[1] * 100.0f, now[2] * 100.0f, crate[1] * 100.0f, crate[2] * 100.0f);
+            ImGui::DragFloat3("Levels (points)", o.level, 0.5f, 1.0f, 100.0f);
+            ImGui::DragFloat3("Rare chance", o.rare, 0.005f, 0.0f, 1.0f);
+            ImGui::DragFloat3("Legendary chance", o.legend, 0.002f, 0.0f, 1.0f);
+            ImGui::DragFloat("Crate Levels +", &m_LevelUpSystem.crateLevelBonus, 0.5f, 0.0f, 50.0f);
             ImGui::DragFloat("Frame Weight", &m_LevelUpSystem.frameWeight, 0.01f, 0.0f, 2.0f);
             ImGui::TreePop();
         }

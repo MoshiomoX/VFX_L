@@ -21,7 +21,7 @@
 #include "../Common/WindSources.hlsli"
 #include "WaterCommon.hlsli"
 
-Texture2D<float2> g_Ripple : register(t0);                    // x = height (m), y = last step's
+Texture2D<float4> g_Ripple : register(t0);   // x = height (m), y = last step's; zw = the same for the big waves only
 StructuredBuffer<WindSource> g_WindSources : register(t1);
 SamplerState g_Linear : register(s0);
 
@@ -50,6 +50,27 @@ float3 NoiseD(float2 p)
     float2 d = ga + u.x * (gb - ga) + u.y * (gc - ga) + u.x * u.y * (ga - gb - gc + gd)
              + du * (u.yx * (va - vb - vc + vd) + float2(vb, vc) - va);
     return float3(v, d);
+}
+
+// ---- the ripple field, smoothed: cubic B-spline in 4 bilinear taps ----
+// plain bilinear showed the 0.2 m texels as corners (a footstep ring was a pentagon)
+float4 SampleRipple(float2 uv)
+{
+    float2 st = uv * WATER_RIPPLE_SIZE - 0.5;
+    float2 i = floor(st);
+    float2 f = st - i;
+    float2 f2 = f * f;
+    float2 f3 = f2 * f;
+    float2 w0 = (-f3 + 3.0 * f2 - 3.0 * f + 1.0) / 6.0;
+    float2 w1 = (3.0 * f3 - 6.0 * f2 + 4.0) / 6.0;
+    float2 w2 = (-3.0 * f3 + 3.0 * f2 + 3.0 * f + 1.0) / 6.0;
+    float2 w3 = f3 / 6.0;
+    float2 g0 = w0 + w1;
+    float2 g1 = w2 + w3;
+    float2 t0 = (i - 0.5 + w1 / g0) / WATER_RIPPLE_SIZE;
+    float2 t1 = (i + 1.5 + w3 / g1) / WATER_RIPPLE_SIZE;
+    return g0.y * (g0.x * g_Ripple.SampleLevel(g_Linear, t0, 0) + g1.x * g_Ripple.SampleLevel(g_Linear, float2(t1.x, t0.y), 0))
+         + g1.y * (g0.x * g_Ripple.SampleLevel(g_Linear, float2(t0.x, t1.y), 0) + g1.x * g_Ripple.SampleLevel(g_Linear, t1, 0));
 }
 
 // ---- the air over the water (same gust waves as the grass) ----
@@ -114,12 +135,29 @@ float4 main(WaterOut i) : SV_TARGET
     float2 uv = (xz - g_MapOrigin) / g_MapSize;
     float du = 1.0 / WATER_RIPPLE_SIZE;
     float texelM = g_MapSize.x / WATER_RIPPLE_SIZE;
-    float h = g_Ripple.SampleLevel(g_Linear, uv, 0).x;
-    float hx0 = g_Ripple.SampleLevel(g_Linear, uv - float2(du, 0.0), 0).x;
-    float hx1 = g_Ripple.SampleLevel(g_Linear, uv + float2(du, 0.0), 0).x;
-    float hz0 = g_Ripple.SampleLevel(g_Linear, uv - float2(0.0, du), 0).x;
-    float hz1 = g_Ripple.SampleLevel(g_Linear, uv + float2(0.0, du), 0).x;
-    float2 rippleSlope = float2(hx1 - hx0, hz1 - hz0) / (2.0 * texelM);
+    float4 hs = SampleRipple(uv);
+    float h = hs.x;
+    float bigH = hs.z;              // the big waves' share (blasts, the boss): only they draw white lines
+    float rise = hs.z - hs.w;       // their rise this step (m): + = going up, - = going down
+    float4 sx0 = SampleRipple(uv - float2(du, 0.0));
+    float4 sx1 = SampleRipple(uv + float2(du, 0.0));
+    float4 sz0 = SampleRipple(uv - float2(0.0, du));
+    float4 sz1 = SampleRipple(uv + float2(0.0, du));
+    float2 rippleSlope = float2(sx1.x - sx0.x, sz1.x - sz0.x) / (2.0 * texelM);
+
+    // is the big waves' top here a long crest (a ring running out) or a lone mound? Curvature of zw:
+    // a crest bends down only across itself (one strong negative, one near zero), a mound bends down
+    // every way. The middle of a blast springs back up as a mound and bounced waves pile up into mounds:
+    // they drew small white circles (the user: "small circles after the blast")
+    float bxx = sx1.z + sx0.z - 2.0 * bigH;
+    float bzz = sz1.z + sz0.z - 2.0 * bigH;
+    float bxz = 0.25 * (SampleRipple(uv + float2(du, du)).z - SampleRipple(uv + float2(du, -du)).z
+                      - SampleRipple(uv + float2(-du, du)).z + SampleRipple(uv + float2(-du, -du)).z);
+    float bMid = 0.5 * (bxx + bzz);
+    float bRad = sqrt(0.25 * (bxx - bzz) * (bxx - bzz) + bxz * bxz);
+    float across = max(-(bMid - bRad), 0.0);   // the stronger downward bend
+    float along = abs(bMid + bRad);            // the other one
+    float ridge = (across - along) / (across + along + 1e-9);
 
     // ---- wind ripples: only where the air is fast enough ----
     float2 air = AirAt(xz);
@@ -165,7 +203,12 @@ float4 main(WaterOut i) : SV_TARGET
     c *= 1.0 - g_WindDarken * amp;
 
     // ---- the sky in the fresnel (two steps, a little even straight down) ----
-    float NdotV = saturate(dot(N, V));
+    // the ripples tilt it only a little: at full tilt the slope of a landing or a step that leans away from
+    // the camera passed the top step and mirrored the pale sky as a white patch around the feet
+    float2 fslope = rippleSlope * (g_RippleNormal * 0.35) + windSlope;
+    fslope *= min(1.0, 0.45 / max(length(fslope), 1e-5));
+    float3 NF = normalize(float3(-fslope.x, 1.0, -fslope.y));
+    float NdotV = saturate(dot(NF, V));
     float fres = pow(1.0 - NdotV, 4.0);
     float fb = 0.25 + 0.30 * smoothstep(0.03, 0.05, fres) + 0.45 * smoothstep(0.18, 0.22, fres);
     float3 R = reflect(-V, N);
@@ -175,12 +218,16 @@ float4 main(WaterOut i) : SV_TARGET
     alpha = lerp(alpha, 1.0, refl * 0.5);
 
     // ---- white: wave crests and the shore line ----
-    // wave crests as thin toon lines along height contours (about 3 px wide whatever the slope), not
-    // filled areas: filling everything above the threshold turned a step or a landing into a solid white disc.
-    // Two levels, so a big wave (landing, blast) shows two rings
-    float hw = max(fwidth(h), 1e-6);
-    float crest = saturate(1.0 - abs(h - g_RippleCrest) / (hw * 1.5));
-    crest = max(crest, 0.7 * saturate(1.0 - abs(h - g_RippleCrest * 3.0) / (hw * 1.5)));
+    // one thin toon line on the top of each crest: where the water stops rising and starts to fall
+    // (this step's rise crosses zero) and stands above g_RippleCrest. About 2-3 px wide whatever the slope.
+    // Filling everything above the threshold made a step or a landing a solid white disc; lines along a
+    // height contour drew every crest twice, once on each side of the top (the user: the double rings look
+    // wrong). A taller crest gets a slightly bolder line instead of a second ring.
+    // Only the big waves (zw) draw it: the player's own steps and landings show as light and shade only
+    // (the user: "there are still small circles" = the ring around the feet after a landing)
+    float above = (bigH - g_RippleCrest) / g_RippleCrest;
+    float rw = max(fwidth(rise), g_RippleCrest * 1e-3) * (1.1 + 0.6 * saturate(above * 0.5));
+    float crest = saturate(1.0 - abs(rise) / rw) * smoothstep(-0.4, 0.2, above) * smoothstep(0.45, 0.75, ridge);
     float arrive = saturate(abs(h) / max(g_RippleCrest, 1e-4));
     float fw = g_Foam.a * (1.0 + 1.0 * arrive);
     float wobble = NoiseD(xz * 2.3).x;   // fixed: the line has an uneven edge, it does not crawl

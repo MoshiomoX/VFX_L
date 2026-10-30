@@ -41,6 +41,7 @@ public:
         m_OriginZ = -0.5f * gridD * kCellSize;
         m_Walkable.assign((size_t)gridW * gridD, 1);
         m_Height.assign((size_t)gridW * kHeightSub * gridD * kHeightSub, 0.0f);
+        ClearClimb();
     }
 
     int  Width() const { return m_GridW; }
@@ -71,6 +72,22 @@ public:
         if (gx < 0 || gx >= m_GridW || gz < 0 || gz >= m_GridD) return false;
         return m_Walkable[(size_t)gz * m_GridW + gx] != 0;
     }
+
+    // 水たまりのマス（2026-10-28 ユーザー：雑魚も水に入れる・水が弾を止めない）。walkable の値 kWaterCell：
+    // 歩ける（雑魚・弾・流れ場は普通のマスと同じ。0 以外 = 通れる）が、宝箱・門・磁石・転がり草・タイトルの立ち位置は置かない
+    static constexpr uint8_t kWaterCell = 2;
+    bool IsWater(int gx, int gz) const
+    {
+        if (gx < 0 || gx >= m_GridW || gz < 0 || gz >= m_GridD) return false;
+        return m_Walkable[(size_t)gz * m_GridW + gx] == kWaterCell;
+    }
+    void SetWater(int gx, int gz)
+    {
+        if (gx < 0 || gx >= m_GridW || gz < 0 || gz >= m_GridD) return;
+        m_Walkable[(size_t)gz * m_GridW + gx] = kWaterCell;
+    }
+    // 歩ける陸のマス（置物を置ける所）
+    bool IsDryWalkable(int gx, int gz) const { return IsWalkable(gx, gz) && !IsWater(gx, gz); }
 
     // ワールド座標がそのまま通行可能マスか（敵の回避判定用）
     bool IsWalkableAt(const DirectX::SimpleMath::Vector3& p) const
@@ -114,6 +131,7 @@ public:
     {
         std::fill(m_Walkable.begin(), m_Walkable.end(), (uint8_t)1);
         std::fill(m_Height.begin(), m_Height.end(), 0.0f);
+        ClearClimb();
     }
 
     // ============================================================
@@ -167,6 +185,54 @@ public:
     }
 
     // ============================================================
+    // 雑魚が登れる障害物（2026-10-29、ユーザー「全部の雑魚が壁を登れるように。でないと無敵の場所ができる」）
+    // 場内の塞いだマス（外周につながっていない物 = 岩・木の幹・遺跡の部屋の壁・岩柱）のうち、衝突の上面が分かる所を
+    // 雑魚だけ「歩けて、その細かいマスの高さ = 上面」として扱う（World/ClimbMap が地形の記録から作る）。
+    // 弾・経験球・湧く所・置物の判定は今まで通り walkable / 高さ場を見る（弾は岩で止まる）
+    //   m_Climbable：マス毎（1 = 雑魚は通れる）。m_ClimbTop：高さ格子と同じ大きさ、障害物の上面（m）。kNoClimb = 無し
+    // ============================================================
+    static constexpr float kNoClimb = -1.0e30f;
+    void ClearClimb() { m_Climbable.clear(); m_ClimbTop.clear(); }
+    bool SetClimb(const std::vector<uint8_t>& cells, const std::vector<float>& tops)
+    {
+        if (cells.size() != m_Walkable.size() || tops.size() != m_Height.size()) return false;
+        m_Climbable = cells;
+        m_ClimbTop = tops;
+        return true;
+    }
+    bool HasClimb() const { return !m_Climbable.empty(); }
+    // 雑魚が通れるか（普通に歩けるマス + 登れる障害物のマス）
+    bool IsMobWalkable(int gx, int gz) const
+    {
+        if (IsWalkable(gx, gz)) return true;
+        if (m_Climbable.empty() || gx < 0 || gx >= m_GridW || gz < 0 || gz >= m_GridD) return false;
+        return m_Climbable[(size_t)gz * m_GridW + gx] != 0;
+    }
+    // 雑魚の高さ場の 1 つ（細かいマスの番号）= 地面と障害物の上面の高い方
+    float MobHeight(size_t i) const
+    {
+        const float h = m_Height[i];
+        return (m_ClimbTop.empty() || m_ClimbTop[i] <= h) ? h : m_ClimbTop[i];
+    }
+    float MobHeightAt(int hx, int hz) const
+    {
+        if (hx < 0 || hx >= HeightW() || hz < 0 || hz >= HeightD()) return 0.0f;
+        return MobHeight((size_t)hz * HeightW() + hx);
+    }
+    // 雑魚の高さ場の双線形（SampleHeight と同じ式。流れ場のマスの高さ）
+    float SampleMobHeight(float x, float z) const
+    {
+        const float s = kCellSize / kHeightSub;
+        const float fx = (x - m_OriginX) / s - 0.5f;
+        const float fz = (z - m_OriginZ) / s - 0.5f;
+        const int ix = (int)std::floor(fx), iz = (int)std::floor(fz);
+        const float tx = fx - ix, tz = fz - iz;
+        const float h00 = MobHeightAt(ix, iz),     h10 = MobHeightAt(ix + 1, iz);
+        const float h01 = MobHeightAt(ix, iz + 1), h11 = MobHeightAt(ix + 1, iz + 1);
+        return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+    }
+
+    // ============================================================
     // デバッグ可視化（Ctrl+F3 で切替）
     // ============================================================
     void DrawDebug(const DirectX::SimpleMath::Vector3& center, int viewRadius = 15);
@@ -178,6 +244,8 @@ private:
     float m_OriginZ = 0.0f;
     std::vector<uint8_t> m_Walkable;
     std::vector<float>   m_Height;     // kHeightSub 分割の高さ場（m）
+    std::vector<uint8_t> m_Climbable;  // 雑魚が登れる障害物のマス（空 = 無し。2026-10-29）
+    std::vector<float>   m_ClimbTop;   // その上面の高さ（高さ場と同じ大きさ。kNoClimb = 無し）
 
     bool m_DebugVisible = false;
 };

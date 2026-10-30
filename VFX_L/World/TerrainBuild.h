@@ -307,6 +307,11 @@ namespace TerrainBuild
         int   spawnClear = 8;        // 中央のこの半径（マス）は 0 段のまま
         float pondCoverage = 0.04f;  // 水たまりが 0 段の平地に占める割合
         float pondDepth = 0.5f;
+        // 水たまりを起伏の膨らみ・坂に置かない（2026-10-28）
+        float pondConvexTol = 0.03f; // 真ん中が隣の 8 マス（2m 先）の平均よりこれ以上高い = 凸 → 置かない（m）
+        float pondMaxRise = 0.6f;    // ±3m の範囲の高さの差がこれを越える = 坂 → 置かない（m。6m で約 6 度）
+        float pondLowBias = 2.0f;    // 窪み（真ん中 − 周りの平均、m）を選ぶ順に足す倍率（窪んだ所ほど先に水たまりになる）
+        float pondMaxSpread = 0.3f;  // 1 つの水たまりの中で、一番低いマスよりこれ以上高いマスは外す（水面の傾きの上限、m）
     };
     // level / rampAt / ramps / pond を決める（zone が平原のマスだけ）。rng は構造物の乱数列（坂の候補の順）
     void GenerateSteps(ReliefField& rf, const StepParams& P, uint32_t seed, std::mt19937& rng);

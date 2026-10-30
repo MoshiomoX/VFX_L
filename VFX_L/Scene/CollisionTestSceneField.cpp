@@ -8,6 +8,7 @@
 #include "Component/ColliderComponent.h"
 #include "Component/InteractableComponent.h"
 #include "VFX_Editor/VFXId.h"
+#include "World/ClimbMap.h"
 
 // ============================================================
 // 世界の風（2026-10-12）：WeatherSystem が作った 1 つの風を、草・マント・粒子へ配る。
@@ -147,6 +148,28 @@ void CollisionTestScene::BlockPropCells()
 
 // ============================================================
 // 出られない袋小路を塞ぐ（2026-10-03、通し検査 soak で見つけた）。
+// 雑魚が登れる障害物（2026-10-29、ユーザー「全部の雑魚が壁を登れるように。でないと無敵の場所ができる」）。
+// 場内の岩・木の幹・遺跡の部屋の壁・岩柱の上面を GridWorld へ（SwarmSystem::UploadTerrain が雑魚用の格子と流れ場に使う）。
+// 地形の記録（m_TerrainMap）から作るので、地形を作った / 読んだ / 差し替えた後、GPU へ上げる直前に呼ぶ
+// ============================================================
+void CollisionTestScene::BuildClimbMap()
+{
+    // TEMP-TEST: VFXL_NO_CLIMB=1 = 登らない（以前の動き、soak の比較用）
+    char env[8];
+    if (GetEnvironmentVariableA("VFXL_NO_CLIMB", env, sizeof(env)) > 0)
+    {
+        m_Grid.ClearClimb();
+        m_Swarm.GetBomberParams().climbSpeed = 0.0f;
+        m_Swarm.GetFlowField().allowClimb = false;
+        std::cout << "[Climb] disabled (VFXL_NO_CLIMB)" << std::endl;
+        return;
+    }
+    const ClimbMap::Stats st = ClimbMap::Build(m_TerrainMap, m_Grid);
+    std::cout << "[Climb] climbable cells " << st.cells << " (outer blocked " << st.outerCells
+        << ", raised height cells " << st.raisedFine << ", highest top " << st.maxTop << " m)" << std::endl;
+}
+
+// ============================================================
 // 山頂の凹み・崖と木 / 台地に囲まれた所など、フィールドの真ん中（開始時の場所）へ歩いて行けない歩けるマスがあると、
 // そこに湧いた雑魚はフローフィールドの答えが無く、何分でもその場に留まっていた（3 面 × 10 分で 54 件）。
 // 雑魚と同じ規則（FlowField：崖は上れない、下りは飛び降り）で真ん中を目標に解き、届かないマスを塞ぐ

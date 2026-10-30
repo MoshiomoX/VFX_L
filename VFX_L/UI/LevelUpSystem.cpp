@@ -144,10 +144,9 @@ bool LevelUpSystem::Reroll(Registry& reg, Entity player)
 // ============================================================
 int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book, const std::vector<ItemID>* avoid, bool crate)
 {
-    // 候補の母集団を作る（重み付き）
+    // 候補の母集団を稀有度の段毎に作る（重み付き。2026-10-29 から稀有度は先に段を引くので重みには掛けない）
     struct Entry { ItemID id; float weight; };
-    std::vector<Entry> pool;
-    const float boost = Rarity::Boost(lv.level, runPos, crate ? crateRarityBoost : 0.0f);
+    std::vector<Entry> pools[Rarity::kCount];
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
         // 定義が取れないものは除く（登録漏れの保険）
@@ -165,33 +164,45 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
         // 設置枠は種類が多いので 1 種類ずつの重みを下げる（2026-10-27）
         float w = 1.0f;
         if (const FrameItemDef* fd = ItemDatabase::GetFrame(id)) w = frameWeight * fd->weight;
-        w *= Rarity::Weight(ItemDatabase::GetCommon(id)->rarity, boost, rarityOdds);   // 稀有度（2026-10-28）
-        pool.push_back({ id, w });
+        pools[std::clamp((int)ItemDatabase::GetCommon(id)->rarity, 0, Rarity::kCount - 1)].push_back({ id, w });
     }
     // 能力値（生命・魔力・速さ・跳躍…）も同じ池に混ぜる。種類が多いので 1 枚ずつの重みは下げる
     // （全部 1 だと候補の半分近くが能力値になる。2026-09-29 ユーザー「能力値のカードが多すぎる」）
     // 2026-10-27 ユーザー「数値が伸びるだけの選択肢を全部外す」→ statCards = false で四択（レベルアップ・宝箱）に出さない
     if (statCards)
         for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
-            pool.push_back({ id, statWeight });
+            pools[(int)ItemRarity::Common].push_back({ id, statWeight });
 
-    // 重みに比例して 1 枚ずつ引く（引いた物は池から外す = 同じ物は並ばない）
+    // 1 枚ずつ：稀有度の段を引き → その段の中で重みに比例して引く（引いた物は池から外す = 同じ物は並ばない）
     const int want = (choiceCount < 1) ? 1 : choiceCount;
 
     // 引き直し：今の候補を池から外す（外すと四枚に足りなくなるなら外さない）
     if (avoid && !avoid->empty())
     {
-        std::vector<Entry> rest;
-        for (const Entry& e : pool)
-            if (std::find(avoid->begin(), avoid->end(), e.id) == avoid->end()) rest.push_back(e);
-        if ((int)rest.size() >= want) pool = std::move(rest);
+        auto avoided = [&](const Entry& e) { return std::find(avoid->begin(), avoid->end(), e.id) != avoid->end(); };
+        int rest = 0;
+        for (const auto& p : pools)
+            for (const Entry& e : p) if (!avoided(e)) ++rest;
+        if (rest >= want)
+            for (auto& p : pools) p.erase(std::remove_if(p.begin(), p.end(), avoided), p.end());
     }
+    float chance[Rarity::kCount];
+    Rarity::Chances((float)lv.level + (crate ? crateLevelBonus : 0.0f), rarityOdds, chance);
     lv.pendingChoices.clear();
-    while ((int)lv.pendingChoices.size() < want && !pool.empty())
+    while ((int)lv.pendingChoices.size() < want)
     {
+        bool has[Rarity::kCount];
+        for (int i = 0; i < Rarity::kCount; ++i)
+        {
+            float t = 0.0f;
+            for (const Entry& e : pools[i]) t += (std::max)(e.weight, 0.0f);
+            has[i] = t > 0.0f;
+        }
+        const int tier = Rarity::RollTier(chance, has, (float)rand() / ((float)RAND_MAX + 1.0f));
+        if (tier < 0) break;
+        std::vector<Entry>& pool = pools[tier];
         float total = 0.0f;
         for (const Entry& e : pool) total += (std::max)(e.weight, 0.0f);
-        if (total <= 0.0f) break;
 
         float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
         size_t pick = pool.size() - 1;

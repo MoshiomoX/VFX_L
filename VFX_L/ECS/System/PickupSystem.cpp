@@ -69,7 +69,7 @@ bool PickupSystem::Place(Registry& reg, const GridWorld& grid, const Vector3& ce
 
         int gx = 0, gz = 0;
         grid.WorldToCell(probe, gx, gz);
-        if (!grid.IsWalkable(gx, gz)) continue;
+        if (!grid.IsDryWalkable(gx, gz)) continue;   // 水たまりの中には置かない
         Vector3 pos = grid.CellToWorld(gx, gz);
         pos.y = grid.SampleHeight(pos.x, pos.z);
 

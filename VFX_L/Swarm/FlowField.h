@@ -71,6 +71,12 @@ public:
     float dropMinBelow = 1.0f;
     int   dropCost = 5;
 
+    // 上りの崖を登る（2026-10-29、ユーザー「全部の雑魚が壁を登れるように」→「坂と比べて速い方」）：上りの崖も通れ、
+    // 辺の代価 = 1 マス分 + 登る高さ（m）× climbCostPerMeter マス分（登るのは歩くより遅い = 坂がすぐ横なら坂を回る）。
+    // 斜めには登らない（飛び降りと同じ）。GPU は SwarmEnemyMoveCS が壁に貼り付いて登る
+    bool  allowClimb = true;
+    float climbCostPerMeter = 1.0f;
+
     // 探索を打ち切る経路長（マス数）。0 = 全域。
     // 雑魚は湧き半径の中にしか居ないので、その外まで解いても無駄
     int maxRangeCells = 0;

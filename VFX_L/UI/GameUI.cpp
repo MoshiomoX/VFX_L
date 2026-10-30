@@ -247,18 +247,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         }
     }
 
-    // ---- 1c. パッドの B で閉じる要求（前のフレーム）----
-    // 押したフレームに閉じると、同じフレームの gameplay が B を「近くの物を使う」として拾ってしまう
-    if (m_PadClosePending)
-    {
-        m_PadClosePending = false;
-        if (m_Stack.Top() == UILayer::Backpack)
-        {
-            m_Stack.Pop(UILayer::Backpack);
-            m_Drag.Reset();
-            AudioSystem::Get().Play("ui_close");
-        }
-    }
+    // （1c. パッドの B で閉じる、は 2026-10-28 に無くした。B は素早く外す・X はカーソルの加速、閉じるのは Start / Tab だけ）
 
     // ---- 1d. トレーニング（実験場）のメニュー（T / パッド RB）。何も開いていない時か、自分が一番上の時だけ ----
     if (m_TrainingEnabled && InputMap::GetTrainingToggle())
@@ -341,7 +330,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         // 箱が先（掴み開始）、グリッドが後（ドラッグの継続と着地）。
         // ドラッグの終了は常に BackpackUI 側が行う
         //
-        // 最後に触った機器がパッドなら、マウスの処理の代わりにパッド操作（マスに吸い付くカーソル）を回す。
+        // 最後に触った機器がパッドなら、マウスの処理の代わりにパッド操作（スティックで動かすカーソル）を回す。
         // 掴んだまま機器を替えたら取り消す（マウス側は「ボタンを離した = 置く」なので、そのまま渡すと勝手に置かれる）
         const bool wasPad = m_Pad.IsActive();
         const bool pad = m_Pad.DetectDevice();
@@ -351,8 +340,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         m_Spellbook.Update(reg.Get<SpellbookComponent>(player), bp, dt);
         if (pad)
         {
-            if (m_Pad.Update(bp, m_Backpack, m_Spellbook, m_Drag, dt))
-                m_PadClosePending = true;
+            m_Pad.Update(bp, m_Backpack, m_Spellbook, m_Drag, dt, { m_ScreenW, m_ScreenH });
             InputManager::Get().RequestHideCursor();
         }
         else
@@ -423,6 +411,7 @@ void GameUI::Render(Registry& reg, Entity player)
             m_FrameInfo.announce = L"レベルアップ！";
             m_FrameInfo.announceAlpha = (std::min)(1.0f, m_LevelUpWaitAge / 0.15f);
             m_FrameInfo.announceAge = m_LevelUpWaitAge;
+            m_FrameInfo.announceGold = false;
         }
         m_HUD.Draw(m_Sprite, m_Text,
             reg.Get<HealthComponent>(player),
@@ -552,7 +541,9 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
     }
 
     const bool gameOver = (m_GameOverTime >= 0.0f);
-    if (!tooltip && !gameOver) return;   // 何も無いフレームは Begin / End も省く
+    // パッドのカーソルの矢印は説明カードより上（説明カードが画面の端で折り返して矢印に被っても見えるように）
+    const bool padPointer = pad && m_Stack.Top() == UILayer::Backpack;
+    if (!tooltip && !gameOver && !padPointer) return;   // 何も無いフレームは Begin / End も省く
 
     m_Sprite.Begin();
     m_Text.Begin();
@@ -601,6 +592,13 @@ void GameUI::DrawOverlay(Registry& reg, Entity player)
 
     m_Sprite.End();
     m_Text.End();
+
+    if (padPointer)
+    {
+        m_Sprite.Begin();   // 説明カードの文字より上に出すので別に積む
+        m_Pad.DrawPointer(m_Sprite, m_Backpack, { m_ScreenW, m_ScreenH });
+        m_Sprite.End();
+    }
 }
 
 // TEMP-TEST: 自動テストで画面を開閉する（VFXL_BATTLE_AUTOTEST=ui）
@@ -771,7 +769,7 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
 
     ImGui::Text("Open : %s   (Tab / I / E / Start)",
         m_Stack.IsOpen(UILayer::Backpack) ? "YES" : "no");
-    ImGui::Text("Device : %s", m_Pad.IsActive() ? "pad (A grab/place, B back, LB/RB rotate, X return, Y box)" : "mouse");
+    ImGui::Text("Device : %s", m_Pad.IsActive() ? "pad (stick cursor, X fast, A grab/place, B remove, LB/RB rotate, Y jump, Start close)" : "mouse");
     ImGui::Checkbox("Pause On Open", &m_PauseOnBackpack);
     ImGui::TextDisabled("Grab from the box, drop on the grid. RMB: remove");
     ImGui::TextDisabled("Wheel/R: rotate while dragging");

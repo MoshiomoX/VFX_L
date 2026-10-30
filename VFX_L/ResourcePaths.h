@@ -653,6 +653,15 @@ namespace Res
         inline constexpr const char* BossStoneAura = "Assets/Data/VFXData/BossStoneAura.json";   // 岩の巨人の肩から舞い落ちる葉と花粉（ループ。2026-10-25）
         inline constexpr const char* BossVenom = "Assets/Data/VFXData/BossVenom.json";           // 大サソリの毒（プレイヤーの周りの緑の泡。ループ。2026-10-26）
         inline constexpr const char* BossVenomAura = "Assets/Data/VFXData/BossVenomAura.json";   // 大サソリの足元の毒の靄（ループ。2026-10-26）
+        inline constexpr const char* BossStagBolt = "Assets/Data/VFXData/BossStagBolt.json";     // 雷鳴の雄鹿の角の雷撃の稲妻（2026-10-29）
+        inline constexpr const char* BossDjinnVortex = "Assets/Data/VFXData/BossDjinnVortex.json";   // 砂嵐の魔神の下半身の砂旋（2026-10-29）
+        inline constexpr const char* BossDjinnBreath = "Assets/Data/VFXData/BossDjinnBreath.json";   // 砂嵐の魔神の炎の息
+        inline constexpr const char* BossKingMist = "Assets/Data/VFXData/BossKingMist.json";         // 骸の王の足元の闇（2026-10-29）
+        inline constexpr const char* BossCurseFloor = "Assets/Data/VFXData/BossCurseFloor.json";     // 骸の王の呪いの床
+        inline constexpr const char* BossBeastDust = "Assets/Data/VFXData/BossBeastDust.json";       // 石の守護獣の羽ばたきの土埃（2026-10-29）
+        inline constexpr const char* BossPetrifyBreath = "Assets/Data/VFXData/BossPetrifyBreath.json"; // 石の守護獣の石化の息
+        inline constexpr const char* BossPetrify = "Assets/Data/VFXData/BossPetrify.json";           // 石化したプレイヤーの欠片
+        inline constexpr const char* BossStoneShard = "Assets/Data/VFXData/BossStoneShard.json";     // 石羽の散弾の羽根（2026-10-29）
         // 遺跡の敵（2026-10-25）
         inline constexpr const char* RuinsArmorFall = "Assets/Data/VFXData/RuinsArmorFall.json";
         inline constexpr const char* RuinsArmorRise = "Assets/Data/VFXData/RuinsArmorRise.json";

@@ -111,10 +111,28 @@ bool ChargeLineClear(float3 pos, float2 dir, float dist)
 // Rises are measured from the probe's own ground (walking up a ramp is no wall); with a drop
 // open, from the feet if higher (stepping off an edge: the plateau behind is no wall, and the
 // low ground under the circle does not count)
-bool ProbeBlocked(float3 pos, float2 probe, float r, bool allowDrop, float feet)
+// allowClimb (2026-10-29, enemies climb walls): the ground at the probe rising above the feet by more than
+// the body's step margin is a face to climb, not a wall - MoveCS presses against it and climbs
+bool ProbeBlocked(float3 pos, float2 probe, float r, bool allowDrop, float feet, bool allowClimb = false)
 {
     if (!SwarmIsWalkable(terrain, float3(probe.x, 0.0, probe.y)))
         return true;
+    // measured from the ground under the centre, not the feet: while climbing the feet rise, and over the last
+    // SWARM_BODY_CLIFF_RISE of the face the step test below (ground -> top) stopped the axis, so the climber let go
+    // just short of the top every time (self test climb, 2026-10-29)
+    // The front of the body circle at the probe counts too: an enemy that had stopped restarts from a tiny velocity,
+    // its probe centre is still on the low side while the body circle already touches the face, the body test below
+    // stopped it, and it stood there for good (soak 2026-10-29: 30 stuck at a step terrace's staircase edge)
+    if (allowClimb)
+    {
+        float base = min(feet, SwarmTerrainHeightRaw(terrainHeight, pos.xz)) + SWARM_BODY_CLIFF_RISE;
+        float2 ahead = probe - pos.xz;
+        float len = length(ahead);
+        float2 front = (len > 1e-4) ? probe + ahead / len * r : probe;
+        if (SwarmTerrainHeightRaw(terrainHeight, probe) > base
+            || (SwarmIsWalkable(terrain, float3(front.x, 0.0, front.y)) && SwarmTerrainHeightRaw(terrainHeight, front) > base))
+            return false;
+    }
     // bilinear OR raw (same as MoveCS's StepOk): from inside the bilinear dip at a plateau edge
     // the bilinear test alone calls every step back onto the plateau a climb too steep
     if (!SwarmStepHeightOk(terrainHeight, pos.xz, probe, allowDrop) && !SwarmRawStepOk(terrainHeight, pos.xz, probe, allowDrop))
@@ -503,10 +521,28 @@ void main(uint3 id : SV_DispatchThreadID)
         else if (extra.kind == SWARM_KIND_NECRO) { keepMin = g_NecroKeepMin; keepMax = g_NecroKeepMax; }
         else if (extra.kind == SWARM_KIND_WARDEN) { keepMin = g_WardenKeepMin; keepMax = g_WardenKeepMax; }
         else if (extra.kind == SWARM_KIND_ELITE_B) { keepMin = g_FixedEliteKeepMin; keepMax = g_FixedEliteKeepMax; }   // the ranged fixed elite (2026-10-25)
-        if (keepMax > 0.0 && sameLevel)
+        // the floating sand djinn (2026-10-29): only while the CPU sets g_BossKeepMax (its first phase). It flies, so it keeps
+        // the distance over other levels too
+        bool bossKeep = (extra.kind == SWARM_KIND_BOSS) && (g_BossKeepMax > 0.0);
+        if (bossKeep) { keepMin = g_BossKeepMin; keepMax = g_BossKeepMax; }
+        if (keepMax > 0.0 && (sameLevel || bossKeep))
         {
             if (lenSq < keepMin * keepMin)
+            {
                 moveDir = (lenSq > 1e-6) ? -toPlayer * rsqrt(lenSq) : float3(0, 0, 0);
+                // the djinn backs off over anything but not out of the field: the outer cells are not walkable for mobs
+                // even with the climb map, so it slides along the edge instead (or stands in a corner)
+                if (bossKeep && !SwarmIsWalkable(terrain, pos + moveDir * 3.0))
+                {
+                    float3 side = float3(-moveDir.z, 0.0, moveDir.x);
+                    if (SwarmIsWalkable(terrain, pos + side * 3.0))
+                        moveDir = side;
+                    else if (SwarmIsWalkable(terrain, pos - side * 3.0))
+                        moveDir = -side;
+                    else
+                        moveDir = float3(0, 0, 0);
+                }
+            }
             else if (lenSq <= keepMax * keepMax)
                 moveDir = float3(0, 0, 0);
         }
@@ -702,8 +738,14 @@ void main(uint3 id : SV_DispatchThreadID)
         float ax = (v.x != 0.0) ? v.x * look + sign(v.x) * r : 0.0;
         float az = (v.z != 0.0) ? v.z * look + sign(v.z) * r : 0.0;
 
-        bool blockX = ax != 0.0 && ProbeBlocked(pos, pos.xz + float2(ax, 0), r, allowDrop, feet);
-        bool blockZ = az != 0.0 && ProbeBlocked(pos, pos.xz + float2(0, az), r, allowDrop, feet);
+        // climbing (2026-10-29): an axis the enemy WANTS to go (the flow field / the straight chase points that way) is
+        // not stopped by a face rising in front - MoveCS climbs it. The flow field already chose the climb over the ramp
+        // only when it is shorter. Dashes, and axes pushed into a face only by the crowd / the player push, stop as before
+        bool canClimb = g_ClimbSpeed > 0.0 && !(cphase == SWARM_CHARGE_DASH || dashing || eliteDash);
+        bool climbX = canClimb && v.x != 0.0 && moveDir.x * sign(v.x) > 0.5;
+        bool climbZ = canClimb && v.z != 0.0 && moveDir.z * sign(v.z) > 0.5;
+        bool blockX = ax != 0.0 && ProbeBlocked(pos, pos.xz + float2(ax, 0), r, allowDrop, feet, climbX);
+        bool blockZ = az != 0.0 && ProbeBlocked(pos, pos.xz + float2(0, az), r, allowDrop, feet, climbZ);
         float lostX = blockX ? v.x : 0.0;
         float lostZ = blockZ ? v.z : 0.0;
         if (blockX) v.x = 0.0;
@@ -741,7 +783,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // test alone let an enemy push diagonally into the corner of a step terrace. The body
         // circle in MoveCS then clipped the corner on the step and on both slides, and its
         // side-step had no direction (the push-out pointed straight back along the velocity)
-        if (v.x != 0.0 && v.z != 0.0 && ProbeBlocked(pos, pos.xz + float2(ax, az), r, allowDrop, feet))
+        if (v.x != 0.0 && v.z != 0.0 && ProbeBlocked(pos, pos.xz + float2(ax, az), r, allowDrop, feet, climbX && climbZ))
         {
             // corner: keep the axis that has more room, drop the other
             if (abs(v.x) > abs(v.z)) v.z = 0.0; else v.x = 0.0;

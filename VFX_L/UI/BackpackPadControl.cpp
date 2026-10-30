@@ -13,13 +13,63 @@
 #include "Item/BackpackLogic.h"
 #include "Item/ItemDatabase.h"
 #include "Manager/InputManager.h"
+#include "Manager/ResourceManager.h"
+#include "Graphics/Material/Texture.h"
 #include "Audio/AudioSystem.h"
 
 using namespace DirectX::SimpleMath;
 
 namespace
 {
-    constexpr float kStickThreshold = 0.5f;
+    // カーソルの矢印の絵（コードで作る。白い塗り + 暗い縁、透明度は縁の外へ滑らかに）。
+    // 先端（ホットスポット）は kPointerTip。最初に使う時に一度だけ作る
+    constexpr int kPointerW = 48, kPointerH = 64;
+    const Vector2 kPointerTip = { 5.0f, 4.0f };
+
+    std::shared_ptr<Texture> PointerTexture()
+    {
+        static std::shared_ptr<Texture> tex;
+        static bool made = false;
+        if (made) return tex;
+        made = true;
+        ID3D11Device* device = ResourceManager::Get().GetDevice();
+        if (!device) return nullptr;
+
+        // よくある矢印カーソルの形（12 × 20 の升目で描いて 2.6 倍）
+        const Vector2 shape[] = { { 0, 0 }, { 0, 17 }, { 4, 13 }, { 7, 20 }, { 10, 19 }, { 7, 12 }, { 12, 12 } };
+        constexpr int n = (int)(sizeof(shape) / sizeof(shape[0]));
+        Vector2 poly[n];
+        for (int i = 0; i < n; ++i) poly[i] = kPointerTip + shape[i] * 2.6f;
+        constexpr float outline = 3.5f;   // 暗い縁の太さ（絵の px）
+
+        std::vector<uint8_t> px(kPointerW * kPointerH * 4, 0);
+        for (int y = 0; y < kPointerH; ++y)
+            for (int x = 0; x < kPointerW; ++x)
+            {
+                const Vector2 p = { x + 0.5f, y + 0.5f };
+                bool inside = false;
+                float dist = 1.0e9f;
+                for (int i = 0, j = n - 1; i < n; j = i++)
+                {
+                    const Vector2 a = poly[j], b = poly[i];
+                    if (((a.y > p.y) != (b.y > p.y)) && (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x))
+                        inside = !inside;
+                    const Vector2 ab = b - a;
+                    const float t = std::clamp((p - a).Dot(ab) / (std::max)(ab.LengthSquared(), 1.0e-6f), 0.0f, 1.0f);
+                    dist = (std::min)(dist, (p - (a + ab * t)).Length());
+                }
+                const float s = inside ? dist : -dist;                                  // 内側が正
+                const float alpha = std::clamp(s + outline + 0.5f, 0.0f, 1.0f);         // 縁の外側
+                const float fill = std::clamp(s - outline * 0.35f + 0.5f, 0.0f, 1.0f);  // 塗り（縁の内側）
+                const float v = 0.06f + 0.94f * fill;
+                uint8_t* o = &px[(y * kPointerW + x) * 4];
+                o[0] = o[1] = o[2] = (uint8_t)(v * 255.0f + 0.5f);
+                o[3] = (uint8_t)(alpha * 255.0f + 0.5f);
+            }
+        tex = std::make_shared<Texture>();
+        if (!tex->CreateFromMemory(device, px.data(), kPointerW, kPointerH)) tex.reset();
+        return tex;
+    }
 }
 
 // ============================================================
@@ -36,8 +86,8 @@ bool BackpackPadControl::DetectDevice()
 
 // ============================================================
 // 入力の読み取り
-// 向きは十字優先、無ければスティックの強い方の軸だけ（斜めに滑らない）。
-// 押した瞬間に 1 マス、押し続けると repeatDelay の後 repeatInterval ごとに 1 マス
+// 十字は押した瞬間に 1 マス、押し続けると repeatDelay の後 repeatInterval ごとに 1 マス。
+// スティックはそのまま（カーソルの速さは MoveCursor が決める）
 // ============================================================
 BackpackPadControl::Input BackpackPadControl::Read(float dt)
 {
@@ -45,6 +95,7 @@ BackpackPadControl::Input BackpackPadControl::Read(float dt)
     if (m_HasTest)   // TEMP-TEST
     {
         in = m_Test;
+        in.boost = (in.buttons & kX) != 0;   // X = 押している間の加速
         m_HasTest = false;
         return in;
     }
@@ -56,12 +107,6 @@ BackpackPadControl::Input BackpackPadControl::Read(float dt)
     else if (input.GetPadPress(XINPUT_GAMEPAD_DPAD_RIGHT)) x = 1;
     else if (input.GetPadPress(XINPUT_GAMEPAD_DPAD_UP))    y = -1;
     else if (input.GetPadPress(XINPUT_GAMEPAD_DPAD_DOWN))  y = 1;
-    else
-    {
-        const Vector2 s = input.GetPadLeftStick();
-        if (std::fabs(s.x) >= std::fabs(s.y)) { if (std::fabs(s.x) > kStickThreshold) x = (s.x > 0.0f) ? 1 : -1; }
-        else if (std::fabs(s.y) > kStickThreshold) y = (s.y > 0.0f) ? -1 : 1;   // スティックの上 = 行は減る
-    }
 
     if (x != m_HeldX || y != m_HeldY)
     {
@@ -82,126 +127,193 @@ BackpackPadControl::Input BackpackPadControl::Read(float dt)
         }
     }
 
+    in.stick = input.GetPadLeftStick();
+    in.boost = input.GetPadPress(XINPUT_GAMEPAD_X);
+
     if (input.GetPadTrigger(XINPUT_GAMEPAD_A)) in.buttons |= kA;
     if (input.GetPadTrigger(XINPUT_GAMEPAD_B)) in.buttons |= kB;
-    if (input.GetPadTrigger(XINPUT_GAMEPAD_X)) in.buttons |= kX;
     if (input.GetPadTrigger(XINPUT_GAMEPAD_Y)) in.buttons |= kY;
     if (input.GetPadTrigger(XINPUT_GAMEPAD_LEFT_SHOULDER))  in.buttons |= kLB;
     if (input.GetPadTrigger(XINPUT_GAMEPAD_RIGHT_SHOULDER)) in.buttons |= kRB;
     return in;
 }
 
-// ============================================================
-// Update
-// ============================================================
-bool BackpackPadControl::Update(BackpackComponent& bp, BackpackUI& grid, SpellbookUI& book, DragContext& drag, float dt)
+// グリッドの外枠の内側（マスの隙間・縁も含む）にカーソルがあるか
+bool BackpackPadControl::InGridRect(const BackpackUI& grid) const
 {
-    const Input in = Read(dt);
-    m_Rest += dt;
-
-    // ---- Y：グリッド ⇔ 魔法書（掴んでいる間は替えない。箱が空なら移らない）----
-    if ((in.buttons & kY) && !drag.IsActive())
-    {
-        if (m_Focus == Focus::Book)
-            m_Focus = Focus::Grid;
-        else if (book.GetBodyCount() > 0)
-            m_Focus = Focus::Book;
-        AudioSystem::Get().Play("ui_hover");
-        m_Rest = 0.0f;
-    }
-
-    // 掴んだ物は必ずグリッドで運ぶ
-    if (drag.IsActive()) m_Focus = Focus::Grid;
-
-    if (m_Focus == Focus::Book)
-        return UpdateBook(in, bp, grid, book, drag);
-
-    book.SetPadSelection(0);
-    return UpdateGrid(in, bp, grid, drag);
+    const float pad = grid.m_FramePad;
+    const float e = grid.GridExtent();
+    return m_Cursor.x >= grid.m_Origin.x - pad && m_Cursor.x <= grid.m_Origin.x + e + pad
+        && m_Cursor.y >= grid.m_Origin.y - pad && m_Cursor.y <= grid.m_Origin.y + e + pad;
 }
 
 // ============================================================
-// グリッド
-// カーソルのマスの中心を仮のマウス位置にして、BackpackUI のドラッグ処理へ渡す
+// カーソルを動かす
+// スティック：速さ = cursorSpeed（マス/秒）× 倒した量 ^ cursorCurve（B で × boostMul）。
+// 十字：グリッドの上なら今のマスから 1 マス隣の真ん中へ（細かく合わせたい時）、外なら 1 マス分
 // ============================================================
-bool BackpackPadControl::UpdateGrid(const Input& in, BackpackComponent& bp, BackpackUI& grid, DragContext& drag)
+void BackpackPadControl::MoveCursor(const Input& in, const BackpackUI& grid, float dt, const Vector2& screen)
+{
+    const float pitch = grid.CellPitch();
+    const float half = grid.m_CellSize * 0.5f;
+
+    if (in.dx != 0 || in.dy != 0)
+    {
+        if (InGridRect(grid) && pitch > 0.0f)
+        {
+            const int last = BackpackUI::GRID_SIZE - 1;
+            int col = (int)std::floor((m_Cursor.x - grid.m_Origin.x) / pitch);
+            int row = (int)std::floor((m_Cursor.y - grid.m_Origin.y) / pitch);
+            col = (std::clamp)(col + in.dx, 0, last);
+            row = (std::clamp)(row + in.dy, 0, last);
+            m_Cursor = grid.CellPosition(row, col) + Vector2(half, half);
+        }
+        else
+        {
+            m_Cursor.x += (float)in.dx * pitch;
+            m_Cursor.y += (float)in.dy * pitch;
+        }
+    }
+
+    const float mag = in.stick.Length();
+    if (mag > 1.0e-4f)
+    {
+        float speed = cursorSpeed * pitch * std::pow((std::min)(mag, 1.0f), cursorCurve);
+        if (in.boost) speed *= boostMul;
+        m_Cursor.x += in.stick.x / mag * speed * dt;
+        m_Cursor.y -= in.stick.y / mag * speed * dt;   // スティックの上 = 画面の上
+    }
+
+    m_Cursor.x = (std::clamp)(m_Cursor.x, 0.0f, (std::max)(0.0f, screen.x - 1.0f));
+    m_Cursor.y = (std::clamp)(m_Cursor.y, 0.0f, (std::max)(0.0f, screen.y - 1.0f));
+}
+
+// ============================================================
+// Update
+// カーソルの位置を仮のマウス位置にして、BackpackUI のドラッグ処理と魔法書の掴みへ渡す
+// ============================================================
+void BackpackPadControl::Update(BackpackComponent& bp, BackpackUI& grid, SpellbookUI& book, DragContext& drag, float dt,
+    const Vector2& screen)
 {
     auto& audio = AudioSystem::Get();
-    const int last = BackpackUI::GRID_SIZE - 1;
-
-    const int r0 = m_Row, c0 = m_Col;
-    m_Row = (std::clamp)(m_Row + in.dy, 0, last);
-    m_Col = (std::clamp)(m_Col + in.dx, 0, last);
-    if (m_Row != r0 || m_Col != c0)
-    {
-        m_Rest = 0.0f;
-        audio.Play("ui_hover");
-    }
+    const Input in = Read(dt);
 
     const float cell = grid.m_CellSize;
     const float pitch = grid.CellPitch();
     const Vector2 half = { cell * 0.5f, cell * 0.5f };
-    const Vector2 cellPos = grid.CellPosition(m_Row, m_Col);
-    const Vector2 vm = cellPos + half;
+    const Vector2 gridCenter = grid.CellPosition(BackpackUI::GRID_SIZE / 2, BackpackUI::GRID_SIZE / 2) + half;
+    if (!m_HasCursor) { m_Cursor = gridCenter; m_HasCursor = true; }
+    const Vector2 before = m_Cursor;
 
-    grid.m_MousePos = vm;
-    grid.m_HoverRow = m_Row;
-    grid.m_HoverCol = m_Col;
-    m_TooltipAnchor = { cellPos.x + cell * 0.7f, cellPos.y + cell * 0.7f };
+    // ---- Y：カーソルをグリッド ⇔ 魔法書の箱へ（掴んだままでも飛べる）----
+    if (in.buttons & kY)
+    {
+        if (InGridRect(grid))
+        {
+            m_GridReturn = m_Cursor;
+            m_HasGridReturn = true;
+            // 箱の真ん中に一番近い物の上（箱が空なら箱の真ん中）
+            Vector2 target = book.BoxCenter();
+            float best = 1.0e18f;
+            for (int i = 0; i < book.GetBodyCount(); ++i)
+            {
+                uint32_t uid = 0;
+                Vector2 pos;
+                if (!book.GetBodyInfo(i, uid, pos)) continue;
+                const float d = (pos - book.BoxCenter()).LengthSquared();
+                if (d < best) { best = d; target = pos; }
+            }
+            m_Cursor = target;
+        }
+        else
+        {
+            m_Cursor = m_HasGridReturn ? m_GridReturn : gridCenter;
+        }
+        audio.Play("ui_hover");
+    }
+
+    MoveCursor(in, grid, dt, screen);
+    if ((m_Cursor - before).LengthSquared() > 0.25f) m_Rest = 0.0f;
+    else m_Rest += dt;
+
+    // ---- カーソルの下 ----
+    grid.m_MousePos = m_Cursor;
+    if (!grid.ScreenToCell(m_Cursor, m_HoverRow, m_HoverCol))
+        m_HoverRow = m_HoverCol = -1;
+    grid.m_HoverRow = m_HoverRow;
+    grid.m_HoverCol = m_HoverCol;
+    m_BookSel = (!drag.IsActive() && m_HoverRow < 0) ? book.BodyAt(m_Cursor) : 0;
+    book.SetPadSelection(m_BookSel);
+    book.SetPadPointer(m_Cursor);
+    m_TooltipAnchor = { m_Cursor.x + cell * 0.5f, m_Cursor.y + cell * 0.68f };   // 矢印の絵（高さ 0.62 マス）に被らない所
 
     // ---- 掴んでいる間 ----
     if (drag.IsActive())
     {
         grid.m_HoverItemIndex = grid.m_HoverFrameIndex = -1;
-        m_Rest = 0.0f;
 
         const int rot = (in.buttons & kRB) ? 1 : ((in.buttons & kLB) ? 3 : 0);
         if (rot != 0)
         {
-            // 掴んでいるマスがカーソルの下に残るよう、掴んだずれ（アンカーからのマス数）も同じだけ回す
-            CellOffset g;
-            g.row = (int)std::lround((drag.grabOffset.y - half.y) / pitch);
-            g.col = (int)std::lround((drag.grabOffset.x - half.x) / pitch);
-            g = BackpackLogic::RotateShape({ g }, rot)[0];
-            drag.grabOffset = { (float)g.col * pitch + half.x, (float)g.row * pitch + half.y };
+            // 掴んでいる所がカーソルの下に残るよう、掴んだずれ（要のマスの真ん中から、マス単位）も同じだけ回す：
+            // (行, 列) → (列, −行)（BackpackLogic::RotateShape と同じ）
+            Vector2 g = (pitch > 0.0f) ? (drag.grabOffset - half) / pitch : Vector2(0.0f, 0.0f);   // x = 列, y = 行
+            for (int i = 0; i < rot; ++i) g = Vector2(-g.y, g.x);
+            drag.grabOffset = g * pitch + half;
             drag.rotation = (drag.rotation + rot) % 4;
             grid.m_Rotation = (grid.m_Rotation + rot) % 4;
             audio.Play("item_rotate");
         }
 
-        grid.UpdateDrag(bp, vm);
+        grid.UpdateDrag(bp, m_Cursor);
 
         if (in.buttons & kA)
         {
-            // 置けない所では置かない（持ったまま）。マウスの「離したら手元へ戻る」とは変えてある
-            if (drag.canDrop) grid.EndDrag(bp);
-            else              audio.Play("gold_deny");
-        }
-        else if (in.buttons & kX)
-        {
-            // 魔法書へ戻す：置けない所で離したのと同じ扱い
-            drag.canDrop = false;
-            grid.EndDrag(bp);
+            // 置ける → 置く。グリッドの上で置けない所 → 持ったまま（マウスの「離したら魔法書へ」とは変えてある）。
+            // グリッドの外 → 魔法書へ戻して、その場から落とす（マウスで外へ離したのと同じ）
+            if (drag.canDrop)
+                grid.EndDrag(bp);
+            else if (InGridRect(grid))
+                audio.Play("gold_deny");
+            else
+                grid.EndDrag(bp);
         }
         else if (in.buttons & kB)
         {
-            grid.CancelDrag();   // データは書き換えていないので、元の位置に残る
-            audio.Play("item_return");
+            // 外す：魔法書へ戻す（置けない所で離したのと同じ扱い。カーソルの所から落ちる）
+            drag.canDrop = false;
+            grid.EndDrag(bp);
         }
-        return false;
+        return;
     }
 
     // ---- 何も掴んでいない ----
-    grid.m_HoverItemIndex = BackpackLogic::GetItemAt(bp, m_Row, m_Col);
-    grid.m_HoverFrameIndex = BackpackLogic::GetFrameAt(bp, m_Row, m_Col);
+    grid.m_HoverItemIndex = (m_HoverRow >= 0) ? BackpackLogic::GetItemAt(bp, m_HoverRow, m_HoverCol) : -1;
+    grid.m_HoverFrameIndex = (m_HoverRow >= 0) ? BackpackLogic::GetFrameAt(bp, m_HoverRow, m_HoverCol) : -1;
 
     if (in.buttons & kA)
     {
-        grid.BeginDrag(bp, vm);   // 魔法 → 枠の順。空のマスなら何も起きない
-        if (drag.IsActive()) audio.Play("item_pick");
+        if (m_HoverRow >= 0)
+        {
+            grid.BeginDrag(bp, m_Cursor);   // 魔法 → 枠の順。空のマスなら何も起きない
+            if (drag.IsActive()) audio.Play("item_pick");
+        }
+        else if (m_BookSel != 0 && book.GrabByUid(m_BookSel))   // 掴む音は SpellbookUI が鳴らす
+        {
+            // 形の真ん中のマスをカーソルの下に持つ（枠のようにアンカーが角にある物でも中心で運べる）
+            if (const ItemCommon* c = ItemDatabase::GetCommon(drag.id); c && !c->occupyCells.empty())
+            {
+                const CellOffset cc = ShapeSprite::CenterCell(c->occupyCells);
+                drag.grabOffset = { (float)cc.col * pitch + half.x, (float)cc.row * pitch + half.y };
+            }
+            m_BookSel = 0;
+            book.SetPadSelection(0);
+            grid.UpdateDrag(bp, m_Cursor);
+        }
     }
-    else if (in.buttons & kX)
+    else if ((in.buttons & kB) && m_HoverRow >= 0)
     {
+        // 素早く外す：カーソルの下の魔法（無ければ枠）を魔法書へ戻す
         if (grid.m_HoverItemIndex >= 0)
         {
             audio.Play("item_return");
@@ -214,164 +326,66 @@ bool BackpackPadControl::UpdateGrid(const Input& in, BackpackComponent& bp, Back
         }
         grid.m_HoverItemIndex = grid.m_HoverFrameIndex = -1;
     }
-    else if (in.buttons & kB)
-    {
-        return true;
-    }
-    return false;
 }
 
 // ============================================================
-// 魔法書の箱
-// ============================================================
-bool BackpackPadControl::UpdateBook(const Input& in, BackpackComponent& bp, BackpackUI& grid, SpellbookUI& book, DragContext& drag)
-{
-    grid.m_HoverRow = grid.m_HoverCol = -1;
-    grid.m_HoverItemIndex = grid.m_HoverFrameIndex = -1;
-
-    // ---- 選択の確認：消えていたら（数が減った・取り出した）一番上にある物へ ----
-    Vector2 selPos = { 0.0f, 0.0f };
-    bool found = false;
-    uint32_t top = 0;
-    float topY = 1.0e9f;
-    for (int i = 0; i < book.GetBodyCount(); ++i)
-    {
-        uint32_t uid = 0;
-        Vector2 pos;
-        if (!book.GetBodyInfo(i, uid, pos)) continue;
-        if (uid == m_BookSel) { found = true; selPos = pos; }
-        if (pos.y < topY) { topY = pos.y; top = uid; }
-    }
-    if (!found)
-    {
-        m_BookSel = top;
-        m_Rest = 0.0f;
-        if (m_BookSel == 0)   // 箱が空
-        {
-            m_Focus = Focus::Grid;
-            book.SetPadSelection(0);
-            return (in.buttons & kB) != 0;
-        }
-    }
-
-    if (in.dx != 0 || in.dy != 0)
-    {
-        const uint32_t next = PickBookNeighbor(book, in.dx, in.dy);
-        if (next != 0 && next != m_BookSel)
-        {
-            m_BookSel = next;
-            m_Rest = 0.0f;
-            AudioSystem::Get().Play("ui_hover");
-        }
-    }
-    book.SetPadSelection(m_BookSel);
-
-    for (int i = 0; i < book.GetBodyCount(); ++i)
-    {
-        uint32_t uid = 0;
-        Vector2 pos;
-        if (book.GetBodyInfo(i, uid, pos) && uid == m_BookSel) selPos = pos;
-    }
-    m_TooltipAnchor = { selPos.x + grid.m_CellSize * 0.3f, selPos.y + grid.m_CellSize * 0.3f };
-
-    if (in.buttons & kA)
-    {
-        if (book.GrabByUid(m_BookSel))
-        {
-            // 形の真ん中のマスをカーソルの下に持つ（枠のようにアンカーが角にある物でも中心で運べる）
-            const float cell = grid.m_CellSize;
-            const float pitch = grid.CellPitch();
-            if (const ItemCommon* c = ItemDatabase::GetCommon(drag.id); c && !c->occupyCells.empty())
-            {
-                const CellOffset cc = ShapeSprite::CenterCell(c->occupyCells);
-                drag.grabOffset = { (float)cc.col * pitch + cell * 0.5f, (float)cc.row * pitch + cell * 0.5f };
-            }
-
-            m_Focus = Focus::Grid;
-            m_BookSel = 0;
-            book.SetPadSelection(0);
-
-            const Vector2 vm = grid.CellPosition(m_Row, m_Col) + Vector2(cell * 0.5f, cell * 0.5f);
-            grid.m_MousePos = vm;
-            grid.UpdateDrag(bp, vm);
-        }
-    }
-    else if (in.buttons & kB)
-    {
-        return true;
-    }
-    return false;
-}
-
-// ============================================================
-// 箱の中で、今の物から (dx, dy) の向きに一番近い物
-// 向きに沿った距離 + 横ずれ × 2 が最小の物。その向きに何も無ければ 0
-// ============================================================
-uint32_t BackpackPadControl::PickBookNeighbor(const SpellbookUI& book, int dx, int dy) const
-{
-    Vector2 from = { 0.0f, 0.0f };
-    bool found = false;
-    for (int i = 0; i < book.GetBodyCount(); ++i)
-    {
-        uint32_t uid = 0;
-        Vector2 pos;
-        if (book.GetBodyInfo(i, uid, pos) && uid == m_BookSel) { from = pos; found = true; }
-    }
-    if (!found) return 0;
-
-    const Vector2 dir = { (float)dx, (float)dy };
-    uint32_t best = 0;
-    float bestScore = 1.0e9f;
-    for (int i = 0; i < book.GetBodyCount(); ++i)
-    {
-        uint32_t uid = 0;
-        Vector2 pos;
-        if (!book.GetBodyInfo(i, uid, pos) || uid == m_BookSel) continue;
-
-        const Vector2 d = pos - from;
-        const float along = d.Dot(dir);
-        if (along <= 4.0f) continue;
-        const float side = (d - dir * along).Length();
-        const float score = along + side * 2.0f;
-        if (score < bestScore) { bestScore = score; best = uid; }
-    }
-    return best;
-}
-
-// ============================================================
-// 描画：グリッドのカーソルと操作の案内
-// 箱の中の選択は SpellbookUI が描く（明るい縁で少し浮かせる）
+// 描画：指しているマスの枠・カーソル・操作の案内
+// 箱の中のカーソルの下の物は SpellbookUI が描く（明るい縁で少し浮かせる）
 // ============================================================
 void BackpackPadControl::Draw(SpriteRenderer& sprite, TextRenderer& text, const BackpackUI& grid,
     const DragContext& drag, const Vector2& screen) const
 {
     const float k = (std::min)(screen.x, screen.y) / 900.0f * UIDeco::UIScale();
     const bool carrying = drag.IsActive();
+    const float cell = grid.m_CellSize;
+    const float pulse = 0.70f + 0.30f * std::sin(UIDeco::Clock() * 6.0f);
 
-    // ---- カーソル（明滅する金の枠）----
-    if (m_Focus == Focus::Grid)
+    Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
+    gold.x *= 1.6f; gold.y *= 1.6f; gold.z *= 1.6f;
+
+    // ---- 指しているマス（明滅する金の枠。掴んでいない時だけ。掴んでいる時は置き先の影が出る）----
+    if (!carrying && m_HoverRow >= 0)
     {
-        const float cell = grid.m_CellSize;
         const float t = (std::max)(2.0f, cell * 0.07f);
-        const float pulse = 0.70f + 0.30f * std::sin(UIDeco::Clock() * 6.0f);
-
-        Vector4 col = UIDeco::TintColor(UIDeco::Tint::Gold);
-        col.x *= 1.6f; col.y *= 1.6f; col.z *= 1.6f;
-        col.w = (carrying ? 0.75f : 1.0f) * pulse;
-
-        const Vector2 p = grid.CellPosition(m_Row, m_Col);
+        Vector4 col = gold;
+        col.w = pulse;
+        const Vector2 p = grid.CellPosition(m_HoverRow, m_HoverCol);
         UIDeco::DrawFrameLines(sprite, { p.x - t, p.y - t }, { cell + t * 2.0f, cell + t * 2.0f }, col, t);
     }
 
+    // カーソルの矢印は DrawPointer（GameUI が説明カードの後に描く）
+
     // ---- 操作の案内（グリッドの外枠の下）----
     // {…} = パッドのボタンの絵（InputGlyph。2026-10-09 から文字の「A」などを絵に）
-    const wchar_t* hint = L"{DPAD} 移動　　{A} つかむ　　{X} 魔法書へ戻す　　{Y} 魔法書へ移る　　{B} 閉じる";
+    const bool inGrid = InGridRect(grid);
+    const wchar_t* hint = inGrid
+        ? L"{LS} 動かす（{X} で速く）　　{A} つかむ　　{B} 外す　　{Y} 魔法書へ移る　　{START} 閉じる"
+        : L"{LS} 動かす（{X} で速く）　　{A} つかむ　　{Y} バックパックへ移る　　{START} 閉じる";
     if (carrying)
-        hint = L"{DPAD} 移動　　{A} 置く　　{LB} / {RB} 回転　　{X} 魔法書へ戻す　　{B} やめる";
-    else if (m_Focus == Focus::Book)
-        hint = L"{DPAD} 選ぶ　　{A} 取り出す　　{Y} バックパックへ移る　　{B} 閉じる";
+        hint = inGrid
+            ? L"{LS} 動かす（{X} で速く）　　{A} 置く　　{B} 魔法書へ戻す　　{LB} / {RB} 回転"
+            : L"{LS} 動かす（{X} で速く）　　{A} 魔法書へ戻す　　{LB} / {RB} 回転　　{Y} バックパックへ移る";
 
     DrawHintBar(sprite, text, grid, hint, k);
+}
+
+// ============================================================
+// カーソル（金の矢印 + 暗い縁 + 落ち影。先端がカーソルの位置）
+// ============================================================
+void BackpackPadControl::DrawPointer(SpriteRenderer& sprite, const BackpackUI& grid, const Vector2& screen) const
+{
+    const auto ptr = PointerTexture();
+    if (!ptr) return;
+    const float k = (std::min)(screen.x, screen.y) / 900.0f * UIDeco::UIScale();
+    const float h = grid.m_CellSize * 0.62f;
+    const float scale = h / (float)kPointerH;
+    const Vector2 size = { (float)kPointerW * scale, h };
+    const Vector2 pos = m_Cursor - kPointerTip * scale;
+    sprite.Draw(ptr, pos + Vector2(2.0f, 3.0f) * k, size, { 0.0f, 0.0f, 0.0f, 0.45f });   // 落ち影
+    Vector4 col = UIDeco::TintColor(UIDeco::Tint::Gold);
+    col.x = 0.35f + col.x * 1.3f; col.y = 0.35f + col.y * 1.3f; col.z = 0.35f + col.z * 1.3f;   // 明るい金（白寄り）
+    col.w = 1.0f;
+    sprite.Draw(ptr, pos, size, col);
 }
 
 // ============================================================

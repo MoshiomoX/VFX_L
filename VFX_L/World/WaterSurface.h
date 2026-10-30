@@ -74,6 +74,13 @@ public:
         // 波紋を起こす物（強さ = 押し下げる深さ m）
         float stepStrength = 0.07f, stepRadius = 0.40f;   // 水の中の一歩
         float wadeStrength = 0.010f;  // 水の中を進む時（速さ 1 m/s・1 秒あたり。航跡）
+        // 水の中を歩く雑魚（WaterStirCS、2026-10-28）。プレイヤーと同じく「一歩毎の押し + 間の薄い航跡」
+        bool  mobWake = true;
+        float mobWakeStrength = 0.03f;    // 一歩の間の航跡：速さ 1 m/s・1 秒あたり押す深さ m
+        float mobStepStrength = 0.06f;    // 一歩の押し m（プレイヤーは stepStrength 0.07）
+        float mobStride = 1.4f;           // 何 m 歩く毎に一歩（雑魚 3.5 m/s で 1 秒に 2.5 歩。槽毎に拍をずらす）
+        float mobWakeRadius = 0.45f;      // m（普通の雑魚。Boss ×3、エリート ×2.2、重装兵 ×1.3）
+        float mobWakeMinSpeed = 0.3f;     // m/s。これより遅い（立ち止まった）雑魚は波を立てない
         float landStrength = 0.16f, landRadius = 0.8f;    // 水への着地
         float rainRate = 2.5f;        // 雨 1 の時の雨粒（1 m² 1 秒あたり）
         float rainStrength = 0.025f;
@@ -99,8 +106,19 @@ public:
     // rain = 雨の強さ 0〜1（雨粒の波紋）、turbid = 砂嵐の強さ 0〜1（濁り）
     void SetWeather(float rain, float turbid) { m_Rain = rain; m_Turbid = turbid; }
     void SetSky(const Vector3& zenith, const Vector3& horizon) { m_SkyZenith = zenith; m_SkyHorizon = horizon; }
-    // 次の波の 1 歩でここを押し下げる（strength m、radius m）。1 フレームに kMaxImpulses 個まで（超えたら弱い物を捨てる）
-    void AddRipple(const Vector3& pos, float radius, float strength);
+    // 次の波の 1 歩でここを押す（strength m、radius m。中を押し下げ周りを持ち上げる = 水の量は変わらない）。
+    // 1 フレームに kMaxImpulses 個まで（超えたら弱い物を捨てる）。
+    // crest = 波の山に白い線を描く大きな波（Boss の重撃・投石）。プレイヤーの足・着地は false = 明暗だけ（2026-10-28）
+    void AddRipple(const Vector3& pos, float radius, float strength, bool crest = false);
+
+    // 水の中を歩く雑魚の波紋：Render の前に毎フレーム渡す（SwarmSystem::GetEnemySRV / GetEnemyStateSRV / GetEnemyExtraSRV、
+    // heights = GrassRenderer::GetHeightSRV = 飛んでいる物を除く。Flush の後なので読むだけ）。null = 雑魚の波紋は無し。
+    // groundY = SwarmSystem::GetAIParams().groundY（雑魚の position.y = 足 + これ）
+    void SetSwarmEnemies(ID3D11ShaderResourceView* enemies, ID3D11ShaderResourceView* states,
+        ID3D11ShaderResourceView* extra, ID3D11ShaderResourceView* heights, float groundY)
+    {
+        m_EnemySRV = enemies; m_EnemyStateSRV = states; m_EnemyExtraSRV = extra; m_GroundSRV = heights; m_EnemyGroundY = groundY;
+    }
 
     // 草の後：波紋を進めて描く。areas / areaStates = SwarmSystem::GetAreaSRV / GetAreaStateSRV（範囲が出た瞬間に波紋）、
     // windSources = SwarmSystem::GetWindSourceSRV（null = 無し）
@@ -114,11 +132,15 @@ public:
 
     // TEMP-TEST: 波紋の読み戻し（Map で GPU を待つ。自動テストだけ）。maxAbs = 一番大きい |高さ| m、
     // moving = |高さ| が rippleCrest × 0.25 を越えている texel の数
-    bool DebugReadRipples(float& maxAbs, uint32_t& moving) const;
+    // maxUp（任意）= 一番高い波の山 m、maxCrest（任意）= 白い線を描く大きな波だけの一番高い山 m
+    bool DebugReadRipples(float& maxAbs, uint32_t& moving, float* maxUp = nullptr, float* maxCrest = nullptr) const;
+    // TEMP-TEST: (cx, cz) の周り ±half m の波紋を PGM に書く（左 = 全部の波 x、右 = 大きな波 z。±0.05m → 0〜255）
+    bool DebugDumpRipples(const char* path, float cx, float cz, float half) const;
     uint32_t PondCells() const { return m_PondCells; }
 
     static constexpr int kRippleSize = 1024;   // 波紋のテクスチャの辺（200m のフィールドで 0.2m / texel）
     static constexpr int kMaxImpulses = 16;
+    static constexpr int kAreaSlots = 256;     // = Swarm::kMaxAreas（WaterRippleCS の RIPPLE_MAX_AREAS）
 
     // HLSL の WaterCB（Shader/Water/WaterCommon.hlsli）と同じ並び（288B）
     struct WaterCB
@@ -149,6 +171,17 @@ public:
         uint32_t impulseCount; float _pad[3];
         Vector4 impulse[kMaxImpulses];   // x, z, radius, strength
     };
+    // HLSL の WaterStirCB（Shader/Water/WaterStirCS.hlsl）と同じ並び（64B）
+    struct StirCB
+    {
+        Vector2 mapOrigin, mapSize;
+        float strength, radius, minSpeed, dt;
+        uint32_t maxStirs, hasHeight; float stepStrength, stride;
+        float time, groundY; float _pad[2];
+    };
+    static_assert(sizeof(StirCB) == 64, "StirCB must match WaterStirCB");
+    static constexpr int kMaxStirs = 128;   // 水の中を歩く雑魚の押しの数（1 フレーム。WaterRippleCS の RIPPLE_MAX_STIRS）
+    static constexpr int kEnemyThreads = 4096;   // = Swarm::kMaxEnemies（WaterStirCS は池の大きさを自分で見て余りは返る）
 
 private:
     bool CreateRippleTargets();   // WaterRipples.cpp
@@ -168,10 +201,31 @@ private:
     uint32_t m_VertexCount = 0;
     uint32_t m_PondCells = 0;
 
-    // 波紋（R16G16F × 2 を交互）と水のマスク（R8。1 = 水たまり）
+    // 波紋（R16G16B16A16F × 2 を交互。xy = 全部の波の今 / 1 歩前の高さ、zw = 白い線を描く大きな波だけの同じ物）
+    // と水のマスク（R8。1 = 水たまり）
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_RippleTex[2];
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_RippleSRV[2];
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_RippleUAV[2];
+    // GPU の範囲の枠ごとに、水が前に見た時の残り時間（0 = 空）。R32F × 256 を 2 本交互。
+    // 増えていたら / 空だったら「出たばかり」= 波紋を起こす。tickNow の「最初の tick」は 1 歩しか立たず、
+    // 群れが 1 フレームに 2 歩進むと（重いフレーム）水が見る前に消えて、爆発の波紋が出ないことがあった（2026-10-28）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SeenBuf[2];
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SeenSRV[2];
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SeenUAV[2];
+    int m_SeenCur = 0;
+    // 水の中を歩く雑魚の押し（WaterStirCS が書き、WaterRippleCS が読む）。float4 × kMaxStirs と数（R32_UINT × 1）
+    std::shared_ptr<ComputeShader> m_StirCS;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_StirBuf, m_StirCountBuf;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_StirSRV, m_StirCountSRV;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_StirUAV, m_StirCountUAV;
+    float m_StirDt = 0.0f;   // 前に雑魚の押しを集めてからの秒（波が 1 歩も進まないフレームの分も貯める）
+    // 群れの池（非所有。毎フレーム SetSwarmEnemies で渡される）
+    ID3D11ShaderResourceView* m_EnemySRV = nullptr;
+    ID3D11ShaderResourceView* m_EnemyStateSRV = nullptr;
+    ID3D11ShaderResourceView* m_EnemyExtraSRV = nullptr;
+    ID3D11ShaderResourceView* m_GroundSRV = nullptr;
+    float m_EnemyGroundY = 0.9f;
+    void GatherStirs();   // WaterRipples.cpp：WaterStirCS を 1 回
     int m_Cur = 0;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_MaskTex;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_MaskSRV;
@@ -192,7 +246,7 @@ private:
     float m_Rain = 0.0f, m_Turbid = 0.0f;
     Vector3 m_SkyZenith = { 0.09f, 0.30f, 0.85f };
     Vector3 m_SkyHorizon = { 0.51f, 0.71f, 0.91f };
-    std::vector<Vector4> m_Impulses;   // 次の 1 歩で使う（x, z, radius, strength）
+    std::vector<Vector4> m_Impulses;   // 次の 1 歩で使う（x, z, radius（負 = crest の波）, strength）
 
     Settings m_Settings;
 };

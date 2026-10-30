@@ -45,12 +45,14 @@ namespace InputMap
     }
 
 
-    // 近くの物を使う（F、パッド B。トリガー）。報酬の箱など
+    // 近くの物を使う（F、パッド X。トリガー）。報酬の箱など。
+    // 2026-10-28 にパッドは B → X（ユーザー「滑りを B に、X は B と入れ替え」）
+    // パッド X は手動詠唱（CastMode::Manual、デバッグ用）の撃つ操作と重なるが、普段の自動詠唱では使っていない
     inline bool GetInteractTrigger()
     {
         auto& input = InputManager::Get();
         return input.GetKeyTrigger('F') ||
-            input.GetPadTrigger(XINPUT_GAMEPAD_B);
+            input.GetPadTrigger(XINPUT_GAMEPAD_X);
     }
 
     // 魔力解放：3 秒間魔力を消費しない（Q、パッド Y。トリガー。2026-10-01 までは詠唱の一時停止だった）
@@ -68,13 +70,12 @@ namespace InputMap
             input.GetPadTrigger(XINPUT_GAMEPAD_A);
     }
 
-    // 滑り（左 Ctrl、パッド X。押している間ずっと）。
-    // パッド X は手動詠唱（CastMode::Manual、デバッグ用）の撃つ操作と重なるが、普段の自動詠唱では使っていない
+    // 滑り（左 Ctrl、パッド B。押している間ずっと。2026-10-28 にパッドは X → B）
     inline bool GetSlideHeld()
     {
         auto& input = InputManager::Get();
         return input.GetKeyPress(VK_LCONTROL) ||
-            input.GetPadPress(XINPUT_GAMEPAD_X);
+            input.GetPadPress(XINPUT_GAMEPAD_B);
     }
 
     // 一時停止のメニュー開閉（Esc、パッド Back。トリガー）

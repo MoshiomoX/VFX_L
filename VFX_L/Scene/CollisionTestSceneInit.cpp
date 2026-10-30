@@ -103,7 +103,6 @@ void CollisionTestScene::InitStage()
         m_RunTier = std::clamp(m_RunTier, 1, StageConfig::kMaxTier);
         m_RunPos = std::clamp(m_RunPos, 1, m_RunTier);
     }
-    m_LevelUpSystem.runPos = m_RunPos;   // 2 面目以降は珍しい札が出やすい（稀有度。2026-10-28）
     const StageDef& stageDef = StageConfig::Get(m_StageIndex);
     m_TerrainConfig.biome = stageDef.biome;
     TerrainGenerator::ApplyBiomeProfile(m_TerrainConfig);   // マップ毎の地形の規則（2026-10-26）
@@ -136,6 +135,14 @@ void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device
         // TEMP-TEST: VFXL_NO_RELIEF=1 で起伏を切る（2026-10-04 以前の平らな地面と見比べる用）
         if (GetEnvironmentVariableA("VFXL_NO_RELIEF", env, sizeof(env)) > 0)
             m_TerrainConfig.relief = false;
+        // TEMP-TEST: VFXL_POND_ANYWHERE=1 水たまりを起伏の膨らみ・坂でも作る（2026-10-28 より前の選び方。見比べる用）
+        if (GetEnvironmentVariableA("VFXL_POND_ANYWHERE", env, sizeof(env)) > 0)
+        {
+            m_TerrainConfig.pondConvexTol = 1.0e9f;
+            m_TerrainConfig.pondMaxRise = 1.0e9f;
+            m_TerrainConfig.pondLowBias = 0.0f;
+            m_TerrainConfig.pondMaxSpread = 1.0e9f;
+        }
         // TEMP-TEST: VFXL_STEP_NOISE=n 段々の台地の輪郭のノイズの種類（見比べる用。2026-10-20）
         if (GetEnvironmentVariableA("VFXL_STEP_NOISE", env, sizeof(env)) > 0)
             m_TerrainConfig.stepNoise = std::clamp(atoi(env), 0, 2);
@@ -224,6 +231,7 @@ void CollisionTestScene::InitSwarm(const StageDef& stageDef, ID3D11Device* devic
     if (!m_Swarm.Initialize(device, context))
         std::cout << "[Error] SwarmSystem init failed" << std::endl;
 
+    BuildClimbMap();   // 雑魚が登れる障害物（2026-10-29）
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
     // 範囲攻撃と投射物の飛び方（エディタで作った json）を GPU の表へ。
@@ -329,6 +337,24 @@ void CollisionTestScene::InitPlayer(const StageDef& stageDef, ID3D11Device* devi
                         row += b;
                     }
                     AutoTestLog(row.c_str());
+                    // 雑魚用（2026-10-29、登れる障害物のマスは c、上面の高さ）
+                    std::string mrow = "mob  row z " + std::to_string(z) + ":";
+                    for (int x = cx - 4; x <= cx + 4; ++x)
+                    {
+                        float lo = 1e9f, hi = -1e9f;
+                        for (int sz = 0; sz < sub; ++sz)
+                            for (int sx = 0; sx < sub; ++sx)
+                            {
+                                const float h = m_Grid.MobHeightAt(x * sub + sx, z * sub + sz);
+                                lo = (std::min)(lo, h);
+                                hi = (std::max)(hi, h);
+                            }
+                        char b[48];
+                        snprintf(b, sizeof(b), " %c%5.1f/%5.1f",
+                            !m_Grid.IsMobWalkable(x, z) ? '#' : (!m_Grid.IsWalkable(x, z) ? 'c' : ' '), lo, hi);
+                        mrow += b;
+                    }
+                    AutoTestLog(mrow.c_str());
                 }
             }
         }

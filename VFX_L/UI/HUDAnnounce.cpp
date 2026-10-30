@@ -35,7 +35,7 @@ void HUD::DrawAnnounce(SpriteRenderer& sprite, TextRenderer& text, const HUDFram
         const float o = m_S.textShadowOffset;
         text.Draw(info.announce, { pos.x + o, pos.y + o }, sh, scale);
     }
-    Vector4 col = m_S.announceColor;
+    Vector4 col = info.announceGold ? m_S.announceGoldColor : m_S.announceColor;
     col.w *= a;
     text.Draw(info.announce, pos, col, scale);
 }
@@ -47,4 +47,5 @@ void HUD::DrawAnnounceImGui()
     ImGui::DragFloat("Announce Scale", &m_Style.announceScale, 0.01f, 0.05f, 3.0f);
     ImGui::DragFloat("Announce Punch", &m_Style.announcePunch, 0.01f, 0.0f, 2.0f);
     ImGui::ColorEdit4("Announce Color", &m_Style.announceColor.x);
+    ImGui::ColorEdit4("Announce Gold (boss down)", &m_Style.announceGoldColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
 }

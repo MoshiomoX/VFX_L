@@ -92,6 +92,10 @@ namespace MapEdit
         void BuildWalkable(const MapData::Map& map, std::vector<uint8_t>& out)
         {
             out.assign((size_t)map.gw * map.gd, 1);
+            // 水たまりは歩けるが置物を置かない印（GridWorld::kWaterCell。2026-10-28 から塞がない）
+            if (map.pond.size() == out.size())
+                for (size_t i = 0; i < out.size(); ++i)
+                    if (map.pond[i]) out[i] = GridWorld::kWaterCell;
             for (const auto& b : map.blocks)
                 for (int z = (std::max)(b.z, 0); z < (std::min)(b.z + b.d, map.gd); ++z)
                     for (int x = (std::max)(b.x, 0); x < (std::min)(b.x + b.w, map.gw); ++x)

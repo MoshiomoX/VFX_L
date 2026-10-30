@@ -80,7 +80,7 @@ public:
         { 1.00f, 0.82f, 0.36f, 1.0f },
     };
 
-    // 選択中の index（キーボード / パッド用）
+    // 選択中の index（キーボード / パッド用）。カードの枚数と同じ値 = 引き直しのボタン（2026-10-28）
     int GetCursor() const { return m_Cursor; }
 
     // カード 1 枚（種別 → 名前 → 魔法陣の中のアイコン + 形 → 説明）。pos = 左上。
@@ -91,12 +91,23 @@ public:
     bool showRarity = true;   // 稀有度の縁（DrawCard の中で描く）
 
     // ---- 金貨での引き直し（2026-10-04）----
-    // カードの下のボタン（R / パッド X / クリック）。GameUI が毎フレーム値段と所持を渡す（cost < 0 なら出さない）
+    // カードの下のボタン（R / パッド X / クリック / 下キー・十字・スティックの下で選んで決定）。
+    // GameUI が毎フレーム値段と所持を渡す（cost < 0 なら出さない）
     void SetReroll(int cost, int gold) { m_RerollCost = cost; m_Gold = gold; }
     // 押された（足りるかは見ない。GameUI が LevelUpSystem::Reroll を呼び、足りなければ断りの音）
     bool ConsumeRerollRequest() { const bool r = m_RerollRequested; m_RerollRequested = false; return r; }
     float rerollWidthRatio = 1.60f;   // ボタンの幅（カード幅に対して）
     float rerollTextScale = 0.40f;    // カード幅 270px の時
+
+    // 左スティックでカードを選ぶ（2026-10-28）
+    float stickPress = 0.5f;            // これより倒したら 1 枚
+    float stickRelease = 0.3f;          // 出た時に倒していたら、これより戻すまで見ない
+    float stickRepeatDelay = 0.40f;     // 倒し続けて連続で動き始めるまで（秒）
+    float stickRepeatInterval = 0.18f;  // 連続で動く間隔
+    // TEMP-TEST: 次の HandleInput 1 回分の左スティック（自動テスト padbag）
+    void TestStick(const DirectX::SimpleMath::Vector2& s) { m_TestStick = s; m_HasTestStick = true; }
+    // TEMP-TEST: 次の HandleInput 1 回分の「決定」（パッド A / Enter と同じ）
+    void TestConfirm() { m_TestConfirm = true; }
 
     // 区切り線などに使う無地の白（無ければブロックのテクスチャで代用）
     void SetWhiteTexture(std::shared_ptr<Texture> tex) { m_WhiteTex = tex; }
@@ -119,12 +130,22 @@ private:
     float m_CardH = 435.0f;
     float m_CardGap = 60.0f;
 
-    int m_Cursor = 0;      // キーボード操作用のカーソル
+    int m_Cursor = 0;      // キーボード操作用のカーソル（= カードの枚数ならボタン）
+    int m_LastCard = 0;    // ボタンへ下りる前のカード（上・左右で戻る先）
     int m_Hover = -1;      // マウスが乗っているカード
+    DirectX::SimpleMath::Vector2 m_LastMouse = { 0.0f, 0.0f };   // 前のフレームのマウス（動いた時だけカーソルを合わせる）
 
     // 表示された直後に押しっぱなしの入力で確定してしまうのを防ぐ猶予
     float m_InputDelay = 0.0f;
     bool  m_WasChoosing = false;
+
+    // 左スティックでカードを選ぶ（2026-10-28）。出てから一度戻すまでは見ない（m_StickArmed）
+    bool  m_StickArmed = false;
+    int   m_StickHeld = 0;      // 今倒している向き（±1 = 左右、+2 = 下、-2 = 上、0 = 戻っている）
+    float m_StickTimer = 0.0f;  // 次の連続移動まで
+    DirectX::SimpleMath::Vector2 m_TestStick = { 0.0f, 0.0f };   // TEMP-TEST: TestStick
+    bool  m_HasTestStick = false;
+    bool  m_TestConfirm = false;   // TEMP-TEST: TestConfirm
 
     // 出た瞬間の動き（2026-10-15）：暗幕が濃くなり、カードが下から浮き上がる（実時間 UIDeco::Clock）
     mutable bool  m_Shown = false;

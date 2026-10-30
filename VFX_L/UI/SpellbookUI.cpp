@@ -353,9 +353,10 @@ void SpellbookUI::TrackDrag(float dt)
         m_DropHint.ttl -= dt;
         if (m_DropHint.ttl <= 0.0f) m_DropHint.valid = false;
     }
-    if (m_Drag && m_Drag->IsActive() && m_MouseEnabled)
+    if (m_Drag && m_Drag->IsActive())
     {
-        // DrawDragged と同じ：マウス − grabOffset = 要のマスの左上。回した形の重心はそこから（列, 行）+ 0.5 マス
+        // DrawDragged と同じ：マウス − grabOffset = 要のマスの左上。回した形の重心はそこから（列, 行）+ 0.5 マス。
+        // パッドの時はマウスの代わりにパッドのカーソル（2026-10-28 からパッドもカーソル操作）
         const ItemCommon* c = ItemDatabase::GetCommon(m_Drag->id);
         std::vector<CellOffset> cells = c ? BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation) : std::vector<CellOffset>{};
         if (cells.empty()) cells.push_back({ 0, 0 });
@@ -363,7 +364,8 @@ void SpellbookUI::TrackDrag(float dt)
         for (const auto& o : cells) mean += Vector2((float)o.col, (float)o.row);
         mean /= (float)cells.size();
         const auto mp = InputManager::Get().GetMousePos();
-        const Vector2 topLeft = Vector2(mp.x, mp.y) - m_Drag->grabOffset;
+        const Vector2 pointer = m_MouseEnabled ? Vector2(mp.x, mp.y) : m_PadPointer;
+        const Vector2 topLeft = pointer - m_Drag->grabOffset;
         m_DragNow.valid = true;
         m_DragNow.id = m_Drag->id;
         m_DragNow.center = topLeft + (mean + Vector2(0.5f, 0.5f)) * m_CellPitch;
@@ -911,6 +913,12 @@ bool SpellbookUI::GetBodyInfo(int i, uint32_t& uid, Vector2& pos) const
     uid = m_Bodies[i].uid;
     pos = m_Bodies[i].pos;
     return true;
+}
+
+uint32_t SpellbookUI::BodyAt(const Vector2& p) const
+{
+    const int i = HitTest(p);
+    return (i >= 0) ? m_Bodies[i].uid : 0;
 }
 
 bool SpellbookUI::GrabByUid(uint32_t uid)

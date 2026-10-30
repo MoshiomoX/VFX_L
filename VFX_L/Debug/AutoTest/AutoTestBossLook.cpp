@@ -109,8 +109,10 @@ void AutoTestBossLook::Run()
             m_Camera.SetTargetOverride(&target);
             cam.SetYaw(DirectX::XMConvertToDegrees(std::atan2(u.x, -u.y)));
             cam.SetPitch(pitch);
-            cam.distance = dist;
-            cam.height = height;
+            // 体格に合わせて引く（3 倍の Boss で決めた距離。骸の王の 5.5 倍は画面に収まらなかった。2026-10-29）
+            const float big = (std::max)(1.0f, m_BossAttacks.bodyScale / 3.0f);
+            cam.distance = dist * big;
+            cam.height = height * big;
             cam.avoidOcclusion = false;
             cam.SnapToTarget();
         };
@@ -129,7 +131,10 @@ void AutoTestBossLook::Run()
                 : m_BossAttacks.Type() == BossType::Stag ? BossMove::Charge
                 : m_BossAttacks.Type() == BossType::Scorpion ? BossMove::Sting
                 : m_BossAttacks.Type() == BossType::CryptKnight ? BossMove::ChainPull
-                : m_BossAttacks.Type() == BossType::Werewolf ? BossMove::Pounce : BossMove::Slam);
+                : m_BossAttacks.Type() == BossType::Werewolf ? BossMove::Pounce
+                : m_BossAttacks.Type() == BossType::Djinn ? BossMove::DjinnBreath
+                : m_BossAttacks.Type() == BossType::BoneKing ? BossMove::CurseOrbs
+                : m_BossAttacks.Type() == BossType::StoneBeast ? BossMove::WingGust : BossMove::Slam);   // 石の守護獣 = 翼の突風（翼を振り上げて打ち下ろす）   // 骸の王 = 呪いの玉   // 魔神 = 炎の息（腕を振り上げて吐く）
             snprintf(line, sizeof(line), "bosslook spear dist %.1f", Vector2(tf.position.x - boss.x, tf.position.z - boss.z).Length());
             AutoTestLog(line);
             return;
@@ -170,8 +175,10 @@ void AutoTestBossLook::Run()
     // ---- 砂の槍（溜め・突き出し）----
     if (m_AutoStep == 3)
     {
-        aim(60.0f, 22.0f, 16.0f, 2.0f);
-        if (!s_A && t >= 0.5f) { s_A = true; AutoTestLog("bosslook look spearwind"); }
+        // 骸の王は真横から（腕を振り上げた時の肘の曲がりを見る。溜め 1 秒の終わり近くで撮る）
+        if (m_BossAttacks.Type() == BossType::BoneKing) aim(90.0f, 8.0f, 14.0f, 1.8f);
+        else aim(60.0f, 22.0f, 16.0f, 2.0f);
+        if (!s_A && t >= (m_BossAttacks.Type() == BossType::BoneKing ? 0.9f : 0.5f)) { s_A = true; AutoTestLog("bosslook look spearwind"); }
         if (!s_B && t >= 1.3f) { s_B = true; AutoTestLog("bosslook look spearfire"); }
         if (t >= 2.5f)
         {

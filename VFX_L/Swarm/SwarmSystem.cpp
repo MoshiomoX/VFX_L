@@ -129,6 +129,9 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     // トゲ玉の向き（四元数。2026-10-25）。0 = まだ転がっていない（下で 0 に消す）
     if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
         m_EnemyRollBuffer, m_EnemyRollUAV, m_EnemyRollSRV, "enemyRoll")) return false;
+    // 壁を登っている状態（float4 = 登っている秒・登る先の上面・向き xz。2026-10-29）。MoveCS が書き、PushCS が読む
+    if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
+        m_EnemyClimbBuffer, m_EnemyClimbUAV, m_EnemyClimbSRV, "enemyClimb")) return false;
 
     if (!makeStructured(sizeof(Swarm::Projectile), Swarm::kMaxProjectiles,
         m_ProjBuffer, m_ProjUAV, m_ProjSRV, "projectile")) return false;
@@ -537,6 +540,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPushUAV.Get(), zero);    // 吹き飛ばしなし
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPoisonUAV.Get(), zero);  // 毒素なし
         m_Context->ClearUnorderedAccessViewUint(m_EnemyRollUAV.Get(), zero);    // トゲ玉はまだ転がっていない
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyClimbUAV.Get(), zero);   // 誰も壁を登っていない
         m_Context->ClearUnorderedAccessViewUint(m_SpriteUAV.Get(), zero);       // alive = 0
         m_Context->ClearUnorderedAccessViewUint(m_SpriteHeadUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevAliveUAV.Get(), zero);   // 全員「前は死んでいた」
@@ -570,17 +574,9 @@ void SwarmSystem::RefreshWalkable(const GridWorld& grid)
     }
 
     std::vector<uint32_t> data((size_t)w * d);
-    std::vector<uint8_t> walk((size_t)w * d);
-    std::vector<float> hgt((size_t)w * d);
     for (int z = 0; z < d; ++z)
         for (int x = 0; x < w; ++x)
-        {
-            const size_t i = (size_t)z * w + x;
-            walk[i] = grid.IsWalkable(x, z) ? 1 : 0;
-            data[i] = walk[i];
-            const auto c = grid.CellToWorld(x, z);
-            hgt[i] = grid.SampleHeight(c.x, c.z);
-        }
+            data[(size_t)z * w + x] = grid.IsWalkable(x, z) ? 1u : 0u;
 
     D3D11_BUFFER_DESC bd = {};
     bd.ByteWidth = (UINT)(data.size() * sizeof(uint32_t));
@@ -605,10 +601,8 @@ void SwarmSystem::RefreshWalkable(const GridWorld& grid)
     m_TerrainBuffer = buf;
     m_TerrainSRV = srv;
 
-    WaitFlowJob();   // 古い通行マップで作っている途中の物は捨てる
-    m_Flow.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
-    m_FlowWorker.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
-    m_FlowRequestX = m_FlowRequestZ = -1;
+    // 雑魚用の通行表・高さ場（登れる障害物入り）と流れ場（2026-10-29、SwarmSystemClimb.cpp）
+    UploadMobTerrain(grid);
 }
 
 void SwarmSystem::UploadTerrain(const GridWorld& grid)
@@ -709,21 +703,9 @@ void SwarmSystem::UploadTerrain(const GridWorld& grid)
             std::cout << "[Error] SwarmSystem: spatial hash buffers failed" << std::endl;
     }
 
-    // ---- 巡路: 通行マップとマス中心の高さを写し、向き表の buffer を作る ----
+    // ---- 巡路: 雑魚用の通行表・高さ場（登れる障害物入り。2026-10-29、SwarmSystemClimb.cpp）を GPU と流れ場へ、向き表の buffer を作る ----
     {
-        std::vector<uint8_t> walk((size_t)w * d);
-        std::vector<float>   hgt((size_t)w * d);
-        for (int z = 0; z < d; ++z)
-            for (int x = 0; x < w; ++x)
-            {
-                walk[(size_t)z * w + x] = grid.IsWalkable(x, z) ? 1 : 0;
-                const auto c = grid.CellToWorld(x, z);
-                hgt[(size_t)z * w + x] = grid.SampleHeight(c.x, c.z);
-            }
-        WaitFlowJob();   // 古い格子で作っている途中の物は捨てる
-        m_Flow.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
-        m_FlowWorker.SetGrid(w, d, walk, hgt, grid.Heights(), GridWorld::kHeightSub);
-        m_FlowRequestX = m_FlowRequestZ = -1;
+        UploadMobTerrain(grid);
 
         m_FlowSRV.Reset();
         m_FlowBuffer.Reset();
@@ -1381,12 +1363,12 @@ void SwarmSystem::DispatchStep()
         m_EnemyAICS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格（プレイヤーの手前で止まる距離）
         m_EnemyAICS->Bind(m_Context);
         m_EnemyAICS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
-        m_EnemyAICS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());
+        m_EnemyAICS->SetSRV(m_Context, "terrain", MobTerrainSRV());   // 雑魚用（登れる障害物は通れる。2026-10-29）
         m_EnemyAICS->SetSRV(m_Context, "cellCount", m_CellCountSRV.Get());
         m_EnemyAICS->SetSRV(m_Context, "cellItems", m_CellItemsSRV.Get());
         m_EnemyAICS->SetSRV(m_Context, "flowField", m_FlowSRV.Get());   // 巡路の向き表
         m_EnemyAICS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());   // 点火した自爆兵は止まる・突撃兵の段階を進める
-        m_EnemyAICS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());    // 崖は壁と同じく止める
+        m_EnemyAICS->SetSRV(m_Context, "terrainHeight", MobHeightSRV());    // 崖・障害物の上面（登る向きでなければ壁と同じく止める）
         m_EnemyAICS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyAICS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 毒の池の減速・凍結（数え下げる）
         m_EnemyAICS->SetUAV(m_Context, "castEvents", m_SplitUAV.Get());     // 砂嵐の術師の詠唱 → 分裂の環（CPU が砂旋を湧かせる。2026-10-17）
@@ -1408,14 +1390,15 @@ void SwarmSystem::DispatchStep()
         m_EnemyMoveCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 種類の体格（壁から体半径を離す）
         m_EnemyMoveCS->Bind(m_Context);
         m_EnemyMoveCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
-        m_EnemyMoveCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 斜面の高さ
-        m_EnemyMoveCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());       // 通行マス（壁への滑り・壁からの脱出）
+        m_EnemyMoveCS->SetSRV(m_Context, "terrainHeight", MobHeightSRV());   // 斜面・障害物の上面の高さ（雑魚用）
+        m_EnemyMoveCS->SetSRV(m_Context, "terrain", MobTerrainSRV());       // 通行マス（壁への滑り・壁からの脱出。雑魚用）
         m_EnemyMoveCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 種類（幽霊は壁を素通り）
         m_EnemyMoveCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_EnemyMoveCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());   // 突風の吹き飛ばし（積分に足して減らす。AI の速度の平滑化を通さない）
         m_EnemyMoveCS->SetUAV(m_Context, "enemyRoll", m_EnemyRollUAV.Get());   // トゲ玉の向き（実際に進んだ分だけ転がす。2026-10-25）
         m_EnemyMoveCS->SetUAV(m_Context, "closeTarget", m_CloseTargetUAV.Get());   // 優先度なしの一番近い敵の競争（2026-10-27）
+        m_EnemyMoveCS->SetUAV(m_Context, "enemyClimb", m_EnemyClimbUAV.Get());     // 壁を登っている状態（2026-10-29）
         m_EnemyMoveCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -1433,11 +1416,12 @@ void SwarmSystem::DispatchStep()
         m_EnemyPushCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 種類の体格（壁から体半径を離す）
         m_EnemyPushCS->Bind(m_Context);
         m_EnemyPushCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
-        m_EnemyPushCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());
+        m_EnemyPushCS->SetSRV(m_Context, "terrain", MobTerrainSRV());   // 雑魚用（2026-10-29）
         m_EnemyPushCS->SetSRV(m_Context, "cellCount", m_CellCountSRV.Get());
         m_EnemyPushCS->SetSRV(m_Context, "cellItems", m_CellItemsSRV.Get());
-        m_EnemyPushCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());
+        m_EnemyPushCS->SetSRV(m_Context, "terrainHeight", MobHeightSRV());
         m_EnemyPushCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 種類（幽霊は壁・崖を無視）
+        m_EnemyPushCS->SetSRV(m_Context, "enemyClimb", m_EnemyClimbSRV.Get());   // 壁を登っている雑魚は押し合いで動かさない（2026-10-29）
         m_EnemyPushCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_EnemyPushCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);

@@ -32,7 +32,7 @@ namespace
         s.biome = TerrainGenerator::Biome::Desert;
         s.boss = BossType::SandGuardian;   // 砂の守護者（2026-10-24）
         s.boss2 = BossType::Scorpion;      // 2 面目は大サソリ（2026-10-26。毒針 / 鋏 / 潜砂 / 召喚）
-        // 3 面目はまだ岩の巨人（砂嵐の魔神は未着手）
+        s.boss3 = BossType::Djinn;         // 3 面目は砂嵐の魔神（2026-10-29。浮いて砂嵐召喚 / 炎の息 / 砂渡り → 咆哮で降りて砂の拳 / 衝撃波 / 流沙）
         // 砂塵で霞んだ砂漠（2026-10-05：日差しが強すぎた → 太陽を弱め、空は砂色に濁らせ、靄を近くから濃く）
         s.light.sunPitch = 55.0f;
         s.light.sunYaw = 20.0f;
@@ -70,7 +70,9 @@ namespace
         s.index = 3;
         s.name = L"遺跡";
         s.biome = TerrainGenerator::Biome::Dungeon;
-        s.boss = BossType::CryptKnight;   // 1 面目は墓守の騎士（2026-10-26。双鎖 / 重撃 / 衝撃波 / 鎧の召喚、1 回蘇る）。2・3 面目はまだ岩の巨人
+        s.boss = BossType::CryptKnight;   // 1 面目は墓守の騎士（2026-10-26。双鎖 / 重撃 / 衝撃波 / 鎧の召喚、1 回蘇る）
+        s.boss2 = BossType::StoneBeast;   // 2 面目は石の守護獣（2026-10-29。飛んで急降下 / 石化の息 / 翼の突風 → 咆哮で降りて尾の薙ぎ払い / 突進 / 投石雨）
+        s.boss3 = BossType::BoneKing;     // 3 面目は骸の王（2026-10-29。呪いの玉 / 大起尸 / 影へ消える / 呪いの床）
         // 空は無い（黒に近い天井）。弱い青い月明かりを主光にして、松明の点光源が主役
         s.light.sunPitch = 70.0f;
         s.light.sunYaw = 30.0f;

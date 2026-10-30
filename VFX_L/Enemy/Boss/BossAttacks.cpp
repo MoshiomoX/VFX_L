@@ -1,7 +1,9 @@
 // ============================================================
 // BossAttacks.cpp
-// 技の流れ（選ぶ → 出す → 終わったら間を空ける）と、輪・衝撃波・突進の当たり。説明は BossAttacks.h
-// 砂の守護者の技は BossAttacksSand.cpp、調整パネルは BossAttacksPanel.cpp
+// 技の流れ（選ぶ → 出す → 終わったら間を空ける）と、輪の爆発。説明は BossAttacks.h
+// 面毎の組み合わせ（Configure）と技を始める時の状態（StartMove）は BossAttacksConfig.cpp、
+// 共通の技（重撃・投石雨・衝撃波・突進・召喚）の中身は BossAttacksCommon.cpp（2026-10-29 に分けた）、
+// Boss 毎の技は BossAttacks<Sand / Scorpion / Knight / Wolf / Stag / Djinn / King / Beast>.cpp、調整パネルは BossAttacksPanel.cpp
 // ============================================================
 #include "Enemy/Boss/BossAttacks.h"
 #include "Swarm/SwarmTypes.h"
@@ -44,6 +46,13 @@ void BossAttacks::Reset()
     m_ChargeTossT = -1.0f;
     m_ChargeRecover = 0.0f;
     m_ChargeLanesPassed = 0;
+    m_ChargeT0 = 0.0f;
+    m_ChargeIndex = 0;
+    m_ChargeCount = 1;
+    m_TossHitDone = m_BoltFired = false;
+    m_EnrageRoarDone = false;
+    m_RoarLeft = 0.0f;
+    m_RoarRingAge = -1.0f;
     m_StingHitDone = false;
     m_ClawHitDone = false;
     m_ChainCaught = false;
@@ -60,97 +69,32 @@ void BossAttacks::Reset()
     m_SandField = QuicksandField{};
     m_SandAge = 0.0f;
     brain.Reset();
-}
-
-// ============================================================
-// 面毎の Boss。技の有り / 無しは BossBrain の rules[].enabled、他の数値（冷却・重み）は BossBrain の既定のまま
-// ============================================================
-void BossAttacks::Configure(BossType t)
-{
-    m_Type = t;
-    const bool sand = (t == BossType::SandGuardian);
-    const bool scorpion = (t == BossType::Scorpion);   // 砂漠 2 面目（2026-10-26）：毒針 / 鋏 + 潜砂（借用）+ 召喚。共通の 4 つは出さない
-    const bool knight = (t == BossType::CryptKnight);  // 遺跡 1 面目（2026-10-26）：重撃 / 衝撃波 / 双鎖 / 鎧の召喚（投石雨・突進は出さない）
-    const bool wolf = (t == BossType::Werewolf);       // 草原 2 面目（2026-10-26）：飛びかかり / 爪の三連 / 遠吠え だけ（共通は全部出さない）
-    brain.rules[(int)BossMove::Slam].enabled = !scorpion && !wolf;
-    brain.rules[(int)BossMove::RockRain].enabled = !scorpion && !knight && !wolf;
-    brain.rules[(int)BossMove::Shockwave].enabled = !scorpion && !wolf;
-    brain.rules[(int)BossMove::Charge].enabled = !scorpion && !knight && !wolf;
-    brain.rules[(int)BossMove::Summon].enabled = !wolf;
-    brain.rules[(int)BossMove::Pounce].enabled = wolf;
-    brain.rules[(int)BossMove::ClawCombo].enabled = wolf;
-    brain.rules[(int)BossMove::Howl].enabled = wolf;
-    brain.rules[(int)BossMove::SandSpear].enabled = sand;
-    brain.rules[(int)BossMove::Burrow].enabled = sand || scorpion;
-    brain.rules[(int)BossMove::Quicksand].enabled = sand;
-    brain.rules[(int)BossMove::Sting].enabled = scorpion;
-    brain.rules[(int)BossMove::ClawSweep].enabled = scorpion;
-    brain.rules[(int)BossMove::ChainPull].enabled = knight;
-    forceEnraged = false;
-    // 走りの前傾：雄鹿は臀を支点に 10°、大サソリは低い胴の真ん中を支点に 5°（頭が砂に刺さらない）、他は傾けない
-    if (t == BossType::Stag) { leanPivotY = 0.5f; leanPivotZ = -0.6f; leanAngle = 0.17f; }
-    else if (scorpion) { leanPivotY = -0.6f; leanPivotZ = 0.0f; leanAngle = 0.08f; }
-    else { leanPivotY = leanPivotZ = leanAngle = 0.0f; }
-    // 体の大きさ：狼人は猫背で背が低くなったので大きく（10-27「圧が無い、小さい」）
-    bodyScale = (t == BossType::Werewolf) ? 3.8f : 3.0f;
-    if (sand || scorpion)
-    {
-        // 砂の守護者：トゲ玉と砂潜り（砂漠の敵）を呼ぶ。体は自分の砂岩の皮（BossLooks）なので色は掛けない
-        summonPicks[0] = { Swarm::kEnemyKindSpikeBall, 0.5f };
-        summonPicks[1] = { Swarm::kEnemyKindBurrower, 0.5f };
-        summonPicks[2] = { Swarm::kEnemyKindMob, 0.0f };
-        bodyTint = { 1.0f, 1.0f, 1.0f };
-    }
-    else if (knight)
-    {
-        // 墓守の騎士：呪いの鎧を呼ぶ（倒しても 1 回蘇る雑魚）。皮は鎧の鋼（BossLooks）
-        summonPicks[0] = { Swarm::kEnemyKindArmor, 1.0f };
-        summonPicks[1] = { Swarm::kEnemyKindMob, 0.0f };
-        summonPicks[2] = { Swarm::kEnemyKindMob, 0.0f };
-        bodyTint = { 1.0f, 1.0f, 1.0f };
-    }
-    else if (wolf)
-    {
-        // 月下の狼人：遠吠えで雑魚（群れ）を呼ぶ。体は飾りだけなので色は掛けない（狂暴の赤はシーンが bodyTint に入れる）
-        summonPicks[0] = { Swarm::kEnemyKindMob, 0.8f };
-        summonPicks[1] = { Swarm::kEnemyKindCharger, 0.2f };
-        summonPicks[2] = { Swarm::kEnemyKindMob, 0.0f };
-        bodyTint = { 1.0f, 1.0f, 1.0f };
-    }
-    else
-    {
-        summonPicks[0] = { Swarm::kEnemyKindMob, 0.7f };
-        summonPicks[1] = { Swarm::kEnemyKindBomber, 0.3f };
-        summonPicks[2] = { Swarm::kEnemyKindMob, 0.0f };
-        bodyTint = { 1.0f, 1.0f, 1.0f };   // 苔むした岩の皮（BossLooks。2026-10-25 まではゾンビの皮 × 紫）
-    }
-}
-
-uint32_t BossAttacks::PickSummonKind()
-{
-    float total = 0.0f;
-    for (const SummonPick& p : summonPicks) total += (std::max)(p.weight, 0.0f);
-    if (total <= 0.0f) return Swarm::kEnemyKindMob;
-    std::uniform_real_distribution<float> u(0.0f, total);
-    float pick = u(m_Rng);
-    for (const SummonPick& p : summonPicks)
-    {
-        const float w = (std::max)(p.weight, 0.0f);
-        if (w <= 0.0f) continue;
-        if (pick < w) return p.kind;
-        pick -= w;
-    }
-    return summonPicks[0].kind;
+    // 砂嵐の魔神：一段目（浮いて）から
+    m_Djinn = DjinnState{};
+    m_King = KingState{};   // 骸の王の玉・床（2026-10-29）
+    m_Djinn.hoverBase = djinn.hover;
+    m_ForcePhase2 = false;
+    if (m_Type == BossType::Djinn) ConfigureDjinnPhase(false);
+    // 石の守護獣：一段目（飛んで）から。石化はプレイヤー側の状態なので引き継ぐ（2026-10-29）
+    const float petrify = m_Beast.petrify, stone = m_Beast.stoneLeft;
+    m_Beast = BeastState{};
+    m_Beast.hoverBase = beast.hover;
+    m_Beast.petrify = petrify;
+    m_Beast.stoneLeft = stone;
+    if (m_Type == BossType::StoneBeast) ConfigureBeastPhase(false);
 }
 
 void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
 {
     // 大サソリの毒はプレイヤー側の状態：Boss が居なくても減る（2026-10-26）
     if (m_PoisonLeft > 0.0f) m_PoisonLeft = (std::max)(0.0f, m_PoisonLeft - in.dt);
+    UpdateBeastPetrify(in.dt, out);   // 石の守護獣の石化も同じ（2026-10-29）
     // Boss が居なくなったら（倒した・まだ呼んでいない）輪も帯も消す
     if (!in.bossAlive)
     {
         if (m_WasAlive || !m_Rings.empty() || m_WaveOn) Reset();
+        UpdateDjinnOutputs(in, out);   // 砂嵐の魔神は門から出て来る演出の間も浮いている
+        UpdateBeastOutputs(in, out);   // 石の守護獣も飛んで出て来る
         return;
     }
     if (!m_WasAlive)
@@ -191,9 +135,17 @@ void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
 
     UpdateWave(in, grid, out);
     UpdateQuicksandField(in.dt);
+    if (m_Type == BossType::Djinn) UpdateDevils(in, grid, out);   // 砂嵐の魔神の砂旋（技の後も回る）
+    if (m_Type == BossType::BoneKing)   // 骸の王の呪いの玉・呪いの床（技の後も残る）
+    {
+        UpdateKingOrbs(in, grid, out);
+        UpdateKingCurse(in, grid, out);
+    }
+    if (m_Type == BossType::StoneBeast) UpdateBeastShards(in, grid, out);   // 石の守護獣の石羽（技の後も飛ぶ）
     if (m_Move != BossMove::None) UpdateMove(in, grid, out);
     if (m_Move != BossMove::Burrow) m_BurrowSink = 0.0f;   // 潜砂の途中で技が切れても地上へ戻す
-    out.bossBurrow = m_BurrowSink;
+    if (m_Move != BossMove::DjinnShift && m_Move != BossMove::ShadowStep) m_Djinn.shiftSink = 0.0f;
+    out.bossBurrow = (std::max)(m_BurrowSink, m_Djinn.shiftSink);   // 魔神の砂渡りも同じ沈み（GPU は撃てなくなる）
 
     // ---- 四足の Boss の姿勢 → GPU の VS（BomberCB::bossChargePose。2026-10-26）：雄鹿 = 突進（BossAttacksStag.cpp）、
     //      大サソリ = 毒針の尾（BossAttacksScorpion.cpp）、狼人 = 飛びかかりの放物線（UpdatePounce が書く）。他の Boss は 0 のまま ----
@@ -202,8 +154,42 @@ void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
     m_LastEnraged = Enraged(in);
     if (m_HowlHasteLeft > 0.0f) m_HowlHasteLeft -= in.dt;
 
-    // ---- 次の技（技を出していない間だけ間を数える）----
-    if (m_Move == BossMove::None)
+    // ---- 砂嵐の魔神の二段目：パネル・自動テストの「今すぐ」、咆哮を切ってある時は狂暴の線を切った所で ----
+    if (HasPhases() && !InPhase2() && m_Move == BossMove::None
+        && (m_ForcePhase2 || (!enrageRoar && in.bossHpRatio > 0.01f && in.bossHpRatio < enrageHpRatio)))
+        EnterPhase2(out);
+    m_ForcePhase2 = false;
+
+    // ---- 狂暴の咆哮（2026-10-29）：HP が半分を切った後、技の切れ目で 1 回だけ止まって吠える。
+    //      HP 0 は止めの一撃で折り返した値なので数えない。蘇った騎士（forceEnraged）・テストの狂暴では吠えない ----
+    if (enrageRoar && !m_EnrageRoarDone && !forceEnraged && !testEnraged && m_Move == BossMove::None
+        && in.bossHpRatio > 0.01f && in.bossHpRatio < enrageHpRatio)
+    {
+        m_EnrageRoarDone = true;
+        m_RoarLeft = (std::max)(enrageRoarTime, 0.05f);
+        m_RoarRingAge = 0.0f;
+        m_RoarCenter = Ground(grid, in.bossPos.x, in.bossPos.z);
+        out.enrageRoared = true;
+        if (HasPhases() && !InPhase2()) EnterPhase2(out);   // 砂嵐の魔神・石の守護獣は吠えながら降りて二段目へ
+    }
+    if (m_RoarRingAge >= 0.0f)
+    {
+        m_RoarRingAge += in.dt;
+        if (m_RoarRingAge > enrageRingTime) m_RoarRingAge = -1.0f;
+    }
+    if (m_RoarLeft > 0.0f)
+    {
+        // 吠えている間：その場で止まってプレイヤーの方を向き、体で殴らない。吠え終わったらすぐ次の技
+        m_RoarLeft -= in.dt;
+        out.chargeOn = true;
+        out.chargeSpeed = 0.0f;
+        out.chargeDir = FlatDir(in.bossPos, in.player, m_ChargeDir);
+        out.noContact = true;
+        if (m_RoarLeft <= 0.0f) m_Gap = (std::min)(m_Gap, 0.4f);
+    }
+
+    // ---- 次の技（技を出していない間・吠えていない間だけ間を数える）----
+    if (m_Move == BossMove::None && m_RoarLeft <= 0.0f)
     {
         const float dist = Flat(in.player, in.bossPos);
         const bool inRange = dist <= range;
@@ -226,103 +212,9 @@ void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
             m_Gap = 0.0f;   // 離れている間は溜めない（近付いた瞬間に 1 回だけ）
     }
 
+    UpdateDjinnOutputs(in, out);   // 砂嵐の魔神の浮き・間合い・腕の姿勢（他の Boss は全部 0）
+    UpdateBeastOutputs(in, out);   // 石の守護獣の浮き・翼・体の回り
     BuildVisuals(in, grid);
-}
-
-void BossAttacks::StartMove(BossMove m, const Input& in, const GridWorld& grid, Output& out)
-{
-    m_Move = m;
-    m_MoveTime = 0.0f;
-    brain.OnStarted(m, Enraged(in));
-    out.started = m;
-    ++volleys;
-    if (m != BossMove::None) ++moveCounts[(int)m];
-
-    switch (m)
-    {
-    case BossMove::Slam:
-        m_Pending = (std::max)(1, count);
-        m_PendingTimer = 0.0f;
-        break;
-    case BossMove::RockRain:
-        m_Pending = (std::max)(1, rockCount);
-        m_PendingTimer = 0.0f;
-        m_RainCenter = Ground(grid, in.player.x, in.player.z);
-        break;
-    case BossMove::Shockwave:
-        break;
-    case BossMove::Charge:
-        m_ChargeStart = Ground(grid, in.bossPos.x, in.bossPos.z);
-        m_ChargeDir = FlatDir(in.bossPos, in.player, Vector2(0.0f, 1.0f));
-        m_ChargeHitDone = false;
-        m_ChargeTossT = -1.0f;
-        m_ChargeRecover = 0.0f;
-        m_ChargeLanesPassed = 0;
-        break;
-    case BossMove::Howl:   // 狼人の遠吠え：湧く所は召喚と同じ（吠え終わりに湧く）
-    case BossMove::Summon:
-    {
-        // Boss の周りに等間隔（少しずらす）。歩けないマスなら少し内側を試し、駄目なら飛ばす
-        m_SummonPoints.clear();
-        m_ChargeDir = FlatDir(in.bossPos, in.player, Vector2(0.0f, 1.0f));
-        const int n = (std::max)(1, Enraged(in) ? summonCountEnraged : summonCount);
-        std::uniform_real_distribution<float> u01(0.0f, 1.0f);
-        const float base = u01(m_Rng) * 6.2831853f;
-        for (int k = 0; k < n; ++k)
-        {
-            const float a = base + 6.2831853f * ((float)k + (u01(m_Rng) - 0.5f) * 0.5f) / (float)n;
-            const float d = summonRingMin + (summonRingMax - summonRingMin) * u01(m_Rng);
-            for (float s = 1.0f; s > 0.3f; s -= 0.25f)
-            {
-                const float x = in.bossPos.x + std::cos(a) * d * s, z = in.bossPos.z + std::sin(a) * d * s;
-                int gx = 0, gz = 0;
-                grid.WorldToCell(Vector3(x, 0.0f, z), gx, gz);
-                if (!grid.IsWalkable(gx, gz)) continue;
-                Output::Summon sp;
-                sp.pos = Ground(grid, x, z);
-                sp.kind = PickSummonKind();
-                m_SummonPoints.push_back(sp);
-                break;
-            }
-        }
-        out.ringsPlaced += (int)m_SummonPoints.size();
-        ringsPlaced += (uint32_t)m_SummonPoints.size();
-        break;
-    }
-    case BossMove::SandSpear:
-        StartSandSpear(in, grid);
-        out.ringsPlaced += (int)m_SpearDirs.size();
-        break;
-    case BossMove::Sting:
-        StartSting(in, grid);
-        ++out.ringsPlaced;
-        break;
-    case BossMove::ClawSweep:
-        StartClawSweep(in);
-        break;
-    case BossMove::ChainPull:
-        StartChainPull(in, grid);
-        out.ringsPlaced += 2;
-        break;
-    case BossMove::Pounce:
-        StartPounce(in);
-        ++out.ringsPlaced;
-        break;
-    case BossMove::ClawCombo:
-        StartClawCombo(in, grid);
-        break;
-    case BossMove::Burrow:
-        StartBurrow(in);
-        out.burrowSank = true;
-        break;
-    case BossMove::Quicksand:
-        StartQuicksand(in, grid);
-        out.quicksandStarted = true;
-        out.quicksandPos = m_SandField.center;
-        break;
-    default:
-        break;
-    }
 }
 
 void BossAttacks::UpdateMove(const Input& in, const GridWorld& grid, Output& out)
@@ -333,120 +225,19 @@ void BossAttacks::UpdateMove(const Input& in, const GridWorld& grid, Output& out
 
     switch (m_Move)
     {
+    // 共通の技の中身は BossAttacksCommon.cpp
     case BossMove::Slam:
     case BossMove::RockRain:
-    {
-        const bool rain = (m_Move == BossMove::RockRain);
-        m_PendingTimer -= in.dt;
-        std::uniform_real_distribution<float> u01(0.0f, 1.0f);
-        while (m_Pending > 0 && m_PendingTimer <= 0.0f)
-        {
-            Ring r;
-            r.kind = m_Move;
-            if (!rain)
-            {
-                // 重撃：置いた瞬間のプレイヤーの足元（動いていれば外れる）
-                r.center = Ground(grid, in.player.x, in.player.z);
-                r.radius = radius;
-                r.warn = warnTime;
-                r.damage = damage * in.damageMul;
-            }
-            else
-            {
-                // 投石雨：1 つ目は今の足元、残りは始めた時の足元の周り（円の中に一様に）
-                Vector3 c = Ground(grid, in.player.x, in.player.z);
-                if (m_Pending < rockCount)
-                {
-                    const float a = u01(m_Rng) * 6.2831853f;
-                    const float d = std::sqrt(u01(m_Rng)) * rockSpread;
-                    c = Ground(grid, m_RainCenter.x + std::cos(a) * d, m_RainCenter.z + std::sin(a) * d);
-                }
-                r.center = c;
-                r.radius = rockRadius;
-                r.warn = rockWarn;
-                r.damage = rockDamage * in.damageMul;
-            }
-            m_Rings.push_back(r);
-            --m_Pending;
-            ++out.ringsPlaced;
-            ++ringsPlaced;
-            m_PendingTimer += rain ? rockSpacing : spacing;
-        }
-        done = (m_Pending == 0);
+        done = UpdateRingVolley(in, grid, out);
         break;
-    }
-
     case BossMove::Shockwave:
-        // 溜め：その場で止まってプレイヤーの方を向く
-        out.chargeOn = true;
-        out.chargeSpeed = 0.0f;
-        out.chargeDir = FlatDir(in.bossPos, in.player, m_ChargeDir);
-        if (m_MoveTime >= waveWindup)
-        {
-            m_WaveOn = true;
-            m_WaveHitDone = false;
-            m_WaveRadius = 0.0f;
-            m_WaveCenter = Ground(grid, in.bossPos.x, in.bossPos.z);
-            out.waveLaunched = true;
-            out.wavePos = m_WaveCenter;
-            done = true;
-        }
+        done = UpdateShockwaveMove(in, grid, out);
         break;
-
     case BossMove::Charge:
-    {
-        out.chargeOn = true;
-        out.chargeDir = m_ChargeDir;
-        if (m_MoveTime < chargeWindup)
-        {
-            out.chargeSpeed = 0.0f;   // 溜め：道筋の輪が育つ間は止まる
-            break;
-        }
-        if (prevTime < chargeWindup) out.chargeGo = true;
-        out.chargeSpeed = chargeSpeed;
-        // 当たり：走っている Boss の近く（高さも近い）にプレイヤーが居れば 1 回だけ
-        if (!m_ChargeHitDone && Flat(in.player, in.bossPos) < chargeHitRadius
-            && std::fabs(in.playerFeetY - in.bossPos.y) < 3.0f)
-        {
-            Hit h;
-            h.kind = BossMove::Charge;
-            h.center = in.bossPos;
-            h.radius = chargeHitRadius;
-            h.damage = chargeDamage * in.damageMul;
-            h.ranged = false;
-            // 突進の向きに横へ弾く（真正面なら進む向き）
-            const Vector2 side = FlatDir(in.bossPos, in.player, m_ChargeDir);
-            h.dir = side + m_ChargeDir;
-            if (h.dir.LengthSquared() > 1e-4f) h.dir.Normalize(); else h.dir = m_ChargeDir;
-            out.hits.push_back(h);
-            m_ChargeHitDone = true;
-            if (m_Type == BossType::Stag) m_ChargeTossT = 0.0f;   // 角で跳ね上げる（頭の振り上げ、chargePose 1 → 1.3）
-        }
-        // 雷鳴の雄鹿：通り過ぎた道筋の輪に雷の予告（BossAttacksStag.cpp）
-        if (m_Type == BossType::Stag) StagThunderLane(in, grid, out);
-        const float dashTime = chargeLength / (std::max)(chargeSpeed, 1.0f);
-        if (m_MoveTime >= chargeWindup + dashTime)
-        {
-            out.chargeOn = false;
-            done = true;
-            if (m_Type == BossType::Stag) m_ChargeRecover = stagRecoverTime;
-        }
+        done = UpdateChargeMove(in, grid, out, prevTime);
         break;
-    }
-
     case BossMove::Summon:
-        // 吠えている間はその場で止まってプレイヤーの方を向く → 時間が来たら輪から湧く
-        out.chargeOn = true;
-        out.chargeSpeed = 0.0f;
-        out.chargeDir = FlatDir(in.bossPos, in.player, m_ChargeDir);
-        if (m_MoveTime >= summonWindup)
-        {
-            out.summons = m_SummonPoints;
-            summoned += (uint32_t)m_SummonPoints.size();
-            m_SummonPoints.clear();
-            out.chargeOn = false;
-            done = true;
-        }
+        done = UpdateSummonMove(in, out);
         break;
 
     case BossMove::SandSpear:
@@ -476,6 +267,54 @@ void BossAttacks::UpdateMove(const Input& in, const GridWorld& grid, Output& out
     case BossMove::Howl:
         done = UpdateHowl(in, out);
         break;
+    case BossMove::AntlerToss:
+        done = UpdateAntlerToss(in, grid, out, prevTime);
+        break;
+    case BossMove::AntlerBolt:
+        done = UpdateAntlerBolt(in, grid, out, prevTime);
+        break;
+    case BossMove::DustDevils:
+        done = UpdateDustDevilsMove(in, out);
+        break;
+    case BossMove::DjinnBreath:
+        done = UpdateDjinnBreath(in, grid, out);
+        break;
+    case BossMove::DjinnShift:
+        done = UpdateDjinnShift(in, grid, out);
+        break;
+    case BossMove::SandFist:
+        done = UpdateSandFist(in, grid, out, prevTime);
+        break;
+    case BossMove::CurseOrbs:
+        done = UpdateCurseOrbs(in, grid, out);
+        break;
+    case BossMove::RaiseDead:
+        done = UpdateRaiseDead(in, out);
+        break;
+    case BossMove::ShadowStep:   // 沈んで走って浮かぶのは魔神の砂渡りと同じ（BossAttacksDjinn.cpp）
+        done = UpdateDjinnShift(in, grid, out);
+        break;
+    case BossMove::CurseFloor:
+        done = UpdateCurseFloorMove(in, out);
+        break;
+    case BossMove::BeastDive:
+        done = UpdateBeastDive(in, grid, out);
+        break;
+    case BossMove::PetrifyBreath:
+        done = UpdatePetrifyBreath(in, grid, out);
+        break;
+    case BossMove::WingGust:
+        done = UpdateWingGust(in, grid, out, prevTime);
+        break;
+    case BossMove::TailSweep:
+        done = UpdateTailSweep(in, grid, out, prevTime);
+        break;
+    case BossMove::SkyCrush:
+        done = UpdateSkyCrush(in, grid, out);
+        break;
+    case BossMove::FeatherShards:
+        done = UpdateFeatherShards(in, grid, out);
+        break;
 
     default:
         done = true;
@@ -496,65 +335,23 @@ void BossAttacks::FinishMove(const Input& in)
     if (m_HowlHasteLeft > 0.0f) m_Gap *= howlGapMul;   // 狼人の遠吠えの後はしばらく間が短い
 }
 
-// 衝撃波：帯を広げ、通った瞬間に足が地面近くならプレイヤーに当たり（1 回だけ）
-void BossAttacks::UpdateWave(const Input& in, const GridWorld& grid, Output& out)
-{
-    if (!m_WaveOn) return;
-    const float prev = m_WaveRadius;
-    m_WaveRadius += waveSpeed * in.dt;
-    if (!m_WaveHitDone)
-    {
-        const float d = Flat(in.player, m_WaveCenter);
-        const float half = waveBand * 0.5f + 0.4f;   // 帯の半分 + プレイヤーの太さ
-        if (d >= prev - half && d <= m_WaveRadius + half)
-        {
-            const float feetAbove = in.playerFeetY - grid.SampleHeight(in.player.x, in.player.z);
-            if (feetAbove <= waveDodgeHeight && feetAbove > -2.0f)
-            {
-                Hit h;
-                h.kind = BossMove::Shockwave;
-                h.center = m_WaveCenter;
-                h.radius = m_WaveRadius;
-                h.damage = waveDamage * in.damageMul;
-                h.ranged = false;
-                h.dir = FlatDir(m_WaveCenter, in.player, Vector2(0.0f, 1.0f));
-                out.hits.push_back(h);
-                m_WaveHitDone = true;
-            }
-        }
-    }
-    if (m_WaveRadius >= waveMaxRadius) m_WaveOn = false;
-}
-
 void BossAttacks::BuildVisuals(const Input& in, const GridWorld& grid)
 {
     m_Visuals.clear();
-    for (const Ring& r : m_Rings)
-        m_Visuals.push_back({ r.center, r.radius, (r.warn > 0.0f) ? r.age / r.warn : 1.0f, 0.0f });
-    if (m_Move == BossMove::Shockwave)
-        m_Visuals.push_back({ Ground(grid, in.bossPos.x, in.bossPos.z), waveWindupRadius,
-            (waveWindup > 0.0f) ? m_MoveTime / waveWindup : 1.0f, 0.0f });
-    if (m_WaveOn)
-        m_Visuals.push_back({ m_WaveCenter, m_WaveRadius, -1.0f, waveBand });
-    if (m_Move == BossMove::Charge)
+    BuildCommonVisuals(in, grid);   // 共通の技の輪・帯・道筋（BossAttacksCommon.cpp）
+    if (m_RoarRingAge >= 0.0f)
     {
-        const float p = (chargeWindup > 0.0f) ? (std::min)(1.0f, m_MoveTime / chargeWindup) : 1.0f;
-        const int n = (std::max)(1, (int)(chargeLength / (std::max)(chargeLaneSpacing, 0.5f)));
-        for (int i = 0; i < n; ++i)
-        {
-            const float s = chargeLaneSpacing * ((float)i + 0.5f);
-            m_Visuals.push_back({ Ground(grid, m_ChargeStart.x + m_ChargeDir.x * s, m_ChargeStart.z + m_ChargeDir.y * s),
-                chargeLaneRadius, p, 0.0f });
-        }
-    }
-    if (m_Move == BossMove::Summon)
-    {
-        const float p = (summonWindup > 0.0f) ? (std::min)(1.0f, m_MoveTime / summonWindup) : 1.0f;
-        for (const Output::Summon& s : m_SummonPoints)
-            m_Visuals.push_back({ s.pos, summonRingRadius, p, 0.0f });
+        // 狂暴の咆哮：足元から広がる赤い輪（縁だけ。最初速く、後で緩む）
+        const float u = (std::min)(1.0f, m_RoarRingAge / (std::max)(enrageRingTime, 0.05f));
+        const float r = enrageRingMax * (1.0f - (1.0f - u) * (1.0f - u));
+        m_Visuals.push_back({ m_RoarCenter, (std::max)(r, 0.3f), -1.0f, 1.2f });
     }
     BuildSandVisuals(grid);
     BuildScorpionVisuals(in, grid);
     BuildKnightVisuals(grid);
     BuildWolfVisuals(in, grid);
+    BuildStagVisuals(grid);
+    BuildDjinnVisuals(grid);
+    BuildKingVisuals(grid);
+    BuildBeastVisuals(grid);
 }

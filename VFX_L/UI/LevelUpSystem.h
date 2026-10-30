@@ -52,11 +52,9 @@ public:
     // 設置枠 1 種類の出やすさ × その枠の FrameItemDef::weight（2026-10-27、枠が 9 種類になった。全部 1 だと候補の 3 割近くが枠になる。
     // 合計でおよそ魔法 1.4 枚ぶん。3x3 は weight 0.25 で珍しい）
     float frameWeight = 0.2f;
-    // 稀有度（2026-10-28、ItemRarity.h）：札の重み = 稀有度の重み × 上の種類の重み。
-    // 稀有度の重みは先へ進むほど（レベル・この局の何面目か・宝箱）珍しい物が伸びる（Rarity::Boost）
+    // 稀有度（ItemRarity.h）：2026-10-29 から 1 枚毎に先に稀有度を引き（レベルで決まる率）、その段の中で上の種類の重みで引く
     Rarity::Odds rarityOdds;
-    float crateRarityBoost = 0.5f;   // 宝箱の四択に足す boost
-    int   runPos = 1;                // この局の何面目か（シーンが入れる。2 面目から boost +0.5）
+    float crateLevelBonus = 15.0f;   // 宝箱の四択はレベル + これで率を決める（金貨を払って開ける分だけ少し良い）
     int rerollBaseCost = 10;    // 引き直し 1 回目の金貨
     int rerollStepCost = 10;    // 同じ四択で引き直す度に上がる分
     float levelUpDelay = 1.2f;  // レベルアップしてから四択を出すまでの間（秒。その間は遊べる。2026-10-15）
@@ -72,7 +70,7 @@ private:
     // 候補を pendingChoices に詰める（レベルアップと報酬で共通）。詰めた数を返す
     // book: 持っている物（上級魔法は前提の基本魔法を 1 つでも持っていないと出さない）。null = 絞らない
     // avoid: 池から外す物（引き直しで同じ札ばかり出ないように）。外すと足りない時は外さずに引く
-    // crate: 宝箱の四択（稀有度が少し出やすい。crateRarityBoost）
+    // crate: 宝箱の四択（稀有度が少し出やすい。crateLevelBonus）
     int FillChoices(LevelComponent& lv, const struct SpellbookComponent* book,
         const std::vector<ItemID>* avoid = nullptr, bool crate = false);
     int m_TotalOffers = 0;   // 報酬の三択を出した回数

@@ -3,13 +3,19 @@
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=rarity
 // 稀有度（Item/ItemRarity.h、2026-10-28）：上級魔法をやめて札を ノーマル / レア / レジェンド に分けた。
 //   A 表      : 全部の札の稀有度を 1 行ずつ `rarity table <稀有度>: 名前…`
-//   B 出方    : 四択を 3000 回ずつ引き（LevelUpSystem::DebugFill）、レベル 1 / 15 / 30・2 面目・宝箱で
-//               `rarity odds lv <L> pos <P> crate <0/1> card N/R/L % offerR % offerL % frames %`（1 枚あたり / 四択に 1 枚でも入る率）
+//   B 出方    : 四択を 3000 回ずつ引き（LevelUpSystem::DebugFill）、レベル 1 / 15 / 30・宝箱で
+//               `rarity odds lv <L> crate <0/1> card N/R/L % offerR % offerL % frames %`（1 枚あたり / 四択に 1 枚でも入る率）
+//               （2026-10-29 から何面目かは率に入らないので pos は外した）
 //   C 単独    : 以前の上級魔法 5 つを 1 つずつ前提なしで置き、正面 7〜10m の動かない的 6 体（HP 10 万）へ 4 秒撃つ。
 //               `rarity solo <名前> triggered <0/1> lost <HP> damaged <体数>`、2.6 秒目に `rarity look <名前>`
 //   D カード  : 四択に ノーマル / レア / レジェンド を並べて `rarity look cards`、宝箱の四択で `rarity look crate`
+// VFXL_RARITY_ODDS=1（2026-10-29、ユーザー「稀有度の倍率 = 落ちる率から計算」）：B だけを細かく
+//   （レベル 1 / 5 / 10 / 15 / 20 / 25 / 30 / 40 / 50、宝箱は 1 / 15 / 30）と商店（レベル 20 / 30 / 40 で 3000 回品揃えを作る：
+//   `rarity shop lv <L> card N/R/L % frame N/R/L % rowR % rowL %`、row = 1 列に 1 枚でも入る率）を出して `rarity done`。C・D はしない
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
+#include "Scene/RunResult.h"
+#include "UI/ShopStock.h"
 
 namespace
 {
@@ -24,7 +30,8 @@ namespace
     private:
         void Run();
         void LogTable();
-        void LogOdds(int level, int pos, bool crate);
+        void LogOdds(int level, bool crate);
+        void LogShopOdds(int level);
         void StartSolo(ItemID id);
         bool ReadLost(float& lost, int& damaged);
 
@@ -57,14 +64,12 @@ void AutoTestRarity::LogTable()
         AutoTestLog(("rarity table " + std::string(tier[r]) + ": " + names[r]).c_str());
 }
 
-void AutoTestRarity::LogOdds(int level, int pos, bool crate)
+void AutoTestRarity::LogOdds(int level, bool crate)
 {
     if (!m_Registry.Has<LevelComponent>(m_Player) || !m_Registry.Has<SpellbookComponent>(m_Player)) return;
     LevelComponent tmp = m_Registry.Get<LevelComponent>(m_Player);
     const auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
     tmp.level = level;
-    const int keepPos = m_LevelUpSystem.runPos;
-    m_LevelUpSystem.runPos = pos;
 
     constexpr int kTries = 3000;
     int cards[Rarity::kCount] = {}, frames = 0, total = 0, offerRare = 0, offerLegend = 0;
@@ -85,12 +90,45 @@ void AutoTestRarity::LogOdds(int level, int pos, bool crate)
         offerRare += r ? 1 : 0;
         offerLegend += l ? 1 : 0;
     }
-    m_LevelUpSystem.runPos = keepPos;
     const float t = (std::max)(total, 1) / 100.0f;
     char line[220];
-    snprintf(line, sizeof(line), "rarity odds lv %d pos %d crate %d card N %.1f%% R %.1f%% L %.1f%% offerR %.1f%% offerL %.1f%% frames %.1f%%",
-        level, pos, crate ? 1 : 0, cards[0] / t, cards[1] / t, cards[2] / t,
+    snprintf(line, sizeof(line), "rarity odds lv %d crate %d card N %.1f%% R %.1f%% L %.1f%% offerR %.1f%% offerL %.1f%% frames %.1f%%",
+        level, crate ? 1 : 0, cards[0] / t, cards[1] / t, cards[2] / t,
         100.0f * offerRare / kTries, 100.0f * offerLegend / kTries, frames / t);
+    AutoTestLog(line);
+}
+
+// 商店の品揃え（2026-10-29）：今の引き継ぎを写してレベルだけ替え、3000 回作って [0..3] と [4]（設置枠）の稀有度を数える
+void AutoTestRarity::LogShopOdds(int level)
+{
+    RunCarry carry = g_RunCarry;
+    carry.level.level = level;
+    carry.pos = 2;
+    ShopStock shop;
+    constexpr int kTries = 3000;
+    int cards[Rarity::kCount] = {}, frameCards[Rarity::kCount] = {}, total = 0, frameTotal = 0, rowRare = 0, rowLegend = 0;
+    for (int i = 0; i < kTries; ++i)
+    {
+        shop.Generate(carry);
+        bool r = false, l = false;
+        for (int s = 0; s < shop.Count(); ++s)
+        {
+            const ItemCommon* c = ItemDatabase::GetCommon(shop.At(s).id);
+            if (!c) continue;
+            const int tier = (int)c->rarity;
+            if (c->category == ItemCategory::Frame) { ++frameCards[tier]; ++frameTotal; }
+            else { ++cards[tier]; ++total; }
+            r |= c->rarity == ItemRarity::Rare;
+            l |= c->rarity == ItemRarity::Legendary;
+        }
+        rowRare += r ? 1 : 0;
+        rowLegend += l ? 1 : 0;
+    }
+    const float t = (std::max)(total, 1) / 100.0f, ft = (std::max)(frameTotal, 1) / 100.0f;
+    char line[240];
+    snprintf(line, sizeof(line), "rarity shop lv %d card N %.1f%% R %.1f%% L %.1f%% frame N %.1f%% R %.1f%% L %.1f%% rowR %.1f%% rowL %.1f%%",
+        level, cards[0] / t, cards[1] / t, cards[2] / t, frameCards[0] / ft, frameCards[1] / ft, frameCards[2] / ft,
+        100.0f * rowRare / kTries, 100.0f * rowLegend / kTries);
     AutoTestLog(line);
 }
 
@@ -170,11 +208,21 @@ void AutoTestRarity::Run()
         cam.SnapToTarget();
 
         LogTable();
-        LogOdds(1, 1, false);
-        LogOdds(15, 1, false);
-        LogOdds(30, 1, false);
-        LogOdds(30, 2, false);
-        LogOdds(1, 1, true);
+        if (GetEnvironmentVariableA("VFXL_RARITY_ODDS", nullptr, 0) > 0)
+        {
+            // 2026-10-29 から何面目かは率に入らない（レベルだけ）
+            const int levels[] = { 1, 5, 10, 15, 20, 25, 30, 40, 50 };
+            for (int l : levels) LogOdds(l, false);
+            for (int l : { 1, 15, 30 }) LogOdds(l, true);
+            for (int l : { 20, 30, 40 }) LogShopOdds(l);
+            AutoTestLog("rarity done");
+            m_AutoStep = 7;
+            return;
+        }
+        LogOdds(1, false);
+        LogOdds(15, false);
+        LogOdds(30, false);
+        LogOdds(1, true);
         m_Solo = 0;
         StartSolo(kSolo[0]);
         m_AutoStep = 1;

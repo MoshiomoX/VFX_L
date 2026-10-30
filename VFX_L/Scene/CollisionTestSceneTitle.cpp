@@ -139,7 +139,7 @@ void CollisionTestScene::PlaceTitleStand()
             bool open = true;   // 周り 9x9 マス（±8m）が歩ける：群れが囲める・回るカメラの手前に木や岩が立たない
             for (int dz = -4; dz <= 4 && open; ++dz)
                 for (int dx = -4; dx <= 4 && open; ++dx)
-                    open = m_Grid.IsWalkable(x + dx, z + dz) && !zoned[(size_t)(z + dz) * W + (x + dx)];
+                    open = m_Grid.IsDryWalkable(x + dx, z + dz) && !zoned[(size_t)(z + dz) * W + (x + dx)];
             if (!open) continue;
             float lo = 1.0e9f, hi = -1.0e9f;
             for (int dz = -1; dz <= 1; ++dz)

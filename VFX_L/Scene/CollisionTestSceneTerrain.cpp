@@ -89,6 +89,7 @@ void CollisionTestScene::RebuildTerrain()
     // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
     m_Swarm.KillAll();
     m_Mobs.ClearRuinsPending();   // 鎧の蘇り・骸骨の起き上がり待ちも捨てる（古い地形の位置に湧かないように）
+    BuildClimbMap();   // 雑魚が登れる障害物（2026-10-29）
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());

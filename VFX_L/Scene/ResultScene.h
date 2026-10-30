@@ -74,4 +74,5 @@ private:
 
     float m_Time = 0.0f;
     bool  m_Leaving = false;
+    bool  m_ShotTaken = false;   // TEMP-TEST: VFXL_SELF_SHOT の 1 枚
 };

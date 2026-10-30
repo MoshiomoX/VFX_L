@@ -102,7 +102,7 @@ void SwarmSystem::RenderListDecorations(uint32_t list)
         const bool orbit = (deco.part == kDecoOrbit);
         const bool flap = (deco.flap.w != 0.0f);
         m_EnemyAnim.part = orbit ? 0u : deco.part;
-        m_EnemyAnim.mode = orbit ? 1u : (deco.insectLeg ? 5u : (deco.leg ? 4u : (deco.tail ? 3u : (flap ? 2u : 0u))));   // 3 = 尾 / 首、4 = 四足の脚、5 = 虫の脚（2026-10-26）
+        m_EnemyAnim.mode = orbit ? 1u : (deco.floating ? 6u : (deco.insectLeg ? 5u : (deco.leg ? 4u : (deco.tail ? 3u : (flap ? 2u : 0u)))));   // 3 = 尾 / 首、4 = 四足の脚、5 = 虫の脚（2026-10-26）、6 = 浮く魔神の部品（10-29）
         m_EnemyAnim.orbitSpeed = deco.orbitSpeed;
         m_EnemyAnim.flap[0] = deco.flap.x;
         m_EnemyAnim.flap[1] = deco.flap.y;

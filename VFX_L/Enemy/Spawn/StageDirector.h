@@ -91,7 +91,9 @@ public:
         return true;
     }
     // 画面の真ん中の案内（StageDirectorWaves.cpp。シーンからも出せる：Boss の復活など。2026-10-26 に public へ）
-    void SetAnnounce(const wchar_t* text, float seconds);
+    // text は写さない（文字列は呼ぶ側が持ち続ける）。gold = 金色で出す（Boss を倒した。2026-10-29）
+    void SetAnnounce(const wchar_t* text, float seconds, bool gold = false);
+    bool AnnounceGold() const { return m_AnnounceGold; }
     // 門を使わずに Boss を呼ぶ（トレーニング。2026-10-07）。次の Update で湧く。moving = false なら止まったまま。
     // もう呼んでいる / 生きている間は false（何もしない）
     bool CanRequestBoss() const { return m_Boss == BossState::None || m_Boss == BossState::Defeated; }
@@ -158,6 +160,9 @@ public:
     float bossRingMax = 16.0f;
     float bossIntroDelay = 1.0f;    // 門を使ってから Boss が門の奥に湧くまで（その間は門が赤く荒れる）
     float bossIntroFront = 2.5f;    // 湧く所 = 門の口から前へこの m（柱の下の塞いだマスの外）
+    // 門を使うと Boss がフィールドの真ん中（ワールドの原点）に湧き、その場から動かない（2026-10-29、骸の王。ユーザー「動かなくていい、
+    // 真ん中に湧いてずっと攻撃すればいい」）。シーンが面の Boss に合わせて入れる（InitBossFx）
+    bool  bossAtCenter = false;
     float portalMinDist = 35.0f;    // 門を置く距離（開始時のプレイヤーから m）
     float portalMaxDist = 55.0f;
     float portalHeight = 5.6f;      // 門の高さ（m。モデルの包囲箱から倍率を出す。石の拱 3.53m → ×1.59、幅 4.9m）
@@ -206,6 +211,7 @@ private:
     const wchar_t* m_AnnounceText = nullptr;
     float  m_AnnounceLeft = 0.0f;
     float  m_AnnounceAge = 0.0f;
+    bool   m_AnnounceGold = false;
     bool   m_FinalWarned = false;   // 「最終ウェーブまで あと…」を出した
     bool   m_DarkGhostsWarned = false; // 「黒い幽霊が現れた」を出した（最終ウェーブ中に 1 回）
 };

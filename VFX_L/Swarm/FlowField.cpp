@@ -80,6 +80,8 @@ void FlowField::CopySettings(const FlowField& o)
     allowDrops = o.allowDrops;
     dropMinBelow = o.dropMinBelow;
     dropCost = o.dropCost;
+    allowClimb = o.allowClimb;
+    climbCostPerMeter = o.climbCostPerMeter;
     maxRangeCells = o.maxRangeCells;
 }
 
@@ -106,9 +108,12 @@ bool FlowField::Build(int targetX, int targetZ)
     // 上下左右の隣との境の段差（SetGrid で作った表）。b から a への上り / 下りの最大
     const float* edgeUp = m_EdgeUp.empty() ? nullptr : m_EdgeUp.data();
     const float* edgeDown = m_EdgeDown.empty() ? nullptr : m_EdgeDown.data();
-    auto passableEx = [&](int ax, int az, int bx, int bz, bool diag, bool& isDrop)
+    // 登る（2026-10-29）：上りの崖も isClimb で通す。climbRise = 登る高さ（中心の差と境の段の大きい方）
+    float climbRise = 0.0f;
+    auto passableEx = [&](int ax, int az, int bx, int bz, bool diag, bool& isDrop, bool& isClimb)
         {
             isDrop = false;
+            isClimb = false;
             if (!walkable(bx, bz)) return false;
             const float ha = hgt[az * W + ax], hb = hgt[bz * W + bx];
             const float lim = diag ? stepMaxDiag : stepMax;
@@ -119,7 +124,13 @@ bool FlowField::Build(int targetX, int targetZ)
                 up = edgeUp[(az * W + ax) * 4 + k];
                 down = edgeDown[(az * W + ax) * 4 + k];
             }
-            if (ha - hb > lim || up > edgeStepMax) return false;        // 上りの崖（中心の差・境の段）
+            if (ha - hb > lim || up > edgeStepMax)                       // 上りの崖（中心の差・境の段）
+            {
+                if (!allowClimb || diag) return false;
+                isClimb = true;
+                climbRise = (std::max)(ha - hb, up);
+                return true;
+            }
             if (hb - ha <= lim && down <= edgeStepMax) return true;     // 坂・平地
             isDrop = allowDrops && (hb - targetH >= dropMinBelow);   // 下りの崖
             return isDrop;
@@ -180,8 +191,9 @@ bool FlowField::Build(int targetX, int targetZ)
             for (int k = 0; k < 8; ++k)
             {
                 const int nx = cx + dxs[k], nz = cz + dzs[k];
-                bool drop = false;
-                if (!passableEx(cx, cz, nx, nz, k >= 4, drop)) continue;
+                bool drop = false, climb = false;
+                if (!passableEx(cx, cz, nx, nz, k >= 4, drop, climb)) continue;
+                const float rise = climbRise;   // 下の中継の判定で書き換わる前に
                 // 斜めは両隣を経由しても行ける時だけ（角を掠めて壁・崖に食い込まない）。飛び降りは真っ直ぐだけ。
                 // 両隣 → 目標側（c）に加えて、自分（n）→ 両隣も見る（2026-10-05）。以前は前者だけで、
                 // 起伏で台地の角の斜め隣・坂の脇の地面が上がると「中心の差 < 1.5m × √2」で斜めに通れることになり、
@@ -191,15 +203,17 @@ bool FlowField::Build(int targetX, int targetZ)
                     if (drop) continue;
                     const int ix1 = cx + dxs[k], iz1 = cz;   // 中継のマス（x だけ進んだ所）
                     const int ix2 = cx, iz2 = cz + dzs[k];   // 中継のマス（z だけ進んだ所）
-                    bool d1 = false, d2 = false, d3 = false, d4 = false;
-                    if (!passableEx(cx, cz, ix1, iz1, false, d1) || d1
-                        || !passableEx(cx, cz, ix2, iz2, false, d2) || d2) continue;   // 中継 → c
-                    if (!passableEx(ix1, iz1, nx, nz, false, d3) || d3
-                        || !passableEx(ix2, iz2, nx, nz, false, d4) || d4) continue;   // n → 中継
+                    // 中継を通る段も、飛び降り・登りは斜めには使わない
+                    bool d1 = false, d2 = false, d3 = false, d4 = false, c1 = false, c2 = false, c3 = false, c4 = false;
+                    if (!passableEx(cx, cz, ix1, iz1, false, d1, c1) || d1 || c1
+                        || !passableEx(cx, cz, ix2, iz2, false, d2, c2) || d2 || c2) continue;   // 中継 → c
+                    if (!passableEx(ix1, iz1, nx, nz, false, d3, c3) || d3 || c3
+                        || !passableEx(ix2, iz2, nx, nz, false, d4, c4) || d4 || c4) continue;   // n → 中継
                 }
 
                 const int nc = nz * W + nx;
                 const int dh = drop ? dropCost
+                    : climb ? (int)std::lround(rise * climbCostPerMeter * 10.0f)   // 登る高さの分だけ遠回り扱い（2026-10-29）
                     : (int)std::lround(std::fabs(hgt[nc] - hgt[c]) * (float)slopeUnit);
                 int edge = stepCost[k] + dh;
                 if (edge >= kBuckets) edge = kBuckets - 1;   // 桶の周期を超えない（極端な段差）

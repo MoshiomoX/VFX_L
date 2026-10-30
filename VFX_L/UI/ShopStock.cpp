@@ -51,56 +51,59 @@ void ShopStock::Generate(const RunCarry& carry)
     const int steps = (std::max)(0, posNext - 1);
     m_StageMul = std::pow((std::max)(1.0f, stagePriceGrowth), (float)steps);
 
-    // [0..3] 魔法・ルーン・召喚物（設置枠は別の欄に出す）。稀有度の重みで引く（持っている物は下げる。2026-10-28）
-    const float boost = shopRarityBoost + 0.5f * (float)(std::max)(0, posNext - 1);
+    // [0..3] 魔法・ルーン・召喚物（設置枠は別の欄に出す）、[4] 設置枠。どちらも先に稀有度の段を引き（率はレベル + shopLevelBonus）、
+    // その段の中で重みに比例して引く（持っている物は下げる。枠は FrameItemDef::weight）。2026-10-29 から（以前は稀有度の重みを掛けて 1 つの池）
     struct Entry { ItemID id; float weight; };
-    std::vector<Entry> pool;
-    std::vector<ItemID> frames;
+    std::vector<Entry> pools[Rarity::kCount], framePools[Rarity::kCount];
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
         const ItemCommon* c = ItemDatabase::GetCommon(id);
         if (!c) continue;
-        if (c->category == ItemCategory::Frame) { frames.push_back(id); continue; }
-        float w = Rarity::Weight(c->rarity, boost, rarityOdds);
-        if (book.HasLearned(id)) w *= weightOwnedMul;
-        pool.push_back({ id, w });
-    }
-    for (int i = 0; i < 4 && !pool.empty(); ++i)
-    {
-        float total = 0.0f;
-        for (const Entry& e : pool) total += (std::max)(e.weight, 0.0f);
-        if (total <= 0.0f) break;
-        float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
-        size_t pick = pool.size() - 1;
-        for (size_t j = 0; j < pool.size(); ++j)
+        const int tier = std::clamp((int)c->rarity, 0, Rarity::kCount - 1);
+        if (c->category == ItemCategory::Frame)
         {
-            r -= (std::max)(pool[j].weight, 0.0f);
-            if (r < 0.0f) { pick = j; break; }
+            const FrameItemDef* fd = ItemDatabase::GetFrame(id);
+            framePools[tier].push_back({ id, fd ? (std::max)(fd->weight, 0.0f) : 1.0f });
+            continue;
         }
-        m_Slots.push_back({ pool[pick].id, PriceOf(pool[pick].id), false });
-        pool.erase(pool.begin() + (ptrdiff_t)pick);
+        pools[tier].push_back({ id, book.HasLearned(id) ? weightOwnedMul : 1.0f });
     }
-
-    // [4] 設置枠
-    if (!frames.empty())
-    {
-        // 枠ごとの重み（FrameItemDef::weight）× 稀有度（3x3・効果の枠はレア、吸血はレジェンド。2026-10-28）
-        auto frameW = [&](ItemID f)
+    float chance[Rarity::kCount];
+    Rarity::Chances((float)carry.level.level + shopLevelBonus, rarityOdds, chance);
+    // 段を引いてその段の中から 1 つ（引いた物は外す）。何も無ければ Unknown
+    auto draw = [&](std::vector<Entry>* tiers) -> ItemID
+        {
+            bool has[Rarity::kCount];
+            for (int i = 0; i < Rarity::kCount; ++i)
             {
-                const FrameItemDef* fd = ItemDatabase::GetFrame(f);
-                return fd ? (std::max)(fd->weight, 0.0f) * Rarity::Weight(fd->common.rarity, boost, rarityOdds) : 0.0f;
-            };
-        float total = 0.0f;
-        for (ItemID f : frames) total += frameW(f);
-        float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
-        ItemID id = frames.back();
-        for (ItemID f : frames)
-        {
-            r -= frameW(f);
-            if (r < 0.0f) { id = f; break; }
-        }
+                float t = 0.0f;
+                for (const Entry& e : tiers[i]) t += (std::max)(e.weight, 0.0f);
+                has[i] = t > 0.0f;
+            }
+            const int tier = Rarity::RollTier(chance, has, (float)rand() / ((float)RAND_MAX + 1.0f));
+            if (tier < 0) return ItemID::Unknown;
+            std::vector<Entry>& pool = tiers[tier];
+            float total = 0.0f;
+            for (const Entry& e : pool) total += (std::max)(e.weight, 0.0f);
+            float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
+            size_t pick = pool.size() - 1;
+            for (size_t j = 0; j < pool.size(); ++j)
+            {
+                r -= (std::max)(pool[j].weight, 0.0f);
+                if (r < 0.0f) { pick = j; break; }
+            }
+            const ItemID id = pool[pick].id;
+            pool.erase(pool.begin() + (ptrdiff_t)pick);
+            return id;
+        };
+    for (int i = 0; i < 4; ++i)
+    {
+        const ItemID id = draw(pools);
+        if (id == ItemID::Unknown) break;
         m_Slots.push_back({ id, PriceOf(id), false });
     }
+    if (const ItemID id = draw(framePools); id != ItemID::Unknown)
+        m_Slots.push_back({ id, PriceOf(id), false });
 
     // [5] 能力値の札（statSlot = false の間は出さない）
     const auto& stats = ItemDatabase::GetLevelUpOnlyIDs();

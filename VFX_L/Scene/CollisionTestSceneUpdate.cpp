@@ -137,7 +137,15 @@ void CollisionTestScene::Update(float dt)
     if (!m_GameUI.ShouldPauseGame())
     {
         PROFILE_SCOPE("Gameplay");
-        UpdateGameplay(dt);
+        // Boss を倒した瞬間のスロー（2026-10-29、CollisionTestSceneBossDrama.cpp）：実時間で数え、その間だけ gameplay の dt を縮める。
+        // 音・UI は実時間のまま
+        float gameDt = dt;
+        if (m_DefeatSlowLeft > 0.0f)
+        {
+            m_DefeatSlowLeft -= dt;
+            gameDt = dt * m_DefeatSlowMul;
+        }
+        UpdateGameplay(gameDt);
 
         // 音：GPU の範囲（命中・爆発・撃破）、プレイヤーの跳び / 着地 / 滑り、BGM の切り替え、一回物
         BattleAudio::State as;
@@ -168,7 +176,7 @@ void CollisionTestScene::Update(float dt)
             const int price = m_Crates.Price();
             const int coins = m_Registry.Get<WalletComponent>(m_Player).Coins();
             wchar_t buf[64];
-            if (coins >= price) swprintf_s(buf, L"<{K:F}|{B}>  開ける     金貨 %d", price);
+            if (coins >= price) swprintf_s(buf, L"<{K:F}|{X}>  開ける     金貨 %d", price);
             else                swprintf_s(buf, L"金貨が足りない     %d / %d", coins, price);
             m_PromptBuf = buf;
             prompt = m_PromptBuf.c_str();
@@ -218,9 +226,10 @@ void CollisionTestScene::Update(float dt)
     {
         float alpha = 0.0f, age = 0.0f;
         const wchar_t* ann = m_LabScene ? nullptr : m_Stage.Announce(alpha, age);
+        bool gold = m_Stage.AnnounceGold();
         float ta = 0.0f, tage = 0.0f;
-        if (const wchar_t* t = m_Tutorial.Announce(ta, tage)) { ann = t; alpha = ta; age = tage; }
-        m_GameUI.SetAnnounce(ann, alpha, age);
+        if (const wchar_t* t = m_Tutorial.Announce(ta, tage)) { ann = t; alpha = ta; age = tage; gold = false; }
+        m_GameUI.SetAnnounce(ann, alpha, age, gold);
     }
 
     // ---- 死亡 → 倒れた姿を少し見せてからリザルトへ ----

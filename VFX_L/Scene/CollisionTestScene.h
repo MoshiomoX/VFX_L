@@ -72,6 +72,7 @@
 #include "Graphics/Light/ShadowMap.h"
 #include "Debug/StressTestTools.h"
 #include "Debug/SpellLab.h"
+#include "Debug/FlowDebugView.h"
                 
 #include "World/GridWorld.h"
 #include "World/TerrainGenerator.h"
@@ -180,6 +181,10 @@ private:
     void UpdateBossAttacks(float dt, const DirectX::SimpleMath::Vector3& player);   // Boss の技：輪・衝撃波・突進・当たり（CollisionTestSceneBoss.cpp）
     BossIntro::Frame UpdateBossIntro(float dt);                 // 門から呼んだ Boss の登場の演出（CollisionTestSceneBossIntro.cpp。2026-10-27）
     void ApplyBossIntroSteer(const BossIntro::Frame& f);        // 演出の間の Boss の歩き / 殴らないを GPU へ（BossAttacks の指示の上書き）
+    // Boss の狂暴の咆哮・倒した瞬間の演出（CollisionTestSceneBossDrama.cpp。2026-10-29）
+    void UpdateBossDrama(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);
+    // Boss 毎の技の合図：音・見た目・騎士の鎖と復活（CollisionTestSceneBossSignals.cpp。2026-10-29 に Boss.cpp から分けた）
+    void UpdateBossMoveSignals(const BossAttacks::Input& in, const BossAttacks::Output& out, const Vector3& player);
     bool IsPlayerDead();
     const Vector3* PlayerPos();      // プレイヤーの位置（居なければ null）。部品へ渡す用
     void PushWind();                 // 世界の風（WeatherSystem::Wind）を草・マント・粒子・草の火へ渡す（毎フレーム、粒子の Flush の前）
@@ -230,6 +235,7 @@ private:
     void BlockPropCells();     // RespawnCrates の最後（前の分は戻してから塞ぎ直す）
     void UpdatePropBlocks();   // 毎フレーム：消えた柱の分を戻す
     void BlockUnreachablePockets();   // 地形の直後：フィールドの真ん中へ歩いて行けないマスを塞ぐ
+    void BuildClimbMap();             // 雑魚が登れる障害物（World/ClimbMap。2026-10-29）。地形を GPU へ上げる直前に
 
     // ============================================================
     // Systems
@@ -283,6 +289,15 @@ private:
     BossAttacks             m_BossAttacks;         // Boss の技（スラムの警告の輪。2026-10-03）
     BossIntro               m_BossIntro;           // 門から呼んだ Boss の登場（2026-10-27）
     uint32_t                m_BossIntroVfx = 0;    // その間の赤く荒れた門の渦
+    // ---- Boss の狂暴・撃破の演出（CollisionTestSceneBossDrama.cpp。2026-10-29）----
+    uint32_t                m_BossRageVfx = 0;     // 狂暴の間 Boss に付く赤い火の粉（ループ。0 = 出ていない）
+    bool                    m_BossDefeatSeen = false;   // 倒した演出を出した（IsBossDefeated の立ち上がり。次の Boss が湧いたら戻す）
+    float                   m_DefeatSlowLeft = 0.0f;    // 倒した瞬間のスローの残り（実時間の秒。Update が gameplay の dt を縮める）
+    float                   m_DefeatSlowMul = 1.0f;     // その間のゲームの速さ（BossDrama が入れる）
+    float                   m_DefeatWaveR = -1.0f;      // 倒した所から広がって雑魚を砕く波の今の半径（< 0 = 無し）
+    float                   m_DefeatWaveNext = 0.0f;    // 次に範囲を置くまで（gameplay の秒）
+    Vector3                 m_DefeatPos;                // 倒した所（地面の高さ）
+    wchar_t                 m_BossDramaText[64] = {};   // 「〇〇が怒り狂った！」「〇〇を倒した！」（案内は文字列を写さないのでここに持つ）
     uint32_t                m_BossSlamHits = 0;    // 自動テストの記録用：スラムがプレイヤーに当たった数
     // ---- 砂の守護者の技の見た目（CollisionTestSceneBoss.cpp。2026-10-24）----
     IceSpikeField           m_SandSpikes;          // 「砂の槍」の石のトゲ（IceSpikeField を石の地刺のモデルで）
@@ -296,6 +311,33 @@ private:
     // 面の Boss に合わせる（技の組み合わせ・石のトゲの見た目）。ignoreEnv = トレーニングのメニューで選んだ時（VFXL_BOSS_TYPE より優先）
     void InitBossFx(BossType type, bool ignoreEnv = false);
     void UpdateBossSandFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);   // 流沙の効き・風源・砂丘・槍のトゲ・砂煙
+    // ---- 砂嵐の魔神の見た目（CollisionTestSceneBossDjinn.cpp。2026-10-29）----
+    uint32_t                m_DjinnVortexVfx = 0;  // 下半身の砂旋（浮いている間ずっと。0 = 出ていない）
+    bool                    m_DjinnVortexPhase2 = false;   // 今の下半身の砂旋は二段目の（降りた後の広い）方か
+    uint32_t                m_DjinnBreathVfx = 0;  // 炎の息（吐いている間。0 = 出ていない）
+    float                   m_DjinnBreathYawDeg = 0.0f;   // その見た目を今向けている向き（度。RotateInstance は差分）
+    uint32_t                m_DjinnShiftVfx = 0;   // 砂渡りで地面の下を走る間の砂の流れ
+    struct DjinnDevilFx { uint32_t id = 0; uint32_t vfx = 0; };
+    std::vector<DjinnDevilFx> m_DjinnDevilFx;      // 砂嵐召喚の砂旋の見た目（BossAttacks::Devils() の id と対応）
+    void UpdateBossDjinnFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);   // 下半身の砂旋・砂旋の柱と風源・息・砂渡り・拳
+    void ClearBossDjinnFx();
+    // ---- 骸の王の見た目と足元の効き（CollisionTestSceneBossKing.cpp。2026-10-29）----
+    uint32_t                m_KingMistVfx = 0;     // 足元の闇の水溜まり（Boss が居る間ずっと）
+    std::vector<DjinnDevilFx> m_KingOrbFx;         // 呪いの玉の見た目（BossAttacks::KingOrbs() の id と対応）
+    uint32_t                m_KingRaised = 0;      // 大起尸で起こした骸骨の数（累計。自動テスト用）
+    void UpdateBossKingFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);
+    void ClearBossKingFx();
+    // ---- 石の守護獣の見た目とプレイヤーの石化（CollisionTestSceneBossBeast.cpp。2026-10-29）----
+    uint32_t                m_BeastDustVfx = 0;    // 飛んでいる間、羽ばたきが足元に巻き上げる土埃（0 = 出ていない）
+    uint32_t                m_BeastBreathVfx = 0;  // 石化の息（吐いている間）
+    float                   m_BeastBreathYawDeg = 0.0f;
+    uint32_t                m_BeastDiveVfx = 0;    // 急降下で滑空している間の砂煙
+    uint32_t                m_PlayerPetrifyVfx = 0;// 石化が溜まっている間、プレイヤーに付く灰色の石の欠片と埃
+    uint32_t                m_BeastPetrified = 0;  // 石になった回数（累計。自動テスト用）
+    float                   m_BeastPrevWing = 0.0f;// 前のフレームの翼の角度（打ち下ろした瞬間に足元の草を倒す）
+    std::vector<DjinnDevilFx> m_BeastShardFx;      // 石羽の散弾の羽根の見た目（BossAttacks::BeastShards() の id と対応。10-29 追加）
+    void UpdateBossBeastFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);
+    void ClearBossBeastFx();
 
     // ---- 遺跡の敵（2026-10-25。CollisionTestSceneRuins.cpp）----
     // 鎖の番人の投げた鎖：鉤が向きの先へ飛び（当たり = 鉤の線とプレイヤーの横の距離）、当たればプレイヤーを番人の前へ引き寄せ、戻る。
@@ -313,6 +355,7 @@ private:
         float pullStop = 1.6f;
         float damage = -1.0f;
         bool  boss = false;
+        float hitRadius = 0.55f;               // 鉤の当たりの太さ（+ プレイヤーの半径）。双鎖は BossAttacks::chainWidth の半分（2026-10-29）
     };
     std::vector<ChainHook> m_Chains;
     std::vector<Entity> m_ChainSegEntities;    // 鎖の区切りの実体（使い回し。使わない物は見えなくする）
@@ -369,6 +412,7 @@ private:
     bool m_ShowMesh = true;
     bool m_ShowWandDebug = false;
     bool m_ShowGridDebug = false;   // プレイヤーの周りの格子（通行・流れ場）
+    FlowDebugView m_FlowDebug;      // F8：風・経路の流れ場・群れの動きをミニマップのような窓で（2026-10-28）
     bool m_ShowSwarmDebug = false;
 
     // ※粒子だけを個別に消せるようにしておく。

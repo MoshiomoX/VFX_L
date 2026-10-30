@@ -4,6 +4,7 @@
 //   BossAttacks の出力 → 被弾（無敵時間・シールド・ノックバックは雑魚と同じ道）・見た目・音・
 //   GPU の Boss への突進の指示（BomberCB の bossCharge*）・地面の警告の輪の描画
 //   2026-10-24：面毎の Boss（InitBossFx）と砂の守護者の技の見た目（流沙の渦と足元の効き・潜砂の砂丘・砂の槍の石のトゲ）
+//   2026-10-29：Boss 毎の技の合図は CollisionTestSceneBossSignals.cpp、狂暴・撃破の演出は CollisionTestSceneBossDrama.cpp へ分けた
 // ============================================================
 #include "Scene/CollisionTestScene.h"
 #include "Audio/AudioSystem.h"
@@ -72,10 +73,16 @@ void CollisionTestScene::InitBossFx(BossType type, bool ignoreEnv)
         else if (_stricmp(env, "stag") == 0) t = BossType::Stag;
         else if (_stricmp(env, "knight") == 0) t = BossType::CryptKnight;
         else if (_stricmp(env, "wolf") == 0) t = BossType::Werewolf;
+        else if (_stricmp(env, "djinn") == 0) t = BossType::Djinn;
+        else if (_stricmp(env, "king") == 0) t = BossType::BoneKing;
+        else if (_stricmp(env, "beast") == 0) t = BossType::StoneBeast;
     }
     m_BossAttacks.Configure(t);
     // 墓守の騎士は 1 回倒れると立ち上がる（StageDirector が Reviving で待って同じ所へ湧かせ直す。2026-10-26）
     m_Stage.bossLives = (t == BossType::CryptKnight) ? 2 : 1;
+    // 骸の王は門ではなく真ん中に湧いて動かない（登場の歩きも無し = 闇から這い出てその場で吠える。2026-10-29）
+    m_Stage.bossAtCenter = (t == BossType::BoneKing);
+    m_BossIntro.walkSpeed = (t == BossType::BoneKing) ? 0.0f : 3.0f;
     BossLooks::Apply(t, Application::Get().GetGraphics().GetDevice(), m_Swarm);   // 皮と飾り（2026-10-24）
     EnemyLooks::ApplyRuins(Application::Get().GetGraphics().GetDevice(), m_Swarm);   // 遺跡の敵の皮と飾り（2026-10-25）
     SetupSandSpikes(m_SandSpikes);
@@ -85,6 +92,13 @@ void CollisionTestScene::InitBossFx(BossType type, bool ignoreEnv)
     m_BossMoundVfx = 0;
     if (m_BossAuraVfx != 0) m_AreaVFX.StopInstance(m_BossAuraVfx);
     m_BossAuraVfx = 0;
+    if (m_BossRageVfx != 0) m_AreaVFX.StopInstance(m_BossRageVfx);   // 狂暴の火の粉・倒した後の波（2026-10-29）
+    m_BossRageVfx = 0;
+    m_DefeatWaveR = -1.0f;
+    m_DefeatSlowLeft = 0.0f;
+    ClearBossDjinnFx();   // 砂嵐の魔神の砂旋・息（2026-10-29）
+    ClearBossKingFx();    // 骸の王の闇・玉
+    ClearBossBeastFx();   // 石の守護獣の土埃・息・石化
     InitElites();   // 面の固定エリート（個体・皮・飾り。2026-10-25）
 }
 
@@ -135,69 +149,28 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
     bomber.bossScale = m_BossAttacks.bodyScale;          // 体の大きさ（Boss 毎。2026-10-27）
     bomber.bossJumpHeight = out.jumpHeight;             // 狼人の飛びかかりの放物線（技の間だけ > 0）
     bomber.bossNoContact = out.noContact ? 1.0f : 0.0f; // 飛びかかりの間は体で殴らない
+    bomber.bossHover = out.djinn.hover;                 // 砂嵐の魔神（2026-10-29）：浮き・飛び・間合い（他の Boss は 0）
+    bomber.bossFly = out.djinn.fly ? 1.0f : 0.0f;
+    bomber.bossKeepMin = out.djinn.keepMin;
+    bomber.bossKeepMax = out.djinn.keepMax;
+    bomber.bossWing = out.beast.wing;                   // 石の守護獣（2026-10-29）：翼の角度・尾の薙ぎ払いの一回転（他の Boss は 0）
+    bomber.bossSpin = out.beast.spin;
     ApplyBossIntroSteer(intro);                          // 登場の演出の間は門をくぐって歩く・殴らない（上の指示を上書き）
 
     UpdateBossSandFx(dt, in, out);
+    UpdateBossDjinnFx(dt, in, out);   // 砂嵐の魔神（CollisionTestSceneBossDjinn.cpp。2026-10-29）
+    UpdateBossKingFx(dt, in, out);    // 骸の王（CollisionTestSceneBossKing.cpp）
+    UpdateBossBeastFx(dt, in, out);   // 石の守護獣（CollisionTestSceneBossBeast.cpp）
+    UpdateBossDrama(dt, in, out);   // 狂暴の咆哮・倒した瞬間（CollisionTestSceneBossDrama.cpp。2026-10-29）
 
     // ---- 合図（音・見た目）----
     if (out.started == BossMove::Shockwave || out.started == BossMove::Charge || out.started == BossMove::Summon
-        || out.started == BossMove::SandSpear || out.started == BossMove::Quicksand || out.started == BossMove::ClawSweep)
+        || out.started == BossMove::SandSpear || out.started == BossMove::Quicksand || out.started == BossMove::ClawSweep
+        || out.started == BossMove::AntlerToss || out.started == BossMove::AntlerBolt
+        || out.started == BossMove::DustDevils || out.started == BossMove::DjinnBreath || out.started == BossMove::SandFist
+        || out.started == BossMove::PetrifyBreath || out.started == BossMove::TailSweep || out.started == BossMove::BeastDive)
         AudioSystem::Get().Play("boss_summon");   // 溜めの咆哮
-    // 大サソリ（2026-10-26）：突っ込み始め = 突撃の音、鋏を振った = 斧の風切り
-    if (out.stingLunge) AudioSystem::Get().Play("elite_dash");
-    if (out.clawSwung) AudioSystem::Get().Play("elite_axe");
-    // 墓守の騎士の双鎖（2026-10-26）：鎖の番人と同じ鎖（CollisionTestSceneRuins.cpp が飛ばす・当てる・引く）を Boss の手の高さから
-    for (const BossAttacks::Output::ChainThrow& t : out.chainThrows)
-    {
-        if ((int)m_Chains.size() >= 4) break;
-        ChainHook c;
-        c.origin = t.pos + Vector3(0.0f, 1.1f, 0.0f);
-        c.dir = Vector3(std::sin(t.yaw), 0.0f, std::cos(t.yaw));
-        c.reach = m_BossAttacks.chainRange;
-        c.pullStop = m_BossAttacks.chainPullStop;
-        c.damage = m_BossAttacks.chainDamage * in.damageMul;
-        c.boss = true;
-        m_Chains.push_back(c);
-    }
-    if (!out.chainThrows.empty()) AudioSystem::Get().Play("chain_throw");
-    // 月下の狼人（2026-10-26）：跳び = 突撃の音、爪 = 斬撃の音と影の剣士の斬撃の見た目（Boss の前）、遠吠え = 咆哮
-    if (out.pounceJump) AudioSystem::Get().Play("elite_dash");
-    if (out.wolfSlash)
-    {
-        AudioSystem::Get().Play("elite_slash");
-        const Vector3 p = in.bossPos + Vector3(out.clawDir.x, 0.3f, out.clawDir.y) * 2.2f;
-        m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::EliteShadeSlash), p, 0.8f, false, m_VFXContext);
-    }
-    if (out.howled)
-    {
-        AudioSystem::Get().Play("boss_summon");
-        m_Stage.SetAnnounce(L"狼人の遠吠え！　群れが来る", 2.0f);
-    }
-    // 復活（StageDirector が Reviving で待つ）：倒れた所に崩れた鎧の山、立ち上がる時に紫の炎。蘇った後は狂暴（間が短く連技）
-    {
-        Vector3 fell;
-        if (m_Stage.ConsumeBossFell(fell))
-        {
-            const Vector3 g(fell.x, m_Grid.SampleHeight(fell.x, fell.z), fell.z);
-            m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::RuinsArmorFall), g, m_Stage.bossReviveDelay, false, m_VFXContext);
-            AudioSystem::Get().Play("armor_fall");
-            m_Stage.SetAnnounce(L"墓守の騎士が崩れ落ちた……", 2.0f);
-        }
-        if (m_Stage.ConsumeBossRevived())
-        {
-            const Vector3 p = in.bossPos.LengthSquared() > 0.01f ? in.bossPos : player;
-            m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::RuinsArmorRise), Vector3(p.x, m_Grid.SampleHeight(p.x, p.z), p.z), 1.5f, false, m_VFXContext);
-            AudioSystem::Get().Play("armor_rise");
-            AudioSystem::Get().Play("boss_summon");
-            m_Stage.SetAnnounce(L"墓守の騎士が立ち上がった！", 2.5f);
-            OnExplosions(1);
-        }
-        m_BossAttacks.forceEnraged = m_Stage.BossLivesUsed() > 0;
-        if (m_BossAttacks.Type() == BossType::CryptKnight)
-            m_BossAttacks.bodyTint = (m_Stage.BossLivesUsed() > 0) ? Vector3(0.85f, 0.65f, 1.35f) : Vector3(1.0f, 1.0f, 1.0f);   // 蘇った鎧は紫がかる
-        else if (m_BossAttacks.Type() == BossType::Werewolf)
-            m_BossAttacks.bodyTint = m_BossAttacks.IsEnraged() ? Vector3(1.35f, 0.55f, 0.5f) : Vector3(1.0f, 1.0f, 1.0f);   // 狂暴の狼人は赤く
-    }
+    UpdateBossMoveSignals(in, out, player);   // Boss 毎の技の合図（CollisionTestSceneBossSignals.cpp）
     if (out.ringsPlaced > 0) AudioSystem::Get().Play("boss_slam_warn");
     for (const Vector3& p : out.rockFalls)
         m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::BossRockFall), p, 0.6f, false, m_VFXContext);
@@ -208,7 +181,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         OnExplosions(1);
         m_Grass.AddGust(out.wavePos, 4.0f);     // 砕いた所の草が倒れ、落ち葉が舞う（CPU の範囲なので自分で押す。2026-10-13）
         m_Debris.AddGust(out.wavePos, 4.0f);
-        m_Water.AddRipple(out.wavePos, 2.4f, m_Water.GetSettings().blastStrength);   // 水たまりの上なら大きな波紋（2026-10-27）
+        m_Water.AddRipple(out.wavePos, 2.4f, m_Water.GetSettings().blastStrength, true);   // 水たまりの上なら大きな波紋（2026-10-27）
     }
     if (out.chargeGo) AudioSystem::Get().Play("boss_slam_warn");
     if (out.thunderStruck) AudioSystem::Get().Play("elite_thunder_warn");   // 雄鹿の道筋の雷の予告（精鋭の雷光と同じ音）
@@ -233,20 +206,24 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
             const bool rock = (h.kind == BossMove::RockRain);
             const bool burst = (h.kind == BossMove::Burrow);   // 潜砂の飛び出し（見た目・音は UpdateBossSandFx が出す）
             const bool thunder = h.thunder;                    // 雷鳴の雄鹿の道筋の雷（2026-10-26）：精鋭の雷光と同じ見た目・音
+            // 見た目の json は 雷 半径 1.5 / 岩 2 / 重撃 3 の大きさで作ってあるので、当たりの半径に合わせて拡げる
+            // （2026-10-29 に当たりを ×1.2 した時、石・雷が輪より小さく見えないように）
             if (thunder)
             {
-                m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::EliteThunder), h.center, 1.0f, false, m_VFXContext);
+                const uint32_t fx = m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::EliteThunder), h.center, 1.0f, false, m_VFXContext);
+                m_AreaVFX.ScaleInstance(fx, h.radius / 1.5f);
                 AudioSystem::Get().Play("elite_thunder");
-                m_Grass.AddGust(h.center, 1.5f);
+                m_Grass.AddGust(h.center, h.radius);
             }
             else if (!burst)
             {
-                m_AreaVFX.Play(VFXDatabase::GetFile(rock ? VFXId::BossRockHit : VFXId::BossSlam), h.center, rock ? 1.2f : 2.0f, false, m_VFXContext);
+                const uint32_t fx = m_AreaVFX.Play(VFXDatabase::GetFile(rock ? VFXId::BossRockHit : VFXId::BossSlam), h.center, rock ? 1.2f : 2.0f, false, m_VFXContext);
+                m_AreaVFX.ScaleInstance(fx, h.radius / (rock ? 2.0f : 3.0f));
                 AudioSystem::Get().Play("boss_slam");
                 if (!rock) OnExplosions(1);
-                m_Grass.AddGust(h.center, rock ? 2.0f : 3.0f);   // 重撃 / 投石の着弾でも草が倒れる（2026-10-13）
-                m_Debris.AddGust(h.center, rock ? 2.0f : 3.0f);
-                m_Water.AddRipple(h.center, rock ? 1.2f : 1.8f, m_Water.GetSettings().blastStrength * (rock ? 0.6f : 1.0f));
+                m_Grass.AddGust(h.center, h.radius);   // 重撃 / 投石の着弾でも草が倒れる（2026-10-13）
+                m_Debris.AddGust(h.center, h.radius);
+                m_Water.AddRipple(h.center, h.radius * 0.6f, m_Water.GetSettings().blastStrength * (rock ? 0.6f : 1.0f), true);
             }
             if (IsPlayerDead()) continue;
 
@@ -266,10 +243,20 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
             if (IsPlayerDead()) continue;
             if (!PlayerStateSystem::TryApplyHit(m_Registry, m_Player, h.damage)) continue;
             ++m_BossSlamHits;
-            // 砂の槍は下から突き上げる = トゲ玉と同じ高く遠い弾き方
-            PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, h.dir,
-                h.kind == BossMove::SandSpear ? PlayerControlSystem::KnockKind::Spike : PlayerControlSystem::KnockKind::Blast);
-            if (h.kind == BossMove::Charge || h.kind == BossMove::ClawSweep)
+            // 砂の槍は下から突き上げる = トゲ玉と同じ高く遠い弾き方、雄鹿の角の振り上げ・魔神の砂旋は砂旋と同じ高い吹き上げ、
+            // 魔神の炎の息は殴りの軽い押し（0.25 秒毎に当たる）
+            if (!h.noKnock)   // 骸の王の呪いの床のじわじわは押さない（2026-10-29）
+                PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, h.dir,
+                    h.kind == BossMove::SandSpear ? PlayerControlSystem::KnockKind::Spike
+                    : (h.kind == BossMove::AntlerToss || h.kind == BossMove::DustDevils || h.kind == BossMove::WingGust) ? PlayerControlSystem::KnockKind::Wind
+                    : (h.kind == BossMove::DjinnBreath || h.kind == BossMove::FeatherShards) ? PlayerControlSystem::KnockKind::Melee : PlayerControlSystem::KnockKind::Blast);
+            if (h.kind == BossMove::DustDevils) AudioSystem::Get().Play("boss_impact");
+            if (h.kind == BossMove::CurseFloor) AudioSystem::Get().Play("player_hurt");
+            if (h.kind == BossMove::AntlerToss) AudioSystem::Get().Play("boss_impact");
+            if (h.kind == BossMove::WingGust) AudioSystem::Get().Play("boss_impact");
+            if (h.kind == BossMove::FeatherShards) AudioSystem::Get().Play("player_hurt");
+            if (h.kind == BossMove::Charge || h.kind == BossMove::ClawSweep || h.kind == BossMove::SandFist
+                || h.kind == BossMove::BeastDive || h.kind == BossMove::TailSweep || h.kind == BossMove::SkyCrush)
             {
                 AudioSystem::Get().Play("boss_slam");
                 OnExplosions(1);
@@ -320,7 +307,8 @@ void CollisionTestScene::UpdateBossSandFx(float dt, const BossAttacks::Input& in
     const bool scorpion = m_BossAttacks.Type() == BossType::Scorpion;   // 足元に毒の靄（2026-10-26）
     const bool knight = m_BossAttacks.Type() == BossType::CryptKnight;  // 騎士・狼人は常駐の見た目なし
     const bool wolf = m_BossAttacks.Type() == BossType::Werewolf;
-    if (in.bossAlive && out.bossBurrow < 0.5f && !knight && !wolf)
+    if (in.bossAlive && out.bossBurrow < 0.5f && !knight && !wolf && m_BossAttacks.Type() != BossType::Djinn && m_BossAttacks.Type() != BossType::BoneKing
+        && m_BossAttacks.Type() != BossType::StoneBeast)
     {
         if (m_BossAuraVfx == 0)
             m_BossAuraVfx = m_AreaVFX.Play(VFXDatabase::GetFile(sandBoss ? VFXId::BossSandAura : scorpion ? VFXId::BossVenomAura : VFXId::BossStoneAura),
@@ -424,7 +412,7 @@ void CollisionTestScene::UpdateBossSandFx(float dt, const BossAttacks::Input& in
     if (out.burrowEmerged)
     {
         const uint32_t h = m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::BossSandBurst), bossGround, 2.5f, false, m_VFXContext);
-        m_AreaVFX.ScaleInstance(h, 1.5f);
+        m_AreaVFX.ScaleInstance(h, 1.5f * m_BossAttacks.burrowRadius / 3.5f);   // 3.5m の輪の時に 1.5 倍で作った
         AudioSystem::Get().Play("boss_impact");
         OnExplosions(1);
         m_Grass.AddGust(bossGround, m_BossAttacks.burrowRadius);
@@ -436,7 +424,8 @@ void CollisionTestScene::UpdateBossSandFx(float dt, const BossAttacks::Input& in
     {
         const float speed = (std::max)(out.spearSpeed, 1.0f);
         m_SandSpikes.waveSpeed = speed;
-        m_SandSpikes.Spawn(l.start, l.end, 1.0f, [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
+        // トゲの並びの幅・高さは当たりの幅に合わせる（1.1m の時に 1 倍。2026-10-29）
+        m_SandSpikes.Spawn(l.start, l.end, m_BossAttacks.spearLaneRadius / 1.1f, [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
         Vector3 d(l.end.x - l.start.x, 0.0f, l.end.z - l.start.z);
         const float len = d.Length();
         if (len < 1e-3f) continue;

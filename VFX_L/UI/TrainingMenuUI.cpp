@@ -16,7 +16,7 @@ using namespace DirectX::SimpleMath;
 const float TrainingMenuUI::kTargetHp[kHpChoices] = { 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f };
 // ボスの種類（2026-10-27）：この面の Boss → 草原の 3 体 → 砂漠の 2 体 → 遺跡の 1 体（面の順）
 const int TrainingMenuUI::kBossTypes[kBossChoices] = { -1, (int)BossType::StoneGiant, (int)BossType::Werewolf, (int)BossType::Stag,
-    (int)BossType::SandGuardian, (int)BossType::Scorpion, (int)BossType::CryptKnight };
+    (int)BossType::SandGuardian, (int)BossType::Scorpion, (int)BossType::Djinn, (int)BossType::CryptKnight, (int)BossType::StoneBeast, (int)BossType::BoneKing };
 const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"突撃兵", L"盾兵", L"幽霊", L"トゲ玉", L"砂潜り", L"砂嵐の術師", L"黒幽霊", L"突撃爆弾兵",
     L"呪いの鎧", L"石像ガーゴイル", L"死霊術師", L"骸骨", L"鎖の番人", L"混合" };
 const int TrainingMenuUI::kSwarmCounts[kCountChoices] = { 10, 30, 100, 300 };

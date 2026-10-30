@@ -82,7 +82,7 @@ public:
     static constexpr int kCountChoices = 4;
     static constexpr int kRandomModes = 3;    // ランダムに組む：中身
     static constexpr int kRandomCounts = 4;   // ランダムに組む：個数
-    static constexpr int kBossChoices = 7;    // ボスの種類：この面の Boss + 6 体（2026-10-27）
+    static constexpr int kBossChoices = 10;   // ボスの種類：この面の Boss + 9 体（2026-10-27。10-29 砂嵐の魔神・骸の王・石の守護獣）
     static const float kTargetHp[kHpChoices];
     static const int kBossTypes[kBossChoices];   // 各選択肢の BossType（-1 = この面の Boss）
     static const wchar_t* const kSwarmKinds[kKindChoices];

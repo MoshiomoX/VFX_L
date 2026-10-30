@@ -45,6 +45,12 @@ void WaterSurface::DrawImGui()
     ImGui::DragFloat("Step", &s.stepStrength, 0.002f, 0.0f, 0.5f, "%.3f m");
     ImGui::DragFloat("Step Radius", &s.stepRadius, 0.01f, 0.05f, 2.0f, "%.2f m");
     ImGui::DragFloat("Wade", &s.wadeStrength, 0.001f, 0.0f, 0.1f, "%.3f");
+    ImGui::Checkbox("Mobs wading make ripples", &s.mobWake);
+    ImGui::DragFloat("Mob Wake", &s.mobWakeStrength, 0.001f, 0.0f, 0.3f, "%.3f");
+    ImGui::DragFloat("Mob Step", &s.mobStepStrength, 0.002f, 0.0f, 0.3f, "%.3f");
+    ImGui::DragFloat("Mob Stride", &s.mobStride, 0.05f, 0.2f, 5.0f, "%.2f m");
+    ImGui::DragFloat("Mob Wake Radius", &s.mobWakeRadius, 0.01f, 0.05f, 2.0f, "%.2f m");
+    ImGui::DragFloat("Mob Wake Min Speed", &s.mobWakeMinSpeed, 0.05f, 0.0f, 5.0f, "%.2f m/s");
     ImGui::DragFloat("Landing", &s.landStrength, 0.005f, 0.0f, 1.0f, "%.3f m");
     ImGui::DragFloat("Landing Radius", &s.landRadius, 0.01f, 0.1f, 3.0f, "%.2f m");
     ImGui::DragFloat("Rain Drops", &s.rainRate, 0.05f, 0.0f, 20.0f, "%.2f / m^2 s");

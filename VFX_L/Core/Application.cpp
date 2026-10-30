@@ -115,8 +115,11 @@ void Application::Run()
         {
             PROFILE_SCOPE_GPU("Render");
             m_Graphics.BeginFrame();
-            DebugManager::Get().Render();
+            DebugManager::Get().Render();        // 線のカメラ・参照の格子を積む（まだ描かない）
             m_Game.Render();
+            // シーンが自分で描かなかった線（エディタ）。戦闘は 3D の後・UI の前で描き済み（積んだ線が無ければ何もしない）
+            m_Graphics.RestoreRenderTarget();    // シーンが最後に別の RT・奥行き無しで終わっていても、シーンの RT と奥行きへ
+            DebugManager::Get().RenderLines();
         }
         {
             PROFILE_SCOPE_GPU("Resolve + bloom + ImGui draw");

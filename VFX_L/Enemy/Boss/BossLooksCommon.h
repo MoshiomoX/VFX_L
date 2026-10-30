@@ -82,6 +82,42 @@ namespace BossLooksDetail
     inline const Vec4 kVine = { 0.16f, 0.30f, 0.08f, 1.0f };
     inline const Vec4 kStagEye = { 0.6f, 3.0f, 6.0f, 1.0f };
     inline const Vec4 kSpark = { 1.6f, 3.6f, 6.0f, 1.0f };
+    // 砂漠 3 面目「砂嵐の魔神」（2026-10-29）：藍の肌（砂の黄色の中で目立つ）、紅の腰布、白い頭巾、金の飾り、金に光る目、砂の下半身
+    inline const Vec4 kDjinnSkin = { 0.07f, 0.13f, 0.40f, 1.0f };
+    inline const Vec4 kDjinnSkinLight = { 0.14f, 0.24f, 0.62f, 1.0f };
+    inline const Vec4 kDjinnSkinDark = { 0.03f, 0.055f, 0.18f, 1.0f };
+    inline const Vec4 kDjinnSash = { 0.42f, 0.035f, 0.05f, 1.0f };
+    inline const Vec4 kDjinnSashDark = { 0.20f, 0.015f, 0.025f, 1.0f };
+    inline const Vec4 kDjinnTurban = { 0.80f, 0.76f, 0.66f, 1.0f };
+    inline const Vec4 kDjinnTurbanDark = { 0.58f, 0.53f, 0.44f, 1.0f };
+    inline const Vec4 kDjinnBeard = { 0.02f, 0.02f, 0.04f, 1.0f };
+    inline const Vec4 kDjinnEye = { 6.0f, 4.2f, 1.0f, 1.0f };       // 金に光る目（HDR）
+    inline const Vec4 kDjinnRuby = { 3.2f, 0.25f, 0.18f, 1.0f };    // 頭巾・首飾り・帯の紅玉（少し光る）
+    inline const Vec4 kDjinnPlume = { 1.4f, 0.75f, 0.2f, 1.0f };    // 金の羽根飾り
+    inline const Vec4 kDjinnFire = { 4.5f, 1.8f, 0.35f, 1.0f };     // 掌の火の玉
+    inline const Vec4 kDjinnSand = { 0.78f, 0.58f, 0.31f, 1.0f };
+    inline const Vec4 kDjinnSandDark = { 0.50f, 0.36f, 0.17f, 1.0f };
+    inline const Vec4 kDjinnSandGlow = { 2.2f, 1.3f, 0.35f, 1.0f }; // 砂の中で光る金の粒
+    // 遺跡 3 面目「骸の王」（2026-10-29、ダークソウル 3 のウォルニール風）：古い骨の白、黒いぼろ布、金の冠と腕輪、眼窩の奥の紫の火
+    inline const Vec4 kKingBone = { 0.58f, 0.54f, 0.44f, 1.0f };
+    inline const Vec4 kKingBoneLight = { 0.74f, 0.70f, 0.60f, 1.0f };
+    inline const Vec4 kKingBoneDark = { 0.27f, 0.24f, 0.19f, 1.0f };
+    inline const Vec4 kKingTooth = { 0.80f, 0.76f, 0.64f, 1.0f };
+    inline const Vec4 kKingRag = { 0.03f, 0.022f, 0.04f, 1.0f };
+    inline const Vec4 kKingRagLight = { 0.07f, 0.05f, 0.09f, 1.0f };
+    inline const Vec4 kKingCore = { 0.03f, 0.012f, 0.05f, 1.0f };   // 肋骨の籠の中の闇（暗い紫）
+    inline const Vec4 kKingEye = { 2.6f, 0.5f, 3.6f, 1.0f };       // 眼窩の奥の紫の火（HDR）
+    inline const Vec4 kKingGem = { 2.0f, 0.4f, 3.0f, 1.0f };       // 冠の宝石
+    // 遺跡 2 面目「石の守護獣」（2026-10-29）：風化した灰色の石の竜（ガーゴイル）、苔むした背、ひびの奥に琥珀色に光る紋、光る目
+    inline const Vec4 kBStone = { 0.30f, 0.31f, 0.33f, 1.0f };
+    inline const Vec4 kBStoneLight = { 0.47f, 0.48f, 0.49f, 1.0f };
+    inline const Vec4 kBStoneDark = { 0.13f, 0.14f, 0.16f, 1.0f };
+    inline const Vec4 kBMembrane = { 0.19f, 0.19f, 0.22f, 1.0f };   // 翼の膜（石の薄板）
+    inline const Vec4 kBLichen = { 0.30f, 0.37f, 0.20f, 1.0f };     // 背の苔
+    inline const Vec4 kBLichenLight = { 0.45f, 0.52f, 0.30f, 1.0f };
+    inline const Vec4 kBClaw = { 0.62f, 0.60f, 0.55f, 1.0f };
+    inline const Vec4 kBRune = { 3.2f, 1.5f, 0.3f, 1.0f };          // ひびの奥の紋（HDR の琥珀）
+    inline const Vec4 kBEye = { 5.0f, 2.6f, 0.4f, 1.0f };
 
     // 上面 y の範囲（lo.xz〜hi.xz）に細い草の葉を n 本・花を flowers 本。unit = 大きさの基準（頭の幅など）
     inline void Tufts(Builder& b, std::mt19937& rng, const Vec3& lo, const Vec3& hi, float y, float unit, int n, int flowers)
@@ -132,6 +168,28 @@ namespace BossLooksDetail
     std::shared_ptr<Model> BuildWolfTorso(ID3D11Device* device);
     std::shared_ptr<Model> BuildWolfArm(ID3D11Device* device, float sx);
     std::shared_ptr<Model> BuildWolfLeg(ID3D11Device* device, float sx);
+    // ---- 砂嵐の魔神（BossLooksDjinn.cpp。体は隠し、全部を胴の部品に付ける。下半身の砂は体の軸の周りを回る）----
+    Vec3 DjinnShoulder(float sx);   // 腕を振り上げる軸（sx = -1 左 / +1 右）
+    std::shared_ptr<Model> BuildDjinnBody(ID3D11Device* device);
+    std::shared_ptr<Model> BuildDjinnArm(ID3D11Device* device, float sx);
+    std::shared_ptr<Model> BuildDjinnTail(ID3D11Device* device);
+    std::shared_ptr<Model> BuildDjinnRing(ID3D11Device* device);
+    // ---- 骸の王（BossLooksKing.cpp。体は隠し、全部を胴の部品に付ける。体は腰から前へ倒れ、腕は前の地面へ伸びる）----
+    Vec3 KingLean(const Vec3& p);     // 直立の座標 → 前へ倒れた体の座標
+    Vec3 KingShoulder(float sx);      // 倒れた体の肩（腕を振る軸）
+    Vec3 KingElbow(float sx);         // 肘（腕を上げる時に前腕が折れる所）
+    std::shared_ptr<Model> BuildKingBody(ID3D11Device* device);
+    std::shared_ptr<Model> BuildKingArm(ID3D11Device* device, float sx);
+    // ---- 石の守護獣（BossLooksBeast.cpp。体は隠し、全部を胴の部品に付ける：脚 = mode 4、首 + 頭・尾 = mode 3、翼 = mode 2）----
+    extern const Vec3 kBeastNeck;    // 首の付け根（頭を下げる軸）
+    extern const Vec3 kBeastTailRoot;
+    Vec3 BeastLegRoot(int i);        // 0 左前 / 1 右前 / 2 左後 / 3 右後
+    Vec3 BeastWingRoot(float sx);    // 翼の付け根（羽ばたきの軸）
+    std::shared_ptr<Model> BuildBeastBody(ID3D11Device* device);
+    std::shared_ptr<Model> BuildBeastHead(ID3D11Device* device);
+    std::shared_ptr<Model> BuildBeastLeg(ID3D11Device* device, int i);
+    std::shared_ptr<Model> BuildBeastTail(ID3D11Device* device);
+    std::shared_ptr<Model> BuildBeastWing(ID3D11Device* device, float sx);
     // ---- 岩の巨人（BossLooks.cpp）----
     std::shared_ptr<Model> BuildStoneHead(ID3D11Device* device, const Part& H);
     std::shared_ptr<Model> BuildStoneTorso(ID3D11Device* device, const Part& T);

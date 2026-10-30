@@ -76,15 +76,15 @@ public:
     const SpellbookUI& GetSpellbook() const { return m_Spellbook; }   // TEMP-TEST: 木箱の物理の記録
     SpellbookUI& GetSpellbookMutable() { return m_Spellbook; }        // TEMP-TEST: 離した所から落とす確認（TestDropHint）
     BackpackPadControl& TestPad() { return m_Pad; }          // TEMP-TEST: パッド操作（padbag）
+    LevelUpUI& TestLevelUp() { return m_LevelUp; }           // TEMP-TEST: 四択のスティック（padbag）
     const DragContext& GetDrag() const { return m_Drag; }    // TEMP-TEST
     void TestTooltip(int itemIndex, const DirectX::SimpleMath::Vector2& pos) { m_TestTooltipItem = itemIndex; m_TestTooltipPos = pos; }
 
-    // 全部下ろす（プレイヤー消失時など）。掴んでいる物・パッドの閉じる要求・「レベルアップ！」の待ちの表示も下ろす
+    // 全部下ろす（プレイヤー消失時など）。掴んでいる物・「レベルアップ！」の待ちの表示も下ろす
     void Clear()
     {
         m_Stack.Clear();
         m_Drag.Reset();
-        m_PadClosePending = false;
         m_LevelUpWait = false;
         m_LevelUpWaitAge = -1.0f;
     }
@@ -134,11 +134,12 @@ public:
     void SetObjective(const wchar_t* text) { m_FrameInfo.objective = text; }
     DamageNumbers& Damage() { return m_Damage; }   // 場面が Add / Update する（gameplay の dt）
     // 画面の真ん中の案内（2026-10-07。押し寄せ・エリート・最終ウェーブ）。text = null で消す
-    void SetAnnounce(const wchar_t* text, float alpha, float age)
+    void SetAnnounce(const wchar_t* text, float alpha, float age, bool gold = false)
     {
         m_FrameInfo.announce = text;
         m_FrameInfo.announceAlpha = alpha;
         m_FrameInfo.announceAge = age;
+        m_FrameInfo.announceGold = gold;
     }
     // 四択の引き直し（金貨）に使う。無ければ引き直しのボタンを出さない
     void SetLevelUpSystem(LevelUpSystem* sys) { m_LevelUpSystem = sys; }
@@ -209,8 +210,7 @@ private:
 	DragContext    m_Drag;
     HUD            m_HUD;
     DamageNumbers  m_Damage;                   // ダメージの数字（HUD と同じ画面座標で描く。2026-10-17）
-    BackpackPadControl m_Pad;                  // バックパック画面のパッド操作
-    bool           m_PadClosePending = false;  // B で閉じる要求（次のフレームで閉じる）
+    BackpackPadControl m_Pad;                  // バックパック画面のパッド操作（スティックのカーソル。閉じるのは Start）
     bool           m_LevelUpWait = false;      // レベルアップ直後、四択を出すまでの間（LevelComponent::choiceDelay）
     float          m_LevelUpWaitAge = -1.0f;   // その経過秒（案内の出方）
 

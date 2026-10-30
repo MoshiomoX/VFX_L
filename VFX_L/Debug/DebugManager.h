@@ -24,13 +24,18 @@ public:
     void BeginFrame();
     void EndFrame();
     void Update(float dt);
+    // 線のカメラを決めて参照の格子を積む（シーンを描く前。線はまだ描かない）
     void Render();
+    // 積んだ線を描く（2026-10-28：以前は Render の中 = シーンより前に描いていて、戦闘の空・地面に上書きされて見えなかった）。
+    // 戦闘シーンは 3D の後・UI の前で呼ぶ。呼ばなかったシーン（エディタ）の分は Application がシーンの後に呼ぶ。2 回目は何もしない
+    void RenderLines();
     CameraBase* GetActiveCamera();
     void SetUseDebugCamera(bool use);
     bool IsUsingDebugCamera() const { return m_UseDebugCamera; }
 
     // y = 0 の参照格子（原点 ±GridSize、1m 刻み）と座標軸。エディタ向け。
-    // 戦闘シーンは地面が y = 0 にあって格子と深度で競り合い、地面に縞が出るので入る時に消す（2026-10-03）
+    // 戦闘シーンは地面が y = 0 にあって格子と深度で競り合い、地面に縞が出るので入る時に消す（2026-10-03）。
+    // 2026-10-28 からはオンでもエディタのシーンでしか積まない（リザルト・商店の画面に出ていた）
     bool GetShowGrid() const { return m_ShowGrid; }
     void SetShowGrid(bool show) { m_ShowGrid = show; }
 

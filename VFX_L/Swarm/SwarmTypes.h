@@ -694,9 +694,18 @@ namespace Swarm
         // 狼人の飛びかかり（2026-10-26）：> 0 の間、VS が bossChargePose（0 → 1）の放物線で体をこの高さ（世界 m）まで持ち上げる
         float    bossJumpHeight = 0.0f;
         float    bossNoContact = 0.0f;        // 1 = Boss が体で殴らない（飛びかかりの間。ContactCS）
-        float    _wolfPad[2] = {};
+        float    climbSpeed = 3.0f;           // 雑魚が壁を登る速さ m/s（2026-10-29、MoveCS。0 = 登らない。SwarmSystem::climbSpeed を毎フレーム入れる）
+        // ---- 砂嵐の魔神（2026-10-29。BossAttacks::Output をシーンが毎フレーム写す。他の Boss は全部 0）----
+        float    bossHover = 0.0f;            // 体を浮かせる高さ（世界 m。VS・血条だけ、当たりのカプセルは地面のまま）
+        float    bossKeepMin = 0.0f;          // > 0 = 術師のように間合いを取る（AICS）：これより近いと下がる、bossKeepMax までは止まる
+        float    bossKeepMax = 0.0f;
+        float    bossFly = 0.0f;              // 1 = 幽霊のように壁・台地を越えて飛ぶ（SwarmFliesThrough。一段目の魔神）
+        // ---- 石の守護獣（2026-10-29。BossAttacks::Output::beast をシーンが毎フレーム写す。他の Boss は 0）----
+        float    bossWing = 0.0f;             // 翼（飾りの g_AnimMode 2）の角度 rad：0 = 横へ広げる、+ = 先を上へ
+        float    bossSpin = 0.0f;             // 体の追加の回り rad（尾の薙ぎ払いで一回転。VS が向きに足す）
+        float    _beastPad[3] = {};
     };
-    static_assert(sizeof(BomberCB) == 800, "SwarmBomberCB layout mismatch");
+    static_assert(sizeof(BomberCB) == 832, "SwarmBomberCB layout mismatch");
 
     // 固定エリートへの指示（BomberCB::eliteCmd。HLSL の SWARM_ELITE_* と同じ値）
     constexpr uint32_t kMaxEliteCmd = 4;

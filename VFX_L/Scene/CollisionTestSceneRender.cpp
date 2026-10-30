@@ -8,6 +8,8 @@
 #include "UI/UIDeco.h"
 #include "Debug/FrameProfiler.h"
 #include "Core/Application.h"
+#include "Core/DevUI.h"
+#include "Debug/DebugManager.h"
 
 // ============================================================
 // Render
@@ -63,7 +65,7 @@ void CollisionTestScene::Render(Renderer& renderer)
             m_Grass.SetFire(m_GrassFire.GetSRV(), m_GrassFire.GetSettings().ignite);
             // 爆発 / 光線 / 雑魚の足元も草を倒す（2026-10-13。池は Flush の後なので読むだけ）
             m_Grass.SetSwarmSources(m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV(),
-                m_Swarm.GetEnemySRV(), m_Swarm.GetEnemyStateSRV(), m_Swarm.GetEnemyExtraSRV());
+                m_Swarm.GetEnemySRV(), m_Swarm.GetEnemyStateSRV(), m_Swarm.GetEnemyExtraSRV(), m_Swarm.GetAIParams().groundY);
             m_Grass.SetWindSources(m_Swarm.GetWindSourceSRV());   // 砂旋の風源（草が輪になびく。2026-10-19）
             if (GetCamera()) m_Grass.Render(renderer, *GetCamera());   // 地形の後（深度で埋まる所を描かない）
             // 落ち葉（1 歩進めて描く。爆発の範囲と光線は読むだけ）
@@ -75,6 +77,9 @@ void CollisionTestScene::Render(Renderer& renderer)
         {
             // 水たまりの水面（2026-10-27）：半透明。草・落ち葉の後（水の縁の草の上に被らない）、群れの重ね描き（警告の輪・体力バー）の前
             PROFILE_SCOPE_GPU("Water");
+            // 水の中を歩く雑魚も波紋を立てる（2026-10-28。草の高さ = 飛んでいる物を除く）
+            m_Water.SetSwarmEnemies(m_Swarm.GetEnemySRV(), m_Swarm.GetEnemyStateSRV(), m_Swarm.GetEnemyExtraSRV(), m_Grass.GetHeightSRV(),
+                m_Swarm.GetAIParams().groundY);
             if (GetCamera()) m_Water.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetWindSourceSRV());
         }
         { PROFILE_SCOPE_GPU("Swarm overlay"); m_Swarm.RenderOverlay(GetCamera(), renderer.GetLightData()); }
@@ -138,6 +143,14 @@ void CollisionTestScene::Render(Renderer& renderer)
                 AutoTestLog(line);   // TEMP-TEST
             }
         }
+    }
+
+    // ---- デバッグの線（衝突体・杖・格子など。2026-10-28：以前はシーンより前に描いて空と地面に消されていた）----
+    // 3D の後・UI の前。リザルトの写真には入れない。奥行きは見る（地形の向こうは隠れる）
+    if (DevUI::kEnabled)
+    {
+        gfx.RestoreRenderTarget();   // 歪みの合成の後は奥行きが外れていることがある
+        DebugManager::Get().RenderLines();
     }
 
     // ============================================================

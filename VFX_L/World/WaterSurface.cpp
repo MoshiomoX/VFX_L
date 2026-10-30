@@ -40,6 +40,9 @@ bool WaterSurface::Initialize(ID3D11Device* device, ID3D11DeviceContext* context
     if (FAILED(ShaderPath::Load(m_PS.get(), device, L"Shader/Water/WaterPS.hlsl"))) { m_PS.reset(); ok = false; }
     m_RippleCS = std::make_shared<ComputeShader>();
     if (FAILED(ShaderPath::Load(m_RippleCS.get(), device, L"Shader/Water/WaterRippleCS.hlsl"))) { m_RippleCS.reset(); ok = false; }
+    // 雑魚の波紋（無くても水は動く。読めなければ雑魚の波紋だけ無し）
+    m_StirCS = std::make_shared<ComputeShader>();
+    if (FAILED(ShaderPath::Load(m_StirCS.get(), device, L"Shader/Water/WaterStirCS.hlsl"))) m_StirCS.reset();
     if (!ok)
     {
         std::cout << "[Error] WaterSurface: shader load failed" << std::endl;
@@ -53,9 +56,13 @@ void WaterSurface::Shutdown()
     m_VS.reset();
     m_PS.reset();
     m_RippleCS.reset();
+    m_StirCS.reset();
+    m_StirBuf.Reset(); m_StirSRV.Reset(); m_StirUAV.Reset();
+    m_StirCountBuf.Reset(); m_StirCountSRV.Reset(); m_StirCountUAV.Reset();
     m_VertBuffer.Reset();
     m_VertSRV.Reset();
     for (int i = 0; i < 2; ++i) { m_RippleTex[i].Reset(); m_RippleSRV[i].Reset(); m_RippleUAV[i].Reset(); }
+    for (int i = 0; i < 2; ++i) { m_SeenBuf[i].Reset(); m_SeenSRV[i].Reset(); m_SeenUAV[i].Reset(); }
     m_MaskTex.Reset();
     m_MaskSRV.Reset();
     m_Staging.Reset();
@@ -197,12 +204,12 @@ bool WaterSurface::WaterAt(float x, float z, float& surfaceY) const
     return true;
 }
 
-void WaterSurface::AddRipple(const Vector3& pos, float radius, float strength)
+void WaterSurface::AddRipple(const Vector3& pos, float radius, float strength, bool crest)
 {
     if (!HasWater() || strength == 0.0f || radius <= 0.0f) return;
     float surf;
     if (!WaterAt(pos.x, pos.z, surf)) return;   // 水の外の分は CS のマスクが捨てるが、枠を使わないように
-    const Vector4 v(pos.x, pos.z, radius, strength);
+    const Vector4 v(pos.x, pos.z, crest ? -radius : radius, strength);   // 半径の符号 = 白い線を描く波か
     if ((int)m_Impulses.size() < kMaxImpulses) { m_Impulses.push_back(v); return; }
     // 一杯なら一番弱い物と入れ替える
     auto weakest = std::min_element(m_Impulses.begin(), m_Impulses.end(),
@@ -226,6 +233,7 @@ void WaterSurface::Render(Renderer& renderer, CameraBase& camera,
         return;
     }
     m_SimAccum += dt;
+    m_StirDt += dt;
     StepRipples(areas, areaStates);
 
     auto& s = m_Settings;

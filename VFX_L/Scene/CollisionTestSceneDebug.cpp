@@ -51,6 +51,21 @@
 void CollisionTestScene::DrawDebugUI()
 {
     if (!DevUI::Active()) return;   // Demo ビルド（ImGui が無い）：パネルも目印・ギズモも出さない
+    // F8：風 → 経路の流れ場 → 群れの動き → 切。画面の左にミニマップのような窓（パネルを隠していても出す。2026-10-28）
+    m_FlowDebug.HandleKey();
+    if (m_FlowDebug.GetMode() != FlowDebugView::Mode::Off)
+    {
+        FlowDebugView::Inputs fin;
+        fin.player = PlayerPos();
+        if (m_Registry.Has<TransformComponent>(m_Player)) fin.playerYawDeg = m_Registry.Get<TransformComponent>(m_Player).rotation.y;
+        fin.grid = &m_Grid;
+        fin.wind = &m_Weather.Wind();
+        fin.windTime = m_Grass.Time();
+        fin.local = &m_Swarm.GetLocalWind();
+        fin.swarm = &m_Swarm;
+        fin.dt = m_GameUI.ShouldPauseGame() ? 0.0f : ImGui::GetIO().DeltaTime;   // 止まっている間は群れを読み直さない
+        m_FlowDebug.Draw(fin);
+    }
     if (!DebugManager::Get().GetShowPanels()) return;   // 既定は全部隠す。F10 で表示（2026-10-16）
 
     // 太陽の目印・シーン光源のギズモ（バックパック・レベルアップ・呪文書を開いている間はギズモを出さない）

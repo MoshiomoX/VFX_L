@@ -18,10 +18,22 @@
 //     → 止まって輪 → 飛び出して叩く（輪の爆発。中に居るかはシーン）
 //   ・流沙：吠える間に渦が広がり、技の後も sandDuration 秒残る。中で地面に居るプレイヤーは遅く・中心へ引かれる
 //     （QuicksandPull。跳んでいる間は効かない = 抜け出し方）
+//   2026-10-29：雷鳴の雄鹿の専用の技（BossAttacksStag.cpp）。共通は突進だけ残し、狂暴の間は突進が三連（毎回向きを取り直す）
+//   ・角の振り上げ：向きを固めて頭を下げる（正面の扇が育つ）→ 角で前上へすくい上げる。扇の中で地面近くなら高く吹き上げる
+//   ・角の雷撃：向きを固めて扇に並ぶ帯の予告 → 角から帯に沿って雷が一斉に走る（Output::boltLines。見た目はシーン）
+//   2026-10-29（ユーザー「全 Boss の攻撃範囲を少し広げて」）：当たりの半径・帯の幅を全部 ×1.2（予告の輪も同じ値なので一緒に広がる）。
+//     届く長さ（槍・鎖・衝撃波の最大半径・突っ込む距離）、流沙の渦、召喚の輪、扇の角度はそのまま
+//   2026-10-29：砂漠 3 面目の「砂嵐の魔神」。数値・状態は BossDjinn.h（このヘッダーが 500 行を越えたので分けた）、技は BossAttacksDjinn.cpp。
+//     一段目は浮いて（GPU は幽霊のように飛び、間合いを取る）砂嵐召喚 / 炎の息 / 砂渡り、狂暴の咆哮の瞬間に降りて二段目（技を入れ替える）
+//   2026-10-29：遺跡 2 面目の「石の守護獣」（有翼の石竜）。数値・状態は BossBeast.h、技は BossAttacksBeast.cpp。段の入れ替えは魔神と同じ形
+// 面毎の組み合わせ（Configure）は BossAttacksConfig.cpp。
 // 見た目・音・被弾（無敵時間・ノックバック）はシーン（CollisionTestSceneBoss.cpp）。調整パネルは BossAttacksPanel.cpp
 // ============================================================
 #pragma once
 #include "Enemy/Boss/BossBrain.h"
+#include "Enemy/Boss/BossBeast.h"
+#include "Enemy/Boss/BossDjinn.h"
+#include "Enemy/Boss/BossKing.h"
 #include <SimpleMath.h>
 #include <cstdint>
 #include <random>
@@ -41,6 +53,7 @@ public:
         float damage = 0.0f;
         bool  ranged = true;                   // true = 輪の爆発（中に居るかはシーンが見る）、false = もう当たった（衝撃波・突進）
         DirectX::SimpleMath::Vector2 dir = { 0.0f, 1.0f };   // ranged = false の時の吹き飛ばす向き
+        bool  noKnock = false;                 // ノックバックしない（骸の王の呪いの床のじわじわ。2026-10-29）
         bool  thunder = false;                 // 雷鳴の雄鹿：突進の道筋に落ちる雷（ranged。見た目は雷、跳んでも避けられない。2026-10-26）
     };
     // 地面の警告の見た目（シーンが SwarmSystem::WarnCircle へ写す）
@@ -114,6 +127,20 @@ public:
         bool  howled = false;          // 吠えた瞬間（召喚と同じフレーム。音・見た目）
         float jumpHeight = 0.0f;       // 跳びの高さ（VS が chargePose の放物線に掛ける。BomberCB::bossJumpHeight）
         bool  noContact = false;       // 技の間 Boss が体で殴らない（飛びかかり：地面を走り抜ける体がプレイヤーに触れて無敵になり、着地の当たりが外れた）
+        // ---- 雷鳴の雄鹿（2026-10-29）----
+        bool  antlerTossed = false;    // 角で振り上げた瞬間（当たらなくても。土と火花・音。向きは clawDir）
+        bool  boltCharging = false;    // 角の雷撃の溜めが始まった瞬間（溜めの音）
+        // 角の雷撃：溜めが終わって雷が走った線（この瞬間だけ。start = Boss の足元、end = 先の地面）
+        struct BoltLine { DirectX::SimpleMath::Vector3 start, end; };
+        std::vector<BoltLine> boltLines;
+        // ---- 狂暴の咆哮（2026-10-29）：止まって吠え始めた瞬間（音・揺れ・案内・赤い火の粉。シーンの CollisionTestSceneBossDrama.cpp）----
+        bool  enrageRoared = false;
+        // ---- 砂嵐の魔神（2026-10-29。中身は BossDjinn.h）----
+        DjinnOutput djinn;
+        // ---- 骸の王（2026-10-29。中身は BossKing.h。浮き・間合い・影へ消える の沈みは djinn の方を共用）----
+        KingOutput king;
+        // ---- 石の守護獣（2026-10-29。中身は BossBeast.h。浮き・飛び・間合いは djinn の方を共用）----
+        BeastOutput beast;
     };
 
     // 流沙の渦の今の様子（技が終わっても残る）
@@ -133,19 +160,26 @@ public:
     float enrageHpRatio = 0.5f;
     float comboChance = 0.3f;       // 狂暴の間、技の直後に間を空けず次を出す確率
     float range = 35.0f;            // Boss とプレイヤーがこれより離れていたら技を出さない（洞の奥から外を叩かない）
+    // 狂暴の咆哮（2026-10-29、ユーザー「Boss の演出」）：HP が enrageHpRatio を切った後、今の技が終わった所で 1 回だけ
+    // その場で止まって吠える（技は出さない・体で殴らない）。足元から赤い輪が広がる（見た目だけ）。
+    // 蘇った後の狂暴（forceEnraged、墓守の騎士）は立ち上がりの演出があるので吠えない
+    bool  enrageRoar = true;
+    float enrageRoarTime = 1.2f;
+    float enrageRingMax = 10.0f;    // 赤い輪が広がる半径 m
+    float enrageRingTime = 0.6f;    // 輪が広がり切るまでの秒
 
     // ---- 重撃（Slam）----
     int   count = 3;                // 輪の数
     float spacing = 0.45f;          // 輪を置く間隔（秒）
     float warnTime = 1.2f;          // 輪が出てから爆発まで（秒）
-    float radius = 3.0f;            // m
-    float damage = 25.0f;           // 難度の倍率 1 の時。当たると × MobSpawner の今のダメージ倍率
+    float radius = 3.6f;            // m（10-29 まで 3.0）
+    float damage = 25.0f;          // 難度の倍率 1 の時。当たると × MobSpawner の今のダメージ倍率
 
     // ---- 投石雨（RockRain）----
     int   rockCount = 9;            // 岩の数（1 つ目はプレイヤーの足元、残りは周りのばらばらな所）
     float rockSpacing = 0.12f;      // 輪を置く間隔（秒）
     float rockWarn = 1.1f;          // 輪が出てから落ちるまで（秒）
-    float rockRadius = 2.0f;
+    float rockRadius = 2.4f;        // 10-29 まで 2.0
     float rockSpread = 7.0f;        // プレイヤーの周りのこの半径の中に散らす（m）
     float rockDamage = 18.0f;
     float rockFallTime = 0.45f;     // 爆発のこれだけ前に岩が空から落ち始める（BossRockFall.json の落ちる時間と合わせる）
@@ -155,7 +189,7 @@ public:
     float waveWindupRadius = 4.0f;  // 溜めの輪の半径
     float waveSpeed = 11.0f;        // 帯が広がる速さ m/s
     float waveMaxRadius = 28.0f;
-    float waveBand = 1.4f;          // 帯の幅 m
+    float waveBand = 1.7f;          // 帯の幅 m（10-29 まで 1.4）
     float waveDodgeHeight = 0.6f;   // 足が地面からこれより上なら当たらない（跳べば避けられる）
     float waveDamage = 22.0f;
 
@@ -163,18 +197,41 @@ public:
     float chargeWindup = 1.1f;      // 溜め（Boss が止まって道筋の輪が育つ）
     float chargeSpeed = 20.0f;      // m/s
     float chargeLength = 24.0f;     // 走る距離 m（壁に当たれば GPU が止める）
-    float chargeLaneRadius = 1.4f;  // 道筋の輪の半径
+    float chargeLaneRadius = 1.7f;  // 道筋の輪の半径（10-29 まで 1.4）
     float chargeLaneSpacing = 2.4f; // 道筋の輪の間隔 m
-    float chargeHitRadius = 2.6f;   // Boss の中心からこの距離にプレイヤーが居れば当たり
+    float chargeHitRadius = 3.1f;   // Boss の中心からこの距離にプレイヤーが居れば当たり（10-29 まで 2.6）
     float chargeDamage = 35.0f;
     // 雷鳴の雄鹿（BossType::Stag）だけ：突進で道筋の輪を通り過ぎる度にそこへ雷の予告 → stagThunderWarn 秒後に落ちる
     // （跳んでも避けられない、横へ避けた後も道筋に立っていると打たれる）。姿勢（chargePose）の秒もここ（2026-10-26）
     bool  stagThunder = true;
     float stagThunderWarn = 0.45f;  // 予告から落雷まで
     float stagThunderDamage = 16.0f;// 基準（× damageMul）。精鋭の雷光と同じ
-    float stagThunderRadius = 1.5f;
+    float stagThunderRadius = 1.8f; // 10-29 まで 1.5
     float stagTossTime = 0.18f;     // 当てた瞬間に頭を振り上げる秒
     float stagRecoverTime = 0.35f;  // 突進が終わってから頭が上がる秒
+    int   chargeCountEnraged = 3;   // 雄鹿だけ：狂暴の間の突進の回数（2 回目からは向きを取り直し、溜めは chargeRewindup）
+    float chargeRewindup = 0.55f;
+
+    // ---- 角の振り上げ（AntlerToss。雷鳴の雄鹿）：向きを固めて頭を下げる（正面の扇の予告）→ 角で前上へすくい上げる ----
+    float tossWindup = 0.8f;         // 溜め（止まって頭を下げる。扇が育つ。向きは始めた瞬間に固める = 横へ逃げられる）
+    float tossRadius = 5.0f;         // 扇の半径 m
+    float tossHalfDeg = 45.0f;       // 扇の半角（度）
+    float tossDodgeHeight = 1.4f;    // 足が地面からこれより上なら当たらない
+    float tossDamage = 26.0f;        // 当たると高く吹き上げられる（砂旋と同じ KnockKind::Wind）
+    float tossRest = 0.5f;           // 振り上げた後その場で止まる秒（頭が戻る）
+    bool  tossWarn = false;          // 足元の扇の予告を出すか（10-29 ユーザー「角の振り上げは範囲を出さなくていい」→ 既定は出さない。
+                                     // 合図は頭を下げて角が光る溜めだけ。当たりは同じ扇）
+
+    // ---- 角の雷撃（AntlerBolt。雷鳴の雄鹿）：向きを固めて扇に並ぶ帯の予告 → 角から帯に沿って雷が一斉に走る ----
+    float boltWindup = 0.9f;         // 溜め（止まって頭を少し下げ、角が光る。帯が育つ）
+    int   boltCount = 3;             // 帯の本数
+    int   boltCountEnraged = 5;      // HP が enrageHpRatio を切った後
+    float boltFanDeg = 18.0f;        // 隣の帯との角度（3 本 = ±18°）
+    float boltLength = 18.0f;        // 帯の長さ m（Boss の足元から）
+    float boltWidth = 1.2f;          // 帯の幅 m（当たり = 半分 + プレイヤーの太さ）
+    float boltDamage = 24.0f;        // 跳んでも当たる（雷は高い）
+    float boltRest = 0.5f;           // 撃った後その場で止まる秒
+    bool  testEnraged = false;       // 自動テスト：狂暴として扱う（シーンは forceEnraged を毎フレーム書き直すので別に持つ）
 
     // ---- 召喚（Summon）----
     float summonWindup = 1.4f;       // 吠えてから湧くまで（Boss は止まる）
@@ -192,7 +249,7 @@ public:
     float spearWindup = 0.9f;        // 溜め（Boss が止まって線上の輪が育つ）
     float spearLength = 22.0f;       // 線の長さ m
     float spearSpeed = 18.0f;        // 足元から先へトゲが突き出ていく速さ m/s
-    float spearLaneRadius = 1.1f;    // 線上の輪の半径 = 当たりの幅（線からこれ + プレイヤーの太さ）
+    float spearLaneRadius = 1.3f;    // 線上の輪の半径 = 当たりの幅（線からこれ + プレイヤーの太さ。10-29 まで 1.1）
     float spearLaneSpacing = 1.6f;
     float spearDodgeHeight = 1.4f;   // 足が地面からこれより上なら当たらない（トゲは高いので、ほぼ跳んでも当たる）
     float spearDamage = 26.0f;
@@ -206,7 +263,7 @@ public:
     float burrowStopDist = 1.2f;     // プレイヤーまでこの距離に来たら止まる
     float burrowWarn = 1.0f;         // 止まってから飛び出すまで（足元の輪が育つ。走って出る間）
     float burrowRiseTime = 0.3f;     // 体が地面から出てくる
-    float burrowRadius = 3.5f;       // 飛び出しの当たりの半径
+    float burrowRadius = 4.2f;       // 飛び出しの当たりの半径（10-29 まで 3.5）
     float burrowDamage = 32.0f;
 
     // ---- 流沙（Quicksand。砂の守護者）----
@@ -223,8 +280,8 @@ public:
     float stingWindup = 0.7f;        // 溜め（止まって尾を後ろへ反らす。帯の予告が育つ）
     float stingSpeed = 14.0f;        // 突っ込む速さ m/s
     float stingLength = 8.0f;        // 突っ込む距離 m（= 帯の長さ）
-    float stingWidth = 2.4f;         // 帯の幅 m（当たりは Boss から stingHitRadius）
-    float stingHitRadius = 2.4f;     // 突っ込んでいる Boss の中心からこの距離にプレイヤーが居れば刺さる
+    float stingWidth = 2.9f;         // 帯の幅 m（当たりは Boss から stingHitRadius。10-29 まで 2.4）
+    float stingHitRadius = 2.9f;     // 突っ込んでいる Boss の中心からこの距離にプレイヤーが居れば刺さる（10-29 まで 2.4）
     float stingDamage = 22.0f;
     float stingRest = 0.4f;          // 突っ込んだ後、その場で止まる秒（尾を戻す）
     float stingPoisonTime = 6.0f;    // 毒の秒
@@ -232,7 +289,7 @@ public:
 
     // ---- 鋏の薙ぎ払い（ClawSweep。大サソリ）：正面の扇の予告 → 1 回薙ぐ ----
     float clawWindup = 0.8f;         // 溜め（向きを固めて止まる。扇が育つ）
-    float clawRadius = 5.5f;         // 扇の半径 m
+    float clawRadius = 6.6f;         // 扇の半径 m（10-29 まで 5.5）
     float clawHalfDeg = 55.0f;       // 扇の半角（度）
     float clawDodgeHeight = 1.4f;    // 足が地面からこれより上なら当たらない
     float clawDamage = 28.0f;
@@ -242,7 +299,7 @@ public:
     float chainWindup = 0.9f;        // 溜め（止まる。帯が育つ）
     float chainFanDeg = 3.5f;        // 2 本の鎖の向きの開き（± 度。7° だと 10m 先で 1.2m 開き、当たり 0.55 + 0.4 で真ん中の的に 2 本とも外れた）
     float chainRange = 14.0f;        // 届く長さ m（= 帯の長さ）
-    float chainWidth = 1.1f;         // 帯の幅 m（鉤の当たりの太さ 0.55 × 2）
+    float chainWidth = 1.3f;         // 帯の幅 m = 鉤の当たりの太さ × 2（シーンが半分を ChainHook::hitRadius へ。10-29 まで 1.1）
     float chainDamage = 18.0f;       // 掛かった時（基準 × damageMul）
     float chainPullStop = 2.6f;      // Boss の前のここまで引き寄せる（重撃が届く所）
     float chainRest = 0.5f;          // 投げてから次へ（鎖の飛ぶ時間。掛かったらこの後すぐ重撃）
@@ -254,9 +311,11 @@ public:
     // 飛びかかり（Pounce）：しゃがんで溜め → 着地点（溜めの終わりのプレイヤー）へ pounceAirTime 秒で跳ぶ（GPU は地面を真っ直ぐ、
     // VS が放物線に持ち上げる）→ 着地で輪の中に当たり（跳べば避けられる）→ 少し止まる
     float pounceWindup = 0.5f;
-    float pounceAirTime = 0.6f;
+    // 着地点は跳ぶ瞬間に決まるので、空中の秒 × 走り 5.5 m/s が輪の半径より長くないと走って避けられない
+    // （10-29 に輪を 3.6m にした時 0.6 秒 = 3.3m で避けられなくなった → 0.75 秒 = 4.1m）
+    float pounceAirTime = 0.75f;
     float pounceHeight = 4.0f;       // 放物線の高さ m（焼いた網の空間ではなく世界。VS で 1/3）
-    float pounceRadius = 3.0f;
+    float pounceRadius = 3.6f;       // 10-29 まで 3.0
     float pounceDamage = 24.0f;
     float pounceRest = 0.35f;
     float pounceMaxSpeed = 32.0f;    // 跳ぶ速さの上限 m/s（遠いと届かない）
@@ -264,8 +323,8 @@ public:
     float clawComboWindup = 0.5f;    // 向きは溜めの始めに固める = この間に横へ走れば外れる（0.35 / 当たり 2.4 では 2 発目以降が避けられなかった）
     float clawDashSpeed = 16.0f;
     float clawDashLength = 6.0f;
-    float clawDashWidth = 2.2f;      // 帯の幅
-    float clawComboHitRadius = 1.8f;
+    float clawDashWidth = 2.6f;      // 帯の幅（10-29 まで 2.2）
+    float clawComboHitRadius = 2.2f; // 10-29 まで 1.8
     float clawComboDamage = 20.0f;
     int   clawComboCount = 3;
     int   clawComboCountEnraged = 5;
@@ -273,6 +332,13 @@ public:
     float howlWindup = 1.2f;
     float howlHasteTime = 8.0f;
     float howlGapMul = 0.5f;
+
+    // ---- 砂嵐の魔神（砂漠 3 面目。2026-10-29）：数値は BossDjinn.h、技の中身は BossAttacksDjinn.cpp ----
+    DjinnTune djinn;
+    // ---- 骸の王（遺跡 3 面目。2026-10-29）：数値は BossKing.h、技の中身は BossAttacksKing.cpp ----
+    KingTune king;
+    // ---- 石の守護獣（遺跡 2 面目。2026-10-29）：数値は BossBeast.h、技の中身は BossAttacksBeast.cpp ----
+    BeastTune beast;
 
     BossBrain brain;
 
@@ -292,6 +358,8 @@ public:
 
     const std::vector<Visual>& Visuals() const { return m_Visuals; }
     BossMove Current() const { return m_Move; }
+    bool IsRoaring() const { return m_RoarLeft > 0.0f; }   // 狂暴の咆哮の間（自動テスト用）
+    bool EnrageRoarDone() const { return m_EnrageRoarDone; }   // この戦いで吠えた（赤い火の粉は吠えてから付ける）
     const QuicksandField& Quicksand() const { return m_SandField; }
     // 潜砂奇襲の段（0 沈む / 1 追う / 2 止まって輪 / 3 飛び出す）。潜砂中でなければ -1（自動テスト用）
     int BurrowPhase() const { return (m_Move == BossMove::Burrow) ? m_BurrowPhase : -1; }
@@ -307,6 +375,23 @@ public:
     void  OnChainCaught() { m_ChainCaught = true; }
     // 今狂暴か（最後の Update の HP 割合 / forceEnraged。シーンが狼人の体を赤くするのに見る）
     bool  IsEnraged() const { return m_LastEnraged; }
+    // 砂嵐の魔神：二段目か（咆哮で降りた後）・砂嵐召喚の砂旋（技の後も残る）。ForceDjinnPhase2 = パネル・自動テストで今すぐ二段目へ
+    bool  DjinnPhase2() const { return m_Djinn.phase2; }
+    const std::vector<DjinnDevil>& Devils() const { return m_Djinn.devils; }
+    void  ForceDjinnPhase2() { m_ForcePhase2 = true; }
+    // 骸の王：飛んでいる呪いの玉・呪いの床（技の後も残る）。CursePull = 床の中のプレイヤーへの効き（QuicksandPull と同じ形）
+    const std::vector<KingOrb>& KingOrbs() const { return m_King.orbs; }
+    const KingCurse& KingCurseField() const { return m_King.curse; }
+    bool CursePull(const DirectX::SimpleMath::Vector3& playerFeet, bool grounded, float& slowMul, DirectX::SimpleMath::Vector2& pull) const;
+    // 石の守護獣：二段目か（ForceDjinnPhase2 で同じく今すぐ二段目へ）・プレイヤーの石化（溜まり 0〜1 / 石の残り秒）と走りの速さの倍率
+    bool  BeastPhase2() const { return m_Beast.phase2; }
+    float BeastPetrify() const { return m_Beast.petrify; }
+    float BeastStoneLeft() const { return m_Beast.stoneLeft; }
+    float BeastPetrifySlow() const;
+    const std::vector<BeastShard>& BeastShards() const { return m_Beast.shards; }
+    const DirectX::SimpleMath::Vector3& BeastShadow() const { return m_Beast.shadow; }
+    int   BeastCrushPhase() const { return (m_Move == BossMove::SkyCrush) ? m_Beast.crushPhase : -1; }
+    uint32_t beastCrushHits = 0, beastShardHits = 0;   // 自動テスト用（無敵時間の前に数える）
 
     // パネルのボタン・自動テスト：次の Update で（距離・間隔・冷却を見ずに）この技を出す
     void QueueMove(BossMove m) { m_DebugMove = m; }
@@ -333,7 +418,13 @@ private:
     void UpdateMove(const Input& in, const GridWorld& grid, Output& out);
     void UpdateWave(const Input& in, const GridWorld& grid, Output& out);
     void BuildVisuals(const Input& in, const GridWorld& grid);
-    bool Enraged(const Input& in) const { return forceEnraged || in.bossHpRatio < enrageHpRatio; }
+    // ---- 共通の技（BossAttacksCommon.cpp。2026-10-29 に BossAttacks.cpp から分けた）。Update が true を返したら技が終わり ----
+    bool UpdateRingVolley(const Input& in, const GridWorld& grid, Output& out);   // 重撃・投石雨
+    bool UpdateShockwaveMove(const Input& in, const GridWorld& grid, Output& out);
+    bool UpdateChargeMove(const Input& in, const GridWorld& grid, Output& out, float prevTime);
+    bool UpdateSummonMove(const Input& in, Output& out);
+    void BuildCommonVisuals(const Input& in, const GridWorld& grid);
+    bool Enraged(const Input& in) const { return forceEnraged || testEnraged || in.bossHpRatio < enrageHpRatio; }
     void FinishMove(const Input& in);   // 技が終わった：次の技までの間を決める
     uint32_t PickSummonKind();
 
@@ -356,6 +447,12 @@ private:
     // ---- 雷鳴の雄鹿の中身（BossAttacksStag.cpp。2026-10-26）：突進の姿勢 → chargePose、道筋の雷 ----
     void UpdateStagPose(const Input& in, Output& out);
     void StagThunderLane(const Input& in, const GridWorld& grid, Output& out);
+    bool StagNextCharge(const Input& in, const GridWorld& grid);   // 狂暴の三連：次の突進を始めたら true
+    void StartAntlerToss(const Input& in, const GridWorld& grid);
+    bool UpdateAntlerToss(const Input& in, const GridWorld& grid, Output& out, float prevTime);
+    void StartAntlerBolt(const Input& in, const GridWorld& grid);
+    bool UpdateAntlerBolt(const Input& in, const GridWorld& grid, Output& out, float prevTime);
+    void BuildStagVisuals(const GridWorld& grid);
     // ---- 墓守の騎士の技（BossAttacksKnight.cpp。2026-10-26）----
     void StartChainPull(const Input& in, const GridWorld& grid);
     bool UpdateChainPull(const Input& in, Output& out, float prevTime);
@@ -367,6 +464,54 @@ private:
     bool UpdateClawCombo(const Input& in, const GridWorld& grid, Output& out, float prevTime);
     bool UpdateHowl(const Input& in, Output& out);
     void BuildWolfVisuals(const Input& in, const GridWorld& grid);
+    // ---- 砂嵐の魔神の技（BossAttacksDjinn.cpp。2026-10-29）----
+    void ConfigureDjinnPhase(bool phase2);       // 技の有り / 無しを一段目 / 二段目に入れ替える
+    void EnterDjinnPhase2(Output& out);
+    void UpdateDjinnOutputs(const Input& in, Output& out);   // 浮き・間合い・飛び（毎フレーム）
+    void StartDustDevils(const Input& in, const GridWorld& grid, Output& out);
+    bool UpdateDustDevilsMove(const Input& in, Output& out);
+    void UpdateDevils(const Input& in, const GridWorld& grid, Output& out);   // 砂旋の回りと当たり（技の後も）
+    void StartDjinnBreath(const Input& in, const GridWorld& grid);
+    bool UpdateDjinnBreath(const Input& in, const GridWorld& grid, Output& out);
+    void StartDjinnShift(const Input& in, const GridWorld& grid);
+    bool UpdateDjinnShift(const Input& in, const GridWorld& grid, Output& out);
+    void StartSandFist(const Input& in, const GridWorld& grid);
+    bool UpdateSandFist(const Input& in, const GridWorld& grid, Output& out, float prevTime);
+    void BuildDjinnVisuals(const GridWorld& grid);
+    // 沈んで走って浮かぶ（魔神の砂渡り・骸の王の影へ消える）。follow = 浮かび上がった直後に出す技
+    void StartShift(const Input& in, const DirectX::SimpleMath::Vector3& target, BossMove follow, float sink, float speed, float maxTime, float rise);
+    // ---- 骸の王の技（BossAttacksKing.cpp。2026-10-29）----
+    void StartCurseOrbs(const Input& in);
+    bool UpdateCurseOrbs(const Input& in, const GridWorld& grid, Output& out);
+    void UpdateKingOrbs(const Input& in, const GridWorld& grid, Output& out);   // 玉の追いと爆ぜ（技の後も）
+    bool UpdateRaiseDead(const Input& in, Output& out);
+    void StartShadowStep(const Input& in, const GridWorld& grid);
+    void StartCurseFloor(const Input& in, const GridWorld& grid);
+    bool UpdateCurseFloorMove(const Input& in, Output& out);
+    void UpdateKingCurse(const Input& in, const GridWorld& grid, Output& out);  // 床の広がり・残り・じわじわ（技の後も）
+    void BuildKingVisuals(const GridWorld& grid);
+    // ---- 石の守護獣の技（BossAttacksBeast.cpp。2026-10-29）。段の入れ替えは魔神と共通（EnterPhase2）----
+    bool HasPhases() const { return m_Type == BossType::Djinn || m_Type == BossType::StoneBeast; }
+    bool InPhase2() const { return (m_Type == BossType::StoneBeast) ? m_Beast.phase2 : m_Djinn.phase2; }
+    void EnterPhase2(Output& out);
+    void ConfigureBeastPhase(bool phase2);
+    void UpdateBeastOutputs(const Input& in, Output& out);   // 浮き・飛び・間合い・翼・体の回り（毎フレーム）
+    void UpdateBeastPetrify(float dt, Output& out);           // プレイヤーの石化（Boss が居なくても）
+    void StartBeastDive(const Input& in, const GridWorld& grid);
+    bool UpdateBeastDive(const Input& in, const GridWorld& grid, Output& out);
+    void StartPetrifyBreath(const Input& in, const GridWorld& grid);
+    bool UpdatePetrifyBreath(const Input& in, const GridWorld& grid, Output& out);
+    void StartWingGust(const Input& in, const GridWorld& grid);
+    bool UpdateWingGust(const Input& in, const GridWorld& grid, Output& out, float prevTime);
+    void StartTailSweep(const Input& in, const GridWorld& grid);
+    bool UpdateTailSweep(const Input& in, const GridWorld& grid, Output& out, float prevTime);
+    void StartSkyCrush(const Input& in, const GridWorld& grid);
+    bool UpdateSkyCrush(const Input& in, const GridWorld& grid, Output& out);
+    void StartFeatherShards(const Input& in, const GridWorld& grid);
+    bool UpdateFeatherShards(const Input& in, const GridWorld& grid, Output& out);
+    void UpdateBeastShards(const Input& in, const GridWorld& grid, Output& out);   // 羽根の飛びと当たり（技の後も）
+    void BuildBeastVisuals(const GridWorld& grid);
+    void BuildBeastSkyVisuals();   // 天からの圧殺の影・石羽の散弾の筋（BossAttacksBeastSky.cpp）
 
     BossType m_Type = BossType::StoneGiant;
 
@@ -399,6 +544,21 @@ private:
     float m_ChargeTossT = -1.0f;     // 当ててからの秒（< 0 = 振り上げていない）
     float m_ChargeRecover = 0.0f;    // 突進が終わってから頭が上がるまでの残り秒
     int   m_ChargeLanesPassed = 0;   // 通り過ぎて雷を置いた道筋の輪の数
+    // 突進の今の 1 回（雄鹿の狂暴の三連で 2 回目・3 回目がある。2026-10-29）：その回の溜めを始めた m_MoveTime と溜めの秒
+    float m_ChargeT0 = 0.0f;
+    float m_ChargeWindupNow = 1.1f;
+    int   m_ChargeIndex = 0, m_ChargeCount = 1;
+    float ChargeT() const { return m_MoveTime - m_ChargeT0; }
+    // 雷鳴の雄鹿の角の振り上げ・角の雷撃（2026-10-29）
+    bool  m_TossHitDone = false;
+    bool  m_BoltFired = false;
+    int   m_BoltCountNow = 3;
+    DirectX::SimpleMath::Vector3 m_StagFoot;   // 技を始めた時の Boss の足元（扇・帯の根元。溜めの間 Boss は動かない）
+    // 狂暴の咆哮（2026-10-29）：吠えたか（1 回の戦いで 1 回）、吠えの残り秒、赤い輪の中心・広がってからの秒（< 0 = 出していない）
+    bool  m_EnrageRoarDone = false;
+    float m_RoarLeft = 0.0f;
+    float m_RoarRingAge = -1.0f;
+    DirectX::SimpleMath::Vector3 m_RoarCenter;
 
     // 召喚：湧く所（StartMove で決める）
     std::vector<Output::Summon> m_SummonPoints;
@@ -436,4 +596,10 @@ private:
     float m_ComboPhaseTime = 0.0f;
     bool  m_ComboDashing = false, m_ComboHitDone = false;
     float m_HowlHasteLeft = 0.0f;
+
+    // 砂嵐の魔神（2026-10-29）
+    DjinnState m_Djinn;
+    KingState m_King;   // 骸の王（2026-10-29）
+    BeastState m_Beast; // 石の守護獣（2026-10-29）
+    bool m_ForcePhase2 = false;
 };

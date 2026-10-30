@@ -84,6 +84,8 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
     float2 c = kCorner[vid];
     float3 center = e.position + float3(0.0, offset, 0.0);
+    if (enemyExtra[slot].kind == SWARM_KIND_BOSS)
+        center.y += g_BossHover;   // the floating sand djinn is drawn higher (2026-10-29)
     float3 world = center
         + right * ((c.x - 0.5) * width)
         + up * ((0.5 - c.y) * g_BarHeight);

@@ -65,8 +65,13 @@ namespace TerrainGenerator
         int   stepRimLevels = 2;          // 外周の帯（登れない縁）の段数
         int   stepRimBand = 3;            // 1 段あたりの帯の幅（マス）
         int   stepMinCells = 8;           // これより小さい台地は消す
-        float pondCoverage = 0.04f;       // 水たまりが 0 段の平地に占める割合
-        float pondDepth = 0.5f;           // 水たまりの深さ（m。プレイヤーは歩いて入れる、雑魚は入らない）
+        float pondCoverage = 0.07f;       // 水たまりの候補（0 段の平らな所）から選ぶ割合。窪みだけに削るので 0.04 → 0.07（2026-10-28）
+        float pondDepth = 0.5f;           // 水たまりの深さ（m。プレイヤーも雑魚も歩いて入れる。2026-10-28 から雑魚も）
+        // 水たまりを起伏の膨らみ・坂に置かない（2026-10-28。TerrainBuild::StepParams と同じ意味）
+        float pondConvexTol = 0.03f;      // 真ん中が隣の 8 マスの平均よりこれ以上高い = 凸 → 置かない（m）
+        float pondMaxRise = 0.6f;         // ±3m の範囲の高さの差がこれを越える = 坂 → 置かない（m）
+        float pondLowBias = 2.0f;         // 窪んだ所ほど先に水たまりになる倍率
+        float pondMaxSpread = 0.3f;       // 1 つの水たまりで一番低いマスよりこれ以上高いマスは外す（水面の傾きの上限、m）
 
         // ---- フィールドの三層（山頂・平原・洞窟）----
         // 隅の組（どちらの対角か、どちらが山頂か）は seed で決まる。

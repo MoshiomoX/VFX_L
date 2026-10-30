@@ -90,6 +90,7 @@ struct HUDFrameInfo
     const wchar_t* announce = nullptr;     // 画面の真ん中の案内（null / 空なら出さない。2026-10-07）
     float announceAlpha = 0.0f;            // 0..1（出入りのフェード）
     float announceAge = 1.0f;              // 出てからの秒（出た瞬間の大きさの戻り用）
+    bool  announceGold = false;            // 金色で出す（Boss を倒した。2026-10-29）
     const ShieldComponent* shield = nullptr;  // シールド（HP バーの下の細いバー。null / 上限 0 なら出さない）
     const WandComponent* wand = nullptr;   // 魔法の欄。null なら出さない
 
@@ -279,6 +280,7 @@ struct HUDStyle
     float announceScale = 0.80f;
     float announcePunch = 0.25f;    // 出た瞬間だけ大きくする量（0.25 = 1.25 倍から縮む）
     DirectX::SimpleMath::Vector4 announceColor = { 1.00f, 0.32f, 0.12f, 1.0f };   // 赤みの橙（線形）
+    DirectX::SimpleMath::Vector4 announceGoldColor = { 1.60f, 1.05f, 0.30f, 1.0f };   // Boss を倒した時の金（HDR で少し光る。2026-10-29）
 
     // ---- 文字の下敷き（2026-10-07 ユーザー：文字だけの所が草の上で読みにくい）----
     // Lv・経過時間〜目標の塊・金貨に、暗い半透明の板 + 薄い古金の枠を敷く（バーの中の文字は対象外）。

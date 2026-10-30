@@ -57,9 +57,9 @@ public:
     int rerollStepCost = 40;
     float stagePriceGrowth = 1.5f;   // 次の面が 1 つ進むごとに値段 ×（後の商店ほど高い。引き直しも同じ倍率）
     // 出やすさと値段は稀有度で決める（2026-10-28、ItemRarity.h。以前は 基本魔法 / ルーン / 上級 / 召喚物 / 枠 の種類毎）。
-    // 重み = 稀有度の重み（商店は 1 面目を終えた所なので boost = shopRarityBoost + 0.5 × (次の面 − 2)）
+    // 2026-10-29 から四択と同じく先に稀有度の段を引く。率はプレイヤーのレベル + shopLevelBonus（ユーザー「商店・宝箱は一段上」）
     Rarity::Odds rarityOdds;
-    float shopRarityBoost = 1.0f;
+    float shopLevelBonus = 15.0f;
     float weightOwnedMul = 0.6f;   // 既に魔法書にある物はこれを掛ける（同じ物ばかり並ばないように）
     int priceByRarity[Rarity::kCount] = { 120, 200, 320 };   // ノーマル / レア / レジェンド（設置枠は FrameItemDef::priceMul を掛ける）
     int priceStat = 100;      // 能力値の札

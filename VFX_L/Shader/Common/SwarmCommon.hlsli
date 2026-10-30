@@ -1082,7 +1082,16 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_BossLeanAngle;
     float g_BossJumpHeight;        // the werewolf's pounce (2026-10-26): > 0 = the body rises on a parabola of this height (world m) over pose 0..1
     float g_BossNoContact;         // > 0.5 = the boss does not melee by touch (the pounce: its body runs through the player)
-    float2 _wolfPad;
+    float g_ClimbSpeed;            // m/s an enemy climbs a wall / cliff face (2026-10-29, MoveCS). 0 = no climbing
+    // the sand djinn (2026-10-29, BossAttacks::Output via the CPU each frame; 0 for every other boss)
+    float g_BossHover;             // the body is drawn this high (world m, VS + hp bar only; the hit capsule stays on the ground)
+    float g_BossKeepMin;           // > 0 = keeps its distance like a caster (AICS): backs off inside this, stands up to g_BossKeepMax
+    float g_BossKeepMax;
+    float g_BossFly;               // > 0.5 = flies through walls and over plateaus like a ghost (SwarmFliesThrough)
+    // the stone beast (2026-10-29, BossAttacks::Output::beast via the CPU each frame; 0 for every other boss)
+    float g_BossWing;              // a boss wing's angle (g_AnimMode 2) rad: 0 = spread sideways, + = tips up
+    float g_BossSpin;              // extra yaw rad added to the boss body (the tail sweep's full turn)
+    float3 _beastPad;
 };
 
 // The distance the wand's "nearest enemy" race (MoveCS, SWARM_CNT_NEAREST_KEY) keys on (2026-10-26, user: "if a boss is in
@@ -1213,10 +1222,11 @@ bool SwarmGargoyleAirborne(SwarmEnemyExtra ex)
 {
     return ex.kind == SWARM_KIND_GARGOYLE && ex.fuse > 0.35 * g_GargoyleWakeTime && !SwarmGargoyleLanded(ex);
 }
-// flies straight through walls and over plateaus (the final-swarm ghosts, the tornado, a gargoyle in the air)
+// flies straight through walls and over plateaus (the final-swarm ghosts, the tornado, a gargoyle in the air, the sand djinn while it floats)
 bool SwarmFliesThrough(SwarmEnemyExtra ex)
 {
-    return SwarmIsGhost(ex.kind) || ex.kind == SWARM_KIND_TORNADO || SwarmGargoyleAirborne(ex);
+    return SwarmIsGhost(ex.kind) || ex.kind == SWARM_KIND_TORNADO || SwarmGargoyleAirborne(ex)
+        || (ex.kind == SWARM_KIND_BOSS && g_BossFly > 0.5);   // the djinn's first phase (2026-10-29)
 }
 
 // kinds that never take the hit stun (HitCS / AreaDamageCS): the boss (it would be pinned by the constant

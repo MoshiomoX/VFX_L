@@ -359,6 +359,7 @@ namespace TerrainBuild
         if (P.pondCoverage > 0.0f)
         {
             std::vector<float> pn(N, 1.0e9f), vals;
+            int rejectConvex = 0, rejectSlope = 0;
             for (int z = 2; z < gd - 2; ++z)
                 for (int x = 2; x < gw - 2; ++x)
                 {
@@ -369,16 +370,50 @@ namespace TerrainBuild
                             flat = plain(x + dx, z + dz) && !rim(x + dx, z + dz) && lv(x + dx, z + dz) == 0 && rf.rampAt[idx(x + dx, z + dz)] < 0;
                     if (!flat) continue;
                     const float wx = rf.ox + (x + 0.5f) * kCs, wz = rf.oz + (z + 0.5f) * kCs;
-                    pn[idx(x, z)] = ValueNoise(wx / 14.0f, wz / 14.0f, seed + 211u) + 0.35f * ValueNoise(wx / 5.0f, wz / 5.0f, seed + 223u);
+                    // 起伏の上の膨らみ・坂には作らない（2026-10-28 ユーザー：水たまりを凸の坂に作らない。段は 0 でも、緩い丘・土盛りの
+                    // 頂や斜面に置かれて水面がそのまま傾いていた）：
+                    //   凸 = 真ん中の高さが隣の 8 マスの真ん中（2m 先）の平均より pondConvexTol 以上高い
+                    //   坂 = 3×3 マスの範囲（±3m、5×5 点）の高さの差が pondMaxRise を越える
+                    const float hc = rf.Sample(rf.plain, wx, wz);
+                    float ring = 0.0f;
+                    for (int dz = -1; dz <= 1; ++dz)
+                        for (int dx = -1; dx <= 1; ++dx)
+                            if (dx != 0 || dz != 0) ring += rf.Sample(rf.plain, wx + dx * kCs, wz + dz * kCs);
+                    ring /= 8.0f;
+                    if (hc > ring + P.pondConvexTol) { ++rejectConvex; continue; }
+                    float lo = hc, hi = hc;
+                    for (int sz = -2; sz <= 2; ++sz)
+                        for (int sx = -2; sx <= 2; ++sx)
+                        {
+                            const float h = rf.Sample(rf.plain, wx + sx * kCs * 0.75f, wz + sz * kCs * 0.75f);
+                            lo = (std::min)(lo, h);
+                            hi = (std::max)(hi, h);
+                        }
+                    if (hi - lo > P.pondMaxRise) { ++rejectSlope; continue; }
+                    pn[idx(x, z)] = ValueNoise(wx / 14.0f, wz / 14.0f, seed + 211u) + 0.35f * ValueNoise(wx / 5.0f, wz / 5.0f, seed + 223u)
+                        + P.pondLowBias * (hc - ring);   // 窪んだ所ほど選ばれやすい
                     vals.push_back(pn[idx(x, z)]);
                 }
+            std::cout << "[Terrain] pond candidates " << vals.size() << " (not on a bump " << rejectConvex
+                << ", not on a slope " << rejectSlope << ")" << std::endl;
             if (!vals.empty())
             {
                 std::sort(vals.begin(), vals.end());
                 const float t = vals[(size_t)std::clamp((int)(std::clamp(P.pondCoverage, 0.0f, 0.5f) * (vals.size() - 1)), 0, (int)vals.size() - 1)];
                 for (size_t c = 0; c < N; ++c) rf.pond[c] = (pn[c] <= t) ? 1 : 0;
-                // 小さすぎる水たまり（3 マス未満）は消す
+                // 1 つの水たまりが緩い坂に跨ると、マス毎には平らでも水面が全体で傾く（seed 12345 で最大 0.7m）。
+                // 水たまり毎に一番低いマスより pondMaxSpread 以上高いマスを外す = 窪みの所だけ残す（2026-10-28）
                 std::vector<int> comp;
+                {
+                    const std::vector<int> sizes0 = Components(rf.pond, gw, gd, comp);
+                    std::vector<float> lowest(sizes0.size(), 1.0e9f);
+                    auto reliefAt = [&](size_t c) { return rf.Sample(rf.plain, rf.ox + ((int)(c % gw) + 0.5f) * kCs, rf.oz + ((int)(c / gw) + 0.5f) * kCs); };
+                    for (size_t c = 0; c < N; ++c)
+                        if (comp[c] >= 0) lowest[(size_t)comp[c]] = (std::min)(lowest[(size_t)comp[c]], reliefAt(c));
+                    for (size_t c = 0; c < N; ++c)
+                        if (comp[c] >= 0 && reliefAt(c) > lowest[(size_t)comp[c]] + P.pondMaxSpread) rf.pond[c] = 0;
+                }
+                // 小さすぎる水たまり（3 マス未満）は消す
                 const std::vector<int> sizes = Components(rf.pond, gw, gd, comp);
                 for (size_t c = 0; c < N; ++c)
                     if (comp[c] >= 0 && sizes[(size_t)comp[c]] < 3) rf.pond[c] = 0;

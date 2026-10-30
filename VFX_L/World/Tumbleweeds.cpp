@@ -157,7 +157,7 @@ bool Tumbleweeds::Place(const GridWorld& grid, Weed& w, const Vector3& center, f
         const Vector3 p = center + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);
         int gx = 0, gz = 0;
         grid.WorldToCell(p, gx, gz);
-        if (!grid.IsWalkable(gx, gz)) continue;
+        if (!grid.IsDryWalkable(gx, gz)) continue;
         const float g = grid.SampleHeight(p.x, p.z);
         // 崖際・急な坂には置かない
         const float gx1 = grid.SampleHeight(p.x + 1.0f, p.z), gx0 = grid.SampleHeight(p.x - 1.0f, p.z);
@@ -286,7 +286,7 @@ void Tumbleweeds::Step(Weed& w, const GridWorld& grid, float dt, const WindState
         int gx = 0, gz = 0;
         grid.WorldToCell(Vector3(px, 0.0f, pz), gx, gz);
         const float gAhead = grid.SampleHeight(px, pz);
-        const bool blocked = !grid.IsWalkable(gx, gz)
+        const bool blocked = !grid.IsDryWalkable(gx, gz)
             ? (bottom < gAhead + 0.9f)                          // 木・岩・箱・水たまり・場の外
             : (gAhead > ground + 0.45f && bottom < gAhead - 0.05f);   // 登れない段差（崖）
         if (blocked)

@@ -100,7 +100,7 @@ Vector2 LevelUpUI::CardPosition(int index, int total) const
 // 入力
 //
 // マウスで直接クリック、または左右キー + 決定。
-// どちらでも選べるようにする。
+// どちらでも選べるようにする。下キー・十字・スティックの下で引き直しのボタンへ下り、決定で引き直す（2026-10-28）
 // ============================================================
 bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float dt)
 {
@@ -120,8 +120,13 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float d
     {
         m_WasChoosing = true;
         m_Cursor = 0;
+        m_LastCard = 0;
         m_Hover = -1;
         m_InputDelay = 0.25f;
+        m_StickArmed = false;
+        m_StickHeld = 0;
+        const auto mp0 = input.GetMousePos();
+        m_LastMouse = { mp0.x, mp0.y };   // 出た瞬間のマウスの位置では選ばない
     }
 
     if (m_InputDelay > 0.0f)
@@ -133,13 +138,24 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float d
         return false;
     }
 
+    // カーソル：0 〜 total-1 = カード、total = 引き直しのボタン（ボタンが出ている時だけ。2026-10-28）
+    const bool hasButton = m_RerollCost >= 0;
+    const int maxCursor = hasButton ? total : total - 1;
+    if (m_LastCard < 0 || m_LastCard >= total) m_LastCard = 0;
     if (m_Cursor < 0) m_Cursor = 0;
-    if (m_Cursor >= total) m_Cursor = total - 1;
+    if (m_Cursor > maxCursor) m_Cursor = hasButton ? maxCursor : m_LastCard;   // ボタンが消えたらカードへ
+    auto onButton = [&]() { return hasButton && m_Cursor == total; };
+    auto toButton = [&]() { if (hasButton && !onButton()) { m_LastCard = m_Cursor; m_Cursor = total; } };
+    auto toCards = [&]() { if (onButton()) m_Cursor = m_LastCard; };
 
-    // ---- マウス位置からカードを判定 ----
+    // ---- マウス位置からカード・ボタンを判定 ----
     const auto mp = input.GetMousePos();
     const Vector2 mouse = { mp.x, mp.y };
 
+    // カーソルをマウスに合わせるのは、マウスが動いた時だけ（2026-10-28：以前は乗っているだけで毎フレーム合わせていて、
+    // 止まっているマウスがカードの上にあると十字・スティックで選んでもすぐ戻された）
+    const bool mouseMoved = (mouse - m_LastMouse).LengthSquared() > 1.0f;
+    m_LastMouse = mouse;
     m_Hover = -1;
     for (int i = 0; i < total; ++i)
     {
@@ -148,33 +164,78 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float d
             mouse.y >= pos.y && mouse.y <= pos.y + m_CardH)
         {
             m_Hover = i;
-            m_Cursor = i;   // マウスを動かしたらカーソルも合わせる
+            if (mouseMoved) m_Cursor = i;
             break;
         }
     }
-
-    // ---- 左右キー / スティックでカーソル移動 ----
-    if (input.GetKeyTrigger(VK_LEFT) || input.GetKeyTrigger('A'))
-        m_Cursor = (m_Cursor + total - 1) % total;
-    if (input.GetKeyTrigger(VK_RIGHT) || input.GetKeyTrigger('D'))
-        m_Cursor = (m_Cursor + 1) % total;
-
-    if (input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_LEFT))
-        m_Cursor = (m_Cursor + total - 1) % total;
-    if (input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_RIGHT))
-        m_Cursor = (m_Cursor + 1) % total;
-
-    // ---- 金貨で引き直す（R / パッド X / ボタンのクリック）。同じフレームには決定しない ----
     m_RerollHover = false;
-    if (m_RerollCost >= 0)
+    if (hasButton)
     {
         Vector2 bp, bs;
         RerollRect(total, bp, bs);
         m_RerollHover = mouse.x >= bp.x && mouse.x <= bp.x + bs.x && mouse.y >= bp.y && mouse.y <= bp.y + bs.y;
-        if (input.GetKeyTrigger('R') || input.GetPadTrigger(XINPUT_GAMEPAD_X) ||
-            (input.GetMouseTrigger(0) && m_RerollHover))
+        if (m_RerollHover && mouseMoved) toButton();
+    }
+
+    // ---- キー / 十字 / スティックでカーソル移動。左右 = カード、下 = 引き直しのボタン、上 = カードへ戻る。
+    //      ボタンの上で左右を押すとカードへ戻る（動かずに、ボタンへ下りる前のカード）----
+    auto horizontal = [&](int step)
         {
-            m_RerollRequested = true;
+            if (onButton()) { toCards(); return; }
+            m_Cursor = (m_Cursor + total + step) % total;
+        };
+    if (input.GetKeyTrigger(VK_LEFT) || input.GetKeyTrigger('A') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_LEFT))
+        horizontal(-1);
+    if (input.GetKeyTrigger(VK_RIGHT) || input.GetKeyTrigger('D') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_RIGHT))
+        horizontal(1);
+    if (input.GetKeyTrigger(VK_DOWN) || input.GetKeyTrigger('S') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN))
+        toButton();
+    if (input.GetKeyTrigger(VK_UP) || input.GetKeyTrigger('W') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP))
+        toCards();
+
+    // 左スティック（2026-10-28）：左右に倒した瞬間に 1 枚、倒し続けると stickRepeatDelay の後 stickRepeatInterval ごと。
+    // 上下は倒した瞬間だけ（ボタンへ下りる / カードへ戻る）。
+    // 出た時に倒したままのスティック（走っていた）は、一度戻すまで見ない（勝手にカードが回らないように）
+    {
+        const Vector2 s = m_HasTestStick ? m_TestStick : input.GetPadLeftStick();
+        m_HasTestStick = false;
+        if (!m_StickArmed && s.Length() < stickRelease) m_StickArmed = true;
+        int dir = 0;   // ±1 = 左右、+2 = 下、-2 = 上
+        if (m_StickArmed && std::fabs(s.x) > stickPress && std::fabs(s.x) > std::fabs(s.y))
+            dir = (s.x > 0.0f) ? 1 : -1;
+        else if (m_StickArmed && std::fabs(s.y) > stickPress && std::fabs(s.y) >= std::fabs(s.x))
+            dir = (s.y > 0.0f) ? -2 : 2;   // スティックの上 = 画面の上
+        int step = 0;
+        if (dir != m_StickHeld)
+        {
+            m_StickHeld = dir;
+            m_StickTimer = stickRepeatDelay;
+            step = dir;
+        }
+        else if (dir == 1 || dir == -1)
+        {
+            m_StickTimer -= (std::min)((std::max)(dt, 0.0f), 0.1f);
+            if (m_StickTimer <= 0.0f)
+            {
+                m_StickTimer = stickRepeatInterval;
+                step = dir;
+            }
+        }
+        if (step == 1 || step == -1) horizontal(step);
+        else if (step == 2) toButton();
+        else if (step == -2) toCards();
+    }
+
+    // ---- 金貨で引き直す（R / パッド X / ボタンのクリック / ボタンを選んで決定）。同じフレームには決定しない ----
+    const bool confirm = input.GetKeyTrigger(VK_RETURN) || input.GetKeyTrigger(VK_SPACE) ||
+        input.GetPadTrigger(XINPUT_GAMEPAD_A) || m_TestConfirm;
+    m_TestConfirm = false;
+    if (hasButton)
+    {
+        if (input.GetKeyTrigger('R') || input.GetPadTrigger(XINPUT_GAMEPAD_X) ||
+            (input.GetMouseTrigger(0) && m_RerollHover) || (confirm && onButton()))
+        {
+            m_RerollRequested = true;   // カーソルはボタンに残る（続けて引き直せる）
             return false;
         }
     }
@@ -189,12 +250,10 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float d
         decided = true;
     }
 
-    if (input.GetKeyTrigger(VK_RETURN) || input.GetKeyTrigger(VK_SPACE))
-        decided = true;
-    if (input.GetPadTrigger(XINPUT_GAMEPAD_A))
+    if (confirm && !onButton())
         decided = true;
 
-    if (!decided) return false;
+    if (!decided || m_Cursor < 0 || m_Cursor >= total) return false;
 
     outPicked = lv.pendingChoices[m_Cursor];
     m_WasChoosing = false;
@@ -275,10 +334,12 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
         Vector2 bp, bs;
         RerollRect(total, bp, bs);
         const bool afford = m_Gold >= m_RerollCost;
+        const bool focused = m_RerollHover || m_Cursor == total;   // マウスが乗っている / キー・パッドで選んでいる
+        if (m_Cursor == total) bp.y -= bs.y * 0.06f;   // 選んでいるカードと同じく少し浮かせる
         UIDeco::PanelStyle ps;
-        ps.fill = m_RerollHover ? hoverColor : cardColor;
+        ps.fill = focused ? hoverColor : cardColor;
         ps.innerInset = 4.0f * k;
-        UIDeco::DrawPanel(sprite, bp, bs, UIDeco::TintColor(UIDeco::Tint::Gold), ps, (m_RerollHover && afford) ? 1.0f : 0.0f);
+        UIDeco::DrawPanel(sprite, bp, bs, UIDeco::TintColor(UIDeco::Tint::Gold), ps, focused ? (afford ? 1.0f : 0.35f) : 0.0f);
 
         wchar_t buf[96];
         swprintf_s(buf, L"<{K:R}|{X}>  引き直す     金貨 %d   （所持 %d）", m_RerollCost, m_Gold);   // <キーボード|パッド> の絵（InputGlyph）

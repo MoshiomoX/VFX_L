@@ -35,6 +35,10 @@ RWStructuredBuffer<float4> enemyRoll : register(u3);
 // priority. +0 key (AimResolveCS reads it and resets it to SWARM_NO_TARGET_KEY), +4 pos, +16 dist. Short-reach spells
 // (the Gust, the Ice Spike line) aim with it; the wand aims with the priority one (SwarmCounters is full)
 RWByteAddressBuffer closeTarget : register(u4);
+// wall climbing (2026-10-29, the user: "every enemy can climb walls, or there are spots where nothing can reach you").
+// x = seconds climbing (0 = not climbing), y = the top being climbed to (terrain space), zw = the direction into the face.
+// Only this pass writes it (PushCS reads it: a climbing body is not shoved). Cleared while the slot is dead
+RWStructuredBuffer<float4> enemyClimb : register(u5);
 
 // counts the enemy for the readback and lets it compete for "closest to the player"
 // (XZ distance only, same as everything else in this pipeline)
@@ -98,6 +102,34 @@ bool SideStepOk(float2 from, float2 to, float radius, bool allowDrop, float foot
 // a cliff under the body circle: the highest and lowest raw height cell differ by this much
 static const float kEdgeCliff = 0.8;
 
+// ---- wall climbing (2026-10-29) ----
+// The mob terrain (SwarmSystemClimb.cpp) gives the obstacles inside the field (rocks, tree trunks, ruin walls, pillars)
+// their top as height and lets the AI push into a rising face it wants to go up (ProbeBlocked's allowClimb). When the
+// step below then barely moves and a face rises in front higher than the body's step margin, the enemy starts climbing:
+// it stays pressed to the face and only y goes up at g_ClimbSpeed; at the top it steps onto it. It lets go (and falls,
+// Settle) when it no longer wants to go that way (the field turned / it froze), it is shoved, the face is no longer
+// right in front (the crowd moved it), or it has been at it for kClimbMaxTime
+static const float kClimbMinRise = SWARM_BODY_CLIFF_RISE;   // lower steps are taken by the walk itself
+static const float kClimbAhead = 0.3;                       // the face is looked for this far past the body
+static const float kClimbMaxTime = 10.0;
+
+// the top of the face ahead (raw height cells): the highest of three probes across the heading, or -1e30 when none
+// of them is walkable (the outer border is no face to climb)
+float FaceTopAhead(float2 from, float2 dir, float radius)
+{
+    float2 side = float2(-dir.y, dir.x) * (radius * 0.6);
+    float2 p = from + dir * (radius + kClimbAhead);
+    float top = -1e30;
+    [unroll]
+    for (int k = -1; k <= 1; ++k)
+    {
+        float2 q = p + side * (float) k;
+        if (SwarmIsWalkable(terrain, float3(q.x, 0.0, q.y)))
+            top = max(top, SwarmTerrainHeightRaw(terrainHeight, q));
+    }
+    return top;
+}
+
 // y: stick to the ground, or fall to it (velocity.y = fall speed, only this pass writes it).
 // Dropping off an edge (allowDrop): the highest ground under the body circle holds the
 // enemy up, so it neither sinks into the bilinear blur at the plateau edge nor starts
@@ -148,9 +180,13 @@ void main(uint3 id : SV_DispatchThreadID)
     if (i >= g_MaxEnemies)
         return;
     if (enemyStates[i] == SWARM_DEAD)
+    {
+        enemyClimb[i] = float4(0, 0, 0, 0);   // a reused slot does not start out climbing
         return;
+    }
 
     SwarmEnemy e = enemies[i];
+    float4 climb = enemyClimb[i];
     // ---- a fixed elite's teleport (the shadow swordsman, 2026-10-25): onto the ground at the CPU's spot, facing the player ----
     if (SwarmIsFixedElite(enemyExtra[i].kind))
     {
@@ -162,6 +198,7 @@ void main(uint3 id : SV_DispatchThreadID)
             float3 tp = float3(t.x, SwarmTerrainHeight(terrainHeight, t) + g_GroundY, t.y);
             enemies[i].position = tp;
             enemies[i].velocity = float3(0, 0, 0);
+            enemyClimb[i] = float4(0, 0, 0, 0);
             if (dot(toP, toP) > 1e-6)
                 enemies[i].yaw = atan2(toP.x, toP.y);
             CountAlive(i, tp);   // still alive this step (2026-10-25: the early return used to skip the count)
@@ -199,7 +236,8 @@ void main(uint3 id : SV_DispatchThreadID)
             e.animIndex = 0u;
             e.animTime = 0.0;
         }
-        Settle(e, radius, allowDrop);   // hit in mid-air: keeps falling
+        if (climb.x <= 0.0)
+            Settle(e, radius, allowDrop);   // hit in mid-air: keeps falling (hit while climbing: hangs on the face)
     }
     else
     {
@@ -218,6 +256,35 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             // ghost: flies straight, through walls and over plateaus (y still follows the ground below)
             e.position.xz = from + e.velocity.xz * g_Step;
+        }
+        else if (climb.x > 0.0)
+        {
+            // ---- climbing a wall (2026-10-29): pressed to the face, only y goes up; at the top it steps onto it ----
+            float2 cdir = climb.zw;
+            float feet = e.position.y - g_GroundY;
+            float top = FaceTopAhead(from, cdir, radius);
+            bool hold = dot(e.velocity.xz - pushV, cdir) > 0.25 * max(e.moveSpeed, 0.5)   // still wants to go that way
+                     && dot(pushV, pushV) < 1.0                                          // not being shoved
+                     && climb.x < kClimbMaxTime
+                     && top > feet - 0.05;                                               // the face is still right in front
+            if (!hold)
+                climb = float4(0, 0, 0, 0);   // lets go: Settle below drops it
+            else
+            {
+                climb.y = top;
+                feet = min(feet + g_ClimbSpeed * g_Step, top);
+                climb.x += g_Step;
+                e.position.y = g_GroundY + feet;
+                e.velocity.y = 0.0;
+                if (feet >= top - 1e-3)
+                {
+                    // at the top: the body steps onto it (Settle's edge hold then keeps it up there)
+                    float2 onto = from + cdir * (radius + kClimbAhead + 0.1);
+                    if (SwarmIsWalkable(terrain, float3(onto.x, 0.0, onto.y)))
+                        e.position.xz = onto;
+                    climb = float4(0, 0, 0, 0);
+                }
+            }
         }
         else if (!SwarmIsWalkable(terrain, e.position))
         {
@@ -287,7 +354,32 @@ void main(uint3 id : SV_DispatchThreadID)
             // with no progress, so the side-step below never ran: soak 2026-10-03)
             float sp = length(v);
             bool both = (abs(v.x) > 0.15 * sp) && (abs(v.y) > 0.15 * sp);
-            if (StepOk(from, next, radius, bodyCheck, allowDrop, footH))
+            // ---- start climbing (2026-10-29), checked before the slides / side-steps (they would walk it along the
+            //      face instead): the step is refused and straight ahead of where the AI wants to go a face rises higher
+            //      than the walk can step. The AI only lets a velocity push into a face it means to climb ----
+            bool stepOk = StepOk(from, next, radius, bodyCheck, allowDrop, footH);
+            bool startClimb = false;
+            if (g_ClimbSpeed > 0.0 && !airborne && !stepOk)
+            {
+                float2 want = e.velocity.xz - pushV;
+                float spv = length(want);
+                if (spv > 0.3 * max(e.moveSpeed, 0.5))
+                {
+                    float2 cdir = want / spv;
+                    float2 p = from + cdir * (radius + kClimbAhead);
+                    float top = SwarmIsWalkable(terrain, float3(p.x, 0.0, p.y)) ? SwarmTerrainHeightRaw(terrainHeight, p) : -1e30;
+                    if (top - feet > kClimbMinRise)
+                    {
+                        climb = float4(g_Step, top, cdir);
+                        startClimb = true;
+                    }
+                }
+            }
+            if (startClimb)
+            {
+                // stays where it is this step; the climb branch takes it from the next one
+            }
+            else if (stepOk)
                 e.position.xz = next;
             else if (both && StepOk(from, nx, radius, bodyCheck, allowDrop, footH))
                 e.position.xz = nx;
@@ -333,14 +425,24 @@ void main(uint3 id : SV_DispatchThreadID)
             e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz) + SwarmGargoyleHover(enemyExtra[i]);
             e.velocity.y = 0.0;
         }
-        else
-            Settle(e, radius, allowDrop);
+        else if (climb.x <= 0.0)
+            Settle(e, radius, allowDrop);   // climbing sets y itself
 
         // ---- facing: turn toward the velocity at a bounded rate (the shove is not a direction it chose) ----
         e.velocity.xz -= pushV;
-        if (dot(e.velocity.xz, e.velocity.xz) > 0.01)
+        // a boss standing in a wind-up (the CPU's charge order at speed 0) turns to the order's direction, and the floating
+        // djinn turns to the player while it hangs still (2026-10-29: it used to keep the last walking direction)
+        float2 faceDir = e.velocity.xz;
+        if (enemyExtra[i].kind == SWARM_KIND_BOSS && dot(faceDir, faceDir) <= 0.01)
         {
-            float targetYaw = atan2(e.velocity.x, e.velocity.z);
+            if (g_BossChargeOn > 0.5)
+                faceDir = g_BossChargeDir;
+            else if (g_BossFly > 0.5)
+                faceDir = g_PlayerPos.xz - e.position.xz;
+        }
+        if (dot(faceDir, faceDir) > 0.01)
+        {
+            float targetYaw = atan2(faceDir.x, faceDir.y);
             float delta = targetYaw - e.yaw;
             delta = atan2(sin(delta), cos(delta)); // wrap to [-PI, PI]
             float maxTurn = g_TurnSpeed * g_Step;
@@ -366,6 +468,7 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
+    enemyClimb[i] = climb;
     enemies[i].position = e.position;
     enemies[i].velocity.y = e.velocity.y;   // fall speed (xz is the AI's)
     enemies[i].yaw = e.yaw;

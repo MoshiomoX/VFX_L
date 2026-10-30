@@ -10,9 +10,10 @@
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
 
-void StageDirector::SetAnnounce(const wchar_t* text, float seconds)
+void StageDirector::SetAnnounce(const wchar_t* text, float seconds, bool gold)
 {
     m_AnnounceText = text;
+    m_AnnounceGold = gold;
     m_AnnounceLeft = seconds;
     m_AnnounceAge = 0.0f;
 }

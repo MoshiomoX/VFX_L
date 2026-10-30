@@ -3,19 +3,27 @@
 // One step of the pond ripples (World/WaterSurface, 2026-10-27).
 // A height field over the whole map, 1024^2 (0.2 m per texel):
 // x = height now, y = height one step ago. Ping-pong like the trample map.
+// zw = the same for the big waves only (blasts, the boss's slams and rocks):
+// the waves add up, so zw is their share of xy. WaterPS draws the white
+// crest lines from zw, so the player's own steps and landings never do
+// (the user: "there are still small circles").
 // Only texels inside a pond (g_Mask) move; dry texels stay 0 and act as
 // a wall for the waves next to them (they read back the water's own
 // height = waves bounce off the shore).
 //
 // Per step (a damped wave equation):
 //   next = cur + (cur - prev) * keep + courant2 * laplacian - cur * restore
+// (restore is tiny: the pushes move no water, so it only clears rounding drift)
 // The things that push the water are added on the first step of a frame
 // only (g_Sources):
-//   CPU pushes   footsteps / landings / wading (WaterSurface::AddRipple)
-//   GPU areas    an area that ticks for the first time (tickNow bit 1):
-//                blasts (SWARM_AREA_SHAKE) push hard, the rest a little.
-//                Capsules (beams) are skipped. The group compacts the
-//                live first-tick areas over its tile into shared memory
+//   CPU pushes   footsteps / landings / wading (WaterSurface::AddRipple;
+//                the boss's slams and rocks are big waves)
+//   GPU areas    an area the water has not seen yet (g_SeenIn):
+//                blasts (SWARM_AREA_SHAKE) push hard as big waves, the rest
+//                a little. Capsules (beams) are skipped. The group compacts
+//                the new areas over its tile into shared memory
+//   enemies      wading enemies (WaterStirCS writes the list each frame,
+//                gathered the same way as the areas)
 //   rain         a drop per rain cell with chance g_RainProb this step
 // Nothing else moves the water: without a cause it stays flat.
 // ============================================================
@@ -39,7 +47,7 @@ cbuffer WaterRippleCB : register(b0)
     float g_AreaStrength;   // m (other areas)
     uint g_ImpulseCount;
     float3 _ripplePad;
-    float4 g_Impulse[16];   // x, z, radius, strength (m, + = pushed down)
+    float4 g_Impulse[16];   // x, z, radius (negative = a big wave), strength (m, + = pressed down in the middle)
 };
 
 // = SwarmArea (Shader/Common/SwarmCommon.hlsli), 48 bytes
@@ -57,18 +65,22 @@ struct RippleArea
     uint tickNow;
 };
 
-Texture2D<float2> g_In : register(t0);
+Texture2D<float4> g_In : register(t0);          // xy = all waves (now, last step), zw = the big waves only
 Texture2D<float> g_Mask : register(t1);          // 1 = pond
 StructuredBuffer<RippleArea> g_Areas : register(t2);
 Buffer<uint> g_AreaStates : register(t3);        // 0 = dead
-RWTexture2D<float2> g_Out : register(u0);
+Buffer<float> g_SeenIn : register(t4);           // per area slot: its timeLeft when the water last looked (0 = empty)
+StructuredBuffer<float4> g_Stirs : register(t5); // enemies wading (WaterStirCS): x, z, radius, strength
+Buffer<uint> g_StirCount : register(t6);         // [0] = how many WaterStirCS wrote (may exceed the list)
+RWTexture2D<float4> g_Out : register(u0);
+RWBuffer<float> g_SeenOut : register(u1);        // the same for the next frame (group 0 writes it on the first step)
 
 #define RIPPLE_SIZE 1024
 #define RIPPLE_MAX_AREAS 256u    // = SWARM_MAX_AREAS
 #define RIPPLE_MAX_SOURCES 32u
+#define RIPPLE_MAX_STIRS 128u    // = WaterSurface::kMaxStirs
 #define RIPPLE_AREA_CAPSULE 4u   // = SWARM_AREA_CAPSULE
 #define RIPPLE_AREA_SHAKE 8u     // = SWARM_AREA_SHAKE
-#define RIPPLE_TICK_FIRST 2u     // = SWARM_AREA_TICK_FIRST
 
 groupshared float4 gs_Source[RIPPLE_MAX_SOURCES];   // xz, radius, strength
 groupshared uint gs_SourceCount;
@@ -95,10 +107,21 @@ float Bump(float d, float r)
     return t * t;
 }
 
-float LoadH(int2 p, float self)
+// a push that moves no water: pressed down 0.75 in the middle, lifted around it out to 2r
+// (the bump's volume is pi r^2 / 3, so a quarter of the double-size bump cancels it).
+// The lifted rim runs outward as a ring and the hole fills from the sides. A plain dip sank
+// the whole pond, and the strong pull back to 0 that undid it held the long waves in place:
+// they rose and fell where they were instead of spreading (outlined blobs, not rings)
+float Splash(float d, float r)
+{
+    return Bump(d, r) - 0.25 * Bump(d, 2.0 * r);
+}
+
+// the neighbour's height now (x = all waves, y = the big ones); a dry neighbour gives back our own
+float2 LoadH(int2 p, float2 self)
 {
     p = clamp(p, int2(0, 0), int2(RIPPLE_SIZE - 1, RIPPLE_SIZE - 1));
-    return g_Mask.Load(int3(p, 0)) > 0.5 ? g_In.Load(int3(p, 0)).x : self;
+    return g_Mask.Load(int3(p, 0)) > 0.5 ? g_In.Load(int3(p, 0)).xz : self;
 }
 
 [numthreads(8, 8, 1)]
@@ -112,21 +135,45 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_G
     {
         float2 tileMin = g_MapOrigin + float2(gid.xy * 8u) * g_Texel;
         float2 tileMax = tileMin + 8.0 * g_Texel;
+        bool firstGroup = all(gid.xy == uint2(0, 0));
         for (uint k = gi; k < RIPPLE_MAX_AREAS; k += 64u)
         {
-            if (g_AreaStates[k] == 0u)
-                continue;
+            bool alive = g_AreaStates[k] != 0u;
             RippleArea a = g_Areas[k];
-            if ((a.tickNow & RIPPLE_TICK_FIRST) == 0u || (a.flags & RIPPLE_AREA_CAPSULE) != 0u || a.radius <= 0.0)
+            // new = the slot was empty last time, or its time went up (a new area in a reused slot).
+            // Not tickNow's "first tick": that lasts one swarm step, and when the swarm took two steps
+            // in one frame (a heavy frame) it was gone before the water looked = a blast with no ripple
+            float seen = g_SeenIn[k];
+            if (firstGroup)
+                g_SeenOut[k] = alive ? max(a.timeLeft, 1e-4) : 0.0;
+            if (!alive || (seen > 0.0 && a.timeLeft <= seen + 1e-4))
                 continue;
+            if ((a.flags & RIPPLE_AREA_CAPSULE) != 0u || a.radius <= 0.0)
+                continue;
+            // the push reaches 1.2 x the radius (Splash at 0.6 R lifts out to 2 x 0.6 R)
             float2 nearest = clamp(a.center.xz, tileMin, tileMax);
-            if (distance(nearest, a.center.xz) > a.radius)
+            if (distance(nearest, a.center.xz) > a.radius * 1.2)
                 continue;
-            float s = ((a.flags & RIPPLE_AREA_SHAKE) != 0u) ? g_BlastStrength : g_AreaStrength;
+            bool blast = (a.flags & RIPPLE_AREA_SHAKE) != 0u;
+            float s = blast ? g_BlastStrength : g_AreaStrength;
             uint slot;
             InterlockedAdd(gs_SourceCount, 1u, slot);
             if (slot < RIPPLE_MAX_SOURCES)
-                gs_Source[slot] = float4(a.center.xz, a.radius, s);
+                gs_Source[slot] = float4(a.center.xz, blast ? -a.radius : a.radius, s);   // negative radius = a big wave
+        }
+        // enemies wading (WaterStirCS). Stored as an area of radius r / 0.6, so the shared formula below
+        // gives Splash(d, r)
+        uint stirs = min(g_StirCount[0], RIPPLE_MAX_STIRS);
+        for (uint m = gi; m < stirs; m += 64u)
+        {
+            float4 w = g_Stirs[m];
+            float2 nearest = clamp(w.xy, tileMin, tileMax);
+            if (distance(nearest, w.xy) > w.z * 2.0)
+                continue;
+            uint slot;
+            InterlockedAdd(gs_SourceCount, 1u, slot);
+            if (slot < RIPPLE_MAX_SOURCES)
+                gs_Source[slot] = float4(w.xy, w.z / 0.6, w.w);
         }
     }
     GroupMemoryBarrierWithGroupSync();
@@ -136,16 +183,17 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_G
     int2 p = int2(id.xy);
     if (g_Mask.Load(int3(p, 0)) < 0.5)
     {
-        g_Out[p] = float2(0.0, 0.0);
+        g_Out[p] = float4(0.0, 0.0, 0.0, 0.0);
         return;
     }
 
-    float2 s = g_In.Load(int3(p, 0));
-    float cur = s.x;
-    float prev = s.y;
-    float lap = LoadH(p + int2(1, 0), cur) + LoadH(p - int2(1, 0), cur)
-              + LoadH(p + int2(0, 1), cur) + LoadH(p - int2(0, 1), cur) - 4.0 * cur;
-    float next = cur + (cur - prev) * g_Keep + g_Courant2 * lap - cur * g_Restore;
+    // x = all waves, y = the big waves only (the same equation on both)
+    float4 s = g_In.Load(int3(p, 0));
+    float2 cur = s.xz;
+    float2 prev = s.yw;
+    float2 lap = LoadH(p + int2(1, 0), cur) + LoadH(p - int2(1, 0), cur)
+               + LoadH(p + int2(0, 1), cur) + LoadH(p - int2(0, 1), cur) - 4.0 * cur;
+    float2 next = cur + (cur - prev) * g_Keep + g_Courant2 * lap - cur * g_Restore;
 
     if (g_Sources != 0u)
     {
@@ -153,20 +201,24 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_G
         // the pushes move this step's and the last step's height together: they change the shape
         // of the surface, not its speed (a speed kick keeps sinking the water for ~1/(1-keep) steps)
         float push = 0.0;
-        // CPU pushes (feet, landings)
+        float bigPush = 0.0;   // the part of it from the big waves (a negative radius)
+        // CPU pushes (feet, landings; the boss's slams and rocks are big)
         for (uint i = 0u; i < g_ImpulseCount; ++i)
         {
             float4 im = g_Impulse[i];
-            push += im.w * Bump(distance(xz, im.xy), im.z);
+            float v = im.w * Splash(distance(xz, im.xy), abs(im.z));
+            push += v;
+            bigPush += (im.z < 0.0) ? v : 0.0;
         }
-        // areas that just appeared (blasts, potion splashes)
+        // areas that just appeared (blasts = big, potion splashes)
         uint n = min(gs_SourceCount, RIPPLE_MAX_SOURCES);
         for (uint j = 0u; j < n; ++j)
         {
             float4 a = gs_Source[j];
-            // a dip in the middle plus a ring at 0.6 of the radius: the wave runs out from the blast
-            float d = distance(xz, a.xy);
-            push += a.w * (Bump(d, a.z * 0.6) + 0.5 * Bump(abs(d - a.z * 0.6), max(a.z * 0.25, g_Texel * 2.0)));
+            // a hole over the inner 0.6 of the radius and a lifted rim out to 1.2: the wave runs out from the blast
+            float v = a.w * Splash(distance(xz, a.xy), abs(a.z) * 0.6);
+            push += v;
+            bigPush += (a.z < 0.0) ? v : 0.0;
         }
         // rain: at most one drop per rain cell, at a random point of the cell
         if (g_RainProb > 0.0)
@@ -183,12 +235,12 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_G
                     if (RippleRand(seed) >= g_RainProb)
                         continue;
                     float2 drop = (float2(c) + float2(RippleRand(seed + 1u), RippleRand(seed + 2u))) * g_RainCell;
-                    push += g_RainStrength * Bump(distance(xz, drop), g_RainRadius);
+                    push += g_RainStrength * Splash(distance(xz, drop), g_RainRadius);
                 }
             }
         }
-        next -= push;
-        cur -= push;
+        next -= float2(push, bigPush);
+        cur -= float2(push, bigPush);
     }
-    g_Out[p] = float2(next, cur);
+    g_Out[p] = float4(next.x, cur.x, next.y, cur.y);
 }

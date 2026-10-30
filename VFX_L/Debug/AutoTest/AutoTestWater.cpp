@@ -28,11 +28,16 @@ namespace
         void Run();
         void Place(float x, float z);
         void Face(const Vector3& from, const Vector3& to, float distance, float pitch);
+        void DumpRipples(const char* name);   // TEMP-TEST: 波紋を VFXL_SELF_SHOT のフォルダへ PGM で
         Vector3 m_Pond;          // 水たまりの真ん中のマスの中心（水面の高さ）
         Vector3 m_Stand;         // 立つ所
         float m_PhaseAt = 0.0f;  // 今の段に入った時刻
         float m_NextLog = 0.0f;
+        float m_NextPeek = 0.0f;
+        float m_PeakUp = 0.0f;   // 前の行から一番高かった波の山 m
+        float m_PeakBig = 0.0f;  // 同じく、白い線を描く大きな波（爆発）だけの山
         bool  m_WadeShot = false;
+        bool  m_Blast3Shot = false;
         bool  m_RainStopped = false;
         bool  m_Landed = false;
         bool  m_WasAir = false;
@@ -57,6 +62,15 @@ void AutoTestWater::Face(const Vector3& from, const Vector3& to, float distance,
     cam.distance = distance;
     cam.avoidOcclusion = false;
     cam.SnapToTarget();
+}
+
+void AutoTestWater::DumpRipples(const char* name)
+{
+    char dir[512];
+    if (GetEnvironmentVariableA("VFXL_SELF_SHOT", dir, sizeof(dir)) == 0) return;
+    const auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+    const std::string path = std::string(dir) + "/ripple_" + name + ".pgm";
+    m_Water.DebugDumpRipples(path.c_str(), tf.position.x, tf.position.z, 12.0f);
 }
 
 void AutoTestWater::Run()
@@ -141,19 +155,27 @@ void AutoTestWater::Run()
     const float t = m_AutoTime - m_PhaseAt;
     auto next = [&](int step) { m_AutoStep = step; m_PhaseAt = m_AutoTime; };
 
-    // 毎 0.5 秒：波紋の大きさ
-    if (m_AutoTime >= m_NextLog)
+    // 0.5 秒毎に波紋の大きさ（up = この 0.5 秒で一番高かった山 = 白い線が出るか）
+    if (m_AutoTime >= m_NextPeek)
     {
-        m_NextLog = m_AutoTime + 0.5f;
-        float maxAbs = 0.0f;
+        m_NextPeek = m_AutoTime + 0.5f;   // 読み戻しは重い（Debug で 1 回数十 ms）。細かくすると波の計算が遅れる
+        float maxAbs = 0.0f, up = 0.0f, big = 0.0f;
         uint32_t moving = 0;
-        m_Water.DebugReadRipples(maxAbs, moving);
-        float wy = 0.0f;
-        const float feetY = tf.position.y - 1.3f;
-        const bool inWater = m_Water.WaterAt(tf.position.x, tf.position.z, wy) && feetY < wy;
-        snprintf(line, sizeof(line), "water t %.2f step %d inWater %d maxAbs %.4f moving %u rain %.2f wind %.2f",
-            m_AutoTime, m_AutoStep, inWater ? 1 : 0, maxAbs, moving, m_Weather.RainIntensity(), m_Weather.Wind().strength);
-        AutoTestLog(line);
+        m_Water.DebugReadRipples(maxAbs, moving, &up, &big);
+        m_PeakUp = (std::max)(m_PeakUp, up);
+        m_PeakBig = (std::max)(m_PeakBig, big);
+        if (m_AutoTime >= m_NextLog)
+        {
+            m_NextLog = m_AutoTime + 0.5f;
+            float wy = 0.0f;
+            const float feetY = tf.position.y - 1.3f;
+            const bool inWater = m_Water.WaterAt(tf.position.x, tf.position.z, wy) && feetY < wy;
+            snprintf(line, sizeof(line), "water t %.2f step %d inWater %d maxAbs %.4f up %.4f big %.4f moving %u rain %.2f wind %.2f",
+                m_AutoTime, m_AutoStep, inWater ? 1 : 0, maxAbs, m_PeakUp, m_PeakBig, moving, m_Weather.RainIntensity(), m_Weather.Wind().strength);
+            AutoTestLog(line);
+            m_PeakUp = 0.0f;
+            m_PeakBig = 0.0f;
+        }
     }
 
     switch (m_AutoStep)
@@ -182,7 +204,7 @@ void AutoTestWater::Run()
         pcs.testJump = !m_WasAir && t < 0.5f;   // 一度だけ（地面を離れたら押すのを止める）
         if (!grounded) m_WasAir = true;
         if (m_WasAir && grounded && !m_Landed) { m_Landed = true; m_PhaseAt = m_AutoTime; }
-        if (m_Landed && m_AutoTime - m_PhaseAt >= 0.15f) { AutoTestLog("water look land"); pcs.testJump = false; next(5); }
+        if (m_Landed && m_AutoTime - m_PhaseAt >= 0.15f) { AutoTestLog("water look land"); DumpRipples("land"); pcs.testJump = false; next(5); }
         if (t >= 3.0f && !m_Landed) { AutoTestLog("water land timeout"); pcs.testJump = false; next(5); }
         break;
     }
@@ -204,16 +226,19 @@ void AutoTestWater::Run()
             blast.flags = Swarm::kAreaShake;
             m_Swarm.SpawnArea(blast);
             AutoTestLog("water blast spawned");
+            snprintf(line, sizeof(line), "water blast at %.2f %.2f", m_Pond.x, m_Pond.z);
+            AutoTestLog(line);
             next(6);
         }
         break;
     case 6:
-        if (t >= 0.4f) { AutoTestLog("water look blast1"); next(7); }
+        if (t >= 0.4f) { AutoTestLog("water look blast1"); DumpRipples("blast1"); next(7); }
         break;
     case 7:
-        if (t >= 0.8f) { AutoTestLog("water look blast2"); next(8); }
+        if (t >= 0.8f) { AutoTestLog("water look blast2"); DumpRipples("blast2"); next(8); }
         break;
     case 8:   // F 天候（草原 = 雨、砂漠 = 砂嵐）
+        if (t >= 0.9f && !m_Blast3Shot) { m_Blast3Shot = true; AutoTestLog("water look blast3"); DumpRipples("blast3"); }   // 爆発から約 2 秒（跳ね返った波）
         if (t >= 1.0f)
         {
             m_Weather.TriggerNow(30.0f);

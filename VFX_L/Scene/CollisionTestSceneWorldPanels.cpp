@@ -284,6 +284,10 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::SliderInt("Step Min Cells", &tc.stepMinCells, 1, 40);
         ImGui::SliderFloat("Pond Coverage", &tc.pondCoverage, 0.0f, 0.2f, "%.3f");
         ImGui::DragFloat("Pond Depth", &tc.pondDepth, 0.02f, 0.0f, 2.0f, "%.2f m");
+        ImGui::DragFloat("Pond: not on a bump (m)", &tc.pondConvexTol, 0.005f, 0.0f, 1.0f, "%.3f");
+        ImGui::DragFloat("Pond: max rise over 6m", &tc.pondMaxRise, 0.02f, 0.0f, 5.0f, "%.2f m");
+        ImGui::DragFloat("Pond: prefer hollows x", &tc.pondLowBias, 0.1f, 0.0f, 10.0f, "%.1f");
+        ImGui::DragFloat("Pond: max spread in one pond", &tc.pondMaxSpread, 0.02f, 0.0f, 5.0f, "%.2f m");
 
         // 三層（山頂・平原・洞窟）。隅の組は seed で決まる
         ImGui::SeparatorText("Layers (summit / plain / mine)");
@@ -314,6 +318,12 @@ void CollisionTestScene::DrawTerrainPanel()
         if (ImGui::DragInt("Flow Range (cells)", &m_Swarm.GetFlowField().maxRangeCells, 0.5f, 0, 300))
             m_Swarm.RequestFlowRebuild();
         ImGui::SetItemTooltip("0 = whole map. Enemies farther than this (path length) chase in a straight line");
+        // 雑魚が壁を登る（2026-10-29）：登る速さ（0 = 登らない）と、流れ場で 1m 登るのを何マス分の回り道とみなすか
+        ImGui::DragFloat("Mob Climb Speed", &m_Swarm.GetBomberParams().climbSpeed, 0.05f, 0.0f, 10.0f, "%.2f m/s");
+        if (ImGui::DragFloat("Climb Cost (cells / m)", &m_Swarm.GetFlowField().climbCostPerMeter, 0.05f, 0.0f, 10.0f))
+            m_Swarm.RequestFlowRebuild();
+        if (ImGui::Checkbox("Flow Allows Climbing", &m_Swarm.GetFlowField().allowClimb))
+            m_Swarm.RequestFlowRebuild();
         ImGui::SeparatorText("Plain");
         ImGui::DragInt("Plateaus", &tc.plateauCount, 0.2f, 0, 40);
         ImGui::DragIntRange2("Plateau Size", &tc.plateauMin, &tc.plateauMax, 0.2f, 3, 20);

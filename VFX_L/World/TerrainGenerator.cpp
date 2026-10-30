@@ -300,6 +300,8 @@ namespace TerrainGenerator
         stepP.maxLevel = cfg.stepMaxLevel; stepP.rampWidth = cfg.stepRampWidth; stepP.rampSlopeDeg = cfg.stepRampSlopeDeg;
         stepP.rimLevels = cfg.stepRimLevels; stepP.rimBand = cfg.stepRimBand; stepP.minCells = cfg.stepMinCells;
         stepP.spawnClear = cfg.spawnClearRadius; stepP.pondCoverage = cfg.pondCoverage; stepP.pondDepth = cfg.pondDepth;
+        stepP.pondConvexTol = cfg.pondConvexTol; stepP.pondMaxRise = cfg.pondMaxRise; stepP.pondLowBias = cfg.pondLowBias;
+        stepP.pondMaxSpread = cfg.pondMaxSpread;
         if (steps) GenerateSteps(*relief, stepP, cfg.seed, rng);
         const int hsub = GridWorld::kHeightSub;
         constexpr float kPadSink = 0.5f;   // 台座に載せる箱の底を埋める深さ（台座の縁の起伏との隙間を見せない）
@@ -529,7 +531,8 @@ namespace TerrainGenerator
         const int cr = cfg.spawnClearRadius;
         mark({ gw / 2 - cr, gd / 2 - cr, cr * 2, cr * 2 }, kSpawn);
 
-        // 段々の台地の占有：坂 = kSlope（置物を置かない、草は生やす）、水たまり = kRamp 扱い（草・茂み・置物なし）+ 塞ぐ、
+        // 段々の台地の占有：坂 = kSlope（置物を置かない、草は生やす）、水たまり = kRamp 扱い（草・茂み・置物なし）+ 水の印
+        // （歩ける。2026-10-28 ユーザー：雑魚も水に入れる・水が弾を止めない。以前は塞いでいた）、
         // 外周の帯 = kRim（置物なし）+ 塞ぐ（雑魚は上に湧かない・登らない。プレイヤーはジャンプで登れるが外周の壁で止まる）
         int stepRimCells = 0, stepPondCells = 0;
         if (steps)
@@ -540,7 +543,7 @@ namespace TerrainGenerator
                 {
                     uint8_t& o = at(x, z);
                     if (relief->RampAtCell(x, z) >= 0) { if (o == kFree || o == kSpawn) o = kSlope; }
-                    else if (relief->IsPond(x, z)) { o = kRamp; emit.Block(&grid, x, z, 1, 1); ++stepPondCells; }
+                    else if (relief->IsPond(x, z)) { o = kRamp; grid.SetWater(x, z); ++stepPondCells; }
                     else if (StepRimCell(*relief, stepP, x, z)) { if (o == kFree) o = kRim; emit.Block(&grid, x, z, 1, 1); ++stepRimCells; }
                 }
         }

@@ -173,6 +173,9 @@ public:
     void ConsumeChainThrows(std::vector<ChainThrow>& out) { out.insert(out.end(), m_ChainThrows.begin(), m_ChainThrows.end()); m_ChainThrows.clear(); }
     // 敵が死んだ所（シーンがダメージの数字の「倒した」から渡す。死霊術師が骸骨を起こす場所）
     void NoteKill(const DirectX::SimpleMath::Vector3& groundPos);
+    // 死体から骸骨を起こす（死霊術師・骸の王の大起尸。2026-10-29）：center から radius m の最近の死体を最大 maxCount、
+    // 足りなければ周り fillMin〜fillMax m の地面から minCount まで。印は今、骸骨は necroRaiseDelay 後。起こす数を返す
+    int RaiseCorpsesAround(const DirectX::SimpleMath::Vector3& center, float radius, int maxCount, int minCount, float fillMin, float fillMax, const GridWorld& grid);
     void QueueDebugRuins(uint32_t kind, int n);
     void ClearRuinsPending();   // 場を消す時（トレーニングの「敵を全部消す」）：蘇り待ち・起き上がり待ちを捨てる
     float GetArmorRatio() const { return m_ArmorRatio; }
