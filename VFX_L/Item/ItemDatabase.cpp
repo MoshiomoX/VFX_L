@@ -15,6 +15,7 @@
 #include "Item/Items/Swamp.h"
 #include "Item/Items/Spore.h"
 #include "Item/Items/VoidVortex.h"
+#include "Item/Items/OutletSpells.h"
 #include "Item/Items/IceLance.h"
 #include "Item/Items/IceSpike.h"
 #include "Item/Items/Beam.h"
@@ -25,6 +26,9 @@
 #include "Item/Items/Magnifier.h"
 #include "Item/Items/HasteRune.h"
 #include "Item/Items/ChainRune.h"
+#include "Item/Items/LarpaRune.h"
+#include "Item/Items/OrbitGuard.h"
+#include "Item/Items/Detonate.h"
 #include "Item/Items/CrystalBall.h"
 #include "Item/Items/Frame3x3.h"
 #include "Item/Items/Frames.h"
@@ -185,10 +189,16 @@ void ItemDatabase::Initialize()
     Register(MakeSwamp());
     Register(MakeSpore());
     Register(MakeVoidVortex());
+    Register(MakeOutletSpark());
+    Register(MakeOutletSplit());
+    Register(MakeOutletSeed());
+    Register(MakeOutletMine());
+    Register(MakeOrbitGuard());
     Register(MakeIceLance());
     Register(MakeIceSpike());
     Register(MakeBeam());
     Register(MakeGust());
+    Register(MakeDetonate());
     Register(MakeTwister());
 
     // ---- 機能型 ----
@@ -197,6 +207,7 @@ void ItemDatabase::Initialize()
     Register(MakeMagnifier());
     Register(MakeHasteRune());
     Register(MakeChainRune());
+    Register(MakeLarpaRune());
 
     // ---- 召喚物（2026-10-06）----
     Register(MakeCrystalBall());
@@ -247,8 +258,13 @@ void ItemDatabase::Initialize()
             { ItemID::Poison,       ItemRarity::Rare },        // 猛毒の沼
             { ItemID::IceSpike,     ItemRarity::Rare },
             { ItemID::Twister,      ItemRarity::Rare },        // 竜巻
+            { ItemID::OutletSplit,  ItemRarity::Rare },        // 分かれ玉（出口 2 つ）
+            { ItemID::OutletSeed,   ItemRarity::Rare },        // 時限の種
+            { ItemID::OutletMine,   ItemRarity::Rare },        // 浮遊機雷
             { ItemID::SplitRune,    ItemRarity::Rare },
             { ItemID::ChainRune,    ItemRarity::Rare },
+            { ItemID::LarpaRune,    ItemRarity::Rare },
+            { ItemID::Detonate,     ItemRarity::Rare },
             { ItemID::Frame3x3,     ItemRarity::Rare },
             { ItemID::FrameArea,    ItemRarity::Rare },
             { ItemID::FrameFocus,   ItemRarity::Rare },
@@ -402,6 +418,7 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
     case SpellParam::CastCount:       targetInt = &stats.castCount;       break;
     case SpellParam::Lifesteal:       target = &stats.lifesteal;       break;
     case SpellParam::ChainCount:      targetInt = &stats.chainCount;      break;
+    case SpellParam::LarpaCount:      targetInt = &stats.larpaCount;      break;
 
     default:
         return;
@@ -433,8 +450,8 @@ void ItemDatabase::ApplyModifier(SpellStats& stats, const ParamModifier& mod)
 
         case ModifyOp::Set:      *targetInt = (int)mod.value; break;
         }
-        // 最低 1 は確保する（弾数・連射）。連鎖は 0 = 跳ばない、なので 0 まで
-        const int lowest = (mod.param == SpellParam::ChainCount) ? 0 : 1;
+        // 最低 1 は確保する（弾数・連射）。連鎖と分身は 0 = 無し、なので 0 まで
+        const int lowest = (mod.param == SpellParam::ChainCount || mod.param == SpellParam::LarpaCount) ? 0 : 1;
         if (*targetInt < lowest) *targetInt = lowest;
     }
 }

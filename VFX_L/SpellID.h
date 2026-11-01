@@ -25,6 +25,13 @@ enum class ItemID
     Beam,             // 魔導光線：上級の範囲魔法（2026-09-30）。追尾弾と弧の両方に隣り合うと目覚め、どちらかの弾が消えた方向へ手から光線を撃つ（Beam プロファイル、カプセル型）
     Twister,          // 竜巻：上級の範囲魔法（2026-10-22）。渦と突風の両方に隣り合うと目覚め、渦の弾が消えた所・突風の吹いた所に竜巻を起こし、敵の方へ進みながら巻き込む（Twister プロファイル、Roam 型）
     Gust,             // 突風：基本の範囲魔法（2026-10-12）。プレイヤーの周りの敵を吹き飛ばす + 少しのダメージ（Gust プロファイル、push）
+    Detonate,         // 一斉起爆：空中の自分の弾を全部その場で爆発させる（2026-11-01。Detonate プロファイル）
+    // --- 出口魔法（2026-10-31）。ItemCommon::outletCells を持つ ---
+    OutletSpark,      // 導きの火花：敵を追う小さな火花。当たった所で出口の魔法が発動する（OutletSpark プロファイル）
+    OutletSplit,      // 分かれ玉：敵を貫いて飛ぶ玉。飛び切った所で 2 つの出口の魔法が同時に発動する（OutletSplit プロファイル）
+    OutletSeed,       // 時限の種：足元へ投げる種。落ちた 2 秒後に出口の魔法が発動する（OutletSeed プロファイル、Lob 型）
+    OutletMine,       // 浮遊機雷：ゆっくり漂い、敵に触れると爆発して出口の魔法が発動する（2026-11-01。OutletMine プロファイル）
+    OrbitGuard,       // 周回弾：プレイヤーの周りを回り、触れた敵を貫く（2026-11-01。OrbitGuard プロファイル、Orbit 型）
 
     // --- 修飾ルーン（隣接する出力源を強化。リストには入らない）---
     SplitRune,        // 分裂：一度の発射数 +1、ダメージ分散
@@ -32,6 +39,7 @@ enum class ItemID
     Magnifier,        // 拡大鏡：斜め 4 マスの弾・範囲を 1.5 倍に（見た目も）、マナ 1.3 倍
     HasteRune,        // 加速：左右 2 マスの魔法の発動間隔 x0.75
     ChainRune,        // 連鎖：上下 2 マスの魔法の弾が敵に当たっても消えず、近くの別の敵へ 2 回まで跳ぶ。威力は少し下がる（2026-10-16）
+    LarpaRune,        // 分身：両端の魔法の弾が消える時、周りへ 6 発の分身を放つ（2026-11-01）
     // （吸血のルーンは 2026-10-27 に削除 → 設置枠の効果「吸血の枠」になった）
 
     // --- 召喚物（2026-10-06）---
@@ -66,5 +74,6 @@ inline bool IsSpellSource(ItemID id)
         || id == ItemID::ArcBolt || id == ItemID::HomingBolt || id == ItemID::Meteor
         || id == ItemID::GoldenArrow || id == ItemID::StoneShot || id == ItemID::Poison
         || id == ItemID::IceLance || id == ItemID::IceSpike || id == ItemID::Swamp || id == ItemID::Spore
-        || id == ItemID::VoidVortex;
+        || id == ItemID::VoidVortex || id == ItemID::OutletSpark || id == ItemID::OutletSplit || id == ItemID::OutletSeed
+        || id == ItemID::OutletMine || id == ItemID::OrbitGuard;
 }

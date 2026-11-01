@@ -46,9 +46,16 @@ enum class VFXId : uint32_t
     IceLanceHit,    // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片 + 冷気）
     GrassFire,      // 燃えている草の炎・煙・火の粉（GrassFireEmitCS が燃えているマスから出す。アイテムは使わない。2026-10-12）
     TornadoDust,    // 砂嵐の術師の砂旋の足元の砂埃（SwarmTornadoEmitCS が砂旋の足元から出す。アイテムは使わない。2026-10-19）
+    OutletSpark,    // 導きの火花の弾（金の小さな光 + 途切れない尾。2026-10-31）
+    OutletSplit,    // 分かれ玉の弾（水色の玉 + 尾）
+    OutletSeed,     // 時限の種の弾（緑の種 + 光の粒）
+    OutletSeedRoot, // 時限の種が落ちた所（範囲 OutletSeedRoot：昇る光の粒。2 秒後に出口の魔法が発動する）
+    OutletMine,     // 浮遊機雷の弾（暗い岩 + 赤い縁の光。2026-11-01）
+    OrbitGuard,     // 周回弾の弾（青緑の光 + 帯。2026-11-01）
 
     // ---- ここから CPU（AreaVFXPlayer）だけで出す物（2026-10-09 に登録。それまではコードにファイル名を直書きしていて、
     //      ユーザーに「プレイヤーのエフェクトや足元の小石がデータベースに入っていない」と言われた）。GPU の表には入れない ----
+    OutletBurst,    // 出口の先の魔法が発動する所の光の輪（CPU。WeaponSystemOutlet.cpp。2026-10-31）
     // プレイヤーの動き（PlayerVFXSystem）
     CastFlash,      // 詠唱の手元の光 + 撃つ向きへ火花（魔法の色に染める）
     CastPulse,      // 詠唱の体の周りに昇る光の粒
@@ -72,6 +79,8 @@ enum class VFXId : uint32_t
     Hurt,
     ExpPickup,
     ManaSurgeBurst, // 魔力解放の瞬間
+    PlayerArrive,   // プレイヤーの登場（集まる光 + 立ち上がる光 + 閃光。2026-11-01）
+    PlayerArrivePillar, // 同：空から足元へ落ちる光の柱（Beam。始点が空なので別のエフェクトにしている）
     ManaSurgeAura,  // 魔力解放の間
     ShieldHit,      // シールドで受けた
     ShieldBreak,    // シールドが割れた

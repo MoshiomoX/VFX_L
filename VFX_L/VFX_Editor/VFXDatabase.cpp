@@ -45,6 +45,12 @@ namespace
         { VFXId::IceLanceHit, Res::VFX::IceLanceHit, Group::Spell },
         { VFXId::GrassFire, Res::VFX::GrassFire, Group::Spell },
         { VFXId::TornadoDust, Res::VFX::TornadoDust, Group::Spell },
+        { VFXId::OutletSpark, Res::VFX::OutletSpark, Group::Spell },
+        { VFXId::OutletSplit, Res::VFX::OutletSplit, Group::Spell },
+        { VFXId::OutletSeed, Res::VFX::OutletSeed, Group::Spell },
+        { VFXId::OutletSeedRoot, Res::VFX::OutletSeedRoot, Group::Spell },
+        { VFXId::OutletMine, Res::VFX::OutletMine, Group::Spell },
+        { VFXId::OrbitGuard, Res::VFX::OrbitGuard, Group::Spell },
 
         // ---- プレイヤーの動き（CPU、PlayerVFXSystem）----
         { VFXId::CastFlash, Res::VFX::CastFlash, Group::Player },
@@ -64,6 +70,7 @@ namespace
         { VFXId::IceSpike, Res::VFX::IceSpikeFrost, Group::SpellCpu },
         { VFXId::Gust, Res::VFX::Gust, Group::SpellCpu },
         { VFXId::Twister, Res::VFX::Twister, Group::SpellCpu },
+        { VFXId::OutletBurst, Res::VFX::OutletBurst, Group::SpellCpu },
 
         // ---- 戦闘の手応え（CPU、FeedbackVFXSystem）----
         { VFXId::LevelUp, Res::VFX::LevelUp, Group::Feedback },
@@ -71,6 +78,8 @@ namespace
         { VFXId::Hurt, Res::VFX::Hurt, Group::Feedback },
         { VFXId::ExpPickup, Res::VFX::ExpPickup, Group::Feedback },
         { VFXId::ManaSurgeBurst, Res::VFX::ManaSurgeBurst, Group::Feedback },
+        { VFXId::PlayerArrive, Res::VFX::PlayerArrive, Group::Player },
+        { VFXId::PlayerArrivePillar, Res::VFX::PlayerArrivePillar, Group::Player },
         { VFXId::ManaSurgeAura, Res::VFX::ManaSurgeAura, Group::Feedback },
         { VFXId::ShieldHit, Res::VFX::ShieldHit, Group::Feedback },
         { VFXId::ShieldBreak, Res::VFX::ShieldBreak, Group::Feedback },

@@ -85,6 +85,11 @@ void CastCircles::Update(float dt, const Vector3& feet, bool visible)
     const bool on = visible && footEnabled && m_SinceCast < holdTime;
     if (on) m_FootAct = (std::min)(1.0f, m_FootAct + dt / (std::max)(fadeIn, 0.01f));
     else    m_FootAct = (std::max)(0.0f, m_FootAct - dt / (std::max)(fadeOut, 0.01f));
+    if (m_IntroAct > 0.0f)
+    {
+        m_FootAct = m_IntroAct;
+        m_TargetColor = m_FootColor = Vector3(1.0f, 0.6f, 0.16f);   // 加算で草に乗るので濃いめの金
+    }
     m_FootSpin += DirectX::XMConvertToRadians(footSpinDeg) * dt;
     m_FootPulse = (std::max)(0.0f, m_FootPulse - dt * 6.0f);
     m_FootColor = Vector3::Lerp(m_FootColor, m_TargetColor, (std::min)(1.0f, dt * 8.0f));
@@ -110,7 +115,7 @@ void CastCircles::Submit(VFXMeshRenderer& renderer)
     if (m_FootAct > 0.001f && tex.circleFlower)
     {
         const float a = m_FootAct * m_FootAct * (3.0f - 2.0f * m_FootAct);
-        const float s = footSize * (1.0f + pulse * m_FootPulse) * (0.85f + 0.15f * a);
+        const float s = footSize * (1.0f + pulse * m_FootPulse) * (0.85f + 0.15f * a) * m_IntroSize;
         const Matrix at = Matrix::CreateTranslation(m_Feet + Vector3(0.0f, footLift, 0.0f));
 
         item.mainTex = tex.circleFlower.get();

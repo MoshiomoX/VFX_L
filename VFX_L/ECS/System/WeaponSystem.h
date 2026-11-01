@@ -95,7 +95,10 @@ public:
     };
     const std::vector<TriggeredFx>& GetTriggeredFx() const { return m_TriggeredFx; }
     uint32_t GetTriggerEventsSeen() const { return m_TriggerEventsSeen; }
+    // 出口の繋がりが発動した時のカメラの揺れ（0 = 無し。読むと 0 に戻る。場面が FollowCamera::RaiseTrauma へ）
+    float ConsumeOutletShake() { const float s = m_OutletShake; m_OutletShake = 0.0f; return s; }
     uint32_t GetTriggeredCasts() const { return m_TriggeredCasts; }
+    uint32_t GetDetonates() const { return m_Detonates; }   // TEMP-TEST: 一斉起爆の回数
     int GetActiveBeamCount() const { return (int)m_Beams.size(); }
     // 光線が標的へ向きを回す速さ（度/秒。2026-10-01 ユーザー指定 90）
     float beamTurnRate = 90.0f;
@@ -153,6 +156,7 @@ private:
         float    areaDamageMul = 1.0f;     // 命中・着弾で出す範囲の威力（SpellStats::areaDamageMul = 魔法威力）
         float    areaDurationMul = 1.0f;   // 同じく持続（魔力解放中に撃った弾。持続する範囲だけ伸びる）
         int      chainCount = 0;           // 連鎖のルーン: 当たった後に別の敵へ跳ぶ回数（SpellStats::chainCount。2026-10-16）
+        int      fanIndex = 0;             // 出口魔法の扇の何発目か。1 以上は自分の敵を選ぶ（SpawnProjCS。2026-10-31）
     };
 
     // 1回の詠唱ぶんの発射要求を積む（分裂の扇状展開もここで行う）。
@@ -171,6 +175,33 @@ private:
     void QueueTriggeredLine(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& aimAt,
         const DirectX::SimpleMath::Vector3& origin);
+    // ---- 出口（2026-10-31。WeaponSystemOutlet.cpp）----
+    // 出口の先の魔法を、弾が消えた所から撃ち出す（手元からではない）。向きは次の敵、居なければ弾の飛んでいた向き
+    void QueueOutletCast(const SpellStats& s, const DirectX::SimpleMath::Vector3& impact,
+        const DirectX::SimpleMath::Vector3& muzzle, float durationMul);
+    // 出口の先の範囲魔法（竜巻 / 光線 / 突風）。撃てたら true
+    bool FireOutletArea(const AreaStats& a, const DirectX::SimpleMath::Vector3& impact,
+        const DirectX::SimpleMath::Vector3& muzzle, const DirectX::SimpleMath::Vector3& playerPos,
+        float castSpeed, float durationMul);
+    // 繋がりが発動した所の光・音・カメラの揺れ。色は出口の先の魔法、大きさは段の深さ
+    void PlayOutletBurst(ItemID id, const DirectX::SimpleMath::Vector3& at, int depth);
+    // 分身のルーン（2026-11-01）: 消えた弾の所から、周りへ s.larpaCount 発の分身を放つ
+    void QueueLarpa(const SpellStats& s, const DirectX::SimpleMath::Vector3& at, float durationMul);
+    static constexpr uint32_t kDetonateMinShots = 3;   // 一斉起爆が動く弾の数
+    static constexpr float kDetonateFuse = 0.4f;       // 弾がその数だけ飛び続けてから起爆するまでの秒
+    float m_DetonateWait = 0.0f;
+    float m_FrameDt = 0.0f;
+    uint32_t m_Detonates = 0;
+    float m_LarpaAngle = 0.0f;                         // 分身の向きを回毎にずらす
+    uint32_t m_OrbitRoll = 0;                          // 周回弾の出る角度（0〜127 = 0〜360 度）
+    // 弾の色：出口の先の魔法の色を bit ごとに GPU へ（何を運んでいる弾か見える）
+    void UpdateCarryColors(const WandComponent& wand);
+    float m_OutletFxTimer = 0.0f;   // 次に光を出せるまで（連射で画面が白くならないように）
+    float m_OutletShake = 0.0f;     // ConsumeOutletShake が渡す揺れ
+    // 時限の種：triggerDelay のある魔法の bit を今の誘発から外して待たせ、時間が来た物を誘発へ戻す
+    void SplitDelayedTriggers(const WandComponent& wand, float dt);
+    struct DelayedTrigger { Swarm::TriggerEvent ev; float left = 0.0f; };
+    std::vector<DelayedTrigger> m_DelayedTriggers;
     std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 今フレームにリードバックで届いた誘発
     // CPU 側で起きた誘発（アークボルトの稲妻が届いた所。2026-10-15）。次のフレームの m_TriggerEvents に足す
     std::vector<Swarm::TriggerEvent> m_CpuTriggerEvents;

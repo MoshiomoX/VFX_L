@@ -306,7 +306,7 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
     UpdateWindToys(gdt);   // 転がり草・タンポポ（2026-10-22）
     m_ManaSystem.Update(m_Registry, gdt);
 
-    UpdateTitleCamera(dt);
+    if (IsMenuScene()) UpdateTitleCamera(dt);   // プレイヤーの登場でも使う（カメラは演出が動かす）
 
     // ---- GPU（雑魚・弾・範囲）・天候の光・粒子・音（曲は選ばない）----
     // 被弾・経験値のリードバックは受け取らない（プレイヤーは傷付かない・育たない）
@@ -318,7 +318,7 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
         m_Swarm.Flush(*pp, radius, true, gdt, m_TotalTime);
     }
     m_Audio.Update(gdt, m_Swarm, m_Registry, m_Player, BattleAudio::State{});
-    m_Weather.Update(dt, 0.0f, m_TitleCam.GetPosition(), m_TitleCam.GetForward());
+    m_Weather.Update(dt, 0.0f, GetCamera()->GetPosition(), GetCamera()->GetForward());
     m_AreaVFX.Update(gdt, pp ? *pp : Vector3::Zero);
     m_ParticleSystem.Flush(gdt, m_TotalTime);
     m_Swarm.CollectLights();

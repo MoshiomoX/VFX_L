@@ -111,4 +111,35 @@ namespace BackpackLogic
     // この攻撃魔法を貯蔵している召喚物（水晶玉）の index。無ければ -1（2026-10-06）。
     // 召喚物の影響マス（左右 2 マス）がこのブロックに届いていれば貯蔵。複数届いていれば items の順で先の物
     int StoredBy(const BackpackComponent& bp, int itemIndex);
+
+    // ---- 出口（2026-10-31。BackpackOutlet.cpp）----
+    // 全部の魔法の出口の繋がり（[i] = i の出口の先の items の index）。輪にならない：items の順に繋ぎ、上流へ戻る出口は外す
+    std::vector<std::vector<int>> GetOutletEdges(const BackpackComponent& bp);
+    // この魔法の出口の先
+    std::vector<int> GetOutletTargets(const BackpackComponent& bp, int itemIndex);
+    // この魔法を出口の先に持つ魔法（空 = 自分で撃つ）
+    std::vector<int> GetOutletDrivers(const BackpackComponent& bp, int itemIndex);
+
+    // 出口の線（2026-10-31。ユーザー：「火花 10 発ならメテオ 10 回」）
+    // 弾 1 発に下流の魔法が 1 回分入っている。下流は自分のクールダウンも MP も持たず、線の起点が全部持つ：
+    //   間隔 = 線の中で一番遅い魔法（起点のルーンの間隔の倍率は線全体に掛かる）
+    //   MP   = 1 回の詠唱で出す物の合計を撃つ時に払う
+    //   威力 = 上流の分裂で 1 発増える毎に下流へ kOutletSplitDamageMul（分裂のルーンの「1 発の威力」と同じ値）
+    // 集約と説明カードが同じ計算を使う
+    constexpr float kOutletSplitDamageMul = 0.55f;
+    struct OutletNode
+    {
+        float interval = 0.0f;       // ルーンを掛けた後の発動間隔
+        float baseInterval = 0.0f;   // ルーンを掛ける前
+        float mana = 0.0f;
+        int   fan = 1;               // 1 回に出る弾の数（分裂）
+        int   casts = 1;             // 1 回の詠唱で撃つ回数（二重詠唱）
+    };
+    struct OutletLine
+    {
+        float interval = 0.0f;   // この魔法から先の線の間隔
+        float mana = 0.0f;       // 1 回の詠唱で払う MP（先の魔法の分を含む）
+        float powerMul = 1.0f;   // 上流の分裂が下流の威力に掛ける倍率
+    };
+    std::vector<OutletLine> SolveOutletLines(const std::vector<std::vector<int>>& edges, const std::vector<OutletNode>& nodes);
 }

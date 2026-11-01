@@ -22,13 +22,16 @@ enum class CastMode
 
 // SpellStats / AreaStats::triggerMask の bit の割り当て（集約と WeaponSystem で同じ値を使う。2026-10-25）
 //   bit 0〜15  = wand.spells の添字（上級の飛行物魔法）
-//   bit 16〜30 = wand.areas の添字（上級の範囲魔法：光線・竜巻）
+//   bit 16〜23 = wand.areas の添字（上級の範囲魔法：光線・竜巻）
+//   bit 24〜30 = 分身のルーンが付いた魔法（SpellStats::larpaSlot。その魔法自身の弾が消えた印で、下流の bit とは別）
 //   bit 31     = 吸血の印（Swarm::kTagLifesteal）。誘発には使わない
 namespace TriggerBits
 {
     constexpr uint32_t kSpellCount = 16;   // spells は添字 0〜15 まで
     constexpr uint32_t kAreaShift = 16;    // areas の添字 j は bit (kAreaShift + j)
-    constexpr uint32_t kAreaCount = 15;    // areas は添字 0〜14 まで（bit 31 を使わない）
+    constexpr uint32_t kAreaCount = 8;     // areas は添字 0〜7 まで
+    constexpr uint32_t kLarpaShift = 24;   // 分身の枠 n は bit (kLarpaShift + n)
+    constexpr uint32_t kLarpaCount = 7;
 }
 
 struct SpellStats
@@ -65,6 +68,10 @@ struct SpellStats
     // Drop / Lob 型には効かない）。生成依頼の pathT に乗せて渡す
     int   chainCount = 0;
 
+    // 分身（分身のルーン。2026-11-01）: 弾が消える時に放つ分身の数。larpaSlot = TriggerBits の分身の枠（集約が決める。-1 = 無し）
+    int   larpaCount = 0;
+    int   larpaSlot = -1;
+
     // 吸血（吸血のルーン。2026-10-25）: この魔法（と着弾で出す範囲）が敵に与えたダメージのこの割合をプレイヤーの HP に戻す。
     // GPU には「吸血の弾」の印だけ渡す（生成依頼の tag の最上位 bit = Swarm::kTagLifesteal）。回る割合は LifestealHeal が持つ
     float lifesteal = 0.0f;
@@ -78,6 +85,11 @@ struct SpellStats
     // 長さは拡大鏡などの当たり半径の倍率で伸びる（光線の射程と同じ決まり）
     bool     triggerLine = false;
     float    lineLength = 12.0f;
+    // 出口（2026-10-31）: 出口魔法の出口の先に居る。triggered も立つ。上級魔法の誘発と違い、手元ではなく弾が消えた所から撃ち出す。
+    // 弾 1 発に 1 回分が入っている扱いで、自分のクールダウンも MP も持たない（間隔と MP は起点の魔法が持つ。SolveOutletLines）
+    bool     fromOutlet = false;
+    float    triggerDelay = 0.0f;   // 弾が消えてからこの魔法が発動するまでの秒（ItemCommon::outletDelay）
+    int      outletDepth = 0;       // 起点から何段目か（1 = 起点のすぐ先）。発動の光の大きさ（段が深いほど大きい）
 
     // --- 貯蔵（水晶玉。2026-10-06）---
     // 杖からは撃たず、WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光球ごとに計時）。

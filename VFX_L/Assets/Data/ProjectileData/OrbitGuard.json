@@ -1,0 +1,19 @@
+{
+    "castSound": "cast_homing",
+    "name": "OrbitGuard", "element": 4,
+    "mode": 5,
+    "c1": [ 4.5, 3.0, 0.0 ],
+    "c2": [ 0.66, 0.0, 0.0 ],
+    "mirror": 0,
+    "retargetRadius": 0.0,
+    "hitArea": "",
+    "hitAreaOnExpire": false,
+    "damage": 8,
+    "speed": 13.5,
+    "radius": 0.4,
+    "lifetime": 4.0,
+    "pierce": 15,
+    "vfx": "OrbitGuard.json",
+    "visualSize": 0.6,
+    "visualStretch": 0
+}

@@ -468,6 +468,11 @@ namespace Res
         inline constexpr const wchar_t* Swamp = L"Assets/Texture/UI/Icons/Swamp.png";       // 泥沼（2026-10-17）
         inline constexpr const wchar_t* Spore = L"Assets/Texture/UI/Icons/Spore.png";       // 胞子（2026-10-17）
         inline constexpr const wchar_t* VoidVortex = L"Assets/Texture/UI/Icons/VoidVortex.png";   // 渦（2026-10-22）
+        inline constexpr const wchar_t* OutletSpark = L"Assets/Texture/UI/Icons/OutletSpark.png";   // 導きの火花（2026-10-31）
+        inline constexpr const wchar_t* OutletSplit = L"Assets/Texture/UI/Icons/OutletSplit.png";   // 分かれ玉
+        inline constexpr const wchar_t* OutletSeed = L"Assets/Texture/UI/Icons/OutletSeed.png";     // 時限の種
+        inline constexpr const wchar_t* OutletMine = L"Assets/Texture/UI/Icons/OutletMine.png";     // 浮遊機雷
+        inline constexpr const wchar_t* OrbitGuard = L"Assets/Texture/UI/Icons/OrbitGuard.png";     // 周回弾
         inline constexpr const wchar_t* IceLance = L"Assets/Texture/UI/Icons/IceLance.png";   // アイスランス（2026-10-08）
         inline constexpr const wchar_t* IceSpike = L"Assets/Texture/UI/Icons/IceSpike.png";   // アイススパイク（2026-10-10）
         inline constexpr const wchar_t* Gust = L"Assets/Texture/UI/Icons/Gust.png";           // 突風（2026-10-12）
@@ -478,6 +483,8 @@ namespace Res
         inline constexpr const wchar_t* Magnifier = L"Assets/Texture/UI/Icons/Magnifier.png";
         inline constexpr const wchar_t* HasteRune = L"Assets/Texture/UI/Icons/HasteRune.png";
         inline constexpr const wchar_t* ChainRune = L"Assets/Texture/UI/Icons/ChainRune.png";   // 連鎖のルーン（2026-10-16）
+        inline constexpr const wchar_t* LarpaRune = L"Assets/Texture/UI/Icons/LarpaRune.png";   // 分身のルーン（2026-11-01）
+        inline constexpr const wchar_t* Detonate = L"Assets/Texture/UI/Icons/Detonate.png";     // 一斉起爆（2026-11-01）
         inline constexpr const wchar_t* CrystalBall = L"Assets/Texture/UI/Icons/CrystalBall.png";   // 水晶玉（召喚物。2026-10-06）
         inline constexpr const wchar_t* Frame3x3 = L"Assets/Texture/UI/Icons/Frame3x3.png";
         // 効果のある設置枠（2026-10-27、Items/Frames.h。ただの拡張枠は Frame3x3 の絵を使い回す）
@@ -603,6 +610,13 @@ namespace Res
         inline constexpr const char* SwampPool = "Assets/Data/VFXData/SwampPool.json";     // 泥沼（範囲 SwampPool：飛沫 + 泥の液面）
         inline constexpr const char* Spore = "Assets/Data/VFXData/Spore.json";             // 胞子の弾（黄緑の塊 + 漂う胞子。2026-10-17）
         inline constexpr const char* SporeCloud = "Assets/Data/VFXData/SporeCloud.json";   // 胞子の霧（範囲 SporeCloud：漂う胞子 + 薄い靄 + 緑の光。2 秒）
+        inline constexpr const char* OutletSpark = "Assets/Data/VFXData/OutletSpark.json";         // 導きの火花の弾（2026-10-31）
+        inline constexpr const char* OutletSplit = "Assets/Data/VFXData/OutletSplit.json";         // 分かれ玉の弾
+        inline constexpr const char* OutletSeed = "Assets/Data/VFXData/OutletSeed.json";           // 時限の種の弾
+        inline constexpr const char* OutletSeedRoot = "Assets/Data/VFXData/OutletSeedRoot.json";   // 時限の種が落ちた所（範囲 OutletSeedRoot）
+        inline constexpr const char* OutletMine = "Assets/Data/VFXData/OutletMine.json";           // 浮遊機雷の弾
+        inline constexpr const char* OrbitGuard = "Assets/Data/VFXData/OrbitGuard.json";           // 周回弾の弾
+        inline constexpr const char* OutletBurst = "Assets/Data/VFXData/OutletBurst.json";         // 出口の先の魔法が発動する所の光（CPU）
         inline constexpr const char* VoidVortex = "Assets/Data/VFXData/VoidVortex.json";           // 渦の弾（紫の小さな渦。旧ホーミングボルトの見た目。2026-10-22）
         inline constexpr const char* VoidVortexPull = "Assets/Data/VFXData/VoidVortexPull.json";   // 渦（範囲 VoidVortexPull：回る渦 + 吸い込まれる光 + 屈折）
         inline constexpr const char* IceLance = "Assets/Data/VFXData/IceLance.json";         // アイスランスの弾（氷の槍 + 冷気の粒）
@@ -636,6 +650,8 @@ namespace Res
         inline constexpr const char* Hurt = "Assets/Data/VFXData/Hurt.json";
         inline constexpr const char* ExpPickup = "Assets/Data/VFXData/ExpPickup.json";
         inline constexpr const char* ManaSurgeBurst = "Assets/Data/VFXData/ManaSurgeBurst.json";
+        inline constexpr const char* PlayerArrive = "Assets/Data/VFXData/PlayerArrive.json";       // プレイヤーの登場
+        inline constexpr const char* PlayerArrivePillar = "Assets/Data/VFXData/PlayerArrivePillar.json";   // 同：空から落ちる光の柱
         inline constexpr const char* ManaSurgeAura = "Assets/Data/VFXData/ManaSurgeAura.json";
         inline constexpr const char* ShieldHit = "Assets/Data/VFXData/ShieldHit.json";
         inline constexpr const char* ShieldBreak = "Assets/Data/VFXData/ShieldBreak.json";

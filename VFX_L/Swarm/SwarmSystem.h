@@ -308,7 +308,12 @@ public:
         uint32_t triggerTag = 0, bool spawnAtPos = false,
         float areaDamageMul = 1.0f, float areaDurationMul = 1.0f,
         uint32_t roll = 0,   // 曲線の横ずれの回転（0〜127 = 0〜360 度。ProjectileProfileDB::NextRoll）
-        uint32_t chainCount = 0);   // 連鎖のルーン: 当たった後に近くの別の敵へ跳ぶ回数（依頼の pathT に乗せる。2026-10-16）
+        uint32_t chainCount = 0,    // 連鎖のルーン: 当たった後に近くの別の敵へ跳ぶ回数（依頼の pathT に乗せる。2026-10-16）
+        uint32_t fanIndex = 0);     // 出口魔法の扇の何発目か。1 以上は最寄りの敵ではなく自分の向きの敵を捕捉する（2026-10-31）
+
+    // 一斉起爆（2026-11-01）: 次のステップで全部の弾を消し、それぞれの場所に範囲 areaDef を出す（Drop / Lob 型は除く）。
+    // 弾が消えた扱いなので、タグ付きの弾は誘発も起こす
+    void DetonateProjectiles(uint32_t areaDef) { m_DetonateArea = areaDef; }
 
     // リードバックで届いた誘発（タグ付きの弾が消えた場所）を全部取り出す。2〜3 フレーム古い
     void ConsumeTriggerEvents(std::vector<Swarm::TriggerEvent>& out)
@@ -468,6 +473,8 @@ public:
     void ConsumeAreaBirths(std::array<uint32_t, Swarm::kAreaBirthKinds>& out);
     // 磁石: seconds の間、場の経験値オーブを全部吸い寄せ始める（OrbCB の吸い寄せ半径を場全体にする）
     void MagnetAllOrbs(float seconds = 0.3f) { m_MagnetTimer = (std::max)(m_MagnetTimer, seconds); }
+    // 出口魔法の弾の色（2026-10-31）：tag の bit ごとの色（rgb）と混ぜる割合（a）。bit の割り当ては TriggerBits
+    void SetCarryColors(const DirectX::SimpleMath::Vector4* colors) { std::copy(colors, colors + 32, m_CarryColors); }
     // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（Map で止まる。自動テストの検証だけ。毎フレーム呼ばない）
     bool DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates,
         std::vector<Swarm::EnemyExtra>* outExtras = nullptr,    // outExtras: 種類（soak 自動テスト）
@@ -593,6 +600,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyExtraBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyExtraUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyExtraSRV;
+    uint32_t m_DetonateArea = 0;   // 0 以外 = 次の ProjMoveCS で全部の弾をこの範囲に変える
 
     // 敵の状態（float4、スロットと同じ添字。Swarm::kAnimFreezeRequest の説明）。
     // xy = 毒の池の減速（残り秒・強さ。2026-10-01）：AreaDamageCS が tick の度に書き、AICS が速度に掛けて数え下げる。
@@ -886,6 +894,7 @@ private:
     std::vector<Swarm::Projectile> m_PendingProjectiles;
 
     // --- 定数バッファ ---
+    DirectX::SimpleMath::Vector4 m_CarryColors[32] = {};   // SetCarryColors。SwarmEmitCS の b3、SwarmProjTrailVS の b2
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_FrameCB;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnCB;
     Swarm::FrameCB m_CachedFrameCB;

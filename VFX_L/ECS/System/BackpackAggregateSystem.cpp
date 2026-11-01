@@ -11,6 +11,7 @@
 #include "Item/ItemInfo.h"
 #include "Player/PlayerStatsComponent.h"
 #include "ECS/View.h"
+#include "Swarm/ProjectileProfile.h"
 
 void BackpackAggregateSystem::Update(Registry& reg)
 {
@@ -166,6 +167,12 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 }
                 stats.triggered = true;
             }
+            // 出口の先に居る魔法は自分では撃たない（2026-10-31）。発動の bit は下でまとめて立てる
+            if (!BackpackLogic::GetOutletDrivers(bp, (int)i).empty())
+            {
+                stats.triggered = true;
+                stats.fromOutlet = true;
+            }
 
             // 貯蔵（水晶玉）: 杖からは撃たず光球の位置から撃つ（上級魔法は誘発された時に光球から）
             stats.storeUnit = storeInto(i, stats.manaCost, c->color);
@@ -209,6 +216,11 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                     continue;
                 }
                 stats.triggered = true;
+            }
+            if (!BackpackLogic::GetOutletDrivers(bp, (int)i).empty())
+            {
+                stats.triggered = true;
+                stats.fromOutlet = true;
             }
 
             // 貯蔵（水晶玉）: 光球の位置から撃つ（光線は誘発された時に光球から）
@@ -256,6 +268,97 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             const int da = areaIndexOf[drv];
             if (da >= 0 && da != j && !wand.areas[da].triggered)
                 wand.areas[da].triggerMask |= bit;
+        }
+    }
+
+    // ---- 出口（2026-10-31）: 出口魔法の弾が消えた所で、出口の先の魔法を撃つ ----
+    // 上の誘発と違って自分も誘発された魔法でよい（繋がった先の出口魔法の弾にも bit が乗る = 何段でも続く）
+    // 段の深さ：輪は無いので、魔法の数だけ回せば一番長い道の長さに落ち着く
+    const auto outletEdges = BackpackLogic::GetOutletEdges(bp);
+    std::vector<int> outletDepth(bp.items.size(), 0);
+    for (size_t pass = 0; pass < bp.items.size(); ++pass)
+        for (size_t i = 0; i < bp.items.size(); ++i)
+            for (int t : outletEdges[i])
+                outletDepth[t] = (std::max)(outletDepth[t], outletDepth[i] + 1);
+    for (size_t i = 0; i < bp.items.size(); ++i)
+    {
+        if (spellIndexOf[i] >= 0) wand.spells[spellIndexOf[i]].outletDepth = outletDepth[i];
+        if (areaIndexOf[i] >= 0) wand.areas[areaIndexOf[i]].outletDepth = outletDepth[i];
+    }
+
+    // 出口の線（2026-10-31）: 下流の間隔と MP は起点が持ち、弾 1 発で必ず下流が 1 回出る。説明カードと同じ計算
+    std::vector<BackpackLogic::OutletNode> outletNodes(bp.items.size());
+    for (size_t i = 0; i < bp.items.size(); ++i)
+    {
+        if (spellIndexOf[i] >= 0)
+        {
+            const SpellStats& s = wand.spells[spellIndexOf[i]];
+            const ProjectileItemDef* def = ItemDatabase::GetProjectile(bp.items[i].id);
+            outletNodes[i] = { s.castInterval, def ? ItemInfo::BaseSpellStats(*def).castInterval : s.castInterval,
+                s.manaCost, s.projectileCount, s.castCount };
+        }
+        else if (areaIndexOf[i] >= 0)
+        {
+            const AreaStats& a = wand.areas[areaIndexOf[i]];
+            const AreaItemDef* def = ItemDatabase::GetArea(bp.items[i].id);
+            outletNodes[i] = { a.castInterval, def ? ItemInfo::BaseAreaStats(*def).castInterval : a.castInterval, a.manaCost, 1, 1 };
+        }
+    }
+    const auto outletLines = BackpackLogic::SolveOutletLines(outletEdges, outletNodes);
+    for (size_t i = 0; i < bp.items.size(); ++i)
+    {
+        const BackpackLogic::OutletLine& line = outletLines[i];
+        if (spellIndexOf[i] >= 0)
+        {
+            SpellStats& s = wand.spells[spellIndexOf[i]];
+            if (s.fromOutlet)
+            {
+                s.damage *= line.powerMul;
+                s.areaDamageMul *= line.powerMul;
+            }
+            else if (!outletEdges[i].empty())
+            {
+                s.castInterval = line.interval;
+                s.manaCost = line.mana;
+            }
+        }
+        if (areaIndexOf[i] >= 0 && wand.areas[areaIndexOf[i]].fromOutlet)
+            wand.areas[areaIndexOf[i]].damagePerTick *= line.powerMul;
+    }
+
+    for (size_t i = 0; i < bp.items.size(); ++i)
+    {
+        const int d = spellIndexOf[i];
+        const ItemCommon* c = ItemDatabase::GetCommon(bp.items[i].id);
+        if (d < 0 || !c || c->outletCells.empty()) continue;
+        for (int t : outletEdges[i])
+        {
+            const int k = spellIndexOf[t];
+            if (k >= 0 && k < (int)TriggerBits::kSpellCount)
+            {
+                wand.spells[d].triggerMask |= 1u << k;
+                wand.spells[k].triggerDelay = (std::max)(wand.spells[k].triggerDelay, c->outletDelay);
+            }
+            const int j = areaIndexOf[t];
+            if (j >= 0 && j < (int)TriggerBits::kAreaCount)
+            {
+                wand.spells[d].triggerMask |= 1u << (TriggerBits::kAreaShift + (uint32_t)j);
+                wand.areas[j].triggerDelay = (std::max)(wand.areas[j].triggerDelay, c->outletDelay);
+            }
+        }
+    }
+
+    // 分身（2026-11-01）: 分身の付いた魔法の弾に自分の枠の bit を載せる。Drop / Lob 型には効かない
+    {
+        uint32_t slot = 0;
+        for (SpellStats& s : wand.spells)
+        {
+            if (s.larpaCount <= 0 || slot >= TriggerBits::kLarpaCount) continue;
+            const Swarm::MotionMode mode = ProjectileProfileDB::At(s.profile).mode;
+            if (mode == Swarm::MotionMode::Drop || mode == Swarm::MotionMode::Lob) continue;
+            s.larpaSlot = (int)slot;
+            s.triggerMask |= 1u << (TriggerBits::kLarpaShift + slot);
+            ++slot;
         }
     }
 

@@ -659,9 +659,11 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
     // 枠には influenceCells が無いので、関数内の空チェックで自然に弾かれる
     DrawTriggerSources(sprite, bp);
     DrawHoverInfluence(sprite, bp);
+    DrawOutlets(sprite, bp);
 
     // ---- 置き先の影 → ドラッグ中のブロック ----
     DrawDropShadow(sprite);
+    DrawDragOutlets(sprite);
     DrawDragged(sprite, m_MousePos);
 }
 // ============================================================

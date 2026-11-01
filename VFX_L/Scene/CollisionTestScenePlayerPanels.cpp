@@ -255,19 +255,19 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::Text("Level ups : %d", m_LevelUpSystem.GetTotalLevelUps());
         ImGui::DragInt("Choice Count", &m_LevelUpSystem.choiceCount, 1, 1, 5);
         ImGui::DragFloat("Stat Card Weight", &m_LevelUpSystem.statWeight, 0.01f, 0.0f, 2.0f);
-        // 稀有度（2026-10-29 から先に段を引く）：1 枚がレア / レジェンドになる率をレベルの点で決め、間は直線。宝箱は + Crate Levels
+        // 稀有度：1 枚がレア / レジェンドになる率を経過時間の点で決め、間は直線（2026-11-01）。金色の箱は + Premium Minutes
         if (ImGui::TreeNode("Rarity (cards)"))
         {
             auto& o = m_LevelUpSystem.rarityOdds;
-            float now[Rarity::kCount], crate[Rarity::kCount];
-            Rarity::Chances((float)lv.level, o, now);
-            Rarity::Chances((float)lv.level + m_LevelUpSystem.crateLevelBonus, o, crate);
-            ImGui::Text("level %d: per card N %.1f%% / R %.1f%% / L %.1f%%   (crate: R %.1f%% / L %.1f%%)", lv.level,
-                now[0] * 100.0f, now[1] * 100.0f, now[2] * 100.0f, crate[1] * 100.0f, crate[2] * 100.0f);
-            ImGui::DragFloat3("Levels (points)", o.level, 0.5f, 1.0f, 100.0f);
-            ImGui::DragFloat3("Rare chance", o.rare, 0.005f, 0.0f, 1.0f);
-            ImGui::DragFloat3("Legendary chance", o.legend, 0.002f, 0.0f, 1.0f);
-            ImGui::DragFloat("Crate Levels +", &m_LevelUpSystem.crateLevelBonus, 0.5f, 0.0f, 50.0f);
+            float now[Rarity::kCount], premium[Rarity::kCount];
+            Rarity::Chances(m_LevelUpSystem.runMinutes, o, now);
+            Rarity::Chances(m_LevelUpSystem.runMinutes + m_LevelUpSystem.premiumMinutes, o, premium);
+            ImGui::Text("%.1f min: per card N %.1f%% / R %.1f%% / L %.1f%%   (gold chest: R %.1f%% / L %.1f%%)", m_LevelUpSystem.runMinutes,
+                now[0] * 100.0f, now[1] * 100.0f, now[2] * 100.0f, premium[1] * 100.0f, premium[2] * 100.0f);
+            ImGui::DragFloat4("Minutes (points)", o.minute, 0.5f, 0.0f, 100.0f);
+            ImGui::DragFloat4("Rare chance", o.rare, 0.005f, 0.0f, 1.0f);
+            ImGui::DragFloat4("Legendary chance", o.legend, 0.002f, 0.0f, 1.0f);
+            ImGui::DragFloat("Premium Minutes +", &m_LevelUpSystem.premiumMinutes, 0.5f, 0.0f, 30.0f);
             ImGui::DragFloat("Frame Weight", &m_LevelUpSystem.frameWeight, 0.01f, 0.0f, 2.0f);
             ImGui::TreePop();
         }

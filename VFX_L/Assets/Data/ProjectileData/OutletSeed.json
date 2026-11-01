@@ -1,0 +1,18 @@
+{
+    "castSound": "cast_poison",
+    "name": "OutletSeed", "element": 0,
+    "mode": 4,
+    "c1": [0.25, 0.0, 0.45],
+    "c2": [0.75, 0.0, 0.45],
+    "mirror": 0,
+    "retargetRadius": 0.0,
+    "hitArea": "OutletSeedRoot",
+    "hitAreaOnExpire": true,
+    "damage": 0,
+    "speed": 12.0,
+    "radius": 0.3,
+    "lifetime": 3.0,
+    "vfx": "OutletSeed.json",
+    "visualSize": 0.5,
+    "visualStretch": 0
+}

@@ -5,6 +5,7 @@
 #include "Swarm/SwarmSystem.h"
 #include "Swarm/AreaProfile.h"
 #include "World/GridWorld.h"
+#include "World/StageConfig.h"
 #include "Audio/AudioSystem.h"
 #include "imgui.h"
 
@@ -34,6 +35,38 @@ void MobSpawner::Init(SwarmSystem& swarm)
 
     // 難度の表（保存してあれば。無ければコードの既定値）
     curve.Load();
+}
+
+float MobSpawner::ApplyStage(const StageDef& def, int pos, int tier)
+{
+    // 難度 = 表 × 「何面目か」（PosDifficulty。2026-10-17 の面毎の値）× マップ自体（StageDef）× Tier（2026-10-21、ステージ選択）
+    const auto& run = StageConfig::PosDifficulty(pos - 1);
+    const auto& tm = StageConfig::TierMul(tier);
+    stageTimeOffsetMin = run.timeOffsetMin + def.difficultyTimeOffsetMin;
+    // マップ毎の「何面目か」の倍率があればそちら（2026-10-27、草原から）
+    const int pi = std::clamp(pos - 1, 0, 2);
+    const float posHp = def.posHpMul[pi] > 0.0f ? def.posHpMul[pi] : run.hpMul;
+    const float posDmg = def.posDamageMul[pi] > 0.0f ? def.posDamageMul[pi] : run.damageMul;
+    stageHpMul = posHp * def.difficultyHpMul * tm.hpMul;
+    stageDamageMul = posDmg * def.difficultyDamageMul * tm.damageMul;
+    stageSpawnMul = run.spawnMul * def.difficultySpawnMul;
+
+    splitterStart = def.splitter.start;   // スプリッターの混ざり方（面毎）
+    splitterRatioStart = def.splitter.ratioStart;
+    splitterRatioEnd = def.splitter.ratioEnd;
+    splitterRampEnd = def.splitter.rampEnd;
+    auto ramp = [](const StageDef::EnemyMix& m) { return KindRamp{ m.start, m.ratioStart, m.ratioEnd, m.rampEnd }; };
+    chargerMix = ramp(def.charger);         // 突撃兵・盾兵（面毎。2026-10-08）
+    shieldMix = ramp(def.shield);
+    spikeBallMix = ramp(def.spikeBall);     // 砂漠の敵（2026-10-17）
+    burrowerMix = ramp(def.burrower);
+    sandMageMix = ramp(def.sandMage);
+    dashBomberMix = ramp(def.dashBomber);   // 突撃爆弾兵（全ステージ。2026-10-18）
+    armorMix = ramp(def.armor);             // 遺跡の敵（2026-10-25）
+    gargoyleMix = ramp(def.gargoyle);
+    necroMix = ramp(def.necro);
+    wardenMix = ramp(def.warden);
+    return tm.expMul;
 }
 
 void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)

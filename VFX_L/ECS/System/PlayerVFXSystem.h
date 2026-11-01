@@ -45,6 +45,7 @@ public:
     void Shutdown();
     // 魔法陣を積む（描画の直前、VFXMeshRenderer::Render の前）
     void SubmitMeshes(VFXMeshRenderer& renderer) { if (enabled && castCircles) m_Circles.Submit(renderer); }
+    void SetIntroCircle(float act, float sizeMul) { m_Circles.SetIntro(act, sizeMul); }   // プレイヤーの登場の魔法陣（2026-11-01）
     void DrawImGui();
 
     // ---- 調整 ----

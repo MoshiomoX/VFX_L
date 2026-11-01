@@ -73,6 +73,7 @@ enum class SpellParam
     ManaCost,
     AreaDamage,       // 弾が落ちた所・当たった所に出す範囲（毒沼・メテオの爆発）の威力の倍率（SpellStats::areaDamageMul。2026-10-08）
     ChainCount,       // 連鎖：敵に当たった後に近くの別の敵へ跳ぶ回数（連鎖のルーン。2026-10-16）
+    LarpaCount,       // 分身：弾が消える時に放つ分身の数（分身のルーン。2026-11-01）
     Lifesteal,        // 吸血：この魔法が敵に与えたダメージのこの割合をプレイヤーの HP に戻す（吸血のルーン。2026-10-25）
 };
 
@@ -155,6 +156,14 @@ struct ItemCommon
     // 飛行物型（隕石）と範囲型（光線）の両方が持てるのでここ（ItemCommon）にある。
     // 判定は BackpackLogic::GetTriggerDrivers / IsTriggerReady（集約と UI の説明で共用）
     std::vector<ItemID> triggeredBy;
+
+    // 出口（2026-10-31、ユーザー「背包乱斗と Noita を結び付ける」「出口を持てる新しい魔法」）。
+    // 出口マス（アンカーからの相対。回転する）に別の攻撃魔法が乗っていると、その魔法は自分では撃たなくなり、
+    // この魔法の弾が消えた所（命中・飛び切り・着地）で発動する（BackpackLogic::GetOutletTargets）。
+    // 出口の先がまた出口魔法なら続けて繋がる。空 = 普通の魔法（今ある 15 個は空のまま）
+    std::vector<CellOffset> outletCells;
+    float outletDelay = 0.0f;              // 弾が消えてから出口の先が発動するまでの秒（時限の種）
+    const wchar_t* outletText = L"";       // 説明カードの行（いつ出口の先が発動するか）
 };
 
 // ============================================================

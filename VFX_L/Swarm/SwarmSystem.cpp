@@ -784,7 +784,7 @@ void SwarmSystem::RecycleEnemy(const Vector3& pos, float hp, float moveSpeed, ui
 }
 void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& vel,
     float damage, float radius, float lifetime, uint32_t motion, bool mirror,
-    uint32_t triggerTag, bool spawnAtPos, float areaDamageMul, float areaDurationMul, uint32_t roll, uint32_t chainCount)
+    uint32_t triggerTag, bool spawnAtPos, float areaDamageMul, float areaDurationMul, uint32_t roll, uint32_t chainCount, uint32_t fanIndex)
 {
     if (m_PendingProjectiles.size() >= Swarm::kMaxSpawnProjPerFrame) return;
 
@@ -798,6 +798,7 @@ void SwarmSystem::SpawnProjectile(VFXId vfx, const Vector3& pos, const Vector3& 
     // 表の外は直進へ落とす。bit31 は SpawnProjCS が剥がす
     p.motion = (motion < Swarm::kMaxMotions) ? motion : 0u;
     if (mirror) p.motion |= Swarm::kMotionFlipBit;
+    p.motion |= (std::min) (fanIndex, Swarm::kMotionFanMask) << Swarm::kMotionFanShift;
     // 連鎖のルーン: 跳ぶ回数は依頼の pathT で渡す（SpawnProjCS が読んでから 0 / -hold に戻す）
     p.pathT = (float) (std::min) (chainCount, 255u);
     m_PendingProjectiles.push_back(p);
@@ -1168,6 +1169,7 @@ void SwarmSystem::UploadSpawns()
         m_SpawnProjCS->SetSRV(m_Context, "motions", m_MotionSRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
+        m_SpawnProjCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());   // 扇の 2 発目が選ぶ敵（埋まっている物などは選ばない）
         m_SpawnProjCS->SetSRV(m_Context, "terrainHeight", m_HeightSRV.Get());   // 着弾点が洞窟の中なら真上から落とす
         m_SpawnProjCS->SetUAV(m_Context, "projectiles", m_ProjUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "projStates", m_ProjStateUAV.Get());
@@ -1432,6 +1434,9 @@ void SwarmSystem::DispatchStep()
     if (m_ProjMoveCS)
     {
         m_ProjMoveCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
+        uint32_t detonateCB[4] = { m_DetonateArea, 0u, 0u, 0u };   // 一斉起爆（2026-11-01）
+        m_ProjMoveCS->WriteBuffer(m_Context, 1, detonateCB);
+        m_DetonateArea = 0;
         m_ProjMoveCS->Bind(m_Context);
         m_ProjMoveCS->SetSRV(m_Context, "terrain", m_TerrainSRV.Get());
         // 曲線・追尾用。雑魚の位置は 2) で確定済み（UAV は外してある）
@@ -1641,8 +1646,10 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
         // この CS では SwarmFrameCB を b2 に逃がしてある（b0/b1 は ParticleCommon）
         m_EmitCS->WriteBuffer(m_Context, 0, &gcb);
         m_EmitCS->WriteBuffer(m_Context, 2, &m_CachedFrameCB);
+        m_EmitCS->WriteBuffer(m_Context, 3, m_CarryColors);   // 出口魔法の弾の色
         m_EmitCS->Bind(m_Context);
         m_EmitCS->SetSRV(m_Context, "projectiles", m_ProjSRV.Get());
+        m_EmitCS->SetSRV(m_Context, "projTags", m_ProjTagSRV.Get());
         m_EmitCS->SetSRV(m_Context, "projStates", m_ProjStateSRV.Get());
         m_EmitCS->SetSRV(m_Context, "recipes", m_VFX.GetRecipeSRV());
         m_EmitCS->SetSRV(m_Context, "emitters", m_VFX.GetEmitterSRV());

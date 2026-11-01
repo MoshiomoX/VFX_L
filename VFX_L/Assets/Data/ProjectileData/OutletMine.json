@@ -1,0 +1,18 @@
+{
+    "castSound": "cast_stone",
+    "name": "OutletMine", "element": 1,
+    "mode": 0,
+    "c1": [ 0.33, 0.0, 0.0 ],
+    "c2": [ 0.66, 0.0, 0.0 ],
+    "mirror": 0,
+    "retargetRadius": 0.0,
+    "hitArea": "Explosion",
+    "hitAreaOnExpire": true,
+    "damage": 6,
+    "speed": 3.5,
+    "radius": 0.55,
+    "lifetime": 5.0,
+    "vfx": "OutletMine.json",
+    "visualSize": 0.8,
+    "visualStretch": 0
+}

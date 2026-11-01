@@ -123,7 +123,7 @@ void AreaProfile::FromJson(const json& j)
 {
     name = j.value("name", name);
     const int k = j.value("kind", 0);
-    kind = (k == 3) ? Kind::Roam : (k == 2) ? Kind::Beam : (k == 1) ? Kind::Lasting : Kind::OneShot;
+    kind = (k == 4) ? Kind::Detonate : (k == 3) ? Kind::Roam : (k == 2) ? Kind::Beam : (k == 1) ? Kind::Lasting : Kind::OneShot;
     radius = j.value("radius", radius);
     halfHeight = j.value("halfHeight", halfHeight);
     damage = j.value("damage", damage);

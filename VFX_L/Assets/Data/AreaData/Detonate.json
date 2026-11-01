@@ -1,0 +1,6 @@
+{
+    "sound": "explosion",
+    "cameraShake": true, "heat": 0.0, "damage": 14.0, "duration": 0.25, "followCaster": false, "halfHeight": 1.5, "kind": 4,
+    "name": "Detonate", "element": 1, "preview": { "atTarget": true, "interval": 1.5 },
+    "radius": 2.5, "stun": false, "tickInterval": 0.25, "vfx": "Explosion.json"
+}

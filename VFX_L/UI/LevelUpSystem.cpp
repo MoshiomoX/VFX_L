@@ -87,6 +87,7 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
     ++m_TotalLevelUps;
     lv.choiceDelay = levelUpDelay;   // すぐ止めずに「レベルアップ！」を見せてから四択（GameUI）
     lv.choiceFromCrate = false;
+    lv.choicePremium = false;
 
     std::cout << "[LevelUp] level " << lv.level
         << " : " << lv.pendingChoices.size() << " choices" << std::endl;
@@ -97,16 +98,17 @@ void LevelUpSystem::RollChoices(Registry& reg, Entity player)
 // 選び方・確定（Choose）・画面はレベルアップとまったく同じ。
 // 既に選択待ちなら出さない（候補を上書きすると選ぶ前に消える）
 // ============================================================
-bool LevelUpSystem::OfferChoices(Registry& reg, Entity player)
+bool LevelUpSystem::OfferChoices(Registry& reg, Entity player, bool premium)
 {
     if (!reg.IsValid(player) || !reg.Has<LevelComponent>(player)) return false;
 
     auto& lv = reg.Get<LevelComponent>(player);
     if (lv.IsChoosing()) return false;
     const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
-    if (FillChoices(lv, book, nullptr, true) == 0) return false;
+    if (FillChoices(lv, book, nullptr, premium) == 0) return false;
     lv.choiceDelay = 0.0f;   // 箱を開けた四択はすぐ出す
     lv.choiceFromCrate = true;   // 見出しが「宝箱の報酬」になる（2026-10-18）
+    lv.choicePremium = premium;  // 引き直しも同じ率で
 
     ++m_TotalOffers;
     std::cout << "[LevelUp] reward offer : " << lv.pendingChoices.size() << " choices" << std::endl;
@@ -128,7 +130,7 @@ bool LevelUpSystem::Reroll(Registry& reg, Entity player)
     const std::vector<ItemID> before = lv.pendingChoices;
     const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
     const int count = lv.rerollCount;
-    if (FillChoices(lv, book, &before, lv.choiceFromCrate) == 0)
+    if (FillChoices(lv, book, &before, lv.choicePremium) == 0)
     {
         lv.pendingChoices = before;   // 引けなかった（起きないはず）。元に戻して払わない
         return false;
@@ -142,7 +144,7 @@ bool LevelUpSystem::Reroll(Registry& reg, Entity player)
 // ============================================================
 // 候補を pendingChoices に詰める（レベルアップと報酬で共通）。詰めた数を返す
 // ============================================================
-int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book, const std::vector<ItemID>* avoid, bool crate)
+int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book, const std::vector<ItemID>* avoid, bool premium)
 {
     // 候補の母集団を稀有度の段毎に作る（重み付き。2026-10-29 から稀有度は先に段を引くので重みには掛けない）
     struct Entry { ItemID id; float weight; };
@@ -187,7 +189,7 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
             for (auto& p : pools) p.erase(std::remove_if(p.begin(), p.end(), avoided), p.end());
     }
     float chance[Rarity::kCount];
-    Rarity::Chances((float)lv.level + (crate ? crateLevelBonus : 0.0f), rarityOdds, chance);
+    Rarity::Chances(runMinutes + (premium ? premiumMinutes : 0.0f), rarityOdds, chance);
     lv.pendingChoices.clear();
     while ((int)lv.pendingChoices.size() < want)
     {

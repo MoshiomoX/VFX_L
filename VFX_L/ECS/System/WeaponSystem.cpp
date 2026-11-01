@@ -54,13 +54,17 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
     }
 
     int count = (std::max)(1, s.projectileCount);
-    auto push = [&](const Vector3& d)
+    // 出口魔法の扇の 2 発目からは自分の敵を選ぶ（下流が別々の所で発動するように。2026-10-31）
+    const ItemCommon* common = ItemDatabase::GetCommon(s.id);
+    const bool ownTarget = common && !common->outletCells.empty();
+    auto push = [&](const Vector3& d, int fanIndex = 0)
         {
             CastRequest req = { s.id, s.profile, muzzle, d,
                 s.speed, s.radius, s.damage, s.lifetime, s.triggerMask | (s.lifesteal > 0.0f ? Swarm::kTagLifesteal : 0u) };   // 吸血の印（2026-10-25）
             req.areaDamageMul = s.areaDamageMul;
             req.areaDurationMul = durationMul;
             req.chainCount = s.chainCount;
+            req.fanIndex = ownTarget ? fanIndex : 0;
             m_Requests.push_back(req);
         };
 
@@ -85,7 +89,7 @@ void WeaponSystem::QueueOneCast(const SpellStats& s,
         Vector3 d = Vector3::TransformNormal(dir, rot);
         d.Normalize();
 
-        push(d);
+        push(d, i);
     }
 }
 
@@ -199,6 +203,7 @@ void WeaponSystem::QueueTriggeredLine(const SpellStats& s, const Vector3& aimAt,
 // ============================================================
 void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collision)
 {
+    m_FrameDt = dt;
     m_Requests.clear();
     m_CastFx.clear();
     m_GustFx.clear();
@@ -236,6 +241,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 // 光球と水晶玉の対応をバックパックの組み替えに合わせる（誘発で光球を起点に使う前に）
                 SyncOrbUnits(wand);
+                UpdateCarryColors(wand);   // 出口魔法の弾の色（運んでいる魔法の色）
 
                 Vector3 muzzle = tf.position + wand.muzzleOffset;
 
@@ -382,7 +388,9 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                             {
                                 // 上級魔法の連発は最初と同じ場所へ、最初と同じ撃ち手（杖先 / 光球）から。
                                 // 光球が消えていれば最初に撃った時の光球の位置から（アイススパイクの線の起点が足元に飛ばない）
-                                if (mana.CanAfford(s.manaCost))
+                                if (s.fromOutlet)
+                                    QueueOutletCast(s, s.triggerPos, muzzle, durationMul);   // MP は起点が撃つ時に払ってある
+                                else if (mana.CanAfford(s.manaCost))
                                 {
                                     Vector3 origin = muzzle;
                                     if (s.triggerOrbSerial != 0 && !FindOrb(s.triggerOrbSerial, origin))
@@ -428,17 +436,28 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 // 上級魔法は自分のクールダウンと MP を持ち、クールダウンが明けてから最初に届いた場所で 1 回撃つ。
                 // 標的は要らない（場所が決まっている）
                 // ============================================================
+                // 出口の先の魔法は弾 1 発に 1 回分入っているので、クールダウンも MP も見ない（間隔と MP は起点が持つ）
+                SplitDelayedTriggers(wand, dt);   // 時限の種：bit を待たせる / 時間が来た物を戻す
                 for (const auto& ev : m_TriggerEvents)
                 {
-                    // ---- bit 16〜30: 上級の範囲魔法（光線・竜巻）。弾が消えた方向へ手から撃つ（bit 31 は吸血の印。TriggerBits）----
+                    // ---- bit 24〜30: 分身のルーン。消えた弾の所から分身を放つ ----
+                    for (const auto& s : wand.spells)
+                        if (s.larpaSlot >= 0 && (ev.tag & (1u << (TriggerBits::kLarpaShift + (uint32_t)s.larpaSlot))) != 0u)
+                        {
+                            Vector3 at = ev.position;
+                            at.y += triggerLift;
+                            QueueLarpa(s, at, durationMul);
+                        }
+
+                    // ---- bit 16〜23: 上級の範囲魔法（光線・竜巻）。弾が消えた方向へ手から撃つ（TriggerBits）----
                     for (uint32_t j = 0; j < (uint32_t)wand.areas.size() && j < TriggerBits::kAreaCount; ++j)
                     {
                         if ((ev.tag & (1u << (TriggerBits::kAreaShift + j))) == 0) continue;
                         auto& a = wand.areas[j];
                         if (!a.triggered) continue;
-                        if (!ignoreCooldown && a.castTimer > 0.0f) continue;
+                        if (!a.fromOutlet && !ignoreCooldown && a.castTimer > 0.0f) continue;
                         if (!allowNewCast) continue;
-                        if (!mana.CanAfford(a.manaCost)) continue;
+                        if (!a.fromOutlet && !mana.CanAfford(a.manaCost)) continue;
                         // 貯蔵された光線は光球から（光球が出ていなければ撃たない）
                         Vector3 origin = muzzle;
                         uint32_t orbSerial = 0;
@@ -446,10 +465,14 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        if (a.profile > 0 && AreaProfileDB::At(a.profile).IsRoam())
+                        if (a.fromOutlet)
+                        {
+                            if (!FireOutletArea(a, impact, muzzle, tf.position, castSpeed, durationMul)) continue;
+                        }
+                        else if (a.profile > 0 && AreaProfileDB::At(a.profile).IsRoam())
                             StartTwister(a, impact, tf.position, durationMul);   // 竜巻（2026-10-22）：弾が消えた所・突風の吹いた所に出て外へ進む
                         else if (!StartBeam(a, origin, impact, castSpeed, durationMul, orbSerial)) continue;   // チャンネルが全部埋まっている
-                        mana.Reserve(a.manaCost);
+                        if (!a.fromOutlet) mana.Reserve(a.manaCost);
                         wand.castAnimTimer = wand.castAnimDuration;
                         ++m_TriggeredCasts;
                         a.castTimer = a.castInterval;
@@ -459,10 +482,11 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     {
                         if ((ev.tag & (1u << k)) == 0) continue;
                         auto& s = wand.spells[k];
-                        if (!s.triggered || s.pendingCasts > 0) continue;   // バックパックを組み替えて添字がずれた物も弾く
-                        if (!ignoreCooldown && s.castTimer > 0.0f) continue;
+                        // バックパックを組み替えて添字がずれた物も弾く。出口の先は連発の途中でも撃つ（連発の残りは足す）
+                        if (!s.triggered || (s.pendingCasts > 0 && !s.fromOutlet)) continue;
+                        if (!s.fromOutlet && !ignoreCooldown && s.castTimer > 0.0f) continue;
                         if (!allowNewCast) continue;
-                        if (!mana.CanAfford(s.manaCost)) continue;
+                        if (!s.fromOutlet && !mana.CanAfford(s.manaCost)) continue;
                         // 貯蔵された上級魔法は光球から（光球が出ていなければ撃たない。隕石の落点は同じ = 弾が消えた所）
                         Vector3 origin = muzzle;
                         uint32_t orbSerial = 0;
@@ -470,11 +494,12 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                         Vector3 impact = ev.position;
                         impact.y += triggerLift;
-                        QueueTriggeredCast(s, impact, origin, durationMul, m_HasClose, m_ClosePos);   // 線の向き = 一番近い敵（優先度なし）
-                        mana.Reserve(s.manaCost);
+                        if (s.fromOutlet) QueueOutletCast(s, impact, muzzle, durationMul);
+                        else QueueTriggeredCast(s, impact, origin, durationMul, m_HasClose, m_ClosePos);   // 線の向き = 一番近い敵（優先度なし）
+                        if (!s.fromOutlet) mana.Reserve(s.manaCost);
                         ++m_TriggeredCasts;
 
-                        s.pendingCasts = (std::max)(0, s.castCount - 1);
+                        s.pendingCasts += (std::max)(0, s.castCount - 1);
                         s.delayTimer = s.castDelay;
                         s.castTimer = s.castInterval;
                         s.triggerPos = impact;
@@ -524,12 +549,14 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
         const int motion = req.profile;
         const VFXId vfx = ProjectileProfileDB::At(motion).ResolveVFX();
         const bool mirror = ProjectileProfileDB::NextMirror(motion);
-        const uint32_t roll = ProjectileProfileDB::NextRoll(motion);   // 横ずれの向き（RandomAngle の時だけ乱数）
+        uint32_t roll = ProjectileProfileDB::NextRoll(motion);   // 横ずれの向き（RandomAngle の時だけ乱数）
+        // 周回弾は出る角度を黄金角ずつずらす（何発出ても輪の上に散らばる）
+        if (ProjectileProfileDB::At(motion).mode == Swarm::MotionMode::Orbit) roll = (m_OrbitRoll += 49u);
 
         m_Swarm->SpawnProjectile(vfx, req.muzzle, req.dir * req.speed,
             req.damage, req.radius, req.lifetime, (uint32_t)motion, mirror,
             req.triggerTag, req.atPos, req.areaDamageMul, req.areaDurationMul, roll,
-            (uint32_t) (std::max) (0, req.chainCount));
+            (uint32_t) (std::max) (0, req.chainCount), (uint32_t)req.fanIndex);
         if (!req.atPos) m_CastFx.push_back({ req.id, req.muzzle, req.dir });
         // 撃った音（分裂・二重で同じフレームに何発も出ても、cue の間隔・同時数で間引かれる）
         AudioSystem::Get().Play(ProjectileProfileDB::At(motion).castSound);
@@ -556,6 +583,23 @@ bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vec
     const float triggerLift = m_Swarm->GetAIParams().groundY;
 
     // ---- 誘発されない光線型（アークボルト、2026-10-15）：撃つ所から一番近い敵へ一瞬の稲妻 ----
+    // 一斉起爆（2026-11-01）：弾が 3 発以上飛び続けて少し経ったら、全部その場で爆発させる。
+    // すぐ起爆すると撃ったばかりの弾が手元で爆発する
+    if (a.profile > 0 && AreaProfileDB::At(a.profile).IsDetonate())
+    {
+        if (!m_Swarm || m_Swarm->GetCounters().aliveProjectiles < kDetonateMinShots)
+        {
+            m_DetonateWait = 0.0f;
+            return false;
+        }
+        m_DetonateWait += m_FrameDt;
+        if (m_DetonateWait < kDetonateFuse) return false;
+        m_DetonateWait = 0.0f;
+        m_Swarm->DetonateProjectiles((uint32_t)a.profile);
+        ++m_Detonates;
+        return true;
+    }
+
     // 魔導光線と同じ仕組み（カプセル型範囲 + Beam entry）を溜め 0・短い持続で使う。
     // 射程は標的の体で止め、終点に命中の火花を出し、終点を「弾が消えた所」として上級魔法へ連鎖する
     if (a.profile > 0 && AreaProfileDB::At(a.profile).IsBeam())

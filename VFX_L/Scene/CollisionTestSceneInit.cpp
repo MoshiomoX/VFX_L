@@ -250,38 +250,11 @@ void CollisionTestScene::InitSwarm(const StageDef& stageDef, ID3D11Device* devic
     }
     m_Mobs.Init(m_Swarm);
     m_Audio.Init(m_Swarm, m_StageIndex);   // 範囲の音の表（範囲の profile と VFX 表の後）
-    {
-        // 難度 = 表 × 「何面目か」（PosDifficulty。2026-10-17 の面毎の値）× マップ自体（StageDef）× Tier（2026-10-21、ステージ選択）
-        const auto& pos = StageConfig::PosDifficulty(m_RunPos - 1);
-        const auto& tier = StageConfig::TierMul(m_RunTier);
-        m_Mobs.stageTimeOffsetMin = pos.timeOffsetMin + stageDef.difficultyTimeOffsetMin;
-        // マップ毎の「何面目か」の倍率があればそちら（2026-10-27、草原から）
-        const int pi = std::clamp(m_RunPos - 1, 0, 2);
-        const float posHp = stageDef.posHpMul[pi] > 0.0f ? stageDef.posHpMul[pi] : pos.hpMul;
-        const float posDmg = stageDef.posDamageMul[pi] > 0.0f ? stageDef.posDamageMul[pi] : pos.damageMul;
-        m_Mobs.stageHpMul = posHp * stageDef.difficultyHpMul * tier.hpMul;
-        m_Mobs.stageDamageMul = posDmg * stageDef.difficultyDamageMul * tier.damageMul;
-        m_Mobs.stageSpawnMul = pos.spawnMul * stageDef.difficultySpawnMul;
-        m_ExpMul = tier.expMul;
-        std::cout << "[CollisionTestScene] run map " << m_StageIndex << " tier " << m_RunTier << " pos " << m_RunPos
-            << " -> table +" << m_Mobs.stageTimeOffsetMin << " min HP x" << m_Mobs.stageHpMul << " dmg x" << m_Mobs.stageDamageMul
-            << " spawn x" << m_Mobs.stageSpawnMul << " exp x" << m_ExpMul << std::endl;
-    }
-    m_Mobs.splitterStart = stageDef.splitter.start;   // スプリッターの混ざり方（面毎）
-    m_Mobs.splitterRatioStart = stageDef.splitter.ratioStart;
-    m_Mobs.splitterRatioEnd = stageDef.splitter.ratioEnd;
-    m_Mobs.splitterRampEnd = stageDef.splitter.rampEnd;
-    // 突撃兵・盾兵の混ざり方（面毎。2026-10-08）
-    m_Mobs.chargerMix = { stageDef.charger.start, stageDef.charger.ratioStart, stageDef.charger.ratioEnd, stageDef.charger.rampEnd };
-    m_Mobs.shieldMix = { stageDef.shield.start, stageDef.shield.ratioStart, stageDef.shield.ratioEnd, stageDef.shield.rampEnd };
-    m_Mobs.spikeBallMix = { stageDef.spikeBall.start, stageDef.spikeBall.ratioStart, stageDef.spikeBall.ratioEnd, stageDef.spikeBall.rampEnd };   // トゲ玉（砂漠。2026-10-17）
-    m_Mobs.burrowerMix = { stageDef.burrower.start, stageDef.burrower.ratioStart, stageDef.burrower.ratioEnd, stageDef.burrower.rampEnd };   // 砂潜り（砂漠。2026-10-17）
-    m_Mobs.sandMageMix = { stageDef.sandMage.start, stageDef.sandMage.ratioStart, stageDef.sandMage.ratioEnd, stageDef.sandMage.rampEnd };   // 砂嵐の術師（砂漠。2026-10-17）
-    m_Mobs.dashBomberMix = { stageDef.dashBomber.start, stageDef.dashBomber.ratioStart, stageDef.dashBomber.ratioEnd, stageDef.dashBomber.rampEnd };   // 突撃爆弾兵（全ステージ。2026-10-18）
-    m_Mobs.armorMix = { stageDef.armor.start, stageDef.armor.ratioStart, stageDef.armor.ratioEnd, stageDef.armor.rampEnd };   // 遺跡の敵（2026-10-25）
-    m_Mobs.gargoyleMix = { stageDef.gargoyle.start, stageDef.gargoyle.ratioStart, stageDef.gargoyle.ratioEnd, stageDef.gargoyle.rampEnd };
-    m_Mobs.necroMix = { stageDef.necro.start, stageDef.necro.ratioStart, stageDef.necro.ratioEnd, stageDef.necro.rampEnd };
-    m_Mobs.wardenMix = { stageDef.warden.start, stageDef.warden.ratioStart, stageDef.warden.ratioEnd, stageDef.warden.rampEnd };
+    // 難度（表 × 何面目か × マップ × Tier）と敵の混ざり方
+    m_ExpMul = m_Mobs.ApplyStage(stageDef, m_RunPos, m_RunTier);
+    std::cout << "[CollisionTestScene] run map " << m_StageIndex << " tier " << m_RunTier << " pos " << m_RunPos
+        << " -> table +" << m_Mobs.stageTimeOffsetMin << " min HP x" << m_Mobs.stageHpMul << " dmg x" << m_Mobs.stageDamageMul
+        << " spawn x" << m_Mobs.stageSpawnMul << " exp x" << m_ExpMul << std::endl;
     m_WeaponSystem.SetSwarm(&m_Swarm);
     m_WeaponSystem.groundHeight = [this](float x, float z) { return m_Grid.SampleHeight(x, z); };   // アイススパイクの線を地面に合わせる
 }
@@ -427,6 +400,12 @@ void CollisionTestScene::InitStageFlow(const StageDef& stageDef, ID3D11Device* d
             : (!GameSettings::Get().tutorialDone && m_StageIndex == 1 && !m_AutoTest);
         if (start) m_Tutorial.Start();
     }
+
+    // ---- プレイヤーの登場（2026-11-01）：毎面の始めに 1 回。自動テストの時は VFXL_PLAYER_INTRO を立てた時だけ ----
+    if (m_PlayerIntroT >= 0.0f) EndPlayerIntro();   // 演出の途中で読み直した
+    if (!m_LabScene && !IsMenuScene()
+        && (!m_AutoTest || GetEnvironmentVariableA("VFXL_PLAYER_INTRO", nullptr, 0) > 0))
+        StartPlayerIntro();
 }
 
 // ============================================================

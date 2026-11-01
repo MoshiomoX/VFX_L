@@ -77,6 +77,15 @@ void CollisionTestScene::UpdateBossDrama(float dt, const BossAttacks::Input& in,
         m_DefeatWaveR = 0.0f;
         m_DefeatWaveNext = 0.0f;
 
+        // Boss の落とし物（2026-11-01）：エリートと同じ金色の箱。稀有度が少し出やすい
+        const Entity chest = m_Crates.SpawnFree(m_Registry, m_Grid, m_DefeatPos);
+        if (chest != EntityTraits::NULL_ENTITY)
+        {
+            const uint32_t fx = m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::EliteChest), m_DefeatPos, 1.0e9f, false, m_VFXContext);
+            m_EliteChestFx.push_back({ chest, fx });
+            AudioSystem::Get().Play("elite_chest");
+        }
+
         // 金の光の爆ぜ（魔力解放の瞬間の金の火花の輪を大きく）+ 石と土煙
         const uint32_t burst = m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::ManaSurgeBurst), m_DefeatPos, 2.0f, false, m_VFXContext);
         m_AreaVFX.ScaleInstance(burst, 3.5f);

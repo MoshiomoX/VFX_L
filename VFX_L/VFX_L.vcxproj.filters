@@ -253,6 +253,9 @@
     <ClCompile Include="Debug\AutoTest\AutoTestSchoolBench.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestEnemyStats.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -286,6 +289,9 @@
     <ClCompile Include="Debug\AutoTest\VideoShotsRead.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\VideoShotsOutlet.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\VideoShotsWorld.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -294,6 +300,18 @@
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSpikeBall.cpp">
       <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestOutlet.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="ECS\System\WeaponSystemOutlet.cpp">
+      <Filter>ECS\System</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\BackpackUIOutlet.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Item\BackpackOutlet.cpp">
+      <Filter>Item</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestVortex.cpp">
       <Filter>Debug\AutoTest</Filter>
@@ -1058,6 +1076,9 @@
     <ClCompile Include="Scene\CollisionTestSceneBossDrama.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Scene\CollisionTestScenePlayerIntro.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneBossDjinn.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
@@ -1719,11 +1740,26 @@
     <ClInclude Include="Item\Items\ChainRune.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
+    <ClInclude Include="Item\Items\LarpaRune.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\OrbitGuard.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\Detonate.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
     <ClInclude Include="Item\Items\Swamp.h">
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\Spore.h">
       <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="Item\Items\OutletSpells.h">
+      <Filter>Item\Items</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\OutletDraw.h">
+      <Filter>UI</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\VoidVortex.h">
       <Filter>Item\Items</Filter>

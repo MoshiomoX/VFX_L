@@ -23,11 +23,15 @@
 
 class GridWorld;
 class SwarmSystem;
+struct StageDef;
 
 class MobSpawner
 {
 public:
     void Init(SwarmSystem& swarm);
+    // 面の難度（表の進み・HP / ダメージ / 湧きの倍率）と敵の混ざり方を入れる（2026-10-30、シーンの Init から移した。
+    // 敵の数値の書き出しの自動テストも同じ物を使う）。pos = 何面目か（1 始まり）、tier 1..3。戻り値 = 経験値の倍率（Tier）
+    float ApplyStage(const StageDef& def, int pos, int tier);
     // runTime: 戦闘の経過秒（一時停止・バックパック・三択の間は進まない。HUD の計時と同じ）
     void Update(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, float dt, float runTime,
         SwarmSystem& swarm);

@@ -51,6 +51,12 @@ StructuredBuffer<TrailStyle> trailStyles : register(t3);
 StructuredBuffer<float3> trailPoints : register(t4);
 StructuredBuffer<uint> trailState : register(t5);
 StructuredBuffer<float> trailAge : register(t6);
+// an outlet spell's ribbon takes the colour of the spell it carries (2026-10-31, see SwarmEmitCS)
+Buffer<uint> projTags : register(t7);
+cbuffer SwarmCarryCB : register(b2)
+{
+    float4 g_CarryColor[32];
+};
 
 struct VSOutput
 {
@@ -141,6 +147,12 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     o.position = mul(viewPos, g_Projection);
 
     float4 c = lerp(s.colorHead, s.colorTail, t);
+    uint carryTag = projTags[slot] & 0x7FFFFFFFu;   // top bit = lifesteal mark
+    if (carryTag != 0u)
+    {
+        float4 carry = g_CarryColor[firstbitlow(carryTag)];
+        c.rgb = lerp(c.rgb, carry.rgb * max(max(c.r, c.g), c.b), carry.a);
+    }
     c.rgb *= s.intensity;
     o.color = c;
 

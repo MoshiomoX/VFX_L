@@ -8,6 +8,7 @@
 #include "Player/LevelComponent.h"
 #include "Item/ItemDatabase.h"
 #include "Item/ItemInfo.h"
+#include "UI/OutletDraw.h"
 #include "UI/ShapeSprite.h"
 #include "UI/UIDeco.h"
 #include "UI/InputGlyph.h"
@@ -512,6 +513,7 @@ void LevelUpUI::DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
         };
     grow(c.occupyCells);
     grow(c.influenceCells);
+    grow(c.outletCells);
     if (first) return;
 
     const int spanC = maxC - minC + 1;
@@ -550,5 +552,13 @@ void LevelUpUI::DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
         };
         sprite.Draw(white, cp, { miniCell, miniCell }, inflCol);
         UIDeco::DrawFrameLines(sprite, cp, { miniCell, miniCell }, inflEdge);
+    }
+
+    // 出口マス（2026-10-31）
+    for (const auto& off : c.outletCells)
+    {
+        int dRow = 0, dCol = 0;
+        OutletDraw::Direction(c.occupyCells, off, dRow, dCol);
+        OutletDraw::Cell(sprite, white, { miniOrigin.x + off.col * miniPitch, miniOrigin.y + off.row * miniPitch }, miniCell, dRow, dCol, true);
     }
 }

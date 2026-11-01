@@ -47,6 +47,7 @@ public:
     // 倒した面の固定エリートの金色の宝箱（2026-10-25）：pos（地面）に 1 個。開けるのに金貨は要らず、次の箱の値段も上げない
     Entity SpawnFree(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& pos);
     bool IsFree(Entity e) const { return std::find(m_FreeCrates.begin(), m_FreeCrates.end(), e) != m_FreeCrates.end(); }
+    size_t FreeCount() const { return m_FreeCrates.size(); }   // TEMP-TEST
 
     const std::vector<Entity>& GetCrates() const { return m_Crates; }
 

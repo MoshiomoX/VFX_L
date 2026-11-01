@@ -1,0 +1,18 @@
+{
+    "castSound": "cast_homing",
+    "name": "OutletSpark", "element": 8,
+    "mode": 1,
+    "c1": [0.25, 0.3, 0.1],
+    "c2": [0.75, 0.15, 0.0],
+    "mirror": 3,
+    "retargetRadius": 0.0,
+    "hitArea": "GoldenArrowHit",
+    "hitAreaOnExpire": false,
+    "damage": 5,
+    "speed": 16.0,
+    "radius": 0.3,
+    "lifetime": 2.0,
+    "vfx": "OutletSpark.json",
+    "visualSize": 0.6,
+    "visualStretch": 0
+}

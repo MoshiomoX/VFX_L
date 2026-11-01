@@ -80,6 +80,23 @@ inline void FillAllFrames(BackpackComponent& bp)
             BackpackLogic::PlaceFrame(bp, ItemID::Frame3x3, r, c, 0);
 }
 
+// 出口 src の先に id が乗る置き方を探して置く（出口魔法。2026-10-31）。無ければ -1
+inline int PlaceAtOutlet(BackpackComponent& bp, int src, ItemID id)
+{
+    for (int rot = 0; rot < 4; ++rot)
+        for (int r = 0; r < BackpackComponent::GRID; ++r)
+            for (int c = 0; c < BackpackComponent::GRID; ++c)
+            {
+                if (!BackpackLogic::CanPlace(bp, id, r, c, rot)) continue;
+                const int idx = BackpackLogic::Place(bp, id, r, c, rot);
+                if (idx < 0) continue;
+                const auto targets = BackpackLogic::GetOutletTargets(bp, src);
+                if (std::find(targets.begin(), targets.end(), idx) != targets.end()) return idx;
+                BackpackLogic::Remove(bp, idx);
+            }
+    return -1;
+}
+
 // 猛毒の沼一式（2026-10-17：上級魔法 + 前提の泥沼・胞子）を決まった並びで置く。枠は 9×9 に敷いてあること。
 //   猛毒の沼 (4,4) 凸字 → (3,4)(4,3)(4,4)(4,5)
 //   泥沼     (2,3) 横 2 → (2,3)(2,4)：影響マス（形の上下左右）の下 = (3,4) = 沼の首

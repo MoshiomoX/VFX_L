@@ -42,6 +42,10 @@ struct AreaStats
     // 集約時に ItemCommon::triggeredBy が揃っていれば true。基本魔法側の SpellStats::triggerMask の bit (16 + 添字) が自分
     // （添字は 0〜14 まで。bit 31 は吸血の印。TriggerBits / WandComponent.h）
     bool triggered = false;
+    // 出口（2026-10-31）: 出口魔法の出口の先に居る（SpellStats::fromOutlet / triggerDelay と同じ）
+    bool  fromOutlet = false;
+    float triggerDelay = 0.0f;
+    int   outletDepth = 0;
     // --- 基本の範囲魔法（アークボルトの稲妻）が届いた所で誘発できる上級魔法（SpellStats::triggerMask と同じ bit 割り当て。2026-10-15）---
     uint32_t triggerMask = 0;
 

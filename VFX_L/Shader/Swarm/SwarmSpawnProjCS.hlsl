@@ -43,6 +43,7 @@ StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
 StructuredBuffer<uint2> spawnExtra : register(t4);   // x = trigger tag, y = SWARM_SPAWN_* flags
 StructuredBuffer<float> terrainHeight : register(t5); // GridWorld::Heights (the mine cave test)
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t6); // FanTarget skips what cannot be targeted
 
 // ground lower than this (m) = the mine floor, under the roof
 static const float kCaveFloorBelow = -1.0;
@@ -82,6 +83,46 @@ bool PathHitsGround(SwarmProjPath p)
     return false;
 }
 
+// The side shots of an outlet spell's fan pick their own enemy (2026-10-31), so what they carry
+// starts somewhere else than the first shot's spell. The closest enemy around this shot's direction,
+// not the one the first shot took; enemies on the other side of the aim count double.
+// No such enemy -> the same target as the first shot
+static const float kFanRange = 20.0;
+static const float kFanConeCos = 0.25;
+uint FanTarget(uint first, float3 from, float3 dir)
+{
+    float2 aim = enemies[first].position.xz - from.xz;
+    float2 shot = dir.xz;
+    float side = aim.x * shot.y - aim.y * shot.x;
+    shot /= max(length(shot), 1e-4);
+
+    uint best = first;
+    float bestScore = 1e9;
+    [loop]
+    for (uint j = 0; j < g_MaxEnemies; ++j)
+    {
+        if (j == first || enemyStates[j] == SWARM_DEAD || SwarmUntargetable(enemyExtra[j]))
+            continue;
+        float2 to = enemies[j].position.xz - from.xz;
+        float d = length(to);
+        if (d < 1.0 || d > kFanRange)
+            continue;
+        to /= d;
+        float c = dot(to, shot);
+        if (c < kFanConeCos)
+            continue;
+        float score = d / c;
+        if ((aim.x * to.y - aim.y * to.x) * side < 0.0)
+            score *= 2.0;
+        if (score < bestScore)
+        {
+            bestScore = score;
+            best = j;
+        }
+    }
+    return best;
+}
+
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -98,6 +139,8 @@ void main(uint3 id : SV_DispatchThreadID)
     float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? 3.14159265 : 0.0;
     sideSign += (float)((extra.y >> 1) & 0x7Fu) * (6.28318531 / 128.0);
     uint motionIdx = req.motion & SWARM_MOTION_INDEX_MASK;
+    // the request's bits 16..19: which shot of the fan (Swarm::kMotionFanShift; the size scale replaces them below)
+    uint fanIndex = (req.motion >> 16u) & 0xFu;
     // chain rune: the request's pathT carries how many more enemies this shot may jump to (2026-10-16)
     uint chains = (uint) clamp(req.pathT, 0.0, (float) SWARM_PROJ_CHAIN_LEFT_MASK);
     req.pathT = 0.0;
@@ -185,7 +228,7 @@ void main(uint3 id : SV_DispatchThreadID)
         }
         req.lifetime = max(req.lifetime, path.duration + 0.25);
     }
-    else if (m.mode != SWARM_MOTION_STRAIGHT && speed > 0.01)
+    else if (m.mode != SWARM_MOTION_STRAIGHT && m.mode != SWARM_MOTION_ORBIT && speed > 0.01)
     {
         uint key = counters.Load(SWARM_CNT_NEAREST_KEY);
         if (key != SWARM_NO_TARGET_KEY)
@@ -193,6 +236,8 @@ void main(uint3 id : SV_DispatchThreadID)
             uint slot = key & SWARM_SLOT_MASK;
             if (slot < g_MaxEnemies && enemyStates[slot] != SWARM_DEAD)
             {
+                if (fanIndex > 0u)
+                    slot = FanTarget(slot, req.position, req.velocity / speed);
                 path.target = slot;
                 SwarmBuildPath(path, m, req.position, enemies[slot].position,
                                req.velocity / speed, false);

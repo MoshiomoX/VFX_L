@@ -219,6 +219,9 @@ namespace Swarm
     // ============================================================
     constexpr uint32_t kMaxMotions = 64;
     constexpr uint32_t kMotionFlipBit = 0x80000000u;
+    // 生成依頼の motion の bits 16〜19 = 扇の何発目か（SpawnProjCS が読む。2026-10-31）。bits 16〜30 は生成後に大きさの倍率になる
+    constexpr uint32_t kMotionFanShift = 16u;
+    constexpr uint32_t kMotionFanMask = 0xFu;
 
     // ============================================================
     // 誘発（基本魔法 → 上級魔法。火球・石弾が消えた所に隕石が落ちる）
@@ -295,6 +298,9 @@ namespace Swarm
         // 投げ上げ（2026-10-01、毒）: 撃った時に一番近い敵の位置を着弾点に決め、銃口から山なりに投げる。
         // 道筋は曲線と同じ c1 / c2（c.z で持ち上げる）、振る舞いは Drop と同じ（途中で当たらず、地形も見ず、着弾点に hitArea）
         Lob = 4,
+        // 周回（2026-11-01、周回弾）: プレイヤーの周りを回り続ける。c1.x = 回る速さ（rad/秒）、c1.y = 半径 m、c1.z = 高さのずれ m。
+        // 出る角度は生成依頼の roll。壁を見ない
+        Orbit = 5,
     };
 
     struct Motion

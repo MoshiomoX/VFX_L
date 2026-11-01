@@ -1,0 +1,16 @@
+{
+  "name": "PlayerArrivePillar",
+  "loop": false,
+  "entries": [
+    {
+      "type": "Beam", "startTime": 0.0, "duration": 0.85,
+      "data": {
+        "offset": [0, 0, 0], "width": 1.5, "coreRatio": 0.42, "glowRatio": 2.0, "glowAlpha": 0.2,
+        "color": [1.0, 0.62, 0.14, 0.8], "coreColor": [1.15, 0.98, 0.6, 0.9],
+        "scrollSpeed": -14.0, "noiseScale": 1.1, "noiseStrength": 0.35, "tipFade": 0.0, "rootFade": 0.0,
+        "growTime": 0.14, "shrinkTime": 0.45, "previewLength": 24.0, "previewDir": [0, -1, 0],
+        "toon": false
+      }
+    }
+  ]
+}

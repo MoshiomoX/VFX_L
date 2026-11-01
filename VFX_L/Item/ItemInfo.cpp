@@ -46,6 +46,7 @@ namespace
         if (const ItemCommon* c = ItemDatabase::GetCommon(id))
         {
             if (!c->triggeredBy.empty()) s.category = L"上級魔法";   // 前提の基本魔法が要る物（隕石・光線）
+            if (!c->outletCells.empty()) s.category = L"出口魔法";   // 2026-10-31
             if (const FrameItemDef* fd = ItemDatabase::GetFrame(id); fd && fd->HasEffect()) s.category = L"効果の枠";   // 2026-10-27
             s.color = c->color;
             s.description = c->description ? c->description : L"";
@@ -133,6 +134,7 @@ namespace ItemInfo
     // 上級魔法: 「敵の足元…」を「連鎖した場所…」に差し替える（前提の弾が消えた場所に落ちる）
     static void FixTriggeredFlight(Sheet& s, const ProjectileItemDef& d)
     {
+        if (d.common.outletText && d.common.outletText[0]) s.traits.insert(s.traits.begin(), d.common.outletText);   // 出口魔法（2026-10-31）
         if (d.common.triggeredBy.empty()) return;
         const std::wstring feet = kAtFeet;
         for (auto& t : s.traits)
@@ -141,8 +143,23 @@ namespace ItemInfo
 
     // バックパックに置いた物の「誘発」の行（集約と同じ判定）。上級魔法なら目覚めているか / 足りない前提、
     // 基本魔法なら自分が呼び起こしている上級魔法
-    static void AddTriggerTraits(Sheet& s, const BackpackComponent& bp, int itemIndex, const ItemCommon& c)
+    static void AddTriggerTraits(Sheet& s, const BackpackComponent& bp, int itemIndex, const ItemCommon& c, int shotsPerCast = 1)
     {
+        // 出口（2026-10-31）：自分の出口の先 / 自分を出口の先に持つ魔法
+        if (!c.outletCells.empty())
+        {
+            std::vector<std::wstring> names;
+            for (int t : BackpackLogic::GetOutletTargets(bp, itemIndex))
+                names.push_back(DisplayName(bp.items[t].id) + (shotsPerCast > 1 ? L" x" + std::to_wstring(shotsPerCast) : L""));
+            s.traits.insert(s.traits.begin(), names.empty() ? std::wstring(L"出口の先に魔法が無い") : L"出口の先: " + Join(names));
+        }
+        const std::vector<int> outletDrivers = BackpackLogic::GetOutletDrivers(bp, itemIndex);
+        if (!outletDrivers.empty())
+        {
+            std::vector<std::wstring> names;
+            for (int d : outletDrivers) names.push_back(DisplayName(bp.items[d].id));
+            s.traits.insert(s.traits.begin(), Join(names) + L" の弾 1 発につき 1 回発動");
+        }
         if (!c.triggeredBy.empty())
         {
             if (BackpackLogic::IsTriggerReady(bp, itemIndex))
@@ -206,6 +223,72 @@ namespace ItemInfo
         return s;
     }
 
+    // 置いてある魔法の値：隣のルーン → 効果の枠 → 魔法威力 → 貯蔵の MP（集約と同じ順）。by = 強化の名前
+    static SpellStats PlacedSpell(const BackpackComponent& bp, int itemIndex, const ProjectileItemDef& d, float spellPower, std::vector<std::wstring>* by)
+    {
+        SpellStats v = BaseSpellStats(d);
+        for (int i : BackpackLogic::GetInfluencers(bp, itemIndex))
+        {
+            const FunctionItemDef* f = ItemDatabase::GetFunction(bp.items[i].id);
+            if (!f) continue;
+            for (const auto& m : f->spellModifiers) ItemDatabase::ApplyModifier(v, m);
+            if (by) by->push_back(DisplayName(f->common.id));
+        }
+        for (int fi : BackpackLogic::GetEffectFrames(bp, itemIndex))
+        {
+            const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[fi].id);
+            if (!fr) continue;
+            for (const auto& m : fr->spellModifiers) ItemDatabase::ApplyModifier(v, m);
+            if (by) by->push_back(DisplayName(fr->common.id));
+        }
+        ApplySpellPower(v, spellPower);
+        if (const int unit = BackpackLogic::StoredBy(bp, itemIndex); unit >= 0)
+            if (const SummonItemDef* sd = ItemDatabase::GetSummon(bp.items[unit].id)) v.manaCost *= sd->manaMul;
+        return v;
+    }
+    static AreaStats PlacedArea(const BackpackComponent& bp, int itemIndex, const AreaItemDef& d, float spellPower, std::vector<std::wstring>* by)
+    {
+        AreaStats v = BaseAreaStats(d);
+        for (int i : BackpackLogic::GetInfluencers(bp, itemIndex))
+        {
+            const FunctionItemDef* f = ItemDatabase::GetFunction(bp.items[i].id);
+            if (!f) continue;
+            for (const auto& m : f->areaModifiers) ItemDatabase::ApplyModifier(v, m);
+            if (by) by->push_back(DisplayName(f->common.id));
+        }
+        for (int fi : BackpackLogic::GetEffectFrames(bp, itemIndex))
+        {
+            const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[fi].id);
+            if (!fr) continue;
+            for (const auto& m : fr->areaModifiers) ItemDatabase::ApplyModifier(v, m);
+            if (by) by->push_back(DisplayName(fr->common.id));
+        }
+        ApplySpellPower(v, spellPower);
+        if (const int unit = BackpackLogic::StoredBy(bp, itemIndex); unit >= 0)
+            if (const SummonItemDef* sd = ItemDatabase::GetSummon(bp.items[unit].id)) v.manaCost *= sd->manaMul;
+        return v;
+    }
+
+    // 出口の線（集約と同じ計算）
+    static std::vector<BackpackLogic::OutletLine> PlacedLines(const BackpackComponent& bp, float spellPower)
+    {
+        std::vector<BackpackLogic::OutletNode> nodes(bp.items.size());
+        for (int i = 0; i < (int)bp.items.size(); ++i)
+        {
+            if (auto* d = ItemDatabase::GetProjectile(bp.items[i].id))
+            {
+                const SpellStats v = PlacedSpell(bp, i, *d, spellPower, nullptr);
+                nodes[i] = { v.castInterval, BaseSpellStats(*d).castInterval, v.manaCost, v.projectileCount, v.castCount };
+            }
+            else if (auto* d = ItemDatabase::GetArea(bp.items[i].id))
+            {
+                const AreaStats v = PlacedArea(bp, i, *d, spellPower, nullptr);
+                nodes[i] = { v.castInterval, BaseAreaStats(*d).castInterval, v.manaCost, 1, 1 };
+            }
+        }
+        return BackpackLogic::SolveOutletLines(BackpackLogic::GetOutletEdges(bp), nodes);
+    }
+
     Sheet DescribePlaced(const BackpackComponent& bp, int itemIndex, float spellPower)
     {
         if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return Sheet{};
@@ -213,60 +296,39 @@ namespace ItemInfo
         Sheet s = Header(id);
 
         // ---- 攻撃魔法：隣のルーンの修飾を集約と同じ順で掛ける ----
-        const std::vector<int> infl = BackpackLogic::GetInfluencers(bp, itemIndex);
         std::vector<std::wstring> by;
 
         if (auto* d = ItemDatabase::GetProjectile(id))
         {
             const SpellStats b = BaseSpellStats(*d);
-            SpellStats v = b;
-            for (int i : infl)
+            SpellStats v = PlacedSpell(bp, itemIndex, *d, spellPower, &by);
+            const int shotsPerCast = (std::max)(v.projectileCount, 1) * (std::max)(v.castCount, 1);
+            // 出口の線：起点は線全体の間隔と MP、下流は上流の分裂の分だけ威力が下がる（集約と同じ）
+            const BackpackLogic::OutletLine line = PlacedLines(bp, spellPower)[itemIndex];
+            if (!BackpackLogic::GetOutletDrivers(bp, itemIndex).empty())
             {
-                const FunctionItemDef* f = ItemDatabase::GetFunction(bp.items[i].id);
-                if (!f) continue;
-                for (const auto& m : f->spellModifiers) ItemDatabase::ApplyModifier(v, m);
-                by.push_back(DisplayName(f->common.id));
+                v.damage *= line.powerMul;
+                v.areaDamageMul *= line.powerMul;
             }
-            for (int fi : BackpackLogic::GetEffectFrames(bp, itemIndex))   // 乗っている効果のある設置枠（集約と同じ順）
+            else if (!BackpackLogic::GetOutletTargets(bp, itemIndex).empty())
             {
-                const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[fi].id);
-                if (!fr) continue;
-                for (const auto& m : fr->spellModifiers) ItemDatabase::ApplyModifier(v, m);
-                by.push_back(DisplayName(fr->common.id));
+                v.castInterval = line.interval;
+                v.manaCost = line.mana;
             }
-            ApplySpellPower(v, spellPower);   // 集約と同じく修飾の後
-            // 貯蔵（水晶玉）: 消費 MP の倍率（集約と同じ）
-            if (const int unit = BackpackLogic::StoredBy(bp, itemIndex); unit >= 0)
-                if (const SummonItemDef* sd = ItemDatabase::GetSummon(bp.items[unit].id)) v.manaCost *= sd->manaMul;
             FillProjectile(s, v, b);
             FixTriggeredFlight(s, *d);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
 
-            AddTriggerTraits(s, bp, itemIndex, d->common);   // 誘発（集約と同じ判定）
+            AddTriggerTraits(s, bp, itemIndex, d->common, shotsPerCast);   // 誘発（集約と同じ判定）
             AddStoredTrait(s, bp, itemIndex);
             return s;
         }
         if (auto* d = ItemDatabase::GetArea(id))
         {
             const AreaStats b = BaseAreaStats(*d);
-            AreaStats v = b;
-            for (int i : infl)
-            {
-                const FunctionItemDef* f = ItemDatabase::GetFunction(bp.items[i].id);
-                if (!f) continue;
-                for (const auto& m : f->areaModifiers) ItemDatabase::ApplyModifier(v, m);
-                by.push_back(DisplayName(f->common.id));
-            }
-            for (int fi : BackpackLogic::GetEffectFrames(bp, itemIndex))
-            {
-                const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[fi].id);
-                if (!fr) continue;
-                for (const auto& m : fr->areaModifiers) ItemDatabase::ApplyModifier(v, m);
-                by.push_back(DisplayName(fr->common.id));
-            }
-            ApplySpellPower(v, spellPower);
-            if (const int unit = BackpackLogic::StoredBy(bp, itemIndex); unit >= 0)
-                if (const SummonItemDef* sd = ItemDatabase::GetSummon(bp.items[unit].id)) v.manaCost *= sd->manaMul;
+            AreaStats v = PlacedArea(bp, itemIndex, *d, spellPower, &by);
+            if (!BackpackLogic::GetOutletDrivers(bp, itemIndex).empty())
+                v.damagePerTick *= PlacedLines(bp, spellPower)[itemIndex].powerMul;
             FillArea(s, v, b);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
             AddTriggerTraits(s, bp, itemIndex, d->common);   // 光線（上級魔法）の誘発

@@ -11,6 +11,8 @@
 //   宝箱・商店はレベル +15 として引く。以前（10-28）は「札の重み = 稀有度の重み × 札の重み」で、
 //   ① 段毎の札の数で率が変わり（ノーマルを足すほどレア・レジェンドが減る）② 何面目かの +0.5 とレベル（局を通して持ち越す）が
 //   二重に効いて、3 面目の始めから 1 面目の終わりより高かった。1 面目で四択にレジェンドが入るのは 5〜6 回 → 2〜3 回へ
+//   2026-11-01（ユーザー「時間で。最初は 0%、1 面目の終わりで 1% くらい。商店・エリートの箱・Boss の落とし物は少し上げる」）：
+//   率の横軸をレベルからこのプレイの経過時間（分）に変えた。ふつうの宝箱は四択と同じ率、商店と金色の箱は時間に数分足して引く
 //   見せ方：カードの面の色は魔法の種類のまま（ユーザー「面の色は種類で分けたい」）。
 //   報酬として出す時（四択・商店）にカードの外へ稀有度の色の縁を付ける（LevelUpUI::DrawCard）
 // ============================================================
@@ -39,14 +41,24 @@ namespace Rarity
     }
 
     // 1 枚の札がレア / レジェンドになる率（LevelUpSystem / ShopStock が同じ物を持つ）。
-    // レベルの点（kPoints 個）の間は直線、最初の点より前・最後の点より先はその点の値のまま。残りがノーマル
+    // 時間の点（kPoints 個）の間は直線、最初の点より前・最後の点より先はその点の値のまま。残りがノーマル
     struct Odds
     {
-        static constexpr int kPoints = 3;
-        float level[kPoints]  = { 1.0f, 30.0f, 40.0f };      // 1 面目の始め / 1 面目の終わり / それ以降
-        float rare[kPoints]   = { 0.10f, 0.20f, 0.26f };
-        float legend[kPoints] = { 0.01f, 0.04f, 0.06f };
+        static constexpr int kPoints = 4;
+        float minute[kPoints] = { 0.0f, 10.0f, 20.0f, 30.0f };   // 始め / 1 面目の終わり / 2 面目の終わり / 3 面目の終わり
+        float rare[kPoints]   = { 0.05f, 0.10f, 0.115f, 0.13f };   // 2026-11-01 ユーザー「レアは 5%」→ 始めを 10 → 5% にして線全体を半分に
+        float legend[kPoints] = { 0.00f, 0.01f, 0.03f, 0.06f };
     };
+
+    constexpr float kStageMinutes = 10.0f;   // 1 面の制限時間（StageDirector::stageTime）
+    constexpr float kPremiumMinutes = 5.0f;  // 商店・金色の箱（エリート・Boss）は時間にこれを足して引く
+
+    // このプレイの経過時間（分）。pos = 何面目か（1 始まり）。面の時間切れの後は次の面の始めを超えない
+    inline float RunMinutes(int pos, float stageSeconds)
+    {
+        const float m = stageSeconds / 60.0f;
+        return (float)(pos - 1) * kStageMinutes + (m < kStageMinutes ? m : kStageMinutes);
+    }
 
     inline float Interp(const float* x, const float* y, int n, float v)
     {
@@ -61,11 +73,11 @@ namespace Rarity
         return y[n - 1];
     }
 
-    // level（宝箱・商店は足した後）での 1 枚の率 → out[ノーマル, レア, レジェンド]（合計 1）
-    inline void Chances(float level, const Odds& o, float out[kCount])
+    // minutes（商店・金色の箱は足した後）での 1 枚の率 → out[ノーマル, レア, レジェンド]（合計 1）
+    inline void Chances(float minutes, const Odds& o, float out[kCount])
     {
-        float l = Interp(o.level, o.legend, Odds::kPoints, level);
-        float r = Interp(o.level, o.rare, Odds::kPoints, level);
+        float l = Interp(o.minute, o.legend, Odds::kPoints, minutes);
+        float r = Interp(o.minute, o.rare, Odds::kPoints, minutes);
         l = l < 0.0f ? 0.0f : (l > 1.0f ? 1.0f : l);
         r = r < 0.0f ? 0.0f : (r > 1.0f - l ? 1.0f - l : r);
         out[(int)ItemRarity::Legendary] = l;

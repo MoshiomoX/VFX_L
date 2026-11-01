@@ -28,6 +28,7 @@ void CollisionTestScene::Update(float dt)
 {
     if (m_TitleScene) { UpdateTitle(dt); return; }     // タイトル：景色とメニューだけ（CollisionTestSceneTitle.cpp）
     if (m_SelectScene) { UpdateSelect(dt); return; }   // ステージ選択：景色と選択の画面（CollisionTestSceneSelect.cpp）
+    if (m_PlayerIntroT >= 0.0f) { UpdatePlayerIntro(dt); return; }   // 面の始めの登場（CollisionTestScenePlayerIntro.cpp）
     SceneBase::Update(dt);
     m_TotalTime += dt;
 

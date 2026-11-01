@@ -655,9 +655,10 @@ void ProjectileEditorScene::DrawProjectileTab()
         "Curve, lock once (target dies -> fly straight)",
         "Full tracking (target dies -> find another)",
         "Drop from the sky (meteor: lands where the target stood)",
-        "Lob (thrown in an arc onto where the target stood, no hits on the way)" };
+        "Lob (thrown in an arc onto where the target stood, no hits on the way)",
+        "Orbit (circles the player: c1 = rad/s, radius, height)" };
     int mode = (int)p.mode;
-    if (ImGui::Combo("Mode", &mode, modeNames, 5))
+    if (ImGui::Combo("Mode", &mode, modeNames, 6))
     {
         const Swarm::MotionMode prev = p.mode;
         p.mode = (Swarm::MotionMode)mode;
@@ -945,9 +946,9 @@ void ProjectileEditorScene::DrawAreaTab()
     }
 
     const char* kindNames[] = { "One shot (explosion)", "Lasting (circle / burning ground)", "Beam (capsule from the player)",
-        "Roam (moving, the Twister)" };
+        "Roam (moving, the Twister)", "Detonate (blows up every shot in the air)" };
     int kind = (int)p.kind;
-    if (ImGui::Combo("Kind", &kind, kindNames, 4))
+    if (ImGui::Combo("Kind", &kind, kindNames, 5))
     {
         p.kind = (AreaProfile::Kind)kind;
         changed = true;

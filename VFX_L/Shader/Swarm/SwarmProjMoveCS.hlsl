@@ -47,6 +47,13 @@ RWBuffer<uint> projStates : register(u1);
 RWByteAddressBuffer counters : register(u2);
 RWStructuredBuffer<SwarmProjPath> paths : register(u3);
 
+// detonate spell (2026-11-01): != 0 for one step: every flying shot dies and leaves this area
+cbuffer ProjDetonateCB : register(b1)
+{
+    uint g_DetonateArea;
+    uint3 _detonatePad;
+};
+
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -61,6 +68,16 @@ void main(uint3 id : SV_DispatchThreadID)
 
     SwarmMotion m = motions[p.motion & SWARM_MOTION_INDEX_MASK];
     bool areaOnExpire = (m.hitArea != 0u) && ((m.hitAreaFlags & SWARM_HITAREA_ON_EXPIRE) != 0u);
+
+    // ---- detonate: a falling meteor / thrown flask stays out of it (the blast would hang in the air), and so does
+    // a shot still near the player: a slow mine would go off in the caster's face, wasted ----
+    float3 fromPlayer = p.position - g_PlayerPos;
+    if (g_DetonateArea != 0u && !SwarmMotionLands(m.mode) && dot(fromPlayer, fromPlayer) > 9.0)
+    {
+        SwarmSpawnAreaFromDefX(g_DetonateArea, p.position, i, SwarmProjScale(p), projBoost[i], p.velocity.xz, SwarmStealExtra(i));
+        projStates[i] = SWARM_DEAD;
+        return;
+    }
 
     // ---- lifetime ----
     p.lifetime -= g_Step;
@@ -90,6 +107,22 @@ void main(uint3 id : SV_DispatchThreadID)
         // the spawn velocity was kept in the path (a curve) or in the projectile (straight)
     }
     bool easeIn = (m.hitAreaFlags & SWARM_HITAREA_EASE_IN) != 0u;
+
+    // ---- orbit (2026-11-01): flies out to the radius, then circles the player. No terrain test: it follows the player ----
+    if (m.mode == SWARM_MOTION_ORBIT)
+    {
+        p.pathT += g_Step;
+        float orbitAngle = paths[i].sideSign + p.pathT * m.c1.x;
+        float orbitRadius = min(p.pathT * 14.0, m.c1.y);
+        float3 orbitPos = g_PlayerPos + float3(cos(orbitAngle) * orbitRadius, m.c1.z, sin(orbitAngle) * orbitRadius);
+        projectiles[i].velocity = (orbitPos - p.position) / g_Step;
+        projectiles[i].position = orbitPos;
+        projectiles[i].lifetime = p.lifetime;
+        projectiles[i].pathT = p.pathT;
+        uint orbitCount;
+        counters.InterlockedAdd(SWARM_CNT_ALIVE_PROJ, 1u, orbitCount);
+        return;
+    }
 
     // ---- chain rune (2026-10-16): HitCS hit an enemy last step and left the shot alive.
     // Aim it at the nearest OTHER living enemy within reach and build a new curve from

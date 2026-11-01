@@ -31,6 +31,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // ---- 遊んでいる時間（死んだら止める）----
     if (!IsPlayerDead())
         m_RunTime += dt;
+    m_LevelUpSystem.runMinutes = Rarity::RunMinutes(m_RunPos, m_RunTime);   // 稀有度の率は経過時間で決まる（2026-11-01）
 
     // ---- 負荷テスト（自動補充と小分けの生成）----
     m_Stress.Update(dt, m_Registry, m_Player, m_Swarm);
@@ -222,6 +223,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_SpellFx.Update(dt, m_WeaponSystem.GetTriggeredFx(),                                // アイススパイクの氷のトゲ（地面の高さに 1 本ずつ）
         [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
     OnExplosions(m_Swarm.ConsumeShakeAreas());   // 爆発・光線だけ（命中の火花・土煙では揺らさない）
+    if (const float s = m_WeaponSystem.ConsumeOutletShake(); s > 0.0f) m_Camera.Camera().RaiseTrauma(s);   // 出口の繋がりが発動した
     // リザルトの背景：爆発の山場を写す（生きている間だけ。実験場では撮らない）
     if (!m_LabScene && !IsPlayerDead() && !m_Stage.IsCleared() && m_Highlight.ShouldCapture(m_RunTime))
     {

@@ -189,7 +189,7 @@ bool RewardCrateSystem::TryOpen(Registry& reg, Entity used, Entity player, Level
         m_Denied = true;
         return false;
     }
-    if (!levelUp.OfferChoices(reg, player)) return false;
+    if (!levelUp.OfferChoices(reg, player, free)) return false;   // 金色の箱は稀有度が少し出やすい
     if (wallet && price > 0) wallet->Pay(price);
     if (!free) ++m_Opened;
 

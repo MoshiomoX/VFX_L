@@ -62,6 +62,7 @@ struct LevelComponent
 
     // 今の四択が報酬の箱から出た物か（2026-10-18 ユーザー：「箱から出ても見出しがレベルアップになっている」→ 見出しを変える）
     bool choiceFromCrate = false;
+    bool choicePremium = false;    // 金色の箱の四択（稀有度が少し出やすい。引き直しにも効く）
 
     // 連続レベルアップは1回ずつ処理する。
     // まとめて上げると三択が何度も連続で出て、選ぶ作業だけが続く。
@@ -73,5 +74,5 @@ struct LevelComponent
         ++level;
     }
 
-    void ClearChoices() { pendingChoices.clear(); rerollCount = 0; choiceDelay = 0.0f; choiceFromCrate = false; }
+    void ClearChoices() { pendingChoices.clear(); rerollCount = 0; choiceDelay = 0.0f; choiceFromCrate = false; choicePremium = false; }
 };

@@ -39,6 +39,12 @@ cbuffer SwarmOrbEmitCB : register(b3)
 #else
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 Buffer<uint> projStates : register(t1);
+// An outlet spell's shot shows the spell it carries (2026-10-31): tag bit -> rgb + mix (TriggerBits)
+Buffer<uint> projTags : register(t5);
+cbuffer SwarmCarryCB : register(b3)
+{
+    float4 g_CarryColor[32];
+};
 #endif
 StructuredBuffer<SwarmRecipe> recipes : register(t2);
 StructuredBuffer<GPUEmitter> emitters : register(t3);
@@ -48,10 +54,17 @@ RWStructuredBuffer<GPUParticle> particles : register(u0);
 ConsumeStructuredBuffer<uint> deadList : register(u1);
 RWByteAddressBuffer emitBudget : register(u2);
 
+// keeps the brightness of the authored colour, moves its hue toward the carried spell
+float3 CarryTint(float3 c, float4 carry)
+{
+    return lerp(c, carry.rgb * max(max(c.r, c.g), c.b), carry.a);
+}
+
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
     uint i = id.x;
+    float4 carry = float4(0, 0, 0, 0);
 
     // ---- the source: where, how fast, which recipe ----
     float3 srcPos;
@@ -93,6 +106,9 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     srcVfx = projectiles[i].vfxType;
     srcScale = SwarmProjScale(projectiles[i]);
+    uint carryTag = projTags[i] & ~SWARM_TAG_LIFESTEAL;
+    if (carryTag != 0u)
+        carry = g_CarryColor[firstbitlow(carryTag)];
 #endif
 
     SwarmRecipe r = recipes[srcVfx];
@@ -104,6 +120,13 @@ void main(uint3 id : SV_DispatchThreadID)
     for (uint ei = 0u; ei < r.particleCount; ++ei)
     {
         GPUEmitter e = emitters[r.particleStart + ei];
+        if (carry.a > 0.0)
+        {
+            e.startColorMin.rgb = CarryTint(e.startColorMin.rgb, carry);
+            e.startColorMax.rgb = CarryTint(e.startColorMax.rgb, carry);
+            e.endColorMin.rgb = CarryTint(e.endColorMin.rgb, carry);
+            e.endColorMax.rgb = CarryTint(e.endColorMax.rgb, carry);
+        }
         // bigger source = the whole effect scaled: offset, emit shape, speed (how far it
         // spreads in its lifetime), gravity, particle size. A little denser too (x scale;
         // the area grows with scale^2 but the particle pool is shared)

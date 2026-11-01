@@ -21,6 +21,9 @@ From game-icons.net  https://game-icons.net
   Swamp.png           "Swamp"             by Delapouite  https://game-icons.net/1x1/delapouite/swamp.html
   Spore.png           "Poison gas"        by Lorc        https://game-icons.net/1x1/lorc/poison-gas.html
   VoidVortex.png      "Vortex"            by Lorc        https://game-icons.net/1x1/lorc/vortex.html
+  OutletSpark.png     "sparkles" by Delapouite  https://game-icons.net/1x1/delapouite/sparkles.html
+  OutletSplit.png     "Split cross" by Lorc  https://game-icons.net/1x1/lorc/split-cross.html
+  OutletSeed.png      "sprout" by Lorc  https://game-icons.net/1x1/lorc/sprout.html
   IceLance.png        "Ice bolt"          by Lorc        https://game-icons.net/1x1/lorc/ice-bolt.html
   IceSpike.png        "Crystal growth"    by Lorc        https://game-icons.net/1x1/lorc/crystal-growth.html
   Beam.png            "Laser blast"       by Lorc        https://game-icons.net/1x1/lorc/laser-blast.html
@@ -31,6 +34,10 @@ From game-icons.net  https://game-icons.net
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html
   HasteRune.png       "Stopwatch"         by Lorc        https://game-icons.net/1x1/lorc/stopwatch.html
   ChainRune.png       "Lightning branches" by Lorc        https://game-icons.net/1x1/lorc/lightning-branches.html
+  LarpaRune.png       "Mirror mirror" by Lorc             https://game-icons.net/1x1/lorc/mirror-mirror.html
+  Detonate.png        "Explosion rays" by Lorc            https://game-icons.net/1x1/lorc/explosion-rays.html
+  OutletMine.png      "Land mine" by Lorc                 https://game-icons.net/1x1/lorc/land-mine.html
+  OrbitGuard.png      "Orbital" by Lorc                   https://game-icons.net/1x1/lorc/orbital.html
   FrameLifesteal.png  "Bleeding heart"    by Lorc        https://game-icons.net/1x1/lorc/bleeding-heart.html
   FrameArea.png       "Expanded rays"     by Lorc        https://game-icons.net/1x1/lorc/expanded-rays.html
   FrameFocus.png      "Archery target"    by Lorc        https://game-icons.net/1x1/lorc/archery-target.html

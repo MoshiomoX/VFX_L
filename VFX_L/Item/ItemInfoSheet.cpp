@@ -47,6 +47,7 @@ namespace
         case SpellParam::CastCount:
         case SpellParam::AreaDamage:
         case SpellParam::ChainCount:
+        case SpellParam::LarpaCount:
         case SpellParam::Lifesteal:
             return +1;
         case SpellParam::CastInterval:
@@ -93,6 +94,7 @@ namespace
         case SpellParam::ManaCost:        return L"消費MP";
         case SpellParam::AreaDamage:      return L"範囲の威力";
         case SpellParam::ChainCount:      return L"連鎖";
+        case SpellParam::LarpaCount:      return L"分身";
         case SpellParam::Lifesteal:       return L"吸血";
         }
         return L"";
@@ -127,6 +129,7 @@ namespace
         case SpellParam::SpreadAngle:  return L"度";
         case SpellParam::CastCount:    return L"回";
         case SpellParam::ChainCount:   return L"回";
+        case SpellParam::LarpaCount:   return L"発";
         case SpellParam::Lifesteal:    return L"%";
         default:                       return L"";
         }
@@ -259,6 +262,8 @@ namespace ItemInfoSheet
         // 連鎖のルーン（2026-10-16）: 当たっても消えず、近くの別の敵へ跳ぶ（Drop / Lob には効かない）
         if (v.chainCount > 0 && !drop)
             s.traits.push_back(L"当たった敵から近くの別の敵へ跳ぶ");
+        if (v.larpaCount > 0 && !drop)   // 分身のルーン（2026-11-01）
+            s.traits.push_back(L"弾が消える時、周りへ分身を放つ（威力 40%）");
         if (v.lifesteal > 0.0f)   // 吸血のルーン（2026-10-25）
             s.traits.push_back(L"与えたダメージの一部で HP が回復する");
         // 減速（毒の池）。15 段階に丸めた実際の値を出す（AreaProfile::Flags）
@@ -334,6 +339,8 @@ namespace ItemInfoSheet
         // 連鎖のルーン（2026-10-16）: 跳ぶ回数。付いている時だけ出す。貫通の弾は貫く数も跳ぶ回数になる（SwarmSpawnProjCS）
         if (!drop && (v.chainCount > 0 || v.chainCount != b.chainCount))
             s.stats.push_back(StatLine(L"連鎖", (float)(v.chainCount + (v.chainCount > 0 ? pp.pierce : 0)), (float)b.chainCount, L"回", +1));
+        if (!drop && v.larpaCount > 0)
+            s.stats.push_back(StatLine(L"分身", (float)v.larpaCount, (float)b.larpaCount, L"発", +1));
         if (v.lifesteal > 0.0f)
             s.stats.push_back(StatLine(L"吸血", v.lifesteal * 100.0f, b.lifesteal * 100.0f, L"%", +1));
         s.stats.push_back(StatLine(L"発動間隔", v.castInterval, b.castInterval, L"秒", -1));
@@ -352,6 +359,16 @@ namespace ItemInfoSheet
 
     void FillArea(Sheet& s, const AreaStats& v, const AreaStats& b)
     {
+        // 一斉起爆（2026-11-01）: 出る所は飛んでいる弾の所なので、半径や持続の行は出さない
+        if (v.profile > 0 && AreaProfileDB::At(v.profile).IsDetonate())
+        {
+            s.traits.push_back(L"弾が 3 発以上飛んでいる時に発動する");
+            s.stats.push_back(StatLine(L"爆発の威力", v.damagePerTick, b.damagePerTick, L"", +1));
+            s.stats.push_back(StatLine(L"発動間隔", v.castInterval, b.castInterval, L"秒", -1));
+            s.stats.push_back(StatLine(L"消費MP", v.manaCost, b.manaCost, L"", -1));
+            return;
+        }
+
         // 光線（AreaProfile::Kind::Beam）: 手から貫くカプセル。範囲の代わりに太さと射程
         const bool beam = v.profile > 0 && AreaProfileDB::At(v.profile).IsBeam();
         // 竜巻（AreaProfile::Kind::Roam。2026-10-22）: 連鎖した所に出て敵の方へ進み、周りの敵を引き寄せる

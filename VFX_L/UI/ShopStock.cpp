@@ -69,7 +69,8 @@ void ShopStock::Generate(const RunCarry& carry)
         pools[tier].push_back({ id, book.HasLearned(id) ? weightOwnedMul : 1.0f });
     }
     float chance[Rarity::kCount];
-    Rarity::Chances((float)carry.level.level + shopLevelBonus, rarityOdds, chance);
+    // 商店は面と面の間 = carry.pos 面目の始め
+    Rarity::Chances(Rarity::RunMinutes(carry.pos, 0.0f) + shopMinutes, rarityOdds, chance);
     // 段を引いてその段の中から 1 つ（引いた物は外す）。何も無ければ Unknown
     auto draw = [&](std::vector<Entry>* tiers) -> ItemID
         {

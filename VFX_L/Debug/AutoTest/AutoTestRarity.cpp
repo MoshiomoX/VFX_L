@@ -30,8 +30,8 @@ namespace
     private:
         void Run();
         void LogTable();
-        void LogOdds(int level, bool crate);
-        void LogShopOdds(int level);
+        void LogOdds(int minutes, bool crate);
+        void LogShopOdds(int pos);
         void StartSolo(ItemID id);
         bool ReadLost(float& lost, int& damaged);
 
@@ -64,12 +64,12 @@ void AutoTestRarity::LogTable()
         AutoTestLog(("rarity table " + std::string(tier[r]) + ": " + names[r]).c_str());
 }
 
-void AutoTestRarity::LogOdds(int level, bool crate)
+void AutoTestRarity::LogOdds(int minutes, bool crate)
 {
     if (!m_Registry.Has<LevelComponent>(m_Player) || !m_Registry.Has<SpellbookComponent>(m_Player)) return;
     LevelComponent tmp = m_Registry.Get<LevelComponent>(m_Player);
     const auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
-    tmp.level = level;
+    m_LevelUpSystem.runMinutes = (float)minutes;
 
     constexpr int kTries = 3000;
     int cards[Rarity::kCount] = {}, frames = 0, total = 0, offerRare = 0, offerLegend = 0;
@@ -92,18 +92,17 @@ void AutoTestRarity::LogOdds(int level, bool crate)
     }
     const float t = (std::max)(total, 1) / 100.0f;
     char line[220];
-    snprintf(line, sizeof(line), "rarity odds lv %d crate %d card N %.1f%% R %.1f%% L %.1f%% offerR %.1f%% offerL %.1f%% frames %.1f%%",
-        level, crate ? 1 : 0, cards[0] / t, cards[1] / t, cards[2] / t,
+    snprintf(line, sizeof(line), "rarity odds min %d premium %d card N %.1f%% R %.1f%% L %.1f%% offerR %.1f%% offerL %.1f%% frames %.1f%%",
+        minutes, crate ? 1 : 0, cards[0] / t, cards[1] / t, cards[2] / t,
         100.0f * offerRare / kTries, 100.0f * offerLegend / kTries, frames / t);
     AutoTestLog(line);
 }
 
 // 商店の品揃え（2026-10-29）：今の引き継ぎを写してレベルだけ替え、3000 回作って [0..3] と [4]（設置枠）の稀有度を数える
-void AutoTestRarity::LogShopOdds(int level)
+void AutoTestRarity::LogShopOdds(int pos)
 {
     RunCarry carry = g_RunCarry;
-    carry.level.level = level;
-    carry.pos = 2;
+    carry.pos = pos;   // 次に始める面
     ShopStock shop;
     constexpr int kTries = 3000;
     int cards[Rarity::kCount] = {}, frameCards[Rarity::kCount] = {}, total = 0, frameTotal = 0, rowRare = 0, rowLegend = 0;
@@ -126,8 +125,8 @@ void AutoTestRarity::LogShopOdds(int level)
     }
     const float t = (std::max)(total, 1) / 100.0f, ft = (std::max)(frameTotal, 1) / 100.0f;
     char line[240];
-    snprintf(line, sizeof(line), "rarity shop lv %d card N %.1f%% R %.1f%% L %.1f%% frame N %.1f%% R %.1f%% L %.1f%% rowR %.1f%% rowL %.1f%%",
-        level, cards[0] / t, cards[1] / t, cards[2] / t, frameCards[0] / ft, frameCards[1] / ft, frameCards[2] / ft,
+    snprintf(line, sizeof(line), "rarity shop pos %d card N %.1f%% R %.1f%% L %.1f%% frame N %.1f%% R %.1f%% L %.1f%% rowR %.1f%% rowL %.1f%%",
+        pos, cards[0] / t, cards[1] / t, cards[2] / t, frameCards[0] / ft, frameCards[1] / ft, frameCards[2] / ft,
         100.0f * rowRare / kTries, 100.0f * rowLegend / kTries);
     AutoTestLog(line);
 }
@@ -210,19 +209,19 @@ void AutoTestRarity::Run()
         LogTable();
         if (GetEnvironmentVariableA("VFXL_RARITY_ODDS", nullptr, 0) > 0)
         {
-            // 2026-10-29 から何面目かは率に入らない（レベルだけ）
-            const int levels[] = { 1, 5, 10, 15, 20, 25, 30, 40, 50 };
-            for (int l : levels) LogOdds(l, false);
-            for (int l : { 1, 15, 30 }) LogOdds(l, true);
-            for (int l : { 20, 30, 40 }) LogShopOdds(l);
+            // 2026-11-01 から率は経過時間（分）で決まる
+            const int minutes[] = { 0, 3, 5, 8, 10, 15, 20, 25, 30 };
+            for (int m : minutes) LogOdds(m, false);
+            for (int m : { 3, 8, 10, 20 }) LogOdds(m, true);   // 金色の箱（エリート 3:00 / 8:00、Boss 10 分頃、2 面目の終わり）
+            for (int pos : { 2, 3 }) LogShopOdds(pos);
             AutoTestLog("rarity done");
             m_AutoStep = 7;
             return;
         }
-        LogOdds(1, false);
-        LogOdds(15, false);
-        LogOdds(30, false);
-        LogOdds(1, true);
+        LogOdds(0, false);
+        LogOdds(5, false);
+        LogOdds(10, false);
+        LogOdds(10, true);
         m_Solo = 0;
         StartSolo(kSolo[0]);
         m_AutoStep = 1;

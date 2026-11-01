@@ -34,6 +34,7 @@ struct AreaProfile
                        // 判定は GPU のカプセル型範囲（Swarm::kAreaCapsule）、起点は毎フレームプレイヤーに付く。見た目は VFX の Beam entry
         Roam = 3,      // 動く持続範囲（2026-10-22、竜巻）：出た所から roamSpeed m/s で敵の方へ進む。duration の間、
                        // WeaponSystem が今の位置に短い範囲を出し続ける（引き寄せ・減速は毎回、威力は tickInterval ごと）。見た目は CPU の VFX が付いて動く
+        Detonate = 4,  // 一斉起爆（2026-11-01）：空中の自分の弾を全部消し、それぞれの場所にこの範囲を 1 回出す（爆発と同じく tick 1 回）
     };
 
     std::string name = "NewArea";
@@ -80,9 +81,10 @@ struct AreaProfile
     float previewInterval = 1.5f;
 
     // 実際の tick 間隔（OneShot は 2 回目が来ない値）
-    float EffectiveTickInterval() const { return (kind == Kind::OneShot) ? 1.0e9f : tickInterval; }
+    float EffectiveTickInterval() const { return (kind == Kind::OneShot || kind == Kind::Detonate) ? 1.0e9f : tickInterval; }
     bool  IsBeam() const { return kind == Kind::Beam; }
     bool  IsRoam() const { return kind == Kind::Roam; }
+    bool  IsDetonate() const { return kind == Kind::Detonate; }
     uint32_t Flags(bool atCaster) const;
     // 追加値（毒素の割合・飛沫だけ）。Area::tickNow の上位 / AreaDef::extra に入れる（Swarm::kAreaExtra*）
     uint32_t Extra() const;

@@ -213,6 +213,8 @@ static const uint SWARM_MOTION_DROP = 3;
 // no enemy hits on the way, no terrain test, always lands on p3 and leaves
 // its hit area there.
 static const uint SWARM_MOTION_LOB = 4;
+// circles the player (2026-11-01): c1.x = rad/s, c1.y = radius m, c1.z = height offset m. Starts at the angle in path.sideSign
+static const uint SWARM_MOTION_ORBIT = 5;
 
 bool SwarmMotionLands(uint mode)
 {

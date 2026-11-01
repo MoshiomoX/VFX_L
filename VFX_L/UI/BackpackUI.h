@@ -125,6 +125,9 @@ private:
     void DrawHoverInfluence(SpriteRenderer& sprite, const BackpackComponent& bp);
     // 上級魔法（メテオ等）を掴んでいる / 指している間、前提の基本魔法の影響マスを全部見せる（どこに置けば目覚めるか）
     void DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp);
+    // 出口マスと、繋がっている先（2026-10-31。BackpackUIOutlet.cpp）
+    void DrawOutlets(SpriteRenderer& sprite, const BackpackComponent& bp);
+    void DrawDragOutlets(SpriteRenderer& sprite);
     void DrawDragged(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& mousePos);
     void DrawDropShadow(SpriteRenderer& sprite);
 

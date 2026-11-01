@@ -1,0 +1,53 @@
+{
+    "entries": [
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 17,
+                "sheet": 1, "frameMode": 1, "frameCount": 1, "blend": 1,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 0.0,
+                "emitRate": 60.0, "emitType": 0,
+                "endColorMax": [1.0, 1.0, 1.0, 0.0], "endColorMin": [1.0, 1.0, 1.0, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.16, 0.22], "maxParticles": 6,
+                "position": [0.0, 0.0, 0.0], "radius": 0.0, "renderMode": 0, "rotationRange": [0.0, 0.0],
+                "sizeRange": [2.6, 3.0, 5.0, 5.6], "speedRange": [0.0, 0.0], "spreadAngle": 0.0,
+                "startColorMax": [1.25, 1.25, 1.25, 0.7], "startColorMin": [1.15, 1.15, 1.15, 0.7]
+            },
+            "duration": 0.06, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 5,
+                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 3.0,
+                "emitRate": 2400.0, "emitType": 4,
+                "endColorMax": [1.0, 1.0, 1.0, 0.0], "endColorMin": [1.0, 1.0, 1.0, 0.0],
+                "gravity": [0.0, 0.0, 0.0], "innerRadius": 0.3, "lifetimeRange": [0.28, 0.42], "maxParticles": 120,
+                "position": [0.0, -0.6, 0.0], "radius": 0.4, "renderMode": 0, "rotationRange": [0.0, 6.28],
+                "sizeRange": [0.28, 0.40, 0.08, 0.12], "speedRange": [14.0, 18.0], "spreadAngle": 0.0,
+                "startColorMax": [1.40, 1.40, 1.40, 1.0], "startColorMin": [1.25, 1.25, 1.25, 1.0]
+            },
+            "duration": 0.05, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": {
+                "angularVelRange": [0.0, 0.0], "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "atlasIndex": 5,
+                "sheet": 1, "frameMode": 3, "frameCount": 3, "blend": 1, "streak": true, "stretch": 0.06,
+                "boxExtents": [1.0, 1.0, 1.0], "direction": [0.0, 1.0, 0.0], "dragCoeff": 1.0,
+                "emitRate": 700.0, "emitType": 2,
+                "endColorMax": [1.0, 1.0, 1.0, 0.0], "endColorMin": [1.0, 1.0, 1.0, 0.0],
+                "gravity": [0.0, -4.0, 0.0], "innerRadius": 0.0, "lifetimeRange": [0.3, 0.5], "maxParticles": 60,
+                "position": [0.0, -0.5, 0.0], "radius": 0.3, "renderMode": 0, "rotationRange": [0.0, 0.0],
+                "sizeRange": [0.16, 0.24, 0.05, 0.08], "speedRange": [11.0, 19.0], "spreadAngle": 16.0,
+                "startColorMax": [1.40, 1.40, 1.40, 1.0], "startColorMin": [1.20, 1.20, 1.20, 1.0]
+            },
+            "duration": 0.07, "startTime": 0.0, "type": "Particle"
+        },
+        {
+            "data": { "offset": [0.0, 0.3, 0.0], "color": [1.0, 1.0, 1.0], "radius": 5.0,
+                      "intensityStart": 1.2, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 0.0 },
+            "duration": 0.32, "startTime": 0.0, "type": "Light"
+        }
+    ],
+    "loop": false,
+    "name": "OutletBurst"
+}

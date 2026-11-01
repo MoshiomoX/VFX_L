@@ -66,8 +66,11 @@ namespace
                 { "poison", ItemID::Poison, 10.0f }, { "icespike", ItemID::IceSpike, 10.0f }, { "twister", ItemID::Twister, 10.0f },
                 { "meteor", ItemID::Meteor, 10.0f }, { "beam", ItemID::Beam, 10.0f },
             };
+            char only[64] = {};
+            GetEnvironmentVariableA("VFXL_BENCH_ONLY", only, sizeof(only));   // 10-30：その魔法だけ（例 gust）
             for (const Solo& s : list)
             {
+                if (only[0] && std::strcmp(only, s.name) != 0) continue;
                 Trial tr{ s.name, { { s.id, -1, -1 } }, {} };
                 tr.dist = s.dist;
                 t.push_back(tr);
@@ -250,8 +253,11 @@ void AutoTestSpellBench::Run()
         wand.castingPaused = false;
         const float gy = m_Swarm.GetAIParams().groundY;
         const Vector3 c = tf.position + Vector3(0.0f, 0.0f, tr.dist);
+        // 10-30：VFXL_BENCH_SPEED=<m/s> = 的が歩いて来る（突風に飛ばされても戻る）
+        char speedEnv[32] = {};
+        const float speed = (GetEnvironmentVariableA("VFXL_BENCH_SPEED", speedEnv, sizeof(speedEnv)) > 0) ? (float)std::atof(speedEnv) : 0.0f;
         if (s_Scene == 0)
-            m_Swarm.SpawnEnemy(Vector3(c.x, m_Grid.SampleHeight(c.x, c.z) + gy, c.z), kSingleHp, 0.0f);
+            m_Swarm.SpawnEnemy(Vector3(c.x, m_Grid.SampleHeight(c.x, c.z) + gy, c.z), kSingleHp, speed);
         else
         {
             // 半径 3m の円に一様（黄金角の渦巻き）
@@ -260,7 +266,7 @@ void AutoTestSpellBench::Run()
                 const float rr = 3.0f * std::sqrt(((float)i + 0.5f) / (float)kCrowd);
                 const float a = (float)i * 2.39996323f;
                 const float x = c.x + std::cos(a) * rr, z = c.z + std::sin(a) * rr;
-                m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + gy, z), (s_Scene == 2) ? kFodderHp : kCrowdHp, 0.0f);
+                m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + gy, z), (s_Scene == 2) ? kFodderHp : kCrowdHp, speed);
             }
         }
         s_PhaseT = m_AutoTime;
@@ -332,6 +338,26 @@ void AutoTestSpellBench::Run()
         (s_Scene == 0 ? s_Results[s_Trial].single : s_Results[s_Trial].crowd) = dps;
         snprintf(line, sizeof(line), "spellbench %s %s dps %.1f", name, s_Scene == 0 ? "single" : "crowd", dps);
         AutoTestLog(line);
+        {
+            // 測り終わりの的とプレイヤーの水平距離（突風などで飛ばされたか）
+            std::vector<Swarm::Enemy> en;
+            std::vector<uint32_t> st;
+            if (m_Swarm.DebugReadEnemies(en, st))
+            {
+                float sum = 0.0f, mx = 0.0f;
+                int n = 0;
+                for (size_t i = 0; i < en.size(); ++i)
+                {
+                    if (st[i] == Swarm::kStateDead) continue;
+                    const float dx = en[i].position.x - tf.position.x, dz = en[i].position.z - tf.position.z;
+                    const float d = std::sqrt(dx * dx + dz * dz);
+                    sum += d; mx = (std::max)(mx, d); ++n;
+                }
+                snprintf(line, sizeof(line), "spellbench %s %s dist avg %.2f max %.2f alive %d", name, s_Scene == 0 ? "single" : "crowd",
+                    n ? sum / n : 0.0f, mx, n);
+                AutoTestLog(line);
+            }
+        }
         if (tr.name == "poison" && s_Scene == 1) AutoTestLog("spellbench look poison");   // 毒沼の群れ
         if (tr.name == "poison+all4" && s_Scene == 1) AutoTestLog("spellbench look poisonall4");
         nextScene();

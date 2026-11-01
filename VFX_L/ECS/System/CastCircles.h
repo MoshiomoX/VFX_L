@@ -23,6 +23,8 @@ public:
         const DirectX::SimpleMath::Vector3& color);
     // feet = プレイヤーの足元。visible = false（死んだ等）で足元の魔法陣を消していく
     void Update(float dt, const DirectX::SimpleMath::Vector3& feet, bool visible);
+    // プレイヤーの登場（2026-11-01）: act > 0 の間は足元の魔法陣をこの濃さ・この大きさの倍率の金色で出す
+    void SetIntro(float act, float sizeMul) { m_IntroAct = act; m_IntroSize = sizeMul; }
     void Submit(VFXMeshRenderer& renderer);
     void DrawImGui();
 
@@ -55,6 +57,8 @@ private:
     float m_SinceCast = 1.0e9f;
     float m_FootSpin = 0.0f;
     float m_FootPulse = 0.0f;
+    float m_IntroAct = 0.0f;
+    float m_IntroSize = 1.0f;
     DirectX::SimpleMath::Vector3 m_FootColor = { 1.0f, 0.8f, 0.4f };
     DirectX::SimpleMath::Vector3 m_TargetColor = { 1.0f, 0.8f, 0.4f };
 

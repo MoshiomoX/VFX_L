@@ -53,8 +53,10 @@ void SwarmSystem::RenderProjTrails(CameraBase* camera)
     rcb.projection = camera->GetProjectionMatrix().Transpose();
     rcb.cameraPosition = camera->GetPosition();
     m_ProjTrailVS->WriteBuffer(m_Context, 0, &rcb);
+    m_ProjTrailVS->WriteBuffer(m_Context, 2, m_CarryColors);   // 出口魔法の帯の色
 
     m_ProjTrailVS->SetSRV(m_Context, "projectiles", m_ProjSRV.Get());
+    m_ProjTrailVS->SetSRV(m_Context, "projTags", m_ProjTagSRV.Get());
     m_ProjTrailVS->SetSRV(m_Context, "projStates", m_ProjStateSRV.Get());
     m_ProjTrailVS->SetSRV(m_Context, "recipeTrail", m_VFX.GetRecipeTrailSRV());
     m_ProjTrailVS->SetSRV(m_Context, "trailStyles", m_VFX.GetTrailStyleSRV());
