@@ -990,7 +990,7 @@ void ProjectileEditorScene::DrawAreaTab()
     if (p.kind == AreaProfile::Kind::Lasting)
         changed |= ImGui::Checkbox("Splash only (damage on the first tick)", &p.splashOnly);   // 泥沼：落ちた時だけダメージ、残る沼は減速だけ
     changed |= ImGui::Checkbox("Camera Shake", &p.cameraShake);   // 戦闘で出た時にカメラを揺らす（爆発だけ）
-    changed |= ImGui::SliderFloat("Grass Fire (heat)", &p.heat, 0.0f, 1.5f, "%.2f");   // 草に火を付ける熱（GrassFireField。0 = 付けない）
+    changed |= ImGui::SliderFloat("Grass Fire (heat, < 0 = cold)", &p.heat, -2.0f, 1.5f, "%.2f");   // 草に火を付ける熱（GrassFireField。0 = 付けない）
     if (p.kind != AreaProfile::Kind::Beam)
     {
         changed |= ImGui::SliderFloat("Push away (knockback)", &p.push, 0.0f, 1.0f, "%.2f");   // 突風：プレイヤーから離れる方へ（1 = 約 3.5m。エリート半分・ボス 0）

@@ -57,6 +57,7 @@ public:
     void Render(Registry& reg, Entity player);
     // TEMP-TEST: 動画の書き出しで UI を丸ごと描かない（冒頭・締めの映像。Debug/AutoTest/VideoShot）
     bool hideAll = false;
+    bool hideHud = false;   // HUD だけ隠す（「力尽きた」の幕は出す。プレイヤーの死の演出）
 
     // ImGui。UI 内部のデバッグ表示はここに集める。
     // 集約ログの表示と Force Rebuild のために aggregate を借りる

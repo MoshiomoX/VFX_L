@@ -652,6 +652,9 @@ namespace Res
         inline constexpr const char* ManaSurgeBurst = "Assets/Data/VFXData/ManaSurgeBurst.json";
         inline constexpr const char* PlayerArrive = "Assets/Data/VFXData/PlayerArrive.json";       // プレイヤーの登場
         inline constexpr const char* PlayerArrivePillar = "Assets/Data/VFXData/PlayerArrivePillar.json";   // 同：空から落ちる光の柱
+        inline constexpr const char* PlayerDeathBurst = "Assets/Data/VFXData/PlayerDeathBurst.json";       // プレイヤーの死
+        inline constexpr const char* PlayerDeathMotes = "Assets/Data/VFXData/PlayerDeathMotes.json";
+        inline constexpr const char* PlayerDeathShatter = "Assets/Data/VFXData/PlayerDeathShatter.json";
         inline constexpr const char* ManaSurgeAura = "Assets/Data/VFXData/ManaSurgeAura.json";
         inline constexpr const char* ShieldHit = "Assets/Data/VFXData/ShieldHit.json";
         inline constexpr const char* ShieldBreak = "Assets/Data/VFXData/ShieldBreak.json";

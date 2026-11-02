@@ -1,0 +1,33 @@
+{
+  "name": "PlayerDeathShatter",
+  "loop": false,
+  "entries": [
+    {
+      "type": "Particle", "startTime": 0.0, "duration": 0.06,
+      "data": {
+        "sheet": 0, "atlasIndex": 0, "frameMode": 1, "frameCount": 1, "atlasAnimate": false, "atlasCols": 6, "atlasRows": 6, "blend": 0,
+        "emitType": 4, "position": [0, 0.25, 0], "direction": [0, 1, 0], "radius": 2.85, "innerRadius": 0.6, "spreadAngle": 0, "boxExtents": [1, 1, 1],
+        "emitRate": 1800, "maxParticles": 110, "lifetimeRange": [0.55, 1.0], "speedRange": [0.4, 1.8],
+        "sizeRange": [0.06, 0.13, 0.01, 0.02], "rotationRange": [0, 360], "angularVelRange": [-8, 8],
+        "startColorMin": [1.0, 0.62, 0.16, 1], "startColorMax": [1.15, 0.78, 0.26, 1], "endColorMin": [1.0, 0.5, 0.12, 0], "endColorMax": [1.0, 0.5, 0.12, 0],
+        "gravity": [0, 3.0, 0], "dragCoeff": 0.8, "renderMode": 1,
+        "mesh": "", "meshGlow": true, "meshFaceVelocity": false, "meshForwardAxis": 2
+      }
+    },
+    {
+      "type": "Particle", "startTime": 0.0, "duration": 0.05,
+      "data": {
+        "sheet": 1, "atlasIndex": 5, "frameMode": 3, "frameCount": 3, "atlasAnimate": false, "atlasCols": 10, "atlasRows": 8, "blend": 1,
+        "emitType": 4, "position": [0, 0.25, 0], "direction": [0, 1, 0], "radius": 2.85, "innerRadius": 2.6, "spreadAngle": 0, "boxExtents": [1, 1, 1],
+        "emitRate": 2800, "maxParticles": 130, "lifetimeRange": [0.3, 0.55], "speedRange": [2, 6],
+        "sizeRange": [0.12, 0.2, 0.03, 0.06], "rotationRange": [0, 6.28], "angularVelRange": [0, 0],
+        "startColorMin": [1.4, 1.0, 0.35, 1], "startColorMax": [1.55, 1.2, 0.5, 1], "endColorMin": [1.2, 0.65, 0.18, 0], "endColorMax": [1.2, 0.65, 0.18, 0],
+        "gravity": [0, 1, 0], "dragCoeff": 1.5, "renderMode": 0
+      }
+    },
+    {
+      "type": "Light", "startTime": 0.0, "duration": 0.45,
+      "data": { "offset": [0, 0.6, 0], "color": [1.0, 0.72, 0.3], "radius": 8.0, "intensityStart": 1.4, "intensityEnd": 0.0, "flicker": 0.0, "flickerSpeed": 0 }
+    }
+  ]
+}

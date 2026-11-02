@@ -81,6 +81,9 @@ enum class VFXId : uint32_t
     ManaSurgeBurst, // 魔力解放の瞬間
     PlayerArrive,   // プレイヤーの登場（集まる光 + 立ち上がる光 + 閃光。2026-11-01）
     PlayerArrivePillar, // 同：空から足元へ落ちる光の柱（Beam。始点が空なので別のエフェクトにしている）
+    PlayerDeathBurst,   // プレイヤーの死：倒れた瞬間の金の爆ぜ
+    PlayerDeathMotes,   // 同：溶ける体から立ち上る光の粒
+    PlayerDeathShatter, // 同：足元の魔法陣が砕ける
     ManaSurgeAura,  // 魔力解放の間
     ShieldHit,      // シールドで受けた
     ShieldBreak,    // シールドが割れた

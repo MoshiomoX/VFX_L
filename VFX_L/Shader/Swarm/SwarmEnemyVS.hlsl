@@ -31,6 +31,9 @@ StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 StructuredBuffer<float4> enemySlow : register(t4);
 // stored toxin per slot (x = damage still to drain, the poison pools, 2026-10-17): the body turns a sickly green
 StructuredBuffer<float4> enemyPoison : register(t6);
+#define SWARM_ICE_MAP_REG t7
+#define SWARM_POND_TOP_REG t8
+#include "../Common/SwarmIceLift.hlsli"
 static const float3 kPoisonTint = float3(0.55, 1.15, 0.45);
 
 // bomber blink: starts at this many blinks per second, ends at the second value
@@ -557,9 +560,11 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
 
     float3 worldPos = RotateY(local, s, c) + e.position;
-    // the floating sand djinn (2026-10-29): drawn g_BossHover above its ground position, bobbing slowly
+    if (g_IceOn > 0.5)
+        worldPos.y += IceLift(e.position.xz, e.position.y - g_GroundY);
+    // a floating boss bobs slowly (its height g_BossHover is already in its position: MoveCS)
     if (extra.kind == SWARM_KIND_BOSS && g_BossHover > 0.0)
-        worldPos.y += g_BossHover + 0.18 * saturate(g_BossHover) * sin(g_AnimTime * 1.3);
+        worldPos.y += 0.18 * saturate(g_BossHover) * sin(g_AnimTime * 1.3);
     // ghost: hovers and bobs (the gameplay position stays on the ground)
     if (SwarmIsGhost(extra.kind))
         worldPos.y += g_GhostHover + 0.15 * sin(g_AnimTime * 3.0 + (float) slot * 0.7);

@@ -117,7 +117,10 @@ public:
     // 局所の風源（砂旋。SwarmSystem::GetWindSourceSRV、2026-10-19）。Render の前に毎フレーム。null = 無し
     void SetWindSources(ID3D11ShaderResourceView* srv) { m_WindSourceSRV = srv; }
     // 燃え跡：温度（x）・燃料（y）のテクスチャ（GrassFireField::GetSRV）と、燃えていると見なす温度。null = 無し
-    void SetFire(ID3D11ShaderResourceView* fire, float ignite) { m_FireSRV = fire; m_FireIgnite = ignite; }
+    void SetFire(ID3D11ShaderResourceView* fire, float ignite, ID3D11ShaderResourceView* dry)
+    {
+        m_FireSRV = (fire && dry) ? fire : nullptr; m_FireIgnite = ignite; m_DryPatchSRV = dry;
+    }
     // 突風（2026-10-12）：次の描画で 1 回、踏み跡の図へ押し倒しの型を押す（踏み跡の回復で起き上がる）。
     // dir / length が 0 なら pos を中心に外向きの円盤、それ以外は pos から dir へ length m 伸びる扇
     // （根元は細く、先で半径 radius）で、草は風下へ倒れる（2026-10-13）。
@@ -243,6 +246,7 @@ private:
     DirectX::SimpleMath::Vector3 m_Player;
     float m_TrampleNow = 0.0f;   // 今フレームの踏む円の半径（浮いている時 0）
     WindState m_Wind;
+    ID3D11ShaderResourceView* m_DryPatchSRV = nullptr;   // 非所有（GrassFireField の枯れ草の帯）
     ID3D11ShaderResourceView* m_FireSRV = nullptr;   // 非所有（GrassFireField の物。毎フレーム SetFire で渡される）
     float m_FireIgnite = 0.4f;
     // 突風（AddGust）。次の Render で 1 回だけ押して 0 本に戻す

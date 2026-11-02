@@ -497,6 +497,11 @@ public:
     // 燃えている草からの粒子（2026-10-12、GrassFireField）。毎フレーム Flush の前に渡す。null = 出さない。
     // 発射は弾・範囲の直後（Swarm/SwarmSystemFire.cpp）
     void SetGrassFire(const GrassFireEmitInput* in);
+    // 凍った池の上で体を持ち上げる（2026-11-01）。WaterSurface::GetIceSRV / GetPondTopSRV（null = 無し）。Flush の前に毎フレーム
+    void SetIceMaps(ID3D11ShaderResourceView* ice, ID3D11ShaderResourceView* pondTop);
+    // 燃えている草の上の敵へのダメージ（2026-11-01）。fireMap = GrassFireField::GetSRV（null = 無し）。Flush の前に毎フレーム
+    void SetGrassFireDamage(ID3D11ShaderResourceView* fireMap, const DirectX::SimpleMath::Vector2& origin,
+        const DirectX::SimpleMath::Vector2& size, float damage, float tick);
     // 範囲の池（GrassFireField が熱源として読む。SRV なので CS の UAV と同じフレームで使わない所で）
     ID3D11ShaderResourceView* GetAreaSRV() const { return m_AreaSRV.Get(); }
     ID3D11ShaderResourceView* GetAreaStateSRV() const { return m_AreaStateSRV.Get(); }
@@ -523,6 +528,7 @@ public:
     const LocalWind& GetLocalWind() const { return m_LocalWind; }
     ID3D11ShaderResourceView* GetEnemySRV() const { return m_EnemySRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyStateSRV() const { return m_EnemyStateSRV.Get(); }
+    ID3D11UnorderedAccessView* GetEnemySlowUAV() const { return m_EnemySlowUAV.Get(); }   // 氷の上の雑魚（WaterStirCS）
     ID3D11ShaderResourceView* GetEnemyExtraSRV() const { return m_EnemyExtraSRV.Get(); }
 
     // ---- ImGui 表示用 ----
@@ -944,6 +950,10 @@ private:
     std::shared_ptr<ComputeShader> m_AreaTickCS;     // 時計を進める・プレイヤーに追従・tick の判定（命中の直後）
     std::shared_ptr<ComputeShader> m_AreaDamageCS;   // tick した範囲の中の雑魚へダメージ
     std::shared_ptr<ComputeShader> m_AreaEmitCS;     // GPU が出した範囲（弾の命中）から粒子を発射
+    ID3D11ShaderResourceView* m_FireMapSRV = nullptr;   // 非所有（GrassFireField）
+    ID3D11ShaderResourceView* m_IceMapSRV = nullptr;    // 非所有（WaterSurface）
+    ID3D11ShaderResourceView* m_PondTopSRV = nullptr;
+    float m_FireClock = 0.0f;
     std::shared_ptr<ComputeShader> m_FireEmitCS;     // 燃えている草から粒子を発射（Shader/Grass/GrassFireEmitCS）
     std::shared_ptr<ComputeShader> m_LightCollectCS;     // 弾の点光源を PointLightManager へ追記
     std::shared_ptr<ComputeShader> m_AreaLightCollectCS; // 範囲の分

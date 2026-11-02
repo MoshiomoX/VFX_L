@@ -39,6 +39,7 @@ Texture2D<float4> g_Ground : register(t1); // rgb = ground color (linear), a = 1
 Texture2D<float2> g_Trample : register(t2);
 Texture2D<float2> g_Fire : register(t3);   // x = temperature, y = fuel left (0..1)
 StructuredBuffer<WindSource> g_WindSources : register(t4);   // local wind (twisters, vortex, sand tornadoes, gusts)
+Texture2D<float> g_DryPatch : register(t5);  // 1 = the dry grass that can burn (GrassFireField); bound while g_FireOn
 SamplerState s_Linear : register(s0);      // clamp
 AppendStructuredBuffer<GrassBlade> g_OutBlades : register(u0);
 RWBuffer<uint> g_BladeBudget : register(u1);   // [0] = slots reserved so far this frame (cleared to 0 by the CPU)
@@ -137,6 +138,12 @@ void FinishBlade(float2 xz, float2 uv, float yaw, float curl, float rTwist, floa
     b.sheen = max(b.sheen, max(curlUp, lay * 0.6));
     b.twist = (rTwist * 2.0 - 1.0) * g_BladeShape.x + curlUp * g_Vortex.w * (rTwist < 0.5 ? -1.0 : 1.0);
     b.dry = rDry < g_BladeShape.y ? 0.55 + 0.45 * (rDry / max(g_BladeShape.y, 1e-3)) : 0.0;
+    if (g_FireOn > 0.5)
+    {
+        float patch = g_DryPatch.SampleLevel(s_Linear, uv, 0);
+        if (patch > 0.01)
+            b.dry = 1.0 + patch;   // 1..2 = straw (GrassPS): this can burn
+    }
     b.side = side;
     b.pad = float2(0.0, 0.0);
 }

@@ -73,8 +73,8 @@ void main(uint3 id : SV_DispatchThreadID)
     SwarmEnemy e = enemies[i];
     SwarmEnemyExtra ex = enemyExtra[i];
     uint kind = ex.kind;
-    // a gargoyle killed in the air (2026-10-25): its pieces and dust start from the ground under it
-    e.position.y -= SwarmGargoyleHover(ex);
+    // killed in the air (a gargoyle 2026-10-25, a flying boss): its pieces and dust start from the ground under it
+    e.position.y -= SwarmBodyHover(ex);
     // the cursed armor's first death (2026-10-25): it collapses into a heap instead of shattering, and the CPU
     // (MobSpawner) raises the revived armor here a few seconds later. The heap / dust are the CPU's effects
     if (kind == SWARM_KIND_ARMOR)

@@ -160,7 +160,7 @@ void WaterSurface::GatherStirs()
     const float dt = (std::min)(m_StirDt, 0.1f);
     m_StirDt = 0.0f;
     const auto& s = m_Settings;
-    if (!s.mobWake || !m_StirCS || !m_StirUAV || !m_EnemySRV || !m_EnemyStateSRV || !m_EnemyExtraSRV || dt <= 0.0f) return;
+    if (!s.mobWake || !m_StirCS || !m_StirUAV || !m_EnemySRV || !m_EnemyStateSRV || !m_EnemyExtraSRV || !m_EnemySlowUAV || dt <= 0.0f) return;
 
     StirCB cb = {};
     cb.mapOrigin = m_MapOrigin;
@@ -175,6 +175,7 @@ void WaterSurface::GatherStirs()
     cb.stride = (std::max)(s.mobStride, 0.1f);
     cb.time = m_Time;
     cb.groundY = m_EnemyGroundY;
+    cb.iceSlow = s.iceSlow;
     m_StirCS->WriteBuffer(ctx, 0, &cb);
     m_StirCS->Bind(ctx);
     m_StirCS->SetSRV(ctx, "g_Enemies", m_EnemySRV);
@@ -182,8 +183,10 @@ void WaterSurface::GatherStirs()
     m_StirCS->SetSRV(ctx, "g_EnemyExtra", m_EnemyExtraSRV);
     m_StirCS->SetSRV(ctx, "g_Mask", m_MaskSRV.Get());
     m_StirCS->SetSRV(ctx, "g_Height", m_GroundSRV);
+    m_StirCS->SetSRV(ctx, "g_Ice", m_IceSRV.Get());
     m_StirCS->SetUAV(ctx, "g_Stirs", m_StirUAV.Get());
     m_StirCS->SetUAV(ctx, "g_StirCount", m_StirCountUAV.Get());
+    m_StirCS->SetUAV(ctx, "g_EnemySlow", m_EnemySlowUAV);
     m_StirCS->BindUAVs(ctx);
     ctx->Dispatch((kEnemyThreads + 255) / 256, 1, 1);
     m_StirCS->UnbindSRVs(ctx);
@@ -228,6 +231,7 @@ void WaterSurface::StepRipples(ID3D11ShaderResourceView* areas, ID3D11ShaderReso
         m_RippleCS->Bind(ctx);
         m_RippleCS->SetSRV(ctx, "g_In", m_RippleSRV[m_Cur].Get());
         m_RippleCS->SetSRV(ctx, "g_Mask", m_MaskSRV.Get());
+        m_RippleCS->SetSRV(ctx, "g_Ice", m_IceSRV.Get());
         m_RippleCS->SetSRV(ctx, "g_Areas", areas);
         m_RippleCS->SetSRV(ctx, "g_AreaStates", areaStates);
         m_RippleCS->SetSRV(ctx, "g_SeenIn", m_SeenSRV[m_SeenCur].Get());

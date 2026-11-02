@@ -13,6 +13,8 @@
 //   still    body color in three toon steps from the shore to the middle,
 //            a thin foam line on the shore (wider when a wave arrives),
 //            the sun's hard glint, the sky in the toon fresnel
+//   ice      a pale sheet with cracks where g_Ice is frozen (WaterIceCS),
+//            melting from scattered spots as it runs out (2026-11-01)
 // Premultiplied alpha (ONE, INV_SRC_ALPHA), depth read only.
 // The light cbuffer sits at b1 because WaterCB owns b0.
 // ============================================================
@@ -23,6 +25,7 @@
 
 Texture2D<float4> g_Ripple : register(t0);   // x = height (m), y = last step's; zw = the same for the big waves only
 StructuredBuffer<WindSource> g_WindSources : register(t1);
+Texture2D<float> g_Ice : register(t2);       // 1 = just frozen .. 0 = open water (WaterIceCS)
 SamplerState g_Linear : register(s0);
 
 // ---- gradient noise with analytic derivatives (value, d/dx, d/dy) ----
@@ -50,6 +53,24 @@ float3 NoiseD(float2 p)
     float2 d = ga + u.x * (gb - ga) + u.y * (gc - ga) + u.x * u.y * (ga - gb - gc + gd)
              + du * (u.yx * (va - vb - vc + vd) + float2(vb, vc) - va);
     return float3(v, d);
+}
+
+// ---- cracks in the ice: lines along the cell borders of a Voronoi pattern (1 on a crack) ----
+float IceCrack(float2 p)
+{
+    float2 cell = floor(p);
+    float2 f = p - cell;
+    float d1 = 8.0, d2 = 8.0;
+    for (int y = -1; y <= 1; ++y)
+        for (int x = -1; x <= 1; ++x)
+        {
+            float2 g = float2(x, y);
+            float2 o = 0.5 + 0.5 * WaterHash(cell + g);
+            float d = length(g + o - f);
+            if (d < d1) { d2 = d1; d1 = d; }
+            else if (d < d2) d2 = d;
+        }
+    return 1.0 - smoothstep(0.015, 0.05, d2 - d1);
 }
 
 // ---- the ripple field, smoothed: cubic B-spline in 4 bilinear taps ----
@@ -235,6 +256,19 @@ float4 main(WaterOut i) : SV_TARGET
     float white = saturate(max(crest * 0.85, foam));
     c = lerp(c, g_Foam.rgb * light, white);
     alpha = lerp(alpha, 1.0, white);
+
+    // ---- ice: a pale sheet over the water, cracked; it melts from scattered spots near the end ----
+    float iceV = g_Ice.SampleLevel(g_Linear, uv, 0);
+    float meltAt = 0.04 + 0.30 * saturate(0.5 + NoiseD(xz * 0.9 + float2(7.1, 2.9)).x);
+    float ice = smoothstep(meltAt - 0.02, meltAt + 0.02, iceV);
+    if (ice > 0.001)
+    {
+        float crack = max(IceCrack(xz * 0.55), 0.6 * IceCrack(xz * 1.7 + float2(3.3, 8.1)));
+        float3 sheet = lerp(float3(0.55, 0.78, 0.92), float3(0.86, 0.95, 1.0), crack);
+        float3 iceCol = sheet * light + sky * 0.18;
+        c = lerp(c, iceCol, ice);
+        alpha = lerp(alpha, 0.95, ice);
+    }
 
     // ---- the sun's glint: a hard window, only where the surface tilts toward it ----
     float3 H = normalize(V + L);

@@ -99,7 +99,10 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
 
     // 水たまりの中か（足が水面より下）。中なら小石の代わりに水しぶき・波紋・水の足音（2026-10-27）
     float waterY = 0.0f;
-    const bool inWater = waterFx && water && water->WaterAt(feet.x, feet.z, waterY) && feet.y < waterY - 0.03f;
+    const bool overWater = waterFx && water && water->WaterAt(feet.x, feet.z, waterY);
+    const bool onIce = overWater && water->FrozenAt(feet.x, feet.z);   // 氷の上：水しぶきも小石も出さない（2026-11-01）
+    const bool inWater = overWater && !onIce && feet.y < waterY - 0.03f;
+    m_OnIce = onIce;
     const Vector3 surf(feet.x, waterY, feet.z);   // 足元の水面（inWater の時だけ意味がある）
     const Vector3 white(1.0f, 1.0f, 1.0f);
 
@@ -148,7 +151,7 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
                 water->AddRipple(s, water->GetSettings().stepRadius * 1.5f, water->GetSettings().stepStrength * 1.6f);
                 AudioSystem::Get().Play("water_step");
             }
-            else
+            else if (!onIce)
                 Play(kJumpDust, feet, 0.0f, 1.0f, dustTint);
         }
         if (airJumps > m_PrevAirJumps)
@@ -164,7 +167,7 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
                 water->AddRipple(surf, ws.landRadius * (heavy ? 1.4f : 1.0f), ws.landStrength * (heavy ? 1.6f : 1.0f));
                 AudioSystem::Get().Play("water_land");
             }
-            else
+            else if (!onIce)
                 Play(heavy ? kLandDustHeavy : kLandDust, feet, 0.0f, 1.2f, dustTint);
         }
     }
@@ -192,7 +195,7 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
                 water->AddRipple(surf + side, ws.stepRadius, ws.stepStrength);
                 AudioSystem::Get().Play("water_step");
             }
-            else
+            else if (!onIce)
                 Play(kFootDust, feet + side, moveYaw, 1.0f, dustTint);
         }
     }
@@ -212,7 +215,7 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
                 Play(VFXId::WaterSlide, surf, moveYaw, 1.0f, white);
                 water->AddRipple(surf, water->GetSettings().stepRadius * 1.6f, water->GetSettings().stepStrength * 0.8f);
             }
-            else
+            else if (!onIce)
                 Play(kSlideDust, feet, moveYaw, 1.0f, dustTint);
         }
     }

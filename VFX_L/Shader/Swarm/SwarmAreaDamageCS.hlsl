@@ -28,6 +28,10 @@
 // but different recipes do (2026-10-26: a Spore cloud on top of a Poison Pool
 // is both). A splash-only area (the Swamp) deals its damage on its first
 // tick only.
+//
+// Burning grass (2026-11-01, GrassFireField): an enemy standing on a burning
+// texel takes g_FireDamage every g_FireTick seconds, each slot on its own beat,
+// through the same kill path. Fliers and buried enemies are out of its reach.
 // ============================================================
 #define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
@@ -36,6 +40,7 @@ StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2);
 StructuredBuffer<float4> areaEnds : register(t3); // capsule (beam) end per slot, written by AreaTickCS
+Texture2D<float4> g_FireMap : register(t4);       // z = burning (GrassFireField), bound while g_FireOn
 
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWBuffer<uint> enemyStates : register(u1);
@@ -51,6 +56,7 @@ RWStructuredBuffer<float4> enemyPush : register(u6);
 RWStructuredBuffer<float4> enemyPoison : register(u7);
 
 static const uint HP_CORPSE_BIT = 0x80000000u;
+static const uint SWARM_ELEMENT_FIRE = 1u;   // = Swarm::DamageElement::Fire
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -63,7 +69,13 @@ void main(uint3 id : SV_DispatchThreadID)
     if (stateNow == SWARM_DEAD)
         return;
     float4 poison = enemyPoison[j];
-    if (!ticking && poison.x <= 0.0)
+    bool fireBeat = false;
+    if (g_FireOn > 0.5 && g_FireTick > 0.0)
+    {
+        float beat = g_FireClock / g_FireTick + frac((float) j * 0.618034);
+        fireBeat = floor(beat) != floor(beat - g_Step / g_FireTick);
+    }
+    if (!ticking && poison.x <= 0.0 && !fireBeat)
         return;
 
     float3 epos = enemies[j].position;
@@ -83,6 +95,21 @@ void main(uint3 id : SV_DispatchThreadID)
     float hitElemDmg = 0.0;
 
     float total = 0.0;
+
+    // ---- the grass burning under its feet ----
+    if (fireBeat && !buried && !SwarmFliesThrough(extra))
+    {
+        float2 fuv = (epos.xz - float2(g_FireOriginX, g_FireOriginZ)) / float2(g_FireSizeX, g_FireSizeZ);
+        uint fw, fh;
+        g_FireMap.GetDimensions(fw, fh);
+        if (all(fuv >= 0.0) && all(fuv < 1.0) && g_FireMap.Load(int3(int2(fuv * float2(fw, fh)), 0)).z > 0.5)
+        {
+            float burn = SwarmTakenDamage(j, kind, g_FireDamage);
+            total += burn;
+            hitElemDmg = burn;
+            hitElem = SWARM_ELEMENT_FIRE;
+        }
+    }
     bool stun = false;
     float freeze = 0.0;   // longest freeze among the areas this enemy stands in (SwarmAreaFreeze)
     float iceDamage = 0.0; // strongest freezing area (not summed, see below)

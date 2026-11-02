@@ -170,7 +170,7 @@ void CollisionTestScene::ActivateSelectWorld(int map)
     gs.heightMax = def.grassHeightMax;
     m_StaticProps.Build(m_Registry);
     m_Grass.Build(m_Grid, m_GrassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);
-    m_GrassFire.Build(m_Grid);
+    m_GrassFire.Build(m_Grid, m_TerrainConfig.seed);
     m_GrassFire.SetActive(def.grass && gs.enabled);
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());
     m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);   // 水たまりの水面（2026-10-27）

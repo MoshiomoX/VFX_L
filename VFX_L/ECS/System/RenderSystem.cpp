@@ -194,7 +194,20 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
                 const Matrix world = SkinnedWorld(tf, a);
 
                 SetStencil(ctx, StencilRefFor(reg, e));   // 陣営のアウトライン（プレイヤー = 味方、エリート = 敵）
-                a.gpu->Render(ctx, *a.model, light, world, view, proj, a.hitFlash, a.hitFlashColor);
+                DissolveParams dp;   // プレイヤーの死（2026-11-01）
+                const DissolveParams* pdp = nullptr;
+                if (reg.Has<DissolveComponent>(e) && reg.Get<DissolveComponent>(e).noise)
+                {
+                    const auto& d = reg.Get<DissolveComponent>(e);
+                    dp.noise = d.noise->GetSRV();
+                    dp.tiling = d.tiling;
+                    dp.scroll = d.scroll;
+                    dp.threshold = d.Threshold();
+                    dp.edge = d.edge;
+                    dp.edgeColor = d.edgeColor;
+                    pdp = &dp;
+                }
+                a.gpu->Render(ctx, *a.model, light, world, view, proj, a.hitFlash, a.hitFlashColor, pdp);
                 drewAny = true;
             });
     SetStencil(ctx, 0);

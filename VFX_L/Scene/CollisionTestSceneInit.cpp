@@ -204,7 +204,7 @@ void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device
     if (!m_GrassFire.Initialize(device, context))
         std::cout << "[Error] GrassFireField init failed" << std::endl;
     m_GrassFire.SetActive(stageDef.grass && m_Grass.GetSettings().enabled);
-    m_GrassFire.Build(m_Grid);
+    m_GrassFire.Build(m_Grid, m_TerrainConfig.seed);
     // 地面の落ち葉（風が触れる物。草の高さテクスチャに乗る）
     if (!m_Debris.Initialize(device, context))
         std::cout << "[Error] GroundDebris init failed" << std::endl;

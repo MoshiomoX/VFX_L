@@ -1,8 +1,7 @@
 // ============================================================
 // GrassFireEmitCS.hlsl
 // Particles from burning grass (World/GrassFireField, 2026-10-12).
-// One thread per texel of the fire map. A burning texel (temperature
-// over g_Ignite, fuel left, grass grows here) near the camera emits
+// One thread per texel of the fire map. A burning texel near the camera emits
 // from every emitter of the GrassFire recipe (VFXId::GrassFire) at the
 // ground height, rate x intensity x g_RateMul.
 //
@@ -38,7 +37,7 @@ struct FireRecipe
     uint spriteCount;
 };
 
-Texture2D<float2> fireMap : register(t0);        // (temperature, fuel)
+Texture2D<float3> fireMap : register(t0);        // (temperature, fuel, burning)
 Texture2D<float4> groundMap : register(t1);      // a = grass
 StructuredBuffer<FireRecipe> recipes : register(t2);
 StructuredBuffer<GPUEmitter> emitters : register(t3);
@@ -57,8 +56,8 @@ void main(uint3 id : SV_DispatchThreadID)
     if (id.x >= w || id.y >= h)
         return;
 
-    float2 f = fireMap.Load(int3(id.xy, 0));
-    if (f.x <= g_Ignite || f.y <= 0.001)
+    float3 f = fireMap.Load(int3(id.xy, 0));
+    if (f.z < 0.5)
         return;
 
     float2 uv = (float2(id.xy) + 0.5) / float2(w, h);

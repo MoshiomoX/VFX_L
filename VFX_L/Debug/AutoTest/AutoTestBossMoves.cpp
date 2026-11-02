@@ -119,11 +119,12 @@ namespace
     // 石の守護獣（2026-10-29）：一段目（飛ぶ）→ "roar" で半分まで削って二段目（降りる）
     const Trial kBeastTrials[] = {
         { BossMove::BeastDive,     14.0f, Dodge::None, 0.6f, 1.25f, 3.5f, "dive" },
+        // すぐ後に置く：天からの圧殺は Boss を動かすので、その後だと横へ走る先が壁になる（2026-11-01）
+        { BossMove::BeastDive,     14.0f, Dodge::Side, 0.6f, 1.25f, 3.5f, "dive-side", 0.3f, 1.2f },
         { BossMove::SkyCrush,      10.0f, Dodge::None, 1.5f, 3.3f, 6.0f, "crush" },
         { BossMove::SkyCrush,      10.0f, Dodge::Away, 1.5f, 3.3f, 6.0f, "crush-away", 2.3f, 0.9f },
         { BossMove::FeatherShards, 10.0f, Dodge::None, 0.5f, 1.25f, 3.4f, "shards" },
         { BossMove::FeatherShards, 10.0f, Dodge::Weave, 0.5f, 1.25f, 3.4f, "shards-weave", 0.9f, 0.5f },
-        { BossMove::BeastDive,     14.0f, Dodge::Side, 0.6f, 1.25f, 3.5f, "dive-side", 0.3f, 1.2f },
         { BossMove::PetrifyBreath,  8.0f, Dodge::None, 0.8f, 2.4f, 4.6f, "breath" },
         { BossMove::PetrifyBreath,  8.0f, Dodge::Away, 0.8f, 2.0f, 4.0f, "breath-away", 0.2f, 2.6f },
         { BossMove::WingGust,       8.0f, Dodge::None, 0.6f, 1.15f, 3.2f, "gust" },

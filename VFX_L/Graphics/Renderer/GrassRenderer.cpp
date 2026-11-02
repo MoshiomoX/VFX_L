@@ -365,7 +365,11 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     m_CullCS->SetSRV(ctx, "g_Height", m_HeightSRV.Get());
     m_CullCS->SetSRV(ctx, "g_Ground", m_GroundSRV.Get());
     m_CullCS->SetSRV(ctx, "g_Trample", m_TrampleSRV[m_TrampleCur].Get());
-    if (m_FireSRV) m_CullCS->SetSRV(ctx, "g_Fire", m_FireSRV);
+    if (m_FireSRV)
+    {
+        m_CullCS->SetSRV(ctx, "g_Fire", m_FireSRV);
+        m_CullCS->SetSRV(ctx, "g_DryPatch", m_DryPatchSRV);
+    }
     if (m_WindSourceSRV) m_CullCS->SetSRV(ctx, "g_WindSources", m_WindSourceSRV);
     ctx->CSSetSamplers(0, 1, &linearClamp);
     // 枠の予約数を 0 から（kMaxBlades を超えた葉は Append しない = 描く本数がバッファを超えない。2026-10-25）

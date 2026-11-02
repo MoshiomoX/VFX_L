@@ -86,6 +86,9 @@ public:
         float rainStrength = 0.025f;
         float blastStrength = 0.20f;  // 水の上の爆発（kAreaShake の範囲が出た瞬間）
         float areaStrength = 0.05f;   // その他の範囲が出た瞬間（毒瓶・泥沼の着弾など）
+        // ---- 氷（2026-11-01。WaterIce.cpp）----
+        float iceLife = 7.0f;         // 凍ってから融けるまで（秒）
+        float iceSlow = 0.45f;        // 氷の上の雑魚の遅さ（エリート・Boss は半分。プレイヤーは遅くならない）
     };
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
@@ -120,6 +123,16 @@ public:
         m_EnemySRV = enemies; m_EnemyStateSRV = states; m_EnemyExtraSRV = extra; m_GroundSRV = heights; m_EnemyGroundY = groundY;
     }
 
+    // 冷たい物の表（GrassFireField::GetHeatSRV）・氷の上の雑魚を遅くする先（SwarmSystem::GetEnemySlowUAV）。Render の前に毎フレーム
+    void SetIceSources(ID3D11ShaderResourceView* heat, ID3D11UnorderedAccessView* enemySlow) { m_HeatSRV = heat; m_EnemySlowUAV = enemySlow; }
+    // 氷の上を歩く（2026-11-01、ユーザー：足が氷に沈む・氷の上で水しぶきが出る）。
+    // プレイヤーの周りの氷を毎フレーム読み戻す。FrozenAt はその範囲（± 約 2m）だけ答える（2〜3 フレーム遅れ）
+    void SetIceProbe(const Vector3& pos) { m_IceProbePos = pos; }
+    bool FrozenAt(float x, float z) const;
+    // 雑魚の体を氷の上へ持ち上げる VS 用（SwarmSystem::SetIceMaps）
+    ID3D11ShaderResourceView* GetIceSRV() const { return (m_IceCS && HasWater()) ? m_IceSRV.Get() : nullptr; }
+    ID3D11ShaderResourceView* GetPondTopSRV() const { return m_PondTopSRV.Get(); }
+
     // 草の後：波紋を進めて描く。areas / areaStates = SwarmSystem::GetAreaSRV / GetAreaStateSRV（範囲が出た瞬間に波紋）、
     // windSources = SwarmSystem::GetWindSourceSRV（null = 無し）
     void Render(Renderer& renderer, CameraBase& camera,
@@ -137,8 +150,12 @@ public:
     // TEMP-TEST: (cx, cz) の周り ±half m の波紋を PGM に書く（左 = 全部の波 x、右 = 大きな波 z。±0.05m → 0〜255）
     bool DebugDumpRipples(const char* path, float cx, float cz, float half) const;
     uint32_t PondCells() const { return m_PondCells; }
+    // TEMP-TEST: 凍っている texel の数（Map で GPU を待つ。自動テストだけ）
+    float DebugIceCells() const;
 
     static constexpr int kRippleSize = 1024;   // 波紋のテクスチャの辺（200m のフィールドで 0.2m / texel）
+    static constexpr float kIceSolid = 0.05f;  // = WaterRippleCS の RIPPLE_ICE_SOLID（ここから下は水）
+    static constexpr int kIceSize = 256;       // 氷のテクスチャの辺（波紋の 1/4。WaterRippleCS / WaterStirCS / WaterIceCS が同じ比で読む）
     static constexpr int kMaxImpulses = 16;
     static constexpr int kAreaSlots = 256;     // = Swarm::kMaxAreas（WaterRippleCS の RIPPLE_MAX_AREAS）
 
@@ -177,14 +194,26 @@ public:
         Vector2 mapOrigin, mapSize;
         float strength, radius, minSpeed, dt;
         uint32_t maxStirs, hasHeight; float stepStrength, stride;
-        float time, groundY; float _pad[2];
+        float time, groundY, iceSlow, _pad;
     };
     static_assert(sizeof(StirCB) == 64, "StirCB must match WaterStirCB");
+    // HLSL の WaterIceCB（Shader/Water/WaterIceCS.hlsl）と同じ並び（32B）
+    struct IceCB
+    {
+        Vector2 mapOrigin, mapSize;
+        float dt, life, _pad[2];
+    };
+    static_assert(sizeof(IceCB) == 32, "IceCB must match WaterIceCB");
     static constexpr int kMaxStirs = 128;   // 水の中を歩く雑魚の押しの数（1 フレーム。WaterRippleCS の RIPPLE_MAX_STIRS）
     static constexpr int kEnemyThreads = 4096;   // = Swarm::kMaxEnemies（WaterStirCS は池の大きさを自分で見て余りは返る）
 
 private:
     bool CreateRippleTargets();   // WaterRipples.cpp
+    bool CreateIce();             // WaterIce.cpp
+    void BuildPondTop(const TerrainBuild::ReliefField& rf);   // WaterIce.cpp
+    void ProbeIce();              // WaterIce.cpp
+    void ClearIce();              // WaterIce.cpp
+    void StepIce(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, float dt);   // WaterIce.cpp
     void BuildMask(const TerrainBuild::ReliefField& rf);   // WaterRipples.cpp
     void StepRipples(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates);   // WaterRipples.cpp
     void ClearRipples();          // WaterRipples.cpp
@@ -215,6 +244,25 @@ private:
     int m_SeenCur = 0;
     // 水の中を歩く雑魚の押し（WaterStirCS が書き、WaterRippleCS が読む）。float4 × kMaxStirs と数（R32_UINT × 1）
     std::shared_ptr<ComputeShader> m_StirCS;
+    std::shared_ptr<ComputeShader> m_IceCS;        // WaterIce.cpp
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_IceTex;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_IceSRV;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_IceUAV;
+    mutable Microsoft::WRL::ComPtr<ID3D11Texture2D> m_IceStaging;   // DebugIceCells 用
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_PondTopTex;           // 池の水面の高さ（池の外は kNoPond）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_PondTopSRV;
+    static constexpr int kIceProbeSize = 5;                          // 読み戻す幅（texel）
+    static constexpr int kIceProbeFrames = 3;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_IceProbe[kIceProbeFrames];
+    int m_IceProbeOrigin[kIceProbeFrames][2] = {};
+    bool m_IceProbeUsed[kIceProbeFrames] = {};
+    int m_IceProbeCur = 0;
+    float m_IceCpu[kIceProbeSize * kIceProbeSize] = {};
+    int m_IceCpuX = 0, m_IceCpuZ = 0;
+    bool m_IceCpuValid = false;
+    Vector3 m_IceProbePos = Vector3::Zero;
+    ID3D11ShaderResourceView* m_HeatSRV = nullptr;     // 非所有（GrassFireField のレシピ毎の熱）
+    ID3D11UnorderedAccessView* m_EnemySlowUAV = nullptr;   // 非所有（SwarmSystem の enemySlow）
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_StirBuf, m_StirCountBuf;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_StirSRV, m_StirCountSRV;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_StirUAV, m_StirCountUAV;

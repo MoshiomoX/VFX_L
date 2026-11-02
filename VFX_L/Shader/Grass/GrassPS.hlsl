@@ -26,7 +26,12 @@ struct GrassOut
 float4 main(GrassOut i) : SV_TARGET
 {
     float3 albedo = i.color * lerp(g_RootColor, g_TipColor, i.t);
-    albedo *= lerp(float3(1.0, 1.0, 1.0), g_DryColor.rgb, i.dry * (0.4 + 0.6 * i.t));
+    albedo *= lerp(float3(1.0, 1.0, 1.0), g_DryColor.rgb, saturate(i.dry) * (0.4 + 0.6 * i.t));
+    // the patches that can burn (dry 1..2, GrassFireField): straw from root to tip, readable from the high camera.
+    // Keeps the blade's brightness, so burnt grass stays black
+    float strawPatch = saturate(i.dry - 1.0);
+    if (strawPatch > 0.0)
+        albedo = lerp(albedo, float3(1.3, 0.92, 0.3) * dot(albedo, float3(0.3, 0.6, 0.1)) * 1.25, strawPatch * 0.9);
     albedo = lerp(albedo, albedo * g_Sheen.rgb, saturate(i.sheen * g_Sheen.a * (0.35 + 0.65 * i.t)));
     float3 lit = ShadeLambert(normalize(i.normal), albedo, i.world);
     // ember glow of burning grass: orange, brighter toward the tip (HDR -> bloom)

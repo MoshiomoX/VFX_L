@@ -72,6 +72,7 @@ Buffer<uint> g_AreaStates : register(t3);        // 0 = dead
 Buffer<float> g_SeenIn : register(t4);           // per area slot: its timeLeft when the water last looked (0 = empty)
 StructuredBuffer<float4> g_Stirs : register(t5); // enemies wading (WaterStirCS): x, z, radius, strength
 Buffer<uint> g_StirCount : register(t6);         // [0] = how many WaterStirCS wrote (may exceed the list)
+Texture2D<float> g_Ice : register(t7);           // ice over the ponds (WaterIceCS), a quarter of this size
 RWTexture2D<float4> g_Out : register(u0);
 RWBuffer<float> g_SeenOut : register(u1);        // the same for the next frame (group 0 writes it on the first step)
 
@@ -81,6 +82,8 @@ RWBuffer<float> g_SeenOut : register(u1);        // the same for the next frame 
 #define RIPPLE_MAX_STIRS 128u    // = WaterSurface::kMaxStirs
 #define RIPPLE_AREA_CAPSULE 4u   // = SWARM_AREA_CAPSULE
 #define RIPPLE_AREA_SHAKE 8u     // = SWARM_AREA_SHAKE
+#define RIPPLE_ICE_SCALE 4u      // ripple texels per ice texel (WaterSurface::kIceSize)
+#define RIPPLE_ICE_SOLID 0.05    // frozen from here: waves stop and bounce off it like a shore
 
 groupshared float4 gs_Source[RIPPLE_MAX_SOURCES];   // xz, radius, strength
 groupshared uint gs_SourceCount;
@@ -121,7 +124,8 @@ float Splash(float d, float r)
 float2 LoadH(int2 p, float2 self)
 {
     p = clamp(p, int2(0, 0), int2(RIPPLE_SIZE - 1, RIPPLE_SIZE - 1));
-    return g_Mask.Load(int3(p, 0)) > 0.5 ? g_In.Load(int3(p, 0)).xz : self;
+    bool water = g_Mask.Load(int3(p, 0)) > 0.5 && g_Ice.Load(int3(int2(uint2(p) / RIPPLE_ICE_SCALE), 0)) < RIPPLE_ICE_SOLID;
+    return water ? g_In.Load(int3(p, 0)).xz : self;
 }
 
 [numthreads(8, 8, 1)]
@@ -181,7 +185,7 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_G
     if (any(id.xy >= uint2(RIPPLE_SIZE, RIPPLE_SIZE)))
         return;
     int2 p = int2(id.xy);
-    if (g_Mask.Load(int3(p, 0)) < 0.5)
+    if (g_Mask.Load(int3(p, 0)) < 0.5 || g_Ice.Load(int3(int2(uint2(p) / RIPPLE_ICE_SCALE), 0)) >= RIPPLE_ICE_SOLID)
     {
         g_Out[p] = float4(0.0, 0.0, 0.0, 0.0);
         return;

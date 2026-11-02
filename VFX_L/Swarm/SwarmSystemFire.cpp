@@ -14,6 +14,27 @@ void SwarmSystem::SetGrassFire(const GrassFireEmitInput* in)
     if (m_HasGrassFire) m_GrassFire = *in;
 }
 
+void SwarmSystem::SetGrassFireDamage(ID3D11ShaderResourceView* fireMap, const DirectX::SimpleMath::Vector2& origin,
+    const DirectX::SimpleMath::Vector2& size, float damage, float tick)
+{
+    m_FireMapSRV = (damage > 0.0f) ? fireMap : nullptr;
+    auto& b = GetBomberParams();
+    b.fireOn = m_FireMapSRV ? 1.0f : 0.0f;
+    b.fireDamage = damage;
+    b.fireTick = tick;
+    b.fireOriginX = origin.x;
+    b.fireOriginZ = origin.y;
+    b.fireSizeX = size.x;
+    b.fireSizeZ = size.y;
+}
+
+void SwarmSystem::SetIceMaps(ID3D11ShaderResourceView* ice, ID3D11ShaderResourceView* pondTop)
+{
+    m_IceMapSRV = ice;
+    m_PondTopSRV = pondTop;
+    GetBomberParams().iceOn = (ice && pondTop) ? 1.0f : 0.0f;
+}
+
 void SwarmSystem::DispatchFireEmit(float dt, float totalTime)
 {
     if (!m_HasGrassFire || !m_FireEmitCS || !m_Particles) return;

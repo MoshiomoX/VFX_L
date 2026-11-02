@@ -217,6 +217,15 @@
     <ClCompile Include="Debug\AutoTest\AutoTestAim.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestPlayerDeath.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestFlyHit.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestFireIce.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestStress.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -995,6 +1004,9 @@
     <ClCompile Include="World\WaterSurface.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\WaterIce.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\WaterRipples.cpp">
       <Filter>World</Filter>
     </ClCompile>
@@ -1077,6 +1089,9 @@
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Scene\CollisionTestScenePlayerIntro.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestScenePlayerDeath.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneBossDjinn.cpp">
@@ -2200,6 +2215,9 @@
     <FxCompile Include="Shader\Water\WaterStirCS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Water\WaterIceCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Light\LightClusterCS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
@@ -2413,6 +2431,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\SwarmProjTrail.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmIceLift.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\SpriteQuad.hlsli">

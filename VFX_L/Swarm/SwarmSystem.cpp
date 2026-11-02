@@ -1532,11 +1532,14 @@ void SwarmSystem::DispatchStep()
         m_AreaTickCS->UnbindUAVs(m_Context);
 
         // tick した範囲が 1 つも無いステップは、各スレッドが counter を 1 リードバックんで帰る
+        m_FireClock += m_CachedFrameCB.step;
+        m_CachedBomberCB.fireClock = m_FireClock;
         m_AreaDamageCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_AreaDamageCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
         m_AreaDamageCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
-        m_AreaDamageCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格・経験値
+        m_AreaDamageCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格・経験値、燃えている草
         m_AreaDamageCS->Bind(m_Context);
+        m_AreaDamageCS->SetSRV(m_Context, "g_FireMap", m_FireMapSRV);
         m_AreaDamageCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
@@ -2495,6 +2498,11 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     m_EnemyVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());   // 凍った敵は姿勢を止めて氷色に
+    if (m_IceMapSRV && m_PondTopSRV)
+    {
+        m_EnemyVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV);      // 氷の上の体を持ち上げる（2026-11-01）
+        m_EnemyVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV);
+    }
     m_EnemyVS->SetSRV(m_Context, "enemyPoison", m_EnemyPoisonSRV.Get()); // 毒素が残っている敵は緑に
     // 部品アニメの表（無ければ未 bind のまま。VS は enabled = 0 で読まない）
     if (m_PartAnimSRV)
@@ -2691,11 +2699,18 @@ void SwarmSystem::RenderBlobShadows(CameraBase* camera)
     m_BlobShadowPS->WriteBuffer(m_Context, 0, &cb);
     m_BlobShadowVS->WriteBuffer(m_Context, 1, &m_CachedFrameCB);
     m_BlobShadowVS->WriteBuffer(m_Context, 2, &m_CachedAICB);
+    m_BlobShadowVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);   // 氷の上で持ち上げる（g_IceOn）
+    if (m_IceMapSRV && m_PondTopSRV)
+    {
+        m_BlobShadowVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV);
+        m_BlobShadowVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV);
+    }
 
     m_BlobShadowVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_BlobShadowVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_BlobShadowVS->SetSRV(m_Context, "aliveList", m_AliveListSRV.Get());
     m_BlobShadowVS->SetSRV(m_Context, "heights", m_HeightSRV.Get());
+    m_BlobShadowVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     m_BlobShadowVS->Bind(m_Context);
     m_BlobShadowPS->Bind(m_Context);
@@ -2844,6 +2859,11 @@ void SwarmSystem::RenderHpBars(CameraBase* camera)
     cb.edge = hpBar.edge;
     m_HpBarVS->WriteBuffer(m_Context, 0, &cb);
     m_HpBarVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 足元の高さ（半径・カプセル）
+    if (m_IceMapSRV && m_PondTopSRV)
+    {
+        m_HpBarVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV);
+        m_HpBarVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV);
+    }
     m_HpBarVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);  // エリートの体格
     m_HpBarPS->WriteBuffer(m_Context, 0, &cb);
 

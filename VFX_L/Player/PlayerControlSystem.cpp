@@ -114,7 +114,11 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
     // 詠唱の一時停止はプレイヤーの操作から外した（2026-10-01。WandComponent::castingPaused はデバッグパネル・自動テスト用に残る）
     if (surgeTrigger)
         reg.CreateView<ManaComponent, PlayerTag>()
-            .Each([&](Entity, ManaComponent& mana, PlayerTag&) { mana.TryStartSurge(); });
+            .Each([&](Entity e, ManaComponent& mana, PlayerTag&)
+                {
+                    if (!reg.Has<PlayerStateComponent>(e) || !reg.Get<PlayerStateComponent>(e).IsDead())
+                        mana.TryStartSurge();
+                });
 
     if (!camera) return;
 
@@ -133,6 +137,22 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
         .EachFrom<PlayerTag>([&](Entity e, TransformComponent& tf, RigidbodyComponent& rb,
             PlayerStatsComponent& stats, PlayerStateComponent& st, PlayerTag&)
             {
+                // 死んだら操作を受け付けない。PlayerStateSystem の速度 0 は物理の後なので、ここで止めないと
+                // 倒れた姿のまま入力の方へ動く・跳ぶ（2026-11-01、ユーザー：死んだ後も地面を這って動ける）
+                if (st.IsDead())
+                {
+                    rb.velocity.x = rb.velocity.z = 0.0f;
+                    st.setVelX = st.setVelZ = 0.0f;
+                    st.knockAppliedX = st.knockAppliedZ = 0.0f;
+                    st.knockTime = 0.0f;
+                    st.groundSlow = 1.0f;
+                    st.groundPullX = st.groundPullZ = 0.0f;
+                    st.slideActive = false;
+                    st.carryMomentum = false;
+                    st.moveDir = MoveDirID::None;
+                    return;
+                }
+
                 // 能力値は Entity が持つ。System は値を持たない
                 // 前フレームに足したノックバック・流沙は引いて戻す（滑り・勢いの持ち越しに混ざらないように）。
                 // ただし物理が壁などで速度を削っていたら、削れた分は足した分から先に削れたとみなす

@@ -13,6 +13,8 @@
 // vanished shadow swordsman, and anything whose feet are clearly above the
 // ground under it (a gargoyle flying over the pond).
 // The list holds at most g_StirMax pushes; past that the rest are dropped.
+// On ice (WaterIceCS, 2026-11-01) an enemy makes no ripple and is slowed
+// instead, through the same enemySlow entry as the slowing areas.
 // ============================================================
 // SwarmCommon's cbuffers are not used here; moved off b0 (WaterStirCB)
 #define SWARM_FRAME_CB_REG b1
@@ -35,7 +37,8 @@ cbuffer WaterStirCB : register(b0)
     float g_Stride;          // m walked per footstep
     float g_StirTime;        // seconds (the water's clock, stops while paused)
     float g_StirGroundY;     // an enemy's position.y = its feet + this (the swarm's AICB groundY, 0.9)
-    float2 _stirPad;
+    float g_IceSlow;         // speed lost on the ice 0..1 (elites and the boss half of it)
+    float _stirPad;
 };
 
 StructuredBuffer<SwarmEnemy> g_Enemies : register(t0);
@@ -43,13 +46,19 @@ Buffer<uint> g_EnemyStates : register(t1);         // 0 = dead
 StructuredBuffer<SwarmEnemyExtra> g_EnemyExtra : register(t2);
 Texture2D<float> g_Mask : register(t3);            // 1 = pond (the ripple field's texels)
 Texture2D<float> g_Height : register(t4);          // GridWorld heights, texel = height cell (GrassRenderer::GetHeightSRV)
+Texture2D<float> g_Ice : register(t5);             // ice (WaterIceCS), a quarter of the mask's size
 RWStructuredBuffer<float4> g_Stirs : register(u0); // x, z, radius, strength (m, + = pressed down in the middle)
 RWBuffer<uint> g_StirCount : register(u1);         // [0] = pushes written this pass (cleared by the CPU)
+RWStructuredBuffer<float4> g_EnemySlow : register(u2); // the swarm's enemySlow: x / y = slow (seconds left, amount)
 
 // feet this far above the raw height cell under the centre = in the air (= GrassStampCS)
 static const float STIR_AIR_HEIGHT = 0.8;
 // a mob running faster than this pushes no harder (a charger's dash)
 static const float STIR_MAX_SPEED = 8.0;
+// how long a slow from the ice outlasts the last look (this pass runs once a frame at most)
+static const float STIR_ICE_LINGER = 0.2;
+static const float STIR_ICE_SOLID = 0.05;   // = WaterRippleCS's RIPPLE_ICE_SOLID
+static const uint STIR_ICE_SCALE = 4u;       // mask texels per ice texel
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -90,6 +99,20 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     else if (kind == SWARM_KIND_GARGOYLE)
         return;   // cannot tell whether it flies
+
+    // on the ice: no ripple, slower
+    if (g_Ice.Load(int3(int2(uint2(mc) / STIR_ICE_SCALE), 0)) >= STIR_ICE_SOLID)
+    {
+        float amount = g_IceSlow;
+        if (SwarmIsBigElite(kind) || kind == SWARM_KIND_BOSS)
+            amount *= SWARM_SLOW_BIG_MUL;
+        float4 cur = g_EnemySlow[j];
+        if (cur.x <= 0.0)
+            cur.y = 0.0;
+        cur.xy = float2(max(cur.x, STIR_ICE_LINGER), max(cur.y, amount));
+        g_EnemySlow[j] = cur;
+        return;
+    }
 
     // the big ones push a wider ring (= GrassStampCS's footprints)
     float r = g_StirRadius;

@@ -14,12 +14,11 @@ namespace
         s.boss2 = BossType::Werewolf;   // 2 面目は月下の狼人（2026-10-26。飛びかかり / 爪の三連 / 遠吠え）
         s.boss3 = BossType::Stag;   // 3 面目は雷鳴の雄鹿（2026-10-26、方块の動物の試作）
         s.biome = TerrainGenerator::Biome::Grassland;
-        // 何面目かの倍率（2026-10-27）。共通の値（HP 2.5 / 2.8、ダメージ 1.6 / 1.6）だと、表の進み（+10 / +20 分）と掛けて
+        // （10-27 に草原だけ入れた値。11-01 から PosDifficulty の共通の値になった）
+        // 何面目かの倍率（2026-10-27）。以前の共通の値（HP 2.5 / 2.8、ダメージ 1.6 / 1.6）だと、表の進み（+10 / +20 分）と掛けて
         // 実際の HP は 1 面 1.0→1.75 | 2 面 4.4→6.25 | 3 面 7.0→9.1、ダメージは 1.0→1.25 | 2.0→2.4 | 2.4→2.8：1→2 で跳ね、2→3 はほぼ平ら（ダメージは同じ）。
         // 面の境で「前の面の終わり × 一定」になるように：HP x1.6 / ダメージ x1.25 →
         // HP 1.0→1.75 | 2.8→4.0 | 6.4→8.3、ダメージ 1.0→1.25 | 1.56→1.88 | 2.34→2.73
-        s.posHpMul[0] = 1.0f; s.posHpMul[1] = 1.6f; s.posHpMul[2] = 2.56f;
-        s.posDamageMul[0] = 1.0f; s.posDamageMul[1] = 1.25f; s.posDamageMul[2] = 1.56f;
         // 照明・草は SceneLighting / GrassRenderer の既定値のまま（晴れた昼の野原）
         return s;
     }
@@ -123,8 +122,11 @@ namespace StageConfig
         // 10-26 ユーザー「敵が溜まり過ぎ」：湧き ×1.3 を外した（2 面目 / 3 面目の難度は HP・ダメージの倍率で。湧きは MobSpawner::maxSpawnPerSecond でも止める）
         static const RunDifficulty kPos[kStageCount] = {
             { 0.0f, 1.0f, 1.0f, 1.0f },
-            { 10.0f, 2.5f, 1.6f, 1.0f },
-            { 20.0f, 2.8f, 1.6f, 1.0f },
+            // 2026-11-01：全マップ共通で「前の面の終わり × HP 1.6 / ダメージ 1.25」（マップ自体の倍率はその上に掛かる）。
+            // 砂漠・遺跡は以前の 2.5 / 2.8 のままで、1 面の終わり → 2 面の始めで HP が 2.5 倍に跳んでいた。
+            // マップ毎に変えたい時は StageDef::posHpMul / posDamageMul
+            { 10.0f, 1.6f, 1.25f, 1.0f },
+            { 20.0f, 2.56f, 1.56f, 1.0f },
         };
         return kPos[std::clamp(posInRun, 0, kStageCount - 1)];
     }

@@ -45,7 +45,11 @@ public:
     void Shutdown();
     // 魔法陣を積む（描画の直前、VFXMeshRenderer::Render の前）
     void SubmitMeshes(VFXMeshRenderer& renderer) { if (enabled && castCircles) m_Circles.Submit(renderer); }
-    void SetIntroCircle(float act, float sizeMul) { m_Circles.SetIntro(act, sizeMul); }   // プレイヤーの登場の魔法陣（2026-11-01）
+    bool InWater() const { return m_PrevInWater; }   // TEMP-TEST
+    bool OnIce() const { return m_OnIce; }           // TEMP-TEST
+    void SetIntroCircle(float act, float sizeMul) { m_Circles.SetIntro(act, sizeMul); }   // プレイヤーの登場・死の魔法陣（2026-11-01）
+    // 上背の骨の位置（倒れた体に付いて動く）。骨が無ければ center
+    DirectX::SimpleMath::Vector3 BodyAnchor(Registry& reg, Entity player, const DirectX::SimpleMath::Vector3& center) { return BackAnchor(reg, player, center); }
     void DrawImGui();
 
     // ---- 調整 ----
@@ -94,6 +98,7 @@ private:
 
     bool  m_Read = false;            // 前のフレームの値を読んだか（最初のフレームは比べない）
     bool  m_PrevGrounded = true;
+    bool  m_OnIce = false;
     bool  m_PrevInWater = false;
     float m_AirTime = 0.0f;
     float m_MinVy = 0.0f;            // 空中で一番速く落ちた速さ（負）

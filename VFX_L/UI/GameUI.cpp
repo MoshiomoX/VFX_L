@@ -384,7 +384,7 @@ void GameUI::Render(Registry& reg, Entity player)
     // ---- HUD（常時表示、モーダルが開いている間は隠す）----
     // 文字はスプライトの後に一括で描かれるため、隠さないと
     // 暗幕の上に HUD の文字だけが浮いてしまう
-    if (m_Stack.IsEmpty()
+    if (m_Stack.IsEmpty() && !hideHud
         && reg.IsValid(player)
         && reg.Has<HealthComponent>(player)
         && reg.Has<ManaComponent>(player)

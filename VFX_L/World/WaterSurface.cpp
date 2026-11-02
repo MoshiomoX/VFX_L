@@ -48,7 +48,9 @@ bool WaterSurface::Initialize(ID3D11Device* device, ID3D11DeviceContext* context
         std::cout << "[Error] WaterSurface: shader load failed" << std::endl;
         return false;
     }
-    return CreateRippleTargets();
+    if (!CreateRippleTargets()) return false;
+    CreateIce();   // 無くても水は動く（氷が出ないだけ）
+    return true;
 }
 
 void WaterSurface::Shutdown()
@@ -62,6 +64,14 @@ void WaterSurface::Shutdown()
     m_VertBuffer.Reset();
     m_VertSRV.Reset();
     for (int i = 0; i < 2; ++i) { m_RippleTex[i].Reset(); m_RippleSRV[i].Reset(); m_RippleUAV[i].Reset(); }
+    m_IceCS.reset();
+    m_IceTex.Reset();
+    m_IceSRV.Reset();
+    m_IceUAV.Reset();
+    m_IceStaging.Reset();
+    for (auto& t : m_IceProbe) t.Reset();
+    m_PondTopTex.Reset();
+    m_PondTopSRV.Reset();
     for (int i = 0; i < 2; ++i) { m_SeenBuf[i].Reset(); m_SeenSRV[i].Reset(); m_SeenUAV[i].Reset(); }
     m_MaskTex.Reset();
     m_MaskSRV.Reset();
@@ -119,6 +129,7 @@ void WaterSurface::Build(const GridWorld& grid, const MapData::Map& map, Terrain
     {
         BuildMask(TerrainBuild::ReliefField{});   // 全部 0（CS は何も動かさない）
         ClearRipples();
+        ClearIce();
         return;
     }
     m_Relief = TerrainBuild::ReliefFromMap(grid, map);
@@ -190,7 +201,9 @@ void WaterSurface::Build(const GridWorld& grid, const MapData::Map& map, Terrain
             m_VertexCount = (uint32_t)verts.size();
     }
     BuildMask(rf);
+    BuildPondTop(rf);
     ClearRipples();
+    ClearIce();
     std::cout << "[Water] " << m_PondCells << " pond cells, " << m_VertexCount / 3 << " triangles" << std::endl;
 }
 
@@ -234,6 +247,7 @@ void WaterSurface::Render(Renderer& renderer, CameraBase& camera,
     }
     m_SimAccum += dt;
     m_StirDt += dt;
+    StepIce(areas, areaStates, dt);   // 波の前（凍ったマスは波が立たない）
     StepRipples(areas, areaStates);
 
     auto& s = m_Settings;
@@ -280,6 +294,7 @@ void WaterSurface::Render(Renderer& renderer, CameraBase& camera,
     m_PS->Bind(ctx);
     m_VS->SetSRV(ctx, "g_Verts", m_VertSRV.Get());
     m_PS->SetSRV(ctx, "g_Ripple", m_RippleSRV[m_Cur].Get());
+    m_PS->SetSRV(ctx, "g_Ice", m_IceSRV.Get());
     if (windSources) m_PS->SetSRV(ctx, "g_WindSources", windSources);
     ID3D11SamplerState* linearClamp = RenderStates::Get().LinearClamp();
     ctx->PSSetSamplers(0, 1, &linearClamp);

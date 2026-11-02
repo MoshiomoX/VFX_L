@@ -1086,14 +1086,24 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_BossNoContact;         // > 0.5 = the boss does not melee by touch (the pounce: its body runs through the player)
     float g_ClimbSpeed;            // m/s an enemy climbs a wall / cliff face (2026-10-29, MoveCS). 0 = no climbing
     // the sand djinn (2026-10-29, BossAttacks::Output via the CPU each frame; 0 for every other boss)
-    float g_BossHover;             // the body is drawn this high (world m, VS + hp bar only; the hit capsule stays on the ground)
+    float g_BossHover;             // the body is really this high (world m, MoveCS, 2026-11-01: was the drawing only, spells hit the ground under it; the hit capsule stays on the ground)
     float g_BossKeepMin;           // > 0 = keeps its distance like a caster (AICS): backs off inside this, stands up to g_BossKeepMax
     float g_BossKeepMax;
     float g_BossFly;               // > 0.5 = flies through walls and over plateaus like a ghost (SwarmFliesThrough)
     // the stone beast (2026-10-29, BossAttacks::Output::beast via the CPU each frame; 0 for every other boss)
     float g_BossWing;              // a boss wing's angle (g_AnimMode 2) rad: 0 = spread sideways, + = tips up
     float g_BossSpin;              // extra yaw rad added to the boss body (the tail sweep's full turn)
-    float3 _beastPad;
+    // burning grass under the enemies (2026-11-01, GrassFireField; AreaDamageCS)
+    float g_FireOn;                // > 0.5 = g_FireMap is bound
+    float g_FireClock;             // seconds, advanced per fixed step
+    float g_FireTick;              // seconds between hits
+    float g_FireDamage;            // per hit
+    float g_FireOriginX;           // world xz of the fire map's min corner
+    float g_FireOriginZ;
+    float g_FireSizeX;             // meters
+    float g_FireSizeZ;
+    float g_IceOn;                 // > 0.5 = SwarmEnemyVS lifts bodies onto the frozen ponds (same map as the fire)
+    float2 _firePad;
 };
 
 // The distance the wand's "nearest enemy" race (MoveCS, SWARM_CNT_NEAREST_KEY) keys on (2026-10-26, user: "if a boss is in
@@ -1218,6 +1228,11 @@ float SwarmGargoyleHover(SwarmEnemyExtra ex)
             k = 1.0 - saturate((d - g_GargoyleDiveWindup) / max(0.65 * g_GargoyleDiveTime, 1e-3));   // down in the first 65%, then skims the ground
     }
     return g_GargoyleHover * k;
+}
+// how high above its ground position an enemy really is (a gargoyle in flight, a hovering boss)
+float SwarmBodyHover(SwarmEnemyExtra ex)
+{
+    return SwarmGargoyleHover(ex) + (ex.kind == SWARM_KIND_BOSS ? g_BossHover : 0.0);
 }
 // in the air (waking up past the shake, flying, the dive): flies through walls like a ghost (MoveCS / PushCS / AICS)
 bool SwarmGargoyleAirborne(SwarmEnemyExtra ex)

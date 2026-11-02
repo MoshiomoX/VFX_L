@@ -6,9 +6,35 @@
 #include "Scene/CollisionTestScene.h"
 #include "Component/TransformComponent.h"
 #include "Component/ColliderComponent.h"
+#include "Component/RigidbodyComponent.h"
 #include "Component/InteractableComponent.h"
+#include "Player/PlayerStatsComponent.h"
 #include "VFX_Editor/VFXId.h"
 #include "World/ClimbMap.h"
+
+// ============================================================
+// 凍った池：氷は水面の高さ、池の底はその下なので、凍っている間はプレイヤーを氷の上に立たせる。
+// 物理の後に毎フレーム足を氷の高さへ上げる（融けたら何もしない = 普段どおり池の底へ落ちる）。
+// 跳んでいる間は足が氷より上なので触らない
+// ============================================================
+void CollisionTestScene::ApplyIceFloor()
+{
+    if (!m_Registry.IsValid(m_Player) || !m_Registry.Has<RigidbodyComponent>(m_Player)
+        || !m_Registry.Has<PlayerStatsComponent>(m_Player)) return;
+    auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+    m_Water.SetIceProbe(tf.position);
+    float surface = 0.0f;
+    if (!m_Water.WaterAt(tf.position.x, tf.position.z, surface) || !m_Water.FrozenAt(tf.position.x, tf.position.z)) return;
+    const auto& stats = m_Registry.Get<PlayerStatsComponent>(m_Player);
+    const float toFeet = stats.height * 0.5f + stats.radius;
+    const float feet = tf.position.y - toFeet;
+    if (feet >= surface) return;
+    tf.position.y = surface + toFeet;
+    auto& rb = m_Registry.Get<RigidbodyComponent>(m_Player);
+    rb.velocity.y = (std::max)(rb.velocity.y, 0.0f);
+    rb.isGrounded = true;
+    rb.groundNormal = Vector3(0.0f, 1.0f, 0.0f);
+}
 
 // ============================================================
 // 世界の風（2026-10-12）：WeatherSystem が作った 1 つの風を、草・マント・粒子へ配る。
@@ -48,6 +74,15 @@ void CollisionTestScene::PushWind()
         m_Swarm.SetGrassFire(&fire);
     else
         m_Swarm.SetGrassFire(nullptr);
+
+    // 燃えている草は敵を焼く（プレイヤーは傷付かない）。魔法威力が掛かる
+    const auto& fs = m_GrassFire.GetSettings();
+    float power = 1.0f;
+    if (m_Registry.IsValid(m_Player) && m_Registry.Has<PlayerStatsComponent>(m_Player))
+        power = m_Registry.Get<PlayerStatsComponent>(m_Player).spellPower;
+    m_Swarm.SetGrassFireDamage(m_GrassFire.GetSRV(), m_GrassFire.MapOrigin(), m_GrassFire.MapSize(),
+        fs.fireDps * fs.fireTick * power, fs.fireTick);
+    m_Swarm.SetIceMaps(m_Water.GetIceSRV(), m_Water.GetPondTopSRV());
 }
 
 // ============================================================

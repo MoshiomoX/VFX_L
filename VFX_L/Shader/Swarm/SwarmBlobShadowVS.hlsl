@@ -18,6 +18,7 @@
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
+#define SWARM_BOMBER_CB_REG b4   // g_IceOn and the map (the frozen ponds)
 #include "../Common/SwarmCommon.hlsli"
 
 cbuffer SwarmBlobShadowCB : register(b0)
@@ -36,6 +37,10 @@ StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> aliveList : register(t2);
 StructuredBuffer<float> heights : register(t3);
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t6);
+#define SWARM_ICE_MAP_REG t4
+#define SWARM_POND_TOP_REG t5
+#include "../Common/SwarmIceLift.hlsli"
 
 struct BlobOut
 {
@@ -58,10 +63,12 @@ BlobOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     if (enemyStates[slot] != SWARM_DEAD)
     {
         float3 p = enemies[slot].position;
-        float footY = p.y - g_GroundY;
+        float footY = p.y - g_GroundY - SwarmBodyHover(enemyExtra[slot]);   // the shadow of a flier stays on the ground
         float2 c = kCorner[vid];
         float2 xz = p.xz + c * g_BlobRadius;
         float y = clamp(SwarmTerrainHeight(heights, xz), footY - g_BlobClamp, footY + g_BlobClamp);
+        if (g_IceOn > 0.5)
+            y += IceLift(p.xz, footY);
         float3 world = float3(xz.x, y + g_BlobLift, xz.y);
 
         o.pos = mul(mul(float4(world, 1.0), g_BlobView), g_BlobProj);

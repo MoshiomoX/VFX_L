@@ -8,7 +8,9 @@
 //   VFX レシピ毎の表（recipeHeat）にして渡す。CPU から出す範囲（vfxType 0）は熱源にならない。
 //   見た目：GrassVS が燃料の減りで葉を黒く短くし、熱い所の先を橙に光らせる（GrassRenderer::SetFire）。
 //   炎・煙・火の粉は GrassFireEmitCS が燃えているマスから出す（VFXId::GrassFire。発射は SwarmSystem が回す）。
-//   ダメージ・消火などの遊びの要素は無い（画面だけ）。砂漠・遺跡は草が無いので何も燃えない。
+//   2026-11-01 本編へ：枯れ草の帯だけが燃える（燃え方が地形で決まるので必ず止まる）、燃え跡は燃料が戻るまで再び燃えない、
+//   燃えている草の上の敵に当たる（SwarmAreaDamageCS。プレイヤーは傷付かない）、冷たい範囲（氷の魔法）は火を消す。
+//   遺跡は草が無いので何も燃えない。テクスチャの z = 今燃えている印（x / y は線形で読めるよう別にしてある）。
 //
 // 使い方（シーン）：Initialize → 地形の後 Build(grid)（作り直しの度にも）→ GPU の表の後 BuildHeatTable(vfxTable)
 //   毎フレーム：Tick(dt)（止まっている間は呼ばない）、SetWind / SetRain、FillEmitInput → SwarmSystem::SetGrassFire、
@@ -22,6 +24,7 @@
 #include <SimpleMath.h>
 #include <memory>
 #include <cstdint>
+#include <vector>
 
 class GridWorld;
 class ComputeShader;
@@ -32,9 +35,16 @@ class GrassFireField
 public:
     struct Settings
     {
-        // 2026-10-12 ユーザー：「機能としては置いておくが、本体に入れるかは分からない」→ 既定は切。
-        // Grass Fire パネルの Enabled か、起動時の VFXL_GRASS_FIRE=1（TEMP-TEST。自動テスト grassfire は自分で入れる）で入る
-        bool  enabled = false;
+        // 2026-11-01 から本編で既定の入（ユーザー：無限に燃えるので本編に出ていない → 枯れ草の帯で燃える所を限る）。
+        // 起動時の VFXL_GRASS_FIRE=0（TEMP-TEST）で切る
+        bool  enabled = true;
+        // 枯れ草の帯：これが無い緑の草は燃えない = 緑が防火帯になり、火は 1 帯を燃やし切って止まる
+        float dryCover = 0.32f;     // フィールドの何割が枯れ草か
+        float dryScale = 16.0f;     // 帯の大きさ m（ノイズの波長。1 帯はこの 0.6〜1.2 倍くらい）
+        float reburn = 0.7f;        // 燃え跡は燃料がここまで生え戻らないと再び燃えない（約 35 秒）。無いと火がいつまでも回り続ける
+        // 燃えている草の上の敵（プレイヤーは傷付かない）
+        float fireDps = 16.0f;      // 1 秒あたりのダメージ（魔法威力が掛かる）。立っている敵で火が過ぎるまでに 20 ほど
+        float fireTick = 0.5f;      // ダメージの間隔（秒。数字が刻み続けないように）
         float ignite = 0.4f;        // 燃え始める温度
         float cool = 0.6f;          // 冷める速さ（1/秒）
         float diffuse = 1.2f;       // 隣へ広がる速さ（マス²/秒。0.25 × 60 より小さく）
@@ -51,8 +61,8 @@ public:
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
     void Shutdown();
 
-    // 地形の後（作り直しの度にも）：フィールドの位置と大きさ、火を全部消す
-    void Build(const GridWorld& grid);
+    // 地形の後（作り直しの度にも）：フィールドの位置と大きさ、枯れ草の帯（seed で決まる）、火を全部消す
+    void Build(const GridWorld& grid, uint32_t seed);
     void Reset();
     // 範囲の profile の heat を VFX レシピ毎の表に（AreaProfileDB と SwarmVFXTable の後）。GrassFire のレシピ番号もここで引く
     void BuildHeatTable(const SwarmVFXTable& table);
@@ -68,8 +78,16 @@ public:
     // areas / areaStates = SwarmSystem::GetAreaSRV / GetAreaStateSRV、ground = GrassRenderer::GetGroundSRV（a = 草）
     void Step(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* ground);
 
-    // 今の温度 / 燃料（読む側）。無効なら null
+    // 今の温度 / 燃料 / 燃えている印（読む側）。無効なら null
     ID3D11ShaderResourceView* GetSRV() const;
+    // 枯れ草の帯（1 = 枯れ草）。草の色と CS が読む
+    ID3D11ShaderResourceView* GetDrySRV() const { return m_DrySRV.Get(); }
+    // レシピ毎の熱（負 = 冷やす。水面の氷も読む）
+    ID3D11ShaderResourceView* GetHeatSRV() const { return m_HeatSRV.Get(); }
+    // (x, z) は枯れ草か（自動テストが帯を探す）
+    bool IsDry(float x, float z) const;
+    DirectX::SimpleMath::Vector2 MapOrigin() const { return m_MapOrigin; }
+    DirectX::SimpleMath::Vector2 MapSize() const { return m_MapSize; }
     // 燃えているマスからの粒子の入力（SwarmSystem::SetGrassFire）。出さない時 false
     bool FillEmitInput(GrassFireEmitInput& out, const DirectX::SimpleMath::Vector3& camPos,
         ID3D11ShaderResourceView* ground, ID3D11ShaderResourceView* height) const;
@@ -92,10 +110,12 @@ public:
         float ignite, cool, diffuse, downwind;
         float burnRate, release, regrow, rain;
         DirectX::SimpleMath::Vector3 stamp; float stampHeat;
-        float sourceMul, texel, rainCool, _pad;
+        float sourceMul, texel, rainCool, reburn;
     };
 
 private:
+    void BuildDryMask(uint32_t seed);
+
     ID3D11Device* m_Device = nullptr;
     ID3D11DeviceContext* m_Context = nullptr;
     std::shared_ptr<ComputeShader> m_StepCS;
@@ -104,6 +124,11 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SRV[2];
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_UAV[2];
     int m_Cur = 0;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_DryTex;              // 枯れ草の帯（R8。kSize²）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_DrySRV;
+    std::vector<uint8_t> m_DryMask;                                // 同じ物の CPU 側
+    uint32_t m_DrySeed = 0;
+    float m_DryCoverBuilt = -1.0f, m_DryScaleBuilt = -1.0f;        // 同じ帯なら作り直さない（ステージ選択の切替）
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_HeatBuffer;             // レシピ毎の heat（StructuredBuffer<float>）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_HeatSRV;
     uint32_t m_FireVfx = 0;                                        // VFXId::GrassFire のレシピ番号（0 = 表に無い）

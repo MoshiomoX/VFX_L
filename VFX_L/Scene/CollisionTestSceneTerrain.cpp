@@ -80,7 +80,7 @@ void CollisionTestScene::RebuildTerrain()
     m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
     lap("props");
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
-    m_GrassFire.Build(m_Grid);   // 火も消す
+    m_GrassFire.Build(m_Grid, m_TerrainConfig.seed);   // 火も消す
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());   // 落ち葉も置き直す
     m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);   // 水たまりの水面も
     BuildWindToys();   // 転がり草・タンポポも

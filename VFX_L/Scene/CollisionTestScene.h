@@ -182,6 +182,10 @@ private:
     void StartPlayerIntro();                                    // 面の始めのプレイヤーの登場（CollisionTestScenePlayerIntro.cpp。2026-11-01）
     void UpdatePlayerIntro(float dt);
     void EndPlayerIntro();
+    void ApplyIceFloor();                                       // 凍った池の上に立たせる（CollisionTestSceneField.cpp。2026-11-01）
+    void StartPlayerDeath();                                    // プレイヤーの死の演出（CollisionTestScenePlayerDeath.cpp。2026-11-01）
+    void UpdatePlayerDeath(float dt);
+    void PushEnemiesAway(float radius);
     BossIntro::Frame UpdateBossIntro(float dt);                 // 門から呼んだ Boss の登場の演出（CollisionTestSceneBossIntro.cpp。2026-10-27）
     void ApplyBossIntroSteer(const BossIntro::Frame& f);        // 演出の間の Boss の歩き / 殴らないを GPU へ（BossAttacks の指示の上書き）
     // Boss の狂暴の咆哮・倒した瞬間の演出（CollisionTestSceneBossDrama.cpp。2026-10-29）
@@ -290,6 +294,13 @@ private:
     MobSpawner              m_Mobs;                // 雑魚の湧き（GPU へ依頼）
     StageDirector           m_Stage;               // 1 面の進行（制限時間・エリートの時間表）
     BossAttacks             m_BossAttacks;         // Boss の技（スラムの警告の輪。2026-10-03）
+    bool                    m_DeathFxStarted = false;    // プレイヤーの死の演出を始めた
+    Vector3                 m_DeathFeet = Vector3::Zero; // 倒れた所の足元
+    uint32_t                m_DeathMotesFx = 0;          // 体から立ち上る光の粒のインスタンス
+    float                   m_DeathCamDistance = 0.0f;   // 寄せ始めのカメラ
+    float                   m_DeathCamPitch = 0.0f;
+    float                   m_DeathCamYaw = 0.0f;
+    float                   m_DeathCamHeight = 0.0f;
     float                   m_PlayerIntroT = -1.0f;      // プレイヤーの登場の経過秒（負 = していない。CollisionTestScenePlayerIntro.cpp）
     bool                    m_PlayerIntroShown = false;  // もう現れた
     bool                    m_PlayerIntroLog = false;    // TEMP-TEST: 撮影の行を書く（VFXL_PLAYER_INTRO）

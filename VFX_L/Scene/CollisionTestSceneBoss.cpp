@@ -150,7 +150,8 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
     bomber.bossJumpHeight = out.jumpHeight;             // 狼人の飛びかかりの放物線（技の間だけ > 0）
     bomber.bossNoContact = out.noContact ? 1.0f : 0.0f; // 飛びかかりの間は体で殴らない
     bomber.bossHover = out.djinn.hover;                 // 砂嵐の魔神（2026-10-29）：浮き・飛び・間合い（他の Boss は 0）
-    bomber.bossFly = out.djinn.fly ? 1.0f : 0.0f;
+    // 降りている途中も飛んでいる扱い（高さは MoveCS が hover のまま置く。切ると落下になって一瞬で落ちる）
+    bomber.bossFly = (out.djinn.fly || out.djinn.hover > 0.01f) ? 1.0f : 0.0f;
     bomber.bossKeepMin = out.djinn.keepMin;
     bomber.bossKeepMax = out.djinn.keepMax;
     bomber.bossWing = out.beast.wing;                   // 石の守護獣（2026-10-29）：翼の角度・尾の薙ぎ払いの一回転（他の Boss は 0）

@@ -63,7 +63,8 @@ public:
         const DirectX::SimpleMath::Matrix& view,
         const DirectX::SimpleMath::Matrix& proj,
         float hitFlash = 0.0f,
-        const DirectX::SimpleMath::Vector3& flashColor = DirectX::SimpleMath::Vector3(1.0f, 1.0f, 1.0f));
+        const DirectX::SimpleMath::Vector3& flashColor = DirectX::SimpleMath::Vector3(1.0f, 1.0f, 1.0f),
+        const struct DissolveParams* dissolve = nullptr);   // 溶解（プレイヤーの死。2026-11-01）。閃きの色も edgeColor になる
 
     // シャドウマップへ深度だけ（VS だけ積んで PS を外す）。スキニングは済んでいること
     void RenderDepth(ID3D11DeviceContext* ctx, const SkinnedModel& model,

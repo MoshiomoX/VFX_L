@@ -98,7 +98,7 @@ json AreaProfile::ToJson() const
     j["slow"] = slow;
     j["freeze"] = freeze;
     j["cameraShake"] = cameraShake;
-    if (heat > 0.0f) j["heat"] = heat;
+    if (heat != 0.0f) j["heat"] = heat;
     if (push > 0.0f) j["push"] = push;
     if (pull > 0.0f) j["pull"] = pull;
     if (forward != 0.0f) j["forward"] = forward;

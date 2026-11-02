@@ -204,7 +204,8 @@ void SkinnedModelGPU::SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, i
 // ============================================================
 void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model,
     const LightBuffer& light,
-    const Matrix& world, const Matrix& view, const Matrix& proj, float hitFlash, const Vector3& flashColor)
+    const Matrix& world, const Matrix& view, const Matrix& proj, float hitFlash, const Vector3& flashColor,
+    const DissolveParams* dissolve)
 {
     if (!ctx) return;
 
@@ -218,6 +219,16 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model
     dissolveOff.threshold = -1.0f;
     dissolveOff.hitFlash = hitFlash;   // 被弾の閃き（溶解は切れているので edgeColor は閃きの色に使う）
     dissolveOff.edgeColor = Vector4(flashColor.x, flashColor.y, flashColor.z, 1.0f);
+    ID3D11ShaderResourceView* noise = nullptr;
+    if (dissolve && dissolve->noise && dissolve->threshold >= 0.0f)
+    {
+        dissolveOff.tiling = dissolve->tiling;
+        dissolveOff.scroll = dissolve->scroll;
+        dissolveOff.threshold = dissolve->threshold;
+        dissolveOff.edge = dissolve->edge;
+        dissolveOff.edgeColor = dissolve->edgeColor;
+        noise = dissolve->noise;
+    }
     PointLightManager::Get().BindPS(ctx);   // t6/t7
 
     ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -234,6 +245,7 @@ void SkinnedModelGPU::Render(ID3D11DeviceContext* ctx, const SkinnedModel& model
         // VS / PS / テクスチャ（t0〜t4 は PS 側）
         mat->Bind(ctx);
         ctx->PSSetSamplers(0, 1, &samp);
+        ctx->PSSetShaderResources(5, 1, &noise);   // 溶解のノイズ（無ければ null）
 
         mat->GetVS()->WriteBuffer(ctx, 0, &cb);
         mat->GetPS()->WriteBuffer(ctx, 0, &lightCopy);

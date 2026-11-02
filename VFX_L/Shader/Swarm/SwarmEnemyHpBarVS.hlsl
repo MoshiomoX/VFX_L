@@ -36,6 +36,9 @@ Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> aliveList : register(t2);
 StructuredBuffer<uint> enemyMaxHp : register(t3);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t4);
+#define SWARM_ICE_MAP_REG t5
+#define SWARM_POND_TOP_REG t6
+#include "../Common/SwarmIceLift.hlsli"
 
 struct BarOut
 {
@@ -84,8 +87,8 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
     float2 c = kCorner[vid];
     float3 center = e.position + float3(0.0, offset, 0.0);
-    if (enemyExtra[slot].kind == SWARM_KIND_BOSS)
-        center.y += g_BossHover;   // the floating sand djinn is drawn higher (2026-10-29)
+    if (g_IceOn > 0.5)
+        center.y += IceLift(e.position.xz, e.position.y - g_GroundY);
     float3 world = center
         + right * ((c.x - 0.5) * width)
         + up * ((0.5 - c.y) * g_BarHeight);

@@ -87,6 +87,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         PROFILE_SCOPE("Physics");
         m_PhysicsSystem.SetGravity(m_Gravity);
         m_PhysicsSystem.Update(m_Registry, dt, m_CollisionSystem);
+        ApplyIceFloor();   // 状態の判定の前（氷の上 = 接地）
     }
 
     static const char* const kRestSection = "State / weapon / anim / crates";   // GPU の Flush の前まで

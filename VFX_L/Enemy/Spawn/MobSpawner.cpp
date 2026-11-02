@@ -92,13 +92,16 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
         { m_NecroRatio, Swarm::kEnemyKindNecro, m_NecroHp, m_NecroSpeed },
         { m_WardenRatio, Swarm::kEnemyKindWarden, m_WardenHp, m_WardenSpeed },
     };
+    float ratioSum = 0.0f;
+    for (const Pick& k : picks) ratioSum += k.ratio;
+    const float scale = SpecialScale(ratioSum, maxSpecialShare);
     const float roll = Rand01();
     uint32_t kind = Swarm::kEnemyKindMob;
     float hp = m_MobHp, speed = m_MobSpeed;
     float acc = 0.0f;
     for (const Pick& k : picks)
     {
-        acc += k.ratio;
+        acc += k.ratio * scale;
         if (roll < acc)
         {
             kind = k.kind;
@@ -354,6 +357,7 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     // ---- 自爆兵（湧きの割合・初期値は CPU、導火線と爆発は GPU の定数）----
     auto& bomb = swarm.GetBomberParams();
     ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.4f, 1), "Bomber (GPU)");
+    ImGui::SliderFloat("Special Share Cap", &maxSpecialShare, 0.1f, 1.0f, "%.2f");
     ImGui::SliderFloat("Bomber Ratio", &m_BomberRatio, 0.0f, 1.0f, "%.2f");
     ImGui::DragFloat("Bomber HP", &m_BomberHp, 1.0f, 1.0f, 1000.0f);
     ImGui::DragFloat("Bomber Speed", &m_BomberSpeed, 0.1f, 0.0f, 20.0f);

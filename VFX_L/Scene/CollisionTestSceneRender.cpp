@@ -62,7 +62,7 @@ void CollisionTestScene::Render(Renderer& renderer)
             PROFILE_SCOPE_GPU("Grass");
             // 草の火を 1 歩進めてから草を描く（GPU の範囲が熱源。Flush の後なので範囲の池は読むだけ）
             m_GrassFire.Step(m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Grass.GetGroundSRV());
-            m_Grass.SetFire(m_GrassFire.GetSRV(), m_GrassFire.GetSettings().ignite);
+            m_Grass.SetFire(m_GrassFire.GetSRV(), m_GrassFire.GetSettings().ignite, m_GrassFire.GetDrySRV());
             // 爆発 / 光線 / 雑魚の足元も草を倒す（2026-10-13。池は Flush の後なので読むだけ）
             m_Grass.SetSwarmSources(m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV(),
                 m_Swarm.GetEnemySRV(), m_Swarm.GetEnemyStateSRV(), m_Swarm.GetEnemyExtraSRV(), m_Swarm.GetAIParams().groundY);
@@ -78,6 +78,7 @@ void CollisionTestScene::Render(Renderer& renderer)
             // 水たまりの水面（2026-10-27）：半透明。草・落ち葉の後（水の縁の草の上に被らない）、群れの重ね描き（警告の輪・体力バー）の前
             PROFILE_SCOPE_GPU("Water");
             // 水の中を歩く雑魚も波紋を立てる（2026-10-28。草の高さ = 飛んでいる物を除く）
+            m_Water.SetIceSources(m_GrassFire.GetHeatSRV(), m_Swarm.GetEnemySlowUAV());
             m_Water.SetSwarmEnemies(m_Swarm.GetEnemySRV(), m_Swarm.GetEnemyStateSRV(), m_Swarm.GetEnemyExtraSRV(), m_Grass.GetHeightSRV(),
                 m_Swarm.GetAIParams().groundY);
             if (GetCamera()) m_Water.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetWindSourceSRV());

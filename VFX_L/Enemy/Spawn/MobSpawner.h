@@ -73,6 +73,11 @@ public:
     // 倍率 1 の時の接触 / 爆発ダメージ。Init で GPU の既定値（AICB / BomberCB）から取る
     float baseContactDamage = 0.0f;
     float baseBlastDamage = 0.0f;
+    // 特殊な敵の割合の合計の上限（2026-11-01）。合計がこれを越えたら全部を同じ比で縮める = 残りは必ず普通の雑魚。
+    // 以前は超えた分を切り捨てていたので、砂漠の 8 分以降は雑魚が 0%、表の後ろの種類（砂嵐の術師・突撃爆弾兵）も湧かなかった
+    float maxSpecialShare = 0.75f;
+    static float SpecialScale(float sum, float cap) { return (sum > cap && sum > 0.0f) ? cap / sum : 1.0f; }
+
     float GetHpMul() const { return m_HpMul; }           // 今湧く敵の HP の倍率（エリート・Boss の HP にも使う）
     float GetDamageMul() const { return m_DamageMul; }   // 今のダメージの倍率（接触・爆発・Boss のスラム）
 

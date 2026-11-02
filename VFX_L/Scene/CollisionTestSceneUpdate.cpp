@@ -253,11 +253,7 @@ void CollisionTestScene::Update(float dt)
         if (m_DeathTimer >= kDeathToResult) EndRun();
     }
     else if (IsPlayerDead())
-    {
-        m_DeathTimer += dt;
-        m_GameUI.SetGameOver(m_DeathTimer);   // 「力尽きた」の幕
-        if (m_DeathTimer >= kDeathToResult) EndRun();
-    }
+        UpdatePlayerDeath(dt);   // 倒れて光になる → 「力尽きた」の幕 → リザルト（CollisionTestScenePlayerDeath.cpp）
     else
     {
         m_GameUI.SetGameOver(-1.0f);

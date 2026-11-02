@@ -422,7 +422,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (SwarmFliesThrough(enemyExtra[i]))   // the tornado (2026-10-17) and a flying gargoyle (2026-10-25) fly like a ghost
         {
             // ghosts hover over everything: snap to the ground below, no falling (a gargoyle at its flying height)
-            e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz) + SwarmGargoyleHover(enemyExtra[i]);
+            e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz) + SwarmBodyHover(enemyExtra[i]);
             e.velocity.y = 0.0;
         }
         else if (climb.x <= 0.0)
