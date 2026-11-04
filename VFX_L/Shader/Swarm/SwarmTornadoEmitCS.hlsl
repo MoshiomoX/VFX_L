@@ -1,27 +1,27 @@
 // ============================================================
 // SwarmTornadoEmitCS.hlsl
-// Dust at the foot of every live tornado (SWARM_KIND_TORNADO, 2026-10-19).
-// One thread per enemy slot: a tornado with its life running (fuse > 0)
-// emits from every emitter of the TornadoDust recipe (VFXId::TornadoDust)
-// at its feet, rate x g_RateMul. On top of the emitter's own shape the
-// particles get a tangential kick around the axis (g_Swirl) and half of
-// the tornado's travel speed, so the sand spirals up and follows it.
+// 生きている砂旋（SWARM_KIND_TORNADO、2026-10-19）の足元の砂埃。
+// 敵スロット 1 つに 1 スレッド：寿命が進んでいる（fuse > 0）砂旋は
+// 足元で TornadoDust のレシピ（VFXId::TornadoDust）の全エミッタから
+// 発生レート x g_RateMul で出す。エミッタ自身の形に加えて、
+// パーティクルには軸まわりの接線方向の勢い（g_Swirl）と砂旋の
+// 移動速度の半分を足すので、砂はらせん状に昇りながら砂旋についていく。
 //
-// Dispatched by SwarmSystem (Swarm/SwarmSystemTornado.cpp) right after
-// the grass-fire emitter, sharing the free-pool reservation (emitBudget).
+// SwarmSystem（Swarm/SwarmSystemTornado.cpp）が草の延焼のエミッタの
+// すぐ後にディスパッチし、空きプールの予約（emitBudget）を共有する。
 // ============================================================
 #include "../Particle/Common/EmitInit.hlsli"
-#define SWARM_FRAME_CB_REG b3   // not written for this dispatch; b0 is ParticleCommon's GlobalCB
+#define SWARM_FRAME_CB_REG b3   // このディスパッチでは書かない。b0 は ParticleCommon の GlobalCB
 #include "../Common/SwarmCommon.hlsli"
 
-// Must match SwarmSystem::TornadoEmitCB (b2)
+// SwarmSystem::TornadoEmitCB（b2）と一致させること
 cbuffer SwarmTornadoEmitCB : register(b2)
 {
-    float g_FootY;        // enemy position -> feet (-(radius + capsule half))
-    float g_RateMul;      // multiplies every emitter's rate
-    uint g_DustVfx;       // recipe index of VFXId::TornadoDust (0 = none)
-    float g_Swirl;        // tangential speed added around the axis, m/s
-    float g_FootRadius;   // the ring the dust starts on (the hit radius), m
+    float g_FootY;        // 敵の位置 -> 足元（-(半径 + カプセルの半分)）
+    float g_RateMul;      // 全エミッタの発生レートに掛ける
+    uint g_DustVfx;       // VFXId::TornadoDust のレシピ番号（0 = なし）
+    float g_Swirl;        // 軸まわりに足す接線方向の速さ、m/s
+    float g_FootRadius;   // 砂埃が出始める輪（当たり半径）、m
     uint g_SlotCount;     // kMaxEnemies
     float2 _tePad;
 };
@@ -60,15 +60,15 @@ void main(uint3 id : SV_DispatchThreadID)
     for (uint ei = 0u; ei < r.particleCount; ++ei)
     {
         GPUEmitter em = emitters[r.particleStart + ei];
-        em.position = base + em.position;   // the entry position is an offset from the feet
-        // the emitter shapes are authored for a 1 m tornado: scale the ring / cone to the hit radius
+        em.position = base + em.position;   // エントリの位置は足元からのオフセット
+        // エミッタの形は 1 m の砂旋用に作ってある：輪 / 円錐を当たり半径に合わせて拡大する
         em.shapeSize.xy *= g_FootRadius;
 
         uint k = StochasticCount(em.emitRate * g_RateMul, g_DeltaTime, seed);
         if (k == 0u)
             continue;
 
-        // ---- reserve from the free pool (shared with the other emitters this frame) ----
+        // ---- 空きプールから予約する（このフレームの他のエミッタと共有） ----
         uint mine;
         emitBudget.InterlockedAdd(0, k, mine);
         uint freeNow = deadCount[0];
@@ -84,7 +84,7 @@ void main(uint3 id : SV_DispatchThreadID)
             float3 pos = em.position;
             float3 vel = float3(0, 0, 0);
             EmitShape(em, s, pos, vel);
-            // swirl around the axis + ride along with the tornado
+            // 軸まわりに旋回 + 砂旋と一緒に移動
             float2 radial = pos.xz - base.xz;
             float rl = length(radial);
             if (rl > 1e-3)

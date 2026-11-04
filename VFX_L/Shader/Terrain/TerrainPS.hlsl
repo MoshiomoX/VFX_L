@@ -1,20 +1,20 @@
 // ============================================================
-// TerrainPS.hlsl - textured ground / cliffs (2026-10-03)
-// The battle terrain (CreateSteppedGrid + the merged plateau / ramp /
-// roof boxes) used to be vertex colour only. Now each pixel picks one of
-// 5 layers of a Texture2DArray (per stage, TerrainSurface):
-//   0 ground (flat), 1 path (ramps), 2 cliff (steep faces),
-//   3 cave floor (flat below g_CaveY), 4 rock (steep below g_CaveY, cave
-//   walls and roof)
-// The layer comes from the vertex (UV.x = layer + 1) when the mesh builder
-// set one, otherwise from the normal and the height.
-// Sampling is triplanar in world space (meters / g_Layer[i].x per repeat):
-// the stepped ground is axis aligned, the ramps are not.
-// Colour: the texture's own colour, times the vertex colour's luminance
-// over the layer's reference luminance (g_Layer[i].y), so the old colour
-// patches stay as light / dark variation and break up the tiling.
-// Normal map: whiteout / UDN triplanar blend.
-// b0 LightBuffer (Lighting.hlsli), b2 TerrainCB (TerrainSurface::TerrainCB)
+// TerrainPS.hlsl - テクスチャ付きの地面 / 崖（2026-10-03）
+// 戦闘の地形（CreateSteppedGrid + まとめた台地 / 坂 / 洞窟の屋根の箱）は
+// 以前は頂点色だけだった。今は各ピクセルが Texture2DArray の 5 層から
+// 1 つを選ぶ（ステージごと、TerrainSurface）:
+//   0 地面（平ら）、1 道（坂）、2 崖（急な面）、
+//   3 洞窟の床（g_CaveY より下の平ら）、4 岩（g_CaveY より下の急な面、洞窟の
+//   壁と屋根）
+// メッシュの生成側が層を指定した場合は頂点から（UV.x = 層 + 1）、
+// そうでなければ法線と高さから決める。
+// サンプリングはワールド空間のトライプラナー（繰り返し 1 回あたり g_Layer[i].x m）:
+// 段々の地面は軸に揃っているが、坂はそうではないため。
+// 色: テクスチャ自身の色に、頂点色の輝度 / 層の基準輝度（g_Layer[i].y）を
+// 掛ける。旧来の色の斑が明暗のばらつきとして残り、タイリングを
+// 目立たなくする。
+// 法線マップ: whiteout / UDN のトライプラナーブレンド。
+// b0 LightBuffer（Lighting.hlsli）、b2 TerrainCB（TerrainSurface::TerrainCB）
 // ============================================================
 #define MODEL_NO_TEXTURES
 #include "../Common/ModelCommon.hlsli"
@@ -22,6 +22,13 @@
 
 Texture2DArray terrainAlbedo : register(t0);
 Texture2DArray terrainNormal : register(t1);
+// 草レンダラーの地面マップ（a = ここに草が生える）、マップ全体。TerrainSurface::SetGrassCover がバインドする。
+// 草の下の地面を暗くする（2026-11-02、ユーザー: 葉の間から明るい地面が見えるのは見栄えが悪い）
+Texture2D<float4> g_GrassCover : register(t2);
+// 砂漠の砂面（World/SandField、2026-11-02）。TerrainSurface::SetSandField がバインドする:
+// t3 状態（x 温度、y 乾燥度 1 = 乾燥）、t4 へこみ（負 = 押し下げ）
+Texture2D<float4> g_SandState : register(t3);
+Texture2D<float> g_SandTrack : register(t4);
 
 static const uint TERRAIN_LAYERS = 5u;
 static const uint LAYER_GROUND = 0u;
@@ -32,14 +39,20 @@ static const uint LAYER_ROCK = 4u;
 
 cbuffer TerrainCB : register(b2)
 {
-    float4 g_Layer[TERRAIN_LAYERS]; // x meters per repeat, y reference luminance of the vertex colour, z brightness gain (texture average -> old palette brightness)
-    float g_TintStrength;   // 0 = texture colour only, 1 = full luminance ratio
-    float g_NormalStrength; // tangent xy scale of the normal map
-    float g_FlatNy;         // normal.y above this = flat (ground / cave floor)
-    float g_PathNy;         // normal.y above this = ramp (path), below = cliff / rock
-    float g_CaveY;          // world y below this = inside the mine
-    float g_FlipNormalY;    // 1 = normal map green points down (DirectX style)
-    float2 _terrainPad;
+    float4 g_Layer[TERRAIN_LAYERS]; // x 繰り返し 1 回あたりの m、y 頂点色の基準輝度、z 明るさの倍率（テクスチャの平均 -> 旧パレットの明るさ）
+    float g_TintStrength;   // 0 = テクスチャの色だけ、1 = 輝度比を全部かける
+    float g_NormalStrength; // 法線マップの接線 xy の倍率
+    float g_FlatNy;         // normal.y がこれより上 = 平ら（地面 / 洞窟の床）
+    float g_PathNy;         // normal.y がこれより上 = 坂（道）、下 = 崖 / 岩
+    float g_CaveY;          // ワールド y がこれより下 = 洞窟の中
+    float g_FlipNormalY;    // 1 = 法線マップの緑が下向き（DirectX 式）
+    float g_GrassDark;      // 草の下の地面にこれを掛ける（1 = 無効）
+    float g_GrassOn;        // > 0.5 = g_GrassCover がバインド済み
+    float2 g_GrassOrigin;   // 草マップの最小の角のワールド xz
+    float2 g_GrassSize;     // m
+    float4 g_Sand;          // x > 0.5 = t3 / t4 がバインド済み、y 湿った砂の明るさ、z 熱い砂の色味、w へこみの法線の強さ
+    float2 g_SandOrigin;
+    float2 g_SandSize;
 };
 
 uint TerrainLayer(float3 N, float3 P, float uvx)
@@ -67,7 +80,7 @@ float4 main(PS_INPUT input) : SV_TARGET
     uint layer = TerrainLayer(N, P, input.UV.x);
     float tile = max(g_Layer[layer].x, 0.1);
 
-    // triplanar weights (sharpened so the flat ground takes only the top projection)
+    // トライプラナーの重み（鋭くして、平らな地面は上からの投影だけを使う）
     float3 w = pow(abs(N), 4.0);
     w /= (w.x + w.y + w.z);
     float2 uvX = P.zy / tile;
@@ -93,7 +106,7 @@ float4 main(PS_INPUT input) : SV_TARGET
         nZ = UnpackNormal(terrainNormal.Sample(samplerState, float3(uvZ, L)));
     }
 
-    // whiteout blend: tangent xy added onto the world normal's matching components
+    // whiteout ブレンド: 接線 xy をワールド法線の対応する成分に足す
     float3 tX = float3(nX.xy + N.zy, abs(nX.z) * N.x);
     float3 tY = float3(nY.xy + N.xz, abs(nY.z) * N.y);
     float3 tZ = float3(nZ.xy + N.xy, abs(nZ.z) * N.z);
@@ -101,12 +114,45 @@ float4 main(PS_INPUT input) : SV_TARGET
     if (any(isnan(Nd)))
         Nd = N;
 
-    // the old colour patches as light / dark variation
+    // 旧来の色の斑を明暗のばらつきとして使う
     float lum = dot(input.Color.rgb, float3(0.2126, 0.7152, 0.0722));
     float ratio = clamp(lum / max(g_Layer[layer].y, 1e-3), 0.55, 1.45);
     float tint = lerp(1.0, ratio, g_TintStrength);
 
     float3 col = DecodeAlbedo(albedo) * (tint * g_Layer[layer].z);
+    // 草の下: 地面を暗くして、葉の隙間が根元の陰に見えるようにする。
+    // 上向きの地面だけ（草の生えた上面の下の崖面はそのまま）
+    if (g_GrassOn > 0.5)
+    {
+        float2 guv = (P.xz - g_GrassOrigin) / g_GrassSize;
+        float cover = g_GrassCover.SampleLevel(samplerState, guv, 0).a;
+        cover *= saturate((N.y - g_PathNy) / max(1.0 - g_PathNy, 1e-3));
+        col *= lerp(1.0, g_GrassDark, cover);
+    }
+    // 砂漠の砂: 湿り = 暗く少し寒色寄り、熱い = くすんだ赤寄り、へこみは法線を曲げる。
+    // 上向きの地面だけ（砂であって、メサの崖ではない）
+    if (g_Sand.x > 0.5)
+    {
+        float up = saturate((N.y - g_PathNy) / max(1.0 - g_PathNy, 1e-3));
+        float2 suv = (P.xz - g_SandOrigin) / g_SandSize;
+        float4 st = g_SandState.SampleLevel(samplerState, suv, 0);
+        float wet = (1.0 - saturate(st.y)) * up;
+        col *= lerp(float3(1.0, 1.0, 1.0), float3(g_Sand.y * 0.92, g_Sand.y * 0.97, g_Sand.y * 1.05), wet);
+        float hot = saturate(st.x) * up * g_Sand.z;
+        col = lerp(col, col * float3(1.25, 0.62, 0.42), hot);
+        // へこみ: へこみマップの 1 テクセル分の中心差分
+        uint tw, th;
+        g_SandTrack.GetDimensions(tw, th);
+        float2 du = float2(1.0 / tw, 0.0), dv = float2(0.0, 1.0 / th);
+        float hx = g_SandTrack.SampleLevel(samplerState, suv + du, 0) - g_SandTrack.SampleLevel(samplerState, suv - du, 0);
+        float hz = g_SandTrack.SampleLevel(samplerState, suv + dv, 0) - g_SandTrack.SampleLevel(samplerState, suv - dv, 0);
+        float texel = g_SandSize.x / max((float) tw, 1.0);
+        float2 slope = float2(hx, hz) / (2.0 * texel) * g_Sand.w * up;
+        Nd = normalize(Nd - float3(slope.x, 0.0, slope.y));
+        float dent = g_SandTrack.SampleLevel(samplerState, suv, 0);
+        // へこみの底は暗く（曲げた法線はトゥーンの段階にほとんど飲まれるので、形はこれで見せる）
+        col *= 1.0 - saturate(-dent * 1.6) * 0.45 * up;
+    }
     float3 lit = ShadeLambert(Nd, col, P);
     return float4(lit, 1.0);
 }

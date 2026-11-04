@@ -197,10 +197,16 @@ void FollowCamera::Update(float dt)
         m_AppliedFov = fovNow;
     }
 
+    // 賢いカメラ（2026-11-02）：戦況の距離と注視点のずらし。引く時より戻る時を遅く
+    m_SituationDist = SmoothDamp(m_SituationDist, m_SituationWant, m_SituationVel,
+        (m_SituationWant > m_SituationDist) ? situationRiseTime : situationFallTime, dt);
+    m_FrameOffset.x = SmoothDamp(m_FrameOffset.x, m_FrameWant.x, m_FrameVel.x, frameSmoothTime, dt);
+    m_FrameOffset.z = SmoothDamp(m_FrameOffset.z, m_FrameWant.z, m_FrameVel.z, frameSmoothTime, dt);
+
     // ============================================================
     // 平滑追従：追従点をばねで追わせる
     // ============================================================
-    const float baseDistance = distance + m_SpeedDist;
+    const float baseDistance = distance * distanceScale + m_SpeedDist + m_SituationDist;
     const float gap = (followPoint - m_Pivot).Length();
     if (m_Snap || !smoothFollow || gap > snapDistance)
     {
@@ -221,7 +227,7 @@ void FollowCamera::Update(float dt)
     }
 
     // 体の芯（肩ずらし前の注視点）
-    const Vector3 head = m_Pivot + Vector3(0.0f, height, 0.0f);
+    const Vector3 head = m_Pivot + m_FrameOffset + Vector3(0.0f, height, 0.0f);
 
     // ============================================================
     // 肩ずらし：注視点ごと横へ。横に壁があればその手前まで縮める

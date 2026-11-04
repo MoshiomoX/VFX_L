@@ -1,10 +1,10 @@
 // ============================================================
 // NoiseGenCS.hlsl
-// Bakes a tileable single-channel noise texture from a recipe.
-//   type 0 perlin  : gradient noise, lattice wraps at `frequency`
-//   type 1 worley  : distance to nearest feature point, cells wrap
-//   type 2 fbm     : perlin summed over `octaves`, frequency x2 each
-// Output is R32_FLOAT in [0,1]. One thread per texel.
+// レシピからタイル可能な単チャンネルのノイズテクスチャを焼く。
+//   type 0 perlin  : 勾配ノイズ、格子は `frequency` で折り返す
+//   type 1 worley  : 一番近い特徴点までの距離、セルは折り返す
+//   type 2 fbm     : perlin を `octaves` 回足す、1 回ごとに周波数 x2
+// 出力は [0,1] の R32_FLOAT。1 テクセルに 1 スレッド。
 // ============================================================
 RWTexture2D<float> dst : register(u0);
 
@@ -19,7 +19,7 @@ cbuffer NoiseCB : register(b0)
     uint2 _pad;
 };
 
-// integer hash -> [0,1)
+// 整数ハッシュ -> [0,1)
 float Hash(uint2 p, uint seed)
 {
     uint h = p.x * 374761393u + p.y * 668265263u + seed * 2246822519u;
@@ -34,19 +34,19 @@ float2 Gradient(uint2 p, uint seed)
     return float2(cos(a), sin(a));
 }
 
-// periodic gradient noise, period = per cells. returns [-1,1]
+// 周期的な勾配ノイズ、周期 = per セル。[-1,1] を返す
 float Perlin(float2 uv, uint per, uint seed)
 {
     float2 p = uv * (float) per;
     float2 i = floor(p);
     float2 f = frac(p);
-    float2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0); // quintic
+    float2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0); // 5 次の補間
 
     uint2 i0 = (uint2) i;
     uint2 i1 = i0 + uint2(1, 0);
     uint2 i2 = i0 + uint2(0, 1);
     uint2 i3 = i0 + uint2(1, 1);
-    // wrap so the texture tiles
+    // テクスチャがタイルするように折り返す
     i0 %= per;
     i1 %= per;
     i2 %= per;
@@ -58,10 +58,10 @@ float Perlin(float2 uv, uint per, uint seed)
     float d3 = dot(Gradient(i3, seed), f - float2(1, 1));
 
     float v = lerp(lerp(d0, d1, u.x), lerp(d2, d3, u.x), u.y);
-    return v * 1.41421356; // stretch to ~[-1,1]
+    return v * 1.41421356; // ~[-1,1] に引き伸ばす
 }
 
-// periodic worley: distance to nearest of 9 neighbouring feature points
+// 周期的な worley：周囲 9 セルの特徴点のうち一番近いものまでの距離
 float Worley(float2 uv, uint per, uint seed)
 {
     float2 p = uv * (float) per;

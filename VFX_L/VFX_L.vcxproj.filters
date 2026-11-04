@@ -95,9 +95,6 @@
     <Filter Include="Graphics\Shader\HLSL\UI">
       <UniqueIdentifier>{745bc767-2c4a-45cd-822b-ec05990560e1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="UI">
-      <UniqueIdentifier>{ef362e5f-7fdb-4e15-ae47-a3d12a65aeea}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Assets">
       <UniqueIdentifier>{b4f0a9d2-6c1e-4a83-9f57-2d8e0c3b7a41}</UniqueIdentifier>
     </Filter>
@@ -149,6 +146,9 @@
     <Filter Include="Graphics\Shader\HLSL\VFX">
       <UniqueIdentifier>{1c6228e5-49b8-4ca4-997b-cf1457ae9274}</UniqueIdentifier>
     </Filter>
+    <Filter Include="VFX_Editor\UI">
+      <UniqueIdentifier>{ef362e5f-7fdb-4e15-ae47-a3d12a65aeea}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Graphics\Renderer\GrassRenderer.cpp">
@@ -170,7 +170,7 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUDEliteBars.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneElites.cpp">
       <Filter>Scene</Filter>
@@ -215,6 +215,15 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestAim.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSmartCam.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestSand.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestMiasma.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestPlayerDeath.cpp">
@@ -317,7 +326,7 @@
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="UI\BackpackUIOutlet.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="Item\BackpackOutlet.cpp">
       <Filter>Item</Filter>
@@ -353,6 +362,9 @@
       <Filter>Enemy\Spawn</Filter>
     </ClCompile>
     <ClCompile Include="Swarm\SwarmSystemRuins.cpp">
+      <Filter>Swarm</Filter>
+    </ClCompile>
+    <ClCompile Include="Swarm\SwarmSystemLod.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneRuins.cpp">
@@ -745,6 +757,12 @@
     <ClCompile Include="Scene\CollisionTestSceneField.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneMiasma.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneSand.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneTitle.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
@@ -824,16 +842,16 @@
       <Filter>Graphics\Renderer</Filter>
     </ClCompile>
     <ClCompile Include="UI\BackpackUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\BackpackPadControl.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestPadBag.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClInclude Include="UI\BackpackPadControl.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\Frames.h">
       <Filter>Item\Items</Filter>
@@ -863,19 +881,19 @@
       <Filter>Item</Filter>
     </ClCompile>
     <ClCompile Include="UI\ItemSheetView.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\PauseMenuUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\SettingsMenuUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\TutorialGuide.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HowToPlayUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="Core\GameSettings.cpp">
       <Filter>Core</Filter>
@@ -887,13 +905,13 @@
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="UI\StageSelectUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\MenuList.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\TitleScreenUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="Item\BackpackLogic.cpp">
       <Filter>Item</Filter>
@@ -917,56 +935,56 @@
       <Filter>Player</Filter>
     </ClCompile>
     <ClCompile Include="UI\LevelUpSystem.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\LevelUpUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\ShopStock.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\UIDeco.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\InputGlyph.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\UIManager.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUD.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUDAnnounce.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUDShieldBar.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUDMinimap.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUDExpBar.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\HUDFps.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\DamageNumbers.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="UI\TrainingMenuUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="UI\TrainingMenuUIDraw.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="ECS\System\ManaSystem.cpp">
       <Filter>ECS\System</Filter>
     </ClCompile>
     <ClCompile Include="UI\GameUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="Audio\AudioSystem.cpp">
       <Filter>Audio</Filter>
@@ -978,7 +996,7 @@
       <Filter>Audio</Filter>
     </ClCompile>
     <ClCompile Include="UI\SpellbookUI.cpp">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClCompile>
     <ClCompile Include="World\TerrainGenerator.cpp">
       <Filter>World</Filter>
@@ -999,6 +1017,18 @@
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\GrassFireField.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MiasmaField.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\MiasmaFieldRender.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\SandField.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\SandFootprints.cpp">
       <Filter>World</Filter>
     </ClCompile>
     <ClCompile Include="World\WaterSurface.cpp">
@@ -1183,6 +1213,9 @@
       <Filter>Graphics\PostProcess</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\PostProcess\Outline.cpp">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\PostProcess\AmbientOcclusion.cpp">
       <Filter>Graphics\PostProcess</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\PostProcess\SceneSnapshot.cpp">
@@ -1654,7 +1687,7 @@
       <Filter>Graphics\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="UI\BackpackUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="Item\ItemRarity.h">
       <Filter>Item</Filter>
@@ -1699,19 +1732,19 @@
       <Filter>Item</Filter>
     </ClInclude>
     <ClInclude Include="UI\ItemSheetView.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\PauseMenuUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\SettingsMenuUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\TutorialGuide.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\HowToPlayUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="Core\GameSettings.h">
       <Filter>Core</Filter>
@@ -1723,13 +1756,13 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="UI\StageSelectUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\MenuList.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\TitleScreenUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="Component\AreaStats.h">
       <Filter>Component</Filter>
@@ -1774,7 +1807,7 @@
       <Filter>Item\Items</Filter>
     </ClInclude>
     <ClInclude Include="UI\OutletDraw.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="Item\Items\VoidVortex.h">
       <Filter>Item\Items</Filter>
@@ -1864,46 +1897,46 @@
       <Filter>Item</Filter>
     </ClInclude>
     <ClInclude Include="UI\LevelUpSystem.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\LevelUpUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\ShopStock.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\UIDeco.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\InputGlyph.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\ShapeSprite.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\UIManager.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\HUD.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\HUDMinimap.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\DamageNumbers.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\TrainingMenuUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="ECS\System\ManaSystem.h">
       <Filter>ECS\System</Filter>
     </ClInclude>
     <ClInclude Include="UI\GameUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\DragContext.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="Audio\AudioSystem.h">
       <Filter>Audio</Filter>
@@ -1915,7 +1948,7 @@
       <Filter>Audio</Filter>
     </ClInclude>
     <ClInclude Include="UI\SpellbookUI.h">
-      <Filter>UI</Filter>
+      <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="World\GridWorld.h">
       <Filter>World</Filter>
@@ -1945,6 +1978,15 @@
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\GroundDebris.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\MiasmaField.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\SandField.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\SandFootprints.h">
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\Tumbleweeds.h">
@@ -2031,6 +2073,9 @@
       <Filter>Graphics\PostProcess</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\PostProcess\Outline.h">
+      <Filter>Graphics\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\PostProcess\AmbientOcclusion.h">
       <Filter>Graphics\PostProcess</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\PostProcess\SceneSnapshot.h">
@@ -2191,6 +2236,27 @@
     <FxCompile Include="Shader\Grass\GrassFireCS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Miasma\MiasmaStepCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Miasma\MiasmaMarchPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Miasma\MiasmaCompositePS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Sand\SandFieldCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Sand\SandTrackCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Sand\SandFootprintVS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Sand\SandFootprintPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Grass\GrassFireEmitCS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
@@ -2323,6 +2389,9 @@
     <FxCompile Include="Shader\Swarm\SwarmEnemyKindListCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Swarm\SwarmLodSplitCS.hlsl">
+      <Filter>Graphics\Shader\HLSL\Swarm</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmEnemyKindList2CS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
@@ -2399,6 +2468,12 @@
       <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PostProcess\OutlinePS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\SSAOPS.hlsl">
+      <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcess\SSAOBlurPS.hlsl">
       <Filter>Graphics\Shader\HLSL\PostProcess</Filter>
     </FxCompile>
     <FxCompile Include="Shader\PostProcess\BackdropPS.hlsl">
@@ -2492,6 +2567,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Debris\DebrisCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Sand\SandFootprintCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Dandelion\DandelionCommon.hlsli">

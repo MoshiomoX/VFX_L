@@ -11,6 +11,7 @@
 #include "imgui.h"
 
 using DirectX::SimpleMath::Vector4;
+using DirectX::SimpleMath::Vector2;
 
 namespace
 {
@@ -24,9 +25,14 @@ namespace
         float pathNy;
         float caveY;
         float flipNormalY;
-        float _pad[2];
+        float grassDark;      // 草の下の地面に掛ける（1 = 掛けない）
+        float grassOn;        // 1 = t2 に草の覆いの図がある
+        DirectX::SimpleMath::Vector2 grassOrigin, grassSize;   // その図のフィールドの位置と大きさ（世界 xz）
+        // 砂漠の砂の面（2026-11-02、SandField）：x = 1 なら t3 状態 / t4 凹み、y = 濡れた砂の明るさ、z = 熱い砂の赤み、w = 凹みの法線
+        Vector4 sand;
+        DirectX::SimpleMath::Vector2 sandOrigin, sandSize;
     };
-    static_assert(sizeof(TerrainCB) == 112, "TerrainCB layout mismatch");
+    static_assert(sizeof(TerrainCB) == 160, "TerrainCB layout mismatch");
 
     // 面毎のテクスチャ（Assets/Texture/Terrain/<名>_albedo.jpg / _normal.jpg）。層の順 = Layer
     // ユーザー 10-03 に推奨の割り当てで決定：草原 地面 G2・坂 D1 / 砂漠 地面 S1・崖 R2 / 洞窟 底 F2・壁 R3 / 遺跡 地面 F1、崖は R3
@@ -99,6 +105,7 @@ bool TerrainSurface::EnsureBiome(ID3D11Device* device, int biome)
     b.material->SetPixelShader(m_PS);
     b.material->SetAlbedoTexture(b.albedo);   // t0 = Texture2DArray
     b.material->SetNormalTexture(b.normal);   // t1
+    if (m_GrassCover) b.material->SetTextureSlot(Material::Metallic, m_GrassCover);   // t2 = 草の覆い（SetGrassCover）
     std::cout << "[TerrainSurface] biome " << biome << ": " << LayerCount << " layers loaded" << std::endl;
     return true;
 }
@@ -138,6 +145,54 @@ void TerrainSurface::Activate(int biome)
     WriteCB();
 }
 
+// 草の覆いの図（2026-11-02）。Texture に包んで全部の面の材質の t2 に入れ、定数を書き直す
+void TerrainSurface::SetGrassCover(ID3D11ShaderResourceView* cover,
+    const DirectX::SimpleMath::Vector2& origin, const DirectX::SimpleMath::Vector2& size)
+{
+    if (cover)
+    {
+        if (!m_GrassCover) m_GrassCover = std::make_shared<Texture>();
+        m_GrassCover->Adopt(cover, 0, 0);
+    }
+    else
+        m_GrassCover.reset();
+    m_GrassOrigin = origin;
+    m_GrassSize = Vector2((std::max)(size.x, 1e-3f), (std::max)(size.y, 1e-3f));
+    for (auto& b : m_Biomes)
+        if (b.material) b.material->SetTextureSlot(Material::Metallic, m_GrassCover);
+    WriteCB();
+}
+
+// 砂漠の砂の面（2026-11-02）：状態（t3 = 材質の Roughness の枠）と凹み（t4 = AO の枠）。毎フレーム（2 枚を交互に使うので SRV が替わる）。
+// null = 掛けない。地形を描く前に呼ぶ
+void TerrainSurface::SetSandField(ID3D11ShaderResourceView* state, ID3D11ShaderResourceView* track,
+    const DirectX::SimpleMath::Vector2& origin, const DirectX::SimpleMath::Vector2& size, float wetDark, float heatTint, float trackStrength)
+{
+    const bool had = m_SandState != nullptr;
+    if (state && track)
+    {
+        if (!m_SandState) { m_SandState = std::make_shared<Texture>(); m_SandTrack = std::make_shared<Texture>(); }
+        m_SandState->Adopt(state, 0, 0);
+        m_SandTrack->Adopt(track, 0, 0);
+    }
+    else
+    {
+        m_SandState.reset();
+        m_SandTrack.reset();
+        if (!had) return;   // 元から無い：何もしない（砂漠以外で毎フレーム定数を書かない）
+    }
+    m_SandOrigin = origin;
+    m_SandSize = Vector2((std::max)(size.x, 1e-3f), (std::max)(size.y, 1e-3f));
+    m_SandLook = Vector3(wetDark, heatTint, trackStrength);
+    for (auto& b : m_Biomes)
+        if (b.material)
+        {
+            b.material->SetTextureSlot(Material::Roughness, m_SandState);
+            b.material->SetTextureSlot(Material::AO, m_SandTrack);
+        }
+    WriteCB();
+}
+
 void TerrainSurface::WriteCB()
 {
     if (!m_PS || !m_Device) return;
@@ -157,6 +212,13 @@ void TerrainSurface::WriteCB()
     cb.pathNy = params.pathNy;
     cb.caveY = params.caveY;
     cb.flipNormalY = params.flipNormalY ? 1.0f : 0.0f;
+    cb.grassDark = params.grassDarken;
+    cb.grassOn = (m_GrassCover && params.grassDarken < 0.999f) ? 1.0f : 0.0f;
+    cb.grassOrigin = m_GrassOrigin;
+    cb.grassSize = m_GrassSize;
+    cb.sand = (m_SandState && m_SandTrack) ? Vector4(1.0f, m_SandLook.x, m_SandLook.y, m_SandLook.z) : Vector4::Zero;
+    cb.sandOrigin = m_SandOrigin;
+    cb.sandSize = m_SandSize;
 
     ID3D11DeviceContext* ctx = nullptr;
     m_Device->GetImmediateContext(&ctx);
@@ -187,6 +249,9 @@ void TerrainSurface::DrawImGui()
     changed |= ImGui::SliderFloat("Path above ny", &params.pathNy, 0.0f, 1.0f);
     changed |= ImGui::DragFloat("Cave below y", &params.caveY, 0.1f, -20.0f, 20.0f);
     changed |= ImGui::Checkbox("Flip normal Y", &params.flipNormalY);
+    changed |= ImGui::SliderFloat("Ground under grass x", &params.grassDarken, 0.2f, 1.0f);   // 2026-11-02
+    ImGui::SameLine();
+    ImGui::TextDisabled(m_GrassCover ? "(cover bound)" : "(no cover)");
     if (changed) WriteCB();
     ImGui::TreePop();
 }

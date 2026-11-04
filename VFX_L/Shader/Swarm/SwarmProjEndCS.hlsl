@@ -1,23 +1,23 @@
 // ============================================================
 // SwarmProjEndCS.hlsl
-// Step 4b of the fixed step (right after the hit test): report the
-// tagged projectiles that ended this step.
+// 固定ステップの第 4b 段（命中判定の直後）：このステップで消えた
+// タグ付きの弾を報告する。
 //
-// A basic spell (fireball / stone shot) that drives an advanced spell
-// (meteor) is spawned with a trigger tag (projTags, written by
-// SwarmSpawnProjCS). When such a projectile dies -- hit an enemy
-// (HitCS), ran out of lifetime or hit a wall (ProjMoveCS) -- this pass
-// writes where it ended into the trigger ring and clears the tag. The
-// CPU reads the ring back and drops the meteor there (WeaponSystem).
+// 上級魔法（メテオ）を駆動する基本魔法（ファイアボール / ストーンショット）は
+// 連鎖タグ付きで生成される（projTags、SwarmSpawnProjCS が書く）。
+// そういう弾が消えたら -- 敵に当たった（HitCS）、寿命が尽きた、
+// 壁に当たった（ProjMoveCS） -- このパスが消えた位置を連鎖リングに書き、
+// タグを消す。
+// CPU はリングをリードバックし、そこにメテオを落とす（WeaponSystem）。
 //
-// Why a separate pass instead of writing in HitCS / ProjMoveCS:
-//   HitCS already binds 8 UAVs (the D3D11.0 limit), and the three
-//   places a projectile can die would all need the same code.
-//   Neither shader moves the position of a projectile that dies, so
-//   projectiles[i].position is where it ended.
+// HitCS / ProjMoveCS の中で書かずに別パスにしている理由：
+//   HitCS はすでに UAV を 8 本束縛していて（D3D11.0 の上限）、弾が
+//   消える 3 か所すべてに同じコードが要る。
+//   どちらのシェーダも消える弾の位置は動かさないので、
+//   projectiles[i].position が消えた位置になる。
 //
-// The position is put on the ground (terrain height); the CPU lifts it
-// to enemy-center height like the meteor's normal target.
+// 位置は地面（地形の高さ）に置く。CPU が普段のメテオの標的と同じく
+// 敵の中心の高さまで持ち上げる。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -42,7 +42,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     projTags[i] = 0u;
-    // the lifesteal mark (2026-10-25) rides in the top bit: it is not a trigger, the CPU never hears about it
+    // 吸血の印（2026-10-25）は最上位ビットに乗っている。連鎖ではないので CPU には知らせない
     tag &= ~SWARM_TAG_LIFESTEAL;
     if (tag == 0u)
         return;
@@ -50,8 +50,8 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 pos = projectiles[i].position;
     pos.y = SwarmTerrainHeight(terrainHeight, pos.xz);
 
-    // [0] counts every event ever written (never cleared); the CPU keeps
-    // how far it has read, so a missed readback frame loses nothing
+    // [0] はこれまでに書いた全イベントの数（消さない）。CPU がどこまで
+    // 読んだかを覚えているので、リードバックを逃したフレームがあっても取りこぼさない
     uint n;
     triggerEvents.InterlockedAdd(0, 1u, n);
     uint offset = 16u + (n % SWARM_MAX_TRIGGER_EVENTS) * 16u;

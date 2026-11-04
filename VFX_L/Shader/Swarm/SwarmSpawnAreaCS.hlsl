@@ -1,11 +1,11 @@
 // ============================================================
 // SwarmSpawnAreaCS.hlsl
-// Push the CPU's pending area requests into free slots of the
-// area pool. One thread per request, same CAS scan as the other
-// spawn shaders. Pool full -> the request is dropped.
+// CPU から来た範囲の生成要求を、範囲プールの空きスロットに入れる。
+// 要求 1 つに 1 スレッド。他の生成シェーダーと同じ CAS の走査。
+// プールが満杯なら要求は捨てる。
 //
-// Areas born on the GPU (projectile hit) do not come through here;
-// see SwarmSpawnAreaFromDef in SwarmCommon.hlsli.
+// GPU で生まれる範囲（弾の命中）はここを通らない。
+// SwarmCommon.hlsli の SwarmSpawnAreaFromDef を参照。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -27,7 +27,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmArea req = spawnRequests[id.x];
-    req.tickNow &= ~SWARM_AREA_TICK_MASK; // the CPU put the extras (toxin, splash) in the high bits; the tick state starts clean
+    req.tickNow &= ~SWARM_AREA_TICK_MASK; // CPU は追加の情報（毒素、飛沫）を上位ビットに入れた。tick の状態はまっさらから始める
 
     uint start = (g_ScanStart + id.x * 97u) % SWARM_MAX_AREAS;
     for (uint k = 0; k < SWARM_MAX_AREAS; ++k)

@@ -1,7 +1,7 @@
 // ============================================================
 // VFXSpritePS.hlsl
-// Straight-alpha sheet x colour, written premultiplied for the
-// ONE / INV_SRC_ALPHA blend. Additive sprites write alpha 0.
+// ストレートアルファのシート x 色を、ONE / INV_SRC_ALPHA のブレンド用に
+// 乗算済みアルファで書く。加算のスプライトはアルファ 0 を書く。
 // ============================================================
 #include "../Common/SpriteQuad.hlsli"
 

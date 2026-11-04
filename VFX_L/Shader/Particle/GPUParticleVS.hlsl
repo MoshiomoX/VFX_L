@@ -5,21 +5,21 @@ cbuffer ParticleRenderCB : register(b0)
     matrix g_View;
     matrix g_Projection;
     float3 g_CameraPosition;
-    // Which billboards this draw takes (2026-10-09, fire / black smoke flickered):
-    //   0 = all (one blended pass, as before)
-    //   1 = solid toon only (drawn first, depth WRITTEN, PS cuts alpha < 0.5)
-    //   2 = everything except solid toon (blended, depth read only)
-    //   3 = distortion pass (2026-10-20): only particles with a distortion
-    //       level, into the offset target (ParticleDistortPS); colour.a x level / 3
-    // The alive list is filled with InterlockedAdd, so its order changes every
-    // frame; nearly opaque toon puffs drawn in that order swap which one is on
-    // top each frame. With depth written they occlude each other by distance.
+    // この描画でどのビルボードを扱うか（2026-10-09、火 / 黒煙がちらついた件）：
+    //   0 = 全部（従来どおりブレンド 1 パス）
+    //   1 = 不透明なトゥーンのみ（最初に描き、深度を書く。PS は alpha < 0.5 を切る）
+    //   2 = 不透明なトゥーン以外の全部（ブレンド、深度は読むだけ）
+    //   3 = 歪みパス（2026-10-20）：歪みの強さを持つパーティクルだけを
+    //       オフセットのターゲットへ（ParticleDistortPS）。colour.a x level / 3
+    // 生存リストは InterlockedAdd で詰めるので順番が毎フレーム変わる。
+    // ほぼ不透明なトゥーンの煙をその順で描くと、どれが手前に来るかが
+    // 毎フレーム入れ替わる。深度を書けば距離で隠し合う。
     float g_Pass;
 };
 
-// same bit as PARTICLE_TOON in GPUParticlePS (ParticleRenderMode::kToon)
+// GPUParticlePS の PARTICLE_TOON と同じビット（ParticleRenderMode::kToon）
 #define PARTICLE_TOON_BIT (1u << 14)
-// toon puffs at least this opaque (start alpha x 1.3) count as solid
+// これ以上不透明（開始 alpha x 1.3）なトゥーンの煙を不透明として扱う
 static const float SOLID_TOON_OPACITY = 0.85;
 
 StructuredBuffer<GPUParticle> particles : register(t0);
@@ -33,19 +33,19 @@ struct VSOutput
     nointerpolation uint atlasRows : TEXCOORD1;
     nointerpolation uint atlasCols : TEXCOORD2;
     nointerpolation uint uvFrame : TEXCOORD3;
-    nointerpolation uint sheet : TEXCOORD4; // ParticleSheets index (particle.textureIndex)
-    nointerpolation uint alphaBlend : TEXCOORD5; // 1 = alpha blended, 0 = additive
-    nointerpolation uint renderMode : TEXCOORD6; // toon bits (PARTICLE_TOON_*, GPUParticlePS)
-    // toon: x = life left relative to the start alpha (erodes the shape), y = opacity (start alpha x 1.3)
+    nointerpolation uint sheet : TEXCOORD4; // ParticleSheets の番号（particle.textureIndex）
+    nointerpolation uint alphaBlend : TEXCOORD5; // 1 = アルファブレンド、0 = 加算
+    nointerpolation uint renderMode : TEXCOORD6; // トゥーンのビット（PARTICLE_TOON_*、GPUParticlePS）
+    // トゥーン：x = 開始 alpha に対する残りの寿命（形を削る）、y = 不透明度（開始 alpha x 1.3）
     nointerpolation float2 toonFade : TEXCOORD7;
-    nointerpolation uint solidPass : TEXCOORD8;  // 1 = drawn in the depth-writing pass (PS cuts alpha < 0.5)
+    nointerpolation uint solidPass : TEXCOORD8;  // 1 = 深度を書くパスで描く（PS は alpha < 0.5 を切る）
 };
 
 VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 {
     VSOutput output = (VSOutput) 0;
 
-    uint particleIndex = aliveList[instanceID]; // ← 改成用 instanceID
+    uint particleIndex = aliveList[instanceID]; // ← instanceID を使うように変更
     GPUParticle p = particles[particleIndex];
 
     if (p.isAlive < 0.5)
@@ -66,7 +66,7 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
         float2(0, 1), float2(1, 0), float2(1, 1),
     };
 
-    uint cornerIndex = vertexID; // ← 直接用 vertexID（0~5）
+    uint cornerIndex = vertexID; // ← vertexID（0~5）をそのまま使う
     float2 corner = corners[cornerIndex];
     output.uv = uvs[cornerIndex];
 
@@ -79,7 +79,7 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     float startA = max(p.startColor.a, 1e-3);
     output.toonFade = float2(saturate(p.color.a / startA), saturate(startA * 1.3));
 
-    // pass split (see g_Pass): a particle not taken by this pass becomes a zero-area triangle
+    // パスの振り分け（g_Pass 参照）：このパスで扱わないパーティクルは面積 0 の三角形にする
     bool solid = (((uint) p.renderMode) & PARTICLE_TOON_BIT) != 0u && output.alphaBlend != 0u
               && output.toonFade.y >= SOLID_TOON_OPACITY;
     uint distortLevel = ParticleDistortLevel(p.renderMode);
@@ -92,9 +92,9 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
             output.position = float4(0, 0, -1, 1);
             return output;
         }
-        // folded strength; the PS reads it. A distort-only puff carries the strength in colour.a (nothing
-        // else reads it). A visible one keeps a faint colour.a for the colour pass, so the refraction uses
-        // the life fade (colour.a / start a) instead and stays strong (2026-10-20: wind = refraction + a little white)
+        // 強さを畳み込む。PS がこれを読む。歪みのみの煙は強さを colour.a に持つ（他に読む
+        // ものはない）。見える煙は色のパス用に薄い colour.a を持つので、屈折には代わりに
+        // 寿命のフェード（colour.a / start a）を使い、強さを保つ（2026-10-20：風 = 屈折 + 少しの白）
         float fadeNow = distortOnly ? p.color.a : output.toonFade.x;
         output.color.a = fadeNow * (float) distortLevel / 3.0;
     }
@@ -111,9 +111,9 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     float3 worldPos;
     if (ParticleIsStreak(p.renderMode))
     {
-        // streak (2026-10-20): the long axis follows the velocity (projected onto the view
-        // plane so the quad still faces the camera), the short axis = size. uv top = the head.
-        // A particle that has not started moving yet is drawn upright
+        // 流線（2026-10-20）：長軸は速度に沿う（四角形がカメラを向いたままになるよう
+        // ビュー平面に投影）、短軸 = サイズ。uv の上 = 先頭。
+        // まだ動き出していないパーティクルは立てて描く
         float3 v = p.velocity;
         float sp = length(v);
         float3 toCam = normalize(g_CameraPosition - p.position);

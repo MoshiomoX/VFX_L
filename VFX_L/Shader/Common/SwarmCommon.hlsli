@@ -1,51 +1,51 @@
 // ============================================================
 // SwarmCommon.hlsli
-// C++ side (Swarm/SwarmTypes.h) must match these layouts exactly.
-// StructuredBuffer has no reflection, a mismatch fails silently.
+// C++ 側（Swarm/SwarmTypes.h）とレイアウトを完全に一致させること。
+// StructuredBuffer にはリフレクションがないので、ずれても黙って壊れる。
 //
-// Layout rule: keep every struct a multiple of 16 bytes and avoid
-// straddling float3 across 16-byte boundaries.
+// レイアウトの規則：どの構造体も 16 バイトの倍数にし、
+// float3 が 16 バイト境界をまたがないようにする。
 //
-// Note: the alive/dead flag is NOT in these structs. It lives in a
-// separate RWBuffer<uint> because SM5.0 atomics only work on
-// RWByteAddressBuffer and RWBuffer<uint> / RWStructuredBuffer<uint>,
-// and slot claiming needs InterlockedCompareExchange.
+// 注意：生死フラグはこれらの構造体に入っていない。別の
+// RWBuffer<uint> に置いている。SM5.0 のアトミックは
+// RWByteAddressBuffer と RWBuffer<uint> / RWStructuredBuffer<uint> でしか使えず、
+// スロットの確保に InterlockedCompareExchange が要るため。
 // ============================================================
 
 #ifndef SWARM_COMMON_HLSLI
 #define SWARM_COMMON_HLSLI
 
-// ---- fixed step, shared by every CS in this pipeline ----
-static const float SWARM_FIXED_STEP = 0.02; // Unity default (50Hz)
+// ---- 固定ステップ（このパイプラインの全 CS で共通） ----
+static const float SWARM_FIXED_STEP = 0.02; // Unity のデフォルト（50Hz）
 
-// ---- slot state (stored in the separate state buffers) ----
+// ---- スロットの状態（別の状態バッファに入る） ----
 static const uint SWARM_DEAD = 0;
 static const uint SWARM_ALIVE = 1;
 
-// ---- counter byte offsets (RWByteAddressBuffer) ----
+// ---- カウンタのバイトオフセット（RWByteAddressBuffer） ----
 static const uint SWARM_CNT_ALIVE_ENEMIES = 0;
 static const uint SWARM_CNT_KILLS = 4;
 static const uint SWARM_CNT_PLAYER_DAMAGE = 8;
 static const uint SWARM_CNT_ALIVE_PROJ = 12;
 
-// nearest enemy to the player. key = (asuint(dist) & 0xFFFFF000) | slot.
-// positive floats compare as uints, so InterlockedMin finds the closest
-// AND who it is in one atomic. 12 low bits = 4096 slots; kMaxEnemies
-// must stay <= 4096 or this encoding breaks
+// プレイヤーに一番近い敵。key = (asuint(dist) & 0xFFFFF000) | slot。
+// 正の float は uint として比べても大小が同じなので、InterlockedMin 1 回で
+// 最短距離とその敵を同時に求められる。下位 12 ビット = 4096 スロット。kMaxEnemies
+// は 4096 以下に保つこと（超えるとこの符号化が壊れる）
 static const uint SWARM_CNT_NEAREST_KEY = 16;
 static const uint SWARM_CNT_NEAREST_POS = 20;
 static const uint SWARM_CNT_NEAREST_VEL = 32;
 static const uint SWARM_CNT_NEAREST_DIST = 44;
-// exp collected by the player, fixed point x100. ACCUMULATES forever
-// like KILLS / PLAYER_DAMAGE: the CPU takes the delta. Written by
-// OrbMoveCS on pickup.
+// プレイヤーが拾った経験値、固定小数 x100。KILLS / PLAYER_DAMAGE と同じく
+// 永久に累積し、CPU が差分を取る。拾った時に
+// OrbMoveCS が書く。
 static const uint SWARM_CNT_EXP = 48;
-// alive orb count, cleared every step (same as ALIVE_ENEMIES)
+// 生きている経験玉の数。毎ステップクリア（ALIVE_ENEMIES と同じ）
 static const uint SWARM_CNT_ALIVE_ORBS = 52;
-// area attacks. both cleared every step (same as ALIVE_ENEMIES)
+// 範囲攻撃。どちらも毎ステップクリア（ALIVE_ENEMIES と同じ）
 static const uint SWARM_CNT_ALIVE_AREAS = 56;
-static const uint SWARM_CNT_TICKING_AREAS = 60; // areas that deal damage THIS step
-// total 64 bytes
+static const uint SWARM_CNT_TICKING_AREAS = 60; // このステップでダメージを与える範囲
+// 合計 64 バイト
 static const uint SWARM_NO_TARGET_KEY = 0xFFFFFFFFu;
 static const uint SWARM_SLOT_MASK = 0xFFFu;
 static const uint SWARM_DIST_MASK = 0xFFFFF000u;
@@ -56,7 +56,7 @@ uint SwarmHpToFixed(float hp)
     return (uint) (hp * SWARM_HP_SCALE + 0.5);
 }
 // ============================================================
-// Enemy: 48 bytes
+// 敵：48 バイト
 // ============================================================
 struct SwarmEnemy
 {
@@ -68,53 +68,53 @@ struct SwarmEnemy
 
     float yaw;
 
-    // animIndex 2 = hit stun. HitCS sets it with animTime = 0, MoveCS
-    // counts animTime up to g_HitStun then clears it, the VS reads it
-    // for the flash. Other values are reserved for VAT animation.
+    // animIndex 2 = 被弾の硬直。HitCS が animTime = 0 で立て、MoveCS が
+    // animTime を g_HitStun まで数えてから消す。VS はこれを読んで
+    // 光らせる。他の値は VAT アニメーション用に予約。
     float animTime;
     uint animIndex;
     float attackCooldown;
 };
 
 // ============================================================
-// Enemy kind + per-kind state: 8 bytes, a side buffer with the same
-// index as the enemy pool (SwarmEnemy stays 48B).
-// Must match Swarm::EnemyExtra in SwarmTypes.h
-// A spawn REQUEST carries the kind in animIndex; SpawnEnemyCS /
-// RecycleCS move it here and reset animIndex to 0.
+// 敵の種類 + 種類ごとの状態：8 バイト。敵プールと同じ添字の
+// 並列バッファ（SwarmEnemy は 48B のまま）。
+// SwarmTypes.h の Swarm::EnemyExtra と一致させること
+// 生成リクエストは種類を animIndex に入れて運ぶ。SpawnEnemyCS /
+// RecycleCS がそれをここへ移し、animIndex を 0 に戻す。
 // ============================================================
-static const uint SWARM_KIND_MOB = 0u;    // melee on contact
-static const uint SWARM_KIND_BOMBER = 1u; // contact lights a fuse, blows up g_BomberFuseTime later
-static const uint SWARM_KIND_ELITE = 2u;  // big mob: g_EliteScale body, g_EliteDamageMul melee, g_EliteExpMul orb
-static const uint SWARM_KIND_BOSS = 3u;   // stage boss: g_Boss*, never hit-stunned, reported in SwarmBossInfo
-static const uint SWARM_KIND_GHOST = 4u;  // final-swarm ghost: mob hp, fast, flies straight through walls and plateaus (2026-09-30)
-static const uint SWARM_KIND_SPLITTER = 5u;  // splits into 3 splitlings on death (SwarmCorpseTrackCS -> split ring -> CPU) (2026-10-03)
-static const uint SWARM_KIND_SPLITLING = 6u; // small child of a splitter, does not split again
-static const uint SWARM_KIND_BRUTE = 7u;     // heavy mob: 3x hp, slow, big; replaces mobs from minute 4 (2026-10-07)
-static const uint SWARM_KIND_CHARGER = 8u;   // stops, winds up (red band on the ground), dashes in a locked line (2026-10-08)
-static const uint SWARM_KIND_SHIELD = 9u;    // every hit loses g_ShieldArmor (at least g_ShieldMinFrac goes through) (2026-10-08)
-static const uint SWARM_KIND_SPIKEBALL = 10u; // desert spike ball (2026-10-17): thick, slow, rolls; touching it throws the player (ContactCS -> playerHits spike slot). Never flinches, cannot be blown away
-static const uint SWARM_KIND_BURROWER = 11u;  // desert burrower (2026-10-17): travels under the sand (only a mound shows, cannot be hit, does not bite), surfaces next to the player for g_BurrowSurfaceTime, then digs in again. fuse > 0 = seconds left on the surface, <= 0 = -(seconds buried)
-static const uint SWARM_KIND_SANDMAGE = 12u;  // desert sand mage (2026-10-17): keeps its distance, winds up and casts a tornado (castEvents -> CPU spawns a SWARM_KIND_TORNADO). fuse > 0 = seconds into the wind-up, < 0 = cooldown left, 0 = ready
-static const uint SWARM_KIND_TORNADO = 13u;   // the sand mage's tornado (2026-10-17): an "enemy projectile". Flies straight along its yaw (through walls like a ghost), cannot be hit or targeted, throws the player up on touch, dies when fuse runs out. fuse = seconds left (0 = just spawned, < 0 = expired)
-static const uint SWARM_KIND_DASHBOMBER = 15u; // dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger, locks its yaw, stands g_DashBomberWindup seconds, then sprints straight along that yaw (2026-10-20: no re-aiming, a side step dodges it) and blows up on touch or g_DashBomberFuse seconds after the wind-up (ContactCS). fuse > 0 = seconds since lit (AICS counts). Invulnerable while lit, like the bomber
-static const uint SWARM_KIND_DARKGHOST = 14u; // final-swarm dark ghost (2026-10-18, Megabonk's black ghost): a ghost with huge hp, faster than the player, bigger, hits x g_DarkGhostDamageMul and knocks back like a blast. Flies through walls like the white ghost; neither ghost flinches, freezes, slows or gets blown away
-// ---- ruins enemies (2026-10-25, user: "make the ruins mobs" -> cursed armor, stone gargoyle, necromancer, chain warden) ----
-static const uint SWARM_KIND_ARMOR = 16u;         // cursed armor: tough and slow. Its first death does not shatter: it collapses (CorpseTrackCS -> split ring) and the CPU raises SWARM_KIND_ARMOR2 there with half its hp
-static const uint SWARM_KIND_ARMOR2 = 17u;        // the revived cursed armor: shatters as usual
-static const uint SWARM_KIND_GARGOYLE = 18u;      // stone gargoyle: a statue until the player comes close (cannot be hit), then flies (through walls, g_GargoyleHover up), dives at the player and lands for a while. fuse: <= 0 asleep, (0, wake) waking, [wake, SWARM_GARGOYLE_DIVE) flying, >= SWARM_GARGOYLE_DIVE diving (wind-up -> dive -> landed)
-static const uint SWARM_KIND_NECRO = 19u;         // necromancer: keeps its distance like the sand mage; the cast raises skeletons (CPU) from the latest corpses near it
-static const uint SWARM_KIND_SKELETON = 20u;      // skeleton raised by a necromancer: fast and fragile
-static const uint SWARM_KIND_WARDEN = 21u;        // chain warden: stops at mid range, locks its yaw and winds up (the charge band shows the line); at the end the CPU throws the chain hook along that yaw
-// the stage's fixed elites (2026-10-25). A = melee (axe / rider / shadow swordsman), B = ranged (archer / flame mage / librarian; keeps
-// g_FixedEliteKeepMin..Max). The CPU (EliteAttacks) runs their moves and drives them through g_EliteCmd / g_EliteMove
+static const uint SWARM_KIND_MOB = 0u;    // 接触で殴る
+static const uint SWARM_KIND_BOMBER = 1u; // 接触で導火線に点火し、g_BomberFuseTime 後に爆発
+static const uint SWARM_KIND_ELITE = 2u;  // 大型の雑魚：体格 g_EliteScale、殴り g_EliteDamageMul、経験玉 g_EliteExpMul
+static const uint SWARM_KIND_BOSS = 3u;   // ステージのボス：g_Boss*、被弾硬直なし、SwarmBossInfo に報告する
+static const uint SWARM_KIND_GHOST = 4u;  // 最終ウェーブの幽霊：HP は雑魚と同じ、速い、壁や台地を突き抜けてまっすぐ飛ぶ（2026-09-30）
+static const uint SWARM_KIND_SPLITTER = 5u;  // 死ぬと分裂体 3 体に分かれる（SwarmCorpseTrackCS -> 分裂リング -> CPU）（2026-10-03）
+static const uint SWARM_KIND_SPLITLING = 6u; // スプリッターの小さな子。もう分裂しない
+static const uint SWARM_KIND_BRUTE = 7u;     // 重装の雑魚：HP 3 倍、遅い、大きい。4 分目から雑魚と入れ替わる（2026-10-07）
+static const uint SWARM_KIND_CHARGER = 8u;   // 止まって溜め（地面に赤い帯）、固定した線上を突進する（2026-10-08）
+static const uint SWARM_KIND_SHIELD = 9u;    // 被弾ごとに g_ShieldArmor を減らす（最低でも g_ShieldMinFrac は通る）（2026-10-08）
+static const uint SWARM_KIND_SPIKEBALL = 10u; // 砂漠のトゲ玉（2026-10-17）：硬い、遅い、転がる。触るとプレイヤーを弾き飛ばす（ContactCS -> playerHits のトゲ枠）。硬直せず、吹き飛ばされない
+static const uint SWARM_KIND_BURROWER = 11u;  // 砂漠の砂潜り（2026-10-17）：砂の下を進み（砂丘だけ見え、当たらず、噛まない）、プレイヤーの横で g_BurrowSurfaceTime だけ地上に出て、また潜る。fuse > 0 = 地上にいる残り秒、<= 0 = -(潜っている秒)
+static const uint SWARM_KIND_SANDMAGE = 12u;  // 砂漠の砂嵐の術師（2026-10-17）：距離を保ち、溜めてから竜巻を詠唱する（castEvents -> CPU が SWARM_KIND_TORNADO を生成）。fuse > 0 = 溜めの経過秒、< 0 = クールダウンの残り、0 = 準備完了
+static const uint SWARM_KIND_TORNADO = 13u;   // 砂嵐の術師の竜巻（2026-10-17）：「敵の弾」。yaw に沿ってまっすぐ飛び（幽霊のように壁を抜ける）、当たらず狙われず、触るとプレイヤーを吹き上げ、fuse が尽きると死ぬ。fuse = 残り秒（0 = 生成直後、< 0 = 期限切れ）
+static const uint SWARM_KIND_DASHBOMBER = 15u; // 突撃爆弾兵（2026-10-18）：プレイヤーが g_DashBomberTrigger 内に入ると自分で点火し、yaw を固定して g_DashBomberWindup 秒立ち、その yaw に沿ってまっすぐ走る（2026-10-20：狙い直さないので横に一歩で避けられる）。触れるか、溜めの g_DashBomberFuse 秒後に爆発（ContactCS）。fuse > 0 = 点火からの秒（AICS が数える）。点火中は自爆兵と同じく無敵
+static const uint SWARM_KIND_DARKGHOST = 14u; // 最終ウェーブの黒幽霊（2026-10-18、Megabonk の黒い幽霊）：HP が非常に多い幽霊。プレイヤーより速く、大きく、g_DarkGhostDamageMul 倍で殴り、爆発級に吹き飛ばす。白い幽霊と同じく壁を抜けて飛ぶ。どちらの幽霊も硬直・凍結・減速・吹き飛ばしを受けない
+// ---- 遺跡の敵（2026-10-25、ユーザー：「遺跡の雑魚を作って」 -> 呪いの鎧、石像ガーゴイル、死霊術師、鎖の番人） ----
+static const uint SWARM_KIND_ARMOR = 16u;         // 呪いの鎧：硬くて遅い。1 回目の死では砕けず崩れ落ち（CorpseTrackCS -> 分裂リング）、CPU がそこに HP 半分の SWARM_KIND_ARMOR2 を起こす
+static const uint SWARM_KIND_ARMOR2 = 17u;        // 蘇った呪いの鎧：普通に砕ける
+static const uint SWARM_KIND_GARGOYLE = 18u;      // 石像ガーゴイル：プレイヤーが近づくまで石像（当たらない）、その後飛び（壁を抜け、g_GargoyleHover だけ浮く）、プレイヤーへ急降下してしばらく着地する。fuse：<= 0 眠り、(0, wake) 目覚め中、[wake, SWARM_GARGOYLE_DIVE) 飛行、>= SWARM_GARGOYLE_DIVE 急降下（溜め -> 急降下 -> 着地）
+static const uint SWARM_KIND_NECRO = 19u;         // 死霊術師：砂嵐の術師と同じく距離を保つ。詠唱で近くの新しい死体から骸骨を起こす（CPU）
+static const uint SWARM_KIND_SKELETON = 20u;      // 死霊術師が起こした骸骨：速くて脆い
+static const uint SWARM_KIND_WARDEN = 21u;        // 鎖の番人：中距離で止まり、yaw を固定して溜める（突進の帯で線を見せる）。溜め終わりに CPU がその yaw に沿って鎖の鉤を投げる
+// 面の固定エリート（2026-10-25）。A = 近接（大斧 / 騎兵 / 影の剣士）、B = 遠距離（弓手 / 炎術師 / 司書。
+// g_FixedEliteKeepMin..Max の距離を保つ）。技は CPU（EliteAttacks）が走らせ、g_EliteCmd / g_EliteMove で動かす
 static const uint SWARM_KIND_ELITE_A = 22u;
 static const uint SWARM_KIND_ELITE_B = 23u;
-static const float SWARM_GARGOYLE_DIVE = 1000.0;  // a gargoyle's fuse from here on = the dive (fuse - this = seconds into it)
+static const float SWARM_GARGOYLE_DIVE = 1000.0;  // ガーゴイルの fuse がこれ以上 = 急降下（fuse - これ = 急降下に入ってからの秒）
 
-// both final-swarm ghosts (2026-10-18): fly straight at the player through walls and plateaus (AICS / MoveCS / PushCS),
-// never flinch (HitCS / AreaDamageCS), never slowed / frozen (AICS), never pushed by the gust (SwarmPushKindMul),
-// never recycled (RecycleCS). Drawn translucent from the ghost list (CompactCS)
+// 最終ウェーブの幽霊 2 種（2026-10-18）：壁や台地を抜けてプレイヤーへまっすぐ飛び（AICS / MoveCS / PushCS）、
+// 硬直せず（HitCS / AreaDamageCS）、減速・凍結されず（AICS）、突風に押されず（SwarmPushKindMul）、
+// 転送されない（RecycleCS）。幽霊リストから半透明で描く（CompactCS）
 bool SwarmIsGhost(uint kind)
 {
     return kind == SWARM_KIND_GHOST || kind == SWARM_KIND_DARKGHOST;
@@ -123,15 +123,15 @@ bool SwarmIsFixedElite(uint kind)
 {
     return kind == SWARM_KIND_ELITE_A || kind == SWARM_KIND_ELITE_B;
 }
-// the elite-sized kinds: half the freeze / slow / gust push
+// エリート級の種類：凍結 / 減速 / 突風の押しが半分
 bool SwarmIsBigElite(uint kind)
 {
     return kind == SWARM_KIND_ELITE || SwarmIsFixedElite(kind);
 }
 
-// kinds whose live / shattering draw lists come from the later list passes (SwarmEnemyKindList2CS /
-// SwarmCorpseList2CS / SwarmCorpseList3CS, 2026-10-25): the first ones already bind 8 UAVs each.
-// The first passes leave these kinds out
+// 生存中 / 砕け中の描画リストを後のリストパス（SwarmEnemyKindList2CS /
+// SwarmCorpseList2CS / SwarmCorpseList3CS、2026-10-25）で作る種類：最初のパスはどれも UAV 8 本を使い切っている。
+// 最初のパスではこれらの種類を除く
 bool SwarmInKindList2(uint kind)
 {
     return (kind >= SWARM_KIND_ARMOR && kind <= SWARM_KIND_WARDEN) || SwarmIsFixedElite(kind);
@@ -144,26 +144,26 @@ bool SwarmInCorpseList2(uint kind)
 struct SwarmEnemyExtra
 {
     uint kind;
-    // bomber : seconds since the fuse was lit. 0 = not lit (lighting adds one step)
-    // charger: < 0 = cooldown left (counts up to 0), 0 = chasing, > 0 = seconds since the wind-up began
-    //          (SwarmChargerPhase splits it into wind-up / dash / recover)
+    // 自爆兵 : 点火してからの秒。0 = 未点火（点火時に 1 ステップ分足す）
+    // 突撃兵 : < 0 = クールダウンの残り（0 まで数え上げる）、0 = 追跡中、> 0 = 溜め開始からの秒
+    //          （SwarmChargerPhase で 溜め / 突進 / 立て直し に分ける）
     float fuse;
 };
 
 // ------------------------------------------------------------
-// Enemy status side buffer enemySlow (float4, 2026-10-08; was float2):
-//   x = slow seconds left, y = slow amount (poison pool, AreaDamageCS)
-//   z = frozen seconds left (> 0: does not move, does not hit)
-//   w = while frozen: the length of this freeze (the VS grows / melts the ice);
-//       after it thaws: seconds left before it can freeze again
-// A freeze is requested by HitCS: animIndex = SWARM_ANIM_FREEZE_REQ and
-// animTime = seconds. The next step's AICS takes it (SwarmEnemy stays 48B).
-// Must match Swarm::kAnimFreezeRequest
+// 敵の状態の並列バッファ enemySlow（float4、2026-10-08。以前は float2）：
+//   x = 減速の残り秒、y = 減速量（毒沼、AreaDamageCS）
+//   z = 凍結の残り秒（> 0：動かない、殴らない）
+//   w = 凍結中：今回の凍結の長さ（VS が氷を生やす / 溶かすのに使う）
+//       解けた後：再び凍れるようになるまでの残り秒
+// 凍結は HitCS がリクエストする：animIndex = SWARM_ANIM_FREEZE_REQ、
+// animTime = 秒。次のステップの AICS が受け取る（SwarmEnemy は 48B のまま）。
+// Swarm::kAnimFreezeRequest と一致させること
 // ------------------------------------------------------------
 static const uint SWARM_ANIM_FREEZE_REQ = 3u;
 
 // ============================================================
-// Projectile: 48 bytes
+// 弾：48 バイト
 // ============================================================
 struct SwarmProjectile
 {
@@ -174,46 +174,46 @@ struct SwarmProjectile
     float lifetime;
 
     float radius;
-    uint vfxType; // index into SwarmVFXTable's recipe table
-    uint motion; // bits 0-15 = motion table index, 16-30 = size scale (SwarmProjScale).
-                 // In a spawn REQUEST bit 31 = mirror the curve
-    float pathT; // Bezier parameter 0..1 while on a curve
+    uint vfxType; // SwarmVFXTable のレシピ表の添字
+    uint motion; // ビット 0-15 = 弾道表の添字、16-30 = 大きさの倍率（SwarmProjScale）。
+                 // 生成リクエストではビット 31 = 曲線を左右反転
+    float pathT; // 曲線を飛んでいる間のベジェパラメータ 0..1
 };
 
 // ============================================================
-// Projectile motion
+// 弾道
 //
-// SwarmMotion   : one row per projectile profile (the editor's data).
-//                 Must match Swarm::Motion in SwarmTypes.h. 48 bytes.
-// SwarmProjPath : one per projectile slot, same index as the pool.
-//                 The cubic Bezier this projectile is flying, built on
-//                 the GPU at spawn (and again on re-target).
-//                 Must match Swarm::ProjPath. 64 bytes.
+// SwarmMotion   : 弾のプロファイル 1 つにつき 1 行（エディタのデータ）。
+//                 SwarmTypes.h の Swarm::Motion と一致させること。48 バイト。
+// SwarmProjPath : 弾スロット 1 つにつき 1 つ、プールと同じ添字。
+//                 この弾が飛んでいる 3 次ベジェ。生成時に GPU で作る
+//                 （狙い直す時にも作り直す）。
+//                 Swarm::ProjPath と一致させること。64 バイト。
 //
-// Control points are authored in the frame of the shot, scaled by the
-// shot distance, so one curve fits near and far targets:
-//     c.x = fraction along muzzle -> target
-//     c.y = sideways offset / distance   (mirrored by sideSign)
-//     c.z = upward   offset / distance   (world up)
+// 制御点は射撃の座標系で書き、射撃の距離で拡縮するので、
+// 1 本の曲線で近い標的にも遠い標的にも合う：
+//     c.x = 銃口 -> 標的 に沿った割合
+//     c.y = 横方向のずれ / 距離   （sideSign で左右反転）
+//     c.z = 上方向のずれ / 距離   （ワールドの上）
 //
-// DROP (meteor) uses c1 differently, in meters:
-//     c1.x = height of the start point above the impact point
-//     c1.y = horizontal offset of the start point, back toward the muzzle
-//            (so it falls at atan(c1.x / c1.y) from the horizontal)
-// The impact point is fixed at spawn (the enemy's position then) so the
-// warning ring on the ground (SwarmDropRingVS) is exactly where it lands.
+// DROP（メテオ）は c1 を別の意味で使う（単位 m）：
+//     c1.x = 着弾点から見た開始点の高さ
+//     c1.y = 開始点の水平オフセット（銃口の方へ戻る向き）
+//            （なので水平から atan(c1.x / c1.y) の角度で落ちる）
+// 着弾点は生成時（その時の敵の位置）に固定するので、
+// 地面の警告リング（SwarmDropRingVS）はちょうど落ちる場所に出る。
 // ============================================================
 static const uint SWARM_MOTION_STRAIGHT = 0;
 static const uint SWARM_MOTION_CURVE_ONCE = 1;
 static const uint SWARM_MOTION_TRACK = 2;
 static const uint SWARM_MOTION_DROP = 3;
-// LOB (2026-10-01, the Poison spell): thrown from the muzzle in an arc onto
-// the spot where the nearest enemy stood at spawn. Built like a CURVE path
-// (c1 / c2 in the shot frame, so c.z lifts the arc) but behaves like DROP:
-// no enemy hits on the way, no terrain test, always lands on p3 and leaves
-// its hit area there.
+// LOB（2026-10-01、毒の魔法）：銃口から弧を描いて、生成時に一番近い敵が
+// 立っていた場所へ投げる。CURVE と同じように経路を作る
+// （c1 / c2 は射撃の座標系なので c.z で弧が持ち上がる）が、振る舞いは DROP と同じ：
+// 途中で敵に当たらず、地形判定もせず、必ず p3 に落ちて
+// そこに命中範囲を残す。
 static const uint SWARM_MOTION_LOB = 4;
-// circles the player (2026-11-01): c1.x = rad/s, c1.y = radius m, c1.z = height offset m. Starts at the angle in path.sideSign
+// プレイヤーの周りを回る（2026-11-01）：c1.x = rad/s、c1.y = 半径 m、c1.z = 高さオフセット m。path.sideSign の角度から始める
 static const uint SWARM_MOTION_ORBIT = 5;
 
 bool SwarmMotionLands(uint mode)
@@ -226,46 +226,46 @@ static const uint SWARM_MOTION_INDEX_MASK = 0xFFFFu;
 static const uint SWARM_MOTION_FLIP_BIT = 0x80000000u;
 
 // ------------------------------------------------------------
-// Trigger chain (basic spell -> advanced spell, e.g. fireball / stone
-// shot -> meteor). A spawn request may carry a parallel uint2
-// (SwarmSpawnProjCS t4):
-//   x = trigger tag: bit k = "when this projectile ends, advanced spell
-//       k of the wand may fire there". Kept per slot in projTags.
-//   y = flags: SWARM_SPAWN_AT_POS = DROP lands on the request position
-//       instead of locking the enemy nearest to the player.
-// SwarmProjEndCS reports tagged projectiles that died this step into a
-// ring (header 16B: [0] = total events ever written, then
-// SWARM_MAX_TRIGGER_EVENTS entries of 16B: ground pos xyz + tag).
-// The CPU reads the ring back and takes the entries it has not seen.
-// Must match Swarm::kMaxTriggerEvents / kSpawnAtPos in SwarmTypes.h
+// 連鎖（基本魔法 -> 上級魔法、例：ファイアボール / ストーン
+// ショット -> メテオ）。生成リクエストは並列の uint2 を持てる
+// （SwarmSpawnProjCS t4）：
+//   x = 連鎖タグ：ビット k =「この弾が消えたら、杖の上級魔法 k を
+//       そこで発動してよい」。スロットごとに projTags に保持する。
+//   y = フラグ：SWARM_SPAWN_AT_POS = DROP はプレイヤーに一番近い敵を
+//       狙わず、リクエストの位置に落ちる。
+// SwarmProjEndCS は、このステップで消えたタグ付きの弾をリングに書く
+// （ヘッダ 16B：[0] = これまでに書いたイベントの総数、その後に
+// SWARM_MAX_TRIGGER_EVENTS 個の 16B のエントリ：地面の位置 xyz + タグ）。
+// CPU はリングをリードバックし、まだ見ていないエントリを取る。
+// SwarmTypes.h の Swarm::kMaxTriggerEvents / kSpawnAtPos と一致させること
 // ------------------------------------------------------------
 static const uint SWARM_MAX_TRIGGER_EVENTS = 128u;
 static const uint SWARM_SPAWN_AT_POS = 1u;
 
 // ------------------------------------------------------------
-// Boost on the areas a projectile leaves (2026-10-02). y bits 8-19 =
-// damage multiplier, bits 20-31 = duration multiplier, 256 = 1.0 (0 reads
-// as 1.0). SpawnProjCS keeps y >> SWARM_SPAWN_BOOST_SHIFT per slot in
-// projBoost; HitCS / ProjMoveCS hand it to SwarmSpawnAreaFromDef.
-// Damage = the "spell power" stat card, duration = shots cast during a
-// mana surge (only lasting areas get longer).
-// Must match Swarm::kSpawnBoostShift / PackSpawnBoost in SwarmTypes.h
+// 弾が残す範囲の強化（2026-10-02）。y のビット 8-19 = 威力の倍率、
+// ビット 20-31 = 持続の倍率、256 = 1.0（0 は 1.0 として読む）。
+// SpawnProjCS が y >> SWARM_SPAWN_BOOST_SHIFT をスロットごとに projBoost に保持し、
+// HitCS / ProjMoveCS がそれを SwarmSpawnAreaFromDef に渡す。
+// 威力 =「魔法威力」の能力カード、持続 = 魔力解放中に詠唱した弾
+// （持続する範囲だけ長くなる）。
+// SwarmTypes.h の Swarm::kSpawnBoostShift / PackSpawnBoost と一致させること
 // ------------------------------------------------------------
 static const uint SWARM_SPAWN_BOOST_SHIFT = 8u;
 
 // ------------------------------------------------------------
-// Chain rune (2026-10-16): a shot with chains left is not consumed by a
-// live hit. ProjMoveCS then aims it at the nearest other enemy within
-// SWARM_CHAIN_RADIUS and builds a new curve from where it is.
-// HitCS has no UAV left for a per-slot buffer, so the chain state rides
-// in projStates (every other reader only tests == / != SWARM_DEAD):
-//   bit 31     : SWARM_PROJ_CHAINED (an alive value, never SWARM_DEAD)
-//   bit 30     : SWARM_PROJ_CHAIN_PENDING: HitCS hit something this step,
-//                ProjMoveCS has to pick the next enemy (and clears it)
-//   bits 16-23 : chains left
-//   bits 0-15  : the enemy hit last (skipped by HitCS. 0xFFFF = none)
-// The count arrives in the spawn request's pathT (unused there:
-// SpawnProjCS overwrites it). SwarmSystem::SpawnProjectile(chainCount)
+// 連鎖のルーン（2026-10-16）：連鎖が残っている弾は、生きた敵に当たっても
+// 消えない。その後 ProjMoveCS が SWARM_CHAIN_RADIUS 内で一番近い別の敵を
+// 狙い、今の位置から新しい曲線を作る。
+// HitCS にはスロットごとのバッファ用の UAV が残っていないので、連鎖の状態は
+// projStates に載せる（他の読み手はどれも == / != SWARM_DEAD しか見ない）：
+//   ビット 31     : SWARM_PROJ_CHAINED（生きている値。SWARM_DEAD にはならない）
+//   ビット 30     : SWARM_PROJ_CHAIN_PENDING：HitCS がこのステップで何かに当たった。
+//                ProjMoveCS が次の敵を選ぶ（そしてこれを消す）
+//   ビット 16-23 : 残りの連鎖回数
+//   ビット 0-15  : 最後に当たった敵（HitCS はスキップする。0xFFFF = なし）
+// 回数は生成リクエストの pathT に入って届く（リクエストでは未使用で、
+// SpawnProjCS が上書きする）。SwarmSystem::SpawnProjectile(chainCount)
 // ------------------------------------------------------------
 static const uint SWARM_PROJ_CHAINED = 0x80000000u;
 static const uint SWARM_PROJ_CHAIN_PENDING = 0x40000000u;
@@ -280,33 +280,33 @@ uint SwarmProjChainState(uint left, uint lastHit)
          | ((left & SWARM_PROJ_CHAIN_LEFT_MASK) << SWARM_PROJ_CHAIN_LEFT_SHIFT)
          | (lastHit & SWARM_PROJ_CHAIN_LAST_MASK);
 }
-// Pierce (2026-10-28, the golden arrow): the same chained state plus this
-// bit. A live hit leaves the shot alive with one pierce less and the hit
-// enemy remembered (skipped while the shot passes through it), but nothing
-// is re-aimed: no PENDING, and ProjMoveCS keeps a straight shot straight.
-// Each pierce scales the damage by SWARM_PIERCE_FALLOFF. The count comes
-// from the profile (SwarmMotionPierce). With the chain rune on top, the
-// pierces are added to the jumps and the shot jumps (chain behaviour)
+// 貫通（2026-10-28、黄金の矢）：同じ連鎖状態にこのビットを足したもの。
+// 生きた敵に当たると、貫通を 1 つ減らし、当たった敵を覚えて（弾が通り抜ける
+// 間はスキップ）弾は生き続けるが、狙い直しはしない：PENDING は立てず、
+// ProjMoveCS は直進弾をまっすぐのまま飛ばす。
+// 貫通するたびに威力を SWARM_PIERCE_FALLOFF 倍する。回数は
+// プロファイルから（SwarmMotionPierce）。連鎖のルーンも付くと、
+// 貫通数を跳躍回数に足し、弾は跳ぶ（連鎖の挙動）
 static const uint SWARM_PROJ_PIERCE = 0x20000000u;
 static const float SWARM_PIERCE_FALLOFF = 0.8;
 
 // ------------------------------------------------------------
-// A dead enemy shattering into its rigid parts (2026-10-02).
-// SwarmCorpseTrackCS writes one when a slot that was alive last frame is
-// DEAD now; SwarmCorpseVS throws the parts as a closed-form function of
-// (seed, age). Must match Swarm::Corpse / kMaxCorpses in SwarmTypes.h
+// 死んだ敵が剛体の部品に砕け散る（2026-10-02）。
+// 前フレームで生きていたスロットが今 DEAD なら SwarmCorpseTrackCS が 1 つ書き、
+// SwarmCorpseVS が (seed, age) の閉じた式で部品を飛ばす。
+// SwarmTypes.h の Swarm::Corpse / kMaxCorpses と一致させること
 // ------------------------------------------------------------
 static const uint SWARM_MAX_CORPSES = 512u;
 
 struct SwarmCorpse
 {
-    float3 position; // where it died (enemy position = ground + groundY)
+    float3 position; // 死んだ場所（敵の位置 = 地面 + groundY）
     float yaw;
-    float2 dir;      // throw direction, unit xz (away from the player)
-    float birth;     // time of death on SwarmSystem's clock, 0 = empty
+    float2 dir;      // 飛ばす方向、単位 xz（プレイヤーから離れる向き）
+    float birth;     // SwarmSystem の時計での死亡時刻、0 = 空
     uint kind;
     uint seed;
-    uint cause;      // reserved: cause of death (fire / poison / lightning variants), 0 for now
+    uint cause;      // 予約：死因（炎 / 毒 / 雷のバリエーション用）。今は 0
     float2 _pad;
 };
 
@@ -323,16 +323,16 @@ float SwarmBoostDuration(uint boost)
 }
 
 // ------------------------------------------------------------
-// Size scale of one projectile / area (the Magnifier item).
-// A projectile's scale = its hit radius / its profile's radius
-// (SwarmMotion.baseRadius), worked out once in SwarmSpawnProjCS and
-// kept in bits 16-30 of SwarmProjectile.motion (every reader masks the
-// index with SWARM_MOTION_INDEX_MASK). An area keeps its scale in bits
-// 16-31 of SwarmArea.flags. Fixed point, 1024 = 1.0; 0 = 1.0 (spawn
-// requests from the CPU leave the bits empty).
-// Multiplied into: the hit area's radius, particle size / offset /
-// shape / speed (SwarmEmitCS), point light radius, sprite size, the
-// meteor's warning ring.
+// 弾 / 範囲 1 つの大きさの倍率（拡大鏡のアイテム）。
+// 弾の倍率 = 当たり判定の半径 / プロファイルの半径
+// （SwarmMotion.baseRadius）。SwarmSpawnProjCS で一度だけ求め、
+// SwarmProjectile.motion のビット 16-30 に入れる（読み手はどれも添字を
+// SWARM_MOTION_INDEX_MASK でマスクする）。範囲は倍率を SwarmArea.flags の
+// ビット 16-31 に持つ。固定小数、1024 = 1.0、0 = 1.0（CPU からの生成
+// リクエストはこのビットを空のままにする）。
+// 掛かる先：命中範囲の半径、パーティクルの大きさ / オフセット /
+// 形状 / 速度（SwarmEmitCS）、点光源の半径、スプライトの大きさ、
+// メテオの警告リング。
 // ------------------------------------------------------------
 static const uint SWARM_SCALE_SHIFT = 16u;
 static const float SWARM_SCALE_ONE = 1024.0;
@@ -346,7 +346,7 @@ float SwarmUnpackScale(uint q)
     return (q == 0u) ? 1.0 : (float) q / SWARM_SCALE_ONE;
 }
 
-// size scale of a live projectile (1 = as authored)
+// 生きている弾の大きさの倍率（1 = 作ったまま）
 float SwarmProjScale(SwarmProjectile p)
 {
     return SwarmUnpackScale((p.motion >> SWARM_SCALE_SHIFT) & 0x7FFFu);
@@ -355,30 +355,30 @@ float SwarmProjScale(SwarmProjectile p)
 struct SwarmMotion
 {
     uint mode;
-    float retargetRadius; // TRACK only. <= 0 = unlimited
-    uint hitArea; // area def spawned where the projectile hits. 0 = none
-    uint hitAreaFlags; // bit 0 = also spawn when it expires / hits a wall
+    float retargetRadius; // TRACK 専用。<= 0 = 無制限
+    uint hitArea; // 弾が当たった所に生成する範囲の定義。0 = なし
+    uint hitAreaFlags; // ビット 0 = 寿命切れ / 壁に当たった時も生成する
 
     float3 c1;
-    float baseRadius; // the profile's hit radius: a shot bigger than this is drawn bigger
+    float baseRadius; // プロファイルの当たり判定の半径：これより大きい弾は大きく描く
 
     float3 c2;
-    float freezeTime; // > 0: the enemy this hits freezes for this long (Ice Lance, 2026-10-08; was _pad2)
+    float freezeTime; // > 0：当たった敵をこの秒数だけ凍らせる（アイスランス、2026-10-08。以前は _pad2）
 };
 
 struct SwarmProjPath
 {
     float3 p0;
-    uint target; // enemy slot, SWARM_NO_TARGET = flying straight
+    uint target; // 敵のスロット、SWARM_NO_TARGET = 直進中
 
     float3 p1;
-    float duration; // seconds from p0 to p3
+    float duration; // p0 から p3 までの秒
 
     float3 p2;
-    float sideSign; // roll of the side offset around the flight axis, radians, fixed per shot (0 = right, pi = left, else random. SwarmBuildPath)
+    float sideSign; // 横オフセットを飛行軸まわりに回す角度（ラジアン、1 発ごとに固定。0 = 右、pi = 左、それ以外 = ランダム。SwarmBuildPath）
 
     float3 p3;
-    float speed; // nominal speed, restored when the curve lets go
+    float speed; // 公称速度。曲線を離れた時に戻す
 };
 
 float3 SwarmBezier(SwarmProjPath c, float t)
@@ -398,9 +398,9 @@ float3 SwarmBezierTangent(SwarmProjPath c, float t)
          + (c.p3 - c.p2) * (3.0 * t * t);
 }
 
-// Fills p0..p3 and duration. sideSign / speed / target are the caller's.
-// keepHeading: leave along `heading` (re-target in flight) instead of
-// using c1, so the path has no kink where the new curve starts.
+// p0..p3 と duration を埋める。sideSign / speed / target は呼び出し側が持つ。
+// keepHeading：c1 を使わず `heading` に沿って出る（飛行中の狙い直し）ので、
+// 新しい曲線の始まりで経路が折れない。
 void SwarmBuildPath(inout SwarmProjPath path, SwarmMotion m,
                     float3 from, float3 to, float3 heading, bool keepHeading)
 {
@@ -413,8 +413,8 @@ void SwarmBuildPath(inout SwarmProjPath path, SwarmMotion m,
     float sideLenSq = dot(side, side);
     side = (sideLenSq > 1e-6) ? side * rsqrt(sideLenSq) : float3(1, 0, 0);
 
-    // the side offset (c.y) is rolled around the flight axis by path.sideSign (radians):
-    // 0 = right, pi = left, other = random direction per shot (2026-10-06). c.z stays world-up
+    // 横オフセット（c.y）は path.sideSign（ラジアン）だけ飛行軸まわりに回す：
+    // 0 = 右、pi = 左、それ以外 = 1 発ごとにランダムな方向（2026-10-06）。c.z はワールドの上のまま
     float3 lateral = side * cos(path.sideSign) + cross(fwd, side) * sin(path.sideSign);
 
     path.p0 = from;
@@ -428,17 +428,17 @@ void SwarmBuildPath(inout SwarmProjPath path, SwarmMotion m,
     if (keepHeading)
         path.p1 = from + heading * (dist / 3.0);
 
-    // arc length ~ average of the chord and the control polygon
+    // 弧長 ≒ 弦と制御多角形の平均
     float len = 0.5 * (dist + length(path.p1 - path.p0)
                             + length(path.p2 - path.p1)
                             + length(path.p3 - path.p2));
     path.duration = max(len / max(path.speed, 0.01), SWARM_FIXED_STEP);
 }
 
-// DROP: a straight line from start to impact. The handles sit on the line
-// so that the distance covered is s(t) = 0.4 t + 0.6 t^2: it speeds up as
-// it falls (1.6x the nominal speed at impact, the nominal speed on average).
-// path.speed must be set by the caller.
+// DROP：開始点から着弾点への直線。ハンドルを線上に置き、
+// 進んだ距離が s(t) = 0.4 t + 0.6 t^2 になるようにする：落ちるほど速くなる
+// （着弾時に公称速度の 1.6 倍、平均すると公称速度）。
+// path.speed は呼び出し側が設定すること。
 void SwarmBuildDropPath(inout SwarmProjPath path, float3 start, float3 impact)
 {
     float3 d = impact - start;
@@ -450,39 +450,39 @@ void SwarmBuildDropPath(inout SwarmProjPath path, float3 start, float3 impact)
 }
 
 // ============================================================
-// Area attacks (explosions, magic circles)
+// 範囲攻撃（爆発、魔法陣）
 //
-// SwarmArea    : one live area. 48 bytes. Must match Swarm::Area.
-//                One-shot and lasting areas are the same thing:
-//                an explosion is an area that ticks once and lingers
-//                only long enough for its particles.
-// SwarmAreaDef : a template. 32 bytes. Must match Swarm::AreaDef.
-//                Row 0 = none. Used when the GPU itself spawns an area
-//                (projectile hit), because only the GPU knows where.
+// SwarmArea    : 生きている範囲 1 つ。48 バイト。Swarm::Area と一致させること。
+//                一発の範囲と持続する範囲は同じもの：
+//                爆発は 1 回だけ判定し、パーティクルが出ている間だけ
+//                残る範囲。
+// SwarmAreaDef : テンプレート。32 バイト。Swarm::AreaDef と一致させること。
+//                行 0 = なし。GPU 自身が範囲を生成する時（弾の命中）に使う。
+//                場所を知っているのが GPU だけなので。
 //
-// Shape: a disc. XZ distance <= radius and |dy| <= halfHeight
-// (+ the enemy capsule), same vertical rule as the projectile hit.
+// 形：円盤。XZ の距離 <= radius かつ |dy| <= halfHeight
+// （+ 敵のカプセル）。縦方向の規則は弾の命中と同じ。
 // ============================================================
 static const uint SWARM_MAX_AREAS = 256; // = Swarm::kMaxAreas
 
-static const uint SWARM_AREA_FOLLOW_PLAYER = 1u; // centre rides on the player
-static const uint SWARM_AREA_STUN = 2u; // a tick freezes + flashes the enemy (hit stun)
-// Capsule (beam): the area is the segment centre -> areaEnds[slot] with
-// radius around it. Start / end / radius come from SwarmBeamCB every step
-// (AreaTickCS), channel = bits 8-11 of flags. Only the CPU spawns these.
+static const uint SWARM_AREA_FOLLOW_PLAYER = 1u; // 中心がプレイヤーに付いて動く
+static const uint SWARM_AREA_STUN = 2u; // 判定のたびに敵を止めて光らせる（被弾硬直）
+// カプセル（光線）：範囲は線分 center -> areaEnds[slot] の周り radius。
+// 始点 / 終点 / 半径は毎ステップ SwarmBeamCB から来る
+// （AreaTickCS）、チャンネル = flags のビット 8-11。生成するのは CPU だけ。
 static const uint SWARM_AREA_CAPSULE = 4u;
-// shakes the camera when it appears (explosions; = Swarm::kAreaShake, 2026-10-03).
-// Counted by SwarmLiquidTrackCS, which already spots every newly born area
+// 出現時にカメラを揺らす（爆発。= Swarm::kAreaShake、2026-10-03）。
+// 新しく生まれた範囲を全部見つけている SwarmLiquidTrackCS が数える
 static const uint SWARM_AREA_SHAKE = 8u;
-static const uint SWARM_AREA_BEAM_SHIFT = 8u; // (flags >> shift) & 0xF = beam channel
+static const uint SWARM_AREA_BEAM_SHIFT = 8u; // (flags >> shift) & 0xF = 光線のチャンネル
 static const uint SWARM_MAX_BEAMS = 4u; // = Swarm::kMaxBeams
 
-// Slow (2026-10-01, the Poison pool): bits 12-15 of flags = q, a tick slows
-// the enemies inside by q / 15 (0 = none). AreaDamageCS keeps the strongest
-// slow per enemy in enemySlow[slot] = (seconds left, amount) and refreshes it
-// on every tick, so it holds while the enemy stands in the pool and wears off
-// SWARM_SLOW_LINGER after the next tick it misses. AICS scales moveSpeed by
-// (1 - amount) and counts the seconds down. Elites / the boss take half.
+// 減速（2026-10-01、毒沼）：flags のビット 12-15 = q。判定のたびに中の敵を
+// q / 15 だけ減速する（0 = なし）。AreaDamageCS は敵ごとに一番強い減速を
+// enemySlow[slot] = (残り秒, 量) に保持し、判定のたびに更新する。なので
+// 敵が沼に立っている間は続き、判定を 1 回外れてから
+// SWARM_SLOW_LINGER で切れる。AICS が moveSpeed を
+// (1 - 量) 倍にして秒を数え下げる。エリート / ボスは半分。
 static const uint SWARM_AREA_SLOW_SHIFT = 12u;
 static const float SWARM_SLOW_LINGER = 0.15;
 static const float SWARM_SLOW_BIG_MUL = 0.5;
@@ -492,10 +492,10 @@ float SwarmAreaSlow(uint flags)
     return (float) ((flags >> SWARM_AREA_SLOW_SHIFT) & 0xFu) / 15.0;
 }
 
-// Freeze (2026-10-10, the Ice Spike): bits 4-7 of flags = q, a tick freezes
-// the enemies inside for q * 0.25 s (0 = none). AreaDamageCS leaves the same
-// freeze request as a hitting Ice Lance (SWARM_ANIM_FREEZE_REQ), so AICS
-// applies the elite / boss half and the immunity after a thaw.
+// 凍結（2026-10-10、アイススパイク）：flags のビット 4-7 = q。判定のたびに中の敵を
+// q * 0.25 s 凍らせる（0 = なし）。AreaDamageCS は命中したアイスランスと同じ
+// 凍結リクエスト（SWARM_ANIM_FREEZE_REQ）を残すので、エリート / ボスの半減と
+// 解けた後の免疫は AICS が適用する。
 static const uint SWARM_AREA_FREEZE_SHIFT = 4u; // = Swarm::kAreaFreezeShift
 
 float SwarmAreaFreeze(uint flags)
@@ -503,12 +503,12 @@ float SwarmAreaFreeze(uint flags)
     return (float) ((flags >> SWARM_AREA_FREEZE_SHIFT) & 0xFu) * 0.25;
 }
 
-// Push (2026-10-12, the Gust): a non-capsule area keeps its knockback
-// strength q / 15 in the beam-channel bits (8-11, unused unless CAPSULE).
-// AreaDamageCS writes enemyPush[slot] = (velocity xz away from the player,
-// seconds left, 0); MoveCS adds it to the step's motion while it decays.
-// Elites take half, the boss none (SwarmPushKindMul).
-static const float SWARM_PUSH_SPEED = 28.0; // = Swarm::kPushSpeed (m/s at q = 15; the ramp-down makes it speed * time / 2 = 3.5 m)
+// 押し出し（2026-10-12、突風）：カプセルでない範囲は吹き飛ばしの強さ q / 15 を
+// 光線チャンネルのビット（8-11、CAPSULE 以外では未使用）に持つ。
+// AreaDamageCS が enemyPush[slot] = (プレイヤーから離れる xz の速度,
+// 残り秒, 0) を書き、MoveCS が減衰させながらそのステップの移動に足す。
+// エリートは半分、ボスは 0（SwarmPushKindMul）。
+static const float SWARM_PUSH_SPEED = 28.0; // = Swarm::kPushSpeed（q = 15 での m/s。減衰があるので speed * time / 2 = 3.5 m）
 static const float SWARM_PUSH_TIME = 0.25;  // = Swarm::kPushTime
 
 float SwarmAreaPush(uint flags)
@@ -518,75 +518,75 @@ float SwarmAreaPush(uint flags)
     return (float) ((flags >> SWARM_AREA_BEAM_SHIFT) & 0xFu) / 15.0;
 }
 
-// Pull (2026-10-22, the Void Vortex): an area with SWARM_AREA_EXTRA_PULL in
-// tickNow reads the same 4 bits as a pull toward its own centre. AreaDamageCS
-// writes enemyPush[slot] = (velocity toward the centre, seconds, 1);
-// w = 1 marks a pull, which never overrides a running push (the Gust wins).
-// One pulse lasts the area's tick interval (at least SWARM_PUSH_TIME), so the
-// pull does not stop between ticks: MoveCS keeps the full speed until the last
-// SWARM_PUSH_TIME and then ramps it down, the way covered is
-// speed x (seconds - SWARM_PUSH_TIME / 2). The speed is chosen so that one pulse
-// covers q x SWARM_PULL_SHARE of the distance: it never overshoots the centre.
-// Inside SWARM_PULL_DEAD nothing pulls (no jitter).
-static const float SWARM_PULL_SHARE = 0.62; // share of the distance per pulse at q = 15
+// 引き寄せ（2026-10-22、渦）：tickNow に SWARM_AREA_EXTRA_PULL がある範囲は、
+// 同じ 4 ビットを自分の中心への引き寄せとして読む。AreaDamageCS が
+// enemyPush[slot] = (中心へ向かう速度, 秒, 1) を書く。
+// w = 1 は引き寄せの印で、進行中の押し出しは上書きしない（突風が勝つ）。
+// 1 回のパルスは範囲の判定間隔（最低 SWARM_PUSH_TIME）続くので、
+// 判定の合間に引き寄せが止まらない：MoveCS は最後の SWARM_PUSH_TIME まで
+// 全速を保ってから減衰させる。進む距離は
+// speed x (seconds - SWARM_PUSH_TIME / 2)。速度は 1 回のパルスで
+// 距離の q x SWARM_PULL_SHARE だけ進むように選ぶ：中心を越えない。
+// SWARM_PULL_DEAD 内では引き寄せない（ガタつき防止）。
+static const float SWARM_PULL_SHARE = 0.62; // q = 15 でのパルス 1 回あたりの距離の割合
 static const float SWARM_PULL_DEAD = 0.35;  // m
 
-// burrower under the sand: projectiles and beams cannot hit it, it does not bite, is not targeted (2026-10-17);
-// ground areas (meteor blast, poison pool, ice spikes...) still reach it (2026-10-26, AreaDamageCS)
-static const float SWARM_BURROW_RISE_TIME = 0.3; // seconds the body takes to rise out / sink in (look only)
+// 砂の下の砂潜り：弾と光線は当たらず、噛まず、狙われない（2026-10-17）。
+// 地面の範囲（メテオの爆発、毒沼、氷のトゲ…）は届く（2026-10-26、AreaDamageCS）
+static const float SWARM_BURROW_RISE_TIME = 0.3; // 体が地上に出る / 潜るのにかかる秒（見た目だけ）
 bool SwarmBuried(SwarmEnemyExtra ex)
 {
     return (ex.kind == SWARM_KIND_BURROWER && ex.fuse <= 0.0)
-        || (ex.kind == SWARM_KIND_BOSS && ex.fuse < -0.5);   // the sand guardian more than half under the sand (2026-10-24)
+        || (ex.kind == SWARM_KIND_BOSS && ex.fuse < -0.5);   // 砂の守護者が半分以上砂に潜っている（2026-10-24）
 }
-// a bomber / dash bomber whose fuse is lit (2026-10-18, user: "every enemy is invulnerable while blowing itself up"):
-// takes no damage (HitCS / AreaDamageCS skip it through SwarmUntargetable), never flinches, is not slowed / frozen (AICS).
-// Before it is lit it dies like any mob
+// 導火線に火の付いた自爆兵 / 突撃爆弾兵（2026-10-18、ユーザー：「自爆している間はどの敵も無敵」）：
+// ダメージを受けず（HitCS / AreaDamageCS は SwarmUntargetable でスキップ）、硬直せず、減速・凍結されない（AICS）。
+// 点火前は普通の雑魚と同じく死ぬ
 bool SwarmInvulnerable(SwarmEnemyExtra ex)
 {
     return (ex.kind == SWARM_KIND_BOMBER || ex.kind == SWARM_KIND_DASHBOMBER) && ex.fuse > 0.0;
 }
-// cannot be hit by projectiles / beams, is not targeted by spells / beams / the nearest-enemy search, has no HP bar
-// (exception: a buried one is hit by ground areas and keeps its bar, see AreaDamageCS / HpBarVS):
-// a buried burrower, the sand mage's tornado (2026-10-17), a lit bomber / dash bomber (2026-10-18)
+// 弾 / 光線が当たらず、魔法 / 光線 / 最寄りの敵の検索で狙われず、HP バーも出ない
+// （例外：潜っているものは地面の範囲が当たり、バーも出る。AreaDamageCS / HpBarVS 参照）：
+// 潜っている砂潜り、砂嵐の術師の竜巻（2026-10-17）、点火した自爆兵 / 突撃爆弾兵（2026-10-18）
 bool SwarmUntargetable(SwarmEnemyExtra ex)
 {
     return SwarmBuried(ex) || ex.kind == SWARM_KIND_TORNADO || SwarmInvulnerable(ex)
-        || (ex.kind == SWARM_KIND_GARGOYLE && ex.fuse <= 0.0)   // a sleeping gargoyle is a statue (2026-10-25)
-        || (SwarmIsFixedElite(ex.kind) && ex.fuse < -0.5);       // the shadow swordsman vanished (AICS: fuse = -hide)
+        || (ex.kind == SWARM_KIND_GARGOYLE && ex.fuse <= 0.0)   // 眠っているガーゴイルは石像（2026-10-25）
+        || (SwarmIsFixedElite(ex.kind) && ex.fuse < -0.5);       // 影の剣士が消えている（AICS：fuse = -hide）
 }
 
 float SwarmPushKindMul(uint kind)
 {
-    // one exit (2026-10-25: the early returns made fxc warn X4000)
+    // 出口は 1 つ（2026-10-25：途中の return で fxc が X4000 を出したため）
     bool none = (kind == SWARM_KIND_BOSS)
-             || (kind == SWARM_KIND_SPIKEBALL)   // too heavy to blow away
-             || (kind == SWARM_KIND_BURROWER)    // under the sand
-             || (kind == SWARM_KIND_TORNADO)     // wind does not push wind
-             || SwarmIsGhost(kind)               // the final swarm cannot be blown away (2026-10-18)
-             || (kind == SWARM_KIND_GARGOYLE);   // stone (2026-10-25)
+             || (kind == SWARM_KIND_SPIKEBALL)   // 重すぎて吹き飛ばない
+             || (kind == SWARM_KIND_BURROWER)    // 砂の下
+             || (kind == SWARM_KIND_TORNADO)     // 風は風を押さない
+             || SwarmIsGhost(kind)               // 最終ウェーブは吹き飛ばせない（2026-10-18）
+             || (kind == SWARM_KIND_GARGOYLE);   // 石（2026-10-25）
     bool half = (SwarmIsBigElite(kind) || kind == SWARM_KIND_ARMOR || kind == SWARM_KIND_ARMOR2);
     return none ? 0.0 : (half ? 0.5 : 1.0);
 }
 
 // ------------------------------------------------------------
-// Per-area extras packed into SwarmArea.tickNow (2026-10-17, the Swamp
-// and the poison pool). The 48-byte SwarmArea has no spare field and its flags
-// are full, so the high bits of tickNow carry two more per-area values.
-// AreaTickCS owns the low byte (tick state) and never touches the rest;
-// the spawners put SwarmAreaDef.extra (GPU) / the request's tickNow (CPU,
-// AreaProfile::Extra) there. Must match Swarm::kAreaExtra* in SwarmTypes.h
-//   bit 0     : SWARM_AREA_TICK_NOW   deals damage this step
-//   bit 1     : SWARM_AREA_TICK_FIRST this step is the area's first tick
-//   bit 2     : SWARM_AREA_TICK_SEEN  has ticked before (persistent)
-//   bits 8-11 : toxin q / 15: this share of a tick's damage is not dealt at
-//               once but stored on the enemy (enemyPoison) and drained over
-//               SWARM_TOXIN_TIME. Areas with toxin do not stack on one enemy:
-//               the strongest one counts (the poison pools)
-//   bit 12    : SWARM_AREA_EXTRA_SPLASH: damage only on the first tick
-//               (the Swamp: a splash on landing, afterwards only the slow)
-//   bit 13    : SWARM_AREA_EXTRA_PULL: the push bits of flags pull toward
-//               the area's centre instead (the Void Vortex, 2026-10-22)
+// 範囲ごとの追加情報を SwarmArea.tickNow に詰める（2026-10-17、泥沼
+// と毒沼）。48 バイトの SwarmArea には空きフィールドがなく flags も
+// 埋まっているので、tickNow の上位ビットで範囲ごとの値をさらに 2 つ運ぶ。
+// 下位 1 バイト（判定の状態）は AreaTickCS のもので、残りには触れない。
+// 生成側がそこに SwarmAreaDef.extra（GPU）/ リクエストの tickNow（CPU、
+// AreaProfile::Extra）を入れる。SwarmTypes.h の Swarm::kAreaExtra* と一致させること
+//   ビット 0     : SWARM_AREA_TICK_NOW   このステップでダメージを与える
+//   ビット 1     : SWARM_AREA_TICK_FIRST このステップが範囲の最初の判定
+//   ビット 2     : SWARM_AREA_TICK_SEEN  以前に判定したことがある（消えない）
+//   ビット 8-11 : 毒素 q / 15：判定のダメージのうちこの割合はすぐには与えず、
+//               敵（enemyPoison）に溜めて SWARM_TOXIN_TIME かけて
+//               減らす。毒素のある範囲は 1 体の敵に重ならない：
+//               一番強いものだけ効く（毒沼）
+//   ビット 12    : SWARM_AREA_EXTRA_SPLASH：最初の判定だけダメージ
+//               （泥沼：着地で飛沫、その後は減速だけ）
+//   ビット 13    : SWARM_AREA_EXTRA_PULL：flags の押し出しのビットで、代わりに
+//               範囲の中心へ引き寄せる（渦、2026-10-22）
 // ------------------------------------------------------------
 static const uint SWARM_AREA_TICK_NOW = 1u;
 static const uint SWARM_AREA_TICK_FIRST = 2u;
@@ -595,14 +595,14 @@ static const uint SWARM_AREA_TICK_MASK = 0xFFu;
 static const uint SWARM_AREA_EXTRA_TOXIN_SHIFT = 8u;
 static const uint SWARM_AREA_EXTRA_SPLASH = 1u << 12u;
 static const uint SWARM_AREA_EXTRA_PULL = 1u << 13u;   // = Swarm::kAreaExtraPull
-static const uint SWARM_AREA_EXTRA_LIFESTEAL = 1u << 14u;   // = Swarm::kAreaExtraLifesteal: marks the enemies it hits (lifesteal rune, 2026-10-25)
-static const uint SWARM_TAG_LIFESTEAL = 0x80000000u;      // = Swarm::kTagLifesteal: top bit of a projectile's trigger tag (projTags)
-static const uint SWARM_AREA_EXTRA_ELEMENT_SHIFT = 16u;   // bits 16..19: damage element (damage number colour, 2026-10-17)
+static const uint SWARM_AREA_EXTRA_LIFESTEAL = 1u << 14u;   // = Swarm::kAreaExtraLifesteal：当たった敵に印を付ける（吸血のルーン、2026-10-25）
+static const uint SWARM_TAG_LIFESTEAL = 0x80000000u;      // = Swarm::kTagLifesteal：弾の連鎖タグ（projTags）の最上位ビット
+static const uint SWARM_AREA_EXTRA_ELEMENT_SHIFT = 16u;   // ビット 16..19：ダメージの属性（ダメージ数字の色、2026-10-17）
 uint SwarmAreaElement(uint tickNow)
 {
     return (tickNow >> SWARM_AREA_EXTRA_ELEMENT_SHIFT) & 0xFu;
 }
-static const float SWARM_TOXIN_TIME = 1.0; // seconds a dose of toxin takes to drain
+static const float SWARM_TOXIN_TIME = 1.0; // 毒素 1 回分が減りきるまでの秒
 
 float SwarmAreaToxin(uint tickNow)
 {
@@ -610,44 +610,44 @@ float SwarmAreaToxin(uint tickNow)
 }
 
 static const uint SWARM_HITAREA_ON_EXPIRE = 1u; // SwarmMotion.hitAreaFlags
-// hold / ease-in (2026-10-16, Stone Shot: the rock hangs in the air for a
-// moment, then is flung with a big acceleration). Packed into the spare
-// bits of hitAreaFlags so the 48-byte SwarmMotion layout stays put.
-//   bits 8-15 : hold time in 0.02 s units (0 = none). SpawnProjCS stores
-//               -hold in pathT; ProjMoveCS counts it up to 0 before flying
-//   bit 16    : ease-in: the curve parameter is squared (starts at 0 speed,
-//               ends at 2x the nominal speed, same total time)
+// 停止 / 加速（2026-10-16、ストーンショット：岩が一瞬空中に止まり、
+// 大きく加速して飛ぶ）。48 バイトの SwarmMotion のレイアウトを変えないよう、
+// hitAreaFlags の空きビットに詰める。
+//   ビット 8-15 : 停止時間（0.02 s 単位、0 = なし）。SpawnProjCS が pathT に
+//               -hold を入れ、ProjMoveCS が 0 まで数え上げてから飛ばす
+//   ビット 16    : 加速：曲線パラメータを 2 乗する（速度 0 で始まり、
+//               公称速度の 2 倍で終わる。合計時間は同じ）
 static const uint SWARM_HITAREA_HOLD_SHIFT = 8u;
 static const uint SWARM_HITAREA_HOLD_MASK = 0xFFu;
 static const float SWARM_HITAREA_HOLD_UNIT = 0.02;
 static const uint SWARM_HITAREA_EASE_IN = 1u << 16u;
-// bits 20..23: the damage element of the shot (0 none, 1 fire, 2 ice, 3 lightning, 4 arcane, 5 earth, 6 poison, 7 wind, 8 light).
-// Only the colour of the damage number (2026-10-17): HitCS stores it in the enemy's state word, SwarmDamageTextCS reads it
+// ビット 20..23：弾のダメージ属性（0 なし、1 炎、2 氷、3 雷、4 奥術、5 土、6 毒、7 風、8 光）。
+// ダメージ数字の色だけに使う（2026-10-17）：HitCS が敵の状態ワードに入れ、SwarmDamageTextCS が読む
 static const uint SWARM_HITAREA_ELEMENT_SHIFT = 20u;
 uint SwarmMotionElement(SwarmMotion m)
 {
     return (m.hitAreaFlags >> SWARM_HITAREA_ELEMENT_SHIFT) & 0xFu;
 }
-// bits 24..27: how many enemies the shot passes through after the first hit (0..15, 2026-10-28, golden arrow).
-// Must match Swarm::kHitAreaPierceShift
+// ビット 24..27：最初の命中の後に弾が貫通する敵の数（0..15、2026-10-28、黄金の矢）。
+// Swarm::kHitAreaPierceShift と一致させること
 static const uint SWARM_HITAREA_PIERCE_SHIFT = 24u;
 uint SwarmMotionPierce(SwarmMotion m)
 {
     return (m.hitAreaFlags >> SWARM_HITAREA_PIERCE_SHIFT) & 0xFu;
 }
-// enemy state word: SWARM_DEAD / SWARM_ALIVE in the low byte, bits 8..11 = element of the last hit (damage number colour).
-// Every reader compares against SWARM_DEAD only; the damage passes write the element with a CAS so a DEAD written
-// meanwhile by the killer is never overwritten
+// 敵の状態ワード：下位 1 バイトに SWARM_DEAD / SWARM_ALIVE、ビット 8..11 = 最後の命中の属性（ダメージ数字の色）。
+// 読み手はどれも SWARM_DEAD とだけ比べる。ダメージのパスは CAS で属性を書くので、
+// その間にとどめを刺した側が書いた DEAD を上書きすることはない
 static const uint SWARM_STATE_ELEMENT_SHIFT = 8u;
-static const uint SWARM_STATE_LIFESTEAL = 1u << 12u;   // the last hit came from a lifesteal spell (SwarmDamageTextCS adds this enemy's hp loss to the lifesteal total)
+static const uint SWARM_STATE_LIFESTEAL = 1u << 12u;   // 最後の命中が吸血の魔法だった（SwarmDamageTextCS がこの敵の HP 減少を吸血の合計に足す）
 uint SwarmStateElement(uint state)
 {
     return (state >> SWARM_STATE_ELEMENT_SHIFT) & 0xFu;
 }
-// The element of the killing hit (2026-10-25). The killer writes SWARM_DEAD, so the state word cannot carry it:
-// HitCS / AreaDamageCS leave it in the dead slot's attackCooldown as -(1 + element). A live enemy's cooldown is never
-// negative (ContactCS clamps it at 0), and nothing reads a dead slot's cooldown until SpawnEnemyCS / RecycleCS overwrite
-// the slot. SwarmDamageTextCS colours the kill number with it
+// とどめの一撃の属性（2026-10-25）。とどめを刺した側が SWARM_DEAD を書くので、状態ワードには載せられない：
+// HitCS / AreaDamageCS は死んだスロットの attackCooldown に -(1 + 属性) として残す。生きている敵のクールダウンは
+// 負にならず（ContactCS が 0 でクランプ）、SpawnEnemyCS / RecycleCS がスロットを上書きするまで死んだスロットの
+// クールダウンは誰も読まない。SwarmDamageTextCS がこれで撃破の数字に色を付ける
 float SwarmKillElementMark(uint elem)
 {
     return -1.0 - (float) elem;
@@ -656,11 +656,11 @@ uint SwarmKillElement(float attackCooldown)
 {
     return (attackCooldown < -0.5) ? (uint) (-attackCooldown - 0.5) : 0u;
 }
-// SwarmDamageTextCS's prevHp (hp seen last frame, fixed point) with this bit set: RecycleCS has put a new enemy in the slot
-// since (the low bits = its spawn hp). The old enemy's pending numbers are dropped and the drop is measured from the new hp.
-// A live enemy's hp never has it (only a killing hit wraps hp past zero, and that slot is DEAD by then)
+// SwarmDamageTextCS の prevHp（前フレームの HP、固定小数）にこのビットが立っている：その後 RecycleCS がスロットに
+// 新しい敵を入れた（下位ビット = その生成時の HP）。前の敵の保留中の数字は捨て、減少量は新しい HP から測る。
+// 生きている敵の HP にこのビットが立つことはない（HP が 0 を越えて折り返すのはとどめの一撃だけで、そのスロットはもう DEAD）
 static const uint SWARM_PREVHP_RECYCLED = 0x80000000u;
-static const float SWARM_HOLD_FORWARD = 1.0; // a held shot is born this far ahead of the muzzle (m)
+static const float SWARM_HOLD_FORWARD = 1.0; // 停止する弾は銃口からこれだけ前に生まれる（m）
 float SwarmMotionHold(SwarmMotion m)
 {
     return (float) ((m.hitAreaFlags >> SWARM_HITAREA_HOLD_SHIFT) & SWARM_HITAREA_HOLD_MASK) * SWARM_HITAREA_HOLD_UNIT;
@@ -671,18 +671,18 @@ struct SwarmArea
     float3 center;
     float radius;
 
-    float damage; // per tick
+    float damage; // 判定 1 回あたり
     float timeLeft;
     float tickInterval;
-    float tickTimer; // seconds until the next tick. 0 at spawn = ticks on its first step
+    float tickTimer; // 次の判定までの秒。生成時に 0 = 最初のステップで判定する
 
     float halfHeight;
-    uint flags; // bits 0-15 = SWARM_AREA_*, 16-31 = size scale (SwarmAreaScale)
-    uint vfxType; // recipe index for GPU-side particles. 0 = none (the CPU plays the VFX)
-    uint tickNow; // low byte = tick state (SWARM_AREA_TICK_*, written by AreaTickCS), high bits = extras set at spawn (toxin, splash)
+    uint flags; // ビット 0-15 = SWARM_AREA_*、16-31 = 大きさの倍率（SwarmAreaScale）
+    uint vfxType; // GPU 側パーティクルのレシピ番号。0 = なし（エフェクトは CPU が再生する）
+    uint tickNow; // 下位 1 バイト = 判定の状態（SWARM_AREA_TICK_*、AreaTickCS が書く）、上位ビット = 生成時に設定する追加情報（毒素、飛沫）
 };
 
-// size scale of an area (1 = as authored). radius / halfHeight already include it
+// 範囲の大きさの倍率（1 = 作ったまま）。radius / halfHeight には掛け済み
 float SwarmAreaScale(SwarmArea a)
 {
     return SwarmUnpackScale(a.flags >> SWARM_SCALE_SHIFT);
@@ -698,12 +698,12 @@ struct SwarmAreaDef
     float tickInterval;
     uint flags;
     uint vfxType;
-    uint extra; // goes to SwarmArea.tickNow (toxin share, splash-only. see SWARM_AREA_EXTRA_*)
+    uint extra; // SwarmArea.tickNow に入る（毒素の割合、飛沫のみ。SWARM_AREA_EXTRA_* 参照）
 };
 
-// ---- GPU-side spawn ----
-// A shader that may spawn areas #defines the three registers before
-// including this file, e.g.
+// ---- GPU 側の生成 ----
+// 範囲を生成するシェーダーは、このファイルを include する前に
+// 3 つのレジスタを #define する。例：
 //     #define SWARM_AREA_POOL_U  u6
 //     #define SWARM_AREA_STATE_U u7
 //     #define SWARM_AREA_DEF_T   t2
@@ -711,21 +711,21 @@ struct SwarmAreaDef
 RWStructuredBuffer<SwarmArea> areas : register(SWARM_AREA_POOL_U);
 RWBuffer<uint> areaStates : register(SWARM_AREA_STATE_U);
 StructuredBuffer<SwarmAreaDef> areaDefs : register(SWARM_AREA_DEF_T);
-// Optional: the direction the spawner was travelling, per area slot
-// (xy = unit xz, w = 1 "fresh"). SwarmLiquidTrackCS reads it once when it
-// first sees the area and clears w. A shader with a UAV to spare #defines
-// SWARM_AREA_DIR_U (ProjMoveCS: a LOB poison flask lands there). HitCS has
-// no UAV left, so its areas carry no direction (a liquid picks an angle)
+// 任意：生成したものが進んでいた方向（範囲スロットごと）
+// （xy = 単位 xz、w = 1「新しい」）。SwarmLiquidTrackCS が範囲を最初に見た時に
+// 一度だけ読み、w を消す。UAV に余裕のあるシェーダーは SWARM_AREA_DIR_U を
+// #define する（ProjMoveCS：LOB の毒瓶がそこに落ちる）。HitCS は UAV が
+// 残っていないので、その範囲は方向を持たない（液面は角度を自分で選ぶ）
 #ifdef SWARM_AREA_DIR_U
 RWStructuredBuffer<float4> areaDirs : register(SWARM_AREA_DIR_U);
 #endif
 
-// Same CAS scan as the other pools. Pool full -> no area (degrade, never corrupt).
-// scale: the size scale of whatever spawned it (a projectile's SwarmProjScale, 1 = as authored)
-// boost: the projectile's projBoost (SwarmBoostDamage / SwarmBoostDuration), 0 = none.
-//        The duration part only stretches lasting areas (a one-shot ticks once anyway)
-// dir  : the spawner's velocity in xz (any length). Kept only with SWARM_AREA_DIR_U
-// extraOr: more SWARM_AREA_EXTRA_* bits for this one area (the lifesteal mark of the shot that left it, 2026-10-25)
+// 他のプールと同じ CAS の走査。プールが満杯 -> 範囲なし（劣化するだけで、壊れはしない）。
+// scale: 生成したものの大きさの倍率（弾の SwarmProjScale、1 = 作ったまま）
+// boost: 弾の projBoost（SwarmBoostDamage / SwarmBoostDuration）、0 = なし。
+//        持続の分は持続する範囲だけ伸ばす（一発の範囲はどのみち 1 回だけ判定）
+// dir  : 生成したものの xz の速度（長さは任意）。SWARM_AREA_DIR_U がある時だけ保持
+// extraOr: この範囲 1 つに足す SWARM_AREA_EXTRA_* のビット（それを残した弾の吸血の印、2026-10-25）
 void SwarmSpawnAreaFromDefX(uint defId, float3 pos, uint salt, float scale, uint boost, float2 dir, uint extraOr)
 {
     if (defId == 0u)
@@ -742,10 +742,10 @@ void SwarmSpawnAreaFromDefX(uint defId, float3 pos, uint salt, float scale, uint
     a.tickInterval = d.tickInterval;
     a.tickTimer = 0.0;
     a.halfHeight = d.halfHeight * scale;
-    a.flags = (d.flags & 0xFFFFu & ~SWARM_AREA_FOLLOW_PLAYER) // born from a hit: stays where it is
+    a.flags = (d.flags & 0xFFFFu & ~SWARM_AREA_FOLLOW_PLAYER) // 命中から生まれた範囲：その場に留まる
         | (SwarmPackScale(scale, 0xFFFFu) << SWARM_SCALE_SHIFT);
     a.vfxType = d.vfxType;
-    a.tickNow = (d.extra | extraOr) & ~SWARM_AREA_TICK_MASK; // extras only; the tick state starts clean
+    a.tickNow = (d.extra | extraOr) & ~SWARM_AREA_TICK_MASK; // 追加情報だけ。判定の状態は空から始める
 
     uint start = (salt * 97u) % SWARM_MAX_AREAS;
     for (uint k = 0; k < SWARM_MAX_AREAS; ++k)
@@ -771,7 +771,7 @@ void SwarmSpawnAreaFromDef(uint defId, float3 pos, uint salt, float scale, uint 
 #endif
 
 // ============================================================
-// Exp orb: 32 bytes
+// 経験玉：32 バイト
 // ============================================================
 struct SwarmOrb
 {
@@ -783,11 +783,11 @@ struct SwarmOrb
 };
 
 // ============================================================
-// Recipe: what a vfxType is made of. 32 bytes.
-// Each range indexes into a per-type table. A projectile may carry
-// several emitters (core + trail), a mesh, a light -- each consumed
-// by its own CS with the same "one thread per projectile" skeleton.
-// Must match Swarm::VFXRecipe in SwarmVFXTable.h
+// レシピ：vfxType の中身。32 バイト。
+// 各範囲は種類ごとの表を指す。弾は複数のエミッタ（芯 + 尾）、
+// メッシュ、ライトを持てる。それぞれを専用の CS が、
+// 同じ「弾 1 つに 1 スレッド」の骨組みで処理する。
+// SwarmVFXTable.h の Swarm::VFXRecipe と一致させること
 // ============================================================
 struct SwarmRecipe
 {
@@ -798,14 +798,14 @@ struct SwarmRecipe
 
     uint lightStart;
     uint lightCount;
-    uint spriteStart; // SwarmSpriteDef table (GPU areas only, was _pad)
+    uint spriteStart; // SwarmSpriteDef の表（GPU の範囲だけ。以前は _pad）
     uint spriteCount;
 };
 
 // ============================================================
-// Per-frame constants. Default register b0; a CS that also includes
-// ParticleCommon.hlsli (which owns b0/b1) must #define
-// SWARM_FRAME_CB_REG before including this file.
+// フレームごとの定数。デフォルトのレジスタは b0。ParticleCommon.hlsli
+// （b0/b1 を使う）も include する CS は、このファイルを include する前に
+// SWARM_FRAME_CB_REG を #define すること。
 // ============================================================
 #ifndef SWARM_FRAME_CB_REG
 #define SWARM_FRAME_CB_REG b0
@@ -821,19 +821,19 @@ cbuffer SwarmFrameCB : register(SWARM_FRAME_CB_REG)
     uint g_MaxProjectiles;
     uint g_MaxOrbs;
 
-    float3 g_GridOrigin; // world position of cell (0,0)
+    float3 g_GridOrigin; // セル (0,0) のワールド位置
     float g_CellSize;
 
     uint g_GridW;
     uint g_GridD;
     uint g_Seed;
-    uint g_PlayerAlive; // 0 = dead, enemies stop seeking
+    uint g_PlayerAlive; // 0 = 死亡、敵は追うのをやめる
 };
 
 // ============================================================
-// Enemy AI tuning. Default register b1; a CS that already uses b1
-// must #define SWARM_AI_CB_REG before including this file.
-// Must match Swarm::AICB in SwarmTypes.h
+// 敵 AI の調整値。デフォルトのレジスタは b1。すでに b1 を使っている CS は
+// このファイルを include する前に SWARM_AI_CB_REG を #define すること。
+// SwarmTypes.h の Swarm::AICB と一致させること
 // ============================================================
 #ifndef SWARM_AI_CB_REG
 #define SWARM_AI_CB_REG b1
@@ -858,48 +858,48 @@ cbuffer SwarmAICB : register(SWARM_AI_CB_REG)
 
     float g_AttackInterval;
     float g_PlayerCapsuleHalf;
-    float g_HitStun; // seconds an enemy freezes after a hit (HitCS sets animIndex = 2)
-    float g_HitFlash; // vertex color gain at the start of the stun, decays to 1
+    float g_HitStun; // 被弾後に敵が止まる秒（HitCS が animIndex = 2 を立てる）
+    float g_HitFlash; // 硬直開始時の頂点色の倍率。1 まで減衰する
 };
 
 // ============================================================
-// Bomber tuning. Opt-in: a shader that needs it #defines
-// SWARM_BOMBER_CB_REG (ContactCS b3, the enemy VS b5).
-// Must match Swarm::BomberCB in SwarmTypes.h
+// 自爆兵の調整値。必要なシェーダーだけが
+// SWARM_BOMBER_CB_REG を #define して使う（ContactCS b3、敵の VS b5）。
+// SwarmTypes.h の Swarm::BomberCB と一致させること
 // ============================================================
 #ifdef SWARM_BOMBER_CB_REG
 cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
 {
-    float g_BomberFuseTime; // lit -> explode, seconds
-    float g_BomberTriggerMargin; // lights inside (radius sum + this)
-    float g_BomberBlastRadius; // the player capsule inside this at the blast takes damage
+    float g_BomberFuseTime; // 点火 -> 爆発 の秒
+    float g_BomberTriggerMargin; // （半径の和 + これ）以内で点火する
+    float g_BomberBlastRadius; // 爆発時にこの中にいるプレイヤーのカプセルがダメージを受ける
     float g_BomberBlastDamage;
 
-    uint g_BomberBlastArea; // area def spawned for the look (damage 0). 0 = none
-    float g_BomberSwell; // VS: grows to (1 + this) right before the blast
-    float g_BomberFlashGain; // VS: blink brightness
+    uint g_BomberBlastArea; // 見た目のために生成する範囲の定義（威力 0）。0 = なし
+    float g_BomberSwell; // VS：爆発直前に (1 + これ) まで膨らむ
+    float g_BomberFlashGain; // VS：点滅の明るさ
     float _bomberPad;
 
-    // ---- elite (SWARM_KIND_ELITE). Shares this cbuffer: every pass that
-    // needs the kind rules already binds it ----
-    float g_EliteScale; // body size (model, hit / contact radius, HP bar height)
-    float g_EliteDamageMul; // melee damage = g_ContactDamage * this
-    float g_EliteExpMul; // its orb is worth g_OrbAmount * this
+    // ---- エリート（SWARM_KIND_ELITE）。この cbuffer を共有する：種類の規則が
+    // 要るパスはどれも既にこれをバインドしている ----
+    float g_EliteScale; // 体格（モデル、命中 / 接触の半径、HP バーの高さ）
+    float g_EliteDamageMul; // 殴りのダメージ = g_ContactDamage * これ
+    float g_EliteExpMul; // 経験玉の価値 = g_OrbAmount * これ
     float _elitePad;
 
-    // ---- stage boss (SWARM_KIND_BOSS) ----
+    // ---- ステージのボス（SWARM_KIND_BOSS） ----
     float g_BossScale;
     float g_BossDamageMul;
     float g_BossExpMul;
     float _bossPad;
 
-    // ---- final-swarm ghost (SWARM_KIND_GHOST) ----
-    float g_GhostHover; // VS: floats this much above the ground
-    float g_GhostAlpha; // VS: vertex alpha (drawn with alpha blend)
-    float g_GhostGlow; // VS: HDR gain on the cyan tint
-    float g_GhostDamageMul; // melee damage = g_ContactDamage * this
+    // ---- 最終ウェーブの幽霊（SWARM_KIND_GHOST） ----
+    float g_GhostHover; // VS：地面からこれだけ浮く
+    float g_GhostAlpha; // VS：頂点アルファ（アルファブレンドで描く）
+    float g_GhostGlow; // VS：シアンの色味に掛ける HDR の倍率
+    float g_GhostDamageMul; // 殴りのダメージ = g_ContactDamage * これ
 
-    // ---- splitter (SWARM_KIND_SPLITTER) and its splitlings (2026-10-03) ----
+    // ---- スプリッター（SWARM_KIND_SPLITTER）とその分裂体（2026-10-03） ----
     float g_SplitterScale;
     float g_SplitterDamageMul;
     float g_SplitterExpMul;
@@ -909,127 +909,127 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_SplitlingExpMul;
     float _splitlingPad;
 
-    // ---- boss charge (2026-10-07, BossAttacks writes it every frame) ----
-    // while g_BossChargeOn > 0.5 the boss ignores the flow field / chase and moves
-    // straight along g_BossChargeDir * g_BossChargeSpeed (speed 0 = winding up in place).
-    // Walls still stop it; it does not stop at the player (runs through)
+    // ---- ボスの突進（2026-10-07、BossAttacks が毎フレーム書く） ----
+    // g_BossChargeOn > 0.5 の間、ボスはフローフィールド / 追跡を無視して
+    // g_BossChargeDir * g_BossChargeSpeed でまっすぐ動く（速度 0 = その場で溜め）。
+    // 壁には止められるが、プレイヤーの前では止まらない（突き抜ける）
     float2 g_BossChargeDir;
     float g_BossChargeSpeed;
     float g_BossChargeOn;
 
-    // ---- brute (SWARM_KIND_BRUTE, 2026-10-07) ----
+    // ---- 重装兵（SWARM_KIND_BRUTE、2026-10-07） ----
     float g_BruteScale;
     float g_BruteDamageMul;
     float g_BruteExpMul;
     float _brutePad;
 
-    // ---- charger (SWARM_KIND_CHARGER, 2026-10-08) ----
+    // ---- 突撃兵（SWARM_KIND_CHARGER、2026-10-08） ----
     float g_ChargerScale;
-    float g_ChargerDamageMul;     // plain melee
+    float g_ChargerDamageMul;     // 普通の殴り
     float g_ChargerExpMul;
-    float g_ChargerDashDamageMul; // hitting the player during the dash (knocked back like a blast)
-    float g_ChargerWindup;        // seconds standing still with the band on the ground
+    float g_ChargerDashDamageMul; // 突進中にプレイヤーに当たった時（爆発級に吹き飛ばす）
+    float g_ChargerWindup;        // 地面に帯を出して止まっている秒
     float g_ChargerDashSpeed;
     float g_ChargerDashDist;
-    float g_ChargerRecover;       // seconds standing still after the dash
-    float g_ChargerCooldown;      // seconds of plain chasing before the next wind-up
-    float g_ChargerMinDist;       // starts a wind-up with the player this far .. g_ChargerMaxDist away
+    float g_ChargerRecover;       // 突進後に止まっている秒
+    float g_ChargerCooldown;      // 次の溜めまで普通に追う秒
+    float g_ChargerMinDist;       // プレイヤーがこの距離 .. g_ChargerMaxDist にいると溜めを始める
     float g_ChargerMaxDist;
-    float g_ChargerGlow;          // VS: red blink during the wind-up
+    float g_ChargerGlow;          // VS：溜め中の赤い点滅
 
-    // ---- shield bearer (SWARM_KIND_SHIELD, 2026-10-08) ----
+    // ---- 盾兵（SWARM_KIND_SHIELD、2026-10-08） ----
     float g_ShieldScale;
     float g_ShieldDamageMul;
     float g_ShieldExpMul;
-    float g_ShieldArmor;          // taken off every hit (one projectile, one area tick)
+    float g_ShieldArmor;          // 被弾ごとに引く量（弾 1 発、範囲の判定 1 回）
 
-    float g_ShieldMinFrac;        // ... but at least this fraction of it goes through
-    // ---- freeze (Ice Lance, 2026-10-08) ----
-    float g_FreezeBigMul;         // elites / the boss freeze this much shorter
-    float g_FreezeImmunity;       // seconds after a thaw with no new freeze
-    float g_FreezeTint;           // VS: how icy a frozen body looks (0 = no tint)
-    // ---- spike ball (SWARM_KIND_SPIKEBALL, 2026-10-17) ----
+    float g_ShieldMinFrac;        // …ただし最低でもこの割合は通る
+    // ---- 凍結（アイスランス、2026-10-08） ----
+    float g_FreezeBigMul;         // エリート / ボスの凍結はこの倍率だけ短い
+    float g_FreezeImmunity;       // 解けた後、新しく凍らない秒
+    float g_FreezeTint;           // VS：凍った体の氷っぽさ（0 = 色を付けない）
+    // ---- トゲ玉（SWARM_KIND_SPIKEBALL、2026-10-17） ----
     float g_SpikeBallScale;
     float g_SpikeBallDamageMul;
     float g_SpikeBallExpMul;
-    float g_SpikeBallRollPerMeter; // MoveCS: radians a body-size-1 ball turns per meter rolled (look roll rate / look radius. 2026-10-25, was a pad)
-    // ---- burrower (SWARM_KIND_BURROWER, 2026-10-17) ----
+    float g_SpikeBallRollPerMeter; // MoveCS：体格 1 の玉が 1 m 転がるごとに回るラジアン（見た目の回転速度 / 見た目の半径。2026-10-25、以前はパディング）
+    // ---- 砂潜り（SWARM_KIND_BURROWER、2026-10-17） ----
     float g_BurrowScale;
     float g_BurrowDamageMul;
     float g_BurrowExpMul;
-    float g_BurrowSurfaceDist;     // surfaces when the player is within this (m)
+    float g_BurrowSurfaceDist;     // プレイヤーがこの距離以内に来ると地上に出る（m）
 
-    float g_BurrowSurfaceTime;     // seconds on the surface
-    float g_BurrowMinBuried;       // must stay under at least this long before surfacing again
-    float g_BurrowBuriedSpeedMul;  // speed under the sand
-    float g_BurrowSurfaceSpeedMul; // speed while out
+    float g_BurrowSurfaceTime;     // 地上にいる秒
+    float g_BurrowMinBuried;       // 再び地上に出るまで最低これだけ潜っている
+    float g_BurrowBuriedSpeedMul;  // 砂の下での速度
+    float g_BurrowSurfaceSpeedMul; // 地上にいる間の速度
 
-    float g_BurrowBiteRadius;      // the one bite on surfacing reaches this far (m, from the body centre)
-    float g_BurrowBiteDelay;       // seconds after surfacing before the bite lands (the body rises first)
+    float g_BurrowBiteRadius;      // 地上に出た時の 1 回の噛みつきが届く距離（m、体の中心から）
+    float g_BurrowBiteDelay;       // 地上に出てから噛みつきが当たるまでの秒（先に体が上がる）
     float2 _burrowPad;
 
-    // ---- sand mage (SWARM_KIND_SANDMAGE) and its tornado (SWARM_KIND_TORNADO), 2026-10-17 ----
+    // ---- 砂嵐の術師（SWARM_KIND_SANDMAGE）とその竜巻（SWARM_KIND_TORNADO）、2026-10-17 ----
     float g_SandMageScale;
-    float g_SandMageDamageMul;     // (it never melees; kept for the kind table)
+    float g_SandMageDamageMul;     // （殴らないが、種類の表のために残す）
     float g_SandMageExpMul;
-    float g_SandMageKeepMin;       // closer than this: backs away from the player (m)
+    float g_SandMageKeepMin;       // これより近い：プレイヤーから下がる（m）
 
-    float g_SandMageKeepMax;       // farther than this: walks toward the player; between = stands and casts
-    float g_SandMageCastRange;     // casts only with the player within this (m)
-    float g_SandMageWindup;        // seconds standing still before the tornado leaves (the body glows)
-    float g_SandMageCooldown;      // seconds between casts
+    float g_SandMageKeepMax;       // これより遠い：プレイヤーへ歩く。その間 = 立って詠唱する
+    float g_SandMageCastRange;     // プレイヤーがこの距離以内の時だけ詠唱する（m）
+    float g_SandMageWindup;        // 竜巻が出るまで止まっている秒（体が光る）
+    float g_SandMageCooldown;      // 詠唱の間隔（秒）
 
-    float g_TornadoScale;          // body size of the tornado (hit radius = g_EnemyRadius x this)
-    float g_TornadoDamageMul;      // contact damage x this when it catches the player
-    float g_TornadoExpMul;         // unused (it is never killed by the player)
-    float g_TornadoLife;           // seconds it travels before it blows out
+    float g_TornadoScale;          // 竜巻の体格（当たり半径 = g_EnemyRadius x これ）
+    float g_TornadoDamageMul;      // プレイヤーを捉えた時の接触ダメージ x これ
+    float g_TornadoExpMul;         // 未使用（プレイヤーに倒されることはない）
+    float g_TornadoLife;           // 吹き消えるまで進む秒
 
-    // ---- dark ghost (SWARM_KIND_DARKGHOST, 2026-10-18) ----
-    float g_DarkGhostScale;        // body size (the white ghost is 1)
-    float g_DarkGhostDamageMul;    // melee damage = g_ContactDamage * this (the white ghost uses g_GhostDamageMul)
-    float g_DarkGhostExpMul;       // its orb, should anyone kill one
-    float g_DarkGhostAlpha;        // VS: vertex alpha (more opaque than the white ghost)
+    // ---- 黒幽霊（SWARM_KIND_DARKGHOST、2026-10-18） ----
+    float g_DarkGhostScale;        // 体格（白い幽霊は 1）
+    float g_DarkGhostDamageMul;    // 殴りのダメージ = g_ContactDamage * これ（白い幽霊は g_GhostDamageMul を使う）
+    float g_DarkGhostExpMul;       // 倒せた時の経験玉
+    float g_DarkGhostAlpha;        // VS：頂点アルファ（白い幽霊より不透明）
 
-    // ---- dash bomber (SWARM_KIND_DASHBOMBER, 2026-10-18) ----
-    float g_DashBomberScale;       // body size
-    float g_DashBomberDamageMul;   // blast damage = g_BomberBlastDamage * this (it never melees)
-    float g_DashBomberExpMul;      // its orb (only if killed before it lights)
-    float g_DashBomberTrigger;     // lights itself with the player within this (m, on its level)
+    // ---- 突撃爆弾兵（SWARM_KIND_DASHBOMBER、2026-10-18） ----
+    float g_DashBomberScale;       // 体格
+    float g_DashBomberDamageMul;   // 爆発のダメージ = g_BomberBlastDamage * これ（殴らない）
+    float g_DashBomberExpMul;      // 経験玉（点火前に倒された時だけ）
+    float g_DashBomberTrigger;     // プレイヤーがこの距離以内にいると自分で点火する（m、同じ高さで）
 
-    float g_DashBomberFuse;        // seconds from the end of the wind-up to the blast if it never touches the player (= dash time)
-    float g_DashBomberDashSpeed;   // m/s while dashing (AICS, straight along the yaw locked when it lit)
-    float g_DashBomberBlastRadius; // m (the look reuses g_BomberBlastArea scaled by radius / g_BomberBlastRadius)
-    float g_DashBomberWindup;      // seconds it stands still (flashing) after lighting before the dash (2026-10-20)
+    float g_DashBomberFuse;        // プレイヤーに触れなかった場合、溜めの終わりから爆発までの秒（= 突進時間）
+    float g_DashBomberDashSpeed;   // 突進中の m/s（AICS、点火時に固定した yaw に沿ってまっすぐ）
+    float g_DashBomberBlastRadius; // m（見た目は g_BomberBlastArea を radius / g_BomberBlastRadius で拡縮して使い回す）
+    float g_DashBomberWindup;      // 点火してから突進するまで（点滅しながら）止まっている秒（2026-10-20）
 
-    // ---- the stage boss per stage (2026-10-24, BossAttacks::Configure / Output::bossBurrow) ----
-    float3 g_BossTint;             // multiplies the mob mesh colour (grassland purple, desert sandstone)
-    float g_BossBurrow;            // 0 = on the ground, 1 = under the sand (sand guardian's burrow). AICS copies it into the boss's fuse as -burrow
+    // ---- 面ごとのボス（2026-10-24、BossAttacks::Configure / Output::bossBurrow） ----
+    float3 g_BossTint;             // 雑魚のメッシュの色に掛ける（草原は紫、砂漠は砂岩）
+    float g_BossBurrow;            // 0 = 地上、1 = 砂の下（砂の守護者の潜砂）。AICS がボスの fuse に -burrow として写す
 
-    // ---- cursed armor (SWARM_KIND_ARMOR / ARMOR2, 2026-10-25) ----
+    // ---- 呪いの鎧（SWARM_KIND_ARMOR / ARMOR2、2026-10-25） ----
     float g_ArmorScale;
     float g_ArmorDamageMul;
-    float g_ArmorExpMul;           // first death (only collapses)
+    float g_ArmorExpMul;           // 1 回目の死（崩れるだけ）
     float g_ArmorRevivedExpMul;
 
-    // ---- stone gargoyle (SWARM_KIND_GARGOYLE, 2026-10-25) ----
+    // ---- 石像ガーゴイル（SWARM_KIND_GARGOYLE、2026-10-25） ----
     float g_GargoyleScale;
-    float g_GargoyleDamageMul;     // melee while landed
+    float g_GargoyleDamageMul;     // 着地中の殴り
     float g_GargoyleExpMul;
-    float g_GargoyleWakeDist;      // wakes with the player this close (horizontal m)
-    float g_GargoyleAutoWake;      // wakes by itself after this many seconds asleep
-    float g_GargoyleWakeTime;      // seconds of waking (shakes, rises)
-    float g_GargoyleHover;         // flying height above the ground (the position itself is raised)
-    float g_GargoyleDiveRange;     // dives with the player this close (horizontal)
-    float g_GargoyleDiveWindup;    // hangs in the air this long before the dive (band on the ground)
-    float g_GargoyleDiveSpeed;     // horizontal m/s of the dive
-    float g_GargoyleDiveTime;      // seconds of the dive
-    float g_GargoyleLandTime;      // seconds on the ground after the dive
-    float g_GargoyleFlyMin;        // flies at least this long before the next dive
-    float g_GargoyleDiveDamageMul; // touching the player during the dive (knocks back like a blast)
-    float g_GargoyleFlap;          // VS: wing flap amplitude (rad)
-    float g_GargoyleDiveMin;       // while flying it circles between this and g_GargoyleDiveRange * 0.9 (diving from right above passed over the head)
+    float g_GargoyleWakeDist;      // プレイヤーがこの距離まで来ると目覚める（水平 m）
+    float g_GargoyleAutoWake;      // 眠ってからこの秒数で勝手に目覚める
+    float g_GargoyleWakeTime;      // 目覚めの秒（震えて、浮き上がる）
+    float g_GargoyleHover;         // 地面からの飛行の高さ（位置そのものを上げる）
+    float g_GargoyleDiveRange;     // プレイヤーがこの距離まで来ると急降下する（水平）
+    float g_GargoyleDiveWindup;    // 急降下の前に空中で止まる秒（地面に帯）
+    float g_GargoyleDiveSpeed;     // 急降下の水平 m/s
+    float g_GargoyleDiveTime;      // 急降下の秒
+    float g_GargoyleLandTime;      // 急降下の後に地面にいる秒
+    float g_GargoyleFlyMin;        // 次の急降下まで最低これだけ飛ぶ
+    float g_GargoyleDiveDamageMul; // 急降下中にプレイヤーに触れた時（爆発級に吹き飛ばす）
+    float g_GargoyleFlap;          // VS：羽ばたきの振幅（rad）
+    float g_GargoyleDiveMin;       // 飛行中はこれと g_GargoyleDiveRange * 0.9 の間を回る（真上からの急降下は頭の上を通り過ぎていた）
 
-    // ---- necromancer (SWARM_KIND_NECRO) and skeleton (SWARM_KIND_SKELETON), 2026-10-25 ----
+    // ---- 死霊術師（SWARM_KIND_NECRO）と骸骨（SWARM_KIND_SKELETON）、2026-10-25 ----
     float g_NecroScale;
     float g_NecroDamageMul;
     float g_NecroExpMul;
@@ -1043,74 +1043,74 @@ cbuffer SwarmBomberCB : register(SWARM_BOMBER_CB_REG)
     float g_SkeletonExpMul;
     float _skeletonPad;
 
-    // ---- chain warden (SWARM_KIND_WARDEN, 2026-10-25). The chain itself is CPU (the scene) ----
+    // ---- 鎖の番人（SWARM_KIND_WARDEN、2026-10-25）。鎖そのものは CPU（シーン） ----
     float g_WardenScale;
     float g_WardenDamageMul;
     float g_WardenExpMul;
     float g_WardenKeepMin;
     float g_WardenKeepMax;
-    float g_WardenRange;           // chain reach = the band's length = the cast range
+    float g_WardenRange;           // 鎖の届く距離 = 帯の長さ = 詠唱の射程
     float g_WardenWindup;
-    float g_WardenHold;            // stands after the throw (the chain is out)
-    float g_WardenCooldown;        // from the throw to the next wind-up (the hold included)
+    float g_WardenHold;            // 投げた後に立っている（鎖が出ている）
+    float g_WardenCooldown;        // 投げてから次の溜めまで（立っている時間を含む）
     float3 _wardenPad;
-    // ---- the stage's fixed elites (SWARM_KIND_ELITE_A / B, 2026-10-25). Body sizes per stage (EliteAttacks::Configure) ----
+    // ---- 面の固定エリート（SWARM_KIND_ELITE_A / B、2026-10-25）。体格は面ごと（EliteAttacks::Configure） ----
     float g_FixedEliteAScale;
     float g_FixedEliteBScale;
-    float g_FixedEliteDamageMul;    // melee only; the moves hit from the CPU
+    float g_FixedEliteDamageMul;    // 殴りだけ。技は CPU から当たる
     float g_FixedEliteExpMul;
-    float g_FixedEliteKeepMin;      // the ranged one (B) stands between these
+    float g_FixedEliteKeepMin;      // 遠距離型（B）はこの間に立つ
     float g_FixedEliteKeepMax;
-    float g_EliteSwiftMul;          // swift affix: walk speed
-    float g_EliteEnragedSpeedMul;   // berserk affix below half hp: walk speed
-    float g_EliteShieldDamageMul;   // iron affix: damage taken while the shield holds
-    float g_EliteEnragedScale;      // berserk: drawn this much bigger (from the feet)
+    float g_EliteSwiftMul;          // アフィックス「疾風」：歩く速さ
+    float g_EliteEnragedSpeedMul;   // アフィックス「狂暴」で HP 半分以下：歩く速さ
+    float g_EliteShieldDamageMul;   // アフィックス「鉄壁」：盾がある間に受けるダメージ
+    float g_EliteEnragedScale;      // 狂暴：これだけ大きく描く（足元を基点に）
     float2 _fixedElitePad;
-    // the CPU's orders, one row per elite: x = slot + 1 (0 = empty), y = SWARM_ELITE_* flags, z = SWARM_ELITE_CMD_*,
-    // w = wind-up glow x 1000. g_EliteMove: xy = direction (the target for a teleport), z = run speed, w = hidden 0..1
+    // CPU からの指示、エリート 1 体につき 1 行：x = スロット + 1（0 = 空）、y = SWARM_ELITE_* のフラグ、z = SWARM_ELITE_CMD_*、
+    // w = 溜めの光 x 1000。g_EliteMove：xy = 方向（瞬間移動ではその目標）、z = 走る速さ、w = 隠れ具合 0..1
     uint4 g_EliteCmd[4];
     float4 g_EliteMove[4];
-    // wand aim priority (2026-10-26): see SwarmAimKeyDist
+    // 杖の狙いの優先度（2026-10-26）：SwarmAimKeyDist 参照
     float g_AimCloseRadius;
     float g_AimPriorityRange;
     float g_AimPriorityOn;
     float _aimPad;
-    // the thunder stag's charge pose (2026-10-26, BossAttacks::Output::chargePose): 0 normal, 0..1 wind-up (head down,
-    // legs spread, crouch), 1 dashing (head down, body leaning forward, fast gait), 1..1.3 the toss of the head on a hit,
-    // 1 -> 0 after the dash. Read by the enemy VS; only written for a quadruped boss
+    // 雷鳴の雄鹿の突進の姿勢（2026-10-26、BossAttacks::Output::chargePose）：0 通常、0..1 溜め（頭を下げ、
+    // 脚を開いて屈む）、1 突進中（頭を下げ、体を前に倒し、速い歩様）、1..1.3 当たった時に頭を振り上げる、
+    // 突進後は 1 -> 0。敵の VS が読む。四足のボスの時だけ書く
     float g_BossChargePose;
-    float g_BossLeanPivotY;        // pivot (baked mesh space y / z) and angle (rad at pose 1) of the dash lean, per boss (CPU)
+    float g_BossLeanPivotY;        // 突進の前傾の支点（焼いたメッシュ空間の y / z）と角度（pose 1 での rad）、ボスごと（CPU）
     float g_BossLeanPivotZ;
     float g_BossLeanAngle;
-    float g_BossJumpHeight;        // the werewolf's pounce (2026-10-26): > 0 = the body rises on a parabola of this height (world m) over pose 0..1
-    float g_BossNoContact;         // > 0.5 = the boss does not melee by touch (the pounce: its body runs through the player)
-    float g_ClimbSpeed;            // m/s an enemy climbs a wall / cliff face (2026-10-29, MoveCS). 0 = no climbing
-    // the sand djinn (2026-10-29, BossAttacks::Output via the CPU each frame; 0 for every other boss)
-    float g_BossHover;             // the body is really this high (world m, MoveCS, 2026-11-01: was the drawing only, spells hit the ground under it; the hit capsule stays on the ground)
-    float g_BossKeepMin;           // > 0 = keeps its distance like a caster (AICS): backs off inside this, stands up to g_BossKeepMax
+    float g_BossJumpHeight;        // 狼人の飛びかかり（2026-10-26）：> 0 = pose 0..1 の間、体がこの高さ（ワールド m）の放物線で上がる
+    float g_BossNoContact;         // > 0.5 = ボスは触れても殴らない（飛びかかり：体がプレイヤーを突き抜ける）
+    float g_ClimbSpeed;            // 敵が壁 / 崖面を登る m/s（2026-10-29、MoveCS）。0 = 登らない
+    // 砂嵐の魔神（2026-10-29、BossAttacks::Output から CPU が毎フレーム書く。他のボスでは 0）
+    float g_BossHover;             // 体の本当の高さ（ワールド m、MoveCS、2026-11-01：以前は描画だけで、魔法は足元の地面に当たっていた。当たり判定のカプセルは地面のまま）
+    float g_BossKeepMin;           // > 0 = 術師のように距離を保つ（AICS）：これより内側では下がり、g_BossKeepMax までは立っている
     float g_BossKeepMax;
-    float g_BossFly;               // > 0.5 = flies through walls and over plateaus like a ghost (SwarmFliesThrough)
-    // the stone beast (2026-10-29, BossAttacks::Output::beast via the CPU each frame; 0 for every other boss)
-    float g_BossWing;              // a boss wing's angle (g_AnimMode 2) rad: 0 = spread sideways, + = tips up
-    float g_BossSpin;              // extra yaw rad added to the boss body (the tail sweep's full turn)
-    // burning grass under the enemies (2026-11-01, GrassFireField; AreaDamageCS)
-    float g_FireOn;                // > 0.5 = g_FireMap is bound
-    float g_FireClock;             // seconds, advanced per fixed step
-    float g_FireTick;              // seconds between hits
-    float g_FireDamage;            // per hit
-    float g_FireOriginX;           // world xz of the fire map's min corner
+    float g_BossFly;               // > 0.5 = 幽霊のように壁を抜け、台地を越えて飛ぶ（SwarmFliesThrough）
+    // 石の守護獣（2026-10-29、BossAttacks::Output::beast から CPU が毎フレーム書く。他のボスでは 0）
+    float g_BossWing;              // ボスの翼の角度（g_AnimMode 2）rad：0 = 横に広げる、+ = 先が上がる
+    float g_BossSpin;              // ボスの体に足す yaw の rad（尾の薙ぎ払いの一回転）
+    // 敵の足元の燃える草（2026-11-01、GrassFireField。AreaDamageCS）
+    float g_FireOn;                // > 0.5 = g_FireMap がバインドされている
+    float g_FireClock;             // 秒、固定ステップごとに進める
+    float g_FireTick;              // 当たりの間隔（秒）
+    float g_FireDamage;            // 1 回あたり
+    float g_FireOriginX;           // 炎マップの最小の角のワールド xz
     float g_FireOriginZ;
-    float g_FireSizeX;             // meters
+    float g_FireSizeX;             // m
     float g_FireSizeZ;
-    float g_IceOn;                 // > 0.5 = SwarmEnemyVS lifts bodies onto the frozen ponds (same map as the fire)
+    float g_IceOn;                 // > 0.5 = SwarmEnemyVS が凍った池の上に体を持ち上げる（マップの範囲は炎と同じ）
     float2 _firePad;
 };
 
-// The distance the wand's "nearest enemy" race (MoveCS, SWARM_CNT_NEAREST_KEY) keys on (2026-10-26, user: "if a boss is in
-// range hit the boss first; three tiers of priority; but if a mob is too close to the player hit the mob first").
-// Bands (smaller wins): a mob within g_AimCloseRadius keeps its real distance (0..R); a boss within g_AimPriorityRange
-// sits at R + dist/100 (beats every mob that is not close); an elite at R + 0.5 + dist/100; everything else
-// (far mobs, a boss / elite out of range) at R + 1 + dist, so those still sort by distance. One exit (X4000)
+// 杖の「一番近い敵」の競争（MoveCS、SWARM_CNT_NEAREST_KEY）がキーにする距離（2026-10-26、ユーザー：「範囲にボスが
+// いればボスを先に撃つ。優先度は 3 段階。ただしプレイヤーに近すぎる雑魚がいれば雑魚を先に」）。
+// 帯（小さい方が勝つ）：g_AimCloseRadius 内の雑魚は本当の距離（0..R）のまま。g_AimPriorityRange 内のボスは
+// R + dist/100（近くない雑魚には全部勝つ）。エリートは R + 0.5 + dist/100。それ以外
+// （遠い雑魚、範囲外のボス / エリート）は R + 1 + dist なので、これらは距離順のまま。出口は 1 つ（X4000）
 float SwarmAimKeyDist(uint kind, float dist)
 {
     float r = g_AimCloseRadius;
@@ -1125,7 +1125,7 @@ float SwarmAimKeyDist(uint kind, float dist)
     return (g_AimPriorityOn > 0.5) ? keyed : dist;
 }
 
-// body size multiplier of a kind (radius and model)
+// 種類ごとの体格の倍率（半径とモデル）
 float SwarmKindScale(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteScale
@@ -1150,7 +1150,7 @@ float SwarmKindScale(uint kind)
          : (kind == SWARM_KIND_ELITE_B) ? g_FixedEliteBScale : 1.0;
 }
 
-// melee damage multiplier of a kind (times g_ContactDamage)
+// 種類ごとの殴りのダメージ倍率（g_ContactDamage に掛ける）
 float SwarmKindDamageMul(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteDamageMul
@@ -1175,7 +1175,7 @@ float SwarmKindDamageMul(uint kind)
          : SwarmIsFixedElite(kind) ? g_FixedEliteDamageMul : 1.0;
 }
 
-// exp orb value multiplier of a kind (times g_OrbAmount)
+// 種類ごとの経験玉の価値の倍率（g_OrbAmount に掛ける）
 float SwarmKindExpMul(uint kind)
 {
     return (kind == SWARM_KIND_ELITE) ? g_EliteExpMul
@@ -1200,8 +1200,8 @@ float SwarmKindExpMul(uint kind)
          : SwarmIsFixedElite(kind) ? g_FixedEliteExpMul : 1.0;
 }
 
-// ---- stone gargoyle helpers (2026-10-25). fuse: <= 0 asleep, (0, wake) waking, [wake, DIVE) flying,
-//      DIVE + [0, windup) hanging before the dive, + [windup, windup + dive) diving, then landed ----
+// ---- 石像ガーゴイルの補助関数（2026-10-25）。fuse：<= 0 眠り、(0, wake) 目覚め中、[wake, DIVE) 飛行、
+//      DIVE + [0, windup) 急降下前に空中で止まる、+ [windup, windup + dive) 急降下、その後は着地 ----
 float SwarmGargoyleDiveT(SwarmEnemyExtra ex) { return ex.fuse - SWARM_GARGOYLE_DIVE; }
 bool SwarmGargoyleDiving(SwarmEnemyExtra ex)
 {
@@ -1212,10 +1212,10 @@ bool SwarmGargoyleLanded(SwarmEnemyExtra ex)
 {
     return ex.kind == SWARM_KIND_GARGOYLE && SwarmGargoyleDiveT(ex) >= g_GargoyleDiveWindup + g_GargoyleDiveTime;
 }
-// height above the ground: rises while waking, flies at g_GargoyleHover, comes down in a straight line during the dive
+// 地面からの高さ：目覚め中に上がり、g_GargoyleHover で飛び、急降下中はまっすぐ降りる
 float SwarmGargoyleHover(SwarmEnemyExtra ex)
 {
-    // one exit (an early return makes fxc warn X4000 at every caller)
+    // 出口は 1 つ（途中で return すると fxc が呼び出し元すべてで X4000 を出す）
     float k = 0.0;
     if (ex.kind == SWARM_KIND_GARGOYLE && ex.fuse > 0.0)
     {
@@ -1225,61 +1225,61 @@ float SwarmGargoyleHover(SwarmEnemyExtra ex)
         else if (ex.fuse < SWARM_GARGOYLE_DIVE || d < g_GargoyleDiveWindup)
             k = 1.0;
         else
-            k = 1.0 - saturate((d - g_GargoyleDiveWindup) / max(0.65 * g_GargoyleDiveTime, 1e-3));   // down in the first 65%, then skims the ground
+            k = 1.0 - saturate((d - g_GargoyleDiveWindup) / max(0.65 * g_GargoyleDiveTime, 1e-3));   // 最初の 65% で降り、その後は地面すれすれを進む
     }
     return g_GargoyleHover * k;
 }
-// how high above its ground position an enemy really is (a gargoyle in flight, a hovering boss)
+// 敵が地面の位置から本当にどれだけ高い所にいるか（飛行中のガーゴイル、浮いているボス）
 float SwarmBodyHover(SwarmEnemyExtra ex)
 {
     return SwarmGargoyleHover(ex) + (ex.kind == SWARM_KIND_BOSS ? g_BossHover : 0.0);
 }
-// in the air (waking up past the shake, flying, the dive): flies through walls like a ghost (MoveCS / PushCS / AICS)
+// 空中にいる（目覚めの震えを過ぎた後、飛行、急降下）：幽霊のように壁を抜けて飛ぶ（MoveCS / PushCS / AICS）
 bool SwarmGargoyleAirborne(SwarmEnemyExtra ex)
 {
     return ex.kind == SWARM_KIND_GARGOYLE && ex.fuse > 0.35 * g_GargoyleWakeTime && !SwarmGargoyleLanded(ex);
 }
-// flies straight through walls and over plateaus (the final-swarm ghosts, the tornado, a gargoyle in the air, the sand djinn while it floats)
+// 壁を抜け、台地を越えてまっすぐ飛ぶ（最終ウェーブの幽霊、竜巻、空中のガーゴイル、浮いている間の砂嵐の魔神）
 bool SwarmFliesThrough(SwarmEnemyExtra ex)
 {
     return SwarmIsGhost(ex.kind) || ex.kind == SWARM_KIND_TORNADO || SwarmGargoyleAirborne(ex)
-        || (ex.kind == SWARM_KIND_BOSS && g_BossFly > 0.5);   // the djinn's first phase (2026-10-29)
+        || (ex.kind == SWARM_KIND_BOSS && g_BossFly > 0.5);   // 魔神の一段目（2026-10-29）
 }
 
-// kinds that never take the hit stun (HitCS / AreaDamageCS): the boss (it would be pinned by the constant
-// fire), the spike ball, a charger that has started its wind-up (MoveCS would stop the dash on every hit),
-// and both final-swarm ghosts (2026-10-18: the swarm must not be held off by fire)
+// 被弾硬直を受けない種類（HitCS / AreaDamageCS）：ボス（絶え間ない攻撃で釘付けに
+// なってしまう）、トゲ玉、溜めを始めた突撃兵（当たるたびに MoveCS が突進を止めてしまう）、
+// 最終ウェーブの幽霊 2 種（2026-10-18：攻撃で群れを押しとどめられてはいけない）
 bool SwarmNoFlinch(SwarmEnemyExtra extra)
 {
     uint kind = extra.kind;
     return (kind == SWARM_KIND_BOSS) || (kind == SWARM_KIND_SPIKEBALL) || SwarmIsGhost(kind)
         || (kind == SWARM_KIND_CHARGER && extra.fuse > 0.0) || SwarmInvulnerable(extra)
-        || (kind == SWARM_KIND_GARGOYLE)    // stone (2026-10-25)
-        || SwarmIsFixedElite(kind);         // the fixed elites wind up their moves (2026-10-25)
+        || (kind == SWARM_KIND_GARGOYLE)    // 石（2026-10-25）
+        || SwarmIsFixedElite(kind);         // 固定エリートは技の溜めがある（2026-10-25）
 }
 
-// damage one hit (a projectile, one area tick) really does to this kind.
-// The shield bearer takes g_ShieldArmor off every hit, so many small ticks
-// (poison pool, beam) barely scratch it and one heavy hit works (2026-10-08)
+// 1 回の命中（弾 1 発、範囲の判定 1 回）がこの種類に本当に与えるダメージ。
+// 盾兵は被弾ごとに g_ShieldArmor を引くので、小さな判定をたくさん受けても
+// （毒沼、光線）ほとんど削れず、重い一撃が効く（2026-10-08）
 float SwarmArmorDamage(uint kind, float dmg)
 {
     return (kind == SWARM_KIND_SHIELD && dmg > 0.0)
         ? max(dmg - g_ShieldArmor, dmg * g_ShieldMinFrac) : dmg;
 }
 
-// ---- the CPU's orders to a fixed elite (2026-10-25). Must match Swarm::kEliteCmd* / kEliteFlag* ----
-static const uint SWARM_ELITE_CMD_AI = 0u;        // the usual AI (A chases, B keeps its distance)
-static const uint SWARM_ELITE_CMD_STAND = 1u;     // stands, facing the player
-static const uint SWARM_ELITE_CMD_MOVE = 2u;      // runs along g_EliteMove.xy at .z (0 = stands facing that way)
-static const uint SWARM_ELITE_CMD_TELEPORT = 3u;  // MoveCS puts it at g_EliteMove.xy on the ground, facing the player
+// ---- CPU から固定エリートへの指示（2026-10-25）。Swarm::kEliteCmd* / kEliteFlag* と一致させること ----
+static const uint SWARM_ELITE_CMD_AI = 0u;        // いつもの AI（A は追い、B は距離を保つ）
+static const uint SWARM_ELITE_CMD_STAND = 1u;     // プレイヤーの方を向いて立つ
+static const uint SWARM_ELITE_CMD_MOVE = 2u;      // g_EliteMove.xy に沿って .z の速さで走る（0 = その向きで立つ）
+static const uint SWARM_ELITE_CMD_TELEPORT = 3u;  // MoveCS が g_EliteMove.xy の地面に置き、プレイヤーの方を向かせる
 static const uint SWARM_ELITE_SWIFT = 1u;
 static const uint SWARM_ELITE_SHIELD = 2u;
 static const uint SWARM_ELITE_ENRAGED = 4u;
-static const uint SWARM_ELITE_NO_CONTACT = 8u;    // no melee (vanished, in the middle of a move)
-static const uint SWARM_ELITE_ATTACK = 16u;       // loops the attack clip (a move is running)
-static const uint SWARM_ELITE_SPIN = 32u;         // the whole body spins (the axe's whirl)
+static const uint SWARM_ELITE_NO_CONTACT = 8u;    // 殴らない（消えている、技の途中）
+static const uint SWARM_ELITE_ATTACK = 16u;       // 攻撃のクリップをループする（技の最中）
+static const uint SWARM_ELITE_SPIN = 32u;         // 体ごと回る（大斧の回転斬り）
 
-// the row of g_EliteCmd for this slot, -1 = none (one exit: fxc warns X4000 on early returns)
+// このスロットの g_EliteCmd の行、-1 = なし（出口は 1 つ：途中の return で fxc が X4000 を出す）
 int SwarmEliteEntry(uint slot)
 {
     int found = -1;
@@ -1297,8 +1297,8 @@ uint SwarmEliteFlags(uint slot)
     return (k >= 0) ? g_EliteCmd[k].y : 0u;
 }
 
-// damage one hit really does to the enemy in this slot: the shield bearer's armor, then the iron elite's
-// shield (half until the CPU sees it break)
+// 1 回の命中がこのスロットの敵に本当に与えるダメージ：盾兵の装甲、その後に鉄壁エリートの
+// 盾（CPU が壊れたと判断するまで半分）
 float SwarmTakenDamage(uint slot, uint kind, float dmg)
 {
     float d = SwarmArmorDamage(kind, dmg);
@@ -1307,8 +1307,8 @@ float SwarmTakenDamage(uint slot, uint kind, float dmg)
     return d;
 }
 
-// ---- charger phases, from SwarmEnemyExtra.fuse ----
-static const uint SWARM_CHARGE_CHASE = 0u;   // fuse <= 0 (cooldown counts up to 0)
+// ---- 突撃兵の段階（SwarmEnemyExtra.fuse から求める） ----
+static const uint SWARM_CHARGE_CHASE = 0u;   // fuse <= 0（クールダウンは 0 まで数え上げる）
 static const uint SWARM_CHARGE_WINDUP = 1u;
 static const uint SWARM_CHARGE_DASH = 2u;
 static const uint SWARM_CHARGE_RECOVER = 3u;
@@ -1327,9 +1327,9 @@ uint SwarmChargerPhase(float fuse)
          : (fuse <= d) ? SWARM_CHARGE_DASH : SWARM_CHARGE_RECOVER;
 }
 
-// Body capsule of an enemy of this kind. The model is scaled about its
-// feet, so a bigger body also has its centre higher up.
-// pos = SwarmEnemy.position (the capsule centre of a normal mob)
+// この種類の敵の体のカプセル。モデルは足元を基点に拡縮するので、
+// 体が大きいほど中心も高くなる。
+// pos = SwarmEnemy.position（普通の雑魚のカプセルの中心）
 void SwarmKindCapsule(uint kind, float3 pos, out float3 center, out float radius, out float halfLen)
 {
     float k = SwarmKindScale(kind);
@@ -1339,8 +1339,8 @@ void SwarmKindCapsule(uint kind, float3 pos, out float3 center, out float radius
     center.y += (k - 1.0) * (g_EnemyRadius + g_EnemyCapsuleHalf);
 }
 
-// Body size of the enemy in one slot: the kind's, times g_EliteEnragedScale for a berserk fixed elite (2026-10-25:
-// SwarmEnemyVS draws it that much bigger from the feet; the hits, the contact and the HP bar used to keep the old size)
+// スロット 1 つの敵の体格：種類の値に、狂暴の固定エリートなら g_EliteEnragedScale を掛ける（2026-10-25：
+// SwarmEnemyVS は足元からそれだけ大きく描くが、命中・接触・HP バーは以前は元の大きさのままだった）
 float SwarmSlotScale(uint slot, uint kind)
 {
     float k = SwarmKindScale(kind);
@@ -1348,7 +1348,7 @@ float SwarmSlotScale(uint slot, uint kind)
         k *= g_EliteEnragedScale;
     return k;
 }
-// SwarmKindCapsule with SwarmSlotScale
+// SwarmSlotScale を使う SwarmKindCapsule
 void SwarmSlotCapsule(uint slot, uint kind, float3 pos, out float3 center, out float radius, out float halfLen)
 {
     float k = SwarmSlotScale(slot, kind);
@@ -1360,9 +1360,9 @@ void SwarmSlotCapsule(uint slot, uint kind, float3 pos, out float3 center, out f
 #endif
 
 // ============================================================
-// Quaternions (xyz = axis * sin(a / 2), w = cos(a / 2)). The spike
-// ball's roll (2026-10-25): MoveCS chains this step's roll onto the
-// slot's orientation (enemyRoll), SwarmSpikeBallVS turns the mesh by it
+// クォータニオン（xyz = axis * sin(a / 2)、w = cos(a / 2)）。トゲ
+// 玉の転がり（2026-10-25）：MoveCS がこのステップの回転をスロットの
+// 向き（enemyRoll）に重ね、SwarmSpikeBallVS がそれでメッシュを回す
 // ============================================================
 float4 SwarmQuatAxisAngle(float3 axis, float angle)
 {
@@ -1370,7 +1370,7 @@ float4 SwarmQuatAxisAngle(float3 axis, float angle)
     sincos(0.5 * angle, s, c);
     return float4(axis * s, c);
 }
-// a * b = first b, then a
+// a * b = 先に b、次に a
 float4 SwarmQuatMul(float4 a, float4 b)
 {
     return float4(a.w * b.xyz + b.w * a.xyz + cross(a.xyz, b.xyz), a.w * b.w - dot(a.xyz, b.xyz));
@@ -1380,7 +1380,7 @@ float3 SwarmQuatRotate(float4 q, float3 v)
     float3 t = 2.0 * cross(q.xyz, v);
     return v + q.w * t + cross(q.xyz, t);
 }
-// the stored orientation of a spike ball. Never written yet (zero) = the fixed pose per slot it had at rest before
+// トゲ玉の保存済みの向き。まだ一度も書かれていない（ゼロ）= 以前の静止時と同じ、スロットごとに固定の姿勢
 float4 SwarmSpikeBallRoll(float4 stored, uint slot)
 {
     return (dot(stored, stored) > 0.25) ? stored
@@ -1388,9 +1388,9 @@ float4 SwarmSpikeBallRoll(float4 stored, uint slot)
 }
 
 // ============================================================
-// Exp orb tuning. Default register b2. HitCS (spawns orbs) and
-// OrbMoveCS (moves / picks them up) both read it.
-// Must match Swarm::OrbCB in SwarmTypes.h
+// 経験玉の調整値。デフォルトのレジスタは b2。HitCS（経験玉を生成）と
+// OrbMoveCS（動かす / 拾う）の両方が読む。
+// SwarmTypes.h の Swarm::OrbCB と一致させること
 // ============================================================
 #ifndef SWARM_ORB_CB_REG
 #define SWARM_ORB_CB_REG b2
@@ -1398,18 +1398,18 @@ float4 SwarmSpikeBallRoll(float4 stored, uint slot)
 
 cbuffer SwarmOrbCB : register(SWARM_ORB_CB_REG)
 {
-    float g_OrbAttractRadius; // start pulling toward the player inside this
-    float g_OrbPickupRadius; // consumed inside this
-    float g_OrbAccel; // pull acceleration
+    float g_OrbAttractRadius; // この内側でプレイヤーへ引き寄せ始める
+    float g_OrbPickupRadius; // この内側で拾われる
+    float g_OrbAccel; // 引き寄せの加速度
     float g_OrbMaxSpeed;
 
-    float g_OrbAmount; // exp per orb (global for now; per-enemy later)
-    float g_OrbY; // orbs float at this height
+    float g_OrbAmount; // 経験玉 1 つの経験値（今は全体共通。いずれ敵ごとに）
+    float g_OrbY; // 経験玉はこの高さに浮く
     float2 _orbPad;
 };
 
 // ============================================================
-// terrain lookup: 1 = walkable
+// 地形の参照：1 = 歩ける
 // ============================================================
 bool SwarmIsWalkable(StructuredBuffer<uint> walkable, float3 p)
 {
@@ -1425,17 +1425,17 @@ bool SwarmIsWalkable(StructuredBuffer<uint> walkable, float3 p)
 }
 
 // ============================================================
-// Enemy spatial hash. Same cells as the terrain grid (g_CellSize).
-// SwarmEnemyBinCS fills it every step: cellCount[cell] = live enemies
-// in the cell, cellItems[cell * CAP + k] = their slot indices. Cells
-// past CAP entries drop the rest (readers clamp with min()). With a
-// 2m cell and 0.4m enemies a packed cell holds ~7, so 32 leaves room
-// for the crush the push pass is there to undo.
-// AI (separation) and PushCS (overlap resolve) only look at 3x3 cells.
+// 敵の空間ハッシュ。セルは地形のグリッドと同じ（g_CellSize）。
+// SwarmEnemyBinCS が毎ステップ埋める：cellCount[cell] = そのセルの生きている
+// 敵の数、cellItems[cell * CAP + k] = それらのスロット番号。CAP を超えた
+// 分は捨てる（読み手は min() でクランプする）。2m のセルと 0.4m の敵なら
+// 詰まったセルでも約 7 体なので、32 あれば押し出しパスが解消するための
+// 押し合いの分も余裕がある。
+// AI（分離）と PushCS（重なりの解消）は 3x3 のセルだけを見る。
 // ============================================================
 static const uint SWARM_BUCKET_CAP = 32u;
 
-// cell index of a world position, or -1 outside the grid
+// ワールド位置のセル番号。グリッドの外なら -1
 int SwarmCellOf(float3 p)
 {
     int gx = (int) floor((p.x - g_GridOrigin.x) / g_CellSize);
@@ -1445,23 +1445,23 @@ int SwarmCellOf(float3 p)
 }
 
 // ============================================================
-// Terrain height field (GridWorld::Heights). SWARM_HEIGHT_SUB cells
-// per grid cell, 0 on flat ground, the walkable surface height on
-// ramps. Enemies pin y to it (MoveCS), projectiles explode when they
-// fly below it (ProjMoveCS). Must match GridWorld::kHeightSub
+// 地形のハイトフィールド（GridWorld::Heights）。グリッドのセル 1 つに
+// SWARM_HEIGHT_SUB 個のセル。平地では 0、坂では歩ける面の高さ。
+// 敵は y をこれに合わせ（MoveCS）、弾はこれより下を飛ぶと
+// 爆発する（ProjMoveCS）。GridWorld::kHeightSub と一致させること
 // ============================================================
 static const uint SWARM_HEIGHT_SUB = 4u;
 
 float SwarmHeightCell(StructuredBuffer<float> heights, int hx, int hz)
 {
-    // single exit (fxc X4000 otherwise)
+    // 出口は 1 つ（そうしないと fxc が X4000 を出す）
     int hw = (int) (g_GridW * SWARM_HEIGHT_SUB);
     int hd = (int) (g_GridD * SWARM_HEIGHT_SUB);
     bool inside = (hx >= 0 && hx < hw && hz >= 0 && hz < hd);
     return inside ? heights[clamp(hz, 0, hd - 1) * hw + clamp(hx, 0, hw - 1)] : 0.0;
 }
 
-// bilinear sample at a world xz (same formula as GridWorld::SampleHeight)
+// ワールド xz でのバイリニアサンプル（GridWorld::SampleHeight と同じ式）
 float SwarmTerrainHeight(StructuredBuffer<float> heights, float2 xz)
 {
     float s = g_CellSize / (float) SWARM_HEIGHT_SUB;
@@ -1477,12 +1477,12 @@ float SwarmTerrainHeight(StructuredBuffer<float> heights, float2 xz)
 }
 
 // ============================================================
-// Cliffs. Plateau cells are walkable (enemies roam on top) and carry
-// their height in the height field, so the grid alone would let an
-// enemy slide straight up a plateau side. A plateau side is a jump of
-// several meters inside one 0.5m height cell, a ramp is <= 30 degrees:
-// any move steeper than SWARM_MAX_WALK_SLOPE (rise / run) is refused.
-// Must match FlowField::maxStep (per 2m cell) and the generator's ramps
+// 崖。台地のセルは歩ける（敵は上をうろつく）うえ、高さをハイトフィールドに
+// 持っているので、グリッドだけでは敵が台地の側面をそのまま
+// 滑り上がれてしまう。台地の側面は 0.5m の高さセル 1 つの中で
+// 数 m の段差になり、坂は 30 度以下：
+// SWARM_MAX_WALK_SLOPE（高さ / 水平距離）より急な移動は拒否する。
+// FlowField::maxStep（2m のセルあたり）と生成器の坂に合わせること
 // ============================================================
 static const float SWARM_MAX_WALK_SLOPE = 0.84; // tan(40 deg)
 
@@ -1490,27 +1490,27 @@ bool SwarmSlopeOk(StructuredBuffer<float> heights, float2 from, float2 to)
 {
     float run = length(to - from);
     float rise = abs(SwarmTerrainHeight(heights, to) - SwarmTerrainHeight(heights, from));
-    return rise <= SWARM_MAX_WALK_SLOPE * run + 0.05; // + slack for the bilinear kinks
+    return rise <= SWARM_MAX_WALK_SLOPE * run + 0.05; // + バイリニアの折れ目の分の余裕
 }
 
 // ============================================================
-// Dropping off a plateau (2026-10-01). An enemy on higher ground than
-// the player may step DOWN a cliff (it falls, MoveCS applies gravity);
-// climbing one is still refused. Only while the player stands at least
-// SWARM_DROP_MIN_BELOW lower: with the player up on the same plateau
-// the cliffs stay walls both ways. FlowField (CPU) uses the same rule,
-// so the field never routes an enemy off an edge the GPU will not let
-// it take. The crowd push (PushCS) never drops anyone.
-// feet = the enemy's feet height (terrain space, position.y - g_GroundY).
-// The enemy's height is the higher of the ground under its centre and its
-// feet (2026-10-20): the bilinear ground is blurred down over the last
-// 0.25m before an edge, and on the step terraces (2.5m steps on rolling
-// ground) a plateau is often only 1.5-2m above the player's ground, so
-// the centre's ground alone fell under the margin right at the edge and
-// the drop flipped off again: the body was eased back up, next step
-// allowed again -> enemies bobbed on the edge for good (soak). Settle
-// keeps the feet level with the plateau until the whole body is past the
-// edge, so the feet carry the decision through the drop
+// 台地から飛び降りる（2026-10-01）。プレイヤーより高い所にいる敵は
+// 崖を下りてよい（落ちて、MoveCS が重力をかける）。
+// 登るのは今までどおり拒否する。プレイヤーが少なくとも
+// SWARM_DROP_MIN_BELOW 低い所にいる間だけ：プレイヤーが同じ台地の上にいれば
+// 崖はどちら向きにも壁のまま。FlowField（CPU）も同じ規則を使うので、
+// フィールドが、GPU が許さない縁から敵を下ろす経路を
+// 作ることはない。群れの押し出し（PushCS）は誰も落とさない。
+// feet = 敵の足の高さ（地形の空間、position.y - g_GroundY）。
+// 敵の高さは、中心の下の地面と足のうち高い方（2026-10-20）：
+// バイリニアの地面は縁の手前 0.25m で
+// ぼやけて下がる。段々の台地（起伏の上に
+// 2.5m の段）では台地がプレイヤーの地面より 1.5-2m しか高くないことが多く、
+// 中心の下の地面だけでは縁のところで余裕を下回り、
+// 飛び降りがまた不可に戻った：体が押し戻され、次のステップでは
+// また可 -> 敵が縁でずっと上下していた（soak）。Settle は
+// 体全体が縁を越えるまで足を台地の高さに保つので、
+// 飛び降りの間は足の高さで判定が続く
 // ============================================================
 static const float SWARM_DROP_MIN_BELOW = 1.0;
 
@@ -1521,7 +1521,7 @@ bool SwarmDropAllowed(StructuredBuffer<float> heights, float2 enemyXZ, float fee
         && SwarmTerrainHeight(heights, g_PlayerPos.xz) <= h - SWARM_DROP_MIN_BELOW;
 }
 
-// SwarmSlopeOk, but a drop of any height passes when allowDrop
+// SwarmSlopeOk と同じだが、allowDrop の時はどんな高さの降下も通す
 bool SwarmStepHeightOk(StructuredBuffer<float> heights, float2 from, float2 to, bool allowDrop)
 {
     float rise = SwarmTerrainHeight(heights, to) - SwarmTerrainHeight(heights, from);
@@ -1530,47 +1530,47 @@ bool SwarmStepHeightOk(StructuredBuffer<float> heights, float2 from, float2 to, 
 }
 
 // ============================================================
-// Body circle vs walls and cliffs (2026-10-01).
-// MoveCS / PushCS used to check the centre only, so the crowd pushed
-// enemies up to the wall face with half the body inside a plateau side
-// (self test "clip": 0.37m of a 0.4m radius, elites 0.73m of 0.88m).
-// The body is sampled at 8 points on a circle; a point counts as
-// touching when its cell is blocked, or the ground there is a cliff
-// (higher / lower than the centre by more than a walkable slope plus
-// SWARM_BODY_CLIFF_RISE). The heights are the raw 0.5m height cells,
-// not the bilinear sample: plateau sides sit on cell edges, so the step
-// is exactly at the face (the bilinear one starts rising 0.25m before
-// it). The margin covers the stair steps of a ramp (~0.27m per cell).
-// Returns xy = sum of the directions of the touching points (the push
-// out goes the other way), z = how many touch.
+// 体の円 vs 壁と崖（2026-10-01）。
+// 以前 MoveCS / PushCS は中心だけを見ていたので、群れが敵を壁面まで押し、
+// 体の半分が台地の側面にめり込んでいた
+// （自動テスト「clip」：半径 0.4m のうち 0.37m、エリートは 0.88m のうち 0.73m）。
+// 体は円周上の 8 点でサンプルする。
+// 点のセルが塞がっているか、そこの地面が
+// 崖（中心より、歩ける坂の分 +
+// SWARM_BODY_CLIFF_RISE より高い / 低い）なら、その点は接触とみなす。高さは
+// バイリニアのサンプルではなく生の 0.5m の高さセル：台地の側面はセルの境界に
+// あるので、段差はちょうど面の位置にある（バイリニアは 0.25m 手前から
+// 上がり始める）。余裕は坂の階段状の段差（セルあたり約 0.27m）を吸収する。
+// 戻り値 xy = 接触した点の方向の和（押し出しは
+// 逆向き）、z = 接触した点の数。
 // ============================================================
 static const float SWARM_BODY_CLIFF_RISE = 0.35;
-// slope allowed across the body: the steepest ramp is ~30 deg, so this
-// can be tighter than SWARM_MAX_WALK_SLOPE (40 deg) and still catch a
-// ~1m ledge under an elite's 0.9m radius
+// 体の幅で許す傾き：一番急な坂は約 30 度なので、
+// SWARM_MAX_WALK_SLOPE（40 度）より厳しくしても、エリートの半径 0.9m の
+// 下にある約 1m の段差を捉えられる
 static const float SWARM_BODY_MAX_SLOPE = 0.62; // tan(32 deg)
 
-// height of the 0.5m height cell that contains xz (no blending)
+// xz を含む 0.5m の高さセルの高さ（補間しない）
 float SwarmTerrainHeightRaw(StructuredBuffer<float> heights, float2 xz)
 {
     float s = g_CellSize / (float) SWARM_HEIGHT_SUB;
     return SwarmHeightCell(heights, (int) floor((xz.x - g_GridOrigin.x) / s),
                                     (int) floor((xz.y - g_GridOrigin.z) / s));
 }
-// rest radius against walls in units of the collision radius: the mesh
-// is wider than the capsule (~0.9m vs 0.8m), same reason as PushCS
+// 壁に対して止まる半径（当たり判定の半径を単位とする）：メッシュは
+// カプセルより幅がある（約 0.9m 対 0.8m）。PushCS と同じ理由
 static const float SWARM_BODY_WALL_MUL = 1.15;
-// cap so the big kinds still fit a 1-cell (2m) gap between walls:
-// the flow field routes through those and the boss would get stuck
+// 大きな種類でも壁の間の 1 セル（2m）の隙間を通れるよう上限を設ける：
+// フローフィールドはそこを通るので、ないとボスが詰まる
 static const float SWARM_BODY_WALL_MAX = 0.9;
 
-// countDrops = false: lower ground does not count (an enemy dropping off
-// an edge may hang its body over it), only walls and rising faces do.
-// footH: the height the rises are measured from (the enemy's feet, terrain
-// space). Default = the ground under the centre. MoveCS passes the real
-// feet: an enemy stepping off an edge has its centre over the low ground
-// already while its feet are still level with the plateau behind it,
-// which must not count as a wall (it used to stop them right at the edge)
+// countDrops = false：低い地面は数えない（縁から飛び降りる敵は
+// 体をはみ出させてよい）。数えるのは壁と上り面だけ。
+// footH：上りを測る基準の高さ（敵の足、地形の空間）。
+// デフォルト = 中心の下の地面。MoveCS は本当の足の高さを渡す：
+// 縁から降りる敵は、中心がもう低い地面の上にあっても
+// 足はまだ後ろの台地と同じ高さで、
+// それを壁と数えてはいけない（以前は縁でちょうど止まっていた）
 float3 SwarmBodyContact(StructuredBuffer<uint> walkable, StructuredBuffer<float> heights, float2 c, float radius,
                         bool countDrops = true, float footH = -1e30)
 {
@@ -1591,24 +1591,24 @@ float3 SwarmBodyContact(StructuredBuffer<uint> walkable, StructuredBuffer<float>
     return acc;
 }
 
-// SwarmSlopeOk on the raw height cells. Used for the step that eases a
-// body out of a cliff face: within 0.25m of the face the bilinear height
-// already climbs the cliff, so stepping away from it looks like a steep
-// drop to SwarmSlopeOk and an enemy spawned there could never leave
+// 生の高さセルでの SwarmSlopeOk。崖面から体を押し出すステップに使う：
+// 面から 0.25m 以内ではバイリニアの高さがもう崖を登っているので、
+// 離れる動きが SwarmSlopeOk には急な降下に見え、
+// そこに生成された敵は二度と出られなかった
 bool SwarmRawSlopeOk(StructuredBuffer<float> heights, float2 from, float2 to)
 {
     float rise = abs(SwarmTerrainHeightRaw(heights, to) - SwarmTerrainHeightRaw(heights, from));
     return rise <= SWARM_MAX_WALK_SLOPE * length(to - from) + SWARM_BODY_CLIFF_RISE;
 }
 
-// SwarmStepHeightOk on the raw height cells (2026-10-20): a step passes when the raw ground
-// does not step up more than a walkable slope + the ramp margin; down likewise, or anything
-// with allowDrop. MoveCS accepts a step when this OR the bilinear test passes: within 0.25m
-// of a plateau edge the bilinear ground dips halfway down the face, so an enemy whose feet
-// had followed it there could never step back toward the plateau (every step "climbed" too
-// steeply) and hung on the edge for good. The raw cells have no such dip; climbing the real
-// face still fails here (a whole step inside one 0.5m cell) and the body test keeps the
-// centre off the face line anyway
+// 生の高さセルでの SwarmStepHeightOk（2026-10-20）：生の地面の上りが歩ける坂 + 坂の余裕を
+// 超えなければ通す。下りも同じで、allowDrop なら何でも通す。
+// MoveCS はこれかバイリニアの判定のどちらかが通ればステップを受け入れる：台地の縁から
+// 0.25m 以内ではバイリニアの地面が面の途中まで下がるので、足がそれに付いて
+// 行った敵は台地の方へ二度と戻れず（どのステップも「急すぎる上り」になる）、
+// 縁にずっと引っかかっていた。生のセルにはそういう凹みがない。本当の面を登るのは
+// ここでもやはり失敗し（0.5m のセル 1 つの中に段差全体がある）、どのみち体の判定が
+// 中心を面の線から離しておく
 bool SwarmRawStepOk(StructuredBuffer<float> heights, float2 from, float2 to, bool allowDrop)
 {
     float rise = SwarmTerrainHeightRaw(heights, to) - SwarmTerrainHeightRaw(heights, from);
@@ -1617,7 +1617,7 @@ bool SwarmRawStepOk(StructuredBuffer<float> heights, float2 from, float2 to, boo
 }
 
 #ifdef SWARM_BOMBER_CB_REG
-// the body radius used against walls (bigger kinds = bigger, capped)
+// 壁に対して使う体の半径（大きい種類ほど大きい。上限あり）
 float SwarmBodyWallRadius(uint kind)
 {
     return min(g_EnemyRadius * SwarmKindScale(kind) * SWARM_BODY_WALL_MUL, SWARM_BODY_WALL_MAX);

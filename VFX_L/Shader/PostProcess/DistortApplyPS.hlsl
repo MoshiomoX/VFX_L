@@ -1,19 +1,19 @@
 // ============================================================
 // DistortApplyPS.hlsl
-// Applies the particle screen distortion to the scene BEFORE the UI is
-// drawn (2026-10-20: the composite used to do it, which bent the HUD too).
-// Full-screen triangle (CompositeVS) into the scene's HDR target:
-// colour = resolved scene sampled at uv + offset x strength. Pixels with
-// no offset come back unchanged.
+// パーティクルの画面の歪みを、UI を描く「前」にシーンへ掛ける
+// （2026-10-20：以前は合成パスでやっていて、HUD まで歪んでいた）。
+// 全画面の三角形（CompositeVS）でシーンの HDR ターゲットへ描く：
+// 色 = uv + オフセット x 強さ の位置でサンプルした resolve 済みのシーン。
+// オフセットの無いピクセルはそのまま戻る。
 // ============================================================
-Texture2D sceneTex : register(t0);     // the resolved HDR scene (before this pass)
-Texture2D distortTex : register(t1);   // uv offsets written by ParticleDistortPS, resolved
+Texture2D sceneTex : register(t0);     // resolve 済みの HDR シーン（このパスの前）
+Texture2D distortTex : register(t1);   // ParticleDistortPS が書いた uv オフセット、resolve 済み
 SamplerState linearClamp : register(s0);
 
 cbuffer DistortApplyCB : register(b0)
 {
-    float g_Strength;   // multiplies the offsets
-    float g_Aspect;     // width / height (same pixel distance both ways)
+    float g_Strength;   // オフセットに掛ける
+    float g_Aspect;     // 幅 / 高さ（縦横で同じピクセル距離にする）
     float2 _pad;
 };
 

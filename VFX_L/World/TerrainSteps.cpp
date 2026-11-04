@@ -390,7 +390,8 @@ namespace TerrainBuild
                             hi = (std::max)(hi, h);
                         }
                     if (hi - lo > P.pondMaxRise) { ++rejectSlope; continue; }
-                    pn[idx(x, z)] = ValueNoise(wx / 14.0f, wz / 14.0f, seed + 211u) + 0.35f * ValueNoise(wx / 5.0f, wz / 5.0f, seed + 223u)
+                    const float ps = (std::max)(P.pondScale, 2.0f), pd = ps * (5.0f / 14.0f);   // 細かい層は大きい層の 5/14（従来の 14m / 5m の比）
+                    pn[idx(x, z)] = ValueNoise(wx / ps, wz / ps, seed + 211u) + 0.35f * ValueNoise(wx / pd, wz / pd, seed + 223u)
                         + P.pondLowBias * (hc - ring);   // 窪んだ所ほど選ばれやすい
                     vals.push_back(pn[idx(x, z)]);
                 }

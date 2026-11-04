@@ -1,32 +1,32 @@
 // ============================================================
 // SwarmAreaTickCS.hlsl
-// One fixed step of the area clocks. One thread per area slot.
-// Runs after HitCS (so an area spawned by a hit ticks in the very
-// step it was born) and before AreaDamageCS.
+// 範囲の時計を 1 固定ステップ進める。範囲のスロット 1 つにつき 1 スレッド。
+// HitCS の後（命中で生まれた範囲が、生まれたそのステップで
+// tick するように）、AreaDamageCS の前に走る。
 //
-//   - an area whose time ran out dies HERE, at the start of the next
-//     step, so its last tick still got applied by AreaDamageCS
-//   - FOLLOW_PLAYER areas are moved onto the player
-//   - CAPSULE areas (beams) take start / radius / end from SwarmBeamCB
-//     (b3, written by the CPU every frame) and die when the CPU marks
-//     the channel inactive. The end goes to areaEnds (u3) for AreaDamageCS
-//   - tickNow bit 0 marks "deals damage this step", bit 1 "first tick";
-//     the high bits are the area's extras (toxin / splash, set at spawn)
-//     and are left alone (SWARM_AREA_TICK_* in SwarmCommon.hlsli)
+//   - 時間切れの範囲は「ここ」、次のステップの頭で死ぬ。なので
+//     最後の tick は AreaDamageCS でちゃんと適用済み
+//   - FOLLOW_PLAYER の範囲はプレイヤーの位置へ動かす
+//   - CAPSULE の範囲（光線）は始点 / 半径 / 終点を SwarmBeamCB
+//     （b3、CPU が毎フレーム書く）から取り、CPU がチャンネルを
+//     無効にしたら死ぬ。終点は AreaDamageCS 用に areaEnds（u3）へ
+//   - tickNow の bit 0 は「このステップでダメージを与える」、bit 1 は「最初の tick」。
+//     上位ビットは範囲の追加情報（毒素 / 飛沫、生成時に設定）で、
+//     触らない（SwarmCommon.hlsli の SWARM_AREA_TICK_*）
 //
-// Only writer of SwarmArea.tickNow's tick bits / tickTimer / timeLeft.
+// SwarmArea.tickNow の tick ビット / tickTimer / timeLeft を書くのはここだけ。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
 RWStructuredBuffer<SwarmArea> areas : register(u0);
 RWBuffer<uint> areaStates : register(u1);
 RWByteAddressBuffer counters : register(u2);
-RWStructuredBuffer<float4> areaEnds : register(u3); // capsule end (xyz), only meaningful for CAPSULE areas
+RWStructuredBuffer<float4> areaEnds : register(u3); // カプセルの終点（xyz）、CAPSULE の範囲でだけ意味がある
 
 cbuffer SwarmBeamCB : register(b3)
 {
-    float4 g_BeamStart[SWARM_MAX_BEAMS]; // xyz = start, w = radius
-    float4 g_BeamEnd[SWARM_MAX_BEAMS]; // xyz = end,   w = 1 while the beam is on
+    float4 g_BeamStart[SWARM_MAX_BEAMS]; // xyz = 始点、w = 半径
+    float4 g_BeamEnd[SWARM_MAX_BEAMS]; // xyz = 終点、w = 光線が出ている間は 1
 };
 
 [numthreads(256, 1, 1)]
@@ -48,7 +48,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     if ((a.flags & SWARM_AREA_FOLLOW_PLAYER) != 0u)
     {
-        // keep the authored height, ride on the player in XZ
+        // 高さは作ったまま、XZ だけプレイヤーに乗る
         a.center.x = g_PlayerPos.x;
         a.center.z = g_PlayerPos.z;
     }
@@ -59,7 +59,7 @@ void main(uint3 id : SV_DispatchThreadID)
         float4 e = g_BeamEnd[ch];
         if (ch >= SWARM_MAX_BEAMS || e.w <= 0.0)
         {
-            areaStates[i] = SWARM_DEAD; // the CPU ended the beam (or never owned this channel)
+            areaStates[i] = SWARM_DEAD; // CPU が光線を終えた（またはこのチャンネルを持っていない）
             return;
         }
         a.center = s.xyz;
@@ -67,14 +67,14 @@ void main(uint3 id : SV_DispatchThreadID)
         areaEnds[i] = float4(e.xyz, 1.0);
     }
 
-    // the high bits of tickNow are the area's extras (toxin, splash-only): keep them, only the tick bits change
+    // tickNow の上位ビットは範囲の追加情報（毒素、飛沫のみ）：残して tick のビットだけ変える
     a.tickNow &= ~(SWARM_AREA_TICK_NOW | SWARM_AREA_TICK_FIRST);
     a.tickTimer -= g_Step;
     if (a.tickTimer <= 0.0)
     {
         a.tickNow |= SWARM_AREA_TICK_NOW;
         if ((a.tickNow & SWARM_AREA_TICK_SEEN) == 0u)
-            a.tickNow |= SWARM_AREA_TICK_FIRST | SWARM_AREA_TICK_SEEN; // the Swamp deals damage on this tick only
+            a.tickNow |= SWARM_AREA_TICK_FIRST | SWARM_AREA_TICK_SEEN; // 泥沼はこの tick でだけダメージを与える
         a.tickTimer += max(a.tickInterval, g_Step);
     }
 

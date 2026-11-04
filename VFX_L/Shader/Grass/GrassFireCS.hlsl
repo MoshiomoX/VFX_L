@@ -1,56 +1,56 @@
 // ============================================================
 // GrassFireCS.hlsl
-// One step of the grass fire field (World/GrassFireField, 2026-10-12).
-// One texel per small patch of the whole map: x = temperature, y = fuel
-// left (1 = fresh grass, 0 = burnt), z = 1 while burning. Ping-pong like
-// the trample map.
+// 草の延焼フィールドの 1 ステップ（World/GrassFireField、2026-10-12）。
+// マップ全体の小区画ごとに 1 テクセル: x = 温度、y = 残りの燃料
+// （1 = 生えたての草、0 = 燃え尽き）、z = 燃焼中は 1。踏みつけマップと
+// 同じくピンポンで使う。
 //
-// Per step:
-//   heat is carried downwind (semi-Lagrangian: read the texel the wind
-//   came from), spreads to the neighbours (diffusion) and cools.
-//   A dry-grass texel (g_Dry) with fuel whose temperature passes g_Ignite
-//   burns: it releases heat (keeps itself hot, lights the neighbours) and
-//   uses up fuel. Cold burnt grass slowly regrows, and burns again only
-//   once it is back to g_Reburn: starting at any fuel at all let the front
-//   walk back into land it had just burnt, for ever (2026-11-01). Green
-//   grass never burns, so a fire ends where its dry patch ends. Rain cools
-//   faster and burns the fuel out quicker.
-//   Heat sources = live GPU areas (explosions, meteor, fireball hit)
-//   whose recipe has heat (g_RecipeHeat[vfxType] > 0, from the area
-//   profile's "heat"), plus one CPU stamp (debug / tests). The group
-//   compacts the live hot areas into shared memory first, so a texel
-//   only loops over the few that matter (usually 0 to 5).
-//   Cold sources (2026-11-01): negative heat, or any freezing area. They
-//   push the temperature below 0, which puts fires out and, until it
-//   warms back up, keeps the next front from crossing.
-// Explicit diffusion is stable while g_Diffuse * dt <= 0.25 (texel units)
+// 1 ステップの処理:
+//   熱は風下へ運ばれ（セミラグランジュ: 風が来た元のテクセルを読む）、
+//   隣へ広がり（拡散）、冷える。
+//   燃料のある枯れ草のテクセル（g_Dry）は温度が g_Ignite を超えると
+//   燃える: 熱を出し（自分を熱いまま保ち、隣に火をつける）、燃料を
+//   使い切る。冷えた焼け跡はゆっくり生え戻り、g_Reburn まで戻って
+//   初めてまた燃える: 燃料が少しでもあれば燃えるようにしていたら、前線が
+//   燃やしたばかりの所へ戻ってきて永遠に燃え続けた（2026-11-01）。緑の
+//   草は燃えないので、火は枯れ草の区画が終わる所で止まる。雨は冷却を
+//   速め、燃料も早く燃え尽きさせる。
+//   熱源 = 生きている GPU の範囲（爆発、メテオ、ファイアボールの命中）のうち
+//   レシピに熱がある（g_RecipeHeat[vfxType] > 0、範囲プロファイルの
+//   "heat" から）もの + CPU のスタンプ 1 つ（デバッグ / テスト用）。スレッドグループで
+//   まず生きている熱い範囲を共有メモリに詰めるので、テクセルは
+//   関係のある少数（たいてい 0〜5 個）だけを回る。
+//   冷源（2026-11-01）: 負の熱、または凍らせる範囲。温度を 0 より
+//   下げて火を消し、温まり直すまでは次の前線が越えてこないようにする。
+//
+// 陽的な拡散は g_Diffuse * dt <= 0.25（テクセル単位）の間は安定
 // ============================================================
 
-// Must match GrassFireField::FireCB
+// GrassFireField::FireCB と一致させること
 cbuffer GrassFireCB : register(b0)
 {
-    float2 g_MapOrigin;     // world xz of the map's min corner
-    float2 g_MapSize;       // meters
-    float2 g_WindDir;       // unit xz, the way the wind blows
-    float g_WindSpeed;      // m/s (with the weather strength)
-    float g_Dt;             // seconds this step (0 while paused)
-    float g_Ignite;         // temperature where grass starts to burn
+    float2 g_MapOrigin;     // マップの最小の角のワールド xz
+    float2 g_MapSize;       // m
+    float2 g_WindDir;       // 単位 xz、風の吹いていく向き
+    float g_WindSpeed;      // m/s（天気の強さ込み）
+    float g_Dt;             // このステップの秒数（一時停止中は 0）
+    float g_Ignite;         // 草が燃え始める温度
     float g_Cool;           // 1/s
     float g_Diffuse;        // texel^2/s
-    float g_Downwind;       // how much of the wind speed carries the heat (1 = full)
-    float g_BurnRate;       // fuel per second while burning (1 / burn time)
-    float g_Release;        // temperature per second a burning texel adds to itself
-    float g_Regrow;         // fuel per second when cold
-    float g_Rain;           // 0..1 rain (weather)
-    float3 g_Stamp;         // CPU ignition: xz, radius (m)
-    float g_StampHeat;      // 0 = no stamp
-    float g_SourceMul;      // area radius x this = heated radius
-    float g_Texel;          // meters per texel
-    float g_RainCool;       // extra cooling at rain 1
-    float g_Reburn;         // burnt grass burns again only from this much fuel
+    float g_Downwind;       // 風速のうち熱を運ぶ割合（1 = 全部）
+    float g_BurnRate;       // 燃焼中に毎秒減る燃料（1 / 燃える時間）
+    float g_Release;        // 燃えているテクセルが毎秒自分に足す温度
+    float g_Regrow;         // 冷えているときに毎秒戻る燃料
+    float g_Rain;           // 0..1 の雨（天気）
+    float3 g_Stamp;         // CPU からの着火: xz、半径（m）
+    float g_StampHeat;      // 0 = スタンプなし
+    float g_SourceMul;      // 範囲の半径 x これ = 熱する半径
+    float g_Texel;          // 1 テクセルの大きさ（m）
+    float g_RainCool;       // 雨 1 のときの追加の冷却
+    float g_Reburn;         // 焼け跡はこの量まで燃料が戻ってからでないと燃えない
 };
 
-// = SwarmArea (Shader/Common/SwarmCommon.hlsli), 48 bytes. Only center / radius / vfxType are read
+// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / vfxType だけ
 struct FireArea
 {
     float3 center;
@@ -65,21 +65,21 @@ struct FireArea
     uint tickNow;
 };
 
-Texture2D<float4> g_In : register(t0);          // last step (temperature, fuel, burning)
-Texture2D<float4> g_Ground : register(t1);      // GrassRenderer's ground texture, a = grass grows here
+Texture2D<float4> g_In : register(t0);          // 前ステップ（温度、燃料、燃焼中）
+Texture2D<float4> g_Ground : register(t1);      // GrassRenderer の地面テクスチャ、a = 草が生える所
 StructuredBuffer<FireArea> g_Areas : register(t2);
-Buffer<uint> g_AreaStates : register(t3);       // 0 = dead
-StructuredBuffer<float> g_RecipeHeat : register(t4);   // per VFX recipe: ignition heat (0 = not a fire, < 0 = cold)
-Texture2D<float> g_Dry : register(t5);          // 1 = dry grass (GrassFireField::BuildDryMask), the only grass that burns
+Buffer<uint> g_AreaStates : register(t3);       // 0 = 死んでいる
+StructuredBuffer<float> g_RecipeHeat : register(t4);   // エフェクトのレシピごと: 着火の熱（0 = 火ではない、< 0 = 冷たい）
+Texture2D<float> g_Dry : register(t5);          // 1 = 枯れ草（GrassFireField::BuildDryMask）。燃えるのはこの草だけ
 RWTexture2D<float4> g_Out : register(u0);
 
 #define FIRE_MAX_AREAS 256u   // = SWARM_MAX_AREAS
 #define FIRE_MAX_SOURCES 64u
-#define FIRE_FREEZE_MASK 0xF0u   // = Swarm::kAreaFreezeShift, 4 bits (SwarmAreaFreeze)
-#define FIRE_COLD_AREA (-1.5)    // a freezing area without its own heat
+#define FIRE_FREEZE_MASK 0xF0u   // = Swarm::kAreaFreezeShift、4 ビット（SwarmAreaFreeze）
+#define FIRE_COLD_AREA (-1.5)    // 自分の熱を持たない凍らせる範囲
 #define FIRE_MIN_TEMP (-2.0)
 
-groupshared float4 gs_Source[FIRE_MAX_SOURCES];   // xz, radius, heat
+groupshared float4 gs_Source[FIRE_MAX_SOURCES];   // xz、半径、熱
 groupshared uint gs_SourceCount;
 
 float LoadT(int2 p, int2 maxP)
@@ -87,7 +87,7 @@ float LoadT(int2 p, int2 maxP)
     return g_In.Load(int3(clamp(p, int2(0, 0), maxP), 0)).x;
 }
 
-// bilinear temperature at a texel-space position (texel centres at .5)
+// テクセル空間の位置でのバイリニアな温度（テクセル中心は .5）
 float SampleT(float2 pos, int2 maxP)
 {
     float2 q = pos - 0.5;
@@ -101,7 +101,7 @@ float SampleT(float2 pos, int2 maxP)
 [numthreads(8, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 {
-    // ---- compact the live hot areas into shared memory (64 threads, 4 areas each) ----
+    // ---- 生きている熱い範囲を共有メモリに詰める（64 スレッド、1 スレッド 4 範囲） ----
     if (gi == 0u)
         gs_SourceCount = 0u;
     GroupMemoryBarrierWithGroupSync();
@@ -115,7 +115,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         FireArea ar = g_Areas[a];
         float heat = (ar.vfxType < heatCount) ? g_RecipeHeat[ar.vfxType] : 0.0;
         if ((ar.flags & FIRE_FREEZE_MASK) != 0u)
-            heat = min(heat, FIRE_COLD_AREA);   // the Ice Spike's row comes from the CPU (no recipe)
+            heat = min(heat, FIRE_COLD_AREA);   // アイススパイクの列は CPU から来る（レシピなし）
         if (heat == 0.0)
             continue;
         uint slot;
@@ -135,22 +135,22 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     const float3 c = g_In.Load(int3(p, 0)).xyz;
     const float2 xz = g_MapOrigin + (float2(p) + 0.5) / float2(w, h) * g_MapSize;
 
-    // grass here? (the ground texture has its own resolution)
+    // ここに草があるか（地面テクスチャは解像度が別）
     uint gw, gh;
     g_Ground.GetDimensions(gw, gh);
     const float2 uv = (float2(p) + 0.5) / float2(w, h);
     const bool grass = g_Ground.Load(int3(int2(uv * float2(gw, gh)), 0)).a > 0.5
         && g_Dry.Load(int3(p, 0)) > 0.5;
 
-    // ---- heat: carried downwind, spread, cooled ----
-    const float adv = min(g_Downwind * g_WindSpeed * g_Dt / max(g_Texel, 1e-3), 0.9);   // texels this step
+    // ---- 熱: 風下へ運び、広げ、冷ます ----
+    const float adv = min(g_Downwind * g_WindSpeed * g_Dt / max(g_Texel, 1e-3), 0.9);   // このステップで進むテクセル数
     float T = SampleT(float2(p) + 0.5 - g_WindDir * adv, maxP);
     const float lap = LoadT(p + int2(1, 0), maxP) + LoadT(p - int2(1, 0), maxP)
                     + LoadT(p + int2(0, 1), maxP) + LoadT(p - int2(0, 1), maxP) - 4.0 * c.x;
     T += g_Diffuse * lap * g_Dt;
     T -= T * g_Cool * (1.0 + g_RainCool * g_Rain) * g_Dt;
 
-    // ---- fuel: burns while hot, regrows when cold ----
+    // ---- 燃料: 熱いうちは燃え、冷えると生え戻る ----
     float fuel = c.y;
     const bool burning = grass && fuel > 0.001 && T > g_Ignite && (c.z > 0.5 || fuel >= g_Reburn);
     if (burning)
@@ -163,7 +163,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         fuel += g_Regrow * g_Dt;
     }
 
-    // ---- heat sources: explosions etc. (hot inside the radius, fading just outside) ----
+    // ---- 熱源: 爆発など（半径の内側は熱く、すぐ外側で減衰） ----
     const uint n = min(gs_SourceCount, FIRE_MAX_SOURCES);
     for (uint i = 0u; i < n; ++i)
     {

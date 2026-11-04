@@ -1,27 +1,27 @@
 // ============================================================
 // SwarmCorpseTrackCS.hlsl
-// Once per frame, one thread per enemy slot (2026-10-02, death shatter).
-// A slot that was alive last frame (prevAlive) and is DEAD now died since
-// the last frame: its last position / yaw / kind are still in the slot
-// (nothing clears a dead slot until it is reused), so they are copied into
-// the corpse ring for SwarmCorpseVS, and a dust puff area is left at its
-// feet (g_DeathArea, the AreaDef "MobDeath": damage 0, look only).
+// 1 フレームに 1 回、敵のスロット 1 つに 1 スレッド（2026-10-02、死亡時の砕け散り）。
+// 前フレームは生きていて（prevAlive）今は DEAD のスロットは、前フレーム以降に
+// 死んだ：最後の位置 / yaw / 種類はまだスロットに残っている（死んだスロットは
+// 再利用されるまで誰も消さない）ので、SwarmCorpseVS 用の死体リングへ写し、
+// 足元に土煙の範囲を置く
+// （g_DeathArea、AreaDef「MobDeath」：ダメージ 0、見た目だけ）。
 //
-// Done here instead of in the killers (HitCS / AreaDamageCS / ContactCS):
-// HitCS already has all 8 UAVs of D3D11.0 in use, and one place catches
-// every kind of death the same way. KillAll clears prevAlive as well, so
-// wiping the field does not shatter everything at once.
+// 倒す側（HitCS / AreaDamageCS / ContactCS）でやらずにここでやる理由：
+// HitCS は D3D11.0 の UAV 8 本をすでに使い切っていて、1 か所ならどんな死に方も
+// 同じように拾える。KillAll は prevAlive も消すので、
+// フィールドを一掃しても全員が一斉に砕けることはない。
 //
-// A slot that dies and is reused within the same frame is missed (rare).
+// 同じフレーム内に死んで再利用されたスロットは取りこぼす（まれ）。
 //
-// A dying splitter (2026-10-03) also writes its position to the split ring
-// (splitEvents: +0 total written so far, then 16 bytes x SWARM_MAX_SPLIT_EVENTS
-// of float3 position + uint kind). The CPU reads it back like the trigger ring
-// and MobSpawner spawns the splitlings. This runs even with the shatter off.
+// 死んだスプリッター（2026-10-03）は分裂リングにも位置を書く
+// （splitEvents：+0 にこれまでの書き込み総数、続いて 16 バイト × SWARM_MAX_SPLIT_EVENTS
+// の float3 位置 + uint 種類）。CPU は連鎖リングと同じようにリードバックし、
+// MobSpawner が分裂体を湧かせる。砕け散りを切っていてもこれは動く。
 // ============================================================
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b5   // the gargoyle's flying height (its corpse falls from the ground, 2026-10-25)
+#define SWARM_BOMBER_CB_REG b5   // ガーゴイルの飛ぶ高さ（死体は地面から飛び散らせる、2026-10-25）
 #define SWARM_AREA_POOL_U u3
 #define SWARM_AREA_STATE_U u4
 #define SWARM_AREA_DEF_T t3
@@ -29,9 +29,9 @@
 
 cbuffer SwarmCorpseTrackCB : register(b4)
 {
-    float g_CorpseTime;   // SwarmSystem's clock (m_AnimClock)
-    uint g_CorpseOn;      // 0 = only keep prevAlive up to date
-    uint g_DeathArea;     // AreaDef of the dust puff, 0 = none
+    float g_CorpseTime;   // SwarmSystem の時計（m_AnimClock）
+    uint g_CorpseOn;      // 0 = prevAlive の更新だけする
+    uint g_DeathArea;     // 土煙の AreaDef、0 = なし
     uint _corpseTrackPad;
 };
 
@@ -41,8 +41,8 @@ StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2);
 
 RWBuffer<uint> prevAlive : register(u0);
 RWStructuredBuffer<SwarmCorpse> corpses : register(u1);
-RWByteAddressBuffer corpseHead : register(u2);   // [0] = corpses written so far (wraps the ring)
-RWByteAddressBuffer splitEvents : register(u5);  // split ring, see above
+RWByteAddressBuffer corpseHead : register(u2);   // [0] = これまでに書いた死体の数（リングを回り込む）
+RWByteAddressBuffer splitEvents : register(u5);  // 分裂リング、上の説明を参照
 
 static const uint SWARM_MAX_SPLIT_EVENTS = 128u;   // Swarm::kMaxSplitEvents
 
@@ -69,14 +69,14 @@ void main(uint3 id : SV_DispatchThreadID)
     if (was == 0u || alive != 0u)
         return;
 
-    // ---- died since last frame ----
+    // ---- 前フレーム以降に死んだ ----
     SwarmEnemy e = enemies[i];
     SwarmEnemyExtra ex = enemyExtra[i];
     uint kind = ex.kind;
-    // killed in the air (a gargoyle 2026-10-25, a flying boss): its pieces and dust start from the ground under it
+    // 空中で倒された（ガーゴイル 2026-10-25、飛ぶボス）：破片と土煙は真下の地面から出す
     e.position.y -= SwarmBodyHover(ex);
-    // the cursed armor's first death (2026-10-25): it collapses into a heap instead of shattering, and the CPU
-    // (MobSpawner) raises the revived armor here a few seconds later. The heap / dust are the CPU's effects
+    // 呪いの鎧の 1 回目の死（2026-10-25）：砕けずに崩れて山になり、数秒後に CPU
+    // （MobSpawner）がここに蘇った鎧を立ち上がらせる。山 / 土煙は CPU のエフェクト
     if (kind == SWARM_KIND_ARMOR)
     {
         uint s;
@@ -94,7 +94,7 @@ void main(uint3 id : SV_DispatchThreadID)
         splitEvents.Store3(at, asuint(e.position));
         splitEvents.Store(at + 12u, kind);
     }
-    // the sand mage's tornado (2026-10-17) just blows out: the dust puff, no shatter (it has no blocky body)
+    // 砂嵐の術師の砂旋（2026-10-17）はただ吹き消える：土煙だけで砕けない（ブロックの体が無い）
     if (kind == SWARM_KIND_TORNADO)
     {
         if (g_DeathArea != 0u)
@@ -112,7 +112,7 @@ void main(uint3 id : SV_DispatchThreadID)
     c.yaw = e.yaw;
     float2 away = e.position.xz - g_PlayerPos.xz;
     float awayLenSq = dot(away, away);
-    // away from the player (the spells come from there); right on top of the player: backwards
+    // プレイヤーから離れる向き（魔法はそちらから来る）。プレイヤーの真上なら後ろ向き
     c.dir = (awayLenSq > 1e-4) ? away * rsqrt(awayLenSq) : -float2(sin(e.yaw), cos(e.yaw));
     c.birth = g_CorpseTime;
     c.kind = kind;

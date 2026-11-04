@@ -263,9 +263,10 @@ namespace Res
             };
             // 場内の岩柱 / 峡谷の壁（2026-10-26）：橙色の dglopez だけ（Quaternius の Rock_4/6/7 は灰白で、砂の上に混ざると
             // 色がばらばらに見えた）。dglopez は git に無い（SOURCE.txt）ので、1 つも読めない時は kCliffRocks に戻す
+            // eroded_rock.fbx（アーチ形）は外した（2026-11-02 ユーザー：真ん中を通れない）：岩柱の衝突はモデル全体の
+            // 凸包 1 つ（PropHullWorld → ConvexFromPoints）で、アーチの穴が埋まる。穴を通すには分割した凸包が要る（未対応）
             inline constexpr const char* kPillarRocks[] = {
                 "Assets/Model/dglopez_WesternDesert/FBX/big_rock.fbx",
-                "Assets/Model/dglopez_WesternDesert/FBX/eroded_rock.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/plain_rock.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/spiky_rock.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/medium_rock.fbx",
@@ -283,7 +284,7 @@ namespace Res
                 "Assets/Model/dglopez_WesternDesert/FBX/desert_bush.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/dry_bush_1.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/dry_grass_1.fbx",
-                "Assets/Model/dglopez_WesternDesert/FBX/succulent.fbx",
+                // succulent.fbx は外した（2026-11-02 ユーザー：真っ白に見える。貼図が無く材質色がほぼ白）
                 "Assets/Model/dglopez_WesternDesert/FBX/dry_bones_1.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/skull.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/dry_log.fbx",
@@ -622,6 +623,8 @@ namespace Res
         inline constexpr const char* IceLance = "Assets/Data/VFXData/IceLance.json";         // アイスランスの弾（氷の槍 + 冷気の粒）
         inline constexpr const char* IceLanceHit = "Assets/Data/VFXData/IceLanceHit.json";   // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片）
         inline constexpr const char* GrassFire = "Assets/Data/VFXData/GrassFire.json";       // 燃えている草の炎・煙・火の粉（GrassFireEmitCS。2026-10-12）
+        inline constexpr const char* SandHaze = "Assets/Data/VFXData/SandHaze.json";         // 熱い砂の陽炎（GrassFireEmitCS を SandField の熱い所で。2026-11-02）
+        inline constexpr const char* SandDust = "Assets/Data/VFXData/SandDust.json";         // 風に舞う砂（GrassFireEmitCS の channel 1。2026-11-03）
         inline constexpr const char* TornadoDust = "Assets/Data/VFXData/TornadoDust.json";   // 砂旋の足元の砂埃（SwarmTornadoEmitCS。2026-10-19）
         inline constexpr const char* MobDeath = "Assets/Data/VFXData/MobDeath.json";       // 敵が死んだ足元の土煙 + 土くれ（範囲 MobDeath）
         inline constexpr const char* Beam = "Assets/Data/VFXData/Beam.json";               // 魔導光線（溜め + Beam entry の光線 + 先端の光）
@@ -631,6 +634,7 @@ namespace Res
         inline constexpr const char* CastFlash = "Assets/Data/VFXData/CastFlash.json";           // 詠唱の手元の光 + 火花
         inline constexpr const char* CastPulse = "Assets/Data/VFXData/CastPulse.json";           // 詠唱の体の周りの光の粒
         inline constexpr const char* FootDust = "Assets/Data/VFXData/FootDust.json";             // 走る足元の小石
+        inline constexpr const char* SandStep = "Assets/Data/VFXData/SandStep.json";             // 砂漠の一歩で蹴り上げる砂粒（2026-11-03）
         inline constexpr const char* JumpDust = "Assets/Data/VFXData/JumpDust.json";             // 跳んだ足元の小石の輪
         inline constexpr const char* AirJumpRing = "Assets/Data/VFXData/AirJumpRing.json";       // 空中ジャンプの光の輪
         inline constexpr const char* LandDust = "Assets/Data/VFXData/LandDust.json";             // 着地の小石

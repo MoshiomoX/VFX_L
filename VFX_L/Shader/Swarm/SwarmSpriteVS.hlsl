@@ -1,8 +1,8 @@
 // ============================================================
 // SwarmSpriteVS.hlsl
-// Draws every slot of the GPU sprite pool (6 vertices each); dead
-// slots collapse to a clipped point. The frame comes from the age.
-// Same camera cbuffer as VFXSpriteVS (g_First unused here).
+// GPU のスプライトプールの全スロットを描く（各 6 頂点）。死んだ
+// スロットはクリップされる 1 点に潰す。フレームは年齢から決める。
+// カメラの cbuffer は VFXSpriteVS と同じ（ここでは g_First は未使用）。
 // ============================================================
 #include "../Common/SpriteQuad.hlsli"
 #include "../Common/SwarmSprite.hlsli"
@@ -35,7 +35,7 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     SwarmSprite s = sprites[iid];
     if (s.alive == 0u)
     {
-        o.position = float4(0, 0, -1, 1); // behind the near plane: clipped
+        o.position = float4(0, 0, -1, 1); // ニアプレーンの後ろ：クリップされる
         return o;
     }
 
@@ -48,7 +48,7 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     SpriteQuad q;
     q.position = s.position;
     q.rotation = d.rotation;
-    float scale = (s.sizeScale > 0.0) ? s.sizeScale : 1.0;   // Magnifier
+    float scale = (s.sizeScale > 0.0) ? s.sizeScale : 1.0;   // 拡大鏡
     q.size = float2(d.height * d.aspect, d.height) * scale;
     q.pivot = d.pivot;
     q.uvRect = float4((float) (f % cols) * d.cellUV.x, (float) (f / cols) * d.cellUV.y, d.cellUV.x, d.cellUV.y);

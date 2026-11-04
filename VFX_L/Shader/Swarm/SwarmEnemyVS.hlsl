@@ -1,16 +1,16 @@
 // ============================================================
 // SwarmEnemyVS.hlsl
-// Instanced mob mesh. Position / yaw come from the enemy buffer,
-// dead slots are collapsed behind the near plane.
+// 雑魚メッシュのインスタンス描画。位置 / yaw は敵バッファから取り、
+// 死んだスロットはニアプレーンの手前に潰して消す。
 //
-// Uses ModelCommon's MVPBuffer on b0 (World is identity; the C++
-// side writes it). SwarmCommon's cbuffers are moved off b0.
-// enemies / enemyStates share t0 / t1 with ModelCommon's textures,
-// which a VS never references.
+// ModelCommon の MVPBuffer を b0 で使う（World は単位行列、C++
+// 側が書く）。SwarmCommon の cbuffer は b0 からずらしてある。
+// enemies / enemyStates は ModelCommon のテクスチャと t0 / t1 を共有するが、
+// VS はテクスチャを参照しないので問題ない。
 //
-// Motion: with a part animation table (b4 / t3, see SwarmEnemyAnimCB)
-// the parts play idle / walk / attack. Without one (skinned models
-// baked to one frame, e.g. KayKit Minion) the old procedural sway runs.
+// 動き：パーツアニメ表（b4 / t3、SwarmEnemyAnimCB 参照）があれば
+// パーツが idle / walk / attack を再生する。無い場合（1 フレームに焼いた
+// スキニングモデル、例：KayKit Minion）は旧来のプロシージャルな揺れを使う。
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -21,59 +21,59 @@
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
-// live slot indices (SwarmEnemyCompactCS). InstanceID indexes this, not the pool.
-// The C++ side binds the list of the kind being drawn (mobs, then bombers)
+// 生きているスロットの番号（SwarmEnemyCompactCS）。InstanceID はプールではなくこれを引く。
+// C++ 側は描画中の種類の一覧（雑魚、次に自爆兵）をバインドする
 StructuredBuffer<uint> aliveList : register(t2);
-// kind + fuse per slot: a lit bomber blinks faster and faster and swells up,
-// a charger blinks red while it winds up (2026-10-08)
+// スロットごとの種類 + 導火線：点火した自爆兵はだんだん速く点滅して膨らみ、
+// 突撃兵は溜めの間は赤く点滅する（2026-10-08）
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
-// slow + freeze per slot (z > 0 = frozen by the Ice Lance: the pose holds, the body turns icy)
+// スロットごとの減速 + 凍結（z > 0 = アイスランスで凍結中：ポーズが止まり、体が氷色になる）
 StructuredBuffer<float4> enemySlow : register(t4);
-// stored toxin per slot (x = damage still to drain, the poison pools, 2026-10-17): the body turns a sickly green
+// スロットごとの溜まった毒素（x = まだ削る残りダメージ、毒沼、2026-10-17）：体が病的な緑になる
 StructuredBuffer<float4> enemyPoison : register(t6);
 #define SWARM_ICE_MAP_REG t7
 #define SWARM_POND_TOP_REG t8
 #include "../Common/SwarmIceLift.hlsli"
 static const float3 kPoisonTint = float3(0.55, 1.15, 0.45);
 
-// bomber blink: starts at this many blinks per second, ends at the second value
+// 自爆兵の点滅：1 秒あたりこの回数から始まり、2 つ目の値で終わる
 static const float kFuseBlinkStart = 3.0;
 static const float kFuseBlinkEnd = 14.0;
-// charger wind-up blink, same ramp (blinks per second at the start / the end of the wind-up)
+// 突撃兵の溜めの点滅、同じ上がり方（溜めの開始 / 終了時の 1 秒あたりの点滅回数）
 static const float kChargeBlinkStart = 4.0;
 static const float kChargeBlinkEnd = 12.0;
-// frozen: pale blue, times g_FreezeTint
+// 凍結：淡い青、g_FreezeTint を掛ける
 static const float3 kIceTint = float3(0.75, 1.05, 1.7);
-// elite: dark red tint on the shared zombie texture
+// エリート：共通のゾンビテクスチャに暗い赤を乗せる
 static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
-// boss: g_BossTint (BomberCB, per stage: grassland violet, desert sandstone. 2026-10-24)
-// ghost: translucent cyan-white, drawn with alpha blend (SwarmSystem draws its list last)
+// ボス：g_BossTint（BomberCB、ステージごと：草原は紫、砂漠は砂岩色。2026-10-24）
+// 幽霊：半透明の青白、アルファブレンドで描く（SwarmSystem がこの一覧を最後に描く）
 static const float3 kGhostTint = float3(0.55, 1.25, 1.6);
-// dark ghost (2026-10-18): near-black violet, more opaque, with a slow purple pulse
+// 黒幽霊（2026-10-18）：黒に近い紫、より不透明、ゆっくりした紫の脈動付き
 static const float3 kDarkGhostTint = float3(0.10, 0.03, 0.24);
 
-// ---- rigid part animation (models whose parts hang off animated nodes,
-// e.g. Kenney Blocky: 6 rigid parts, no skin weights) ----
-// Table layout: [clip][frame][part]. Each entry is a row-vector affine
-// matrix taking a vertex from the BAKED pose of that part to the pose of
-// that frame, so the mesh can stay the one baked frame. The C++ side
-// draws one submesh at a time and writes g_AnimPart before each draw.
-// Clips: 0 idle, 1 walk, 2 melee attack. C++ mirror: SwarmSystem::EnemyAnimCB
+// ---- 剛体パーツアニメ（パーツがアニメするノードにぶら下がるモデル、
+// 例：Kenney Blocky：剛体パーツ 6 個、スキンの重みなし） ----
+// 表の並び：[clip][frame][part]。各要素は行ベクトルのアフィン行列で、
+// そのパーツの「焼いたポーズ」の頂点をそのフレームのポーズへ移す。
+// なのでメッシュは焼いた 1 フレームのままでよい。C++ 側は
+// サブメッシュを 1 つずつ描き、描く前に g_AnimPart を書く。
+// クリップ：0 idle、1 walk、2 近接攻撃。C++ 側の対応：SwarmSystem::EnemyAnimCB
 cbuffer SwarmEnemyAnimCB : register(b4)
 {
-    uint g_AnimPart;       // submesh being drawn
+    uint g_AnimPart;       // 描画中のサブメッシュ
     uint g_AnimPartCount;
-    uint g_AnimEnabled;    // 0 = no table: fall back to the procedural sway
-    uint g_AnimMode;       // 0 = moves with part g_AnimPart, 1 = a boss decoration orbiting the body axis (2026-10-24); 2 wing, 3 tail / neck, 4 leg, 5 insect leg, 6 a floating djinn's piece (2026-10-29)
-    uint4 g_ClipStart;     // first frame of each clip in the table
+    uint g_AnimEnabled;    // 0 = 表なし：プロシージャルな揺れに戻す
+    uint g_AnimMode;       // 0 = パーツ g_AnimPart と一緒に動く、1 = 体の軸の周りを回るボスの飾り（2026-10-24）；2 翼、3 尾 / 首、4 脚、5 虫の脚、6 浮遊する魔神のパーツ（2026-10-29）
+    uint4 g_ClipStart;     // 表の中での各クリップの先頭フレーム
     uint4 g_ClipFrames;
-    float4 g_ClipLength;   // seconds
-    float g_AnimTime;      // clock for idle (seconds)
-    float g_WalkRate;      // walk playback speed
-    float g_OrbitSpeed;    // rad/s for g_AnimMode 1
-    float g_Hunch;         // the werewolf's hunch (2026-10-27): rad the piece is pitched forward about the hips (g_Hinge.xyz) before the part's own motion; 0 = none
-    float4 g_Flap;         // g_AnimMode 2 (a gargoyle's wing, 2026-10-25): hinge (baked mesh space) xyz, w = +1 right wing / -1 left
-    float4 g_Hinge;        // g_AnimMode 4's second joint (2026-10-27, the werewolf's knee): xyz, w = bend rad while the leg lifts (0 = none). With g_Hunch: xyz = the hips
+    float4 g_ClipLength;   // 秒
+    float g_AnimTime;      // idle 用の時計（秒）
+    float g_WalkRate;      // 歩きの再生速度
+    float g_OrbitSpeed;    // g_AnimMode 1 用の rad/s
+    float g_Hunch;         // 狼人の猫背（2026-10-27）：パーツ自身の動きの前に、腰（g_Hinge.xyz）を軸に前へ倒す rad。0 = なし
+    float4 g_Flap;         // g_AnimMode 2（石像鬼の翼、2026-10-25）：ヒンジ（焼いたメッシュ空間）xyz、w = +1 右翼 / -1 左翼
+    float4 g_Hinge;        // g_AnimMode 4 の第 2 関節（2026-10-27、狼人の膝）：xyz、w = 脚を上げる間の曲げ rad（0 = なし）。g_Hunch がある時：xyz = 腰
 };
 
 struct PartXform
@@ -94,8 +94,8 @@ float3 XformDir(PartXform m, float3 d)
     return d.x * m.r0.xyz + d.y * m.r1.xyz + d.z * m.r2.xyz;
 }
 
-// two neighbouring frames of clip c at time t (seconds) and the blend
-// weight between them. Looping clips wrap, the attack clamps at its end
+// クリップ c の時刻 t（秒）における隣り合う 2 フレームと、その間の
+// ブレンドの重み。ループするクリップは折り返し、攻撃は末尾でクランプする
 void SamplePart(uint c, float t, bool loop, out PartXform a, out PartXform b, out float w)
 {
     uint frames = max(g_ClipFrames[c], 1u);
@@ -119,12 +119,12 @@ struct VS_INPUT_INST
     uint InstanceID : SV_InstanceID;
 };
 
-// walk sway tuning (see main). Feet sit at local y = -0.9 (capsule bottom)
-static const float kWalkFreq = 9.0;    // rad/s of walk clock -> ~1.4 steps/s
-static const float kWalkBounce = 0.06; // meters
-static const float kWalkRoll = 0.10;   // radians at the head
+// 歩きの揺れの調整値（main 参照）。足はローカル y = -0.9（カプセルの底）
+static const float kWalkFreq = 9.0;    // 歩き時計の rad/s -> 約 1.4 歩/秒
+static const float kWalkBounce = 0.06; // m
+static const float kWalkRoll = 0.10;   // 頭の位置での rad
 
-// yaw = atan2(v.x, v.z): forward (0,0,1) -> (sin, 0, cos)
+// yaw = atan2(v.x, v.z)：前方 (0,0,1) -> (sin, 0, cos)
 float3 RotateY(float3 p, float s, float c)
 {
     return float3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c);
@@ -134,12 +134,12 @@ VS_OUTPUT main(VS_INPUT_INST input)
 {
     VS_OUTPUT o = (VS_OUTPUT) 0;
 
-    // InstanceID -> pool slot. The state check stays as a guard for the
-    // debug path / stale lists (the list is rebuilt every frame)
+    // InstanceID -> プールのスロット。状態チェックはデバッグ経路 / 古い一覧への
+    // 保険として残してある（一覧は毎フレーム作り直される）
     uint slot = aliveList[input.InstanceID];
     if (enemyStates[slot] == SWARM_DEAD)
     {
-        o.Position = float4(0, 0, -1, 1); // clipped
+        o.Position = float4(0, 0, -1, 1); // クリップされる
         return o;
     }
 
@@ -151,20 +151,20 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float3 normal = input.Normal;
     float3 tangent = input.Tangent;
     bool moving = dot(e.velocity.xz, e.velocity.xz) > 0.01;
-    float phaseOffset = (float) slot * 0.37; // the crowd does not move in lockstep
+    float phaseOffset = (float) slot * 0.37; // 群れが足並みを揃えて動かないように
     SwarmEnemyExtra extra = enemyExtra[slot];
     float4 status = enemySlow[slot];
     bool frozen = status.z > 0.0;
-    // a sleeping gargoyle is a statue: no motion at all (2026-10-25); the first part of its waking only shakes
+    // 眠っている石像鬼は石像：一切動かない（2026-10-25）。目覚めの最初の部分は震えるだけ
     bool statue = (extra.kind == SWARM_KIND_GARGOYLE) && extra.fuse < 0.35 * g_GargoyleWakeTime;
-    // ---- the thunder stag's charge (2026-10-26, g_BossChargePose from BossAttacks): 0..1 wind-up, 1 dashing, 1..1.3 the
-    //      toss of the head on a hit, 1 -> 0 after. Only a quadruped boss gets a pose > 0 ----
+    // ---- 雷鳴の雄鹿の突進（2026-10-26、BossAttacks からの g_BossChargePose）：0..1 溜め、1 突進中、1..1.3 命中時の
+    //      頭の振り上げ、その後 1 -> 0。ポーズ > 0 になるのは四足のボスだけ ----
     float cpose = (extra.kind == SWARM_KIND_BOSS) ? g_BossChargePose : 0.0;
-    float headDown = min(cpose, 1.0);                 // the head lowered (antlers forward), antlers glowing
-    float headToss = saturate((cpose - 1.0) / 0.3);   // thrown up on the hit
-    float dashK = saturate((cpose - 0.85) / 0.15);    // 1 while dashing: lean, fast gait
-    bool bracing = (extra.kind == SWARM_KIND_BOSS) && (g_BossChargeOn > 0.5) && (g_BossChargeSpeed <= 0.0);   // standing in a wind-up
-    // the stage's fixed elites (2026-10-25): the CPU's flags (attack loop, spin, enraged) and its wind-up glow
+    float headDown = min(cpose, 1.0);                 // 頭を下げる（角を前へ）、角が光る
+    float headToss = saturate((cpose - 1.0) / 0.3);   // 命中で振り上げる
+    float dashK = saturate((cpose - 0.85) / 0.15);    // 突進中は 1：前傾、速い足運び
+    bool bracing = (extra.kind == SWARM_KIND_BOSS) && (g_BossChargeOn > 0.5) && (g_BossChargeSpeed <= 0.0);   // 溜めで踏ん張っている
+    // 面の固定エリート（2026-10-25）：CPU のフラグ（攻撃ループ、回転、狂暴）と溜めの光
     uint eliteFlags = 0u;
     float eliteGlow = 0.0;
     if (SwarmIsFixedElite(extra.kind))
@@ -178,19 +178,19 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
     bool eliteAttack = (eliteFlags & SWARM_ELITE_ATTACK) != 0u;
     if ((eliteFlags & SWARM_ELITE_SPIN) != 0u)
-        sincos(e.yaw + g_AnimTime * 15.0, s, c);   // the axe's whirl: the whole body turns
+        sincos(e.yaw + g_AnimTime * 15.0, s, c);   // 大斧の回転斬り：体ごと回る
     if (extra.kind == SWARM_KIND_BOSS && g_BossSpin != 0.0)
-        sincos(e.yaw + g_BossSpin, s, c);   // the stone beast's tail sweep (2026-10-29): one full turn from the CPU
+        sincos(e.yaw + g_BossSpin, s, c);   // 石の守護獣の尾の薙ぎ払い（2026-10-29）：CPU から 1 周分
 
-    // ---- a gargoyle's wing (g_AnimMode 2, 2026-10-25): turned about the forward axis through the hinge before the
-    //      part's own animation. Hangs while a statue / landed, flaps in the air, swept up through the dive ----
-    // the werewolf's hunch (g_Hunch != 0, 2026-10-27): deeper while it runs (applied below, after the limb swings)
+    // ---- 石像鬼の翼（g_AnimMode 2、2026-10-25）：パーツ自身のアニメの前に、ヒンジを通る前向きの軸で回す。
+    //      石像 / 着地中は垂れ、空中では羽ばたき、急降下中は上に畳む ----
+    // 狼人の猫背（g_Hunch != 0、2026-10-27）：走っている間は深くなる（手足の振りの後で下で適用）
     float hunchEff = 0.0;
     if (g_Hunch != 0.0)
         hunchEff = g_Hunch * (1.0 + 0.45 * ((frozen || statue) ? 0.0 : saturate(length(e.velocity.xz) / 2.5)));
-    // a procedural biped (the werewolf, 2026-10-27): every piece has g_Hunch (the upper body) or a knee (the legs). It is not
-    // moved by the Kenney part clips (the torso's bob and twist made the hunched body and the legs wobble); instead the whole
-    // body sinks by what the planted leg's swing lifts it, so one foot stays on the ground (the hips are 0.43 above the feet)
+    // プロシージャルな二足歩行（狼人、2026-10-27）：どのパーツも g_Hunch（上半身）か膝（脚）を持つ。Kenney のパーツ
+    // クリップでは動かさない（胴の上下と捻りで猫背の体と脚がぐらついた）。代わりに、軸足の振りで持ち上がる分だけ
+    // 体全体を沈め、片足が常に地面に着くようにする（腰は足の 0.43 上）
     bool biped = (g_Hunch != 0.0) || (g_AnimMode == 4u && g_Hinge.w > 0.0);
     float bipedDrop = 0.0;
     if (biped && moving && !frozen)
@@ -206,7 +206,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     {
         float ang = -0.25;
         if (extra.kind == SWARM_KIND_BOSS)
-            ang = g_BossWing;   // the stone beast's wings (2026-10-29): the CPU flaps / raises / folds them
+            ang = g_BossWing;   // 石の守護獣の翼（2026-10-29）：羽ばたき / 上げる / 畳むのは CPU が決める
         else if (SwarmGargoyleAirborne(extra))
         {
             if (extra.fuse >= SWARM_GARGOYLE_DIVE)
@@ -225,9 +225,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
-    // ---- a scorpion's tail (g_AnimMode 3, 2026-10-26): pitched about the sideways axis through the hinge (g_Flap.xyz)
-    //      before the torso's own animation. Sways slowly; whips forward over the head on the melee swing (g_Flap.w rad,
-    //      same timing as the attack clip), then comes back ----
+    // ---- サソリの尾（g_AnimMode 3、2026-10-26）：胴自身のアニメの前に、ヒンジ（g_Flap.xyz）を通る横軸で縦に回す。
+    //      ゆっくり揺れ、近接の振りで頭越しに前へしなり（g_Flap.w rad、
+    //      攻撃クリップと同じタイミング）、その後戻る ----
     if (g_AnimMode == 3u)
     {
         float ang = 0.12 * sin(g_AnimTime * 1.6 + phaseOffset);
@@ -237,7 +237,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
             float u = saturate(sinceStab / max(g_ClipLength.z, 0.05));
             ang += g_Flap.w * sin(u * 3.14159);
         }
-        // the stag's charge: the head goes down for the wind-up and stays down through the dash, is thrown up on the hit
+        // 雄鹿の突進：溜めで頭を下げ、突進中も下げたまま、命中で振り上げる
         ang += g_Flap.w * (headDown - 2.2 * headToss);
         float ts, tc;
         sincos(ang, ts, tc);
@@ -250,32 +250,32 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
-    // ---- a quadruped's leg (g_AnimMode 4, 2026-10-26, the stag): swung about the sideways axis through its own top
-    //      (g_Flap.xyz) by the walk clock, phase g_Flap.w (front-left + hind-right 0, the other pair pi). Straight
-    //      while standing. The torso's own animation (its bob) is applied after this ----
+    // ---- 四足の脚（g_AnimMode 4、2026-10-26、雄鹿）：自分の付け根（g_Flap.xyz）を通る横軸で、歩き時計に合わせて
+    //      振る。位相 g_Flap.w（左前 + 右後が 0、もう一対が pi）。立っている間は
+    //      まっすぐ。胴自身のアニメ（上下動）はこの後に掛かる ----
     if (g_AnimMode == 4u)
     {
         float ang = 0.0;
-        float bend = 0.0;   // the werewolf's knee (g_Hinge.w > 0, 2026-10-27): folds while the leg swings forward (lifted)
+        float bend = 0.0;   // 狼人の膝（g_Hinge.w > 0、2026-10-27）：脚を前へ振る（持ち上げる）間に折れる
         if (moving && !frozen)
         {
-            float stride = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);   // walk loops = strides
-            // the charge (dashK): the legs swing faster and wider (a gallop)
+            float stride = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);   // 歩きのループ数 = 歩数
+            // 突進（dashK）：脚を速く大きく振る（駆け足）
             float ph = stride * 6.2831853 * (1.0 + 0.8 * dashK) + g_Flap.w;
             ang = (0.5 + 0.25 * dashK) * sin(ph);
             if (g_Hinge.w > 0.0)
-                ang *= 0.65;   // a biped's leg (the werewolf): a shorter stride than a quadruped's
+                ang *= 0.65;   // 二足の脚（狼人）：四足より歩幅を短く
             bend = g_Hinge.w * max(0.0, -cos(ph));
         }
         else if (bracing)
         {
-            // the wind-up: the front legs forward, the hind legs back (braced, g_Flap.z > 0 = a front leg)
+            // 溜め：前脚を前へ、後脚を後ろへ（踏ん張り、g_Flap.z > 0 = 前脚）
             ang = 0.22 * headDown * ((g_Flap.z > 0.0) ? -1.0 : 1.0);
         }
-        // a hunched biped's arm (g_Hunch != 0, the werewolf): turned back by half the hunch about the shoulder, so the
-        // hand hangs beside the knee (the full hunch left the hands dangling far out in front, 2026-10-27). The walk
-        // swing is 0.6 of a leg's (0.3 looked the same on both arms); the melee swing throws the left claw in the first
-        // half of the clip and the right in the second (both at once looked like one arm)
+        // 猫背の二足の腕（g_Hunch != 0、狼人）：肩を軸に猫背の半分だけ戻し、手が膝の横に
+        // 垂れるようにする（全量戻すと手がずっと前方にぶら下がった、2026-10-27）。歩きの
+        // 振りは脚の 0.6（0.3 だと左右の腕が同じに見えた）。近接の振りはクリップの前半で左爪、
+        // 後半で右爪を出す（同時だと片腕に見えた）
         if (g_Hunch != 0.0)
             ang = ang * 0.6 - 0.5 * hunchEff;
         if (g_Hunch != 0.0 && e.attackCooldown > 0.0)
@@ -289,7 +289,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         }
         if (bend > 0.0 && g_Hinge.w > 0.0 && inPos.y < g_Hinge.y)
         {
-            // below the knee: the shin swings back about the knee (same sense as the hip)
+            // 膝より下：脛を膝を軸に後ろへ振る（股関節と同じ向き）
             float ks, kc;
             sincos(bend, ks, kc);
             float2 rk = inPos.yz - g_Hinge.yz;
@@ -308,9 +308,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
-    // ---- an insect's leg (g_AnimMode 5, 2026-10-26, the scorpion): swept about the VERTICAL axis through its own root
-    //      (g_Flap.xyz) by the walk clock, phase g_Flap.w (a tripod gait: alternate legs on each side). Lifted a little
-    //      while it swings forward (the return stroke). +x legs sweep forward with a negative angle ----
+    // ---- 虫の脚（g_AnimMode 5、2026-10-26、サソリ）：自分の付け根（g_Flap.xyz）を通る「縦」軸で、歩き時計に合わせて
+    //      前後に掃く。位相 g_Flap.w（三脚歩行：左右それぞれ 1 本おき）。前へ振る間（戻りのストローク）は
+    //      少し持ち上げる。+x 側の脚は負の角度で前へ掃く ----
     if (g_AnimMode == 5u)
     {
         float ang = 0.0;
@@ -334,14 +334,14 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
-    // ---- a floating djinn's piece (g_AnimMode 6, 2026-10-29): no part clip (it does not walk, it hangs over its
-    //      sand vortex). g_Flap.w != 0 = an arm: pitched about the sideways axis through the shoulder (g_Flap.xyz):
-    //      sways a little (not with an elbow), raised by g_Flap.w rad for a cast (g_BossChargePose 0..1), swung down to 0.25 of
-    //      that = forward and down on the slam (pose 1..1.3), and forward on a touch hit (the attack clip's timing) ----
+    // ---- 浮遊する魔神のパーツ（g_AnimMode 6、2026-10-29）：パーツクリップなし（歩かず、砂の渦の上に
+    //      浮いている）。g_Flap.w != 0 = 腕：肩（g_Flap.xyz）を通る横軸で縦に回す：
+    //      少し揺れ（肘のある腕は揺れない）、詠唱で g_Flap.w rad 上げ（g_BossChargePose 0..1）、叩きつけでその 0.25 まで
+    //      振り下ろす = 前下方（pose 1..1.3）、接触攻撃では前へ振る（攻撃クリップのタイミング） ----
     if (g_AnimMode == 6u && g_Flap.w != 0.0)
     {
-        // an arm with an elbow (g_Hinge.w != 0, the bone king, 2026-10-29) is planted on the ground: no idle sway
-        // (the sway made its straight arms look like they waved all the time)
+        // 肘のある腕（g_Hinge.w != 0、骸の王、2026-10-29）は地面に着いている：待機の揺れなし
+        // （揺らすとまっすぐな腕がずっと手を振っているように見えた）
         float ang = (g_Hinge.w != 0.0) ? 0.0 : 0.10 * sin(g_AnimTime * 1.3 + phaseOffset + g_Flap.x * 1.7);
         float lift = headDown - 0.75 * headToss;
         ang += g_Flap.w * lift;
@@ -350,9 +350,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
         if (e.attackCooldown > 0.0 && sinceSwing < g_ClipLength.z)
             swing = sin(saturate(sinceSwing / max(g_ClipLength.z, 0.05)) * 3.14159);
         ang += 0.5 * g_Flap.w * swing;
-        // ---- the elbow (2026-10-29, user: "bend the elbow when it raises the arms, the straight swing is gross"): the
-        //      forearm (past the plane through g_Hinge.xyz across the upper arm) folds about the sideways axis through the
-        //      elbow by g_Hinge.w rad as the arm rises (and on a touch swing), before the shoulder turns the whole arm ----
+        // ---- 肘（2026-10-29、ユーザー：「腕を上げる時は肘を曲げて、まっすぐ振るのは気持ち悪い」）：前腕
+        //      （上腕に直交し g_Hinge.xyz を通る面より先）を、腕が上がるにつれて（接触攻撃の振りでも）肘を通る横軸で
+        //      g_Hinge.w rad 折る。肩で腕全体を回す前に行う ----
         if (g_Hinge.w != 0.0)
         {
             float3 upper = normalize(g_Hinge.xyz - g_Flap.xyz);
@@ -375,8 +375,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
         inTan.yz = float2(inTan.y * ac - inTan.z * as, inTan.y * as + inTan.z * ac);
     }
 
-    // ---- the werewolf's hunch (g_Hunch != 0, 2026-10-27): the piece (torso / head / arm, already swung above) is pitched
-    //      forward about the hips (g_Hinge.yz) before the part's own motion. Deeper while it runs (the speed smooths it) ----
+    // ---- 狼人の猫背（g_Hunch != 0、2026-10-27）：パーツ（胴 / 頭 / 腕、上で振り済み）を、パーツ自身の動きの前に
+    //      腰（g_Hinge.yz）を軸に前へ倒す。走っている間は深くなる（速度でなめらかに変わる） ----
     if (g_Hunch != 0.0)
     {
         float hs, hc;
@@ -392,8 +392,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
 
     if (g_AnimMode == 1u)
     {
-        // ---- boss decoration orbiting the body (the sand guardian's floating rocks, 2026-10-24): spin the whole
-        //      ring around the vertical axis and bob it a little. Not frozen with the body: it is a spell, not a limb ----
+        // ---- 体の周りを回るボスの飾り（砂の守護者の浮遊岩、2026-10-24）：輪全体を縦軸の周りに
+        //      回し、少し上下させる。体と一緒には凍らない：手足ではなく魔法だから ----
         float a = g_AnimTime * g_OrbitSpeed;
         float os, oc;
         sincos(a, os, oc);
@@ -404,7 +404,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
     else if (biped)
     {
-        // the procedural biped (above): no part clip, the body sinks with the stride and the upper body breathes a little
+        // プロシージャルな二足歩行（上記）：パーツクリップなし、歩幅に合わせて体が沈み、上半身が少し呼吸する
         local = inPos;
         normal = inNrm;
         tangent = inTan;
@@ -414,7 +414,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
     else if (g_AnimMode == 6u)
     {
-        // the floating djinn (above): no part clip, the whole upper body breathes slowly
+        // 浮遊する魔神（上記）：パーツクリップなし、上半身全体がゆっくり呼吸する
         local = inPos;
         normal = inNrm;
         tangent = inTan;
@@ -422,13 +422,13 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
     else if (g_AnimEnabled != 0u)
     {
-        // ---- rigid part animation: pick the clip from the enemy state ----
-        //   attack : ContactCS just hit the player (attackCooldown was reset to
-        //            g_AttackInterval and counts down), so the swing starts
-        //            on the damage tick and plays once
-        //   walk   : moving; animTime is the per-enemy clock MoveCS advances
-        //   idle   : standing (blocked, or waiting at the player between hits)
-        //   hit stun (animIndex 2) and frozen hold a walk frame; the flash below still runs
+        // ---- 剛体パーツアニメ：敵の状態からクリップを選ぶ ----
+        //   attack : ContactCS がプレイヤーに当てた直後（attackCooldown が
+        //            g_AttackInterval に戻ってカウントダウンする）。なので振りは
+        //            ダメージの tick で始まり、1 回だけ再生する
+        //   walk   : 移動中。animTime は MoveCS が進める敵ごとの時計
+        //   idle   : 立っている（塞がれている、またはプレイヤーの前で次の攻撃待ち）
+        //   被弾硬直（animIndex 2）と凍結は歩きの 1 フレームで止める。下のフラッシュは動く
         uint clip = 0u;
         float t = g_AnimTime + phaseOffset;
         bool loop = true;
@@ -445,7 +445,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         }
         else if (eliteAttack)
         {
-            // a fixed elite's move: the swing over and over
+            // 固定エリートの技：振りを何度も繰り返す
             clip = 2u;
             t = fmod(g_AnimTime * 1.3 + phaseOffset, max(g_ClipLength.z, 0.05));
             loop = false;
@@ -476,33 +476,33 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
     else if (e.animIndex != 2u && moving && !frozen)
     {
-        // ---- procedural walk: the mesh is one baked frame, so fake the gait ----
-        // animTime is the per-enemy walk clock (MoveCS advances it while moving,
-        // holds it during hit stun). Bounce up on each step and roll side to side,
-        // stronger toward the head (local y)
+        // ---- プロシージャルな歩き：メッシュは焼いた 1 フレームなので足運びをそれらしく見せる ----
+        // animTime は敵ごとの歩き時計（MoveCS が移動中に進め、
+        // 被弾硬直中は止める）。一歩ごとに跳ね、左右に揺れる。
+        // 頭（ローカル y）に近いほど強く揺れる
         float phase = e.animTime * kWalkFreq + phaseOffset;
         float bounce = abs(sin(phase)) * kWalkBounce;
-        float roll = sin(phase) * kWalkRoll * saturate(local.y + 0.9); // 0 at the feet
+        float roll = sin(phase) * kWalkRoll * saturate(local.y + 0.9); // 足元では 0
         float rs, rc;
         sincos(roll, rs, rc);
         local.xy = float2(local.x * rc - local.y * rs, local.x * rs + local.y * rc);
         local.y += bounce;
     }
 
-    // ---- the thunder stag's charge (2026-10-26): the whole body (every decoration passes through here) crouches a
-    //      little in the wind-up and pitches forward about the hips while dashing. Hips = (y 0.5, z -0.6) in the baked
-    //      mesh space (the hind legs' hinge after the stag's 1.15x scale) ----
+    // ---- 雷鳴の雄鹿の突進（2026-10-26）：体全体（飾りもすべてここを通る）が溜めで少し屈み、
+    //      突進中は腰を軸に前傾する。腰 = 焼いたメッシュ空間で (y 0.5, z -0.6)
+    //      （雄鹿の 1.15 倍スケール後の後脚のヒンジ） ----
     if (cpose > 0.0)
     {
-        // the werewolf's pounce: a parabola of g_BossJumpHeight (world m; the kind scale is applied below, so divide it out)
+        // 狼人の飛びかかり：高さ g_BossJumpHeight の放物線（ワールドの m。種類のスケールは下で掛かるので割っておく）
         if (g_BossJumpHeight > 0.0)
         {
             float p = min(cpose, 1.0);
             local.y += g_BossJumpHeight * 4.0 * p * (1.0 - p) / max(SwarmKindScale(extra.kind), 1.0);
         }
         local.y -= 0.08 * headDown * (1.0 - dashK);
-        // the pivot and angle come from the CPU per boss (g_BossLeanPivot* / g_BossLeanAngle: the stag's hips (0.5, -0.6) 0.17,
-        // the scorpion's low body (-0.6, 0) 0.08. 0 = no lean)
+        // 支点と角度はボスごとに CPU から来る（g_BossLeanPivot* / g_BossLeanAngle：雄鹿の腰 (0.5, -0.6) 0.17、
+        // サソリの低い胴 (-0.6, 0) 0.08。0 = 前傾なし）
         float lean = g_BossLeanAngle * dashK;
         float ps, pc;
         sincos(lean, ps, pc);
@@ -513,7 +513,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent.yz = float2(tangent.y * pc - tangent.z * ps, tangent.y * ps + tangent.z * pc);
     }
 
-    // ---- elite: bigger body, anchored at the feet (SwarmKindCapsule matches) ----
+    // ---- エリート：体を大きく、足元を基点に（SwarmKindCapsule と一致） ----
     float kindScale = SwarmKindScale(extra.kind);
     if (kindScale != 1.0)
     {
@@ -522,7 +522,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y = footY + (local.y - footY) * kindScale;
     }
 
-    // ---- fixed elite: bigger when enraged, shrinks into the ground as it vanishes (the shadow swordsman, 2026-10-25) ----
+    // ---- 固定エリート：狂暴時は大きく、消える時は地面に縮んで潜る（影の剣士、2026-10-25） ----
     if (SwarmIsFixedElite(extra.kind))
     {
         float hide = saturate(-extra.fuse);
@@ -532,8 +532,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y = footY + (local.y - footY) * grow;
     }
 
-    // ---- lit bomber: swell toward the blast, anchored at the feet ----
-    bool lit = SwarmInvulnerable(extra);   // a lit bomber / dash bomber (2026-10-18)
+    // ---- 点火した自爆兵：爆発に向けて膨らむ、足元を基点に ----
+    bool lit = SwarmInvulnerable(extra);   // 点火した自爆兵 / 突撃爆弾兵（2026-10-18）
     float fuseT = (extra.kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberWindup + g_DashBomberFuse : g_BomberFuseTime;
     float fuseU = lit ? saturate(extra.fuse / max(fuseT, 1e-3)) : 0.0;
     if (lit)
@@ -544,7 +544,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y = footY + (local.y - footY) * grow;
     }
 
-    // ---- burrower: the body is under the sand while buried, rises out when it surfaces and sinks back (2026-10-17) ----
+    // ---- 砂潜り：潜っている間は体が砂の下、浮上する時にせり上がり、また沈む（2026-10-17） ----
     if (extra.kind == SWARM_KIND_BURROWER)
     {
         float down = (extra.fuse > 0.0) ? 1.0 - saturate((g_BurrowSurfaceTime - extra.fuse) / SWARM_BURROW_RISE_TIME)
@@ -552,7 +552,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         float bodyH = (g_EnemyRadius + g_EnemyCapsuleHalf) * 2.0 * kindScale + 0.6;
         local.y -= bodyH * down;
     }
-    // ---- sand guardian burrowing (2026-10-24): fuse = -burrow 0..1 (AICS from g_BossBurrow), the body sinks the same way ----
+    // ---- 砂の守護者の潜砂（2026-10-24）：fuse = -burrow 0..1（AICS が g_BossBurrow から書く）、体は同じように沈む ----
     if (extra.kind == SWARM_KIND_BOSS && extra.fuse < 0.0)
     {
         float bodyH = (g_EnemyRadius + g_EnemyCapsuleHalf) * 2.0 * kindScale + 0.6;
@@ -562,13 +562,13 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float3 worldPos = RotateY(local, s, c) + e.position;
     if (g_IceOn > 0.5)
         worldPos.y += IceLift(e.position.xz, e.position.y - g_GroundY);
-    // a floating boss bobs slowly (its height g_BossHover is already in its position: MoveCS)
+    // 浮いているボスはゆっくり上下する（高さ g_BossHover は位置に入っている：MoveCS）
     if (extra.kind == SWARM_KIND_BOSS && g_BossHover > 0.0)
         worldPos.y += 0.18 * saturate(g_BossHover) * sin(g_AnimTime * 1.3);
-    // ghost: hovers and bobs (the gameplay position stays on the ground)
+    // 幽霊：浮いて上下する（ゲーム上の位置は地面のまま）
     if (SwarmIsGhost(extra.kind))
         worldPos.y += g_GhostHover + 0.15 * sin(g_AnimTime * 3.0 + (float) slot * 0.7);
-    // a waking gargoyle shakes the stone off (2026-10-25)
+    // 目覚める石像鬼は石を振り落とすように震える（2026-10-25）
     if (extra.kind == SWARM_KIND_GARGOYLE && extra.fuse > 0.0 && extra.fuse < 0.35 * g_GargoyleWakeTime)
     {
         float k = 0.06 * (1.0 - extra.fuse / (0.35 * g_GargoyleWakeTime + 1e-3));
@@ -586,8 +586,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
     else if (extra.kind == SWARM_KIND_BOSS)
     {
         o.Color.rgb *= g_BossTint;
-        // the thunder stag: its glowing parts (HDR vertex colour = the antler edges and eyes) flare up through the
-        // wind-up and the dash (2026-10-26)
+        // 雷鳴の雄鹿：光る部分（HDR の頂点色 = 角の縁と目）が溜めと突進の間に
+        // 強く光る（2026-10-26）
         float glowy = max(max(input.Color.r, input.Color.g), input.Color.b);
         if (glowy > 1.2)
             o.Color.rgb *= 1.0 + 1.0 * headDown;
@@ -604,16 +604,16 @@ VS_OUTPUT main(VS_INPUT_INST input)
         o.Color.a = g_DarkGhostAlpha;
     }
 
-    // ---- hit flash: overbright vertex color during the stun, decays to 1 ----
-    // PS multiplies albedo by Color, so > 1 goes HDR and bloom picks it up
+    // ---- 被弾フラッシュ：硬直中は頂点色を明るくしすぎ、1 へ減衰させる ----
+    // PS がアルベドに Color を掛けるので、> 1 は HDR になりブルームが拾う
     if (e.animIndex == 2u)
     {
         float t = saturate(e.animTime / max(g_HitStun, 1e-4));
         o.Color.rgb *= lerp(g_HitFlash, 1.0, t);
     }
 
-    // ---- lit bomber: red-hot blink. The rate ramps linearly from start to
-    // end, so the phase is its integral over the fuse time ----
+    // ---- 点火した自爆兵：赤熱の点滅。点滅の速さは開始から終了まで直線的に
+    // 上がるので、位相は導火線の時間でそれを積分したもの ----
     if (lit)
     {
         float T = max(fuseT, 1e-3);
@@ -624,7 +624,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         o.Color.rgb *= lerp(float3(1, 1, 1), float3(g, g * 0.3, g * 0.2), on);
     }
 
-    // ---- charger: red blink while winding up (faster toward the dash), reddish while dashing ----
+    // ---- 突撃兵：溜めの間は赤く点滅（突進に近づくほど速く）、突進中は赤みがかる ----
     if (extra.kind == SWARM_KIND_CHARGER)
     {
         uint ph = SwarmChargerPhase(extra.fuse);
@@ -641,7 +641,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
             o.Color.rgb *= float3(1.8, 0.6, 0.5);
     }
 
-    // ---- sand mage: sand-yellow glow swelling through the wind-up, a last flash right before the tornado leaves (2026-10-17) ----
+    // ---- 砂嵐の術師：溜めの間に砂色の光が強まり、砂旋が出る直前に最後に光る（2026-10-17） ----
     if (extra.kind == SWARM_KIND_SANDMAGE && extra.fuse > 0.0)
     {
         float u = saturate(extra.fuse / max(g_SandMageWindup, 1e-3));
@@ -650,14 +650,14 @@ VS_OUTPUT main(VS_INPUT_INST input)
         o.Color.rgb *= float3(g, g * 0.85, 1.0 + (g - 1.0) * 0.3);
     }
 
-    // ---- ruins enemies (2026-10-25) ----
-    // sleeping gargoyle: a dull grey statue (the glowing eyes go out), lights up as it wakes
+    // ---- 遺跡の敵（2026-10-25） ----
+    // 眠っている石像鬼：くすんだ灰色の石像（光る目も消える）、目覚めると色が戻る
     if (statue)
     {
         float l = dot(o.Color.rgb, float3(0.3, 0.59, 0.11));
         o.Color.rgb = min(lerp(o.Color.rgb, l.xxx, 0.8), 0.7);
     }
-    // necromancer winding up: a sickly green glow swelling toward the cast
+    // 溜め中の死霊術師：詠唱に向けて病的な緑の光が強まる
     if (extra.kind == SWARM_KIND_NECRO && extra.fuse > 0.0)
     {
         float u = saturate(extra.fuse / max(g_NecroWindup, 1e-3));
@@ -665,17 +665,17 @@ VS_OUTPUT main(VS_INPUT_INST input)
         float g = 1.0 + (0.5 + 1.5 * u) * pulse;
         o.Color.rgb *= float3(1.0 + (g - 1.0) * 0.45, g, 1.0 + (g - 1.0) * 0.6);
     }
-    // chain warden winding up the throw: an orange glow (with the band on the ground)
+    // 投げの溜め中の鎖の番人：橙色の光（地面の帯と一緒に）
     if (extra.kind == SWARM_KIND_WARDEN && extra.fuse > 0.0)
     {
         float u = saturate(extra.fuse / max(g_WardenWindup, 1e-3));
         float g = 1.0 + 1.6 * u * (0.6 + 0.4 * sin(extra.fuse * 30.0));
         o.Color.rgb *= float3(g, 1.0 + (g - 1.0) * 0.45, 1.0 + (g - 1.0) * 0.1);
     }
-    // the revived cursed armor: a slow violet pulse (it came back once)
+    // 蘇った呪いの鎧：ゆっくりした紫の脈動（一度蘇った印）
     if (extra.kind == SWARM_KIND_ARMOR2)
         o.Color.rgb *= float3(1.15, 0.8, 1.45) * (0.9 + 0.25 * sin(g_AnimTime * 3.0 + (float) slot));
-    // fixed elites (2026-10-25): enraged = a red pulse, winding up a move = a hot flicker that brightens toward the hit
+    // 固定エリート（2026-10-25）：狂暴 = 赤い脈動、技の溜め = 命中に向けて明るくなる熱いちらつき
     if ((eliteFlags & SWARM_ELITE_ENRAGED) != 0u)
         o.Color.rgb *= float3(1.55, 0.6, 0.5) * (0.9 + 0.2 * sin(g_AnimTime * 7.0 + (float) slot));
     if (eliteGlow > 0.0)
@@ -684,10 +684,10 @@ VS_OUTPUT main(VS_INPUT_INST input)
         o.Color.rgb *= float3(g, 1.0 + (g - 1.0) * 0.55, 1.0 + (g - 1.0) * 0.35);
     }
 
-    // ---- frozen (Ice Lance): pale blue body ----
+    // ---- 凍結（アイスランス）：淡い青の体 ----
     if (frozen)
         o.Color.rgb *= lerp(float3(1, 1, 1), kIceTint, saturate(g_FreezeTint));
-    // ---- poisoned (toxin still draining): sickly green, stronger with more toxin stored ----
+    // ---- 毒（毒素がまだ削っている）：病的な緑、溜まった毒素が多いほど強い ----
     float toxin = enemyPoison[slot].x;
     if (toxin > 0.0)
         o.Color.rgb *= lerp(float3(1, 1, 1), kPoisonTint, saturate(toxin * 0.5) * 0.85);

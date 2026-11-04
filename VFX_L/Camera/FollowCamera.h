@@ -55,6 +55,14 @@ public:
     float GetSpeed() const { return m_Speed; }          // 対象の水平の速さ（平滑後、m/秒）
     float GetSpeedExtraDistance() const { return m_SpeedDist; }
 
+    // 賢いカメラ（2026-11-02）：戦況で決めた「足す距離」と「注視点のずらし」（水平、m）。BattleCamera が毎フレーム渡す。
+    // 実際の値は下の situation* / frame* の時間でばねで追う（毎フレームの読みの揺れを画面に出さない）
+    void  SetSituation(float extraDistance, const Vector3& frameOffset) { m_SituationWant = extraDistance; m_FrameWant = frameOffset; }
+    float GetSituationDistance() const { return m_SituationDist; }
+    Vector3 GetFrameOffset() const { return m_FrameOffset; }
+    // 外から向きを少しずつ回す（威嚇の方向へ寄せる。度）
+    void  AddYaw(float deg) { m_Yaw += deg; }
+
     // ---- 調整パラメータ（ImGui から触る。BattleCamera が Assets/Data/Camera.json へ保存）----
     // 増やしたら BattleCamera.cpp の CAMERA_FLOATS / CAMERA_BOOLS にも足す（保存・読込・既定値に戻す）
     float fov = 45.0f;             // 縦の画角（度）
@@ -110,6 +118,13 @@ public:
     float zoomMax = 21.0f;            // 既定の distance（14m）の 1.5 倍（2026-10-25。14 のままだとホイールで寄るしかできなかった）
     float zoomStep = 0.6f;            // 1 ノッチあたり（m）
 
+    // プレイヤーの設定「カメラの距離」（GameSettings::cameraDistance、0.8〜1.3）。distance に掛ける。保存はしない（設定側が持つ）
+    float distanceScale = 1.0f;
+    // 賢いカメラの追い方：引く時（増える方）と戻る時。戻りを遅くして、群れの出入りで一呼吸ごとに寄ったり引いたりしない
+    float situationRiseTime = 1.5f;
+    float situationFallTime = 2.5f;
+    float frameSmoothTime = 1.0f;     // 注視点のずらし（Boss を画面に入れる）
+
 private:
     // from から dir へ、中心 + 上下左右（probeRadius ずらし）の 5 本で一番近い当たり。無ければ maxDist
     float ProbeDistance(const Vector3& from, const Vector3& dir, float maxDist,
@@ -137,6 +152,12 @@ private:
     Vector3 m_LookAhead = { 0, 0, 0 };
     Vector3 m_LookAheadVel = { 0, 0, 0 };
     float   m_SpeedDist = 0.0f;         // 速さで引いた距離
+    float   m_SituationWant = 0.0f;     // 賢いカメラ：目標
+    float   m_SituationDist = 0.0f;     //           ：今（ばね）
+    float   m_SituationVel = 0.0f;
+    Vector3 m_FrameWant = { 0, 0, 0 };
+    Vector3 m_FrameOffset = { 0, 0, 0 };
+    Vector3 m_FrameVel = { 0, 0, 0 };
     float   m_Aspect = 16.0f / 9.0f;
     float   m_AppliedFov = -1.0f;       // 今の射影行列の画角（変わった時だけ作り直す）
 

@@ -1,13 +1,13 @@
 // ============================================================
 // GPUParticlePS.hlsl
-// Billboard particles. One draw for every particle, blended with
-// premultiplied alpha (ONE / INV_SRC_ALPHA):
-//   additive particles write alpha 0  -> dst + rgb*a (same as the old SRC_ALPHA/ONE)
-//   alpha particles write alpha a     -> dst*(1-a) + rgb*a
-// The texture is picked per particle from the ParticleSheets table
-// (t0..t7). SM5.0 cannot index a texture array with a dynamic index,
-// hence the switch. The branch is uniform per particle (a quad never
-// spans two primitives), and gradients are taken before it.
+// ビルボードのパーティクル。全パーティクルを 1 回の描画で、
+// 乗算済みアルファ（ONE / INV_SRC_ALPHA）で合成する:
+//   加算のパーティクルは alpha 0 を書く     -> dst + rgb*a（以前の SRC_ALPHA/ONE と同じ）
+//   半透明のパーティクルは alpha a を書く   -> dst*(1-a) + rgb*a
+// テクスチャはパーティクルごとに ParticleSheets の表（t0..t7）から選ぶ。
+// SM5.0 ではテクスチャ配列を動的な番号で引けないので switch にしている。
+// 分岐はパーティクル内で一様（四角形が 2 つのプリミティブにまたがる
+// ことはない）で、勾配は分岐の前に取る。
 // ============================================================
 
 Texture2D g_Sheet0 : register(t0);
@@ -22,11 +22,11 @@ Texture2D g_Sheet7 : register(t7);
 SamplerState g_Linear : register(s0);
 SamplerState g_Point : register(s1);
 
-// bit i = sheet i. Written by GPUParticleSystem::Render from the manifests
+// ビット i = シート i。GPUParticleSystem::Render がマニフェストから書く
 cbuffer ParticleSheetCB : register(b0)
 {
-    uint g_PointMask;   // sample with the point sampler (pixel art)
-    uint g_PremulMask;  // texels are stored premultiplied
+    uint g_PointMask;   // ポイントサンプラーで読む（ピクセルアート）
+    uint g_PremulMask;  // テクセルが乗算済みで保存されている
     uint2 _pad;
 };
 
@@ -35,50 +35,50 @@ struct PSInput
     float4 position : SV_POSITION;
     float4 color : COLOR;
     float2 uv : TEXCOORD0;
-    // uint: signed integer divide/modulo on GPU needs emulation
-    // instructions for sign handling (fxc warning X3556).
-    // These are never negative, so uint is safe and faster.
+    // uint: GPU で符号付き整数の除算 / 剰余をすると、符号の処理に
+    // エミュレーション命令が要る（fxc の警告 X3556）。
+    // ここの値は負にならないので、uint で安全かつ速い。
     nointerpolation uint atlasRows : TEXCOORD1;
     nointerpolation uint atlasCols : TEXCOORD2;
     nointerpolation uint uvFrame : TEXCOORD3;
     nointerpolation uint sheet : TEXCOORD4;
     nointerpolation uint alphaBlend : TEXCOORD5;
     nointerpolation uint renderMode : TEXCOORD6;
-    nointerpolation float2 toonFade : TEXCOORD7;   // x = life left (erosion), y = opacity
-    nointerpolation uint solidPass : TEXCOORD8;    // 1 = the depth-writing pass of solid toon puffs (GPUParticleVS g_Pass)
+    nointerpolation float2 toonFade : TEXCOORD7;   // x = 残り寿命（侵食）、y = 不透明度
+    nointerpolation uint solidPass : TEXCOORD8;    // 1 = 不透明なトゥーンの煙玉を深度に書くパス（GPUParticleVS g_Pass）
 };
 
 // ------------------------------------------------------------
-// Toon billboards (2026-10-04). Bits of renderMode, must match
-// ParticleRenderMode::PackToon (GPUParticle.h):
-//   bit 14 = toon, bit 15 = outline, bits 16-19 = alpha cut (0.05 + 0.05 n),
-//   bits 20-21 = color bands - 1, bits 22-25 = outer band brightness (n / 15)
+// トゥーンのビルボード（2026-10-04）。renderMode のビット、
+// ParticleRenderMode::PackToon（GPUParticle.h）と一致させること:
+//   ビット 14 = トゥーン、ビット 15 = アウトライン、ビット 16-19 = アルファの切り（0.05 + 0.05 n）、
+//   ビット 20-21 = 色の段数 - 1、ビット 22-25 = 一番外の段の明るさ（n / 15）
 // ------------------------------------------------------------
 #define PARTICLE_TOON         (1u << 14)
 #define PARTICLE_TOON_OUTLINE (1u << 15)
-static const float TOON_OUTLINE_WIDTH = 0.07;   // alpha units inside the cut
-static const float TOON_OUTLINE_DARK = 0.22;    // the line = color x this
-static const float TOON_SHAPE_BLUR = 8.0;       // gradient scale for the shape sample (about 3 mips up)
+static const float TOON_OUTLINE_WIDTH = 0.07;   // 切りの内側のアルファの幅
+static const float TOON_OUTLINE_DARK = 0.22;    // 線 = 色 x これ
+static const float TOON_SHAPE_BLUR = 8.0;       // 形を取るサンプルの勾配の倍率（mip 3 段ほど上）
 
-// texRgb: the sampled texel, straight color (already divided by its alpha)
-// ta    : the texture alpha (the shape), pc: the particle color
-// fade  : x = life left relative to the start alpha, y = opacity (from the VS)
-// aa    : fwidth(ta), taken by the caller outside the branch
+// texRgb: 読んだテクセル、ストレートな色（もうアルファで割ってある）
+// ta    : テクスチャのアルファ（形）、pc: パーティクルの色
+// fade  : x = 開始時のアルファに対する残り寿命、y = 不透明度（VS から）
+// aa    : fwidth(ta)、呼び出し側で分岐の外で取ったもの
 float4 ToonBillboard(float3 texRgb, float ta, float aa, float4 pc, float2 fade, uint mode, bool alphaBlend)
 {
     float cut = 0.05 + 0.05 * (float)((mode >> 16u) & 15u);
     uint bands = 1u + min((mode >> 20u) & 3u, 2u);
     float shade = (float)((mode >> 22u) & 15u) / 15.0;
 
-    // the life fade erodes the shape (rising cut) instead of fading it out
+    // 寿命によるフェードは薄くするのではなく形を侵食する（切りが上がる）
     float thr = lerp(1.0, cut, fade.x);
     aa = max(aa, 1e-3);
     float mask = smoothstep(thr - aa, thr + aa, ta);
     if (mask <= 0.0)
         discard;
 
-    // bands from the edge inward: outermost = shade, innermost = 1
-    float inner = saturate((ta - thr) / max(1.0 - thr, 1e-3));   // 0 at the edge .. 1 at the core
+    // 縁から内へ向かう段: 一番外 = shade、一番内 = 1
+    float inner = saturate((ta - thr) / max(1.0 - thr, 1e-3));   // 縁で 0 .. 芯で 1
     float level = 1.0;
     if (bands > 1u)
     {
@@ -97,15 +97,15 @@ float4 ToonBillboard(float3 texRgb, float ta, float aa, float4 pc, float2 fade, 
     }
     float3 rgb = texRgb * pc.rgb * level;
 
-    // a dark rim just inside the edge
+    // 縁のすぐ内側に暗い線
     if (mode & PARTICLE_TOON_OUTLINE)
     {
-        float lineW = TOON_OUTLINE_WIDTH * (1.0 - thr) / max(1.0 - cut, 1e-3);   // thins out as it erodes
-        float rim = 1.0 - smoothstep(thr + lineW - aa, thr + lineW + aa, ta);   // ('line' is a reserved word)
+        float lineW = TOON_OUTLINE_WIDTH * (1.0 - thr) / max(1.0 - cut, 1e-3);   // 侵食とともに細くなる
+        float rim = 1.0 - smoothstep(thr + lineW - aa, thr + lineW + aa, ta);   // （'line' は予約語）
         rgb = lerp(rgb, texRgb * pc.rgb * TOON_OUTLINE_DARK, rim);
     }
 
-    // premultiplied output: alpha-blended = a crisp shape at the start opacity, additive = alpha 0
+    // 乗算済みの出力: 半透明 = 開始時の不透明度でくっきりした形、加算 = alpha 0
     float a = mask * (alphaBlend ? fade.y : 1.0);
     return float4(rgb * a, alphaBlend ? a : 0.0);
 }
@@ -127,10 +127,10 @@ float4 SampleSheet(uint sheet, SamplerState s, float2 uv, float2 dx, float2 dy)
 
 float4 main(PSInput input) : SV_TARGET
 {
-    // Atlas UV.
-    // Guard against 0: emitters that do not use an atlas leave
-    // atlasRows/Cols at 0, and 1.0/0 plus "% 0" are undefined.
-    // Treat 0 as a single 1x1 cell.
+    // アトラスの UV。
+    // 0 の対策: アトラスを使わないエミッタは atlasRows/Cols が
+    // 0 のままで、1.0/0 や "% 0" は未定義になる。
+    // 0 は 1x1 の 1 マスとして扱う。
     uint cols = max(input.atlasCols, 1u);
     uint rows = max(input.atlasRows, 1u);
 
@@ -150,7 +150,7 @@ float4 main(PSInput input) : SV_TARGET
 
     uint sheet = min(input.sheet, 7u);
     uint bit = 1u << sheet;
-    // if/else, not ?: (HLSL evaluates both sides of ?:, that would sample twice)
+    // ?: ではなく if/else（HLSL は ?: の両辺を評価するので 2 回サンプルしてしまう）
     float4 tex;
     [branch]
     if ((g_PointMask & bit) != 0u)
@@ -158,10 +158,10 @@ float4 main(PSInput input) : SV_TARGET
     else
         tex = SampleSheet(sheet, g_Linear, atlasUV, dx, dy);
 
-    // toon: crisp shape, color bands, dark rim (per emitter, PARTICLE_TOON).
-    // The shape comes from a blurred copy of the texel (a higher mip via scaled
-    // gradients): noisy smoke textures otherwise threshold into lace. The alpha
-    // gradient is taken after the branch, outside flow control
+    // トゥーン: くっきりした形、色の段、暗い縁（エミッタごと、PARTICLE_TOON）。
+    // 形はぼかしたテクセル（勾配を拡大して上の mip）から取る: そうしないと
+    // ノイズの多い煙のテクスチャがしきい値でレース状になる。アルファの
+    // 勾配は分岐の後、フロー制御の外で取る
     float4 soft = tex;
     [branch]
     if (input.renderMode & PARTICLE_TOON)
@@ -170,9 +170,9 @@ float4 main(PSInput input) : SV_TARGET
     if (input.renderMode & PARTICLE_TOON)
     {
         float3 straight = ((g_PremulMask & bit) != 0u) ? soft.rgb / max(soft.a, 1e-3) : soft.rgb;
-        // depth-writing pass: the puff is fully opaque inside (0.85..1 opacity -> 1, so
-        // what shows through no longer depends on the draw order), and only the inside
-        // of the shape writes depth (the soft rim below 0.5 would hide puffs behind it)
+        // 深度を書くパス: 煙玉の内側は完全に不透明（不透明度 0.85..1 -> 1。透けて見えるものが
+        // 描画順に左右されなくなる）にし、深度を書くのは形の内側だけ
+        // （0.5 未満の柔らかい縁まで書くと、後ろの煙玉を隠してしまう）
         float2 fade = input.toonFade;
         if (input.solidPass != 0u)
             fade.y = 1.0;
@@ -185,7 +185,7 @@ float4 main(PSInput input) : SV_TARGET
     float a = tex.a * input.color.a;
     clip(a - 0.01);
 
-    // premultiplied texels already carry their alpha in rgb
+    // 乗算済みのテクセルは rgb にもうアルファが掛かっている
     float3 rgb = ((g_PremulMask & bit) != 0u)
         ? tex.rgb * input.color.rgb * input.color.a
         : tex.rgb * input.color.rgb * a;

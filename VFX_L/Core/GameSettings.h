@@ -28,6 +28,11 @@ public:
     // 初回のチュートリアル（UI/TutorialGuide）を終えた / 飛ばした（2026-10-13）。false なら第 1 ステージの始めに出る
     bool tutorialDone = false;
 
+    // カメラの距離（2026-11-02、Megabonk の「Zoom Out」設定と同じ役目）：FollowCamera::distance に掛ける 0.8〜1.3
+    float cameraDistance = 1.0f;
+    // カメラの自動調整（2026-11-02）：囲まれた時に引く・Boss を画面に入れる（BattleCamera::UpdateSmart）
+    bool smartCamera = true;
+
     bool Save() const;
     bool Load();
 };

@@ -1,10 +1,10 @@
 // ============================================================
 // DebrisPS.hlsl
-// Cuts the piece's shape out of the card (leaf: pointed ellipse with a
-// midrib; clipping / twig: tapered strip) and lights it like every
-// model (Lighting.hlsli: toon bands, sun shadow, point lights, fog).
-// Opaque, writes depth (drawn with the grass, after the outline pass).
-// The light cbuffer sits at b1 because DebrisCB owns b0.
+// 板から破片の形を切り抜き（葉: 中央脈のある先のとがった楕円、
+// 草くず / 小枝: 先細りの帯）、他のモデルと同じくライティングする
+// （Lighting.hlsli: トゥーンの段階、太陽の影、点光源、フォグ）。
+// 不透明で深度を書く（草と一緒に、アウトラインパスの後に描画）。
+// DebrisCB が b0 を使うので、ライトの cbuffer は b1 に置く。
 // ============================================================
 #define MODEL_LIGHT_CB_REG b1
 #include "../Common/Lighting.hlsli"
@@ -26,25 +26,25 @@ float4 main(DebrisOut i) : SV_TARGET
     float3 albedo;
     if (kind == 0u)
     {
-        // leaf: ellipse pulled to a point at +x, a darker midrib
+        // 葉: +x 側を引き伸ばしてとがらせた楕円、中央脈は少し暗く
         float w = (1.0 - x * x) * (1.0 - 0.3 * x) * 1.05;
         if (y > w)
             discard;
         albedo = g_ColorLeaf;
         if (y < 0.07)
             albedo *= 0.78;
-        // edge darkening
+        // 縁を暗く
         albedo *= 1.0 - 0.25 * saturate((y - w + 0.25) / 0.25);
     }
     else
     {
-        // clipping / twig: a strip tapering toward +x
+        // 草くず / 小枝: +x に向かって細くなる帯
         float w = 1.0 - 0.45 * (x + 1.0) * 0.5;
         if (y > w)
             discard;
         albedo = (kind == 1u) ? g_ColorClip : g_ColorTwig;
     }
-    // per-piece variation: brightness and a touch toward brown
+    // 破片ごとのばらつき: 明るさと、少し茶色寄りに
     float v = (float) ((i.seed >> 8) & 0xFFu) / 255.0;
     albedo *= 0.8 + 0.4 * v;
     albedo = lerp(albedo, albedo.rrr * float3(1.0, 0.75, 0.45), 0.35 * (float) ((i.seed >> 4) & 0x3u) / 3.0);

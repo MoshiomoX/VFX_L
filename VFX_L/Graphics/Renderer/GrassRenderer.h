@@ -52,7 +52,7 @@ public:
     {
         bool  enabled = true;
         // 2026-09-28 ユーザー: 細かい葉をたくさん → 大きめの葉を少し疎らに、広く
-        float spacing = 0.25f;              // 格子の間隔 m（近くは 1 / spacing^2 本 / m2）
+        float spacing = 0.2f;               // 格子の間隔 m（近くは 1 / spacing^2 本 / m2）。2026-11-02 0.25 → 0.2（地面が透け過ぎ）
         float maxDistance = 70.0f;          // カメラからこれより遠くは生やさない
         float fullDensityDistance = 18.0f;  // ここまでは全部。ここから maxDistance で farDensity まで間引く
         float farDensity = 0.2f;
@@ -62,7 +62,7 @@ public:
         float widthMax = 0.12f;
         float curlMax = 0.35f;              // 元々の曲がり（先のずれ / 高さ）
         float maxSlope = 1.0f;              // これより急な地面（高さ / 水平）には生やさない（45 度）
-        DirectX::SimpleMath::Vector3 rootColor = { 0.55f, 0.60f, 0.50f };   // 地面の色に掛ける（根元）
+        DirectX::SimpleMath::Vector3 rootColor = { 0.36f, 0.42f, 0.34f };   // 地面の色に掛ける（根元）。2026-11-02 0.55/0.60/0.50 → 暗く（草むらの下に影が溜まる感じ）
         DirectX::SimpleMath::Vector3 tipColor = { 1.25f, 1.20f, 0.85f };    // （先）
         // 風：世界の風の強さ 1 の時、強い突風での先のずれ / 高さ（向き・速さ・波は WindState）
         float windStrength = 0.35f;

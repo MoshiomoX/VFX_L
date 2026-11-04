@@ -1,12 +1,12 @@
 // ============================================================
 // SwarmAreaEmitCS.hlsl
-// Particles for areas that were born on the GPU (projectile hit):
-// only the GPU knows where they are, so the CPU cannot play a VFX
-// for them. Same emit body as SwarmEmitCS, the source is the live
-// areas. Areas spawned by the CPU carry vfxType 0 and emit nothing
-// here -- the CPU plays their effect (mesh + particles).
+// GPU 上で生まれた範囲（弾の命中）のパーティクル：
+// 場所を知っているのは GPU だけなので、CPU はそのエフェクトを
+// 再生できない。発射の本体は SwarmEmitCS と同じで、発生源は生きている
+// 範囲。CPU が生成した範囲は vfxType 0 なのでここでは何も
+// 出さない -- そのエフェクト（メッシュ + パーティクル）は CPU が再生する。
 //
-// An explosion is simply a short-lived area with a high emit rate.
+// 爆発は単に、寿命が短く発射レートの高い範囲。
 // ============================================================
 #define SWARM_EMIT_AREAS
 #include "SwarmEmitCS.hlsl"

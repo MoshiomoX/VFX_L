@@ -38,6 +38,7 @@ namespace
         bool m_StatsLogged = false;
         float m_FadeMul = 0.0f;   // VFXL_TWISTER_FADE（0 = 普段の look）
         int m_FadeLook = 0;
+        Vector3 m_CloseTarget;    // VFXL_TWISTER_CLOSE：1 本目の竜巻を近くから追う（砂粒を見る。2026-11-03）
     };
 }
 
@@ -112,6 +113,18 @@ void AutoTestTwister::Run()
         auto& cam = m_Camera.Camera();
         cam.SetYaw(kCamYaw);
         cam.SetPitch(kCamPitch);
+        // TEMP-TEST: VFXL_TWISTER_CLOSE=1 = 1 本目の竜巻の 8m 手前・低い角度から追う（HUD も消す）
+        char close[4] = {};
+        Vector3 tp;
+        if (GetEnvironmentVariableA("VFXL_TWISTER_CLOSE", close, sizeof(close)) > 0 && close[0] == '1'
+            && m_WeaponSystem.GetTwisterPos(0, tp))
+        {
+            m_CloseTarget = tp + Vector3(0.0f, 1.6f, 0.0f);
+            m_Camera.SetTargetOverride(&m_CloseTarget);
+            cam.SetPitch(12.0f);
+            cam.distance = 8.0f;
+            m_GameUI.hideAll = true;
+        }
     }
     // 集約が済んだ後に 1 回：竜巻・突風の半径と MP（拡大鏡の有無を比べる）
     if (!m_StatsLogged && m_AutoTime >= 1.5f && m_Registry.Has<WandComponent>(m_Player))

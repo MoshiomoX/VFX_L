@@ -51,11 +51,14 @@ namespace
         { VFXId::OutletSeedRoot, Res::VFX::OutletSeedRoot, Group::Spell },
         { VFXId::OutletMine, Res::VFX::OutletMine, Group::Spell },
         { VFXId::OrbitGuard, Res::VFX::OrbitGuard, Group::Spell },
+        { VFXId::SandHaze, Res::VFX::SandHaze, Group::Spell },
+        { VFXId::SandDust, Res::VFX::SandDust, Group::Spell },
 
         // ---- プレイヤーの動き（CPU、PlayerVFXSystem）----
         { VFXId::CastFlash, Res::VFX::CastFlash, Group::Player },
         { VFXId::CastPulse, Res::VFX::CastPulse, Group::Player },
         { VFXId::FootDust, Res::VFX::FootDust, Group::Player },
+        { VFXId::SandStep, Res::VFX::SandStep, Group::Player },
         { VFXId::JumpDust, Res::VFX::JumpDust, Group::Player },
         { VFXId::AirJumpRing, Res::VFX::AirJumpRing, Group::Player },
         { VFXId::LandDust, Res::VFX::LandDust, Group::Player },

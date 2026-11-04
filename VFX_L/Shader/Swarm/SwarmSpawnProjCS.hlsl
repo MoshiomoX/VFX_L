@@ -1,39 +1,39 @@
 // ============================================================
 // SwarmSpawnCS.hlsl
-// Push pending spawn requests into free slots of the pool.
+// 溜まった生成リクエストをプールの空きスロットに入れる。
 //
-// One thread per request. Each thread scans for a dead slot and
-// claims it with InterlockedCompareExchange on the state buffer.
+// 1 リクエスト 1 スレッド。各スレッドが死んだスロットを探し、
+// 状態バッファへの InterlockedCompareExchange で確保する。
 //
-// Why a linear scan instead of a free list:
-//   a consume buffer needs CopyStructureCount every frame, which
-//   flushes the command queue (~0.076ms measured in the particle
-//   system). Requests per frame are few, so scanning is cheaper.
+// フリーリストではなく線形に走査する理由:
+//   consume バッファは毎フレーム CopyStructureCount が要り、それで
+//   コマンドキューが詰まる（パーティクルシステムで実測 ~0.076ms）。
+//   1 フレームのリクエストは少ないので、走査のほうが安い。
 //
-// The scan starts at a per-thread offset so threads do not all
-// fight over slot 0.
+// 全スレッドがスロット 0 を取り合わないよう、走査の開始位置を
+// スレッドごとにずらす。
 //
-// Motion: the request carries a motion table index (+ a mirror flip
-// bit). For the curved modes the flight path is built HERE, once,
-// from the muzzle to the enemy nearest to the player -- the same
-// enemy the weapon aimed at (counters still hold last step's key).
-// No target -> the projectile simply flies straight.
+// 飛び方: リクエストは動きテーブルの番号（+ 左右反転ビット）を持つ。
+// 曲線系のモードでは飛行経路を「ここで」一度だけ作る。杖先から
+// プレイヤーに一番近い敵まで -- 武器が狙ったのと同じ敵
+// （counters にはまだ前ステップのキーが残っている）。
+// 標的がなければ弾はただまっすぐ飛ぶ。
 //
-// DROP (meteor): the same enemy fixes the impact point. The projectile
-// is moved up to its start point in the sky (c1, see SwarmCommon.hlsli)
-// and gets enough lifetime to reach the ground. No target -> it lands
-// 8m ahead of the muzzle at the player's height.
-// With SWARM_SPAWN_AT_POS (a triggered meteor) the request position IS
-// the impact point (where the fireball / stone shot ended) and it comes
-// in over the player's side.
-// Inside the mine cave (2026-10-03: the ground at the impact is below the
-// plain, and the mine is roofed): fall from right above the impact, under
-// the roof. Coming in over the player's side could start outside the cave
-// and fly through the rock mass.
+// DROP（メテオ）: 同じ敵で着弾点を決める。弾は空中の開始点
+// （c1、SwarmCommon.hlsli 参照）まで持ち上げ、地面に届くだけの寿命を
+// 与える。標的がなければ杖先の 8m 先、
+// プレイヤーの高さに落ちる。
+// SWARM_SPAWN_AT_POS 付き（連鎖したメテオ）はリクエストの位置が
+// そのまま着弾点（ファイアボール / ストーンショットが消えた所）で、
+// プレイヤー側から飛んでくる。
+// 洞窟の中（2026-10-03: 着弾点の地面が平原より低く、洞窟には
+// 天井がある）では、着弾点の真上、天井の下から落とす。
+// プレイヤー側から飛ばすと、洞窟の外から始まって
+// 岩盤を突き抜けることがある。
 //
-// Every claimed slot gets its trigger tag (0 = none) in projTags, so a
-// reused slot never keeps an old tag. Same for projBoost (the damage /
-// duration multipliers of the areas it leaves, see SwarmBoostDamage).
+// 確保したスロットには必ず連鎖タグ（0 = なし）を projTags に書くので、
+// 再利用したスロットに古いタグが残らない。projBoost（残す範囲の威力 /
+// 持続の倍率、SwarmBoostDamage 参照）も同じ。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -41,13 +41,13 @@ StructuredBuffer<SwarmProjectile> spawnRequests : register(t0);
 StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
-StructuredBuffer<uint2> spawnExtra : register(t4);   // x = trigger tag, y = SWARM_SPAWN_* flags
-StructuredBuffer<float> terrainHeight : register(t5); // GridWorld::Heights (the mine cave test)
-StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t6); // FanTarget skips what cannot be targeted
+StructuredBuffer<uint2> spawnExtra : register(t4);   // x = 連鎖タグ、y = SWARM_SPAWN_* フラグ
+StructuredBuffer<float> terrainHeight : register(t5); // GridWorld::Heights（洞窟の判定用）
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t6); // FanTarget は狙えない敵を飛ばす
 
-// ground lower than this (m) = the mine floor, under the roof
+// 地面がこれ（m）より低い = 洞窟の床、天井の下
 static const float kCaveFloorBelow = -1.0;
-// fall height / back offset there (roof underside is ~15m above the floor)
+// そこでの落下の高さ / 後ろへのずらし（天井の下面は床から ~15m）
 static const float kCaveDropHeight = 8.0;
 static const float kCaveDropBack = 2.0;
 
@@ -56,9 +56,9 @@ RWBuffer<uint> projStates : register(u1);
 RWStructuredBuffer<SwarmProjPath> paths : register(u2);
 RWByteAddressBuffer counters : register(u3);
 RWBuffer<uint> projTags : register(u4);
-RWBuffer<uint> projBoost : register(u5);   // y >> SWARM_SPAWN_BOOST_SHIFT: damage / duration boost of the areas it leaves
-// the slot's ribbon (SwarmProjTrailCS, 2026-10-25): a shot killed by HitCS in the last step of a frame is reused here
-// before the trail pass has seen it die, and the new shot's ribbon used to start from the old one's points
+RWBuffer<uint> projBoost : register(u5);   // y >> SWARM_SPAWN_BOOST_SHIFT: 残す範囲の威力 / 持続の倍率
+// スロットのリボン（SwarmProjTrailCS、2026-10-25）: フレーム最後のステップで HitCS に消された弾は、トレイルのパスが
+// その死を見る前にここで再利用される。以前は新しい弾のリボンが古い弾の点から始まっていた
 RWStructuredBuffer<uint> trailState : register(u6);
 RWStructuredBuffer<float> trailAge : register(u7);
 
@@ -69,8 +69,8 @@ cbuffer SwarmSpawnCB : register(b1)
     uint2 _spawnPad;
 };
 
-// Does the curve go under the ground (plus a margin) anywhere between the ends?
-// Four samples are enough for the gentle curves the profiles use (c.y <= ~0.45 of the range)
+// 曲線が両端の間のどこかで地面（+ 余裕）の下に潜るか。
+// プロファイルが使う緩い曲線（c.y <= 射程の ~0.45）なら 4 点で足りる
 bool PathHitsGround(SwarmProjPath p)
 {
     [unroll]
@@ -83,10 +83,10 @@ bool PathHitsGround(SwarmProjPath p)
     return false;
 }
 
-// The side shots of an outlet spell's fan pick their own enemy (2026-10-31), so what they carry
-// starts somewhere else than the first shot's spell. The closest enemy around this shot's direction,
-// not the one the first shot took; enemies on the other side of the aim count double.
-// No such enemy -> the same target as the first shot
+// 出口魔法の扇の脇の弾はそれぞれ自分の敵を選ぶ（2026-10-31）ので、運ぶ魔法が 1 発目とは
+// 別の所から始まる。この弾の方向まわりで一番近い敵（1 発目が取ったのとは別）。
+// 狙いの反対側にいる敵は距離を 2 倍に数える。
+// 該当する敵がいなければ 1 発目と同じ標的
 static const float kFanRange = 20.0;
 static const float kFanConeCos = 0.25;
 uint FanTarget(uint first, float3 from, float3 dir)
@@ -132,25 +132,25 @@ void main(uint3 id : SV_DispatchThreadID)
     SwarmProjectile req = spawnRequests[id.x];
     uint2 extra = spawnExtra[id.x];
 
-    // ---- motion: split the request word, then build the path ----
-    // sideSign is the roll of the curve's side offset around the flight axis (radians):
-    // 0 = right, pi = left (the flip bit), anything else = a random direction per shot
-    // (ProjectileProfile Mirror::RandomAngle, 7 bits in extra.y: 0..127 = 0..360 deg. 2026-10-06)
+    // ---- 飛び方: リクエストのワードを分解してから経路を作る ----
+    // sideSign は曲線の横ずれを飛行軸まわりに回す角度（ラジアン）:
+    // 0 = 右、pi = 左（反転ビット）、それ以外 = 1 発ごとのランダムな方向
+    // （ProjectileProfile Mirror::RandomAngle、extra.y の 7 ビット: 0..127 = 0..360 度。2026-10-06）
     float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? 3.14159265 : 0.0;
     sideSign += (float)((extra.y >> 1) & 0x7Fu) * (6.28318531 / 128.0);
     uint motionIdx = req.motion & SWARM_MOTION_INDEX_MASK;
-    // the request's bits 16..19: which shot of the fan (Swarm::kMotionFanShift; the size scale replaces them below)
+    // リクエストのビット 16..19: 扇の何発目か（Swarm::kMotionFanShift。下でサイズ倍率に置き換わる）
     uint fanIndex = (req.motion >> 16u) & 0xFu;
-    // chain rune: the request's pathT carries how many more enemies this shot may jump to (2026-10-16)
+    // 連鎖のルーン: リクエストの pathT に、この弾があと何体の敵へ跳べるかが入っている（2026-10-16）
     uint chains = (uint) clamp(req.pathT, 0.0, (float) SWARM_PROJ_CHAIN_LEFT_MASK);
     req.pathT = 0.0;
 
     SwarmMotion m = motions[motionIdx];
-    // pierce (2026-10-28, golden arrow): passes through this many more enemies. With chain jumps too,
-    // the pierces add to the jumps and the shot jumps (chain behaviour)
+    // 貫通（2026-10-28、黄金の矢）: あと何体の敵を貫けるか。連鎖の跳躍もある場合は
+    // 貫通数を跳躍数に足し、弾は跳ぶ（連鎖の挙動）
     uint pierce = SwarmMotionPierce(m);
-    // hold: hang in front of the caster for this long before flying (pathT < 0 = seconds left. 2026-10-16).
-    // A held shot is born SWARM_HOLD_FORWARD m ahead along the aim, not inside the body
+    // 溜め: 飛ぶ前にこの時間だけ詠唱者の前で止まる（pathT < 0 = 残り秒。2026-10-16）。
+    // 溜める弾は体の中ではなく、狙いの方向へ SWARM_HOLD_FORWARD m 先に生まれる
     float hold = SwarmMotionHold(m);
     req.pathT = -hold;
     if (hold > 0.0)
@@ -160,8 +160,8 @@ void main(uint3 id : SV_DispatchThreadID)
             req.position += req.velocity * (rsqrt(aimLenSq) * SWARM_HOLD_FORWARD);
     }
 
-    // size scale (the Magnifier item): this shot's hit radius against the
-    // profile's. Kept in the motion word so every shader after this sees it
+    // サイズ倍率（拡大鏡アイテム）: プロファイルに対するこの弾の当たり半径の比。
+    // 以降のどのシェーダーからも見えるよう motion のワードに入れておく
     float sizeScale = (m.baseRadius > 0.0) ? req.radius / m.baseRadius : 1.0;
     req.motion = motionIdx | (SwarmPackScale(sizeScale, 0x7FFFu) << SWARM_SCALE_SHIFT);
 
@@ -180,11 +180,11 @@ void main(uint3 id : SV_DispatchThreadID)
         fwd = (fwdLenSq > 1e-8) ? fwd * rsqrt(fwdLenSq) : float3(0, 0, 1);
 
         float3 impact = float3(req.position.x, g_PlayerPos.y, req.position.z) + fwd * 8.0;
-        // start: up, and back toward the muzzle (comes in over the player's shoulder)
+        // 開始点: 上へ、そして杖先の側へ戻す（プレイヤーの肩越しに飛んでくる）
         float3 backFrom = req.position;
         if ((extra.y & SWARM_SPAWN_AT_POS) != 0u)
         {
-            // triggered: the CPU already chose the impact point
+            // 連鎖: 着弾点は CPU が決めてある
             impact = req.position;
             backFrom = g_PlayerPos;
         }
@@ -204,7 +204,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
         if (m.mode == SWARM_MOTION_LOB)
         {
-            // thrown from the muzzle (from the player when the CPU chose the spot)
+            // 杖先から投げる（CPU が場所を決めたときはプレイヤーから）
             float3 from = ((extra.y & SWARM_SPAWN_AT_POS) != 0u) ? g_PlayerPos : req.position;
             SwarmBuildPath(path, m, from, impact, fwd, false);
             float3 tan0 = SwarmBezierTangent(path, 0.0);
@@ -242,9 +242,9 @@ void main(uint3 id : SV_DispatchThreadID)
                 SwarmBuildPath(path, m, req.position, enemies[slot].position,
                                req.velocity / speed, false);
 
-                // A randomly rolled curve may dip into the ground (2026-10-06, user: check before
-                // firing). Sample the curve; if it goes under the terrain, roll the side offset to
-                // the opposite direction (down -> up); if that still hits, fall back to the flat side
+                // ランダムに回した曲線は地面に潜ることがある（2026-10-06、ユーザー: 撃つ前に
+                // 確認して）。曲線を何点か調べ、地形の下に潜るなら横ずれを反対向き（下 -> 上）に
+                // 回す。それでも当たるなら水平な横向きに戻す
                 if (PathHitsGround(path))
                 {
                     path.sideSign += 3.14159265;
@@ -256,7 +256,7 @@ void main(uint3 id : SV_DispatchThreadID)
                     }
                 }
 
-                // leave the muzzle along the curve, not along the aim line
+                // 狙いの直線ではなく、曲線に沿って杖先を出る
                 float3 tan0 = SwarmBezierTangent(path, 0.0);
                 float tanLenSq = dot(tan0, tan0);
                 if (tanLenSq > 1e-8)
@@ -265,7 +265,7 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // spread starting points so threads claim different regions
+    // スレッドごとに別の範囲を取るよう、開始位置をばらけさせる
     uint start = (g_ScanStart + id.x * 97u) % g_MaxProjectiles;
 
     for (uint i = 0; i < g_MaxProjectiles; ++i)
@@ -278,14 +278,14 @@ void main(uint3 id : SV_DispatchThreadID)
 
         if (prev == SWARM_DEAD)
         {
-            // won the slot. state is already ALIVE from the exchange
+            // スロットを確保した。状態は交換でもう ALIVE になっている
             projectiles[slot] = req;
             paths[slot] = path;
             projTags[slot] = extra.x;
             projBoost[slot] = extra.y >> SWARM_SPAWN_BOOST_SHIFT;
-            trailState[slot] = 0u;   // a fresh ribbon (the old shot's points are dropped)
+            trailState[slot] = 0u;   // 新しいリボン（古い弾の点は捨てる）
             trailAge[slot] = 0.0;
-            // chain rune: an alive-but-chained state (HitCS / ProjMoveCS read it, everyone else sees "not DEAD")
+            // 連鎖のルーン: 「生きていて連鎖中」の状態（HitCS / ProjMoveCS が読む。他からは「DEAD ではない」に見える）
             if (chains > 0u)
                 projStates[slot] = SwarmProjChainState(chains + pierce, SWARM_PROJ_CHAIN_NO_LAST);
             else if (pierce > 0u)
@@ -294,6 +294,6 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // pool full: drop it. same policy as the particle system's
-    // deadCount guard -- degrade, never corrupt
+    // プールが満杯: 捨てる。パーティクルシステムの deadCount ガードと同じ方針
+    // -- 質は落としても、壊しはしない
 }

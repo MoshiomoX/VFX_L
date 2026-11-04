@@ -1,19 +1,19 @@
 // ============================================================
 // SwarmSpriteCS.hlsl
-// Sprite-sheet animations for GPU areas. Two passes per frame
-// (SwarmSystem::DispatchSprites), both after the area emit pass:
-//   g_SpriteMode 0 (age)  : one thread per pool slot. age += dt, retire
-//                           instances whose life is over.
-//   g_SpriteMode 1 (spawn): one thread per area slot. A slot holds a NEW
-//                           area when it is alive and either was not seen
-//                           alive last frame or its timeLeft went UP (an
-//                           area only counts down, so a reused slot shows
-//                           a larger value). Then every Sprite entry of the
-//                           area's recipe gets an instance in the ring pool
-//                           (oldest overwritten when full).
-// areaSeen keeps asuint(timeLeft) of the last frame, 0xFFFFFFFF = dead/unseen.
-// Areas spawned by the CPU carry vfxType 0 (the CPU plays their effect),
-// recipe 0 has no sprites, so nothing starts for them here.
+// GPU 範囲のスプライトシートアニメ。1 フレームに 2 パス
+// （SwarmSystem::DispatchSprites）、どちらも範囲の発射パスの後:
+//   g_SpriteMode 0（経過）: プールのスロット 1 つにつき 1 スレッド。age += dt、
+//                           寿命が尽きたインスタンスを片付ける。
+//   g_SpriteMode 1（生成）: 範囲のスロット 1 つにつき 1 スレッド。スロットが
+//                           生きていて、前フレームに生きていなかったか
+//                           timeLeft が増えた（範囲は減る一方なので、使い回された
+//                           スロットは大きい値になる）なら新しい範囲。その範囲の
+//                           レシピの Sprite エントリそれぞれに、リングプールの
+//                           インスタンスを 1 つ割り当てる
+//                           （満杯なら一番古いものを上書き）。
+// areaSeen には前フレームの asuint(timeLeft) を残す。0xFFFFFFFF = 死亡 / 未確認。
+// CPU が生成した範囲は vfxType 0（エフェクトは CPU が再生）で、
+// レシピ 0 はスプライトを持たないので、ここでは何も始まらない。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 #include "../Common/SwarmSprite.hlsli"
@@ -77,7 +77,7 @@ void main(uint3 id : SV_DispatchThreadID)
         slot %= g_SpritePoolSize;
 
         uint def = r.spriteStart + k;
-        float scale = SwarmAreaScale(a);   // Magnifier: the whole sprite scaled with its area
+        float scale = SwarmAreaScale(a);   // 拡大鏡: スプライト全体を範囲と一緒に拡大
         SwarmSprite s;
         s.position = a.center + spriteDefs[def].offset * scale;
         s.age = 0.0;

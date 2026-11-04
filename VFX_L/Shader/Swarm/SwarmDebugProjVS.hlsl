@@ -1,15 +1,15 @@
 // ============================================================
 // SwarmDebugProjVS.hlsl
-// Debug wireframe for GPU projectile cores.
+// GPU の弾の芯を表示するデバッグ用のワイヤーフレーム。
 //
-// No readback: the VS reads the projectile buffer directly and
-// expands each alive slot into two rings (XZ + XY) as a line list.
-// Dead slots are collapsed behind the near plane.
+// リードバックなし: VS が弾のバッファを直接読み、生きている
+// スロットを 2 つの輪（XZ + XY）のラインリストに展開する。
+// 死んだスロットはニアプレーンの後ろへ潰す。
 //
-// 64 vertices per instance = 2 rings x 16 segments x 2 endpoints.
+// インスタンス 1 つに 64 頂点 = 輪 2 つ x 16 区間 x 端点 2 つ。
 // ============================================================
 
-// SwarmCommon owns b0 by default; move it out of the way (unused here)
+// SwarmCommon は既定で b0 を使うので退ける（ここでは使わない）
 #define SWARM_FRAME_CB_REG b1
 #include "../Common/SwarmCommon.hlsli"
 
@@ -37,13 +37,13 @@ VSOutput main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
     if (projStates[iid] == SWARM_DEAD)
     {
-        o.position = float4(0, 0, -1, 1); // clipped
+        o.position = float4(0, 0, -1, 1); // クリップされる
         return o;
     }
 
     SwarmProjectile p = projectiles[iid];
 
-    // which ring, which segment, which endpoint
+    // どの輪の、どの区間の、どの端点か
     uint ring = vid / (SEGS * 2); // 0 = XZ, 1 = XY
     uint seg = (vid % (SEGS * 2)) / 2;
     uint endp = vid & 1;
@@ -60,7 +60,7 @@ VSOutput main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float4 viewPos = mul(float4(worldPos, 1.0), g_View);
     o.position = mul(viewPos, g_Projection);
 
-    // green normally, turns red in the last 0.3s of life
+    // 普段は緑、寿命の最後の 0.3s で赤になる
     o.color = (p.lifetime < 0.3) ? float4(1.0, 0.3, 0.3, 1.0)
                                  : float4(0.4, 1.0, 0.4, 1.0);
     return o;

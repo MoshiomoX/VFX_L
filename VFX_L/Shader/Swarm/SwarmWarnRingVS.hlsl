@@ -1,19 +1,19 @@
 // ============================================================
 // SwarmWarnRingVS.hlsl
-// Warning rings the CPU places on the ground (2026-10-03: the boss's
-// ground slam, SwarmSystem::SetWarnCircles). Same look as the bomber /
-// meteor rings: the rim marks the blast radius, a disc grows from the
-// centre with progress and touches the rim when it goes off.
-// The pixel shader is SwarmBomberRingPS (same b0 layout); the colours are
-// SwarmSystem::warnRing.
+// CPU が地面に置く予告の円（2026-10-03: ボスの
+// 重撃、SwarmSystem::SetWarnCircles）。見た目は自爆兵 /
+// メテオの円と同じ: 縁が爆発の半径を示し、円盤が中心から
+// progress に合わせて大きくなり、発動の瞬間に縁に届く。
+// ピクセルシェーダは SwarmBomberRingPS（b0 のレイアウトも同じ）、色は
+// SwarmSystem::warnRing。
 //
-// One instance per circle. Unlike the meteor ring (one flat quad) each
-// ring is a WARN_GRID x WARN_GRID grid whose vertices sit on the height
-// field, so a ring on a ramp or across a step follows the ground. Heights
-// are clamped to the centre's +-WARN_MAX_STEP so a ring hanging over a
-// cliff does not climb the cliff face. No vertex buffer: SV_VertexID.
+// 円 1 つに 1 インスタンス。メテオの円（平らな四角 1 枚）と違い、各円は
+// WARN_GRID x WARN_GRID のグリッドで頂点が高さ場に乗るので、
+// 坂の上や段差を跨ぐ円も地面に沿う。高さは
+// 中心の +-WARN_MAX_STEP にクランプし、崖にかかった円が
+// 崖の面を登らないようにする。頂点バッファなし: SV_VertexID。
 //
-// C++ mirror of the cbuffer: SwarmSystem::BomberRingCB
+// cbuffer の C++ 側: SwarmSystem::BomberRingCB
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -24,23 +24,23 @@ cbuffer SwarmBomberRingCB : register(b0)
 {
     row_major float4x4 g_RingView;
     row_major float4x4 g_RingProj;
-    float4 g_RingFill;  // growing disc (straight alpha)
-    float4 g_RingEdge;  // rim
-    float4 g_RingBack;  // inside the rim, not filled yet
-    float g_RingEdgeWidth; // rim thickness, meters
-    float g_RingLift;      // meters above the ground
+    float4 g_RingFill;  // 大きくなる円盤（ストレートアルファ）
+    float4 g_RingEdge;  // 縁
+    float4 g_RingBack;  // 縁の内側でまだ塗られていない所
+    float g_RingEdgeWidth; // 縁の太さ、メートル
+    float g_RingLift;      // 地面からのメートル
     float2 _ringPad;
 };
 
-// SwarmSystem::WarnCircle (32 bytes)
+// SwarmSystem::WarnCircle（32 バイト）
 struct SwarmWarnCircle
 {
-    float3 center;   // on the ground
+    float3 center;   // 地面の上
     float radius;
-    float progress;  // 0..1; negative = rim only (nothing filled inside)
-    float band;      // > 0: draw a band of this width (meters) at the radius instead (boss shockwave, 2026-10-07)
-    float yaw;       // sector / lane direction (radians, 0 = +Z) (2026-10-25, the fixed elites)
-    float shape;     // > 0: a sector with this half angle (radians) and radius `radius`; < 0: a lane -shape m wide, `radius` long
+    float progress;  // 0..1。負 = 縁だけ（内側は塗らない）
+    float band;      // > 0: 代わりに半径の所へこの幅（メートル）の帯を描く（ボスの衝撃波、2026-10-07）
+    float yaw;       // 扇形 / 帯の向き（ラジアン、0 = +Z）（2026-10-25、固定エリート）
+    float shape;     // > 0: この半角（ラジアン）で半径 `radius` の扇形。< 0: 幅 -shape m、長さ `radius` の帯
 };
 
 StructuredBuffer<SwarmWarnCircle> circles : register(t0);
@@ -52,10 +52,10 @@ static const float WARN_MAX_STEP = 0.6;
 struct RingOut
 {
     float4 pos : SV_POSITION;
-    float2 uv : TEXCOORD0;       // -1..1 across the radius
-    float progress : TEXCOORD1;  // radius of the filled disc in uv units
-    float edgeWidth : TEXCOORD2; // rim thickness in uv units
-    float2 shapeFill : TEXCOORD3; // x = 1: a sector / lane, y = how far along it (0 root .. 1 tip) = what the fill grows over
+    float2 uv : TEXCOORD0;       // 半径方向に -1..1
+    float progress : TEXCOORD1;  // 塗られた円盤の半径（uv 単位）
+    float edgeWidth : TEXCOORD2; // 縁の太さ（uv 単位）
+    float2 shapeFill : TEXCOORD3; // x = 1: 扇形 / 帯、y = その中でどこまで進んだか（0 根元 .. 1 先端）= 塗りが伸びていく量
 };
 
 static const float2 kCorner[6] =
@@ -76,10 +76,10 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     SwarmWarnCircle w = circles[iid];
     float radius = max(w.radius, 0.01);
 
-    // ---- band (boss shockwave): the same 64 quads laid out as 64 segments around the
-    // circle, one quad deep across the band. Every vertex sits on the ground under it
-    // (no clamp to the centre height: a 25 m ring crosses whole hills). The PS sees
-    // r = 1 - edgeWidth .. 1, i.e. the whole band is rim ----
+    // ---- 帯（ボスの衝撃波）: 同じ 64 枚の四角を円周に沿って 64 個の区間に
+    // 並べ、帯を横切る方向は 1 枚分。どの頂点も真下の地面に乗る
+    // （中心の高さへのクランプはしない: 25 m の輪は丘ごと跨ぐ）。PS から見ると
+    // r = 1 - edgeWidth .. 1、つまり帯全体が縁 ----
     if (w.band > 0.0)
     {
         float2 c = kCorner[vid % 6u];
@@ -96,15 +96,15 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
         return o;
     }
 
-    // ---- sector (flame breath) / lane (arrows, charges), 2026-10-25: the 8 x 8 quads laid over the shape, every vertex on
-    // the ground. The rim uses r = how far along or how close to a side, whichever is larger, so it runs round the
-    // outline. The fill grows over how far along only (shapeFill.y): with r it only started where the sides are
-    // near the radius away, i.e. at the very end of the wind-up on a long lane, and 2/3 out on a sector ----
+    // ---- 扇形（炎の息）/ 帯（矢、突進）、2026-10-25: 8 x 8 の四角を形に沿って並べ、どの頂点も
+    // 地面に乗る。縁は r =「どこまで進んだか」と「辺にどれだけ近いか」の大きい方を使うので、
+    // 輪郭に沿って一周する。塗りは「どこまで進んだか」だけで伸びる（shapeFill.y）: r だと辺が
+    // 半径ほど離れた所からしか始まらず、長い帯では溜めの最後の最後、扇形では 2/3 の所からだった ----
     if (w.shape != 0.0)
     {
         float2 c = kCorner[vid % 6u];
-        float u = ((float) qx + c.x) / (float) WARN_GRID;   // across 0..1
-        float f = ((float) qz + c.y) / (float) WARN_GRID;   // along 0..1
+        float u = ((float) qx + c.x) / (float) WARN_GRID;   // 横方向 0..1
+        float f = ((float) qz + c.y) / (float) WARN_GRID;   // 進行方向 0..1
         float ys, yc;
         float2 sxz;
         float sideDist;

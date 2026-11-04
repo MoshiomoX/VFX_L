@@ -15,9 +15,9 @@ struct PSInput
 
 float4 main(PSInput input) : SV_TARGET
 {
-    // SpriteRenderer draws with premultiplied alpha (ONE / INV_SRC_ALPHA),
-    // so premultiply here. Without it a translucent colour is added on top
-    // instead of blended (alpha 0.06 white came out as solid white)
+    // SpriteRenderer は乗算済みアルファ（ONE / INV_SRC_ALPHA）で描くので、
+    // ここでアルファを掛けておく。掛けないと半透明の色がブレンドされずに
+    // 上へ加算される（alpha 0.06 の白が真っ白になった）
     float4 c = spriteTexture.Sample(spriteSampler, input.uv) * input.color;
     return float4(c.rgb * c.a, c.a);
 }

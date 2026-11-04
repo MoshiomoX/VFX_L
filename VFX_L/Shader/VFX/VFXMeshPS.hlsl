@@ -1,12 +1,12 @@
 // ============================================================
 // VFXMeshPS.hlsl
-// Unlit VFX material: main * tint * intensity (linear HDR out).
-//   noise : scrolls, distorts main UV, drives dissolve
-//   mask  : multiplies alpha
-//   shade : (2026-10-06) fake sphere look - two-band shading from a
-//           fixed light direction, a rim light toward the camera and a
-//           small highlight. Reads no scene light (pure look).
-// Sits on the same VS_OUTPUT as lit models but reads no light.
+// ライティング無しのエフェクト用マテリアル: main * tint * intensity（リニア HDR で出力）。
+//   noise : スクロールし、main の UV を歪ませ、ディゾルブを駆動する
+//   mask  : アルファに掛ける
+//   shade : （2026-10-06）球っぽく見せる - 固定のライト方向による 2 段の陰影、
+//           カメラ側へのリムライト、小さなハイライト。シーンのライトは
+//           読まない（見た目だけ）。
+// ライティングするモデルと同じ VS_OUTPUT を使うが、ライトは読まない。
 // ============================================================
 #include "../Common/ModelCommon.hlsli"
 
@@ -24,36 +24,36 @@ cbuffer VFXMeshCB : register(b1)
     float2 g_NoiseScroll;
     float g_Distortion;
     float g_Intensity;
-    float g_DissolveThreshold; // < 0 : off
+    float g_DissolveThreshold; // < 0 : 無効
     float g_DissolveEdge;
     float4 g_DissolveEdgeColor;
     uint g_HasNoise;
     uint g_HasMask;
-    float g_Shade;             // 0 = flat, 1 = full sphere shading
-    float g_NoVertexColor;     // 1 = ignore the vertex color (untextured FBX bake their material color into it)
+    float g_Shade;             // 0 = 平坦、1 = 球の陰影を全部かける
+    float g_NoVertexColor;     // 1 = 頂点色を無視（テクスチャの無い FBX はマテリアル色を頂点色に焼き込むため）
     float3 g_CamPos;
-    float g_Toon;              // (2026-10-09) 1 = toon force field: hard bands by facing (see below)
+    float g_Toon;              // （2026-10-09）1 = トゥーンのバリア: 向きによるくっきりした段（下を参照）
 };
 
 float4 main(PS_INPUT i) : SV_TARGET
 {
     float2 uv = i.UV;
 
-    // ---- noise (single channel) ----
+    // ---- ノイズ（1 チャンネル） ----
     float n = 0.5;
     if (g_HasNoise != 0u)
         n = noiseTex.Sample(linearWrap, uv * g_NoiseTiling + g_NoiseScroll).r;
 
-    // ---- main, distorted by noise ----
+    // ---- main、ノイズで歪ませる ----
     float2 mainUV = uv * g_MainTiling + g_MainScroll + (n - 0.5) * g_Distortion;
     float4 vc = (g_NoVertexColor > 0.5) ? float4(1.0, 1.0, 1.0, 1.0) : i.Color;
     float4 c = mainTex.Sample(linearWrap, mainUV) * g_Tint * vc;
 
-    // ---- mask ----
+    // ---- マスク ----
     if (g_HasMask != 0u)
         c.a *= maskTex.Sample(linearWrap, uv).r;
 
-    // ---- dissolve ----
+    // ---- ディゾルブ ----
     if (g_DissolveThreshold >= 0.0 && g_HasNoise != 0u)
     {
         float d = n - g_DissolveThreshold;
@@ -62,14 +62,14 @@ float4 main(PS_INPUT i) : SV_TARGET
         c.rgb = lerp(c.rgb, g_DissolveEdgeColor.rgb, edge * g_DissolveEdgeColor.a);
     }
 
-    // ---- sphere look: fixed key light (upper left, toward the camera side), rim, highlight ----
+    // ---- 球っぽい見た目: 固定のキーライト（左上、カメラ寄り）、リム、ハイライト ----
     if (g_Shade > 0.0)
     {
         float3 N = normalize(i.Normal);
         float3 V = normalize(g_CamPos - i.WorldPos);
-        float3 L = normalize(float3(-0.45, 0.75, -0.35) + V * 0.6);   // leans toward the viewer: the lit side faces the camera
+        float3 L = normalize(float3(-0.45, 0.75, -0.35) + V * 0.6);   // 視点側へ傾ける: 明るい面がカメラを向く
         float ndl = saturate(dot(N, L));
-        float band = smoothstep(0.12, 0.3, ndl);                       // two bands like the toon models
+        float band = smoothstep(0.12, 0.3, ndl);                       // トゥーンのモデルと同じ 2 段
         float shadeMul = lerp(0.42, 1.0, band);
         float rim = pow(1.0 - saturate(dot(N, V)), 3.0);
         float3 H = normalize(L + V);
@@ -78,16 +78,16 @@ float4 main(PS_INPUT i) : SV_TARGET
         c.rgb = lerp(c.rgb, shaded, g_Shade);
     }
 
-    // ---- toon force field (the player's shield bubble, 2026-10-09): the soft additive
-    // glow looked out of place among the toon models. Three hard bands by how much the
-    // surface faces the camera (two-sided: |N.V|): the front is nearly clear, a mid band,
-    // and a bright opaque rim at the silhouette. Meant for the alpha blend (blend 1)
+    // ---- トゥーンのバリア（プレイヤーのシールド、2026-10-09）: ふんわりした加算の
+    // 光はトゥーンのモデルの中で浮いていた。面がどれだけカメラを向いているか
+    // （両面: |N.V|）で 3 つのくっきりした段に分ける: 正面はほぼ透明、中間の帯、
+    // シルエットに明るく不透明な縁。アルファブレンド（blend 1）用
     if (g_Toon > 0.0)
     {
         float3 N = normalize(i.Normal);
         float3 V = normalize(g_CamPos - i.WorldPos);
-        float f = 1.0 - abs(dot(N, V));            // 0 = faces the camera, 1 = silhouette
-        float w = fwidth(f) + 0.005;               // crisp but not aliased
+        float f = 1.0 - abs(dot(N, V));            // 0 = カメラを向く、1 = シルエット
+        float w = fwidth(f) + 0.005;               // くっきり、でもジャギーは出さない
         float b1 = smoothstep(0.40 - w, 0.40 + w, f);
         float b2 = smoothstep(0.70 - w, 0.70 + w, f);
         float aMul = lerp(lerp(0.3, 1.0, b1), 3.0, b2);

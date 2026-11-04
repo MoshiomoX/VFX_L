@@ -533,6 +533,12 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_CounterUAV.Get(), zero);
+        {
+            // 全部 0 だと「最寄りの敵 = 槽 0 の (0,0,0)、距離 0」に読める：最初の固定ステップ（ClearCountersCS が鍵を空に戻す）
+            // より前にリードバックへ写された分を杖が読むと、原点 = 出生点の足元へ撃った（2026-11-02）。既定値（鍵 = 空、距離 = 1e30）を入れる
+            const SwarmCounters init;
+            m_Context->UpdateSubresource(m_CounterBuffer.Get(), 0, nullptr, &init, 0, 0);
+        }
         m_Context->ClearUnorderedAccessViewUint(m_EmitBudgetUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EnemyMaxHpUAV.Get(), zero);   // 0 = VS 側で 1 扱い
         m_Context->ClearUnorderedAccessViewUint(m_EnemyExtraUAV.Get(), zero);   // 雑魚・未点火
@@ -1539,7 +1545,7 @@ void SwarmSystem::DispatchStep()
         m_AreaDamageCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
         m_AreaDamageCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格・経験値、燃えている草
         m_AreaDamageCS->Bind(m_Context);
-        m_AreaDamageCS->SetSRV(m_Context, "g_FireMap", m_FireMapSRV);
+        m_AreaDamageCS->SetSRV(m_Context, "g_FireMap", m_FireMapSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
@@ -2430,6 +2436,8 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
         m_EnemyCompactCS->UnbindUAVs(m_Context);
         // 突撃兵・盾兵の一覧（CompactCS の UAV が足りない分。2026-10-08）
         DispatchKindLists();
+        // 普通の雑魚を近い / 遠いに分ける（LOD、2026-11-02）
+        m_LodActive = DispatchLodSplit(camera->GetPosition());
 
         // Boss の様子を staging へ（読むのは 2 フレーム後の Flush）
         m_Context->CopyResource(m_BossStaging[m_BossStagingWrite].Get(), m_BossInfoBuffer.Get());
@@ -2440,6 +2448,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
         for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
             for (auto& args : m_EnemyDrawArgs[k])
                 if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_KindListUAV[k].Get());
+        if (m_LodActive) CopyLodCounts();   // 雑魚の部品毎の引数を近い方の長さで上書き + 遠い方
         // HP バーも同じ数だけ（DrawInstancedIndirect の InstanceCount も 2 番目 = 4 バイト目）
         if (m_HpBarArgs)
             m_Context->CopyStructureCount(m_HpBarArgs.Get(), sizeof(uint32_t) * 1, m_AliveListUAV.Get());
@@ -2500,8 +2509,8 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     m_EnemyVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());   // 凍った敵は姿勢を止めて氷色に
     if (m_IceMapSRV && m_PondTopSRV)
     {
-        m_EnemyVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV);      // 氷の上の体を持ち上げる（2026-11-01）
-        m_EnemyVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV);
+        m_EnemyVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV.Get());      // 氷の上の体を持ち上げる（2026-11-01）
+        m_EnemyVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV.Get());
     }
     m_EnemyVS->SetSRV(m_Context, "enemyPoison", m_EnemyPoisonSRV.Get()); // 毒素が残っている敵は緑に
     // 部品アニメの表（無ければ未 bind のまま。VS は enabled = 0 で読まない）
@@ -2517,7 +2526,8 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     m_Context->OMSetDepthStencilState(RenderStates::Get().DepthStencilWrite(), 2);
     for (uint32_t k = 0; indirect && k < Swarm::kEnemyKinds; ++k)
     {
-        m_EnemyVS->SetSRV(m_Context, "aliveList", m_KindListSRV[k].Get());
+        const bool lodMob = m_LodActive && k == Swarm::kDrawListMob;
+        m_EnemyVS->SetSRV(m_Context, "aliveList", lodMob ? m_LodNearSRV.Get() : m_KindListSRV[k].Get());
         if (Texture* albedo = ListAlbedo(k))
             m_EnemyPS->SetTexture(m_Context, 0, albedo);
         else if (k != Swarm::kDrawListMob && k != Swarm::kDrawListGhost)
@@ -2543,6 +2553,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
             m_EnemyVS->WriteBuffer(m_Context, 4, &m_EnemyAnim);
             subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, m_EnemyDrawArgs[k][i].Get(), 0);
         }
+        if (lodMob) RenderLodFar();   // 遠い雑魚は合わせた網で 1 回
         RenderListDecorations(k);   // 体と同じ VS で、部品に付いた飾り・体の周りを回る岩・翼（Boss 2026-10-24、遺跡の敵 10-25）
         if (k == Swarm::kDrawListGhost)
         {
@@ -2702,8 +2713,8 @@ void SwarmSystem::RenderBlobShadows(CameraBase* camera)
     m_BlobShadowVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);   // 氷の上で持ち上げる（g_IceOn）
     if (m_IceMapSRV && m_PondTopSRV)
     {
-        m_BlobShadowVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV);
-        m_BlobShadowVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV);
+        m_BlobShadowVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV.Get());
+        m_BlobShadowVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV.Get());
     }
 
     m_BlobShadowVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
@@ -2861,8 +2872,8 @@ void SwarmSystem::RenderHpBars(CameraBase* camera)
     m_HpBarVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 足元の高さ（半径・カプセル）
     if (m_IceMapSRV && m_PondTopSRV)
     {
-        m_HpBarVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV);
-        m_HpBarVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV);
+        m_HpBarVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV.Get());
+        m_HpBarVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV.Get());
     }
     m_HpBarVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);  // エリートの体格
     m_HpBarPS->WriteBuffer(m_Context, 0, &cb);
@@ -3125,6 +3136,8 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
         }
         // 突撃兵の帯・盾兵の盾・凍結の氷（2026-10-08。失敗しても出ないだけ）
         LoadKindAssets(device);
+        // 遠くの雑魚の LOD（2026-11-02。失敗したら従来どおり全部を部品毎に描く）
+        CreateLod(device);
     }
 
     return ok;

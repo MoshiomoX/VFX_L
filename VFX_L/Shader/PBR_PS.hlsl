@@ -1,6 +1,6 @@
 // ============================================================
-// PBR_PS.hlsl - Cook-Torrance. Linear HDR out, no tonemap here
-// + dissolve (Dissolve.hlsli, off unless DissolveCB says otherwise)
+// PBR_PS.hlsl - Cook-Torrance。リニア HDR で出力、トーンマップはここでしない
+// + ディゾルブ（Dissolve.hlsli、DissolveCB で指定しない限りオフ）
 // ============================================================
 #include "Common/ModelCommon.hlsli"
 #include "Common/Lighting.hlsli"
@@ -8,7 +8,7 @@
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
-    float3 glow = ApplyDissolve(input.UV); // clips dissolved pixels
+    float3 glow = ApplyDissolve(input.UV); // 溶けたピクセルは clip する
 
     float3 albedo = DecodeAlbedo(albedoTexture.Sample(samplerState, input.UV).rgb);
     float3 nm = normalTexture.Sample(samplerState, input.UV).rgb;

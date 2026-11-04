@@ -1,22 +1,22 @@
 // ============================================================
 // SwarmEnemyKindList2CS.hlsl
-// The draw lists of the ruins enemies (2026-10-25): SwarmEnemyCompactCS
-// and SwarmEnemyKindListCS already bind 8 UAVs each. Same rule: one
-// thread per enemy slot, live slots of a kind are appended to its list,
-// the list length becomes the InstanceCount of each submesh's indirect
-// draw. CompactCS leaves these kinds out of mobList. Runs right after
-// SwarmEnemyKindListCS.
-//   armorList    : SWARM_KIND_ARMOR and ARMOR2 (the revived one glows)
-//   gargoyleList : SWARM_KIND_GARGOYLE (wings)
-//   necroList    : SWARM_KIND_NECRO (hood, staff)
+// 遺跡の敵の描画リスト（2026-10-25）：SwarmEnemyCompactCS と
+// SwarmEnemyKindListCS はどちらも既に 8 本の UAV を使っている。規則は同じ：
+// 敵スロット 1 つに 1 スレッド、生きているスロットをその種類のリストに追加し、
+// リストの長さが各サブメッシュの間接描画の InstanceCount に
+// なる。CompactCS はこれらの種類を mobList から外す。
+// SwarmEnemyKindListCS の直後に走る。
+//   armorList    : SWARM_KIND_ARMOR と ARMOR2（蘇った方は光る）
+//   gargoyleList : SWARM_KIND_GARGOYLE（翼）
+//   necroList    : SWARM_KIND_NECRO（フード、杖）
 //   skeletonList : SWARM_KIND_SKELETON
-//   wardenList   : SWARM_KIND_WARDEN (chains, hook)
-//   eliteAList   : SWARM_KIND_ELITE_A, the stage's melee fixed elite (2026-10-25)
-//   eliteBList   : SWARM_KIND_ELITE_B, the ranged one
-// The fixed elites also report themselves to eliteInfo (Swarm::EliteInfoBlock: +0 count, then
-// 32 bytes each = slot, kind, hp (fixed), max hp (fixed), position, fuse; cleared by the CPU
-// before this dispatch, read back through staging by EliteAttacks)
-// The append counters are reset by binding the UAVs with initial count 0.
+//   wardenList   : SWARM_KIND_WARDEN（鎖、鉤）
+//   eliteAList   : SWARM_KIND_ELITE_A、ステージの近接の固定エリート（2026-10-25）
+//   eliteBList   : SWARM_KIND_ELITE_B、遠隔の方
+// 固定エリートは eliteInfo にも自分を報告する（Swarm::EliteInfoBlock：+0 に数、続いて
+// 1 体 32 バイト = スロット、種類、hp（固定小数点）、最大 hp（固定小数点）、位置、fuse。このディスパッチの前に
+// CPU が消し、EliteAttacks がステージング経由でリードバックする）
+// Append のカウンタは、初期カウント 0 で UAV をバインドしてリセットする。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 

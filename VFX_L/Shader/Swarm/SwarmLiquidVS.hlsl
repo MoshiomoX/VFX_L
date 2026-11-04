@@ -1,18 +1,18 @@
 // ============================================================
 // SwarmLiquidVS.hlsl
-// Liquid entry, GPU path (2026-10-02): a puddle under every live area whose
-// recipe holds a Liquid entry (the Poison pool). DrawInstanced over all
-// area slots; dead slots and areas without a liquid collapse to nothing.
-// Pixels: VFXLiquidPS, the same as the CPU path.
+// Liquid エントリの GPU 経路（2026-10-02）：レシピに Liquid エントリがある（毒沼）
+// 生きた範囲の下に水たまりを描く。範囲の全スロットに DrawInstanced し、
+// 死んだスロットや液体の無い範囲は潰して何も描かない。
+// ピクセルは VFXLiquidPS（CPU 経路と同じ）。
 //
-//   recipe -> LiquidDef : recipeLiquid[a.vfxType] = def index + 1 (0 = none)
-//   age / direction     : liquidTrack[slot] (SwarmLiquidTrackCS)
-//   radius              : the def's radius x the area's size scale, or the
-//                         area radius itself when the def says 0
-//   seed                : the slot + where it landed, so two pools that
-//                         reuse a slot do not look the same
+//   recipe -> LiquidDef : recipeLiquid[a.vfxType] = def の番号 + 1（0 = なし）
+//   age / direction     : liquidTrack[slot]（SwarmLiquidTrackCS）
+//   radius              : def の radius × 範囲のサイズ倍率。def が 0 なら
+//                         範囲の半径そのもの
+//   seed                : スロット + 落ちた位置。同じスロットを使い回した
+//                         2 つの沼が同じ見た目にならないように
 //
-// b0 = LiquidCameraCB, b1 = SwarmFrameCB (grid constants)
+// b0 = LiquidCameraCB、b1 = SwarmFrameCB（グリッドの定数）
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -23,13 +23,13 @@
 cbuffer LiquidCameraCB : register(b0)
 {
     row_major float4x4 g_LViewProj;
-    uint g_LHasTerrain;   // always 1 here
+    uint g_LHasTerrain;   // ここでは常に 1
     float3 _liquidCamPad;
 };
 
 StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
-StructuredBuffer<float4> liquidTrack : register(t2);   // (dir x, dir z, timeLeft first seen, timeLeft last frame)
+StructuredBuffer<float4> liquidTrack : register(t2);   // （向き x、向き z、最初に見た時の timeLeft、前フレームの timeLeft）
 StructuredBuffer<float> heights : register(t3);
 StructuredBuffer<uint> recipeLiquid : register(t4);
 StructuredBuffer<LiquidDef> liquidDefs : register(t5);
@@ -37,7 +37,7 @@ StructuredBuffer<LiquidDef> liquidDefs : register(t5);
 LiquidVSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 {
     LiquidVSOut o = (LiquidVSOut) 0;
-    o.pos = float4(0.0, 0.0, -1.0, 1.0);   // clipped unless it is a live liquid
+    o.pos = float4(0.0, 0.0, -1.0, 1.0);   // 生きた液体でなければクリップされる
 
     if (areaStates[iid] == SWARM_DEAD)
         return o;
@@ -47,7 +47,7 @@ LiquidVSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
         return o;
     float4 tr = liquidTrack[iid];
     if (tr.w <= 0.0)
-        return o;   // not seen by the tracker yet
+        return o;   // まだトラッカーに見つかっていない
 
     LiquidDef L = liquidDefs[li - 1u];
     uint seed = LiquidHash(iid * 2654435761u ^ asuint(a.center.x) ^ (asuint(a.center.z) * 0x9E3779B9u));

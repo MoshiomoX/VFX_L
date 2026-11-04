@@ -1,6 +1,6 @@
 // ============================================================
-// PBR_VS.hlsl - same as VS.hlsl; kept as a separate name so
-// Material can still pair it with PBR_PS
+// PBR_VS.hlsl - 中身は VS.hlsl と同じ。Material が PBR_PS と
+// 組にできるよう、別名のまま残している
 // ============================================================
 #include "Common/ModelCommon.hlsli"
 

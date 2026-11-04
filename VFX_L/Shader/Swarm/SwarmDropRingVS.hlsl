@@ -1,21 +1,21 @@
 // ============================================================
 // SwarmDropRingVS.hlsl
-// Warning ring on the ground where every falling meteor (DROP motion)
-// will land. Same look as the bomber ring: the rim marks the radius of
-// the area the meteor leaves (its motion's hitArea), a disc grows from
-// the centre as it falls (pathT) and touches the rim on impact.
-// The pixel shader is SwarmBomberRingPS (same b0 layout); only the
-// colours differ (SwarmSystem::dropRing).
+// 落下中のメテオ（DROP の弾道）がすべて落ちる地面に出す予告の輪。
+// 見た目は自爆兵の輪と同じ：縁はメテオが残す範囲（その弾道の
+// hitArea）の半径を示し、落ちるにつれて（pathT）中心から円が広がり、
+// 着弾の瞬間に縁に届く。
+// ピクセルシェーダーは SwarmBomberRingPS（b0 の並びが同じ）。違うのは
+// 色だけ（SwarmSystem::dropRing）。
 //
-// One instance per projectile slot (DrawInstanced, no list): slots that
-// are dead or not DROP collapse behind the near plane. 6 vertices of a
-// ground quad from SV_VertexID, no vertex buffer.
+// 弾のスロット 1 つにつきインスタンス 1 つ（DrawInstanced、一覧なし）：死んだ
+// スロットや DROP でないスロットはニアプレーンの手前に潰す。地面の四角形の
+// 6 頂点を SV_VertexID から作る。頂点バッファなし。
 //
-// The impact point p3 is the enemy's position at spawn time, which sits
-// g_GroundY above the terrain (see SwarmEnemyMoveCS), so the quad goes
-// at p3.y - g_GroundY + g_RingLift.
+// 着弾点 p3 は生成時の敵の位置で、地形の g_GroundY 上にある
+// （SwarmEnemyMoveCS 参照）。なので四角形は
+// p3.y - g_GroundY + g_RingLift に置く。
 //
-// C++ mirror of the cbuffer: SwarmSystem::BomberRingCB
+// cbuffer の C++ 側の対応：SwarmSystem::BomberRingCB
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -26,11 +26,11 @@ cbuffer SwarmBomberRingCB : register(b0)
 {
     row_major float4x4 g_RingView;
     row_major float4x4 g_RingProj;
-    float4 g_RingFill;  // growing disc (straight alpha)
-    float4 g_RingEdge;  // rim
-    float4 g_RingBack;  // inside the rim, not filled yet
-    float g_RingEdgeWidth; // rim thickness, meters
-    float g_RingLift;      // meters above the ground
+    float4 g_RingFill;  // 広がる円（ストレートアルファ）
+    float4 g_RingEdge;  // 縁
+    float4 g_RingBack;  // 縁の内側の、まだ塗られていない所
+    float g_RingEdgeWidth; // 縁の太さ、m
+    float g_RingLift;      // 地面からの高さ、m
     float2 _ringPad;
 };
 
@@ -43,10 +43,10 @@ StructuredBuffer<SwarmAreaDef> areaDefs : register(t4);
 struct RingOut
 {
     float4 pos : SV_POSITION;
-    float2 uv : TEXCOORD0;       // -1..1 across the area radius
-    float progress : TEXCOORD1;  // fall 0..1 = radius of the filled disc in uv units
-    float edgeWidth : TEXCOORD2; // rim thickness in uv units
-    float2 shapeFill : TEXCOORD3; // always 0 here: a round ring (SwarmBomberRingPS. Only the warn sectors / lanes set it)
+    float2 uv : TEXCOORD0;       // 範囲の半径にわたって -1..1
+    float progress : TEXCOORD1;  // 落下 0..1 = 塗られた円の半径（uv 単位）
+    float edgeWidth : TEXCOORD2; // 縁の太さ（uv 単位）
+    float2 shapeFill : TEXCOORD3; // ここでは常に 0：丸い輪（SwarmBomberRingPS。設定するのは予告の扇 / 帯だけ）
 };
 
 static const float2 kCorner[6] =
@@ -58,7 +58,7 @@ static const float2 kCorner[6] =
 RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 {
     RingOut o = (RingOut) 0;
-    o.pos = float4(0, 0, -1, 1); // clipped unless this slot is a falling meteor
+    o.pos = float4(0, 0, -1, 1); // このスロットが落下中のメテオでなければクリップされる
 
     if (projStates[iid] == SWARM_DEAD)
         return o;
@@ -66,12 +66,12 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     SwarmMotion m = motions[p.motion & SWARM_MOTION_INDEX_MASK];
     if (m.mode != SWARM_MOTION_DROP)
         return o;
-    // a drop from almost no height (the Ice Spike, 2026-10-10: it lands the next step) gets no warning,
-    // or the ring would only flash for a frame. c1.x = drop height
+    // ほとんど高さの無い落下（アイススパイク、2026-10-10：次のステップで着弾する）には予告を出さない。
+    // 出すと輪が 1 フレーム光るだけになる。c1.x = 落下の高さ
     if (m.c1.x < 1.0)
         return o;
 
-    // the blast is scaled with the meteor (SwarmSpawnAreaFromDef), so is the ring
+    // 爆発はメテオと一緒に拡大される（SwarmSpawnAreaFromDef）ので、輪も同じく拡大する
     float radius = (m.hitArea != 0u) ? areaDefs[m.hitArea].radius * SwarmProjScale(p) : 1.0;
     radius = max(radius, 0.01);
     float3 c3 = paths[iid].p3;

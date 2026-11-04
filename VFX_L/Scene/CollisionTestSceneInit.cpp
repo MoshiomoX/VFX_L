@@ -72,6 +72,14 @@ void CollisionTestScene::InitRenderers(ID3D11Device* device, ID3D11DeviceContext
         if (GetEnvironmentVariableA("VFXL_OUTLINE_DEBUG", env, sizeof(env)) > 0 && env[0] != '0')
             m_Outline.GetParams().debugView = true;   // 目からの距離を縞で
     }
+    m_AmbientOcclusion.Initialize(device);   // SSAO（2026-11-02。トゥーンの明暗の境を押す）
+    {
+        char env[8] = {};   // TEMP-TEST: VFXL_NO_SSAO=1 で切る、VFXL_SSAO_DEBUG=1 で灰色の表示（見比べ用）
+        if (GetEnvironmentVariableA("VFXL_NO_SSAO", env, sizeof(env)) > 0 && env[0] != '0')
+            m_AmbientOcclusion.GetParams().enabled = false;
+        if (GetEnvironmentVariableA("VFXL_SSAO_DEBUG", env, sizeof(env)) > 0 && env[0] != '0')
+            m_AmbientOcclusion.GetParams().debugView = true;
+    }
     if (!m_Shadows.Initialize(device))
         std::cout << "[Error] ShadowMap init failed" << std::endl;
 }
@@ -200,11 +208,21 @@ void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device
     m_Grass.GetSettings().heightMin = stageDef.grassHeightMin;
     m_Grass.GetSettings().heightMax = stageDef.grassHeightMax;
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);
+    ApplyGrassCover();   // 草の下の地面を暗く（2026-11-02）
     // 草の延焼（草の無い面では止めておく）
     if (!m_GrassFire.Initialize(device, context))
         std::cout << "[Error] GrassFireField init failed" << std::endl;
     m_GrassFire.SetActive(stageDef.grass && m_Grass.GetSettings().enabled);
     m_GrassFire.Build(m_Grid, m_TerrainConfig.seed);
+    // 砂漠の砂の面（2026-11-02。砂漠以外は止めておく）
+    if (!m_Sand.Initialize(device, context))
+        std::cout << "[Error] SandField init failed" << std::endl;
+    if (!m_Footprints.Initialize(device, context))
+        std::cout << "[Error] SandFootprints init failed" << std::endl;
+    BuildSandField();
+    if (!m_Miasma.Initialize(device, context))   // 遺跡の瘴気（2026-11-03。遺跡以外は止めておく）
+        std::cout << "[Error] MiasmaField init failed" << std::endl;
+    BuildMiasma();
     // 地面の落ち葉（風が触れる物。草の高さテクスチャに乗る）
     if (!m_Debris.Initialize(device, context))
         std::cout << "[Error] GroundDebris init failed" << std::endl;
@@ -239,6 +257,7 @@ void CollisionTestScene::InitSwarm(const StageDef& stageDef, ID3D11Device* devic
     AreaProfileDB::LoadAll();
     m_Swarm.SetAreaDefs(AreaProfileDB::BuildDefs(m_Swarm.GetVFXTable()));
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());   // 範囲の heat → レシピ毎の表（範囲の profile と VFX 表の後）
+    m_Sand.BuildTable(m_Swarm.GetVFXTable());            // 範囲の heat / wet → 砂の面の表（2026-11-02）
     ProjectileProfileDB::LoadAll();
     m_Swarm.SetMotions(ProjectileProfileDB::BuildMotions());
     m_WeaponSystem.SetAreaVFX(&m_AreaVFX, &m_VFXContext);

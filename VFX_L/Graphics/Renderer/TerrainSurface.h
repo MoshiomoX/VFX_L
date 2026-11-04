@@ -34,8 +34,19 @@ public:
         float pathNy = 0.5f;          // これより上 = 坂（道）、下 = 崖 / 岩
         float caveY = -1.0f;          // 世界の y がこれより下 = 洞窟の中
         bool  flipNormalY = false;    // 法線の緑を逆に（DirectX 式の法線マップの時）
+        // 草の下の地面に掛ける暗さ（2026-11-02、ユーザー：葉の間から透ける地面が明るくて見栄えが悪い）。1 = 掛けない
+        float grassDarken = 0.55f;
     };
     Params params;
+
+    // 草の覆いの図（GrassRenderer::GetGroundSRV：a = 生やす所。フィールド全体、origin / size は GridWorld の物）。
+    // 地面の PS が草の下だけ暗くするのに読む。null = 掛けない。草を建て直す度に呼ぶ（SRV が変わる）
+    void SetGrassCover(ID3D11ShaderResourceView* cover, const DirectX::SimpleMath::Vector2& origin,
+        const DirectX::SimpleMath::Vector2& size);
+    // 砂漠の砂の面（2026-11-02、World/SandField）：状態（温度・乾き）と凹み。毎フレーム地形の前に。null = 掛けない
+    void SetSandField(ID3D11ShaderResourceView* state, ID3D11ShaderResourceView* track,
+        const DirectX::SimpleMath::Vector2& origin, const DirectX::SimpleMath::Vector2& size,
+        float wetDark, float heatTint, float trackStrength);
 
     static TerrainSurface& Get();
 
@@ -73,5 +84,10 @@ private:
     BiomeSet m_Biomes[kBiomes];
     float m_RefLum[LayerCount] = { 0.2f, 0.3f, 0.2f, 0.12f, 0.25f };
     int m_Biome = 0;
+    std::shared_ptr<Texture> m_GrassCover;             // 草の覆いの図を包んだ物（材質の Metallic の枠 = t2 に入れる）。無ければ掛けない
+    DirectX::SimpleMath::Vector2 m_GrassOrigin, m_GrassSize = { 1.0f, 1.0f };
+    std::shared_ptr<Texture> m_SandState, m_SandTrack;  // 砂の面（材質の Roughness / AO の枠 = t3 / t4）
+    DirectX::SimpleMath::Vector2 m_SandOrigin, m_SandSize = { 1.0f, 1.0f };
+    DirectX::SimpleMath::Vector3 m_SandLook;           // 濡れの明るさ・熱の赤み・凹みの法線
     float m_Gain[LayerCount] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };   // パネルの表示用（WriteCB が出した明るさ合わせの倍率）
 };

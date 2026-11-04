@@ -1,10 +1,10 @@
 // ============================================================
 // SwarmChargeLinePS.hlsl
-// The charger's warning band (SwarmChargeLineVS, 2026-10-08).
-// uv.x runs 0 (the charger) .. 1 (the tip), uv.y -1 .. 1 across.
-// Rim along both sides, the fill grows toward the tip with the wind-up,
-// chevrons ">" every CHEVRON_STEP m point the way the dash goes.
-// Output is premultiplied: CommonStates::AlphaBlend is ONE / INV_SRC_ALPHA.
+// 突撃兵の予告の帯（SwarmChargeLineVS、2026-10-08）。
+// uv.x は 0（突撃兵）.. 1（先端）、uv.y は横方向に -1 .. 1。
+// 両脇に縁、塗りは溜めに合わせて先端へ伸び、
+// CHEVRON_STEP m ごとの山形 ">" が突進の向きを示す。
+// 出力は乗算済み: CommonStates::AlphaBlend は ONE / INV_SRC_ALPHA。
 // ============================================================
 cbuffer SwarmBomberRingCB : register(b0)
 {
@@ -27,7 +27,7 @@ struct LineIn
 };
 
 static const float CHEVRON_STEP = 1.6;  // m
-static const float CHEVRON_SLANT = 0.5; // how far the arms trail behind the point, in band half widths
+static const float CHEVRON_SLANT = 0.5; // 腕が先端からどれだけ後ろに下がるか（帯の半幅単位）
 static const float CHEVRON_WIDTH = 0.28;
 
 float4 main(LineIn i) : SV_TARGET
@@ -35,12 +35,12 @@ float4 main(LineIn i) : SV_TARGET
     float aaX = max(fwidth(i.uv.x), 1e-4);
     float aaY = max(fwidth(i.uv.y), 1e-4);
 
-    // fade in at the charger, sharp at the tip
+    // 突撃兵の側でフェードイン、先端はくっきり
     float ends = smoothstep(0.0, 0.04, i.uv.x) * (1.0 - smoothstep(1.0 - aaX, 1.0, i.uv.x));
     float fill = 1.0 - smoothstep(i.progress - aaX, i.progress, i.uv.x);
     float rim = smoothstep(1.0 - i.size.y - aaY, 1.0 - i.size.y, abs(i.uv.y));
 
-    // ">" chevrons: the arms (|uv.y| = 1) trail CHEVRON_SLANT behind the centre line
+    // 山形 ">": 腕（|uv.y| = 1）は中心線より CHEVRON_SLANT だけ後ろに下がる
     float m = (i.uv.x * i.size.x + abs(i.uv.y) * CHEVRON_SLANT) / CHEVRON_STEP;
     float fm = frac(m);
     float aaM = max(fwidth(m), 1e-4);

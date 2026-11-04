@@ -98,6 +98,9 @@ void CollisionTestScene::DrawDebugUI()
     DrawTerrainPanel();
     m_Grass.DrawImGui();
     m_GrassFire.DrawImGui(PlayerPos());   // 草の延焼（点火ボタン・温度の絵）
+    m_Sand.DrawImGui(PlayerPos());        // 砂漠の砂の面（2026-11-02）
+    m_Footprints.DrawImGui();             // 砂漠のプレイヤーの足跡（2026-11-03）
+    m_Miasma.DrawImGui();                 // 遺跡の瘴気（2026-11-03）
     m_Debris.DrawImGui();                 // 地面の落ち葉
     m_Water.DrawImGui();                  // 水たまりの水面（2026-10-27）
     m_Dandelions.DrawImGui();             // タンポポ（2026-10-22）
@@ -128,6 +131,8 @@ void CollisionTestScene::DrawDebugUI()
     m_Weather.DrawImGui();               // 時刻・天候の出来事（Drive Lighting が入っていると Lighting の手調整は毎フレーム戻る）
     if (ImGui::CollapsingHeader("Toon Outline"))   // トゥーンのアウトライン（2026-10-04）
         m_Outline.DrawImGui();
+    if (ImGui::CollapsingHeader("Ambient Occlusion (SSAO)"))   // 2026-11-02
+        m_AmbientOcclusion.DrawImGui();
     m_Shadows.DrawImGui();
     FrameProfiler::Get().DrawImGui();
     DrawBloomPanel();

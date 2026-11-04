@@ -19,6 +19,10 @@ void CollisionTestScene::Render(Renderer& renderer)
     m_Lighting.Apply(renderer);
     auto& gfx = Application::Get().GetGraphics();
     ID3D11DeviceContext* ctx = gfx.GetContext();
+    // SSAO（2026-11-02）：前のフレームで作った遮蔽を t12 と LightBuffer に張る（陰影が明暗の境を押すのに使う）
+    m_AmbientOcclusion.BindForShading(ctx, renderer);
+    // 砂漠の砂の面（2026-11-02）：Flush の後・地形を描く前に 1 歩進めて地形の材質へ
+    StepSand();
 
     // ---- 0) 太陽のシャドウマップ（段ごとに影を落とす物を深度だけで描く）→ シーンの HDR RT に戻す ----
     // 雑魚（GPU）はシャドウマップに入れない（足元の丸い影で代える）
@@ -58,6 +62,9 @@ void CollisionTestScene::Render(Renderer& renderer)
         // トゥーンのアウトライン（2026-10-04）：不透明な物を描き終えた深度から。草（葉の一枚一枚に線が付く）と
         // 半透明・粒子・UI は後から描くので線が乗らない
         { PROFILE_SCOPE_GPU("Outline"); m_Outline.Render(ctx, Application::Get().GetGraphics(), GetCamera()); }
+        // SSAO（2026-11-02）：同じ深度（草の前 = 草は遮蔽を作らず受けるだけ）から次のフレームの分を作る
+        { PROFILE_SCOPE_GPU("SSAO"); m_AmbientOcclusion.Render(ctx, gfx, GetCamera()); }
+        { PROFILE_SCOPE_GPU("Footprints"); RenderFootprints(-renderer.GetLightData().directionalLight.direction); }   // 砂漠の足跡（2026-11-03。地形の後、草の前）
         {
             PROFILE_SCOPE_GPU("Grass");
             // 草の火を 1 歩進めてから草を描く（GPU の範囲が熱源。Flush の後なので範囲の池は読むだけ）
@@ -83,6 +90,8 @@ void CollisionTestScene::Render(Renderer& renderer)
                 m_Swarm.GetAIParams().groundY);
             if (GetCamera()) m_Water.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetWindSourceSRV());
         }
+        // 遺跡の瘴気（2026-11-03）：不透明な物・草・水の後（深度で隠れる所を描かない）、警告の輪・体力バーの前（霧の上に出る）
+        { PROFILE_SCOPE_GPU("Miasma"); RenderMiasma(); }
         { PROFILE_SCOPE_GPU("Swarm overlay"); m_Swarm.RenderOverlay(GetCamera(), renderer.GetLightData()); }
     }
     else
@@ -127,6 +136,7 @@ void CollisionTestScene::Render(Renderer& renderer)
         }
     }
     m_Shadows.Unbind(ctx);   // 次のフレームでシャドウマップを DSV にするので外す
+    m_AmbientOcclusion.Unbind(ctx);   // 同上（t12。次のフレームで RTV にする）
 
     // ---- リザルトの背景の写真（UI を描く前の画面。2026-10-09）----
     if (m_SnapshotThisFrame)

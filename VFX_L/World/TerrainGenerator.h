@@ -65,6 +65,7 @@ namespace TerrainGenerator
         int   stepRimLevels = 2;          // 外周の帯（登れない縁）の段数
         int   stepRimBand = 3;            // 1 段あたりの帯の幅（マス）
         int   stepMinCells = 8;           // これより小さい台地は消す
+        float pondScale = 14.0f;          // 水たまりを選ぶノイズの波長 m（StepParams::pondScale。砂漠 34 = 少なく大きなオアシス。2026-11-02）
         float pondCoverage = 0.07f;       // 水たまりの候補（0 段の平らな所）から選ぶ割合。窪みだけに削るので 0.04 → 0.07（2026-10-28）
         float pondDepth = 0.5f;           // 水たまりの深さ（m。プレイヤーも雑魚も歩いて入れる。2026-10-28 から雑魚も）
         // 水たまりを起伏の膨らみ・坂に置かない（2026-10-28。TerrainBuild::StepParams と同じ意味）

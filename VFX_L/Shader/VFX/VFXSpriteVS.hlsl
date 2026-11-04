@@ -1,8 +1,8 @@
 // ============================================================
 // VFXSpriteVS.hlsl
-// Sprite entry (CPU). The CPU writes one SpriteQuad per sprite into a
-// dynamic structured buffer; draws are grouped by texture, g_First is
-// the group's first quad (SV_InstanceID starts at 0 for every draw).
+// Sprite エントリ（CPU）。CPU がスプライトごとに SpriteQuad を 1 つ動的な
+// StructuredBuffer に書く。描画はテクスチャごとにまとめ、g_First はその
+// グループの最初の四角形（SV_InstanceID は描画ごとに 0 から始まるため）。
 // ============================================================
 #include "../Common/SpriteQuad.hlsli"
 

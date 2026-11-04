@@ -299,7 +299,7 @@ namespace TerrainGenerator
         stepP.stepH = cfg.stepHeight; stepP.coverage = cfg.stepCoverage; stepP.scale = cfg.stepScale; stepP.noise = cfg.stepNoise;
         stepP.maxLevel = cfg.stepMaxLevel; stepP.rampWidth = cfg.stepRampWidth; stepP.rampSlopeDeg = cfg.stepRampSlopeDeg;
         stepP.rimLevels = cfg.stepRimLevels; stepP.rimBand = cfg.stepRimBand; stepP.minCells = cfg.stepMinCells;
-        stepP.spawnClear = cfg.spawnClearRadius; stepP.pondCoverage = cfg.pondCoverage; stepP.pondDepth = cfg.pondDepth;
+        stepP.spawnClear = cfg.spawnClearRadius; stepP.pondCoverage = cfg.pondCoverage; stepP.pondScale = cfg.pondScale; stepP.pondDepth = cfg.pondDepth;
         stepP.pondConvexTol = cfg.pondConvexTol; stepP.pondMaxRise = cfg.pondMaxRise; stepP.pondLowBias = cfg.pondLowBias;
         stepP.pondMaxSpread = cfg.pondMaxSpread;
         if (steps) GenerateSteps(*relief, stepP, cfg.seed, rng);

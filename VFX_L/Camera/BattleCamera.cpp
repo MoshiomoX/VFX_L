@@ -23,7 +23,8 @@
     X(shakeMaxYaw) X(shakeMaxPitch) X(shakeMaxRoll) X(shakeFrequency) X(traumaDecay) \
     X(speedStart) X(speedFovPerMps) X(speedFovMax) X(speedDistPerMps) X(speedDistMax) X(speedSmoothTime) \
     X(lookAheadTime) X(lookAheadMax) X(lookAheadSmoothTime) \
-    X(zoomMin) X(zoomMax) X(zoomStep)
+    X(zoomMin) X(zoomMax) X(zoomStep) \
+    X(situationRiseTime) X(situationFallTime) X(frameSmoothTime)
 
 #define CAMERA_BOOLS(X) \
     X(invertY) X(smoothFollow) X(avoidOcclusion) X(shakeEnabled) X(speedEffects) X(wheelZoom)
@@ -34,7 +35,15 @@
     X(m_AreaTrauma, "areaTrauma") X(m_AreaTraumaMax, "areaTraumaMax")
 
 #define CAMERA_TRIGGER_BOOLS(X) \
-    X(m_ShakeOnHit, "shakeOnHit") X(m_ShakeOnArea, "shakeOnArea")
+    X(m_ShakeOnHit, "shakeOnHit") X(m_ShakeOnArea, "shakeOnArea") X(m_ThreatTurn, "threatTurn")
+
+// 賢いカメラ（2026-11-02。保存はきっかけと同じ扱い）
+#define CAMERA_SMART_FLOATS(X) \
+    X(m_CrowdStart, "crowdStart") X(m_CrowdFull, "crowdFull") X(m_CrowdMaxDist, "crowdMaxDist") \
+    X(m_BossExtraDist, "bossExtraDist") X(m_FinalExtraDist, "finalExtraDist") \
+    X(m_BossFrameRange, "bossFrameRange") X(m_BossFrameBias, "bossFrameBias") X(m_BossFrameMax, "bossFrameMax") \
+    X(m_BossSpanMul, "bossSpanMul") X(m_BossSpanStart, "bossSpanStart") X(m_BossSpanMax, "bossSpanMax") \
+    X(m_TurnRate, "turnRate") X(m_TurnIdle, "turnIdle")
 
 void BattleCamera::Init(float aspect, CollisionSystem* terrain)
 {
@@ -77,7 +86,7 @@ bool BattleCamera::SaveSettings(const char* path) const
     CAMERA_FLOATS(X) CAMERA_BOOLS(X)
 #undef X
 #define X(m, key) j[key] = m;
-    CAMERA_TRIGGER_FLOATS(X) CAMERA_TRIGGER_BOOLS(X)
+    CAMERA_TRIGGER_FLOATS(X) CAMERA_TRIGGER_BOOLS(X) CAMERA_SMART_FLOATS(X)
 #undef X
 
     std::ofstream ofs(file);
@@ -114,7 +123,7 @@ bool BattleCamera::LoadSettings(const char* path)
     CAMERA_BOOLS(X)
 #undef X
 #define X(m, key) if (j.contains(key) && j[key].is_number()) m = j[key].get<float>();
-    CAMERA_TRIGGER_FLOATS(X)
+    CAMERA_TRIGGER_FLOATS(X) CAMERA_SMART_FLOATS(X)
 #undef X
 #define X(m, key) if (j.contains(key) && j[key].is_boolean()) m = j[key].get<bool>();
     CAMERA_TRIGGER_BOOLS(X)
@@ -145,7 +154,7 @@ void BattleCamera::ResetSettings()
 #undef X
     const BattleCamera defTrig;
 #define X(m, key) m = defTrig.m;
-    CAMERA_TRIGGER_FLOATS(X) CAMERA_TRIGGER_BOOLS(X)
+    CAMERA_TRIGGER_FLOATS(X) CAMERA_TRIGGER_BOOLS(X) CAMERA_SMART_FLOATS(X)
 #undef X
 }
 
@@ -192,7 +201,67 @@ void BattleCamera::Update(float dt, const Vector3* target)
 {
     if (m_HasOverride) m_Camera.SetFollowTarget(m_Override);
     else if (target) m_Camera.SetFollowTarget(*target);
+    if (target && !m_HasOverride) { m_FollowCache = *target; UpdateSmart(dt); }
+    else m_Camera.SetSituation(0.0f, Vector3::Zero);
     m_Camera.Update(dt);
+}
+
+// ============================================================
+// 賢いカメラ（2026-11-02）
+// 第三者視点の群れゲームで一番の不満は「囲まれると周りが見えない」（Megabonk も V1.0.4 で引きの設定を足しただけ）。
+// 自動で引くのは「囲まれている」「Boss と向き合っている」時だけにして、普段は今のまま。
+// 値は目標だけ決め、実際の動きは FollowCamera のばね（引く 1.5 秒 / 戻る 2.5 秒）に任せる
+// ============================================================
+void BattleCamera::UpdateSmart(float dt)
+{
+    if (!m_Smart.enabled)
+    {
+        m_Camera.SetSituation(0.0f, Vector3::Zero);
+        m_LastSmartDist = 0.0f;
+        m_StickIdleTime = 0.0f;
+        return;
+    }
+
+    // ① 群れの濃さ
+    float extra = 0.0f;
+    if (m_CrowdFull > m_CrowdStart)
+    {
+        const float t = std::clamp(((float)m_Smart.nearEnemies - m_CrowdStart) / (m_CrowdFull - m_CrowdStart), 0.0f, 1.0f);
+        extra += t * m_CrowdMaxDist;
+    }
+    if (m_Smart.finalWave) extra += m_FinalExtraDist;
+
+    // ② Boss を画面に入れる：注視点を Boss 側へ少し寄せ、離れている分だけ引く
+    Vector3 frame = Vector3::Zero;
+    if (m_Smart.bossAlive)
+    {
+        extra += m_BossExtraDist;
+        Vector3 d = m_Smart.bossPos - m_FollowCache;   // Boss − プレイヤー
+        d.y = 0.0f;
+        const float span = d.Length();
+        if (span > 0.5f && span < m_BossFrameRange)
+        {
+            frame = d / span * (std::min)(span * m_BossFrameBias, m_BossFrameMax);
+            extra += std::clamp(span * m_BossSpanMul - m_BossSpanStart, 0.0f, m_BossSpanMax);
+        }
+    }
+    m_LastSmartDist = extra;
+    m_Camera.SetSituation(extra, frame);
+
+    // ③ 押し寄せの方へ向きを寄せる（パッド・既定オフ）。右スティックを触ったら turnIdle 秒は何もしない
+    auto& input = InputManager::Get();
+    if (input.GetPadRightStick().Length() > 0.2f) m_StickIdleTime = 0.0f;
+    else m_StickIdleTime += dt;
+    if (m_ThreatTurn && m_Smart.threat && input.IsUsingPad() && m_StickIdleTime > m_TurnIdle)
+    {
+        // FollowCamera の前方 = (−sin yaw, cos yaw)
+        const float want = DirectX::XMConvertToDegrees(std::atan2(-m_Smart.threatDir.x, m_Smart.threatDir.z));
+        float diff = want - m_Camera.GetYaw();
+        while (diff > 180.0f) diff -= 360.0f;
+        while (diff < -180.0f) diff += 360.0f;
+        const float step = m_TurnRate * dt;
+        m_Camera.AddYaw(std::clamp(diff, -step, step));
+    }
 }
 
 // ============================================================
@@ -250,6 +319,28 @@ void BattleCamera::DrawImGui()
     ImGui::DragFloat("Pull back per m/s", &m_Camera.speedDistPerMps, 0.01f, 0.0f, 2.0f);
     ImGui::DragFloat("Pull back max (m)", &m_Camera.speedDistMax, 0.05f, 0.0f, 10.0f);
     ImGui::DragFloat("Speed smoothing (s)", &m_Camera.speedSmoothTime, 0.01f, 0.0f, 2.0f);
+
+    ImGui::SeparatorText("Smart camera (crowd / boss)");
+    ImGui::Text("on %d  near %d  want +%.2f  now +%.2f  frame (%.1f, %.1f)  boss %d  final %d  threat %d",
+        m_Smart.enabled ? 1 : 0, m_Smart.nearEnemies, m_LastSmartDist, m_Camera.GetSituationDistance(),
+        m_Camera.GetFrameOffset().x, m_Camera.GetFrameOffset().z, m_Smart.bossAlive ? 1 : 0,
+        m_Smart.finalWave ? 1 : 0, m_Smart.threat ? 1 : 0);
+    ImGui::DragFloatRange2("Crowd start / full", &m_CrowdStart, &m_CrowdFull, 0.5f, 0.0f, 400.0f);
+    ImGui::DragFloat("Crowd max pull (m)", &m_CrowdMaxDist, 0.05f, 0.0f, 15.0f);
+    ImGui::DragFloat("Boss extra (m)", &m_BossExtraDist, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Final wave extra (m)", &m_FinalExtraDist, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Boss frame range (m)", &m_BossFrameRange, 0.5f, 0.0f, 100.0f);
+    ImGui::DragFloat("Boss frame bias", &m_BossFrameBias, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Boss frame max (m)", &m_BossFrameMax, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Boss span x", &m_BossSpanMul, 0.01f, 0.0f, 2.0f);
+    ImGui::DragFloat("Boss span start (m)", &m_BossSpanStart, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Boss span max (m)", &m_BossSpanMax, 0.1f, 0.0f, 20.0f);
+    ImGui::DragFloat("Pull-back time (s)", &m_Camera.situationRiseTime, 0.05f, 0.05f, 10.0f);
+    ImGui::DragFloat("Return time (s)", &m_Camera.situationFallTime, 0.05f, 0.05f, 10.0f);
+    ImGui::DragFloat("Frame smoothing (s)", &m_Camera.frameSmoothTime, 0.05f, 0.05f, 10.0f);
+    ImGui::Checkbox("Turn toward the surge (pad only)", &m_ThreatTurn);
+    ImGui::DragFloat("Turn rate (deg/s)", &m_TurnRate, 0.5f, 0.0f, 90.0f);
+    ImGui::DragFloat("Turn after stick idle (s)", &m_TurnIdle, 0.1f, 0.0f, 20.0f);
 
     ImGui::SeparatorText("Look-ahead");
     ImGui::DragFloat("Time (s, 0 = off)", &m_Camera.lookAheadTime, 0.01f, 0.0f, 1.0f);

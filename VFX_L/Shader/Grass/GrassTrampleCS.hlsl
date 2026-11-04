@@ -1,23 +1,23 @@
 // ============================================================
 // GrassTrampleCS.hlsl
-// The trample map: one texel per small patch of the whole map,
-// xy = the direction the grass is pushed, length = how hard (0..1).
-// Every frame the old value fades (g_TrampleDecay) and the stamps
-// push it: the player's disc (away from the centre), the Gust spell
-// (disc or fan), and the live GPU areas that shake the camera
-// (2026-10-13: explosions flatten a disc outward, the beam capsule
-// bends a band sideways). The stronger push wins.
-// Enemies' feet are stamped afterwards by GrassStampCS (scatter).
-// 2026-10-23: the wind sources (twisters, the vortex, sand tornadoes,
-// gusts) press the grass along their air flow, so a passing twister
-// leaves a swirled trail that stands back up like a footprint.
-// Ping-pong: reads last frame's map, writes the other one (typed UAV
-// loads of R16G16_FLOAT are not guaranteed on D3D11).
+// 踏み跡マップ：マップ全体の小区画ごとに 1 テクセル、
+// xy = 草が押される方向、長さ = 強さ（0..1）。
+// 毎フレーム古い値が薄れ（g_TrampleDecay）、スタンプが
+// 押す：プレイヤーの円（中心から外向き）、突風の魔法
+//（円か扇形）、カメラを揺らす生きている GPU 範囲
+//（2026-10-13：爆発は円を外向きに倒し、光線のカプセルは
+// 帯を横向きに曲げる）。強い方の押しが勝つ。
+// 敵の足は後で GrassStampCS が押す（scatter）。
+// 2026-10-23：風源（竜巻、渦、砂旋、
+// 突風）が気流に沿って草を押すので、通り過ぎた竜巻は
+// 足跡と同じように起き上がる渦巻きの跡を残す。
+// ピンポン：前フレームのマップを読み、もう一方に書く（D3D11 では
+// R16G16_FLOAT の typed UAV load が保証されないため）。
 // ============================================================
 #include "GrassCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 
-// = SwarmArea (Shader/Common/SwarmCommon.hlsli), 48 bytes. Only center / radius / flags are read
+// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / flags だけ
 struct TrampleArea
 {
     float3 center;
@@ -32,19 +32,19 @@ struct TrampleArea
     uint tickNow;
 };
 #define TRAMPLE_MAX_AREAS 256u   // = SWARM_MAX_AREAS
-#define TRAMPLE_AREA_CAPSULE 4u  // SWARM_AREA_CAPSULE (beam)
-#define TRAMPLE_AREA_SHAKE 8u    // SWARM_AREA_SHAKE (explosions and the beam)
+#define TRAMPLE_AREA_CAPSULE 4u  // SWARM_AREA_CAPSULE（光線）
+#define TRAMPLE_AREA_SHAKE 8u    // SWARM_AREA_SHAKE（爆発と光線）
 #define TRAMPLE_MAX_SOURCES 32u
 
 Texture2D<float2> g_TrampleIn : register(t0);
 StructuredBuffer<TrampleArea> g_Areas : register(t1);
-Buffer<uint> g_AreaStates : register(t2);          // 0 = dead
-StructuredBuffer<float4> g_AreaEnds : register(t3); // capsule end per slot (AreaTickCS)
-StructuredBuffer<WindSource> g_WindSources : register(t4);   // unbound = no sources (radius 0)
+Buffer<uint> g_AreaStates : register(t2);          // 0 = 死亡
+StructuredBuffer<float4> g_AreaEnds : register(t3); // スロットごとのカプセルの終点（AreaTickCS）
+StructuredBuffer<WindSource> g_WindSources : register(t4);   // 未バインド = 風源なし（半径 0）
 RWTexture2D<float2> g_TrampleOut : register(u0);
 
-groupshared float4 gs_SrcA[TRAMPLE_MAX_SOURCES];   // disc: (cx, cz, 0, 0). capsule: (sx, sz, ex, ez)
-groupshared float2 gs_SrcB[TRAMPLE_MAX_SOURCES];   // (radius, 0 = disc / 1 = capsule)
+groupshared float4 gs_SrcA[TRAMPLE_MAX_SOURCES];   // 円：(cx, cz, 0, 0)。カプセル：(sx, sz, ex, ez)
+groupshared float2 gs_SrcB[TRAMPLE_MAX_SOURCES];   //（半径、0 = 円 / 1 = カプセル）
 groupshared uint gs_SrcCount;
 
 [numthreads(8, 8, 1)]
@@ -53,10 +53,10 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
     uint w, h;
     g_TrampleOut.GetDimensions(w, h);
 
-    // ---- compact the live shaking areas into shared memory (64 threads, 4 areas each) ----
-    // 2026-10-25: only the ones that can reach this group's 8 x 8 texels (a box test on the texel
-    // centres; the push of a source outside it is 0 for every texel here, so the result is the same,
-    // and many explosions no longer fill the 32 slots with far-away ones)
+    // ---- 生きている揺れる範囲を共有メモリに詰める（64 スレッド、各 4 範囲） ----
+    // 2026-10-25：このグループの 8 x 8 テクセルに届くものだけ（テクセル中心での箱の判定。
+    // 箱の外の発生源の押しはここのどのテクセルでも 0 なので結果は同じで、
+    // 爆発が多くても遠くのもので 32 スロットが埋まらなくなる）
     float2 texelSize = g_MapSize / float2(w, h);
     float2 boxMin = g_MapOrigin + (float2(gid.xy * 8u) + 0.5) * texelSize;
     float2 boxMax = boxMin + 7.0 * texelSize;
@@ -77,7 +77,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
             if (r <= 0.0)
                 continue;
             float4 e = g_AreaEnds[a];
-            float reach = r + 0.01;   // a little margin (the texel centres here and below are computed differently)
+            float reach = r + 0.01;   // 少しの余裕（ここと下ではテクセル中心の計算の仕方が違う）
             float2 lo = (capsule ? min(ar.center.xz, e.xz) : ar.center.xz) - reach;
             float2 hi = (capsule ? max(ar.center.xz, e.xz) : ar.center.xz) + reach;
             if (any(hi < boxMin) || any(lo > boxMax))
@@ -98,7 +98,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
 
     float2 v = g_TrampleIn.Load(int3(id.xy, 0)) * g_TrampleDecay;
     float2 xz = g_MapOrigin + (float2(id.xy) + 0.5) / float2(w, h) * g_MapSize;
-    // this frame's gusts (up to GRASS_MAX_GUSTS, radius 0 = unused entry)
+    // このフレームの突風（最大 GRASS_MAX_GUSTS 個、半径 0 = 未使用）
     [unroll]
     for (uint gk = 0u; gk < GRASS_MAX_GUSTS; ++gk)
     {
@@ -106,7 +106,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
         float2 gDir = g_GustA[gk].zw;
         float gLength = g_GustB[gk].x;
         float gRadius = g_GustB[gk].y;
-        // a gust: one frame's stamp, the whole disc flattened outward (stands back up like a footprint)
+        // 突風：1 フレームだけのスタンプ、円全体を外向きに倒す（足跡と同じように起き上がる）
         if (gRadius > 0.0 && gLength <= 0.0)
         {
             float2 d = xz - gRoot;
@@ -119,8 +119,8 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
                     v = push;
             }
         }
-        // a forward gust: a fan from the caster along gDir. Narrow at the root (0.35 r), full
-        // radius r at the far end; the grass falls downwind, bending a little outward at the sides
+        // 前向きの突風：詠唱者から gDir 方向への扇形。根元は細く（0.35 r）、先端で
+        // 半径 r いっぱい。草は風下へ倒れ、両脇では少し外へ開く
         if (gRadius > 0.0 && gLength > 0.0)
         {
             float2 d = xz - gRoot;
@@ -144,7 +144,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
             }
         }
     }
-    // explosions (disc, flattened outward while the area lives) and the beam (a band pushed sideways)
+    // 爆発（範囲が生きている間、円を外向きに倒す）と光線（帯を横向きに押す）
     uint n = min(gs_SrcCount, TRAMPLE_MAX_SOURCES);
     for (uint k = 0u; k < n; ++k)
     {
@@ -170,7 +170,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
         if (dot(push, push) > dot(v, v))
             v = push;
     }
-    // the wind sources' trail: pressed along the air flow (a swirl around a twister)
+    // 風源の跡：気流に沿って押す（竜巻のまわりの渦巻き）
     if (g_BladeShape.w > 0.0)
     {
         float lift;
@@ -189,7 +189,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
         float dist = length(d);
         if (dist < g_TrampleRadius)
         {
-            // flat-topped falloff: the whole disc is pressed, the edge softly
+            // 頂上が平らな減衰：円全体を押し、縁はやわらかく
             float s = sqrt(1.0 - dist / g_TrampleRadius);
             float2 push = (dist > 1e-3) ? d / dist * s : float2(0.0, 0.0);
             if (dot(push, push) > dot(v, v))

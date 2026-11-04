@@ -1,8 +1,8 @@
 // ============================================================
 // SwarmBlobShadowPS.hlsl
-// Darkens the ground under a mob: black with a soft round edge.
-// Premultiplied alpha (the blend is ONE / INV_SRC_ALPHA), so rgb = 0
-// and the result is dst * (1 - a).
+// 雑魚の足元の地面を暗くする: 縁が柔らかい丸い黒。
+// 乗算済みアルファ（ブレンドは ONE / INV_SRC_ALPHA）なので rgb = 0、
+// 結果は dst * (1 - a)。
 // ============================================================
 cbuffer SwarmBlobShadowCB : register(b0)
 {

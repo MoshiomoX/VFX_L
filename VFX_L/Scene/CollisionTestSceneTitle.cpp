@@ -301,6 +301,8 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
         m_Grass.Update(gdt, *pp, grounded, false);
     }
     m_GrassFire.Tick(gdt);
+    m_Sand.Tick(gdt);
+    m_Miasma.Tick(gdt);
     m_Debris.Tick(gdt);
     m_Water.Tick(gdt);
     UpdateWindToys(gdt);   // 転がり草・タンポポ（2026-10-22）

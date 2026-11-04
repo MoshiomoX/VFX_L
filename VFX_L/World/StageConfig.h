@@ -26,10 +26,14 @@ struct StageDef
 
     // 草（GrassRenderer）。砂漠は疎らな枯れ草、遺跡は無し
     bool  grass = true;
-    float grassSpacing = 0.25f;
-    DirectX::SimpleMath::Vector3 grassRoot = { 0.55f, 0.60f, 0.50f };
+    // 2026-11-02 ユーザー：地面が透け過ぎ → 0.25 → 0.2、根元を暗く（GrassRenderer::Settings の既定と同じ値。
+    // 面の Init / 選択 / 作り直しで StageDef の値が GrassRenderer へ上書きされるので、こちらを変えないと効かない）
+    float grassSpacing = 0.2f;
+    DirectX::SimpleMath::Vector3 grassRoot = { 0.36f, 0.42f, 0.34f };
     DirectX::SimpleMath::Vector3 grassTip = { 1.25f, 1.20f, 0.85f };
     float grassHeightMin = 0.28f, grassHeightMax = 0.55f;   // 葉の高さ m
+    // > 0 = 草は水たまりからこの距離（m）以内だけ（砂漠のオアシス。2026-11-02）。0 = 制限無し
+    float oasisGrass = 0.0f;
 
     // マップそのものの難しさ（2026-10-21 から）。Megabonk の「砂漠は上級」のように、開始マップとして選んだ時にも効く小さな倍率。
     // 「何面目か」による難度（表を進める + 大きな倍率。2026-10-17 の値）は StageConfig::PosDifficulty（プレイの中の位置で決まる）、

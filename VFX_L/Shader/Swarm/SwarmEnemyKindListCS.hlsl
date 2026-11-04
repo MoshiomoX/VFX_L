@@ -1,14 +1,14 @@
 // ============================================================
 // SwarmEnemyKindListCS.hlsl
-// The draw lists of the kinds that did not fit SwarmEnemyCompactCS
-// (2026-10-08): that pass already binds 8 UAVs, the most a compute
-// shader gets on feature level 11.0. Same rule as there: one thread per
-// enemy slot, live slots of a kind are appended to its list, the list
-// length becomes the InstanceCount of each submesh's indirect draw.
-// CompactCS leaves these kinds out of mobList. Runs right after it.
-//   chargerList : SWARM_KIND_CHARGER (own texture, the dash band)
-//   shieldList  : SWARM_KIND_SHIELD  (own texture, the tower shield)
-// The append counters are reset by binding the UAVs with initial count 0.
+// SwarmEnemyCompactCS に入りきらなかった種類の描画リスト
+//（2026-10-08）：あちらのパスは既に 8 本の UAV を使っていて、これは feature level 11.0 で
+// コンピュートシェーダーが持てる上限。規則は同じ：敵スロット 1 つに 1 スレッド、
+// 生きているスロットをその種類のリストに追加し、リストの
+// 長さが各サブメッシュの間接描画の InstanceCount になる。
+// CompactCS はこれらの種類を mobList から外す。その直後に走る。
+//   chargerList : SWARM_KIND_CHARGER（専用のテクスチャ、突進の帯）
+//   shieldList  : SWARM_KIND_SHIELD  （専用のテクスチャ、塔盾）
+// Append のカウンタは、初期カウント 0 で UAV をバインドしてリセットする。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -16,13 +16,13 @@ Buffer<uint> enemyStates : register(t0);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t1);
 AppendStructuredBuffer<uint> chargerList : register(u0);
 AppendStructuredBuffer<uint> shieldList : register(u1);
-AppendStructuredBuffer<uint> spikeBallList : register(u2); // SWARM_KIND_SPIKEBALL: own mesh, no blocky body (2026-10-17)
-AppendStructuredBuffer<uint> burrowerList : register(u3); // SWARM_KIND_BURROWER (own texture + the mound) (2026-10-17)
-AppendStructuredBuffer<uint> sandMageList : register(u4); // SWARM_KIND_SANDMAGE (own texture) (2026-10-17)
-// u5 is free: the tornado's list went with its mesh (2026-10-20: a tornado draws nothing; its dust and wind come from
-// SwarmTornadoEmitCS / SwarmWindSourceCS. CompactCS leaves it out of mobList)
-AppendStructuredBuffer<uint> dashBomberList : register(u6); // SWARM_KIND_DASHBOMBER (own texture) (2026-10-18)
-AppendStructuredBuffer<uint> bossList : register(u7);       // SWARM_KIND_BOSS: the stage's boss skin + its decorations (2026-10-24)
+AppendStructuredBuffer<uint> spikeBallList : register(u2); // SWARM_KIND_SPIKEBALL：専用のメッシュ、ブロック人形の体はなし（2026-10-17）
+AppendStructuredBuffer<uint> burrowerList : register(u3); // SWARM_KIND_BURROWER（専用のテクスチャ + 砂山）（2026-10-17）
+AppendStructuredBuffer<uint> sandMageList : register(u4); // SWARM_KIND_SANDMAGE（専用のテクスチャ）（2026-10-17）
+// u5 は空き：砂旋のリストはメッシュと一緒に無くなった（2026-10-20：砂旋は何も描かない。砂ぼこりと風は
+// SwarmTornadoEmitCS / SwarmWindSourceCS から出る。CompactCS は mobList から外す）
+AppendStructuredBuffer<uint> dashBomberList : register(u6); // SWARM_KIND_DASHBOMBER（専用のテクスチャ）（2026-10-18）
+AppendStructuredBuffer<uint> bossList : register(u7);       // SWARM_KIND_BOSS：ステージのボスのスキン + 飾り（2026-10-24）
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)

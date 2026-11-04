@@ -1,43 +1,43 @@
 // ============================================================
 // OutlinePS.hlsl
-// Screen-space ink lines from the scene depth (toon look, 2026-10-04)
-// + faction lines from the stencil (2026-10-06: friends blue and a bit
-// thicker, enemies red).
-// Drawn as a full-screen triangle (Sky/SkyVS) after the opaque scene and
-// before grass / transparent things, with a PREMULTIPLIED ALPHA blend
-// (out + dest * (1 - a)): the color underneath is pulled toward the line
-// color by k. With the dark default tint this looks like the old multiply.
+// シーンの深度から作るスクリーン空間の墨線（トゥーン調、2026-10-04）
+// + ステンシルから作る陣営の線（2026-10-06：味方は青で少し太く、
+// 敵は赤）。
+// 全画面三角形（Sky/SkyVS）で、不透明なシーンの後・
+// 草や半透明物の前に、乗算済みアルファのブレンド
+// （out + dest * (1 - a)）で描く：下の色が k だけ線の色へ引き寄せられる。
+// 暗い既定の tint なら昔の乗算と同じに見える。
 //
-// Edge test: for a plane, 1/viewZ is linear across the screen, so the
-// center depth is predicted from each pair of opposite neighbours in
-// 1/z. A pixel clearly IN FRONT of that prediction (relative to its own
-// depth) is on a silhouette or a convex crease of the nearer surface.
-// Only the nearer side gets the line (crisp, one pixel row per step).
+// エッジ判定：平面なら 1/viewZ は画面上で線形なので、向かい合う近傍
+// 2 点の組ごとに 1/z で中心の深度を予測する。その予測より
+// （自分の深度に対して）はっきり「手前」にあるピクセルは、
+// 手前の面のシルエットか凸の折れ目の上にある。
+// 線を引くのは手前側だけ（くっきり、段 1 つにつき 1 ピクセル幅）。
 //
-// Faction: the stencil holds 1 (friend) / 2 (enemy) where those were drawn
-// (RenderSystem / SwarmSystem write it). A pixel with a faction gets that
-// faction's color and thickness, and is also a line wherever a neighbour
-// has a different stencil (so the whole silhouette is closed even where
-// the depth step is small, e.g. the feet on the ground).
+// 陣営：ステンシルには味方 1 / 敵 2 が、描いた所に入っている
+// （RenderSystem / SwarmSystem が書く）。陣営を持つピクセルはその陣営の
+// 色と太さを使い、さらに近傍のステンシルが違う所はすべて線にする
+// （深度の段が小さい所、例えば地面に着いた足でもシルエット全体が
+// 閉じるように）。
 // ============================================================
 
 Texture2DMS<float> g_Depth : register(t0);
-Texture2DMS<uint2> g_Stencil : register(t1);   // X24_TYPELESS_G8_UINT: stencil in .g
+Texture2DMS<uint2> g_Stencil : register(t1);   // X24_TYPELESS_G8_UINT：ステンシルは .g
 
 cbuffer OutlineCB : register(b0)
 {
-    float depthA;       // eye depth = depthB / (d - depthA) (from the projection matrix)
+    float depthA;       // 視点からの深度 = depthB / (d - depthA)（射影行列から）
     float depthB;
-    float thickness;    // neighbour distance in pixels (>= 1)
-    float threshold;    // relative depth step for a line (0.03 = 3 % of the depth)
-    float fadeStart;    // meters: lines fade out between these
+    float thickness;    // 近傍までの距離（ピクセル、>= 1）
+    float threshold;    // 線にする深度の段（相対値、0.03 = 深度の 3 %）
+    float fadeStart;    // m：この間で線が消えていく
     float fadeEnd;
     float strength;     // 0..1
-    float debugView;    // 1 = show the eye depth as stripes (tuning)
-    float3 lineTint;    // the color of the neutral line (linear)
-    float factionStrength;   // 0 = faction lines off
+    float debugView;    // 1 = 視点からの深度を縞模様で見せる（調整用）
+    float3 lineTint;    // 中立の線の色（リニア）
+    float factionStrength;   // 0 = 陣営の線なし
     float3 friendColor;
-    float friendThickness;   // pixels
+    float friendThickness;   // ピクセル
     float3 enemyColor;
     float enemyThickness;
 };
@@ -66,7 +66,7 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
     if (debugView > 0.5)
         return float4(frac(zc * 0.25), frac(zc * 0.05), 1.0, 1.0);
 
-    // ---- which line: neutral, friend or enemy (by the stencil under this pixel) ----
+    // ---- どの線か：中立・味方・敵（このピクセルの下のステンシルで決める） ----
     uint f = (factionStrength > 0.0) ? Faction(p, size) : 0u;
     float3 color = lineTint;
     float  px = thickness;
@@ -83,12 +83,12 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
         o *= t;
         float za = EyeDepth(p + o, size);
         float zb = EyeDepth(p - o, size);
-        float zp = 2.0 / (1.0 / za + 1.0 / zb);   // the neighbours' plane at the center
-        float front = (zp - zc) / zc;              // > 0: the center is in front of it
+        float zp = 2.0 / (1.0 / za + 1.0 / zb);   // 近傍が作る平面の、中心での深度
+        float front = (zp - zc) / zc;              // > 0：中心がその平面より手前
         edge = max(edge, smoothstep(threshold, threshold * 2.0, front));
         if (f != 0u)
         {
-            // silhouette of a faction unit: a neighbour that is not the same faction
+            // 陣営を持つもののシルエット：近傍が同じ陣営ではない
             if (Faction(p + o, size) != f || Faction(p - o, size) != f) fedge = 1.0;
         }
     }
@@ -96,7 +96,7 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
     float k;
     if (f != 0u)
     {
-        // faction lines do not fade with distance (a far enemy still reads as red)
+        // 陣営の線は距離で消さない（遠くの敵も赤だと分かるように）
         k = saturate(max(edge, fedge) * factionStrength);
     }
     else

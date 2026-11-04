@@ -1,9 +1,9 @@
 // ============================================================
 // VFXBeamPS.hlsl
-// Cross-section profile per layer x flowing streaks along the beam.
-// Written premultiplied with alpha 0 = additive under the
-// ONE / INV_SRC_ALPHA blend (same as additive particles). HDR colours
-// feed the bloom.
+// 層ごとの断面の形 x ビームに沿って流れる筋。
+// 乗算済みで alpha 0 として書くので、ONE / INV_SRC_ALPHA の合成で
+// 加算になる（加算のパーティクルと同じ）。HDR の色が
+// ブルームにかかる。
 // ============================================================
 #include "../Common/BeamCommon.hlsli"
 
@@ -23,16 +23,16 @@ float4 main(PSIn i) : SV_TARGET
     BeamItem b = g_Beams[i.beam];
     float d = i.uv.x;
     float y = abs(i.uv.y);
-    float r = saturate(1.0 - y * y); // 1 at the centre line, 0 at the edge
+    float r = saturate(1.0 - y * y); // 中心線で 1、縁で 0
     float n = BeamFbm(float2((d - b.scroll) * b.noiseScale, i.uv.y * 1.3 + b.seed));
-    // gradients for the toon edges, taken outside the branches
+    // トゥーンの縁に使う勾配。分岐の外で取る
     float rW = max(fwidth(r), 1e-3);
     float nW = max(fwidth(n), 1e-3);
     bool toon = b.toon > 0.5;
 
-    // ---- cross-section ----
-    // toon: every layer is a flat band with a crisp edge (glow, main and core stack into
-    // three clear steps toward the centre) instead of a smooth falloff
+    // ---- 断面 ----
+    // トゥーン: 滑らかに減衰させず、どの層もくっきりした縁の平らな帯にする（光輪・主色・芯が
+    // 中心へ向かってはっきりした 3 段に重なる）
     float a;
     float3 col;
     if (i.layer == 0)
@@ -51,13 +51,13 @@ float4 main(PSIn i) : SV_TARGET
         col = b.coreColor.rgb;
     }
 
-    // ---- along: root fade in, tip fade out ----
+    // ---- 長さ方向: 根元でフェードイン、先端でフェードアウト ----
     float root = saturate(d / max(b.rootFade, 0.01));
     float tip = saturate((i.len - d) / max(b.tipFade, 0.01));
     a *= root * tip;
 
-    // ---- flowing streaks (toward the tip). the core keeps most of its brightness ----
-    // toon: two levels with a crisp border instead of a smooth ramp
+    // ---- 流れる筋（先端へ向かう）。芯は明るさをほぼ保つ ----
+    // トゥーン: 滑らかな傾斜ではなく、くっきりした境目の 2 段
     float nn = toon ? smoothstep(0.55 - nW, 0.55 + nW, n) : n;
     float streak = lerp(1.0 - b.noiseStrength, 1.0 + b.noiseStrength * 0.7, nn);
     if (i.layer == 2) streak = lerp(1.0, streak, 0.35);

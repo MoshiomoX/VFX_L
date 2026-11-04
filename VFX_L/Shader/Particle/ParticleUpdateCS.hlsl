@@ -1,32 +1,32 @@
 // ============================================
 // ParticleUpdateCS.hlsl
-// Particle update CS: lifetime / physics / colour over life / alive lists.
+// パーティクル更新 CS: 寿命 / 物理 / 寿命に沿った色 / 生存リスト。
 //
-// Also counts the alive billboards that carry a screen distortion level
-// (g_Stats[0], read back by GPUParticleSystem::HasDistortion, 2026-10-25),
-// so the scene runs the distortion pass only while there is something to bend.
-// (The per-owner alive count that used to live here was never bound by the
-// C++ side and was removed 2026-10-25.)
+// 画面の歪みレベルを持つ生きたビルボードも数え
+// （g_Stats[0]、GPUParticleSystem::HasDistortion がリードバック、2026-10-25）、
+// 歪ませるものがある間だけシーンが歪みのパスを走らせるようにする。
+// （以前ここにあった持ち主ごとの生存数は C++ 側から一度もバインドされて
+// おらず、2026-10-25 に削除した。）
 // ============================================
 
 #include "Common/ParticleCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 
-// World wind (2026-10-12): particles whose renderMode bits 26-29 are set
-// drift toward the wind (smoke / mist / rain / sand; sparks stay 0).
-// Must match GPUParticleSystem::ParticleWindCB (b2; b0 / b1 are ParticleCommon's)
+// 世界の風（2026-10-12）: renderMode の 26-29 ビットが立っているパーティクルは
+// 風の方へ流される（煙 / 霧 / 雨 / 砂。火花は 0 のまま）。
+// GPUParticleSystem::ParticleWindCB と揃えること（b2。b0 / b1 は ParticleCommon のもの）
 cbuffer ParticleWindCB : register(b2)
 {
-    float2 g_WindDir;       // unit xz, the way the wind blows
-    float g_WindSpeed;      // m/s (base), already times the weather strength
-    float g_WindGust;       // m/s (gust amplitude), same
-    float g_WindWaveScale;  // gust waves per meter
-    float g_WindWaveSpeed;  // radians per second
-    float g_WindTime;       // the grass's wind clock (same waves as the blades)
+    float2 g_WindDir;       // 単位 xz、風の吹く向き
+    float g_WindSpeed;      // m/s（基本）、天気の強さはもう掛けてある
+    float g_WindGust;       // m/s（突風の振幅）、同上
+    float g_WindWaveScale;  // 1 m あたりの突風の波の数
+    float g_WindWaveSpeed;  // 1 秒あたりのラジアン
+    float g_WindTime;       // 草の風の時計（草の葉と同じ波）
     float _windPad;
 };
 
-// world wind at xz (the GrassVS gust formula)
+// xz での世界の風（GrassVS の突風の式）
 float2 ParticleWindAt(float2 xz)
 {
     float phase = dot(xz, g_WindDir) * g_WindWaveScale * 6.2831853 - g_WindTime * g_WindWaveSpeed;
@@ -36,14 +36,14 @@ float2 ParticleWindAt(float2 xz)
 }
 
 StructuredBuffer<ColorKey> colorKeys : register(t0);
-StructuredBuffer<WindSource> g_WindSources : register(t1);   // local wind: the sand tornadoes (SwarmWindSourceCS, 2026-10-19)
+StructuredBuffer<WindSource> g_WindSources : register(t1);   // 局所的な風: 砂旋（SwarmWindSourceCS、2026-10-19）
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 AppendStructuredBuffer<uint> deadList : register(u1);
 RWBuffer<uint> g_DrawArgs : register(u2);
-RWStructuredBuffer<uint> aliveList : register(u3); // alive particle indices (billboards)
-RWBuffer<uint> g_Stats : register(u4);             // [0] = alive billboards with a distortion level (cleared every frame by the C++ side)
-RWStructuredBuffer<uint> aliveMesh : register(u5); // alive mesh particles, PARTICLE_MESH_BUCKET_CAP per bucket
-RWBuffer<uint> meshCounts : register(u6); // particles per bucket (copied into each submesh's draw args)
+RWStructuredBuffer<uint> aliveList : register(u3); // 生きているパーティクルの番号（ビルボード）
+RWBuffer<uint> g_Stats : register(u4);             // [0] = 歪みレベルを持つ生きたビルボード（C++ 側が毎フレームクリア）
+RWStructuredBuffer<uint> aliveMesh : register(u5); // 生きているメッシュパーティクル、バケツごとに PARTICLE_MESH_BUCKET_CAP 個
+RWBuffer<uint> meshCounts : register(u6); // バケツごとのパーティクル数（各サブメッシュの描画引数にコピーする）
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -66,14 +66,14 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // --- alive: count it into the draw args and add its index to an alive list ---
-    // billboards and meshes have separate lists (separate draw passes), chosen by renderMode
+    // --- 生存: 描画引数に数え、番号を生存リストに足す ---
+    // ビルボードとメッシュはリストが別（描画パスも別）。renderMode で選ぶ
     uint instanceIndex;
     if (ParticleMeshSlotPlusOne(p.renderMode) != 0u)
     {
-        // mesh: one segment of aliveMesh per bucket (mesh index x lit/glow).
-        // Past the cap the count keeps growing but nothing is written;
-        // ParticleMeshVS drops instances >= cap
+        // メッシュ: バケツ（メッシュ番号 x 受光 / 発光）ごとに aliveMesh の 1 区間。
+        // 上限を超えても数は増え続けるが何も書かない。
+        // ParticleMeshVS が上限以上のインスタンスを捨てる
         uint bucket = ParticleMeshBucket(p.renderMode);
         InterlockedAdd(meshCounts[bucket], 1, instanceIndex);
         if (instanceIndex < PARTICLE_MESH_BUCKET_CAP)
@@ -84,14 +84,14 @@ void main(uint3 id : SV_DispatchThreadID)
         InterlockedAdd(g_DrawArgs[1], 1, instanceIndex);
         aliveList[instanceIndex] = id.x;
 
-        // the same test as GPUParticleVS g_Pass 3 (only these are drawn into the distortion target)
+        // GPUParticleVS の g_Pass 3 と同じ判定（歪みのターゲットに描くのはこれだけ）
         if (ParticleDistortLevel(p.renderMode) != 0u)
             InterlockedAdd(g_Stats[0], 1u);
     }
 
     float t = GetLifeRatio(p);
 
-    // atlasAnimate = (first << 12) | count (see InitParticleFrame)
+    // atlasAnimate = (first << 12) | count（InitParticleFrame を参照）
     if (p.atlasAnimate > 0)
     {
         int count = p.atlasAnimate & 0xFFF;
@@ -102,19 +102,19 @@ void main(uint3 id : SV_DispatchThreadID)
     p.velocity += p.acceleration * g_DeltaTime;
     p.velocity *= (1.0 - p.drag * g_DeltaTime);
 
-    // wind: relax the horizontal velocity toward the world wind (smoke drifts, sparks don't)
+    // 風: 水平の速度を世界の風へ近づける（煙は流され、火花は流されない）
     float windResp = ParticleWindResponse(p.renderMode);
     if (windResp > 0.0)
     {
-        // a wind streak (2026-10-20) is the air itself: it takes the local air speed about
-        // five times faster than smoke, so the spiral of a vortex shows within 0.1 s
+        // 風の流線（2026-10-20）は空気そのもの: 局所的な風速に煙の約 5 倍の速さで
+        // 合わせるので、渦の螺旋が 0.1 s 以内に見える
         float rate = ParticleIsStreak(p.renderMode) ? PARTICLE_WIND_RATE * 5.0 : PARTICLE_WIND_RATE;
         float k = saturate(windResp * rate * g_DeltaTime);
         float vortexLift;
         float3 vortexAir = WindSourceAir(g_WindSources, p.position.xz, vortexLift);
         float2 wind = ParticleWindAt(p.position.xz) + vortexAir.xz;
         p.velocity.xz += (wind - p.velocity.xz) * k;
-        if (vortexLift > 0.0)   // the updraft only inside a source (no pull toward 0 elsewhere)
+        if (vortexLift > 0.0)   // 上昇気流は風源の中だけ（外で 0 へ引き戻さない）
             p.velocity.y += (vortexAir.y - p.velocity.y) * k * vortexLift;
     }
 
@@ -129,7 +129,7 @@ void main(uint3 id : SV_DispatchThreadID)
             ColorKey next = colorKeys[p.colorKeyOffset + k];
             if (t >= prev.time && t <= next.time)
             {
-                // two keys at the same time: no division by zero (a NaN colour would be spread by the bloom)
+                // 同じ時刻のキーが 2 つ: 0 除算しない（NaN の色はブルームで広がってしまう）
                 float localT = (t - prev.time) / max(next.time - prev.time, 1e-5);
                 result = lerp(prev.color, next.color, localT);
                 break;

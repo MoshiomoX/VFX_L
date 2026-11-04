@@ -1,11 +1,11 @@
 // ============================================================
 // SkinnedVS.hlsl
-// No vertex buffer: reads the SkinningCS output (position, normal
-// and tangent all skinned there) and feeds it through the standard
-// model VS.
+// 頂点バッファなし：SkinningCS の出力（位置・法線・接線はすべて
+// そこでスキニング済み）を読み、標準のモデル VS に
+// 通す。
 //
-// skinnedVerts sits on t0 next to ModelCommon's albedoTexture.
-// A VS never references the texture, so no conflict.
+// skinnedVerts は ModelCommon の albedoTexture と同じ t0 に置く。
+// VS はテクスチャを参照しないので衝突しない。
 // ============================================================
 #include "../Common/ModelCommon.hlsli"
 

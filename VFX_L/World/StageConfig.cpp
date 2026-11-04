@@ -47,13 +47,16 @@ namespace
         s.light.fogStart = 10.0f;
         s.light.fogEnd = 85.0f;
         s.light.fogMax = 0.93f;
-        // 疎らな枯れ草（床の砂色に掛かる）
+        // 草はオアシス（水たまりの周り 7m）だけ（2026-11-02 晩。昼に「砂漠に草があるのは変」で一度消した → 池の周りの緑なら自然）。
+        // 草の色 = 地面の色 × 根元 / 先。砂漠の地面は砂の黄色なので、オリーブの緑に見えるよう根元・先とも緑へ大きく振る。
+        // 草がある所では草の延焼・枯れ草の帯・草の下の地面の暗さも効く
         s.grass = true;
-        s.grassSpacing = 0.7f;
-        s.grassRoot = { 0.55f, 0.50f, 0.35f };
-        s.grassTip = { 1.05f, 0.95f, 0.60f };
-        s.grassHeightMin = 0.12f;
-        s.grassHeightMax = 0.26f;
+        s.oasisGrass = 7.0f;
+        s.grassSpacing = 0.2f;
+        s.grassRoot = { 0.30f, 0.55f, 0.25f };
+        s.grassTip = { 0.75f, 1.30f, 0.55f };
+        s.grassHeightMin = 0.28f;
+        s.grassHeightMax = 0.55f;
         s.difficultyHpMul = 1.15f; s.difficultyDamageMul = 1.10f;   // マップ自体が少し硬い（開始マップとして選んだ時にも効く。2026-10-21。「何面目か」の倍率は PosDifficulty）
         s.splitter = { 120.0f, 0.05f, 0.12f, 480.0f };   // スプリッターは第 1 面の主力。ここは少し混ざるだけ
         s.charger = { 60.0f, 0.08f, 0.18f, 480.0f };      // 砂漠の主力 = 突撃兵（開けた砂地を突っ込んでくる。2026-10-08）

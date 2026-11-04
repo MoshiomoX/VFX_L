@@ -1,22 +1,22 @@
 // ============================================================
 // SwarmAimResolveCS.hlsl
-// Step 5 of DispatchStep: after the hits and the area damage (4 / 4c),
-// before the contact (6). The key was written by MoveCS (step 2) for an
-// enemy that was alive then; if HitCS / AreaDamageCS killed it since, the
-// CPU fires one shot at a corpse, which is harmless. Not checking state
-// here avoids reporting "no target" every time the closest enemy dies.
+// DispatchStep の 5 段目：命中と範囲ダメージ（4 / 4c）の後、
+// 接触（6）の前。キーは MoveCS（2 段目）がその時生きていた敵について
+// 書いたもの。その後 HitCS / AreaDamageCS が倒していた場合、CPU は
+// 死体に 1 発撃つことになるが害は無い。ここで状態を見ないことで、
+// 一番近い敵が死ぬたびに「標的なし」と報告するのを避ける。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 RWByteAddressBuffer counters : register(u0);
-// the plain closest enemy (2026-10-27, MoveCS u4): +0 key, +4 pos, +16 dist. The key is reset here for the next step
+// 単純に一番近い敵（2026-10-27、MoveCS の u4）：+0 キー、+4 位置、+16 距離。キーは次のステップのためにここでリセットする
 RWByteAddressBuffer closeTarget : register(u1);
 
 [numthreads(1, 1, 1)]
 void main()
 {
-    // the plain closest (no boss / elite priority)
+    // 単純に一番近いもの（ボス / エリートの優先なし）
     {
         uint ckey = closeTarget.Load(0);
         if (ckey == SWARM_NO_TARGET_KEY)
@@ -29,6 +29,9 @@ void main()
             closeTarget.Store(16, asuint(sqrt(cp.x * cp.x + cp.z * cp.z)));
         }
         closeTarget.Store(0, SWARM_NO_TARGET_KEY);
+        // このステップで 10m 以内の敵の数（MoveCS の +20）-> CPU 用に +24 へ、+20 は 0 に戻す（2026-11-02、スマートカメラ）
+        closeTarget.Store(24, closeTarget.Load(20));
+        closeTarget.Store(20, 0u);
     }
 
     uint key = counters.Load(SWARM_CNT_NEAREST_KEY);

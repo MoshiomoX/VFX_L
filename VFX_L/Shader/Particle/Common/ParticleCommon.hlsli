@@ -1,55 +1,55 @@
 // ============================================
 // ParticleCommon.hlsli
-// Shared definitions of the GPU particle system:
-// structs + random functions + utilities
+// GPU パーティクルシステムの共通定義：
+// 構造体 + 乱数関数 + ユーティリティ
 // ============================================
 
 #ifndef PARTICLE_COMMON_HLSLI
 #define PARTICLE_COMMON_HLSLI
 
 // ============================================
-// renderMode (GPUParticle / GPUEmitter). Must match ParticleRenderMode
-// and kParticleMesh* in GPUParticle.h
-//   bits 0-7   : 0 = billboard / 1.. = mesh table index + 1 (0 = built-in cube)
-//   bit  8     : glow (additive, unlit, fades with colour alpha)
-//   bit  9     : face the velocity (forward axis follows it, rot3 unused)
-//   bits 10-11 : forward axis (0 = +X / 1 = +Y / 2 = +Z / 3 = -Z, model Y stays up)
-// Mesh particles are sorted into buckets = table index * 2 + glow; every
-// bucket owns PARTICLE_MESH_BUCKET_CAP entries of the alive-mesh list
+// renderMode（GPUParticle / GPUEmitter）。GPUParticle.h の ParticleRenderMode
+// および kParticleMesh* と一致させること
+//   bits 0-7   : 0 = ビルボード / 1.. = メッシュ表の番号 + 1（0 = 組み込みの立方体）
+//   bit  8     : 発光（加算、ライティングなし、色のアルファで消える）
+//   bit  9     : 速度の向きを向く（前方軸が速度に沿う、rot3 は使わない）
+//   bits 10-11 : 前方軸（0 = +X / 1 = +Y / 2 = +Z / 3 = -Z、モデルの Y は上のまま）
+// メッシュパーティクルはバケット（= 表の番号 * 2 + 発光）に振り分ける。各
+// バケットが生存メッシュリストの PARTICLE_MESH_BUCKET_CAP 個分を持つ
 // ============================================
 #define PARTICLE_MESH_SLOTS      16u
 #define PARTICLE_MESH_BUCKET_CAP 16384u
 
-// billboard only (bits 0-7 == 0): alpha blended instead of additive.
-// Must match ParticleRenderMode::kBillboardAlpha
+// ビルボードのみ（bits 0-7 == 0）：加算の代わりにアルファブレンド。
+// ParticleRenderMode::kBillboardAlpha と一致させること
 #define PARTICLE_BILLBOARD_ALPHA (1u << 12)
 
-// any render mode: add the source's velocity (GPU projectile / area / orb)
-// to the initial velocity. Only SwarmEmitCS reads it.
-// Must match ParticleRenderMode::kInheritSourceVelocity
+// 全描画モード共通：発生源（GPU 弾 / 範囲 / 経験玉）の速度を
+// 初速に加える。読むのは SwarmEmitCS だけ。
+// ParticleRenderMode::kInheritSourceVelocity と一致させること
 #define PARTICLE_INHERIT_SOURCE_VELOCITY (1u << 13)
 
-// mesh glow only (2026-10-16): draw back faces only, so the mesh shows as a
-// rim behind the opaque body (stone shot's purple shell). Same bit as the
-// billboard toon flag; meshes never use the toon bits. Must match
-// ParticleRenderMode::kMeshBehind. ParticleMeshVS passes it to the glow PS
+// 発光メッシュのみ（2026-10-16）：裏面だけを描き、メッシュを不透明な本体の
+// 後ろの縁として見せる（ストーンショットの紫の殻）。ビルボードのトゥーン
+// フラグと同じビットだが、メッシュはトゥーンのビットを使わない。
+// ParticleRenderMode::kMeshBehind と一致させること。ParticleMeshVS が発光 PS へ渡す
 #define PARTICLE_MESH_BEHIND (1u << 14)
 
-// single body (2026-10-16): on a GPU projectile exactly one particle per
-// frame, alive until the next frame = always exactly one drawn (rock, arrow,
-// crystal). Emit rate / lifetime of the emitter are ignored. Only
-// SwarmEmitCS reads it. Must match ParticleRenderMode::kSingleBody
+// 単体（2026-10-16）：GPU 弾の上で毎フレームちょうど 1 個のパーティクルを出し、
+// 次のフレームまで生かす = 描かれるのは常に 1 個（岩、矢、
+// 水晶）。エミッタの発生率 / 寿命は無視する。読むのは
+// SwarmEmitCS だけ。ParticleRenderMode::kSingleBody と一致させること
 #define PARTICLE_SINGLE_BODY (1u << 30)
 
-// billboard only: toon look, bits 14-25 (2026-10-04). Decoded in
-// GPUParticlePS (PARTICLE_TOON_*), packed by ParticleRenderMode::PackToon
+// ビルボードのみ：トゥーンの見た目、bits 14-25（2026-10-04）。GPUParticlePS で
+// 展開し（PARTICLE_TOON_*）、ParticleRenderMode::PackToon が詰める
 
-// billboard only (2026-10-20, the Elden Ring style wind streaks): the quad is
-// stretched along the particle's velocity instead of facing the camera
-// upright. bit 9 (meshes use it for "face the velocity"; billboards never
-// did) = streak, bits 16-23 = stretch in PARTICLE_STRETCH_UNIT seconds
-// (length = speed x stretch, at least the size). Excludes the toon bits
-// (16-25), so a streak is never toon. Must match ParticleRenderMode::kStreak
+// ビルボードのみ（2026-10-20、エルデンリング風の風の流線）：四角形を
+// カメラに向けて立てる代わりに、パーティクルの速度に沿って引き伸ばす。
+// bit 9（メッシュでは「速度の向きを向く」、ビルボードでは今まで未使用）
+// = 流線、bits 16-23 = 引き伸ばし（PARTICLE_STRETCH_UNIT 秒単位）
+//（長さ = 速度 x 引き伸ばし、最短はサイズ）。トゥーンのビット（16-25）と
+// 排他なので、流線はトゥーンにならない。ParticleRenderMode::kStreak と一致させること
 #define PARTICLE_STREAK (1u << 9)
 #define PARTICLE_STRETCH_SHIFT 16u
 #define PARTICLE_STRETCH_UNIT 0.004
@@ -63,15 +63,15 @@ float ParticleStretch(int renderMode)
     return (float) ((((uint) renderMode) >> PARTICLE_STRETCH_SHIFT) & 255u) * PARTICLE_STRETCH_UNIT;
 }
 
-// billboard only (2026-10-20): screen distortion (refraction) pass.
-// bits 10-11 = strength level 0..3 (meshes use them for the forward axis),
-// bit 15 = distortion only (invisible in the colour passes; the toon outline
-// bit, meaningless without the toon bit 14). GPUParticleVS g_Pass 3 draws
-// only the particles with a level > 0 into the offset target
-// (ParticleDistortPS); Graphics::ApplyDistortion then bends the scene by it,
-// after the 3D scene and before the UI (so the HUD is never bent).
-// UpdateCS counts these particles (GPUParticleSystem::HasDistortion).
-// Must match ParticleRenderMode::kDistortShift / kDistortOnly
+// ビルボードのみ（2026-10-20）：画面の歪み（屈折）パス。
+// bits 10-11 = 強さ 0..3（メッシュでは前方軸に使う）、
+// bit 15 = 歪みのみ（色のパスでは見えない。トゥーンのアウトラインの
+// ビットで、トゥーンの bit 14 が無ければ意味がない）。GPUParticleVS の g_Pass 3 は
+// 強さ > 0 のパーティクルだけをオフセットのターゲットに描く
+//（ParticleDistortPS）。その後 Graphics::ApplyDistortion がそれでシーンを歪ませる。
+// 3D シーンの後、UI の前（なので HUD は歪まない）。
+// UpdateCS がこのパーティクルの数を数える（GPUParticleSystem::HasDistortion）。
+// ParticleRenderMode::kDistortShift / kDistortOnly と一致させること
 #define PARTICLE_DISTORT_SHIFT 10u
 #define PARTICLE_DISTORT_ONLY (1u << 15)
 uint ParticleDistortLevel(int renderMode)
@@ -87,10 +87,10 @@ bool ParticleDistortOnly(int renderMode)
     return (m & 0xFFu) == 0u && (m & (1u << 14)) == 0u && (m & PARTICLE_DISTORT_ONLY) != 0u;
 }
 
-// any render mode: wind response, bits 26-29 = q (2026-10-12). UpdateCS
-// relaxes the horizontal velocity toward the world wind at
-// q / 15 * PARTICLE_WIND_RATE per second. 0 = ignores the wind.
-// Must match ParticleRenderMode::kWindShift / PackWind
+// 全描画モード共通：風への反応、bits 26-29 = q（2026-10-12）。UpdateCS は
+// 水平速度を毎秒 q / 15 * PARTICLE_WIND_RATE の割合で
+// ワールドの風に近づける。0 = 風を無視。
+// ParticleRenderMode::kWindShift / PackWind と一致させること
 #define PARTICLE_WIND_SHIFT 26u
 #define PARTICLE_WIND_RATE  3.0
 float ParticleWindResponse(int renderMode)
@@ -99,13 +99,13 @@ float ParticleWindResponse(int renderMode)
 }
 
 // ============================================
-// Which atlas cell a particle shows (GPUEmitter.frameMode).
-// Must match ParticleFrameMode in GPUParticle.h.
-//   atlasIndex = first cell, frameCount = number of cells
-// While animating, particle.atlasAnimate = (first << 12) | count and
-// UpdateCS advances uvFrame over the lifetime. 0 = uvFrame stays put.
+// パーティクルがアトラスのどのセルを表示するか（GPUEmitter.frameMode）。
+// GPUParticle.h の ParticleFrameMode と一致させること。
+//   atlasIndex = 最初のセル、frameCount = セル数
+// アニメ中は particle.atlasAnimate = (first << 12) | count で、
+// UpdateCS が寿命に合わせて uvFrame を進める。0 = uvFrame は動かない。
 // ============================================
-#define PARTICLE_FRAME_LEGACY  0 // atlasIndex >= 0 fixed, -1 = every cell of the grid over the lifetime
+#define PARTICLE_FRAME_LEGACY  0 // atlasIndex >= 0 は固定、-1 = 寿命の間にグリッドの全セルを再生
 #define PARTICLE_FRAME_FIXED   1
 #define PARTICLE_FRAME_ANIMATE 2
 #define PARTICLE_FRAME_RANDOM  3
@@ -119,13 +119,13 @@ uint ParticleMeshBucket(int renderMode)
 {
     uint slot = ParticleMeshSlotPlusOne(renderMode) - 1u;
     if (slot >= PARTICLE_MESH_SLOTS)
-        slot = 0u; // unknown table index: draw it as the cube
+        slot = 0u; // 不明な表の番号：立方体として描く
     return slot * 2u + ((((uint) renderMode) >> 8u) & 1u);
 }
 
 // ============================================
-// GPU particle (matches the C++ GPUParticle)
-// 192 bytes (the static_assert in GPUParticle.h is the real guard)
+// GPU パーティクル（C++ の GPUParticle と一致）
+// 192 バイト（実際の保証は GPUParticle.h の static_assert）
 // ============================================
 struct GPUParticle
 {
@@ -155,16 +155,16 @@ struct GPUParticle
     int colorKeyOffset;
     int colorKeyCount;
     int ownerID;
-    int renderMode; // see PARTICLE_MESH_* above (0 billboard)
-    // mesh only: 3-axis rotation in degrees. billboard keeps rotation / angularVel
+    int renderMode; // 上の PARTICLE_MESH_* 参照（0 = ビルボード）
+    // メッシュのみ：3 軸の回転（度）。ビルボードは rotation / angularVel を使う
     float3 rot3;
-    uint trailStyle; // 0 = no trail, else style index + 1 (see ParticleTrail.hlsli)
+    uint trailStyle; // 0 = トレイルなし、それ以外はスタイル番号 + 1（ParticleTrail.hlsli 参照）
     float3 angVel3;
-    uint trailState; // bits 0-7 ring write position / bits 8-15 valid sample count
+    uint trailState; // bits 0-7 リングの書き込み位置 / bits 8-15 有効なサンプル数
 };
 // ============================================
-// GPU emitter (matches the C++ GPUEmitter, 336 bytes).
-// maxParticles / particleOffset are never read by any shader (layout only)
+// GPU エミッタ（C++ の GPUEmitter と一致、336 バイト）。
+// maxParticles / particleOffset はどのシェーダーも読まない（レイアウト用のみ）
 // ============================================
 struct GPUEmitter
 {
@@ -200,23 +200,23 @@ struct GPUEmitter
     int colorKeyoffset;
     int colorKeyCount;
     int ownerID;
-    int frameCount; // frames used by PARTICLE_FRAME_ANIMATE / _RANDOM (was _pad2)
-    // Mesh emit: model world matrix. row_major = same memory order as C++ Matrix
+    int frameCount; // PARTICLE_FRAME_ANIMATE / _RANDOM が使うフレーム数（旧 _pad2）
+    // メッシュ発生：モデルのワールド行列。row_major = C++ の Matrix と同じメモリ順
     row_major float4x4 world;
-    int edgeMode; // 0 all vertices / 1 dissolve edge only
-    int renderMode; // copied to the particle (see PARTICLE_MESH_*)
-    int trailStyle; // 0 = no trail, else style index + 1. copied to the particle
-    int frameMode; // PARTICLE_FRAME_* (was _padS2)
-    // sweep emit: vector from this frame's emit position back to last
-    // frame's. EmitCS scatters along it so a fast emitter leaves no gaps.
-    // 0 = emit from a single point as before
+    int edgeMode; // 0 全頂点 / 1 ディゾルブの縁のみ
+    int renderMode; // パーティクルへコピー（PARTICLE_MESH_* 参照）
+    int trailStyle; // 0 = トレイルなし、それ以外はスタイル番号 + 1。パーティクルへコピー
+    int frameMode; // PARTICLE_FRAME_*（旧 _padS2）
+    // スイープ発生：このフレームの発生位置から前フレームの発生位置へ
+    // 戻るベクトル。EmitCS がこれに沿ってばらまくので、速いエミッタでも隙間が出ない。
+    // 0 = 従来どおり 1 点から発生
     float3 sweep;
     float _padT;
 };
 
 // ============================================
-// Mesh emit source vertex layout (C++ EmitSourceLayout)
-// byte offsets into a raw vertex buffer
+// メッシュ発生元の頂点レイアウト（C++ の EmitSourceLayout）
+// raw 頂点バッファ内のバイトオフセット
 // ============================================
 struct EmitSourceLayout
 {
@@ -224,13 +224,13 @@ struct EmitSourceLayout
     uint posOffset;
     uint normalOffset;
     uint uvOffset;
-    uint triangleCount; // 0 = vertex sampling only
-    uint indexBytes; // 2 or 4
+    uint triangleCount; // 0 = 頂点サンプリングのみ
+    uint indexBytes; // 2 か 4
     uint _pad0;
     uint _pad1;
 };
 // ============================================
-// ColorKey (a key frame of the colour over the lifetime)
+// ColorKey（寿命に沿った色のキーフレーム）
 // ============================================
 struct ColorKey
 {
@@ -241,15 +241,15 @@ struct ColorKey
     float _pad2;
 };
 // ============================================
-// GPU collider (the C++ GPUCollider was removed; nothing uses this struct)
-// 48 bytes
+// GPU コライダー（C++ の GPUCollider は削除済み。この構造体はどこも使っていない）
+// 48 バイト
 // ============================================
 struct GPUCollider
 {
-    float3 center; // Sphere: centre / AABB: min / Capsule: start
-    float radius; // Sphere / Capsule: radius
+    float3 center; // Sphere: 中心 / AABB: min / Capsule: 始点
+    float radius; // Sphere / Capsule: 半径
 
-    float3 extent; // AABB: max / Capsule: end
+    float3 extent; // AABB: max / Capsule: 終点
     int type; // 0=Sphere, 1=AABB, 2=Capsule
 
     float _pad0;
@@ -258,7 +258,7 @@ struct GPUCollider
     float _pad3;
 };
 // ============================================
-// Constant buffers (the buffers themselves are declared in each .hlsl)
+// 定数バッファ（バッファ本体は各 .hlsl で宣言する）
 // ============================================
 cbuffer GlobalCB : register(b0)
 {
@@ -278,7 +278,7 @@ cbuffer DeadListCB : register(b1)
 
 
 // ============================================
-// Random numbers (Wang hash)
+// 乱数（Wang hash）
 // ============================================
 uint WangHash(uint seed)
 {
@@ -290,22 +290,22 @@ uint WangHash(uint seed)
     return seed;
 }
 
-// advance the seed and return a random number in 0.0 .. 1.0
+// シードを進めて 0.0 .. 1.0 の乱数を返す
 float Random(inout uint seed)
 {
     seed = WangHash(seed);
     return float(seed) / 4294967295.0;
 }
 
-// a random number in min .. max
+// min .. max の乱数
 float RandomRange(inout uint seed, float minVal, float maxVal)
 {
     return lerp(minVal, maxVal, Random(seed));
 }
 
 // ============================================
-// Pick the atlas cell(s) for a new particle (both emit paths call this).
-// Uses its own seed so the attribute stream of the caller stays unchanged
+// 新しいパーティクルのアトラスセルを決める（両方の発生経路から呼ぶ）。
+// 専用のシードを使うので、呼び出し側の属性の乱数列は変わらない
 // ============================================
 void InitParticleFrame(int frameMode, int atlasIndex, int frameCount,
                        int atlasRows, int atlasCols, uint seed,
@@ -332,7 +332,7 @@ void InitParticleFrame(int frameMode, int atlasIndex, int frameCount,
     }
 }
 
-// a random float3, each component in -1 .. 1
+// 各成分が -1 .. 1 のランダムな float3
 float3 RandomFloat3(inout uint seed)
 {
     float x = Random(seed) * 2.0 - 1.0;
@@ -341,7 +341,7 @@ float3 RandomFloat3(inout uint seed)
     return float3(x, y, z);
 }
 
-// a random direction on the unit sphere
+// 単位球面上のランダムな方向
 float3 RandomOnSphere(inout uint seed)
 {
     float z = Random(seed) * 2.0 - 1.0;
@@ -350,7 +350,7 @@ float3 RandomOnSphere(inout uint seed)
     return float3(r * cos(phi), r * sin(phi), z);
 }
 
-// a random point inside the unit sphere
+// 単位球内のランダムな点
 float3 RandomInSphere(inout uint seed)
 {
     float3 dir = RandomOnSphere(seed);
@@ -358,7 +358,7 @@ float3 RandomInSphere(inout uint seed)
     return dir * t;
 }
 
-// a random direction within the spread angle around dir
+// dir を中心に拡散角以内のランダムな方向
 float3 RandomInCone(inout uint seed, float3 dir, float angleInDegrees)
 {
     float angleRad = radians(angleInDegrees);
@@ -376,7 +376,7 @@ float3 RandomInCone(inout uint seed, float3 dir, float angleInDegrees)
     return right * localDir.x + up * localDir.y + dir * localDir.z;
 }
 
-// a random float4 colour between min and max (per channel)
+// min と max の間のランダムな float4 の色（チャンネルごと）
 float4 RandomColor(inout uint seed, float4 minColor, float4 maxColor)
 {
     float4 c;
@@ -387,7 +387,7 @@ float4 RandomColor(inout uint seed, float4 minColor, float4 maxColor)
     return c;
 }
 
-// age / lifetime (0.0 .. 1.0)
+// age / lifetime（0.0 .. 1.0）
 float GetLifeRatio(GPUParticle p)
 {
     return (p.lifetime > 0.0) ? saturate(p.age / p.lifetime) : 1.0;

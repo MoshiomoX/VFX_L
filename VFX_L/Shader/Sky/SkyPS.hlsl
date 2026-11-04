@@ -1,30 +1,30 @@
 // ============================================================
 // SkyPS.hlsl
-// Gradient sky behind everything (drawn first, no depth). The view
-// ray comes from the inverse view-projection; its elevation picks
-// the color:
-//   above the horizon : horizon -> zenith (pow curve, most of the
-//                       sky stays close to the horizon tint)
-//   below the horizon : horizon -> below (hidden by the ground on the
-//                       battle map, visible past the edge walls)
-// plus a soft glow and a small disk toward the sun.
-// Output is linear HDR like every scene shader (CompositePS applies
-// exposure / tonemap / gamma). The horizon color doubles as the
-// distance fog color, so far terrain melts into the sky.
-// C++ mirror: SkyRenderer::SkyCB (row_major, no transpose)
+// すべての後ろにあるグラデーションの空（最初に描く、深度なし）。視線の
+// レイはビュー射影の逆行列から作り、その仰角で
+// 色を決める:
+//   地平線より上 : 地平線 -> 天頂（pow のカーブ。空の大半は
+//                  地平線の色に近いまま）
+//   地平線より下 : 地平線 -> 下（戦闘マップでは地面に隠れ、
+//                  外周の壁の向こうで見える）
+// それに太陽の方向へ柔らかい光輪と小さな円盤を足す。
+// 出力は他のシーンのシェーダーと同じく線形 HDR（露出 / トーンマップ / ガンマは
+// CompositePS がかける）。地平線の色は距離フォグの色も兼ねるので、
+// 遠くの地形が空に溶け込む。
+// C++ 側: SkyRenderer::SkyCB（row_major、転置なし）
 // ============================================================
 cbuffer SkyCB : register(b0)
 {
     row_major float4x4 g_InvViewProj;
     float3 g_CameraPos;
-    float g_ZenithCurve;   // exponent on the elevation (< 1 = the horizon band is wider)
+    float g_ZenithCurve;   // 仰角に掛ける指数（< 1 = 地平線の帯が広くなる）
     float3 g_Zenith;
-    float g_SunGlow;       // glow strength
+    float g_SunGlow;       // 光輪の強さ
     float3 g_Horizon;
-    float g_SunGlowPower;  // glow tightness (bigger = smaller halo)
+    float g_SunGlowPower;  // 光輪の締まり（大きい = 光輪が小さい）
     float3 g_Below;
-    float g_SunDisk;       // disk strength (0 = none)
-    float3 g_SunDir;       // direction the light travels (from the sun)
+    float g_SunDisk;       // 円盤の強さ（0 = なし）
+    float3 g_SunDir;       // 光の進む向き（太陽から）
     float _skyPad0;
     float3 g_SunColor;
     float _skyPad1;

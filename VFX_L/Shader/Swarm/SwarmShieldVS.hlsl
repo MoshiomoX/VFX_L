@@ -1,16 +1,16 @@
 // ============================================================
 // SwarmShieldVS.hlsl
-// The tower shield the shield bearer holds in front of its body
-// (2026-10-08). One instance per shield bearer (the shield draw list,
-// count by DrawIndexedInstancedIndirect), the mesh is a VFX model
-// (Assets/VFX/Mesh/dun01.FBX) drawn with the enemy pixel shader and the
-// default white texture, so the colour is g_ShieldTint.
+// 盾兵が体の前に構える塔盾
+// （2026-10-08）。盾兵 1 体に 1 インスタンス（盾の描画一覧、
+// 数は DrawIndexedInstancedIndirect）。メッシュはエフェクト用モデル
+// （Assets/VFX/Mesh/dun01.FBX）で、敵のピクセルシェーダーと
+// 既定の白テクスチャで描くので、色は g_ShieldTint になる。
 //
-// The mesh is moved so its centre (g_MeshAnchor) sits at g_HoldOffset in
-// the enemy's frame (x right, y above the feet, z forward), scaled by
-// g_MeshScale and turned by g_MeshYaw. It bobs a little while walking,
-// grows with the body (SwarmKindScale, anchored at the feet) and takes
-// the same hit flash / ice tint as the body.
+// メッシュは中心（g_MeshAnchor）が敵の座標系（x 右、y 足元から上、
+// z 前）の g_HoldOffset に来るように動かし、g_MeshScale で拡大して
+// g_MeshYaw で回す。歩いている間は少し上下し、体と一緒に
+// 大きくなり（SwarmKindScale、足元を基点）、体と同じ被弾の閃光 /
+// 氷の色を受ける。
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -25,16 +25,16 @@ StructuredBuffer<uint> shieldList : register(t2);
 StructuredBuffer<float4> enemySlow : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
-// C++ mirror: SwarmSystem::PropMeshCB
+// C++ 側の対応：SwarmSystem::PropMeshCB
 cbuffer SwarmPropMeshCB : register(b4)
 {
-    float3 g_MeshAnchor; // model-space point placed at g_HoldOffset
-    float g_MeshScale;   // model units -> meters
-    float3 g_HoldOffset; // enemy frame, meters (y from the feet)
-    float g_MeshYaw;     // radians, turns the mesh before it is placed
-    float4 g_ShieldTint; // vertex colour (linear; the PS multiplies the white texture by it)
-    float g_BobAmount;   // meters of walk bob
-    float g_PropAlpha;   // unused here (SwarmIceVS)
+    float3 g_MeshAnchor; // g_HoldOffset に置くモデル空間の点
+    float g_MeshScale;   // モデルの単位 -> m
+    float3 g_HoldOffset; // 敵の座標系、m（y は足元から）
+    float g_MeshYaw;     // ラジアン。置く前にメッシュを回す
+    float4 g_ShieldTint; // 頂点色（線形。PS が白テクスチャにこれを掛ける）
+    float g_BobAmount;   // 歩く時の上下の m
+    float g_PropAlpha;   // ここでは使わない（SwarmIceVS 用）
     float2 _propPad;
 };
 
@@ -48,7 +48,7 @@ struct VS_INPUT_INST
     uint InstanceID : SV_InstanceID;
 };
 
-static const float3 kIceTint = float3(0.75, 1.05, 1.7); // same as SwarmEnemyVS
+static const float3 kIceTint = float3(0.75, 1.05, 1.7); // SwarmEnemyVS と同じ
 
 float3 RotateY(float3 p, float s, float c)
 {
@@ -62,7 +62,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     SwarmEnemyExtra ex = enemyExtra[slot];
     if (enemyStates[slot] == SWARM_DEAD || ex.kind != SWARM_KIND_SHIELD)
     {
-        o.Position = float4(0, 0, -1, 1); // clipped
+        o.Position = float4(0, 0, -1, 1); // クリップされる
         return o;
     }
 
@@ -81,7 +81,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     local += g_HoldOffset;
     local.y += footY + bob;
 
-    // grows with the body, anchored at the feet (same as the body in SwarmEnemyVS)
+    // 足元を基点に体と一緒に大きくなる（SwarmEnemyVS の体と同じ）
     float k = SwarmKindScale(ex.kind);
     local.xz *= k;
     local.y = footY + (local.y - footY) * k;

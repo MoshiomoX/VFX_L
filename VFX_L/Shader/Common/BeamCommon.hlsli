@@ -1,7 +1,7 @@
 // ============================================================
 // BeamCommon.hlsli
-// Shared by VFXBeamVS / VFXBeamPS: the beam item (C++ VFXBeamItem, 112 bytes),
-// the layer table and the value noise that makes the beam "flow".
+// VFXBeamVS / VFXBeamPS で共用：光線のアイテム（C++ の VFXBeamItem、112 バイト）、
+// 層の表、光線を「流れる」ように見せるバリューノイズ。
 // ============================================================
 #ifndef BEAM_COMMON_HLSLI
 #define BEAM_COMMON_HLSLI
@@ -9,31 +9,31 @@
 #define BEAM_SEGMENTS 32
 #define BEAM_LAYERS 3
 
-// layer 0 = glow (widest, faint), 1 = main colour, 2 = white core
+// 層 0 = 輝き（一番太く淡い）、1 = 主色、2 = 白い芯
 struct BeamItem
 {
     float3 start;
-    float width; // full width of the main layer (m)
+    float width; // 主層の全幅（m）
     float3 end;
-    float coreRatio; // core width / main width
-    float4 color; // main colour (HDR ok)
+    float coreRatio; // 芯の幅 / 主層の幅
+    float4 color; // 主色（HDR 可）
     float4 coreColor;
-    float glowRatio; // glow width / main width
+    float glowRatio; // 輝きの幅 / 主層の幅
     float glowAlpha;
-    float scroll; // noise phase along the beam (m)
-    float noiseScale; // noise cells per metre
-    float noiseStrength; // width wobble + brightness streaks (0..1)
-    float tipFade; // metres over which the tip thins out
-    float rootFade; // metres over which the root fades in
+    float scroll; // 光線方向のノイズの位相（m）
+    float noiseScale; // 1 m あたりのノイズのセル数
+    float noiseStrength; // 幅の揺れ + 明るさの筋（0..1）
+    float tipFade; // 先端が細くなっていく距離（m）
+    float rootFade; // 根元がフェードインする距離（m）
     float seed;
-    float toon; // 1 = hard-edged bands + two-level streaks (2026-10-04)
-    // lightning (2026-10-15): the ribbon kinks sideways at every segment
-    float jitter; // large sway amplitude (m). 0 = straight beam
-    float jitterRate; // shapes per second (re-rolled)
-    float jitterFine; // per-segment kink amplitude (fraction of jitter)
+    float toon; // 1 = 硬い縁の帯 + 2 段の筋（2026-10-04）
+    // 稲妻（2026-10-15）：帯がセグメントごとに横へ折れる
+    float jitter; // 大きな揺れの振幅（m）。0 = まっすぐな光線
+    float jitterRate; // 1 秒あたりの形の数（引き直し）
+    float jitterFine; // セグメントごとの折れの振幅（jitter に対する割合）
 };
 
-// ---- value noise (hash based, no texture) ----
+// ---- バリューノイズ（ハッシュによる、テクスチャなし） ----
 float BeamHash(float2 p)
 {
     p = frac(p * float2(0.1031, 0.1030));
@@ -53,30 +53,30 @@ float BeamNoise(float2 p)
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
 }
 
-// two octaves, 0..1
+// 2 オクターブ、0..1
 float BeamFbm(float2 p)
 {
     return BeamNoise(p) * 0.65 + BeamNoise(p * 2.13 + 7.7) * 0.35;
 }
 
-// lightning phase: which random shape is shown right now
+// 稲妻の位相：今どのランダムな形を見せるか
 float BeamLightningPhase(BeamItem b, float time)
 {
     return floor(time * max(b.jitterRate, 1.0)) * 7.31 + b.seed * 13.7;
 }
 
-// sideways offset of the segment boundary `boundary` (0..BEAM_SEGMENTS) at
-// t (0..1 along the beam). Piecewise linear between boundaries, so the
-// bolt has sharp kinks. Pinned at both ends. Both quads sharing a boundary
-// get the same offset (same boundary index), so there are no cracks
+// t（光線に沿って 0..1）にあるセグメント境界 `boundary`（0..BEAM_SEGMENTS）の
+// 横方向のずれ。境界の間は折れ線なので、稲妻にくっきりした折れ目ができる。
+// 両端は固定。境界を共有する 2 枚の四角形は同じずれになる
+// （境界の番号が同じ）ので、隙間はできない
 float3 BeamLightningOffset(BeamItem b, float boundary, float t, float3 axis, float phase)
 {
     float3 up = (abs(axis.y) < 0.99) ? float3(0, 1, 0) : float3(1, 0, 0);
     float3 n1 = normalize(cross(axis, up));
     float3 n2 = cross(axis, n1);
-    // fine kink at every boundary
+    // 境界ごとの細かな折れ
     float2 f = float2(BeamHash(float2(boundary, phase)), BeamHash(float2(boundary + 57.0, phase))) * 2.0 - 1.0;
-    // coarse sway: one value every 4 boundaries, interpolated
+    // 粗い揺れ：境界 4 つごとに 1 つの値を補間する
     float cb = boundary * 0.25;
     float ci = floor(cb);
     float cf = frac(cb);
@@ -88,18 +88,18 @@ float3 BeamLightningOffset(BeamItem b, float boundary, float t, float3 axis, flo
     return (n1 * off.x + n2 * off.y) * env;
 }
 
-// half width of a layer at distance d (m) along the beam of length len
+// 長さ len の光線上、距離 d（m）の位置での層の半幅
 float BeamHalfWidth(BeamItem b, uint layer, float d, float len)
 {
     float ratio = (layer == 0) ? b.glowRatio : (layer == 2) ? b.coreRatio : 1.0;
     float w = b.width * 0.5 * ratio;
 
-    // wobble travels toward the tip. the glow is smoother than the core
+    // 揺れは先端へ流れる。輝きは芯よりなめらか
     float n = BeamFbm(float2((d - b.scroll) * b.noiseScale, b.seed + layer * 3.1));
     float wob = 1.0 + b.noiseStrength * (n * 2.0 - 1.0) * ((layer == 0) ? 0.3 : 0.6);
     w *= wob;
 
-    // thin out toward the tip, open up from the root
+    // 先端へ向けて細くし、根元から広げる
     float tip = saturate((len - d) / max(b.tipFade, 0.01));
     float root = saturate(d / max(b.rootFade, 0.01));
     w *= lerp(0.35, 1.0, tip) * lerp(0.6, 1.0, root);

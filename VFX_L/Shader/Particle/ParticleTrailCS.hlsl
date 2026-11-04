@@ -1,14 +1,14 @@
 // ============================================================
 // ParticleTrailCS.hlsl
-// Runs right after ParticleUpdateCS. One thread per particle slot.
+// ParticleUpdateCS の直後に走る。パーティクルスロット 1 つに 1 スレッド。
 //
-// For every alive particle that has a trail style:
-//   - push the current position into its ring when the particle's
-//     age crosses the next point of the sampling grid
-//   - add it to the trail alive list (DrawInstancedIndirect args)
+// トレイルのスタイルを持つ生きているパーティクルごとに：
+//   - パーティクルの年齢がサンプリング間隔の次の点を越えたら、
+//     現在の位置をリングに入れる
+//   - トレイルの生存リスト（DrawInstancedIndirect の引数）に追加する
 //
-// Kept out of UpdateCS on purpose: that shader already binds 7 UAVs
-// and D3D11.0 allows 8.
+// わざと UpdateCS から分けている：あちらは既に 7 本の UAV を使っていて、
+// D3D11.0 の上限は 8 本。
 // ============================================================
 #include "Common/ParticleCommon.hlsli"
 #include "Common/ParticleTrail.hlsli"
@@ -37,11 +37,11 @@ void main(uint3 id : SV_DispatchThreadID)
     uint head = TrailHead(p.trailState);
     uint count = TrailCount(p.trailState);
 
-    // UpdateCS already advanced age by g_DeltaTime this frame
+    // このフレームの age は UpdateCS が既に g_DeltaTime だけ進めている
     uint cellNow = (uint) (p.age / interval);
     uint cellPrev = (uint) (max(p.age - g_DeltaTime, 0.0) / interval);
 
-    // count == 0: first time we see this particle -> record the birth place
+    // count == 0：このパーティクルを初めて見た -> 生まれた位置を記録する
     if (count == 0u || cellNow != cellPrev)
     {
         head = (count == 0u) ? 0u : (head + 1u) % TRAIL_POINTS;

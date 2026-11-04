@@ -1,31 +1,31 @@
 // ============================================================
 // SwarmProjMoveCS.hlsl
-// One fixed step of projectile integration.
+// 弾の積分の固定ステップ 1 回分。
 //
-// g_Step is always the same value here -- that is the point of the
-// fixed step. The result cannot depend on frame rate.
+// ここでの g_Step は常に同じ値。それが固定ステップの目的で、
+// 結果がフレームレートに左右されない。
 //
-// Three motion modes (SwarmMotion.mode):
-//   STRAIGHT   : position += velocity * step. Never looks at enemies.
-//   CURVE_ONCE : follows the Bezier built at spawn toward the locked
-//                enemy. The end point tracks that enemy while it lives.
-//                Enemy dies / curve ends -> keeps flying straight along
-//                the current velocity. Never locks again.
-//   TRACK      : same curve, but when the target is gone it searches
-//                the enemy nearest to ITSELF and builds a new curve
-//                from where it is, leaving along its current heading.
+// 動き方は 3 種類（SwarmMotion.mode）：
+//   STRAIGHT   : position += velocity * step。敵は一切見ない。
+//   CURVE_ONCE : 生成時にロックした敵へ向けて組んだベジェに沿う。
+//                終点はその敵が生きている間追いかける。
+//                敵が死ぬ / カーブが終わる -> 今の速度のまま
+//                まっすぐ飛び続ける。二度とロックしない。
+//   TRACK      : 同じカーブだが、標的がいなくなると「自分」に一番近い
+//                敵を探し、今いる所から今の向きで出ていく
+//                新しいカーブを組む。
 //
-//   DROP       : falls along the straight path built at spawn onto the
-//                impact point fixed then (meteor). See the branch below.
+//   DROP       : 生成時に組んだ直線の経路に沿って、その時決めた着弾点へ
+//                落ちる（メテオ）。下の分岐を参照。
 //
-// velocity always holds the real velocity of this step (curve or not):
-// EmitCS sweeps particles back along it and the trail reads it.
+// velocity には常にこのステップの本当の速度が入る（カーブでもそうでなくても）：
+// EmitCS はこれに沿ってパーティクルを後ろへ散らし、トレイルもこれを読む。
 // ============================================================
-// a projectile that expires / hits a wall may leave an area behind
+// 寿命切れ / 壁に当たった弾は範囲を残すことがある
 #define SWARM_AREA_POOL_U u4
 #define SWARM_AREA_STATE_U u5
 #define SWARM_AREA_DEF_T t4
-// and remembers which way it was flying (a poison flask's puddle splashes that way)
+// そして飛んでいた向きを覚える（毒瓶の水たまりはその向きへ飛び散る）
 #define SWARM_AREA_DIR_U u6
 #include "../Common/SwarmCommon.hlsli"
 
@@ -33,10 +33,10 @@ StructuredBuffer<uint> terrain : register(t0);
 StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
-StructuredBuffer<float> terrainHeight : register(t5);   // ramps (t4 = area defs)
-Buffer<uint> projBoost : register(t6);   // damage / duration boost of the area this shot leaves
-StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t7); // kind: a buried burrower is not a target (2026-10-17)
-Buffer<uint> projTags : register(t8);   // trigger tag; the top bit = a lifesteal shot: the area it leaves marks what it hits too (2026-10-25)
+StructuredBuffer<float> terrainHeight : register(t5);   // 坂（t4 = 範囲の定義）
+Buffer<uint> projBoost : register(t6);   // この弾が残す範囲の威力 / 持続の倍率
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t7); // 種類：潜っている砂潜りは標的にしない（2026-10-17）
+Buffer<uint> projTags : register(t8);   // 連鎖タグ。最上位ビット = 吸血の弾：残す範囲も当てた相手に印を付ける（2026-10-25）
 uint SwarmStealExtra(uint i)
 {
     return ((projTags[i] & SWARM_TAG_LIFESTEAL) != 0u) ? SWARM_AREA_EXTRA_LIFESTEAL : 0u;
@@ -47,7 +47,7 @@ RWBuffer<uint> projStates : register(u1);
 RWByteAddressBuffer counters : register(u2);
 RWStructuredBuffer<SwarmProjPath> paths : register(u3);
 
-// detonate spell (2026-11-01): != 0 for one step: every flying shot dies and leaves this area
+// 一斉起爆（2026-11-01）：1 ステップだけ != 0。飛んでいる弾はすべて消えてこの範囲を残す
 cbuffer ProjDetonateCB : register(b1)
 {
     uint g_DetonateArea;
@@ -69,8 +69,8 @@ void main(uint3 id : SV_DispatchThreadID)
     SwarmMotion m = motions[p.motion & SWARM_MOTION_INDEX_MASK];
     bool areaOnExpire = (m.hitArea != 0u) && ((m.hitAreaFlags & SWARM_HITAREA_ON_EXPIRE) != 0u);
 
-    // ---- detonate: a falling meteor / thrown flask stays out of it (the blast would hang in the air), and so does
-    // a shot still near the player: a slow mine would go off in the caster's face, wasted ----
+    // ---- 起爆：落下中のメテオ / 投げた瓶は対象外（爆発が空中に浮いてしまう）。プレイヤーの近くにまだいる弾も
+    // 対象外：遅い機雷が詠唱者の目の前で弾けて無駄になる ----
     float3 fromPlayer = p.position - g_PlayerPos;
     if (g_DetonateArea != 0u && !SwarmMotionLands(m.mode) && dot(fromPlayer, fromPlayer) > 9.0)
     {
@@ -79,7 +79,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // ---- lifetime ----
+    // ---- 寿命 ----
     p.lifetime -= g_Step;
     if (p.lifetime <= 0.0)
     {
@@ -89,14 +89,14 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // ---- hold: hangs where it was spawned (pathT < 0 = seconds left. 2026-10-16) ----
+    // ---- 停止：生成された場所に浮いたまま（pathT < 0 = 残り秒。2026-10-16） ----
     if (p.pathT < 0.0)
     {
         p.pathT += g_Step;
         if (p.pathT < 0.0)
         {
-            // velocity stays as aimed (a straight shot needs it after the hold; the
-            // body particles use its direction to face the target. EmitCS shrinks it)
+            // velocity は狙った向きのまま残す（直線の弾は停止の後にそれを使い、
+            // 本体のパーティクルはその向きで標的の方を向く。EmitCS が小さくする）
             projectiles[i].lifetime = p.lifetime;
             projectiles[i].pathT = p.pathT;
             uint holdCount;
@@ -104,11 +104,11 @@ void main(uint3 id : SV_DispatchThreadID)
             return;
         }
         p.pathT = 0.0;
-        // the spawn velocity was kept in the path (a curve) or in the projectile (straight)
+        // 生成時の速度は経路（カーブ）か弾本体（直線）に残してある
     }
     bool easeIn = (m.hitAreaFlags & SWARM_HITAREA_EASE_IN) != 0u;
 
-    // ---- orbit (2026-11-01): flies out to the radius, then circles the player. No terrain test: it follows the player ----
+    // ---- 周回（2026-11-01）：半径まで飛び出し、その後プレイヤーの周りを回る。地形判定なし：プレイヤーについて回る ----
     if (m.mode == SWARM_MOTION_ORBIT)
     {
         p.pathT += g_Step;
@@ -124,12 +124,12 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // ---- chain rune (2026-10-16): HitCS hit an enemy last step and left the shot alive.
-    // Aim it at the nearest OTHER living enemy within reach and build a new curve from
-    // here, leaving along the current heading. Nobody in reach: let go and fly on
-    // (a TRACK shot searches again on its own; HitCS keeps skipping the last enemy) ----
+    // ---- 連鎖のルーン（2026-10-16）：前のステップで HitCS が敵に当て、弾を生かしたまま残した。
+    // 届く範囲で一番近い「別の」生きている敵に狙いを付け、ここから今の向きで出ていく
+    // 新しいカーブを組む。届く範囲に誰もいなければ、手放してそのまま飛ぶ
+    // （TRACK の弾は自分でまた探す。HitCS は最後に当てた敵を飛ばし続ける） ----
     uint state = projStates[i];
-    // a piercing shot (golden arrow, 2026-10-28) uses the same state but is never re-aimed: it stays on its line
+    // 貫通する弾（黄金の矢、2026-10-28）は同じ状態を使うが、狙い直さない：直線のまま進む
     bool chained = (state & SWARM_PROJ_CHAINED) != 0u && (state & SWARM_PROJ_PIERCE) == 0u;
     if ((state & SWARM_PROJ_CHAIN_PENDING) != 0u)
     {
@@ -168,10 +168,10 @@ void main(uint3 id : SV_DispatchThreadID)
         paths[i] = chainPath;
     }
 
-    // ---- DROP / LOB: fall onto the impact point fixed at spawn ----
-    // No enemy collision on the way (HitCS skips DROP) and no terrain test:
-    // the walkability test is 2D, so flying over a tree or a plateau would
-    // count as hitting a wall. It always lands on p3 and leaves its area there.
+    // ---- DROP / LOB：生成時に決めた着弾点へ落ちる ----
+    // 途中で敵には当たらず（HitCS は DROP を飛ばす）、地形判定もしない：
+    // 通行判定は 2D なので、木や台地の上を飛ぶと壁に当たったことに
+    // なってしまう。必ず p3 に着地して、そこに範囲を残す。
     if (SwarmMotionLands(m.mode))
     {
         SwarmProjPath drop = paths[i];
@@ -183,7 +183,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (p.pathT >= 1.0)
         {
             if (m.hitArea != 0u)
-                SwarmSpawnAreaFromDefX(m.hitArea, drop.p3, i, SwarmProjScale(p), projBoost[i], p.velocity.xz, SwarmStealExtra(i));   // the arc's last heading = the throw
+                SwarmSpawnAreaFromDefX(m.hitArea, drop.p3, i, SwarmProjScale(p), projBoost[i], p.velocity.xz, SwarmStealExtra(i));   // 弧の最後の向き = 投げた向き
             projStates[i] = SWARM_DEAD;
             return;
         }
@@ -199,13 +199,13 @@ void main(uint3 id : SV_DispatchThreadID)
 
     bool onCurve = false;
 
-    // a chained straight shot (golden arrow + chain rune) follows the curve the chain built
+    // 連鎖中の直線の弾（黄金の矢 + 連鎖のルーン）は連鎖が組んだカーブに沿う
     if (m.mode != SWARM_MOTION_STRAIGHT || chained)
     {
         SwarmProjPath path = paths[i];
         bool pathDirty = false;
 
-        // ---- target lost? ----
+        // ---- 標的を見失ったか ----
         if (path.target != SWARM_NO_TARGET)
         {
             if (path.target >= g_MaxEnemies || enemyStates[path.target] == SWARM_DEAD || SwarmUntargetable(enemyExtra[path.target]))
@@ -213,14 +213,14 @@ void main(uint3 id : SV_DispatchThreadID)
                 path.target = SWARM_NO_TARGET;
                 pathDirty = true;
 
-                // keep the heading, go back to the nominal speed
+                // 向きはそのまま、速さを公称値に戻す
                 float lostLenSq = dot(p.velocity, p.velocity);
                 if (lostLenSq > 1e-8)
                     p.velocity *= rsqrt(lostLenSq) * path.speed;
             }
         }
 
-        // ---- TRACK: look for a new target, nearest to the projectile ----
+        // ---- TRACK：新しい標的を探す。弾に一番近いもの ----
         if (path.target == SWARM_NO_TARGET && m.mode == SWARM_MOTION_TRACK)
         {
             float bestSq = (m.retargetRadius > 0.0)
@@ -252,11 +252,11 @@ void main(uint3 id : SV_DispatchThreadID)
             }
         }
 
-        // ---- follow the curve ----
+        // ---- カーブに沿う ----
         if (path.target != SWARM_NO_TARGET)
         {
-            // the end point rides on the target; drag the second handle
-            // along so the arrival shape survives the target moving
+            // 終点は標的に乗せる。2 つ目のハンドルも一緒に動かし、
+            // 標的が動いても到着の形が崩れないようにする
             float3 newEnd = enemies[path.target].position;
             path.p2 += newEnd - path.p3;
             path.p3 = newEnd;
@@ -264,7 +264,7 @@ void main(uint3 id : SV_DispatchThreadID)
             p.pathT += g_Step / path.duration;
             float t = min(p.pathT, 1.0);
             if (easeIn)
-                t = t * t; // starts from rest, arrives at 2x the nominal speed
+                t = t * t; // 止まった状態から始まり、公称速度の 2 倍で着く
 
             float3 newPos = SwarmBezier(path, t);
             p.velocity = (newPos - p.position) / g_Step;
@@ -272,8 +272,8 @@ void main(uint3 id : SV_DispatchThreadID)
             onCurve = true;
             pathDirty = true;
 
-            // end of the curve without a hit: let go and fly straight at the
-            // nominal speed. TRACK will search again next step
+            // 当たらずにカーブが終わった：手放して公称速度で
+            // まっすぐ飛ぶ。TRACK は次のステップでまた探す
             if (p.pathT >= 1.0)
             {
                 float3 tan1 = SwarmBezierTangent(path, 1.0);
@@ -288,26 +288,26 @@ void main(uint3 id : SV_DispatchThreadID)
             paths[i] = path;
     }
 
-    // ---- straight flight ----
-    // no gravity: projectiles fly straight (same as the CPU version)
+    // ---- 直進 ----
+    // 重力なし：弾はまっすぐ飛ぶ（CPU 版と同じ）
     if (!onCurve)
         p.position += p.velocity * g_Step;
 
-    // ---- terrain ----
-    // entering a blocked cell kills it. grid precision is 2m but a
-    // wall is 2m thick anyway, so nothing slips through.
-    // ramps are walkable cells with a height: flying below the
-    // surface is a hit too (the projectile would be inside the block)
-    // a blocked cell only stops a shot that flies INTO it from a free cell.
-    // a shot born inside one flies on until it has left it: the player can
-    // stand on a rock / crate (their cells are blocked for the mobs), and
-    // every shot cast from up there used to die on its first step
-    // (2026-10-07). walls are still entered from a free cell, so they still stop shots
+    // ---- 地形 ----
+    // 塞がったセルに入ると消える。グリッドの精度は 2m だが、
+    // 壁もどうせ 2m の厚さがあるので、すり抜けはしない。
+    // 坂は高さを持つ通行可能なセル：その面より下を飛ぶのも
+    // 当たり扱い（弾がブロックの中に入ってしまうので）
+    // 塞がったセルが止めるのは、空いたセルからその中へ飛び込んだ弾だけ。
+    // 中で生まれた弾は、そこを出るまで飛び続ける：プレイヤーは
+    // 岩 / 箱の上に立てる（そのセルは雑魚にとっては塞がっている）ので、
+    // 以前はそこから詠唱した弾がすべて最初のステップで消えていた
+    // （2026-10-07）。壁には空いたセルから入るので、壁は今まで通り弾を止める
     bool wasFree = SwarmIsWalkable(terrain, projectiles[i].position);
     if ((wasFree && !SwarmIsWalkable(terrain, p.position))
         || p.position.y < SwarmTerrainHeight(terrainHeight, p.position.xz))
     {
-        // blow up at the last free position, not inside the wall
+        // 壁の中ではなく、最後に空いていた位置で弾ける
         if (areaOnExpire)
             SwarmSpawnAreaFromDefX(m.hitArea, projectiles[i].position, i, SwarmProjScale(p), projBoost[i], p.velocity.xz, SwarmStealExtra(i));
         projStates[i] = SWARM_DEAD;

@@ -1,21 +1,21 @@
 // ============================================================
 // SwarmLightCollectCS.hlsl
-// One thread per GPU projectile. If alive and its recipe carries a
-// light, append a PointLight at the projectile's position to the
-// frame's light list (PointLights.hlsli). The list already holds the
-// CPU-side lights; the counter continues from there.
+// GPU の弾 1 つにつき 1 スレッド。生きていてレシピがライトを持つなら、
+// 弾の位置に PointLight を 1 つ、このフレームのライト一覧（PointLights.hlsli）
+// に追加する。一覧には CPU 側のライトが既に入っていて、カウンタは
+// その続きから数える。
 //
-// The list is capped (MAX_POINT_LIGHTS, 256 since the clustered lights
-// of 2026-10-23). Slots are first come first served -- with hundreds of
-// fireballs only the first ones shine.
+// 一覧には上限がある（MAX_POINT_LIGHTS。2026-10-23 のクラスタ化以降 256）。
+// スロットは早い者勝ち -- 火球が数百あっても
+// 光るのは先頭の分だけ。
 //
-// SwarmAreaLightCollectCS.hlsl #defines SWARM_LIGHT_AREAS and includes
-// this file: same code, sources are the live areas.
+// SwarmAreaLightCollectCS.hlsl は SWARM_LIGHT_AREAS を #define してこの
+// ファイルを include する: コードは同じで、光源が生きている範囲になる。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
-#include "../Common/PointLights.hlsli"   // struct PointLight (SRVs unused here)
+#include "../Common/PointLights.hlsli"   // struct PointLight（SRV はここでは使わない）
 
-// Must match Swarm::VFXLightEntry in SwarmVFXTable.h (32 bytes)
+// SwarmVFXTable.h の Swarm::VFXLightEntry（32 バイト）と一致させること
 struct SwarmLightEntry
 {
     float4 color;
@@ -35,7 +35,7 @@ StructuredBuffer<SwarmRecipe> recipes : register(t2);
 StructuredBuffer<SwarmLightEntry> lightDefs : register(t3);
 
 RWStructuredBuffer<PointLight> outLights : register(u0);
-RWStructuredBuffer<uint> outCount : register(u1);   // [0] = live count
+RWStructuredBuffer<uint> outCount : register(u1);   // [0] = 有効な数
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -44,7 +44,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float3 srcPos;
     uint srcVfx;
-    float srcScale; // size scale (Magnifier): a bigger blast lights a wider circle
+    float srcScale; // サイズ倍率（拡大鏡）: 爆発が大きいほど広い円を照らす
 #ifdef SWARM_LIGHT_AREAS
     if (i >= SWARM_MAX_AREAS)
         return;
@@ -73,7 +73,7 @@ void main(uint3 id : SV_DispatchThreadID)
         InterlockedAdd(outCount[0], 1u, slot);
         if (slot >= MAX_POINT_LIGHTS)
         {
-            // over budget: give the slot back so the count stays <= MAX
+            // 上限超え: カウントが MAX 以下に収まるようスロットを返す
             InterlockedAdd(outCount[0], (uint) -1, slot);
             return;
         }

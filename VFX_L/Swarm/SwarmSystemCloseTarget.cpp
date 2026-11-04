@@ -65,6 +65,7 @@ void SwarmSystem::ReadCloseTarget()
     const float* f = static_cast<const float*>(mapped.pData);
     m_CloseTargetPos = { f[1], f[2], f[3] };
     m_CloseTargetDist = f[4];
+    m_CloseNearCount = static_cast<const uint32_t*>(mapped.pData)[6];   // +24：プレイヤーの 10m 以内の敵の数（2026-11-02、賢いカメラ）
     m_Context->Unmap(m_CloseTargetStaging[readIndex].Get(), 0);
 }
 

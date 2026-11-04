@@ -31,6 +31,7 @@ void CollisionTestScene::BuildTerrain(std::vector<uint8_t>& grassMask)
             m_TerrainConfig.seed = file.seed;
             m_TerrainConfig.biome = (TerrainGenerator::Biome)file.biome;
             m_MapLoaded = true;
+            LimitGrassToOasis(grassMask);
             m_GrassMask = grassMask;
             return;
         }
@@ -39,7 +40,47 @@ void CollisionTestScene::BuildTerrain(std::vector<uint8_t>& grassMask)
 
     TerrainGenerator::Generate(m_Registry, device, m_Grid, m_TerrainConfig, m_Terrain, &grassMask, &m_Torches,
         &m_TerrainLayout, &m_TerrainMap);
+    LimitGrassToOasis(grassMask);
     m_GrassMask = grassMask;
+}
+
+// 砂漠のオアシス（2026-11-02）：面の StageDef::oasisGrass > 0 なら、草は水たまりからその距離以内のマスだけ
+void CollisionTestScene::LimitGrassToOasis(std::vector<uint8_t>& grassMask) const
+{
+    float reach = 0.0f;
+    for (int s = 1; s <= StageConfig::kStageCount; ++s)
+        if (StageConfig::Get(s).biome == m_TerrainConfig.biome) { reach = StageConfig::Get(s).oasisGrass; break; }
+    if (reach <= 0.0f) return;
+
+    const int gw = m_Grid.Width(), gd = m_Grid.Depth();
+    const auto& pond = m_TerrainMap.pond;
+    if ((int)grassMask.size() != gw * gd) return;
+    std::vector<uint8_t> nearWater((size_t)gw * gd, 0);
+    if ((int)pond.size() == gw * gd)
+    {
+        const float cell = GridWorld::kCellSize;
+        const int r = (int)std::ceil(reach / cell);
+        for (int z = 0; z < gd; ++z)
+            for (int x = 0; x < gw; ++x)
+            {
+                if (!pond[(size_t)z * gw + x]) continue;
+                for (int dz = -r; dz <= r; ++dz)
+                    for (int dx = -r; dx <= r; ++dx)
+                    {
+                        const int nx = x + dx, nz = z + dz;
+                        if (nx < 0 || nz < 0 || nx >= gw || nz >= gd) continue;
+                        if ((float)(dx * dx + dz * dz) * cell * cell > reach * reach) continue;
+                        nearWater[(size_t)nz * gw + nx] = 1;
+                    }
+            }
+    }
+    int kept = 0;
+    for (size_t i = 0; i < grassMask.size(); ++i)
+    {
+        if (!nearWater[i]) grassMask[i] = 0;
+        kept += grassMask[i] ? 1 : 0;
+    }
+    std::cout << "[CollisionTestScene] oasis grass: " << kept << " cells within " << reach << "m of water" << std::endl;
 }
 
 // ============================================================
@@ -80,7 +121,10 @@ void CollisionTestScene::RebuildTerrain()
     m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
     lap("props");
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
+    ApplyGrassCover();   // 草の下の地面を暗く（図が変わった）
     m_GrassFire.Build(m_Grid, m_TerrainConfig.seed);   // 火も消す
+    BuildSandField();   // 砂の面も平らに（砂漠だけ動く）
+    BuildMiasma();      // 瘴気も満たし直す（遺跡だけ動く）
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());   // 落ち葉も置き直す
     m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);   // 水たまりの水面も
     BuildWindToys();   // 転がり草・タンポポも
@@ -93,6 +137,7 @@ void CollisionTestScene::RebuildTerrain()
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());
+    m_Sand.BuildTable(m_Swarm.GetVFXTable());
     lap("swarm");
     m_RebuildProfile = prof;
     // デバッグの的（無敵のエリート）は自動では置かない（2026-10-27、ユーザー：突風がいつも同じ向きへ吹く → トレーニングのフィールド切替で

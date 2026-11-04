@@ -1,20 +1,20 @@
 // ============================================================
 // PointLights.hlsli
-// Per-frame point light list, shared by every model PS.
+// フレームごとの点光源リスト。全モデルの PS が共有する。
 //
-// The list is one buffer for the whole frame:
-//   [0, cpuCount)        written by PointLightManager (CPU VFX entries,
-//                        editor preview, area casts, elites)
-//   [cpuCount, count)    appended by SwarmLightCollectCS from live GPU
-//                        projectiles / areas whose recipe has a light
-// count lives in a 1-element buffer so the PS loops only over live
-// lights. Unbound SRVs read as 0, so a scene without lights costs
-// one buffer read.
-// Since 2026-10-23 the PS does not loop over the whole list any more:
-// LightClusterCS sorts the lights into screen clusters (LightClusters.hlsli),
-// so the cap went 64 -> 256 (must stay a multiple of 32: one mask bit per light).
+// リストはフレーム全体で 1 つのバッファ:
+//   [0, cpuCount)        PointLightManager が書く（CPU のエフェクトのエントリ、
+//                        エディタのプレビュー、範囲の詠唱、エリート）
+//   [cpuCount, count)    SwarmLightCollectCS が、レシピにライトを持つ
+//                        生きている GPU の弾 / 範囲から追加する
+// 数は要素 1 個のバッファに入れるので、PS は生きているライトだけを
+// 回る。バインドしていない SRV は 0 が読めるので、ライトのない
+// シーンはバッファ 1 回の読み込みで済む。
+// 2026-10-23 からは PS がリスト全体を回らない:
+// LightClusterCS がライトを画面のクラスタに振り分ける（LightClusters.hlsli）ので、
+// 上限は 64 -> 256 にした（32 の倍数を保つこと: ライト 1 つにマスク 1 ビット）。
 //
-// C++ mirror: Graphics/Light/PointLightManager.h (PointLight, 32 bytes)
+// C++ 側: Graphics/Light/PointLightManager.h（PointLight、32 バイト）
 // ============================================================
 #ifndef POINT_LIGHTS_HLSLI
 #define POINT_LIGHTS_HLSLI
@@ -24,9 +24,9 @@
 struct PointLight
 {
     float3 position;
-    float radius;      // meters. Zero light past this
+    float radius;      // m。これより先は光が 0
     float3 color;
-    float intensity;   // linear HDR gain (>1 blooms)
+    float intensity;   // 線形 HDR のゲイン（>1 でブルームがかかる）
 };
 
 #ifndef POINT_LIGHT_SRV_REG
@@ -39,15 +39,15 @@ struct PointLight
 StructuredBuffer<PointLight> g_PointLights : register(POINT_LIGHT_SRV_REG);
 StructuredBuffer<uint> g_PointLightCount : register(POINT_LIGHT_COUNT_SRV_REG);
 
-// smooth windowed inverse-square falloff (reaches exactly 0 at radius)
+// 窓関数をかけた滑らかな逆二乗の減衰（半径でちょうど 0 になる）
 float PointLightAttenuation(float dist, float radius)
 {
     float x = saturate(1.0 - (dist * dist) / max(radius * radius, 1e-4));
     return x * x;
 }
 
-// The shading loop (diffuse + GGX specular per light) lives in
-// Lighting.hlsli as PointLightShade: it needs the GGX terms and the
-// camera position from the light cbuffer defined there.
+// シェーディングのループ（ライトごとの拡散 + GGX 鏡面反射）は
+// Lighting.hlsli の PointLightShade にある: GGX の項と、そこで定義する
+// ライトの cbuffer のカメラ位置が要るため。
 
 #endif

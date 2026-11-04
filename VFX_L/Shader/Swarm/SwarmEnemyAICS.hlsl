@@ -1,48 +1,48 @@
 // ============================================================
 // SwarmEnemyAICS.hlsl
-// One thread per enemy slot. Decide this step's velocity:
-//   seek (flow field toward the player, straight line when close)
-//   + separation (3x3 spatial hash cells) + avoid (soft push from
-//   blocked cells) + hard block (kill the axis that would enter a
-//   blocked cell)
+// 敵のスロット 1 つに 1 スレッド。このステップの速度を決める：
+//   追跡（プレイヤーへ向かうフローフィールド、近ければ直線）
+//   + 分離（空間ハッシュの 3x3 セル）+ 回避（通れないセルからの
+//   柔らかい押し）+ ハードブロック（通れないセルに入る軸の速度を
+//   消す）
 //
-// Writes velocity ONLY. Position is integrated by SwarmEnemyMoveCS
-// in a separate dispatch, so every thread here reads a consistent
-// snapshot of positions -- same reason the CPU version copies all
-// positions into a vector first.
+// 書くのは速度「だけ」。位置は別のディスパッチの SwarmEnemyMoveCS が
+// 積分するので、ここの全スレッドは一貫した位置のスナップショットを
+// 読める -- CPU 版が最初に全員の位置を vector へ写すのと
+// 同じ理由。
 //
-// Logic mirrors ChaseAISystem.cpp. Keep them in sync.
-// + player block (solid circle, slide around it)
-// Elites (bigger body) stop farther out: SwarmKindScale.
+// もとは CPU の ChaseAISystem.cpp と同じロジックだった（CPU 版は 2026-09-30 に削除済み）。
+// + プレイヤーのブロック（実体のある円、回り込んで滑る）
+// エリート（体が大きい）はより遠くで止まる：SwarmKindScale。
 //
-// Freeze (Ice Lance, 2026-10-08): HitCS leaves a request in animIndex
-// (SWARM_ANIM_FREEZE_REQ, animTime = seconds); this pass turns it into
-// enemySlow.z and keeps the frozen enemy still.
-// Charger (2026-10-08): the only writer of a charger's enemyExtra.fuse
-// (wind-up -> dash -> recover -> cooldown, see SwarmChargerPhase). The dash
-// direction is the yaw set when the wind-up starts (MoveCS only turns the
-// yaw toward a non-zero velocity, so it holds while the charger stands).
+// 凍結（アイスランス、2026-10-08）：HitCS が animIndex に要求を残す
+// （SWARM_ANIM_FREEZE_REQ、animTime = 秒）。このパスがそれを
+// enemySlow.z に変え、凍った敵を止めておく。
+// 突撃兵（2026-10-08）：突撃兵の enemyExtra.fuse を書くのはここだけ
+// （溜め -> 突進 -> 息切れ -> クールダウン、SwarmChargerPhase 参照）。突進の
+// 向きは溜めの開始時に設定した yaw（MoveCS は 0 でない速度の方へしか
+// yaw を回さないので、突撃兵が立っている間は保たれる）。
 // ============================================================
 #define SWARM_BOMBER_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
 Buffer<uint> enemyStates : register(t0);
 StructuredBuffer<uint> terrain : register(t1);
-StructuredBuffer<uint> cellCount : register(t2);   // spatial hash (SwarmEnemyBinCS)
+StructuredBuffer<uint> cellCount : register(t2);   // 空間ハッシュ（SwarmEnemyBinCS）
 StructuredBuffer<uint> cellItems : register(t3);
-StructuredBuffer<float2> flowField : register(t4); // per-cell direction to the player (CPU FlowField)
-StructuredBuffer<float> terrainHeight : register(t6);         // cliffs block like walls (SwarmSlopeOk)
+StructuredBuffer<float2> flowField : register(t4); // セルごとのプレイヤーへの向き（CPU の FlowField）
+StructuredBuffer<float> terrainHeight : register(t6);         // 崖は壁と同じく塞ぐ（SwarmSlopeOk）
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
-// slow (x seconds left, y amount; AreaDamageCS) + freeze (z seconds left, w length / immunity), counted down here
+// 減速（x 残り秒、y 量。AreaDamageCS）+ 凍結（z 残り秒、w 長さ / 免疫）、ここで減らしていく
 RWStructuredBuffer<float4> enemySlow : register(u1);
-// kind + fuse. ContactCS lights a bomber's fuse; this pass runs a charger's
+// 種類 + 導火線。ContactCS が自爆兵の導火線に火を付け、このパスは突撃兵の分を回す
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u2);
-// the split ring (SwarmCorpseTrackCS writes a splitter's death here): a sand mage that finishes its
-// wind-up writes its position + SWARM_KIND_SANDMAGE, the CPU spawns the tornado toward the player (2026-10-17)
+// 分裂リング（SwarmCorpseTrackCS がスプリッターの死をここに書く）：溜めを終えた砂嵐の術師は
+// 位置 + SWARM_KIND_SANDMAGE を書き、CPU がプレイヤーへ向けて砂旋を生成する（2026-10-17）
 RWByteAddressBuffer castEvents : register(u3);
 static const uint SWARM_MAX_SPLIT_EVENTS = 128u;   // Swarm::kMaxSplitEvents
 
-// one entry on the split ring: position + kind (low 16 bits) | what happened (high 16 bits, 2026-10-25)
+// 分裂リングの 1 要素：位置 + 種類（下位 16 ビット）| 何が起きたか（上位 16 ビット、2026-10-25）
 void CastEvent(float3 pos, uint word)
 {
     uint s;
@@ -52,10 +52,10 @@ void CastEvent(float3 pos, uint word)
     castEvents.Store(at + 12u, word);
 }
 
-// a caster (sand mage / necromancer / chain warden, 2026-10-25 shared): fuse 0 = ready -> > 0 = wind-up (counts up,
-// stands still, faces the player locked at the start) -> at `windup` the cast event (the CPU does the rest) -> < 0 =
-// cooldown (counts up to 0). Starts only with the player on our level and within `range`; moveSpeed 0 = training
-// target: never casts. withYaw: the event carries the locked yaw in its high 16 bits (the warden's chain line)
+// 詠唱する敵（砂嵐の術師 / 死霊術師 / 鎖の番人、2026-10-25 に共通化）：fuse 0 = 準備完了 -> > 0 = 溜め（増えていく、
+// 立ち止まり、開始時に固定したプレイヤーの方を向く）-> `windup` で詠唱イベント（残りは CPU がやる）-> < 0 =
+// クールダウン（0 まで増える）。プレイヤーが同じ高さで `range` 以内にいるときだけ始める。moveSpeed 0 = 訓練用の
+// 的：詠唱しない。withYaw：イベントの上位 16 ビットに固定した yaw を載せる（番人の鎖の線）
 float CasterStep(uint i, float3 pos, float f, float windup, float cooldown, float range, uint kind, bool withYaw)
 {
     if (f < 0.0)
@@ -79,14 +79,14 @@ float CasterStep(uint i, float3 pos, float f, float windup, float cooldown, floa
         if (dot(toP, toP) <= range * range)
         {
             f = g_Step;
-            enemies[i].yaw = atan2(toP.x, toP.y);   // faces the player while winding up (the warden's chain goes this way)
+            enemies[i].yaw = atan2(toP.x, toP.y);   // 溜めの間はプレイヤーの方を向く（番人の鎖はこの向きへ飛ぶ）
         }
     }
     return f;
 }
 
-// a charger only winds up if the ground along the dash is open up to the player
-// (walkable, no cliff): it would just ram the wall otherwise
+// 突撃兵は、突進の道筋の地面がプレイヤーまで開いている（歩ける、崖が無い）ときだけ
+// 溜める：そうでなければ壁に突っ込むだけになる
 bool ChargeLineClear(float3 pos, float2 dir, float dist)
 {
     float2 prev = pos.xz;
@@ -102,27 +102,27 @@ bool ChargeLineClear(float3 pos, float2 dir, float dist)
     return ok;
 }
 
-// The hard block's probe (2026-10-20): the probe point is open when its cell is walkable, the
-// slope from here is walkable (a cliff = wall, a drop is open only with allowDrop) AND the body
-// circle there touches nothing (SwarmBodyContact, the same test MoveCS applies to every step).
-// The centre-line slope test alone, over a look-ahead of 1.5-2 m, passed the 0.6 m ledge along
-// a terrace ramp's side and the corner of a plateau cell (its cell is walkable), so the AI kept
-// pushing into what MoveCS then refused every step (soak on the step terraces).
-// Rises are measured from the probe's own ground (walking up a ramp is no wall); with a drop
-// open, from the feet if higher (stepping off an edge: the plateau behind is no wall, and the
-// low ground under the circle does not count)
-// allowClimb (2026-10-29, enemies climb walls): the ground at the probe rising above the feet by more than
-// the body's step margin is a face to climb, not a wall - MoveCS presses against it and climbs
+// ハードブロックの探針（2026-10-20）：探針の点が開いているのは、そのセルが歩けて、ここからの
+// 坂が歩けて（崖 = 壁、下りの段差は allowDrop のときだけ開く）、かつその点での体の
+// 円が何にも触れない（SwarmBodyContact、MoveCS が毎ステップかけるのと同じ判定）とき。
+// 中心線の坂の判定だけだと、1.5〜2 m の先読みで、高台の坂の脇の 0.6 m の段差や
+// 台地のセルの角（そのセルは歩ける）を通してしまい、AI は MoveCS が毎ステップ
+// 拒否する方向へ押し続けていた（段々の台地での soak）。
+// 上りは探針自身の地面から測る（坂を上るのは壁ではない）。下りが
+// 開いているときは、足の方が高ければ足から測る（縁から踏み出す：後ろの台地は壁ではなく、
+// 円の下の低い地面は数えない）
+// allowClimb（2026-10-29、敵の壁登り）：探針の地面が足より体の段差の余裕以上に
+// 高いのは登る面であって壁ではない - MoveCS がそこへ押し付けて登る
 bool ProbeBlocked(float3 pos, float2 probe, float r, bool allowDrop, float feet, bool allowClimb = false)
 {
     if (!SwarmIsWalkable(terrain, float3(probe.x, 0.0, probe.y)))
         return true;
-    // measured from the ground under the centre, not the feet: while climbing the feet rise, and over the last
-    // SWARM_BODY_CLIFF_RISE of the face the step test below (ground -> top) stopped the axis, so the climber let go
-    // just short of the top every time (self test climb, 2026-10-29)
-    // The front of the body circle at the probe counts too: an enemy that had stopped restarts from a tiny velocity,
-    // its probe centre is still on the low side while the body circle already touches the face, the body test below
-    // stopped it, and it stood there for good (soak 2026-10-29: 30 stuck at a step terrace's staircase edge)
+    // 足ではなく中心の下の地面から測る：登っている間は足が上がり、面の最後の
+    // SWARM_BODY_CLIFF_RISE では下の段差判定（地面 -> 頂上）が軸を止めるので、登る敵は毎回
+    // 頂上の手前で手を放していた（自動テスト climb、2026-10-29）
+    // 探針での体の円の前端も見る：止まっていた敵はごく小さい速度から動き直すので、
+    // 探針の中心はまだ低い側にあるのに体の円はもう面に触れていて、下の体の判定に
+    // 止められ、そのまま立ち尽くしていた（soak 2026-10-29：段々の台地の階段状の縁で 30 体が詰まった）
     if (allowClimb)
     {
         float base = min(feet, SwarmTerrainHeightRaw(terrainHeight, pos.xz)) + SWARM_BODY_CLIFF_RISE;
@@ -133,8 +133,8 @@ bool ProbeBlocked(float3 pos, float2 probe, float r, bool allowDrop, float feet,
             || (SwarmIsWalkable(terrain, float3(front.x, 0.0, front.y)) && SwarmTerrainHeightRaw(terrainHeight, front) > base))
             return false;
     }
-    // bilinear OR raw (same as MoveCS's StepOk): from inside the bilinear dip at a plateau edge
-    // the bilinear test alone calls every step back onto the plateau a climb too steep
+    // バイリニアまたは生の値（MoveCS の StepOk と同じ）：台地の縁のバイリニアのくぼみの中からだと、
+    // バイリニアの判定だけでは台地へ戻る一歩をすべて急すぎる上りと判定してしまう
     if (!SwarmStepHeightOk(terrainHeight, pos.xz, probe, allowDrop) && !SwarmRawStepOk(terrainHeight, pos.xz, probe, allowDrop))
         return true;
     float footH = SwarmTerrainHeightRaw(terrainHeight, probe);
@@ -143,18 +143,18 @@ bool ProbeBlocked(float3 pos, float2 probe, float r, bool allowDrop, float feet,
     return SwarmBodyContact(terrain, terrainHeight, probe, r, !allowDrop, footH).z > 0.0;
 }
 
-// straight-line chase inside this many cells of the player: the flow
-// field's per-cell steps would make the ring around the player jitter
+// プレイヤーからこのセル数以内は直線で追う：フローフィールドのセル単位の
+// 段差で、プレイヤーを囲む輪ががたつくため
 static const float kDirectChaseCells = 1.5;
 
-// flow direction at a world xz: bilinear over the 4 nearest cell centres
-// so enemies do not snap to a new heading at every cell border.
-// (0,0) cells (unreachable / target) pull the blend toward zero, which
-// the caller treats as "no path, chase directly".
-// Cells on another level (centre more than kFlowLevelStep above / below the
-// enemy's ground) are left out (2026-10-20): beside a step terrace the blend
-// mixed in the plateau cell's heading - a route the enemy cannot take from
-// down here - which steered it into the face / corner, where it twitched
+// ワールド xz でのフローの向き：近い 4 つのセル中心でバイリニアに混ぜ、
+// セルの境目ごとに敵の向きがパチッと変わらないようにする。
+// (0,0) のセル（届かない / 目標）は混ぜた結果をゼロへ引き寄せ、
+// 呼び出し側はそれを「経路なし、直接追う」として扱う。
+// 別の高さにあるセル（中心が敵の地面から kFlowLevelStep を超えて上 / 下）は
+// 除く（2026-10-20）：段々の台地の脇では、台地のセルの向き
+// - ここ下からは通れない経路 - が混ざり、敵を面 / 角へ向けてしまい、
+// そこでぴくぴくしていた
 static const float kFlowLevelStep = 1.5;   // = FlowField::maxStep
 float2 FlowAt(float2 xz, float groundH)
 {
@@ -196,15 +196,15 @@ void main(uint3 id : SV_DispatchThreadID)
     SwarmEnemyExtra extra = enemyExtra[i];
     bool big = (SwarmIsBigElite(extra.kind) || extra.kind == SWARM_KIND_BOSS);
 
-    // ---- stage boss: how far under the sand it is (sand guardian's burrow, 2026-10-24). The CPU (BossAttacks)
-    //      drives g_BossBurrow; the boss's fuse = -burrow so SwarmBuried / the VS see it like a burrower's ----
+    // ---- 面のボス：どれだけ砂に潜っているか（砂の守護者の潜砂、2026-10-24）。CPU（BossAttacks）が
+    //      g_BossBurrow を動かす。ボスの fuse = -burrow にして、SwarmBuried / VS が砂潜りと同じように見る ----
     if (extra.kind == SWARM_KIND_BOSS)
     {
         extra.fuse = -saturate(g_BossBurrow);
         enemyExtra[i].fuse = extra.fuse;
     }
-    // ---- the stage's fixed elites (2026-10-25): the CPU (EliteAttacks) runs the moves through g_EliteCmd. How far it has
-    //      vanished goes into fuse (-hide: SwarmUntargetable from half, the VS shrinks it into the ground) ----
+    // ---- 面の固定エリート（2026-10-25）：CPU（EliteAttacks）が g_EliteCmd で技を動かす。どれだけ
+    //      姿を消しているかを fuse に入れる（-hide：半分から SwarmUntargetable、VS が地面へ縮めて沈める） ----
     int eliteRow = -1;
     if (SwarmIsFixedElite(extra.kind))
     {
@@ -213,9 +213,9 @@ void main(uint3 id : SV_DispatchThreadID)
         enemyExtra[i].fuse = extra.fuse;
     }
 
-    // ---- tornado (2026-10-17): straight along its yaw at moveSpeed until the life runs out. No slow, no freeze,
-    //      no separation, no walls (MoveCS treats it like a ghost). fuse: 0 = just spawned, > 0 = seconds left,
-    //      < 0 = expired (ContactCS turns the slot DEAD this step) ----
+    // ---- 砂旋（2026-10-17）：寿命が尽きるまで yaw の向きへ moveSpeed でまっすぐ進む。減速・凍結・
+    //      分離・壁は無し（MoveCS は幽霊と同じに扱う）。fuse：0 = 生成直後、> 0 = 残り秒、
+    //      < 0 = 寿命切れ（このステップで ContactCS がスロットを DEAD にする） ----
     if (extra.kind == SWARM_KIND_TORNADO)
     {
         float f = extra.fuse;
@@ -228,7 +228,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // ---- status: slow (poison pool) and freeze (ice). Counted down before any early return ----
+    // ---- 状態：減速（毒沼）と凍結（氷）。どの早期 return よりも前に減らす ----
     float4 st = enemySlow[i];
     float slowMul = 1.0;
     if (st.x > 0.0)
@@ -238,7 +238,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (st.x <= 0.0)
             st.xy = float2(0, 0);
     }
-    // a freeze HitCS asked for last step. Ignored while frozen or still immune
+    // 前のステップで HitCS が要求した凍結。凍っている間とまだ免疫がある間は無視する
     if (enemies[i].animIndex == SWARM_ANIM_FREEZE_REQ)
     {
         float want = enemies[i].animTime * (big ? g_FreezeBigMul : 1.0);
@@ -252,12 +252,12 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         st.z -= g_Step;
         if (st.z <= 0.0)
-            st.zw = float2(0.0, g_FreezeImmunity); // thawed: a while before the next freeze
+            st.zw = float2(0.0, g_FreezeImmunity); // 解凍：次に凍るまでしばらく空ける
     }
     else if (st.w > 0.0)
         st.w = max(st.w - g_Step, 0.0);
-    // the final-swarm ghosts are never slowed or frozen (2026-10-18: ice / poison must not hold the swarm off);
-    // neither is a lit bomber / dash bomber (it is a bomb now)
+    // 最終ウェーブの幽霊は減速も凍結もしない（2026-10-18：氷 / 毒で群れを足止めできてはいけない）。
+    // 火の付いた自爆兵 / 突撃爆弾兵も同じ（もう爆弾なので）
     if (SwarmIsGhost(extra.kind) || SwarmInvulnerable(extra))
     {
         slowMul = 1.0;
@@ -268,7 +268,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     if (frozen)
     {
-        // a frozen charger forgets its wind-up / dash
+        // 凍った突撃兵は溜め / 突進を取りやめる
         if (extra.kind == SWARM_KIND_CHARGER && extra.fuse > 0.0)
             enemyExtra[i].fuse = -0.5 * g_ChargerCooldown;
         enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
@@ -277,7 +277,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float3 pos = enemies[i].position;
 
-    // ---- charger: wind-up -> dash -> recover -> cooldown (fuse) ----
+    // ---- 突撃兵：溜め -> 突進 -> 息切れ -> クールダウン（fuse） ----
     uint cphase = SWARM_CHARGE_CHASE;
     if (extra.kind == SWARM_KIND_CHARGER)
     {
@@ -290,9 +290,9 @@ void main(uint3 id : SV_DispatchThreadID)
             if (f > g_ChargerWindup + SwarmChargerDashTime() + g_ChargerRecover)
                 f = -g_ChargerCooldown;
         }
-        // start a wind-up: the player on our level, in range, nothing in the way. The dash
-        // direction is locked now (yaw), so the band on the ground shows exactly where it goes
-        // (moveSpeed 0 = a training target that must stay put: it never charges)
+        // 溜めを始める：プレイヤーが同じ高さ、範囲内、間に障害物なし。突進の
+        // 向きはここで固定する（yaw）ので、地面の帯が行き先をそのまま示す
+        // （moveSpeed 0 = 動いてはいけない訓練用の的：突進しない）
         if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != 2u
             && enemies[i].moveSpeed > 0.01 && abs(g_PlayerPos.y - pos.y) < 1.0)
         {
@@ -310,8 +310,8 @@ void main(uint3 id : SV_DispatchThreadID)
         enemyExtra[i].fuse = f;
     }
 
-    // ---- burrower: under the sand (fuse <= 0, counts down) -> surfaces next to the player (fuse = g_BurrowSurfaceTime,
-    //      counts down) -> digs in again. moveSpeed 0 = training target: stays under (2026-10-17) ----
+    // ---- 砂潜り：砂の下（fuse <= 0、減っていく）-> プレイヤーの横で顔を出す（fuse = g_BurrowSurfaceTime、
+    //      減っていく）-> また潜る。moveSpeed 0 = 訓練用の的：潜ったまま（2026-10-17） ----
     bool buried = false;
     if (extra.kind == SWARM_KIND_BURROWER)
     {
@@ -336,9 +336,9 @@ void main(uint3 id : SV_DispatchThreadID)
         buried = f <= 0.0;
     }
 
-    // ---- sand mage: ready (fuse 0) -> wind-up (fuse counts up to g_SandMageWindup, stands still) -> cast
-    //      (castEvents, the CPU spawns the tornado) -> cooldown (fuse < 0 counts up to 0). Only with the player on our
-    //      level and within g_SandMageCastRange; moveSpeed 0 = training target: never casts (2026-10-17) ----
+    // ---- 砂嵐の術師：準備完了（fuse 0）-> 溜め（fuse が g_SandMageWindup まで増える、立ち止まる）-> 詠唱
+    //      （castEvents、CPU が砂旋を生成する）-> クールダウン（fuse < 0 が 0 まで増える）。プレイヤーが同じ
+    //      高さで g_SandMageCastRange 以内のときだけ。moveSpeed 0 = 訓練用の的：詠唱しない（2026-10-17） ----
     bool casting = false;
     if (extra.kind == SWARM_KIND_SANDMAGE)
     {
@@ -347,7 +347,7 @@ void main(uint3 id : SV_DispatchThreadID)
         enemyExtra[i].fuse = f;
         casting = f > 0.0;
     }
-    // ---- necromancer (2026-10-25): the same caster as the sand mage; the cast raises skeletons (CPU, MobSpawner) ----
+    // ---- 死霊術師（2026-10-25）：砂嵐の術師と同じ詠唱の流れ。詠唱で骸骨を起こす（CPU、MobSpawner） ----
     if (extra.kind == SWARM_KIND_NECRO)
     {
         float f = CasterStep(i, pos, extra.fuse, g_NecroWindup, g_NecroCooldown, g_NecroCastRange, SWARM_KIND_NECRO, false);
@@ -355,8 +355,8 @@ void main(uint3 id : SV_DispatchThreadID)
         enemyExtra[i].fuse = f;
         casting = f > 0.0;
     }
-    // ---- chain warden (2026-10-25): winds up with its yaw locked (the band on the ground, SwarmChargeLineVS), throws at the
-    //      end (the event carries the yaw; the scene flies the hook), then stands g_WardenHold while the chain is out ----
+    // ---- 鎖の番人（2026-10-25）：yaw を固定して溜め（地面の帯、SwarmChargeLineVS）、最後に投げる
+    //      （イベントに yaw を載せ、鉤はシーンが飛ばす）。その後、鎖が出ている間 g_WardenHold だけ立ち止まる ----
     if (extra.kind == SWARM_KIND_WARDEN)
     {
         float f = CasterStep(i, pos, extra.fuse, g_WardenWindup, g_WardenCooldown, g_WardenRange, SWARM_KIND_WARDEN, true);
@@ -365,11 +365,11 @@ void main(uint3 id : SV_DispatchThreadID)
         casting = f > 0.0 || f < -(g_WardenCooldown - g_WardenHold);
     }
 
-    // ---- stone gargoyle (2026-10-25): asleep = a statue (fuse <= 0 counts down) -> wakes with the player within
-    //      g_GargoyleWakeDist or after g_GargoyleAutoWake -> waking (shakes, rises) -> flies at the player like a ghost
-    //      -> with the player within g_GargoyleDiveRange: locks its yaw, hangs (the band on the ground), dives along it,
-    //      lands and stands g_GargoyleLandTime (the time to hit it) -> rises and flies again. Wake / dive / land go to the
-    //      split ring (the CPU's stone crumbs, dust and sounds). moveSpeed 0 = training target: never wakes ----
+    // ---- 石像ガーゴイル（2026-10-25）：眠り = 石像（fuse <= 0 が減っていく）-> プレイヤーが g_GargoyleWakeDist
+    //      以内に来るか g_GargoyleAutoWake 経つと目覚める -> 目覚め中（震えて浮き上がる）-> 幽霊のようにプレイヤーへ飛ぶ
+    //      -> プレイヤーが g_GargoyleDiveRange 以内：yaw を固定して空中で止まり（地面の帯）、それに沿って急降下し、
+    //      着地して g_GargoyleLandTime だけ立つ（殴るチャンス）-> 浮き上がってまた飛ぶ。目覚め / 急降下 / 着地は
+    //      分裂リングへ送る（CPU が石くず・土煙・音を出す）。moveSpeed 0 = 訓練用の的：目覚めない ----
     bool gargStand = false, gargDive = false;
     if (extra.kind == SWARM_KIND_GARGOYLE)
     {
@@ -394,7 +394,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 && distSq <= g_GargoyleDiveRange * g_GargoyleDiveRange && distSq >= g_GargoyleDiveMin * g_GargoyleDiveMin)
             {
                 f = SWARM_GARGOYLE_DIVE + g_Step;
-                enemies[i].yaw = atan2(toP.x, toP.y);   // the dive line, locked now
+                enemies[i].yaw = atan2(toP.x, toP.y);   // 急降下の線。ここで固定する
                 CastEvent(pos, SWARM_KIND_GARGOYLE | (1u << 16));
             }
         }
@@ -405,7 +405,7 @@ void main(uint3 id : SV_DispatchThreadID)
             float d1 = f - SWARM_GARGOYLE_DIVE;
             if (d0 < landAt && d1 >= landAt)
                 CastEvent(pos, SWARM_KIND_GARGOYLE | (2u << 16));
-            // flies again: from just past the shake of the waking, so it rises smoothly (SwarmGargoyleHover)
+            // また飛ぶ：目覚めの震えを過ぎた所から再開し、なめらかに浮き上がらせる（SwarmGargoyleHover）
             if (d1 >= landAt + g_GargoyleLandTime)
                 f = 0.36 * g_GargoyleWakeTime;
         }
@@ -415,11 +415,11 @@ void main(uint3 id : SV_DispatchThreadID)
         gargStand = (f < g_GargoyleWakeTime) || (f >= SWARM_GARGOYLE_DIVE && !gargDive);
     }
 
-    // ---- dash bomber (2026-10-18): lights itself with the player within g_DashBomberTrigger on our level, locks its
-    //      yaw at the player, stands still g_DashBomberWindup seconds (flashing), then sprints straight along that yaw
-    //      (see the dash below) until it touches / the fuse runs out (ContactCS blows it up).
-    //      2026-10-20: it used to re-aim every step at 12 m/s = nearly impossible to dodge; now a side step is enough.
-    //      fuse > 0 = seconds since lit (counted here, read by ContactCS / VS). moveSpeed 0 = training target: never lights ----
+    // ---- 突撃爆弾兵（2026-10-18）：同じ高さでプレイヤーが g_DashBomberTrigger 以内に来ると自分に火を付け、
+    //      yaw をプレイヤーへ固定し、g_DashBomberWindup 秒立ち止まって（点滅）、その yaw に沿ってまっすぐ走る
+    //      （下の突進を参照）。触れるか導火線が尽きるまで走る（ContactCS が爆発させる）。
+    //      2026-10-20：以前は 12 m/s で毎ステップ狙い直していた = ほぼ避けられない。今は横に一歩動けば避けられる。
+    //      fuse > 0 = 火が付いてからの秒（ここで数え、ContactCS / VS が読む）。moveSpeed 0 = 訓練用の的：火が付かない ----
     bool dashing = false, dashWindup = false;
     if (extra.kind == SWARM_KIND_DASHBOMBER)
     {
@@ -432,7 +432,7 @@ void main(uint3 id : SV_DispatchThreadID)
             if (dot(toP, toP) <= g_DashBomberTrigger * g_DashBomberTrigger)
             {
                 f = g_Step;
-                enemies[i].yaw = atan2(toP.x, toP.y);   // the dash direction, locked now
+                enemies[i].yaw = atan2(toP.x, toP.y);   // 突進の向き。ここで固定する
             }
         }
         extra.fuse = f;
@@ -441,8 +441,8 @@ void main(uint3 id : SV_DispatchThreadID)
         dashing = f > g_DashBomberWindup;
     }
 
-    // ---- fixed elite told to stand (a wind-up, the flame breath, the vanish): stands, turning toward the player or along
-    //      the CPU's locked direction (a run order with speed 0) ----
+    // ---- 立てと言われた固定エリート（溜め、炎の息、消える技）：立ち止まり、プレイヤーの方か、CPU が固定した
+    //      向き（速度 0 の走る指示）へ向き直る ----
     if (eliteRow >= 0)
     {
         uint ecmd = g_EliteCmd[eliteRow].z;
@@ -454,8 +454,8 @@ void main(uint3 id : SV_DispatchThreadID)
             {
                 float want = atan2(face.x, face.y);
                 float dy = want - enemies[i].yaw;
-                dy -= 6.2831853 * floor((dy + 3.14159265) / 6.2831853);   // wrap to -pi..pi
-                float turn = (ecmd == SWARM_ELITE_CMD_MOVE) ? 30.0 : 9.0;  // a locked line snaps, facing the player turns
+                dy -= 6.2831853 * floor((dy + 3.14159265) / 6.2831853);   // -pi..pi に回り込ませる
+                float turn = (ecmd == SWARM_ELITE_CMD_MOVE) ? 30.0 : 9.0;  // 固定した線へはすぐ向き、プレイヤーへは回って向く
                 enemies[i].yaw += clamp(dy, -turn * g_Step, turn * g_Step);
             }
             enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
@@ -463,24 +463,24 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // ---- hit stun / lit bomber / charger winding up or catching its breath: stand still ----
-    // velocity 0 so the exit ramps back up through the lag below.
-    // A lit bomber stays put until it blows up, so the player can outrun the blast.
-    // A charger that has started its wind-up does not flinch (it would be pinned by the fire)
+    // ---- 被弾の硬直 / 火の付いた自爆兵 / 溜め中・息切れ中の突撃兵：立ち止まる ----
+    // 速度を 0 にして、抜けるときは下の遅れを通ってまた加速させる。
+    // 火の付いた自爆兵は爆発までその場に留まるので、プレイヤーは走って爆風から逃げられる。
+    // 溜めを始めた突撃兵は怯まない（そうしないと攻撃を浴び続けて止められてしまう）
     bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
     bool stunned = (enemies[i].animIndex == 2u) && (cphase == SWARM_CHARGE_CHASE) && !dashing;
-    // a surfaced burrower stands where it came out (bites once, then digs in)
+    // 顔を出した砂潜りは出た場所に立つ（1 回噛んでからまた潜る）
     bool surfaced = (extra.kind == SWARM_KIND_BURROWER) && !buried;
     if (stunned || lit || surfaced || casting || dashWindup || gargStand || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
     {
-        // y is the fall speed (MoveCS owns it): a stunned enemy in mid-air keeps falling
+        // y は落下速度（MoveCS の持ち物）：空中で硬直した敵は落ち続ける
         enemies[i].velocity = float3(0, enemies[i].velocity.y, 0);
         return;
     }
 
-    float3 oldV = enemies[i].velocity; // own slot: written by this thread last step
+    float3 oldV = enemies[i].velocity; // 自分のスロット：前のステップでこのスレッドが書いた
     float moveSpeed = enemies[i].moveSpeed * slowMul;
-    if (eliteRow >= 0)   // the fixed elites' affixes (2026-10-25)
+    if (eliteRow >= 0)   // 固定エリートのアフィックス（2026-10-25）
     {
         uint efl = g_EliteCmd[eliteRow].y;
         if ((efl & SWARM_ELITE_SWIFT) != 0u) moveSpeed *= g_EliteSwiftMul;
@@ -489,10 +489,10 @@ void main(uint3 id : SV_DispatchThreadID)
     if (extra.kind == SWARM_KIND_BURROWER)
         moveSpeed *= buried ? g_BurrowBuriedSpeedMul : g_BurrowSurfaceSpeedMul;
 
-    // ---- seek: follow the flow field, chase directly when close ----
-    // the field routes around boxes and walls (the straight line used
-    // to pin enemies against the far side of an obstacle). Near the
-    // player, or where the field has no answer, fall back to the line
+    // ---- 追跡：フローフィールドに従い、近ければ直接追う ----
+    // フィールドは箱や壁を回り込む経路を出す（以前の直線だと、敵が
+    // 障害物の向こう側に押し付けられていた）。プレイヤーの近くか、
+    // フィールドに答えが無い所では直線に戻す
     float3 moveDir = float3(0, 0, 0);
     if (g_PlayerAlive != 0u)
     {
@@ -501,28 +501,28 @@ void main(uint3 id : SV_DispatchThreadID)
         float lenSq = dot(toPlayer, toPlayer);
         float direct = kDirectChaseCells * g_CellSize;
 
-        // the level = the raw height cell under the centre (not the feet: an enemy held on the edge
-        // while stepping off has its feet up on the plateau but belongs to the low cells' route now)
+        // 高さの段 = 中心の下の生の高さセル（足ではない：踏み出す途中で縁に支えられた敵は、
+        // 足はまだ台地の上でも、もう低いセルの経路に属している）
         float2 flow = FlowAt(pos.xz, SwarmTerrainHeightRaw(terrainHeight, pos.xz));
-        // near but on another level (player on a plateau above / below):
-        // the straight line runs into the cliff, keep following the field to a ramp
+        // 近いが別の高さ（プレイヤーが上 / 下の台地にいる）：
+        // 直線だと崖にぶつかるので、坂までフィールドに従い続ける
         bool sameLevel = abs(g_PlayerPos.y - pos.y) < 1.0;
         bool useFlow = (lenSq > direct * direct || !sameLevel) && (dot(flow, flow) > 0.01);
         if (SwarmFliesThrough(extra))
-            useFlow = false; // ghosts / a flying gargoyle fly straight at the player (through walls and over plateaus)
+            useFlow = false; // 幽霊 / 飛んでいるガーゴイルはプレイヤーへまっすぐ飛ぶ（壁を抜け、台地を越える）
         if (useFlow)
             moveDir = normalize(float3(flow.x, 0.0, flow.y));
         else if (lenSq > 1e-6)
             moveDir = toPlayer * rsqrt(lenSq);
-        // casters keep their distance (sand mage 2026-10-17, necromancer / chain warden 2026-10-25). Too close = backs away
-        // (the hard block below still stops it at walls), in the band = stands (separation only), too far = the usual chase
+        // 詠唱する敵は距離を保つ（砂嵐の術師 2026-10-17、死霊術師 / 鎖の番人 2026-10-25）。近すぎる = 後退
+        // （壁では下のハードブロックが止める）、帯の中 = 立ち止まる（分離だけ）、遠すぎる = 普通に追う
         float keepMin = 0.0, keepMax = 0.0;
         if (extra.kind == SWARM_KIND_SANDMAGE) { keepMin = g_SandMageKeepMin; keepMax = g_SandMageKeepMax; }
         else if (extra.kind == SWARM_KIND_NECRO) { keepMin = g_NecroKeepMin; keepMax = g_NecroKeepMax; }
         else if (extra.kind == SWARM_KIND_WARDEN) { keepMin = g_WardenKeepMin; keepMax = g_WardenKeepMax; }
-        else if (extra.kind == SWARM_KIND_ELITE_B) { keepMin = g_FixedEliteKeepMin; keepMax = g_FixedEliteKeepMax; }   // the ranged fixed elite (2026-10-25)
-        // the floating sand djinn (2026-10-29): only while the CPU sets g_BossKeepMax (its first phase). It flies, so it keeps
-        // the distance over other levels too
+        else if (extra.kind == SWARM_KIND_ELITE_B) { keepMin = g_FixedEliteKeepMin; keepMax = g_FixedEliteKeepMax; }   // 遠距離型の固定エリート（2026-10-25）
+        // 浮かぶ砂嵐の魔神（2026-10-29）：CPU が g_BossKeepMax を設定している間（一段目）だけ。飛ぶので
+        // 別の高さでも距離を保つ
         bool bossKeep = (extra.kind == SWARM_KIND_BOSS) && (g_BossKeepMax > 0.0);
         if (bossKeep) { keepMin = g_BossKeepMin; keepMax = g_BossKeepMax; }
         if (keepMax > 0.0 && (sameLevel || bossKeep))
@@ -530,8 +530,8 @@ void main(uint3 id : SV_DispatchThreadID)
             if (lenSq < keepMin * keepMin)
             {
                 moveDir = (lenSq > 1e-6) ? -toPlayer * rsqrt(lenSq) : float3(0, 0, 0);
-                // the djinn backs off over anything but not out of the field: the outer cells are not walkable for mobs
-                // even with the climb map, so it slides along the edge instead (or stands in a corner)
+                // 魔神は何の上でも後退するが、フィールドの外へは出ない：外周のセルは壁登りの表があっても雑魚には
+                // 歩けないので、代わりに縁に沿って滑る（または角で立ち止まる）
                 if (bossKeep && !SwarmIsWalkable(terrain, pos + moveDir * 3.0))
                 {
                     float3 side = float3(-moveDir.z, 0.0, moveDir.x);
@@ -546,8 +546,8 @@ void main(uint3 id : SV_DispatchThreadID)
             else if (lenSq <= keepMax * keepMax)
                 moveDir = float3(0, 0, 0);
         }
-        // a flying gargoyle (2026-10-25) circles the player between g_GargoyleDiveMin and 0.9 x the dive range, so
-        // the dive starts from out there and comes down on the player (from right above it passed over the head)
+        // 飛んでいるガーゴイル（2026-10-25）は g_GargoyleDiveMin から急降下距離 × 0.9 の間でプレイヤーの周りを回り、
+        // 急降下がそこから始まってプレイヤーの上に降りるようにする（真上からだと頭の上を通り過ぎていた）
         if (extra.kind == SWARM_KIND_GARGOYLE && extra.fuse < SWARM_GARGOYLE_DIVE && lenSq > 1e-6)
         {
             float3 n = toPlayer * rsqrt(lenSq);
@@ -559,10 +559,10 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // ---- separation: live neighbours in the 3x3 cells around us ----
-    // was an all-pairs loop over the whole 4096 pool; the spatial hash
-    // keeps it at (alive in 9 cells). g_SeparationRadius must stay
-    // <= g_CellSize or neighbours two cells away get missed
+    // ---- 分離：周りの 3x3 セルにいる生きた近傍 ----
+    // 以前はプール 4096 全体の総当たりのループだった。空間ハッシュで
+    // （9 セル内の生存数）に抑えている。g_SeparationRadius は
+    // <= g_CellSize のままにすること。でないと 2 セル先の近傍を取りこぼす
     float3 sep = float3(0, 0, 0);
     float sepRadSq = g_SeparationRadius * g_SeparationRadius;
 
@@ -584,8 +584,8 @@ void main(uint3 id : SV_DispatchThreadID)
                     continue;
 
                 float3 away = pos - enemies[j].position;
-                // another level (on a plateau above / below, or falling past): not touching.
-                // The crowd at a cliff foot used to hold the ones on the edge above back
+                // 別の高さ（上 / 下の台地にいる、または落ちて通り過ぎている）：触れていない。
+                // 以前は崖の下の群れが上の縁にいる敵を押し戻していた
                 if (abs(away.y) > 1.5)
                     continue;
                 away.y = 0.0;
@@ -599,14 +599,14 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // ---- avoid: soft push away from blocked neighbour cells (not for ghosts / a flying gargoyle) ----
+    // ---- 回避：隣の通れないセルから柔らかく押し離す（幽霊 / 飛んでいるガーゴイルには無し） ----
     bool ghost = SwarmFliesThrough(extra);
     float3 avoid = float3(0, 0, 0);
     float cs = g_CellSize;
-    // cliffs going down are open while the player stands lower (SwarmDropAllowed); the avoid and the hard block share it
+    // 下りの崖はプレイヤーが低い所にいる間は開いている（SwarmDropAllowed）。回避とハードブロックで共用する
     bool allowDrop = SwarmDropAllowed(terrainHeight, pos.xz, pos.y - g_GroundY);
-    // (cliff faces are deliberately not avoided: tried 2026-10-20, the push away from a terrace
-    // side shoved enemies into the trees diagonally beside it, where they jammed)
+    // （崖の面はわざと回避しない：2026-10-20 に試したら、台地の側面から押し離す力が
+    // 敵を斜め隣の木々へ押し込み、そこで詰まった）
     if (!ghost)
     {
         if (!SwarmIsWalkable(terrain, pos + float3(cs, 0, 0)))
@@ -619,30 +619,30 @@ void main(uint3 id : SV_DispatchThreadID)
             avoid.z += 1.0;
     }
 
-    // ---- compose the target velocity ----
+    // ---- 目標速度を組み立てる ----
     float3 target = moveDir * moveSpeed
                   + sep * g_SeparationPower
                   + avoid * g_AvoidPower;
     target.y = 0.0;
 
-    // ---- speed cap: separation may stack up far beyond moveSpeed ----
+    // ---- 速度の上限：分離が重なると moveSpeed を大きく超えることがある ----
     float maxSpeed = moveSpeed * g_MaxSpeedMul;
     float tLenSq = dot(target, target);
     if (tLenSq > maxSpeed * maxSpeed)
         target *= maxSpeed * rsqrt(tLenSq);
 
-    // ---- inertia: exponential approach to the target ----
-    // frame-rate independent because g_Step is the fixed step
+    // ---- 慣性：目標へ指数的に近づける ----
+    // g_Step は固定ステップなので、フレームレートに依存しない
     float k = 1.0 - exp(-g_VelocityLag * g_Step);
     float3 v = lerp(oldV, target, k);
 
-    // ---- boss charge (2026-10-07): the CPU (BossAttacks) steers the boss straight along a line ----
-    // no inertia (snaps into the dash), no slow, no stop at the player: it runs through.
-    // The hard block below still stops it at walls and cliffs
+    // ---- ボスの突進（2026-10-07）：CPU（BossAttacks）がボスを直線に沿って動かす ----
+    // 慣性なし（すぐ突進に入る）、減速なし、プレイヤーの前で止まらない：突き抜ける。
+    // 壁と崖では下のハードブロックが止める
     bool charging = (extra.kind == SWARM_KIND_BOSS) && (g_BossChargeOn > 0.5);
     if (charging)
         v = float3(g_BossChargeDir.x, 0.0, g_BossChargeDir.y) * g_BossChargeSpeed;
-    // ---- fixed elite's run order (the rider's charges, 2026-10-25): straight along the CPU's line, through the player ----
+    // ---- 固定エリートの走る指示（騎兵の突進、2026-10-25）：CPU の線に沿ってまっすぐ、プレイヤーを突き抜ける ----
     bool eliteDash = false;
     if (eliteRow >= 0 && g_EliteCmd[eliteRow].z == SWARM_ELITE_CMD_MOVE)
     {
@@ -651,7 +651,7 @@ void main(uint3 id : SV_DispatchThreadID)
         charging = true;
         eliteDash = emv.z > 6.0;
     }
-    // ---- charger dash: straight along the yaw locked at the wind-up, through the player ----
+    // ---- 突撃兵の突進：溜めで固定した yaw に沿ってまっすぐ、プレイヤーを突き抜ける ----
     float dashSpeed = g_ChargerDashSpeed * slowMul;
     if (cphase == SWARM_CHARGE_DASH)
     {
@@ -660,8 +660,8 @@ void main(uint3 id : SV_DispatchThreadID)
         v = float3(ys, 0.0, yc) * dashSpeed;
         charging = true;
     }
-    // ---- lit dash bomber (wind-up over): sprints straight along the yaw locked when it lit, through where the player
-    //      was (ContactCS blows it up on touch). MoveCS turns the yaw toward the velocity, which is this yaw = no drift ----
+    // ---- 火の付いた突撃爆弾兵（溜め終わり）：火が付いたときに固定した yaw に沿ってまっすぐ、プレイヤーが
+    //      いた所を突き抜けて走る（触れると ContactCS が爆発させる）。MoveCS は yaw を速度の方へ回すが、それがこの yaw なのでずれない ----
     if (dashing)
     {
         float ys, yc;
@@ -669,7 +669,7 @@ void main(uint3 id : SV_DispatchThreadID)
         v = float3(ys, 0.0, yc) * g_DashBomberDashSpeed;
         charging = true;
     }
-    // ---- gargoyle's dive (2026-10-25): straight along the yaw locked at the start, coming down (MoveCS lowers it) ----
+    // ---- ガーゴイルの急降下（2026-10-25）：開始時に固定した yaw に沿ってまっすぐ降りてくる（高さは MoveCS が下げる） ----
     if (gargDive)
     {
         float ys, yc;
@@ -678,34 +678,34 @@ void main(uint3 id : SV_DispatchThreadID)
         charging = true;
     }
 
-    // ---- player is solid ----
-    // Same idea as the terrain hard block, but against a circle:
-    // drop the velocity component that would carry us inside the
-    // contact radius, keep the tangential part so the crowd slides
-    // around and rings the player instead of piling onto them.
-    // An enemy already overlapping is pushed out gently.
-    // Only on the player's level: an enemy on a plateau edge right above the
-    // player is not touching it and has to step off and drop (2026-10-01)
+    // ---- プレイヤーは実体がある ----
+    // 地形のハードブロックと同じ考えを円に対して使う：
+    // 接触半径の内側へ入ってしまう速度成分を消し、接線方向の成分は
+    // 残すので、群れはプレイヤーに積み重ならずに回り込んで
+    // 周りを囲む。
+    // すでに重なっている敵はやさしく押し出す。
+    // プレイヤーと同じ高さのときだけ：プレイヤーの真上の台地の縁にいる敵は
+    // 触れていないので、踏み出して落ちる必要がある（2026-10-01）
     if (g_PlayerAlive != 0u && abs(g_PlayerPos.y - pos.y) < 1.5 && !charging)
     {
         float3 toP = g_PlayerPos - pos;
         toP.y = 0.0;
         float dist = length(toP);
-        float contact = g_PlayerRadius + g_EnemyRadius * SwarmSlotScale(i, extra.kind);   // a berserk fixed elite stops farther out (2026-10-25)
+        float contact = g_PlayerRadius + g_EnemyRadius * SwarmSlotScale(i, extra.kind);   // 狂暴化した固定エリートはより遠くで止まる（2026-10-25）
 
         float3 n;
         if (dist > 1e-4)
             n = toP / dist;
         else
         {
-            // dead centre: pick a direction from the slot index so
-            // stacked enemies scatter instead of all pushing the same way
+            // ど真ん中：スロット番号から向きを選び、重なった敵が
+            // 全員同じ向きに押すのではなく散らばるようにする
             float a = (float) i * 2.399;
             n = float3(cos(a), 0.0, sin(a));
             dist = 0.0;
         }
 
-        float along = dot(v, n); // > 0 = moving toward the player
+        float along = dot(v, n); // > 0 = プレイヤーへ向かって動いている
         float nextDist = dist - along * g_Step;
 
         if (along > 0.0 && nextDist < contact)
@@ -715,32 +715,32 @@ void main(uint3 id : SV_DispatchThreadID)
             v -= n * (contact - dist) * g_PlayerPushOut;
     }
 
-    // ---- hard block, applied LAST (after smoothing and the player push) ----
-    // the smoothed velocity may still carry an old component into a
-    // wall, and the player push-out used to come after this check and shove
-    // enemies into trees / walls (2026-09-30). Look-ahead = body radius +
-    // velocity * g_LookAhead, so the mesh stops at the wall face instead of
-    // sinking half a body into it. A cliff (too steep, see SwarmSlopeOk)
-    // counts as a wall: the axis that would climb or drop it is dropped, so
-    // the enemy slides along the plateau side and the flow field leads it to
-    // a ramp. The diagonal is checked too (both axes free but the corner
-    // cell blocked used to let enemies cut through the corner).
-    // An enemy already inside a blocked cell skips this: MoveCS walks it out.
-    // With the player lower down (SwarmDropAllowed) a cliff going DOWN is no
-    // wall: the enemy walks off the edge and falls (2026-10-01)
+    // ---- ハードブロックは「最後に」かける（なめらか化とプレイヤーの押しの後） ----
+    // なめらかにした速度には壁へ向かう古い成分がまだ残っていることがあり、
+    // 以前はプレイヤーの押し出しがこの判定の後に来て、敵を木 / 壁へ
+    // 押し込んでいた（2026-09-30）。先読み = 体の半径 +
+    // 速度 * g_LookAhead なので、メッシュは体の半分まで壁に沈まずに
+    // 壁の面で止まる。崖（急すぎる、SwarmSlopeOk 参照）は
+    // 壁として数える：それを登る / 降りる軸を消すので、
+    // 敵は台地の側面に沿って滑り、フローフィールドが坂へ
+    // 導く。斜めも確かめる（以前は両軸とも空いていて角の
+    // セルだけ塞がっていると、敵が角を突っ切っていた）。
+    // すでに通れないセルの中にいる敵はこれを飛ばす：MoveCS が歩いて外へ出す。
+    // プレイヤーが低い所にいる（SwarmDropAllowed）と、「下りの」崖は
+    // 壁ではない：敵は縁から歩き出して落ちる（2026-10-01）
     if (!ghost && SwarmIsWalkable(terrain, pos))
     {
-        float r = SwarmBodyWallRadius(extra.kind);   // same body radius as MoveCS / PushCS
+        float r = SwarmBodyWallRadius(extra.kind);   // MoveCS / PushCS と同じ体の半径
         float feet = pos.y - g_GroundY;
-        // a dashing charger looks only a couple of steps ahead: at 14 m/s the usual
-        // look-ahead (0.35 s = 5 m) would end the dash 5 m short of any wall behind the player
+        // 突進中の突撃兵は 2 ステップ先しか見ない：14 m/s だと普段の
+        // 先読み（0.35 秒 = 5 m）では、プレイヤーの後ろにある壁の 5 m 手前で突進が終わってしまう
         float look = (cphase == SWARM_CHARGE_DASH || dashing || eliteDash) ? 2.0 * g_Step : g_LookAhead;
         float ax = (v.x != 0.0) ? v.x * look + sign(v.x) * r : 0.0;
         float az = (v.z != 0.0) ? v.z * look + sign(v.z) * r : 0.0;
 
-        // climbing (2026-10-29): an axis the enemy WANTS to go (the flow field / the straight chase points that way) is
-        // not stopped by a face rising in front - MoveCS climbs it. The flow field already chose the climb over the ramp
-        // only when it is shorter. Dashes, and axes pushed into a face only by the crowd / the player push, stop as before
+        // 壁登り（2026-10-29）：敵が「行きたい」軸（フローフィールド / 直線の追跡がそちらを向いている）は、
+        // 前にそびえる面があっても止めない - MoveCS が登る。フローフィールドは、坂より近いときだけ
+        // 登る方を選んでいる。突進と、群れ / プレイヤーの押しだけで面へ押された軸は以前どおり止める
         bool canClimb = g_ClimbSpeed > 0.0 && !(cphase == SWARM_CHARGE_DASH || dashing || eliteDash);
         bool climbX = canClimb && v.x != 0.0 && moveDir.x * sign(v.x) > 0.5;
         bool climbZ = canClimb && v.z != 0.0 && moveDir.z * sign(v.z) > 0.5;
@@ -750,19 +750,19 @@ void main(uint3 id : SV_DispatchThreadID)
         float lostZ = blockZ ? v.z : 0.0;
         if (blockX) v.x = 0.0;
         if (blockZ) v.z = 0.0;
-        // The probe runs along the centre line. With the centre right on a cell border beside a
-        // blocked cell (x exactly -28.00 next to a tree cell) it lands in that cell, so the axis
-        // toward the open lane beside it was dropped and the enemy stood still or turned on the
-        // spot for minutes (soak 2026-10-03). Probe to each side: if only one side is open, slide
-        // that way (MoveCS side-steps the corner).
-        // 2026-10-20: the side probes use the body test too (ProbeBlocked), a body radius plus a
-        // margin out (at exactly one radius the body there still grazed the corner), and the slide
-        // runs at least half the move speed: the blocked axis restarts from 0 every step (the
-        // smoothing), so the speed it lost was ~0.5 m/s and the old "only when the other axis is
-        // nearly still" rule hardly ever fired - the enemy sat beside the corner twitching
-        // Only while the other axis is nearly still (relative to the move speed, not to the lost
-        // speed): a slide that overrides a real velocity on the other axis fought the flow and the
-        // enemy twitched back and forth (tried 2026-10-20)
+        // 探針は中心線に沿って出す。中心が通れないセルの隣のセル境界ちょうどにあると
+        // （木のセルの隣で x がちょうど -28.00）探針がそのセルに落ち、隣の空いた通路へ
+        // 向かう軸が消され、敵が何分もその場で立ち尽くしたり回ったりしていた
+        // （soak 2026-10-03）。両側にも探針を出し、片側だけ空いていれば
+        // そちらへ滑らせる（MoveCS が角を横にかわす）。
+        // 2026-10-20：横の探針にも体の判定（ProbeBlocked）を使い、体の半径 + 余裕の分だけ
+        // 外に出す（ちょうど半径 1 つ分だと、そこの体がまだ角をかすっていた）。滑る速度は
+        // 移動速度の半分以上にする：塞がれた軸は毎ステップ 0 から動き直すので（なめらか化）、
+        // 失った速度は約 0.5 m/s しかなく、以前の「もう片方の軸がほぼ止まっているときだけ」の
+        // 規則はほとんど発動せず、敵が角の横でぴくぴくしていた
+        // もう片方の軸がほぼ止まっている間だけ（失った速度ではなく移動速度に対して）：
+        // もう片方の軸の本当の速度を上書きして滑らせると、フローと争って
+        // 敵が行ったり来たりぴくぴくした（2026-10-20 に試した）
         float side = r + 0.25;
         float slide = max(0.5 * moveSpeed, 0.0);
         if (blockZ && abs(v.x) < 0.25 * moveSpeed)
@@ -779,19 +779,19 @@ void main(uint3 id : SV_DispatchThreadID)
             if (openL != openR)
                 v.z = (openL ? -1.0 : 1.0) * max(abs(lostX), slide);
         }
-        // a cliff counts as a corner too (2026-10-20): plateau cells are walkable, so the walkable
-        // test alone let an enemy push diagonally into the corner of a step terrace. The body
-        // circle in MoveCS then clipped the corner on the step and on both slides, and its
-        // side-step had no direction (the push-out pointed straight back along the velocity)
+        // 崖も角として数える（2026-10-20）：台地のセルは歩けるので、歩けるかの判定だけでは
+        // 敵が段々の台地の角へ斜めに押し込めてしまった。すると MoveCS の体の
+        // 円が、その一歩でも両方の滑りでも角に引っかかり、横へかわす
+        // 向きも決まらなかった（押し出しが速度に沿ってまっすぐ後ろを向いていた）
         if (v.x != 0.0 && v.z != 0.0 && ProbeBlocked(pos, pos.xz + float2(ax, az), r, allowDrop, feet, climbX && climbZ))
         {
-            // corner: keep the axis that has more room, drop the other
+            // 角：余裕のある方の軸を残し、もう片方を消す
             if (abs(v.x) > abs(v.z)) v.z = 0.0; else v.x = 0.0;
         }
     }
-    // a charger that rams a wall / cliff stops the dash there and catches its breath
+    // 壁 / 崖にぶつかった突撃兵は、そこで突進をやめて息切れに入る
     if (cphase == SWARM_CHARGE_DASH && dot(v.xz, v.xz) < 0.25 * dashSpeed * dashSpeed)
         enemyExtra[i].fuse = g_ChargerWindup + SwarmChargerDashTime() + g_Step;
-    v.y = oldV.y;   // the fall speed is MoveCS's (gravity), the AI only steers xz
+    v.y = oldV.y;   // 落下速度は MoveCS のもの（重力）、AI は xz だけを操る
     enemies[i].velocity = v;
 }

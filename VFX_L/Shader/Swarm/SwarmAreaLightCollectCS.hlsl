@@ -1,9 +1,9 @@
 // ============================================================
 // SwarmAreaLightCollectCS.hlsl
-// Point lights for areas born on the GPU (projectile hit / lifetime
-// end). Same body as SwarmLightCollectCS, the source is the live
-// areas. CPU-cast areas carry vfxType 0 and add nothing here -- the
-// CPU VFX entry pushes their light itself.
+// GPU で生まれた範囲（弾の命中 / 寿命切れ）の点光源。中身は
+// SwarmLightCollectCS と同じで、ソースが生きている範囲になる。
+// CPU が詠唱した範囲は vfxType 0 なのでここでは何も足さない
+// （CPU のエフェクト側が自分でライトを積む）。
 // ============================================================
 #define SWARM_LIGHT_AREAS
 #include "SwarmLightCollectCS.hlsl"

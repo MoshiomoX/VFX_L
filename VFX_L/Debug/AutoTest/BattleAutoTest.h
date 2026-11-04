@@ -79,6 +79,9 @@ protected:
     StaticPropRenderer&       m_StaticProps;
     GrassRenderer&            m_Grass;
     GrassFireField&           m_GrassFire;     // 草の延焼（2026-10-12）
+    SandField&                m_Sand;          // 砂漠の砂の面（2026-11-02）
+    SandFootprints&           m_Footprints;    // 砂漠のプレイヤーの足跡（2026-11-03）
+    MiasmaField&              m_Miasma;        // 遺跡の瘴気（2026-11-03）
     GroundDebris&             m_Debris;        // 地面の落ち葉（2026-10-13）
     WaterSurface&             m_Water;         // 水たまりの水面（2026-10-27）
     FlowDebugView&            m_FlowDebug;     // F8 の流れの矢印（2026-10-28）
@@ -99,6 +102,7 @@ protected:
     std::string&              m_MapFile;       // 読む地図の名前（空 = 生成）
     std::vector<Entity>&      m_Terrain;       // 地形の実体
     int&                      m_StageIndex;
+    std::vector<uint8_t>&     m_GrassMask;     // 草を生やすマス（オアシスの確認。2026-11-02）
     uint32_t&                 m_PortalVfx;
     float&                    m_RunTime;
     float&                    m_ExpGained;

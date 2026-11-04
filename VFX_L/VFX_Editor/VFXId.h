@@ -52,6 +52,8 @@ enum class VFXId : uint32_t
     OutletSeedRoot, // 時限の種が落ちた所（範囲 OutletSeedRoot：昇る光の粒。2 秒後に出口の魔法が発動する）
     OutletMine,     // 浮遊機雷の弾（暗い岩 + 赤い縁の光。2026-11-01）
     OrbitGuard,     // 周回弾の弾（青緑の光 + 帯。2026-11-01）
+    SandHaze,       // 熱い砂の陽炎（屈折だけの煙 + 火の粉。GrassFireEmitCS が SandField の熱い所から出す。アイテムは使わない。2026-11-02）
+    SandDust,       // 風に舞う砂（砂粒 + 低い砂の霞。GrassFireEmitCS の channel 1 が SandField の風の強い乾いた砂から出す。2026-11-03）
 
     // ---- ここから CPU（AreaVFXPlayer）だけで出す物（2026-10-09 に登録。それまではコードにファイル名を直書きしていて、
     //      ユーザーに「プレイヤーのエフェクトや足元の小石がデータベースに入っていない」と言われた）。GPU の表には入れない ----
@@ -60,6 +62,7 @@ enum class VFXId : uint32_t
     CastFlash,      // 詠唱の手元の光 + 撃つ向きへ火花（魔法の色に染める）
     CastPulse,      // 詠唱の体の周りに昇る光の粒
     FootDust,       // 走る足元の小石
+    SandStep,       // 砂漠の一歩で後ろへ蹴り上げる砂粒（FootDust の代わり。2026-11-03）
     JumpDust,       // 跳んだ足元の小石の輪
     AirJumpRing,    // 空中ジャンプの光の輪
     LandDust,       // 着地の小石

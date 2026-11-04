@@ -52,6 +52,11 @@ public:
     DirectX::SimpleMath::Vector3 BodyAnchor(Registry& reg, Entity player, const DirectX::SimpleMath::Vector3& center) { return BackAnchor(reg, player, center); }
     void DrawImGui();
 
+    // このフレームに地面を踏んだ足（走りの一歩・着地の両足。水の中・氷の上は入れない）。
+    // シーンが砂の足跡（SandFootprints）に渡す（2026-11-03）。side = 0 右 / 1 左
+    struct FootStep { DirectX::SimpleMath::Vector3 pos; float yawDeg; int side; };
+    const std::vector<FootStep>& Steps() const { return m_Steps; }
+
     // ---- 調整 ----
     bool  enabled = true;
     bool  castFlash = true;
@@ -63,6 +68,8 @@ public:
     bool  castCircles = true;      // 足元・手の前の魔法陣
     bool  castPulse = true;        // 体の周りの光の粒 + 体のほのかな光
     bool  waterFx = true;          // 水たまりの中の水しぶき・波紋・足音
+    bool  footSteps = true;        // 一歩を Steps() に記録する（足跡用。土煙を切っても数える）
+    bool  sandSteps = false;       // 砂漠（シーンが SandField を見て毎フレーム入れる）：一歩の小石を砂粒（SandStep.json）に替える
     WaterSurface* water = nullptr; // シーンが入れる（無ければ水の判定をしない）
     float pulseGap = 0.2f;         // 体の光の粒の最短間隔（秒）
     float castGlowStrength = 0.07f;   // 撃った時に体を魔法の色へ寄せる割合（被弾の閃きより弱く。0.12 だと撃ち続けで体が紫のままに見えた）
@@ -105,6 +112,7 @@ private:
     int   m_PrevAirJumps = 0;
     float m_FootTimer = 0.0f;
     int   m_FootSide = 0;
+    std::vector<FootStep> m_Steps;
     float m_SlideTimer = 0.0f;
     uint32_t m_PrevShieldHits = 0;
     float m_Flash = 0.0f;            // 0..1（被弾の閃きの残り）

@@ -73,6 +73,13 @@ public:
         m_LightData.toonRim = rim;
     }
 
+    // 画面空間の環境遮蔽（2026-11-02。LightBuffer::ao*、Lighting.hlsli の SceneAO）。params.x = 0 で読まない
+    void SetAmbientOcclusion(const Matrix& viewProj, const Vector4& params)
+    {
+        m_LightData.aoViewProj = viewProj;
+        m_LightData.aoParams = params;
+    }
+
     // 次の DrawMesh に効く溶解。null で無効（毎回書くので持ち越さない）
     void SetDissolve(const DissolveParams* p) { m_Dissolve = p; }
 

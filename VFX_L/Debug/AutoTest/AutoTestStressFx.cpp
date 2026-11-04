@@ -12,6 +12,7 @@
 #include "Debug/AutoTest/AutoTestCommon.h"
 #include "Graphics/Light/PointLightManager.h"
 #include "Core/DevUI.h"
+#include "Core/GameSettings.h"
 #include "Swarm/AreaVFXPlayer.h"
 
 namespace
@@ -49,6 +50,8 @@ namespace
         uint32_t m_TwisterVfx[kWinds] = {};
         int      m_Order[kGrid * kGrid] = {};
         int      m_Phase = -1;
+        // 回す段（VFXL_STRESSFX_MOBS=1 なら 0 / 3 / 4 だけ = 雑魚の数だけを比べる。LOD の前後比較用、2026-11-02）
+        std::vector<int> m_Run;
         bool     m_Done = false;
         bool     m_Looked = false;   // 段ごとに 1 回「stressfx look p<n>」（外部のスクリプトが撮る。2026-10-23）
         int      m_Frames = 0;
@@ -108,12 +111,19 @@ void AutoTestStressFx::Setup()
         std::swap(m_Order[i], m_Order[(s >> 8) % (uint32_t)(i + 1)]);
     }
 
+    m_Run.clear();
+    if (GetEnvironmentVariableA("VFXL_STRESSFX_MOBS", nullptr, 0) > 0) m_Run = { 0, 3, 4 };
+    else for (int i = 0; i < kPhaseCount; ++i) m_Run.push_back(i);
+    // 賢いカメラ（2026-11-02）は囲まれると引くので、測る間は切る（以前の数字と同じ 14m / 45° で比べる）
+    GameSettings::Get().smartCamera = false;
+
     const auto& gfx = Application::Get().GetGraphics();
-    char line[220];
-    snprintf(line, sizeof(line), "stressfx start: %s build, screen %.0fx%.0f, vsync %s, stage %d, %d spells, clusters %s",
+    char line[260];
+    snprintf(line, sizeof(line), "stressfx start: %s build, screen %.0fx%.0f, vsync %s, stage %d, %d spells, clusters %s, lod %s %.1fm",
         DevUI::kEnabled ? "dev" : "demo", gfx.GetWidth(), gfx.GetHeight(),
         GetEnvironmentVariableA("VFXL_NO_VSYNC", nullptr, 0) > 0 ? "off" : "on", m_StageIndex, placed,
-        PointLightManager::Get().Clusters().GetSettings().enabled ? "on" : "off");
+        PointLightManager::Get().Clusters().GetSettings().enabled ? "on" : "off",
+        (m_Swarm.HasLod() && m_Swarm.lod.enabled) ? "on" : "off", m_Swarm.lod.distance);
     AutoTestLog(line);
 }
 
@@ -204,7 +214,8 @@ void AutoTestStressFx::Run()
     }
     if (m_Done || m_AutoTime < kLead) return;
 
-    const int phase = (int)((m_AutoTime - kLead) / kPhaseLen);
+    const int step = (int)((m_AutoTime - kLead) / kPhaseLen);
+    const int phase = step < (int)m_Run.size() ? m_Run[step] : kPhaseCount;
     if (phase != m_Phase)
     {
         Report();
@@ -232,8 +243,8 @@ void AutoTestStressFx::Run()
     UpdateWind(ph.wind);
     AddLights(ph.lights);
 
-    if (m_AutoTime - kLead - phase * kPhaseLen < kSettle) return;
-    if (!m_Looked && m_AutoTime - kLead - phase * kPhaseLen >= kSettle + 3.0f)
+    if (m_AutoTime - kLead - step * kPhaseLen < kSettle) return;
+    if (!m_Looked && m_AutoTime - kLead - step * kPhaseLen >= kSettle + 3.0f)
     {
         m_Looked = true;
         char look[32];

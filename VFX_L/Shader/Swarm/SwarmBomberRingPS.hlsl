@@ -1,9 +1,9 @@
 // ============================================================
 // SwarmBomberRingPS.hlsl
-// Rim + growing disc of the bomber warning ring (SwarmBomberRingVS).
-// uv is -1..1 across the blast radius, so r = 1 is the rim.
-// Output is premultiplied: CommonStates::AlphaBlend is ONE / INV_SRC_ALPHA.
-// Same cbuffer as the VS (SwarmBomberRingCB, b0).
+// 自爆兵の警告円（SwarmBomberRingVS）の縁 + 大きくなる円盤。
+// uv は爆発半径の端から端までで -1..1 なので、r = 1 が縁。
+// 出力は乗算済み：CommonStates::AlphaBlend は ONE / INV_SRC_ALPHA。
+// cbuffer は VS と同じ（SwarmBomberRingCB、b0）。
 // ============================================================
 cbuffer SwarmBomberRingCB : register(b0)
 {
@@ -23,16 +23,16 @@ struct RingIn
     float2 uv : TEXCOORD0;
     float progress : TEXCOORD1;
     float edgeWidth : TEXCOORD2;
-    // x = 1: a warn sector / lane (SwarmWarnRingVS, 2026-10-25): the fill grows over y (how far along) instead of r.
-    // 0 for every round ring (the bomber / meteor VS leave it zero)
+    // x = 1：警告の扇形 / 帯（SwarmWarnRingVS、2026-10-25）：塗りは r ではなく y（どこまで進んだか）に沿って広がる。
+    // 丸い円はすべて 0（自爆兵 / メテオの VS はゼロのまま）
     float2 shapeFill : TEXCOORD3;
 };
 
 float4 main(RingIn i) : SV_TARGET
 {
     float r = length(i.uv);
-    float aa = max(fwidth(r), 1e-4); // one pixel, keeps the edges smooth at any distance
-    float fr = (i.shapeFill.x > 0.5) ? i.shapeFill.y : r;   // what the fill grows over
+    float aa = max(fwidth(r), 1e-4); // 1 ピクセル分。どの距離でも縁をなめらかに保つ
+    float fr = (i.shapeFill.x > 0.5) ? i.shapeFill.y : r;   // 塗りが広がっていく軸
     float aaFill = max(fwidth(fr), 1e-4);
 
     float inside = 1.0 - smoothstep(1.0 - aa, 1.0, r);
@@ -42,7 +42,7 @@ float4 main(RingIn i) : SV_TARGET
     float fill = 1.0 - smoothstep(i.progress - aaFill, i.progress, fr);
     float rim = smoothstep(1.0 - i.edgeWidth - aa, 1.0 - i.edgeWidth, r);
 
-    // negative progress (warn rings only, 2026-10-07) = rim only: nothing inside the rim
+    // progress が負（警告円のみ、2026-10-07）= 縁だけ：縁の内側には何も描かない
     float4 back = (i.progress < 0.0) ? float4(0, 0, 0, 0) : g_RingBack;
     float4 c = lerp(back, g_RingFill, fill);
     c = lerp(c, g_RingEdge, rim);

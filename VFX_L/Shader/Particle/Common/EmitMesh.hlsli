@@ -1,21 +1,21 @@
 // ============================================
 // EmitMesh.hlsli
-// Emit from a mesh that already lives on the GPU.
-// The source is a raw vertex buffer (ByteAddressBuffer); the layout
-// tells where position / normal sit inside one vertex.
+// 既に GPU 上にあるメッシュから発射する。
+// 発生源は生の頂点バッファ（ByteAddressBuffer）。レイアウトで
+// 1 頂点の中の position / normal の位置が分かる。
 //
-//   triangleCount > 0 : pick a random triangle from the raw index
-//                       buffer, then a random point on it (uniform
-//                       barycentric). Faces without vertices (capsule
-//                       cylinder) get particles too. Not area weighted.
-//   triangleCount == 0: pick a random vertex.
-//   edgeMode == 1     : pick only from edgeIndices (vertices on the
-//                       dissolve edge, built by EdgeFilterCS).
-//                       edgeCount == 0 -> nothing to emit, 'emitted'
-//                       comes back false and the caller kills the particle.
+//   triangleCount > 0 : 生のインデックスバッファから三角形を
+//                       ランダムに選び、その上の点をランダムに取る（一様な
+//                       重心座標）。頂点の無い面（カプセルの
+//                       円柱部）にも出る。面積の重み付けはしない。
+//   triangleCount == 0: 頂点をランダムに選ぶ。
+//   edgeMode == 1     : edgeIndices（溶解の縁の頂点、EdgeFilterCS が作る）
+//                       からだけ選ぶ。
+//                       edgeCount == 0 -> 出すものがない。'emitted' は
+//                       false で返り、呼び出し側がパーティクルを殺す。
 //
-// Position is taken to world space with e.world, then e.position is
-// added as an extra offset (effect worldOffset etc.).
+// 位置は e.world でワールド空間へ移し、さらに e.position を
+// 追加のオフセットとして足す（エフェクトの worldOffset など）。
 // ============================================
 
 #ifndef EMIT_MESH_HLSLI
@@ -48,7 +48,7 @@ void EmitMesh(GPUEmitter e, inout uint seed,
 
     if (e.edgeMode == 0 && L.triangleCount > 0u)
     {
-        // ---- triangle: random face, uniform point on it ----
+        // ---- 三角形：ランダムな面、その上の一様な点 ----
         uint t = (uint) (Random(seed) * (float) L.triangleCount);
         t = min(t, L.triangleCount - 1u);
 
@@ -81,7 +81,7 @@ void EmitMesh(GPUEmitter e, inout uint seed,
     }
     else
     {
-        // ---- vertex: all vertices, or the dissolve-edge table ----
+        // ---- 頂点：全頂点、または溶解の縁の表から ----
         uint idx;
         if (e.edgeMode == 1)
         {
@@ -104,7 +104,7 @@ void EmitMesh(GPUEmitter e, inout uint seed,
 
     pos = mul(float4(p, 1.0), e.world).xyz + e.position;
 
-    // velocity along the (rotated) normal
+    // （回転後の）法線に沿った速度
     float3 dir = mul(n, (float3x3) e.world);
     float len = length(dir);
     dir = (len > 1e-6) ? dir / len : float3(0, 1, 0);

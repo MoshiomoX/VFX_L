@@ -75,6 +75,7 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
     const std::vector<WeaponSystem::CastFx>& casts)
 {
     m_Clock += dt;
+    m_Steps.clear();
     if (!reg.IsValid(player) || !reg.Has<TransformComponent>(player)) return;
     const auto& tf = reg.Get<TransformComponent>(player);
     const bool hasRb = reg.Has<RigidbodyComponent>(player);
@@ -168,7 +169,18 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
                 AudioSystem::Get().Play("water_land");
             }
             else if (!onIce)
+            {
                 Play(heavy ? kLandDustHeavy : kLandDust, feet, 0.0f, 1.2f, dustTint);
+                if (sandSteps) Play(VFXId::SandStep, feet, moveYaw, 1.0f, white);
+                if (footSteps)
+                {
+                    // 着地は両足を揃えて
+                    const float a = DirectX::XMConvertToRadians(moveYaw);
+                    const Vector3 right(std::cos(a), 0.0f, -std::sin(a));
+                    m_Steps.push_back({ feet + right * 0.12f, moveYaw, 0 });
+                    m_Steps.push_back({ feet - right * 0.12f, moveYaw, 1 });
+                }
+            }
         }
     }
     // 水の中を進む：足元を少しずつ押し下げ続ける = 後ろに航跡の波紋が残る（止まっていれば何も起きない）
@@ -178,7 +190,7 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
     else { m_AirTime += dt; m_MinVy = (std::min)(m_MinVy, vel.y); }
 
     // ---- 走る小石（左右の足を交互に）----
-    if ((footDust || inWater) && grounded && !sliding && speed >= footMinSpeed)
+    if ((footDust || footSteps || inWater) && grounded && !sliding && speed >= footMinSpeed)
     {
         m_FootTimer -= dt * (speed / (std::max)(footRefSpeed, 0.1f));
         if (m_FootTimer <= 0.0f)
@@ -196,7 +208,14 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
                 AudioSystem::Get().Play("water_step");
             }
             else if (!onIce)
-                Play(kFootDust, feet + side, moveYaw, 1.0f, dustTint);
+            {
+                if (footDust)
+                {
+                    if (sandSteps) Play(VFXId::SandStep, feet + side, moveYaw, 1.0f, white);   // 砂漠：小石の代わりに砂粒を蹴り上げる
+                    else Play(kFootDust, feet + side, moveYaw, 1.0f, dustTint);
+                }
+                if (footSteps) m_Steps.push_back({ feet + side, moveYaw, m_FootSide ? 0 : 1 });
+            }
         }
     }
     else

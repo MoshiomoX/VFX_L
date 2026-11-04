@@ -1,26 +1,26 @@
 // ============================================================
 // DebrisCommon.hlsli
-// Ground debris (World/GroundDebris, 2026-10-13): light litter (leaves,
-// grass clippings, twigs) lying on the ground around the camera. The
-// wind field is invisible; what the player sees is what it moves, so
-// the Gust spell, explosions and strong weather wind pick this up.
-//   DebrisCB  per-frame cbuffer, b0 in the CS / VS / PS
-//   Debris    one piece, DebrisUpdateCS writes, DebrisVS reads
-// C++ mirror: GroundDebris::DebrisCB / Debris
+// 地面の落ち葉（World/GroundDebris、2026-10-13）：カメラの周りの地面に落ちている
+// 軽いゴミ（落ち葉、草屑、小枝）。風の場そのものは見えない。
+// プレイヤーに見えるのは風が動かすものなので、
+// 突風の魔法、爆発、天気の強風がこれを拾う。
+//   DebrisCB  毎フレームの cbuffer、CS / VS / PS で b0
+//   Debris    1 片、DebrisUpdateCS が書き、DebrisVS が読む
+// C++ 側の対応：GroundDebris::DebrisCB / Debris
 //
-// Placement: a world-aligned lattice (g_Spacing m) wrapped around the
-// camera (g_Side x g_Side cells, torus): piece i owns lattice column
-// i % side and row i / side; its world cell is the one of that
-// column / row inside the current window. When the camera moves a
-// row leaves the window on one side and re-seats on the other
-// (at rest, on the ground, faded by distance so it never pops).
+// 配置：ワールドに揃えた格子（g_Spacing m）をカメラの周りに
+// 巻き付けたもの（g_Side x g_Side セル、トーラス）。片 i は格子の
+// 列 i % side、行 i / side を受け持ち、ワールドのセルは今の窓の中の
+// その列 / 行のセル。カメラが動くと、ある行が片側で窓を出て
+// 反対側に置き直される
+// （静止、地面の上、距離でフェードするので急に出てこない）。
 // ============================================================
 #ifndef DEBRIS_COMMON_HLSLI
 #define DEBRIS_COMMON_HLSLI
 
 #define DEBRIS_MAX_GUSTS 4u
 #define DEBRIS_MAX_AREAS 256u   // = SWARM_MAX_AREAS
-#define DEBRIS_AREA_SHAKE 8u    // Swarm::kAreaShake: explosions
+#define DEBRIS_AREA_SHAKE 8u    // Swarm::kAreaShake：爆発
 #define DEBRIS_HIDDEN 0x80000000u
 #define DEBRIS_KIND_MASK 3u
 
@@ -28,49 +28,49 @@ cbuffer DebrisCB : register(b0)
 {
     row_major float4x4 g_ViewProj;
     float3 g_CamPos;
-    float g_Dt;             // seconds this step (0 while paused)
-    float2 g_MapOrigin;     // world xz of the height map's min corner
-    float2 g_MapSize;       // meters
-    float2 g_WindDir;       // unit xz, the way the wind blows
-    float g_WindSpeed;      // m/s (with the weather strength)
-    float g_WindGust;       // m/s gust amplitude (same)
-    float g_WindWaveScale;  // gust waves per meter
-    float g_WindWaveSpeed;  // radians per second
-    float g_WindTime;       // the grass's wind clock (same waves as the blades)
-    float g_Window;         // half-size of the window, m (pieces live in cam +- this)
-    uint g_Side;            // lattice cells per side of the window
-    float g_Spacing;        // lattice spacing, m
-    float g_LiftWind;       // resting pieces start tumbling when the wind at them passes this (m/s)
-    float g_Gravity;        // m/s^2 (leaves fall slowly because of g_Drag)
-    float g_Drag;           // 1/s: velocity relaxes to the air velocity at this rate
-    float g_Density;        // 0..1 share of cells that get a piece
-    float g_FadeWidth;      // m: pieces shrink to nothing over this width at the window edge
-    float g_SizeMul;        // multiplies every piece's size
-    float3 g_ColorLeaf;     // kind 0
-    float g_BlastAccel;     // m/s^2 outward inside an explosion area (x (1 - d / r))
-    float3 g_ColorClip;     // kind 1 (grass clipping)
-    float g_GustSpeed;      // m/s air speed inside a Gust fan at strength 1
-    float3 g_ColorTwig;     // kind 2
-    float g_Time;           // seconds, for the resting flutter
+    float g_Dt;             // このステップの秒（ポーズ中は 0）
+    float2 g_MapOrigin;     // 高さマップの最小角のワールド xz
+    float2 g_MapSize;       // m
+    float2 g_WindDir;       // 単位 xz、風の吹く向き
+    float g_WindSpeed;      // m/s（天気の強さ込み）
+    float g_WindGust;       // m/s 突風の振幅（同上）
+    float g_WindWaveScale;  // 1m あたりの突風の波の数
+    float g_WindWaveSpeed;  // rad/s
+    float g_WindTime;       // 草の風の時計（草の葉と同じ波）
+    float g_Window;         // 窓の半分の大きさ、m（片はカメラ +- これの範囲にいる）
+    uint g_Side;            // 窓の 1 辺あたりの格子セル数
+    float g_Spacing;        // 格子の間隔、m
+    float g_LiftWind;       // その場の風がこれ（m/s）を超えると静止中の片が転がり始める
+    float g_Gravity;        // m/s^2（葉は g_Drag のせいでゆっくり落ちる）
+    float g_Drag;           // 1/s：速度がこの割合で空気の速度に近づく
+    float g_Density;        // 0..1 片を置くセルの割合
+    float g_FadeWidth;      // m：窓の端のこの幅で片が縮んで消える
+    float g_SizeMul;        // 全部の片の大きさに掛ける
+    float3 g_ColorLeaf;     // 種類 0
+    float g_BlastAccel;     // 爆発の範囲内での外向きの m/s^2（x (1 - d / r)）
+    float3 g_ColorClip;     // 種類 1（草屑）
+    float g_GustSpeed;      // 強さ 1 の突風の扇の中の風速 m/s
+    float3 g_ColorTwig;     // 種類 2
+    float g_Time;           // 秒、静止中のはためき用
     float4 g_GustA[DEBRIS_MAX_GUSTS];   // (root.x, root.z, dir.x, dir.z)
-    float4 g_GustB[DEBRIS_MAX_GUSTS];   // (length, radius, strength 0..1, 0). length 0 = disc around the root
+    float4 g_GustB[DEBRIS_MAX_GUSTS];   // (length, radius, strength 0..1, 0)。length 0 = 根元の周りの円
     uint g_GustCount;
-    uint g_Seed;            // terrain seed: the same lattice cell always grows the same piece
-    uint g_Reset;           // 1 = re-seat every piece (first frame / terrain rebuilt)
-    float g_MaxSlope;       // steeper ground (rise / run) gets no debris (cliff faces)
+    uint g_Seed;            // 地形のシード：同じ格子セルには常に同じ片が生える
+    uint g_Reset;           // 1 = 全部の片を置き直す（最初のフレーム / 地形を作り直した時）
+    float g_MaxSlope;       // これより急な地面（高さ / 水平距離）には置かない（崖面）
 };
 
-// 64 bytes
+// 64 バイト
 struct Debris
 {
     float3 pos;
-    float restT;        // seconds at rest (>= 0). Airborne pieces count up too (time in the air)
+    float restT;        // 静止している秒（>= 0）。空中の片も数える（空中にいる時間）
     float3 vel;
-    uint cell;          // packed lattice cell (x | z << 16), re-seat when it changes
-    float3 rot;         // euler radians: x = pitch, y = yaw, z = roll
-    float air;          // 1 = airborne, 0 = resting
-    float3 angVel;      // radians per second (airborne tumble)
-    uint seed;          // bits 0-1 kind, bits 2-15 size / colour variation, bit 31 = hidden (cliff / thinned)
+    uint cell;          // 詰めた格子セル（x | z << 16）、変わったら置き直す
+    float3 rot;         // オイラー角 rad：x = ピッチ、y = ヨー、z = ロール
+    float air;          // 1 = 空中、0 = 静止
+    float3 angVel;      // rad/s（空中での回転）
+    uint seed;          // bit 0-1 種類、bit 2-15 大きさ / 色のばらつき、bit 31 = 非表示（崖 / 間引き）
 };
 
 uint DebrisHash(uint x)
@@ -89,18 +89,18 @@ float DebrisRand(inout uint s)
     return (float) (s & 0xFFFFFFu) / 16777216.0;
 }
 
-// card size (m) of a piece: x = along, y = across. kind 0 leaf, 1 clipping, 2 twig
+// 片の板の大きさ（m）：x = 長さ方向、y = 幅方向。種類 0 落ち葉、1 草屑、2 小枝
 float2 DebrisSize(uint seed)
 {
     uint kind = seed & DEBRIS_KIND_MASK;
     float v = 0.8 + 0.4 * (float) ((seed >> 2) & 0xFu) / 15.0;   // 0.8 .. 1.2
-    float2 s = float2(0.22, 0.12);                         // leaf
-    if (kind == 1u) s = float2(0.26, 0.035);               // grass clipping
-    else if (kind == 2u) s = float2(0.34, 0.03);           // twig
+    float2 s = float2(0.22, 0.12);                         // 落ち葉
+    if (kind == 1u) s = float2(0.26, 0.035);               // 草屑
+    else if (kind == 2u) s = float2(0.34, 0.03);           // 小枝
     return s * v * g_SizeMul;
 }
 
-// rotation matrix from the euler angles (yaw around Y, then pitch around the card's across axis, roll around along)
+// オイラー角からの回転行列（Y 軸でヨー、次に板の幅方向の軸でピッチ、長さ方向の軸でロール）
 float3x3 DebrisRotation(float3 r)
 {
     float cy = cos(r.y), sy = sin(r.y);

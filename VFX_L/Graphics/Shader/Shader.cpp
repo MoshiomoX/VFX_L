@@ -410,8 +410,16 @@ void Shader::UnbindSRVs(ID3D11DeviceContext* context)
         context->VSSetShaderResources(0, count, kNullSRVs);
         break;
     case Pixel:
-        context->PSSetShaderResources(0, count, kNullSRVs);
+    {
+        // t9（シャドウマップ）と t12（SSAO）はフレームに 1 回だけ張る共有の物（ShadowMap / AmbientOcclusion が
+        // 自分で外す）。Lighting.hlsli を含む PS は反射にこの 2 つが出るので、ここで一緒に外すと後の描画（草・水）が
+        // null を読んで黒くなった（2026-11-02）。その 2 つを飛ばして外す
+        auto clear = [&](UINT from, UINT to) { if (to > from) context->PSSetShaderResources(from, to - from, kNullSRVs); };
+        clear(0, (std::min)(count, 9u));
+        clear(10, (std::min)(count, 12u));
+        clear(13, count);
         break;
+    }
     case Compute:
         context->CSSetShaderResources(0, count, kNullSRVs);
         break;

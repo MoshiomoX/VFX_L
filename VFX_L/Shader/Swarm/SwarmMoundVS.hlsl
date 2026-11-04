@@ -1,15 +1,15 @@
 // ============================================================
 // SwarmMoundVS.hlsl
-// The sand mound of a burrower (SWARM_KIND_BURROWER, 2026-10-17): while
-// the enemy travels underground its blocky body is sunk below the ground
-// (SwarmEnemyVS) and this low dome moves along on the surface instead.
-// One instance per burrower (the burrower draw list, count by
-// DrawIndexedInstancedIndirect); the mesh is a unit sphere built in code,
-// squashed to (radius, height, radius) x body size and centred on the
-// feet, so the lower half is under the terrain and only a dome shows.
-// Rises / flattens with the enemy's surfacing (fuse), bobs while moving.
-// Drawn with the enemy pixel shader and the default white texture, so the
-// colour is vertex colour x g_ShieldTint.
+// 砂潜りの砂山（SWARM_KIND_BURROWER、2026-10-17）: 敵が地中を進む間、
+// 箱型の体は地面の下に沈め（SwarmEnemyVS）、代わりにこの低い
+// ドームが地表を動いていく。
+// 砂潜り 1 体に 1 インスタンス（砂潜りの描画リスト、数は
+// DrawIndexedInstancedIndirect）。メッシュはコードで作った単位球で、
+// (半径, 高さ, 半径) x 体格に押しつぶし、足元を中心にするので、
+// 下半分は地形の下に入り、ドームだけが見える。
+// 敵が地上に出るのに合わせて（fuse）盛り上がる / 平らになり、移動中は上下に揺れる。
+// 敵のピクセルシェーダーと既定の白テクスチャで描くので、
+// 色は頂点カラー x g_ShieldTint になる。
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -21,19 +21,19 @@
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> burrowerList : register(t2);
-// (enemySlow at t4 was declared here but never read: the compiler dropped it and the C++ bind warned every frame. Removed 2026-10-20)
+// （t4 の enemySlow はここで宣言していたが読んでいなかった: コンパイラが削り、C++ のバインドが毎フレーム警告していた。2026-10-20 に削除）
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
-// C++ mirror: SwarmSystem::PropMeshCB (same block as SwarmShieldVS)
+// C++ 側: SwarmSystem::PropMeshCB（SwarmShieldVS と同じブロック）
 cbuffer SwarmPropMeshCB : register(b4)
 {
-    float3 g_MeshAnchor; // unused
-    float g_MeshScale;   // mound radius (m) at body size 1
-    float3 g_HoldOffset; // y = mound height (m) at body size 1
-    float g_MeshYaw;     // unused
-    float4 g_ShieldTint; // multiplies the vertex colour
-    float g_BobAmount;   // bob while moving (m)
-    float g_PropAlpha;   // unused
+    float3 g_MeshAnchor; // 使わない
+    float g_MeshScale;   // 体格 1 のときの砂山の半径（m）
+    float3 g_HoldOffset; // y = 体格 1 のときの砂山の高さ（m）
+    float g_MeshYaw;     // 使わない
+    float4 g_ShieldTint; // 頂点カラーに掛ける
+    float g_BobAmount;   // 移動中の上下の揺れ（m）
+    float g_PropAlpha;   // 使わない
     float2 _propPad;
 };
 
@@ -52,12 +52,12 @@ VS_OUTPUT main(VS_INPUT_INST input)
     VS_OUTPUT o = (VS_OUTPUT) 0;
     uint slot = burrowerList[input.InstanceID];
     SwarmEnemyExtra ex = enemyExtra[slot];
-    // how far under the ground the body is: 1 = fully buried (mound full), 0 = out (no mound)
+    // 体がどれだけ地面の下にあるか: 1 = 完全に埋まっている（砂山が最大）、0 = 出ている（砂山なし）
     float down = (ex.fuse > 0.0) ? 1.0 - saturate((g_BurrowSurfaceTime - ex.fuse) / SWARM_BURROW_RISE_TIME)
                                  : saturate(-ex.fuse / SWARM_BURROW_RISE_TIME);
     if (enemyStates[slot] == SWARM_DEAD || ex.kind != SWARM_KIND_BURROWER || down < 0.02)
     {
-        o.Position = float4(0, 0, -1, 1); // clipped
+        o.Position = float4(0, 0, -1, 1); // クリップされる
         return o;
     }
 
@@ -69,7 +69,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float bob = moving ? abs(sin(e.animTime * 7.0 + (float) slot * 0.37)) * g_BobAmount : 0.0;
 
     float3 local = input.Position * float3(r, h, r);
-    // normal of the squashed sphere: scale by the inverse
+    // 押しつぶした球の法線: 逆数で拡大縮小する
     float3 normal = normalize(input.Normal * float3(1.0 / max(r, 1e-3), 1.0 / max(h, 1e-3), 1.0 / max(r, 1e-3)));
 
     float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);

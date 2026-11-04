@@ -1,14 +1,14 @@
 // ============================================================
 // CompositePS.hlsl
-// scene + bloom -> exposure -> (tonemap) -> gamma -> backbuffer.
-// The only place in the pipeline that leaves linear HDR.
+// シーン + ブルーム -> 露出 -> （トーンマップ）-> ガンマ -> バックバッファ。
+// パイプラインの中でリニア HDR を抜けるのはここだけ。
 // ============================================================
 Texture2D sceneTex : register(t0);
 Texture2D bloomTex : register(t1);
-// screen distortion (2026-10-20): uv offset written by the particles (ParticleDistortPS), resolved.
-// Fallback only: normally Graphics::ApplyDistortion (DistortApplyPS) already bends the scene before the
-// UI is drawn and clears the flag, so g_DistortStrength is 0 here. Only when DistortApplyPS failed to
-// load does this path bend the image (and then the UI drawn into the HDR target bends with it)
+// 画面の歪み（2026-10-20）: パーティクル（ParticleDistortPS）が書いた uv のずれ、リゾルブ済み。
+// 予備の経路でしかない: 普段は UI を描く前に Graphics::ApplyDistortion（DistortApplyPS）がシーンを
+// もう歪ませてフラグを下ろしているので、ここでの g_DistortStrength は 0。DistortApplyPS の読み込みに
+// 失敗したときだけこの経路が画像を歪ませる（そのときは HDR ターゲットに描いた UI も一緒に歪む）
 Texture2D distortTex : register(t2);
 SamplerState linearClamp : register(s0);
 
@@ -16,10 +16,10 @@ cbuffer CompositeCB : register(b0)
 {
     float g_BloomIntensity;
     float g_Exposure;
-    uint g_Tonemap; // 0 = off, 1 = ACES
-    float g_Gamma; // display gamma exponent (2.2 = sRGB-like); <= 0 = off
-    float g_DistortStrength; // 0 = no distortion this frame
-    float g_Aspect;          // width / height (the offset is isotropic on screen)
+    uint g_Tonemap; // 0 = オフ、1 = ACES
+    float g_Gamma; // 表示のガンマ指数（2.2 = sRGB 相当）。<= 0 = オフ
+    float g_DistortStrength; // 0 = このフレームは歪みなし
+    float g_Aspect;          // 幅 / 高さ（ずれは画面上で縦横同じ大きさ）
     float2 _cpad;
 };
 
@@ -41,7 +41,7 @@ float4 main(PSInput i) : SV_TARGET
     if (g_DistortStrength > 0.0)
     {
         float2 d = distortTex.Sample(linearClamp, i.uv).xy * g_DistortStrength;
-        d.y *= g_Aspect;   // the same pixel distance in both directions
+        d.y *= g_Aspect;   // 縦横どちらも同じピクセル距離にする
         uv = saturate(i.uv + d);
     }
     float3 scene = sceneTex.Sample(linearClamp, uv).rgb;

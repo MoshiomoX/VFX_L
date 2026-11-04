@@ -1,14 +1,14 @@
 // ============================================================
 // ParticleDistortPS.hlsl
-// Screen distortion pass of the billboard particles (2026-10-20, the Elden
-// Ring style wind: the air itself bends the picture). GPUParticleVS with
-// g_Pass 3 feeds only the particles that carry a distortion level; this PS
-// writes an offset (in uv units, before the composite's strength) into the
-// R16G16 target: the shape (texture alpha x colour alpha, the VS folded the
-// level into the alpha) pushes the picture outward from the quad's centre.
-// Added with ONE / ONE so overlapping puffs sum. Graphics::ApplyDistortion
-// (DistortApplyPS, after the 3D scene and before the UI, so the HUD is never
-// bent) samples the scene at uv + offset x strength.
+// ビルボードパーティクルの画面歪みパス（2026-10-20、エルデンリング風の風:
+// 空気そのものが絵を曲げる）。g_Pass 3 の GPUParticleVS は歪みレベルを持つ
+// パーティクルだけを流す。この PS は R16G16 のターゲットにオフセット（uv 単位、
+// 合成側の強さを掛ける前）を書く: 形（テクスチャのアルファ x 色のアルファ。
+// VS がレベルをアルファに畳み込み済み）が四角形の中心から外へ絵を押す。
+// ONE / ONE で加算するので、重なった煙はその分足し合わされる。
+// Graphics::ApplyDistortion（DistortApplyPS。3D シーンの後、UI の前に走るので
+// HUD は決して曲がらない）が uv + offset x strength でシーンを
+// サンプリングする。
 // ============================================================
 
 Texture2D g_Sheet0 : register(t0);
@@ -23,7 +23,7 @@ Texture2D g_Sheet7 : register(t7);
 SamplerState g_Linear : register(s0);
 SamplerState g_Point : register(s1);
 
-// same layout as GPUParticlePS (ParticleSheetCB)
+// GPUParticlePS と同じレイアウト（ParticleSheetCB）
 cbuffer ParticleSheetCB : register(b0)
 {
     uint g_PointMask;
@@ -61,7 +61,7 @@ float4 SampleSheet(uint sheet, SamplerState s, float2 uv, float2 dx, float2 dy)
     }
 }
 
-// the offset scale of one fully opaque texel at level 3 (uv units; the composite multiplies its strength on top)
+// レベル 3 で完全不透明な 1 テクセルのオフセット量（uv 単位。合成側がさらに強さを掛ける）
 static const float DISTORT_UV = 0.02;
 
 float4 main(PSInput input) : SV_TARGET
@@ -89,7 +89,7 @@ float4 main(PSInput input) : SV_TARGET
     float shape = tex.a * input.color.a;
     clip(shape - 0.005);
 
-    // outward from the quad's centre (a bulge); the direction fades to nothing at the centre
+    // 四角形の中心から外向き（膨らみ）。方向は中心で 0 に消える
     float2 fromCentre = (input.uv - 0.5) * 2.0;
     float2 offset = fromCentre * shape * DISTORT_UV;
     return float4(offset, 0.0, 1.0);

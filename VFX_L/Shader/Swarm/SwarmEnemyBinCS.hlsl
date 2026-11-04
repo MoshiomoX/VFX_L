@@ -1,10 +1,10 @@
 // ============================================================
 // SwarmEnemyBinCS.hlsl
-// One thread per enemy slot: drop every live enemy into the spatial
-// hash bucket of its cell (see SWARM_BUCKET_CAP in SwarmCommon).
-// cellCount is cleared to 0 by the CPU (ClearUnorderedAccessViewUint)
-// right before this dispatch. Runs first in every fixed step so the
-// AI and the push pass read one consistent snapshot.
+// 敵スロット 1 つにつき 1 スレッド。生きている敵を、いるセルの空間
+// ハッシュのバケットに入れる（SwarmCommon の SWARM_BUCKET_CAP 参照）。
+// cellCount はこのディスパッチの直前に CPU が 0 クリアする
+// （ClearUnorderedAccessViewUint）。各固定ステップの最初に走らせ、
+// AI と押し出しパスが同じスナップショットを読むようにする。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 

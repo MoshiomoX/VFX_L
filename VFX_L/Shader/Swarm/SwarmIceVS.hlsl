@@ -1,20 +1,20 @@
 // ============================================================
 // SwarmIceVS.hlsl
-// Ice crystals around a frozen enemy (Ice Lance, 2026-10-08).
-// One instance per live enemy (the alive list of SwarmEnemyCompactCS,
-// DrawIndexedInstancedIndirect; 2026-10-25, it used to be the whole pool
-// x 2 every frame), drawn twice: g_IceVariant = which of the two clusters.
-// Enemies that are not frozen (enemySlow.z <= 0) are collapsed.
-// The mesh is a VFX model (Assets/VFX/Mesh/bingci_02.FBX, a
-// cluster of upright spikes) drawn with the enemy pixel shader and the
-// default white texture, alpha blended (premultiplied: a glowing,
-// see-through ice).
+// 凍った敵のまわりの氷の結晶（アイスランス、2026-10-08）。
+// 生きている敵 1 体に 1 インスタンス（SwarmEnemyCompactCS の生存リスト、
+// DrawIndexedInstancedIndirect。2026-10-25 までは毎フレーム、プール全体
+// x 2 だった）、2 回描く: g_IceVariant = 2 つの塊のどちらか。
+// 凍っていない敵（enemySlow.z <= 0）は潰す。
+// メッシュはエフェクトのモデル（Assets/VFX/Mesh/bingci_02.FBX、立った
+// トゲの塊）で、敵のピクセルシェーダとデフォルトの白テクスチャで描き、
+// アルファブレンドする（乗算済み: 光って
+// 透けて見える氷）。
 //
-// Placement: the mesh's bottom centre (g_MeshAnchor) sits at the feet,
-// one cluster in front, one behind, turned by a per-slot hash. It shoots
-// up in the first ICE_GROW seconds of the freeze (enemySlow.w = length
-// of the freeze, so w - z = time frozen) and shrinks in the last
-// ICE_MELT seconds.
+// 配置: メッシュの底の中心（g_MeshAnchor）を足元に置き、
+// 塊を前に 1 つ、後ろに 1 つ、スロットごとのハッシュで回す。凍結の
+// 最初の ICE_GROW 秒で生え上がり（enemySlow.w = 凍結の
+// 長さなので w - z = 凍っている時間）、最後の
+// ICE_MELT 秒で縮む。
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -25,19 +25,19 @@
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
-StructuredBuffer<uint> aliveList : register(t2);   // live slots (SwarmEnemyCompactCS)
+StructuredBuffer<uint> aliveList : register(t2);   // 生きているスロット（SwarmEnemyCompactCS）
 StructuredBuffer<float4> enemySlow : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
-// C++ mirror: SwarmSystem::PropMeshCB (same layout as SwarmShieldVS)
+// C++ 側: SwarmSystem::PropMeshCB（SwarmShieldVS と同じレイアウト）
 cbuffer SwarmPropMeshCB : register(b4)
 {
-    float3 g_MeshAnchor; // model-space bottom centre of the cluster
-    float g_MeshScale;   // model units -> meters (a normal body's cluster)
-    float3 g_HoldOffset; // x = distance of each cluster from the body centre, y = sink below the feet
-    float g_MeshYaw;     // unused
-    float4 g_IceColor;   // linear, may go above 1 (bloom)
-    float g_IceVariant;  // 0 = the cluster in front, 1 = the one behind (one draw each. 2026-10-25, was the unused bob)
+    float3 g_MeshAnchor; // モデル空間での塊の底の中心
+    float g_MeshScale;   // モデル単位 -> メートル（普通の体格の塊）
+    float3 g_HoldOffset; // x = 体の中心から各塊までの距離、y = 足元から沈める量
+    float g_MeshYaw;     // 未使用
+    float4 g_IceColor;   // リニア、1 を超えてもよい（ブルーム）
+    float g_IceVariant;  // 0 = 前の塊、1 = 後ろの塊（それぞれ 1 回描く。2026-10-25、以前は未使用の bob）
     float g_IceAlpha;
     float2 _propPad;
 };
@@ -68,7 +68,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float4 st = (slot < g_MaxEnemies) ? enemySlow[slot] : float4(0, 0, 0, 0);
     if (slot >= g_MaxEnemies || enemyStates[slot] == SWARM_DEAD || st.z <= 0.0)
     {
-        o.Position = float4(0, 0, -1, 1); // clipped
+        o.Position = float4(0, 0, -1, 1); // クリップされる
         return o;
     }
 
@@ -78,7 +78,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float size = k * smoothstep(0.0, ICE_GROW, elapsed) * lerp(0.5, 1.0, saturate(st.z / ICE_MELT));
     size *= (variant == 0u) ? 1.0 : 0.8;
 
-    // per-slot turn, the second cluster on the opposite side
+    // スロットごとに回し、2 つ目の塊は反対側
     float a = frac((float) slot * 0.6180339) * 6.2831853 + (float) variant * 3.1415927;
     float as, ac;
     sincos(a, as, ac);

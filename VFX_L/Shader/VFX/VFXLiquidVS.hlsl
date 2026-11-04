@@ -1,18 +1,18 @@
 // ============================================================
 // VFXLiquidVS.hlsl
-// Liquid entry, CPU path (2026-10-02): one puddle per instance that
-// VFXLiquidEntry submitted this frame (VFXLiquidRenderer), a ground grid of
-// LIQUID_GRID^2 quads from SV_VertexID, no vertex buffer.
+// Liquid エントリの CPU 経路（2026-10-02）：このフレームに VFXLiquidEntry が
+// 出した（VFXLiquidRenderer）インスタンス 1 つにつき水たまり 1 つ。地面のグリッドは
+// LIQUID_GRID^2 枚の四角形で、SV_VertexID から作る。頂点バッファなし。
 //
-// With terrain (the battle scene hands VFXLiquidRenderer the swarm height
-// field + its grid constants) every vertex sits on the height field, and
-// ground off the centre's own height by more than the def's cliff is cut
-// (LiquidPlaceVertex). Without terrain (the editors) the grid is flat at the
-// instance height.
+// 地形がある時（戦闘シーンが VFXLiquidRenderer に群れの高さ場 +
+// そのグリッドの定数を渡す）は全頂点を高さ場の上に置き、中心自身の高さから
+// 定義の cliff 以上ずれた地面は切り落とす（LiquidPlaceVertex）。
+// 地形が無い時（エディタ）はグリッドをインスタンスの高さで
+// 平らに置く。
 //
-// b0 = LiquidCameraCB, b1 = SwarmFrameCB (grid constants for
-// SwarmTerrainHeight), t0 = instances, t1 = LiquidDef table, t3 = heights
-// C++ mirror of the instance: VFXLiquidInstance (VFXLiquidRenderer.h)
+// b0 = LiquidCameraCB、b1 = SwarmFrameCB（SwarmTerrainHeight 用の
+// グリッド定数）、t0 = インスタンス、t1 = LiquidDef の表、t3 = 高さ
+// インスタンスの C++ 側の対応：VFXLiquidInstance（VFXLiquidRenderer.h）
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -29,12 +29,12 @@ cbuffer LiquidCameraCB : register(b0)
 
 struct LiquidInstance
 {
-    float3 position;   // centre (world). Its y is the ground when there is no terrain
+    float3 position;   // 中心（ワールド）。地形が無い時はその y が地面
     float radius;      // m
-    float2 dir;        // throw direction in xz (0 = an angle from the seed)
-    float age;         // s since it started
-    float left;        // s to go (large = no drying)
-    uint def;          // index into the LiquidDef table
+    float2 dir;        // xz での投げた向き（0 = seed から決める角度）
+    float age;         // 始まってからの s
+    float left;        // 残りの s（大きい = 乾かない）
+    uint def;          // LiquidDef の表の番号
     uint seed;
     float2 _pad;
 };
@@ -52,7 +52,7 @@ LiquidVSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float2 fwd, lft;
     LiquidFrame(inst.dir, inst.seed, fwd, lft);
     float R = inst.radius;
-    // the grid covers the liquid's reach + the halo outside it
+    // グリッドは液体の届く範囲 + その外のハローを覆う
     float extent = R * L.fill + max(L.haloWidth, 0.0) + 0.05;
     float2 lp = LiquidGridCorner(vid) * extent;
     float2 xz = inst.position.xz + fwd * lp.x + lft * lp.y;

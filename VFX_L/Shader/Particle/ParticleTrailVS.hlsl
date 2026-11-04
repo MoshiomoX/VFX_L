@@ -1,16 +1,16 @@
 // ============================================================
 // ParticleTrailVS.hlsl
-// Builds a camera-facing ribbon per particle straight from the
-// history ring. No vertex buffer: one instance = one particle,
-// SV_VertexID walks a triangle strip of (TRAIL_POINTS + 1) pairs.
+// 履歴リングから直接、パーティクルごとにカメラを向いたリボンを作る。
+// 頂点バッファなし：インスタンス 1 つ = パーティクル 1 つ、
+// SV_VertexID が (TRAIL_POINTS + 1) 組のトライアングルストリップをたどる。
 //
-//   pair 0          : live head = the particle's current position
-//   pair 1..N       : ring samples, newest first
-//   pairs past the last valid sample collapse onto it (degenerate
-//   triangles, rasterizer drops them)
+//   組 0            : 生きた先頭 = パーティクルの現在位置
+//   組 1..N         : リングのサンプル、新しい順
+//   最後の有効サンプルより後ろの組はそこに潰れる（縮退
+//   三角形になり、ラスタライザが捨てる）
 //
-// One draw per style (the texture and blend differ), so instances
-// of another style are culled here.
+// スタイルごとに 1 回描く（テクスチャとブレンドが違う）ので、
+// 他のスタイルのインスタンスはここで捨てる。
 // ============================================================
 #include "Common/ParticleCommon.hlsli"
 #include "Common/ParticleTrail.hlsli"
@@ -25,7 +25,7 @@ cbuffer ParticleRenderCB : register(b0)
 
 cbuffer TrailDrawCB : register(b1)
 {
-    uint g_StyleSlot; // style index + 1, same encoding as GPUParticle.trailStyle
+    uint g_StyleSlot; // スタイル番号 + 1。GPUParticle.trailStyle と同じ表し方
     uint g_Premultiply;
     float g_Time;
     float _padT;
@@ -44,27 +44,27 @@ struct VSOutput
     nointerpolation float softEdge : TEXCOORD1;
 };
 
-// position of strip point k and its normalized age t (0 head .. 1 tail)
+// ストリップの点 k の位置と、正規化した経過 t（0 先頭 .. 1 尾）
 void TrailPoint(GPUParticle p, uint particleIndex, uint head, uint count,
                 float f, float interval, float lifetime, uint k,
                 out float3 pos, out float t)
 {
-    // k == 0 is the live head. Written without an early return: fxc flags
-    // out params as potentially uninitialized otherwise (X4000)
+    // k == 0 は生きた先頭。早期 return を使わずに書く：そうしないと fxc が
+    // out 引数を未初期化の可能性ありと警告する（X4000）
     pos = p.position;
     t = 0.0;
 
     if (k > 0u)
     {
-        uint j = min(k - 1u, count - 1u); // 0 = newest sample
+        uint j = min(k - 1u, count - 1u); // 0 = 最新のサンプル
         uint base = particleIndex * TRAIL_POINTS;
         uint slot = (head + TRAIL_POINTS - j) % TRAIL_POINTS;
         pos = trailPoints[base + slot];
         t = saturate(((float) j + f) * interval / lifetime);
 
-        // Ring full: the oldest sample is older than lifetime by f * interval.
-        // Slide it toward its neighbour so the tail shrinks smoothly instead
-        // of jumping one sample at a time.
+        // リングが満杯：最古のサンプルは lifetime より f * interval だけ古い。
+        // 隣のサンプルへ寄せて、尾が 1 サンプルずつ跳ぶのではなく
+        // なめらかに縮むようにする。
         if (count == TRAIL_POINTS && j == count - 1u)
         {
             uint slotNext = (head + TRAIL_POINTS - (j - 1u)) % TRAIL_POINTS;
@@ -77,7 +77,7 @@ void TrailPoint(GPUParticle p, uint particleIndex, uint head, uint count,
 VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 {
     VSOutput o = (VSOutput) 0;
-    o.position = float4(0, 0, -1, 1); // culled unless we get to the end
+    o.position = float4(0, 0, -1, 1); // 最後までたどり着かなければ捨てられる
 
     uint particleIndex = trailAlive[instanceID];
     GPUParticle p = particles[particleIndex];
@@ -92,7 +92,7 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     TrailStyle s = trailStyles[p.trailStyle - 1u];
     float lifetime = max(s.lifetime, 0.01);
     float interval = TrailInterval(s.lifetime);
-    float f = frac(p.age / interval); // time since the newest sample, in intervals
+    float f = frac(p.age / interval); // 最新サンプルからの経過時間（interval 単位）
 
     uint k = vertexID / 2u;
     float sideSign = ((vertexID & 1u) == 0u) ? 1.0 : -1.0;
@@ -103,8 +103,8 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     TrailPoint(p, particleIndex, head, count, f, interval, lifetime, (k > 0u) ? k - 1u : 0u, posPrev, tDummy);
     TrailPoint(p, particleIndex, head, count, f, interval, lifetime, min(k + 1u, TRAIL_POINTS), posNext, tDummy);
 
-    // direction of travel (tail -> head). At the head right after a commit
-    // the neighbours coincide, so fall back to the velocity
+    // 進行方向（尾 -> 先頭）。サンプルを記録した直後の先頭では両隣が
+    // 重なるので、速度で代用する
     float3 tangent = posPrev - posNext;
     if (dot(tangent, tangent) < 1e-10)
         tangent = p.velocity;

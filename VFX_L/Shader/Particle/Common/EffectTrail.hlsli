@@ -1,31 +1,31 @@
 // ============================================================
 // EffectTrail.hlsli
-// Ribbon trails driven by an anchor point (VFX Trail entry: the
-// effect position + offset), fully on the GPU. The per-particle
-// trails (ParticleTrail.hlsli) follow each particle's own motion;
-// these follow the effect, so a still particle core still leaves one.
+// アンカー点（エフェクトの Trail エントリ: エフェクト位置 + オフセット）で動く
+// 帯トレイル。全部 GPU で行う。パーティクルごとのトレイル
+// （ParticleTrail.hlsli）は各パーティクル自身の動きを追うが、こちらは
+// エフェクトを追うので、止まったパーティクルの芯でも帯が残る。
 //
-// Every trail instance owns a ring of EFFECT_TRAIL_POINTS committed
-// points and one state record:
+// トレイルのインスタンスはそれぞれ確定した点 EFFECT_TRAIL_POINTS 個のリングと
+// 状態レコード 1 つを持つ:
 //     effectTrailPoints[trailIndex * EFFECT_TRAIL_POINTS + slot]
 //     effectTrailStates[trailIndex]
 //
-// Each frame one anchor per instance comes in (EffectTrailCS):
-//   - the live head follows the anchor. headTime = the last time it
-//     actually moved, so a head that stops ages like any other point
-//   - a point is committed once the head is minDistance away from the
-//     newest point (distance based, like Unity's TrailRenderer)
-//   - every point lives <style.lifetime> seconds. The tail is cut at
-//     exactly age == lifetime, so the ribbon shrinks smoothly
-//   - command NONE = detached: no new points, it shrinks and vanishes
+// 毎フレーム、インスタンスごとにアンカーが 1 つ届く（EffectTrailCS）:
+//   - 生きている先頭はアンカーを追う。headTime = 実際に最後に動いた時刻。
+//     止まった先頭は他の点と同じように古くなる
+//   - 先頭が最新の点から minDistance 離れたら点を確定する
+//     （距離ベース。Unity の TrailRenderer と同じ）
+//   - 点はそれぞれ <style.lifetime> 秒生きる。末尾はちょうど
+//     age == lifetime で切るので、帯はなめらかに縮む
+//   - command NONE = 切り離し: 新しい点は足さず、縮んで消える
 //
-// Strip layout (EffectTrailVS), one instance = one trail:
-//   pair 0                : live head
-//   pair 1 .. validCount  : ring points, newest first
-//   pair validCount + 1   : tail (cut point, or the oldest point)
-//   pairs past the tail collapse onto it (degenerate triangles)
+// ストリップの並び（EffectTrailVS）、インスタンス 1 つ = トレイル 1 本:
+//   pair 0                : 生きている先頭
+//   pair 1 .. validCount  : リングの点、新しい順
+//   pair validCount + 1   : 末尾（切った点、または一番古い点）
+//   末尾より後の pair は末尾に潰す（縮退三角形）
 //
-// Must match EffectTrail*GPU / kEffectTrailPoints in GPUParticle.h
+// GPUParticle.h の EffectTrail*GPU / kEffectTrailPoints と一致させること
 // ============================================================
 #ifndef EFFECT_TRAIL_HLSLI
 #define EFFECT_TRAIL_HLSLI
@@ -33,37 +33,37 @@
 #define EFFECT_TRAIL_POINTS 64u
 #define EFFECT_TRAIL_STRIP_PAIRS (EFFECT_TRAIL_POINTS + 2u)
 
-#define EFFECT_TRAIL_CMD_NONE  0u // detached: keep fading, no new points
-#define EFFECT_TRAIL_CMD_MOVE  1u // the head is at position this frame
-#define EFFECT_TRAIL_CMD_RESET 2u // new trail starting at position
+#define EFFECT_TRAIL_CMD_NONE  0u // 切り離し: 薄れ続け、新しい点は足さない
+#define EFFECT_TRAIL_CMD_MOVE  1u // このフレームの先頭は position にある
+#define EFFECT_TRAIL_CMD_RESET 2u // position から新しいトレイルを始める
 
-// written every frame for every instance (CPU upload). 32 bytes
+// 毎フレーム全インスタンス分を書く（CPU からアップロード）。32 バイト
 struct EffectTrailAnchor
 {
     float3 position;
     float minDistance;
-    uint styleSlot; // style index + 1, 0 = unused instance
+    uint styleSlot; // スタイル番号 + 1、0 = 未使用のインスタンス
     uint command;
     uint2 _pad;
 };
 
-// 20 bytes
+// 20 バイト
 struct EffectTrailPoint
 {
     float3 position;
-    float time; // clock value when committed
-    float distance; // path length from the trail start (Tile UV)
+    float time; // 確定した時の時計の値
+    float distance; // トレイルの始点からの経路長（Tile UV）
 };
 
-// GPU only. 64 bytes
+// GPU 専用。64 バイト
 struct EffectTrailState
 {
     float3 headPos;
     float headTime;
     float headDist;
-    uint ringHead; // newest committed point
-    uint ringCount; // committed points kept in the ring
-    uint validCount; // ring points in front of the tail (this frame)
+    uint ringHead; // 最新の確定点
+    uint ringCount; // リングに残っている確定点の数
+    uint validCount; // 末尾より前にあるリングの点（このフレーム）
     float3 tailPos;
     float tailTime;
     float tailDist;

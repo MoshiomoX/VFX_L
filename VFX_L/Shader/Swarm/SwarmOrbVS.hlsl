@@ -1,18 +1,18 @@
 // ============================================================
 // SwarmOrbVS.hlsl
-// Instanced exp orb gem (PrimitiveBuilder::CreateBipyramid).
-// Draws every slot; dead ones are collapsed.
+// インスタンス描画する経験玉の宝石（PrimitiveBuilder::CreateBipyramid）。
+// 全スロットを描き、死んだものは潰す。
 //
-// Idle   : bobs up and down, spins about its long (Y) axis, breathes
-//          (scale pulse). Each slot has its own phase so a pile of
-//          orbs does not move in lockstep.
-// Pulled : leans its long axis toward the player, stretches along the
-//          pull (volume kept), stops bobbing, shifts to the pull color
-//          and brightens. Amount = pull speed / g_FullPullSpeed.
+// 待機   : 上下に浮き沈みし、長軸（Y）まわりに回り、脈打つ
+//          （大きさの脈動）。スロットごとに位相が違うので、
+//          積もった経験玉が揃って動くことはない。
+// 吸引中 : 長軸をプレイヤーへ傾け、引かれる向きに伸び（体積は
+//          保つ）、浮き沈みをやめ、吸引中の色に変わって
+//          明るくなる。度合い = 吸引速度 / g_FullPullSpeed。
 //
-// SwarmOrb.velocity is the horizontal pull written by SwarmOrbMoveCS
-// (0 while idle). Color.rgb = body color, Color.a = glow multiplier;
-// SwarmOrbPS does the shading.
+// SwarmOrb.velocity は SwarmOrbMoveCS が書く水平の吸引速度
+// （待機中は 0）。Color.rgb = 本体の色、Color.a = 発光の倍率。
+// シェーディングは SwarmOrbPS が行う。
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -23,25 +23,25 @@
 StructuredBuffer<SwarmOrb> orbs : register(t0);
 Buffer<uint> orbStates : register(t1);
 
-// Must match SwarmSystem::OrbLookCB
+// SwarmSystem::OrbLookCB と一致させること
 cbuffer SwarmOrbLookCB : register(b4)
 {
-    float g_LookTime;       // seconds
-    float g_LookScale;      // mesh scale
+    float g_LookTime;       // 秒
+    float g_LookScale;      // メッシュの拡大率
     float g_BobHeight;      // m
     float g_BobSpeed;       // rad/s
 
     float g_SpinSpeed;      // rad/s
-    float g_PulseAmount;    // scale 1 +- this
+    float g_PulseAmount;    // 大きさ 1 +- これ
     float g_PulseSpeed;     // rad/s
-    float g_FullPullSpeed;  // m/s at which the pulled look is complete
+    float g_FullPullSpeed;  // 吸引中の見た目が完全になる m/s
 
-    float g_StretchPerSpeed; // extra length per m/s of pull
-    float g_StretchMax;      // cap on the extra length
-    float g_TiltMax;         // radians the long axis leans toward the player
-    float g_PullGlow;        // glow multiplier when fully pulled
+    float g_StretchPerSpeed; // 吸引 1 m/s あたりに伸びる長さ
+    float g_StretchMax;      // 伸びる長さの上限
+    float g_TiltMax;         // 長軸がプレイヤーへ傾くラジアン
+    float g_PullGlow;        // 吸引しきった時の発光倍率
 
-    float4 g_IdleColor;     // linear rgb
+    float4 g_IdleColor;     // 線形 rgb
     float4 g_PullColor;
 };
 
@@ -55,7 +55,7 @@ struct VS_INPUT_INST
     uint InstanceID : SV_InstanceID;
 };
 
-// Rodrigues: rotate v about the unit axis a
+// ロドリゲス：v を単位軸 a まわりに回す
 float3 RotateAxis(float3 v, float3 a, float s, float c)
 {
     return v * c + cross(a, v) * s + a * dot(a, v) * (1.0 - c);
@@ -73,40 +73,40 @@ VS_OUTPUT main(VS_INPUT_INST input)
 
     SwarmOrb b = orbs[input.InstanceID];
 
-    // per-slot phase
+    // スロットごとの位相
     uint h = input.InstanceID * 2654435761u;
     h ^= h >> 15;
     float phase = (float) (h & 0xFFFFu) * (6.2831853 / 65535.0);
 
     float attract = saturate(b._pad / max(g_FullPullSpeed, 1e-3));
 
-    // ---- size: breathing ----
+    // ---- 大きさ：脈動 ----
     float pulse = 1.0 + g_PulseAmount * sin(g_LookTime * g_PulseSpeed + phase * 1.7);
     float3 p = input.Position * (g_LookScale * pulse);
     float3 n = input.Normal;
 
-    // ---- spin about the long axis ----
+    // ---- 長軸まわりの回転 ----
     float ss, sc;
     sincos(g_LookTime * g_SpinSpeed + phase, ss, sc);
     p = float3(sc * p.x + ss * p.z, p.y, -ss * p.x + sc * p.z);
     n = float3(sc * n.x + ss * n.z, n.y, -ss * n.x + sc * n.z);
 
-    // ---- pulled: lean toward the player and stretch along the pull ----
+    // ---- 吸引中：プレイヤーへ傾き、引かれる向きに伸びる ----
     float2 v = b.velocity.xz;
     float vlen = length(v);
     if (vlen > 1e-3)
     {
         float3 d = float3(v.x, 0.0, v.y) / vlen;
 
-        // axis = up x d, so +Y turns toward d
+        // axis = up x d。これで +Y が d の方へ向く
         float3 axis = float3(d.z, 0.0, -d.x);
         float ts, tc;
         sincos(g_TiltMax * attract, ts, tc);
         p = RotateAxis(p, axis, ts, tc);
         n = RotateAxis(n, axis, ts, tc);
 
-        // k along d, 1/sqrt(k) across (keeps the volume);
-        // normals take the inverse scale
+        // d 方向に k 倍、それと直交する方向に 1/sqrt(k) 倍（体積を保つ）。
+        // 法線には逆の倍率をかける
         float k = 1.0 + min(vlen * g_StretchPerSpeed, g_StretchMax);
         float kp = rsqrt(k);
         float pd = dot(p, d);
@@ -115,7 +115,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         n = d * (nd / k) + (n - d * nd) / kp;
     }
 
-    // ---- bob (idle only) ----
+    // ---- 浮き沈み（待機中のみ） ----
     float bob = sin(g_LookTime * g_BobSpeed + phase) * g_BobHeight * (1.0 - attract);
 
     float3 worldPos = b.position + p + float3(0.0, bob, 0.0);

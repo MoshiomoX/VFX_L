@@ -1,26 +1,26 @@
 // ============================================================
 // DandelionUpdateCS.hlsl
-// One step of the dandelion clocks (World/DandelionField, 2026-10-22).
-// One thread per flower (it also moves its own g_SeedsPer seeds):
-//   1) re-seat when its lattice cell left the window (or g_Reset):
-//      a fresh full head on the ground of the new cell, hidden off the
-//      grass, on cliffs and outside the meadow patches.
-//   2) the stem bends toward the air at its head (world wind + local
-//      wind sources).
-//   3) a full head is blown apart by a local wind source, a strong
-//      weather wind (stochastic, its own threshold) or trampling
-//      (the grass trample map: the player, explosions, beams, the
-//      gust's fan). Its seeds start at the head with the air's velocity.
-//   4) a bare stem regrows a head after g_RegrowDelay.
-//   5) seeds: relax toward the air (light: slow fall, carried up by an
-//      updraft), wander a little, settle on the ground and fade.
+// タンポポの綿毛の 1 ステップ（World/DandelionField、2026-10-22）。
+// 花 1 つにつき 1 スレッド（自分の g_SeedsPer 個の種も動かす）:
+//   1) 格子のセルが窓から出たら（または g_Reset）置き直す:
+//      新しいセルの地面に満開の綿毛を出す。草の無い所、崖、
+//      草原の斑の外では隠す。
+//   2) 茎は綿毛の位置の空気の方へ曲がる（世界の風 + 局所的な
+//      風源）。
+//   3) 満開の綿毛は、局所的な風源、強い天気の風（確率で、株ごとに
+//      しきい値が違う）、踏みつけ（草の踏みつけマップ: プレイヤー、爆発、
+//      光線、突風の扇）で散る。
+//      種は綿毛の位置から空気の速度で飛び出す。
+//   4) 裸の茎は g_RegrowDelay 後に綿毛が生え直す。
+//   5) 種: 空気の速度へ近づき（軽い: ゆっくり落ち、上昇気流で
+//      持ち上がる）、少しさまよい、地面に落ちて消える。
 // ============================================================
 #include "DandelionCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 
-Texture2D<float> g_Height : register(t0);          // GridWorld heights (GrassRenderer)
-Texture2D<float4> g_Ground : register(t1);         // a = grows grass
-Texture2D<float2> g_Trample : register(t2);        // grass trample bend (strength = length)
+Texture2D<float> g_Height : register(t0);          // GridWorld の高さ（GrassRenderer）
+Texture2D<float4> g_Ground : register(t1);         // a = 草が生える
+Texture2D<float2> g_Trample : register(t2);        // 草の踏みつけの倒れ（強さ = 長さ）
 StructuredBuffer<WindSource> g_WindSources : register(t3);
 SamplerState s_Linear : register(s0);
 RWStructuredBuffer<Flower> g_Flowers : register(u0);
@@ -36,7 +36,7 @@ float GroundAt(float2 xz)
     return g_Height.SampleLevel(s_Linear, MapUv(xz), 0);
 }
 
-// smooth value noise 0..1 (the meadow patches)
+// なめらかなバリューノイズ 0..1（草原の斑）
 float PatchNoise(float2 p)
 {
     float2 i = floor(p), f = frac(p);
@@ -59,7 +59,7 @@ void main(uint3 id : SV_DispatchThreadID)
     Flower f = g_Flowers[i];
     uint seedBase = i * g_SeedsPer;
 
-    // ---- 1) lattice cell inside the current window (torus wrap, same as the debris) ----
+    // ---- 1) 今の窓の中の格子セル（トーラス状に巻き戻す。落ち葉と同じ） ----
     int side = (int) g_Side;
     int ix = (int) (i % g_Side), iz = (int) (i / g_Side);
     int2 base = (int2) floor((g_CamPos.xz - g_Window) / g_Spacing);
@@ -82,7 +82,7 @@ void main(uint3 id : SV_DispatchThreadID)
         float slope = length(float2(hx, hz)) / (2.0 * g_MapSize.x / tw);
         bool inside = all(uv > 0.0) && all(uv < 1.0);
         float grass = g_Ground.SampleLevel(s_Linear, uv, 0).a;
-        // patches: two octaves, the top g_PatchCover share of the noise is meadow
+        // 斑: 2 オクターブ。ノイズの上位 g_PatchCover の割合を草原にする
         float n = PatchNoise(xz / max(g_PatchScale, 1.0)) * 0.7 + PatchNoise(xz / max(g_PatchScale * 0.37, 1.0) + 17.3) * 0.3;
         bool inPatch = n > 1.0 - g_PatchCover;
 
@@ -109,7 +109,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     uint rs = DandelionHash(f.seed ^ asuint(g_Time) ^ i * 2654435761u);
 
-    // ---- 2) the air at the head: world wind + local sources ----
+    // ---- 2) 綿毛の位置の空気: 世界の風 + 局所的な風源 ----
     float stem = DandelionStemHeight(f.seed);
     float2 wind = DandelionWindAt(f.pos.xz);
     float lift;
@@ -118,16 +118,16 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 bendGoal = airXZ * g_BendGain;
     float bl = length(bendGoal);
     if (bl > 0.6)
-        bendGoal *= 0.6 / bl;   // lie at most ~30 degrees over
+        bendGoal *= 0.6 / bl;   // 倒れるのは最大 30 度ほど
     f.bend = lerp(f.bend, bendGoal, saturate(g_Dt * 6.0));
 
-    // ---- 3) blow the head apart ----
+    // ---- 3) 綿毛を散らす ----
     if (f.puff > 0.95)
     {
         bool release = false;
         float2 trample = g_Trample.SampleLevel(s_Linear, MapUv(f.pos.xz), 0);
         float localSpeed = length(local);
-        // the player brushing past: a wider circle than the grass's trample disc, so running through a patch clears a swath
+        // プレイヤーがかすめる: 草の踏みつけの円より広い円にして、群生を走り抜けると一筋に散らす
         float2 fromPlayer = f.pos.xz - g_PlayerPos.xz;
         float playerDist = length(fromPlayer);
         if (g_PlayerRadius > 0.0 && playerDist < g_PlayerRadius && abs(f.pos.y - g_PlayerPos.y) < 2.0)
@@ -138,7 +138,7 @@ void main(uint3 id : SV_DispatchThreadID)
         else if (length(trample) > g_ReleaseTrample)
             release = true;
         else if (localSpeed > g_ReleaseLocal && DandelionRand(rs) < saturate(localSpeed / g_ReleaseLocal - 0.6) * 8.0 * g_Dt)
-            release = true;   // a source passing over: heads go one after another as it closes in
+            release = true;   // 風源が通り過ぎる: 近づくにつれて綿毛が次々に散る
         else
         {
             float w = length(wind);
@@ -165,7 +165,7 @@ void main(uint3 id : SV_DispatchThreadID)
             }
         }
     }
-    // ---- 4) regrow ----
+    // ---- 4) 生え直し ----
     else
     {
         f.regrow -= g_Dt;
@@ -174,7 +174,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     g_Flowers[i] = f;
 
-    // ---- 5) the seeds ----
+    // ---- 5) 種 ----
     for (uint k = 0u; k < g_SeedsPer; ++k)
     {
         Seed z = g_Seeds[seedBase + k];
@@ -191,10 +191,10 @@ void main(uint3 id : SV_DispatchThreadID)
         float above = z.pos.y - ground;
         float sl;
         float3 la = WindSourceAir(g_WindSources, z.pos.xz, sl);
-        la *= saturate(1.0 - (above - 4.0) / 4.0);   // the sources fade out above ~8 m (no seeds to the sky)
+        la *= saturate(1.0 - (above - 4.0) / 4.0);   // 風源は 8 m ほどより上では効かない（種を空まで飛ばさない）
         la.y *= g_SeedLift;
         float2 w2 = DandelionWindAt(z.pos.xz);
-        // a little wander so the cloud spreads out instead of travelling as one blob
+        // 少しさまよわせ、種の群れがひと塊で移動せず広がるようにする
         float ph = z.age * 1.7 + (float) (k * 7u + i) * 0.37;
         float3 wander = float3(sin(ph * 1.3), sin(ph * 0.9 + 1.7) * 0.5, cos(ph * 1.1)) * 0.6;
         float3 air = float3(w2.x, 0.0, w2.y) + la + wander;
@@ -203,7 +203,7 @@ void main(uint3 id : SV_DispatchThreadID)
         z.pos += z.vel * g_Dt;
         if (z.pos.y < ground + 0.03)
         {
-            // landed: stays put and fades out over the next second
+            // 着地: その場に留まり、次の 1 秒で消える
             z.pos.y = ground + 0.03;
             z.vel = 0;
             z.age = max(z.age, z.life - 1.0);

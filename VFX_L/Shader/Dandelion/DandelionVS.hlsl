@@ -1,16 +1,16 @@
 // ============================================================
 // DandelionVS.hlsl
-// DrawInstanced(6, side^2 x (2 + g_SeedsPer)), no vertex buffer.
-// Instance iid -> flower iid / (2 + seeds), part iid % (2 + seeds):
-//   part 0 = the stem: a thin strip from the ground to the head,
-//            turned to face the camera around its own axis, its top
-//            leaning with the wind (Flower.bend)
-//   part 1 = the seed head: a camera-facing disc (the PS cuts the
-//            fluffy outline), its size = Flower.puff (0 after it was
-//            blown apart, growing back)
-//   part 2+ = one flying seed: a tiny camera-facing card
-// Hidden flowers, empty heads, grounded / dead seeds and everything at
-// the window's edge collapse to nothing.
+// DrawInstanced(6, side^2 x (2 + g_SeedsPer))、頂点バッファなし。
+// インスタンス iid -> 花 iid / (2 + seeds)、部位 iid % (2 + seeds):
+//   part 0 = 茎: 地面から綿毛までの細い帯、
+//            自分の軸を中心にカメラの方へ回し、先端は
+//            風で傾く（Flower.bend）
+//   part 1 = 綿毛: カメラを向く円盤（PS がふわふわの
+//            輪郭を切り抜く）、大きさ = Flower.puff（吹き散らされた
+//            後は 0 で、また伸びてくる）
+//   part 2+ = 飛んでいる種 1 つ: カメラを向く小さな板
+// 隠れた花、空の綿毛、地面に落ちた / 消えた種、窓の縁にあるものは
+// すべて潰して何も描かない。
 // ============================================================
 #include "DandelionCommon.hlsli"
 
@@ -22,8 +22,8 @@ struct DandelionOut
     float4 pos : SV_POSITION;
     float3 world : TEXCOORD0;
     float3 normal : TEXCOORD1;
-    float2 uv : TEXCOORD2;      // -1..1 across the card
-    nointerpolation uint part : TEXCOORD3;   // 0 stem, 1 head, 2 seed
+    float2 uv : TEXCOORD2;      // 板の上で -1..1
+    nointerpolation uint part : TEXCOORD3;   // 0 茎、1 綿毛、2 種
     nointerpolation uint seed : TEXCOORD4;
 };
 
@@ -50,14 +50,14 @@ DandelionOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float3 n;
     if (part >= 2u)
     {
-        // ---- a flying seed ----
+        // ---- 飛んでいる種 ----
         Seed z = g_Seeds[fi * g_SeedsPer + (part - 2u)];
         float grow = saturate(z.age / 0.15);
-        float fade = saturate(z.life - z.age);   // the last second shrinks it away
+        float fade = saturate(z.life - z.age);   // 最後の 1 秒で縮んで消える
         scale = (z.life > 0.0) ? grow * fade : 0.0;
         float s = g_SeedSize * g_SizeMul * scale;
         world = z.pos + (g_CamRight * o.uv.x + g_CamUp * o.uv.y) * s;
-        // lit as if facing the sky as much as the camera: the fluff stays bright white instead of falling into the cool toon shade
+        // カメラと同じくらい空も向いているものとしてライトを当てる: 綿毛がトゥーンの冷たい暗部に落ちず、明るい白のままになる
         n = normalize(normalize(g_CamPos - z.pos) + float3(0.0, 1.5, 0.0));
     }
     else
@@ -69,7 +69,7 @@ DandelionOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
         float3 top = f.pos + float3(f.bend.x * stem, stem, f.bend.y * stem);
         if (part == 0u)
         {
-            // ---- the stem: a strip from the ground to the head ----
+            // ---- 茎: 地面から綿毛までの帯 ----
             float t = o.uv.y * 0.5 + 0.5;
             float3 axis = top - f.pos;
             float3 toCam = normalize(g_CamPos - f.pos);
@@ -77,7 +77,7 @@ DandelionOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
             float sl = length(sideV);
             sideV = sl > 1e-4 ? sideV / sl : g_CamRight;
             float halfW = 0.018 * g_SizeMul * scale;
-            // a little curve: the middle leans less than the top
+            // 少し曲げる: 真ん中は先端ほど傾かない
             float3 along = f.pos + float3(f.bend.x * stem * t * t, stem * t, f.bend.y * stem * t * t);
             world = along + sideV * (o.uv.x * halfW);
             if (scale <= 0.0)
@@ -86,7 +86,7 @@ DandelionOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
         }
         else
         {
-            // ---- the seed head ----
+            // ---- 綿毛 ----
             float p = f.puff;
             float r = g_PuffRadius * g_SizeMul * scale * (p * p * (3.0 - 2.0 * p));
             world = top + (g_CamRight * o.uv.x + g_CamUp * o.uv.y) * r;
@@ -101,6 +101,6 @@ DandelionOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     o.normal = n;
     o.pos = mul(float4(world, 1.0), g_ViewProj);
     if (scale <= 0.0)
-        o.pos = float4(0, 0, 0, 0);   // collapsed: no pixels
+        o.pos = float4(0, 0, 0, 0);   // 潰す: ピクセルを出さない
     return o;
 }

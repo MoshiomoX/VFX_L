@@ -20,6 +20,7 @@
 #include "Manager/InputMap.h"
 #include "Core/Application.h"
 #include "Core/DevUI.h"
+#include "Core/GameSettings.h"
 
 // ============================================================
 // 実際の gameplay 更新
@@ -109,6 +110,8 @@ void CollisionTestScene::UpdateGameplay(float dt)
         m_Grass.Update(dt, *pp, grounded, sliding);
     }
     m_GrassFire.Tick(dt);   // 草の火の時計（一時停止中は進まない）
+    m_Sand.Tick(dt);        // 砂の面も（2026-11-02）
+    m_Miasma.Tick(dt);      // 遺跡の瘴気も（2026-11-03）
     m_Debris.Tick(dt);      // 落ち葉も
     m_Water.Tick(dt);       // 水面の波紋も
     UpdateWindToys(dt);     // 転がり草・タンポポ（2026-10-22）
@@ -215,6 +218,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_Camera.OnPlayerHit(hpLost);
     m_Feedback.Update(m_Registry, m_Player, dt, hpLost);
     m_PlayerVFX.Update(m_Registry, m_Player, dt, hpLost, m_WeaponSystem.GetCastFx());   // 詠唱の光・土煙・着地・尾・被弾の閃き
+    UpdateFootprints(dt);   // 砂漠：一歩ごとに足跡（2026-11-03）
     for (const auto& g : m_WeaponSystem.GetGustFx())   // 突風：草が一斉に倒れ、落ち葉が舞う
     {
         m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
@@ -233,6 +237,20 @@ void CollisionTestScene::UpdateGameplay(float dt)
     }
 
     // ---- カメラ追従（最後）----
+    // 賢いカメラの戦況（2026-11-02）：囲まれ具合・Boss・最終ウェーブ・押し寄せの方向。
+    // 実験場・Boss の登場演出・死んだ後は使わない（演出が自分でカメラを動かす）
+    {
+        BattleCamera::SmartInput smart;
+        smart.enabled = GameSettings::Get().smartCamera && !m_LabScene && !IsPlayerDead() && !m_BossIntro.Active();
+        smart.nearEnemies = (int)m_Swarm.GetNearEnemyCount();
+        smart.bossAlive = m_Stage.IsBossAlive();
+        smart.bossPos = m_Stage.BossPos();
+        smart.finalWave = m_Stage.FinalSwarmLevel() > 0;
+        smart.threat = m_Stage.waves.ArcActive();
+        smart.threatDir = { std::cos(m_Stage.SurgeYaw()), 0.0f, std::sin(m_Stage.SurgeYaw()) };
+        m_Camera.SetSmartInput(smart);
+        m_Camera.Camera().distanceScale = GameSettings::Get().cameraDistance;
+    }
     m_Camera.Update(dt, PlayerPos());
     FrameProfiler::Get().End(kRestSection);
 

@@ -1,34 +1,34 @@
 // ============================================================
 // WaterPS.hlsl
-// The pond water surface (World/WaterSurface, 2026-10-27). Toon water
-// that only moves when something moves it (the user: "water that keeps
-// moving with nothing acting on it looks wrong"):
-//   wind     ripples appear only where the local air speed (the world
-//            wind with the same gust waves as the grass, plus the wind
-//            sources: twisters, the vortex, gusts, sand tornadoes)
-//            passes g_CalmWind, and drift downwind (two-phase flow so
-//            the pattern never stretches). Calm air = a still mirror
-//   ripples  height field from WaterRippleCS (steps, landings, rain,
-//            blasts). Its slope tilts the normal, its crests turn white
-//   still    body color in three toon steps from the shore to the middle,
-//            a thin foam line on the shore (wider when a wave arrives),
-//            the sun's hard glint, the sky in the toon fresnel
-//   ice      a pale sheet with cracks where g_Ice is frozen (WaterIceCS),
-//            melting from scattered spots as it runs out (2026-11-01)
-// Premultiplied alpha (ONE, INV_SRC_ALPHA), depth read only.
-// The light cbuffer sits at b1 because WaterCB owns b0.
+// 池の水面（World/WaterSurface、2026-10-27）。何かが動かしたときだけ
+// 動くトゥーンの水（ユーザー:「何も作用していないのに水がずっと
+// 動いているのはおかしい」）:
+//   風       局所的な風速（草と同じ突風の波を持つ世界の
+//            風 + 風源: 竜巻、渦、突風、砂旋）が
+//            g_CalmWind を超えた所にだけさざ波が立ち、風下へ流れる
+//            （模様が伸びないように二位相のフロー）。
+//            風が無ければ静かな鏡面
+//   波紋     WaterRippleCS の高さ場（足音、着地、雨、
+//            爆発）。傾きで法線を傾け、波頭を白くする
+//   静止     本体の色は岸から真ん中へトゥーンの 3 段、
+//            岸に細い泡の線（波が来ると太くなる）、
+//            太陽の硬いきらめき、トゥーンのフレネルで空を映す
+//   氷       g_Ice が凍っている所に割れ目入りの淡い板（WaterIceCS）、
+//            時間切れが近づくと点々と融けていく（2026-11-01）
+// 乗算済みアルファ（ONE, INV_SRC_ALPHA）、深度は読むだけ。
+// WaterCB が b0 を使うので、ライトの cbuffer は b1 に置く。
 // ============================================================
 #define MODEL_LIGHT_CB_REG b1
 #include "../Common/Lighting.hlsli"
 #include "../Common/WindSources.hlsli"
 #include "WaterCommon.hlsli"
 
-Texture2D<float4> g_Ripple : register(t0);   // x = height (m), y = last step's; zw = the same for the big waves only
+Texture2D<float4> g_Ripple : register(t0);   // x = 高さ (m)、y = 前のステップの値。zw = 大きな波だけの同じもの
 StructuredBuffer<WindSource> g_WindSources : register(t1);
-Texture2D<float> g_Ice : register(t2);       // 1 = just frozen .. 0 = open water (WaterIceCS)
+Texture2D<float> g_Ice : register(t2);       // 1 = 凍ったばかり .. 0 = 凍っていない水（WaterIceCS）
 SamplerState g_Linear : register(s0);
 
-// ---- gradient noise with analytic derivatives (value, d/dx, d/dy) ----
+// ---- 解析的な導関数付きのグラディエントノイズ（値、d/dx、d/dy） ----
 float2 WaterHash(float2 p)
 {
     p = float2(dot(p, float2(127.1, 311.7)), dot(p, float2(269.5, 183.3)));
@@ -55,7 +55,7 @@ float3 NoiseD(float2 p)
     return float3(v, d);
 }
 
-// ---- cracks in the ice: lines along the cell borders of a Voronoi pattern (1 on a crack) ----
+// ---- 氷の割れ目: ボロノイ模様のセル境界に沿った線（割れ目の上で 1） ----
 float IceCrack(float2 p)
 {
     float2 cell = floor(p);
@@ -73,8 +73,8 @@ float IceCrack(float2 p)
     return 1.0 - smoothstep(0.015, 0.05, d2 - d1);
 }
 
-// ---- the ripple field, smoothed: cubic B-spline in 4 bilinear taps ----
-// plain bilinear showed the 0.2 m texels as corners (a footstep ring was a pentagon)
+// ---- 波紋の場を滑らかに: 4 回のバイリニアで 3 次 B スプライン ----
+// ただのバイリニアだと 0.2 m の texel が角として見えた（足音の輪が五角形になった）
 float4 SampleRipple(float2 uv)
 {
     float2 st = uv * WATER_RIPPLE_SIZE - 0.5;
@@ -94,7 +94,7 @@ float4 SampleRipple(float2 uv)
          + g1.y * (g0.x * g_Ripple.SampleLevel(g_Linear, float2(t0.x, t1.y), 0) + g1.x * g_Ripple.SampleLevel(g_Linear, t1, 0));
 }
 
-// ---- the air over the water (same gust waves as the grass) ----
+// ---- 水面上の空気（草と同じ突風の波） ----
 float GustWave(float2 xz, float2 dir, float perMeter, float speed)
 {
     float g = sin(dot(xz, dir) * perMeter * 6.2831853 - g_WindTime * speed) * 0.5 + 0.5;
@@ -115,9 +115,9 @@ float2 AirAt(float2 xz)
     return v;
 }
 
-// slope of the wind ripples: noise in a frame stretched across the world
-// wind (crests lie across the wind), carried downwind by the local air.
-// Two phases half a period apart, each faded out where it jumps back
+// 風のさざ波の傾き: 世界の風に対して横方向へ伸ばした座標系のノイズ
+// （波頭は風を横切って並ぶ）を、局所的な空気で風下へ運ぶ。
+// 半周期ずらした 2 つの位相を使い、それぞれ巻き戻る所でフェードアウトさせる
 float2 WindSlope(float2 xz, float2 air)
 {
     const float period = 1.6;
@@ -136,13 +136,13 @@ float2 WindSlope(float2 xz, float2 air)
         float ph = (k == 0) ? p0 : p1;
         float w = (k == 0) ? w0 : 1.0 - w0;
         float2 p = xz - flow * ph + (k == 0 ? float2(0.0, 0.0) : float2(17.3, 5.9));
-        // stretched frame: along the wind x1, across x0.45 (long crests across the wind)
+        // 伸ばした座標系: 風に沿って x1、横に x0.45（風を横切る長い波頭）
         float2 q = float2(dot(p, fwd), dot(p, side) * 0.45) * g_WaveScale;
         float3 n1 = NoiseD(q);
         float3 n2 = NoiseD(q * 2.17 + float2(3.1, 7.7));
         float2 dq = n1.yz + 0.5 * 2.17 * n2.yz;                  // d/dq
         float2 dl = float2(dq.x, dq.y * 0.45) * g_WaveScale;     // d/d(local)
-        slope += w * (fwd * dl.x + side * dl.y);                 // back to world xz
+        slope += w * (fwd * dl.x + side * dl.y);                 // ワールドの xz に戻す
     }
     return slope;
 }
@@ -152,35 +152,35 @@ float4 main(WaterOut i) : SV_TARGET
     float3 P = i.world;
     float2 xz = P.xz;
 
-    // ---- ripples (wave field) ----
+    // ---- 波紋（波の場） ----
     float2 uv = (xz - g_MapOrigin) / g_MapSize;
     float du = 1.0 / WATER_RIPPLE_SIZE;
     float texelM = g_MapSize.x / WATER_RIPPLE_SIZE;
     float4 hs = SampleRipple(uv);
     float h = hs.x;
-    float bigH = hs.z;              // the big waves' share (blasts, the boss): only they draw white lines
-    float rise = hs.z - hs.w;       // their rise this step (m): + = going up, - = going down
+    float bigH = hs.z;              // 大きな波の分（爆発、ボス）: 白い線を描くのはこれだけ
+    float rise = hs.z - hs.w;       // このステップでの上昇量 (m): + = 上がっている、- = 下がっている
     float4 sx0 = SampleRipple(uv - float2(du, 0.0));
     float4 sx1 = SampleRipple(uv + float2(du, 0.0));
     float4 sz0 = SampleRipple(uv - float2(0.0, du));
     float4 sz1 = SampleRipple(uv + float2(0.0, du));
     float2 rippleSlope = float2(sx1.x - sx0.x, sz1.x - sz0.x) / (2.0 * texelM);
 
-    // is the big waves' top here a long crest (a ring running out) or a lone mound? Curvature of zw:
-    // a crest bends down only across itself (one strong negative, one near zero), a mound bends down
-    // every way. The middle of a blast springs back up as a mound and bounced waves pile up into mounds:
-    // they drew small white circles (the user: "small circles after the blast")
+    // ここの大きな波の頂上は長い波頭（広がっていく輪）か、ぽつんとした盛り上がりか? zw の曲率で見る:
+    // 波頭は自分を横切る方向にだけ下へ曲がり（片方が強い負、もう片方はほぼ 0）、盛り上がりは
+    // どの向きにも下へ曲がる。爆発の中心は盛り上がりとして跳ね返り、反射した波も重なって盛り上がる:
+    // それが小さな白い円を描いていた（ユーザー:「爆発の後の小さな円」）
     float bxx = sx1.z + sx0.z - 2.0 * bigH;
     float bzz = sz1.z + sz0.z - 2.0 * bigH;
     float bxz = 0.25 * (SampleRipple(uv + float2(du, du)).z - SampleRipple(uv + float2(du, -du)).z
                       - SampleRipple(uv + float2(-du, du)).z + SampleRipple(uv + float2(-du, -du)).z);
     float bMid = 0.5 * (bxx + bzz);
     float bRad = sqrt(0.25 * (bxx - bzz) * (bxx - bzz) + bxz * bxz);
-    float across = max(-(bMid - bRad), 0.0);   // the stronger downward bend
-    float along = abs(bMid + bRad);            // the other one
+    float across = max(-(bMid - bRad), 0.0);   // 強い方の下向きの曲がり
+    float along = abs(bMid + bRad);            // もう片方
     float ridge = (across - along) / (across + along + 1e-9);
 
-    // ---- wind ripples: only where the air is fast enough ----
+    // ---- 風のさざ波: 風が十分速い所だけ ----
     float2 air = AirAt(xz);
     float amp = saturate((length(air) - g_CalmWind) / max(g_FullWind - g_CalmWind, 0.01));
     float2 windSlope = 0;
@@ -188,16 +188,16 @@ float4 main(WaterOut i) : SV_TARGET
         windSlope = WindSlope(xz, air) * (amp * g_WaveNormal);
 
     float2 slope = rippleSlope * g_RippleNormal + windSlope;
-    // at most ~25 degrees of tilt: a landing or a blast tilted the surface 45-60 degrees and the whole
-    // patch mirrored the pale sky (a solid white disc under the feet)
+    // 傾きは最大 ~25 度: 着地や爆発で水面が 45-60 度傾き、その一帯が
+    // 淡い空を映していた（足元に真っ白な円盤）
     float slopeLen = length(slope);
     slope *= min(1.0, 0.45 / max(slopeLen, 1e-5));
     float3 N = normalize(float3(-slope.x, 1.0, -slope.y));
     float3 V = normalize(cameraPosition - P);
     float3 L = normalize(-dirLight.direction);
 
-    // ---- body: shallow -> deep in three toon steps ----
-    // fixed noise on the distance: the steps follow the shore loosely instead of making a rectangle
+    // ---- 本体: 浅い -> 深いをトゥーンの 3 段で ----
+    // 距離に固定のノイズを足す: 段が長方形にならず、岸にゆるく沿う
     float k = saturate(i.shore / max(g_DeepDist, 0.01) + 0.22 * NoiseD(xz * 0.32 + float2(4.7, 1.3)).x);
     float band = 0.5 * smoothstep(0.24, 0.30, k) + 0.5 * smoothstep(0.62, 0.68, k);
     float3 body = lerp(g_Shallow.rgb, g_Deep.rgb, band);
@@ -205,7 +205,7 @@ float4 main(WaterOut i) : SV_TARGET
     body = lerp(body, g_Turbid.rgb, g_Turbid.a);
     alpha = lerp(alpha, 0.96, g_Turbid.a);
 
-    // ---- light (the water lies flat for the sun and its shadow; the ripples only tilt the reflections) ----
+    // ---- ライト（太陽と影に対して水面は平ら。波紋が傾けるのは映り込みだけ） ----
     float3 up = float3(0.0, 1.0, 0.0);
     float NdotL = max(dot(up, L), 0.0);
     uint cascade;
@@ -216,16 +216,16 @@ float4 main(WaterOut i) : SV_TARGET
     float3 light = ambient + sun;
     float3 c = body * light;
 
-    // facets of the waves facing the sun a little lighter, the others darker (two steps)
+    // 太陽を向いた波の面は少し明るく、それ以外は暗く（2 段）
     float2 Lxz = normalize(L.xz + float2(1e-4, 0.0));
     float facing = dot(-slope, Lxz);
     c *= 1.0 + 0.16 * smoothstep(0.05, 0.09, facing) - 0.08 * smoothstep(0.05, 0.09, -facing);
-    // where the wind roughens the water it mirrors less of the sky: a touch darker
+    // 風で水面が荒れた所は空をあまり映さない: 少しだけ暗く
     c *= 1.0 - g_WindDarken * amp;
 
-    // ---- the sky in the fresnel (two steps, a little even straight down) ----
-    // the ripples tilt it only a little: at full tilt the slope of a landing or a step that leans away from
-    // the camera passed the top step and mirrored the pale sky as a white patch around the feet
+    // ---- フレネルで空を映す（2 段、真下を見ても少しは映る） ----
+    // 波紋による傾きは少しだけ: 全部傾けると、着地や足音でカメラから離れる向きに傾いた所が
+    // 上の段を越え、淡い空を足元の白い斑として映していた
     float2 fslope = rippleSlope * (g_RippleNormal * 0.35) + windSlope;
     fslope *= min(1.0, 0.45 / max(length(fslope), 1e-5));
     float3 NF = normalize(float3(-fslope.x, 1.0, -fslope.y));
@@ -238,26 +238,26 @@ float4 main(WaterOut i) : SV_TARGET
     c = lerp(c, sky * (0.55 + 0.45 * lit), refl);
     alpha = lerp(alpha, 1.0, refl * 0.5);
 
-    // ---- white: wave crests and the shore line ----
-    // one thin toon line on the top of each crest: where the water stops rising and starts to fall
-    // (this step's rise crosses zero) and stands above g_RippleCrest. About 2-3 px wide whatever the slope.
-    // Filling everything above the threshold made a step or a landing a solid white disc; lines along a
-    // height contour drew every crest twice, once on each side of the top (the user: the double rings look
-    // wrong). A taller crest gets a slightly bolder line instead of a second ring.
-    // Only the big waves (zw) draw it: the player's own steps and landings show as light and shade only
-    // (the user: "there are still small circles" = the ring around the feet after a landing)
+    // ---- 白: 波頭と岸の線 ----
+    // 波頭の頂上ごとにトゥーンの細い線を 1 本: 水が上がるのをやめて下がり始め
+    // （このステップの上昇量が 0 を跨ぐ）、g_RippleCrest より高い所。傾きに関係なく 2-3 px ほどの幅。
+    // しきい値より上を全部塗ると足音や着地が真っ白な円盤になり、高さの等高線に沿った線だと
+    // 波頭ごとに頂上の両側で 2 回描かれていた（ユーザー: 二重の輪が
+    // おかしい）。高い波頭は 2 本目の輪の代わりに線を少し太くする。
+    // 描くのは大きな波（zw）だけ: プレイヤー自身の足音や着地は明暗だけで見せる
+    // （ユーザー:「まだ小さな円がある」= 着地の後の足元の輪）
     float above = (bigH - g_RippleCrest) / g_RippleCrest;
     float rw = max(fwidth(rise), g_RippleCrest * 1e-3) * (1.1 + 0.6 * saturate(above * 0.5));
     float crest = saturate(1.0 - abs(rise) / rw) * smoothstep(-0.4, 0.2, above) * smoothstep(0.45, 0.75, ridge);
     float arrive = saturate(abs(h) / max(g_RippleCrest, 1e-4));
     float fw = g_Foam.a * (1.0 + 1.0 * arrive);
-    float wobble = NoiseD(xz * 2.3).x;   // fixed: the line has an uneven edge, it does not crawl
+    float wobble = NoiseD(xz * 2.3).x;   // 固定: 線の縁はでこぼこだが、這い回らない
     float foam = 1.0 - smoothstep(fw * 0.7, fw, i.shore + wobble * fw * 0.3);
     float white = saturate(max(crest * 0.85, foam));
     c = lerp(c, g_Foam.rgb * light, white);
     alpha = lerp(alpha, 1.0, white);
 
-    // ---- ice: a pale sheet over the water, cracked; it melts from scattered spots near the end ----
+    // ---- 氷: 水の上の淡い割れた板。終わり際に点々と融ける ----
     float iceV = g_Ice.SampleLevel(g_Linear, uv, 0);
     float meltAt = 0.04 + 0.30 * saturate(0.5 + NoiseD(xz * 0.9 + float2(7.1, 2.9)).x);
     float ice = smoothstep(meltAt - 0.02, meltAt + 0.02, iceV);
@@ -270,9 +270,9 @@ float4 main(WaterOut i) : SV_TARGET
         alpha = lerp(alpha, 0.95, ice);
     }
 
-    // ---- the sun's glint: a hard window, only where the surface tilts toward it ----
+    // ---- 太陽のきらめき: 硬い窓、水面が太陽の方へ傾いた所だけ ----
     float3 H = normalize(V + L);
-    // about 1.5 degrees: on still water just the sun's own small spot, on ripples a scatter of sparkles
+    // 約 1.5 度: 静かな水なら太陽自身の小さな点だけ、さざ波があれば散らばったきらめき
     float glint = smoothstep(0.99955, 0.99975, saturate(dot(N, H))) * lit * (1.0 - white);
     float3 add = dirLight.color * (dirLight.intensity * g_SpecStrength * glint);
 

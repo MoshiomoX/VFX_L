@@ -1,31 +1,31 @@
 // ============================================================
 // SwarmEnemyHpBarVS.hlsl
-// HP bar floating over every live mob. One camera-facing quad per
-// enemy, 6 vertices from SV_VertexID, no vertex buffer. Instances
-// come from the same alive list as the mob mesh (SwarmEnemyCompactCS),
-// drawn with DrawInstancedIndirect.
+// 生きている雑魚の頭上に浮かぶ HP バー。敵 1 体につきカメラを向く
+// 四角形 1 枚、SV_VertexID から 6 頂点、頂点バッファなし。インスタンスは
+// 雑魚のメッシュと同じ生存リスト（SwarmEnemyCompactCS）から取り、
+// DrawInstancedIndirect で描く。
 //
-// Size is in world units (shrinks with distance like the mesh).
-// Fill ratio = hp / spawn hp. The spawn hp lives in a side buffer
-// (enemyMaxHp, written by SwarmSpawnEnemyCS / SwarmRecycleCS) so
-// SwarmEnemy stays 48 bytes.
+// サイズはワールド単位（メッシュと同じく遠いほど小さい）。
+// 塗りの割合 = hp / 生成時の hp。生成時の hp は別のバッファ
+//（enemyMaxHp、SwarmSpawnEnemyCS / SwarmRecycleCS が書く）にあるので
+// SwarmEnemy は 48 バイトのまま。
 //
-// C++ mirror of the cbuffer: SwarmHpBarCB in SwarmSystem.cpp
+// cbuffer の C++ 側の写し：SwarmSystem.cpp の SwarmHpBarCB
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b4   // elite body size: bar sits higher and wider
+#define SWARM_BOMBER_CB_REG b4   // エリートの体の大きさ：バーを高く、幅広くする
 #include "../Common/SwarmCommon.hlsli"
 
 cbuffer SwarmHpBarCB : register(b0)
 {
     row_major float4x4 g_BarView;
     row_major float4x4 g_BarProj;
-    float g_BarWidth;   // meters
-    float g_BarHeight;  // meters
-    float g_BarOffset;  // meters above SwarmEnemy.position (capsule centre)
-    float g_BarBorder;  // meters
+    float g_BarWidth;   // メートル
+    float g_BarHeight;  // メートル
+    float g_BarOffset;  // SwarmEnemy.position（カプセルの中心）から上へのメートル
+    float g_BarBorder;  // メートル
     float4 g_BarFill;
     float4 g_BarBack;
     float4 g_BarEdge;
@@ -43,8 +43,8 @@ StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t4);
 struct BarOut
 {
     float4 pos : SV_POSITION;
-    float2 uv : TEXCOORD0;   // (0,0) top-left .. (1,1) bottom-right
-    float ratio : TEXCOORD1; // 0..1 remaining hp
+    float2 uv : TEXCOORD0;   // (0,0) 左上 .. (1,1) 右下
+    float ratio : TEXCOORD1; // 0..1 残り hp
 };
 
 static const float2 kCorner[6] =
@@ -58,28 +58,28 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     BarOut o = (BarOut) 0;
 
     uint slot = aliveList[iid];
-    if (enemyStates[slot] == SWARM_DEAD || (SwarmUntargetable(enemyExtra[slot]) && enemyExtra[slot].kind != SWARM_KIND_BURROWER))   // a buried burrower keeps its bar: ground areas can hit it (2026-10-26)
+    if (enemyStates[slot] == SWARM_DEAD || (SwarmUntargetable(enemyExtra[slot]) && enemyExtra[slot].kind != SWARM_KIND_BURROWER))   // 潜っている砂潜りはバーを残す：地面の範囲が当たるため（2026-10-26）
     {
-        o.pos = float4(0, 0, -1, 1); // clipped
+        o.pos = float4(0, 0, -1, 1); // クリップ
         return o;
     }
 
     SwarmEnemy e = enemies[slot];
 
-    // hp drops through InterlockedAdd of a negative value, so the killing
-    // hit can wrap it past 0 (huge uint) before the state flips: treat
-    // anything above the spawn value as empty
+    // hp は負の値の InterlockedAdd で減るので、とどめの一撃で状態が
+    // 変わる前に 0 を越えて回り込む（巨大な uint）ことがある：
+    // 生成時の値を超えていれば空として扱う
     uint maxHp = max(enemyMaxHp[slot], 1u);
     o.ratio = (e.hp > maxHp) ? 0.0 : (float) e.hp / (float) maxHp;
 
-    // camera axes in world space = the first two columns of the view
-    // matrix (row-vector convention). Keeps the bar facing the screen
-    // with its fill growing left to right whatever the handedness
+    // ワールド空間でのカメラの軸 = ビュー行列の最初の 2 列
+    //（行ベクトルの規約）。座標系の左右に関係なく、バーが画面を向き
+    // 塗りが左から右へ伸びるようにする
     float3 right = float3(g_BarView._11, g_BarView._21, g_BarView._31);
     float3 up = float3(g_BarView._12, g_BarView._22, g_BarView._32);
 
-    // elites are scaled about the feet: the bar goes up with the head and gets wider
-    // (a berserk fixed elite is drawn bigger again, SwarmSlotScale, 2026-10-25)
+    // エリートは足元を基点に拡大する：バーは頭と一緒に上がり、幅も広がる
+    //（狂暴化した固定エリートはさらに大きく描く、SwarmSlotScale、2026-10-25）
     float k = SwarmSlotScale(slot, enemyExtra[slot].kind);
     float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
     float offset = footY + (g_BarOffset - footY) * k;

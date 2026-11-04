@@ -1,26 +1,26 @@
 // ============================================================
 // WaterIceCS.hlsl
-// Ice on the ponds (World/WaterSurface, 2026-11-01). One value per
-// 0.8 m texel over the whole map: 1 = just frozen, falling to 0 over
-// g_IceLife seconds. A live cold area freezes the pond texels it covers:
-// a recipe with negative heat (the Ice Lance's hit) or any freezing area
-// (the Ice Spike's row, which comes from the CPU with no recipe).
-// Dry texels stay 0. Same rule as the fire's cold sources (GrassFireCS).
-// WaterRippleCS treats ice as a wall, WaterPS draws it, and WaterStirCS
-// slows the enemies walking on it.
+// 池の氷（World/WaterSurface、2026-11-01）。マップ全体を 0.8 m の
+// テクセルで覆い、1 つにつき値 1 つ：1 = 凍った直後、g_IceLife 秒かけて
+// 0 まで下がる。生きた冷たい範囲は、覆った池のテクセルを凍らせる：
+// heat が負のレシピ（アイスランスの命中）か、凍結を持つ範囲すべて
+// （アイススパイクの列。CPU から来るのでレシピが無い）。
+// 水の無いテクセルは 0 のまま。延焼の冷源（GrassFireCS）と同じ規則。
+// WaterRippleCS は氷を壁として扱い、WaterPS が描き、WaterStirCS は
+// その上を歩く敵を遅くする。
 // ============================================================
 
-// Must match WaterSurface::IceCB
+// WaterSurface::IceCB と一致させること
 cbuffer WaterIceCB : register(b0)
 {
-    float2 g_MapOrigin;     // world xz of the map's min corner
-    float2 g_MapSize;       // meters
-    float g_Dt;             // seconds this frame (0 while paused)
-    float g_IceLife;        // seconds a frozen texel lasts
+    float2 g_MapOrigin;     // マップの最小の角のワールド xz
+    float2 g_MapSize;       // m
+    float g_Dt;             // このフレームの秒数（ポーズ中は 0）
+    float g_IceLife;        // 凍ったテクセルが残る秒数
     float2 _icePad;
 };
 
-// = SwarmArea (Shader/Common/SwarmCommon.hlsli), 48 bytes
+// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト
 struct IceArea
 {
     float3 center;
@@ -35,19 +35,19 @@ struct IceArea
     uint tickNow;
 };
 
-Texture2D<float> g_Mask : register(t0);          // 1 = pond (the ripple field's 1024^2 texels)
+Texture2D<float> g_Mask : register(t0);          // 1 = 池（波紋の場の 1024^2 テクセル）
 StructuredBuffer<IceArea> g_Areas : register(t1);
-Buffer<uint> g_AreaStates : register(t2);        // 0 = dead
-StructuredBuffer<float> g_RecipeHeat : register(t3);   // per VFX recipe (GrassFireField), < 0 = cold
+Buffer<uint> g_AreaStates : register(t2);        // 0 = 死んでいる
+StructuredBuffer<float> g_RecipeHeat : register(t3);   // エフェクトのレシピごと（GrassFireField）、< 0 = 冷たい
 RWTexture2D<float> g_Ice : register(u0);
 
 #define ICE_MAX_AREAS 256u       // = SWARM_MAX_AREAS
 #define ICE_MAX_SOURCES 32u
-#define ICE_MASK_SCALE 4         // texels of the mask per ice texel
-#define ICE_FREEZE_MASK 0xF0u    // = Swarm::kAreaFreezeShift, 4 bits (SwarmAreaFreeze)
-#define ICE_MIN_RADIUS 1.2       // an Ice Lance's hit is only 0.5 m: still a visible patch of ice
+#define ICE_MASK_SCALE 4         // 氷のテクセル 1 つあたりのマスクのテクセル数
+#define ICE_FREEZE_MASK 0xF0u    // = Swarm::kAreaFreezeShift、4 ビット（SwarmAreaFreeze）
+#define ICE_MIN_RADIUS 1.2       // アイスランスの命中は 0.5 m しかないが、それでも見える大きさの氷にする
 
-groupshared float3 gs_Source[ICE_MAX_SOURCES];   // xz, radius
+groupshared float3 gs_Source[ICE_MAX_SOURCES];   // xz、半径
 groupshared uint gs_SourceCount;
 
 [numthreads(8, 8, 1)]

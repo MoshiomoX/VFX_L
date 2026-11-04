@@ -1,18 +1,18 @@
 // ============================================================
 // WindSources.hlsli
-// Local wind sources (2026-10-19, the user: "the wind itself should carry a
-// wind coefficient and act on the world wind"). The sand tornadoes (and later
-// anything else that blows) are written every frame by SwarmWindSourceCS into
-// a fixed table of WIND_MAX_SOURCES entries; unused entries have radius 0.
-// The grass (GrassVS), the ground debris (DebrisUpdateCS) and the particles
-// (ParticleUpdateCS) add WindSourceAir() to the world wind, so one tornado
-// bends the grass in a circle, lifts the sand and litter of the field and
-// drags the smoke around it.
-// 2026-10-20: a source can also push the air one way (pushDir x push,
-// strongest at the centre, gone at the rim) - the gust spell is a vortex
-// that blows forward. CPU sources (SwarmSystem::AddWindBurst) are appended
-// to the table by the same CS.
-// C++ mirror: Swarm::WindSource (48 bytes), Swarm::kMaxWindSources
+// 局所的な風源（2026-10-19、ユーザー:「風そのものが風の係数を持って
+// 世界の風に作用してほしい」）。砂旋（と、今後吹くもの全般）は毎フレーム
+// SwarmWindSourceCS が WIND_MAX_SOURCES 個の固定の表に書き込む。
+// 使っていない項目は radius 0。
+// 草（GrassVS）、地面の落ち葉（DebrisUpdateCS）、パーティクル
+// （ParticleUpdateCS）は WindSourceAir() を世界の風に足すので、竜巻 1 つで
+// 草が円を描いて曲がり、フィールドの砂やごみが舞い上がり、
+// 周りの煙が引きずられる。
+// 2026-10-20: 風源は空気を一方向に押すこともできる（pushDir x push、
+// 中心で最大、縁で 0）- 突風の魔法は前へ吹く渦。CPU の風源
+// （SwarmSystem::AddWindBurst）も同じ CS で表の後ろに
+// 追加する。
+// C++ 側: Swarm::WindSource（48 バイト）、Swarm::kMaxWindSources
 // ============================================================
 #ifndef WIND_SOURCES_HLSLI
 #define WIND_SOURCES_HLSLI
@@ -21,18 +21,18 @@
 
 struct WindSource
 {
-    float3 pos;      // centre on the ground
-    float radius;    // reach (m). 0 = empty slot
-    float swirl;     // tangential speed at the core edge (m/s, counter-clockwise seen from above)
-    float updraft;   // upward speed near the core (m/s)
-    float inflow;    // speed toward the centre at the rim (m/s)
-    float fade;      // 0..1 (birth / death)
-    float2 pushDir;  // unit xz: the air is blown this way (gust). 0 = none
-    float push;      // m/s at the centre
+    float3 pos;      // 地面上の中心
+    float radius;    // 届く距離（m）。0 = 空きスロット
+    float swirl;     // 芯の縁での接線方向の速さ（m/s、上から見て反時計回り）
+    float updraft;   // 芯の近くの上昇速度（m/s）
+    float inflow;    // 縁での中心へ向かう速さ（m/s）
+    float fade;      // 0..1（出現 / 消滅）
+    float2 pushDir;  // 単位 xz: 空気をこの向きに吹き流す（突風）。0 = 無し
+    float push;      // 中心での m/s
     float _pad;
 };
 
-// air velocity of all sources at a ground point xz (y = 0 plane). lift = strongest influence 0..1
+// 地面上の点 xz（y = 0 平面）での全風源の風速。lift = 一番強い影響 0..1
 float3 WindSourceAir(StructuredBuffer<WindSource> sources, float2 xz, out float lift)
 {
     float3 air = 0;
@@ -50,11 +50,11 @@ float3 WindSourceAir(StructuredBuffer<WindSource> sources, float2 xz, out float 
         float r = dist / w.radius;
         float2 outw = dist > 1e-3 ? d / dist : float2(0, 1);
         float2 tang = float2(-outw.y, outw.x);
-        // the swirl peaks around a third of the way out and fades to the rim; the updraft is a core thing
+        // 渦は外へ 3 割ほどの所で最大になり縁へ向かって弱まる。上昇気流は芯だけのもの
         float sw = saturate(r / 0.3) * saturate((1.0 - r) / 0.7);
         float up = saturate((1.0 - r) / 0.6);
         float inw = saturate((r - 0.25) / 0.75) * (1.0 - r);
-        float ps = 1.0 - r * r;   // the push: full at the centre, gone at the rim
+        float ps = 1.0 - r * r;   // 押す力: 中心で最大、縁で 0
         air += float3(tang.x, 0.0, tang.y) * (w.swirl * sw * w.fade)
              + float3(0.0, w.updraft * up * w.fade, 0.0)
              - float3(outw.x, 0.0, outw.y) * (w.inflow * inw * w.fade)
@@ -64,8 +64,8 @@ float3 WindSourceAir(StructuredBuffer<WindSource> sources, float2 xz, out float 
     return air;
 }
 
-// the same air, plus the direction (unit xz) toward the core of the source that acts
-// strongest here (2026-10-23: grass blades near a twister curl their tips toward it)
+// 同じ風速に加え、ここで一番強く効く風源の芯への向き（単位 xz）を返す
+// （2026-10-23: 竜巻の近くの草の葉は先端をそちらへ巻き込む）
 float3 WindSourceAirCore(StructuredBuffer<WindSource> sources, float2 xz, out float lift, out float2 toCore)
 {
     float3 air = WindSourceAir(sources, xz, lift);

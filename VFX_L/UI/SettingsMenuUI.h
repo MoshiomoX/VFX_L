@@ -53,6 +53,9 @@ private:
         Kind kind = Kind::Volume;
         int  bus = 0;      // Kind::Volume：AudioSystem::Bus
         bool GameSettings::* flag = nullptr;   // Kind::Toggle：GameSettings のどの値か（2026-10-19）
+        // Kind::Volume で num があれば、音量でなく GameSettings の数値（lo〜hi をスライダーの 0〜1 に。表示は 100 倍の %）。2026-11-02
+        float GameSettings::* num = nullptr;
+        float lo = 0.0f, hi = 1.0f;
     };
 
     float GetValue(const Row& r) const;  // Volume 0〜1 / Toggle 0 or 1

@@ -1,14 +1,14 @@
 // ============================================================
 // ModelCommon.hlsli
-// Shared interface for every model VS / PS:
-//   - MVP constant buffer (VS b0, row_major, matches C++ MVPBuffer)
-//   - vertex input / VS-to-PS layout
-//   - texture slot convention
-//   - the standard model VS body
+// 全モデルの VS / PS が共有するインターフェース：
+//   - MVP 定数バッファ（VS b0、row_major、C++ の MVPBuffer と一致）
+//   - 頂点入力 / VS から PS へのレイアウト
+//   - テクスチャスロットの取り決め
+//   - 標準のモデル VS 本体
 //
-// Register macros can be overridden before #include when a
-// shader needs the slot for something else (same pattern as
-// SWARM_FRAME_CB_REG).
+// シェーダーがそのスロットを別のことに使うときは、#include の前に
+// レジスタのマクロを上書きできる（SWARM_FRAME_CB_REG と
+// 同じやり方）。
 // ============================================================
 #ifndef MODEL_COMMON_HLSLI
 #define MODEL_COMMON_HLSLI
@@ -24,7 +24,7 @@ cbuffer MVPBuffer : register(MODEL_MVP_CB_REG)
     row_major matrix Projection;
 };
 
-// ---- vertex layout (PrimitiveBuilder / Model loader) ----
+// ---- 頂点レイアウト（PrimitiveBuilder / モデルのローダー） ----
 struct VS_INPUT
 {
     float3 Position : POSITION;
@@ -34,9 +34,9 @@ struct VS_INPUT
     float4 Color : COLOR;
 };
 
-// ---- VS -> PS. One layout for every model shader. ----
-// Shaders that do not have a tangent write 0; PS that do not
-// need it simply ignore it.
+// ---- VS -> PS。全モデルのシェーダーで 1 つのレイアウト。 ----
+// 接線を持たないシェーダーは 0 を書く。接線が要らない PS は
+// 単に無視する。
 struct VS_OUTPUT
 {
     float4 Position : SV_POSITION;
@@ -48,10 +48,10 @@ struct VS_OUTPUT
 };
 typedef VS_OUTPUT PS_INPUT;
 
-// ---- texture slots (Material binds by slot) ----
-//   t0 albedo / t1 normal / t2 metallic / t3 roughness / t4 AO
-// A PS that binds something else there (TerrainPS: Texture2DArray) defines
-// MODEL_NO_TEXTURES before the include.
+// ---- テクスチャスロット（Material がスロット番号でバインドする） ----
+//   t0 アルベド / t1 法線 / t2 メタリック / t3 ラフネス / t4 AO
+// そこに別のものをバインドする PS（TerrainPS：Texture2DArray）は
+// include の前に MODEL_NO_TEXTURES を定義する。
 #ifndef MODEL_NO_TEXTURES
 Texture2D albedoTexture : register(t0);
 Texture2D normalTexture : register(t1);
@@ -61,7 +61,7 @@ Texture2D aoTexture : register(t4);
 #endif
 SamplerState samplerState : register(s0);
 
-// ---- standard model VS ----
+// ---- 標準のモデル VS ----
 VS_OUTPUT ModelVS(VS_INPUT input)
 {
     VS_OUTPUT o;
@@ -69,7 +69,7 @@ VS_OUTPUT ModelVS(VS_INPUT input)
     o.WorldPos = worldPos.xyz;
     o.Position = mul(mul(worldPos, View), Projection);
     o.Normal = normalize(mul(input.Normal, (float3x3) World));
-    // a mesh without tangents (zero vector) stays 0 instead of NaN; PerturbNormal then keeps the normal
+    // 接線のないメッシュ（ゼロベクトル）は NaN ではなく 0 のままにする。PerturbNormal はそのとき法線を変えない
     float3 tw = mul(input.Tangent, (float3x3) World);
     o.Tangent = (dot(tw, tw) > 1e-12) ? normalize(tw) : float3(0.0, 0.0, 0.0);
     o.UV = input.UV;

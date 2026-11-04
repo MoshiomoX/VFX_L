@@ -1,14 +1,14 @@
 // ============================================
 // ParticleMeshGlowPS.hlsl
-// Glow pass of mesh particles (additive, unlit, depth read-only).
-// Colour = model albedo x particle colour; the particle's colour alpha
-// (colour over lifetime) fades it out. The blend state is
-// SRC_ALPHA / ONE, so the colour is not premultiplied here.
-// Pairs with ParticleMeshVS.
-// "Behind" (PARTICLE_MESH_BEHIND, Tangent.x = 1 from the VS): only the back
-// faces are drawn, so the glow sits behind the opaque body and shows as a
-// rim around it. The glow pass rasterizes with cull none, so the facing is
-// decided here.
+// メッシュパーティクルの発光パス（加算、ライティングなし、深度は読むだけ）。
+// 色 = モデルのアルベド x パーティクルの色。パーティクルの色のアルファ
+// （寿命に応じた色）で消えていく。合成ステートは
+// SRC_ALPHA / ONE なので、ここでは色を乗算済みにしない。
+// ParticleMeshVS と対で使う。
+// 「後ろ」（PARTICLE_MESH_BEHIND、VS から Tangent.x = 1）: 裏面だけを
+// 描くので、光は不透明な本体の後ろに来て、その周りの縁として見える。
+// 発光パスはカリングなしでラスタライズするので、表裏は
+// ここで判定する。
 // ============================================
 #include "../Common/ModelCommon.hlsli"
 

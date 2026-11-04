@@ -1,21 +1,21 @@
 // ============================================================
 // EffectTrailCS.hlsl
-// One thread per effect trail instance, right after ParticleTrailCS.
+// エフェクトのトレイルのインスタンス 1 つに 1 スレッド。ParticleTrailCS のすぐ後に走る。
 //
-//   1. apply this frame's anchor (reset / move the head / nothing)
-//   2. commit the head into the ring when it is minDistance away
-//      from the newest point
-//   3. cut the tail where age == lifetime, drop points behind it
-//   4. still visible -> add to the alive list (DrawInstancedIndirect)
+//   1. このフレームのアンカーを反映（リセット / 先頭を動かす / 何もしない）
+//   2. 最新の点から minDistance 離れたら、先頭をリングに
+//      確定する
+//   3. age == lifetime の所で尾を切り、それより後ろの点を捨てる
+//   4. まだ見える -> 生存リストに足す（DrawInstancedIndirect）
 //
-// See Common/EffectTrail.hlsli for the data layout.
+// データのレイアウトは Common/EffectTrail.hlsli を参照。
 // ============================================================
 #include "Common/ParticleTrail.hlsli"
 #include "Common/EffectTrail.hlsli"
 
 cbuffer EffectTrailCB : register(b0)
 {
-    float g_Now; // same clock as GlobalCB.totalTime / TrailDrawCB.time
+    float g_Now; // GlobalCB.totalTime / TrailDrawCB.time と同じ時計
     uint g_TrailCount;
     uint2 _padCB;
 };
@@ -37,14 +37,14 @@ void main(uint3 id : SV_DispatchThreadID)
 
     EffectTrailAnchor a = anchors[i];
     if (a.styleSlot == 0u)
-        return; // unused instance
+        return; // 使われていないインスタンス
 
     TrailStyle s = trailStyles[a.styleSlot - 1u];
     float lifetime = max(s.lifetime, 0.01);
     uint base = i * EFFECT_TRAIL_POINTS;
     EffectTrailState st = states[i];
 
-    // ---- 1. anchor ----
+    // ---- 1. アンカー ----
     if (a.command == EFFECT_TRAIL_CMD_RESET)
     {
         st.headPos = a.position;
@@ -64,7 +64,7 @@ void main(uint3 id : SV_DispatchThreadID)
             st.headTime = g_Now;
         }
 
-        // ---- 2. commit ----
+        // ---- 2. 確定 ----
         bool commit = (st.ringCount == 0u);
         if (!commit)
             commit = distance(st.headPos, points[base + st.ringHead].position) >= max(a.minDistance, 0.001);
@@ -83,7 +83,7 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // ---- 3. tail ----
+    // ---- 3. 尾 ----
     float cutTime = g_Now - lifetime;
     bool visible = (st.headTime > cutTime);
 
@@ -94,7 +94,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     if (visible && st.ringCount > 0u)
     {
-        // walk newest -> oldest. prev = the point in front (starts at the head)
+        // 新しい -> 古いの順にたどる。prev = 一つ前（先頭側）の点（先頭から始まる）
         float3 prevPos = st.headPos;
         float prevTime = st.headTime;
         float prevDist = st.headDist;
@@ -106,13 +106,13 @@ void main(uint3 id : SV_DispatchThreadID)
             EffectTrailPoint p = points[base + EffectTrailSlot(st.ringHead, j)];
             if (p.time <= cutTime)
             {
-                // the cut lies between prev (alive) and p (expired)
+                // 切れ目は prev（生きている）と p（期限切れ）の間にある
                 float f = saturate((prevTime - cutTime) / max(prevTime - p.time, 1e-6));
                 st.tailPos = lerp(prevPos, p.position, f);
                 st.tailTime = cutTime;
                 st.tailDist = lerp(prevDist, p.distance, f);
                 st.validCount = j;
-                // keep p itself: next frame the cut still interpolates toward it
+                // p 自体は残す: 次のフレームも切れ目はそこへ向けて補間する
                 st.ringCount = j + 1u;
                 cut = true;
                 break;
@@ -124,7 +124,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
         if (!cut)
         {
-            // nothing expired (young trail, or the ring is full): the oldest point is the tail
+            // 何も期限切れでない（出来たばかりのトレイル、またはリングが満杯）: 一番古い点が尾
             st.tailPos = prevPos;
             st.tailTime = prevTime;
             st.tailDist = prevDist;
@@ -134,7 +134,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     states[i] = st;
 
-    // ---- 4. draw list ----
+    // ---- 4. 描画リスト ----
     if (!visible)
         return;
 

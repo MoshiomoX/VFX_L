@@ -1,64 +1,64 @@
 // ============================================================
 // WaterStirCS.hlsl
-// Enemies wading through the ponds (World/WaterSurface, 2026-10-28; the
-// user: "add ripples when the monsters walk in the water"). One thread per
-// enemy slot of the GPU swarm: a live enemy that stands in a pond and moves
-// adds one push to a short list (g_Stirs); WaterRippleCS reads the list on
-// its first step of the frame like the pushes of the areas. Like the
-// player wading: a footstep push every g_Stride of walking plus a faint
-// wake between them (grows with the speed and the time since the last
-// pass), so an enemy standing still leaves the water calm.
-// Skipped like the grass footprints (GrassStampCS): both final-swarm
-// ghosts, the sand mage's tornado, a buried burrower / sand guardian, a
-// vanished shadow swordsman, and anything whose feet are clearly above the
-// ground under it (a gargoyle flying over the pond).
-// The list holds at most g_StirMax pushes; past that the rest are dropped.
-// On ice (WaterIceCS, 2026-11-01) an enemy makes no ripple and is slowed
-// instead, through the same enemySlow entry as the slowing areas.
+// 池の中を歩く敵（World/WaterSurface、2026-10-28。
+// ユーザー:「モンスターが水の中を歩いたら波紋を出して」）。GPU の群れの
+// 敵スロット 1 つに 1 スレッド: 池の中に立って動いている生きた敵は
+// 短いリスト（g_Stirs）に押し込みを 1 つ足す。WaterRippleCS はフレームの
+// 最初のステップで、範囲の押し込みと同じようにリストを読む。プレイヤーが
+// 水を歩くのと同じ: g_Stride 歩くごとに足音の押し込み + その間のかすかな
+// 航跡（速度と前回のパスからの時間で強くなる）なので、
+// 立ち止まった敵は水を静かなままにする。
+// 草の足跡（GrassStampCS）と同じものを除外する: 最終ウェーブの幽霊 2 種、
+// 砂嵐の術師の砂旋、埋まっている砂潜り / 砂の守護者、
+// 消えた影の剣士、足が下の地面から明らかに浮いているもの
+// （池の上を飛ぶ石像ガーゴイル）。
+// リストは最大 g_StirMax 個。それを超えた分は捨てる。
+// 氷の上（WaterIceCS、2026-11-01）では敵は波紋を出さず、代わりに
+// 減速の範囲と同じ enemySlow を通して減速する。
 // ============================================================
-// SwarmCommon's cbuffers are not used here; moved off b0 (WaterStirCB)
+// SwarmCommon の cbuffer はここでは使わない。b0 から退ける（WaterStirCB）
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
-// Must match WaterSurface::StirCB
+// WaterSurface::StirCB と揃えること
 cbuffer WaterStirCB : register(b0)
 {
-    float2 g_StirOrigin;     // world xz of the map's min corner (= the water's map)
-    float2 g_StirSize;       // meters
-    float g_StirStrength;    // m pressed per (m/s of speed) per second
-    float g_StirRadius;      // m, a normal mob
-    float g_StirMinSpeed;    // m/s; slower = no ripple
-    float g_StirDt;          // seconds since the last pass
-    uint g_StirMax;          // capacity of g_Stirs
-    uint g_HasHeight;        // 1 = g_Height is bound
-    float g_StepStrength;    // m pressed by one footstep
-    float g_Stride;          // m walked per footstep
-    float g_StirTime;        // seconds (the water's clock, stops while paused)
-    float g_StirGroundY;     // an enemy's position.y = its feet + this (the swarm's AICB groundY, 0.9)
-    float g_IceSlow;         // speed lost on the ice 0..1 (elites and the boss half of it)
+    float2 g_StirOrigin;     // マップの最小隅のワールド xz（= 水のマップ）
+    float2 g_StirSize;       // メートル
+    float g_StirStrength;    // （速度 1 m/s あたり）1 秒あたりに押し込む m
+    float g_StirRadius;      // m、普通の雑魚
+    float g_StirMinSpeed;    // m/s。これより遅い = 波紋なし
+    float g_StirDt;          // 前回のパスからの秒
+    uint g_StirMax;          // g_Stirs の容量
+    uint g_HasHeight;        // 1 = g_Height がバインドされている
+    float g_StepStrength;    // 足音 1 回で押し込む m
+    float g_Stride;          // 足音 1 回あたりに歩く m
+    float g_StirTime;        // 秒（水の時計、ポーズ中は止まる）
+    float g_StirGroundY;     // 敵の position.y = 足 + これ（群れの AICB の groundY、0.9）
+    float g_IceSlow;         // 氷の上で失う速度 0..1（エリートとボスはその半分）
     float _stirPad;
 };
 
 StructuredBuffer<SwarmEnemy> g_Enemies : register(t0);
-Buffer<uint> g_EnemyStates : register(t1);         // 0 = dead
+Buffer<uint> g_EnemyStates : register(t1);         // 0 = 死亡
 StructuredBuffer<SwarmEnemyExtra> g_EnemyExtra : register(t2);
-Texture2D<float> g_Mask : register(t3);            // 1 = pond (the ripple field's texels)
-Texture2D<float> g_Height : register(t4);          // GridWorld heights, texel = height cell (GrassRenderer::GetHeightSRV)
-Texture2D<float> g_Ice : register(t5);             // ice (WaterIceCS), a quarter of the mask's size
-RWStructuredBuffer<float4> g_Stirs : register(u0); // x, z, radius, strength (m, + = pressed down in the middle)
-RWBuffer<uint> g_StirCount : register(u1);         // [0] = pushes written this pass (cleared by the CPU)
-RWStructuredBuffer<float4> g_EnemySlow : register(u2); // the swarm's enemySlow: x / y = slow (seconds left, amount)
+Texture2D<float> g_Mask : register(t3);            // 1 = 池（波紋の場の texel）
+Texture2D<float> g_Height : register(t4);          // GridWorld の高さ、texel = 高さセル（GrassRenderer::GetHeightSRV）
+Texture2D<float> g_Ice : register(t5);             // 氷（WaterIceCS）、マスクの 4 分の 1 の大きさ
+RWStructuredBuffer<float4> g_Stirs : register(u0); // x, z, 半径, 強さ（m、+ = 真ん中を押し下げる）
+RWBuffer<uint> g_StirCount : register(u1);         // [0] = このパスで書いた押し込みの数（CPU がクリアする）
+RWStructuredBuffer<float4> g_EnemySlow : register(u2); // 群れの enemySlow: x / y = 減速（残り秒、強さ）
 
-// feet this far above the raw height cell under the centre = in the air (= GrassStampCS)
+// 中心の下の生の高さセルから足がこれ以上浮いている = 空中（= GrassStampCS）
 static const float STIR_AIR_HEIGHT = 0.8;
-// a mob running faster than this pushes no harder (a charger's dash)
+// これより速く走る雑魚も押し込みは強くならない（突撃兵の突進）
 static const float STIR_MAX_SPEED = 8.0;
-// how long a slow from the ice outlasts the last look (this pass runs once a frame at most)
+// 氷による減速が最後に見てからどれだけ残るか（このパスは多くてもフレームに 1 回）
 static const float STIR_ICE_LINGER = 0.2;
-static const float STIR_ICE_SOLID = 0.05;   // = WaterRippleCS's RIPPLE_ICE_SOLID
-static const uint STIR_ICE_SCALE = 4u;       // mask texels per ice texel
+static const float STIR_ICE_SOLID = 0.05;   // = WaterRippleCS の RIPPLE_ICE_SOLID
+static const uint STIR_ICE_SCALE = 4u;       // 氷の texel 1 つあたりのマスクの texel 数
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -79,28 +79,28 @@ void main(uint3 id : SV_DispatchThreadID)
     if (speed < g_StirMinSpeed)
         return;
 
-    // in a pond?
+    // 池の中か?
     uint mw, mh;
     g_Mask.GetDimensions(mw, mh);
     int2 mc = int2(floor((e.position.xz - g_StirOrigin) / g_StirSize * float2(mw, mh)));
     if (any(mc < int2(0, 0)) || any(mc >= int2((int) mw, (int) mh)) || g_Mask.Load(int3(mc, 0)) < 0.5)
         return;
 
-    // feet near the ground under it
+    // 足が下の地面の近くにあるか
     if (g_HasHeight != 0u)
     {
         uint hw, hh;
         g_Height.GetDimensions(hw, hh);
         int2 hc = int2(floor((e.position.xz - g_StirOrigin) / g_StirSize * float2(hw, hh)));
         hc = clamp(hc, int2(0, 0), int2((int) hw - 1, (int) hh - 1));
-        // position.y is the capsule's centre: subtract groundY first (without it every enemy, 0.9 up, looked airborne)
+        // position.y はカプセルの中心: 先に groundY を引く（引かないと 0.9 上にある全部の敵が浮いて見えた）
         if (e.position.y - g_StirGroundY - g_Height.Load(int3(hc, 0)) > STIR_AIR_HEIGHT)
             return;
     }
     else if (kind == SWARM_KIND_GARGOYLE)
-        return;   // cannot tell whether it flies
+        return;   // 飛んでいるかどうか分からない
 
-    // on the ice: no ripple, slower
+    // 氷の上: 波紋なし、遅くなる
     if (g_Ice.Load(int3(int2(uint2(mc) / STIR_ICE_SCALE), 0)) >= STIR_ICE_SOLID)
     {
         float amount = g_IceSlow;
@@ -114,15 +114,15 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // the big ones push a wider ring (= GrassStampCS's footprints)
+    // 大きい敵は広い輪で押す（= GrassStampCS の足跡）
     float r = g_StirRadius;
     if (kind == SWARM_KIND_BOSS) r *= 3.0;
     else if (SwarmIsBigElite(kind)) r *= 2.2;
     else if (kind == SWARM_KIND_BRUTE) r *= 1.3;
 
-    // footsteps: one every g_Stride of walking, each enemy on its own beat (a hash of the slot). A push that
-    // moves no water and slides along with the enemy mostly cancels itself, so the steady wake alone left only
-    // a faint trace; the player's footsteps are what show (PlayerVFXSystem), so the enemies step too
+    // 足音: g_Stride 歩くごとに 1 回、敵ごとに拍をずらす（スロットのハッシュ）。水量を変えずに敵と一緒に
+    // 滑っていく押し込みはほとんど打ち消し合うので、一定の航跡だけではかすかな跡しか残らなかった。
+    // 見えるのはプレイヤーの足音（PlayerVFXSystem）なので、敵にも足音をつける
     float rate = min(speed, STIR_MAX_SPEED) / max(g_Stride, 0.1);
     float beat = frac((float) (j * 2654435761u >> 8) / 16777216.0);
     bool stepped = floor(g_StirTime * rate + beat) != floor((g_StirTime - g_StirDt) * rate + beat);

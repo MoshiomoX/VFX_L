@@ -1,42 +1,42 @@
 // ============================================================
 // SwarmHitCS.hlsl
-// Projectile vs enemy. One thread per projectile. Runs after ProjMoveCS
-// in the fixed step, so positions are this step's final values.
+// 弾 vs 敵。弾 1 発に 1 スレッド。固定ステップで ProjMoveCS の後に
+// 走るので、位置はこのステップの確定値。
 //
-// Damage is applied with InterlockedAdd on the fixed-point hp,
-// so any number of projectiles may hit the same enemy in the same
-// step. Exactly one of them observes hp crossing zero and becomes
-// the killer; the rest see either a live enemy or a corpse.
+// ダメージは固定小数点の hp に InterlockedAdd で与えるので、
+// 同じステップに何発の弾が同じ敵に当たってもよい。hp が 0 を
+// 跨ぐのを見るのはちょうど 1 発だけで、それがとどめになる。
+// 残りは生きている敵か死体のどちらかを見る。
 //
-// prev (hp before the add) tells the thread what it hit:
-//   prev == 0 or prev >= 0x80000000  -> corpse (already dead / wrapped)
-//   prev <= dmg                      -> this hit killed it
-//   otherwise                        -> still alive
+// prev（足す前の hp）で何に当たったかが分かる:
+//   prev == 0 or prev >= 0x80000000  -> 死体（もう死んでいる / 桁あふれ）
+//   prev <= dmg                      -> この一発で倒した
+//   otherwise                        -> まだ生きている
 //
-// No pierce yet: a projectile dies on its first live hit.
-// Corpses are passed through without consuming the projectile.
+// 貫通はまだ無い: 弾は生きている敵に最初に当たったところで消える。
+// 死体は弾を消費せずに素通りする。
 //
-// Which enemy (2026-10-25): it used to loop over every enemy slot in
-// ascending order and take the first live one in reach. The result is
-// the same, but the slots come from the spatial hash (SwarmEnemyBinCS,
-// filled at the start of this step): the smallest candidate slot that
-// passes the tests is hit; if it turns out a corpse, the smallest one
-// after it, and so on. The query covers the coarse reach plus
-// HIT_HASH_MOVE_MARGIN (enemies move between the binning and this pass).
-// The fixed elites' slots (g_EliteCmd) are always tested as well (their
-// teleport jumps any distance). A query that leaves the grid (enemies
-// outside it are not binned), touches an overflowed bucket, covers too
-// many cells, or runs without the hash bound scans every slot as before.
+// どの敵か（2026-10-25）: 以前は敵スロットを全部昇順に走査し、
+// 届く範囲で最初に見つかった生きている敵を取っていた。結果は
+// 同じだが、スロットは空間ハッシュ（SwarmEnemyBinCS、このステップの
+// 最初に埋める）から取る: 判定を通る候補のうち一番小さいスロットに
+// 当たり、それが死体なら次に小さいもの、と続ける。
+// 問い合わせ範囲は粗い到達距離 +
+// HIT_HASH_MOVE_MARGIN（ビン分けからこのパスまでに敵が動く）。
+// 固定エリートのスロット（g_EliteCmd）は常に追加で判定する（瞬間移動で
+// どこまでも跳ぶため）。問い合わせがグリッドの外に出る（外の敵は
+// ビンに入らない）、あふれたバケツに触れる、セルが多すぎる、
+// ハッシュがバインドされていない、のどれかなら以前通り全スロットを走査する。
 //
-// Elites / the boss have a bigger capsule (SwarmSlotCapsule) and drop an
-// orb worth SwarmKindExpMul times more. The kind is only read for enemies
-// that pass a coarse test sized for the biggest body.
-// The shield bearer takes SwarmArmorDamage; a shot whose motion has a
-// freezeTime (Ice Lance) leaves a freeze request in animIndex (2026-10-08).
-// The killer leaves the shot's element in the dead slot's attackCooldown
-// (SwarmKillElementMark) for the kill number's colour (2026-10-25).
+// エリート / ボスはカプセルが大きく（SwarmSlotCapsule）、落とす経験玉は
+// SwarmKindExpMul 倍。種類を読むのは、一番大きい体に合わせた粗い判定を
+// 通った敵だけ。
+// 盾兵は SwarmArmorDamage を受ける。motion に freezeTime を持つ弾
+// （アイスランス）は animIndex に凍結リクエストを残す（2026-10-08）。
+// とどめを刺した弾は、死んだスロットの attackCooldown に自分の属性を残す
+// （SwarmKillElementMark、とどめの数字の色用、2026-10-25）。
 // ============================================================
-// the hit may leave an area behind (explosion / burning ground)
+// 当たった所に範囲を残すことがある（爆発 / 燃える地面）
 #define SWARM_AREA_POOL_U u6
 #define SWARM_AREA_STATE_U u7
 #define SWARM_AREA_DEF_T t2
@@ -45,9 +45,9 @@
 
 StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3);
-Buffer<uint> projBoost : register(t4); // damage / duration boost of the area this shot leaves
-Buffer<uint> projTags : register(t5);  // trigger tag; the top bit = a lifesteal shot (SWARM_TAG_LIFESTEAL, 2026-10-25)
-// spatial hash of the live enemies (SwarmEnemyBinCS, start of this step). Unbound = scan every slot
+Buffer<uint> projBoost : register(t4); // この弾が残す範囲の威力 / 持続の倍率
+Buffer<uint> projTags : register(t5);  // 連鎖のタグ。最上位ビット = 吸血の弾（SWARM_TAG_LIFESTEAL、2026-10-25）
+// 生きている敵の空間ハッシュ（SwarmEnemyBinCS、このステップの最初）。未バインド = 全スロットを走査
 StructuredBuffer<uint> cellCount : register(t6);
 StructuredBuffer<uint> cellItems : register(t7);
 
@@ -60,15 +60,15 @@ RWStructuredBuffer<SwarmOrb> orbs : register(u4);
 RWBuffer<uint> orbStates : register(u5);
 static const uint HP_CORPSE_BIT = 0x80000000u;
 
-// how far (m) an enemy may have moved since the bins were filled at the start of this step (AI velocity, the gust's
-// push, the crowd push): anything under ~150 m/s at the 0.02 s step
+// このステップの最初にビンを埋めてから敵が動ける距離（m）（AI の速度、突風の
+// 押し、群れの押し合い）: 0.02 s のステップで ~150 m/s 未満なら収まる
 static const float HIT_HASH_MOVE_MARGIN = 3.0;
-// more cells than this in one query: the full scan is about as cheap
+// 1 回の問い合わせでこれより多いセル: 全走査とほぼ同じコストになる
 static const int HIT_HASH_MAX_CELLS = 256;
 static const uint HIT_NONE = 0xFFFFFFFFu;
 
-// The tests the old full scan ran on every slot, in the same order and with the same comparisons
-// (a NaN position behaves as before). One exit (fxc warns X4000 on early returns)
+// 以前の全走査が各スロットで行っていた判定。順序も比較も同じ
+// （位置が NaN のときの振る舞いも以前通り）。出口は 1 つ（途中で return すると fxc が X4000 を出す）
 bool CanHit(uint j, float3 ppos, float pradius, float coarseSq, uint lastHit)
 {
     bool ok = (j < g_MaxEnemies) && (j != lastHit);
@@ -84,12 +84,12 @@ bool CanHit(uint j, float3 ppos, float pradius, float coarseSq, uint lastHit)
     if (ok)
     {
         SwarmEnemyExtra extra = enemyExtra[j];
-        ok = !SwarmUntargetable(extra);   // under the sand: cannot be hit (2026-10-17)
+        ok = !SwarmUntargetable(extra);   // 砂の下: 当たらない（2026-10-17）
         if (ok)
         {
             float3 center;
             float er, eh;
-            SwarmSlotCapsule(j, extra.kind, pos, center, er, eh);   // + the berserk elite's growth (2026-10-25)
+            SwarmSlotCapsule(j, extra.kind, pos, center, er, eh);   // + 狂暴エリートの巨大化（2026-10-25）
             float3 d = ppos - center;
             d.y -= clamp(d.y, -eh, eh);
             float hitRadius = pradius + er;
@@ -110,29 +110,29 @@ void main(uint3 id : SV_DispatchThreadID)
 
     SwarmProjectile p = projectiles[i];
 
-    // a falling meteor (DROP) / a thrown poison flask (LOB) does not hit anything
-    // on the way. ProjMoveCS leaves its area where it lands
+    // 落ちてくるメテオ（DROP）/ 投げた毒瓶（LOB）は途中で何にも
+    // 当たらない。落ちた所に ProjMoveCS が範囲を残す
     if (SwarmMotionLands(motions[p.motion & SWARM_MOTION_INDEX_MASK].mode))
         return;
 
-    // coarse sphere around the pool position that holds the biggest body
-    // (+ the fixed elites, which may grow when berserk, 2026-10-25)
+    // プールの位置を中心に、一番大きい体が収まる粗い球
+    // （+ 狂暴で大きくなることのある固定エリート、2026-10-25）
     float enraged = max(1.0, g_EliteEnragedScale);
     float kMax = max(max(1.0, max(g_EliteScale, g_BossScale)),
                      max(g_FixedEliteAScale, g_FixedEliteBScale) * enraged);
     float coarse = p.radius + kMax * 2.0 * (g_EnemyRadius + g_EnemyCapsuleHalf);
     float coarseSq = coarse * coarse;
-    // Ice Lance (2026-10-08): the enemy it hits freezes for this long (AICS takes the request)
+    // アイスランス（2026-10-08）: 当たった敵がこの秒数だけ凍る（リクエストは AICS が受け取る）
     float freezeTime = motions[p.motion & SWARM_MOTION_INDEX_MASK].freezeTime;
-    // chain rune (2026-10-16): a chained shot survives a live hit while it has jumps left,
-    // and never hits the enemy it jumped from again (see SwarmCommon.hlsli)
+    // 連鎖のルーン（2026-10-16）: 連鎖中の弾は跳ぶ回数が残っている間は生きた敵に当たっても消えず、
+    // 跳んできた元の敵には二度と当たらない（SwarmCommon.hlsli を参照）
     uint state = projStates[i];
     bool chained = (state & SWARM_PROJ_CHAINED) != 0u;
-    bool pierced = chained && (state & SWARM_PROJ_PIERCE) != 0u;   // passes through instead of jumping (2026-10-28)
+    bool pierced = chained && (state & SWARM_PROJ_PIERCE) != 0u;   // 跳ぶ代わりに貫通する（2026-10-28）
     uint chainsLeft = chained ? ((state >> SWARM_PROJ_CHAIN_LEFT_SHIFT) & SWARM_PROJ_CHAIN_LEFT_MASK) : 0u;
     uint lastHit = chained ? (state & SWARM_PROJ_CHAIN_LAST_MASK) : SWARM_PROJ_CHAIN_NO_LAST;
 
-    // ---- which cells to look in (see the header). Anything that can pass the tests is within `coarse` in xz ----
+    // ---- どのセルを見るか（冒頭を参照）。判定を通りうるものは xz で `coarse` 以内にある ----
     uint hashCells, hashStride;
     cellCount.GetDimensions(hashCells, hashStride);
     float reach = coarse + HIT_HASH_MOVE_MARGIN;
@@ -150,7 +150,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     if (useHash)
     {
-        // a bucket that overflowed dropped some of its enemies: they would be missed
+        // あふれたバケツは敵の一部を落としている: それを見逃してしまう
         [loop]
         for (int oz = z0; oz <= z1; ++oz)
         {
@@ -163,11 +163,11 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    uint after = 0u;   // the next candidate is at least this slot (ascending, like the old full scan)
+    uint after = 0u;   // 次の候補はこのスロット以上（以前の全走査と同じ昇順）
     [loop]
     for (uint guard = 0u; guard <= g_MaxEnemies; ++guard)
     {
-        // ---- the smallest slot >= after that can be hit ----
+        // ---- 当たりうる after 以上の一番小さいスロット ----
         uint j = HIT_NONE;
         if (useHash)
         {
@@ -182,7 +182,7 @@ void main(uint3 id : SV_DispatchThreadID)
                     [loop]
                     for (uint k = 0u; k < n; ++k)
                     {
-                        // nested ifs: HLSL does not short-circuit &&, the tests should only run for a better slot
+                        // if を入れ子にする: HLSL の && は短絡評価しないので、判定はより良いスロットのときだけ走らせる
                         uint c = cellItems[cell * SWARM_BUCKET_CAP + k];
                         if (c >= after && c < j)
                         {
@@ -192,7 +192,7 @@ void main(uint3 id : SV_DispatchThreadID)
                     }
                 }
             }
-            // the fixed elites may have teleported away from their bin this step
+            // 固定エリートはこのステップで自分のビンから瞬間移動しているかもしれない
             [unroll]
             for (int r = 0; r < 4; ++r)
             {
@@ -221,8 +221,8 @@ void main(uint3 id : SV_DispatchThreadID)
 
         SwarmEnemyExtra extra = enemyExtra[j];
         uint kind = extra.kind;
-        // ---- hit: apply damage atomically (the shield bearer's armor first) ----
-        // a piercing shot (golden arrow, 2026-10-28) loses SWARM_PIERCE_FALLOFF per enemy it has already passed through
+        // ---- 命中: ダメージをアトミックに与える（盾兵の装甲を先に引く） ----
+        // 貫通する弾（黄金の矢、2026-10-28）は、すでに貫いた敵 1 体ごとに SWARM_PIERCE_FALLOFF を掛ける
         float shotDamage = p.damage;
         if (pierced)
             shotDamage *= pow(SWARM_PIERCE_FALLOFF, (float) (SwarmMotionPierce(motions[p.motion & SWARM_MOTION_INDEX_MASK]) - min(chainsLeft, 15u)));
@@ -233,16 +233,16 @@ void main(uint3 id : SV_DispatchThreadID)
         if (prev == 0u || prev >= HP_CORPSE_BIT)
         {
             after = j + 1u;
-            continue; // corpse. someone else already killed it this step
+            continue; // 死体。このステップで別の弾がもう倒した
         }
 
-        // ---- hit stun: freeze + flash (MoveCS / AICS / VS read it) ----
-        // plain stores: several hits in one step all write the same value.
-        // harmless on the killer, its slot goes DEAD right below.
-        // The boss never flinches (it would be pinned by the constant fire), nor does a
-        // charger that has started its wind-up (MoveCS would stop the dash on every hit).
-        // An ice shot leaves a freeze request instead of the stun
-        bool noFlinch = SwarmNoFlinch(extra);   // (+ both final-swarm ghosts, 2026-10-18)
+        // ---- 被弾硬直: 停止 + 点滅（MoveCS / AICS / VS が読む） ----
+        // ただの書き込み: 同じステップに何発当たっても書く値は同じ。
+        // とどめの場合も無害（そのスロットはすぐ下で DEAD になる）。
+        // ボスは硬直しない（撃たれ続けて釘付けになる）。溜めを始めた
+        // 突撃兵も同じ（当たるたびに MoveCS が突進を止めてしまう）。
+        // 氷の弾は硬直の代わりに凍結リクエストを残す
+        bool noFlinch = SwarmNoFlinch(extra);   // （+ 最終ウェーブの幽霊 2 種、2026-10-18）
         if (freezeTime > 0.0)
         {
             enemies[j].animIndex = SWARM_ANIM_FREEZE_REQ;
@@ -256,13 +256,13 @@ void main(uint3 id : SV_DispatchThreadID)
 
         if (prev > dmgFixed)
         {
-            // not the killer: remember what hit it (the damage number's colour). CAS so a DEAD written meanwhile
-            // by another thread's killing hit is never turned back into ALIVE (2026-10-17)
+            // とどめではない: 何が当たったかを覚える（ダメージ数字の色）。CAS にするのは、その間に別スレッドの
+            // とどめが書いた DEAD を ALIVE に戻してしまわないため（2026-10-17）
             uint cur = enemyStates[j];
             if (cur != SWARM_DEAD)
             {
                 uint wasState;
-                // + the lifesteal mark: SwarmDamageTextCS counts this enemy's hp loss toward the player's heal (2026-10-25)
+                // + 吸血の印: この敵の hp の減りを SwarmDamageTextCS がプレイヤーの回復に数える（2026-10-25）
                 const uint steal = ((projTags[i] & SWARM_TAG_LIFESTEAL) != 0u) ? SWARM_STATE_LIFESTEAL : 0u;
                 InterlockedCompareExchange(enemyStates[j], cur,
                     SWARM_ALIVE | (SwarmMotionElement(motions[p.motion & SWARM_MOTION_INDEX_MASK]) << SWARM_STATE_ELEMENT_SHIFT) | steal, wasState);
@@ -271,23 +271,23 @@ void main(uint3 id : SV_DispatchThreadID)
 
         if (prev <= dmgFixed)
         {
-            // ---- this hit was the killer ----
+            // ---- この一発がとどめ ----
             enemyStates[j] = SWARM_DEAD;
-            // the kill number's colour = this shot's element (the state word is DEAD now. 2026-10-25)
+            // とどめの数字の色 = この弾の属性（状態ワードはもう DEAD。2026-10-25）
             enemies[j].attackCooldown = SwarmKillElementMark(SwarmMotionElement(motions[p.motion & SWARM_MOTION_INDEX_MASK]));
             counters.InterlockedAdd(SWARM_CNT_KILLS, 1u, prev);
 
-            // ---- drop an exp orb at the corpse ----
-            // Same CAS scan as SpawnProjCS. Start offset is spread by
-            // (enemy, projectile) so killers in the same step do not
-            // all fight over the same region. Pool full -> no orb.
+            // ---- 死体の所に経験玉を落とす ----
+            // SpawnProjCS と同じ CAS の走査。開始位置を（敵、弾）で
+            // ばらして、同じステップのとどめ同士が同じ区間を
+            // 取り合わないようにする。プールが満杯 -> 経験玉なし。
             SwarmOrb orb;
-            // at the corpse's feet (plateaus: position.y - groundY = terrain height)
+            // 死体の足元（台地の上: position.y - groundY = 地形の高さ）
             orb.position = enemies[j].position;
             orb.position.y = enemies[j].position.y - g_GroundY + g_OrbY;
             orb.amount = g_OrbAmount * SwarmKindExpMul(kind);
             orb.velocity = float3(0, 0, 0);
-            orb._pad = 0.0; // pull speed, 0 = not attracted yet
+            orb._pad = 0.0; // 吸引速度、0 = まだ吸われていない
 
             uint start = (j * 97u + i * 31u) % g_MaxOrbs;
             for (uint k = 0; k < g_MaxOrbs; ++k)
@@ -304,15 +304,15 @@ void main(uint3 id : SV_DispatchThreadID)
             }
         }
 
-        // ---- area on hit (explosion etc.). Ticks in this same step:
-        // AreaTickCS / AreaDamageCS run right after this shader ----
+        // ---- 命中時の範囲（爆発など）。同じステップで tick する:
+        // このシェーダのすぐ後に AreaTickCS / AreaDamageCS が走る ----
         SwarmSpawnAreaFromDefX(motions[p.motion & SWARM_MOTION_INDEX_MASK].hitArea,
                                p.position, i + j, SwarmProjScale(p), projBoost[i], p.velocity.xz,
                                ((projTags[i] & SWARM_TAG_LIFESTEAL) != 0u) ? SWARM_AREA_EXTRA_LIFESTEAL : 0u);
 
-        // projectile is consumed either way -- unless it still has chain jumps / pierces:
-        // then it stays alive and remembers this enemy. A chained shot asks ProjMoveCS for the next one,
-        // a piercing shot just flies on (2026-10-28)
+        // 弾はどちらにしても消費される -- ただし連鎖の跳躍 / 貫通が残っていれば別:
+        // そのときは生きたままこの敵を覚える。連鎖中の弾は次の標的を ProjMoveCS に頼み、
+        // 貫通する弾はそのまま飛び続ける（2026-10-28）
         if (chainsLeft > 0u)
             projStates[i] = SwarmProjChainState(chainsLeft - 1u, j) | (pierced ? SWARM_PROJ_PIERCE : SWARM_PROJ_CHAIN_PENDING);
         else

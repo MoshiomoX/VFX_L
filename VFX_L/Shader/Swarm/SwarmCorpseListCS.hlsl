@@ -1,11 +1,11 @@
 // ============================================================
 // SwarmCorpseListCS.hlsl
-// Once per frame, one thread per corpse ring entry (2026-10-02, death
-// shatter): entries still shattering (0 <= age < g_CorpseLife) go into the
-// draw list of their look, exactly like SwarmEnemyCompactCS sorts live
-// enemies: mobs / elites / the boss share the mob texture, bombers have
-// their own, ghosts are drawn translucent. The list lengths become the
-// InstanceCount of each submesh's DrawIndexedInstancedIndirect.
+// 1 フレームに 1 回、死体リングの要素 1 つにつき 1 スレッド（2026-10-02、死亡時の
+// 砕け散り）：まだ砕けている最中の要素（0 <= age < g_CorpseLife）を、見た目ごとの
+// 描画一覧に入れる。SwarmEnemyCompactCS が生きている敵を振り分けるのと
+// 同じ：種類ごとの一覧に分ける（ボス・砂嵐の術師・突撃爆弾兵・遺跡の種類は
+// SwarmCorpseList2CS が受け持つ）。幽霊は半透明で描く。一覧の長さが各サブメッシュの
+// DrawIndexedInstancedIndirect の InstanceCount になる。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -38,7 +38,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     if (SwarmInCorpseList2(c.kind))
-        return;   // the boss, sand mage, dash bomber and the ruins kinds: SwarmCorpseList2CS (own skins, 2026-10-25)
+        return;   // ボス、砂嵐の術師、突撃爆弾兵、遺跡の種類：SwarmCorpseList2CS（自分のスキン、2026-10-25）
     if (c.kind == SWARM_KIND_BOMBER)
         bomberCorpses.Append(i);
     else if (c.kind == SWARM_KIND_GHOST || c.kind == SWARM_KIND_DARKGHOST)

@@ -1,33 +1,33 @@
 // ============================================================
 // SpriteQuad.hlsli
-// One sprite-sheet frame drawn as a quad. Shared by the CPU Sprite entry
-// renderer (VFXSpriteVS) and the GPU area sprites (SwarmSpriteVS).
-// Must match VFXSpriteQuad in VFX_Editor/VFXSpriteRenderer.h (80 bytes).
+// スプライトシートの 1 フレームを四角形で描く。CPU の Sprite エントリの
+// レンダラー（VFXSpriteVS）と GPU の範囲のスプライト（SwarmSpriteVS）で共用。
+// VFX_Editor/VFXSpriteRenderer.h の VFXSpriteQuad（80 バイト）と一致させること。
 // ============================================================
 #ifndef SPRITE_QUAD_HLSLI
 #define SPRITE_QUAD_HLSLI
 
-#define SPRITE_FACING_BILLBOARD 0u // faces the camera
-#define SPRITE_FACING_UPRIGHT   1u // stands up (world Y), turns only around Y
-#define SPRITE_FACING_GROUND    2u // lies on the XZ plane, image top away from the camera
+#define SPRITE_FACING_BILLBOARD 0u // カメラを向く
+#define SPRITE_FACING_UPRIGHT   1u // 立てる（ワールド Y）、Y まわりにだけ回る
+#define SPRITE_FACING_GROUND    2u // XZ 平面に寝かせ、画像の上をカメラから遠い側へ向ける
 
-#define SPRITE_FLAG_ADDITIVE    1u // else alpha blended (premultiplied output)
-// bits 8-15: texture array slice (GPU path only)
+#define SPRITE_FLAG_ADDITIVE    1u // このビットが無ければアルファブレンド（乗算済みの出力）
+// ビット 8-15：テクスチャ配列のスライス（GPU 経路のみ）
 
 struct SpriteQuad
 {
-    float3 position; // world position of the pivot
-    float rotation;  // radians, inside the quad plane
-    float2 size;     // width, height in metres
-    float2 pivot;    // pivot inside the frame, 0..1 from the top-left
-    float4 uvRect;   // xy = top-left uv of the frame, zw = uv size
+    float3 position; // ピボットのワールド位置
+    float rotation;  // ラジアン、四角形の面内での回転
+    float2 size;     // 幅、高さ（m）
+    float2 pivot;    // フレーム内のピボット、左上から 0..1
+    float4 uvRect;   // xy = フレームの左上の uv、zw = uv の大きさ
     float4 color;
     uint facing;
     uint flags;
     float2 _pad;
 };
 
-// Camera basis in world space (from the view matrix, shake included)
+// ワールド空間でのカメラの基底（ビュー行列から。揺れを含む）
 struct SpriteCamera
 {
     float3 right;
@@ -35,7 +35,7 @@ struct SpriteCamera
     float3 forward;
 };
 
-// vid 0..5 = two triangles
+// vid 0..5 = 三角形 2 枚
 void SpriteCorner(SpriteQuad q, uint vid, SpriteCamera cam, out float3 world, out float2 uv)
 {
     static const float2 k[6] =
@@ -46,7 +46,7 @@ void SpriteCorner(SpriteQuad q, uint vid, SpriteCamera cam, out float3 world, ou
     float2 c = k[vid];
     uv = q.uvRect.xy + c * q.uvRect.zw;
 
-    // offset from the pivot: x to the right, y up (image v grows downwards)
+    // ピボットからのずれ：x は右、y は上（画像の v は下向きに増える）
     float2 local = float2((c.x - q.pivot.x) * q.size.x, (q.pivot.y - c.y) * q.size.y);
     float s = sin(q.rotation);
     float co = cos(q.rotation);
@@ -65,7 +65,7 @@ void SpriteCorner(SpriteQuad q, uint vid, SpriteCamera cam, out float3 world, ou
         }
         else
         {
-            // ground: image top points away from the camera
+            // 地面：画像の上をカメラから遠い側へ向ける
             up = float3(-right.z, 0.0, right.x);
             if (dot(up, cam.forward) < 0.0)
                 up = -up;

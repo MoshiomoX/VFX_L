@@ -9,19 +9,19 @@
 
     // --- Buffer宣言 ---
     StructuredBuffer<GPUEmitter> emitters : register(t0);
-    ByteAddressBuffer emitSource : register(t1); // Mesh emit source (raw vertex buffer of g_ActiveSource)
+    ByteAddressBuffer emitSource : register(t1); // メッシュ発射ソース（g_ActiveSource の生の頂点バッファ）
     Buffer<uint> deadCount : register(t2); // CopyStructureCount のコピー先
-    StructuredBuffer<EmitSourceLayout> sourceLayouts : register(t3); // one entry per registered source
-    StructuredBuffer<uint> edgeIndices : register(t4); // dissolve-edge vertex table of g_ActiveSource (EdgeFilterCS)
-    Buffer<uint> edgeCount : register(t5); // CopyStructureCount of the table
-    ByteAddressBuffer emitIndices : register(t6); // raw index buffer of g_ActiveSource (triangle sampling)
+    StructuredBuffer<EmitSourceLayout> sourceLayouts : register(t3); // 登録したソース 1 つにつき 1 要素
+    StructuredBuffer<uint> edgeIndices : register(t4); // g_ActiveSource のディゾルブ縁の頂点表（EdgeFilterCS）
+    Buffer<uint> edgeCount : register(t5); // その表の CopyStructureCount
+    ByteAddressBuffer emitIndices : register(t6); // g_ActiveSource の生のインデックスバッファ（三角形サンプリング用）
     RWStructuredBuffer<GPUParticle> particles : register(u0);
     ConsumeStructuredBuffer<uint> deadList : register(u1);
 
-    // --- Emit pass ---
-    // One dispatch can bind only one source buffer, so mesh emitters are
-    // dispatched once per source. g_ActiveSource < 0 = the non-mesh pass.
-    // GlobalCB (b0) is shared with SwarmEmitCS, so this lives in its own cb.
+    // --- 発射パス ---
+    // 1 回のディスパッチで束縛できるソースバッファは 1 本だけなので、メッシュエミッタは
+    // ソースごとに 1 回ずつディスパッチする。g_ActiveSource < 0 = メッシュ以外のパス。
+    // GlobalCB (b0) は SwarmEmitCS と共用なので、これは別の cbuffer に置く。
     cbuffer EmitPassCB : register(b2)
     {
         int g_ActiveSource;
@@ -44,7 +44,7 @@
         // ============================================
         //   空き数を超えるスレッドは Consume させない。
         //   CPU 側で発射数を絞っても、Dispatch は 256 スレッド粒度なので必ず溢れる。
-        //   溢れた分が Consume すると計数器が下溢（uint 回り込み）して
+        //   溢れた分が Consume するとカウンタがアンダーフロー（uint 回り込み）して
         //   dead list が静かに壊れる。落ちないので気付けない。
         //   ここが唯一の防波堤。
         // ============================================
@@ -64,7 +64,7 @@
             if (emitters[i].isActive < 0.5)
                 continue;
 
-            // emitters of other passes do not own any thread of this dispatch
+            // 他のパスのエミッタはこのディスパッチのスレッドを持たない
             if (!InThisPass(emitters[i]))
                 continue;
 
@@ -92,7 +92,7 @@
         // 形状に応じて発射位置と速度を決定
         float3 pos = e.position;
         float3 vel = float3(0, 0, 0);
-        bool emitted = true; // mesh edge mode may have nothing to emit from
+        bool emitted = true; // メッシュの縁モードでは発射元が無いことがある
 
         switch (e.emitType)
         {
@@ -120,12 +120,12 @@
                 break;
         }
 
-        // sweep emit: spread along the path the emitter travelled this frame.
-        // own seed so the attribute stream below stays unchanged
+        // sweep emit: このフレームにエミッタが通った経路に沿ってばらまく。
+        // 専用のシードを使い、下の属性の乱数列は変えない
         uint sweepSeed = seed ^ 0x9E3779B9u;
         pos += e.sweep * Random(sweepSeed);
 
-        // 粒子初期化
+        // パーティクル初期化
         GPUParticle p = (GPUParticle) 0;
 
         p.position = pos;
@@ -137,9 +137,9 @@
         p.age = 0.0;
         p.isAlive = 1.0;
 
-        // nothing to emit from: the dead-list slot is already consumed, so
-        // give the particle zero life. UpdateCS returns it next frame
-        // without ever drawing it.
+        // 発射元が無い：dead list のスロットはもう Consume 済みなので、
+        // 寿命 0 のパーティクルにする。UpdateCS が次のフレームで
+        // 一度も描かずに返す。
         if (!emitted)
             p.lifetime = 0.0;
 
@@ -154,7 +154,7 @@
         p.rotation = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
         p.angularVel = RandomRange(seed, e.angularVelRange.x, e.angularVelRange.y);
 
-        // cube: 3 axes share the same ranges
+        // キューブ：3 軸とも同じ範囲を使う
         p.renderMode = e.renderMode;
         p.rot3.x = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
         p.rot3.y = RandomRange(seed, e.rotationRange.x, e.rotationRange.y);
@@ -173,11 +173,11 @@
         p.colorKeyOffset = e.colorKeyoffset;
         p.colorKeyCount = e.colorKeyCount;
 
-        // 所有者を引き継ぐ。0 = 無主（投射物VFX）。
+        // 所有者を引き継ぐ。0 = 所有者なし（弾のエフェクト）。
         p.ownerID = e.ownerID;
 
-        // ribbon trail: the style rides on the particle; the ring starts empty
-        // (stale points of the previous owner of this slot are never read)
+        // リボントレイル：スタイルはパーティクルが持つ。リングは空から始める
+        // （このスロットの前の持ち主の古い点は読まれない）
         p.trailStyle = (uint) max(e.trailStyle, 0);
         p.trailState = 0u;
 

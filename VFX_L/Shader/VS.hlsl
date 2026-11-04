@@ -1,6 +1,6 @@
 // ============================================================
-// VS.hlsl - the standard model VS (ModelVS in ModelCommon.hlsli).
-// PBR_VS.hlsl is the same code under another name for PBR_PS
+// VS.hlsl - 標準のモデルの VS（ModelCommon.hlsli の ModelVS）。
+// PBR_VS.hlsl は PBR_PS 用に名前だけ変えた同じコード
 // ============================================================
 #include "Common/ModelCommon.hlsli"
 

@@ -1,13 +1,13 @@
 // ============================================================
 // EffectTrailVS.hlsl
-// Builds a camera-facing ribbon per effect trail from its ring.
-// No vertex buffer: one instance = one trail, SV_VertexID walks a
-// triangle strip of EFFECT_TRAIL_STRIP_PAIRS pairs (see
-// Common/EffectTrail.hlsli for the pair layout).
+// エフェクトのトレイルごとに、リングからカメラを向いた帯を組む。
+// 頂点バッファなし：1 インスタンス = 1 本のトレイルで、SV_VertexID が
+// EFFECT_TRAIL_STRIP_PAIRS 組の三角形ストリップをたどる（組の並びは
+// Common/EffectTrail.hlsli を参照）。
 //
-// Pixel side is ParticleTrailPS (same TrailDrawCB / uv / softEdge).
-// One draw per style (the texture and blend differ), so instances of
-// another style are culled here.
+// ピクセル側は ParticleTrailPS（同じ TrailDrawCB / uv / softEdge）。
+// スタイルごとに 1 回描く（テクスチャとブレンドが違う）ので、
+// 他のスタイルのインスタンスはここで捨てる。
 // ============================================================
 #include "Common/ParticleTrail.hlsli"
 #include "Common/EffectTrail.hlsli"
@@ -22,9 +22,9 @@ cbuffer ParticleRenderCB : register(b0)
 
 cbuffer TrailDrawCB : register(b1)
 {
-    uint g_StyleSlot; // style index + 1
+    uint g_StyleSlot; // スタイルの番号 + 1
     uint g_Premultiply;
-    float g_Time; // same clock as EffectTrailCB.g_Now
+    float g_Time; // EffectTrailCB.g_Now と同じ時計
     float _padT;
 };
 
@@ -42,8 +42,8 @@ struct VSOutput
     nointerpolation float softEdge : TEXCOORD1;
 };
 
-// strip pair k -> position / path length.
-// Anything past validCount is the tail (callers clamp k to validCount + 1)
+// ストリップの組 k -> 位置 / 経路の長さ。
+// validCount を超えた所はすべて末尾（呼び出し側が k を validCount + 1 までにクランプする）
 void StripPoint(EffectTrailState st, uint base, uint k,
                 out float3 pos, out float dist)
 {
@@ -66,7 +66,7 @@ void StripPoint(EffectTrailState st, uint base, uint k,
 VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 {
     VSOutput o = (VSOutput) 0;
-    o.position = float4(0, 0, -1, 1); // culled unless we get to the end
+    o.position = float4(0, 0, -1, 1); // 最後までたどり着かなければ捨てる
 
     uint i = trailAlive[instanceID];
     EffectTrailAnchor a = anchors[i];
@@ -77,7 +77,7 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     TrailStyle s = trailStyles[a.styleSlot - 1u];
     uint base = i * EFFECT_TRAIL_POINTS;
 
-    uint last = st.validCount + 1u; // the tail pair
+    uint last = st.validCount + 1u; // 末尾の組
     uint k = min(vertexID / 2u, last);
     float sideSign = ((vertexID & 1u) == 0u) ? 1.0 : -1.0;
 
@@ -87,8 +87,8 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     StripPoint(st, base, (k > 0u) ? k - 1u : 0u, posPrev, dDummy);
     StripPoint(st, base, min(k + 1u, last), posNext, dDummy);
 
-    // direction of travel (tail -> head). Right after a commit the head
-    // sits on the newest point, so look one point further
+    // 進行方向（末尾 -> 先頭）。点を確定した直後は先頭が一番新しい点と
+    // 重なっているので、もう 1 つ先の点を見る
     float3 tangent = posPrev - posNext;
     if (dot(tangent, tangent) < 1e-10)
     {
@@ -102,10 +102,10 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     float sideLenSq = dot(side, side);
     side = (sideLenSq > 1e-12) ? side * rsqrt(sideLenSq) : float3(0, 0, 0);
 
-    // 0 = head, 1 = tail, by position along the ribbon (like Unity's
-    // TrailRenderer). Not by age: a trail younger than lifetime would
-    // end in an opaque, full-width stub at its start point. A trail that
-    // stops just gets shorter; the head stays at colorHead until it is gone
+    // 帯に沿った位置で 0 = 先頭、1 = 末尾（Unity の
+    // TrailRenderer と同じ）。年齢では決めない：寿命より若いトレイルが
+    // 出発点で不透明・全幅の切り株のように終わってしまう。止まった
+    // トレイルは短くなるだけで、先頭は消えるまで colorHead のまま
     float span = st.headDist - st.tailDist;
     float t = (span > 1e-5) ? saturate((st.headDist - dist) / span) : 0.0;
 

@@ -1,11 +1,11 @@
 // ============================================================
 // SkinningCS.hlsl
-// bind vertex x bone palette -> skinned vertex buffer.
-// Position / normal / tangent all go through the same 4 bones.
+// バインド時の頂点 x ボーンパレット -> スキニング済みの頂点バッファ。
+// 位置 / 法線 / 接線はどれも同じ 4 本のボーンを通す。
 // ============================================================
 #pragma pack_matrix(row_major)
 
-// matches C++ SkinnedVertex (96 bytes)
+// C++ の SkinnedVertex と揃える（96 バイト）
 struct SkinnedVertex
 {
     float3 position;
@@ -20,7 +20,7 @@ struct SkinnedVertex
     float4 boneWeights;
 };
 
-// matches C++ SkinnedVertexOut (48 bytes)
+// C++ の SkinnedVertexOut と揃える（48 バイト）
 struct SkinnedVertexOut
 {
     float3 position;
@@ -71,7 +71,7 @@ void main(uint3 id : SV_DispatchThreadID)
     SkinnedVertexOut o;
     o.position = p;
     o.normal = normalize(n);
-    // a mesh without tangents (zero vector) stays 0 instead of NaN; PerturbNormal then keeps the normal
+    // 接線の無いメッシュ（ゼロベクトル）は NaN にせず 0 のままにする。そうすれば PerturbNormal は法線をそのまま使う
     o.tangent = (dot(t, t) > 1e-12) ? normalize(t) : float3(0.0, 0.0, 0.0);
     o.uv = v.uv;
     o._pad0 = 0;

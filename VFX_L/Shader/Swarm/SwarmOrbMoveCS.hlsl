@@ -1,25 +1,25 @@
 // ============================================================
 // SwarmOrbMoveCS.hlsl
-// One thread per orb slot. Pull toward the player, pick up, count.
+// 経験玉のスロット 1 つにつき 1 スレッド。プレイヤーへ吸い寄せ、拾い、数える。
 //
-// Attract state lives in SwarmOrb._pad as the current pull speed:
-//   0     -> idle, waiting for the player to come within attract radius
-//   > 0   -> attracted. once attracted it never lets go, even if the
-//            player leaves the radius (same rule as the CPU version,
-//            avoids flip-flopping at the boundary)
+// 吸引の状態は SwarmOrb._pad に今の吸引の速さとして入っている：
+//   0     -> 待機、プレイヤーが吸引半径に入るのを待つ
+//   > 0   -> 吸引中。一度吸われたら、プレイヤーが半径から出ても
+//            放さない（CPU 版と同じ規則、
+//            境界で行ったり来たりしないように）
 //
-// Pickup adds amount (fixed point x100) to SWARM_CNT_EXP, which
-// accumulates forever; the CPU takes the delta.
+// 拾うと amount（固定小数点 x100）を SWARM_CNT_EXP に足す。これは
+// 永久に累積し、CPU が差分を取る。
 //
-// Only writer of orb position / velocity / _pad. Runs after HitCS so
-// orbs dropped this step are already visible.
+// 経験玉の position / velocity / _pad を書くのはここだけ。HitCS の後に走るので、
+// このステップで落ちた経験玉も既に見えている。
 //
-// velocity is for the looks only (SwarmOrbVS leans / stretches the
-// gem along it, SwarmOrbEmitCS sweeps its trail): the horizontal pull
-// of this step, 0 while idle.
+// velocity は見た目専用（SwarmOrbVS が宝石をその向きに傾け / 伸ばし、
+// SwarmOrbEmitCS が尾を掃き出す）：このステップの水平方向の吸引、
+// 待機中は 0。
 //
-// Height: g_OrbY above the terrain (plateaus, ramps), eased so an orb
-// pulled across a plateau edge glides up instead of popping.
+// 高さ：地形（台地、坂）の g_OrbY 上。補間するので、台地の縁を越えて
+// 吸われる経験玉は急に跳ねず滑らかに上がる。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -40,7 +40,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     SwarmOrb o = orbs[i];
 
-    // XZ only, same as the rest of the pipeline
+    // XZ だけ、パイプラインの他の部分と同じ
     float dx = g_PlayerPos.x - o.position.x;
     float dz = g_PlayerPos.z - o.position.z;
     float distSq = dx * dx + dz * dz;
@@ -54,12 +54,12 @@ void main(uint3 id : SV_DispatchThreadID)
         if (!attracted && distSq <= g_OrbAttractRadius * g_OrbAttractRadius)
         {
             attracted = true;
-            speed = g_OrbAccel * g_Step; // kick so speed > 0 next step
+            speed = g_OrbAccel * g_Step; // 次のステップで speed > 0 になるよう初速を与える
         }
 
         if (attracted)
         {
-            // ---- pickup ----
+            // ---- 拾う ----
             if (distSq <= g_OrbPickupRadius * g_OrbPickupRadius)
             {
                 uint prev;
@@ -69,7 +69,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 return;
             }
 
-            // ---- pull: faster the closer it gets ----
+            // ---- 吸引：吸われている間に加速する（上限 g_OrbMaxSpeed） ----
             speed = min(speed + g_OrbAccel * g_Step, g_OrbMaxSpeed);
 
             float invLen = rsqrt(max(distSq, 1e-8));

@@ -1,15 +1,15 @@
 // ============================================================
 // BackdropPS.hlsl
-// Full-screen backdrop for the title / result screens (2026-10-09).
-// Drawn with Sky/SkyVS (full-screen triangle) into the scene HDR RT.
+// タイトル / リザルト画面の全画面の背景（2026-10-09）。
+// Sky/SkyVS（全画面三角形）でシーンの HDR RT に描く。
 //
-// mode 0 (photo): the captured battle frame (SceneSnapshot), zoomed and
-//   shifted so its middle sits right of center, dimmed on the left where
-//   the text panels go, with a vignette. Output is opaque (alpha 1).
-//   Without a photo (hasPhoto 0) a dark blue-violet gradient instead.
-// mode 1 (scrim): no texture. Black with an alpha that is strong on the
-//   left and fades out to the right (and at the bottom), drawn with a
-//   premultiplied alpha blend over the live title scene.
+// mode 0（写真）：撮っておいた戦闘のフレーム（SceneSnapshot）を拡大して
+//   中央が画面中央より右に来るようにずらし、文字のパネルが載る左側を
+//   暗くし、ビネットをかける。出力は不透明（alpha 1）。
+//   写真がない（hasPhoto 0）ときは代わりに暗い青紫のグラデーション。
+// mode 1（スクリム）：テクスチャなし。左で濃く、右（と下端）へ
+//   薄れていくアルファを持つ黒を、動いているタイトルシーンの上に
+//   乗算済みアルファのブレンドで描く。
 // ============================================================
 
 Texture2D g_Photo : register(t0);
@@ -17,16 +17,16 @@ SamplerState g_Linear : register(s0);
 
 cbuffer BackdropCB : register(b0)
 {
-    float2 photoCenter;   // where the middle of the photo goes on screen (0..1)
-    float  zoom;          // part of the photo shown across the screen (0.8 = 80 %)
+    float2 photoCenter;   // 写真の中央を置く画面上の位置（0..1）
+    float  zoom;          // 画面の幅に映す写真の割合（0.8 = 80 %）
     float  brightness;
-    float  shadeStrength; // how dark the left side gets (0..1)
-    float  shadeFrom;     // screen x (0..1): darkest left of this
-    float  shadeTo;       // screen x (0..1): no shade right of this
+    float  shadeStrength; // 左側をどれだけ暗くするか（0..1）
+    float  shadeFrom;     // 画面 x（0..1）：これより左が最も暗い
+    float  shadeTo;       // 画面 x（0..1）：これより右は暗くしない
     float  vignette;
     float  desaturate;
-    float  bottomShade;   // extra darkening toward the bottom edge (prompts)
-    float  mode;          // 0 photo, 1 scrim
+    float  bottomShade;   // 下端に向けた追加の暗さ（操作案内用）
+    float  mode;          // 0 写真、1 スクリム
     float  hasPhoto;
 };
 
@@ -38,15 +38,15 @@ struct PSIn
 
 float4 main(PSIn i) : SV_TARGET
 {
-    float2 uv = i.ndc * float2(0.5, -0.5) + 0.5;   // screen 0..1, y down
+    float2 uv = i.ndc * float2(0.5, -0.5) + 0.5;   // 画面 0..1、y は下向き
 
-    // left side (and bottom) darkening shared by both modes
+    // 両モード共通の左側（と下端）の暗さ
     float side = 1.0 - smoothstep(shadeFrom, shadeTo, uv.x);
     float bottom = smoothstep(0.70, 1.0, uv.y) * bottomShade;
     float shade = saturate(side * shadeStrength + bottom);
 
     if (mode > 0.5)
-        return float4(0.0, 0.0, 0.0, shade);   // premultiplied black
+        return float4(0.0, 0.0, 0.0, shade);   // 乗算済みアルファの黒
 
     float3 c;
     if (hasPhoto > 0.5)
@@ -58,7 +58,7 @@ float4 main(PSIn i) : SV_TARGET
     }
     else
     {
-        // no photo: deep night-sky gradient (linear values)
+        // 写真なし：深い夜空のグラデーション（リニアの値）
         float t = saturate(uv.y);
         c = lerp(float3(0.010, 0.012, 0.030), float3(0.030, 0.020, 0.045), t);
     }

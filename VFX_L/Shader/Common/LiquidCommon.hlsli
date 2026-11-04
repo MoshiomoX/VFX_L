@@ -1,87 +1,87 @@
 // ============================================================
 // LiquidCommon.hlsli
-// Liquid entry (2026-10-02): a puddle of liquid lying on the ground,
-// drawn the same way by both paths:
+// Liquid エントリ（2026-10-02）：地面に溜まった液体の水たまり。
+// 2 つの経路で同じように描く：
 //   CPU : VFXLiquidEntry -> VFXLiquidRenderer -> VFXLiquidVS
-//   GPU : an area whose recipe holds a Liquid entry -> SwarmLiquidVS
-// and shaded by the one VFXLiquidPS. This file holds what both sides need:
-// the look (LiquidDef), the VS -> PS struct, the droplet layout and the
-// signed distance field of the puddle.
+//   GPU : レシピに Liquid エントリを持つ範囲 -> SwarmLiquidVS
+// シェーディングはどちらも VFXLiquidPS 1 本。このファイルは両側に要るもの
+// （見た目 LiquidDef、VS -> PS の構造体、液滴の配置、水たまりの
+// 符号付き距離場）をまとめる。
 //
-// Shape = a signed distance field (meters, < 0 inside). Each droplet is an
-// ellipse SDF; they are merged with a polynomial smooth union, so droplets
-// that come close fuse with a soft neck instead of overlapping as circles.
-// Because the value is a distance, rim / depth / halo widths are given in
-// meters and the edge is antialiased by fwidth(d).
+// 形 = 符号付き距離場（m、内側が < 0）。液滴はそれぞれ楕円の SDF で、
+// 多項式の smooth union で合成するので、近づいた液滴は円が重なるのではなく
+// 柔らかいくびれでつながる。
+// 値が距離なので、縁 / 深さ / ハローの幅は m で指定し、
+// エッジは fwidth(d) でアンチエイリアスする。
 //
-// Nothing is simulated: where a droplet is at a given age is a closed-form
-// curve of (seed, age, time left), so each pixel rebuilds the whole puddle.
+// シミュレーションはしない：ある年齢での液滴の位置は (seed, 年齢, 残り時間) の
+// 閉じた式で決まるので、各ピクセルが水たまり全体を組み直す。
 //
-// Local frame: x = along the throw (forward), y = to its left, meters from
-// the puddle centre.
+// ローカル座標：x = 投げた方向（前）、y = その左。単位は m で、
+// 水たまりの中心が原点。
 //
-// C++ mirror: VFXLiquidDef (VFX_Editor/VFXLiquidDef.h), 160 bytes
+// C++ 側の対応：VFXLiquidDef（VFX_Editor/VFXLiquidDef.h）、160 バイト
 // ============================================================
 #ifndef LIQUID_COMMON_HLSLI
 #define LIQUID_COMMON_HLSLI
 
 struct LiquidDef
 {
-    float4 deepColor;   // linear rgb of deep liquid, a = its opacity
-    float4 edgeColor;   // linear rgb at the rim, a = its opacity
-    float4 glowColor;   // rgb = emissive, a = how much more the rim glows
-    float4 skyColor;    // rgb = what it reflects at grazing angles, a = fresnel gain
+    float4 deepColor;   // 深い所の液体の線形 rgb、a = その不透明度
+    float4 edgeColor;   // 縁の線形 rgb、a = その不透明度
+    float4 glowColor;   // rgb = 自発光、a = 縁がどれだけ余計に光るか
+    float4 skyColor;    // rgb = 浅い角度で映り込む色、a = フレネルの強さ
 
-    float radius;       // m. 0 = the area's radius (GPU path); the CPU path falls back to 2
-    float fill;         // fraction of the radius the liquid may reach
-    float spread;       // how much farther forward the splash reaches (0 = round)
-    float wobble;       // droplet drift, fraction of the reach
+    float radius;       // m。0 = 範囲の半径（GPU 経路）。CPU 経路では 2 になる
+    float fill;         // 液体が届いてよい範囲（半径に対する割合）
+    float spread;       // 飛沫が前方へどれだけ余計に伸びるか（0 = 円形）
+    float wobble;       // 液滴の漂い（届く距離に対する割合）
 
-    float blend;        // smooth-union distance, fraction of the reach
-    float rimWidth;     // m: bright band just inside the edge
-    float depthWidth;   // m: edge -> full depth (the surface curves over this band)
-    float bump;         // height of that curve, m (normal tilt at the edge)
+    float blend;        // smooth union の距離（届く距離に対する割合）
+    float rimWidth;     // m：エッジのすぐ内側の明るい帯
+    float depthWidth;   // m：エッジ -> 最大深度まで（この帯で表面が曲がる）
+    float bump;         // その曲がりの高さ m（エッジでの法線の傾き）
 
-    float splashTime;   // s to fling the droplets out
-    float dryTime;      // the last seconds it shrinks away
-    float specGain;     // sun highlight
-    float roughness;    // GGX roughness
+    float splashTime;   // 液滴を飛び散らせる秒数
+    float dryTime;      // 最後の何秒で縮んで消えるか
+    float specGain;     // 太陽のハイライト
+    float roughness;    // GGX の粗さ
 
-    float bubbles;      // share of bubble cells holding a bubble (more where deep)
-    float bubbleGain;   // bubble brightness
-    float swirl;        // brightness / ripple of the slow surface noise
+    float bubbles;      // 泡のセルのうち泡を持つ割合（深い所ほど多い）
+    float bubbleGain;   // 泡の明るさ
+    float swirl;        // ゆっくり動く表面ノイズの明るさ / 波打ち
     float swirlScale;   // 1/m
 
-    float lift;         // m above the ground (z-fighting)
-    float cliff;        // m: ground this far above / below the centre is cut away
-    float haloWidth;    // m: soft glow on the ground outside the edge
+    float lift;         // 地面からの m（Z ファイティング対策）
+    float cliff;        // m：中心よりこれだけ上 / 下の地面は切り落とす
+    float haloWidth;    // m：エッジの外側、地面に出る柔らかい光
     float haloGain;
 
-    uint lobes;         // lobes around the body (0..7)
-    uint spatter;       // small drops flung forward (0..8)
-    uint flags;         // vortex (quicksand, 2026-10-24): low 16 bits = spin rad/s x 100, high 16 bits = twist rad/m x 100 (VFXLiquidDef::SetVortex)
-    float pointGain;    // how much point lights (diffuse + highlight) act on the liquid
+    uint lobes;         // 本体の周りのこぶ（0..7）
+    uint spatter;       // 前方へ飛ぶ小さな飛沫（0..8）
+    uint flags;         // 渦（流砂、2026-10-24）：下位 16 ビット = 回転 rad/s x 100、上位 16 ビット = ねじれ rad/m x 100（VFXLiquidDef::SetVortex）
+    float pointGain;    // 点光源（拡散 + ハイライト）が液体にどれだけ効くか
 };
 
-static const uint LIQUID_MAX_DROPS = 16u;   // 1 body + 7 lobes + 8 spatter
+static const uint LIQUID_MAX_DROPS = 16u;   // 本体 1 + こぶ 7 + 飛沫 8
 
-// VS -> PS (VFXLiquidVS and SwarmLiquidVS both write this)
+// VS -> PS（VFXLiquidVS と SwarmLiquidVS の両方がこれを書く）
 struct LiquidVSOut
 {
     float4 pos : SV_POSITION;
     float3 world : TEXCOORD0;
-    float2 local : TEXCOORD1;                 // meters, x = forward, y = left
-    float mask : TEXCOORD2;                   // 1 on the centre's ground, 0 where a cliff cuts it
-    nointerpolation float4 info : TEXCOORD3;  // x = radius m, y = age s, z = time left s
-    nointerpolation float4 frame : TEXCOORD4; // xy = forward (world xz), zw = left (world xz)
-    nointerpolation uint2 ids : TEXCOORD5;    // x = LiquidDef index, y = seed
+    float2 local : TEXCOORD1;                 // m、x = 前、y = 左
+    float mask : TEXCOORD2;                   // 中心と同じ地面で 1、崖で切られる所で 0
+    nointerpolation float4 info : TEXCOORD3;  // x = 半径 m、y = 年齢 s、z = 残り時間 s
+    nointerpolation float4 frame : TEXCOORD4; // xy = 前（ワールド xz）、zw = 左（ワールド xz）
+    nointerpolation uint2 ids : TEXCOORD5;    // x = LiquidDef の番号、y = seed
 };
 
-// ---- grid: a square of LIQUID_GRID x LIQUID_GRID quads, 6 vertices each ----
+// ---- グリッド：LIQUID_GRID x LIQUID_GRID 枚の四角形の正方形、各 6 頂点 ----
 static const uint LIQUID_GRID = 16u;
 static const uint LIQUID_VERTS = LIQUID_GRID * LIQUID_GRID * 6u;
 
-// vertex id -> -1..1 across the square
+// 頂点 ID -> 正方形の端から端までを -1..1
 float2 LiquidGridCorner(uint vid)
 {
     static const float2 kCorner[6] =
@@ -104,13 +104,13 @@ uint LiquidHash(uint x)
     return x;
 }
 
-// 0..1, one value per (seed, droplet, which number)
+// 0..1、(seed, 液滴, 何番目の値) ごとに 1 つ
 float LiquidRand(uint seed, uint i, uint k)
 {
     return (float) (LiquidHash(seed ^ (i * 0x9E3779B9u) ^ (k * 0x85EBCA6Bu)) & 0xFFFFFFu) / 16777216.0;
 }
 
-// forward / left in world xz. A zero direction picks an angle from the seed
+// ワールド xz での前 / 左。方向がゼロなら seed から角度を選ぶ
 void LiquidFrame(float2 dir, uint seed, out float2 fwd, out float2 left)
 {
     float lenSq = dot(dir, dir);
@@ -133,17 +133,17 @@ float LiquidEaseOutBack(float t)
 
 struct LiquidDrop
 {
-    float2 c;       // centre, local m
-    float2 axis;    // the way it was flung (unit, local)
-    float r;        // half width, m
-    float stretch;  // half length along axis / half width
+    float2 c;       // 中心、ローカル m
+    float2 axis;    // 飛ばされた向き（単位ベクトル、ローカル）
+    float r;        // 半幅、m
+    float stretch;  // axis 方向の半長 / 半幅
 };
 
-// Droplet i of a puddle of radius R, age seconds old, left seconds to go.
-//   i = 0 : the body       i = 1..lobes : lobes      then spatter
+// 半径 R、経過 age 秒、残り left 秒の水たまりの i 番目の液滴。
+//   i = 0 : 本体       i = 1..lobes : こぶ      その後が飛沫
 LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, float left, float time)
 {
-    float reach = R * L.fill;   // the liquid stays inside this circle
+    float reach = R * L.fill;   // 液体はこの円の内側に収まる
     float r0 = LiquidRand(seed, i, 0u);
     float r1 = LiquidRand(seed, i, 1u);
     float r2 = LiquidRand(seed, i, 2u);
@@ -153,8 +153,8 @@ LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, floa
     float ang, dist, rad, stretch;
     if (i == 0u)
     {
-        // the body: big, a little forward of the impact.
-        // A vortex pool (flags != 0, the sand guardian's quicksand. 2026-10-24) is one round body filling the reach
+        // 本体：大きく、着弾点より少し前。
+        // 渦の水たまり（flags != 0、砂の守護者の流砂。2026-10-24）は届く範囲いっぱいの丸い本体 1 つ
         bool vortexPool = (L.flags != 0u);
         ang = 0.0;
         dist = vortexPool ? 0.0 : 0.10 * reach;
@@ -163,7 +163,7 @@ LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, floa
     }
     else if (!spatter)
     {
-        // lobes all around; the ones thrown forward go farther, come out smaller and longer
+        // こぶは全周に出る。前へ飛んだものほど遠く、小さく、細長くなる
         ang = (r0 * 2.0 - 1.0) * 3.14159265;
         float fwd = 0.5 + 0.5 * cos(ang);
         dist = reach * (0.22 + 0.28 * r1) * (1.0 + 0.8 * L.spread * fwd);
@@ -172,30 +172,30 @@ LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, floa
     }
     else
     {
-        // spatter: small drops flung forward in a cone of +-50 degrees
+        // 飛沫：±50 度の円錐で前方へ飛ぶ小さな滴
         ang = (r0 * 2.0 - 1.0) * 0.9;
         dist = reach * (0.62 + 0.30 * r1);
         rad = reach * (0.05 + 0.06 * r2);
         stretch = 1.0 + 1.2 * L.spread;
     }
-    // keep the stretched droplet inside the reach
+    // 伸ばした液滴が届く範囲からはみ出さないようにする
     dist = min(dist, max(reach - rad * stretch * 1.1, 0.0));
     float2 axis = float2(cos(ang), sin(ang));
 
-    // ---- splash: fling out with a little overshoot, grow from a blob to full size ----
+    // ---- 飛散：少し行き過ぎながら飛び出し、小さな塊から元の大きさまで育つ ----
     float fling = LiquidEaseOutBack(saturate(age / max(L.splashTime, 1e-3)));
     float grow = 0.35 + 0.65 * saturate(age / max(L.splashTime * 1.4, 1e-3));
-    // ---- settle: lobes pull back toward the body (surface tension), spatter thins out ----
+    // ---- 落ち着く：こぶは本体へ引き戻され（表面張力）、飛沫は細っていく ----
     float settle = smoothstep(L.splashTime, L.splashTime + 1.0, age);
     if (i >= 1u && !spatter)
         dist *= lerp(1.0, 0.86, settle);
     if (spatter)
         rad *= lerp(1.0, 0.7, settle);
-    // ---- alive: slow drift and breathing, each droplet on its own phase ----
+    // ---- 生きている間：ゆっくり漂って脈打つ。液滴ごとに位相が違う ----
     float ph = r3 * 6.2831853;
     float2 drift = float2(sin(time * 1.3 + ph), cos(time * 1.1 + ph * 1.7)) * (L.wobble * reach * settle);
     float breathe = 1.0 + 0.06 * sin(time * 2.1 + ph * 2.3);
-    // ---- dry: shrink away over the last dryTime, the spatter first ----
+    // ---- 乾く：最後の dryTime で縮んで消える。飛沫が先 ----
     float dry = saturate(left / max(L.dryTime, 1e-3));
     float dryK = spatter ? dry * dry : sqrt(dry);
 
@@ -207,23 +207,23 @@ LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, floa
     return d;
 }
 
-// Ellipse SDF (approximate, Inigo Quilez's bound k0 (k0 - 1) / k1) with
-// semi-axes ab, q in the ellipse's own frame. g = unit normal of the level
-// set through q (the gradient of (x/a)^2 + (y/b)^2 is 2 q / ab^2)
+// 楕円の SDF（近似。Inigo Quilez の上界 k0 (k0 - 1) / k1）。半軸 ab、
+// q は楕円自身の座標系。g = q を通る等値線の単位法線
+// （(x/a)^2 + (y/b)^2 の勾配は 2 q / ab^2）
 float LiquidEllipseSDF(float2 q, float2 ab, out float2 g)
 {
     float2 qa = q / ab;
     float2 qb = q / (ab * ab);
     float k0 = length(qa);
     float k1 = max(length(qb), 1e-6);
-    bool centre = k0 < 1e-4;   // the exact centre: no direction, the distance is the short half axis
+    bool centre = k0 < 1e-4;   // ちょうど中心：方向が無いので、距離は短い方の半軸にする
     g = centre ? float2(0.0, 0.0) : qb / k1;
     return centre ? -min(ab.x, ab.y) : k0 * (k0 - 1.0) / k1;
 }
 
-// Polynomial smooth union (IQ): h = clamp(0.5 + 0.5 (b - a) / k),
-// d = lerp(b, a, h) - k h (1 - h). Its exact partial derivatives are h and
-// 1 - h, so the gradient blends with the same weight.
+// 多項式の smooth union（IQ）：h = clamp(0.5 + 0.5 (b - a) / k)、
+// d = lerp(b, a, h) - k h (1 - h)。偏微分はちょうど h と 1 - h になるので、
+// 勾配も同じ重みで混ぜる。
 void LiquidSmoothUnion(inout float d, inout float2 g, float d2, float2 g2, float k)
 {
     float h = saturate(0.5 + 0.5 * (d2 - d) / k);
@@ -231,8 +231,8 @@ void LiquidSmoothUnion(inout float d, inout float2 g, float d2, float2 g2, float
     g = lerp(g2, g, h);
 }
 
-// Signed distance (m) from local point p to the puddle's edge, < 0 inside.
-// grad = its gradient (local, roughly unit, points outward)
+// ローカル点 p から水たまりのエッジまでの符号付き距離（m）、内側が < 0。
+// grad = その勾配（ローカル、ほぼ単位長、外向き）
 float LiquidSDF(LiquidDef L, float2 p, uint seed, float R, float age, float left, float time, out float2 grad)
 {
     uint count = min(1u + min(L.lobes, 7u) + min(L.spatter, 8u), LIQUID_MAX_DROPS);
@@ -251,13 +251,13 @@ float LiquidSDF(LiquidDef L, float2 p, uint seed, float R, float age, float left
         float2 q = float2(dot(v, dr.axis), dot(v, perp));
         float2 gq;
         float di = LiquidEllipseSDF(q, float2(dr.r * dr.stretch, dr.r), gq);
-        float2 gi = gq.x * dr.axis + gq.y * perp;   // back to the local frame
+        float2 gi = gq.x * dr.axis + gq.y * perp;   // ローカル座標に戻す
         LiquidSmoothUnion(d, grad, di, gi, k);
     }
     return d;
 }
 
-// Smooth value noise 0..1 (the slow swirl on the surface)
+// 滑らかなバリューノイズ 0..1（表面のゆっくりした渦模様）
 float LiquidNoise(float2 p)
 {
     float2 i = floor(p);
@@ -271,9 +271,9 @@ float LiquidNoise(float2 p)
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
 }
 
-// Bubbles: the puddle is cut into 0.32m cells; a cell holds one bubble with
-// probability bubbles x deep. It swells over its own period and pops.
-// Returns the brightness of its rim + a faint dome, 0 where there is none
+// 泡：水たまりを 0.32m のセルに分け、各セルは確率 bubbles x deep で泡を 1 つ持つ。
+// 泡は自分の周期で膨らんで弾ける。
+// 戻り値は泡の縁 + うっすらしたドームの明るさ。泡が無ければ 0
 float LiquidBubbles(LiquidDef L, float2 p, uint seed, float deep, float time)
 {
     const float cell = 0.32;
@@ -281,13 +281,13 @@ float LiquidBubbles(LiquidDef L, float2 p, uint seed, float deep, float time)
     float2 f = p / cell - g;
     uint2 q = asuint(int2(g));
     uint h = LiquidHash(seed ^ (q.x * 73856093u) ^ (q.y * 19349663u));
-    float have = ((float) (h & 0xFFFFu) / 65535.0 <= L.bubbles * deep) ? 1.0 : 0.0;   // this cell holds one
+    float have = ((float) (h & 0xFFFFu) / 65535.0 <= L.bubbles * deep) ? 1.0 : 0.0;   // このセルに泡がある
     float u = (float) ((h >> 16) & 0xFFu) / 255.0;
     float w = (float) ((h >> 24) & 0xFFu) / 255.0;
     float2 c = 0.25 + 0.5 * float2(u, w);
     float period = 1.2 + 1.3 * u;
     float ph = frac(time / period + w);
-    float rb = (0.08 + 0.12 * w) * smoothstep(0.0, 0.85, ph);   // radius in cell units
+    float rb = (0.08 + 0.12 * w) * smoothstep(0.0, 0.85, ph);   // 半径（セル単位）
     float pop = 1.0 - smoothstep(0.85, 1.0, ph);
     float dist = length(f - c);
     float ring = 1.0 - smoothstep(0.0, 0.035, abs(dist - rb));
@@ -295,16 +295,16 @@ float LiquidBubbles(LiquidDef L, float2 p, uint seed, float deep, float time)
     return (ring + dome) * pop * step(0.01, rb) * have;
 }
 
-// Shared by both vertex shaders: puts one grid vertex on the ground.
-// xz = its world position, lp = the same point in the local frame,
-// ground = the height at the puddle centre, heightAt = the terrain under xz
-// (pass ground again where there is no terrain). Writes pos / world / local / mask
+// 両方の頂点シェーダーで共用：グリッドの頂点 1 つを地面に置く。
+// xz = そのワールド位置、lp = 同じ点のローカル座標、
+// ground = 水たまり中心の高さ、heightAt = xz の下の地形の高さ
+// （地形が無い所では ground をもう一度渡す）。pos / world / local / mask を書く
 void LiquidPlaceVertex(LiquidDef L, float ground, float heightAt, float2 xz, float2 lp,
                        float4x4 viewProj, inout LiquidVSOut o)
 {
     float dh = heightAt - ground;
     float cliff = max(L.cliff, 1e-3);
-    // full on the centre's own ground, fading to 0 between cliff / 2 and cliff away from it
+    // 中心と同じ地面では 1、そこから cliff / 2 〜 cliff 離れる間に 0 へ落ちる
     o.mask = saturate(1.0 - (abs(dh) - cliff * 0.5) / (cliff * 0.5));
     float y = clamp(heightAt, ground - cliff, ground + cliff) + L.lift;
     o.world = float3(xz.x, y, xz.y);

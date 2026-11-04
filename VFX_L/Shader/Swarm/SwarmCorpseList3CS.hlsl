@@ -1,9 +1,9 @@
 // ============================================================
 // SwarmCorpseList3CS.hlsl
-// The shattering lists of the stage's fixed elites (2026-10-25):
-// SwarmCorpseListCS and SwarmCorpseList2CS already bind 8 UAVs each.
-// Same rule: entries still shattering (0 <= age < g_CorpseLife) go into
-// the list of their look, so each elite shatters in its own skin.
+// ステージ固定のエリートの砕け散りリスト（2026-10-25）:
+// SwarmCorpseListCS と SwarmCorpseList2CS はもう UAV を 8 本ずつバインドしている。
+// 同じ規則: まだ砕け散っている途中のエントリ（0 <= age < g_CorpseLife）を
+// 見た目ごとのリストに入れるので、各エリートは自分のスキンで砕ける。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 

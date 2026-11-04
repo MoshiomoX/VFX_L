@@ -30,7 +30,7 @@ void CollisionTestScene::Init()
     std::cout << "[CollisionTestScene] Init" << std::endl;
     if (IsMenuScene()) g_RunCarry.Reset();   // タイトル・ステージ選択からは最初から（面の引き継ぎを捨てる）
     else if (!m_LabScene)
-    {
+    {   
         // 新しい面：リザルトの背景の写真を撮り直す
         SceneSnapshot::Get().Clear();
         m_Highlight.Reset();
@@ -86,6 +86,7 @@ void CollisionTestScene::Shutdown()
     m_AreaVFX.StopAll();      // 再生中のエフェクトを粒子システムが生きているうちに放す（メンバの破棄は粒子システムの方が先）
     SceneLighting::ClearFog(Application::Get().GetRenderer());   // Renderer は他のシーンと共有
     m_Shadows.Disable(Application::Get().GetRenderer());         // 同上（影を切らないと他のシーンが真っ暗）
+    m_AmbientOcclusion.Disable(Application::Get().GetRenderer()); // 同上（SSAO。t12 は張っていない）
     m_Shadows.Unbind(Application::Get().GetGraphics().GetContext());
     m_Shadows.Shutdown();
     m_Swarm.Shutdown();
@@ -97,6 +98,9 @@ void CollisionTestScene::Shutdown()
     m_Debris.Shutdown();
     m_Water.Shutdown();
     m_GrassFire.Shutdown();
+    m_Sand.Shutdown();
+    m_Footprints.Shutdown();
+    m_Miasma.Shutdown();
     m_Grass.Shutdown();
     m_GameUI.Shutdown();
     m_TitleUI.Shutdown();

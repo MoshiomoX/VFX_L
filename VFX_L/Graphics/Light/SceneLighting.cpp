@@ -66,6 +66,7 @@ void SceneLighting::ClearFog(Renderer& renderer)
     renderer.SetAlbedoSrgb(true);   // 既定（LightBuffer::albedoSrgb）
     LightBuffer def;                // トゥーンも切る（Renderer はシーンで共用。他のシーンは従来の陰影）
     renderer.SetToon(def.toonParams, def.toonShadowTint, def.toonRim);
+    renderer.SetAmbientOcclusion(def.aoViewProj, def.aoParams);   // SSAO も読まない（t12 は戦闘シーンだけが張る）
 }
 
 // ============================================================

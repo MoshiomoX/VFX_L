@@ -1,25 +1,25 @@
 // ============================================================
 // SwarmOrbPS.hlsl
-// Exp orb gem: self-lit crystal. Linear HDR out, bloom picks up
-// whatever goes over its threshold.
+// 経験玉の宝石: 自ら光る結晶。線形 HDR で出し、しきい値を超えた分は
+// ブルームが拾う。
 //
-//   body  : vertex color x g_Emissive, the flat faces shaded a little
-//           by the sun (g_Facet) so the spinning gem flickers
-//   glint : sharp sun highlight on the faces
-//   rim   : fresnel edge in g_RimColor
-// The whole thing is scaled by Color.a (SwarmOrbVS: brighter while
-// pulled) and fogged like every other lit surface.
+//   本体     : 頂点カラー x g_Emissive。平らな面を太陽で少し陰影付けする
+//              （g_Facet）ので、回る宝石がちらちら光る
+//   きらめき : 面に乗る鋭い太陽のハイライト
+//   リム     : g_RimColor のフレネルの縁
+// 全体を Color.a で拡大縮小し（SwarmOrbVS: 吸い寄せられている間は明るい）、
+// 他の受光する面と同じくフォグをかける。
 //
-// b0 = LightBuffer (sun direction, camera, fog), b1 = our tuning.
+// b0 = LightBuffer（太陽の向き、カメラ、フォグ）、b1 = こちらの調整値。
 // ============================================================
 #include "../Common/ModelCommon.hlsli"
 #include "../Common/Lighting.hlsli"
 
-// Must match SwarmSystem::OrbShadeCB
+// SwarmSystem::OrbShadeCB と一致させること
 cbuffer SwarmOrbShadeCB : register(b1)
 {
-    float g_Emissive;     // body brightness
-    float g_Facet;        // 0 = flat glow, 1 = faces fully sun-shaded
+    float g_Emissive;     // 本体の明るさ
+    float g_Facet;        // 0 = 平らに光る、1 = 面を太陽で完全に陰影付け
     float g_RimGain;
     float g_RimPower;
 
@@ -27,7 +27,7 @@ cbuffer SwarmOrbShadeCB : register(b1)
     float g_GlintPower;
     float2 _shadePad;
 
-    float4 g_RimColor;    // linear rgb
+    float4 g_RimColor;    // 線形 rgb
 };
 
 float4 main(PS_INPUT input) : SV_TARGET

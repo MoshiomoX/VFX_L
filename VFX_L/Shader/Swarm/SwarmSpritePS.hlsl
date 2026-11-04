@@ -1,7 +1,7 @@
 // ============================================================
 // SwarmSpritePS.hlsl
-// Same output as VFXSpritePS, the sheet is a slice of the sprite
-// texture array (flags bits 8-15).
+// 出力は VFXSpritePS と同じ。シートはスプライトの
+// テクスチャ配列の 1 枚（flags の 8-15 ビット）。
 // ============================================================
 #include "../Common/SpriteQuad.hlsli"
 

@@ -1,0 +1,11 @@
+# エディタの保存設定（Visual Studio 2017 以降 / VS Code の EditorConfig 拡張が従う）。
+root = true
+
+# HLSL は UTF-8（BOM なし）・CRLF。
+#   fxc は BOM があると X3000 で止まる。Shift-JIS だと「ソ・表・予」などの 2 バイト目（0x5C = \）で
+#   // コメントが次の行を飲み込む。日本語版 Windows の VS は ASCII だけのファイルに日本語を足すと
+#   既定で Shift-JIS で保存するので、ここで UTF-8 を指定する（すり抜けた分はビルド時に
+#   Tools/FixHlslEncoding.ps1 が直す）。
+[*.{hlsl,hlsli,fx,fxh}]
+charset = utf-8
+end_of_line = crlf

@@ -1,23 +1,23 @@
 // ============================================================
 // DebrisUpdateCS.hlsl
-// One step of the ground debris (World/GroundDebris, 2026-10-13).
-// One thread per piece:
-//   1) re-seat: the piece's lattice cell left the window (or g_Reset)
-//      -> put it at rest on the ground of its new cell (hash of the
-//      cell + terrain seed: same cell, same piece), hidden on cliffs
-//      and where the density thins it out.
-//   2) resting: the world wind at its spot (gust waves) above
-//      g_LiftWind, a Gust fan or an explosion lifts it (stochastic for
-//      the wind so a field does not jump at once).
-//   3) airborne: gravity + relax toward the air velocity (world wind,
-//      a Gust fan's stream, an explosion's outward blast) at g_Drag
-//      -> leaves fall slowly and chase the wind. Tumbles while in
-//      the air. Lands on the height map, one small bounce, then rests.
+// 地面の落ち葉（World/GroundDebris、2026-10-13）の 1 ステップ。
+// 1 枚に 1 スレッド：
+//   1) 置き直し：その葉の格子セルが窓から出た（または g_Reset）
+//      -> 新しいセルの地面に静止させて置く（セルのハッシュ
+//      + 地形のシード：同じセルなら同じ葉）。崖の上と、
+//      密度で間引かれる所では隠す。
+//   2) 静止中：その場所の世界風（突風の波）が g_LiftWind を
+//      超えたか、突風の扇か爆発があると舞い上がる（風は確率で
+//      判定し、一面が一斉に跳ねないようにする）。
+//   3) 空中：重力 + 空気の速度（世界風、突風の扇の流れ、
+//      爆発の外向きの爆風）へ g_Drag で寄せる
+//      -> 葉はゆっくり落ちて風を追う。空中では回転する。
+//      高さマップに着地し、小さく 1 回跳ねてから静止する。
 // ============================================================
 #include "DebrisCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 
-// = SwarmArea (Shader/Common/SwarmCommon.hlsli), 48 bytes. Only center / radius / flags are read
+// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / flags だけ
 struct DebrisArea
 {
     float3 center;
@@ -32,13 +32,13 @@ struct DebrisArea
     uint tickNow;
 };
 
-Texture2D<float> g_Height : register(t0);          // GridWorld heights (GrassRenderer's texture)
+Texture2D<float> g_Height : register(t0);          // GridWorld の高さ（GrassRenderer のテクスチャ）
 StructuredBuffer<DebrisArea> g_Areas : register(t1);
-Buffer<uint> g_AreaStates : register(t2);          // 0 = dead
-StructuredBuffer<float4> g_AreaEnds : register(t3); // capsule (beam) end per slot, from AreaTickCS
-StructuredBuffer<WindSource> g_WindSources : register(t4);   // local wind: the sand tornadoes (SwarmWindSourceCS, 2026-10-19)
+Buffer<uint> g_AreaStates : register(t2);          // 0 = 死んでいる
+StructuredBuffer<float4> g_AreaEnds : register(t3); // スロットごとのカプセル（光線）の終点、AreaTickCS から
+StructuredBuffer<WindSource> g_WindSources : register(t4);   // 局所風：砂旋（SwarmWindSourceCS、2026-10-19）
 SamplerState s_Linear : register(s0);
-#define DEBRIS_AREA_CAPSULE 4u   // SWARM_AREA_CAPSULE: the beam. Its centre is the muzzle, the body is the segment
+#define DEBRIS_AREA_CAPSULE 4u   // SWARM_AREA_CAPSULE：光線。中心は杖口で、本体は線分
 RWStructuredBuffer<Debris> g_Debris : register(u0);
 
 float GroundAt(float2 xz)
@@ -47,7 +47,7 @@ float GroundAt(float2 xz)
     return g_Height.SampleLevel(s_Linear, uv, 0);
 }
 
-// world wind at xz (the GrassVS gust formula, same clock as the blades and the particles)
+// xz での世界風（GrassVS の突風の式。草の葉・パーティクルと同じ時計）
 float2 WindAt(float2 xz)
 {
     float phase = dot(xz, g_WindDir) * g_WindWaveScale * 6.2831853 - g_WindTime * g_WindWaveSpeed;
@@ -56,7 +56,7 @@ float2 WindAt(float2 xz)
     return g_WindDir * (g_WindSpeed + g_WindGust * w);
 }
 
-// air velocity inside the Gust fans / discs (0 outside). lift = 1 if any covers xz
+// 突風の扇 / 円盤の中の空気の速度（外は 0）。どれかが xz を覆っていれば lift = 1
 float3 GustAir(float2 xz, out float lift)
 {
     float3 air = 0;
@@ -85,8 +85,8 @@ float3 GustAir(float2 xz, out float lift)
         if (along > -0.4 && along < len && side < r)
         {
             float2 flow = dir;
-            if (side > 1e-3) flow = normalize(dir + sideV / side * (0.35 * side / r));   // spreads a little
-            float s = strength * (1.0 - 0.6 * t) * (0.7 + 0.3 * (1.0 - side / r));       // strongest at the root, centre
+            if (side > 1e-3) flow = normalize(dir + sideV / side * (0.35 * side / r));   // 少し広がる
+            float s = strength * (1.0 - 0.6 * t) * (0.7 + 0.3 * (1.0 - side / r));       // 根元と中心線で最も強い
             air += float3(flow.x, 0.4, flow.y) * (g_GustSpeed * s);
             lift = 1.0;
         }
@@ -94,13 +94,13 @@ float3 GustAir(float2 xz, out float lift)
     return air;
 }
 
-// live shaking areas of this step, one bit per area slot (built once per group at the top of main, 2026-10-25:
-// before this every piece read all 256 area states). BlastAccel walks the set bits in slot order, so the sum
-// is added up in the same order as the old full loop
+// このステップで生きている揺れる範囲を、範囲スロット 1 つにつき 1 ビットで持つ（main の先頭でグループごとに 1 回作る。2026-10-25：
+// それ以前は葉 1 枚ごとに 256 個の範囲の状態を全部読んでいた）。BlastAccel は立っているビットをスロット順にたどるので、合計は
+// 昔の全走査のループと同じ順に足される
 #define DEBRIS_SHAKE_WORDS (DEBRIS_MAX_AREAS / 32u)
 groupshared uint gs_ShakeMask[DEBRIS_SHAKE_WORDS];
 
-// outward acceleration of the live explosion areas (Swarm::kAreaShake). lift = 1 inside one
+// 生きている爆発の範囲（Swarm::kAreaShake）が与える外向きの加速度。どれかの中なら lift = 1
 float3 BlastAccel(float3 pos, out float lift)
 {
     float3 acc = 0;
@@ -113,9 +113,9 @@ float3 BlastAccel(float3 pos, out float lift)
             uint a = w * 32u + firstbitlow(bits);
             bits &= bits - 1u;
             DebrisArea ar = g_Areas[a];
-            // the beam (2026-10-13): pushed sideways off the segment, a little along it, over a band 2.5 x its
-            // radius. Before this it was treated as a disc at its centre = the muzzle, so the leaves burst out
-            // from the player's feet instead of along the beam
+            // 光線（2026-10-13）：半径 × 2.5 の帯の中で、線分から横へ押し出し、少し線分に沿っても押す。
+            // 以前は中心 = 杖口の円盤として扱っていたので、葉が光線に沿ってではなく
+            // プレイヤーの足元から弾け飛んでいた
             if ((ar.flags & DEBRIS_AREA_CAPSULE) != 0u)
             {
                 float2 seg = g_AreaEnds[a].xz - ar.center.xz;
@@ -151,11 +151,11 @@ float3 BlastAccel(float3 pos, out float lift)
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 {
-    // ---- the live shaking areas as a bit mask (every thread of the group takes part, before any return) ----
+    // ---- 生きている揺れる範囲をビットマスクにする（どの return よりも前に、グループの全スレッドが参加する） ----
     if (gi < DEBRIS_SHAKE_WORDS)
         gs_ShakeMask[gi] = 0u;
     GroupMemoryBarrierWithGroupSync();
-    // DEBRIS_MAX_AREAS <= 256 = one area per thread (a loop here unrolls to one pass: X3557)
+    // DEBRIS_MAX_AREAS <= 256 = 1 スレッドに範囲 1 つ（ここをループにすると 1 周に展開されて X3557 が出る）
     if (gi < DEBRIS_MAX_AREAS)
     {
         if (g_AreaStates[gi] != 0u && (g_Areas[gi].flags & DEBRIS_AREA_SHAKE) != 0u)
@@ -169,12 +169,12 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 
     Debris d = g_Debris[i];
 
-    // ---- 1) lattice cell of this piece inside the current window (torus wrap) ----
+    // ---- 1) 今の窓の中での、この葉の格子セル（トーラス状に回り込む） ----
     int side = (int) g_Side;
     int ix = (int) (i % g_Side), iz = (int) (i / g_Side);
     int2 base = (int2) floor((g_CamPos.xz - g_Window) / g_Spacing);
     int kx = ix - base.x, kz = iz - base.y;
-    int cx = base.x + (kx - (int) floor((float) kx / (float) side) * side);   // wrap into [base, base + side)
+    int cx = base.x + (kx - (int) floor((float) kx / (float) side) * side);   // [base, base + side) に回り込ませる
     int cz = base.y + (kz - (int) floor((float) kz / (float) side) * side);
     uint cell = ((uint) cx & 0xFFFFu) | (((uint) cz & 0xFFFFu) << 16);
 
@@ -199,7 +199,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         d.rot = float3((DebrisRand(s) - 0.5) * 0.5, DebrisRand(s) * 6.2831853, (DebrisRand(s) - 0.5) * 0.5);
         d.air = 0.0;
         d.angVel = 0;
-        // kind: 50% leaf, 35% clipping, 15% twig
+        // 種類：葉 50%、草くず 35%、小枝 15%
         float kr = DebrisRand(s);
         uint kind = kr < 0.5 ? 0u : (kr < 0.85 ? 1u : 2u);
         d.seed = kind | ((s >> 8) & 0xFFFCu);
@@ -217,11 +217,11 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     float gustLift, blastLift;
     float3 gustAir = GustAir(d.pos.xz, gustLift);
     float3 blast = BlastAccel(d.pos, blastLift);
-    // local wind sources (the sand tornadoes): swirl around + updraft near the core
+    // 局所の風源（砂旋）：周りを渦巻く + 芯の近くの上昇気流
     float vortexLift;
     float3 vortexAir = WindSourceAir(g_WindSources, d.pos.xz, vortexLift);
 
-    // ---- 2) resting: lift? ----
+    // ---- 2) 静止中：舞い上がるか？ ----
     if (d.air < 0.5)
     {
         d.restT += g_Dt;
@@ -239,7 +239,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         }
         else if (vortexLift > 0.12 && d.restT > 0.1)
         {
-            // a tornado passing over: pieces peel off one after another (chance grows toward the core)
+            // 竜巻が通り過ぎる：葉が 1 枚ずつはがれる（芯へ近いほど確率が上がる）
             if (DebrisRand(rs) < vortexLift * 4.0 * g_Dt)
             {
                 lift = true;
@@ -248,7 +248,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         }
         else
         {
-            // weather wind: a piece's own threshold (0.75 .. 1.25 x) and a chance per second so the field ripples
+            // 天気の風：葉ごとの閾値（0.75 .. 1.25 倍）と毎秒の確率で、一面がさざ波のように動く
             float w = length(wind);
             float th = g_LiftWind * (0.75 + 0.5 * (float) ((d.seed >> 6) & 0xFFu) / 255.0);
             if (w > th && d.restT > 0.3)
@@ -263,7 +263,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         }
         if (!lift)
         {
-            // resting flutter in the wind: the card rocks a little (no position change)
+            // 静止中の風でのはためき：板が少し揺れる（位置は変えない）
             g_Debris[i] = d;
             return;
         }
@@ -275,7 +275,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         d.pos.y += 0.02;
     }
 
-    // ---- 3) airborne ----
+    // ---- 3) 空中 ----
     d.restT += g_Dt;
     float3 air = float3(wind.x, 0, wind.y) + gustAir + vortexAir;
     float3 acc = float3(0, -g_Gravity, 0) + blast + (air - d.vel) * g_Drag;
@@ -291,14 +291,14 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         float sp = length(d.vel);
         if (sp > 2.0 && gustLift < 0.5 && blastLift < 0.5 && vortexLift < 0.3)
         {
-            // one small skip along the ground
+            // 地面に沿って小さく 1 回跳ねる
             d.vel.y = -d.vel.y * 0.3;
             d.vel.xz *= 0.55;
             d.angVel *= 0.5;
         }
         else if (gustLift > 0.5 || blastLift > 0.5)
         {
-            // still inside the stream: keep sliding along the ground
+            // まだ流れの中：地面に沿って滑り続ける
             d.vel.y = max(d.vel.y, 0.0);
         }
         else
@@ -307,12 +307,12 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
             d.air = 0.0;
             d.restT = 0.0;
             d.angVel = 0;
-            // lie flat (keep the yaw)
+            // 平らに寝かせる（yaw は保つ）
             d.rot.x = (DebrisRand(rs) - 0.5) * 0.5;
             d.rot.z = (DebrisRand(rs) - 0.5) * 0.5;
         }
     }
-    // gone off the map's edge: keep it at least on the ground
+    // マップの端から出た：少なくとも地面の上には保つ
     d.pos.y = max(d.pos.y, ground + 0.015);
     g_Debris[i] = d;
 }

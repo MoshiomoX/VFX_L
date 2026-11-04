@@ -1,9 +1,9 @@
 // ============================================================
 // SwarmEnemyHpBarPS.hlsl
-// Border / fill / empty background of the mob HP bar. The quad
-// comes from SwarmEnemyHpBarVS; the fill is decided per pixel
-// from uv.x against the remaining-hp ratio.
-// Same cbuffer as the VS (SwarmHpBarCB, b0).
+// 雑魚の HP バーの枠 / 中身 / 空の背景。四角は
+// SwarmEnemyHpBarVS が作り、中身はピクセルごとに
+// uv.x と残り hp の割合を比べて決める。
+// cbuffer は VS と同じ（SwarmHpBarCB、b0）。
 // ============================================================
 cbuffer SwarmHpBarCB : register(b0)
 {
@@ -27,13 +27,13 @@ struct BarIn
 
 float4 main(BarIn i) : SV_TARGET
 {
-    // border thickness in uv units (same world thickness on all four sides)
+    // 枠の太さ（uv 単位。4 辺ともワールドで同じ太さ）
     float2 edge = float2(g_BarBorder / max(g_BarWidth, 1e-4),
                          g_BarBorder / max(g_BarHeight, 1e-4));
     if (any(i.uv < edge) || any(i.uv > 1.0 - edge))
         return g_BarEdge;
 
-    // position inside the border, 0..1
+    // 枠の内側での位置、0..1
     float x = (i.uv.x - edge.x) / max(1.0 - 2.0 * edge.x, 1e-4);
     return (x <= i.ratio) ? g_BarFill : g_BarBack;
 }

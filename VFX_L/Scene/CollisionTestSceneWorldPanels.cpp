@@ -78,6 +78,19 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
+        // ---- 遠くの雑魚の LOD（2026-11-02）----
+        if (ImGui::TreeNode("LOD (far mobs)"))
+        {
+            ImGui::Checkbox("Enabled##lod", &m_Swarm.lod.enabled);
+            ImGui::DragFloat("Distance (m)##lod", &m_Swarm.lod.distance, 0.5f, 0.0f, 200.0f);
+            if (m_Swarm.HasLod())
+                ImGui::Text("near: %u part draws / far: 1 draw, %u triangles",
+                    m_Swarm.LodPartDraws(), m_Swarm.LodMergedIndexCount() / 3);
+            else
+                ImGui::TextDisabled("not built");
+            ImGui::TreePop();
+        }
+
         // ---- 雑魚の足元の丸い影（太陽のシャドウマップには入れない代わり）----
         if (ImGui::TreeNode("Blob Shadows"))
         {

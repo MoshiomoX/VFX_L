@@ -1,16 +1,16 @@
 // ============================================================
 // EmitInit.hlsli
-// Shared by the GPU-side emitters that write particles straight into
-// the pool (SwarmEmitCS: projectiles / areas / orbs, GrassFireEmitCS:
-// burning grass). Pulled out of SwarmEmitCS on 2026-10-12 so the fire
-// emitter does not copy 40 lines of particle init.
+// パーティクルをプールへ直接書く GPU 側のエミッタで共有する
+// （SwarmEmitCS: 弾 / 範囲 / 経験玉、GrassFireEmitCS:
+// 燃える草）。2026-10-12 に SwarmEmitCS から切り出した。火の
+// エミッタがパーティクル初期化の 40 行をコピーしないため。
 //
-//   StochasticCount          emit count from a continuous rate, no drift
-//   EmitShape                position / velocity from the emitter's shape
-//   InitParticleFromEmitter  the particle itself (same as ParticleEmitCS)
+//   StochasticCount          連続的な発生率から放出数を出す。ずれが溜まらない
+//   EmitShape                エミッタの形状から位置 / 速度を出す
+//   InitParticleFromEmitter  パーティクルそのもの（ParticleEmitCS と同じ）
 //
-// Includes ParticleCommon and the Emit*.hlsli shapes; mesh emit is not
-// supported on this path (no source vertex buffer).
+// ParticleCommon と Emit*.hlsli の形状を include する。このパスでは
+// メッシュからの放出は使えない（元の頂点バッファが無い）。
 // ============================================================
 #ifndef EMIT_INIT_HLSLI
 #define EMIT_INIT_HLSLI
@@ -23,7 +23,7 @@
 #include "EmitRing.hlsli"
 #include "EmitDisc.hlsli"
 
-// emit count from a continuous rate without drift
+// 連続的な発生率から、ずれを溜めずに放出数を出す
 uint StochasticCount(float rate, float dt, inout uint seed)
 {
     float f = rate * dt;
@@ -33,7 +33,7 @@ uint StochasticCount(float rate, float dt, inout uint seed)
     return k;
 }
 
-// pos / vel start at the emitter's position / zero; the shape moves them
+// pos / vel はエミッタの位置 / 0 から始まり、形状がそれを動かす
 void EmitShape(GPUEmitter e, inout uint s, inout float3 pos, inout float3 vel)
 {
     switch (e.emitType)
@@ -57,11 +57,11 @@ void EmitShape(GPUEmitter e, inout uint s, inout float3 pos, inout float3 vel)
             EmitDisc(e, s, pos, vel);
             break;
         default:
-            break; // mesh emit not supported on this path
+            break; // このパスではメッシュからの放出は未対応
     }
 }
 
-// particle init: identical to ParticleEmitCS. ownerID 0 = unowned
+// パーティクルの初期化: ParticleEmitCS と同じ。ownerID 0 = 持ち主なし
 GPUParticle InitParticleFromEmitter(GPUEmitter e, uint s, float3 pos, float3 vel)
 {
     GPUParticle q = (GPUParticle) 0;
@@ -81,7 +81,7 @@ GPUParticle InitParticleFromEmitter(GPUEmitter e, uint s, float3 pos, float3 vel
     q.rotation = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
     q.angularVel = RandomRange(s, e.angularVelRange.x, e.angularVelRange.y);
 
-    // cube: 3 axes share the same ranges (same as ParticleEmitCS)
+    // 立方体: 3 軸とも同じ範囲を使う（ParticleEmitCS と同じ）
     q.renderMode = e.renderMode;
     q.rot3.x = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
     q.rot3.y = RandomRange(s, e.rotationRange.x, e.rotationRange.y);
@@ -95,7 +95,7 @@ GPUParticle InitParticleFromEmitter(GPUEmitter e, uint s, float3 pos, float3 vel
     q.atlasCols = e.atlasCols;
     InitParticleFrame(e.frameMode, e.atlasIndex, e.frameCount,
                       e.atlasRows, e.atlasCols, s, q.uvFrame, q.atlasAnimate);
-    q.colorKeyOffset = e.colorKeyoffset; // static region, offset 0-based
+    q.colorKeyOffset = e.colorKeyoffset; // 静的な領域、オフセットは 0 始まり
     q.colorKeyCount = e.colorKeyCount;
     q.ownerID = 0;
     return q;

@@ -99,6 +99,7 @@ json AreaProfile::ToJson() const
     j["freeze"] = freeze;
     j["cameraShake"] = cameraShake;
     if (heat != 0.0f) j["heat"] = heat;
+    if (wet > 0.0f) j["wet"] = wet;
     if (push > 0.0f) j["push"] = push;
     if (pull > 0.0f) j["pull"] = pull;
     if (forward != 0.0f) j["forward"] = forward;
@@ -135,6 +136,7 @@ void AreaProfile::FromJson(const json& j)
     freeze = j.value("freeze", freeze);
     cameraShake = j.value("cameraShake", cameraShake);
     heat = j.value("heat", heat);
+    wet = j.value("wet", wet);
     push = j.value("push", push);
     pull = j.value("pull", pull);
     forward = j.value("forward", forward);

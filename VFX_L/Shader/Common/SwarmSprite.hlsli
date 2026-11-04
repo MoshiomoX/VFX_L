@@ -1,46 +1,46 @@
 // ============================================================
 // SwarmSprite.hlsli
-// Sprite-sheet animations started by GPU areas (projectile hits).
-// SwarmSpriteCS starts one instance per Sprite entry of the area's recipe
-// when a new area shows up in a slot, ages the pool and retires finished
-// instances; SwarmSpriteVS/PS draw every live instance.
-// The instances live in their own ring pool, so an animation keeps
-// playing after its (short) area is gone.
-// Must match Swarm::VFXSpriteDef / Swarm::SpriteInstance in SwarmVFXTable.h
+// GPU の範囲（弾の命中）が始めるスプライトシートのアニメーション。
+// SwarmSpriteCS は、スロットに新しい範囲が現れると範囲のレシピの Sprite エントリ
+// ごとに 1 インスタンスを始め、プールの年齢を進め、終わったインスタンスを
+// 片付ける。SwarmSpriteVS/PS が生きているインスタンスをすべて描く。
+// インスタンスは専用のリングプールにあるので、（短い）範囲が消えた後も
+// アニメーションは再生を続ける。
+// SwarmVFXTable.h の Swarm::VFXSpriteDef / Swarm::SpriteInstance と一致させること
 // ============================================================
 #ifndef SWARM_SPRITE_HLSLI
 #define SWARM_SPRITE_HLSLI
 
-#define SWARM_SPRITE_ADDITIVE 1u // same bit as SPRITE_FLAG_ADDITIVE
+#define SWARM_SPRITE_ADDITIVE 1u // SPRITE_FLAG_ADDITIVE と同じビット
 #define SWARM_SPRITE_LOOP     2u
-// bits 8-15: slice of the sprite texture array
+// ビット 8-15: スプライトのテクスチャ配列のスライス
 
-// One Sprite entry of a recipe (80 bytes)
+// レシピの Sprite エントリ 1 つ（80 バイト）
 struct SwarmSpriteDef
 {
-    float3 offset;   // from the area centre
-    float height;    // metres
+    float3 offset;   // 範囲の中心から
+    float height;    // m
     float4 color;
-    float2 cellUV;   // frame size in uv of the array slice
-    float2 pivot;    // inside the frame, 0..1 from the top-left
+    float2 cellUV;   // 配列スライスの uv での 1 コマの大きさ
+    float2 pivot;    // コマの中、左上から 0..1
     uint cols;
     uint frameCount;
-    float frameTime; // seconds per frame, playback speed applied
-    float life;      // seconds an instance lives
+    float frameTime; // 1 コマの秒数、再生速度を掛けた後
+    float life;      // インスタンスが生きる秒数
     uint facing;     // SPRITE_FACING_*
     uint flags;
-    float rotation;  // radians
-    float aspect;    // width / height
+    float rotation;  // ラジアン
+    float aspect;    // 幅 / 高さ
 };
 
-// One live animation (32 bytes)
+// 再生中のアニメーション 1 つ（32 バイト）
 struct SwarmSprite
 {
     float3 position;
     float age;
     uint def;
     uint alive;
-    float sizeScale; // the area's size scale (Magnifier). 0 = 1
+    float sizeScale; // 範囲のサイズ倍率（拡大鏡）。0 = 1
     uint _pad;
 };
 

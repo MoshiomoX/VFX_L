@@ -1,7 +1,7 @@
 // ============================================================
-// VFXMeshVS.hlsl - VFX mesh. Same as the model VS; kept separate
-// so vertex animation can be added here later without touching
-// lit models.
+// VFXMeshVS.hlsl - エフェクトのメッシュ。中身はモデルの VS と同じだが、
+// 後で受光するモデルに触れずに頂点アニメーションを足せるよう
+// 別ファイルにしてある。
 // ============================================================
 #include "../Common/ModelCommon.hlsli"
 

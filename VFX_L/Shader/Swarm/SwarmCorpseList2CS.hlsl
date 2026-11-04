@@ -1,12 +1,12 @@
 // ============================================================
 // SwarmCorpseList2CS.hlsl
-// The second half of SwarmCorpseListCS (2026-10-25): that pass already
-// binds 8 UAVs, and the boss, the sand mage and the dash bomber used to
-// shatter in a borrowed skin (the zombie's / the red robot's) because of
-// it. Here they and the ruins enemies get their own lists, so every kind
-// shatters in its own skin. Same rule: entries still shattering
-// (0 <= age < g_CorpseLife) go into the list of their look.
-// (The cursed armor's first death never writes a corpse: it collapses.)
+// SwarmCorpseListCS の後半（2026-10-25）: あちらのパスは既に UAV を 8 本
+// 使い切っていて、そのせいでボス・砂嵐の術師・突撃爆弾兵は借り物の皮
+// （ゾンビ / 赤いロボットのもの）で砕けていた。
+// ここでそれらと遺跡の敵に専用の一覧を持たせ、どの種類も自分の皮で
+// 砕けるようにする。規則は同じで、まだ砕けている途中のもの
+// （0 <= age < g_CorpseLife）を見た目ごとの一覧に入れる。
+// （呪いの鎧は 1 回目の死では崩れ落ちるだけで、死体を書かない。）
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 

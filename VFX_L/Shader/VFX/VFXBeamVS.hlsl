@@ -1,10 +1,10 @@
 // ============================================================
 // VFXBeamVS.hlsl
-// Beam entry (CPU). One instance = one layer of one beam
-// (instance / 3 = beam, instance % 3 = layer). SV_VertexID builds a
-// ribbon of BEAM_SEGMENTS quads from start to end, turned toward the
-// camera around the beam axis. uv.x = distance along the beam (m),
-// uv.y = -1..1 across.
+// Beam エントリ（CPU）。1 インスタンス = 光線 1 本の層 1 つ
+// （instance / 3 = 光線、instance % 3 = 層）。SV_VertexID で始点から終点まで
+// BEAM_SEGMENTS 枚の四角の帯を作り、光線の軸を中心に
+// カメラの方へ回す。uv.x = 光線に沿った距離 (m)、
+// uv.y = 横方向に -1..1。
 // ============================================================
 #include "../Common/BeamCommon.hlsli"
 
@@ -50,7 +50,7 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float d = t * len;
     float3 p = b.start + axis * d;
 
-    // lightning: kink the boundary sideways (2026-10-15)
+    // 稲妻: 区間の境目を横に折る（2026-10-15）
     float flicker = 1.0;
     if (b.jitter > 0.0)
     {
@@ -59,7 +59,7 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
         flicker = 0.7 + 0.6 * BeamHash(float2(phase, 3.3));
     }
 
-    // ribbon faces the camera around the axis
+    // 帯は軸を中心にカメラの方を向く
     float3 toCam = g_CamPos - p;
     float3 side = cross(axis, toCam);
     float sl = length(side);

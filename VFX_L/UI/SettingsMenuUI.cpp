@@ -41,6 +41,8 @@ SettingsMenuUI::SettingsMenuUI()
         { L"敵味方の縁取り", Kind::Toggle, 0, &GameSettings::factionOutline },   // 陣営の線だけ（トゥーンの黒い線は消えない。2026-10-08）
         { L"ダメージの数字", Kind::Toggle, 0, &GameSettings::damageNumbers },    // 敵の頭の上の数字 + 受けた赤い数字（2026-10-19）
         { L"FPS の表示",     Kind::Toggle, 0, &GameSettings::showFps },          // 右上のミニマップの下（2026-10-20）
+        { L"カメラの距離",   Kind::Volume, 0, nullptr, &GameSettings::cameraDistance, 0.8f, 1.3f },   // 80〜130%（2026-11-02）
+        { L"カメラの自動調整", Kind::Toggle, 0, &GameSettings::smartCamera },    // 囲まれたら引く・Boss を画面に入れる（2026-11-02）
         { L"戻る",         Kind::Back,   0 },
     };
 }
@@ -104,7 +106,9 @@ float SettingsMenuUI::GetValue(const Row& r) const
 {
     switch (r.kind)
     {
-    case Kind::Volume: return AudioSystem::Get().GetVolume((AudioSystem::Bus)r.bus);
+    case Kind::Volume:
+        if (r.num) return std::clamp((GameSettings::Get().*r.num - r.lo) / (r.hi - r.lo), 0.0f, 1.0f);
+        return AudioSystem::Get().GetVolume((AudioSystem::Bus)r.bus);
     case Kind::Toggle: return (r.flag && GameSettings::Get().*r.flag) ? 1.0f : 0.0f;
     default:           return 0.0f;
     }
@@ -118,7 +122,8 @@ void SettingsMenuUI::SetValue(const Row& r, float v)
     {
         v = std::clamp(v, 0.0f, 1.0f);
         if (std::fabs(v - GetValue(r)) < 1e-4f) return;
-        AudioSystem::Get().SetVolume((AudioSystem::Bus)r.bus, v);
+        if (r.num) GameSettings::Get().*r.num = r.lo + (r.hi - r.lo) * v;
+        else AudioSystem::Get().SetVolume((AudioSystem::Bus)r.bus, v);
         m_Dirty = true;
         break;
     }
@@ -385,7 +390,9 @@ void SettingsMenuUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const std:
             const float kx = innerX + innerW * v;
             sprite.Draw(white, { kx - knob * 0.5f, cy - knob * 0.5f }, { knob, knob }, sel ? gold : Vector4(gold.x, gold.y, gold.z, 0.6f), 0.785398f, { kx, cy });
 
-            const std::wstring num = std::to_wstring((int)std::lround(v * 100.0f));
+            const std::wstring num = r.num
+                ? std::to_wstring((int)std::lround(GameSettings::Get().*r.num * 100.0f)) + L"%"
+                : std::to_wstring((int)std::lround(v * 100.0f));
             const Vector2 ns = text.Measure(num, valueScale);
             // 数字はスライダーの左（ラベルと操作部の間）に右寄せ
             text.Draw(num, { cp.x - ns.x - m_RowH * 0.2f, cy - ns.y * 0.5f }, textCol, valueScale);

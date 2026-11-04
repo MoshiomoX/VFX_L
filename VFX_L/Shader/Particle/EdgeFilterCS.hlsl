@@ -1,16 +1,16 @@
 // ============================================
 // EdgeFilterCS.hlsl
-// Build the list of source vertices that sit on the dissolve edge.
-// One thread per vertex. Same noise lookup as VFXMeshPS:
+// ディゾルブの縁に乗っている発生元の頂点のリストを作る。
+// 1 頂点に 1 スレッド。ノイズの引き方は VFXMeshPS と同じ：
 //   n = noise(uv * tiling + scroll).r
-// PS keeps  n >= threshold  and paints  n < threshold + edge  as the
-// burning rim, so that band is what we collect here.
-// Output is an AppendStructuredBuffer of vertex indices; the caller
-// copies its count to a small buffer that EmitCS reads (no readback).
+// PS は  n >= threshold  を残し、 n < threshold + edge  を燃える
+// 縁として塗るので、ここではその帯を集める。
+// 出力は頂点インデックスの AppendStructuredBuffer。呼び出し側がその数を
+// EmitCS が読む小さなバッファにコピーする（リードバックなし）。
 // ============================================
 #include "Common/ParticleCommon.hlsli"
 
-// b0 / b1 belong to ParticleCommon (unused here)
+// b0 / b1 は ParticleCommon のもの（ここでは未使用）
 cbuffer EdgeFilterCB : register(b2)
 {
     float2 g_NoiseTiling;

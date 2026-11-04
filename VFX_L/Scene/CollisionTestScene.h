@@ -40,6 +40,9 @@
 #include "Graphics/Renderer/StaticPropRenderer.h"
 #include "Graphics/Renderer/GrassRenderer.h"
 #include "World/GrassFireField.h"
+#include "World/SandField.h"
+#include "World/SandFootprints.h"
+#include "World/MiasmaField.h"
 #include "World/GroundDebris.h"
 #include "World/WaterSurface.h"
 #include "World/Tumbleweeds.h"
@@ -69,6 +72,7 @@
 #include "Enemy/SandTornadoFx.h"
 #include "Graphics/Light/SceneLighting.h"
 #include "Graphics/PostProcess/Outline.h"
+#include "Graphics/PostProcess/AmbientOcclusion.h"
 #include "Graphics/Light/ShadowMap.h"
 #include "Debug/StressTestTools.h"
 #include "Debug/SpellLab.h"
@@ -183,6 +187,7 @@ private:
     void UpdatePlayerIntro(float dt);
     void EndPlayerIntro();
     void ApplyIceFloor();                                       // 凍った池の上に立たせる（CollisionTestSceneField.cpp。2026-11-01）
+    void ApplyGrassCover();                                     // 草の覆いの図を地面の材質へ（草を建て直した後。CollisionTestSceneField.cpp。2026-11-02）
     void StartPlayerDeath();                                    // プレイヤーの死の演出（CollisionTestScenePlayerDeath.cpp。2026-11-01）
     void UpdatePlayerDeath(float dt);
     void PushEnemiesAway(float radius);
@@ -270,6 +275,9 @@ private:
     StaticPropRenderer      m_StaticProps;   // 野原の置物（ModelComponent::batched）をまとめて描く
     GrassRenderer           m_Grass;         // 野原の草（GPU で生やす葉。風・踏み跡）
     GrassFireField          m_GrassFire;     // 草の延焼（温度・燃料のテクスチャ。爆発・火球が熱源、見た目だけ。2026-10-12）
+    SandField               m_Sand;          // 砂漠の砂の面（濡れ・熱・陽炎・凹み。2026-11-02、CollisionTestSceneSand.cpp）
+    SandFootprints          m_Footprints;    // 砂漠のプレイヤーの足跡（2026-11-03、CollisionTestSceneSand.cpp）
+    MiasmaField             m_Miasma;        // 遺跡の瘴気（3D の濃さの箱。風で散る・巻き上がる・火で晴れる。2026-11-03、CollisionTestSceneMiasma.cpp）
     GroundDebris            m_Debris;        // 地面の落ち葉・草屑・小枝（突風・爆発・強風で舞う。2026-10-13）
     WaterSurface            m_Water;         // 水たまりの水面（風・足・雨・爆発の時だけ動く。2026-10-27）
     Tumbleweeds             m_Tumbleweeds;   // 転がり草（砂漠・遺跡。風・竜巻・渦・突風に転がされ巻き上げられる。2026-10-22）
@@ -289,6 +297,7 @@ private:
     BattleAudio             m_Audio;               // 戦闘の音（GPU の範囲・プレイヤーの動き・BGM。2026-10-03）
     SceneLighting           m_Lighting;            // 太陽・環境光・シーン光源
     Outline                 m_Outline;             // トゥーンのアウトライン（2026-10-04。不透明な物の後、草の前）
+    AmbientOcclusion        m_AmbientOcclusion;    // SSAO（2026-11-02。アウトラインの後に作り、次のフレームの陰影が明暗の境を押すのに読む）
     ShadowMap               m_Shadows;             // 太陽の影（3 段のカスケード）
     EliteSpawner            m_Elites;              // エリートの的（CPU）
     MobSpawner              m_Mobs;                // 雑魚の湧き（GPU へ依頼）
@@ -472,6 +481,17 @@ private:
     char         m_MapNameBuf[64] = "map01";   // Terrain パネルの名前欄
     // 地形を建てる：m_MapFile があれば読む（失敗したら生成）、無ければ seed から生成。実体・格子・記録・草のマス
     void BuildTerrain(std::vector<uint8_t>& grassMask);
+    void LimitGrassToOasis(std::vector<uint8_t>& grassMask) const;   // 砂漠：草は水たまりの周りだけ（2026-11-02）
+    // 砂の面（CollisionTestSceneSand.cpp、2026-11-02）
+    void BuildSandField();          // 地形の後（Build + 砂漠かどうか）
+    void PushSand();                // PushWind の中：風・プレイヤーの足・陽炎の入力
+    void StepSand();                // 描画の中、地形の前
+    void UpdateFootprints(float dt); // gameplay：一歩を足跡にして、年と風で消す
+    void RenderFootprints(const DirectX::SimpleMath::Vector3& sunDir);   // 描画の中、地形と不透明物の後（深度は読むだけ）
+    // 遺跡の瘴気（CollisionTestSceneMiasma.cpp、2026-11-03）
+    void BuildMiasma();             // 地形の後（Build + 遺跡かどうか）
+    void PushMiasma();              // PushWind の中：風・箱の中心
+    void RenderMiasma();            // 描画の中、水の後・群れの重ね描きの前（1 歩 + 描く）
     // 古い地形を消して建て直し、後処理（置物の描画表・草・GPU の格子表・箱）まで行う（Terrain パネル・自動テスト）
     void RebuildTerrain();
     // トレーニング（実験場）のフィールド切替（2026-10-20、ユーザー「トレーニングからフィールドに入る。モードはそのまま」）：

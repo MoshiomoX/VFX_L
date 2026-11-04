@@ -306,6 +306,7 @@ namespace TerrainBuild
         int   minCells = 8;          // これより小さい台地は消す
         int   spawnClear = 8;        // 中央のこの半径（マス）は 0 段のまま
         float pondCoverage = 0.04f;  // 水たまりが 0 段の平地に占める割合
+        float pondScale = 14.0f;     // 水たまりを選ぶノイズの波長（m）。大きいほど少なく大きな池（砂漠のオアシス 34。2026-11-02）
         float pondDepth = 0.5f;
         // 水たまりを起伏の膨らみ・坂に置かない（2026-10-28）
         float pondConvexTol = 0.03f; // 真ん中が隣の 8 マス（2m 先）の平均よりこれ以上高い = 凸 → 置かない（m）

@@ -1,21 +1,21 @@
 // ============================================================
 // SwarmSpikeBallVS.hlsl
-// The spike ball (SWARM_KIND_SPIKEBALL, 2026-10-17): a desert enemy
-// that is a rolling ball of spikes instead of a blocky body. One
-// instance per spike ball (the spike ball draw list, count by
-// DrawIndexedInstancedIndirect). The mesh is built in code
-// (PrimitiveBuilder::CreateSpikeBall, radius 1, colours in the vertices)
-// and drawn with the enemy pixel shader and the default white texture,
-// so the colour is vertex colour x g_ShieldTint.
+// トゲ玉（SWARM_KIND_SPIKEBALL、2026-10-17）: 箱型の体ではなく、
+// 転がるトゲの玉になっている砂漠の敵。トゲ玉 1 つに 1 インスタンス
+// （トゲ玉の描画リスト、数は DrawIndexedInstancedIndirect）。メッシュは
+// コードで作り
+// （PrimitiveBuilder::CreateSpikeBall、半径 1、色は頂点に入っている）、
+// 敵のピクセルシェーダーと既定の白テクスチャで描くので、
+// 色は頂点カラー x g_ShieldTint になる。
 //
-// The ball sits on the ground (centre = feet + radius), scaled by the
-// kind's body size (SwarmKindScale) and turned by its orientation in
-// enemyRoll (2026-10-25): SwarmEnemyMoveCS chains every step's roll
-// (distance moved / radius about up x travel) onto it, so speeding up,
-// slowing down and turning never snap the pose (it used to be animTime x
-// speed / radius about the current velocity). A ball that has never rolled
-// keeps a fixed pose per slot. Hit flash and ice tint like the body.
-// Frozen = stops rolling.
+// 玉は地面に乗り（中心 = 足元 + 半径）、種類の体格（SwarmKindScale）で
+// 拡大し、enemyRoll の向きで回す（2026-10-25）: SwarmEnemyMoveCS が
+// 毎ステップの転がり（進んだ距離 / 半径 を 上 x 進行方向 の軸まわりに）を
+// 積み重ねていくので、加速・減速・方向転換で姿勢が飛ばない（以前は
+// 今の速度まわりに animTime x 速度 / 半径 だった）。一度も転がっていない玉は
+// スロットごとに決まった姿勢のまま。被弾の光と氷の色は体と同じ。
+// 凍ると転がるのをやめる。
+//
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -27,20 +27,20 @@
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> spikeBallList : register(t2);
-StructuredBuffer<float4> enemyRoll : register(t3);   // orientation (quaternion) per slot, SwarmEnemyMoveCS
+StructuredBuffer<float4> enemyRoll : register(t3);   // スロットごとの向き（クォータニオン）、SwarmEnemyMoveCS
 StructuredBuffer<float4> enemySlow : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
-// C++ mirror: SwarmSystem::PropMeshCB (same block as SwarmShieldVS)
+// C++ 側: SwarmSystem::PropMeshCB（SwarmShieldVS と同じブロック）
 cbuffer SwarmPropMeshCB : register(b4)
 {
-    float3 g_MeshAnchor; // unused (the mesh is centred on its origin)
-    float g_MeshScale;   // mesh radius 1 -> metres (the body radius at scale 1)
-    float3 g_HoldOffset; // y = centre height above the feet at scale 1
-    float g_MeshYaw;     // unused
-    float4 g_ShieldTint; // multiplies the vertex colour
-    float g_BobAmount;   // unused (the roll rate goes to MoveCS as BomberCB's g_SpikeBallRollPerMeter, 2026-10-25)
-    float g_PropAlpha;   // unused
+    float3 g_MeshAnchor; // 使わない（メッシュは原点中心）
+    float g_MeshScale;   // メッシュの半径 1 -> m（倍率 1 のときの体の半径）
+    float3 g_HoldOffset; // y = 倍率 1 のときの足元からの中心の高さ
+    float g_MeshYaw;     // 使わない
+    float4 g_ShieldTint; // 頂点カラーに掛ける
+    float g_BobAmount;   // 使わない（転がる速さは BomberCB の g_SpikeBallRollPerMeter として MoveCS へ、2026-10-25）
+    float g_PropAlpha;   // 使わない
     float2 _propPad;
 };
 
@@ -54,7 +54,7 @@ struct VS_INPUT_INST
     uint InstanceID : SV_InstanceID;
 };
 
-static const float3 kIceTint = float3(0.75, 1.05, 1.7); // same as SwarmEnemyVS
+static const float3 kIceTint = float3(0.75, 1.05, 1.7); // SwarmEnemyVS と同じ
 
 VS_OUTPUT main(VS_INPUT_INST input)
 {
@@ -63,7 +63,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     SwarmEnemyExtra ex = enemyExtra[slot];
     if (enemyStates[slot] == SWARM_DEAD || ex.kind != SWARM_KIND_SPIKEBALL)
     {
-        o.Position = float4(0, 0, -1, 1); // clipped
+        o.Position = float4(0, 0, -1, 1); // クリップされる
         return o;
     }
 
@@ -72,7 +72,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float k = SwarmKindScale(ex.kind);
     float radius = g_MeshScale * k;
 
-    // rolling: the orientation MoveCS has built up from the distance it really moved (see the header)
+    // 転がり: MoveCS が実際に進んだ距離から積み上げた向き（冒頭の説明参照）
     float4 roll = SwarmSpikeBallRoll(enemyRoll[slot], slot);
     float3 local = SwarmQuatRotate(roll, input.Position * radius);
     float3 normal = SwarmQuatRotate(roll, input.Normal);

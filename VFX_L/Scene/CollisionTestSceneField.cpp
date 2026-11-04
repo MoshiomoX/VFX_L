@@ -11,6 +11,19 @@
 #include "Player/PlayerStatsComponent.h"
 #include "VFX_Editor/VFXId.h"
 #include "World/ClimbMap.h"
+#include "Graphics/Renderer/TerrainSurface.h"
+
+// ============================================================
+// 草の下の地面を暗くする（2026-11-02、ユーザー：葉の間から透ける地面が明るくて見栄えが悪い）：
+// 草の「生やす所」の図（GrassRenderer::GetGroundSRV の a）を地面の材質（TerrainSurface）へ渡す。
+// 草を建て直す度に呼ぶ（SRV が作り直される）。草が切れていれば外す
+// ============================================================
+void CollisionTestScene::ApplyGrassCover()
+{
+    const bool on = m_Grass.GetSettings().enabled;
+    TerrainSurface::Get().SetGrassCover(on ? m_Grass.GetGroundSRV() : nullptr,
+        Vector2(m_Grid.OriginX(), m_Grid.OriginZ()), Vector2(m_Grid.WorldWidth(), m_Grid.WorldDepth()));
+}
 
 // ============================================================
 // 凍った池：氷は水面の高さ、池の底はその下なので、凍っている間はプレイヤーを氷の上に立たせる。
@@ -83,6 +96,8 @@ void CollisionTestScene::PushWind()
     m_Swarm.SetGrassFireDamage(m_GrassFire.GetSRV(), m_GrassFire.MapOrigin(), m_GrassFire.MapSize(),
         fs.fireDps * fs.fireTick * power, fs.fireTick);
     m_Swarm.SetIceMaps(m_Water.GetIceSRV(), m_Water.GetPondTopSRV());
+    PushSand();   // 砂漠の砂の面：風・足・陽炎（2026-11-02）
+    PushMiasma(); // 遺跡の瘴気：風・箱の中心（2026-11-03）
 }
 
 // ============================================================

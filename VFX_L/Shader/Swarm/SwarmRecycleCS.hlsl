@@ -1,14 +1,14 @@
 // ============================================================
 // SwarmRecycleCS.hlsl
-// Pool is full but the director still wants spawns: instead of
-// killing the farthest enemies and re-spawning, far-enough alive
-// enemies claim a pending request and overwrite themselves with
-// it (position, hp, speed -- everything). No sort, no free slot.
+// プールは満杯なのにディレクターがまだ湧かせたい時: 一番遠い敵を
+// 殺して生成し直す代わりに、十分遠くにいる生きた敵が保留中の要求を
+// 1 つ取り、それで自分を上書きする（位置、HP、速度 -- 全部）。
+// ソートも空きスロットも要らない。
 //
-// "Far enough" is a distance threshold, not "the N farthest".
-// First come first served among those past the threshold; if
-// nobody is far enough the requests are simply dropped, which is
-// the intended behaviour when the whole crowd is on the player.
+// 「十分遠い」は距離のしきい値で、「遠い順の N 体」ではない。
+// しきい値を越えた中で早い者勝ち。誰も十分遠くなければ要求は
+// 単に捨てる。群れ全体がプレイヤーに張り付いている時は
+// それで意図どおり。
 // ============================================================
 #define SWARM_AI_CB_REG b2
 #include "../Common/SwarmCommon.hlsli"
@@ -17,19 +17,19 @@ StructuredBuffer<SwarmEnemy> spawnRequests : register(t0);
 Buffer<uint> enemyStates : register(t1);
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer claim : register(u1);
-// spawn hp per slot for the HP bar (see SwarmSpawnEnemyCS)
+// HP バー用の、スロットごとの生成時 HP（SwarmSpawnEnemyCS を参照）
 RWStructuredBuffer<uint> enemyMaxHp : register(u2);
-// kind + fuse per slot (see SwarmSpawnEnemyCS). A lit bomber that gets
-// recycled forgets its fuse
+// スロットごとの種類 + 導火線（SwarmSpawnEnemyCS を参照）。点火済みの自爆兵が
+// 転送されると導火線は忘れる
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
-// poison slow per slot: a recycled enemy is a new one, unslowed
-RWStructuredBuffer<float4> enemySlow : register(u4); // slow + freeze (float4 since 2026-10-08)
-RWStructuredBuffer<float4> enemyPush : register(u5); // knockback (the Gust, 2026-10-12): cleared with the slow
-RWStructuredBuffer<float4> enemyPoison : register(u6); // stored toxin (2026-10-17): cleared too
-// the damage numbers' hp of last frame (SwarmDamageTextCS, 2026-10-25): the new spawn hp + SWARM_PREVHP_RECYCLED, so the
-// old hp minus the new one is not printed as damage here and the old enemy's pending numbers are dropped.
-// (No UAV is left for the state word: its element / lifesteal bits stay until the new enemy's first hit rewrites them,
-// and every hp loss comes with that rewrite, the toxin having been cleared above)
+// スロットごとの毒の減速: 転送された敵は新しい敵なので減速なし
+RWStructuredBuffer<float4> enemySlow : register(u4); // 減速 + 凍結（2026-10-08 から float4）
+RWStructuredBuffer<float4> enemyPush : register(u5); // ノックバック（突風、2026-10-12）: 減速と一緒に消す
+RWStructuredBuffer<float4> enemyPoison : register(u6); // 溜まった毒素（2026-10-17）: これも消す
+// ダメージ数字用の前フレームの HP（SwarmDamageTextCS、2026-10-25）: 新しい生成時 HP + SWARM_PREVHP_RECYCLED にして、
+// 旧 HP と新 HP の差をここでダメージとして出さず、旧い敵の保留中の数字も捨てさせる。
+// （状態ワード用の UAV はもう残っていない: その属性 / 吸血ビットは新しい敵が初めて当たった時に書き直されるまで残るが、
+// HP が減る時は必ずその書き直しが伴う。毒素は上で消してある）
 RWBuffer<uint> prevHp : register(u7);
 
 cbuffer SwarmRecycleCB : register(b1)
@@ -53,9 +53,9 @@ void main(uint3 id : SV_DispatchThreadID)
     float dSq = d.x * d.x + d.z * d.z;
     if (dSq < g_RecycleMinDistSq)
         return;
-    // elites / the boss are never recycled into a plain mob: they keep chasing.
-    // Ghosts neither (they fly straight in). Splitters and splitlings can be (2026-10-03: they are
-    // numbered after the ghost, so the old "kind >= ELITE" test would have pinned them far away)
+    // エリート / ボスは普通の雑魚へ転送しない: そのまま追い続ける。
+    // 幽霊も同じ（まっすぐ飛んでくる）。スプリッターと分裂体は転送できる（2026-10-03: 種類番号が
+    // 幽霊より後なので、旧来の「kind >= ELITE」判定だと遠くに置き去りにされていた）
     uint kind = enemyExtra[i].kind;
     if (SwarmIsBigElite(kind) || kind == SWARM_KIND_BOSS || SwarmIsGhost(kind) || kind == SWARM_KIND_TORNADO)
         return;

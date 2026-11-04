@@ -1,20 +1,20 @@
 // ============================================================
 // SwarmIceLift.hlsli
-// Frozen ponds (World/WaterSurface, 2026-11-01): the ice lies at the water
-// line, 0.35 m above the pond floor an enemy walks on, so its feet sank into
-// the sheet. Only what is drawn is lifted (the body, its hp bar, its blob
-// shadow); the hit capsule stays on the floor.
-// Include after SwarmCommon.hlsli with its bomber cbuffer declared (g_IceOn
-// and the fire map's origin / size, the same map), after defining the two
-// texture registers. The caller checks g_IceOn before calling IceLift.
+// 凍った池（World/WaterSurface、2026-11-01）: 氷は水面の高さにあり、敵が歩く
+// 池底より 0.35 m 上なので、足が氷にめり込んでいた。
+// 持ち上げるのは描画だけ（体、HP バー、丸影）で、
+// 当たり判定のカプセルは池底のまま。
+// SwarmCommon.hlsli とその bomber cbuffer の宣言（g_IceOn と、同じマップである
+// 延焼マップの origin / size）の後、2 つのテクスチャレジスタを define した
+// 後に include する。IceLift を呼ぶ前に g_IceOn は呼び出し側で確認する。
 // ============================================================
 #ifndef SWARM_ICE_LIFT_HLSLI
 #define SWARM_ICE_LIFT_HLSLI
 
-Texture2D<float> g_IceMap : register(SWARM_ICE_MAP_REG);    // 1 = just frozen .. 0 = open water
-Texture2D<float> g_PondTop : register(SWARM_POND_TOP_REG);  // the water line, far below the ground outside a pond
+Texture2D<float> g_IceMap : register(SWARM_ICE_MAP_REG);    // 1 = 凍ったばかり .. 0 = 水面
+Texture2D<float> g_PondTop : register(SWARM_POND_TOP_REG);  // 水面の高さ。池の外は地面よりずっと低い値
 
-// how far to lift a body standing at xz with its feet at footY (0 off the ice; eases in over the ice's edge)
+// xz に立ち、足が footY にある体をどれだけ持ち上げるか（氷の外は 0。氷の縁でなめらかに立ち上がる）
 float IceLift(float2 xz, float footY)
 {
     uint w, h;

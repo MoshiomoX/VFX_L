@@ -1,8 +1,8 @@
 // ============================================================
 // WaterVS.hlsl
-// The pond water surface (World/WaterSurface). No vertex buffer: the
-// mesh is a structured buffer of float4 (world position, distance to
-// the shore), three per triangle, read by SV_VertexID.
+// 池の水面（World/WaterSurface）。頂点バッファなし：メッシュは
+// float4（ワールド位置、岸までの距離）の構造化バッファで、
+// 三角形 1 つに 3 個、SV_VertexID で読む。
 // ============================================================
 #include "WaterCommon.hlsli"
 

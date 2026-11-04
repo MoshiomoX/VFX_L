@@ -1,24 +1,24 @@
 // ============================================================
 // SwarmProjTrailCS.hlsl
-// Ribbon trail of GPU projectiles (2026-10-15). One thread per
-// projectile slot, run every fixed step right after ProjMoveCS.
+// GPU の弾の帯状の軌跡（2026-10-15）。弾のスロット 1 つにつき
+// 1 スレッド、固定ステップごとに ProjMoveCS の直後に走る。
 //
-// Every slot owns a ring of TRAIL_POINTS positions (same layout and
-// style table as the particle trails, ParticleTrail.hlsli). A slot
-// whose recipe has a Trail entry (recipeTrail[vfxType] != 0) pushes
-// its position into the ring whenever its age crosses the sampling
-// grid of lifetime / (TRAIL_POINTS - 1). A dead slot is reset, so the
-// next projectile that lands in it starts a fresh ribbon. SwarmSpawnProjCS
-// also clears the state when it reuses a slot (2026-10-25): a shot killed
-// by HitCS in the last step of a frame is reused before this pass has seen
-// it die, and the new ribbon used to start from the old shot's points.
+// どのスロットも TRAIL_POINTS 個の位置のリングを持つ（並びと
+// スタイル表はパーティクルの軌跡、ParticleTrail.hlsli と同じ）。
+// レシピに Trail エントリがあるスロット（recipeTrail[vfxType] != 0）は、
+// 経過時間が lifetime / (TRAIL_POINTS - 1) の格子をまたぐたびに
+// 自分の位置をリングに押し込む。死んだスロットはリセットするので、
+// 次にそこに入った弾は新しい帯から始まる。SwarmSpawnProjCS も
+// スロットを使い回す時に状態を消す（2026-10-25）：フレームの最後の
+// ステップで HitCS に消された弾は、このパスが死を見る前に使い回され、
+// 新しい帯が古い弾の点から始まっていた。
 //
-// trailState : bits 0-7 ring write position, bits 8-15 valid samples,
-//              bit 16 = draining (the projectile died; the ribbon keeps
-//              being fed with the impact point so the tail catches up =
-//              "sinks into the enemy"), bits 17-24 = samples pushed
-//              since the death (TRAIL_POINTS of them = fully drained)
-// trailAge   : seconds since the slot became alive (the grid clock)
+// trailState : bit 0-7 リングの書き込み位置、bit 8-15 有効なサンプル数、
+//              bit 16 = 吸い込み中（弾が死んだ。帯には着弾点を
+//              入れ続けるので尾が追いつく =
+//              「敵の中に吸い込まれる」）、bit 17-24 = 死んでから
+//              押し込んだサンプル数（TRAIL_POINTS 個で排出完了）
+// trailAge   : スロットが生きてからの秒（格子の時計）
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 #include "../Particle/Common/ParticleTrail.hlsli"
@@ -45,7 +45,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (!alive && state == 0u)
         return;
 
-    // the slot keeps the projectile's last data after it dies (until it is reused)
+    // スロットは弾が死んだ後も最後のデータを持っている（使い回されるまで）
     SwarmProjectile p = projectiles[i];
     uint style = recipeTrail[p.vfxType];
     if (style == 0u)
@@ -61,13 +61,13 @@ void main(uint3 id : SV_DispatchThreadID)
     bool draining = (state & PROJ_TRAIL_DRAINING) != 0u;
     if (alive && draining)
     {
-        // the slot was reused before the old ribbon drained away: start fresh
+        // 古い帯が排出し切る前にスロットが使い回された：最初からやり直す
         state = 0u;
         draining = false;
         trailAge[i] = 0.0;
     }
     if (!alive)
-        draining = true; // just died, or still draining
+        draining = true; // 今死んだ、またはまだ吸い込み中
 
     TrailStyle s = trailStyles[style - 1u];
     float interval = TrailInterval(s.lifetime);
@@ -83,9 +83,9 @@ void main(uint3 id : SV_DispatchThreadID)
     uint cellNow = (uint) (age / interval);
     uint cellPrev = (uint) (agePrev / interval);
 
-    // count == 0: first step alive -> record where it started.
-    // draining: the head stays at the impact point; each push replaces the
-    // oldest sample with it, so the ribbon shortens from the tail
+    // count == 0：生きて最初のステップ -> 出発点を記録する。
+    // 吸い込み中：先頭は着弾点のまま。押し込むたびに一番古いサンプルが
+    // それに置き換わるので、帯は尾の側から短くなる
     if (count == 0u || cellNow != cellPrev)
     {
         head = (count == 0u) ? 0u : (head + 1u) % TRAIL_POINTS;
@@ -97,7 +97,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     if (draining && drained >= TRAIL_POINTS)
     {
-        trailState[i] = 0u; // every sample is the impact point now: gone
+        trailState[i] = 0u; // 全サンプルが着弾点になった：消える
         trailAge[i] = 0.0;
         return;
     }

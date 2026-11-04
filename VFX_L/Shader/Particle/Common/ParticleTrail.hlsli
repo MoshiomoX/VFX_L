@@ -1,22 +1,22 @@
 // ============================================================
 // ParticleTrail.hlsli
-// Per-particle ribbon trails, fully on the GPU.
+// パーティクルごとの帯トレイル。全部 GPU で行う。
 //
-// Every particle owns a fixed ring of TRAIL_POINTS positions:
+// パーティクルはそれぞれ TRAIL_POINTS 個の位置の固定リングを持つ:
 //     trailPoints[particleIndex * TRAIL_POINTS + slot]
-// Fixed mapping = no allocator, nothing to leak. A particle only
-// records / draws when GPUParticle.trailStyle != 0.
+// 割り当てが固定 = アロケータ不要で、漏れるものも無い。記録 / 描画するのは
+// GPUParticle.trailStyle != 0 のパーティクルだけ。
 //
-// GPUParticle.trailStyle : 0 = no trail, otherwise style table index + 1
-// GPUParticle.trailState : bits 0-7  = ring write position (newest sample)
-//                          bits 8-15 = number of valid samples
+// GPUParticle.trailStyle : 0 = トレイル無し、それ以外はスタイル表の番号 + 1
+// GPUParticle.trailState : bits 0-7  = リングの書き込み位置（最新の点）
+//                          bits 8-15 = 有効な点の数
 //
-// The ring is sampled on a time grid of lifetime / (TRAIL_POINTS - 1),
-// so the ribbon always covers "the last <lifetime> seconds" no matter
-// the frame rate. The live head (current position) is not stored; the
-// VS reads it from the particle.
+// リングは lifetime / (TRAIL_POINTS - 1) 間隔の時間格子で記録するので、
+// フレームレートに関係なく帯は常に「直近 <lifetime> 秒」をカバーする。
+// 生きている先頭（現在位置）は保存しない。VS がパーティクルから
+// 読む。
 //
-// Must match ParticleTrailStyleGPU / kTrailPoints in GPUParticle.h
+// GPUParticle.h の ParticleTrailStyleGPU / kTrailPoints と一致させること
 // ============================================================
 #ifndef PARTICLE_TRAIL_HLSLI
 #define PARTICLE_TRAIL_HLSLI
@@ -25,8 +25,8 @@
 
 #define TRAIL_FLAG_INHERIT_COLOR 1u
 #define TRAIL_FLAG_INHERIT_SIZE  2u
-// effect trails only (EffectTrailVS): U = path length * uvRepeat, so the
-// texture stays put in the world instead of stretching over the ribbon
+// エフェクトトレイル専用（EffectTrailVS）: U = 経路長 * uvRepeat。テクスチャが
+// 帯全体に引き伸ばされず、ワールドに留まる
 #define TRAIL_FLAG_UV_TILE       4u
 
 struct TrailStyle
@@ -36,13 +36,13 @@ struct TrailStyle
 
     float widthHead;
     float widthTail;
-    float lifetime; // seconds of path the ribbon covers
-    float intensity; // HDR gain on rgb
+    float lifetime; // 帯がカバーする経路の秒数
+    float intensity; // rgb に掛ける HDR の倍率
 
     uint flags;
-    float softEdge; // 0 = hard edge, 1 = fades from the centre line
-    float uvRepeat; // texture repeats along the ribbon
-    float uvScroll; // U per second
+    float softEdge; // 0 = くっきりした縁、1 = 中心線から薄れる
+    float uvRepeat; // 帯に沿ったテクスチャの繰り返し回数
+    float uvScroll; // 1 秒あたりの U
 };
 
 float TrailInterval(float lifetime)

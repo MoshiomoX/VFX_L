@@ -1,12 +1,12 @@
 // ============================================================
 // Dissolve.hlsli
-// Dissolve for lit model PS (PS.hlsl / PBR_PS.hlsl).
-// Same formula as VFXMeshPS: noise(uv) < threshold is clipped, the
-// band just above the threshold glows with edgeColor.
-//   PS b1 = DissolveCB (C++ Renderer::DissolveCB), t5 = noise.
-//   threshold < 0 turns it off (Renderer writes -1 when the entity
-//   has no DissolveComponent).
-// Include after ModelCommon.hlsli (uses samplerState s0).
+// ライティングするモデルの PS（PS.hlsl / PBR_PS.hlsl）用のディゾルブ。
+// VFXMeshPS と同じ式：noise(uv) < threshold の所をクリップし、
+// しきい値のすぐ上の帯を edgeColor で光らせる。
+//   PS b1 = DissolveCB（C++ の Renderer::DissolveCB）、t5 = ノイズ。
+//   threshold < 0 で無効（エンティティに DissolveComponent が
+//   ないとき Renderer が -1 を書く）。
+// ModelCommon.hlsli の後に include する（samplerState s0 を使う）。
 // ============================================================
 #ifndef DISSOLVE_HLSLI
 #define DISSOLVE_HLSLI
@@ -19,21 +19,21 @@ cbuffer DissolveCB : register(DISSOLVE_CB_REG)
 {
     float2 g_DissolveTiling;
     float2 g_DissolveScroll;
-    float g_DissolveThreshold; // < 0 : off
+    float g_DissolveThreshold; // < 0：無効
     float g_DissolveEdge;
-    // hit flash (2026-10-09, the player when hit): 0..1.
-    // Pulls the lit color toward g_DissolveEdgeColor.rgb (also on while dissolving: the player's death, gold body + gold edge)
+    // 被弾フラッシュ（2026-10-09、被弾したプレイヤー）：0..1。
+    // ライティング後の色を g_DissolveEdgeColor.rgb へ寄せる（ディゾルブ中も有効：プレイヤーの死亡時、金色の体 + 金色の縁）
     float g_HitFlash;
     float g_DissolvePad;
-    float4 g_DissolveEdgeColor; // rgb = glow color, a = strength (HDR). Flash color when g_HitFlash > 0
+    float4 g_DissolveEdgeColor; // rgb = 光の色、a = 強さ（HDR）。g_HitFlash > 0 のときはフラッシュの色
 };
 
 Texture2D dissolveNoise : register(t5);
 
-// Clips dissolved pixels. Returns the emissive glow to add to the lit color.
+// 溶けたピクセルをクリップする。ライティング後の色に足す発光を返す。
 float3 ApplyDissolve(float2 uv)
 {
-    // single exit: fxc warns X4000 when clip() sits between two returns
+    // 出口を 1 つにする：2 つの return の間に clip() があると fxc が X4000 の警告を出す
     float3 glow = float3(0, 0, 0);
     if (g_DissolveThreshold >= 0.0)
     {
@@ -46,7 +46,7 @@ float3 ApplyDissolve(float2 uv)
     return glow;
 }
 
-// The hit flash: lerps the final color toward the flash color (no-op when g_HitFlash is 0)
+// 被弾フラッシュ：最終的な色をフラッシュの色へ lerp する（g_HitFlash が 0 なら何もしない）
 float3 ApplyHitFlash(float3 c)
 {
     if (g_HitFlash > 0.0)

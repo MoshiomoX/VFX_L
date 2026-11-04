@@ -32,7 +32,8 @@ namespace TerrainGenerator
             cfg.stepRampSlopeDeg = 16.0f;
             cfg.stepRimLevels = 2;
             cfg.stepRimBand = 3;
-            cfg.pondCoverage = 0.035f;     // オアシス（少ない。窪みだけに削るので 0.02 → 0.035、2026-10-28）
+            cfg.pondCoverage = 0.05f;      // オアシス（2026-11-02：少なく大きく = 波長 34m・0.035 → 0.05。草は池の周りだけ = StageDef::oasisGrass）
+            cfg.pondScale = 34.0f;
             cfg.pondDepth = 0.6f;
             // 砂丘：大きく長い起伏（TerrainGenerator 側で砂漠 ×1.25 が掛かる）
             cfg.hillHeight = 3.0f;

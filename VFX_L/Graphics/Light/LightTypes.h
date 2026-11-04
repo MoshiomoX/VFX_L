@@ -54,6 +54,11 @@ struct LightBuffer
     Vector4 toonParams = { 0.0f, 0.15f, 0.05f, 0.3f };     // x = 1 でトゥーン, y = 明暗の境（N・L × 影）, z = 境のぼかし, w = 硬い光沢の強さ
     Vector4 toonShadowTint = { 0.70f, 0.78f, 1.10f, 0.85f }; // rgb = 暗い側の環境光に掛ける色（冷たい青紫）, w = 明るい側の太陽の倍率
     Vector4 toonRim = { 1.0f, 0.95f, 0.85f, 0.30f };       // rgb = 縁の光の色, w = 強さ（横向きの面・近くだけ）
+
+    // 画面空間の環境遮蔽 SSAO（2026-11-02、Graphics/PostProcess/AmbientOcclusion。Lighting.hlsli の SceneAO）。
+    // 前のフレームで作った AO（PS t12）を、その時の view × proj で世界座標から引く。aoParams.x = 0 で読まない（既定）
+    Matrix  aoViewProj;                                    // AO を作ったフレームの view × proj（行ベクトル規約）
+    Vector4 aoParams = { 0.0f, 0.0f, 0.0f, 0.0f };          // x = 1 で有効, y = トゥーンの明暗の境を押す量, z = 環境光に掛ける割合, w = 1 で灰色の表示
     // HLSL の LightBuffer はここまで
 
     // ★ここから追加：各テクスチャの有無（1=あり, 0=なし）
@@ -75,4 +80,5 @@ struct LightBuffer
 // HLSL の cbuffer は先頭からの並びをそのまま読む（Shader::WriteBuffer は反射した大きさだけ写す）
 static_assert(offsetof(LightBuffer, shadowViewProj) == 112, "LightBuffer: shadow block must follow the fog block");
 static_assert(offsetof(LightBuffer, toonParams) == 368, "LightBuffer: toon block must follow the shadow block");
-static_assert(offsetof(LightBuffer, hasAlbedo) == 416, "LightBuffer: HLSL part must end at 416 bytes");
+static_assert(offsetof(LightBuffer, aoViewProj) == 416, "LightBuffer: AO block must follow the toon block");
+static_assert(offsetof(LightBuffer, hasAlbedo) == 496, "LightBuffer: HLSL part must end at 496 bytes");

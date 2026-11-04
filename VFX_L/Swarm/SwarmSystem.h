@@ -38,6 +38,7 @@
 #include <array>
 
 class Model;
+class Mesh;
 class Material;
 class Texture;
 class ComputeShader;
@@ -454,6 +455,21 @@ public:
     // 優先度なしで一番近い敵（2026-10-27。突風・アイススパイクの線のような近距離の範囲が狙う。杖の狙い = GetNearestEnemy は
     // Boss / エリートを優先する）。リードバックなので 2〜3 フレーム古い。居なければ false（SwarmSystemCloseTarget.cpp）
     bool GetCloseEnemy(DirectX::SimpleMath::Vector3& pos, float& dist) const;
+    // プレイヤーの 10m 以内（水平）に居る、狙える敵の数（2〜3 フレーム遅れ。賢いカメラが引く量に使う。2026-11-02）
+    uint32_t GetNearEnemyCount() const { return m_CloseNearCount; }
+
+    // 遠くの雑魚の LOD（2026-11-02、Swarm/SwarmSystemLod.cpp）：普通の雑魚の一覧をカメラからの距離で二つに分け、
+    // 遠い方は部品を 1 つに合わせた網を 1 回で描く（部品アニメの表を読まず、従来の揺れで歩く）。
+    // 起動時 VFXL_SWARM_LOD=<m> で距離、=off で無効（TEMP-TEST、比べる用）
+    struct LodSettings
+    {
+        bool  enabled = true;
+        float distance = 25.0f;   // m。これより遠い雑魚が遠い方
+    } lod;
+    bool HasLod() const { return m_LodMesh != nullptr; }
+    // 合わせた網の頂点数・三角形数と、部品毎の網の合計（面板・比べる用）
+    uint32_t LodMergedIndexCount() const { return m_LodIndexCount; }
+    uint32_t LodPartDraws() const { return m_LodPartDraws; }
     Swarm::AICB& GetAIParams() { return m_CachedAICB; }
     // フローフィールド（探索範囲などの定数。次にプレイヤーのマスが変わった時の作り直しから効く）
     FlowField& GetFlowField() { return m_Flow; }
@@ -497,6 +513,9 @@ public:
     // 燃えている草からの粒子（2026-10-12、GrassFireField）。毎フレーム Flush の前に渡す。null = 出さない。
     // 発射は弾・範囲の直後（Swarm/SwarmSystemFire.cpp）
     void SetGrassFire(const GrassFireEmitInput* in);
+    // 熱い砂の陽炎（2026-11-02、SandField）。草の火と同じ入力の形・同じ CS。null = 出さない
+    void SetSandHaze(const GrassFireEmitInput* in);
+    void SetSandDust(const GrassFireEmitInput* in);   // 風に舞う砂（2026-11-03、World/SandField。channel 1）
     // 凍った池の上で体を持ち上げる（2026-11-01）。WaterSurface::GetIceSRV / GetPondTopSRV（null = 無し）。Flush の前に毎フレーム
     void SetIceMaps(ID3D11ShaderResourceView* ice, ID3D11ShaderResourceView* pondTop);
     // 燃えている草の上の敵へのダメージ（2026-11-01）。fireMap = GrassFireField::GetSRV（null = 無し）。Flush の前に毎フレーム
@@ -562,7 +581,7 @@ public:
     bool GetNearestEnemy(Vector3& pos, Vector3& vel, float& dist) const
     {
         const auto& c = GetCounters();
-        if (c.nearestDist >= 1e29f) return false;
+        if (c.aliveEnemies == 0 || c.nearestDist >= 1e29f) return false;   // 生きた雑魚が居なければ目標無し（同じ写しの値同士）
         pos = { c.nearestPos[0], c.nearestPos[1], c.nearestPos[2] };
         vel = { c.nearestVel[0], c.nearestVel[1], c.nearestVel[2] };
         dist = c.nearestDist;
@@ -582,6 +601,11 @@ private:
     void DispatchStep();          // 固定ステップ 1 回分の CS 群
     void DispatchEmit(float dt, float totalTime);   // 弾から粒子を発射
     void DispatchFireEmit(float dt, float totalTime);   // 燃えている草から粒子を発射（SwarmSystemFire.cpp）
+    void DispatchFireEmitOne(const GrassFireEmitInput& in, float dt, float totalTime, uint32_t seedXor);
+    GrassFireEmitInput m_SandHaze;     // 熱い砂の陽炎（2026-11-02、World/SandField。同じ CS を入力を替えて）
+    bool m_HasSandHaze = false;
+    GrassFireEmitInput m_SandDust;     // 風に舞う砂（2026-11-03。同じ CS の channel 1）
+    bool m_HasSandDust = false;
     GrassFireEmitInput m_GrassFire;
     bool m_HasGrassFire = false;
     void DispatchSprites(float dt);                  // 範囲の連番画像：古い物を進めて、生まれた範囲の分を始める
@@ -950,9 +974,11 @@ private:
     std::shared_ptr<ComputeShader> m_AreaTickCS;     // 時計を進める・プレイヤーに追従・tick の判定（命中の直後）
     std::shared_ptr<ComputeShader> m_AreaDamageCS;   // tick した範囲の中の雑魚へダメージ
     std::shared_ptr<ComputeShader> m_AreaEmitCS;     // GPU が出した範囲（弾の命中）から粒子を発射
-    ID3D11ShaderResourceView* m_FireMapSRV = nullptr;   // 非所有（GrassFireField）
-    ID3D11ShaderResourceView* m_IceMapSRV = nullptr;    // 非所有（WaterSurface）
-    ID3D11ShaderResourceView* m_PondTopSRV = nullptr;
+    // 参照を持つ（ComPtr）：持ち主が作り直しても（ステージ選択で WaterSurface::Build が池面の高さを作り直す）、次の PushWind で
+    // 差し替えるまで古い view が生きている。裸のポインタだと同じフレームの描画が解放済みの view を bind してドライバで落ちた（2026-11-02）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_FireMapSRV;   // GrassFireField の物
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_IceMapSRV;    // WaterSurface の物
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_PondTopSRV;
     float m_FireClock = 0.0f;
     std::shared_ptr<ComputeShader> m_FireEmitCS;     // 燃えている草から粒子を発射（Shader/Grass/GrassFireEmitCS）
     std::shared_ptr<ComputeShader> m_LightCollectCS;     // 弾の点光源を PointLightManager へ追記
@@ -1001,6 +1027,21 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_GargoyleLineArgs;   // ガーゴイルの急降下の帯
     bool LoadRuinsAssets(ID3D11Device* device);
     void DispatchKindLists2();
+
+    // ---- 遠くの雑魚の LOD（2026-11-02、SwarmSystemLod.cpp）----
+    bool CreateLod(ID3D11Device* device);
+    // 一覧を作った直後（RenderOpaque）。分けたら true（この時は雑魚の描画に近い方の一覧を使う）
+    bool DispatchLodSplit(const DirectX::SimpleMath::Vector3& cameraPos);
+    void CopyLodCounts();     // 近い方 → 雑魚の部品毎の間接引数、遠い方 → 合わせた網の間接引数
+    void RenderLodFar();      // 遠い方を合わせた網で 1 回
+    std::shared_ptr<ComputeShader> m_LodSplitCS;
+    std::shared_ptr<Mesh> m_LodMesh;
+    uint32_t m_LodIndexCount = 0;
+    uint32_t m_LodPartDraws = 0;
+    bool m_LodActive = false;   // このフレーム分けた
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_LodNearBuffer, m_LodFarBuffer, m_LodCountBuffer, m_LodFarArgs;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LodNearUAV, m_LodFarUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_LodNearSRV, m_LodFarSRV, m_LodCountSRV;
     void DispatchCorpseList2(const void* corpseListCB);
     // ---- 面の固定エリート（2026-10-25。中身は SwarmSystemElites.cpp）----
     std::shared_ptr<ComputeShader> m_CorpseList3CS;   // 砕け中の一覧（固定エリート A / B）
@@ -1039,6 +1080,7 @@ private:
     int  m_CloseTargetStagingWrite = 0;
     DirectX::SimpleMath::Vector3 m_CloseTargetPos;
     float m_CloseTargetDist = 1.0e30f;
+    uint32_t m_CloseNearCount = 0;   // プレイヤーの 10m 以内の敵（+24。2026-11-02）
     bool CreateCloseTargetReadback(ID3D11Device* device);
     void CopyCloseTargetForCPU();
     void ReadCloseTarget();

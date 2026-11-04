@@ -1,15 +1,15 @@
 // ============================================================
 // SwarmClearCountersCS.hlsl
-// Zero the per-step counters before each sub-step.
+// サブステップごとに、その前にステップ単位のカウンタを 0 にする。
 //
-// Alive counts are recomputed from scratch every step, so they are
-// cleared here.
+// 生存数は毎ステップ一から数え直すので、ここで
+// クリアする。
 //
-// Kill count and player damage ACCUMULATE forever. The CPU stores
-// the last value it saw and takes the difference. This is deliberate:
-// readback uses DO_NOT_WAIT and can fail on any given frame, and a
-// per-frame reset would silently lose those events. A uint would
-// need 4 billion kills to wrap.
+// 撃破数とプレイヤーへのダメージはずっと累積する。CPU は
+// 最後に見た値を覚えておいて差分を取る。これは意図的:
+// リードバックは DO_NOT_WAIT でどのフレームでも失敗しうるので、
+// フレームごとにリセットするとその分の出来事が黙って失われる。uint が
+// 一周するには 40 億体倒す必要がある。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -24,6 +24,6 @@ void main()
     counters.Store(SWARM_CNT_ALIVE_AREAS, 0u);
     counters.Store(SWARM_CNT_TICKING_AREAS, 0u);
     counters.Store(SWARM_CNT_NEAREST_KEY, SWARM_NO_TARGET_KEY);
-   // counters.Store(SWARM_CNT_KILLS, 12345u); // TEMP: readback probe
-    // do NOT touch SWARM_CNT_KILLS / SWARM_CNT_PLAYER_DAMAGE
+   // counters.Store(SWARM_CNT_KILLS, 12345u); // TEMP: リードバックの確認用
+    // SWARM_CNT_KILLS / SWARM_CNT_PLAYER_DAMAGE には触らないこと
 }

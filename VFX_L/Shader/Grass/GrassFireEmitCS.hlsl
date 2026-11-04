@@ -1,30 +1,34 @@
 // ============================================================
 // GrassFireEmitCS.hlsl
-// Particles from burning grass (World/GrassFireField, 2026-10-12).
-// One thread per texel of the fire map. A burning texel near the camera emits
-// from every emitter of the GrassFire recipe (VFXId::GrassFire) at the
-// ground height, rate x intensity x g_RateMul.
+// 燃えている草から出るパーティクル（World/GrassFireField、2026-10-12）。
+// 炎のマップの 1 テクセルに 1 スレッド。カメラの近くで燃えているテクセルは、
+// GrassFire のレシピ（VFXId::GrassFire）の全エミッタから地面の高さで
+// 発生率 x 強さ x g_RateMul だけ出す。
+// 砂漠の砂（World/SandField、2026-11-02/03）でも走らせる: 陽炎は
+// 炎と同じく z を読み、舞う砂（g_Channel 1）は w を読む。
 //
-// Dispatched by SwarmSystem (Swarm/SwarmSystemFire.cpp) right after the
-// projectile / area emitters so the free-pool reservation (emitBudget)
-// is shared: the fire never over-consumes the dead list.
+// SwarmSystem（Swarm/SwarmSystemFire.cpp）が弾 / 範囲のエミッタの直後に
+// ディスパッチするので、空きプールの予約（emitBudget）を共有する:
+// 炎がデッドリストを取りすぎることはない。
 // ============================================================
 #include "../Particle/Common/EmitInit.hlsli"
 
-// Must match SwarmSystem::FireEmitCB (b2; b0 / b1 are ParticleCommon's)
+// SwarmSystem::FireEmitCB と一致させること（b2。b0 / b1 は ParticleCommon が使う）
 cbuffer GrassFireEmitCB : register(b2)
 {
     float2 g_MapOrigin;
     float2 g_MapSize;
     float3 g_CamPos;
-    float g_EmitRadius;     // texels farther than this from the camera emit nothing
-    float g_Ignite;         // burning = temperature above this (same as GrassFireCS)
-    float g_RateMul;        // multiplies every emitter's rate (per burning texel)
-    uint g_FireVfx;         // recipe index of VFXId::GrassFire
-    float g_HeightOffset;   // emit this much above the ground
+    float g_EmitRadius;     // カメラからこれより遠いテクセルは何も出さない
+    float g_Ignite;         // 燃焼中 = 温度がこれより上（GrassFireCS と同じ）
+    float g_RateMul;        // 全エミッタの発生率に掛ける（燃えているテクセルあたり）
+    uint g_FireVfx;         // VFXId::GrassFire のレシピ番号
+    float g_HeightOffset;   // 地面からこれだけ上で出す
+    uint g_Channel;         // 0 = 燃焼（x 温度、y 燃料、z 燃焼中）、1 = 舞う砂（w = 強さ）
+    float3 _channelPad;
 };
 
-// = SwarmRecipe (Shader/Common/SwarmCommon.hlsli), 32 bytes
+// = SwarmRecipe（Shader/Common/SwarmCommon.hlsli）、32 バイト
 struct FireRecipe
 {
     uint particleStart;
@@ -37,12 +41,12 @@ struct FireRecipe
     uint spriteCount;
 };
 
-Texture2D<float3> fireMap : register(t0);        // (temperature, fuel, burning)
-Texture2D<float4> groundMap : register(t1);      // a = grass
+Texture2D<float4> fireMap : register(t0);        // （温度、燃料、燃焼中）/ 砂: w = 舞っている量
+Texture2D<float4> groundMap : register(t1);      // a = 草
 StructuredBuffer<FireRecipe> recipes : register(t2);
 StructuredBuffer<GPUEmitter> emitters : register(t3);
 Buffer<uint> deadCount : register(t4);
-Texture2D<float> heightMap : register(t5);       // GridWorld heights (GrassRenderer's texture)
+Texture2D<float> heightMap : register(t5);       // GridWorld の高さ（GrassRenderer のテクスチャ）
 
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 ConsumeStructuredBuffer<uint> deadList : register(u1);
@@ -56,8 +60,8 @@ void main(uint3 id : SV_DispatchThreadID)
     if (id.x >= w || id.y >= h)
         return;
 
-    float3 f = fireMap.Load(int3(id.xy, 0));
-    if (f.z < 0.5)
+    float4 f = fireMap.Load(int3(id.xy, 0));
+    if (g_Channel == 1u ? (f.w < 0.02) : (f.z < 0.5))
         return;
 
     float2 uv = (float2(id.xy) + 0.5) / float2(w, h);
@@ -74,8 +78,9 @@ void main(uint3 id : SV_DispatchThreadID)
     if (r.particleCount == 0u)
         return;
 
-    // fresh fire burns hard, a nearly spent texel only smoulders
-    float intensity = saturate((f.x - g_Ignite) * 2.0) * saturate(f.y * 4.0);
+    // 燃え始めは激しく燃え、燃料がほぼ尽きたテクセルはくすぶるだけ
+    // （舞う砂: 砂のフィールドがもう強さを 0..1 で書いてある）
+    float intensity = (g_Channel == 1u) ? f.w : saturate((f.x - g_Ignite) * 2.0) * saturate(f.y * 4.0);
     if (intensity <= 0.0)
         return;
 
@@ -89,13 +94,13 @@ void main(uint3 id : SV_DispatchThreadID)
     for (uint ei = 0u; ei < r.particleCount; ++ei)
     {
         GPUEmitter e = emitters[r.particleStart + ei];
-        e.position = base + e.position;   // the entry position is an offset from the ground
+        e.position = base + e.position;   // エントリの位置は地面からのオフセット
 
         uint k = StochasticCount(e.emitRate * g_RateMul * intensity, g_DeltaTime, seed);
         if (k == 0u)
             continue;
 
-        // ---- reserve from the free pool (shared with SwarmEmitCS this frame) ----
+        // ---- 空きプールから予約する（このフレームの SwarmEmitCS と共有） ----
         uint mine;
         emitBudget.InterlockedAdd(0, k, mine);
         uint freeNow = deadCount[0];

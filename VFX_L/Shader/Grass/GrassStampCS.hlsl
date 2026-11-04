@@ -1,23 +1,23 @@
 // ============================================================
 // GrassStampCS.hlsl
-// Enemies' feet on the trample map (2026-10-13). One thread per enemy
-// slot of the GPU swarm: a live, grounded enemy stamps a small disc
-// (pushed outward from its centre) into the texels under it. Runs
-// right after GrassTrampleCS on the same output texture: a scatter
-// write (no read-back of the texel, typed UAV loads of R16G16_FLOAT
-// are not guaranteed), so where an enemy stands its footprint simply
-// replaces whatever the gather pass wrote there. With hundreds of
-// enemies walking through the grass this is what makes the field
-// look walked on.
-// 2026-10-25: the kinds come from SwarmCommon.hlsli (the old local table
-// missed the stage's fixed elites and the kinds that are not on the
-// grass). No footprint for: both final-swarm ghosts (they float), the
-// sand mage's tornado (its wind source already presses the grass), a
-// buried burrower / sand guardian, a vanished shadow swordsman, and
-// anything whose feet are clearly above the ground under it (a flying or
-// diving gargoyle, a mob dropping off a terrace).
+// 踏み跡マップ上の敵の足（2026-10-13）。GPU の群れの敵スロット 1 つに
+// 1 スレッド：生きていて接地している敵は、自分の下のテクセルに小さな円
+//（中心から外向きに押す）をスタンプする。同じ出力テクスチャに対して
+// GrassTrampleCS の直後に走る：scatter
+// 書き込み（テクセルは読み返さない。R16G16_FLOAT の typed UAV load は
+// 保証されないため）なので、敵が立っている所では足跡が gather パスの
+// 書いた値をそのまま置き換える。何百もの
+// 敵が草の中を歩くので、これでフィールドが
+// 踏み荒らされたように見える。
+// 2026-10-25：種類は SwarmCommon.hlsli から取る（以前のローカルの表は
+// ステージの固定エリートと、草の上にいない種類が
+// 抜けていた）。足跡を付けないもの：最終ウェーブの幽霊 2 種（浮いている）、
+// 砂嵐の術師の砂旋（その風源がもう草を押している）、
+// 潜っている砂潜り / 砂の守護者、消えている影の剣士、そして
+// 足が下の地面より明らかに上にあるもの（飛んでいる、または
+// 急降下中のガーゴイル、段から落ちている雑魚）。
 // ============================================================
-// SwarmCommon's cbuffers are not used here; moved off b0 (GrassCB)
+// SwarmCommon の cbuffer はここでは使わない。b0（GrassCB）からずらす
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
@@ -25,13 +25,13 @@
 #include "GrassCommon.hlsli"
 
 StructuredBuffer<SwarmEnemy> g_Enemies : register(t0);
-Buffer<uint> g_EnemyStates : register(t1);         // 0 = dead
+Buffer<uint> g_EnemyStates : register(t1);         // 0 = 死亡
 StructuredBuffer<SwarmEnemyExtra> g_EnemyExtra : register(t2);
-Texture2D<float> g_Height : register(t3);          // GridWorld heights, texel = height cell (GrassCullCS reads the same)
+Texture2D<float> g_Height : register(t3);          // GridWorld の高さ、テクセル = 高さセル（GrassCullCS も同じものを読む）
 RWTexture2D<float2> g_TrampleOut : register(u0);
 
-// feet this far above the raw height cell under the centre = in the air (no footprint). A terrace step is
-// 2.5m, an enemy standing on its edge is level with the raw cell, a flying gargoyle is g_GargoyleHover up
+// 中心の下の生の高さセルより足がこれ以上高い = 空中（足跡なし）。段々の 1 段は
+// 2.5m、その縁に立つ敵は生のセルと同じ高さ、飛んでいるガーゴイルは g_GargoyleHover だけ上
 static const float STAMP_AIR_HEIGHT = 0.8;
 
 [numthreads(256, 1, 1)]
@@ -47,7 +47,7 @@ void main(uint3 id : SV_DispatchThreadID)
     SwarmEnemyExtra ex = g_EnemyExtra[j];
     uint kind = ex.kind;
     if (SwarmIsGhost(kind) || kind == SWARM_KIND_TORNADO || SwarmBuried(ex)
-        || (SwarmIsFixedElite(kind) && ex.fuse < -0.5))   // the shadow swordsman vanished (= SwarmUntargetable)
+        || (SwarmIsFixedElite(kind) && ex.fuse < -0.5))   // 影の剣士が消えている（= SwarmUntargetable）
         return;
 
     float3 p = g_Enemies[j].position;
@@ -55,27 +55,27 @@ void main(uint3 id : SV_DispatchThreadID)
     g_Height.GetDimensions(hw, hh);
     int2 hc = int2(floor((p.xz - g_MapOrigin) / g_MapSize * float2(hw, hh)));
     hc = clamp(hc, int2(0, 0), int2((int) hw - 1, (int) hh - 1));
-    // position.y is the capsule's centre (feet + groundY): from 10-25 to 10-28 this compared it with the ground
-    // as it was, every enemy stood 0.9m up = "in the air", and no enemy pressed the grass at all
+    // position.y はカプセルの中心（足 + groundY）：10-25〜10-28 はこれをそのまま地面と比べていたので、
+    // 全ての敵が 0.9m 上 =「空中」になり、どの敵も草を踏んでいなかった
     if (p.y - g_SwarmExtra.x - g_Height.Load(int3(hc, 0)) > STAMP_AIR_HEIGHT)
         return;
 
-    // footprint: the body radius by kind (the big ones press a wider disc)
+    // 足跡：種類ごとの体の半径（大きい敵は広い円を押す）
     float r = g_TrampleExtra.w;
     if (kind == SWARM_KIND_BOSS) r *= 3.0;
-    else if (SwarmIsBigElite(kind)) r *= 2.2;   // the elite and the stage's fixed elites
+    else if (SwarmIsBigElite(kind)) r *= 2.2;   // エリートとステージの固定エリート
     else if (kind == SWARM_KIND_BRUTE) r *= 1.3;
 
     uint w, h;
     g_TrampleOut.GetDimensions(w, h);
     float2 texel = g_MapSize / float2(w, h);
     float2 c = p.xz;
-    float2 cuv = (c - g_MapOrigin) / texel;        // texel space
+    float2 cuv = (c - g_MapOrigin) / texel;        // テクセル空間
     int2 lo = int2(floor(cuv - r / texel));
     int2 hi = int2(floor(cuv + r / texel));
     lo = max(lo, int2(0, 0));
     hi = min(hi, int2((int) w - 1, (int) h - 1));
-    if (hi.x - lo.x > 12 || hi.y - lo.y > 12)      // safety: a boss is at most ~7 texels across
+    if (hi.x - lo.x > 12 || hi.y - lo.y > 12)      // 安全策：ボスでも幅は最大 ~7 テクセル
         return;
 
     for (int y = lo.y; y <= hi.y; ++y)
