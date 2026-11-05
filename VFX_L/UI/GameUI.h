@@ -78,6 +78,7 @@ public:
     SpellbookUI& GetSpellbookMutable() { return m_Spellbook; }        // TEMP-TEST: 離した所から落とす確認（TestDropHint）
     BackpackPadControl& TestPad() { return m_Pad; }          // TEMP-TEST: パッド操作（padbag）
     LevelUpUI& TestLevelUp() { return m_LevelUp; }           // TEMP-TEST: 四択のスティック（padbag）
+    const PauseMenuUI& TestPause() const { return m_Pause; } // TEMP-TEST: メニューの左スティック（sticknav）
     const DragContext& GetDrag() const { return m_Drag; }    // TEMP-TEST
     void TestTooltip(int itemIndex, const DirectX::SimpleMath::Vector2& pos) { m_TestTooltipItem = itemIndex; m_TestTooltipPos = pos; }
 
@@ -116,7 +117,8 @@ public:
         m_GameOverCleared = cleared;
     }
     // Boss の HP 条（0..1）。負で消す。毎フレームシーンが入れる
-    void SetBossBar(float hpRatio) { m_FrameInfo.bossHp = hpRatio; }
+    // name: 条の中に出す名前（BossDisplayName。null なら「ボス」）
+    void SetBossBar(float hpRatio, const wchar_t* name = nullptr) { m_FrameInfo.bossHp = hpRatio; m_FrameInfo.bossName = name; }
     void SetEliteBars(std::vector<HUDEliteBar>&& bars) { m_FrameInfo.elites = std::move(bars); }   // 面の固定エリート（2026-10-25）
 
     // HUD の経過時間・撃破数と、画面外の目印（箱・エリート）。毎フレームシーンが入れ直す

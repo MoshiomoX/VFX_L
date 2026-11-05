@@ -8,7 +8,9 @@
 //   9 秒   : 正面 7m で爆発の範囲（SWARM_AREA_SHAKE）→ 0.4 秒後 look blast、真ん中の柱
 //   11 秒  : 左 5m でメテオの炎のレシピの範囲（熱 > 0）2 秒 → look fire、柱
 //   14 秒  : プレイヤーの前で突風の風 → look gust
-//   16〜22 秒: 晴れた所が戻るのを 2 秒毎に、22.5 秒 フレーム時間の内訳、done
+//   16〜22 秒: 晴れた所が戻るのを 2 秒毎に、22.5 秒 フレーム時間の内訳
+//   23 秒  : 周り 8〜20m で一番霧の濃い所に試しの松明を立て（松明は切ったまま）、6m 手前に立つ → 28 秒 look torchoff →
+//            松明を点ける → 34 秒 look torchon（晴れた穴と暖かい霧）、試しの松明を外して done（2026-11-05）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 #include "World/MiasmaField.h"
@@ -31,6 +33,8 @@ namespace
         void Area(const Vector3& at, float radius, float time, uint32_t flags, uint32_t vfx);
         Vector3 m_Base;
         Vector3 m_LookAt;
+        Vector3 m_TorchAt, m_TorchFloor, m_Stand;
+        int m_TestTorch = -1;   // 試しに足した松明の m_Torches の番号
     };
 }
 
@@ -170,7 +174,111 @@ void AutoTestMiasma::Run()
         AutoTestLog("miasma look end");
         m_AutoStep = 18;
     }
-    if (m_AutoStep == 18 && m_AutoTime >= 23.0f) { AutoTestLog("miasma done"); m_AutoStep = 19; }
+    // ---- 松明（2026-11-05）：遺跡の本物の松明は部屋の中（霧が薄い）ばかりなので、周りで一番霧の濃い所に試しの松明を 1 本立てる。
+    //      松明を切った絵 → 点けた絵（晴れた穴と暖かい霧）を同じ所から撮る。試しの松明は最後に外す ----
+    if (m_AutoStep == 18 && m_AutoTime >= 23.0f)
+    {
+        m_Camera.SetTargetOverride(nullptr);
+        m_Miasma.GetSettings().torches = false;
+        const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
+        float best = -1.0f;
+        int scanned = 0;
+        for (float dz = -20.0f; dz <= 20.0f; dz += 2.0f)
+            for (float dx = -20.0f; dx <= 20.0f; dx += 2.0f)
+            {
+                const float r = std::sqrt(dx * dx + dz * dz);
+                if (r < 8.0f || r > 20.0f) continue;
+                const Vector3 q(pp.x + dx, 0.0f, pp.z + dz);
+                // 松明の周り 3m も歩ける所（壁の際は霧が 0 なので比べにならない）
+                bool open = true;
+                for (int k = 0; k < 8 && open; ++k)
+                {
+                    const float a = 0.7853982f * k;
+                    if (!m_Grid.IsWalkableAt(q + Vector3(std::sin(a), 0.0f, std::cos(a)) * 3.0f)) open = false;
+                }
+                if (!open || !m_Grid.IsWalkableAt(q)) continue;
+                float sum = 0.0f, top = 0.0f;
+                if (!m_Miasma.DebugReadColumn(q, sum, top)) continue;
+                ++scanned;
+                if (sum > best) { best = sum; m_TorchFloor = q; }
+            }
+        char line[220];
+        if (best < 0.0f)
+        {
+            snprintf(line, sizeof(line), "miasma torch test none (scanned %d)", scanned);
+            AutoTestLog(line);
+            m_AutoStep = 24;
+        }
+        else
+        {
+            const float gy = m_Grid.SampleHeight(m_TorchFloor.x, m_TorchFloor.z);
+            m_TorchAt = Vector3(m_TorchFloor.x, gy + 2.4f, m_TorchFloor.z);
+            m_TestTorch = (int)m_Torches.size();
+            m_Torches.push_back(m_TorchAt);
+            // 立つ所：松明から元の場所の向きに 6m（間も歩ける所）
+            Vector3 dir(pp.x - m_TorchFloor.x, 0.0f, pp.z - m_TorchFloor.z);
+            dir.Normalize();
+            float r = 6.0f;
+            for (; r > 3.0f; r -= 0.5f)
+            {
+                bool ok = true;
+                for (float f = 0.25f; f <= 1.0f; f += 0.25f)
+                    if (!m_Grid.IsWalkableAt(m_TorchFloor + dir * (r * f))) ok = false;
+                if (ok) break;
+            }
+            const Vector3 s = m_TorchFloor + dir * r;
+            m_Stand = Vector3(s.x, m_Grid.SampleHeight(s.x, s.z) + 0.9f, s.z);
+            auto& tf = m_Registry.Get<TransformComponent>(m_Player);
+            tf.position = m_Stand;
+            if (m_Registry.Has<RigidbodyComponent>(m_Player)) m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+            snprintf(line, sizeof(line), "miasma torch test at (%.1f, %.1f) fog column %.3f stand %.1f m (scanned %d, real torches %d)",
+                m_TorchFloor.x, m_TorchFloor.z, best, r, scanned, (int)m_Torches.size() - 1);
+            AutoTestLog(line);
+            m_AutoStep = 19;
+        }
+    }
+    if (m_AutoStep >= 19 && m_AutoStep <= 21)
+    {
+        // カメラは松明を見て、プレイヤーの後ろから（SetYaw は x が逆向き）
+        const Vector3 L(m_TorchFloor.x - m_Stand.x, 0.0f, m_TorchFloor.z - m_Stand.z);
+        m_LookAt = Vector3(m_TorchFloor.x, m_Grid.SampleHeight(m_TorchFloor.x, m_TorchFloor.z) + 0.6f, m_TorchFloor.z);
+        m_Camera.SetTargetOverride(&m_LookAt);
+        auto& cam = m_Camera.Camera();
+        cam.SetYaw(std::atan2(-L.x, L.z) * 57.29578f);
+        cam.SetPitch(26.0f);
+        cam.distance = 9.0f;
+        cam.avoidOcclusion = false;
+        m_PlayerControlSystem.testInput = true;
+        m_PlayerControlSystem.testMove = Vector2::Zero;
+    }
+    if (m_AutoStep == 19 && m_AutoTime >= 28.0f)
+    {
+        Probe("torch off", m_TorchFloor);
+        Probe("torch off 2m", m_TorchFloor + Vector3(2.0f, 0.0f, 0.0f));
+        AutoTestLog("miasma look torchoff");
+        m_AutoStep = 20;
+    }
+    if (m_AutoStep == 20 && m_AutoTime >= 28.6f) { m_Miasma.GetSettings().torches = true; m_AutoStep = 21; }
+    if (m_AutoStep == 21 && m_AutoTime >= 34.0f)
+    {
+        Probe("torch on", m_TorchFloor);
+        Probe("torch on 2m", m_TorchFloor + Vector3(2.0f, 0.0f, 0.0f));
+        char line[80];
+        snprintf(line, sizeof(line), "miasma torch inBox %d", m_Miasma.DebugTorchCount());
+        AutoTestLog(line);
+        AutoTestLog("miasma look torchon");
+        m_AutoStep = 24;
+    }
+    if (m_AutoStep >= 24 && m_AutoStep < 99)
+    {
+        if (m_TestTorch >= 0 && m_TestTorch < (int)m_Torches.size()) m_Torches.erase(m_Torches.begin() + m_TestTorch);
+        m_TestTorch = -1;
+        m_Camera.SetTargetOverride(nullptr);
+        m_PlayerControlSystem.testInput = false;
+        m_Miasma.GetSettings().torches = true;
+        AutoTestLog("miasma done");
+        m_AutoStep = 99;
+    }
 }
 
 REGISTER_BATTLE_AUTOTEST("miasma", AutoTestMiasma)

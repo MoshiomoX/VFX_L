@@ -12,6 +12,7 @@
 #include "Graphics/Model/BoneMaps.h"
 
 #include <imgui.h>
+#include <Windows.h>
 
 using namespace DirectX::SimpleMath;
 
@@ -362,7 +363,10 @@ namespace
             c.time += h;
             // 世界の風（草と同じ波を根の位置で引く）+ 局所の風源（竜巻・渦・砂旋・突風の渦と吹き上げ。2026-10-22）
             Vector3 wind = worldWind.Velocity(windTime, root.x, root.z) * c.windMul;
-            if (localWind) wind += localWind->Air(root.x, root.z) * c.localWindMul;
+            // 自分の突風は受けない（前へ吹く風が背中から当たり、裾が体の前・中へ押し込まれて見えなくなった。2026-11-05）。
+            // TEMP-TEST: VFXL_CAPE_OWN_GUST=1 で前の作り
+            static const bool s_OwnGust = []() { char e[4] = {}; return GetEnvironmentVariableA("VFXL_CAPE_OWN_GUST", e, sizeof(e)) > 0 && e[0] == '1'; }();
+            if (localWind) wind += localWind->Air(root.x, root.z, nullptr, !s_OwnGust) * c.localWindMul;
             const float ratio = h / (std::max)(c.prevH, 1e-5f);
             const float keep = std::pow(1.0f - std::clamp(c.damping, 0.0f, 0.99f), h * 120.0f);
 

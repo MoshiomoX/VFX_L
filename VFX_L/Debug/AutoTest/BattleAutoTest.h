@@ -82,6 +82,7 @@ protected:
     SandField&                m_Sand;          // 砂漠の砂の面（2026-11-02）
     SandFootprints&           m_Footprints;    // 砂漠のプレイヤーの足跡（2026-11-03）
     MiasmaField&              m_Miasma;        // 遺跡の瘴気（2026-11-03）
+    std::vector<DirectX::SimpleMath::Vector3>& m_Torches;   // 遺跡の松明（2026-11-05、miasma の松明の場面）
     GroundDebris&             m_Debris;        // 地面の落ち葉（2026-10-13）
     WaterSurface&             m_Water;         // 水たまりの水面（2026-10-27）
     FlowDebugView&            m_FlowDebug;     // F8 の流れの矢印（2026-10-28）

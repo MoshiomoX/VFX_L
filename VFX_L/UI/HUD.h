@@ -80,6 +80,7 @@ struct HUDFrameInfo
     float    runTime = 0.0f;       // 経過時間（止まっている間は進まない物）
     float    stageTime = 0.0f;     // 面の制限時間。> 0 なら残りを数え下ろし、過ぎたら超過分を赤く「+」で出す
     float    bossHp = -1.0f;       // Boss の HP 条（0..1）。負なら出さない
+    const wchar_t* bossName = nullptr;   // Boss の HP 条の中の名前（2026-11-05）。null / 空なら「ボス」
     std::vector<HUDEliteBar> elites;   // 面の固定エリート（2026-10-25）。空なら出さない
     uint32_t kills = 0;            // 撃破数（GPU counter の累計）
     int      stage = 0;            // 面の番号（1..）。0 なら出さない

@@ -74,6 +74,7 @@ void SettingsMenuUI::Open()
     m_Cursor = 0;
     m_InputDelay = 0.15f;
     m_RepeatDelay = 0.0f;
+    m_Stick.Reset();
     m_Dragging = false;
     m_Dirty = false;
     m_LastMouse = { -1.0f, -1.0f };
@@ -184,6 +185,7 @@ bool SettingsMenuUI::HandleInput(float dt)
     const Vector2 mouse = { mp.x, mp.y };
     const bool mouseMoved = (mouse - m_LastMouse).LengthSquared() > 0.25f;
     m_LastMouse = mouse;
+    m_Stick.Update(dt);   // 猶予の間も見ておく（出た時に倒したままなら、一度戻すまで動かない）
 
     if (m_InputDelay > 0.0f)
     {
@@ -213,17 +215,23 @@ bool SettingsMenuUI::HandleInput(float dt)
 
     // ---- 上下 ----
     const int before = m_Cursor;
-    if (input.GetKeyTrigger(VK_UP) || input.GetKeyTrigger('W') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP))
+    if (input.GetKeyTrigger(VK_UP) || input.GetKeyTrigger('W') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP) ||
+        m_Stick.Repeat(StickNav::kUp))
         m_Cursor = (m_Cursor + n - 1) % n;
-    if (input.GetKeyTrigger(VK_DOWN) || input.GetKeyTrigger('S') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN))
+    if (input.GetKeyTrigger(VK_DOWN) || input.GetKeyTrigger('S') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN) ||
+        m_Stick.Repeat(StickNav::kDown))
         m_Cursor = (m_Cursor + 1) % n;
     if (m_Cursor != before) AudioSystem::Get().Play("ui_hover");
 
-    // ---- 左右（押しっぱなしで連続）----
-    const bool leftHeld = input.GetKeyPress(VK_LEFT) || input.GetKeyPress('A') || input.GetPadPress(XINPUT_GAMEPAD_DPAD_LEFT);
-    const bool rightHeld = input.GetKeyPress(VK_RIGHT) || input.GetKeyPress('D') || input.GetPadPress(XINPUT_GAMEPAD_DPAD_RIGHT);
-    const bool leftTrig = input.GetKeyTrigger(VK_LEFT) || input.GetKeyTrigger('A') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_LEFT);
-    const bool rightTrig = input.GetKeyTrigger(VK_RIGHT) || input.GetKeyTrigger('D') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_RIGHT);
+    // ---- 左右（押しっぱなしで連続。左スティックも同じ）----
+    const bool leftHeld = input.GetKeyPress(VK_LEFT) || input.GetKeyPress('A') || input.GetPadPress(XINPUT_GAMEPAD_DPAD_LEFT) ||
+        m_Stick.Held(StickNav::kLeft);
+    const bool rightHeld = input.GetKeyPress(VK_RIGHT) || input.GetKeyPress('D') || input.GetPadPress(XINPUT_GAMEPAD_DPAD_RIGHT) ||
+        m_Stick.Held(StickNav::kRight);
+    const bool leftTrig = input.GetKeyTrigger(VK_LEFT) || input.GetKeyTrigger('A') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_LEFT) ||
+        m_Stick.Pressed(StickNav::kLeft);
+    const bool rightTrig = input.GetKeyTrigger(VK_RIGHT) || input.GetKeyTrigger('D') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_RIGHT) ||
+        m_Stick.Pressed(StickNav::kRight);
     if (leftTrig || rightTrig)
     {
         Step(rightTrig ? +1 : -1);

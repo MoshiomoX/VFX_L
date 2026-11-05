@@ -17,6 +17,7 @@
 #include "UI/ShopStock.h"
 #include "UI/GameUI.h"
 #include "ECS/Registry.h"
+#include "UI/StickNav.h"
 #include <SimpleMath.h>
 #include <memory>
 #include <string>
@@ -87,6 +88,7 @@ private:
     int m_HoverButton = -1;
     DirectX::SimpleMath::Vector2 m_LastMouse = { -1.0f, -1.0f };
     float m_InputDelay = 0.0f;
+    StickNav m_Stick;   // 左スティックで行を選ぶ（2026-11-05。バックパックを開いている間は GameUI の物）
 
     // レイアウト（Layout で画面から決める）
     float m_ScreenW = 1600.0f;

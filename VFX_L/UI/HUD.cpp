@@ -372,7 +372,7 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
         const Vector2 pos = { a.x - size.x * 0.5f, y + 8.0f * UIDeco::UIScale() };
         const float r = Clamp01(info.bossHp);
         DrawBar(sprite, pos, size, r, r, { 0.35f, 0.05f, 0.55f, 1.0f }, true);   // 紫（線形）
-        DrawBarLabel(text, L"ボス", pos, size);
+        DrawBarLabel(text, (info.bossName && info.bossName[0]) ? info.bossName : L"ボス", pos, size);
     }
     // ---- 面の固定エリートの HP 条（Boss の条の下。2026-10-25）----
     if (!info.elites.empty())

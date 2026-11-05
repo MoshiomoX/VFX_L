@@ -3,7 +3,7 @@
 // 縦に並んだボタンの一覧（一時停止のメニュー・タイトルで共用）。
 //   マウス : 動かした時だけカーソルを奪い、クリックで決定
 //   キー   : W S / 上下で移動、Enter / Space で決定
-//   パッド : 十字の上下で移動、A で決定
+//   パッド : 十字 / 左スティックの上下で移動、A で決定
 // 画面が止まっている間も使うので dt は取らない（猶予は固定値で減らす）
 // ============================================================
 #pragma once
@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "UI/StickNav.h"
 
 class SpriteRenderer;
 class TextRenderer;
@@ -64,5 +65,6 @@ private:
 
     int   m_Cursor = 0;
     float m_InputDelay = 0.0f;
+    StickNav m_Stick;   // 左スティック（2026-11-05）
     DirectX::SimpleMath::Vector2 m_LastMouse = { -1.0f, -1.0f };
 };

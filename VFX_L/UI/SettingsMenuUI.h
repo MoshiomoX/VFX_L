@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "UI/StickNav.h"
 
 class GameSettings;
 class SpriteRenderer;
@@ -67,9 +68,13 @@ private:
     void ControlRect(int i, DirectX::SimpleMath::Vector2& pos, DirectX::SimpleMath::Vector2& size) const;
 
     std::vector<Row> m_Rows;
+public:
+    int TestCursor() const { return m_Cursor; }   // TEMP-TEST: sticknav
+private:
     int   m_Cursor = 0;
     float m_InputDelay = 0.0f;
     float m_RepeatDelay = 0.0f;          // 左右の押しっぱなし
+    StickNav m_Stick;                    // 左スティック（2026-11-05）
     bool  m_Dragging = false;            // スライダーをマウスで掴んでいる
     bool  m_Dirty = false;               // 何か変えた（閉じる時に保存）
     DirectX::SimpleMath::Vector2 m_LastMouse = { -1.0f, -1.0f };

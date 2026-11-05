@@ -190,7 +190,7 @@ void CollisionTestScene::Update(float dt)
     // ---- HUD：経過時間・撃破数と、画面外の目印 ----
     m_GameUI.SetRunInfo(m_RunTime, m_Swarm.GetCounters().killCount, m_Stage.stageTime);
     m_GameUI.SetStage(m_RunPos, m_RunTier, StageConfig::Get(m_StageIndex).name);   // 「ステージ n/Tier 名前」
-    m_GameUI.SetBossBar(m_Stage.IsBossAlive() ? m_Stage.BossHpRatio() : -1.0f);
+    m_GameUI.SetBossBar(m_Stage.IsBossAlive() ? m_Stage.BossHpRatio() : -1.0f, BossDisplayName(m_BossAttacks.Type()));
     UpdateHudMarkers();
 
     // ---- 目標の一行（2026-10-07 ユーザー「任務目標を足す」）：門の状態で変わる。門までの距離付き ----

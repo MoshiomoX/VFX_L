@@ -26,7 +26,7 @@
 
 #include "../Common/WindSources.hlsli"
 
-// MiasmaField::StepCB（160 バイト）と一致させること
+// MiasmaField::StepCB（432 バイト）と一致させること
 cbuffer MiasmaStepCB : register(b0)
 {
     float2 g_Origin;        // このステップの箱の南西の角（ワールド xz）
@@ -58,6 +58,11 @@ cbuffer MiasmaStepCB : register(b0)
     float g_BlastDust;      // 砂漠の砂塵: 爆発が 1 秒あたりに足す濃度（低い所）
     float g_LiftHeight;     // m: これより下で砂が舞い上がる
     float _padStep;
+    float g_TorchCount;     // 遺跡の松明（2026-11-05）: 周りの霧を焼いて晴らす
+    float g_TorchRadius;    // m: 晴らす半径（水平）
+    float g_TorchBurn;      // 1/s: 真ん中での焼ける速さ
+    float g_TorchLift;      // m/s: 熱で昇る
+    float4 g_Torch[16];     // xyz = 位置、w = 揺らぎ
 };
 
 // = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト
@@ -250,6 +255,18 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
             v.y += 1.5 * k;   // 熱い空気は昇り、霧を一緒に持ち上げる
         }
     }
+    // ---- 松明: 周りを焼き続ける（霧が戻る速さと釣り合って、床の見える丸い穴が残る）----
+    float torchK = 0.0;
+    const uint tn = (uint)g_TorchCount;
+    for (uint ti = 0u; ti < tn; ++ti)
+    {
+        float r = distance(xz, g_Torch[ti].xz) / max(g_TorchRadius, 0.1);
+        if (r >= 1.3)
+            continue;
+        float k = saturate((1.3 - r) * 1.6) * g_Torch[ti].w;
+        torchK = max(torchK, k);
+        v.y += g_TorchLift * k;
+    }
     {
         float2 d = xz - g_Player.xz;
         float dist = length(d);
@@ -269,6 +286,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     else
         dens -= (dens - target) * saturate(g_Decay * g_Dt);
     dens *= exp(-g_BurnRate * burn * g_Dt);
+    dens *= exp(-g_TorchBurn * torchK * g_Dt);
     dens *= exp(-g_BlastClear * clearK * g_Dt);
     // ---- 砂漠の砂塵: 舞う砂と爆発が砂塵を巻き上げる（瘴気ではどちらも 0） ----
     float low = saturate(1.0 - h / max(g_LiftHeight, 0.1));

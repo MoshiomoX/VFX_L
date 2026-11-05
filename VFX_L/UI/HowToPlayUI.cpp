@@ -76,6 +76,7 @@ void HowToPlayUI::Open()
     m_Open = true;
     m_Page = 0;
     m_InputDelay = 0.15f;
+    m_Stick.Reset();
 }
 
 void HowToPlayUI::Flip(int dir)
@@ -99,6 +100,7 @@ bool HowToPlayUI::HandleInput(float dt)
         AudioSystem::Get().Play("ui_close");
         return true;
     }
+    m_Stick.Update(dt);   // 猶予の間も見ておく（出た時に倒したままなら、一度戻すまで動かない）
     if (m_InputDelay > 0.0f)
     {
         m_InputDelay -= frameDt;
@@ -106,9 +108,11 @@ bool HowToPlayUI::HandleInput(float dt)
     }
 
     const bool left = input.GetKeyTrigger('A') || input.GetKeyTrigger(VK_LEFT)
-        || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_LEFT) || input.GetPadTrigger(XINPUT_GAMEPAD_LEFT_SHOULDER);
+        || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_LEFT) || input.GetPadTrigger(XINPUT_GAMEPAD_LEFT_SHOULDER)
+        || m_Stick.Pressed(StickNav::kLeft);
     const bool right = input.GetKeyTrigger('D') || input.GetKeyTrigger(VK_RIGHT)
-        || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_RIGHT) || input.GetPadTrigger(XINPUT_GAMEPAD_RIGHT_SHOULDER);
+        || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_RIGHT) || input.GetPadTrigger(XINPUT_GAMEPAD_RIGHT_SHOULDER)
+        || m_Stick.Pressed(StickNav::kRight);
     const bool next = input.GetKeyTrigger(VK_RETURN) || input.GetKeyTrigger(VK_SPACE)
         || input.GetPadTrigger(XINPUT_GAMEPAD_A) || input.GetMouseTrigger(0);
     if (left) Flip(-1);

@@ -33,6 +33,7 @@ void MenuList::Open()
     m_Cursor = 0;
     m_InputDelay = 0.15f;
     m_LastMouse = { -1.0f, -1.0f };
+    m_Stick.Reset();
 }
 
 // ============================================================
@@ -59,6 +60,7 @@ int MenuList::HandleInputRaw(float dt)
     const Vector2 mouse = { mp.x, mp.y };
     const bool mouseMoved = (mouse - m_LastMouse).LengthSquared() > 0.25f;
     m_LastMouse = mouse;
+    m_Stick.Update(dt);   // 猶予の間も見ておく（出た時に倒したままなら、一度戻すまで動かない）
 
     if (m_InputDelay > 0.0f)
     {
@@ -82,9 +84,9 @@ int MenuList::HandleInputRaw(float dt)
     if (hover >= 0 && mouseMoved) m_Cursor = hover;
     if (m_Cursor < 0 || m_Cursor >= n) m_Cursor = 0;
 
-    if (input.GetKeyTrigger(VK_UP) || input.GetKeyTrigger('W') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP))
+    if (input.GetKeyTrigger(VK_UP) || input.GetKeyTrigger('W') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP) || m_Stick.Repeat(StickNav::kUp))
         m_Cursor = (m_Cursor + n - 1) % n;
-    if (input.GetKeyTrigger(VK_DOWN) || input.GetKeyTrigger('S') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN))
+    if (input.GetKeyTrigger(VK_DOWN) || input.GetKeyTrigger('S') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN) || m_Stick.Repeat(StickNav::kDown))
         m_Cursor = (m_Cursor + 1) % n;
 
     if (input.GetMouseTrigger(0) && hover >= 0)

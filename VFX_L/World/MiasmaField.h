@@ -26,6 +26,7 @@
 #include <SimpleMath.h>
 #include <memory>
 #include <cstdint>
+#include <vector>
 
 class GridWorld;
 class ComputeShader;
@@ -42,6 +43,7 @@ public:
     static constexpr float kCellY = 0.3f;    // 縦（m、地面からの高さ）
     static constexpr float kTop = kNY * kCellY;   // 箱の天井（地面から m）
     static constexpr int kNoise = 48;        // 細かい雑音の図の一辺（繰り返す）
+    static constexpr int kMaxTorches = 16;   // 霧に効く松明（プレイヤーに近い順）
 
     // 同じ作りで 2 種類（2026-11-03）：遺跡の瘴気（いつも地面に湧き、風で散る・火で焼ける）と
     // 砂漠の砂塵（普段は薄い砂の霞だけ。風源・砂嵐・爆発が砂を巻き上げると濃い砂の雲になり、ゆっくり落ちて消える）
@@ -91,6 +93,14 @@ public:
         float erode = 0.55f;        // 削る強さ（0 = 削らない）
         float densRef = 0.35f;      // この濃さ以上は芯（削られても残る）
         float detailRise = 0.35f;   // 雑音が上へ流れる速さ（m/s。湧いて立ち上る感じ）
+        // ---- 松明（2026-11-05、遺跡）：周りの瘴気を焼いて晴らし（床の石が見えて点光源の暖かい光が落ちる）、霧を暖かく照らす ----
+        bool  torches = true;
+        float torchRadius = 2.8f;       // 晴らす半径（m、床の上の水平距離）
+        float torchBurn = 2.0f;         // 焼ける速さ（1/秒、真ん中）。戻る速さ regrow と釣り合って穴の薄さが決まる
+        float torchLift = 0.6f;         // 熱で昇る速さ（m/s）。穴の縁の霧が少し立ち上る
+        float torchGlow = 1.2f;         // 松明の近くの霧が暖かく光る強さ
+        float torchGlowRadius = 5.5f;   // 光が届く距離（m、松明からの 3D の距離）
+        DirectX::SimpleMath::Vector3 torchColor = { 1.0f, 0.55f, 0.22f };   // 線形
     };
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
@@ -109,6 +119,8 @@ public:
     void SetCenter(const DirectX::SimpleMath::Vector3& player, const GridWorld& grid);
     // 次の Step でこの円の霧を消す（パネル・自動テスト）。clear 0..1
     void Clear(const DirectX::SimpleMath::Vector3& pos, float radius);
+    // 松明の位置（毎フレーム、SetCenter の後）。箱の近くの物から kMaxTorches 本、time で揺らぐ。空なら無し
+    void SetTorches(const std::vector<DirectX::SimpleMath::Vector3>& torches, float time);
 
     // 描画の中、群れの Flush の後に 1 歩。areas / areaStates = SwarmSystem、recipeHeat = GrassFireField::GetHeatSRV、
     // windSources = SwarmSystem::GetWindSourceSRV、height = GrassRenderer::GetHeightSRV（GridWorld の高さ）
@@ -125,8 +137,9 @@ public:
     bool DebugReadColumn(const DirectX::SimpleMath::Vector3& pos, float& sum, float& topH, float* cells = nullptr) const;
     // TEMP-TEST: 高さ y のセルの横の切り口を PGM（128 × 128、0..maxV を 0..255）に書く
     bool DebugDumpSlice(const char* path, int y, float maxV) const;
+    int DebugTorchCount() const { return m_TorchCount; }   // TEMP-TEST: 霧に渡している松明の数
 
-    // HLSL の MiasmaStepCB と同じ並び（160B）
+    // HLSL の MiasmaStepCB と同じ並び（432B）
     struct StepCB
     {
         DirectX::SimpleMath::Vector2 origin, prevOrigin;
@@ -139,8 +152,10 @@ public:
         DirectX::SimpleMath::Vector3 player; float playerRadius;
         DirectX::SimpleMath::Vector4 clear;   // xz, 半径, 1 = 有効
         float liftRate, blastDust, liftHeight, pad;
+        float torchCount, torchRadius, torchBurn, torchLift;
+        DirectX::SimpleMath::Vector4 torch[kMaxTorches];   // xyz = 位置、w = 揺らぎ（0.7..1）
     };
-    // HLSL の MiasmaMarchCB（208B）
+    // HLSL の MiasmaMarchCB（496B）
     struct MarchCB
     {
         DirectX::SimpleMath::Matrix invViewProj;
@@ -153,6 +168,9 @@ public:
         float topBlend, glow, edgeFade, pad;
         DirectX::SimpleMath::Vector3 detailOffset; float detailScale;
         float erode, densRef, detailScale2, detail2Mix;
+        DirectX::SimpleMath::Vector3 torchColor; float torchCount;
+        float torchGlow, torchGlowRadius, tpad0, tpad1;
+        DirectX::SimpleMath::Vector4 torch[kMaxTorches];
     };
     // HLSL の MiasmaCompositeCB（32B）
     struct CompositeCB
@@ -201,6 +219,8 @@ private:
     DirectX::SimpleMath::Vector3 m_Player;
     DirectX::SimpleMath::Vector4 m_Clear;
     bool  m_ClearOn = false;
+    DirectX::SimpleMath::Vector4 m_Torch[kMaxTorches];
+    int   m_TorchCount = 0;
 
     Settings m_Settings;
     Kind m_Kind = Kind::Miasma;

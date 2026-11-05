@@ -391,12 +391,15 @@ void ShopScene::Update(float dt)
         return;
     }
 
-    // ---- 行の移動（W S / 上下 / 十字）----
+    // ---- 行の移動（W S / 上下 / 十字 / 左スティック）----
+    m_Stick.Update(dt);   // バックパックから戻った直後に倒したままなら、一度戻すまで動かない
     if (n > 0)
     {
         int move = 0;
-        if (input.GetKeyTrigger(VK_UP) || input.GetKeyTrigger('W') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP)) move = -1;
-        if (input.GetKeyTrigger(VK_DOWN) || input.GetKeyTrigger('S') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN)) move = 1;
+        if (input.GetKeyTrigger(VK_UP) || input.GetKeyTrigger('W') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP) ||
+            m_Stick.Repeat(StickNav::kUp)) move = -1;
+        if (input.GetKeyTrigger(VK_DOWN) || input.GetKeyTrigger('S') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN) ||
+            m_Stick.Repeat(StickNav::kDown)) move = 1;
         if (move != 0)
         {
             m_Cursor = (m_Cursor + n + move) % n;

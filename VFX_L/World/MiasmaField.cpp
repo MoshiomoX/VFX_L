@@ -16,8 +16,8 @@ using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;
 
-static_assert(sizeof(MiasmaField::StepCB) == 160, "MiasmaStepCB layout mismatch");
-static_assert(sizeof(MiasmaField::MarchCB) == 208, "MiasmaMarchCB layout mismatch");
+static_assert(sizeof(MiasmaField::StepCB) == 432, "MiasmaStepCB layout mismatch");
+static_assert(sizeof(MiasmaField::MarchCB) == 496, "MiasmaMarchCB layout mismatch");
 static_assert(sizeof(MiasmaField::CompositeCB) == 32, "MiasmaCompositeCB layout mismatch");
 
 namespace
@@ -285,6 +285,33 @@ void MiasmaField::Clear(const Vector3& pos, float radius)
     m_ClearOn = true;
 }
 
+// 箱の中（と光の届く所）にある松明を、プレイヤーに近い順に kMaxTorches 本
+void MiasmaField::SetTorches(const std::vector<Vector3>& torches, float time)
+{
+    m_TorchCount = 0;
+    if (!m_Settings.torches || torches.empty() || !m_HasOrigin) return;
+    const float half = 0.5f * kNX * kCell + m_Settings.torchGlowRadius;
+    const Vector2 c = m_Origin + Vector2(0.5f * kNX * kCell, 0.5f * kNZ * kCell);
+    std::vector<std::pair<float, size_t>> order;
+    order.reserve(torches.size());
+    for (size_t i = 0; i < torches.size(); ++i)
+    {
+        const Vector3& p = torches[i];
+        if (std::fabs(p.x - c.x) > half || std::fabs(p.z - c.y) > half) continue;
+        order.push_back({ Vector2(p.x - m_Player.x, p.z - m_Player.z).LengthSquared(), i });
+    }
+    std::sort(order.begin(), order.end());
+    for (const auto& o : order)
+    {
+        if (m_TorchCount >= kMaxTorches) break;
+        // 点光源（CollisionTestScene::SubmitTorchLights）と同じ揺らぎ
+        const float k = (float)o.second;
+        const float flicker = 0.85f + 0.15f * std::sin(time * 9.0f + k * 1.7f) * std::cos(time * 5.3f + k * 0.9f);
+        const Vector3& p = torches[o.second];
+        m_Torch[m_TorchCount++] = Vector4(p.x, p.y, p.z, flicker);
+    }
+}
+
 void MiasmaField::Step(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* recipeHeat,
     ID3D11ShaderResourceView* windSources, ID3D11ShaderResourceView* height, ID3D11ShaderResourceView* sandState)
 {
@@ -323,6 +350,11 @@ void MiasmaField::Step(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView
     cb.liftRate = sandState ? s.liftRate : 0.0f;
     cb.blastDust = s.blastDust;
     cb.liftHeight = s.liftHeight;
+    cb.torchCount = (float)m_TorchCount;
+    cb.torchRadius = s.torchRadius;
+    cb.torchBurn = s.torchBurn;
+    cb.torchLift = s.torchLift;
+    for (int i = 0; i < m_TorchCount; ++i) cb.torch[i] = m_Torch[i];
     m_PendingDt = 0.0f;
     m_ClearOn = false;
     m_NeedReset = false;

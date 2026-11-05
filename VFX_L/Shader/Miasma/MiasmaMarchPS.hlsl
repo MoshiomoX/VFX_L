@@ -23,7 +23,7 @@ Texture3D<float> g_Noise : register(t3);     // タイル可能な細部ノイ�
 SamplerState g_Linear : register(s0);
 SamplerState g_Wrap : register(s1);
 
-// MiasmaField::MarchCB（208 バイト）と一致させること
+// MiasmaField::MarchCB（496 バイト）と一致させること
 cbuffer MiasmaMarchCB : register(b0)
 {
     row_major float4x4 g_InvViewProj;
@@ -51,7 +51,26 @@ cbuffer MiasmaMarchCB : register(b0)
     float g_DensRef;        // 霧を濃い芯とみなす密度
     float g_DetailScale2;   // 1/m（小さいオクターブ）
     float g_Detail2Mix;
+    float3 g_TorchColor;    // 遺跡の松明（2026-11-05）: 近くの霧を暖かく照らす
+    float g_TorchCount;
+    float g_TorchGlow;
+    float g_TorchGlowRadius;
+    float2 _padTorch;
+    float4 g_Torch[16];     // xyz = 位置、w = 揺らぎ
 };
+
+// この点の霧が松明から受ける暖かい光（近いほど強く、2 乗で落ちる）
+float3 TorchLight(float3 w)
+{
+    float3 sum = 0.0;
+    const uint n = (uint)g_TorchCount;
+    for (uint i = 0u; i < n; ++i)
+    {
+        float k = saturate(1.0 - distance(w, g_Torch[i].xyz) / max(g_TorchGlowRadius, 0.1));
+        sum += (k * k) * g_Torch[i].w;
+    }
+    return g_TorchColor * (g_TorchGlow * sum);
+}
 
 #define MIASMA_NX 128.0
 #define MIASMA_NY 32.0
@@ -133,6 +152,8 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
             continue;
         float a = 1.0 - exp(-dens * g_Extinction * dt);
         float3 col = lerp(g_ColorLow, g_ColorHigh, saturate(h / max(g_TopBlend, 0.1)));
+        if (g_TorchCount > 0.5)
+            col += TorchLight(w);
         C += T * a * col;
         T *= 1.0 - a;
         if (T < 0.02)

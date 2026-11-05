@@ -813,7 +813,7 @@ namespace Swarm
         float fade;        // 0〜1（生まれ / 消え）
         float pushDir[2];  // 押す向き（xz 単位ベクトル。0 = 押さない）
         float push;        // 中心での押す速さ m/s
-        float _pad;
+        float self;        // 1 = プレイヤー自身の突風（マントは受けない。2026-11-05）。GPU（HLSL では _pad）は見ない
     };
     static_assert(sizeof(WindSource) == 48, "WindSource layout mismatch");
 

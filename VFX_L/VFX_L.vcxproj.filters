@@ -280,6 +280,12 @@
     <ClCompile Include="Debug\AutoTest\AutoTestGustAll.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestCapeGust.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Debug\AutoTest\AutoTestStickNav.cpp">
+      <Filter>Debug\AutoTest</Filter>
+    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBossIntro.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -1759,6 +1765,9 @@
       <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\MenuList.h">
+      <Filter>VFX_Editor\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\StickNav.h">
       <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
     <ClInclude Include="UI\TitleScreenUI.h">

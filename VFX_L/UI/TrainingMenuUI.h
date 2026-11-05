@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "UI/StickNav.h"
 
 class SpriteRenderer;
 class TextRenderer;
@@ -128,6 +129,7 @@ private:
     int   m_Col = 0;
     float m_InputDelay = 0.0f;
     float m_RepeatDelay = 0.0f;
+    StickNav m_Stick;   // 左スティック（2026-11-05）
     DirectX::SimpleMath::Vector2 m_LastMouse = { -1.0f, -1.0f };
 
     // 選んでいる値

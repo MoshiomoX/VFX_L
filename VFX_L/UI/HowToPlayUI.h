@@ -14,6 +14,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "UI/StickNav.h"
 
 class SpriteRenderer;
 class TextRenderer;
@@ -55,6 +56,7 @@ private:
     int   m_Page = 0;
     bool  m_Open = false;
     float m_InputDelay = 0.0f;
+    StickNav m_Stick;   // 左スティックの左右でページ送り（2026-11-05）
 
     DirectX::SimpleMath::Vector2 m_Screen = { 1600.0f, 900.0f };
     DirectX::SimpleMath::Vector2 m_PanelPos = { 0.0f, 0.0f };

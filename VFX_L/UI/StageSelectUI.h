@@ -12,6 +12,7 @@
 #include "Graphics/Renderer/SpriteRenderer.h"
 #include "Graphics/Renderer/TextRenderer.h"
 #include "World/StageConfig.h"
+#include "UI/StickNav.h"
 #include <memory>
 #include <string>
 
@@ -69,6 +70,7 @@ private:
     float m_Left = 0.0f;    // 左の余白（px）
     float m_Time = 0.0f;
     float m_InputDelay = 0.0f;   // 開いた直後は決定を受けない（押しっぱなしの Enter で即出発しない）
+    StickNav m_Stick;            // 左スティック（2026-11-05。上下 = マップ、左右 = Tier。地形の切り替えが重いので連続はしない）
     bool  m_Starting = false;
     bool  m_MapChanged = false;
     float m_ChangeTimer = 0.0f;  // 最後にマップが変わってからの秒（kSwitchDelay を過ぎたら ConsumeMapChanged が答える）

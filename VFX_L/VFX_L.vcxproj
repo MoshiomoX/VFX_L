@@ -271,6 +271,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\CollisionTestSceneRuins.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGustAll.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestCapeGust.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestStickNav.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossIntro.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBossDrama.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPondMobs.cpp" />
@@ -833,6 +835,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Core\VideoCapture.h" />
     <ClInclude Include="UI\StageSelectUI.h" />
     <ClInclude Include="UI\MenuList.h" />
+    <ClInclude Include="UI\StickNav.h" />
     <ClInclude Include="UI\TitleScreenUI.h" />
     <ClInclude Include="Item\ItemTypes.h" />
     <ClInclude Include="Player\LevelComponent.h" />

@@ -91,6 +91,7 @@ void SwarmSystem::DispatchWindSources(float dt)
                 w.fade = std::sin(3.14159265f * (b.age / b.life));   // 出てすぐ強く、終わりで 0
                 w.pushDir[0] = b.dir.x; w.pushDir[1] = b.dir.y;
                 w.push = b.push;
+                w.self = b.self ? 1.0f : 0.0f;
             }
             ++i;
         }

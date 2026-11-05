@@ -539,6 +539,7 @@ public:
         float push = 0.0f;
         float life = 0.4f;
         float age = 0.0f;
+        bool  self = false;   // プレイヤー自身の突風（2026-11-05）：草・落ち葉・粒子は吹くが、マントは受けない
     };
     void AddWindBurst(const WindBurst& b) { if (m_WindBursts.size() < Swarm::kMaxWindSources) m_WindBursts.push_back(b); }
     // このフレームだけの CPU の風源（2026-10-22、動く竜巻）：毎フレーム出し直す物。次の Flush で表に載せて捨てる

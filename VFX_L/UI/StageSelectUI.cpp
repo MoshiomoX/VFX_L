@@ -176,18 +176,21 @@ int StageSelectUI::Update(float dt)
         AudioSystem::Get().Play("ui_close");
         return kBack;
     }
+    m_Stick.Update(dt);   // 猶予の間も見ておく（出た時に倒したままなら、一度戻すまで動かない）
     if (m_InputDelay > 0.0f)
     {
         m_InputDelay -= dt;
         return kNone;
     }
 
-    const bool up = input.GetKeyTrigger('W') || input.GetKeyTrigger(VK_UP) || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP);
-    const bool down = input.GetKeyTrigger('S') || input.GetKeyTrigger(VK_DOWN) || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN);
+    const bool up = input.GetKeyTrigger('W') || input.GetKeyTrigger(VK_UP) || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP)
+        || m_Stick.Pressed(StickNav::kUp);
+    const bool down = input.GetKeyTrigger('S') || input.GetKeyTrigger(VK_DOWN) || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_DOWN)
+        || m_Stick.Pressed(StickNav::kDown);
     const bool left = input.GetKeyTrigger('A') || input.GetKeyTrigger(VK_LEFT) || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_LEFT)
-        || input.GetPadTrigger(XINPUT_GAMEPAD_LEFT_SHOULDER);
+        || input.GetPadTrigger(XINPUT_GAMEPAD_LEFT_SHOULDER) || m_Stick.Pressed(StickNav::kLeft);
     const bool right = input.GetKeyTrigger('D') || input.GetKeyTrigger(VK_RIGHT) || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_RIGHT)
-        || input.GetPadTrigger(XINPUT_GAMEPAD_RIGHT_SHOULDER);
+        || input.GetPadTrigger(XINPUT_GAMEPAD_RIGHT_SHOULDER) || m_Stick.Pressed(StickNav::kRight);
     const bool confirm = input.GetKeyTrigger(VK_RETURN) || input.GetKeyTrigger(VK_SPACE) || input.GetPadTrigger(XINPUT_GAMEPAD_A);
     if (up) MoveMap(-1);
     else if (down) MoveMap(+1);

@@ -223,7 +223,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     {
         m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
         m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
-        AddGustWindBurst(g.pos, g.dir, g.length, g.radius);
+        AddGustWindBurst(g.pos, g.dir, g.length, g.radius, true);   // 自分の突風：マントは受けない
     }
     m_SpellFx.Update(dt, m_WeaponSystem.GetTriggeredFx(),                                // アイススパイクの氷のトゲ（地面の高さに 1 本ずつ）
         [this](float x, float z) { return m_Grid.SampleHeight(x, z); });

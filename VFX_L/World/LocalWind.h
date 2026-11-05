@@ -16,14 +16,16 @@ struct LocalWind
 {
     std::array<Swarm::WindSource, Swarm::kMaxWindSources> sources = {};
 
-    // 地面の点 (x, z) での空気の速さ（m/s）。lift = 一番強い風源の効き 0〜1（芯ほど 1）
-    DirectX::SimpleMath::Vector3 Air(float x, float z, float* lift = nullptr) const
+    // 地面の点 (x, z) での空気の速さ（m/s）。lift = 一番強い風源の効き 0〜1（芯ほど 1）。
+    // skipSelf = プレイヤー自身の突風（WindSource::self）を数えない（マント。自分の魔法で体の前へ押し込まれないように。2026-11-05）
+    DirectX::SimpleMath::Vector3 Air(float x, float z, float* lift = nullptr, bool skipSelf = false) const
     {
         DirectX::SimpleMath::Vector3 air(0.0f, 0.0f, 0.0f);
         float maxLift = 0.0f;
         for (const Swarm::WindSource& w : sources)
         {
             if (w.radius <= 0.0f) continue;
+            if (skipSelf && w.self > 0.5f) continue;
             const float dx = x - w.pos[0], dz = z - w.pos[2];
             const float dist = std::sqrt(dx * dx + dz * dz);
             if (dist >= w.radius) continue;

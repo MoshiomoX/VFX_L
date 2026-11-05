@@ -105,7 +105,7 @@ void CollisionTestScene::PushWind()
 // 届く距離 = 範囲の半径（突風 3.4m）、縁の接線 11 m/s + 芯の上昇 3.5 m/s + 吸い込み 1.2 m/s + 風下へ 11 m/s の押し、
 // 0.8 秒（sin で出入り）。草・落ち葉・煙・風を受ける粒子が同じ風に巻かれる。向き無し（円盤）なら押さない
 // ============================================================
-void CollisionTestScene::AddGustWindBurst(const Vector3& pos, const Vector2& dir, float length, float radius)
+void CollisionTestScene::AddGustWindBurst(const Vector3& pos, const Vector2& dir, float length, float radius, bool self)
 {
     SwarmSystem::WindBurst b;
     const bool hasDir = dir.LengthSquared() > 1e-4f;
@@ -119,6 +119,7 @@ void CollisionTestScene::AddGustWindBurst(const Vector3& pos, const Vector2& dir
     b.dir = hasDir ? dir : Vector2::Zero;
     b.push = hasDir ? 11.0f : 0.0f;
     b.life = 0.8f;
+    b.self = self;
     m_Swarm.AddWindBurst(b);
 }
 

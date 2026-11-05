@@ -79,6 +79,11 @@ void MiasmaField::Render(ID3D11DeviceContext* context, Graphics& graphics, Camer
     mcb.densRef = s.densRef;
     mcb.detailScale2 = s.detailScale2;
     mcb.detail2Mix = s.detail2Mix;
+    mcb.torchColor = s.torchColor;
+    mcb.torchCount = (float)m_TorchCount;
+    mcb.torchGlow = s.torchGlow;
+    mcb.torchGlowRadius = s.torchGlowRadius;
+    for (int i = 0; i < m_TorchCount; ++i) mcb.torch[i] = m_Torch[i];
     m_MarchPS->WriteBuffer(context, 0, &mcb);
 
     CompositeCB ccb = {};
@@ -177,4 +182,13 @@ void MiasmaField::DrawImGui()
     ImGui::SliderFloat("Erode", &s.erode, 0.0f, 1.0f);
     ImGui::DragFloat("Core Density", &s.densRef, 0.01f, 0.05f, 4.0f);
     ImGui::DragFloat("Detail Rise (m/s)", &s.detailRise, 0.01f, 0.0f, 3.0f);
+    ImGui::SeparatorText("Torches (burn a clearing, warm glow)");
+    ImGui::Checkbox("Torches##miasma", &s.torches);
+    ImGui::Text("torches in the box: %d", m_TorchCount);
+    ImGui::DragFloat("Torch Clear Radius (m)", &s.torchRadius, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Torch Burn (1/s)", &s.torchBurn, 0.05f, 0.0f, 20.0f);
+    ImGui::DragFloat("Torch Lift (m/s)", &s.torchLift, 0.02f, 0.0f, 5.0f);
+    ImGui::DragFloat("Torch Glow", &s.torchGlow, 0.02f, 0.0f, 10.0f);
+    ImGui::DragFloat("Torch Glow Radius (m)", &s.torchGlowRadius, 0.05f, 0.5f, 20.0f);
+    ImGui::ColorEdit3("Torch Color", &s.torchColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
 }

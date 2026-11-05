@@ -42,6 +42,10 @@ public:
     void CloseSubPage();
     void TestOpenSettings() { m_InSettings = true; m_Settings.Open(); }   // TEMP-TEST: 自動テスト ui が設定のページを撮る
     void TestOpenHowTo() { m_HowTo.Open(); }                               // TEMP-TEST: 同上（遊び方）
+    // TEMP-TEST: 左スティックの自動テスト（sticknav）。一覧のカーソル / 設定のカーソル / 遊び方のページ
+    int TestListCursor() const { return m_List.Cursor(); }
+    int TestSettingsCursor() const { return m_Settings.TestCursor(); }
+    int TestHowToPage() const { return m_HowTo.Page(); }
 
     // チュートリアル中は「チュートリアルを飛ばす」の項目を足す（2026-10-13）。毎フレーム呼んでよい（変わった時だけ組み直す）
     void SetTutorialActive(bool on);
