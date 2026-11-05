@@ -9,6 +9,7 @@
 #include "Component/RigidbodyComponent.h"
 #include "Component/HealthComponent.h"
 #include "Component/InteractableComponent.h"
+#include "Component/SkinnedAnimComponent.h"
 #include "Player/PlayerStatsComponent.h"
 #include "Player/PlayerStateComponent.h"
 #include "Player/LevelComponent.h"
@@ -99,8 +100,23 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ---- 見た目のアニメ（杖の後: 「今フレーム撃った」を拾うため）----
     m_PlayerAnimSystem.Update(m_Registry, dt);
+    // 石の守護獣の石化しきった間（2026-11-05）：プレイヤーのアニメを止め（速さを 0 にして進め、戻す）、マントも揺らさない
+    const bool playerStone = m_PlayerStoneLook >= 0.99f && m_Registry.Has<SkinnedAnimComponent>(m_Player);
+    float stoneKeep[3] = {};
+    if (playerStone)
+    {
+        auto& a = m_Registry.Get<SkinnedAnimComponent>(m_Player);
+        SkinnedAnimLayer* layers[3] = { &a.base, &a.upper, &a.over };
+        for (int i = 0; i < 3; ++i) { stoneKeep[i] = layers[i]->speed; layers[i]->speed = 0.0f; }
+    }
     m_SkinnedAnimSystem.Update(m_Registry, dt);
-    m_ClothChainSystem.Update(m_Registry, dt);   // マント（今フレームのポーズで揺らす）
+    if (playerStone)
+    {
+        auto& a = m_Registry.Get<SkinnedAnimComponent>(m_Player);
+        SkinnedAnimLayer* layers[3] = { &a.base, &a.upper, &a.over };
+        for (int i = 0; i < 3; ++i) layers[i]->speed = stoneKeep[i];
+    }
+    if (!playerStone) m_ClothChainSystem.Update(m_Registry, dt);   // マント（今フレームのポーズで揺らす）
 
     // 草の風と踏み跡（物理の後の位置・接地で）
     if (const Vector3* pp = PlayerPos())
@@ -218,6 +234,20 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_Camera.OnPlayerHit(hpLost);
     m_Feedback.Update(m_Registry, m_Player, dt, hpLost);
     m_PlayerVFX.Update(m_Registry, m_Player, dt, hpLost, m_WeaponSystem.GetCastFx());   // 詠唱の光・土煙・着地・尾・被弾の閃き
+    // 石化の灰色（2026-11-05）：PlayerVFXSystem が毎フレーム hitFlash を書くので、その後で強い方を取る（被弾の閃きは消さない）
+    if (m_PlayerStoneLook > 0.0f && m_Registry.Has<SkinnedAnimComponent>(m_Player))
+    {
+        auto& a = m_Registry.Get<SkinnedAnimComponent>(m_Player);
+        constexpr float kStoneTint = 0.78f;                         // 石化しきりで元の色を 22% 残す（暗い服の陰影が少し残る）
+        const Vector3 kStoneColor(0.30f, 0.29f, 0.27f);             // 灰色の石（線形）
+        const float k = kStoneTint * m_PlayerStoneLook;
+        if (k > a.hitFlash)
+        {
+            a.hitFlash = k;
+            a.hitFlashColor = kStoneColor;
+        }
+    }
+    m_PlayerStoneLook = 0.0f;   // Boss の技が毎フレーム書き直す（Boss が居なくなったら戻る）
     UpdateFootprints(dt);   // 砂漠：一歩ごとに足跡（2026-11-03）
     for (const auto& g : m_WeaponSystem.GetGustFx())   // 突風：草が一斉に倒れ、落ち葉が舞う
     {

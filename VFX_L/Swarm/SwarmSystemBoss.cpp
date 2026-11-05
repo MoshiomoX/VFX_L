@@ -134,15 +134,40 @@ void SwarmSystem::RenderCorpseDecorations(uint32_t list, CorpseCB& ccb)
     const auto& decos = m_ListDecos[list];
     const auto& argsList = m_ListDecoCorpseArgs[list];
     m_EnemyPS->SetTexture(m_Context, 0, m_DecoWhite.get());
+    // 動く飾り（翼・脚・尾・首・回る物・腕）と、体を描かないリストの飾りは、1 つずつ別の破片として飛ばす（2026-11-05）。
+    // 以前は描かなかった = 体の無い Boss（石の守護獣・雄鹿・狼人など）は胴の塊しか砕けなかった。
+    // 破片の支点 = 飾りのバウンディングボックスの中心（pivot[7] に入れる。部品の支点は 6 個なので 7 は空き）、
+    // part = 8 + 番号（VS では乱数の種にだけ使う。支点は min(part, 7)）
+    const DirectX::SimpleMath::Vector4 keepPivot7 = ccb.pivot[7];
+    const bool splitAll = m_ListHideBody[list];
     for (size_t d = 0; d < decos.size() && d < argsList.size(); ++d)
     {
         const BossDecoration& deco = decos[d];
-        if (!deco.model || deco.part == kDecoOrbit || deco.flap.w != 0.0f || deco.tail || deco.leg || deco.insectLeg) continue;
-        ccb.part = deco.part;
+        if (!deco.model) continue;
+        const bool own = splitAll || deco.part == kDecoOrbit || deco.flap.w != 0.0f || deco.tail || deco.leg || deco.insectLeg;
+        if (own)
+        {
+            DirectX::SimpleMath::Vector3 lo(1e9f, 1e9f, 1e9f), hi(-1e9f, -1e9f, -1e9f);
+            for (const auto& sm : deco.model->GetSubMeshes())
+            {
+                lo = DirectX::SimpleMath::Vector3::Min(lo, sm.boundsMin);
+                hi = DirectX::SimpleMath::Vector3::Max(hi, sm.boundsMax);
+            }
+            if (lo.x > hi.x) continue;
+            const DirectX::SimpleMath::Vector3 c = (lo + hi) * 0.5f;
+            ccb.pivot[7] = DirectX::SimpleMath::Vector4(c.x, c.y, c.z, 0.0f);
+            ccb.part = 8u + (uint32_t)d;
+        }
+        else
+        {
+            ccb.pivot[7] = keepPivot7;
+            ccb.part = deco.part;
+        }
         m_CorpseVS->WriteBuffer(m_Context, 4, &ccb);
         const auto& subs = deco.model->GetSubMeshes();
         for (size_t i = 0; i < subs.size() && i < argsList[d].size(); ++i)
             if (subs[i].mesh && argsList[d][i])
                 subs[i].mesh->DrawIndexedInstancedIndirect(m_Context, argsList[d][i].Get(), 0);
     }
+    ccb.pivot[7] = keepPivot7;
 }

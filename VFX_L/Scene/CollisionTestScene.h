@@ -365,6 +365,7 @@ private:
     float                   m_BeastBreathYawDeg = 0.0f;
     uint32_t                m_BeastDiveVfx = 0;    // 急降下で滑空している間の砂煙
     uint32_t                m_PlayerPetrifyVfx = 0;// 石化が溜まっている間、プレイヤーに付く灰色の石の欠片と埃
+    float                   m_PlayerStoneLook = 0.0f;// 石化の灰色（0..1、1 = 石化しきり = アニメとマントも止める。2026-11-05。毎フレーム Boss の技が書く）
     uint32_t                m_BeastPetrified = 0;  // 石になった回数（累計。自動テスト用）
     float                   m_BeastPrevWing = 0.0f;// 前のフレームの翼の角度（打ち下ろした瞬間に足元の草を倒す）
     std::vector<DjinnDevilFx> m_BeastShardFx;      // 石羽の散弾の羽根の見た目（BossAttacks::BeastShards() の id と対応。10-29 追加）

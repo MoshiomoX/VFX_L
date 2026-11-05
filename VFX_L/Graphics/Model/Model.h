@@ -74,12 +74,15 @@ public:
     bool LoadFromScene(ID3D11Device* device, const aiScene* scene,
         const std::string& directory, const std::string& modelName,
         const Matrix& rootTransform = Matrix::Identity);
-    // プログラム生成メッシュを追加する（PrimitiveBuilder 用）
-    void AddSubMesh(std::shared_ptr<Mesh> mesh, int materialIndex = -1)
+    // プログラム生成メッシュを追加する（PrimitiveBuilder 用）。bounds は頂点の包囲ボックス（分かる時だけ。2026-11-05 Boss の飾りの破片の支点）
+    void AddSubMesh(std::shared_ptr<Mesh> mesh, int materialIndex = -1,
+        const Vector3& boundsMin = Vector3::Zero, const Vector3& boundsMax = Vector3::Zero)
     {
         SubMesh sub;
         sub.mesh = mesh;
         sub.materialIndex = materialIndex;
+        sub.boundsMin = boundsMin;
+        sub.boundsMax = boundsMax;
         m_SubMeshes.push_back(sub);
     }
 

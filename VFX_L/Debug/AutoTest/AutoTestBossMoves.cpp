@@ -372,6 +372,43 @@ void AutoTestBossMoves::Run()
             m_Swarm.SpawnArea(a);
         }
     }
+    // 石化しきった瞬間（2026-11-05）：体が灰色になり、アニメが止まっているか。寄って 0.5 秒後に 1 枚
+    if (beast && m_Registry.Has<SkinnedAnimComponent>(m_Player))
+    {
+        static float s_StoneAt = -1.0f;   // -1 = まだ、-10 = 撮った
+        const auto& a = m_Registry.Get<SkinnedAnimComponent>(m_Player);
+        if (s_StoneAt == -1.0f && m_BossAttacks.BeastStoneLeft() > 0.0f)
+        {
+            s_StoneAt = t;
+            auto& cam = m_Camera.Camera();
+            cam.distance = 7.0f;
+            cam.SetPitch(18.0f);
+            cam.SnapToTarget();
+            snprintf(line, sizeof(line), "bossmoves beast stone start hitFlash %.2f color %.2f,%.2f,%.2f animTime %.3f",
+                a.hitFlash, a.hitFlashColor.x, a.hitFlashColor.y, a.hitFlashColor.z, a.base.time);
+            AutoTestLog(line);
+        }
+        if (s_StoneAt >= 0.0f && t >= s_StoneAt + 0.5f)
+        {
+            snprintf(line, sizeof(line), "bossmoves beast stone later hitFlash %.2f animTime %.3f stoneLeft %.2f",
+                a.hitFlash, a.base.time, m_BossAttacks.BeastStoneLeft());
+            AutoTestLog(line);
+            AutoTestLog("bossmoves look stone");
+            auto& cam = m_Camera.Camera();   // 次の 1 枚は寄って低く
+            cam.distance = 4.5f;
+            cam.SetPitch(8.0f);
+            cam.SnapToTarget();
+            s_StoneAt = -(t + 2.0f);   // -2 より小さい = 撮った（吐く息の煙が晴れる 1.05 秒後にもう 1 枚）
+        }
+        if (s_StoneAt < -2.0f && t >= -s_StoneAt - 2.0f + 0.55f)
+        {
+            snprintf(line, sizeof(line), "bossmoves beast stone end hitFlash %.2f animTime %.3f stoneLeft %.2f",
+                a.hitFlash, a.base.time, m_BossAttacks.BeastStoneLeft());
+            AutoTestLog(line);
+            AutoTestLog("bossmoves look stone2");
+            s_StoneAt = -1.0e6f;
+        }
+    }
     // 砂嵐の魔神の様子（0.25 秒毎）+ "roar" の試しの削り
     if (djinn && t >= s_NextSandLog)
     {

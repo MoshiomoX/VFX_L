@@ -76,6 +76,8 @@ public:
 
     // TEMP-TEST: 自動テスト（VFXL_BATTLE_AUTOTEST=training）。row = RowId の番号の最初の行、col = その中の部品
     void TestActivate(int rowId, int col);
+    int  TestRow() const { return m_Row; }   // TEMP-TEST: メニューの左スティック（sticknav）
+    int  TestCol() const { return m_Col; }
 
     // 選べる値（描画と依頼で共用）
     static constexpr int kHpChoices = 5;

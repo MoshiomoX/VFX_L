@@ -57,6 +57,8 @@ void CollisionTestScene::UpdateBossBeastFx(float dt, const BossAttacks::Input& i
         else
             m_AreaVFX.SetInstance(m_PlayerPetrifyVfx, in.player, in.player);
         m_AreaVFX.SetPresence(m_PlayerPetrifyVfx, (stone > 0.0f) ? 1.0f : 0.25f + 0.75f * petrify, false);
+        // 体も灰色に寄せる（2026-11-05）。石化しきった間は動きも止める（CollisionTestSceneGameplay.cpp で使い、毎フレーム 0 に戻す）
+        m_PlayerStoneLook = (stone > 0.0f) ? 1.0f : 0.6f * petrify;
     }
     else if (m_PlayerPetrifyVfx != 0)
     {

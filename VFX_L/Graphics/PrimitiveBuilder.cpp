@@ -98,8 +98,10 @@ namespace PrimitiveBuilder
         auto mesh = std::make_shared<Mesh>();
         if (!mesh->Create(device, m_Verts, m_Indices)) return nullptr;
 
+        Vector3 lo = m_Verts[0].position, hi = m_Verts[0].position;
+        for (const VERTEX_3D& v : m_Verts) { lo = Vector3::Min(lo, v.position); hi = Vector3::Max(hi, v.position); }
         auto model = std::make_shared<Model>();
-        model->AddSubMesh(mesh);
+        model->AddSubMesh(mesh, -1, lo, hi);
         return model;
     }
 

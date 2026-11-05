@@ -327,7 +327,37 @@ void CollisionTestScene::UpdateSelect(float dt)
         if (step(6, 14.5f)) AutoTestLog("select look unlocked");
         if (step(7, 15.0f)) m_SelectUI.TestSelect(2, 1);   // 2 回目の砂漠（モデル・テクスチャが読めている時の純粋な生成時間）
         if (step(8, 18.5f)) m_SelectUI.TestSelect(1, 3);
-        if (step(9, 22.0f))
+        // 左スティック（2026-11-05）：下 = マップ +1、左 = Tier −1、上 = マップ −1。倒し続けても 1 回だけ（地形の切り替えが重いので連続しない）。
+        // m_TitleTime はマップを切り替える度に 0 に戻る → ここは自分の時計（s_StickT）で測る
+        static float s_StickT = 0.0f;
+        if (s_Step == 9)
+        {
+            using V2 = DirectX::SimpleMath::Vector2;
+            static int s_StickLog = 0;
+            s_StickT += dt;
+            const float st = s_StickT;
+            if (st < 6.0f)
+            {
+                V2 s(0.0f, 0.0f);
+                if (st >= 1.5f && st < 1.6f) s = V2(0.0f, -1.0f);
+                if (st >= 2.7f && st < 2.8f) s = V2(-1.0f, 0.0f);
+                if (st >= 3.5f && st < 3.6f) s = V2(0.0f, 1.0f);
+                if (st >= 4.7f && st < 5.35f) s = V2(0.0f, -1.0f);
+                StickNav::DebugSetStick(s, true);
+            }
+            const float logAt[4] = { 2.1f, 3.1f, 4.1f, 5.9f };
+            const char* what[4] = { "down (expect map 2 tier 3)", "left (expect map 2 tier 2)", "up (expect map 1 tier 2)",
+                "hold0.65 down (expect map 2 tier 2, no repeat)" };
+            if (s_StickLog < 4 && st >= logAt[s_StickLog])
+            {
+                char line[160];
+                snprintf(line, sizeof(line), "select stick %s -> map %d tier %d", what[s_StickLog], m_SelectUI.Map(), m_SelectUI.Tier());
+                AutoTestLog(line);
+                ++s_StickLog;
+            }
+            if (s_StickLog == 4 && st >= 6.0f) { StickNav::DebugSetStick(V2::Zero, false); m_SelectUI.TestSelect(1, 3); ++s_StickLog; }
+        }
+        if (s_Step == 9 && s_StickT >= 7.5f && (++s_Step, true))
         {
             char line[64];
             snprintf(line, sizeof(line), "select start map %d tier %d", m_SelectUI.Map(), m_SelectUI.Tier());

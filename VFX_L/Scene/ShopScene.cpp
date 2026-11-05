@@ -757,10 +757,34 @@ void ShopScene::AutoTest()
             (m_Stock.Count() > m_Cursor) ? (int)m_Stock.At(m_Cursor).sold : -1);
         TestLog(buf);
     };
-    const float t = m_Time;
+    // 左スティック（2026-11-05）：1.0〜2.6 秒。下に 1 回 → 行 1、倒し続け 0.65 秒（1 回 + 連続 2 回）→ 行 4、上に 1 回 → 行 3。
+    // この後の買う手順は行を自分で選ぶので影響しない（下の手順は 2 秒ずらしてある）
+    {
+        static int s_StickLog = 0;
+        const float st = m_Time;
+        if (st < 2.6f)
+        {
+            Vector2 s(0.0f, 0.0f);
+            if (st >= 1.0f && st < 1.1f) s = Vector2(0.0f, -1.0f);
+            if (st >= 1.3f && st < 1.95f) s = Vector2(0.0f, -1.0f);
+            if (st >= 2.1f && st < 2.2f) s = Vector2(0.0f, 1.0f);
+            StickNav::DebugSetStick(s, true);
+        }
+        else if (s_StickLog == 3) { StickNav::DebugSetStick(Vector2::Zero, false); ++s_StickLog; }
+        const float logAt[3] = { 1.2f, 2.05f, 2.35f };
+        const char* what[3] = { "tap down (expect 1)", "hold0.65 down (expect 4)", "tap up (expect 3)" };
+        if (s_StickLog < 3 && st >= logAt[s_StickLog])
+        {
+            char buf[96];
+            snprintf(buf, sizeof(buf), "shop stick %s cursor %d", what[s_StickLog], m_Cursor);
+            TestLog(buf);
+            ++s_StickLog;
+        }
+    }
+    const float t = m_Time - 2.0f;
     switch (m_AutoStep)
     {
-    case 0: if (t > 0.8f) { stockLine("shop stock"); TestLog("shop look stock"); ++m_AutoStep; } break;
+    case 0: if (t > 0.8f) { m_Cursor = 0; stockLine("shop stock"); TestLog("shop look stock"); ++m_AutoStep; } break;
     case 1: if (t > 1.6f) { m_Cursor = 0; TryBuy(); buyLine("shop buy"); ++m_AutoStep; } break;
     case 2: if (t > 2.4f) { m_Cursor = 4; TryBuy(); buyLine("shop buy frame"); ++m_AutoStep; } break;
     case 3: if (t > 3.2f) { TestLog("shop look bought"); ++m_AutoStep; } break;

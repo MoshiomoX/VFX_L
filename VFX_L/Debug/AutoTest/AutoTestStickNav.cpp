@@ -6,6 +6,8 @@
 //            倒し続けて 1 秒 → 1 + 連続（0.4 秒の後 0.15 秒毎 = 5 回前後）、0.45 まで戻しても続ける（倒し直しにならない）
 //   pause  : 一時停止を開いた時に倒したまま → 動かない、戻して倒す → 1 つ下、倒し続ける → 連続
 //   settings / howto : 設定の行が 1 つ下へ、遊び方のページが 1 枚進む
+//   training : トレーニングのメニュー。右に 1 回 = ボタン 1 つ右、下に 1 回 = 1 行下、倒し続け 0.65 秒 = 3 行下（2026-11-05）
+//   選択画面・ショップのスティックは VFXL_SELECT_AUTOTEST / VFXL_SHOP_AUTOTEST の中で見る（`select stick` / `shop stick`）
 // 行：`sticknav unit ...` / `sticknav <場面> ...` / `sticknav look <名>` / `sticknav done`
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -107,8 +109,25 @@ void AutoTestStickNav::Run(float dt)
         AutoTestLog(line);
         AutoTestLog("sticknav look howto");
     }
-    if (at(6.0f))
+    // トレーニングのメニュー（2026-11-05 追加）：右に 1 回 = 「的を置く」の 2 つ目のボタン、下に 1 回 = 行 1、倒し続け 0.65 秒 = 行 4
+    if (in(6.5f, 6.6f)) s = Vec2(1.0f, 0.0f);
+    if (in(6.8f, 6.9f)) s = Vec2(0.0f, -1.0f);
+    if (in(7.1f, 7.75f)) s = Vec2(0.0f, -1.0f);
+    StickNav::DebugSetStick(s, true);
+    auto& tr = m_GameUI.TestTraining();
+    if (at(6.0f)) { m_GameUI.TestShow(0); m_GameUI.TestOpenTraining(true); }
+    if (at(6.45f)) { snprintf(line, sizeof(line), "sticknav training open row %d col %d", tr.TestRow(), tr.TestCol()); AutoTestLog(line); }
+    if (at(6.7f)) { snprintf(line, sizeof(line), "sticknav training right col %d (expect 1)", tr.TestCol()); AutoTestLog(line); }
+    if (at(7.0f)) { snprintf(line, sizeof(line), "sticknav training down row %d (expect 1)", tr.TestRow()); AutoTestLog(line); }
+    if (at(7.85f))
     {
+        snprintf(line, sizeof(line), "sticknav training hold065 row %d (expect 4)", tr.TestRow());
+        AutoTestLog(line);
+        AutoTestLog("sticknav look training");
+    }
+    if (at(8.2f))
+    {
+        m_GameUI.TestOpenTraining(false);
         m_GameUI.TestShow(0);
         StickNav::DebugSetStick(Vec2::Zero, false);
         AutoTestLog("sticknav done");
