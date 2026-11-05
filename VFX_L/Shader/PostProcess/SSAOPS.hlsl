@@ -35,6 +35,8 @@ cbuffer SSAOCB : register(b0)
     float strength;     // 0..2
     float maxDistance;  // m：これより先は AO なし（遠くの地面は計算するだけ無駄）
     row_major float4x4 g_InvView;   // ビュー -> ワールド（行ベクトル）：カーネルの回転をワールドに固定する
+    float pixelScale;   // 出力の 1 画素 = 深度の何画素（縦横半分で作る時 = 2、2026-11-05）
+    float3 ssaoPad;
 };
 
 static const uint SSAO_SAMPLES = 12u;
@@ -66,7 +68,7 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
     int2 size;
     int samples;
     g_Depth.GetDimensions(size.x, size.y, samples);
-    int2 p = int2(pos.xy);
+    int2 p = int2(pos.xy) * (int)pixelScale;   // 半分の時は 2x2 の左上の深度を代表にする（法線の隣は深度の 1 画素隣のまま）
 
     float zc = EyeDepth(p, size);
     if (zc > maxDistance || zc <= 0.0)

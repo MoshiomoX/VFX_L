@@ -40,6 +40,7 @@ namespace
             { "4000 mobs + wind",               4000, true,    0, false },
             { "4000 mobs + wind + lights",      4000, true,  192, false },
             { "4000 mobs + wind + lights + cast", 4000, true, 192, true },
+            { "4000 mobs + lights",             4000, false, 192, false },   // VFXL_STRESSFX_LIGHTAB 用（2026-11-05）
         };
         static constexpr int   kPhaseCount = (int)(sizeof(kPhases) / sizeof(kPhases[0]));
         static constexpr float kLead = 3.0f, kPhaseLen = 12.0f, kSettle = 6.0f;
@@ -113,7 +114,9 @@ void AutoTestStressFx::Setup()
 
     m_Run.clear();
     if (GetEnvironmentVariableA("VFXL_STRESSFX_MOBS", nullptr, 0) > 0) m_Run = { 0, 3, 4 };
-    else for (int i = 0; i < kPhaseCount; ++i) m_Run.push_back(i);
+    // 4000 体のまま光だけを 3 回ずつ付け外し（同じ群れで比べる。段ごとの揺れが ±0.5 ms あるので。2026-11-05）
+    else if (GetEnvironmentVariableA("VFXL_STRESSFX_LIGHTAB", nullptr, 0) > 0) m_Run = { 4, 8, 4, 8, 4, 8 };
+    else for (int i = 0; i < kPhaseCount - 1; ++i) m_Run.push_back(i);   // 最後の段（光の付け外し用）は普段は回さない
     // 賢いカメラ（2026-11-02）は囲まれると引くので、測る間は切る（以前の数字と同じ 14m / 45° で比べる）
     GameSettings::Get().smartCamera = false;
 

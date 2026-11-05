@@ -79,6 +79,8 @@ void CollisionTestScene::InitRenderers(ID3D11Device* device, ID3D11DeviceContext
             m_AmbientOcclusion.GetParams().enabled = false;
         if (GetEnvironmentVariableA("VFXL_SSAO_DEBUG", env, sizeof(env)) > 0 && env[0] != '0')
             m_AmbientOcclusion.GetParams().debugView = true;
+        if (GetEnvironmentVariableA("VFXL_SSAO_FULL", env, sizeof(env)) > 0 && env[0] != '0')
+            m_AmbientOcclusion.GetParams().halfRes = false;   // 画面の大きさで作る（半分との見比べ用、2026-11-05）
     }
     if (!m_Shadows.Initialize(device))
         std::cout << "[Error] ShadowMap init failed" << std::endl;

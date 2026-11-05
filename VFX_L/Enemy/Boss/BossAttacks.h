@@ -387,6 +387,7 @@ public:
     bool  BeastPhase2() const { return m_Beast.phase2; }
     float BeastPetrify() const { return m_Beast.petrify; }
     float BeastStoneLeft() const { return m_Beast.stoneLeft; }
+    void TestSetBeastStone(float sec) { m_Beast.stoneLeft = sec; m_Beast.petrify = 1.0f; }   // TEMP-TEST: 息なしで石化させる（煙の無い所で撮る）
     float BeastPetrifySlow() const;
     const std::vector<BeastShard>& BeastShards() const { return m_Beast.shards; }
     const DirectX::SimpleMath::Vector3& BeastShadow() const { return m_Beast.shadow; }

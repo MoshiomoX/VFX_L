@@ -27,7 +27,7 @@ bool AmbientOcclusion::Initialize(ID3D11Device* device)
     return ok;
 }
 
-// 画面の大きさの R8 を 3 枚（生 + 交互の 2 枚）。大きさが変わったら作り直す
+// AO の大きさ（画面か、その半分）の R16G16 を 3 枚（生 + 交互の 2 枚）。大きさが変わったら作り直す
 bool AmbientOcclusion::EnsureTargets(ID3D11Device* device, UINT width, UINT height)
 {
     if (m_Tex[0] && m_Width == width && m_Height == height) return true;
@@ -105,12 +105,18 @@ void AmbientOcclusion::Render(ID3D11DeviceContext* context, Graphics& graphics, 
         return;
     }
     ID3D11ShaderResourceView* depth = graphics.GetDepthSRV();
-    if (!depth || !EnsureTargets(graphics.GetDevice(), (UINT)graphics.GetWidth(), (UINT)graphics.GetHeight()))
+    // 半分の大きさ（2026-11-05）：AO は 5x5 でぼかす低周波の量なので、半分で作っても陰影の側は
+    // そのまま Load（Lighting.hlsli の SceneAO は自分の貼り絵の大きさで uv を画素にする）
+    const int scale = m_Params.halfRes ? 2 : 1;
+    const UINT aoW = ((UINT)graphics.GetWidth() + scale - 1) / scale;
+    const UINT aoH = ((UINT)graphics.GetHeight() + scale - 1) / scale;
+    if (!depth || !EnsureTargets(graphics.GetDevice(), aoW, aoH))
     {
         m_Valid[next] = false;
         m_Cur = next;
         return;
     }
+    m_Scale = scale;
 
     // 投影行列から「深度 → 目からの距離」（アウトラインと同じ式）と、画面 → カメラ空間の倍率
     const Matrix proj = camera->GetProjectionMatrix();
@@ -125,11 +131,13 @@ void AmbientOcclusion::Render(ID3D11DeviceContext* context, Graphics& graphics, 
     cb.strength = m_Params.strength;
     cb.maxDistance = m_Params.maxDistance;
     cb.invView = view.Invert();
+    cb.pixelScale = (float)m_Scale;
     m_PS->WriteBuffer(context, 0, &cb);
     BlurCB bcb = {};
     bcb.depthA = cb.depthA;
     bcb.depthB = cb.depthB;
     bcb.tolerance = m_Params.blurTolerance;
+    bcb.pixelScale = (float)m_Scale;
     m_BlurPS->WriteBuffer(context, 0, &bcb);
 
     auto& rs = RenderStates::Get();
@@ -141,6 +149,12 @@ void AmbientOcclusion::Render(ID3D11DeviceContext* context, Graphics& graphics, 
     context->IASetInputLayout(nullptr);
     context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
     m_VS->Bind(context);
+    // 貼り絵の大きさのビューポート（半分の時。最後の RestoreRenderTarget で画面の物に戻る）
+    D3D11_VIEWPORT vp = {};
+    vp.Width = (float)m_Width;
+    vp.Height = (float)m_Height;
+    vp.MaxDepth = 1.0f;
+    context->RSSetViewports(1, &vp);
 
     // 1) 生の AO
     ID3D11RenderTargetView* raw = m_RawRTV.Get();
@@ -175,6 +189,9 @@ void AmbientOcclusion::DrawImGui()
     ImGui::SliderFloat("AO Strength", &m_Params.strength, 0.0f, 2.5f);
     ImGui::DragFloat("AO Max Distance (m)", &m_Params.maxDistance, 0.5f, 5.0f, 300.0f);
     ImGui::SliderFloat("AO Blur Depth Tolerance", &m_Params.blurTolerance, 0.005f, 0.3f, "%.3f");
+    ImGui::Checkbox("Half resolution", &m_Params.halfRes);
+    ImGui::SameLine();
+    ImGui::TextDisabled("(%u x %u)", m_Width, m_Height);
     ImGui::SeparatorText("How the shading uses it");
     ImGui::SliderFloat("Toon Border Shift (N.L)", &m_Params.borderShift, 0.0f, 1.0f);
     ImGui::SliderFloat("Ambient Multiply", &m_Params.ambientMul, 0.0f, 1.0f);

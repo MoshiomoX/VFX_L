@@ -251,6 +251,71 @@ void AutoTestBossMoves::Run()
         if (t > 40.0f) { AutoTestLog("bossmoves knight timeout"); AutoTestLog("bossmoves done"); m_AutoStep = 3; }
         return;
     }
+    // ---- 石の守護獣：息なしで石化させ、寄って撮る（m_AutoStep 13、2026-11-05）----
+    if (m_AutoStep == 13 && m_Registry.Has<SkinnedAnimComponent>(m_Player))
+    {
+        static int s_Phase = 0;
+        static float s_AnimAt = 0.0f;
+        const float t = m_AutoTime - s_Base;
+        const auto& a = m_Registry.Get<SkinnedAnimComponent>(m_Player);
+        if (s_Phase == 0)
+        {
+            // Boss から 12m 離して（体の殴りが届かない）、正面寄りの斜めから近く低く
+            const Vector3 boss = m_Stage.BossPos();
+            Vector3 away = tf.position - boss;
+            away.y = 0.0f;
+            if (away.LengthSquared() < 1e-2f) away = Vector3(0.0f, 0.0f, 1.0f);
+            away.Normalize();
+            const Vector3 p = boss + away * 12.0f;
+            tf.position = Vector3(p.x, m_Grid.SampleHeight(p.x, p.z) + 1.0f, p.z);
+            m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
+            pcs.testInput = true;
+            pcs.testMove = Vector2::Zero;
+            auto& cam = m_Camera.Camera();
+            cam.SetYaw(DirectX::XMConvertToDegrees(std::atan2(away.x, -away.z)) + 150.0f);
+            cam.SetPitch(12.0f);
+            cam.distance = 4.5f;
+            cam.avoidOcclusion = false;
+            cam.SnapToTarget();
+            s_Phase = 1;
+        }
+        else if (s_Phase == 1 && t >= 0.8f)   // 着地して立ち止まってから
+        {
+            m_BossAttacks.TestSetBeastStone(1.6f);
+            s_Phase = 2;
+        }
+        else if (s_Phase == 2 && t >= 1.4f)
+        {
+            snprintf(line, sizeof(line), "bossmoves beast stoneclose hitFlash %.2f color %.2f,%.2f,%.2f animTime %.3f stoneLeft %.2f",
+                a.hitFlash, a.hitFlashColor.x, a.hitFlashColor.y, a.hitFlashColor.z, a.base.time, m_BossAttacks.BeastStoneLeft());
+            AutoTestLog(line);
+            AutoTestLog("bossmoves look stoneclose");
+            s_AnimAt = a.base.time;
+            s_Phase = 3;
+        }
+        else if (s_Phase == 3 && t >= 2.0f)
+        {
+            snprintf(line, sizeof(line), "bossmoves beast stoneclose2 animTime %.3f (was %.3f) stoneLeft %.2f",
+                a.base.time, s_AnimAt, m_BossAttacks.BeastStoneLeft());
+            AutoTestLog(line);
+            s_Phase = 4;
+        }
+        else if (s_Phase == 4 && t >= 3.4f)   // 石化が解けた後（1.6 秒 + 欠片が散るまで）
+        {
+            snprintf(line, sizeof(line), "bossmoves beast stoneafter hitFlash %.2f animTime %.3f stoneLeft %.2f petrify %.2f",
+                a.hitFlash, a.base.time, m_BossAttacks.BeastStoneLeft(), m_BossAttacks.BeastPetrify());
+            AutoTestLog(line);
+            AutoTestLog("bossmoves look stoneafter");
+            s_Phase = 5;
+        }
+        else if (s_Phase == 5 && t >= 3.8f)
+        {
+            pcs.testInput = false;
+            AutoTestLog("bossmoves done");
+            m_AutoStep = 3;
+        }
+        return;
+    }
     if (m_AutoStep != 2) return;
 
     const float t = m_AutoTime - s_Base;
@@ -284,6 +349,13 @@ void AutoTestBossMoves::Run()
                 s_Base = m_AutoTime;
                 m_AutoStep = 10;
                 AutoTestLog("bossmoves knight chip start");
+                return;
+            }
+            if (beast)
+            {
+                // 石化の寄りの絵（2026-11-05）：息の煙が無い所で石化だけ起こす（m_AutoStep 13）
+                s_Base = m_AutoTime;
+                m_AutoStep = 13;
                 return;
             }
             AutoTestLog("bossmoves done");
@@ -394,19 +466,7 @@ void AutoTestBossMoves::Run()
                 a.hitFlash, a.base.time, m_BossAttacks.BeastStoneLeft());
             AutoTestLog(line);
             AutoTestLog("bossmoves look stone");
-            auto& cam = m_Camera.Camera();   // 次の 1 枚は寄って低く
-            cam.distance = 4.5f;
-            cam.SetPitch(8.0f);
-            cam.SnapToTarget();
-            s_StoneAt = -(t + 2.0f);   // -2 より小さい = 撮った（吐く息の煙が晴れる 1.05 秒後にもう 1 枚）
-        }
-        if (s_StoneAt < -2.0f && t >= -s_StoneAt - 2.0f + 0.55f)
-        {
-            snprintf(line, sizeof(line), "bossmoves beast stone end hitFlash %.2f animTime %.3f stoneLeft %.2f",
-                a.hitFlash, a.base.time, m_BossAttacks.BeastStoneLeft());
-            AutoTestLog(line);
-            AutoTestLog("bossmoves look stone2");
-            s_StoneAt = -1.0e6f;
+            s_StoneAt = -1.0e6f;   // 息の煙で体が隠れるので、寄った絵は全部の試しの後（m_AutoStep 13）で息なしに撮る
         }
     }
     // 砂嵐の魔神の様子（0.25 秒毎）+ "roar" の試しの削り

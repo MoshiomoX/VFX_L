@@ -16,7 +16,7 @@ cbuffer SSAOBlurCB : register(b0)
     float depthA;       // 視点からの深度 = depthB / (d - depthA)
     float depthB;
     float depthTolerance;   // 近傍が中心の深度からずれてよい割合（0.05 = 5 %）
-    float blurPad;
+    float pixelScale;       // AO の 1 画素 = 深度の何画素（縦横半分で作る時 = 2、2026-11-05）
 };
 
 float EyeDepth(int2 p, int2 size)
@@ -31,8 +31,12 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
     int2 size;
     int samples;
     g_Depth.GetDimensions(size.x, size.y, samples);
-    int2 p = int2(pos.xy);
-    float zc = EyeDepth(p, size);
+    uint aoW, aoH;
+    g_AO.GetDimensions(aoW, aoH);
+    int2 aoSize = int2(aoW, aoH);
+    int s = (int)pixelScale;
+    int2 p = int2(pos.xy);              // AO の画素
+    float zc = EyeDepth(p * s, size);   // SSAOPS と同じ代表の深度
     float tol = max(zc * depthTolerance, 0.02);
 
     float sum = 0.0;
@@ -43,8 +47,8 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
         [unroll]
         for (int x = -2; x <= 2; ++x)
         {
-            int2 q = clamp(p + int2(x, y), int2(0, 0), size - 1);
-            float w = (abs(EyeDepth(q, size) - zc) < tol) ? 1.0 : 0.0;
+            int2 q = clamp(p + int2(x, y), int2(0, 0), aoSize - 1);
+            float w = (abs(EyeDepth(q * s, size) - zc) < tol) ? 1.0 : 0.0;
             sum += g_AO.Load(int3(q, 0)).x * w;
             wsum += w;
         }

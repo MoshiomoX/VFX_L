@@ -1,7 +1,8 @@
 // ============================================================
 // AmbientOcclusion.h
 // 画面空間の環境遮蔽 SSAO（2026-11-02。ユーザー：トゥーンの上に SSAO → 「明暗の境を押す」やり方で）。
-//   不透明な物（地形・置物・プレイヤー・雑魚）を描いた深度から、窪み・接地の遮蔽を R8 の 1 枚にする。
+//   不透明な物（地形・置物・プレイヤー・雑魚）を描いた深度から、窪み・接地の遮蔽を 1 枚にする
+//   （2026-11-05 から縦横半分の大きさ。Demo で GPU 0.62 → 0.26 ms。Params::halfRes で画面の大きさに戻せる）。
 //   草は深度に入る前に撮るので遮蔽を作らず、受けるだけ。
 //   前向きレンダリングは幾何を描きながら陰影を付けるので、同じフレームの AO は間に合わない →
 //   このフレームで作った物を次のフレームの陰影が読む（LightBuffer::aoViewProj で世界座標を前のフレームの画面へ
@@ -39,6 +40,7 @@ public:
         float borderShift = 0.45f;   // トゥーン：全部遮蔽された所で明暗の境をどれだけ明るい側へ押すか（N・L の単位）
         float ambientMul = 0.3f;     // 環境光に掛ける割合（0 = 掛けない、1 = ao そのまま）
         bool  debugView = false;     // 調整用：ao を灰色で表示
+        bool  halfRes = true;        // 縦横半分の大きさで作る（2026-11-05。Demo で 0.62 ms 固定だった分を減らす）
     };
 
     static constexpr UINT kSlot = 12;   // PS の t12（Lighting.hlsli の g_SceneAO）
@@ -65,11 +67,13 @@ private:
         float depthA, depthB, proj11, proj22;
         float radius, bias, strength, maxDistance;
         DirectX::SimpleMath::Matrix invView;   // view → world（核の回転を世界に固定する。2026-11-02）
+        float pixelScale;                      // 出力の 1 画素 = 深度の何画素（半分の大きさ = 2）
+        float pad[3];
     };
-    static_assert(sizeof(SSAOCB) == 96, "SSAOCB layout mismatch");
+    static_assert(sizeof(SSAOCB) == 112, "SSAOCB layout mismatch");
     struct BlurCB
     {
-        float depthA, depthB, tolerance, pad;
+        float depthA, depthB, tolerance, pixelScale;
     };
     static_assert(sizeof(BlurCB) == 16, "SSAOBlurCB layout mismatch");
 
@@ -88,5 +92,6 @@ private:
     DirectX::SimpleMath::Matrix m_ViewProj[2];   // それぞれを作った時の view × proj
     bool m_Valid[2] = { false, false };
     int  m_Cur = 0;                               // 陰影が読む方
-    UINT m_Width = 0, m_Height = 0;
+    UINT m_Width = 0, m_Height = 0;   // AO の貼り絵の大きさ（半分の時は画面の半分）
+    int  m_Scale = 1;                 // 今の貼り絵の 1 画素 = 画面の何画素
 };
