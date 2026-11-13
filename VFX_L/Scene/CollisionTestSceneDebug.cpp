@@ -51,7 +51,7 @@
 void CollisionTestScene::DrawDebugUI()
 {
     if (!DevUI::Active()) return;   // Demo ビルド（ImGui が無い）：パネルも目印・ギズモも出さない
-    // F8：風 → 経路の流れ場 → 群れの動き → 切。画面の左にミニマップのような窓（パネルを隠していても出す。2026-10-28）
+    // F8：風 → 経路の流れ場 → 群れの動き → 切。画面の左にミニマップのような窓（パネルを隠していても出す）
     m_FlowDebug.HandleKey();
     if (m_FlowDebug.GetMode() != FlowDebugView::Mode::Off)
     {
@@ -66,7 +66,7 @@ void CollisionTestScene::DrawDebugUI()
         fin.dt = m_GameUI.ShouldPauseGame() ? 0.0f : ImGui::GetIO().DeltaTime;   // 止まっている間は群れを読み直さない
         m_FlowDebug.Draw(fin);
     }
-    if (!DebugManager::Get().GetShowPanels()) return;   // 既定は全部隠す。F10 で表示（2026-10-16）
+    if (!DebugManager::Get().GetShowPanels()) return;   // 既定は全部隠す。F10 で表示
 
     // 太陽の目印・シーン光源のギズモ（バックパック・レベルアップ・呪文書を開いている間はギズモを出さない）
     m_Lighting.DrawMarkers(PlayerPos(), m_Grid, GetCamera(), !m_GameUI.ShouldPauseGame());
@@ -98,13 +98,14 @@ void CollisionTestScene::DrawDebugUI()
     DrawTerrainPanel();
     m_Grass.DrawImGui();
     m_GrassFire.DrawImGui(PlayerPos());   // 草の延焼（点火ボタン・温度の絵）
-    m_Sand.DrawImGui(PlayerPos());        // 砂漠の砂の面（2026-11-02）
-    m_Footprints.DrawImGui();             // 砂漠のプレイヤーの足跡（2026-11-03）
-    m_Miasma.DrawImGui();                 // 遺跡の瘴気（2026-11-03）
+    m_Sand.DrawImGui(PlayerPos());        // 砂漠の砂の面
+    m_Footprints.DrawImGui();             // 砂漠のプレイヤーの足跡
+    m_Miasma.DrawImGui();                 // 遺跡の瘴気
+    m_WindGrid.DrawImGui();               // 風の格子
     m_Debris.DrawImGui();                 // 地面の落ち葉
-    m_Water.DrawImGui();                  // 水たまりの水面（2026-10-27）
-    m_Dandelions.DrawImGui();             // タンポポ（2026-10-22）
-    m_GrassShreds.DrawImGui();            // 風源の草屑（2026-10-23）
+    m_Water.DrawImGui();                  // 水たまりの水面
+    m_Dandelions.DrawImGui();             // タンポポ
+    m_GrassShreds.DrawImGui();            // 風源の草屑
     m_Tumbleweeds.DrawImGui(m_Registry, m_Grid, PlayerPos() ? *PlayerPos() : Vector3::Zero);   // 転がり草
     DrawEnemiesPanel();
     if (m_Crates.DrawImGui(m_Interaction, m_LevelUpSystem)) RespawnCrates();
@@ -129,9 +130,9 @@ void CollisionTestScene::DrawDebugUI()
     m_Camera.DrawImGui();
     m_Lighting.DrawImGui(PlayerPos());   // 末尾にトゥーンの陰影（Toon Shading）
     m_Weather.DrawImGui();               // 時刻・天候の出来事（Drive Lighting が入っていると Lighting の手調整は毎フレーム戻る）
-    if (ImGui::CollapsingHeader("Toon Outline"))   // トゥーンのアウトライン（2026-10-04）
+    if (ImGui::CollapsingHeader("Toon Outline"))   // トゥーンのアウトライン
         m_Outline.DrawImGui();
-    if (ImGui::CollapsingHeader("Ambient Occlusion (SSAO)"))   // 2026-11-02
+    if (ImGui::CollapsingHeader("Ambient Occlusion (SSAO)"))
         m_AmbientOcclusion.DrawImGui();
     m_Shadows.DrawImGui();
     FrameProfiler::Get().DrawImGui();
@@ -185,7 +186,7 @@ void CollisionTestScene::DrawEnemiesPanel()
     m_Stage.DrawImGui(m_Swarm, m_RunTime);
     m_BossAttacks.DrawImGui();
     {
-        // 面の固定エリート（2026-10-25）：A / B を詞缀付きで呼ぶ・調整値
+        // 面の固定エリート：A / B をアフィックス付きで呼ぶ・調整値
         int spawn = -1;
         uint32_t affixes = 0;
         m_StageElites.DrawImGui(spawn, affixes);
@@ -327,7 +328,7 @@ void CollisionTestScene::DrawBloomPanel()
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90.0f);
     ImGui::DragFloat("Gamma Exp", &bp.gammaExp, 0.01f, 1.0f, 3.0f, "%.2f");   // 2.2 = sRGB 相当
-    // 画面の歪み（2026-10-20、風の空気の揺らぎ。粒子の distort が書いたずれ × この倍率）
+    // 画面の歪み（風の空気の揺らぎ。粒子の distort が書いたずれ × この倍率）
     auto& dp = Application::Get().GetGraphics().GetDistortion();
     ImGui::Separator();
     ImGui::Checkbox("Distortion (wind refraction)", &dp.enabled);
@@ -407,7 +408,7 @@ void CollisionTestScene::AutoTestLog(const char* what)
     f << std::endl;
     const std::string w = what;
     // TEMP-TEST: VFXL_SELF_SHOT=<フォルダ> の時、「... look <名>」の行でこのフレームの画面を <フォルダ>/<名前の空白を _ に>.png へ
-    // （2026-10-23。外のスクリプトはゲームが前面でないと撮れない = ユーザーが PC を使っている間は撮れなかった）
+    // （ゲームが前面に無くても撮れる）
     {
         static char shotDir[260] = {};
         static const bool shot = GetEnvironmentVariableA("VFXL_SELF_SHOT", shotDir, sizeof(shotDir)) > 0;
@@ -419,7 +420,7 @@ void CollisionTestScene::AutoTestLog(const char* what)
             Application::Get().GetGraphics().RequestScreenshot(std::wstring(path.begin(), path.end()));
         }
     }
-    // 自動テストの終わり（"... done"）には音の統計も（どの cue が何回鳴った / 間引かれたか。2026-10-03）
+    // 自動テストの終わり（"... done"）には音の統計も（どの cue が何回鳴った / 間引かれたか）
     if (w.size() >= 4 && w.compare(w.size() - 4, 4, "done") == 0)
         f << ms << " audio " << AudioSystem::Get().DebugStats() << std::endl;
 }

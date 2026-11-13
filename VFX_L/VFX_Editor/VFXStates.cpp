@@ -23,8 +23,7 @@ std::optional<VFXStateID> VFXState_Idle::Update(VFXStateContext& ctx, VFXEffect&
 // Loop OFF かつ全 Entry 完了 → Finishing へ
 // ============================================================
 void VFXState_Playing::Enter(VFXStateContext& ctx, VFXEffect& vfx) {
-    // m_CurrentTime = 0、全 Entry リセット。VFXEffect::Play が直前に同じことをしているので、
-    // StateMachine の遷移の不具合が直ってここが呼ばれるようになっても二度目は何も変えない（2026-10-25 に確認）
+    // m_CurrentTime = 0、全 Entry リセット。VFXEffect::Play が直前に同じことをしているので、二度目は何も変えない
     vfx.ResetTimeline();
 }
 
@@ -52,7 +51,6 @@ std::optional<VFXStateID> VFXState_Playing::Update(VFXStateContext& ctx, VFXEffe
 // ============================================================
 void VFXState_Finishing::Enter(VFXStateContext& ctx, VFXEffect& vfx) {
     // Entry の再生を停止（新規発射を止める）。
-    // StateMachine の頂上の状態同士の遷移で Enter が呼ばれていなかった不具合が直ると、ここが初めて動く（2026-10-25 に確認）：
     // 再生中の entry に OnStop が届く = 粒子は発射を止める、Trail entry は帯を切り離してその場で縮める、
     // Mesh / Sprite / 光線 / 液溜まり / 点光源は描くのをやめる（Finishing では元々積まれないので見た目は同じ）。
     // vfxCtx は InitStateMachine で入る（雛形は Play しないのでここへ来ない）
@@ -65,8 +63,7 @@ std::optional<VFXStateID> VFXState_Finishing::Update(VFXStateContext& ctx, VFXEf
 
     // 全粒子が消滅したら完全停止へ。
     // ただし CPU は粒子池の生存数を知らない（GPUParticleSystem::GetAliveCount は常に 1）ので、
-    // この effect が出した粒子・帯が消え切る時間（GetFinishWait）を待ったら止める（2026-10-25）。
-    // 以前はこの逃げ道が無く Stopped へ行けず、AreaVFXPlayer の「自分で終わったら捨てる」が働かなかった
+    // この effect が出した粒子・帯が消え切る時間（GetFinishWait）を待ったら止める
     if (vfx.GetAliveCount(*ctx.vfxCtx) == 0 || ctx.timeInState >= vfx.GetFinishWait()) {
         return VFXStateID::Stopped;
     }

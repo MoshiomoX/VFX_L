@@ -1,14 +1,14 @@
 // ============================================================
 // StageDirector.h
-// 1 面の進行（Megabonk 風）。雑魚の湧き・難度そのものは MobSpawner、ここは時間と門で起きる出来事。
+// 1 面の進行。雑魚の湧き・難度そのものは MobSpawner、ここは時間と門で起きる出来事。
 //   ・制限時間 stageTime（10 分）。HUD は残りを数え下ろす
 //   ・決まった経過時間（3:00 / 6:00 / 8:00）にエリートを 1 体（GPU の雑魚の種類 kEnemyKindElite）。
 //     HP は eliteHp × その時の難度の倍率。体格・接触ダメージ・経験値は SwarmSystem::GetBomberParams の elite*
-//   ・時間切れの後は「最終ウェーブ」（Megabonk の Final Swarm）：湧きを finalSpawnRate に上げ、速さ × finalSpeedMul、
+//   ・時間切れの後は「最終ウェーブ」：湧きを finalSpawnRate に上げ、速さ × finalSpeedMul、
 //     finalStepTime 秒毎に強さ × finalStepMul。同時の上限は最初の 2 分 finalCap、その後 finalCapLate。
 //     MobSpawner の final* に書いて効かせる
 //   ・Boss の門：開始時にプレイヤーから離れた所へ 1 つ。近づいて F で面の Boss（kEnemyKindBoss）を呼ぶ。
-//     いつ呼んでもよい（遅いほど難度の倍率で HP が高い）。クリアは 2 段（2026-10-07）：
+//     いつ呼んでもよい（遅いほど難度の倍率で HP が高い）。クリアは 2 段：
 //     Boss を倒すと同じ門が出口になり（OpenExit、StageExit）、もう一度門で F を押すと面をクリア（IsCleared）
 //     （Boss の生死は GPU からのリードバック SwarmSystem::GetBossInfo で見る）
 // 時間は戦闘の経過秒（一時停止・バックパック・三択の間は進まない。HUD の計時と同じ）
@@ -49,7 +49,7 @@ public:
     // Boss を倒した後（OpenExit で出口になった門）なら面のクリア（IsCleared が true になる）
     bool TryUsePortal(Registry& reg, Entity used, const GridWorld& grid, const DirectX::SimpleMath::Vector3& player,
         const MobSpawner& mobs, SwarmSystem& swarm, InteractionSystem& interaction);
-    // Boss を倒した後、門をもう一度使える物（出口）にする（2026-10-07 ユーザー：1 回目 = Boss を呼ぶ、倒した後にもう一度押して次の面へ）。
+    // Boss を倒した後、門をもう一度使える物（出口）にする（1 回目 = Boss を呼ぶ、倒した後にもう一度押して次の面へ）。
     // prompt = 画面下の案内（「[F] 次のステージへ」など）。既に出口なら何もしない。出口にしたら true
     bool OpenExit(Registry& reg, const wchar_t* prompt);
     bool IsExitOpen() const { return m_ExitOpen; }
@@ -67,7 +67,7 @@ public:
     bool IsCleared() const { return m_Boss == BossState::Exited; }
     float BossHpRatio() const { return m_BossHpRatio; }
     DirectX::SimpleMath::Vector3 BossPos() const { return m_BossPos; }
-    // ---- 復活（墓守の騎士。2026-10-26）：bossLives 回目の死まで「倒した」にしない。倒れたら Reviving で bossReviveDelay 秒待ち、
+    // ---- 復活（墓守の騎士）：bossLives 回目の死まで「倒した」にしない。倒れたら Reviving で bossReviveDelay 秒待ち、
     //      同じ所へ HP × bossReviveHpFrac で湧かせ直す（Summoned → Alive）。その間 IsBossAlive / IsBossDefeated は両方 false ----
     int   bossLives = 1;            // 1 = 普通。2 = 1 回蘇る
     float bossReviveDelay = 3.0f;
@@ -77,10 +77,10 @@ public:
     // 倒れた瞬間（倒れた所）/ 立ち上がった瞬間（シーンが見た目・音を出す。1 回だけ true）
     bool  ConsumeBossFell(DirectX::SimpleMath::Vector3& pos) { if (!m_BossFell) return false; m_BossFell = false; pos = m_RevivePos; return true; }
     bool  ConsumeBossRevived() { const bool r = m_BossRevived; m_BossRevived = false; return r; }
-    // 門から呼んだ時の登場（2026-10-27、ユーザー「突然湧いて門から出てこないのが違和感」）：門を使った瞬間に 1 回だけ true。
+    // 門から呼んだ時の登場：門を使った瞬間に 1 回だけ true。
     // gate = 門の口の真ん中の地面、walkDir = 門から出てくる向き（プレイヤーの居る側。xz の単位）、spawn = 湧く所。
     // Boss は bossIntroDelay 秒後に門の口のすぐ前（gate + walkDir × bossIntroFront）に湧く。歩かせるのはシーン（BossIntro）。
-    // 門の奥に湧かせると柱の下の塞いだマスで拱の口が 1 マス分しか空かず、大きな Boss はくぐれずに止まった（2026-10-27 の自動テスト）
+    // 門の奥に湧かせると、柱の下の塞いだマスで拱の口が 1 マス分しか空かず、大きな Boss がくぐれない
     bool  ConsumeBossIntro(DirectX::SimpleMath::Vector3& gate, DirectX::SimpleMath::Vector3& walkDir, DirectX::SimpleMath::Vector3& spawn)
     {
         if (!m_IntroStarted) return false;
@@ -90,11 +90,11 @@ public:
         spawn = m_IntroSpawn;
         return true;
     }
-    // 画面の真ん中の案内（StageDirectorWaves.cpp。シーンからも出せる：Boss の復活など。2026-10-26 に public へ）
-    // text は写さない（文字列は呼ぶ側が持ち続ける）。gold = 金色で出す（Boss を倒した。2026-10-29）
+    // 画面の真ん中の案内（StageDirectorWaves.cpp。シーンからも出せる：Boss の復活など）
+    // text は写さない（文字列は呼ぶ側が持ち続ける）。gold = 金色で出す（Boss を倒した）
     void SetAnnounce(const wchar_t* text, float seconds, bool gold = false);
     bool AnnounceGold() const { return m_AnnounceGold; }
-    // 門を使わずに Boss を呼ぶ（トレーニング。2026-10-07）。次の Update で湧く。moving = false なら止まったまま。
+    // 門を使わずに Boss を呼ぶ（トレーニング）。次の Update で湧く。moving = false なら止まったまま。
     // もう呼んでいる / 生きている間は false（何もしない）
     bool CanRequestBoss() const { return m_Boss == BossState::None || m_Boss == BossState::Defeated; }
     bool RequestBoss(bool moving)
@@ -118,30 +118,30 @@ public:
     const char* ConsumeEvent() { const char* e = m_Event; m_Event = nullptr; return e; }
 
     // ---- 調整値 ----
-    float stageTime = 600.0f;                    // 秒（Megabonk の 1 面 10 分）
-    std::vector<float> eliteTimes = { 180.0f, 360.0f, 480.0f };   // エリートを出す経過秒（3:00 / 6:00 / 8:00。2026-10-07 に 6:00 を足した）
-    float eliteHp = 250.0f;                      // 倍率 1 の時の HP（Megabonk の小ボス）
+    float stageTime = 600.0f;                    // 秒（1 面 10 分）
+    std::vector<float> eliteTimes = { 180.0f, 360.0f, 480.0f };   // エリートを出す経過秒（3:00 / 6:00 / 8:00）
+    float eliteHp = 250.0f;                      // 倍率 1 の時の HP
     float eliteSpeed = 3.2f;                     // m/秒（雑魚 3.5 より少し遅い）
     float eliteRingMin = 18.0f;                  // プレイヤーから m（画面の中に歩いて来るのが見える距離）
     float eliteRingMax = 24.0f;
-    // 面の固定エリート（2026-10-25）。シーンが入れる。有れば eliteTimes の 1 体目 = A（近接）詞缀 0、2 体目 = B（遠距離）詞缀 1、
-    // 3 体目 = B 詞缀 2（どの詞缀かは乱数）。無ければ昔の大きい雑魚（kEnemyKindElite）
+    // 面の固定エリート。シーンが入れる。有れば eliteTimes の 1 体目 = A（近接）アフィックス 0、2 体目 = B（遠距離）アフィックス 1、
+    // 3 体目 = B アフィックス 2（どのアフィックスかは乱数）。無ければ昔の大きい雑魚（kEnemyKindElite）
     EliteAttacks* elites = nullptr;
 
     float finalSpawnRate = 20.0f;   // 最終ウェーブの湧き（体/秒）
     float finalSpeedMul = 1.3f;     // 最終ウェーブで湧く雑魚の速さ
-    float finalStepTime = 30.0f;    // 秒毎に 1 段（Megabonk は 30〜40 秒毎に強くなる）
-    float finalStepMul = 1.25f;     // 1 段毎の強さの倍率（2026-10-07 に 1.5 → 1.25：30 秒で埋まる壁だった）
-    int   finalCap = 300;           // 最初の 2 分の同時上限（2026-10-26：400 → 300、普段の上限と同じ）
-    int   finalCapLate = 250;       // 2 分より後（300 → 250）
-    float finalGhostRate = 4.0f;    // 最終ウェーブの幽霊（体/秒。時間切れの直後）。雑魚の湧きとは別枠・上限も別（MobSpawner::ghostCap）。2026-10-18 に 2 → 4
-    float finalGhostStepMul = 1.4f; // 1 段毎の幽霊の数の倍率（4 → 5.6 → 7.8 …。2026-10-07 に 1.5 → 1.25、10-18 に 1.4）
-    // 黒幽霊（kEnemyKindDarkGhost。2026-10-18、Megabonk の黒い幽霊 = 時間切れ 1 分後）：時間切れからこれだけ後に出始める。案内を出す
+    float finalStepTime = 30.0f;    // 秒毎に 1 段
+    float finalStepMul = 1.25f;     // 1 段毎の強さの倍率
+    int   finalCap = 300;           // 最初の 2 分の同時上限（普段の上限と同じ）
+    int   finalCapLate = 250;       // 2 分より後
+    float finalGhostRate = 4.0f;    // 最終ウェーブの幽霊（体/秒。時間切れの直後）。雑魚の湧きとは別枠・上限も別（MobSpawner::ghostCap）
+    float finalGhostStepMul = 1.4f; // 1 段毎の幽霊の数の倍率（4 → 5.6 → 7.8 …）
+    // 黒幽霊（kEnemyKindDarkGhost）：時間切れからこれだけ後に出始める。案内を出す
     float finalDarkGhostStart = 60.0f;
     float finalDarkGhostRate = 0.3f;     // 体/秒（出始めの段）
     float finalDarkGhostStepMul = 1.4f;  // 1 段毎の倍率
 
-    // ---- 湧きの波と最終ウェーブの予告（2026-10-07、ユーザー「難度曲線がおかしい」→ 波・最終ウェーブを緩く）----
+    // ---- 湧きの波と最終ウェーブの予告 ----
     SpawnWaves waves;
     float finalWarnTime = 30.0f;        // 時間切れのこれだけ前に予告を出し、湧きを 1 → finalWarnRateMul 倍へ上げていく
     float finalWarnRateMul = 1.8f;
@@ -154,14 +154,13 @@ public:
     bool  SurgeActive(float runTime) const { return waves.ArcActive() && runTime < stageTime; }
     float SurgeYaw() const { return waves.ArcYaw(); }
 
-    float bossHp = 8000.0f;         // 倍率 1 の時の HP（Megabonk 1 面の Boss 8000〜10000）
+    float bossHp = 8000.0f;         // 倍率 1 の時の HP
     float bossSpeed = 2.8f;         // m/秒
     float bossRingMin = 12.0f;      // 呼んだ時のプレイヤーからの距離（m）
     float bossRingMax = 16.0f;
     float bossIntroDelay = 1.0f;    // 門を使ってから Boss が門の奥に湧くまで（その間は門が赤く荒れる）
     float bossIntroFront = 2.5f;    // 湧く所 = 門の口から前へこの m（柱の下の塞いだマスの外）
-    // 門を使うと Boss がフィールドの真ん中（ワールドの原点）に湧き、その場から動かない（2026-10-29、骸の王。ユーザー「動かなくていい、
-    // 真ん中に湧いてずっと攻撃すればいい」）。シーンが面の Boss に合わせて入れる（InitBossFx）
+    // 門を使うと Boss がフィールドの真ん中（ワールドの原点）に湧き、その場から動かない（骸の王）。シーンが面の Boss に合わせて入れる（InitBossFx）
     bool  bossAtCenter = false;
     float portalMinDist = 35.0f;    // 門を置く距離（開始時のプレイヤーから m）
     float portalMaxDist = 55.0f;

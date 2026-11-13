@@ -29,24 +29,24 @@
 // ParticleRenderMode::kInheritSourceVelocity と一致させること
 #define PARTICLE_INHERIT_SOURCE_VELOCITY (1u << 13)
 
-// 発光メッシュのみ（2026-10-16）：裏面だけを描き、メッシュを不透明な本体の
+// 発光メッシュのみ：裏面だけを描き、メッシュを不透明な本体の
 // 後ろの縁として見せる（ストーンショットの紫の殻）。ビルボードのトゥーン
 // フラグと同じビットだが、メッシュはトゥーンのビットを使わない。
 // ParticleRenderMode::kMeshBehind と一致させること。ParticleMeshVS が発光 PS へ渡す
 #define PARTICLE_MESH_BEHIND (1u << 14)
 
-// 単体（2026-10-16）：GPU 弾の上で毎フレームちょうど 1 個のパーティクルを出し、
+// 単体：GPU 弾の上で毎フレームちょうど 1 個のパーティクルを出し、
 // 次のフレームまで生かす = 描かれるのは常に 1 個（岩、矢、
 // 水晶）。エミッタの発生率 / 寿命は無視する。読むのは
 // SwarmEmitCS だけ。ParticleRenderMode::kSingleBody と一致させること
 #define PARTICLE_SINGLE_BODY (1u << 30)
 
-// ビルボードのみ：トゥーンの見た目、bits 14-25（2026-10-04）。GPUParticlePS で
+// ビルボードのみ：トゥーンの見た目、bits 14-25。GPUParticlePS で
 // 展開し（PARTICLE_TOON_*）、ParticleRenderMode::PackToon が詰める
 
-// ビルボードのみ（2026-10-20、エルデンリング風の風の流線）：四角形を
+// ビルボードのみ（風の流線）：四角形を
 // カメラに向けて立てる代わりに、パーティクルの速度に沿って引き伸ばす。
-// bit 9（メッシュでは「速度の向きを向く」、ビルボードでは今まで未使用）
+// bit 9（メッシュでは「速度の向きを向く」）
 // = 流線、bits 16-23 = 引き伸ばし（PARTICLE_STRETCH_UNIT 秒単位）
 //（長さ = 速度 x 引き伸ばし、最短はサイズ）。トゥーンのビット（16-25）と
 // 排他なので、流線はトゥーンにならない。ParticleRenderMode::kStreak と一致させること
@@ -63,7 +63,7 @@ float ParticleStretch(int renderMode)
     return (float) ((((uint) renderMode) >> PARTICLE_STRETCH_SHIFT) & 255u) * PARTICLE_STRETCH_UNIT;
 }
 
-// ビルボードのみ（2026-10-20）：画面の歪み（屈折）パス。
+// ビルボードのみ：画面の歪み（屈折）パス。
 // bits 10-11 = 強さ 0..3（メッシュでは前方軸に使う）、
 // bit 15 = 歪みのみ（色のパスでは見えない。トゥーンのアウトラインの
 // ビットで、トゥーンの bit 14 が無ければ意味がない）。GPUParticleVS の g_Pass 3 は
@@ -87,7 +87,7 @@ bool ParticleDistortOnly(int renderMode)
     return (m & 0xFFu) == 0u && (m & (1u << 14)) == 0u && (m & PARTICLE_DISTORT_ONLY) != 0u;
 }
 
-// 全描画モード共通：風への反応、bits 26-29 = q（2026-10-12）。UpdateCS は
+// 全描画モード共通：風への反応、bits 26-29 = q。UpdateCS は
 // 水平速度を毎秒 q / 15 * PARTICLE_WIND_RATE の割合で
 // ワールドの風に近づける。0 = 風を無視。
 // ParticleRenderMode::kWindShift / PackWind と一致させること

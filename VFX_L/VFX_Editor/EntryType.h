@@ -28,8 +28,8 @@ enum class EntryType
     Mesh = 3,
     Light = 4,
     Sound = 5,
-    Beam = 6,      // 起点 → 終点の光線（2026-09-30）
-    Liquid = 7,    // 地面に溜まる液体（SDF の液滴。2026-10-02）
+    Beam = 6,      // 起点 → 終点の光線
+    Liquid = 7,    // 地面に溜まる液体（SDF の液滴）
 };
 
 struct VFXContext

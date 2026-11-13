@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmBeamTargetCS.hlsl
-// 光線ごとの標的（2026-10-01）。光線のチャンネル 1 つにつきスレッドグループ 1 つ。
+// 光線ごとの標的。光線のチャンネル 1 つにつきスレッドグループ 1 つ。
 //
 // CPU（WeaponSystem）は、ここからリードバックした位置へ光線を
 // 上限付きの速さで向ける。チャンネルごとに BeamTargetCB から：
@@ -10,7 +10,7 @@
 //   cmd 2 = 追跡：ロックした敵が生きていて届く範囲にいる間は維持。
 //           そうでなければ光線の長さ以内の生きた敵のうち、
 //           方向が光線に最も近い（回す量が最小の）ものを選ぶ
-//   cmd 3 = 連鎖（2026-10-20、アークボルトの連鎖のルーン）：シーク点
+//   cmd 3 = 連鎖（アークボルトの連鎖のルーン）：シーク点
 //           （稲妻が届いた所）に最も近い生きた敵を SWARM_CHAIN_RADIUS
 //           以内で選ぶ。asuint(dir.xyz) のスロット（この連鎖が
 //           既に届いた敵）は除く。
@@ -30,7 +30,7 @@ cbuffer BeamTargetCB : register(b4)
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
-StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2); // 潜っている砂潜りは標的にしない（2026-10-17）
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2); // 潜っている砂潜りは標的にしない
 // チャンネルごとに 32 バイト：slot, serial, valid, pad, pos.xyz, pad
 RWByteAddressBuffer beamTargets : register(u0);
 

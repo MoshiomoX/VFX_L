@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // WeaponSystemOutlet.cpp
-// 出口魔法（2026-10-31）：出口魔法の弾が消えた所で、出口の先の魔法を撃ち出す。
+// 出口魔法：出口魔法の弾が消えた所で、出口の先の魔法を撃ち出す。
 // 弾が消えた所は上級魔法の誘発と同じ環で届く（SwarmProjEndCS → m_TriggerEvents）。
 // 違いは撃ち出す所：上級魔法は手元や空から、出口の先は弾が消えたその場所から
 // ============================================================
@@ -113,6 +113,16 @@ bool WeaponSystem::FireOutletArea(const AreaStats& a, const Vector3& impact, con
     if (a.profile > 0 && ap.IsRoam())
     {
         StartTwister(a, impact, playerPos, durationMul);   // 竜巻：この場所に起きて外へ進む
+        fired = true;
+    }
+    else if (a.profile > 0 && ap.IsBlades())
+    {
+        StartBlades(a, playerPos, durationMul);   // 回る剣：出口の先でもプレイヤーの周りを回る
+        fired = true;
+    }
+    else if (a.profile > 0 && ap.IsBats())
+    {
+        StartBats(a, impact, durationMul);   // 吸血コウモリ：出口の所から飛び立ち、噛んだらプレイヤーへ戻る
         fired = true;
     }
     else if (a.profile > 0 && ap.IsBeam())

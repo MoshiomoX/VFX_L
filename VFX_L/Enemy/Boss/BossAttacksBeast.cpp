@@ -1,8 +1,8 @@
 // ============================================================
 // BossAttacksBeast.cpp
-// 遺跡 2 面目の Boss「石の守護獣」の技（2026-10-29）。説明・数値は BossBeast.h。
+// 遺跡 2 面目の Boss「石の守護獣」の技。説明・数値は BossBeast.h。
 // 流れ（StartMove → UpdateMove → 間）は BossAttacks.cpp と同じ。ここは技毎の中身と、一段目 / 二段目の入れ替え・飛び・翼・石化。
-// 10-29 に追加した 2 つ（天からの圧殺・石羽の散弾）は BossAttacksBeastSky.cpp
+// 天からの圧殺・石羽の散弾は BossAttacksBeastSky.cpp
 // ============================================================
 #include "Enemy/Boss/BossAttacks.h"
 #include "World/GridWorld.h"
@@ -73,7 +73,7 @@ void BossAttacks::ConfigureBeastPhase(bool phase2)
     brain.rules[(int)BossMove::BeastDive].enabled = !phase2;
     brain.rules[(int)BossMove::WingGust].enabled = !phase2;
     brain.rules[(int)BossMove::TailSweep].enabled = phase2;
-    brain.rules[(int)BossMove::SkyCrush].enabled = !phase2;   // 10-29 追加の 2 つ：天からの圧殺は飛んでいる間だけ、石羽の散弾は両方
+    brain.rules[(int)BossMove::SkyCrush].enabled = !phase2;   // 天からの圧殺は飛んでいる間だけ、石羽の散弾は両方
     brain.rules[(int)BossMove::FeatherShards].enabled = true;
     brain.rules[(int)BossMove::Charge].enabled = phase2;
     brain.rules[(int)BossMove::RockRain].enabled = phase2;

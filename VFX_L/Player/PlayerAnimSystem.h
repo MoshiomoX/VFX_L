@@ -40,7 +40,7 @@ public:
         std::string dead = "Death01";
         std::string slide = "Slide_Loop";    // 本物の滑りの姿勢（UAL2）
         std::string upperRoot = "spine_02";  // 上半身マスクの根（UE 風の骨名）
-        std::string upperRootAlt = "CC_Base_Spine01";   // 無ければこちら（CC 骨の人形、2026-10-04）
+        std::string upperRootAlt = "CC_Base_Spine01";   // 無ければこちら（CC 骨の人形）
     };
 
     void Update(Registry& reg, float dt);
@@ -69,7 +69,7 @@ public:
     float CurrentPlayRate() const { return m_PlayRate; }
 
 private:
-    // クリップの番号（2026-10-25）。名前で引く（FindClip、毎回文字列を作って全クリップと比べる）のは 1 フレームに 7 回ほどあったので、
+    // クリップの番号。名前で引く（FindClip）のは重いので、
     // モデル・クリップの数・名前が変わった時だけ引き直して覚えておく
     struct ClipCache
     {

@@ -1,6 +1,6 @@
 // ============================================================
 // MiasmaField.h
-// 遺跡の瘴気（2026-11-03、ユーザーが「3D の体素の霧」を選んだ）。草原の草・砂漠の砂に当たる
+// 遺跡の瘴気（3D の体素の霧）。草原の草・砂漠の砂に当たる
 // 「魔法で変えられる物」：地面を這う紫黒の霧。低い所に溜まり、風の魔法（突風・竜巻・渦）で吹き散らされ・
 // 巻き上げられ、火で焼けて晴れ、しばらくすると地面からまた湧いてくる。
 //
@@ -13,7 +13,7 @@
 //     湧く量の目安（低い所・斑の雑音・地面に近いほど濃い）へ regrow で戻り、目安より濃い分（巻き上がった柱）は decay で消える
 //     火（レシピの heat > 0）の範囲では焼けて薄くなる。壁のマス（歩けないマス）の中は 0
 //   描画（MiasmaFieldRender.cpp）：不透明な物・草・水の後、群れの重ね描き（警告の輪・体力バー）の前。
-//     半分の解像度で光線を 40 歩進め（深度で止める、IGN のずらし）、濃さを段で切ってトゥーンの硬い縁に、
+//     縮小した解像度（1/2、画面が大きいと 1/4 まで）で光線を 40 歩進め（深度で止める、IGN のずらし）、濃さを段で切ってトゥーンの硬い縁に、
 //     全解像度へ深度を見ながら（縁を保って）広げて HDR に重ねる。TAA が無いのでずらしの縞はぼかしで消す
 //
 // 使い方（シーン、CollisionTestSceneMiasma.cpp）：Initialize → 地形の後 Build(grid) → SetActive(遺跡か)
@@ -45,7 +45,7 @@ public:
     static constexpr int kNoise = 48;        // 細かい雑音の図の一辺（繰り返す）
     static constexpr int kMaxTorches = 16;   // 霧に効く松明（プレイヤーに近い順）
 
-    // 同じ作りで 2 種類（2026-11-03）：遺跡の瘴気（いつも地面に湧き、風で散る・火で焼ける）と
+    // 同じ作りで 2 種類：遺跡の瘴気（いつも地面に湧き、風で散る・火で焼ける）と
     // 砂漠の砂塵（普段は薄い砂の霞だけ。風源・砂嵐・爆発が砂を巻き上げると濃い砂の雲になり、ゆっくり落ちて消える）
     enum class Kind { Miasma = 0, Dust = 1 };
 
@@ -59,7 +59,7 @@ public:
         float lowBias = 1.5f;       // 周りより低い所（窪み・部屋の床）ほど濃く
         float regrow = 0.12f;       // 晴れた所へ戻る速さ（1/秒）= 約 8 秒で戻る
         float decay = 0.45f;        // 目安より濃い所（巻き上がった柱）が消える速さ（1/秒）
-        float settle = 0.0f;        // 重い霧が沈む速さ（m/s）。0.25 だと上の空の空気を毎フレーム引き下ろして地面の層が空になった（11-03）
+        float settle = 0.0f;        // 重い霧が沈む速さ（m/s）。大きいと上の空の空気を毎フレーム引き下ろして地面の層が空になる
         float windShare = 0.6f;     // 世界の風の何割で流れるか
         float sourceMul = 1.0f;     // 範囲の半径 × これ が霧に効く半径
         float burnRate = 3.0f;      // 火（heat 1）の範囲で焼ける速さ（1/秒）
@@ -68,13 +68,18 @@ public:
         float playerRadius = 1.4f;  // プレイヤーが押しのける半径（m）
         float playerPush = 2.5f;    // m/s
         float wallHeight = 4.0f;    // 壁のマスはこの高さまで霧が入らない
-        // ---- 砂漠の砂塵（Kind::Dust、2026-11-03）：巻き上げられた時だけ濃くなる。瘴気では 0 ----
+        // ---- 砂漠の砂塵（Kind::Dust）：巻き上げられた時だけ濃くなる。瘴気では 0 ----
         float liftRate = 0.0f;      // 砂の面の「舞う強さ」（SandField の状態の w）1 で 1 秒に足す濃さ
         float blastDust = 0.0f;     // 爆発の範囲が 1 秒に足す濃さ（真ん中、低い所）
         float liftHeight = 1.5f;    // 足すのはこの高さまで（m）
         // ---- 見た目 ----
         float extinction = 1.4f;    // 濃さ 1 が 1m あたりどれだけ遮るか
         int   steps = 40;           // 光線の歩数
+        float maxOpacity = 1.0f;    // 一番濃い所の不透明度（1 = 向こうが見えない）
+        // 光線を進める図の大きさ：画面の 1/2 から始めて、
+        // 画素数が targetPixels を超えるなら maxScale まで粗くする（1600×900 は 1/2 のまま、1080p ≒ 1/2.4、1440p ≒ 1/3）
+        float targetPixels = 400000.0f;
+        float maxScale = 4.0f;
         float maxDist = 60.0f;      // カメラからこれより遠くは歩かない（m）
         float edgeFade = 6.0f;      // 箱の端の何 m で薄く（端で霧が切れて見えない）
         float bands = 3.0f;         // トゥーンの段の数
@@ -82,9 +87,9 @@ public:
         DirectX::SimpleMath::Vector3 colorLow = { 0.025f, 0.006f, 0.04f };   // 地面の近く（線形）
         DirectX::SimpleMath::Vector3 colorHigh = { 0.16f, 0.05f, 0.22f };   // 上の方（巻き上がった柱）
         float topBlend = 3.0f;      // colorLow → colorHigh へ移る高さ（m）
-        float glow = 0.02f;         // 段の縁を少し明るく（紫の光）。0.12 は縁が光ってスライムの粘液に見えた（11-03 ユーザー）
+        float glow = 0.02f;         // 段の縁を少し明るく（紫の光）。強いと粘液のように見える
         float upsampleDepth = 0.05f;   // 広げる時に隣を混ぜる深度の差（その画素の深度に対する割合）
-        // ---- 細かい雑音で縁を崩す（2026-11-03、ユーザー：「スライムの粘液みたい」）----
+        // ---- 細かい雑音で縁を崩す ----
         // 体積雲の作り：模擬の滑らかな濃さを、繰り返す 3D の雑音（値の雑音 + 反転 Worley）で削る。薄い縁は糸状に崩れ、濃い芯は残る
         bool  detail = true;
         float detailScale = 0.16f;  // 大きい方の雑音の細かさ（1/m。雑音の図 1 枚 = 約 6m）
@@ -93,7 +98,7 @@ public:
         float erode = 0.55f;        // 削る強さ（0 = 削らない）
         float densRef = 0.35f;      // この濃さ以上は芯（削られても残る）
         float detailRise = 0.35f;   // 雑音が上へ流れる速さ（m/s。湧いて立ち上る感じ）
-        // ---- 松明（2026-11-05、遺跡）：周りの瘴気を焼いて晴らし（床の石が見えて点光源の暖かい光が落ちる）、霧を暖かく照らす ----
+        // ---- 松明（遺跡）：周りの瘴気を焼いて晴らし（床の石が見えて点光源の暖かい光が落ちる）、霧を暖かく照らす ----
         bool  torches = true;
         float torchRadius = 2.8f;       // 晴らす半径（m、床の上の水平距離）
         float torchBurn = 2.0f;         // 焼ける速さ（1/秒、真ん中）。戻る速さ regrow と釣り合って穴の薄さが決まる
@@ -165,17 +170,17 @@ public:
         float yMin, yMax, extinction, steps;
         DirectX::SimpleMath::Vector3 colorLow; float bands;
         DirectX::SimpleMath::Vector3 colorHigh; float bandSoft;
-        float topBlend, glow, edgeFade, pad;
+        float topBlend, glow, edgeFade, scale;
         DirectX::SimpleMath::Vector3 detailOffset; float detailScale;
         float erode, densRef, detailScale2, detail2Mix;
         DirectX::SimpleMath::Vector3 torchColor; float torchCount;
-        float torchGlow, torchGlowRadius, tpad0, tpad1;
+        float torchGlow, torchGlowRadius, maxOpacity, tpad1;
         DirectX::SimpleMath::Vector4 torch[kMaxTorches];
     };
     // HLSL の MiasmaCompositeCB（32B）
     struct CompositeCB
     {
-        float depthA, depthB, tolerance, pad;
+        float depthA, depthB, tolerance, scale;
         DirectX::SimpleMath::Vector2 halfSize, fullSize;
     };
 
@@ -205,6 +210,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_HalfRTV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_HalfSRV;
     UINT m_HalfW = 0, m_HalfH = 0;
+    float m_Scale = 2.0f;   // 全解像度 / 縮小図（EnsureTargets が決める）
 
     DirectX::SimpleMath::Vector2 m_MapOrigin, m_MapSize;
     DirectX::SimpleMath::Vector2 m_Origin, m_PrevOrigin;   // 箱の南西の角（xz、セルに揃える）

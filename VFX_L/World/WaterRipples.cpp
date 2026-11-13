@@ -22,8 +22,7 @@ namespace
     constexpr float kRainCell = 0.8f;        // 雨粒の格子 m（1 マスに 1 歩で多くて 1 粒）
     constexpr float kRainRadius = 0.22f;     // 雨粒の輪の始まりの半径 m
     // 1 歩ごとに高さを 0 へ戻す割合。押しは水の量を変えない（WaterRippleCS の Splash）ので丸め誤差を消すだけ。
-    // 以前の 0.004 は「押し下げるだけの押し」で池全体が沈むのを戻すためだったが、長い波（2m 以上）がその場で
-    // 上下するだけで広がらず、波紋が輪にならなかった（2026-10-28）
+    // 大きくすると長い波（2m 以上）がその場で上下するだけで広がらない
     constexpr float kRestore = 0.0003f;
 }
 
@@ -150,7 +149,7 @@ void WaterSurface::BuildMask(const TerrainBuild::ReliefField& rf)
         m_Device->CreateShaderResourceView(m_MaskTex.Get(), nullptr, &m_MaskSRV);
 }
 
-// 水の中を歩く雑魚の押しを集める（WaterStirCS、2026-10-28）。波が進むフレームの最初の 1 歩の前に 1 回。
+// 水の中を歩く雑魚の押しを集める（WaterStirCS）。波が進むフレームの最初の 1 歩の前に 1 回。
 // 押す強さは前に集めてからの秒に比例（波が進まなかったフレームの分も入る）
 void WaterSurface::GatherStirs()
 {

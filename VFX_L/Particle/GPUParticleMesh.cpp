@@ -193,7 +193,7 @@ int GPUParticleSystem::RegisterParticleMesh(const std::string& path)
         return 0;
     }
 
-    // "@sphere" = 組み込みの球（ファイル無し。水晶玉の光球など「球らしさ」が要る物用。2026-10-06）
+    // "@sphere" = 組み込みの球（ファイル無し。水晶玉の光球など「球らしさ」が要る物用）
     std::shared_ptr<Model> model = (path == "@sphere")
         ? PrimitiveBuilder::CreateSphere(m_Device, 0.5f, { 1, 1, 1, 1 }, 24)
         : ResourceManager::Get().LoadModel(path);
@@ -235,7 +235,7 @@ void GPUParticleSystem::RenderMeshes(ID3D11DeviceContext* context, int firstPass
     if (!m_MeshLitPS || !m_MeshLitPS->IsValid() || !m_MeshGlowPS || !m_MeshGlowPS->IsValid()) return;
 
     // ---- 束の数を、その束を描く submesh の args の InstanceCount（+4 byte）へ写す ----
-    // 1 フレームに 2 回呼ばれる（RenderLitMeshes と Render）ので、UpdateCS の後の最初の 1 回だけ両方の束を写す（2026-10-25）
+    // 1 フレームに 2 回呼ばれる（RenderLitMeshes と Render）ので、UpdateCS の後の最初の 1 回だけ両方の束を写す
     if (m_MeshArgsFresh)
     {
         m_MeshArgsFresh = false;

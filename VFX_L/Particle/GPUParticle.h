@@ -275,7 +275,7 @@ struct ParticleTrailStyle
 //   bits 0-7   : 0 = ビルボード / 1.. = メッシュ表の番号 + 1（番号 0 は組み込みの立方体）
 //   bit  8     : 発光（加算・光を受けない。色の alpha で消える）
 //   bit  9     : 進行方向を向く（rot3 を使わず、前方の軸を速度に合わせる）
-//   bits 10-11 : 前方の軸（0 = +X / 1 = +Y / 2 = +Z / 3 = −Z（2026-10-16、石弾：寝たまま尖った端を前へ））
+//   bits 10-11 : 前方の軸（0 = +X / 1 = +Y / 2 = +Z / 3 = −Z（Y を上のまま −Z を前へ））
 // 旧データの renderMode = 1 は「立方体・光を受ける」のまま読める。
 // Shader/Particle/Common/ParticleCommon.hlsli の PARTICLE_MESH_* と一致させる
 // ============================================
@@ -294,8 +294,8 @@ namespace ParticleRenderMode
             | ((forwardAxis & 3) << 10);
     }
 
-    // メッシュの発光だけ（2026-10-16）：裏面だけ描く = 本体（光を受けるメッシュ）の後ろに回った縁取りに見える
-    // （石弾の紫の殻。表面は本体に重ならない）。ビルボードのトゥーン bit 14 と同じ位置だが、
+    // メッシュの発光だけ：裏面だけ描く = 本体（光を受けるメッシュ）の後ろに回った縁取りに見える
+    // （表面は本体に重ならない）。ビルボードのトゥーン bit 14 と同じ位置だが、
     // メッシュはトゥーンの bit を使わないので衝突しない。json "meshBehind"。ParticleMeshVS / ParticleMeshGlowPS が読む
     constexpr int kMeshBehind = 1 << 14;
 
@@ -307,11 +307,11 @@ namespace ParticleRenderMode
     // 発射元（GPU の弾・範囲・オーブ）の速度を粒子の初速に足す（ビルボード・メッシュ共通）。
     // 弾と一緒に飛ぶ見た目（矢の本体など）に使う。SwarmEmitCS だけが読む（CPU の発射器には発射元の速度が無い）
     constexpr int kInheritSourceVelocity = 1 << 13;
-    // 単体（2026-10-16）：GPU の弾の上で「毎フレーム 1 個だけ、次のフレームまでの寿命」= 常にちょうど 1 つ描かれる
+    // 単体：GPU の弾の上で「毎フレーム 1 個だけ、次のフレームまでの寿命」= 常にちょうど 1 つ描かれる
     // 本体用（岩・矢・水晶）。発射率・寿命の設定は無視される。SwarmEmitCS だけが読む。json "single"
     constexpr int kSingleBody = 1 << 30;
 
-    // ビルボードのトゥーン（2026-10-04。GPUParticlePS の PARTICLE_TOON_* と一致）
+    // ビルボードのトゥーン（GPUParticlePS の PARTICLE_TOON_* と一致）
     //   bit 14 = トゥーン、bit 15 = 外周の線、bits 16-19 = alpha の境（0.05 + 0.05 × n）、
     //   bits 20-21 = 色の段 - 1、bits 22-25 = 外の段の明るさ（n / 15）
     constexpr int kToon = 1 << 14;
@@ -328,7 +328,7 @@ namespace ParticleRenderMode
             | (q(cut, 0.05f, 0.05f) << 16) | (b << 20) | (q(shade, 0.0f, 1.0f / 15.0f) << 22);
     }
 
-    // 流線（2026-10-20、エルデンリングの嵐系の風の質感）：ビルボードだけ。四角形をカメラ向きではなく
+    // 流線：ビルボードだけ。四角形をカメラ向きではなく
     // 粒子の速度の向きに伸ばす（長さ = 速さ × stretch 秒、最低でも size）。bit 9（メッシュの「速度を向く」と同じ位置、
     // ビルボードは使っていなかった）+ bits 16-23 = stretch（0.004 秒刻み、最大 1.02 秒）。トゥーン（16-25）とは排他。
     // json "streak" / "stretch"。GPUParticleVS が読む（PARTICLE_STREAK）
@@ -341,7 +341,7 @@ namespace ParticleRenderMode
         return kStreak | (n << kStretchShift);
     }
 
-    // 画面の歪み（屈折、2026-10-20）：ビルボードだけ。bits 10-11 = 強さ 0〜3（メッシュは前方の軸に使う）、
+    // 画面の歪み（屈折）：ビルボードだけ。bits 10-11 = 強さ 0〜3（メッシュは前方の軸に使う）、
     // bit 15 = 歪みだけ（色のパスでは描かない。トゥーンの外周の線の bit、トゥーン無しでは意味が無い）。
     // GPUParticleVS の g_Pass 3 が強さ > 0 の粒子だけを歪みの RT へ描き（ParticleDistortPS）、合成がその分だけ画面をずらす。
     // json "distort" / "distortOnly"
@@ -354,7 +354,7 @@ namespace ParticleRenderMode
         return (level << kDistortShift) | (only ? kDistortOnly : 0);
     }
 
-    // 風の受けやすさ（2026-10-12、ビルボード・メッシュ共通）：bits 26-29 = q、
+    // 風の受けやすさ（ビルボード・メッシュ共通）：bits 26-29 = q、
     // ParticleUpdateCS が水平速度を世界の風へ q / 15 × PARTICLE_WIND_RATE（1/秒）で寄せる。0 = 風を受けない
     constexpr int kWindShift = 26;
     inline int PackWind(float response)
@@ -444,8 +444,8 @@ struct ParticleRenderCB
     Matrix   view;
     Matrix   projection;
     Vector3  cameraPosition; // Billboard用
-    // ビルボードのどれを描くか（GPUParticleVS の g_Pass。2026-10-09、爆発の炎と黒煙のちらつき）：
-    // 0 = 全部（従来）/ 1 = 不透明なトゥーンだけ（深度を書く）/ 2 = それ以外
+    // ビルボードのどれを描くか（GPUParticleVS の g_Pass。重なった煙のちらつき防止）：
+    // 0 = 全部 / 1 = 不透明なトゥーンだけ（深度を書く）/ 2 = それ以外
     float    pass = 0.0f;
 };
 

@@ -2,6 +2,7 @@
 // GrassRenderer.cpp
 // ============================================================
 #include "Graphics/Renderer/GrassRenderer.h"
+#include "World/WindGrid.h"
 #include "Graphics/Renderer/FrustumPlanes.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Renderer/RenderStates.h"
@@ -19,7 +20,7 @@ using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector3;
 using DirectX::SimpleMath::Vector4;
 
-static_assert(sizeof(GrassRenderer::GrassCB) == 576, "GrassCB layout mismatch");   // 2026-10-25: 突風 1 → 4 個（464 → 560）、10-28: swarmExtra（→ 576）
+static_assert(sizeof(GrassRenderer::GrassCB) == 576, "GrassCB layout mismatch");   // HLSL の GrassCB と同じ大きさ
 static_assert(offsetof(GrassRenderer::GrassCB, gustA) == 336, "GrassCB gust block offset mismatch");
 static_assert(sizeof(GrassRenderer::GrassBlade) == 96, "GrassBlade layout mismatch");
 
@@ -310,7 +311,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     const bool haveEnemies = m_EnemySRV && m_EnemyStateSRV && m_EnemyExtraSRV && m_StampCS;
     cb.trampleExtra = Vector4(haveAreas ? s.blastTrample : 0.0f, haveAreas ? s.beamTrample : 0.0f,
         haveEnemies ? s.enemyTrample : 0.0f, (std::max)(s.enemyRadius, 0.05f));
-    // 細部（2026-10-23）：2 つ目の波は世界の風の向きを回し、細かく・速く
+    // 細部：2 つ目の波は世界の風の向きを回し、細かく・速く
     {
         const float a = DirectX::XMConvertToRadians(s.wave2Angle);
         const Vector2 d(m_Wind.dir.x * std::cos(a) - m_Wind.dir.y * std::sin(a), m_Wind.dir.x * std::sin(a) + m_Wind.dir.y * std::cos(a));
@@ -335,7 +336,8 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
         m_TrampleCS->SetSRV(ctx, "g_AreaStates", m_AreaStateSRV);
         m_TrampleCS->SetSRV(ctx, "g_AreaEnds", m_AreaEndSRV);
     }
-    if (m_WindSourceSRV) m_TrampleCS->SetSRV(ctx, "g_WindSources", m_WindSourceSRV);   // 風源の通った跡（2026-10-23）
+    if (m_WindSourceSRV) m_TrampleCS->SetSRV(ctx, "g_WindSources", m_WindSourceSRV);   // 風源の通った跡
+    WindGrid::BindCurrent(*m_TrampleCS, ctx);   // 風の格子
     m_TrampleCS->SetUAV(ctx, "g_TrampleOut", m_TrampleUAV[1 - m_TrampleCur].Get());
     m_TrampleCS->BindUAVs(ctx);
     ctx->Dispatch((kTrampleSize + 7) / 8, (kTrampleSize + 7) / 8, 1);
@@ -349,7 +351,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
         m_StampCS->SetSRV(ctx, "g_Enemies", m_EnemySRV);
         m_StampCS->SetSRV(ctx, "g_EnemyStates", m_EnemyStateSRV);
         m_StampCS->SetSRV(ctx, "g_EnemyExtra", m_EnemyExtraSRV);
-        m_StampCS->SetSRV(ctx, "g_Height", m_HeightSRV.Get());   // 足が地面から浮いている物は押さない（2026-10-25）
+        m_StampCS->SetSRV(ctx, "g_Height", m_HeightSRV.Get());   // 足が地面から浮いている物は押さない
         m_StampCS->SetUAV(ctx, "g_TrampleOut", m_TrampleUAV[1 - m_TrampleCur].Get());
         m_StampCS->BindUAVs(ctx);
         ctx->Dispatch((kMaxEnemyThreads + 255) / 256, 1, 1);
@@ -358,7 +360,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     }
     m_TrampleCur = 1 - m_TrampleCur;
 
-    // ---- 2) 生やして間引き、残った葉を動かす（風・風源・踏み跡・燃え跡。2026-10-23 に VS から移した）----
+    // ---- 2) 生やして間引き、残った葉を動かす（風・風源・踏み跡・燃え跡）----
     ID3D11SamplerState* linearClamp = RenderStates::Get().LinearClamp();
     m_CullCS->WriteBuffer(ctx, 0, &cb);
     m_CullCS->Bind(ctx);
@@ -371,8 +373,9 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
         m_CullCS->SetSRV(ctx, "g_DryPatch", m_DryPatchSRV);
     }
     if (m_WindSourceSRV) m_CullCS->SetSRV(ctx, "g_WindSources", m_WindSourceSRV);
+    WindGrid::BindCurrent(*m_CullCS, ctx);   // 風の格子
     ctx->CSSetSamplers(0, 1, &linearClamp);
-    // 枠の予約数を 0 から（kMaxBlades を超えた葉は Append しない = 描く本数がバッファを超えない。2026-10-25）
+    // 枠の予約数を 0 から（kMaxBlades を超えた葉は Append しない = 描く本数がバッファを超えない）
     const UINT zeros[4] = { 0, 0, 0, 0 };
     ctx->ClearUnorderedAccessViewUint(m_BudgetUAV.Get(), zeros);
     m_CullCS->SetUAV(ctx, "g_OutBlades", m_BladeUAV.Get(), 0);   // 数を 0 から

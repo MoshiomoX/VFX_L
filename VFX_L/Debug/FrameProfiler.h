@@ -40,8 +40,8 @@ public:
 private:
     static constexpr int kGpuSlots = 4;   // GPU の結果を読むまでのフレーム数（リング）
 
-    // 同じ区間に 1 フレームで何回入ってもよい（2026-10-25）：CPU も GPU も入った分を足す。
-    // GPU の timestamp の組は 1 回に 1 組（以前は区間ごとに 1 組で、2 回目が 1 回目を上書きし、GPU だけ最後の 1 回分になっていた）
+    // 同じ区間に 1 フレームで何回入ってもよい：CPU も GPU も入った分を足す。
+    // GPU の timestamp の組は 1 回に 1 組
     static constexpr int kMaxPairsPerFrame = 32;   // 1 区間・1 フレームの組の上限（超えた分の GPU は測らない）
 
     struct Section

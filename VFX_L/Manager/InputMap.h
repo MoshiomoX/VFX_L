@@ -46,7 +46,6 @@ namespace InputMap
 
 
     // 近くの物を使う（F、パッド X。トリガー）。報酬の箱など。
-    // 2026-10-28 にパッドは B → X（ユーザー「滑りを B に、X は B と入れ替え」）
     // パッド X は手動詠唱（CastMode::Manual、デバッグ用）の撃つ操作と重なるが、普段の自動詠唱では使っていない
     inline bool GetInteractTrigger()
     {
@@ -55,7 +54,7 @@ namespace InputMap
             input.GetPadTrigger(XINPUT_GAMEPAD_X);
     }
 
-    // 魔力解放：3 秒間魔力を消費しない（Q、パッド Y。トリガー。2026-10-01 までは詠唱の一時停止だった）
+    // 魔力解放：3 秒間魔力を消費しない（Q、パッド Y。トリガー）
     inline bool GetManaSurgeTrigger()
     {
         auto& input = InputManager::Get();
@@ -70,7 +69,7 @@ namespace InputMap
             input.GetPadTrigger(XINPUT_GAMEPAD_A);
     }
 
-    // 滑り（左 Ctrl、パッド B。押している間ずっと。2026-10-28 にパッドは X → B）
+    // 滑り（左 Ctrl、パッド B。押している間ずっと）
     inline bool GetSlideHeld()
     {
         auto& input = InputManager::Get();
@@ -86,18 +85,17 @@ namespace InputMap
             input.GetPadTrigger(XINPUT_GAMEPAD_BACK);
     }
 
-    // バックパック開閉（Tab / I / E、パッド Start）
+    // バックパック開閉（Tab / I、パッド Start）
     // ※Trigger を使う。Press だと毎フレーム反転して点滅する
     inline bool GetBackpackToggle()
     {
         auto& input = InputManager::Get();
         return input.GetKeyTrigger(VK_TAB)
             || input.GetKeyTrigger('I')
-            || input.GetKeyTrigger('E')
             || input.GetPadTrigger(XINPUT_GAMEPAD_START);
     }
 
-    // トレーニング（実験場）のメニューの開閉（T、パッド RB。2026-10-07）。実験場の外では GameUI が見ない
+    // トレーニング（実験場）のメニューの開閉（T、パッド RB）。実験場の外では GameUI が見ない
     inline bool GetTrainingToggle()
     {
         auto& input = InputManager::Get();

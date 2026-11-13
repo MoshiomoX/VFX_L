@@ -39,11 +39,11 @@ void MobSpawner::Init(SwarmSystem& swarm)
 
 float MobSpawner::ApplyStage(const StageDef& def, int pos, int tier)
 {
-    // 難度 = 表 × 「何面目か」（PosDifficulty。2026-10-17 の面毎の値）× マップ自体（StageDef）× Tier（2026-10-21、ステージ選択）
+    // 難度 = 表 × 「何面目か」（PosDifficulty）× マップ自体（StageDef）× Tier（ステージ選択）
     const auto& run = StageConfig::PosDifficulty(pos - 1);
     const auto& tm = StageConfig::TierMul(tier);
     stageTimeOffsetMin = run.timeOffsetMin + def.difficultyTimeOffsetMin;
-    // マップ毎の「何面目か」の倍率があればそちら（2026-10-27、草原から）
+    // マップ毎の「何面目か」の倍率があればそちら
     const int pi = std::clamp(pos - 1, 0, 2);
     const float posHp = def.posHpMul[pi] > 0.0f ? def.posHpMul[pi] : run.hpMul;
     const float posDmg = def.posDamageMul[pi] > 0.0f ? def.posDamageMul[pi] : run.damageMul;
@@ -56,13 +56,13 @@ float MobSpawner::ApplyStage(const StageDef& def, int pos, int tier)
     splitterRatioEnd = def.splitter.ratioEnd;
     splitterRampEnd = def.splitter.rampEnd;
     auto ramp = [](const StageDef::EnemyMix& m) { return KindRamp{ m.start, m.ratioStart, m.ratioEnd, m.rampEnd }; };
-    chargerMix = ramp(def.charger);         // 突撃兵・盾兵（面毎。2026-10-08）
+    chargerMix = ramp(def.charger);         // 突撃兵・盾兵（面毎）
     shieldMix = ramp(def.shield);
-    spikeBallMix = ramp(def.spikeBall);     // 砂漠の敵（2026-10-17）
+    spikeBallMix = ramp(def.spikeBall);     // 砂漠の敵
     burrowerMix = ramp(def.burrower);
     sandMageMix = ramp(def.sandMage);
-    dashBomberMix = ramp(def.dashBomber);   // 突撃爆弾兵（全ステージ。2026-10-18）
-    armorMix = ramp(def.armor);             // 遺跡の敵（2026-10-25）
+    dashBomberMix = ramp(def.dashBomber);   // 突撃爆弾兵（全ステージ）
+    armorMix = ramp(def.armor);             // 遺跡の敵
     gargoyleMix = ramp(def.gargoyle);
     necroMix = ramp(def.necro);
     wardenMix = ramp(def.warden);
@@ -74,8 +74,7 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
     // pos.y = 地面の高さ（SpawnDirector が高さ場から引く）
     const float groundY = swarm.GetAIParams().groundY;
     Vector3 p = { pos.x, pos.y + groundY, pos.z };
-    // 1 回の乱数を種類の割合で区切る（どれも雑魚の枠と入れ替わる = 湧く数は変えない）。
-    // 2026-10-25 に if の連なりから表にした（遺跡の敵が増えて長くなった）
+    // 1 回の乱数を種類の割合で区切る（どれも雑魚の枠と入れ替わる = 湧く数は変えない）
     struct Pick { float ratio; uint32_t kind; float hp, speed; };
     const Pick picks[] = {
         { m_BomberRatio, Swarm::kEnemyKindBomber, m_BomberHp, m_BomberSpeed },
@@ -83,11 +82,11 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
         { m_BruteRatio, Swarm::kEnemyKindBrute, m_BruteHp, m_BruteSpeed },
         { m_ChargerRatio, Swarm::kEnemyKindCharger, m_ChargerHp, m_ChargerSpeed },
         { m_ShieldRatio, Swarm::kEnemyKindShield, m_ShieldHp, m_ShieldSpeed },
-        { m_SpikeBallRatio, Swarm::kEnemyKindSpikeBall, m_SpikeBallHp, m_SpikeBallSpeed },     // トゲ玉（砂漠。2026-10-17）
-        { m_BurrowerRatio, Swarm::kEnemyKindBurrower, m_BurrowerHp, m_BurrowerSpeed },         // 砂潜り（砂漠。2026-10-17）
-        { m_SandMageRatio, Swarm::kEnemyKindSandMage, m_SandMageHp, m_SandMageSpeed },         // 砂嵐の術師（砂漠。2026-10-17）
-        { m_DashBomberRatio, Swarm::kEnemyKindDashBomber, m_DashBomberHp, m_DashBomberSpeed }, // 突撃爆弾兵（全ステージ。2026-10-18）
-        { m_ArmorRatio, Swarm::kEnemyKindArmor, m_ArmorHp, m_ArmorSpeed },                     // 遺跡の敵（2026-10-25）
+        { m_SpikeBallRatio, Swarm::kEnemyKindSpikeBall, m_SpikeBallHp, m_SpikeBallSpeed },     // トゲ玉（砂漠）
+        { m_BurrowerRatio, Swarm::kEnemyKindBurrower, m_BurrowerHp, m_BurrowerSpeed },         // 砂潜り（砂漠）
+        { m_SandMageRatio, Swarm::kEnemyKindSandMage, m_SandMageHp, m_SandMageSpeed },         // 砂嵐の術師（砂漠）
+        { m_DashBomberRatio, Swarm::kEnemyKindDashBomber, m_DashBomberHp, m_DashBomberSpeed }, // 突撃爆弾兵（全ステージ）
+        { m_ArmorRatio, Swarm::kEnemyKindArmor, m_ArmorHp, m_ArmorSpeed },                     // 遺跡の敵
         { m_GargoyleRatio, Swarm::kEnemyKindGargoyle, m_GargoyleHp, m_GargoyleSpeed },
         { m_NecroRatio, Swarm::kEnemyKindNecro, m_NecroHp, m_NecroSpeed },
         { m_WardenRatio, Swarm::kEnemyKindWarden, m_WardenHp, m_WardenSpeed },
@@ -148,9 +147,9 @@ void MobSpawner::SpawnDebugKind(const GridWorld& grid, const Vector3& player, Sw
 
 // ============================================================
 // GPU の分裂の環（2〜3 フレーム遅れ）に届いた出来事：
-//   ・スプリッターの死 → 分裂体を死んだ所の周りに。同時上限（spawnCap）の空きが無ければ出さない（2026-10-26 まで「倒した結果なので必ず出す」
-//     だったが、ユーザー「敵が溜まり過ぎ」で上限に数えるように）。周りの点が塞がったマスなら死んだ所そのものに置く（GPU が重なりを押し広げる）
-//   ・砂嵐の術師の詠唱（kind = kEnemyKindSandMage。2026-10-17）→ 術師の 1m 前から今のプレイヤーへ向けて砂旋
+//   ・スプリッターの死 → 分裂体を死んだ所の周りに。同時上限（spawnCap）の空きが無ければ出さない。
+//     周りの点が塞がったマスなら死んだ所そのものに置く（GPU が重なりを押し広げる）
+//   ・砂嵐の術師の詠唱（kind = kEnemyKindSandMage）→ 術師の 1m 前から今のプレイヤーへ向けて砂旋
 //     （kEnemyKindTornado）を 1 つ。向きは依頼の yaw に乗せる（AICS はその向きへ moveSpeed で飛ばす）。
 //     HP は撃てないので形だけ。同時上限は見ない（術師の攻撃なので必ず出る）
 // ============================================================
@@ -164,10 +163,10 @@ void MobSpawner::SpawnFromEvents(const GridWorld& grid, const Vector3& player, S
     const float hp = m_SplitlingHp * m_HpMul;
     const float speed = m_MobSpeed * m_SplitlingSpeedMul * finalSpeedMul;
     uint32_t splits = 0;
-    int room = m_Director.spawnCap - (int)swarm.GetCounters().aliveEnemies;   // 同時上限の空き（分裂体はこれを超えて出さない。2026-10-26）
+    int room = m_Director.spawnCap - (int)swarm.GetCounters().aliveEnemies;   // 同時上限の空き（分裂体はこれを超えて出さない）
     for (const Swarm::SplitEvent& ev : s_Events)
     {
-        const uint32_t evKind = ev.kind & Swarm::kSplitKindMask;   // 上 16 bit は出来事の中身（2026-10-25）
+        const uint32_t evKind = ev.kind & Swarm::kSplitKindMask;   // 上 16 bit は出来事の中身
         if (HandleRuinsEvent(ev, grid, player, swarm))
             continue;   // 遺跡の敵（MobSpawnerRuins.cpp）
         if (evKind == Swarm::kEnemyKindSandMage)
@@ -216,12 +215,12 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
     m_RunTime = runTime;
     if (scaling)
     {
-        const DifficultyCurve::Sample s = curve.Evaluate(runTime / 60.0f + stageTimeOffsetMin);   // 面毎に表を進めて読む（2026-10-17）
+        const DifficultyCurve::Sample s = curve.Evaluate(runTime / 60.0f + stageTimeOffsetMin);   // 面毎に表を進めて読む
         m_HpMul = s.hpMul * stageHpMul * finalStatMul;
         m_DamageMul = s.damageMul * stageDamageMul * finalStatMul;
         m_Director.spawnPerSecond = (finalSpawnRate > 0.0f)
             ? finalSpawnRate * stageSpawnMul
-            : (std::min)(s.spawnRate * stageSpawnMul * waveRateMul, maxSpawnPerSecond);   // 普段は maxSpawnPerSecond で止める（2026-10-26）
+            : (std::min)(s.spawnRate * stageSpawnMul * waveRateMul, maxSpawnPerSecond);   // 普段は maxSpawnPerSecond で止める
     }
     else
         m_HpMul = m_DamageMul = 1.0f;
@@ -236,7 +235,7 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
     m_BurrowerRatio = burrowerMix.At(runTime);
     m_SandMageRatio = sandMageMix.At(runTime);
     m_DashBomberRatio = dashBomberMix.At(runTime);
-    m_ArmorRatio = armorMix.At(runTime);         // 遺跡の敵（2026-10-25）
+    m_ArmorRatio = armorMix.At(runTime);         // 遺跡の敵
     m_GargoyleRatio = gargoyleMix.At(runTime);
     m_NecroRatio = necroMix.At(runTime);
     m_WardenRatio = wardenMix.At(runTime);
@@ -244,7 +243,7 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
     swarm.GetBomberParams().blastDamage = baseBlastDamage * m_DamageMul;
 
     // 最終ウェーブ中は幽霊の枠（ghostCap + darkGhostCap）を雑魚の上限から引いておく：雑魚には「幽霊の枠は常に埋まっている」
-    // ように見せる（2026-10-18。以前は共通の上限を雑魚が先に埋めて幽霊がほぼ湧かなかった）。幽霊自身は SpawnGhosts で自分の上限を見る
+    // ように見せる。幽霊自身は SpawnGhosts で自分の上限を見る
     int aliveForMobs = (int)swarm.GetCounters().aliveEnemies;
     if (finalGhostRate > 0.0f || finalDarkGhostRate > 0.0f)
     {
@@ -273,7 +272,7 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
 // ============================================================
 // 最終ウェーブの幽霊（白 / 黒）。プレイヤーの周りの環（rMin〜rMax）に湧く。壁を素通りするので歩けるマスかは見ない。
 // 同時上限は種類毎（ghostCap / darkGhostCap。数は CompactCS が BossInfo に数えた物、2〜3 フレーム遅れ）。
-// 雑魚の上限とは別（2026-10-18。Update で雑魚側からこの枠を引いている）。池が一杯なら湧かない
+// 雑魚の上限とは別（Update で雑魚側からこの枠を引いている）。池が一杯なら湧かない
 // ============================================================
 void MobSpawner::SpawnGhosts(const Vector3& player, float dt, SwarmSystem& swarm)
 {
@@ -477,7 +476,7 @@ void MobSpawner::KindStats(uint32_t kind, float& hp, float& speed) const
     case Swarm::kEnemyKindDashBomber: hp = m_DashBomberHp; speed = m_DashBomberSpeed; break;
     case Swarm::kEnemyKindGhost:     hp = m_MobHp * ghostHpMul;     speed = m_MobSpeed * ghostSpeedMul; break;
     case Swarm::kEnemyKindDarkGhost: hp = m_MobHp * darkGhostHpMul; speed = m_MobSpeed * darkGhostSpeedMul; break;
-    case Swarm::kEnemyKindArmor:     hp = m_ArmorHp;     speed = m_ArmorSpeed; break;      // 遺跡の敵（2026-10-25）
+    case Swarm::kEnemyKindArmor:     hp = m_ArmorHp;     speed = m_ArmorSpeed; break;      // 遺跡の敵
     case Swarm::kEnemyKindArmorRevived: hp = m_ArmorHp * armorReviveHpFrac; speed = m_ArmorSpeed; break;
     case Swarm::kEnemyKindGargoyle:  hp = m_GargoyleHp;  speed = m_GargoyleSpeed; break;
     case Swarm::kEnemyKindNecro:     hp = m_NecroHp;     speed = m_NecroSpeed; break;

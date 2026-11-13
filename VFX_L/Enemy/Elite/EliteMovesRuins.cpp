@@ -1,6 +1,6 @@
 // ============================================================
 // EliteMovesRuins.cpp
-// 遺跡の固定エリートの技（影の剣士 / 呪いの司書と追う玉）。段の流れの説明は EliteMoves.cpp。2026-10-26 に EliteMoves.cpp から分けた
+// 遺跡の固定エリートの技（影の剣士 / 呪いの司書と追う玉）。段の流れの説明は EliteMoves.cpp
 // ============================================================
 #include "Enemy/Elite/EliteAttacks.h"
 #include "Enemy/Elite/EliteMovesCommon.h"

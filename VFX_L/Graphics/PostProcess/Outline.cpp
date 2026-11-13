@@ -22,7 +22,7 @@ bool Outline::Initialize(ID3D11Device* device)
            && SUCCEEDED(ShaderPath::Load(m_PS.get(), device, L"Shader/PostProcess/OutlinePS.hlsl"));
 
     // 乗算済みアルファ：結果 = 出力 + 下の色 × (1 − a)。PS は「線の色 × k, k」を出す = 下の色を線の色へ k だけ寄せる
-    // （黒に近い tint なら 10-04 の乗算とほぼ同じ見え方。陣営の青 / 赤はこれでないと出せない）
+    // （黒に近い tint なら乗算とほぼ同じ見え方。陣営の青 / 赤はこれでないと出せない）
     D3D11_BLEND_DESC bd = {};
     bd.RenderTarget[0].BlendEnable = TRUE;
     bd.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
@@ -45,7 +45,7 @@ bool Outline::Initialize(ID3D11Device* device)
 void Outline::Render(ID3D11DeviceContext* context, Graphics& graphics, CameraBase* camera)
 {
     // enabled = デバッグ用の開閉（ImGui / VFXL_NO_OUTLINE）。プレイヤーの設定（一時停止メニューの「設定」）は
-    // 陣営の線だけを切る（下の factionStrength）。トゥーンの黒い線はいつも描く（2026-10-08 ユーザー）
+    // 陣営の線だけを切る（下の factionStrength）。トゥーンの黒い線はいつも描く
     if (!m_Params.enabled) return;
     if (!m_VS || !m_PS || !m_Blend || !context || !camera) return;
     ID3D11ShaderResourceView* depth = graphics.GetDepthSRV();

@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // CollisionTestSceneGameplay.cpp
-// CollisionTestScene::UpdateGameplay：System の実行順（2026-10-25 に CollisionTestScene.cpp から分けた。中身はそのまま）。
+// CollisionTestScene::UpdateGameplay：System の実行順。
 // バックパック・三択・一時停止の間は呼ばれない（Update が GameUI::ShouldPauseGame を見る）
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -33,7 +33,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     // ---- 遊んでいる時間（死んだら止める）----
     if (!IsPlayerDead())
         m_RunTime += dt;
-    m_LevelUpSystem.runMinutes = Rarity::RunMinutes(m_RunPos, m_RunTime);   // 稀有度の率は経過時間で決まる（2026-11-01）
+    m_LevelUpSystem.runMinutes = Rarity::RunMinutes(m_RunPos, m_RunTime);   // 稀有度の率は経過時間で決まる
 
     // ---- 負荷テスト（自動補充と小分けの生成）----
     m_Stress.Update(dt, m_Registry, m_Player, m_Swarm);
@@ -63,7 +63,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         {
             m_Mobs.Update(m_Grid, *pp, dt, m_RunTime, m_Swarm);
             {
-                // 砂旋の本体（Enemy/SandTornadoFx。2026-10-26）：生まれた砂旋を同じ直線で追いかけて砂色の柱を描く。全消しで消す
+                // 砂旋の本体（Enemy/SandTornadoFx）：生まれた砂旋を同じ直線で追いかけて砂色の柱を描く。全消しで消す
                 static std::vector<MobSpawner::TornadoBirth> s_TornadoBirths;
                 m_Mobs.ConsumeTornadoBirths(s_TornadoBirths);
                 for (const MobSpawner::TornadoBirth& b : s_TornadoBirths)
@@ -77,8 +77,8 @@ void CollisionTestScene::UpdateGameplay(float dt)
             }
             m_Stage.Update(m_Grid, *pp, m_RunTime, dt, m_Mobs, m_Swarm);   // 時間で起きる出来事（エリート・最終ウェーブ・Boss）
             UpdateBossAttacks(dt, *pp);                                    // Boss の技（CollisionTestSceneBoss.cpp）
-            UpdateRuinsFoes(dt, *pp);                                      // 遺跡の敵の出来事・鎖（CollisionTestSceneRuins.cpp。2026-10-25）
-            UpdateElites(dt, *pp);                                         // 面の固定エリートの技・宝箱（CollisionTestSceneElites.cpp。2026-10-25。Boss の輪の後）
+            UpdateRuinsFoes(dt, *pp);                                      // 遺跡の敵の出来事・鎖（CollisionTestSceneRuins.cpp）
+            UpdateElites(dt, *pp);                                         // 面の固定エリートの技・宝箱（CollisionTestSceneElites.cpp。Boss の輪の後）
         }
     }
     {
@@ -96,11 +96,13 @@ void CollisionTestScene::UpdateGameplay(float dt)
     FrameProfiler::Get().Begin(kRestSection);
     m_PlayerStateSystem.Update(m_Registry, dt);
 
+    m_WeaponSystem.lineWaveSpeed = m_SpellFx.IceSpikes().waveSpeed;   // アイススパイクの範囲を見た目のトゲと同じ時刻に出す
+    m_WeaponSystem.lineRiseDelay = m_SpellFx.IceSpikes().riseTime * 0.6f;
     m_WeaponSystem.Update(m_Registry, dt, m_CollisionSystem);
 
     // ---- 見た目のアニメ（杖の後: 「今フレーム撃った」を拾うため）----
     m_PlayerAnimSystem.Update(m_Registry, dt);
-    // 石の守護獣の石化しきった間（2026-11-05）：プレイヤーのアニメを止め（速さを 0 にして進め、戻す）、マントも揺らさない
+    // 石の守護獣の石化しきった間：プレイヤーのアニメを止め（速さを 0 にして進め、戻す）、マントも揺らさない
     const bool playerStone = m_PlayerStoneLook >= 0.99f && m_Registry.Has<SkinnedAnimComponent>(m_Player);
     float stoneKeep[3] = {};
     if (playerStone)
@@ -126,11 +128,11 @@ void CollisionTestScene::UpdateGameplay(float dt)
         m_Grass.Update(dt, *pp, grounded, sliding);
     }
     m_GrassFire.Tick(dt);   // 草の火の時計（一時停止中は進まない）
-    m_Sand.Tick(dt);        // 砂の面も（2026-11-02）
-    m_Miasma.Tick(dt);      // 遺跡の瘴気も（2026-11-03）
+    m_Sand.Tick(dt);        // 砂の面も
+    m_Miasma.Tick(dt);      // 遺跡の瘴気も
     m_Debris.Tick(dt);      // 落ち葉も
     m_Water.Tick(dt);       // 水面の波紋も
-    UpdateWindToys(dt);     // 転がり草・タンポポ（2026-10-22）
+    UpdateWindToys(dt);     // 転がり草・タンポポ
 
     m_ManaSystem.Update(m_Registry, dt);
 
@@ -176,7 +178,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
             m_AreaVFX.StopInstance(m_PortalVfx);
             m_PortalVfx = 0;
         }
-        // Boss を倒したら同じ門を出口にする（2026-10-07 ユーザー：もう一度押して次の面へ）。渦は金色で出し直す
+        // Boss を倒したら同じ門を出口にする（もう一度押して次の面へ）。渦は金色で出し直す
         if (m_Stage.IsBossDefeated() && !m_Stage.IsCleared() && !m_Stage.IsExitOpen())
         {
             const wchar_t* prompt = HasNextStage() ? L"<{K:F}|{X}>  次のステージへ" : L"<{K:F}|{X}>  冒険を終える";   // 計画（Tier）の最後の面なら終える
@@ -196,16 +198,29 @@ void CollisionTestScene::UpdateGameplay(float dt)
 
     // ---- 被弾とレベルアップの反応（揺れ・斬撃・レベルアップの光）----
     const float hpLost = TrackPlayerHpLoss();
-    // ダメージの数字（2026-10-17）：敵の分は GPU のリードバック、プレイヤーの分は hpLost
+    // ダメージの数字：敵の分は GPU のリードバック、プレイヤーの分は hpLost
     {
         auto& dn = m_GameUI.Damage();
         dn.Update(dt);
         std::vector<Swarm::DamageText> texts;
         m_Swarm.ConsumeDamageTexts(texts);
+        int shatterFx = 0;   // 砕氷の見た目はフレームあたりこの数まで（扇で一度に何十体も砕ける）
         for (const auto& d : texts)
         {
+            // 砕氷：凍った敵を氷の範囲が砕いた = 氷の破片を大きめに散らし、ガラスの割れる音
+            if (((d.packed >> Swarm::kDtxElementShift) & 0xFu) == (uint32_t)Swarm::DamageElement::Shatter)
+            {
+                ++m_ShatterCount;
+                if (shatterFx < 6)
+                {
+                    const uint32_t h = m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::IceLanceHit), d.position, 1.0f, false, m_VFXContext);
+                    if (h) m_AreaVFX.ScaleInstance(h, 1.8f);
+                    ++shatterFx;
+                }
+                AudioSystem::Get().Play("ice_shatter");
+            }
             const float amount = (float)(d.packed & Swarm::kDtxAmountMask) * 0.1f;
-            if (d.packed & Swarm::kDtxKill)   // 死体の場所（死霊術師が骸骨を起こす。2026-10-25）
+            if (d.packed & Swarm::kDtxKill)   // 死体の場所（死霊術師が骸骨を起こす）
                 m_Mobs.NoteKill(Vector3(d.position.x, m_Grid.SampleHeight(d.position.x, d.position.z), d.position.z));
             const DamageNumbers::Kind kind = (d.packed & Swarm::kDtxKill) ? DamageNumbers::Kind::Kill
                 : (d.packed & Swarm::kDtxPoison) ? DamageNumbers::Kind::Poison : DamageNumbers::Kind::Normal;
@@ -214,7 +229,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         if (hpLost > 0.0f && m_Registry.Has<TransformComponent>(m_Player))
             dn.Add(m_Registry.Get<TransformComponent>(m_Player).position + Vector3(0.0f, 1.2f, 0.0f), hpLost, DamageNumbers::Kind::Player);
     }
-    // ---- 吸血のルーン（2026-10-25）：印の付いた敵が失った HP の 3% を、1 秒あたり最大 HP の 2% まで戻す ----
+    // ---- 吸血：印の付いた敵が失った HP の 3% を、1 秒あたり最大 HP の 2% まで戻す ----
     {
         const float stolen = m_Swarm.ConsumeLifesteal();
         if (m_Registry.Has<HealthComponent>(m_Player))
@@ -231,10 +246,29 @@ void CollisionTestScene::UpdateGameplay(float dt)
             }
         }
     }
+    // ---- 吸血コウモリ：噛んで戻ったコウモリの分をそのまま HP へ（上限なし）----
+    {
+        const float heal = m_WeaponSystem.ConsumeBatHeal();
+        if (heal > 0.0f && !IsPlayerDead() && m_Registry.Has<HealthComponent>(m_Player))
+        {
+            auto& hp = m_Registry.Get<HealthComponent>(m_Player);
+            const float before = hp.current;
+            hp.current = (std::min)(hp.max, hp.current + heal);
+            m_PrevPlayerHp = hp.current;   // 戻した分を次のフレームの被弾に混ぜない
+            m_BatHealTotal += hp.current - before;
+            if (m_Registry.Has<TransformComponent>(m_Player))
+            {
+                const Vector3 p = m_Registry.Get<TransformComponent>(m_Player).position;
+                m_GameUI.Damage().Add(p + Vector3(-0.35f, 1.5f, 0.0f), heal, DamageNumbers::Kind::Heal);
+                m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::LifestealAbsorb), p, 1.0f, true, m_VFXContext);
+                AudioSystem::Get().Play("lifesteal");
+            }
+        }
+    }
     m_Camera.OnPlayerHit(hpLost);
     m_Feedback.Update(m_Registry, m_Player, dt, hpLost);
     m_PlayerVFX.Update(m_Registry, m_Player, dt, hpLost, m_WeaponSystem.GetCastFx());   // 詠唱の光・土煙・着地・尾・被弾の閃き
-    // 石化の灰色（2026-11-05）：PlayerVFXSystem が毎フレーム hitFlash を書くので、その後で強い方を取る（被弾の閃きは消さない）
+    // 石化の灰色：PlayerVFXSystem が毎フレーム hitFlash を書くので、その後で強い方を取る（被弾の閃きは消さない）
     if (m_PlayerStoneLook > 0.0f && m_Registry.Has<SkinnedAnimComponent>(m_Player))
     {
         auto& a = m_Registry.Get<SkinnedAnimComponent>(m_Player);
@@ -248,12 +282,12 @@ void CollisionTestScene::UpdateGameplay(float dt)
         }
     }
     m_PlayerStoneLook = 0.0f;   // Boss の技が毎フレーム書き直す（Boss が居なくなったら戻る）
-    UpdateFootprints(dt);   // 砂漠：一歩ごとに足跡（2026-11-03）
+    UpdateFootprints(dt);   // 砂漠：一歩ごとに足跡
     for (const auto& g : m_WeaponSystem.GetGustFx())   // 突風：草が一斉に倒れ、落ち葉が舞う
     {
         m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
         m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
-        AddGustWindBurst(g.pos, g.dir, g.length, g.radius, true);   // 自分の突風：マントは受けない
+        if (!g.noWind) AddGustWindBurst(g.pos, g.dir, g.length, g.radius, true);   // 自分の突風：マントは受けない
     }
     m_SpellFx.Update(dt, m_WeaponSystem.GetTriggeredFx(),                                // アイススパイクの氷のトゲ（地面の高さに 1 本ずつ）
         [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
@@ -267,7 +301,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     }
 
     // ---- カメラ追従（最後）----
-    // 賢いカメラの戦況（2026-11-02）：囲まれ具合・Boss・最終ウェーブ・押し寄せの方向。
+    // 賢いカメラの戦況：囲まれ具合・Boss・最終ウェーブ・押し寄せの方向。
     // 実験場・Boss の登場演出・死んだ後は使わない（演出が自分でカメラを動かす）
     {
         BattleCamera::SmartInput smart;
@@ -328,7 +362,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
             const bool fresh = !st.IsInvincible() || st.invincibleTimer > st.invincibleAfterHit - 0.2f;
             if (fresh)
             {
-                // 砂旋 > トゲ玉 > 爆発 > 殴り（2026-10-17）
+                // 砂旋 > トゲ玉 > 爆発 > 殴り
                 if (hits.winds > 0)       PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.windDir, PlayerControlSystem::KnockKind::Wind);
                 else if (hits.spikes > 0) PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.spikeDir, PlayerControlSystem::KnockKind::Spike);
                 else if (hits.blasts > 0) PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, hits.blastDir, PlayerControlSystem::KnockKind::Blast);
@@ -337,12 +371,12 @@ void CollisionTestScene::UpdateGameplay(float dt)
         }
         // GPU 上で拾った経験値を CPU のプレイヤーへ反映。
         // レベルアップの判定は LevelUpSystem（次フレーム頭）に任せて、ここは足すだけ
-        const float gpuExp = m_Swarm.ConsumeExp() * m_ExpMul;   // Tier の経験値倍率（2026-10-21）。金貨も同じ値から
+        const float gpuExp = m_Swarm.ConsumeExp() * m_ExpMul;   // Tier の経験値倍率。金貨も同じ値から
         if (gpuExp > 0.0f) m_ExpGained += gpuExp;   // 戦績用
         if (gpuExp > 0.0f) m_Feedback.OnExpPicked(ptf.position);   // 拾った時のきらめき
         if (gpuExp > 0.0f && m_Registry.Has<LevelComponent>(m_Player))
             m_Registry.Get<LevelComponent>(m_Player).experience += gpuExp;
-        // 経験値オーブは金貨も兼ねる（2026-10-04、Brotato 風）
+        // 経験値オーブは金貨も兼ねる
         if (gpuExp > 0.0f && m_Registry.Has<WalletComponent>(m_Player))
         {
             auto& wallet = m_Registry.Get<WalletComponent>(m_Player);

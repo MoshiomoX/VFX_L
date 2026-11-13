@@ -5,7 +5,7 @@
 // ============================================================
 Texture2D sceneTex : register(t0);
 Texture2D bloomTex : register(t1);
-// 画面の歪み（2026-10-20）: パーティクル（ParticleDistortPS）が書いた uv のずれ、リゾルブ済み。
+// 画面の歪み: パーティクル（ParticleDistortPS）が書いた uv のずれ、リゾルブ済み。
 // 予備の経路でしかない: 普段は UI を描く前に Graphics::ApplyDistortion（DistortApplyPS）がシーンを
 // もう歪ませてフラグを下ろしているので、ここでの g_DistortStrength は 0。DistortApplyPS の読み込みに
 // 失敗したときだけこの経路が画像を歪ませる（そのときは HDR ターゲットに描いた UI も一緒に歪む）

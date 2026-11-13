@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmEnemyKindList2CS.hlsl
-// 遺跡の敵の描画リスト（2026-10-25）：SwarmEnemyCompactCS と
+// 遺跡の敵の描画リスト：SwarmEnemyCompactCS と
 // SwarmEnemyKindListCS はどちらも既に 8 本の UAV を使っている。規則は同じ：
 // 敵スロット 1 つに 1 スレッド、生きているスロットをその種類のリストに追加し、
 // リストの長さが各サブメッシュの間接描画の InstanceCount に
@@ -11,7 +11,7 @@
 //   necroList    : SWARM_KIND_NECRO（フード、杖）
 //   skeletonList : SWARM_KIND_SKELETON
 //   wardenList   : SWARM_KIND_WARDEN（鎖、鉤）
-//   eliteAList   : SWARM_KIND_ELITE_A、ステージの近接の固定エリート（2026-10-25）
+//   eliteAList   : SWARM_KIND_ELITE_A、ステージの近接の固定エリート
 //   eliteBList   : SWARM_KIND_ELITE_B、遠隔の方
 // 固定エリートは eliteInfo にも自分を報告する（Swarm::EliteInfoBlock：+0 に数、続いて
 // 1 体 32 バイト = スロット、種類、hp（固定小数点）、最大 hp（固定小数点）、位置、fuse。このディスパッチの前に

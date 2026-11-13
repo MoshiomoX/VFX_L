@@ -1,12 +1,12 @@
 // ============================================================
 // AutoTestBossMoves.cpp
 // TEMP-TEST: VFXL_SPELL_LAB=1 + VFXL_BATTLE_AUTOTEST=bossmoves
-// Boss の 5 つの技（2026-10-07）：平らな実験場で、止まった Boss に技を 1 つずつ出させ、
+// Boss の技：平らな実験場で、止まった Boss に技を 1 つずつ出させ、
 //   立ったまま受ける（当たるはず）→ 決まった避け方（衝撃波 = 跳ぶ、突進 = 横へ走る）で避ける（当たらないはず）を記録・撮影
-// 2026-10-24：VFXL_BOSS_TYPE=sand を足すと砂の守護者の技（砂の槍 / 潜砂奇襲 / 流沙 / 召喚）を同じやり方で
+// VFXL_BOSS_TYPE=sand を足すと砂の守護者の技（砂の槍 / 潜砂奇襲 / 流沙 / 召喚）を同じやり方で
 //   砂の槍 = 横へ走る、潜砂 = 輪が出たら Boss から離れる、流沙 = Boss から離れる方へ走って抜けられるか
-// 2026-10-29：VFXL_STAGE=3 VFXL_BOSS_TYPE=king で骸の王（呪いの玉 / 呪いの床 / 大起尸。骸骨が湧くので大起尸は最後。影へ消えるは使わなくなった）
-// 2026-10-29：VFXL_STAGE=2 VFXL_BOSS_TYPE=djinn で砂嵐の魔神（一段目の 3 つ → Boss を削って咆哮で二段目へ → 二段目の技）
+// VFXL_STAGE=3 VFXL_BOSS_TYPE=king で骸の王（呪いの玉 / 呪いの床 / 大起尸。骸骨が湧くので大起尸は最後）
+// VFXL_STAGE=2 VFXL_BOSS_TYPE=djinn で砂嵐の魔神（一段目の 3 つ → Boss を削って咆哮で二段目へ → 二段目の技）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 #include "Player/PlayerControlSystem.h"
@@ -58,16 +58,16 @@ namespace
         { BossMove::Quicksand,  7.0f, Dodge::Away, 0.5f, 2.5f, 4.5f, "quicksand-away", 0.9f, 3.2f },
         { BossMove::Summon,    14.0f, Dodge::None, 1.0f, 2.2f, 3.5f, "summon-sand" },
     };
-    // 大サソリ（2026-10-26）：毒針は 12m（突っ込み 8m なので届く）、鋏は 4m（扇 5.5m）。横 / 後ろへ逃げる方も
+    // 大サソリ：毒針は 10m（突っ込み 8m なので届く）、鋏は 4m。横 / 後ろへ逃げる方も
     const Trial kScorpionTrials[] = {
         { BossMove::Sting,     10.0f, Dodge::None, 0.5f, 0.95f, 3.0f, "sting" },
         { BossMove::Sting,     10.0f, Dodge::Side, 0.5f, 0.95f, 3.0f, "sting-side", 0.3f, 1.0f },
         { BossMove::ClawSweep,  4.0f, Dodge::None, 0.6f, 0.9f, 2.5f, "claw" },
-        { BossMove::ClawSweep,  4.0f, Dodge::Away, 0.6f, 0.9f, 2.5f, "claw-away", 0.0f, 1.0f },   // 10-29 扇 6.6m：予告が出た瞬間に走る（0.2 秒遅れだと届く）
+        { BossMove::ClawSweep,  4.0f, Dodge::Away, 0.6f, 0.9f, 2.5f, "claw-away", 0.0f, 1.0f },   // 予告が出た瞬間に走る（遅れると扇が届く）
         { BossMove::Burrow,    14.0f, Dodge::None, 1.2f, 2.6f, 4.8f, "burrow-scorpion" },
         { BossMove::Summon,    14.0f, Dodge::None, 1.0f, 2.2f, 3.5f, "summon-scorpion" },
     };
-    // 墓守の騎士（2026-10-26）：双鎖は 10m（届く 14m）、掛かれば引き寄せてすぐ重撃（chainpull の後の 2 秒で輪が爆発）。横へ逃げる方も
+    // 墓守の騎士：双鎖は 10m（届く 14m）、掛かれば引き寄せてすぐ重撃（chainpull の後の 2 秒で輪が爆発）。横へ逃げる方も
     const Trial kKnightTrials[] = {
         { BossMove::ChainPull, 10.0f, Dodge::None, 0.7f, 1.3f, 4.5f, "chainpull" },
         { BossMove::ChainPull, 10.0f, Dodge::Side, 0.7f, 1.3f, 4.5f, "chainpull-side", 0.3f, 1.2f },
@@ -75,15 +75,15 @@ namespace
         { BossMove::Shockwave, 14.0f, Dodge::Jump, 1.9f, 2.0f, 3.5f, "shockwave-jump-knight" },
         { BossMove::Summon,    14.0f, Dodge::None, 1.0f, 2.2f, 3.5f, "summon-knight" },
     };
-    // 月下の狼人（2026-10-26）：飛びかかりは 12m（10-29 から空中 0.75 秒・着地の輪 3.6m = 跳んだ瞬間から横へ走れば出る）、三連は 5m
+    // 月下の狼人：飛びかかりは 12m（跳んだ瞬間から横へ走れば着地の輪から出る）、三連は 5m
     const Trial kWolfTrials[] = {
         { BossMove::Pounce,    12.0f, Dodge::None, 0.4f, 0.85f, 3.0f, "pounce" },
         { BossMove::Pounce,    12.0f, Dodge::Side, 0.4f, 0.85f, 3.0f, "pounce-side", 0.55f, 1.0f },
         { BossMove::ClawCombo,  5.0f, Dodge::None, 0.3f, 0.9f, 4.0f, "clawcombo" },
-        { BossMove::ClawCombo,  5.0f, Dodge::Side, 0.3f, 0.9f, 4.0f, "clawcombo-side", 0.0f, 3.0f },   // 10-29 当たり 2.2m：予告が出た瞬間から、帯毎に横へ
+        { BossMove::ClawCombo,  5.0f, Dodge::Side, 0.3f, 0.9f, 4.0f, "clawcombo-side", 0.0f, 3.0f },   // 予告が出た瞬間から、帯毎に横へ
         { BossMove::Howl,      14.0f, Dodge::None, 0.8f, 1.5f, 3.5f, "howl" },
     };
-    // 雷鳴の雄鹿（2026-10-29）：突進（道筋に雷）、振り上げは目の前 3.5m（扇 5m / ±45°）、雷撃は 11m（3 本 ±18°）。
+    // 雷鳴の雄鹿：突進（道筋に雷）、振り上げは目の前 3.5m（扇 5m / ±45°）、雷撃は 11m（3 本 ±18°）。
     // 横へ = 予告が出た瞬間から走る。最後の 2 つは狂暴（雷撃 5 本、突進三連）
     const Trial kStagTrials[] = {
         { BossMove::Charge,     18.0f, Dodge::None, 0.7f, 1.3f, 3.0f, "charge-stag" },
@@ -95,14 +95,14 @@ namespace
         { BossMove::AntlerBolt, 11.0f, Dodge::None, 0.6f, 0.95f, 2.5f, "antlerbolt-enraged", 0.6f, 1.2f, true },
         { BossMove::Charge,     18.0f, Dodge::None, 2.6f, 4.3f, 6.5f, "charge-enraged", 0.6f, 1.2f, true },
     };
-    // 骸の王（2026-10-29）
+    // 骸の王
     const Trial kKingTrials[] = {
         { BossMove::CurseOrbs,  11.0f, Dodge::None, 1.2f, 2.6f, 5.5f, "orbs" },
         { BossMove::CurseOrbs,  11.0f, Dodge::Away, 1.2f, 2.6f, 7.5f, "orbs-away", 0.3f, 7.0f },
         { BossMove::CurseFloor, 10.0f, Dodge::None, 0.6f, 3.0f, 7.5f, "curse" },
         { BossMove::CurseFloor, 10.0f, Dodge::Away, 0.6f, 3.0f, 7.5f, "curse-away", 0.0f, 4.0f },
         { BossMove::RaiseDead,  12.0f, Dodge::None, 1.0f, 2.2f, 4.0f, "raise" },
-    };    // 砂嵐の魔神（2026-10-29）：一段目（浮いている）の 3 つ → 削って咆哮で二段目 → 二段目の技
+    };    // 砂嵐の魔神：一段目（浮いている）の 3 つ → 削って咆哮で二段目 → 二段目の技
     const Trial kDjinnTrials[] = {
         { BossMove::DustDevils, 10.0f, Dodge::None, 1.6f, 4.5f, 7.2f, "devils" },
         { BossMove::DustDevils, 10.0f, Dodge::Gap,  1.6f, 3.0f, 7.2f, "devils-gap", 0.2f, 2.6f },
@@ -116,10 +116,10 @@ namespace
         { BossMove::Shockwave,  14.0f, Dodge::Jump, 1.9f, 2.0f, 3.5f, "shockwave-jump-djinn" },
         { BossMove::Quicksand,   7.0f, Dodge::None, 0.5f, 2.5f, 4.5f, "quicksand-djinn" },
     };
-    // 石の守護獣（2026-10-29）：一段目（飛ぶ）→ "roar" で半分まで削って二段目（降りる）
+    // 石の守護獣：一段目（飛ぶ）→ "roar" で半分まで削って二段目（降りる）
     const Trial kBeastTrials[] = {
         { BossMove::BeastDive,     14.0f, Dodge::None, 0.6f, 1.25f, 3.5f, "dive" },
-        // すぐ後に置く：天からの圧殺は Boss を動かすので、その後だと横へ走る先が壁になる（2026-11-01）
+        // すぐ後に置く：天からの圧殺は Boss を動かすので、その後だと横へ走る先が壁になる
         { BossMove::BeastDive,     14.0f, Dodge::Side, 0.6f, 1.25f, 3.5f, "dive-side", 0.3f, 1.2f },
         { BossMove::SkyCrush,      10.0f, Dodge::None, 1.5f, 3.3f, 6.0f, "crush" },
         { BossMove::SkyCrush,      10.0f, Dodge::Away, 1.5f, 3.3f, 6.0f, "crush-away", 2.3f, 0.9f },
@@ -251,7 +251,7 @@ void AutoTestBossMoves::Run()
         if (t > 40.0f) { AutoTestLog("bossmoves knight timeout"); AutoTestLog("bossmoves done"); m_AutoStep = 3; }
         return;
     }
-    // ---- 石の守護獣：息なしで石化させ、寄って撮る（m_AutoStep 13、2026-11-05）----
+    // ---- 石の守護獣：息なしで石化させ、寄って撮る（m_AutoStep 13）----
     if (m_AutoStep == 13 && m_Registry.Has<SkinnedAnimComponent>(m_Player))
     {
         static int s_Phase = 0;
@@ -353,7 +353,7 @@ void AutoTestBossMoves::Run()
             }
             if (beast)
             {
-                // 石化の寄りの絵（2026-11-05）：息の煙が無い所で石化だけ起こす（m_AutoStep 13）
+                // 石化の寄りの絵：息の煙が無い所で石化だけ起こす（m_AutoStep 13）
                 s_Base = m_AutoTime;
                 m_AutoStep = 13;
                 return;
@@ -421,7 +421,7 @@ void AutoTestBossMoves::Run()
             c.active ? 1 : 0, c.radius, m_KingRaised, m_Swarm.GetCounters().aliveEnemies, bp.bossChargePose);
         AutoTestLog(line);
     }
-    // 石の守護獣の様子（0.25 秒毎）+ "roar" の試しの削り（2026-10-29）
+    // 石の守護獣の様子（0.25 秒毎）+ "roar" の試しの削り
     if (beast && t >= s_NextSandLog)
     {
         s_NextSandLog += 0.25f;
@@ -444,7 +444,7 @@ void AutoTestBossMoves::Run()
             m_Swarm.SpawnArea(a);
         }
     }
-    // 石化しきった瞬間（2026-11-05）：体が灰色になり、アニメが止まっているか。寄って 0.5 秒後に 1 枚
+    // 石化しきった瞬間：体が灰色になり、アニメが止まっているか。寄って 0.5 秒後に 1 枚
     if (beast && m_Registry.Has<SkinnedAnimComponent>(m_Player))
     {
         static float s_StoneAt = -1.0f;   // -1 = まだ、-10 = 撮った
@@ -508,7 +508,7 @@ void AutoTestBossMoves::Run()
     }
     if (tr.dodge == Dodge::Side && tr.move == BossMove::ClawCombo)
     {
-        // 爪の三連（10-29）：帯が出る度に、その帯と直角で線から離れる方へ走る。一方向へ走り続けると 3 回目には
+        // 爪の三連：帯が出る度に、その帯と直角で線から離れる方へ走る。一方向へ走り続けると 3 回目には
         // 突っ込みの向きへ逃げる形になり、突っ込みの終わりで追い付かれる（人は帯毎に横へ避ける）
         for (const BossAttacks::Visual& v : m_BossAttacks.Visuals())
         {
@@ -525,7 +525,7 @@ void AutoTestBossMoves::Run()
     }
     else if (tr.dodge == Dodge::Weave)
     {
-        // 石羽の散弾（10-29）：1 回目が届く前に隙間へ 1 歩（0.24 秒 ≒ 1.3m = 10m 先の 7.5°）、通り過ぎたら 2 回目の前に元へ
+        // 石羽の散弾：1 回目が届く前に隙間へ 1 歩（0.24 秒 ≒ 1.3m = 10m 先の 7.5°）、通り過ぎたら 2 回目の前に元へ
         const float back = tr.dodgeAt + tr.dodgeLen;
         pcs.testMove = (t >= tr.dodgeAt && t < tr.dodgeAt + 0.24f) ? Vector2(1.0f, 0.0f)
             : (t >= back && t < back + 0.24f) ? Vector2(-1.0f, 0.0f) : Vector2::Zero;

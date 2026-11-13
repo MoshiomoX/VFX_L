@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestMapIO.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=mapio
-// 地図のデータ（World/MapData、2026-10-05）：生成した地形を保存 → 読んで建て直し、同じ物になるかを確かめる
+// 地図のデータ（World/MapData）：生成した地形を保存 → 読んで建て直し、同じ物になるかを確かめる
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 #include "World/MapData.h"

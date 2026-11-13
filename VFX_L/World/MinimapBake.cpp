@@ -103,14 +103,13 @@ namespace MinimapBake
                 c = TerrainBuild::LerpColor(c, cliff, cliffT);
 
                 // ---- 陰影：ミニマップの左上（+x, +z）から光が当たっている体。+x・+z へ下る面（傾きが負）が明るい ----
-                // （2026-10-23 まで dz の符号が逆で、画面の下側から照らしていた = 台地がへこんで見えた）
                 const float lit = std::clamp(1.0f + kShade * (std::clamp(-dx, -2.0f, 2.0f) + std::clamp(-dz, -2.0f, 2.0f)), 0.55f, 1.45f);
                 c = Mul(c, lit);
 
                 // ---- 塞がったマス（木・岩・箱・登れない台地）は暗い点に。崖はそのまま ----
                 if (!ring && cliffT < 0.5f && !grid.IsWalkable(gx, gz))
                     c = Mul(c, 0.45f);
-                // ---- 水たまり（2026-10-19）は青 ----
+                // ---- 水たまりは青 ----
                 if (map.pond.size() == (size_t)gw * gd && map.pond[cell])
                     c = Vector4(0.06f, 0.26f, 0.42f, 1.0f);
 

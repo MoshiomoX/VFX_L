@@ -1,8 +1,7 @@
 // ============================================================
 // WaterPS.hlsl
-// 池の水面（World/WaterSurface、2026-10-27）。何かが動かしたときだけ
-// 動くトゥーンの水（ユーザー:「何も作用していないのに水がずっと
-// 動いているのはおかしい」）:
+// 池の水面（World/WaterSurface）。何かが動かしたときだけ
+// 動くトゥーンの水:
 //   風       局所的な風速（草と同じ突風の波を持つ世界の
 //            風 + 風源: 竜巻、渦、突風、砂旋）が
 //            g_CalmWind を超えた所にだけさざ波が立ち、風下へ流れる
@@ -14,13 +13,14 @@
 //            岸に細い泡の線（波が来ると太くなる）、
 //            太陽の硬いきらめき、トゥーンのフレネルで空を映す
 //   氷       g_Ice が凍っている所に割れ目入りの淡い板（WaterIceCS）、
-//            時間切れが近づくと点々と融けていく（2026-11-01）
+//            時間切れが近づくと点々と融けていく
 // 乗算済みアルファ（ONE, INV_SRC_ALPHA）、深度は読むだけ。
 // WaterCB が b0 を使うので、ライトの cbuffer は b1 に置く。
 // ============================================================
 #define MODEL_LIGHT_CB_REG b1
 #include "../Common/Lighting.hlsli"
 #include "../Common/WindSources.hlsli"
+#include "../Common/WindGrid.hlsli"   // 風の格子
 #include "WaterCommon.hlsli"
 
 Texture2D<float4> g_Ripple : register(t0);   // x = 高さ (m)、y = 前のステップの値。zw = 大きな波だけの同じもの
@@ -110,7 +110,7 @@ float2 AirAt(float2 xz)
     if (g_HasSources > 0.5)
     {
         float lift;
-        v += WindSourceAir(g_WindSources, xz, lift).xz;
+        v += WindGridBlend2D(WindSourceAir(g_WindSources, xz, lift), xz).xz;
     }
     return v;
 }
@@ -168,8 +168,8 @@ float4 main(WaterOut i) : SV_TARGET
 
     // ここの大きな波の頂上は長い波頭（広がっていく輪）か、ぽつんとした盛り上がりか? zw の曲率で見る:
     // 波頭は自分を横切る方向にだけ下へ曲がり（片方が強い負、もう片方はほぼ 0）、盛り上がりは
-    // どの向きにも下へ曲がる。爆発の中心は盛り上がりとして跳ね返り、反射した波も重なって盛り上がる:
-    // それが小さな白い円を描いていた（ユーザー:「爆発の後の小さな円」）
+    // どの向きにも下へ曲がる。爆発の中心の跳ね返りや反射の重なりが盛り上がりになるので、
+    // 白い線は波頭にだけ描く
     float bxx = sx1.z + sx0.z - 2.0 * bigH;
     float bzz = sz1.z + sz0.z - 2.0 * bigH;
     float bxz = 0.25 * (SampleRipple(uv + float2(du, du)).z - SampleRipple(uv + float2(du, -du)).z
@@ -188,8 +188,7 @@ float4 main(WaterOut i) : SV_TARGET
         windSlope = WindSlope(xz, air) * (amp * g_WaveNormal);
 
     float2 slope = rippleSlope * g_RippleNormal + windSlope;
-    // 傾きは最大 ~25 度: 着地や爆発で水面が 45-60 度傾き、その一帯が
-    // 淡い空を映していた（足元に真っ白な円盤）
+    // 傾きは最大 ~25 度（大きく傾くとその一帯が淡い空を映して白い円盤になる）
     float slopeLen = length(slope);
     slope *= min(1.0, 0.45 / max(slopeLen, 1e-5));
     float3 N = normalize(float3(-slope.x, 1.0, -slope.y));
@@ -224,8 +223,7 @@ float4 main(WaterOut i) : SV_TARGET
     c *= 1.0 - g_WindDarken * amp;
 
     // ---- フレネルで空を映す（2 段、真下を見ても少しは映る） ----
-    // 波紋による傾きは少しだけ: 全部傾けると、着地や足音でカメラから離れる向きに傾いた所が
-    // 上の段を越え、淡い空を足元の白い斑として映していた
+    // 波紋による傾きは少しだけ（全部傾けると足元に淡い空の白い斑が出る）
     float2 fslope = rippleSlope * (g_RippleNormal * 0.35) + windSlope;
     fslope *= min(1.0, 0.45 / max(length(fslope), 1e-5));
     float3 NF = normalize(float3(-fslope.x, 1.0, -fslope.y));
@@ -241,11 +239,8 @@ float4 main(WaterOut i) : SV_TARGET
     // ---- 白: 波頭と岸の線 ----
     // 波頭の頂上ごとにトゥーンの細い線を 1 本: 水が上がるのをやめて下がり始め
     // （このステップの上昇量が 0 を跨ぐ）、g_RippleCrest より高い所。傾きに関係なく 2-3 px ほどの幅。
-    // しきい値より上を全部塗ると足音や着地が真っ白な円盤になり、高さの等高線に沿った線だと
-    // 波頭ごとに頂上の両側で 2 回描かれていた（ユーザー: 二重の輪が
-    // おかしい）。高い波頭は 2 本目の輪の代わりに線を少し太くする。
+    // 高い波頭は線を少し太くする。
     // 描くのは大きな波（zw）だけ: プレイヤー自身の足音や着地は明暗だけで見せる
-    // （ユーザー:「まだ小さな円がある」= 着地の後の足元の輪）
     float above = (bigH - g_RippleCrest) / g_RippleCrest;
     float rw = max(fwidth(rise), g_RippleCrest * 1e-3) * (1.1 + 0.6 * saturate(above * 0.5));
     float crest = saturate(1.0 - abs(rise) / rw) * smoothstep(-0.4, 0.2, above) * smoothstep(0.45, 0.75, ridge);

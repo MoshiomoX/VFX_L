@@ -20,7 +20,7 @@ public:
         std::shared_ptr<Mesh> mesh;
         int materialIndex = -1;
         // 読み込み時（rootTransform・焼いた姿勢を掛けた後）の頂点の包囲ボックスと、メッシュが付いていたノードの名前。
-        // 雑魚の部品（頭・胴・腕）に飾りを載せる時の寸法に使う（2026-10-24、Boss の見た目）
+        // 雑魚の部品（頭・胴・腕）に飾りを載せる時の寸法に使う（Boss の見た目）
         std::string nodeName;
         Vector3 boundsMin, boundsMax;
     };
@@ -46,7 +46,7 @@ public:
     float GetFileUnitScale() const { return m_FileUnitScale; }
 
     const std::vector<SubMesh>& GetSubMeshes() const { return m_SubMeshes; }
-    // 衝突用の凸包の点（2026-10-06）：全頂点のうち CollisionMath::kDopDirs（50）方向それぞれで一番外にある物（最大 50 点、モデルの座標、
+    // 衝突用の凸包の点：全頂点のうち CollisionMath::kDopDirs（50）方向それぞれで一番外にある物（最大 50 点、モデルの座標、
     // 包囲ボックスと同じく拡縮前）。CollisionMath::ConvexFromPoints で凸体にする（巨石を形通りに当てる）
     const std::vector<Vector3>& GetHullPoints() const { return m_HullPoints; }
     bool Load(ID3D11Device* device, const std::string& filepath);
@@ -74,7 +74,7 @@ public:
     bool LoadFromScene(ID3D11Device* device, const aiScene* scene,
         const std::string& directory, const std::string& modelName,
         const Matrix& rootTransform = Matrix::Identity);
-    // プログラム生成メッシュを追加する（PrimitiveBuilder 用）。bounds は頂点の包囲ボックス（分かる時だけ。2026-11-05 Boss の飾りの破片の支点）
+    // プログラム生成メッシュを追加する（PrimitiveBuilder 用）。bounds は頂点の包囲ボックス（分かる時だけ。Boss の飾りの破片の支点）
     void AddSubMesh(std::shared_ptr<Mesh> mesh, int materialIndex = -1,
         const Vector3& boundsMin = Vector3::Zero, const Vector3& boundsMax = Vector3::Zero)
     {
@@ -92,7 +92,7 @@ public:
         m_Materials.push_back(mat);
     }
 
-    // 全部の submesh を 1 つのマテリアルで描く（地形のテクスチャ。2026-10-03）
+    // 全部の submesh を 1 つのマテリアルで描く（地形のテクスチャ）
     void SetSingleMaterial(std::shared_ptr<Material> mat)
     {
         m_Materials.assign(1, mat);

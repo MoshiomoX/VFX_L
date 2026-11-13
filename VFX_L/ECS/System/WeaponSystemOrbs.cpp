@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // WeaponSystemOrbs.cpp
-// 光球（水晶玉の召喚物。2026-10-06、ユーザー：「魔法を貯蔵する単位」）。
+// 光球（水晶玉の召喚物 = 魔法を貯蔵する単位）。
 //   WandComponent::orbs[unit]（集約が作る）の設定で、プレイヤーの横に光球が出る（以後その場に留まり、ゆっくり昇るだけ。
 //   プレイヤーには付いて来ない）：orbInterval 秒毎に 1 個、同時に maxOrbs 個まで、各 orbLife 秒。
 //   何も貯蔵していない水晶玉は光球を出さない。
@@ -33,7 +33,7 @@ bool WeaponSystem::FirstOrbOf(int unit, Vector3& pos, uint32_t& serial) const
 }
 
 // ============================================================
-// 光球と水晶玉の対応（2026-10-25）。wand.orbs の添字は組み替えでずれるので、
+// 光球と水晶玉の対応。wand.orbs の添字は組み替えでずれるので、
 // 光球は「どの水晶玉か」（道具 ID と同じ道具の何個目か）を持ち、毎フレーム添字を引き直す
 // ============================================================
 void WeaponSystem::SyncOrbUnits(const WandComponent& wand)
@@ -104,7 +104,7 @@ void WeaponSystem::UpdateOrbs(float dt, float castDt, float castSpeed, float dur
         o.serial = ++m_OrbSerial;
         if (m_OrbSerial == 0) o.serial = ++m_OrbSerial;
         o.life = unit.orbLife;
-        // 出る位置：プレイヤーの横（出た順に 1/maxOrbs 周ずつ向きをずらす）。以後その場に留まり、ゆっくり昇るだけ（付いて来ない。10-06 ユーザー）
+        // 出る位置：プレイヤーの横（出た順に 1/maxOrbs 周ずつ向きをずらす）。以後その場に留まり、ゆっくり昇るだけ（付いて来ない）
         o.phase = DirectX::XM_2PI * (float)(m_OrbSerial % (uint32_t)(std::max)(1, unit.maxOrbs)) / (float)(std::max)(1, unit.maxOrbs);
         o.pos = playerPos + Vector3(std::sin(o.phase) * unit.orbitRadius, unit.orbitHeight, std::cos(o.phase) * unit.orbitRadius);
         if (m_AreaVFX && m_AreaVFXCtx && unit.vfxFile && *unit.vfxFile)
@@ -155,7 +155,7 @@ void WeaponSystem::UpdateOrbs(float dt, float castDt, float castSpeed, float dur
                 {
                     if (hasTarget && mana.CanAfford(s.manaCost))
                     {
-                        QueueOneCast(s, o.pos, aimFrom(s.speed), durationMul);
+                        QueueOneCast(s, o.pos, aimFrom(s.speed), durationMul, s.castCount - t.pendingCasts);
                         mana.Reserve(s.manaCost);
                         ++m_OrbCasts;
                     }

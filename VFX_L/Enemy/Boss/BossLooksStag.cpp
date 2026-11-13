@@ -1,5 +1,5 @@
 // ============================================================
-// 草原 3 面目の Boss「雷鳴の雄鹿」（2026-10-26、ユーザー「鹿を先に」= 方块の動物を部品の骨で動かす試作）:
+// 草原 3 面目の Boss「雷鳴の雄鹿」（方块の動物を部品の骨で動かす）:
 // 方块人の体は描かず、胴（torso）・首 + 頭 + 角（torso に付けて VS の mode 3 = 首の付け根で縦に揺れ、殴り = 突進の時は
 // 頭を下げて角を前へ）・前脚 × 2（arm の部品 = 歩きで前後に振れる）・後脚 × 2（leg の部品）・尾。方块人の歩きは
 // 左腕と右脚が同時に前へ出る = 四足の対角の歩き（斜対歩）にそのまま使える。足元 y -0.9、肩の高さ 0.45、角の先 2.0。
@@ -12,14 +12,14 @@ using namespace BossLooksDetail;
 
 namespace BossLooksDetail
 {
-    // 雄鹿の全体の大きさ（10-26 ユーザー「体をもう少し大きく」）：足元 y -0.9 を支点に 1.15 倍。飾りの座標はそのまま書き、
+    // 雄鹿の全体の大きさ：足元 y -0.9 を支点に 1.15 倍。飾りの座標はそのまま書き、
     // Builder が積む時に拡大する。VS に渡す軸（脚の付け根・首の付け根）も同じ StagXf で拡大する
     constexpr float kStagScale = 1.15f;
     const Vec3 kStagPivot = { 0.0f, -0.9f, 0.0f };
     Vec3 StagXf(const Vec3& p) { return kStagPivot + (p - kStagPivot) * kStagScale; }
     Builder StagBuilder() { Builder b; b.scale = kStagScale; b.pivot = kStagPivot; return b; }
 
-    // 苔（10-26 ユーザー「その上に苔の感じを」）：面の上の不揃いな苔の塊 + 縁から垂れる苔の房。
+    // 苔：面の上の不揃いな苔の塊 + 縁から垂れる苔の房。
     // patch = 上面 y にある lo〜hi の範囲へ n 枚、厚さ 0.025〜0.05
     void MossPatches(Builder& b, std::mt19937& rng, const Vec3& lo, const Vec3& hi, float y, int n)
     {
@@ -88,8 +88,7 @@ namespace BossLooksDetail
         b.Box(base + Vec3(-0.035f, h, -0.035f), base + Vec3(0.035f, h + 0.025f, 0.035f), cap, cap);
     }
     // 古い森の主の生え物（胴の上面 y 0.45、肩 z 0.3〜0.4、尻 z -0.55）。
-    // 10-26 ユーザー「枝が長い、もっと複雑に」→ 枝は短く（0.18〜0.26）3 段に分かれ本数を倍に、葉は小さく多く、
-    // 苔は大小 10 枚で脇腹まで、肩と尻に樹皮の板、背に茸、蔓は 3 本ジグザグ
+    // 枝は短く（0.18〜0.26）3 段に分かれ、葉は小さく多く
     void StagGrowth(Builder& b, std::mt19937& rng)
     {
         // 金の飾り板：肩当て（左右）、背の中央の筋、尻の板。縁は少し光る金、面は暗い金に青の嵌め込み
@@ -121,7 +120,7 @@ namespace BossLooksDetail
             d.Normalize();
             Twig(b, roots[i][0], d, 0.16f + 0.06f * (float)(i % 3), 0.035f + 0.01f * (float)(i % 2), 2, rng);
         }
-        // 苔（10-26）：背の金線の両脇、肩と尻の板の周り、脇腹の上の縁に不揃いな塊。縁からは房が垂れ、背には細い草
+        // 苔：背の金線の両脇、肩と尻の板の周り、脇腹の上の縁に不揃いな塊。縁からは房が垂れ、背には細い草
         MossPatches(b, rng, Vec3(-0.30f, 0.0f, -0.40f), Vec3(-0.08f, 0.0f, 0.30f), 0.48f, 7);
         MossPatches(b, rng, Vec3(0.08f, 0.0f, -0.40f), Vec3(0.30f, 0.0f, 0.30f), 0.48f, 7);
         MossPatches(b, rng, Vec3(-0.28f, 0.0f, 0.46f), Vec3(0.28f, 0.0f, 0.60f), 0.55f, 4);     // 胸の上
@@ -145,7 +144,7 @@ namespace BossLooksDetail
     std::shared_ptr<Model> BuildStagBody(ID3D11Device* device)
     {
         Builder b = StagBuilder();
-        b.Box(Vec3(-0.30f, -0.02f, -0.56f), Vec3(0.30f, 0.47f, 0.46f), kFur, kFurDark);     // 胴（10-26 少し太く）
+        b.Box(Vec3(-0.30f, -0.02f, -0.56f), Vec3(0.30f, 0.47f, 0.46f), kFur, kFurDark);     // 胴
         b.Box(Vec3(-0.26f, -0.10f, -0.46f), Vec3(0.26f, 0.02f, 0.39f), kBelly);              // 腹（明るい）
         b.Box(Vec3(-0.32f, 0.06f, 0.40f), Vec3(0.32f, 0.53f, 0.63f), kFurLight, kFur);       // 胸（前へ丸く）
         b.Box(Vec3(-0.29f, 0.03f, -0.69f), Vec3(0.29f, 0.43f, -0.52f), kFur, kFurDark);      // 尻
@@ -168,7 +167,7 @@ namespace BossLooksDetail
             const float sx = (float)side;
             b.Box(neckTop + Vec3(sx * 0.12f - 0.015f, 0.08f, 0.17f), neckTop + Vec3(sx * 0.12f + 0.015f, 0.14f, 0.22f), kStagEye);   // 目
             b.Beam(neckTop + Vec3(sx * 0.10f, 0.20f, -0.02f), neckTop + Vec3(sx * 0.22f, 0.36f, -0.10f), 0.08f, kFurLight, 0.03f);     // 耳
-            // 角（10-26 参考画）：金の大きな扇。主幹が外上へ、その外側に 2 枚の金の葉型の板、先は光る金。枝が 3 本
+            // 角：金の大きな扇。主幹が外上へ、その外側に 2 枚の金の葉型の板、先は光る金。枝が 3 本
             const Vec3 base = neckTop + Vec3(sx * 0.09f, 0.22f, 0.02f);
             const Vec3 mid1 = base + Vec3(sx * 0.18f, 0.32f, -0.08f);
             const Vec3 mid2 = mid1 + Vec3(sx * 0.16f, 0.36f, -0.06f);
@@ -200,14 +199,14 @@ namespace BossLooksDetail
                 b.Box(t[1] - Vec3(0.03f, 0.03f, 0.03f), t[1] + Vec3(0.03f, 0.03f, 0.03f), kAntlerGlow);
             }
             b.Box(top - Vec3(0.03f, 0.02f, 0.03f), top + Vec3(0.03f, 0.04f, 0.03f), kAntlerGlow);
-            // 角から生えた白い花の枝（参考画：角の間と外側に花）
+            // 角から生えた白い花の枝（角の間と外側に花）
             std::mt19937 rng(91u + (side > 0 ? 1u : 0u));
             Twig(b, (mid1 + mid2) * 0.5f, Vec3(sx * 0.3f, 0.7f, 0.55f), 0.15f, 0.035f, 2, rng);
             Twig(b, (base + mid1) * 0.5f, Vec3(sx * -0.4f, 0.6f, 0.5f), 0.13f, 0.03f, 2, rng);
             Twig(b, mid2 + (top - mid2) * 0.3f, Vec3(sx * 0.5f, 0.5f, 0.4f), 0.12f, 0.03f, 1, rng);
             Twig(b, mid1 + Vec3(sx * 0.30f, 0.2f, -0.1f), Vec3(sx * 0.6f, 0.7f, 0.0f), 0.12f, 0.03f, 1, rng);
         }
-        // 苔（10-26）：首の上の筋、角の間の頭の上、角の付け根から垂れる房
+        // 苔：首の上の筋、角の間の頭の上、角の付け根から垂れる房
         {
             std::mt19937 rng(131u);
             MossPatches(b, rng, Vec3(-0.08f, 0.0f, 0.16f), Vec3(0.08f, 0.0f, 0.44f), hinge.y + 0.30f, 3);

@@ -2,7 +2,7 @@
 // ItemInfoSheet.cpp
 // ※日本語の文字列リテラルを含むので UTF-8（BOM 付き）で保存する。
 // 説明カードの種類ごとの中身（飛び方の文・能力値の行・ルーンの修飾の行）。
-// 2026-10-09 に ItemInfo.cpp（640 行）から分けた。名前・見出し・誘発の行・Describe は ItemInfo.cpp
+// 名前・見出し・誘発の行・Describe は ItemInfo.cpp
 // ============================================================
 #include "Item/ItemInfoSheet.h"
 #include "Item/ItemDatabase.h"
@@ -150,7 +150,7 @@ namespace
         }
     }
 
-    // 割合で見せるパラメータ（吸血 0.03 → 3%。2026-10-25）
+    // 割合で見せるパラメータ（吸血 0.03 → 3%）
     float ShowScale(SpellParam p) { return (p == SpellParam::Lifesteal) ? 100.0f : 1.0f; }
     float ShowScale(AreaParam p) { return (p == AreaParam::Lifesteal) ? 100.0f : 1.0f; }
 
@@ -211,8 +211,7 @@ namespace ItemInfoSheet
 
     // ---- 種類ごとの中身 ----
     // v = 修飾後、b = 元の値（修飾が無ければ同じ物を渡す）
-    // 説明の文は短く（2026-10-09 ユーザー：「魔法の説明が長すぎる。プレイヤーは読まない」）。
-    // 文（traits）は「何が起きるか」だけを一言で、数字は下の能力値の行へ出す。細かい例外（エリート・ボスは半分など）は書かない。
+    // 説明の文は短く。文（traits）は「何が起きるか」だけを一言で、数字は下の能力値の行へ出す。細かい例外（エリート・ボスは半分など）は書かない。
     // 半径・太さ・拡散角度のような細かい数字は、ルーンで変わった時だけ行を出す
 
     void FillProjectile(Sheet& s, const SpellStats& v, const SpellStats& b)
@@ -227,18 +226,22 @@ namespace ItemInfoSheet
         if (!pp.hitArea.empty())
         {
             const int ai = AreaProfileDB::IndexOf(pp.hitArea);
-            // 威力 0 でも敵を引き寄せる範囲（渦。2026-10-22）は説明に出す
+            // 威力 0 でも敵を引き寄せる範囲（渦）は説明に出す
             if (ai > 0 && (AreaProfileDB::At(ai).damage > 0.0f || AreaProfileDB::At(ai).pull > 0.0f)) ap = &AreaProfileDB::At(ai);
         }
         const bool blast = ap && ap->kind == AreaProfile::Kind::OneShot;
-        // 凍らせる一撃の範囲（アイススパイクの氷のトゲ。2026-10-10）は「爆発」と書かない
+        // 凍らせる一撃の範囲（アイススパイクの氷のトゲ）は「爆発」と書かない
         const bool ice = blast && ap->freeze > 0.0f;
-        // 落ちた時だけ傷つけ、残る範囲は減速だけ（泥沼。2026-10-17）
+        // 落ちた時だけ傷つけ、残る範囲は減速だけ（泥沼）
         const bool splash = ap && !blast && ap->splashOnly;
 
         // ---- 文：飛び方。足元に落ちる物は範囲と 1 文にまとめる ----
-        if (b.triggerLine)   // 線で撃つ上級魔法（アイススパイク）：弾は飛ばない。向きは一番近い敵、長さは固定（2026-10-26）
-            s.traits.push_back(ice ? L"足元から一番近い敵の方へ、氷のトゲが走る" : L"足元から一番近い敵の方へ、範囲が走る");
+        if (b.triggerLine)   // 線で撃つ上級魔法（アイススパイク）：弾は飛ばない。向きは一番近い敵、長さは固定
+            s.traits.push_back(b.lineFanDeg > 0.0f
+                ? (ice ? L"足元から一番近い敵の方へ、氷のトゲが扇形に広がる" : L"足元から一番近い敵の方へ、範囲が扇形に広がる")
+                : (ice ? L"足元から一番近い敵の方へ、氷のトゲが走る" : L"足元から一番近い敵の方へ、範囲が走る"));
+        if (b.triggerLine && ice)   // 砕氷（SwarmAreaDamageCS：前から凍っている敵には 2 倍）
+            s.traits.push_back(L"凍っている敵は砕けて 2 倍の傷を受ける");
         else if (drop)
         {
             const std::wstring what = !ap ? L"に落ちる" : ice ? L"から前へ氷が突き出る" : blast ? L"で爆発する"
@@ -256,15 +259,15 @@ namespace ItemInfoSheet
             }
             if (ap) s.traits.push_back(blast ? L"当たると爆発する" : L"当たった所に範囲を残す");
         }
-        // 貫通（2026-10-28、黄金の矢）: 当たっても消えず、後ろの敵にも当たる（連鎖のルーンが付くと跳ぶ方になる）
+        // 貫通（黄金の矢）: 当たっても消えず、後ろの敵にも当たる（連鎖のルーンが付くと跳ぶ方になる）
         if (pp.pierce > 0 && !drop && v.chainCount == 0)
             s.traits.push_back(L"敵を貫いて後ろの敵にも当たる（貫く度に威力が下がる）");
-        // 連鎖のルーン（2026-10-16）: 当たっても消えず、近くの別の敵へ跳ぶ（Drop / Lob には効かない）
+        // 連鎖のルーン: 当たっても消えず、近くの別の敵へ跳ぶ（Drop / Lob には効かない）
         if (v.chainCount > 0 && !drop)
             s.traits.push_back(L"当たった敵から近くの別の敵へ跳ぶ");
-        if (v.larpaCount > 0 && !drop)   // 分身のルーン（2026-11-01）
+        if (v.larpaCount > 0 && !drop)   // 分身のルーン
             s.traits.push_back(L"弾が消える時、周りへ分身を放つ（威力 40%）");
-        if (v.lifesteal > 0.0f)   // 吸血のルーン（2026-10-25）
+        if (v.lifesteal > 0.0f)   // 吸血
             s.traits.push_back(L"与えたダメージの一部で HP が回復する");
         // 減速（毒の池）。15 段階に丸めた実際の値を出す（AreaProfile::Flags）
         if (ap && ap->slow > 0.0f)
@@ -274,10 +277,10 @@ namespace ItemInfoSheet
             swprintf_s(buf, L"中の敵を %d%% 遅くする", pct);
             s.traits.push_back(buf);
         }
-        // 引き寄せ（渦。2026-10-22）。エリートは半分、ボスは動かない、は書かない
+        // 引き寄せ（渦）。エリートは半分、ボスは動かない、は書かない
         if (ap && ap->pull > 0.0f && ap->push <= 0.0f)
             s.traits.push_back(L"周りの敵を中心へ引き寄せる");
-        // 毒素（猛毒の沼。2026-10-17）：威力の一部は毒になって 1 秒かけて効く（15 段階に丸めた値）
+        // 毒素（猛毒の沼）：威力の一部は毒になって 1 秒かけて効く（15 段階に丸めた値）
         if (ap && ap->toxin > 0.0f)
         {
             const int pct = (int)std::lround(std::lround(std::clamp(ap->toxin, 0.0f, 1.0f) * 15.0f) / 15.0f * 100.0f);
@@ -285,7 +288,7 @@ namespace ItemInfoSheet
             if (pct >= 100) wcscpy_s(buf, L"傷は全部毒になって 1 秒かけて効く"); else swprintf_s(buf, L"傷の %d%% は毒になって 1 秒かけて効く", pct);
             s.traits.push_back(buf);
         }
-        // 凍結（アイスランスの弾 2026-10-08 / アイススパイクの範囲 2026-10-10）。エリート・ボスは半分、解けた直後は凍らない、は書かない
+        // 凍結（アイスランスの弾 / アイススパイクの範囲）。エリート・ボスは半分、解けた直後は凍らない、は書かない
         const float freeze = (std::max)(pp.freezeTime, ap ? ap->freeze : 0.0f);
         if (freeze > 0.0f)
         {
@@ -333,10 +336,10 @@ namespace ItemInfoSheet
             s.stats.push_back(StatLine(L"弾数", (float)v.projectileCount, (float)b.projectileCount, L"", +1));
         if (v.castCount != 1 || v.castCount != b.castCount)
             s.stats.push_back(StatLine(L"連射", (float)v.castCount, (float)b.castCount, L"回", +1));
-        // 貫通（2026-10-28）: 最初の 1 体の後に貫く数（連鎖のルーンが付いた時は跳ぶ回数に足されるので、そちらで出す）
+        // 貫通: 最初の 1 体の後に貫く数（連鎖のルーンが付いた時は跳ぶ回数に足されるので、そちらで出す）
         if (!drop && pp.pierce > 0 && v.chainCount == 0)
             s.stats.push_back(StatLine(L"貫通", (float)pp.pierce, (float)pp.pierce, L"体", +1));
-        // 連鎖のルーン（2026-10-16）: 跳ぶ回数。付いている時だけ出す。貫通の弾は貫く数も跳ぶ回数になる（SwarmSpawnProjCS）
+        // 連鎖のルーン: 跳ぶ回数。付いている時だけ出す。貫通の弾は貫く数も跳ぶ回数になる（SwarmSpawnProjCS）
         if (!drop && (v.chainCount > 0 || v.chainCount != b.chainCount))
             s.stats.push_back(StatLine(L"連鎖", (float)(v.chainCount + (v.chainCount > 0 ? pp.pierce : 0)), (float)b.chainCount, L"回", +1));
         if (!drop && v.larpaCount > 0)
@@ -359,7 +362,7 @@ namespace ItemInfoSheet
 
     void FillArea(Sheet& s, const AreaStats& v, const AreaStats& b)
     {
-        // 一斉起爆（2026-11-01）: 出る所は飛んでいる弾の所なので、半径や持続の行は出さない
+        // 一斉起爆: 出る所は飛んでいる弾の所なので、半径や持続の行は出さない
         if (v.profile > 0 && AreaProfileDB::At(v.profile).IsDetonate())
         {
             s.traits.push_back(L"弾が 3 発以上飛んでいる時に発動する");
@@ -371,9 +374,27 @@ namespace ItemInfoSheet
 
         // 光線（AreaProfile::Kind::Beam）: 手から貫くカプセル。範囲の代わりに太さと射程
         const bool beam = v.profile > 0 && AreaProfileDB::At(v.profile).IsBeam();
-        // 竜巻（AreaProfile::Kind::Roam。2026-10-22）: 連鎖した所に出て敵の方へ進み、周りの敵を引き寄せる
+        // 竜巻（AreaProfile::Kind::Roam）: 連鎖した所に出て敵の方へ進み、周りの敵を引き寄せる
         const bool roam = v.profile > 0 && AreaProfileDB::At(v.profile).IsRoam();
-        if (roam)
+        // 回る剣（AreaProfile::Kind::Blades）: 自分の周りを回って斬る
+        const bool blades = v.profile > 0 && AreaProfileDB::At(v.profile).IsBlades();
+        const bool bats = v.profile > 0 && AreaProfileDB::At(v.profile).IsBats();
+        if (bats)
+        {
+            const AreaProfile& bp = AreaProfileDB::At(v.profile);
+            wchar_t buf[96];
+            swprintf_s(buf, L"%d 匹の蝙蝠が近くの敵を噛みに飛ぶ", bp.batCount);
+            s.traits.push_back(buf);
+            swprintf_s(buf, L"噛んだ蝙蝠は戻ってきて、噛んだ威力の %d%% を HP に返す", (int)std::lround(bp.batHeal * 100.0f));
+            s.traits.push_back(buf);
+        }
+        else if (blades)
+        {
+            const AreaProfile& bp = AreaProfileDB::At(v.profile);
+            s.traits.push_back(bp.bladeCount > 1 ? L"自分の周りを剣が回り、触れた敵を斬る" : L"自分の周りを一回り斬る");
+            s.traits.push_back(L"近くに敵が居る時だけ出る");
+        }
+        else if (roam)
         {
             s.traits.push_back(L"敵の方に竜巻が起き、外へ進みながら巻き込む");
             if (AreaProfileDB::At(v.profile).pull > 0.0f)
@@ -382,13 +403,13 @@ namespace ItemInfoSheet
         else if (!beam)
             s.traits.push_back(v.spawnAtTarget ? L"敵の足元に出る" : L"自分の周りに出る");
         else if (AreaProfileDB::At(v.profile).chargeTime <= 0.0f && v.duration < 0.5f)
-            s.traits.push_back(L"一番近い敵へ一瞬で届く");   // アークボルト（溜め 0 の稲妻。2026-10-15）
-        // 連鎖のルーン（2026-10-20）: 稲妻が届いた敵から近くの別の敵へ跳ぶ
+            s.traits.push_back(L"一番近い敵へ一瞬で届く");   // アークボルト（溜め 0 の稲妻）
+        // 連鎖のルーン: 稲妻が届いた敵から近くの別の敵へ跳ぶ
         if (v.chainCount > 0)
             s.traits.push_back(L"届いた敵から近くの別の敵へ跳ぶ");
-        if (v.lifesteal > 0.0f)   // 吸血のルーン（2026-10-25）
+        if (v.lifesteal > 0.0f)   // 吸血
             s.traits.push_back(L"与えたダメージの一部で HP が回復する");
-        // 毒素（猛毒の沼。2026-10-17）：威力の一部は毒になって 1 秒かけて効く
+        // 毒素（猛毒の沼）：威力の一部は毒になって 1 秒かけて効く
         if (v.profile > 0 && AreaProfileDB::At(v.profile).toxin > 0.0f)
         {
             const int pct = (int)std::lround(std::lround(std::clamp(AreaProfileDB::At(v.profile).toxin, 0.0f, 1.0f) * 15.0f) / 15.0f * 100.0f);
@@ -447,7 +468,9 @@ namespace ItemInfoSheet
         l.value = Num((float)(maxC - minC + 1)) + L"x" + Num((float)(maxR - minR + 1))
             + L" (" + Num((float)c.occupyCells.size()) + L" マス)";
         s.stats.push_back(l);
-        // 効果のある枠（2026-10-27）：乗っている魔法に掛かる修飾をルーンと同じ書き方で並べる
+        // 魔法ではないことをはっきり書く（札・魔法書では見た目もマスの形）
+        s.traits.push_back(L"バックパックのマスになる（この上に魔法を置く）");
+        // 効果のある枠：乗っている魔法に掛かる修飾をルーンと同じ書き方で並べる
         if (def.HasEffect())
         {
             s.traits.push_back(L"一マスでも乗っている魔法に効く（同じ枠は重ならない）");

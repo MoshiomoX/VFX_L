@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestTwister.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=twister
-// 竜巻（上級の範囲魔法、2026-10-22。前提 = 渦 + 突風）：誘発で出るか、敵の方へ進むか、周りの敵を巻き込むか、見た目。
+// 竜巻（上級の範囲魔法。前提 = 渦 + 突風）：誘発で出るか、敵の方へ進むか、周りの敵を巻き込むか、見た目。
 //   1 秒: 湧き停止・全消し・HP 10 万・MP 無限・入力 0。9×9 に枠を敷き、
 //         竜巻 (3,4) 漏斗 → (3,3)(3,4)(3,5)(4,4)(5,4)、渦 (4,2) 逆 L → (4,3)(5,2)(5,3)（(4,3) が竜巻の (4,4)(3,3) に隣接）、
 //         突風 (4,5) 横 2 → (4,5)(4,6)（(4,5) が竜巻の (4,4)(3,5) に隣接）。`twister place` に各 index と竜巻の発動可否。
@@ -9,7 +9,7 @@
 //   以後 0.25 秒ごとに `twister t casts trig twisters pos near avgD alive lost`
 //   （casts = 誘発で撃った上級魔法の累計、near = 竜巻 0 の 3m 以内の雑魚、avgD = 竜巻 0 から 6m 以内の雑魚の平均距離）。
 //   最初の竜巻が出てから 0.4 / 1.4 / 2.6 / 3.6 秒で `twister look born / sweep / mid / late`。14 秒で `twister result` + done。
-//   VFXL_TWISTER_FADE=<倍率>（2026-10-22、出る / 消える移り変わりの確認）：WeaponSystem::twisterLook の introTime / outroTime を
+//   VFXL_TWISTER_FADE=<倍率>（出る / 消える移り変わりの確認）：WeaponSystem::twisterLook の introTime / outroTime を
 //   その倍率に伸ばし（スクリーンショットは 0.3 秒ほど遅れるので、普段の速さだと途中の形が撮れない）、最初の竜巻が出たら
 //   バックパックを空にして 2 本目を出さない。look は intro1〜3（伸び上がる途中）/ full / outro1〜3（ほどける途中）/ gone
 // 期待：渦の弾が消えた所か突風の吹いた所に竜巻が出る、敵の方へ進む（pos が動く）、近くの雑魚が集まる（near が増える）
@@ -38,7 +38,7 @@ namespace
         bool m_StatsLogged = false;
         float m_FadeMul = 0.0f;   // VFXL_TWISTER_FADE（0 = 普段の look）
         int m_FadeLook = 0;
-        Vector3 m_CloseTarget;    // VFXL_TWISTER_CLOSE：1 本目の竜巻を近くから追う（砂粒を見る。2026-11-03）
+        Vector3 m_CloseTarget;    // VFXL_TWISTER_CLOSE：1 本目の竜巻を近くから追う（砂粒を見る）
     };
 }
 
@@ -108,7 +108,7 @@ void AutoTestTwister::Run()
         m_AutoStep = 1;
     }
     if (m_AutoStep == 0) return;
-    // カメラを毎フレーム固定する（ユーザーがマウスを動かすと視点が回り、スクリーンショットの角度がずれた。2026-10-22）
+    // カメラを毎フレーム固定する（マウスで視点が回ってもスクリーンショットの角度がずれないように）
     {
         auto& cam = m_Camera.Camera();
         cam.SetYaw(kCamYaw);

@@ -1,6 +1,6 @@
 // ============================================================
 // EliteAttacksPanel.cpp
-// Enemies パネルの「Elites (stage)」：面の固定エリートを出す・型毎の調整値・詞缀の調整値・数え
+// Enemies パネルの「Elites (stage)」：面の固定エリートを出す・型毎の調整値・アフィックスの調整値・数え
 // ============================================================
 #include "Enemy/Elite/EliteAttacks.h"
 #include "imgui.h"
@@ -17,7 +17,7 @@ namespace
 void EliteAttacks::DrawImGui(int& spawn, uint32_t& spawnAffixes)
 {
     spawn = -1;
-    if (!ImGui::TreeNode("Elites (stage, 2026-10-25)")) return;
+    if (!ImGui::TreeNode("Elites (stage)")) return;
 
     ImGui::Text("A = %s   B = %s   alive %d   orbs %d   arrows %d   strikes %d",
         TypeLabel(m_TypeA), TypeLabel(m_TypeB), (int)m_Elites.size(), (int)m_Orbs.size(), (int)m_Arrows.size(), (int)m_Strikes.size());

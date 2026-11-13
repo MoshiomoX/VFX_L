@@ -42,7 +42,7 @@ public:
         const DirectX::SimpleMath::Vector4& color = { 1, 1, 1, 1 },
         float scale = 1.0f);
 
-    // ---- 縁取り（2026-10-23、ダメージの数字）----
+    // ---- 縁取り（ダメージの数字）----
     // 縁はシェーダー（Shader/UI/TextOutlinePS）が字の周りを拾って作るので、縁取り付きの 1 文字列 = DrawString 2 回（縁 + 本体）。
     // （以前は 8 方向にずらして 9 回描いていた。Debug では 1 文字ごとの DrawString の代が重い）
     // 字体は縁の分の余白を持って焼くこと（Tools/BuildSpriteFont.ps1 -Pad）。maxTexels = 余白 - 1（これより遠くは拾わない）。

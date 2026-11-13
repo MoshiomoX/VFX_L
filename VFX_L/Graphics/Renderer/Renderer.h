@@ -42,7 +42,7 @@ struct DissolveCB
     Vector2 scroll;
     float   threshold;
     float   edge;
-    float   hitFlash;   // 0〜1。溶解が切れている時、色を edgeColor.rgb へ寄せる（プレイヤーの被弾の閃き。2026-10-09）
+    float   hitFlash;   // 0〜1。溶解が切れている時、色を edgeColor.rgb へ寄せる（プレイヤーの被弾の閃き）
     float   _pad;
     Vector4 edgeColor;
 };
@@ -65,7 +65,7 @@ public:
     void SetFog(const Vector3& color, float start, float end, float maxAmount);
     // モデルの色テクスチャを sRGB として線形へ戻す（LightBuffer::albedoSrgb）
     void SetAlbedoSrgb(bool on) { m_LightData.albedoSrgb = on ? 1.0f : 0.0f; }
-    // トゥーンの陰影（2026-10-04。LightBuffer::toon*、Lighting.hlsli の ShadeToon）。params.x = 0 で切
+    // トゥーンの陰影（LightBuffer::toon*、Lighting.hlsli の ShadeToon）。params.x = 0 で切
     void SetToon(const Vector4& params, const Vector4& shadowTint, const Vector4& rim)
     {
         m_LightData.toonParams = params;
@@ -73,7 +73,7 @@ public:
         m_LightData.toonRim = rim;
     }
 
-    // 画面空間の環境遮蔽（2026-11-02。LightBuffer::ao*、Lighting.hlsli の SceneAO）。params.x = 0 で読まない
+    // 画面空間の環境遮蔽（LightBuffer::ao*、Lighting.hlsli の SceneAO）。params.x = 0 で読まない
     void SetAmbientOcclusion(const Matrix& viewProj, const Vector4& params)
     {
         m_LightData.aoViewProj = viewProj;
@@ -102,7 +102,7 @@ public:
     void End();
 
     // 続けて描く間、点光源（t6/t7、クラスタの t10/t11）を最初の DrawMesh で 1 回だけ張り、EndLightBatch で外す
-    // （2026-10-25。普段は DrawMesh の度に張って外す）。間に別の描画を挟まない所だけで使う（Model::Draw の submesh の並び）
+    // （普段は DrawMesh の度に張って外す）。間に別の描画を挟まない所だけで使う（Model::Draw の submesh の並び）
     void BeginLightBatch() { ++m_LightBatch; }
     void EndLightBatch();
 

@@ -1,6 +1,6 @@
 // ============================================================
 // MapData.h
-// 戦闘の地図 1 枚をデータにした物（2026-10-05、地図エディタの 1 歩目）。
+// 戦闘の地図 1 枚をデータにした物。
 //
 // TerrainGenerator::Generate は seed から地形を決めながら建てる。その「建てた物」を全部ここへ記録し、
 // TerrainGenerator::BuildFromMap が同じ建て方で並べ直す（乱数は使わない）= 保存した地図をそのまま読める。
@@ -9,7 +9,7 @@
 //   土台 … マス毎の区域（平原 / 山頂 / 洞窟）・洞の岩の壁・起伏（ノード毎）・格子（通行 / 高さ場）・草を生やすマス
 //   記録 … 衝突だけの箱 / 凸体、見た目の六面体（最後に 1 つのモデルへ合成）、置物（モデル + 位置）、塞いだマスの矩形
 // 記録には kind（何の一部か）と group（同じ 1 個から出た物は同じ番号。木 = 見た目 + 衝突の箱 + 塞いだマス）を付ける。
-// エディタはこの group 単位で消す・動かす（2 歩目以降）。
+// エディタはこの group 単位で消す・動かす。
 //
 // ファイル（Assets/Data/MapData/<名前>.vmap）は小端の素のバイナリ。起伏と高さ場が大きい（約 2MB）ので JSON にしない
 // ============================================================
@@ -43,11 +43,11 @@ namespace MapData
         kRoofRock,       // 洞の上に積んだ岩
         kManual,         // エディタで足した物
         kHill,           // 丘の部品（起伏に足す盛り上がり）
-        kStep,           // 段々の台地（PokéBonk 風、2026-10-19）の崖の衝突・縁の帯と水たまりの塞いだマス
-        kPillar,         // 場内の岩柱・峡谷の壁（砂漠。崖の岩を引き伸ばした物 + 凸包の衝突 + 塞いだマス。2026-10-26）
+        kStep,           // 段々の台地の崖の衝突・縁の帯と水たまりの塞いだマス
+        kPillar,         // 場内の岩柱・峡谷の壁（砂漠。崖の岩を引き伸ばした物 + 凸包の衝突 + 塞いだマス）
     };
 
-    // 段々の台地を結ぶ草の坂（2026-10-19）。マスの矩形、side = 下る向き（0 +x / 1 -x / 2 +z / 3 -z）、lo = 低い端の段。
+    // 段々の台地を結ぶ草の坂。マスの矩形、side = 下る向き（0 +x / 1 -x / 2 +z / 3 -z）、lo = 低い端の段。
     // 面の高さ = 起伏 + 段の高さ × (lo + 坂に沿った割合)（TerrainBuild::ReliefField::StepOffset）
     struct StepRamp { int x = 0, z = 0, w = 1, d = 1; uint8_t side = 0; uint8_t lo = 0; };
 
@@ -203,10 +203,10 @@ namespace MapData
         bool  roofBoulders = false;          // 洞の上の山 = 数個の巨石（EmitRoofBoulders）。false = 2x2 マス毎に積む（版 7）
         float rimRiseWidth = 0.0f, rimRiseHeight = 0.0f;   // 縁の碗（TerrainBuild::ApplyRimRise。0 = 無し。版 9）
 
-        // ---- 段々の台地と水たまり（版 11、PokéBonk 風。TerrainBuild::ReliefField の同名の物をそのまま保存）----
+        // ---- 段々の台地と水たまり（版 11。TerrainBuild::ReliefField の同名の物をそのまま保存）----
         // 面の高さ = 区域の起伏 + stepH × 段（坂は補間）、水たまりは pondDepth 下げる。stepH = 0 なら無し。
         // 崖の衝突の箱と塞いだマスは boxes / blocks に kStep で入っている（他の記録と同じに建てる）。水たまりの見た目はここから作り直す。
-        // 水たまりのマスは 2026-10-28 から塞がない（walkable = GridWorld::kWaterCell：雑魚も入る・弾も通る）。それ以前の地図は blocks で塞いだまま
+        // 水たまりのマスは塞がない（walkable = GridWorld::kWaterCell：雑魚も入る・弾も通る）。古い地図は blocks で塞いだまま
         float stepH = 0.0f;
         std::vector<uint8_t>  stepLevel;     // gw * gd（空 = 無し）
         std::vector<int16_t>  stepRampAt;    // gw * gd：坂の番号（-1 = 無し）

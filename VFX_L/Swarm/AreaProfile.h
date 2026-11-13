@@ -30,11 +30,16 @@ struct AreaProfile
     {
         OneShot = 0,   // 爆発
         Lasting = 1,   // 法環・燃える地面
-        Beam = 2,      // 光線（2026-09-30）：プレイヤーの手から length m のカプセル。duration の間 tickInterval ごとにダメージ。
+        Beam = 2,      // 光線：プレイヤーの手から length m のカプセル。duration の間 tickInterval ごとにダメージ。
                        // 判定は GPU のカプセル型範囲（Swarm::kAreaCapsule）、起点は毎フレームプレイヤーに付く。見た目は VFX の Beam entry
-        Roam = 3,      // 動く持続範囲（2026-10-22、竜巻）：出た所から roamSpeed m/s で敵の方へ進む。duration の間、
+        Roam = 3,      // 動く持続範囲（竜巻）：出た所から roamSpeed m/s で敵の方へ進む。duration の間、
                        // WeaponSystem が今の位置に短い範囲を出し続ける（引き寄せ・減速は毎回、威力は tickInterval ごと）。見た目は CPU の VFX が付いて動く
-        Detonate = 4,  // 一斉起爆（2026-11-01）：空中の自分の弾を全部消し、それぞれの場所にこの範囲を 1 回出す（爆発と同じく tick 1 回）
+        Detonate = 4,  // 一斉起爆：空中の自分の弾を全部消し、それぞれの場所にこの範囲を 1 回出す（爆発と同じく tick 1 回）
+        Blades = 5,    // 回る剣（魔剣の輪・回旋斬）：プレイヤーの周りを bladeCount 本の剣が spinSpeed 度/秒で回る。
+                       // radius = 剣先までの距離、duration = 回っている秒。剣が通った所に毎フレーム小さな範囲を出し、
+                       // 1 体の敵は 1 回の通過で 1 回だけ当たる（Swarm::kAreaExtraBlade）。見た目は BladeField
+        Bats = 6,      // 蝙蝠（吸血コウモリ）：batCount 匹が不規則に飛んで一番近い敵へ。噛んだ所に radius の範囲を 1 回出し、
+                       // プレイヤーの所へ戻って噛んだ威力 × batHeal を HP に返す。duration = 1 匹の最長の寿命。見た目は BatField
     };
 
     std::string name = "NewArea";
@@ -47,33 +52,44 @@ struct AreaProfile
     float tickInterval = 0.25f;    // Lasting のみ
     bool  followCaster = false;    // プレイヤーの位置に出した時、プレイヤーに付いて動く
     bool  stun = true;             // ダメージで被弾硬直を入れる（法環で入れると敵が固まり続けるので注意）
-    float slow = 0.0f;             // tick の度に中の敵の移動速度をこれだけ落とす（0〜1、15 段階に丸める。エリート・Boss は半分。2026-10-01 毒の池）
-    float freeze = 0.0f;           // tick で当たった敵をこの秒数凍らせる（0〜3.75、0.25 秒刻みに丸める。エリート・Boss は半分。2026-10-10 アイススパイク）
-    bool  cameraShake = false;     // 出た時にカメラを揺らす（爆発・光線。2026-10-03：以前は命中の火花・死んだ時の土煙も含め全部揺らしていた）
-    float heat = 0.0f;             // 草に火を付ける熱（0 = 付けない、1 = 爆発。GrassFireField が vfxFile のレシピ毎に表にして読む。2026-10-12）
-    float wet = 0.0f;              // 砂漠の砂を濡らす（0〜1。SandField が heat と一緒にレシピ毎の表にして読む。沼・毒の池・氷。2026-11-02）
+    float slow = 0.0f;             // tick の度に中の敵の移動速度をこれだけ落とす（0〜1、15 段階に丸める。エリート・Boss は半分）
+    float freeze = 0.0f;           // tick で当たった敵をこの秒数凍らせる（0〜3.75、0.25 秒刻みに丸める。エリート・Boss は半分）
+    bool  cameraShake = false;     // 出た時にカメラを揺らす（爆発・光線）
+    float heat = 0.0f;             // 草に火を付ける熱（0 = 付けない、1 = 爆発。GrassFireField が vfxFile のレシピ毎に表にして読む）
+    float wet = 0.0f;              // 砂漠の砂を濡らす（0〜1。SandField が heat と一緒にレシピ毎の表にして読む）
     float push = 0.0f;             // tick で中の敵をプレイヤーから離れる方へ吹き飛ばす強さ（0〜1、15 段階。1 = 約 3.5m。エリート半分・ボス 0。
-                                   // flags の光線チャンネルの 4 bit を使うので光線（Beam）とは併用不可。2026-10-12 突風）
+                                   // flags の光線チャンネルの 4 bit を使うので光線（Beam）とは併用不可）
     float pull = 0.0f;             // tick で中の敵を範囲の中心へ引き寄せる強さ（0〜1、15 段階。吹き飛ばしと同じ 4 bit を使うので push とは併用不可、
-                                   // push が優先。エリート半分・ボス 0。2026-10-22 渦）
+                                   // push が優先。エリート半分・ボス 0）
     float forward = 0.0f;          // プレイヤーの位置に出す時、一番近い敵の方へこれだけ（m）寄せる（突風の「前に吹く」感じ。標的が居なければ 0）
-    float toxin = 0.0f;            // 1 tick の威力のうちこの割合（0〜1、15 段階）はすぐに与えず「毒素」として敵に溜め、1 秒かけて削る（2026-10-17 猛毒の沼）。
+    float toxin = 0.0f;            // 1 tick の威力のうちこの割合（0〜1、15 段階）はすぐに与えず「毒素」として敵に溜め、1 秒かけて削る。
                                    // 毒素を持つ範囲は同じ敵に重ならない（一番強い 1 つだけ）
-    bool  splashOnly = false;      // 最初の tick だけダメージ、残りの tick は減速などだけ（泥沼：落ちた時の飛沫。2026-10-17）
-    int   element = 0;             // ダメージの属性（Swarm::DamageElement。json "element"。ダメージの数字の色だけ。2026-10-17）
+    bool  splashOnly = false;      // 最初の tick だけダメージ、残りの tick は減速などだけ（泥沼：落ちた時の飛沫）
+    int   element = 0;             // ダメージの属性（Swarm::DamageElement。json "element"。ダメージの数字の色だけ）
 
     // ---- Beam のみ ----
     float length = 18.0f;          // 射程（m）。地形に当たればそこまで
     float chargeTime = 0.5f;       // 撃つ前の溜め（秒）。この間は判定が無く、VFX だけ出ている
 
-    // ---- Roam のみ（竜巻。2026-10-22）----
+    // ---- Roam のみ（竜巻）----
     float roamSpeed = 3.0f;        // 進む速さ m/s（プレイヤーに一番近い敵の方へ向きを回しながら）
+
+    // ---- Blades のみ（回る剣）----
+    int   bladeCount = 3;          // 同時に回る剣の数（等間隔）
+    float bladeLength = 1.3f;      // 剣の長さ m（剣先 = radius、柄 = radius - bladeLength）
+    float spinSpeed = 300.0f;      // 回る速さ（度/秒）
+    std::string bladeModel;        // 剣のモデル（Assets/ からのパス。先端 +Y の FBX）
+
+    // ---- Bats のみ（吸血コウモリ）----
+    int   batCount = 4;            // 1 回に放つ数
+    float batSpeed = 13.0f;        // 飛ぶ速さ m/s（戻りは WeaponSystem::BatLook::returnSpeedMul 倍）
+    float batHeal = 0.15f;         // 噛んだ威力のこの割合を、戻った時にプレイヤーの HP へ
 
     // 見た目。Assets/Data/VFXData/ の json のファイル名（拡張子込み）。空 = 無し
     std::string vfxFile;
-    // 光線型で、終点（標的）に CPU で再生する見た目（json "hitVfx"。空 = 無し。アークボルトの命中の火花。2026-10-15）
+    // 光線型で、終点（標的）に CPU で再生する見た目（json "hitVfx"。空 = 無し。アークボルトの命中の火花）
     std::string hitVfxFile;
-    // 出た時の音（Assets/Data/Audio/Sounds.json の cue の名前。空 = 鳴らさない。2026-10-03）。
+    // 出た時の音（Assets/Data/Audio/Sounds.json の cue の名前。空 = 鳴らさない）。
     // GPU で生まれた範囲は vfxFile のレシピ毎に数えて鳴らす（同じ vfxFile の範囲は同じ音になる）
     std::string sound;
 
@@ -86,6 +102,8 @@ struct AreaProfile
     bool  IsBeam() const { return kind == Kind::Beam; }
     bool  IsRoam() const { return kind == Kind::Roam; }
     bool  IsDetonate() const { return kind == Kind::Detonate; }
+    bool  IsBlades() const { return kind == Kind::Blades; }
+    bool  IsBats() const { return kind == Kind::Bats; }
     uint32_t Flags(bool atCaster) const;
     // 追加値（毒素の割合・飛沫だけ）。Area::tickNow の上位 / AreaDef::extra に入れる（Swarm::kAreaExtra*）
     uint32_t Extra() const;

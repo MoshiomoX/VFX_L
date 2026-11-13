@@ -3,16 +3,15 @@
 // パーティクル更新 CS: 寿命 / 物理 / 寿命に沿った色 / 生存リスト。
 //
 // 画面の歪みレベルを持つ生きたビルボードも数え
-// （g_Stats[0]、GPUParticleSystem::HasDistortion がリードバック、2026-10-25）、
+// （g_Stats[0]、GPUParticleSystem::HasDistortion がリードバック）、
 // 歪ませるものがある間だけシーンが歪みのパスを走らせるようにする。
-// （以前ここにあった持ち主ごとの生存数は C++ 側から一度もバインドされて
-// おらず、2026-10-25 に削除した。）
 // ============================================
 
 #include "Common/ParticleCommon.hlsli"
 #include "../Common/WindSources.hlsli"
+#include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
 
-// 世界の風（2026-10-12）: renderMode の 26-29 ビットが立っているパーティクルは
+// 世界の風: renderMode の 26-29 ビットが立っているパーティクルは
 // 風の方へ流される（煙 / 霧 / 雨 / 砂。火花は 0 のまま）。
 // GPUParticleSystem::ParticleWindCB と揃えること（b2。b0 / b1 は ParticleCommon のもの）
 cbuffer ParticleWindCB : register(b2)
@@ -36,7 +35,7 @@ float2 ParticleWindAt(float2 xz)
 }
 
 StructuredBuffer<ColorKey> colorKeys : register(t0);
-StructuredBuffer<WindSource> g_WindSources : register(t1);   // 局所的な風: 砂旋（SwarmWindSourceCS、2026-10-19）
+StructuredBuffer<WindSource> g_WindSources : register(t1);   // 局所的な風: 砂旋など（SwarmWindSourceCS）
 RWStructuredBuffer<GPUParticle> particles : register(u0);
 AppendStructuredBuffer<uint> deadList : register(u1);
 RWBuffer<uint> g_DrawArgs : register(u2);
@@ -106,12 +105,12 @@ void main(uint3 id : SV_DispatchThreadID)
     float windResp = ParticleWindResponse(p.renderMode);
     if (windResp > 0.0)
     {
-        // 風の流線（2026-10-20）は空気そのもの: 局所的な風速に煙の約 5 倍の速さで
+        // 風の流線は空気そのもの: 局所的な風速に煙の約 5 倍の速さで
         // 合わせるので、渦の螺旋が 0.1 s 以内に見える
         float rate = ParticleIsStreak(p.renderMode) ? PARTICLE_WIND_RATE * 5.0 : PARTICLE_WIND_RATE;
         float k = saturate(windResp * rate * g_DeltaTime);
         float vortexLift;
-        float3 vortexAir = WindSourceAir(g_WindSources, p.position.xz, vortexLift);
+        float3 vortexAir = WindGridBlend(WindSourceAir(g_WindSources, p.position.xz, vortexLift), p.position);
         float2 wind = ParticleWindAt(p.position.xz) + vortexAir.xz;
         p.velocity.xz += (wind - p.velocity.xz) * k;
         if (vortexLift > 0.0)   // 上昇気流は風源の中だけ（外で 0 へ引き戻さない）

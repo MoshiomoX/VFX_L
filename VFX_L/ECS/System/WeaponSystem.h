@@ -4,8 +4,7 @@
 //   分裂       = 同フレーム内で扇状に複数発（空間展開）
 //   二重詠唱   = pendingCasts を残し、delayTimer 後に次を撃つ（時間展開）
 // マナは杖で共有なので、出力源が多いと奪い合う。
-// 弾は全部 GPU（SwarmSystem）に積む。CPU の Entity の弾は 2026-09-30 に削除した
-// （GPU 化の後は到達しない経路だった）
+// 弾は全部 GPU（SwarmSystem）に積む。
 // ============================================================
 #pragma once
 #include "ECS/Entity.h"
@@ -15,7 +14,7 @@
 #include <vector>
 #include <SimpleMath.h>
 #include "Swarm/SwarmTypes.h"
-#include "Component/AreaStats.h"   // ActiveBeam::chainStats（連鎖の次の光線の元。2026-10-20）
+#include "Component/AreaStats.h"   // ActiveBeam::chainStats（連鎖の次の光線の元）
 
 class Registry;
 class CollisionSystem;
@@ -32,6 +31,10 @@ public:
     void SetSwarm(SwarmSystem* swarm) { m_Swarm = swarm; }
     // 地面の高さ（x, z → y）。線で撃つ上級魔法（アイススパイク）の範囲を地面に合わせる。無ければ撃った所と着弾点の間を直線で
     std::function<float(float, float)> groundHeight;
+    // アイススパイクの範囲を出す時刻を見た目のトゲに合わせる。
+    // 足元から距離 d の列は d / lineWaveSpeed + lineRiseDelay 秒後に出す。シーンが毎フレーム IceSpikeField から写す
+    float lineWaveSpeed = 22.0f;
+    float lineRiseDelay = 0.06f;
     // 範囲攻撃の見た目の再生先。無ければ判定だけ出る
     void SetAreaVFX(AreaVFXPlayer* player, const VFXContext* ctx) { m_AreaVFX = player; m_AreaVFXCtx = ctx; }
 
@@ -56,7 +59,7 @@ public:
     }
     uint32_t GetOrbCasts() const { return m_OrbCasts; }   // 光球が撃った回数の累計（自動テスト用）
     // 誘発の累計（ImGui・自動テスト用）: 届いた「基本魔法の弾が消えた」数 / それで撃った上級魔法の回数
-    // 今フレームに撃った弾（杖口の光の演出用、PlayerVFXSystem。2026-10-09）。
+    // 今フレームに撃った弾（杖口の光の演出用、PlayerVFXSystem）。
     // 誘発の隕石（着弾点へ落とす物）は入らない。分裂の扇は 1 発ずつ入る
     struct CastFx
     {
@@ -65,16 +68,17 @@ public:
         DirectX::SimpleMath::Vector3 dir;
     };
     const std::vector<CastFx>& GetCastFx() const { return m_CastFx; }
-    // 今フレームにプレイヤーの位置に出した「吹き飛ばす」範囲（突風。2026-10-12）：草を一斉に倒す用（GrassRenderer::AddGust）
+    // 今フレームにプレイヤーの位置に出した「吹き飛ばす」範囲（突風）：草を一斉に倒す用（GrassRenderer::AddGust）
     struct GustFx
     {
         DirectX::SimpleMath::Vector3 pos;   // 風の根元（前へ吹く物は詠唱者の位置、それ以外は範囲の中心）
         float radius;
         DirectX::SimpleMath::Vector2 dir;   // 吹く向き（xz の単位ベクトル）。length 0 = 向き無し（円盤）
         float length;                       // 根元から風下の端までの m
+        bool  noWind = false;               // 草・落ち葉を倒すだけ（風は呼ぶ側が自分で出す。回旋斬）
     };
     const std::vector<GustFx>& GetGustFx() const { return m_GustFx; }
-    // TEMP-TEST（2026-10-27 突風の全体テスト）：今フレームの突風 1 発ごとの標的・向き・見た目の回転
+    // TEMP-TEST（突風の全体テスト）：今フレームの突風 1 発ごとの標的・向き・見た目の回転
     struct GustDebug
     {
         DirectX::SimpleMath::Vector3 caster, target, center;
@@ -84,7 +88,7 @@ public:
         uint32_t vfxHandle = 0;
     };
     const std::vector<GustDebug>& GetGustDebug() const { return m_GustDebug; }
-    // 今フレームに線で撃った上級魔法（SpellStats::triggerLine。2026-10-10、アイススパイクのトゲの見た目用）。
+    // 今フレームに線で撃った上級魔法（SpellStats::triggerLine。アイススパイクのトゲの見た目用）。
     // start = 撃った所の足元（地面）、end = 一番近い敵の向きへ lineLength x 倍率 先（地面）、scale = 拡大鏡などの大きさの倍率
     struct TriggeredFx
     {
@@ -92,6 +96,7 @@ public:
         DirectX::SimpleMath::Vector3 start;
         DirectX::SimpleMath::Vector3 end;
         float scale = 1.0f;
+        float fanDeg = 0.0f;   // 0 = 線。> 0 = start → end を真ん中にした半角 fanDeg 度の扇
     };
     const std::vector<TriggeredFx>& GetTriggeredFx() const { return m_TriggeredFx; }
     uint32_t GetTriggerEventsSeen() const { return m_TriggerEventsSeen; }
@@ -100,7 +105,7 @@ public:
     uint32_t GetTriggeredCasts() const { return m_TriggeredCasts; }
     uint32_t GetDetonates() const { return m_Detonates; }   // TEMP-TEST: 一斉起爆の回数
     int GetActiveBeamCount() const { return (int)m_Beams.size(); }
-    // 光線が標的へ向きを回す速さ（度/秒。2026-10-01 ユーザー指定 90）
+    // 光線が標的へ向きを回す速さ（度/秒）
     float beamTurnRate = 90.0f;
     // 自動テスト用: i 本目の光線の向き・標的が読めているか・標的の位置。無ければ false
     bool GetBeamDebug(int i, DirectX::SimpleMath::Vector3& dir, bool& hasTarget, DirectX::SimpleMath::Vector3& target) const
@@ -109,7 +114,7 @@ public:
         dir = m_Beams[i].dir; hasTarget = m_Beams[i].hasTarget; target = m_Beams[i].targetPos;
         return true;
     }
-    // ---- 竜巻（動く範囲、AreaProfile::Kind::Roam。2026-10-22）の風源と向きの回り方 ----
+    // ---- 竜巻（動く範囲、AreaProfile::Kind::Roam）の風源と向きの回り方 ----
     struct TwisterLook
     {
         float windRadiusMul = 2.2f;   // 風の届く距離 = 範囲の半径 × これ
@@ -119,13 +124,111 @@ public:
         float turnRate = 90.0f;       // 前方の標的の方へ向きを回す速さ（度/秒）
         float seekCone = 60.0f;       // 標的がこの角度（度）より前にある時だけ向きを回す（後ろの敵へは戻らない）
         float keepAway = 4.0f;        // プレイヤーからこの距離（m）以内に入ったら外へ向ける（敵をプレイヤーへ引きずらない）
-        // 出る / 消える移り変わり（2026-10-22、ユーザー「出る時と消える時が急すぎる」）。
+        // 出る / 消える移り変わり。
         // 出た直後 introTime 秒で柱が足元から伸び上がり、風・煙・光・進む速さも 0 から付いてくる（引き寄せと威力は最初から）。
         // 寿命が尽きたら outroTime 秒かけて細くなりながら上へほどけて止まる（この間は引き寄せも威力も出さない）
         float introTime = 0.45f;
         float outroTime = 0.7f;
     };
     TwisterLook twisterLook;
+
+    // ---- 回る剣（魔剣の輪・回旋斬、AreaProfile::Kind::Blades。WeaponSystemBlades.cpp）----
+    // プレイヤーの周りを count 本の剣が回る。判定は剣が通った弧に毎フレーム出す小さな範囲（GPU。Swarm::kAreaExtraBlade で
+    // 1 回の通過に 1 回だけ当たる）、見た目は BladeField がこの一覧を読んで描く
+    struct BladeLook
+    {
+        float introTime = 0.18f;       // 出る（剣が開いて伸びる）秒。寿命が短い時は寿命の 1/4 まで
+        float outroTime = 0.22f;       // 寿命が尽きてから消えるまでの秒（判定は出さない）
+        float lift = 1.0f;             // 剣の高さ（足元から m）
+        float hitSpacing = 0.6f;       // 剣の通った弧にこの間隔（m）で範囲を出す（フレームが長くても隙間が空かない）
+        float hitPad = 0.15f;          // 範囲の半径 = 剣の長さの半分 + これ
+        float guardShare = 0.9f;       // 同じ敵へのガード = 次の剣が来るまでの秒 × これ（1 本の時は一回り分）
+        float castMarginRing = 4.0f;   // 複数の剣（魔剣の輪）：一番近い敵が 剣先 + これ m 以内の時だけ出す
+        float castMarginSlash = 1.0f;  // 1 本（回旋斬）
+        // ---- 風：剣と同じ向きに回る局所の風源（草・落ち葉・粒子が巻かれる）。複数本 = 魔剣の輪、1 本 = 回旋斬 ----
+        float windRadiusMul = 2.2f;    // 風の届く距離 = 剣先 × これ（渦は届く距離の 3 割の所で一番強い = 剣の通る所）
+        float windSwirlRing = 7.0f;    // m/s
+        float windSwirlSlash = 14.0f;
+        float windOutRing = 1.0f;      // 外へ吹く速さ m/s
+        float windOutSlash = 3.0f;
+        float windUpdraft = 1.2f;
+        bool  slashGrassBurst = true;  // 回旋斬を出した時、足元の草・落ち葉を外へ倒す（GetGustFx の円盤）
+    };
+    BladeLook bladeLook;
+    struct BladeSet
+    {
+        ItemID id = ItemID::Unknown;
+        int profile = 0;
+        DirectX::SimpleMath::Vector3 center = { 0, 0, 0 };   // プレイヤーの足元（毎フレーム付いて動く）
+        float angle = 0.0f;            // 1 本目の剣の向き（rad。x = sin、z = cos）
+        float spin = 5.0f;             // rad/秒（正 = 上から見て時計回り）
+        int   count = 3;
+        float radius = 2.3f;           // 剣先までの距離
+        float length = 1.3f;           // 剣の長さ
+        float age = 0.0f;
+        float life = 3.0f;
+        float intro = 0.18f, outro = 0.22f;
+        float presence = 0.0f;         // 0〜1（出る / 消える）
+        float damage = 0.0f;           // 1 回の通過あたり
+        float guard = 0.3f;            // 同じ敵へのガード（秒）
+        bool  lifesteal = false;
+    };
+    const std::vector<BladeSet>& GetBladeSets() const { return m_Blades; }
+
+    // ---- 吸血コウモリ（AreaProfile::Kind::Bats。WeaponSystemBats.cpp）----
+    // 不規則に飛んで一番近い敵を噛み（GPU の範囲を 1 回）、プレイヤーの所へ戻って HP を返す。見た目は BatField
+    struct BatLook
+    {
+        float flyHeight = 1.3f;        // 足元からの高さ m
+        float bob = 0.35f;             // 上下のゆれ m
+        float wobble = 0.9f;           // 左右のふらつき（向きに足す横の速さの割合）
+        float wobbleFreq = 7.0f;       // ふらつきの速さ（rad/秒）
+        float steer = 8.0f;            // 向きを追う速さ（1/秒）
+        float returnSpeedMul = 1.8f;   // 戻る速さ = 行きの速さ × これ
+        float spread = 0.9f;           // 1 匹ずつ標的の周りにずらす距離 m
+        float biteReach = 0.7f;        // この距離まで寄ったら噛む
+        float homeReach = 0.8f;        // プレイヤーにこの距離まで戻ったら HP を返して消える
+        float range = 14.0f;           // 一番近い敵がこの距離以内の時だけ放つ
+        float maxOut = 3.0f;           // 噛めないまま飛ぶ最長の秒（過ぎたら戻る）
+    };
+    BatLook batLook;
+    struct Bat
+    {
+        ItemID id = ItemID::Unknown;
+        int profile = 0;
+        DirectX::SimpleMath::Vector3 pos = { 0, 0, 0 };
+        DirectX::SimpleMath::Vector3 vel = { 0, 0, 0 };
+        DirectX::SimpleMath::Vector2 offset = { 0, 0 };   // 標的からずらす所（xz）
+        float age = 0.0f;
+        float life = 4.0f;
+        float seed = 0.0f;
+        float speed = 9.0f;
+        float damage = 0.0f;
+        float radius = 0.9f;
+        float heal = 0.0f;             // 戻った時に返す HP（噛めた時だけ > 0）
+        bool  returning = false;
+        bool  lifesteal = false;       // 吸血のルーン・枠（噛んだ範囲に印）
+        float returnAt = 0.0f;         // 戻り始めた時の age（見た目の赤い光）
+        // 見た目の細い尾：最近通った位置（新しい順に kTrail 個、trailStep 秒ごと）
+        static constexpr int kTrail = 14;
+        DirectX::SimpleMath::Vector3 trail[kTrail];
+        int   trailN = 0;
+        float trailTimer = 0.0f;
+    };
+    const std::vector<Bat>& GetBats() const { return m_Bats; }
+    // このフレームに戻ったコウモリが返す HP（読むと 0）
+    float ConsumeBatHeal() { const float h = m_BatHeal; m_BatHeal = 0.0f; return h; }
+    uint32_t GetBatBites() const { return m_BatBites; }   // 自動テスト用の累計
+    // 自動テスト用: 剣を直接出す
+    void DebugStartBlades(const AreaStats& a, const DirectX::SimpleMath::Vector3& playerPos) { StartBlades(a, playerPos, 1.0f); }
+
+    // 動いている竜巻・光線・遅れて出す範囲や詠唱を全部捨てる（タイトルの場面の切替。エフェクトは呼ぶ側が止める）
+    void ClearActive();
+    // 自動テスト用: 竜巻を直接出す
+    void DebugStartTwister(const AreaStats& a, const DirectX::SimpleMath::Vector3& at, const DirectX::SimpleMath::Vector3& playerPos)
+    {
+        StartTwister(a, at, playerPos, 1.0f);
+    }
     // 自動テスト用: 出ている竜巻の数と i 個目の位置（中心 = 地面）
     int GetTwisterCount() const { return (int)m_Twisters.size(); }
     bool GetTwisterPos(int i, DirectX::SimpleMath::Vector3& pos) const
@@ -155,27 +258,37 @@ private:
         bool     atPos = false;    // 誘発の隕石: muzzle に落とす
         float    areaDamageMul = 1.0f;     // 命中・着弾で出す範囲の威力（SpellStats::areaDamageMul = 魔法威力）
         float    areaDurationMul = 1.0f;   // 同じく持続（魔力解放中に撃った弾。持続する範囲だけ伸びる）
-        int      chainCount = 0;           // 連鎖のルーン: 当たった後に別の敵へ跳ぶ回数（SpellStats::chainCount。2026-10-16）
-        int      fanIndex = 0;             // 出口魔法の扇の何発目か。1 以上は自分の敵を選ぶ（SpawnProjCS。2026-10-31）
+        int      chainCount = 0;           // 連鎖のルーン: 当たった後に別の敵へ跳ぶ回数（SpellStats::chainCount）
+        int      fanIndex = 0;             // 出口魔法の扇の何発目か。1 以上は自分の敵を選ぶ（SpawnProjCS）
     };
 
     // 1回の詠唱ぶんの発射要求を積む（分裂の扇状展開もここで行う）。
     // durationMul = 撃った時の魔力解放の持続倍率（ManaComponent::DurationMul）
     void QueueOneCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& muzzle,
-        const DirectX::SimpleMath::Vector3& dir, float durationMul);
+        const DirectX::SimpleMath::Vector3& dir, float durationMul, int repeat = 0);
     // 上級魔法 1 回分（誘発。impact に落とす。分裂は着弾点を輪に並べる）。
     // hasTarget / targetPos = この時の杖の狙い（一番近い敵）。線で撃つ物（アイススパイク）の向きに使う
     void QueueTriggeredCast(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& impact,
         const DirectX::SimpleMath::Vector3& muzzle, float durationMul,
-        bool hasTarget, const DirectX::SimpleMath::Vector3& targetPos);
+        bool hasTarget, const DirectX::SimpleMath::Vector3& targetPos, int repeat = 0);
     // 線で撃つ上級魔法 1 本分（triggerLine）。origin の足元から aimAt の向きへ lineLength x 倍率 の線に
-    // 命中の範囲を並べて出す（弾は出さない）。aimAt = 一番近い敵（読めなければ弾が消えた所）
+    // 命中の範囲を並べて出す（弾は出さない）。aimAt = 一番近い敵（読めなければ弾が消えた所）。
+    // repeat = 二重詠唱の何回目か（0 = 最初）。1 回目以降は扇を左右交互に半分ずらす（同じ所に重なると 1 回にしか見えない）
     void QueueTriggeredLine(const SpellStats& s,
         const DirectX::SimpleMath::Vector3& aimAt,
-        const DirectX::SimpleMath::Vector3& origin);
-    // ---- 出口（2026-10-31。WeaponSystemOutlet.cpp）----
+        const DirectX::SimpleMath::Vector3& origin, int repeat = 0);
+    // 同じ頃に吹いた突風の向き。次の突風が重ならないよう左右へずらす（SpreadGustDir）
+    struct RecentGust { DirectX::SimpleMath::Vector3 dir; DirectX::SimpleMath::Vector3 caster; float left = 0.0f; };
+    std::vector<RecentGust> m_RecentGusts;
+    static constexpr float kGustSpreadTime = 0.3f;
+    DirectX::SimpleMath::Vector3 SpreadGustDir(const DirectX::SimpleMath::Vector3& dir, const DirectX::SimpleMath::Vector3& caster);
+    // 時間差で出す範囲（アイススパイクの列。トゲが地面から出る時刻に合わせる）
+    struct DelayedArea { Swarm::Area area; float left = 0.0f; };
+    std::vector<DelayedArea> m_DelayedAreas;
+    void FlushDelayedAreas(float dt);
+    // ---- 出口（WeaponSystemOutlet.cpp）----
     // 出口の先の魔法を、弾が消えた所から撃ち出す（手元からではない）。向きは次の敵、居なければ弾の飛んでいた向き
     void QueueOutletCast(const SpellStats& s, const DirectX::SimpleMath::Vector3& impact,
         const DirectX::SimpleMath::Vector3& muzzle, float durationMul);
@@ -185,7 +298,7 @@ private:
         float castSpeed, float durationMul);
     // 繋がりが発動した所の光・音・カメラの揺れ。色は出口の先の魔法、大きさは段の深さ
     void PlayOutletBurst(ItemID id, const DirectX::SimpleMath::Vector3& at, int depth);
-    // 分身のルーン（2026-11-01）: 消えた弾の所から、周りへ s.larpaCount 発の分身を放つ
+    // 分身のルーン:消えた弾の所から、周りへ s.larpaCount 発の分身を放つ
     void QueueLarpa(const SpellStats& s, const DirectX::SimpleMath::Vector3& at, float durationMul);
     static constexpr uint32_t kDetonateMinShots = 3;   // 一斉起爆が動く弾の数
     static constexpr float kDetonateFuse = 0.4f;       // 弾がその数だけ飛び続けてから起爆するまでの秒
@@ -203,12 +316,12 @@ private:
     struct DelayedTrigger { Swarm::TriggerEvent ev; float left = 0.0f; };
     std::vector<DelayedTrigger> m_DelayedTriggers;
     std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 今フレームにリードバックで届いた誘発
-    // CPU 側で起きた誘発（アークボルトの稲妻が届いた所。2026-10-15）。次のフレームの m_TriggerEvents に足す
+    // CPU 側で起きた誘発（アークボルトの稲妻が届いた所）。次のフレームの m_TriggerEvents に足す
     std::vector<Swarm::TriggerEvent> m_CpuTriggerEvents;
     uint32_t m_TriggerEventsSeen = 0;
     uint32_t m_TriggeredCasts = 0;
 
-    // ---- 光線（上級の範囲魔法、AreaProfile::Kind::Beam。2026-09-30）----
+    // ---- 光線（上級の範囲魔法、AreaProfile::Kind::Beam）----
     // 誘発された時に始まり、溜め → 光線（GPU のカプセル型範囲 1 個 + Beam entry のエフェクト）→ 終了。
     // 起点は毎フレーム杖先、終点は向き × 射程を地形で切った所。GPU には SwarmSystem::SetBeam で毎フレーム渡す
     struct ActiveBeam
@@ -223,11 +336,11 @@ private:
         float damage = 0.0f;         // 1 tick
         float tickInterval = 0.1f;
         uint32_t flags = 0;          // kAreaCapsule | channel | (stun)
-        uint32_t extra = 0;          // 範囲の tickNow の上位に乗せる追加値（毒素の割合。AreaProfile::Extra。2026-10-17）
+        uint32_t extra = 0;          // 範囲の tickNow の上位に乗せる追加値（毒素の割合。AreaProfile::Extra）
         bool spawned = false;        // GPU の範囲を出したか（溜めが終わった時に 1 回）
         uint32_t vfxHandle = 0;      // AreaVFXPlayer のインスタンス
         std::string sound;           // 溜め終わり（撃った瞬間）の音 = 範囲の sound
-        // 標的（2026-10-01）: 始めに seek（弾が消えた所）に一番近い敵を GPU で捕まえ、その敵へ向きを回す。
+        // 標的: 始めに seek（弾が消えた所）に一番近い敵を GPU で捕まえ、その敵へ向きを回す。
         // 死んだら射程内で向きに一番近い敵へ乗り換える（SwarmBeamTargetCS）。回し方は beamTurnRate 度/秒
         DirectX::SimpleMath::Vector3 seek = { 0, 0, 0 };
         uint32_t serial = 0;         // SwarmSystem::SetBeamTarget の通し番号
@@ -236,7 +349,7 @@ private:
         DirectX::SimpleMath::Vector3 targetPos = { 0, 0, 0 };
         uint32_t orbSerial = 0;      // 光球から撃った光線（0 = 杖から）。光球が生きている間は起点がそれに追従する
         DirectX::SimpleMath::Vector3 lastStart = { 0, 0, 0 };   // 光球が消えた後の起点（最後の位置に留まる）
-        // 連鎖（連鎖のルーン × アークボルト。2026-10-20）: 稲妻が届いた敵から近くの別の敵へ、もう一本の稲妻を走らせる。
+        // 連鎖（連鎖のルーン × アークボルト）:稲妻が届いた敵から近くの別の敵へ、もう一本の稲妻を走らせる。
         // 流れ: 捕まえた敵の slot が読めたら GPU に「その敵の近くで別の敵」を探させ（kBeamTargetChain、chainSerial で
         // 見分ける）、光線が終わった時に答えが来ていれば届いた敵の位置から次の光線（chainLeft − 1）を始める。
         // 答えがまだなら chainWaitMax 秒だけ待つ（判定も見た目も終わった後、次の稲妻が出るまでの間）
@@ -264,7 +377,7 @@ private:
     // 連鎖の次の稲妻：prev が届いた敵の位置から next へ（prev.chainLeft − 1 回残して）
     void StartChainBeam(const ActiveBeam& prev, const DirectX::SimpleMath::Vector3& next);
 
-    // ---- 竜巻（上級の範囲魔法、AreaProfile::Kind::Roam。2026-10-22。WeaponSystemTwister.cpp）----
+    // ---- 竜巻（上級の範囲魔法、AreaProfile::Kind::Roam。WeaponSystemTwister.cpp）----
     // 誘発された所（渦の弾が消えた所・突風の吹いた所）に出て、プレイヤーから離れる向きに roamSpeed で進み、
     // 前方にいる敵の方へは少しずつ曲がる（寄ってくる群れを突っ切り、巻き込んだ敵をプレイヤーから引き離す）。
     // GPU の範囲は動かせないので、kTwisterPulse 秒ごとに今の位置へ短い範囲（その間だけ生きる）を出し直す：
@@ -282,7 +395,7 @@ private:
         float damage = 0.0f;           // 1 回（tickInterval ごと）
         float tickInterval = 0.5f;
         float pulseTimer = 0.0f;       // 次の短い範囲まで
-        bool  lifesteal = false;       // 吸血のルーン（2026-10-25）
+        bool  lifesteal = false;       // 吸血のルーン
         float damageTimer = 0.0f;      // 次に威力を乗せるまで
         float outro = -1.0f;           // < 0 = まだ消え始めていない、≥ 0 = 寿命が尽きて消え始めてからの秒
         uint32_t vfxHandle = 0;
@@ -296,7 +409,21 @@ private:
     void UpdateTwisters(float dt, const DirectX::SimpleMath::Vector3& playerPos,
         bool hasTarget, const DirectX::SimpleMath::Vector3& targetPos);
 
-    // ---- 光球（水晶玉の召喚物、2026-10-06。WeaponSystemOrbs.cpp）----
+    // ---- 回る剣（WeaponSystemBlades.cpp）----
+    std::vector<BladeSet> m_Blades;
+    void StartBlades(const AreaStats& a, const DirectX::SimpleMath::Vector3& playerPos, float durationMul);
+    // 回す・通った弧に小さな範囲を出す・消える
+    void UpdateBlades(float dt, const DirectX::SimpleMath::Vector3& playerPos);
+
+    // ---- 吸血コウモリ（WeaponSystemBats.cpp）----
+    std::vector<Bat> m_Bats;
+    float m_BatHeal = 0.0f;
+    uint32_t m_BatBites = 0;
+    uint32_t m_BatSerial = 0;
+    void StartBats(const AreaStats& a, const DirectX::SimpleMath::Vector3& playerPos, float durationMul);
+    void UpdateBats(float dt, const DirectX::SimpleMath::Vector3& playerPos);
+
+    // ---- 光球（水晶玉の召喚物。WeaponSystemOrbs.cpp）----
     // WandComponent::orbs[unit] の設定で出る。貯蔵された魔法（SpellStats / AreaStats の storeUnit == unit）を
     // 光球ごとの計時で、光球の位置から撃つ。見た目は AreaVFXPlayer のインスタンス（貯蔵した魔法の色で染める）
     struct Orb
@@ -343,7 +470,7 @@ private:
     // 誘発で光線を始める（チャンネルが空いていなければ false = 撃たない）
     // castSpeed / durationMul = 撃った時の魔力解放（溜めを castSpeed 倍速く、光線を durationMul 倍長く。エフェクトの時間軸も合わせる）
     // orbSerial = 光球から撃つ時はその通し番号（起点が光球に追従する）
-    // lengthOverride > 0 = 射程をこの長さまでに縮める（アークボルト：標的の体で止める。2026-10-15）
+    // lengthOverride > 0 = 射程をこの長さまでに縮める（アークボルト：標的の体で止める）
     bool StartBeam(const AreaStats& a, const DirectX::SimpleMath::Vector3& muzzle,
         const DirectX::SimpleMath::Vector3& impact, float castSpeed = 1.0f, float durationMul = 1.0f,
         uint32_t orbSerial = 0, float lengthOverride = 0.0f);
@@ -355,7 +482,7 @@ private:
     const VFXContext* m_AreaVFXCtx = nullptr;
     std::vector<CastRequest> m_Requests;
     std::vector<CastFx> m_CastFx;   // 今フレームに撃った弾（GetCastFx）
-    // 近距離の範囲魔法（突風・アイススパイクの線）の狙い = 優先度なしで一番近い敵（2026-10-27）。
+    // 近距離の範囲魔法（突風・アイススパイクの線）の狙い = 優先度なしで一番近い敵。
     // 杖の狙い（hasTarget / targetPos）は Boss / エリートを優先するので別に持つ。Update の索敵で毎フレーム決める
     bool m_HasClose = false;
     DirectX::SimpleMath::Vector3 m_ClosePos;

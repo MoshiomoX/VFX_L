@@ -1,6 +1,6 @@
 // ============================================================
 // BossAttacksPanel.cpp
-// BossAttacks の調整パネル（Enemies パネルの「Boss Attacks」）。2026-10-24 に BossAttacks.cpp から分けた（技が 8 つに増えたので）
+// BossAttacks の調整パネル（Enemies パネルの「Boss Attacks」）
 // ============================================================
 #include "Enemy/Boss/BossAttacks.h"
 #include "Swarm/SwarmTypes.h"
@@ -19,7 +19,7 @@ void BossAttacks::DrawImGui()
     ImGui::SliderFloat("Enrage HP Ratio##boss", &enrageHpRatio, 0.0f, 1.0f);
     ImGui::SliderFloat("Combo Chance (enraged)##boss", &comboChance, 0.0f, 1.0f);
     ImGui::DragFloat("Range (m)##boss", &range, 0.5f, 1.0f, 200.0f);
-    ImGui::Checkbox("Enrage Roar##boss", &enrageRoar);   // 狂暴の咆哮（2026-10-29）
+    ImGui::Checkbox("Enrage Roar##boss", &enrageRoar);   // 狂暴の咆哮
     ImGui::SameLine();
     ImGui::Text("%s", m_EnrageRoarDone ? "(done this fight)" : "");
     ImGui::DragFloat("Roar Time (s)##boss", &enrageRoarTime, 0.05f, 0.05f, 5.0f);
@@ -147,7 +147,7 @@ void BossAttacks::DrawImGui()
         ImGui::DragFloat("Re-windup (s)", &chargeRewindup, 0.05f, 0.05f, 3.0f);
         ImGui::TreePop();
     }
-    // 雷鳴の雄鹿の専用の技（2026-10-29）
+    // 雷鳴の雄鹿の専用の技
     if (ImGui::TreeNode("Thunder Stag: Antler Toss / Antler Bolt"))
     {
         ImGui::SeparatorText("Antler Toss (front fan, launches high)");
@@ -286,6 +286,7 @@ void BossAttacks::DrawImGui()
         ImGui::DragFloat("Devil Life (s)", &d.devilLife, 0.1f, 0.5f, 20.0f);
         ImGui::DragFloat2("Ring Radius Start / End (m)", &d.devilRadiusStart, 0.1f, 0.0f, 30.0f);
         ImGui::DragFloat("Spin (deg/s)", &d.devilSpinDeg, 1.0f, -360.0f, 360.0f);
+        ImGui::DragFloat("Max Speed (m/s)", &d.devilMaxSpeed, 0.1f, 1.0f, 40.0f);
         ImGui::DragFloat("Devil Hit Radius (m)", &d.devilHitRadius, 0.05f, 0.2f, 6.0f);
         ImGui::DragFloat("Devil Damage (base)", &d.devilDamage, 0.5f, 0.0f, 500.0f);
         ImGui::SeparatorText("Breath");

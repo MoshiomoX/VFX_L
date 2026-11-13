@@ -66,7 +66,7 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     SwarmMotion m = motions[p.motion & SWARM_MOTION_INDEX_MASK];
     if (m.mode != SWARM_MOTION_DROP)
         return o;
-    // ほとんど高さの無い落下（アイススパイク、2026-10-10：次のステップで着弾する）には予告を出さない。
+    // ほとんど高さの無い落下（次のステップで着弾する）には予告を出さない。
     // 出すと輪が 1 フレーム光るだけになる。c1.x = 落下の高さ
     if (m.c1.x < 1.0)
         return o;

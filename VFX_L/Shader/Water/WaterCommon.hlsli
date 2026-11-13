@@ -1,6 +1,6 @@
 // ============================================================
 // WaterCommon.hlsli
-// 池の水面（World/WaterSurface、2026-10-27）: WaterVS / WaterPS が共有する
+// 池の水面（World/WaterSurface）: WaterVS / WaterPS が共有する
 // フレームごとの cbuffer と、頂点 -> ピクセルの構造体。
 // C++ 側: WaterSurface::WaterCB（288 バイト）
 // ============================================================

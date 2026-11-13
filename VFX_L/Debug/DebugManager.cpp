@@ -28,7 +28,7 @@ namespace
         { SceneType::SPELL_LAB, "Spell Lab", VK_F7 },
     };
     constexpr int kReloadKey = VK_F5;
-    constexpr int kPanelsKey = VK_F10;   // デバッグパネルの表示切替（2026-10-16）
+    constexpr int kPanelsKey = VK_F10;   // デバッグパネルの表示切替
 }
 
 DebugManager::~DebugManager() = default;
@@ -81,13 +81,13 @@ void DebugManager::BeginFrame()
 
     m_ImguiRenderer->BeginFrame();
 
-    // パネルを全部隠している時（既定。F10 で表示）は Debug Info も出さない（2026-10-16 ユーザー：「ImGui が多すぎて探せない、全部閉じて」）
+    // パネルを全部隠している時（既定。F10 で表示）は Debug Info も出さない
     if (!m_ShowPanels) return;
 
     ImGui::Begin("Debug Info");
     ImGui::Text("FPS: %.1f", m_Timer->GetFPS());
     ImGui::Text("Delta: %.4f ms", m_Timer->DeltaTime() * 1000.0f);
-    // 日本語の字体の確認（Noto Sans JP。2026-10-18）。/utf-8 なので文字列リテラルはそのまま UTF-8
+    // 日本語の字体の確認（Noto Sans JP）。/utf-8 なので文字列リテラルはそのまま UTF-8
     ImGui::TextDisabled("字体: Noto Sans JP + Noto Sans SC（日本語・简体中文：这是简体字测试）  F10 でパネル切替");
 
     // ---- 表示の同期（swap chain は Graphics）----
@@ -242,9 +242,7 @@ void DebugManager::Render()
     }
     m_LineRenderer.SetCamera(cam);
 
-    // 参照の格子はエディタ（F2 / F4 / F6）だけ。2026-10-28：線をシーンの後に描くようにしてから、
-    // リザルト・商店の画面（2D の画面で、戦闘シーンが消した格子の設定が元に戻っている）の上に格子が出ていた。
-    // 以前はシーンの前に描いていて、2D の画面の背景に塗り潰されて見えなかっただけ
+    // 参照の格子はエディタ（F2 / F4 / F6）だけ（リザルト・商店などの 2D の画面の上に出さない）
     const SceneType type = Application::Get().GetGame().GetSceneManager().GetCurrentSceneType();
     const bool editor = type == SceneType::VFX_EDITOR || type == SceneType::PROJECTILE_EDITOR ||
         type == SceneType::LEVEL_EDITOR;

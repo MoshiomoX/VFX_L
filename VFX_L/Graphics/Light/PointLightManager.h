@@ -17,7 +17,7 @@
 //     BindPS()      … 描画直前に t6/t7 を張る（Renderer / SkinnedModelGPU / Swarm）。
 //                     クラスタを作ったフレームは t10/t11 も（LightClusters.h、Forward+）
 //
-//   上限は kMaxLights。超えた分は捨てる（先着順）。2026-10-23 にクラスタ分けを入れてから 64 → 256
+//   上限は kMaxLights。超えた分は捨てる（先着順）
 // ============================================================
 #pragma once
 #include "Graphics/Light/LightClusters.h"

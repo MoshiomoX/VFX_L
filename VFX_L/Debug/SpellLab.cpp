@@ -40,7 +40,7 @@ void SpellLab::Update(Registry& reg, Entity player, SwarmSystem& swarm, const Mo
         mp.max = 1.0e6f;
         mp.current = mp.max;
     }
-    // 的・群れ・Boss はトレーニングのメニュー（T / パッド RB → Apply）。2026-10-07 まではここで T / Y / U / O / K のキーを読んでいた
+    // 的・群れ・Boss はトレーニングのメニュー（T / パッド RB → Apply）
     SpawnSwarmStep(reg, player, swarm, mobs, grid);
 }
 
@@ -77,7 +77,7 @@ std::wstring SpellLab::Apply(const TrainingRequest& q, Registry& reg, Entity pla
 
     case TrainingRequest::Kind::KillAll:
         swarm.KillAll();
-        mobs.ClearRuinsPending();   // 鎧の蘇り・骸骨の起き上がり待ちも捨てる（2026-10-25）
+        mobs.ClearRuinsPending();   // 鎧の蘇り・骸骨の起き上がり待ちも捨てる
         m_SwarmLeft = 0;
         return L"敵を全部消した";
 
@@ -139,13 +139,13 @@ void SpellLab::SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, 
     static const uint32_t kKinds[17] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindBrute,
         Swarm::kEnemyKindCharger, Swarm::kEnemyKindShield, Swarm::kEnemyKindGhost, Swarm::kEnemyKindSpikeBall, Swarm::kEnemyKindBurrower,
         Swarm::kEnemyKindSandMage, Swarm::kEnemyKindDarkGhost, Swarm::kEnemyKindDashBomber,
-        Swarm::kEnemyKindArmor, Swarm::kEnemyKindGargoyle, Swarm::kEnemyKindNecro, Swarm::kEnemyKindSkeleton, Swarm::kEnemyKindWarden };   // 遺跡の敵（2026-10-25）
+        Swarm::kEnemyKindArmor, Swarm::kEnemyKindGargoyle, Swarm::kEnemyKindNecro, Swarm::kEnemyKindSkeleton, Swarm::kEnemyKindWarden };   // 遺跡の敵
 
     const int n = (std::min)(m_SwarmLeft, kSwarmPerFrame);
     for (int i = 0; i < n; ++i)
     {
         // 混合 = 雑魚 22 : 自爆兵 8 : スプリッター 10 : 重装兵 8 : 突撃兵 8 : 盾兵 8 : 幽霊 4 : トゲ玉 5 : 砂潜り 4 : 砂嵐の術師 3 : 黒幽霊 2 : 突撃爆弾兵 4
-        // : 呪いの鎧 5 : ガーゴイル 3 : 死霊術師 2 : 骸骨 2 : 鎖の番人 2（2026-10-25）
+        // : 呪いの鎧 5 : ガーゴイル 3 : 死霊術師 2 : 骸骨 2 : 鎖の番人 2
         uint32_t kind = kKinds[std::clamp(m_SwarmKind, 0, 16)];
         if (m_SwarmKind >= 17)
         {
@@ -238,7 +238,7 @@ void SpellLab::EnterLab(Registry& reg, Entity player, SwarmSystem& swarm, MobSpa
 {
     if (!reg.Has<BackpackComponent>(player) || !reg.Has<SpellbookComponent>(player)) return;
     SetEnabled(reg, player, swarm, mobs, true);
-    FillFrames(reg, player);   // 木箱は空のまま（2026-10-07。入れるのはトレーニングのメニューから）
+    FillFrames(reg, player);   // 木箱は空のまま（入れるのはトレーニングのメニューから）
 }
 
 void SpellLab::SpawnTargets(Registry& reg, Entity player, SwarmSystem& swarm, const GridWorld& grid, int pattern, float hp)

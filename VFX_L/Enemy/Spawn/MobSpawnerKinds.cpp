@@ -1,7 +1,7 @@
 // ============================================================
 // MobSpawnerKinds.cpp
-// 突撃兵・盾兵（2026-10-08）の湧きの割合と、Enemies パネルの段（突撃兵・盾兵・凍結の GPU 定数）。
-// MobSpawner.cpp が 330 行を超えていたので、新しい種類の分はこちらに置く
+// 突撃兵・盾兵などの湧きの割合と、Enemies パネルの段（突撃兵・盾兵・凍結の GPU 定数）。
+// 新しい種類の分はこちらに置く
 // ============================================================
 #include "Enemy/Spawn/MobSpawner.h"
 #include "Swarm/SwarmSystem.h"
@@ -78,7 +78,7 @@ void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
     if (ImGui::Button("Spawn 5 Shield Bearers Nearby")) QueueDebugShields(5);
     ImGui::Separator();
 
-    // ---- トゲ玉：厚くて遅い、触れたプレイヤーを弾き飛ばす（2026-10-17。砂漠の敵の 1 つ目）----
+    // ---- トゲ玉：厚くて遅い、触れたプレイヤーを弾き飛ばす（砂漠）----
     ImGui::TextColored(ImVec4(0.85f, 0.7f, 0.4f, 1), "Spike Ball (GPU)");
     ImGui::Text("ratio now %.2f", m_SpikeBallRatio);
     drawRamp("spikeball", spikeBallMix);
@@ -95,7 +95,7 @@ void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
     if (ImGui::Button("Spawn 5 Spike Balls Nearby")) QueueDebugSpikeBalls(5);
     ImGui::Separator();
 
-    // ---- 砂潜り：砂の下を寄って来て、足元で顔を出して噛み、また潜る（2026-10-17。砂漠の敵の 2 つ目）----
+    // ---- 砂潜り：砂の下を寄って来て、足元で顔を出して噛み、また潜る（砂漠）----
     ImGui::TextColored(ImVec4(0.9f, 0.75f, 0.45f, 1), "Burrower (GPU)");
     ImGui::Text("ratio now %.2f", m_BurrowerRatio);
     drawRamp("burrower", burrowerMix);
@@ -120,7 +120,7 @@ void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
     if (ImGui::Button("Spawn 5 Burrowers Nearby")) QueueDebugBurrowers(5);
     ImGui::Separator();
 
-    // ---- 砂嵐の術師：距離を取って立ち、溜めて砂旋（敵の弾 = kEnemyKindTornado）を放つ（2026-10-17。砂漠の敵の 3 つ目）----
+    // ---- 砂嵐の術師：距離を取って立ち、溜めて砂旋（敵の弾 = kEnemyKindTornado）を放つ（砂漠）----
     ImGui::TextColored(ImVec4(0.9f, 0.75f, 0.45f, 1), "Sand Mage (GPU)");
     ImGui::Text("ratio now %.2f   tornadoes %u", m_SandMageRatio, m_TornadoesSpawned);
     drawRamp("sandmage", sandMageMix);
@@ -138,7 +138,7 @@ void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Tornado Scale", &bomb.tornadoScale, 0.05f, 0.2f, 5.0f);
     ImGui::DragFloat("Tornado Damage x", &bomb.tornadoDamageMul, 0.05f, 0.0f, 5.0f);
     auto& tor = swarm.tornadoLook;
-    ImGui::TextDisabled("the tornado itself is not drawn (10-20): foot dust + wind source only");
+    ImGui::TextDisabled("tornado body = CPU effect (SandTornadoFx); GPU = foot dust + wind source");
     ImGui::DragFloat("Tornado Grow (s)", &tor.growTime, 0.05f, 0.05f, 2.0f);
     ImGui::Checkbox("Tornado Dust", &tor.dust);
     ImGui::Checkbox("Tornado Wind Source (grass / debris / particles)", &tor.windSource);
@@ -152,7 +152,7 @@ void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
     if (ImGui::Button("Spawn 5 Sand Mages Nearby")) QueueDebugSandMages(5);
     ImGui::Separator();
 
-    // ---- 突撃爆弾兵：プレイヤーが近づくと点火して突っ込み、触れた瞬間に爆発。点火中は無敵（2026-10-18）----
+    // ---- 突撃爆弾兵：プレイヤーが近づくと点火して突っ込み、触れた瞬間に爆発。点火中は無敵 ----
     ImGui::TextColored(ImVec4(0.75f, 0.75f, 0.85f, 1), "Dash Bomber (GPU)");
     ImGui::Text("ratio now %.2f", m_DashBomberRatio);
     drawRamp("dashbomber", dashBomberMix);

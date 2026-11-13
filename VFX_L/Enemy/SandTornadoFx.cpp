@@ -4,6 +4,7 @@
 // ============================================================
 #include "Enemy/SandTornadoFx.h"
 #include "VFX_Editor/VFXId.h"
+#include "World/CliffSteer.h"
 
 using namespace DirectX::SimpleMath;
 
@@ -34,7 +35,9 @@ void SandTornadoFx::Update(float dt, AreaVFXPlayer& vfx, const std::function<flo
             m_Insts.pop_back();
             continue;
         }
-        // GPU の砂旋は生まれた瞬間から寿命まで一定の速さで直進する（AICS）：同じ式で追う。消える間は止まりかけ
+        // GPU の砂旋（AICS）と同じ式：崖を登る向きに当たったら左右へ向きを振って崖沿いに進む
+        if (groundHeight && t.age < t.life)
+            CliffSteer::Steer(t.dir, t.pos, groundHeight(t.pos.x, t.pos.z), groundHeight);
         const bool leaving = t.age >= t.life;
         float presence = 1.0f;
         if (leaving)

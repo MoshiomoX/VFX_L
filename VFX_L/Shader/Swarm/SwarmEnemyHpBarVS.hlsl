@@ -58,7 +58,7 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     BarOut o = (BarOut) 0;
 
     uint slot = aliveList[iid];
-    if (enemyStates[slot] == SWARM_DEAD || (SwarmUntargetable(enemyExtra[slot]) && enemyExtra[slot].kind != SWARM_KIND_BURROWER))   // 潜っている砂潜りはバーを残す：地面の範囲が当たるため（2026-10-26）
+    if (enemyStates[slot] == SWARM_DEAD || (SwarmUntargetable(enemyExtra[slot]) && enemyExtra[slot].kind != SWARM_KIND_BURROWER))   // 潜っている砂潜りはバーを残す：地面の範囲が当たるため
     {
         o.pos = float4(0, 0, -1, 1); // クリップ
         return o;
@@ -79,7 +79,7 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float3 up = float3(g_BarView._12, g_BarView._22, g_BarView._32);
 
     // エリートは足元を基点に拡大する：バーは頭と一緒に上がり、幅も広がる
-    //（狂暴化した固定エリートはさらに大きく描く、SwarmSlotScale、2026-10-25）
+    //（狂暴化した固定エリートはさらに大きく描く、SwarmSlotScale）
     float k = SwarmSlotScale(slot, enemyExtra[slot].kind);
     float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
     float offset = footY + (g_BarOffset - footY) * k;

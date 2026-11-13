@@ -41,7 +41,7 @@ namespace PrimitiveBuilder
     // 六面体をまとめて 1 つのモデルにする（動かない地形を 1 回の draw にまとめる用。
     // 1 個ずつだと DrawMesh の状態の積み直しが数十回、影の 3 段でその 3 倍になる）。
     // Append に世界座標の 8 頂点を渡し、最後に Build。見た目は CreateHexahedron と同じ
-    // 頂点の uv は (地形のテクスチャの層 + 1, 0)（TerrainSurface。0 = 法線と高さで自動。2026-10-03）
+    // 頂点の uv は (地形のテクスチャの層 + 1, 0)（TerrainSurface。0 = 法線と高さで自動）
     class HexahedronBatch
     {
     public:
@@ -62,13 +62,13 @@ namespace PrimitiveBuilder
         float sizeX, float sizeZ, int divX, int divZ, float y,
         const std::function<Vector4(float x, float z)>& colorAt);
 
-    // 段々の地面（2026-10-02、フィールドの三層）。cellsX × cellsZ マス（一辺 cellSize、中心原点）の
+    // 段々の地面。cellsX × cellsZ マス（一辺 cellSize、中心原点）の
     // マス毎の高さ levelAt(gx, gz) の水平面と、高さの違う隣のマスとの境の縦の壁（低い側を向く）。
     // 同じ高さのマス同士は頂点を共有する（色が滑らかに繋がる）。上面は topColorAt(x, z, 高さ)、
     // 壁は bandHeight 毎の帯に分けて帯の中ほどの wallColorAt(x, y, z) で塗る（地層の縞）。
-    // 地形のテクスチャの層（2026-10-03、TerrainSurface。頂点の uv = (層 + 1, 0)）: topLayerAt(gx, gz) = マスの上面、
+    // 地形のテクスチャの層（TerrainSurface。頂点の uv = (層 + 1, 0)）: topLayerAt(gx, gz) = マスの上面、
     // wallLayerAt(高い側の gx, gz, 低い側の gx, gz) = 境の壁。-1 / 無し = 法線と高さで自動。
-    // 起伏（2026-10-04）: heightAt(gx, gz, x, z) を渡すと、上面はマスを subdiv × subdiv に割った頂点毎の高さ
+    // 起伏: heightAt(gx, gz, x, z) を渡すと、上面はマスを subdiv × subdiv に割った頂点毎の高さ
     // （そのマスの式で測る。同じ level のマス同士は同じ式 = 境の頂点を共有）、法線は同じ式の傾き、
     // 境の壁は両側の式の高さの間に張る。levelAt はマスの組（区域）を分ける値として使う
     std::shared_ptr<Model> CreateSteppedGrid(ID3D11Device* device,
@@ -94,15 +94,15 @@ namespace PrimitiveBuilder
         float radius, float top, float bottom, int sides,
         const Vector4& color = { 1, 1, 1, 1 });
 
-    // トゲ玉（球 + 表面の四角錐のトゲ。砂漠の敵 kEnemyKindSpikeBall、2026-10-17）。球 bodyColor、トゲの先端 spikeColor
+    // トゲ玉（球 + 表面の四角錐のトゲ。砂漠の敵 kEnemyKindSpikeBall）。球 bodyColor、トゲの先端 spikeColor
     std::shared_ptr<Model> CreateSpikeBall(ID3D11Device* device,
         float radius, float spikeLen, int spikes,
         const Vector4& bodyColor = { 1, 1, 1, 1 }, const Vector4& spikeColor = { 1, 1, 1, 1 });
 
-    // 竜巻の筒（砂旋 / 突風の旋風。2026-10-19、ユーザー「上下が広くて真ん中が少し細い」）。
+    // 竜巻の筒（上下が広くて真ん中が少し細い）。
     // 高さ 1（y 0 → 1）、上端の半径 1、下端 0.85、腰（y 0.5）は waist 倍。uv.x = 周（y に応じて twist 周ぶんずれる = 螺旋に
     // 沿ってテクスチャが流れる）、uv.y = 下 → 上。頂点色の a は両端で 0 へ落ちる（端のフェード。rgb は color）。
-    // 表面は「上宽下窄」の円錐ではなく、ノイズを流す土台。蓋は無い（中は空）
+    // ノイズを流す土台。蓋は無い（中は空）
     std::shared_ptr<Model> CreateTornadoShell(ID3D11Device* device,
         int segments = 32, int rings = 14, float waist = 0.62f, float twist = 0.35f,
         const Vector4& color = { 1, 1, 1, 1 });

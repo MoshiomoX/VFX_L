@@ -1,10 +1,10 @@
 // ============================================================
 // SwarmSystemElites.cpp
-// 面の固定エリート（2026-10-25：各面 2 体、どれも「予告を避ける」型）の GPU 側の準備。
-//   ・生きている一覧：SwarmEnemyKindList2CS の空いていた u5 / u6（CompactCS は mobList に入れない）
+// 面の固定エリート（各面 2 体、どれも「予告を避ける」型）の GPU 側の準備。
+//   ・生きている一覧：SwarmEnemyKindList2CS の u5 / u6（CompactCS は mobList に入れない）
 //   ・様子のリードバック：同じ CS の u7 に EliteInfoBlock（数 + 槽・種類・HP・位置）。Boss の BossInfo と同じく 3 枚の staging を輪転
 //   ・砕け中の一覧：SwarmCorpseListCS / List2CS は 8 本埋まっているので SwarmCorpseList3CS（自分の皮で砕ける）
-// 技・詞缀・予告・当たりは CPU（Enemy/EliteAttacks）。GPU への指示は BomberCB::eliteCmd / eliteMove
+// 技・アフィックス・予告・当たりは CPU（Enemy/EliteAttacks）。GPU への指示は BomberCB::eliteCmd / eliteMove
 // ============================================================
 #include "Swarm/SwarmSystem.h"
 #include "Graphics/Shader/ComputeShader.h"

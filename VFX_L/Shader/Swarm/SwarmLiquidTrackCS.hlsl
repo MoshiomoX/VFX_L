@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmLiquidTrackCS.hlsl
-// 毎フレーム 1 回、範囲スロット 1 つに 1 スレッド（2026-10-02、Liquid エントリ）。
+// 毎フレーム 1 回、範囲スロット 1 つに 1 スレッド（Liquid エントリ用）。
 // 前フレーム以降に生まれた範囲に気付き、スロットごとに次を保持する：
 //   liquidTrack[slot] = (投げた向き x, 投げた向き z,
 //                        最初に見たときの timeLeft, 前フレームの timeLeft)
@@ -22,7 +22,7 @@ StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
 RWStructuredBuffer<float4> areaDirs : register(u0);
 RWStructuredBuffer<float4> liquidTrack : register(u1);
-// これまでに生まれた範囲の数（2026-10-03）。増える一方で、CPU は差分を読む：
+// これまでに生まれた範囲の数。増える一方で、CPU は差分を読む：
 //   [0]            = SWARM_AREA_SHAKE の範囲（SwarmSystem::ConsumeShakeAreas -> BattleCamera）
 //   [1 + vfxType]  = GPU エフェクトのレシピごとの範囲（命中の火花、爆発、死亡時の煙、池）
 //                    -> SwarmSystem::ConsumeAreaBirths -> 音（CPU は GPU の命中を見ないため）

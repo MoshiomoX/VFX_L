@@ -87,7 +87,7 @@ public:
     // （"Rig_Medium_MovementAdvanced|Dodge_Forward"。FindClip("Dodge_Forward") は元の方）。
     // 戻り値 = 足したクリップ数（読めなければ -1）
     //
-    // map を渡すと（2026-10-04）骨名の違う人形（例: CC_Base_* ← UE 風）から世界空間で付け替える：
+    // map を渡すと骨名の違う人形（例: CC_Base_* ← UE 風）から世界空間で付け替える：
     //   自分の基準 = スキニングした時の姿勢（offset から逆算。ノードの既定の姿勢は飾りのポーズの事がある）。
     //   基準どうしの姿勢の違い（T ポーズ ↔ A ポーズ）は、対応する骨の向き（骨 → 子の骨）が向こうの
     //   基準に揃うよう骨ごとに最小の回転で直す。そのうえで 30fps で向こうの骨の世界の回転の
@@ -97,7 +97,7 @@ public:
     int AddAnimationsFromFile(const std::string& filepath,
         const struct BoneMapEntry* map = nullptr, int mapCount = 0);
 
-    // ---- マントを横の列に分ける（SkinnedModelCloth.cpp、2026-10-23）----
+    // ---- マントを横の列に分ける（SkinnedModelCloth.cpp）----
     // 骨の 1 本鎖 chain（根 → 先。最後は重みの無い終点でもよい）を横 columns 列（奇数、真ん中 = 元の骨）にする。
     //   列の骨 = 元の骨を体の左右へずらした物（親 = 同じ段の元の骨、名前 = ClothColumnBoneName）。
     //   鎖に重みを持つ頂点は、左右の位置で隣の 2 列に割り振り（強い 2 段 × 2 列）、anchor（上背）の重みは
@@ -165,7 +165,7 @@ private:
     int RetargetAnimations(const aiScene* scene, const std::string& filepath,
         const struct BoneMapEntry* map, int mapCount);
 
-    // ---- SampleLocal の下ごしらえ（2026-10-25）----
+    // ---- SampleLocal の下ごしらえ ----
     // 骨やクリップを変える関数（LoadFromScene / AddAnimationsFromFile / SplitClothChain）の最後で作り直す。
     // 骨の数と合わない（作り直し忘れ）時は、SampleLocal が毎回 Decompose・名前引きをする元の道を通る
     void RebuildSampleCache();

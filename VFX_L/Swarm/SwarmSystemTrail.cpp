@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmSystemTrail.cpp
-// GPU の弾が引く「切れない帯」（2026-10-15、ホーミングボルト）。
+// GPU の弾が引く「切れない帯」。
 //   VFX の Trail entry をレシピに写し（SwarmVFXTable::recipeTrail）、弾の槽ごとに位置の環を持つ。
 //   記録は固定ステップごと（SwarmProjTrailCS、弾の積分の直後）、描画は帯 1 本 = 弾の槽 1 つ
 //   （SwarmProjTrailVS + 粒子の帯と同じ ParticleTrailPS。style ごとに 1 回 DrawInstanced）。

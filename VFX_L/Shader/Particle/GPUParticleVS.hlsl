@@ -5,11 +5,11 @@ cbuffer ParticleRenderCB : register(b0)
     matrix g_View;
     matrix g_Projection;
     float3 g_CameraPosition;
-    // この描画でどのビルボードを扱うか（2026-10-09、火 / 黒煙がちらついた件）：
-    //   0 = 全部（従来どおりブレンド 1 パス）
+    // この描画でどのビルボードを扱うか：
+    //   0 = 全部（ブレンド 1 パス）
     //   1 = 不透明なトゥーンのみ（最初に描き、深度を書く。PS は alpha < 0.5 を切る）
     //   2 = 不透明なトゥーン以外の全部（ブレンド、深度は読むだけ）
-    //   3 = 歪みパス（2026-10-20）：歪みの強さを持つパーティクルだけを
+    //   3 = 歪みパス：歪みの強さを持つパーティクルだけを
     //       オフセットのターゲットへ（ParticleDistortPS）。colour.a x level / 3
     // 生存リストは InterlockedAdd で詰めるので順番が毎フレーム変わる。
     // ほぼ不透明なトゥーンの煙をその順で描くと、どれが手前に来るかが
@@ -94,7 +94,7 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
         }
         // 強さを畳み込む。PS がこれを読む。歪みのみの煙は強さを colour.a に持つ（他に読む
         // ものはない）。見える煙は色のパス用に薄い colour.a を持つので、屈折には代わりに
-        // 寿命のフェード（colour.a / start a）を使い、強さを保つ（2026-10-20：風 = 屈折 + 少しの白）
+        // 寿命のフェード（colour.a / start a）を使い、強さを保つ
         float fadeNow = distortOnly ? p.color.a : output.toonFade.x;
         output.color.a = fadeNow * (float) distortLevel / 3.0;
     }
@@ -111,7 +111,7 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     float3 worldPos;
     if (ParticleIsStreak(p.renderMode))
     {
-        // 流線（2026-10-20）：長軸は速度に沿う（四角形がカメラを向いたままになるよう
+        // 流線：長軸は速度に沿う（四角形がカメラを向いたままになるよう
         // ビュー平面に投影）、短軸 = サイズ。uv の上 = 先頭。
         // まだ動き出していないパーティクルは立てて描く
         float3 v = p.velocity;

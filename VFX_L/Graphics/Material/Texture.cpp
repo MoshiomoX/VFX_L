@@ -39,7 +39,7 @@ bool Texture::Load(ID3D11Device* device, const std::wstring& filepath, bool srgb
     }
 
     // 8bit パレットの PNG（Kenney Input Prompts など）は WIC_FLAGS_FORCE_SRGB を付けても UNORM で返る
-    // （2026-10-09 に確認：パッドのボタンの絵が白っぽく出た）。sRGB を頼まれたのに sRGB でなければ読み替える
+    // （色が白っぽく出る）。sRGB を頼まれたのに sRGB でなければ読み替える
     if (srgb)
     {
         const DXGI_FORMAT f = image.GetMetadata().format;

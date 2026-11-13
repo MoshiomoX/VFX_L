@@ -46,7 +46,7 @@ struct BackpackComponent
     // 集約結果が古くなったか（true なら再計算が必要）
     bool dirty = true;
 
-    // 中身（items / frames）が変わるたびに変わる番号（2026-10-25）。UI が毎フレーム作り直していた物
+    // 中身（items / frames）が変わるたびに変わる番号。UI が作る物
     // （上級魔法が目覚めているか・回した形・説明の文）を、番号が同じ間は覚えておくための目印。
     // 占有表の組み直し（BackpackLogic::RebuildOccupancy / RebuildFrameOccupancy）で進むので、
     // BackpackLogic を通した変更は全部ここに載る。items / frames を直接書き換えた時は、

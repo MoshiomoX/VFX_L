@@ -1,11 +1,11 @@
 // ============================================================
 // AutoTestPondMobs.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=pondmobs（VFXL_STAGE=2 で砂漠のオアシス）
-// 水たまりに雑魚が入れるか・水が弾を止めないか（2026-10-28。それまで水たまりのマスは塞いでいた）
+// 水たまりに雑魚が入れるか・水が弾を止めないか
 //   1 秒: 湧き停止・全消し・無敵・詠唱停止。一番近い「周り 8 マスも水」の水たまりのマスを探す
 //   A 雑魚が水へ : プレイヤーを水の真ん中に立たせ、周りの乾いた地面 9〜14m に雑魚 12 体（HP 10 万）。10 秒、
 //                  0.5 秒毎に `pondmobs A t alive inWater near far stuck ripple up moving`（near = 2.5m 以内、stuck = 3m より遠くで
-//                  2 秒動かない）、2.2 / 6 秒 `pondmobs look a1 / a2`（ripple = 波紋の一番大きな |高さ|、雑魚が水の中を歩くと立つ。2026-10-28）、最後 `pondmobs A result reached inWaterMax stuckMax`
+//                  2 秒動かない）、2.2 / 6 秒 `pondmobs look a1 / a2`（ripple = 波紋の一番大きな |高さ|、雑魚が水の中を歩くと立つ）、最後 `pondmobs A result reached inWaterMax stuckMax`
 //   B 水越しの弾 : 全消し。プレイヤーは水の 6m 手前の乾いた地面、的 3 体（動かない、HP 10 万）は水の中。
 //                  初期の魔法（ファイアボール）で 5 秒撃つ → `pondmobs B lost <HP> hit <体数>`、2 秒 `pondmobs look b`
 //   `pondmobs done`
@@ -104,7 +104,7 @@ bool AutoTestPondMobs::FindPond()
 
 // 水たまり（4 近傍で繋がったマス）毎に：tilt = マスの真ん中の水面の高さの最高 − 最低（大きい = 坂の上で水面が傾いている）、
 // above = 水面の平均 − 岸（隣の乾いたマス）の地面の平均（> 0 = 水面が周りの地面より高い = 膨らみの上）
-// → `pondmobs ponds n cells c tiltMax tiltMean tilted(>0.3m) aboveMax raised(>0.05m)`（2026-10-28）
+// → `pondmobs ponds n cells c tiltMax tiltMean tilted(>0.3m) aboveMax raised(>0.05m)`
 void AutoTestPondMobs::MeasurePonds()
 {
     const int W = m_Grid.Width(), D = m_Grid.Depth();
@@ -273,7 +273,7 @@ void AutoTestPondMobs::Run()
                 m_StuckMax = (std::max)(m_StuckMax, stuck);
                 float maxAbs = 0.0f, up = 0.0f;
                 uint32_t moving = 0;
-                m_Water.DebugReadRipples(maxAbs, moving, &up);   // 雑魚の波紋（2026-10-28）
+                m_Water.DebugReadRipples(maxAbs, moving, &up);   // 雑魚の波紋
                 snprintf(line, sizeof(line), "pondmobs A t %.1f alive %d inWater %d near %d far %.1f stuck %d ripple %.4f up %.4f moving %u",
                     t, alive, inWater, nearN, farD, stuck, maxAbs, up, moving);
                 AutoTestLog(line);

@@ -2,8 +2,7 @@
 // EmitInit.hlsli
 // パーティクルをプールへ直接書く GPU 側のエミッタで共有する
 // （SwarmEmitCS: 弾 / 範囲 / 経験玉、GrassFireEmitCS:
-// 燃える草）。2026-10-12 に SwarmEmitCS から切り出した。火の
-// エミッタがパーティクル初期化の 40 行をコピーしないため。
+// 燃える草）。
 //
 //   StochasticCount          連続的な発生率から放出数を出す。ずれが溜まらない
 //   EmitShape                エミッタの形状から位置 / 速度を出す

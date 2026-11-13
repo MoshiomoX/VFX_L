@@ -1,14 +1,14 @@
 // ============================================================
 // CollisionTestSceneTitle.cpp
-// タイトル画面（TitleScene = m_TitleScene、2026-10-09 ユーザー：「タイトルとリザルトが不格好」→ 背景は遊ぶ場所そのもの）。
-//   ・地形は決まった seed の草原（kTitleSeed）。箱・門・磁石・HUD なし
+// タイトル画面（TitleScene = m_TitleScene。背景は遊ぶ場所そのもの）。
+//   ・地形は決まった seed の 3 つのマップ（kTitleSeed）。草原・砂漠・遺跡の場面を巡回する（CollisionTestSceneTitleShow.cpp）。箱・門・磁石・HUD なし
 //   ・プレイヤーは開始地点の近くの、周りが開けた平らな所に立つ（台地の上・崖の際・山頂・洞窟は避ける）
-//   ・戦いのスローモーション（同日ユーザー：「立っているだけでは意味が分からない」→「一番派手な場面のスローモーション + カメラの回転」）：
-//     背嚢にメテオ・魔導光線などを並べ（無敵・MP 無限）、周り全部から雑魚（一撃で砕ける）を寄せ続け、自動で撃って吹き飛ばす。体力バーは出さない。
+//   ・戦いのスローモーション：場面毎の魔法を背嚢に並べ（無敵・MP 無限）、周り全部から雑魚（一撃で砕ける）を寄せ続け、
+//     自動で撃って吹き飛ばす。体力バーは出さない。
 //     さらに kMeteorEvery 秒ごとにプレイヤーの周りの群れへメテオを落とす（いつ見ても爆発が開いている）。
 //     戦い（物理・アニメ・杖・GPU・粒子・範囲のエフェクト）は kSlowMo 倍の時間で進め、カメラは実時間でプレイヤーの周りを回る。
 //     操作は回さない（体は一番近い敵へ向ける）。湧きは MobSpawner でなく SpawnTitleEnemies
-//   ・午後遅くの光（天候は照明を上書きしない）、天候の出来事なし
+//   ・光と天候は場面毎（WeatherSystem の時刻を固定し、砂漠・遺跡は出来事を起こす）
 //   ・プレイヤーは画面の右寄り、左は名前とメニュー（TitleScreenUI）
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -41,12 +41,12 @@ namespace
 
     // ---- 戦いのスローモーション ----
     constexpr float kSlowMo = 0.22f;            // 戦いの時間の進み（実時間に掛ける）
-    constexpr float kDemoMinDist = 8.0f;        // 敵を出す所：プレイヤーから（m）。周り 360 度
+    constexpr float kDemoMinDist = 8.0f;        // 敵を出す所：プレイヤーから（m）。カメラの反対側の弧
     constexpr float kDemoMaxDist = 15.0f;
     constexpr uint32_t kDemoMaxAlive = 45;      // 場に居る数の上限
     constexpr float kDemoSpawnInterval = 0.25f; // 秒（戦いの時間）
     constexpr int   kDemoBatch = 3;             // 1 回に出す数
-    constexpr int   kDemoPrewarm = 40;          // 最初から出しておく数（始めから囲まれている）
+    constexpr float kDemoSpawnArcDeg = 220.0f;  // 出す所の弧の広さ（カメラの反対側を中心に）
     constexpr float kDemoHp = 5.0f;             // 雑魚の HP：何が当たっても一撃で砕ける（砕けて飛ぶ破片がスローで見える）
     constexpr float kDemoSpeedMul = 0.55f;      // 雑魚の速さ（普段の湧きの値に掛ける）。遅くして、プレイヤーに届く前に砕ける
     constexpr float kDemoTurnRate = 300.0f;     // 体を敵へ向ける速さ（度 / 秒、戦いの時間）
@@ -68,9 +68,8 @@ void CollisionTestScene::InitTitle()
 {
     auto& gfx = Application::Get().GetGraphics();
     m_Mobs.Director().enabled = false;   // 湧かない
-    PlaceTitleStand();
-    ApplyTitleLight(StageConfig::Get(1).light);
     InitTitleDemo();
+    InitTitleShow();   // 3 つの地形・最初の場面（立つ所・光・天候・魔法・敵）
 
     // ---- カメラ・メニュー・曲 ----
     m_TitleTime = 0.0f;
@@ -81,7 +80,7 @@ void CollisionTestScene::InitTitle()
 }
 
 // ============================================================
-// 立つ所とカメラの向きを選んでプレイヤーを置く（タイトル・ステージ選択で共用。2026-10-21 に InitTitle から分けた）
+// 立つ所とカメラの向きを選んでプレイヤーを置く（タイトル・ステージ選択で共用）
 // ============================================================
 void CollisionTestScene::PlaceTitleStand()
 {
@@ -270,6 +269,7 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
 
     m_Lighting.SubmitPointLights();
     SubmitTorchLights();
+    m_SpellFx.Bats().SubmitLights(m_WeaponSystem.GetBats());   // 吸血コウモリの弱い赤い光
 
     // ---- 背嚢 → 杖（最初のフレームに組み上がる）----
     m_BackpackAggregate.Update(m_Registry);
@@ -288,9 +288,10 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
         {
             m_Grass.AddGust(g.pos, g.radius, g.dir, g.length);
             m_Debris.AddGust(g.pos, g.radius, g.dir, g.length);
-            AddGustWindBurst(g.pos, g.dir, g.length, g.radius, true);
+            if (!g.noWind) AddGustWindBurst(g.pos, g.dir, g.length, g.radius, true);
         }
     }
+    if (demo) UpdateTitleTornadoes(gdt);   // 砂嵐の術師の砂旋
     m_PlayerAnimSystem.Update(m_Registry, gdt);
     m_SkinnedAnimSystem.Update(m_Registry, gdt);
     m_ClothChainSystem.Update(m_Registry, gdt);
@@ -300,12 +301,12 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
         const bool grounded = m_Registry.Has<RigidbodyComponent>(m_Player) && m_Registry.Get<RigidbodyComponent>(m_Player).isGrounded;
         m_Grass.Update(gdt, *pp, grounded, false);
     }
-    m_GrassFire.Tick(gdt);
+    m_GrassFire.Tick(demo ? dt : gdt);   // タイトルの火は実時間で広げる（スローのままだと炎が育たない）
     m_Sand.Tick(gdt);
     m_Miasma.Tick(gdt);
     m_Debris.Tick(gdt);
     m_Water.Tick(gdt);
-    UpdateWindToys(gdt);   // 転がり草・タンポポ（2026-10-22）
+    UpdateWindToys(gdt);   // 転がり草・タンポポ
     m_ManaSystem.Update(m_Registry, gdt);
 
     if (IsMenuScene()) UpdateTitleCamera(dt);   // プレイヤーの登場でも使う（カメラは演出が動かす）
@@ -331,7 +332,11 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
 // ============================================================
 void CollisionTestScene::UpdateTitle(float dt)
 {
+    // 右下の魔法の表が組み替えるのは景色のプレイヤーの背嚢
+    m_TitleUI.SetBackpack(m_Registry.IsValid(m_Player) && m_Registry.Has<BackpackComponent>(m_Player) ? &m_Registry.Get<BackpackComponent>(m_Player) : nullptr);
+    UpdateTitleCursorWind(dt);   // マウスの風（次の Flush で効く）
     UpdateTitleWorld(dt, true);
+    UpdateTitleShow(dt);         // 場面の巡回
 
     // TEMP-TEST: 動画の書き出し（VFXL_CAPTURE、自動テスト無し）：黒からの出だしから VFXL_TITLE_SECONDS 秒（既定 8）書き出して閉じる。
     // メニューと操作の案内は TitleScreenUI が描かない（作品紹介の動画のタイトル）
@@ -359,6 +364,7 @@ void CollisionTestScene::UpdateTitle(float dt)
     // ---- メニュー ----
     auto& sm = Application::Get().GetGame().GetSceneManager();
     int picked = m_TitleUI.Update(dt);
+    if (m_TitleUI.ConsumeSpellEdited()) m_TitleShow.userEdited = true;
     {
         // TEMP-TEST: VFXL_TITLE_AUTOPICK=<0..1> で 4 秒後にその項目を選ぶ（タイトル → 戦闘 / 実験場の切替の確認。キーを送らない）
         static bool s_Done = false;
@@ -373,13 +379,13 @@ void CollisionTestScene::UpdateTitle(float dt)
     {
     case TitleScreenUI::kStart:
         g_RunCarry.Reset();
-        sm.RequestChangeScene(SceneType::STAGE_SELECT);   // マップ × Tier を選んでから出発（2026-10-21、Megabonk に倣う）
+        sm.RequestChangeScene(SceneType::STAGE_SELECT);   // マップ × Tier を選んでから出発
         break;
     case TitleScreenUI::kTraining:
         sm.RequestChangeScene(SceneType::SPELL_LAB);
         break;
     case TitleScreenUI::kQuit:
-        PostQuitMessage(0);   // 窓の × と同じ終わり方（Esc での即終了は 2026-10-04 に外した）
+        PostQuitMessage(0);   // 窓の × と同じ終わり方
         break;
     default:
         break;
@@ -387,9 +393,7 @@ void CollisionTestScene::UpdateTitle(float dt)
 }
 
 // ============================================================
-// 戦いの見本：背嚢に見栄えのする魔法を並べる（shapes 自動テストと同じ並び。全マスに枠）。
-//   メテオ（ファイアボール + ストーンショット）・魔導光線（ホーミングボルト + アークボルト）・毒・黄金の矢
-// 無敵・MP 無限。曲はタイトルのまま（爆発・命中の音だけ鳴らす）。最初から囲まれているよう近めに出しておく
+// 戦いの見本の共通の準備：無敵・MP 無限・体力バーと着弾の輪を出さない。曲はタイトルのまま（爆発・命中の音だけ鳴らす）
 // ============================================================
 void CollisionTestScene::InitTitleDemo()
 {
@@ -404,95 +408,7 @@ void CollisionTestScene::InitTitleDemo()
     }
     if (m_Registry.Has<WandComponent>(m_Player))
         m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
-    if (m_Registry.Has<BackpackComponent>(m_Player))
-    {
-        auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
-        bp.frames.clear();
-        BackpackLogic::RebuildFrameOccupancy(bp);
-        for (int r = 0; r < BackpackComponent::GRID; ++r)
-            for (int c = 0; c < BackpackComponent::GRID; ++c)
-                BackpackLogic::PlaceFrame(bp, ItemID::Frame3x3, r, c, 0);
-        while (!bp.items.empty())
-            BackpackLogic::Remove(bp, (int)bp.items.size() - 1);
-
-        struct P { ItemID id; int r, c; };
-        const P layout[] = {
-            { ItemID::Meteor, 2, 2 },        // 十字
-            { ItemID::Fireball, 0, 3 },      // メテオの上の腕の右
-            { ItemID::StoneShot, 3, 1 },     // メテオの左の腕の下
-            { ItemID::Beam, 6, 5 },          // 横 3
-            { ItemID::HomingBolt, 5, 4 },    // 光線の上
-            { ItemID::ArcBolt, 7, 6 },       // 光線の下
-            { ItemID::Poison, 1, 7 },        // 猛毒の沼（2026-10-17 から上級魔法）：(0,7)(1,6)(1,7)(1,8)
-            { ItemID::GoldenArrow, 3, 8 },
-            { ItemID::Swamp, 2, 7 },         // (2,7)(2,8)：上 = 沼 (1,7)(1,8)
-            { ItemID::Spore, 2, 6 },         // 縦 2 (2,6)(3,6)：上 = 沼 (1,6)
-        };
-        int index[(int)std::size(layout)];
-        for (int i = 0; i < (int)std::size(layout); ++i)
-            index[i] = BackpackLogic::Place(bp, layout[i].id, layout[i].r, layout[i].c, 0);
-
-        // ---- 機能ルーン（同日ユーザー：「魔法を挟んだだけ。機能型の魔法も足して、もっと派手に」）----
-        // メテオは分裂（一度に輪になって落ちる）+ 二重詠唱 + 拡大鏡（大きい爆発）、弾は分裂で扇に、光線は加速で回数を増やす。
-        // 置き場所は総当たり：空いたマス × 4 向きに仮に置き、狙いの魔法に影響が届く所のうち、
-        // 影響を受ける魔法の数が一番多い所に残す（届かなければ置かない）
-        struct R { ItemID rune; int target; };   // target = layout の番号
-        const R runes[] = {
-            { ItemID::SplitRune, 0 }, { ItemID::DoubleCastRune, 0 }, { ItemID::Magnifier, 0 },
-            { ItemID::SplitRune, 4 }, { ItemID::SplitRune, 7 }, { ItemID::HasteRune, 3 },
-            { ItemID::Magnifier, 6 }, { ItemID::DoubleCastRune, 5 }, { ItemID::HasteRune, 1 },
-            { ItemID::SplitRune, 2 },
-        };
-        auto influences = [&](int runeIdx, int item)
-            {
-                if (item < 0) return false;
-                const std::vector<int> inf = BackpackLogic::GetInfluencers(bp, item);
-                return std::find(inf.begin(), inf.end(), runeIdx) != inf.end();
-            };
-        int placedRunes = 0;
-        for (const R& rr : runes)
-        {
-            const int target = index[rr.target];
-            if (target < 0) continue;
-            int bestR = -1, bestC = -1, bestRot = 0, bestCount = 0;
-            for (int r = 0; r < BackpackComponent::GRID; ++r)
-                for (int c = 0; c < BackpackComponent::GRID; ++c)
-                    for (int rot = 0; rot < 4; ++rot)
-                    {
-                        if (!BackpackLogic::CanPlace(bp, rr.rune, r, c, rot)) continue;
-                        const int ri = BackpackLogic::Place(bp, rr.rune, r, c, rot);
-                        if (ri < 0) continue;
-                        int count = 0;
-                        if (influences(ri, target))
-                            for (int k = 0; k < (int)std::size(layout); ++k) count += influences(ri, index[k]) ? 1 : 0;
-                        BackpackLogic::Remove(bp, ri);   // 一番後ろなので他の番号は変わらない
-                        if (count > bestCount) { bestCount = count; bestR = r; bestC = c; bestRot = rot; }
-                    }
-            if (bestCount > 0 && BackpackLogic::Place(bp, rr.rune, bestR, bestC, bestRot) >= 0) ++placedRunes;
-        }
-        std::cout << "[Title] runes placed " << placedRunes << " / " << std::size(runes) << std::endl;
-        bp.dirty = true;
-
-        // TEMP-TEST: VFXL_TITLE_LOG=1 で並べた物（場所・受けている影響の数）を autotest.log へ
-        char env[8] = {};
-        if (GetEnvironmentVariableA("VFXL_TITLE_LOG", env, sizeof(env)) > 0)
-        {
-            char line[128];
-            snprintf(line, sizeof(line), "title runes placed %d / %d", placedRunes, (int)std::size(runes));
-            AutoTestLog(line);
-            for (int i = 0; i < (int)bp.items.size(); ++i)
-            {
-                const PlacedItem& it = bp.items[i];
-                std::string inf;
-                for (int k : BackpackLogic::GetInfluencers(bp, i)) inf += " " + std::to_string((int)bp.items[k].id);
-                snprintf(line, sizeof(line), "title item %d id %d at %d,%d rot %d influencers [%s ]", i, (int)it.id, it.row, it.col, it.rotation, inf.c_str());
-                AutoTestLog(line);
-            }
-        }
-    }
-    m_TitleSpawnTimer = 0.0f;
-    m_TitleMeteorTimer = 0.3f;
-    SpawnTitleEnemies(kDemoPrewarm, 6.0f, kDemoMaxDist);
+    // 背嚢の魔法と最初の敵は場面毎（StartTitleVignette）
 }
 
 // ============================================================
@@ -553,16 +469,18 @@ void CollisionTestScene::UpdateTitleDemo(float dt)
     }
 }
 
-// プレイヤーの周り 360 度（minDist〜maxDist m）の歩けるマスに雑魚を出す。HP は一撃で砕ける kDemoHp、速さは普段 × kDemoSpeedMul
+// プレイヤーの周り（カメラの反対側の kDemoSpawnArcDeg 度、minDist〜maxDist m）の歩けるマスに雑魚を出す。HP は一撃で砕ける kDemoHp、速さは普段 × kDemoSpeedMul
 void CollisionTestScene::SpawnTitleEnemies(int count, float minDist, float maxDist)
 {
     const Vector3* pp = PlayerPos();
     if (!pp) return;
     const float gy = m_Swarm.GetAIParams().groundY;
+    // カメラの反対側（画面の奥）の弧から出す：手前に出るとメニューの文字に重なる
+    const float camYaw = DirectX::XMConvertToRadians(m_TitleFacing + kOrbitSpeedDeg * m_TitleTime);
     for (int i = 0; i < count; ++i)
         for (int tries = 0; tries < 6; ++tries)
         {
-            const float yaw = Rand01() * DirectX::XM_2PI;
+            const float yaw = camYaw + DirectX::XM_PI + (Rand01() - 0.5f) * DirectX::XMConvertToRadians(kDemoSpawnArcDeg);
             const float dist = minDist + (maxDist - minDist) * Rand01();
             const float x = pp->x + std::sin(yaw) * dist;
             const float z = pp->z + std::cos(yaw) * dist;

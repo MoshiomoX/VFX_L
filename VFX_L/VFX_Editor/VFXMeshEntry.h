@@ -24,7 +24,7 @@ public:
     json ToJson() const override;
     void FromJson(const json& j) override;
 
-    // 出現 / 消える途中の度合い（2026-10-22、竜巻。ユーザー「出る時と消える時が急すぎる」）。保存しない。
+    // 出現 / 消える途中の度合い（竜巻）。保存しない。
     // VFXEffect::SetPresence が duration < 0 の（ずっと出ている）entry にだけ入れる。1 = 普段どおり。
     //   出る時（leaving = false）：足元から伸び上がる（高さが先に、太さと不透明度が後から付いてくる。溶解は全部溶けた所から戻る）
     //   消える時（leaving = true）：細くなりながら少し伸びて、溶解が進んで上へほどける
@@ -59,10 +59,10 @@ public:
     float intensity = 1.0f;                                     // HDR。>1 で bloom
     int   blend = 0;                                            // 0 additive / 1 alpha
     bool  twoSided = true;
-    // 球らしさ（2026-10-06、水晶玉の光球）：0 = 従来どおり平坦、1 = 固定の光の向きで二段の陰影 + 縁の光 + 小さな高光。
+    // 球らしさ（水晶玉の光球）：0 = 平坦、1 = 固定の光の向きで二段の陰影 + 縁の光 + 小さな高光。
     // 場の光は読まない（見た目だけ）。モデルは "@sphere" で組み込みの球（ファイル無し）が使える
     float shade = 0.0f;
-    // 模型の頂点色を掛けるか（2026-10-07）。貼り絵の無い FBX は材質の色が頂点色に焼かれていて、tint を掛けても
+    // モデルの頂点色を掛けるか。テクスチャの無い FBX は材質の色が頂点色に焼かれていて、tint を掛けても
     // その色に寄る（fanghuzhao2 は濃い青で赤が 0）。false で tint の色そのものになる（json "vertexColor": false）
     bool  vertexColor = true;
     void Tint(const DirectX::SimpleMath::Vector3& c) override { tint.x *= c.x; tint.y *= c.y; tint.z *= c.z; }

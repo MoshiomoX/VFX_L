@@ -10,7 +10,7 @@
 //
 // 動き：パーツアニメ表（b4 / t3、SwarmEnemyAnimCB 参照）があれば
 // パーツが idle / walk / attack を再生する。無い場合（1 フレームに焼いた
-// スキニングモデル、例：KayKit Minion）は旧来のプロシージャルな揺れを使う。
+// スキニングモデル、例：KayKit Minion）はプロシージャルな揺れを使う。
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
@@ -25,11 +25,11 @@ Buffer<uint> enemyStates : register(t1);
 // C++ 側は描画中の種類の一覧（雑魚、次に自爆兵）をバインドする
 StructuredBuffer<uint> aliveList : register(t2);
 // スロットごとの種類 + 導火線：点火した自爆兵はだんだん速く点滅して膨らみ、
-// 突撃兵は溜めの間は赤く点滅する（2026-10-08）
+// 突撃兵は溜めの間は赤く点滅する
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 // スロットごとの減速 + 凍結（z > 0 = アイスランスで凍結中：ポーズが止まり、体が氷色になる）
 StructuredBuffer<float4> enemySlow : register(t4);
-// スロットごとの溜まった毒素（x = まだ削る残りダメージ、毒沼、2026-10-17）：体が病的な緑になる
+// スロットごとの溜まった毒素（x = まだ削る残りダメージ、毒沼）：体が病的な緑になる
 StructuredBuffer<float4> enemyPoison : register(t6);
 #define SWARM_ICE_MAP_REG t7
 #define SWARM_POND_TOP_REG t8
@@ -46,10 +46,10 @@ static const float kChargeBlinkEnd = 12.0;
 static const float3 kIceTint = float3(0.75, 1.05, 1.7);
 // エリート：共通のゾンビテクスチャに暗い赤を乗せる
 static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
-// ボス：g_BossTint（BomberCB、ステージごと：草原は紫、砂漠は砂岩色。2026-10-24）
+// ボス：g_BossTint（BomberCB、ステージごと：草原は紫、砂漠は砂岩色）
 // 幽霊：半透明の青白、アルファブレンドで描く（SwarmSystem がこの一覧を最後に描く）
 static const float3 kGhostTint = float3(0.55, 1.25, 1.6);
-// 黒幽霊（2026-10-18）：黒に近い紫、より不透明、ゆっくりした紫の脈動付き
+// 黒幽霊：黒に近い紫、より不透明、ゆっくりした紫の脈動付き
 static const float3 kDarkGhostTint = float3(0.10, 0.03, 0.24);
 
 // ---- 剛体パーツアニメ（パーツがアニメするノードにぶら下がるモデル、
@@ -64,16 +64,16 @@ cbuffer SwarmEnemyAnimCB : register(b4)
     uint g_AnimPart;       // 描画中のサブメッシュ
     uint g_AnimPartCount;
     uint g_AnimEnabled;    // 0 = 表なし：プロシージャルな揺れに戻す
-    uint g_AnimMode;       // 0 = パーツ g_AnimPart と一緒に動く、1 = 体の軸の周りを回るボスの飾り（2026-10-24）；2 翼、3 尾 / 首、4 脚、5 虫の脚、6 浮遊する魔神のパーツ（2026-10-29）
+    uint g_AnimMode;       // 0 = パーツ g_AnimPart と一緒に動く、1 = 体の軸の周りを回るボスの飾り；2 翼、3 尾 / 首、4 脚、5 虫の脚、6 浮遊する魔神のパーツ
     uint4 g_ClipStart;     // 表の中での各クリップの先頭フレーム
     uint4 g_ClipFrames;
     float4 g_ClipLength;   // 秒
     float g_AnimTime;      // idle 用の時計（秒）
     float g_WalkRate;      // 歩きの再生速度
     float g_OrbitSpeed;    // g_AnimMode 1 用の rad/s
-    float g_Hunch;         // 狼人の猫背（2026-10-27）：パーツ自身の動きの前に、腰（g_Hinge.xyz）を軸に前へ倒す rad。0 = なし
-    float4 g_Flap;         // g_AnimMode 2（石像鬼の翼、2026-10-25）：ヒンジ（焼いたメッシュ空間）xyz、w = +1 右翼 / -1 左翼
-    float4 g_Hinge;        // g_AnimMode 4 の第 2 関節（2026-10-27、狼人の膝）：xyz、w = 脚を上げる間の曲げ rad（0 = なし）。g_Hunch がある時：xyz = 腰
+    float g_Hunch;         // 狼人の猫背：パーツ自身の動きの前に、腰（g_Hinge.xyz）を軸に前へ倒す rad。0 = なし
+    float4 g_Flap;         // g_AnimMode 2（石像鬼の翼）：ヒンジ（焼いたメッシュ空間）xyz、w = +1 右翼 / -1 左翼
+    float4 g_Hinge;        // g_AnimMode 4 の第 2 関節（狼人の膝）：xyz、w = 脚を上げる間の曲げ rad（0 = なし）。g_Hunch がある時：xyz = 腰
 };
 
 struct PartXform
@@ -155,16 +155,16 @@ VS_OUTPUT main(VS_INPUT_INST input)
     SwarmEnemyExtra extra = enemyExtra[slot];
     float4 status = enemySlow[slot];
     bool frozen = status.z > 0.0;
-    // 眠っている石像鬼は石像：一切動かない（2026-10-25）。目覚めの最初の部分は震えるだけ
+    // 眠っている石像鬼は石像：一切動かない。目覚めの最初の部分は震えるだけ
     bool statue = (extra.kind == SWARM_KIND_GARGOYLE) && extra.fuse < 0.35 * g_GargoyleWakeTime;
-    // ---- 雷鳴の雄鹿の突進（2026-10-26、BossAttacks からの g_BossChargePose）：0..1 溜め、1 突進中、1..1.3 命中時の
+    // ---- 雷鳴の雄鹿の突進（BossAttacks からの g_BossChargePose）：0..1 溜め、1 突進中、1..1.3 命中時の
     //      頭の振り上げ、その後 1 -> 0。ポーズ > 0 になるのは四足のボスだけ ----
     float cpose = (extra.kind == SWARM_KIND_BOSS) ? g_BossChargePose : 0.0;
     float headDown = min(cpose, 1.0);                 // 頭を下げる（角を前へ）、角が光る
     float headToss = saturate((cpose - 1.0) / 0.3);   // 命中で振り上げる
     float dashK = saturate((cpose - 0.85) / 0.15);    // 突進中は 1：前傾、速い足運び
     bool bracing = (extra.kind == SWARM_KIND_BOSS) && (g_BossChargeOn > 0.5) && (g_BossChargeSpeed <= 0.0);   // 溜めで踏ん張っている
-    // 面の固定エリート（2026-10-25）：CPU のフラグ（攻撃ループ、回転、狂暴）と溜めの光
+    // 面の固定エリート：CPU のフラグ（攻撃ループ、回転、狂暴）と溜めの光
     uint eliteFlags = 0u;
     float eliteGlow = 0.0;
     if (SwarmIsFixedElite(extra.kind))
@@ -180,16 +180,16 @@ VS_OUTPUT main(VS_INPUT_INST input)
     if ((eliteFlags & SWARM_ELITE_SPIN) != 0u)
         sincos(e.yaw + g_AnimTime * 15.0, s, c);   // 大斧の回転斬り：体ごと回る
     if (extra.kind == SWARM_KIND_BOSS && g_BossSpin != 0.0)
-        sincos(e.yaw + g_BossSpin, s, c);   // 石の守護獣の尾の薙ぎ払い（2026-10-29）：CPU から 1 周分
+        sincos(e.yaw + g_BossSpin, s, c);   // 石の守護獣の尾の薙ぎ払い：CPU から 1 周分
 
-    // ---- 石像鬼の翼（g_AnimMode 2、2026-10-25）：パーツ自身のアニメの前に、ヒンジを通る前向きの軸で回す。
+    // ---- 石像鬼の翼（g_AnimMode 2）：パーツ自身のアニメの前に、ヒンジを通る前向きの軸で回す。
     //      石像 / 着地中は垂れ、空中では羽ばたき、急降下中は上に畳む ----
-    // 狼人の猫背（g_Hunch != 0、2026-10-27）：走っている間は深くなる（手足の振りの後で下で適用）
+    // 狼人の猫背（g_Hunch != 0）：走っている間は深くなる（手足の振りの後で下で適用）
     float hunchEff = 0.0;
     if (g_Hunch != 0.0)
         hunchEff = g_Hunch * (1.0 + 0.45 * ((frozen || statue) ? 0.0 : saturate(length(e.velocity.xz) / 2.5)));
-    // プロシージャルな二足歩行（狼人、2026-10-27）：どのパーツも g_Hunch（上半身）か膝（脚）を持つ。Kenney のパーツ
-    // クリップでは動かさない（胴の上下と捻りで猫背の体と脚がぐらついた）。代わりに、軸足の振りで持ち上がる分だけ
+    // プロシージャルな二足歩行（狼人）：どのパーツも g_Hunch（上半身）か膝（脚）を持つ。Kenney のパーツ
+    // クリップでは動かさない（胴の上下と捻りで猫背の体と脚がぐらつく）。代わりに、軸足の振りで持ち上がる分だけ
     // 体全体を沈め、片足が常に地面に着くようにする（腰は足の 0.43 上）
     bool biped = (g_Hunch != 0.0) || (g_AnimMode == 4u && g_Hinge.w > 0.0);
     float bipedDrop = 0.0;
@@ -206,7 +206,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     {
         float ang = -0.25;
         if (extra.kind == SWARM_KIND_BOSS)
-            ang = g_BossWing;   // 石の守護獣の翼（2026-10-29）：羽ばたき / 上げる / 畳むのは CPU が決める
+            ang = g_BossWing;   // 石の守護獣の翼：羽ばたき / 上げる / 畳むのは CPU が決める
         else if (SwarmGargoyleAirborne(extra))
         {
             if (extra.fuse >= SWARM_GARGOYLE_DIVE)
@@ -225,7 +225,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
-    // ---- サソリの尾（g_AnimMode 3、2026-10-26）：胴自身のアニメの前に、ヒンジ（g_Flap.xyz）を通る横軸で縦に回す。
+    // ---- サソリの尾（g_AnimMode 3）：胴自身のアニメの前に、ヒンジ（g_Flap.xyz）を通る横軸で縦に回す。
     //      ゆっくり揺れ、近接の振りで頭越しに前へしなり（g_Flap.w rad、
     //      攻撃クリップと同じタイミング）、その後戻る ----
     if (g_AnimMode == 3u)
@@ -250,13 +250,13 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
-    // ---- 四足の脚（g_AnimMode 4、2026-10-26、雄鹿）：自分の付け根（g_Flap.xyz）を通る横軸で、歩き時計に合わせて
+    // ---- 四足の脚（g_AnimMode 4、雄鹿）：自分の付け根（g_Flap.xyz）を通る横軸で、歩き時計に合わせて
     //      振る。位相 g_Flap.w（左前 + 右後が 0、もう一対が pi）。立っている間は
     //      まっすぐ。胴自身のアニメ（上下動）はこの後に掛かる ----
     if (g_AnimMode == 4u)
     {
         float ang = 0.0;
-        float bend = 0.0;   // 狼人の膝（g_Hinge.w > 0、2026-10-27）：脚を前へ振る（持ち上げる）間に折れる
+        float bend = 0.0;   // 狼人の膝（g_Hinge.w > 0）：脚を前へ振る（持ち上げる）間に折れる
         if (moving && !frozen)
         {
             float stride = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);   // 歩きのループ数 = 歩数
@@ -273,9 +273,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
             ang = 0.22 * headDown * ((g_Flap.z > 0.0) ? -1.0 : 1.0);
         }
         // 猫背の二足の腕（g_Hunch != 0、狼人）：肩を軸に猫背の半分だけ戻し、手が膝の横に
-        // 垂れるようにする（全量戻すと手がずっと前方にぶら下がった、2026-10-27）。歩きの
-        // 振りは脚の 0.6（0.3 だと左右の腕が同じに見えた）。近接の振りはクリップの前半で左爪、
-        // 後半で右爪を出す（同時だと片腕に見えた）
+        // 垂れるようにする。歩きの振りは脚の 0.6。近接の振りはクリップの前半で左爪、
+        // 後半で右爪を出す
         if (g_Hunch != 0.0)
             ang = ang * 0.6 - 0.5 * hunchEff;
         if (g_Hunch != 0.0 && e.attackCooldown > 0.0)
@@ -308,7 +307,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
-    // ---- 虫の脚（g_AnimMode 5、2026-10-26、サソリ）：自分の付け根（g_Flap.xyz）を通る「縦」軸で、歩き時計に合わせて
+    // ---- 虫の脚（g_AnimMode 5、サソリ）：自分の付け根（g_Flap.xyz）を通る「縦」軸で、歩き時計に合わせて
     //      前後に掃く。位相 g_Flap.w（三脚歩行：左右それぞれ 1 本おき）。前へ振る間（戻りのストローク）は
     //      少し持ち上げる。+x 側の脚は負の角度で前へ掃く ----
     if (g_AnimMode == 5u)
@@ -334,14 +333,13 @@ VS_OUTPUT main(VS_INPUT_INST input)
         tangent = inTan;
     }
 
-    // ---- 浮遊する魔神のパーツ（g_AnimMode 6、2026-10-29）：パーツクリップなし（歩かず、砂の渦の上に
+    // ---- 浮遊する魔神のパーツ（g_AnimMode 6）：パーツクリップなし（歩かず、砂の渦の上に
     //      浮いている）。g_Flap.w != 0 = 腕：肩（g_Flap.xyz）を通る横軸で縦に回す：
     //      少し揺れ（肘のある腕は揺れない）、詠唱で g_Flap.w rad 上げ（g_BossChargePose 0..1）、叩きつけでその 0.25 まで
     //      振り下ろす = 前下方（pose 1..1.3）、接触攻撃では前へ振る（攻撃クリップのタイミング） ----
     if (g_AnimMode == 6u && g_Flap.w != 0.0)
     {
-        // 肘のある腕（g_Hinge.w != 0、骸の王、2026-10-29）は地面に着いている：待機の揺れなし
-        // （揺らすとまっすぐな腕がずっと手を振っているように見えた）
+        // 肘のある腕（g_Hinge.w != 0、骸の王）は地面に着いている：待機の揺れなし
         float ang = (g_Hinge.w != 0.0) ? 0.0 : 0.10 * sin(g_AnimTime * 1.3 + phaseOffset + g_Flap.x * 1.7);
         float lift = headDown - 0.75 * headToss;
         ang += g_Flap.w * lift;
@@ -350,7 +348,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         if (e.attackCooldown > 0.0 && sinceSwing < g_ClipLength.z)
             swing = sin(saturate(sinceSwing / max(g_ClipLength.z, 0.05)) * 3.14159);
         ang += 0.5 * g_Flap.w * swing;
-        // ---- 肘（2026-10-29、ユーザー：「腕を上げる時は肘を曲げて、まっすぐ振るのは気持ち悪い」）：前腕
+        // ---- 肘：前腕
         //      （上腕に直交し g_Hinge.xyz を通る面より先）を、腕が上がるにつれて（接触攻撃の振りでも）肘を通る横軸で
         //      g_Hinge.w rad 折る。肩で腕全体を回す前に行う ----
         if (g_Hinge.w != 0.0)
@@ -375,7 +373,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         inTan.yz = float2(inTan.y * ac - inTan.z * as, inTan.y * as + inTan.z * ac);
     }
 
-    // ---- 狼人の猫背（g_Hunch != 0、2026-10-27）：パーツ（胴 / 頭 / 腕、上で振り済み）を、パーツ自身の動きの前に
+    // ---- 狼人の猫背（g_Hunch != 0）：パーツ（胴 / 頭 / 腕、上で振り済み）を、パーツ自身の動きの前に
     //      腰（g_Hinge.yz）を軸に前へ倒す。走っている間は深くなる（速度でなめらかに変わる） ----
     if (g_Hunch != 0.0)
     {
@@ -392,7 +390,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
 
     if (g_AnimMode == 1u)
     {
-        // ---- 体の周りを回るボスの飾り（砂の守護者の浮遊岩、2026-10-24）：輪全体を縦軸の周りに
+        // ---- 体の周りを回るボスの飾り（砂の守護者の浮遊岩）：輪全体を縦軸の周りに
         //      回し、少し上下させる。体と一緒には凍らない：手足ではなく魔法だから ----
         float a = g_AnimTime * g_OrbitSpeed;
         float os, oc;
@@ -489,7 +487,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y += bounce;
     }
 
-    // ---- 雷鳴の雄鹿の突進（2026-10-26）：体全体（飾りもすべてここを通る）が溜めで少し屈み、
+    // ---- 雷鳴の雄鹿の突進：体全体（飾りもすべてここを通る）が溜めで少し屈み、
     //      突進中は腰を軸に前傾する。腰 = 焼いたメッシュ空間で (y 0.5, z -0.6)
     //      （雄鹿の 1.15 倍スケール後の後脚のヒンジ） ----
     if (cpose > 0.0)
@@ -522,7 +520,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y = footY + (local.y - footY) * kindScale;
     }
 
-    // ---- 固定エリート：狂暴時は大きく、消える時は地面に縮んで潜る（影の剣士、2026-10-25） ----
+    // ---- 固定エリート：狂暴時は大きく、消える時は地面に縮んで潜る（影の剣士） ----
     if (SwarmIsFixedElite(extra.kind))
     {
         float hide = saturate(-extra.fuse);
@@ -533,7 +531,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
 
     // ---- 点火した自爆兵：爆発に向けて膨らむ、足元を基点に ----
-    bool lit = SwarmInvulnerable(extra);   // 点火した自爆兵 / 突撃爆弾兵（2026-10-18）
+    bool lit = SwarmInvulnerable(extra);   // 点火した自爆兵 / 突撃爆弾兵
     float fuseT = (extra.kind == SWARM_KIND_DASHBOMBER) ? g_DashBomberWindup + g_DashBomberFuse : g_BomberFuseTime;
     float fuseU = lit ? saturate(extra.fuse / max(fuseT, 1e-3)) : 0.0;
     if (lit)
@@ -544,7 +542,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         local.y = footY + (local.y - footY) * grow;
     }
 
-    // ---- 砂潜り：潜っている間は体が砂の下、浮上する時にせり上がり、また沈む（2026-10-17） ----
+    // ---- 砂潜り：潜っている間は体が砂の下、浮上する時にせり上がり、また沈む ----
     if (extra.kind == SWARM_KIND_BURROWER)
     {
         float down = (extra.fuse > 0.0) ? 1.0 - saturate((g_BurrowSurfaceTime - extra.fuse) / SWARM_BURROW_RISE_TIME)
@@ -552,7 +550,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         float bodyH = (g_EnemyRadius + g_EnemyCapsuleHalf) * 2.0 * kindScale + 0.6;
         local.y -= bodyH * down;
     }
-    // ---- 砂の守護者の潜砂（2026-10-24）：fuse = -burrow 0..1（AICS が g_BossBurrow から書く）、体は同じように沈む ----
+    // ---- 砂の守護者の潜砂：fuse = -burrow 0..1（AICS が g_BossBurrow から書く）、体は同じように沈む ----
     if (extra.kind == SWARM_KIND_BOSS && extra.fuse < 0.0)
     {
         float bodyH = (g_EnemyRadius + g_EnemyCapsuleHalf) * 2.0 * kindScale + 0.6;
@@ -568,7 +566,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     // 幽霊：浮いて上下する（ゲーム上の位置は地面のまま）
     if (SwarmIsGhost(extra.kind))
         worldPos.y += g_GhostHover + 0.15 * sin(g_AnimTime * 3.0 + (float) slot * 0.7);
-    // 目覚める石像鬼は石を振り落とすように震える（2026-10-25）
+    // 目覚める石像鬼は石を振り落とすように震える
     if (extra.kind == SWARM_KIND_GARGOYLE && extra.fuse > 0.0 && extra.fuse < 0.35 * g_GargoyleWakeTime)
     {
         float k = 0.06 * (1.0 - extra.fuse / (0.35 * g_GargoyleWakeTime + 1e-3));
@@ -586,8 +584,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     else if (extra.kind == SWARM_KIND_BOSS)
     {
         o.Color.rgb *= g_BossTint;
-        // 雷鳴の雄鹿：光る部分（HDR の頂点色 = 角の縁と目）が溜めと突進の間に
-        // 強く光る（2026-10-26）
+        // 雷鳴の雄鹿：光る部分（HDR の頂点色 = 角の縁と目）が溜めと突進の間に強く光る
         float glowy = max(max(input.Color.r, input.Color.g), input.Color.b);
         if (glowy > 1.2)
             o.Color.rgb *= 1.0 + 1.0 * headDown;
@@ -641,7 +638,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
             o.Color.rgb *= float3(1.8, 0.6, 0.5);
     }
 
-    // ---- 砂嵐の術師：溜めの間に砂色の光が強まり、砂旋が出る直前に最後に光る（2026-10-17） ----
+    // ---- 砂嵐の術師：溜めの間に砂色の光が強まり、砂旋が出る直前に最後に光る ----
     if (extra.kind == SWARM_KIND_SANDMAGE && extra.fuse > 0.0)
     {
         float u = saturate(extra.fuse / max(g_SandMageWindup, 1e-3));
@@ -650,7 +647,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         o.Color.rgb *= float3(g, g * 0.85, 1.0 + (g - 1.0) * 0.3);
     }
 
-    // ---- 遺跡の敵（2026-10-25） ----
+    // ---- 遺跡の敵 ----
     // 眠っている石像鬼：くすんだ灰色の石像（光る目も消える）、目覚めると色が戻る
     if (statue)
     {
@@ -675,7 +672,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     // 蘇った呪いの鎧：ゆっくりした紫の脈動（一度蘇った印）
     if (extra.kind == SWARM_KIND_ARMOR2)
         o.Color.rgb *= float3(1.15, 0.8, 1.45) * (0.9 + 0.25 * sin(g_AnimTime * 3.0 + (float) slot));
-    // 固定エリート（2026-10-25）：狂暴 = 赤い脈動、技の溜め = 命中に向けて明るくなる熱いちらつき
+    // 固定エリート：狂暴 = 赤い脈動、技の溜め = 命中に向けて明るくなる熱いちらつき
     if ((eliteFlags & SWARM_ELITE_ENRAGED) != 0u)
         o.Color.rgb *= float3(1.55, 0.6, 0.5) * (0.9 + 0.2 * sin(g_AnimTime * 7.0 + (float) slot));
     if (eliteGlow > 0.0)

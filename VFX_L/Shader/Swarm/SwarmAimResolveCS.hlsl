@@ -10,7 +10,7 @@
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 RWByteAddressBuffer counters : register(u0);
-// 単純に一番近い敵（2026-10-27、MoveCS の u4）：+0 キー、+4 位置、+16 距離。キーは次のステップのためにここでリセットする
+// 単純に一番近い敵（MoveCS の u4）：+0 キー、+4 位置、+16 距離。キーは次のステップのためにここでリセットする
 RWByteAddressBuffer closeTarget : register(u1);
 
 [numthreads(1, 1, 1)]
@@ -29,7 +29,7 @@ void main()
             closeTarget.Store(16, asuint(sqrt(cp.x * cp.x + cp.z * cp.z)));
         }
         closeTarget.Store(0, SWARM_NO_TARGET_KEY);
-        // このステップで 10m 以内の敵の数（MoveCS の +20）-> CPU 用に +24 へ、+20 は 0 に戻す（2026-11-02、スマートカメラ）
+        // このステップで 10m 以内の敵の数（MoveCS の +20）-> CPU 用に +24 へ、+20 は 0 に戻す（スマートカメラ用）
         closeTarget.Store(24, closeTarget.Load(20));
         closeTarget.Store(20, 0u);
     }

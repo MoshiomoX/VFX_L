@@ -22,7 +22,7 @@ namespace
     constexpr float kOpenDelay = 0.3f;    // 開いてから決定を受けるまで（秒）
     constexpr float kSwitchDelay = 0.12f; // マップのカーソルが止まってから景色を切り替えるまで（秒。預けてある地形を出すだけなので短い）
 
-    // マップの一言と、未解放の時の条件（Megabonk の「Beginner-Friendly / Advanced Challenge」に倣う）
+    // マップの一言と、未解放の時の条件
     const wchar_t* MapBlurb(int map)
     {
         switch (map)
@@ -123,7 +123,7 @@ void StageSelectUI::SelectMap(int map)
     if (map == m_Map) return;
     m_Map = map;
     m_Tier = std::clamp(m_Tier, 1, StageConfig::MaxTier(m_Map));
-    // 開いている一番高い Tier を初期値に（Megabonk は前回の選択を覚えるが、閉じた Tier を指したままにはしない）
+    // 開いている一番高い Tier を初期値に（閉じた Tier を指したままにはしない）
     const auto& p = GameProgress::Get();
     while (m_Tier > 1 && !p.IsTierOpen(m_Map, m_Tier)) --m_Tier;
     m_MapChanged = true;
@@ -198,7 +198,7 @@ int StageSelectUI::Update(float dt)
     else if (right) MoveTier(+1);
     else if (confirm) return TryStart() ? kStart : kNone;
 
-    // ---- マウス：hover では選ばない（触れる度に地形を作り直すと重い。2026-10-21）。クリックで行・箱・ボタン ----
+    // ---- マウス：hover では選ばない（触れる度に地形を作り直すと重い）。クリックで行・箱・ボタン ----
     const DirectX::XMFLOAT2 mp = input.GetMousePos();
     const Vector2 mouse(mp.x, mp.y);
     m_LastMouse = mouse;
@@ -229,7 +229,7 @@ std::wstring StageSelectUI::TierDescription(int tier) const
         swprintf_s(buf, L"Tier %d をクリアすると解放", tier - 1);
         return buf;
     }
-    // 続く面の名前：同じマップを続ける（草原 → 草原 2 → 草原 3。10-26）
+    // 続く面の名前：同じマップを続ける（草原 → 草原 2 → 草原 3）
     std::wstring chain;
     for (int i = 0; i < tier; ++i)
     {

@@ -317,11 +317,8 @@ namespace BackpackLogic
     // 使える数 = 所持数 - グリッド上の数 を毎回数えるので、
     // グリッドから消えれば自動的に取り出せるようになる。
     //
-    // 重なりの判定は占有表を使わず、ここで「取ったマス」の表を作りながら見る（2026-10-25）:
-    //   以前は組み直し済みの占有表（1 マスに 1 個しか入らない）を後ろから見て、消すたびに組み直さなかった。
-    //   そのため ① 足場を失って消えた物の古い番号が表に残り、重なっていた隣の物まで一緒に消える、
-    //   ② 重なった時に消えるのが番号の小さい方（動いていない方のこともある）、が起きた。
-    //   今は 動いていない物 → moved（枠と一緒に動いた物）の順に見て、先に取られたマスへ重なった物を消す。
+    // 重なりの判定は占有表を使わず、ここで「取ったマス」の表を作りながら見る:
+    //   動いていない物 → moved（枠と一緒に動いた物）の順に見て、先に取られたマスへ重なった物を消す。
     //   消す物を全部決めてから後ろから erase し、最後に 1 回だけ組み直す
     // ========================================================
     int ValidateItems(BackpackComponent& bp, const std::vector<int>* moved)
@@ -543,7 +540,7 @@ namespace BackpackLogic
         if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return false;
         const ItemCommon* def = ItemDatabase::GetCommon(bp.items[itemIndex].id);
         if (!def || def->triggeredBy.empty()) return true;
-        // 水晶玉に貯蔵されていても前提は要る（2026-10-06 ユーザー：「上級魔法はやはり基本魔法で発動させる」）
+        // 水晶玉に貯蔵されていても前提は要る
 
         const std::vector<int> drivers = GetTriggerDrivers(bp, itemIndex);
         for (ItemID need : def->triggeredBy)

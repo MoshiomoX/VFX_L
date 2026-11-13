@@ -25,7 +25,10 @@ float MenuList::Height() const
 
 Vector2 MenuList::ItemPos(int i) const
 {
-    return { m_TopLeft.x, m_TopLeft.y + (m_ItemSize.y + m_Gap) * (float)i };
+    // stagger：下の項目ほど右へ（斜めの一直線。一番下が stagger だけ右）
+    const int n = Count();
+    const float slope = (n > 1) ? (float)i / (float)(n - 1) : 0.0f;
+    return { m_TopLeft.x + stagger * slope, m_TopLeft.y + (m_ItemSize.y + m_Gap) * (float)i };
 }
 
 void MenuList::Open()
@@ -40,7 +43,7 @@ void MenuList::Open()
 // マウスは「動かした時だけ」カーソルを奪う（キーで選んでいる途中に、
 // 止まっているマウスの位置へ戻されないように）
 // ============================================================
-// 選択の移動・決定の音（2026-10-03）。判定そのものは HandleInputRaw
+// 選択の移動・決定の音。判定そのものは HandleInputRaw
 int MenuList::HandleInput(float dt)
 {
     const int before = m_Cursor;
@@ -64,7 +67,7 @@ int MenuList::HandleInputRaw(float dt)
 
     if (m_InputDelay > 0.0f)
     {
-        // 実時間で減らす（以前は 1 フレーム 0.016 秒の決め打ちで、144 fps だと猶予が半分以下になっていた）。
+        // 実時間で減らす（フレームレートで猶予が変わらないように）。
         // 1 フレームだけ長い時（読み込みの引っ掛かり）に猶予を食い尽くさないよう 0.1 秒で頭打ち
         m_InputDelay -= (std::min)((std::max)(dt, 0.0f), 0.1f);
         return -1;
@@ -143,10 +146,75 @@ void MenuList::Draw(SpriteRenderer& sprite, TextRenderer& text,
 }
 
 // ============================================================
-// 文字だけの一覧（タイトル、2026-10-09）。背景の 3D の景色の上に直に置く。
+// 文字だけの一覧（タイトル）。背景の 3D の景色の上に直に置く。
 // 選んでいる項目：左に古金の菱形、後ろに左から右へ消える金の光、文字の下に線。少し右へずれる。
 // 文字は暗い縁取り（4 方向にずらした影）で、明るい空・草の上でも読めるように
 // ============================================================
+namespace
+{
+    // ルーンの線（輪の半径を 1 とした座標、y は下向き）。古フサルクの形
+    struct Seg { float x0, y0, x1, y1; };
+    const Seg kRaido[] = {    // ᚱ 旅
+        { -0.22f, -0.55f, -0.22f, 0.55f }, { -0.22f, -0.55f, 0.24f, -0.25f }, { 0.24f, -0.25f, -0.22f, 0.02f },
+        { -0.22f, 0.02f, 0.28f, 0.55f } };
+    const Seg kTiwaz[] = {    // ᛏ 戦士
+        { 0.0f, -0.55f, 0.0f, 0.55f }, { 0.0f, -0.55f, -0.34f, -0.15f }, { 0.0f, -0.55f, 0.34f, -0.15f } };
+    const Seg kAnsuz[] = {    // ᚨ 知恵
+        { -0.18f, -0.55f, -0.18f, 0.55f }, { -0.18f, -0.55f, 0.28f, -0.25f }, { -0.18f, -0.15f, 0.28f, 0.15f } };
+    const Seg kOthala[] = {   // ᛟ 帰る所
+        { -0.30f, -0.16f, 0.0f, -0.55f }, { 0.0f, -0.55f, 0.30f, -0.16f },
+        { -0.30f, -0.16f, 0.34f, 0.55f }, { 0.30f, -0.16f, -0.34f, 0.55f } };
+    struct RuneShape { const Seg* segs; int count; };
+    const RuneShape kRunes[MenuList::kRuneCount] = {
+        { kRaido, 4 }, { kTiwaz, 3 }, { kAnsuz, 3 }, { kOthala, 4 } };
+}
+
+void MenuList::DrawRune(SpriteRenderer& sprite, const std::shared_ptr<Texture>& white, int rune,
+    const Vector2& c, float r, float e, float now) const
+{
+    const auto& tex = UIDeco::Tex();
+    const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
+
+    // 選んだ時：後ろで小さな魔法陣がゆっくり回り、柔らかい光が灯る
+    if (e > 0.01f)
+    {
+        if (tex.disc)
+        {
+            const float g = r * 2.6f;
+            sprite.Draw(tex.disc, { c.x - g * 0.5f, c.y - g * 0.5f }, { g, g }, { gold.x, gold.y, gold.z, 0.10f * e * fade });
+        }
+        if (tex.circleStar)
+        {
+            const float d = r * 3.0f;
+            sprite.Draw(tex.circleStar, { c.x - d * 0.5f, c.y - d * 0.5f }, { d, d },
+                { gold.x * 1.4f, gold.y * 1.4f, gold.z * 1.4f, 0.55f * e * fade }, now * 0.6f, c);
+        }
+    }
+    // 輪
+    if (tex.ring)
+    {
+        const float d = r * 2.0f;
+        const float b = 0.8f + 0.9f * e;   // 選ぶと HDR で光る
+        sprite.Draw(tex.ring, { c.x - d * 0.5f, c.y - d * 0.5f }, { d, d },
+            { gold.x * b, gold.y * b, gold.z * b, (0.45f + 0.55f * e) * fade });
+    }
+    // 文字の線（細い長方形を線の向きへ回す）
+    const RuneShape& shape = kRunes[rune];
+    const float thick = (std::max)(1.5f, r * 0.13f);
+    const float pulse = 1.0f + 0.15f * std::sin(now * 3.0f);
+    const float b = 0.55f + (1.4f * pulse - 0.55f) * e;
+    const Vector4 col = { gold.x * b, gold.y * b, gold.z * b, (0.55f + 0.45f * e) * fade };
+    for (int k = 0; k < shape.count; ++k)
+    {
+        const Seg& s = shape.segs[k];
+        const Vector2 a = c + Vector2(s.x0, s.y0) * r, z = c + Vector2(s.x1, s.y1) * r;
+        const Vector2 d = z - a;
+        const float len = d.Length() + thick;   // 端を少し伸ばして角をつなぐ
+        const Vector2 mid = (a + z) * 0.5f;
+        sprite.Draw(white, { mid.x - len * 0.5f, mid.y - thick * 0.5f }, { len, thick }, col, std::atan2(d.y, d.x), mid);
+    }
+}
+
 void MenuList::DrawTextStyle(SpriteRenderer& sprite, TextRenderer& text,
     const std::shared_ptr<Texture>& white, float textScale) const
 {
@@ -181,7 +249,11 @@ void MenuList::DrawTextStyle(SpriteRenderer& sprite, TextRenderer& text,
             }
         }
 
-        // 左の菱形
+        // 左の印：ルーン（runes で指定）か菱形
+        const int rune = (i < (int)runes.size()) ? runes[i] : -1;
+        if (rune >= 0 && rune < kRuneCount)
+            DrawRune(sprite, white, rune, { p.x + h * 0.36f, p.y + h * 0.5f }, h * 0.30f, e, now);
+        else
         {
             const float g = h * (0.16f + 0.08f * e);
             const Vector2 c = { p.x + h * 0.32f, p.y + h * 0.5f };
@@ -190,10 +262,11 @@ void MenuList::DrawTextStyle(SpriteRenderer& sprite, TextRenderer& text,
             sprite.Draw(white, { c.x - g * 0.5f, c.y - g * 0.5f }, { g, g }, col, 0.785398f, c);   // 回転の中心はピクセル
         }
 
-        // 文字（暗い縁取り → 本体）
+        // 文字（暗い縁取り → 本体）。ルーンの時は印が大きいので少し右から
         const std::wstring& label = m_Labels[i];
         const Vector2 ls = text.Measure(label, textScale);
-        const Vector2 tp = { p.x + h * 0.70f + h * 0.22f * e, p.y + (h - ls.y) * 0.5f };
+        const float textLeft = (rune >= 0) ? 0.86f : 0.70f;
+        const Vector2 tp = { p.x + h * textLeft + h * 0.22f * e, p.y + (h - ls.y) * 0.5f };
         const float o = (std::max)(1.0f, h * 0.035f);
         const Vector4 shadow = { 0.0f, 0.0f, 0.0f, 0.75f * fade };
         for (const Vector2 d : { Vector2(o, 0.0f), Vector2(-o, 0.0f), Vector2(0.0f, o), Vector2(0.0f, -o), Vector2(o, o) })

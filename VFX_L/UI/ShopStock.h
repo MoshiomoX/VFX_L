@@ -1,16 +1,15 @@
 // ============================================================
 // ShopStock.h
-// 面と面の間の商店の品揃えと売買（2026-10-15。金貨の「第二歩」）。
+// 面と面の間の商店の品揃えと売買。
 //   画面は Scene/ShopScene が持つ。ここは「何を並べるか・いくらか・買ったら何が起きるか」だけで、
 //   相手は面をまたぐ引き継ぎ（g_RunCarry）：金貨は wallet から払い、魔法・ルーン・枠は spellbook へ、
 //   能力値の札は carry の各部品にその場で効かせる（次の面の始まりに ApplyRunCarry が写す）。
 //
-// 品揃え（まずは簡単に。ユーザー 10-15「売る物は適当に少し置けばいい」）：
-//   [0..3] 魔法・ルーン・召喚物から無作為に 4 つ（同じ物は並ばない。2026-10-28 から稀有度の重みで引く）
+// 品揃え：
+//   [0..3] 魔法・ルーン・召喚物から稀有度で引いて 4 つ（同じ物は並ばない。「最大シールド +25」もノーマルとして混ざる）
 //   [4]    設置枠を 1 つ（種類は無作為）
-//   [5]    能力値の札を 1 つ（無作為）→ 2026-10-27 ユーザー「商店の能力値の札も外す」で statSlot = false（出さない）
-// 値段は稀有度で固定（PriceOf。設置枠は枠ごとの priceMul を掛ける。2026-10-28 までは種類で決めていた）。品揃えの引き直しは 60 + 40 × 回数。
-// 2026-10-27 ユーザー「商店が安すぎて一度入ると無敵」→ 値段・引き直しを全部 4 倍
+//   [5]    能力値の札を 1 つ（statSlot = false なら出さない）
+// 値段は稀有度で固定（PriceOf。設置枠は枠ごとの priceMul を掛ける）。品揃えの引き直しは 60 + 40 × 回数。
 // ============================================================
 #pragma once
 #include "SpellID.h"
@@ -53,17 +52,19 @@ public:
     float StageMul() const { return m_StageMul; }
 
     // ---- 調整値 ----
-    int rerollBaseCost = 60;    // 10-27 に 15 → 60（全部 4 倍）
+    int rerollBaseCost = 60;
     int rerollStepCost = 40;
     float stagePriceGrowth = 1.5f;   // 次の面が 1 つ進むごとに値段 ×（後の商店ほど高い。引き直しも同じ倍率）
-    // 出やすさと値段は稀有度で決める（2026-10-28、ItemRarity.h。以前は 基本魔法 / ルーン / 上級 / 召喚物 / 枠 の種類毎）。
-    // 四択と同じく先に稀有度の段を引く。率は今までの経過時間 + shopMinutes（ユーザー「商店は少し上げる」）
+    // 出やすさと値段は稀有度で決める（ItemRarity.h）。
+    // 四択と同じく先に稀有度の段を引く。率は今までの経過時間 + shopMinutes（四択より少し上げる）
     Rarity::Odds rarityOdds;
     float shopMinutes = Rarity::kPremiumMinutes;
     float weightOwnedMul = 0.6f;   // 既に魔法書にある物はこれを掛ける（同じ物ばかり並ばないように）
     int priceByRarity[Rarity::kCount] = { 120, 200, 320 };   // ノーマル / レア / レジェンド（設置枠は FrameItemDef::priceMul を掛ける）
     int priceStat = 100;      // 能力値の札
-    bool statSlot = false;    // [5] 能力値の札を並べるか（2026-10-27 に外した。四択の LevelUpSystem::statCards と同じ）
+    bool statSlot = false;    // [5] 能力値の札を並べるか（四択の LevelUpSystem::statCards と同じ）
+    bool shieldCard = true;   // statSlot = false でも「最大シールド +25」を [0..3] に混ぜる（四択の LevelUpSystem::shieldCard と同じ）
+    float shieldWeight = 0.5f;// その出やすさ（ノーマルの魔法 1 つ = 1）。値段は priceStat
 
 private:
     // 能力値の札を引き継ぎの部品へ効かせる（LevelUpSystem::ApplyStat の RunCarry 版。

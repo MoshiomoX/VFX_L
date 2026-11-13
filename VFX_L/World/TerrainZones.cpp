@@ -86,8 +86,7 @@ namespace TerrainBuild
                 for (int x = m.x; x < m.x + m.w; ++x)
                     if (x >= 0 && z >= 0 && x < gw && z < gd) mouthMask[(size_t)z * gw + x] = 1;
         // 外周のマスは内側の隣と同じ区域（ReliefField::ZoneAtCell）なので、坑がフィールドの縁に接する所は
-        // 縁のマスも坑扱いになり、坑がそのまま場外へ開いていた（2026-10-06、縁の空気壁と岩を消して見えた）。
-        // 縁のマスは坑の隣なら岩の壁にする
+        // 縁のマスも坑扱いになり、坑が場外へ開いてしまう。縁のマスは坑の隣なら岩の壁にする
         auto zoneC = [&](int x, int z)
             {
                 return zone[(size_t)std::clamp(z, 1, gd - 2) * gw + std::clamp(x, 1, gw - 2)];

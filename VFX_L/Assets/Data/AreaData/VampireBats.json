@@ -1,0 +1,8 @@
+{
+    "sound": "necro_cast",
+    "name": "VampireBats", "kind": 6, "element": 4,
+    "radius": 0.9, "halfHeight": 1.2, "damage": 14.0, "duration": 4.0, "tickInterval": 1000000000.0,
+    "followCaster": false, "stun": true, "cameraShake": false,
+    "batCount": 4, "batSpeed": 13.0, "batHeal": 0.15,
+    "vfx": "", "preview": { "atTarget": false, "interval": 2.2 }
+}

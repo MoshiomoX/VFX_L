@@ -14,7 +14,7 @@
 // = 地形の高さ、SwarmEnemyMoveCS を参照）+ g_RingLift に平らに置く。坂の上では
 // 一部が斜面の下に沈むことがある。
 //
-// 突撃爆弾兵のリストからもう一度描く（2026-10-19）: 点火した突撃爆弾兵にも
+// 突撃爆弾兵のリストからもう一度描く: 点火した突撃爆弾兵にも
 // 同じ円を自分の半径（g_DashBomberBlastRadius）と
 // 導火線（g_DashBomberWindup + g_DashBomberFuse）で出す。走るので円も足元で一緒に走る。
 //

@@ -23,10 +23,10 @@ RWStructuredBuffer<uint> enemyMaxHp : register(u2);
 // 転送されると導火線は忘れる
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // スロットごとの毒の減速: 転送された敵は新しい敵なので減速なし
-RWStructuredBuffer<float4> enemySlow : register(u4); // 減速 + 凍結（2026-10-08 から float4）
-RWStructuredBuffer<float4> enemyPush : register(u5); // ノックバック（突風、2026-10-12）: 減速と一緒に消す
-RWStructuredBuffer<float4> enemyPoison : register(u6); // 溜まった毒素（2026-10-17）: これも消す
-// ダメージ数字用の前フレームの HP（SwarmDamageTextCS、2026-10-25）: 新しい生成時 HP + SWARM_PREVHP_RECYCLED にして、
+RWStructuredBuffer<float4> enemySlow : register(u4); // 減速 + 凍結
+RWStructuredBuffer<float4> enemyPush : register(u5); // ノックバック（突風）: 減速と一緒に消す
+RWStructuredBuffer<float4> enemyPoison : register(u6); // 溜まった毒素: これも消す
+// ダメージ数字用の前フレームの HP（SwarmDamageTextCS）:新しい生成時 HP + SWARM_PREVHP_RECYCLED にして、
 // 旧 HP と新 HP の差をここでダメージとして出さず、旧い敵の保留中の数字も捨てさせる。
 // （状態ワード用の UAV はもう残っていない: その属性 / 吸血ビットは新しい敵が初めて当たった時に書き直されるまで残るが、
 // HP が減る時は必ずその書き直しが伴う。毒素は上で消してある）
@@ -54,8 +54,8 @@ void main(uint3 id : SV_DispatchThreadID)
     if (dSq < g_RecycleMinDistSq)
         return;
     // エリート / ボスは普通の雑魚へ転送しない: そのまま追い続ける。
-    // 幽霊も同じ（まっすぐ飛んでくる）。スプリッターと分裂体は転送できる（2026-10-03: 種類番号が
-    // 幽霊より後なので、旧来の「kind >= ELITE」判定だと遠くに置き去りにされていた）
+    // 幽霊も同じ（まっすぐ飛んでくる）。種類番号の大小では判定しない
+    // （スプリッターなどは幽霊より後の番号だが転送できる）
     uint kind = enemyExtra[i].kind;
     if (SwarmIsBigElite(kind) || kind == SWARM_KIND_BOSS || SwarmIsGhost(kind) || kind == SWARM_KIND_TORNADO)
         return;

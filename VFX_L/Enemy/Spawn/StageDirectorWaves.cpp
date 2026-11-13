@@ -1,9 +1,9 @@
 ﻿// ============================================================
 // StageDirectorWaves.cpp
-// StageDirector のうち、湧きの波・最終ウェーブの予告・画面の真ん中の案内（2026-10-07。StageDirector.cpp が 430 行あるので分けた）。
+// StageDirector のうち、湧きの波・最終ウェーブの予告・画面の真ん中の案内。
 //   ・SpawnWaves（押し寄せ → 一息 → 普段）の倍率を MobSpawner::waveRateMul へ、方向を SpawnDirector の arc* へ
 //   ・時間切れの finalWarnTime 秒前：「最終ウェーブまで あと…」の案内と、湧きを 1 → finalWarnRateMul 倍へ
-//   ・時間切れの後の湧きは finalSpawnRateStart から finalRampTime 秒で finalSpawnRate へ（以前は 20 体/秒へ一気に）
+//   ・時間切れの後の湧きは finalSpawnRateStart から finalRampTime 秒で finalSpawnRate へ
 // ============================================================
 #include "Enemy/Spawn/StageDirector.h"
 #include "Enemy/Spawn/MobSpawner.h"

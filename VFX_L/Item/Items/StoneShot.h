@@ -1,12 +1,9 @@
 ﻿// ============================================================
 // Items/StoneShot.h
-// 石弾：基本魔法（2026-09-30）。重い岩を山なりに投げる単体攻撃。
+// 石弾：基本魔法。重い岩を投げる単体攻撃。
 //
 // 設計意図：
-//   ・ファイアボールと対になる基本魔法。遅く・重く・一発が大きい
-//     （profile "StoneShot"：曲線 1 回捕捉で上へ膨らむ = 山なり、威力 22、13 m/s）
-//   ・影響マス（上下左右）が届いている上級魔法を誘発する：
-//     この弾が消えた場所にメテオが落ちる（メテオにはファイアボールも要る）
+//   ・ファイアボールと対になる基本魔法。遅く・重く・一発が大きい（profile "StoneShot"）
 //   ・見た目は Rock_2.fbx の岩が弾と一緒に飛ぶ（Mesh 粒子 + 発射源の速度を継承）
 // ============================================================
 #pragma once
@@ -24,7 +21,7 @@ inline ProjectileItemDef MakeStoneShot()
     def.common.description = L"重い岩を投げつける。弾は遅いが、一撃の威力が高い。";
     def.common.iconPath = Res::Icon::StoneShot;
     def.common.category = ItemCategory::Projectile;
-    // 形は強さで決める（2026-10-04）。単体 DPS 約 24（一撃が重く当たり判定も大きめ）→ 3 マスの L 字の岩
+    // 3 マスの L 字の岩
     def.common.occupyCells = { { 0, 0 }, { 1, 0 }, { 1, 1 } };
     def.common.influenceCells = ItemShape::Around4(def.common.occupyCells);   // 誘発の届く範囲（形の上下左右）
     def.common.color = { 0.70f, 0.60f, 0.45f, 1.0f };   // 砂岩

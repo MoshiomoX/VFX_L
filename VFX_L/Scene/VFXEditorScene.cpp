@@ -81,8 +81,8 @@ void VFXEditorScene::Init()
     // TEMP-TEST: VFXL_REF_MAGE=<クリップ名,...>（別ファイルのアニメを骨名で当てた結果を見る。Game.cpp と対）
     char refMage[256] = {};
     const bool useMage = GetEnvironmentVariableA("VFXL_REF_MAGE", refMage, sizeof(refMage)) > 0;
-    // 参照はプレイヤーの今のモデル（PlayerFactory::Config::skinnedModel と同じ。2026-09-28 から Quaternius のレンジャー）
-    // TEMP-TEST: VFXL_REF_MODEL=shadowkin で CC 骨の人形（レンジャーのアニメを付け替えた物、2026-10-04）
+    // 参照モデルは Quaternius のレンジャー
+    // TEMP-TEST: VFXL_REF_MODEL=shadowkin で CC 骨の人形（レンジャーのアニメを付け替えた物）
     char refModel[32] = {};
     const bool useShadowkin = GetEnvironmentVariableA("VFXL_REF_MODEL", refModel, sizeof(refModel)) > 0
         && _stricmp(refModel, "shadowkin") == 0;
@@ -356,7 +356,7 @@ void VFXEditorScene::Render(Renderer& renderer)
     m_ParticleSystem.SetCamera(GetCamera());
     m_ParticleSystem.SetLight(renderer.GetLightData());   // 立方体粒子の Lambert 用
     m_ParticleSystem.Render();
-    // 画面の歪み（2026-10-20）：プレビューでも見えるように
+    // 画面の歪み：プレビューでも見えるように
     Graphics& gfx = Application::Get().GetGraphics();
     if (m_ParticleSystem.HasDistortion() && gfx.BeginDistortion())
     {

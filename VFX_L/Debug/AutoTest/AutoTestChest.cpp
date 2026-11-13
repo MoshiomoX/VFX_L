@@ -91,7 +91,7 @@ void AutoTestChest::Run(float dt)
     }
     else if (m_AutoStep == 4 && m_AutoTime >= 11.0f)
     {
-        // 2026-10-27：蓋の無い箱。もっと入れて、箱の縁から画面へこぼれるか見る
+        // 蓋の無い箱。もっと入れて、箱の縁から画面へこぼれるか見る
         if (m_Registry.Has<SpellbookComponent>(m_Player))
         {
             auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
@@ -109,7 +109,7 @@ void AutoTestChest::Run(float dt)
     }
     else if (m_AutoStep == 6 && m_AutoTime >= 18.0f)
     {
-        // 2026-10-27：マウスで離したのと同じ落とし所（画面の真ん中より少し右上・縦向き）に黄金の矢を 1 本出す → その場から落ちるか
+        // マウスで離したのと同じ落とし所（画面の真ん中より少し右上・縦向き）に黄金の矢を 1 本出す → その場から落ちるか
         auto& sb = m_GameUI.GetSpellbookMutable();
         sb.TestDropHint(ItemID::GoldenArrow, { m_ScreenW * 0.55f, m_ScreenH * 0.22f }, 1);
         if (m_Registry.Has<SpellbookComponent>(m_Player))

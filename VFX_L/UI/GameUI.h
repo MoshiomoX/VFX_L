@@ -91,7 +91,7 @@ public:
         m_LevelUpWaitAge = -1.0f;
     }
 
-    // バックパックの画面を開いているか（チュートリアルの「開いて置こう」の判定。2026-10-13）
+    // バックパックの画面を開いているか（チュートリアルの「開いて置こう」の判定）
     bool IsBackpackOpen() const { return m_Stack.Top() == UILayer::Backpack; }
     // チュートリアル中：一時停止のメニューに「チュートリアルを飛ばす」が出る（ConsumeMenuAction の SkipTutorial）
     void SetTutorialActive(bool on) { m_Pause.SetTutorialActive(on); }
@@ -119,7 +119,7 @@ public:
     // Boss の HP 条（0..1）。負で消す。毎フレームシーンが入れる
     // name: 条の中に出す名前（BossDisplayName。null なら「ボス」）
     void SetBossBar(float hpRatio, const wchar_t* name = nullptr) { m_FrameInfo.bossHp = hpRatio; m_FrameInfo.bossName = name; }
-    void SetEliteBars(std::vector<HUDEliteBar>&& bars) { m_FrameInfo.elites = std::move(bars); }   // 面の固定エリート（2026-10-25）
+    void SetEliteBars(std::vector<HUDEliteBar>&& bars) { m_FrameInfo.elites = std::move(bars); }   // 面の固定エリート
 
     // HUD の経過時間・撃破数と、画面外の目印（箱・エリート）。毎フレームシーンが入れ直す
     // stageTime: 面の制限時間（秒）。0 なら経過時間をそのまま出す
@@ -131,12 +131,12 @@ public:
     }
     // 面の番号と名前（撃破数の行の頭に「第 2 面 砂漠」）。stage = 0 なら出さない
     void SetStage(int stage, int total, const wchar_t* name) { m_FrameInfo.stage = stage; m_FrameInfo.stageTotal = total; m_FrameInfo.stageName = name; }   // stage = 何面目、total = Tier
-    // 金貨（2026-10-04）。HUD の MP バーの下に出す（< 0 = 出さない）
+    // 金貨。HUD の MP バーの下に出す（< 0 = 出さない）
     void SetGold(int gold) { m_FrameInfo.gold = gold; }
-    // 目標の一行（撃破数の下、「目標: 」は HUD が付ける）。nullptr で消す。毎フレームシーンが入れ直す（2026-10-07）
+    // 目標の一行（撃破数の下、「目標: 」は HUD が付ける）。nullptr で消す。毎フレームシーンが入れ直す
     void SetObjective(const wchar_t* text) { m_FrameInfo.objective = text; }
     DamageNumbers& Damage() { return m_Damage; }   // 場面が Add / Update する（gameplay の dt）
-    // 画面の真ん中の案内（2026-10-07。押し寄せ・エリート・最終ウェーブ）。text = null で消す
+    // 画面の真ん中の案内（押し寄せ・エリート・最終ウェーブ）。text = null で消す
     void SetAnnounce(const wchar_t* text, float alpha, float age, bool gold = false)
     {
         m_FrameInfo.announce = text;
@@ -146,7 +146,7 @@ public:
     }
     // 四択の引き直し（金貨）に使う。無ければ引き直しのボタンを出さない
     void SetLevelUpSystem(LevelUpSystem* sys) { m_LevelUpSystem = sys; }
-    // トレーニング（実験場）のメニュー（2026-10-07）。true の間だけ T / パッド RB で開く。
+    // トレーニング（実験場）のメニュー。true の間だけ T / パッド RB で開く。
     // メニューの依頼はシーンが毎フレーム取り（SpellLab::Apply）、結果の一行を SetTrainingMessage で返す
     void SetTrainingEnabled(bool on) { m_TrainingEnabled = on; }
     std::vector<TrainingRequest> ConsumeTrainingRequests() { return m_Training.ConsumeRequests(); }
@@ -158,7 +158,7 @@ public:
         m_FrameInfo.viewProj = viewProj;
         m_FrameInfo.markers = std::move(markers);
     }
-    // ミニマップの地形の絵（2026-10-19）。地形を建てた / 建て直した後にシーンが呼ぶ。biome = TerrainGenerator::Biome
+    // ミニマップの地形の絵。地形を建てた / 建て直した後にシーンが呼ぶ。biome = TerrainGenerator::Biome
     void BakeMinimap(const GridWorld& grid, const MapData::Map& map, int biome, uint32_t seed)
     {
         m_HUD.BakeMinimap(grid, map, biome, seed);
@@ -166,7 +166,7 @@ public:
 
 private:
     // 魔法書（画面の縁が壁）の中身が入らない四角 = バックパックの盤面の列（画面の左端から盤面の右 + 少し、上下いっぱい）。
-    // 盤面の上に物が積もって見えなくならないように（2026-10-27）
+    // 盤面の上に物が積もって見えなくならないように
     void SetSpellbookObstacle()
     {
         DirectX::SimpleMath::Vector2 mn, mx;
@@ -183,8 +183,7 @@ private:
     int m_TestTooltipItem = -1;                       // TEMP-TEST: TestTooltip
     DirectX::SimpleMath::Vector2 m_TestTooltipPos = { 0.0f, 0.0f };
 
-    // tooltip の中身と折り返しの覚え書き（2026-10-25）。以前は指している間、毎フレーム DescribePlaced
-    // （影響の組み合わせを全部回す）と 1 字ずつの折り返しを、測る段・描く段で 2 回やり直していた。
+    // tooltip の中身と折り返しの覚え書き（DescribePlaced と折り返しは重いので毎フレームやり直さない）。
     // 指している物・バックパックの番号・形の番号・魔法威力が同じ間は中身を、幅と文字の大きさも同じなら折り返しも使い回す
     struct TooltipCache
     {
@@ -205,14 +204,14 @@ private:
 
     SpriteRenderer m_Sprite;
     TextRenderer   m_Text;
-    TextRenderer   m_DamageText;   // ダメージの数字専用（Res::Fnt::Damage。2026-10-18）。HUD の文字の後に描く
+    TextRenderer   m_DamageText;   // ダメージの数字専用（Res::Fnt::Damage）。HUD の文字の後に描く
     UIManager      m_Stack;
     BackpackUI     m_Backpack;
     SpellbookUI    m_Spellbook;
     LevelUpUI      m_LevelUp;
 	DragContext    m_Drag;
     HUD            m_HUD;
-    DamageNumbers  m_Damage;                   // ダメージの数字（HUD と同じ画面座標で描く。2026-10-17）
+    DamageNumbers  m_Damage;                   // ダメージの数字（HUD と同じ画面座標で描く）
     BackpackPadControl m_Pad;                  // バックパック画面のパッド操作（スティックのカーソル。閉じるのは Start）
     bool           m_LevelUpWait = false;      // レベルアップ直後、四択を出すまでの間（LevelComponent::choiceDelay）
     float          m_LevelUpWaitAge = -1.0f;   // その経過秒（案内の出方）

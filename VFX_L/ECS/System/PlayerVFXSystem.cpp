@@ -98,10 +98,10 @@ void PlayerVFXSystem::Update(Registry& reg, Entity player, float dt, float hpLos
     const float speed = hv.Length();
     const float moveYaw = (speed > 0.1f) ? YawOf(hv) : tf.rotation.y;
 
-    // 水たまりの中か（足が水面より下）。中なら小石の代わりに水しぶき・波紋・水の足音（2026-10-27）
+    // 水たまりの中か（足が水面より下）。中なら小石の代わりに水しぶき・波紋・水の足音
     float waterY = 0.0f;
     const bool overWater = waterFx && water && water->WaterAt(feet.x, feet.z, waterY);
-    const bool onIce = overWater && water->FrozenAt(feet.x, feet.z);   // 氷の上：水しぶきも小石も出さない（2026-11-01）
+    const bool onIce = overWater && water->FrozenAt(feet.x, feet.z);   // 氷の上：水しぶきも小石も出さない
     const bool inWater = overWater && !onIce && feet.y < waterY - 0.03f;
     m_OnIce = onIce;
     const Vector3 surf(feet.x, waterY, feet.z);   // 足元の水面（inWater の時だけ意味がある）

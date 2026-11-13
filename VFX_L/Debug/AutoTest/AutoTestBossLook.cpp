@@ -1,6 +1,6 @@
 // ============================================================
 // AutoTestBossLook.cpp
-// TEMP-TEST: VFXL_STAGE=2 + VFXL_BATTLE_AUTOTEST=bosslook（砂漠の Boss「砂の守護者」の見た目。2026-10-24）
+// TEMP-TEST: VFXL_STAGE=2 + VFXL_BATTLE_AUTOTEST=bosslook（砂漠の Boss「砂の守護者」などの見た目）
 // 歩く Boss を呼び（プレイヤーは 30m 先で止まっている = Boss はまっすぐこちらへ歩く）、カメラを Boss に向けて
 // 正面 / 斜め前 / 横 / 後ろ / いつもの見下ろし を撮る（歩きの姿勢で部品の飾りが付いて来るか）→ 砂の槍を出させる。
 // 部品の名前・寸法・付け根を記録する
@@ -26,7 +26,7 @@ namespace
         { 0.0f, 12.0f, 11.0f, 3.0f, "front" },
         { 40.0f, 18.0f, 11.0f, 3.0f, "frontside" },
         { 90.0f, 10.0f, 11.0f, 3.0f, "side" },
-        { 90.0f, 6.0f, 12.0f, 2.2f, "side2" },   // 歩きの別の瞬間（脚と腕の振り、2026-10-27）
+        { 90.0f, 6.0f, 12.0f, 2.2f, "side2" },   // 歩きの別の瞬間（脚と腕の振り）
         { 90.0f, 6.0f, 12.0f, 2.2f, "side3" },
         { 180.0f, 15.0f, 11.0f, 3.0f, "back" },
         { 25.0f, 45.0f, 16.0f, 1.5f, "game" },   // いつもの見下ろしに近い
@@ -48,7 +48,7 @@ void AutoTestBossLook::Run()
     if (m_AutoStep == 0 && m_AutoTime >= 1.0f)
     {
         m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
-        m_GameUI.hideAll = true;   // HUD が脚を隠すので（2026-10-27）
+        m_GameUI.hideAll = true;   // HUD が脚を隠すので
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
         if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
@@ -109,7 +109,7 @@ void AutoTestBossLook::Run()
             m_Camera.SetTargetOverride(&target);
             cam.SetYaw(DirectX::XMConvertToDegrees(std::atan2(u.x, -u.y)));
             cam.SetPitch(pitch);
-            // 体格に合わせて引く（3 倍の Boss で決めた距離。骸の王の 5.5 倍は画面に収まらなかった。2026-10-29）
+            // 体格に合わせて引く（距離は 3 倍の Boss を基準）
             const float big = (std::max)(1.0f, m_BossAttacks.bodyScale / 3.0f);
             cam.distance = dist * big;
             cam.height = height * big;
@@ -150,7 +150,7 @@ void AutoTestBossLook::Run()
         return;
     }
 
-    // ---- 雷鳴の雄鹿の突進（2026-10-26）：真横から 溜め（頭を下げ脚を開く）→ 走り（前傾・駆け足）→ 道筋の雷 ----
+    // ---- 雷鳴の雄鹿の突進：真横から 溜め（頭を下げ脚を開く）→ 走り（前傾・駆け足）→ 道筋の雷 ----
     // 大サソリの毒針も同じ 3 枚（溜め = 尾が反る 0.5 秒 / 突っ込み = 尾を振り下ろす 0.95 秒 / 休み 1.5 秒）
     const bool scorp = (m_BossAttacks.Type() == BossType::Scorpion);
     if (m_AutoStep == 3 && (m_BossAttacks.Type() == BossType::Stag || scorp))

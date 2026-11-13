@@ -3,7 +3,7 @@
 // 幻想 UI の飾り：暗い半透明のパネル + 細い二重線 + 四隅の組紐 + 分割線 + 魔法陣。
 // 飾りの絵は全部「白い線画」（Assets/Texture/UI/Deco）で、描く時に色を掛ける。
 //
-// 色はアイテムの種類で決める（2026-09-28 ユーザー決定）：
+// 色はアイテムの種類で決める：
 //   攻撃魔法・範囲魔法 = 古金 / ルーン = 奥術青 / 拡張枠・能力アップ = 月銀
 //   HUD・メニューなど、どの魔法にも属さない所 = 古金
 // ============================================================
@@ -17,7 +17,7 @@ class Texture;
 
 namespace UIDeco
 {
-    // UI 全体の大きさの倍率（2026-10-07 ユーザー：「全部の UI を 1.5 倍に」）。
+    // UI 全体の大きさの倍率。
     // HUD の px 値・バックパック / 木箱 / カードの画面比・メニューの文字と行の高さ・tooltip・結果画面に掛ける。
     // メニューなど画面に収まらなくなる物は各 Layout で画面に合わせて小さくする（FitScale）
     // 既定 1.5。実行中に変えられる（HUD パネル「UI Scale」、起動時 VFXL_UI_SCALE）。
@@ -26,7 +26,6 @@ namespace UIDeco
     void   SetUIScale(float s);
     // baseRatio = 倍率 1 の時に画面短辺に占める割合。maxRatio を超えない所まで倍率を落とす。
     // 落とすのは 1 倍まで（それでも入らない時は 1 倍のまま）。ただし頼まれた倍率（UIScale）より大きくはしない
-    // （以前は UIScale < 1 で入らない時に 1 を返し、頼んだより大きくなっていた）
     inline float FitScale(float baseRatio, float maxRatio = 0.95f)
     {
         const float k = UIScale();
@@ -35,7 +34,7 @@ namespace UIDeco
         return (fit < k) ? fit : k;
     }
 
-    enum class Tint { Gold, Silver, Arcane, Violet };   // Violet = 召喚物（水晶玉。2026-10-06）
+    enum class Tint { Gold, Silver, Arcane, Violet };   // Violet = 召喚物（水晶玉）
 
     // 線の色（a = 1）。UI は線形で合成されるので、sRGB の見た目の色を線形へ直した値
     DirectX::SimpleMath::Vector4 TintColor(Tint t);
@@ -83,7 +82,7 @@ namespace UIDeco
     void DrawCircle(SpriteRenderer& sprite, bool star, const DirectX::SimpleMath::Vector2& center,
         float diameter, const DirectX::SimpleMath::Vector4& tint, float radians);
 
-    // 文字の下敷き（2026-10-07 ユーザー：「HUD の文字だけの所が見にくい、背景を付けて」）。
+    // 文字の下敷き。
     // 暗い半透明の地 + 薄い古金の 1px 枠。pos / size は文字の外接矩形、pad だけ外へ広げて敷く。
     // 文字は SpriteRenderer の後にまとめて描かれるので、同じ組の中で先に呼べば文字の下になる
     void DrawTextPlate(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& pos,

@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestLifesteal.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=lifesteal
-// 吸血のルーン（2026-10-25）：上下左右の魔法が敵に与えたダメージの 3% が HP に戻る（1 秒あたり最大 HP の 2% まで）。
+// 吸血：魔法が敵に与えたダメージの 3% が HP に戻る（1 秒あたり最大 HP の 2% まで）。
 // 1 秒: 湧き停止・全消し・MP 無限・自然回復 0、HP 100 のうち 20、正面 +Z 10〜13m に動かない的 5 体（HP 10 万）、
 //       3x3 枠の中段左にホーミングボルト（横 2）。カメラは背後 12m・見下ろし 28 度
 // A 段（1.5〜5.5 秒）：ルーン無し。HP は 20 のまま、吸血の累計も 0 のはず → `lifesteal A hp stolen`
@@ -92,7 +92,7 @@ void AutoTestLifesteal::Run()
         snprintf(line, sizeof(line), "lifesteal A hp %.2f healed %.2f", hp.current, m_Lifesteal.Total());
         AutoTestLog(line);
         auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
-        // 2026-10-27 吸血はルーンから設置枠へ：3x3 の下に吸血の枠（T 字）を敷き、ホーミングボルトを縦にして両方に跨らせる
+        // 3x3 の下に吸血の枠（T 字）を敷き、ホーミングボルトを縦にして両方に跨らせる
         if (BackpackLogic::PlaceFrame(bp, ItemID::FrameLifesteal, lo + 3, lo, 0) < 0)
             AutoTestLog("lifesteal place frame FAILED");
         for (int i = (int)bp.items.size() - 1; i >= 0; --i)
@@ -159,7 +159,7 @@ void AutoTestLifesteal::Run()
         snprintf(line, sizeof(line), "lifesteal C result hp %.2f healed %.2f perSec %.3f cap %.3f", hp.current, healed, healed / 6.0f, m_Lifesteal.capPerSec * hp.max);
         AutoTestLog(line);
         m_Lifesteal.ratio = Swarm::kLifestealRatio;
-        // 2026-10-27：効果のある枠を全部敷いてバックパックを開く（見た目の確認）+ 枠の説明
+        // 効果のある枠を全部敷いてバックパックを開く（見た目の確認）+ 枠の説明
         {
             auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
             const int lo = BackpackComponent::GRID / 2 - 1;

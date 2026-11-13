@@ -39,7 +39,7 @@ cbuffer SwarmOrbEmitCB : register(b3)
 #else
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 Buffer<uint> projStates : register(t1);
-// 出口魔法の弾は運んでいる魔法の色を見せる（2026-10-31）：タグのビット -> rgb + 混ぜ具合（TriggerBits）
+// 出口魔法の弾は運んでいる魔法の色を見せる：タグのビット -> rgb + 混ぜ具合（TriggerBits）
 Buffer<uint> projTags : register(t5);
 cbuffer SwarmCarryCB : register(b3)
 {
@@ -98,7 +98,7 @@ void main(uint3 id : SV_DispatchThreadID)
     srcPos = projectiles[i].position;
     srcVel = projectiles[i].velocity;
     // 停止中の弾（pathT < 0、ストーンショット）：まだ動いていない。向きだけ
-    // 残し（ごく遅い速度）、本体が標的の方を向くようにする（2026-10-16）
+    // 残し（ごく遅い速度）、本体が標的の方を向くようにする
     if (projectiles[i].pathT < 0.0)
     {
         float vLenSq = dot(srcVel, srcVel);
@@ -140,7 +140,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
         // 単体（岩、矢、水晶）：1 フレームにちょうど 1 個、次のフレームの
         // 更新で死ぬまで生きる（寿命は 1〜2 フレームの間）
-        // = 常にちょうど 1 個だけ描かれ、重なってちらつかない（2026-10-16）
+        // = 常にちょうど 1 個だけ描かれ、重なってちらつかない
         bool single = (((uint) e.renderMode) & PARTICLE_SINGLE_BODY) != 0u;
         uint k = single ? 1u : StochasticCount(e.emitRate, g_DeltaTime, seed);
         if (k == 0u)
@@ -175,7 +175,7 @@ void main(uint3 id : SV_DispatchThreadID)
             // 専用のシードを使う
             // 発生源と一緒に飛ぶパーティクル（矢の本体、岩、
             // 水晶）は本体そのもの：ちょうど発生源の位置に出し、掃き出さない。
-            // でないと 1 つの本体のコピーが軌道上に伸びて見える（2026-10-16）
+            // でないと 1 つの本体のコピーが軌道上に伸びて見える
             uint sweepSeed = s ^ 0x9E3779B9u;
             bool inherit = (((uint) e.renderMode) & PARTICLE_INHERIT_SOURCE_VELOCITY) != 0u;
             if (!inherit)

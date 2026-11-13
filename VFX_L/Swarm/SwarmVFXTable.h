@@ -6,7 +6,7 @@
 //   Particle → GPUEmitter 表（SwarmEmitCS が消費する）
 //   Light    → 光源表（SwarmLightCollectCS）
 //   Sprite / Liquid / Trail → それぞれの表（範囲の連番画像・液溜まり・弾の帯）
-//   Mesh     → 表は作らない（2026-10-25 に空のままだったモデル表を削除。Recipe の modelStart / modelCount は常に 0）
+//   Mesh     → 表は作らない（Recipe の modelStart / modelCount は常に 0）
 // Recipe は「この vfxType が各表のどこからどこまでを持つか」。
 //
 // GPU 側の効果には時間軸が無い（一弾一スレッド、無状態）。
@@ -39,7 +39,7 @@ namespace Swarm
         uint32_t modelCount = 0;
         uint32_t lightStart = 0;
         uint32_t lightCount = 0;
-        uint32_t spriteStart = 0;   // Sprite entry の表（GPU の範囲だけが使う。元は _pad）
+        uint32_t spriteStart = 0;   // Sprite entry の表（GPU の範囲だけが使う）
         uint32_t spriteCount = 0;
     };
     static_assert(sizeof(VFXRecipe) == 32, "SwarmRecipe layout mismatch");
@@ -101,11 +101,11 @@ public:
     ID3D11ShaderResourceView* GetSpriteDefSRV()   const { return m_SpriteDefSRV.Get(); }
     ID3D11ShaderResourceView* GetSpriteArraySRV() const { return m_SpriteArraySRV.Get(); }
     int GetSpriteDefCount() const { return m_SpriteDefCount; }
-    // Liquid entry（2026-10-02）: def の表と、レシピごとの「def の番号 + 1（0 = 液体なし）」
+    // Liquid entry: def の表と、レシピごとの「def の番号 + 1（0 = 液体なし）」
     ID3D11ShaderResourceView* GetLiquidDefSRV()    const { return m_LiquidDefSRV.Get(); }
     ID3D11ShaderResourceView* GetRecipeLiquidSRV() const { return m_RecipeLiquidSRV.Get(); }
     int GetLiquidDefCount() const { return m_LiquidDefCount; }
-    // Trail entry（2026-10-15、GPU の弾が引く切れない帯）: style 表（ParticleTrailStyleGPU = HLSL の TrailStyle）と、
+    // Trail entry（GPU の弾が引く切れない帯）: style 表（ParticleTrailStyleGPU = HLSL の TrailStyle）と、
     // レシピごとの「style の番号 + 1（0 = 帯なし）」。見た目（テクスチャ・混合）は CPU 側の表 GetTrailLook
     struct TrailLook
     {
@@ -147,7 +147,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_RecipeLiquidBuffer;   // レシピと同じ添字の uint（Recipe の 32B は変えない）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_RecipeLiquidSRV;
     int m_LiquidDefCount = 0;
-    // Trail（2026-10-15）
+    // Trail
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_TrailStyleBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_TrailStyleSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_RecipeTrailBuffer;

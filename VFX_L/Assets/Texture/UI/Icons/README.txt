@@ -29,6 +29,9 @@ From game-icons.net  https://game-icons.net
   Beam.png            "Laser blast"       by Lorc        https://game-icons.net/1x1/lorc/laser-blast.html
   Gust.png            "Wind slap"         by Lorc        https://game-icons.net/1x1/lorc/wind-slap.html
   Twister.png         "Tornado"           by Lorc        https://game-icons.net/1x1/lorc/tornado.html
+  SwordRing.png       "Spinning sword"    by Lorc        https://game-icons.net/1x1/lorc/spinning-sword.html
+  SpinSlash.png       "Sword spin"        by Lorc        https://game-icons.net/1x1/lorc/sword-spin.html
+  VampireBats.png     "Bat"               by Delapouite  https://game-icons.net/1x1/delapouite/bat.html
   SplitRune.png       "Split arrows"      by Delapouite  https://game-icons.net/1x1/delapouite/split-arrows.html
   DoubleCastRune.png  "Echo ripples"      by Lorc        https://game-icons.net/1x1/lorc/echo-ripples.html
   Magnifier.png       "Magnifying glass"  by Lorc        https://game-icons.net/1x1/lorc/magnifying-glass.html

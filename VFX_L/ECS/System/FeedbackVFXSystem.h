@@ -11,10 +11,10 @@
 //     うるさいので m_HurtInterval 秒はあける
 //   ・経験値：GPU で拾った分がリードバックで届いたフレームに体の周りへ（付いて動く）。
 //     吸い寄せで何百個も一度に拾うので、m_PickupInterval 秒に 1 回まで
-//   ・魔力解放（2026-10-01）：始まったフレームに金の爆発（ManaSurgeBurst.json）、
+//   ・魔力解放：始まったフレームに金の爆発（ManaSurgeBurst.json）、
 //     解放の間ずっと体の周りに金の光（ManaSurgeAura.json、loop。残り時間で止める）。
 //     どちらも付いて動く。解放が早く終わったら光も止める
-//   ・シールド（2026-10-07）：シールドで受けた時に六角の護罩（fanghuzhao2.FBX）が一瞬光る（付いて動く）。
+//   ・シールド：シールドで受けた時に六角の護罩（fanghuzhao2.FBX）が一瞬光る（付いて動く）。
 //     シールドが 0 になった時は砕けた護罩（suipian01/02.FBX）が外へ広がって消える（その場に残す）
 // ============================================================
 #pragma once
@@ -70,7 +70,7 @@ private:
     float    m_PrevSurgeTime = 0.0f;  // 前のフレームの ManaComponent::surgeTime（増えたら始まった）
     uint32_t m_SurgeAura = 0;         // 光のインスタンス（0 = 出していない）
 
-    // シールド（2026-10-07）：受けた = 六角の護罩が光る（ShieldHit.json）、割れた = 護罩が砕ける（ShieldBreak.json）
+    // シールド：受けた = 六角の護罩が光る（ShieldHit.json）、割れた = 護罩が砕ける（ShieldBreak.json）
     bool     m_Shield = true;
     bool     m_ShieldRead = false;    // 前のフレームの累計を読んだか（最初のフレームは比べない）
     uint32_t m_PrevShieldHits = 0;

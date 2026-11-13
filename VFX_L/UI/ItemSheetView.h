@@ -50,7 +50,7 @@ namespace ItemSheetView
     std::vector<std::wstring> Wrap(const TextRenderer& text, const std::wstring& s,
         float maxWidth, float scale);
 
-    // 本文（説明・特性・footer）を折り返した結果（2026-10-25）。折り返しは 1 字ずつ測るので重い。
+    // 本文（説明・特性・footer）を折り返した結果。折り返しは 1 字ずつ測るので重い。
     // 同じ Sheet・幅・文字の大きさの間は作り直さずに使い回せる（GameUI の tooltip が覚えておく）
     struct BodyLayout
     {

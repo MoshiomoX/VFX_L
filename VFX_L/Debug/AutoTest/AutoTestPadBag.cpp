@@ -2,7 +2,7 @@
 // AutoTestPadBag.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=padbag
 // バックパック画面のパッド操作（UI/BackpackPadControl）を、パッドの代わりの入力（TestPress）で一通り動かす。
-// 2026-10-28 からスティックのカーソル（X = 加速、B = 素早く外す、閉じるのは Start、取り消しは無い）。
+// スティックのカーソル（X = 加速、B = 素早く外す、閉じるのは Start、取り消しは無い）。
 // 後半は四択のカードを左スティックで選ぶ（LevelUpUI::TestStick）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -220,7 +220,7 @@ void AutoTestPadBag::RunLevelUp()
         {
             log("tap left: expect cursor 3");
             AutoTestLog("padbag look levelupstick");
-            // 引き直しのボタン（2026-10-28）：金貨を渡し、今のカードを覚える
+            // 引き直しのボタン：金貨を渡し、今のカードを覚える
             if (m_Registry.Has<WalletComponent>(m_Player)) m_Registry.Get<WalletComponent>(m_Player).gold = 100.0f;
             m_RerollBefore = lv.pendingChoices;
             next(5);

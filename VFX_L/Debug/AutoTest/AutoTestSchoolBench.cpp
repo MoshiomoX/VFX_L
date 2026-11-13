@@ -1,8 +1,8 @@
 // ============================================================
 // AutoTestSchoolBench.cpp
 // TEMP-TEST: VFXL_SPELL_LAB=1 + VFXL_BATTLE_AUTOTEST=schoolbench
-// 流派ごとの DPS（2026-10-30、ユーザー「5 つの流派を 1 つずつ取り出し、強化した時の DPS と、
-// 数値だけで計算した DPS を比べたい」。強化は測る為の組み合わせで、数値は変えない）。
+// 流派ごとの DPS（5 つの流派を 1 つずつ、強化した時の DPS と数値だけで計算した DPS を比べる。
+// 強化は測る為の組み合わせで、数値は変えない）。
 // 流派 = 3 つの魔法の組（稀有度の分岐では全部単独で撃つ）:
 //   火（ファイアボール + ストーンショット + メテオ）/ 雷・奥術（ホーミングボルト + アークボルト + 魔導光線）/
 //   毒（泥沼 + 胞子 + 猛毒の沼）/ 氷（アイスランス + ストーンショット + アイススパイク）/ 風（渦 + 突風 + 竜巻）
@@ -17,7 +17,7 @@
 //   範囲 = 1 tick の威力 × tick 数 / 発動間隔（tick 数 = OneShot 1、他は 持続 / tick 間隔、最低 1。泥沼は飛沫の 1 回）
 // 行：`schoolbench layout …`、`schoolbench theory <組> <魔法> dps <値> …`、`schoolbench <組> <場面> …`、
 //   最後に `schoolbench table <流派> <組> single crowd ratio clear left theory eff mpps` を並べて `schoolbench done`
-// 10-30 追加：`VFXL_SCHOOLS=arcane,wind` = その流派だけ / `VFXL_SCHOOL_VARIANTS=tuned` = その組だけ / `VFXL_BENCH_SPEED=<m/s>` = 的が歩いて来る（突風に飛ばされた的が
+// `VFXL_SCHOOLS=arcane,wind` = その流派だけ / `VFXL_SCHOOL_VARIANTS=tuned` = その組だけ / `VFXL_BENCH_SPEED=<m/s>` = 的が歩いて来る（突風に飛ばされた的が
 //   戻って来る。0 = 動かない）/ single と crowd の終わりに `schoolbench <組> <場面> dist avg min max`（生きている的とプレイヤーの水平距離）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"

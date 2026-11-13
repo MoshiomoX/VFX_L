@@ -221,7 +221,7 @@ void VFXEffect::SubmitDrawables(const VFXContext& ctx)
 }
 
 // ============================================================
-// 一時停止中（Update を呼ばないフレーム）の描き直し（2026-10-25）。
+// 一時停止中（Update を呼ばないフレーム）の描き直し。
 // 各 entry の Submit は自分の年齢（OnUpdate でだけ進む）から見た目を作るので、ここで呼んでも
 // Sprite のコマ・光線の伸び・液溜まりの広がり・Mesh の変化は止まったまま。粒子と帯は GPU の池に
 // 残っているので積み直さない（emitter を積むと Flush の無いフレームに溜まり続ける）
@@ -410,8 +410,7 @@ bool VFXEffect::LoadFromFile(const std::string& filepath)
 
     m_Entries.clear();
 
-    // 型の違う欄（数字が文字列・null など）があっても落とさない（2026-10-25。以前は type_error が
-    // どこでも捕まらず、シーンの Init の Preload で起動ごと abort した）。読めない欄は既定値、
+    // 型の違う欄（数字が文字列・null など）があっても落とさない（type_error を捕まえる）。読めない欄は既定値、
     // 壊れた entry はその 1 つだけ捨ててログに 1 行出す
     {
         const auto nameIt = root.find("name");   // root が object でなければ end
@@ -505,9 +504,9 @@ void VFXEffect::CloneFrom(const VFXEffect& src)
 }
 
 // ============================================================
-// Y 軸回りに回す（2026-10-03、Boss の門の渦を門の向きに合わせる）。
+// Y 軸回りに回す（Boss の門の渦を門の向きに合わせる など）。
 // 粒子 entry の発射位置（effect からの相対）と発射の向き、点光源・Mesh・Sprite・Trail・光線・液溜まりのずらし、
-// 光線・液溜まりのプレビューの向きを回す（2026-10-25 に Sprite / Trail / 光線 / 液溜まりを追加）。
+// 光線・液溜まりのプレビューの向きを回す。
 // 重力は世界の向きのまま。回転は TransformComponent の yaw と同じ（局所 +Z → (sin, 0, cos)）
 // ============================================================
 void VFXEffect::RotateYaw(float degrees)
@@ -528,7 +527,7 @@ void VFXEffect::RotateYaw(float degrees)
         }
         else if (entry->GetType() == EntryType::Mesh)
         {
-            // Mesh entry も回す（突風の前へ吹く渦、2026-10-13）。位置を回し、yaw を足す
+            // Mesh entry も回す（突風の前へ吹く渦）。位置を回し、yaw を足す
             auto* m = static_cast<VFXMeshEntry*>(entry.get());
             m->offset = DirectX::SimpleMath::Vector3::Transform(m->offset, rot);
             m->rotationDeg.y += degrees;
@@ -562,7 +561,7 @@ void VFXEffect::RotateYaw(float degrees)
 }
 
 // ============================================================
-// 全体の大きさを s 倍に（2026-10-22、拡大鏡で広がった竜巻・突風の見た目）。
+// 全体の大きさを s 倍に（拡大鏡で広がった竜巻・突風の見た目）。
 // 位置・長さ・速さ・加速度を同じ倍率にすれば、粒子は同じ時間で s 倍の所まで届く（形がそのまま大きくなる）。
 // 発射数・寿命・色はそのまま
 // ============================================================

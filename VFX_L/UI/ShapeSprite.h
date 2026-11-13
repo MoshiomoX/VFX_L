@@ -123,8 +123,7 @@ namespace ShapeSprite
         }
     }
 
-    // つながった 1 枚を、外周だけ inset（px）内側へ縮めて塗る（2026-10-27、ユーザー「魔法とルーンの絵を少し小さくして、
-    // バックパックの縁が少し見えるように。そうすれば半透明でなくていい」）。
+    // つながった 1 枚を、外周だけ inset（px）内側へ縮めて塗る（下のバックパックの縁が少し見える）。
     // マス 1 個を縁 inset で 3x3 に割り、中央は必ず、辺は隣があれば、角は 2 辺の隣と斜めの隣が全部あれば塗る
     // （L 字の内側の角も正しく削れる）。隙間の帯も同じ考えで、帯の端は両側の隣が揃っている時だけ塗る
     inline void DrawConnectedInset(SpriteRenderer& sprite,
@@ -179,10 +178,10 @@ namespace ShapeSprite
 
     // 幻想 UI のアイテムの見た目：アイテムの色を暗く沈めた「色ガラス」+ 種類の色の輪郭 + 暖かい白のシルエット
     inline constexpr float kGlassDim = 0.12f;     // アイテムの色をどれだけ暗くして地にするか（線形）
-    inline constexpr float kGlassAlpha = 1.0f;    // 2026-10-27 0.92 → 1（縮めて縁を見せるので半透明にしない）
-    inline constexpr float kGlassInset = 0.07f;   // 外周をマスのこの割合だけ内側へ（下のマスの縁・枠の色が見える。2026-10-27）
+    inline constexpr float kGlassAlpha = 1.0f;    // 縮めて縁を見せるので半透明にしない
+    inline constexpr float kGlassInset = 0.07f;   // 外周をマスのこの割合だけ内側へ（下のマスの縁・枠の色が見える）
     inline const DirectX::SimpleMath::Vector4 kIconTint = { 0.97f, 0.94f, 0.87f, 1.0f };
-    inline constexpr float kIconScale = 0.88f;    // アイコンの大きさ（縮めた後のマスに対する比。2026-09-30 0.74 → 0.88、ユーザー要求）
+    inline constexpr float kIconScale = 0.88f;    // アイコンの大きさ（縮めた後のマスに対する比）
 
     // アイテム 1 個（幻想 UI）。white は無地の白、outline は種類の色（UIDeco::CategoryColor）
     inline void DrawItemGlass(SpriteRenderer& sprite,
@@ -213,6 +212,40 @@ namespace ShapeSprite
         sprite.Draw(icon,
             { origin.x + (float)c.col * pitch + (cell - s) * 0.5f, origin.y + (float)c.row * pitch + (cell - s) * 0.5f },
             { s, s }, ic);
+    }
+
+    // 設置枠（バックパックのマスになる物）。魔法と見分けが付くよう、つなげず 1 マスずつ描く：
+    // 暗い地 + 細い縁（ただの枠 = 月銀 line、効果の枠 = 枠の色 effect。effect.w = 0 なら効果無し）。
+    // 効果の枠は地に枠の色を薄く重ね、絵は真ん中のマスに薄く
+    inline void DrawFrameTiles(SpriteRenderer& sprite,
+        const std::shared_ptr<Texture>& white, const DirectX::SimpleMath::Vector4& line,
+        const DirectX::SimpleMath::Vector4& effect, const std::shared_ptr<Texture>& icon,
+        const std::vector<CellOffset>& cells, const DirectX::SimpleMath::Vector2& origin, float cell, float gap, float alpha = 1.0f)
+    {
+        if (cells.empty() || !white) return;
+        const float pitch = cell + gap;
+        const float inset = cell * 0.04f;
+        const float s = cell - inset * 2.0f;
+        const float th = (std::max)(1.0f, cell * 0.045f);
+        const bool fx = effect.w > 0.0f;
+        DirectX::SimpleMath::Vector4 edge = fx ? effect : line;
+        edge.w = 0.95f * alpha;
+        for (const auto& c : cells)
+        {
+            const DirectX::SimpleMath::Vector2 p = { origin.x + (float)c.col * pitch + inset, origin.y + (float)c.row * pitch + inset };
+            sprite.Draw(white, p, { s, s }, { 0.012f, 0.011f, 0.020f, 0.95f * alpha });
+            if (fx) sprite.Draw(white, p, { s, s }, { effect.x, effect.y, effect.z, 0.26f * alpha });
+            sprite.Draw(white, p, { s, th }, edge);
+            sprite.Draw(white, { p.x, p.y + s - th }, { s, th }, edge);
+            sprite.Draw(white, p, { th, s }, edge);
+            sprite.Draw(white, { p.x + s - th, p.y }, { th, s }, edge);
+        }
+        if (!icon) return;
+        const CellOffset c = CenterCell(cells);
+        const float is = s * 0.62f;
+        sprite.Draw(icon,
+            { origin.x + (float)c.col * pitch + (cell - is) * 0.5f, origin.y + (float)c.row * pitch + (cell - is) * 0.5f },
+            { is, is }, { kIconTint.x, kIconTint.y, kIconTint.z, (fx ? 0.75f : 0.5f) * alpha });
     }
 
     // アイコンを重ねる時の、地のブロックの暗さ（アイコンを浮かせる）

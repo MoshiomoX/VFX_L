@@ -1,11 +1,11 @@
 // ============================================================
 // SwarmSystemKinds.cpp
-// 突撃兵・盾兵・凍結（2026-10-08）の GPU 側の見た目。SwarmSystem.cpp が 3000 行を超えたので分けた。
+// 突撃兵・盾兵・凍結などの GPU 側の見た目。
 //   ・突撃兵 / 盾兵の描画リスト：SwarmEnemyCompactCS は UAV が 8 本（FL 11.0 の上限）で埋まっているので、
 //     SwarmEnemyKindListCS が CompactCS の直後に別に作る
 //   ・突撃兵の予告の帯：溜めの間、足元から突進の向きへ地面に赤い帯（SwarmChargeLineVS / PS、RenderOverlay）
-//   ・盾兵の盾：特効モデル dun01.FBX を身体の前に（SwarmShieldVS + 雑魚の PS、敵のステンシルのまま）
-//   ・凍った敵の氷：特効モデル bingci_02.FBX を足元に前後 2 つ（SwarmIceVS + 雑魚の PS、半透明）
+//   ・盾兵の盾：エフェクトのモデル dun01.FBX を身体の前に（SwarmShieldVS + 雑魚の PS、敵のステンシルのまま）
+//   ・凍った敵の氷：エフェクトのモデル bingci_02.FBX を足元に前後 2 つ（SwarmIceVS + 雑魚の PS、半透明）
 // 動き（溜め・突進・凍結）と当たり（盾の装甲）は CS 側（SwarmEnemyAICS / SwarmHitCS / SwarmAreaDamageCS / SwarmContactCS）
 // ============================================================
 #include "Swarm/SwarmSystem.h"
@@ -64,8 +64,8 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
     m_ChargeLinePS = LoadShader<PixelShader>(device, L"Shader/Swarm/SwarmChargeLinePS.hlsl", "ChargeLinePS");
     m_ShieldVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmShieldVS.hlsl", "ShieldVS");
     m_IceVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmIceVS.hlsl", "IceVS");
-    m_SpikeBallVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmSpikeBallVS.hlsl", "SpikeBallVS");   // トゲ玉（2026-10-17）
-    m_MoundVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmMoundVS.hlsl", "MoundVS");   // 砂潜り（2026-10-17）
+    m_SpikeBallVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmSpikeBallVS.hlsl", "SpikeBallVS");   // トゲ玉
+    m_MoundVS = LoadShader<VertexShader>(device, L"Shader/Swarm/SwarmMoundVS.hlsl", "MoundVS");   // 砂潜り
 
     // 突撃兵の帯: { 区間 x 6 頂点, InstanceCount = 突撃兵の一覧（CopyStructureCount）, 0, 0 }
     const uint32_t lineInit[4] = { kChargeLineSegs * 6, 0, 0, 0 };
@@ -90,7 +90,7 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
         };
     makeProp(m_ShieldVS, Res::VFX::TowerShield, m_ShieldMaterial, m_ShieldModel);
     makeProp(m_IceVS, Res::VFX::IceSpikes, m_IceMaterial, m_IceModel);
-    // 砂旋（2026-10-20 筒のモデルを廃止）：足元の砂埃 SwarmTornadoEmitCS と風源 SwarmWindSourceCS だけ。Swarm/SwarmSystemTornado.cpp
+    // 砂旋：足元の砂埃 SwarmTornadoEmitCS と風源 SwarmWindSourceCS だけ。Swarm/SwarmSystemTornado.cpp
     m_TornadoEmitCS = LoadShader<ComputeShader>(device, L"Shader/Swarm/SwarmTornadoEmitCS.hlsl", "TornadoEmitCS");   // 無くても砂埃が出ないだけ
     m_WindSourceCS = LoadShader<ComputeShader>(device, L"Shader/Swarm/SwarmWindSourceCS.hlsl", "WindSourceCS");      // 無くても風源が空のまま
 
@@ -105,7 +105,7 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
             m_ShieldDrawArgs.push_back(MakeArgs(device, init, 5));
         }
     }
-    // 氷: submesh 毎。InstanceCount は生きている敵の一覧から（2026-10-25、前は池全体 x 2 を毎フレーム描いていた）
+    // 氷: submesh 毎。InstanceCount は生きている敵の一覧から
     m_IceDrawArgs.clear();
     if (m_IceModel)
     {
@@ -116,7 +116,7 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
             m_IceDrawArgs.push_back(MakeArgs(device, init, 5));
         }
     }
-    // トゲ玉：コードで作った球 + トゲ（半径 1、砂色の球 + 褐色のトゲ。2026-10-17）。InstanceCount はトゲ玉の一覧から
+    // トゲ玉：コードで作った球 + トゲ（半径 1、砂色の球 + 褐色のトゲ）。InstanceCount はトゲ玉の一覧から
     m_SpikeBallDrawArgs.clear();
     if (m_SpikeBallVS && m_EnemyPS)
     {
@@ -153,8 +153,8 @@ bool SwarmSystem::LoadKindAssets(ID3D11Device* device)
             }
         }
     }
-    LoadRuinsAssets(device);   // 遺跡の敵の一覧 CS・予告の帯（2026-10-25。無くても遺跡の敵が雑魚の一覧に入らないだけ）
-    LoadEliteAssets(device);   // 面の固定エリートの砕け中の一覧・様子のリードバック（2026-10-25）
+    LoadRuinsAssets(device);   // 遺跡の敵の一覧 CS・予告の帯（無くても遺跡の敵が雑魚の一覧に入らないだけ）
+    LoadEliteAssets(device);   // 面の固定エリートの砕け中の一覧・様子のリードバック
     return m_KindListCS && m_ChargeLineVS && m_ChargeLinePS && m_ShieldModel && m_IceModel && m_SpikeBallModel && m_MoundModel;
 }
 
@@ -171,19 +171,19 @@ void SwarmSystem::DispatchKindLists()
     // initialCount = 0 で bind → append の数が 0 に戻る
     m_KindListCS->SetUAV(m_Context, "chargerList", m_KindListUAV[Swarm::kDrawListCharger].Get(), 0);
     m_KindListCS->SetUAV(m_Context, "shieldList", m_KindListUAV[Swarm::kDrawListShield].Get(), 0);
-    m_KindListCS->SetUAV(m_Context, "spikeBallList", m_SpikeBallListUAV.Get(), 0);   // トゲ玉（2026-10-17）
-    m_KindListCS->SetUAV(m_Context, "burrowerList", m_KindListUAV[Swarm::kDrawListBurrower].Get(), 0);   // 砂潜り（2026-10-17）
-    m_KindListCS->SetUAV(m_Context, "sandMageList", m_KindListUAV[Swarm::kDrawListSandMage].Get(), 0);   // 砂嵐の術師（2026-10-17）
-    // u5 は空き（砂旋は何も描かないので一覧を廃止。2026-10-25）
-    m_KindListCS->SetUAV(m_Context, "dashBomberList", m_KindListUAV[Swarm::kDrawListDashBomber].Get(), 0);   // 突撃爆弾兵（2026-10-18）
-    m_KindListCS->SetUAV(m_Context, "bossList", m_KindListUAV[Swarm::kDrawListBoss].Get(), 0);   // 面の Boss（自分の皮 + 飾り。2026-10-24）
+    m_KindListCS->SetUAV(m_Context, "spikeBallList", m_SpikeBallListUAV.Get(), 0);   // トゲ玉
+    m_KindListCS->SetUAV(m_Context, "burrowerList", m_KindListUAV[Swarm::kDrawListBurrower].Get(), 0);   // 砂潜り
+    m_KindListCS->SetUAV(m_Context, "sandMageList", m_KindListUAV[Swarm::kDrawListSandMage].Get(), 0);   // 砂嵐の術師
+    // u5 は空き（砂旋は何も描かない）
+    m_KindListCS->SetUAV(m_Context, "dashBomberList", m_KindListUAV[Swarm::kDrawListDashBomber].Get(), 0);   // 突撃爆弾兵
+    m_KindListCS->SetUAV(m_Context, "bossList", m_KindListUAV[Swarm::kDrawListBoss].Get(), 0);   // 面の Boss（自分の皮 + 飾り）
     m_KindListCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
     m_KindListCS->UnbindSRVs(m_Context);
     m_KindListCS->UnbindUAVs(m_Context);
     ClearEliteInfo();
-    DispatchKindLists2();   // 遺跡の敵（2026-10-25。この pass も UAV が 8 本で埋まった）
-    CopyEliteInfoForCPU();   // 面の固定エリートの様子（KindList2CS が書く。2026-10-25）
+    DispatchKindLists2();   // 遺跡の敵（この pass の UAV は 8 本で満杯なので別の CS）
+    CopyEliteInfoForCPU();   // 面の固定エリートの様子（KindList2CS が書く）
 }
 
 // ============================================================
@@ -238,7 +238,6 @@ void SwarmSystem::RenderShields(const Matrix& view, const Matrix& proj)
 // ============================================================
 // 凍った敵の氷（RenderOpaque の最後。半透明・深度は読むだけ）。
 // 生きている敵の一覧（CompactCS）から間接描画で、前後の 2 つの塊を 1 回ずつ。凍っていない槽は VS が畳む
-// （2026-10-25、前は池全体 x 2 = 8192 個を凍った敵が居なくても毎フレーム描いていた）
 // ============================================================
 void SwarmSystem::RenderIce(const Matrix& view, const Matrix& proj)
 {
@@ -332,7 +331,7 @@ void SwarmSystem::RenderChargeLines(CameraBase* camera)
     m_Context->RSSetState(rs.CullNone());
 
     m_Context->DrawInstancedIndirect(m_ChargeLineArgs.Get(), 0);
-    // 同じ帯を鎖の番人（投げの溜め）・ガーゴイル（急降下の溜め）の一覧からもう一度ずつ（2026-10-25）
+    // 同じ帯を鎖の番人（投げの溜め）・ガーゴイル（急降下の溜め）の一覧からもう一度ずつ
     if (m_WardenLineArgs)
     {
         m_ChargeLineVS->SetSRV(m_Context, "chargerList", m_KindListSRV[Swarm::kDrawListWarden].Get());
@@ -352,9 +351,9 @@ void SwarmSystem::RenderChargeLines(CameraBase* camera)
 }
 
 // ============================================================
-// トゲ玉の体（RenderOpaque の盾の後、ステンシル 2 のまま。2026-10-17）。
+// トゲ玉の体（RenderOpaque の盾の後、ステンシル 2 のまま）。
 // 雑魚のメッシュは描かず（CompactCS が mobList に入れない）、コードで作った球 + トゲ（PrimitiveBuilder::CreateSpikeBall、半径 1）を
-// 体格に合わせて拡大し、MoveCS が積み上げた向き（m_EnemyRoll*。2026-10-25）で回して描く。色は頂点色 × spikeBallLook.tint
+// 体格に合わせて拡大し、MoveCS が積み上げた向き（m_EnemyRoll*）で回して描く。色は頂点色 × spikeBallLook.tint
 // ============================================================
 void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
 {
@@ -377,14 +376,14 @@ void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
     p.hold = Vector3(0.0f, spikeBallLook.radius, 0.0f);    // 中心 = 足元 + 半径
     p.yaw = 0.0f;
     p.tint = spikeBallLook.tint;
-    p.bob = 0.0f;   // 転がる速さは MoveCS へ（BomberCB::spikeBallRollPerMeter。2026-10-25）
+    p.bob = 0.0f;   // 転がる速さは MoveCS へ（BomberCB::spikeBallRollPerMeter）
     p.alpha = 1.0f;
     m_SpikeBallVS->WriteBuffer(m_Context, 4, &p);
 
     m_SpikeBallVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "spikeBallList", m_SpikeBallListSRV.Get());
-    m_SpikeBallVS->SetSRV(m_Context, "enemyRoll", m_EnemyRollSRV.Get());   // 転がった向き（MoveCS が積み上げる。2026-10-25）
+    m_SpikeBallVS->SetSRV(m_Context, "enemyRoll", m_EnemyRollSRV.Get());   // 転がった向き（MoveCS が積み上げる）
     m_SpikeBallVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
@@ -398,7 +397,7 @@ void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
 }
 
 // ============================================================
-// 砂潜りの砂の山（RenderOpaque のトゲ玉の後、ステンシル 2 のまま。2026-10-17）。
+// 砂潜りの砂の山（RenderOpaque のトゲ玉の後、ステンシル 2 のまま）。
 // 潜っている間は体が地面の下（SwarmEnemyVS）なので、代わりに足元の低い丘を描く。出ている間は VS が畳む
 // ============================================================
 void SwarmSystem::RenderMounds(const Matrix& view, const Matrix& proj)
@@ -429,7 +428,7 @@ void SwarmSystem::RenderMounds(const Matrix& view, const Matrix& proj)
     m_MoundVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_MoundVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_MoundVS->SetSRV(m_Context, "burrowerList", m_KindListSRV[Swarm::kDrawListBurrower].Get());
-    // enemySlow は SwarmMoundVS が読まない（宣言だけで最適化で消え、毎フレーム「SRV not found」が出ていた。2026-10-20）
+    // enemySlow は SwarmMoundVS が読まないので渡さない（渡すと毎フレーム「SRV not found」が出る）
     m_MoundVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     const auto& subs = m_MoundModel->GetSubMeshes();

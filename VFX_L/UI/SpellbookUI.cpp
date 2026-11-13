@@ -41,7 +41,7 @@ namespace
     constexpr float kQuietSmooth = 0.25f;         // 秒。速さを均す時定数
 
     constexpr float kWallThick = 400.0f;          // 壁の四角の厚さ（px。薄いと速い物が抜ける）
-    constexpr uint32_t kWallUid[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };   // 左 右 上 床 + バックパックの列 + 木箱の左・右・底（画面の縁の時。2026-10-27）
+    constexpr uint32_t kWallUid[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };   // 左 右 上 床 + バックパックの列 + 木箱の左・右・底（画面の縁の時）
 
     // 木箱の枠の絵の縁（512 のうち 128）
     constexpr float kFrameBorderUV = 128.0f / 512.0f;
@@ -137,7 +137,7 @@ namespace
     void DrawNineSlice(SpriteRenderer& sprite, const std::shared_ptr<Texture>& tex,
         const Vector2& pos, const Vector2& size, float border, float borderUV, const Vector4& color, bool openTop = false)
     {
-        // openTop（2026-10-27、蓋の無い箱）：上の段を描かず、左右の縦の辺を上の端まで伸ばす
+        // openTop（蓋の無い箱）：上の段を描かず、左右の縦の辺を上の端まで伸ばす
         const float xs[3] = { pos.x, pos.x + border, pos.x + size.x - border };
         const float ws[3] = { border, size.x - border * 2.0f, border };
         const float ys[3] = { pos.y, pos.y + border, pos.y + size.y - border };
@@ -200,7 +200,7 @@ std::shared_ptr<Texture> SpellbookUI::GetIcon(ItemID id) const
 void SpellbookUI::Layout(float screenW, float screenH)
 {
     const float shortSide = (screenW < screenH) ? screenW : screenH;
-    // UI 全体の倍率（2026-10-07）。枠込みで画面の高さの 8 割を超えるなら収まる所まで
+    // UI 全体の倍率。枠込みで画面の高さの 8 割を超えるなら収まる所まで
     const float inner = shortSide * boxScreenRatio * UIDeco::FitScale(boxScreenRatio * (1.0f + wallRatio * 2.0f), 0.80f);
     const float margin = shortSide * marginRatio;
     m_Wall = inner * wallRatio;
@@ -208,7 +208,7 @@ void SpellbookUI::Layout(float screenW, float screenH)
     const Vector2 oldMin = m_BoxMin;
     const bool hadLayout = m_BoxMax.x > m_BoxMin.x;
 
-    // 右端から枠の分を空けて内寸を置く。画面の縁が壁の時は下に寄せる（錠前の分 + 余白を空ける。2026-10-27「少し下に」）
+    // 右端から枠の分を空けて内寸を置く。画面の縁が壁の時は下に寄せる（錠前の分 + 余白を空ける）
     m_BoxMax.x = screenW - margin - m_Wall;
     m_BoxMin.x = m_BoxMax.x - inner;
     if (screenWalls)
@@ -295,7 +295,7 @@ void SpellbookUI::SpawnBody(ItemID id)
 
     const float cellPx = CellPx();
     const float r = b.bound * cellPx;
-    // 箱の真上から降らせる（画面の縁の時は画面の上から = 箱に入り、満杯なら縁からこぼれる。2026-10-27）
+    // 箱の真上から降らせる（画面の縁の時は画面の上から = 箱に入り、満杯なら縁からこぼれる）
     const float x0 = m_BoxMin.x + r;
     const float x1 = (std::max)(x0, m_BoxMax.x - r);
     const float yTop = screenWalls ? m_AreaMin.y : m_BoxMin.y;
@@ -324,7 +324,7 @@ void SpellbookUI::SpawnBody(ItemID id)
     b.vel = { ((float)rand() / RAND_MAX - 0.5f) * 120.0f, 0.0f };
     b.angVel = ((float)rand() / RAND_MAX - 0.5f) * 4.0f;
 
-    // マウスで離した直後の同じ物：離した所から、掴んでいた向きのまま、そっと落とす（2026-10-27）
+    // マウスで離した直後の同じ物：離した所から、掴んでいた向きのまま、そっと落とす
     if (m_DropHint.valid && m_DropHint.id == id)
     {
         b.pos = m_DropHint.center;
@@ -343,7 +343,7 @@ void SpellbookUI::SpawnBody(ItemID id)
 }
 
 // ============================================================
-// ドラッグの追跡（2026-10-27）。Update の最初に呼ぶ（ドラッグは Update の後の BackpackUI で終わるので、
+// ドラッグの追跡。Update の最初に呼ぶ（ドラッグは Update の後の BackpackUI で終わるので、
 // 終わったことはこの次のフレームの頭で分かる → そのまま SyncBodies が出す物に使う）
 // ============================================================
 void SpellbookUI::TrackDrag(float dt)
@@ -356,7 +356,7 @@ void SpellbookUI::TrackDrag(float dt)
     if (m_Drag && m_Drag->IsActive())
     {
         // DrawDragged と同じ：マウス − grabOffset = 要のマスの左上。回した形の重心はそこから（列, 行）+ 0.5 マス。
-        // パッドの時はマウスの代わりにパッドのカーソル（2026-10-28 からパッドもカーソル操作）
+        // パッドの時はマウスの代わりにパッドのカーソル
         const ItemCommon* c = ItemDatabase::GetCommon(m_Drag->id);
         std::vector<CellOffset> cells = c ? BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation) : std::vector<CellOffset>{};
         if (cells.empty()) cells.push_back({ 0, 0 });
@@ -601,7 +601,7 @@ void SpellbookUI::StepPhysics(float dt)
     addWall({ m_AreaMax.x + ht, center.y }, { ht, half.y + kWallThick });
     addWall({ center.x, m_AreaMin.y - ht }, { half.x + kWallThick, ht });
     addWall({ center.x, m_AreaMax.y + ht }, { half.x + kWallThick, ht });
-    // 画面の縁の時（2026-10-27）：5 枚目 = バックパックの列、6〜8 枚目 = 蓋の無い木箱の左の板・右の板・底（上は開いている）
+    // 画面の縁の時：5 枚目 = バックパックの列、6〜8 枚目 = 蓋の無い木箱の左の板・右の板・底（上は開いている）
     if (screenWalls)
     {
         if (Blocked()) addWall((m_ObstacleMin + m_ObstacleMax) * 0.5f, (m_ObstacleMax - m_ObstacleMin) * 0.5f);
@@ -814,9 +814,8 @@ void SpellbookUI::StepPhysics(float dt)
     m_MaxV = maxV;
     m_MaxW = maxW;
 
-    // ---- 静かな収め（2026-10-04）----
-    // 基本魔法が Z・L・凸字の多マスになってから、斜めに寄り掛かった物が摩擦の限界の角度でゆっくり滑り続け、
-    // 箱がいつまでも眠らなくなった（自動テスト chest：10 秒経っても 4〜14 px/s・0.1〜0.3 rad/s）。
+    // ---- 静かな収め ----
+    // 多マスの凹んだ形が斜めに寄り掛かると摩擦の限界の角度でゆっくり滑り続け、箱が眠らない。
     // 全体がゆっくりになって kQuietTime 続いたら強く減衰させて止める（倒れ込む・落ちる速い動きには掛からない）。
     // 1 ステップだけの接触の跳ね（瞬間の速さ）で毎回やり直しにならないよう、速さは時定数 kQuietSmooth で均して見る
     const float k = 1.0f - std::exp(-dt / kQuietSmooth);
@@ -1037,6 +1036,42 @@ void SpellbookUI::Draw(SpriteRenderer& sprite)
         }
         const BodyState& b = selected ? lifted : src;
         const float th = selected ? (std::max)(2.0f, cellPx * 0.10f) : thBase;
+
+        // 設置枠：魔法と見分けが付くよう、マスを 1 つずつ（暗い地 + 月銀 / 枠の色の縁。ShapeSprite::DrawFrameTiles と同じ見た目）
+        if (const FrameItemDef* fd = ItemDatabase::GetFrame(src.id))
+        {
+            const bool fx = fd->HasEffect();
+            Vector4 fe = fx ? fd->common.color : UIDeco::TintColor(UIDeco::Tint::Silver);
+            if (selected)
+            {
+                const float pulse = 0.75f + 0.25f * std::sin(UIDeco::Clock() * 6.0f);
+                fe = { 1.6f * pulse, 1.45f * pulse, 0.95f * pulse, 1.0f };
+            }
+            fe.w = 0.95f;
+            const float in = cellPx * 0.04f;
+            const float s = cellPx - in * 2.0f;
+            const float fth = (std::max)(1.0f, cellPx * 0.045f);
+            for (int k = 0; k < (int)b.cells.size(); ++k)
+            {
+                const Box box = CellBox(b, k);
+                const Vector2 tl = { box.pos.x - halfPx + in, box.pos.y - halfPx + in };
+                sprite.Draw(white, tl, { s, s }, { 0.012f, 0.011f, 0.020f, 0.95f }, b.angle, box.pos);
+                if (fx) sprite.Draw(white, tl, { s, s }, { fd->common.color.x, fd->common.color.y, fd->common.color.z, 0.26f }, b.angle, box.pos);
+                sprite.Draw(white, tl, { s, fth }, fe, b.angle, box.pos);
+                sprite.Draw(white, { tl.x, tl.y + s - fth }, { s, fth }, fe, b.angle, box.pos);
+                sprite.Draw(white, tl, { fth, s }, fe, b.angle, box.pos);
+                sprite.Draw(white, { tl.x + s - fth, tl.y }, { fth, s }, fe, b.angle, box.pos);
+            }
+            if (auto icon = GetIcon(b.id))
+            {
+                const Box box = CellBox(b, b.iconCell);
+                const float is = s * 0.62f;
+                Vector4 ic = ShapeSprite::kIconTint;
+                ic.w = fx ? 0.75f : 0.5f;
+                sprite.Draw(icon, { box.pos.x - is * 0.5f, box.pos.y - is * 0.5f }, { is, is }, ic, b.angle, box.pos);
+            }
+            continue;
+        }
 
         // バックパックと同じ「色ガラス」：アイテムの色を沈めた地 + 外周だけ種類の色の縁
         // （同じ物のマス同士の境目には縁を引かないので、一続きの形に見える）

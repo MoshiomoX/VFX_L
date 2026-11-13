@@ -19,11 +19,10 @@ inline ProjectileItemDef MakeHomingBolt()
     def.common.description = L"狙った敵を逃さない魔法弾。外れにくいが、MP を多めに使う。";
     def.common.iconPath = Res::Icon::HomingBolt;
     def.common.category = ItemCategory::Projectile;
-    // 形は強さで決める（2026-10-04、ユーザー「小さい 1 マスの魔法を色々な形に」）。単体 DPS 約 18 で一番弱い開始時の魔法 → 横 2 マス
-    // （3x3 枠の真ん中に置いても枠に収まる）
+    // 横 2 マス（3x3 枠の真ん中に置いても枠に収まる）
     def.common.occupyCells = ItemShape::RowLine(2);
     def.common.influenceCells = ItemShape::Around4(def.common.occupyCells);   // 誘発の届く範囲（形の上下左右。弧と組んで魔導光線を目覚めさせる）
-    def.common.color = { 0.40f, 0.58f, 1.00f, 1.0f };   // 輝石の青（2026-10-15 紫から変更。弾の見た目に合わせた）
+    def.common.color = { 0.40f, 0.58f, 1.00f, 1.0f };   // 輝石の青（弾の見た目に合わせる）
 
     // ---- どう撃つか（弾の威力・速さ・見た目は profile 側）----
     def.baseStats.id = ItemID::HomingBolt;
@@ -31,8 +30,8 @@ inline ProjectileItemDef MakeHomingBolt()
     def.baseStats.spreadAngle = 0.0f;
     def.baseStats.castCount = 1;
     def.baseStats.castDelay = 0.12f;
-    def.baseStats.castInterval = 0.45f;   // 単体の魔法は速め：0.6 → 0.45（2026-09-30）
-    def.baseStats.manaCost = 10.5f;       // 間隔と同じ x0.75 で、毎秒の消費は変えない
+    def.baseStats.castInterval = 0.45f;   // 単体の魔法は速め
+    def.baseStats.manaCost = 10.5f;
 
     def.profile = "HomingFull";   // Assets/Data/ProjectileData/HomingFull.json
 

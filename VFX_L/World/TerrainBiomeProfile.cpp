@@ -1,15 +1,12 @@
 // ============================================================
 // TerrainBiomeProfile.cpp
-// マップ毎の地形の生成規則（2026-10-26 ユーザー「三つのマップを完全に分ける」→「地形は各マップ自分の生成規則で」）。
-// 以前は三つのマップとも同じ段々の台地（PokéBonk 風）で、色・置物・外周だけが違った。
+// マップ毎の地形の生成規則。
 // ここで TerrainGenerator::Config の数値をマップ毎に上書きする（シーンが biome を決めた直後に呼ぶ：
 // CollisionTestSceneInit / EnterTrainingField / BuildSelectWorlds）。Terrain パネルの Regenerate はこの値から動かせる。
 //
-// 第 1 段階（10-26）= 今ある部品の数値だけで分ける：
 //   草原 = 既定のまま（段々の台地 30%・2.5m・草の坂・水たまり）
-//   砂漠 = 台地を減らして高く（大きなメサ）、砂丘の起伏を大きく長く、オアシスの水たまりは少なく、岩を多く
-//   遺跡 = 角張った小さい台地（セルのノイズ）、起伏はほぼ無し、柱・像（木の枠）と崩れた壁（岩の枠）を多く
-// 第 2 段階（未着手）：砂漠の岩柱・峡谷の壁、遺跡の壁で仕切った部屋・廊下
+//   砂漠 = 台地を減らして高く（大きなメサ）、砂丘の起伏を大きく長く、オアシスの水たまりは少なく、岩を多く、岩柱・峡谷の壁
+//   遺跡 = 角張った小さい台地（セルのノイズ）、起伏はほぼ無し、柱・像（木の枠）と崩れた壁（岩の枠）を多く、壁で仕切った部屋
 // ============================================================
 #include "World/TerrainGenerator.h"
 
@@ -32,7 +29,7 @@ namespace TerrainGenerator
             cfg.stepRampSlopeDeg = 16.0f;
             cfg.stepRimLevels = 2;
             cfg.stepRimBand = 3;
-            cfg.pondCoverage = 0.05f;      // オアシス（2026-11-02：少なく大きく = 波長 34m・0.035 → 0.05。草は池の周りだけ = StageDef::oasisGrass）
+            cfg.pondCoverage = 0.05f;      // オアシス（少なく大きく。草は池の周りだけ = StageDef::oasisGrass）
             cfg.pondScale = 34.0f;
             cfg.pondDepth = 0.6f;
             // 砂丘：大きく長い起伏（TerrainGenerator 側で砂漠 ×1.25 が掛かる）
@@ -50,7 +47,7 @@ namespace TerrainGenerator
             cfg.treeCount = 18;
             cfg.rockCount = 26;
             cfg.bushCount = 50;
-            // 岩柱と峡谷の壁（第 2 段。10-26）
+            // 岩柱と峡谷の壁
             cfg.pillarCount = 12;
             cfg.canyonCount = 3;
             break;
@@ -77,7 +74,7 @@ namespace TerrainGenerator
             cfg.treeCount = 44;
             cfg.rockCount = 32;
             cfg.bushCount = 110;
-            // 壁で仕切った部屋と廊下（第 2 段。10-26）
+            // 壁で仕切った部屋と廊下
             cfg.ruinRoomCount = 9;
             cfg.ruinRoomMinCells = 5;
             cfg.ruinRoomMaxCells = 9;

@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // CollisionTestSceneField.cpp
-// CollisionTestScene のフィールドの物（2026-10-25 に CollisionTestScene.cpp から分けた）:
+// CollisionTestScene のフィールドの物:
 //   世界の風を配る・突風の風源・報酬の箱 / Boss の門 / 磁石の置き直し・置物の下と袋小路のマスを雑魚用に塞ぐ
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -14,7 +14,7 @@
 #include "Graphics/Renderer/TerrainSurface.h"
 
 // ============================================================
-// 草の下の地面を暗くする（2026-11-02、ユーザー：葉の間から透ける地面が明るくて見栄えが悪い）：
+// 草の下の地面を暗くする（葉の間から地面が明るく透けないように）：
 // 草の「生やす所」の図（GrassRenderer::GetGroundSRV の a）を地面の材質（TerrainSurface）へ渡す。
 // 草を建て直す度に呼ぶ（SRV が作り直される）。草が切れていれば外す
 // ============================================================
@@ -50,8 +50,7 @@ void CollisionTestScene::ApplyIceFloor()
 }
 
 // ============================================================
-// 世界の風（2026-10-12）：WeatherSystem が作った 1 つの風を、草・マント・粒子へ配る。
-// 以前は 3 か所がそれぞれ別の向き・強さを持っていた
+// 世界の風：WeatherSystem が作った 1 つの風を、草・マント・粒子へ配る。
 // ============================================================
 void CollisionTestScene::PushWind()
 {
@@ -60,12 +59,12 @@ void CollisionTestScene::PushWind()
     m_Grass.SetWind(wind);
     m_ClothChainSystem.wind = wind;
     m_ClothChainSystem.windTime = m_Grass.Time();
-    m_ClothChainSystem.localWind = &m_Swarm.GetLocalWind();   // 竜巻・渦・砂旋・突風にマントも巻かれる（2026-10-22）
+    m_ClothChainSystem.localWind = &m_Swarm.GetLocalWind();   // 竜巻・渦・砂旋・突風にマントも巻かれる
     m_ParticleSystem.SetWind(wind, m_Grass.Time());
-    m_ParticleSystem.SetWindSources(m_Swarm.GetWindSourceSRV());   // 砂旋の風源（煙が周りを回る。2026-10-19）
+    m_ParticleSystem.SetWindSources(m_Swarm.GetWindSourceSRV());   // 砂旋の風源（煙が周りを回る）
     m_Debris.SetWind(wind, m_Grass.Time());   // 落ち葉（強い風で舞う）
-    m_Dandelions.SetWind(wind, m_Grass.Time());   // タンポポ（強い風で綿毛がほどける。2026-10-22）
-    // 水面（2026-10-27）：草と同じ 2 つの突風の波で、風の強い所だけさざ波が立つ。雨 = 雨粒の波紋、砂嵐 = 濁り
+    m_Dandelions.SetWind(wind, m_Grass.Time());   // タンポポ（強い風で綿毛がほどける）
+    // 水面：草と同じ 2 つの突風の波で、風の強い所だけさざ波が立つ。雨 = 雨粒の波紋、砂嵐 = 濁り
     {
         const auto& gs = m_Grass.GetSettings();
         const float a = DirectX::XMConvertToRadians(gs.wave2Angle);
@@ -96,12 +95,15 @@ void CollisionTestScene::PushWind()
     m_Swarm.SetGrassFireDamage(m_GrassFire.GetSRV(), m_GrassFire.MapOrigin(), m_GrassFire.MapSize(),
         fs.fireDps * fs.fireTick * power, fs.fireTick);
     m_Swarm.SetIceMaps(m_Water.GetIceSRV(), m_Water.GetPondTopSRV());
-    PushSand();   // 砂漠の砂の面：風・足・陽炎（2026-11-02）
-    PushMiasma(); // 遺跡の瘴気：風・箱の中心（2026-11-03）
+    PushSand();   // 砂漠の砂の面：風・足・陽炎
+    PushMiasma(); // 遺跡の瘴気：風・箱の中心
+    // 風の格子：プレイヤーの足元を中心に。天気の風の一部で残った風が風下へ流れる
+    if (const Vector3* fp = PlayerPos())
+        m_WindGrid.SetCenter(Vector3(fp->x, fp->y - m_Swarm.GetAIParams().groundY, fp->z), Vector2(wind.Velocity(m_Grass.Time(), fp->x, fp->z).x, wind.Velocity(m_Grass.Time(), fp->x, fp->z).z));
 }
 
 // ============================================================
-// 突風を風源にする（2026-10-20、エルデンリングの嵐系の質感）：渦の中心は身前 0.9m、
+// 突風を風源にする：渦の中心は身前 0.9m、
 // 届く距離 = 範囲の半径（突風 3.4m）、縁の接線 11 m/s + 芯の上昇 3.5 m/s + 吸い込み 1.2 m/s + 風下へ 11 m/s の押し、
 // 0.8 秒（sin で出入り）。草・落ち葉・煙・風を受ける粒子が同じ風に巻かれる。向き無し（円盤）なら押さない
 // ============================================================
@@ -110,8 +112,7 @@ void CollisionTestScene::AddGustWindBurst(const Vector3& pos, const Vector2& dir
     SwarmSystem::WindBurst b;
     const bool hasDir = dir.LengthSquared() > 1e-4f;
     b.pos = hasDir ? pos + Vector3(dir.x, 0.0f, dir.y) * 0.9f : pos;
-    // 10-20：筒 / 大きな板の粒子を無くし、風は「屈折 + 薄い白」と環境の反応だけに → 風源を強く・長く（2.6 / 9 / 2.5 / 0.8 / 7 / 0.45 秒 → 下）
-    // 前へ吹く物の届く距離 = 範囲の半径（突風 3.4m。拡大鏡で広がれば一緒に。2026-10-22）
+    // 前へ吹く物の届く距離 = 範囲の半径（突風 3.4m。拡大鏡で広がれば一緒に）
     b.radius = hasDir ? radius : (std::max)(length, 2.0f);
     b.swirl = 11.0f;
     b.updraft = 3.5f;
@@ -161,10 +162,10 @@ void CollisionTestScene::RespawnCrates()
 }
 
 // ============================================================
-// 置物の下のマスを雑魚用に塞ぐ（2026-10-03、通し検査 soak で見つけた）。
-// Boss の門の柱の衝突はプレイヤーにしか効かず、GPU の雑魚は格子しか見ないので素通りしていた。
+// 置物の下のマスを雑魚用に塞ぐ。
+// Boss の門の柱の衝突はプレイヤーにしか効かず、GPU の雑魚は格子しか見ないので素通りしてしまう。
 // 木・岩と同じく、衝突の箱が掛かるマスを塞ぐ（元から塞がっていたマスは覚えない = 戻さない）。
-// 報酬の箱は 2026-10-28 から衝突の箱が無い（ユーザーの依頼）ので塞がない
+// 報酬の箱は衝突の箱が無いので塞がない
 // ============================================================
 void CollisionTestScene::BlockPropCells()
 {
@@ -198,8 +199,7 @@ void CollisionTestScene::BlockPropCells()
 }
 
 // ============================================================
-// 出られない袋小路を塞ぐ（2026-10-03、通し検査 soak で見つけた）。
-// 雑魚が登れる障害物（2026-10-29、ユーザー「全部の雑魚が壁を登れるように。でないと無敵の場所ができる」）。
+// 雑魚が登れる障害物（登れないと安全地帯ができる）。
 // 場内の岩・木の幹・遺跡の部屋の壁・岩柱の上面を GridWorld へ（SwarmSystem::UploadTerrain が雑魚用の格子と流れ場に使う）。
 // 地形の記録（m_TerrainMap）から作るので、地形を作った / 読んだ / 差し替えた後、GPU へ上げる直前に呼ぶ
 // ============================================================

@@ -1,6 +1,6 @@
 // ============================================================
 // CollisionTestSceneBossKing.cpp
-// 遺跡 3 面目の Boss「骸の王」の見た目と足元の効き（2026-10-29。技の拍子と当たりは BossAttacksKing.cpp、説明は Enemy/Boss/BossKing.h）:
+// 遺跡 3 面目の Boss「骸の王」の見た目と足元の効き（技の拍子と当たりは BossAttacksKing.cpp、説明は Enemy/Boss/BossKing.h）:
 //   ・足元の闇（BossKingMist.json、ループ）：Boss が居る間ずっと付く黒い水溜まりと靄・紫の火の粉 + 弱い風源（靄が渦を巻く）
 //   ・溜め（呪いの玉・大起尸・呪いの床の始め）：死霊術師の詠唱の光を大きく + 咆哮
 //   ・呪いの玉：BossAttacks::KingOrbs() の 1 つ毎に司書の暗い紫の玉（EliteCurseOrb.json、大きく）、爆ぜたら EliteCurseOrbBlast

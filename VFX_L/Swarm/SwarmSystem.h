@@ -55,7 +55,7 @@ public:
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context);
     void Render(CameraBase* camera, const LightBuffer& light);   // = RenderOpaque + RenderOverlay
-    // 2026-10-04 トゥーンのアウトラインを間に挟むため 2 つに分けた：
+    // トゥーンのアウトラインを間に挟むため 2 つに分けてある：
     //   RenderOpaque  = 雑魚・砕け散り・経験値オーブ（深度を書く。点光源を PS に bind したまま返る）
     //   RenderOverlay = 液面・足元の影・警告の輪・HP バー（深度は読むだけ。最後に点光源を外す）
     void RenderOpaque(CameraBase* camera, const LightBuffer& light);
@@ -66,9 +66,9 @@ public:
     // Regenerate した時はもう一度呼ぶこと
     void UploadTerrain(const GridWorld& grid);
     // 通行マップだけを上げ直してフローフィールドを作り直させる（置物の下を塞ぐ / 開けた箱の下を戻す時）。
-    // 空間ハッシュ・高さ場・向き表の buffer はそのまま。格子の寸法が UploadTerrain の時と違えば UploadTerrain で全部作り直す（2026-10-25）
+    // 空間ハッシュ・高さ場・向き表の buffer はそのまま。格子の寸法が UploadTerrain の時と違えば UploadTerrain で全部作り直す
     void RefreshWalkable(const GridWorld& grid);
-    // 雑魚が壁を登る（2026-10-29、SwarmSystemClimb.cpp）：速さは GetBomberParams().climbSpeed、登れる障害物は GridWorld::SetClimb
+    // 雑魚が壁を登る（SwarmSystemClimb.cpp）：速さは GetBomberParams().climbSpeed、登れる障害物は GridWorld::SetClimb
 
     // VFXDatabase からレシピ表を作る。ItemDatabase / VFXDatabase の後に1回
     bool BuildVFXTable();
@@ -77,7 +77,7 @@ public:
 
     // GPU の範囲（弾の命中）が出した連番画像（Sprite entry）。不透明物の後・粒子の前に呼ぶ
     void RenderSprites(CameraBase* camera);
-    // GPU の弾が引く帯（VFX の Trail entry。2026-10-15）。RenderSprites の直後に呼ぶ（加算、深度は読むだけ）
+    // GPU の弾が引く帯（VFX の Trail entry）。RenderSprites の直後に呼ぶ（加算、深度は読むだけ）
     void RenderProjTrails(CameraBase* camera);
 
     // ---- 雑魚の頭上の HP バー（Render の最後、雑魚とオーブの後に描く）----
@@ -132,14 +132,14 @@ public:
         { 1.00f, 0.78f, 0.25f, 0.85f },    // 外周
         { 1.00f, 0.60f, 0.10f, 0.10f } };  // 外周の内側でまだ育っていない所
 
-    // ---- Boss のスラムの警告の輪（SetWarnCircles。2026-10-03）----
-    // 形は同じ。色は赤（ユーザー 10-03「もう少し赤く」：最初は紫を混ぜてピンクに見えた）、自爆兵の輪より濃く外周を太く
+    // ---- Boss のスラムの警告の輪（SetWarnCircles）----
+    // 形は同じ。色は赤（紫を混ぜるとピンクに見える）、自爆兵の輪より濃く外周を太く
     BomberRingStyle warnRing = { true, 0.14f, 0.04f,
         { 0.95f, 0.08f, 0.05f, 0.45f },    // 育つ円盤
         { 1.00f, 0.15f, 0.08f, 0.95f },    // 外周
         { 0.85f, 0.06f, 0.04f, 0.14f } };  // 外周の内側でまだ育っていない所
 
-    // ---- 突撃兵の予告の帯（溜めの間、足元から突進の向きへ。2026-10-08）----
+    // ---- 突撃兵の予告の帯（溜めの間、足元から突進の向きへ）----
     // 長さ = 突進の距離 + 体の半径、幅 = 体の 2.8 倍。中の塗りが溜めに合わせて先端へ伸び、届くと突進。
     // edgeWidth = 両脇の縁の太さ m。PS は SwarmChargeLinePS（「>」の矢羽が突進の向きを指す）
     BomberRingStyle chargeLine = { true, 0.07f, 0.04f,
@@ -147,7 +147,7 @@ public:
         { 1.00f, 0.35f, 0.10f, 0.90f },    // 縁と矢羽
         { 0.90f, 0.12f, 0.05f, 0.14f } };  // まだ塗られていない所
 
-    // ---- 盾兵の盾（特効モデル dun01.FBX を身体の前に。2026-10-08）----
+    // ---- 盾兵の盾（エフェクトのモデル dun01.FBX を身体の前に）----
     struct ShieldLookStyle
     {
         bool  enabled = true;
@@ -159,7 +159,7 @@ public:
     };
     ShieldLookStyle shieldLook;
 
-    // ---- トゲ玉の体（コードで作った球 + トゲ。SwarmSpikeBallVS。2026-10-17）----
+    // ---- トゲ玉の体（コードで作った球 + トゲ。SwarmSpikeBallVS）----
     struct SpikeBallLookStyle
     {
         bool  enabled = true;
@@ -169,7 +169,7 @@ public:
     };
     SpikeBallLookStyle spikeBallLook;
 
-    // ---- 砂潜りの砂の山（コードで作った球を潰した物。SwarmMoundVS。2026-10-17）----
+    // ---- 砂潜りの砂の山（コードで作った球を潰した物。SwarmMoundVS）----
     struct MoundLookStyle
     {
         bool  enabled = true;
@@ -180,19 +180,18 @@ public:
     };
     MoundLookStyle moundLook;
 
-    // ---- 砂嵐の術師の砂旋の見た目（2026-10-17。10-20 筒のモデルを廃止：ユーザー「筒は要らない、空間の歪み + 薄い白で足りる」）----
+    // ---- 砂嵐の術師の砂旋の見た目 ----
     // 砂旋そのものは描かない。見えるのは足元の砂埃（SwarmTornadoEmitCS が TornadoDust.json を出す：屈折 + 薄い白の煙団と砂粒）と、
     // 風源の表（Swarm::WindSource）に書いた風で草 / 落ち葉 / 粒子が巻かれる所だけ（Swarm/SwarmSystemTornado.cpp）
     struct TornadoLookStyle
     {
         float growTime = 0.3f;    // 生まれて風が強まる / 消える前に弱まる秒（風源の fade）
         bool  dust = true;        // 足元の砂埃（SwarmTornadoEmitCS、TornadoDust.json）
-        float dustRate = 1.0f;    // 配方の発射率に掛ける
+        float dustRate = 1.0f;    // レシピの発射率に掛ける
         float dustSwirl = 6.0f;   // 砂埃に足す軸回りの速さ m/s（砂と煙団が巻き上がって見える）
-        // 風源（2026-10-19 ユーザー：「風そのものが風の係数を持って世界の風に影響する」）。砂旋 1 本 = Swarm::WindSource 1 つ：
+        // 風源。砂旋 1 本 = Swarm::WindSource 1 つ：
         // 届く距離 = 当たりの半径 × windRadiusMul、縁の接線の速さ windSwirl、芯の上昇 windUpdraft、縁の吸い込み windInflow。
         // 草が輪になってなびき、フィールドの落ち葉 / 砂屑が巻き上がり、煙が周りを回る（GrassVS / DebrisUpdateCS / ParticleUpdateCS）。
-        // 10-20 筒を無くしたので風源を強めた（8 / 10 / 3 / 1.2 → 11 / 13 / 4.5 / 1.8）：見えるのは環境の反応だけ
         bool  windSource = true;
         float windRadiusMul = 11.0f;  // 当たりの半径 0.48m × 11 ≒ 5.3m
         float windSwirl = 13.0f;      // m/s
@@ -201,7 +200,7 @@ public:
     };
     TornadoLookStyle tornadoLook;
 
-    // ---- 引き寄せの範囲（渦。2026-10-22）も風源にする ----
+    // ---- 引き寄せの範囲（渦）も風源にする ----
     // 渦 1 つ = Swarm::WindSource 1 つ（中心 = 範囲の中心を地面へ、届く距離 = 範囲の半径 × radiusMul）。
     // 草が渦の方へなびいて回り、落ち葉 / 砂屑と受風の粒子が中心へ吸い込まれる。消える前 fadeTime 秒で弱まる
     struct VortexWindStyle
@@ -216,7 +215,7 @@ public:
     };
     VortexWindStyle vortexWind;
 
-    // ---- 凍った敵の氷（特効モデル bingci_02.FBX を足元に前後 2 つ。2026-10-08）----
+    // ---- 凍った敵の氷（エフェクトのモデル bingci_02.FBX を足元に前後 2 つ）----
     struct IceLookStyle
     {
         bool  enabled = true;
@@ -259,7 +258,7 @@ public:
     };
     OrbLookStyle orbLook;
 
-    // ---- 死んだ敵の砕け散り（2026-10-02、ユーザーが選んだ「ブロックが砕けて飛び散る」）----
+    // ---- 死んだ敵の砕け散り（ブロックが砕けて飛び散る）----
     // 部品（頭・胴・腕・脚）がプレイヤーから離れる向きへ飛び、回りながら 1 回跳ねて、life 秒で縮んで消える。
     // 足元に土煙（範囲 MobDeath、威力 0 の見た目だけ。deathArea は MobSpawner::Init が名前で引く）
     struct CorpseStyle
@@ -290,7 +289,7 @@ public:
 
     // ---- CPU 側から生成を依頼する（Flush でまとめて反映）----
     // kind: Swarm::kEnemyKindMob / kEnemyKindBomber
-    // yaw : 向き（rad、+Z が 0）。砂旋（kEnemyKindTornado）はこの向きへ飛ぶ。他の種類は AI が上書きする（2026-10-17）
+    // yaw : 向き（rad、+Z が 0）。砂旋（kEnemyKindTornado）はこの向きへ飛ぶ。他の種類は AI が上書きする
     void SpawnEnemy(const DirectX::SimpleMath::Vector3& pos, float hp, float moveSpeed,
         uint32_t kind = Swarm::kEnemyKindMob, float yaw = 0.0f);
     // motion  : SetMotions で上げた表の番号（0 = 直進）
@@ -309,10 +308,10 @@ public:
         uint32_t triggerTag = 0, bool spawnAtPos = false,
         float areaDamageMul = 1.0f, float areaDurationMul = 1.0f,
         uint32_t roll = 0,   // 曲線の横ずれの回転（0〜127 = 0〜360 度。ProjectileProfileDB::NextRoll）
-        uint32_t chainCount = 0,    // 連鎖のルーン: 当たった後に近くの別の敵へ跳ぶ回数（依頼の pathT に乗せる。2026-10-16）
-        uint32_t fanIndex = 0);     // 出口魔法の扇の何発目か。1 以上は最寄りの敵ではなく自分の向きの敵を捕捉する（2026-10-31）
+        uint32_t chainCount = 0,    // 連鎖のルーン: 当たった後に近くの別の敵へ跳ぶ回数（依頼の pathT に乗せる）
+        uint32_t fanIndex = 0);     // 出口魔法の扇の何発目か。1 以上は最寄りの敵ではなく自分の向きの敵を捕捉する
 
-    // 一斉起爆（2026-11-01）: 次のステップで全部の弾を消し、それぞれの場所に範囲 areaDef を出す（Drop / Lob 型は除く）。
+    // 一斉起爆:次のステップで全部の弾を消し、それぞれの場所に範囲 areaDef を出す（Drop / Lob 型は除く）。
     // 弾が消えた扱いなので、タグ付きの弾は誘発も起こす
     void DetonateProjectiles(uint32_t areaDef) { m_DetonateArea = areaDef; }
 
@@ -328,7 +327,7 @@ public:
         out.insert(out.end(), m_SplitEvents.begin(), m_SplitEvents.end());
         m_SplitEvents.clear();
     }
-    // リードバックで届いたダメージの数字（UI/DamageNumbers が描く）を全部取り出す。2〜3 フレーム遅れ（2026-10-17）
+    // リードバックで届いたダメージの数字（UI/DamageNumbers が描く）を全部取り出す。2〜3 フレーム遅れ
     void ConsumeDamageTexts(std::vector<Swarm::DamageText>& out)
     {
         out.insert(out.end(), m_DamageTexts.begin(), m_DamageTexts.end());
@@ -338,26 +337,26 @@ public:
     struct DamageTextSettings { bool enabled = true; float merge = 0.12f; float poisonMerge = 0.5f; };   // poisonMerge = 毒素の削り（細かい）はこの秒数まとめる
     DamageTextSettings damageText;
 
-    // ---- 地面の警告の輪（CPU が置く。Boss のスラム。2026-10-03）----
+    // ---- 地面の警告の輪（CPU が置く。Boss のスラムなど）----
     struct WarnCircle
     {
         DirectX::SimpleMath::Vector3 center;   // 地面の高さ（y = 地形）
         float radius = 3.0f;
         float progress = 0.0f;                 // 0..1：中の円が広がり、1 で縁に届く（= 爆発）。負 = 縁だけ（中を塗らない）
-        // > 0：半径 radius・幅 band m の帯として描く（Boss の衝撃波。2026-10-07）。帯は一点ずつ地面に沿う
+        // > 0：半径 radius・幅 band m の帯として描く（Boss の衝撃波）。帯は一点ずつ地面に沿う
         // （普通の輪は中心の高さ ±0.6m に抑えるので、半径 20m を超えると丘で浮く / 埋まる）
         float band = 0.0f;
-        // 円以外の形（2026-10-25、面の固定エリートの予告）：yaw = 向き（ラジアン、+Z が 0）、shape > 0 = 扇（半角 rad、半径 radius。
+        // 円以外の形（面の固定エリートの予告）：yaw = 向き（ラジアン、+Z が 0）、shape > 0 = 扇（半角 rad、半径 radius。
         // 炎のブレス）、shape < 0 = 帯（幅 -shape m、中心から yaw の向きへ長さ radius。矢・突進）。どちらも progress で根元から先へ塗る
         float yaw = 0.0f;
         float shape = 0.0f;
     };
     static_assert(sizeof(WarnCircle) == 32, "WarnCircle: SwarmWarnRingVS の SwarmWarnCircle（32B）と不一致");
-    static constexpr int kMaxWarnCircles = 64;   // 2026-10-07：投石雨・突進の道筋で増えた（32 → 64）
+    static constexpr int kMaxWarnCircles = 64;   // 投石雨・突進の道筋で数が多い
     // 今フレームの輪を丸ごと差し替える（毎フレーム呼ぶ。数 0 で消える）
     void SetWarnCircles(const WarnCircle* circles, int count);
 
-    // ---- 面の Boss の見た目（2026-10-24、ユーザー「Boss を区別する」。中身は SwarmSystemBoss.cpp）----
+    // ---- 面の Boss の見た目（中身は SwarmSystemBoss.cpp）----
     // Boss は自分の描画リスト（kDrawListBoss）で、皮（albedo。null = 雑魚の皮）を貼って描き、続けて飾りを描く。
     // 飾りは焼いた雑魚の網と同じ空間（足元 = カプセルの下、+Z が正面）で作ったモデル（頂点色で塗る）。
     // part の部品と一緒に動く（VS は同じ SwarmEnemyVS で g_AnimPart = part）。part = kDecoOrbit なら部品に付けず、
@@ -368,43 +367,41 @@ public:
         std::shared_ptr<Model> model;
         uint32_t part = 0;
         float orbitSpeed = 0.0f;   // rad/s（kDecoOrbit の時）
-        // ガーゴイルの翼（2026-10-25）：w != 0 なら part の動きの前に、xyz（焼いた網の空間の付け根）を通る前向きの軸の周りに
+        // ガーゴイルの翼：w != 0 なら part の動きの前に、xyz（焼いた網の空間の付け根）を通る前向きの軸の周りに
         // 回す（VS の g_AnimMode 2。眠り / 着地では垂れ、飛ぶ間は羽ばたき、急降下で上へ畳む）。w = +1 右の翼 / -1 左の翼
         DirectX::SimpleMath::Vector4 flap = { 0.0f, 0.0f, 0.0f, 0.0f };
-        // サソリの尾（2026-10-26）：true なら VS の g_AnimMode 3 = flap.xyz（付け根）を通る横軸の周りに縦に揺れ、
+        // サソリの尾：true なら VS の g_AnimMode 3 = flap.xyz（付け根）を通る横軸の周りに縦に揺れ、
         // 殴りの動作の間は flap.w（rad）だけ前へ振り下ろす（毒針で刺す）。part の動きはその後に掛かる
         bool tail = false;
-        // 四足の脚（2026-10-26、雄鹿）：true なら VS の g_AnimMode 4 = flap.xyz（脚の付け根）を通る横軸の周りに、歩きの時計で
+        // 四足の脚（雄鹿）：true なら VS の g_AnimMode 4 = flap.xyz（脚の付け根）を通る横軸の周りに、歩きの時計で
         // 前後に振る（振幅 0.5 rad、位相 flap.w：左前 + 右後 0、右前 + 左後 π = 斜対歩）。止まっている時は真っ直ぐ。
-        // 部品には付けない（torso に付けて体の上下だけ貰う）。以前は腕 / 脚の部品に付けていたが、部品の軸（肩・股）から
-        // 離れた所に描いた脚が振り子のように上下に暴れた（ユーザー「脚が乱れている」）
+        // 部品には付けない（torso に付けて体の上下だけ貰う。腕 / 脚の部品に付けると、軸から離れた脚が振り子のように暴れる）
         bool leg = false;
-        // 虫の脚（2026-10-26、大サソリ）：true なら VS の g_AnimMode 5 = flap.xyz（脚の付け根）を通る縦軸の周りに、歩きの時計で
+        // 虫の脚（大サソリ）：true なら VS の g_AnimMode 5 = flap.xyz（脚の付け根）を通る縦軸の周りに、歩きの時計で
         // 前後に掻く（振幅 0.38 rad、位相 flap.w。前へ戻す間は先ほど持ち上がる）。torso に付ける。
-        // 以前は方块人の 2 つの leg 部品に 4 本ずつ付けていた = 股の横軸で振れるので、横へ伸びた脚は上下に暴れた（ユーザー「蝎子动画不对」）
         bool insectLeg = false;
-        // 猫背（2026-10-27、月下の狼人）：0 以外なら hinge.xyz（腰）を通る横軸の周りに hunch rad 前へ倒してから部品の動きを掛ける
+        // 猫背（月下の狼人）：0 以外なら hinge.xyz（腰）を通る横軸の周りに hunch rad 前へ倒してから部品の動きを掛ける
         // （胴・頭・腕。歩く間は VS が 1.45 倍まで深くする）。leg と一緒なら hinge = 膝（xyz）+ 曲げ（w）= 脚を上げる間に膝が折れる、
         // 腕（leg + hunch）は殴りの動作で前へ振る
         float hunch = 0.0f;
         DirectX::SimpleMath::Vector4 hinge = { 0.0f, 0.0f, 0.0f, 0.0f };
-        // 浮く魔神（2026-10-29、砂嵐の魔神）：true なら VS の g_AnimMode 6 = 部品の動き（歩き・殴りのクリップ）を掛けず、ゆっくり息をする。
+        // 浮く魔神（砂嵐の魔神）：true なら VS の g_AnimMode 6 = 部品の動き（歩き・殴りのクリップ）を掛けず、ゆっくり息をする。
         // flap.w != 0 なら腕：flap.xyz（肩）を通る横軸の周りに、詠唱（bossChargePose 0→1）で flap.w rad 振り上げ、
-        // 叩き付け（1→1.3）で前下へ振り下ろす。hinge.w != 0 = 肘の有る腕（骸の王、10-29）：hinge.xyz = 肘、腕を上げると前腕が
-        // 肘で hinge.w rad 折れる（真っ直ぐの棒で振ると気持ち悪い = ユーザー）。待機の揺れも無し（手は地面に突いたまま）。torso に付ける
+        // 叩き付け（1→1.3）で前下へ振り下ろす。hinge.w != 0 = 肘の有る腕（骸の王）：hinge.xyz = 肘、腕を上げると前腕が
+        // 肘で hinge.w rad 折れる。待機の揺れも無し（手は地面に突いたまま）。torso に付ける
         bool floating = false;
     };
     void SetBossLook(std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations, bool hideBody = false)
     {
         SetListLook(Swarm::kDrawListBoss, std::move(albedo), std::move(decorations), hideBody);
     }
-    // 描画リスト毎の皮と飾り（2026-10-25 に Boss 専用から一般化。遺跡の敵が使う）。albedo = null は今までの皮のまま。
-    // 飾りは砕け散りにも付いて行く（part に付けた物だけ。回る物・翼は消える）。
-    // hideBody = 方块人の体を描かない（砕け散りも）：部品を骨にして飾りだけで組む敵（大サソリ、2026-10-26）
+    // 描画リスト毎の皮と飾り（Boss・遺跡の敵が使う）。albedo = null は雑魚の皮のまま。
+    // 飾りは砕け散りにも付いて行く（動く飾りは 1 つずつ別の破片）。
+    // hideBody = ブロック人の体を描かない（砕け散りも）：部品を骨にして飾りだけで組む敵（大サソリなど）
     void SetListLook(uint32_t list, std::shared_ptr<Texture> albedo, std::vector<BossDecoration> decorations, bool hideBody = false);
     // 飾りを作る側は GetEnemyModel() の部品の寸法（Model::SubMesh の boundsMin / Max・nodeName）を見る。
     // 部品の付け根（焼いた姿勢のノードの原点 = 首・肩・股）。焼いた歩きの姿勢では腕が振れているので、
-    // 肩当ては包囲ボックスでなくこの点に合わせる
+    // 肩当てはバウンディングボックスでなくこの点に合わせる
     DirectX::SimpleMath::Vector3 GetPartPivot(uint32_t part) const
     {
         return (part < 8) ? DirectX::SimpleMath::Vector3(m_PartPivots[part].x, m_PartPivots[part].y, m_PartPivots[part].z)
@@ -447,19 +444,19 @@ public:
     const SwarmCounters& GetCounters() const { return m_Readback.Latest(); }
     // Boss の数・HP・位置（描画の CompactCS が書くので 2〜3 フレーム古い）
     const Swarm::BossInfo& GetBossInfo() const { return m_BossInfo; }
-    // 面の固定エリートの槽・種類・HP・位置（同じく 2〜3 フレーム古い）。serial は新しく読めた度に増える（2026-10-25）
+    // 面の固定エリートの槽・種類・HP・位置（同じく 2〜3 フレーム古い）。serial は新しく読めた度に増える
     const Swarm::EliteInfoBlock& GetEliteInfo() const { return m_EliteInfo; }
     uint32_t GetEliteInfoSerial() const { return m_EliteInfoSerial; }
-    // 吸血の印の付いた敵が前回から失った HP の合計（取り出して 0 に戻す。2〜3 フレーム遅れ。2026-10-25）
+    // 吸血の印の付いた敵が前回から失った HP の合計（取り出して 0 に戻す。2〜3 フレーム遅れ）
     float ConsumeLifesteal();
-    // 優先度なしで一番近い敵（2026-10-27。突風・アイススパイクの線のような近距離の範囲が狙う。杖の狙い = GetNearestEnemy は
+    // 優先度なしで一番近い敵（突風・アイススパイクの線のような近距離の範囲が狙う。杖の狙い = GetNearestEnemy は
     // Boss / エリートを優先する）。リードバックなので 2〜3 フレーム古い。居なければ false（SwarmSystemCloseTarget.cpp）
     bool GetCloseEnemy(DirectX::SimpleMath::Vector3& pos, float& dist) const;
-    // プレイヤーの 10m 以内（水平）に居る、狙える敵の数（2〜3 フレーム遅れ。賢いカメラが引く量に使う。2026-11-02）
+    // プレイヤーの 10m 以内（水平）に居る、狙える敵の数（2〜3 フレーム遅れ。スマートカメラが引く量に使う）
     uint32_t GetNearEnemyCount() const { return m_CloseNearCount; }
 
-    // 遠くの雑魚の LOD（2026-11-02、Swarm/SwarmSystemLod.cpp）：普通の雑魚の一覧をカメラからの距離で二つに分け、
-    // 遠い方は部品を 1 つに合わせた網を 1 回で描く（部品アニメの表を読まず、従来の揺れで歩く）。
+    // 遠くの雑魚の LOD（Swarm/SwarmSystemLod.cpp）：普通の雑魚の一覧をカメラからの距離で二つに分け、
+    // 遠い方は部品を 1 つに合わせた網を 1 回で描く（部品アニメの表を読まず、VS の揺れで歩く）。
     // 起動時 VFXL_SWARM_LOD=<m> で距離、=off で無効（TEMP-TEST、比べる用）
     struct LodSettings
     {
@@ -481,7 +478,7 @@ public:
     float ConsumePlayerDamage();
     // プレイヤーが受けた打撃（ノックバック用）を取り出して 0 に戻す。
     // dir = 「敵 / 爆心 → プレイヤー」の単位ベクトルの和（XZ）、count = 回数。リードバックなので 2〜3 フレーム古い
-    struct PlayerHits { DirectX::SimpleMath::Vector2 meleeDir, blastDir, spikeDir, windDir; uint32_t melee = 0, blasts = 0, spikes = 0, winds = 0; };   // spikes = トゲ玉、winds = 砂旋（2026-10-17）
+    struct PlayerHits { DirectX::SimpleMath::Vector2 meleeDir, blastDir, spikeDir, windDir; uint32_t melee = 0, blasts = 0, spikes = 0, winds = 0; };   // spikes = トゲ玉、winds = 砂旋
     PlayerHits ConsumePlayerHits();
     // 前回からの間に出た「カメラを揺らす範囲」（爆発・光線。AreaProfile::cameraShake）の数（2〜3 フレーム遅れ）
     uint32_t ConsumeShakeAreas();
@@ -489,7 +486,7 @@ public:
     void ConsumeAreaBirths(std::array<uint32_t, Swarm::kAreaBirthKinds>& out);
     // 磁石: seconds の間、場の経験値オーブを全部吸い寄せ始める（OrbCB の吸い寄せ半径を場全体にする）
     void MagnetAllOrbs(float seconds = 0.3f) { m_MagnetTimer = (std::max)(m_MagnetTimer, seconds); }
-    // 出口魔法の弾の色（2026-10-31）：tag の bit ごとの色（rgb）と混ぜる割合（a）。bit の割り当ては TriggerBits
+    // 出口魔法の弾の色：tag の bit ごとの色（rgb）と混ぜる割合（a）。bit の割り当ては TriggerBits
     void SetCarryColors(const DirectX::SimpleMath::Vector4* colors) { std::copy(colors, colors + 32, m_CarryColors); }
     // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（Map で止まる。自動テストの検証だけ。毎フレーム呼ばない）
     bool DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates,
@@ -506,29 +503,29 @@ public:
         const DirectX::SimpleMath::Vector3& dir, float length, const DirectX::SimpleMath::Vector3& seek, uint32_t serial);
     // リードバックした標的の位置（2〜3 フレーム古い）。serial が違う / 標的が無ければ false
     bool GetBeamTarget(uint32_t ch, uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
-    // 同上、答えの有無も見分ける（連鎖の跳ぶ先。2026-10-20）: -1 = まだ答えが来ていない（serial が違う）、
+    // 同上、答えの有無も見分ける（連鎖の跳ぶ先）:-1 = まだ答えが来ていない（serial が違う）、
     // 0 = 答えは来たが敵が居ない、1 = 居る（pos / slot に入る）
     int QueryBeamTarget(uint32_t ch, uint32_t serial, DirectX::SimpleMath::Vector3& pos, uint32_t& slot) const;
 
-    // 燃えている草からの粒子（2026-10-12、GrassFireField）。毎フレーム Flush の前に渡す。null = 出さない。
+    // 燃えている草からの粒子（GrassFireField）。毎フレーム Flush の前に渡す。null = 出さない。
     // 発射は弾・範囲の直後（Swarm/SwarmSystemFire.cpp）
     void SetGrassFire(const GrassFireEmitInput* in);
-    // 熱い砂の陽炎（2026-11-02、SandField）。草の火と同じ入力の形・同じ CS。null = 出さない
+    // 熱い砂の陽炎（SandField）。草の火と同じ入力の形・同じ CS。null = 出さない
     void SetSandHaze(const GrassFireEmitInput* in);
-    void SetSandDust(const GrassFireEmitInput* in);   // 風に舞う砂（2026-11-03、World/SandField。channel 1）
-    // 凍った池の上で体を持ち上げる（2026-11-01）。WaterSurface::GetIceSRV / GetPondTopSRV（null = 無し）。Flush の前に毎フレーム
+    void SetSandDust(const GrassFireEmitInput* in);   // 風に舞う砂（World/SandField。channel 1）
+    // 凍った池の上で体を持ち上げる。WaterSurface::GetIceSRV / GetPondTopSRV（null = 無し）。Flush の前に毎フレーム
     void SetIceMaps(ID3D11ShaderResourceView* ice, ID3D11ShaderResourceView* pondTop);
-    // 燃えている草の上の敵へのダメージ（2026-11-01）。fireMap = GrassFireField::GetSRV（null = 無し）。Flush の前に毎フレーム
+    // 燃えている草の上の敵へのダメージ。fireMap = GrassFireField::GetSRV（null = 無し）。Flush の前に毎フレーム
     void SetGrassFireDamage(ID3D11ShaderResourceView* fireMap, const DirectX::SimpleMath::Vector2& origin,
         const DirectX::SimpleMath::Vector2& size, float damage, float tick);
     // 範囲の池（GrassFireField が熱源として読む。SRV なので CS の UAV と同じフレームで使わない所で）
     ID3D11ShaderResourceView* GetAreaSRV() const { return m_AreaSRV.Get(); }
     ID3D11ShaderResourceView* GetAreaStateSRV() const { return m_AreaStateSRV.Get(); }
-    // 同上（2026-10-13、草の踏み跡と落ち葉）：カプセル（光線）の終点、雑魚の池 / 状態 / 種類
+    // 同上（草の踏み跡と落ち葉）：カプセル（光線）の終点、雑魚の池 / 状態 / 種類
     ID3D11ShaderResourceView* GetAreaEndSRV() const { return m_AreaEndSRV.Get(); }
-    // 局所の風源の表（Swarm::WindSource × kMaxWindSources。草・落ち葉・粒子が Flush の後に読む。2026-10-19）
+    // 局所の風源の表（Swarm::WindSource × kMaxWindSources。草・落ち葉・粒子が Flush の後に読む）
     ID3D11ShaderResourceView* GetWindSourceSRV() const { return m_WindSourceSRV.Get(); }
-    // CPU の風源（2026-10-20、突風を風源にする）：life 秒だけ表に載る渦（swirl / updraft / inflow）+ 一方向の押し（dir × push）。
+    // CPU の風源（突風など）：life 秒だけ表に載る渦（swirl / updraft / inflow）+ 一方向の押し（dir × push）。
     // fade は出入りで滑らかに（sin）。一度に kMaxWindSources − 砂旋の数まで。Flush の中で歳を進める
     struct WindBurst
     {
@@ -539,12 +536,12 @@ public:
         float push = 0.0f;
         float life = 0.4f;
         float age = 0.0f;
-        bool  self = false;   // プレイヤー自身の突風（2026-11-05）：草・落ち葉・粒子は吹くが、マントは受けない
+        bool  self = false;   // プレイヤー自身の突風：草・落ち葉・粒子は吹くが、マントは受けない
     };
     void AddWindBurst(const WindBurst& b) { if (m_WindBursts.size() < Swarm::kMaxWindSources) m_WindBursts.push_back(b); }
-    // このフレームだけの CPU の風源（2026-10-22、動く竜巻）：毎フレーム出し直す物。次の Flush で表に載せて捨てる
+    // このフレームだけの CPU の風源（動く竜巻）：毎フレーム出し直す物。次の Flush で表に載せて捨てる
     void AddFrameWindSource(const Swarm::WindSource& w) { if (m_FrameWindSources.size() < Swarm::kMaxWindSources) m_FrameWindSources.push_back(w); }
-    // 風源の表の CPU の写し（2026-10-22、マント・転がり草が読む。2〜3 フレーム遅れ。Flush の後に読める）
+    // 風源の表の CPU の写し（マント・転がり草が読む。2〜3 フレーム遅れ。Flush の後に読める）
     const LocalWind& GetLocalWind() const { return m_LocalWind; }
     ID3D11ShaderResourceView* GetEnemySRV() const { return m_EnemySRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyStateSRV() const { return m_EnemyStateSRV.Get(); }
@@ -570,9 +567,9 @@ public:
 
     // GPU 上の雑魚・弾・オーブを全部消す（地形の作り直し用）。
     // state を DEAD にするだけ。counter は触らない（累積値の差分が狂う）。
-    // まだ届いていない環の出来事（分裂・誘発・数字・吸血・生まれた範囲）と取り出し待ちの物は捨てる（2026-10-25）
+    // まだ届いていない環の出来事（分裂・誘発・数字・吸血・生まれた範囲）と取り出し待ちの物は捨てる
     void KillAll();
-    // KillAll を呼んだ回数（CPU で敵を追っている物が「全部消された」を知る。2026-10-25）
+    // KillAll を呼んだ回数（CPU で敵を追っている物が「全部消された」を知る）
     uint32_t GetKillAllCount() const { return m_KillAllCount; }
 
     // 弾だけ消す（負荷テストのリセット用）
@@ -603,9 +600,9 @@ private:
     void DispatchEmit(float dt, float totalTime);   // 弾から粒子を発射
     void DispatchFireEmit(float dt, float totalTime);   // 燃えている草から粒子を発射（SwarmSystemFire.cpp）
     void DispatchFireEmitOne(const GrassFireEmitInput& in, float dt, float totalTime, uint32_t seedXor);
-    GrassFireEmitInput m_SandHaze;     // 熱い砂の陽炎（2026-11-02、World/SandField。同じ CS を入力を替えて）
+    GrassFireEmitInput m_SandHaze;     // 熱い砂の陽炎（World/SandField。同じ CS を入力を替えて）
     bool m_HasSandHaze = false;
-    GrassFireEmitInput m_SandDust;     // 風に舞う砂（2026-11-03。同じ CS の channel 1）
+    GrassFireEmitInput m_SandDust;     // 風に舞う砂（同じ CS の channel 1）
     bool m_HasSandDust = false;
     GrassFireEmitInput m_GrassFire;
     bool m_HasGrassFire = false;
@@ -634,22 +631,22 @@ private:
     uint32_t m_DetonateArea = 0;   // 0 以外 = 次の ProjMoveCS で全部の弾をこの範囲に変える
 
     // 敵の状態（float4、スロットと同じ添字。Swarm::kAnimFreezeRequest の説明）。
-    // xy = 毒の池の減速（残り秒・強さ。2026-10-01）：AreaDamageCS が tick の度に書き、AICS が速度に掛けて数え下げる。
-    // zw = 凍結（2026-10-08、アイスランス）：AICS が HitCS の依頼から入れて数え下げる。VS / ContactCS が読む。
+    // xy = 毒の池の減速（残り秒・強さ）：AreaDamageCS が tick の度に書き、AICS が速度に掛けて数え下げる。
+    // zw = 凍結（アイスランス）：AICS が HitCS の依頼から入れて数え下げる。VS / ContactCS が読む。
     // Spawn / Recycle で 0 に戻す
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemySlowBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemySlowUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemySlowSRV;
-    // 吹き飛ばし（突風。2026-10-12）：float4 = 速度 xz・残り秒。AreaDamageCS が書き、MoveCS がそのステップの移動に足して減らす。本体の横に持つ
+    // 吹き飛ばし（突風）：float4 = 速度 xz・残り秒。AreaDamageCS が書き、MoveCS がそのステップの移動に足して減らす。本体の横に持つ
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPushBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPushUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPushSRV;
-    // 毒素（毒沼。2026-10-17）：float4 = 残りダメージ・毎秒の削り・最後に盛られてからの秒。
+    // 毒素（毒沼）：float4 = 残りダメージ・毎秒の削り・最後に盛られてからの秒。
     // AreaDamageCS が範囲の tick で盛って毎ステップ削る（倒した時の扱いは範囲ダメージと同じ）。VS が緑に染める。Spawn / Recycle で 0
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPoisonBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPoisonUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPoisonSRV;
-    // トゲ玉の向き（四元数。2026-10-25）：MoveCS が毎ステップ実際に進んだ分の転がりを掛け足し、SwarmSpikeBallVS が読む。
+    // トゲ玉の向き（四元数）：MoveCS が毎ステップ実際に進んだ分の転がりを掛け足し、SwarmSpikeBallVS が読む。
     // 0 = まだ転がっていない（槽毎の決まった姿勢）。向きに意味は無いので生成 / 転送で戻さない
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyRollBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyRollUAV;
@@ -707,7 +704,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjTagUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjTagSRV;
 
-    // 弾スロット毎の「出す範囲への倍率」（威力 12bit | 持続 12bit、Swarm::PackSpawnBoost の >> 8。2026-10-02）。
+    // 弾スロット毎の「出す範囲への倍率」（威力 12bit | 持続 12bit、Swarm::PackSpawnBoost の >> 8）。
     // SpawnProjCS が書き、HitCS / ProjMoveCS が範囲を出す時に読む
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBoostBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjBoostUAV;
@@ -719,7 +716,7 @@ private:
     static constexpr int kTriggerStaging = 3;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_TriggerStaging[kTriggerStaging];
     bool m_TriggerStagingFilled[kTriggerStaging] = {};
-    // KillAll の前に写した staging（2026-10-25）：読めても読んだ位置 / 前回値を進めるだけで出来事は捨てる
+    // KillAll の前に写した staging：読めても読んだ位置 / 前回値を進めるだけで出来事は捨てる
     // （消した後に分裂体・蘇った鎧・砂旋・骸骨・隕石・数字が湧かないように）。分裂・数字・吸血・生まれた範囲の環も同じ
     bool m_TriggerStagingStale[kTriggerStaging] = {};
     int  m_TriggerStagingWrite = 0;
@@ -738,9 +735,9 @@ private:
     std::vector<Swarm::SplitEvent> m_SplitEvents;
     void ReadSplitEvents();
 
-    // ダメージの数字の環（SwarmDamageTextCS が書く）→ 同じく staging 3 枚でリードバック（2026-10-17）
+    // ダメージの数字の環（SwarmDamageTextCS が書く）→ 同じく staging 3 枚でリードバック
     std::shared_ptr<ComputeShader> m_DamageTextCS;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevHpBuffer;     // 槽毎に前フレームの hp（死んだ槽は 0。RecycleCS が上書きした槽は新しい hp + 印 SWARM_PREVHP_RECYCLED。2026-10-25）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevHpBuffer;     // 槽毎に前フレームの hp（死んだ槽は 0。RecycleCS が上書きした槽は新しい hp + 印 SWARM_PREVHP_RECYCLED）
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPrevHpUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPrevHpSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_DamagePendingBuffer;   // float4 = 直接 / 毒素 / 経過秒 / 前フレームの毒素
@@ -795,7 +792,7 @@ private:
     std::shared_ptr<VertexShader>  m_SpriteVS;
     std::shared_ptr<PixelShader>   m_SpritePS;
 
-    // ---- 弾の帯（Trail entry、2026-10-15。SwarmSystemTrail.cpp）----
+    // ---- 弾の帯（Trail entry。SwarmSystemTrail.cpp）----
     // 弾の槽ごとに kTrailPoints 個の位置の環（粒子の帯と同じ ParticleTrail.hlsli）。
     // trailState = 環の書き込み位置 / 有効な点の数、trailAge = 槽が生きてからの秒（記録の時計）
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_ProjTrailPoints;
@@ -812,7 +809,7 @@ private:
     std::shared_ptr<PixelShader>   m_ProjTrailPS;   // 粒子の帯と同じ ParticleTrailPS
     std::shared_ptr<Texture>       m_TrailWhite;    // テクスチャの無い style 用
 
-    // ---- 液溜まり（Liquid entry、2026-10-02）----
+    // ---- 液溜まり（Liquid entry）----
     // areaDirs   : 範囲を出した物が飛んでいた向き（xy = 単位 xz、w = 1 未読）。ProjMoveCS が書き、追跡が読んで w を消す
     // liquidTrack: 槽ごとの (向き xz, 最初に見た時の残り時間, 前フレームの残り時間)。w <= 0 = 空。SwarmLiquidTrackCS
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaDirBuffer;
@@ -827,7 +824,7 @@ private:
     void DispatchLiquidTrack();
     void RenderLiquids(CameraBase* camera, const LightBuffer& light);
 
-    // ---- 死んだ敵の砕け散り（2026-10-02）----
+    // ---- 死んだ敵の砕け散り ----
     // prevAlive : 槽毎の前フレームの生死（SwarmCorpseTrackCS が「生 → 死」を見つける）
     // corpses   : 環（Swarm::kMaxCorpses 枠）。corpseHead の [0] = 今までに書いた数
     // 一覧      : 見た目毎（雑魚 / 自爆兵 / 幽霊）の砕け中の環の番号（SwarmCorpseListCS、append）
@@ -855,7 +852,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_TerrainSRV;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_HeightBuffer;      // 高さ場（GridWorld::Heights）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_HeightSRV;
-    // 雑魚用の通行表・高さ場（2026-10-29、SwarmSystemClimb.cpp）：登れる障害物のマスは通れて、その上面が高さ。
+    // 雑魚用の通行表・高さ場（SwarmSystemClimb.cpp）：登れる障害物のマスは通れて、その上面が高さ。
     // 雑魚の AI / 積分 / 押し合いだけがこれを見る（弾・経験球・描画は上の普通の物）
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_MobTerrainBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_MobTerrainSRV;
@@ -976,7 +973,7 @@ private:
     std::shared_ptr<ComputeShader> m_AreaDamageCS;   // tick した範囲の中の雑魚へダメージ
     std::shared_ptr<ComputeShader> m_AreaEmitCS;     // GPU が出した範囲（弾の命中）から粒子を発射
     // 参照を持つ（ComPtr）：持ち主が作り直しても（ステージ選択で WaterSurface::Build が池面の高さを作り直す）、次の PushWind で
-    // 差し替えるまで古い view が生きている。裸のポインタだと同じフレームの描画が解放済みの view を bind してドライバで落ちた（2026-11-02）
+    // 差し替えるまで古い view が生きている（裸のポインタだと同じフレームの描画が解放済みの view を bind して落ちる）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_FireMapSRV;   // GrassFireField の物
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_IceMapSRV;    // WaterSurface の物
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_PondTopSRV;
@@ -1004,24 +1001,24 @@ private:
     bool CreateEnemyDrawArgs(ID3D11Device* device);
     std::shared_ptr<Texture> m_BomberAlbedo;   // 自爆兵のテクスチャ（雑魚と同じメッシュ用）。null = 雑魚と同じテクスチャ
     std::shared_ptr<Texture> m_SplitterAlbedo; // スプリッター・分裂体のテクスチャ（黄色い衝突試験人形）。null = 雑魚と同じテクスチャ
-    std::shared_ptr<Texture> m_BruteAlbedo;    // 重装兵のテクスチャ（緑のオーク。2026-10-07 夜）。null = 雑魚と同じテクスチャ
-    std::shared_ptr<Texture> m_ChargerAlbedo;  // 突撃兵（黒い忍者。2026-10-08）
-    std::shared_ptr<Texture> m_ShieldAlbedo;   // 盾兵（紺の警官。2026-10-08）
-    std::shared_ptr<Texture> m_BurrowerAlbedo; // 砂潜り（2026-10-17）
-    std::shared_ptr<Texture> m_SandMageAlbedo; // 砂嵐の術師（2026-10-17）
-    std::shared_ptr<Texture> m_DashBomberAlbedo; // 突撃爆弾兵（灰色ロボット。2026-10-18）
-    // 描画リスト毎の皮・飾り（SetListLook。2026-10-24 の面の Boss から一般化、10-25）。
+    std::shared_ptr<Texture> m_BruteAlbedo;    // 重装兵のテクスチャ（緑のオーク）。null = 雑魚と同じテクスチャ
+    std::shared_ptr<Texture> m_ChargerAlbedo;  // 突撃兵（黒い忍者）
+    std::shared_ptr<Texture> m_ShieldAlbedo;   // 盾兵（紺の警官）
+    std::shared_ptr<Texture> m_BurrowerAlbedo; // 砂潜り
+    std::shared_ptr<Texture> m_SandMageAlbedo; // 砂嵐の術師
+    std::shared_ptr<Texture> m_DashBomberAlbedo; // 突撃爆弾兵（灰色ロボット）
+    // 描画リスト毎の皮・飾り（SetListLook）。
     // 飾りの submesh 毎の間接引数は生きている一覧用と砕け中の一覧用の 2 組（InstanceCount はそのリストの一覧から）
     std::shared_ptr<Texture> m_ListLookAlbedo[Swarm::kEnemyKinds];
     std::vector<BossDecoration> m_ListDecos[Swarm::kEnemyKinds];
-    bool m_ListHideBody[Swarm::kEnemyKinds] = {};   // 体を描かないリスト（飾りだけの敵。2026-10-26）
+    bool m_ListHideBody[Swarm::kEnemyKinds] = {};   // 体を描かないリスト（飾りだけの敵）
     std::vector<std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>>> m_ListDecoArgs[Swarm::kEnemyKinds];
     std::vector<std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>>> m_ListDecoCorpseArgs[Swarm::kEnemyKinds];
     std::shared_ptr<Texture> m_DecoWhite;       // 飾りは頂点色だけで塗るので t0 は白
     void CopyListDecoCounts();                  // RenderOpaque：一覧の長さ → 飾りの InstanceCount（遺跡の敵の予告の帯も）
     void CopyCorpseDecoCounts();                // DispatchCorpses：砕け中の一覧の長さ → 飾りの InstanceCount
     void RenderListDecorations(uint32_t list);  // RenderOpaque：そのリストの体の直後（VS・CB・SRV はそのまま使う）
-    // ---- 遺跡の敵（2026-10-25。中身は SwarmSystemRuins.cpp）----
+    // ---- 遺跡の敵（中身は SwarmSystemRuins.cpp）----
     std::shared_ptr<ComputeShader> m_KindList2CS;     // 生きている一覧（呪いの鎧 / ガーゴイル / 死霊術師 / 骸骨 / 鎖の番人）
     std::shared_ptr<ComputeShader> m_CorpseList2CS;   // 砕け中の一覧（Boss・砂嵐の術師・突撃爆弾兵・遺跡の敵）
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_WardenLineArgs;     // 鎖の番人の予告の帯（突撃兵の帯と同じ VS）
@@ -1029,7 +1026,7 @@ private:
     bool LoadRuinsAssets(ID3D11Device* device);
     void DispatchKindLists2();
 
-    // ---- 遠くの雑魚の LOD（2026-11-02、SwarmSystemLod.cpp）----
+    // ---- 遠くの雑魚の LOD（SwarmSystemLod.cpp）----
     bool CreateLod(ID3D11Device* device);
     // 一覧を作った直後（RenderOpaque）。分けたら true（この時は雑魚の描画に近い方の一覧を使う）
     bool DispatchLodSplit(const DirectX::SimpleMath::Vector3& cameraPos);
@@ -1044,7 +1041,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LodNearUAV, m_LodFarUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_LodNearSRV, m_LodFarSRV, m_LodCountSRV;
     void DispatchCorpseList2(const void* corpseListCB);
-    // ---- 面の固定エリート（2026-10-25。中身は SwarmSystemElites.cpp）----
+    // ---- 面の固定エリート（中身は SwarmSystemElites.cpp）----
     std::shared_ptr<ComputeShader> m_CorpseList3CS;   // 砕け中の一覧（固定エリート A / B）
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EliteInfoBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EliteInfoUAV;
@@ -1060,7 +1057,7 @@ private:
     void CopyEliteInfoForCPU();
     void ReadEliteInfo();
     void DispatchCorpseList3(const void* corpseListCB);
-    // ---- 吸血のルーン（2026-10-25。中身は SwarmSystemLifesteal.cpp）----
+    // ---- 吸血（中身は SwarmSystemLifesteal.cpp）----
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_LifestealBuffer;   // +0: 吸血の印の敵が失った HP（固定小数、永久に累積）
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LifestealUAV;
     static constexpr int kLifestealStaging = 3;
@@ -1072,7 +1069,7 @@ private:
     bool  m_LifestealSeen = false;
     float m_LifestealPending = 0.0f;
     bool CreateLifestealReadback(ID3D11Device* device);
-    // ---- 優先度なしの一番近い敵（2026-10-27。中身は SwarmSystemCloseTarget.cpp）----
+    // ---- 優先度なしの一番近い敵（中身は SwarmSystemCloseTarget.cpp）----
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CloseTargetBuffer;   // +0 key / +4 位置 / +16 距離（MoveCS u4 → AimResolveCS u1）
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CloseTargetUAV;
     static constexpr int kCloseTargetStaging = 3;
@@ -1081,7 +1078,7 @@ private:
     int  m_CloseTargetStagingWrite = 0;
     DirectX::SimpleMath::Vector3 m_CloseTargetPos;
     float m_CloseTargetDist = 1.0e30f;
-    uint32_t m_CloseNearCount = 0;   // プレイヤーの 10m 以内の敵（+24。2026-11-02）
+    uint32_t m_CloseNearCount = 0;   // プレイヤーの 10m 以内の敵（+24）
     bool CreateCloseTargetReadback(ID3D11Device* device);
     void CopyCloseTargetForCPU();
     void ReadCloseTarget();
@@ -1102,14 +1099,14 @@ private:
         return nullptr;
     }
 
-    // ---- 突撃兵・盾兵・凍結の見た目（2026-10-08。中身は SwarmSystemKinds.cpp）----
+    // ---- 突撃兵・盾兵・凍結の見た目（中身は SwarmSystemKinds.cpp）----
     // CompactCS は UAV が 8 本で埋まっているので、突撃兵・盾兵の一覧は SwarmEnemyKindListCS が別に作る
     std::shared_ptr<ComputeShader> m_KindListCS;
     // 突撃兵の予告の帯: DrawInstancedIndirect { 24 区間 x 6 頂点, InstanceCount = 突撃兵の一覧の長さ, 0, 0 }
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ChargeLineArgs;
     std::shared_ptr<VertexShader> m_ChargeLineVS;
     std::shared_ptr<PixelShader>  m_ChargeLinePS;
-    // 盾兵の盾 / 凍った敵の氷: 特効モデルを雑魚の PS（既定の白テクスチャ × 頂点色）で描く
+    // 盾兵の盾 / 凍った敵の氷: エフェクトのモデルを雑魚の PS（既定の白テクスチャ × 頂点色）で描く
     std::shared_ptr<VertexShader> m_ShieldVS;
     std::shared_ptr<VertexShader> m_IceVS;
     std::shared_ptr<Material>     m_ShieldMaterial;
@@ -1117,8 +1114,8 @@ private:
     std::shared_ptr<Model>        m_ShieldModel;
     std::shared_ptr<Model>        m_IceModel;
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_ShieldDrawArgs;   // submesh 毎（InstanceCount = 盾兵の一覧）
-    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_IceDrawArgs;      // submesh 毎（InstanceCount = 生きている敵の一覧。2026-10-25、前は池全体 x 2）
-    // トゲ玉（2026-10-17）：一覧は m_KindList* の外（雑魚のメッシュを描かないので描画リストの表に入れない）
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_IceDrawArgs;      // submesh 毎（InstanceCount = 生きている敵の一覧）
+    // トゲ玉：一覧は m_KindList* の外（雑魚のメッシュを描かないので描画リストの表に入れない）
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpikeBallListBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpikeBallListUAV;   // APPEND
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_SpikeBallListSRV;
@@ -1126,16 +1123,16 @@ private:
     std::shared_ptr<Material>     m_SpikeBallMaterial;
     std::shared_ptr<Model>        m_SpikeBallModel;     // PrimitiveBuilder::CreateSpikeBall（半径 1）
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_SpikeBallDrawArgs;
-    // 砂潜りの砂の山（2026-10-17）：一覧は m_KindList[kDrawListBurrower]（体は雑魚のメッシュで描くので表の中）
+    // 砂潜りの砂の山：一覧は m_KindList[kDrawListBurrower]（体は雑魚のメッシュで描くので表の中）
     std::shared_ptr<VertexShader> m_MoundVS;
     std::shared_ptr<Material>     m_MoundMaterial;
     std::shared_ptr<Model>        m_MoundModel;      // PrimitiveBuilder::CreateSphere（半径 1）
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_MoundDrawArgs;
-    // 砂嵐の術師の砂旋（2026-10-17）：10-20 から砂旋は何も描かず、砂埃と風源だけ（一覧も 2026-10-25 に廃止。誰も読んでいなかった）
-    std::shared_ptr<ComputeShader> m_TornadoEmitCS;  // 足元の砂埃（TornadoDust の配方）
+    // 砂嵐の術師の砂旋：砂旋そのものは描かず、砂埃と風源だけ
+    std::shared_ptr<ComputeShader> m_TornadoEmitCS;  // 足元の砂埃（TornadoDust のレシピ）
     uint32_t m_TornadoDustVfx = 0;                   // レシピ表の番号。0 = 無し
     void DispatchTornadoEmit(float dt, float totalTime);   // Flush の中、草の火の発射の直後
-    // 局所の風源（2026-10-19）：砂旋 → Swarm::WindSource の表（kMaxWindSources 枠）。Flush の中、砂埃の直後
+    // 局所の風源：砂旋 → Swarm::WindSource の表（kMaxWindSources 枠）。Flush の中、砂埃の直後
     std::shared_ptr<ComputeShader> m_WindSourceCS;
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindSourceBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceUAV;
@@ -1148,7 +1145,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindBurstBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindBurstSRV;
     void DispatchWindSources(float dt);
-    // 風源の表のリードバック（2026-10-22。CPU のマント・転がり草用）：DispatchWindSources の後に写し、次の Flush の頭で読む
+    // 風源の表のリードバック（CPU のマント・転がり草用）：DispatchWindSources の後に写し、次の Flush の頭で読む
     static constexpr int kWindReadbackCount = 3;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_WindSourceStaging[kWindReadbackCount];
     bool m_WindSourceStagingFilled[kWindReadbackCount] = {};
@@ -1171,8 +1168,8 @@ private:
     bool LoadKindAssets(ID3D11Device* device);       // LoadShaders の最後（雑魚のモデルの後）
     void DispatchKindLists();                        // CompactCS の直後（同じ描画の前準備）
     void RenderShields(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
-    void RenderSpikeBalls(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // 盾の後（2026-10-17）
-    void RenderMounds(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // トゲ玉の後（2026-10-17）
+    void RenderSpikeBalls(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // 盾の後
+    void RenderMounds(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);   // トゲ玉の後
     void RenderIce(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
     void RenderChargeLines(CameraBase* camera);
 
@@ -1193,11 +1190,11 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_PlayerHitStaging[kBossStaging];
     bool m_PlayerHitStagingFilled[kBossStaging] = {};
     int  m_PlayerHitStagingWrite = 0;
-    Swarm::PlayerHitInfo m_LastPlayerHits;   // 前リードバックんだ累計（差分の基準。counters と同じく戻さない）
+    Swarm::PlayerHitInfo m_LastPlayerHits;   // 前回読んだ累計（差分の基準。counters と同じく戻さない）
     PlayerHits m_PendingPlayerHits;          // 読んだ差分の未消費ぶん
     void ReadPlayerHits();
 
-    // 生まれた範囲の数の累計（2026-10-03）。SwarmLiquidTrackCS が新しい範囲を見つけた時に足す。
+    // 生まれた範囲の数の累計。SwarmLiquidTrackCS が新しい範囲を見つけた時に足す。
     //   [0] = カメラを揺らす範囲（kAreaShake）、[1 + vfxType] = GPU の VFX レシピ毎（命中の火花・爆発・土煙・毒の池 → 音）
     // 永久に累積・CPU は差分（counters と同じ。SwarmCounters は変えない）
     static constexpr uint32_t kAreaBirthSlots = 1 + Swarm::kAreaBirthKinds;
@@ -1232,16 +1229,16 @@ private:
         uint32_t part = 0;           // 今描いている submesh（描画毎に書き換える）
         uint32_t partCount = 0;
         uint32_t enabled = 0;        // 0 = 表が無い → VS は従来の procedural な揺れ
-        uint32_t mode = 0;           // 0 = 部品（part）と一緒に動く、1 = Boss の飾りで体の軸の周りを回る（2026-10-24、元 _pad）
+        uint32_t mode = 0;           // 0 = 部品（part）と一緒に動く、1 = Boss の飾りで体の軸の周りを回る、2〜6 は BossDecoration を参照
         uint32_t clipStart[4] = {};  // 表の中の最初のフレーム番号
         uint32_t clipFrames[4] = {};
         float    clipLength[4] = {}; // 秒
         float    time = 0.0f;        // 待機に使う時計（秒）
         float    walkRate = 1.0f;    // 歩きの再生速度
-        float    orbitSpeed = 0.0f;  // mode 1 の回る速さ rad/s（元 _pad2[0]）
-        float    hunch = 0.0f;       // 猫背（2026-10-27、狼人）：0 以外なら hinge.xyz（腰）を通る横軸の周りに部品ごと前へ倒す rad（歩くと更に深く）
-        float    flap[4] = {};       // mode 2（ガーゴイルの翼、2026-10-25）：付け根 xyz、w = +1 右 / -1 左
-        float    hinge[4] = {};      // mode 4 の第 2 関節（2026-10-27、狼人の膝）：xyz = 膝、w = 曲げ rad（0 = 無し）。hunch の時は xyz = 腰
+        float    orbitSpeed = 0.0f;  // mode 1 の回る速さ rad/s
+        float    hunch = 0.0f;       // 猫背（狼人）：0 以外なら hinge.xyz（腰）を通る横軸の周りに部品ごと前へ倒す rad（歩くと更に深く）
+        float    flap[4] = {};       // mode 2（ガーゴイルの翼）：付け根 xyz、w = +1 右 / -1 左
+        float    hinge[4] = {};      // mode 4 の第 2 関節（狼人の膝）：xyz = 膝、w = 曲げ rad（0 = 無し）。hunch の時は xyz = 腰
     };
     static_assert(sizeof(EnemyAnimCB) == 112, "EnemyAnimCB layout mismatch");
     EnemyAnimCB m_EnemyAnim;
@@ -1274,7 +1271,7 @@ private:
     // --- 自爆兵の警告の輪 ---
     // DrawInstancedIndirect: { 6 頂点, InstanceCount = 自爆兵の一覧の長さ, 0, 0 }。点火していない分は VS が捨てる
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_BomberRingArgs;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_DashBomberRingArgs;   // 同じ輪を突撃爆弾兵の一覧からもう一度（2026-10-19）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_DashBomberRingArgs;   // 同じ輪を突撃爆弾兵の一覧からもう一度
     std::shared_ptr<VertexShader> m_BomberRingVS;
     std::shared_ptr<PixelShader>  m_BomberRingPS;
     void RenderBomberRings(CameraBase* camera);
@@ -1329,7 +1326,7 @@ private:
     // SwarmCorpseTrackCS / SwarmCorpseListCS の b4
     struct CorpseTrackCB { float time; uint32_t on; uint32_t deathArea; uint32_t _pad; };
     struct CorpseListCB { float time; float life; float _pad[2]; };
-    // RenderCorpses：そのリストの砕け散りの直後（SwarmCorpseVS、part に付いた飾りだけ。2026-10-25）
+    // RenderCorpses：そのリストの砕け散りの直後（SwarmCorpseVS）
     void RenderCorpseDecorations(uint32_t list, CorpseCB& ccb);
     // SwarmBomberRingVS / PS の b0（row_major なので Transpose しない）
     struct BomberRingCB

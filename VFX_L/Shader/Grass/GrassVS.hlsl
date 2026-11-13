@@ -2,7 +2,7 @@
 // GrassVS.hlsl
 // インスタンス 1 つが草の葉 1 枚（GrassCullCS の append バッファを
 // DrawInstancedIndirect で描く）。SV_VertexID から 21 頂点、頂点バッファ
-// なし（2026-10-23。以前は 9 頂点 = 四角形 1 枚 + 先端の三角形）。
+// なし。
 //
 // GrassCullCS が葉を 1 回だけアニメさせ、中心線を 3 次ベジェ
 // （root, c1, c2, tip）で保存する。t = 0, 1/4, 2/4, 3/4 の行で四角形を

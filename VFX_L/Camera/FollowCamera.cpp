@@ -150,7 +150,7 @@ void FollowCamera::Update(float dt)
     // 対象の水平の速さ（移動量 / dt を均す）。ワープ・開始時は 0 から
     // 止まっている間（dt = 0）は前の値のまま。ただし Snap は dt = 0 でも前の位置を合わせる
     // （下の追従が dt = 0 のフレームで Snap を使い切るので、ここで合わせないと次のフレームにワープ分の移動が速さに出て、
-    //  画角・距離が一瞬跳ねる。2026-10-25）
+    //  画角・距離が一瞬跳ねる）
     // ============================================================
     if (m_Snap)
     {
@@ -197,7 +197,7 @@ void FollowCamera::Update(float dt)
         m_AppliedFov = fovNow;
     }
 
-    // 賢いカメラ（2026-11-02）：戦況の距離と注視点のずらし。引く時より戻る時を遅く
+    // 賢いカメラ：戦況の距離と注視点のずらし。引く時より戻る時を遅く
     m_SituationDist = SmoothDamp(m_SituationDist, m_SituationWant, m_SituationVel,
         (m_SituationWant > m_SituationDist) ? situationRiseTime : situationFallTime, dt);
     m_FrameOffset.x = SmoothDamp(m_FrameOffset.x, m_FrameWant.x, m_FrameVel.x, frameSmoothTime, dt);

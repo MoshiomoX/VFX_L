@@ -1,10 +1,10 @@
 // ============================================================
 // GrassFireEmitCS.hlsl
-// 燃えている草から出るパーティクル（World/GrassFireField、2026-10-12）。
+// 燃えている草から出るパーティクル（World/GrassFireField）。
 // 炎のマップの 1 テクセルに 1 スレッド。カメラの近くで燃えているテクセルは、
 // GrassFire のレシピ（VFXId::GrassFire）の全エミッタから地面の高さで
 // 発生率 x 強さ x g_RateMul だけ出す。
-// 砂漠の砂（World/SandField、2026-11-02/03）でも走らせる: 陽炎は
+// 砂漠の砂（World/SandField）でも走らせる: 陽炎は
 // 炎と同じく z を読み、舞う砂（g_Channel 1）は w を読む。
 //
 // SwarmSystem（Swarm/SwarmSystemFire.cpp）が弾 / 範囲のエミッタの直後に

@@ -1,22 +1,22 @@
 // ============================================================
 // AutoTestSpellBench.cpp
 // TEMP-TEST: VFXL_SPELL_LAB=1 + VFXL_BATTLE_AUTOTEST=spellbench
-// 魔法の試算表（2026-10-07 夜、ユーザー「単体攻撃と範囲攻撃の釣り合いが分からない」→ 試算表を作る）。
+// 魔法の試算表（単体攻撃と範囲攻撃の釣り合いを見る）。
 // 魔法を 1 つずつ（上級魔法は前提の基本魔法と一緒に）バックパックへ置き、場面毎にダメージを測る:
 //   ・single：正面 10m に動かない的 1 体（HP 100 万）。8 秒で減った HP / 8 = 単体 DPS
 //   ・crowd ：正面 10m を中心に半径 3m の円に動かない的 30 体（各 HP 10 万）。8 秒で全員から減った HP の合計 / 8 = 群れへの DPS
 //   どちらも的は死なない（オーバーキル・群れが減る影響を除く）。各場面の前に敵・弾・範囲を全部消し、2 秒撃たせてから測る。
 //   ・fodder：同じ円に死ぬ雑魚 30 体（各 HP 25）。全滅までの秒（20 秒で打ち切り、残りの数も記録）
 //   crowd / single = 1 回の詠唱で平均何体に当たっているか（範囲の広さの目安）
-// VFXL_BENCH_RUNES=1（同日、ユーザー「二重・分裂などのルーンが良い魔法の長所を無限に伸ばし、単体魔法の短所も伸ばす」）:
+// VFXL_BENCH_RUNES=1（ルーンの効き方を比べる）:
 //   基本魔法 6 種 × ルーン {無し, 分裂, 二重, 加速, 拡大鏡, 4 つ全部} を single / crowd で測る（fodder 無し）。
 //   ルーンは影響マスが魔法に届く空きマスを総当たりで探して置く
 // 行：`spellbench <名前> <single|crowd> dps <値>`、`spellbench <名前> fodder clear <秒> left <残り>`、魔法毎に `spellbench info …`（集約後の数値）、
 //   最後に `spellbench table <名前> single crowd ratio clear left mpps cells` を並べて `spellbench done`
 // MP は実験場なので無限（MP の頭打ちは無い。mpps は「全部撃ち続けた時の消費」。誘発される上級魔法の分は入らない）
-// VFXL_BENCH_SOLO=1（2026-10-29、稀有度の倍率を決めるため）：攻撃魔法を全部 1 つずつ単独で（稀有度の分岐では上級魔法も単独で撃つ）、
+// VFXL_BENCH_SOLO=1：攻撃魔法を全部 1 つずつ単独で、
 //   空きマスへ自動で置いて測る。表の行に稀有度（N / R / L）が付く。突風は届く距離が短いので的を 5m に置く（他は 10m）
-//   2026-10-29 から mpps に範囲魔法（アークボルト・突風など）の消費も入る（以前は弾の魔法だけだった）
+//   mpps には範囲魔法（アークボルト・突風など）の消費も入る
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 
@@ -67,7 +67,7 @@ namespace
                 { "meteor", ItemID::Meteor, 10.0f }, { "beam", ItemID::Beam, 10.0f },
             };
             char only[64] = {};
-            GetEnvironmentVariableA("VFXL_BENCH_ONLY", only, sizeof(only));   // 10-30：その魔法だけ（例 gust）
+            GetEnvironmentVariableA("VFXL_BENCH_ONLY", only, sizeof(only));   // その魔法だけ（例 gust）
             for (const Solo& s : list)
             {
                 if (only[0] && std::strcmp(only, s.name) != 0) continue;
@@ -81,7 +81,7 @@ namespace
         const Basic basics[] = {
             { "homing", ItemID::HomingBolt, 4, 4 }, { "arc", ItemID::ArcBolt, 4, 4 }, { "fireball", ItemID::Fireball, 4, 4 },
             { "stone", ItemID::StoneShot, 4, 4 }, { "arrow", ItemID::GoldenArrow, 3, 4 },
-            { "swamp", ItemID::Swamp, 4, 4 }, { "spore", ItemID::Spore, 4, 4 },   // 2026-10-17：毒は上級魔法になり、下位の泥沼・胞子が基本魔法に
+            { "swamp", ItemID::Swamp, 4, 4 }, { "spore", ItemID::Spore, 4, 4 },   // 泥沼・胞子（猛毒の沼の前提の基本魔法）
         };
         if (!runes)
         {
@@ -253,7 +253,7 @@ void AutoTestSpellBench::Run()
         wand.castingPaused = false;
         const float gy = m_Swarm.GetAIParams().groundY;
         const Vector3 c = tf.position + Vector3(0.0f, 0.0f, tr.dist);
-        // 10-30：VFXL_BENCH_SPEED=<m/s> = 的が歩いて来る（突風に飛ばされても戻る）
+        // VFXL_BENCH_SPEED=<m/s> = 的が歩いて来る（突風に飛ばされても戻る）
         char speedEnv[32] = {};
         const float speed = (GetEnvironmentVariableA("VFXL_BENCH_SPEED", speedEnv, sizeof(speedEnv)) > 0) ? (float)std::atof(speedEnv) : 0.0f;
         if (s_Scene == 0)

@@ -133,7 +133,7 @@ void FlowDebugView::Draw(const Inputs& in)
     const int side = n * 2 + 1;
     auto inGrid = [&](int gx, int gz) { return gx >= 0 && gz >= 0 && gx < in.grid->Width() && gz < in.grid->Depth(); };
 
-    // 下地の青 → 赤（2026-10-28 ユーザー：「風の強さ・場の高低で青赤の差を」）：
+    // 下地の青 → 赤：
     //   風の時 = 風速 0 → windHeatMax m/s、それ以外 = 窓の中の歩ける所の高さの低 → 高
     std::vector<Vector3> wind;   // 風の時だけ：マス毎の風（xz）
     std::vector<float> value((size_t)side * side, 0.0f);

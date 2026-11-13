@@ -44,9 +44,8 @@ public:
     template<typename Func>
     void EachSafe(Func func);
 
-    // Each と同じだが、Base の pool を回す（2026-10-03）。Each は先頭の型の pool を全部回すので、
-    // CreateView<TransformComponent, X>() だと Transform を持つ全実体（装飾物込みで 1500 個ほど）を毎回見る。
-    // X が少ない時は EachFrom<X> で X の数だけ回す（Debug で 1 実体 0.2µs ほど掛かる）。
+    // Each と同じだが、Base の pool を回す。Each は先頭の型の pool を全部回すので、
+    // X が少ない時は EachFrom<X> で X の数だけ回す。
     // func の中で Base を外したり実体を消したりしないこと（回している pool が詰まる）。順番は Base の pool の順
     template<typename Base, typename Func>
     void EachFrom(Func func);

@@ -12,7 +12,7 @@ using namespace DirectX::SimpleMath;
 
 namespace UIDeco
 {
-    // UI 全体の倍率（2026-10-07 ユーザー「全部の UI を 1.5 倍に」）
+    // UI 全体の倍率
     static float s_UIScale = 1.5f;
     float UIScale() { return s_UIScale; }
     void  SetUIScale(float s) { s_UIScale = std::clamp(s, 0.5f, 3.0f); }

@@ -51,7 +51,7 @@ StructuredBuffer<TrailStyle> trailStyles : register(t3);
 StructuredBuffer<float3> trailPoints : register(t4);
 StructuredBuffer<uint> trailState : register(t5);
 StructuredBuffer<float> trailAge : register(t6);
-// 出口魔法のリボンは運んでいる魔法の色になる（2026-10-31、SwarmEmitCS 参照）
+// 出口魔法のリボンは運んでいる魔法の色になる（SwarmEmitCS 参照）
 Buffer<uint> projTags : register(t7);
 cbuffer SwarmCarryCB : register(b2)
 {

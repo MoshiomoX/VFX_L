@@ -3,8 +3,8 @@
 // 面の Boss の皮と飾り（説明は BossLooks.h）。飾りの寸法は全部、焼いた雑魚の網の部品の包囲ボックス
 // （頭・胴・腕。名前で探し、無ければ位置で推す）に対する割合で決める = 網の大きさが変わっても付いて来る。
 // 網の空間：足元 = カプセルの下（y ≒ -0.9）、高さ 1.6、+Z が正面。Boss は VS がこれを体格倍（3 倍）にする
-// 2026-10-26 に 700 行を分けた：砂の守護者 = BossLooksSand.cpp、大サソリ = BossLooksScorpion.cpp、雄鹿 = BossLooksStag.cpp、
-// 魔神 = BossLooksDjinn.cpp・骸の王 = BossLooksKing.cpp（2026-10-29）、
+// 砂の守護者 = BossLooksSand.cpp、大サソリ = BossLooksScorpion.cpp、雄鹿 = BossLooksStag.cpp、
+// 魔神 = BossLooksDjinn.cpp・骸の王 = BossLooksKing.cpp、
 // 色と共通の小物と宣言 = BossLooksCommon.h。ここに残るのは岩の巨人と Apply（Boss 毎に飾りを挿げ替える所）
 // ============================================================
 #include "Enemy/Boss/BossLooks.h"
@@ -18,7 +18,7 @@ using namespace LookBuilder;
 using namespace BossLooksDetail;
 
 // ============================================================
-// 草原の Boss「岩の巨人」（2026-10-25、ユーザー「巨人の見た目も変えて」。方向は推奨の「苔むした岩の巨人」）:
+// 草原の Boss「岩の巨人」（苔むした岩の巨人）:
 // 頭 = 苔の帽子（塊と垂れ）+ 草と小さな花 + 石の角 + 石の眉 + 緑に光る目、胴 = 緑に光る紋を刻んだ石の胸板 + 肩の苔 + 蔦の帯、
 // 腕 = 苔と草の載った肩の大岩 + 腕の向きに沿った岩の拳。皮は Kenney Blocky O（牙のあるオーク）を灰色の岩と苔に塗り直した物
 // ============================================================
@@ -196,7 +196,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
         const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
         add(BuildScorpionBody(device), torsoPart);
         // 8 本の脚：1 本ずつ胴に付け、各自の付け根の縦軸で前後に掻く（VS の mode 5）。三脚歩行 = 左の 1・3 本目 + 右の 2・4 本目が
-        // 同じ位相、残りが逆。以前は方块人の leg 部品 2 つに付けていて、股の横軸の振りで横へ伸びた脚が上下に暴れた
+        // 同じ位相、残りが逆（方块人の leg 部品に付けると、股の横軸の振りで横へ伸びた脚が上下に暴れる）
         const float zs[4] = { 0.40f, 0.12f, -0.16f, -0.44f };
         for (int i = 0; i < 4; ++i)
             for (int side = -1; side <= 1; side += 2)
@@ -228,7 +228,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
     }
     if (type == BossType::StoneBeast)
     {
-        // 石の守護獣（遺跡 2 面目、2026-10-29）：体は隠し、全部を胴の部品に付ける。脚 = 雄鹿と同じ斜対歩（mode 4）、
+        // 石の守護獣（遺跡 2 面目）：体は隠し、全部を胴の部品に付ける。脚 = 雄鹿と同じ斜対歩（mode 4）、
         // 首 + 頭・尾 = 付け根の横軸で縦に揺れ、技（bossChargePose）で頭は前下へ・尾は上へ（mode 3）、
         // 翼 = 付け根の前後の軸で回す（mode 2。角度は CPU の BomberCB::bossWing）
         const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
@@ -273,7 +273,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
     }
     if (type == BossType::BoneKing)
     {
-        // 骸の王（遺跡 3 面目、2026-10-29。ウォルニール風）：体は隠し、全部を胴の部品に付けて浮く魔神と同じ動き（VS の mode 6）。
+        // 骸の王（遺跡 3 面目）：体は隠し、全部を胴の部品に付けて浮く魔神と同じ動き（VS の mode 6）。
         // 腕は普段は地面に突いたまま。詠唱で肩から前上へ振り上げ（flap.w）、前腕は肘（hinge.xyz）で hinge.w rad 上へ折れる
         const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
         auto addFloating = [&](std::shared_ptr<Model> m, const DirectX::SimpleMath::Vector4& flap, const DirectX::SimpleMath::Vector4& elbow)
@@ -299,7 +299,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
         return;
     }    if (type == BossType::Djinn)
     {
-        // 砂嵐の魔神（砂漠 3 面目、2026-10-29）：体は隠し、全部を胴の部品に付けて浮く魔神の動き（VS の mode 6：部品のクリップを掛けない）。
+        // 砂嵐の魔神（砂漠 3 面目）：体は隠し、全部を胴の部品に付けて浮く魔神の動き（VS の mode 6：部品のクリップを掛けない）。
         // 腕は肩を軸に、詠唱（bossChargePose）で前上へ振り上げる。下半身の砂の螺旋と腰の砂の輪は体の軸の周りを逆向きに回る
         const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
         auto addFloating = [&](std::shared_ptr<Model> m, const DirectX::SimpleMath::Vector4& flap)
@@ -327,7 +327,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
     }
     if (type == BossType::Werewolf)
     {
-        // 月下の狼人（草原 2 面目、2026-10-26。10-27 参考画に合わせて作り直し）：体は隠し、全部を胴の部品に付ける（体の上下だけ貰う）。
+        // 月下の狼人（草原 2 面目）：体は隠し、全部を胴の部品に付ける（体の上下だけ貰う）。
         // 胴・頭・腕は腰を軸に kHunch 前へ倒す（猫背）。脚と腕は自分の付け根で歩きの時計に振る（mode 4）：左脚 + 右腕が位相 0、
         // 右脚 + 左腕が π。脚は前へ振る間に膝が折れる
         const float kHunch = 0.45f;          // 立っている時の猫背（rad）。歩くと VS が 1.45 倍まで深くする
@@ -378,7 +378,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
     }
     if (type == BossType::CryptKnight)
     {
-        // 墓守の騎士（遺跡 1 面目、2026-10-26）：体は方块人 + 呪いの鎧の鋼の皮、右腕 = 大剣、左腕 = 鎖（右 = +x の腕）
+        // 墓守の騎士（遺跡 1 面目）：体は方块人 + 呪いの鎧の鋼の皮、右腕 = 大剣、左腕 = 鎖（右 = +x の腕）
         Part armR = armA, armL = armB;
         if (armR.Valid() && armL.Valid() && armR.Center().x < armL.Center().x) std::swap(armR, armL);
         if (head.Valid()) add(BuildKnightHead(device, head), (uint32_t)head.index);

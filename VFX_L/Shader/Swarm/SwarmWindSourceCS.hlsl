@@ -1,13 +1,13 @@
 // ============================================================
 // SwarmWindSourceCS.hlsl
-// このフレームの局所風源を集める（2026-10-19）：生きている砂旋
+// このフレームの局所風源を集める：生きている砂旋
 // （SWARM_KIND_TORNADO）はそれぞれ WindSource 1 つになる（中心は足元、
 // 届く距離 = 当たり半径 x g_RadiusMul、旋回 / 上昇 / 吸い込みは
 // SwarmSystem::tornadoLook から、fade = 外殻と同じ伸び / 縮み）。
 // 敵スロット 1 つに 1 スレッド。WIND_MAX_SOURCES 個のスロットに早い者勝ちで入れる
 // （表とカウンタはディスパッチ前に CPU がゼロにする）。
 // GrassVS / DebrisUpdateCS / ParticleUpdateCS が WindSources.hlsli 経由で読む。
-// 2026-10-22：生きている吸い込みの範囲（渦、SWARM_AREA_EXTRA_PULL）も
+// 生きている吸い込みの範囲（渦、SWARM_AREA_EXTRA_PULL）も
 // 風源になる（範囲スロット 1 つに 1 つ、先頭 g_AreaCount 本のスレッドで）：
 // ほぼ吸い込みだけなので、草は内側へ傾き、落ち葉は中心へ吸われる。
 // ============================================================
@@ -26,7 +26,7 @@ cbuffer SwarmWindSourceCB : register(b0)
     float g_Inflow;       // m/s
     float g_GrowTime;     // 伸びる / 縮む秒数（tornadoLook.growTime）
     uint g_SlotCount;     // kMaxEnemies
-    uint g_CpuCount;      // cpuSources にある CPU の風源（SwarmSystem::AddWindBurst）の数。先に追加する（2026-10-20）
+    uint g_CpuCount;      // cpuSources にある CPU の風源（SwarmSystem::AddWindBurst）の数。先に追加する
     uint g_TornadoOn;     // 0 = 砂旋を風源にしない（tornadoLook.windSource）
     uint g_VortexOn;      // 0 = 吸い込みの範囲を風源にしない（vortexWind.enabled）
     uint g_AreaCount;     // kMaxAreas

@@ -1,7 +1,7 @@
 // ============================================================
 // SwarmSystemCloseTarget.cpp
-// 「本当に一番近い敵」（2026-10-27、ユーザー「突風・氷のトゲのような近距離の範囲は自分の周りの一番近い敵、遠距離は Boss を狙う」）。
-//   杖の狙い（SwarmCounters の NEAREST_KEY）は 10-26 から Boss / エリートを優先するので、すぐ横の雑魚より 20m 先の Boss を向く。
+// 「本当に一番近い敵」（突風・氷のトゲのような近距離の範囲魔法の狙い）。
+//   杖の狙い（SwarmCounters の NEAREST_KEY）は Boss / エリートを優先するので、すぐ横の雑魚より 20m 先の Boss を向く。
 //   近距離の範囲魔法のために、同じ競争を優先度なしの距離でもう 1 本やる：
 //   ・SwarmEnemyMoveCS（u4）が key = 距離 | スロットを 32B の raw buffer の先頭へ InterlockedMin
 //   ・SwarmAimResolveCS（u1）が key から位置と距離を +4 / +16 に書き、key を空に戻す（次の固定ステップ用）
@@ -65,7 +65,7 @@ void SwarmSystem::ReadCloseTarget()
     const float* f = static_cast<const float*>(mapped.pData);
     m_CloseTargetPos = { f[1], f[2], f[3] };
     m_CloseTargetDist = f[4];
-    m_CloseNearCount = static_cast<const uint32_t*>(mapped.pData)[6];   // +24：プレイヤーの 10m 以内の敵の数（2026-11-02、賢いカメラ）
+    m_CloseNearCount = static_cast<const uint32_t*>(mapped.pData)[6];   // +24：プレイヤーの 10m 以内の敵の数（スマートカメラ用）
     m_Context->Unmap(m_CloseTargetStaging[readIndex].Get(), 0);
 }
 

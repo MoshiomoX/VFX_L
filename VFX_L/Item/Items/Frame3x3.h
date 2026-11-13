@@ -27,9 +27,9 @@ inline FrameItemDef MakeFrame3x3()
     def.common.influenceCells = {};                        // 枠は何にも影響しない
     def.common.color = { 0.55f, 0.75f, 0.95f, 1.0f };   // 淡い青
     def.common.iconPath = Res::Icon::Frame3x3;
-    // 札・商店で珍しいのは稀有度（レア）で（2026-10-28）。10-27 は weight 0.25 / priceMul 2 で珍しくしていた
-    def.weight = 1.0f;
-    def.priceMul = 1.0f;
+    // 札・商店での出やすさ・値段は大きさで決まる（Frames.h の FrameDefs::Finish と同じ式。9 マス = 一番珍しく高い）
+    def.weight = 1.0f / (1.0f + 0.25f * 9.0f);
+    def.priceMul = 0.4f + 0.18f * 9.0f;
 
     return def;
 }

@@ -37,28 +37,31 @@ public:
     // 既に選択待ち・候補が無い時は false（出していない）。premium = 金色の箱（稀有度が少し出やすい）
     bool OfferChoices(Registry& reg, Entity player, bool premium = false);
 
-    // 金貨を払って今の四択を引き直す（2026-10-04、ユーザー指定：同じ四択の中で 10、20、30…）。
+    // 金貨を払って今の四択を引き直す（同じ四択の中で 10、20、30…と上がる）。
     // 今の候補はなるべく外して引く。選択待ちでない・金貨が足りない時は false
     bool Reroll(Registry& reg, Entity player);
     // 次の引き直しの値段（選択待ちでなければ 0 回目の値段）
     int RerollCost(const LevelComponent& lv) const { return rerollBaseCost + rerollStepCost * lv.rerollCount; }
 
     // ---- 調整値 ----
-    int choiceCount = 4;        // 候補の数（2026-09-29 ユーザーの依頼で 3 → 4）
+    int choiceCount = 4;        // 候補の数
     // 能力値の札（最大 HP・MP・速さ・MP 回復・ジャンプ回数・魔法威力・シールド）を四択に混ぜるか。
-    // 2026-10-27 ユーザー「数値が伸びるだけの選択肢を全部外す」で false（成長は魔法・ルーン・設置枠から。商店の [5] は別）
+    // 既定は false（成長は魔法・ルーン・設置枠から）
     bool statCards = false;
+    bool shieldCard = true;     // statCards = false でも「最大シールド +25」だけは出す（シールドの手に入る所はこれだけ）
     float statWeight = 0.35f;   // 能力値の札 1 枚の出やすさ（魔法・ルーン 1 枚 = 1）
-    // 設置枠 1 種類の出やすさ × その枠の FrameItemDef::weight（2026-10-27、枠が 9 種類になった。全部 1 だと候補の 3 割近くが枠になる。
-    // 合計でおよそ魔法 1.4 枚ぶん。3x3 は weight 0.25 で珍しい）
+    // 設置枠 1 種類の出やすさ × その枠の FrameItemDef::weight（枠は種類が多いので小さめ）
     float frameWeight = 0.2f;
+    // 保底：四択を続けてこの回数出す内に設置枠が 1 枚も無ければ、その回の 1 枚を設置枠にする（0 = しない）。
+    // レベルアップ・宝箱・引き直しをそれぞれ 1 回と数える
+    int framePity = 3;
     // 稀有度（ItemRarity.h）：1 枚毎に先に稀有度を引き（経過時間で決まる率）、その段の中で上の種類の重みで引く
     Rarity::Odds rarityOdds;
     float runMinutes = 0.0f;                        // このプレイの経過時間（シーンが毎フレーム入れる。Rarity::RunMinutes）
     float premiumMinutes = Rarity::kPremiumMinutes; // 金色の箱の四択は時間にこれを足す
     int rerollBaseCost = 10;    // 引き直し 1 回目の金貨
     int rerollStepCost = 10;    // 同じ四択で引き直す度に上がる分
-    float levelUpDelay = 1.2f;  // レベルアップしてから四択を出すまでの間（秒。その間は遊べる。2026-10-15）
+    float levelUpDelay = 1.2f;  // レベルアップしてから四択を出すまでの間（秒。その間は遊べる）
 
     // ---- 統計（ImGui 表示用）----
     int GetTotalLevelUps() const { return m_TotalLevelUps; }

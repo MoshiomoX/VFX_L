@@ -91,7 +91,7 @@ namespace
         p.x += dx * k; p.y += dy * k; p.z += dz * k;
     }
 
-    // 毎フレームの作業用の配列（2026-10-25）。毎回確保し直さないように使い回す（中身は毎回全部書き直す。
+    // 毎フレームの作業用の配列。毎回確保し直さないように使い回す（中身は毎回全部書き直す。
     // 呼ぶのはメインスレッドの ClothChainSystem::Update だけ）
     struct Scratch
     {
@@ -361,9 +361,9 @@ namespace
         for (int s = 0; s < steps; ++s)
         {
             c.time += h;
-            // 世界の風（草と同じ波を根の位置で引く）+ 局所の風源（竜巻・渦・砂旋・突風の渦と吹き上げ。2026-10-22）
+            // 世界の風（草と同じ波を根の位置で引く）+ 局所の風源（竜巻・渦・砂旋・突風の渦と吹き上げ）
             Vector3 wind = worldWind.Velocity(windTime, root.x, root.z) * c.windMul;
-            // 自分の突風は受けない（前へ吹く風が背中から当たり、裾が体の前・中へ押し込まれて見えなくなった。2026-11-05）。
+            // 自分の突風は受けない（裾が体の前・中へ押し込まれて見えなくなるので）。
             // TEMP-TEST: VFXL_CAPE_OWN_GUST=1 で前の作り
             static const bool s_OwnGust = []() { char e[4] = {}; return GetEnvironmentVariableA("VFXL_CAPE_OWN_GUST", e, sizeof(e)) > 0 && e[0] == '1'; }();
             if (localWind) wind += localWind->Air(root.x, root.z, nullptr, !s_OwnGust) * c.localWindMul;
@@ -409,8 +409,7 @@ namespace
             for (int i = 0; i < N; ++i)
                 groundY[i] = (groundHeight ? groundHeight(c.pos[i].x, c.pos[i].z) : feetY) + c.groundOffset;
 
-            // 反復の中は Debug でも重くならないよう SimpleMath を通さずに書く（45 ノード x 195 本 x 11 カプセル。
-            // 2026-10-23：SimpleMath のままだと Debug で 1 フレーム 1.4ms 掛かった）
+            // 反復の中は Debug でも重くならないよう SimpleMath を通さずに書く（45 ノード x 195 本 x 11 カプセル）
             Vector3* P = c.pos.data();
             const ClothChainComponent::Link* L = c.links.data();
             const int nLinks = (int)c.links.size();

@@ -1,7 +1,7 @@
 // ============================================================
 // TerrainGenerator.cpp
 //
-// 注意（2026-10-25）：関数の呼び出しの実引数の中で乱数を 2 回以上引いている所がある（「評価順に依存」の印）。
+// 注意：関数の呼び出しの実引数の中で乱数を 2 回以上引いている所がある（「評価順に依存」の印）。
 // C++ では実引数の評価順は決まっていないが、MSVC では固定なので同じ seed から同じ地形になる。
 // 引数を変数に出す・並べ替えると乱数を引く順が変わり、同じ seed の地形が変わるので触らないこと
 // （{} の初期化子の中は左から順と決まっているので印は付けていない）
@@ -190,7 +190,7 @@ namespace TerrainGenerator
                 emit.Box(lo, hi, Layer_Terrain);
             };
 
-        // ---------- フィールドの三層：隅の山頂と洞窟（2026-10-02）----------
+        // ---------- フィールドの三層：隅の山頂と洞窟 ----------
         // zone: マス毎に 平原 / 山頂 / 洞窟。山頂と洞窟は対角の隅（どの組かは seed）。
         // 形 = 隅の正方形 → 内側の角の面取り → 内側の二辺に出っ張り 1〜2 個と凹み 1 個 → 1 マス幅の所を均す
         enum : uint8_t { kZonePlain = 0, kZoneSummit = 1, kZoneMine = 2 };
@@ -198,8 +198,7 @@ namespace TerrainGenerator
         const bool layers = cfg.layers && gw >= 40 && gd >= 40;
         const float summitH = layers ? (std::max)(cfg.summitHeight, 1.0f) : 0.0f;
         const float mineD = layers ? (std::max)(cfg.mineDepth, 1.0f) : 0.0f;
-        // 縁の碗（草原・砂漠）：山頂・洞窟は碗の斜面の内側に収める（2026-10-06 ユーザー：碗の縁を丸ごと作ってから、
-        // その中に地下室や台を置く）。隅の区域を斜面の幅 + 1 マスだけ内へずらす
+        // 縁の碗（草原・砂漠）：山頂・洞窟は碗の斜面の内側に収める。隅の区域を斜面の幅 + 1 マスだけ内へずらす
         const bool rimRiseZones = cfg.relief && cfg.rimRise && !ruinWalls;
         const int zoneInset = rimRiseZones ? (int)std::ceil(cfg.rimRiseWidth / kCs) + 1 : 0;
         if (layers)
@@ -272,14 +271,14 @@ namespace TerrainGenerator
                     zone.swap(next);
                 }
         }
-        // 洞窟の屋根（2026-10-03）：坑の周り 1 マスの岩の壁（caveRing、下り坂の口は除く）。見た目の高さは roofTopY。
+        // 洞窟の屋根：坑の周り 1 マスの岩の壁（caveRing、下り坂の口は除く）。見た目の高さは roofTopY。
         // 中身は下り坂を置いた後で決まる
         const bool cave = layers && cfg.mineRoof;
         const float roofBottomY = cave ? (std::max)(cfg.roofBottom, 2.5f) : 0.0f;
         const float roofTopY = cave ? (std::max)(cfg.roofTop, roofBottomY + 1.0f) : 0.0f;
         std::vector<uint8_t> caveRing((size_t)gw * gd, 0);
 
-        // ---------- 起伏（2026-10-04）----------
+        // ---------- 起伏 ----------
         // relief = 平原・山頂の上面の起伏（ReliefField）。台座（padRect）で構造物の足元を均す。
         // 高さ場（雑魚・草・置物が見る）は「上げたマス（台地・坂・高台）と洞の岩の壁」以外を常に起伏の面と同じに保つ
         // （台座を当てる度に周りを書き直す）。上げたマスは RaiseRect / SpawnRamp の高さのまま
@@ -291,7 +290,7 @@ namespace TerrainGenerator
         std::vector<MapData::Hill> hills;
         if (cfg.relief) BuildRelief(*relief, cfg, emit, reliefParams, hills);
 
-        // ---------- 段々の台地（2026-10-19、ユーザー「PokéBonk の地図をそのまま持ってくる」。TerrainSteps.cpp）----------
+        // ---------- 段々の台地（TerrainSteps.cpp）----------
         // マス毎の段・坂・水たまりを決める。面の高さは ReliefField::SurfaceAt（区域の起伏 + 段）で、高さ場・段々のメッシュ・
         // 地面の衝突が同じ式を見る。崖の衝突の箱は起伏が全部決まってから（下）。平原の区域だけ
         const bool steps = cfg.steps && cfg.stepHeight > 0.0f;
@@ -433,14 +432,13 @@ namespace TerrainGenerator
         // 高さ場: 山頂は上げる、洞窟はそのまま -mineDepth を書く（坂は後で高い方を書く）。
         // 床は格子に登録しない（上を歩くものなので通行を塞がない）
         float floorPlainTop = 0.0f, floorSummitTop = 0.0f;   // 床の箱の上面（記録へ。区域を塗り替えた時に同じ高さで作り直す）
-        // 床の箱の底：洞窟の底の下、かつ起伏の一番低い所より下（三層を切った時 -1m のままだと起伏の谷が -1.4m で
-        // 箱の上面が底より下 = 裏返った AABB になり、衝突の std::clamp が落ちた。2026-10-19）
+        // 床の箱の底：洞窟の底の下、かつ起伏の一番低い所より下（箱が裏返ると衝突の std::clamp が落ちる）
         float floorBottom = -mineD - 1.0f;
         if (cfg.relief)
             floorBottom = (std::min)(floorBottom, (std::min)(*std::min_element(relief->plain.begin(), relief->plain.end()),
                 summitH + *std::min_element(relief->summit.begin(), relief->summit.end())) - 3.0f);
         {
-            // 起伏（2026-10-04）: 歩く面は高さ場の衝突（下の relief）。箱は上面を起伏の一番低い所より下げ、
+            // 起伏: 歩く面は高さ場の衝突（下の relief）。箱は上面を起伏の一番低い所より下げ、
             // 崖（山頂の縁・坑の壁）の縦の壁としてだけ残す。山頂の箱は底を floorBottom まで伸ばす
             // （周りの平原が 0 より低い所で山頂の下に潜り込めないように）
             float plainTop = 0.0f, summitTop = summitH;
@@ -449,8 +447,7 @@ namespace TerrainGenerator
                 plainTop = *std::min_element(relief->plain.begin(), relief->plain.end()) - 0.1f;
                 summitTop = summitH + *std::min_element(relief->summit.begin(), relief->summit.end()) - 0.1f;
             }
-            // 水たまり（段々の台地）は地面を pondDepth 下げるので、平原の箱の上面もその分下げる（2026-10-25。
-            // 以前は起伏を切ると水たまりの上 y = 0 に見えない床があり、起伏があっても谷底から 0.4m 以内の水たまりは箱に載っていた）。
+            // 水たまり（段々の台地）は地面を pondDepth 下げるので、平原の箱の上面もその分下げる（水たまりの中に見えない床を作らない）。
             // 地図エディタの筆の後（MapReliefEdit の FinishBrush）も同じ式
             if (AnyPond(relief->pond)) plainTop -= relief->pondDepth;
             floorBottom = FloorBottomBelowTops(floorBottom, plainTop, summitTop, mineD);   // 区域の作り直し（RegenZones）と同じ決まり
@@ -458,7 +455,7 @@ namespace TerrainGenerator
             EmitFloorBoxes(emit, grid, zone, floorBottom, plainTop, summitTop, mineD);
             floorPlainTop = plainTop; floorSummitTop = summitTop;
             // 高さ場 = 起伏の面（山頂は +summitH、洞窟は -mineD）。外周の崖のマス（塞いだマス）も内側の隣と同じ区域の面
-            // （2026-10-03。外周の岩を少し外へ下げてこのマスの地面が見え、草を生やす）
+            // （外周の岩の手前でこのマスの地面が見え、草を生やす）
             writeBase(0, 0, gw * hsub - 1, gd * hsub - 1);
             // 見た目のメッシュと場外の地面は台座が全部決まってから（高台・台地の後）
         }
@@ -467,10 +464,10 @@ namespace TerrainGenerator
         // 1 マス幅で四辺を囲む。場外へ出る・落ちるをここで殺す（格子も塞ぐ）。
         // 高さは洞窟の底の下から山頂 + wallHeight まで（山頂から外へ飛び出せない）。
         // 岩山にする時は衝突の箱だけ（見た目は後で岩を積む）
-        // 縁の碗（rimRise）/ 巨石の衝突（boulderCollide）の時は縁の空気壁を作らない（2026-10-06 ユーザー：空気壁は消す）。
+        // 縁の碗（rimRise）/ 巨石の衝突（boulderCollide）の時は縁の空気壁を作らない。
         // 止めるのは碗の斜面そのもの / 石の凸包。格子は縁のマスのまま塞ぐ（雑魚は縁から外へ出ない）
         const bool boulderCollide = cfg.rockMountains && !ruinWalls && cfg.boulderMountains && cfg.boulderCollide && !cfg.rimRise;
-        const bool rimRise = cfg.relief && cfg.rimRise && !ruinWalls;   // 草原・砂漠だけ（遺跡は遺跡の壁のまま。10-06 ユーザー）
+        const bool rimRise = cfg.relief && cfg.rimRise && !ruinWalls;   // 草原・砂漠だけ（遺跡は遺跡の壁のまま）
         const bool noAirWall = rimRise || boulderCollide;
         // 段々の台地の外周の帯の分だけ壁を高く（帯の上に跳び乗って外へ出られないように）
         const float rimExtra = steps ? relief->stepH * (std::max)(cfg.stepRimLevels, 0) : 0.0f;
@@ -532,7 +529,7 @@ namespace TerrainGenerator
         mark({ gw / 2 - cr, gd / 2 - cr, cr * 2, cr * 2 }, kSpawn);
 
         // 段々の台地の占有：坂 = kSlope（置物を置かない、草は生やす）、水たまり = kRamp 扱い（草・茂み・置物なし）+ 水の印
-        // （歩ける。2026-10-28 ユーザー：雑魚も水に入れる・水が弾を止めない。以前は塞いでいた）、
+        // （歩ける：雑魚も水に入れる・水は弾を止めない）、
         // 外周の帯 = kRim（置物なし）+ 塞ぐ（雑魚は上に湧かない・登らない。プレイヤーはジャンプで登れるが外周の壁で止まる）
         int stepRimCells = 0, stepPondCells = 0;
         if (steps)
@@ -548,11 +545,11 @@ namespace TerrainGenerator
                 }
         }
 
-        // 外周の巨石の下（縁から石の厚みの半分 + 1m）/ 縁の碗の斜面は空けておく：木・岩・茂み・台地・高台を置かない（草は生やす）。
-        // 2026-10-06 ユーザー：石が場内へ入るようになって、壁際の置物が石に埋まった
+        // 外周の巨石の下（縁から石の厚みの半分 + 1m）/ 縁の碗の斜面は空けておく：木・岩・茂み・台地・高台を置かない（草は生やす。
+        // 壁際の置物が石に埋まらないように）
         if (boulderCollide || rimRise)
         {
-            // 碗の斜面は、麓から更に rimClear m 内側まで空ける（10-06 ユーザー：坂の周りの台地・岩・雑物は全部消す）
+            // 碗の斜面は、麓から更に rimClear m 内側まで空ける
             const int band = (int)std::ceil((boulderCollide ? cfg.boulderDepth * 0.5f + 1.0f : cfg.rimRiseWidth + cfg.rimClear) / kCs);
             for (int z = 0; z < gd; ++z)
                 for (int x = 0; x < gw; ++x)
@@ -562,8 +559,7 @@ namespace TerrainGenerator
                     if (o == kFree || o == kHigh) o = kRim;
                     // 碗の斜面のマスは雑魚・弾も通らない（高さ場の傾きで止まるが、湧きの候補からも外す）。洞窟の底は平らなので除く。
                     // 塞ぐのは中心が斜面の上（縁から rimRiseWidth 未満）のマスだけ。麓の内側 rimClear の帯は平地なので
-                    // 置物を置かない印（kRim）だけにする（2026-10-07 ユーザー報告：以前は帯ごと塞いでいて、
-                    // 縁から 12〜20m の平地に雑魚が入れず、そこに立つと弾も出た瞬間に消えていた）
+                    // 置物を置かない印（kRim）だけにする（塞ぐと雑魚が入れず、そこに立つと弾も出た瞬間に消える）
                     const int edgeCells = (std::min)((std::min)(x, gw - 1 - x), (std::min)(z, gd - 1 - z));
                     const bool onSlope = ((float)edgeCells + 0.5f) * kCs < cfg.rimRiseWidth;
                     if (rimRise && onSlope && x >= 1 && z >= 1 && x < gw - 1 && z < gd - 1 && zone[(size_t)z * gw + x] != kZoneMine)
@@ -760,7 +756,7 @@ namespace TerrainGenerator
             }
         }
 
-        // ---------- 洞窟の屋根（2026-10-03、ユーザー：推奨どおり）----------
+        // ---------- 洞窟の屋根 ----------
         // 坑の上を岩の塊で覆い、外から見ると山の麓の洞窟にする。
         //   岩の壁 = 坑の 8 近傍の平原のマス（下り坂の口を除く）。格子を塞ぎ（雑魚は縁から飛び降りられない。
         //     出入りは下り坂だけ）、見た目は roofTop の高さの段（段々のメッシュが外の壁・中の壁を描く）。
@@ -780,9 +776,8 @@ namespace TerrainGenerator
                     if (caveRing[(size_t)z * gw + x]) { at(x, z) = kMass; ++caveRingCells; }
             EmitCaveRoof(emit, &grid, grid, zone, caveRing, mouth, roofBottomY, roofTopY, roofCollTop, gCliffHigh);
 
-            // 岩の壁のマスの高さ場（2026-10-03、通し検査 soak で見つけた）。歩けないので誰も立たないが、
-            // 隣の歩けるマスの双線形の高さに混ざる。平原の 0 のままだと、坑の縁に押し付けられた雑魚が
-            // 壁の途中（坑の底から 3.8m）まで持ち上がって見えた。高さマス毎に、一番近い歩けるマス
+            // 岩の壁のマスの高さ場。歩けないので誰も立たないが、隣の歩けるマスの双線形の高さに混ざる
+            // （平原の 0 のままだと、坑の縁の雑魚が壁の途中まで持ち上がる）。高さマス毎に、一番近い歩けるマス
             // （壁ではない）の高さにする = 坑側の半分は坑の底、外側の半分は平原の高さ
             {
                 constexpr int kSub = GridWorld::kHeightSub;
@@ -817,7 +812,7 @@ namespace TerrainGenerator
             }
         }
 
-        // ---------- 屋根の上の台と、そこへ登る坂（2026-10-06 ユーザー：屋根の岩を消して立てる台にし、横に登れる坂）----------
+        // ---------- 屋根の上の台と、そこへ登る坂 ----------
         // 屋根・岩の壁の衝突の上端 = roofTop（roofWalkable）なので上に立てる。坂は岩の塊の包囲矩形の一辺の外に、
         // 高台の長い坂と同じ作り（草の坂、麓は空き地）。雑魚は坂のマスを塞いで登らせない（屋根の上の格子は坑の底なので落ちる）
         int roofRampMade = 0;
@@ -1061,15 +1056,15 @@ namespace TerrainGenerator
             ++tier2;
         }
 
-        // ---------- 起伏の仕上げ：台座の戻りなどの急な所を抑える（2026-10-05）----------
+        // ---------- 起伏の仕上げ：台座の戻りなどの急な所を抑える ----------
         // 台座の芯（重み 1 = 構造物の足元・洞窟の周り）は動かさない。抑えた後の面で高さ場を書き直す
         if (cfg.relief)
         {
             LimitReliefSlopes(relief->plain, pads, kZonePlain, &mineW, relief->nx, relief->nz, relief->step, cfg.reliefMaxSlopeDeg);
             LimitReliefSlopes(relief->summit, pads, kZoneSummit, nullptr, relief->nx, relief->nz, relief->step, cfg.reliefMaxSlopeDeg);
-            // 外周の縁を碗のように持ち上げる（Megabonk 風の縁。2026-10-06）。傾きの制限の後なので均されない。
-            // 遺跡を除いた方の rimRise（上の局所変数）を見る：cfg.rimRise だと遺跡でも碗が立つのに格子を塞がず、
-            // 記録の rimRiseWidth も 0 なので、保存して読み直す / Rederive すると碗が消えていた（2026-10-25）
+            // 外周の縁を碗のように持ち上げる。傾きの制限の後なので均されない。
+            // 遺跡を除いた方の rimRise（上の局所変数）を見る（cfg.rimRise だと遺跡でも碗が立つのに格子を塞がず、
+            // 記録とも食い違う）
             if (rimRise)
             {
                 ApplyRimRise(relief->plain, relief->nx, relief->nz, relief->step, cfg.rimRiseWidth, cfg.rimRiseHeight);
@@ -1087,7 +1082,7 @@ namespace TerrainGenerator
         }
 
         // ---------- 床の見た目（段々のメッシュ + 起伏）----------
-        // 台座が全部決まってから作る（2026-10-04 に高台・台地の後へ移した）。中身は TerrainBuild::SpawnGround
+        // 台座が全部決まってから作る（高台・台地の後）。中身は TerrainBuild::SpawnGround
         GroundParams groundParams;
         groundParams.seed = cfg.seed; groundParams.biome = cfg.biome;
         groundParams.relief = cfg.relief; groundParams.reliefSubdiv = cfg.reliefSubdiv;
@@ -1133,10 +1128,10 @@ namespace TerrainGenerator
             skirtBox(ox + W, oz + D, ox + W + kSkirt, oz + D + kSkirt, skirtLevel(ox + W, oz + D));
         }
 
-        // ---------- 地面の衝突（高さ場、2026-10-04）と、積んだ見た目（外周・台地・坂道・高台）の 1 つのモデル ----------
+        // ---------- 地面の衝突（高さ場）と、積んだ見た目（外周・台地・坂道・高台）の 1 つのモデル ----------
         outTerrain.push_back(SpawnHeightField(reg, grid, relief, summitH));
-        // 水面はここでは建てない（2026-10-27〜 戦闘の水面は WaterSurface が地図の記録 pond から作って描く。
-        // エディタの見た目だけ BuildFromMap の kPartWater で以前の青い六面体）
+        // 水面はここでは建てない（戦闘の水面は WaterSurface が地図の記録 pond から作って描く。
+        // エディタの見た目だけ BuildFromMap の kPartWater で青い六面体）
         emit.FinishVisuals(device, cfg.biome, terrainRefLum);
 
         // ---------- 自然物（KayKit Forest）----------
@@ -1286,7 +1281,7 @@ namespace TerrainGenerator
                 z = grid.OriginZ() + randf(2.0f * kCs, (gd - 2) * kCs);
             };
 
-        // ---------- 場内の岩柱と峡谷の壁（砂漠。2026-10-26、マップ毎の地形の第 2 段）----------
+        // ---------- 場内の岩柱と峡谷の壁（砂漠）----------
         // 崖の岩（set.cliff）を引き伸ばして場内に立てる（TerrainBuild::EmitFieldRock：凸包の衝突 + 足元のマスを塞ぐ）。
         // 岩柱 = 1 個を高く細く、峡谷の壁 = 軸に沿って（± canyonJitterDeg）3〜5 個を一直線に並べた長い壁。
         // 置く前に足跡（+1 マス）が空き地（kFree）・歩ける・置物無し・段差 1.5m 以内かを確かめ、置いたら propAt に印
@@ -1294,7 +1289,7 @@ namespace TerrainGenerator
         int pillarsPlaced = 0, canyonsPlaced = 0, pillarCells = 0;
         if ((cfg.pillarCount > 0 || cfg.canyonCount > 0) && set.nCliff > 0)
         {
-            // 柱の岩は砂漠専用の橙岩の表（kPillarRocks。読めた物だけ）。1 つも無ければ外周と同じ崖の岩（2026-10-26）
+            // 柱の岩は砂漠専用の橙岩の表（kPillarRocks。読めた物だけ）。1 つも無ければ外周と同じ崖の岩
             std::vector<std::string> pillarPaths;
             for (size_t i = 0; i < set.nPillars; ++i)
                 if (ResourceManager::Get().LoadModel(set.pillars[i])) pillarPaths.push_back(set.pillars[i]);
@@ -1522,7 +1517,7 @@ namespace TerrainGenerator
         }
         if (cfg.rockMountains && !ruinWalls && cfg.boulderMountains)
         {
-            // 巨石（2026-10-06）：数個の Rock-Set を辺に沿って引き伸ばす。縁より外に置くので衝突・塞ぐマスは無し
+            // 巨石：数個の Rock-Set を辺に沿って引き伸ばす。縁より外に置くので衝突・塞ぐマスは無し
             RimBoulderParams P;
             P.perSide = cfg.boulderPerSide;
             P.frontHMin = cfg.boulderHeightMin; P.frontHMax = cfg.boulderHeightMax;
@@ -1542,7 +1537,7 @@ namespace TerrainGenerator
         else if (cfg.rockMountains && !ruinWalls && set.nCliff > 0 && !rimRise)   // 碗の縁では岩を積まない
         {
             const auto cliffRocks = loadModels(set.cliff, set.nCliff);
-            // 表に名前があっても全部読めなかった時は積まない（空の表から randi(0, -1) で引いていた。2026-10-25）
+            // 表に名前があっても全部読めなかった時は積まない（空の表から randi(0, -1) で引かない）
             if (cliffRocks.empty())
                 std::cout << "[Warning] Terrain: no cliff rock model could be loaded, rock mountains skipped" << std::endl;
             struct Row { float offset, step, hMin, hMax; };
@@ -1605,10 +1600,8 @@ namespace TerrainGenerator
                         ++mountainRocks;
                         const Vector3 c = Vector3(p.x, 0.0f, p.z) + mid;
 
-                        // 雑魚（格子しか見ない）：箱が 0.15m 以上入り込むマスを塞ぐ（2026-10-03、通し検査 soak）。
-                        // 以前は「1/4 以上掛かる」= マスの中心から ±0.5m の小点 4 つだけで見ていて、角が 0.5m 弱
-                        // 入り込む岩には縁沿いの雑魚の体が 0.3m 埋まった。小点を 5x5（一番外はマスの縁から 0.15m 内）にし、
-                        // 衝突の要らない浅い岩（0.15〜0.35m）も塞ぐ
+                        // 雑魚（格子しか見ない）：箱が 0.15m 以上入り込むマスを塞ぐ。
+                        // マス毎に 5x5 の小点（一番外はマスの縁から 0.15m 内）で見て、衝突の要らない浅い岩（0.15〜0.35m）も塞ぐ
                         constexpr float kBlockIntrude = 0.15f;
                         if (intrude > kBlockIntrude)
                         {
@@ -1710,8 +1703,8 @@ namespace TerrainGenerator
                         const float cw = (cm.hi.x - cm.lo.x) * cm.unit;
                         const float cd = (cm.hi.z - cm.lo.z) * cm.unit;
                         const float ch = (cm.hi.y - cm.lo.y) * cm.unit;
-                        // 柱の内側の面が縁から奥行きの ruinColumnIntrude だけ内に出る（2026-10-03 までは 0.85 出ていて
-                        // 衝突も無く、入り込めた）。出た分は箱で止める（向きは 90 度刻みなので AABB）
+                        // 柱の内側の面が縁から奥行きの ruinColumnIntrude だけ内に出る。
+                        // 出た分は箱で止める（向きは 90 度刻みなので AABB）
                         const float intrude = std::clamp(cfg.ruinColumnIntrude, 0.0f, 1.0f) * cd;
                         const bool alongX = std::fabs(sd.n.z) > 0.5f;   // 縁が x に沿う = 柱の幅が x
                         for (float s = -sd.half + 4.0f; s <= sd.half - 2.0f; s += 8.0f)
@@ -1746,7 +1739,7 @@ namespace TerrainGenerator
                     }
                 }
 
-                // ---------- 内側の部屋と廊下（2026-10-26、マップ毎の地形の第 2 段）----------
+                // ---------- 内側の部屋と廊下 ----------
                 // 空き地（周り 2 マスも空き・歩ける・置物無し・段差 0.9m 以内）に矩形の部屋を cfg.ruinRoomCount 個。
                 // 外周 1 マスが壁：Wall 片を ruinInnerWallHeight まで積み（一番上は崩れた縁）、マスいっぱいの箱で当てて塞ぐ。
                 // 角は柱。各辺の角以外に戸口を 1 つ（壁を置かない = 歩ける）。内側の面に 4 マス毎に松明（点光源はシーンが近い物に付ける）。
@@ -1828,7 +1821,7 @@ namespace TerrainGenerator
                                 torchList.push_back(Vector3(p.x, ground + 2.7f, p.z) + in * 0.4f);
                             }
                         }
-                    // ---- 部屋の中身（2026-10-26）：真ん中に 1 つ「主」（彫像 / 柱 = 木の枠、本棚 / 荷車 = 岩の枠。塞ぐ・衝突付き。
+                    // ---- 部屋の中身：真ん中に 1 つ「主」（彫像 / 柱 = 木の枠、本棚 / 荷車 = 岩の枠。塞ぐ・衝突付き。
                     //      placeBlocker が周り 1 マスの空きを見るので、内側 3×3 の部屋でも壁との間に 1 マスの通路が残る）、
                     //      壁際の内側のマスに壺・蝋燭・骸骨・樽（見た目だけ）。戸口の正面のマスには置かない ----
                     {
@@ -1920,7 +1913,7 @@ namespace TerrainGenerator
 
         // ---------- 草を生やすマス ----------
         // 土の坂道・登れない台地（高さ場が 0 のまま = 箱の中に生えてしまう）・洞窟・洞の岩の壁以外。
-        // 外周の崖のマスにも生やす（2026-10-03。外周の岩を外へ下げて地面が見えるようになった。高さ場は内側の隣と同じ）。
+        // 外周の崖のマスにも生やす（外周の岩の手前で地面が見える。高さ場は内側の隣と同じ）。
         // 崖の面そのものは GrassRenderer が高さ場の傾きで弾く
         std::vector<uint8_t> grassMask;
         {

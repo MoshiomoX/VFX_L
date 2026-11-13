@@ -19,7 +19,7 @@ namespace
 }
 
 // ============================================================
-// TEMP-TEST: 毒（VFXL_BATTLE_AUTOTEST=poison、2026-10-01）
+// TEMP-TEST: 毒（VFXL_BATTLE_AUTOTEST=poison）
 // 1 秒: 湧き停止・全消し・無敵・MP 無限・入力 0、バックパックは毒だけ（3x3 の中央）。プレイヤーの +Z 17〜30m に雑魚 16 体
 //   （2 列、HP 1000、3.5 m/s）、31m にエリート 1 体（HP 2000、3.4 m/s で見分ける）。プレイヤーは動かない。
 //   射程 15m に入った最寄りの敵の足元へ毒が落ち、後ろから来る敵がその池を通る。
@@ -72,7 +72,7 @@ void AutoTestPoison::Run()
         {
             auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
             ClearBackpackItems(bp);
-            // 2026-10-17：毒は上級魔法「猛毒の沼」になった → 前提の泥沼・胞子と一式で置く（泥沼・胞子も撃つ）
+            // 猛毒の沼（上級魔法）は前提の泥沼・胞子と一式で置く（泥沼・胞子も撃つ）
             FillAllFrames(bp);
             PlacePoisonSet(bp);
             m_Registry.Get<WandComponent>(m_Player).castingPaused = false;
@@ -122,7 +122,7 @@ void AutoTestPoison::Run()
     }
     if (s_PoisonClose)
     {
-        // 近景（VFXL_POISON_CLOSE、2026-10-02 液溜まりが明るすぎる件）: 2.5 秒から 0.5 秒毎に撮る。
+        // 近景（VFXL_POISON_CLOSE）:2.5 秒から 0.5 秒毎に撮る。
         // 液溜まり（Liquid entry）を 1 枚毎に入 / 切して、他の層（泡・毒霧・点光源）と見比べる。
         // 切り替えは撮る 0.15 秒前（描画に反映されてから log を書く）
         const int k = (int)std::floor((m_AutoTime - 2.5f + 0.15f) / 0.5f);

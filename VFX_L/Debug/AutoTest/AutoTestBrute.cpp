@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestBrute.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=brute
-// 重装兵（kEnemyKindBrute。2026-10-07 夜）：雑魚と並べて、見た目（オークのテクスチャ・体格）・HP・速さを確かめる
+// 重装兵（kEnemyKindBrute）：雑魚と並べて、見た目（オークのテクスチャ・体格）・HP・速さを確かめる
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 

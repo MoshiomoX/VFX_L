@@ -2,6 +2,7 @@
 // DandelionField.cpp
 // ============================================================
 #include "World/DandelionField.h"
+#include "World/WindGrid.h"
 #include "World/GridWorld.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Renderer/RenderStates.h"
@@ -26,7 +27,7 @@ bool DandelionField::Initialize(ID3D11Device* device, ID3D11DeviceContext* conte
     m_Context = context;
     if (!device || !context) return false;
 
-    // TEMP-TEST: 既定は切（2026-10-23）。VFXL_DANDELIONS=1 で入れる
+    // TEMP-TEST: 既定は切。VFXL_DANDELIONS=1 で入れる
     char env[8] = {};
     if (GetEnvironmentVariableA("VFXL_DANDELIONS", env, sizeof(env)) > 0 && env[0] == '1')
         m_Settings.enabled = true;
@@ -190,6 +191,7 @@ void DandelionField::Render(Renderer& renderer, CameraBase& camera,
     m_UpdateCS->SetSRV(ctx, "g_Ground", m_GroundSRV.Get());
     if (trample) m_UpdateCS->SetSRV(ctx, "g_Trample", trample);
     if (windSources) m_UpdateCS->SetSRV(ctx, "g_WindSources", windSources);
+    WindGrid::BindCurrent(*m_UpdateCS, ctx);   // 風の格子
     ctx->CSSetSamplers(0, 1, &linearClamp);
     m_UpdateCS->SetUAV(ctx, "g_Flowers", m_FlowerUAV.Get());
     m_UpdateCS->SetUAV(ctx, "g_Seeds", m_SeedUAV.Get());

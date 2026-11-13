@@ -51,10 +51,10 @@ public:
     // resolve 済みの HDR シーン（後処理の入力。BeginUI 以降で有効）
     ID3D11ShaderResourceView* GetSceneSRV() const { return m_SceneSRV.Get(); }
 
-    // シーンの深度（MSAA なら Texture2DMS）と、シーンの RT / DSV（2026-10-04、画面のアウトラインが深度を読む）。
+    // シーンの深度（MSAA なら Texture2DMS）と、シーンの RT / DSV（画面のアウトラインが深度を読む）。
     // 深度を SRV で読む間は DSV を外すこと（同じ資源の読み書き）。読み終えたら RestoreRenderTarget
     ID3D11ShaderResourceView* GetDepthSRV() const { return m_DepthSRV.Get(); }
-    // 同じ深度のステンシル（G チャンネル、uint）。陣営のアウトライン（2026-10-06）。使い方は深度と同じ
+    // 同じ深度のステンシル（G チャンネル、uint）。陣営のアウトライン。使い方は深度と同じ
     ID3D11ShaderResourceView* GetStencilSRV() const { return m_StencilSRV.Get(); }
     ID3D11RenderTargetView* GetSceneRTV() const { return m_SceneRTV.Get(); }
     UINT GetSampleCount() const { return m_SampleCount; }
@@ -64,7 +64,7 @@ public:
     float GetAspect() const { return m_Viewport.Width / m_Viewport.Height; }
     BloomParams& GetBloomParams() { return m_Bloom.Params(); }
 
-    // ---- 画面の歪み（2026-10-20、エルデンリングの風の「空気の揺らぎ」）----
+    // ---- 画面の歪み（風の「空気の揺らぎ」）----
     // 粒子（GPUParticleSystem::RenderDistortion）が uv のずれを R16G16 の RT（シーンと同じ MSAA、深度を共有）へ描き、
     // UI を描く前に ApplyDistortion がシーンと一緒に resolve して、ずらしたシーンを HDR RT へ書き戻す（UI は歪まない）。
     // 合成 PS にも同じずれを読む道（t2）が残っているが、ApplyDistortion が済むと m_DistortDrawn が落ちるので倍率 0。
@@ -78,7 +78,7 @@ public:
     // 歪みの RT を bind する（シーンの深度付き）。false = 無効 / 未作成なので何も描かなくてよい。描き終えたら RestoreRenderTarget
     bool BeginDistortion();
     // 歪みをシーンに掛ける（UI を描く前に呼ぶ。3D の最後 = RenderDistortion の後）：シーンを resolve して、ずらした物を
-    // HDR RT へ書き戻す。これで UI は歪まない（10-20 ユーザー「UI まで歪んでいる」。合成でやっていたのを前倒し）
+    // HDR RT へ書き戻す。これで UI は歪まない
     void ApplyDistortion();
 
     // ---- 表示の同期（Debug Info 欄で切り替える）----
@@ -91,8 +91,8 @@ public:
     bool IsTearingSupported() const { return m_TearingSupported; }
     bool IsFlipModel() const { return m_FlipModel; }
 
-    // TEMP-TEST: 自動テストの写真（2026-10-23）。次の Present の直前にバックバッファを PNG で保存する。
-    // 外のスクリプトが画面を撮る方法と違い、ウィンドウが前面に無くても（ユーザーが別の窓を使っていても）撮れる
+    // TEMP-TEST: 自動テストの写真。次の Present の直前にバックバッファを PNG で保存する。
+    // ウィンドウが前面に無くても撮れる
     void RequestScreenshot(const std::wstring& path) { m_ShotPath = path; }
     // GPU が外れた（Present が DEVICE_REMOVED / RESET を返した）。終了の要求は Graphics が出す（WM_QUIT）
     bool IsDeviceLost() const { return m_DeviceLost; }
@@ -121,7 +121,7 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_DepthSRV;   // 同じ深度を読む（画面のアウトライン）
     ComPtr<ID3D11ShaderResourceView> m_StencilSRV; // 同じ資源のステンシル（陣営のアウトライン）
 
-    // ---- 画面の歪み（2026-10-20）：R16G16_FLOAT の MSAA RT と resolve 先 ----
+    // ---- 画面の歪み：R16G16_FLOAT の MSAA RT と resolve 先 ----
     DistortionParams m_Distortion;
     ComPtr<ID3D11Texture2D> m_DistortTex;
     ComPtr<ID3D11RenderTargetView> m_DistortRTV;
@@ -132,7 +132,7 @@ private:
     // ---- 合成（全画面三角形）----
     std::shared_ptr<VertexShader> m_CompositeVS;
     std::shared_ptr<PixelShader> m_CompositePS;
-    std::shared_ptr<PixelShader> m_DistortApplyPS;   // 歪みをシーンへ掛ける（UI の前。2026-10-20）
+    std::shared_ptr<PixelShader> m_DistortApplyPS;   // 歪みをシーンへ掛ける（UI の前）
 
     // ---- 表示の同期 ----
     PresentSettings m_Present;

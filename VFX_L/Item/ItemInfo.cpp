@@ -1,8 +1,7 @@
 ﻿// ============================================================
 // ItemInfo.cpp
 // ※日本語の文字列リテラルを含むので UTF-8（BOM 付き）で保存する。
-//   UI の字体は Yuji Syuku（Res::Fnt::JP。2026-09-28 から）で、× ° → や全角の記号も出るが、
-//   文はそれ以前（NotoSansJP の頃）の書き方のまま：掛け算は x、角度は「度」と書く
+//   文の書き方：掛け算は x、角度は「度」と書く
 // ============================================================
 #include "Item/ItemInfo.h"
 #include "Item/ItemInfoSheet.h"
@@ -46,8 +45,8 @@ namespace
         if (const ItemCommon* c = ItemDatabase::GetCommon(id))
         {
             if (!c->triggeredBy.empty()) s.category = L"上級魔法";   // 前提の基本魔法が要る物（隕石・光線）
-            if (!c->outletCells.empty()) s.category = L"出口魔法";   // 2026-10-31
-            if (const FrameItemDef* fd = ItemDatabase::GetFrame(id); fd && fd->HasEffect()) s.category = L"効果の枠";   // 2026-10-27
+            if (!c->outletCells.empty()) s.category = L"出口魔法";
+            if (const FrameItemDef* fd = ItemDatabase::GetFrame(id); fd && fd->HasEffect()) s.category = L"効果の枠";
             s.color = c->color;
             s.description = c->description ? c->description : L"";
         }
@@ -134,7 +133,7 @@ namespace ItemInfo
     // 上級魔法: 「敵の足元…」を「連鎖した場所…」に差し替える（前提の弾が消えた場所に落ちる）
     static void FixTriggeredFlight(Sheet& s, const ProjectileItemDef& d)
     {
-        if (d.common.outletText && d.common.outletText[0]) s.traits.insert(s.traits.begin(), d.common.outletText);   // 出口魔法（2026-10-31）
+        if (d.common.outletText && d.common.outletText[0]) s.traits.insert(s.traits.begin(), d.common.outletText);   // 出口魔法
         if (d.common.triggeredBy.empty()) return;
         const std::wstring feet = kAtFeet;
         for (auto& t : s.traits)
@@ -145,7 +144,7 @@ namespace ItemInfo
     // 基本魔法なら自分が呼び起こしている上級魔法
     static void AddTriggerTraits(Sheet& s, const BackpackComponent& bp, int itemIndex, const ItemCommon& c, int shotsPerCast = 1)
     {
-        // 出口（2026-10-31）：自分の出口の先 / 自分を出口の先に持つ魔法
+        // 出口：自分の出口の先 / 自分を出口の先に持つ魔法
         if (!c.outletCells.empty())
         {
             std::vector<std::wstring> names;

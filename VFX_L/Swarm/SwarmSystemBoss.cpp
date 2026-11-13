@@ -1,11 +1,11 @@
 // ============================================================
 // SwarmSystemBoss.cpp
-// 描画リスト毎の皮と飾り（2026-10-24 に面の Boss 用に作り、10-25 に遺跡の敵の為に全リストへ一般化）。
+// 描画リスト毎の皮と飾り。
 // 面の Boss は自分の描画リスト（kDrawListBoss）に分かれ、面毎の皮（albedo）で体を描いた直後に飾りを描く。
 // 遺跡の敵（呪いの鎧・ガーゴイル・死霊術師・骸骨・鎖の番人）も同じ仕組みで兜・翼・頭巾・鎖を付ける。
 // 飾りの頂点は焼いた雑魚の網と同じ空間なので、体と同じ SwarmEnemyVS・同じ定数で描けば部品と一緒に動く
 // （g_AnimPart = くっつける部品）。体の周りを回る飾りは g_AnimMode = 1、ガーゴイルの翼は 2（VS が回す）。
-// 砕け散りの時は SwarmCorpseVS で、part に付いた飾りだけ部品と一緒に飛ぶ（回る物・翼は描かない）。
+// 砕け散りの時は SwarmCorpseVS で、飾りも部品と一緒に飛ぶ（動く飾りは 1 つずつ別の破片）。
 // 飾りの形は Enemy/BossLooks.cpp・Enemy/EnemyLooks.cpp が作る
 // ============================================================
 #include "Swarm/SwarmSystem.h"
@@ -73,7 +73,7 @@ void SwarmSystem::CopyListDecoCounts()
         for (auto& deco : m_ListDecoArgs[k])
             for (auto& args : deco)
                 if (args) m_Context->CopyStructureCount(args.Get(), sizeof(uint32_t) * 1, m_KindListUAV[k].Get());
-    // 遺跡の敵の予告の帯（鎖の番人の投げ・ガーゴイルの急降下。突撃兵の帯と同じ VS、2026-10-25）
+    // 遺跡の敵の予告の帯（鎖の番人の投げ・ガーゴイルの急降下。突撃兵の帯と同じ VS）
     if (m_WardenLineArgs)
         m_Context->CopyStructureCount(m_WardenLineArgs.Get(), sizeof(uint32_t) * 1, m_KindListUAV[Swarm::kDrawListWarden].Get());
     if (m_GargoyleLineArgs)
@@ -102,7 +102,7 @@ void SwarmSystem::RenderListDecorations(uint32_t list)
         const bool orbit = (deco.part == kDecoOrbit);
         const bool flap = (deco.flap.w != 0.0f);
         m_EnemyAnim.part = orbit ? 0u : deco.part;
-        m_EnemyAnim.mode = orbit ? 1u : (deco.floating ? 6u : (deco.insectLeg ? 5u : (deco.leg ? 4u : (deco.tail ? 3u : (flap ? 2u : 0u)))));   // 3 = 尾 / 首、4 = 四足の脚、5 = 虫の脚（2026-10-26）、6 = 浮く魔神の部品（10-29）
+        m_EnemyAnim.mode = orbit ? 1u : (deco.floating ? 6u : (deco.insectLeg ? 5u : (deco.leg ? 4u : (deco.tail ? 3u : (flap ? 2u : 0u)))));   // 3 = 尾 / 首、4 = 四足の脚、5 = 虫の脚、6 = 浮く魔神の部品
         m_EnemyAnim.orbitSpeed = deco.orbitSpeed;
         m_EnemyAnim.flap[0] = deco.flap.x;
         m_EnemyAnim.flap[1] = deco.flap.y;
@@ -134,8 +134,7 @@ void SwarmSystem::RenderCorpseDecorations(uint32_t list, CorpseCB& ccb)
     const auto& decos = m_ListDecos[list];
     const auto& argsList = m_ListDecoCorpseArgs[list];
     m_EnemyPS->SetTexture(m_Context, 0, m_DecoWhite.get());
-    // 動く飾り（翼・脚・尾・首・回る物・腕）と、体を描かないリストの飾りは、1 つずつ別の破片として飛ばす（2026-11-05）。
-    // 以前は描かなかった = 体の無い Boss（石の守護獣・雄鹿・狼人など）は胴の塊しか砕けなかった。
+    // 動く飾り（翼・脚・尾・首・回る物・腕）と、体を描かないリストの飾りは、1 つずつ別の破片として飛ばす。
     // 破片の支点 = 飾りのバウンディングボックスの中心（pivot[7] に入れる。部品の支点は 6 個なので 7 は空き）、
     // part = 8 + 番号（VS では乱数の種にだけ使う。支点は min(part, 7)）
     const DirectX::SimpleMath::Vector4 keepPivot7 = ccb.pivot[7];

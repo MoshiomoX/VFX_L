@@ -14,8 +14,8 @@ void GPUParticleEmitter::Update(float deltaTime)
         return;
     }
 
-    // 負の発射率（Inspector の Ctrl+クリック・壊れた json）は 0 扱い（2026-10-25）。負の発射数が GPU へ行くと、
-    // 発射 CS が uint に読んで約 40 億になり、最初の発射器が空きを全部奪っていた。
+    // 負の発射率（Inspector の Ctrl+クリック・壊れた json）は 0 扱い。負の発射数が GPU へ行くと、
+    // 発射 CS が uint に読んで約 40 億になり、最初の発射器が空きを全部奪う。
     // 溜まりすぎ（巨大な発射率・NaN）も int へ直す前に抑える
     constexpr float kMaxPerFrame = 1.0e6f;
     const float add = emitRate * deltaTime;
@@ -79,17 +79,17 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
         ? (alphaBlend ? ParticleRenderMode::kBillboardAlpha : 0)
         : ParticleRenderMode::Pack(meshSlot, meshGlow, meshFaceVelocity, meshForwardAxis);
     if (inheritVelocity) e.renderMode |= ParticleRenderMode::kInheritSourceVelocity;
-    if (singleBody) e.renderMode |= ParticleRenderMode::kSingleBody;   // 弾の本体：常にちょうど 1 つ（2026-10-16）
-    if (renderMode != 0 && meshGlow && meshBehind)   // 発光メッシュの裏面だけ = 本体の後ろの縁取り（2026-10-16）
+    if (singleBody) e.renderMode |= ParticleRenderMode::kSingleBody;   // 弾の本体：常にちょうど 1 つ
+    if (renderMode != 0 && meshGlow && meshBehind)   // 発光メッシュの裏面だけ = 本体の後ろの縁取り
         e.renderMode |= ParticleRenderMode::kMeshBehind;
     // 実際に詰めるトゥーン（流線と排他。流線が付いていればトゥーンの欄が true でも詰めない）
     const bool packToon = (renderMode == 0 && !streak && toon);
-    if (renderMode == 0 && streak)   // 流線（ビルボードだけ。トゥーンとは排他、2026-10-20）
+    if (renderMode == 0 && streak)   // 流線（ビルボードだけ。トゥーンとは排他）
         e.renderMode |= ParticleRenderMode::PackStreak(streakStretch);
     else if (packToon)   // トゥーン（ビルボードだけ）
         e.renderMode |= ParticleRenderMode::PackToon(toonOutline, toonCut, toonBands, toonShade);
     // 画面の歪み（ビルボードだけ。bit 15 はトゥーンの線と同じ位置なのでトゥーンを詰めない時だけ）。
-    // 判定は「実際に詰めたトゥーン」で見る（2026-10-25。流線 + トゥーンの欄が残っていると歪みが黙って消えていた）
+    // 判定は「実際に詰めたトゥーン」で見る（流線 + トゥーンの欄が残っていても歪みが消えないように）
     if (renderMode == 0 && !packToon && distortLevel > 0)
         e.renderMode |= ParticleRenderMode::PackDistort(distortLevel, distortOnly);
     if (windResponse > 0.0f)       // 世界の風を受ける（ParticleUpdateCS）

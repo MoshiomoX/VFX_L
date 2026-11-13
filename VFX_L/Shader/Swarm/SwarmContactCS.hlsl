@@ -17,7 +17,7 @@
 // いればプレイヤーは g_BomberBlastDamage を受け、スロットは DEAD になり
 // （撃破数に数えず経験玉も出さない：プレイヤーが倒したのではない）、GPU の
 // 爆発エフェクト用だけにダメージ 0 の範囲を残す。火が付いた自爆兵
-// （と突撃爆弾兵）はダメージを受けない（SwarmInvulnerable、2026-10-18）。
+// （と突撃爆弾兵）はダメージを受けない（SwarmInvulnerable）。
 // 倒せる（通常の撃破 + 経験玉）のは火が付く前だけ。
 //
 // 当たるたびに、どこから来たかも playerHits（u6）に記録し、
@@ -25,7 +25,7 @@
 //
 // 凍った敵（enemySlow.z > 0、アイスランス）は当たらず、導火線にも火が付かない。
 // ダッシュ中の突撃兵は g_ChargerDashDamageMul 倍強く当たり、爆発のように
-// プレイヤーをノックバックする（2026-10-08）。
+// プレイヤーをノックバックする。
 //
 // 生きている敵の Enemy.attackCooldown を書くのはここだけ（HitCS /
 // AreaDamageCS の撃破側は、死んだスロットのそれに撃破の属性を残す。SwarmKillElementMark）。
@@ -44,8 +44,8 @@ RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
 RWBuffer<uint> enemyStates : register(u2);
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
-// プレイヤーが受けた攻撃の方向。CPU のノックバック用（2026-10-01）。
-// Swarm::PlayerHitInfo：殴り x, z, 回数、爆発 x, z, 回数、トゲ x, z, 回数、風 x, z, 回数（2026-10-17）。
+// プレイヤーが受けた攻撃の方向。CPU のノックバック用。
+// Swarm::PlayerHitInfo：殴り x, z, 回数、爆発 x, z, 回数、トゲ x, z, 回数、風 x, z, 回数。
 // x / z = 単位ベクトル（敵または爆心 -> プレイヤー）の和 * HIT_DIR_SCALE。
 // クリアしない：CPU がカウンタと同じく差分を取る
 RWByteAddressBuffer playerHits : register(u6);
@@ -127,7 +127,7 @@ void UpdateBomber(uint i, SwarmEnemyExtra extra)
     Explode(i, pos, g_BomberBlastRadius, g_BomberBlastDamage, 1.0);
 }
 
-// 突撃爆弾兵（2026-10-18）：AICS が火を付け、g_DashBomberWindup 秒止めてから yaw 方向へ走らせる
+// 突撃爆弾兵：AICS が火を付け、g_DashBomberWindup 秒止めてから yaw 方向へ走らせる
 // （fuse はそちらで数え上げる）。ここではプレイヤーに触れたステップ、または溜めの g_DashBomberFuse 秒後
 // （走り抜けた）に爆発させる。殴りはしない
 void UpdateDashBomber(uint i, SwarmEnemyExtra extra)
@@ -162,12 +162,12 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     if (extra.kind == SWARM_KIND_DASHBOMBER)
     {
-        UpdateDashBomber(i, extra);   // （2026-10-18）火が付いたものは凍らない（AICS）。未点火のものは殴らない
+        UpdateDashBomber(i, extra);   // 火が付いたものは凍らない（AICS）。未点火のものは殴らない
         return;
     }
     if (extra.kind == SWARM_KIND_BOSS && (SwarmBuried(extra) || g_BossNoContact > 0.5))
         return;   // 砂に潜った砂の守護者 / 飛びかかり中の狼人は触れない（技自体の当たりは CPU が判定する）
-    // 技の途中 / 消えている固定エリートは殴らない：技自体の当たりは CPU が判定する（2026-10-25）
+    // 技の途中 / 消えている固定エリートは殴らない：技自体の当たりは CPU が判定する
     if (SwarmIsFixedElite(extra.kind) && (SwarmEliteFlags(i) & SWARM_ELITE_NO_CONTACT) != 0u)
     {
         enemies[i].attackCooldown = max(enemies[i].attackCooldown - g_Step, 0.0);
@@ -177,7 +177,7 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         // 砂潜り：触れても噛まない。噛むのは出てきた時の 1 回：出てから g_BurrowBiteDelay 秒後
         // （fuse は g_BurrowSurfaceTime から数え下げ、しきい値をまたいだステップがそれ）に
-        // g_BurrowBiteRadius 内の全員に当たり、その後また潜る（2026-10-17）
+        // g_BurrowBiteRadius 内の全員に当たり、その後また潜る
         float f = extra.fuse;
         float thr = g_BurrowSurfaceTime - g_BurrowBiteDelay;
         if (f > 0.0 && f <= thr && f + g_Step > thr && g_PlayerAlive != 0u && !frozen)
@@ -200,17 +200,17 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     if (extra.kind == SWARM_KIND_SANDMAGE || extra.kind == SWARM_KIND_NECRO)
     {
-        // 砂嵐の術師 / 死霊術師：殴らない。溜めの間（fuse > 0、AICS）に攻撃の振りを再生する（2026-10-17 / 10-25）
+        // 砂嵐の術師 / 死霊術師：殴らない。溜めの間（fuse > 0、AICS）に攻撃の振りを再生する
         enemies[i].attackCooldown = (extra.fuse > 0.0) ? g_AttackInterval : max(enemies[i].attackCooldown - g_Step, 0.0);
         return;
     }
     if (extra.kind == SWARM_KIND_WARDEN && extra.fuse > 0.0)
     {
-        // 投げの溜め中の鎖の番人：振る（手の中の鉤）だけで殴らない（2026-10-25）
+        // 投げの溜め中の鎖の番人：振る（手の中の鉤）だけで殴らない
         enemies[i].attackCooldown = g_AttackInterval;
         return;
     }
-    // 石像ガーゴイル（2026-10-25）：眠り / 目覚め / 飛行中は触れない（空中にいる）。急降下は
+    // 石像ガーゴイル：眠り / 目覚め / 飛行中は触れない（空中にいる）。急降下は
     // 突撃兵のダッシュと同じく当たる（下）。着地中は普通に殴る
     bool gargDive = SwarmGargoyleDiving(extra);
     if (extra.kind == SWARM_KIND_GARGOYLE && !gargDive && !SwarmGargoyleLanded(extra))
@@ -222,7 +222,7 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         // 砂旋：寿命切れ（AICS が fuse < 0 にした）-> ここでスロットを殺す。撃破なし、経験玉なし（プレイヤーが倒したのではない）。
         // プレイヤーに触れたら：接触ダメージ x g_TornadoDamageMul と「風」のノックバック（スロット 36：高く飛ぶ）。
-        // 専用のクールダウンを持ち、プレイヤーが中にいる間に 1 本の砂旋が毎ステップ当たらないようにする（2026-10-17）
+        // 専用のクールダウンを持ち、プレイヤーが中にいる間に 1 本の砂旋が毎ステップ当たらないようにする
         if (extra.fuse < 0.0)
         {
             enemyStates[i] = SWARM_DEAD;
@@ -251,7 +251,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     if (cd <= 0.0 && g_PlayerAlive != 0u && !frozen)
     {
-        // エリート / ボス：カプセルが大きく、当たりが強い（狂暴化した固定エリートは大きくなる、2026-10-25）
+        // エリート / ボス：カプセルが大きく、当たりが強い（狂暴化した固定エリートは大きくなる）
         float3 center;
         float er, eh;
         SwarmSlotCapsule(i, extra.kind, enemies[i].position, center, er, eh);
@@ -260,15 +260,15 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             bool charge = (extra.kind == SWARM_KIND_CHARGER)
                      && (SwarmChargerPhase(extra.fuse) == SWARM_CHARGE_DASH);
-            bool dash = charge || gargDive;   // ガーゴイルの急降下は突撃兵のダッシュと同じく当たる（2026-10-25）
+            bool dash = charge || gargDive;   // ガーゴイルの急降下は突撃兵のダッシュと同じく当たる
             float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind)
                       * (charge ? g_ChargerDashDamageMul : gargDive ? g_GargoyleDiveDamageMul : 1.0);
             uint prev;
             counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE,
                                     SwarmHpToFixed(dmg), prev);
             // 殴り：この敵から。突撃兵のダッシュは爆発のようにノックバックし、トゲ玉は
-            // プレイヤーを弾き飛ばす（専用のスロット 24：CPU がより遠く高く飛ばす）（2026-10-17）。
-            // 最終ウェーブの幽霊 2 種も爆発のように当たる（2026-10-18、Megabonk の幽霊はプレイヤーをマップの端まで叩き飛ばす）
+            // プレイヤーを弾き飛ばす（専用のスロット 24：CPU がより遠く高く飛ばす）。
+            // 最終ウェーブの幽霊 2 種も爆発のように当たる
             uint slotBase = (extra.kind == SWARM_KIND_SPIKEBALL) ? 24u : ((dash || SwarmIsGhost(extra.kind)) ? 12u : 0u);
             RecordHit(slotBase, enemies[i].position);
             cd = g_AttackInterval;

@@ -20,7 +20,7 @@ void RewardCrateSystem::Init()
 {
     m_Crates.clear();
     m_Model = ResourceManager::Get().LoadModel(Res::Mdl::Kenney_RewardCrate);
-    m_GoldModel = ResourceManager::Get().LoadModel(Res::Mdl::Ruins_ChestGold);   // 倒したエリートの宝箱（2026-10-25）
+    m_GoldModel = ResourceManager::Get().LoadModel(Res::Mdl::Ruins_ChestGold);   // 倒したエリートの宝箱
     m_FreeCrates.clear();
 }
 
@@ -79,8 +79,7 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
         mc.model = m_Model;
         reg.Add<ModelComponent>(e, mc);
 
-        // 衝突の箱は付けない（2026-10-28 ユーザー「道具の箱の当たりを外して」）：プレイヤーも雑魚も弾も素通り。
-        // 以前は AABB + 下のマスを雑魚用に塞いでいた（塞いだマスに入った GPU の弾が壁扱いで消えていた）
+        // 衝突の箱は付けない：プレイヤーも雑魚も弾も素通り（マスを塞ぐと GPU の弾が壁扱いで消える）
 
         InteractableComponent it;
         it.kind = InteractKind::RewardChoice;
@@ -104,8 +103,8 @@ void RewardCrateSystem::Spawn(Registry& reg, const GridWorld& grid, const Vector
         Vector3 pos = grid.CellToWorld(gx, gz);
         pos.y = grid.SampleHeight(pos.x, pos.z);
 
-        // 周り 3x3 もほぼ同じ高さ（坂道・崖の縁には置かない）。2026-10-04 から地面に起伏（緩い丘で隣のマスと
-        // 2m で 0.2〜0.5m 違う）があるので 0.2 → 0.6m。台地の縁の段差（2.5m 以上）は引き続き弾く
+        // 周り 3x3 もほぼ同じ高さ（坂道・崖の縁には置かない）。起伏があるので 0.6m まで許す。
+        // 台地の縁の段差（2.5m 以上）は弾く
         bool flat = true;
         for (int dz = -1; dz <= 1 && flat; ++dz)
             for (int dx = -1; dx <= 1 && flat; ++dx)
@@ -179,9 +178,9 @@ bool RewardCrateSystem::TryOpen(Registry& reg, Entity used, Entity player, Level
     const auto& it = reg.Get<InteractableComponent>(used);
     if (it.kind != InteractKind::RewardChoice) return false;
 
-    // 倒したエリートの金色の宝箱は無料・値段も上げない（2026-10-25）
+    // 倒したエリートの金色の宝箱は無料・値段も上げない
     const bool free = IsFree(used);
-    // 金貨（2026-10-04）。足りなければ箱は残す。払うのは三択が出せた時だけ
+    // 金貨。足りなければ箱は残す。払うのは三択が出せた時だけ
     const int price = free ? 0 : Price();
     WalletComponent* wallet = reg.Has<WalletComponent>(player) ? &reg.Get<WalletComponent>(player) : nullptr;
     if (wallet && !wallet->CanPay(price))
@@ -202,7 +201,7 @@ bool RewardCrateSystem::TryOpen(Registry& reg, Entity used, Entity player, Level
 }
 
 // ============================================================
-// 倒した面の固定エリートの金色の宝箱（2026-10-25）。死んだ所（地面）に 1 個。金貨は要らない
+// 倒した面の固定エリートの金色の宝箱。死んだ所（地面）に 1 個。金貨は要らない
 // ============================================================
 Entity RewardCrateSystem::SpawnFree(Registry& reg, const GridWorld& grid, const Vector3& pos)
 {
@@ -227,7 +226,7 @@ Entity RewardCrateSystem::SpawnFree(Registry& reg, const GridWorld& grid, const 
     mc.model = model;
     reg.Add<ModelComponent>(e, mc);
 
-    // 衝突の箱は付けない（2026-10-28、普通の箱と同じ）。half は開けられる距離にだけ使う
+    // 衝突の箱は付けない（普通の箱と同じ）。half は開けられる距離にだけ使う
     const float half = (std::max)(ext.x, ext.z) * 0.8f;
 
     InteractableComponent it;

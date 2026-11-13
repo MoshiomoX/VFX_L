@@ -8,8 +8,7 @@
 //           動的 StructuredBuffer に詰めて、モデルの submesh 毎に DrawIndexedInstanced 1 回。
 //           材質（PS・テクスチャ）はモデルのものをそのまま使い、VS だけ StaticPropVS に差し替える
 //
-// 1 個ずつ DrawMesh すると 1 回毎に状態を全部積み直すので、数百個で CPU が詰まる
-// （2026-09-27 計測: 野原の置物 760 個で Debug 9.6 ms / Release 0.9 ms）。
+// 1 個ずつ DrawMesh すると 1 回毎に状態を全部積み直すので、数百個で CPU が詰まる。
 // ============================================================
 #pragma once
 #include <memory>
@@ -32,8 +31,7 @@ public:
         bool  enabled = true;
         bool  frustumCull = true;
         // 包囲球の半径 1m あたり何 m 先まで描くか（小さい物ほど近くで消える）。0 = 距離で間引かない。
-        // 既定は 0: instanced なら描く数でほぼ差が出ない（2026-09-27 Debug: 視錐台だけの 157 個と
-        // 全 760 個が同じ 8.7 ms）のに、60 にすると中距離の草や小石が消えて見えた
+        // 既定は 0: instanced なら描く数でほぼ差が出ないのに、間引くと中距離の草や小石が消えて見える
         float distPerRadius = 0.0f;
         float maxDistance = 0.0f;       // 大きさに関係無い上限 m。0 = 無し
     };

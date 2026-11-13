@@ -20,8 +20,7 @@ namespace
 }
 
 // ============================================================
-// TEMP-TEST: 実時間の通し検査（VFXL_BATTLE_AUTOTEST=soak、2026-10-03）
-// ユーザー：30 分ほど実際に回して、めり込みと経路探索（詰まる・その場で回る）を見て、あれば直して報告。
+// TEMP-TEST: 実時間の通し検査（VFXL_BATTLE_AUTOTEST=soak）：めり込みと経路探索（詰まる・その場で回る）を見る。
 // 普通に湧かせ（Director のまま）、プレイヤーは無敵・MP 満タン・経験 0（4 択を出さない）、バックパックは追尾弾 + 火球 + 毒。
 // プレイヤーは 50 秒毎に場所を変える（平原 / 山頂 / 洞窟の奥 / 台地・高台の上 / 外周の近く / 林の横 / 山頂の坂の上 /
 // 洞窟の入口の外 / 洞窟の底）。前半 25 秒は立ち止まり（雑魚が集まり切るか = 経路探索を見る）、後半は半径 6m の円を歩く。
@@ -136,7 +135,7 @@ void AutoTestSoak::Run(float dt)
             ClearBackpackItems(bp);
             BackpackLogic::Place(bp, ItemID::HomingBolt, lo + 1, lo + 1, 0);
             BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0);
-            BackpackLogic::Place(bp, ItemID::Swamp, lo + 2, lo + 1, 0);   // 2026-10-17：毒は上級魔法になったので基本の泥沼（横 2）に
+            BackpackLogic::Place(bp, ItemID::Swamp, lo + 2, lo + 1, 0);   // 泥沼（横 2）
         }
 
         // 塞がったマスの塊（6 マス以下 = 木・岩。大きい塊と外周 = 見える壁）
@@ -460,7 +459,7 @@ void AutoTestSoak::Run(float dt)
         auto moveDiag = [&](char* out, size_t outSize)
             {
                 const float step = 1.0f / 60.0f;
-                const bool allowDrop = m_Grid.SampleHeight(pp.x, pp.z) <= (std::max)(ground, foot) - 1.0f;   // 2026-10-20：GPU と同じく足の高さも見る
+                const bool allowDrop = m_Grid.SampleHeight(pp.x, pp.z) <= (std::max)(ground, foot) - 1.0f;   // GPU と同じく足の高さも見る
                 const float rawHere = rawH(p.x, p.z);
                 const float footH = allowDrop ? (std::max)(rawHere, foot) : rawHere;
                 auto contact = [&](float cx, float cz, char* o8)
@@ -489,7 +488,7 @@ void AutoTestSoak::Run(float dt)
                         const float lim = 0.84f * run + 0.05f;
                         const float riseB = m_Grid.SampleHeight(tx, tz) - ground;
                         const float riseR = std::fabs(rawH(tx, tz) - rawHere);
-                        const float riseRs = rawH(tx, tz) - rawHere;   // 2026-10-20：GPU と同じく生の高さマスでも通れば可
+                        const float riseRs = rawH(tx, tz) - rawHere;   // GPU と同じく生の高さマスでも通れば可
                         const bool rawOk = riseRs <= 0.84f * run + 0.35f && (allowDrop || -riseRs <= 0.84f * run + 0.35f);
                         const bool hOk = bodyCheck ? ((riseB <= lim && (allowDrop || -riseB <= lim)) || rawOk)
                                                    : (riseR <= 0.84f * run + 0.35f);

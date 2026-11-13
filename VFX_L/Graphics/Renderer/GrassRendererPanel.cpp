@@ -1,7 +1,6 @@
 // ============================================================
 // GrassRendererPanel.cpp
 // GrassRenderer の ImGui パネルと、自動テスト用の踏み跡の読み戻し
-// （2026-10-23、草の細部を足して GrassRenderer.cpp が 500 行を越えるので分けた）
 // ============================================================
 #include "Graphics/Renderer/GrassRenderer.h"
 #include "imgui.h"
@@ -85,7 +84,7 @@ void GrassRenderer::DrawImGui()
     ImGui::SliderFloat("Enemy Feet Strength", &s.enemyTrample, 0.0f, 1.0f);
     ImGui::DragFloat("Enemy Feet Radius", &s.enemyRadius, 0.01f, 0.05f, 1.5f, "%.2f m");
     ImGui::TextDisabled("areas %s  enemies %s", m_AreaSRV ? "on" : "off", m_EnemySRV ? "on" : "off");
-    // ---- 細部（2026-10-23）----
+    // ---- 細部 ----
     ImGui::SeparatorText("Gust waves + sheen (blades turned over)");
     ImGui::DragFloat("Wave 2 Angle", &s.wave2Angle, 1.0f, -180.0f, 180.0f, "%.0f deg");
     ImGui::DragFloat("Wave 2 Scale x", &s.wave2ScaleMul, 0.05f, 0.1f, 10.0f);

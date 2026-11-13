@@ -55,11 +55,11 @@ cbuffer LightBuffer : register(MODEL_LIGHT_CB_REG)
     float4 shadowTexelWorld;    // xyz = カスケードごとのシャドウマップ 1 テクセルの大きさ（m）
     float4 shadowParams;        // x = 1 / マップサイズ、y = 法線方向のオフセット（テクセル）、z = 強さ、w = PCF 半径（テクセル）
     float4 shadowParams2;       // x = フェード開始（最後の分割に対する割合）、y = 深度バイアス、z = 1 = カスケードを色分け
-    // トゥーンシェーディング（2026-10-04、ShadeToon）。toonParams.x = 0 = 上のリアル寄りのシェーディング
+    // トゥーンシェーディング（ShadeToon）。toonParams.x = 0 = 上のリアル寄りのシェーディング
     float4 toonParams;          // x = オン、y = 明暗の境目（N.L x 影）、z = 境目のぼかし、w = 硬いハイライトの強さ
     float4 toonShadowTint;      // rgb = 暗い側の環境光に掛ける色（寒色）、w = 明るい側の太陽の倍率
     float4 toonRim;             // rgb = リムの色、w = 強さ（カメラに近い横向きの面）
-    // スクリーンスペース環境遮蔽（2026-11-02、Graphics/PostProcess/AmbientOcclusion、SceneAO で読む）。
+    // スクリーンスペース環境遮蔽（Graphics/PostProcess/AmbientOcclusion、SceneAO で読む）。
     // AO は前フレームに作ったもの: ワールド座標をそのフレームのビュー x 射影で投影する
     row_major float4x4 aoViewProj;
     float4 aoParams;            // x = オン、y = トゥーン: 完全に遮蔽されたとき明暗の境目（N.L）をどれだけ押すか、
@@ -73,12 +73,12 @@ Texture2DArray g_ShadowMap : register(t9);
 SamplerComparisonState g_ShadowSampler : register(s2);
 
 // 前フレームのスクリーンスペース環境遮蔽（R8、1 = 遮蔽なし。Graphics/PostProcess/AmbientOcclusion が
-// フレームに一度バインドする、2026-11-02）。バインドするのは戦闘シーンだけで、他では aoParams.x は 0
+// フレームに一度バインドする）。バインドするのは戦闘シーンだけで、他では aoParams.x は 0
 Texture2D<float2> g_SceneAO : register(t12);   // x = ao、y = 前フレームのそのピクセルの視点からの深度
 
 // ワールド座標での遮蔽量。オフ、画面外、未作成、または前フレームのそのピクセルが別のものだった場所では 1
 // （カメラが動いてこの面がそのとき隠れていた場合。そうしないと手前の物体の AO が
-// 1 フレームだけちらついて乗る、2026-11-02）
+// 1 フレームだけちらついて乗る）
 float SceneAO(float3 worldPos)
 {
     float ao = 1.0;
@@ -316,7 +316,7 @@ float3 ShadePBRSun(float3 N, float3 V, float3 albedo,
 
     float3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
 
-    // エネルギー保存した環境光（2026-11-02。以前はどの面も AmbientAt(N) * albedo * ao）:
+    // エネルギー保存した環境光:
     //   鏡面 = 反射方向に見える半球環境光 x 環境 BRDF
     //   拡散 = 鏡面が取らなかった残り。金属では 0
     // （IBL のキューブマップはない。半球の色をプリフィルタ済みの環境の代わりにする）
@@ -341,8 +341,8 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
 //   diffuse  : radiance * N.L の合計   （アルベドは呼び出し側で掛ける）
 //   specular : GGX ローブ * radiance * N.L の合計   （そのまま最終値）
 //   diffuseF : 同じ拡散から各ライトの (1 - F) を差し引いたもの
-//              （エネルギー保存: 鏡面で反射した分は拡散には回らない、
-//              2026-11-02）。読むのは ShadePBR だけで、他の呼び出し側は
+//              （エネルギー保存: 鏡面で反射した分は拡散には回らない）。
+//              読むのは ShadePBR だけで、他の呼び出し側は
 //              これのないオーバーロードを使い、使われない合計は fxc が
 //              削る
 // このフレームでクラスタを作ってあれば（LightClusters.hlsli、Forward+）
@@ -422,7 +422,7 @@ void PointLightShade(float3 worldPos, float3 N, float3 V,
 }
 
 // ------------------------------------------------------------
-// トゥーンシェーディング（2026-10-04、toonParams.x = 1）。N.L の代わりに、
+// トゥーンシェーディング（toonParams.x = 1）。N.L の代わりに、
 // 境目を少しだけぼかした 2 段:
 //   明るい側 : 太陽を全部（x toonShadowTint.w。N.L で少し横を向いた面が
 //              暗くならなくなった分を下げる）
@@ -440,13 +440,12 @@ float ToonBand(float x)
 {
     return smoothstep(toonParams.y - toonParams.z, toonParams.y + toonParams.z, x);
 }
-// 同じ段で、遮蔽量に応じて境目を明るい側へ押したもの（SSAO、2026-11-02）:
+// 同じ段で、遮蔽量に応じて境目を明るい側へ押したもの（SSAO）:
 // くぼみや接地部分は上にグレーのグラデーションが乗るのではなく、暗い段に落ちる
 float ToonBandAO(float x, float ao)
 {
     // 不感帯: わずかな遮蔽（ノイズの底、平らな崖の面）では境目を動かさない。N.L が境目付近にある
-    // 大きな面がフレームごとに丸ごと反転しないように（2026-11-02、ユーザー: 被弾時に崖の壁が
-    // 明 / 暗で切り替わる）。はっきりしたくぼみと接地部分だけが押す
+    // 大きな面がフレームごとに丸ごと反転しないように。はっきりしたくぼみと接地部分だけが押す
     float occ = saturate((1.0 - ao - 0.15) / 0.85);
     float border = toonParams.y + aoParams.y * occ;
     return smoothstep(border - toonParams.z, border + toonParams.z, x);
@@ -515,7 +514,7 @@ float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
 
     // この Lambert には 1/PI がない（ライトの強さに含めている）ので、
     // 拡散との比を保つため鏡面ローブにも同じ PI を掛ける
-    float ao = SceneAO(worldPos);   // リアル寄り: 環境光だけに掛ける（SSAO、2026-11-02）
+    float ao = SceneAO(worldPos);   // リアル寄り: 環境光だけに掛ける（SSAO）
     float3 lit = (AmbientAt(N) * lerp(1.0, ao, aoParams.z) + sun + diff) * albedo + (sunSpec + spec) * PI;
     lit = ApplyFog(ShadowCascadeTint(lit, cascade), worldPos);
     return (aoParams.w > 0.5) ? ao.xxx : lit;
@@ -528,7 +527,7 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
     // トゥーン: 金属度 / 粗さは硬いハイライトの強さにだけ効く（滑らか = 明るい光）
     if (toonParams.x > 0.5)
         return ShadeToon(N, V, albedo * ao, worldPos, saturate(1.2 - roughness));
-    float sceneAo = SceneAO(worldPos);   // リアル寄り: 環境光だけに掛ける（SSAO、2026-11-02）
+    float sceneAo = SceneAO(worldPos);   // リアル寄り: 環境光だけに掛ける（SSAO）
     ao *= lerp(1.0, sceneAo, aoParams.z);
     uint cascade;
     float shadow = SunShadow(worldPos, N, max(dot(N, normalize(-dirLight.direction)), 0.0), cascade);
@@ -536,7 +535,7 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
     float3 diff, spec, diffF;
     PointLightShade(worldPos, N, V, roughness, F0, diff, spec, diffF);
-    // 各ライトの (1 - F) は ShadePBRSun の太陽の kD と同様にもう diffF に入っている（2026-11-02。以前は diff * (1 - metallic)）
+    // 各ライトの (1 - F) は ShadePBRSun の太陽の kD と同様にもう diffF に入っている
     float3 kD = (1.0 - metallic) * albedo / PI;
     float3 c = ApplyFog(ShadowCascadeTint(base + diffF * kD + spec, cascade), worldPos);
     return (aoParams.w > 0.5) ? sceneAo.xxx : c;

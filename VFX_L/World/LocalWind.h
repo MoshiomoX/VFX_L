@@ -1,7 +1,6 @@
 // ============================================================
 // LocalWind.h
-// 局所の風源（Swarm::WindSource の表）を CPU で引く（2026-10-22、ユーザー「風に影響される物を増やしたい」→
-// マントと転がり草が竜巻・渦・砂旋・突風に巻かれる）。
+// 局所の風源（Swarm::WindSource の表）を CPU で引く（マントと転がり草が竜巻・渦・砂旋・突風に巻かれる）。
 //   表は GPU（SwarmWindSourceCS）が毎フレーム作り、SwarmSystem がリードバックして持っている（2〜3 フレーム遅れ。
 //   SwarmSystem::GetLocalWind）。Air() は Shader/Common/WindSources.hlsli の WindSourceAir と同じ式
 // ============================================================
@@ -11,13 +10,14 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include "World/WindGrid.h"
 
 struct LocalWind
 {
     std::array<Swarm::WindSource, Swarm::kMaxWindSources> sources = {};
 
     // 地面の点 (x, z) での空気の速さ（m/s）。lift = 一番強い風源の効き 0〜1（芯ほど 1）。
-    // skipSelf = プレイヤー自身の突風（WindSource::self）を数えない（マント。自分の魔法で体の前へ押し込まれないように。2026-11-05）
+    // skipSelf = プレイヤー自身の突風（WindSource::self）を数えない（マント。自分の魔法で体の前へ押し込まれないように）
     DirectX::SimpleMath::Vector3 Air(float x, float z, float* lift = nullptr, bool skipSelf = false) const
     {
         DirectX::SimpleMath::Vector3 air(0.0f, 0.0f, 0.0f);
@@ -46,10 +46,14 @@ struct LocalWind
             maxLift = (std::max)(maxLift, (1.0f - r) * w.fade);
         }
         if (lift) *lift = maxLift;
+        // 風の格子：残った風・乱れを含む格子の風に置き換える。自分の突風を数えない読み手（マント）は式のまま
+        if (!skipSelf)
+            if (const WindGrid* g = WindGrid::Current())
+                air = g->BlendCPU(air, DirectX::SimpleMath::Vector3(x, g->FeetY() + 1.0f, z));
         return air;
     }
 
-    // 風源の芯へ向かう向き × 強さ（2026-10-22、転がり草が竜巻・渦に吸い込まれる用）。
+    // 風源の芯へ向かう向き × 強さ（転がり草が竜巻・渦に吸い込まれる用）。
     // 強さ = inflow（4 m/s で頭打ち）× fade × (1 − r)。芯のすぐ近く（r < 0.15）は 0 へ落とす（芯で震えない）
     DirectX::SimpleMath::Vector3 Inward(float x, float z) const
     {

@@ -1,6 +1,6 @@
 // ============================================================
 // LiquidCommon.hlsli
-// Liquid エントリ（2026-10-02）：地面に溜まった液体の水たまり。
+// Liquid エントリ：地面に溜まった液体の水たまり。
 // 2 つの経路で同じように描く：
 //   CPU : VFXLiquidEntry -> VFXLiquidRenderer -> VFXLiquidVS
 //   GPU : レシピに Liquid エントリを持つ範囲 -> SwarmLiquidVS
@@ -59,7 +59,7 @@ struct LiquidDef
 
     uint lobes;         // 本体の周りのこぶ（0..7）
     uint spatter;       // 前方へ飛ぶ小さな飛沫（0..8）
-    uint flags;         // 渦（流砂、2026-10-24）：下位 16 ビット = 回転 rad/s x 100、上位 16 ビット = ねじれ rad/m x 100（VFXLiquidDef::SetVortex）
+    uint flags;         // 渦（流砂）：下位 16 ビット = 回転 rad/s x 100、上位 16 ビット = ねじれ rad/m x 100（VFXLiquidDef::SetVortex）
     float pointGain;    // 点光源（拡散 + ハイライト）が液体にどれだけ効くか
 };
 
@@ -154,7 +154,7 @@ LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, floa
     if (i == 0u)
     {
         // 本体：大きく、着弾点より少し前。
-        // 渦の水たまり（flags != 0、砂の守護者の流砂。2026-10-24）は届く範囲いっぱいの丸い本体 1 つ
+        // 渦の水たまり（flags != 0、流砂）は届く範囲いっぱいの丸い本体 1 つ
         bool vortexPool = (L.flags != 0u);
         ang = 0.0;
         dist = vortexPool ? 0.0 : 0.10 * reach;

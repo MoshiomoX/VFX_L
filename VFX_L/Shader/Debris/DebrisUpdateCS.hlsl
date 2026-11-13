@@ -1,6 +1,6 @@
 // ============================================================
 // DebrisUpdateCS.hlsl
-// 地面の落ち葉（World/GroundDebris、2026-10-13）の 1 ステップ。
+// 地面の落ち葉（World/GroundDebris）の 1 ステップ。
 // 1 枚に 1 スレッド：
 //   1) 置き直し：その葉の格子セルが窓から出た（または g_Reset）
 //      -> 新しいセルの地面に静止させて置く（セルのハッシュ
@@ -16,6 +16,7 @@
 // ============================================================
 #include "DebrisCommon.hlsli"
 #include "../Common/WindSources.hlsli"
+#include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
 
 // = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / flags だけ
 struct DebrisArea
@@ -36,7 +37,7 @@ Texture2D<float> g_Height : register(t0);          // GridWorld の高さ（Gras
 StructuredBuffer<DebrisArea> g_Areas : register(t1);
 Buffer<uint> g_AreaStates : register(t2);          // 0 = 死んでいる
 StructuredBuffer<float4> g_AreaEnds : register(t3); // スロットごとのカプセル（光線）の終点、AreaTickCS から
-StructuredBuffer<WindSource> g_WindSources : register(t4);   // 局所風：砂旋（SwarmWindSourceCS、2026-10-19）
+StructuredBuffer<WindSource> g_WindSources : register(t4);   // 局所風：砂旋など（SwarmWindSourceCS）
 SamplerState s_Linear : register(s0);
 #define DEBRIS_AREA_CAPSULE 4u   // SWARM_AREA_CAPSULE：光線。中心は杖口で、本体は線分
 RWStructuredBuffer<Debris> g_Debris : register(u0);
@@ -94,9 +95,8 @@ float3 GustAir(float2 xz, out float lift)
     return air;
 }
 
-// このステップで生きている揺れる範囲を、範囲スロット 1 つにつき 1 ビットで持つ（main の先頭でグループごとに 1 回作る。2026-10-25：
-// それ以前は葉 1 枚ごとに 256 個の範囲の状態を全部読んでいた）。BlastAccel は立っているビットをスロット順にたどるので、合計は
-// 昔の全走査のループと同じ順に足される
+// このステップで生きている揺れる範囲を、範囲スロット 1 つにつき 1 ビットで持つ（main の先頭でグループごとに 1 回作る）。
+// BlastAccel は立っているビットをスロット順にたどる
 #define DEBRIS_SHAKE_WORDS (DEBRIS_MAX_AREAS / 32u)
 groupshared uint gs_ShakeMask[DEBRIS_SHAKE_WORDS];
 
@@ -113,9 +113,7 @@ float3 BlastAccel(float3 pos, out float lift)
             uint a = w * 32u + firstbitlow(bits);
             bits &= bits - 1u;
             DebrisArea ar = g_Areas[a];
-            // 光線（2026-10-13）：半径 × 2.5 の帯の中で、線分から横へ押し出し、少し線分に沿っても押す。
-            // 以前は中心 = 杖口の円盤として扱っていたので、葉が光線に沿ってではなく
-            // プレイヤーの足元から弾け飛んでいた
+            // 光線：半径 × 2.5 の帯の中で、線分から横へ押し出し、少し線分に沿っても押す
             if ((ar.flags & DEBRIS_AREA_CAPSULE) != 0u)
             {
                 float2 seg = g_AreaEnds[a].xz - ar.center.xz;
@@ -219,7 +217,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     float3 blast = BlastAccel(d.pos, blastLift);
     // 局所の風源（砂旋）：周りを渦巻く + 芯の近くの上昇気流
     float vortexLift;
-    float3 vortexAir = WindSourceAir(g_WindSources, d.pos.xz, vortexLift);
+    float3 vortexAir = WindGridBlend(WindSourceAir(g_WindSources, d.pos.xz, vortexLift), d.pos);
 
     // ---- 2) 静止中：舞い上がるか？ ----
     if (d.air < 0.5)

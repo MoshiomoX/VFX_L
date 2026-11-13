@@ -27,7 +27,7 @@ namespace
 
 void StageDirector::Init()
 {
-    m_PortalModel = ResourceManager::Get().LoadModel(Res::Mdl::Ruins_ArchGate);   // 石の拱（2026-10-03）
+    m_PortalModel = ResourceManager::Get().LoadModel(Res::Mdl::Ruins_ArchGate);   // 石の拱
     m_Portal = EntityTraits::NULL_ENTITY;
     m_Boss = BossState::None;
     m_ExitOpen = false;
@@ -42,7 +42,7 @@ void StageDirector::Init()
 
 bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, float hp, SwarmSystem& swarm, int index)
 {
-    // 面の固定エリート（2026-10-25）：1 体目 = A（詞缀 0）、2 体目 = B（詞缀 1）、3 体目以降 = B（詞缀 2）。詞缀は乱数で被らず
+    // 面の固定エリート：1 体目 = A（アフィックス 0）、2 体目 = B（アフィックス 1）、3 体目以降 = B（アフィックス 2）。アフィックスは乱数で被らず
     if (elites)
     {
         const bool ranged = index >= 1;
@@ -128,12 +128,12 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
             std::cout << "[Stage] final swarm level " << level << std::endl;
         }
         mobs.finalStatMul = std::pow(finalStepMul, (float)(level - 1));
-        // 湧きは finalSpawnRateStart から finalRampTime 秒かけて finalSpawnRate へ（2026-10-07 まで一気に 20 体/秒）
+        // 湧きは finalSpawnRateStart から finalRampTime 秒かけて finalSpawnRate へ
         const float ramp = (finalRampTime > 0.0f) ? (std::min)(1.0f, over / finalRampTime) : 1.0f;
         mobs.finalSpawnRate = finalSpawnRateStart + (finalSpawnRate - finalSpawnRateStart) * ramp;
         mobs.finalSpeedMul = finalSpeedMul;
         mobs.finalGhostRate = finalGhostRate * std::pow(finalGhostStepMul, (float)(level - 1));   // 幽霊は段毎に数が増える
-        // 黒幽霊は時間切れ finalDarkGhostStart 秒後から（2026-10-18）
+        // 黒幽霊は時間切れ finalDarkGhostStart 秒後から
         const bool dark = over >= finalDarkGhostStart;
         mobs.finalDarkGhostRate = dark ? finalDarkGhostRate * std::pow(finalDarkGhostStepMul, (float)(level - 1)) : 0.0f;
         if (dark && !m_DarkGhostsWarned)
@@ -221,7 +221,7 @@ void StageDirector::Update(const GridWorld& grid, const Vector3& player, float r
         {
             if (m_LivesUsed + 1 < bossLives)
             {
-                // 墓守の騎士：倒れただけ。bossReviveDelay 秒後に同じ所へ蘇る（2026-10-26）
+                // 墓守の騎士：倒れただけ。bossReviveDelay 秒後に同じ所へ蘇る
                 ++m_LivesUsed;
                 m_Boss = BossState::Reviving;
                 m_ReviveTimer = bossReviveDelay;
@@ -325,7 +325,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
         reg.Add<ModelComponent>(e, mc);
 
         // 拱の口はくぐれる。両脇の柱だけプレイヤーが抜けないように箱（雑魚はシーンが下のマスを塞ぐ = BlockPropCells）。
-        // 柱の太さは m で持つ（2026-10-03：以前は 0.3 × scale で、cm の FBX の倍率 0.016 を掛けて 5mm になっていた）
+        // 柱の太さは m で持つ（cm の FBX の倍率を掛けると細くなりすぎる）
         const float halfW = (hi.x - lo.x) * 0.5f * scale;
         const float pillarHalf = 0.4f;   // 丸い柱の太さ ≈ 0.8m
         for (float side : { -1.0f, 1.0f })
@@ -367,7 +367,7 @@ void StageDirector::SpawnPortal(Registry& reg, const GridWorld& grid, const Vect
             {
                 if (!grid.IsDryWalkable(gx + dx, gz + dz)) { ok = false; break; }   // 水たまりの中には置かない
                 const Vector3 c = grid.CellToWorld(gx + dx, gz + dz);
-                ok = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.6f;   // 起伏の斜面は可（2026-10-04、0.2 → 0.6）
+                ok = std::fabs(grid.SampleHeight(c.x, c.z) - pos.y) < 0.6f;   // 起伏の斜面は可
             }
         if (!ok) return false;
 
@@ -438,12 +438,12 @@ bool StageDirector::TryUsePortal(Registry& reg, Entity used, const GridWorld& gr
     if (kind != InteractKind::BossPortal) return false;
     if (m_Boss != BossState::None) return false;
 
-    // HP は呼んだ時の難度で決まる（遅いほど固い。Megabonk と同じ）
+    // HP は呼んだ時の難度で決まる（遅いほど固い）
     m_BossSpawnHp = bossHp * mobs.GetHpMul();
     m_BossSpeedOverride = -1.0f;   // 門から呼ぶ Boss はいつも動く
     m_SummonPos = player;
     m_LivesUsed = 0;
-    // 門の口のすぐ前に湧いて歩いて出てくる（2026-10-27）。口の軸 = 門のローカル +Z（柱は ±X）。プレイヤーの居る側へ出る。
+    // 門の口のすぐ前に湧いて歩いて出てくる。口の軸 = 門のローカル +Z（柱は ±X）。プレイヤーの居る側へ出る。
     // 湧くのは bossIntroDelay 秒後（Update の Summoned）。湧けなかった時の湧かせ直しは門の周り
     {
         const float yaw = DirectX::XMConvertToRadians(m_PortalYaw);
@@ -478,7 +478,7 @@ bool StageDirector::TryUsePortal(Registry& reg, Entity used, const GridWorld& gr
 }
 
 // ============================================================
-// Boss を倒した後：同じ門を「出口」として使えるようにする（2026-10-07）
+// Boss を倒した後：同じ門を「出口」として使えるようにする
 // 光は金色（呼ぶ前の紫と区別）。渦の再生はシーン側（色も金）
 // ============================================================
 bool StageDirector::OpenExit(Registry& reg, const wchar_t* prompt)
@@ -549,7 +549,7 @@ void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
         Swarm::HpFromFixed(info.hp > info.maxHp ? 0u : info.hp), Swarm::HpFromFixed(info.maxHp), info.alive);
     ImGui::DragFloat("Boss HP (base)", &bossHp, 50.0f, 1.0f, 1000000.0f);
     ImGui::DragFloat("Boss Speed", &bossSpeed, 0.1f, 0.0f, 20.0f);
-    ImGui::Text("Boss Scale %.2f (set per boss: Boss Attacks > Body Scale)", kind.bossScale);   // 2026-10-27 から Boss 毎（BossAttacks::bodyScale が毎フレーム書く）
+    ImGui::Text("Boss Scale %.2f (set per boss: Boss Attacks > Body Scale)", kind.bossScale);   // Boss 毎（BossAttacks::bodyScale が毎フレーム書く）
     ImGui::DragFloat("Boss Damage x", &kind.bossDamageMul, 0.05f, 0.0f, 20.0f);
     if (ImGui::Button("Summon Boss Now")) { m_DebugBoss = true; m_BossSpeedOverride = -1.0f; }
 }

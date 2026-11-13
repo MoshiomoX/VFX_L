@@ -1,6 +1,6 @@
 // ============================================================
 // CollisionTestSceneBossDjinn.cpp
-// 砂漠 3 面目の Boss「砂嵐の魔神」の見た目（2026-10-29。技の拍子と当たりは BossAttacksDjinn.cpp、説明は Enemy/Boss/BossDjinn.h）:
+// 砂漠 3 面目の Boss「砂嵐の魔神」の見た目（技の拍子と当たりは BossAttacksDjinn.cpp、説明は Enemy/Boss/BossDjinn.h）:
 //   ・下半身の砂旋（BossDjinnVortex.json、ループ）：Boss が居る間ずっと足元に付く + 小さな風源（草・砂屑・粒子が回る）。
 //     二段目（降りた後）は広く出し直す。砂渡りで沈んでいる間は消す
 //   ・砂嵐召喚の砂旋：BossAttacks::Devils() の 1 本毎に砂嵐の術師と同じ砂の柱（SandTornado.json）+ 風源。現れる / ほどけるは SetPresence

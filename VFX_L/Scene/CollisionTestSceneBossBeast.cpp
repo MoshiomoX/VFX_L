@@ -1,6 +1,6 @@
 // ============================================================
 // CollisionTestSceneBossBeast.cpp
-// 遺跡 2 面目の Boss「石の守護獣」の見た目とプレイヤーの石化（2026-10-29。技の拍子と当たりは BossAttacksBeast.cpp、説明は Enemy/Boss/BossBeast.h）:
+// 遺跡 2 面目の Boss「石の守護獣」の見た目とプレイヤーの石化（技の拍子と当たりは BossAttacksBeast.cpp、説明は Enemy/Boss/BossBeast.h）:
 //   ・飛んでいる間：足元に羽ばたきが巻き上げる土埃（BossBeastDust.json、ループ）+ 外へ吹く風源。翼を打ち下ろす度に足元の草が倒れる
 //   ・二段目へ入った瞬間（咆哮と同じ）：地面へ降りる岩と土煙・揺れ
 //   ・急降下：走り出しの音、滑空している間の砂煙（精鋭の騎兵の突進と同じ物）、当たった瞬間
@@ -57,7 +57,7 @@ void CollisionTestScene::UpdateBossBeastFx(float dt, const BossAttacks::Input& i
         else
             m_AreaVFX.SetInstance(m_PlayerPetrifyVfx, in.player, in.player);
         m_AreaVFX.SetPresence(m_PlayerPetrifyVfx, (stone > 0.0f) ? 1.0f : 0.25f + 0.75f * petrify, false);
-        // 体も灰色に寄せる（2026-11-05）。石化しきった間は動きも止める（CollisionTestSceneGameplay.cpp で使い、毎フレーム 0 に戻す）
+        // 体も灰色に寄せる。石化しきった間は動きも止める（CollisionTestSceneGameplay.cpp で使い、毎フレーム 0 に戻す）
         m_PlayerStoneLook = (stone > 0.0f) ? 1.0f : 0.6f * petrify;
     }
     else if (m_PlayerPetrifyVfx != 0)
@@ -209,7 +209,7 @@ void CollisionTestScene::UpdateBossBeastFx(float dt, const BossAttacks::Input& i
         AudioSystem::Get().Play("boss_slam");
     }
 
-    // ---- 天からの圧殺（10-29 追加）：舞い上がる / 落ち始める音、叩き潰した所の岩と土（衝撃波の見た目・音・揺れは共通の waveLaunched）----
+    // ---- 天からの圧殺：舞い上がる / 落ち始める音、叩き潰した所の岩と土（衝撃波の見た目・音・揺れは共通の waveLaunched）----
     if (out.beast.crushRose)
     {
         AudioSystem::Get().Play("cast_gust");
@@ -227,7 +227,7 @@ void CollisionTestScene::UpdateBossBeastFx(float dt, const BossAttacks::Input& i
         m_Debris.AddGust(p, m_BossAttacks.beast.crushRadius + 2.0f);
     }
 
-    // ---- 石羽の散弾（10-29 追加）：羽根 1 枚毎に石のトゲ（BossStoneShard.json、飛ぶ向きへ回す）、砕けた所に小さな石の砕け ----
+    // ---- 石羽の散弾：羽根 1 枚毎に石のトゲ（BossStoneShard.json、飛ぶ向きへ回す）、砕けた所に小さな石の砕け ----
     if (out.beast.shardsFired)
     {
         AudioSystem::Get().Play("cast_stone");

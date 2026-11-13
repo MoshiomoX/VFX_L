@@ -1,17 +1,10 @@
 // ============================================================
 // WindSources.hlsli
-// 局所的な風源（2026-10-19、ユーザー:「風そのものが風の係数を持って
-// 世界の風に作用してほしい」）。砂旋（と、今後吹くもの全般）は毎フレーム
-// SwarmWindSourceCS が WIND_MAX_SOURCES 個の固定の表に書き込む。
-// 使っていない項目は radius 0。
-// 草（GrassVS）、地面の落ち葉（DebrisUpdateCS）、パーティクル
-// （ParticleUpdateCS）は WindSourceAir() を世界の風に足すので、竜巻 1 つで
-// 草が円を描いて曲がり、フィールドの砂やごみが舞い上がり、
-// 周りの煙が引きずられる。
-// 2026-10-20: 風源は空気を一方向に押すこともできる（pushDir x push、
-// 中心で最大、縁で 0）- 突風の魔法は前へ吹く渦。CPU の風源
-// （SwarmSystem::AddWindBurst）も同じ CS で表の後ろに
-// 追加する。
+// 局所的な風源。砂旋などは毎フレーム SwarmWindSourceCS が
+// WIND_MAX_SOURCES 個の固定の表に書き込む。使っていない項目は radius 0。
+// 草・地面の落ち葉・パーティクルは WindSourceAir() を世界の風に足す。
+// 風源は空気を一方向に押すこともできる（pushDir x push、中心で最大、縁で 0）。
+// CPU の風源（SwarmSystem::AddWindBurst）も同じ CS で表の後ろに追加する。
 // C++ 側: Swarm::WindSource（48 バイト）、Swarm::kMaxWindSources
 // ============================================================
 #ifndef WIND_SOURCES_HLSLI
@@ -65,7 +58,7 @@ float3 WindSourceAir(StructuredBuffer<WindSource> sources, float2 xz, out float 
 }
 
 // 同じ風速に加え、ここで一番強く効く風源の芯への向き（単位 xz）を返す
-// （2026-10-23: 竜巻の近くの草の葉は先端をそちらへ巻き込む）
+// （竜巻の近くの草の葉は先端をそちらへ巻き込む）
 float3 WindSourceAirCore(StructuredBuffer<WindSource> sources, float2 xz, out float lift, out float2 toCore)
 {
     float3 air = WindSourceAir(sources, xz, lift);

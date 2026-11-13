@@ -101,17 +101,17 @@ struct PlayerStateComponent
     // ---- 空中の追加ジャンプ（PlayerControlSystem。接地で 0 に戻る）----
     int   airJumpsUsed = 0;
 
-    // ---- ノックバック（2026-10-01。PlayerControlSystem::ApplyKnockback が入れ、Update が減らす）----
+    // ---- ノックバック（PlayerControlSystem::ApplyKnockback が入れ、Update が減らす）----
     // 初速 knockX/Z（水平 m/s）から knockDuration 秒かけて直線的に 0 へ。その間は入力の効きも 0 → 1 へ戻す
     float knockX = 0.0f, knockZ = 0.0f;
     float knockTime = 0.0f;            // 残り秒
     float knockDuration = 0.0f;
     float knockAppliedX = 0.0f, knockAppliedZ = 0.0f;   // 前フレームに速度へ足した分（滑りの勢いに混ざらないよう次で引く）
     // 前フレームに PlayerControlSystem が入れた水平速度（足した分込み）。物理が壁などで削った量をここから測り、
-    // 足した分を引き戻す時に「削られた分は足した分から先に削れた」とみなす（2026-10-25。引き過ぎて壁から弾き返されないように）
+    // 足した分を引き戻す時に「削られた分は足した分から先に削れた」とみなす（引き過ぎて壁から弾き返されないように）
     float setVelX = 0.0f, setVelZ = 0.0f;
 
-    // ---- 足元の効き（2026-10-24、砂の守護者の流沙）。シーンが毎フレーム入れ直す（入れなければ効かない）----
+    // ---- 足元の効き（流沙など）。シーンが毎フレーム入れ直す（入れなければ効かない）----
     // 地面に居る間だけ：走り（滑りの勢いも）の速さ × groundSlow、さらに groundPull（水平 m/s）で流される。
     // ノックバックと同じく「足した分」として次のフレームで引くので、勢いは削らない
     float groundSlow = 1.0f;
@@ -125,7 +125,7 @@ struct PlayerStateComponent
     // ---- 被損層のタイマー ----
     float hurtDuration     = 0.25f;   // 被弾硬直の長さ
     float invincibleTimer  = 0.0f;    // これが 0 より大きい間は無敵
-    float invincibleAfterHit = 0.3f;  // 被弾時に設定する無敵時間（2026-10-07 に 0.6 → 0.3：同類の 0.15〜0.4 秒より長く、シールドと合わせて中盤まで HP がほぼ減らなかった）
+    float invincibleAfterHit = 0.3f;  // 被弾時に設定する無敵時間
 
     // ---- 遷移の記録（デバッグ表示用。実処理には使わない）----
     MoveStateID   prevMove   = MoveStateID::Idle;

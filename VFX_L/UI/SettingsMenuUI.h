@@ -1,7 +1,7 @@
 // ============================================================
 // SettingsMenuUI.h
-// 一時停止メニューの「設定」ページ（2026-10-07 ユーザー：音量とアウトラインの ON / OFF をプレイヤーが選べるように）。
-//   行 = 主音量 / 効果音 / 音楽 / UI の音（0〜100 のスライダー）、敵味方の縁取り（オン / オフ。10-08 からトゥーンの黒い線は消さない）、ダメージの数字（オン / オフ、2026-10-19）、戻る。
+// 一時停止メニューの「設定」ページ。
+//   行 = 主音量 / 効果音 / 音楽 / UI の音（0〜100 のスライダー）、敵味方の縁取り（オン / オフ。トゥーンの黒い線は消さない）、ダメージの数字（オン / オフ）などの切替、戻る。
 //   キー   : W S / 上下で行を選ぶ、A D / 左右で値を変える（押しっぱなしで連続）、Enter で切替 / 戻る
 //   パッド : 十字の上下左右、A で切替 / 戻る、B で戻る
 //   マウス : 動かした時だけ行を選ぶ。◀ ▶ をクリックで 1 段、スライダーの上をクリック / ドラッグで直接
@@ -53,8 +53,8 @@ private:
         std::wstring label;
         Kind kind = Kind::Volume;
         int  bus = 0;      // Kind::Volume：AudioSystem::Bus
-        bool GameSettings::* flag = nullptr;   // Kind::Toggle：GameSettings のどの値か（2026-10-19）
-        // Kind::Volume で num があれば、音量でなく GameSettings の数値（lo〜hi をスライダーの 0〜1 に。表示は 100 倍の %）。2026-11-02
+        bool GameSettings::* flag = nullptr;   // Kind::Toggle：GameSettings のどの値か
+        // Kind::Volume で num があれば、音量でなく GameSettings の数値（lo〜hi をスライダーの 0〜1 に。表示は 100 倍の %）
         float GameSettings::* num = nullptr;
         float lo = 0.0f, hi = 1.0f;
     };
@@ -74,7 +74,7 @@ private:
     int   m_Cursor = 0;
     float m_InputDelay = 0.0f;
     float m_RepeatDelay = 0.0f;          // 左右の押しっぱなし
-    StickNav m_Stick;                    // 左スティック（2026-11-05）
+    StickNav m_Stick;                    // 左スティック
     bool  m_Dragging = false;            // スライダーをマウスで掴んでいる
     bool  m_Dirty = false;               // 何か変えた（閉じる時に保存）
     DirectX::SimpleMath::Vector2 m_LastMouse = { -1.0f, -1.0f };

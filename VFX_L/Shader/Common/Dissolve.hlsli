@@ -21,7 +21,7 @@ cbuffer DissolveCB : register(DISSOLVE_CB_REG)
     float2 g_DissolveScroll;
     float g_DissolveThreshold; // < 0：無効
     float g_DissolveEdge;
-    // 被弾フラッシュ（2026-10-09、被弾したプレイヤー）：0..1。
+    // 被弾フラッシュ（被弾したプレイヤー）：0..1。
     // ライティング後の色を g_DissolveEdgeColor.rgb へ寄せる（ディゾルブ中も有効：プレイヤーの死亡時、金色の体 + 金色の縁）
     float g_HitFlash;
     float g_DissolvePad;

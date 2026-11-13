@@ -29,7 +29,7 @@ public:
     using Factory = std::shared_ptr<BattleAutoTest>(*)(CollisionTestScene&);
     static bool Register(const char* name, Factory factory);
     // 名前が空か "1" なら既定の自動テスト（"feedback"：レベルアップ・開箱の反応エフェクト）。
-    // 登録に無い名前は null（何も走らせない）を返し、autotest.log とコンソールに警告を 1 行出す（2026-10-25）
+    // 登録に無い名前は null（何も走らせない）を返し、autotest.log とコンソールに警告を 1 行出す
     static std::shared_ptr<BattleAutoTest> Create(const char* name, CollisionTestScene& scene);
 
 protected:
@@ -54,18 +54,19 @@ protected:
     MobSpawner&               m_Mobs;
     StageDirector&            m_Stage;
     BossAttacks&              m_BossAttacks;
-    BossIntro&                m_BossIntro;       // 門から呼んだ Boss の登場（2026-10-27）
+    BossIntro&                m_BossIntro;       // 門から呼んだ Boss の登場
     uint32_t&                 m_BossSlamHits;
-    uint32_t&                 m_BossMoundVfx;    // 潜砂の砂丘のエフェクトの番号（2026-10-24）
-    uint32_t&                 m_KingRaised;      // 骸の王の大起尸で起こした骸骨の数（2026-10-29）
-    uint32_t&                 m_BeastPetrified;  // 石の守護獣の石化の息で石になった回数（2026-10-29）
-    uint32_t&                 m_BossRageVfx;     // 狂暴の火の粉のエフェクトの番号（2026-10-29）
+    uint32_t&                 m_BossMoundVfx;    // 潜砂の砂丘のエフェクトの番号
+    uint32_t&                 m_KingRaised;      // 骸の王の大起尸で起こした骸骨の数
+    uint32_t&                 m_BeastPetrified;  // 石の守護獣の石化の息で石になった回数
+    uint32_t&                 m_BossRageVfx;     // 狂暴の火の粉のエフェクトの番号
     float&                    m_DefeatSlowLeft;  // 倒した瞬間のスローの残り（実時間の秒）
     float&                    m_DefeatWaveR;     // 倒した所から広がる波の半径（< 0 = 無し）
-    uint32_t&                 m_ChainHits;       // 鎖の番人の鎖が当たった数（2026-10-25）
-    EliteAttacks&             m_StageElites;     // 面の固定エリート（2026-10-25）
+    uint32_t&                 m_ChainHits;       // 鎖の番人の鎖が当たった数
+    uint32_t&                 m_ShatterCount;    // 砕氷（凍った敵を氷の範囲が砕いた）の累計
+    EliteAttacks&             m_StageElites;     // 面の固定エリート
     uint32_t&                 m_EliteHits;       // エリートの技が当たった数
-    LifestealHeal&            m_Lifesteal;       // 吸血のルーンの回復（2026-10-25）
+    LifestealHeal&            m_Lifesteal;       // 吸血の回復
     CollisionSystem&          m_CollisionSystem;
     PlayerControlSystem&      m_PlayerControlSystem;
     PlayerAnimSystem&         m_PlayerAnimSystem;
@@ -78,24 +79,26 @@ protected:
     StressTestTools&          m_Stress;
     StaticPropRenderer&       m_StaticProps;
     GrassRenderer&            m_Grass;
-    GrassFireField&           m_GrassFire;     // 草の延焼（2026-10-12）
-    SandField&                m_Sand;          // 砂漠の砂の面（2026-11-02）
-    SandFootprints&           m_Footprints;    // 砂漠のプレイヤーの足跡（2026-11-03）
-    MiasmaField&              m_Miasma;        // 遺跡の瘴気（2026-11-03）
-    std::vector<DirectX::SimpleMath::Vector3>& m_Torches;   // 遺跡の松明（2026-11-05、miasma の松明の場面）
-    GroundDebris&             m_Debris;        // 地面の落ち葉（2026-10-13）
-    WaterSurface&             m_Water;         // 水たまりの水面（2026-10-27）
-    FlowDebugView&            m_FlowDebug;     // F8 の流れの矢印（2026-10-28）
-    Tumbleweeds&              m_Tumbleweeds;   // 転がり草（2026-10-22）
-    DandelionField&           m_Dandelions;    // タンポポ（2026-10-22）
-    GrassShreds&              m_GrassShreds;   // 風源の草屑（2026-10-23）
-    AreaVFXPlayer&            m_AreaVFX;       // CPU のエフェクト（負荷試験で竜巻の見た目を出す。2026-10-23）
+    GrassFireField&           m_GrassFire;     // 草の延焼
+    SandField&                m_Sand;          // 砂漠の砂の面
+    SandFootprints&           m_Footprints;    // 砂漠のプレイヤーの足跡
+    MiasmaField&              m_Miasma;        // 遺跡の瘴気
+    std::vector<DirectX::SimpleMath::Vector3>& m_Torches;   // 遺跡の松明（miasma の松明の場面）
+    GroundDebris&             m_Debris;        // 地面の落ち葉
+    WaterSurface&             m_Water;         // 水たまりの水面
+    FlowDebugView&            m_FlowDebug;     // F8 の流れの矢印
+    Tumbleweeds&              m_Tumbleweeds;   // 転がり草
+    DandelionField&           m_Dandelions;    // タンポポ
+    GrassShreds&              m_GrassShreds;   // 風源の草屑
+    AreaVFXPlayer&            m_AreaVFX;       // CPU のエフェクト（負荷試験で竜巻の見た目を出す）
     VFXContext&               m_VFXContext;
     WeatherSystem&            m_Weather;       // 時刻と天候の出来事
-    PlayerVFXSystem&          m_PlayerVFX;     // プレイヤーの動きのエフェクト（2026-10-09）
-    SpellFxSystem&            m_SpellFx;       // 魔法の CPU 側の見た目（アイススパイクのトゲ。2026-10-10）
+    PlayerVFXSystem&          m_PlayerVFX;     // プレイヤーの動きのエフェクト
+    SpellFxSystem&            m_SpellFx;       // 魔法の CPU 側の見た目（アイススパイクのトゲ）
+    SandTornadoFx&            m_SandTornadoes; // 砂旋の本体の見た目
     GameUI&                   m_GameUI;
-    TutorialGuide&            m_Tutorial;      // 初回のチュートリアル（2026-10-13）
+    float&                    m_BatHealTotal;
+    TutorialGuide&            m_Tutorial;      // 初回のチュートリアル
     SpellLab&                 m_SpellLab;      // 実験場（トレーニング）
     TerrainGenerator::Config& m_TerrainConfig;
     TerrainGenerator::Layout& m_TerrainLayout;
@@ -103,7 +106,7 @@ protected:
     std::string&              m_MapFile;       // 読む地図の名前（空 = 生成）
     std::vector<Entity>&      m_Terrain;       // 地形の実体
     int&                      m_StageIndex;
-    std::vector<uint8_t>&     m_GrassMask;     // 草を生やすマス（オアシスの確認。2026-11-02）
+    std::vector<uint8_t>&     m_GrassMask;     // 草を生やすマス（オアシスの確認）
     uint32_t&                 m_PortalVfx;
     float&                    m_RunTime;
     float&                    m_ExpGained;

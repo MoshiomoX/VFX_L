@@ -21,9 +21,9 @@ RWStructuredBuffer<uint> enemyMaxHp : register(u2);
 // スロットごとの種類 + 導火線。リクエストは種類を animIndex に入れて運ぶ
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // スロットごとの毒の減速（SwarmAreaDamageCS を参照）: 新しい敵は減速なしで始まる
-RWStructuredBuffer<float4> enemySlow : register(u4); // 減速 + 凍結（2026-10-08 から float4）
-RWStructuredBuffer<float4> enemyPush : register(u5); // ノックバック（突風、2026-10-12）: 新しい敵には無い
-RWStructuredBuffer<float4> enemyPoison : register(u6); // 溜まった毒素（毒沼、2026-10-17）: これも無し
+RWStructuredBuffer<float4> enemySlow : register(u4); // 減速 + 凍結
+RWStructuredBuffer<float4> enemyPush : register(u5); // ノックバック（突風）: 新しい敵には無い
+RWStructuredBuffer<float4> enemyPoison : register(u6); // 溜まった毒素（毒沼）: これも無し
 
 cbuffer SwarmSpawnCB : register(b1)
 {

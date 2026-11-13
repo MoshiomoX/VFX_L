@@ -1,12 +1,12 @@
 // ============================================================
 // ClothChainComponent.h
-// 骨の鎖を Verlet で揺らす（マント。2026-10-04）。
+// 骨の鎖を Verlet で揺らす（マント）。
 //   根の段を anchorBone（上背）に固定し、残りのノードを重力 + 空気抵抗 + 風で動かす。
 //   体の当たりはカプセル（骨 → 骨 + 半径）。
 //   ClothChainSystem が毎フレーム動かし、結果を SkinnedAnimComponent::boneOverrides に書く。
 //   長さは m（世界）、時間は秒
 //
-// 2026-10-23：横 columns 列の格子に（ユーザー「マントを複数の鎖に」）。
+// 横 columns 列の格子。
 //   真ん中の列 = chainBones、他の列 = SkinnedModel::SplitClothChain が読み込み時に足した列の骨
 //   （SkinnedModel::ClothColumnBoneName）。列どうしは横 / 斜め / 横の 1 つ飛ばしの距離で繋ぐ。
 //   1 列（columns = 1、または列の骨が無いモデル）の時は前の 1 本鎖と同じで、
@@ -47,9 +47,8 @@ struct ClothChainComponent
     // 一様な風だと格子全体が 1 枚の板のまま傾くだけなので、布らしい波打ちを足す
     float flutter = 0.3f;
     float flutterFreq = 9.0f;     // rad/s
-    float windMul = 1.0f;         // 世界の風（WindState、ClothChainSystem::wind）に掛ける倍率。2026-10-12：以前は布ごとに別の風を持っていた
-    // 局所の風源（竜巻・渦・砂旋・突風。ClothChainSystem::localWind）に掛ける倍率（2026-10-22）。
-    // 0.6 だと突風（0.8 秒）の間にマントの先が 0.13m しか動かず見えなかった → 1.2（windtoys 自動テストで見比べ）
+    float windMul = 1.0f;         // 世界の風（WindState、ClothChainSystem::wind）に掛ける倍率
+    // 局所の風源（竜巻・渦・砂旋・突風。ClothChainSystem::localWind）に掛ける倍率
     float localWindMul = 1.2f;
     int   iterations = 4;         // 拘束の反復
     float substep = 1.0f / 120.0f;

@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmSpikeBallVS.hlsl
-// トゲ玉（SWARM_KIND_SPIKEBALL、2026-10-17）: 箱型の体ではなく、
+// トゲ玉（SWARM_KIND_SPIKEBALL）:箱型の体ではなく、
 // 転がるトゲの玉になっている砂漠の敵。トゲ玉 1 つに 1 インスタンス
 // （トゲ玉の描画リスト、数は DrawIndexedInstancedIndirect）。メッシュは
 // コードで作り
@@ -9,10 +9,9 @@
 // 色は頂点カラー x g_ShieldTint になる。
 //
 // 玉は地面に乗り（中心 = 足元 + 半径）、種類の体格（SwarmKindScale）で
-// 拡大し、enemyRoll の向きで回す（2026-10-25）: SwarmEnemyMoveCS が
+// 拡大し、enemyRoll の向きで回す: SwarmEnemyMoveCS が
 // 毎ステップの転がり（進んだ距離 / 半径 を 上 x 進行方向 の軸まわりに）を
-// 積み重ねていくので、加速・減速・方向転換で姿勢が飛ばない（以前は
-// 今の速度まわりに animTime x 速度 / 半径 だった）。一度も転がっていない玉は
+// 積み重ねていくので、加速・減速・方向転換で姿勢が飛ばない。一度も転がっていない玉は
 // スロットごとに決まった姿勢のまま。被弾の光と氷の色は体と同じ。
 // 凍ると転がるのをやめる。
 //
@@ -39,7 +38,7 @@ cbuffer SwarmPropMeshCB : register(b4)
     float3 g_HoldOffset; // y = 倍率 1 のときの足元からの中心の高さ
     float g_MeshYaw;     // 使わない
     float4 g_ShieldTint; // 頂点カラーに掛ける
-    float g_BobAmount;   // 使わない（転がる速さは BomberCB の g_SpikeBallRollPerMeter として MoveCS へ、2026-10-25）
+    float g_BobAmount;   // 使わない（転がる速さは BomberCB の g_SpikeBallRollPerMeter として MoveCS へ）
     float g_PropAlpha;   // 使わない
     float2 _propPad;
 };

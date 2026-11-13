@@ -93,7 +93,7 @@ void VFXLiquidDef::DrawImGui()
     ImGui::ColorEdit4("Sky Reflection (a = gain)", &skyColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::DragFloat("Swirl", &swirl, 0.01f, 0.0f, 1.0f);
     ImGui::DragFloat("Swirl Scale (1/m)", &swirlScale, 0.05f, 0.05f, 10.0f);
-    float vortex = Vortex(), twist = Twist();   // 渦（流沙。2026-10-24）
+    float vortex = Vortex(), twist = Twist();   // 渦（流沙）
     bool vChanged = ImGui::DragFloat("Vortex Spin (rad/s)", &vortex, 0.01f, 0.0f, 20.0f);
     vChanged |= ImGui::DragFloat("Vortex Twist (rad/m)", &twist, 0.01f, 0.0f, 20.0f);
     if (vChanged) SetVortex(vortex, twist);

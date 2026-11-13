@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // AutoTestEnemyStats.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=enemystats
-// 敵の数値の書き出し（2026-10-30、ユーザー「マップ毎・時間帯毎の各敵の数値」）。
+// 敵の数値の書き出し（マップ毎・時間帯毎の各敵の数値）。
 // 3 マップ × 何面目か（1〜3）× 経過時間（0〜9 分 + 最終ウェーブ 10:00 / 10:30 / 11:00 / 12:00）毎に、
 // 湧く敵の種類毎の 割合・HP・速さ・接触ダメージ・技のダメージ・経験値 を、ゲームと同じ式（MobSpawner::ApplyStage・
 // DifficultyCurve・KindRamp・BomberCB）で計算して exe の隣の enemystats.json へ書く。Tier 1〜3 それぞれ（ApplyStage に渡す）。
@@ -264,7 +264,7 @@ void AutoTestEnemyStats::Run()
             }
             jp["rows"] = rows;
 
-            // エリート（3:00 = A 詞缀 0、6:00 = B 詞缀 1、8:00 = B 詞缀 2）
+            // エリート（3:00 = A アフィックス 0、6:00 = B アフィックス 1、8:00 = B アフィックス 2）
             json el = json::array();
             const int affixes[3] = { 0, 1, 2 };
             for (size_t k = 0; k < m_Stage.eliteTimes.size() && k < 3; ++k)

@@ -37,7 +37,7 @@ bool SceneLighting::Init(ID3D11Device* device)
     // TEMP-TEST: VFXL_SRGB=0 で色テクスチャの sRGB デコードを切る（旧い見た目との見比べ用。パネルの sRGB Textures と同じ）
     if (GetEnvironmentVariableA("VFXL_SRGB", env, sizeof(env)) > 0)
         m_AlbedoSrgb = (env[0] != '0');
-    // TEMP-TEST: VFXL_NO_TOON=1 でトゥーンの陰影を切る（2026-10-04、見比べ用。パネルの Toon と同じ）
+    // TEMP-TEST: VFXL_NO_TOON=1 でトゥーンの陰影を切る（見比べ用。パネルの Toon と同じ）
     if (GetEnvironmentVariableA("VFXL_NO_TOON", env, sizeof(env)) > 0)
         m_ToonOn = (env[0] == '0');
     return m_Sky.Initialize(device);
@@ -255,7 +255,7 @@ void SceneLighting::DrawImGui(const Vector3* player)
         m_SceneLightPos = *player + Vector3(0.0f, 4.0f, 0.0f);
     ImGui::TextDisabled("Gizmo: left-drag the handles (camera is right-drag)");
 
-    // ---- 点光源の表とクラスタ分け（Forward+、2026-10-23）----
+    // ---- 点光源の表とクラスタ分け（Forward+）----
     ImGui::Separator();
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.5f, 1.0f), "Point Light List (clustered)");
     ImGui::TextDisabled("CPU lights this frame: %d / %u (GPU projectiles / areas add more)",
@@ -284,7 +284,7 @@ void SceneLighting::DrawImGui(const Vector3* player)
     ImGui::DragFloatRange2("Fog Start/End (m)##fog", &m_FogStart, &m_FogEnd, 0.5f, 0.0f, 1000.0f);
     ImGui::SliderFloat("Fog Max##fog", &m_FogMax, 0.0f, 1.0f);
 
-    // ---- トゥーンの陰影（2026-10-04）。アウトラインはシーンの Toon 段（Outline）----
+    // ---- トゥーンの陰影。アウトラインはシーンの Toon 段（Outline）----
     ImGui::Separator();
     ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.5f, 1.0f), "Toon Shading");
     ImGui::Checkbox("Toon##toon", &m_ToonOn);

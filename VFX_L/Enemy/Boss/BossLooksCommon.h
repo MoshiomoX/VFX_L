@@ -1,8 +1,7 @@
 // ============================================================
 // BossLooksCommon.h
 // BossLooks*.cpp の内側だけで使う物：色（線形。頂点色がそのまま掛かる）・共通の小物（Tufts）・Boss 毎の組み立て関数の宣言。
-// 2026-10-26 に BossLooks.cpp（700 行）を Boss 毎（BossLooksSand / Scorpion / Stag.cpp、岩の巨人と Apply は BossLooks.cpp）に
-// 分けた時に作った。外から呼ぶのは BossLooks.h の Apply だけ
+// Boss 毎の中身は BossLooks<Boss>.cpp、岩の巨人と Apply は BossLooks.cpp。外から呼ぶのは BossLooks.h の Apply だけ
 // ============================================================
 #pragma once
 #include "Enemy/LookBuilder.h"
@@ -24,7 +23,7 @@ namespace BossLooksDetail
     inline const Vec4 kStoneDark = { 0.33f, 0.20f, 0.08f, 1.0f };
     inline const Vec4 kGlow = { 7.0f, 3.6f, 0.7f, 1.0f };       // 目・胸の宝石（HDR = bloom で光る）
     inline const Vec4 kVein = { 2.2f, 1.1f, 0.22f, 1.0f };      // 浮き岩の金の筋（3.2 は白く飛んだ）
-    // 草原「岩の巨人」（2026-10-25）
+    // 草原「岩の巨人」
     inline const Vec4 kMoss = { 0.06f, 0.16f, 0.025f, 1.0f };
     inline const Vec4 kMossLight = { 0.13f, 0.30f, 0.04f, 1.0f };
     inline const Vec4 kRock = { 0.21f, 0.22f, 0.21f, 1.0f };
@@ -32,8 +31,8 @@ namespace BossLooksDetail
     inline const Vec4 kHorn = { 0.52f, 0.48f, 0.38f, 1.0f };
     inline const Vec4 kRune = { 0.5f, 4.6f, 1.3f, 1.0f };       // 目・胸の紋（HDR の緑）
     inline const Vec4 kFlower[3] = { { 1.0f, 0.75f, 0.06f, 1.0f }, { 0.92f, 0.92f, 0.86f, 1.0f }, { 0.95f, 0.30f, 0.50f, 1.0f } };
-    // 砂漠 2 面目「大サソリ」（10-26 ユーザーの参考画：黒紫の棘だらけの甲羅、甲片と腹の隙間から毒の緑が透ける、緑に光る目、
-    // 鋸歯の鋏、毒液の滴る針。それまでは赤褐色だった）
+    // 砂漠 2 面目「大サソリ」：黒紫の棘だらけの甲羅、甲片と腹の隙間から毒の緑が透ける、緑に光る目、
+    // 鋸歯の鋏、毒液の滴る針
     inline const Vec4 kChitin = { 0.065f, 0.035f, 0.095f, 1.0f };     // 黒紫（砂漠の日差しで一段明るく見えるので暗めに）
     inline const Vec4 kChitinLight = { 0.13f, 0.08f, 0.18f, 1.0f };   // 甲片の明るい面
     inline const Vec4 kChitinDark = { 0.03f, 0.02f, 0.045f, 1.0f };
@@ -42,7 +41,7 @@ namespace BossLooksDetail
     inline const Vec4 kScorpEye = { 1.4f, 6.0f, 0.9f, 1.0f };         // 緑に光る目
     inline const Vec4 kVenom = { 0.9f, 3.6f, 0.3f, 1.0f };            // 毒の緑（HDR = bloom）
     inline const Vec4 kVenomDim = { 0.25f, 0.9f, 0.08f, 1.0f };       // 関節・隙間から透ける緑（弱め）
-    // 遺跡 1 面目「墓守の騎士」（2026-10-26）：呪いの鎧と同じ暗い鋼・紫の呪い（EnemyLooks.cpp の kSteel 系と同じ値）+ 骨の角
+    // 遺跡 1 面目「墓守の騎士」：呪いの鎧と同じ暗い鋼・紫の呪い（EnemyLooks.cpp の kSteel 系と同じ値）+ 骨の角
     inline const Vec4 kKSteel = { 0.13f, 0.135f, 0.15f, 1.0f };
     inline const Vec4 kKSteelDark = { 0.045f, 0.045f, 0.055f, 1.0f };
     inline const Vec4 kKSteelLight = { 0.24f, 0.245f, 0.27f, 1.0f };
@@ -52,8 +51,8 @@ namespace BossLooksDetail
     inline const Vec4 kKLeather = { 0.10f, 0.055f, 0.03f, 1.0f };
     inline const Vec4 kKChain = { 0.30f, 0.29f, 0.28f, 1.0f };
     inline const Vec4 kKBone = { 0.55f, 0.50f, 0.40f, 1.0f };
-    // 草原 2 面目「月下の狼人」（2026-10-26）：灰の毛皮、明るい腹、黒い鼻、赤く光る目、骨色の爪
-    // 10-27 参考画（MC の狼人 mod）に寄せた：青みの灰の毛皮、明るい灰の前腕 / 脛 / 鼻面、首の白い襟毛、褐色の革の巻き帯、白い爪
+    // 草原 2 面目「月下の狼人」：青みの灰の毛皮、明るい灰の前腕 / 脛 / 鼻面、首の白い襟毛、褐色の革の巻き帯、白い爪、
+    // 黒い鼻、赤く光る目
     inline const Vec4 kWolfFur = { 0.10f, 0.105f, 0.125f, 1.0f };
     inline const Vec4 kWolfFurLight = { 0.44f, 0.45f, 0.47f, 1.0f };
     inline const Vec4 kWolfFurDark = { 0.045f, 0.047f, 0.055f, 1.0f };
@@ -64,9 +63,8 @@ namespace BossLooksDetail
     inline const Vec4 kWolfNose = { 0.02f, 0.02f, 0.02f, 1.0f };
     inline const Vec4 kWolfClaw = { 0.72f, 0.70f, 0.64f, 1.0f };
     inline const Vec4 kWolfTongue = { 0.55f, 0.10f, 0.14f, 1.0f };
-    // 草原 3 面目「雷鳴の雄鹿」（2026-10-26）：雷の鹿なので体も青（ユーザー「青いなら体も青に」）：藍の毛並み、
-    // 明るい青の腹、黒い蹄、氷のような淡青の角、青白く光る目と角の先
-    // 10-26 ユーザーの参考画（青灰の鹿 + 金の扇のような大角 + 角と枝に白い花 + 首胸の金の飾り）に寄せた：
+    // 草原 3 面目「雷鳴の雄鹿」：青灰の毛並み + 金の扇のような大角 + 角と枝に白い花 + 首胸の金の飾り、
+    // 明るい青の腹、黒い蹄、青白く光る目
     inline const Vec4 kFur = { 0.18f, 0.26f, 0.52f, 1.0f };        // 青灰
     inline const Vec4 kFurLight = { 0.32f, 0.42f, 0.70f, 1.0f };
     inline const Vec4 kFurDark = { 0.08f, 0.12f, 0.30f, 1.0f };
@@ -82,7 +80,7 @@ namespace BossLooksDetail
     inline const Vec4 kVine = { 0.16f, 0.30f, 0.08f, 1.0f };
     inline const Vec4 kStagEye = { 0.6f, 3.0f, 6.0f, 1.0f };
     inline const Vec4 kSpark = { 1.6f, 3.6f, 6.0f, 1.0f };
-    // 砂漠 3 面目「砂嵐の魔神」（2026-10-29）：藍の肌（砂の黄色の中で目立つ）、紅の腰布、白い頭巾、金の飾り、金に光る目、砂の下半身
+    // 砂漠 3 面目「砂嵐の魔神」：藍の肌（砂の黄色の中で目立つ）、紅の腰布、白い頭巾、金の飾り、金に光る目、砂の下半身
     inline const Vec4 kDjinnSkin = { 0.07f, 0.13f, 0.40f, 1.0f };
     inline const Vec4 kDjinnSkinLight = { 0.14f, 0.24f, 0.62f, 1.0f };
     inline const Vec4 kDjinnSkinDark = { 0.03f, 0.055f, 0.18f, 1.0f };
@@ -98,7 +96,7 @@ namespace BossLooksDetail
     inline const Vec4 kDjinnSand = { 0.78f, 0.58f, 0.31f, 1.0f };
     inline const Vec4 kDjinnSandDark = { 0.50f, 0.36f, 0.17f, 1.0f };
     inline const Vec4 kDjinnSandGlow = { 2.2f, 1.3f, 0.35f, 1.0f }; // 砂の中で光る金の粒
-    // 遺跡 3 面目「骸の王」（2026-10-29、ダークソウル 3 のウォルニール風）：古い骨の白、黒いぼろ布、金の冠と腕輪、眼窩の奥の紫の火
+    // 遺跡 3 面目「骸の王」：古い骨の白、黒いぼろ布、金の冠と腕輪、眼窩の奥の紫の火
     inline const Vec4 kKingBone = { 0.58f, 0.54f, 0.44f, 1.0f };
     inline const Vec4 kKingBoneLight = { 0.74f, 0.70f, 0.60f, 1.0f };
     inline const Vec4 kKingBoneDark = { 0.27f, 0.24f, 0.19f, 1.0f };
@@ -108,7 +106,7 @@ namespace BossLooksDetail
     inline const Vec4 kKingCore = { 0.03f, 0.012f, 0.05f, 1.0f };   // 肋骨の籠の中の闇（暗い紫）
     inline const Vec4 kKingEye = { 2.6f, 0.5f, 3.6f, 1.0f };       // 眼窩の奥の紫の火（HDR）
     inline const Vec4 kKingGem = { 2.0f, 0.4f, 3.0f, 1.0f };       // 冠の宝石
-    // 遺跡 2 面目「石の守護獣」（2026-10-29）：風化した灰色の石の竜（ガーゴイル）、苔むした背、ひびの奥に琥珀色に光る紋、光る目
+    // 遺跡 2 面目「石の守護獣」：風化した灰色の石の竜（ガーゴイル）、苔むした背、ひびの奥に琥珀色に光る紋、光る目
     inline const Vec4 kBStone = { 0.30f, 0.31f, 0.33f, 1.0f };
     inline const Vec4 kBStoneLight = { 0.47f, 0.48f, 0.49f, 1.0f };
     inline const Vec4 kBStoneDark = { 0.13f, 0.14f, 0.16f, 1.0f };

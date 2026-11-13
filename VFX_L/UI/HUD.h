@@ -42,7 +42,7 @@ struct WandComponent;
 
 // ============================================================
 // 画面外の目印を出したい物（世界座標）。シーンが毎フレーム積む
-// 種類ごとにアイコンが違う（ミニマップと画面外の矢印。2026-10-24 ユーザー「物ごとに違うアイコンを」）
+// 種類ごとにアイコンが違う（ミニマップと画面外の矢印）
 // ============================================================
 enum class HUDMarkerKind : uint8_t
 {
@@ -56,7 +56,7 @@ enum class HUDMarkerKind : uint8_t
     Count
 };
 
-// 面の固定エリートの HP 条（2026-10-25）。Boss の条の下に並べる
+// 面の固定エリートの HP 条。Boss の条の下に並べる
 struct HUDEliteBar
 {
     wchar_t name[64] = {};
@@ -80,18 +80,18 @@ struct HUDFrameInfo
     float    runTime = 0.0f;       // 経過時間（止まっている間は進まない物）
     float    stageTime = 0.0f;     // 面の制限時間。> 0 なら残りを数え下ろし、過ぎたら超過分を赤く「+」で出す
     float    bossHp = -1.0f;       // Boss の HP 条（0..1）。負なら出さない
-    const wchar_t* bossName = nullptr;   // Boss の HP 条の中の名前（2026-11-05）。null / 空なら「ボス」
-    std::vector<HUDEliteBar> elites;   // 面の固定エリート（2026-10-25）。空なら出さない
+    const wchar_t* bossName = nullptr;   // Boss の HP 条の中の名前。null / 空なら「ボス」
+    std::vector<HUDEliteBar> elites;   // 面の固定エリート。空なら出さない
     uint32_t kills = 0;            // 撃破数（GPU counter の累計）
     int      stage = 0;            // 面の番号（1..）。0 なら出さない
-    int      stageTotal = 0;       // このプレイの面数（Tier。2026-10-21）。2 以上なら「ステージ n/N」、それ以外は名前だけ
+    int      stageTotal = 0;       // このプレイの面数（Tier）。2 以上なら「ステージ n/N」、それ以外は名前だけ
     const wchar_t* stageName = L"";
-    int      gold = -1;            // 金貨（2026-10-04）。MP バーの下に出す。負なら出さない
-    const wchar_t* objective = nullptr;    // 目標の一行（撃破数の下。null / 空なら出さない。2026-10-07）
-    const wchar_t* announce = nullptr;     // 画面の真ん中の案内（null / 空なら出さない。2026-10-07）
+    int      gold = -1;            // 金貨。MP バーの下に出す。負なら出さない
+    const wchar_t* objective = nullptr;    // 目標の一行（撃破数の下。null / 空なら出さない）
+    const wchar_t* announce = nullptr;     // 画面の真ん中の案内（null / 空なら出さない）
     float announceAlpha = 0.0f;            // 0..1（出入りのフェード）
     float announceAge = 1.0f;              // 出てからの秒（出た瞬間の大きさの戻り用）
-    bool  announceGold = false;            // 金色で出す（Boss を倒した。2026-10-29）
+    bool  announceGold = false;            // 金色で出す（Boss を倒した）
     const ShieldComponent* shield = nullptr;  // シールド（HP バーの下の細いバー。null / 上限 0 なら出さない）
     const WandComponent* wand = nullptr;   // 魔法の欄。null なら出さない
 
@@ -99,12 +99,12 @@ struct HUDFrameInfo
     DirectX::SimpleMath::Matrix viewProj;
     std::vector<HUDMarker> markers;
 
-    // ミニマップ（2026-10-19）：プレイヤーの位置と向き（TransformComponent::rotation.y、度）。GameUI::Render が入れる
+    // ミニマップ：プレイヤーの位置と向き（TransformComponent::rotation.y、度）。GameUI::Render が入れる
     bool  hasPlayer = false;
     DirectX::SimpleMath::Vector3 playerPos;
     float playerYawDeg = 0.0f;
 
-    // FPS（2026-10-20 ユーザー「ImGui が無い時も fps を画面に出したい」）。EngineTimer の 1 秒平均。0 以下なら出さない。GameUI::Render が入れる
+    // FPS。EngineTimer の 1 秒平均。0 以下なら出さない。GameUI::Render が入れる
     float fps = 0.0f;
 };
 
@@ -133,7 +133,7 @@ struct HUDStyle
 {
     // ---- レイアウト ----
     HUDAnchor expBar = { { 0.0f, 0.0f }, {  0.0f,  0.0f } };
-    float expBarHeight = 16.0f;   // 2026-10-15 10 → 16（見にくいと言われたので太く、文字が入る高さに）
+    float expBarHeight = 16.0f;   // 文字が入る高さ
     float expBarMargin = 0.0f;    // 左右の余白。幅 = 画面幅 - margin * 2
     float expTextScale = 0.30f;   // バーの真ん中の「次のレベルまで 今 / 必要」
     bool  expShowText = true;
@@ -175,7 +175,7 @@ struct HUDStyle
     DirectX::SimpleMath::Vector4 hpColor = { 0.55f, 0.035f, 0.030f, 1.0f };    // 見た目 #C0342F くらい
     DirectX::SimpleMath::Vector4 mpColor = { 0.050f, 0.16f, 0.75f, 1.0f };     // 見た目 #3F6FE0 くらい
     DirectX::SimpleMath::Vector4 mpSurgeColor = { 1.10f, 0.70f, 0.10f, 1.0f }; // 魔力解放中（金。1 を少し超えて光る。脈打つ）
-    DirectX::SimpleMath::Vector4 expColor = { 0.95f, 0.60f, 0.10f, 1.0f };     // 明るい金（2026-10-15 に少し上げた。見た目 #FCCB5A くらい）
+    DirectX::SimpleMath::Vector4 expColor = { 0.95f, 0.60f, 0.10f, 1.0f };     // 明るい金（見た目 #FCCB5A くらい）
     DirectX::SimpleMath::Vector4 trailColor = { 1.00f, 0.85f, 0.60f, 0.50f };
     DirectX::SimpleMath::Vector4 borderColor = { 0.69f, 0.47f, 0.15f, 0.90f }; // 古金（UIDeco と同じ）
     DirectX::SimpleMath::Vector4 textColor = { 0.91f, 0.84f, 0.70f, 1.0f };    // 暖かい白
@@ -198,8 +198,8 @@ struct HUDStyle
     DirectX::SimpleMath::Vector4 cooldownColor = { 0.00f, 0.00f, 0.00f, 0.78f };
     DirectX::SimpleMath::Vector4 noManaColor = { 0.010f, 0.020f, 0.14f, 0.70f };   // MP が足りない時に被せる
 
-    // ---- シールド（2026-10-07。HP バーのすぐ下の細いバー。右に絵 + 「今 / 上限」）----
-    // 満タン = 明るい水色、減っている（戻り待ち・戻り中）= 暗い青（Megabonk の配色）。満タンに戻った瞬間に一度光る。
+    // ---- シールド（HP バーのすぐ下の細いバー。右に絵 + 「今 / 上限」）----
+    // 満タン = 明るい水色、減っている（戻り待ち・戻り中）= 暗い青。満タンに戻った瞬間に一度光る。
     // 出している間は MP バーと金貨を shieldBarGap + shieldBarHeight だけ下へずらす
     bool  showShield = true;
     float shieldBarHeight = 8.0f;
@@ -210,7 +210,7 @@ struct HUDStyle
     DirectX::SimpleMath::Vector4 shieldChargingColor = { 0.025f, 0.09f, 0.30f, 1.0f }; // 減っている（画面で #2D5394 くらい）
     DirectX::SimpleMath::Vector4 shieldTextColor = { 0.55f, 0.85f, 1.00f, 1.0f };
 
-    // ---- 金貨（2026-10-04。MP バーの下、以前の魔力解放の文字の所。アンカーは絵の左上）----
+    // ---- 金貨（MP バーの下。アンカーは絵の左上）----
     // 増えた瞬間は少し明るく膨らむ
     bool  showGold = true;
     HUDAnchor goldText = { { 0.0f, 0.0f }, { 20.0f, 100.0f } };
@@ -218,7 +218,7 @@ struct HUDStyle
     float goldTextScale = 0.50f;
     DirectX::SimpleMath::Vector4 goldColor = { 1.00f, 0.62f, 0.10f, 1.0f };   // 線形の金（画面で #FFCF59 くらい）
 
-    // ---- 魔力解放（Q）の大きな欄（2026-10-04 ユーザー指定：MP バーの下の文字をやめ、魔法の欄の上の中央に大きく）----
+    // ---- 魔力解放（Q）の大きな欄（魔法の欄の上の中央）----
     // 魔法の欄と同じ作り（暗い円 + 輪 + 後ろの魔法陣）を大きくした物。アンカーは欄の下端の中央。
     // 使える = 明るい + ゆっくり息をする、解放中 = 金に光って残り秒、再使用待ち = 上から暗く + 残り秒。
     // 下の縁に「Q」の小さな札
@@ -249,25 +249,25 @@ struct HUDStyle
     float markerSize = 18.0f;       // 矢印の長さ。後ろの種類のアイコンはこの 1.15 倍
     float markerMargin = 40.0f;     // 画面の縁からの距離
 
-    // ---- ミニマップ（2026-10-19 ユーザー「右上に小さい地図を」。右上の丸い地図、北が上。UI/HUDMinimap.cpp）----
+    // ---- ミニマップ（右上の丸い地図、北が上。UI/HUDMinimap.cpp）----
     // アンカーは円の中心。地形の縮図 + プレイヤーの矢印 + 目印（画面外の矢印と同じ物・同じ色）
     bool  showMinimap = true;
     HUDAnchor minimap = { { 1.0f, 0.0f }, { -115.0f, 140.0f } };
     float minimapSize = 180.0f;         // 直径（px）
     float minimapRange = 60.0f;         // 半径（m）。円の縁 = この距離
-    float minimapMarkerSize = 15.0f;    // 目印のアイコン（暗い丸の上に種類の絵。2026-10-24 まで 9px の菱形）
+    float minimapMarkerSize = 15.0f;    // 目印のアイコン（暗い丸の上に種類の絵）
     float minimapPlayerSize = 14.0f;    // プレイヤーの矢印
     float minimapNorthScale = 0.42f;    // 上の「N」の文字（0 = 出さない）
     float minimapAlpha = 0.92f;         // 地形の絵の濃さ
     DirectX::SimpleMath::Vector4 minimapBgColor = { 0.003f, 0.0025f, 0.005f, 0.90f };
     DirectX::SimpleMath::Vector4 minimapPlayerColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-    // ---- 目標（2026-10-07 ユーザー「任務目標を足す」：撃破数の下に「目標: …」。文はシーンが毎フレーム入れる）----
+    // ---- 目標（撃破数の下に「目標: …」。文はシーンが毎フレーム入れる）----
     bool  showObjective = true;
     float objectiveScale = 0.40f;
     DirectX::SimpleMath::Vector4 objectiveColor = { 1.00f, 0.80f, 0.40f, 1.0f };   // 金（線形）
 
-    // ---- FPS の表示（2026-10-20 ユーザー「ImGui の無い環境でも fps を画面に」。ミニマップの真下に「FPS 143  7.0 ms」。UI/HUDFps.cpp）----
+    // ---- FPS の表示（ミニマップの真下に「FPS 143  7.0 ms」。UI/HUDFps.cpp）----
     // 出すかどうかは「この showFps && 設定画面の GameSettings::showFps」。アンカーは文字の中心（x）/ 上端（y）
     bool  showFps = true;
     HUDAnchor fpsText = { { 1.0f, 0.0f }, { -115.0f, 238.0f } };   // ミニマップ（中心 y 140、半径 90）の下 8px
@@ -275,17 +275,17 @@ struct HUDStyle
     float fpsWarnBelow = 50.0f;     // これより低いと赤くする（0 = 色を変えない）
     DirectX::SimpleMath::Vector4 fpsWarnColor = { 1.00f, 0.25f, 0.18f, 1.0f };
 
-    // ---- 画面の真ん中の案内（2026-10-07：押し寄せ・エリート・最終ウェーブ。文は StageDirector、UI/HUDAnnounce.cpp）----
+    // ---- 画面の真ん中の案内（押し寄せ・エリート・最終ウェーブ。文は StageDirector、UI/HUDAnnounce.cpp）----
     bool  showAnnounce = true;
     float announceY = 0.30f;        // 画面の高さに対する文字の中心
     float announceScale = 0.80f;
     float announcePunch = 0.25f;    // 出た瞬間だけ大きくする量（0.25 = 1.25 倍から縮む）
     DirectX::SimpleMath::Vector4 announceColor = { 1.00f, 0.32f, 0.12f, 1.0f };   // 赤みの橙（線形）
-    DirectX::SimpleMath::Vector4 announceGoldColor = { 1.60f, 1.05f, 0.30f, 1.0f };   // Boss を倒した時の金（HDR で少し光る。2026-10-29）
+    DirectX::SimpleMath::Vector4 announceGoldColor = { 1.60f, 1.05f, 0.30f, 1.0f };   // Boss を倒した時の金（HDR で少し光る）
 
-    // ---- 文字の下敷き（2026-10-07 ユーザー：文字だけの所が草の上で読みにくい）----
+    // ---- 文字の下敷き（草の上でも読めるように）----
     // Lv・経過時間〜目標の塊・金貨に、暗い半透明の板 + 薄い古金の枠を敷く（バーの中の文字は対象外）。
-    // 色は線形。HDR に混ぜてからトーンマップするので、0.75 だと明るい草が緑に透けた（10-07 自動テストの撮影）→ 0.88
+    // 色は線形。HDR に混ぜてからトーンマップするので、薄いと明るい草が緑に透ける
     bool  textPlates = true;
     DirectX::SimpleMath::Vector4 plateColor = { 0.003f, 0.0025f, 0.005f, 0.88f };
     float plateLineAlpha = 0.35f;                          // 枠の濃さ（0 = 枠無し）

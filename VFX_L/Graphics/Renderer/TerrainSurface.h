@@ -1,6 +1,6 @@
 // ============================================================
 // TerrainSurface.h
-// 戦闘の地形のテクスチャ（2026-10-03、ユーザー：地面が単色で寂しい → 3dtextures.me のスタイライズドしたテクスチャ、CC0）。
+// 戦闘の地形のテクスチャ（3dtextures.me のスタイライズドしたテクスチャ、CC0）。
 // 段々の地面（CreateSteppedGrid）と台地・坂・洞の天井の箱（HexahedronBatch）に、Shader/Terrain/TerrainPS の
 // マテリアルを付ける。面毎に 5 つの層（地面 / 道 / 崖 / 洞の底 / 岩）から 1 つ、Texture2DArray の 1 層を
 // 世界座標の三方向投影で貼る。層は頂点の UV.x（= 層 + 1。0 = 自動）か、法線と高さで自動に決まる。
@@ -34,7 +34,7 @@ public:
         float pathNy = 0.5f;          // これより上 = 坂（道）、下 = 崖 / 岩
         float caveY = -1.0f;          // 世界の y がこれより下 = 洞窟の中
         bool  flipNormalY = false;    // 法線の緑を逆に（DirectX 式の法線マップの時）
-        // 草の下の地面に掛ける暗さ（2026-11-02、ユーザー：葉の間から透ける地面が明るくて見栄えが悪い）。1 = 掛けない
+        // 草の下の地面に掛ける暗さ（葉の間から透ける地面を暗くする）。1 = 掛けない
         float grassDarken = 0.55f;
     };
     Params params;
@@ -43,7 +43,7 @@ public:
     // 地面の PS が草の下だけ暗くするのに読む。null = 掛けない。草を建て直す度に呼ぶ（SRV が変わる）
     void SetGrassCover(ID3D11ShaderResourceView* cover, const DirectX::SimpleMath::Vector2& origin,
         const DirectX::SimpleMath::Vector2& size);
-    // 砂漠の砂の面（2026-11-02、World/SandField）：状態（温度・乾き）と凹み。毎フレーム地形の前に。null = 掛けない
+    // 砂漠の砂の面（World/SandField）：状態（温度・乾き）と凹み。毎フレーム地形の前に。null = 掛けない
     void SetSandField(ID3D11ShaderResourceView* state, ID3D11ShaderResourceView* track,
         const DirectX::SimpleMath::Vector2& origin, const DirectX::SimpleMath::Vector2& size,
         float wetDark, float heatTint, float trackStrength);

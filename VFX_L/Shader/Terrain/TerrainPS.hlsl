@@ -1,8 +1,7 @@
 // ============================================================
-// TerrainPS.hlsl - テクスチャ付きの地面 / 崖（2026-10-03）
-// 戦闘の地形（CreateSteppedGrid + まとめた台地 / 坂 / 洞窟の屋根の箱）は
-// 以前は頂点色だけだった。今は各ピクセルが Texture2DArray の 5 層から
-// 1 つを選ぶ（ステージごと、TerrainSurface）:
+// TerrainPS.hlsl - テクスチャ付きの地面 / 崖
+// 戦闘の地形（CreateSteppedGrid + まとめた台地 / 坂 / 洞窟の屋根の箱）。
+// 各ピクセルが Texture2DArray の 5 層から 1 つを選ぶ（ステージごと、TerrainSurface）:
 //   0 地面（平ら）、1 道（坂）、2 崖（急な面）、
 //   3 洞窟の床（g_CaveY より下の平ら）、4 岩（g_CaveY より下の急な面、洞窟の
 //   壁と屋根）
@@ -11,7 +10,7 @@
 // サンプリングはワールド空間のトライプラナー（繰り返し 1 回あたり g_Layer[i].x m）:
 // 段々の地面は軸に揃っているが、坂はそうではないため。
 // 色: テクスチャ自身の色に、頂点色の輝度 / 層の基準輝度（g_Layer[i].y）を
-// 掛ける。旧来の色の斑が明暗のばらつきとして残り、タイリングを
+// 掛ける。頂点色の斑が明暗のばらつきとして残り、タイリングを
 // 目立たなくする。
 // 法線マップ: whiteout / UDN のトライプラナーブレンド。
 // b0 LightBuffer（Lighting.hlsli）、b2 TerrainCB（TerrainSurface::TerrainCB）
@@ -23,9 +22,9 @@
 Texture2DArray terrainAlbedo : register(t0);
 Texture2DArray terrainNormal : register(t1);
 // 草レンダラーの地面マップ（a = ここに草が生える）、マップ全体。TerrainSurface::SetGrassCover がバインドする。
-// 草の下の地面を暗くする（2026-11-02、ユーザー: 葉の間から明るい地面が見えるのは見栄えが悪い）
+// 草の下の地面を暗くする（葉の間から明るい地面が見えないように）
 Texture2D<float4> g_GrassCover : register(t2);
-// 砂漠の砂面（World/SandField、2026-11-02）。TerrainSurface::SetSandField がバインドする:
+// 砂漠の砂面（World/SandField）。TerrainSurface::SetSandField がバインドする:
 // t3 状態（x 温度、y 乾燥度 1 = 乾燥）、t4 へこみ（負 = 押し下げ）
 Texture2D<float4> g_SandState : register(t3);
 Texture2D<float> g_SandTrack : register(t4);

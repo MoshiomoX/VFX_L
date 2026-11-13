@@ -36,7 +36,7 @@ struct ProjectileProfile
         Fixed = 0,       // いつも同じ側
         Alternate = 1,   // 1 発ごとに左右交互
         Random = 2,      // 毎回乱数（左か右）
-        RandomAngle = 3, // 毎回、横ずれの向きを飛行軸の周りで 0〜360 度の乱数に回す（2026-10-06 ユーザー：「毎回ランダムな方向」）
+        RandomAngle = 3, // 毎回、横ずれの向きを飛行軸の周りで 0〜360 度の乱数に回す
     };
 
     std::string       name = "NewProjectile";
@@ -61,16 +61,16 @@ struct ProjectileProfile
     float speed = 20.0f;
     float radius = 0.25f;     // 当たり判定
     float lifetime = 3.0f;
-    // 当たった敵をこの秒数凍らせる（0 = 凍らせない。アイスランス、2026-10-08）。エリート・Boss は BomberCB::freezeBigMul 倍、
+    // 当たった敵をこの秒数凍らせる（0 = 凍らせない。アイスランス）。エリート・Boss は BomberCB::freezeBigMul 倍、
     // 解けてから freezeImmunity 秒は凍らない。凍結中は動かず殴らない（SwarmHitCS が依頼 → SwarmEnemyAICS）
     float freezeTime = 0.0f;
-    // 生成後、杖先で止まっている秒数（0 = 止まらない。ストーンショット、2026-10-16：岩が一瞬浮いてから飛ぶ）。0.02 秒刻み・最大 5.1 秒
+    // 生成後、杖先で止まっている秒数（0 = 止まらない。ストーンショット：岩が一瞬浮いてから飛ぶ）。0.02 秒刻み・最大 5.1 秒
     float holdTime = 0.0f;
     // 曲線の進みを 2 乗にする = 速度 0 から始まり、終点で公称の 2 倍（同じ所要時間）。止まった後に「勢いよく飛ぶ」感じ用
     bool easeIn = false;
-    // ダメージの属性（Swarm::DamageElement の番号。json "element"。ダメージの数字の色だけ。2026-10-17）
+    // ダメージの属性（Swarm::DamageElement の番号。json "element"。ダメージの数字の色だけ）
     int element = 0;
-    // 貫通（2026-10-28、黄金の矢）：最初に当たった後、さらにこの数の敵を貫いて飛び続ける（0〜15）。
+    // 貫通（黄金の矢）：最初に当たった後、さらにこの数の敵を貫いて飛び続ける（0〜15）。
     // 1 体貫く毎に威力 x0.8（HLSL の SWARM_PIERCE_FALLOFF）。曲がらない弾向け（追う弾は狙い直さない）
     int pierce = 0;
 
@@ -79,7 +79,7 @@ struct ProjectileProfile
     std::string vfxFile = "Fireball.json";
     float visualSize = 0.9f;        // 判定とは独立（派手に見せても判定は安っぽくしない）
     float visualStretch = 0.0f;     // 進行方向への引き伸ばし（0 = 円形）
-    // 撃った時の音（Assets/Data/Audio/Sounds.json の cue の名前。空 = 鳴らさない。2026-10-03）
+    // 撃った時の音（Assets/Data/Audio/Sounds.json の cue の名前。空 = 鳴らさない）
     std::string castSound;
 
     Swarm::Motion ToMotion() const;

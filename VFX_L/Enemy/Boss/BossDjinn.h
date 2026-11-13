@@ -1,7 +1,7 @@
 // ============================================================
 // BossDjinn.h
-// 砂漠 3 面目の Boss「砂嵐の魔神」の数値と状態（2026-10-29、ユーザー「新しい Boss を作ろう」→ 砂嵐の魔神、二段目は「咆哮の後に技を入れ替える」）。
-// BossAttacks.h が 500 行を越えていたので、この Boss の分はここに纏めて BossAttacks のメンバーにする（中身は BossAttacksDjinn.cpp）。
+// 砂漠 3 面目の Boss「砂嵐の魔神」の数値と状態（二段目は咆哮の後に技を入れ替える）。
+// BossAttacks のメンバーになる（中身は BossAttacksDjinn.cpp）。
 //   一段目：上半身だけの魔神が砂旋の上に浮く（hover m。GPU は幽霊のように壁・台地を越えて飛び、keepMin〜keepMax の間合いを取る）
 //     ・砂嵐召喚：プレイヤーの足元を中心に砂旋が 3 本現れ、回りながら輪を縮める（輪の外へ走って出る）。砂旋は技の後も残る
 //     ・炎の息：向きを固めて扇の予告 → 口から砂混じりの炎、扇がゆっくりプレイヤーを追う（横へ回り込む・扇の外へ）
@@ -32,6 +32,7 @@ struct DjinnTune
     float devilRadiusStart = 8.5f; // 輪の半径（m）。始め → 終わり
     float devilRadiusEnd = 1.5f;
     float devilSpinDeg = 55.0f;    // 回る速さ（度 / 秒）
+    float devilMaxSpeed = 14.0f;   // 輪の上の目標へ追いつく速さの上限（m/s。崖で回り込んで遅れた分を取り戻す）
     float devilHitRadius = 1.6f;   // 砂旋の当たりの半径（+ プレイヤーの太さ）
     float devilReach = 3.0f;       // 足が地面からこれより上なら当たらない（砂旋は背が高い = ほぼ跳んでも当たる）
     float devilDamage = 18.0f;     // 1 本につき 1 回（高く吹き上げる）

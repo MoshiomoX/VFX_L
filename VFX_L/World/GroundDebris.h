@@ -1,9 +1,8 @@
 // ============================================================
 // GroundDebris.h
-// 地面の落ち葉・草の切れ端・小枝（2026-10-13。ユーザー：「フィールドに風が触れる物を置いた方が、
-// 風の場（突風）との繋がりが見えるのでは」→ 推奨した「地面の軽い物の層」）。
-//   風の場そのものは目に見えない。見えるのは風が動かした物。突風のエフェクトは今まで草を倒すだけだったので、
-//   普段から地面に転がっている軽い物を用意し、突風の扇・爆発・強い天候の風で一斉に舞い上がらせる。
+// 地面の落ち葉・草の切れ端・小枝。
+//   風の場そのものは目に見えないので、普段から地面に転がっている軽い物を用意し、
+//   突風の扇・爆発・強い天候の風で一斉に舞い上がらせる。
 //
 //   仕組み：カメラの周り window m の正方形の窓に、世界に固定した格子（side × side マス）の各マスに 1 個。
 //   格子は窓にトーラス状に巻き付く（GrassCullCS と同じ考え）ので、カメラが動くと窓から出た列が反対側に
@@ -73,7 +72,7 @@ public:
 
     // 草の後（アウトラインの後）：1 歩進めて描く。areas / areaStates / areaEnds = SwarmSystem::GetAreaSRV / GetAreaStateSRV /
     // GetAreaEndSRV（爆発と、光線のカプセルの終点）
-    // windSources = SwarmSystem::GetWindSourceSRV（砂旋の風源。2026-10-19。null = 無し）
+    // windSources = SwarmSystem::GetWindSourceSRV（砂旋の風源。null = 無し）
     void Render(Renderer& renderer, CameraBase& camera,
         ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* areaEnds,
         ID3D11ShaderResourceView* windSources = nullptr);

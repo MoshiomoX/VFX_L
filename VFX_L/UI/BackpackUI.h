@@ -33,7 +33,7 @@ public:
     void Initialize(std::shared_ptr<Texture> blockTex);
     void LoadIcons();                        // ItemDatabase の iconPath を読み込む
     void Layout(float screenW, float screenH);
-    // 外枠（縁の余白込み）を左上 framePos・一辺 frameExtent の正方形に収める（リザルトで見せるだけの時。2026-10-09）
+    // 外枠（縁の余白込み）を左上 framePos・一辺 frameExtent の正方形に収める（リザルトで見せるだけの時）
     void PlaceAt(const DirectX::SimpleMath::Vector2& framePos, float frameExtent)
     {
         const float denom = (float)GRID_SIZE + cellGapRatio * (float)(GRID_SIZE - 1) + framePadRatio * 2.0f;
@@ -43,7 +43,7 @@ public:
         m_Origin = { framePos.x + m_FramePad, framePos.y + m_FramePad };
     }
 
-    // 盤面の外枠（縁の余白込み）の左上と右下（2026-10-27、魔法書の中身がここに入らないように）
+    // 盤面の外枠（縁の余白込み）の左上と右下（魔法書の中身がここに入らないように）
     void PanelRect(DirectX::SimpleMath::Vector2& outMin, DirectX::SimpleMath::Vector2& outMax) const
     {
         outMin = { m_Origin.x - m_FramePad, m_Origin.y - m_FramePad };
@@ -125,14 +125,13 @@ private:
     void DrawHoverInfluence(SpriteRenderer& sprite, const BackpackComponent& bp);
     // 上級魔法（メテオ等）を掴んでいる / 指している間、前提の基本魔法の影響マスを全部見せる（どこに置けば目覚めるか）
     void DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp);
-    // 出口マスと、繋がっている先（2026-10-31。BackpackUIOutlet.cpp）
+    // 出口マスと、繋がっている先（BackpackUIOutlet.cpp）
     void DrawOutlets(SpriteRenderer& sprite, const BackpackComponent& bp);
     void DrawDragOutlets(SpriteRenderer& sprite);
     void DrawDragged(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& mousePos);
     void DrawDropShadow(SpriteRenderer& sprite);
 
-    // 置いてある魔法ごとの覚え書き（回した占有マス・上級魔法が目覚めているか。2026-10-25）。
-    // 以前は毎フレーム全部の物に IsTriggerReady（中の GetInfluencers が全部の組を回して形を回し直す）を呼んでいた。
+    // 置いてある魔法ごとの覚え書き（回した占有マス・上級魔法が目覚めているか。毎フレーム IsTriggerReady を呼ぶと重い）。
     // バックパックの番号（BackpackComponent::revision）と形の番号（ItemDatabase::ShapeRevision）が同じ間は使い回す
     struct ItemDrawCache
     {

@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // CollisionTestSceneUpdate.cpp
-// CollisionTestScene の毎フレームの流れ（2026-10-25 に CollisionTestScene.cpp から分けた。中身はそのまま）:
+// CollisionTestScene の毎フレームの流れ:
 //   UI・トレーニングの依頼・メニュー・チュートリアル → gameplay（止まっていなければ）→ 案内・HUD → 死亡 / クリア → リザルト
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -41,12 +41,12 @@ void CollisionTestScene::Update(float dt)
     if (m_LabScene)
         for (const TrainingRequest& q : m_GameUI.ConsumeTrainingRequests())
         {
-            // フィールドの切替は地形ごと建て直すのでシーンが受け持つ（2026-10-20）。他は SpellLab
+            // フィールドの切替は地形ごと建て直すのでシーンが受け持つ。他は SpellLab
             if (q.kind == TrainingRequest::Kind::Field)
                 m_GameUI.SetTrainingMessage(EnterTrainingField(q.field));
             else if (q.kind == TrainingRequest::Kind::Elite)
             {
-                // 面の固定エリート（2026-10-25）：その面の A / B、詞缀は 0〜2 個を乱数で
+                // 面の固定エリート：その面の A / B、アフィックスは 0〜2 個を乱数で
                 uint32_t affixes = 0;
                 const int want = rand() % 3;
                 for (int n = 0, guard = 0; n < want && guard < 32; ++guard)
@@ -62,7 +62,7 @@ void CollisionTestScene::Update(float dt)
             }
             else if (q.kind == TrainingRequest::Kind::Boss)
             {
-                // ボスの種類（2026-10-27 ユーザー「各 Boss をトレーニングの選択肢に」）：呼ぶ前に技・皮・飾りをその Boss に替える。
+                // ボスの種類：呼ぶ前に技・皮・飾りをその Boss に替える。
                 // -1 = このフィールドの Boss（EnterTrainingField と同じ 1 面目の Boss）。出ている間は替えない（Apply が「もう出ている」を返す）
                 const bool bossOut = !m_Stage.CanRequestBoss();
                 const BossType want = (q.bossType >= 0 && q.bossType < (int)BossType::Count)
@@ -131,6 +131,7 @@ void CollisionTestScene::Update(float dt)
     SubmitTorchLights();                      // 遺跡の松明（プレイヤーに近い物だけ）
     m_Interaction.SubmitLights(m_Registry);   // 報酬の箱の目印（止まっている間も消さない）
     m_Pickups.SubmitLights();                 // 磁石の目印
+    m_SpellFx.Bats().SubmitLights(m_WeaponSystem.GetBats());   // 吸血コウモリの弱い赤い光
 
     // TEMP-TEST: UI の自動テストはバックパック・一時停止を開くので（gameplay が止まる）、ここで回す
     if (m_AutoRunner) m_AutoRunner->UpdateFrame(dt);   // TEMP-TEST: バックパック・一時停止・選択の画面を開いたまま進める自動テスト
@@ -138,7 +139,7 @@ void CollisionTestScene::Update(float dt)
     if (!m_GameUI.ShouldPauseGame())
     {
         PROFILE_SCOPE("Gameplay");
-        // Boss を倒した瞬間のスロー（2026-10-29、CollisionTestSceneBossDrama.cpp）：実時間で数え、その間だけ gameplay の dt を縮める。
+        // Boss を倒した瞬間のスロー（CollisionTestSceneBossDrama.cpp）：実時間で数え、その間だけ gameplay の dt を縮める。
         // 音・UI は実時間のまま
         float gameDt = dt;
         if (m_DefeatSlowLeft > 0.0f)
@@ -160,12 +161,12 @@ void CollisionTestScene::Update(float dt)
     else
     {
         // 止まっている間（バックパック・四択・一時停止）は AreaVFX の Update が走らない。
-        // Mesh / Sprite / 光線 / 液面 / 点光源は毎フレーム出し直さないと消えるので、時間を進めずに出し直す（2026-10-25）
+        // Mesh / Sprite / 光線 / 液面 / 点光源は毎フレーム出し直さないと消えるので、時間を進めずに出し直す
         m_AreaVFX.SubmitStill();
     }
 
     // ---- 画面下の操作案内（近くに使える物がある時だけ）----
-    // 報酬の箱は値段入り（2026-10-04、金貨で開ける）。足りなければ「金貨が足りない 所持 / 値段」
+    // 報酬の箱は値段入り（金貨で開ける）。足りなければ「金貨が足りない 所持 / 値段」
     {
         const wchar_t* prompt = m_Interaction.HasFocus() ? m_Interaction.GetPrompt() : nullptr;
         const Entity focus = m_Interaction.GetFocus();
@@ -193,7 +194,7 @@ void CollisionTestScene::Update(float dt)
     m_GameUI.SetBossBar(m_Stage.IsBossAlive() ? m_Stage.BossHpRatio() : -1.0f, BossDisplayName(m_BossAttacks.Type()));
     UpdateHudMarkers();
 
-    // ---- 目標の一行（2026-10-07 ユーザー「任務目標を足す」）：門の状態で変わる。門までの距離付き ----
+    // ---- 目標の一行：門の状態で変わる。門までの距離付き ----
     {
         const wchar_t* obj = nullptr;
         if (!m_LabScene)
@@ -210,7 +211,7 @@ void CollisionTestScene::Update(float dt)
             else if (m_Stage.IsBossDefeated())
                 swprintf_s(m_ObjectiveBuf, HasNextStage()
                     ? L"門に戻って 次のステージへ　%.0f m" : L"門に戻って 冒険を終える　%.0f m", (std::max)(0.0f, dist));
-            else if (m_Stage.IsBossAlive() || m_BossIntro.Active())   // 門を使った後の登場の演出の間も（2026-10-27）
+            else if (m_Stage.IsBossAlive() || m_BossIntro.Active())   // 門を使った後の登場の演出の間も
                 swprintf_s(m_ObjectiveBuf, L"ボスを倒す");
             else if (dist >= 0.0f)
                 swprintf_s(m_ObjectiveBuf, L"ボスの門を見つけて ボスを呼ぶ　%.0f m", dist);
@@ -223,7 +224,7 @@ void CollisionTestScene::Update(float dt)
             obj = L"<{K:T}|{RB}>　トレーニングメニュー";   // 実験場：メニューの開き方（画面下の案内は体に重なるのでここ）
         m_GameUI.SetObjective(obj);
     }
-    // 画面の真ん中の案内（押し寄せ・エリート・最終ウェーブ。2026-10-07。チュートリアルの段の見出しが優先）
+    // 画面の真ん中の案内（押し寄せ・エリート・最終ウェーブ。チュートリアルの段の見出しが優先）
     {
         float alpha = 0.0f, age = 0.0f;
         const wchar_t* ann = m_LabScene ? nullptr : m_Stage.Announce(alpha, age);
@@ -286,13 +287,13 @@ void CollisionTestScene::UpdateHudMarkers()
     // 面の Boss（GPU のリードバックの位置）
     if (m_Stage.IsBossAlive())
         markers.push_back({ m_Stage.BossPos() + Vector3(0.0f, 2.0f, 0.0f), { 0.85f, 0.25f, 1.0f, 1.0f }, HUDMarkerKind::Boss });
-    // 押し寄せが来る方向（赤橙。プレイヤーから 30m 先。2026-10-07）
+    // 押し寄せが来る方向（赤橙。プレイヤーから 30m 先）
     if (const Vector3* pp = PlayerPos(); pp && m_Stage.SurgeActive(m_RunTime))
     {
         const float yaw = m_Stage.SurgeYaw();
         markers.push_back({ *pp + Vector3(std::cos(yaw) * 30.0f, 1.0f, std::sin(yaw) * 30.0f), { 1.0f, 0.35f, 0.12f, 1.0f }, HUDMarkerKind::Surge });
     }
-    // 面の固定エリート（GPU のリードバックの位置。2026-10-25）
+    // 面の固定エリート（GPU のリードバックの位置）
     {
         std::vector<Vector3> ep;
         m_StageElites.GetPositions(ep);
@@ -330,7 +331,7 @@ void CollisionTestScene::EndRun()
     g_LastRun.pos = m_RunPos;
     g_LastRun.tier = m_RunTier;
     g_LastRun.hasNextStage = g_LastRun.cleared && HasNextStage();
-    // 進み具合：Tier を最後まで戦い抜いた → 次の Tier が開く、Tier 2 なら次のマップも（2026-10-21 / 10-26、ステージ選択）
+    // 進み具合：Tier を最後まで戦い抜いた → 次の Tier が開く、Tier 2 なら次のマップも（ステージ選択）
     if (g_LastRun.cleared && !g_LastRun.hasNextStage && !m_LabScene)
     {
         GameProgress::Get().OnTierCleared(m_StageIndex, m_RunTier);

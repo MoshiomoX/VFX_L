@@ -26,8 +26,8 @@ struct BeamItem
     float tipFade; // 先端が細くなっていく距離（m）
     float rootFade; // 根元がフェードインする距離（m）
     float seed;
-    float toon; // 1 = 硬い縁の帯 + 2 段の筋（2026-10-04）
-    // 稲妻（2026-10-15）：帯がセグメントごとに横へ折れる
+    float toon; // 1 = 硬い縁の帯 + 2 段の筋
+    // 稲妻：帯がセグメントごとに横へ折れる
     float jitter; // 大きな揺れの振幅（m）。0 = まっすぐな光線
     float jitterRate; // 1 秒あたりの形の数（引き直し）
     float jitterFine; // セグメントごとの折れの振幅（jitter に対する割合）

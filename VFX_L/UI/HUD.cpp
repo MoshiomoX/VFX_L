@@ -163,7 +163,7 @@ void HUD::BarTrail::Update(float dt, float ratio, const HUDStyle& style)
 }
 
 // ============================================================
-// px の値と文字の倍率を k 倍した写し（UI 全体の倍率。2026-10-07）。
+// px の値と文字の倍率を k 倍した写し（UI 全体の倍率）。
 // アンカーの比率・色・画面比（vignetteWidth 等）・魔法陣の比率はそのまま
 // ============================================================
 HUDStyle HUDStyle::Scaled(float k) const
@@ -275,7 +275,6 @@ void HUD::Draw(SpriteRenderer& sprite, TextRenderer& text,
         DrawGold(sprite, text, info.gold, shieldShift);
 
     // ---- 経過時間・撃破数、魔法の欄、その上の魔力解放（Q）----
-    // 魔力解放は 2026-10-04 まで MP バーの下の一行の文字だった
     DrawRunInfo(sprite, text, info);
     if (m_S.showSpellBar && info.wand)
         DrawSpellBar(sprite, *info.wand, mp);
@@ -312,7 +311,7 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
     const bool hasObj = m_S.showObjective && info.objective && *info.objective;
     if (hasObj) { objLine = L"目標: "; objLine += info.objective; }
 
-    // ---- 先に塊全体を測る（下敷きを 1 枚で敷くため。2026-10-07）----
+    // ---- 先に塊全体を測る（下敷きを 1 枚で敷くため）----
     const Vector2 ts = text.Measure(buf, m_S.timerScale);
     const Vector2 ks = text.Measure(killBuf, m_S.killScale);
     const Vector2 os = hasObj ? InputGlyph::Measure(text, objLine, m_S.objectiveScale) : Vector2::Zero;   // {RB} などはパッドのボタンの絵
@@ -347,7 +346,7 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
     DrawLabel(text, killBuf, { a.x - ks.x * 0.5f, y }, m_S.killScale);
     y += ks.y;
 
-    // ---- 目標（2026-10-07）：金の菱形 + 「目標: …」。文はシーンが毎フレーム入れる ----
+    // ---- 目標：金の菱形 + 「目標: …」。文はシーンが毎フレーム入れる ----
     if (hasObj)
     {
         y += objGap;
@@ -374,7 +373,7 @@ void HUD::DrawRunInfo(SpriteRenderer& sprite, TextRenderer& text, const HUDFrame
         DrawBar(sprite, pos, size, r, r, { 0.35f, 0.05f, 0.55f, 1.0f }, true);   // 紫（線形）
         DrawBarLabel(text, (info.bossName && info.bossName[0]) ? info.bossName : L"ボス", pos, size);
     }
-    // ---- 面の固定エリートの HP 条（Boss の条の下。2026-10-25）----
+    // ---- 面の固定エリートの HP 条（Boss の条の下）----
     if (!info.elites.empty())
     {
         const float top = (info.bossHp >= 0.0f) ? y + 8.0f * UIDeco::UIScale() + m_S.hpBarSize.y : y;
@@ -461,7 +460,7 @@ void HUD::DrawSpellBar(SpriteRenderer& sprite,
 }
 
 // ============================================================
-// 金貨（2026-10-04）：硬貨の絵 + 枚数。増えた瞬間は 0.35 秒ほど明るく、少し大きく
+// 金貨：硬貨の絵 + 枚数。増えた瞬間は 0.35 秒ほど明るく、少し大きく
 // ============================================================
 void HUD::DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold, float yShift)
 {
@@ -503,7 +502,7 @@ void HUD::DrawGold(SpriteRenderer& sprite, TextRenderer& text, int gold, float y
 }
 
 // ============================================================
-// 魔力解放（Q）の大きな欄（2026-10-04）
+// 魔力解放（Q）の大きな欄
 //   魔法の欄の上の中央。魔法の欄と同じ作りを大きくし、後ろは星の魔法陣（魔法の欄は花）。
 //   使える     : 絵が明るく、魔法陣がゆっくり息をする。使えるようになった瞬間に一度光る
 //   解放中     : 輪と魔法陣が金に光り（HDR）、速く回る。絵は金に沈め、中央に残り秒（小数 1 桁、白）
@@ -592,7 +591,7 @@ void HUD::DrawSurgeSkill(SpriteRenderer& sprite, TextRenderer& text, const ManaC
         text.Draw(buf, tp, active ? Vector4(1.3f, 1.2f, 1.0f, 1.0f) : m_S.textColor, s);   // 解放中は少し光る白
     }
 
-    // ---- 下の縁の札：キーボードなら「Q」、パッドなら Y の絵（2026-10-09、最後に触った機器で替える）----
+    // ---- 下の縁の札：キーボードなら「Q」、パッドなら Y の絵（最後に触った機器で替える）----
     {
         const float k = size * 0.34f;
         const Vector2 kc = { center.x, tl.y + size };
@@ -629,7 +628,7 @@ void HUD::DrawLowHpVignette(SpriteRenderer& sprite, const HealthComponent& hp)
 }
 
 // ============================================================
-// 魔力解放中の金の縁（2026-10-01）。出始め 0.2 秒で濃くなり、終わり 0.4 秒で消える。ゆっくり脈打つ
+// 魔力解放中の金の縁。出始め 0.2 秒で濃くなり、終わり 0.4 秒で消える。ゆっくり脈打つ
 // ============================================================
 void HUD::DrawSurgeVignette(SpriteRenderer& sprite, const ManaComponent& mp)
 {
@@ -715,7 +714,7 @@ void HUD::DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info)
                 col, ang + 3.14159265f + spread, tip);
         }
 
-        // 後ろに種類の絵（ミニマップと同じ。2026-10-24 まで色だけの小さな菱形）
+        // 後ろに種類の絵（ミニマップと同じ）
         const float icon = len * 1.15f;
         const Vector2 gc = tip - Vector2(std::cos(ang), std::sin(ang)) * (len * 0.6f + icon * 0.85f);
         const int k = (int)mk.kind;

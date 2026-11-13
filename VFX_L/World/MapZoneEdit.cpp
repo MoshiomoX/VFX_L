@@ -66,7 +66,7 @@ namespace MapTerrainEdit
 {
     bool CanEditZones(const MapData::Map& map)
     {
-        // 三層を切った地図は summitH / mineD / roofTopY が 0（2026-10-25）：塗れても高さの無い区域になるので塗らせない
+        // 三層を切った地図は summitH / mineD / roofTopY が 0：塗れても高さの無い区域になるので塗らせない
         return HasZoneParams(map) && map.summitH > 0.0f && map.mineD > 0.0f;
     }
 
@@ -102,8 +102,7 @@ namespace MapTerrainEdit
         // ---- 記録の札：今ある物を引き継ぐ（無ければ新しく振る）----
         // 床の箱の底も今の箱から引き継ぐ：生成の式は台座で均す前の起伏の一番低い所を見るので、記録からは同じ値を作り直せない。
         // 箱が無ければ洞窟の底の 1m 下。どちらも上面（平原・山頂・洞窟の底）より 1m 以上下へ（FloorBottomBelowTops は生成と共通。
-        // 2026-10-25。以前は -mineD - 1 固定で、三層を切った地図（mineD = 0）では上面（起伏の谷 - 0.1m）が -1m より下になり、
-        // 箱が裏返って戦闘で衝突の std::clamp が落ちた）
+        // 箱が裏返ると衝突の std::clamp が落ちる）
         MapData::Tag floorTag, roofTag;
         bool hasFloor = false, hasRoof = false;
         float floorBottom = -map.mineD - 1.0f;

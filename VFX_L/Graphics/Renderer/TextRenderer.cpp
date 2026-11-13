@@ -53,7 +53,7 @@ void TextRenderer::DrawOutline(const std::wstring& text,
     if (!m_InBegin || text.empty()) return;
     if (!m_OutlinePS)
     {
-        // シェーダーが無い時の代わり：8 方向にずらして縁の色で描く（2026-10-23 以前のやり方）
+        // シェーダーが無い時の代わり：8 方向にずらして縁の色で描く
         static const Vector2 kDirs[8] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.71f, 0.71f }, { -0.71f, 0.71f }, { 0.71f, -0.71f }, { -0.71f, -0.71f } };
         for (const Vector2& d : kDirs) Draw(text, position + d * m_OutlineCB.outlinePx, outlineColor, scale);
         return;

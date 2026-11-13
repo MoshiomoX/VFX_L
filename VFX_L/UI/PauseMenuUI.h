@@ -2,7 +2,7 @@
 // PauseMenuUI.h
 // 一時停止のメニュー（再開 / 設定 / 遊び方 / やり直す / タイトルへ）。
 //
-// 開閉は GameUI が決める（Esc / パッド Back。2026-10-05 に P から Esc へ替えた。P は割り当てていない）。
+// 開閉は GameUI が決める（Esc / パッド Back）。
 // ここは開いている間の入力と描画だけ。項目の操作は MenuList、
 // パッドの B は「再開」の近道。
 // 決定した結果は Action で返し、シーンの切替はシーン側に任せる
@@ -47,7 +47,7 @@ public:
     int TestSettingsCursor() const { return m_Settings.TestCursor(); }
     int TestHowToPage() const { return m_HowTo.Page(); }
 
-    // チュートリアル中は「チュートリアルを飛ばす」の項目を足す（2026-10-13）。毎フレーム呼んでよい（変わった時だけ組み直す）
+    // チュートリアル中は「チュートリアルを飛ばす」の項目を足す。毎フレーム呼んでよい（変わった時だけ組み直す）
     void SetTutorialActive(bool on);
 
     // ---- 見た目（画面短辺に対する比率）----

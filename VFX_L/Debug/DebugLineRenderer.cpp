@@ -64,7 +64,7 @@ void DebugLineRenderer::Render()
     m_Effect->SetProjection(m_Camera->GetProjectionMatrix());
 
     // パイプライン設定。奥行きは見るが書かない（地形の向こうの線は隠れ、後で描く物の邪魔をしない。
-    // 2026-10-28：シーンの後で描くようになったので、前の描画の状態を引き継がないように決める）
+    // シーンの後で描くので、前の描画の状態を引き継がないように決める）
     const auto& rs = RenderStates::Get();
     m_Context->OMSetBlendState(rs.Opaque(), nullptr, 0xFFFFFFFF);
     m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);

@@ -1,10 +1,10 @@
 // ============================================================
 // TrainingMenuUI.h
-// トレーニング（魔法の実験場）のメニュー（2026-10-07 ユーザー：的・雑魚の群れ・Boss を出す、
-// 魔法を木箱へ入れる、を ImGui ではなくゲームの UI で）。T / パッド RB で開閉、開いている間はゲームが止まる。
+// トレーニング（魔法の実験場）のメニュー（的・雑魚の群れ・Boss を出す、魔法を木箱へ入れる）。
+// T / パッド RB で開閉、開いている間はゲームが止まる。
 //   行 = 的を置く（正面 3 / 周り 12 / エリート）、的の HP、群れの種類、群れの数、敵が動く、
 //        敵を出す（群れ / ボス / 全部消す）、木箱に入れる（魔法・ルーンの絵の並び）、木箱（全部入れる / 空にする）、
-//        ランダムの中身・ランダムの数・バックパック（ランダムに組む / 空にする。2026-10-14）、戻る
+//        ランダムの中身・ランダムの数・バックパック（ランダムに組む / 空にする）、戻る
 //   キー   : W S / 上下で行、A D / 左右で値・ボタン・絵を選ぶ、Enter / Space で決定、Esc / T で閉じる
 //   パッド : 十字、A で決定、B / RB で閉じる
 //   マウス : 動かした時だけ選ぶ。クリックで決定（値の行は < > の上）
@@ -38,12 +38,12 @@ struct TrainingRequest
     ItemID item = ItemID::Unknown; // AddItem
     int    randomMode = 0;         // RandomBuild：0 基本魔法だけ / 1 魔法 + ルーン / 2 全部（上級魔法・召喚物も）
     int    randomCount = 6;        // RandomBuild：置く個数（枠に入り切らなければ少なくなる）
-    // Field（2026-10-20 ユーザー「トレーニングからフィールドに入る。モードはトレーニングのまま」）：
+    // Field：
     // 0 = 平地（実験場の既定）/ 1 草原 / 2 砂漠 / 3 遺跡 = その面の地形（段々の台地・置物・照明・草）を建て直す。
     // 無敵・MP 無限・湧き停止・メニューで的を置く、はそのまま
     int    field = 0;
-    bool   eliteRanged = false;    // Elite（2026-10-25）：面の固定エリートの A（近接）/ B（遠距離）。詞缀は 0〜2 個を乱数で
-    // Boss（2026-10-27 ユーザー「各 Boss をトレーニングの選択肢に」）：BossType の番号。-1 = そのフィールドの Boss（今まで通り）。
+    bool   eliteRanged = false;    // Elite：面の固定エリートの A（近接）/ B（遠距離）。アフィックスは 0〜2 個を乱数で
+    // Boss：BossType の番号。-1 = そのフィールドの Boss。
     // シーンが呼ぶ前に InitBossFx で技・見た目を替える（Boss が出ている間は替えない）
     int    bossType = -1;
 };
@@ -68,7 +68,7 @@ public:
     void SetMessage(const std::wstring& msg) { m_Message = msg; m_MessageTime = 2.5f; }
 
     float panelWidthRatio = 1.30f;   // 画面短辺に対する比率（画面幅の 95% までに収める）
-    float rowHeightRatio = 0.046f;   // 2026-10-14 ランダムの 3 行を足して 0.058 → 0.050、10-20 フィールドの行を足して 0.046
+    float rowHeightRatio = 0.046f;   // 行の高さ（行が多いので低め）
     float itemRowRatio = 0.080f;     // 絵の行の高さ
     float rowGapRatio = 0.005f;
     DirectX::SimpleMath::Vector4 dimColor = { 0.0f, 0.0f, 0.0f, 0.80f };
@@ -81,11 +81,11 @@ public:
 
     // 選べる値（描画と依頼で共用）
     static constexpr int kHpChoices = 5;
-    static constexpr int kKindChoices = 18;   // 2026-10-25 に遺跡の敵 5 種を足した
+    static constexpr int kKindChoices = 18;
     static constexpr int kCountChoices = 4;
     static constexpr int kRandomModes = 3;    // ランダムに組む：中身
     static constexpr int kRandomCounts = 4;   // ランダムに組む：個数
-    static constexpr int kBossChoices = 10;   // ボスの種類：この面の Boss + 9 体（2026-10-27。10-29 砂嵐の魔神・骸の王・石の守護獣）
+    static constexpr int kBossChoices = 10;   // ボスの種類：この面の Boss + 9 体
     static const float kTargetHp[kHpChoices];
     static const int kBossTypes[kBossChoices];   // 各選択肢の BossType（-1 = この面の Boss）
     static const wchar_t* const kSwarmKinds[kKindChoices];
@@ -131,7 +131,7 @@ private:
     int   m_Col = 0;
     float m_InputDelay = 0.0f;
     float m_RepeatDelay = 0.0f;
-    StickNav m_Stick;   // 左スティック（2026-11-05）
+    StickNav m_Stick;   // 左スティック
     DirectX::SimpleMath::Vector2 m_LastMouse = { -1.0f, -1.0f };
 
     // 選んでいる値

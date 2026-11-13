@@ -1,6 +1,6 @@
 // ============================================================
 // SSAOBlurPS.hlsl
-// 生の SSAO（SSAOPS、2026-11-02）を深度を見て 5x5 のボックスぼかしにかける。
+// 生の SSAO（SSAOPS）を深度を見て 5x5 のボックスぼかしにかける。
 // ピクセルごとのカーネル回転が残す細かい模様を、このぼかしでならす。
 // 視点からの深度が中心と一定割合以上違う近傍は除外するので、AO が
 // シルエットをまたいで滲まない
@@ -16,7 +16,7 @@ cbuffer SSAOBlurCB : register(b0)
     float depthA;       // 視点からの深度 = depthB / (d - depthA)
     float depthB;
     float depthTolerance;   // 近傍が中心の深度からずれてよい割合（0.05 = 5 %）
-    float pixelScale;       // AO の 1 画素 = 深度の何画素（縦横半分で作る時 = 2、2026-11-05）
+    float pixelScale;       // AO の 1 画素 = 深度の何画素（縦横半分で作る時 = 2）
 };
 
 float EyeDepth(int2 p, int2 size)

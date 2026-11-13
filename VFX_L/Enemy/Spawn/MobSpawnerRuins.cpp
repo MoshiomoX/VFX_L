@@ -1,6 +1,6 @@
 // ============================================================
 // MobSpawnerRuins.cpp
-// 遺跡の敵（2026-10-25、ユーザー「遺跡の雑魚を作って」→ 呪いの鎧・石像ガーゴイル・死霊術師・鎖の番人）の CPU 側。
+// 遺跡の敵（呪いの鎧・石像ガーゴイル・死霊術師・鎖の番人）の CPU 側。
 //   ・呪いの鎧：1 回目の死は GPU の分裂の環に「崩れた」が届く → armorReviveDelay 秒後に同じ所へ蘇った鎧（HP 半分、紫に脈打つ）
 //   ・ガーゴイル：目覚め・急降下・着地が環に届く → シーンが石の欠片・土煙・音を出す（動きは全部 GPU）
 //   ・死霊術師：詠唱の終わりが環に届く → 近くの最近の死体（シーンがダメージの数字の「倒した」から NoteKill で渡す）
@@ -60,7 +60,7 @@ Vector3 MobSpawner::GargoyleSpot(const Vector3& fallback, float groundY) const
     return fallback;
 }
 
-// 死体から骸骨を起こす（死霊術師の詠唱、骸の王の大起尸。2026-10-29 に死霊術師の所から分けた）：center から radius m の
+// 死体から骸骨を起こす（死霊術師の詠唱、骸の王の大起尸）：center から radius m の
 // 最近の死体を新しい順に最大 maxCount（使った死体は消す = 同じ死体から二度起こさない）、足りなければ center の周り
 // fillMin〜fillMax m の歩けるマスから minCount まで。印は今、骸骨は necroRaiseDelay 秒後（同時上限は UpdateRuins が見る）
 int MobSpawner::RaiseCorpsesAround(const Vector3& center, float radius, int maxCount, int minCount, float fillMin, float fillMax, const GridWorld& grid)
@@ -177,7 +177,7 @@ void MobSpawner::UpdateRuins(const GridWorld& grid, const Vector3& player, float
         Pending& p = m_RaisePending[i];
         p.timer -= dt;
         if (p.timer > 0.0f) { ++i; continue; }
-        // 同時上限（spawnCap）の空きが無ければ印だけで起きない（2026-10-26 ユーザー「敵が溜まり過ぎ」）
+        // 同時上限（spawnCap）の空きが無ければ印だけで起きない
         if ((int)swarm.GetCounters().aliveEnemies < m_Director.spawnCap)
         {
             swarm.SpawnEnemy({ p.pos.x, p.pos.y + groundY, p.pos.z }, p.hp, m_SkeletonSpeed * finalSpeedMul, Swarm::kEnemyKindSkeleton, faceYaw(p.pos));

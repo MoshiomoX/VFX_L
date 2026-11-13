@@ -14,7 +14,7 @@
 using namespace DirectX::SimpleMath;
 
 const float TrainingMenuUI::kTargetHp[kHpChoices] = { 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f };
-// ボスの種類（2026-10-27）：この面の Boss → 草原の 3 体 → 砂漠の 2 体 → 遺跡の 1 体（面の順）
+// ボスの種類：この面の Boss → 草原 → 砂漠 → 遺跡の Boss（面の順）
 const int TrainingMenuUI::kBossTypes[kBossChoices] = { -1, (int)BossType::StoneGiant, (int)BossType::Werewolf, (int)BossType::Stag,
     (int)BossType::SandGuardian, (int)BossType::Scorpion, (int)BossType::Djinn, (int)BossType::CryptKnight, (int)BossType::StoneBeast, (int)BossType::BoneKing };
 const wchar_t* const TrainingMenuUI::kSwarmKinds[kKindChoices] = { L"雑魚", L"自爆兵", L"スプリッター", L"重装兵", L"突撃兵", L"盾兵", L"幽霊", L"トゲ玉", L"砂潜り", L"砂嵐の術師", L"黒幽霊", L"突撃爆弾兵",
@@ -43,10 +43,10 @@ void TrainingMenuUI::Build()
     m_Rows.push_back({ L"群れの種類", RowKind::Choice, RowId::SwarmKind, {}, {} });
     m_Rows.push_back({ L"群れの数", RowKind::Choice, RowId::SwarmCount, {}, {} });
     m_Rows.push_back({ L"敵が動く", RowKind::Toggle, RowId::Moving, {}, {} });
-    // ボスの種類（2026-10-27 ユーザー「各 Boss をトレーニングの選択肢に」）：「ボスを呼ぶ」で出す Boss。この面の Boss か、6 体のどれか
+    // ボスの種類：「ボスを呼ぶ」で出す Boss。この面の Boss か、各 Boss のどれか
     m_Rows.push_back({ L"ボスの種類", RowKind::Choice, RowId::BossKind, {}, {} });
     m_Rows.push_back({ L"敵を出す", RowKind::Buttons, RowId::Spawn, { L"群れを出す", L"ボスを呼ぶ", L"敵を全部消す", L"近接エリート", L"遠隔エリート" }, {} });
-    // フィールド（2026-10-20）：平地の実験場か、本番の面の地形か。トレーニングのモード（無敵・MP 無限・湧き停止）はそのまま
+    // フィールド：平地の実験場か、本番の面の地形か。トレーニングのモード（無敵・MP 無限・湧き停止）はそのまま
     m_Rows.push_back({ L"フィールド", RowKind::Buttons, RowId::Field, { L"平地", L"草原", L"砂漠", L"遺跡" }, {} });
 
     // 魔法・ルーン・召喚物（枠と能力カードは除く。SpellLab::FillChest と同じ選び方）を kItemsPerRow 個ずつの行に
@@ -65,7 +65,7 @@ void TrainingMenuUI::Build()
     }
 
     m_Rows.push_back({ L"木箱", RowKind::Buttons, RowId::Chest, { L"全部入れる（各 3 個）", L"木箱を空にする" }, {} });
-    // バックパックをランダムに組む（2026-10-14 ユーザー：ランダムに魔法を置く選択肢）。中身と個数を選んでボタン
+    // バックパックをランダムに組む。中身と個数を選んでボタン
     m_Rows.push_back({ L"ランダムの中身", RowKind::Choice, RowId::RandomMode, {}, {} });
     m_Rows.push_back({ L"ランダムの数", RowKind::Choice, RowId::RandomCount, {}, {} });
     m_Rows.push_back({ L"バックパック", RowKind::Buttons, RowId::Backpack, { L"ランダムに組む", L"バックパックを空にする" }, {} });
@@ -92,8 +92,8 @@ void TrainingMenuUI::Layout(float screenW, float screenH)
     const int n = (int)m_Rows.size();
     const float baseH = kPadRatio * 2.0f + kTitleRatio + rowsRatio + rowGapRatio * (float)(n - 1) + kFootRatio;
     m_Scale = UIDeco::FitScale(baseH, 0.985f);   // 行が多いので画面の高さほぼ一杯まで
-    // FitScale は 1.0 倍より小さくしないが、このメニューは行が多くて 1 倍でも画面より高い（1600x900 で上下が切れていた。
-    // 2026-10-20 フィールドの行を足した時に直した）：高さが収まる所まで 1 倍未満にも縮める
+    // FitScale は 1.0 倍より小さくしないが、このメニューは行が多くて 1 倍でも画面より高い：
+    // 高さが収まる所まで 1 倍未満にも縮める
     if (baseH > 0.0f) m_Scale = (std::min)(m_Scale, 0.985f / baseH);
     m_Scale = (std::min)(m_Scale, screenW * 0.95f / (m_Short * panelWidthRatio));
     const float s = m_Short * m_Scale;
@@ -277,7 +277,7 @@ void TrainingMenuUI::Activate()
         q.kind = (m_Col == 0) ? TrainingRequest::Kind::Swarm
             : (m_Col == 1) ? TrainingRequest::Kind::Boss
             : (m_Col == 2) ? TrainingRequest::Kind::KillAll : TrainingRequest::Kind::Elite;
-        q.eliteRanged = (m_Col == 4);   // 面の固定エリート（2026-10-25）
+        q.eliteRanged = (m_Col == 4);   // 面の固定エリート
         break;
     case RowId::Items:
         if (m_Col < 0 || m_Col >= (int)r.items.size()) return;

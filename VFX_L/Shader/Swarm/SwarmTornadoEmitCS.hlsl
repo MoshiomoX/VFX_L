@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmTornadoEmitCS.hlsl
-// 生きている砂旋（SWARM_KIND_TORNADO、2026-10-19）の足元の砂埃。
+// 生きている砂旋（SWARM_KIND_TORNADO）の足元の砂埃。
 // 敵スロット 1 つに 1 スレッド：寿命が進んでいる（fuse > 0）砂旋は
 // 足元で TornadoDust のレシピ（VFXId::TornadoDust）の全エミッタから
 // 発生レート x g_RateMul で出す。エミッタ自身の形に加えて、

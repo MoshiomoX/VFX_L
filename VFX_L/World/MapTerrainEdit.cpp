@@ -287,8 +287,7 @@ namespace MapTerrainEdit
             };
         for (const auto& p : map.rampParts) if (!p.grassy) clear(p.x, p.z, p.w, p.d);
         for (const auto& p : map.blockParts) if (!p.raise) clear(p.x, p.z, p.w, p.d);
-        // 水たまり（段々の台地の地図）：生成と同じく、外周の崖の内側で段の坂でないマス（TerrainGenerator の占有で kRamp 扱い。2026-10-25。
-        // 以前はここで外していなかったので、部品を触ると水の中に草が生え、Verify の grassSame が常に 0 だった）
+        // 水たまり（段々の台地の地図）：生成と同じく、外周の崖の内側で段の坂でないマス（TerrainGenerator の占有で kRamp 扱い）は草を外す
         {
             const size_t cells = (size_t)map.gw * map.gd;
             if (map.pond.size() == cells)

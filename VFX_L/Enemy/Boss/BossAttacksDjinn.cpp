@@ -1,10 +1,11 @@
 // ============================================================
 // BossAttacksDjinn.cpp
-// 砂漠 3 面目の Boss「砂嵐の魔神」の技（2026-10-29）。説明・数値は BossDjinn.h。
+// 砂漠 3 面目の Boss「砂嵐の魔神」の技。説明・数値は BossDjinn.h。
 // 流れ（StartMove → UpdateMove → 間）は BossAttacks.cpp と同じ。ここは技毎の中身と、一段目 / 二段目の入れ替え・浮き
 // ============================================================
 #include "Enemy/Boss/BossAttacks.h"
 #include "World/GridWorld.h"
+#include "World/CliffSteer.h"
 
 using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector3;
@@ -85,7 +86,7 @@ void BossAttacks::EnterDjinnPhase2(Output& out)
 // ============================================================
 void BossAttacks::UpdateDjinnOutputs(const Input& in, Output& out)
 {
-    // 砂嵐の魔神と骸の王（2026-10-29。骸の王は浮かず・段も無く、ずっと飛んで間合いを取る）。他の Boss は全部 0（Output の既定）
+    // 砂嵐の魔神と骸の王（骸の王は浮かず・段も無く、ずっと飛んで間合いを取る）。他の Boss は全部 0（Output の既定）
     const bool kingType = (m_Type == BossType::BoneKing);
     if (m_Type != BossType::Djinn && !kingType) return;
     const float hover = kingType ? king.hover : djinn.hover;
@@ -109,7 +110,7 @@ void BossAttacks::UpdateDjinnOutputs(const Input& in, Output& out)
     else if (!owned)
         m_Djinn.pose = Approach((m_Djinn.pose > 1.0f) ? kPoseAfterSlam : m_Djinn.pose, 0.0f, 2.5f * in.dt);
     out.chargePose = m_Djinn.pose;
-    // 骸の王は真ん中から一歩も動かない（10-29 ユーザー「まだ動いているじゃないか」）：技が動きを指示していない間は、湧いた時の速さに
+    // 骸の王は真ん中から一歩も動かない：技が動きを指示していない間は、湧いた時の速さに
     // 関係なく「その場で止まってプレイヤーへ向く」指示（突進の溜めと同じ）。門の真ん中に湧く時は速さ 0 だが、トレーニング・自動テストでは歩く Boss で湧く
     if (kingType && in.bossAlive && !out.chargeOn)
     {
@@ -145,6 +146,17 @@ void BossAttacks::StartDustDevils(const Input& in, const GridWorld& grid, Output
     ringsPlaced += (uint32_t)n;
 }
 
+void BossAttacks::DebugAddDevil(const Vector3& center, float angle, float radius, const GridWorld& grid)
+{
+    DjinnDevil d;
+    d.center = center;
+    d.angle = angle;
+    d.radius = radius;
+    d.pos = Ground(grid, center.x + std::cos(angle) * radius, center.z + std::sin(angle) * radius);
+    d.id = m_Djinn.nextDevilId++;
+    m_Djinn.devils.push_back(d);
+}
+
 bool BossAttacks::UpdateDustDevilsMove(const Input& in, Output& out)
 {
     out.chargeOn = true;
@@ -160,6 +172,7 @@ void BossAttacks::UpdateDevils(const Input& in, const GridWorld& grid, Output& o
     const float windup = (std::max)(djinn.devilWindup, 0.05f);
     const float life = (std::max)(djinn.devilLife, 0.1f);
     const float outro = (std::max)(djinn.devilOutro, 0.05f);
+    auto height = [&grid](float x, float z) { return grid.SampleHeight(x, z); };
     for (auto it = m_Djinn.devils.begin(); it != m_Djinn.devils.end();)
     {
         DjinnDevil& d = *it;
@@ -186,7 +199,23 @@ void BossAttacks::UpdateDevils(const Input& in, const GridWorld& grid, Output& o
             d.leaving = true;
             d.presence = 1.0f - Clamp01((active - life) / outro);
         }
-        d.pos = Ground(grid, d.center.x + std::cos(d.angle) * d.radius, d.center.z + std::sin(d.angle) * d.radius);
+        // 輪の上の目標へ向かう。崖は登らず崖沿いに回り込み、回り込めなければその場で待つ（下りは構わない）
+        {
+            const Vector3 target = Ground(grid, d.center.x + std::cos(d.angle) * d.radius, d.center.z + std::sin(d.angle) * d.radius);
+            float budget = djinn.devilMaxSpeed * in.dt;
+            while (budget > 1e-4f)
+            {
+                Vector3 to = target - d.pos;
+                to.y = 0.0f;
+                const float dist = to.Length();
+                const float step = (std::min)({ dist, budget, CliffSteer::kMaxStep });
+                if (step <= 1e-4f) break;
+                Vector3 dir = to / dist;
+                if (!CliffSteer::Steer(dir, d.pos, d.pos.y, height, false)) break;
+                d.pos = Ground(grid, d.pos.x + dir.x * step, d.pos.z + dir.z * step);
+                budget -= step;
+            }
+        }
 
         // 当たり：回っている間だけ、1 本につき 1 回。背が高いので跳んでも devilReach までは当たる
         if (!d.hitDone && active > 0.0f && active < life && Flat(d.pos, in.player) <= djinn.devilHitRadius + kPlayerThick)

@@ -5,7 +5,7 @@
 using json = nlohmann::json;
 
 // ============================================================
-// json を読む時の補助（2026-10-25）。壊れた json（数字が文字列・null・要素の足りない配列）でも
+// json を読む時の補助。壊れた json（数字が文字列・null・要素の足りない配列）でも
 // 範囲外の添字アクセスをしない。読めなければ out はそのまま（呼ぶ側の既定値が残る）
 // ============================================================
 namespace VFXJson
@@ -38,7 +38,7 @@ public:
 
 	virtual  json ToJson() const = 0;
 	virtual  void FromJson(const json& j) = 0;
-    // 色を掛ける（複製した直後、再生前に 1 回。水晶玉の光球を貯蔵した魔法の色で染める。2026-10-06）。
+    // 色を掛ける（複製した直後、再生前に 1 回。水晶玉の光球を貯蔵した魔法の色で染める）。
     // 粒子（開始 / 終了色の RGB）・点光源・Mesh entry（tint の RGB）だけが応える。他の entry は何もしない
     virtual void Tint(const DirectX::SimpleMath::Vector3&) {}
     float startTime = 0.0f;

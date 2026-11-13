@@ -1,6 +1,6 @@
 // ============================================================
 // CastCircles.h
-// 詠唱の魔法陣（2026-10-09 ユーザー：「プレイヤーの詠唱のエフェクトを足して」→ 足元の魔法陣・手の前の小さな魔法陣を選んだ）。
+// 詠唱の魔法陣（足元の魔法陣・手の前の小さな魔法陣）。
 //   ・足元：撃っている間ずっと足元に回る魔法陣（花の魔法陣 + 内側に逆回りの星の魔法陣）。最後に撃った魔法の色へ寄っていき、
 //     撃つたびに少し膨らむ。撃ち止めて holdTime 秒で消え始める。草に隠れないよう地面から footLift 上げる
 //   ・手の前：撃った弾ごとに杖口の少し先へ、撃つ向きを向いた小さな星の魔法陣がぱっと開いて消える（弾はその真ん中から出る）
@@ -23,7 +23,7 @@ public:
         const DirectX::SimpleMath::Vector3& color);
     // feet = プレイヤーの足元。visible = false（死んだ等）で足元の魔法陣を消していく
     void Update(float dt, const DirectX::SimpleMath::Vector3& feet, bool visible);
-    // プレイヤーの登場（2026-11-01）: act > 0 の間は足元の魔法陣をこの濃さ・この大きさの倍率の金色で出す
+    // プレイヤーの登場:act > 0 の間は足元の魔法陣をこの濃さ・この大きさの倍率の金色で出す
     void SetIntro(float act, float sizeMul) { m_IntroAct = act; m_IntroSize = sizeMul; }
     void Submit(VFXMeshRenderer& renderer);
     void DrawImGui();

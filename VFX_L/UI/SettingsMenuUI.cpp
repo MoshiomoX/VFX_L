@@ -22,9 +22,8 @@ namespace
     constexpr float kVolumeStep = 0.05f;   // 1 段 = 5%
     constexpr float kRepeatFirst = 0.30f;  // 押しっぱなしで動き出すまで
     constexpr float kRepeatNext = 0.06f;   // それ以降の間隔
-    // 開いた直後の猶予・押しっぱなしの連続は実時間で減らす（以前は 1 フレーム 0.016 秒の決め打ちで、
-    // 144 fps だと猶予が半分以下・連続が 2 倍以上速かった）。1 フレームだけ長い時（読み込みの引っ掛かり）に
-    // 猶予を食い尽くさないよう 0.1 秒で頭打ち
+    // 開いた直後の猶予・押しっぱなしの連続は実時間で減らす（フレームレートで変わらないように）。
+    // 1 フレームだけ長い時（読み込みの引っ掛かり）に猶予を食い尽くさないよう 0.1 秒で頭打ち
     float FrameStep(float dt) { return (std::min)((std::max)(dt, 0.0f), 0.1f); }
 
     const Vector4 kTextSel = { 0.96f, 0.92f, 0.84f, 1.0f };
@@ -38,11 +37,12 @@ SettingsMenuUI::SettingsMenuUI()
         { L"効果音",       Kind::Volume, (int)AudioSystem::Bus::Sfx },
         { L"音楽",         Kind::Volume, (int)AudioSystem::Bus::Music },
         { L"UI の音",      Kind::Volume, (int)AudioSystem::Bus::Ui },
-        { L"敵味方の縁取り", Kind::Toggle, 0, &GameSettings::factionOutline },   // 陣営の線だけ（トゥーンの黒い線は消えない。2026-10-08）
-        { L"ダメージの数字", Kind::Toggle, 0, &GameSettings::damageNumbers },    // 敵の頭の上の数字 + 受けた赤い数字（2026-10-19）
-        { L"FPS の表示",     Kind::Toggle, 0, &GameSettings::showFps },          // 右上のミニマップの下（2026-10-20）
-        { L"カメラの距離",   Kind::Volume, 0, nullptr, &GameSettings::cameraDistance, 0.8f, 1.3f },   // 80〜130%（2026-11-02）
-        { L"カメラの自動調整", Kind::Toggle, 0, &GameSettings::smartCamera },    // 囲まれたら引く・Boss を画面に入れる（2026-11-02）
+        { L"敵味方の縁取り", Kind::Toggle, 0, &GameSettings::factionOutline },   // 陣営の線だけ（トゥーンの黒い線は消えない）
+        { L"ダメージの数字", Kind::Toggle, 0, &GameSettings::damageNumbers },    // 敵の頭の上の数字 + 受けた赤い数字
+        { L"FPS の表示",     Kind::Toggle, 0, &GameSettings::showFps },          // 右上のミニマップの下
+        { L"霧・砂塵",       Kind::Toggle, 0, &GameSettings::volumeFog },        // 遺跡の瘴気 / 砂漠の砂塵（重い時に切る）
+        { L"カメラの距離",   Kind::Volume, 0, nullptr, &GameSettings::cameraDistance, 0.8f, 1.3f },   // 80〜130%
+        { L"カメラの自動調整", Kind::Toggle, 0, &GameSettings::smartCamera },    // 囲まれたら引く・Boss を画面に入れる
         { L"戻る",         Kind::Back,   0 },
     };
 }
@@ -52,10 +52,11 @@ void SettingsMenuUI::Layout(float screenW, float screenH)
     m_Screen = { screenW, screenH };
     m_Short = (std::min)(screenW, screenH);
 
-    // UI 全体の倍率（2026-10-07）。箱の高さが画面短辺の 95% を超えるなら収まる所まで
+    // UI 全体の倍率。箱の高さが画面短辺の 95% を超えるなら収まる所まで
     const int n = (int)m_Rows.size();
     const float baseH = kPadRatio * 2.0f + kTitleRatio + rowHeightRatio * (float)n + rowGapRatio * (float)(n - 1) + kHintRatio;
-    m_Scale = UIDeco::FitScale(baseH, 0.95f);
+    // FitScale は 1 倍より小さくしないので、1 倍でもはみ出す時はさらに縮める（トレーニングメニューと同じ）
+    m_Scale = (std::min)(UIDeco::FitScale(baseH, 0.95f), 0.95f / baseH);
     const float s = m_Short * m_Scale;
 
     const float pad = s * kPadRatio;

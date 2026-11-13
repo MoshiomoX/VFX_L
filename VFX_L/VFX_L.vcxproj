@@ -268,6 +268,16 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Enemy\Spawn\MobSpawnerRuins.cpp" />
     <ClCompile Include="Swarm\SwarmSystemRuins.cpp" />
     <ClCompile Include="Swarm\SwarmSystemLod.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemBuffers.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemTerrain.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemBeam.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemStep.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemDispatch.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemReadback.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemRender.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemRenderRings.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemShaders.cpp" />
+    <ClCompile Include="Swarm\SwarmSystemModel.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneRuins.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBrute.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestGustAll.cpp" />
@@ -279,6 +289,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestWater.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestRarity.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestPierce.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBlades.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestFrames.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestBats.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShot.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShotsCombat.cpp" />
     <ClCompile Include="Debug\AutoTest\VideoShotsRead.cpp" />
@@ -289,8 +302,10 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Debug\AutoTest\AutoTestVortex.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestOutlet.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestTwister.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestWindGrid.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestBurrower.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSandMage.cpp" />
+    <ClCompile Include="Debug\AutoTest\AutoTestTornadoCliff.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestDashBomber.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSpellBench.cpp" />
     <ClCompile Include="Debug\AutoTest\AutoTestSchoolBench.cpp" />
@@ -359,6 +374,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="ECS\System\PlayerVFXSystem.cpp" />
     <ClCompile Include="ECS\System\CastCircles.cpp" />
     <ClCompile Include="ECS\System\IceSpikeField.cpp" />
+    <ClCompile Include="ECS\System\BladeField.cpp" />
+    <ClCompile Include="ECS\System\BatField.cpp" />
     <ClCompile Include="ECS\System\SpellFxSystem.cpp" />
     <ClCompile Include="ECS\System\ShieldBubble.cpp" />
     <ClCompile Include="ECS\System\RewardCrateSystem.cpp" />
@@ -416,6 +433,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="Scene\CollisionTestSceneMiasma.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneSand.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneTitle.cpp" />
+    <ClCompile Include="Scene\CollisionTestSceneTitleShow.cpp" />
     <ClCompile Include="Scene\CollisionTestSceneSelect.cpp" />
     <ClCompile Include="Scene\ResultScene.cpp" />
     <ClCompile Include="Scene\ShopScene.cpp" />
@@ -463,6 +481,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="UI\StageSelectUI.cpp" />
     <ClCompile Include="UI\MenuList.cpp" />
     <ClCompile Include="UI\TitleScreenUI.cpp" />
+    <ClCompile Include="UI\TitleLogo.cpp" />
+    <ClCompile Include="UI\TitleSpellTable.cpp" />
     <ClCompile Include="UI\GameUI.cpp" />
     <ClCompile Include="UI\LevelUpSystem.cpp" />
     <ClCompile Include="UI\LevelUpUI.cpp" />
@@ -589,6 +609,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="ECS\System\WeaponSystem.cpp" />
     <ClCompile Include="ECS\System\WeaponSystemOrbs.cpp" />
     <ClCompile Include="ECS\System\WeaponSystemTwister.cpp" />
+    <ClCompile Include="ECS\System\WeaponSystemBlades.cpp" />
+    <ClCompile Include="ECS\System\WeaponSystemBats.cpp" />
     <ClCompile Include="ECS\System\WeaponSystemOutlet.cpp" />
     <ClCompile Include="Core\Window.cpp" />
     <ClCompile Include="VFX_Editor\VFXTextureRef.cpp" />
@@ -604,6 +626,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClCompile Include="World\MiasmaField.cpp" />
     <ClCompile Include="World\MiasmaFieldRender.cpp" />
     <ClCompile Include="World\SandField.cpp" />
+    <ClCompile Include="World\WindGrid.cpp" />
     <ClCompile Include="World\SandFootprints.cpp" />
     <ClCompile Include="World\GroundDebris.cpp" />
     <ClCompile Include="World\GroundDebrisPanel.cpp" />
@@ -685,6 +708,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="ECS\System\PlayerVFXSystem.h" />
     <ClInclude Include="ECS\System\CastCircles.h" />
     <ClInclude Include="ECS\System\IceSpikeField.h" />
+    <ClInclude Include="ECS\System\BladeField.h" />
+    <ClInclude Include="ECS\System\BatField.h" />
     <ClInclude Include="ECS\System\SpellFxSystem.h" />
     <ClInclude Include="ECS\System\ShieldBubble.h" />
     <ClInclude Include="ECS\System\RewardCrateSystem.h" />
@@ -731,6 +756,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="World\GroundDebris.h" />
     <ClInclude Include="World\MiasmaField.h" />
     <ClInclude Include="World\SandField.h" />
+    <ClInclude Include="World\WindGrid.h" />
     <ClInclude Include="World\SandFootprints.h" />
     <ClInclude Include="World\WaterSurface.h" />
     <ClInclude Include="Item\ItemRarity.h" />
@@ -738,6 +764,7 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="World\GrassShreds.h" />
     <ClInclude Include="World\DandelionField.h" />
     <ClInclude Include="World\LocalWind.h" />
+    <ClInclude Include="World\CliffSteer.h" />
     <ClInclude Include="UI\BackpackUI.h" />
     <ClInclude Include="UI\BackpackPadControl.h" />
     <ClInclude Include="Camera\CameraBase.h" />
@@ -780,6 +807,9 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="Item\Items\Beam.h" />
     <ClInclude Include="Item\Items\Gust.h" />
     <ClInclude Include="Item\Items\Twister.h" />
+    <ClInclude Include="Item\Items\SwordRing.h" />
+    <ClInclude Include="Item\Items\SpinSlash.h" />
+    <ClInclude Include="Item\Items\VampireBats.h" />
     <ClInclude Include="Item\Items\Magnifier.h" />
     <ClInclude Include="Item\Items\HasteRune.h" />
     <ClInclude Include="Item\Items\ChainRune.h" />
@@ -837,6 +867,8 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
     <ClInclude Include="UI\MenuList.h" />
     <ClInclude Include="UI\StickNav.h" />
     <ClInclude Include="UI\TitleScreenUI.h" />
+    <ClInclude Include="UI\TitleLogo.h" />
+    <ClInclude Include="UI\TitleSpellTable.h" />
     <ClInclude Include="Item\ItemTypes.h" />
     <ClInclude Include="Player\LevelComponent.h" />
     <ClInclude Include="Player\WalletComponent.h" />
@@ -1208,6 +1240,40 @@ zlibstaticd.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</Additional
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Sand/%(Filename).cso</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Sand/%(Filename).cso</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Sand/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Wind\WindGridStepCS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="Shader\Wind\WindGridDiffuseCS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">5.0</ShaderModel>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Demo|x64'">$(OutDir)Shader/Wind/%(Filename).cso</ObjectFileOutput>
     </FxCompile>
     <FxCompile Include="Shader\Sand\SandFootprintVS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>

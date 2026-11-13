@@ -1,13 +1,11 @@
 ﻿// ============================================================
 // Items/Twister.h
-// 竜巻：上級の範囲魔法（2026-10-22）。"Twister" プロファイル（AreaProfile::Kind::Roam）。
-// ユーザー：渦を「下級魔法」にして新しい上級の竜巻を。前提は渦（VoidVortex）+ 突風（Gust）、動きは推奨の「敵の方へ進んで巻き込む」。
-// 自分では撃たない。渦と突風の両方の影響マスが届いている時だけ有効になり、
-// 渦の弾が消えた所（渦が開く所）か突風の吹いた所に竜巻を起こす（WeaponSystem::StartTwister）。
+// 竜巻：範囲魔法。"Twister" プロファイル（AreaProfile::Kind::Roam）。
+// 敵の方に竜巻を起こす（WeaponSystem::StartTwister）。
 //   竜巻はプレイヤーに一番近い敵の方へ roamSpeed m/s で進みながら、周りの敵を中心へ引き寄せ（pull）、
 //   少し遅くし、tickInterval ごとに傷つける。duration 秒で消える（WeaponSystemTwister.cpp）
-// 見た目は Assets/Data/VFXData/Twister.json：特効モデル longjuanfeng2.FBX（上下が広く中ほどが細いねじれた柱。
-//   同日ユーザー：「特効モデルの実体の竜巻を元に、ノイズの煙を足す」）を外幕 + 内芯の 2 枚、雲ノイズを上へ流して溶かし、速く回す。
+// 見た目は Assets/Data/VFXData/Twister.json：エフェクトモデル longjuanfeng2.FBX（上下が広く中ほどが細いねじれた柱）を
+//   外幕 + 内芯の 2 枚、雲ノイズを上へ流して溶かし、速く回す。
 //   周りに屈折の付いた薄紫の煙団（ノイズの煙）、足元に巻き上がる草屑と土粒 + 局所の風源（草・落ち葉が巻かれる）
 // ============================================================
 #pragma once
@@ -41,8 +39,6 @@ inline AreaItemDef MakeTwister()
 
     def.vfxId = VFXId::Twister;
     def.profile = "Twister";   // Assets/Data/AreaData/Twister.json
-
-    // 前提の基本魔法（渦 + 突風）は 2026-10-28 に外した（稀有度へ移行。レアの魔法として単独で敵の方に起こす）
 
     return def;
 }

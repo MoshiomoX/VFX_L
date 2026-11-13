@@ -33,7 +33,7 @@ namespace
 
     // 層を混ぜたポーズ → submesh 毎に SkinningCS。
     // stamp = 描画フレームの印。このフレームにもうスキニングした実体（影のカスケード 0 の後の本描画）は
-    // 姿勢が同じなので SkinningCS を飛ばし、結果のバッファをそのまま使う（2026-10-25）。
+    // 姿勢が同じなので SkinningCS を飛ばし、結果のバッファをそのまま使う。
     // 被弾の閃き・溶解などは PS だけの値なのでスキニングし直す必要は無い
     bool Skin(ID3D11DeviceContext* ctx, ComputeShader* cs, SkinnedAnimComponent& a, uint32_t stamp)
     {
@@ -106,7 +106,7 @@ void RenderSystem::RenderDepth(Registry& reg, Renderer& renderer, bool skin)
 
 namespace
 {
-    // 陣営のアウトライン（2026-10-06、ユーザー：味方は青、敵は赤）：描く時にステンシルへ書く番号。
+    // 陣営のアウトライン（味方は青、敵は赤）：描く時にステンシルへ書く番号。
     // 0 = どちらでもない（置物・門・箱）、1 = 味方（プレイヤー）、2 = 敵（エリート・Boss・雑魚の CPU 側の的）。
     // 画面のアウトライン（PostProcess/Outline）がこの番号で線の色と太さを選ぶ
     UINT StencilRefFor(Registry& reg, Entity e)
@@ -194,7 +194,7 @@ void RenderSystem::RenderSkinned(Registry& reg, Renderer& renderer)
                 const Matrix world = SkinnedWorld(tf, a);
 
                 SetStencil(ctx, StencilRefFor(reg, e));   // 陣営のアウトライン（プレイヤー = 味方、エリート = 敵）
-                DissolveParams dp;   // プレイヤーの死（2026-11-01）
+                DissolveParams dp;   // プレイヤーの死
                 const DissolveParams* pdp = nullptr;
                 if (reg.Has<DissolveComponent>(e) && reg.Get<DissolveComponent>(e).noise)
                 {

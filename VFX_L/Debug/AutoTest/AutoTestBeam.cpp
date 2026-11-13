@@ -2,7 +2,7 @@
 // AutoTestBeam.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=beam
 // VFXL_BATTLE_AUTOTEST=beam：ホーミングボルト + アークボルト → 魔導光線の連鎖。正面の的へ向けて光線が出るか、
-// 拡大鏡を隣に置くと射程と太さが伸びるか（2026-10-13）。横から撮る
+// 拡大鏡を隣に置くと射程と太さが伸びるか。横から撮る
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 

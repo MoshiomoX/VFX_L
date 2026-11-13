@@ -86,7 +86,7 @@ private:
 
 private:
     FlyCamera m_Camera;
-    MapEditMode m_MapEdit;            // 戦闘の地図モード（2026-10-05）
+    MapEditMode m_MapEdit;            // 戦闘の地図モード
     float m_ScreenW = 0.0f;
     float m_ScreenH = 0.0f;
 

@@ -1,11 +1,10 @@
 #!/bin/sh
-# Tools/git-hooks/pre-commit（2026-11-05）
+# Tools/git-hooks/pre-commit
 # コミットする HLSL（.hlsl / .hlsli / .fx / .fxh）の中身が「UTF-8・BOM なし」かを確かめる。
 #   見るのはインデックスに入った物（git add した中身）。作業ツリーのファイルではない。
 #   fxc は BOM があると 1 行目で X3000。Shift-JIS だと「ソ・表・能・予」などの 2 バイト目 0x5C（\）が
 #   // コメントの行末に来て、次の行がコメントに飲み込まれる（黙ってコードが消える）。
-#   VS で構築すれば Tools/HlslEncoding.targets が直すが、別のエディタで直して構築せずに
-#   コミットするとすり抜けるので、ここで止める。
+#   od / iconv が無い sh（VS などに付いてくる git）では PowerShell で確かめる。
 # 入れ方（クローンごとに 1 回）: git config core.hooksPath Tools/git-hooks
 # 直し方: powershell -NoProfile -ExecutionPolicy Bypass -File Tools/FixHlslEncoding.ps1 -Root VFX_L/Shader
 #         の後で git add し直す。どうしても通す時は git commit --no-verify。
@@ -15,19 +14,40 @@ bad=0
 files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.hlsl' '*.hlsli' '*.fx' '*.fxh')
 [ -z "$files" ] && exit 0
 
-IFS='
+if command -v od >/dev/null 2>&1 && command -v iconv >/dev/null 2>&1; then
+    IFS='
 '
-for f in $files; do
-    head3=$(git show ":$f" | head -c 3 | od -An -tx1 | tr -d ' \n')
-    if [ "$head3" = "efbbbf" ]; then
-        echo "pre-commit: $f has a UTF-8 BOM (fxc stops with X3000)"
+    for f in $files; do
+        head3=$(git show ":$f" | head -c 3 | od -An -tx1 | tr -d ' \n')
+        if [ "$head3" = "efbbbf" ]; then
+            echo "pre-commit: $f has a UTF-8 BOM (fxc stops with X3000)"
+            bad=1
+        fi
+        if ! git show ":$f" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+            echo "pre-commit: $f is not UTF-8 (Shift-JIS? a trailing 0x5C eats the next line)"
+            bad=1
+        fi
+    done
+else
+    # インデックスの中身を一時フォルダへ番号で出し、PowerShell 1 回でまとめて確かめる
+    tmp="$(git rev-parse --git-dir)/hlsl-check"
+    rm -rf "$tmp"; mkdir -p "$tmp"
+    IFS='
+'
+    i=0
+    for f in $files; do
+        git show ":$f" > "$tmp/$i.bin"
+        echo "$f" >> "$tmp/names.txt"
+        i=$((i + 1))
+    done
+    win=$(cd "$tmp" && pwd -W 2>/dev/null || echo "$tmp")
+    out=$(powershell -NoProfile -ExecutionPolicy Bypass -Command "\$d='$win'; \$n=[IO.File]::ReadAllLines(\"\$d/names.txt\"); \$u=New-Object Text.UTF8Encoding(\$false,\$true); for(\$i=0;\$i -lt \$n.Length;\$i++){ \$b=[IO.File]::ReadAllBytes(\"\$d/\$i.bin\"); if(\$b.Length -ge 3 -and \$b[0] -eq 0xEF -and \$b[1] -eq 0xBB -and \$b[2] -eq 0xBF){ 'pre-commit: '+\$n[\$i]+' has a UTF-8 BOM (fxc stops with X3000)' }; try{ [void]\$u.GetString(\$b) }catch{ 'pre-commit: '+\$n[\$i]+' is not UTF-8 (Shift-JIS? a trailing 0x5C eats the next line)' } }" | tr -d '\r')
+    rm -rf "$tmp"
+    if [ -n "$out" ]; then
+        echo "$out"
         bad=1
     fi
-    if ! git show ":$f" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
-        echo "pre-commit: $f is not UTF-8 (Shift-JIS? a trailing 0x5C eats the next line)"
-        bad=1
-    fi
-done
+fi
 
 if [ "$bad" -ne 0 ]; then
     echo "pre-commit: fix with"

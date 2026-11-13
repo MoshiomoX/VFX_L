@@ -23,7 +23,7 @@ inline FunctionItemDef MakeDoubleCastRune()
     def.common.displayName = L"二重詠唱のルーン";
     def.common.description = L"光るマスに置いた魔法を続けてもう一度撃つ。威力はそのままだが、間隔が少し延び、MP を多めに使う。";
     def.common.category = ItemCategory::Function;
-    def.common.occupyCells = { { 0, 0 }, { 0, 1 } };   // 横 2 マス（2026-10-27）
+    def.common.occupyCells = { { 0, 0 }, { 0, 1 } };   // 横 2 マス
     def.common.influenceCells = { { -1, 0 }, { -1, 1 } };   // 上の 2 マス（十字 4 → 2）
     def.common.color = { 0.80f, 0.40f, 1.00f, 1.0f }; // 紫
     def.common.iconPath = Res::Icon::DoubleCastRune;

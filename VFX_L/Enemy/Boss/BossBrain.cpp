@@ -95,27 +95,27 @@ BossBrain::BossBrain()
     rules[(int)BossMove::Burrow] = { false, 12.0f, 0.3f, 1.5f, 3.0f, 6.0f, 35.0f };
     // 流沙：近〜中（渦は半径 10m。それより遠いと届かない）。冷却は渦の長さより長く
     rules[(int)BossMove::Quicksand] = { false, 15.0f, 3.0f, 2.0f, 0.0f, 0.0f, 10.0f };
-    // ---- 大サソリだけの技（2026-10-26）----
+    // ---- 大サソリだけの技 ----
     // 毒針：中くらいの距離（突っ込みは 8m。目の前では避ける間が無い、遠いと届かない）
     rules[(int)BossMove::Sting] = { false, 6.0f, 1.0f, 3.0f, 0.5f, 3.0f, 14.0f };
     // 鋏の薙ぎ払い：近く（扇は 5.5m）
     rules[(int)BossMove::ClawSweep] = { false, 5.0f, 3.0f, 1.0f, 0.0f, 0.0f, 7.0f };
-    // ---- 墓守の騎士だけの技（2026-10-26）----
+    // ---- 墓守の騎士だけの技 ----
     // 双鎖：中〜遠（鎖は 14m。目の前では引き寄せる意味が無い）
     rules[(int)BossMove::ChainPull] = { false, 7.0f, 0.5f, 3.0f, 2.0f, 3.0f, 14.0f };
-    // ---- 月下の狼人だけの技（2026-10-26）----
+    // ---- 月下の狼人だけの技 ----
     // 飛びかかり：中〜遠（5m 未満は跳ぶ意味が無い、20m まで届く）
     rules[(int)BossMove::Pounce] = { false, 7.0f, 0.5f, 3.0f, 3.0f, 5.0f, 20.0f };
     // 爪の三連：近〜中（突っ込みは 6m × 3）
     rules[(int)BossMove::ClawCombo] = { false, 5.0f, 3.0f, 2.0f, 0.5f, 0.0f, 12.0f };
     // 遠吠え：たまに。遠いと多め
     rules[(int)BossMove::Howl] = { false, 16.0f, 1.0f, 1.0f, 2.0f, 0.0f, 35.0f };
-    // ---- 雷鳴の雄鹿だけの技（2026-10-29）----
+    // ---- 雷鳴の雄鹿だけの技 ----
     // 角の振り上げ：近く（扇は 5m。突進は 5m 未満で出ないので、目の前に居る間はこれ）
     rules[(int)BossMove::AntlerToss] = { false, 5.0f, 3.0f, 0.5f, 0.0f, 0.0f, 7.0f };
     // 角の雷撃：中〜遠（帯は 18m。目の前では帯の間が狭すぎる）
     rules[(int)BossMove::AntlerBolt] = { false, 7.0f, 0.5f, 2.5f, 3.0f, 6.0f, 22.0f };
-    // ---- 砂嵐の魔神だけの技（2026-10-29）。一段目 / 二段目の入れ替えは BossAttacks（BossAttacksDjinn.cpp）----
+    // ---- 砂嵐の魔神だけの技。一段目 / 二段目の入れ替えは BossAttacks（BossAttacksDjinn.cpp）----
     // 砂嵐召喚：どこでも（輪の中心は足元）。冷却は砂旋が消えるまで（約 6.6 秒）より長く
     rules[(int)BossMove::DustDevils] = { false, 11.0f, 1.5f, 2.0f, 2.0f, 0.0f, 30.0f };
     // 炎の息：中くらい（扇は 11m。遠いと届かない）
@@ -124,7 +124,7 @@ BossBrain::BossBrain()
     rules[(int)BossMove::DjinnShift] = { false, 10.0f, 0.5f, 1.0f, 3.0f, 4.0f, 30.0f };
     // 砂の拳：近く（扇は 6.5m）
     rules[(int)BossMove::SandFist] = { false, 4.5f, 3.0f, 1.0f, 0.0f, 0.0f, 8.0f };
-    // ---- 骸の王だけの技（2026-10-29）----
+    // ---- 骸の王だけの技 ----
     // 呪いの玉：どこでも（玉は 7 秒追う）
     rules[(int)BossMove::CurseOrbs] = { false, 6.0f, 2.0f, 3.0f, 2.0f, 0.0f, 1.0e4f };
     // 大起尸：たまに（冷却長め）。骸の王は真ん中から動かないので、技はどの距離でも出す
@@ -133,7 +133,7 @@ BossBrain::BossBrain()
     rules[(int)BossMove::ShadowStep] = { false, 9.0f, 3.0f, 1.0f, 0.5f, 0.0f, 30.0f };
     // 呪いの床：中〜遠（足元に置く）。冷却は床が残る秒より長く
     rules[(int)BossMove::CurseFloor] = { false, 12.0f, 1.0f, 2.0f, 2.0f, 0.0f, 1.0e4f };
-    // ---- 石の守護獣だけの技（2026-10-29）。一段目 / 二段目の入れ替えは BossAttacks（BossAttacksBeast.cpp）----
+    // ---- 石の守護獣だけの技。一段目 / 二段目の入れ替えは BossAttacks（BossAttacksBeast.cpp）----
     // 急降下：中〜遠（目の前では滑空する距離が無い）
     rules[(int)BossMove::BeastDive] = { false, 7.0f, 0.3f, 2.5f, 3.0f, 6.0f, 30.0f };
     // 石化の息：近〜中（扇は 10m）

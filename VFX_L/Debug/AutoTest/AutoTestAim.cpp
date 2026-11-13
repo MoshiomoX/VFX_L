@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // AutoTestAim.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=aim
-// 杖の狙いの優先度（2026-10-26 ユーザー「範囲に Boss が居れば Boss を先に、雑魚が近過ぎれば雑魚を先に」。
+// 杖の狙いの優先度（範囲に Boss が居れば Boss を先に、雑魚が近過ぎれば雑魚を先に。
 // SwarmCommon の SwarmAimKeyDist、BomberCB::aimCloseRadius / aimPriorityRange）：
 //   1 秒: 湧き停止・全消し・無敵・詠唱停止。正面 20m に動かない Boss（HP 100 万）、周り 8〜12m に動かない雑魚 8 体
 //   2.5 秒: `aim A nearest <距離> kind <種類>` → Boss（kind 3）のはず（雑魚は 8m 以上離れている）

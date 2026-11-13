@@ -62,7 +62,7 @@ public:
 
     // --- 発射パラメータ ---
     float    emitRate = 10.0f;         // 毎秒の発射数（負は Update / FromJson で 0 扱い）
-    int      maxParticles = 1000;      // 未使用（HLSL は読まない。json の値を保つだけ。2026-10-25 に Inspector の欄を消した）
+    int      maxParticles = 1000;      // 未使用（HLSL は読まない。json の値を保つだけ）
     int      particleOffset = 0;       // 未使用
 
     // --- 速度 & 寿命 ---
@@ -92,24 +92,24 @@ public:
     std::string meshPath;             // モデルのファイル（"" = 立方体）。json "mesh"
     bool meshGlow = false;            // 発光（加算・光を受けない）。false = 不透明・光を受ける
     bool meshFaceVelocity = false;    // 前方の軸を進行方向へ向ける（回転の範囲は使わない）
-    // 発光の時だけ（2026-10-16）：裏面だけ描く = 本体の後ろの縁取りに見える（石弾の紫の殻）。json "meshBehind"
+    // 発光の時だけ：裏面だけ描く = 本体の後ろの縁取りに見える。json "meshBehind"
     bool meshBehind = false;
     int  meshForwardAxis = 2;         // モデルの前方の軸（0 = +X / 1 = +Y / 2 = +Z / 3 = −Z。+Z / −Z はモデルの Y が上のまま）
     int  meshSlot = 0;                // 実行時：GPUParticleSystem のモデル表の番号（登録は entry 側。0 = 立方体）
     // 発射元（GPU の弾など）の速度を初速に足す。弾と一緒に飛ぶ見た目用（GPU の弾の上でだけ効く）。json "inheritVelocity"
     bool inheritVelocity = false;
-    // 単体（2026-10-16）：GPU の弾の上で毎フレーム 1 個だけ出し、次のフレームまでしか生きない = 常にちょうど 1 つ。
+    // 単体：GPU の弾の上で毎フレーム 1 個だけ出し、次のフレームまでしか生きない = 常にちょうど 1 つ。
     // 本体（岩・矢・水晶）用。emitRate / lifetime は無視。json "single"
     bool singleBody = false;
-    // 流線（2026-10-20、ビルボードだけ）：四角形を速度の向きに伸ばす（長さ = 速さ × streakStretch 秒）。
+    // 流線（ビルボードだけ）：四角形を速度の向きに伸ばす（長さ = 速さ × streakStretch 秒）。
     // 風の筋（突風・砂旋）用。トゥーンとは排他。json "streak" / "stretch"
     bool  streak = false;
     float streakStretch = 0.06f;
-    // 画面の歪み（2026-10-20、ビルボードだけ）：0 = 無し / 1〜3 = 弱・中・強。粒子の形（テクスチャの alpha × 色の alpha）の分だけ
+    // 画面の歪み（ビルボードだけ）：0 = 無し / 1〜3 = 弱・中・強。粒子の形（テクスチャの alpha × 色の alpha）の分だけ
     // 画面を外へ押し広げる（空気の揺らぎ）。distortOnly = 歪みだけで色は描かない。json "distort" / "distortOnly"
     int   distortLevel = 0;
     bool  distortOnly = false;
-    // 世界の風の受けやすさ 0〜1（2026-10-12）。1 = 水平速度が約 0.3 秒で風速に揃う（煙・霧・雨）。0 = 受けない（火花・光）。
+    // 世界の風の受けやすさ 0〜1。1 = 水平速度が約 0.3 秒で風速に揃う（煙・霧・雨）。0 = 受けない（火花・光）。
     // ToGPU が renderMode の bits 26-29 へ詰める（ParticleRenderMode::PackWind）。json "wind"
     float windResponse = 0.0f;
 
@@ -125,7 +125,7 @@ public:
     int frameCount = 1;        // Animate / Random のコマ数。json "frameCount"
     bool alphaBlend = false;   // 半透明で描く（false = 加算で光る）。json "blend"
 
-    // --- トゥーン（ビルボードだけ。2026-10-04）---
+    // --- トゥーン（ビルボードだけ）---
     // テクスチャの alpha を境で切って縁をくっきりさせ（色の alpha の減り = 形が痩せて消える）、
     // 内側から外側へ色を段に分け、外周に濃い線。煙・土・毒霧向け（光る火花・光の玉は切ると紙っぽくなる）。
     // ToGPU が renderMode の 14 bit 以降へ詰める（ParticleRenderMode::PackToon、GPUParticlePS）。json "toon" {...}

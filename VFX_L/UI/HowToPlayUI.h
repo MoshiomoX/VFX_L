@@ -1,7 +1,6 @@
 // ============================================================
 // HowToPlayUI.h
-// 「遊び方」のページ（2026-10-13 ユーザー：「新手引導を作って、ゲームの機能を紹介して」→ 初回のチュートリアル
-//   （TutorialGuide）と、いつでも読める説明のページの 2 本立て。これは後者）。
+// 「遊び方」のページ（いつでも読める説明。初回のチュートリアルは TutorialGuide）。
 //   タイトルのメニューと一時停止のメニューの「遊び方」から開く。3 ページ（操作 / 魔法とバックパック / 戦い方）。
 //   キー   : A D / 左右でページ、Enter / Space で次（最後なら閉じる）、Esc で閉じる
 //   パッド : 十字の左右 / LB RB でページ、A で次、B で閉じる
@@ -56,7 +55,7 @@ private:
     int   m_Page = 0;
     bool  m_Open = false;
     float m_InputDelay = 0.0f;
-    StickNav m_Stick;   // 左スティックの左右でページ送り（2026-11-05）
+    StickNav m_Stick;   // 左スティックの左右でページ送り
 
     DirectX::SimpleMath::Vector2 m_Screen = { 1600.0f, 900.0f };
     DirectX::SimpleMath::Vector2 m_PanelPos = { 0.0f, 0.0f };

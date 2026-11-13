@@ -2,6 +2,7 @@
 // GroundDebris.cpp
 // ============================================================
 #include "World/GroundDebris.h"
+#include "World/WindGrid.h"
 #include "World/GridWorld.h"
 #include "Graphics/Renderer/Renderer.h"
 #include "Graphics/Renderer/RenderStates.h"
@@ -183,8 +184,8 @@ void GroundDebris::Render(Renderer& renderer, CameraBase& camera,
     cb.gustSpeed = s.gustSpeed;
     cb.colorTwig = s.colorTwig;
     cb.time = m_Time;
-    // GPU へは新しい方から kMaxGusts 個（2026-10-25。以前は古い方から 4 個で、投石雨のように 4 個を超えて続くと
-    // 新しい突風が前の物が消えるまで（最大 gustTime）効かなかった）。新しい物ほど強い（年齢が若い）
+    // GPU へは新しい方から kMaxGusts 個（古い方からだと、数を超えて続く時に新しい突風が効かない）。
+    // 新しい物ほど強い（年齢が若い）
     uint32_t n = 0;
     for (auto it = m_Gusts.rbegin(); it != m_Gusts.rend() && n < (uint32_t)kMaxGusts; ++it)
     {
@@ -208,6 +209,7 @@ void GroundDebris::Render(Renderer& renderer, CameraBase& camera,
     m_UpdateCS->SetSRV(ctx, "g_AreaStates", areaStates);
     m_UpdateCS->SetSRV(ctx, "g_AreaEnds", areaEnds);
     if (windSources) m_UpdateCS->SetSRV(ctx, "g_WindSources", windSources);
+    WindGrid::BindCurrent(*m_UpdateCS, ctx);   // 風の格子
     ctx->CSSetSamplers(0, 1, &linearClamp);
     m_UpdateCS->SetUAV(ctx, "g_Debris", m_UAV.Get());
     m_UpdateCS->BindUAVs(ctx);

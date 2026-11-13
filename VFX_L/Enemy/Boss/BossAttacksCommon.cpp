@@ -1,7 +1,6 @@
 // ============================================================
 // BossAttacksCommon.cpp
 // 共通の技（重撃・投石雨・衝撃波・突進・召喚）の中身と、その予告の見た目。
-// 2026-10-29 に BossAttacks.cpp（雄鹿の三連突進を足して 594 行）から分けた。中身は変えていない（break / done を return にしただけ）。
 // 流れ（選ぶ → StartMove → UpdateMove → 間）は BossAttacks.cpp、Boss 毎の技は BossAttacks<Boss>.cpp
 // ============================================================
 #include "Enemy/Boss/BossAttacks.h"

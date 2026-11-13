@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // AutoTestSmartCam.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=smartcam
-// 賢いカメラ（2026-11-02、BattleCamera::UpdateSmart）：
+// 賢いカメラ（BattleCamera::UpdateSmart）：
 //   1 秒: 湧き停止・全消し・無敵・詠唱停止
 //   段 0〜3（各 6 秒）: プレイヤーの周り 3〜9m に動かない雑魚を 0 / 20 / 60 / 120 体。0.5 秒毎に
 //     `smartcam <段> t near want now dist`（near = GPU が数えた 10m 以内、want = 欲しい足し分、now = ばねの今、dist = カメラの距離）、

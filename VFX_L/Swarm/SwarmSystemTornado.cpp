@@ -1,7 +1,6 @@
 // ============================================================
 // SwarmSystemTornado.cpp
-// 砂嵐の術師の砂旋（kEnemyKindTornado）の見た目。10-19 に筒のモデル（CreateTornadoShell + 流線のテクスチャ）で作り直したが、
-// 10-20 ユーザー「線の感じが過ぎる、筒は要らない。空間の歪みに薄い白を足せば足りる」→ 筒は廃止。砂旋そのものは何も描かない。
+// 砂嵐の術師の砂旋（kEnemyKindTornado）の見た目。砂旋そのものは何も描かない。
 // 見えるのは ① 足元の砂埃（SwarmTornadoEmitCS が TornadoDust.json を毎フレーム出す：屈折 + 薄い白の煙団が軸の周りを回り上がる、
 // 少量の砂粒）② 風源の表（SwarmWindSourceCS）で草 / 落ち葉 / 粒子が巻かれる所。シェーダは SwarmSystemKinds.cpp の LoadKindAssets
 // ============================================================
@@ -61,7 +60,7 @@ void SwarmSystem::DispatchTornadoEmit(float dt, float totalTime)
 // ============================================================
 // 局所の風源の表（Flush の中、砂埃の直後）
 // 表と枠取りの数を 0 に戻してから、生きている砂旋 1 本 = 1 つ書く（SwarmWindSourceCS）。
-// 引き寄せの範囲（渦。2026-10-22）も 1 つ = 1 つ（vortexWind）。
+// 引き寄せの範囲（渦）も 1 つ = 1 つ（vortexWind）。
 // 読む側（GrassVS / DebrisUpdateCS / ParticleUpdateCS）は radius 0 の枠を飛ばす
 // ============================================================
 void SwarmSystem::DispatchWindSources(float dt)
@@ -72,7 +71,7 @@ void SwarmSystem::DispatchWindSources(float dt)
     m_Context->ClearUnorderedAccessViewUint(m_WindSourceCountUAV.Get(), zeros);
     if (!m_WindSourceCS) return;
 
-    // ---- CPU の風源（突風。2026-10-20）：歳を進め、生きている物を表の形にして上げる ----
+    // ---- CPU の風源（突風）：歳を進め、生きている物を表の形にして上げる ----
     uint32_t cpuCount = 0;
     if (m_WindBurstBuffer)
     {
@@ -95,7 +94,7 @@ void SwarmSystem::DispatchWindSources(float dt)
             }
             ++i;
         }
-        // このフレームだけの風源（動く竜巻。2026-10-22）
+        // このフレームだけの風源（動く竜巻）
         for (const Swarm::WindSource& w : m_FrameWindSources)
             if (cpuCount < Swarm::kMaxWindSources) cpu[cpuCount++] = w;
         m_FrameWindSources.clear();
@@ -115,7 +114,7 @@ void SwarmSystem::DispatchWindSources(float dt)
         float footY, radiusMul, hitRadius, swirl;
         float updraft, inflow, growTime; uint32_t slotCount;
         uint32_t cpuCount, tornadoOn, vortexOn, areaCount;
-        float vRadiusMul, vSwirl, vUpdraft, vInflow;   // 引き寄せの範囲（渦。2026-10-22）
+        float vRadiusMul, vSwirl, vUpdraft, vInflow;   // 引き寄せの範囲（渦）
         float vGroundY, vFadeTime, pad[2];
     } cb = {};
     static_assert(sizeof(WindSourceCB) == 80, "WindSourceCB: HLSL 側と不一致");
@@ -155,7 +154,7 @@ void SwarmSystem::DispatchWindSources(float dt)
 }
 
 // ============================================================
-// 風源の表の CPU の写し（2026-10-22、ユーザー「風に影響される物を増やしたい」→ マント・転がり草）。
+// 風源の表の CPU の写し（マント・転がり草などが読む）。
 // staging 3 枚の輪転（ReadAreaBirths と同じ）。Flush の頭で一番古い 1 枚を待たずに読み、読めなければ前の値のまま
 // ============================================================
 bool SwarmSystem::CreateWindSourceReadback(ID3D11Device* device)

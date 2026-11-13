@@ -79,7 +79,7 @@ bool BackpackPadControl::DetectDevice()
 {
     if (m_HasTest || m_TestMode) { m_Active = true; return true; }   // TEMP-TEST
 
-    // 判定は InputManager にまとめた（2026-10-09。操作案内の絵の出し分けと同じ機器を見る）
+    // 判定は InputManager（操作案内の絵の出し分けと同じ機器を見る）
     m_Active = InputManager::Get().IsUsingPad();
     return m_Active;
 }
@@ -356,7 +356,7 @@ void BackpackPadControl::Draw(SpriteRenderer& sprite, TextRenderer& text, const 
     // カーソルの矢印は DrawPointer（GameUI が説明カードの後に描く）
 
     // ---- 操作の案内（グリッドの外枠の下）----
-    // {…} = パッドのボタンの絵（InputGlyph。2026-10-09 から文字の「A」などを絵に）
+    // {…} = パッドのボタンの絵（InputGlyph）
     const bool inGrid = InGridRect(grid);
     const wchar_t* hint = inGrid
         ? L"{LS} 動かす（{X} で速く）　　{A} つかむ　　{B} 外す　　{Y} 魔法書へ移る　　{START} 閉じる"
@@ -389,7 +389,7 @@ void BackpackPadControl::DrawPointer(SpriteRenderer& sprite, const BackpackUI& g
 }
 
 // ============================================================
-// マウスで操作している間の案内（2026-10-09。パッドの案内と同じ場所・同じ帯）
+// マウスで操作している間の案内（パッドの案内と同じ場所・同じ帯）
 // ============================================================
 void BackpackPadControl::DrawMouseHint(SpriteRenderer& sprite, TextRenderer& text, const BackpackUI& grid,
     const DragContext& drag, const Vector2& screen)

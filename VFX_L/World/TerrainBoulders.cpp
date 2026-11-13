@@ -1,7 +1,6 @@
 // ============================================================
 // TerrainBoulders.cpp
-// 外周の岩山と洞窟の上の山を、数個の巨石（Rock-Set）を拡大して作る（2026-10-06、ユーザー：
-// 岩を何十個も積むのでなく、1 個か数個の石を大きくして山に見せたい）。
+// 外周の岩山と洞窟の上の山を、数個の巨石（Rock-Set）を拡大して作る。
 // 石は軸ごとに違う倍率で引き伸ばす（MapData::Prop::stretch）：辺に沿って長く、外へ厚く、上へ高く。
 // 外周の石は既定では見た目だけ（衝突・格子は外周の崖の箱）。RimBoulderParams::collide（Config::boulderCollide）の時は
 // 石の凸包で当てて足元のマスを塞ぐ（縁の空気壁は作らない）。洞の上の石は見た目だけ（衝突は洞の屋根の箱）。
@@ -96,8 +95,8 @@ namespace TerrainBuild
             { { 1, 0, 0 }, { 0, 0, 1 }, halfW, halfD },
             { { -1, 0, 0 }, { 0, 0, 1 }, halfW, halfD },
         };
-        // 一辺に perSide 個を 1 列：箱の真ん中が縁の線の上（+ centerOut）= 半分が場内に入る（2026-10-06、ユーザー：
-        // 一方向 4〜5 個の超大きい石で山にし、中心を縁に置けば縁の空気壁は要らない）。隣とは 1/3 ほど重なる
+        // 一辺に perSide 個を 1 列：箱の真ん中が縁の線の上（+ centerOut）= 半分が場内に入る（縁の空気壁は要らない）。
+        // 隣とは 1/3 ほど重なる
         int placed = 0;
         for (const Side& sd : sides)
         {
@@ -140,8 +139,7 @@ namespace TerrainBuild
                     BoxVerts(v, bmin, bmax);
                     emit.Begin(MapData::kEdgeRock);
                     emit.Visual(v, P.backdropColor, P.backdropColor, (int)TerrainSurface::Rock, (int)TerrainSurface::Rock);
-                    // 石の衝突で止める時は、この壁にも衝突（石と石の間・石と山頂の崖の間の隙間から縁の外へ出て、
-                    // 行き止まりの溝に嵌まった。2026-10-06 ユーザーの報告）
+                    // 石の衝突で止める時は、この壁にも衝突（石と石の間・石と山頂の崖の間の隙間から縁の外へ出ないように）
                     if (P.collide) emit.Box(bmin, bmax, Layer_Terrain);
                 }
             }
@@ -167,7 +165,7 @@ namespace TerrainBuild
     }
 
     // ============================================================
-    // 場内の岩 1 個（砂漠の岩柱・峡谷の壁。2026-10-26）。石は表から 1 つ引く（flip も乱数）
+    // 場内の岩 1 個（砂漠の岩柱・峡谷の壁）。石は表から 1 つ引く（flip も乱数）
     // ============================================================
     int EmitFieldRock(Emitter& emit, GridWorld& grid, const std::vector<std::string>& modelPaths, const Vector3& center,
         const Vector3& axis, float yawDeg, float length, float depth, float height, float base, std::mt19937& rng, MapData::Kind kind,

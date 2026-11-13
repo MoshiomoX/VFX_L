@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestPierce.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=pierce
-// 黄金の矢の貫通（GoldenArrow.json の pierce 3、2026-10-28）：正面の一直線に動かない的 5 体（6 / 8 / 10 / 12 / 14m、HP 10 万）、
+// 黄金の矢の貫通（GoldenArrow.json の pierce 3）：正面の一直線に動かない的 5 体（6 / 8 / 10 / 12 / 14m、HP 10 万）、
 // バックパックは黄金の矢だけ。3 秒撃って、近い順に受けた HP と 1 体目に対する割合を
 // `pierce result lost <5 体分> ratio <5 体分>` に出す（期待：1 / 0.8 / 0.64 / 0.51 / 0 = 4 体目まで当たり 5 体目は無傷）。
 // 1.6 秒目に横から `pierce look line`

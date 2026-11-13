@@ -32,8 +32,8 @@ bool ImguiRenderer::Initialize(HWND hwnd, ID3D11Device* device, ID3D11DeviceCont
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
 
-    // 日本語の字体（2026-10-18 ユーザー「ImGui の日本語字体を加えて」「簡体字も」）：既定の ProggyClean には CJK の字形が無く、
-    // デバッグパネルに日本語 / 中国語を書くと「?」になっていた。Noto Sans JP（OFL、可変フォント = 既定の Regular）を主に、
+    // 日本語の字体：既定の ProggyClean には CJK の字形が無いので、
+    // Noto Sans JP（OFL、可変フォント = 既定の Regular）を主に、
     // JP に無い字（「简」など簡体字だけの字）は Noto Sans SC を MergeMode で後ろに繋いで補う。ImGui 1.92 の動的な図集なので
     // 範囲は指定しない（使った字だけその時に作られる）。読めなければ既定の字体に戻る
     {

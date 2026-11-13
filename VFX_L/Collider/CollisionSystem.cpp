@@ -2,8 +2,7 @@
 // CollisionSystem.cpp
 //
 // ブロードフェーズは uniform grid。ただし格子に載せるのは固定（Rigidbody を持ち isStatic）の collider だけで、
-// 毎フレームは作り直さない（2026-09-28: 毎フレーム全部を unordered_map の格子へ登録し直していた頃は
-// Debug で 2.5 ms。200m の床の箱 1 つで 2,500 マス、さらに固定同士の対を set で重複除去していた）。
+// 毎フレームは作り直さない（毎フレーム登録し直すと Debug で重い）。
 //   作り直すのは、固定の並び（Entity）が変わった時か、どれかの中心が kFixedSlack 以上動いた時。
 //   各固定は AABB + kFixedSlack が覆うマスに登録するので、報酬の箱の浮き沈み程度では作り直さない。
 //   覆うマスが kLargeCells を超える物（床・外周の崖・大きい高台）は格子に載せず、毎回全員と比べる。
@@ -164,8 +163,7 @@ void CollisionSystem::Update(Registry& reg)
     m_MoverIdx.clear();
 
     // --- 1) 走査。固定は (entity, 中心) だけ集め、可動は毎フレーム作る ---
-    // 固定の WorldCollider（凸体は平面を最大 kMaxConvexPlanes = 50 枚持つ）を毎フレーム全部作り直していた。
-    // 外周の岩に衝突を 131 個足した時に Debug で約 0.15 ms 増えたので、固定は前回の物を使い回す（2026-10-03）
+    // 固定の WorldCollider（凸体は平面を最大 kMaxConvexPlanes = 50 枚持つ）は前回の物を使い回す（毎フレーム作り直すと重い）
     m_ScanFixed.clear();
     m_MoverWorld.clear();
     reg.CreateView<TransformComponent, ColliderComponent>()   // 衝突を持つ物だけ回す（装飾物の Transform は見ない）
@@ -206,7 +204,7 @@ void CollisionSystem::Update(Registry& reg)
             const float oldRadius = old.radius;
             m_WorldColliders[k] = MakeWorldCollider(e, reg.Get<TransformComponent>(e), reg.Get<ColliderComponent>(e), true, true);
             const WorldCollider& now = m_WorldColliders[k];
-            // 格子は登録した時の大きさ + 余白で載せている：大きさ・形が変わったら余白の内でも作り直す（2026-10-25）
+            // 格子は登録した時の大きさ + 余白で載せている：大きさ・形が変わったら余白の内でも作り直す
             if ((now.center - m_GridCenter[k]).LengthSquared() > kFixedSlack * kFixedSlack
                 || now.shape != oldShape || now.halfExtents != oldHalf || now.radius != oldRadius)
                 rebuildGrid = true;
@@ -338,8 +336,7 @@ void CollisionSystem::GatherStaticNear(const Vector3& center, float reach, std::
 
 // ============================================================
 // シーン全体レイキャスト（最近命中を返す）
-// 固定は格子から、射線（起点〜maxDist の先）の水平の範囲に掛かるマスの物 + 大きい物だけを見る（2026-10-25。
-// カメラの遮蔽で毎フレーム 6 本、以前は全部の collider を順に見ていた）。可動は全部。
+// 固定は格子から、射線（起点〜maxDist の先）の水平の範囲に掛かるマスの物 + 大きい物だけを見る。可動は全部。
 // 当たるには射線の上の点が collider の水平の範囲に入る必要があり、格子は範囲 + 余白 kFixedSlack で載せているので、
 // 見落とす物は無い。見る順も添字の小さい順（固定 → 可動）= 全部を順に見るのと同じなので、同じ距離の当たりで選ばれる物も同じ
 // ============================================================

@@ -112,7 +112,7 @@ void ResultScene::BuildRows()
     m_Rows[5] = { L"開けた宝箱", (float)r.cratesOpened, false, v };
 
     const bool next = r.valid && r.hasNextStage;
-    m_Buttons[0].label = next ? L"次のステージへ" : L"ステージ選択へ";   // 2026-10-21：終わったらステージ選択（Megabonk の hub に戻るのと同じ）
+    m_Buttons[0].label = next ? L"次のステージへ" : L"ステージ選択へ";   // 終わったらステージ選択へ
     m_Buttons[0].key = L"<{K:Enter}|{A}>";   // <キーボード|パッド> の絵（InputGlyph。機器が替わったら Layout し直す）
     m_Buttons[1].label = L"タイトルへ";
     m_Buttons[1].key = L"<{K:BackSpace}|{B}>";
@@ -184,7 +184,7 @@ void ResultScene::Leave(int button)
     auto& sm = Application::Get().GetGame().GetSceneManager();
     if (button == 0)
     {
-        // クリアして次の面があれば、戦闘シーンが積んだ引き継ぎ（g_RunCarry）のまま商店へ（2026-10-15。商店から次の面へ）。
+        // クリアして次の面があれば、戦闘シーンが積んだ引き継ぎ（g_RunCarry）のまま商店へ（商店から次の面へ）。
         // 無ければ最初から
         if (g_LastRun.hasNextStage)
             sm.RequestChangeScene(SceneType::SHOP);
@@ -222,7 +222,7 @@ void ResultScene::Update(float dt)
     if (m_Leaving) return;
 
     {
-        // TEMP-TEST: VFXL_SELF_SHOT=<フォルダ> の時、出てから 4 秒（全部出きった後）の画面を result_screen.png に（2026-10-28）
+        // TEMP-TEST: VFXL_SELF_SHOT=<フォルダ> の時、出てから 4 秒（全部出きった後）の画面を result_screen.png に
         char dir[260] = {};
         if (!m_ShotTaken && m_Time > 4.0f && GetEnvironmentVariableA("VFXL_SELF_SHOT", dir, sizeof(dir)) > 0)
         {
@@ -315,7 +315,7 @@ void ResultScene::Render(Renderer& renderer)
         wchar_t tierBuf[32] = {};
         if (r.valid && r.cleared)
         {
-            // Tier を最後まで戦い抜いた時はその Tier のクリア（2026-10-21、ステージ選択）。途中の面は「ステージクリア」
+            // Tier を最後まで戦い抜いた時はその Tier のクリア。途中の面は「ステージクリア」
             if (!r.hasNextStage && r.tier > 1) { swprintf_s(tierBuf, L"Tier %d クリア", r.tier); header = tierBuf; }
             else header = L"ステージクリア";
         }

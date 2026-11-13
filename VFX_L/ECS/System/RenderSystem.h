@@ -17,7 +17,7 @@ class ComputeShader;
 class RenderSystem
 {
 public:
-    // 陣営のアウトライン（2026-10-06）: 描く時にステンシルへ書く番号。Outline（PostProcess）がこれで線の色を選ぶ。
+    // 陣営のアウトライン:描く時にステンシルへ書く番号。Outline（PostProcess）がこれで線の色を選ぶ。
     // SwarmSystem の雑魚・Boss も kStencilEnemy を書く
     static constexpr unsigned int kStencilFriend = 1;   // プレイヤー（味方）
     static constexpr unsigned int kStencilEnemy = 2;    // 敵（雑魚・エリート・Boss）
@@ -31,9 +31,8 @@ public:
 private:
     void RenderSkinned(Registry& reg, Renderer& renderer);
     bool EnsureSkinningCS();
-    // 描く実体（見えていてモデルがあり、StaticPropRenderer に任せていない物）を集める（2026-10-03）。
-    // ModelComponent の pool は装飾物（batched、1100 個ほど）も含むので、影の 3 段 + 本描画の 4 回それぞれで
-    // 全部を回していた（Debug で約 1 ms）。1 フレームに 1 回集め、RenderDepth と Render で使い回す
+    // 描く実体（見えていてモデルがあり、StaticPropRenderer に任せていない物）を集める。
+    // ModelComponent の pool は装飾物（batched）も含んで多いので、1 フレームに 1 回集め、RenderDepth と Render で使い回す
     void GatherDrawables(Registry& reg);
 
     std::shared_ptr<ComputeShader> m_SkinningCS;   // 初回描画時に ResourceManager から取る

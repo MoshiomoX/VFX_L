@@ -108,7 +108,7 @@ bool FlowField::Build(int targetX, int targetZ)
     // 上下左右の隣との境の段差（SetGrid で作った表）。b から a への上り / 下りの最大
     const float* edgeUp = m_EdgeUp.empty() ? nullptr : m_EdgeUp.data();
     const float* edgeDown = m_EdgeDown.empty() ? nullptr : m_EdgeDown.data();
-    // 登る（2026-10-29）：上りの崖も isClimb で通す。climbRise = 登る高さ（中心の差と境の段の大きい方）
+    // 登る：上りの崖も isClimb で通す。climbRise = 登る高さ（中心の差と境の段の大きい方）
     float climbRise = 0.0f;
     auto passableEx = [&](int ax, int az, int bx, int bz, bool diag, bool& isDrop, bool& isClimb)
         {
@@ -195,9 +195,8 @@ bool FlowField::Build(int targetX, int targetZ)
                 if (!passableEx(cx, cz, nx, nz, k >= 4, drop, climb)) continue;
                 const float rise = climbRise;   // 下の中継の判定で書き換わる前に
                 // 斜めは両隣を経由しても行ける時だけ（角を掠めて壁・崖に食い込まない）。飛び降りは真っ直ぐだけ。
-                // 両隣 → 目標側（c）に加えて、自分（n）→ 両隣も見る（2026-10-05）。以前は前者だけで、
-                // 起伏で台地の角の斜め隣・坂の脇の地面が上がると「中心の差 < 1.5m × √2」で斜めに通れることになり、
-                // 実際は角から隣へ 1.9m の崖 / 坂の脇の 0.8m の段で、GPU は止める → 雑魚がその場で詰まった（soak）
+                // 両隣 → 目標側（c）に加えて、自分（n）→ 両隣も見る（中心の差だけだと台地の角や坂の脇の段を
+                // 斜めに通れることになり、GPU に止められて詰まる）
                 if (k >= 4)
                 {
                     if (drop) continue;
@@ -213,7 +212,7 @@ bool FlowField::Build(int targetX, int targetZ)
 
                 const int nc = nz * W + nx;
                 const int dh = drop ? dropCost
-                    : climb ? (int)std::lround(rise * climbCostPerMeter * 10.0f)   // 登る高さの分だけ遠回り扱い（2026-10-29）
+                    : climb ? (int)std::lround(rise * climbCostPerMeter * 10.0f)   // 登る高さの分だけ遠回り扱い
                     : (int)std::lround(std::fabs(hgt[nc] - hgt[c]) * (float)slopeUnit);
                 int edge = stepCost[k] + dh;
                 if (edge >= kBuckets) edge = kBuckets - 1;   // 桶の周期を超えない（極端な段差）

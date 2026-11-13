@@ -1,6 +1,6 @@
 // ============================================================
 // TextOutlinePS.hlsl
-// DirectXTK の SpriteBatch 用の文字のアウトライン（カスタムピクセルシェーダー、2026-10-23、
+// DirectXTK の SpriteBatch 用の文字のアウトライン（カスタムピクセルシェーダー、
 // ダメージの数字）。アウトラインはここで各ピクセルの周りを見て作るので、
 // アウトライン付きの文字列は DrawString 9 回（ずらした 8 枚 + 本体）ではなく
 // 2 回（アウトライン + 本体）で済む。
@@ -29,7 +29,7 @@ float4 main(float4 color : COLOR0, float2 uv : TEXCOORD0) : SV_Target0
     float2 duvx = ddx(uv);
     float2 duvy = ddy(uv);
 
-    // 本体: 16 回のアウトラインのタップより先に済ませる（2026-10-25: 以前は本体のピクセルもタップを読んでいた）
+    // 本体: 16 回のアウトラインのタップより先に済ませる（本体のピクセルはタップを読まない）
     [branch]
     if (color.a >= 0.0)
         return tex * color;

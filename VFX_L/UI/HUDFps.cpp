@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // HUDFps.cpp
-// HUD の FPS 表示（2026-10-20 ユーザー「ImGui の無い環境でも fps を画面に出したい」）。
+// HUD の FPS 表示。
 //   ミニマップの真下に「FPS 143  7.0 ms」を一行、文字の下敷き付き。値は EngineTimer の 1 秒平均（GameUI::Render が HUDFrameInfo::fps に入れる）。
 //   出すかどうか = HUDStyle::showFps（ImGui / HUD.json）&& GameSettings::showFps（一時停止メニューの「設定」。Demo でも切れる）。
 //   fpsWarnBelow より低い時だけ赤くする。HUD.cpp が長いので別ファイル

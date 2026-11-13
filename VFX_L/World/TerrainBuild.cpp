@@ -27,7 +27,7 @@ namespace TerrainBuild
         { 0.106f, 0.076f, 0.052f, 1 },   // (0.36, 0.31, 0.26) 洞窟の底（湿った土）
         { 0.218f, 0.173f, 0.119f, 1 },   // (0.50, 0.45, 0.38)
     };
-    const Palette kPaletteDesert = {     // 砂（2026-09-30）
+    const Palette kPaletteDesert = {     // 砂
         { 0.480f, 0.300f, 0.120f, 1 },   // (0.72, 0.58, 0.38) 砂丘の影
         { 0.710f, 0.510f, 0.240f, 1 },   // (0.86, 0.74, 0.52) 明るい砂
         { 0.320f, 0.220f, 0.110f, 1 },   // (0.60, 0.50, 0.36) 砂利
@@ -39,7 +39,7 @@ namespace TerrainBuild
         { 0.268f, 0.119f, 0.043f, 1 },   // (0.55, 0.38, 0.24) 洞窟の底（赤い砂岩）
         { 0.428f, 0.218f, 0.082f, 1 },   // (0.68, 0.50, 0.32)
     };
-    const Palette kPaletteDungeon = {    // 石畳（2026-09-30）
+    const Palette kPaletteDungeon = {    // 石畳
         { 0.062f, 0.058f, 0.056f, 1 },   // (0.28, 0.27, 0.27) 暗い石
         { 0.240f, 0.228f, 0.215f, 1 },   // (0.52, 0.51, 0.50) 明るい石
         { 0.071f, 0.106f, 0.052f, 1 },   // (0.30, 0.36, 0.26) 苔
@@ -181,8 +181,7 @@ namespace TerrainBuild
 
     void Emitter::Box(const Vector3& loIn, const Vector3& hiIn, uint32_t layer)
     {
-        // 裏返った箱（どこかの軸で lo > hi）は直してから建てる・記録する（2026-10-25。区域の作り直しが床の箱の底を
-        // 上面より上にしていて、衝突の std::clamp が落ちた。直した後でも出たら作った側を直すこと）
+        // 裏返った箱（どこかの軸で lo > hi）は直してから建てる・記録する（そのままだと衝突の std::clamp が落ちる）
         const Vector3 lo = Vector3::Min(loIn, hiIn), hi = Vector3::Max(loIn, hiIn);
         if (loIn.x > hiIn.x || loIn.y > hiIn.y || loIn.z > hiIn.z)
             std::cout << "[Warning] TerrainBuild: flipped box fixed (kind " << m_Tag.kind << ", lo " << loIn.x << ", " << loIn.y
@@ -496,7 +495,7 @@ namespace TerrainBuild
     }
 
     // ============================================================
-    // 地面の衝突（高さ場、2026-10-04）
+    // 地面の衝突（高さ場）
     // 歩く面は relief（平原・山頂は起伏、洞窟は平ら）。崖の縦の壁は箱。Layer_Terrain（カメラの遮蔽・光線の先も見る）
     // ============================================================
     Entity SpawnHeightField(Registry& reg, const GridWorld& grid,

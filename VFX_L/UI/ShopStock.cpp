@@ -23,7 +23,7 @@ int ShopStock::PriceOf(ItemID id) const
     if (ItemDatabase::GetStat(id)) base = priceStat;
     else if (const ItemCommon* c = ItemDatabase::GetCommon(id))
     {
-        // 稀有度で決める（2026-10-28）。設置枠は枠ごとの倍率（2x3 など大きい物は少し高い）
+        // 稀有度で決める。設置枠は枠ごとの倍率（2x3 など大きい物は少し高い）
         base = priceByRarity[std::clamp((int)c->rarity, 0, Rarity::kCount - 1)];
         if (const FrameItemDef* fd = ItemDatabase::GetFrame(id))
             base = (int)std::lround((float)base * fd->priceMul);
@@ -45,14 +45,13 @@ void ShopStock::Generate(const RunCarry& carry)
     const SpellbookComponent& book = carry.spellbook;
 
     // 面の倍率：このプレイの何面目へ向かう商店か（難度の StageConfig::PosDifficulty と同じ数え方）で決める。
-    // プレイの 2 面目へ向かう商店が 1、以降 1 面ごとに stagePriceGrowth 倍。
-    // （以前は carry.stage = マップの番号から数えていて、砂漠から始めた Tier 2 の最初の商店がもう 1.5 倍だった。10-26 から carry.pos）
+    // プレイの 2 面目へ向かう商店が 1、以降 1 面ごとに stagePriceGrowth 倍（マップの番号ではなく carry.pos で数える）。
     const int posNext = carry.pos - 1;   // 次の面がこのプレイの何面目か（0 = 1 面目）
     const int steps = (std::max)(0, posNext - 1);
     m_StageMul = std::pow((std::max)(1.0f, stagePriceGrowth), (float)steps);
 
     // [0..3] 魔法・ルーン・召喚物（設置枠は別の欄に出す）、[4] 設置枠。どちらも先に稀有度の段を引き（率はレベル + shopLevelBonus）、
-    // その段の中で重みに比例して引く（持っている物は下げる。枠は FrameItemDef::weight）。2026-10-29 から（以前は稀有度の重みを掛けて 1 つの池）
+    // その段の中で重みに比例して引く（持っている物は下げる。枠は FrameItemDef::weight）
     struct Entry { ItemID id; float weight; };
     std::vector<Entry> pools[Rarity::kCount], framePools[Rarity::kCount];
     for (ItemID id : ItemDatabase::GetAllIDs())
@@ -68,6 +67,9 @@ void ShopStock::Generate(const RunCarry& carry)
         }
         pools[tier].push_back({ id, book.HasLearned(id) ? weightOwnedMul : 1.0f });
     }
+    // 「最大シールド +25」は能力値の札だが [0..3] のノーマルの池に混ぜる（statSlot で [5] に出す時は混ぜない）
+    if (shieldCard && !statSlot && ItemDatabase::GetStat(ItemID::ShieldUp))
+        pools[(int)ItemRarity::Common].push_back({ ItemID::ShieldUp, shieldWeight });
     float chance[Rarity::kCount];
     // 商店は面と面の間 = carry.pos 面目の始め
     Rarity::Chances(Rarity::RunMinutes(carry.pos, 0.0f) + shopMinutes, rarityOdds, chance);

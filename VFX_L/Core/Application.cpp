@@ -22,7 +22,19 @@ bool Application::Initialize()
 
     // Window（動画の書き出し中は VFXL_CAPTURE_W / H、既定 1920×1080。Core/VideoCapture）
     const VideoCapture& capture = VideoCapture::Get();
-    if (!m_Window.Create(capture.Enabled() ? capture.Width() : 1600, capture.Enabled() ? capture.Height() : 900, L"VFX Engine"))
+    int winW = capture.Enabled() ? capture.Width() : 1600;
+    int winH = capture.Enabled() ? capture.Height() : 900;
+    {
+        // TEMP-TEST: VFXL_WINDOW=2560x1440 = 窓の大きさ（全画面の解像度で負荷を測る）
+        char env[32] = {};
+        int w = 0, h = 0;
+        if (GetEnvironmentVariableA("VFXL_WINDOW", env, sizeof(env)) > 0 && sscanf_s(env, "%dx%d", &w, &h) == 2 && w >= 320 && h >= 240)
+        {
+            winW = w;
+            winH = h;
+        }
+    }
+    if (!m_Window.Create(winW, winH, L"VFX Engine"))
     {
         std::cout << "[Error] Window creation failed" << std::endl;
         return false;
@@ -64,7 +76,7 @@ bool Application::Initialize()
     if (capture.Enabled() && !capture.CaptureMusic())
         AudioSystem::Get().SetVolume(AudioSystem::Bus::Music, 0.0f);   // BGM は編集で 1 本通して乗せる（保存はしない）
     GameSettings::Get().Load();        // プレイヤーの設定（敵味方の縁取りの ON / OFF。無ければ既定値）
-    GameProgress::Get().Load();        // 進み具合（開いたマップ・クリアした Tier。無ければ草原 Tier 1 だけ。2026-10-21）
+    GameProgress::Get().Load();        // 進み具合（開いたマップ・クリアした Tier。無ければ草原 Tier 1 だけ）
     {
         char env[16] = {};   // TEMP-TEST: VFXL_UI_SCALE=1.25 など、UI 全体の倍率を起動時に変える（見比べ用。既定 1.5）
         if (GetEnvironmentVariableA("VFXL_UI_SCALE", env, sizeof(env)) > 0 && env[0])
@@ -92,6 +104,21 @@ void Application::Run()
     {
         m_Timer.Tick();
         float dt = m_Timer.DeltaTime();
+        {
+            // TEMP-TEST: VFXL_FULLSCREEN_AT=<秒> = 起動からその秒で F11 と同じ全画面の切り替え（Resize の道を自動テストで通す）
+            static float s_FsAt = -2.0f, s_FsClock = 0.0f;
+            if (s_FsAt < -1.5f)
+            {
+                char env[16] = {};
+                s_FsAt = (GetEnvironmentVariableA("VFXL_FULLSCREEN_AT", env, sizeof(env)) > 0) ? (float)atof(env) : -1.0f;
+            }
+            s_FsClock += dt;
+            if (s_FsAt >= 0.0f && s_FsClock >= s_FsAt)
+            {
+                s_FsAt = -1.0f;
+                m_Window.ToggleFullscreen();
+            }
+        }
         if (VideoCapture::Get().Enabled())
             dt = VideoCapture::Get().FrameDt() * VideoCapture::Get().TimeScale();   // 書き出し中は 1/60 秒ずつ（重くてもコマ落ちしない。スローは TimeScale）
         if (m_Window.ConsumeResizeFlag())

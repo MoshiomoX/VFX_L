@@ -12,7 +12,7 @@
 // 種類の一覧ごとに 1 回描く。aliveList（全種類）は HP バーに使う。
 //
 // エリートは雑魚のメッシュ + テクスチャを共有するので mobList に入れる（VS が
-// 種類に応じて拡大・着色する）。ボスは 2026-10-24 から専用の一覧を持つ
+// 種類に応じて拡大・着色する）。ボスは専用の一覧を持つ
 // （SwarmEnemyKindListCS：面ごとの皮 + 飾り）。
 //
 // ボスは bossInfo にも自分を書き込む（Swarm::BossInfo、32 バイト、
@@ -32,9 +32,9 @@ AppendStructuredBuffer<uint> mobList : register(u1);
 AppendStructuredBuffer<uint> bomberList : register(u2);
 RWByteAddressBuffer bossInfo : register(u3);
 AppendStructuredBuffer<uint> ghostList : register(u4); // 最後にアルファブレンドで描く
-AppendStructuredBuffer<uint> splitterList : register(u5); // スプリッターと分裂体（専用テクスチャ、2026-10-03）
-AppendStructuredBuffer<uint> bruteList : register(u6); // 重装兵（専用テクスチャ、2026-10-07）
-// 突撃兵と盾兵（2026-10-08）は SwarmEnemyKindListCS へ：このパスには UAV の空きが無い（FL 11.0 で 8 本）
+AppendStructuredBuffer<uint> splitterList : register(u5); // スプリッターと分裂体（専用テクスチャ）
+AppendStructuredBuffer<uint> bruteList : register(u6); // 重装兵（専用テクスチャ）
+// 突撃兵と盾兵は SwarmEnemyKindListCS へ：このパスには UAV の空きが無い（FL 11.0 で 8 本）
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -56,11 +56,11 @@ void main(uint3 id : SV_DispatchThreadID)
         bruteList.Append(i);
     else if (kind != SWARM_KIND_CHARGER && kind != SWARM_KIND_SHIELD && kind != SWARM_KIND_SPIKEBALL && kind != SWARM_KIND_BURROWER
           && kind != SWARM_KIND_SANDMAGE && kind != SWARM_KIND_TORNADO && kind != SWARM_KIND_DASHBOMBER
-          && kind != SWARM_KIND_BOSS && !SwarmInKindList2(kind)) // トゲ玉はブロック人形の体を持たず（SwarmSpikeBallVS）、砂旋は何も描かない（2026-10-20）。それ以外は SwarmEnemyKindListCS に専用の一覧がある（ボスも、2026-10-24：面ごとの専用の皮 + 飾り）
+          && kind != SWARM_KIND_BOSS && !SwarmInKindList2(kind)) // トゲ玉はブロック人形の体を持たず（SwarmSpikeBallVS）、砂旋は何も描かない。それ以外は SwarmEnemyKindListCS に専用の一覧がある（ボスも：面ごとの専用の皮 + 飾り）
         mobList.Append(i);
 
     // 最終ウェーブの幽霊は、bossInfo の空いている 2 ワード（オフセット 12 / 28）に種類ごとに数える：
-    // CPU がそれぞれに専用の上限を持たせる（2026-10-18。以前は雑魚と上限を共有していて、ほとんど湧かなかった）
+    // CPU がそれぞれに専用の上限を持たせる（雑魚と上限を共有しない）
     if (kind == SWARM_KIND_GHOST)
     {
         uint prev;

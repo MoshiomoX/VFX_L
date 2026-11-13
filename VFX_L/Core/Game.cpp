@@ -38,7 +38,7 @@ bool Game::Initialize(Renderer* renderer)
 	m_SceneManager.RegisterScene<TitleScene>(SceneType::TITLE);
 	m_SceneManager.RegisterScene<ResultScene>(SceneType::RESULT);
 	m_SceneManager.RegisterScene<ShopScene>(SceneType::SHOP);
-	m_SceneManager.RegisterScene<StageSelectScene>(SceneType::STAGE_SELECT);   // マップ × Tier の選択（2026-10-21）
+	m_SceneManager.RegisterScene<StageSelectScene>(SceneType::STAGE_SELECT);   // マップ × Tier の選択
 
     // 起動はタイトルから。ゲームへ直行したい時は F1（DebugManager のシーン切替）
     m_SceneManager.ChangeScene(SceneType::TITLE);   // TEMP-TEST
@@ -47,7 +47,7 @@ bool Game::Initialize(Renderer* renderer)
     char autoloadEnv[128] = {};
     if (!DevUI::kEnabled)
     {
-        // Demo は負荷試験だけ（DevUI::AutoTestAllowed。2026-10-23）
+        // Demo は負荷試験だけ（DevUI::AutoTestAllowed）
         if (GetEnvironmentVariableA("VFXL_BATTLE_AUTOTEST", autoloadEnv, sizeof(autoloadEnv)) > 0
             && DevUI::AutoTestAllowed(autoloadEnv))
             m_SceneManager.ChangeScene(SceneType::COLLISION_TEST);
@@ -56,11 +56,11 @@ bool Game::Initialize(Renderer* renderer)
     {
         // TEMP-TEST: 商店の自動テスト。第 1 面をクリアした体の引き継ぎを積んで商店へ直行（Scene/ShopScene::AutoTest）
         g_RunCarry.Reset();
-        g_RunCarry.stage = 1;   // 草原の Tier 2、2 面目へ向かう商店（10-26 から同じマップを続ける）
+        g_RunCarry.stage = 1;   // 草原の Tier 2、2 面目へ向かう商店
         g_RunCarry.pos = 2;
         g_RunCarry.tier = 2;
         g_RunCarry.hasPlayer = true;
-        g_RunCarry.wallet.gold = 400.0f;   // 10-27 商店の値段 4 倍に合わせて 100 → 400（買う → 引き直し → 足りない の流れが通るように）
+        g_RunCarry.wallet.gold = 400.0f;   // 買う → 引き直し → 足りない の流れが通る額
         g_RunCarry.spellbook.Learn(ItemID::HomingBolt, 1);
         g_RunCarry.spellbook.Learn(ItemID::Fireball, 1);
         g_RunCarry.spellbook.Learn(ItemID::Frame3x3, 1);

@@ -49,15 +49,15 @@ namespace Res
     // ========================================================
     namespace VFX
     {
-        // 盾兵が身体の前に持つ塔の盾（2026-10-08、SwarmShieldVS）
+        // 盾兵が身体の前に持つ塔の盾（SwarmShieldVS）
         inline constexpr const char* TowerShield = "Assets/VFX/Mesh/dun01.FBX";
-        // 凍った敵の足元の氷の塊（2026-10-08、SwarmIceVS。アイスランスの弾・命中の特効も同じ物）
+        // 凍った敵の足元の氷の塊（SwarmIceVS。アイスランスのエフェクトも同じ物）
         inline constexpr const char* IceSpikes = "Assets/VFX/Mesh/bingci_02.FBX";
-        // 砂の守護者の「砂の槍」の石のトゲ（2026-10-24、IceSpikeField の別の使い方。細長い 1 本の石のトゲ）
+        // 砂の守護者の「砂の槍」の石のトゲ（IceSpikeField で使う）
         inline constexpr const char* SandSpikes = "Assets/VFX/Mesh/dici.fbx";
 
         inline constexpr const wchar_t* Noise001 = L"Assets/VFX/Tex/Noise_001.png";
-        inline constexpr const wchar_t* Noise008 = L"Assets/VFX/Tex/Noise_008.png";   // 柔らかい雲ノイズ（2026-10-19。エフェクトの json からはパスで指す）
+        inline constexpr const wchar_t* Noise008 = L"Assets/VFX/Tex/Noise_008.png";   // 柔らかい雲ノイズ（エフェクトの json からはパスで指す）
     }
     // ========================================================
     // モデル（char）
@@ -67,7 +67,7 @@ namespace Res
         inline constexpr const char* Rock2 = "Assets/Model/Rock-Set/Rock_2/Rock_2.fbx";
         // 必要なら .obj 版も
         inline constexpr const char* Rock2_Obj = "Assets/Model/Rock-Set/Rock_2/Rock_2.obj";
-        // 巨石（Rock-Set、PBR テクスチャ付き）：外周の岩山・洞窟の上の山に数個を引き伸ばして使う（2026-10-06）
+        // 巨石（Rock-Set、PBR テクスチャ付き）：外周の岩山・洞窟の上の山に数個を引き伸ばして使う
         inline constexpr const char* kBoulders[] = {
             "Assets/Model/Rock-Set/Rock_2/Rock_2.fbx",
             "Assets/Model/Rock-Set/Rock_5/Rock_5.fbx",
@@ -75,42 +75,19 @@ namespace Res
             "Assets/Model/Rock-Set/Rock_7/Rock_7.fbx",
             "Assets/Model/Rock-Set/Rock_9/Rock_9.fbx",
         };
-        inline constexpr const char* Akai = "Assets/Model/Akai/Akai.fbx";
-
-        inline constexpr const char* Jiandu_TPose =
-            "Assets/Model/Jiandu/Jian_TPose.fbx";   // ①静的bind pose検証用
-        inline constexpr const char* Jiandu_Idle =
-            "Assets/Model/Jiandu/Idle.fbx";         // ②アニメ検証用
-
+        // VFX エディタの参照モデル
         inline constexpr const char* Paladin_Idle =
             "Assets/Model/testAnimModel/Idle.fbx";
 
-        inline constexpr const char* Paladin =
-            "Assets/Model/testAnimModel/PaladinWPropJNordstrom.fbx";
-
-
-        // KayKit Adventurers の Mage（CC0）。1 ファイルに 76 クリップ入り。
-        // 杖・杖・魔道書は handslot 骨に付いた submesh で、表示切替で持ち替える
-        inline constexpr const char* KayKit_Mage =
-            "Assets/Model/KayKit_Mage/Mage.fbx";
-
-        // プレイヤー（2026-09-28 から）。Quaternius の CC0 素材 4 つを Tools/BuildPlayerModel.py で 1 つの GLB に:
+        // レンジャー（アニメの元）。Quaternius の CC0 素材 4 つを Tools/BuildPlayerModel.py で 1 つの GLB に:
         // 素体の頭 + レンジャーの服 + 白い髭、アニメ 24 本（Universal Animation Library 1/2）入り。
         // 65 骨（UE 風の名前 root / pelvis / spine_01..）、メートル、glTF の -Z が正面
         inline constexpr const char* Quaternius_Ranger =
             "Assets/Model/Quaternius_Ranger/Ranger.fbx";
 
-        // KayKit Character Animations 1.1（CC0）の Rig_Medium。モデル無しのアニメだけのファイル。
-        // 骨名が Adventurers 1.0 の Mage と同じなので、読み込み時に骨名で足す（kExtraAnims）
-        namespace KayKitAnims
-        {
-            inline constexpr const char* MovementAdvanced =   // Crouching / Sneaking / Crawling / Dodge_* など
-                "Assets/Model/KayKit_CharacterAnimations/Rig_Medium_MovementAdvanced.fbx";
-        }
-
         // 骨付きモデルを読んだ直後に足す別ファイルのアニメ（SkinnedModel::AddAnimationsFromFile）。
         // ResourceManager::ImportModelAuto がパスの一致で引く（先読みスレッドの中でも同じ）
-        // map があれば骨名の違う人形から世界空間で付け替える（Graphics/Model/BoneMaps.h、2026-10-04）
+        // map があれば骨名の違う人形から世界空間で付け替える（Graphics/Model/BoneMaps.h）
         struct ExtraAnimSet
         {
             const char* model;
@@ -119,25 +96,20 @@ namespace Res
             int mapCount = 0;
         };
 
-        // Reallusion CC 骨（CC_Base_*）の PBR の人形（ユーザーがUnrealの配布から落とした物）。
-        // アニメは持たないので、レンジャー（UE 風の骨）の 24 段を付け替えて使う（VFXL_PLAYER=shadowkin でプレイヤーに）
+        // プレイヤー。Reallusion CC 骨（CC_Base_*）の PBR の人形。
+        // アニメは持たないので、レンジャー（UE 風の骨）の 24 段を付け替えて使う
         inline constexpr const char* Shadowkin = "Assets/Model/Shadowkin_SF/Shadowkin_Rigged.fbx";
 
         inline constexpr ExtraAnimSet kExtraAnims[] = {
-            { KayKit_Mage, KayKitAnims::MovementAdvanced },
             { Shadowkin, Quaternius_Ranger, kBoneMapCCFromUE, (int)(sizeof(kBoneMapCCFromUE) / sizeof(kBoneMapCCFromUE[0])) },
         };
 
         // KayKit Skeletons（CC0）。Minion は雑魚（1 フレーム焼いてインスタンス描画）、
-        // Warrior / Mage / Rogue はエリート（骨付きのまま SkinnedAnimComponent）
+        // Warrior はデバッグ用のエリートの的（骨付きのまま SkinnedAnimComponent）
         inline constexpr const char* KayKit_SkeletonMinion =
             "Assets/Model/KayKit_Skeletons/Skeleton_Minion.fbx";
         inline constexpr const char* KayKit_SkeletonWarrior =
             "Assets/Model/KayKit_Skeletons/Skeleton_Warrior.fbx";
-        inline constexpr const char* KayKit_SkeletonMage =
-            "Assets/Model/KayKit_Skeletons/Skeleton_Mage.fbx";
-        inline constexpr const char* KayKit_SkeletonRogue =
-            "Assets/Model/KayKit_Skeletons/Skeleton_Rogue.fbx";
 
         // Kenney Blocky Characters（CC0、ピクセルテクスチャのブロック人形）。18 体ともメッシュ・骨・動画は同じで、
         // テクスチャ（Textures/texture-a..r.png）だけ違う。雑魚は L（緑肌のゾンビ）を 1 フレーム焼いて使う
@@ -148,15 +120,14 @@ namespace Res
         inline constexpr const char* Kenney_RewardCrate =
             "Assets/Model/Kenney_RetroFantasy/fbx/detail-crate.fbx";
 
-        // Boss を呼ぶ門（近づいて F）。Kenney Retro Fantasy の石の門（1m 角の部品、底が原点）。
-        // 2026-10-03 から使っていない（ユーザー：石の門に → Ruins_ArchGate）。比べる用に残す
+        // 旧 Boss の門（Kenney Retro Fantasy の石の門）。今は使っていない
         inline constexpr const char* Kenney_PortalGate =
             "Assets/Model/Kenney_RetroFantasy/fbx/wall-flat-gate.fbx";
-        // Boss を呼ぶ門（2026-10-03）。Quaternius Modular Ruins の丸柱付きの丸い石の拱（CC0、cm 単位、
+        // Boss を呼ぶ門。Quaternius Modular Ruins の丸柱付きの丸い石の拱（CC0、cm 単位、
         // 3.09 × 0.49 × 3.53m、拱の面は XY）。間に粒子の渦（VFXData/BossPortal.json）
         inline constexpr const char* Ruins_ArchGate =
             "Assets/Model/Quaternius_ModularRuins/FBX/Arch_Round_RoundColumn.fbx";
-        // 倒した面の固定エリートが落とす金色の宝箱（2026-10-25。Quaternius Modular Ruins、CC0）
+        // 倒した面の固定エリートが落とす金色の宝箱（Quaternius Modular Ruins、CC0）
         inline constexpr const char* Ruins_ChestGold =
             "Assets/Model/Quaternius_ModularRuins/FBX/Chest_Gold.fbx";
 
@@ -223,7 +194,7 @@ namespace Res
         }
 
         // ========================================================
-        // 第 2 面「砂漠」の自然物（2026-09-30。TerrainGenerator の Biome::Desert）
+        // 「砂漠」の自然物（TerrainGenerator の Biome::Desert）
         // Quaternius Ultimate Nature（CC0）+ dglopez Western Desert（非 CC0、リポジトリには入れない。
         // 無ければ読めた物だけで生成する）。全部 cm 単位の FBX
         // ========================================================
@@ -261,10 +232,8 @@ namespace Res
                 "Assets/Model/dglopez_WesternDesert/FBX/eroded_rock.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/plain_rock.fbx",
             };
-            // 場内の岩柱 / 峡谷の壁（2026-10-26）：橙色の dglopez だけ（Quaternius の Rock_4/6/7 は灰白で、砂の上に混ざると
-            // 色がばらばらに見えた）。dglopez は git に無い（SOURCE.txt）ので、1 つも読めない時は kCliffRocks に戻す
-            // eroded_rock.fbx（アーチ形）は外した（2026-11-02 ユーザー：真ん中を通れない）：岩柱の衝突はモデル全体の
-            // 凸包 1 つ（PropHullWorld → ConvexFromPoints）で、アーチの穴が埋まる。穴を通すには分割した凸包が要る（未対応）
+            // 場内の岩柱 / 峡谷の壁：色を揃えるため橙色の dglopez だけ。dglopez は git に無い（SOURCE.txt）ので、
+            // 1 つも読めない時は kCliffRocks に戻す。アーチ形の eroded_rock.fbx は入れない（衝突が凸包 1 つで穴が埋まる）
             inline constexpr const char* kPillarRocks[] = {
                 "Assets/Model/dglopez_WesternDesert/FBX/big_rock.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/plain_rock.fbx",
@@ -284,7 +253,7 @@ namespace Res
                 "Assets/Model/dglopez_WesternDesert/FBX/desert_bush.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/dry_bush_1.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/dry_grass_1.fbx",
-                // succulent.fbx は外した（2026-11-02 ユーザー：真っ白に見える。貼図が無く材質色がほぼ白）
+                // succulent.fbx は入れない（テクスチャが無く真っ白に見える）
                 "Assets/Model/dglopez_WesternDesert/FBX/dry_bones_1.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/skull.fbx",
                 "Assets/Model/dglopez_WesternDesert/FBX/dry_log.fbx",
@@ -292,7 +261,7 @@ namespace Res
         }
 
         // ========================================================
-        // 第 3 面「遺跡」（ダンジョン）の物（2026-09-30。Biome::Dungeon）。Quaternius Modular Ruins（CC0、2m 単位）
+        // 「遺跡」（ダンジョン）の物（Biome::Dungeon）。Quaternius Modular Ruins（CC0、2m 単位）
         // ========================================================
         namespace Ruins
         {
@@ -349,7 +318,7 @@ namespace Res
         // 戦闘で使う物だけ。Paladin（エディタの参照）と Mage/Rogue（未使用）は入れない。
         // Minion は雑魚の予備（ブロック人形が読めない時だけ）なので外した
         inline constexpr const char* kPreload[] = {
-            Shadowkin,   // プレイヤー（2026-10-04〜。レンジャーのアニメもこの中で読む）
+            Shadowkin,   // プレイヤー（レンジャーのアニメもこの中で読む）
             Kenney_BlockyZombie,
             KayKit_SkeletonWarrior,
         };
@@ -371,38 +340,38 @@ namespace Res
         // 雑魚のメッシュに貼り替えるだけで良い
         inline constexpr const wchar_t* Kenney_BlockyRobotAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-g.png";
-        // スプリッター・分裂体（Kenney Blocky の D、黄色い衝突試験人形。2026-10-03）
+        // スプリッター・分裂体（Kenney Blocky の D、黄色い衝突試験人形）
         inline constexpr const wchar_t* Kenney_BlockyDummyAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-d.png";
-        // 重装兵（Kenney Blocky の O、牙のある緑のオーク。2026-10-07 夜）
+        // 重装兵（Kenney Blocky の O、牙のある緑のオーク）
         inline constexpr const wchar_t* Kenney_BlockyOrcAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-o.png";
-        // 突撃兵（Kenney Blocky の R、黒い忍者。2026-10-08）
+        // 突撃兵（Kenney Blocky の R、黒い忍者）
         inline constexpr const wchar_t* Kenney_BlockyNinjaAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-r.png";
-        // 盾兵（Kenney Blocky の J、紺の制服の警官。2026-10-08）
+        // 盾兵（Kenney Blocky の J、紺の制服の警官）
         inline constexpr const wchar_t* Kenney_BlockyPoliceAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-j.png";
-        // 砂潜り（Kenney Blocky の K。2026-10-17）
+        // 砂潜り（Kenney Blocky の K）
         inline constexpr const wchar_t* Kenney_BlockyBurrowerAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-k.png";
-        // 砂嵐の術師（2026-10-17）：赤い帽子に青緑の衣（texture-n）
+        // 砂嵐の術師：赤い帽子に青緑の衣（texture-n）
         inline constexpr const wchar_t* Kenney_BlockySandMageAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-n.png";
-        // 突撃爆弾兵（2026-10-18）：灰色のロボット（自爆兵の赤いロボットと同じ系統）
+        // 突撃爆弾兵：灰色のロボット（自爆兵の赤いロボットと同じ系統）
         inline constexpr const wchar_t* Kenney_BlockyDashBomberAlbedo =
             L"Assets/Model/Kenney_BlockyCharacters/fbx/Textures/texture-h.png";
-        // 砂漠の Boss「砂の守護者」（2026-10-24）：texture-h を Tools/BuildBossSkin.ps1 が砂岩と金に塗り直した物
+        // 砂漠の Boss「砂の守護者」：texture-h を Tools/BuildBossSkin.ps1 が砂岩と金に塗り直した物
         inline constexpr const wchar_t* BossSandGuardianAlbedo = L"Assets/Texture/Enemy/BossSandGuardian.png";
-        // 草原の Boss「岩の巨人」（2026-10-25）：texture-o（牙のオーク）を灰色の岩と苔に塗り直した物（BuildBossSkin.ps1 -Style stone）
+        // 草原の Boss「岩の巨人」：texture-o（牙のオーク）を灰色の岩と苔に塗り直した物（BuildBossSkin.ps1 -Style stone）
         inline constexpr const wchar_t* BossStoneGiantAlbedo = L"Assets/Texture/Enemy/BossStoneGiant.png";
-        // 遺跡の敵（2026-10-25、BuildBossSkin.ps1 -Style armor / gargoyle / necro / skeleton / warden）
+        // 遺跡の敵（BuildBossSkin.ps1 -Style armor / gargoyle / necro / skeleton / warden）
         inline constexpr const wchar_t* RuinsArmorAlbedo = L"Assets/Texture/Enemy/RuinsArmor.png";        // texture-q → 鋼
         inline constexpr const wchar_t* RuinsGargoyleAlbedo = L"Assets/Texture/Enemy/RuinsGargoyle.png";  // texture-c → 灰色の石
         inline constexpr const wchar_t* RuinsNecroAlbedo = L"Assets/Texture/Enemy/RuinsNecro.png";        // texture-e → 黒紫の衣
         inline constexpr const wchar_t* RuinsSkeletonAlbedo = L"Assets/Texture/Enemy/RuinsSkeleton.png";  // texture-i → 骨
         inline constexpr const wchar_t* RuinsWardenAlbedo = L"Assets/Texture/Enemy/RuinsWarden.png";      // texture-m → 錆びた鉄と革
-        // 面の固定エリート（2026-10-25、Tools/BuildBossSkin.ps1 -Style eaxe 等）
+        // 面の固定エリート（Tools/BuildBossSkin.ps1 -Style eaxe 等）
         inline constexpr const wchar_t* EliteAxeAlbedo = L"Assets/Texture/Enemy/EliteAxe.png";              // texture-p → 暗い赤銅
         inline constexpr const wchar_t* EliteArcherAlbedo = L"Assets/Texture/Enemy/EliteArcher.png";        // texture-f → 森の緑
         inline constexpr const wchar_t* EliteRiderAlbedo = L"Assets/Texture/Enemy/EliteRider.png";          // texture-a → 砂色の布
@@ -427,15 +396,6 @@ namespace Res
             L"Assets/Model/Rock-Set/Rock_2/Rock_2_Tex/Rock_2_Specular.jpg";
        
         
-        inline constexpr const wchar_t* Akai_Body_Albedo =
-            L"Assets/Model/Akai/AkaiTex/FemaleFitA_Body_diffuse.png";
-        inline constexpr const wchar_t* Akai_Body_Normal =
-            L"Assets/Model/Akai/AkaiTex/FemaleFitA_StdNM.png";
-        inline constexpr const wchar_t* Akai_Clothes_Albedo =
-            L"Assets/Model/Akai/AkaiTex/Erika_Archer_Clothes_diffuse.png";
-        inline constexpr const wchar_t* Akai_Clothes_Normal =
-            L"Assets/Model/Akai/AkaiTex/Erika_Archer_Clothes_normal.png";
-
         // バックパック UI 用
         inline constexpr const wchar_t* BlockSolo = L"Assets/Texture/UI/Block_solo_01.png";
         inline constexpr const wchar_t* TestBlockTex = L"Assets/Texture/UI/TestBlockTex.png";
@@ -443,15 +403,6 @@ namespace Res
 		
 
 
-        // ---- Jiandu / JaneDoe マテリアル（Diffuse のみ）----
-        inline constexpr const wchar_t* JaneDoe_Body1_Albedo =
-            L"Assets/Model/Jiandu/Tex/JaneDoe_Body_Map1_D.png";
-        inline constexpr const wchar_t* JaneDoe_Body2_Albedo =
-            L"Assets/Model/Jiandu/Tex/JaneDoe_Body_Map2_D.png";
-        inline constexpr const wchar_t* JaneDoe_Face_Albedo =
-            L"Assets/Model/Jiandu/Tex/JaneDoe_Face_D.png";
-        inline constexpr const wchar_t* JaneDoe_Weapon_Albedo =
-            L"Assets/Model/Jiandu/Tex/JaneDoe_Weapon_D.png";
     }
 
     // ========================================================
@@ -466,29 +417,32 @@ namespace Res
         inline constexpr const wchar_t* Meteor = L"Assets/Texture/UI/Icons/Meteor.png";
         inline constexpr const wchar_t* StoneShot = L"Assets/Texture/UI/Icons/StoneShot.png";
         inline constexpr const wchar_t* Poison = L"Assets/Texture/UI/Icons/Poison.png";
-        inline constexpr const wchar_t* Swamp = L"Assets/Texture/UI/Icons/Swamp.png";       // 泥沼（2026-10-17）
-        inline constexpr const wchar_t* Spore = L"Assets/Texture/UI/Icons/Spore.png";       // 胞子（2026-10-17）
-        inline constexpr const wchar_t* VoidVortex = L"Assets/Texture/UI/Icons/VoidVortex.png";   // 渦（2026-10-22）
-        inline constexpr const wchar_t* OutletSpark = L"Assets/Texture/UI/Icons/OutletSpark.png";   // 導きの火花（2026-10-31）
+        inline constexpr const wchar_t* Swamp = L"Assets/Texture/UI/Icons/Swamp.png";       // 泥沼
+        inline constexpr const wchar_t* Spore = L"Assets/Texture/UI/Icons/Spore.png";       // 胞子
+        inline constexpr const wchar_t* VoidVortex = L"Assets/Texture/UI/Icons/VoidVortex.png";   // 渦
+        inline constexpr const wchar_t* OutletSpark = L"Assets/Texture/UI/Icons/OutletSpark.png";   // 導きの火花
         inline constexpr const wchar_t* OutletSplit = L"Assets/Texture/UI/Icons/OutletSplit.png";   // 分かれ玉
         inline constexpr const wchar_t* OutletSeed = L"Assets/Texture/UI/Icons/OutletSeed.png";     // 時限の種
         inline constexpr const wchar_t* OutletMine = L"Assets/Texture/UI/Icons/OutletMine.png";     // 浮遊機雷
         inline constexpr const wchar_t* OrbitGuard = L"Assets/Texture/UI/Icons/OrbitGuard.png";     // 周回弾
-        inline constexpr const wchar_t* IceLance = L"Assets/Texture/UI/Icons/IceLance.png";   // アイスランス（2026-10-08）
-        inline constexpr const wchar_t* IceSpike = L"Assets/Texture/UI/Icons/IceSpike.png";   // アイススパイク（2026-10-10）
-        inline constexpr const wchar_t* Gust = L"Assets/Texture/UI/Icons/Gust.png";           // 突風（2026-10-12）
-        inline constexpr const wchar_t* Twister = L"Assets/Texture/UI/Icons/Twister.png";     // 竜巻（2026-10-22）
+        inline constexpr const wchar_t* IceLance = L"Assets/Texture/UI/Icons/IceLance.png";   // アイスランス
+        inline constexpr const wchar_t* IceSpike = L"Assets/Texture/UI/Icons/IceSpike.png";   // アイススパイク
+        inline constexpr const wchar_t* Gust = L"Assets/Texture/UI/Icons/Gust.png";           // 突風
+        inline constexpr const wchar_t* Twister = L"Assets/Texture/UI/Icons/Twister.png";     // 竜巻
+        inline constexpr const wchar_t* SwordRing = L"Assets/Texture/UI/Icons/SwordRing.png";   // 魔剣の輪
+        inline constexpr const wchar_t* SpinSlash = L"Assets/Texture/UI/Icons/SpinSlash.png";   // 回旋斬
+        inline constexpr const wchar_t* VampireBats = L"Assets/Texture/UI/Icons/VampireBats.png";   // 吸血コウモリ
         inline constexpr const wchar_t* Beam = L"Assets/Texture/UI/Icons/Beam.png";
         inline constexpr const wchar_t* SplitRune = L"Assets/Texture/UI/Icons/SplitRune.png";
         inline constexpr const wchar_t* DoubleCastRune = L"Assets/Texture/UI/Icons/DoubleCastRune.png";
         inline constexpr const wchar_t* Magnifier = L"Assets/Texture/UI/Icons/Magnifier.png";
         inline constexpr const wchar_t* HasteRune = L"Assets/Texture/UI/Icons/HasteRune.png";
-        inline constexpr const wchar_t* ChainRune = L"Assets/Texture/UI/Icons/ChainRune.png";   // 連鎖のルーン（2026-10-16）
-        inline constexpr const wchar_t* LarpaRune = L"Assets/Texture/UI/Icons/LarpaRune.png";   // 分身のルーン（2026-11-01）
-        inline constexpr const wchar_t* Detonate = L"Assets/Texture/UI/Icons/Detonate.png";     // 一斉起爆（2026-11-01）
-        inline constexpr const wchar_t* CrystalBall = L"Assets/Texture/UI/Icons/CrystalBall.png";   // 水晶玉（召喚物。2026-10-06）
+        inline constexpr const wchar_t* ChainRune = L"Assets/Texture/UI/Icons/ChainRune.png";   // 連鎖のルーン
+        inline constexpr const wchar_t* LarpaRune = L"Assets/Texture/UI/Icons/LarpaRune.png";   // 分身のルーン
+        inline constexpr const wchar_t* Detonate = L"Assets/Texture/UI/Icons/Detonate.png";     // 一斉起爆
+        inline constexpr const wchar_t* CrystalBall = L"Assets/Texture/UI/Icons/CrystalBall.png";   // 水晶玉（召喚物）
         inline constexpr const wchar_t* Frame3x3 = L"Assets/Texture/UI/Icons/Frame3x3.png";
-        // 効果のある設置枠（2026-10-27、Items/Frames.h。ただの拡張枠は Frame3x3 の絵を使い回す）
+        // 効果のある設置枠（Items/Frames.h。ただの拡張枠は Frame3x3 の絵を使い回す）
         inline constexpr const wchar_t* FrameArea = L"Assets/Texture/UI/Icons/FrameArea.png";
         inline constexpr const wchar_t* FrameFocus = L"Assets/Texture/UI/Icons/FrameFocus.png";
         inline constexpr const wchar_t* FrameHaste = L"Assets/Texture/UI/Icons/FrameHaste.png";
@@ -500,11 +454,11 @@ namespace Res
         inline constexpr const wchar_t* ManaRegenUp = L"Assets/Texture/UI/Icons/ManaRegenUp.png";
         inline constexpr const wchar_t* JumpCountUp = L"Assets/Texture/UI/Icons/JumpCountUp.png";
         inline constexpr const wchar_t* SpellPowerUp = L"Assets/Texture/UI/Icons/SpellPowerUp.png";
-        inline constexpr const wchar_t* ShieldUp = L"Assets/Texture/UI/Icons/ShieldUp.png";   // 最大シールド（2026-10-07）
+        inline constexpr const wchar_t* ShieldUp = L"Assets/Texture/UI/Icons/ShieldUp.png";   // 最大シールド
         inline constexpr const wchar_t* Magnet = L"Assets/Texture/UI/Icons/Magnet.png";   // 拾う磁石（場に落ちている物。バックパックのアイテムではない）
         inline constexpr const wchar_t* ManaSurge = L"Assets/Texture/UI/Icons/ManaSurge.png";   // 魔力解放（Q）。HUD の魔法の欄の上の大きな欄
         inline constexpr const wchar_t* Gold = L"Assets/Texture/UI/Icons/Gold.png";   // 金貨（HUD の MP バーの下）
-        // 地図の目印（ミニマップと画面外の矢印。HUDMarkerKind。2026-10-24。磁石は Magnet を使い回す）
+        // 地図の目印（ミニマップと画面外の矢印。HUDMarkerKind。磁石は Magnet を使い回す）
         inline constexpr const wchar_t* MapChest = L"Assets/Texture/UI/Icons/MapChest.png";
         inline constexpr const wchar_t* MapPortal = L"Assets/Texture/UI/Icons/MapPortal.png";
         inline constexpr const wchar_t* MapExit = L"Assets/Texture/UI/Icons/MapExit.png";
@@ -530,7 +484,7 @@ namespace Res
         inline constexpr const wchar_t* ChestLock = L"Assets/Texture/UI/Chest/ChestLock.png";     // 前板から下がる錠前
     }
 
-    // パッドのボタンの絵（2026-10-09、Kenney Input Prompts の Xbox Series、CC0。出典は同じ所の SOURCE.txt）。
+    // パッドのボタンの絵（Kenney Input Prompts の Xbox Series、CC0。出典は同じ所の SOURCE.txt）。
     // UI の文の中の {A} {B} … を UI/InputGlyph がこの絵に替えて描く。色付きなので sRGB で読む
     namespace PadIcon
     {
@@ -548,7 +502,7 @@ namespace Res
         inline constexpr const wchar_t* LS = L"Assets/Texture/UI/Input/PadLS.png";         // 左スティック
     }
 
-    // キーボード・マウスの絵（Kenney Input Prompts の Keyboard & Mouse、CC0。2026-10-09）。
+    // キーボード・マウスの絵（Kenney Input Prompts の Keyboard & Mouse、CC0）。
     // キーは Dir + L"Key<名前>.png"（{K:Esc} → KeyEsc.png。Tools/BuildKeyIcons.ps1 が無地のキーに Bebas Neue でキー名を焼き込む。
     // Kenney の ESC 等の小さな字は案内文の大きさだと潰れて読めない）。絵の無い名前は無地のキー Cap に文字で載せる
     namespace KeyIcon
@@ -568,19 +522,19 @@ namespace Res
     // ========================================================
     namespace Fnt
     {
-        // 毛筆体 Yuji Syuku（OFL、2026-09-28 ユーザー決定）。Tools/BuildSpriteFont.ps1 で TTF から作る（32px、BC2）。
-        // 旧 NotoSansJP.spritefont は比較用に残してある
+        // 毛筆体 Yuji Syuku（OFL）。Tools/BuildSpriteFont.ps1 で TTF から作る（32px、BC2）
         inline constexpr const wchar_t* JP = L"Assets/Fonts/YujiSyuku.spritefont";
-        // ImGui（デバッグパネル）の日本語字体：Noto Sans JP の可変 TTF（OFL、同じ所の NotoSansJP-OFL.txt）。2026-10-18
+        // ImGui（デバッグパネル）の日本語字体：Noto Sans JP の可変 TTF（OFL、同じ所の NotoSansJP-OFL.txt）
         inline constexpr const char* ImGuiJP = "Assets/Fonts/NotoSansJP-Variable.ttf";
-        // 同じく簡体字の後備（JP に無い字だけ。OFL、NotoSansSC-OFL.txt）。2026-10-18
+        // 同じく簡体字の後備（JP に無い字だけ。OFL、NotoSansSC-OFL.txt）
         inline constexpr const char* ImGuiSC = "Assets/Fonts/NotoSansSC-Variable.ttf";
-        // ダメージの数字の字体（2026-10-18。数字だけ使うので ASCII のみ、48px、BC2）。候補 Chakra Petch Bold Italic / Squada One（どちらも OFL）を
-        // ユーザーが実機で見比べ中：環境変数 VFXL_DAMAGE_FONT=<名> で Assets/Fonts/<名>.spritefont に差し替えられる（GameUI::Initialize、TEMP-TEST）
+        // ダメージの数字の字体 Chakra Petch Bold Italic（OFL。数字だけ使うので ASCII のみ、48px、BC2）
         inline constexpr const wchar_t* Damage = L"Assets/Fonts/ChakraPetch.spritefont";
-        // タイトル画面のゲーム名の字体 Mystery Quest（OFL、MysteryQuest-OFL.txt。2026-10-21 ユーザーが 20 候補から選定）。
+        // タイトル画面のゲーム名の字体 Mystery Quest（OFL、MysteryQuest-OFL.txt）。
         // 英語の名前だけに使うので ASCII のみ、96px、BC2（`-EmPx 96 -AtlasWidth 1024 -Ranges @(0x20, 0x7E)`）
         inline constexpr const wchar_t* Title = L"Assets/Fonts/MysteryQuest.spritefont";
+        // タイトル画面のメニューの字体 Zen Antique（OFL、ZenAntique-OFL.txt）。40px、BC2、既定の範囲（かな・漢字込み）
+        inline constexpr const wchar_t* Menu = L"Assets/Fonts/ZenAntique.spritefont";
     }
 
     // ========================================================
@@ -607,47 +561,47 @@ namespace Res
         inline constexpr const char* StoneShotHit = "Assets/Data/VFXData/StoneShotHit.json";
         inline constexpr const char* Poison = "Assets/Data/VFXData/Poison.json";           // 毒の弾（緑の毒液の塊 + 滴）
         inline constexpr const char* PoisonPool = "Assets/Data/VFXData/PoisonPool.json";   // 毒の池（範囲 PoisonPool：泡 + 毒霧 + 緑の光）
-        inline constexpr const char* Swamp = "Assets/Data/VFXData/Swamp.json";             // 泥沼の弾（泥の塊 + 滴。2026-10-17）
+        inline constexpr const char* Swamp = "Assets/Data/VFXData/Swamp.json";             // 泥沼の弾（泥の塊 + 滴）
         inline constexpr const char* SwampPool = "Assets/Data/VFXData/SwampPool.json";     // 泥沼（範囲 SwampPool：飛沫 + 泥の液面）
-        inline constexpr const char* Spore = "Assets/Data/VFXData/Spore.json";             // 胞子の弾（黄緑の塊 + 漂う胞子。2026-10-17）
+        inline constexpr const char* Spore = "Assets/Data/VFXData/Spore.json";             // 胞子の弾（黄緑の塊 + 漂う胞子）
         inline constexpr const char* SporeCloud = "Assets/Data/VFXData/SporeCloud.json";   // 胞子の霧（範囲 SporeCloud：漂う胞子 + 薄い靄 + 緑の光。2 秒）
-        inline constexpr const char* OutletSpark = "Assets/Data/VFXData/OutletSpark.json";         // 導きの火花の弾（2026-10-31）
+        inline constexpr const char* OutletSpark = "Assets/Data/VFXData/OutletSpark.json";         // 導きの火花の弾
         inline constexpr const char* OutletSplit = "Assets/Data/VFXData/OutletSplit.json";         // 分かれ玉の弾
         inline constexpr const char* OutletSeed = "Assets/Data/VFXData/OutletSeed.json";           // 時限の種の弾
         inline constexpr const char* OutletSeedRoot = "Assets/Data/VFXData/OutletSeedRoot.json";   // 時限の種が落ちた所（範囲 OutletSeedRoot）
         inline constexpr const char* OutletMine = "Assets/Data/VFXData/OutletMine.json";           // 浮遊機雷の弾
         inline constexpr const char* OrbitGuard = "Assets/Data/VFXData/OrbitGuard.json";           // 周回弾の弾
         inline constexpr const char* OutletBurst = "Assets/Data/VFXData/OutletBurst.json";         // 出口の先の魔法が発動する所の光（CPU）
-        inline constexpr const char* VoidVortex = "Assets/Data/VFXData/VoidVortex.json";           // 渦の弾（紫の小さな渦。旧ホーミングボルトの見た目。2026-10-22）
+        inline constexpr const char* VoidVortex = "Assets/Data/VFXData/VoidVortex.json";           // 渦の弾（紫の小さな渦）
         inline constexpr const char* VoidVortexPull = "Assets/Data/VFXData/VoidVortexPull.json";   // 渦（範囲 VoidVortexPull：回る渦 + 吸い込まれる光 + 屈折）
         inline constexpr const char* IceLance = "Assets/Data/VFXData/IceLance.json";         // アイスランスの弾（氷の槍 + 冷気の粒）
         inline constexpr const char* IceLanceHit = "Assets/Data/VFXData/IceLanceHit.json";   // アイスランスの命中（範囲 IceLanceHit：威力 0 の見た目だけ。氷の破片）
-        inline constexpr const char* GrassFire = "Assets/Data/VFXData/GrassFire.json";       // 燃えている草の炎・煙・火の粉（GrassFireEmitCS。2026-10-12）
-        inline constexpr const char* SandHaze = "Assets/Data/VFXData/SandHaze.json";         // 熱い砂の陽炎（GrassFireEmitCS を SandField の熱い所で。2026-11-02）
-        inline constexpr const char* SandDust = "Assets/Data/VFXData/SandDust.json";         // 風に舞う砂（GrassFireEmitCS の channel 1。2026-11-03）
-        inline constexpr const char* TornadoDust = "Assets/Data/VFXData/TornadoDust.json";   // 砂旋の足元の砂埃（SwarmTornadoEmitCS。2026-10-19）
+        inline constexpr const char* GrassFire = "Assets/Data/VFXData/GrassFire.json";       // 燃えている草の炎・煙・火の粉（GrassFireEmitCS）
+        inline constexpr const char* SandHaze = "Assets/Data/VFXData/SandHaze.json";         // 熱い砂の陽炎（GrassFireEmitCS を SandField の熱い所で）
+        inline constexpr const char* SandDust = "Assets/Data/VFXData/SandDust.json";         // 風に舞う砂（GrassFireEmitCS の channel 1）
+        inline constexpr const char* TornadoDust = "Assets/Data/VFXData/TornadoDust.json";   // 砂旋の足元の砂埃（SwarmTornadoEmitCS）
         inline constexpr const char* MobDeath = "Assets/Data/VFXData/MobDeath.json";       // 敵が死んだ足元の土煙 + 土くれ（範囲 MobDeath）
         inline constexpr const char* Beam = "Assets/Data/VFXData/Beam.json";               // 魔導光線（溜め + Beam entry の光線 + 先端の光）
 
-        // ---- CPU（AreaVFXPlayer）だけで出すエフェクト（2026-10-09 に VFXDatabase へ登録。それまではコードにファイル名を直書き）----
+        // ---- CPU（AreaVFXPlayer）だけで出すエフェクト（VFXDatabase に登録）----
         // プレイヤーの動き（PlayerVFXSystem）
         inline constexpr const char* CastFlash = "Assets/Data/VFXData/CastFlash.json";           // 詠唱の手元の光 + 火花
         inline constexpr const char* CastPulse = "Assets/Data/VFXData/CastPulse.json";           // 詠唱の体の周りの光の粒
         inline constexpr const char* FootDust = "Assets/Data/VFXData/FootDust.json";             // 走る足元の小石
-        inline constexpr const char* SandStep = "Assets/Data/VFXData/SandStep.json";             // 砂漠の一歩で蹴り上げる砂粒（2026-11-03）
+        inline constexpr const char* SandStep = "Assets/Data/VFXData/SandStep.json";             // 砂漠の一歩で蹴り上げる砂粒
         inline constexpr const char* JumpDust = "Assets/Data/VFXData/JumpDust.json";             // 跳んだ足元の小石の輪
         inline constexpr const char* AirJumpRing = "Assets/Data/VFXData/AirJumpRing.json";       // 空中ジャンプの光の輪
         inline constexpr const char* LandDust = "Assets/Data/VFXData/LandDust.json";             // 着地の小石
         inline constexpr const char* LandDustHeavy = "Assets/Data/VFXData/LandDustHeavy.json";   // 高い所からの着地
         inline constexpr const char* SlideDust = "Assets/Data/VFXData/SlideDust.json";           // スライディングの小石と草
         inline constexpr const char* SpeedTrail = "Assets/Data/VFXData/SpeedTrail.json";         // 速い時の背中の帯
-        inline constexpr const char* WaterStep = "Assets/Data/VFXData/WaterStep.json";           // 水たまりの中の一歩の水しぶき（2026-10-27）
+        inline constexpr const char* WaterStep = "Assets/Data/VFXData/WaterStep.json";           // 水たまりの中の一歩の水しぶき
         inline constexpr const char* WaterLand = "Assets/Data/VFXData/WaterLand.json";           // 水たまりへの着地・跳び出しの水しぶき
         inline constexpr const char* WaterSlide = "Assets/Data/VFXData/WaterSlide.json";         // 水たまりの中のスライディングの水しぶき
         // 魔法（CPU で出す分。判定は GPU の範囲）
         inline constexpr const char* IceSpikeFrost = "Assets/Data/VFXData/IceSpike.json";            // アイススパイクの冷気・氷の欠片・光（トゲ本体は IceSpikeField）
-        inline constexpr const char* Gust = "Assets/Data/VFXData/Gust.json";                       // 突風の土煙・草屑の輪（2026-10-12）
-        inline constexpr const char* Twister = "Assets/Data/VFXData/Twister.json";                 // 竜巻（longjuanfeng2.FBX の柱 + 屈折の煙団 + 巻き上がる草屑。竜巻に付いて動く。2026-10-22）
+        inline constexpr const char* Gust = "Assets/Data/VFXData/Gust.json";                       // 突風の土煙・草屑の輪
+        inline constexpr const char* Twister = "Assets/Data/VFXData/Twister.json";                 // 竜巻（longjuanfeng2.FBX の柱 + 屈折の煙 + 巻き上がる草屑。竜巻に付いて動く）
         // 戦闘の手応え（FeedbackVFXSystem）
         inline constexpr const char* LevelUp = "Assets/Data/VFXData/LevelUp.json";
         inline constexpr const char* CrateOpen = "Assets/Data/VFXData/CrateOpen.json";
@@ -667,25 +621,25 @@ namespace Res
         inline constexpr const char* BossSlam = "Assets/Data/VFXData/BossSlam.json";           // スラムの岩
         inline constexpr const char* BossRockFall = "Assets/Data/VFXData/BossRockFall.json";   // 投石雨の落ちてくる岩
         inline constexpr const char* BossRockHit = "Assets/Data/VFXData/BossRockHit.json";     // 投石雨の着弾
-        // 砂の守護者（砂漠の Boss。2026-10-24）
+        // 砂の守護者（砂漠の Boss）
         inline constexpr const char* BossQuicksand = "Assets/Data/VFXData/BossQuicksand.json";   // 流沙の渦（砂の液面 + 中心へ流れる砂粒）
         inline constexpr const char* BossSandMound = "Assets/Data/VFXData/BossSandMound.json";   // 潜砂の砂丘（Boss に付いて動く。ループ）
         inline constexpr const char* BossSandBurst = "Assets/Data/VFXData/BossSandBurst.json";   // 潜る・飛び出す時の砂の噴き上げ
         inline constexpr const char* BossSandSpear = "Assets/Data/VFXData/BossSandSpear.json";   // 砂の槍のトゲの根元の砂煙
         inline constexpr const char* BossSandAura = "Assets/Data/VFXData/BossSandAura.json";     // 体の周りに舞う砂（ループ）
-        inline constexpr const char* BossStoneAura = "Assets/Data/VFXData/BossStoneAura.json";   // 岩の巨人の肩から舞い落ちる葉と花粉（ループ。2026-10-25）
-        inline constexpr const char* BossVenom = "Assets/Data/VFXData/BossVenom.json";           // 大サソリの毒（プレイヤーの周りの緑の泡。ループ。2026-10-26）
-        inline constexpr const char* BossVenomAura = "Assets/Data/VFXData/BossVenomAura.json";   // 大サソリの足元の毒の靄（ループ。2026-10-26）
-        inline constexpr const char* BossStagBolt = "Assets/Data/VFXData/BossStagBolt.json";     // 雷鳴の雄鹿の角の雷撃の稲妻（2026-10-29）
-        inline constexpr const char* BossDjinnVortex = "Assets/Data/VFXData/BossDjinnVortex.json";   // 砂嵐の魔神の下半身の砂旋（2026-10-29）
+        inline constexpr const char* BossStoneAura = "Assets/Data/VFXData/BossStoneAura.json";   // 岩の巨人の肩から舞い落ちる葉と花粉（ループ）
+        inline constexpr const char* BossVenom = "Assets/Data/VFXData/BossVenom.json";           // 大サソリの毒（プレイヤーの周りの緑の泡。ループ）
+        inline constexpr const char* BossVenomAura = "Assets/Data/VFXData/BossVenomAura.json";   // 大サソリの足元の毒の靄（ループ）
+        inline constexpr const char* BossStagBolt = "Assets/Data/VFXData/BossStagBolt.json";     // 雷鳴の雄鹿の角の雷撃の稲妻
+        inline constexpr const char* BossDjinnVortex = "Assets/Data/VFXData/BossDjinnVortex.json";   // 砂嵐の魔神の下半身の砂旋
         inline constexpr const char* BossDjinnBreath = "Assets/Data/VFXData/BossDjinnBreath.json";   // 砂嵐の魔神の炎の息
-        inline constexpr const char* BossKingMist = "Assets/Data/VFXData/BossKingMist.json";         // 骸の王の足元の闇（2026-10-29）
+        inline constexpr const char* BossKingMist = "Assets/Data/VFXData/BossKingMist.json";         // 骸の王の足元の闇
         inline constexpr const char* BossCurseFloor = "Assets/Data/VFXData/BossCurseFloor.json";     // 骸の王の呪いの床
-        inline constexpr const char* BossBeastDust = "Assets/Data/VFXData/BossBeastDust.json";       // 石の守護獣の羽ばたきの土埃（2026-10-29）
+        inline constexpr const char* BossBeastDust = "Assets/Data/VFXData/BossBeastDust.json";       // 石の守護獣の羽ばたきの土埃
         inline constexpr const char* BossPetrifyBreath = "Assets/Data/VFXData/BossPetrifyBreath.json"; // 石の守護獣の石化の息
         inline constexpr const char* BossPetrify = "Assets/Data/VFXData/BossPetrify.json";           // 石化したプレイヤーの欠片
-        inline constexpr const char* BossStoneShard = "Assets/Data/VFXData/BossStoneShard.json";     // 石羽の散弾の羽根（2026-10-29）
-        // 遺跡の敵（2026-10-25）
+        inline constexpr const char* BossStoneShard = "Assets/Data/VFXData/BossStoneShard.json";     // 石羽の散弾の羽根
+        // 遺跡の敵
         inline constexpr const char* RuinsArmorFall = "Assets/Data/VFXData/RuinsArmorFall.json";
         inline constexpr const char* RuinsArmorRise = "Assets/Data/VFXData/RuinsArmorRise.json";
         inline constexpr const char* RuinsGargoyleWake = "Assets/Data/VFXData/RuinsGargoyleWake.json";
@@ -695,8 +649,8 @@ namespace Res
         inline constexpr const char* RuinsRaiseMark = "Assets/Data/VFXData/RuinsRaiseMark.json";
         inline constexpr const char* RuinsSkeletonRise = "Assets/Data/VFXData/RuinsSkeletonRise.json";
         inline constexpr const char* RuinsChainHit = "Assets/Data/VFXData/RuinsChainHit.json";
-        inline constexpr const char* SandTornado = "Assets/Data/VFXData/SandTornado.json";   // 砂嵐の術師の砂旋の本体（砂色の柱。Enemy/SandTornadoFx。2026-10-26）
-        // 面の固定エリート（2026-10-25、Enemy/EliteAttacks）
+        inline constexpr const char* SandTornado = "Assets/Data/VFXData/SandTornado.json";   // 砂嵐の術師の砂旋の本体（砂色の柱。Enemy/SandTornadoFx）
+        // 面の固定エリート（Enemy/EliteAttacks）
         inline constexpr const char* EliteSpawn = "Assets/Data/VFXData/EliteSpawn.json";
         inline constexpr const char* EliteAxeSpin = "Assets/Data/VFXData/EliteAxeSpin.json";
         inline constexpr const char* EliteArrow = "Assets/Data/VFXData/EliteArrow.json";
@@ -714,12 +668,12 @@ namespace Res
         inline constexpr const char* EliteBerserk = "Assets/Data/VFXData/EliteBerserk.json";
         inline constexpr const char* EliteBerserkAura = "Assets/Data/VFXData/EliteBerserkAura.json";
         inline constexpr const char* EliteChest = "Assets/Data/VFXData/EliteChest.json";
-        // 吸血のルーン（2026-10-25）
+        // 吸血
         inline constexpr const char* LifestealAbsorb = "Assets/Data/VFXData/LifestealAbsorb.json";
         // 天気（WeatherSystem）
         inline constexpr const char* Rain = "Assets/Data/VFXData/Rain.json";
         inline constexpr const char* Sandstorm = "Assets/Data/VFXData/Sandstorm.json";
-        // 環境（風源が巻き上げる草屑。World/GrassShreds、2026-10-23）
+        // 環境（風源が巻き上げる草屑。World/GrassShreds）
         inline constexpr const char* GrassShred = "Assets/Data/VFXData/GrassShred.json";
         // 召喚物
         inline constexpr const char* SpellOrb = "Assets/Data/VFXData/SpellOrb.json";           // 水晶玉の光球
@@ -749,6 +703,6 @@ namespace Res
         inline constexpr const char* Camera = "Assets/Data/Camera.json";   // 戦闘カメラの調整（BattleCamera）
         inline constexpr const char* Difficulty = "Assets/Data/Difficulty.json";   // 経過時間 → 難度の表（DifficultyCurve）
         inline constexpr const char* Settings = "Assets/Data/Settings.json";       // プレイヤーの設定（GameSettings：敵味方の縁取りの ON / OFF）。音量は Audio/Settings.json
-        inline constexpr const char* Progress = "Assets/Data/Progress.json";       // 進み具合（GameProgress：開いたマップ・クリアした Tier。2026-10-21）
+        inline constexpr const char* Progress = "Assets/Data/Progress.json";       // 進み具合（GameProgress：開いたマップ・クリアした Tier）
     }
 }

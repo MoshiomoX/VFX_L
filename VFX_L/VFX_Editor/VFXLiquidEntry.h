@@ -1,6 +1,6 @@
 // ============================================================
 // VFXLiquidEntry.h
-// Liquid entry：地面に溜まる液体を 1 つ描く（2026-10-02）。
+// Liquid entry：地面に溜まる液体を 1 つ描く。
 //   見た目は VFXLiquidDef（色・光り方・泡・飛び散り方・時間）。
 //   CPU：effect の位置 + offset に、entry の duration の間だけ出す（終わりの dryTime で縮む）。
 //        向きは previewDir（0 なら seed で決めた角度）。描画は VFXLiquidRenderer。

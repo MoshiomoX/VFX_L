@@ -28,14 +28,14 @@ namespace
         float grassDark;      // 草の下の地面に掛ける（1 = 掛けない）
         float grassOn;        // 1 = t2 に草の覆いの図がある
         DirectX::SimpleMath::Vector2 grassOrigin, grassSize;   // その図のフィールドの位置と大きさ（世界 xz）
-        // 砂漠の砂の面（2026-11-02、SandField）：x = 1 なら t3 状態 / t4 凹み、y = 濡れた砂の明るさ、z = 熱い砂の赤み、w = 凹みの法線
+        // 砂漠の砂の面（SandField）：x = 1 なら t3 状態 / t4 凹み、y = 濡れた砂の明るさ、z = 熱い砂の赤み、w = 凹みの法線
         Vector4 sand;
         DirectX::SimpleMath::Vector2 sandOrigin, sandSize;
     };
     static_assert(sizeof(TerrainCB) == 160, "TerrainCB layout mismatch");
 
     // 面毎のテクスチャ（Assets/Texture/Terrain/<名>_albedo.jpg / _normal.jpg）。層の順 = Layer
-    // ユーザー 10-03 に推奨の割り当てで決定：草原 地面 G2・坂 D1 / 砂漠 地面 S1・崖 R2 / 洞窟 底 F2・壁 R3 / 遺跡 地面 F1、崖は R3
+    // 割り当て：草原 地面 G2・坂 D1 / 砂漠 地面 S1・崖 R2 / 洞窟 底 F2・壁 R3 / 遺跡 地面 F1、崖は R3
     const char* const kLayerFiles[3][TerrainSurface::LayerCount] =
     {
         { "Grass002", "Ground002", "CliffRock006", "StoneFloor010", "CliffRock006" },     // 草原
@@ -145,7 +145,7 @@ void TerrainSurface::Activate(int biome)
     WriteCB();
 }
 
-// 草の覆いの図（2026-11-02）。Texture に包んで全部の面の材質の t2 に入れ、定数を書き直す
+// 草の覆いの図。Texture に包んで全部の面の材質の t2 に入れ、定数を書き直す
 void TerrainSurface::SetGrassCover(ID3D11ShaderResourceView* cover,
     const DirectX::SimpleMath::Vector2& origin, const DirectX::SimpleMath::Vector2& size)
 {
@@ -163,7 +163,7 @@ void TerrainSurface::SetGrassCover(ID3D11ShaderResourceView* cover,
     WriteCB();
 }
 
-// 砂漠の砂の面（2026-11-02）：状態（t3 = 材質の Roughness の枠）と凹み（t4 = AO の枠）。毎フレーム（2 枚を交互に使うので SRV が替わる）。
+// 砂漠の砂の面：状態（t3 = 材質の Roughness の枠）と凹み（t4 = AO の枠）。毎フレーム（2 枚を交互に使うので SRV が替わる）。
 // null = 掛けない。地形を描く前に呼ぶ
 void TerrainSurface::SetSandField(ID3D11ShaderResourceView* state, ID3D11ShaderResourceView* track,
     const DirectX::SimpleMath::Vector2& origin, const DirectX::SimpleMath::Vector2& size, float wetDark, float heatTint, float trackStrength)
@@ -249,7 +249,7 @@ void TerrainSurface::DrawImGui()
     changed |= ImGui::SliderFloat("Path above ny", &params.pathNy, 0.0f, 1.0f);
     changed |= ImGui::DragFloat("Cave below y", &params.caveY, 0.1f, -20.0f, 20.0f);
     changed |= ImGui::Checkbox("Flip normal Y", &params.flipNormalY);
-    changed |= ImGui::SliderFloat("Ground under grass x", &params.grassDarken, 0.2f, 1.0f);   // 2026-11-02
+    changed |= ImGui::SliderFloat("Ground under grass x", &params.grassDarken, 0.2f, 1.0f);
     ImGui::SameLine();
     ImGui::TextDisabled(m_GrassCover ? "(cover bound)" : "(no cover)");
     if (changed) WriteCB();

@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestShield.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=shield
-// VFXL_BATTLE_AUTOTEST=shield：シールド（2026-10-07）。受け止め・割れ・溢れた分が消える・5 秒後の回復・
+// VFXL_BATTLE_AUTOTEST=shield：シールド。受け止め・割れ・溢れた分が消える・5 秒後の回復・
 //   GPU の雑魚の接触・能力カード「最大シールド +25」を記録し、反応のエフェクトと HUD を撮る
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -74,7 +74,7 @@ void AutoTestShield::Run(float dt)
         hp.max = 100.0f;
         hp.current = 100.0f;
         hp.invincible = true;
-        // 2026-10-07 夜から開始時のシールドは 0（能力アップでだけ得る）。このテストは 25 から始める
+        // 開始時のシールドは 0（能力アップでだけ得る）。このテストは 25 から始める
         if (m_Registry.Has<ShieldComponent>(m_Player))
         {
             auto& sh = m_Registry.Get<ShieldComponent>(m_Player);
@@ -100,7 +100,7 @@ void AutoTestShield::Run(float dt)
         AutoTestLog(line);
         s_Step = 1;
     }
-    else if (s_Step == 1 && s_Real >= 1.3f) { AutoTestLog("shield look bubble"); s_Step = 15; }   // 常に包む護罩（2026-10-07）
+    else if (s_Step == 1 && s_Real >= 1.3f) { AutoTestLog("shield look bubble"); s_Step = 15; }   // 常に包むシールドの膜
     else if (s_Step == 15 && s_Real >= 1.5f) { hit(10.0f, "absorb"); s_Step = 2; }
     else if (s_Step == 2 && s_Real >= 1.55f) { AutoTestLog("shield look hit"); s_Step = 16; }       // 受けた瞬間の赤
     else if (s_Step == 16 && s_Real >= 1.75f) { AutoTestLog("shield look hitfade"); s_Step = 3; }   // 青へ戻る途中

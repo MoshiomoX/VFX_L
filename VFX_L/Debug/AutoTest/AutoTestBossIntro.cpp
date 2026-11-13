@@ -1,6 +1,6 @@
 // ============================================================
 // AutoTestBossIntro.cpp
-// TEMP-TEST: VFXL_BATTLE_AUTOTEST=bossintro（2026-10-27、Boss の登場の演出）
+// TEMP-TEST: VFXL_BATTLE_AUTOTEST=bossintro（Boss の登場の演出）
 //   1 秒: 無敵・湧き停止・全消し・詠唱停止、門の手前 2m へ。1.5 秒: F（門を使う）。
 //   使った直後にプレイヤーを門の前 12m（門から見て同じ側）へ移し、カメラは背中から門の方を向く。
 //   0.1 秒ごとに `bossintro t alive intro dist along hp` を書く（dist = Boss と門の口の水平距離、along = 出てくる向きへ何 m 出たか）。

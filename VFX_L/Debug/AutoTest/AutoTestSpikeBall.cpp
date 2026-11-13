@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestSpikeBall.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=spikeball
-// トゲ玉（kEnemyKindSpikeBall。2026-10-17）：正面に 1 体、プレイヤーは立ったまま。転がって来てぶつかり、
+// トゲ玉（kEnemyKindSpikeBall）：正面に 1 体、プレイヤーは立ったまま。転がって来てぶつかり、
 // プレイヤーが弾き飛ばされる距離・高さを測る。その後詠唱を戻して倒す
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"

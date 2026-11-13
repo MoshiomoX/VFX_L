@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestCurve.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=curve
-// VFXL_BATTLE_AUTOTEST=curve：難度曲線の実測（2026-10-04）。自動で 8 分遊び、30 秒毎の被弾・撃破・周りの数を記録
+// VFXL_BATTLE_AUTOTEST=curve：難度曲線の実測。自動で 8 分遊び、30 秒毎の被弾・撃破・周りの数を記録
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 #include "Player/ShieldComponent.h"
@@ -22,7 +22,7 @@ namespace
 }
 
 // ============================================================
-// TEMP-TEST: 難度曲線の実測（VFXL_BATTLE_AUTOTEST=curve、2026-10-04）
+// TEMP-TEST: 難度曲線の実測（VFXL_BATTLE_AUTOTEST=curve）
 // 普通に湧かせたまま 8 分（m_RunTime。VFXL_CURVE_MIN で変える）、人の代わりに自動で遊ぶ:
 //   ・プレイヤーは始点の周りの半径 8m の円を全速で回る（引き撃ち）
 //   ・三択 / 四択は「今置ける魔法・ルーン > 拡張枠 > 先頭」で選び、バックパックの中央に近い所へ自動で置く
@@ -31,7 +31,7 @@ namespace
 // 30 秒毎に `curve t alive kills level items frames mul contact spawn raw eff near3 near8 ttd`
 //   （kills = この 30 秒の撃破、raw / eff = 毎秒の被弾、near = 1 秒毎のリードバックでプレイヤーから 3 / 8m 以内の平均数、
 //    ttd = HP 100 がこの eff で何秒持つか）。2 / 4 / 6 / 8 分で `curve look <分>m`、最後に `curve done`。
-// 2026-10-07 追加（ユーザー「難度曲線がおかしい」の調査）:
+// ほかに:
 //   ・魔力解放（Q）は使えるようになったらすぐ使う（人が遊ぶ時と同じ）
 //   ・30 秒毎にもう 1 行 `curve mix t mob bomber splitter splitling elite boss ghost near8max shieldHits hpIn dpsCap killRate spawnRate`
 //     （種類毎の生きている数、8m 以内の数の最大、この 30 秒にシールドが受けた回数、
@@ -66,14 +66,13 @@ void AutoTestCurve::Run(float dt)
     {
         char env[16] = {};
         if (GetEnvironmentVariableA("VFXL_CURVE_MIN", env, sizeof(env)) > 0) s_EndMin = (float)std::atof(env);
-        // VFXL_OLD_DIFFICULTY=1：2026-10-04 以前の直線の難度（湧き 1 → 10 分 8 体/秒、HP・ダメージとも 1 + 0.12 × 分）。
-        // 2 点の表で同じになる（最後の区間の傾きで伸びるので 10 分以降も同じ）。改める前後の比較用
+        // VFXL_OLD_DIFFICULTY=1：古い直線の難度（湧き 1 → 10 分 8 体/秒、HP・ダメージとも 1 + 0.12 × 分）。比較用
         if (GetEnvironmentVariableA("VFXL_OLD_DIFFICULTY", nullptr, 0) > 0)
         {
             m_Mobs.curve.points = { { 0.0f, 1.0f, 1.0f, 1.0f }, { 10.0f, 8.0f, 2.2f, 2.2f } };
             AutoTestLog("curve uses the old linear difficulty");
         }
-        // VFXL_CURVE_CARRY=1：第 1 面を勝ち切った持ち物で次の面へ入った状態（2026-10-17、面毎の難度の調整用。VFXL_STAGE=2 と一緒に）：
+        // VFXL_CURVE_CARRY=1：第 1 面を勝ち切った持ち物で次の面へ入った状態（面毎の難度の調整用。VFXL_STAGE=2 と一緒に）：
         // レベル 30（MP 回復もそれに応じて上がる）、魔法威力 ×1.1^4、9×9 の枠、shapes 自動テストと同じ並び
         // （メテオ組 + 魔導光線組 + 猛毒の沼組 + 黄金の矢）+ 拡大鏡。以降の四択は普段どおり bot が選ぶ
         if (GetEnvironmentVariableA("VFXL_CURVE_CARRY", nullptr, 0) > 0)
@@ -88,6 +87,7 @@ void AutoTestCurve::Run(float dt)
                 { ItemID::Beam, 6, 5 }, { ItemID::HomingBolt, 5, 4 }, { ItemID::ArcBolt, 7, 6 },
                 { ItemID::Poison, 1, 7 }, { ItemID::Spore, 2, 6 }, { ItemID::Swamp, 2, 7 },
                 { ItemID::GoldenArrow, 3, 8 }, { ItemID::Magnifier, 1, 1 },
+                { ItemID::Gust, 8, 0 }, { ItemID::IceSpike, 6, 1 },   // CPU のエフェクトの枠を見る
             };
             for (const P& p : layout) BackpackLogic::Place(bp, p.id, p.r, p.c, 0);
             bp.dirty = true;
@@ -291,6 +291,8 @@ void AutoTestCurve::Run(float dt)
             m_RunTime, c.aliveEnemies, c.killCount - s_KillStart, level, (int)bp.items.size(), (int)bp.frames.size(),
             m_Mobs.GetHpMul(), m_Swarm.GetAIParams().contactDamage, m_Mobs.Director().spawnPerSecond,
             raw, eff, (float)s_Near3 / ns, (float)s_Near8 / ns, eff > 0.01f ? 100.0f / eff : 999.0f);
+        AutoTestLog(line);
+        snprintf(line, sizeof(line), "curve cpuVfx active %zu peak %u dropped %u", m_AreaVFX.GetActiveCount(), m_AreaVFX.GetPeakActive(), m_AreaVFX.GetDroppedCount());
         AutoTestLog(line);
 
         // MP：平均の残り割合・回復（毎秒）・杖が全部撃ち続けた時の消費（毎秒。集約後の消費 / 発動間隔の和）

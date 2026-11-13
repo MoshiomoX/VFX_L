@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmMoundVS.hlsl
-// 砂潜りの砂山（SWARM_KIND_BURROWER、2026-10-17）: 敵が地中を進む間、
+// 砂潜りの砂山（SWARM_KIND_BURROWER）: 敵が地中を進む間、
 // 箱型の体は地面の下に沈め（SwarmEnemyVS）、代わりにこの低い
 // ドームが地表を動いていく。
 // 砂潜り 1 体に 1 インスタンス（砂潜りの描画リスト、数は
@@ -21,7 +21,7 @@
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> burrowerList : register(t2);
-// （t4 の enemySlow はここで宣言していたが読んでいなかった: コンパイラが削り、C++ のバインドが毎フレーム警告していた。2026-10-20 に削除）
+// （t4 は使わない: 宣言しても読まないとコンパイラが削り、C++ のバインドが毎フレーム警告する）
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
 // C++ 側: SwarmSystem::PropMeshCB（SwarmShieldVS と同じブロック）

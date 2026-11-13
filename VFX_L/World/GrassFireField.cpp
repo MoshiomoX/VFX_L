@@ -37,7 +37,7 @@ bool GrassFireField::Initialize(ID3D11Device* device, ID3D11DeviceContext* conte
 
     // 温度 / 燃料 / 燃えている印（2 枚を交互に読み書き。踏み跡と同じ作り）。
     // 32 bit：燃料が生え戻る量は 1 フレームに 0.0003 ほどで、16 bit の浮動小数点だと高いフレームレートで丸められて
-    // 燃料が 0.5 で止まり、二度と燃えなくなった（2026-11-01）
+    // 燃料が 0.5 で止まってしまう
     for (int i = 0; i < 2; ++i)
     {
         D3D11_TEXTURE2D_DESC td = {};

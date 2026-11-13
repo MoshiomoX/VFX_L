@@ -1,13 +1,12 @@
 // ============================================================
 // WeaponSystemTwister.cpp
-// 竜巻（上級の範囲魔法、AreaProfile::Kind::Roam。2026-10-22。ユーザー：渦を下級魔法にして「新しい上級の竜巻」、
-//   前提は渦 + 突風、動きは「敵の方へ進んで巻き込む」）。
+// 竜巻（上級の範囲魔法、AreaProfile::Kind::Roam。前提は渦 + 突風）。
 //   誘発された所に出て、プレイヤーに一番近い敵の方へ向きを回しながら roamSpeed m/s で進む。
 //   GPU の範囲は中心を動かせないので、kTwisterPulse 秒ごとに今の位置へ「その間だけ生きる」範囲を出し直す
 //   （引き寄せ = AreaProfile::pull・減速は毎回、威力は tickInterval ごとの回にだけ乗せる。数字が出過ぎないように）。
 //   見た目は CPU の VFX（AreaVFXPlayer のインスタンス）を毎フレーム竜巻の位置へ動かし、
 //   風源（SwarmSystem::AddFrameWindSource）も毎フレーム出し直す：草が渦になってなびき、落ち葉が巻き上がる。
-//   出る / 消える時は急に出入りしないよう（2026-10-22 ユーザー指摘）、出た直後 introTime 秒で足元から伸び上がり、
+//   出る / 消える時は急に出入りしないよう、出た直後 introTime 秒で足元から伸び上がり、
 //   寿命が尽きたら outroTime 秒かけてほどける（AreaVFXPlayer::SetPresence。ほどけている間は判定を出さない）
 // ============================================================
 #include "ECS/System/WeaponSystem.h"
@@ -15,6 +14,7 @@
 #include "Swarm/AreaProfile.h"
 #include "Swarm/AreaVFXPlayer.h"
 #include "Audio/AudioSystem.h"
+#include "World/CliffSteer.h"
 
 using DirectX::SimpleMath::Vector3;
 
@@ -42,7 +42,7 @@ void WeaponSystem::StartTwister(const AreaStats& a, const Vector3& at, const Vec
     {
         // 寿命 + 消える分。止めるのは UpdateTwisters（ほどけ終わった時）。ここの長さは止め忘れた時の保険
         t.vfxHandle = m_AreaVFX->Play(ap.vfxFile, t.pos, t.life + twisterLook.outroTime + 0.5f, false, *m_AreaVFXCtx);
-        // 拡大鏡で広がった分、柱も煙も同じ倍率に（2026-10-22。判定と風源は t.radius で既に広がっている）
+        // 拡大鏡で広がった分、柱も煙も同じ倍率に（判定と風源は t.radius で既に広がっている）
         if (t.vfxHandle != 0 && ap.radius > 0.0f)
             m_AreaVFX->ScaleInstance(t.vfxHandle, t.radius / ap.radius);
         if (t.vfxHandle != 0)
@@ -50,6 +50,23 @@ void WeaponSystem::StartTwister(const AreaStats& a, const Vector3& at, const Vec
     }
     AudioSystem::Get().Play(ap.sound);
     m_Twisters.push_back(t);
+}
+
+void WeaponSystem::ClearActive()
+{
+    if (m_Swarm)
+        for (const ActiveBeam& b : m_Beams)
+            m_Swarm->SetBeam(b.channel, Vector3::Zero, Vector3::Zero, 0.0f, false);
+    m_Beams.clear();
+    m_Twisters.clear();
+    m_Blades.clear();
+    m_Bats.clear();
+    m_BatHeal = 0.0f;
+    m_DelayedAreas.clear();
+    m_DelayedTriggers.clear();
+    m_TriggerEvents.clear();
+    m_CpuTriggerEvents.clear();
+    m_Requests.clear();
 }
 
 void WeaponSystem::UpdateTwisters(float dt, const Vector3& playerPos, bool hasTarget, const Vector3& targetPos)
@@ -61,7 +78,7 @@ void WeaponSystem::UpdateTwisters(float dt, const Vector3& playerPos, bool hasTa
     {
         ActiveTwister& t = m_Twisters[i];
 
-        // ---- 出る / 消える移り変わり（2026-10-22）：presence 0〜1 を柱・煙・光・風・進む速さに掛ける。
+        // ---- 出る / 消える移り変わり：presence 0〜1 を柱・煙・光・風・進む速さに掛ける。
         //      寿命が尽きたら outroTime 秒かけてほどけ、その間は引き寄せも威力も出さない ----
         const bool leaving = t.age >= t.life;
         if (leaving)
@@ -79,7 +96,7 @@ void WeaponSystem::UpdateTwisters(float dt, const Vector3& playerPos, bool hasTa
             : (twisterLook.introTime > 0.0f ? (std::min)(t.age / twisterLook.introTime, 1.0f) : 1.0f);
         const float presenceSmooth = presence * presence * (3.0f - 2.0f * presence);
 
-        // ---- 向き（2026-10-22 第 1 版はプレイヤーに一番近い敵を追わせたら、群れごとプレイヤーへ引きずってきた）：
+        // ---- 向き（敵を追わせると群れごとプレイヤーへ引きずってくるので、基本は外向き）：
         //      基本はまっすぐ外へ。プレイヤーに一番近い敵が前方 seekCone 度以内に居ればその方へ turnRate 度/秒で曲がる
         //      （後ろの敵へは戻らない。もう標的の上 = 1m 以内なら今の向きのまま）。
         //      プレイヤーから keepAway m 以内に入ったら、プレイヤーから離れる向きへ曲げる ----
@@ -118,6 +135,9 @@ void WeaponSystem::UpdateTwisters(float dt, const Vector3& playerPos, bool hasTa
             const float ang = cur + std::clamp(diff, -step, step);
             t.dir = Vector3(std::sin(ang), 0.0f, std::cos(ang));
         }
+        // 崖は登らない：前方が段差なら左右へ向きを振って崖沿いに進む（どこも塞がっていたら引き返す）。下りは構わない
+        if (groundHeight)
+            CliffSteer::Steer(t.dir, t.pos, t.pos.y, groundHeight);
         // 出た直後は動き出しながら、消える時は止まりかけながら（0.25 倍まで）
         t.pos += t.dir * (t.speed * (0.25f + 0.75f * presenceSmooth) * dt);
         if (groundHeight) t.pos.y = groundHeight(t.pos.x, t.pos.z);
@@ -132,7 +152,7 @@ void WeaponSystem::UpdateTwisters(float dt, const Vector3& playerPos, bool hasTa
             const AreaProfile& ap = AreaProfileDB::At(t.profile);
             Swarm::Area area = ap.MakeArea(t.pos + Vector3(0.0f, lift, 0.0f), false);
             area.radius = t.radius;
-            if (t.lifesteal) area.tickNow |= Swarm::kAreaExtraLifesteal;   // 吸血のルーン（2026-10-25）
+            if (t.lifesteal) area.tickNow |= Swarm::kAreaExtraLifesteal;   // 吸血のルーン
             area.damage = 0.0f;
             if (t.damageTimer <= 0.0f)
             {

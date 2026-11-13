@@ -78,7 +78,7 @@ public:
     void SetVibration(float leftMotor, float rightMotor, float duration);
     void StopVibration();
 
-    // ====== 最後に触った機器（2026-10-09）======
+    // ====== 最後に触った機器 ======
     // パッドのボタンを押した / スティック・トリガーを倒した瞬間 → Pad。
     // キー・マウスボタンを押した / マウスを動かした / ホイール → KeyboardMouse。
     // パッドを挿した瞬間は Pad、抜いたら KeyboardMouse。起動時は KeyboardMouse（パッドが挿さっていれば最初の Update で Pad）
@@ -88,8 +88,11 @@ public:
     // TEMP-TEST: 機器を固定する（自動テストの撮影用。VFXL_INPUT_DEVICE=pad|kbd でも起動時に固定）
     void DebugLockDevice(InputDevice d) { m_LastDevice = d; m_DeviceLocked = true; }
     void DebugUnlockDevice() { m_DeviceLocked = false; }
+    // TEMP-TEST: マウスのボタンを押している扱いにする（0 左 / 1 右、-1 = 本物のまま）。次の Update から効く
+    void DebugMouseButton(int button, int down) { if (button >= 0 && button < 2) m_DebugMouse[button] = down; }
 
 private:
+    int m_DebugMouse[2] = { -1, -1 };
     InputManager() = default;
     ~InputManager() = default;
     InputManager(const InputManager&) = delete;

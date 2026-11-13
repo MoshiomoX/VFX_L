@@ -1,6 +1,6 @@
 // ============================================================
 // VFXLiquidPS.hlsl
-// Liquid エントリ（2026-10-02）：水たまりの 1 ピクセルをシェーディングする。
+// Liquid エントリ：水たまりの 1 ピクセルをシェーディングする。
 // CPU 経路（VFXLiquidRenderer + VFXLiquidVS）と GPU 経路
 // （SwarmSystem + SwarmLiquidVS）の両方で使う。LiquidCommon.hlsli を参照。
 //
@@ -51,7 +51,7 @@ float4 main(LiquidVSOut i) : SV_TARGET
     float inside = -d;
     float deep = smoothstep(0.0, max(L.depthWidth, 1e-3), inside);
     float rim = 1.0 - smoothstep(0.0, max(L.rimWidth, 1e-3), inside);
-    // トゥーン（2026-10-04、シーンの toonParams に従う）：なめらかな傾斜の代わりにくっきりした段
+    // トゥーン（シーンの toonParams に従う）：なめらかな傾斜の代わりにくっきりした段
     bool toon = toonParams.x > 0.5;
     if (toon)
     {
@@ -70,7 +70,7 @@ float4 main(LiquidVSOut i) : SV_TARGET
     float slope = L.bump * 6.0 * x * (1.0 - x) / max(L.depthWidth, 1e-3);
     float2 gw = g.x * fwd + g.y * lft;   // ローカル -> ワールド xz
     // ゆっくりした渦模様：明るさと小さな波打ち（ノイズの差分）
-    // 渦（2026-10-24、砂の守護者の流砂）：ノイズを中心からの距離に応じてねじり、
+    // 渦（砂の守護者の流砂）：ノイズを中心からの距離に応じてねじり、
     // 全体を回して渦の腕を巻かせる。前から左へ回る = 風源の渦と同じ向き
     float2 q = i.local;
     float2 drift = float2(g_LTime * 0.15, -g_LTime * 0.11);
@@ -121,14 +121,14 @@ float4 main(LiquidVSOut i) : SV_TARGET
         fres = pow(1.0 - saturate(dot(N, V)), 5.0);
     }
     float3 sky = L.skyColor.rgb * (fres * L.skyColor.a);
-    // pointGain 0 なら光源のループを飛ばす：プールはそれぞれ自分の光源を持つので、N 個
-    // 重なると各プールの各ピクセルが N 個の光源を回っていた（2026-10-05、毒沼）
+    // pointGain 0 なら光源のループを飛ばす（プールはそれぞれ自分の光源を持つので、
+    // 重なると光源の数だけ重くなる）
     float3 pd = float3(0.0, 0.0, 0.0);
     float3 ps = float3(0.0, 0.0, 0.0);
     if (L.pointGain > 0.0)
         PointLightShade(i.world, N, V, max(L.roughness, 0.04), F0, pd, ps);
     // 液体のプールはたいていすぐ上に自分の光源を持つ（毒：0.5m）。そのままの
-    // 強さだと液面のハイライトがブルームのしきい値を大きく超えていた
+    // 強さだと液面のハイライトがブルームのしきい値を大きく超える
     pd *= L.pointGain;
     ps *= L.pointGain;
     // 液体は拡散がほとんど見えない。見えるのはほぼ反射と自発光

@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // CollisionTestScene.cpp
 // 戦闘シーンの入口：初期化の流れ・終了・画面サイズ・小さな問い合わせ。
-// 2026-10-25 に 1540 行あったのを分けた（ユーザー「長すぎる」。中身はそのまま、順番も同じ）:
+// 分けた先:
 //   CollisionTestSceneInit.cpp      初期化の各段（描画 → 面 → 地形 → GPU の群れ → プレイヤー → 面の流れ）と面の引き継ぎ
 //   CollisionTestSceneUpdate.cpp    毎フレームの流れ（UI・メニュー・案内・死亡 → リザルト）・HUD の目印・EndRun
 //   CollisionTestSceneGameplay.cpp  gameplay の System の実行順（止まっている間は走らない）
@@ -92,7 +92,7 @@ void CollisionTestScene::Shutdown()
     m_Swarm.Shutdown();
     m_StaticProps.Shutdown();
     m_Tumbleweeds.Clear(m_Registry);   // 実体を消す（次の Init の実体と番号が被らないうちに）
-    ClearRuinsFoes();                  // 鎖の実体も同じく（2026-10-25）
+    ClearRuinsFoes();                  // 鎖の実体も同じく
     m_GrassShreds.Clear(m_AreaVFX);    // 草屑の発生源の番号を捨てる（AreaVFXPlayer はシーンと一緒に終わる）
     m_Dandelions.Shutdown();
     m_Debris.Shutdown();
@@ -101,6 +101,7 @@ void CollisionTestScene::Shutdown()
     m_Sand.Shutdown();
     m_Footprints.Shutdown();
     m_Miasma.Shutdown();
+    m_WindGrid.Shutdown();
     m_Grass.Shutdown();
     m_GameUI.Shutdown();
     m_TitleUI.Shutdown();

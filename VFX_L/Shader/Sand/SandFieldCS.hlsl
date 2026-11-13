@@ -1,10 +1,10 @@
 // ============================================================
 // SandFieldCS.hlsl
-// 砂漠の砂面を 1 ステップ進める（World/SandField、2026-11-02）。
+// 砂漠の砂面を 1 ステップ進める（World/SandField）。
 // フィールド全体の 2 枚のマップ。草の延焼と同じくピンポン：
 //   state (float4): x = 温度、y = 乾き具合（1 = 乾いている、0 = びしょ濡れ）、
 //                   z = 熱く乾いた砂が揺らめく所で 1（陽炎）、
-//                   w = 0..1 風が乾いた砂を巻き上げる強さ（2026-11-03）
+//                   w = 0..1 風が乾いた砂を巻き上げる強さ
 //   track (float) : 砂面の深さ（負 = くぼみ）
 // 1 ステップごと：
 //   温度は隣へ広がり、冷える。
@@ -23,6 +23,7 @@
 // ============================================================
 
 #include "../Common/WindSources.hlsli"
+#include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
 
 // SandField::SandCB（144 バイト）と一致させること
 cbuffer SandCB : register(b0)
@@ -206,7 +207,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 
     // ---- 風：乾いた砂が舞い（w = 強さ）、舞う砂がくぼみを埋める ----
     float srcLift;
-    float3 srcAir = WindSourceAir(g_WindSources, xz, srcLift);
+    float3 srcAir = WindGridBlend2D(WindSourceAir(g_WindSources, xz, srcLift), xz);
     float rangeInv = 1.0 / max(g_LiftRange, 0.1);
     float blowSrc = saturate((length(srcAir.xz) - g_LiftWind) * rangeInv);
     float blowWorld = saturate((length(g_Wind) - g_LiftWind) * rangeInv) * g_WorldLift;

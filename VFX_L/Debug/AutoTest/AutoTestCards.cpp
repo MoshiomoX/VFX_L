@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestCards.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=cards
-// VFXL_BATTLE_AUTOTEST=cards：説明カードの文の長さ（2026-10-09 ユーザー「魔法の説明が長すぎる」）。
+// VFXL_BATTLE_AUTOTEST=cards：説明カードの文の長さ。
 //   4 択に魔法・ルーン・召喚物を 4 枚ずつ並べて撮り、最後にバックパックに置いた物の説明（発動中 / 連鎖）も撮る
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -23,10 +23,10 @@ namespace
     // 4 枚ずつ。全部の魔法・ルーン・召喚物と、能力アップを少し
     const ItemID kGroups[][4] = {
         { ItemID::Fireball, ItemID::ArcBolt, ItemID::HomingBolt, ItemID::StoneShot },
-        { ItemID::GoldenArrow, ItemID::IceLance, ItemID::Swamp, ItemID::Spore },   // 泥沼・胞子（2026-10-17）
+        { ItemID::GoldenArrow, ItemID::IceLance, ItemID::Swamp, ItemID::Spore },   // 泥沼・胞子
         { ItemID::Beam, ItemID::CrystalBall, ItemID::SplitRune, ItemID::Magnifier },
         { ItemID::DoubleCastRune, ItemID::HasteRune, ItemID::Frame3x3, ItemID::ShieldUp },
-        { ItemID::IceSpike, ItemID::Meteor, ItemID::Beam, ItemID::Poison },   // 上級魔法（アイススパイク 2026-10-10、猛毒の沼 2026-10-17）
+        { ItemID::IceSpike, ItemID::Meteor, ItemID::Beam, ItemID::Poison },   // 上級魔法
     };
     constexpr int kGroupCount = (int)(sizeof(kGroups) / sizeof(kGroups[0]));
 }
@@ -90,7 +90,7 @@ void AutoTestCards::Run(float dt)
         s_Meteor = BackpackLogic::Place(bp, ItemID::Meteor, 2, 2, 0);    // 十字 (1,2)(2,1)(2,2)(2,3)(3,2)
         s_Fire = BackpackLogic::Place(bp, ItemID::Fireball, 0, 3, 0);    // (1,3) の左 = 隕石
         BackpackLogic::Place(bp, ItemID::StoneShot, 3, 1, 0);            // (3,1) の上 = 隕石
-        s_Poison = BackpackLogic::Place(bp, ItemID::Poison, 1, 7, 0);   // 2026-10-17 から上級魔法（猛毒の沼）：前提の泥沼・胞子を下に
+        s_Poison = BackpackLogic::Place(bp, ItemID::Poison, 1, 7, 0);   // 猛毒の沼（上級魔法）：前提の泥沼・胞子を下に
         BackpackLogic::Place(bp, ItemID::Swamp, 2, 7, 0);                // 上 = 沼 (1,7)(1,8)
         BackpackLogic::Place(bp, ItemID::Spore, 2, 6, 0);                // 縦 2 (2,6)(3,6)：上 = 沼 (1,6)
         BackpackLogic::Place(bp, ItemID::Magnifier, 1, 1, 0);           // 斜め下 (2,2) = 隕石の中心 → 爆発の半径の行が出るはず

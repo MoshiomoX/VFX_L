@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // CollisionTestSceneSand.cpp
-// 砂漠の砂の面（World/SandField、2026-11-02）をシーンに繋ぐ所：
+// 砂漠の砂の面（World/SandField）をシーンに繋ぐ所：
 //   BuildSandField : 地形の後（Init・作り直し・ステージ選択の切替）。砂漠だけ動かす
 //   PushSand       : PushWind の中（Flush の前）。風・プレイヤーの足・陽炎・舞う砂の入力（SwarmSystem::SetSandHaze）
 //   StepSand       : 描画の最初（Flush の後、地形を描く前）。1 歩進めて地形の材質へ渡す

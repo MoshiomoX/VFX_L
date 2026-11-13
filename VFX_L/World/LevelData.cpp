@@ -69,7 +69,7 @@ bool LevelIO::Load(const std::string& name, LevelData& out)
         return false;
     }
 
-    // 読み取りも try の中（2026-10-25）：項目の型が違うと value() / get<float>() が type_error を投げて落ちていた。
+    // 読み取りも try の中（項目の型が違うと value() / get<float>() が type_error を投げる）。
     // 壊れた置物は 1 個ずつ飛ばす。名前が文字列でなければファイル名のまま。全体の形が違う（root が配列など）時は読めない扱い
     if (!root.is_object())
     {

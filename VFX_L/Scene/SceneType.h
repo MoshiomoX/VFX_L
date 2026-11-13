@@ -8,9 +8,9 @@ enum class SceneType
     PROJECTILE_EDITOR,
     LEVEL_EDITOR,
     RESULT,
-    SPELL_LAB,     // 魔法の実験場（戦闘シーンの平地版。2026-10-06）
-    SHOP,          // 面と面の間の商店（リザルトの「次のステージへ」の後。2026-10-15）
-    STAGE_SELECT,  // ステージ選択（マップ × Tier。タイトルの「はじめる」の後。2026-10-21）
+    SPELL_LAB,     // 魔法の実験場（戦闘シーンの平地版）
+    SHOP,          // 面と面の間の商店（リザルトの「次のステージへ」の後）
+    STAGE_SELECT,  // ステージ選択（マップ × Tier。タイトルの「はじめる」の後）
     // 追加していく
 };
 

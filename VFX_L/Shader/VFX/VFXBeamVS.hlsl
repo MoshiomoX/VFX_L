@@ -50,7 +50,7 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float d = t * len;
     float3 p = b.start + axis * d;
 
-    // 稲妻: 区間の境目を横に折る（2026-10-15）
+    // 稲妻: 区間の境目を横に折る
     float flicker = 1.0;
     if (b.jitter > 0.0)
     {

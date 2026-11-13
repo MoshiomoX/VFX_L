@@ -1,11 +1,11 @@
 // ============================================================
 // AutoTestElites.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=elites（VFXL_STAGE=1 / 2 / 3 で面を選ぶ = A / B の個体が変わる）
-// 面の固定エリート（2026-10-25）：技の当たりと避け方、詞缀、倒した後の金色の宝箱。
+// 面の固定エリート：技の当たりと避け方、アフィックス、倒した後の金色の宝箱。
 //   A0 / B0：プレイヤーは立ったまま（技が 1 回当たるはず）
 //   A1 / B1：溜めが始まったら型毎の避け方で動く（当たらないはず）
 //     大斧・炎の息 = 離れる、矢・突進 = 横へ、影の剣士 = 向いている方へ走る（背後の輪から出る）、呪いの玉 = 離れ続ける
-//   X：A に詞缀を 4 つ全部（疾風・鉄壁・雷光・狂暴）。プレイヤーは撃たず、CPU が 0.25 秒毎にエリートの所へ傷の範囲を置いて削る
+//   X：A にアフィックスを 4 つ全部（疾風・鉄壁・雷光・狂暴）。プレイヤーは撃たず、CPU が 0.25 秒毎にエリートの所へ傷の範囲を置いて削る
 //      → 盾が割れる・狂暴になる・雷が落ちる・死ぬ → 金色の宝箱が出る → 近くへ行って F → 金貨が減らずに四択が出るか
 // 0.25 秒毎 `elites <段> t phase hits lost dist hp shield enraged`。段の終わりに `elites <段> result …`。
 // `elites look <名>` で自分で写す（VFXL_SELF_SHOT）
@@ -88,7 +88,7 @@ void AutoTestElites::Run()
         tf.position = Vector3(s_Origin.x, m_Grid.SampleHeight(s_Origin.x, s_Origin.z) + 1.0f, s_Origin.z);
         tf.rotation.y = 0.0f;
         const Vector3 p(s_Origin.x, 0.0f, s_Origin.z + kSpawnDist);
-        // 盾の削れ具合を見るため、詞缀の段は HP 低め（250 → 1/2.5）
+        // 盾の削れ具合を見るため、アフィックスの段は HP 低め（250 → 1/2.5）
         const bool ok = m_StageElites.SpawnAt(m_Grid, m_Swarm, p, ranged, affixes, hp);
         snprintf(line, sizeof(line), "elites %s start ranged %d affixes %u hp %.0f ok %d type %d", ph, ranged ? 1 : 0, affixes, hp, ok ? 1 : 0,
             (int)(ranged ? m_StageElites.TypeB() : m_StageElites.TypeA()));
@@ -202,7 +202,7 @@ void AutoTestElites::Run()
     }
     s_LastPhase = ph;
 
-    // ---- X：詞缀。0.25 秒毎にエリートの所へ傷の範囲（盾があれば半分しか通らない）----
+    // ---- X：アフィックス。0.25 秒毎にエリートの所へ傷の範囲（盾があれば半分しか通らない）----
     const bool affixPhase = (s_Phase[0] == 'X');
     if (affixPhase && seen && m_AutoTime >= s_NextChip)
     {

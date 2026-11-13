@@ -101,7 +101,7 @@ void FeedbackVFXSystem::Update(Registry& reg, Entity player, float dt, float hpL
         m_PrevSurgeTime = surge;
     }
 
-    // ---- シールドで受けた（2026-10-07）：六角の護罩が一瞬光る / 割れたら護罩が砕けて飛び散る ----
+    // ---- シールドで受けた：六角の膜が一瞬光る / 割れたら膜が砕けて飛び散る ----
     // ShieldComponent の累計を前のフレームと比べる（HP は減らないので hpLost では拾えない）
     if (reg.Has<ShieldComponent>(player))
     {

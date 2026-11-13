@@ -21,6 +21,9 @@
 #include "Item/Items/Beam.h"
 #include "Item/Items/Gust.h"
 #include "Item/Items/Twister.h"
+#include "Item/Items/SwordRing.h"
+#include "Item/Items/SpinSlash.h"
+#include "Item/Items/VampireBats.h"
 #include "Item/Items/SplitRune.h"
 #include "Item/Items/DoubleCastRune.h"
 #include "Item/Items/Magnifier.h"
@@ -49,7 +52,7 @@ namespace
     std::unordered_map<ItemID, FunctionItemDef>   g_Functions;
     std::unordered_map<ItemID, AreaItemDef>       g_Areas;
     std::unordered_map<ItemID, FrameItemDef>      g_Frames;
-    std::unordered_map<ItemID, SummonItemDef>     g_Summons;   // 召喚物（水晶玉。2026-10-06）
+    std::unordered_map<ItemID, SummonItemDef>     g_Summons;   // 召喚物（水晶玉）
     std::unordered_map<ItemID, StatItemDef>       g_Stats;
 
     std::vector<ItemID> g_AllIDs;          // 全ID（UI の一覧表示用）。能力値は入れない
@@ -60,7 +63,7 @@ namespace
     std::unordered_map<ItemID,
         std::pair<std::vector<CellOffset>, std::vector<CellOffset>>> g_CodeShapes;
 
-    // ItemID の番号で引く平らな表（2026-10-25）。GetCommon / GetCategory / IsFrame は描画・判定の
+    // ItemID の番号で引く平らな表。GetCommon / GetCategory / IsFrame は描画・判定の
     // 毎フレームの処理から何千回も呼ばれるので、種類ごとの表を最大 6 回引かずにここを 1 回見る。
     // 中身は上の登録所の要素を指すだけ（unordered_map の要素は再ハッシュでも動かない）。
     // 登録所が変わるのは Initialize の中だけなので、そこで作り直す
@@ -200,6 +203,9 @@ void ItemDatabase::Initialize()
     Register(MakeGust());
     Register(MakeDetonate());
     Register(MakeTwister());
+    Register(MakeSwordRing());
+    Register(MakeSpinSlash());
+    Register(MakeVampireBats());
 
     // ---- 機能型 ----
     Register(MakeSplitRune());
@@ -209,7 +215,7 @@ void ItemDatabase::Initialize()
     Register(MakeChainRune());
     Register(MakeLarpaRune());
 
-    // ---- 召喚物（2026-10-06）----
+    // ---- 召喚物 ----
     Register(MakeCrystalBall());
 
     // ---- AOE 型（未実装）----
@@ -229,7 +235,7 @@ void ItemDatabase::Initialize()
     Register(MakeMaxHealthUp());
     Register(MakeMaxManaUp());
     Register(MakeMoveSpeedUp());
-    // 跳躍力 +8%（JumpPowerUp）は 2026-10-26 に削除（ユーザー「釣り合いを壊している」）。ItemID / StatKind::JumpPower は残る（引き継ぎの stats.jumpPower は変えない）
+    // 跳躍力（JumpPowerUp）は登録しない。ItemID / StatKind::JumpPower は残す
     Register(MakeManaRegenUp());
     Register(MakeJumpCountUp());
     Register(MakeSpellPowerUp());
@@ -250,14 +256,17 @@ void ItemDatabase::Initialize()
     }
     std::cout << "[ItemDatabase] shape files: " << shapeFiles << " (" << ItemDataFile::kDir << ")" << std::endl;
 
-    // ---- 稀有度（2026-10-28、ItemRarity.h）。表に無い物はノーマル ----
-    // レア / レジェンドの魔法 = 以前の上級魔法（前提なしで単独で撃つ）。能力値の札（四択・商店に出さない）は表に入れない
+    // ---- 稀有度（ItemRarity.h）。表に無い物はノーマル ----
+    // 能力値の札（四択・商店に出さない）は表に入れない
     {
         static const std::pair<ItemID, ItemRarity> kRarityTable[] = {
             // レア
             { ItemID::Poison,       ItemRarity::Rare },        // 猛毒の沼
             { ItemID::IceSpike,     ItemRarity::Rare },
             { ItemID::Twister,      ItemRarity::Rare },        // 竜巻
+            { ItemID::SwordRing,    ItemRarity::Rare },        // 魔剣の輪
+            { ItemID::SpinSlash,    ItemRarity::Rare },        // 回旋斬
+            { ItemID::VampireBats,  ItemRarity::Rare },        // 吸血コウモリ
             { ItemID::OutletSplit,  ItemRarity::Rare },        // 分かれ玉（出口 2 つ）
             { ItemID::OutletSeed,   ItemRarity::Rare },        // 時限の種
             { ItemID::OutletMine,   ItemRarity::Rare },        // 浮遊機雷
@@ -265,15 +274,11 @@ void ItemDatabase::Initialize()
             { ItemID::ChainRune,    ItemRarity::Rare },
             { ItemID::LarpaRune,    ItemRarity::Rare },
             { ItemID::Detonate,     ItemRarity::Rare },
-            { ItemID::Frame3x3,     ItemRarity::Rare },
-            { ItemID::FrameArea,    ItemRarity::Rare },
-            { ItemID::FrameFocus,   ItemRarity::Rare },
-            { ItemID::FrameHaste,   ItemRarity::Rare },
+            // 設置枠は稀有度を持たない（出やすさと値段は大きさと効果で決まる。Items/Frames.h の FrameDefs::Finish）
             // レジェンド
             { ItemID::Meteor,         ItemRarity::Legendary },
             { ItemID::Beam,           ItemRarity::Legendary }, // 魔導光線
             { ItemID::DoubleCastRune, ItemRarity::Legendary },
-            { ItemID::FrameLifesteal, ItemRarity::Legendary },
             { ItemID::CrystalBall,    ItemRarity::Legendary },
         };
         for (const auto& [id, r] : kRarityTable)
@@ -471,7 +476,7 @@ void ItemDatabase::ApplyModifier(AreaStats& stats, const AreaModifier& mod)
 {
     float* target = nullptr;
 
-    // 連鎖（2026-10-20）: 跳べない範囲魔法には回数も、連鎖のルーンの代価（chainOnly）も掛けない
+    // 連鎖: 跳べない範囲魔法には回数も、連鎖のルーンの代価（chainOnly）も掛けない
     if (mod.param == AreaParam::ChainCount || mod.chainOnly)
         if (!AreaCanChain(stats)) return;
     if (mod.param == AreaParam::ChainCount)

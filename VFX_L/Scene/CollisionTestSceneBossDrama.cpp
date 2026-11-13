@@ -1,7 +1,6 @@
 ﻿// ============================================================
 // CollisionTestSceneBossDrama.cpp
-// Boss の狂暴・撃破の演出（2026-10-29、ユーザー「Boss の演出を始めて」→ 狂暴 = 止まって吠える（推奨、無回答のため）、
-// 撃破 = スロー + 光の爆ぜと砕け、残った雑魚も一緒に砕いて経験値を落とす）。登場は CollisionTestSceneBossIntro.cpp。
+// Boss の狂暴・撃破の演出。登場は CollisionTestSceneBossIntro.cpp。
 //   狂暴：HP が半分を切った後、技の切れ目で 1 回だけ止まって吠える（BossAttacks が止める・赤い輪を出す）。
 //         ここは咆哮の音・揺れ・「〇〇が怒り狂った！」・足元の赤い爆ぜ、その後ずっと体に付く赤い火の粉
 //   撃破：倒した瞬間から kSlowTime 秒（実時間）ゲームを kSlowMul 倍の速さにし（Update が gameplay の dt を縮める）、
@@ -77,7 +76,7 @@ void CollisionTestScene::UpdateBossDrama(float dt, const BossAttacks::Input& in,
         m_DefeatWaveR = 0.0f;
         m_DefeatWaveNext = 0.0f;
 
-        // Boss の落とし物（2026-11-01）：エリートと同じ金色の箱。稀有度が少し出やすい
+        // Boss の落とし物：エリートと同じ金色の箱。稀有度が少し出やすい
         const Entity chest = m_Crates.SpawnFree(m_Registry, m_Grid, m_DefeatPos);
         if (chest != EntityTraits::NULL_ENTITY)
         {

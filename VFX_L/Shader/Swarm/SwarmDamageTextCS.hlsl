@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmDamageTextCS.hlsl
-// 浮かぶダメージの数字（2026-10-17）。1 フレームに 1 回、敵のスロット 1 つに
+// 浮かぶダメージの数字。1 フレームに 1 回、敵のスロット 1 つに
 // 1 スレッド。スロットの hp を前フレームの値（prevHp）と比べ、減った分を
 // イベントにする。CPU がそれをリードバックし、敵の頭上に数字として描く
 // （UI/DamageNumbers）。
@@ -26,18 +26,15 @@
 //
 // hp が残ったまま DEAD になったスロットは倒されていない：自爆兵 / 突撃爆弾兵の
 // 自爆、砂嵐の術師の砂旋の寿命切れ（hp 1,000,000）、
-// 「狙えない」砂旋など。これらは何も出さない（2026-10-19：以前は砂旋が
-// 消えるときに「1000000 倒した」と出ていた）。撃破フラグは
+// 「狙えない」砂旋など。これらは何も出さない。撃破フラグは
 // このフレームに hp が本当に 0 になったときだけ付ける。
 //
-// 2026-10-25:
 // - 撃破の数字は倒した一撃の属性を使う。HitCS / AreaDamageCS が死んだスロットの
 //   attackCooldown に残す（SwarmKillElement）：その時点で状態ワードは
 //   ただの DEAD になっているため。
 // - 前フレーム以降に RecycleCS が上書きしたスロットは prevHp に SWARM_PREVHP_RECYCLED が
 //   入っている（+ 新しい敵の生成時の hp）：前の敵の貯めていた数字と毒素は
-//   忘れ、減った分は新しい生成時の hp から測る（以前は重装兵が雑魚に
-//   転送されると、hp の差がダメージとして表示されていた）。
+//   忘れ、減った分は新しい生成時の hp から測る。
 // ============================================================
 #define SWARM_AI_CB_REG b2
 #define SWARM_BOMBER_CB_REG b3
@@ -59,7 +56,7 @@ StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3);
 RWBuffer<uint> prevHp : register(u0);                  // 前フレームに見た hp（固定小数）、死んだスロットは 0
 RWStructuredBuffer<float4> pending : register(u1);     // x 直接、y 毒（hp）、z 最初に減ってからの秒、w 前フレームに見た毒素
 RWByteAddressBuffer dmgEvents : register(u2);
-RWByteAddressBuffer lifesteal : register(u3);   // +0：吸血魔法の印が付いた敵から奪った hp（固定小数）、ずっと累積する（CPU が差分を取る。2026-10-25）
+RWByteAddressBuffer lifesteal : register(u3);   // +0：吸血魔法の印が付いた敵から奪った hp（固定小数）、ずっと累積する（CPU が差分を取る）
 
 static const uint SWARM_MAX_DAMAGE_TEXTS = 512u;   // Swarm::kMaxDamageTexts
 static const uint SWARM_DTX_AMOUNT_MASK = 0x00FFFFFFu;   // 量 × 10
@@ -82,7 +79,7 @@ void Emit(uint i, float direct, float poison, bool kill, uint elem)
     uint kind = enemyExtra[i].kind;
     float3 center;
     float er, eh;
-    SwarmSlotCapsule(i, kind, e.position, center, er, eh);   // 狂暴化したエリートは大きい（2026-10-25）
+    SwarmSlotCapsule(i, kind, e.position, center, er, eh);   // 狂暴化したエリートは大きい
     float3 pos = center + float3(0.0, eh + er + 0.25, 0.0);   // 頭のすぐ上
 
     uint amount = min((uint) round(total * 10.0), SWARM_DTX_AMOUNT_MASK);
@@ -108,13 +105,13 @@ void main(uint3 id : SV_DispatchThreadID)
     uint hpRaw = enemies[i].hp;
     uint state = enemyStates[i];
     bool dead = state == SWARM_DEAD;
-    // 死んだスロットの状態ワードはただの DEAD：倒した側が属性を attackCooldown に残している（2026-10-25）
+    // 死んだスロットの状態ワードはただの DEAD：倒した側が属性を attackCooldown に残している
     uint elem = dead ? SwarmKillElement(enemies[i].attackCooldown) : SwarmStateElement(state);
     uint prevRaw = prevHp[i];
     float4 p = pending[i];
     if ((prevRaw & SWARM_PREVHP_RECYCLED) != 0u)
     {
-        // 前フレーム以降に RecycleCS がここへ新しい敵を置いた（2026-10-25）：その生成時の hp から測り、
+        // 前フレーム以降に RecycleCS がここへ新しい敵を置いた：その生成時の hp から測り、
         // 前の敵が貯めていたもの（数字と見ていた毒素）は忘れる
         prevRaw &= ~SWARM_PREVHP_RECYCLED;
         p = float4(0.0, 0.0, 0.0, 0.0);
@@ -123,7 +120,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float drain = max(0.0, p.w - toxinNow);   // このフレームに削れた毒素（新しく盛られた分は増やすだけ）
     p.w = toxinNow;
 
-    // ---- 吸血（2026-10-25）：最後の一撃が吸血魔法のもの（SWARM_STATE_LIFESTEAL、HitCS / AreaDamageCS）
+    // ---- 吸血：最後の一撃が吸血魔法のもの（SWARM_STATE_LIFESTEAL、HitCS / AreaDamageCS）
     //      -> このフレームに減った hp をプレイヤーの回復に回す。倒した一撃はスロットを DEAD にする（印なし）：数えない ----
     if ((state & SWARM_STATE_LIFESTEAL) != 0u && prevRaw != 0u)
     {
@@ -160,7 +157,7 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         // 前フレームは生きていて hp が本当に尽きた：貯めていた分をすべて撃破フラグ付きで出す。
         // hp を残して死んだ（自爆した、砂旋が消えた）：貯めていた分は普通の数字として出す
-        if (prevRaw != 0u && (!SwarmUntargetable(enemyExtra[i]) || SwarmBuried(enemyExtra[i])))   // 埋まっている敵も地面の範囲で死ぬことがある（2026-10-26）
+        if (prevRaw != 0u && (!SwarmUntargetable(enemyExtra[i]) || SwarmBuried(enemyExtra[i])))   // 埋まっている敵も地面の範囲で死ぬことがある
             Emit(i, p.x, p.y, hp <= 0.0, elem);
         p.xyz = float3(0.0, 0.0, 0.0);
     }

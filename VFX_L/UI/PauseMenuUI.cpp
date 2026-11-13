@@ -25,8 +25,8 @@ PauseMenuUI::PauseMenuUI()
     BuildItems();
 }
 
-// 「設定」= 音量と敵味方の縁取りの ON / OFF（2026-10-07 ユーザー要望、10-08 から縁取りだけ）。SettingsMenuUI のページを重ねる。
-// 「遊び方」= HowToPlayUI（2026-10-13）。チュートリアル中だけ最後に「チュートリアルを飛ばす」
+// 「設定」= 音量などの設定（SettingsMenuUI のページを重ねる）。
+// 「遊び方」= HowToPlayUI。チュートリアル中だけ最後に「チュートリアルを飛ばす」
 void PauseMenuUI::BuildItems()
 {
     std::vector<std::wstring> items = { L"再開する", L"設定", L"遊び方", L"最初からやり直す", L"タイトルへ戻る" };
@@ -61,7 +61,7 @@ void PauseMenuUI::Layout(float screenW, float screenH)
     m_Screen = { screenW, screenH };
     m_Short = (std::min)(screenW, screenH);
 
-    // UI 全体の倍率（2026-10-07）。箱の高さが画面短辺の 95% を超えるなら収まる所まで
+    // UI 全体の倍率。箱の高さが画面短辺の 95% を超えるなら収まる所まで
     const float n = (float)m_List.Count();
     const float baseH = kPadRatio * 2.0f + kTitleRatio + itemHeightRatio * n + itemGapRatio * (n - 1.0f) + kHintRatio;
     m_Scale = UIDeco::FitScale(baseH, 0.95f);

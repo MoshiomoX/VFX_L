@@ -20,13 +20,13 @@ class PlayerControlSystem
 public:
     void Update(Registry& reg, float dt, CameraBase* camera);
 
-    // 被弾のノックバック（2026-10-01）。dir = 打たれた向き（敵 / 爆心 → プレイヤー、XZ。長さは問わない）、
+    // 被弾のノックバック。dir = 打たれた向き（敵 / 爆心 → プレイヤー、XZ。長さは問わない）、
     // blast = 爆発（遠くへ、少し浮く）。距離・時間は PlayerStatsComponent の knock*。
     // 入れた後の knockDuration 秒は水平速度に上乗せし、入力の効きは 0 から戻す
     // 何に当たったか（距離・時間・上へ弾く初速が違う。PlayerStatsComponent::knock*）
-    enum class KnockKind { Melee, Blast, Spike, Wind };   // Spike = トゲ玉（2026-10-17。爆発より遠く高く）、Wind = 砂旋（高く吹き上げる）
+    enum class KnockKind { Melee, Blast, Spike, Wind };   // Spike = トゲ玉（爆発より遠く高く）、Wind = 砂旋（高く吹き上げる）
     static void ApplyKnockback(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, KnockKind kind);
-    // 引き寄せ（鎖の番人の鎖、2026-10-25）：dir の向きへ time 秒で distance m 動かす（ノックバックと同じ速さの仕組み、強さに関係なく上書き）
+    // 引き寄せ（鎖の番人の鎖）：dir の向きへ time 秒で distance m 動かす（ノックバックと同じ速さの仕組み、強さに関係なく上書き）
     static void ApplyPull(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, float distance, float time);
     static void ApplyKnockback(Registry& reg, unsigned int entity, DirectX::SimpleMath::Vector2 dir, bool blast)
     {

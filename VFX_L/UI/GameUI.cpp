@@ -58,7 +58,7 @@ bool GameUI::Initialize(ID3D11Device* device, ID3D11DeviceContext* context,
         std::cout << "[Error] GameUI: damage TextRenderer init failed" << std::endl;
         return false;
     }
-    // ダメージの数字の縁取りはシェーダーで（2026-10-23）。字体は余白 6px で焼いてある → 5 texel まで拾う
+    // ダメージの数字の縁取りはシェーダーで。字体は余白 6px で焼いてある → 5 texel まで拾う
     m_DamageText.EnableOutline(5.0f);
 
     auto blockTex = ResourceManager::Get().LoadTexture(Res::Tex::BlockSolo);
@@ -159,15 +159,14 @@ void GameUI::Update(Registry& reg, Entity player, float dt)
         return;
     }
 
-    // HUD の残像と明滅の時間（モーダル表示中も進める）。
-    // 2026-10-01 まで一度も呼ばれておらず、残像は満タンのまま・明滅は止まったままだった
+    // HUD の残像と明滅の時間（モーダル表示中も進める）
     if (reg.Has<HealthComponent>(player) && reg.Has<ManaComponent>(player))
         m_HUD.Update(dt, reg.Get<HealthComponent>(player), reg.Get<ManaComponent>(player),
             reg.Has<ShieldComponent>(player) ? &reg.Get<ShieldComponent>(player) : nullptr);
 
     // 死んだら何も開かせない（「力尽きた」の幕 → リザルトへ進むだけ）。
-    // UpdateStack を通らないので、ここで待ちの状態も下ろす（下ろさないと、待ちの 1.2 秒の間に死んだ時
-    // 「レベルアップ！」の案内がリザルトまで HUD に残っていた）
+    // UpdateStack を通らないので、ここで待ちの状態も下ろす（下ろさないと、待ちの間に死んだ時
+    // 「レベルアップ！」の案内がリザルトまで HUD に残る）
     if (reg.Has<PlayerStateComponent>(player) && reg.Get<PlayerStateComponent>(player).IsDead())
     {
         Clear();
@@ -194,7 +193,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 {
     // ---- 1. 三択の割り込み ----
     // 二重に積まれないよう、Push 側が既存を弾いてくれる。
-    // レベルアップの直後は choiceDelay の間だけ待つ（ゲームは止めず「レベルアップ！」の案内だけ。2026-10-15）
+    // レベルアップの直後は choiceDelay の間だけ待つ（ゲームは止めず「レベルアップ！」の案内だけ）
     m_LevelUpWait = false;
     if (LevelUpSystem::IsAnyoneChoosing(reg))
     {
@@ -203,7 +202,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         {
             if (m_LevelUpWaitAge < 0.0f) m_LevelUpWaitAge = 0.0f;
             // 待ちはゲームが動いている間だけ進める（一時停止のメニュー・止める設定のバックパックを開いている間は止める。
-            // 以前は実時間で進み、時間が来ると四択が一時停止のメニューの上に積まれていた = 1b の「四択の上には開かない」と逆の順）
+            // 実時間で進めると四択が一時停止のメニューの上に積まれてしまう）
             if (!ShouldPauseGame())
             {
                 m_LevelUpWaitAge += dt;
@@ -247,7 +246,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
         }
     }
 
-    // （1c. パッドの B で閉じる、は 2026-10-28 に無くした。B は素早く外す・X はカーソルの加速、閉じるのは Start / Tab だけ）
+    // （パッドの B では閉じない。B は素早く外す・X はカーソルの加速、閉じるのは Start / Tab だけ）
 
     // ---- 1d. トレーニング（実験場）のメニュー（T / パッド RB）。何も開いていない時か、自分が一番上の時だけ ----
     if (m_TrainingEnabled && InputMap::GetTrainingToggle())
@@ -267,7 +266,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
 
     // ---- 2. グリッドの開閉 ----
     // 何も開いていない時か、自分が一番上の時、または四択が一番上の時（四択の上に開いて見る・置ける。
-    // 閉じれば四択へ戻る。2026-10-15 ユーザー：「レベルアップの時もバックパックを見たい」）だけ Tab を受ける
+    // 閉じれば四択へ戻る）だけ Tab を受ける
     const bool canToggleBackpack =
         m_Stack.CanReceiveInput(UILayer::Backpack) || m_Stack.IsEmpty() || m_Stack.Top() == UILayer::LevelUp;
 
@@ -279,9 +278,8 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
     }
 
     // ---- 2b. バックパックが一番上でなくなったら、掴んでいる物は元へ戻す（マウスでもパッドでも同じ DragContext）----
-    // 四択（待ちが尽きた時）や一時停止のメニューが上に積まれても m_Drag が残っていると、戻ってきた次のフレームに
-    // BackpackUI が「ボタンが離れている = 置く」として今のカーソルの所へ落とし、置けない所ならグリッドから掴んだ物が
-    // 魔法書へ戻ってしまっていた。データは掴んだだけでは書き換えていないので、取り消せば元の位置に残る
+    // m_Drag が残っていると、戻ってきた次のフレームに BackpackUI が「ボタンが離れている = 置く」として扱い、
+    // 置けない所なら魔法書へ戻ってしまう。データは掴んだだけでは書き換えていないので、取り消せば元の位置に残る
     if (m_Stack.Top() != UILayer::Backpack && m_Drag.IsActive())
         m_Drag.Reset();
 
@@ -301,7 +299,7 @@ void GameUI::UpdateStack(Registry& reg, Entity player, float dt)
             break;
         }
 
-        // 金貨での引き直し（2026-10-04）：値段と所持をボタンへ
+        // 金貨での引き直し：値段と所持をボタンへ
         const WalletComponent* wallet = reg.Has<WalletComponent>(player) ? &reg.Get<WalletComponent>(player) : nullptr;
         m_LevelUp.SetReroll((m_LevelUpSystem && wallet) ? m_LevelUpSystem->RerollCost(lv) : -1, wallet ? wallet->Coins() : 0);
 
@@ -403,7 +401,7 @@ void GameUI::Render(Registry& reg, Entity player)
             m_FrameInfo.playerPos = tf.position;
             m_FrameInfo.playerYawDeg = tf.rotation.y;
         }
-        // FPS（ミニマップの下。EngineTimer の 1 秒平均。2026-10-20）
+        // FPS（ミニマップの下。EngineTimer の 1 秒平均）
         m_FrameInfo.fps = Application::Get().GetTimer().GetFPS();
         // レベルアップ直後の間（四択を出すまで）は画面の真ん中に「レベルアップ！」（シーンの案内より優先）
         if (m_LevelUpWait)
@@ -428,7 +426,7 @@ void GameUI::Render(Registry& reg, Entity player)
         const std::wstring text = m_Prompt;
         const float scale = 0.6f * UIDeco::UIScale();
         const DirectX::SimpleMath::Vector2 size = InputGlyph::Measure(m_Text, text, scale);   // {B} などはパッドのボタンの絵
-        // 魔力解放の大きな欄（2026-10-04、下の中央）の魔法陣より上に出す（重ならないように）。
+        // 魔力解放の大きな欄（下の中央）の魔法陣より上に出す（重ならないように）。
         // 欄の実際の大きさは倍率を掛けた ScaledStyle
         float y = m_ScreenH * 0.80f;
         const HUDStyle& hs = m_HUD.ScaledStyle();
@@ -439,7 +437,7 @@ void GameUI::Render(Registry& reg, Entity player)
             y = (std::min)(y, top - size.y - 10.0f * UIDeco::UIScale());
         }
         const DirectX::SimpleMath::Vector2 pos = { (m_ScreenW - size.x) * 0.5f, y };
-        // 下敷き（2026-10-07、HUD の文字と同じ板。草の上でも読めるように）。左右は少し広め
+        // 下敷き（HUD の文字と同じ板。草の上でも読めるように）。左右は少し広め
         if (hs.textPlates)
             UIDeco::DrawTextPlate(m_Sprite, pos, size, { hs.platePad.x * 1.6f, hs.platePad.y * 1.5f },
                 hs.plateColor, hs.plateLineAlpha);
@@ -453,7 +451,7 @@ void GameUI::Render(Registry& reg, Entity player)
         DrawModals(reg, player);
     }
 
-    // 区間ごとの計時（2026-10-23。Debug の負荷試験で「Game UI」が敵の数で伸びる原因を切り分ける）
+    // 区間ごとの計時（FrameProfiler で UI の内訳を見る）
     {
         PROFILE_SCOPE("UI Sprite End");
         m_Sprite.End();
@@ -463,7 +461,7 @@ void GameUI::Render(Registry& reg, Entity player)
         m_Text.End();
     }
 
-    // ---- ダメージの数字（2026-10-17）。専用の字体（Res::Fnt::Damage。2026-10-18）なので別の TextRenderer、HUD の文字の上 ----
+    // ---- ダメージの数字。専用の字体（Res::Fnt::Damage）なので別の TextRenderer、HUD の文字の上 ----
     if (drawDamage)
     {
         PROFILE_SCOPE("UI Damage Numbers");
@@ -608,12 +606,12 @@ void GameUI::TestShow(int layer)
     if (layer == 1) m_Stack.Push(UILayer::Backpack);
     if (layer == 2) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); }
     if (layer == 3) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenSettings(); }   // 一時停止 → 設定のページ
-    if (layer == 4) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenHowTo(); }      // 一時停止 → 遊び方のページ（2026-10-13）
+    if (layer == 4) { m_Stack.Push(UILayer::Pause); m_Pause.Open(); m_Pause.TestOpenHowTo(); }      // 一時停止 → 遊び方のページ
 }
 
 void GameUI::TestPushBackpack()
 {
-    m_Stack.Push(UILayer::Backpack);   // 今の一番上（四択）の上に重ねる（2026-10-15）
+    m_Stack.Push(UILayer::Backpack);   // 今の一番上（四択）の上に重ねる
 }
 
 void GameUI::TestOpenTraining(bool open)
@@ -686,7 +684,7 @@ void GameUI::DrawModals(Registry& reg, Entity player)
         case UILayer::LevelUp:
             if (!reg.Has<LevelComponent>(player)) break;
             // 四択の上にバックパックが乗っている間は暗幕だけ（文字はスプライトの後にまとめて描かれるので、
-            // カードの文字がバックパックの上に浮いてしまう。2026-10-15）
+            // カードの文字がバックパックの上に浮いてしまう）
             if (m_Stack.IsOpen(UILayer::Backpack) && m_Stack.Top() != UILayer::LevelUp)
                 m_Sprite.Draw(m_WhiteTex, { 0.0f, 0.0f }, { m_ScreenW, m_ScreenH }, m_LevelUp.dimColor);
             else
@@ -718,7 +716,7 @@ void GameUI::DrawModals(Registry& reg, Entity player)
 // ============================================================
 void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& aggregate)
 {
-    // ---------- UI 全体の倍率（2026-10-07）。変えたら Layout を呼び直す（バックパック・木箱・カード・メニュー）----
+    // ---------- UI 全体の倍率。変えたら Layout を呼び直す（バックパック・木箱・カード・メニュー）----
     {
         float s = UIDeco::UIScale();
         if (ImGui::DragFloat("UI Scale (all)", &s, 0.01f, 0.5f, 3.0f))
@@ -728,7 +726,7 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
         }
     }
 
-    if (ImGui::CollapsingHeader("Damage Numbers")) m_Damage.DrawImGui();   // 2026-10-17
+    if (ImGui::CollapsingHeader("Damage Numbers")) m_Damage.DrawImGui();
 
     // ---------- HUD ----------
     if (ImGui::CollapsingHeader("HUD"))
@@ -767,7 +765,7 @@ void GameUI::DrawDebugUI(Registry& reg, Entity player, BackpackAggregateSystem& 
         }
     }
 
-    ImGui::Text("Open : %s   (Tab / I / E / Start)",
+    ImGui::Text("Open : %s   (Tab / I / Start)",
         m_Stack.IsOpen(UILayer::Backpack) ? "YES" : "no");
     ImGui::Text("Device : %s", m_Pad.IsActive() ? "pad (stick cursor, X fast, A grab/place, B remove, LB/RB rotate, Y jump, Start close)" : "mouse");
     ImGui::Checkbox("Pause On Open", &m_PauseOnBackpack);

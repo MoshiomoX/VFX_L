@@ -73,7 +73,7 @@ public:
         return m_Walkable[(size_t)gz * m_GridW + gx] != 0;
     }
 
-    // 水たまりのマス（2026-10-28 ユーザー：雑魚も水に入れる・水が弾を止めない）。walkable の値 kWaterCell：
+    // 水たまりのマス（雑魚も水に入れる・水は弾を止めない）。walkable の値 kWaterCell：
     // 歩ける（雑魚・弾・流れ場は普通のマスと同じ。0 以外 = 通れる）が、宝箱・門・磁石・転がり草・タイトルの立ち位置は置かない
     static constexpr uint8_t kWaterCell = 2;
     bool IsWater(int gx, int gz) const
@@ -185,7 +185,7 @@ public:
     }
 
     // ============================================================
-    // 雑魚が登れる障害物（2026-10-29、ユーザー「全部の雑魚が壁を登れるように。でないと無敵の場所ができる」）
+    // 雑魚が登れる障害物（登れないと無敵の場所ができる）
     // 場内の塞いだマス（外周につながっていない物 = 岩・木の幹・遺跡の部屋の壁・岩柱）のうち、衝突の上面が分かる所を
     // 雑魚だけ「歩けて、その細かいマスの高さ = 上面」として扱う（World/ClimbMap が地形の記録から作る）。
     // 弾・経験球・湧く所・置物の判定は今まで通り walkable / 高さ場を見る（弾は岩で止まる）
@@ -244,7 +244,7 @@ private:
     float m_OriginZ = 0.0f;
     std::vector<uint8_t> m_Walkable;
     std::vector<float>   m_Height;     // kHeightSub 分割の高さ場（m）
-    std::vector<uint8_t> m_Climbable;  // 雑魚が登れる障害物のマス（空 = 無し。2026-10-29）
+    std::vector<uint8_t> m_Climbable;  // 雑魚が登れる障害物のマス（空 = 無し）
     std::vector<float>   m_ClimbTop;   // その上面の高さ（高さ場と同じ大きさ。kNoClimb = 無し）
 
     bool m_DebugVisible = false;

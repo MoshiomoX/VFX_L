@@ -5,6 +5,7 @@
 #include "UI/UIDeco.h"
 #include "Core/GameSettings.h"
 #include "Graphics/Renderer/TextRenderer.h"
+#include "Swarm/SwarmTypes.h"
 
 #include "imgui.h"
 
@@ -12,13 +13,13 @@ using namespace DirectX::SimpleMath;
 
 void DamageNumbers::Add(const Vector3& worldPos, float amount, Kind kind, int element)
 {
-    if (!style.enabled || !GameSettings::Get().damageNumbers || amount <= 0.0f) return;   // 設定（一時停止メニュー）でも切れる（2026-10-19）
+    if (!style.enabled || !GameSettings::Get().damageNumbers || amount <= 0.0f) return;   // 設定（一時停止メニュー）でも切れる
     std::uniform_real_distribution<float> u(-1.0f, 1.0f);
     Item it;
     it.pos = worldPos + Vector3(u(m_Rng) * style.jitter, u(m_Rng) * 0.1f, u(m_Rng) * style.jitter);
     it.amount = amount;
     it.kind = kind;
-    it.element = (element > 0 && element < 9) ? element : 0;
+    it.element = (element > 0 && element < kElements) ? element : 0;
     it.drift = u(m_Rng) * 0.4f;
     FitRing();
     const int cap = (int)m_Ring.size();
@@ -76,7 +77,7 @@ void DamageNumbers::Draw(TextRenderer& text, const Matrix& viewProj, float scree
 {
     if (!style.enabled || !GameSettings::Get().damageNumbers || m_Count <= 0) return;
     const float ui = UIDeco::UIScale() * (std::min)(screenW, screenH) / 900.0f;
-    // 字体を替えても見た目の高さが変わらないように、倍率は「毛筆体 32px の行の高さ 46.34px」を基準に正規化する（2026-10-18）
+    // 字体を替えても見た目の高さが変わらないように、倍率は「毛筆体 32px の行の高さ 46.34px」を基準に正規化する
     const float fontNorm = 46.34f / (std::max)(text.GetLineHeight(1.0f), 1.0f);
     wchar_t buf[32];
     const float o = style.outlinePx * ui;   // 縁の太さ（画面 px）
@@ -101,6 +102,7 @@ void DamageNumbers::Draw(TextRenderer& text, const Matrix& viewProj, float scree
         default: break;
         }
         if (it.amount >= style.bigAt) s *= style.bigMul;
+        if (it.element == (int)Swarm::DamageElement::Shatter) s *= style.shatterMul;
         const float t = it.age / (std::max)(style.life, 1e-3f);
         const float popT = (std::min)(1.0f, it.age / 0.12f);
         s *= 1.0f + style.pop * (1.0f - popT) * (1.0f - popT);
@@ -112,7 +114,7 @@ void DamageNumbers::Draw(TextRenderer& text, const Matrix& viewProj, float scree
         const std::wstring str = buf;
         const Vector2 size = text.Measure(str, s);
         const Vector2 at = { p.x - size.x * 0.5f, p.y - size.y * 0.5f };
-        // 縁取り → 本体（影は任意）。縁は TextRenderer のシェーダーが字の周りを拾って作る（2026-10-23。以前は 8 方向にずらして 8 回）
+        // 縁取り → 本体（影は任意）。縁は TextRenderer のシェーダーが字の周りを拾って作る
         if (o > 0.01f)
         {
             Vector4 oc = style.outlineColor;
@@ -156,8 +158,9 @@ void DamageNumbers::DrawImGui()
     ImGui::ColorEdit4("Outline", &style.outlineColor.x);
     if (ImGui::TreeNode("Element Colors"))
     {
-        static const char* kNames[9] = { "none", "fire", "ice", "lightning", "arcane", "earth", "poison", "wind", "light" };
-        for (int i = 1; i < 9; ++i) ImGui::ColorEdit4(kNames[i], &style.elementColors[i].x);
+        static const char* kNames[kElements] = { "none", "fire", "ice", "lightning", "arcane", "earth", "poison", "wind", "light", "shatter" };
+        for (int i = 1; i < kElements; ++i) ImGui::ColorEdit4(kNames[i], &style.elementColors[i].x);
+        ImGui::DragFloat("Shatter scale", &style.shatterMul, 0.01f, 1.0f, 3.0f);
         ImGui::TreePop();
     }
 }

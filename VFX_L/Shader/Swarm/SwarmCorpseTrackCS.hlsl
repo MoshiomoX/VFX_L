@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmCorpseTrackCS.hlsl
-// 1 フレームに 1 回、敵のスロット 1 つに 1 スレッド（2026-10-02、死亡時の砕け散り）。
+// 1 フレームに 1 回、敵のスロット 1 つに 1 スレッド（死亡時の砕け散り）。
 // 前フレームは生きていて（prevAlive）今は DEAD のスロットは、前フレーム以降に
 // 死んだ：最後の位置 / yaw / 種類はまだスロットに残っている（死んだスロットは
 // 再利用されるまで誰も消さない）ので、SwarmCorpseVS 用の死体リングへ写し、
@@ -14,14 +14,14 @@
 //
 // 同じフレーム内に死んで再利用されたスロットは取りこぼす（まれ）。
 //
-// 死んだスプリッター（2026-10-03）は分裂リングにも位置を書く
+// 死んだスプリッターは分裂リングにも位置を書く
 // （splitEvents：+0 にこれまでの書き込み総数、続いて 16 バイト × SWARM_MAX_SPLIT_EVENTS
 // の float3 位置 + uint 種類）。CPU は連鎖リングと同じようにリードバックし、
 // MobSpawner が分裂体を湧かせる。砕け散りを切っていてもこれは動く。
 // ============================================================
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b5   // ガーゴイルの飛ぶ高さ（死体は地面から飛び散らせる、2026-10-25）
+#define SWARM_BOMBER_CB_REG b5   // ガーゴイルの飛ぶ高さ（死体は地面から飛び散らせる）
 #define SWARM_AREA_POOL_U u3
 #define SWARM_AREA_STATE_U u4
 #define SWARM_AREA_DEF_T t3
@@ -73,9 +73,9 @@ void main(uint3 id : SV_DispatchThreadID)
     SwarmEnemy e = enemies[i];
     SwarmEnemyExtra ex = enemyExtra[i];
     uint kind = ex.kind;
-    // 空中で倒された（ガーゴイル 2026-10-25、飛ぶボス）：破片と土煙は真下の地面から出す
+    // 空中で倒された（ガーゴイル、飛ぶボス）：破片と土煙は真下の地面から出す
     e.position.y -= SwarmBodyHover(ex);
-    // 呪いの鎧の 1 回目の死（2026-10-25）：砕けずに崩れて山になり、数秒後に CPU
+    // 呪いの鎧の 1 回目の死：砕けずに崩れて山になり、数秒後に CPU
     // （MobSpawner）がここに蘇った鎧を立ち上がらせる。山 / 土煙は CPU のエフェクト
     if (kind == SWARM_KIND_ARMOR)
     {
@@ -94,7 +94,7 @@ void main(uint3 id : SV_DispatchThreadID)
         splitEvents.Store3(at, asuint(e.position));
         splitEvents.Store(at + 12u, kind);
     }
-    // 砂嵐の術師の砂旋（2026-10-17）はただ吹き消える：土煙だけで砕けない（ブロックの体が無い）
+    // 砂嵐の術師の砂旋はただ吹き消える：土煙だけで砕けない（ブロックの体が無い）
     if (kind == SWARM_KIND_TORNADO)
     {
         if (g_DeathArea != 0u)

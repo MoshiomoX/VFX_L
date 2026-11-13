@@ -1,6 +1,6 @@
 // ============================================================
 // BossAttacksKing.cpp
-// 遺跡 3 面目の Boss「骸の王」の技（2026-10-29）。説明・数値は BossKing.h。
+// 遺跡 3 面目の Boss「骸の王」の技。説明・数値は BossKing.h。
 // 浮き・飛び・間合い（UpdateDjinnOutputs）と「影へ消える」の沈み / 走り / 浮かび（UpdateDjinnShift）は BossAttacksDjinn.cpp を共用
 // ============================================================
 #include "Enemy/Boss/BossAttacks.h"

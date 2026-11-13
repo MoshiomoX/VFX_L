@@ -2,12 +2,12 @@
 // TerrainGenerator.h
 // 戦闘の地形を seed から生成する（格子に沿った「台地と坂道」の野原）。
 //
-// フィールドの三層（2026-10-02、ユーザー：山頂・平原・洞窟の大きな分層。200m 四方）:
+// フィールドの三層（山頂・平原・洞窟の大きな分層。200m 四方。既定は切、Config::layers）:
 //   平原（高さ 0。開始時の場所。下の台地・高台・自然物はここ）を中心に、対角の隅に
 //   山頂（+summitHeight の大きな台地。長い坂が数本、残りは崖 = 雑魚は飛び降りる）と
 //   洞窟（-mineDepth の窪地。下り坂が数本、縁から飛び降りられる）。
 //   床はマス毎の高さ（level）の段々のメッシュ 1 つ、衝突は高さ毎の箱の組。
-//   2026-10-04 から平原と山頂の上面に起伏（緩い丘 + 土饅頭、Config::relief）。床のメッシュは頂点毎の高さ、
+//   平原と山頂の上面に起伏（緩い丘 + 土饅頭、Config::relief）。床のメッシュは頂点毎の高さ、
 //   歩く面の衝突は高さ場（ColliderShape::HeightField）、箱は崖の縦の壁だけ。台地などの足元は台座で均す
 //
 // 生成するもの:
@@ -41,7 +41,7 @@ namespace MapData { struct Map; }
 
 namespace TerrainGenerator
 {
-    // 面の見た目（2026-09-30。第 1 面 草原 / 第 2 面 砂漠 / 第 3 面 遺跡）。
+    // 面の見た目（草原 / 砂漠 / 遺跡）。
     // 地形の形は全部共通で、床・台地の色、自然物の表、外周（岩山 or 遺跡の壁）、草の有無が変わる
     enum class Biome { Grassland = 0, Desert = 1, Dungeon = 2 };
 
@@ -50,13 +50,13 @@ namespace TerrainGenerator
         uint32_t seed = 1;
         Biome biome = Biome::Grassland;
 
-        // ---- 段々の台地（2026-10-19、ユーザー「PokéBonk の地図をそのまま持ってくる」。TerrainBuild::StepParams、TerrainSteps.cpp）----
+        // ---- 段々の台地（TerrainBuild::StepParams、TerrainSteps.cpp）----
         // 開けた草原 + ノイズで決めた曲がりくねった輪郭の台地（1 段 stepHeight、最大 stepMaxLevel 段、面積の stepCoverage）、
         // 段と段は草の坂（必ず 1 本以上）、外周は stepRimLevels 段の帯、低い所に水たまり。
-        // これを既定にし、三層（山頂・洞窟）・矩形の台地・高台・縁の碗は切った（コードは残っている。Terrain パネルで戻せる）
+        // これが既定。三層（山頂・洞窟）・矩形の台地・高台・縁の碗は既定で切（Terrain パネルで戻せる）
         bool  steps = true;
         float stepHeight = 2.5f;          // m（1 回のジャンプでぎりぎり届く = 登れる段差）
-        float stepCoverage = 0.30f;       // 1 段以上の面積の割合（ユーザー 10-19：30%）
+        float stepCoverage = 0.30f;       // 1 段以上の面積の割合
         float stepScale = 30.0f;          // 輪郭のノイズの大きさ（m）
         int   stepNoise = 0;              // 輪郭のノイズの種類（TerrainBuild::StepParams::noise：0 勾配 2 層 / 1 域の歪み fBm / 2 セル）
         int   stepMaxLevel = 3;
@@ -65,10 +65,10 @@ namespace TerrainGenerator
         int   stepRimLevels = 2;          // 外周の帯（登れない縁）の段数
         int   stepRimBand = 3;            // 1 段あたりの帯の幅（マス）
         int   stepMinCells = 8;           // これより小さい台地は消す
-        float pondScale = 14.0f;          // 水たまりを選ぶノイズの波長 m（StepParams::pondScale。砂漠 34 = 少なく大きなオアシス。2026-11-02）
-        float pondCoverage = 0.07f;       // 水たまりの候補（0 段の平らな所）から選ぶ割合。窪みだけに削るので 0.04 → 0.07（2026-10-28）
-        float pondDepth = 0.5f;           // 水たまりの深さ（m。プレイヤーも雑魚も歩いて入れる。2026-10-28 から雑魚も）
-        // 水たまりを起伏の膨らみ・坂に置かない（2026-10-28。TerrainBuild::StepParams と同じ意味）
+        float pondScale = 14.0f;          // 水たまりを選ぶノイズの波長 m（StepParams::pondScale。砂漠 34 = 少なく大きなオアシス）
+        float pondCoverage = 0.07f;       // 水たまりの候補（0 段の平らな所）から選ぶ割合（後で窪みだけに削る）
+        float pondDepth = 0.5f;           // 水たまりの深さ（m。プレイヤーも雑魚も歩いて入れる）
+        // 水たまりを起伏の膨らみ・坂に置かない（TerrainBuild::StepParams と同じ意味）
         float pondConvexTol = 0.03f;      // 真ん中が隣の 8 マスの平均よりこれ以上高い = 凸 → 置かない（m）
         float pondMaxRise = 0.6f;         // ±3m の範囲の高さの差がこれを越える = 坂 → 置かない（m）
         float pondLowBias = 2.0f;         // 窪んだ所ほど先に水たまりになる倍率
@@ -77,9 +77,7 @@ namespace TerrainGenerator
         // ---- フィールドの三層（山頂・平原・洞窟）----
         // 隅の組（どちらの対角か、どちらが山頂か）は seed で決まる。
         // 形 = 隅の正方形（一辺 size マス、外周の崖の内側から）+ 内側の二辺の出っ張り・凹み + 内側の角の面取り。
-        // 2026-10-02 は 300m のフィールドで作り、10-03 に 200m へ戻した（ユーザー：高低差はそのまま、水平だけ 2/3）。
-        // 坂も長さが 2/3 になったので急になった（山頂 18〜22° → 26〜31°、洞窟 22° → 31°。雑魚は 40°、フローフィールドは 1 マス 1.5m まで）
-        // 2026-10-19 から既定は切（段々の台地に変えた）
+        // 坂は山頂 26〜31°、洞窟 31°（雑魚は 40°、フローフィールドは 1 マス 1.5m まで）。既定は切
         bool  layers = false;
         int   summitSize = 33;            // マス（66m）
         float summitHeight = 16.0f;       // m
@@ -90,30 +88,30 @@ namespace TerrainGenerator
         int   mineSize = 33;
         float mineDepth = 10.0f;          // m
         int   mineRamps = 2;              // 平原から底へ下りる坂の数
-        int   mineRampWidth = 4;          // マス（8m。10-03 に 2 → 4：Boss（高さ 4.8m・幅約 3m）が洞から出られる幅）
+        int   mineRampWidth = 4;          // マス（8m。Boss（高さ 4.8m・幅約 3m）が洞から出られる幅）
         float mineRampSlope = 31.0f;      // 度
-        int   mineRockCount = 7;          // 洞窟の底に足す岩（木は生やさない。10-03 に 13 → 7）
+        int   mineRockCount = 7;          // 洞窟の底に足す岩（木は生やさない）
 
-        // ---- 洞窟の屋根（2026-10-03、ユーザー：推奨どおり）----
+        // ---- 洞窟の屋根 ----
         // 坑を岩の塊で覆う（外から見ると山の麓の洞窟、入口は下り坂の上端）。坑の周り 1 マスは塞いだ岩の壁、
         // 坑の上は roofBottom〜roofTop の板、上に大きい岩を積んで低い山に見せる（真ん中ほど高い）。
         // 衝突は roofCollisionTop まで（見た目より高い = 跳んでも上に乗れない）。
         // 中は暗いので壁に松明（caveTorchSpacing マス毎。点光源はシーンが近い物にだけ付ける）
         bool  mineRoof = true;
-        float roofBottom = 8.0f;          // 屋根の下面（平原から m。坑の底から 18m、口の高さ 8m。10-03 に 5 → 8：Boss の頭がつかえない）
+        float roofBottom = 8.0f;          // 屋根の下面（平原から m。坑の底から 18m、口の高さ 8m = Boss の頭がつかえない）
         float roofTop = 15.0f;            // 岩の塊の上面（見た目。平原から m。屋根の厚さ 7m は roofBottom と一緒に上げた）
         float roofCollisionTop = 40.0f;   // 衝突の上端（見えない）
         float roofRockMin = 8.0f;         // 上に積む岩の高さ（縁 → 真ん中で roofRockMax まで）。
         float roofRockMax = 16.0f;        // 縁も高めにして、外から見た輪郭を箱でなく岩山にする
         int   caveTorchSpacing = 6;       // マス（12m）
-        // 2026-10-06 ユーザー：屋根の上の岩は消して、上に立てる台にし、横に登る坂を付ける
+        // 屋根の上は立てる台にし、横に登る坂を付ける
         bool  roofRocks = false;          // 屋根の上に岩を置く（false = 平らな台）
         bool  roofWalkable = true;        // 壁・屋根の衝突の上端 = roofTop（上に立てる）。false = roofCollisionTop（見えない高さ）
         bool  roofRamp = true;            // 岩の塊の一辺の外に、平原から屋根へ登る草の坂（雑魚は登れない）
         int   roofRampWidth = 4;          // マス
         float roofRampSlopeDeg = 26.0f;   // 15m なら約 31m
 
-        // ---- 1 段目の台地（2026-10-19 から既定は 0：段々の台地に変えた）----
+        // ---- 1 段目の台地（既定は 0：段々の台地を使う）----
         int   plateauCount = 0;        // 置こうとする数（場所が無ければ減る）
         int   plateauMin = 5;          // 一辺（マス）
         int   plateauMax = 12;
@@ -133,7 +131,7 @@ namespace TerrainGenerator
         // ---- 高台（一面だけが長い坂、残り三面は崖）----
         // 台地より先に置く（場所を取るので後回しにすると入らない）。坂の向きは高台ごとにランダム。
         // 坂の長さ = 高さ / tan(角度)：6m・18° で約 18m
-        int   terraceCount = 0;          // 2026-10-19 から既定は 0（段々の台地に変えた）
+        int   terraceCount = 0;          // 既定は 0（段々の台地を使う）
         float terraceHeightMin = 5.0f;
         float terraceHeightMax = 7.0f;
         float terraceSlopeMin = 16.0f;   // 度（雑魚の 40°、フローフィールドの 1 マス 1.5m より十分緩い）
@@ -150,7 +148,6 @@ namespace TerrainGenerator
         // 木と岩は置物（1 マス以上を塞ぐ。周り 1 マスは他の置物を置かないので、
         // 並んで壁になることはない）。茂みは見た目だけ（衝突も格子も無し）。
         // 草はモデルではなく GrassRenderer（GPU の草の葉）
-        // 2026-10-03 に半分へ（ユーザー：フィールドの木・岩・茂みを今の半分ほどに）。以前は 60 / 20 / 160
         int treeCount = 30;       // 林（ノイズで固まる）が主、所々に 1 本（洞窟には生やさない）
         int rockCount = 10;
         int bushCount = 80;
@@ -158,7 +155,7 @@ namespace TerrainGenerator
         // 道を塞ぐのは大きい物だけにする）。値は拡縮後の大きさ
         float treeBlockMinHeight = 3.0f;   // m（木の高さ）
         float rockBlockMinSize = 1.2f;     // m（岩の足跡の長い辺）
-        // ---- 場内の岩柱と峡谷の壁（砂漠。2026-10-26 マップ毎の地形の第 2 段、TerrainBuild::EmitFieldRock）----
+        // ---- 場内の岩柱と峡谷の壁（砂漠。TerrainBuild::EmitFieldRock）----
         // 崖の岩（PropSet の cliff）を引き伸ばして場内に立てる：凸包の衝突 + 足元のマスを塞ぐ。岩柱 = 1 個を高く細く、
         // 峡谷の壁 = 軸に沿って（±jitter）3〜5 個を一直線に並べた長い壁。既定 0 = 無し（TerrainBiomeProfile が砂漠で入れる）
         int   pillarCount = 0;
@@ -169,7 +166,7 @@ namespace TerrainGenerator
         float canyonHeight = 8.0f;                               // m
         float canyonThickness = 4.0f;                            // m
         float canyonJitterDeg = 12.0f;                           // 軸からの傾き
-        // ---- 遺跡の内側の部屋と廊下（2026-10-26 マップ毎の地形の第 2 段。Biome::Dungeon の外周の壁と同じ Wall 片）----
+        // ---- 遺跡の内側の部屋と廊下（Biome::Dungeon の外周の壁と同じ Wall 片）----
         // 空き地に矩形の部屋：外周 1 マスを壁（Wall 片を積む + 箱の衝突 + 塞ぐ）、角は柱、各辺に戸口 1 つ、内側の面に松明。
         // 部屋同士は 2 マス以上離す = その間が廊下。既定 0 = 無し（TerrainBiomeProfile が遺跡で入れる）
         int   ruinRoomCount = 0;
@@ -183,11 +180,11 @@ namespace TerrainGenerator
         // 大きい岩（Res::Mdl::Forest::kCliffRocks）を拡大して外へ 3 列: 手前 8〜13m / 中 15〜22m / 奥 24〜34m
         bool  rockMountains = true;
         float mountainScale = 1.0f;       // 高さにまとめて掛ける（巨石・積む岩の両方）
-        // 巨石（2026-10-06、ユーザー：何十個も積むのでなく、数個の石を大きくして山に見せたい）：
+        // 巨石（数個の石を大きくして山に見せる）：
         // 一辺に 1 列 boulderPerSide 個 + 四隅に 1 個、辺に沿って引き伸ばして置く（TerrainBuild::EmitRimBoulders）。
         // 既定は見た目だけ、boulderCollide なら石の凸包で当てて足元のマスを塞ぐ。false = 以前の「大きい岩を 3 列に積む」
-        bool  boulderMountains = false;   // 10-06 ユーザー：碗の縁の周りの岩も消す（Terrain パネルで戻せる）
-        // 巨石のモデル：false = 面の岩山用の低ポリの岩（Forest / Desert の kCliffRocks。トゥーンの画と揃う、ユーザー 10-06）、
+        bool  boulderMountains = false;   // 既定は切（Terrain パネルで入れられる）
+        // 巨石のモデル：false = 面の岩山用の低ポリの岩（Forest / Desert の kCliffRocks。トゥーンの画と揃う）、
         // true = Rock-Set（PBR の写実な岩。画風が合わないので既定は切）
         bool  boulderRealistic = false;
         // 一辺 boulderPerSide 個を 1 列、石の真ん中を縁の線の上に（+ boulderCenterOut。半分が場内）。四隅に 1 個
@@ -199,19 +196,19 @@ namespace TerrainGenerator
         float boulderDepth = 30.0f;       // 石の厚み（縁をまたぐ向き m）
         float boulderSink = 0.22f;        // 高さに対する埋める割合
         float boulderCenterOut = 0.0f;    // 石の真ん中を縁から外へ（m。負 = 内へ）
-        // 石を形通りに当てる（ユーザー 10-06：縁の空気壁をやめて石の衝突で止める）：石の凸包（50 面、壁扱い = 登れない）で衝突、
+        // 石を形通りに当てる（縁の空気壁の代わりに石の衝突で止める）：石の凸包（50 面、壁扱い = 登れない）で衝突、
         // 足元のマスを塞ぐ。縁の空気壁（崖の箱）は作らない
         bool  boulderCollide = false;
-        // 縁の碗（Megabonk 風、2026-10-06 ユーザー「試してみる」）：地面そのものを縁から rimRiseWidth m 内側で
+        // 縁の碗：地面そのものを縁から rimRiseWidth m 内側で
         // rimRiseHeight m まで急に持ち上げる（65〜75°。物理が急な起伏を壁扱いにするので登れない。雑魚・弾は格子で止まる）。
         // 縁の空気壁も石の衝突も要らない。巨石は碗の縁の上の飾り（衝突なし）。草原・砂漠だけ（遺跡は遺跡の壁のまま）
-        bool  rimRise = false;            // 2026-10-19 から既定は切（段々の台地の外周の帯 + 岩山に変えた）
+        bool  rimRise = false;            // 既定は切（段々の台地の外周の帯 + 岩山を使う）
         float rimRiseWidth = 11.0f;
-        float rimRiseHeight = 34.0f;      // 10-06 ユーザー「もう一段高く」（24 → 34）
+        float rimRiseHeight = 34.0f;
         float rimClear = 8.0f;            // 斜面の麓から更に内側へ、台地・高台・木・岩・茂みを置かない幅（m）
         // 洞窟の上の山も巨石 3 個（真ん中 1 個 + 両端。高さは roofRockMax / roofRockMin から）。false = 2x2 マス毎に積む
         bool  roofBoulders = true;
-        // 一番手前の列（2026-10-03、ユーザー：外周の岩に入り込めてめり込みする。少し外へ下げてから衝突を付ける）。
+        // 一番手前の列（めり込まないよう、少し外へ下げてから衝突を付ける）。
         // 衝突の箱 = 岩と一緒に回した包囲箱の edgeRockShrink 倍（岩は角が丸いので少し小さく）。
         // 箱の内側の面がフィールドの縁から edgeRockIntrudeMin〜Max m 内に入る所に置く（負 = 縁より外）。
         // 縁より内に入る岩だけ衝突（凸体、Layer_Prop = カメラの射線は見ない）を付け、箱が 1/4 以上掛かるマスは塞ぐ（雑魚用）。
@@ -225,15 +222,13 @@ namespace TerrainGenerator
         // プレイヤーの初期地点（フィールド中央）の周りは平らに空ける（マス数の半径）
         int spawnClearRadius = 8;
 
-        // ---- 起伏（2026-10-04、ユーザー：純平地をやめて緩い丘 + 小さい土饅頭。推奨値）----
+        // ---- 起伏（緩い丘 + 小さい土饅頭）----
         // 平原と山頂の上面: 大きい丘（波長 hillScale m、±hillHeight m）+ 細かいうねり + 土饅頭。洞窟の底は平ら。
         // 台地・坂・高台の足元は「台座」で局所の平均の高さに均し（縁 1 マス + padMargin マス（既定 5）で元の起伏へ戻る）、
         // 構造物はその高さに載る。洞窟の周り（岩の壁・洞の口）は平原の 0 に均す。
         // 面ごとの倍率: 砂漠 1.25（砂丘）、遺跡 0.5（石畳）
-        // 2026-10-05 ユーザー「起伏をもう少し大きく、坂ももう少し急に」→ 丘 2.2 → 3.8m（高低差 4 → 7〜8m）、
-        // 土饅頭も大きく。上限は雑魚の 40°・フローフィールドの 1 マス 1.5m（≒ 37°）
-        // 2026-10-19 段々の台地に合わせて控えめに（丘 4.2 → 2.0m、うねり 1.0 → 0.5m、土饅頭 70 → 30 個・高さ 2.0 → 1.2m）：
-        // 2.5m の段の上に 4m の丘が載ると段が読めない
+        // 上限は雑魚の 40°・フローフィールドの 1 マス 1.5m（≒ 37°）。
+        // 段々の台地に合わせて控えめ（大きな丘が載ると段が読めない）
         bool  relief = true;
         float hillHeight = 2.0f;          // m（丘の振れ幅。勾配ノイズ ≒ ±1 × これ）
         float hillScale = 46.0f;          // m（丘の大きさ）
@@ -263,7 +258,7 @@ namespace TerrainGenerator
         std::vector<Ramp> summitRamps, mineRamps;
     };
 
-    // マップ毎の地形の生成規則（World/TerrainBiomeProfile.cpp、2026-10-26）：cfg.biome を決めた直後に呼んで
+    // マップ毎の地形の生成規則（World/TerrainBiomeProfile.cpp）：cfg.biome を決めた直後に呼んで
     // 段々の台地・起伏・水たまり・置物の数を砂漠 / 遺跡向けに上書きする（草原は既定のまま）
     void ApplyBiomeProfile(Config& cfg);
 
@@ -279,7 +274,7 @@ namespace TerrainGenerator
         MapData::Map* outMap = nullptr);
 
     // BuildFromMap が建てる部分（エディタは見た目だけ欲しい：kPartVisuals | kPartGround | kPartWater）
-    // kPartWater = 水たまりの青い六面体（2026-10-19 の見た目）。戦闘は WaterSurface（2026-10-27）が水面を描くので kPartAll に入れない
+    // kPartWater = 水たまりの青い六面体。戦闘は WaterSurface が水面を描くので kPartAll に入れない
     enum BuildParts : uint32_t { kPartColliders = 1, kPartVisuals = 2, kPartProps = 4, kPartGround = 8, kPartAll = 15, kPartWater = 16 };
 
     // 記録（保存した地図）から同じ物を建てる。乱数は使わない。格子の大きさが合わなければ false（何も作らない）。

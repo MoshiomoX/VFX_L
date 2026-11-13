@@ -1,7 +1,7 @@
 // ============================================================
 // AssimpFlags.h
 // SkinnedModel::Load（パスから直接読む入口）の Assimp import 設定。
-// ※実際のモデル読み込みはここを通らない（2026-10-25 時点）：
+// ※実際のモデル読み込みはここを通らない：
 //   ・ResourceManager::ImportModelAuto（LoadModelAuto と先読み。プレイヤーなど骨付きのモデルは全部これ、骨の無い物も来る）は
 //     自分の flag を書いている：Triangulate | FlipUVs | CalcTangentSpace | GenNormals | MakeLeftHanded | PopulateArmatureData。
 //     PopulateArmatureData は付けたまま（骨の armature 情報を埋める。外すと骨・アニメの結果が変わり得るので触らない）、

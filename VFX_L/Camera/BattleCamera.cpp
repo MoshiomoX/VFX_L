@@ -35,9 +35,10 @@
     X(m_AreaTrauma, "areaTrauma") X(m_AreaTraumaMax, "areaTraumaMax")
 
 #define CAMERA_TRIGGER_BOOLS(X) \
-    X(m_ShakeOnHit, "shakeOnHit") X(m_ShakeOnArea, "shakeOnArea") X(m_ThreatTurn, "threatTurn")
+    X(m_ShakeOnHit, "shakeOnHit") X(m_ShakeOnArea, "shakeOnArea") X(m_ThreatTurn, "threatTurn") \
+    X(m_BossCamera, "bossCamera")
 
-// 賢いカメラ（2026-11-02。保存はきっかけと同じ扱い）
+// 賢いカメラ（保存はきっかけと同じ扱い）
 #define CAMERA_SMART_FLOATS(X) \
     X(m_CrowdStart, "crowdStart") X(m_CrowdFull, "crowdFull") X(m_CrowdMaxDist, "crowdMaxDist") \
     X(m_BossExtraDist, "bossExtraDist") X(m_FinalExtraDist, "finalExtraDist") \
@@ -133,7 +134,7 @@ bool BattleCamera::LoadSettings(const char* path)
     return true;
 }
 
-// 読んだ値の辻褄を合わせる（2026-10-25）。範囲の下限 > 上限だと FollowCamera::Update の std::clamp が毎フレーム落ちる。
+// 読んだ値の辻褄を合わせる。範囲の下限 > 上限だと FollowCamera::Update の std::clamp が毎フレーム落ちる。
 // 距離はホイールの範囲に入れる（範囲の外の距離だと、最初のホイールで端へ飛ぶ）
 void BattleCamera::SanitizeSettings()
 {
@@ -181,9 +182,7 @@ void BattleCamera::UpdateMouseCapture(bool cursorNeeded)
 //   無敵中は TryApplyHit が HP を減らさないので、揺れも自然に止まる
 // 爆発：カメラを揺らす印（AreaProfile::cameraShake）の付いた範囲が出た数（GPU が数える）。
 //   命中で出る範囲は GPU が作るので CPU には位置が来ない → 距離で弱めることはできない
-// どちらも trauma を「足す」のではなく「少なくともそこまで上げる」（2026-10-03、ユーザー：エフェクトを出し切ると画面が揺れ続ける）。
-//   以前は GPU の範囲の数が増える度に足していて、命中の火花・死んだ時の土煙（どちらも範囲）が毎秒十数個出ると
-//   減衰（毎秒 1.4）を上回って trauma が 1 に張り付いていた
+// どちらも trauma を「足す」のではなく「少なくともそこまで上げる」（足すと揺れが続いて張り付く）
 // ============================================================
 void BattleCamera::OnPlayerHit(float hpLost)
 {
@@ -207,8 +206,7 @@ void BattleCamera::Update(float dt, const Vector3* target)
 }
 
 // ============================================================
-// 賢いカメラ（2026-11-02）
-// 第三者視点の群れゲームで一番の不満は「囲まれると周りが見えない」（Megabonk も V1.0.4 で引きの設定を足しただけ）。
+// 賢いカメラ
 // 自動で引くのは「囲まれている」「Boss と向き合っている」時だけにして、普段は今のまま。
 // 値は目標だけ決め、実際の動きは FollowCamera のばね（引く 1.5 秒 / 戻る 2.5 秒）に任せる
 // ============================================================
@@ -233,7 +231,7 @@ void BattleCamera::UpdateSmart(float dt)
 
     // ② Boss を画面に入れる：注視点を Boss 側へ少し寄せ、離れている分だけ引く
     Vector3 frame = Vector3::Zero;
-    if (m_Smart.bossAlive)
+    if (m_BossCamera && m_Smart.bossAlive)
     {
         extra += m_BossExtraDist;
         Vector3 d = m_Smart.bossPos - m_FollowCache;   // Boss − プレイヤー
@@ -327,6 +325,7 @@ void BattleCamera::DrawImGui()
         m_Smart.finalWave ? 1 : 0, m_Smart.threat ? 1 : 0);
     ImGui::DragFloatRange2("Crowd start / full", &m_CrowdStart, &m_CrowdFull, 0.5f, 0.0f, 400.0f);
     ImGui::DragFloat("Crowd max pull (m)", &m_CrowdMaxDist, 0.05f, 0.0f, 15.0f);
+    ImGui::Checkbox("Boss framing", &m_BossCamera);
     ImGui::DragFloat("Boss extra (m)", &m_BossExtraDist, 0.05f, 0.0f, 10.0f);
     ImGui::DragFloat("Final wave extra (m)", &m_FinalExtraDist, 0.05f, 0.0f, 10.0f);
     ImGui::DragFloat("Boss frame range (m)", &m_BossFrameRange, 0.5f, 0.0f, 100.0f);

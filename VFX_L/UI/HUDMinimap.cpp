@@ -143,8 +143,8 @@ void HUDMinimap::UpdateWindow(ID3D11DeviceContext* context, const Vector3& playe
             if (i0 >= i1) continue;
             const int jo = j - dz;
             if (jo < 0 || jo >= kN) { SampleSpan(j, i0, i1); continue; }
-            // 写せるのは前の絵の行 jo の中で中身がある所（円の内側 [si0, si1)）だけ。円の外は一度も切り出していない（透明）ので、
-            // 正方形の範囲で写すと透明が新しい円の中へ入って暗い三日月になり、そのまま残っていた（2026-10-24 ユーザー報告）
+            // 写せるのは前の絵の行 jo の中で中身がある所（円の内側 [si0, si1)）だけ。円の外は切り出していない（透明）ので、
+            // 正方形で写すと透明が新しい円の中へ入って暗い三日月が残る
             const int si0 = m_RowSpan[(size_t)jo * 2], si1 = m_RowSpan[(size_t)jo * 2 + 1];
             const int a = (std::max)(i0, si0 + dx), b = (std::min)(i1, si1 + dx);
             if (a >= b) { SampleSpan(j, i0, i1); continue; }

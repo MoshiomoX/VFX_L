@@ -35,6 +35,7 @@ BattleAutoTest::BattleAutoTest(CollisionTestScene& scene)
     , m_DefeatSlowLeft(scene.m_DefeatSlowLeft)
     , m_DefeatWaveR(scene.m_DefeatWaveR)
     , m_ChainHits(scene.m_ChainHits)
+    , m_ShatterCount(scene.m_ShatterCount)
     , m_StageElites(scene.m_StageElites)
     , m_EliteHits(scene.m_EliteHits)
     , m_Lifesteal(scene.m_Lifesteal)
@@ -66,7 +67,9 @@ BattleAutoTest::BattleAutoTest(CollisionTestScene& scene)
     , m_Weather(scene.m_Weather)
     , m_PlayerVFX(scene.m_PlayerVFX)
     , m_SpellFx(scene.m_SpellFx)
+    , m_SandTornadoes(scene.m_SandTornadoes)
     , m_GameUI(scene.m_GameUI)
+    , m_BatHealTotal(scene.m_BatHealTotal)
     , m_Tutorial(scene.m_Tutorial)
     , m_SpellLab(scene.m_SpellLab)
     , m_TerrainConfig(scene.m_TerrainConfig)
@@ -120,8 +123,7 @@ std::shared_ptr<BattleAutoTest> BattleAutoTest::Create(const char* name, Collisi
     if (name[0] == '\0' || std::strcmp(name, "1") == 0)
         return feedback ? feedback(scene) : nullptr;
 
-    // 登録に無い名前（打ち間違い・切れた名前）は走らせない（2026-10-25。以前は黙って feedback を走らせ、
-    // 名前を間違えても「正常な」ログが出来ていた）。autotest.log とコンソールにはっきり書く
+    // 登録に無い名前（打ち間違い・切れた名前）は走らせない。autotest.log とコンソールにはっきり書く
     std::string msg = std::string("[Warn] autotest: unknown name \"") + name + "\" - nothing runs. Registered:";
     for (const auto& entry : Table())
         msg += std::string(" ") + entry.first;

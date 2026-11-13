@@ -99,9 +99,9 @@ void VFXBeamEntry::OnImGui()
     ImGui::DragFloat("Glow Alpha", &glowAlpha, 0.01f, 0.0f, 2.0f);
     ImGui::ColorEdit4("Color (HDR)", &color.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
     ImGui::ColorEdit4("Core Color", &coreColor.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
-    ImGui::Checkbox("Toon (hard-edged bands)", &toon);   // 2026-10-04
+    ImGui::Checkbox("Toon (hard-edged bands)", &toon);
     ImGui::Separator();
-    // 稲妻（2026-10-15）
+    // 稲妻
     ImGui::DragFloat("Lightning Jitter (m)", &jitter, 0.01f, 0.0f, 5.0f);
     ImGui::DragFloat("Lightning Rate (1/s)", &jitterRate, 0.5f, 1.0f, 120.0f);
     ImGui::DragFloat("Lightning Fine", &jitterFine, 0.01f, 0.0f, 2.0f);

@@ -55,7 +55,7 @@ public:
     float GetSpeed() const { return m_Speed; }          // 対象の水平の速さ（平滑後、m/秒）
     float GetSpeedExtraDistance() const { return m_SpeedDist; }
 
-    // 賢いカメラ（2026-11-02）：戦況で決めた「足す距離」と「注視点のずらし」（水平、m）。BattleCamera が毎フレーム渡す。
+    // 賢いカメラ：戦況で決めた「足す距離」と「注視点のずらし」（水平、m）。BattleCamera が毎フレーム渡す。
     // 実際の値は下の situation* / frame* の時間でばねで追う（毎フレームの読みの揺れを画面に出さない）
     void  SetSituation(float extraDistance, const Vector3& frameOffset) { m_SituationWant = extraDistance; m_FrameWant = frameOffset; }
     float GetSituationDistance() const { return m_SituationDist; }
@@ -67,7 +67,7 @@ public:
     // 増やしたら BattleCamera.cpp の CAMERA_FLOATS / CAMERA_BOOLS にも足す（保存・読込・既定値に戻す）
     float fov = 45.0f;             // 縦の画角（度）
     float defaultYaw = 0.0f;       // 始めの向き（度）
-    float defaultPitch = 45.0f;    // 始めの見下ろし角（度、正 = 見下ろす）。2026-10-19 PokéBonk 風に高く遠く（32° / 10m → 45° / 14m）
+    float defaultPitch = 45.0f;    // 始めの見下ろし角（度、正 = 見下ろす）
     float distance = 14.0f;   // 対象からの距離（爆発で自分の周りが隠れないよう少し引く）
     float height = 1.5f;    // 注視点の高さオフセット（足元でなく胸あたりを見る）
     float shoulderOffset = 0.5f;    // 右肩へのずらし（m）。負で左肩、0 で真後ろ
@@ -115,7 +115,7 @@ public:
     // マウスホイールで距離を変える（捕獲中だけ。パネルの Distance と同じ値を動かすので保存される）
     bool  wheelZoom = true;
     float zoomMin = 3.0f;
-    float zoomMax = 21.0f;            // 既定の distance（14m）の 1.5 倍（2026-10-25。14 のままだとホイールで寄るしかできなかった）
+    float zoomMax = 21.0f;            // 既定の distance（14m）の 1.5 倍
     float zoomStep = 0.6f;            // 1 ノッチあたり（m）
 
     // プレイヤーの設定「カメラの距離」（GameSettings::cameraDistance、0.8〜1.3）。distance に掛ける。保存はしない（設定側が持つ）

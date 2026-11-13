@@ -1,9 +1,9 @@
 ﻿// ============================================================
 // AutoTestBurrower.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=burrower
-// 砂潜り（kEnemyKindBurrower。2026-10-17）：正面 12m に 1 体。砂の下を寄って来て、足元で顔を出して 1 回噛み、また潜る（ユーザー「冒头一咬就走」）。
+// 砂潜り（kEnemyKindBurrower）：正面 12m に 1 体。砂の下を寄って来て、足元で顔を出して 1 回噛み、また潜る。
 // 潜っている間は撃っても当たらない（HitCS が飛ばす）ことも見る。
-// 10-26（ユーザー「潜伏兵基本打不到、改成対地の魔法なら当たる」）：右前 7m に moveSpeed 0 の砂潜り（訓練の的 = ずっと潜ったまま）を置き、
+// 地面の範囲が潜った敵に届くか：右前 7m に moveSpeed 0 の砂潜り（訓練の的 = ずっと潜ったまま）を置き、
 // 2〜5.5 秒に 0.5 秒毎に足元へ地面の範囲（半径 2 / 威力 4）を出す → 潜っていても HP が減るはず（`burrower target …`）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -123,7 +123,7 @@ void AutoTestBurrower::Run()
                     std::sqrt(dx * dx + dz * dz), Swarm::HpFromFixed(en[i].hp), s_Hits);
                 AutoTestLog(line);
                 if (ex[i].fuse > 0.0f && s_SurfacedAt < 0.0f) s_SurfacedAt = m_AutoTime;
-                // 10-26: break -> continue, the buried target comes after the walker in the pool
+                // continue (not break): the buried target comes after the walker in the pool
             }
         }
     }

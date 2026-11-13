@@ -37,7 +37,7 @@ void LevelUpSystem::Update(Registry& reg)
 }
 
 // ============================================================
-// レベルで伸びる基本の速さ（2026-10-09 ユーザー指定。画面には出さない）：
+// レベルで伸びる基本の速さ（画面には出さない）：
 // レベルが 10 の倍数に届くたび PlayerStatsComponent::moveSpeed を speedPerTenLevels 足す。
 // 足した回数は levelSpeedSteps に覚える（次の面へ能力値ごと持ち越すので二重に足さない）
 // ============================================================
@@ -107,7 +107,7 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player, bool premium)
     const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
     if (FillChoices(lv, book, nullptr, premium) == 0) return false;
     lv.choiceDelay = 0.0f;   // 箱を開けた四択はすぐ出す
-    lv.choiceFromCrate = true;   // 見出しが「宝箱の報酬」になる（2026-10-18）
+    lv.choiceFromCrate = true;   // 見出しが「宝箱の報酬」になる
     lv.choicePremium = premium;  // 引き直しも同じ率で
 
     ++m_TotalOffers;
@@ -116,7 +116,7 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player, bool premium)
 }
 
 // ============================================================
-// 金貨で引き直す（2026-10-04）。同じ四択の中で値段が上がる（選んだら LevelComponent::ClearChoices で 0 回へ）
+// 金貨で引き直す。同じ四択の中で値段が上がる（選んだら LevelComponent::ClearChoices で 0 回へ）
 // ============================================================
 bool LevelUpSystem::Reroll(Registry& reg, Entity player)
 {
@@ -141,13 +141,67 @@ bool LevelUpSystem::Reroll(Registry& reg, Entity player)
     return true;
 }
 
+namespace
+{
+    // 四択の母集団の 1 件（重み付き）
+    struct CardEntry { ItemID id; float weight; };
+
+    // ============================================================
+    // 設置枠の保底：枠の無い四択が framePity 回続きそうなら、その回の 1 枚を枠に差し替える。
+    // 枠も稀有度の段を引いてから選ぶ。差し替えるのはノーマルの札を優先（レア以上は残す）
+    // ============================================================
+    void ApplyFramePity(int framePity, LevelComponent& lv, std::vector<CardEntry>* pools, const float* chance)
+    {
+        if (lv.pendingChoices.empty()) return;
+        bool hasFrame = false;
+        for (ItemID id : lv.pendingChoices)
+            if (ItemDatabase::GetFrame(id)) { hasFrame = true; break; }
+        if (hasFrame || framePity <= 0 || lv.framesMissed + 1 < framePity)
+        {
+            lv.framesMissed = hasFrame ? 0 : lv.framesMissed + 1;
+            return;
+        }
+
+        // 残りの池から枠だけを段毎に集めて 1 つ引く
+        std::vector<CardEntry> frames[Rarity::kCount];
+        bool has[Rarity::kCount];
+        for (int i = 0; i < Rarity::kCount; ++i)
+        {
+            float t = 0.0f;
+            for (const CardEntry& e : pools[i])
+                if (ItemDatabase::GetFrame(e.id) && e.weight > 0.0f) { frames[i].push_back(e); t += e.weight; }
+            has[i] = t > 0.0f;
+        }
+        const int tier = Rarity::RollTier(chance, has, (float)rand() / ((float)RAND_MAX + 1.0f));
+        if (tier < 0) { ++lv.framesMissed; return; }
+        float total = 0.0f;
+        for (const CardEntry& e : frames[tier]) total += e.weight;
+        float r = (float)rand() / ((float)RAND_MAX + 1.0f) * total;
+        ItemID pickId = frames[tier].back().id;
+        for (const CardEntry& e : frames[tier])
+        {
+            r -= e.weight;
+            if (r < 0.0f) { pickId = e.id; break; }
+        }
+
+        std::vector<int> commons;
+        for (int i = 0; i < (int)lv.pendingChoices.size(); ++i)
+            if (const ItemCommon* c = ItemDatabase::GetCommon(lv.pendingChoices[i]); !c || c->rarity == ItemRarity::Common)
+                commons.push_back(i);
+        const int n = commons.empty() ? (int)lv.pendingChoices.size() : (int)commons.size();
+        const int k = (std::min)((int)((float)rand() / ((float)RAND_MAX + 1.0f) * (float)n), n - 1);
+        lv.pendingChoices[commons.empty() ? k : commons[k]] = pickId;
+        lv.framesMissed = 0;
+    }
+}
+
 // ============================================================
 // 候補を pendingChoices に詰める（レベルアップと報酬で共通）。詰めた数を返す
 // ============================================================
 int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book, const std::vector<ItemID>* avoid, bool premium)
 {
-    // 候補の母集団を稀有度の段毎に作る（重み付き。2026-10-29 から稀有度は先に段を引くので重みには掛けない）
-    struct Entry { ItemID id; float weight; };
+    // 候補の母集団を稀有度の段毎に作る（重み付き。稀有度は先に段を引くので重みには掛けない）
+    using Entry = CardEntry;
     std::vector<Entry> pools[Rarity::kCount];
     for (ItemID id : ItemDatabase::GetAllIDs())
     {
@@ -163,16 +217,15 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
             if (!hasAny) continue;
         }
 
-        // 設置枠は種類が多いので 1 種類ずつの重みを下げる（2026-10-27）
+        // 設置枠は種類が多いので 1 種類ずつの重みを下げる
         float w = 1.0f;
         if (const FrameItemDef* fd = ItemDatabase::GetFrame(id)) w = frameWeight * fd->weight;
         pools[std::clamp((int)ItemDatabase::GetCommon(id)->rarity, 0, Rarity::kCount - 1)].push_back({ id, w });
     }
-    // 能力値（生命・魔力・速さ・跳躍…）も同じ池に混ぜる。種類が多いので 1 枚ずつの重みは下げる
-    // （全部 1 だと候補の半分近くが能力値になる。2026-09-29 ユーザー「能力値のカードが多すぎる」）
-    // 2026-10-27 ユーザー「数値が伸びるだけの選択肢を全部外す」→ statCards = false で四択（レベルアップ・宝箱）に出さない
-    if (statCards)
-        for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
+    // 能力値（生命・魔力・速さ・跳躍…）も同じ池に混ぜる。種類が多いので 1 枚ずつの重みは下げる。
+    // statCards = false なら四択（レベルアップ・宝箱）に出さない。シールドは shieldCard で別に出す
+    for (ItemID id : ItemDatabase::GetLevelUpOnlyIDs())
+        if (statCards || (shieldCard && id == ItemID::ShieldUp))
             pools[(int)ItemRarity::Common].push_back({ id, statWeight });
 
     // 1 枚ずつ：稀有度の段を引き → その段の中で重みに比例して引く（引いた物は池から外す = 同じ物は並ばない）
@@ -216,8 +269,10 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
         lv.pendingChoices.push_back(pool[pick].id);
         pool.erase(pool.begin() + (ptrdiff_t)pick);
     }
+    ApplyFramePity(framePity, lv, pools, chance);
     return (int)lv.pendingChoices.size();
 }
+
 
 // ============================================================
 // 選択の確定

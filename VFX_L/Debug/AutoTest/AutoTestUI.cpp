@@ -39,7 +39,7 @@ void AutoTestUI::Run(float dt)
     }
     if (m_AutoStep < 5 && m_Registry.Has<LevelComponent>(m_Player))
     {
-        // 上がらない範囲で 62% 溜めておく（経験値バーの中身が写るように。2026-10-15）
+        // 上がらない範囲で 62% 溜めておく（経験値バーの中身が写るように）
         auto& lv = m_Registry.Get<LevelComponent>(m_Player);
         lv.experience = lv.ExpToNext() * 0.62f;
     }
@@ -109,14 +109,14 @@ void AutoTestUI::Run(float dt)
     }
     else if (m_AutoStep == 4 && m_AutoTime >= 7.0f)
     {
-        // 一時停止の「設定」のページ（音量 + アウトライン、2026-10-07）
+        // 一時停止の「設定」のページ（音量 + アウトライン）
         m_GameUI.TestShow(3);
         AutoTestLog("ui look settings");
         m_AutoStep = 40;
     }
     else if (m_AutoStep == 40 && m_AutoTime >= 8.0f)
     {
-        // 一時停止の「遊び方」のページ（2026-10-13）
+        // 一時停止の「遊び方」のページ
         m_GameUI.TestShow(4);
         AutoTestLog("ui look howto");
         m_AutoStep = 41;
@@ -141,9 +141,8 @@ void AutoTestUI::Run(float dt)
         auto& lv = m_Registry.Get<LevelComponent>(m_Player);
         if (lv.IsChoosing())
         {
-            lv.pendingChoices = { ItemID::MoveSpeedUp, ItemID::MaxManaUp, ItemID::MaxHealthUp };   // JumpPowerUp は 10-26 に削除
-            AutoTestLog("ui levelup choices: MoveSpeedUp / MaxManaUp / MaxHealthUp");
-            // 2026-10-15：四択は 1.2 秒待ってから出る。この時点は「レベルアップ！」の案内だけ（ゲームは動いている）
+            lv.pendingChoices = { ItemID::MoveSpeedUp, ItemID::MaxManaUp, ItemID::MaxHealthUp };            AutoTestLog("ui levelup choices: MoveSpeedUp / MaxManaUp / MaxHealthUp");
+            // 四択は 1.2 秒待ってから出る。この時点は「レベルアップ！」の案内だけ（ゲームは動いている）
             char line[96];
             snprintf(line, sizeof(line), "ui levelup wait choiceDelay %.2f modal %d", lv.choiceDelay, (int)m_GameUI.IsModalOpen());
             AutoTestLog(line);

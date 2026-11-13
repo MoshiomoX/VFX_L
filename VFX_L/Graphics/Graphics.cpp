@@ -43,7 +43,7 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
 
     UINT flags = 0;
 #ifdef _DEBUG
-    // D3D のデバッグ層は既定で切（2026-09-28 ユーザー決定。Debug 構成で 1 フレーム約 2.5 ms かかっていた）。
+    // D3D のデバッグ層は既定で切（Debug 構成で重い）。
     // SRV / UAV の HAZARD などの警告を見たい時は VFXL_D3D_DEBUG=1（VS なら「デバッグ → 環境」に書く）
     char debugLayer[8] = {};
     if (GetEnvironmentVariableA("VFXL_D3D_DEBUG", debugLayer, sizeof(debugLayer)) > 0 && debugLayer[0] != '0')
@@ -230,7 +230,7 @@ bool Graphics::CreateSceneTargets(int width, int height)
     dd.Height = height;
     dd.MipLevels = 1;
     dd.ArraySize = 1;
-    // 2026-10-04：画面のアウトライン（PostProcess/Outline）が深度を読むので型無し + SRV。
+    // 画面のアウトライン（PostProcess/Outline）が深度を読むので型無し + SRV。
     // DSV は D24S8、SRV は深度 24bit だけ（R24_UNORM_X8）
     dd.Format = DXGI_FORMAT_R24G8_TYPELESS;
     dd.SampleDesc.Count = m_SampleCount;
@@ -256,12 +256,12 @@ bool Graphics::CreateSceneTargets(int width, int height)
     }
     hr = m_Device->CreateShaderResourceView(depthTex.Get(), &dsrv, &m_DepthSRV);
     DX_CHECK(hr, "CreateShaderResourceView(depth) failed");
-    // ステンシル（陣営のアウトライン、2026-10-06）：同じ資源の G（8bit uint）だけを読む
+    // ステンシル（陣営のアウトライン）：同じ資源の G（8bit uint）だけを読む
     dsrv.Format = DXGI_FORMAT_X24_TYPELESS_G8_UINT;
     hr = m_Device->CreateShaderResourceView(depthTex.Get(), &dsrv, &m_StencilSRV);
     DX_CHECK(hr, "CreateShaderResourceView(stencil) failed");
 
-    // ---- 画面の歪み（2026-10-20）：uv のずれ。シーンと同じ MSAA（深度を共有する）+ resolve 先 ----
+    // ---- 画面の歪み：uv のずれ。シーンと同じ MSAA（深度を共有する）+ resolve 先 ----
     D3D11_TEXTURE2D_DESC xd = td;   // td は上で resolve 先用に Count 1 / SRV にしてある
     xd.Format = DXGI_FORMAT_R16G16_FLOAT;
     xd.SampleDesc.Count = m_SampleCount;
@@ -305,7 +305,7 @@ bool Graphics::LoadPostShaders()
     std::cout << "[Graphics] CompositePS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
-    // 歪みをシーンへ掛ける（UI の前。2026-10-20）。読めなければ歪み無しで続ける
+    // 歪みをシーンへ掛ける（UI の前）。読めなければ歪み無しで続ける
     m_DistortApplyPS = std::make_shared<PixelShader>();
     hr = ShaderPath::Load(m_DistortApplyPS.get(), m_Device.Get(),
         L"Shader/PostProcess/DistortApplyPS.hlsl");
@@ -346,7 +346,7 @@ void Graphics::BeginFrame()
 }
 
 // ============================================================
-// 画面の歪みの RT を bind（2026-10-20）。シーンの深度はそのまま（粒子は読むだけ）
+// 画面の歪みの RT を bind。シーンの深度はそのまま（粒子は読むだけ）
 // ============================================================
 bool Graphics::BeginDistortion()
 {
@@ -358,7 +358,7 @@ bool Graphics::BeginDistortion()
 }
 
 // ============================================================
-// 歪みをシーンに掛ける（2026-10-20、UI を描く前）：シーンと歪みを resolve → 全画面三角形で
+// 歪みをシーンに掛ける（UI を描く前）：シーンと歪みを resolve → 全画面三角形で
 // 「ずらして読んだシーン」を HDR RT（MSAA）へ書き戻す。深度は触らない。合成はもう歪まない
 // ============================================================
 void Graphics::ApplyDistortion()
@@ -422,7 +422,7 @@ void Graphics::BeginUI()
     m_Context->OMSetRenderTargets(1, m_BackbufferRTV.GetAddressOf(), nullptr);
     m_Context->RSSetViewports(1, &m_Viewport);
 
-    // 2b) 画面の歪み（2026-10-20）：粒子が書いたずれを resolve。描かれていないフレームは倍率 0
+    // 2b) 画面の歪み：粒子が書いたずれを resolve。描かれていないフレームは倍率 0
     const bool distort = m_DistortDrawn && m_Distortion.enabled && m_DistortResolved;
     if (distort)
         m_Context->ResolveSubresource(m_DistortResolved.Get(), 0, m_DistortTex.Get(), 0, DXGI_FORMAT_R16G16_FLOAT);

@@ -80,7 +80,7 @@ void CollisionTestScene::DrawWandPanel()
     const char* modeNames[] = { "Auto", "Manual", "Debug Burst" };
     if (ImGui::Combo("Cast Mode", &modeIdx, modeNames, 3))
         w.castMode = (CastMode)modeIdx;
-    ImGui::Checkbox("Casting Paused (debug)", &w.castingPaused);   // 詠唱停止（2026-10-01 から Q ではなくデバッグ・自動テスト専用）
+    ImGui::Checkbox("Casting Paused (debug)", &w.castingPaused);   // 詠唱停止（デバッグ・自動テスト専用）
     // 魔力解放（Q / パッド Y）: 3 秒消費なし、20 秒に 1 回
     if (m_Registry.Has<ManaComponent>(m_Player))
     {
@@ -89,7 +89,7 @@ void CollisionTestScene::DrawWandPanel()
             mp.SurgeActive() ? "ON" : "off", mp.surgeTime, mp.surgeCooldownLeft);
         ImGui::DragFloat("Surge duration (s)", &mp.surgeDuration, 0.1f, 0.0f, 30.0f);
         ImGui::DragFloat("Surge cooldown (s)", &mp.surgeCooldown, 0.5f, 0.0f, 300.0f);
-        // 解放中の強化（2026-10-02）: 詠唱の計時の速さ / 持続する範囲の長さ
+        // 解放中の強化: 詠唱の計時の速さ / 持続する範囲の長さ
         ImGui::DragFloat("Surge cast speed x", &mp.surgeCastSpeed, 0.05f, 0.1f, 5.0f);
         ImGui::DragFloat("Surge duration x", &mp.surgeDurationMul, 0.05f, 0.1f, 5.0f);
         if (ImGui::Button("Reset surge cooldown")) mp.surgeCooldownLeft = 0.0f;
@@ -217,7 +217,7 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::ProgressBar(hp.current / hp.max, ImVec2(-1, 0), buf);
     }
     ShieldPanel::Draw(m_Registry, m_Player);   // シールド（HP の次に受ける順）
-    m_Lifesteal.DrawImGui();   // 吸血のルーン（2026-10-25）
+    m_Lifesteal.DrawImGui();   // 吸血
 
     // ---- 魔力 ----
     // 実行時に書くのは ManaSystem だけ。
@@ -231,7 +231,7 @@ void CollisionTestScene::DrawPlayerPanel()
             ImVec2(-1, 0), mbuf);
         ImGui::DragFloat("Mana Max", &mana.max, 1.0f, 10.0f, 1000.0f);
         ImGui::DragFloat("Mana Regen", &mana.regen, 0.5f, 0.0f, 300.0f);
-        // 回復はレベルで伸びる（2026-10-04）。実際の回復 = Mana Regen × (1 + 下の値 × (Lv - 1))
+        // 回復はレベルで伸びる。実際の回復 = Mana Regen × (1 + 下の値 × (Lv - 1))
         ImGui::DragFloat("Mana Regen / Level", &mana.regenPerLevel, 0.005f, 0.0f, 2.0f, "%.3f");
         const int lv = m_Registry.Has<LevelComponent>(m_Player) ? m_Registry.Get<LevelComponent>(m_Player).level : 1;
         ImGui::Text("effective regen %.1f / s (Lv %d)", mana.EffectiveRegen(lv), lv);
@@ -255,7 +255,7 @@ void CollisionTestScene::DrawPlayerPanel()
         ImGui::Text("Level ups : %d", m_LevelUpSystem.GetTotalLevelUps());
         ImGui::DragInt("Choice Count", &m_LevelUpSystem.choiceCount, 1, 1, 5);
         ImGui::DragFloat("Stat Card Weight", &m_LevelUpSystem.statWeight, 0.01f, 0.0f, 2.0f);
-        // 稀有度：1 枚がレア / レジェンドになる率を経過時間の点で決め、間は直線（2026-11-01）。金色の箱は + Premium Minutes
+        // 稀有度：1 枚がレア / レジェンドになる率を経過時間の点で決め、間は直線。金色の箱は + Premium Minutes
         if (ImGui::TreeNode("Rarity (cards)"))
         {
             auto& o = m_LevelUpSystem.rarityOdds;
@@ -269,9 +269,12 @@ void CollisionTestScene::DrawPlayerPanel()
             ImGui::DragFloat4("Legendary chance", o.legend, 0.002f, 0.0f, 1.0f);
             ImGui::DragFloat("Premium Minutes +", &m_LevelUpSystem.premiumMinutes, 0.5f, 0.0f, 30.0f);
             ImGui::DragFloat("Frame Weight", &m_LevelUpSystem.frameWeight, 0.01f, 0.0f, 2.0f);
+            ImGui::DragInt("Frame Pity (offers, 0 = off)", &m_LevelUpSystem.framePity, 1, 0, 10);
+            ImGui::Text("offers without a frame so far: %d", lv.framesMissed);
+            ImGui::Checkbox("Shield card (even with stat cards off)", &m_LevelUpSystem.shieldCard);
             ImGui::TreePop();
         }
-        // 金貨（2026-10-04）：経験値 × goldPerExp で増える。引き直しの値段 = base + step × 回数
+        // 金貨：経験値 × goldPerExp で増える。引き直しの値段 = base + step × 回数
         if (m_Registry.Has<WalletComponent>(m_Player))
         {
             auto& wallet = m_Registry.Get<WalletComponent>(m_Player);
@@ -443,7 +446,7 @@ void CollisionTestScene::DrawPlayerPanel()
             ImGui::TreePop();
         }
 
-        // ---- マントの揺れ（ClothChainSystem、2026-10-04）----
+        // ---- マントの揺れ（ClothChainSystem）----
         if (m_Registry.Has<ClothChainComponent>(m_Player) && ImGui::TreeNode("Cape (cloth chain)"))
         {
             ClothChainSystem::DrawImGui(m_Registry.Get<ClothChainComponent>(m_Player));

@@ -320,8 +320,7 @@ void VFXEditor::DrawMenuBar()
         ImGui::OpenPopup("LoadPopup");
     }
 
-    // エフェクトのデータベース（VFXId.h / VFXDatabase.cpp）の一覧。2026-10-09、ユーザー：
-    // 「データベースのエフェクトの数が合わない、プレイヤーのエフェクトや足元の小石は入っていないのか」
+    // エフェクトのデータベース（VFXId.h / VFXDatabase.cpp）の一覧。
     ImGui::SameLine();
     if (ImGui::Button("Database"))
     {

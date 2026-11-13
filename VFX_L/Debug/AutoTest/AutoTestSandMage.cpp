@@ -1,9 +1,9 @@
 // ============================================================
 // AutoTestSandMage.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=sandmage
-// 砂嵐の術師（kEnemyKindSandMage。2026-10-17）：正面 12m に 1 体。距離を取って立ち止まり、溜めてから砂旋
+// 砂嵐の術師（kEnemyKindSandMage）：正面 12m に 1 体。距離を取って立ち止まり、溜めてから砂旋
 // （kEnemyKindTornado = 敵の弾を敵の 1 種類で作った物）をプレイヤーへ放つ。砂旋に触れたプレイヤーは高く吹き飛ぶ
-// （PlayerHitInfo の wind → KnockKind::Wind）。ユーザー 10-17「能把玩家吹飞的」→ 四案から「飛ぶ砂旋」
+// （PlayerHitInfo の wind → KnockKind::Wind）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 

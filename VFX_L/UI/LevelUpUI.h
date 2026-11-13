@@ -31,8 +31,7 @@ public:
     // dt = 実時間の秒（出た直後の猶予を減らす。ゲームが止まっている間も渡す）
     bool HandleInput(const LevelComponent& lv, ItemID& outPicked, float dt = 0.016f);
 
-    // 四択の層を積んだ時に GameUI が呼ぶ（出る時の動き・カーソル・猶予を毎回やり直す）。
-    // 以前は Draw が候補 0 枚を見た時にしか戻さず、選んだ同じフレームに層が下りるので、動きは最初の 1 回しか出なかった
+    // 四択の層を積んだ時に GameUI が呼ぶ（出る時の動き・カーソル・猶予を毎回やり直す）
     void OnOpen() { m_Shown = false; m_WasChoosing = false; }
 
     // text は能力値のカード（形が無い物）の文字に使う。SpriteRenderer の後に描かれる
@@ -62,7 +61,7 @@ public:
     float cornerRatio = 0.26f;    // 四隅の組紐の大きさ（カード幅に対して）
     float circleSpin = 0.12f;     // 魔法陣の回転（rad / 秒、選択中は倍）
 
-    // ---- 稀有度の縁（2026-10-28。ユーザー：面の色は魔法の種類のまま、報酬の時にカードへ縁を付けて稀有度を見せる）----
+    // ---- 稀有度の縁（面の色は魔法の種類のまま、縁で稀有度を見せる）----
     // カードの外側 rarityGap px に太さ rarityWidth の枠（カード幅 270px の時）。レア・レジェンドは外へ光をにじませ、
     // レジェンドは脈打つ。枠の上の真ん中に稀有度の名前の札。色は線形（UI は HDR に描かれるので 1 を超えると bloom で光る）
     float rarityGap = 4.0f;
@@ -70,7 +69,7 @@ public:
     float rarityGlow = 0.45f;          // にじむ光の濃さ（一番内側の層）
     float rarityTextScale = 0.36f;
     DirectX::SimpleMath::Vector4 rarityColor[3] = {
-        { 0.16f, 0.16f, 0.19f, 1.0f },    // ノーマル：暗い灰（光らない。0.36 だと銀色に見えて珍しい物に見えた）
+        { 0.16f, 0.16f, 0.19f, 1.0f },    // ノーマル：暗い灰（光らない。明るいと銀色に見えて珍しい物に見える）
         { 0.20f, 0.52f, 1.60f, 1.0f },    // レア：青（少し bloom）
         { 1.90f, 1.05f, 0.18f, 1.0f },    // レジェンド：金（bloom）
     };
@@ -80,17 +79,17 @@ public:
         { 1.00f, 0.82f, 0.36f, 1.0f },
     };
 
-    // 選択中の index（キーボード / パッド用）。カードの枚数と同じ値 = 引き直しのボタン（2026-10-28）
+    // 選択中の index（キーボード / パッド用）。カードの枚数と同じ値 = 引き直しのボタン
     int GetCursor() const { return m_Cursor; }
 
     // カード 1 枚（種別 → 名前 → 魔法陣の中のアイコン + 形 → 説明）。pos = 左上。
-    // レベルアップの四択と商店（ShopScene）で共用（2026-10-15）。大きさは Layout で決めた CardSize
+    // レベルアップの四択と商店（ShopScene）で共用。大きさは Layout で決めた CardSize
     void DrawCard(SpriteRenderer& sprite, TextRenderer& text, ItemID id,
         const DirectX::SimpleMath::Vector2& pos, bool selected) const;
     DirectX::SimpleMath::Vector2 CardSize() const;
     bool showRarity = true;   // 稀有度の縁（DrawCard の中で描く）
 
-    // ---- 金貨での引き直し（2026-10-04）----
+    // ---- 金貨での引き直し ----
     // カードの下のボタン（R / パッド X / クリック / 下キー・十字・スティックの下で選んで決定）。
     // GameUI が毎フレーム値段と所持を渡す（cost < 0 なら出さない）
     void SetReroll(int cost, int gold) { m_RerollCost = cost; m_Gold = gold; }
@@ -99,7 +98,7 @@ public:
     float rerollWidthRatio = 1.60f;   // ボタンの幅（カード幅に対して）
     float rerollTextScale = 0.40f;    // カード幅 270px の時
 
-    // 左スティックでカードを選ぶ（2026-10-28）
+    // 左スティックでカードを選ぶ
     float stickPress = 0.5f;            // これより倒したら 1 枚
     float stickRelease = 0.3f;          // 出た時に倒していたら、これより戻すまで見ない
     float stickRepeatDelay = 0.40f;     // 倒し続けて連続で動き始めるまで（秒）
@@ -139,7 +138,7 @@ private:
     float m_InputDelay = 0.0f;
     bool  m_WasChoosing = false;
 
-    // 左スティックでカードを選ぶ（2026-10-28）。出てから一度戻すまでは見ない（m_StickArmed）
+    // 左スティックでカードを選ぶ。出てから一度戻すまでは見ない（m_StickArmed）
     bool  m_StickArmed = false;
     int   m_StickHeld = 0;      // 今倒している向き（±1 = 左右、+2 = 下、-2 = 上、0 = 戻っている）
     float m_StickTimer = 0.0f;  // 次の連続移動まで
@@ -147,7 +146,7 @@ private:
     bool  m_HasTestStick = false;
     bool  m_TestConfirm = false;   // TEMP-TEST: TestConfirm
 
-    // 出た瞬間の動き（2026-10-15）：暗幕が濃くなり、カードが下から浮き上がる（実時間 UIDeco::Clock）
+    // 出た瞬間の動き：暗幕が濃くなり、カードが下から浮き上がる（実時間 UIDeco::Clock）
     mutable bool  m_Shown = false;
     mutable float m_ShownAt = 0.0f;
     float appearTime = 0.35f;

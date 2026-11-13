@@ -3,6 +3,7 @@
 // 水面のメッシュ・問い合わせ・描画（波紋の計算は WaterRipples.cpp、パネルは WaterSurfacePanel.cpp）
 // ============================================================
 #include "World/WaterSurface.h"
+#include "World/WindGrid.h"
 #include "World/TerrainBuild.h"
 #include "World/MapData.h"
 #include "World/GridWorld.h"
@@ -296,6 +297,7 @@ void WaterSurface::Render(Renderer& renderer, CameraBase& camera,
     m_PS->SetSRV(ctx, "g_Ripple", m_RippleSRV[m_Cur].Get());
     m_PS->SetSRV(ctx, "g_Ice", m_IceSRV.Get());
     if (windSources) m_PS->SetSRV(ctx, "g_WindSources", windSources);
+    WindGrid::BindCurrent(*m_PS, ctx);   // 風の格子
     ID3D11SamplerState* linearClamp = RenderStates::Get().LinearClamp();
     ctx->PSSetSamplers(0, 1, &linearClamp);
 

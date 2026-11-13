@@ -1,6 +1,6 @@
 // ============================================================
 // LookBuilder.h
-// 敵の飾りを積む道具（2026-10-25、Enemy/BossLooks.cpp から分けた。Enemy/EnemyLooks.cpp と共用）。
+// 敵の飾りを積む道具（Boss・エリート・遺跡の敵で共用）。
 // 飾りは焼いた雑魚の網と同じ空間（足元 = カプセルの下 y ≒ -0.9、高さ 1.6、+Z が正面）で HexahedronBatch に箱を積み、
 // 頂点色で塗る（HDR の色は bloom で光る）。寸法は部品の包囲ボックス（Model::SubMesh の boundsMin / Max）に対する割合で決める
 // ============================================================
@@ -35,12 +35,12 @@ namespace LookBuilder
     {
         PrimitiveBuilder::HexahedronBatch batch;
         int boxes = 0;
-        // 全体の拡大（2026-10-26、雄鹿「体をもう少し大きく」）：積む前に pivot の周りに scale 倍する。1 = そのまま
+        // 全体の拡大：積む前に pivot の周りに scale 倍する。1 = そのまま
         float scale = 1.0f;
         Vec3 pivot = { 0.0f, 0.0f, 0.0f };
-        // 全体の仰角（2026-10-27、狼人の頭）：pivot を通る横軸の周りに pitch rad 回す（正 = 前が上がる）。0 = そのまま
+        // 全体の仰角：pivot を通る横軸の周りに pitch rad 回す（正 = 前が上がる）。0 = そのまま
         float pitch = 0.0f;
-        // 最後の平行移動（2026-10-27、狼人の足を地面 y -0.9 へ下ろす）
+        // 最後の平行移動
         Vec3 move = { 0.0f, 0.0f, 0.0f };
         Vec3 Xf(const Vec3& p) const
         {
@@ -108,7 +108,7 @@ namespace LookBuilder
                 Box(Vec3(x0, lo.y, lo.z), Vec3(x1, hi.y, hi.z), (i & 1) ? b : a);
             }
         }
-        // 8 隅（Box と同じ並び：下面 4 点を一周 → 上面 4 点）。鏡像（左の翼など）なら並びを裏返して面を外向きに保つ（2026-10-25）
+        // 8 隅（Box と同じ並び：下面 4 点を一周 → 上面 4 点）。鏡像（左の翼など）なら並びを裏返して面を外向きに保つ
         void Hex(Vec3 v[8], const Vec4& top, const Vec4& side)
         {
             const float vol = (v[1] - v[0]).Cross(v[3] - v[0]).Dot(v[4] - v[0]);
@@ -166,7 +166,7 @@ namespace LookBuilder
                 Beam(e1 - p * halfW, e1 + p * halfW, thick, c);
             }
         }
-        // ---- 丸い物（2026-10-26、ユーザー「四角と三角だけでなく円柱・球も使っていい」）。六面体を扇形に並べて作る ----
+        // ---- 丸い物（円柱・球）。六面体を扇形に並べて作る ----
         // a → b の円柱（断面は segs 角形。半径 r0 → r1。中は少し細い同心の輪 = 外から見て詰まって見える）。脚・尾の節・腕
         void Tube(const Vec3& a, const Vec3& b, float r0, float r1, const Vec4& c, int segs = 8)
         {
@@ -219,7 +219,7 @@ namespace LookBuilder
     };
 
     // 腕の向き：付け根 → 手（包囲ボックスの付け根から遠い方の下の角）。ay = 手 → 付け根、az ≒ 前、ax = 横。
-    // 焼いた歩きの姿勢では腕が前後に振れているので、手に持つ物（杖・剣・鉤）はこの向きで組む（2026-10-25 に EnemyLooks.cpp から移した）
+    // 焼いた歩きの姿勢では腕が前後に振れているので、手に持つ物（杖・剣・鉤）はこの向きで組む
     struct ArmFrame
     {
         Vec3 hand, down, ax, ay, az;

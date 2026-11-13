@@ -48,7 +48,7 @@ public:
 
     void SetAlbedoSrgb(bool on) { m_AlbedoSrgb = on; }
 
-    // 面ごとの照明の組（2026-09-30。草原 / 砂漠 / 遺跡。World/StageConfig が持つ）。線形 HDR
+    // 面ごとの照明の組（草原 / 砂漠 / 遺跡。World/StageConfig が持つ）。線形 HDR
     struct Preset
     {
         float sunPitch = kSunPitchDefault, sunYaw = kSunYawDefault;
@@ -66,7 +66,7 @@ public:
     };
     void ApplyPreset(const Preset& p);
 
-    // 今の空の色（線形。水面の映り込み、2026-10-27）
+    // 今の空の色（線形。水面の映り込み）
     DirectX::SimpleMath::Vector3 SkyZenith() const { return { m_SkyZenith[0], m_SkyZenith[1], m_SkyZenith[2] }; }
     DirectX::SimpleMath::Vector3 SkyHorizon() const { return { m_SkyHorizon[0], m_SkyHorizon[1], m_SkyHorizon[2] }; }
 
@@ -105,8 +105,8 @@ private:
     float m_SunGlow = 0.35f;
     float m_SunGlowPower = 24.0f;
     float m_SunDisk = 4.0f;
-    bool  m_AlbedoSrgb = true;    // モデルの色テクスチャを sRGB として扱う（2026-09-28 から既定で入。切ると旧い白っぽい見た目）
-    // トゥーンの陰影（2026-10-04、ユーザー：二段の柔らかい境 + 冷たい暗部、全部の物に）。既定で入（戦闘シーンだけ。ClearFog で切）
+    bool  m_AlbedoSrgb = true;    // モデルの色テクスチャを sRGB として扱う（既定で入。切ると白っぽく浮く）
+    // トゥーンの陰影（二段の柔らかい境 + 冷たい暗部、全部の物に）。既定で入（戦闘シーンだけ。ClearFog で切）
     bool  m_ToonOn = true;
     DirectX::SimpleMath::Vector4 m_ToonParams = { 1.0f, 0.15f, 0.05f, 0.3f };        // x は m_ToonOn で上書き。w = 硬い光沢（強いと平らな岩の面が丸ごと白くなる）
     DirectX::SimpleMath::Vector4 m_ToonShadowTint = { 0.70f, 0.78f, 1.10f, 0.85f };

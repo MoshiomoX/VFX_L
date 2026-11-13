@@ -1,6 +1,6 @@
 // ============================================================
 // VFXBeamEntry.h
-// Beam entry：起点 → 終点の光線を 1 本描く（2026-09-30）。
+// Beam entry：起点 → 終点の光線を 1 本描く。
 //   起点 = effect の位置 + offset。終点は effect の外から毎フレーム入る
 //   （VFXEffect::SetBeamEnd。戦闘では WeaponSystem が光線の当たり判定と同じ物を入れる）。
 //   入っていない時（VFX エディタのプレビュー）は previewDir へ previewLength m。
@@ -46,8 +46,8 @@ public:
     float growTime = 0.1f;                                     // 出る時、根元から先端へ伸びる秒数
     float shrinkTime = 0.2f;                                   // 消える時、根元から縮む秒数（duration の末尾）
     float previewLength = 12.0f;                               // 終点が入らない時の長さ（エディタ）
-    bool  toon = false;                                        // トゥーン：断面を縁のはっきりした段に（json "toon"、2026-10-04）
-    // 稲妻（json "jitter" / "jitterRate" / "jitterFine"、2026-10-15）：区切り毎に横へずらしてギザギザの稲妻にする。
+    bool  toon = false;                                        // トゥーン：断面を縁のはっきりした段に（json "toon"）
+    // 稲妻（json "jitter" / "jitterRate" / "jitterFine"）：区切り毎に横へずらしてギザギザの稲妻にする。
     // jitter = うねりの振幅 m（0 = まっすぐ）、jitterRate = 形を取り直す回数 /秒、jitterFine = 細かい折れの振幅（jitter 比）
     float jitter = 0.0f;
     float jitterRate = 24.0f;

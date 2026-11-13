@@ -1,8 +1,9 @@
 // ============================================================
 // MiasmaMarchPS.hlsl
-// 遺跡の瘴気の箱をレイマーチする（World/MiasmaField、2026-11-03）。
-// 半分の解像度で描く（全画面三角形、Sky/SkyVS）: 半解像度の各ピクセルは
-// 全解像度の 2p + 1 のピクセルのシーン深度を取り（合成パスも同じ規則）、
+// 遺跡の瘴気の箱をレイマーチする（World/MiasmaField）。
+// 縮小した解像度で描く（全画面三角形、Sky/SkyVS）: 縮小図の各ピクセル p は
+// 全解像度の floor((p + 0.5) × g_Scale) のピクセルのシーン深度を取り（合成パスも同じ規則）、
+// g_Scale は 2 から、画面が大きいと 4 まで（画素数がほぼ一定になる）。
 // ワールドの点を復元して、カメラからその点（または g_MaxDist）までレイを進める。
 // レイは箱が覆う高さの板と、箱の xz の正方形で切り詰める。
 //
@@ -44,18 +45,19 @@ cbuffer MiasmaMarchCB : register(b0)
     float g_TopBlend;       // m: 低い所の色 -> 高い所の色
     float g_Glow;           // 段の縁を明るくする量
     float g_EdgeFade;       // m: 箱の側面の近くで薄くする
-    float _pad;
+    float g_Scale;          // 全解像度 / この図の解像度（2..4。画面が大きいほど粗く = 画素数を一定に）
     float3 g_DetailOffset;  // ノイズは風に流され、上へ昇る
     float g_DetailScale;    // 1/m（大きいオクターブ）
     float g_Erode;          // 0 = 侵食なし
     float g_DensRef;        // 霧を濃い芯とみなす密度
     float g_DetailScale2;   // 1/m（小さいオクターブ）
     float g_Detail2Mix;
-    float3 g_TorchColor;    // 遺跡の松明（2026-11-05）: 近くの霧を暖かく照らす
+    float3 g_TorchColor;    // 遺跡の松明: 近くの霧を暖かく照らす
     float g_TorchCount;
     float g_TorchGlow;
     float g_TorchGlowRadius;
-    float2 _padTorch;
+    float g_MaxOpacity;     // 一番濃い所の不透明度（1 = 向こうが見えない）
+    float _padTorch;
     float4 g_Torch[16];     // xyz = 位置、w = 揺らぎ
 };
 
@@ -98,7 +100,7 @@ void ClipAxis(float o, float d, float lo, float hi, inout float t0, inout float 
 
 float4 main(float4 pos : SV_POSITION) : SV_Target
 {
-    int2 full = clamp(int2(pos.xy) * 2 + 1, int2(0, 0), int2(g_FullSize) - 1);
+    int2 full = clamp(int2(floor(floor(pos.xy) * g_Scale + 0.5 * g_Scale)), int2(0, 0), int2(g_FullSize) - 1);
     float d = g_Depth.Load(full, 0);
     float2 ndc = (float2(full) + 0.5) / g_FullSize * float2(2.0, -2.0) + float2(-1.0, 1.0);
     float4 wp = mul(float4(ndc, d, 1.0), g_InvViewProj);
@@ -173,5 +175,6 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
     float rim = 1.0 - saturate(abs(f - 0.5) / (soft * 2.0 + 0.02));
     float3 avg = C / alpha;
     float3 col = avg * (1.0 + g_Glow * rim * 4.0) + g_ColorHigh * (g_Glow * rim);
+    stepped *= saturate(g_MaxOpacity);
     return float4(col * stepped, stepped);
 }

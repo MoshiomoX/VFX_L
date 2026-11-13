@@ -34,7 +34,7 @@ struct LightBuffer
     float   fogMax = 0.0f;                      // 0..1
     // 1 = モデルの色テクスチャを sRGB として線形へ戻してから陰影を付ける（PS / PBR_PS の DecodeAlbedo）。
     //     テクスチャは UNORM で読んでいるので、0 だと最後のガンマで色が白っぽく浮く。
-    //     2026-09-28 から既定 1（全シーン）。粒子・連番画像・UI のテクスチャはこれを通らない（見た目を変えない）
+    //     既定 1（全シーン）。粒子・連番画像・UI のテクスチャはこれを通らない（見た目を変えない）
     float   albedoSrgb = 1.0f;
     float   fogPad = 0.0f;                      // 16バイト境界
 
@@ -50,12 +50,12 @@ struct LightBuffer
     Vector4 shadowParams2 = { 0, 0, 0, 0 };     // x = 最後の段で薄くし始める割合（距離 / 最後の段の距離）,
                                                 // y = 比較の深度バイアス, z = 1 で段ごとに色を付ける（調整用）, w = 未使用
 
-    // トゥーンの陰影（2026-10-04、Lighting.hlsli の ShadeToon）。toonParams.x = 0 で従来の陰影（既定。戦闘シーンだけ入れる）
+    // トゥーンの陰影（Lighting.hlsli の ShadeToon）。toonParams.x = 0 で従来の陰影（既定。戦闘シーンだけ入れる）
     Vector4 toonParams = { 0.0f, 0.15f, 0.05f, 0.3f };     // x = 1 でトゥーン, y = 明暗の境（N・L × 影）, z = 境のぼかし, w = 硬い光沢の強さ
     Vector4 toonShadowTint = { 0.70f, 0.78f, 1.10f, 0.85f }; // rgb = 暗い側の環境光に掛ける色（冷たい青紫）, w = 明るい側の太陽の倍率
     Vector4 toonRim = { 1.0f, 0.95f, 0.85f, 0.30f };       // rgb = 縁の光の色, w = 強さ（横向きの面・近くだけ）
 
-    // 画面空間の環境遮蔽 SSAO（2026-11-02、Graphics/PostProcess/AmbientOcclusion。Lighting.hlsli の SceneAO）。
+    // 画面空間の環境遮蔽 SSAO（Graphics/PostProcess/AmbientOcclusion。Lighting.hlsli の SceneAO）。
     // 前のフレームで作った AO（PS t12）を、その時の view × proj で世界座標から引く。aoParams.x = 0 で読まない（既定）
     Matrix  aoViewProj;                                    // AO を作ったフレームの view × proj（行ベクトル規約）
     Vector4 aoParams = { 0.0f, 0.0f, 0.0f, 0.0f };          // x = 1 で有効, y = トゥーンの明暗の境を押す量, z = 環境光に掛ける割合, w = 1 で灰色の表示

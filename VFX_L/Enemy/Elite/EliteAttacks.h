@@ -1,6 +1,6 @@
 // ============================================================
 // EliteAttacks.h
-// 面の固定エリート（2026-10-25、ユーザー「エリートを区別化」→ 各面 2 体、どれも「予告を避ける」型）。
+// 面の固定エリート（各面 2 体、どれも「予告を避ける」型）。
 // 体は GPU の雑魚（kEnemyKindEliteA / EliteB）。技の拍子・予告・当たりは CPU がここで決め、
 // BomberCB::eliteCmd / eliteMove で GPU の体に「立つ・決めた向きへ走る・瞬間移動・隠れる」を伝える
 // （位置・HP は SwarmSystem::GetEliteInfo のリードバック。2〜3 フレーム遅れる）。
@@ -10,7 +10,7 @@
 //   砂漠 B「炎砂の術師」：扇の予告 → 炎の息（ゆっくり追ってくる扇。横へ回り込む）
 //   遺跡 A「影の剣士」  ：消える → プレイヤーの背後に輪 → 現れて斬る（輪の外へ）
 //   遺跡 B「呪いの司書」：暗い紫の玉を 3 つ放つ。ゆっくり追い、触れると爆ぜる（走って振り切る）
-// 詞缀（3:00 は 0 個、6:00 は 1 個、8:00 は 2 個）：
+// アフィックス（3:00 は 0 個、6:00 は 1 個、8:00 は 2 個）：
 //   疾風 = 歩く速さ × 1.6 + 残像 / 鉄壁 = 盾（割れるまで受けるダメージ半分。HP が shieldBreakRatio を切ると割れる）/
 //   雷光 = thunderInterval 秒毎に周りへ 5 本の雷（先に地面に印）/ 狂暴 = HP 半分以下で大きく・速く・赤く、技の間隔が短く
 // 倒すと死んだ所に金色の宝箱（シーンが RewardCrateSystem::SpawnFree）。経験値は × fixedEliteExpMul
@@ -31,7 +31,7 @@ struct VFXContext;
 
 enum class EliteType : uint8_t { Axe, Archer, Rider, FlameMage, Shade, Librarian, Count };
 
-// 詞缀（組み合わせる）
+// アフィックス（組み合わせる）
 constexpr uint32_t kEliteAffixSwift = 1u;     // 疾風
 constexpr uint32_t kEliteAffixIron = 2u;      // 鉄壁
 constexpr uint32_t kEliteAffixThunder = 4u;   // 雷光
@@ -87,7 +87,7 @@ public:
     // 全部消す（KillAll・面の切替）。続いているエフェクトも止める
     void Clear();
 
-    // プレイヤーの周り ringMin〜ringMax の歩ける所に出す。hp = 今の難度の HP（型と詞缀の倍率はここで掛ける）。出せたら true
+    // プレイヤーの周り ringMin〜ringMax の歩ける所に出す。hp = 今の難度の HP（型とアフィックスの倍率はここで掛ける）。出せたら true
     bool Spawn(const GridWorld& grid, SwarmSystem& swarm, const DirectX::SimpleMath::Vector3& player,
         bool ranged, uint32_t affixes, float hp, float ringMin, float ringMax);
     // 決めた所（地面の上）に出す（自動テスト・パネル）
@@ -144,8 +144,8 @@ public:
     };
     TypeTuning tune[(int)EliteType::Count];
 
-    // ---- 詞缀 ----
-    float affixHpMul = 0.25f;          // 詞缀 1 個毎に HP + これ
+    // ---- アフィックス ----
+    float affixHpMul = 0.25f;          // アフィックス 1 個毎に HP + これ
     float shieldBreakRatio = 0.6f;     // 鉄壁：HP の割合がこれを切ったら盾が割れる（半分で受けるので実際は 0.8 倍の削りで割れる）
     float thunderInterval = 4.0f;      // 雷光：秒毎
     int   thunderCount = 5;
@@ -195,7 +195,7 @@ private:
         float    moveSpeed = 0.0f;
         float    hide = 0.0f;
         float    glow = 0.0f;
-        // 詞缀の様子
+        // アフィックスの様子
         bool     shieldUp = false;
         bool     enraged = false;
         float    thunderT = 0.0f;
@@ -271,6 +271,6 @@ private:
     Stats m_Stats;
 };
 
-// 型の名前（日本語）と詞缀の名前
+// 型の名前（日本語）とアフィックスの名前
 const wchar_t* EliteTypeName(EliteType t);
 const wchar_t* EliteAffixName(int bit);   // 0..3

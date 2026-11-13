@@ -1,6 +1,6 @@
 // ============================================================
 // DandelionUpdateCS.hlsl
-// タンポポの綿毛の 1 ステップ（World/DandelionField、2026-10-22）。
+// タンポポの綿毛の 1 ステップ（World/DandelionField）。
 // 花 1 つにつき 1 スレッド（自分の g_SeedsPer 個の種も動かす）:
 //   1) 格子のセルが窓から出たら（または g_Reset）置き直す:
 //      新しいセルの地面に満開の綿毛を出す。草の無い所、崖、
@@ -17,6 +17,7 @@
 // ============================================================
 #include "DandelionCommon.hlsli"
 #include "../Common/WindSources.hlsli"
+#include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
 
 Texture2D<float> g_Height : register(t0);          // GridWorld の高さ（GrassRenderer）
 Texture2D<float4> g_Ground : register(t1);         // a = 草が生える
@@ -113,7 +114,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float stem = DandelionStemHeight(f.seed);
     float2 wind = DandelionWindAt(f.pos.xz);
     float lift;
-    float3 local = WindSourceAir(g_WindSources, f.pos.xz, lift);
+    float3 local = WindGridBlend(WindSourceAir(g_WindSources, f.pos.xz, lift), f.pos + float3(0.0, 0.6, 0.0));
     float2 airXZ = wind + local.xz;
     float2 bendGoal = airXZ * g_BendGain;
     float bl = length(bendGoal);
@@ -190,7 +191,7 @@ void main(uint3 id : SV_DispatchThreadID)
         float ground = GroundAt(z.pos.xz);
         float above = z.pos.y - ground;
         float sl;
-        float3 la = WindSourceAir(g_WindSources, z.pos.xz, sl);
+        float3 la = WindGridBlend(WindSourceAir(g_WindSources, z.pos.xz, sl), z.pos);
         la *= saturate(1.0 - (above - 4.0) / 4.0);   // 風源は 8 m ほどより上では効かない（種を空まで飛ばさない）
         la.y *= g_SeedLift;
         float2 w2 = DandelionWindAt(z.pos.xz);

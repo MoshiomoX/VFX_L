@@ -33,7 +33,7 @@ public:
     // count = このフレームに届いた「カメラを揺らす範囲」（爆発・光線）の数（SwarmSystem::ConsumeShakeAreas）
     void OnShakeAreas(uint32_t count);
 
-    // 賢いカメラ（2026-11-02）に渡す今の戦況。シーンが Update の前に毎フレーム
+    // 賢いカメラに渡す今の戦況。シーンが Update の前に毎フレーム
     struct SmartInput
     {
         bool    enabled = false;        // 設定「カメラの自動調整」 && 演出の最中でない
@@ -73,14 +73,12 @@ private:
     float m_HitTraumaBase = 0.30f;
     float m_HitTraumaPerDamage = 0.01f;
     float m_HitTraumaMax = 0.70f;
-    // 爆発：min(max, 出た数 × perArea)（位置は来ないので距離では弱めない）。
-    // 2026-10-03 に爆発だけを数えるようにしたので 1 個 0.12 → 0.25、上限 0.35 → 0.4
-    // （以前は 1 個の爆発に命中の火花の範囲が何個も付いて来て、足し算で強く揺れていた）
+    // 爆発：min(max, 出た数 × perArea)（位置は来ないので距離では弱めない）
     bool  m_ShakeOnArea = true;
     float m_AreaTrauma = 0.25f;
     float m_AreaTraumaMax = 0.40f;
 
-    // ---- 賢いカメラ（2026-11-02）----
+    // ---- 賢いカメラ ----
     // ① 群れの濃さで引く：crowdStart 体までは 0、crowdFull 体で crowdMaxDist（その間は直線）。Boss が居れば +bossExtraDist、最終ウェーブ +finalExtraDist
     // ② Boss を画面に入れる：Boss が bossFrameRange 以内なら注視点を Boss へ bossFrameBias だけ寄せ（最大 bossFrameMax）、
     //    間の距離 × bossSpanMul − bossSpanStart を足す（上限 bossSpanMax）
@@ -90,6 +88,7 @@ private:
     float m_CrowdStart = 15.0f;
     float m_CrowdFull = 80.0f;
     float m_CrowdMaxDist = 4.0f;
+    bool  m_BossCamera = false;    // ② を使うか（Boss 分の距離もこれに含む）
     float m_BossExtraDist = 2.0f;
     float m_FinalExtraDist = 1.0f;
     float m_BossFrameRange = 30.0f;

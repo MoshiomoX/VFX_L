@@ -19,7 +19,7 @@ namespace
 }
 
 // ============================================================
-// TEMP-TEST: Boss のスラムの輪（VFXL_BATTLE_AUTOTEST=bossslam、2026-10-03）
+// TEMP-TEST: Boss のスラムの輪（VFXL_BATTLE_AUTOTEST=bossslam）
 // 1 秒: 湧き停止・全消し・詠唱停止、プレイヤーの HP 10 万（無敵にすると当たりを数えられない）。
 // Boss は動かない（bossSpeed 0）・HP 大。門の前で F → 2.5 秒でプレイヤーを Boss から 12〜16m の同じ高さの歩けるマスへ、
 // カメラはプレイヤーの背後から Boss の方を 13m / 38° で見る。最初の技は 2.5 秒後（firstDelay。プレイヤーを置き直した後）。
@@ -53,7 +53,7 @@ void AutoTestBossSlam::Run(float dt)
         m_Stage.bossSpeed = 0.0f;
         m_Stage.bossHp = 1.0e6f;
         m_BossAttacks.firstDelay = 2.5f;   // 最初の技はプレイヤーを置き直した後（3.5 秒）
-        for (int k = 0; k < (int)BossMove::Count; ++k)   // 2026-10-07 から技が 4 つ：この自動テストは重撃だけを見る
+        for (int k = 0; k < (int)BossMove::Count; ++k)   // この自動テストは重撃だけを見る
             m_BossAttacks.brain.rules[k].enabled = (k == (int)BossMove::Slam);
         const float yaw = DirectX::XMConvertToRadians(m_Stage.GetPortalYaw());
         const Vector3 p = m_Stage.GetPortalCenter() + Vector3(std::sin(yaw), 0.0f, std::cos(yaw)) * 2.0f;

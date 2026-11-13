@@ -8,7 +8,7 @@
 //   ・自爆兵：新規・転送の 1 体ずつ m_BomberRatio の確率で自爆兵にする。
 //     導火線・爆発の定数は SwarmSystem::GetBomberParams（見た目の範囲は AreaData/BomberBlast.json）
 //   ・スプリッター：同じく m_SplitterRatio の確率（面毎に経過時間で伸びる）。死ぬと GPU の分裂の環が届き、分裂体を 3 体湧かせる
-//   ・難度（経過時間で上がる）：DifficultyCurve の表（2026-10-04 から。以前は全部直線で、掛け合わせて二乗で伸びた）。
+//   ・難度（経過時間で上がる）：DifficultyCurve の表。
 //       湧く速さ・HP の倍率・ダメージの倍率が表から決まる。面の倍率 stageHpMul / stageDamageMul / stageSpawnMul を掛け、表は stageTimeOffsetMin 分進めて読む。
 //       HP は湧いた（転送された）瞬間の倍率で決まり、その後は変わらない。
 //       接触ダメージ・爆発ダメージは雑魚毎の値を持たない（GPU の定数）ので、全員に今のダメージ倍率を掛ける
@@ -29,8 +29,8 @@ class MobSpawner
 {
 public:
     void Init(SwarmSystem& swarm);
-    // 面の難度（表の進み・HP / ダメージ / 湧きの倍率）と敵の混ざり方を入れる（2026-10-30、シーンの Init から移した。
-    // 敵の数値の書き出しの自動テストも同じ物を使う）。pos = 何面目か（1 始まり）、tier 1..3。戻り値 = 経験値の倍率（Tier）
+    // 面の難度（表の進み・HP / ダメージ / 湧きの倍率）と敵の混ざり方を入れる（シーンの Init と
+    // 敵の数値の書き出しの自動テストが使う）。pos = 何面目か（1 始まり）、tier 1..3。戻り値 = 経験値の倍率（Tier）
     float ApplyStage(const StageDef& def, int pos, int tier);
     // runTime: 戦闘の経過秒（一時停止・バックパック・三択の間は進まない。HUD の計時と同じ）
     void Update(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, float dt, float runTime,
@@ -41,7 +41,7 @@ public:
     // ---- 難度 ----
     bool  scaling = true;               // false なら倍率 1・湧く速さは Director の値のまま（自動テスト・負荷試験用）
     DifficultyCurve curve;              // 経過時間 → 湧く速さ・HP・ダメージ（Init で Difficulty.json を読む）
-    // 面毎の難度（StageDef::difficulty*。2026-10-17）：表を stageTimeOffsetMin 分進めた所から読み、HP・ダメージ・湧きに掛ける
+    // 面毎の難度（StageDef::difficulty*）：表を stageTimeOffsetMin 分進めた所から読み、HP・ダメージ・湧きに掛ける
     float stageTimeOffsetMin = 0.0f;
     float stageHpMul = 1.0f;
     float stageDamageMul = 1.0f;
@@ -50,18 +50,17 @@ public:
     float finalStatMul = 1.0f;          // HP・ダメージの倍率に更に掛ける
     float finalSpawnRate = 0.0f;        // > 0 なら湧く速さをこれにする（体/秒）
     float finalSpeedMul = 1.0f;         // 新しく湧く雑魚の速さに掛ける
-    // 湧きの波（SpawnWaves。2026-10-07）と最終ウェーブの予告の上乗せ：湧く速さに掛ける。StageDirector が毎フレーム書く
+    // 湧きの波（SpawnWaves）と最終ウェーブの予告の上乗せ：湧く速さに掛ける。StageDirector が毎フレーム書く
     float waveRateMul = 1.0f;
-    // 最終ウェーブの幽霊（kEnemyKindGhost。2026-09-30 ユーザー「Megabonk の時間切れの幽霊」）：
+    // 最終ウェーブの幽霊（kEnemyKindGhost）：
     // HP = 雑魚 × ghostHpMul（× 難度）、速さ × ghostSpeedMul、壁も台地も素通り。StageDirector が毎フレーム書く（時間切れ前は 0）。
-    // 2026-10-18（ユーザー「十分過ぎても敵に殺されない」）：雑魚の上限とは別に幽霊だけの上限 ghostCap を持つ（以前は共通の上限を
-    // 最終ウェーブの雑魚が先に埋めて幽霊がほぼ湧かなかった）。数は CompactCS が BossInfo に数えた物（2〜3 フレーム遅れ）
+    // 雑魚の上限とは別に幽霊だけの上限 ghostCap を持つ（共通だと最終ウェーブの雑魚が先に枠を埋める）。
+    // 数は CompactCS が BossInfo に数えた物（2〜3 フレーム遅れ）
     float finalGhostRate = 0.0f;        // 体/秒
-    float ghostSpeedMul = 1.71f;        // 雑魚の速さに掛ける（3.5 → 6.0 m/s = プレイヤーの走り 5.5 より速い、スライディングなら振り切れる。
-                                        // 2026-10-07 夜に 2.6 → 1.57、10-18 に 1.71：逃げ切れる速さでは最終ウェーブが終わらない）
-    float ghostHpMul = 6.0f;            // 雑魚の HP に掛ける（10-18。1 倍では当たった弾全部に落ちていた）
+    float ghostSpeedMul = 1.71f;        // 雑魚の速さに掛ける（3.5 → 6.0 m/s = プレイヤーの走り 5.5 より速い、スライディングなら振り切れる）
+    float ghostHpMul = 6.0f;            // 雑魚の HP に掛ける
     int   ghostCap = 120;               // 白幽霊だけの同時上限
-    // 黒幽霊（kEnemyKindDarkGhost。2026-10-18）：時間切れ finalDarkGhostStart 秒後から。StageDirector が毎フレーム書く
+    // 黒幽霊（kEnemyKindDarkGhost）：時間切れ finalDarkGhostStart 秒後から。StageDirector が毎フレーム書く
     float finalDarkGhostRate = 0.0f;    // 体/秒
     float darkGhostSpeedMul = 1.9f;     // 雑魚の速さに掛ける（3.5 → 6.65 m/s = 走り 5.5 の 1.2 倍、スライディング 13 なら振り切れる）
     float darkGhostHpMul = 40.0f;       // 雑魚の HP に掛ける（× 難度 ≈ 1000 以上：普通のビルドでは倒せない）
@@ -73,8 +72,8 @@ public:
     // 倍率 1 の時の接触 / 爆発ダメージ。Init で GPU の既定値（AICB / BomberCB）から取る
     float baseContactDamage = 0.0f;
     float baseBlastDamage = 0.0f;
-    // 特殊な敵の割合の合計の上限（2026-11-01）。合計がこれを越えたら全部を同じ比で縮める = 残りは必ず普通の雑魚。
-    // 以前は超えた分を切り捨てていたので、砂漠の 8 分以降は雑魚が 0%、表の後ろの種類（砂嵐の術師・突撃爆弾兵）も湧かなかった
+    // 特殊な敵の割合の合計の上限。合計がこれを越えたら全部を同じ比で縮める = 残りは必ず普通の雑魚
+    // （切り捨てると表の後ろの種類が湧かなくなる）
     float maxSpecialShare = 0.75f;
     static float SpecialScale(float sum, float cap) { return (sum > cap && sum > 0.0f) ? cap / sum : 1.0f; }
 
@@ -84,7 +83,7 @@ public:
     // 次の Update でプレイヤーの周りに自爆兵を n 体（パネルのボタン・自動テスト用）
     void QueueDebugBombers(int n) { m_DebugBombers += n; }
 
-    // ---- スプリッター（kEnemyKindSplitter。2026-10-03）----
+    // ---- スプリッター（kEnemyKindSplitter）----
     // 湧き（新規・転送）の splitterRatio がスプリッター。比率は面毎（StageDef）に経過時間で伸びる:
     //   splitterStart 秒までは 0、そこで splitterRatioStart、splitterRampEnd 秒で splitterRatioEnd（間は直線、以降そのまま）
     // 死ぬと GPU の分裂の環 → ここで分裂体（kEnemyKindSplitling）を splitCount 体、死んだ所の周りに湧かせる
@@ -94,11 +93,11 @@ public:
     float splitterRampEnd = 480.0f;
     float GetSplitterRatio() const { return m_SplitterRatio; }
     float GetBomberRatio() const { return m_BomberRatio; }
-    // 種類毎の今の HP（素の値 × 今の HP 倍率）と速さ。トレーニングの「群れを出す」用（2026-10-07）
+    // 種類毎の今の HP（素の値 × 今の HP 倍率）と速さ。トレーニングの「群れを出す」用
     void KindStats(uint32_t kind, float& hp, float& speed) const;
     void QueueDebugSplitters(int n) { m_DebugSplitters += n; }
 
-    // ---- 重装兵（kEnemyKindBrute。2026-10-07 夜、ユーザー：中盤は数ではなく敵の組み合わせで押す）----
+    // ---- 重装兵（kEnemyKindBrute）----
     // 湧き（新規・転送）の bruteRatio が重装兵（雑魚と入れ替わる。湧く数は変えない）。全ステージ共通:
     //   bruteStart 秒までは 0、そこで bruteRatioStart、bruteRampEnd 秒で bruteRatioEnd（間は直線、以降そのまま）
     float bruteStart = 240.0f;
@@ -108,7 +107,7 @@ public:
     float GetBruteRatio() const { return m_BruteRatio; }
     void QueueDebugBrutes(int n) { m_DebugBrutes += n; }
 
-    // ---- 突撃兵（kEnemyKindCharger）・盾兵（kEnemyKindShield）。2026-10-08 ----
+    // ---- 突撃兵（kEnemyKindCharger）・盾兵（kEnemyKindShield）----
     // 湧き（新規・転送）のうちの割合。スプリッターと同じ形の直線で、面毎（StageDef::charger / shield、シーンが入れる）。
     // 第 2 面は突撃兵、第 3 面は盾兵が主力。雑魚と入れ替わる（湧く数は変えない）。
     // 溜め・突進・盾の装甲の定数は GPU（SwarmSystem::GetBomberParams の charger* / shield*）
@@ -122,10 +121,10 @@ public:
     };
     KindRamp chargerMix;
     KindRamp shieldMix;
-    KindRamp spikeBallMix;   // トゲ玉（砂漠。2026-10-17）
-    KindRamp burrowerMix;    // 砂潜り（砂漠。2026-10-17）
-    KindRamp sandMageMix;    // 砂嵐の術師（砂漠。2026-10-17）
-    KindRamp dashBomberMix;  // 突撃爆弾兵（全ステージ。2026-10-18）
+    KindRamp spikeBallMix;   // トゲ玉（砂漠）
+    KindRamp burrowerMix;    // 砂潜り（砂漠）
+    KindRamp sandMageMix;    // 砂嵐の術師（砂漠）
+    KindRamp dashBomberMix;  // 突撃爆弾兵（全ステージ）
     float GetChargerRatio() const { return m_ChargerRatio; }
     float GetShieldRatio() const { return m_ShieldRatio; }
     float GetSpikeBallRatio() const { return m_SpikeBallRatio; }
@@ -138,20 +137,20 @@ public:
     void QueueDebugBurrowers(int n) { m_DebugBurrowers += n; }
     void QueueDebugSandMages(int n) { m_DebugSandMages += n; }
     void QueueDebugDashBombers(int n) { m_DebugDashBombers += n; }
-    // 普段の湧きの速さの上限（体/秒。2026-10-26 ユーザー「敵が溜まり過ぎ」：2 面目・3 面目は表の 10〜20 分の先 × 1.3 で 10〜13 体/秒になっていた。
+    // 普段の湧きの速さの上限（体/秒）。
     // 難度表 × 面の倍率 × 押し寄せの倍率を掛けた後にこれで止める。最終ウェーブ（finalSpawnRate）は別：時間切れの後は溢れさせる）
     float maxSpawnPerSecond = 6.0f;
     // 砂嵐の術師が放つ砂旋の速さ m/s（砂旋 = kEnemyKindTornado。飛ぶ秒は BomberCB::tornadoLife）
     float tornadoSpeed = 3.5f;
     uint32_t GetTornadoesSpawned() const { return m_TornadoesSpawned; }   // 自動テスト用（累計）
-    // 砂旋が生まれた所・向き・速さ（見た目は CPU：Enemy/SandTornadoFx が同じ直線で追って柱を描く。2026-10-26）。場面が毎フレーム取り出す
+    // 砂旋が生まれた所・向き・速さ（見た目は CPU：Enemy/SandTornadoFx が同じ直線で追って柱を描く）。場面が毎フレーム取り出す
     struct TornadoBirth { DirectX::SimpleMath::Vector3 pos; float yaw = 0.0f; float speed = 0.0f; };
     void ConsumeTornadoBirths(std::vector<TornadoBirth>& out) { out.swap(m_TornadoBirths); m_TornadoBirths.clear(); }
     // 自動テストの記録用: 届いた分裂の数・湧かせた分裂体の数（累計）
     uint32_t GetSplitEventsSeen() const { return m_SplitEventsSeen; }
     uint32_t GetSplitlingsSpawned() const { return m_SplitlingsSpawned; }
 
-    // ---- 遺跡の敵（2026-10-25。中身は MobSpawnerRuins.cpp）----
+    // ---- 遺跡の敵（中身は MobSpawnerRuins.cpp）----
     // 湧きの割合（面毎、StageDef の armor / gargoyle / necro / warden）。骸骨は死霊術師が起こすだけ
     KindRamp armorMix;
     KindRamp gargoyleMix;
@@ -182,7 +181,7 @@ public:
     void ConsumeChainThrows(std::vector<ChainThrow>& out) { out.insert(out.end(), m_ChainThrows.begin(), m_ChainThrows.end()); m_ChainThrows.clear(); }
     // 敵が死んだ所（シーンがダメージの数字の「倒した」から渡す。死霊術師が骸骨を起こす場所）
     void NoteKill(const DirectX::SimpleMath::Vector3& groundPos);
-    // 死体から骸骨を起こす（死霊術師・骸の王の大起尸。2026-10-29）：center から radius m の最近の死体を最大 maxCount、
+    // 死体から骸骨を起こす（死霊術師・骸の王の大起尸）：center から radius m の最近の死体を最大 maxCount、
     // 足りなければ周り fillMin〜fillMax m の地面から minCount まで。印は今、骸骨は necroRaiseDelay 後。起こす数を返す
     int RaiseCorpsesAround(const DirectX::SimpleMath::Vector3& center, float radius, int maxCount, int minCount, float fillMin, float fillMax, const GridWorld& grid);
     void QueueDebugRuins(uint32_t kind, int n);
@@ -237,17 +236,17 @@ private:
     // パネルのボタンの分：プレイヤーの周り（kDebugRingMin〜Max m の歩けるマス）に自爆兵・スプリッターを湧かせる
     void SpawnDebugKind(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm,
         int& count, float hp, float speed, uint32_t kind);
-    // リードバックで届いた GPU の出来事（分裂の環）：スプリッターの死 → 分裂体、砂嵐の術師の詠唱 → 砂旋（2026-10-17）
+    // リードバックで届いた GPU の出来事（分裂の環）：スプリッターの死 → 分裂体、砂嵐の術師の詠唱 → 砂旋
     void SpawnFromEvents(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
-    // Enemies パネルの突撃兵・盾兵・凍結の段（MobSpawnerKinds.cpp。2026-10-08）
+    // Enemies パネルの突撃兵・盾兵・凍結の段（MobSpawnerKinds.cpp）
     void DrawChargerShieldImGui(SwarmSystem& swarm);
 
     SpawnDirector m_Director;
-    float m_MobHp = 15.0f;         // Megabonk 1 面の雑魚（6〜20）の中ほど
+    float m_MobHp = 15.0f;
     float m_MobSpeed = 3.5f;
 
     float m_BomberRatio = 0.15f;   // 湧きのうち自爆兵の割合
-    float m_BomberHp = 18.0f;      // Megabonk の Boomer
+    float m_BomberHp = 18.0f;
     float m_BomberSpeed = 4.5f;    // 雑魚より速く寄ってくる
     int   m_DebugBombers = 0;      // ボタンで溜めた数。次の Update で湧かせる
 
@@ -260,7 +259,7 @@ private:
     float m_SplitSpread = 0.7f;    // 死んだ所から分裂体までの距離 m
     int   m_DebugSplitters = 0;
     float m_BruteRatio = 0.0f;     // 今の湧きのうち重装兵の割合（Update が brute* と経過時間から出す）
-    float m_BruteHp = 45.0f;       // 雑魚の 3 倍（Megabonk の Goblin Tank 40 / 雑魚 7〜20）
+    float m_BruteHp = 45.0f;       // 雑魚の 3 倍
     float m_BruteSpeed = 2.8f;     // 雑魚 3.5 の 0.8 倍、プレイヤー 5 の 0.56 倍
     int   m_DebugBrutes = 0;
     float m_ChargerRatio = 0.0f;   // 今の湧きのうち突撃兵の割合（Update が chargerMix と経過時間から出す）
@@ -271,19 +270,19 @@ private:
     float m_ShieldHp = 30.0f;      // 雑魚の 2 倍。これに 1 発毎の装甲（BomberCB::shieldArmor）が乗る
     float m_ShieldSpeed = 3.0f;    // 盾が重いので少し遅い
     int   m_DebugShields = 0;
-    float m_SpikeBallRatio = 0.0f; // 今の湧きのうちトゲ玉の割合（2026-10-17）
+    float m_SpikeBallRatio = 0.0f; // 今の湧きのうちトゲ玉の割合
     float m_SpikeBallHp = 60.0f;   // 雑魚の 4 倍（厚い）
     float m_SpikeBallSpeed = 2.6f; // 転がるので遅い（雑魚 3.5 の 0.75 倍）
     int   m_DebugSpikeBalls = 0;
-    float m_BurrowerRatio = 0.0f;  // 今の湧きのうち砂潜りの割合（2026-10-17）
+    float m_BurrowerRatio = 0.0f;  // 今の湧きのうち砂潜りの割合
     float m_BurrowerHp = 25.0f;    // 雑魚の 1.7 倍（出ている間しか撃てない）
     float m_BurrowerSpeed = 3.0f;  // 基準。砂の下 ×1.3、出ている時 ×0.8（BomberCB の burrow*SpeedMul）
     int   m_DebugBurrowers = 0;
-    float m_SandMageRatio = 0.0f;  // 今の湧きのうち砂嵐の術師の割合（2026-10-17）
+    float m_SandMageRatio = 0.0f;  // 今の湧きのうち砂嵐の術師の割合
     float m_SandMageHp = 20.0f;    // 雑魚の 1.33 倍（遠くに立つので弾が届きにくい）
     float m_SandMageSpeed = 3.2f;  // 距離を保つ歩き（溜め中は止まる）
     int   m_DebugSandMages = 0;
-    float m_DashBomberRatio = 0.0f;  // 今の湧きのうち突撃爆弾兵の割合（2026-10-18）
+    float m_DashBomberRatio = 0.0f;  // 今の湧きのうち突撃爆弾兵の割合
     float m_DashBomberHp = 18.0f;    // 自爆兵と同じ（点火前に撃ち落とす）
     float m_DashBomberSpeed = 3.6f;  // 平時の追いかけ（点火後は BomberCB::dashBomberDashSpeed）
     int   m_DebugDashBombers = 0;

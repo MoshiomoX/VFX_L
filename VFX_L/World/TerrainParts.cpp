@@ -71,14 +71,13 @@ namespace TerrainBuild
     }
 
     // 隣のノードとの傾きを軸方向で tanMax までに抑える（急な所を両側から寄せる。fixed のノードは動かさない）。
-    // 2026-10-05 に起伏を大きくした時、土饅頭が丘の斜面に載った所・台座の戻りが 40〜45° になった（雑魚は 40° まで）。
-    // 軸方向で抑えるので斜め方向は最大 √2 倍（30° → 39°）
+    // 雑魚が歩けるのは 40° まで。軸方向で抑えるので斜め方向は最大 √2 倍（30° → 39°）
     void LimitSlope(std::vector<float>& h, int nx, int nz, float step, float tanMax, const std::vector<uint8_t>* fixed)
     {
         // 配列は素のポインタで回す（Debug の vector の添字検査が重い）。
-        // 2 回目以降の走査は「前の走査か今の走査で動いたノードが絡む組」だけ調べる（2026-10-05）:
+        // 2 回目以降の走査は「前の走査か今の走査で動いたノードが絡む組」だけ調べる:
         // 前に調べてから両端とも動いていない組は、もう一度調べても同じく何もしない。調べる組の順番は変えないので、
-        // 結果は全部調べる方式と 1 ビットも変わらない（全体 16 万ノード × 最大 64 回が Debug で 280 ms → 地図エディタが止まった）
+        // 結果は全部調べる方式と 1 ビットも変わらない
         const float lim = tanMax * step;
         float* H = h.data();
         const uint8_t* F = fixed ? fixed->data() : nullptr;
@@ -211,9 +210,8 @@ namespace TerrainBuild
 
     // 台座は順番に依らない混ぜ方: ノード毎に 面 = lerp(素の起伏, Lmix, 最大の重み)、Lmix = Σ w^4 L / Σ w^4
     // （芯（重み 1）の台座がほぼ勝つ = 構造物の足元はほぼ L のまま、境は連続）。
-    // 回し方は「台座毎に、その台座が届く範囲のノードへ足す」（2026-10-05。以前は「ノード毎に全部の台座を見る」で、
-    // 全体の作り直し 16 万ノード × 台座 76 個が Debug で数百 ms。地図エディタで部品を動かす度に止まった）。
-    // ノード毎に見れば足す順は台座の順のままなので、結果は以前と 1 ビットも変わらない
+    // 回し方は「台座毎に、その台座が届く範囲のノードへ足す」（ノード毎に全部の台座を見ると重い）。
+    // ノード毎に見れば足す順は台座の順のままなので、結果は同じ
     void ComposeRelief(std::vector<float>& arr, const std::vector<float>& raw, const std::vector<MapData::Pad>& pads,
         uint8_t zone, const std::vector<float>* mineW, int nx, int nz, int ix0, int iz0, int ix1, int iz1)
     {

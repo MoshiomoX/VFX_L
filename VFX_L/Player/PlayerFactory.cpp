@@ -69,7 +69,7 @@ namespace PlayerFactory
         anim.offset = { 0.0f, -(cfg.height * 0.5f + cfg.radius), 0.0f };
         reg.Add<SkinnedAnimComponent>(e, anim);
 
-        // マントの骨（Reallusion CC の Cloak1〜8）があれば揺らす（2026-10-04、ClothChainSystem）
+        // マントの骨（Reallusion CC の Cloak1〜8）があれば揺らす（ClothChainSystem）
         if (loaded.skinnedModel->GetSkeleton().FindBoneIndex("Cloak1") >= 0)
             reg.Add<ClothChainComponent>(e, ClothChainSystem::CCCape());
         return true;
@@ -133,7 +133,7 @@ namespace PlayerFactory
         reg.Add<PlayerStatsComponent>(e, stats);
 
         reg.Add<LevelComponent>(e, {});
-        reg.Add<WalletComponent>(e, {});   // 金貨（2026-10-04。経験値オーブを拾うと増える）
+        reg.Add<WalletComponent>(e, {});   // 金貨（経験値オーブを拾うと増える）
 
         // ---- ステートマシン（HSM 3層）----
         // ※PlayerStateSystem が毎フレーム書く
@@ -178,9 +178,7 @@ namespace PlayerFactory
             // Rect のアンカーは左上なので GRID/2-1 から 3 マス（9x9 なら 3..5 行 3..5 列）
             const int start = BackpackComponent::GRID / 2 - 1;
             BackpackLogic::PlaceFrame(bpc, ItemID::Frame3x3, start, start, 0);
-            // 初期の魔法は枠の真ん中に置いておく（バックパックを開かなくても最初から撃つ。Megabonk と同じく武器を持って始まる）。
-            // 2026-09-29 ユーザーの依頼で火球 → 魔法の追尾弾（火球は爆発込みで序盤には強すぎた）
-            // → 2026-10-28 ユーザー「初期の魔法を火球に」で火球へ戻す（今の火球は爆発なし・2x2。枠の右下 2x2 に置く）
+            // 初期の魔法（火球、2x2）を枠の右下に置いておく（バックパックを開かなくても最初から撃つ）
             BackpackLogic::Place(bpc, ItemID::Fireball, start + 1, start + 1, 0);
 
             reg.Add<BackpackComponent>(e, bpc);

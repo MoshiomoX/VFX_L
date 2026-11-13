@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestChainRune.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=chainrune
-// 連鎖のルーン（2026-10-16）: ホーミングボルトだけ / + 連鎖のルーン で、正面の群れ 5 体の減った HP と
+// 連鎖のルーン:ホーミングボルトだけ / + 連鎖のルーン で、正面の群れ 5 体の減った HP と
 // ダメージを受けた体数を比べる。ルーン無しは最寄りの 1 体だけ、ルーン有りは 1 発が 3 体に当たる（0.75 × 3 = 2.25 倍）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -151,13 +151,13 @@ void AutoTestChainRune::Run()
             m_AutoStep = 5;
         }
     }
-    // ---- C / D 段：アークボルト（2026-10-20、稲妻も跳ぶ）。置き方は Z 字を枠の左上に、ルーンはその下 ----
+    // ---- C / D 段：アークボルト（稲妻も跳ぶ）。置き方は Z 字を枠の左上に、ルーンはその下 ----
     else if (m_AutoStep == 5 && m_AutoTime >= 13.0f)
     {
         SpawnTargets();
         auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
         ClearBackpackItems(bp);
-        // Z 字 {0,0}{0,1}{1,1}{1,2} を (lo, lo) に。ルーン（縦 2・影響は上下の端。2026-10-27）は (lo+1, lo)：上の端 (lo, lo) が稲妻
+        // Z 字 {0,0}{0,1}{1,1}{1,2} を (lo, lo) に。ルーン（縦 2・影響は上下の端）は (lo+1, lo)：上の端 (lo, lo) が稲妻
         if (BackpackLogic::Place(bp, ItemID::ArcBolt, lo, lo, 0) < 0)
             AutoTestLog("chainrune place arc FAILED");
         bp.dirty = true;

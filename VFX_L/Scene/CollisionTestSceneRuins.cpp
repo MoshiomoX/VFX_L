@@ -1,6 +1,6 @@
 // ============================================================
 // CollisionTestSceneRuins.cpp
-// 遺跡の敵（2026-10-25：呪いの鎧・石像ガーゴイル・死霊術師 + 骸骨・鎖の番人）のシーン側。
+// 遺跡の敵（呪いの鎧・石像ガーゴイル・死霊術師 + 骸骨・鎖の番人）のシーン側。
 //   ・MobSpawner の出来事（鎧が崩れた / 蘇った、ガーゴイルの目覚め / 急降下 / 着地、詠唱、骸骨の印 / 起き上がり）に特効を出す
 //   ・鎖の番人の投げ：鉤が固定した向きへ kChainSpeed で飛び、プレイヤーの体（横の距離 kChainHitRadius + 体の半径、
 //     高さの差 kChainHitHeight）に触れたら接触ダメージ × wardenDamageMul を TryApplyHit へ（無敵中は外れ）、
@@ -124,7 +124,7 @@ void CollisionTestScene::UpdateRuinsFoes(float dt, const Vector3& player)
                     m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::RuinsChainHit), player, 0.4f, false, m_VFXContext);
                     AudioSystem::Get().Play("chain_hit");
                     ++m_ChainHits;
-                    if (c.boss) m_BossAttacks.OnChainCaught();   // 墓守の騎士：引き寄せたらすぐ重撃（2026-10-26）
+                    if (c.boss) m_BossAttacks.OnChainCaught();   // 墓守の騎士：引き寄せたらすぐ重撃
                     c.state = 1;
                     c.timer = kChainPullTime;
                 }

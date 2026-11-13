@@ -1,6 +1,6 @@
 // ============================================================
 // TerrainSteps.cpp
-// 段々の台地（2026-10-19、ユーザー「PokéBonk の地図をそのまま持ってくる」）。
+// 段々の台地。
 //   開けた草原に、ノイズで決めた曲がりくねった輪郭の台地を 1 段 stepH ずつ積む（最大 maxLevel 段）。
 //   段と段は草の坂で結ぶ（どの台地にも必ず 1 本以上。坂が置けない台地は 1 段下げる = 行き止まりを作らない）。
 //   外周は rimLevels 段の帯（登れない縁）。0 段の低い所に水たまり。
@@ -370,8 +370,7 @@ namespace TerrainBuild
                             flat = plain(x + dx, z + dz) && !rim(x + dx, z + dz) && lv(x + dx, z + dz) == 0 && rf.rampAt[idx(x + dx, z + dz)] < 0;
                     if (!flat) continue;
                     const float wx = rf.ox + (x + 0.5f) * kCs, wz = rf.oz + (z + 0.5f) * kCs;
-                    // 起伏の上の膨らみ・坂には作らない（2026-10-28 ユーザー：水たまりを凸の坂に作らない。段は 0 でも、緩い丘・土盛りの
-                    // 頂や斜面に置かれて水面がそのまま傾いていた）：
+                    // 起伏の上の膨らみ・坂には作らない（水面が傾いて見える）：
                     //   凸 = 真ん中の高さが隣の 8 マスの真ん中（2m 先）の平均より pondConvexTol 以上高い
                     //   坂 = 3×3 マスの範囲（±3m、5×5 点）の高さの差が pondMaxRise を越える
                     const float hc = rf.Sample(rf.plain, wx, wz);
@@ -402,8 +401,8 @@ namespace TerrainBuild
                 std::sort(vals.begin(), vals.end());
                 const float t = vals[(size_t)std::clamp((int)(std::clamp(P.pondCoverage, 0.0f, 0.5f) * (vals.size() - 1)), 0, (int)vals.size() - 1)];
                 for (size_t c = 0; c < N; ++c) rf.pond[c] = (pn[c] <= t) ? 1 : 0;
-                // 1 つの水たまりが緩い坂に跨ると、マス毎には平らでも水面が全体で傾く（seed 12345 で最大 0.7m）。
-                // 水たまり毎に一番低いマスより pondMaxSpread 以上高いマスを外す = 窪みの所だけ残す（2026-10-28）
+                // 1 つの水たまりが緩い坂に跨ると、マス毎には平らでも水面が全体で傾く。
+                // 水たまり毎に一番低いマスより pondMaxSpread 以上高いマスを外す = 窪みの所だけ残す
                 std::vector<int> comp;
                 {
                     const std::vector<int> sizes0 = Components(rf.pond, gw, gd, comp);
@@ -450,7 +449,7 @@ namespace TerrainBuild
         constexpr float kMinDrop = 0.6f;
         constexpr int kMaxRun = 4;
         // 箱の上面は上の段の地面よりこれだけ下：残りの段差は地面の衝突（PhysicsSystem の kStepUp = 0.6）が「乗る」扱いにする。
-        // 0.05 だと、ジャンプで足が縁のすぐ下に届いた時に箱の側面に引っ掛かって押し戻された（2026-10-20 ユーザー報告）
+        // 小さいと、ジャンプで足が縁のすぐ下に届いた時に箱の側面に引っ掛かって押し戻される
         constexpr float kStepUp = 0.6f;
         int count = 0;
 

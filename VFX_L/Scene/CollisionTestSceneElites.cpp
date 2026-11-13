@@ -1,11 +1,11 @@
 // ============================================================
 // CollisionTestSceneElites.cpp
-// 面の固定エリート（2026-10-25）のシーン側：
+// 面の固定エリートのシーン側：
 //   ・面に合わせる（EliteAttacks::Configure と皮・飾り EliteLooks::Apply。InitBossFx から）
 //   ・技の当たりを被弾へ（TryApplyHit = 無敵時間・シールドは雑魚と同じ道、ノックバックは技の種類で）
 //   ・倒されたら死んだ所に金色の宝箱（無料。RewardCrateSystem::SpawnFree）+ 光の粒
 //   ・GPU の体への指示（BomberCB）・地面の予告（Boss の輪とまとめて SetWarnCircles）・HUD の HP 条
-// 技・詞缀・予告そのものは Enemy/EliteAttacks（EliteMoves.cpp / EliteAffixes.cpp）
+// 技・アフィックス・予告そのものは Enemy/EliteAttacks（EliteMoves.cpp / EliteAffixes.cpp）
 // ============================================================
 #include "Scene/CollisionTestScene.h"
 #include "Audio/AudioSystem.h"
@@ -93,7 +93,7 @@ void CollisionTestScene::UpdateElites(float dt, const Vector3& player)
         c.shape = w.shape;
         m_WarnCircles.push_back(c);
     }
-    // ---- 砂嵐の術師の砂旋の足元の赤い輪（2026-10-26 ユーザー「砂旋の下にも赤い輪を」）：位置は CPU の柱（Enemy/SandTornadoFx）と同じ ----
+    // ---- 砂嵐の術師の砂旋の足元の赤い輪：位置は CPU の柱（Enemy/SandTornadoFx）と同じ ----
     for (const SandTornadoFx::Inst& t : m_SandTornadoes.Instances())
     {
         if ((int)m_WarnCircles.size() >= SwarmSystem::kMaxWarnCircles) break;

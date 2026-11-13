@@ -1,4 +1,5 @@
 #include "Particle/GPUParticleSystem.h"
+#include "World/WindGrid.h"
 #include "Particle/ParticleSheets.h"
 #include "Graphics/Shader/ShaderPath.h"
 #include "Graphics/Mesh/Vertex3D.h"
@@ -17,7 +18,7 @@ static_assert(offsetof(VERTEX_3D, normal) == GPUParticleSystem::kLayoutStatic.no
 static_assert(offsetof(VERTEX_3D, uv) == GPUParticleSystem::kLayoutStatic.uvOffset, "kLayoutStatic.uvOffset");
 
 // ============================================
-// 生きている粒子系の表（IsAlive。2026-10-25）
+// 生きている粒子系の表（IsAlive）
 //   シーンのメンバの破棄の順番で、entry（帯・モデル・発射源の登録を持つ）が粒子系より後に消えても
 //   死んだ粒子系に触らないように。表はわざと解放しない（プログラム終了時の静的破棄の順番に左右されない）。
 //   使うのはメインスレッドだけ
@@ -574,7 +575,7 @@ bool GPUParticleSystem::LoadShaders(ID3D11Device* device)
     std::cout << "[LoadShaders] RenderPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
     if (FAILED(hr)) return false;
 
-    // 画面の歪み（2026-10-20）。読めなくても粒子本体は描ける
+    // 画面の歪み。読めなくても粒子本体は描ける
     m_DistortPS = std::make_shared<PixelShader>();
     hr = ShaderPath::Load(m_DistortPS.get(), device, L"Shader/Particle/ParticleDistortPS.hlsl");
     std::cout << "[LoadShaders] DistortPS: " << (SUCCEEDED(hr) ? "OK" : "FAILED") << std::endl;
@@ -622,8 +623,8 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime,
     // 意味を持たなかった。
     // Mesh 発射器は発射源ごとに Dispatch を分けるので、pass 別に数える。
     // 未登録の sourceId を指す Mesh 発射器はどの pass にも入らない（静かに捨てる）
-    // 足し算は粒子池の大きさで頭打ち（それ以上のスレッドは deadCount で必ず止まる。2026-10-25、
-    // 以前は uint へ int を足していて、負の数が来ると約 40 億に回り込み、スレッド群の数が 65535 を超えていた）
+    // 足し算は粒子池の大きさで頭打ち（それ以上のスレッドは deadCount で必ず止まる。
+    // 負の数を uint に足すと回り込み、スレッド群の数が 65535 を超える）
     auto addCapped = [this](uint32_t& sum, int count)
         {
             if (count <= 0) return;
@@ -831,6 +832,7 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
     // SRV は即時バインド
     m_UpdateCS->SetSRV(context, "colorKeys", m_ColorKeySRV.Get());
     if (m_WindSourceSRV) m_UpdateCS->SetSRV(context, "g_WindSources", m_WindSourceSRV);   // 局所の風源（砂旋）
+    WindGrid::BindCurrent(*m_UpdateCS, context);   // 風の格子
 
     // UAV はキューに溜めて一括バインド
     m_UpdateCS->SetUAV(context, "particles", m_ParticleUAV.Get());
@@ -851,7 +853,7 @@ void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
 }
 
 // ============================================
-// 粒子の統計（HasDistortion。2026-10-25）
+// 粒子の統計（HasDistortion）
 //   stats    : uint 4 個（[0] = 歪みの強さを持つ生きたビルボード）。UpdateCS が InterlockedAdd
 //   staging  : kStatsRing 枚を回す。今フレームの数を写し、一番古い（kStatsRing - 1 フレーム前の）物を
 //              DO_NOT_WAIT で読む（GPU を待たない。まだ終わっていなければ前の値のまま）
@@ -925,7 +927,7 @@ void GPUParticleSystem::RenderLitMeshes()
 }
 
 // ============================================================
-// 画面の歪みのパス（2026-10-20、エルデンリングの風の「空気の揺らぎ」）
+// 画面の歪みのパス（風の「空気の揺らぎ」）
 // GPUParticleVS の g_Pass 3 = 歪みの強さを持つビルボードだけ（それ以外は面積 0）、
 // PS は ParticleDistortPS（形の分だけ外向きの uv のずれを書く）。ONE / ONE で足し合わせ、
 // 深度は読むだけ。RT はシーンが Graphics::BeginDistortion で bind 済み
@@ -1025,11 +1027,10 @@ void GPUParticleSystem::Render(bool litMeshes)
     context->IASetInputLayout(nullptr);
     context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
 
-    // GPU が決めた instanceCount で 2 回描く（2026-10-09、爆発の炎と黒煙が交互にちらついた）。
-    // 生きている粒子の一覧は UpdateCS が InterlockedAdd で詰めるので、並びが毎フレーム変わる。
-    // ほぼ不透明なトゥーンの煙（炎・黒煙・土煙）は後に描いた方が前に出るので、重なりの上下が毎フレーム入れ替わっていた。
+    // GPU が決めた instanceCount で 2 回描く。生きている粒子の一覧は UpdateCS が InterlockedAdd で詰めるので
+    // 並びが毎フレーム変わり、ほぼ不透明なトゥーンの煙は重なりの上下がちらつくため。
     //   1 回目：不透明なトゥーンだけ、深度を書く（内側だけ。重なりは距離で決まる）
-    //   2 回目：それ以外（加算・半透明）を今まで通り深度は読むだけ。1 回目の煙の後ろの火花は隠れる
+    //   2 回目：それ以外（加算・半透明）、深度は読むだけ。1 回目の煙の後ろの火花は隠れる
     // TEMP-TEST: VFXL_PARTICLE_ONEPASS=1 で以前の 1 回描き（ちらつきの見比べ用）
     static const bool s_OnePass = []() { char env[8] = {}; return GetEnvironmentVariableA("VFXL_PARTICLE_ONEPASS", env, sizeof(env)) > 0 && env[0] != '0'; }();
     if (s_OnePass)

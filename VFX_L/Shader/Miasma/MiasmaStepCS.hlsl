@@ -1,6 +1,6 @@
 // ============================================================
 // MiasmaStepCS.hlsl
-// 遺跡の瘴気の 1 ステップ（World/MiasmaField、2026-11-03）。
+// 遺跡の瘴気の 1 ステップ（World/MiasmaField）。
 // プレイヤー周りの 3D の濃度の箱: 128 x 32 x 128 セル、横 0.5 m、
 // 縦 0.3 m。縦軸は「地面からの高さ」（箱は地形に沿うので、
 // どの段の台地の上でも層は同じ厚さで乗る）。
@@ -25,6 +25,7 @@
 // ============================================================
 
 #include "../Common/WindSources.hlsli"
+#include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
 
 // MiasmaField::StepCB（432 バイト）と一致させること
 cbuffer MiasmaStepCB : register(b0)
@@ -58,7 +59,7 @@ cbuffer MiasmaStepCB : register(b0)
     float g_BlastDust;      // 砂漠の砂塵: 爆発が 1 秒あたりに足す濃度（低い所）
     float g_LiftHeight;     // m: これより下で砂が舞い上がる
     float _padStep;
-    float g_TorchCount;     // 遺跡の松明（2026-11-05）: 周りの霧を焼いて晴らす
+    float g_TorchCount;     // 遺跡の松明: 周りの霧を焼いて晴らす
     float g_TorchRadius;    // m: 晴らす半径（水平）
     float g_TorchBurn;      // 1/s: 真ん中での焼ける速さ
     float g_TorchLift;      // m/s: 熱で昇る
@@ -227,7 +228,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 
     // ---- 速度 ----
     float lift;
-    float3 air = WindSourceAir(g_WindSources, xz, lift);
+    float3 air = WindGridBlend2D(WindSourceAir(g_WindSources, xz, lift), xz);
     float3 v = float3(g_Wind.x, 0.0, g_Wind.y) * g_WindShare + air;
     v.y = air.y - g_Settle;
     float burn = 0.0, clearK = 0.0, dustK = 0.0;

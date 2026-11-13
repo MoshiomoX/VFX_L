@@ -2,7 +2,7 @@
 // RewardCrateSystem.h
 // 報酬の箱：近づいて F → レベルアップと同じ三択（レベルは上がらない）。
 //   ・開始時にプレイヤーの周りの歩けるマスへ固定数を置く。使ったら消える（補充しない）
-//   ・開けるには金貨が要る（2026-10-04、ユーザー指定：12 個、20 金貨から開ける毎に ×1.3）。
+//   ・開けるには金貨が要る（20 金貨から開ける毎に ×1.3）。
 //     値段はこの面で開けた数で決まる（面が変わると最初から）
 //   ・近くの物の検出・案内・浮遊は InteractionSystem（汎用）。ここは箱の配置と
 //     「使われた箱が報酬の箱なら三択を出して消す」だけ
@@ -30,7 +30,7 @@ public:
     // 並べ直す（開始時・地形の作り直し・パネルのボタン）。
     // center の周り（minDist〜maxDist）の歩けるマスへ count 個。乱数は地形の seed から。
     // summitCells / mineCells（TerrainGenerator::Layout のマス）があれば、そこにも summitCount / mineCount 個
-    // （2026-10-02、フィールドの三層：登る・潜るご褒美）
+    // （フィールドの三層：登る・潜るご褒美）
     void Spawn(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& center,
         uint32_t seed, InteractionSystem& interaction,
         const std::vector<int>* summitCells = nullptr, const std::vector<int>* mineCells = nullptr,
@@ -44,7 +44,7 @@ public:
     bool TryOpen(Registry& reg, Entity used, Entity player, LevelUpSystem& levelUp,
         InteractionSystem& interaction, DirectX::SimpleMath::Vector3& openedPos);
 
-    // 倒した面の固定エリートの金色の宝箱（2026-10-25）：pos（地面）に 1 個。開けるのに金貨は要らず、次の箱の値段も上げない
+    // 倒した面の固定エリートの金色の宝箱：pos（地面）に 1 個。開けるのに金貨は要らず、次の箱の値段も上げない
     Entity SpawnFree(Registry& reg, const GridWorld& grid, const DirectX::SimpleMath::Vector3& pos);
     bool IsFree(Entity e) const { return std::find(m_FreeCrates.begin(), m_FreeCrates.end(), e) != m_FreeCrates.end(); }
     size_t FreeCount() const { return m_FreeCrates.size(); }   // TEMP-TEST
@@ -71,7 +71,7 @@ private:
     std::vector<Entity> m_FreeCrates;      // m_Crates の中の金色の宝箱（無料）
     std::shared_ptr<Model> m_GoldModel;    // Quaternius Modular Ruins の Chest_Gold
     float m_GoldSize = 1.1f;               // 金色の宝箱の高さ（m）
-    // 2026-10-04 金貨で買う物になったので各 2 → 4（全部で 12 個）
+    // 各 4 個（全部で 12 個）
     int   m_Count = 4;                // スポーン地点の周り
     int   m_SummitCount = 4;
     int   m_MineCount = 4;

@@ -1,6 +1,6 @@
 // ============================================================
 // CollisionTestSceneBossIntro.cpp
-// 門から呼んだ Boss の登場の演出（2026-10-27、Enemy/Boss/BossIntro）。
+// 門から呼んだ Boss の登場の演出（Enemy/Boss/BossIntro）。
 //   UpdateBossIntro    : 門を使ったかを StageDirector から受け取り、演出を 1 コマ進めて合図（赤い渦・揺れ・踏み込み・名前）を出す
 //   ApplyBossIntroSteer: 演出の間は BossAttacks の指示の代わりに「門をくぐって歩く / その場で立つ・殴らない」を GPU へ
 // UpdateBossAttacks（CollisionTestSceneBoss.cpp）が両方を呼ぶ

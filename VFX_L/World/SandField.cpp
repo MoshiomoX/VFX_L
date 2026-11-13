@@ -2,6 +2,7 @@
 // SandField.cpp
 // ============================================================
 #include "World/SandField.h"
+#include "World/WindGrid.h"
 #include "World/GridWorld.h"
 #include "Graphics/Shader/ComputeShader.h"
 #include "Graphics/Shader/ShaderPath.h"
@@ -259,6 +260,7 @@ void SandField::Step(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* 
     m_StepCS->SetSRV(m_Context, "g_AreaStates", areaStates);
     m_StepCS->SetSRV(m_Context, "g_RecipeSand", m_TableSRV.Get());
     m_StepCS->SetSRV(m_Context, "g_WindSources", windSources);
+    WindGrid::BindCurrent(*m_StepCS, m_Context);   // 風の格子
     m_StepCS->SetSRV(m_Context, "g_Water", m_WaterSRV.Get());
     m_StepCS->SetUAV(m_Context, "g_Out", m_UAV[next].Get());
     m_StepCS->SetUAV(m_Context, "g_OutTrack", m_TrackUAV[next].Get());

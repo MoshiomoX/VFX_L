@@ -239,7 +239,7 @@ void Shader::WriteBuffer(ID3D11DeviceContext* context, UINT slot, void* pData)
 
     if (slot < m_Buffers.size() && m_Buffers[slot])
     {
-        // 前に書いた中身と同じなら書き直さない（2026-10-25。Renderer::DrawMesh は描く度に同じ光の 416B を書いていた）。
+        // 前に書いた中身と同じなら書き直さない（Renderer::DrawMesh は描く度に同じ光を書く）。
         // この CBuffer に書くのはここだけなので、控えは GPU 側の中身と常に同じ
         D3D11_BUFFER_DESC bd = {};
         m_Buffers[slot]->GetDesc(&bd);
@@ -413,7 +413,7 @@ void Shader::UnbindSRVs(ID3D11DeviceContext* context)
     {
         // t9（シャドウマップ）と t12（SSAO）はフレームに 1 回だけ張る共有の物（ShadowMap / AmbientOcclusion が
         // 自分で外す）。Lighting.hlsli を含む PS は反射にこの 2 つが出るので、ここで一緒に外すと後の描画（草・水）が
-        // null を読んで黒くなった（2026-11-02）。その 2 つを飛ばして外す
+        // null を読んで黒くなる。その 2 つを飛ばして外す
         auto clear = [&](UINT from, UINT to) { if (to > from) context->PSSetShaderResources(from, to - from, kNullSRVs); };
         clear(0, (std::min)(count, 9u));
         clear(10, (std::min)(count, 12u));

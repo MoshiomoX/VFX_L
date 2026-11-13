@@ -44,7 +44,7 @@ void CollisionTestScene::BuildTerrain(std::vector<uint8_t>& grassMask)
     m_GrassMask = grassMask;
 }
 
-// 砂漠のオアシス（2026-11-02）：面の StageDef::oasisGrass > 0 なら、草は水たまりからその距離以内のマスだけ
+// 砂漠のオアシス：面の StageDef::oasisGrass > 0 なら、草は水たまりからその距離以内のマスだけ
 void CollisionTestScene::LimitGrassToOasis(std::vector<uint8_t>& grassMask) const
 {
     float reach = 0.0f;
@@ -96,7 +96,7 @@ void CollisionTestScene::RebuildTerrain()
     m_Grid.ClearAll();
     m_PropBlocks.clear();   // 新しい格子に古い置物のマスを戻さない
 
-    // TEMP-TEST：各段の ms（ステージ選択の切替が重い、2026-10-21）
+    // TEMP-TEST：各段の ms
     using Clock = std::chrono::steady_clock;
     auto t = Clock::now();
     char prof[256] = {};
@@ -115,7 +115,7 @@ void CollisionTestScene::RebuildTerrain()
     lap("gen");
     BlockUnreachablePockets();
     lap("pockets");
-    if (!IsMenuScene())   // タイトル・ステージ選択は HUD が無い（Debug で 190 ms。2026-10-21）
+    if (!IsMenuScene())   // タイトル・ステージ選択は HUD が無い（重いので焼かない）
         m_GameUI.BakeMinimap(m_Grid, m_TerrainMap, (int)m_TerrainConfig.biome, m_TerrainConfig.seed);   // ミニマップも新しい地形に
     lap("minimap");
     m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
@@ -133,21 +133,21 @@ void CollisionTestScene::RebuildTerrain()
     // GPU 側の格子表も差し替える（古い表のままだと弾が壁を抜ける）
     m_Swarm.KillAll();
     m_Mobs.ClearRuinsPending();   // 鎧の蘇り・骸骨の起き上がり待ちも捨てる（古い地形の位置に湧かないように）
-    BuildClimbMap();   // 雑魚が登れる障害物（2026-10-29）
+    BuildClimbMap();   // 雑魚が登れる障害物
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());
     m_Sand.BuildTable(m_Swarm.GetVFXTable());
     lap("swarm");
     m_RebuildProfile = prof;
-    // デバッグの的（無敵のエリート）は自動では置かない（2026-10-27、ユーザー：突風がいつも同じ向きへ吹く → トレーニングのフィールド切替で
-    // 目の前 8m に置かれた的を杖が狙い続けていた）。パネルで置いた物も古い地形の位置なので消すだけ。置くのは F10 の「Respawn Elites」
+    // デバッグの的（無敵のエリート）は自動では置かない（杖が狙い続けてしまう）。
+    // パネルで置いた物も古い地形の位置なので消すだけ。置くのは F10 の「Respawn Elites」
     m_Elites.Respawn(m_Registry, nullptr);
     if (!m_LabScene && !IsMenuScene()) RespawnCrates();   // 古い位置は新しい壁の中かもしれない。実験場・タイトル・ステージ選択は箱 / 門 / 磁石なし
 }
 
 // ============================================================
-// トレーニングのフィールド切替（2026-10-20）
+// トレーニングのフィールド切替
 // 面の見た目（Biome・照明・草）を入れ替えて地形を建て直す。平地 = 実験場の既定（Init と同じ切り方）
 // ============================================================
 std::wstring CollisionTestScene::EnterTrainingField(int field, uint32_t seed)
@@ -158,9 +158,9 @@ std::wstring CollisionTestScene::EnterTrainingField(int field, uint32_t seed)
     m_StageIndex = stage;
 
     TerrainGenerator::Config cfg;   // 既定 = 段々の台地の野原
-    cfg.seed = (seed != 0) ? seed : std::random_device{}() % 100000u;   // ステージ選択は決まった seed（2026-10-21）
+    cfg.seed = (seed != 0) ? seed : std::random_device{}() % 100000u;   // ステージ選択は決まった seed
     cfg.biome = def.biome;
-    if (!flat) TerrainGenerator::ApplyBiomeProfile(cfg);   // マップ毎の地形の規則（2026-10-26）
+    if (!flat) TerrainGenerator::ApplyBiomeProfile(cfg);   // マップ毎の地形の規則
     if (flat)
     {
         cfg.layers = false;
@@ -187,7 +187,7 @@ std::wstring CollisionTestScene::EnterTrainingField(int field, uint32_t seed)
     gs.heightMax = def.grassHeightMax;
     m_GrassFire.SetActive(def.grass && gs.enabled);
     m_Audio.Init(m_Swarm, m_StageIndex);   // 面の曲（範囲の音の表も作り直す。中身は同じ）
-    InitBossFx(def.boss);   // トレーニングで呼ぶ Boss もその面の Boss（2026-10-24）
+    InitBossFx(def.boss);   // トレーニングで呼ぶ Boss もその面の Boss
 
     RebuildTerrain();   // 実験場なので箱 / 門 / 磁石は置かない（RebuildTerrain が m_LabScene を見る）
 
@@ -206,7 +206,7 @@ std::wstring CollisionTestScene::EnterTrainingField(int field, uint32_t seed)
 }
 
 // ============================================================
-// 風に流される物（2026-10-22）：転がり草（砂漠・遺跡、CPU の実体）を今のプレイヤーの周りへ置き直し、
+// 風に流される物：転がり草（砂漠・遺跡、CPU の実体）を今のプレイヤーの周りへ置き直し、
 // タンポポ（草原、GPU）に新しい草の高さ・生える所を渡す。地形を建てた / 出し入れした後に呼ぶ
 // ============================================================
 void CollisionTestScene::BuildWindToys()
@@ -224,7 +224,7 @@ void CollisionTestScene::UpdateWindToys(float dt)
     if (m_Registry.Has<RigidbodyComponent>(m_Player)) vel = m_Registry.Get<RigidbodyComponent>(m_Player).velocity;
     m_Tumbleweeds.Update(m_Registry, m_Grid, dt, m_Weather.Wind(), m_Grass.Time(), &m_Swarm.GetLocalWind(), PlayerPos(), vel);
 
-    // 風源が巻き上げる草屑（2026-10-23）：面の草の色に染める（砂漠は枯れ草、遺跡はくすんだ緑）
+    // 風源が巻き上げる草屑：面の草の色に染める（砂漠は枯れ草、遺跡はくすんだ緑）
     // 草より明るい黄緑（同じ緑だと草の上で見えなかった）
     Vector3 shredTint(0.80f, 1.00f, 0.38f);
     if (m_TerrainConfig.biome == TerrainGenerator::Biome::Desert) shredTint = Vector3(0.95f, 0.82f, 0.48f);

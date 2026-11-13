@@ -44,7 +44,7 @@ void VFXParticleEntry::SyncMeshSlot(const VFXContext& ctx)
     emitterData.meshSlot = m_MeshSlot;
 }
 
-// 返却先の粒子系がもう破棄されていたら何もしない（シーンのメンバの破棄の順番で、entry が粒子系より後に消える時。2026-10-25）
+// 返却先の粒子系がもう破棄されていたら何もしない（シーンのメンバの破棄の順番で、entry が粒子系より後に消える時）
 void VFXParticleEntry::ReleaseMeshSlot()
 {
     if (m_MeshSlot > 0 && m_MeshOwner && GPUParticleSystem::IsAlive(m_MeshOwner))
@@ -461,7 +461,7 @@ void VFXParticleEntry::OnImGui()
             ImGui::TextDisabled("(none) = built-in cube");
         else if (e.meshPath == "@sphere")
             ImGui::TextDisabled("built-in sphere");
-        // 組み込みの球（ファイル無し、"@sphere"。2026-10-06）
+        // 組み込みの球（ファイル無し、"@sphere"）
         if (ImGui::SmallButton("Use built-in sphere")) e.meshPath = "@sphere";
 
         int shading = e.meshGlow ? 1 : 0;
@@ -471,7 +471,7 @@ void VFXParticleEntry::OnImGui()
 
         if (e.meshGlow)
         {
-            // 裏面だけ（2026-10-16）：本体（光を受けるメッシュ）より大きい殻を、本体の後ろの縁取りとして見せる
+            // 裏面だけ：本体（光を受けるメッシュ）より大きい殻を、本体の後ろの縁取りとして見せる
             ImGui::Checkbox("Behind body (back faces only = rim)", &e.meshBehind);
             if (e.meshBehind)
                 ImGui::TextDisabled("front faces are discarded: the glow shows only around an opaque body in front");
@@ -492,14 +492,14 @@ void VFXParticleEntry::OnImGui()
     else
     {
         DrawSheetUI(e);
-        // 流線（2026-10-20）：風の筋。速度の向きに伸びる四角形（トゥーンとは排他）
+        // 流線：風の筋。速度の向きに伸びる四角形（トゥーンとは排他）
         ImGui::Checkbox("Streak (stretched along velocity)", &e.streak);
         if (e.streak)
         {
             ImGui::SliderFloat("Stretch (s)", &e.streakStretch, 0.0f, 1.0f, "%.3f");
             ImGui::TextDisabled("length = speed x stretch (at least the size); uv top = the head. No toon");
         }
-        // 画面の歪み（2026-10-20）：空気の揺らぎ。粒子の形の分だけ画面を外へ押し広げる
+        // 画面の歪み：空気の揺らぎ。粒子の形の分だけ画面を外へ押し広げる
         const char* distortNames[] = { "Off", "Weak", "Medium", "Strong" };
         ImGui::Combo("Distortion", &e.distortLevel, distortNames, IM_ARRAYSIZE(distortNames));
         if (e.distortLevel > 0)
@@ -507,7 +507,7 @@ void VFXParticleEntry::OnImGui()
             ImGui::Checkbox("Distortion only (invisible in colour)", &e.distortOnly);
             ImGui::TextDisabled("needs the distortion pass of the scene (battle / this editor). Not with toon");
         }
-        // トゥーン（2026-10-04）：煙・土・毒霧向け。光る物は切ると紙っぽくなる
+        // トゥーン：煙・土・毒霧向け。光る物は切ると紙っぽくなる
         if (!e.streak)
             ImGui::Checkbox("Toon (crisp cartoon look)", &e.toon);
         if (e.toon && !e.streak)
@@ -522,11 +522,11 @@ void VFXParticleEntry::OnImGui()
     ImGui::Checkbox("Inherit Source Velocity", &e.inheritVelocity);
     if (e.inheritVelocity)
         ImGui::TextDisabled("adds the GPU projectile's velocity (battle only, not in this preview)");
-    // 単体（2026-10-16）：岩・矢・水晶の本体。毎フレーム 1 個だけ、次のフレームまで = 常にちょうど 1 つ
+    // 単体：岩・矢・水晶の本体。毎フレーム 1 個だけ、次のフレームまで = 常にちょうど 1 つ
     ImGui::Checkbox("Single Body (exactly one, GPU projectile only)", &e.singleBody);
     if (e.singleBody)
         ImGui::TextDisabled("emit rate / lifetime are ignored in battle: one particle per frame, alive one frame");
-    // 世界の風（2026-10-12）：煙・霧・雨・砂は 0.5〜1、火花・光は 0
+    // 世界の風：煙・霧・雨・砂は 0.5〜1、火花・光は 0
     ImGui::SliderFloat("Wind Response", &e.windResponse, 0.0f, 1.0f, "%.2f");
     if (e.windResponse > 0.0f)
         ImGui::TextDisabled("horizontal velocity drifts toward the world wind (weather); 1 = within ~0.3 s");
@@ -534,7 +534,7 @@ void VFXParticleEntry::OnImGui()
 
     ImGui::SliderFloat("Rate", &e.emitRate, 0.0f, 1000.0f);
     if (e.emitRate < 0.0f) e.emitRate = 0.0f;   // Ctrl+クリックで負の値も打てる（負の発射数は GPU 側で全スレッドを奪う）
-    // 「Max Particles」の欄は消した（2026-10-25）：GPUEmitter::maxParticles は HLSL が読まず、効いていなかった。json の値はそのまま残す
+    // 「Max Particles」の欄は無い（GPUEmitter::maxParticles は HLSL が読まない）。json の値はそのまま残す
     ImGui::DragFloat2("Speed", &e.speedRange.x, 0.1f, 0.0f, 50.0f);
     ImGui::DragFloat2("Lifetime", &e.lifetimeRange.x, 0.1f, 0.1f, 10.0f);
     ImGui::Separator();
@@ -706,8 +706,8 @@ json VFXParticleEntry::ToJson() const
     if (e.inheritVelocity) j["inheritVelocity"] = true;
     if (e.singleBody) j["single"] = true;
     if (e.windResponse > 0.0f) j["wind"] = e.windResponse;   // 世界の風の受けやすさ（無ければ 0）
-    if (e.streak) { j["streak"] = true; j["stretch"] = e.streakStretch; }   // 流線（2026-10-20）
-    if (e.distortLevel > 0) { j["distort"] = e.distortLevel; if (e.distortOnly) j["distortOnly"] = true; }   // 画面の歪み（2026-10-20）
+    if (e.streak) { j["streak"] = true; j["stretch"] = e.streakStretch; }   // 流線
+    if (e.distortLevel > 0) { j["distort"] = e.distortLevel; if (e.distortOnly) j["distortOnly"] = true; }   // 画面の歪み
     if (e.toon)   // トゥーン（無ければ従来の見た目）
         j["toon"] = { { "cut", e.toonCut }, { "bands", e.toonBands }, { "shade", e.toonShade }, { "outline", e.toonOutline } };
     if (e.renderMode == 1)
@@ -760,8 +760,8 @@ void VFXParticleEntry::FromJson(const json& j)
 {
     auto& e = emitterData;
 
-    // 配列の欄：数値の配列で要素が足りている時だけ読む（足りない・型違いは既定値。2026-10-25、
-    // 以前は短い配列で範囲外の添字になった）。型の違うスカラーは j.value が投げ、VFXEffect::LoadFromFile が
+    // 配列の欄：数値の配列で要素が足りている時だけ読む（足りない・型違いは既定値）。
+    // 型の違うスカラーは j.value が投げ、VFXEffect::LoadFromFile が
     // この entry だけ捨てる
     auto read2 = [&](const char* key, float x, float y) -> Vector2
         {
@@ -849,8 +849,7 @@ void VFXParticleEntry::FromJson(const json& j)
     e.shape.sourceId = -1;      // 登録は OnPlay で
     e.shape.sourceCount = 0;
 
-    // 色の鍵：上限（MAX_COLOR_KEYS）で打ち切る（2026-10-25。以前は数を json の個数のまま入れていて、
-    // 9 個以上あると colorKeys[8] を越えて読んでいた）。object でない鍵は飛ばし、欠けた欄は既定値
+    // 色の鍵：上限（MAX_COLOR_KEYS）で打ち切る。object でない鍵は飛ばし、欠けた欄は既定値
     {
         const auto keysIt = j.find("colorKeys");
         if (keysIt != j.end() && keysIt->is_array())

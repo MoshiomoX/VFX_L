@@ -1,7 +1,7 @@
 // ============================================================
 // BossLooksSand.cpp
-// 砂漠 1 面目の Boss「砂の守護者」の飾り（2026-10-24：ファラオの頭巾・付け髭・光る目・襟飾りと宝石・石の肩当て・体の周りを回る浮き岩）。
-// 寸法は焼いた雑魚の網の部品の包囲ボックスに対する割合。色と宣言は BossLooksCommon.h。2026-10-26 に BossLooks.cpp から分けた
+// 砂漠 1 面目の Boss「砂の守護者」の飾り（ファラオの頭巾・付け髭・光る目・襟飾りと宝石・石の肩当て・体の周りを回る浮き岩）。
+// 寸法は焼いた雑魚の網の部品の包囲ボックスに対する割合。色と宣言は BossLooksCommon.h
 // ============================================================
 #include "Enemy/Boss/BossLooksCommon.h"
 
@@ -26,7 +26,7 @@ namespace BossLooksDetail
             b.StripesY(Vec3(x0, lo.y, c.z - 0.25f * s.z), Vec3(x1, hi.y - 0.04f * s.y, hi.z - 0.04f * s.z), 6, kGold, kLapis);
             b.StripesY(Vec3(x0, lo.y - 0.32f * s.y, c.z - 0.05f * s.z), Vec3(x1, lo.y, hi.z + 0.06f * s.z), 3, kLapis, kGold);
         }
-        // 後ろの垂れ（長いと横から見て旗のようだった。2026-10-24 の 1 回目は頭の下 0.3 まで）
+        // 後ろの垂れ（長いと横から見て旗のように見える）
         b.StripesY(Vec3(lo.x - e, lo.y - 0.12f * s.y, lo.z - 1.6f * e), Vec3(hi.x + e, hi.y - 0.04f * s.y, lo.z), 6, kGold, kLapis);
         // 額の金の帯・蛇の飾り（ウラエウス）
         b.Box(Vec3(lo.x - e, hi.y - 0.20f * s.y, hi.z), Vec3(hi.x + e, hi.y - 0.08f * s.y, hi.z + 0.035f * s.z), kGold);
@@ -71,7 +71,7 @@ namespace BossLooksDetail
     }
 
     // ---- 体の周りを回る 6 つの浮き岩（不揃いな 2 つの塊を重ねた欠片 + 細い金の筋）----
-    // （2026-10-24 の 1 回目は 4 つの大きな箱 = 1 個 1.4m で体を隠した → 小さく・遠く・数を増やす）
+    // （大きいと体を隠すので、小さく・遠くに置く）
     std::shared_ptr<Model> BuildOrbitRocks(ID3D11Device* device, const Model& model)
     {
         Builder b;

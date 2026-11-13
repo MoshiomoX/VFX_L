@@ -17,7 +17,7 @@ struct AreaStats
 
     // --- 範囲 ---
     float radius = 3.0f;          // 影響半径
-    // 光線の射程 m（AreaProfile::length を基礎値に、拡大鏡などの修飾を掛けた物。光線以外は 0。2026-10-13）
+    // 光線の射程 m（AreaProfile::length を基礎値に、拡大鏡などの修飾を掛けた物。光線以外は 0）
     float length = 0.0f;
 
     // --- 時間 ---
@@ -42,22 +42,22 @@ struct AreaStats
     // 集約時に ItemCommon::triggeredBy が揃っていれば true。基本魔法側の SpellStats::triggerMask の bit (16 + 添字) が自分
     // （添字は 0〜14 まで。bit 31 は吸血の印。TriggerBits / WandComponent.h）
     bool triggered = false;
-    // 出口（2026-10-31）: 出口魔法の出口の先に居る（SpellStats::fromOutlet / triggerDelay と同じ）
+    // 出口:出口魔法の出口の先に居る（SpellStats::fromOutlet / triggerDelay と同じ）
     bool  fromOutlet = false;
     float triggerDelay = 0.0f;
     int   outletDepth = 0;
-    // --- 基本の範囲魔法（アークボルトの稲妻）が届いた所で誘発できる上級魔法（SpellStats::triggerMask と同じ bit 割り当て。2026-10-15）---
+    // --- 基本の範囲魔法（アークボルトの稲妻）が届いた所で誘発できる上級魔法（SpellStats::triggerMask と同じ bit 割り当て）---
     uint32_t triggerMask = 0;
 
-    // --- 貯蔵（水晶玉。2026-10-06）: WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光線の起点が光球）。-1 = 杖から ---
+    // --- 貯蔵（水晶玉）:WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光線の起点が光球）。-1 = 杖から ---
     int storeUnit = -1;
 
-    // --- 連鎖（連鎖のルーン。2026-10-20）: 一瞬の稲妻（アークボルト）が届いた敵から、近くの別の敵へ跳ぶ回数。
+    // --- 連鎖（連鎖のルーン）:一瞬の稲妻（アークボルト）が届いた敵から、近くの別の敵へ跳ぶ回数。
     // 溜め 0 の光線型だけに効く（ItemDatabase::AreaCanChain）。跳ぶ先は GPU（SwarmBeamTargetCS の cmd 3）が探し、
     // WeaponSystem::UpdateBeams が届いた敵の位置から次の光線を始める ---
     int chainCount = 0;
 
-    // --- 吸血（吸血のルーン。2026-10-25）: この範囲が敵に与えたダメージのこの割合をプレイヤーの HP に戻す（GPU には tickNow の印）---
+    // --- 吸血:この範囲が敵に与えたダメージのこの割合をプレイヤーの HP に戻す（GPU には tickNow の印）---
     float lifesteal = 0.0f;
 
     // --- エディタのプロファイル（AreaProfileDB の番号。0 = 無し）---

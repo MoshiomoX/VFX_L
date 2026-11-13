@@ -17,7 +17,7 @@ struct BoneMapEntry
 };
 
 // Reallusion Character Creator（CC3/CC4、CC_Base_*）← Quaternius / UE マネキン風（Universal Animation Library）
-// 2026-10-04：Assets/Model/Shadowkin_SF（ユーザーがUnrealの配布から落とした PBR の人形）にレンジャーのアニメを付ける
+// Assets/Model/Shadowkin_SF（PBR の人形）にレンジャーのアニメを付ける
 inline constexpr BoneMapEntry kBoneMapCCFromUE[] = {
     { "CC_Base_Hip",         "pelvis" },     // 腰（平行移動も）
     { "CC_Base_Waist",       "spine_01" },
@@ -76,7 +76,7 @@ inline constexpr BoneMapEntry kBoneMapCCFromUE[] = {
     { "CC_Base_R_ToeBase",   "ball_r" },
 };
 
-// Reallusion CC 骨（Shadowkin）のマント（2026-10-23）。
+// Reallusion CC 骨（Shadowkin）のマント。
 //   元は Cloak1〜8 の 1 本鎖（Cloak1 は親の無い骨）。読み込み時に SkinnedModel::SplitClothChain が
 //   横 kCCCapeColumns 列の骨に分け（真ん中の列 = 元の骨）、ClothChainSystem が布の格子として揺らす。
 //   kCCCapeAnchorKeepEnd = 背骨（kCCCapeAnchor）の重みを残す範囲（鎖の根 0 → 先 1）。元のマントの頂点は

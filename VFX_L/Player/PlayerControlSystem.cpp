@@ -111,7 +111,7 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
             });
 
     // 魔力解放（3 秒間魔力を消費しない、20 秒に 1 回。再使用待ちの間は何も起きない）。
-    // 詠唱の一時停止はプレイヤーの操作から外した（2026-10-01。WandComponent::castingPaused はデバッグパネル・自動テスト用に残る）
+    // 詠唱の一時停止（WandComponent::castingPaused）はデバッグパネル・自動テスト用で、プレイヤーの操作には無い
     if (surgeTrigger)
         reg.CreateView<ManaComponent, PlayerTag>()
             .Each([&](Entity e, ManaComponent& mana, PlayerTag&)
@@ -138,7 +138,7 @@ void PlayerControlSystem::Update(Registry& reg, float dt, CameraBase* camera)
             PlayerStatsComponent& stats, PlayerStateComponent& st, PlayerTag&)
             {
                 // 死んだら操作を受け付けない。PlayerStateSystem の速度 0 は物理の後なので、ここで止めないと
-                // 倒れた姿のまま入力の方へ動く・跳ぶ（2026-11-01、ユーザー：死んだ後も地面を這って動ける）
+                // 倒れた姿のまま入力の方へ動く・跳ぶ
                 if (st.IsDead())
                 {
                     rb.velocity.x = rb.velocity.z = 0.0f;

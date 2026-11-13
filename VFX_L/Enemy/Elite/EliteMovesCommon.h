@@ -1,7 +1,6 @@
 // ============================================================
 // EliteMovesCommon.h
 // EliteMoves.cpp / EliteMovesRuins.cpp の内側だけで使う小さな計算（向き・水平距離・回し）。
-// 2026-10-26 に EliteMoves.cpp（550 行）から遺跡の 2 型を EliteMovesRuins.cpp へ分けた時に作った
 // ============================================================
 #pragma once
 #include <SimpleMath.h>

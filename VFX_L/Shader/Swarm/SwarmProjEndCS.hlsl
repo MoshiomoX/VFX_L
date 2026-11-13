@@ -42,7 +42,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     projTags[i] = 0u;
-    // 吸血の印（2026-10-25）は最上位ビットに乗っている。連鎖ではないので CPU には知らせない
+    // 吸血の印は最上位ビットに乗っている。連鎖ではないので CPU には知らせない
     tag &= ~SWARM_TAG_LIFESTEAL;
     if (tag == 0u)
         return;

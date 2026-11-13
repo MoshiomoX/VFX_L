@@ -1,8 +1,7 @@
 // ============================================================
 // SwarmProjTrail.hlsli
 // SwarmProjTrailCS / SwarmProjTrailVS で共用。弾ごとのトレイル状態のうち、
-// ParticleTrail.hlsli の head / count パックに追加で載せるビット
-// （2026-10-15）。
+// ParticleTrail.hlsli の head / count パックに追加で載せるビット。
 // ============================================================
 #ifndef SWARM_PROJ_TRAIL_HLSLI
 #define SWARM_PROJ_TRAIL_HLSLI

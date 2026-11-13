@@ -1,7 +1,7 @@
 // ============================================================
 // EliteLooksCommon.h
 // EliteLooks*.cpp の内側だけで使う物：色（線形。HDR = bloom で光る）・籠手（Bracer）・型毎の組み立て関数の宣言。
-// 2026-10-26 に EliteLooks.cpp（550 行）を面毎（EliteLooksGrass / Desert / Ruins.cpp、Apply は EliteLooks.cpp）に分けた時に作った。
+// 面毎の中身は EliteLooksGrass / Desert / Ruins.cpp、Apply は EliteLooks.cpp。
 // 外から呼ぶのは EliteLooks.h の Apply だけ
 // ============================================================
 #pragma once

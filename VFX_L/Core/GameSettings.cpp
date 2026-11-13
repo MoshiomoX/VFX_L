@@ -48,6 +48,7 @@ bool GameSettings::Save() const
     j["tutorialDone"] = tutorialDone;
     j["cameraDistance"] = cameraDistance;
     j["smartCamera"] = smartCamera;
+    j["volumeFog"] = volumeFog;
     const std::filesystem::path path(Res::Cfg::Settings);
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
@@ -72,6 +73,7 @@ bool GameSettings::Load()
         s.tutorialDone = j.value("tutorialDone", s.tutorialDone);
         s.cameraDistance = std::clamp(j.value("cameraDistance", s.cameraDistance), 0.8f, 1.3f);
         s.smartCamera = j.value("smartCamera", s.smartCamera);
+        s.volumeFog = j.value("volumeFog", s.volumeFog);
     }
     catch (const std::exception& e)
     {

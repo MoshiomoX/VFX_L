@@ -207,8 +207,7 @@ namespace
         flush();
     }
 
-    // 分けた結果を「文字列 × 今の機器」ごとに覚えておく（2026-10-25。以前は Measure / Draw のたびに分け直して
-    // 片の文字列を確保していた。DrawOutlined は 1 回で 6 回）。
+    // 分けた結果を「文字列 × 今の機器」ごとに覚えておく（Measure / Draw のたびに分け直さない）。
     // 片が指す絵（g_Glyphs / g_KeyImages）は Shutdown まで動かないので、そのまま覚えて良い。
     // 数字の入る文（距離・金貨）は毎フレーム変わるので、溜まり過ぎたら丸ごと捨てる。
     // 返す参照は次に Split を呼ぶまで有効（捨てるのは新しい文を入れる時だけ）
@@ -400,7 +399,7 @@ namespace InputGlyph
     void DrawOutlined(SpriteRenderer& sprite, TextRenderer& text, const std::wstring& s,
         const Vector2& pos, const Vector4& color, float scale, float o)
     {
-        const std::vector<Part>& parts = Split(s);   // 1 回だけ分ける（以前は縁 5 回 + 本体 1 回分け直していた）
+        const std::vector<Part>& parts = Split(s);   // 1 回だけ分ける（縁と本体で使い回す）
         const Vector4 shadow = { 0.0f, 0.0f, 0.0f, 0.75f * color.w };
         for (const Vector2 d : { Vector2(o, 0.0f), Vector2(-o, 0.0f), Vector2(0.0f, o), Vector2(0.0f, -o), Vector2(o * 1.5f, o * 1.5f) })
             DrawParts(sprite, text, parts, pos + d, shadow, scale, false);

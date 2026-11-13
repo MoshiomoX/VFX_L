@@ -75,7 +75,7 @@ void AutoTestBoss::Run()
         AutoTestLog(line);
     }
 
-    // 倒した → 門が出口になる（2026-10-07）→ 1 秒後に門へ戻り、もう一度 F → クリア。
+    // 倒した → 門が出口になる → 1 秒後に門へ戻り、もう一度 F → クリア。
     // クリアの 2 秒後（「ステージクリア」の幕が出ている）に 1 行。外から撮る
     static float s_DefeatedAt = -1.0f;
     static float s_ClearedAt = -1.0f;

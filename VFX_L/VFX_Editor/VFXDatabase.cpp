@@ -1,8 +1,6 @@
 // ============================================================
 // VFXDatabase.cpp
-// エフェクトのデータベース（VFXId → json）。
-// 2026-10-09 まで VFXDatabase.h という名前で CollisionTestScene.cpp から #include されていた（中身は .cpp）。
-// 同日、CPU だけで出すエフェクト 24 個（プレイヤーの動き・手応え・Boss・天気・召喚物）を登録した
+// エフェクトのデータベース（VFXId → json）。GPU の弾・範囲と、CPU だけで出すエフェクトの両方
 // ============================================================
 #include "VFX_Editor/VFXId.h"
 #include "ResourcePaths.h"
@@ -95,7 +93,7 @@ namespace
         { VFXId::BossSlam, Res::VFX::BossSlam, Group::Boss },
         { VFXId::BossRockFall, Res::VFX::BossRockFall, Group::Boss },
         { VFXId::BossRockHit, Res::VFX::BossRockHit, Group::Boss },
-        { VFXId::BossQuicksand, Res::VFX::BossQuicksand, Group::Boss },   // 砂の守護者（2026-10-24）
+        { VFXId::BossQuicksand, Res::VFX::BossQuicksand, Group::Boss },   // 砂の守護者
         { VFXId::BossSandMound, Res::VFX::BossSandMound, Group::Boss },
         { VFXId::BossSandBurst, Res::VFX::BossSandBurst, Group::Boss },
         { VFXId::BossSandSpear, Res::VFX::BossSandSpear, Group::Boss },
@@ -103,17 +101,17 @@ namespace
         { VFXId::BossStoneAura, Res::VFX::BossStoneAura, Group::Boss },
         { VFXId::BossVenom, Res::VFX::BossVenom, Group::Boss },
         { VFXId::BossVenomAura, Res::VFX::BossVenomAura, Group::Boss },
-        { VFXId::BossStagBolt, Res::VFX::BossStagBolt, Group::Boss },   // 雄鹿の角の雷撃（2026-10-29）
-        { VFXId::BossDjinnVortex, Res::VFX::BossDjinnVortex, Group::Boss },   // 砂嵐の魔神の下半身の砂旋（2026-10-29）
+        { VFXId::BossStagBolt, Res::VFX::BossStagBolt, Group::Boss },   // 雄鹿の角の雷撃
+        { VFXId::BossDjinnVortex, Res::VFX::BossDjinnVortex, Group::Boss },   // 砂嵐の魔神の下半身の砂旋
         { VFXId::BossDjinnBreath, Res::VFX::BossDjinnBreath, Group::Boss },   // 砂嵐の魔神の炎の息
-        { VFXId::BossKingMist, Res::VFX::BossKingMist, Group::Boss },         // 骸の王の足元の闇（2026-10-29）
+        { VFXId::BossKingMist, Res::VFX::BossKingMist, Group::Boss },         // 骸の王の足元の闇
         { VFXId::BossCurseFloor, Res::VFX::BossCurseFloor, Group::Boss },     // 骸の王の呪いの床
-        { VFXId::BossBeastDust, Res::VFX::BossBeastDust, Group::Boss },       // 石の守護獣の羽ばたきの土埃（2026-10-29）
+        { VFXId::BossBeastDust, Res::VFX::BossBeastDust, Group::Boss },       // 石の守護獣の羽ばたきの土埃
         { VFXId::BossPetrifyBreath, Res::VFX::BossPetrifyBreath, Group::Boss },   // 石の守護獣の石化の息
         { VFXId::BossPetrify, Res::VFX::BossPetrify, Group::Boss },           // 石化したプレイヤーの欠片
         { VFXId::BossStoneShard, Res::VFX::BossStoneShard, Group::Boss },     // 石羽の散弾の羽根
 
-        // ---- 敵（CPU。遺跡の敵の出来事、2026-10-25）----
+        // ---- 敵（CPU。遺跡の敵の出来事・砂旋・エリート）----
         { VFXId::RuinsArmorFall, Res::VFX::RuinsArmorFall, Group::Enemy },
         { VFXId::RuinsArmorRise, Res::VFX::RuinsArmorRise, Group::Enemy },
         { VFXId::RuinsGargoyleWake, Res::VFX::RuinsGargoyleWake, Group::Enemy },
@@ -123,7 +121,7 @@ namespace
         { VFXId::RuinsRaiseMark, Res::VFX::RuinsRaiseMark, Group::Enemy },
         { VFXId::RuinsSkeletonRise, Res::VFX::RuinsSkeletonRise, Group::Enemy },
         { VFXId::RuinsChainHit, Res::VFX::RuinsChainHit, Group::Enemy },
-        { VFXId::SandTornado, Res::VFX::SandTornado, Group::Enemy },   // 砂旋の本体（2026-10-26）
+        { VFXId::SandTornado, Res::VFX::SandTornado, Group::Enemy },   // 砂旋の本体
         { VFXId::EliteSpawn, Res::VFX::EliteSpawn, Group::Enemy },
         { VFXId::EliteAxeSpin, Res::VFX::EliteAxeSpin, Group::Enemy },
         { VFXId::EliteArrow, Res::VFX::EliteArrow, Group::Enemy },
@@ -146,7 +144,7 @@ namespace
         // ---- 天気（CPU、WeatherSystem）----
         { VFXId::Rain, Res::VFX::Rain, Group::Weather },
         { VFXId::Sandstorm, Res::VFX::Sandstorm, Group::Weather },
-        { VFXId::GrassShred, Res::VFX::GrassShred, Group::Weather },   // 風源の草屑（World/GrassShreds、2026-10-23）
+        { VFXId::GrassShred, Res::VFX::GrassShred, Group::Weather },   // 風源の草屑（World/GrassShreds）
 
         // ---- 召喚物（CPU）----
         { VFXId::SpellOrb, Res::VFX::SpellOrb, Group::Summon },

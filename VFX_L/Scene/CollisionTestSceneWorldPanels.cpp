@@ -78,7 +78,7 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
-        // ---- 遠くの雑魚の LOD（2026-11-02）----
+        // ---- 遠くの雑魚の LOD ----
         if (ImGui::TreeNode("LOD (far mobs)"))
         {
             ImGui::Checkbox("Enabled##lod", &m_Swarm.lod.enabled);
@@ -104,7 +104,7 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
-        // ---- ダメージの数字（GPU 側のまとめ方。見た目は GameUI の Damage Numbers。2026-10-17）----
+        // ---- ダメージの数字（GPU 側のまとめ方。見た目は GameUI の Damage Numbers）----
         if (ImGui::TreeNode("Damage Text (GPU)"))
         {
             ImGui::Checkbox("Enabled##dtx", &m_Swarm.damageText.enabled);
@@ -112,7 +112,7 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::DragFloat("Poison Merge (s)", &m_Swarm.damageText.poisonMerge, 0.01f, 0.0f, 3.0f);
             ImGui::TreePop();
         }
-        // ---- 死んだ敵の砕け散り（2026-10-02）----
+        // ---- 死んだ敵の砕け散り ----
         if (ImGui::TreeNode("Death Shatter"))
         {
             auto& cs = m_Swarm.corpse;
@@ -130,7 +130,7 @@ void CollisionTestScene::DrawSwarmPanel()
             ImGui::TreePop();
         }
 
-        // ---- 引き寄せの範囲（渦）の風源（2026-10-22）----
+        // ---- 引き寄せの範囲（渦）の風源 ----
         if (ImGui::TreeNode("Vortex Wind (pulling areas)"))
         {
             auto& vw = m_Swarm.vortexWind;
@@ -273,7 +273,7 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::Text("Grid : %d x %d  (%.0fm x %.0fm)",
             m_Grid.Width(), m_Grid.Depth(),
             m_Grid.WorldWidth(), m_Grid.WorldDepth());
-        TerrainSurface::Get().DrawImGui();   // 地面のテクスチャ（2026-10-03）
+        TerrainSurface::Get().DrawImGui();   // 地面のテクスチャ
 
         auto& tc = m_TerrainConfig;
         int seed = (int)tc.seed;
@@ -281,7 +281,7 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::SameLine();
         if (ImGui::Button("Random")) tc.seed = std::random_device{}() % 100000u;
 
-        // 段々の台地（2026-10-19、PokéBonk 風）。既定の地形
+        // 段々の台地。既定の地形
         ImGui::SeparatorText("Step Terraces (PokeBonk style)");
         ImGui::Checkbox("Step Terraces", &tc.steps);
         ImGui::DragFloat("Step Height", &tc.stepHeight, 0.05f, 1.0f, 6.0f, "%.2f m");
@@ -331,7 +331,7 @@ void CollisionTestScene::DrawTerrainPanel()
         if (ImGui::DragInt("Flow Range (cells)", &m_Swarm.GetFlowField().maxRangeCells, 0.5f, 0, 300))
             m_Swarm.RequestFlowRebuild();
         ImGui::SetItemTooltip("0 = whole map. Enemies farther than this (path length) chase in a straight line");
-        // 雑魚が壁を登る（2026-10-29）：登る速さ（0 = 登らない）と、流れ場で 1m 登るのを何マス分の回り道とみなすか
+        // 雑魚が壁を登る：登る速さ（0 = 登らない）と、流れ場で 1m 登るのを何マス分の回り道とみなすか
         ImGui::DragFloat("Mob Climb Speed", &m_Swarm.GetBomberParams().climbSpeed, 0.05f, 0.0f, 10.0f, "%.2f m/s");
         if (ImGui::DragFloat("Climb Cost (cells / m)", &m_Swarm.GetFlowField().climbCostPerMeter, 0.05f, 0.0f, 10.0f))
             m_Swarm.RequestFlowRebuild();
@@ -360,7 +360,7 @@ void CollisionTestScene::DrawTerrainPanel()
         // これより小さい木・岩は見た目だけ（格子も衝突も無し）
         ImGui::DragFloat("Tree blocks if height >=", &tc.treeBlockMinHeight, 0.05f, 0.0f, 20.0f, "%.2f m");
         ImGui::DragFloat("Rock blocks if size >=", &tc.rockBlockMinSize, 0.05f, 0.0f, 10.0f, "%.2f m");
-        // 縁の碗（Megabonk 風、2026-10-06）：地面そのものが縁で急な崖になる。巨石は飾り、空気壁も石の衝突も無し
+        // 縁の碗：地面そのものが縁で急な崖になる。巨石は飾り、空気壁も石の衝突も無し
         ImGui::Checkbox("Rim Rise (bowl-shaped edge, Megabonk style)", &tc.rimRise);
         if (tc.rimRise)
         {
@@ -370,7 +370,7 @@ void CollisionTestScene::DrawTerrainPanel()
         }
         ImGui::Checkbox("Rock Mountains (outer wall)", &tc.rockMountains);
         ImGui::DragFloat("Mountain Scale", &tc.mountainScale, 0.02f, 0.2f, 3.0f);
-        // 巨石（2026-10-06）：数個の Rock-Set を辺に沿って引き伸ばして山に見せる。切ると以前の「岩を 3 列に積む」
+        // 巨石：数個の Rock-Set を辺に沿って引き伸ばして山に見せる。切ると「岩を 3 列に積む」
         ImGui::Checkbox("Boulder Mountains (few stretched rocks)", &tc.boulderMountains);
         if (tc.boulderMountains)
         {
@@ -391,7 +391,7 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::DragFloat("Edge Rock Collider x", &tc.edgeRockShrink, 0.01f, 0.5f, 1.2f);
         ImGui::DragFloat("Ruin Column Intrude", &tc.ruinColumnIntrude, 0.01f, 0.0f, 1.0f);
 
-        // 起伏（2026-10-04）：緩い丘 + 小さい土饅頭。台地・坂の足元は台座で均す
+        // 起伏：緩い丘 + 小さい土饅頭。台地・坂の足元は台座で均す
         ImGui::SeparatorText("Relief (rolling ground)");
         ImGui::Checkbox("Relief", &tc.relief);
         ImGui::DragFloat("Hill Height", &tc.hillHeight, 0.05f, 0.0f, 8.0f, "%.2f m");
@@ -420,7 +420,7 @@ void CollisionTestScene::DrawTerrainPanel()
         ImGui::SameLine();
         ImGui::TextDisabled("same seed = same map");
 
-        // ---- 地図のデータ（2026-10-05、World/MapData）----
+        // ---- 地図のデータ（World/MapData）----
         // 今の地形（生成した物でも読んだ物でも）をそのまま保存し、読み込めば乱数なしで同じ地図になる
         ImGui::SeparatorText("Map Data (Assets/Data/MapData/<name>.vmap)");
         ImGui::Text("Current : %s", m_MapLoaded ? m_MapFile.c_str() : "(generated from seed)");

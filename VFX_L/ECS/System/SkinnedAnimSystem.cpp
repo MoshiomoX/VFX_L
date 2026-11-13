@@ -135,7 +135,7 @@ bool SkinnedAnimSystem::BuildPose(const SkinnedAnimComponent& a, std::vector<Mat
     const SkinnedModel& model = *a.model;
 
     // 同じフレームの 2 回目以降（マント → 描画 → 影 → 尾の根元）は層の状態が同じなので、素のポーズを使い回す
-    // （2026-10-23。Debug で 1 回 0.7ms。マントを 5 列にして骨が 151 → 183 本に増えた分を取り返す）
+    // （1 回が重いので）
     const SkinnedAnimComponent::PoseKey key = MakePoseKey(a);
     if (a.poseCacheValid && a.poseCacheKey == key && a.poseCache.size() == (size_t)model.GetSkeleton().GetBoneCount())
     {

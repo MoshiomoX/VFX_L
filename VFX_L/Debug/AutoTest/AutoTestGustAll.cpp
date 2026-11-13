@@ -1,6 +1,6 @@
 // ============================================================
 // AutoTestGustAll.cpp
-// TEMP-TEST: VFXL_BATTLE_AUTOTEST=gustall（2026-10-27、ユーザー「突風の全体テスト、各方面」）
+// TEMP-TEST: VFXL_BATTLE_AUTOTEST=gustall（突風の全体テスト）
 // 突風を場面ごとに撃たせ、1 発ごとに「標的・吹く向き・見た目（粒子の発射の向き）・風源の表の押す向き・半径」と、
 // 場面の終わりに「各敵がどれだけ飛んだか」「マントの節点 / 骨の書き戻しが壊れていないか」を書く。
 //   dirN          : 5m に雑魚 1 体（0〜315 度の 8 方向を 1 つずつ）。向きの誤差と飛んだ距離
@@ -211,7 +211,7 @@ void AutoTestGustAll::BeginPhase()
     }
     else if (p == 17)
     {
-        // アイススパイクの線（2026-10-27）：Boss 14m @0 + 雑魚 5m @90。線は優先度なしの一番近い敵（雑魚）の向きへ走るはず
+        // アイススパイクの線：Boss 14m @0 + 雑魚 5m @90。線は優先度なしの一番近い敵（雑魚）の向きへ走るはず
         m_Name = "iceSpike";
         auto indexOf = [&](ItemID id) { for (int i = 0; i < (int)bp.items.size(); ++i) if (bp.items[i].id == id) return i; return -1; };
         BackpackLogic::Place(bp, ItemID::IceSpike, 4, 4, 0);
@@ -377,7 +377,7 @@ void AutoTestGustAll::Run()
         m_Unpaused = true;
     }
     for (const auto& g : m_WeaponSystem.GetGustDebug()) LogCast(g);
-    for (const auto& fx : m_WeaponSystem.GetTriggeredFx())   // アイススパイクの線の向き（2026-10-27）
+    for (const auto& fx : m_WeaponSystem.GetTriggeredFx())   // アイススパイクの線の向き
     {
         const Vector3 d = fx.end - fx.start;
         char tl[160];

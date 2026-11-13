@@ -1,10 +1,10 @@
 ﻿// ============================================================
 // CollisionTestSceneBoss.cpp
-// 戦闘シーンの Boss の技（2026-10-07 に CollisionTestScene.cpp から分けた。技が 5 つに増えたので）:
+// 戦闘シーンの Boss の技:
 //   BossAttacks の出力 → 被弾（無敵時間・シールド・ノックバックは雑魚と同じ道）・見た目・音・
 //   GPU の Boss への突進の指示（BomberCB の bossCharge*）・地面の警告の輪の描画
-//   2026-10-24：面毎の Boss（InitBossFx）と砂の守護者の技の見た目（流沙の渦と足元の効き・潜砂の砂丘・砂の槍の石のトゲ）
-//   2026-10-29：Boss 毎の技の合図は CollisionTestSceneBossSignals.cpp、狂暴・撃破の演出は CollisionTestSceneBossDrama.cpp へ分けた
+//   面毎の Boss（InitBossFx）と砂の守護者の技の見た目（流沙の渦と足元の効き・潜砂の砂丘・砂の槍の石のトゲ）
+//   Boss 毎の技の合図は CollisionTestSceneBossSignals.cpp、狂暴・撃破の演出は CollisionTestSceneBossDrama.cpp
 // ============================================================
 #include "Scene/CollisionTestScene.h"
 #include "Audio/AudioSystem.h"
@@ -30,7 +30,7 @@ namespace
     constexpr float kSpearPuffSpacing = 3.0f;   // 砂の槍：根元の砂煙をこの間隔で（m）
 
     // 砂の守護者の「砂の槍」= IceSpikeField を石の地刺（細長い 1 本のトゲ）で。氷より高く密に、不透明な砂岩の色
-    // （明るい色だと固定の光 + 縁の光で白く飛ぶ。2026-10-24 の 1 回目は 0.86 で花びらのように白かった）
+    // （明るい色だと固定の光 + 縁の光で白く飛ぶ）
     void SetupSandSpikes(IceSpikeField& f)
     {
         f.modelPath = Res::VFX::SandSpikes;
@@ -78,13 +78,13 @@ void CollisionTestScene::InitBossFx(BossType type, bool ignoreEnv)
         else if (_stricmp(env, "beast") == 0) t = BossType::StoneBeast;
     }
     m_BossAttacks.Configure(t);
-    // 墓守の騎士は 1 回倒れると立ち上がる（StageDirector が Reviving で待って同じ所へ湧かせ直す。2026-10-26）
+    // 墓守の騎士は 1 回倒れると立ち上がる（StageDirector が Reviving で待って同じ所へ湧かせ直す）
     m_Stage.bossLives = (t == BossType::CryptKnight) ? 2 : 1;
-    // 骸の王は門ではなく真ん中に湧いて動かない（登場の歩きも無し = 闇から這い出てその場で吠える。2026-10-29）
+    // 骸の王は門ではなく真ん中に湧いて動かない（登場の歩きも無し = 闇から這い出てその場で吠える）
     m_Stage.bossAtCenter = (t == BossType::BoneKing);
     m_BossIntro.walkSpeed = (t == BossType::BoneKing) ? 0.0f : 3.0f;
-    BossLooks::Apply(t, Application::Get().GetGraphics().GetDevice(), m_Swarm);   // 皮と飾り（2026-10-24）
-    EnemyLooks::ApplyRuins(Application::Get().GetGraphics().GetDevice(), m_Swarm);   // 遺跡の敵の皮と飾り（2026-10-25）
+    BossLooks::Apply(t, Application::Get().GetGraphics().GetDevice(), m_Swarm);   // 皮と飾り
+    EnemyLooks::ApplyRuins(Application::Get().GetGraphics().GetDevice(), m_Swarm);   // 遺跡の敵の皮と飾り
     SetupSandSpikes(m_SandSpikes);
     m_SandSpikes.Clear();
     m_BossDelayedVfx.clear();
@@ -92,14 +92,14 @@ void CollisionTestScene::InitBossFx(BossType type, bool ignoreEnv)
     m_BossMoundVfx = 0;
     if (m_BossAuraVfx != 0) m_AreaVFX.StopInstance(m_BossAuraVfx);
     m_BossAuraVfx = 0;
-    if (m_BossRageVfx != 0) m_AreaVFX.StopInstance(m_BossRageVfx);   // 狂暴の火の粉・倒した後の波（2026-10-29）
+    if (m_BossRageVfx != 0) m_AreaVFX.StopInstance(m_BossRageVfx);   // 狂暴の火の粉・倒した後の波
     m_BossRageVfx = 0;
     m_DefeatWaveR = -1.0f;
     m_DefeatSlowLeft = 0.0f;
-    ClearBossDjinnFx();   // 砂嵐の魔神の砂旋・息（2026-10-29）
+    ClearBossDjinnFx();   // 砂嵐の魔神の砂旋・息
     ClearBossKingFx();    // 骸の王の闇・玉
     ClearBossBeastFx();   // 石の守護獣の土埃・息・石化
-    InitElites();   // 面の固定エリート（個体・皮・飾り。2026-10-25）
+    InitElites();   // 面の固定エリート（個体・皮・飾り）
 }
 
 void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
@@ -117,7 +117,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         feetDrop = st.height * 0.5f + st.radius;
     }
 
-    // 門から呼んだ時の登場の演出（2026-10-27）。その間は技を出さない（BossAttacks には居ない扱い = 歩き終わってから最初の溜めを数える）
+    // 門から呼んだ時の登場の演出。その間は技を出さない（BossAttacks には居ない扱い = 歩き終わってから最初の溜めを数える）
     const BossIntro::Frame intro = UpdateBossIntro(dt);
 
     BossAttacks::Input in;
@@ -137,32 +137,32 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
     bomber.bossChargeDirX = out.chargeDir.x;
     bomber.bossChargeDirZ = out.chargeDir.y;
     bomber.bossChargeSpeed = out.chargeSpeed;
-    // 面毎の体の色・潜砂の沈み具合（2026-10-24）
+    // 面毎の体の色・潜砂の沈み具合
     bomber.bossTint[0] = m_BossAttacks.bodyTint.x;
     bomber.bossTint[1] = m_BossAttacks.bodyTint.y;
     bomber.bossTint[2] = m_BossAttacks.bodyTint.z;
     bomber.bossBurrow = out.bossBurrow;
-    bomber.bossChargePose = out.chargePose;   // 雷鳴の雄鹿の突進の姿勢（VS が頭・胴・脚を動かす。2026-10-26）
+    bomber.bossChargePose = out.chargePose;   // 雷鳴の雄鹿の突進の姿勢（VS が頭・胴・脚を動かす）
     bomber.bossLeanPivotY = m_BossAttacks.leanPivotY;   // 前傾の支点と角度（Boss 毎）
     bomber.bossLeanPivotZ = m_BossAttacks.leanPivotZ;
     bomber.bossLeanAngle = m_BossAttacks.leanAngle;
-    bomber.bossScale = m_BossAttacks.bodyScale;          // 体の大きさ（Boss 毎。2026-10-27）
+    bomber.bossScale = m_BossAttacks.bodyScale;          // 体の大きさ（Boss 毎）
     bomber.bossJumpHeight = out.jumpHeight;             // 狼人の飛びかかりの放物線（技の間だけ > 0）
     bomber.bossNoContact = out.noContact ? 1.0f : 0.0f; // 飛びかかりの間は体で殴らない
-    bomber.bossHover = out.djinn.hover;                 // 砂嵐の魔神（2026-10-29）：浮き・飛び・間合い（他の Boss は 0）
+    bomber.bossHover = out.djinn.hover;                 // 砂嵐の魔神：浮き・飛び・間合い（他の Boss は 0）
     // 降りている途中も飛んでいる扱い（高さは MoveCS が hover のまま置く。切ると落下になって一瞬で落ちる）
     bomber.bossFly = (out.djinn.fly || out.djinn.hover > 0.01f) ? 1.0f : 0.0f;
     bomber.bossKeepMin = out.djinn.keepMin;
     bomber.bossKeepMax = out.djinn.keepMax;
-    bomber.bossWing = out.beast.wing;                   // 石の守護獣（2026-10-29）：翼の角度・尾の薙ぎ払いの一回転（他の Boss は 0）
+    bomber.bossWing = out.beast.wing;                   // 石の守護獣：翼の角度・尾の薙ぎ払いの一回転（他の Boss は 0）
     bomber.bossSpin = out.beast.spin;
     ApplyBossIntroSteer(intro);                          // 登場の演出の間は門をくぐって歩く・殴らない（上の指示を上書き）
 
     UpdateBossSandFx(dt, in, out);
-    UpdateBossDjinnFx(dt, in, out);   // 砂嵐の魔神（CollisionTestSceneBossDjinn.cpp。2026-10-29）
+    UpdateBossDjinnFx(dt, in, out);   // 砂嵐の魔神（CollisionTestSceneBossDjinn.cpp）
     UpdateBossKingFx(dt, in, out);    // 骸の王（CollisionTestSceneBossKing.cpp）
     UpdateBossBeastFx(dt, in, out);   // 石の守護獣（CollisionTestSceneBossBeast.cpp）
-    UpdateBossDrama(dt, in, out);   // 狂暴の咆哮・倒した瞬間（CollisionTestSceneBossDrama.cpp。2026-10-29）
+    UpdateBossDrama(dt, in, out);   // 狂暴の咆哮・倒した瞬間（CollisionTestSceneBossDrama.cpp）
 
     // ---- 合図（音・見た目）----
     if (out.started == BossMove::Shockwave || out.started == BossMove::Charge || out.started == BossMove::Summon
@@ -180,14 +180,14 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::BossSlam), out.wavePos, 2.0f, false, m_VFXContext);
         AudioSystem::Get().Play("boss_impact");
         OnExplosions(1);
-        m_Grass.AddGust(out.wavePos, 4.0f);     // 砕いた所の草が倒れ、落ち葉が舞う（CPU の範囲なので自分で押す。2026-10-13）
+        m_Grass.AddGust(out.wavePos, 4.0f);     // 砕いた所の草が倒れ、落ち葉が舞う（CPU の範囲なので自分で押す）
         m_Debris.AddGust(out.wavePos, 4.0f);
-        m_Water.AddRipple(out.wavePos, 2.4f, m_Water.GetSettings().blastStrength, true);   // 水たまりの上なら大きな波紋（2026-10-27）
+        m_Water.AddRipple(out.wavePos, 2.4f, m_Water.GetSettings().blastStrength, true);   // 水たまりの上なら大きな波紋
     }
     if (out.chargeGo) AudioSystem::Get().Play("boss_slam_warn");
     if (out.thunderStruck) AudioSystem::Get().Play("elite_thunder_warn");   // 雄鹿の道筋の雷の予告（精鋭の雷光と同じ音）
 
-    // ---- 召喚：輪から雑魚・自爆兵（今の難度の HP・速さ）。同時上限（spawnCap）がいっぱいなら出ない（2026-10-26）。土煙は死んだ時の砕けと同じ物 ----
+    // ---- 召喚：輪から雑魚・自爆兵（今の難度の HP・速さ）。同時上限（spawnCap）がいっぱいなら出ない。土煙は死んだ時の砕けと同じ物 ----
     for (const BossAttacks::Output::Summon& s : out.summons)
     {
         if ((int)m_Swarm.GetCounters().aliveEnemies >= m_Mobs.Director().spawnCap) break;
@@ -206,9 +206,8 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         {
             const bool rock = (h.kind == BossMove::RockRain);
             const bool burst = (h.kind == BossMove::Burrow);   // 潜砂の飛び出し（見た目・音は UpdateBossSandFx が出す）
-            const bool thunder = h.thunder;                    // 雷鳴の雄鹿の道筋の雷（2026-10-26）：精鋭の雷光と同じ見た目・音
+            const bool thunder = h.thunder;                    // 雷鳴の雄鹿の道筋の雷：エリートの雷光と同じ見た目・音
             // 見た目の json は 雷 半径 1.5 / 岩 2 / 重撃 3 の大きさで作ってあるので、当たりの半径に合わせて拡げる
-            // （2026-10-29 に当たりを ×1.2 した時、石・雷が輪より小さく見えないように）
             if (thunder)
             {
                 const uint32_t fx = m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::EliteThunder), h.center, 1.0f, false, m_VFXContext);
@@ -222,7 +221,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
                 m_AreaVFX.ScaleInstance(fx, h.radius / (rock ? 2.0f : 3.0f));
                 AudioSystem::Get().Play("boss_slam");
                 if (!rock) OnExplosions(1);
-                m_Grass.AddGust(h.center, h.radius);   // 重撃 / 投石の着弾でも草が倒れる（2026-10-13）
+                m_Grass.AddGust(h.center, h.radius);   // 重撃 / 投石の着弾でも草が倒れる
                 m_Debris.AddGust(h.center, h.radius);
                 m_Water.AddRipple(h.center, h.radius * 0.6f, m_Water.GetSettings().blastStrength * (rock ? 0.6f : 1.0f), true);
             }
@@ -246,7 +245,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
             ++m_BossSlamHits;
             // 砂の槍は下から突き上げる = トゲ玉と同じ高く遠い弾き方、雄鹿の角の振り上げ・魔神の砂旋は砂旋と同じ高い吹き上げ、
             // 魔神の炎の息は殴りの軽い押し（0.25 秒毎に当たる）
-            if (!h.noKnock)   // 骸の王の呪いの床のじわじわは押さない（2026-10-29）
+            if (!h.noKnock)   // 骸の王の呪いの床のじわじわは押さない
                 PlayerControlSystem::ApplyKnockback(m_Registry, m_Player, h.dir,
                     h.kind == BossMove::SandSpear ? PlayerControlSystem::KnockKind::Spike
                     : (h.kind == BossMove::AntlerToss || h.kind == BossMove::DustDevils || h.kind == BossMove::WingGust) ? PlayerControlSystem::KnockKind::Wind
@@ -265,7 +264,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
             if (h.kind == BossMove::ClawCombo) AudioSystem::Get().Play("player_hurt");
             if (h.kind == BossMove::Sting)
             {
-                // 大サソリの毒針（2026-10-26）：刺さった = 毒。残り秒は BossAttacks が数え、UpdateBossSandFx が遅さと泡を付ける
+                // 大サソリの毒針：刺さった = 毒。残り秒は BossAttacks が数え、UpdateBossSandFx が遅さと泡を付ける
                 m_BossAttacks.ApplyPoison();
                 AudioSystem::Get().Play("poison_splash");
                 m_AreaVFX.Play(VFXDatabase::GetFile(VFXId::Spore), player, 0.6f, false, m_VFXContext);
@@ -274,7 +273,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
     }
 
     // ---- 警告の輪・衝撃波の帯・突進の道筋を GPU の描画へ ----
-    // 面の固定エリートの予告も同じ表に足すので、GPU へ上げるのは UpdateElites（2026-10-25）
+    // 面の固定エリートの予告も同じ表に足すので、GPU へ上げるのは UpdateElites
     m_WarnCircles.clear();
     for (const BossAttacks::Visual& v : m_BossAttacks.Visuals())
     {
@@ -284,14 +283,14 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
         c.radius = v.radius;
         c.progress = v.progress;
         c.band = v.band;
-        c.yaw = v.yaw;       // 大サソリの帯 / 扇（2026-10-26）
+        c.yaw = v.yaw;       // 大サソリの帯 / 扇
         c.shape = v.shape;
         m_WarnCircles.push_back(c);
     }
 }
 
 // ============================================================
-// 砂の守護者の技の見た目と足元の効き（2026-10-24）
+// 砂の守護者の技の見た目と足元の効き
 //   流沙：プレイヤーが中で地面に居れば遅く・中心へ（PlayerStateComponent::groundSlow / groundPull、PlayerControlSystem が使う）。
 //         渦は風源にもなる（砂屑・粒子・草が回る）。見た目 = BossQuicksand.json（砂の液面の渦 + 中心へ流れる砂粒）
 //   潜砂：潜る / 飛び出す瞬間に砂の噴き上げ、地面の下を動く間は Boss に付いて動く砂丘（BossSandMound.json、ループ）
@@ -303,9 +302,9 @@ void CollisionTestScene::UpdateBossSandFx(float dt, const BossAttacks::Input& in
     const Vector3 bossGround = groundAt(in.bossPos.x, in.bossPos.z);
 
     // ---- Boss の体の周りの見た目（地上に居る間ずっと）：砂の守護者 = 舞う砂 + 小さな風源で足元の砂屑・粒子も回す、
-    //      岩の巨人 = 肩から舞い落ちる葉と花粉（2026-10-25）----
+    //      岩の巨人 = 肩から舞い落ちる葉と花粉 ----
     const bool sandBoss = m_BossAttacks.Type() == BossType::SandGuardian;
-    const bool scorpion = m_BossAttacks.Type() == BossType::Scorpion;   // 足元に毒の靄（2026-10-26）
+    const bool scorpion = m_BossAttacks.Type() == BossType::Scorpion;   // 足元に毒の靄
     const bool knight = m_BossAttacks.Type() == BossType::CryptKnight;  // 騎士・狼人は常駐の見た目なし
     const bool wolf = m_BossAttacks.Type() == BossType::Werewolf;
     if (in.bossAlive && out.bossBurrow < 0.5f && !knight && !wolf && m_BossAttacks.Type() != BossType::Djinn && m_BossAttacks.Type() != BossType::BoneKing
@@ -336,7 +335,7 @@ void CollisionTestScene::UpdateBossSandFx(float dt, const BossAttacks::Input& in
         m_Swarm.AddFrameWindSource(w);
     }
 
-    // ---- 大サソリの毒（2026-10-26）：地面に居る間の走りが遅い（PlayerStateComponent::groundSlow は毎フレーム 1 に戻るので
+    // ---- 大サソリの毒：地面に居る間の走りが遅い（PlayerStateComponent::groundSlow は毎フレーム 1 に戻るので
     //      流沙と同じ所で入れる）+ プレイヤーに付く緑の泡（BossVenom.json、ループ）----
     const float poison = m_BossAttacks.PoisonLeft();
     if (poison > 0.0f && !IsPlayerDead())
@@ -425,7 +424,7 @@ void CollisionTestScene::UpdateBossSandFx(float dt, const BossAttacks::Input& in
     {
         const float speed = (std::max)(out.spearSpeed, 1.0f);
         m_SandSpikes.waveSpeed = speed;
-        // トゲの並びの幅・高さは当たりの幅に合わせる（1.1m の時に 1 倍。2026-10-29）
+        // トゲの並びの幅・高さは当たりの幅に合わせる（1.1m の時に 1 倍）
         m_SandSpikes.Spawn(l.start, l.end, m_BossAttacks.spearLaneRadius / 1.1f, [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
         Vector3 d(l.end.x - l.start.x, 0.0f, l.end.z - l.start.z);
         const float len = d.Length();

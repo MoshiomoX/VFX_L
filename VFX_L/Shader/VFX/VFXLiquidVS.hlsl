@@ -1,6 +1,6 @@
 // ============================================================
 // VFXLiquidVS.hlsl
-// Liquid エントリの CPU 経路（2026-10-02）：このフレームに VFXLiquidEntry が
+// Liquid エントリの CPU 経路：このフレームに VFXLiquidEntry が
 // 出した（VFXLiquidRenderer）インスタンス 1 つにつき水たまり 1 つ。地面のグリッドは
 // LIQUID_GRID^2 枚の四角形で、SV_VertexID から作る。頂点バッファなし。
 //

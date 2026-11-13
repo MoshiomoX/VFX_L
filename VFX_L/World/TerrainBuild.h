@@ -1,6 +1,6 @@
 // ============================================================
 // TerrainBuild.h
-// 戦闘の地形を「建てる」側（2026-10-05、TerrainGenerator.cpp から分けた）。
+// 戦闘の地形を「建てる」側。
 //
 // TerrainGenerator::Generate は seed から何をどこへ置くかを決め、建てるのはここの出口（Emitter）に頼む。
 // Emitter は実体を作りながら同じ内容を MapData::Map へ記録する。
@@ -73,7 +73,7 @@ namespace TerrainBuild
     void LimitSlope(std::vector<float>& h, int nx, int nz, float step, float tanMax, const std::vector<uint8_t>* fixed);
 
     // ============================================================
-    // 起伏（2026-10-04、ユーザー：純平地をやめて、緩い丘の斜面に小さい土饅頭が載った地面に）。
+    // 起伏（緩い丘の斜面に小さい土饅頭が載った地面）。
     // 平原と山頂の上面の起伏を 0.5m 毎のノード（フィールドの隅から隅まで、高さ場と同じ細かさ）に持ち、間は双線形。
     // 洞窟の底は平ら。区域の境（崖）を挟んでは混ぜない = 高さも法線も「その点のマスの区域の式」で出す。
     // 戦闘の地面の衝突（ColliderShape::HeightField）もこれに問い合わせる（Generate が作り、衝突の実体が持つ）
@@ -90,7 +90,7 @@ namespace TerrainBuild
         std::vector<uint8_t> zone;       // マス毎の区域
         std::vector<float> plain, summit;   // ノード毎の起伏（区域の基準の高さからの差）
 
-        // ---- 段々の台地と水たまり（2026-10-19、PokéBonk 風。TerrainSteps.cpp が決める）----
+        // ---- 段々の台地と水たまり（TerrainSteps.cpp が決める）----
         // マス毎の段 level（0..）。面 = 区域の起伏 + stepH × 段。段の境は崖（マスの境の縦の壁、段々のメッシュと衝突の箱）。
         // 坂（ramps）のマスは低い端の段 lo から高い端まで位置で補間（崖に沿った草の坂）。水たまりは地面を pondDepth 下げる。
         // 外周のマスは内側の隣と同じ（ZoneAtCell と同じ丸め）。stepH = 0 なら無し
@@ -207,7 +207,7 @@ namespace TerrainBuild
         }
 
         // 場外にも地面がある範囲（m）。見た目の場外の地面（kSkirt 40m）と同じ：高さは縁のノードの値（Sample / ZoneAt が端へ丸める）。
-        // 外周の空気壁を石の衝突に替えた時（2026-10-06）、石の裏へ出た所に衝突の地面が無くて落ちた
+        // （石の衝突の隙間から場外へ出ても落ちないように）
         float margin = 40.0f;
 
         // ---- CollisionMath::HeightFieldShape ----
@@ -256,13 +256,13 @@ namespace TerrainBuild
             int topLayer = -1, int sideLayer = -1);
         // 置物の見た目（StaticPropRenderer がまとめて描く）。model が null なら記録だけ（素材が無い PC）
         // stretch = 軸ごとの倍率（モデルのローカル軸。巨石を辺に沿って引き伸ばす用）。最終の倍率 = scale × stretch。
-        // collide = モデルの凸包（Model::GetHullPoints）で衝突を付ける（Layer_Terrain。巨石。2026-10-06）。
+        // collide = モデルの凸包（Model::GetHullPoints）で衝突を付ける（Layer_Terrain。巨石）。
         // 衝突の実体は記録の Prop::collide から建て直せるので、記録は置物 1 つだけ
         void Prop(const std::string& path, const std::shared_ptr<Model>& model,
             const Vector3& pos, float yawDeg, float scale, const Vector3& stretch = Vector3::One, bool collide = false);
         void SetPropColliders(bool on) { m_PropColliders = on; }   // false = collide の置物でも衝突を建てない（エディタの表示）
         void Block(GridWorld* grid, int x, int z, int w, int d);                 // 格子を塞ぐ（grid が無ければ記録だけ）
-        // 水面の六面体（2026-10-19、水たまり）。地形のテクスチャを掛けない別のモデルに積む（頂点色の青がそのまま出る）。
+        // 水面の六面体（水たまり）。地形のテクスチャを掛けない別のモデルに積む（頂点色の青がそのまま出る）。
         // 記録しない（BuildFromMap が ReliefField::pond から作り直す）
         void Water(const Vector3 world[8], const Vector4& top, const Vector4& side);
 
@@ -284,7 +284,7 @@ namespace TerrainBuild
     };
 
     // ============================================================
-    // 段々の台地（2026-10-19、ユーザー「PokéBonk の地図をそのまま持ってくる」。TerrainSteps.cpp）
+    // 段々の台地（TerrainSteps.cpp）
     // 平らな草原に、ノイズで決めた曲がりくねった輪郭の台地を 1 段 stepH ずつ積む（最大 maxLevel 段）。
     // 段と段は幅 rampWidth マスの草の坂で結ぶ（どの台地にも必ず 1 本以上。置けない台地は 1 段下げる）。
     // 外周は rimLevels 段の帯（登れない縁）。低い所に水たまり
@@ -294,9 +294,9 @@ namespace TerrainBuild
         float stepH = 2.5f;          // 1 段の高さ（m）
         float coverage = 0.30f;      // 1 段以上の台地がフィールドに占める割合
         float scale = 30.0f;         // 輪郭のノイズの大きさ（m）
-        // 輪郭を決めるノイズの種類（2026-10-20、ユーザー「地図生成のノイズを何種類か試して、使える物は残す」）：
+        // 輪郭を決めるノイズの種類：
         //   0 = 勾配ノイズ 2 層（既定）、1 = 域の歪み付き fBm（流れるような曲がった輪郭）、
-        //   2 = セル（Worley）ノイズ（島のように丸い台地が点在）（尾根型も試したが台地が細長い帯ばかりになり没）
+        //   2 = セル（Worley）ノイズ（島のように丸い台地が点在）
         int   noise = 0;
         int   maxLevel = 3;
         int   rampWidth = 3;         // マス
@@ -306,9 +306,9 @@ namespace TerrainBuild
         int   minCells = 8;          // これより小さい台地は消す
         int   spawnClear = 8;        // 中央のこの半径（マス）は 0 段のまま
         float pondCoverage = 0.04f;  // 水たまりが 0 段の平地に占める割合
-        float pondScale = 14.0f;     // 水たまりを選ぶノイズの波長（m）。大きいほど少なく大きな池（砂漠のオアシス 34。2026-11-02）
+        float pondScale = 14.0f;     // 水たまりを選ぶノイズの波長（m）。大きいほど少なく大きな池（砂漠のオアシス 34）
         float pondDepth = 0.5f;
-        // 水たまりを起伏の膨らみ・坂に置かない（2026-10-28）
+        // 水たまりを起伏の膨らみ・坂に置かない
         float pondConvexTol = 0.03f; // 真ん中が隣の 8 マス（2m 先）の平均よりこれ以上高い = 凸 → 置かない（m）
         float pondMaxRise = 0.6f;    // ±3m の範囲の高さの差がこれを越える = 坂 → 置かない（m。6m で約 6 度）
         float pondLowBias = 2.0f;    // 窪み（真ん中 − 周りの平均、m）を選ぶ順に足す倍率（窪んだ所ほど先に水たまりになる）
@@ -321,7 +321,7 @@ namespace TerrainBuild
     // 崖の衝突：段の境の上の段の内側に薄い箱（上面は上の段の地面より少し下 = 上を歩く時に引っ掛からない。
     // 下の段から見ると壁。登り降りの坂の端には付けない）。付けた数を返す
     int EmitStepCliffs(Emitter& emit, const GridWorld& grid, const ReliefField& rf);
-    // 水たまりの見た目（Emitter::Water）。水面 = 起伏 - 0.15m（kPondSurface）。2026-10-27 からはエディタの表示だけ（戦闘は WaterSurface）
+    // 水たまりの見た目（Emitter::Water）。水面 = 起伏 - 0.15m（kPondSurface）。エディタの表示だけ（戦闘は WaterSurface）
     void EmitPonds(Emitter& emit, const GridWorld& grid, const ReliefField& rf, TerrainGenerator::Biome biome);
     inline constexpr float kPondSurface = -0.15f;   // 水面の高さ = 水たまりで下げる前の起伏 + これ
 
@@ -329,7 +329,7 @@ namespace TerrainBuild
     // grid は map と同じ大きさのこと（原点・大きさ・高さ格子の細かさだけ読む）
     std::shared_ptr<ReliefField> ReliefFromMap(const GridWorld& grid, const MapData::Map& map);
 
-    // ---- 置物の凸包（巨石の衝突。2026-10-06）----
+    // ---- 置物の凸包（巨石の衝突）----
     // モデルの凸包の点を世界へ（pos / yaw / scale × stretch。Emitter::Prop と同じ置き方）
     std::vector<Vector3> PropHullWorld(const Model& model, const Vector3& pos, float yawDeg, float scale, const Vector3& stretch);
     // 世界の点の凸包の衝突（Entity の位置 = 包囲箱の真ん中）
@@ -347,7 +347,7 @@ namespace TerrainBuild
     void LimitReliefSlopes(std::vector<float>& arr, const std::vector<MapData::Pad>& pads, uint8_t zone,
         const std::vector<float>* mineW, int nx, int nz, float step, float maxSlopeDeg);
 
-    // 外周の縁を碗のように持ち上げる（2026-10-06、Megabonk 風：地面そのものが縁で急な崖になる。空気壁も石の衝突も要らない）。
+    // 外周の縁を碗のように持ち上げる（地面そのものが縁で急な崖になる。空気壁も石の衝突も要らない）。
     // 傾きの制限の後に掛ける（制限に均されないよう）。縁から width m 内側で height m まで、t^1.6 の曲線（上ほど急、65〜75°）。
     // 生成と MapTerrainEdit::Rederive が同じ関数を通る
     void ApplyRimRise(std::vector<float>& arr, int nx, int nz, float step, float width, float height);
@@ -363,7 +363,7 @@ namespace TerrainBuild
     void RampVerts(const GridWorld& origin, const MapData::RampPart& p, Vector3 v[8]);
     void EmitRampPart(Emitter& emit, GridWorld* grid, const GridWorld& origin, const MapData::RampPart& p);
 
-    // ---- 巨石（Rock-Set を数個引き伸ばして山に見せる。TerrainBoulders.cpp、2026-10-06）----
+    // ---- 巨石（Rock-Set を数個引き伸ばして山に見せる。TerrainBoulders.cpp）----
     struct RimBoulderParams
     {
         int   perSide = 4;                      // 一辺の数（1 列。中心が縁の線の上）
@@ -386,7 +386,7 @@ namespace TerrainBuild
     // grid = 衝突を付ける時に足元のマスを塞ぐ先（null = 塞がない）。outBlocked に塞いだマスの数
     int EmitRimBoulders(Emitter& emit, GridWorld* grid, float halfW, float halfD, const RimBoulderParams& P,
         const std::vector<std::string>& modelPaths, const EdgeSpanFn& edgeSpan, std::mt19937& rng, int* outBlocked = nullptr);
-    // 場内の岩 1 個（岩柱 / 峡谷の壁の 1 節。2026-10-26）：箱の真ん中（xz）center、長い軸を axis（(1,0,0) か (0,0,1)）に
+    // 場内の岩 1 個（岩柱 / 峡谷の壁の 1 節）：箱の真ん中（xz）center、長い軸を axis（(1,0,0) か (0,0,1)）に
     // 合わせてから yawDeg 回す、axis 方向に length・直交に depth・高さ height、底 base。凸包の衝突 + 足元のマスを塞ぐ。
     // 戻り値 = 塞いだマスの数。回した後の長い軸の向き = TransformNormal(axis, CreateRotationY(yawDeg))（FitRock と同じ式）
     // newGroup = false なら前の記録と同じ group に入れる（峡谷の壁の 2 節目以降 = 1 枚の壁として記録）
@@ -404,8 +404,7 @@ namespace TerrainBuild
     // 床の縦の壁になる衝突の箱（平原・洞窟の底・山頂）
     void EmitFloorBoxes(Emitter& emit, const GridWorld& origin, const std::vector<uint8_t>& zone,
         float floorBottom, float plainTop, float summitTop, float mineD);
-    // 床の箱の底を、平原・山頂の上面と洞窟の底（-mineD）のどれよりも 1m 以上下へ（生成と区域の作り直しで共通、2026-10-25）。
-    // 生成の式（洞窟の底の 1m 下、起伏があれば起伏の一番低い所の 3m 下）は元からこれを満たすので、生成の結果は変わらない。
+    // 床の箱の底を、平原・山頂の上面と洞窟の底（-mineD）のどれよりも 1m 以上下へ（生成と区域の作り直しで共通）。
     // 区域を作り直す時に底が上面より上へ来て箱が裏返る（衝突の std::clamp が落ちる）のを防ぐ
     float FloorBottomBelowTops(float bottom, float plainTop, float summitTop, float mineD);
     // 水たまりのマスが 1 つでもあるか（あれば平原の床の箱の上面を pondDepth 下げる。生成・筆の後の作り直しで共通）

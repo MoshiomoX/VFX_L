@@ -14,9 +14,10 @@ LifestealHeal::Result LifestealHeal::Update(float dt, float stolen, HealthCompon
         return r;
     }
     const float cap = (std::max)(0.0f, capPerSec * hp.max);
-    m_Bank = (std::min)(m_Bank + (std::max)(0.0f, stolen) * ratio, cap * bankSec);
+    m_Bank += (std::max)(0.0f, stolen) * ratio;
+    if (cap > 0.0f) m_Bank = (std::min)(m_Bank, cap * bankSec);
     const float room = (std::max)(0.0f, hp.max - hp.current);
-    const float heal = (std::min)({ m_Bank, cap * dt, room });
+    const float heal = (cap > 0.0f) ? (std::min)({ m_Bank, cap * dt, room }) : (std::min)(m_Bank, room);
     if (heal > 0.0f)
     {
         hp.current += heal;
@@ -43,7 +44,7 @@ void LifestealHeal::DrawImGui()
     if (!ImGui::TreeNode("Lifesteal (rune)")) return;
     ImGui::Text("healed total %.1f   banked %.1f", m_Total, m_Bank);
     ImGui::DragFloat("Ratio", &ratio, 0.001f, 0.0f, 1.0f);
-    ImGui::DragFloat("Cap per sec (x max HP)", &capPerSec, 0.001f, 0.0f, 1.0f);
+    ImGui::DragFloat("Cap per sec (x max HP, 0 = none)", &capPerSec, 0.001f, 0.0f, 1.0f);
     ImGui::DragFloat("Bank (sec)", &bankSec, 0.05f, 0.0f, 10.0f);
     ImGui::DragFloat("Show interval", &showInterval, 0.01f, 0.05f, 3.0f);
     ImGui::TreePop();

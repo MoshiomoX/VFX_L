@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // VideoShotsOutlet.cpp
-// TEMP-TEST: 出口魔法の見た目の確認（2026-10-31）。VFXL_BATTLE_AUTOTEST=video_outlet + VFXL_CAPTURE
+// TEMP-TEST: 出口魔法の見た目の確認。VFXL_BATTLE_AUTOTEST=video_outlet + VFXL_CAPTURE
 //   火花 → 分かれ玉 → メテオ + アイスランス、時限の種 → 竜巻。正面から寄って来る群れへ撃つ。UI なし
 // ============================================================
 #include "Debug/AutoTest/VideoShot.h"

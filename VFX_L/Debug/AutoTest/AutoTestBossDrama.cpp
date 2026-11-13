@@ -1,6 +1,6 @@
 // ============================================================
 // AutoTestBossDrama.cpp
-// TEMP-TEST: VFXL_BATTLE_AUTOTEST=bossdrama（2026-10-29、Boss の狂暴の咆哮・倒した瞬間の演出）
+// TEMP-TEST: VFXL_BATTLE_AUTOTEST=bossdrama（Boss の狂暴の咆哮・倒した瞬間の演出）
 //   1 秒: 無敵・湧き停止・全消し・詠唱停止、Boss の技は切る（咆哮は技と別なので出る）、HP 3000 の止まった Boss を呼ぶ。
 //   湧いたら：プレイヤーを Boss から 14m、カメラは背中から Boss へ。Boss の周り 6〜22m に動かない雑魚 24 体（HP 50）。
 //   A: Boss の所に範囲を置いて削る → HP が 45% を切ったら止める → 咆哮を待つ

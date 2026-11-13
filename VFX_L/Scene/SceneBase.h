@@ -1,7 +1,6 @@
 // ============================================================
 // SceneBase.h
-// シーンの基底。カメラを持ち、Render の頭で点光源表を GPU へ上げる。
-// （旧 GameObject / ObjectManager 経由の描画は 2026-09-30 に削除。実体は全部 ECS の Registry）
+// シーンの基底。カメラを持ち、Render の頭で点光源表を GPU へ上げる（実体は全部 ECS の Registry）。
 // ============================================================
 #pragma once
 #include "Camera/CameraBase.h"

@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestChargeShield.cpp
 // TEMP-TEST: VFXL_SPELL_LAB=1 + VFXL_BATTLE_AUTOTEST=chargeshield（平らな実験場で）
-// 突撃兵・盾兵・アイスランス（2026-10-08）を順に確かめる。GPU の敵の池はリードバックで読む（Map で待つ。自動テスト専用）
+// 突撃兵・盾兵・アイスランスを順に確かめる。GPU の敵の池はリードバックで読む（Map で待つ。自動テスト専用）
 //   A 突撃兵が当たる : 正面 +Z 15m に 1 体。プレイヤーは立ったまま。段階（溜め / 突進 / 息切れ）が変わる度に記録、
 //                      溜めの途中で `chargeshield look windup`、終わったら受けたダメージ（GPU の累計の差）
 //   B 突撃兵を避ける : 同じ形で、溜めが始まったらカメラの右へ 1.2 秒走る → 受けたダメージ 0 のはず
@@ -185,7 +185,7 @@ void AutoTestChargeShield::Run()
     }
     if (m_AutoStep == 31)
     {
-        // s_Run: 0 泥沼 × 雑魚 / 1 泥沼 × 盾兵 / 2 石弾 × 雑魚 / 3 石弾 × 盾兵（2026-10-17：毒は上級魔法になったので基本の泥沼で）
+        // s_Run: 0 泥沼 × 雑魚 / 1 泥沼 × 盾兵 / 2 石弾 × 雑魚 / 3 石弾 × 盾兵
         clearField();
         useSpell(s_Run < 2 ? ItemID::Swamp : ItemID::StoneShot);
         const uint32_t kind = (s_Run % 2) ? Swarm::kEnemyKindShield : Swarm::kEnemyKindMob;

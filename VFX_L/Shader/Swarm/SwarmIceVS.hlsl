@@ -1,9 +1,8 @@
 // ============================================================
 // SwarmIceVS.hlsl
-// 凍った敵のまわりの氷の結晶（アイスランス、2026-10-08）。
+// 凍った敵のまわりの氷の結晶（アイスランス）。
 // 生きている敵 1 体に 1 インスタンス（SwarmEnemyCompactCS の生存リスト、
-// DrawIndexedInstancedIndirect。2026-10-25 までは毎フレーム、プール全体
-// x 2 だった）、2 回描く: g_IceVariant = 2 つの塊のどちらか。
+// DrawIndexedInstancedIndirect）、2 回描く: g_IceVariant = 2 つの塊のどちらか。
 // 凍っていない敵（enemySlow.z <= 0）は潰す。
 // メッシュはエフェクトのモデル（Assets/VFX/Mesh/bingci_02.FBX、立った
 // トゲの塊）で、敵のピクセルシェーダとデフォルトの白テクスチャで描き、
@@ -37,7 +36,7 @@ cbuffer SwarmPropMeshCB : register(b4)
     float3 g_HoldOffset; // x = 体の中心から各塊までの距離、y = 足元から沈める量
     float g_MeshYaw;     // 未使用
     float4 g_IceColor;   // リニア、1 を超えてもよい（ブルーム）
-    float g_IceVariant;  // 0 = 前の塊、1 = 後ろの塊（それぞれ 1 回描く。2026-10-25、以前は未使用の bob）
+    float g_IceVariant;  // 0 = 前の塊、1 = 後ろの塊（それぞれ 1 回描く）
     float g_IceAlpha;
     float2 _propPad;
 };

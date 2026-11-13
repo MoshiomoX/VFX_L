@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestShapes.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=shapes
-// VFXL_BATTLE_AUTOTEST=shapes：基本魔法の多マスの形（2026-10-04）をバックパックに並べ、隕石・光線の誘発が成り立つか・見た目
+// VFXL_BATTLE_AUTOTEST=shapes：基本魔法の多マスの形をバックパックに並べ、隕石・光線の誘発が成り立つか・見た目
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 
@@ -20,7 +20,7 @@ namespace
 }
 
 // ============================================================
-// TEMP-TEST: 基本魔法の多マスの形（VFXL_BATTLE_AUTOTEST=shapes、2026-10-04）
+// TEMP-TEST: 基本魔法の多マスの形（VFXL_BATTLE_AUTOTEST=shapes）
 // 1 秒: 湧き停止、バックパックを 3x3 枠 9 枚で全面にして、隕石（十字）の上下左右に火球（2x2）と石弾（L 字）、
 // 光線（横 3）の上下に追尾弾（横 2）と弧（Z 字）、空いた所に毒（凸字）と黄金の矢（縦 3）を置く。
 // 置けたか（index）・各々の占有 / 影響マスの数・隕石と光線が目覚めたか（IsTriggerReady）を記録 → バックパックを開く。
@@ -58,7 +58,7 @@ void AutoTestShapes::Run(float dt)
             { ItemID::Beam, 6, 5, "beam" },           // (6,4)(6,5)(6,6)
             { ItemID::HomingBolt, 5, 4, "homing" },   // (5,4)(5,5)：真下が光線
             { ItemID::ArcBolt, 7, 6, "arc" },         // (7,6)(7,7)(8,7)(8,8)：(7,6) の上 = 光線 (6,6)
-            { ItemID::Poison, 1, 7, "poison" },       // (0,7)(1,6)(1,7)(1,8)：2026-10-17 から上級魔法（猛毒の沼）
+            { ItemID::Poison, 1, 7, "poison" },       // (0,7)(1,6)(1,7)(1,8)：上級魔法（猛毒の沼）
             { ItemID::Swamp, 2, 7, "swamp" },         // (2,7)(2,8)：上 = 沼 (1,7)(1,8)
             { ItemID::Spore, 2, 6, "spore" },         // 縦 2 (2,6)(3,6)：上 = 沼 (1,6)
             { ItemID::GoldenArrow, 3, 8, "arrow" },   // (3,8)(4,8)(5,8)

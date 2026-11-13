@@ -1,6 +1,6 @@
 ﻿// ============================================================
 // CollisionTestSceneInit.cpp
-// CollisionTestScene::Init の各段（2026-10-25 に CollisionTestScene.cpp から分けた。中身はそのまま、Init が上から順に呼ぶ）
+// CollisionTestScene::Init の各段（Init が上から順に呼ぶ）
 // と、前の面からの引き継ぎ（ApplyRunCarry）
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -72,7 +72,7 @@ void CollisionTestScene::InitRenderers(ID3D11Device* device, ID3D11DeviceContext
         if (GetEnvironmentVariableA("VFXL_OUTLINE_DEBUG", env, sizeof(env)) > 0 && env[0] != '0')
             m_Outline.GetParams().debugView = true;   // 目からの距離を縞で
     }
-    m_AmbientOcclusion.Initialize(device);   // SSAO（2026-11-02。トゥーンの明暗の境を押す）
+    m_AmbientOcclusion.Initialize(device);   // SSAO（トゥーンの明暗の境を押す）
     {
         char env[8] = {};   // TEMP-TEST: VFXL_NO_SSAO=1 で切る、VFXL_SSAO_DEBUG=1 で灰色の表示（見比べ用）
         if (GetEnvironmentVariableA("VFXL_NO_SSAO", env, sizeof(env)) > 0 && env[0] != '0')
@@ -80,7 +80,7 @@ void CollisionTestScene::InitRenderers(ID3D11Device* device, ID3D11DeviceContext
         if (GetEnvironmentVariableA("VFXL_SSAO_DEBUG", env, sizeof(env)) > 0 && env[0] != '0')
             m_AmbientOcclusion.GetParams().debugView = true;
         if (GetEnvironmentVariableA("VFXL_SSAO_FULL", env, sizeof(env)) > 0 && env[0] != '0')
-            m_AmbientOcclusion.GetParams().halfRes = false;   // 画面の大きさで作る（半分との見比べ用、2026-11-05）
+            m_AmbientOcclusion.GetParams().halfRes = false;   // 画面の大きさで作る（半分との見比べ用）
     }
     if (!m_Shadows.Initialize(device))
         std::cout << "[Error] ShadowMap init failed" << std::endl;
@@ -115,7 +115,7 @@ void CollisionTestScene::InitStage()
     }
     const StageDef& stageDef = StageConfig::Get(m_StageIndex);
     m_TerrainConfig.biome = stageDef.biome;
-    TerrainGenerator::ApplyBiomeProfile(m_TerrainConfig);   // マップ毎の地形の規則（2026-10-26）
+    TerrainGenerator::ApplyBiomeProfile(m_TerrainConfig);   // マップ毎の地形の規則
     m_Lighting.ApplyPreset(stageDef.light);
     std::cout << "[CollisionTestScene] stage " << m_StageIndex << " biome " << (int)stageDef.biome << std::endl;
     if (m_AutoTest)
@@ -132,8 +132,7 @@ void CollisionTestScene::InitStage()
 void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device* device, ID3D11DeviceContext* context)
 {
     // ---------- 地形（グリッド整列。台地と坂道の野原）----------
-    // フィールド: 100 x 100 マス = 200m x 200m（山頂・平原・洞窟の三層。2026-10-02 に一度 300m にしたが、
-    // 10-03 ユーザー「大きすぎる」で 200m へ戻した。高低差はそのまま、水平だけ 2/3）。
+    // フィールド: 100 x 100 マス = 200m x 200m。
     // 開始時ごとに seed を変える（同じ seed なら同じ地形。VFXL_TERRAIN_SEED で固定できる）
     m_Grid.Init(100, 100);
     {
@@ -142,10 +141,10 @@ void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device
             m_TerrainConfig.seed = (uint32_t)strtoul(env, nullptr, 10);
         else
             m_TerrainConfig.seed = std::random_device{}() % 100000u;
-        // TEMP-TEST: VFXL_NO_RELIEF=1 で起伏を切る（2026-10-04 以前の平らな地面と見比べる用）
+        // TEMP-TEST: VFXL_NO_RELIEF=1 で起伏を切る（平らな地面と見比べる用）
         if (GetEnvironmentVariableA("VFXL_NO_RELIEF", env, sizeof(env)) > 0)
             m_TerrainConfig.relief = false;
-        // TEMP-TEST: VFXL_POND_ANYWHERE=1 水たまりを起伏の膨らみ・坂でも作る（2026-10-28 より前の選び方。見比べる用）
+        // TEMP-TEST: VFXL_POND_ANYWHERE=1 水たまりを起伏の膨らみ・坂でも作る（見比べる用）
         if (GetEnvironmentVariableA("VFXL_POND_ANYWHERE", env, sizeof(env)) > 0)
         {
             m_TerrainConfig.pondConvexTol = 1.0e9f;
@@ -153,7 +152,7 @@ void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device
             m_TerrainConfig.pondLowBias = 0.0f;
             m_TerrainConfig.pondMaxSpread = 1.0e9f;
         }
-        // TEMP-TEST: VFXL_STEP_NOISE=n 段々の台地の輪郭のノイズの種類（見比べる用。2026-10-20）
+        // TEMP-TEST: VFXL_STEP_NOISE=n 段々の台地の輪郭のノイズの種類（見比べる用）
         if (GetEnvironmentVariableA("VFXL_STEP_NOISE", env, sizeof(env)) > 0)
             m_TerrainConfig.stepNoise = std::clamp(atoi(env), 0, 2);
         // TEMP-TEST: 外周の岩を縁から内に入れない = 岩の衝突 0 個（衝突の有無で fps を比べる用）
@@ -210,30 +209,32 @@ void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device
     m_Grass.GetSettings().heightMin = stageDef.grassHeightMin;
     m_Grass.GetSettings().heightMax = stageDef.grassHeightMax;
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);
-    ApplyGrassCover();   // 草の下の地面を暗く（2026-11-02）
+    ApplyGrassCover();   // 草の下の地面を暗く
     // 草の延焼（草の無い面では止めておく）
     if (!m_GrassFire.Initialize(device, context))
         std::cout << "[Error] GrassFireField init failed" << std::endl;
     m_GrassFire.SetActive(stageDef.grass && m_Grass.GetSettings().enabled);
     m_GrassFire.Build(m_Grid, m_TerrainConfig.seed);
-    // 砂漠の砂の面（2026-11-02。砂漠以外は止めておく）
+    // 砂漠の砂の面（砂漠以外は止めておく）
     if (!m_Sand.Initialize(device, context))
         std::cout << "[Error] SandField init failed" << std::endl;
     if (!m_Footprints.Initialize(device, context))
         std::cout << "[Error] SandFootprints init failed" << std::endl;
     BuildSandField();
-    if (!m_Miasma.Initialize(device, context))   // 遺跡の瘴気（2026-11-03。遺跡以外は止めておく）
+    if (!m_Miasma.Initialize(device, context))   // 遺跡の瘴気 / 砂漠の砂塵（他の面では止めておく）
         std::cout << "[Error] MiasmaField init failed" << std::endl;
     BuildMiasma();
+    if (!m_WindGrid.Initialize(device, context))   // 風の格子（読み手は WindGrid::Current() で引く）
+        std::cout << "[Error] WindGrid init failed" << std::endl;
     // 地面の落ち葉（風が触れる物。草の高さテクスチャに乗る）
     if (!m_Debris.Initialize(device, context))
         std::cout << "[Error] GroundDebris init failed" << std::endl;
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());
-    // 水たまりの水面（2026-10-27。地図の記録の pond から）
+    // 水たまりの水面（地図の記録の pond から）
     if (!m_Water.Initialize(device, context))
         std::cout << "[Error] WaterSurface init failed" << std::endl;
     m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);
-    // 風に流される物（2026-10-22）：砂漠・遺跡の転がり草、草原のタンポポ
+    // 風に流される物：砂漠・遺跡の転がり草、草原のタンポポ
     m_Tumbleweeds.Init(device);
     if (!m_Dandelions.Initialize(device, context))
         std::cout << "[Error] DandelionField init failed" << std::endl;
@@ -251,7 +252,7 @@ void CollisionTestScene::InitSwarm(const StageDef& stageDef, ID3D11Device* devic
     if (!m_Swarm.Initialize(device, context))
         std::cout << "[Error] SwarmSystem init failed" << std::endl;
 
-    BuildClimbMap();   // 雑魚が登れる障害物（2026-10-29）
+    BuildClimbMap();   // 雑魚が登れる障害物
     m_Swarm.UploadTerrain(m_Grid);
     m_Swarm.BuildVFXTable();
     // 範囲攻撃と投射物の飛び方（エディタで作った json）を GPU の表へ。
@@ -259,7 +260,7 @@ void CollisionTestScene::InitSwarm(const StageDef& stageDef, ID3D11Device* devic
     AreaProfileDB::LoadAll();
     m_Swarm.SetAreaDefs(AreaProfileDB::BuildDefs(m_Swarm.GetVFXTable()));
     m_GrassFire.BuildHeatTable(m_Swarm.GetVFXTable());   // 範囲の heat → レシピ毎の表（範囲の profile と VFX 表の後）
-    m_Sand.BuildTable(m_Swarm.GetVFXTable());            // 範囲の heat / wet → 砂の面の表（2026-11-02）
+    m_Sand.BuildTable(m_Swarm.GetVFXTable());            // 範囲の heat / wet → 砂の面の表
     ProjectileProfileDB::LoadAll();
     m_Swarm.SetMotions(ProjectileProfileDB::BuildMotions());
     m_WeaponSystem.SetAreaVFX(&m_AreaVFX, &m_VFXContext);
@@ -293,7 +294,7 @@ void CollisionTestScene::InitPlayer(const StageDef& stageDef, ID3D11Device* devi
     PlayerFactory::Config pcfg;
     pcfg.color = { m_PlayerColor[0], m_PlayerColor[1], m_PlayerColor[2], 1.0f };
     {
-        // TEMP-TEST: VFXL_PLAYER=ranger で前のレンジャーに戻す（2026-10-04 から既定は Shadowkin、PlayerFactory.h）
+        // TEMP-TEST: VFXL_PLAYER=ranger でレンジャーに替える（既定は Shadowkin、PlayerFactory.h）
         char env[32] = {};
         if (GetEnvironmentVariableA("VFXL_PLAYER", env, sizeof(env)) > 0 && _stricmp(env, "ranger") == 0)
         {
@@ -304,7 +305,7 @@ void CollisionTestScene::InitPlayer(const StageDef& stageDef, ID3D11Device* devi
     }
 
     // TEMP-TEST: VFXL_DUMP_CELL=gx,gz で周り 9x9 マスの高さ（0.5m の高さマスの最小 / 最大）と歩けるかを autotest.log へ
-    //（起伏で雑魚が詰まる所の地形を見る用、2026-10-05）
+    //（雑魚が詰まる所の地形を見る用）
     {
         char env[32] = {};
         if (GetEnvironmentVariableA("VFXL_DUMP_CELL", env, sizeof(env)) > 0)
@@ -331,7 +332,7 @@ void CollisionTestScene::InitPlayer(const StageDef& stageDef, ID3D11Device* devi
                         row += b;
                     }
                     AutoTestLog(row.c_str());
-                    // 雑魚用（2026-10-29、登れる障害物のマスは c、上面の高さ）
+                    // 雑魚用（登れる障害物のマスは c、上面の高さ）
                     std::string mrow = "mob  row z " + std::to_string(z) + ":";
                     for (int x = cx - 4; x <= cx + 4; ++x)
                     {
@@ -362,7 +363,7 @@ void CollisionTestScene::InitPlayer(const StageDef& stageDef, ID3D11Device* devi
     // ---------- 反応のエフェクト（レベルアップ・開箱・被弾）----------
     m_Feedback.Init(&m_AreaVFX, &m_VFXContext);
     m_PlayerVFX.Init(&m_AreaVFX, &m_VFXContext);
-    m_PlayerVFX.water = &m_Water;   // 水たまりの中の足は水しぶき・波紋・水の足音（2026-10-27）
+    m_PlayerVFX.water = &m_Water;   // 水たまりの中の足は水しぶき・波紋・水の足音
     m_SpellFx.Init(&m_AreaVFX, &m_VFXContext);
     // 土煙の色を面に合わせる（草原は土色のまま、砂漠は砂、遺跡は灰）
     if (stageDef.biome == TerrainGenerator::Biome::Desert)       m_PlayerVFX.dustTint = { 1.18f, 1.08f, 0.86f };
@@ -381,7 +382,7 @@ void CollisionTestScene::InitStageFlow(const StageDef& stageDef, ID3D11Device* d
     m_Crates.Init();
     m_Stage.Init();
     m_BossAttacks.Reset();
-    InitBossFx(stageDef.BossAt(m_RunPos));   // 面の Boss（技の組み合わせ・召喚・体の色。2026-10-24。何面目かで替わる 10-26）
+    InitBossFx(stageDef.BossAt(m_RunPos));   // 面の Boss（技の組み合わせ・召喚・体の色。何面目かで替わる）
     m_BossSlamHits = 0;
     m_Pickups.Init(device);
     if (m_LabScene || IsMenuScene())
@@ -403,15 +404,14 @@ void CollisionTestScene::InitStageFlow(const StageDef& stageDef, ID3D11Device* d
         // 実験場：昼のまま、天候の出来事なし。湧き停止・無敵・MP 無限・経験値 0 と 9x9 の枠は SpellLab が受け持つ
         m_Weather.driveLighting = false;
         m_Weather.eventsEnabled = false;
-        // 2026-10-07 から的・群れ・Boss・木箱はゲームの UI（トレーニングのメニュー、T / パッド RB）。
-        // それまでは ImGui の窓を触るのでカーソルを出していた（SetCursorFree(true)）。今は普段どおり視点を回す
+        // 的・群れ・Boss・木箱はゲームの UI（トレーニングのメニュー、T / パッド RB）。視点は普段どおり回す
         m_GameUI.SetTrainingEnabled(true);
         m_SpellLab.EnterLab(m_Registry, m_Player, m_Swarm, m_Mobs);
     }
     if (m_TitleScene) InitTitle();     // 丘の上のプレイヤー・夕方の光・回るカメラ・メニュー（CollisionTestSceneTitle.cpp）
     if (m_SelectScene) InitSelect();   // 同じ景色 + ステージ選択の画面（CollisionTestSceneSelect.cpp）
 
-    // ---- 初回のチュートリアル（2026-10-13）：タイトルから第 1 ステージに入った最初の 1 回だけ。
+    // ---- 初回のチュートリアル：タイトルから第 1 ステージに入った最初の 1 回だけ。
     // 終えた / 飛ばしたら GameSettings::tutorialDone。VFXL_TUTORIAL=1 / 0 で強制（TEMP-TEST）。自動テスト中は出さない
     if (!m_LabScene && !IsMenuScene())
     {
@@ -422,7 +422,7 @@ void CollisionTestScene::InitStageFlow(const StageDef& stageDef, ID3D11Device* d
         if (start) m_Tutorial.Start();
     }
 
-    // ---- プレイヤーの登場（2026-11-01）：毎面の始めに 1 回。自動テストの時は VFXL_PLAYER_INTRO を立てた時だけ ----
+    // ---- プレイヤーの登場：毎面の始めに 1 回。自動テストの時は VFXL_PLAYER_INTRO を立てた時だけ ----
     if (m_PlayerIntroT >= 0.0f) EndPlayerIntro();   // 演出の途中で読み直した
     if (!m_LabScene && !IsMenuScene()
         && (!m_AutoTest || GetEnvironmentVariableA("VFXL_PLAYER_INTRO", nullptr, 0) > 0))

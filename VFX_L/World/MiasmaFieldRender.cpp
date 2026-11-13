@@ -1,6 +1,6 @@
 // ============================================================
 // MiasmaFieldRender.cpp
-// 瘴気の描画（半分の解像度で光線を進める → 深度を見ながら全解像度へ広げて HDR に重ねる）とパネル
+// 瘴気の描画（縮小した解像度で光線を進める → 深度を見ながら全解像度へ広げて HDR に重ねる）とパネル
 // ============================================================
 #include "World/MiasmaField.h"
 #include "Graphics/Graphics.h"
@@ -10,14 +10,35 @@
 #include "Camera/CameraBase.h"
 #include "imgui.h"
 
+#include <Windows.h>
+
 using DirectX::SimpleMath::Matrix;
 using DirectX::SimpleMath::Vector2;
 using DirectX::SimpleMath::Vector3;
 
-// 半分の解像度の RGBA16F（大きさが変わったら作り直す）
+// 縮小した解像度の RGBA16F（大きさが変わったら作り直す）。
+// 倍率は 2 から始め、縮小図の画素数が targetPixels を超えるなら maxScale まで粗くする
+// （光線の重さは画素数 × 歩数なので、全画面にしても重さがほぼ変わらない）
 bool MiasmaField::EnsureTargets(ID3D11Device* device, UINT width, UINT height)
 {
-    const UINT hw = (std::max)(1u, (width + 1) / 2), hh = (std::max)(1u, (height + 1) / 2);
+    const auto& s = m_Settings;
+    const float target = (std::max)(s.targetPixels, 10000.0f);
+    float scale = std::sqrt((float)width * (float)height / target);
+    float maxScale = s.maxScale;
+    {
+        // TEMP-TEST: VFXL_MIASMA_MAXSCALE=2 = 前と同じいつも 1/2（比べる用）
+        static float s_EnvMax = -1.0f;
+        if (s_EnvMax < 0.0f)
+        {
+            char env[16] = {};
+            s_EnvMax = GetEnvironmentVariableA("VFXL_MIASMA_MAXSCALE", env, sizeof(env)) > 0 ? (float)atof(env) : 0.0f;
+        }
+        if (s_EnvMax > 0.0f) maxScale = s_EnvMax;
+    }
+    scale = std::clamp(scale, 2.0f, (std::max)(maxScale, 2.0f));
+    const UINT hw = (std::max)(1u, (UINT)std::ceil((float)width / scale));
+    const UINT hh = (std::max)(1u, (UINT)std::ceil((float)height / scale));
+    m_Scale = scale;
     if (m_HalfTex && m_HalfW == hw && m_HalfH == hh) return true;
     m_HalfTex.Reset(); m_HalfRTV.Reset(); m_HalfSRV.Reset();
     if (!device || width == 0 || height == 0) return false;
@@ -73,6 +94,8 @@ void MiasmaField::Render(ID3D11DeviceContext* context, Graphics& graphics, Camer
     mcb.topBlend = s.topBlend;
     mcb.glow = s.glow;
     mcb.edgeFade = s.edgeFade;
+    mcb.scale = m_Scale;
+    mcb.maxOpacity = s.maxOpacity;
     mcb.detailOffset = m_DetailOffset;
     mcb.detailScale = s.detailScale;
     mcb.erode = (s.detail && m_NoiseSRV) ? s.erode : 0.0f;
@@ -90,6 +113,7 @@ void MiasmaField::Render(ID3D11DeviceContext* context, Graphics& graphics, Camer
     ccb.depthA = proj._33 * proj._34;   // アウトラインと同じ「深度 → 目からの距離」
     ccb.depthB = proj._43;
     ccb.tolerance = s.upsampleDepth;
+    ccb.scale = m_Scale;
     ccb.halfSize = Vector2((float)m_HalfW, (float)m_HalfH);
     ccb.fullSize = Vector2((float)fw, (float)fh);
     m_CompositePS->WriteBuffer(context, 0, &ccb);
@@ -165,6 +189,10 @@ void MiasmaField::DrawImGui()
     ImGui::SeparatorText("Look");
     ImGui::DragFloat("Extinction (1/m)", &s.extinction, 0.01f, 0.0f, 10.0f);
     ImGui::DragInt("Steps", &s.steps, 1.0f, 4, 128);
+    ImGui::SliderFloat("Max Opacity", &s.maxOpacity, 0.1f, 1.0f);
+    ImGui::DragFloat("Target Pixels (march)", &s.targetPixels, 10000.0f, 50000.0f, 4000000.0f, "%.0f");
+    ImGui::SliderFloat("Max Scale (march)", &s.maxScale, 2.0f, 6.0f);
+    ImGui::Text("march %u x %u  (1/%.2f of the screen)", m_HalfW, m_HalfH, m_Scale);
     ImGui::DragFloat("Max Distance (m)", &s.maxDist, 0.5f, 5.0f, 200.0f);
     ImGui::DragFloat("Edge Fade (m)", &s.edgeFade, 0.1f, 0.1f, 30.0f);
     ImGui::DragFloat("Toon Bands", &s.bands, 0.05f, 1.0f, 8.0f);

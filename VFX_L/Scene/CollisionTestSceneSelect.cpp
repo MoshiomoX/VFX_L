@@ -1,6 +1,6 @@
 // ============================================================
 // CollisionTestSceneSelect.cpp
-// ステージ選択（StageSelectScene = m_SelectScene。2026-10-21 ユーザー：「ステージ選択を Megabonk に完全に倣う」→ 独立したシーン）。
+// ステージ選択（StageSelectScene = m_SelectScene。独立したシーン）。
 //   景色はタイトルと同じ作り（PlaceTitleStand / UpdateTitleWorld / UpdateTitleCamera）：選んだマップの地形（決まった seed）を
 //   プレイヤーの周りでカメラが回る。戦いの見本は無し。手前に StageSelectUI（マップ × Tier）。
 //   3 つのマップの地形は入った時に全部建てて預かり（BuildSelectWorlds）、マップを変えたら出し入れするだけ
@@ -119,7 +119,7 @@ void CollisionTestScene::BuildSelectWorlds()
         TerrainGenerator::Config cfg;
         cfg.seed = kTitleSeed;
         cfg.biome = StageConfig::Get(stage).biome;
-        TerrainGenerator::ApplyBiomeProfile(cfg);   // マップ毎の地形の規則（2026-10-26）
+        TerrainGenerator::ApplyBiomeProfile(cfg);   // マップ毎の地形の規則
         m_TerrainConfig = cfg;
         m_MapFile.clear();
         m_StageIndex = stage;
@@ -176,9 +176,9 @@ void CollisionTestScene::ActivateSelectWorld(int map)
     BuildSandField();
     BuildMiasma();
     m_Debris.Build(m_Grid, m_TerrainConfig.seed, m_TerrainConfig.biome, m_Grass.GetHeightSRV());
-    m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);   // 水たまりの水面（2026-10-27）
+    m_Water.Build(m_Grid, m_TerrainMap, m_TerrainConfig.biome);   // 水たまりの水面
     m_Swarm.KillAll();
-    BuildClimbMap();   // 雑魚が登れる障害物（2026-10-29）
+    BuildClimbMap();   // 雑魚が登れる障害物
     m_Swarm.UploadTerrain(m_Grid);
     // 地形の PS の定数（面毎の明るさ合わせ）は 3 つの面で共用：最後に建てた面の値のままなので、出した面の値へ書き直す
     TerrainSurface::Get().Activate((int)m_TerrainConfig.biome);
@@ -213,7 +213,7 @@ void CollisionTestScene::ActivateSelectWorld(int map)
                 m_Registry.Get<HealthComponent>(m_Player).invincible = true;
         }
     }
-    BuildWindToys();   // 転がり草（砂漠・遺跡）・タンポポ（草原）を立つ所の周りへ（2026-10-22）
+    BuildWindToys();   // 転がり草（砂漠・遺跡）・タンポポ（草原）を立つ所の周りへ
     ApplySelectLight();
     m_TitleTime = 0.0f;   // カメラは最初の向きから
 }
@@ -298,7 +298,7 @@ void CollisionTestScene::UpdateSelect(float dt)
         auto step = [&](int n, float at) { if (s_Step == n && t >= at) { ++s_Step; return true; } return false; };
         auto countAlive = [&]()
             {
-                // 景色に敵が居てはいけない（切替後に見えた物の正体を調べる。2026-10-21）
+                // 景色に敵が居てはいけない（切替後に見えた物の正体を調べる）
                 std::vector<Swarm::Enemy> enemies;
                 std::vector<uint32_t> states;
                 std::vector<Swarm::EnemyExtra> extras;
@@ -327,7 +327,7 @@ void CollisionTestScene::UpdateSelect(float dt)
         if (step(6, 14.5f)) AutoTestLog("select look unlocked");
         if (step(7, 15.0f)) m_SelectUI.TestSelect(2, 1);   // 2 回目の砂漠（モデル・テクスチャが読めている時の純粋な生成時間）
         if (step(8, 18.5f)) m_SelectUI.TestSelect(1, 3);
-        // 左スティック（2026-11-05）：下 = マップ +1、左 = Tier −1、上 = マップ −1。倒し続けても 1 回だけ（地形の切り替えが重いので連続しない）。
+        // 左スティック：下 = マップ +1、左 = Tier −1、上 = マップ −1。倒し続けても 1 回だけ（地形の切り替えが重いので連続しない）。
         // m_TitleTime はマップを切り替える度に 0 に戻る → ここは自分の時計（s_StickT）で測る
         static float s_StickT = 0.0f;
         if (s_Step == 9)

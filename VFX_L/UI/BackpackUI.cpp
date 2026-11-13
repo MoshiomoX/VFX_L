@@ -68,7 +68,7 @@ void BackpackUI::Layout(float screenW, float screenH)
     // グリッド全体の目標サイズから 1 マスの大きさを逆算する
     //   extent = cell * GRID + gap * (GRID - 1)、gap = cell * cellGapRatio
     //   → extent = cell * (GRID + cellGapRatio * (GRID - 1))
-    // UI 全体の倍率（2026-10-07）。画面の高さの 8 割を超えるなら収まる所まで
+    // UI 全体の倍率。画面の高さの 8 割を超えるなら収まる所まで
     float targetExtent = shortSide * gridScreenRatio * UIDeco::FitScale(gridScreenRatio * (1.0f + framePadRatio * 2.0f / (float)GRID_SIZE), 0.80f);
     float denom = (float)GRID_SIZE + cellGapRatio * (float)(GRID_SIZE - 1);
 
@@ -522,6 +522,14 @@ void BackpackUI::DrawDragged(SpriteRenderer& sprite, const Vector2& mousePos)
 
     auto cells = BackpackLogic::RotateShape(c->occupyCells, m_Drag->rotation);
     const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
+    if (const FrameItemDef* fd = ItemDatabase::GetFrame(m_Drag->id))
+    {
+        // 設置枠はマスの形のまま（魔法と見分けが付くように）
+        ShapeSprite::DrawFrameTiles(sprite, white, UIDeco::TintColor(UIDeco::Tint::Silver),
+            fd->HasEffect() ? fd->common.color : Vector4(0, 0, 0, 0), GetIcon(m_Drag->id), cells, { ox, oy },
+            m_CellSize, pitch - m_CellSize, dragAlpha);
+        return;
+    }
     ShapeSprite::DrawItemGlass(sprite, white, c->color, UIDeco::CategoryColor(c->category),
         GetIcon(m_Drag->id), cells, { ox, oy }, m_CellSize, pitch - m_CellSize, dragAlpha);
 }
@@ -568,7 +576,7 @@ void BackpackUI::Draw(SpriteRenderer& sprite, const BackpackComponent& bp)
         }
     }
 
-    // ---- 効果のある設置枠（2026-10-27）：マスを枠の色で薄く塗り、縁を枠の色に、真ん中のマスに薄く絵を出す ----
+    // ---- 効果のある設置枠：マスを枠の色で薄く塗り、縁を枠の色に、真ん中のマスに薄く絵を出す ----
     // （魔法はこの後に描くので、乗っている所では魔法の下に隠れる）
     for (const auto& f : bp.frames)
     {

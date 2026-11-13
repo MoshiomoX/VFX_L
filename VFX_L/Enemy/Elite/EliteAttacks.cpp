@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // EliteAttacks.cpp
 // 面の固定エリートの土台：出す・リードバックで追う（槽の割り当て・死の検出）・GPU への指示・HUD の条。
-// 型毎の技は EliteMoves.cpp、詞缀は EliteAffixes.cpp、調整パネルは EliteAttacksPanel.cpp
+// 型毎の技は EliteMoves.cpp、アフィックスは EliteAffixes.cpp、調整パネルは EliteAttacksPanel.cpp
 // ============================================================
 #include "Enemy/Elite/EliteAttacks.h"
 #include "Audio/AudioSystem.h"
@@ -52,7 +52,7 @@ void EliteAttacks::Init(AreaVFXPlayer* vfx, const VFXContext* ctx)
     m_Vfx = vfx;
     m_Ctx = ctx;
 
-    // 型毎の初期値（2026-10-25。初値、実機で調整する）
+    // 型毎の初期値
     TypeTuning& axe = tune[(int)EliteType::Axe];
     axe = {};
     axe.hpMul = 1.25f; axe.speed = 3.4f; axe.scale = 2.1f; axe.trigger = 3.2f; axe.windup = 0.85f; axe.active = 0.45f;
@@ -221,7 +221,7 @@ bool EliteAttacks::SpawnAt(const GridWorld& grid, SwarmSystem& swarm, const Vect
     e.pos = ground;
     e.shieldUp = (affixes & kEliteAffixIron) != 0;
     e.cd = 2.5f;
-    // 名前：「疾風・鉄壁の 大斧の戦鬼」（詞缀が無ければ型の名前だけ）
+    // 名前：「疾風・鉄壁の 大斧の戦鬼」（アフィックスが無ければ型の名前だけ）
     std::wstring name;
     for (int b = 0; b < kEliteAffixCount; ++b)
         if (affixes & (1u << b))

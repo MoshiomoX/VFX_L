@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestTraining.cpp
 // TEMP-TEST: VFXL_SPELL_LAB=1 + VFXL_BATTLE_AUTOTEST=training
-// トレーニング（実験場）のゲーム内メニュー（2026-10-07）：開く・木箱へ入れる / 全部入れる / 空にする・
+// トレーニング（実験場）のゲーム内メニュー：開く・木箱へ入れる / 全部入れる / 空にする・
 //   的・群れ・ボス・全部消す を、メニューと同じ経路（TrainingMenuUI → GameUI → SpellLab::Apply）で押して記録・撮影
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -11,7 +11,7 @@ namespace
     // TrainingMenuUI::RowId の番号
     constexpr int kRowTargets = 0, kRowSpawn = 5, kRowItems = 6, kRowChest = 7;
     constexpr int kRowRandomMode = 8, kRowRandomCount = 9, kRowBackpack = 10;   // 値の行は押すと 1 段進む
-    constexpr int kRowBossKind = 13;   // ボスの種類（2026-10-27。Field = 12 の後ろ）
+    constexpr int kRowBossKind = 13;   // ボスの種類（Field = 12 の後ろ）
 
     class AutoTestTraining final : public BattleAutoTest
     {
@@ -113,7 +113,7 @@ void AutoTestTraining::Run(float dt)
     {
         press(kRowTargets, 0, "targets ahead");
         press(kRowSpawn, 0, "swarm");
-        // ボスの種類を 2 段進める（この面の Boss → 岩の巨人 → 月下の狼人）→ 呼ぶ（2026-10-27）
+        // ボスの種類を 2 段進める（この面の Boss → 岩の巨人 → 月下の狼人）→ 呼ぶ
         press(kRowBossKind, 0, "boss kind +1");
         press(kRowBossKind, 0, "boss kind +1 (= werewolf)");
         press(kRowSpawn, 1, "boss");
@@ -202,7 +202,7 @@ void AutoTestTraining::Run(float dt)
         m_GameUI.TestOpenTraining(false);
         s_Step = 15;
     }
-    // フィールド切替（2026-10-20）：行 12 = RowId::Field、列 1 = 草原。地形を建て直してプレイヤーを中央へ
+    // フィールド切替：行 12 = RowId::Field、列 1 = 草原。地形を建て直してプレイヤーを中央へ
     else if (s_Step == 15 && s_Real >= 13.0f) { press(12, 1, "field grassland"); s_Step = 17; }
     else if (s_Step == 17 && s_Real >= 15.0f)
     {

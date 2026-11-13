@@ -95,7 +95,7 @@ static Quaternion InterpQuat(const std::vector<QuatKey>& keys, float t, const Qu
     return keys.back().value;
 }
 
-// ---- キーが時刻順（広義単調増加）の時の版（2026-10-25）----
+// ---- キーが時刻順（広義単調増加）の時の版 ----
 // 上の線形版が選ぶ区間 i =「t < keys[i + 1].time を満たす最初の i」を二分探索で選ぶ（結果は線形版と同じ）。
 // 呼ぶ前に keys.size() >= 2 と t > keys.front().time を確かめておくこと
 template <class Key>
@@ -257,8 +257,7 @@ bool SkinnedModel::LoadFromScene(ID3D11Device* device, const aiScene* scene,
             //     KayKit Mage の頭）→ offset を階層から作り直す: offset = meshNodeGlobal * Invert(boneGlobalBind)
             //   ・骨ごとにずれ方が違う = ノードの既定の姿勢がスキニングした時の姿勢と違う（Reallusion CC の
             //     Shadowkin: スキニングは T ポーズ、ノードは A ポーズ + 指を曲げた姿勢）→ FBX の offset が正しい。
-            //     作り直すと T ポーズの頂点を A ポーズの骨に付けることになり、前腕〜指先の腕の長さが狂って
-            //     爪が長い線に伸びた（2026-10-04）
+            //     作り直すと T ポーズの頂点を A ポーズの骨に付けることになり、前腕〜指先が長い線に伸びる
             //   重みの無い骨（末端の leaf 骨など）はスキニングに効かないので判定から外す
             // ============================================================
             const auto& bones = m_Skeleton.GetBones();
@@ -537,7 +536,7 @@ int SkinnedModel::AddAnimationsFromFile(const std::string& filepath, const BoneM
 }
 
 // ============================================================
-// 骨名の違う人形から世界空間で付け替えて焼く（2026-10-04。SkinnedModel.h の説明）
+// 骨名の違う人形から世界空間で付け替えて焼く（SkinnedModel.h の説明）
 //   回転の積は SimpleMath の「左を先に回す」（行ベクトル）。global = local * parentGlobal
 // ============================================================
 namespace
@@ -1021,8 +1020,8 @@ void SkinnedModel::SampleLocal(int clipIndex, float timeSec, std::vector<BoneLoc
 }
 
 // ============================================================
-// SampleLocal の下ごしらえ（2026-10-25）：骨ごとの bind の S/R/T、クリップ毎の「骨 → channel」表、
-// キーが時刻順かどうか。毎フレーム骨ごとに Decompose・名前の検索・キーの線形探索をしていたのを省く
+// SampleLocal の下ごしらえ：骨ごとの bind の S/R/T、クリップ毎の「骨 → channel」表、
+// キーが時刻順かどうか（毎フレーム骨ごとの Decompose・名前の検索・キーの線形探索を省く）
 // ============================================================
 void SkinnedModel::RebuildSampleCache()
 {

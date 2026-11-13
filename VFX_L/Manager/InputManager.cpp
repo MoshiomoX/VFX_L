@@ -31,6 +31,8 @@ void InputManager::Update()
     // ---- キーボード ----
     memcpy(m_KeyStateOld, m_KeyState, sizeof(m_KeyState));
     GetKeyboardState(m_KeyState);
+    if (m_DebugMouse[0] >= 0) m_KeyState[VK_LBUTTON] = m_DebugMouse[0] ? 0x80 : 0;   // TEMP-TEST
+    if (m_DebugMouse[1] >= 0) m_KeyState[VK_RBUTTON] = m_DebugMouse[1] ? 0x80 : 0;
 
     const bool active = IsWindowActive();
 
@@ -102,7 +104,7 @@ void InputManager::Update()
     // 繋がっていない時の XInputGetState は重いので 1.5 秒毎にだけ確かめる（挿した後は毎フレーム）
     constexpr ULONGLONG kPadPollIntervalMs = 1500;
     const ULONGLONG nowMs = GetTickCount64();
-    // TEMP-TEST: VFXL_NO_PAD=1 で本物のパッドを読まない（自動テストの間にユーザーがパッドを触っても入力が混ざらないように。2026-10-28）
+    // TEMP-TEST: VFXL_NO_PAD=1 で本物のパッドを読まない（自動テストの間にパッドを触っても入力が混ざらないように）
     static const bool noPad = GetEnvironmentVariableA("VFXL_NO_PAD", nullptr, 0) > 0;
     if (!noPad && (m_PadConnected || nowMs >= m_PadNextPollMs))
     {

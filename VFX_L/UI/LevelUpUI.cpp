@@ -56,7 +56,7 @@ void LevelUpUI::Layout(float screenW, float screenH)
 
     const float shortSide = (screenW < screenH) ? screenW : screenH;
 
-    // UI 全体の倍率（2026-10-07）。カードの高さ + 下の引き直しボタンが画面の高さの 9 割を超えるなら収まる所まで
+    // UI 全体の倍率。カードの高さ + 下の引き直しボタンが画面の高さの 9 割を超えるなら収まる所まで
     const float s = UIDeco::FitScale(cardWidthRatio * (cardAspect + 0.30f), 0.90f);
     m_CardW = shortSide * cardWidthRatio * s;
     m_CardGap = shortSide * cardGapRatio * s;
@@ -101,7 +101,7 @@ Vector2 LevelUpUI::CardPosition(int index, int total) const
 // 入力
 //
 // マウスで直接クリック、または左右キー + 決定。
-// どちらでも選べるようにする。下キー・十字・スティックの下で引き直しのボタンへ下り、決定で引き直す（2026-10-28）
+// どちらでも選べるようにする。下キー・十字・スティックの下で引き直しのボタンへ下り、決定で引き直す
 // ============================================================
 bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float dt)
 {
@@ -133,13 +133,12 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float d
     if (m_InputDelay > 0.0f)
     {
         // 実時間で減らす（ゲームは止まっているが GameUI は実時間の dt をくれる）。
-        // 以前は 1 フレーム 0.016 秒の決め打ちで、144 fps だと 0.25 秒の猶予が 0.11 秒ほどしか無かった。
         // 1 フレームだけ長い時（読み込みの引っ掛かり）に猶予を食い尽くさないよう 0.1 秒で頭打ち
         m_InputDelay -= (std::min)((std::max)(dt, 0.0f), 0.1f);
         return false;
     }
 
-    // カーソル：0 〜 total-1 = カード、total = 引き直しのボタン（ボタンが出ている時だけ。2026-10-28）
+    // カーソル：0 〜 total-1 = カード、total = 引き直しのボタン（ボタンが出ている時だけ）
     const bool hasButton = m_RerollCost >= 0;
     const int maxCursor = hasButton ? total : total - 1;
     if (m_LastCard < 0 || m_LastCard >= total) m_LastCard = 0;
@@ -153,8 +152,8 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float d
     const auto mp = input.GetMousePos();
     const Vector2 mouse = { mp.x, mp.y };
 
-    // カーソルをマウスに合わせるのは、マウスが動いた時だけ（2026-10-28：以前は乗っているだけで毎フレーム合わせていて、
-    // 止まっているマウスがカードの上にあると十字・スティックで選んでもすぐ戻された）
+    // カーソルをマウスに合わせるのは、マウスが動いた時だけ
+    // （止まっているマウスがカードの上にあっても十字・スティックの選択を戻さない）
     const bool mouseMoved = (mouse - m_LastMouse).LengthSquared() > 1.0f;
     m_LastMouse = mouse;
     m_Hover = -1;
@@ -194,7 +193,7 @@ bool LevelUpUI::HandleInput(const LevelComponent& lv, ItemID& outPicked, float d
     if (input.GetKeyTrigger(VK_UP) || input.GetKeyTrigger('W') || input.GetPadTrigger(XINPUT_GAMEPAD_DPAD_UP))
         toCards();
 
-    // 左スティック（2026-10-28）：左右に倒した瞬間に 1 枚、倒し続けると stickRepeatDelay の後 stickRepeatInterval ごと。
+    // 左スティック：左右に倒した瞬間に 1 枚、倒し続けると stickRepeatDelay の後 stickRepeatInterval ごと。
     // 上下は倒した瞬間だけ（ボタンへ下りる / カードへ戻る）。
     // 出た時に倒したままのスティック（走っていた）は、一度戻すまで見ない（勝手にカードが回らないように）
     {
@@ -290,7 +289,7 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
     const float slide = (1.0f - ease) * m_CardH * 0.12f;   // 下からの浮き上がり（px）
 
     // ---- 見出し「レベルアップ」/「宝箱の報酬」+ 百合紋の分割線（HUD・メニューと同じ古金）。
-    //      箱から出た四択は見出しを変える（2026-10-18 ユーザー：箱でも「レベルアップ」と出ていた）----
+    //      箱から出た四択は見出しを変える ----
     {
         const Vector4 gold = UIDeco::TintColor(UIDeco::Tint::Gold);
         const float s = headingScale * k;
@@ -317,7 +316,7 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
         DrawCard(sprite, text, lv.pendingChoices[i], pos, selected);
     }
 
-    // ---- 下の案内：Tab / Start でバックパックを見る（四択の上に開く。2026-10-15）----
+    // ---- 下の案内：Tab / Start でバックパックを見る（四択の上に開く）----
     {
         const float s = rerollTextScale * 0.85f * k;
         const wchar_t* hint = L"<{K:Tab}|{START}>  バックパックを見る・置く";
@@ -329,7 +328,7 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
             { 0.78f, 0.74f, 0.66f, 0.9f * ease }, s);
     }
 
-    // ---- 金貨で引き直すボタン（2026-10-04）。足りない時は文字を暗い赤に ----
+    // ---- 金貨で引き直すボタン。足りない時は文字を暗い赤に ----
     if (m_RerollCost >= 0)
     {
         Vector2 bp, bs;
@@ -352,7 +351,7 @@ void LevelUpUI::Draw(SpriteRenderer& sprite, TextRenderer& text, const LevelComp
 }
 
 // ============================================================
-// カード 1 枚（レベルアップの四択と商店で共用。2026-10-15 に Draw から切り出した）
+// カード 1 枚（レベルアップの四択と商店で共用）
 // ============================================================
 void LevelUpUI::DrawCard(SpriteRenderer& sprite, TextRenderer& text, ItemID id,
     const Vector2& pos, bool selected) const
@@ -365,10 +364,11 @@ void LevelUpUI::DrawCard(SpriteRenderer& sprite, TextRenderer& text, ItemID id,
     const float k = m_CardW / 270.0f;   // 文字や飾りの大きさの基準（カード幅 270px の時 1）
     const float spin = UIDeco::Clock() * circleSpin;
 
-    // ---- 稀有度の縁（2026-10-28）：カードの外に稀有度の色の枠。レア・レジェンドは外へ光をにじませ、レジェンドは脈打つ。
+    // ---- 稀有度の縁：カードの外に稀有度の色の枠。レア・レジェンドは外へ光をにじませ、レジェンドは脈打つ。
     //      面（下の本体）の色は魔法の種類のまま。名前の札は本体の後に描く（本体の地に隠れないように）----
     const int rarity = std::clamp((int)c->rarity, 0, 2);
     const float edgeOut = (rarityGap + rarityWidth) * k;
+    const bool showRarity = this->showRarity && !ItemDatabase::IsFrame(id);   // 設置枠は稀有度を持たない
     if (showRarity)
     {
         const float pulse = (c->rarity == ItemRarity::Legendary) ? 0.70f + 0.30f * std::sin(UIDeco::Clock() * 3.2f) : 1.0f;
@@ -536,8 +536,12 @@ void LevelUpUI::DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
     // 占有マス（バックパックと同じ「色ガラス + 種類の色の輪郭」。隙間も塗って 1 枚に）
     const auto& white = UIDeco::Tex().white ? UIDeco::Tex().white : m_BlockTex;
     const Vector4 tint = UIDeco::CategoryColor(c.category);
-    ShapeSprite::DrawItemGlass(sprite, white, c.color, tint, nullptr, c.occupyCells,
-        miniOrigin, miniCell, miniGap);
+    if (const FrameItemDef* fd = ItemDatabase::GetFrame(c.id))
+        ShapeSprite::DrawFrameTiles(sprite, white, UIDeco::TintColor(UIDeco::Tint::Silver),
+            fd->HasEffect() ? fd->common.color : Vector4(0, 0, 0, 0), nullptr, c.occupyCells, miniOrigin, miniCell, miniGap);
+    else
+        ShapeSprite::DrawItemGlass(sprite, white, c.color, tint, nullptr, c.occupyCells,
+            miniOrigin, miniCell, miniGap);
 
     // 影響マス（薄く塗って縁を引く。範囲なので 1 マスずつ）
     Vector4 inflCol = tint;
@@ -554,7 +558,7 @@ void LevelUpUI::DrawShapePreview(SpriteRenderer& sprite, const ItemCommon& c,
         UIDeco::DrawFrameLines(sprite, cp, { miniCell, miniCell }, inflEdge);
     }
 
-    // 出口マス（2026-10-31）
+    // 出口マス
     for (const auto& off : c.outletCells)
     {
         int dRow = 0, dCol = 0;

@@ -9,7 +9,7 @@
 //   グリッドから抜けば勝手に降ってくるし、掴んで置き損ねれば
 //   勝手に降って戻る。どちらの UI も相手に通知しない。
 //
-// 物理は内製の 2D 剛体（Registry / PhysicsSystem とは無関係。2026-09-30 作り直し）:
+// 物理は内製の 2D 剛体（Registry / PhysicsSystem とは無関係）:
 //   1 個 = occupyCells のマスを繋げた複合の四角（本当の形で当たる。十字も L 字も）。
 //   マス同士は Box2D-lite と同じ「四角 vs 四角」の切り取りで最大 2 点の接触を作り、
 //   逐次インパルス（累積 + クランプ）で法線・摩擦を解く。接触は特徴番号で前ステップと
@@ -49,7 +49,7 @@ public:
 
     // グリッドとマス寸を揃える（ドラッグ中に大きさが跳ばないように）
     void SetCellSize(float cellSize) { m_CellSize = cellSize; }
-    // グリッドの 1 マスの送り（マス + 隙間）。ドラッグ中の絵の位置から、離した所に物を出す時に使う（2026-10-27）
+    // グリッドの 1 マスの送り（マス + 隙間）。ドラッグ中の絵の位置から、離した所に物を出す時に使う
     void SetCellPitch(float pitch) { m_CellPitch = pitch; }
     // TEMP-TEST：マウスで離したのと同じ落とし所を置く（自動テストはマウスを動かさないので）
     void TestDropHint(ItemID id, const DirectX::SimpleMath::Vector2& center, int rotation)
@@ -66,11 +66,10 @@ public:
 
     void Draw(SpriteRenderer& sprite);
 
-    // 画面の縁が壁 + 蓋の無い木箱（2026-10-27、ユーザー「箱の蓋を取って画面の縁全体で当たるように」→
-    // 「箱はやっぱり要る、少し下に置いて、魔法が多い時は箱からこぼれ落ちるように」）。
+    // 画面の縁が壁 + 蓋の無い木箱。
     // true = 物理の範囲は画面全体（4 辺が壁）。木箱は右下に置き、左の板・右の板・底の 3 枚だけが壁（上は開いている）。
     //        新しい物は箱の真上の画面の上から降ってきて箱に入り、溢れた分は箱の縁から画面へこぼれる。
-    //        SetObstacle の四角（バックパックの列）も壁。false = 以前の右の真ん中の閉じた木箱
+    //        SetObstacle の四角（バックパックの列）も壁。false = 右の真ん中の閉じた木箱
     bool screenWalls = true;
     // 画面の縁の時に、中身が入らない四角（バックパックの盤面の列）。GameUI が Layout の後に渡す。max <= min なら無し
     void SetObstacle(const DirectX::SimpleMath::Vector2& min, const DirectX::SimpleMath::Vector2& max)
@@ -85,7 +84,7 @@ public:
     float boxScreenRatio = 0.42f;    // 箱の内寸が画面短辺に占める割合
     float marginRatio = 0.02f;    // 画面端からの距離
     float wallRatio = 0.075f;   // 内寸に対する枠の太さ
-    float boxScale = 0.85f;    // 箱の中でのブロック縮小率（2026-09-30 0.6 → 0.85：小さすぎて箱の底に薄く溜まるだけだった）
+    float boxScale = 0.85f;    // 箱の中でのブロック縮小率
     float lockScale = 1.3f;     // 錠前の幅（枠の太さ比）
 
     // 木箱の絵に掛ける色（線形。絵は sRGB で読んで線形に戻っている）
@@ -97,7 +96,7 @@ public:
     float gravity = 1800.0f;   // px/s^2
     float restitution = 0.15f;     // 反発（小さめ。跳ねすぎると収納に見えない）
     float friction = 0.55f;     // クーロン摩擦係数
-    int   iterations = 20;        // インパルスの反復回数（2026-10-04 10 → 20：多マスの凹んだ形が寄り掛かると 10 回では収まらない）
+    int   iterations = 20;        // インパルスの反復回数（多マスの凹んだ形が寄り掛かると少ない回数では収まらない）
     bool  allowSleep = true;      // 全部止まったら計算を止める
 
     int GetBodyCount() const { return (int)m_Bodies.size(); }
@@ -120,7 +119,7 @@ public:
     bool GrabByUid(uint32_t uid);
     // 画面の点に乗っている物の uid（0 = 無し）。パッドのカーソルの下の物を選ぶのに使う
     uint32_t BodyAt(const DirectX::SimpleMath::Vector2& p) const;
-    // パッドのカーソルの位置（2026-10-28）。マウスの代わりに「離した所から落とす」の位置に使う
+    // パッドのカーソルの位置。マウスの代わりに「離した所から落とす」の位置に使う
     void SetPadPointer(const DirectX::SimpleMath::Vector2& p) { m_PadPointer = p; }
     // 箱の内寸の中心（パッドの Y でカーソルを箱へ飛ばす先）
     DirectX::SimpleMath::Vector2 BoxCenter() const { return (m_BoxMin + m_BoxMax) * 0.5f; }
@@ -194,8 +193,7 @@ private:
     DragContext* m_Drag = nullptr;
 
     std::vector<BodyState> m_Bodies;
-    // 接触はキー（uid とマス番号）の昇順に並べた平らな列（2026-10-25。以前は std::map で、1/120 秒ごとに
-    // 接触 1 つにつき 1 回確保していた）。解く順は map と同じキー順のまま。
+    // 接触はキー（uid とマス番号）の昇順に並べた平らな列（毎ステップの確保を避ける）。解く順はキー順。
     // 作業用の列・マスの四角も毎ステップ作らず使い回す
     struct KeyedArbiter
     {
@@ -244,7 +242,7 @@ private:
     float m_CellSize = 56.0f;   // グリッドと同じマス寸（フルサイズ）
     float m_CellPitch = 60.0f;  // グリッドの 1 マスの送り（SetCellPitch）
 
-    // ---- マウスで離した所から落とす（2026-10-27、ユーザー「マウスで離した時、箱の上に湧くのではなく、その場から落ちるように」）----
+    // ---- マウスで離した所から落とす（箱の上に湧かせない）----
     // ドラッグ中は毎フレーム、絵（DrawDragged と同じ = マウス − grabOffset が要のマスの左上）の重心と向きを覚えておき、
     // ドラッグが終わったフレームに「落とし所」にする。直後に同じ物を出す時（SyncBodies）はそこに、その向きで出す
     struct DropHint

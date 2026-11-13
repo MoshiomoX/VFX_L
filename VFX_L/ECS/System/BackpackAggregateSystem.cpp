@@ -70,7 +70,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
     wand.areas.clear();
     wand.orbs.clear();
 
-    // ---- 召喚物（水晶玉。2026-10-06）を先に並べる。貯蔵された魔法は storeUnit でここを指す ----
+    // ---- 召喚物（水晶玉）を先に並べる。貯蔵された魔法は storeUnit でここを指す ----
     // 召喚物はルーンの影響を受けない（影響マスが届いていても無視）。光球の色は貯蔵した魔法の色を後で混ぜる
     std::vector<int> orbIndexOf(bp.items.size(), -1);
     for (size_t i = 0; i < bp.items.size(); ++i)
@@ -144,7 +144,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
 
                 log.influencedBy.push_back(fdef->common.name);
             }
-            // 乗っている効果のある設置枠（ルーンの後、魔法威力の前。2026-10-27）
+            // 乗っている効果のある設置枠（ルーンの後、魔法威力の前）
             for (int f : BackpackLogic::GetEffectFrames(bp, (int)i))
             {
                 const FrameItemDef* fr = ItemDatabase::GetFrame(bp.frames[f].id);
@@ -156,7 +156,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             ItemInfo::ApplySpellPower(stats, power);
 
             // 上級魔法: 前提の基本魔法が全種類届いていなければ撃たない（バックパックでは暗く出る）。
-            // 水晶玉に貯蔵されていても同じ（10-06 ユーザー：上級魔法はやはり基本魔法で発動させる）
+            // 水晶玉に貯蔵されていても同じ
             if (!pdef->common.triggeredBy.empty())
             {
                 if (!BackpackLogic::IsTriggerReady(bp, (int)i))
@@ -167,7 +167,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
                 }
                 stats.triggered = true;
             }
-            // 出口の先に居る魔法は自分では撃たない（2026-10-31）。発動の bit は下でまとめて立てる
+            // 出口の先に居る魔法は自分では撃たない。発動の bit は下でまとめて立てる
             if (!BackpackLogic::GetOutletDrivers(bp, (int)i).empty())
             {
                 stats.triggered = true;
@@ -247,7 +247,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             const int d = spellIndexOf[drv];
             if (d >= 0 && !wand.spells[d].triggered)
                 wand.spells[d].triggerMask |= 1u << k;
-            // 基本の範囲魔法（アークボルトの稲妻）も駆動できる（2026-10-15）：稲妻が届いた所で誘発
+            // 基本の範囲魔法（アークボルトの稲妻）も駆動できる：稲妻が届いた所で誘発
             const int da = areaIndexOf[drv];
             if (da >= 0 && !wand.areas[da].triggered)
                 wand.areas[da].triggerMask |= 1u << k;
@@ -271,7 +271,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         }
     }
 
-    // ---- 出口（2026-10-31）: 出口魔法の弾が消えた所で、出口の先の魔法を撃つ ----
+    // ---- 出口:出口魔法の弾が消えた所で、出口の先の魔法を撃つ ----
     // 上の誘発と違って自分も誘発された魔法でよい（繋がった先の出口魔法の弾にも bit が乗る = 何段でも続く）
     // 段の深さ：輪は無いので、魔法の数だけ回せば一番長い道の長さに落ち着く
     const auto outletEdges = BackpackLogic::GetOutletEdges(bp);
@@ -286,7 +286,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         if (areaIndexOf[i] >= 0) wand.areas[areaIndexOf[i]].outletDepth = outletDepth[i];
     }
 
-    // 出口の線（2026-10-31）: 下流の間隔と MP は起点が持ち、弾 1 発で必ず下流が 1 回出る。説明カードと同じ計算
+    // 出口の線:下流の間隔と MP は起点が持ち、弾 1 発で必ず下流が 1 回出る。説明カードと同じ計算
     std::vector<BackpackLogic::OutletNode> outletNodes(bp.items.size());
     for (size_t i = 0; i < bp.items.size(); ++i)
     {
@@ -348,7 +348,7 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         }
     }
 
-    // 分身（2026-11-01）: 分身の付いた魔法の弾に自分の枠の bit を載せる。Drop / Lob 型には効かない
+    // 分身:分身の付いた魔法の弾に自分の枠の bit を載せる。Drop / Lob 型には効かない
     {
         uint32_t slot = 0;
         for (SpellStats& s : wand.spells)

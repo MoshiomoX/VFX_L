@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestGold.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=gold
-// VFXL_BATTLE_AUTOTEST=gold：金貨（2026-10-04）。経験値で増える・箱を買う（足りないと断る）・四択の引き直し
+// VFXL_BATTLE_AUTOTEST=gold：金貨。経験値で増える・箱を買う（足りないと断る）・四択の引き直し
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 
@@ -19,7 +19,7 @@ namespace
 }
 
 // ============================================================
-// TEMP-TEST: 金貨（VFXL_BATTLE_AUTOTEST=gold、2026-10-04）。実時間（三択の間も進む）、Update から呼ぶ
+// TEMP-TEST: 金貨（VFXL_BATTLE_AUTOTEST=gold）。実時間（三択の間も進む）、Update から呼ぶ
 //   1 秒: 湧き停止・全消し・無敵・MP 無限、金貨 0。プレイヤーの周り 5〜7m に HP 1 の雑魚 12 体（追尾弾で倒れ、オーブを吸う）
 //   6 秒: `gold earned` = 経験値 × 0.1 の金貨が増えたか
 //   6.5 秒: 金貨 15、一番近い箱の 1.6m 手前へ（箱の方を向く）。7.5 秒 `gold look deny`（案内「金貨が足りない 15 / 20」）

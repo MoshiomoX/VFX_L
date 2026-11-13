@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestIceSpike.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=icespike
-// VFXL_BATTLE_AUTOTEST=icespike：上級魔法アイススパイク（2026-10-10）。アイスランス + ストーンショットで目覚めるか・
+// VFXL_BATTLE_AUTOTEST=icespike：上級魔法アイススパイク。アイスランス + ストーンショットで目覚めるか・
 //   足元から狙った敵の奥まで氷のトゲが走るか・線の上の敵がまとめて凍るか・説明カードの文を記録し、トゲを撮る
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -73,8 +73,12 @@ void AutoTestIceSpike::Run()
         ClearBackpackItems(bp);
         BackpackLogic::Place(bp, ItemID::IceSpike, 4, 4, 0);
         // 前提の 2 つ：トゲに隣り合う（誘発の前提に数えられる）最初の場所へ
+        // VFXL_ICESPIKE_SOLO=1：トゲだけ（アイスランスの命中・凍結が混ざらない。時刻と傷の量を測る）
+        char soloEnv[4] = {};
+        const bool solo = GetEnvironmentVariableA("VFXL_ICESPIKE_SOLO", soloEnv, sizeof(soloEnv)) > 0 && soloEnv[0] == '1';
         for (ItemID need : { ItemID::IceLance, ItemID::StoneShot })
         {
+            if (solo) break;
             bool placed = false;
             for (int r = 0; r < BackpackComponent::GRID && !placed; ++r)
                 for (int c = 0; c < BackpackComponent::GRID && !placed; ++c)
@@ -93,6 +97,29 @@ void AutoTestIceSpike::Run()
                     else
                         BackpackLogic::Remove(bp, now);
                 }
+        }
+        // VFXL_ICESPIKE_DOUBLE=1：二重詠唱のルーンをトゲに効く所へ（2 回目の扇が半分ずれて見えるか）
+        char dblEnv[4] = {};
+        if (GetEnvironmentVariableA("VFXL_ICESPIKE_DOUBLE", dblEnv, sizeof(dblEnv)) > 0 && dblEnv[0] == '1')
+        {
+            bool placed = false;
+            for (int r = 0; r < BackpackComponent::GRID && !placed; ++r)
+                for (int c = 0; c < BackpackComponent::GRID && !placed; ++c)
+                    for (int rot = 0; rot < 4 && !placed; ++rot)
+                    {
+                        const int idx = BackpackLogic::Place(bp, ItemID::DoubleCastRune, r, c, rot);
+                        if (idx < 0) continue;
+                        const auto inf = BackpackLogic::GetInfluencers(bp, indexOf(ItemID::IceSpike));
+                        const int now = indexOf(ItemID::DoubleCastRune);
+                        if (std::find(inf.begin(), inf.end(), now) != inf.end())
+                        {
+                            placed = true;
+                            snprintf(line, sizeof(line), "icespike double at %d,%d rot %d", r, c, rot);
+                            AutoTestLog(line);
+                        }
+                        else
+                            BackpackLogic::Remove(bp, now);
+                    }
         }
         bp.dirty = true;
         wand.castingPaused = false;
@@ -130,18 +157,58 @@ void AutoTestIceSpike::Run()
         s_NextLog += 0.25f;
         std::vector<Swarm::Enemy> en; std::vector<uint32_t> st; std::vector<Swarm::EnemyExtra> ex; std::vector<Vector4> status;
         int alive = 0, frozen = 0;
+        float lostAll = 0.0f;
         if (m_Swarm.DebugReadEnemies(en, st, &ex, &status) && status.size() == en.size())
             for (size_t i = 0; i < en.size(); ++i)
             {
                 if (st[i] == Swarm::kStateDead) continue;
                 ++alive;
+                lostAll += 300.0f - Swarm::HpFromFixed(en[i].hp);
                 if (status[i].z > 0.0f) ++frozen;
             }
         s_MaxFrozen = (std::max)(s_MaxFrozen, (uint32_t)frozen);
-        snprintf(line, sizeof(line), "icespike t %.2f events %u casts %u fx %u spikes %d alive %d frozen %d",
+        snprintf(line, sizeof(line), "icespike t %.2f events %u casts %u fx %u spikes %d alive %d frozen %d lost %.0f shatter %u",
             m_AutoTime, m_WeaponSystem.GetTriggerEventsSeen(), m_WeaponSystem.GetTriggeredCasts(),
-            m_SpellFx.IceSpikeCasts(), m_SpellFx.IceSpikes().ActiveCount(), alive, frozen);
+            m_SpellFx.IceSpikeCasts(), m_SpellFx.IceSpikes().ActiveCount(), alive, frozen, lostAll, m_ShatterCount);
         AutoTestLog(line);
+    }
+
+    // ---- 最初の 1 回：6m / 9m の列が最初に傷を受けた時刻（トゲが届く時刻 ≒ 距離 / 22 + 0.06 秒と合うか）----
+    static float s_Row6At = -1.0f, s_Row9At = -1.0f;
+    static float s_HpStart = -1.0f;
+    if (m_AutoStep >= 1 && m_AutoStep <= 3)
+    {
+        const bool firstWindow = s_FirstFx < 0.0f || m_AutoTime - s_FirstFx < 1.0f;
+        if (firstWindow || m_AutoTime >= 10.9f)
+        {
+            std::vector<Swarm::Enemy> en; std::vector<uint32_t> st;
+            if (m_Swarm.DebugReadEnemies(en, st))
+            {
+                float row6 = 0.0f, row9 = 0.0f;
+                for (size_t i = 0; i < en.size(); ++i)
+                {
+                    if (st[i] == Swarm::kStateDead) continue;
+                    const float lost = 300.0f - Swarm::HpFromFixed(en[i].hp);
+                    ((en[i].position.z - pp.z < 7.5f) ? row6 : row9) += lost;
+                }
+                if (s_HpStart < 0.0f) s_HpStart = 0.0f;
+                if (s_FirstFx >= 0.0f && firstWindow)
+                {
+                    if (s_Row6At < 0.0f && row6 > 0.5f) s_Row6At = m_AutoTime - s_FirstFx;
+                    if (s_Row9At < 0.0f && row9 > 0.5f) s_Row9At = m_AutoTime - s_FirstFx;
+                }
+                static bool s_Logged = false;
+                if (m_AutoTime >= 10.9f && m_AutoStep <= 3 && !s_Logged)
+                {
+                    snprintf(line, sizeof(line), "icespike damage row6 %.1f row9 %.1f firstHit row6 %.3f row9 %.3f (expect %.3f / %.3f) shatter %u",
+                        row6, row9, s_Row6At, s_Row9At,
+                        6.0f / m_WeaponSystem.lineWaveSpeed + m_WeaponSystem.lineRiseDelay,
+                        9.0f / m_WeaponSystem.lineWaveSpeed + m_WeaponSystem.lineRiseDelay, m_ShatterCount);
+                    AutoTestLog(line);
+                    s_Logged = true;
+                }
+            }
+        }
     }
 
     // ---- 撮影 ----
@@ -176,15 +243,19 @@ void AutoTestIceSpike::Run()
         m_Swarm.ClearAreas();
         wand.castingPaused = true;
         m_SpellFx.Clear();
-        cam.SetYaw(70.0f);
-        cam.distance = 8.0f;
-        cam.SetPitch(16.0f);
+        // 扇が見えるよう、真後ろから高めに
+        cam.SetYaw(0.0f);
+        cam.distance = 11.0f;
+        cam.SetPitch(40.0f);
         cam.SnapToTarget();
         m_AutoStep = 4;
     }
     else if (m_AutoStep == 4 && m_AutoTime >= 11.6f)
     {
-        m_SpellFx.CastIceSpike(pp, pp + Vector3(0.0f, 0.0f, 8.0f), 1.0f, [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
+        m_SpellFx.CastIceSpike(pp, pp + Vector3(0.0f, 0.0f, 12.0f), 1.0f, [this](float x, float z) { return m_Grid.SampleHeight(x, z); },
+            m_SpellFx.testFanDeg);
+        snprintf(line, sizeof(line), "icespike close spikes %d", m_SpellFx.IceSpikes().ActiveCount());
+        AutoTestLog(line);
         s_FirstFx = m_AutoTime;
         m_AutoStep = 5;
     }

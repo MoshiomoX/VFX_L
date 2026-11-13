@@ -2,7 +2,7 @@
 // EliteLooks.cpp
 // 面の固定エリートの皮と飾り（説明は EliteLooks.h）。寸法は焼いた雑魚の網の部品の包囲ボックスに対する割合
 // （EnemyLooks.cpp と同じ流儀。網の空間：足元 y ≒ -0.9、頭 y 0.29〜0.76、+Z が正面。手に持つ物は FrameOf の腕の向きで組む）
-// 2026-10-26 に 550 行を分けた：草原 = EliteLooksGrass.cpp、砂漠 = EliteLooksDesert.cpp、遺跡 = EliteLooksRuins.cpp、
+// 草原 = EliteLooksGrass.cpp、砂漠 = EliteLooksDesert.cpp、遺跡 = EliteLooksRuins.cpp、
 // 色と籠手と宣言 = EliteLooksCommon.h。ここに残るのは Apply（面毎に A / B の飾りと皮を入れる所）
 // ============================================================
 #include "Enemy/Elite/EliteLooks.h"

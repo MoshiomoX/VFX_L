@@ -1,12 +1,12 @@
 // ============================================================
 // AutoTestStickNav.cpp
-// TEMP-TEST: VFXL_BATTLE_AUTOTEST=sticknav（2026-11-05）
+// TEMP-TEST: VFXL_BATTLE_AUTOTEST=sticknav
 // メニューの左スティック（UI/StickNav）。StickNav::DebugSetStick でスティックの値を差し替える。
 //   unit   : StickNav だけを 1/60 秒刻みで回す。出た時に倒したまま 0.5 秒 → 0 回、戻して倒す → 1 回、
 //            倒し続けて 1 秒 → 1 + 連続（0.4 秒の後 0.15 秒毎 = 5 回前後）、0.45 まで戻しても続ける（倒し直しにならない）
 //   pause  : 一時停止を開いた時に倒したまま → 動かない、戻して倒す → 1 つ下、倒し続ける → 連続
 //   settings / howto : 設定の行が 1 つ下へ、遊び方のページが 1 枚進む
-//   training : トレーニングのメニュー。右に 1 回 = ボタン 1 つ右、下に 1 回 = 1 行下、倒し続け 0.65 秒 = 3 行下（2026-11-05）
+//   training : トレーニングのメニュー。右に 1 回 = ボタン 1 つ右、下に 1 回 = 1 行下、倒し続け 0.65 秒 = 3 行下
 //   選択画面・ショップのスティックは VFXL_SELECT_AUTOTEST / VFXL_SHOP_AUTOTEST の中で見る（`select stick` / `shop stick`）
 // 行：`sticknav unit ...` / `sticknav <場面> ...` / `sticknav look <名>` / `sticknav done`
 // ============================================================
@@ -109,7 +109,7 @@ void AutoTestStickNav::Run(float dt)
         AutoTestLog(line);
         AutoTestLog("sticknav look howto");
     }
-    // トレーニングのメニュー（2026-11-05 追加）：右に 1 回 = 「的を置く」の 2 つ目のボタン、下に 1 回 = 行 1、倒し続け 0.65 秒 = 行 4
+    // トレーニングのメニュー：右に 1 回 = 「的を置く」の 2 つ目のボタン、下に 1 回 = 行 1、倒し続け 0.65 秒 = 行 4
     if (in(6.5f, 6.6f)) s = Vec2(1.0f, 0.0f);
     if (in(6.8f, 6.9f)) s = Vec2(0.0f, -1.0f);
     if (in(7.1f, 7.75f)) s = Vec2(0.0f, -1.0f);

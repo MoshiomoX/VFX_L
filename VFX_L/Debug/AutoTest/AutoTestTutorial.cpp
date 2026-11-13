@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestTutorial.cpp
 // TEMP-TEST: VFXL_TUTORIAL=1 + VFXL_BATTLE_AUTOTEST=tutorial
-// 初回のチュートリアル（UI/TutorialGuide、2026-10-13）を段ごとに通す：
+// 初回のチュートリアル（UI/TutorialGuide）を段ごとに通す：
 //   移動（入力で 2 秒歩く）→ ジャンプ + スライディング → 敵 3 体（HP 1 を 3 体出す。開局のホーミングボルトが倒す）
 //   → レベルアップ（経験を足す → 四択を 1 枚目で閉じる）→ バックパック（TestShow(1) → 閉じる）→ 魔力解放（testSurge）
 //   → 宝箱・ボスの説明（9 秒ずつ待つ）→ 完了。段が変わるたび `tutorial step <n> t`、その 0.5 秒後 `tutorial look <段>`。

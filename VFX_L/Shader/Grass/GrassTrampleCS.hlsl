@@ -5,17 +5,17 @@
 // 毎フレーム古い値が薄れ（g_TrampleDecay）、スタンプが
 // 押す：プレイヤーの円（中心から外向き）、突風の魔法
 //（円か扇形）、カメラを揺らす生きている GPU 範囲
-//（2026-10-13：爆発は円を外向きに倒し、光線のカプセルは
+//（爆発は円を外向きに倒し、光線のカプセルは
 // 帯を横向きに曲げる）。強い方の押しが勝つ。
 // 敵の足は後で GrassStampCS が押す（scatter）。
-// 2026-10-23：風源（竜巻、渦、砂旋、
-// 突風）が気流に沿って草を押すので、通り過ぎた竜巻は
-// 足跡と同じように起き上がる渦巻きの跡を残す。
+// 風源（竜巻、渦、砂旋、突風）も気流に沿って草を押すので、
+// 通り過ぎた竜巻は渦巻きの跡を残す。
 // ピンポン：前フレームのマップを読み、もう一方に書く（D3D11 では
 // R16G16_FLOAT の typed UAV load が保証されないため）。
 // ============================================================
 #include "GrassCommon.hlsli"
 #include "../Common/WindSources.hlsli"
+#include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
 
 // = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / flags だけ
 struct TrampleArea
@@ -54,9 +54,8 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
     g_TrampleOut.GetDimensions(w, h);
 
     // ---- 生きている揺れる範囲を共有メモリに詰める（64 スレッド、各 4 範囲） ----
-    // 2026-10-25：このグループの 8 x 8 テクセルに届くものだけ（テクセル中心での箱の判定。
-    // 箱の外の発生源の押しはここのどのテクセルでも 0 なので結果は同じで、
-    // 爆発が多くても遠くのもので 32 スロットが埋まらなくなる）
+    // このグループの 8 x 8 テクセルに届くものだけ（テクセル中心での箱の判定。
+    // 遠くの爆発で 32 スロットが埋まらないように）
     float2 texelSize = g_MapSize / float2(w, h);
     float2 boxMin = g_MapOrigin + (float2(gid.xy * 8u) + 0.5) * texelSize;
     float2 boxMax = boxMin + 7.0 * texelSize;
@@ -174,7 +173,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
     if (g_BladeShape.w > 0.0)
     {
         float lift;
-        float3 air = WindSourceAir(g_WindSources, xz, lift);
+        float3 air = WindGridBlend2D(WindSourceAir(g_WindSources, xz, lift), xz);
         float s = length(air.xz);
         if (s > 0.5)
         {

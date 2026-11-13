@@ -1,6 +1,6 @@
 // ============================================================
 // VFXBeamRenderer.h
-// Beam entry が毎フレーム Submit した光線を、粒子の前にまとめて描く（2026-09-30）。
+// Beam entry が毎フレーム Submit した光線を、粒子の前にまとめて描く。
 //   1 本 = 起点 → 終点の帯。VS が SV_VertexID から帯を組み立て（32 分割、カメラへ向ける）、
 //   1 本につき 3 層（グロー / 主色 / 白芯）を instance で描く。PS は幅方向の断面 + 長さ方向に
 //   流れる値ノイズで「流れる光」を作る。テクスチャは使わない。
@@ -18,7 +18,7 @@ class CameraBase;
 class VertexShader;
 class PixelShader;
 
-// HLSL: BeamItem（112 bytes。2026-10-04 トゥーンの欄を足した）
+// HLSL: BeamItem（112 bytes）
 struct VFXBeamItem
 {
     DirectX::SimpleMath::Vector3 start;
@@ -35,9 +35,9 @@ struct VFXBeamItem
     float tipFade = 1.0f;                   // 先端を薄くする長さ（m）
     float rootFade = 0.3f;                  // 根元を薄くする長さ（m）
     float seed = 0.0f;                      // 本ごとのノイズのずれ
-    // トゥーン（2026-10-04）：断面をなだらかな減衰ではなく縁のはっきりした段に、流れる明暗も 2 値に
+    // トゥーン：断面をなだらかな減衰ではなく縁のはっきりした段に、流れる明暗も 2 値に
     float toon = 0.0f;                      // 1 = トゥーン
-    // 稲妻（2026-10-15）：区切り毎に横へずらしてギザギザにする。0 = まっすぐ（従来の光線）
+    // 稲妻：区切り毎に横へずらしてギザギザにする。0 = まっすぐ
     float jitter = 0.0f;                    // 大きなうねりの振幅（m）
     float jitterRate = 24.0f;               // 形を取り直す回数（1/秒）
     float jitterFine = 0.5f;                // 区切り毎の細かい折れの振幅（jitter 比）

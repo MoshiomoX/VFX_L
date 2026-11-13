@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmSystemLifesteal.cpp
-// 吸血のルーン（2026-10-25）の GPU → CPU：吸血の印が付いた敵（最後に当てたのが吸血の弾 / 範囲）が失った HP の累計。
+// 吸血のルーンの GPU → CPU：吸血の印が付いた敵（最後に当てたのが吸血の弾 / 範囲）が失った HP の累計。
 //   ・SwarmDamageTextCS が毎フレーム、印の付いた敵の HP の減りを 16B の raw buffer の先頭へ InterlockedAdd（永久に累積）
 //   ・誘発の環と同じく 3 枚の staging を輪転してリードバック、CPU は前回の値との差分を取る（読み損ねても取りこぼさない）
 //   ・回復の量（割合・1 秒あたりの上限）は CPU（Player/LifestealHeal）
@@ -45,7 +45,7 @@ void SwarmSystem::CopyLifestealForCPU()
     if (!m_LifestealBuffer || !m_LifestealStaging[m_LifestealStagingWrite]) return;
     m_Context->CopyResource(m_LifestealStaging[m_LifestealStagingWrite].Get(), m_LifestealBuffer.Get());
     m_LifestealStagingFilled[m_LifestealStagingWrite] = true;
-    m_LifestealStagingStale[m_LifestealStagingWrite] = false;   // KillAll の後の写し（2026-10-25）
+    m_LifestealStagingStale[m_LifestealStagingWrite] = false;   // KillAll の後の写し
     m_LifestealStagingWrite = (m_LifestealStagingWrite + 1) % kLifestealStaging;
 }
 
@@ -59,7 +59,7 @@ void SwarmSystem::ReadLifesteal()
     if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
     const uint32_t total = *static_cast<const uint32_t*>(mapped.pData);
     m_Context->Unmap(m_LifestealStaging[readIndex].Get(), 0);
-    // KillAll の前の写しは前回値だけ進める（消した敵の分を後から回復させない。2026-10-25）
+    // KillAll の前の写しは前回値だけ進める（消した敵の分を後から回復させない）
     if (m_LifestealSeen && !m_LifestealStagingStale[readIndex])
         m_LifestealPending += Swarm::HpFromFixed(total - m_LifestealLast);   // 符号無しの差（溢れて一周しても正しい）
     m_LifestealStagingStale[readIndex] = false;

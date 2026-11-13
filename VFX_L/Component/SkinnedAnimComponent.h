@@ -76,7 +76,7 @@ struct SkinnedAnimComponent
     float leanDeg = 0.0f;
     float scale = 1.0f;
     bool  visible = true;
-    // 被弾の閃き（2026-10-09、PlayerVFXSystem が書いて減らす）。0〜1 で全身の色を hitFlashColor へ寄せる
+    // 被弾の閃き（PlayerVFXSystem が書いて減らす）。0〜1 で全身の色を hitFlashColor へ寄せる
     float hitFlash = 0.0f;
     DirectX::SimpleMath::Vector3 hitFlashColor = { 1.0f, 1.0f, 1.0f };
 
@@ -88,7 +88,7 @@ struct SkinnedAnimComponent
     // 層を混ぜた後で差し替える骨の global（モデル空間）。揺れ物の結果（ClothChainSystem が毎フレーム書く）
     std::vector<std::pair<int, DirectX::SimpleMath::Matrix>> boneOverrides;
 
-    // ---- SkinnedAnimSystem::BuildPose の素のポーズ（差し替え前）の使い回し（2026-10-23）----
+    // ---- SkinnedAnimSystem::BuildPose の素のポーズ（差し替え前）の使い回し ----
     // 層の状態（クリップ・時刻・フェード・重み）が前回と同じなら計算し直さない
     struct PoseKey
     {

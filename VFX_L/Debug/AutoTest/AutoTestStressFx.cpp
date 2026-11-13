@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestStressFx.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=stressfx（草原 VFXL_STAGE=1 で。Demo ビルドでも回せる：DevUI::AutoTestAllowed）
-// 負荷試験（2026-10-23、ユーザー：「敵の数、新しく入れた風まわり、点光源を中心に」）。段ごとに足していく：
+// 負荷試験（敵の数・風まわり・点光源）。段ごとに足していく：
 //   0 何も無し / 1 風だけ（竜巻の風源 4 つがプレイヤーの周りを回る + 竜巻の見た目 Twister.json）/
 //   2 点光源 192 個だけ / 3 雑魚 1000 / 4 雑魚 4000 / 5 雑魚 4000 + 風 / 6 + 点光源 / 7 + 詠唱（弾・命中・弾の光）
 // 風 = 草の巻き上げ・渦の跡（GrassCullCS / GrassTrampleCS）・草屑（GrassShreds）・落ち葉・粒子・マントの局所の風。
@@ -40,7 +40,7 @@ namespace
             { "4000 mobs + wind",               4000, true,    0, false },
             { "4000 mobs + wind + lights",      4000, true,  192, false },
             { "4000 mobs + wind + lights + cast", 4000, true, 192, true },
-            { "4000 mobs + lights",             4000, false, 192, false },   // VFXL_STRESSFX_LIGHTAB 用（2026-11-05）
+            { "4000 mobs + lights",             4000, false, 192, false },   // VFXL_STRESSFX_LIGHTAB 用
         };
         static constexpr int   kPhaseCount = (int)(sizeof(kPhases) / sizeof(kPhases[0]));
         static constexpr float kLead = 3.0f, kPhaseLen = 12.0f, kSettle = 6.0f;
@@ -51,10 +51,10 @@ namespace
         uint32_t m_TwisterVfx[kWinds] = {};
         int      m_Order[kGrid * kGrid] = {};
         int      m_Phase = -1;
-        // 回す段（VFXL_STRESSFX_MOBS=1 なら 0 / 3 / 4 だけ = 雑魚の数だけを比べる。LOD の前後比較用、2026-11-02）
+        // 回す段（VFXL_STRESSFX_MOBS=1 なら 0 / 3 / 4 だけ = 雑魚の数だけを比べる）
         std::vector<int> m_Run;
         bool     m_Done = false;
-        bool     m_Looked = false;   // 段ごとに 1 回「stressfx look p<n>」（外部のスクリプトが撮る。2026-10-23）
+        bool     m_Looked = false;   // 段ごとに 1 回「stressfx look p<n>」（外部のスクリプトが撮る）
         int      m_Frames = 0;
         double   m_SumMs = 0.0, m_MaxMs = 0.0;
         double   m_Sum[6] = {};   // 雑魚 / 弾 / オーブ / 範囲 / CPU の光 / 草屑の発生源
@@ -114,10 +114,10 @@ void AutoTestStressFx::Setup()
 
     m_Run.clear();
     if (GetEnvironmentVariableA("VFXL_STRESSFX_MOBS", nullptr, 0) > 0) m_Run = { 0, 3, 4 };
-    // 4000 体のまま光だけを 3 回ずつ付け外し（同じ群れで比べる。段ごとの揺れが ±0.5 ms あるので。2026-11-05）
+    // 4000 体のまま光だけを 3 回ずつ付け外し（同じ群れで比べる。段ごとの揺れが大きいので）
     else if (GetEnvironmentVariableA("VFXL_STRESSFX_LIGHTAB", nullptr, 0) > 0) m_Run = { 4, 8, 4, 8, 4, 8 };
     else for (int i = 0; i < kPhaseCount - 1; ++i) m_Run.push_back(i);   // 最後の段（光の付け外し用）は普段は回さない
-    // 賢いカメラ（2026-11-02）は囲まれると引くので、測る間は切る（以前の数字と同じ 14m / 45° で比べる）
+    // 賢いカメラは囲まれると引くので、測る間は切る（14m / 45° で比べる）
     GameSettings::Get().smartCamera = false;
 
     const auto& gfx = Application::Get().GetGraphics();

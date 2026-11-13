@@ -42,7 +42,7 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         break;
 
     case WM_KEYDOWN:
-        // Esc で即終了は 2026-10-04 に外した（ユーザー指定）。終了は窓の × / 一時停止メニュー / タイトルから
+        // Esc では終了しない。終了は窓の × / 一時停止メニュー / タイトルから
         if (wp == VK_F11 && s_Instance)
         {
             s_Instance->ToggleFullscreen();

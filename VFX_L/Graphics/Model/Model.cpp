@@ -228,8 +228,7 @@ static bool ApplyNodePose(aiScene* scene, const std::string& clip, float timeFra
             const unsigned int n = ch->mNumRotationKeys;
             float w = bracket(keys, n, a, b);
             // assimp が FBX のオイラー角の曲線から作る回転キーには、角度が 0 を跨ぐ所（時刻が整数でない所）に
-            // 1 個だけ 180 度近く裏返ったキーが挟まることがある（2026-10-03。Kenney Blocky の attack-melee-right で
-            // torso / head の t=12.523 など。攻撃の真ん中で上半身が地面の下へ回っていた）。
+            // 1 個だけ 180 度近く裏返ったキーが挟まることがある（Kenney Blocky の attack-melee-right など）。
             // 前後どちらのキーとも 120 度以上離れ、前後同士は近いキーは無かった事にして、前後で補間する
             auto absDot = [](const aiQuaternion& p0, const aiQuaternion& p1)
                 {

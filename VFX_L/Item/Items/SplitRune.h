@@ -23,16 +23,16 @@ inline FunctionItemDef MakeSplitRune()
     def.common.displayName = L"分裂のルーン";
     def.common.description = L"光るマスに置いた魔法の弾を扇状に 1 発増やす。そのかわり 1 発の威力は下がる。";
     def.common.category = ItemCategory::Function;
-    def.common.occupyCells = { { 0, 0 }, { 0, 1 } };   // 横 2 マス（2026-10-27 ユーザー「ルーンにも形を、影響マスは減らす」）
-    def.common.influenceCells = { { 0, -1 }, { 0, 2 } };   // 両端の 1 マスずつ（十字 4 → 2）
+    def.common.occupyCells = { { 0, 0 }, { 0, 1 } };   // 横 2 マス
+    def.common.influenceCells = { { 0, -1 }, { 0, 2 } };   // 両端の 1 マスずつ
     def.common.color = { 0.30f, 0.90f, 0.90f, 1.0f }; // 青緑
     def.common.iconPath = Res::Icon::SplitRune;
 
     // ---- 飛行物型への修飾（3つ同時に効く）----
     def.spellModifiers.push_back({ SpellParam::ProjectileCount, ModifyOp::Add,      1.0f });
     def.spellModifiers.push_back({ SpellParam::Damage,          ModifyOp::Multiply, 0.55f });
-    // 弾が落ちた所・当たった所に出す範囲（毒沼・爆発）も 1 つあたり 0.6 倍（2026-10-08）。
-    // これが無いと毒は「毒沼が満額のまま 2 つ」= 2 倍になり、直射の魔法（2 発 × 0.6 = 1.2 倍）との差が広がっていた（spellbench）
+    // 弾が落ちた所・当たった所に出す範囲（毒沼・爆発）も 1 つあたり下げる
+    // （でないと範囲が満額のまま 2 つになり、直射の魔法より得をする）
     def.spellModifiers.push_back({ SpellParam::AreaDamage,      ModifyOp::Multiply, 0.55f });
     def.spellModifiers.push_back({ SpellParam::SpreadAngle,     ModifyOp::Add,      15.0f });
 

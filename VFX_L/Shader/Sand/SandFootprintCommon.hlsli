@@ -1,6 +1,6 @@
 // ============================================================
 // SandFootprintCommon.hlsli
-// SandFootprintVS / PS で共用（World/SandFootprints、2026-11-03）。
+// SandFootprintVS / PS で共用（World/SandFootprints）。
 // ============================================================
 #ifndef SAND_FOOTPRINT_COMMON
 #define SAND_FOOTPRINT_COMMON

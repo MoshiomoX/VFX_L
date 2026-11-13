@@ -19,7 +19,7 @@ namespace
 }
 
 // ============================================================
-// TEMP-TEST: スプリッター（VFXL_BATTLE_AUTOTEST=split、2026-10-03）
+// TEMP-TEST: スプリッター（VFXL_BATTLE_AUTOTEST=split）
 // 1 秒: 湧き停止・全消し・無敵・MP 無限、バックパックは追尾弾（中）+ 火球（左上）。カメラはプレイヤーの背後 11m / 32°、+Z 向き。
 // 1.5 / 5 / 8.5 秒に正面（+Z）7〜9m へスプリッター 6 体。0.25 秒毎に池を読み戻して
 // `split t splitters splitlings others kills events spawned`。分裂体が初めて見えた 0.15 秒後・2.5 秒・6 秒に

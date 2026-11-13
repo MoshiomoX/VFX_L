@@ -1,9 +1,7 @@
 // ============================================================
 // WaterSurface.h
-// 水たまりの水面（2026-10-27。ユーザー：「水面を作って」→ トゥーンで良い、ただし
-// 「他に何の影響も無いのに水がずっと動いているのはおかしい」）。
-//   以前（2026-10-19）は水たまりのマスに不透明な青い六面体を置いただけ（ただの青い床）。
-//   ここでは、何も無い時の水面は静か（鏡のよう）で、動くのは原因がある時だけ：
+// 水たまりの水面（トゥーン）。
+//   何も無い時の水面は静か（鏡のよう）で、動くのは原因がある時だけ：
 //     ・風：世界の風（草と同じ突風の波）が calmWind を越えた所だけさざ波が立ち、風下へ流れる。
 //       普段の弱い風では突風の山が通る所にうっすら、雨・砂嵐の強い風で全体に。
 //       竜巻・渦・突風・砂旋の風源の周りは強く、その風の向きへ流れる（風源の表 = 草と同じ物）
@@ -53,12 +51,12 @@ public:
         Vector3 deepColor = { 0.03f, 0.14f, 0.30f };      // 真ん中
         Vector3 foamColor = { 0.92f, 0.96f, 1.00f };      // 岸の泡・波の山
         Vector3 turbidColor = { 0.46f, 0.36f, 0.20f };    // 砂嵐の濁り
-        float shallowAlpha = 0.72f;   // 岸の近くの不透明さ（底が透けて見える。0.55 だと水の下の岸の壁が白い帯に見えた）
+        float shallowAlpha = 0.72f;   // 岸の近くの不透明さ（底が透けて見える。低いと水の下の岸の壁が白い帯に見える）
         float deepAlpha = 0.90f;
         float deepDist = 2.6f;        // 岸からこの距離 m で一番深い色（段は 3 つ）
-        float foamWidth = 0.08f;      // 岸の泡の線の幅 m（2026-10-27 ユーザー「縁が太い」で 0.2 → 0.08）
+        float foamWidth = 0.08f;      // 岸の泡の線の幅 m
         float skyReflect = 0.6f;      // 空の映り込み（斜めに見る所ほど）
-        float specStrength = 0.9f;    // 太陽のハイライト（1.6 だと波の斜面の閃きが真っ白になった）
+        float specStrength = 0.9f;    // 太陽のハイライト（強いと波の斜面の閃きが真っ白になる）
         // ---- 風のさざ波（原因 = 風。風が弱い所は静か）----
         float calmWind = 1.4f;        // m/s。これより弱い風の所は鏡（普段の風 1.2 + 突風 0.8 の山でうっすら）
         float fullWind = 5.0f;        // m/s。ここで一番立つ（雨・砂嵐・竜巻の周り）
@@ -74,7 +72,7 @@ public:
         // 波紋を起こす物（強さ = 押し下げる深さ m）
         float stepStrength = 0.07f, stepRadius = 0.40f;   // 水の中の一歩
         float wadeStrength = 0.010f;  // 水の中を進む時（速さ 1 m/s・1 秒あたり。航跡）
-        // 水の中を歩く雑魚（WaterStirCS、2026-10-28）。プレイヤーと同じく「一歩毎の押し + 間の薄い航跡」
+        // 水の中を歩く雑魚（WaterStirCS）。プレイヤーと同じく「一歩毎の押し + 間の薄い航跡」
         bool  mobWake = true;
         float mobWakeStrength = 0.03f;    // 一歩の間の航跡：速さ 1 m/s・1 秒あたり押す深さ m
         float mobStepStrength = 0.06f;    // 一歩の押し m（プレイヤーは stepStrength 0.07）
@@ -86,7 +84,7 @@ public:
         float rainStrength = 0.025f;
         float blastStrength = 0.20f;  // 水の上の爆発（kAreaShake の範囲が出た瞬間）
         float areaStrength = 0.05f;   // その他の範囲が出た瞬間（毒瓶・泥沼の着弾など）
-        // ---- 氷（2026-11-01。WaterIce.cpp）----
+        // ---- 氷（WaterIce.cpp）----
         float iceLife = 7.0f;         // 凍ってから融けるまで（秒）
         float iceSlow = 0.45f;        // 氷の上の雑魚の遅さ（エリート・Boss は半分。プレイヤーは遅くならない）
     };
@@ -111,7 +109,7 @@ public:
     void SetSky(const Vector3& zenith, const Vector3& horizon) { m_SkyZenith = zenith; m_SkyHorizon = horizon; }
     // 次の波の 1 歩でここを押す（strength m、radius m。中を押し下げ周りを持ち上げる = 水の量は変わらない）。
     // 1 フレームに kMaxImpulses 個まで（超えたら弱い物を捨てる）。
-    // crest = 波の山に白い線を描く大きな波（Boss の重撃・投石）。プレイヤーの足・着地は false = 明暗だけ（2026-10-28）
+    // crest = 波の山に白い線を描く大きな波（Boss の重撃・投石）。プレイヤーの足・着地は false = 明暗だけ
     void AddRipple(const Vector3& pos, float radius, float strength, bool crest = false);
 
     // 水の中を歩く雑魚の波紋：Render の前に毎フレーム渡す（SwarmSystem::GetEnemySRV / GetEnemyStateSRV / GetEnemyExtraSRV、
@@ -125,7 +123,7 @@ public:
 
     // 冷たい物の表（GrassFireField::GetHeatSRV）・氷の上の雑魚を遅くする先（SwarmSystem::GetEnemySlowUAV）。Render の前に毎フレーム
     void SetIceSources(ID3D11ShaderResourceView* heat, ID3D11UnorderedAccessView* enemySlow) { m_HeatSRV = heat; m_EnemySlowUAV = enemySlow; }
-    // 氷の上を歩く（2026-11-01、ユーザー：足が氷に沈む・氷の上で水しぶきが出る）。
+    // 氷の上を歩く（足が氷に沈まない・水しぶきを出さない）。
     // プレイヤーの周りの氷を毎フレーム読み戻す。FrozenAt はその範囲（± 約 2m）だけ答える（2〜3 フレーム遅れ）
     void SetIceProbe(const Vector3& pos) { m_IceProbePos = pos; }
     bool FrozenAt(float x, float z) const;
@@ -237,7 +235,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_RippleUAV[2];
     // GPU の範囲の枠ごとに、水が前に見た時の残り時間（0 = 空）。R32F × 256 を 2 本交互。
     // 増えていたら / 空だったら「出たばかり」= 波紋を起こす。tickNow の「最初の tick」は 1 歩しか立たず、
-    // 群れが 1 フレームに 2 歩進むと（重いフレーム）水が見る前に消えて、爆発の波紋が出ないことがあった（2026-10-28）
+    // 群れが 1 フレームに 2 歩進むと（重いフレーム）水が見る前に消えてしまうので使わない
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SeenBuf[2];
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SeenSRV[2];
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SeenUAV[2];

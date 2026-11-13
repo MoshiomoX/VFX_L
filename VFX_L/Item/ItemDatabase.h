@@ -19,7 +19,7 @@ namespace ItemDatabase
     const FunctionItemDef* GetFunction(ItemID id);
     const AreaItemDef* GetArea(ItemID id);
     const FrameItemDef* GetFrame(ItemID id);
-    const SummonItemDef* GetSummon(ItemID id);   // 召喚物（水晶玉。2026-10-06）
+    const SummonItemDef* GetSummon(ItemID id);   // 召喚物（水晶玉）
 
     // 種類を問わず共通部分だけ取る（表示用に便利）
     const ItemCommon* GetCommon(ItemID id);
@@ -33,7 +33,7 @@ namespace ItemDatabase
     // 修飾ルーンを SpellStats / AreaStats へ適用する
     void ApplyModifier(SpellStats& stats, const ParamModifier& mod);
     void ApplyModifier(AreaStats& stats, const AreaModifier& mod);
-    // 連鎖できる範囲魔法か（溜め 0 の光線型 = アークボルトの稲妻。2026-10-20）。
+    // 連鎖できる範囲魔法か（溜め 0 の光線型 = アークボルトの稲妻）。
     // AreaParam::ChainCount と chainOnly の修飾はこれが true の時だけ掛かる
     bool AreaCanChain(const AreaStats& stats);
 
@@ -51,6 +51,6 @@ namespace ItemDatabase
     // Items/*.h に書いてある形（json で上書きする前）。無い ID なら false
     bool GetCodeShape(ItemID id, std::vector<CellOffset>& occupy,
         std::vector<CellOffset>& influence);
-    // 形が変わるたびに進む番号（Initialize / SetShape）。UI が形から作った物（回した形など）を覚えておく時の目印（2026-10-25）
+    // 形が変わるたびに進む番号（Initialize / SetShape）。UI が形から作った物（回した形など）を覚えておく時の目印
     uint32_t ShapeRevision();
 }

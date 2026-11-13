@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // CollisionTestSceneBossSignals.cpp
 // Boss 毎の技の合図（音・見た目）：大サソリの突っ込み / 鋏、墓守の騎士の双鎖（鎖を投げる）と復活、月下の狼人の跳び / 爪 / 遠吠え、
-// 雷鳴の雄鹿の角の振り上げ / 角の雷撃。2026-10-29 に CollisionTestSceneBoss.cpp（509 行）から分けた（中身は変えていない）。
+// 雷鳴の雄鹿の角の振り上げ / 角の雷撃。
 // 共通の技の合図（咆哮・輪・衝撃波・召喚）は CollisionTestSceneBoss.cpp、狂暴・撃破の演出は CollisionTestSceneBossDrama.cpp
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -12,10 +12,10 @@ using namespace DirectX::SimpleMath;
 
 void CollisionTestScene::UpdateBossMoveSignals(const BossAttacks::Input& in, const BossAttacks::Output& out, const Vector3& player)
 {
-    // 大サソリ（2026-10-26）：突っ込み始め = 突撃の音、鋏を振った = 斧の風切り
+    // 大サソリ：突っ込み始め = 突撃の音、鋏を振った = 斧の風切り
     if (out.stingLunge) AudioSystem::Get().Play("elite_dash");
     if (out.clawSwung) AudioSystem::Get().Play("elite_axe");
-    // 墓守の騎士の双鎖（2026-10-26）：鎖の番人と同じ鎖（CollisionTestSceneRuins.cpp が飛ばす・当てる・引く）を Boss の手の高さから
+    // 墓守の騎士の双鎖：鎖の番人と同じ鎖（CollisionTestSceneRuins.cpp が飛ばす・当てる・引く）を Boss の手の高さから
     for (const BossAttacks::Output::ChainThrow& t : out.chainThrows)
     {
         if ((int)m_Chains.size() >= 4) break;
@@ -26,11 +26,11 @@ void CollisionTestScene::UpdateBossMoveSignals(const BossAttacks::Input& in, con
         c.pullStop = m_BossAttacks.chainPullStop;
         c.damage = m_BossAttacks.chainDamage * in.damageMul;
         c.boss = true;
-        c.hitRadius = m_BossAttacks.chainWidth * 0.5f;   // 予告の帯の半幅と同じ（2026-10-29）
+        c.hitRadius = m_BossAttacks.chainWidth * 0.5f;   // 予告の帯の半幅と同じ
         m_Chains.push_back(c);
     }
     if (!out.chainThrows.empty()) AudioSystem::Get().Play("chain_throw");
-    // 月下の狼人（2026-10-26）：跳び = 突撃の音、爪 = 斬撃の音と影の剣士の斬撃の見た目（Boss の前）、遠吠え = 咆哮
+    // 月下の狼人：跳び = 突撃の音、爪 = 斬撃の音と影の剣士の斬撃の見た目（Boss の前）、遠吠え = 咆哮
     if (out.pounceJump) AudioSystem::Get().Play("elite_dash");
     if (out.wolfSlash)
     {
@@ -43,7 +43,7 @@ void CollisionTestScene::UpdateBossMoveSignals(const BossAttacks::Input& in, con
         AudioSystem::Get().Play("boss_summon");
         m_Stage.SetAnnounce(L"狼人の遠吠え！　群れが来る", 2.0f);
     }
-    // 雷鳴の雄鹿（2026-10-29）：振り上げ = 角ですくった土・石 + 風切り、雷撃 = 溜めの音 → 角から帯の先まで稲妻 + 先に落雷
+    // 雷鳴の雄鹿：振り上げ = 角ですくった土・石 + 風切り、雷撃 = 溜めの音 → 角から帯の先まで稲妻 + 先に落雷
     if (out.antlerTossed)
     {
         AudioSystem::Get().Play("elite_axe");

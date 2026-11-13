@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmFireEmit.h
-// 燃えている草から粒子を出すための入力（2026-10-12）。GrassFireField が毎フレーム埋め、
+// 燃えている草から粒子を出すための入力。GrassFireField が毎フレーム埋め、
 // シーンが SwarmSystem::SetGrassFire で渡す。発射そのものは SwarmSystem（Swarm/SwarmSystemFire.cpp）が
 // 弾・範囲の発射の直後に回す：空きの予約（emitBudget）を同じフレームで共有するため
 // ============================================================
@@ -23,5 +23,5 @@ struct GrassFireEmitInput
     uint32_t vfx = 0;              // VFXId::GrassFire のレシピ番号（SwarmVFXTable::IndexOf）。0 = 出さない
     float    heightOffset = 0.05f; // 地面からこれだけ上で出す
     uint32_t fireSize = 512;       // fire テクスチャの辺（スレッド数を決める）
-    uint32_t channel = 0;          // 0 = 燃えている草・陽炎（z の印）、1 = 風に舞う砂（w の強さ。2026-11-03）
+    uint32_t channel = 0;          // 0 = 燃えている草・陽炎（z の印）、1 = 風に舞う砂（w の強さ）
 };

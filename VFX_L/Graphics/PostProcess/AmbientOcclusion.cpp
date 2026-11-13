@@ -38,7 +38,7 @@ bool AmbientOcclusion::EnsureTargets(ID3D11Device* device, UINT width, UINT heig
     td.Height = height;
     td.MipLevels = 1;
     td.ArraySize = 1;
-    td.Format = DXGI_FORMAT_R16G16_FLOAT;   // x = ao, y = その画素の目からの距離（陰影が再投影の当否を確かめる。2026-11-02）
+    td.Format = DXGI_FORMAT_R16G16_FLOAT;   // x = ao, y = その画素の目からの距離（陰影が再投影の当否を確かめる）
     td.SampleDesc.Count = 1;
     td.Usage = D3D11_USAGE_DEFAULT;
     td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
@@ -105,7 +105,7 @@ void AmbientOcclusion::Render(ID3D11DeviceContext* context, Graphics& graphics, 
         return;
     }
     ID3D11ShaderResourceView* depth = graphics.GetDepthSRV();
-    // 半分の大きさ（2026-11-05）：AO は 5x5 でぼかす低周波の量なので、半分で作っても陰影の側は
+    // 半分の大きさ：AO は 5x5 でぼかす低周波の量なので、半分で作っても陰影の側は
     // そのまま Load（Lighting.hlsli の SceneAO は自分の貼り絵の大きさで uv を画素にする）
     const int scale = m_Params.halfRes ? 2 : 1;
     const UINT aoW = ((UINT)graphics.GetWidth() + scale - 1) / scale;

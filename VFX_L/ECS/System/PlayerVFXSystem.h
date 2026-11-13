@@ -1,7 +1,6 @@
 // ============================================================
 // PlayerVFXSystem.h
-// プレイヤー自身の動きのエフェクト（2026-10-09 ユーザー：「プレイヤーのエフェクトを足したい、手応えが今ひとつなのはここかも」。
-// 選んだ物：詠唱の手元の光・走る / 跳ぶ / 着地・スライディング・被弾の白い閃き + 「速さが一定を超えたら尾を引く」）。
+// プレイヤー自身の動きのエフェクト（詠唱の手元の光・走る / 跳ぶ / 着地・スライディング・被弾の閃き・速さの尾）。
 //   ・詠唱の光：撃った弾ごとに杖口で閃光 + 撃つ向きへ火花（魔法の色に染める。CastFlash.json）。
 //     WeaponSystem::GetCastFx（今フレームに撃った弾）を読む。同じ魔法は kCastMinGap 秒に 1 回まで
 //   ・走る：地面にいて歩く速さ以上の時、足元に小さな土煙（FootDust.json）。左右の足を交互に、速いほど間が詰まる
@@ -9,14 +8,14 @@
 //   ・着地：一定以上の時間空中にいたら土煙の輪（LandDust.json）、高い所から / 速く落ちたら大きな輪 + 土の粒（LandDustHeavy.json）
 //   ・スライディング：滑っている間、足元から後ろへ土煙と草の切れ端（SlideDust.json）。速いほど細かく出す
 //   ・速さの尾：水平の速さが trailSpeedOn を超えたら背中から大きな光の帯 1 本（SpeedTrail.json の Trail entry）、trailSpeedOff を下回ったら離す。
-//     帯の根元は毎フレーム背骨（上背）の骨の位置 = モデルに付いて動く（同日ユーザー：「手や決まった所に付けない、背中に大きいの 1 本、モデルに付いて」）
+//     帯の根元は毎フレーム背骨（上背）の骨の位置 = モデルに付いて動く
 //   ・被弾の閃き：HP が減ったら全身が白く、シールドで受けたら水色に一瞬光る（SkinnedAnimComponent::hitFlash → Dissolve.hlsli）
-//   ・詠唱（同日の 2 回目）：手元の光（CastFlash.json を大きく）+ 足元の魔法陣と手の前の小さな魔法陣（CastCircles）+
+//   ・詠唱：手元の光（CastFlash.json を大きく）+ 足元の魔法陣と手の前の小さな魔法陣（CastCircles）+
 //     体の周りに魔法の色の光の粒が昇る（CastPulse.json）と、体がほんのり魔法の色に光る（hitFlash を弱く使う）
-// 足元の土煙は小石に替えた（同日ユーザー：「灰色の霧ではなく、巻き上がる小石」。KayKit の岩の Mesh 粒子）。
+// 足元は巻き上がる小石（KayKit の岩の Mesh 粒子）。
 // 小石の色は面で変える（dustTint。シーンが Init の後に入れる）。
 // 水たまりの中（足が水面より下。water = シーンの WaterSurface）では小石の代わりに水しぶき（WaterStep / WaterLand / WaterSlide）+
-// 水面の波紋 + 水の足音（water_step / water_land）。水の中を進むと航跡の波紋（2026-10-27）。
+// 水面の波紋 + 水の足音（water_step / water_land）。水の中を進むと航跡の波紋。
 // 再生はシーンの AreaVFXPlayer（FeedbackVFXSystem と同じ）。魔法陣は SubmitMeshes で VFXMeshRenderer へ
 // ============================================================
 #pragma once
@@ -47,13 +46,13 @@ public:
     void SubmitMeshes(VFXMeshRenderer& renderer) { if (enabled && castCircles) m_Circles.Submit(renderer); }
     bool InWater() const { return m_PrevInWater; }   // TEMP-TEST
     bool OnIce() const { return m_OnIce; }           // TEMP-TEST
-    void SetIntroCircle(float act, float sizeMul) { m_Circles.SetIntro(act, sizeMul); }   // プレイヤーの登場・死の魔法陣（2026-11-01）
+    void SetIntroCircle(float act, float sizeMul) { m_Circles.SetIntro(act, sizeMul); }   // プレイヤーの登場・死の魔法陣
     // 上背の骨の位置（倒れた体に付いて動く）。骨が無ければ center
     DirectX::SimpleMath::Vector3 BodyAnchor(Registry& reg, Entity player, const DirectX::SimpleMath::Vector3& center) { return BackAnchor(reg, player, center); }
     void DrawImGui();
 
     // このフレームに地面を踏んだ足（走りの一歩・着地の両足。水の中・氷の上は入れない）。
-    // シーンが砂の足跡（SandFootprints）に渡す（2026-11-03）。side = 0 右 / 1 左
+    // シーンが砂の足跡（SandFootprints）に渡す。side = 0 右 / 1 左
     struct FootStep { DirectX::SimpleMath::Vector3 pos; float yawDeg; int side; };
     const std::vector<FootStep>& Steps() const { return m_Steps; }
 

@@ -43,6 +43,7 @@
 #include "World/SandField.h"
 #include "World/SandFootprints.h"
 #include "World/MiasmaField.h"
+#include "World/WindGrid.h"
 #include "World/GroundDebris.h"
 #include "World/WaterSurface.h"
 #include "World/Tumbleweeds.h"
@@ -108,10 +109,10 @@ public:
 protected:
     // 魔法の実験場（SpellLabScene が立てる。Init で平地・湧きなし・無敵などに分岐する）
     bool m_LabScene = false;
-    // タイトル画面（TitleScene が立てる。2026-10-09）：草原の地形・草・空はそのまま、敵・箱・門・HUD なし。
+    // タイトル画面（TitleScene が立てる）：草原の地形・草・空はそのまま、敵・箱・門・HUD なし。
     // 丘の上に立つプレイヤーをカメラがゆっくり回り、手前に TitleScreenUI。中身は CollisionTestSceneTitle.cpp
     bool m_TitleScene = false;
-    // ステージ選択（StageSelectScene が立てる。2026-10-21）：タイトルと同じ作り（選んだマップの景色をカメラが回る）で手前に StageSelectUI。
+    // ステージ選択（StageSelectScene が立てる）：タイトルと同じ作り（選んだマップの景色をカメラが回る）で手前に StageSelectUI。
     // 中身は CollisionTestSceneSelect.cpp
     bool m_SelectScene = false;
     bool IsMenuScene() const { return m_TitleScene || m_SelectScene; }   // 敵・箱・門・HUD・自動テストを回さない画面
@@ -125,13 +126,13 @@ private:
     void ApplyTitleLight(const SceneLighting::Preset& base);   // 午後遅くの光（太陽はカメラの側の斜めから）
     void UpdateTitleWorld(float dt, bool demo);   // 景色の更新（物理・アニメ・草・GPU・粒子）。demo = 戦いの見本をスローで回す
 
-    // ---- ステージ選択（CollisionTestSceneSelect.cpp。2026-10-21）----
+    // ---- ステージ選択（CollisionTestSceneSelect.cpp）----
     void InitSelect();
     void UpdateSelect(float dt);
     void ApplySelectLight();        // 草原はタイトルの午後の光、他はそのマップの照明
     StageSelectUI m_SelectUI;
     std::string m_RebuildProfile;        // TEMP-TEST：RebuildTerrain の各段の ms（コンソールと select 自動テストの記録用）
-    // 3 つのマップの地形を最初に全部建てておき、切替は「出す / しまう」だけ（2026-10-21 ユーザー：「切替の度に読み直すな、3 つ同時に持て」）。
+    // 3 つのマップの地形を最初に全部建てておき、切替は「出す / しまう」だけ（切替で建て直さない）。
     // しまう = その地形の実体から ModelComponent / ColliderComponent を外して預かる（描かれず・当たらず）、出す = 戻す。
     // 中身は CollisionTestSceneSelect.cpp（SelectWorlds）
     struct SelectWorlds;
@@ -140,18 +141,40 @@ private:
     void ActivateSelectWorld(int map);   // そのマップを出して、格子・置物・草・GPU の表・立つ所・光を差し替える
     std::vector<uint8_t> m_GrassMask;    // 今の地形の草の生える所（BuildTerrain が記録。地形の出し入れで草を建て直す）
 
-    // ---- プレイの計画（ステージ選択で決まる。2026-10-21、10-26 から同じマップを続ける）：m_StageIndex のマップを m_RunTier 面続ける、今は m_RunPos 面目 ----
+    // ---- プレイの計画（ステージ選択で決まる）：m_StageIndex のマップを m_RunTier 面続ける、今は m_RunPos 面目 ----
     int   m_RunPos = 1;             // 何面目か（1 始まり）。難度（StageConfig::PosDifficulty）と商店の値段はこれで決まる
     int   m_RunTier = 1;
     float m_ExpMul = 1.0f;          // Tier の経験値倍率（GPU から受け取った経験値に掛ける）
     bool  HasNextStage() const { return m_RunPos < m_RunTier; }
-    // 戦いの見本（2026-10-09 ユーザー：「立っているだけでは意味が分からない、エフェクトが弾ける画面に」）：
+    // 戦いの見本：
     // 見栄えのする魔法をバックパックに並べ、画面の奥から雑魚・自爆兵を寄せ続け、プレイヤーが自動で撃って吹き飛ばす
     void InitTitleDemo();
     void UpdateTitleDemo(float dt);
     void SpawnTitleEnemies(int count, float minDist, float maxDist);
     float m_TitleSpawnTimer = 0.0f;
     float m_TitleMeteorTimer = 0.0f;
+    // ---- タイトルの場面の巡回（CollisionTestSceneTitleShow.cpp）----
+    // 草原・黄昏 → 砂漠・砂嵐 → 遺跡・夜 を kTitleVignetteTime 秒ずつ回す（地形は選択画面と同じく 3 つとも建てて出し入れ）。
+    // 場面毎に光・天候・背嚢の魔法・敵を整える。マウスの動き（パッドはメニューを動かした時）で地面に風を起こす
+    void InitTitleShow();                    // 3 つの地形を建てて最初の場面を始める
+    void UpdateTitleShow(float dt);          // 場面の時間・暗転・切替（実時間）
+    void StartTitleVignette(int index);      // その場面の地形・光・天候・魔法・敵
+    void UpdateTitleCursorWind(float dt);    // マウスの下の地面へ風（実時間）
+    void UpdateTitleTornadoes(float dt);     // 砂嵐の術師の詠唱から砂旋を出し、柱を動かす（戦いの時間）
+    void BuildTitleBackpack(const ItemID* spells, int spellCount, const ItemID* runes, const int* runeTargets, int runeCount);
+    struct TitleShowState
+    {
+        int   index = 0;
+        float time = 0.0f;
+        bool  switched = false;   // 一度でも場面を替えた（明るくなる時の暗転を出す）
+        bool  userEdited = false; // 右下の表で魔法を組み替えた（以後の場面も組んだ魔法のまま）
+        bool  hasCursor = false;
+        DirectX::SimpleMath::Vector3 cursorGround;
+        DirectX::SimpleMath::Vector3 cursorVel;   // m/s（ならした値）
+        int   lastMenu = -1;
+        std::vector<DirectX::SimpleMath::Vector3> ignites;   // 1 フレームに 1 つずつ火を付ける所
+    };
+    TitleShowState m_TitleShow;
     TitleScreenUI m_TitleUI;
     CameraBase    m_TitleCam;
     DirectX::SimpleMath::Vector3 m_TitleFocus;   // プレイヤーの足元（カメラが回る中心）
@@ -159,7 +182,7 @@ private:
     float         m_TitleTime = 0.0f;
     static constexpr uint32_t kTitleSeed = 12345;   // タイトルの地形はいつも同じ（見え方を決めて置ける）
 
-    // ---- リザルトの背景の写真（2026-10-09、Graphics/PostProcess/SceneSnapshot）----
+    // ---- リザルトの背景の写真（Graphics/PostProcess/SceneSnapshot）----
     // 爆発の山場（HighlightPicker）か、それが無ければ力尽きた / クリアの瞬間を、UI を描く前に写す
     HighlightPicker m_Highlight;
     bool  m_SnapshotThisFrame = false;   // このフレームの Render で写す
@@ -183,25 +206,25 @@ private:
     float TrackPlayerHpLoss();       // このフレームに減った HP（最初のフレームは 0）
     void UpdateHudMarkers();         // 画面外の目印（報酬の箱 = 黄、エリート = 赤）
     void UpdateBossAttacks(float dt, const DirectX::SimpleMath::Vector3& player);   // Boss の技：輪・衝撃波・突進・当たり（CollisionTestSceneBoss.cpp）
-    void StartPlayerIntro();                                    // 面の始めのプレイヤーの登場（CollisionTestScenePlayerIntro.cpp。2026-11-01）
+    void StartPlayerIntro();                                    // 面の始めのプレイヤーの登場（CollisionTestScenePlayerIntro.cpp）
     void UpdatePlayerIntro(float dt);
     void EndPlayerIntro();
-    void ApplyIceFloor();                                       // 凍った池の上に立たせる（CollisionTestSceneField.cpp。2026-11-01）
-    void ApplyGrassCover();                                     // 草の覆いの図を地面の材質へ（草を建て直した後。CollisionTestSceneField.cpp。2026-11-02）
-    void StartPlayerDeath();                                    // プレイヤーの死の演出（CollisionTestScenePlayerDeath.cpp。2026-11-01）
+    void ApplyIceFloor();                                       // 凍った池の上に立たせる（CollisionTestSceneField.cpp）
+    void ApplyGrassCover();                                     // 草の覆いの図を地面の材質へ（草を建て直した後。CollisionTestSceneField.cpp）
+    void StartPlayerDeath();                                    // プレイヤーの死の演出（CollisionTestScenePlayerDeath.cpp）
     void UpdatePlayerDeath(float dt);
     void PushEnemiesAway(float radius);
-    BossIntro::Frame UpdateBossIntro(float dt);                 // 門から呼んだ Boss の登場の演出（CollisionTestSceneBossIntro.cpp。2026-10-27）
+    BossIntro::Frame UpdateBossIntro(float dt);                 // 門から呼んだ Boss の登場の演出（CollisionTestSceneBossIntro.cpp）
     void ApplyBossIntroSteer(const BossIntro::Frame& f);        // 演出の間の Boss の歩き / 殴らないを GPU へ（BossAttacks の指示の上書き）
-    // Boss の狂暴の咆哮・倒した瞬間の演出（CollisionTestSceneBossDrama.cpp。2026-10-29）
+    // Boss の狂暴の咆哮・倒した瞬間の演出（CollisionTestSceneBossDrama.cpp）
     void UpdateBossDrama(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);
-    // Boss 毎の技の合図：音・見た目・騎士の鎖と復活（CollisionTestSceneBossSignals.cpp。2026-10-29 に Boss.cpp から分けた）
+    // Boss 毎の技の合図：音・見た目・騎士の鎖と復活（CollisionTestSceneBossSignals.cpp）
     void UpdateBossMoveSignals(const BossAttacks::Input& in, const BossAttacks::Output& out, const Vector3& player);
     bool IsPlayerDead();
     const Vector3* PlayerPos();      // プレイヤーの位置（居なければ null）。部品へ渡す用
     void PushWind();                 // 世界の風（WeatherSystem::Wind）を草・マント・粒子・草の火へ渡す（毎フレーム、粒子の Flush の前）
-    // 突風を風源にする（2026-10-20）：プレイヤーの前に渦 + 風下へ押す風（SwarmSystem::AddWindBurst）。流線の粒子・草・落ち葉・煙が巻かれる
-    // self = プレイヤー自身の突風（マントは受けない。2026-11-05）。石の守護獣の翼の突風などは false
+    // 突風を風源にする：プレイヤーの前に渦 + 風下へ押す風（SwarmSystem::AddWindBurst）。流線の粒子・草・落ち葉・煙が巻かれる
+    // self = プレイヤー自身の突風（マントは受けない）。石の守護獣の翼の突風などは false
     void AddGustWindBurst(const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector2& dir, float length, float radius, bool self = false);
     void RespawnCrates();            // 報酬の箱をプレイヤーの周りへ並べ直す（開始時・地形の作り直し・パネル）
     void RespawnElites();            // エリートの的をプレイヤーの前へ（地形の作り直し・パネル）
@@ -237,18 +260,19 @@ private:
     BattleCamera m_Camera;   // FollowCamera は m_Camera.Camera()
     Registry     m_Registry;
     float        m_PrevPlayerHp = -1.0f;   // -1 = まだ読んでいない（最初のフレームで揺らさない）
-    LifestealHeal m_Lifesteal;             // 吸血のルーン：GPU の吸血の累計 → HP（2026-10-25）
+    LifestealHeal m_Lifesteal;             // 吸血のルーン：GPU の吸血の累計 → HP
+    float m_BatHealTotal = 0.0f;           // 吸血コウモリが戻した HP の累計（自動テスト用）
     bool         m_PrevDebugGrid = true;   // 入る前の DebugManager の参照格子（Shutdown で戻す）
     uint32_t     m_PortalVfx = 0;          // Boss の門の渦（AreaVFXPlayer のインスタンス。0 = 無し）
 
-    // 置物（Boss の門の柱）の下で雑魚用に塞いだマス（2026-10-03）。元は歩けたマスだけ覚え、
-    // 柱が消えたら戻す（報酬の箱も塞いでいたが、2026-10-28 から箱に衝突が無いので塞がない）
-    struct PropBlock { Entity entity; std::vector<int> cells; };   // Boss の門の柱（報酬の箱は 10-28 から塞がない）
+    // 置物（Boss の門の柱）の下で雑魚用に塞いだマス。元は歩けたマスだけ覚え、
+    // 柱が消えたら戻す（報酬の箱は衝突が無いので塞がない）
+    struct PropBlock { Entity entity; std::vector<int> cells; };   // Boss の門の柱
     std::vector<PropBlock> m_PropBlocks;
     void BlockPropCells();     // RespawnCrates の最後（前の分は戻してから塞ぎ直す）
     void UpdatePropBlocks();   // 毎フレーム：消えた柱の分を戻す
     void BlockUnreachablePockets();   // 地形の直後：フィールドの真ん中へ歩いて行けないマスを塞ぐ
-    void BuildClimbMap();             // 雑魚が登れる障害物（World/ClimbMap。2026-10-29）。地形を GPU へ上げる直前に
+    void BuildClimbMap();             // 雑魚が登れる障害物（World/ClimbMap）。地形を GPU へ上げる直前に
 
     // ============================================================
     // Systems
@@ -261,7 +285,7 @@ private:
     PlayerStateSystem       m_PlayerStateSystem;
     PlayerAnimSystem        m_PlayerAnimSystem;    // ステートマシン → クリップ名
     SkinnedAnimSystem       m_SkinnedAnimSystem;   // クリップの時計
-    ClothChainSystem        m_ClothChainSystem;    // マントの揺れ（2026-10-04）
+    ClothChainSystem        m_ClothChainSystem;    // マントの揺れ
     WeaponSystem            m_WeaponSystem;
     ManaSystem              m_ManaSystem;
     AreaVFXPlayer           m_AreaVFX;             // CPU から出した範囲攻撃・反応のエフェクトの見た目
@@ -270,40 +294,41 @@ private:
     LevelUpSystem           m_LevelUpSystem;
     InteractionSystem       m_Interaction;         // 近づいて F で使う物（報酬の箱）
     std::wstring            m_PromptBuf;           // 報酬の箱の案内（値段入り。GameUI はポインタを持つので文字列はここに置く）
-    wchar_t                 m_ObjectiveBuf[96] = {};   // HUD の目標の一行（同上。2026-10-07）
+    wchar_t                 m_ObjectiveBuf[96] = {};   // HUD の目標の一行（同上）
     BackpackAggregateSystem m_BackpackAggregate;
     RenderSystem            m_RenderSystem;
     StaticPropRenderer      m_StaticProps;   // 野原の置物（ModelComponent::batched）をまとめて描く
     GrassRenderer           m_Grass;         // 野原の草（GPU で生やす葉。風・踏み跡）
-    GrassFireField          m_GrassFire;     // 草の延焼（温度・燃料のテクスチャ。爆発・火球が熱源、見た目だけ。2026-10-12）
-    SandField               m_Sand;          // 砂漠の砂の面（濡れ・熱・陽炎・凹み。2026-11-02、CollisionTestSceneSand.cpp）
-    SandFootprints          m_Footprints;    // 砂漠のプレイヤーの足跡（2026-11-03、CollisionTestSceneSand.cpp）
-    MiasmaField             m_Miasma;        // 遺跡の瘴気（3D の濃さの箱。風で散る・巻き上がる・火で晴れる。2026-11-03、CollisionTestSceneMiasma.cpp）
-    GroundDebris            m_Debris;        // 地面の落ち葉・草屑・小枝（突風・爆発・強風で舞う。2026-10-13）
-    WaterSurface            m_Water;         // 水たまりの水面（風・足・雨・爆発の時だけ動く。2026-10-27）
-    Tumbleweeds             m_Tumbleweeds;   // 転がり草（砂漠・遺跡。風・竜巻・渦・突風に転がされ巻き上げられる。2026-10-22）
-    DandelionField          m_Dandelions;    // タンポポの綿毛（草原。風源・強い風・踏み跡でほどけて飛ぶ。2026-10-22）
-    GrassShreds             m_GrassShreds;   // 風源が草地から巻き上げる草屑（2026-10-23）
+    GrassFireField          m_GrassFire;     // 草の延焼（温度・燃料のテクスチャ。爆発・火球が熱源）
+    SandField               m_Sand;          // 砂漠の砂の面（濡れ・熱・陽炎・凹み。CollisionTestSceneSand.cpp）
+    SandFootprints          m_Footprints;    // 砂漠のプレイヤーの足跡（CollisionTestSceneSand.cpp）
+    MiasmaField             m_Miasma;        // 遺跡の瘴気（3D の濃さの箱。風で散る・巻き上がる・火で晴れる。CollisionTestSceneMiasma.cpp）
+    WindGrid                m_WindGrid;      // プレイヤーに付いて動く風の格子
+    GroundDebris            m_Debris;        // 地面の落ち葉・草屑・小枝（突風・爆発・強風で舞う）
+    WaterSurface            m_Water;         // 水たまりの水面（風・足・雨・爆発の時だけ動く）
+    Tumbleweeds             m_Tumbleweeds;   // 転がり草（砂漠・遺跡。風・竜巻・渦・突風に転がされ巻き上げられる）
+    DandelionField          m_Dandelions;    // タンポポの綿毛（草原。風源・強い風・踏み跡でほどけて飛ぶ）
+    GrassShreds             m_GrassShreds;   // 風源が草地から巻き上げる草屑
     void BuildWindToys();            // 地形を建てた / 出し入れした後：転がり草とタンポポを置き直す（CollisionTestSceneTerrain.cpp）
     void UpdateWindToys(float dt);   // 毎フレーム（止まっている間は呼ばない）：転がり草を動かし、タンポポの時計を進める
 
     // ---- 部品 ----
     RewardCrateSystem       m_Crates;              // 報酬の箱
-    TutorialGuide           m_Tutorial;            // 初回のチュートリアル（2026-10-13。HUD の案内と目標の行に出す）
+    TutorialGuide           m_Tutorial;            // 初回のチュートリアル（HUD の案内と目標の行に出す）
     PickupSystem            m_Pickups;             // 場の拾い物（磁石）
     FeedbackVFXSystem       m_Feedback;            // レベルアップ・開箱・被弾のエフェクト
-    PlayerVFXSystem         m_PlayerVFX;           // プレイヤーの動きのエフェクト（詠唱の光・土煙・着地・尾・被弾の閃き。2026-10-09）
-    SpellFxSystem           m_SpellFx;             // 魔法の CPU 側の見た目（アイススパイクの氷のトゲ。2026-10-10）
+    PlayerVFXSystem         m_PlayerVFX;           // プレイヤーの動きのエフェクト（詠唱の光・土煙・着地・尾・被弾の閃き）
+    SpellFxSystem           m_SpellFx;             // 魔法の CPU 側の見た目（アイススパイクの氷のトゲ）
     WeatherSystem           m_Weather;             // 時刻（昼 → 夜）と天候の出来事（雨・砂嵐・雷）。照明を毎フレーム上書き
-    BattleAudio             m_Audio;               // 戦闘の音（GPU の範囲・プレイヤーの動き・BGM。2026-10-03）
+    BattleAudio             m_Audio;               // 戦闘の音（GPU の範囲・プレイヤーの動き・BGM）
     SceneLighting           m_Lighting;            // 太陽・環境光・シーン光源
-    Outline                 m_Outline;             // トゥーンのアウトライン（2026-10-04。不透明な物の後、草の前）
-    AmbientOcclusion        m_AmbientOcclusion;    // SSAO（2026-11-02。アウトラインの後に作り、次のフレームの陰影が明暗の境を押すのに読む）
+    Outline                 m_Outline;             // トゥーンのアウトライン（不透明な物の後、草の前）
+    AmbientOcclusion        m_AmbientOcclusion;    // SSAO（アウトラインの後に作り、次のフレームの陰影が明暗の境を押すのに読む）
     ShadowMap               m_Shadows;             // 太陽の影（3 段のカスケード）
     EliteSpawner            m_Elites;              // エリートの的（CPU）
     MobSpawner              m_Mobs;                // 雑魚の湧き（GPU へ依頼）
     StageDirector           m_Stage;               // 1 面の進行（制限時間・エリートの時間表）
-    BossAttacks             m_BossAttacks;         // Boss の技（スラムの警告の輪。2026-10-03）
+    BossAttacks             m_BossAttacks;         // Boss の技
     bool                    m_DeathFxStarted = false;    // プレイヤーの死の演出を始めた
     Vector3                 m_DeathFeet = Vector3::Zero; // 倒れた所の足元
     uint32_t                m_DeathMotesFx = 0;          // 体から立ち上る光の粒のインスタンス
@@ -319,9 +344,9 @@ private:
     float                   m_IntroCamYaw = 0.0f;
     Vector3                 m_IntroFeet = Vector3::Zero; // 足元（魔法陣・光の柱の位置）
     uint32_t                m_IntroPillarFx = 0;         // 光の柱のインスタンス
-    BossIntro               m_BossIntro;           // 門から呼んだ Boss の登場（2026-10-27）
+    BossIntro               m_BossIntro;           // 門から呼んだ Boss の登場
     uint32_t                m_BossIntroVfx = 0;    // その間の赤く荒れた門の渦
-    // ---- Boss の狂暴・撃破の演出（CollisionTestSceneBossDrama.cpp。2026-10-29）----
+    // ---- Boss の狂暴・撃破の演出（CollisionTestSceneBossDrama.cpp）----
     uint32_t                m_BossRageVfx = 0;     // 狂暴の間 Boss に付く赤い火の粉（ループ。0 = 出ていない）
     bool                    m_BossDefeatSeen = false;   // 倒した演出を出した（IsBossDefeated の立ち上がり。次の Boss が湧いたら戻す）
     float                   m_DefeatSlowLeft = 0.0f;    // 倒した瞬間のスローの残り（実時間の秒。Update が gameplay の dt を縮める）
@@ -331,19 +356,19 @@ private:
     Vector3                 m_DefeatPos;                // 倒した所（地面の高さ）
     wchar_t                 m_BossDramaText[64] = {};   // 「〇〇が怒り狂った！」「〇〇を倒した！」（案内は文字列を写さないのでここに持つ）
     uint32_t                m_BossSlamHits = 0;    // 自動テストの記録用：スラムがプレイヤーに当たった数
-    // ---- 砂の守護者の技の見た目（CollisionTestSceneBoss.cpp。2026-10-24）----
+    // ---- 砂の守護者の技の見た目（CollisionTestSceneBoss.cpp）----
     IceSpikeField           m_SandSpikes;          // 「砂の槍」の石のトゲ（IceSpikeField を石の地刺のモデルで）
     uint32_t                m_BossMoundVfx = 0;    // 潜砂の砂丘（Boss に付いて動く。0 = 出ていない）
     uint32_t                m_BossAuraVfx = 0;     // 砂の守護者の体の周りに舞う砂（地上に居る間ずっと。0 = 出ていない）
-    uint32_t                m_PlayerVenomVfx = 0;  // 大サソリの毒に掛かっている間、プレイヤーに付く緑の泡（0 = 出ていない。2026-10-26）
-    SandTornadoFx           m_SandTornadoes;       // 砂嵐の術師の砂旋の本体（CPU が同じ直線で追う砂色の柱。2026-10-26）
+    uint32_t                m_PlayerVenomVfx = 0;  // 大サソリの毒に掛かっている間、プレイヤーに付く緑の泡（0 = 出ていない）
+    SandTornadoFx           m_SandTornadoes;       // 砂嵐の術師の砂旋の本体（CPU が同じ直線で追う砂色の柱）
     uint32_t                m_SandTornadoKillSerial = 0;   // KillAll の回数（変わったら柱を全部消す）
     struct BossDelayedVfx { float wait = 0.0f; int id = 0; DirectX::SimpleMath::Vector3 pos; };
     std::vector<BossDelayedVfx> m_BossDelayedVfx;  // 砂の槍の根元の砂煙（トゲの前線が通る時刻に出す）
     // 面の Boss に合わせる（技の組み合わせ・石のトゲの見た目）。ignoreEnv = トレーニングのメニューで選んだ時（VFXL_BOSS_TYPE より優先）
     void InitBossFx(BossType type, bool ignoreEnv = false);
     void UpdateBossSandFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);   // 流沙の効き・風源・砂丘・槍のトゲ・砂煙
-    // ---- 砂嵐の魔神の見た目（CollisionTestSceneBossDjinn.cpp。2026-10-29）----
+    // ---- 砂嵐の魔神の見た目（CollisionTestSceneBossDjinn.cpp）----
     uint32_t                m_DjinnVortexVfx = 0;  // 下半身の砂旋（浮いている間ずっと。0 = 出ていない）
     bool                    m_DjinnVortexPhase2 = false;   // 今の下半身の砂旋は二段目の（降りた後の広い）方か
     uint32_t                m_DjinnBreathVfx = 0;  // 炎の息（吐いている間。0 = 出ていない）
@@ -353,26 +378,26 @@ private:
     std::vector<DjinnDevilFx> m_DjinnDevilFx;      // 砂嵐召喚の砂旋の見た目（BossAttacks::Devils() の id と対応）
     void UpdateBossDjinnFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);   // 下半身の砂旋・砂旋の柱と風源・息・砂渡り・拳
     void ClearBossDjinnFx();
-    // ---- 骸の王の見た目と足元の効き（CollisionTestSceneBossKing.cpp。2026-10-29）----
+    // ---- 骸の王の見た目と足元の効き（CollisionTestSceneBossKing.cpp）----
     uint32_t                m_KingMistVfx = 0;     // 足元の闇の水溜まり（Boss が居る間ずっと）
     std::vector<DjinnDevilFx> m_KingOrbFx;         // 呪いの玉の見た目（BossAttacks::KingOrbs() の id と対応）
     uint32_t                m_KingRaised = 0;      // 大起尸で起こした骸骨の数（累計。自動テスト用）
     void UpdateBossKingFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);
     void ClearBossKingFx();
-    // ---- 石の守護獣の見た目とプレイヤーの石化（CollisionTestSceneBossBeast.cpp。2026-10-29）----
+    // ---- 石の守護獣の見た目とプレイヤーの石化（CollisionTestSceneBossBeast.cpp）----
     uint32_t                m_BeastDustVfx = 0;    // 飛んでいる間、羽ばたきが足元に巻き上げる土埃（0 = 出ていない）
     uint32_t                m_BeastBreathVfx = 0;  // 石化の息（吐いている間）
     float                   m_BeastBreathYawDeg = 0.0f;
     uint32_t                m_BeastDiveVfx = 0;    // 急降下で滑空している間の砂煙
     uint32_t                m_PlayerPetrifyVfx = 0;// 石化が溜まっている間、プレイヤーに付く灰色の石の欠片と埃
-    float                   m_PlayerStoneLook = 0.0f;// 石化の灰色（0..1、1 = 石化しきり = アニメとマントも止める。2026-11-05。毎フレーム Boss の技が書く）
+    float                   m_PlayerStoneLook = 0.0f;// 石化の灰色（0..1、1 = 石化しきり = アニメとマントも止める。毎フレーム Boss の技が書く）
     uint32_t                m_BeastPetrified = 0;  // 石になった回数（累計。自動テスト用）
     float                   m_BeastPrevWing = 0.0f;// 前のフレームの翼の角度（打ち下ろした瞬間に足元の草を倒す）
-    std::vector<DjinnDevilFx> m_BeastShardFx;      // 石羽の散弾の羽根の見た目（BossAttacks::BeastShards() の id と対応。10-29 追加）
+    std::vector<DjinnDevilFx> m_BeastShardFx;      // 石羽の散弾の羽根の見た目（BossAttacks::BeastShards() の id と対応）
     void UpdateBossBeastFx(float dt, const BossAttacks::Input& in, const BossAttacks::Output& out);
     void ClearBossBeastFx();
 
-    // ---- 遺跡の敵（2026-10-25。CollisionTestSceneRuins.cpp）----
+    // ---- 遺跡の敵（CollisionTestSceneRuins.cpp）----
     // 鎖の番人の投げた鎖：鉤が向きの先へ飛び（当たり = 鉤の線とプレイヤーの横の距離）、当たればプレイヤーを番人の前へ引き寄せ、戻る。
     // 見た目は ECS のモデル（鎖の区切り + 鉤、卡通・赤い縁取り付き）を毎フレーム並べ直す
     struct ChainHook
@@ -383,22 +408,23 @@ private:
         float reach = 12.0f;                   // 届く長さ（BomberCB::wardenRange）
         int   state = 0;                       // 0 = 飛ぶ、1 = 引っ掛けて引く、2 = 戻る
         float timer = 0.0f;
-        // 墓守の騎士の双鎖（2026-10-26）：根元の前 pullStop まで引く、damage ≥ 0 ならその値（< 0 = 番人の接触 × wardenDamageMul）、
+        // 墓守の騎士の双鎖：根元の前 pullStop まで引く、damage ≥ 0 ならその値（< 0 = 番人の接触 × wardenDamageMul）、
         // boss = 掛かったら BossAttacks::OnChainCaught（すぐ重撃）
         float pullStop = 1.6f;
         float damage = -1.0f;
         bool  boss = false;
-        float hitRadius = 0.55f;               // 鉤の当たりの太さ（+ プレイヤーの半径）。双鎖は BossAttacks::chainWidth の半分（2026-10-29）
+        float hitRadius = 0.55f;               // 鉤の当たりの太さ（+ プレイヤーの半径）。双鎖は BossAttacks::chainWidth の半分
     };
     std::vector<ChainHook> m_Chains;
     std::vector<Entity> m_ChainSegEntities;    // 鎖の区切りの実体（使い回し。使わない物は見えなくする）
     std::vector<Entity> m_ChainHookEntities;
     std::shared_ptr<Model> m_ChainSegModel, m_ChainHookModel;
     uint32_t m_ChainHits = 0;                  // 自動テスト用（累計）
+    uint32_t m_ShatterCount = 0;               // 砕氷（凍った敵を氷の範囲が砕いた）の累計。自動テスト用
     void UpdateRuinsFoes(float dt, const DirectX::SimpleMath::Vector3& player);   // 出来事の見た目・鎖
     void LayoutChains();                       // 鎖の実体を並べる
     void ClearRuinsFoes();                     // 鎖の実体を消す（Shutdown・場を消す時）
-    // ---- 面の固定エリート（2026-10-25。CollisionTestSceneElites.cpp）----
+    // ---- 面の固定エリート（CollisionTestSceneElites.cpp）----
     EliteAttacks m_StageElites;
     std::vector<SwarmSystem::WarnCircle> m_WarnCircles;        // Boss とエリートの地面の予告（まとめて SetWarnCircles）
     std::vector<std::pair<Entity, uint32_t>> m_EliteChestFx;   // 金色の宝箱と光の粒のエフェクト
@@ -406,7 +432,7 @@ private:
     void InitElites();                                         // 面の個体・皮と飾り（InitBossFx から）
     void UpdateElites(float dt, const DirectX::SimpleMath::Vector3& player);   // 技・当たり・宝箱・HUD の条
     StressTestTools         m_Stress;              // 負荷テスト・Mesh 発射の確認
-    SpellLab                m_SpellLab;            // 魔法を自由に組み合わせて試す実験場（2026-10-06）
+    SpellLab                m_SpellLab;            // 魔法を自由に組み合わせて試す実験場
 
     // --- GPU 側 gameplay（雑魚・投射物・オーブ）---
     SwarmSystem m_Swarm;
@@ -416,7 +442,7 @@ private:
     VFXContext                  m_VFXContext;
     VFXSpriteRenderer           m_SpriteRenderer;   // Sprite entry（連番画像）。レベルアップ・開箱などの CPU エフェクト
     VFXBeamRenderer             m_BeamRenderer;     // Beam entry（光線）
-    VFXMeshRenderer             m_MeshRenderer;     // Mesh entry（水晶玉の光球の球など。2026-10-06 まで戦闘では無かった）
+    VFXMeshRenderer             m_MeshRenderer;     // Mesh entry（水晶玉の光球の球など）
     VFXLiquidRenderer           m_LiquidRenderer;   // Liquid entry（CPU で出す液溜まり。GPU の範囲の物は m_Swarm が描く）
     std::shared_ptr<Texture>    m_ParticleTexture;
     float m_TotalTime = 0.0f;
@@ -440,12 +466,12 @@ private:
     std::vector<Entity> m_Terrain;
 
     // --- 表示切替 ---
-    // デバッグの線（衝突体・杖・格子）は既定で切（2026-09-28。Debug で 0.7 ms。パネルの Game Test から入れる）
+    // デバッグの線（衝突体・杖・格子）は既定で切（重いので。パネルの Game Test から入れる）
     bool m_ShowWireframe = false;
     bool m_ShowMesh = true;
     bool m_ShowWandDebug = false;
     bool m_ShowGridDebug = false;   // プレイヤーの周りの格子（通行・流れ場）
-    FlowDebugView m_FlowDebug;      // F8：風・経路の流れ場・群れの動きをミニマップのような窓で（2026-10-28）
+    FlowDebugView m_FlowDebug;      // F8：風・経路の流れ場・群れの動きをミニマップのような窓で
     bool m_ShowSwarmDebug = false;
 
     // ※粒子だけを個別に消せるようにしておく。
@@ -475,7 +501,7 @@ private:
     // 三層（山頂・洞窟）のマス。箱を山頂・洞窟にも置き、Boss の門を洞窟の奥に置く
     TerrainGenerator::Layout m_TerrainLayout;
 
-    // --- 地図のデータ（2026-10-05、World/MapData。地図エディタの 1 歩目）---
+    // --- 地図のデータ（World/MapData）---
     // 生成でも読み込みでも、建てた物の記録を持つ（保存・エディタの元）。中身は CollisionTestSceneTerrain.cpp
     MapData::Map m_TerrainMap;
     std::string  m_MapFile;              // 読む地図の名前（空 = seed から生成）。StageDef::mapFile / VFXL_MAP / Terrain パネル
@@ -483,27 +509,27 @@ private:
     char         m_MapNameBuf[64] = "map01";   // Terrain パネルの名前欄
     // 地形を建てる：m_MapFile があれば読む（失敗したら生成）、無ければ seed から生成。実体・格子・記録・草のマス
     void BuildTerrain(std::vector<uint8_t>& grassMask);
-    void LimitGrassToOasis(std::vector<uint8_t>& grassMask) const;   // 砂漠：草は水たまりの周りだけ（2026-11-02）
-    // 砂の面（CollisionTestSceneSand.cpp、2026-11-02）
+    void LimitGrassToOasis(std::vector<uint8_t>& grassMask) const;   // 砂漠：草は水たまりの周りだけ
+    // 砂の面（CollisionTestSceneSand.cpp）
     void BuildSandField();          // 地形の後（Build + 砂漠かどうか）
     void PushSand();                // PushWind の中：風・プレイヤーの足・陽炎の入力
     void StepSand();                // 描画の中、地形の前
     void UpdateFootprints(float dt); // gameplay：一歩を足跡にして、年と風で消す
     void RenderFootprints(const DirectX::SimpleMath::Vector3& sunDir);   // 描画の中、地形と不透明物の後（深度は読むだけ）
-    // 遺跡の瘴気（CollisionTestSceneMiasma.cpp、2026-11-03）
+    // 遺跡の瘴気（CollisionTestSceneMiasma.cpp）
     void BuildMiasma();             // 地形の後（Build + 遺跡かどうか）
     void PushMiasma();              // PushWind の中：風・箱の中心
     void RenderMiasma();            // 描画の中、水の後・群れの重ね描きの前（1 歩 + 描く）
     // 古い地形を消して建て直し、後処理（置物の描画表・草・GPU の格子表・箱）まで行う（Terrain パネル・自動テスト）
     void RebuildTerrain();
-    // トレーニング（実験場）のフィールド切替（2026-10-20、ユーザー「トレーニングからフィールドに入る。モードはそのまま」）：
+    // トレーニング（実験場）のフィールド切替：
     // field 0 = 平地の実験場、1〜3 = その面の本番の地形（段々の台地・置物・照明・草）。プレイヤーは中央へ。
     // 無敵・MP 無限・湧き停止・箱 / 門 / 磁石なしのトレーニングのまま。戻り値 = メニューに出す一行
-    std::wstring EnterTrainingField(int field, uint32_t seed = 0);   // seed 0 = 毎回違う。ステージ選択は決まった seed（2026-10-21）
+    std::wstring EnterTrainingField(int field, uint32_t seed = 0);   // seed 0 = 毎回違う。ステージ選択は決まった seed
     // 今ある報酬の箱と Boss の門を m_TerrainMap の placements へ（その種類がまだ 1 つも無い時だけ）
     void BakePlacements();
 
-    // --- 面（2026-09-30）。どの面かで地形の見た目・照明・草・難度の下駄が変わる（World/StageConfig）---
+    // --- 面。どの面かで地形の見た目・照明・草・難度の下駄が変わる（World/StageConfig）---
     int m_StageIndex = 1;
     std::vector<DirectX::SimpleMath::Vector3> m_Torches;   // 遺跡の壁の松明（プレイヤーに近い物にだけ点光源を付ける）
     void SubmitTorchLights();

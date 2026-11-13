@@ -56,7 +56,7 @@ public:
     void SkinSubmesh(ID3D11DeviceContext* ctx, ComputeShader* cs, int submeshIndex,
         const std::vector<DirectX::SimpleMath::Matrix>& palette);
 
-    // hitFlash（0〜1）= 色を flashColor へ寄せる（被弾の閃き。Dissolve.hlsli の ApplyHitFlash。2026-10-09）
+    // hitFlash（0〜1）= 色を flashColor へ寄せる（被弾の閃き。Dissolve.hlsli の ApplyHitFlash）
     void Render(ID3D11DeviceContext* ctx, const SkinnedModel& model,
         const LightBuffer& light,
         const DirectX::SimpleMath::Matrix& world,
@@ -64,7 +64,7 @@ public:
         const DirectX::SimpleMath::Matrix& proj,
         float hitFlash = 0.0f,
         const DirectX::SimpleMath::Vector3& flashColor = DirectX::SimpleMath::Vector3(1.0f, 1.0f, 1.0f),
-        const struct DissolveParams* dissolve = nullptr);   // 溶解（プレイヤーの死。2026-11-01）。閃きの色も edgeColor になる
+        const struct DissolveParams* dissolve = nullptr);   // 溶解（プレイヤーの死）。閃きの色も edgeColor になる
 
     // シャドウマップへ深度だけ（VS だけ積んで PS を外す）。スキニングは済んでいること
     void RenderDepth(ID3D11DeviceContext* ctx, const SkinnedModel& model,
@@ -111,7 +111,7 @@ public:
         return (index >= 0 && index < (int)m_SubMeshes.size()) ? m_SubMeshes[index].visible : false;
     }
 
-    // 最後にスキニングした描画フレームの印（RenderSystem が入れる。2026-10-25）。
+    // 最後にスキニングした描画フレームの印（RenderSystem が入れる）。
     // 同じフレームの影（カスケード 0）と本描画で姿勢は同じなので、2 回目は SkinningCS を飛ばして結果を使い回す
     uint32_t GetSkinnedStamp() const { return m_SkinnedStamp; }
     void SetSkinnedStamp(uint32_t stamp) { m_SkinnedStamp = stamp; }

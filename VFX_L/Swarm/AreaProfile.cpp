@@ -109,6 +109,19 @@ json AreaProfile::ToJson() const
     j["length"] = length;
     j["chargeTime"] = chargeTime;
     if (kind == Kind::Roam) j["roamSpeed"] = roamSpeed;
+    if (kind == Kind::Blades)
+    {
+        j["bladeCount"] = bladeCount;
+        j["bladeLength"] = bladeLength;
+        j["spinSpeed"] = spinSpeed;
+        j["bladeModel"] = bladeModel;
+    }
+    if (kind == Kind::Bats)
+    {
+        j["batCount"] = batCount;
+        j["batSpeed"] = batSpeed;
+        j["batHeal"] = batHeal;
+    }
     j["vfx"] = vfxFile;
     if (!hitVfxFile.empty()) j["hitVfx"] = hitVfxFile;
     j["sound"] = sound;
@@ -124,7 +137,7 @@ void AreaProfile::FromJson(const json& j)
 {
     name = j.value("name", name);
     const int k = j.value("kind", 0);
-    kind = (k == 4) ? Kind::Detonate : (k == 3) ? Kind::Roam : (k == 2) ? Kind::Beam : (k == 1) ? Kind::Lasting : Kind::OneShot;
+    kind = (k == 6) ? Kind::Bats : (k == 5) ? Kind::Blades : (k == 4) ? Kind::Detonate : (k == 3) ? Kind::Roam : (k == 2) ? Kind::Beam : (k == 1) ? Kind::Lasting : Kind::OneShot;
     radius = j.value("radius", radius);
     halfHeight = j.value("halfHeight", halfHeight);
     damage = j.value("damage", damage);
@@ -146,6 +159,13 @@ void AreaProfile::FromJson(const json& j)
     length = j.value("length", length);
     chargeTime = j.value("chargeTime", chargeTime);
     roamSpeed = j.value("roamSpeed", roamSpeed);
+    bladeCount = j.value("bladeCount", bladeCount);
+    bladeLength = j.value("bladeLength", bladeLength);
+    spinSpeed = j.value("spinSpeed", spinSpeed);
+    bladeModel = j.value("bladeModel", bladeModel);
+    batCount = j.value("batCount", batCount);
+    batSpeed = j.value("batSpeed", batSpeed);
+    batHeal = j.value("batHeal", batHeal);
     vfxFile = j.value("vfx", vfxFile);
     hitVfxFile = j.value("hitVfx", hitVfxFile);
     sound = j.value("sound", sound);

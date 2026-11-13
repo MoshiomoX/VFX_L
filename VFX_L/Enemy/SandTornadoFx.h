@@ -1,10 +1,9 @@
 #pragma once
 // ============================================================
 // SandTornadoFx.h
-// 砂嵐の術師の砂旋（kEnemyKindTornado）の本体の見た目（2026-10-26、ユーザー「砂旋本体も見えるように」）。
-// 砂旋そのものは GPU の雑魚（撃てない・狙われない・yaw の向きへ moveSpeed で直進・tornadoLife 秒で消える）で、
-// 10-20 に筒のモデルを廃止してから見えるのは足元の砂埃（TornadoDust.json）と風に巻かれる物だけだった。
-// 飛び方は CPU で完全に先読みできる（生まれた所・向き・速さ・寿命が決まっていて、減速も壁も受けない）ので、
+// 砂嵐の術師の砂旋（kEnemyKindTornado）の本体の見た目。
+// 砂旋そのものは GPU の雑魚（撃てない・狙われない・yaw の向きへ moveSpeed で直進・tornadoLife 秒で消える）。
+// 飛び方は CPU で完全に先読みできる（生まれた所・向き・速さ・寿命が決まっていて、減速も壁も受けない。崖に当たれば同じ規則で崖沿いへ曲がる）ので、
 // GPU を触らず CPU で同じ直線を追いかけて竜巻（Twister.json）と同じ作りの柱（SandTornado.json：longjuanfeng2.FBX の
 // Mesh 条目 2 枚、砂色）を AreaVFXPlayer で動かす。出現 introTime 秒で足元から伸び上がり、寿命が尽きたら outroTime 秒で
 // ほどける（VFXEffect::SetPresence）。全消し（KillAll）の時は場面が Clear を呼ぶ
@@ -21,8 +20,8 @@ public:
     {
         float introTime = 0.35f;   // 生まれてから柱が伸び切るまでの秒
         float outroTime = 0.5f;    // 寿命が尽きてからほどけて消えるまでの秒（GPU の砂旋は寿命でもう消えている）
-        // 足元の赤い輪（Boss / エリートの予告と同じ SwarmSystem::WarnCircle。場面が CollisionTestSceneElites.cpp でまとめて出す。
-        // 2026-10-26 ユーザー「砂旋の下にも赤い輪を」）：半径 m（出現 / 消える度合いを掛ける）、中を塗る割合（0 = 縁だけ）
+        // 足元の赤い輪（Boss / エリートの予告と同じ SwarmSystem::WarnCircle。場面が CollisionTestSceneElites.cpp でまとめて出す）：
+        // 半径 m（出現 / 消える度合いを掛ける）、中を塗る割合（0 = 縁だけ）
         float ringRadius = 1.6f;
         float ringFill = 0.5f;
     };

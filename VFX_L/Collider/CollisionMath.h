@@ -55,7 +55,7 @@ namespace CollisionMath
     // 凸多面体 = 平面の集合（全部の内側の共通部分）。
     // 台形柱・斜面・楔など、軸に揃わない面を持つ静的地形用。
     // 面数は固定上限（vector を持たせない: WorldCollider が値コピーされる）。
-    // 12 → 50（2026-10-06）：巨石を形通りに当てる ConvexFromPoints が 50 方向の面を使う（kDopDirs）
+    // 50 = 巨石を形通りに当てる ConvexFromPoints が 50 方向の面を使う（kDopDirs）
     constexpr int kMaxConvexPlanes = 50;
     struct Convex
     {
@@ -70,7 +70,7 @@ namespace CollisionMath
         }
     };
 
-    // 高さ場（起伏のある地面。2026-10-04）。中身（格子・区域の式）は地形の側が持ち、ここは問い合わせだけ。
+    // 高さ場（起伏のある地面）。中身（格子・区域の式）は地形の側が持ち、ここは問い合わせだけ。
     // 区域の境（崖）は式が変わるので、高さも法線も「点の真下のマスの式」で出す（崖を挟んで混ぜない）
     struct HeightFieldShape
     {
@@ -479,7 +479,7 @@ namespace CollisionMath
     }
 
     // ========================================================
-    // Ray vs 高さ場（2026-10-04）: 0.5m 刻みで進めて地面の下へ入った区間を二分で詰める。
+    // Ray vs 高さ場:0.5m 刻みで進めて地面の下へ入った区間を二分で詰める。
     //   起点が地面の下なら命中無し（AABB / Convex と同じ）
     // ========================================================
     inline RayHit RaycastHeightField(const Ray& ray, const HeightFieldShape& hf)
@@ -529,8 +529,7 @@ namespace CollisionMath
     // 凸包の方向の組（k-DOP）：軸・辺・角の 26 方向 + 辺の中間（(±1, ±2, 0) の並べ替え）24 方向 = 50。
     // Model が頂点から極値点を取る時と ConvexFromPoints が面を作る時で同じ組を使う
     constexpr int kDopDirs = 50;
-    // 表は関数内の static の物（初期化はスレッド安全。2026-10-25：以前は bool の印で遅延初期化していて、
-    // モデルの先読みのスレッドと本体のスレッドが同時に Model の凸包の点を取ると競合した）
+    // 表は関数内の static の物（初期化はスレッド安全。モデルの先読みのスレッドからも呼ばれる）
     inline const Vector3* DopDirections()
     {
         struct Table
@@ -567,7 +566,7 @@ namespace CollisionMath
         return table.dirs;
     }
 
-    // 点の集まりを包む凸体（kDopDirs 方向の支持平面。2026-10-06、巨石の衝突）。
+    // 点の集まりを包む凸体（kDopDirs 方向の支持平面。巨石の衝突）。
     // 各方向で一番外の点を通る面。点はローカル（Entity の位置からの相対）
     inline Convex ConvexFromPoints(const Vector3* pts, int n)
     {

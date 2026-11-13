@@ -1,10 +1,10 @@
 // ============================================================
 // SwarmSystemRuins.cpp
-// 遺跡の敵（2026-10-25：呪いの鎧・石像ガーゴイル・死霊術師 + 骸骨・鎖の番人）の GPU 側の準備。
+// 遺跡の敵（呪いの鎧・石像ガーゴイル・死霊術師 + 骸骨・鎖の番人）の GPU 側の準備。
 //   ・生きている一覧：SwarmEnemyCompactCS / SwarmEnemyKindListCS は UAV が 8 本ずつ埋まっているので、
 //     SwarmEnemyKindList2CS が KindListCS の直後に作る（CompactCS は mobList に入れない）
-//   ・砕け中の一覧：SwarmCorpseListCS も 8 本埋まっているので SwarmCorpseList2CS。ついでに Boss・砂嵐の術師・
-//     突撃爆弾兵もここへ移した（以前はゾンビ / 赤いロボットの皮で砕けていた）
+//   ・砕け中の一覧：SwarmCorpseListCS も 8 本埋まっているので SwarmCorpseList2CS（Boss・砂嵐の術師・
+//     突撃爆弾兵もここで、自分の皮で砕ける）
 //   ・予告の帯：鎖の番人の投げとガーゴイルの急降下は突撃兵の帯（SwarmChargeLineVS）を一覧を替えて描く
 // 動き（眠り・目覚め・飛行・急降下・詠唱・投げ）は SwarmEnemyAICS、当たりは SwarmContactCS、皮と飾りは Enemy/EnemyLooks.cpp、
 // 鎧の復活・骸骨の湧き・鎖は CPU（Enemy/MobSpawnerRuins.cpp・Scene/CollisionTestSceneRuins.cpp）
@@ -60,7 +60,7 @@ void SwarmSystem::DispatchKindLists2()
     m_KindList2CS->Bind(m_Context);
     m_KindList2CS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_KindList2CS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
-    m_KindList2CS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());          // 固定エリートの様子（2026-10-25）
+    m_KindList2CS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());          // 固定エリートの様子
     m_KindList2CS->SetSRV(m_Context, "enemyMaxHp", m_EnemyMaxHpSRV.Get());
     m_KindList2CS->SetUAV(m_Context, "armorList", m_KindListUAV[Swarm::kDrawListArmor].Get(), 0);
     m_KindList2CS->SetUAV(m_Context, "gargoyleList", m_KindListUAV[Swarm::kDrawListGargoyle].Get(), 0);

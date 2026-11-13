@@ -1,8 +1,7 @@
 // ============================================================
 // AutoTestFlyHit.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=flyhit（VFXL_BOSS_TYPE=beast / djinn）
-// 空を飛ぶ Boss に魔法が当たる高さ（2026-11-01、ユーザー：石の守護獣の飛行中、魔法は体の下へ当たっている）。
-// 以前の浮きは見た目だけで、位置は地面のままだった。今は位置そのものが高い：
+// 空を飛ぶ Boss に魔法が当たる高さ（浮きは見た目だけでなく位置そのものが高い）：
 //   1 秒: 湧き停止・全消し・無敵・MP 無限、火球だけ持って動かない Boss を呼ぶ
 //   Boss が出たら 8 秒、0.5 秒毎に `flyhit t hover bodyAboveGround hpLost`
 //   bodyAboveGround = Boss の位置 - その地面（普段の雑魚は groundY 0.9）
@@ -21,7 +20,6 @@ namespace
         void Run();
         float m_T0 = 0.0f, m_Next = 0.0f;
         float m_Hp0 = 0.0f;
-        bool m_Shot = false;
     };
 }
 
@@ -45,8 +43,15 @@ void AutoTestFlyHit::Run()
         m_PlayerControlSystem.testMove = Vector2::Zero;
         auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
         ClearBackpackItems(bp);
+        FillAllFrames(bp);
         const int lo = BackpackComponent::GRID / 2 - 1;
-        if (BackpackLogic::Place(bp, ItemID::Fireball, lo, lo, 0) < 0) AutoTestLog("flyhit place FAILED");
+        // VFXL_FLYHIT_ITEM=meteor / poison：地面に落ちる魔法の予告の輪と着弾点が、飛ぶ敵の真下の地面に出るか
+        char item[16] = {};
+        GetEnvironmentVariableA("VFXL_FLYHIT_ITEM", item, sizeof(item));
+        ItemID id = ItemID::Fireball;
+        if (strcmp(item, "meteor") == 0) id = ItemID::Meteor;
+        else if (strcmp(item, "poison") == 0) id = ItemID::Poison;
+        if (BackpackLogic::Place(bp, id, lo + 1, lo + 1, 0) < 0) AutoTestLog("flyhit place FAILED");
         bp.dirty = true;
         m_Stage.bossHp = 200000.0f;
         m_Stage.RequestBoss(false);
@@ -79,7 +84,11 @@ void AutoTestFlyHit::Run()
         snprintf(line, sizeof(line), "flyhit t %.1f hover %.2f bodyAboveGround %.2f hpLost %.0f",
             t, m_Swarm.GetBomberParams().bossHover, info.pos[1] - ground, m_Hp0 - Swarm::HpFromFixed(info.hp));
         AutoTestLog(line);
-        if (!m_Shot && t >= 3.0f) { AutoTestLog("flyhit look air"); m_Shot = true; }
+        if (t >= 2.0f && t <= 5.0f)   // 0.5 秒毎（落下中の予告の輪がどれかに写る）
+        {
+            snprintf(line, sizeof(line), "flyhit look air%.0f", t * 10.0f);
+            AutoTestLog(line);
+        }
         if (t >= 8.0f) { AutoTestLog("flyhit done"); m_AutoStep = 3; }
     }
 }

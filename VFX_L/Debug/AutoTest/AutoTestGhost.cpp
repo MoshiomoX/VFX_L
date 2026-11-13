@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestGhost.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=ghost
-// 最終ウェーブの幽霊（白 kEnemyKindGhost / 黒 kEnemyKindDarkGhost。2026-10-18 に強化 + 黒幽霊）：
+// 最終ウェーブの幽霊（白 kEnemyKindGhost / 黒 kEnemyKindDarkGhost）：
 // A 白幽霊 20 体、B 黒幽霊 5 体。プレイヤーは立ったまま撃つ（HP 10 万）。数・壁抜け・近づく速さ・
 // 当たった回数・ノックバックの距離・倒せた数を記録し撮る
 // ============================================================

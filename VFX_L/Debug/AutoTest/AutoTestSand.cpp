@@ -1,18 +1,18 @@
 ﻿// ============================================================
 // AutoTestSand.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=sand（VFXL_STAGE=2 = 砂漠で）
-// 砂漠の砂の面（World/SandField、2026-11-02）とオアシス：
+// 砂漠の砂の面（World/SandField）とオアシス：
 //   1 秒   : 湧き停止・全消し・無敵・詠唱停止。オアシスの草のマス数と LOD の網の大きさを書く
 //   1.5 秒 : 正面 7m の左に「熱い」、右に「濡れた」の円（パネルのボタンと同じ Stamp）
 //   2.3 秒 : look heatwet（左に陽炎、右に暗い濡れた砂）、3 点の読み戻し
 //   3 秒   : 周り 9〜12m に雑魚 20 体が寄ってくる → 7.5 秒 look tracks（足跡）
 //   8 秒   : 全消し、正面 7m で爆発の範囲（カメラが揺れる印 = クレーター）→ 8.4 秒 look crater、9 秒 凹みの深さ
 //   9.5 秒 : 正面 7m で凍らせる範囲（氷の魔法と同じ印 = 濡らして冷やす）→ 10.2 秒 look ice、乾きの値
-//   11 秒  : 竜巻くらいの風源が正面 7m を左から右へ 3 秒（2026-11-03 風に舞う砂）→ look blow1 / blow2、
+//   11 秒  : 竜巻くらいの風源が正面 7m を左から右へ 3 秒（風に舞う砂）→ look blow1 / blow2、
 //            風源の所と 14m 先の舞う強さ、クレーターがどれだけ埋まったか
 //   14.5 秒: 一番大きい池を見る look oasis（池の周りの草）
 //   16 秒  : プレイヤーが前へ 1.6 秒走る（途中を濡らす）→ look footprints（近く）/ footprints14（普段のカメラ）、
-//            19 秒から足跡の上に風源 → 2 秒で何枚残るか。21.2 秒 done（2026-11-03 足跡）
+//            19 秒から足跡の上に風源 → 2 秒で何枚残るか。21.2 秒 done
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 #include "World/SandField.h"
@@ -233,7 +233,7 @@ void AutoTestSand::Run()
         m_AutoStep = 16;
     }
     if (m_AutoStep == 16 && m_AutoTime >= 15.3f) { AutoTestLog("sand look oasis"); m_AutoStep = 17; }
-    // ---- プレイヤーの足跡（2026-11-03）：濡らした所を通って前へ走り、止まって後ろを見る → 風を当てて消えるか ----
+    // ---- プレイヤーの足跡：濡らした所を通って前へ走り、止まって後ろを見る → 風を当てて消えるか ----
     if (m_AutoStep == 17 && m_AutoTime >= 16.0f)
     {
         m_Camera.SetTargetOverride(nullptr);

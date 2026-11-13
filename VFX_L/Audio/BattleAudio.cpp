@@ -73,13 +73,13 @@ void BattleAudio::Update(float dt, SwarmSystem& swarm, Registry& reg, Entity pla
     {
         if (st.bossAlive && !m_Prev.bossAlive)
         {
-            // Boss の登場（2026-10-03 ユーザー「もっと激しく」）: 咆哮 + 低い衝撃音、曲は下で交差フェードせず切り替える
+            // Boss の登場: 咆哮 + 低い衝撃音、曲は下で交差フェードせず切り替える
             audio.Play("boss_summon");
             audio.Play("boss_impact");
         }
         if (st.finalWave && !m_Prev.finalWave) audio.Play("final_wave");
         if (st.playerDead && !m_Prev.playerDead) audio.Play("player_death");
-        // 勝利のジングルは Boss を倒した瞬間（2026-10-07 から門をもう一度使うまでは面が続く。使った時は曲が止まるだけ）
+        // 勝利のジングルは Boss を倒した瞬間（門を使った時は曲が止まるだけ）
         if (st.bossDefeated && !m_Prev.bossDefeated) audio.Play("stage_clear");
     }
     m_Prev = st;

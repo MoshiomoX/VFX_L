@@ -1,7 +1,7 @@
 // ============================================================
 // AutoTestCapeGust.cpp
-// TEMP-TEST: VFXL_BATTLE_AUTOTEST=capegust（2026-11-05）
-// 自分の突風でマントが体の中・前へ押し込まれないか（ユーザーの画像：突風の輪の中でマントが見えない）。
+// TEMP-TEST: VFXL_BATTLE_AUTOTEST=capegust
+// 自分の突風でマントが体の中・前へ押し込まれないか。
 // プレイヤーは +Z を向いて立ち、正面 4.5m に歩いてくる的 3 体（吹き飛ばされても戻ってくる）、バックパックは突風だけ。カメラは横から。
 // 0.05 秒毎に `capegust t casts back drop up`（back = 裾が根より体の後ろへ何 m、drop = 根から何 m 下、
 // up = 裾の一番前の節点が根より前へ出た m）。突風の 0.12 / 0.3 秒後に `capegust look c<n>a / c<n>b`、

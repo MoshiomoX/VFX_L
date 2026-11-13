@@ -71,7 +71,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     std::vector<const SpriteSheets::Info*> slices;          // テクスチャ配列の 1 枚ずつ
     std::vector<VFXLiquidDef>         liquids;
     std::vector<uint32_t>             recipeLiquid;          // recipes と同じ並び。def の番号 + 1、0 = 無し
-    std::vector<ParticleTrailStyleGPU> trailStyles;         // Trail entry（2026-10-15）：弾が引く帯の style
+    std::vector<ParticleTrailStyleGPU> trailStyles;         // Trail entry：弾が引く帯の style
     std::vector<uint32_t>             recipeTrail;           // recipes と同じ並び。style の番号 + 1、0 = 無し
     m_TrailLooks.clear();
 
@@ -87,7 +87,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
     for (int i = 0; i < VFXDatabase::Count(); ++i)
     {
         const VFXId id = VFXDatabase::At(i);
-        if (!VFXDatabase::IsGpu(id)) continue;   // CPU だけで出す物（プレイヤーの動き・Boss など。2026-10-09 から登録）は表に入れない
+        if (!VFXDatabase::IsGpu(id)) continue;   // CPU だけで出す物（プレイヤーの動き・Boss など）は表に入れない
         const char* path = VFXDatabase::GetPath(id);
         if (!path) continue;
 
@@ -103,7 +103,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
         std::vector<const VFXPointLightEntry*> lightEntries;
         std::vector<const VFXSpriteEntry*> spriteEntries;
         const VFXLiquidEntry* liquidEntry = nullptr;   // 1 つの範囲に液溜まりは 1 つ（2 つ目以降は無視）
-        VFXTrailEntry* trailEntry = nullptr;           // 弾 1 発に帯は 1 本（2 本目以降は無視。2026-10-15）
+        VFXTrailEntry* trailEntry = nullptr;           // 弾 1 発に帯は 1 本（2 本目以降は無視）
         for (int k = 0; ; ++k)
         {
             VFXEntry* e = tmpl->GetEntry(k);
@@ -155,8 +155,7 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
             // メッシュ粒子のモデルはここで登録する（表はシーンの間ずっと使うので解除しない）。
             // particles が無ければ ToGPU のまま（0 番 = 立方体）。
             // 差し替えるのは下位 12 bit（番号 / 発光 / 向き / 軸）だけ。上位の継承速度・単体・裏面だけ・風は
-            // ToGPU が詰めた物をそのまま残す（2026-10-16：以前は丸ごと作り直していて「単体」が GPU に届かず、
-            // 石弾の紫の殻が 2〜3 個重なってちらついていた）
+            // ToGPU が詰めた物をそのまま残す（丸ごと作り直すと「単体」などの bit が GPU に届かない）
             if (pe->emitterData.renderMode != 0 && particles)
                 ge.renderMode = (ge.renderMode & ~0xFFF)
                     | ParticleRenderMode::Pack(

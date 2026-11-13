@@ -1,0 +1,16 @@
+Swords (CC0 1.0, public domain - no attribution required)
+
+Sword_Big.fbx
+  Quaternius - Medieval Weapons Pack
+  https://quaternius.itch.io/lowpoly-medieval-weapons
+  License: CC0 1.0
+  Used by: Magic sword ring (spinning blades)
+
+Sword493.fbx, color.png
+  CC0 Game Assets (Cardano community) - 50 Lowpoly 3D Swords
+  https://cc0gameassets.itch.io/lowpoly-3d-swords-cc0
+  License: CC0 1.0
+  Used by: Spin slash
+
+Downloaded 2026-11-13. Only these files were taken from the packs.
+Both models point their tip along +Y. The game draws them untextured (glowing phantom colours), so only the shape is used.

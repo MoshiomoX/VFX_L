@@ -2,7 +2,7 @@
 // BossAttacks.cpp
 // 技の流れ（選ぶ → 出す → 終わったら間を空ける）と、輪の爆発。説明は BossAttacks.h
 // 面毎の組み合わせ（Configure）と技を始める時の状態（StartMove）は BossAttacksConfig.cpp、
-// 共通の技（重撃・投石雨・衝撃波・突進・召喚）の中身は BossAttacksCommon.cpp（2026-10-29 に分けた）、
+// 共通の技（重撃・投石雨・衝撃波・突進・召喚）の中身は BossAttacksCommon.cpp、
 // Boss 毎の技は BossAttacks<Sand / Scorpion / Knight / Wolf / Stag / Djinn / King / Beast>.cpp、調整パネルは BossAttacksPanel.cpp
 // ============================================================
 #include "Enemy/Boss/BossAttacks.h"
@@ -71,11 +71,11 @@ void BossAttacks::Reset()
     brain.Reset();
     // 砂嵐の魔神：一段目（浮いて）から
     m_Djinn = DjinnState{};
-    m_King = KingState{};   // 骸の王の玉・床（2026-10-29）
+    m_King = KingState{};   // 骸の王の玉・床
     m_Djinn.hoverBase = djinn.hover;
     m_ForcePhase2 = false;
     if (m_Type == BossType::Djinn) ConfigureDjinnPhase(false);
-    // 石の守護獣：一段目（飛んで）から。石化はプレイヤー側の状態なので引き継ぐ（2026-10-29）
+    // 石の守護獣：一段目（飛んで）から。石化はプレイヤー側の状態なので引き継ぐ
     const float petrify = m_Beast.petrify, stone = m_Beast.stoneLeft;
     m_Beast = BeastState{};
     m_Beast.hoverBase = beast.hover;
@@ -86,9 +86,9 @@ void BossAttacks::Reset()
 
 void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
 {
-    // 大サソリの毒はプレイヤー側の状態：Boss が居なくても減る（2026-10-26）
+    // 大サソリの毒はプレイヤー側の状態：Boss が居なくても減る
     if (m_PoisonLeft > 0.0f) m_PoisonLeft = (std::max)(0.0f, m_PoisonLeft - in.dt);
-    UpdateBeastPetrify(in.dt, out);   // 石の守護獣の石化も同じ（2026-10-29）
+    UpdateBeastPetrify(in.dt, out);   // 石の守護獣の石化も同じ
     // Boss が居なくなったら（倒した・まだ呼んでいない）輪も帯も消す
     if (!in.bossAlive)
     {
@@ -147,7 +147,7 @@ void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
     if (m_Move != BossMove::DjinnShift && m_Move != BossMove::ShadowStep) m_Djinn.shiftSink = 0.0f;
     out.bossBurrow = (std::max)(m_BurrowSink, m_Djinn.shiftSink);   // 魔神の砂渡りも同じ沈み（GPU は撃てなくなる）
 
-    // ---- 四足の Boss の姿勢 → GPU の VS（BomberCB::bossChargePose。2026-10-26）：雄鹿 = 突進（BossAttacksStag.cpp）、
+    // ---- 四足の Boss の姿勢 → GPU の VS（BomberCB::bossChargePose）：雄鹿 = 突進（BossAttacksStag.cpp）、
     //      大サソリ = 毒針の尾（BossAttacksScorpion.cpp）、狼人 = 飛びかかりの放物線（UpdatePounce が書く）。他の Boss は 0 のまま ----
     if (m_Type == BossType::Stag) UpdateStagPose(in, out);
     else if (m_Type == BossType::Scorpion) UpdateScorpionPose(out);
@@ -160,7 +160,7 @@ void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
         EnterPhase2(out);
     m_ForcePhase2 = false;
 
-    // ---- 狂暴の咆哮（2026-10-29）：HP が半分を切った後、技の切れ目で 1 回だけ止まって吠える。
+    // ---- 狂暴の咆哮：HP が半分を切った後、技の切れ目で 1 回だけ止まって吠える。
     //      HP 0 は止めの一撃で折り返した値なので数えない。蘇った騎士（forceEnraged）・テストの狂暴では吠えない ----
     if (enrageRoar && !m_EnrageRoarDone && !forceEnraged && !testEnraged && m_Move == BossMove::None
         && in.bossHpRatio > 0.01f && in.bossHpRatio < enrageHpRatio)

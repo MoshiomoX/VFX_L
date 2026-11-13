@@ -20,7 +20,7 @@ enum class CastMode
     DebugBurst,  // castInterval を無視して撃ち続ける（マナは消費する）
 };
 
-// SpellStats / AreaStats::triggerMask の bit の割り当て（集約と WeaponSystem で同じ値を使う。2026-10-25）
+// SpellStats / AreaStats::triggerMask の bit の割り当て（集約と WeaponSystem で同じ値を使う）
 //   bit 0〜15  = wand.spells の添字（上級の飛行物魔法）
 //   bit 16〜23 = wand.areas の添字（上級の範囲魔法：光線・竜巻）
 //   bit 24〜30 = 分身のルーンが付いた魔法（SpellStats::larpaSlot。その魔法自身の弾が消えた印で、下流の bit とは別）
@@ -64,34 +64,36 @@ struct SpellStats
     // 範囲の威力は GPU の範囲定義が持つので、弾ごとに渡す（能力アップ「魔法威力」。ItemInfo::ApplySpellPower）
     float areaDamageMul = 1.0f;
 
-    // 連鎖（連鎖のルーン。2026-10-16）: 敵に当たっても消えず、近くの別の敵へこの回数まで跳ぶ（GPU の HitCS / ProjMoveCS。
+    // 連鎖（連鎖のルーン）:敵に当たっても消えず、近くの別の敵へこの回数まで跳ぶ（GPU の HitCS / ProjMoveCS。
     // Drop / Lob 型には効かない）。生成依頼の pathT に乗せて渡す
     int   chainCount = 0;
 
-    // 分身（分身のルーン。2026-11-01）: 弾が消える時に放つ分身の数。larpaSlot = TriggerBits の分身の枠（集約が決める。-1 = 無し）
+    // 分身（分身のルーン）:弾が消える時に放つ分身の数。larpaSlot = TriggerBits の分身の枠（集約が決める。-1 = 無し）
     int   larpaCount = 0;
     int   larpaSlot = -1;
 
-    // 吸血（吸血のルーン。2026-10-25）: この魔法（と着弾で出す範囲）が敵に与えたダメージのこの割合をプレイヤーの HP に戻す。
+    // 吸血:この魔法（と着弾で出す範囲）が敵に与えたダメージのこの割合をプレイヤーの HP に戻す。
     // GPU には「吸血の弾」の印だけ渡す（生成依頼の tag の最上位 bit = Swarm::kTagLifesteal）。回る割合は LifestealHeal が持つ
     float lifesteal = 0.0f;
 
     // --- 誘発（基本魔法 → 上級魔法。集約が決める）---
     bool     triggered = false;   // 上級魔法。自分では撃たず、自分を triggerMask に持つ弾が消えた所で撃つ
     uint32_t triggerMask = 0;     // 基本魔法: この弾が消えたら誘発できる上級魔法（bit 0〜15 = spells の添字、bit 16〜30 = areas の添字（光線・竜巻）。TriggerBits）
-    // 上級魔法を「線」で撃つ（アイススパイク。2026-10-10）: 着弾点へ弾を落とす代わりに、撃った所の足元から
+    // 上級魔法を「線」で撃つ（アイススパイク）: 着弾点へ弾を落とす代わりに、撃った所の足元から
     // 「一番近い敵の向き」へ lineLength m の線を引き、命中の範囲（profile の hitArea）を並べて一度に出す。見た目は SpellFxSystem。
-    // 2026-10-26 ユーザー：「一番近い敵の少し奥まで」ではなく「一番近い敵は向きだけ、長さは固定」に変更。
     // 長さは拡大鏡などの当たり半径の倍率で伸びる（光線の射程と同じ決まり）
     bool     triggerLine = false;
     float    lineLength = 12.0f;
-    // 出口（2026-10-31）: 出口魔法の出口の先に居る。triggered も立つ。上級魔法の誘発と違い、手元ではなく弾が消えた所から撃ち出す。
+    // 0 = 1 本の線。> 0 = 足元から lineLength まで、半角 lineFanDeg 度の扇に範囲とトゲを敷き詰める。
+    // 分裂は扇を横に並べる
+    float    lineFanDeg = 0.0f;
+    // 出口:出口魔法の出口の先に居る。triggered も立つ。上級魔法の誘発と違い、手元ではなく弾が消えた所から撃ち出す。
     // 弾 1 発に 1 回分が入っている扱いで、自分のクールダウンも MP も持たない（間隔と MP は起点の魔法が持つ。SolveOutletLines）
     bool     fromOutlet = false;
     float    triggerDelay = 0.0f;   // 弾が消えてからこの魔法が発動するまでの秒（ItemCommon::outletDelay）
     int      outletDepth = 0;       // 起点から何段目か（1 = 起点のすぐ先）。発動の光の大きさ（段が深いほど大きい）
 
-    // --- 貯蔵（水晶玉。2026-10-06）---
+    // --- 貯蔵（水晶玉）---
     // 杖からは撃たず、WandComponent::orbs[storeUnit] の光球が自分の位置から撃つ（光球ごとに計時）。
     // manaCost は既に召喚物の倍率を掛けた値。上級魔法（triggered）が貯蔵された時は誘発された時に光球の位置から撃つ
     int      storeUnit = -1;
@@ -101,13 +103,13 @@ struct SpellStats
     int   pendingCasts = 0;         // 連発の残り回数
     float delayTimer = 0.0f;      // 次の連発までの残り
     DirectX::SimpleMath::Vector3 triggerPos;   // 上級魔法: 連発（二重詠唱）の続きを撃つ場所
-    // 上級魔法: 連発の続きを撃ち出す所（2026-10-25）。光球から撃った物はその光球（triggerOrbSerial）の今の位置、
+    // 上級魔法: 連発の続きを撃ち出す所。光球から撃った物はその光球（triggerOrbSerial）の今の位置、
     // 光球が消えていれば triggerOrigin（最初に撃った時の位置）。杖から撃った物（serial 0）は今の杖先
     uint32_t triggerOrbSerial = 0;
     DirectX::SimpleMath::Vector3 triggerOrigin;
 };
 
-// 召喚物（水晶玉。2026-10-06）1 個分の集約結果。光球の実体（位置・寿命・エフェクト）は WeaponSystem が持つ
+// 召喚物（水晶玉）1 個分の集約結果。光球の実体（位置・寿命・エフェクト）は WeaponSystem が持つ
 struct OrbUnitStats
 {
     ItemID id = ItemID::Unknown;
@@ -136,7 +138,7 @@ struct WandComponent
     bool     castRequested = false;
 
     // 詠唱を止めている（デバッグ用：Game Test パネル「Casting Paused (debug)」と自動テストだけが切り替える。
-    // 2026-10-01 から Q / パッド Y は魔力解放で、プレイヤーはこれを切り替えられない）。
+    // プレイヤーは切り替えられない）。
     // 止めている間は新しい詠唱をしない = 魔力を使わずに溜められる。
     // 撃ち始めた連発（二重詠唱の残り）は最後まで撃ち切る。
     // 集約（BackpackAggregateSystem）は spells / areas しか作り直さないので、バックパックを組み替えても残る

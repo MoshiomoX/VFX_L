@@ -1,6 +1,6 @@
 // ============================================================
 // VFXLiquidDef.h
-// Liquid entry の見た目（2026-10-02）。CPU の VFXLiquidRenderer と GPU の範囲
+// Liquid entry の見た目。CPU の VFXLiquidRenderer と GPU の範囲
 // （SwarmVFXTable → SwarmLiquidVS）が同じ物を StructuredBuffer で読み、
 // 同じ VFXLiquidPS で描く。HLSL 側は Shader/Common/LiquidCommon.hlsli の LiquidDef（160 bytes）。
 //
@@ -35,7 +35,7 @@ struct VFXLiquidDef
     float splashTime = 0.22f;  // 秒：液滴が飛び散る時間
     float dryTime = 0.7f;      // 秒：終わりのこれだけで縮んで消える
     float specGain = 1.0f;     // 太陽の照り返し
-    float roughness = 0.35f;   // GGX の粗さ（0.18 だと照り返しの峰が HDR 7〜8 になり bloom で白く飛んだ。10-02）
+    float roughness = 0.35f;   // GGX の粗さ（小さいと照り返しの峰が bloom で白く飛ぶ）
 
     float bubbles = 0.45f;     // 泡のあるマスの割合（深い所ほど多い）
     float bubbleGain = 0.35f;  // 泡の明るさ
@@ -49,11 +49,11 @@ struct VFXLiquidDef
 
     uint32_t lobes = 7;        // 本体の周りの液滴（0〜7）
     uint32_t spatter = 4;      // 前へ飛ぶ小さな飛沫（0〜8）
-    // 渦（2026-10-24、砂の守護者の流沙。渦の時は本体 1 つを真ん中に置いて reach いっぱいの丸い溜まりにする）：下 16 bit = 回る速さ rad/s × 100、上 16 bit = ねじれ rad/m × 100。0 = 回らない。
+    // 渦（砂の守護者の流沙。渦の時は本体 1 つを真ん中に置いて reach いっぱいの丸い溜まりにする）：下 16 bit = 回る速さ rad/s × 100、上 16 bit = ねじれ rad/m × 100。0 = 回らない。
     // 表面のノイズを「中心からの距離に比例してねじった上で、全体を回す」= 渦巻きの腕が回る（Vortex / SetVortex）
     uint32_t flags = 0;
     // 点光源の効き（拡散 + 照り返し）。毒の池は自分の緑の点光源を 0.5m 上に持つので、
-    // そのままだと液面に強い照り返しが出る（10-02 ユーザー「明るすぎた」）
+    // そのままだと液面に強い照り返しが出る
     float    pointGain = 0.3f;
 
     float Vortex() const { return (float)(flags & 0xFFFFu) * 0.01f; }

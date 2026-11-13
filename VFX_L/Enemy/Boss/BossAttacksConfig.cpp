@@ -1,8 +1,7 @@
 // ============================================================
 // BossAttacksConfig.cpp
-// 面毎の Boss の組み合わせ（Configure：技の有り / 無し・召喚する敵・体の色・前傾・体の大きさ）と召喚の種類の抽選。
-// 2026-10-29 に BossAttacks.cpp（砂嵐の魔神を足して 530 行）から分けた。同日、石の守護獣を足して BossAttacks.cpp が 512 行に
-// なったので、技を始める時の状態（StartMove）もここへ移した。説明は BossAttacks.h
+// 面毎の Boss の組み合わせ（Configure：技の有り / 無し・召喚する敵・体の色・前傾・体の大きさ）と召喚の種類の抽選、
+// 技を始める時の状態（StartMove）。説明は BossAttacks.h
 // ============================================================
 #include "Enemy/Boss/BossAttacks.h"
 #include "Swarm/SwarmTypes.h"
@@ -29,13 +28,13 @@ void BossAttacks::Configure(BossType t)
 {
     m_Type = t;
     const bool sand = (t == BossType::SandGuardian);
-    const bool scorpion = (t == BossType::Scorpion);   // 砂漠 2 面目（2026-10-26）：毒針 / 鋏 + 潜砂（借用）+ 召喚。共通の 4 つは出さない
-    const bool knight = (t == BossType::CryptKnight);  // 遺跡 1 面目（2026-10-26）：重撃 / 衝撃波 / 双鎖 / 鎧の召喚（投石雨・突進は出さない）
-    const bool wolf = (t == BossType::Werewolf);       // 草原 2 面目（2026-10-26）：飛びかかり / 爪の三連 / 遠吠え だけ（共通は全部出さない）
-    const bool stag = (t == BossType::Stag);           // 草原 3 面目（2026-10-29）：突進 / 角の振り上げ / 角の雷撃 だけ
-    const bool isDjinn = (t == BossType::Djinn);         // 砂漠 3 面目（2026-10-29）：一段目 / 二段目で入れ替える（ConfigureDjinnPhase）
-    const bool isKing = (t == BossType::BoneKing);       // 遺跡 3 面目（2026-10-29）：呪いの玉 / 大起尸 / 影へ消える / 呪いの床 だけ
-    const bool isBeast = (t == BossType::StoneBeast);    // 遺跡 2 面目（2026-10-29）：一段目 / 二段目で入れ替える（ConfigureBeastPhase）
+    const bool scorpion = (t == BossType::Scorpion);   // 砂漠 2 面目：毒針 / 鋏 + 潜砂（借用）+ 召喚。共通の 4 つは出さない
+    const bool knight = (t == BossType::CryptKnight);  // 遺跡 1 面目：重撃 / 衝撃波 / 双鎖 / 鎧の召喚（投石雨・突進は出さない）
+    const bool wolf = (t == BossType::Werewolf);       // 草原 2 面目：飛びかかり / 爪の三連 / 遠吠え だけ（共通は全部出さない）
+    const bool stag = (t == BossType::Stag);           // 草原 3 面目：突進 / 角の振り上げ / 角の雷撃 だけ
+    const bool isDjinn = (t == BossType::Djinn);         // 砂漠 3 面目：一段目 / 二段目で入れ替える（ConfigureDjinnPhase）
+    const bool isKing = (t == BossType::BoneKing);       // 遺跡 3 面目：呪いの玉 / 大起尸 / 影へ消える / 呪いの床 だけ
+    const bool isBeast = (t == BossType::StoneBeast);    // 遺跡 2 面目：一段目 / 二段目で入れ替える（ConfigureBeastPhase）
     const bool own = isDjinn || isKing || isBeast;       // 共通の技を全部切る Boss（魔神・守護獣は二段目で一部を点ける）
     brain.rules[(int)BossMove::Slam].enabled = !scorpion && !wolf && !stag && !own;
     brain.rules[(int)BossMove::RockRain].enabled = !scorpion && !knight && !wolf && !stag && !own;
@@ -55,7 +54,7 @@ void BossAttacks::Configure(BossType t)
     brain.rules[(int)BossMove::ChainPull].enabled = knight;
     brain.rules[(int)BossMove::CurseOrbs].enabled = isKing;
     brain.rules[(int)BossMove::RaiseDead].enabled = isKing;
-    brain.rules[(int)BossMove::ShadowStep].enabled = false;   // 骸の王は動かない（10-29 ユーザー）。技の中身は残してある（パネルで点けられる）
+    brain.rules[(int)BossMove::ShadowStep].enabled = false;   // 骸の王は動かない。技の中身は残してある（パネルで点けられる）
     brain.rules[(int)BossMove::CurseFloor].enabled = isKing;
     forceEnraged = false;
     // 技を出す距離：骸の王は真ん中から動かないので、プレイヤーがどこに居ても出す（他は 35m）
@@ -83,8 +82,8 @@ void BossAttacks::Configure(BossType t)
     else if (scorpion) { leanPivotY = -0.6f; leanPivotZ = 0.0f; leanAngle = 0.08f; }
     else if (isBeast) { leanPivotY = 0.3f; leanPivotZ = -0.55f; leanAngle = 0.12f; }   // 石の守護獣の突進（二段目）
     else { leanPivotY = leanPivotZ = leanAngle = 0.0f; }
-    // 体の大きさ：狼人は猫背で背が低くなったので大きく（10-27「圧が無い、小さい」）
-    // 骸の王は真ん中から動かない巨大な骸骨（2026-10-29 ユーザー「もっと大きく、プレイヤーから見て怪物だと感じるくらい」→ 3.5 → 5.5）
+    // 体の大きさ：狼人は猫背で背が低いので大きく
+    // 骸の王は真ん中から動かない巨大な骸骨（プレイヤーから見て怪物と感じる大きさ）
     // 石の守護獣は翼を広げて飛ぶ竜なので少し大きく（3.4）
     bodyScale = (t == BossType::Werewolf) ? 3.8f : isKing ? 5.5f : isBeast ? 3.4f : 3.0f;
     if (isKing)
@@ -140,7 +139,7 @@ void BossAttacks::Configure(BossType t)
         summonPicks[0] = { Swarm::kEnemyKindMob, 0.7f };
         summonPicks[1] = { Swarm::kEnemyKindBomber, 0.3f };
         summonPicks[2] = { Swarm::kEnemyKindMob, 0.0f };
-        bodyTint = { 1.0f, 1.0f, 1.0f };   // 苔むした岩の皮（BossLooks。2026-10-25 まではゾンビの皮 × 紫）
+        bodyTint = { 1.0f, 1.0f, 1.0f };   // 苔むした岩の皮（BossLooks）
     }
 }
 
@@ -162,7 +161,7 @@ uint32_t BossAttacks::PickSummonKind()
 }
 
 // ============================================================
-// 技を始める：技毎の始めの状態（向き・置く輪・湧く所）。2026-10-29 に BossAttacks.cpp（石の守護獣を足して 512 行）から移した
+// 技を始める：技毎の始めの状態（向き・置く輪・湧く所）
 // ============================================================
 void BossAttacks::StartMove(BossMove m, const Input& in, const GridWorld& grid, Output& out)
 {

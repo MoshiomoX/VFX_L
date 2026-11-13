@@ -42,7 +42,7 @@ void VFXTrailEntry::SyncStyle(const VFXContext& ctx)
     }
 }
 
-// 返却先の粒子系がもう破棄されていたら何もしない（シーンのメンバの破棄の順番で、entry が粒子系より後に消える時。2026-10-25）
+// 返却先の粒子系がもう破棄されていたら何もしない（シーンのメンバの破棄の順番で、entry が粒子系より後に消える時）
 void VFXTrailEntry::ReleaseStyle()
 {
     if (m_StyleId >= 0 && m_Owner && GPUParticleSystem::IsAlive(m_Owner))

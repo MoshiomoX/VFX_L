@@ -42,17 +42,24 @@ public:
 
     DirectX::SimpleMath::Vector4 accentColor = { 1.0f, 0.80f, 0.35f, 1.0f };
 
-    // 見た目（2026-10-09）。Panels = 暗い地 + 古金の枠のボタン（一時停止）、
+    // 見た目。Panels = 暗い地 + 古金の枠のボタン（一時停止）、
     // Text = 文字だけの左寄せの一覧。選んでいる項目は右へ少しずれて明るくなり、左に菱形・後ろに金の光・下に線（タイトル）
     enum class Style { Panels, Text };
     Style style = Style::Panels;
     float fade = 1.0f;   // Text の見た目の濃さ（0〜1。タイトルの出始めにふわっと出す）
+    float stagger = 0.0f;   // 下の項目ほど右へずらす量（一番下の項目のずれ、px。0 = 縦一直線）
+    // Text の見た目で左の菱形の代わりに描くルーン（項目毎。kRune*、空 / -1 = 菱形）
+    enum Rune { kRuneRaido = 0, kRuneTiwaz, kRuneAnsuz, kRuneOthala, kRuneCount };
+    std::vector<int> runes;
 
 private:
     DirectX::SimpleMath::Vector2 ItemPos(int i) const;
     int HandleInputRaw(float dt);   // 判定だけ（HandleInput が音を付ける）
     void DrawTextStyle(SpriteRenderer& sprite, TextRenderer& text,
         const std::shared_ptr<Texture>& white, float textScale) const;
+    // ルーンの印：細い金の輪の中に線の文字。e = 選んでいる度合い（灯る・後ろで魔法陣が回る・柔らかい光）
+    void DrawRune(SpriteRenderer& sprite, const std::shared_ptr<Texture>& white, int rune,
+        const DirectX::SimpleMath::Vector2& center, float radius, float e, float now) const;
 
     // Text の見た目の選択の度合い（0〜1、項目ごと。描く時に実時間で寄せる）
     mutable std::vector<float> m_SelAnim;
@@ -65,6 +72,6 @@ private:
 
     int   m_Cursor = 0;
     float m_InputDelay = 0.0f;
-    StickNav m_Stick;   // 左スティック（2026-11-05）
+    StickNav m_Stick;   // 左スティック
     DirectX::SimpleMath::Vector2 m_LastMouse = { -1.0f, -1.0f };
 };

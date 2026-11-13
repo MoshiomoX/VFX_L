@@ -13,7 +13,7 @@ using namespace DirectX::SimpleMath;
 
 namespace
 {
-    constexpr size_t kMaxSpikes = 240;  // 同時に出ているトゲ（10m の線で約 19 本 x 12 回分）。超えたら古い物から消す
+    constexpr size_t kMaxSpikes = 2000; // 同時に出ているトゲ（12m の扇で約 180 本 x 分裂 3 + 余裕）。超えたら古い物から消す
 
     float Clamp01(float t) { return std::clamp(t, 0.0f, 1.0f); }
 }
@@ -34,7 +34,7 @@ void IceSpikeField::EnsureModel()
 // 並べる：足元から end まで spacing 毎に 1 本、左右交互に（1 本毎に入れ替わる）。足元から順に出る（delay = 負の age）。
 // 先へ行くほど少し高く。根元は 1 本ずつ地面の高さ。横へずらした所が線の真ん中の地面と maxStep 以上違えば出さない
 // ============================================================
-void IceSpikeField::Spawn(const Vector3& start, const Vector3& end, float scaleIn, const HeightFn& heightAt)
+void IceSpikeField::Spawn(const Vector3& start, const Vector3& end, float scaleIn, const HeightFn& heightAt, float fanDeg)
 {
     if (!enabled) return;
     Vector3 dir(end.x - start.x, 0.0f, end.z - start.z);
@@ -47,6 +47,13 @@ void IceSpikeField::Spawn(const Vector3& start, const Vector3& end, float scaleI
     auto groundAt = [&](const Vector3& p) { return heightAt ? heightAt(p.x, p.z) : start.y + (end.y - start.y) * (p - start).Length() / length; };
 
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
+    if (fanDeg > 0.0f)
+    {
+        SpawnFan(start, dir, length, scale, DirectX::XMConvertToRadians(fanDeg), groundAt);
+        if (m_Spikes.size() > kMaxSpikes)
+            m_Spikes.erase(m_Spikes.begin(), m_Spikes.begin() + (m_Spikes.size() - kMaxSpikes));
+        return;
+    }
     float sideSign = (u01(m_Rng) < 0.5f) ? -1.0f : 1.0f;   // 最初の 1 本が左右どちらか
     for (float along = startGap; along <= length; along += step, sideSign = -sideSign)
     {
@@ -72,6 +79,55 @@ void IceSpikeField::Spawn(const Vector3& start, const Vector3& end, float scaleI
     }
     if (m_Spikes.size() > kMaxSpikes)
         m_Spikes.erase(m_Spikes.begin(), m_Spikes.begin() + (m_Spikes.size() - kMaxSpikes));
+}
+
+// ============================================================
+// 扇：足元から fanRowStep 毎の弧に、弧の長さ / fanSideSpacing 本ずつ（遠いほど多い）。
+// 弧の中は等間隔の枠の中で少しずらす。向きは扇の外側へ少し倒す。足元からの距離で順に出る = 扇が外へ広がっていく。
+// 根元は 1 本ずつ地面の高さ。足元側 0.4m との高さが maxStep x 0.6 以上違う所（崖の面）には出さない
+// ============================================================
+void IceSpikeField::SpawnFan(const Vector3& start, const Vector3& dir, float length, float scale, float half,
+    const std::function<float(const Vector3&)>& groundAt)
+{
+    std::uniform_real_distribution<float> u01(0.0f, 1.0f);
+    auto rotate = [](const Vector3& v, float a)
+        {
+            const float c = std::cos(a), sn = std::sin(a);
+            return Vector3(v.x * c + v.z * sn, 0.0f, -v.x * sn + v.z * c);
+        };
+    const float rowStep = (std::max)(fanRowStep * scale, 0.1f);
+    const float sideStep = (std::max)(fanSideSpacing * scale, 0.1f);
+    for (float d = startGap; d <= length; d += rowStep)
+    {
+        const float t = d / length;
+        const int across = 1 + (int)(d * half * 2.0f / sideStep);
+        for (int k = 0; k < across; ++k)
+        {
+            // 枠 k の真ん中 ± 枠の 0.35（-1..1 = 扇の左端..右端。端は扇の縁の少し内側）
+            const float slot = ((float)k + 0.5f + (u01(m_Rng) - 0.5f) * 0.7f) / (float)across;
+            const float u = (across == 1) ? (u01(m_Rng) - 0.5f) * 0.4f : slot * 2.0f - 1.0f;
+            const float dist = d + (u01(m_Rng) - 0.5f) * rowStep * 0.6f;
+            if (dist <= 0.1f) continue;
+            const Vector3 ray = rotate(dir, u * half * 0.94f);
+            Vector3 p = start + ray * dist;
+            const float h = groundAt(p);
+            if (std::fabs(h - groundAt(p - ray * 0.4f)) > maxStep * 0.6f) continue;   // 崖の面
+            p.y = h;
+
+            Spike s;
+            s.base = p;
+            s.yaw = u01(m_Rng) * DirectX::XM_2PI;
+            // 前（扇の外向き）へ倒す。扇の端ほど横（外）へも
+            const Vector3 rayRight(ray.z, 0.0f, -ray.x);
+            Vector3 lean = ray + rayRight * (u * 0.45f + (u01(m_Rng) - 0.5f) * 0.35f);
+            lean.Normalize();
+            s.tiltAxis = Vector3(lean.z, 0.0f, -lean.x);
+            s.tilt = DirectX::XMConvertToRadians(tiltDeg + (u01(m_Rng) * 2.0f - 1.0f) * tiltJitterDeg);
+            s.height = (heightMin + (heightMax - heightMin) * u01(m_Rng)) * (1.0f + (fanGrowFar - 1.0f) * t) * scale;
+            s.age = -(dist / (std::max)(waveSpeed, 0.1f));
+            m_Spikes.push_back(s);
+        }
+    }
 }
 
 void IceSpikeField::Update(float dt)
@@ -144,6 +200,9 @@ void IceSpikeField::DrawImGui()
     ImGui::DragFloat("Tilt (deg)", &tiltDeg, 0.5f, -60.0f, 60.0f);
     ImGui::DragFloat("Tilt jitter (deg)", &tiltJitterDeg, 0.5f, 0.0f, 45.0f);
     ImGui::DragFloat("Max step (m)", &maxStep, 0.05f, 0.0f, 10.0f);
+    ImGui::DragFloat("Fan row step (m)", &fanRowStep, 0.01f, 0.1f, 3.0f);
+    ImGui::DragFloat("Fan side spacing (m)", &fanSideSpacing, 0.01f, 0.1f, 3.0f);
+    ImGui::DragFloat("Fan far height x", &fanGrowFar, 0.01f, 0.5f, 3.0f);
     ImGui::DragFloat("Rise (s)", &riseTime, 0.005f, 0.01f, 1.0f);
     ImGui::DragFloat("Hold (s)", &holdTime, 0.01f, 0.0f, 5.0f);
     ImGui::DragFloat("Sink (s)", &sinkTime, 0.01f, 0.01f, 2.0f);

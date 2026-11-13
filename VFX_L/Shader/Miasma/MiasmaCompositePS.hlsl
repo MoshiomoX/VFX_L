@@ -18,7 +18,7 @@ cbuffer MiasmaCompositeCB : register(b0)
     float g_DepthA;     // 目からの深度 = g_DepthB / (d - g_DepthA)
     float g_DepthB;
     float g_Tolerance;  // このピクセルの深度に対する割合
-    float _pad;
+    float g_Scale;      // 全解像度 / 縮小した図の解像度（2..4、MiasmaMarchPS と同じ値）
     float2 g_HalfSize;
     float2 g_FullSize;
 };
@@ -33,7 +33,7 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
 {
     int2 p = int2(pos.xy);
     float z = EyeDepth(p);
-    float2 hc = (float2(p) + 0.5) * 0.5 - 0.5;
+    float2 hc = (float2(p) + 0.5) / g_Scale - 0.5;
     int2 base = int2(floor(hc));
     float2 f = hc - float2(base);
     int2 hmax = int2(g_HalfSize) - 1;
@@ -50,7 +50,7 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
         for (int x = -1; x <= 2; ++x)
         {
             int2 hp = clamp(base + int2(x, y), int2(0, 0), hmax);
-            float zh = EyeDepth(hp * 2 + 1);
+            float zh = EyeDepth(int2(floor(float2(hp) * g_Scale + 0.5 * g_Scale)));   // MiasmaMarchPS が光線を進めた画素
             // 周りの 4 x 4 の半解像度ピクセルにかけるテント（バイリニアより広い：ジッターも隠す）
             float wx = saturate(1.0 - abs(float(x) - f.x) * 0.5);
             float wy = saturate(1.0 - abs(float(y) - f.y) * 0.5);

@@ -3,6 +3,7 @@
 // 瘴気の箱の作り・1 歩（描画とパネルは MiasmaFieldRender.cpp）
 // ============================================================
 #include "World/MiasmaField.h"
+#include "World/WindGrid.h"
 #include "World/GridWorld.h"
 #include "Graphics/Shader/ComputeShader.h"
 #include "Graphics/Shader/VertexShader.h"
@@ -120,7 +121,8 @@ MiasmaField::Settings MiasmaField::DustPreset()
     s.liftRate = 1.8f;
     s.blastDust = 3.0f;
     s.liftHeight = 1.5f;
-    s.extinction = 1.2f;
+    s.extinction = 0.6f;     // 薄め（キャラが隠れないように）。一番濃い所も 5 割
+    s.maxOpacity = 0.5f;
     s.colorLow = { 0.58f, 0.36f, 0.16f };   // 砂より少し白っぽい（灰色だと煙に見えた）
     s.colorHigh = { 0.72f, 0.52f, 0.30f };
     s.glow = 0.0f;
@@ -369,6 +371,7 @@ void MiasmaField::Step(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView
     m_StepCS->SetSRV(m_Context, "g_AreaStates", areaStates);
     m_StepCS->SetSRV(m_Context, "g_RecipeHeat", recipeHeat);
     m_StepCS->SetSRV(m_Context, "g_WindSources", windSources);
+    WindGrid::BindCurrent(*m_StepCS, m_Context);   // 風の格子
     m_StepCS->SetSRV(m_Context, "g_Lift", sandState);   // 砂塵：砂の面の舞う強さ（w）。瘴気は null = 0
     m_StepCS->SetUAV(m_Context, "g_Out", m_VolUAV[next].Get());
     m_StepCS->BindUAVs(m_Context);

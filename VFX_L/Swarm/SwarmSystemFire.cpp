@@ -1,6 +1,6 @@
 // ============================================================
 // SwarmSystemFire.cpp
-// 燃えている草からの粒子の発射（2026-10-12）。GrassFireEmitCS を弾・範囲の発射（DispatchEmit）の直後に回す。
+// 燃えている草からの粒子の発射。GrassFireEmitCS を弾・範囲の発射（DispatchEmit）の直後に回す。
 // 空きの予約（m_EmitBudget）と空き数（deadCount）を同じフレームで共有するので、火が多くても
 // deadList を取り過ぎない（足りない時に先に削られるのは、後に回るこちらと経験値オーブの尾）
 // ============================================================
@@ -47,7 +47,7 @@ void SwarmSystem::SetSandDust(const GrassFireEmitInput* in)
     if (m_HasSandDust) m_SandDust = *in;
 }
 
-// 草の火・砂の陽炎（2026-11-02）・風に舞う砂（2026-11-03）は同じ CS を入力を替えて回す
+// 草の火・砂の陽炎・風に舞う砂は同じ CS を入力を替えて回す
 void SwarmSystem::DispatchFireEmit(float dt, float totalTime)
 {
     if (m_HasGrassFire) DispatchFireEmitOne(m_GrassFire, dt, totalTime, 0x7f4a7c15u);

@@ -92,7 +92,7 @@ namespace MapEdit
         void BuildWalkable(const MapData::Map& map, std::vector<uint8_t>& out)
         {
             out.assign((size_t)map.gw * map.gd, 1);
-            // 水たまりは歩けるが置物を置かない印（GridWorld::kWaterCell。2026-10-28 から塞がない）
+            // 水たまりは歩けるが置物を置かない印（GridWorld::kWaterCell）
             if (map.pond.size() == out.size())
                 for (size_t i = 0; i < out.size(); ++i)
                     if (map.pond[i]) out[i] = GridWorld::kWaterCell;

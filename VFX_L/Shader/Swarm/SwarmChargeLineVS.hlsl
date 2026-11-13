@@ -1,7 +1,6 @@
 // ============================================================
 // SwarmChargeLineVS.hlsl
-// 溜め中の突撃兵の前の地面に出す赤い帯
-// （2026-10-08）: 突進がどこを通るかをそのまま見せるので、プレイヤーは
+// 溜め中の突撃兵の前の地面に出す赤い帯: 突進がどこを通るかをそのまま見せるので、プレイヤーは
 // 横によけられる。突撃兵 1 体に 1 インスタンス（突撃兵の描画リスト、
 // 数はリストから DrawInstancedIndirect で取る）。溜めていない
 // 突撃兵は潰す。
@@ -60,7 +59,7 @@ static const float2 kCorner[6] =
 LineOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 {
     LineOut o = (LineOut) 0;
-    // 鎖の番人の投擲と石像ガーゴイルの急降下にも同じ帯（2026-10-25）: C++ 側がリスト（突撃兵、番人、
+    // 鎖の番人の投擲と石像ガーゴイルの急降下にも同じ帯: C++ 側がリスト（突撃兵、番人、
     // ガーゴイル）ごとに 1 回、そのリストを chargerList としてバインドして描く
     uint slot = chargerList[iid];
     SwarmEnemyExtra ex = enemyExtra[slot];

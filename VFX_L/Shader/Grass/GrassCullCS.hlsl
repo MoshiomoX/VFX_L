@@ -11,8 +11,7 @@
 // アルファ）、急な地面（崖面。高さ場から判定）、
 // 視錐台の外。
 //
-// 2026-10-23 からは残した葉のアニメーションもここで行う。頂点ごとでなく
-// 葉ごとに 1 回（葉の頂点は 9 から 21 に増えた）:
+// 残した葉のアニメーションもここで行う（頂点ごとでなく葉ごとに 1 回）:
 //   世界の風      流れていく 2 つの突風の波（大きい波と、別方向からの
 //                 小さい波）。強い突風は葉を裏返し、明るい裏面が
 //                 見える（sheen）
@@ -23,16 +22,16 @@
 //                 風源が後に残す渦の跡）
 //   火            燃料が尽きると葉が縮んで焦げ、熱で光る
 // 葉の背骨は 3 次ベジェ（root, c1, c2, tip）。近くに風源が無ければ
-// 旧来の曲線そのもの: 先端のずれ ~ t^2、高さ ~ t。
+// 先端のずれ ~ t^2、高さ ~ t の曲線。
 //
-// 2026-10-25: Append する葉は最大 g_MaxBlades 枚（バッファの
-// サイズ）。各グループが残した葉を共有メモリで数え、1 スレッドが
-// その数のスロットを g_BladeBudget で予約し、予算内の葉だけを
-// Append する。以前は間隔を細かくすると Append のカウンタ（= 描画する
-// インスタンス数）がバッファを超えて増え続けていた。
+// Append する葉は最大 g_MaxBlades 枚（バッファのサイズ）。各グループが
+// 残した葉を共有メモリで数え、1 スレッドがその数のスロットを
+// g_BladeBudget で予約し、予算内の葉だけを Append する
+// （Append のカウンタがバッファを超えないように）。
 // ============================================================
 #include "GrassCommon.hlsli"
 #include "../Common/WindSources.hlsli"
+#include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
 
 Texture2D<float> g_Height : register(t0);  // GridWorld の高さ。テクセル中心 = 高さセルの中心
 Texture2D<float4> g_Ground : register(t1); // rgb = 地面の色（リニア）、a = 1 草あり / 0 無し
@@ -94,6 +93,7 @@ void FinishBlade(float2 xz, float2 uv, float yaw, float curl, float rTwist, floa
     float lift;
     float2 toCore;
     float3 air = WindSourceAirCore(g_WindSources, xz, lift, toCore);
+    air = WindGridBlend(air, b.pos + float3(0.0, 0.3, 0.0));   // 風の格子（残った風・乱れ）
     float spd = length(air.xz);
     float2 flow = spd > 1e-3 ? air.xz / spd : facing;
     float2 across = float2(-flow.y, flow.x);
@@ -191,7 +191,7 @@ bool MakeBlade(uint3 id, out GrassBlade b)
                     b.width = lerp(g_WidthMin, g_WidthMax, GrassRand(seed)) * min(rsqrt(max(density, 0.05)), 3.0);
                     float curl = GrassRand(seed) * g_CurlMax;
                     b.shade = 0.85 + 0.3 * GrassRand(seed);
-                    // 旧来の乱数の後に引くので、どの葉も 2026-10-23 以前のサイズ / 向き / 曲がりを保つ
+                    // 上の乱数の後に引く（順を変えると葉のサイズ / 向き / 曲がりが変わる）
                     float rTwist = GrassRand(seed);
                     float rDry = GrassRand(seed);
                     float rPhase = GrassRand(seed);

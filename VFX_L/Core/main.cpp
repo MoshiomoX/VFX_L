@@ -6,7 +6,7 @@
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 {
     // Assets / Shader are looked up relative to the working directory: always run from the exe's folder
-    // (started from VS with another working directory, a shortcut, etc. used to fail to find them. 2026-10-07)
+    // (so starting from VS with another working directory, a shortcut, etc. still finds them)
     {
         wchar_t exePath[MAX_PATH] = {};
         if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) > 0)

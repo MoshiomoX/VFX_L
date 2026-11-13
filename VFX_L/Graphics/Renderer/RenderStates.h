@@ -33,7 +33,7 @@ public:
     ID3D11DepthStencilState* DepthDefault()  const { return m_Common->DepthDefault(); }
     ID3D11DepthStencilState* DepthReadOnly() const { return m_Common->DepthRead(); }
     ID3D11DepthStencilState* DepthNone()     const { return m_Common->DepthNone(); }
-    // 深度は普通どおり + ステンシルに参照値を書く（陣営のアウトライン。2026-10-06）。
+    // 深度は普通どおり + ステンシルに参照値を書く（陣営のアウトライン）。
     // OMSetDepthStencilState(DepthStencilWrite(), 陣営の番号)。Restore で元（ステンシル無し）に戻る
     ID3D11DepthStencilState* DepthStencilWrite() const { return m_DepthStencilWrite.Get(); }
 

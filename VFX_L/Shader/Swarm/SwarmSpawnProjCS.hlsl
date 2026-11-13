@@ -26,7 +26,7 @@
 // SWARM_SPAWN_AT_POS 付き（連鎖したメテオ）はリクエストの位置が
 // そのまま着弾点（ファイアボール / ストーンショットが消えた所）で、
 // プレイヤー側から飛んでくる。
-// 洞窟の中（2026-10-03: 着弾点の地面が平原より低く、洞窟には
+// 洞窟の中（着弾点の地面が平原より低く、洞窟には
 // 天井がある）では、着弾点の真上、天井の下から落とす。
 // プレイヤー側から飛ばすと、洞窟の外から始まって
 // 岩盤を突き抜けることがある。
@@ -35,6 +35,7 @@
 // 再利用したスロットに古いタグが残らない。projBoost（残す範囲の威力 /
 // 持続の倍率、SwarmBoostDamage 参照）も同じ。
 // ============================================================
+#define SWARM_BOMBER_CB_REG b3   // 飛んでいる敵の高さ（SwarmBodyHover）
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmProjectile> spawnRequests : register(t0);
@@ -57,8 +58,8 @@ RWStructuredBuffer<SwarmProjPath> paths : register(u2);
 RWByteAddressBuffer counters : register(u3);
 RWBuffer<uint> projTags : register(u4);
 RWBuffer<uint> projBoost : register(u5);   // y >> SWARM_SPAWN_BOOST_SHIFT: 残す範囲の威力 / 持続の倍率
-// スロットのリボン（SwarmProjTrailCS、2026-10-25）: フレーム最後のステップで HitCS に消された弾は、トレイルのパスが
-// その死を見る前にここで再利用される。以前は新しい弾のリボンが古い弾の点から始まっていた
+// スロットのリボン（SwarmProjTrailCS）: フレーム最後のステップで消えた弾はトレイルのパスが
+// その死を見る前にここで再利用されるので、ここでも消す
 RWStructuredBuffer<uint> trailState : register(u6);
 RWStructuredBuffer<float> trailAge : register(u7);
 
@@ -83,7 +84,7 @@ bool PathHitsGround(SwarmProjPath p)
     return false;
 }
 
-// 出口魔法の扇の脇の弾はそれぞれ自分の敵を選ぶ（2026-10-31）ので、運ぶ魔法が 1 発目とは
+// 出口魔法の扇の脇の弾はそれぞれ自分の敵を選ぶので、運ぶ魔法が 1 発目とは
 // 別の所から始まる。この弾の方向まわりで一番近い敵（1 発目が取ったのとは別）。
 // 狙いの反対側にいる敵は距離を 2 倍に数える。
 // 該当する敵がいなければ 1 発目と同じ標的
@@ -135,21 +136,21 @@ void main(uint3 id : SV_DispatchThreadID)
     // ---- 飛び方: リクエストのワードを分解してから経路を作る ----
     // sideSign は曲線の横ずれを飛行軸まわりに回す角度（ラジアン）:
     // 0 = 右、pi = 左（反転ビット）、それ以外 = 1 発ごとのランダムな方向
-    // （ProjectileProfile Mirror::RandomAngle、extra.y の 7 ビット: 0..127 = 0..360 度。2026-10-06）
+    // （ProjectileProfile Mirror::RandomAngle、extra.y の 7 ビット: 0..127 = 0..360 度）
     float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? 3.14159265 : 0.0;
     sideSign += (float)((extra.y >> 1) & 0x7Fu) * (6.28318531 / 128.0);
     uint motionIdx = req.motion & SWARM_MOTION_INDEX_MASK;
     // リクエストのビット 16..19: 扇の何発目か（Swarm::kMotionFanShift。下でサイズ倍率に置き換わる）
     uint fanIndex = (req.motion >> 16u) & 0xFu;
-    // 連鎖のルーン: リクエストの pathT に、この弾があと何体の敵へ跳べるかが入っている（2026-10-16）
+    // 連鎖のルーン: リクエストの pathT に、この弾があと何体の敵へ跳べるかが入っている
     uint chains = (uint) clamp(req.pathT, 0.0, (float) SWARM_PROJ_CHAIN_LEFT_MASK);
     req.pathT = 0.0;
 
     SwarmMotion m = motions[motionIdx];
-    // 貫通（2026-10-28、黄金の矢）: あと何体の敵を貫けるか。連鎖の跳躍もある場合は
+    // 貫通（黄金の矢）: あと何体の敵を貫けるか。連鎖の跳躍もある場合は
     // 貫通数を跳躍数に足し、弾は跳ぶ（連鎖の挙動）
     uint pierce = SwarmMotionPierce(m);
-    // 溜め: 飛ぶ前にこの時間だけ詠唱者の前で止まる（pathT < 0 = 残り秒。2026-10-16）。
+    // 溜め: 飛ぶ前にこの時間だけ詠唱者の前で止まる（pathT < 0 = 残り秒）。
     // 溜める弾は体の中ではなく、狙いの方向へ SWARM_HOLD_FORWARD m 先に生まれる
     float hold = SwarmMotionHold(m);
     req.pathT = -hold;
@@ -197,6 +198,9 @@ void main(uint3 id : SV_DispatchThreadID)
                 if (slot < g_MaxEnemies && enemyStates[slot] != SWARM_DEAD)
                 {
                     impact = enemies[slot].position;
+                    // 飛んでいる敵（ガーゴイル、浮いているボス）は体が高い所にあるので、着弾点（と予告の輪）は
+                    // その真下の地面にする
+                    impact.y -= SwarmBodyHover(enemyExtra[slot]);
                     path.target = slot;
                 }
             }
@@ -242,8 +246,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 SwarmBuildPath(path, m, req.position, enemies[slot].position,
                                req.velocity / speed, false);
 
-                // ランダムに回した曲線は地面に潜ることがある（2026-10-06、ユーザー: 撃つ前に
-                // 確認して）。曲線を何点か調べ、地形の下に潜るなら横ずれを反対向き（下 -> 上）に
+                // ランダムに回した曲線は地面に潜ることがある。曲線を何点か調べ、地形の下に潜るなら横ずれを反対向き（下 -> 上）に
                 // 回す。それでも当たるなら水平な横向きに戻す
                 if (PathHitsGround(path))
                 {

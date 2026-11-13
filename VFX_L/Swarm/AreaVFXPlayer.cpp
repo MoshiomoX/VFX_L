@@ -40,10 +40,21 @@ uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
 uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
     float duration, bool follow, const VFXContext& ctx, const Vector3& tint)
 {
-    if (vfxFile.empty() || m_Active.size() >= kMaxActive) return 0;
+    if (vfxFile.empty()) return 0;
+    if (m_Active.size() >= kMaxActive)
+    {
+        // 枠が一杯で出せなかった。コンソールへ出す（200 件を超えたら数だけ数える）
+        if (m_Dropped++ < 200)
+            std::cout << "[AreaVFX] dropped (" << m_Active.size() << " active): " << vfxFile << std::endl;
+        return 0;
+    }
 
     auto tmpl = GetTemplate(vfxFile);
-    if (!tmpl) return 0;
+    if (!tmpl)
+    {
+        std::cout << "[AreaVFX] template failed: " << vfxFile << std::endl;
+        return 0;
+    }
 
     Instance inst;
     inst.effect = std::make_unique<VFXEffect>();
@@ -57,6 +68,7 @@ uint32_t AreaVFXPlayer::Play(const std::string& vfxFile, const Vector3& pos,
     inst.handle = m_NextHandle++;
     if (m_NextHandle == 0) m_NextHandle = 1;
     m_Active.push_back(std::move(inst));
+    m_PeakActive = (std::max)(m_PeakActive, (uint32_t)m_Active.size());
     return m_Active.back().handle;
 }
 
@@ -167,7 +179,6 @@ void AreaVFXPlayer::Update(float dt, const Vector3& followPos)
     //   - Stop を送って少し経った（発射はもう止まっている。出た粒子は GPU の池で勝手に消える）
     //   - loop しないエフェクトが自分で終わった（Playing → Finishing → Stopped）
     // ※Finishing は「この effect の粒子が消え切る時間」（VFXEffect::GetFinishWait）を待って Stopped へ抜ける
-    //   （2026-10-25。それまでは粒子池全体の生存数 = 常に 1 を待っていて永遠に抜けず、ここは timeLeft でしか捨てられなかった）
     m_Active.erase(std::remove_if(m_Active.begin(), m_Active.end(),
         [](const Instance& i)
         {

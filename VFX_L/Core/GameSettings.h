@@ -1,6 +1,6 @@
 // ============================================================
 // GameSettings.h
-// プレイヤーが一時停止メニューの「設定」で変える値（2026-10-07 ユーザー：音量とアウトラインの ON / OFF。10-08 から敵味方の縁取りだけ。10-19 ダメージの数字も）。
+// プレイヤーが一時停止メニューの「設定」で変える値。
 //   音量は AudioSystem が自分の Settings.json に持っているので、ここには置かない（設定画面が AudioSystem を直接触る）。
 //   ここにあるのは画面側の設定だけ。Assets/Data/Settings.json に保存し、起動時に読む。
 //   ImGui のデバッグ用の開閉（Outline::Params::enabled など）とは別物：
@@ -14,24 +14,26 @@ public:
     static GameSettings& Get();
 
     // 敵・味方の色付きの縁取り（プレイヤーの青 / 敵の赤）。オフでもトゥーンの黒い線は残る
-    // （2026-10-08 ユーザー：切った時に消したいのは敵味方の枠だけ。10-07 版はアウトライン全体を消していた）
     bool factionOutline = true;
 
-    // ダメージの数字（UI/DamageNumbers：敵の頭の上の数字とプレイヤーが受けた赤い数字）を出す（2026-10-19 ユーザー「設定にダメージ数字のオン / オフ」）。
+    // ダメージの数字（UI/DamageNumbers：敵の頭の上の数字とプレイヤーが受けた赤い数字）を出す。
     // ImGui の「Damage Numbers」のチェック（デバッグ）とは別：描く側は「デバッグの開閉 && この設定」
     bool damageNumbers = true;
 
-    // 画面右上（ミニマップの下）の FPS 表示（UI/HUDFps.cpp。2026-10-20 ユーザー「ImGui の無い環境でも fps を見たい」）。
+    // 画面右上（ミニマップの下）の FPS 表示（UI/HUDFps.cpp）。
     // ImGui の HUD パネルの「Show FPS」とは別：描く側は「HUDStyle::showFps && この設定」
     bool showFps = true;
 
-    // 初回のチュートリアル（UI/TutorialGuide）を終えた / 飛ばした（2026-10-13）。false なら第 1 ステージの始めに出る
+    // 初回のチュートリアル（UI/TutorialGuide）を終えた / 飛ばした。false なら第 1 ステージの始めに出る
     bool tutorialDone = false;
 
-    // カメラの距離（2026-11-02、Megabonk の「Zoom Out」設定と同じ役目）：FollowCamera::distance に掛ける 0.8〜1.3
+    // カメラの距離：FollowCamera::distance に掛ける 0.8〜1.3
     float cameraDistance = 1.0f;
-    // カメラの自動調整（2026-11-02）：囲まれた時に引く・Boss を画面に入れる（BattleCamera::UpdateSmart）
+    // カメラの自動調整：囲まれた時に引く・Boss を画面に入れる（BattleCamera::UpdateSmart）
     bool smartCamera = true;
+    // 遺跡の瘴気 / 砂漠の砂塵（World/MiasmaField、3D の霧）を出す（重い時に切る）。
+    // ImGui のパネルの「Enabled」とは別：描く側は「パネルの Enabled && この設定」
+    bool volumeFog = true;
 
     bool Save() const;
     bool Load();

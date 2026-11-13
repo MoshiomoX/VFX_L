@@ -1,8 +1,7 @@
 // ============================================================
 // WindState.h
-// 世界の風（2026-10-12）。草（GrassRenderer）・マント（ClothChainSystem）・粒子（ParticleUpdateCS）が
-// 全部これ 1 つを読む。以前は 3 か所がそれぞれ別の向き・別の強さを持っていて、雨の中で草だけが
-// 強くなびき、煙は無風のまま、という食い違いがあった。
+// 世界の風。草（GrassRenderer）・マント（ClothChainSystem）・粒子（ParticleUpdateCS）が
+// 全部これ 1 つを読む。
 //   作るのは WeatherSystem（面の基本の風 + 天候の出来事で強く + 向きがゆっくり揺れる）。
 //   シーンが毎フレーム各システムへ渡す（CollisionTestScene::PushWind）。
 //

@@ -139,7 +139,7 @@ void MapEditMode::DrawToolsUI(FlyCamera& camera)
         ImGui::TextDisabled("you release. Slopes stay walkable; plateau feet stay flat.");
     }
 
-    // ---- 起伏の中身：全体の設定と丘の部品（2026-10-05、ユーザー：丘・起伏も部品と同じ扱いに）----
+    // ---- 起伏の中身：全体の設定と丘の部品 ----
     ImGui::SeparatorText("Relief (whole map) and hill parts");
     if (!MapTerrainEdit::CanEditHills(m_Map))
         ImGui::TextDisabled("This map was saved before hill editing existed: generate it again.");

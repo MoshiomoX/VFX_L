@@ -35,8 +35,8 @@ StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
 StructuredBuffer<float> terrainHeight : register(t5);   // 坂（t4 = 範囲の定義）
 Buffer<uint> projBoost : register(t6);   // この弾が残す範囲の威力 / 持続の倍率
-StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t7); // 種類：潜っている砂潜りは標的にしない（2026-10-17）
-Buffer<uint> projTags : register(t8);   // 連鎖タグ。最上位ビット = 吸血の弾：残す範囲も当てた相手に印を付ける（2026-10-25）
+StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t7); // 種類：潜っている砂潜りは標的にしない
+Buffer<uint> projTags : register(t8);   // 連鎖タグ。最上位ビット = 吸血の弾：残す範囲も当てた相手に印を付ける
 uint SwarmStealExtra(uint i)
 {
     return ((projTags[i] & SWARM_TAG_LIFESTEAL) != 0u) ? SWARM_AREA_EXTRA_LIFESTEAL : 0u;
@@ -47,7 +47,7 @@ RWBuffer<uint> projStates : register(u1);
 RWByteAddressBuffer counters : register(u2);
 RWStructuredBuffer<SwarmProjPath> paths : register(u3);
 
-// 一斉起爆（2026-11-01）：1 ステップだけ != 0。飛んでいる弾はすべて消えてこの範囲を残す
+// 一斉起爆：1 ステップだけ != 0。飛んでいる弾はすべて消えてこの範囲を残す
 cbuffer ProjDetonateCB : register(b1)
 {
     uint g_DetonateArea;
@@ -89,7 +89,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // ---- 停止：生成された場所に浮いたまま（pathT < 0 = 残り秒。2026-10-16） ----
+    // ---- 停止：生成された場所に浮いたまま（pathT < 0 = 残り秒） ----
     if (p.pathT < 0.0)
     {
         p.pathT += g_Step;
@@ -108,7 +108,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     bool easeIn = (m.hitAreaFlags & SWARM_HITAREA_EASE_IN) != 0u;
 
-    // ---- 周回（2026-11-01）：半径まで飛び出し、その後プレイヤーの周りを回る。地形判定なし：プレイヤーについて回る ----
+    // ---- 周回：半径まで飛び出し、その後プレイヤーの周りを回る。地形判定なし：プレイヤーについて回る ----
     if (m.mode == SWARM_MOTION_ORBIT)
     {
         p.pathT += g_Step;
@@ -124,12 +124,12 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // ---- 連鎖のルーン（2026-10-16）：前のステップで HitCS が敵に当て、弾を生かしたまま残した。
+    // ---- 連鎖のルーン：前のステップで HitCS が敵に当て、弾を生かしたまま残した。
     // 届く範囲で一番近い「別の」生きている敵に狙いを付け、ここから今の向きで出ていく
     // 新しいカーブを組む。届く範囲に誰もいなければ、手放してそのまま飛ぶ
     // （TRACK の弾は自分でまた探す。HitCS は最後に当てた敵を飛ばし続ける） ----
     uint state = projStates[i];
-    // 貫通する弾（黄金の矢、2026-10-28）は同じ状態を使うが、狙い直さない：直線のまま進む
+    // 貫通する弾（黄金の矢）は同じ状態を使うが、狙い直さない：直線のまま進む
     bool chained = (state & SWARM_PROJ_CHAINED) != 0u && (state & SWARM_PROJ_PIERCE) == 0u;
     if ((state & SWARM_PROJ_CHAIN_PENDING) != 0u)
     {
@@ -300,9 +300,8 @@ void main(uint3 id : SV_DispatchThreadID)
     // 当たり扱い（弾がブロックの中に入ってしまうので）
     // 塞がったセルが止めるのは、空いたセルからその中へ飛び込んだ弾だけ。
     // 中で生まれた弾は、そこを出るまで飛び続ける：プレイヤーは
-    // 岩 / 箱の上に立てる（そのセルは雑魚にとっては塞がっている）ので、
-    // 以前はそこから詠唱した弾がすべて最初のステップで消えていた
-    // （2026-10-07）。壁には空いたセルから入るので、壁は今まで通り弾を止める
+    // 岩 / 箱の上に立てる（そのセルは雑魚にとっては塞がっている）ため。
+    // 壁には空いたセルから入るので、壁は弾を止める
     bool wasFree = SwarmIsWalkable(terrain, projectiles[i].position);
     if ((wasFree && !SwarmIsWalkable(terrain, p.position))
         || p.position.y < SwarmTerrainHeight(terrainHeight, p.position.xz))

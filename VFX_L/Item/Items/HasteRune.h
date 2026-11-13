@@ -4,7 +4,7 @@
 //
 // 設計意図：
 //   ・「手数」の代表。発動間隔 x0.75 = 同じ時間で 1.33 倍撃てる
-//   ・代償なし（2026-09-30 ユーザー決定）。ただし 1 回の消費 MP は変わらないので、
+//   ・代償なし。ただし 1 回の消費 MP は変わらないので、
 //     毎秒の消費は 1.33 倍になる = 魔力回復が追いつくかどうかが実質の代償
 //   ・影響マスは左右 2 マス（横一列の両隣）。十字の分裂・二重詠唱、斜めの拡大鏡と
 //     一部しか重ならないので、他のルーンと並べて同じ魔法を強化しやすい
@@ -23,7 +23,7 @@ inline FunctionItemDef MakeHasteRune()
     def.common.displayName = L"加速のルーン";
     def.common.description = L"光るマスの魔法の発動間隔を短くし、速く撃てるようにする。";
     def.common.category = ItemCategory::Function;
-    def.common.occupyCells = { { 0, 0 }, { 1, 0 } };   // 縦 2 マス（2026-10-27）
+    def.common.occupyCells = { { 0, 0 }, { 1, 0 } };   // 縦 2 マス
     def.common.influenceCells = { { 0, 1 }, { 1, 1 } };   // 右の 2 マス
     def.common.color = { 0.55f, 1.00f, 0.40f, 1.0f };   // 若草
     def.common.iconPath = Res::Icon::HasteRune;

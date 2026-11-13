@@ -36,22 +36,22 @@ struct EdgeFilterParams
 class GPUParticleSystem
 {
 public:
-    // 生きている粒子系の表に出し入れする（IsAlive 用。2026-10-25）
+    // 生きている粒子系の表に出し入れする（IsAlive 用）
     GPUParticleSystem();
     ~GPUParticleSystem();
 
     // この粒子系がまだ生きているか。entry（VFXParticleEntry / VFXTrailEntry）の後始末（帯・モデル・発射源の登録の返却）が、
-    // シーンのメンバの破棄の順番で粒子系より後になっても、死んだ粒子系に触らないための確認（2026-10-25）
+    // シーンのメンバの破棄の順番で粒子系より後になっても、死んだ粒子系に触らないための確認
     static bool IsAlive(const GPUParticleSystem* system);
 
     bool Initialize(ID3D11Device* device, ID3D11DeviceContext* context, uint32_t maxParticles);
 
     // litMeshes = false: 光を受けるメッシュ粒子は描かない（RenderLitMeshes で先に描いたシーン用）
     void Render(bool litMeshes = true);
-    // 画面の歪みのパス（2026-10-20）：歪みの強さを持つビルボードだけを、今 bind されている歪みの RT（Graphics::BeginDistortion）へ描く。
+    // 画面の歪みのパス：歪みの強さを持つビルボードだけを、今 bind されている歪みの RT（Graphics::BeginDistortion）へ描く。
     // Render の後、シーンが Graphics::BeginDistortion() → これ → RestoreRenderTarget() の順で呼ぶ
     void RenderDistortion();
-    // 光を受けるメッシュ粒子（不透明・深度を書く）だけ。トゥーンのアウトラインの前に描くと石や矢に線が付く（2026-10-04）。
+    // 光を受けるメッシュ粒子（不透明・深度を書く）だけ。トゥーンのアウトラインの前に描くと石や矢に線が付く。
     // SetCamera / SetLight の後に呼ぶ
     void RenderLitMeshes();
     void ResetSystem();
@@ -61,7 +61,7 @@ public:
     void SubmitEmitters(const std::vector<GPUEmitter>& emitters,
         const std::vector<ColorKey>& colorKeys);
 
-    // 1 つずつ積む（VFXEffect 用、2026-10-25。毎フレームの一時配列と写し直しを省く）。
+    // 1 つずつ積む（VFXEffect 用。毎フレームの一時配列と写し直しを省く）。
     // keys（keyCount 個）を今フレームの色の鍵の表の後ろへ足し、emitter.colorKeyOffset / colorKeyCount はここで付け直す。
     // 負の emitCount は 0 にする。戻り値 false = 上限（MAX_EMITTERS）で捨てた
     bool SubmitEmitter(const GPUEmitter& emitter, const ColorKey* keys, int keyCount);
@@ -70,7 +70,7 @@ public:
     void Flush(float dt, float totalTime);
 
     // ============================================
-    // 画面の歪みを持つ粒子が今いるか（2026-10-25、歪みのパスを要る時だけ回す）
+    // 画面の歪みを持つ粒子が今いるか（歪みのパスを要る時だけ回す）
     //
     // ParticleUpdateCS が「歪みの強さ > 0 の生きたビルボード」を数え（CPU の発射器も Swarm の GPU の発射も
     // 同じ粒子の池なので両方入る）、3 枚の staging を回して待たずに読む = 2〜3 フレーム遅れ。
@@ -83,10 +83,10 @@ public:
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
     // 立方体粒子の Lambert 用。Render の前に毎フレーム渡す（渡さなければ既定の上方光）
     void SetLight(const LightBuffer& light) { m_Light = light; }
-    // 世界の風（2026-10-12）。風を受ける発射器（GPUParticleEmitter::windResponse）の粒子が UpdateCS で流される。
+    // 世界の風。風を受ける発射器（GPUParticleEmitter::windResponse）の粒子が UpdateCS で流される。
     // time = 草の風の時計（GrassRenderer::Time）。渡さなければ既定の弱い風（エディタの試し見）
     void SetWind(const WindState& wind, float time) { m_Wind = wind; m_WindTime = time; }
-    // 局所の風源（砂旋。SwarmSystem::GetWindSourceSRV、2026-10-19）。null = 無し。ParticleUpdateCS の t1
+    // 局所の風源（砂旋など。SwarmSystem::GetWindSourceSRV）。null = 無し。ParticleUpdateCS の t1
     void SetWindSources(ID3D11ShaderResourceView* srv) { m_WindSourceSRV = srv; }
 
     // ParticleUpdateCS の b2 と同じ並び（32B）
@@ -134,7 +134,7 @@ public:
     // 粒子が空中に残ったまま演出が終わる。
     // よって「まだ居るかもしれない」= 1 を返し、Finishing の終了判定は
     // VFXState_Finishing::Update の時間の逃げ道（timeInState >= VFXEffect::GetFinishWait() =
-    // その effect の一番長い粒子の寿命 + 余裕。2026-10-25 に足した。それまでは逃げ道が無く Stopped へ行けなかった）に任せる。
+    // その effect の一番長い粒子の寿命 + 余裕）に任せる。
     //
     // この 2 つは必ずセットで扱う。片方だけ変えるとステートマシンが壊れる。
     // ============================================
@@ -305,7 +305,7 @@ private:
     std::shared_ptr<ComputeShader>   m_EdgeFilterCS;
     std::shared_ptr<VertexShader>    m_RenderVS;
     std::shared_ptr<PixelShader>     m_RenderPS;
-    std::shared_ptr<PixelShader>     m_DistortPS;   // 画面の歪み（ParticleDistortPS、2026-10-20。無ければ歪みのパスは何もしない）
+    std::shared_ptr<PixelShader>     m_DistortPS;   // 画面の歪み（ParticleDistortPS。無ければ歪みのパスは何もしない）
 
     // ---- メッシュ粒子（renderMode の下位 8bit != 0。GPUParticleMesh.cpp）----
     // UpdateCS が束（番号 × 光を受ける / 発光）ごとに aliveMesh の区画へ振り分け、
@@ -320,7 +320,7 @@ private:
     ComPtr<ID3D11ShaderResourceView>  m_AliveMeshSRV;
     ComPtr<ID3D11Buffer>              m_MeshCountBuffer; // kParticleMeshBuckets 個の uint
     ComPtr<ID3D11UnorderedAccessView> m_MeshCountUAV;
-    // 今フレームの束の数（UpdateCS の結果）をまだ submesh の args へ写していない（2026-10-25）。
+    // 今フレームの束の数（UpdateCS の結果）をまだ submesh の args へ写していない。
     // RenderMeshes は 1 フレームに 2 回呼ばれる（RenderLitMeshes と Render）ので、写すのは最初の 1 回だけにする。
     // DispatchUpdate / ResetSystem で立てる。Flush の無いフレーム（一時停止）は数も変わらないので写さない
     bool                              m_MeshArgsFresh = false;

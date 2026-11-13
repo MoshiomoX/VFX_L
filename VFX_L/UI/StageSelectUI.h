@@ -1,6 +1,6 @@
 // ============================================================
 // StageSelectUI.h
-// ステージ選択の画面（2026-10-21、Megabonk の map select に倣う）。
+// ステージ選択の画面。
 //   左：見出し「ステージ選択」→ マップの一覧（草原 / 砂漠 / 遺跡。名前 + 一言 + 未解放の条件）→ Tier の箱 1〜3（鍵 / 選択 / ★クリア済み）
 //       → Tier の説明（何面続くか・敵の倍率）→ 出発 / 戻る のボタン → 操作の案内
 //   背景は戦闘シーンそのもの（StageSelectScene）。マップのカーソルが動いたらシーンが地形を作り直す（ConsumeMapChanged）
@@ -36,7 +36,7 @@ public:
     int  Tier() const { return m_Tier; }   // 1..MaxTier(map)
     void SetSelection(int map, int tier);
     // マップのカーソルが動いて、kSwitchDelay 秒そのまま（連打の途中では作り直さない）：1 回だけ true。シーンが地形を作り直す
-    // （2026-10-21 ユーザー：「カーソルが触れる度に地形を読み直して重い」→ マウスの hover では切り替えない + 遅延）
+    // （重いので、マウスの hover では切り替えない + 遅延）
     bool ConsumeMapChanged();
     bool IsStarting() const { return m_Starting; }
     // TEMP-TEST：自動テスト用。選択を変えて「マップが変わった」も立てる（遅延なし）
@@ -70,7 +70,7 @@ private:
     float m_Left = 0.0f;    // 左の余白（px）
     float m_Time = 0.0f;
     float m_InputDelay = 0.0f;   // 開いた直後は決定を受けない（押しっぱなしの Enter で即出発しない）
-    StickNav m_Stick;            // 左スティック（2026-11-05。上下 = マップ、左右 = Tier。地形の切り替えが重いので連続はしない）
+    StickNav m_Stick;            // 左スティック（上下 = マップ、左右 = Tier。地形の切り替えが重いので連続はしない）
     bool  m_Starting = false;
     bool  m_MapChanged = false;
     float m_ChangeTimer = 0.0f;  // 最後にマップが変わってからの秒（kSwitchDelay を過ぎたら ConsumeMapChanged が答える）

@@ -26,7 +26,7 @@ StructuredBuffer<uint> cellCount : register(t2);
 StructuredBuffer<uint> cellItems : register(t3);
 StructuredBuffer<float> terrainHeight : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5); // kind：幽霊は壁も崖も無視する
-StructuredBuffer<float4> enemyClimb : register(t6);   // x > 0 = 壁を登っている（MoveCS、2026-10-29）：そのまま動かさない
+StructuredBuffer<float4> enemyClimb : register(t6);   // x > 0 = 壁を登っている（MoveCS）：そのまま動かさない
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 
 // 1 ステップで解消するめり込みの割合（1 = 全部、ガタつく）
@@ -46,11 +46,11 @@ void main(uint3 id : SV_DispatchThreadID)
     if (enemyStates[i] == SWARM_DEAD)
         return;
     if (enemyExtra[i].kind == SWARM_KIND_TORNADO)
-        return;   // 群れは砂旋を押さない（砂旋が群れを押す）（2026-10-17）
+        return;   // 群れは砂旋を押さない（砂旋が群れを押す）
     if (enemyExtra[i].kind == SWARM_KIND_GARGOYLE && enemyExtra[i].fuse <= 0.0)
-        return;   // 眠っているガーゴイルも押さない（石像、2026-10-25）
-    if (enemyClimb[i].x != 0.0)   // > 0 は登っている、< 0 は上に乗り上げ中（2026-11-02）：どちらも動かさない
-        return;   // 壁を登っている体も押さない：壁面から押し出すと手を離して落ちる（2026-10-29）
+        return;   // 眠っているガーゴイルも押さない（石像）
+    if (enemyClimb[i].x != 0.0)   // > 0 は登っている、< 0 は上に乗り上げ中：どちらも動かさない
+        return;   // 壁を登っている体も押さない：壁面から押し出すと手を離して落ちる
 
     float3 pos = enemies[i].position;
     float minDist = 2.0 * g_EnemyRadius * kPushDistMul;
@@ -114,8 +114,7 @@ void main(uint3 id : SV_DispatchThreadID)
     bool ghost = SwarmFliesThrough(enemyExtra[i]);   // 幽霊 / 飛んでいるガーゴイルは壁も崖も無視する
     if (!ghost)
     {
-        // 体の円も壁 / 崖の面に押し込んではいけない
-        //（2026-10-01）：押しのうち面に向かう分を捨て、それでも今より
+        // 体の円も壁 / 崖の面に押し込んではいけない：押しのうち面に向かう分を捨て、それでも今より
         // 多く触れてしまうなら押し全体を捨てる
         float radius = SwarmBodyWallRadius(kind);
         float3 tn = SwarmBodyContact(terrain, terrainHeight, np.xz, radius);
@@ -138,8 +137,8 @@ void main(uint3 id : SV_DispatchThreadID)
             return;   // 壁の中か崖の向こうに出てしまう：このステップは動かない
     }
 
-    // 地上：地面には上にだけ合わせ、下には合わせない（2026-10-20）：双線形補間の地面は台地の縁から
-    // 0.25m 以内で面の半分まで下がるので、そこでの押しで敵が沈み込んでいた
+    // 地上：地面には上にだけ合わせ、下には合わせない：双線形補間の地面は台地の縁から
+    // 0.25m 以内で面の半分まで下がり、押しで敵が沈み込むため
     //（代わりに MoveCS の Settle が足を台地の高さに保つ。坂道を下るときも次のステップで
     // 着地させる）。台地から落ちている最中（MoveCS）：高さはそのまま、重力で着地させる
     float groundNow = g_GroundY + SwarmTerrainHeight(terrainHeight, pos.xz);
