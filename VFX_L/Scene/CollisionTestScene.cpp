@@ -85,6 +85,7 @@ void CollisionTestScene::Shutdown()
     m_PlayerVFX.Shutdown();   // 速さの尾を離す
     m_AreaVFX.StopAll();      // 再生中のエフェクトを粒子システムが生きているうちに放す（メンバの破棄は粒子システムの方が先）
     SceneLighting::ClearFog(Application::Get().GetRenderer());   // Renderer は他のシーンと共有
+    CloudShadows::Clear(Application::Get().GetRenderer());       // 同上（雲の影）
     m_Shadows.Disable(Application::Get().GetRenderer());         // 同上（影を切らないと他のシーンが真っ暗）
     m_AmbientOcclusion.Disable(Application::Get().GetRenderer()); // 同上（SSAO。t12 は張っていない）
     m_Shadows.Unbind(Application::Get().GetGraphics().GetContext());
@@ -96,6 +97,7 @@ void CollisionTestScene::Shutdown()
     m_GrassShreds.Clear(m_AreaVFX);    // 草屑の発生源の番号を捨てる（AreaVFXPlayer はシーンと一緒に終わる）
     m_Dandelions.Shutdown();
     m_Debris.Shutdown();
+    m_WindTrees.Shutdown();
     m_Water.Shutdown();
     m_GrassFire.Shutdown();
     m_Sand.Shutdown();

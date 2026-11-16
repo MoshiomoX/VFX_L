@@ -245,6 +245,11 @@ bool Graphics::CreateSceneTargets(int width, int height)
     dsvd.ViewDimension = (m_SampleCount > 1) ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D;
     hr = m_Device->CreateDepthStencilView(depthTex.Get(), &dsvd, &m_DepthStencilView);
     DX_CHECK(hr, "CreateDepthStencilView failed");
+    // 読むだけの DSV：深度テストをしながら同じ深度を SRV で読める（ソフトパーティクル・交わりの光）
+    dsvd.Flags = D3D11_DSV_READ_ONLY_DEPTH | D3D11_DSV_READ_ONLY_STENCIL;
+    hr = m_Device->CreateDepthStencilView(depthTex.Get(), &dsvd, &m_DepthStencilViewRO);
+    DX_CHECK(hr, "CreateDepthStencilView(read-only) failed");
+    dsvd.Flags = 0;
     D3D11_SHADER_RESOURCE_VIEW_DESC dsrv = {};
     dsrv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
     if (m_SampleCount > 1)
@@ -588,6 +593,7 @@ void Graphics::ReleaseSceneTargets()
     m_SceneSRV.Reset();
     m_SceneResolved.Reset();
     m_DepthStencilView.Reset();
+    m_DepthStencilViewRO.Reset();
     m_DepthSRV.Reset();
     m_StencilSRV.Reset();
     m_DistortRTV.Reset();

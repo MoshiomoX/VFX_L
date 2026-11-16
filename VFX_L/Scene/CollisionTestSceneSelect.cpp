@@ -168,6 +168,7 @@ void CollisionTestScene::ActivateSelectWorld(int map)
     gs.tipColor = def.grassTip;
     gs.heightMin = def.grassHeightMin;
     gs.heightMax = def.grassHeightMax;
+    m_WindTrees.Build(m_Registry, m_TerrainConfig.biome);
     m_StaticProps.Build(m_Registry);
     m_Grass.Build(m_Grid, m_GrassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);
     ApplyGrassCover();   // 草の下の地面を暗く（図が変わった）

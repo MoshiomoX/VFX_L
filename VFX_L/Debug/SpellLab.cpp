@@ -406,21 +406,4 @@ void SpellLab::DrawStats(Registry& reg, Entity player)
         ImGui::Text("orb unit %d: %d stored, %d orbs x %.1fs every %.1fs, color (%.2f %.2f %.2f)",
             (int)u, o.storedCount, o.maxOrbs, o.orbLife, o.orbInterval, o.color.x, o.color.y, o.color.z);
     }
-
-    // 置いてあるが発動していない上級魔法（前提の基本魔法が足りない）
-    bool anyDormant = false;
-    for (int i = 0; i < (int)bp.items.size(); ++i)
-    {
-        const ItemCommon* ic = ItemDatabase::GetCommon(bp.items[i].id);
-        if (!ic || ic->triggeredBy.empty() || BackpackLogic::IsTriggerReady(bp, i)) continue;
-        if (!anyDormant) { ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.4f, 1.0f), "Dormant advanced spells:"); anyDormant = true; }
-        char buf[200];
-        snprintf(buf, sizeof(buf), "  %s needs:", ic->name);
-        for (ItemID need : ic->triggeredBy)
-        {
-            const ItemCommon* n = ItemDatabase::GetCommon(need);
-            snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), " %s", n ? n->name : "?");
-        }
-        ImGui::TextUnformatted(buf);
-    }
 }

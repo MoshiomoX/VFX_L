@@ -66,9 +66,8 @@ static void ApplyLevelSpeed(Registry& reg, Entity player)
 void LevelUpSystem::RollChoices(Registry& reg, Entity player)
 {
     auto& lv = reg.Get<LevelComponent>(player);
-    const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
 
-    if (FillChoices(lv, book) == 0)
+    if (FillChoices(lv) == 0)
     {
         // 候補が1つも無いなら、レベルだけ上げて先へ進める。
         // ここで止まると経験値が溜まり続けて動かなくなる。
@@ -104,8 +103,7 @@ bool LevelUpSystem::OfferChoices(Registry& reg, Entity player, bool premium)
 
     auto& lv = reg.Get<LevelComponent>(player);
     if (lv.IsChoosing()) return false;
-    const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
-    if (FillChoices(lv, book, nullptr, premium) == 0) return false;
+    if (FillChoices(lv, nullptr, premium) == 0) return false;
     lv.choiceDelay = 0.0f;   // 箱を開けた四択はすぐ出す
     lv.choiceFromCrate = true;   // 見出しが「宝箱の報酬」になる
     lv.choicePremium = premium;  // 引き直しも同じ率で
@@ -128,9 +126,8 @@ bool LevelUpSystem::Reroll(Registry& reg, Entity player)
     if (!wallet.CanPay(cost)) return false;
 
     const std::vector<ItemID> before = lv.pendingChoices;
-    const SpellbookComponent* book = reg.Has<SpellbookComponent>(player) ? &reg.Get<SpellbookComponent>(player) : nullptr;
     const int count = lv.rerollCount;
-    if (FillChoices(lv, book, &before, lv.choicePremium) == 0)
+    if (FillChoices(lv, &before, lv.choicePremium) == 0)
     {
         lv.pendingChoices = before;   // 引けなかった（起きないはず）。元に戻して払わない
         return false;
@@ -198,7 +195,7 @@ namespace
 // ============================================================
 // 候補を pendingChoices に詰める（レベルアップと報酬で共通）。詰めた数を返す
 // ============================================================
-int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* book, const std::vector<ItemID>* avoid, bool premium)
+int LevelUpSystem::FillChoices(LevelComponent& lv, const std::vector<ItemID>* avoid, bool premium)
 {
     // 候補の母集団を稀有度の段毎に作る（重み付き。稀有度は先に段を引くので重みには掛けない）
     using Entry = CardEntry;
@@ -207,15 +204,6 @@ int LevelUpSystem::FillChoices(LevelComponent& lv, const SpellbookComponent* boo
     {
         // 定義が取れないものは除く（登録漏れの保険）
         if (!ItemDatabase::GetCommon(id)) continue;
-
-        // 上級魔法（メテオ等）は前提の基本魔法を 1 つでも持っている時だけ（使えない札を引かせない）
-        if (const auto* c = ItemDatabase::GetCommon(id); c && book && !c->triggeredBy.empty())
-        {
-            bool hasAny = false;
-            for (ItemID need : c->triggeredBy)
-                if (book->HasLearned(need)) { hasAny = true; break; }
-            if (!hasAny) continue;
-        }
 
         // 設置枠は種類が多いので 1 種類ずつの重みを下げる
         float w = 1.0f;

@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include "Graphics/SceneDepthRead.h"
 
 class Model;
 class Texture;
@@ -13,7 +14,7 @@ class VertexShader;
 class PixelShader;
 using Microsoft::WRL::ComPtr;
 
-// PS b1。HLSL の VFXMeshCB と同じ並び（112B）
+// PS b1。HLSL の VFXMeshCB と同じ並び（144B）
 struct VFXMeshParams
 {
     DirectX::SimpleMath::Vector4 tint = { 1, 1, 1, 1 };
@@ -32,8 +33,10 @@ struct VFXMeshParams
     float noVertexColor = 0.0f;        // 1 = 頂点色を掛けない（テクスチャの無い FBX は材質の色が頂点色に焼かれている）
     DirectX::SimpleMath::Vector3 camPos = { 0, 0, 0 };   // 縁の光用（Render が入れる）
     float toon = 0.0f;                 // 1 = トゥーンの護罩（向きで 3 段の硬い帯。半透明で描く。シールドの護罩）
+    DirectX::SimpleMath::Vector4 intersect = { 0, 0, 0, 0 };   // 地面などと交わる所の光：rgb = 色（HDR）、w = 幅 m（0 = 無し）
+    DirectX::SimpleMath::Vector4 depthAB = { 0, 0, 0, 0 };     // Render が入れる（深度 → 目からの距離、z = 深度を読める）
 };
-static_assert(sizeof(VFXMeshParams) == 112, "VFXMeshCB layout mismatch");
+static_assert(sizeof(VFXMeshParams) == 144, "VFXMeshCB layout mismatch");
 
 // 1 回の描画
 struct VFXMeshDrawItem
@@ -63,8 +66,13 @@ public:
     void Render(ID3D11DeviceContext* ctx, CameraBase* camera);
     void Clear() { m_Items.clear(); }
     size_t GetItemCount() const { return m_Items.size(); }
+    // シーンの深度（交わりの光）。毎フレーム Render の前に渡す。渡さなければ交わりの光は出ない
+    void SetSceneDepth(ID3D11ShaderResourceView* depth, ID3D11DepthStencilView* readOnlyDsv) { m_DepthRead.Set(depth, readOnlyDsv); }
 
 private:
+    SceneDepthRead m_DepthRead;
+    bool m_DepthOn = false;
+    DirectX::SimpleMath::Vector2 m_DepthAB = { 0, 0 };
     void Draw(ID3D11DeviceContext* ctx, const VFXMeshDrawItem& item,
         const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
 

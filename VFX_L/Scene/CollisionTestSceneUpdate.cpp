@@ -12,7 +12,6 @@
 #include "Player/PlayerStatsComponent.h"
 #include "Player/LevelComponent.h"
 #include "Player/WalletComponent.h"
-#include "Enemy/EnemyTags.h"
 #include "ECS/View.h"
 #include "Scene/RunResult.h"
 #include "World/StageConfig.h"
@@ -300,13 +299,6 @@ void CollisionTestScene::UpdateHudMarkers()
         for (const Vector3& p : ep)
             markers.push_back({ p + Vector3(0.0f, 2.0f, 0.0f), { 1.0f, 0.30f, 0.30f, 1.0f }, HUDMarkerKind::Elite });
     }
-    // 計測用の的（無敵）も EliteTag を持つので外す
-    m_Registry.CreateView<EliteTag, TransformComponent, HealthComponent>()
-        .Each([&](Entity, EliteTag&, TransformComponent& tf, HealthComponent& hp)
-            {
-                if (hp.invincible || hp.current <= 0.0f) return;
-                markers.push_back({ tf.position + Vector3(0.0f, 1.0f, 0.0f), { 1.0f, 0.30f, 0.30f, 1.0f }, HUDMarkerKind::Elite });
-            });
     auto& cam = m_Camera.Camera();   // GetViewMatrix は const ではない
     m_GameUI.SetMarkers(cam.GetViewMatrix() * cam.GetProjectionMatrix(), std::move(markers));
 }

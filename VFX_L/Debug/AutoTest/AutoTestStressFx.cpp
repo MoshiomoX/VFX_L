@@ -14,6 +14,7 @@
 #include "Core/DevUI.h"
 #include "Core/GameSettings.h"
 #include "Swarm/AreaVFXPlayer.h"
+#include "VFX_Editor/VFXId.h"
 
 namespace
 {
@@ -30,7 +31,8 @@ namespace
         void UpdateWind(bool on);
         void AddLights(int count);
 
-        struct Phase { const char* name; int mobs; bool wind; int lights; bool cast; };
+        // blasts = 1 秒に出す爆発の範囲の数（画面の中、粒子の重ね描きを測る）、meteor = メテオの大きい爆発
+        struct Phase { const char* name; int mobs; bool wind; int lights; bool cast; float blasts = 0.0f; bool meteor = false; };
         static constexpr Phase kPhases[] = {
             { "baseline",                          0, false,   0, false },
             { "wind x4",                           0, true,    0, false },
@@ -41,11 +43,20 @@ namespace
             { "4000 mobs + wind + lights",      4000, true,  192, false },
             { "4000 mobs + wind + lights + cast", 4000, true, 192, true },
             { "4000 mobs + lights",             4000, false, 192, false },   // VFXL_STRESSFX_LIGHTAB 用
+            // VFXL_STRESSFX_BLAST 用（爆発の粒子の重ね描き）
+            { "blasts 20/s",                       0, false,   0, false, 20.0f },
+            { "blasts 60/s",                       0, false,   0, false, 60.0f },
+            { "meteor blasts 20/s",                0, false,   0, false, 20.0f, true },
+            { "1000 mobs + blasts 60/s",        1000, false,   0, false, 60.0f },
         };
         static constexpr int   kPhaseCount = (int)(sizeof(kPhases) / sizeof(kPhases[0]));
         static constexpr float kLead = 3.0f, kPhaseLen = 12.0f, kSettle = 6.0f;
         static constexpr int   kWinds = 4;
         static constexpr int   kGrid = 16;   // 点光源の置き場所 16×16
+
+        void SpawnBlasts(const Phase& ph, float dt);
+        float    m_BlastAcc = 0.0f;
+        uint32_t m_BlastSeed = 777u;
 
         Vector3  m_Center;
         uint32_t m_TwisterVfx[kWinds] = {};
@@ -116,7 +127,8 @@ void AutoTestStressFx::Setup()
     if (GetEnvironmentVariableA("VFXL_STRESSFX_MOBS", nullptr, 0) > 0) m_Run = { 0, 3, 4 };
     // 4000 体のまま光だけを 3 回ずつ付け外し（同じ群れで比べる。段ごとの揺れが大きいので）
     else if (GetEnvironmentVariableA("VFXL_STRESSFX_LIGHTAB", nullptr, 0) > 0) m_Run = { 4, 8, 4, 8, 4, 8 };
-    else for (int i = 0; i < kPhaseCount - 1; ++i) m_Run.push_back(i);   // 最後の段（光の付け外し用）は普段は回さない
+    else if (GetEnvironmentVariableA("VFXL_STRESSFX_BLAST", nullptr, 0) > 0) m_Run = { 0, 9, 10, 11, 12 };
+    else for (int i = 0; i <= 7; ++i) m_Run.push_back(i);   // 光の付け外し・爆発の段は普段は回さない
     // 賢いカメラは囲まれると引くので、測る間は切る（14m / 45° で比べる）
     GameSettings::Get().smartCamera = false;
 
@@ -176,6 +188,31 @@ void AutoTestStressFx::AddLights(int count)
         const float x = m_Center.x - 14.0f + 28.0f * (float)(cell % kGrid) / (kGrid - 1);
         const float z = m_Center.z - 4.0f + 26.0f * (float)(cell / kGrid) / (kGrid - 1);
         lights.Add(Vector3(x, m_Grid.SampleHeight(x, z) + 1.2f, z), kColors[k % 6], 3.5f, 1.0f);
+    }
+}
+
+// 画面の中（プレイヤーの横 ±10m・前 2〜20m）に爆発の範囲を 1 秒 ph.blasts 個（伤害 0、粒子の重ね描きを測る）
+void AutoTestStressFx::SpawnBlasts(const Phase& ph, float dt)
+{
+    if (ph.blasts <= 0.0f) { m_BlastAcc = 0.0f; return; }
+    static const uint32_t kExplosion = m_Swarm.GetVFXTable().IndexOf(VFXId::Explosion);
+    static const uint32_t kMeteor = m_Swarm.GetVFXTable().IndexOf(VFXId::MeteorBlast);
+    m_BlastAcc += ph.blasts * dt;
+    while (m_BlastAcc >= 1.0f)
+    {
+        m_BlastAcc -= 1.0f;
+        auto rnd = [&]() { m_BlastSeed = m_BlastSeed * 1664525u + 1013904223u; return (float)(m_BlastSeed >> 8) / 16777216.0f; };
+        Swarm::Area a;
+        a.center = Vector3(m_Center.x - 10.0f + 20.0f * rnd(), 0.0f, m_Center.z + 2.0f + 18.0f * rnd());
+        a.center.y = m_Grid.SampleHeight(a.center.x, a.center.z);
+        a.radius = ph.meteor ? 3.5f : 3.0f;
+        a.halfHeight = 4.0f;
+        a.damage = 0.0f;
+        a.tickInterval = 1.0f;
+        a.timeLeft = 0.3f;
+        a.flags = 0u;
+        a.vfxType = ph.meteor ? kMeteor : kExplosion;
+        m_Swarm.SpawnArea(a);
     }
 }
 
@@ -245,6 +282,7 @@ void AutoTestStressFx::Run()
     const Phase& ph = kPhases[phase];
     UpdateWind(ph.wind);
     AddLights(ph.lights);
+    SpawnBlasts(ph, (float)(std::min)(frameMs, 100.0) * 0.001f);
 
     if (m_AutoTime - kLead - step * kPhaseLen < kSettle) return;
     if (!m_Looked && m_AutoTime - kLead - step * kPhaseLen >= kSettle + 3.0f)

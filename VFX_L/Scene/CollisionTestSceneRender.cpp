@@ -17,12 +17,20 @@
 void CollisionTestScene::Render(Renderer& renderer)
 {
     m_Lighting.Apply(renderer);
+    m_Clouds.Apply(renderer);
     auto& gfx = Application::Get().GetGraphics();
     ID3D11DeviceContext* ctx = gfx.GetContext();
     // SSAO：前のフレームで作った遮蔽を t12 と LightBuffer に張る（陰影が明暗の境を押すのに使う）
     m_AmbientOcclusion.BindForShading(ctx, renderer);
     // 砂漠の砂の面：Flush の後・地形を描く前に 1 歩進めて地形の材質へ
     StepSand();
+    // 風で揺れる木：影より前に 1 歩（影も揺れた形で落とす）。突風は落ち葉と同じ物
+    {
+        DirectX::SimpleMath::Vector4 gustA[4], gustB[4];
+        PROFILE_SCOPE_GPU("Wind trees (sway)");
+        const uint32_t gustN = m_Debris.PackGusts(gustA, gustB, 4);
+        m_WindTrees.Step(m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetWindSourceSRV(), gustA, gustB, gustN);
+    }
 
     // ---- 0) 太陽のシャドウマップ（段ごとに影を落とす物を深度だけで描く）→ シーンの HDR RT に戻す ----
     // 雑魚（GPU）はシャドウマップに入れない（足元の丸い影で代える）
@@ -34,6 +42,7 @@ void CollisionTestScene::Render(Renderer& renderer)
             {
                 m_RenderSystem.RenderDepth(m_Registry, renderer, cascade == 0);
                 m_StaticProps.RenderDepth(ctx, view, proj);
+                m_WindTrees.RenderDepth(ctx, view, proj, cascade);
             });
         gfx.RestoreRenderTarget();
     }
@@ -50,6 +59,7 @@ void CollisionTestScene::Render(Renderer& renderer)
     {
         { PROFILE_SCOPE_GPU("Models (ECS)"); m_RenderSystem.Render(m_Registry, renderer); }
         { PROFILE_SCOPE_GPU("Props (instanced)"); m_StaticProps.Render(renderer); }
+        if (GetCamera()) { PROFILE_SCOPE_GPU("Wind trees (branches)"); m_WindTrees.RenderBranches(renderer, *GetCamera()); }
         { PROFILE_SCOPE_GPU("Swarm draw"); m_Swarm.RenderOpaque(GetCamera(), renderer.GetLightData()); }
         // 光を受けるメッシュ粒子（石・矢。不透明で深度を書く）もアウトラインの前に（線が付くように）
         if (m_ShowParticle)
@@ -78,6 +88,8 @@ void CollisionTestScene::Render(Renderer& renderer)
             // 落ち葉（1 歩進めて描く。爆発の範囲と光線は読むだけ）
             if (GetCamera()) m_Debris.Render(renderer, *GetCamera(), m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(), m_Swarm.GetAreaEndSRV(),
                 m_Swarm.GetWindSourceSRV());   // 砂旋の風源（落ち葉 / 砂屑が巻き上がる）
+            // 木の葉（アウトラインの後：葉 1 枚ずつに線が付かない）
+            if (GetCamera()) { PROFILE_SCOPE_GPU("Wind trees (leaves)"); m_WindTrees.RenderLeaves(renderer, *GetCamera()); }
             // タンポポ（草の踏み跡は今フレームの物。風源で綿毛がほどけて飛ぶ）
             if (GetCamera()) m_Dandelions.Render(renderer, *GetCamera(), m_Grass.GetTrampleSRV(), m_Swarm.GetWindSourceSRV(), PlayerPos());
         }
@@ -112,6 +124,8 @@ void CollisionTestScene::Render(Renderer& renderer)
         m_PlayerVFX.SubmitMeshes(m_MeshRenderer);                        // 詠唱の魔法陣（足元・手の前）
         m_SpellFx.Submit(m_MeshRenderer, m_WeaponSystem);                // アイススパイクの氷のトゲ・回る剣・吸血コウモリ
         m_SandSpikes.Submit(m_MeshRenderer);                             // 砂の守護者の砂の槍の石のトゲ
+        if (gfx.GetSampleCount() > 1)
+            m_MeshRenderer.SetSceneDepth(gfx.GetDepthSRV(), gfx.GetReadOnlyDSV());   // 護罩が地面と交わる所の光
         m_MeshRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_SpriteRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());
         m_BeamRenderer.Render(Application::Get().GetGraphics().GetContext(), GetCamera());   // 光線（加算）
@@ -124,7 +138,9 @@ void CollisionTestScene::Render(Renderer& renderer)
     {
         PROFILE_SCOPE_GPU("Particles draw");
         m_ParticleSystem.SetCamera(GetCamera());
-        m_ParticleSystem.SetLight(renderer.GetLightData());   // 立方体粒子の Lambert 用
+        m_ParticleSystem.SetLight(renderer.GetLightData());   // 立方体粒子の Lambert 用・ビルボードの霧
+        if (gfx.GetSampleCount() > 1)
+            m_ParticleSystem.SetSceneDepth(gfx.GetDepthSRV(), gfx.GetReadOnlyDSV());   // ソフトパーティクル
         m_ParticleSystem.Render(!m_ShowMesh);   // 光を受けるメッシュ粒子はアウトラインの前に描き済み（m_ShowMesh の時）
         // 画面の歪み（風の空気の揺らぎ）：歪みの強さを持つ粒子だけを別の RT へ。合成がその分ずらす
         // 歪みを持つ粒子が生きていない時は resolve 2 回 + 全画面 1 回を省く

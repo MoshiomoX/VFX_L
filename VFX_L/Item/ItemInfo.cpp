@@ -44,7 +44,6 @@ namespace
         s.category = ItemInfo::CategoryLabel(ItemDatabase::GetCategory(id));
         if (const ItemCommon* c = ItemDatabase::GetCommon(id))
         {
-            if (!c->triggeredBy.empty()) s.category = L"上級魔法";   // 前提の基本魔法が要る物（隕石・光線）
             if (!c->outletCells.empty()) s.category = L"出口魔法";
             if (const FrameItemDef* fd = ItemDatabase::GetFrame(id); fd && fd->HasEffect()) s.category = L"効果の枠";
             s.color = c->color;
@@ -122,27 +121,14 @@ namespace ItemInfo
         a.damagePerTick *= power;
     }
 
-    // 上級魔法の前提（「ファイアボール・ストーンショット」）
-    static std::wstring TriggerNames(const ItemCommon& c)
+    // 出口魔法の説明の行
+    static void AddOutletText(Sheet& s, const ItemCommon& c)
     {
-        std::vector<std::wstring> names;
-        for (ItemID need : c.triggeredBy) names.push_back(DisplayName(need));
-        return Join(names);
+        if (c.outletText && c.outletText[0]) s.traits.insert(s.traits.begin(), c.outletText);
     }
 
-    // 上級魔法: 「敵の足元…」を「連鎖した場所…」に差し替える（前提の弾が消えた場所に落ちる）
-    static void FixTriggeredFlight(Sheet& s, const ProjectileItemDef& d)
-    {
-        if (d.common.outletText && d.common.outletText[0]) s.traits.insert(s.traits.begin(), d.common.outletText);   // 出口魔法
-        if (d.common.triggeredBy.empty()) return;
-        const std::wstring feet = kAtFeet;
-        for (auto& t : s.traits)
-            if (t.compare(0, feet.size(), feet) == 0) t = L"連鎖した場所" + t.substr(feet.size());
-    }
-
-    // バックパックに置いた物の「誘発」の行（集約と同じ判定）。上級魔法なら目覚めているか / 足りない前提、
-    // 基本魔法なら自分が呼び起こしている上級魔法
-    static void AddTriggerTraits(Sheet& s, const BackpackComponent& bp, int itemIndex, const ItemCommon& c, int shotsPerCast = 1)
+    // バックパックに置いた物の出口の行（集約と同じ判定）
+    static void AddOutletTraits(Sheet& s, const BackpackComponent& bp, int itemIndex, const ItemCommon& c, int shotsPerCast = 1)
     {
         // 出口：自分の出口の先 / 自分を出口の先に持つ魔法
         if (!c.outletCells.empty())
@@ -159,36 +145,6 @@ namespace ItemInfo
             for (int d : outletDrivers) names.push_back(DisplayName(bp.items[d].id));
             s.traits.insert(s.traits.begin(), Join(names) + L" の弾 1 発につき 1 回発動");
         }
-        if (!c.triggeredBy.empty())
-        {
-            if (BackpackLogic::IsTriggerReady(bp, itemIndex))
-                s.traits.insert(s.traits.begin(), L"発動中");
-            else
-            {
-                const std::vector<int> drivers = BackpackLogic::GetTriggerDrivers(bp, itemIndex);
-                std::vector<std::wstring> missing;
-                for (ItemID need : c.triggeredBy)
-                {
-                    bool found = false;
-                    for (int k : drivers) if (bp.items[k].id == need) { found = true; break; }
-                    if (!found) missing.push_back(DisplayName(need));
-                }
-                s.traits.insert(s.traits.begin(), L"未発動: " + Join(missing) + L" が隣に無い");
-            }
-            return;
-        }
-
-        std::vector<std::wstring> wakes;
-        for (int j = 0; j < (int)bp.items.size(); ++j)
-        {
-            if (j == itemIndex) continue;
-            const auto drv = BackpackLogic::GetTriggerDrivers(bp, j);
-            if (std::find(drv.begin(), drv.end(), itemIndex) != drv.end()
-                && BackpackLogic::IsTriggerReady(bp, j))
-                wakes.push_back(DisplayName(bp.items[j].id));
-        }
-        if (!wakes.empty())
-            s.traits.insert(s.traits.begin(), L"連鎖: " + Join(wakes));
     }
 
     Sheet Describe(ItemID id)
@@ -198,18 +154,12 @@ namespace ItemInfo
         {
             const SpellStats b = BaseSpellStats(*d);
             FillProjectile(s, b, b);
-            FixTriggeredFlight(s, *d);
-            if (!d->common.triggeredBy.empty())
-                s.traits.insert(s.traits.begin(),
-                    L"隣に必要: " + TriggerNames(d->common));
+            AddOutletText(s, d->common);
         }
         else if (auto* d = ItemDatabase::GetArea(id))
         {
             const AreaStats b = BaseAreaStats(*d);
             FillArea(s, b, b);
-            if (!d->common.triggeredBy.empty())
-                s.traits.insert(s.traits.begin(),
-                    L"隣に必要: " + TriggerNames(d->common));
         }
         else if (auto* d = ItemDatabase::GetFunction(id))
             FillFunction(s, *d);
@@ -315,10 +265,10 @@ namespace ItemInfo
                 v.manaCost = line.mana;
             }
             FillProjectile(s, v, b);
-            FixTriggeredFlight(s, *d);
+            AddOutletText(s, d->common);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
 
-            AddTriggerTraits(s, bp, itemIndex, d->common, shotsPerCast);   // 誘発（集約と同じ判定）
+            AddOutletTraits(s, bp, itemIndex, d->common, shotsPerCast);
             AddStoredTrait(s, bp, itemIndex);
             return s;
         }
@@ -330,7 +280,7 @@ namespace ItemInfo
                 v.damagePerTick *= PlacedLines(bp, spellPower)[itemIndex].powerMul;
             FillArea(s, v, b);
             if (!by.empty()) s.footer = L"強化: " + Join(by);
-            AddTriggerTraits(s, bp, itemIndex, d->common);   // 光線（上級魔法）の誘発
+            AddOutletTraits(s, bp, itemIndex, d->common);
             AddStoredTrait(s, bp, itemIndex);
             return s;
         }

@@ -316,6 +316,11 @@ namespace ParticleRenderMode
     //   bits 20-21 = 色の段 - 1、bits 22-25 = 外の段の明るさ（n / 15）
     constexpr int kToon = 1 << 14;
     constexpr int kToonOutline = 1 << 15;
+    // トゥーンのノイズ侵食。bit 8 はメッシュの発光と同じ位置だが、ビルボードでは使っていない（GPUParticlePS の PARTICLE_TOON_NOISE）
+    constexpr int kToonNoise = 1 << 8;
+    // トゥーンの火の色の段（外 = 濃い赤、中 = 粒子の色、芯 = 白寄り）。bits 10-11 は歪みの強さと同じ位置だが、
+    // 歪みはトゥーンと排他（ParticleDistortLevel もトゥーンなら 0）。GPUParticlePS の PARTICLE_TOON_FIRE
+    constexpr int kToonFire = 1 << 10;
     inline int PackToon(bool outline, float cut, int bands, float shade)
     {
         auto q = [](float v, float lo, float step) {

@@ -60,9 +60,6 @@ void CollisionTestScene::InitRenderers(ID3D11Device* device, ID3D11DeviceContext
         std::cout << "[Error] GameUI init failed" << std::endl;
     m_GameUI.SetLevelUpSystem(&m_LevelUpSystem);   // 四択の金貨での引き直し
 
-    // ---------- エリートの的（骨付きモデルが読めない時のカプセルを用意）----------
-    // 雑魚のモデルは SwarmSystem が自前で持つ。ここには置かない
-    m_Elites.Init(device);
     m_Lighting.Init(device);   // 空のシェーダー
     m_Outline.Initialize(device);   // トゥーンのアウトライン
     {
@@ -196,6 +193,13 @@ void CollisionTestScene::InitTerrainWorld(const StageDef& stageDef, ID3D11Device
     // 置物（木・岩・茂み）はモデル毎の instanced 描画へ
     if (!m_StaticProps.Initialize(device))
         std::cout << "[Error] StaticPropRenderer init failed" << std::endl;
+    // 草原の木・茂みはモデルを隠し、風で揺れるプロシージャルの木に置き換える（StaticProps の Build より前）
+    if (!m_WindTrees.Initialize(device, context))
+        std::cout << "[Error] WindTrees init failed" << std::endl;
+    // TEMP-TEST: VFXL_NO_WIND_TREES = 置き換えず元のモデルの木のまま（fps を比べる用）
+    if (GetEnvironmentVariableA("VFXL_NO_WIND_TREES", nullptr, 0) > 0)
+        m_WindTrees.SetReplaceModels(false);
+    m_WindTrees.Build(m_Registry, m_TerrainConfig.biome);
     m_StaticProps.Build(m_Registry);
     // 草（GPU で生やす葉）
     if (!m_Grass.Initialize(device, context))

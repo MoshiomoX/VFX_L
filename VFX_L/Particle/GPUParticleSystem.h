@@ -14,6 +14,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Graphics/Renderer/RenderStates.h"
 #include "Graphics/Light/LightTypes.h"
+#include "Graphics/SceneDepthRead.h"
 #include "World/WindState.h"
 using Microsoft::WRL::ComPtr;
 
@@ -83,6 +84,23 @@ public:
     void SetTexture(std::shared_ptr<Texture> texture) { m_Texture = texture; }
     // 立方体粒子の Lambert 用。Render の前に毎フレーム渡す（渡さなければ既定の上方光）
     void SetLight(const LightBuffer& light) { m_Light = light; }
+    // シーンの深度（ソフトパーティクル）。毎フレーム Render の前に渡す。渡さなければ地面に刺さった所も硬いまま
+    void SetSceneDepth(ID3D11ShaderResourceView* depth, ID3D11DepthStencilView* readOnlyDsv) { m_DepthRead.Set(depth, readOnlyDsv); }
+    // ビルボード：地面・壁に近い所を薄く（トゥーンは削る）する幅（m、0 = 無し）と、距離の霧（SetLight の fog*）を掛けるか
+    float softDistance = 0.4f;
+    bool  billboardFog = true;
+    // トゥーンのノイズ侵食（発射器の toonNoise が立っている物だけ）：強さ、模様の細かさ、寿命中に流れる量、うねり
+    float erodeStrength = 0.75f;
+    float erodeScale = 1.1f;
+    float erodeFlow = 0.5f;
+    float erodeWarp = 0.15f;
+    DirectX::SimpleMath::Vector3 erodeEdgeColor = { 1.7f, 0.9f, 0.06f };    // 侵食の縁の光る帯（線形 HDR）
+    float erodeEdgeWidth = 0.13f;                                          // 帯の幅（形の値。0 = 帯なし）
+    // トゥーンの煙玉の立体感：球とみなした法線で太陽の明暗を付ける（0 = 縁から芯への段だけ）
+    float toonVolume = 0.85f;
+    // 火の色の段（発射器の toonFire）：一番外の濃い赤と、芯を白へ寄せる量
+    DirectX::SimpleMath::Vector3 fireRimColor = { 1.35f, 0.03f, 0.035f };
+    float fireHotCore = 0.3f;
     // 世界の風。風を受ける発射器（GPUParticleEmitter::windResponse）の粒子が UpdateCS で流される。
     // time = 草の風の時計（GrassRenderer::Time）。渡さなければ既定の弱い風（エディタの試し見）
     void SetWind(const WindState& wind, float time) { m_Wind = wind; m_WindTime = time; }
@@ -325,6 +343,7 @@ private:
     // DispatchUpdate / ResetSystem で立てる。Flush の無いフレーム（一時停止）は数も変わらないので写さない
     bool                              m_MeshArgsFresh = false;
     LightBuffer                       m_Light;
+    SceneDepthRead                    m_DepthRead;   // ソフトパーティクル（SetSceneDepth。Render の終わりで外す）
 
     // ---- 粒子の統計（HasDistortion）----
     // stats[0] = 歪みの強さを持つ生きたビルボードの数（ParticleUpdateCS の g_Stats）。毎フレーム 0 にしてから数える
@@ -457,6 +476,7 @@ private:
 
     CameraBase* m_Camera = nullptr;
     std::shared_ptr<Texture> m_Texture;
+    std::shared_ptr<Texture> m_ErodeNoise;   // トゥーンの侵食ノイズ（GPUParticlePS の t9）
     std::vector<ColorKey> m_StaticColorKeys;
     WindState m_Wind;
     float     m_WindTime = 0.0f;

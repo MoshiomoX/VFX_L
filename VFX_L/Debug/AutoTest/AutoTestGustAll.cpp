@@ -12,7 +12,6 @@
 //   orb           : 水晶玉に貯蔵（光球から撃つ。根元 = 光球の真下）
 //   twister       : 渦 + 突風 → 竜巻
 //   multi         : 突風 3 個（マントへの負荷）
-//   cpuDummy      : 地形を建て直す（RebuildTerrain が置くデバッグの無敵エリートの的）→ その近くで撃つ
 // 行：`gustall cast <場面> ...` / `gustall wind ...` / `gustall result <場面> ...` / `gustall cape ...` / `gustall look <名>`
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -63,7 +62,6 @@ namespace
         float m_CapeMaxFar = 0.0f, m_CapeMaxBone = 0.0f;
         bool  m_CapeBad = false;
         bool  m_LookedThisPhase = false;
-        int   m_DummyCount = 0;
     };
 }
 
@@ -181,55 +179,9 @@ void AutoTestGustAll::BeginPhase()
     }
     else if (p == 16)
     {
-        m_Name = "cpuDummy";
-        auto countDummies = [&](Vector3* pos) {
-            int n = 0;
-            m_Registry.CreateView<TransformComponent, ColliderComponent>().EachFrom<ColliderComponent>(
-                [&](Entity e, TransformComponent& t, ColliderComponent& c) {
-                    if (e == m_Player || c.layer != Layer_Enemy) return;
-                    if (pos && n == 0) *pos = t.position;
-                    ++n;
-                });
-            return n;
-        };
-        const int before = countDummies(nullptr);
-        RebuildTerrain();   // RespawnElites が呼ばれる（トレーニングのフィールド切替と同じ）
-        Vector3 dummy;
-        m_DummyCount = countDummies(&dummy);
-        snprintf(line, sizeof(line), "gustall cpuDummy before %d after %d pos %.1f,%.1f,%.1f", before, m_DummyCount, dummy.x, dummy.y, dummy.z);
-        AutoTestLog(line);
-        auto& tf = m_Registry.Get<TransformComponent>(m_Player);
-        if (m_DummyCount > 0)
-        {
-            const float x = dummy.x, z = dummy.z - 5.0f;
-            tf.position = Vector3(x, m_Grid.SampleHeight(x, z) + 1.0f, z);
-            if (m_Registry.Has<RigidbodyComponent>(m_Player)) m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
-        }
-        BackpackLogic::Place(bp, ItemID::Gust, 4, 3, 0);
-        Spawn(180.0f, 6.0f, Swarm::kEnemyKindMob);   // 的（5m @0）の反対 6m。標的は的になり、風は的の方へ
-        m_PhaseDur = 3.0f;
-    }
-    else if (p == 17)
-    {
         // アイススパイクの線：Boss 14m @0 + 雑魚 5m @90。線は優先度なしの一番近い敵（雑魚）の向きへ走るはず
         m_Name = "iceSpike";
-        auto indexOf = [&](ItemID id) { for (int i = 0; i < (int)bp.items.size(); ++i) if (bp.items[i].id == id) return i; return -1; };
         BackpackLogic::Place(bp, ItemID::IceSpike, 4, 4, 0);
-        for (ItemID need : { ItemID::IceLance, ItemID::StoneShot })
-        {
-            bool placed = false;
-            for (int r = 0; r < BackpackComponent::GRID && !placed; ++r)
-                for (int c = 0; c < BackpackComponent::GRID && !placed; ++c)
-                {
-                    const int idx = BackpackLogic::Place(bp, need, r, c, 0);
-                    if (idx < 0) continue;
-                    const auto drv = BackpackLogic::GetTriggerDrivers(bp, indexOf(ItemID::IceSpike));
-                    if (std::find(drv.begin(), drv.end(), indexOf(need)) != drv.end()) placed = true;
-                    else BackpackLogic::Remove(bp, indexOf(need));
-                }
-        }
-        snprintf(line, sizeof(line), "gustall place iceSpike ready %d", (int)BackpackLogic::IsTriggerReady(bp, indexOf(ItemID::IceSpike)));
-        AutoTestLog(line);
         Spawn(0.0f, 14.0f, Swarm::kEnemyKindBoss, 1.0e6f);
         Spawn(90.0f, 5.0f, Swarm::kEnemyKindMob);
         m_PhaseDur = 7.0f;
@@ -417,7 +369,7 @@ void AutoTestGustAll::Run()
     {
         EndPhase();
         ++m_Phase;
-        if (m_Phase > 17) { AutoTestLog("gustall done"); m_AutoStep = 2; return; }
+        if (m_Phase > 16) { AutoTestLog("gustall done"); m_AutoStep = 2; return; }
         BeginPhase();
     }
 }

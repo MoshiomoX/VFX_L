@@ -1,7 +1,7 @@
 // ============================================================
 // WeaponSystemTwister.cpp
-// 竜巻（上級の範囲魔法、AreaProfile::Kind::Roam。前提は渦 + 突風）。
-//   誘発された所に出て、プレイヤーに一番近い敵の方へ向きを回しながら roamSpeed m/s で進む。
+// 竜巻（上級の範囲魔法、AreaProfile::Kind::Roam）。
+//   出た所から、プレイヤーに一番近い敵の方へ向きを回しながら roamSpeed m/s で進む。
 //   GPU の範囲は中心を動かせないので、kTwisterPulse 秒ごとに今の位置へ「その間だけ生きる」範囲を出し直す
 //   （引き寄せ = AreaProfile::pull・減速は毎回、威力は tickInterval ごとの回にだけ乗せる。数字が出過ぎないように）。
 //   見た目は CPU の VFX（AreaVFXPlayer のインスタンス）を毎フレーム竜巻の位置へ動かし、

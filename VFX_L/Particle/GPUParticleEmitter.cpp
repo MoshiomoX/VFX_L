@@ -87,7 +87,9 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     if (renderMode == 0 && streak)   // 流線（ビルボードだけ。トゥーンとは排他）
         e.renderMode |= ParticleRenderMode::PackStreak(streakStretch);
     else if (packToon)   // トゥーン（ビルボードだけ）
-        e.renderMode |= ParticleRenderMode::PackToon(toonOutline, toonCut, toonBands, toonShade);
+        e.renderMode |= ParticleRenderMode::PackToon(toonOutline, toonCut, toonBands, toonShade)
+            | (toonNoise ? ParticleRenderMode::kToonNoise : 0)
+            | (toonFire ? ParticleRenderMode::kToonFire : 0);
     // 画面の歪み（ビルボードだけ。bit 15 はトゥーンの線と同じ位置なのでトゥーンを詰めない時だけ）。
     // 判定は「実際に詰めたトゥーン」で見る（流線 + トゥーンの欄が残っていても歪みが消えないように）
     if (renderMode == 0 && !packToon && distortLevel > 0)

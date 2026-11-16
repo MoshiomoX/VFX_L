@@ -133,8 +133,8 @@ void AutoTestBeam::Run()
         const int homing = BackpackLogic::Place(bp, ItemID::HomingBolt, 5, 4, 0);   // (5,4)(5,5)：真下が光線
         const int arc = BackpackLogic::Place(bp, ItemID::ArcBolt, 7, 6, 0);         // (7,6)〜(8,8)：(7,6) の上 = 光線 (6,6)
         char line[160];
-        snprintf(line, sizeof(line), "beam place beam %d homing %d arc %d trigger %d",
-            s_BeamIdx, homing, arc, s_BeamIdx >= 0 ? (int)BackpackLogic::IsTriggerReady(bp, s_BeamIdx) : -1);
+        snprintf(line, sizeof(line), "beam place beam %d homing %d arc %d",
+            s_BeamIdx, homing, arc);
         AutoTestLog(line);
         bp.dirty = true;
         m_Registry.Get<WandComponent>(m_Player).castingPaused = false;

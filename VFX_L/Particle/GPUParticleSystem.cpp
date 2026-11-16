@@ -6,6 +6,8 @@
 #include "Graphics/Mesh/Mesh.h"
 #include "Graphics/Model/Model.h"
 #include "Graphics/PrimitiveBuilder.h"
+#include "Manager/ResourceManager.h"
+#include "ResourcePaths.h"
 
 #include <d3dcompiler.h>
 
@@ -1002,7 +1004,21 @@ void GPUParticleSystem::Render(bool litMeshes)
     // 0 番はシーンが SetTexture で渡した物があればそちら（旧来の呼び方を残す）
     ParticleSheets::Load();
     ID3D11ShaderResourceView* sheets[ParticleSheets::kMaxSheets] = {};
-    struct { uint32_t pointMask, premulMask, pad[2]; } scb = {};
+    // GPUParticlePS の ParticleSheetCB と同じ並び
+    struct
+    {
+        uint32_t pointMask, premulMask, pad[2];
+        Vector4 fogColor;   // a = 霧の上限
+        Vector4 fogRange;   // x 始め, y 終わり, z ソフトの幅
+        Vector4 depthAB;
+        Vector3 camPos;
+        float pad2;
+        Vector4 noiseParams;   // トゥーンの侵食ノイズ
+        Vector4 sunView;       // 太陽へ向かう向き（ビュー空間）、w = 立体感
+        Vector4 erodeEdge;     // 侵食の縁の色、w = 幅
+        Vector4 fireRim;       // 火の色の段の外の赤、w = 芯を白へ寄せる量
+    } scb = {};
+    static_assert(sizeof(scb) == 144, "GPUParticlePS の ParticleSheetCB と合わせる");
     for (int i = 0; i < ParticleSheets::Count() && i < ParticleSheets::kMaxSheets; ++i)
     {
         const auto* s = ParticleSheets::Get(i);
@@ -1011,11 +1027,35 @@ void GPUParticleSystem::Render(bool litMeshes)
         if (s->point)         scb.pointMask |= 1u << i;
         if (s->premultiplied) scb.premulMask |= 1u << i;
     }
+    if (billboardFog)
+    {
+        scb.fogColor = Vector4(m_Light.fogColor.x, m_Light.fogColor.y, m_Light.fogColor.z, m_Light.fogMax);
+        scb.fogRange = Vector4(m_Light.fogStart, m_Light.fogEnd, 0.0f, 0.0f);
+    }
+    const Vector2 ab = SceneDepthRead::EyeDepthParams(m_Camera->GetProjectionMatrix());
+    scb.depthAB = Vector4(ab.x, ab.y, 0.0f, 0.0f);
+    scb.camPos = m_Camera->GetPosition();
+    if (!m_ErodeNoise) m_ErodeNoise = ResourceManager::Get().LoadTexture(Res::VFX::Noise001);
+    ID3D11ShaderResourceView* noiseSrv = m_ErodeNoise ? m_ErodeNoise->GetSRV() : nullptr;
+    if (noiseSrv) scb.noiseParams = Vector4(erodeStrength, erodeScale, erodeFlow, erodeWarp);
+    scb.erodeEdge = Vector4(erodeEdgeColor.x, erodeEdgeColor.y, erodeEdgeColor.z, erodeEdgeWidth);
+    scb.fireRim = Vector4(fireRimColor.x, fireRimColor.y, fireRimColor.z, fireHotCore);
+    {
+        Vector3 toSun = -m_Light.directionalLight.direction;
+        if (toSun.LengthSquared() < 1e-6f) toSun = Vector3::Up;
+        toSun = Vector3::TransformNormal(toSun, m_Camera->GetViewMatrix());
+        // 画面の上から当たる光へ寄せる（太陽がカメラの真後ろでも正面が全部同じ明るさにならない）
+        toSun.z *= 0.4f;
+        toSun.y += 0.35f;
+        toSun.Normalize();
+        scb.sunView = Vector4(toSun.x, toSun.y, toSun.z, toonVolume);
+    }
     context->PSSetShaderResources(0, ParticleSheets::kMaxSheets, sheets);
+    context->PSSetShaderResources(9, 1, &noiseSrv);
     m_RenderPS->WriteBuffer(context, 0, &scb);
 
-    ID3D11SamplerState* samps[2] = { RenderStates::Get().LinearClamp(), RenderStates::Get().PointClamp() };
-    context->PSSetSamplers(0, 2, samps);
+    ID3D11SamplerState* samps[3] = { RenderStates::Get().LinearClamp(), RenderStates::Get().PointClamp(), RenderStates::Get().LinearWrap() };
+    context->PSSetSamplers(0, 3, samps);
     // 乗算済み alpha の混合で描く。加算の粒子は PS が alpha 0 を書くので、
     // 従来の加算（SRC_ALPHA / ONE）と同じ見た目になる
     RenderStates::Get().ApplyAlphaBlend(context);
@@ -1042,19 +1082,38 @@ void GPUParticleSystem::Render(bool litMeshes)
         rcb.pass = 1.0f;
         m_RenderVS->WriteBuffer(context, 0, &rcb);
         context->OMSetDepthStencilState(RenderStates::Get().DepthDefault(), 0);
+        // 1 回目は深度を書くので、写した深度を t8 で読む（不透明な煙玉も地面に刺さった所を削る）
+        const bool softSolid = softDistance > 0.0f && m_DepthRead.BeginCopy(context, 8);
+        if (softSolid)
+        {
+            scb.fogRange.z = softDistance;
+            m_RenderPS->WriteBuffer(context, 0, &scb);
+        }
         context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
+        m_DepthRead.EndCopy(context);
 
         rcb.pass = 2.0f;
         m_RenderVS->WriteBuffer(context, 0, &rcb);
         context->OMSetDepthStencilState(RenderStates::Get().DepthReadOnly(), 0);
+        // 2 回目は深度を書かないので、読むだけの DSV にしてシーンの深度を t8 で読む（ソフトパーティクル）
+        const bool softRest = softDistance > 0.0f && m_DepthRead.Begin(context, 8);
+        if (softRest != softSolid)
+        {
+            scb.fogRange.z = softRest ? softDistance : 0.0f;
+            m_RenderPS->WriteBuffer(context, 0, &scb);
+        }
         context->DrawInstancedIndirect(m_DrawIndirectBuffer.Get(), 0);
+        m_DepthRead.End(context);
     }
+    m_DepthRead.Clear();   // 毎フレーム渡し直す
 
     // 次のパスへステートを持ち越さない
     RenderStates::Get().Restore(context);
     m_RenderVS->UnbindSRVs(context);
     ID3D11ShaderResourceView* nullSheets[ParticleSheets::kMaxSheets] = {};
     context->PSSetShaderResources(0, ParticleSheets::kMaxSheets, nullSheets);
+    ID3D11ShaderResourceView* nullNoise = nullptr;
+    context->PSSetShaderResources(9, 1, &nullNoise);
 
     // ---- 軌跡（帯）：粒子の帯 → エフェクトの帯 ----
     RenderTrails(context);

@@ -118,6 +118,7 @@ void CollisionTestScene::RebuildTerrain()
     if (!IsMenuScene())   // タイトル・ステージ選択は HUD が無い（重いので焼かない）
         m_GameUI.BakeMinimap(m_Grid, m_TerrainMap, (int)m_TerrainConfig.biome, m_TerrainConfig.seed);   // ミニマップも新しい地形に
     lap("minimap");
+    m_WindTrees.Build(m_Registry, m_TerrainConfig.biome);   // 草原の木・茂みはプロシージャルの木に（StaticProps より前）
     m_StaticProps.Build(m_Registry);   // 置物の instanced 表も作り直す
     lap("props");
     m_Grass.Build(m_Grid, grassMask, m_TerrainConfig.seed, m_TerrainConfig.biome);   // 草の高さ・色・生やす所も
@@ -140,9 +141,6 @@ void CollisionTestScene::RebuildTerrain()
     m_Sand.BuildTable(m_Swarm.GetVFXTable());
     lap("swarm");
     m_RebuildProfile = prof;
-    // デバッグの的（無敵のエリート）は自動では置かない（杖が狙い続けてしまう）。
-    // パネルで置いた物も古い地形の位置なので消すだけ。置くのは F10 の「Respawn Elites」
-    m_Elites.Respawn(m_Registry, nullptr);
     if (!m_LabScene && !IsMenuScene()) RespawnCrates();   // 古い位置は新しい壁の中かもしれない。実験場・タイトル・ステージ選択は箱 / 門 / 磁石なし
 }
 

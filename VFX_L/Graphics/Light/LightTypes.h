@@ -59,6 +59,9 @@ struct LightBuffer
     // 前のフレームで作った AO（PS t12）を、その時の view × proj で世界座標から引く。aoParams.x = 0 で読まない（既定）
     Matrix  aoViewProj;                                    // AO を作ったフレームの view × proj（行ベクトル規約）
     Vector4 aoParams = { 0.0f, 0.0f, 0.0f, 0.0f };          // x = 1 で有効, y = トゥーンの明暗の境を押す量, z = 環境光に掛ける割合, w = 1 で灰色の表示
+    // 雲の影（Lighting.hlsli の CloudSun）。地面を流れる太陽の陰り。cloudParams.x = 0 で無し（既定）
+    Vector4 cloudParams = { 0.0f, 0.0f, 0.0f, 0.0f };       // x = 陰りの強さ, y = 1 / 雲の大きさ（1/m）, z = 覆う割合, w = 縁のぼかし
+    Vector4 cloudOffset = { 0.0f, 0.0f, 0.0f, 0.0f };       // xy = 風で流れた距離（m）
     // HLSL の LightBuffer はここまで
 
     // ★ここから追加：各テクスチャの有無（1=あり, 0=なし）
@@ -81,4 +84,5 @@ struct LightBuffer
 static_assert(offsetof(LightBuffer, shadowViewProj) == 112, "LightBuffer: shadow block must follow the fog block");
 static_assert(offsetof(LightBuffer, toonParams) == 368, "LightBuffer: toon block must follow the shadow block");
 static_assert(offsetof(LightBuffer, aoViewProj) == 416, "LightBuffer: AO block must follow the toon block");
-static_assert(offsetof(LightBuffer, hasAlbedo) == 496, "LightBuffer: HLSL part must end at 496 bytes");
+static_assert(offsetof(LightBuffer, cloudParams) == 496, "LightBuffer: cloud block must follow the AO block");
+static_assert(offsetof(LightBuffer, hasAlbedo) == 528, "LightBuffer: HLSL part must end at 528 bytes");

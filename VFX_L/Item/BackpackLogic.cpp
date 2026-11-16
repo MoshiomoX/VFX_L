@@ -519,40 +519,6 @@ namespace BackpackLogic
         return out;
     }
 
-    std::vector<int> GetTriggerDrivers(const BackpackComponent& bp, int itemIndex)
-    {
-        std::vector<int> out;
-        if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return out;
-        const ItemCommon* def = ItemDatabase::GetCommon(bp.items[itemIndex].id);
-        if (!def || def->triggeredBy.empty()) return out;
-
-        for (int src : GetInfluencers(bp, itemIndex))
-        {
-            const ItemID id = bp.items[src].id;
-            if (std::find(def->triggeredBy.begin(), def->triggeredBy.end(), id) != def->triggeredBy.end())
-                out.push_back(src);
-        }
-        return out;
-    }
-
-    bool IsTriggerReady(const BackpackComponent& bp, int itemIndex)
-    {
-        if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return false;
-        const ItemCommon* def = ItemDatabase::GetCommon(bp.items[itemIndex].id);
-        if (!def || def->triggeredBy.empty()) return true;
-        // 水晶玉に貯蔵されていても前提は要る
-
-        const std::vector<int> drivers = GetTriggerDrivers(bp, itemIndex);
-        for (ItemID need : def->triggeredBy)
-        {
-            bool found = false;
-            for (int d : drivers)
-                if (bp.items[d].id == need) { found = true; break; }
-            if (!found) return false;
-        }
-        return true;
-    }
-
     int StoredBy(const BackpackComponent& bp, int itemIndex)
     {
         if (itemIndex < 0 || itemIndex >= (int)bp.items.size()) return -1;

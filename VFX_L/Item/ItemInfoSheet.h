@@ -11,8 +11,7 @@ struct BackpackComponent;
 
 namespace ItemInfoSheet
 {
-    // 足元に落ちる物の文はこれで始める。誘発で撃つ上級魔法は「敵の足元」ではなく前提の弾が消えた場所なので、
-    // ItemInfo.cpp の FixTriggeredFlight が「連鎖した場所…」に差し替える
+    // 足元に落ちる物の文はこれで始める
     inline constexpr const wchar_t* kAtFeet = L"敵の足元";
 
     void FillProjectile(ItemInfo::Sheet& s, const SpellStats& v, const SpellStats& b);

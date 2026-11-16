@@ -77,7 +77,7 @@ float ParticleStretch(int renderMode)
 uint ParticleDistortLevel(int renderMode)
 {
     uint m = (uint) renderMode;
-    if ((m & 0xFFu) != 0u)
+    if ((m & 0xFFu) != 0u || (m & (1u << 14)) != 0u)   // メッシュとトゥーン（bit 10 をトゥーンの火の色の段に使う）は歪まない
         return 0u;
     return (m >> PARTICLE_DISTORT_SHIFT) & 3u;
 }

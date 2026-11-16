@@ -33,7 +33,30 @@ cbuffer VFXMeshCB : register(b1)
     float g_NoVertexColor;     // 1 = 頂点色を無視（テクスチャの無い FBX はマテリアル色を頂点色に焼き込むため）
     float3 g_CamPos;
     float g_Toon;              // 1 = トゥーンのバリア: 向きによるくっきりした段（下を参照）
+    float4 g_Intersect;        // 交わりの光：rgb = 色（HDR）、a = 幅（m、0 = 無し）
+    float4 g_DepthAB;          // xy = 深度 → 目からの距離（eye = B / (d - A)）、z = 1 でシーンの深度を読める
 };
+
+// シーンの深度（MSAA）。交わりの光を使う時だけ VFXMeshRenderer が張る
+Texture2DMS<float> g_SceneDepth : register(t3);
+
+// 地面・敵・壁と交わる所の光の帯 0..1（くっきりした 2 段：芯と外側）
+float IntersectBand(float4 svPos)
+{
+    float b = 0.0;
+    if (g_Intersect.a > 0.0 && g_DepthAB.z > 0.5)
+    {
+        float scene = g_SceneDepth.Load(int2(svPos.xy), 0);
+        float sceneEye = g_DepthAB.y / (scene - g_DepthAB.x);
+        float selfEye = g_DepthAB.y / (svPos.z - g_DepthAB.x);
+        float gap = abs(sceneEye - selfEye) / g_Intersect.a;   // 0 = ちょうど交わる所
+        float w = fwidth(gap) + 0.02;
+        b = 1.0 - smoothstep(1.0 - w, 1.0 + w, gap);
+        b += 1.0 - smoothstep(0.35 - w, 0.35 + w, gap);
+        b *= 0.5;
+    }
+    return b;
+}
 
 float4 main(PS_INPUT i) : SV_TARGET
 {
@@ -96,5 +119,10 @@ float4 main(PS_INPUT i) : SV_TARGET
     }
 
     c.rgb *= g_Intensity;
+
+    // ---- 交わりの光：地面などに刺さった所を明るい線で縁取る ----
+    float ib = IntersectBand(i.Position);
+    c.rgb = lerp(c.rgb, g_Intersect.rgb, ib);
+    c.a = max(c.a, ib);
     return c;
 }

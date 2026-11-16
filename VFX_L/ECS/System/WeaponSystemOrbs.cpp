@@ -7,7 +7,6 @@
 //   貯蔵された魔法（SpellStats / AreaStats の storeUnit == unit）は杖からは撃たず、
 //   光球ごとの計時で光球の位置から撃つ（分裂・二重詠唱・発動間隔は魔法自身のルーンの修飾どおり。
 //   消費 MP は集約で既に倍率を掛けてある）。範囲魔法（アークボルト・突風）は杖と同じ WeaponSystem::CastArea で撃つ。
-//   上級魔法は光球が直接は撃たない：杖と同じく前提の基本魔法の誘発で撃ち、起点だけ光球にする（WeaponSystem::Update）。
 //   見た目は AreaVFXPlayer のインスタンス（OrbUnitStats::vfxFile）を貯蔵した魔法の混色で染め、毎フレーム動かす
 // ============================================================
 #include "ECS/System/WeaponSystem.h"

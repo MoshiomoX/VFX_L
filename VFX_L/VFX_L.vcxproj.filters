@@ -217,9 +217,6 @@
     <ClCompile Include="Debug\AutoTest\AutoTestAim.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestSmartCam.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSand.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
@@ -280,25 +277,16 @@
     <ClCompile Include="Debug\AutoTest\AutoTestGustAll.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestCapeGust.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestStickNav.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestBossIntro.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestBossDrama.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBats.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestFrames.cpp">
+    <ClCompile Include="Debug\AutoTest\AutoTestBlades.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestBlades.cpp">
+    <ClCompile Include="Debug\AutoTest\AutoTestWindTrees.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestPierce.cpp">
@@ -352,25 +340,16 @@
     <ClCompile Include="Debug\AutoTest\AutoTestTwister.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestWindGrid.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBurrower.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestSandMage.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestTornadoCliff.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestDashBomber.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestBossMoves.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestBossLook.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestRuinsFoes.cpp">
@@ -443,9 +422,6 @@
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestClip.cpp">
-      <Filter>Debug\AutoTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Debug\AutoTest\AutoTestCards.cpp">
       <Filter>Debug\AutoTest</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestIceSpike.cpp">
@@ -592,10 +568,10 @@
     <ClCompile Include="Enemy\Spawn\DifficultyCurve.cpp">
       <Filter>Enemy\Spawn</Filter>
     </ClCompile>
-    <ClCompile Include="Enemy\Elite\EliteSpawner.cpp">
-      <Filter>Enemy\Elite</Filter>
-    </ClCompile>
     <ClCompile Include="Graphics\Light\SceneLighting.cpp">
+      <Filter>Graphics\Light</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Light\CloudShadows.cpp">
       <Filter>Graphics\Light</Filter>
     </ClCompile>
     <ClCompile Include="Graphics\Light\ShadowMap.cpp">
@@ -830,6 +806,9 @@
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneTitleShow.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\CollisionTestSceneTitleCamera.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Scene\CollisionTestSceneSelect.cpp">
@@ -1118,6 +1097,15 @@
     <ClCompile Include="World\WaterSurfacePanel.cpp">
       <Filter>World</Filter>
     </ClCompile>
+    <ClCompile Include="World\TreeBuilder.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\WindTrees.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <ClCompile Include="World\WindTreesPanel.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
     <ClCompile Include="World\GroundDebris.cpp">
       <Filter>World</Filter>
     </ClCompile>
@@ -1394,11 +1382,14 @@
     <ClInclude Include="Enemy\Spawn\DifficultyCurve.h">
       <Filter>Enemy\Spawn</Filter>
     </ClInclude>
-    <ClInclude Include="Enemy\Elite\EliteSpawner.h">
-      <Filter>Enemy\Elite</Filter>
-    </ClInclude>
     <ClInclude Include="Graphics\Light\SceneLighting.h">
       <Filter>Graphics\Light</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Light\CloudShadows.h">
+      <Filter>Graphics\Light</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\SceneDepthRead.h">
+      <Filter>Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Graphics\Light\ShadowMap.h">
       <Filter>Graphics\Light</Filter>
@@ -1992,9 +1983,6 @@
     <ClInclude Include="Player\ShieldPanel.h">
       <Filter>Player</Filter>
     </ClInclude>
-    <ClInclude Include="Item\ExpRewardComponent.h">
-      <Filter>Item</Filter>
-    </ClInclude>
     <ClInclude Include="UI\LevelUpSystem.h">
       <Filter>VFX_Editor\UI</Filter>
     </ClInclude>
@@ -2074,6 +2062,12 @@
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\WaterSurface.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\TreeBuilder.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="World\WindTrees.h">
       <Filter>World</Filter>
     </ClInclude>
     <ClInclude Include="World\GroundDebris.h">
@@ -2369,6 +2363,24 @@
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Grass\GrassFireEmitCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Tree\TreeSwayCS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Tree\TreeBranchVS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Tree\TreeBranchPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Tree\TreeLeafVS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Tree\TreeLeafPS.hlsl">
+      <Filter>Graphics\Shader\HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Tree\TreeLeafShadowPS.hlsl">
       <Filter>Graphics\Shader\HLSL</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Debris\DebrisUpdateCS.hlsl">
@@ -2677,6 +2689,12 @@
     <None Include="Shader\Water\WaterCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
+    <None Include="Shader\Tree\TreeCommon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Tree\TreeLeafShape.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
     <None Include="Shader\Debris\DebrisCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
@@ -2696,6 +2714,12 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\PointLights.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\WindSources.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\WindGrid.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\Dissolve.hlsli">

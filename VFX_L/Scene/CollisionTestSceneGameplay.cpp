@@ -131,6 +131,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
     m_Sand.Tick(dt);        // 砂の面も
     m_Miasma.Tick(dt);      // 遺跡の瘴気も
     m_Debris.Tick(dt);      // 落ち葉も
+    m_WindTrees.Tick(dt);   // 木の揺れも
     m_Water.Tick(dt);       // 水面の波紋も
     UpdateWindToys(dt);     // 転がり草・タンポポ
 
@@ -384,8 +385,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         }
     }
 
-    // ---- 死亡 → 燃焼消滅（HP が尽きた CPU 実体。消え終わったら MeshVFXSystem が破棄）----
-    m_Elites.UpdateDeaths(m_Registry, m_MeshVFXSystem, m_VFXContext);
+    // ---- メッシュの燃焼・溶解（消え終わった実体は MeshVFXSystem が破棄）----
     m_MeshVFXSystem.Update(m_Registry, dt, m_VFXContext);
 
     // Mesh 発射の動作確認（Flush の前に積む）

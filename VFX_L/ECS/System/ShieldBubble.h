@@ -33,6 +33,8 @@ public:
     // 半透明で向きによる 3 段の硬い帯（正面はほぼ透明・中間・縁は明るく濃い）。true の間は blend / alpha の代わりにこちら
     bool  toon = true;
     float toonAlpha = 0.22f;         // 中間の帯の不透明度（正面 ×0.3、縁 ×3）
+    float intersectWidth = 0.18f;    // 地面などと交わる所の光の幅（m、0 = 無し）
+    DirectX::SimpleMath::Vector3 intersectColor = { 1.2f, 2.2f, 2.8f };   // HDR
     float spinDeg = 15.0f;           // 度/秒
     float breathe = 0.15f;           // 明るさの揺れ（割合）
     float breatheSpeed = 2.0f;       // rad/秒

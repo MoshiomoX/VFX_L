@@ -79,6 +79,7 @@ void CollisionTestScene::StartTitleVignette(int index)
     m_TitleShow.index = index;
     m_TitleShow.time = 0.0f;
     m_TitleShow.ignites.clear();
+    m_TitleCamCtl = {};   // マウスで回したカメラは場面毎に戻す
 
     // ---- 前の場面の片付け（敵・弾・範囲・竜巻・光線・エフェクト）----
     m_Swarm.KillAll();
@@ -148,7 +149,10 @@ void CollisionTestScene::UpdateTitleShow(float dt)
     // TEMP-TEST: VFXL_TITLE_SHOTS=1（VFXL_SELF_SHOT と一緒に）：場面毎に 2 枚、マウスで名前・地面を掃いた所、
     // 最後に「はじめる」で名前が吹き飛ぶ所を撮って閉じる（マウスは画面上の位置を代わりに入れる）
     {
-        static const bool s_On = [] { char e[8] = {}; return GetEnvironmentVariableA("VFXL_TITLE_SHOTS", e, sizeof(e)) > 0; }();
+        // =2 は表を組み替えない（場面毎の魔法のまま撮る）
+        static char s_Env[8] = {};
+        static const bool s_On = GetEnvironmentVariableA("VFXL_TITLE_SHOTS", s_Env, sizeof(s_Env)) > 0;
+        static const bool s_Edit = s_Env[0] != '2';
         static float s_T = 0.0f;
         static int s_Next = 0;
         if (s_On)
@@ -178,7 +182,7 @@ void CollisionTestScene::UpdateTitleShow(float dt)
                     InputManager::Get().OnMouseMove((int)(m_ScreenW * (0.55f + 0.35f * u)), (int)(m_ScreenH * 0.72f));
                 }
                 // 右下の表：1 つ目の魔法を右クリックで外し、候補から魔導光線をドラッグして空いた所へ置く
-                if (m_Registry.Has<BackpackComponent>(m_Player))
+                if (s_Edit && m_Registry.Has<BackpackComponent>(m_Player))
                 {
                     auto& in = InputManager::Get();
                     const auto& tb = m_TitleUI.TestTable();
@@ -227,6 +231,37 @@ void CollisionTestScene::UpdateTitleShow(float dt)
                         shot("table_after");
                         s_Step = 10;
                     }
+                }
+            }
+            // 砂漠：右ドラッグで回して上から見下ろし、ホイールで引く（14 秒の撮影では元へ戻っている）
+            if (vi == 1)
+            {
+                auto& in = InputManager::Get();
+                static int s_Cam = 0;
+                if (s_Cam == 0 && lt >= 6.0f) { in.OnMouseMove((int)(m_ScreenW * 0.45f), (int)(m_ScreenH * 0.45f)); s_Cam = 1; }
+                else if (s_Cam == 1 && lt >= 6.1f) { in.DebugMouseButton(1, 1); s_Cam = 2; }
+                else if (s_Cam == 2 && lt < 7.1f)
+                {
+                    const float u = (std::min)((lt - 6.1f) / 1.0f, 1.0f);
+                    in.OnMouseMove((int)(m_ScreenW * (0.45f + 0.25f * u)), (int)(m_ScreenH * (0.45f + 0.10f * u)));
+                }
+                else if (s_Cam == 2) { in.DebugMouseButton(1, 0); s_Cam = 3; }
+                else if (s_Cam == 3 && lt >= 7.3f) { in.OnMouseWheel(-3.0f); s_Cam = 4; }
+                else if (s_Cam == 4 && lt >= 7.6f)
+                {
+                    in.DebugMouseButton(1, -1);
+                    char line[128];
+                    snprintf(line, sizeof(line), "title cam yaw %.1f height %.2f zoom %.2f", m_TitleCamCtl.yawDeg, m_TitleCamCtl.height, m_TitleCamCtl.zoom);
+                    AutoTestLog(line);
+                    shot("cam_drag");
+                    s_Cam = 5;
+                }
+                else if (s_Cam == 5 && lt >= 13.9f)
+                {
+                    char line[128];
+                    snprintf(line, sizeof(line), "title cam back height %.2f zoom %.2f", m_TitleCamCtl.height, m_TitleCamCtl.zoom);
+                    AutoTestLog(line);
+                    s_Cam = 6;
                 }
             }
             if (vi == 0 && m_TitleShow.switched && lt >= 3.0f)
@@ -304,7 +339,7 @@ void CollisionTestScene::UpdateTitleCursorWind(float dt)
         }
         m_TitleShow.lastMenu = menu;
     }
-    if (input.IsUsingPad() || m_TitleUI.MouseOverTable()) { m_TitleShow.hasCursor = false; return; }   // 表を触っている間は吹かない
+    if (input.IsUsingPad() || m_TitleUI.MouseOverTable() || m_TitleCamCtl.dragging) { m_TitleShow.hasCursor = false; return; }   // 表を触っている間は吹かない
 
     // ---- マウスの下の地面：画面の点から光線を出し、地面より下に入った所 ----
     const DirectX::XMFLOAT2 mp = input.GetMousePos();

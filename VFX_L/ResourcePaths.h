@@ -104,12 +104,9 @@ namespace Res
             { Shadowkin, Quaternius_Ranger, kBoneMapCCFromUE, (int)(sizeof(kBoneMapCCFromUE) / sizeof(kBoneMapCCFromUE[0])) },
         };
 
-        // KayKit Skeletons（CC0）。Minion は雑魚（1 フレーム焼いてインスタンス描画）、
-        // Warrior はデバッグ用のエリートの的（骨付きのまま SkinnedAnimComponent）
+        // KayKit Skeletons（CC0）。Minion は雑魚（1 フレーム焼いてインスタンス描画）
         inline constexpr const char* KayKit_SkeletonMinion =
             "Assets/Model/KayKit_Skeletons/Skeleton_Minion.fbx";
-        inline constexpr const char* KayKit_SkeletonWarrior =
-            "Assets/Model/KayKit_Skeletons/Skeleton_Warrior.fbx";
 
         // Kenney Blocky Characters（CC0、ピクセルテクスチャのブロック人形）。18 体ともメッシュ・骨・動画は同じで、
         // テクスチャ（Textures/texture-a..r.png）だけ違う。雑魚は L（緑肌のゾンビ）を 1 フレーム焼いて使う
@@ -320,7 +317,6 @@ namespace Res
         inline constexpr const char* kPreload[] = {
             Shadowkin,   // プレイヤー（レンジャーのアニメもこの中で読む）
             Kenney_BlockyZombie,
-            KayKit_SkeletonWarrior,
         };
     }
 
@@ -690,6 +686,7 @@ namespace Res
             "Assets/Particles/Sheets/Legacy.json",           // 0: 旧 particlesSheet.jpg（6x6）
             "Assets/Particles/Sheets/KenneyParticles.json",  // 1: Kenney Particle Pack（白・染色用）
             "Assets/Particles/Sheets/KenneySmoke.json",      // 2: Kenney Smoke Particles（色付きの煙）
+            "Assets/Particles/Sheets/ToonBall.json",         // 3: トゥーンの丸い玉 1 つ（Tools/BuildToonBall.ps1 で生成。大きな形は粒子の配置で作る）
         };
     }
 

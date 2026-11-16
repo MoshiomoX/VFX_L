@@ -9,12 +9,11 @@
 //   常に Entity 側の1ヶ所だけにする）。
 // ※デバッグ表示と Graphics まわりだけがシーンの責任。
 // ※雑魚は GPU（SwarmSystem）の中にしか居ない。
-//   CPU の Registry に居る敵は EliteTag（エリート・計測用の的）だけ。
 //
 // 出来上がった機能は部品に分けてある（シーンは持って呼ぶだけ）:
 //   BattleCamera（カメラ・マウスの捕獲・揺れ）/ RewardCrateSystem（報酬の箱）/
 //   FeedbackVFXSystem（レベルアップ・開箱・被弾のエフェクト）/ SceneLighting（太陽・シーン光源）/
-//   EliteSpawner（エリートの的・燃焼消滅）/ MobSpawner（雑魚の湧き）/ StressTestTools（負荷テスト）
+//   MobSpawner（雑魚の湧き）/ StressTestTools（負荷テスト）
 // ImGui のパネル・デバッグ描画・TEMP-TEST の自動テストは CollisionTestSceneDebug.cpp
 // ============================================================
 #pragma once
@@ -45,6 +44,7 @@
 #include "World/MiasmaField.h"
 #include "World/WindGrid.h"
 #include "World/GroundDebris.h"
+#include "World/WindTrees.h"
 #include "World/WaterSurface.h"
 #include "World/Tumbleweeds.h"
 #include "World/DandelionField.h"
@@ -64,7 +64,6 @@
 #include "VFX_Editor/VFXMeshRenderer.h"
 #include "VFX_Editor/VFXLiquidRenderer.h"
 #include "ECS/System/ManaSystem.h"
-#include "Enemy/Elite/EliteSpawner.h"
 #include "Enemy/Spawn/MobSpawner.h"
 #include "Enemy/Spawn/StageDirector.h"
 #include "Enemy/Boss/BossAttacks.h"
@@ -72,6 +71,7 @@
 #include "Enemy/Elite/EliteAttacks.h"
 #include "Enemy/SandTornadoFx.h"
 #include "Graphics/Light/SceneLighting.h"
+#include "Graphics/Light/CloudShadows.h"
 #include "Graphics/PostProcess/Outline.h"
 #include "Graphics/PostProcess/AmbientOcclusion.h"
 #include "Graphics/Light/ShadowMap.h"
@@ -121,8 +121,10 @@ private:
     // ---- タイトル画面（CollisionTestSceneTitle.cpp）----
     void InitTitle();               // Init の終わり：プレイヤーを丘の上へ、夕方の光、カメラ、メニュー
     void UpdateTitle(float dt);     // Update の代わり（操作・湧き・武器は回さない）
-    void UpdateTitleCamera(float dt);
-    void PlaceTitleStand();         // 立つ所とカメラの向きを選んでプレイヤーを置く（m_TitleFocus / m_TitleFacing。選択画面と共用）
+    void UpdateTitleCamera(float dt);          // CollisionTestSceneTitleCamera.cpp
+    void UpdateTitleCameraInput(float dt);     // 右ドラッグで回す・ホイールで寄る（タイトルだけ）
+    float TitleCamYawDeg() const;              // プレイヤーから見たカメラの方角（度）
+    void PlaceTitleStand();        // 立つ所とカメラの向きを選んでプレイヤーを置く（m_TitleFocus / m_TitleFacing。選択画面と共用）
     void ApplyTitleLight(const SceneLighting::Preset& base);   // 午後遅くの光（太陽はカメラの側の斜めから）
     void UpdateTitleWorld(float dt, bool demo);   // 景色の更新（物理・アニメ・草・GPU・粒子）。demo = 戦いの見本をスローで回す
 
@@ -180,6 +182,18 @@ private:
     DirectX::SimpleMath::Vector3 m_TitleFocus;   // プレイヤーの足元（カメラが回る中心）
     float         m_TitleFacing = 0.0f;          // カメラの振れの真ん中（プレイヤーから見たカメラの方角、度）。敵はこの反対（画面の奥）から来る
     float         m_TitleTime = 0.0f;
+    // マウスでの操作。放して少し経つと自動の回転へ戻る
+    struct TitleCamControl
+    {
+        float yawDeg = 0.0f;     // 自動の回転に足す角度
+        float height = 1.0f;     // カメラの高さの倍率
+        float zoom = 1.0f;       // 距離の倍率（高さにも掛ける）
+        float idle = 1.0e3f;     // 最後に触ってからの秒
+        bool  dragging = false;
+    };
+    TitleCamControl m_TitleCamCtl;
+    static constexpr float kTitleCamDistance = 10.0f;   // プレイヤーからカメラまで（水平、m）
+    static constexpr float kTitleCamHeight = 5.8f;      // 足元からのカメラの高さ。見下ろす：目の高さだと外周の碗の斜面がどの向きにも背景を塞ぐ
     static constexpr uint32_t kTitleSeed = 12345;   // タイトルの地形はいつも同じ（見え方を決めて置ける）
 
     // ---- リザルトの背景の写真（Graphics/PostProcess/SceneSnapshot）----
@@ -227,7 +241,6 @@ private:
     // self = プレイヤー自身の突風（マントは受けない）。石の守護獣の翼の突風などは false
     void AddGustWindBurst(const DirectX::SimpleMath::Vector3& pos, const DirectX::SimpleMath::Vector2& dir, float length, float radius, bool self = false);
     void RespawnCrates();            // 報酬の箱をプレイヤーの周りへ並べ直す（開始時・地形の作り直し・パネル）
-    void RespawnElites();            // エリートの的をプレイヤーの前へ（地形の作り直し・パネル）
     void EndRun();                   // 戦績を書いてリザルトへ
 
     // ---- ImGui / デバッグ描画（CollisionTestSceneDebug.cpp）----
@@ -305,6 +318,7 @@ private:
     MiasmaField             m_Miasma;        // 遺跡の瘴気（3D の濃さの箱。風で散る・巻き上がる・火で晴れる。CollisionTestSceneMiasma.cpp）
     WindGrid                m_WindGrid;      // プレイヤーに付いて動く風の格子
     GroundDebris            m_Debris;        // 地面の落ち葉・草屑・小枝（突風・爆発・強風で舞う）
+    WindTrees               m_WindTrees;     // 風で揺れる木・茂み（草原。モデルの木の代わりにプロシージャルに作る）
     WaterSurface            m_Water;         // 水たまりの水面（風・足・雨・爆発の時だけ動く）
     Tumbleweeds             m_Tumbleweeds;   // 転がり草（砂漠・遺跡。風・竜巻・渦・突風に転がされ巻き上げられる）
     DandelionField          m_Dandelions;    // タンポポの綿毛（草原。風源・強い風・踏み跡でほどけて飛ぶ）
@@ -322,10 +336,10 @@ private:
     WeatherSystem           m_Weather;             // 時刻（昼 → 夜）と天候の出来事（雨・砂嵐・雷）。照明を毎フレーム上書き
     BattleAudio             m_Audio;               // 戦闘の音（GPU の範囲・プレイヤーの動き・BGM）
     SceneLighting           m_Lighting;            // 太陽・環境光・シーン光源
+    CloudShadows            m_Clouds;              // 地面を流れる雲の影
     Outline                 m_Outline;             // トゥーンのアウトライン（不透明な物の後、草の前）
     AmbientOcclusion        m_AmbientOcclusion;    // SSAO（アウトラインの後に作り、次のフレームの陰影が明暗の境を押すのに読む）
     ShadowMap               m_Shadows;             // 太陽の影（3 段のカスケード）
-    EliteSpawner            m_Elites;              // エリートの的（CPU）
     MobSpawner              m_Mobs;                // 雑魚の湧き（GPU へ依頼）
     StageDirector           m_Stage;               // 1 面の進行（制限時間・エリートの時間表）
     BossAttacks             m_BossAttacks;         // Boss の技

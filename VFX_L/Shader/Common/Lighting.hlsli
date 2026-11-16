@@ -64,6 +64,9 @@ cbuffer LightBuffer : register(MODEL_LIGHT_CB_REG)
     row_major float4x4 aoViewProj;
     float4 aoParams;            // x = オン、y = トゥーン: 完全に遮蔽されたとき明暗の境目（N.L）をどれだけ押すか、
                                 // z = 環境光に掛ける割合、w = 1 = AO をグレーで表示（調整用）
+    // 雲の影（CloudSun）。cloudParams.x = 0 = 無し
+    float4 cloudParams;         // x = 陰りの強さ、y = 1 / 雲の大きさ（1/m）、z = 覆う割合、w = 縁のぼかし
+    float4 cloudOffset;         // xy = 風で流れた距離（m）
 };
 
 // 全カスケードの深度（1 段ごとに配列の 1 スライス）と比較サンプラー
@@ -150,6 +153,40 @@ float3 ApplyFog(float3 color, float3 worldPos)
     float d = distance(worldPos, cameraPosition);
     float f = smoothstep(fogStart, max(fogEnd, fogStart + 1e-3), d) * fogMax;
     return lerp(color, fogColor, f);
+}
+
+// ------------------------------------------------------------
+// 雲の影: 地面を流れる太陽の陰り。1 = 晴れ、1 - 強さ = 雲の下。
+// 2 段の値ノイズを風で流し、覆う割合で切る（縁は少しだけぼかす）
+// ------------------------------------------------------------
+float CloudHash(float2 p)
+{
+    p = frac(p * float2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return frac(p.x * p.y);
+}
+float CloudNoise(float2 p)
+{
+    float2 i = floor(p);
+    float2 f = frac(p);
+    float2 u = f * f * (3.0 - 2.0 * f);
+    float a = CloudHash(i);
+    float b = CloudHash(i + float2(1, 0));
+    float c = CloudHash(i + float2(0, 1));
+    float d = CloudHash(i + float2(1, 1));
+    return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
+}
+float CloudSun(float3 worldPos)
+{
+    float sun = 1.0;
+    if (cloudParams.x > 0.0)
+    {
+        float2 p = (worldPos.xz - cloudOffset.xy) * cloudParams.y;
+        float n = CloudNoise(p) * 0.65 + CloudNoise(p * 2.37 + 17.3) * 0.35;
+        float cover = smoothstep(1.0 - cloudParams.z - cloudParams.w, 1.0 - cloudParams.z + cloudParams.w, n);
+        sun = 1.0 - cloudParams.x * cover;
+    }
+    return sun;
 }
 
 // ------------------------------------------------------------
@@ -470,14 +507,15 @@ float3 ShadeToon(float3 N, float3 V, float3 albedo, float3 worldPos, float specS
     float ao = SceneAO(worldPos);   // 出口は下の 1 つ（途中で return すると fxc が X4000）
     float lit = ToonBandAO(NdotL * shadow, ao);
 
-    float3 sun = dirLight.color * (dirLight.intensity * toonShadowTint.w * lit);
+    float cloud = CloudSun(worldPos);   // 雲の下は太陽だけ弱く（明暗の段は変えない）
+    float3 sun = dirLight.color * (dirLight.intensity * toonShadowTint.w * lit * cloud);
     float3 ambient = AmbientAt(N) * lerp(toonShadowTint.rgb, float3(1, 1, 1), lit) * lerp(1.0, ao, aoParams.z);
 
     float3 H = normalize(V + L);
     // 狭い窓: ローポリの平らな面は法線が H に一致すると面全体が光る。
     // カメラの近くだけ（リムと同じ）: そうしないと遠くの岩壁がプラスチックのようにきらつく
     float nearCam = 1.0 - smoothstep(18.0, 32.0, distance(worldPos, cameraPosition));
-    float spot = smoothstep(0.994, 0.997, saturate(dot(N, H))) * lit * toonParams.w * specScale * nearCam;
+    float spot = smoothstep(0.994, 0.997, saturate(dot(N, H))) * lit * toonParams.w * specScale * nearCam * cloud;
 
     float3 diff, spec;
     PointLightShade(worldPos, N, V, LAMBERT_SPEC_ROUGHNESS, DIELECTRIC_F0, diff, spec);
@@ -505,7 +543,7 @@ float3 ShadeLambert(float3 N, float3 albedo, float3 worldPos)
     float3 L = normalize(-dirLight.direction);
     float NdotL = max(dot(N, L), 0.0);
     uint cascade;
-    float shadow = SunShadow(worldPos, N, NdotL, cascade);
+    float shadow = SunShadow(worldPos, N, NdotL, cascade) * CloudSun(worldPos);
     float3 sun = dirLight.color * (dirLight.intensity * NdotL * shadow);
     float3 sunSpec = SpecularGGX(N, V, L, LAMBERT_SPEC_ROUGHNESS, DIELECTRIC_F0) * sun;
 
@@ -530,7 +568,7 @@ float3 ShadePBR(float3 N, float3 V, float3 albedo,
     float sceneAo = SceneAO(worldPos);   // リアル寄り: 環境光だけに掛ける（SSAO）
     ao *= lerp(1.0, sceneAo, aoParams.z);
     uint cascade;
-    float shadow = SunShadow(worldPos, N, max(dot(N, normalize(-dirLight.direction)), 0.0), cascade);
+    float shadow = SunShadow(worldPos, N, max(dot(N, normalize(-dirLight.direction)), 0.0), cascade) * CloudSun(worldPos);
     float3 base = ShadePBRSun(N, V, albedo, metallic, roughness, ao, shadow);
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
     float3 diff, spec, diffF;

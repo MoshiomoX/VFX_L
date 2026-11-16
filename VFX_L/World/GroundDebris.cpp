@@ -137,6 +137,20 @@ void GroundDebris::AddGust(const Vector3& pos, float radius, const Vector2& dir,
     m_Gusts.push_back({ pos, radius, dir, length, 0.0f });
 }
 
+// 新しい方から（古い方からだと、数を超えて続く時に新しい突風が効かない）。新しい物ほど強い（年齢が若い）
+uint32_t GroundDebris::PackGusts(Vector4* a, Vector4* b, uint32_t max) const
+{
+    uint32_t n = 0;
+    for (auto it = m_Gusts.rbegin(); it != m_Gusts.rend() && n < max; ++it)
+    {
+        const GustSrc& g = *it;
+        a[n] = Vector4(g.pos.x, g.pos.z, g.dir.x, g.dir.y);
+        b[n] = Vector4(g.length, g.radius, 1.0f - g.age / (std::max)(m_Settings.gustTime, 0.01f), 0.0f);
+        ++n;
+    }
+    return n;
+}
+
 void GroundDebris::Render(Renderer& renderer, CameraBase& camera,
     ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates, ID3D11ShaderResourceView* areaEnds,
     ID3D11ShaderResourceView* windSources)
@@ -184,17 +198,7 @@ void GroundDebris::Render(Renderer& renderer, CameraBase& camera,
     cb.gustSpeed = s.gustSpeed;
     cb.colorTwig = s.colorTwig;
     cb.time = m_Time;
-    // GPU へは新しい方から kMaxGusts 個（古い方からだと、数を超えて続く時に新しい突風が効かない）。
-    // 新しい物ほど強い（年齢が若い）
-    uint32_t n = 0;
-    for (auto it = m_Gusts.rbegin(); it != m_Gusts.rend() && n < (uint32_t)kMaxGusts; ++it)
-    {
-        const GustSrc& g = *it;
-        cb.gustA[n] = Vector4(g.pos.x, g.pos.z, g.dir.x, g.dir.y);
-        cb.gustB[n] = Vector4(g.length, g.radius, 1.0f - g.age / (std::max)(s.gustTime, 0.01f), 0.0f);
-        ++n;
-    }
-    cb.gustCount = n;
+    cb.gustCount = PackGusts(cb.gustA, cb.gustB, (uint32_t)kMaxGusts);
     cb.seed = m_Seed;
     cb.reset = m_ResetPending ? 1u : 0u;
     cb.maxSlope = s.maxSlope;

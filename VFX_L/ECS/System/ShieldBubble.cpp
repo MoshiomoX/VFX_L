@@ -52,6 +52,12 @@ void ShieldBubble::Submit(VFXMeshRenderer& renderer, const Vector3& pos)
     item.params.intensity = intensity;
     item.params.noVertexColor = 1.0f;   // fanghuzhao2 の頂点色（材質の濃い青、赤 0）を掛けない。掛けると赤が出ない
     item.params.toon = toon ? 1.0f : 0.0f;
+    // 地面・敵と交わる所に明るい輪（受けた瞬間は赤へ）
+    if (intersectWidth > 0.0f)
+    {
+        const Vector3 ic = intersectColor + (hitColor * 2.0f - intersectColor) * m_Hit;
+        item.params.intersect = Vector4(ic.x, ic.y, ic.z, intersectWidth * grow);
+    }
     item.blend = toon ? 1 : blend;      // トゥーンは半透明（加算だと帯の濃さが出ない）
     item.twoSided = true;
 
@@ -88,6 +94,8 @@ void ShieldBubble::DrawImGui()
     ImGui::DragFloat("Intensity##bubble", &intensity, 0.02f, 0.0f, 10.0f);
     ImGui::Checkbox("Toon (hard bands)##bubble", &toon);
     ImGui::DragFloat("Toon alpha##bubble", &toonAlpha, 0.005f, 0.0f, 1.0f);
+    ImGui::DragFloat("Intersect width (m)##bubble", &intersectWidth, 0.01f, 0.0f, 2.0f);
+    ImGui::ColorEdit3("Intersect color##bubble", &intersectColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
     ImGui::Combo("Blend (non-toon)##bubble", &blend, "Additive\0Alpha\0");
     ImGui::DragFloat("Spin deg/s##bubble", &spinDeg, 0.5f, -360.0f, 360.0f);
     ImGui::DragFloat("Breathe##bubble", &breathe, 0.01f, 0.0f, 1.0f);

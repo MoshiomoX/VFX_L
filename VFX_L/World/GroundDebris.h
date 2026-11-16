@@ -69,6 +69,9 @@ public:
     // gustTime 秒かけて弱まりながら効く
     void AddGust(const DirectX::SimpleMath::Vector3& pos, float radius,
         const DirectX::SimpleMath::Vector2& dir = DirectX::SimpleMath::Vector2::Zero, float length = 0.0f);
+    // 効いている突風を新しい方から max 個、GPU の形で（a = (root.x, root.z, dir.x, dir.z)、b = (length, radius, 強さ, 0)）。
+    // 風で揺れる木も同じ突風を使う。返り値 = 個数
+    uint32_t PackGusts(DirectX::SimpleMath::Vector4* a, DirectX::SimpleMath::Vector4* b, uint32_t max) const;
 
     // 草の後（アウトラインの後）：1 歩進めて描く。areas / areaStates / areaEnds = SwarmSystem::GetAreaSRV / GetAreaStateSRV /
     // GetAreaEndSRV（爆発と、光線のカプセルの終点）

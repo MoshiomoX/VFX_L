@@ -70,7 +70,7 @@ inline void ClearBackpackItems(BackpackComponent& bp)
     bp.dirty = true;
 }
 
-// 9×9 全面に 3×3 枠を敷く（多マスの魔法や上級魔法 + 前提を置く自動テスト用）
+// 9×9 全面に 3×3 枠を敷く（多マスの魔法を置く自動テスト用）
 inline void FillAllFrames(BackpackComponent& bp)
 {
     bp.frames.clear();
@@ -97,7 +97,7 @@ inline int PlaceAtOutlet(BackpackComponent& bp, int src, ItemID id)
     return -1;
 }
 
-// 猛毒の沼一式（上級魔法 + 前提の泥沼・胞子）を決まった並びで置く。枠は 9×9 に敷いてあること。
+// 猛毒の沼・泥沼・胞子を決まった並びで置く。枠は 9×9 に敷いてあること。
 //   猛毒の沼 (4,4) 凸字 → (3,4)(4,3)(4,4)(4,5)
 //   泥沼     (2,3) 横 2 → (2,3)(2,4)：影響マス（形の上下左右）の下 = (3,4) = 沼の首
 //   胞子     (5,3) 縦 2 → (5,3)(6,3)：影響マスの上 = (4,3) = 沼の胴

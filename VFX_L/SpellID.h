@@ -11,7 +11,7 @@ enum class ItemID
     // --- 出力源（spells リストに入る）---
     Fireball ,
     Lightning,
-    ArcBolt,          // 弧（ArcOnce プロファイル）
+    ArcBolt,          // 弧（範囲 ArcBolt、一番近い敵へ一瞬で届く）
     HomingBolt,       // 全追尾（HomingFull）
     Meteor,           // 空から落ちて着弾点で爆発（Meteor プロファイル、Drop 型）
     GoldenArrow,      // 黄金の矢：曲がらずまっすぐ飛ぶ速い矢（GoldenArrow プロファイル、直進）

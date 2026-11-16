@@ -3,7 +3,7 @@
 // CollisionTestScene の ImGui パネル・デバッグ描画・TEMP-TEST の自動テスト。
 // 本体（初期化・毎フレームの流れ・描画）は CollisionTestScene.cpp。
 // 出来上がった機能のパネルは各部品が持つ（BattleCamera / RewardCrateSystem /
-// FeedbackVFXSystem / SceneLighting / EliteSpawner / MobSpawner / StressTestTools）
+// FeedbackVFXSystem / SceneLighting / MobSpawner / StressTestTools）
 // ============================================================
 #include "Scene/CollisionTestScene.h"
 #include "Debug/AutoTest/BattleAutoTest.h"   // TEMP-TEST
@@ -103,6 +103,7 @@ void CollisionTestScene::DrawDebugUI()
     m_Miasma.DrawImGui();                 // 遺跡の瘴気
     m_WindGrid.DrawImGui();               // 風の格子
     m_Debris.DrawImGui();                 // 地面の落ち葉
+    m_WindTrees.DrawImGui();              // 風で揺れる木
     m_Water.DrawImGui();                  // 水たまりの水面
     m_Dandelions.DrawImGui();             // タンポポ
     m_GrassShreds.DrawImGui();            // 風源の草屑
@@ -129,6 +130,7 @@ void CollisionTestScene::DrawDebugUI()
     AudioSystem::Get().DrawImGui();   // 音量・BGM・cue の試聴
     m_Camera.DrawImGui();
     m_Lighting.DrawImGui(PlayerPos());   // 末尾にトゥーンの陰影（Toon Shading）
+    m_Clouds.DrawImGui();
     m_Weather.DrawImGui();               // 時刻・天候の出来事（Drive Lighting が入っていると Lighting の手調整は毎フレーム戻る）
     if (ImGui::CollapsingHeader("Toon Outline"))   // トゥーンのアウトライン
         m_Outline.DrawImGui();
@@ -174,7 +176,7 @@ void CollisionTestScene::DrawGameplayDebug()
 }
 
 // ============================================================
-// ImGui: 敵（雑魚の湧き・初期値・AI は MobSpawner、エリートは EliteSpawner）
+// ImGui: 敵（雑魚の湧き・初期値・AI は MobSpawner）
 // ============================================================
 void CollisionTestScene::DrawEnemiesPanel()
 {
@@ -196,8 +198,6 @@ void CollisionTestScene::DrawEnemiesPanel()
     }
     ImGui::Separator();
 
-    if (m_Elites.DrawImGui(m_Registry, m_MeshVFXSystem)) RespawnElites();
-    ImGui::SameLine();
     // GPU 側を全消し。counter は残るので kills (total) は減らない
     if (ImGui::Button("Kill All (GPU)")) m_Swarm.KillAll();
 }

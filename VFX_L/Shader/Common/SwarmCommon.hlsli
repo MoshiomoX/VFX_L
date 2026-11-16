@@ -565,8 +565,8 @@ float SwarmPushKindMul(uint kind)
              || (kind == SWARM_KIND_TORNADO)     // 風は風を押さない
              || SwarmIsGhost(kind)               // 最終ウェーブは吹き飛ばせない
              || (kind == SWARM_KIND_GARGOYLE);   // 石
-    bool half = (SwarmIsBigElite(kind) || kind == SWARM_KIND_ARMOR || kind == SWARM_KIND_ARMOR2);
-    return none ? 0.0 : (half ? 0.5 : 1.0);
+    bool isHalf = (SwarmIsBigElite(kind) || kind == SWARM_KIND_ARMOR || kind == SWARM_KIND_ARMOR2);
+    return none ? 0.0 : (isHalf ? 0.5 : 1.0);
 }
 
 // ------------------------------------------------------------

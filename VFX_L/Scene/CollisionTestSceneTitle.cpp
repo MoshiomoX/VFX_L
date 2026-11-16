@@ -5,7 +5,7 @@
 //   ・プレイヤーは開始地点の近くの、周りが開けた平らな所に立つ（台地の上・崖の際・山頂・洞窟は避ける）
 //   ・戦いのスローモーション：場面毎の魔法を背嚢に並べ（無敵・MP 無限）、周り全部から雑魚（一撃で砕ける）を寄せ続け、
 //     自動で撃って吹き飛ばす。体力バーは出さない。
-//     さらに kMeteorEvery 秒ごとにプレイヤーの周りの群れへメテオを落とす（いつ見ても爆発が開いている）。
+//     背嚢にメテオがあれば、さらに kMeteorEvery 秒ごとにプレイヤーの周りの群れへメテオを落とす（いつ見ても爆発が開いている）。
 //     戦い（物理・アニメ・杖・GPU・粒子・範囲のエフェクト）は kSlowMo 倍の時間で進め、カメラは実時間でプレイヤーの周りを回る。
 //     操作は回さない（体は一番近い敵へ向ける）。湧きは MobSpawner でなく SpawnTitleEnemies
 //   ・光と天候は場面毎（WeatherSystem の時刻を固定し、砂漠・遺跡は出来事を起こす）
@@ -31,12 +31,6 @@
 
 namespace
 {
-    constexpr float kTitleFov = 40.0f;
-    constexpr float kCamDistance = 10.0f;     // プレイヤーからカメラまで（水平、m）
-    constexpr float kCamHeight = 5.8f;        // 足元からのカメラの高さ。見下ろす：目の高さだと外周の碗の斜面（34m）がどの向きにも背景を塞ぐ
-    constexpr float kLookHeight = 0.9f;      // 見る所の高さ（足元から）
-    constexpr float kFrameShift = 2.2f;      // 見る所をカメラの左へずらす（m）= プレイヤーが画面の右寄りに立つ
-    constexpr float kOrbitSpeedDeg = 9.0f;   // カメラが回る速さ（度 / 実時間の秒。40 秒で 1 周）
     constexpr float kSunFromCamDeg = 45.0f;  // 太陽を最初のカメラの側からどれだけ横へずらすか（正面から照らすと平たい）
 
     // ---- 戦いのスローモーション ----
@@ -113,7 +107,7 @@ void CollisionTestScene::PlaceTitleStand()
         };
     auto backgroundRise = [&](const Vector3& feet, float camYawDeg)
         {
-            const float eye = feet.y + kCamHeight;
+            const float eye = feet.y + kTitleCamHeight;
             float worst = -1.0e9f;
             for (float off = -54.0f; off <= 54.0f; off += 18.0f)
             {
@@ -169,7 +163,7 @@ void CollisionTestScene::PlaceTitleStand()
             {
                 const float yawDeg = 15.0f * (float)i;
                 const float a = DirectX::XMConvertToRadians(yawDeg);
-                const Vector3 cam = feet + Vector3(std::sin(a), 0.0f, std::cos(a)) * kCamDistance;
+                const Vector3 cam = feet + Vector3(std::sin(a), 0.0f, std::cos(a)) * kTitleCamDistance;
                 if (m_Grid.SampleHeight(cam.x, cam.z) > feet.y + 1.0f) continue;   // カメラが丘に埋まる
                 const float score = backgroundRise(feet, yawDeg) + nearCenter;
                 if (score < bestScore) { bestScore = score; best = feet; camYaw = yawDeg; }
@@ -230,31 +224,6 @@ void CollisionTestScene::ApplyTitleLight(const SceneLighting::Preset& base)
 }
 
 // ============================================================
-// カメラ：プレイヤーの周りを実時間で回る（戦いはスローモーション）。斜め上から見下ろし、プレイヤーは画面の右寄り
-// ============================================================
-void CollisionTestScene::UpdateTitleCamera(float dt)
-{
-    (void)dt;
-    const float aspect = (m_ScreenH > 0.0f) ? m_ScreenW / m_ScreenH : 16.0f / 9.0f;
-    m_TitleCam.Init(kTitleFov, aspect, 0.1f, 2000.0f);
-
-    const float yaw = DirectX::XMConvertToRadians(m_TitleFacing + kOrbitSpeedDeg * m_TitleTime);
-    const Vector3 feet = m_TitleFocus;
-    Vector3 pos = feet + Vector3(std::sin(yaw), 0.0f, std::cos(yaw)) * kCamDistance;
-    pos.y = feet.y + kCamHeight;
-    pos.y = (std::max)(pos.y, m_Grid.SampleHeight(pos.x, pos.z) + 0.6f);   // 丘の斜面に潜らない
-
-    // 見る所：足元の少し上を、左へずらして（プレイヤーが画面の右寄りに立つ）
-    Vector3 fwd = feet - pos;
-    fwd.y = 0.0f;
-    fwd.Normalize();
-    const Vector3 right = fwd.Cross(Vector3::Up);   // CameraBase::GetRight と同じ向き
-    Vector3 look = feet - right * kFrameShift;
-    look.y = feet.y + kLookHeight;
-    m_TitleCam.LookAt(pos, look, Vector3::Up);
-}
-
-// ============================================================
 // Update の代わり（操作・湧き・武器・UI・音の選曲は回さない）
 // ============================================================
 void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
@@ -282,7 +251,11 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
     if (demo)
     {
         UpdateTitleDemo(gdt);   // 敵を寄せる・メテオを落とす・体を敵へ向ける・MP を満たす
+        m_WeaponSystem.lineWaveSpeed = m_SpellFx.IceSpikes().waveSpeed;   // アイススパイクの範囲を見た目のトゲと同じ時刻に出す
+        m_WeaponSystem.lineRiseDelay = m_SpellFx.IceSpikes().riseTime * 0.6f;
         m_WeaponSystem.Update(m_Registry, gdt, m_CollisionSystem);
+        m_SpellFx.Update(gdt, m_WeaponSystem.GetTriggeredFx(),   // アイススパイクの氷のトゲ
+            [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
         m_PlayerVFX.Update(m_Registry, m_Player, gdt, 0.0f, m_WeaponSystem.GetCastFx());   // 詠唱の光（タイトルでも）
         for (const auto& g : m_WeaponSystem.GetGustFx())
         {
@@ -305,6 +278,7 @@ void CollisionTestScene::UpdateTitleWorld(float dt, bool demo)
     m_Sand.Tick(gdt);
     m_Miasma.Tick(gdt);
     m_Debris.Tick(gdt);
+    m_WindTrees.Tick(gdt);
     m_Water.Tick(gdt);
     UpdateWindToys(gdt);   // 転がり草・タンポポ
     m_ManaSystem.Update(m_Registry, gdt);
@@ -334,6 +308,7 @@ void CollisionTestScene::UpdateTitle(float dt)
 {
     // 右下の魔法の表が組み替えるのは景色のプレイヤーの背嚢
     m_TitleUI.SetBackpack(m_Registry.IsValid(m_Player) && m_Registry.Has<BackpackComponent>(m_Player) ? &m_Registry.Get<BackpackComponent>(m_Player) : nullptr);
+    UpdateTitleCameraInput(dt);  // 右ドラッグ・ホイールのカメラ（風より先：回している間は吹かない）
     UpdateTitleCursorWind(dt);   // マウスの風（次の Flush で効く）
     UpdateTitleWorld(dt, true);
     UpdateTitleShow(dt);         // 場面の巡回
@@ -432,8 +407,11 @@ void CollisionTestScene::UpdateTitleDemo(float dt)
     }
 
     // ---- 群れへメテオ（杖のメテオとは別。誘発のメテオと同じく着弾点を決めて落とす）----
+    // 右下の表でメテオを外したら落とさない
+    const bool hasMeteor = m_Registry.Has<BackpackComponent>(m_Player)
+        && BackpackLogic::CountPlaced(m_Registry.Get<BackpackComponent>(m_Player), ItemID::Meteor) > 0;
     m_TitleMeteorTimer -= dt;
-    if (m_TitleMeteorTimer <= 0.0f && m_Registry.Has<TransformComponent>(m_Player))
+    if (hasMeteor && m_TitleMeteorTimer <= 0.0f && m_Registry.Has<TransformComponent>(m_Player))
     {
         m_TitleMeteorTimer = kMeteorEvery;
         static const int s_Meteor = ProjectileProfileDB::IndexOf("Meteor");
@@ -476,7 +454,7 @@ void CollisionTestScene::SpawnTitleEnemies(int count, float minDist, float maxDi
     if (!pp) return;
     const float gy = m_Swarm.GetAIParams().groundY;
     // カメラの反対側（画面の奥）の弧から出す：手前に出るとメニューの文字に重なる
-    const float camYaw = DirectX::XMConvertToRadians(m_TitleFacing + kOrbitSpeedDeg * m_TitleTime);
+    const float camYaw = DirectX::XMConvertToRadians(TitleCamYawDeg());
     for (int i = 0; i < count; ++i)
         for (int tries = 0; tries < 6; ++tries)
         {

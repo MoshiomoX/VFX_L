@@ -124,19 +124,17 @@ private:
 
     void DrawHoverInfluence(SpriteRenderer& sprite, const BackpackComponent& bp);
     // 上級魔法（メテオ等）を掴んでいる / 指している間、前提の基本魔法の影響マスを全部見せる（どこに置けば目覚めるか）
-    void DrawTriggerSources(SpriteRenderer& sprite, const BackpackComponent& bp);
     // 出口マスと、繋がっている先（BackpackUIOutlet.cpp）
     void DrawOutlets(SpriteRenderer& sprite, const BackpackComponent& bp);
     void DrawDragOutlets(SpriteRenderer& sprite);
     void DrawDragged(SpriteRenderer& sprite, const DirectX::SimpleMath::Vector2& mousePos);
     void DrawDropShadow(SpriteRenderer& sprite);
 
-    // 置いてある魔法ごとの覚え書き（回した占有マス・上級魔法が目覚めているか。毎フレーム IsTriggerReady を呼ぶと重い）。
+    // 置いてある魔法ごとの覚え書き（回した占有マス）。
     // バックパックの番号（BackpackComponent::revision）と形の番号（ItemDatabase::ShapeRevision）が同じ間は使い回す
     struct ItemDrawCache
     {
         std::vector<CellOffset> cells;   // 回した占有マス（アンカーからの相対）
-        bool triggerReady = true;
     };
     void RefreshItemCache(const BackpackComponent& bp);
     std::vector<ItemDrawCache> m_ItemCache;

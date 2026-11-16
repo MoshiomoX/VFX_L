@@ -312,8 +312,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 // ============================================================
                 // 索敵は1回だけ（全ての出力源が同じ目標を向く）
-                // CPU（エリート）と GPU（雑魚）の両方から最寄りを取り、近い方を採用する。
-                // GPU 側はリードバックなので 1〜2 フレーム古い。速度を持っているので
+                // 敵は全部 GPU に居る。リードバックなので 1〜2 フレーム古い。速度を持っているので
                 // 弾速に応じた先読み量で補正する（下の aimFor）
                 // ============================================================
                 bool    hasTarget = false;
@@ -322,24 +321,6 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 Vector3 targetVel = Vector3::Zero;
                 float   bestDist = wand.range;
 
-                // --- CPU: エリート ---
-                Entity cpuTarget = 0;
-                if (collision.FindNearestEntity(muzzle, wand.range, Layer_Enemy, cpuTarget))
-                {
-                    Vector3 tp = reg.Get<TransformComponent>(cpuTarget).position;
-                    if (reg.Has<ColliderComponent>(cpuTarget))
-                        tp += reg.Get<ColliderComponent>(cpuTarget).offset;
-
-                    const float d = (tp - muzzle).Length();
-                    if (d < bestDist)
-                    {
-                        bestDist = d;
-                        targetPos = tp;
-                        hasTarget = true;
-                    }
-                }
-
-                // --- GPU: 雑魚 ---
                 if (m_Swarm)
                 {
                     Vector3 gp, gv;
@@ -379,17 +360,10 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
 
                 // --- 近距離の範囲魔法の狙い：優先度なしで一番近い敵 ---
                 // 杖の狙いは Boss / エリートを優先する（遠くの Boss を撃ち続ける）。突風・アイススパイクの線のように
-                // 届く距離が短い物は、すぐ周りの敵へ向かないと空振りする。エリートの的（CPU）は元から距離だけで選んでいる
+                // 届く距離が短い物は、すぐ周りの敵へ向かないと空振りする
                 m_HasClose = false;
                 {
                     float closeBest = wand.range;
-                    if (cpuTarget != 0)
-                    {
-                        Vector3 tp = reg.Get<TransformComponent>(cpuTarget).position;
-                        if (reg.Has<ColliderComponent>(cpuTarget)) tp += reg.Get<ColliderComponent>(cpuTarget).offset;
-                        const float d = (tp - muzzle).Length();
-                        if (d < closeBest) { closeBest = d; m_ClosePos = tp; m_HasClose = true; }
-                    }
                     Vector3 cp;
                     float cd = 0.0f;
                     if (m_Swarm && m_Swarm->GetCloseEnemy(cp, cd))

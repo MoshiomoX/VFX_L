@@ -85,6 +85,7 @@ protected:
     MiasmaField&              m_Miasma;        // 遺跡の瘴気
     std::vector<DirectX::SimpleMath::Vector3>& m_Torches;   // 遺跡の松明（miasma の松明の場面）
     GroundDebris&             m_Debris;        // 地面の落ち葉
+    WindTrees&                m_WindTrees;     // 風で揺れる木
     WaterSurface&             m_Water;         // 水たまりの水面
     FlowDebugView&            m_FlowDebug;     // F8 の流れの矢印
     Tumbleweeds&              m_Tumbleweeds;   // 転がり草
@@ -98,6 +99,8 @@ protected:
     SandTornadoFx&            m_SandTornadoes; // 砂旋の本体の見た目
     GameUI&                   m_GameUI;
     float&                    m_BatHealTotal;
+    GPUParticleSystem&        m_ParticleSystem;   // ソフトパーティクル・ビルボードの霧の切り替え
+    CloudShadows&             m_Clouds;           // 雲の影
     TutorialGuide&            m_Tutorial;      // 初回のチュートリアル
     SpellLab&                 m_SpellLab;      // 実験場（トレーニング）
     TerrainGenerator::Config& m_TerrainConfig;

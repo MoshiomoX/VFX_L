@@ -1,10 +1,10 @@
 // ============================================================
 // AutoTestTwister.cpp
 // TEMP-TEST: VFXL_BATTLE_AUTOTEST=twister
-// 竜巻（上級の範囲魔法。前提 = 渦 + 突風）：誘発で出るか、敵の方へ進むか、周りの敵を巻き込むか、見た目。
+// 竜巻（上級の範囲魔法）：出るか、敵の方へ進むか、周りの敵を巻き込むか、見た目。
 //   1 秒: 湧き停止・全消し・HP 10 万・MP 無限・入力 0。9×9 に枠を敷き、
 //         竜巻 (3,4) 漏斗 → (3,3)(3,4)(3,5)(4,4)(5,4)、渦 (4,2) 逆 L → (4,3)(5,2)(5,3)（(4,3) が竜巻の (4,4)(3,3) に隣接）、
-//         突風 (4,5) 横 2 → (4,5)(4,6)（(4,5) が竜巻の (4,4)(3,5) に隣接）。`twister place` に各 index と竜巻の発動可否。
+//         突風 (4,5) 横 2 → (4,5)(4,6)（(4,5) が竜巻の (4,4)(3,5) に隣接）。`twister place` に各 index。
 //         正面 +Z 11〜15m の横 12m に雑魚 18 体（HP 300、1.8 m/s で寄ってくる）。カメラは斜め横 22m / 25°（毎フレーム固定）。
 //   以後 0.25 秒ごとに `twister t casts trig twisters pos near avgD alive lost`
 //   （casts = 誘発で撃った上級魔法の累計、near = 竜巻 0 の 3m 以内の雑魚、avgD = 竜巻 0 から 6m 以内の雑魚の平均距離）。
@@ -77,8 +77,7 @@ void AutoTestTwister::Run()
             const bool mag = GetEnvironmentVariableA("VFXL_TWISTER_MAG", env, sizeof(env)) > 0 && env[0] == '1';
             const int mg = mag ? BackpackLogic::Place(bp, ItemID::Magnifier, 5, 5, 0) : -1;
             bp.dirty = true;
-            snprintf(line, sizeof(line), "twister place twister %d vortex %d gust %d magnifier %d ready %d", tw, vv, gu, mg,
-                tw >= 0 ? (BackpackLogic::IsTriggerReady(bp, tw) ? 1 : 0) : -1);
+            snprintf(line, sizeof(line), "twister place twister %d vortex %d gust %d magnifier %d", tw, vv, gu, mg);
             AutoTestLog(line);
         }
         const float groundY = m_Swarm.GetAIParams().groundY;

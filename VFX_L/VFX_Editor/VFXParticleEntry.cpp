@@ -516,6 +516,8 @@ void VFXParticleEntry::OnImGui()
             ImGui::SliderInt("Toon Bands", &e.toonBands, 1, 3);
             ImGui::SliderFloat("Toon Outer Shade", &e.toonShade, 0.0f, 1.0f, "%.2f");
             ImGui::Checkbox("Toon Outline", &e.toonOutline);
+            ImGui::Checkbox("Toon Noise Erosion", &e.toonNoise);
+            ImGui::Checkbox("Toon Fire Colours (red rim, hot core)", &e.toonFire);
             ImGui::TextDisabled("fading colour alpha shrinks the shape instead of fading it");
         }
     }
@@ -709,7 +711,11 @@ json VFXParticleEntry::ToJson() const
     if (e.streak) { j["streak"] = true; j["stretch"] = e.streakStretch; }   // 流線
     if (e.distortLevel > 0) { j["distort"] = e.distortLevel; if (e.distortOnly) j["distortOnly"] = true; }   // 画面の歪み
     if (e.toon)   // トゥーン（無ければ従来の見た目）
+    {
         j["toon"] = { { "cut", e.toonCut }, { "bands", e.toonBands }, { "shade", e.toonShade }, { "outline", e.toonOutline } };
+        if (e.toonNoise) j["toon"]["noise"] = true;
+        if (e.toonFire) j["toon"]["fire"] = true;
+    }
     if (e.renderMode == 1)
     {
         j["mesh"] = e.meshPath;             // "" = 組み込みの立方体
@@ -844,6 +850,8 @@ void VFXParticleEntry::FromJson(const json& j)
         e.toonBands = t.value("bands", e.toonBands);
         e.toonShade = t.value("shade", e.toonShade);
         e.toonOutline = t.value("outline", e.toonOutline);
+        e.toonNoise = t.value("noise", false);
+        e.toonFire = t.value("fire", false);
     }
     e.meshSlot = 0;   // 登録は OnPlay で
     e.shape.sourceId = -1;      // 登録は OnPlay で

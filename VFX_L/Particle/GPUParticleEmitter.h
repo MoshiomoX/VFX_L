@@ -134,6 +134,8 @@ public:
     int   toonBands = 2;         // 色の段（1〜3）
     float toonShade = 0.60f;     // 一番外の段の明るさ（内側 = 1）
     bool  toonOutline = true;    // 外周の濃い線
+    bool  toonNoise = false;     // ノイズ侵食：寿命とともに穴が開いて筋状にほどけて消える（json "toon" の "noise"）
+    bool  toonFire = false;      // 火の色の段：外 = 濃い赤、中 = 粒子の色、芯 = 白寄り（json "toon" の "fire"）
 
     // --- Color over Lifetime ---
     static const int MAX_COLOR_KEYS = 8;

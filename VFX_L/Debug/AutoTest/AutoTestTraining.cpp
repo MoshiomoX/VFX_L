@@ -157,15 +157,14 @@ void AutoTestTraining::Run(float dt)
     else if (s_Step == 10 && s_Real >= 10.9f)
     {
         // 依頼は次のフレームで実行されるので 1 歩後に記録。置かれた物：名前（行, 列, 向き）と繋がり
-        //（上級魔法 = 発動 1 / 0、ルーン = 影響している数、召喚物 = 貯蔵している数）
+        //（ルーン = 影響している数、召喚物 = 貯蔵している数）
         std::string s = "training random placed " + std::to_string(bp.items.size()) + ":";
         for (int i = 0; i < (int)bp.items.size(); ++i)
         {
             const PlacedItem& it = bp.items[i];
             const ItemCommon* ic = ItemDatabase::GetCommon(it.id);
             int link = -1;
-            if (ic && !ic->triggeredBy.empty()) link = BackpackLogic::IsTriggerReady(bp, i) ? 1 : 0;
-            else if (ItemDatabase::GetCategory(it.id) == ItemCategory::Function || ItemDatabase::GetCategory(it.id) == ItemCategory::Summon)
+            if (ItemDatabase::GetCategory(it.id) == ItemCategory::Function || ItemDatabase::GetCategory(it.id) == ItemCategory::Summon)
             {
                 link = 0;
                 for (int j = 0; j < (int)bp.items.size(); ++j)

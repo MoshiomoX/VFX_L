@@ -80,6 +80,13 @@ public:
         m_LightData.aoParams = params;
     }
 
+    // 雲の影（LightBuffer::cloud*、Lighting.hlsli の CloudSun）。params.x = 0 で無し
+    void SetCloudShadow(const Vector4& params, const Vector4& offset)
+    {
+        m_LightData.cloudParams = params;
+        m_LightData.cloudOffset = offset;
+    }
+
     // 次の DrawMesh に効く溶解。null で無効（毎回書くので持ち越さない）
     void SetDissolve(const DissolveParams* p) { m_Dissolve = p; }
 

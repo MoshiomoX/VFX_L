@@ -95,6 +95,13 @@ void VFXMeshRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
     ctx->OMSetDepthStencilState(m_DepthReadOnly.Get(), 0);
     ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+    // 交わりの光を使う物があれば、読むだけの DSV にしてシーンの深度を t3 で読む
+    bool wantDepth = false;
+    for (const auto& it : m_Items)
+        if (it.params.intersect.w > 0.0f) { wantDepth = true; break; }
+    m_DepthOn = wantDepth && m_DepthRead.Begin(ctx, 3);
+    m_DepthAB = SceneDepthRead::EyeDepthParams(proj);
+
     const float bf[4] = { 0, 0, 0, 0 };
     ctx->OMSetBlendState(m_BlendAlpha.Get(), bf, 0xFFFFFFFF);
     for (auto* it : alpha) Draw(ctx, *it, view, proj);
@@ -104,6 +111,9 @@ void VFXMeshRenderer::Render(ID3D11DeviceContext* ctx, CameraBase* camera)
 
     ID3D11ShaderResourceView* nulls[3] = {};
     ctx->PSSetShaderResources(0, 3, nulls);
+    m_DepthRead.End(ctx);
+    m_DepthRead.Clear();   // 毎フレーム渡し直す
+    m_DepthOn = false;
     RenderStates::Get().Restore(ctx);
 
     alpha.clear();      // m_Items を指しているので一緒に空にする
@@ -122,6 +132,7 @@ void VFXMeshRenderer::Draw(ID3D11DeviceContext* ctx, const VFXMeshDrawItem& item
 
     VFXMeshParams params = item.params;
     params.camPos = m_CamPos;
+    params.depthAB = Vector4(m_DepthAB.x, m_DepthAB.y, m_DepthOn ? 1.0f : 0.0f, 0.0f);
     m_PS->WriteBuffer(ctx, 1, &params);
 
     ID3D11ShaderResourceView* srvs[3] = {

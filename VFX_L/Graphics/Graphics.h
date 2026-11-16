@@ -57,6 +57,8 @@ public:
     // 同じ深度のステンシル（G チャンネル、uint）。陣営のアウトライン。使い方は深度と同じ
     ID3D11ShaderResourceView* GetStencilSRV() const { return m_StencilSRV.Get(); }
     ID3D11RenderTargetView* GetSceneRTV() const { return m_SceneRTV.Get(); }
+    // 深度とステンシルを書かない DSV。これを張っている間は GetDepthSRV を同時に読める
+    ID3D11DepthStencilView* GetReadOnlyDSV() const { return m_DepthStencilViewRO.Get(); }
     UINT GetSampleCount() const { return m_SampleCount; }
 
     float GetWidth()  const { return m_Viewport.Width; }
@@ -118,6 +120,7 @@ private:
     ComPtr<ID3D11Texture2D> m_SceneResolved;
     ComPtr<ID3D11ShaderResourceView> m_SceneSRV;
     ComPtr<ID3D11DepthStencilView> m_DepthStencilView;
+    ComPtr<ID3D11DepthStencilView> m_DepthStencilViewRO;   // 読むだけ（GetReadOnlyDSV）
     ComPtr<ID3D11ShaderResourceView> m_DepthSRV;   // 同じ深度を読む（画面のアウトライン）
     ComPtr<ID3D11ShaderResourceView> m_StencilSRV; // 同じ資源のステンシル（陣営のアウトライン）
 

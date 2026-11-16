@@ -67,16 +67,14 @@ public:
     int GetTotalLevelUps() const { return m_TotalLevelUps; }
     int GetTotalOffers() const { return m_TotalOffers; }
     // TEMP-TEST: 四択の候補だけを詰める（自動テスト rarity が稀有度の出方を数える。レベル・経験値は触らない）
-    int DebugFill(LevelComponent& lv, const struct SpellbookComponent* book, bool premium) { return FillChoices(lv, book, nullptr, premium); }
+    int DebugFill(LevelComponent& lv, bool premium) { return FillChoices(lv, nullptr, premium); }
 
 private:
     void RollChoices(Registry& reg, Entity player);
     // 候補を pendingChoices に詰める（レベルアップと報酬で共通）。詰めた数を返す
-    // book: 持っている物（上級魔法は前提の基本魔法を 1 つでも持っていないと出さない）。null = 絞らない
     // avoid: 池から外す物（引き直しで同じ札ばかり出ないように）。外すと足りない時は外さずに引く
     // premium: 金色の箱の四択（稀有度が少し出やすい。premiumMinutes）
-    int FillChoices(LevelComponent& lv, const struct SpellbookComponent* book,
-        const std::vector<ItemID>* avoid = nullptr, bool premium = false);
+    int FillChoices(LevelComponent& lv, const std::vector<ItemID>* avoid = nullptr, bool premium = false);
     int m_TotalOffers = 0;   // 報酬の三択を出した回数
 
     // 能力値（生命・魔力の上限）をその場で適用する

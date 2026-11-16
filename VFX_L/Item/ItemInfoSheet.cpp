@@ -221,7 +221,7 @@ namespace ItemInfoSheet
         // 隕石・投げ上げ（毒）は途中で敵に当たらない（弾そのものの威力は入らず、着弾の範囲だけ）
         const bool drop = pp.mode == Swarm::MotionMode::Drop || pp.mode == Swarm::MotionMode::Lob;
 
-        // 命中・着弾で出る範囲（威力 0 の物は命中の見た目だけ = ArcSpark など。説明には出さない）
+        // 命中・着弾で出る範囲（威力 0 の物は命中の見た目だけ = VoidPop など。説明には出さない）
         const AreaProfile* ap = nullptr;
         if (!pp.hitArea.empty())
         {

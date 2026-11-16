@@ -148,13 +148,6 @@ struct ItemCommon
     // 稀有度（ItemRarity.h。値は ItemDatabase.cpp の kRarityTable が入れる）
     ItemRarity   rarity = ItemRarity::Common;
 
-    // 上級魔法の前提。空 = 自分で撃つ（今はどの魔法も空。仕組みは残してある）。
-    // 空でなければ自分では撃たず、ここに並ぶ基本魔法が「全種類」影響マスをこのブロックに届かせている時だけ有効になる。
-    // 有効な時は、届いている基本魔法の弾が消えた場所（命中・寿命・壁）で撃つ（隕石ならそこへ落ちる、光線ならそこへ向けて撃つ）。
-    // 飛行物型（隕石）と範囲型（光線）の両方が持てるのでここ（ItemCommon）にある。
-    // 判定は BackpackLogic::GetTriggerDrivers / IsTriggerReady（集約と UI の説明で共用）
-    std::vector<ItemID> triggeredBy;
-
     // 出口。出口マス（アンカーからの相対。回転する）に別の攻撃魔法が乗っていると、その魔法は自分では撃たなくなり、
     // この魔法の弾が消えた所（命中・飛び切り・着地）で発動する（BackpackLogic::GetOutletTargets）。
     // 出口の先がまた出口魔法なら続けて繋がる。空 = 普通の魔法

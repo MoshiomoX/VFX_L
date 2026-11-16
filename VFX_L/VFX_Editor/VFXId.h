@@ -7,7 +7,6 @@
 //   CPU 経路（AreaVFXPlayer）と GPU 経路（SwarmVFXTable）が
 //   同じ表を引くので、二重管理にならない。
 // ゲームが出すエフェクトは全部ここに登録する（コードに json のファイル名を直書きしない）。
-// Assets/Data/VFXData/ の json のうち、ここに無いのはエディタの試し用（Test2 / SheetTest など）だけ。
 // 一覧は F2（VFX Editor）の「Database」ボタンで見られる（押すと読み込む）。
 // ============================================================
 #pragma once

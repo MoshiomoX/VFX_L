@@ -29,7 +29,6 @@ namespace
 
 // ============================================================
 // 1 秒: 湧き停止・全消し・無敵・魔力無限。バックパックを全面の枠にして、真ん中にアイススパイク（T 字）、
-//   アイスランスとストーンショットはトゲに隣り合う所を探して置く（GetTriggerDrivers に入る所）。
 //   正面 +Z 6m / 9m に動かない雑魚 5 体 x 2 列（HP 300 = 死なずに凍るのが見える）。斜め横から
 // 0.25 秒毎に `icespike t events casts fx spikes alive frozen` を記録。
 // 最初のトゲが出たら +0.08 / +0.35 / +1.0 秒 `icespike look rise / full / hold`、
@@ -72,32 +71,6 @@ void AutoTestIceSpike::Run()
                 BackpackLogic::PlaceFrame(bp, ItemID::Frame3x3, r, c, 0);
         ClearBackpackItems(bp);
         BackpackLogic::Place(bp, ItemID::IceSpike, 4, 4, 0);
-        // 前提の 2 つ：トゲに隣り合う（誘発の前提に数えられる）最初の場所へ
-        // VFXL_ICESPIKE_SOLO=1：トゲだけ（アイスランスの命中・凍結が混ざらない。時刻と傷の量を測る）
-        char soloEnv[4] = {};
-        const bool solo = GetEnvironmentVariableA("VFXL_ICESPIKE_SOLO", soloEnv, sizeof(soloEnv)) > 0 && soloEnv[0] == '1';
-        for (ItemID need : { ItemID::IceLance, ItemID::StoneShot })
-        {
-            if (solo) break;
-            bool placed = false;
-            for (int r = 0; r < BackpackComponent::GRID && !placed; ++r)
-                for (int c = 0; c < BackpackComponent::GRID && !placed; ++c)
-                {
-                    const int idx = BackpackLogic::Place(bp, need, r, c, 0);
-                    if (idx < 0) continue;
-                    const int spike = indexOf(ItemID::IceSpike);
-                    const auto drv = BackpackLogic::GetTriggerDrivers(bp, spike);
-                    const int now = indexOf(need);
-                    if (std::find(drv.begin(), drv.end(), now) != drv.end())
-                    {
-                        placed = true;
-                        snprintf(line, sizeof(line), "icespike place %d at %d,%d", (int)need, r, c);
-                        AutoTestLog(line);
-                    }
-                    else
-                        BackpackLogic::Remove(bp, now);
-                }
-        }
         // VFXL_ICESPIKE_DOUBLE=1：二重詠唱のルーンをトゲに効く所へ（2 回目の扇が半分ずれて見えるか）
         char dblEnv[4] = {};
         if (GetEnvironmentVariableA("VFXL_ICESPIKE_DOUBLE", dblEnv, sizeof(dblEnv)) > 0 && dblEnv[0] == '1')
@@ -123,8 +96,6 @@ void AutoTestIceSpike::Run()
         }
         bp.dirty = true;
         wand.castingPaused = false;
-        snprintf(line, sizeof(line), "icespike ready %d", (int)BackpackLogic::IsTriggerReady(bp, indexOf(ItemID::IceSpike)));
-        AutoTestLog(line);
 
         // 説明カード（アイテムそのもの）の文と行
         const ItemInfo::Sheet sh = ItemInfo::Describe(ItemID::IceSpike);

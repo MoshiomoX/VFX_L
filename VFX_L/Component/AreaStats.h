@@ -38,8 +38,7 @@ struct AreaStats
     // --- 実行時状態（WeaponSystem が更新）---
     float castTimer = 0.0f;
 
-    // --- 上級魔法（光線）: 自分では撃たず、前提の基本魔法の弾が消えた時に、その方向へ撃つ ---
-    // 集約時に ItemCommon::triggeredBy が揃っていれば true。基本魔法側の SpellStats::triggerMask の bit (16 + 添字) が自分
+    // 自分では撃たず、別の魔法の弾が消えた時に撃つ（出口の先）。誘発する側の triggerMask の bit (16 + 添字) が自分
     // （添字は 0〜14 まで。bit 31 は吸血の印。TriggerBits / WandComponent.h）
     bool triggered = false;
     // 出口:出口魔法の出口の先に居る（SpellStats::fromOutlet / triggerDelay と同じ）

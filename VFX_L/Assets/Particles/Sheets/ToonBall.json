@@ -1,0 +1,10 @@
+{
+    "name":  "Toon Ball",
+    "texture":  "ToonBall.png",
+    "rows":  1,
+    "cols":  1,
+    "filter":  "linear",
+    "premultiplied":  true,
+    "frames":  [ "ball" ],
+    "groups":  []
+}

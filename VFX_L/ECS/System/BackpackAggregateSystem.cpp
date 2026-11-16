@@ -155,18 +155,6 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             }
             ItemInfo::ApplySpellPower(stats, power);
 
-            // 上級魔法: 前提の基本魔法が全種類届いていなければ撃たない（バックパックでは暗く出る）。
-            // 水晶玉に貯蔵されていても同じ
-            if (!pdef->common.triggeredBy.empty())
-            {
-                if (!BackpackLogic::IsTriggerReady(bp, (int)i))
-                {
-                    log.influencedBy.push_back("(inactive: needs triggers)");
-                    m_Log.push_back(std::move(log));
-                    continue;
-                }
-                stats.triggered = true;
-            }
             // 出口の先に居る魔法は自分では撃たない。発動の bit は下でまとめて立てる
             if (!BackpackLogic::GetOutletDrivers(bp, (int)i).empty())
             {
@@ -206,17 +194,6 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
             }
             ItemInfo::ApplySpellPower(stats, power);
 
-            // 上級魔法（光線）: 前提が揃っていなければ出さない（バックパックでは暗く出る）。貯蔵されていても同じ
-            if (!adef->common.triggeredBy.empty())
-            {
-                if (!BackpackLogic::IsTriggerReady(bp, (int)i))
-                {
-                    log.influencedBy.push_back("(inactive: needs triggers)");
-                    m_Log.push_back(std::move(log));
-                    continue;
-                }
-                stats.triggered = true;
-            }
             if (!BackpackLogic::GetOutletDrivers(bp, (int)i).empty())
             {
                 stats.triggered = true;
@@ -234,45 +211,8 @@ void BackpackAggregateSystem::Rebuild(Registry& reg, Entity e)
         m_Log.push_back(std::move(log));
     }
 
-    // ---- 誘発: 有効な上級魔法 k に影響マスを届かせている基本魔法に bit k を立てる ----
-    // 1 つの基本魔法が複数の上級魔法に届いていれば全部立つ（どれも自分のクールダウンで撃つ）
-    for (size_t i = 0; i < bp.items.size(); ++i)
-    {
-        const int k = spellIndexOf[i];
-        // spells が使える bit は 0〜15（16〜30 は areas、31 は吸血の印。TriggerBits）
-        if (k < 0 || k >= (int)TriggerBits::kSpellCount || !wand.spells[k].triggered) continue;
-
-        for (int drv : BackpackLogic::GetTriggerDrivers(bp, (int)i))
-        {
-            const int d = spellIndexOf[drv];
-            if (d >= 0 && !wand.spells[d].triggered)
-                wand.spells[d].triggerMask |= 1u << k;
-            // 基本の範囲魔法（アークボルトの稲妻）も駆動できる：稲妻が届いた所で誘発
-            const int da = areaIndexOf[drv];
-            if (da >= 0 && !wand.areas[da].triggered)
-                wand.areas[da].triggerMask |= 1u << k;
-        }
-    }
-    // 同じく上級の範囲魔法（光線・竜巻）j は bit (16 + j)。j は 0〜14 まで（bit 31 は吸血の印 Swarm::kTagLifesteal）
-    for (size_t i = 0; i < bp.items.size(); ++i)
-    {
-        const int j = areaIndexOf[i];
-        if (j < 0 || j >= (int)TriggerBits::kAreaCount || !wand.areas[j].triggered) continue;
-        const uint32_t bit = 1u << (TriggerBits::kAreaShift + (uint32_t)j);
-
-        for (int drv : BackpackLogic::GetTriggerDrivers(bp, (int)i))
-        {
-            const int d = spellIndexOf[drv];
-            if (d >= 0 && !wand.spells[d].triggered)
-                wand.spells[d].triggerMask |= bit;
-            const int da = areaIndexOf[drv];
-            if (da >= 0 && da != j && !wand.areas[da].triggered)
-                wand.areas[da].triggerMask |= bit;
-        }
-    }
-
     // ---- 出口:出口魔法の弾が消えた所で、出口の先の魔法を撃つ ----
-    // 上の誘発と違って自分も誘発された魔法でよい（繋がった先の出口魔法の弾にも bit が乗る = 何段でも続く）
+    // 自分も誘発された魔法でよい（繋がった先の出口魔法の弾にも bit が乗る = 何段でも続く）
     // 段の深さ：輪は無いので、魔法の数だけ回せば一番長い道の長さに落ち着く
     const auto outletEdges = BackpackLogic::GetOutletEdges(bp);
     std::vector<int> outletDepth(bp.items.size(), 0);

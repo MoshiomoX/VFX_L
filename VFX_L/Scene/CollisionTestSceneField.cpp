@@ -63,6 +63,9 @@ void CollisionTestScene::PushWind()
     m_ParticleSystem.SetWind(wind, m_Grass.Time());
     m_ParticleSystem.SetWindSources(m_Swarm.GetWindSourceSRV());   // 砂旋の風源（煙が周りを回る）
     m_Debris.SetWind(wind, m_Grass.Time());   // 落ち葉（強い風で舞う）
+    m_WindTrees.SetWind(wind, m_Grass.Time());   // 木（草と同じ波）
+    m_Clouds.SetBiome((int)m_TerrainConfig.biome);
+    m_Clouds.Update(wind, m_Grass.Time());    // 雲の影も風下へ流れる
     m_Dandelions.SetWind(wind, m_Grass.Time());   // タンポポ（強い風で綿毛がほどける）
     // 水面：草と同じ 2 つの突風の波で、風の強い所だけさざ波が立つ。雨 = 雨粒の波紋、砂嵐 = 濁り
     {
@@ -265,9 +268,4 @@ void CollisionTestScene::UpdatePropBlocks()
         changed = true;
     }
     if (changed) m_Swarm.RefreshWalkable(m_Grid);
-}
-
-void CollisionTestScene::RespawnElites()
-{
-    m_Elites.Respawn(m_Registry, PlayerPos());
 }

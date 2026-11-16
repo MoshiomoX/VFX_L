@@ -188,6 +188,6 @@ void FeedbackVFXSystem::DrawImGui(Registry& reg, Entity player)
     m_Bubble.DrawImGui();
     ImGui::TextDisabled("Assets/Data/VFXData/LevelUp / CrateOpen / Hurt / ExpPickup.json");
     ImGui::TextDisabled("  ManaSurgeBurst / ManaSurgeAura / ShieldHit / ShieldBreak.json");
-    ImGui::TextDisabled("hits: ArcBolt -> ArcSpark, HomingBolt -> VoidPop (0 damage areas)");
+    ImGui::TextDisabled("hits: HomingBolt -> VoidPop (0 damage area)");
     if (ImGui::Button("Reload json") && m_Player) m_Player->ClearTemplates();
 }

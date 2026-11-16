@@ -39,6 +39,7 @@ struct VSOutput
     // トゥーン：x = 開始 alpha に対する残りの寿命（形を削る）、y = 不透明度（開始 alpha x 1.3）
     nointerpolation float2 toonFade : TEXCOORD7;
     nointerpolation uint solidPass : TEXCOORD8;  // 1 = 深度を書くパスで描く（PS は alpha < 0.5 を切る）
+    float3 worldPos : TEXCOORD9;                 // 霧の距離（GPUParticlePS）
 };
 
 VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
@@ -141,6 +142,7 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 
     float4 viewPos = mul(float4(worldPos, 1.0), g_View);
     output.position = mul(viewPos, g_Projection);
+    output.worldPos = worldPos;
     output.color = distortPass ? float4(p.color.rgb, output.color.a) : p.color;
 
     return output;

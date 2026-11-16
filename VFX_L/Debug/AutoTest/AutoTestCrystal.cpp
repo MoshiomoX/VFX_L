@@ -115,8 +115,8 @@ void AutoTestCrystal::Run()
         }
         for (int i = 0; i < (int)bp.items.size(); ++i)
         {
-            snprintf(line, sizeof(line), "crystal item %s storedBy %d triggerReady %d",
-                ItemDatabase::GetCommon(bp.items[i].id)->name, BackpackLogic::StoredBy(bp, i), BackpackLogic::IsTriggerReady(bp, i) ? 1 : 0);
+            snprintf(line, sizeof(line), "crystal item %s storedBy %d",
+                ItemDatabase::GetCommon(bp.items[i].id)->name, BackpackLogic::StoredBy(bp, i));
             AutoTestLog(line);
         }
         // 説明カード（貯蔵中の行と MP）

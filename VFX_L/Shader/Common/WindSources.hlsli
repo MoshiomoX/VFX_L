@@ -40,6 +40,7 @@ float3 WindSourceAir(StructuredBuffer<WindSource> sources, float2 xz, out float 
         float dist = length(d);
         if (dist >= w.radius)
             continue;
+        
         float r = dist / w.radius;
         float2 outw = dist > 1e-3 ? d / dist : float2(0, 1);
         float2 tang = float2(-outw.y, outw.x);

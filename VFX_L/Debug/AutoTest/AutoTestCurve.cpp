@@ -145,13 +145,11 @@ void AutoTestCurve::Run(float dt)
             for (ItemID id : lv.pendingChoices)
             {
                 int rk = 4, r = 0, col = 0, rot = 0;
-                const ItemCommon* ic = ItemDatabase::GetCommon(id);
                 const ItemCategory cat = ItemDatabase::GetCategory(id);
                 if (ItemDatabase::IsFrame(id)) rk = 1;
                 else if (const StatItemDef* st = ItemDatabase::GetStat(id))
                     rk = (st->kind == StatKind::MaxMana || st->kind == StatKind::ManaRegen) ? 2 : 3;
-                else if ((cat == ItemCategory::Projectile || cat == ItemCategory::Area) && ic && ic->triggeredBy.empty()
-                    && bestSpot(id, false, r, col, rot))
+                else if ((cat == ItemCategory::Projectile || cat == ItemCategory::Area) && bestSpot(id, false, r, col, rot))
                     rk = 0;
                 if (rk < rank) { rank = rk; pick = id; }
             }

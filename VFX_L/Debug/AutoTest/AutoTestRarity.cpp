@@ -56,7 +56,6 @@ void AutoTestRarity::LogTable()
         std::string& s = names[(int)c->rarity];
         if (!s.empty()) s += ", ";
         s += c->name;
-        if (!c->triggeredBy.empty()) s += "(!triggered)";   // 残っていたら間違い
     }
     const char* tier[] = { "normal", "rare", "legendary" };
     for (int r = 0; r < Rarity::kCount; ++r)
@@ -67,7 +66,6 @@ void AutoTestRarity::LogOdds(int minutes, bool crate)
 {
     if (!m_Registry.Has<LevelComponent>(m_Player) || !m_Registry.Has<SpellbookComponent>(m_Player)) return;
     LevelComponent tmp = m_Registry.Get<LevelComponent>(m_Player);
-    const auto& book = m_Registry.Get<SpellbookComponent>(m_Player);
     m_LevelUpSystem.runMinutes = (float)minutes;
 
     constexpr int kTries = 3000;
@@ -75,7 +73,7 @@ void AutoTestRarity::LogOdds(int minutes, bool crate)
     tmp.framesMissed = 0;
     for (int i = 0; i < kTries; ++i)
     {
-        if (m_LevelUpSystem.DebugFill(tmp, &book, crate) == 0) continue;
+        if (m_LevelUpSystem.DebugFill(tmp, crate) == 0) continue;
         bool r = false, l = false, sh = false, fr = false;
         for (ItemID id : tmp.pendingChoices)
         {
