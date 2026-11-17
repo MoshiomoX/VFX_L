@@ -14,6 +14,7 @@
 #include "Graphics/Shader/VertexShader.h"
 #include "Graphics/Shader/PixelShader.h"
 #include "Graphics/Renderer/RenderStates.h"
+#include "Graphics/Renderer/Renderer.h"   // MVPBuffer
 #include "Camera/CameraBase.h"
 #include "Graphics/Model/Model.h"
 #include "Graphics/PrimitiveBuilder.h"
@@ -197,12 +198,12 @@ void SwarmSystem::RenderShields(const Matrix& view, const Matrix& proj)
     ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
     m_Context->PSSetSamplers(0, 1, &samp);
 
-    EnemyRenderCB cb;
-    cb.view = view;
-    cb.proj = proj;
+    MVPBuffer cb;   // World は単位行列のまま
+    cb.View = view;
+    cb.Projection = proj;
     m_ShieldVS->WriteBuffer(m_Context, 0, &cb);
     m_ShieldVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 体の半径（足元の高さ）・被弾の閃光
-    m_ShieldVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);  // 体格・凍結の色
+    m_ShieldVS->WriteBuffer(m_Context, 5, &m_CachedKindCB);  // 体格・凍結の色
 
     // 盾の中心を hold に置き、高さが shieldLook.height になる倍率
     const Vector3 bmin = m_ShieldModel->GetBoundsMin(), bmax = m_ShieldModel->GetBoundsMax();
@@ -213,14 +214,14 @@ void SwarmSystem::RenderShields(const Matrix& view, const Matrix& proj)
     p.hold = shieldLook.hold;
     p.yaw = DirectX::XMConvertToRadians(shieldLook.yawDeg);
     p.tint = shieldLook.tint;
-    p.bob = shieldLook.bob;
+    p.param = shieldLook.bob;
     p.alpha = 1.0f;
     m_ShieldVS->WriteBuffer(m_Context, 4, &p);
 
     m_ShieldVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_ShieldVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_ShieldVS->SetSRV(m_Context, "shieldList", m_KindListSRV[Swarm::kDrawListShield].Get());
-    m_ShieldVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
+    m_ShieldVS->SetSRV(m_Context, "enemyStatus", m_EnemyStatusSRV.Get());
     m_ShieldVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     // 板のような薄い盾なので裏も描く
@@ -247,13 +248,13 @@ void SwarmSystem::RenderIce(const Matrix& view, const Matrix& proj)
     ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
     m_Context->PSSetSamplers(0, 1, &samp);
 
-    EnemyRenderCB cb;
-    cb.view = view;
-    cb.proj = proj;
+    MVPBuffer cb;   // World は単位行列のまま
+    cb.View = view;
+    cb.Projection = proj;
     m_IceVS->WriteBuffer(m_Context, 0, &cb);
     m_IceVS->WriteBuffer(m_Context, 1, &m_CachedFrameCB);      // 池の大きさ
     m_IceVS->WriteBuffer(m_Context, 2, &m_CachedAICB);         // 体の半径（足元の高さ）
-    m_IceVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);     // 体格
+    m_IceVS->WriteBuffer(m_Context, 5, &m_CachedKindCB);     // 体格
 
     // 塊の底の中心を足元に置き、高さが iceLook.height になる倍率
     const Vector3 bmin = m_IceModel->GetBoundsMin(), bmax = m_IceModel->GetBoundsMax();
@@ -268,7 +269,7 @@ void SwarmSystem::RenderIce(const Matrix& view, const Matrix& proj)
     m_IceVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_IceVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_IceVS->SetSRV(m_Context, "aliveList", m_AliveListSRV.Get());
-    m_IceVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
+    m_IceVS->SetSRV(m_Context, "enemyStatus", m_EnemyStatusSRV.Get());
     m_IceVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     auto& rs = RenderStates::Get();
@@ -276,9 +277,9 @@ void SwarmSystem::RenderIce(const Matrix& view, const Matrix& proj)
     m_Context->OMSetBlendState(rs.AlphaBlend(), bf, 0xFFFFFFFF);   // 乗算済み: 色は足され、alpha 分だけ奥が消える
     m_Context->OMSetDepthStencilState(rs.DepthReadOnly(), 0);
     const auto& subs = m_IceModel->GetSubMeshes();
-    for (int variant = 0; variant < 2; ++variant)   // 前の塊 / 後ろの塊（VS の g_IceVariant）
+    for (int variant = 0; variant < 2; ++variant)   // 前の塊 / 後ろの塊（VS の g_PropParam）
     {
-        p.bob = (float)variant;
+        p.param = (float)variant;
         m_IceVS->WriteBuffer(m_Context, 4, &p);
         for (size_t i = 0; i < subs.size() && i < m_IceDrawArgs.size(); ++i)
             if (subs[i].mesh && m_IceDrawArgs[i])
@@ -297,7 +298,7 @@ void SwarmSystem::RenderChargeLines(CameraBase* camera)
 {
     if (!chargeLine.enabled || !m_ChargeLineVS || !m_ChargeLinePS || !m_ChargeLineArgs || !m_HeightSRV) return;
 
-    BomberRingCB cb;
+    GroundMarkCB cb;
     cb.view = camera->GetViewMatrix();
     cb.proj = camera->GetProjectionMatrix();
     cb.fill = chargeLine.fill;
@@ -310,7 +311,7 @@ void SwarmSystem::RenderChargeLines(CameraBase* camera)
     m_ChargeLinePS->WriteBuffer(m_Context, 0, &cb);
     m_ChargeLineVS->WriteBuffer(m_Context, 1, &m_CachedFrameCB);    // 格子（高さ場を引く）
     m_ChargeLineVS->WriteBuffer(m_Context, 2, &m_CachedAICB);       // 体の半径
-    m_ChargeLineVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);   // 溜めの長さ・突進の距離
+    m_ChargeLineVS->WriteBuffer(m_Context, 4, &m_CachedKindCB);   // 溜めの長さ・突進の距離
 
     m_ChargeLineVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_ChargeLineVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
@@ -363,12 +364,12 @@ void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
     ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
     m_Context->PSSetSamplers(0, 1, &samp);
 
-    EnemyRenderCB cb;
-    cb.view = view;
-    cb.proj = proj;
+    MVPBuffer cb;   // World は単位行列のまま
+    cb.View = view;
+    cb.Projection = proj;
     m_SpikeBallVS->WriteBuffer(m_Context, 0, &cb);
     m_SpikeBallVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 体の半径（足元の高さ）・被弾の閃光
-    m_SpikeBallVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);  // 体格・凍結の色
+    m_SpikeBallVS->WriteBuffer(m_Context, 5, &m_CachedKindCB);  // 体格・凍結の色
 
     PropMeshCB p = {};
     p.anchor = Vector3::Zero;
@@ -376,7 +377,7 @@ void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
     p.hold = Vector3(0.0f, spikeBallLook.radius, 0.0f);    // 中心 = 足元 + 半径
     p.yaw = 0.0f;
     p.tint = spikeBallLook.tint;
-    p.bob = 0.0f;   // 転がる速さは MoveCS へ（BomberCB::spikeBallRollPerMeter）
+    p.param = 0.0f;   // 転がる速さは MoveCS へ（KindCB::spikeBallRollPerMeter）
     p.alpha = 1.0f;
     m_SpikeBallVS->WriteBuffer(m_Context, 4, &p);
 
@@ -384,7 +385,7 @@ void SwarmSystem::RenderSpikeBalls(const Matrix& view, const Matrix& proj)
     m_SpikeBallVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "spikeBallList", m_SpikeBallListSRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "enemyRoll", m_EnemyRollSRV.Get());   // 転がった向き（MoveCS が積み上げる）
-    m_SpikeBallVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());
+    m_SpikeBallVS->SetSRV(m_Context, "enemyStatus", m_EnemyStatusSRV.Get());
     m_SpikeBallVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     const auto& subs = m_SpikeBallModel->GetSubMeshes();
@@ -408,12 +409,12 @@ void SwarmSystem::RenderMounds(const Matrix& view, const Matrix& proj)
     ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
     m_Context->PSSetSamplers(0, 1, &samp);
 
-    EnemyRenderCB cb;
-    cb.view = view;
-    cb.proj = proj;
+    MVPBuffer cb;   // World は単位行列のまま
+    cb.View = view;
+    cb.Projection = proj;
     m_MoundVS->WriteBuffer(m_Context, 0, &cb);
     m_MoundVS->WriteBuffer(m_Context, 2, &m_CachedAICB);      // 体の半径（足元の高さ）
-    m_MoundVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);  // 体格・出ている秒
+    m_MoundVS->WriteBuffer(m_Context, 5, &m_CachedKindCB);  // 体格・出ている秒
 
     PropMeshCB p = {};
     p.anchor = Vector3::Zero;
@@ -421,14 +422,14 @@ void SwarmSystem::RenderMounds(const Matrix& view, const Matrix& proj)
     p.hold = Vector3(0.0f, moundLook.height, 0.0f);
     p.yaw = 0.0f;
     p.tint = moundLook.tint;
-    p.bob = moundLook.bob;
+    p.param = moundLook.bob;
     p.alpha = 1.0f;
     m_MoundVS->WriteBuffer(m_Context, 4, &p);
 
     m_MoundVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_MoundVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_MoundVS->SetSRV(m_Context, "burrowerList", m_KindListSRV[Swarm::kDrawListBurrower].Get());
-    // enemySlow は SwarmMoundVS が読まないので渡さない（渡すと毎フレーム「SRV not found」が出る）
+    // enemyStatus は SwarmMoundVS が読まないので渡さない（渡すと毎フレーム「SRV not found」が出る）
     m_MoundVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
 
     const auto& subs = m_MoundModel->GetSubMeshes();

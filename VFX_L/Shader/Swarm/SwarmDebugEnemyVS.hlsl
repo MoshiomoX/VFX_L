@@ -13,6 +13,7 @@
 
 #define SWARM_FRAME_CB_REG b2
 #include "../Common/SwarmCommon.hlsli"
+#include "../Common/MathConst.hlsli"
 
 cbuffer SwarmDebugCB : register(b0)
 {
@@ -29,8 +30,6 @@ struct VSOutput
     float4 color : COLOR;
 };
 
-static const float PI = 3.14159265;
-static const float TWO_PI = 6.28318531;
 static const uint RING_SEGS = 16;
 static const uint ARC_SEGS = 6;
 

@@ -6,17 +6,7 @@
 // CHEVRON_STEP m ごとの山形 ">" が突進の向きを示す。
 // 出力は乗算済み: CommonStates::AlphaBlend は ONE / INV_SRC_ALPHA。
 // ============================================================
-cbuffer SwarmBomberRingCB : register(b0)
-{
-    row_major float4x4 g_RingView;
-    row_major float4x4 g_RingProj;
-    float4 g_RingFill;
-    float4 g_RingEdge;
-    float4 g_RingBack;
-    float g_RingEdgeWidth;
-    float g_RingLift;
-    float2 _ringPad;
-};
+#include "SwarmGroundMarkCB.hlsli"
 
 struct LineIn
 {

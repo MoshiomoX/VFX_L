@@ -13,14 +13,14 @@
 // 全スレッドがスロット 0 を取り合わないよう、走査の開始位置を
 // スレッドごとにずらす。
 //
-// 飛び方: リクエストは動きテーブルの番号（+ 左右反転ビット）を持つ。
+// 飛び方: リクエストは動きテーブルの番号を持つ（左右反転などは SwarmSpawnProjExtra）。
 // 曲線系のモードでは飛行経路を「ここで」一度だけ作る。杖先から
-// プレイヤーに一番近い敵まで -- 武器が狙ったのと同じ敵
+// 杖の狙い（SWARM_CNT_AIM_KEY、優先度付き）の敵まで -- 武器が狙ったのと同じ敵
 // （counters にはまだ前ステップのキーが残っている）。
 // 標的がなければ弾はただまっすぐ飛ぶ。
 //
 // DROP（メテオ）: 同じ敵で着弾点を決める。弾は空中の開始点
-// （c1、SwarmCommon.hlsli 参照）まで持ち上げ、地面に届くだけの寿命を
+// （c1、SwarmProjectileTypes.hlsli 参照）まで持ち上げ、地面に届くだけの寿命を
 // 与える。標的がなければ杖先の 8m 先、
 // プレイヤーの高さに落ちる。
 // SWARM_SPAWN_AT_POS 付き（連鎖したメテオ）はリクエストの位置が
@@ -35,14 +35,15 @@
 // 再利用したスロットに古いタグが残らない。projBoost（残す範囲の威力 /
 // 持続の倍率、SwarmBoostDamage 参照）も同じ。
 // ============================================================
-#define SWARM_BOMBER_CB_REG b3   // 飛んでいる敵の高さ（SwarmBodyHover）
+#define SWARM_KIND_CB_REG b3   // 飛んでいる敵の高さ（SwarmBodyHover）
 #include "../Common/SwarmCommon.hlsli"
+#include "../Common/MathConst.hlsli"
 
 StructuredBuffer<SwarmProjectile> spawnRequests : register(t0);
 StructuredBuffer<SwarmMotion> motions : register(t1);
 StructuredBuffer<SwarmEnemy> enemies : register(t2);
 Buffer<uint> enemyStates : register(t3);
-StructuredBuffer<uint2> spawnExtra : register(t4);   // x = 連鎖タグ、y = SWARM_SPAWN_* フラグ
+StructuredBuffer<SwarmSpawnProjExtra> spawnExtra : register(t4);   // リクエストごとの追加情報（タグ・反転・強化・連鎖数など）
 StructuredBuffer<float> terrainHeight : register(t5); // GridWorld::Heights（洞窟の判定用）
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t6); // FanTarget は狙えない敵を飛ばす
 
@@ -57,18 +58,14 @@ RWBuffer<uint> projStates : register(u1);
 RWStructuredBuffer<SwarmProjPath> paths : register(u2);
 RWByteAddressBuffer counters : register(u3);
 RWBuffer<uint> projTags : register(u4);
-RWBuffer<uint> projBoost : register(u5);   // y >> SWARM_SPAWN_BOOST_SHIFT: 残す範囲の威力 / 持続の倍率
+RWBuffer<uint> projBoost : register(u5);   // 残す範囲の威力 / 持続の倍率（SwarmSpawnProjExtra.boost）
 // スロットのリボン（SwarmProjTrailCS）: フレーム最後のステップで消えた弾はトレイルのパスが
 // その死を見る前にここで再利用されるので、ここでも消す
 RWStructuredBuffer<uint> trailState : register(u6);
 RWStructuredBuffer<float> trailAge : register(u7);
+RWStructuredBuffer<SwarmProjChain> projChain : register(u8);   // 連鎖・貫通の状態（確保したスロットには必ず書く）
 
-cbuffer SwarmSpawnCB : register(b1)
-{
-    uint g_RequestCount;
-    uint g_ScanStart;
-    uint2 _spawnPad;
-};
+#include "SwarmSpawnCB.hlsli"
 
 // 曲線が両端の間のどこかで地面（+ 余裕）の下に潜るか。
 // プロファイルが使う緩い曲線（c.y <= 射程の ~0.45）なら 4 点で足りる
@@ -131,28 +128,25 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmProjectile req = spawnRequests[id.x];
-    uint2 extra = spawnExtra[id.x];
+    SwarmSpawnProjExtra extra = spawnExtra[id.x];
 
-    // ---- 飛び方: リクエストのワードを分解してから経路を作る ----
-    // sideSign は曲線の横ずれを飛行軸まわりに回す角度（ラジアン）:
-    // 0 = 右、pi = 左（反転ビット）、それ以外 = 1 発ごとのランダムな方向
-    // （ProjectileProfile Mirror::RandomAngle、extra.y の 7 ビット: 0..127 = 0..360 度）
-    float sideSign = ((req.motion & SWARM_MOTION_FLIP_BIT) != 0u) ? 3.14159265 : 0.0;
-    sideSign += (float)((extra.y >> 1) & 0x7Fu) * (6.28318531 / 128.0);
+    // ---- 飛び方: 経路を作る ----
+    // sideAngle は曲線の横ずれを飛行軸まわりに回す角度（ラジアン）:
+    // 0 = 右、pi = 左（SWARM_SPAWN_FLIP）、それ以外 = 1 発ごとのランダムな方向
+    // （ProjectileProfile Mirror::RandomAngle、extra.roll: 0..127 = 0..360 度）
+    float sideAngle = ((extra.flags & SWARM_SPAWN_FLIP) != 0u) ? PI : 0.0;
+    sideAngle += (float)extra.roll * (TWO_PI / 128.0);
     uint motionIdx = req.motion & SWARM_MOTION_INDEX_MASK;
-    // リクエストのビット 16..19: 扇の何発目か（Swarm::kMotionFanShift。下でサイズ倍率に置き換わる）
-    uint fanIndex = (req.motion >> 16u) & 0xFu;
-    // 連鎖のルーン: リクエストの pathT に、この弾があと何体の敵へ跳べるかが入っている
-    uint chains = (uint) clamp(req.pathT, 0.0, (float) SWARM_PROJ_CHAIN_LEFT_MASK);
-    req.pathT = 0.0;
+    uint fanIndex = extra.fanIndex;   // 扇の何発目か
+    uint chains = extra.chains;       // 連鎖のルーン: この弾があと何体の敵へ跳べるか
 
     SwarmMotion m = motions[motionIdx];
     // 貫通（黄金の矢）: あと何体の敵を貫けるか。連鎖の跳躍もある場合は
     // 貫通数を跳躍数に足し、弾は跳ぶ（連鎖の挙動）
-    uint pierce = SwarmMotionPierce(m);
+    uint pierce = m.pierce;
     // 溜め: 飛ぶ前にこの時間だけ詠唱者の前で止まる（pathT < 0 = 残り秒）。
     // 溜める弾は体の中ではなく、狙いの方向へ SWARM_HOLD_FORWARD m 先に生まれる
-    float hold = SwarmMotionHold(m);
+    float hold = m.holdTime;
     req.pathT = -hold;
     if (hold > 0.0)
     {
@@ -170,7 +164,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     SwarmProjPath path = (SwarmProjPath) 0;
     path.target = SWARM_NO_TARGET;
-    path.sideSign = sideSign;
+    path.sideAngle = sideAngle;
     path.speed = speed;
     path.duration = 1.0;
 
@@ -183,7 +177,7 @@ void main(uint3 id : SV_DispatchThreadID)
         float3 impact = float3(req.position.x, g_PlayerPos.y, req.position.z) + fwd * 8.0;
         // 開始点: 上へ、そして杖先の側へ戻す（プレイヤーの肩越しに飛んでくる）
         float3 backFrom = req.position;
-        if ((extra.y & SWARM_SPAWN_AT_POS) != 0u)
+        if ((extra.flags & SWARM_SPAWN_AT_POS) != 0u)
         {
             // 連鎖: 着弾点は CPU が決めてある
             impact = req.position;
@@ -191,7 +185,7 @@ void main(uint3 id : SV_DispatchThreadID)
         }
         else
         {
-            uint key = counters.Load(SWARM_CNT_NEAREST_KEY);
+            uint key = counters.Load(SWARM_CNT_AIM_KEY);
             if (key != SWARM_NO_TARGET_KEY)
             {
                 uint slot = key & SWARM_SLOT_MASK;
@@ -209,7 +203,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (m.mode == SWARM_MOTION_LOB)
         {
             // 杖先から投げる（CPU が場所を決めたときはプレイヤーから）
-            float3 from = ((extra.y & SWARM_SPAWN_AT_POS) != 0u) ? g_PlayerPos : req.position;
+            float3 from = ((extra.flags & SWARM_SPAWN_AT_POS) != 0u) ? g_PlayerPos : req.position;
             SwarmBuildPath(path, m, from, impact, fwd, false);
             float3 tan0 = SwarmBezierTangent(path, 0.0);
             float tanLenSq = dot(tan0, tan0);
@@ -234,7 +228,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     else if (m.mode != SWARM_MOTION_STRAIGHT && m.mode != SWARM_MOTION_ORBIT && speed > 0.01)
     {
-        uint key = counters.Load(SWARM_CNT_NEAREST_KEY);
+        uint key = counters.Load(SWARM_CNT_AIM_KEY);
         if (key != SWARM_NO_TARGET_KEY)
         {
             uint slot = key & SWARM_SLOT_MASK;
@@ -250,11 +244,11 @@ void main(uint3 id : SV_DispatchThreadID)
                 // 回す。それでも当たるなら水平な横向きに戻す
                 if (PathHitsGround(path))
                 {
-                    path.sideSign += 3.14159265;
+                    path.sideAngle += PI;
                     SwarmBuildPath(path, m, req.position, enemies[slot].position, req.velocity / speed, false);
                     if (PathHitsGround(path))
                     {
-                        path.sideSign = 0.0;
+                        path.sideAngle = 0.0;
                         SwarmBuildPath(path, m, req.position, enemies[slot].position, req.velocity / speed, false);
                     }
                 }
@@ -284,15 +278,17 @@ void main(uint3 id : SV_DispatchThreadID)
             // スロットを確保した。状態は交換でもう ALIVE になっている
             projectiles[slot] = req;
             paths[slot] = path;
-            projTags[slot] = extra.x;
-            projBoost[slot] = extra.y >> SWARM_SPAWN_BOOST_SHIFT;
+            projTags[slot] = extra.tag;
+            projBoost[slot] = extra.boost;
             trailState[slot] = 0u;   // 新しいリボン（古い弾の点は捨てる）
             trailAge[slot] = 0.0;
-            // 連鎖のルーン: 「生きていて連鎖中」の状態（HitCS / ProjMoveCS が読む。他からは「DEAD ではない」に見える）
+            // 連鎖のルーン / 貫通（HitCS / ProjMoveCS が読む）。どちらも無い弾は 0
             if (chains > 0u)
-                projStates[slot] = SwarmProjChainState(chains + pierce, SWARM_PROJ_CHAIN_NO_LAST);
+                projChain[slot] = SwarmMakeProjChain(SWARM_CHAIN_ACTIVE, min(chains + pierce, SWARM_CHAIN_MAX_LEFT), SWARM_NO_TARGET);
             else if (pierce > 0u)
-                projStates[slot] = SwarmProjChainState(pierce, SWARM_PROJ_CHAIN_NO_LAST) | SWARM_PROJ_PIERCE;
+                projChain[slot] = SwarmMakeProjChain(SWARM_CHAIN_ACTIVE | SWARM_CHAIN_PIERCE, pierce, SWARM_NO_TARGET);
+            else
+                projChain[slot] = SwarmMakeProjChain(0u, 0u, SWARM_NO_TARGET);
             return;
         }
     }

@@ -119,7 +119,7 @@ void CollisionTestScene::UpdateBossDrama(float dt, const BossAttacks::Input& in,
             a.damage = kWaveDamage;
             a.tickInterval = 1.0f;        // 出た最初のステップで 1 回だけ
             a.timeLeft = 0.05f;
-            a.tickNow = (uint32_t)Swarm::DamageElement::Light << Swarm::kAreaExtraElementShift;   // 数字は光（金）の色
+            a.extra = (uint32_t)Swarm::DamageElement::Light << Swarm::kAreaExtraElementShift;   // 数字は光（金）の色
             m_Swarm.SpawnArea(a);
             m_Grass.AddGust(m_DefeatPos, m_DefeatWaveR);
             m_Debris.AddGust(m_DefeatPos, m_DefeatWaveR);

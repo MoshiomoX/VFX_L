@@ -22,7 +22,9 @@ struct WindSource
     float fade;      // 0..1（出現 / 消滅）
     float2 pushDir;  // 単位 xz: 空気をこの向きに吹き流す（突風）。0 = 無し
     float push;      // 中心での m/s
-    float _pad;
+    // 1 = プレイヤー自身の突風。CPU の風源は GPU を素通りして CPU に戻る（マントが自分の突風を無視するのに使う）。
+    // GPU が作る風源は 0
+    float self;
 };
 
 // 地面上の点 xz（y = 0 平面）での全風源の風速。lift = 一番強い影響 0..1

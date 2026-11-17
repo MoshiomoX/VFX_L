@@ -23,22 +23,21 @@
 // 当たるたびに、どこから来たかも playerHits（u6）に記録し、
 // CPU がプレイヤーをノックバックできるようにする（殴りは少し、爆発は約 3 倍 + 跳ね上げ）。
 //
-// 凍った敵（enemySlow.z > 0、アイスランス）は当たらず、導火線にも火が付かない。
+// 凍った敵（enemyStatus.z > 0、アイスランス）は当たらず、導火線にも火が付かない。
 // ダッシュ中の突撃兵は g_ChargerDashDamageMul 倍強く当たり、爆発のように
 // プレイヤーをノックバックする。
 //
-// 生きている敵の Enemy.attackCooldown を書くのはここだけ（HitCS /
-// AreaDamageCS の撃破側は、死んだスロットのそれに撃破の属性を残す。SwarmKillElementMark）。
+// Enemy.attackCooldown を書くのはここだけ。
 // 普通の自爆兵の SwarmEnemyExtra.fuse と、突撃爆弾兵が爆発した時のそれ（0 に戻す）も
 // ここだけが書く。他の種類の fuse は AICS のもの。
 // ============================================================
 #define SWARM_AREA_POOL_U u4
 #define SWARM_AREA_STATE_U u5
 #define SWARM_AREA_DEF_T t0
-#define SWARM_BOMBER_CB_REG b3
+#define SWARM_KIND_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
-StructuredBuffer<float4> enemySlow : register(t1); // z > 0 = 凍結中
+StructuredBuffer<float4> enemyStatus : register(t1); // z > 0 = 凍結中
 
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer counters : register(u1);
@@ -50,6 +49,15 @@ RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // クリアしない：CPU がカウンタと同じく差分を取る
 RWByteAddressBuffer playerHits : register(u6);
 static const float HIT_DIR_SCALE = 1000.0; // = Swarm::kHitDirScale
+// playerHits の記録の先頭（Swarm::PlayerHitInfo の meleeX / blastX / spikeX / windX のオフセットと一致させること）
+#define SWARM_PLAYERHIT_MELEE 0u
+#define SWARM_PLAYERHIT_BLAST 12u
+#define SWARM_PLAYERHIT_SPIKE 24u
+#define SWARM_PLAYERHIT_WIND 36u
+// 記録の中：x の和、z の和、回数
+#define SWARM_PLAYERHIT_X 0u
+#define SWARM_PLAYERHIT_Z 4u
+#define SWARM_PLAYERHIT_COUNT 8u
 
 // `from` から来た攻撃 1 回を、バイトオフセット `base` の記録に足す
 void RecordHit(uint base, float3 from)
@@ -58,9 +66,9 @@ void RecordHit(uint base, float3 from)
     float len = length(d);
     d = (len > 1e-4) ? d / len : float2(0.0, 0.0);
     uint prev;
-    playerHits.InterlockedAdd(base + 0u, asuint((int) round(d.x * HIT_DIR_SCALE)), prev);
-    playerHits.InterlockedAdd(base + 4u, asuint((int) round(d.y * HIT_DIR_SCALE)), prev);
-    playerHits.InterlockedAdd(base + 8u, 1u, prev);
+    playerHits.InterlockedAdd(base + SWARM_PLAYERHIT_X, asuint((int) round(d.x * HIT_DIR_SCALE)), prev);
+    playerHits.InterlockedAdd(base + SWARM_PLAYERHIT_Z, asuint((int) round(d.y * HIT_DIR_SCALE)), prev);
+    playerHits.InterlockedAdd(base + SWARM_PLAYERHIT_COUNT, 1u, prev);
 }
 
 // AI パスは敵を (enemyRadius + playerRadius) のすぐ「外」で止めるので、
@@ -95,7 +103,7 @@ void Explode(uint i, float3 pos, float radius, float dmg, float scale)
     {
         uint prev;
         counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE, SwarmHpToFixed(dmg), prev);
-        RecordHit(12u, pos);   // 爆発：自爆兵から
+        RecordHit(SWARM_PLAYERHIT_BLAST, pos);   // 爆発：自爆兵から
     }
     enemyStates[i] = SWARM_DEAD;
     enemyExtra[i].fuse = 0.0;
@@ -152,7 +160,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmEnemyExtra extra = enemyExtra[i];
-    bool frozen = enemySlow[i].z > 0.0;
+    bool frozen = enemyStatus[i].z > 0.0;
     if (extra.kind == SWARM_KIND_BOMBER)
     {
         // 凍結中：火が付いた導火線は燃え続ける（爆弾なので）。未点火のものは触れても火が付かない
@@ -190,7 +198,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind);
                 uint prev;
                 counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE, SwarmHpToFixed(dmg), prev);
-                RecordHit(0u, enemies[i].position);   // 殴りと同じ大きさのノックバック
+                RecordHit(SWARM_PLAYERHIT_MELEE, enemies[i].position);   // 殴りと同じ大きさのノックバック
                 enemies[i].attackCooldown = g_AttackInterval;   // VS はこれを見て攻撃の振りを再生する
             }
         }
@@ -239,7 +247,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 float dmg = g_ContactDamage * SwarmKindDamageMul(extra.kind);
                 uint prev;
                 counters.InterlockedAdd(SWARM_CNT_PLAYER_DAMAGE, SwarmHpToFixed(dmg), prev);
-                RecordHit(36u, enemies[i].position);
+                RecordHit(SWARM_PLAYERHIT_WIND, enemies[i].position);
                 cd = g_AttackInterval;
             }
         }
@@ -269,7 +277,8 @@ void main(uint3 id : SV_DispatchThreadID)
             // 殴り：この敵から。突撃兵のダッシュは爆発のようにノックバックし、トゲ玉は
             // プレイヤーを弾き飛ばす（専用のスロット 24：CPU がより遠く高く飛ばす）。
             // 最終ウェーブの幽霊 2 種も爆発のように当たる
-            uint slotBase = (extra.kind == SWARM_KIND_SPIKEBALL) ? 24u : ((dash || SwarmIsGhost(extra.kind)) ? 12u : 0u);
+            uint slotBase = (extra.kind == SWARM_KIND_SPIKEBALL) ? SWARM_PLAYERHIT_SPIKE
+                          : ((dash || SwarmIsGhost(extra.kind)) ? SWARM_PLAYERHIT_BLAST : SWARM_PLAYERHIT_MELEE);
             RecordHit(slotBase, enemies[i].position);
             cd = g_AttackInterval;
         }

@@ -3,7 +3,7 @@
 // 連鎖のルーン
 // 上下 2 マスの魔法の弾が、敵に当たっても消えずに近くの別の敵へ跳ぶ（最大 2 回）。
 // そのかわり 1 発の威力は下がる。GPU 側: SwarmHitCS が当たった弾を生かしたまま
-// projStates に「連鎖中」を書き、SwarmProjMoveCS が次の敵へ曲線を組み直す（SwarmCommon.hlsli の SWARM_PROJ_CHAIN*）。
+// projChain に「連鎖中」を書き、SwarmProjMoveCS が次の敵へ曲線を組み直す（SwarmProjectileTypes.hlsli の SwarmProjChain）。
 // Drop / Lob 型（メテオ・毒）と範囲魔法には効かない。
 // 例外 = アークボルト：溜め 0 の光線型（AreaStats::chainCount）は
 // 届いた敵から近くの別の敵へ稲妻をもう一本走らせる（WeaponSystem::UpdateBeams の連鎖、跳ぶ先は SwarmBeamTargetCS の cmd 3）。

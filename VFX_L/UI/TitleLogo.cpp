@@ -210,7 +210,7 @@ void TitleLogo::Update(float dt, const Vector2& origin, const Vector2& mouse, co
         {
             t.hold -= dt;
             t.vel *= std::exp(-s.drag * dt);
-            const float ph = m_Time * 3.0f + t.seed * 6.2831853f;   // 少し揺らぐ（ばらばらに漂う）
+            const float ph = m_Time * 3.0f + t.seed * DirectX::XM_2PI;   // 少し揺らぐ（ばらばらに漂う）
             t.vel += Vector2(std::sin(ph), std::cos(ph * 1.3f)) * (40.0f * k * dt);
             t.off += t.vel * dt;
         }

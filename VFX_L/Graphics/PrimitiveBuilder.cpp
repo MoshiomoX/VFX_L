@@ -9,7 +9,6 @@ using namespace DirectX::SimpleMath;
 
 namespace
 {
-    const float PI = 3.14159265358979f;
 
     VERTEX_3D MakeVertex(const Vector3& pos, const Vector3& normal,
         const Vector2& uv, const Vector4& color)
@@ -367,13 +366,13 @@ namespace PrimitiveBuilder
 
         for (int i = 0; i <= stacks; ++i)
         {
-            float phi = PI * i / stacks;      // 0（上）〜π（下）
+            float phi = DirectX::XM_PI * i / stacks;      // 0（上）〜π（下）
             float y = std::cos(phi);
             float r = std::sin(phi);
 
             for (int j = 0; j <= slices; ++j)
             {
-                float theta = 2.0f * PI * j / slices;
+                float theta = DirectX::XM_2PI * j / slices;
                 Vector3 n(r * std::cos(theta), y, r * std::sin(theta));
                 verts.push_back(MakeVertex(n * radius, n,
                     { (float)j / slices, (float)i / stacks }, color));
@@ -420,7 +419,7 @@ namespace PrimitiveBuilder
             {
                 for (int j = 0; j <= slices; ++j)
                 {
-                    float theta = 2.0f * PI * j / slices;
+                    float theta = DirectX::XM_2PI * j / slices;
                     float cx = std::cos(theta);
                     float cz = std::sin(theta);
                     Vector3 pos(cx * ringR, y, cz * ringR);
@@ -436,7 +435,7 @@ namespace PrimitiveBuilder
         // 法線 = 球面の法線そのもの (sinφ·cx, cosφ, sinφ·cz)
         for (int i = 0; i <= halfStacks; ++i)
         {
-            float phi = (PI * 0.5f) * i / halfStacks;
+            float phi = (DirectX::XM_PI * 0.5f) * i / halfStacks;
             float y = halfH + std::cos(phi) * radius;
             float r = std::sin(phi) * radius;
             addRing(y, r, Vector3(std::sin(phi), std::cos(phi), std::sin(phi)),
@@ -452,7 +451,7 @@ namespace PrimitiveBuilder
         // ここは r = cosφ·radius なので水平成分は cosφ、竪直成分は -sinφ
         for (int i = 1; i <= halfStacks; ++i)
         {
-            float phi = (PI * 0.5f) * i / halfStacks;
+            float phi = (DirectX::XM_PI * 0.5f) * i / halfStacks;
             float y = -halfH - std::sin(phi) * radius;
             float r = std::cos(phi) * radius;
             addRing(y, r, Vector3(std::cos(phi), -std::sin(phi), std::cos(phi)),
@@ -514,8 +513,8 @@ namespace PrimitiveBuilder
         const Vector3 down(0.0f, -bottom, 0.0f);
         for (int i = 0; i < sides; ++i)
         {
-            const float a0 = 2.0f * PI * i / sides;
-            const float a1 = 2.0f * PI * (i + 1) / sides;
+            const float a0 = DirectX::XM_2PI * i / sides;
+            const float a1 = DirectX::XM_2PI * (i + 1) / sides;
             const Vector3 e0(std::cos(a0) * radius, 0.0f, std::sin(a0) * radius);
             const Vector3 e1(std::cos(a1) * radius, 0.0f, std::sin(a1) * radius);
             addFace(up, e0, e1);
@@ -569,7 +568,7 @@ namespace PrimitiveBuilder
             fade = fade * fade * (3.0f - 2.0f * fade);
             for (int j = 0; j <= segments; ++j)
             {
-                const float theta = 2.0f * PI * j / segments;
+                const float theta = DirectX::XM_2PI * j / segments;
                 const float cs = std::cos(theta), sn = std::sin(theta);
                 Vector3 n(cs, -dr, sn);
                 n.Normalize();
@@ -606,11 +605,11 @@ namespace PrimitiveBuilder
         const int stacks = 7, slices = 14;
         for (int i = 0; i <= stacks; ++i)
         {
-            const float phi = PI * i / stacks;
+            const float phi = DirectX::XM_PI * i / stacks;
             const float y = std::cos(phi), r = std::sin(phi);
             for (int j = 0; j <= slices; ++j)
             {
-                const float theta = 2.0f * PI * j / slices;
+                const float theta = DirectX::XM_2PI * j / slices;
                 const Vector3 n(r * std::cos(theta), y, r * std::sin(theta));
                 verts.push_back(MakeVertex(n * radius, n, { (float)j / slices, (float)i / stacks }, bodyColor));
             }

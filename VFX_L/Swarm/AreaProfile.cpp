@@ -45,14 +45,6 @@ uint32_t AreaProfile::Flags(bool atCaster) const
     f |= q << Swarm::kAreaSlowShift;
     const uint32_t fq = (uint32_t)std::lround(std::clamp(freeze, 0.0f, 15.0f * Swarm::kAreaFreezeStep) / Swarm::kAreaFreezeStep);
     f |= fq << Swarm::kAreaFreezeShift;
-    // 吹き飛ばし：光線チャンネルの 4 bit を借りる（光線でない範囲ではそこは空いている。SwarmAreaPush）。
-    // 引き寄せも同じ 4 bit（向きは Extra の kAreaExtraPull で区別する）
-    if (!IsBeam())
-    {
-        const float s = (push > 0.0f) ? push : pull;
-        const uint32_t pq = (uint32_t)std::lround(std::clamp(s, 0.0f, 1.0f) * 15.0f);
-        f |= pq << Swarm::kAreaBeamShift;
-    }
     return f;
 }
 
@@ -62,9 +54,30 @@ uint32_t AreaProfile::Extra() const
     const uint32_t tq = (uint32_t)std::lround(std::clamp(toxin, 0.0f, 1.0f) * 15.0f);
     e |= tq << Swarm::kAreaExtraToxinShift;
     if (splashOnly) e |= Swarm::kAreaExtraSplashOnly;
-    if (pull > 0.0f && push <= 0.0f && !IsBeam()) e |= Swarm::kAreaExtraPull;   // 吹き飛ばしの 4 bit を中心へ引く強さとして読ませる
     e |= (uint32_t)std::clamp(element, 0, 15) << Swarm::kAreaExtraElementShift;   // 属性（数字の色）
     return e;
+}
+
+namespace
+{
+    uint32_t QuantizeForce(float s)
+    {
+        return (uint32_t)std::lround(std::clamp(s, 0.0f, 1.0f) * (float)Swarm::kAreaForceMaxQ);
+    }
+}
+
+// 吹き飛ばし（突風）。光線は押さない。push と pull が両方あれば押しが優先
+uint32_t AreaProfile::PushQ() const
+{
+    if (IsBeam() || push <= 0.0f) return 0;
+    return QuantizeForce(push);
+}
+
+// 中心への引き寄せ（渦）。押しがある範囲・光線では引かない
+uint32_t AreaProfile::PullQ() const
+{
+    if (IsBeam() || push > 0.0f || pull <= 0.0f) return 0;
+    return QuantizeForce(pull);
 }
 
 Swarm::Area AreaProfile::MakeArea(const Vector3& center, bool atCaster) const
@@ -79,7 +92,9 @@ Swarm::Area AreaProfile::MakeArea(const Vector3& center, bool atCaster) const
     a.halfHeight = halfHeight;
     a.flags = Flags(atCaster);
     a.vfxType = 0;   // CPU から出す範囲の見た目は CPU が再生する
-    a.tickNow = Extra();   // 上位 = 追加値（SpawnAreaCS が下位の tick 状態だけ 0 にする）
+    a.extra = Extra();
+    a.pushQ = PushQ();
+    a.pullQ = PullQ();
     return a;
 }
 
@@ -303,7 +318,9 @@ std::vector<Swarm::AreaDef> AreaProfileDB::BuildDefs(const SwarmVFXTable& vfxTab
         d.tickInterval = p.EffectiveTickInterval();
         d.flags = p.Flags(false);   // 命中で出る範囲はプレイヤーに付いて動かない
         d.vfxType = vfxTable.IndexOf(FindVFXId(p.vfxFile));
-        d.extra = p.Extra();        // 毒素の割合・飛沫だけ（GPU が出す範囲の tickNow の上位へ）
+        d.extra = p.Extra();
+        d.pushQ = p.PushQ();
+        d.pullQ = p.PullQ();
         out.push_back(d);
     }
     return out;

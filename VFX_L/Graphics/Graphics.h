@@ -36,6 +36,8 @@ public:
 
 
     bool Initialize(HWND hWnd, int width, int height);
+    // 起動できない理由をもう MessageBox で利用者に伝えた（main は追加の表示や入力待ちをせずに終わる）
+    static bool StartupMessageShown() { return s_StartupMessageShown; }
     void BeginFrame();
     void BeginUI();
     void EndFrame();
@@ -104,6 +106,8 @@ private:
     bool LoadPostShaders();
     bool CreateSwapChain(HWND hWnd, int width, int height);
     void WaitForFrameCap();
+
+    static inline bool s_StartupMessageShown = false;
 
     Bloom m_Bloom;
     ComPtr<ID3D11Device> m_Device;

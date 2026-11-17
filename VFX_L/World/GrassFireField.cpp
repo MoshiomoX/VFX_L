@@ -261,11 +261,11 @@ ID3D11ShaderResourceView* GrassFireField::GetSRV() const
     return Active() ? m_SRV[m_Cur].Get() : nullptr;
 }
 
-bool GrassFireField::FillEmitInput(GrassFireEmitInput& out, const Vector3& camPos,
+bool GrassFireField::FillEmitInput(GroundEmitInput& out, const Vector3& camPos,
     ID3D11ShaderResourceView* ground, ID3D11ShaderResourceView* height) const
 {
     if (!Active() || m_FireVfx == 0 || !ground || !height || m_Settings.emitRate <= 0.0f) return false;
-    out.fire = m_SRV[m_Cur].Get();
+    out.stateMap = m_SRV[m_Cur].Get();
     out.ground = ground;
     out.height = height;
     out.mapOrigin = m_MapOrigin;
@@ -276,7 +276,7 @@ bool GrassFireField::FillEmitInput(GrassFireEmitInput& out, const Vector3& camPo
     out.rateMul = m_Settings.emitRate;
     out.vfx = m_FireVfx;
     out.heightOffset = 0.05f;
-    out.fireSize = kSize;
+    out.stateMapSize = kSize;
     return true;
 }
 

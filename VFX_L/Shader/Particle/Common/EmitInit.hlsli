@@ -60,7 +60,7 @@ void EmitShape(GPUEmitter e, inout uint s, inout float3 pos, inout float3 vel)
     }
 }
 
-// パーティクルの初期化: ParticleEmitCS と同じ。ownerID 0 = 持ち主なし
+// パーティクルの初期化: ParticleEmitCS と同じ
 GPUParticle InitParticleFromEmitter(GPUEmitter e, uint s, float3 pos, float3 vel)
 {
     GPUParticle q = (GPUParticle) 0;
@@ -96,7 +96,6 @@ GPUParticle InitParticleFromEmitter(GPUEmitter e, uint s, float3 pos, float3 vel
                       e.atlasRows, e.atlasCols, s, q.uvFrame, q.atlasAnimate);
     q.colorKeyOffset = e.colorKeyoffset; // 静的な領域、オフセットは 0 始まり
     q.colorKeyCount = e.colorKeyCount;
-    q.ownerID = 0;
     return q;
 }
 

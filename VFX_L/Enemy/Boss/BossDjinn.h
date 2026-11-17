@@ -82,7 +82,7 @@ struct DjinnDevil
 // シーンへの出力（BossAttacks::Output::djinn）
 struct DjinnOutput
 {
-    // GPU の Boss へ（毎フレーム。BomberCB::bossHover / bossKeepMin / bossKeepMax / bossFly）
+    // GPU の Boss へ（毎フレーム。KindCB::bossHover / bossKeepMin / bossKeepMax / bossFly）
     float hover = 0.0f;
     float keepMin = 0.0f, keepMax = 0.0f;
     bool  fly = false;

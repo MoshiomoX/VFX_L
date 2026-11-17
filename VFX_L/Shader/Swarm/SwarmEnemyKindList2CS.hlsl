@@ -61,13 +61,13 @@ void main(uint3 id : SV_DispatchThreadID)
         else
             eliteBList.Append(i);
         uint n;
-        eliteInfo.InterlockedAdd(0, 1u, n);
+        eliteInfo.InterlockedAdd(SWARM_ELITEINFO_COUNT, 1u, n);
         if (n < ELITE_INFO_MAX)
         {
-            uint at = 16u + n * 32u;
+            uint at = SWARM_ELITEINFO_FIRST + n * SWARM_ELITEINFO_STRIDE;
             SwarmEnemy e = enemies[i];
             eliteInfo.Store4(at, uint4(i, kind, e.hp, enemyMaxHp[i]));
-            eliteInfo.Store4(at + 16u, uint4(asuint(e.position), asuint(enemyExtra[i].fuse)));
+            eliteInfo.Store4(at + SWARM_ELITEINFO_POS, uint4(asuint(e.position), asuint(enemyExtra[i].fuse)));
         }
     }
 }

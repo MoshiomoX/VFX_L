@@ -47,7 +47,7 @@ void SpawnDirector::Update(const GridWorld& grid,
         {
             const bool inArc = (arcHalf < 3.14f) && attempt < 6;
             const float ang = inArc ? arcYaw + ((float)rand() / RAND_MAX * 2.0f - 1.0f) * arcHalf
-                                    : (float)rand() / RAND_MAX * 6.2831853f;
+                                    : (float)rand() / RAND_MAX * DirectX::XM_2PI;
             const float r = rMin + (rMax - rMin) * ((float)rand() / RAND_MAX);
 
             Vector3 pos = playerPos + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);

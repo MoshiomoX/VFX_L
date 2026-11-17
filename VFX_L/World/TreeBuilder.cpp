@@ -7,7 +7,6 @@ using DirectX::SimpleMath::Vector3;
 
 namespace
 {
-    constexpr float kPi = 3.14159265f;
 
     struct Rng
     {
@@ -19,7 +18,7 @@ namespace
         int I(int a, int b) { return a + (int)(F() * (float)(b - a + 1) * 0.9999f); }   // a..b
         Vector3 Dir()   // 単位球面上
         {
-            const float z = R(-1.0f, 1.0f), a = R(0.0f, 2.0f * kPi), r = std::sqrt((std::max)(0.0f, 1.0f - z * z));
+            const float z = R(-1.0f, 1.0f), a = R(0.0f, DirectX::XM_2PI), r = std::sqrt((std::max)(0.0f, 1.0f - z * z));
             return { r * std::cos(a), z, r * std::sin(a) };
         }
     };
@@ -34,7 +33,7 @@ namespace
     // 方位角（ラジアン）と水平からの仰角（度）から向き
     Vector3 AzEl(float az, float elDeg)
     {
-        const float el = elDeg * kPi / 180.0f;
+        const float el = elDeg * DirectX::XM_PI / 180.0f;
         return { std::cos(az) * std::cos(el), std::sin(el), std::sin(az) * std::cos(el) };
     }
 
@@ -110,7 +109,7 @@ namespace
             const float parentLen = branches[(size_t)parent].length;
             const float parentPhase = branches[(size_t)parent].phase;
             const int level = branches[(size_t)parent].level + 1;
-            const float twist0 = rng.R(0.0f, 2.0f * kPi);
+            const float twist0 = rng.R(0.0f, DirectX::XM_2PI);
             for (int c = 0; c < count; ++c)
             {
                 const float s = s0 + (s1 - s0) * (((float)c + rng.R(0.2f, 0.8f)) / (float)count);
@@ -147,19 +146,19 @@ namespace
 
         void Broadleaf(bool bare)
         {
-            const float yaw = p.yawDeg * kPi / 180.0f;
+            const float yaw = p.yawDeg * DirectX::XM_PI / 180.0f;
             const float r0 = std::clamp(H * 0.034f, 0.06f, 0.4f);
             const float trunkLen = H * (bare ? rng.R(0.32f, 0.42f) : rng.R(0.26f, 0.34f));
             const Vector3 trunkDir(rng.R(-0.1f, 0.1f), 1.0f, rng.R(-0.1f, 0.1f));
             const int trunk = Grow(p.root - Vector3(0.0f, 0.15f, 0.0f), trunkDir, trunkLen + 0.15f, 5,
-                r0 * 1.2f, r0 * 0.72f, 0.02f, bare ? 0.09f : 0.05f, 0, 0.0f, 0.04f, rng.R(0.0f, 2.0f * kPi));
+                r0 * 1.2f, r0 * 0.72f, 0.02f, bare ? 0.09f : 0.05f, 0, 0.0f, 0.04f, rng.R(0.0f, DirectX::XM_2PI));
 
             std::vector<int> limbs;
             {
                 Vector3 pos, dir; float rad, w;
                 Sample(trunk, 1.0f, pos, dir, rad, w);
                 limbs.push_back(Grow(pos, dir + Vector3(0, 0.6f, 0), H * rng.R(0.32f, 0.4f), 4, rad, rad * 0.2f,
-                    0.02f, 0.08f, 1, w, 0.28f, rng.R(0.0f, 2.0f * kPi)));
+                    0.02f, 0.08f, 1, w, 0.28f, rng.R(0.0f, DirectX::XM_2PI)));
             }
             const int nLimb = rng.I(5, 7);
             for (int i = 0; i < nLimb; ++i)
@@ -172,7 +171,7 @@ namespace
                 const Vector3 d = AzEl(az, rng.R(18.0f, 36.0f) + 18.0f * u);
                 const float len = H * rng.R(0.38f, 0.5f) * (1.1f - 0.35f * u);
                 limbs.push_back(Grow(pos, d, len, 4, rad * 0.62f, rad * 0.12f, 0.07f, bare ? 0.16f : 0.1f,
-                    1, w, 0.3f, rng.R(0.0f, 2.0f * kPi)));
+                    1, w, 0.3f, rng.R(0.0f, DirectX::XM_2PI)));
             }
 
             std::vector<int> twigs;
@@ -197,7 +196,7 @@ namespace
 
         void Shrub()
         {
-            const float yaw = p.yawDeg * kPi / 180.0f;
+            const float yaw = p.yawDeg * DirectX::XM_PI / 180.0f;
             const int n = rng.I(6, 9);
             std::vector<int> stems;
             for (int i = 0; i < n; ++i)
@@ -207,7 +206,7 @@ namespace
                 const Vector3 d = AzEl(az, rng.R(45.0f, 78.0f));
                 const float r = std::clamp(H * 0.025f, 0.012f, 0.05f);
                 stems.push_back(Grow(base, d, H * rng.R(0.75f, 1.05f), 4, r, r * 0.3f, 0.03f, 0.12f,
-                    1, 0.0f, 0.55f, rng.R(0.0f, 2.0f * kPi)));
+                    1, 0.0f, 0.55f, rng.R(0.0f, DirectX::XM_2PI)));
             }
             std::vector<int> all = stems;
             for (int si : stems)
@@ -266,7 +265,7 @@ TreeBuilder::Result TreeBuilder::Build(const Params& p, std::vector<Vertex>& ver
             if (k == n - 1) rad *= 0.5f;
             for (int j = 0; j < sides; ++j)
             {
-                const float a = 2.0f * kPi * (float)j / (float)sides;
+                const float a = DirectX::XM_2PI * (float)j / (float)sides;
                 const Vector3 nrm = nRef * std::cos(a) + bRef * std::sin(a);
                 Vertex v{};
                 v.pos = br.pts[(size_t)k] + nrm * rad;

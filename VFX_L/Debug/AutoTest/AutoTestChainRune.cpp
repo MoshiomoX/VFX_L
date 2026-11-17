@@ -34,7 +34,7 @@ void AutoTestChainRune::SpawnTargets()
 {
     m_Swarm.KillAll();
     const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     // 群れ: 前方 10〜13.5m、横 ±2.5m。連鎖の届く範囲（8m）に全員入る
     static const float kOff[5][2] = { { 0.0f, 10.0f }, { 2.5f, 10.5f }, { -2.5f, 11.0f }, { 1.5f, 13.0f }, { -1.5f, 13.5f } };
     for (const auto& o : kOff)

@@ -50,7 +50,7 @@ void CollisionTestScene::DrawSwarmPanel()
         const auto& c = m_Swarm.GetCounters();
 
         ImGui::Text("nearest  : dist %.2f  pos %.1f %.1f %.1f  key %08X",
-            c.nearestDist, c.nearestPos[0], c.nearestPos[1], c.nearestPos[2], c.nearestKey);
+            c.aimDist, c.aimPos[0], c.aimPos[1], c.aimPos[2], c.aimKey);
         const auto& aim = m_WeaponSystem.GetAimDebug();
         ImGui::Text("aim      : %s  %s  range %.1f",
             aim.hasTarget ? "TARGET" : "none", aim.targetIsGpu ? "gpu" : "cpu", aim.range);
@@ -236,7 +236,7 @@ void CollisionTestScene::DrawSwarmPanel()
             if (ImGui::Button("Cast at Nearest Enemy"))
             {
                 Vector3 np, nv; float nd;
-                if (m_Swarm.GetNearestEnemy(np, nv, nd)) castAt(np, false);
+                if (m_Swarm.GetAimTarget(np, nv, nd)) castAt(np, false);
             }
             ImGui::SameLine();
             if (ImGui::Button("Cast at Player") && hasPlayer)
@@ -256,7 +256,7 @@ void CollisionTestScene::DrawSwarmPanel()
                     + Vector3(0.0f, 1.0f, 0.0f);
                 for (int i = 0; i < 100; ++i)
                 {
-                    const float a = 6.2831853f * (float)i / 100.0f;
+                    const float a = DirectX::XM_2PI * (float)i / 100.0f;
                     Vector3 dir(std::cos(a), 0.0f, std::sin(a));
                     m_Swarm.SpawnProjectile(VFXId::Fireball, pp, dir * 20.0f, 10.0f, 0.25f, 3.0f);
                 }
@@ -332,7 +332,7 @@ void CollisionTestScene::DrawTerrainPanel()
             m_Swarm.RequestFlowRebuild();
         ImGui::SetItemTooltip("0 = whole map. Enemies farther than this (path length) chase in a straight line");
         // 雑魚が壁を登る：登る速さ（0 = 登らない）と、流れ場で 1m 登るのを何マス分の回り道とみなすか
-        ImGui::DragFloat("Mob Climb Speed", &m_Swarm.GetBomberParams().climbSpeed, 0.05f, 0.0f, 10.0f, "%.2f m/s");
+        ImGui::DragFloat("Mob Climb Speed", &m_Swarm.GetKindParams().climbSpeed, 0.05f, 0.0f, 10.0f, "%.2f m/s");
         if (ImGui::DragFloat("Climb Cost (cells / m)", &m_Swarm.GetFlowField().climbCostPerMeter, 0.05f, 0.0f, 10.0f))
             m_Swarm.RequestFlowRebuild();
         if (ImGui::Checkbox("Flow Allows Climbing", &m_Swarm.GetFlowField().allowClimb))

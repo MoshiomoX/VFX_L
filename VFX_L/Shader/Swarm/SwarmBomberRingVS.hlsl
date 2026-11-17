@@ -10,7 +10,7 @@
 // 死んだ）自爆兵はニアプレーンの後ろへ潰すので、導火線の最中に
 // 倒された瞬間に円が消える。
 //
-// 四角は自爆兵の足の高さ（position.y - groundY
+// 四角は自爆兵の足の高さ（position.y - centerAboveFeet
 // = 地形の高さ、SwarmEnemyMoveCS を参照）+ g_RingLift に平らに置く。坂の上では
 // 一部が斜面の下に沈むことがある。
 //
@@ -18,25 +18,15 @@
 // 同じ円を自分の半径（g_DashBomberBlastRadius）と
 // 導火線（g_DashBomberWindup + g_DashBomberFuse）で出す。走るので円も足元で一緒に走る。
 //
-// cbuffer の C++ 側: SwarmSystem::BomberRingCB
+// cbuffer は SwarmGroundMarkCB.hlsli（C++ 側: SwarmSystem::GroundMarkCB）
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b4
+#define SWARM_KIND_CB_REG b4
 #include "../Common/SwarmCommon.hlsli"
 
-cbuffer SwarmBomberRingCB : register(b0)
-{
-    row_major float4x4 g_RingView;
-    row_major float4x4 g_RingProj;
-    float4 g_RingFill;  // 大きくなる円盤（ストレートアルファ）
-    float4 g_RingEdge;  // 縁
-    float4 g_RingBack;  // 縁の内側でまだ塗られていない所
-    float g_RingEdgeWidth; // 縁の太さ、メートル
-    float g_RingLift;      // 地面からのメートル
-    float2 _ringPad;
-};
+#include "SwarmGroundMarkCB.hlsli"
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
@@ -77,7 +67,7 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float3 p = enemies[slot].position;
     float2 c = kCorner[vid];
     float3 world = float3(p.x + c.x * radius,
-                          p.y - g_GroundY + g_RingLift,
+                          p.y - g_CenterAboveFeet + g_RingLift,
                           p.z + c.y * radius);
 
     o.pos = mul(mul(float4(world, 1.0), g_RingView), g_RingProj);

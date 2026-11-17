@@ -91,7 +91,7 @@ namespace TerrainBuild
         const float fx = x - ix, fz = z - iz;
         auto dotGrad = [&](int gx, int gz, float dx, float dz)
             {
-                const float a = Hash01(gx, gz, seed) * 6.2831853f;
+                const float a = Hash01(gx, gz, seed) * DirectX::XM_2PI;
                 return std::cos(a) * dx + std::sin(a) * dz;
             };
         auto fade = [](float t) { return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f); };

@@ -115,7 +115,7 @@ void SwarmSystem::UploadTerrain(const GridWorld& grid)
     m_Device->CreateShaderResourceView(m_TerrainBuffer.Get(), &sd, &m_TerrainSRV);
 
     // ---- 高さ場（斜面。MoveCS が y を決めるのに引く）----
-    // 解像度は GridWorld::kHeightSub = SwarmCommon.hlsli の SWARM_HEIGHT_SUB
+    // 解像度は GridWorld::kHeightSub = SwarmTerrain.hlsli の SWARM_HEIGHT_SUB
     {
         m_HeightSRV.Reset();
         m_HeightBuffer.Reset();

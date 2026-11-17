@@ -34,7 +34,7 @@ namespace BossLooksDetail
         {
             const float t1 = std::clamp((y + 0.16f) / 0.46f, 0.0f, 1.0f);
             const float t2 = std::clamp((y + 0.90f) / 0.74f, 0.0f, 1.0f);
-            return -0.05f - 0.06f * std::sin(3.1415927f * t1) - 0.15f * std::sin(3.1415927f * t2);
+            return -0.05f - 0.06f * std::sin(DirectX::XM_PI * t1) - 0.15f * std::sin(DirectX::XM_PI * t2);
         }
 
         // x 軸の周りに p を pivot で ang 回す（Builder::Xf の pitch と同じ向き：正 = 前が上がる）
@@ -101,7 +101,7 @@ namespace BossLooksDetail
             const float zf = 0.36f - 0.12f * taper - 0.08f * topRound;      // 前の深さ
             const float drop = 0.07f + 0.12f * u;                           // 前の端が背の付け根より下がる量
             const bool floating = (k < 2);
-            const float thEnd = floating ? 3.1415927f * 0.78f : 3.1415927f;
+            const float thEnd = floating ? DirectX::XM_PI * 0.78f : DirectX::XM_PI;
             const float zb = SpineZ(y0);
             auto pt = [&](float sx, float t)
                 {
@@ -199,7 +199,7 @@ namespace BossLooksDetail
             b.Tube(c0, c1, 0.125f * kHS, 0.13f * kHS, kGold, 14);
             for (int i = 0; i < 7; ++i)
             {
-                const float ang = 3.1415927f * 0.5f + 6.2831853f * (float)i / 7.0f;   // i = 0 が正面
+                const float ang = DirectX::XM_PI * 0.5f + DirectX::XM_2PI * (float)i / 7.0f;   // i = 0 が正面
                 const float h = (i == 0) ? 0.20f : (i == 1 || i == 6) ? 0.14f : 0.10f;
                 const Vec3 base(std::cos(ang) * 0.125f, 0.63f, 0.02f + std::sin(ang) * 0.125f);
                 const Vec3 tip = base + Vec3(std::cos(ang) * 0.03f, h, std::sin(ang) * 0.03f);

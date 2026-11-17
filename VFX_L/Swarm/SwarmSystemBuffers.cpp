@@ -84,13 +84,16 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
 
     // 敵の状態（float4 = 毒の池の減速の残り秒・強さ + 凍結の残り秒・長さ / 再凍結までの秒）。これも本体の横に持つ
     if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
-        m_EnemySlowBuffer, m_EnemySlowUAV, m_EnemySlowSRV, "enemySlow")) return false;
+        m_EnemyStatusBuffer, m_EnemyStatusUAV, m_EnemyStatusSRV, "enemyStatus")) return false;
     // 吹き飛ばし（突風。float4 = 速度 xz・残り秒）
     if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
         m_EnemyPushBuffer, m_EnemyPushUAV, m_EnemyPushSRV, "enemyPush")) return false;
-    // 毒素（毒沼。float4 = 残りダメージ・毎秒の削り・経過秒）
-    if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
+    // 毒素（毒沼。float2 = 残りダメージ・毎秒の削り）
+    if (!makeStructured(sizeof(float) * 2, Swarm::kMaxEnemies,
         m_EnemyPoisonBuffer, m_EnemyPoisonUAV, m_EnemyPoisonSRV, "enemyPoison")) return false;
+    // 被弾の記録（Swarm::EnemyHitInfo）
+    if (!makeStructured(sizeof(Swarm::EnemyHitInfo), Swarm::kMaxEnemies,
+        m_EnemyHitInfoBuffer, m_EnemyHitInfoUAV, m_EnemyHitInfoSRV, "enemyHitInfo")) return false;
     // トゲ玉の向き（四元数）。0 = まだ転がっていない（下で 0 に消す）
     if (!makeStructured(sizeof(float) * 4, Swarm::kMaxEnemies,
         m_EnemyRollBuffer, m_EnemyRollUAV, m_EnemyRollSRV, "enemyRoll")) return false;
@@ -104,6 +107,9 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     // ---- 投射物の運動：path は弾と同じ数、motion 表は CPU から書く ----
     if (!makeStructured(sizeof(Swarm::ProjPath), Swarm::kMaxProjectiles,
         m_PathBuffer, m_PathUAV, m_PathSRV, "projPath")) return false;
+    // 連鎖のルーン・貫通の状態（Swarm::ProjChain）
+    if (!makeStructured(sizeof(Swarm::ProjChain), Swarm::kMaxProjectiles,
+        m_ProjChainBuffer, m_ProjChainUAV, m_ProjChainSRV, "projChain")) return false;
     {
         // 全行 0 = Straight。SetMotions が呼ばれなくても全弾が直進で動く
         std::vector<Swarm::Motion> zero(Swarm::kMaxMotions);
@@ -195,11 +201,11 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeStructured(sizeof(Swarm::Area), Swarm::kMaxAreas,
         m_AreaBuffer, m_AreaUAV, m_AreaSRV, "area")) return false;
     // Liquid entry:範囲を出した物が飛んでいた向き（ProjMoveCS が書く）と、
-    // 追跡（SwarmLiquidTrackCS: 向き・最初に見た時の残り時間・前フレームの残り時間）
+    // 追跡（SwarmAreaTrackCS: 向き・最初に見た時の残り時間・前フレームの残り時間）
     if (!makeStructured(sizeof(float) * 4, Swarm::kMaxAreas,
         m_AreaDirBuffer, m_AreaDirUAV, m_AreaDirSRV, "areaDir")) return false;
     if (!makeStructured(sizeof(float) * 4, Swarm::kMaxAreas,
-        m_LiquidTrackBuffer, m_LiquidTrackUAV, m_LiquidTrackSRV, "liquidTrack")) return false;
+        m_AreaTrackBuffer, m_AreaTrackUAV, m_AreaTrackSRV, "areaTrack")) return false;
     if (!makeState(Swarm::kMaxAreas, m_AreaStateBuffer, m_AreaStateUAV, m_AreaStateSRV, "area")) return false;
     if (!makeStructured(sizeof(DirectX::SimpleMath::Vector4), Swarm::kMaxAreas,
         m_AreaEndBuffer, m_AreaEndUAV, m_AreaEndSRV, "areaEnd")) return false;
@@ -264,7 +270,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
     if (!makeRaw(16, m_WindSourceCount, m_WindSourceCountUAV, "windSourceCount")) return false;
     if (!CreateWindSourceReadback(device)) return false;   // CPU のマント・転がり草が読む写し
     if (!CreateLifestealReadback(device)) return false;    // 吸血の累計
-    if (!CreateCloseTargetReadback(device)) return false;  // 優先度なしの一番近い敵
+    if (!CreateNearestTargetReadback(device)) return false;  // 優先度なしの一番近い敵
     {
         // CPU の風源（突風）：毎フレーム Map で書く DYNAMIC の structured buffer
         D3D11_BUFFER_DESC bd = {};
@@ -282,17 +288,8 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         if (FAILED(m_Device->CreateShaderResourceView(m_WindBurstBuffer.Get(), &sd, &m_WindBurstSRV))) return false;
     }
     {
-        // Boss の様子のリードバック（GPUReadback と同じく 3 枚を輪転）
-        D3D11_BUFFER_DESC sd = {};
-        sd.ByteWidth = sizeof(Swarm::BossInfo);
-        sd.Usage = D3D11_USAGE_STAGING;
-        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        for (int i = 0; i < kBossStaging; ++i)
-        {
-            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_BossStaging[i]))) return false;
-            m_BossStagingFilled[i] = false;
-        }
-        m_BossStagingWrite = 0;
+        // Boss の様子のリードバック（counter と同じく 3 枚を輪転）
+        if (!m_BossStaging.Create(device, sizeof(Swarm::BossInfo))) return false;
         m_BossInfo = {};
     }
     {
@@ -300,16 +297,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         if (!makeRaw(sizeof(Swarm::PlayerHitInfo), m_PlayerHitBuffer, m_PlayerHitUAV, "playerHits")) return false;
         const UINT zero[4] = { 0, 0, 0, 0 };
         m_Context->ClearUnorderedAccessViewUint(m_PlayerHitUAV.Get(), zero);
-        D3D11_BUFFER_DESC sd = {};
-        sd.ByteWidth = sizeof(Swarm::PlayerHitInfo);
-        sd.Usage = D3D11_USAGE_STAGING;
-        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        for (int i = 0; i < kBossStaging; ++i)
-        {
-            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_PlayerHitStaging[i]))) return false;
-            m_PlayerHitStagingFilled[i] = false;
-        }
-        m_PlayerHitStagingWrite = 0;
+        if (!m_PlayerHitStaging.Create(device, sizeof(Swarm::PlayerHitInfo))) return false;
         m_LastPlayerHits = {};
         m_PendingPlayerHits = {};
     }
@@ -319,16 +307,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         if (!makeRaw(bytes, m_AreaBirthBuffer, m_AreaBirthUAV, "areaBirths")) return false;
         const UINT zero[4] = { 0, 0, 0, 0 };
         m_Context->ClearUnorderedAccessViewUint(m_AreaBirthUAV.Get(), zero);
-        D3D11_BUFFER_DESC sd = {};
-        sd.ByteWidth = bytes;
-        sd.Usage = D3D11_USAGE_STAGING;
-        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        for (int i = 0; i < kBossStaging; ++i)
-        {
-            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_AreaBirthStaging[i]))) return false;
-            m_AreaBirthStagingFilled[i] = false;
-        }
-        m_AreaBirthStagingWrite = 0;
+        if (!m_AreaBirthStaging.Create(device, bytes)) return false;
         m_LastAreaBirths = {};
         m_PendingShakes = 0;
         m_PendingAreaBirths = {};
@@ -339,16 +318,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         if (!makeRaw(bytes, m_BeamTargetBuffer, m_BeamTargetUAV, "beamTargets")) return false;
         const UINT zero[4] = { 0, 0, 0, 0 };
         m_Context->ClearUnorderedAccessViewUint(m_BeamTargetUAV.Get(), zero);
-        D3D11_BUFFER_DESC sd = {};
-        sd.ByteWidth = bytes;
-        sd.Usage = D3D11_USAGE_STAGING;
-        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        for (int i = 0; i < kBossStaging; ++i)
-        {
-            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_BeamTargetStaging[i]))) return false;
-            m_BeamTargetStagingFilled[i] = false;
-        }
-        m_BeamTargetStagingWrite = 0;
+        if (!m_BeamTargetStaging.Create(device, bytes)) return false;
         m_CachedBeamTargetCB = {};
         for (auto& t : m_BeamTargets) t = {};
     }
@@ -357,38 +327,20 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         const UINT bytes = 16u + sizeof(Swarm::TriggerEvent) * Swarm::kMaxTriggerEvents;
         if (!makeRaw(bytes, m_TriggerBuffer, m_TriggerUAV, "trigger")) return false;
 
-        D3D11_BUFFER_DESC sd = {};
-        sd.ByteWidth = bytes;
-        sd.Usage = D3D11_USAGE_STAGING;
-        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        for (int i = 0; i < kTriggerStaging; ++i)
-        {
-            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_TriggerStaging[i]))) return false;
-            m_TriggerStagingFilled[i] = false;
-        }
-        m_TriggerStagingWrite = 0;
+        if (!m_TriggerStaging.Create(device, bytes)) return false;
         m_TriggerRead = 0;
         m_TriggerEvents.clear();
     }
     {
-        // 分裂の環（先頭 16B = 総数 + 16B × kMaxSplitEvents）と、そのリードバック
-        const UINT bytes = 16u + sizeof(Swarm::SplitEvent) * Swarm::kMaxSplitEvents;
-        if (!makeRaw(bytes, m_SplitBuffer, m_SplitUAV, "split")) return false;
+        // 敵の出来事の環（先頭 16B = 総数 + 16B × kMaxEnemyEvents）と、そのリードバック
+        const UINT bytes = 16u + sizeof(Swarm::EnemyEvent) * Swarm::kMaxEnemyEvents;
+        if (!makeRaw(bytes, m_EnemyEventBuffer, m_EnemyEventUAV, "enemyEvents")) return false;
         const UINT zero[4] = { 0, 0, 0, 0 };
-        m_Context->ClearUnorderedAccessViewUint(m_SplitUAV.Get(), zero);
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyEventUAV.Get(), zero);
 
-        D3D11_BUFFER_DESC sd = {};
-        sd.ByteWidth = bytes;
-        sd.Usage = D3D11_USAGE_STAGING;
-        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        for (int i = 0; i < kTriggerStaging; ++i)
-        {
-            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_SplitStaging[i]))) return false;
-            m_SplitStagingFilled[i] = false;
-        }
-        m_SplitStagingWrite = 0;
-        m_SplitRead = 0;
-        m_SplitEvents.clear();
+        if (!m_EnemyEventStaging.Create(device, bytes)) return false;
+        m_EnemyEventRead = 0;
+        m_EnemyEvents.clear();
     }
     {
         // ダメージの数字：槽毎の前フレームの hp・溜め、環（先頭 16B = 総数 + 16B × kMaxDamageTexts）と staging
@@ -402,16 +354,7 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPrevHpUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_DamagePendingUAV.Get(), zero);
 
-        D3D11_BUFFER_DESC sd = {};
-        sd.ByteWidth = bytes;
-        sd.Usage = D3D11_USAGE_STAGING;
-        sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        for (int i = 0; i < kTriggerStaging; ++i)
-        {
-            if (FAILED(device->CreateBuffer(&sd, nullptr, &m_DamageTextStaging[i]))) return false;
-            m_DamageTextStagingFilled[i] = false;
-        }
-        m_DamageTextStagingWrite = 0;
+        if (!m_DamageTextStaging.Create(device, bytes)) return false;
         m_DamageTextRead = 0;
         m_DamageTexts.clear();
     }
@@ -468,11 +411,11 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
             return SUCCEEDED(device->CreateShaderResourceView(buf.Get(), &sd, &srv));
         };
 
-    if (!makeUpload(sizeof(Swarm::Enemy), Swarm::kMaxSpawnEnemyPerFrame,
+    if (!makeUpload(sizeof(Swarm::EnemySpawn), Swarm::kMaxSpawnEnemyPerFrame,
         m_SpawnEnemyBuffer, m_SpawnEnemySRV)) return false;
     if (!makeUpload(sizeof(Swarm::Projectile), Swarm::kMaxSpawnProjPerFrame,
         m_SpawnProjBuffer, m_SpawnProjSRV)) return false;
-    if (!makeUpload(sizeof(uint32_t) * 2, Swarm::kMaxSpawnProjPerFrame,
+    if (!makeUpload(sizeof(Swarm::SpawnProjExtra), Swarm::kMaxSpawnProjPerFrame,
         m_SpawnProjExtraBuffer, m_SpawnProjExtraSRV)) return false;
     if (!makeUpload(sizeof(Swarm::Area), Swarm::kMaxSpawnAreaPerFrame,
         m_SpawnAreaBuffer, m_SpawnAreaSRV)) return false;
@@ -493,13 +436,13 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_ProjTagUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_ProjBoostUAV.Get(), zero);   // 0 = 1 倍
         m_Context->ClearUnorderedAccessViewUint(m_AreaDirUAV.Get(), zero);     // w = 0: 新しい向きは無い
-        m_Context->ClearUnorderedAccessViewUint(m_LiquidTrackUAV.Get(), zero); // w = 0: 空
+        m_Context->ClearUnorderedAccessViewUint(m_AreaTrackUAV.Get(), zero); // w = 0: 空
         m_Context->ClearUnorderedAccessViewUint(m_TriggerUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_OrbStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_AreaStateUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_CounterUAV.Get(), zero);
         {
-            // 全部 0 だと「最寄りの敵 = 槽 0 の (0,0,0)、距離 0」に読め、最初の固定ステップより前のリードバックで
+            // 全部 0 だと「杖の狙い = 槽 0 の (0,0,0)、距離 0」に読め、最初の固定ステップより前のリードバックで
             // 杖が足元へ撃ってしまう。既定値（鍵 = 空、距離 = 1e30）を入れる
             const SwarmCounters init;
             m_Context->UpdateSubresource(m_CounterBuffer.Get(), 0, nullptr, &init, 0, 0);
@@ -507,9 +450,11 @@ bool SwarmSystem::CreateBuffers(ID3D11Device* device)
         m_Context->ClearUnorderedAccessViewUint(m_EmitBudgetUAV.Get(), zero);
         m_Context->ClearUnorderedAccessViewUint(m_EnemyMaxHpUAV.Get(), zero);   // 0 = VS 側で 1 扱い
         m_Context->ClearUnorderedAccessViewUint(m_EnemyExtraUAV.Get(), zero);   // 雑魚・未点火
-        m_Context->ClearUnorderedAccessViewUint(m_EnemySlowUAV.Get(), zero);    // 減速なし（0.0f）
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyStatusUAV.Get(), zero);    // 減速なし（0.0f）
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPushUAV.Get(), zero);    // 吹き飛ばしなし
         m_Context->ClearUnorderedAccessViewUint(m_EnemyPoisonUAV.Get(), zero);  // 毒素なし
+        m_Context->ClearUnorderedAccessViewUint(m_EnemyHitInfoUAV.Get(), zero); // 被弾の記録なし
+        m_Context->ClearUnorderedAccessViewUint(m_ProjChainUAV.Get(), zero);    // 連鎖なし
         m_Context->ClearUnorderedAccessViewUint(m_EnemyRollUAV.Get(), zero);    // トゲ玉はまだ転がっていない
         m_Context->ClearUnorderedAccessViewUint(m_EnemyClimbUAV.Get(), zero);   // 誰も壁を登っていない
         m_Context->ClearUnorderedAccessViewUint(m_SpriteUAV.Get(), zero);       // alive = 0

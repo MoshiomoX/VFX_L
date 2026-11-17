@@ -1,6 +1,6 @@
 cbuffer DeadListCB : register(b0)
 {
-    uint deadCount;
+    uint _unused;
     uint maxParticles;
     uint _pad0;
     uint _pad1;

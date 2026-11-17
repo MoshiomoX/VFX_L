@@ -9,6 +9,8 @@
 // WaterRippleCS は氷を壁として扱い、WaterPS が描き、WaterStirCS は
 // その上を歩く敵を遅くする。
 // ============================================================
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"
 
 // WaterSurface::IceCB と一致させること
 cbuffer WaterIceCB : register(b0)
@@ -20,31 +22,14 @@ cbuffer WaterIceCB : register(b0)
     float2 _icePad;
 };
 
-// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト
-struct IceArea
-{
-    float3 center;
-    float radius;
-    float damage;
-    float timeLeft;
-    float tickInterval;
-    float tickTimer;
-    float halfHeight;
-    uint flags;
-    uint vfxType;
-    uint tickNow;
-};
-
 Texture2D<float> g_Mask : register(t0);          // 1 = 池（波紋の場の 1024^2 テクセル）
-StructuredBuffer<IceArea> g_Areas : register(t1);
+StructuredBuffer<SwarmArea> g_Areas : register(t1);
 Buffer<uint> g_AreaStates : register(t2);        // 0 = 死んでいる
 StructuredBuffer<float> g_RecipeHeat : register(t3);   // エフェクトのレシピごと（GrassFireField）、< 0 = 冷たい
 RWTexture2D<float> g_Ice : register(u0);
 
-#define ICE_MAX_AREAS 256u       // = SWARM_MAX_AREAS
 #define ICE_MAX_SOURCES 32u
 #define ICE_MASK_SCALE 4         // 氷のテクセル 1 つあたりのマスクのテクセル数
-#define ICE_FREEZE_MASK 0xF0u    // = Swarm::kAreaFreezeShift、4 ビット（SwarmAreaFreeze）
 #define ICE_MIN_RADIUS 1.2       // アイスランスの命中は 0.5 m しかないが、それでも見える大きさの氷にする
 
 groupshared float3 gs_Source[ICE_MAX_SOURCES];   // xz、半径
@@ -59,12 +44,12 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 
     uint heatCount, heatStride;
     g_RecipeHeat.GetDimensions(heatCount, heatStride);
-    for (uint a = gi; a < ICE_MAX_AREAS; a += 64u)
+    for (uint a = gi; a < SWARM_MAX_AREAS; a += 64u)
     {
         if (g_AreaStates[a] == 0u)
             continue;
-        IceArea ar = g_Areas[a];
-        bool cold = (ar.flags & ICE_FREEZE_MASK) != 0u
+        SwarmArea ar = g_Areas[a];
+        bool cold = (ar.flags & SWARM_AREA_FREEZE_MASK) != 0u
             || (ar.vfxType < heatCount && g_RecipeHeat[ar.vfxType] < 0.0);
         if (!cold)
             continue;

@@ -35,8 +35,8 @@ void AutoTestChargeShield::Run()
     auto& tf = m_Registry.Get<TransformComponent>(m_Player);
     auto& bp = m_Registry.Get<BackpackComponent>(m_Player);
     auto& pcs = m_PlayerControlSystem;
-    const float gy = m_Swarm.GetAIParams().groundY;
-    const Swarm::BomberCB& bomb = m_Swarm.GetBomberParams();
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
+    const Swarm::KindCB& bomb = m_Swarm.GetKindParams();
 
     static float s_T0 = 0.0f, s_Dmg0 = 0.0f, s_NextPoll = 0.0f, s_RunT0 = 0.0f;
     static int s_LastPhase = -1, s_Run = 0;

@@ -94,20 +94,13 @@ float2 LiquidGridCorner(uint vid)
     return (cell + kCorner[vid % 6u]) / (float) LIQUID_GRID * 2.0 - 1.0;
 }
 
-uint LiquidHash(uint x)
-{
-    x ^= x >> 16;
-    x *= 0x7feb352du;
-    x ^= x >> 15;
-    x *= 0x846ca68bu;
-    x ^= x >> 16;
-    return x;
-}
+#include "Hash.hlsli"
+#include "MathConst.hlsli"
 
 // 0..1、(seed, 液滴, 何番目の値) ごとに 1 つ
 float LiquidRand(uint seed, uint i, uint k)
 {
-    return (float) (LiquidHash(seed ^ (i * 0x9E3779B9u) ^ (k * 0x85EBCA6Bu)) & 0xFFFFFFu) / 16777216.0;
+    return (float) (HashU32(seed ^ (i * 0x9E3779B9u) ^ (k * 0x85EBCA6Bu)) & 0xFFFFFFu) / 16777216.0;
 }
 
 // ワールド xz での前 / 左。方向がゼロなら seed から角度を選ぶ
@@ -118,7 +111,7 @@ void LiquidFrame(float2 dir, uint seed, out float2 fwd, out float2 left)
         fwd = dir * rsqrt(lenSq);
     else
     {
-        float a = LiquidRand(seed, 99u, 0u) * 6.2831853;
+        float a = LiquidRand(seed, 99u, 0u) * TWO_PI;
         fwd = float2(cos(a), sin(a));
     }
     left = float2(-fwd.y, fwd.x);
@@ -164,7 +157,7 @@ LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, floa
     else if (!spatter)
     {
         // こぶは全周に出る。前へ飛んだものほど遠く、小さく、細長くなる
-        ang = (r0 * 2.0 - 1.0) * 3.14159265;
+        ang = (r0 * 2.0 - 1.0) * PI;
         float fwd = 0.5 + 0.5 * cos(ang);
         dist = reach * (0.22 + 0.28 * r1) * (1.0 + 0.8 * L.spread * fwd);
         rad = reach * (0.20 + 0.12 * r2) * (1.0 - 0.3 * fwd);
@@ -192,7 +185,7 @@ LiquidDrop LiquidDropAt(LiquidDef L, uint i, uint seed, float R, float age, floa
     if (spatter)
         rad *= lerp(1.0, 0.7, settle);
     // ---- 生きている間：ゆっくり漂って脈打つ。液滴ごとに位相が違う ----
-    float ph = r3 * 6.2831853;
+    float ph = r3 * TWO_PI;
     float2 drift = float2(sin(time * 1.3 + ph), cos(time * 1.1 + ph * 1.7)) * (L.wobble * reach * settle);
     float breathe = 1.0 + 0.06 * sin(time * 2.1 + ph * 2.3);
     // ---- 乾く：最後の dryTime で縮んで消える。飛沫が先 ----
@@ -264,10 +257,10 @@ float LiquidNoise(float2 p)
     float2 f = p - i;
     f = f * f * (3.0 - 2.0 * f);
     uint2 q = asuint(int2(i));
-    float a = (float) (LiquidHash(q.x * 73856093u ^ q.y * 19349663u) & 0xFFFFu) / 65535.0;
-    float b = (float) (LiquidHash((q.x + 1u) * 73856093u ^ q.y * 19349663u) & 0xFFFFu) / 65535.0;
-    float c = (float) (LiquidHash(q.x * 73856093u ^ (q.y + 1u) * 19349663u) & 0xFFFFu) / 65535.0;
-    float d = (float) (LiquidHash((q.x + 1u) * 73856093u ^ (q.y + 1u) * 19349663u) & 0xFFFFu) / 65535.0;
+    float a = (float) (HashU32(q.x * 73856093u ^ q.y * 19349663u) & 0xFFFFu) / 65535.0;
+    float b = (float) (HashU32((q.x + 1u) * 73856093u ^ q.y * 19349663u) & 0xFFFFu) / 65535.0;
+    float c = (float) (HashU32(q.x * 73856093u ^ (q.y + 1u) * 19349663u) & 0xFFFFu) / 65535.0;
+    float d = (float) (HashU32((q.x + 1u) * 73856093u ^ (q.y + 1u) * 19349663u) & 0xFFFFu) / 65535.0;
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
 }
 
@@ -280,7 +273,7 @@ float LiquidBubbles(LiquidDef L, float2 p, uint seed, float deep, float time)
     float2 g = floor(p / cell);
     float2 f = p / cell - g;
     uint2 q = asuint(int2(g));
-    uint h = LiquidHash(seed ^ (q.x * 73856093u) ^ (q.y * 19349663u));
+    uint h = HashU32(seed ^ (q.x * 73856093u) ^ (q.y * 19349663u));
     float have = ((float) (h & 0xFFFFu) / 65535.0 <= L.bubbles * deep) ? 1.0 : 0.0;   // このセルに泡がある
     float u = (float) ((h >> 16) & 0xFFu) / 255.0;
     float w = (float) ((h >> 24) & 0xFFu) / 255.0;

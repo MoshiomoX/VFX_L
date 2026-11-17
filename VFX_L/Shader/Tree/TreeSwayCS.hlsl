@@ -9,11 +9,11 @@
 #include "TreeCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"
+#include "../Common/MathConst.hlsli"
 
 #define TREE_MAX_GUSTS 4u
-#define TREE_MAX_AREAS 256u    // = SWARM_MAX_AREAS
-#define TREE_AREA_SHAKE 8u     // Swarm::kAreaShake：爆発
-#define TREE_AREA_CAPSULE 4u   // 光線（中心は杖口、本体は線分）
 
 cbuffer SwayCB : register(b0)
 {
@@ -40,29 +40,14 @@ cbuffer SwayCB : register(b0)
     float4 g_GustB[TREE_MAX_GUSTS];   // (length, radius, strength 0..1, 0)。length 0 = 根元の周りの円
 };
 
-// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / flags だけ
-struct TreeArea
-{
-    float3 center;
-    float radius;
-    float damage;
-    float timeLeft;
-    float tickInterval;
-    float tickTimer;
-    float halfHeight;
-    uint flags;
-    uint vfxType;
-    uint tickNow;
-};
-
-StructuredBuffer<TreeArea> g_Areas : register(t0);
+StructuredBuffer<SwarmArea> g_Areas : register(t0);   // 読むのは center / radius / flags だけ
 Buffer<uint> g_AreaStates : register(t1);          // 0 = 死んでいる
 StructuredBuffer<WindSource> g_WindSources : register(t2);
 RWStructuredBuffer<TreeState> g_States : register(u0);
 
 float2 WeatherWind(float2 xz)
 {
-    float phase = dot(xz, g_WindDir) * g_WindWaveScale * 6.2831853 - g_WindTime * g_WindWaveSpeed;
+    float phase = dot(xz, g_WindDir) * g_WindWaveScale * TWO_PI - g_WindTime * g_WindWaveSpeed;
     float w = sin(phase) * 0.5 + 0.5;
     w *= w;
     return g_WindDir * (g_WindSpeed + g_WindGust * w);
@@ -117,12 +102,12 @@ void main(uint3 id : SV_DispatchThreadID)
 
     // 爆発：樹冠を外へ押し、揺さぶる
     float2 blast = 0;
-    for (uint a = 0u; a < TREE_MAX_AREAS; ++a)
+    for (uint a = 0u; a < SWARM_MAX_AREAS; ++a)
     {
         if (g_AreaStates[a] == 0u)
             continue;
-        TreeArea ar = g_Areas[a];
-        if ((ar.flags & TREE_AREA_SHAKE) == 0u || (ar.flags & TREE_AREA_CAPSULE) != 0u)
+        SwarmArea ar = g_Areas[a];
+        if ((ar.flags & SWARM_AREA_SHAKE) == 0u || (ar.flags & SWARM_AREA_CAPSULE) != 0u)
             continue;
         float2 d = xz - ar.center.xz;
         float reach = ar.radius * 2.5 + s.height * 0.3;
@@ -146,7 +131,7 @@ void main(uint3 id : SV_DispatchThreadID)
     target += float2(sin(g_Time * 1.3 + ph), cos(g_Time * 1.07 + ph * 1.7)) * (speed * g_Turbulence * s.flex * h * 0.01);
 
     // ばね（背の高い木ほどゆっくり）。dt が大きい時は分けて積分する
-    float w0 = 6.2831853 * g_Freq * sqrt(5.0 / h) / sqrt(max(s.flex, 0.2));
+    float w0 = TWO_PI * g_Freq * sqrt(5.0 / h) / sqrt(max(s.flex, 0.2));
     int steps = clamp((int) ceil(dt / 0.008), 1, 8);
     float hdt = dt / (float) steps;
     for (int k = 0; k < steps; ++k)

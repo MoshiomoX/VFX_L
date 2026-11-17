@@ -70,7 +70,7 @@ void EliteAttacks::UpdateAffixes(Elite& e, const Input& in, const GridWorld& gri
             }
             for (int tries = 0; placed < thunderCount && tries < thunderCount * 4; ++tries)
             {
-                const float a = u01(m_Rng) * 6.2831853f;
+                const float a = u01(m_Rng) * DirectX::XM_2PI;
                 const float r = (0.35f + 0.65f * u01(m_Rng)) * thunderSpread;
                 const Vector3 p = ground + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);
                 int gx = 0, gz = 0;

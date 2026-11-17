@@ -159,7 +159,7 @@ void WeaponSystem::QueueTriggeredLine(const SpellStats& s, const Vector3& aimAt,
     // 拡大鏡など：当たり半径が profile より大きければ範囲も同じ倍率（弾の命中と同じ決まり）
     const float scale = (pp.radius > 0.0f) ? s.radius / pp.radius : 1.0f;
     const float radius = ap.radius * scale;
-    const float lift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
+    const float lift = m_Swarm ? m_Swarm->GetAIParams().centerAboveFeet : 0.9f;
 
     // 地面の高さ。無ければ狙った所の足元（地面 + lift の逆）で平らに
     const float y0 = aimAt.y - lift;
@@ -191,7 +191,7 @@ void WeaponSystem::QueueTriggeredLine(const SpellStats& s, const Vector3& aimAt,
             Swarm::Area area = ap.MakeArea(p, false);
             area.radius = radius;
             area.damage = ap.damage * s.areaDamageMul;   // 魔法威力
-            if (s.lifesteal > 0.0f) area.tickNow |= Swarm::kAreaExtraLifesteal;   // 吸血の印
+            if (s.lifesteal > 0.0f) area.extra |= Swarm::kAreaExtraLifesteal;   // 吸血の印
             m_DelayedAreas.push_back({ area, dist / waveSpeed + lineRiseDelay });
         };
     // 二重詠唱の 2 回目以降：+半分、-半分、+1 つ分 … と交互に（分裂の扇の並べ方と同じ考え）
@@ -282,8 +282,8 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
     m_TriggerEvents.insert(m_TriggerEvents.end(), m_CpuTriggerEvents.begin(), m_CpuTriggerEvents.end());
     m_CpuTriggerEvents.clear();
     m_TriggerEventsSeen += (uint32_t)m_TriggerEvents.size();
-    // 環に入るのは地面の高さ。普段の隕石の標的（雑魚の位置 = 地面 + groundY）と同じ高さへ上げる
-    const float triggerLift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
+    // 環に入るのは地面の高さ。普段の隕石の標的（雑魚の位置 = 地面 + centerAboveFeet）と同じ高さへ上げる
+    const float triggerLift = m_Swarm ? m_Swarm->GetAIParams().centerAboveFeet : 0.9f;
 
     reg.CreateView<TransformComponent, WandComponent, ManaComponent>()
         .EachFrom<WandComponent>([&](Entity e, TransformComponent& tf, WandComponent& wand, ManaComponent& mana)
@@ -325,7 +325,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                 {
                     Vector3 gp, gv;
                     float   gd;
-                    if (m_Swarm->GetNearestEnemy(gp, gv, gd))
+                    if (m_Swarm->GetAimTarget(gp, gv, gd))
                     {
                         // リードバックの距離はプレイヤー中心基準。杖先基準で測り直す
                         const float d = (gp - muzzle).Length();
@@ -366,7 +366,7 @@ void WeaponSystem::Update(Registry& reg, float dt, const CollisionSystem& collis
                     float closeBest = wand.range;
                     Vector3 cp;
                     float cd = 0.0f;
-                    if (m_Swarm && m_Swarm->GetCloseEnemy(cp, cd))
+                    if (m_Swarm && m_Swarm->GetNearestEnemy(cp, cd))
                     {
                         const float d = (cp - muzzle).Length();
                         if (d < closeBest) { closeBest = d; m_ClosePos = cp; m_HasClose = true; }
@@ -650,8 +650,8 @@ bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vec
 {
     if (!m_Swarm) return false;
     if (a.spawnAtTarget && !hasTarget) return false;
-    // 環に入るのは地面の高さ。標的（地面 + groundY）と同じ高さから下げて積む
-    const float triggerLift = m_Swarm->GetAIParams().groundY;
+    // 環に入るのは地面の高さ。標的（地面 + centerAboveFeet）と同じ高さから下げて積む
+    const float triggerLift = m_Swarm->GetAIParams().centerAboveFeet;
 
     // ---- 誘発されない光線型（アークボルト）：撃つ所から一番近い敵へ一瞬の稲妻 ----
     // 一斉起爆：弾が 3 発以上飛び続けて少し経ったら、全部その場で爆発させる。
@@ -785,7 +785,7 @@ bool WeaponSystem::CastArea(const AreaStats& a, const Vector3& origin, const Vec
     area.radius = a.radius;
     area.damage = a.damagePerTick;
     area.timeLeft = a.duration;
-    if (a.lifesteal > 0.0f) area.tickNow |= Swarm::kAreaExtraLifesteal;   // 吸血
+    if (a.lifesteal > 0.0f) area.extra |= Swarm::kAreaExtraLifesteal;   // 吸血
     const bool lasting = (a.profile == 0 || ap.kind == AreaProfile::Kind::Lasting);
     if (lasting)
     {
@@ -869,10 +869,10 @@ bool WeaponSystem::StartBeam(const AreaStats& a, const Vector3& muzzle, const Ve
     b.radius = a.radius;
     b.damage = a.damagePerTick;
     b.tickInterval = a.tickInterval;
-    b.flags = Swarm::kAreaCapsule | (ch << Swarm::kAreaBeamShift);
+    b.flags = Swarm::kAreaCapsule;   // チャンネルは範囲を出す時に Area::beamChannel へ（b.channel）
     if (!hasProfile || ap.stun) b.flags |= Swarm::kAreaStun;
     if (hasProfile && ap.cameraShake) b.flags |= Swarm::kAreaShake;   // 光線が出た瞬間に揺らす
-    b.extra = hasProfile ? ap.Extra() : 0;   // 毒素の割合（AreaProfile::toxin）。範囲の tickNow の上位へ
+    b.extra = hasProfile ? ap.Extra() : 0;   // 毒素の割合など（AreaProfile::Extra）。範囲の Area::extra へ
     if (a.lifesteal > 0.0f) b.extra |= Swarm::kAreaExtraLifesteal;   // 吸血
     if (hasProfile) b.sound = ap.sound;
 
@@ -941,7 +941,7 @@ void WeaponSystem::StartChainBeam(const ActiveBeam& prev, const Vector3& next)
         m_AreaVFX->Play(p.chainHitVfx, next, 0.8f, false, *m_AreaVFXCtx);
     if (p.chainTriggerMask != 0)
     {
-        const float triggerLift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
+        const float triggerLift = m_Swarm ? m_Swarm->GetAIParams().centerAboveFeet : 0.9f;
         m_CpuTriggerEvents.push_back({ Vector3(next.x, next.y - triggerLift, next.z), p.chainTriggerMask });
     }
 }
@@ -999,13 +999,10 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
             }
             if (b.chainSerial != 0)
             {
-                // dir.xyz = 除外する slot（asfloat）: 今届いた敵 + この連鎖で前に届いた 2 体
-                float ex[3];
-                memcpy(&ex[0], &b.lockedSlot, sizeof(float));
-                memcpy(&ex[1], &b.chainVisited[0], sizeof(float));
-                memcpy(&ex[2], &b.chainVisited[1], sizeof(float));
+                // 除外する敵: 今届いた敵 + この連鎖で前に届いた 2 体
+                const uint32_t ex[3] = { b.lockedSlot, b.chainVisited[0], b.chainVisited[1] };
                 m_Swarm->SetBeamTarget(b.channel, b.chainAnswer < 0 ? Swarm::kBeamTargetChain : Swarm::kBeamTargetIdle,
-                    start, Vector3(ex[0], ex[1], ex[2]), b.length, b.chainSeek, b.chainSerial);
+                    start, Vector3::Zero, b.length, b.chainSeek, b.chainSerial, ex);
             }
             else
                 m_Swarm->SetBeamTarget(b.channel, b.targetStarted ? Swarm::kBeamTargetTrack : Swarm::kBeamTargetStart,
@@ -1039,7 +1036,8 @@ void WeaponSystem::UpdateBeams(float dt, const Vector3& muzzle, const CollisionS
                 area.halfHeight = b.halfHeight;
                 area.flags = b.flags;
                 area.vfxType = 0;
-                area.tickNow = b.extra;   // 上位 = 毒素の割合など（AreaProfile::Extra。SpawnAreaCS が下位の tick 状態だけ 0 にする）
+                area.extra = b.extra;
+                area.beamChannel = b.channel;
                 m_Swarm->SetBeam(b.channel, start, end, b.radius, true);
                 m_Swarm->SpawnArea(area);
                 b.spawned = true;

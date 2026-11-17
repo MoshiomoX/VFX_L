@@ -423,7 +423,7 @@ void CollisionTestScene::UpdateTitleDemo(float dt)
             const float r = kMeteorMinDist + (kMeteorMaxDist - kMeteorMinDist) * Rand01();
             const Vector3 dir(std::sin(a), 0.0f, std::cos(a));   // プレイヤー → 着弾点（石はプレイヤーの側から飛んで来る）
             Vector3 impact = pp + dir * r;
-            impact.y = m_Grid.SampleHeight(impact.x, impact.z) + m_Swarm.GetAIParams().groundY;   // 普段の標的（雑魚の高さ）と同じ
+            impact.y = m_Grid.SampleHeight(impact.x, impact.z) + m_Swarm.GetAIParams().centerAboveFeet;   // 普段の標的（雑魚の高さ）と同じ
             m_Swarm.SpawnProjectile(prof.ResolveVFX(), impact, dir * prof.speed, prof.damage, prof.radius, prof.lifetime,
                 (uint32_t)s_Meteor, false, 0, true);
             AudioSystem::Get().Play(prof.castSound);
@@ -436,7 +436,7 @@ void CollisionTestScene::UpdateTitleDemo(float dt)
         float target = tf.rotation.y;   // 敵が居なければそのまま
         Vector3 np, nv;
         float nd = 0.0f;
-        if (m_Swarm.GetNearestEnemy(np, nv, nd) && nd < 25.0f)
+        if (m_Swarm.GetAimTarget(np, nv, nd) && nd < 25.0f)
         {
             const Vector3 d = np - tf.position;
             if (d.x * d.x + d.z * d.z > 0.01f) target = DirectX::XMConvertToDegrees(std::atan2(d.x, d.z));
@@ -452,7 +452,7 @@ void CollisionTestScene::SpawnTitleEnemies(int count, float minDist, float maxDi
 {
     const Vector3* pp = PlayerPos();
     if (!pp) return;
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     // カメラの反対側（画面の奥）の弧から出す：手前に出るとメニューの文字に重なる
     const float camYaw = DirectX::XMConvertToRadians(TitleCamYawDeg());
     for (int i = 0; i < count; ++i)

@@ -50,14 +50,14 @@ void AutoTestBurrower::Run()
             hp.max = hp.current = 100000.0f;
             s_LastHp = hp.current;
         }
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         float hp = 15.0f, speed = 3.5f;
         m_Mobs.KindStats(Swarm::kEnemyKindBurrower, hp, speed);
         const float x = tf.position.x, z = tf.position.z + 12.0f;
-        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), hp, speed, Swarm::kEnemyKindBurrower);
+        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), hp, speed, Swarm::kEnemyKindBurrower);
         // 右前 7m: 動かない砂潜り（moveSpeed 0 = 顔を出さない）= 地面の範囲で削る的
         const float tx = tf.position.x + 4.0f, tz = tf.position.z + 7.0f;
-        s_TargetPos = Vector3(tx, m_Grid.SampleHeight(tx, tz) + groundY, tz);
+        s_TargetPos = Vector3(tx, m_Grid.SampleHeight(tx, tz) + centerAboveFeet, tz);
         m_Swarm.SpawnEnemy(s_TargetPos, hp, 0.0f, Swarm::kEnemyKindBurrower);
         s_TargetHp0 = hp;
         auto& cam = m_Camera.Camera();

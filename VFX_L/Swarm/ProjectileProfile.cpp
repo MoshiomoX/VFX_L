@@ -41,12 +41,12 @@ Swarm::Motion ProjectileProfile::ToMotion() const
     m.retargetRadius = retargetRadius;
     m.hitArea = (uint32_t)AreaProfileDB::IndexOf(hitArea);   // 無ければ 0 = 出さない
     m.hitAreaFlags = hitAreaOnExpire ? Swarm::kHitAreaOnExpire : 0u;
-    // 止まる秒数・加速（空いている bit に詰める。SwarmCommon.hlsli の SWARM_HITAREA_HOLD_* / EASE_IN と一致）
-    const uint32_t holdQ = (uint32_t)std::clamp((int)std::lround(holdTime / 0.02f), 0, 255);
-    m.hitAreaFlags |= holdQ << 8;
-    if (easeIn) m.hitAreaFlags |= 1u << 16;
-    m.hitAreaFlags |= (uint32_t)std::clamp(element, 0, 15) << Swarm::kHitAreaElementShift;   // 属性（数字の色）
-    m.hitAreaFlags |= (uint32_t)std::clamp(pierce, 0, 15) << Swarm::kHitAreaPierceShift;     // 貫く敵の数
+    if (easeIn) m.hitAreaFlags |= Swarm::kHitAreaEaseIn;
+    // 止まる秒数（kHitAreaHoldUnit 刻みに丸める）
+    const int holdQ = std::clamp((int)std::lround(holdTime / Swarm::kHitAreaHoldUnit), 0, (int)Swarm::kHitAreaHoldMaxSteps);
+    m.holdTime = (float)holdQ * Swarm::kHitAreaHoldUnit;
+    m.element = (uint32_t)std::clamp(element, 0, 15);   // 属性（数字の色）
+    m.pierce = (uint32_t)std::clamp(pierce, 0, 15);     // 貫く敵の数
     m.c1 = c1;
     m.baseRadius = radius;   // これより大きい当たり半径で撃たれたら、見た目と爆発も同じ倍率で大きく（拡大鏡）
     m.c2 = c2;
@@ -127,7 +127,7 @@ void ProjectileProfile::FromJson(const json& j)
 }
 
 // ============================================================
-// SwarmCommon.hlsli の SwarmBuildPath と同じ式（keepHeading = false の側）。
+// SwarmProjectileTypes.hlsli の SwarmBuildPath と同じ式（keepHeading = false の側）。
 // Drop は SwarmSpawnProjCS + SwarmBuildDropPath と同じ（空の始点 → 標的の直線）。
 // 片方だけ直すとエディタの線と実際の弾道がずれるので、必ず揃えること
 // ============================================================

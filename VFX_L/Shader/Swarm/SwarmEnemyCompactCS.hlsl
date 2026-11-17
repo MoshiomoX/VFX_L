@@ -17,7 +17,7 @@
 //
 // ボスは bossInfo にも自分を書き込む（Swarm::BossInfo、32 バイト、
 // このディスパッチの前に CPU がクリアし、ステージング経由でリードバックする）：
-//   +0 生存数、+4 hp（固定小数）、+8 最大 hp（固定小数）、+16 位置
+//   +0 生存数、+4 hp（固定小数）、+8 最大 hp（固定小数）、+16 位置（SWARM_BOSSINFO_*）
 //
 // Append のカウンタは、初期カウント 0 で UAV をバインドしてリセットする。
 // ============================================================
@@ -59,25 +59,25 @@ void main(uint3 id : SV_DispatchThreadID)
           && kind != SWARM_KIND_BOSS && !SwarmInKindList2(kind)) // トゲ玉はブロック人形の体を持たず（SwarmSpikeBallVS）、砂旋は何も描かない。それ以外は SwarmEnemyKindListCS に専用の一覧がある（ボスも：面ごとの専用の皮 + 飾り）
         mobList.Append(i);
 
-    // 最終ウェーブの幽霊は、bossInfo の空いている 2 ワード（オフセット 12 / 28）に種類ごとに数える：
+    // 最終ウェーブの幽霊は、bossInfo の空いている 2 ワード（GHOSTS / DARK_GHOSTS）に種類ごとに数える：
     // CPU がそれぞれに専用の上限を持たせる（雑魚と上限を共有しない）
     if (kind == SWARM_KIND_GHOST)
     {
         uint prev;
-        bossInfo.InterlockedAdd(12, 1u, prev);
+        bossInfo.InterlockedAdd(SWARM_BOSSINFO_GHOSTS, 1u, prev);
     }
     else if (kind == SWARM_KIND_DARKGHOST)
     {
         uint prev;
-        bossInfo.InterlockedAdd(28, 1u, prev);
+        bossInfo.InterlockedAdd(SWARM_BOSSINFO_DARK_GHOSTS, 1u, prev);
     }
     if (kind == SWARM_KIND_BOSS)
     {
         uint prev;
-        bossInfo.InterlockedAdd(0, 1u, prev);
+        bossInfo.InterlockedAdd(SWARM_BOSSINFO_ALIVE, 1u, prev);
         SwarmEnemy e = enemies[i];
-        bossInfo.Store(4, e.hp);
-        bossInfo.Store(8, enemyMaxHp[i]);
-        bossInfo.Store3(16, asuint(e.position));
+        bossInfo.Store(SWARM_BOSSINFO_HP, e.hp);
+        bossInfo.Store(SWARM_BOSSINFO_MAX_HP, enemyMaxHp[i]);
+        bossInfo.Store3(SWARM_BOSSINFO_POS, asuint(e.position));
     }
 }

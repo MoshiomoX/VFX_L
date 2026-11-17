@@ -105,8 +105,11 @@ struct AreaProfile
     bool  IsBlades() const { return kind == Kind::Blades; }
     bool  IsBats() const { return kind == Kind::Bats; }
     uint32_t Flags(bool atCaster) const;
-    // 追加値（毒素の割合・飛沫だけ）。Area::tickNow の上位 / AreaDef::extra に入れる（Swarm::kAreaExtra*）
+    // 追加値（毒素の割合・飛沫・属性）。Area::extra / AreaDef::extra に入れる（Swarm::kAreaExtra*）
     uint32_t Extra() const;
+    // 吹き飛ばし / 引き寄せの強さ 0..15（Area::pushQ / pullQ）
+    uint32_t PushQ() const;
+    uint32_t PullQ() const;
 
     // CPU から出す時の形。vfxType は 0（見た目は CPU が再生する）
     Swarm::Area MakeArea(const DirectX::SimpleMath::Vector3& center, bool atCaster) const;

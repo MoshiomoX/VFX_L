@@ -18,6 +18,7 @@
 #include "DandelionCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
+#include "../Common/MathConst.hlsli"
 
 Texture2D<float> g_Height : register(t0);          // GridWorld の高さ（GrassRenderer）
 Texture2D<float4> g_Ground : register(t1);         // a = 草が生える
@@ -43,10 +44,10 @@ float PatchNoise(float2 p)
     float2 i = floor(p), f = frac(p);
     float2 u = f * f * (3.0 - 2.0 * f);
     uint s = g_Seed * 2654435761u;
-    float a = (float) (DandelionHash((uint) (int) i.x * 73856093u ^ (uint) (int) i.y * 19349663u ^ s) & 0xFFFFu) / 65535.0;
-    float b = (float) (DandelionHash((uint) (int) (i.x + 1.0) * 73856093u ^ (uint) (int) i.y * 19349663u ^ s) & 0xFFFFu) / 65535.0;
-    float c = (float) (DandelionHash((uint) (int) i.x * 73856093u ^ (uint) (int) (i.y + 1.0) * 19349663u ^ s) & 0xFFFFu) / 65535.0;
-    float d = (float) (DandelionHash((uint) (int) (i.x + 1.0) * 73856093u ^ (uint) (int) (i.y + 1.0) * 19349663u ^ s) & 0xFFFFu) / 65535.0;
+    float a = (float) (HashU32((uint) (int) i.x * 73856093u ^ (uint) (int) i.y * 19349663u ^ s) & 0xFFFFu) / 65535.0;
+    float b = (float) (HashU32((uint) (int) (i.x + 1.0) * 73856093u ^ (uint) (int) i.y * 19349663u ^ s) & 0xFFFFu) / 65535.0;
+    float c = (float) (HashU32((uint) (int) i.x * 73856093u ^ (uint) (int) (i.y + 1.0) * 19349663u ^ s) & 0xFFFFu) / 65535.0;
+    float d = (float) (HashU32((uint) (int) (i.x + 1.0) * 73856093u ^ (uint) (int) (i.y + 1.0) * 19349663u ^ s) & 0xFFFFu) / 65535.0;
     return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
 }
 
@@ -71,7 +72,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     if (cell != f.cell || g_Reset != 0u)
     {
-        uint s = DandelionHash((uint) cx * 83492791u ^ (uint) cz * 2971215073u ^ g_Seed);
+        uint s = HashU32((uint) cx * 83492791u ^ (uint) cz * 2971215073u ^ g_Seed);
         float2 xz = (float2(cx, cz) + float2(DandelionRand(s), DandelionRand(s))) * g_Spacing;
         float2 uv = MapUv(xz);
         uint tw, th;
@@ -108,7 +109,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if ((f.seed & DANDELION_HIDDEN) != 0u || g_Dt <= 0.0)
         return;
 
-    uint rs = DandelionHash(f.seed ^ asuint(g_Time) ^ i * 2654435761u);
+    uint rs = HashU32(f.seed ^ asuint(g_Time) ^ i * 2654435761u);
 
     // ---- 2) 綿毛の位置の空気: 世界の風 + 局所的な風源 ----
     float stem = DandelionStemHeight(f.seed);
@@ -156,7 +157,7 @@ void main(uint3 id : SV_DispatchThreadID)
             for (uint k = 0u; k < g_SeedsPer; ++k)
             {
                 Seed z;
-                float a = DandelionRand(rs) * 6.2831853, c = DandelionRand(rs) * 2.0 - 1.0;
+                float a = DandelionRand(rs) * TWO_PI, c = DandelionRand(rs) * 2.0 - 1.0;
                 float3 dir = float3(sqrt(1.0 - c * c) * cos(a), c, sqrt(1.0 - c * c) * sin(a));
                 z.pos = top + dir * (g_PuffRadius * g_SizeMul * 0.8);
                 z.vel = air * (0.5 + 0.5 * DandelionRand(rs)) + dir * 0.7 + float3(0.0, 0.5 + 0.7 * DandelionRand(rs), 0.0);

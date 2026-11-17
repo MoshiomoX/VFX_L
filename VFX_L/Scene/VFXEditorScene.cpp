@@ -459,8 +459,6 @@ void VFXEditorScene::SubmitBurst()
     e.shapeSize = { 0.5f, 0.5f, 0.5f };
 
     e.emitCount = m_BurstCount;
-    e.maxParticles = (int)m_ParticleSystem.GetMaxParticles();
-    e.particleOffset = 0;
     e.emitRate = 0.0f;
 
     e.speedRange = { m_BurstSpeed[0], m_BurstSpeed[1] };
@@ -482,7 +480,6 @@ void VFXEditorScene::SubmitBurst()
     e.sourceCount = 0;
 
     e.isActive = 1.0f;
-    e.emitterID = 9999;
 
     e.atlasRows = 1;
     e.atlasCols = 1;

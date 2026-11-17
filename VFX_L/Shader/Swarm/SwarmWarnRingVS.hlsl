@@ -13,24 +13,15 @@
 // 中心の +-WARN_MAX_STEP にクランプし、崖にかかった円が
 // 崖の面を登らないようにする。頂点バッファなし: SV_VertexID。
 //
-// cbuffer の C++ 側: SwarmSystem::BomberRingCB
+// cbuffer は SwarmGroundMarkCB.hlsli（C++ 側: SwarmSystem::GroundMarkCB）
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
+#include "../Common/MathConst.hlsli"
 
-cbuffer SwarmBomberRingCB : register(b0)
-{
-    row_major float4x4 g_RingView;
-    row_major float4x4 g_RingProj;
-    float4 g_RingFill;  // 大きくなる円盤（ストレートアルファ）
-    float4 g_RingEdge;  // 縁
-    float4 g_RingBack;  // 縁の内側でまだ塗られていない所
-    float g_RingEdgeWidth; // 縁の太さ、メートル
-    float g_RingLift;      // 地面からのメートル
-    float2 _ringPad;
-};
+#include "SwarmGroundMarkCB.hlsli"
 
 // SwarmSystem::WarnCircle（32 バイト）
 struct SwarmWarnCircle
@@ -83,7 +74,7 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     if (w.band > 0.0)
     {
         float2 c = kCorner[vid % 6u];
-        float a = ((float) quad + c.x) / (float) (WARN_GRID * WARN_GRID) * 6.2831853;
+        float a = ((float) quad + c.x) / (float) (WARN_GRID * WARN_GRID) * TWO_PI;
         float half = 0.5 * w.band;
         float rr = radius - half + c.y * w.band;
         float2 bxz = w.center.xz + float2(cos(a), sin(a)) * max(rr, 0.0);

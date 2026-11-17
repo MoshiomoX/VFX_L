@@ -163,7 +163,7 @@
     <ClCompile Include="Swarm\SwarmSystemLifesteal.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
-    <ClCompile Include="Swarm\SwarmSystemCloseTarget.cpp">
+    <ClCompile Include="Swarm\SwarmSystemNearestTarget.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
     <ClCompile Include="Debug\AutoTest\AutoTestElites.cpp">
@@ -1226,9 +1226,6 @@
     <ClCompile Include="Enemy\Spawn\SpawnDirector.cpp">
       <Filter>Enemy\Spawn</Filter>
     </ClCompile>
-    <ClCompile Include="Swarm\GPUReadback.cpp">
-      <Filter>Swarm</Filter>
-    </ClCompile>
     <ClCompile Include="Swarm\SwarmSystem.cpp">
       <Filter>Swarm</Filter>
     </ClCompile>
@@ -2133,10 +2130,37 @@
     <ClInclude Include="Enemy\Spawn\SpawnDirector.h">
       <Filter>Enemy\Spawn</Filter>
     </ClInclude>
-    <ClInclude Include="Swarm\GPUReadback.h">
+    <ClInclude Include="Swarm\SwarmTypes.h">
       <Filter>Swarm</Filter>
     </ClInclude>
-    <ClInclude Include="Swarm\SwarmTypes.h">
+    <ClInclude Include="Swarm\StagingRing.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmCoreTypes.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmEnemyTypes.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmProjectileTypes.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmAreaTypes.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmOrbTypes.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmCBs.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmKindCB.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmReadbackTypes.h">
+      <Filter>Swarm</Filter>
+    </ClInclude>
+    <ClInclude Include="Swarm\SwarmWindTypes.h">
       <Filter>Swarm</Filter>
     </ClInclude>
     <ClInclude Include="Swarm\SwarmSystem.h">
@@ -2257,7 +2281,7 @@
     <FxCompile Include="Shader\Swarm\SwarmLiquidVS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\Swarm\SwarmLiquidTrackCS.hlsl">
+    <FxCompile Include="Shader\Swarm\SwarmAreaTrackCS.hlsl">
       <Filter>Graphics\Shader\HLSL\Swarm</Filter>
     </FxCompile>
     <FxCompile Include="Shader\Swarm\SwarmCorpseTrackCS.hlsl">
@@ -2646,6 +2670,12 @@
     <None Include="Shader\Particle\Common\ParticleCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
+    <None Include="Shader\Particle\Common\TrailDrawCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
+    <None Include="Shader\Particle\Common\ParticleRenderCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
+    </None>
     <None Include="Shader\Particle\Common\EmitBox.hlsli">
       <Filter>Graphics\Shader\HLSL\Particle\Common</Filter>
     </None>
@@ -2683,6 +2713,72 @@
     <None Include="Shader\Common\SwarmCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
+    <None Include="Shader\Common\SwarmAreaSpawn.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmAreaTypes.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmCore.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\Hash.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\LightingFog.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\LightingShadow.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\LightingPBR.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\LightingToon.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Swarm\SwarmGroundMarkCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Swarm\SwarmPropMeshCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Swarm\SwarmCorpseListCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Swarm\SwarmSpawnCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Swarm\SwarmEnemyLook.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmEnemyTypes.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmFrameCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmOrbTypes.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmRecipe.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmKindCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmOrbCB.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmProjectileTypes.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmQuat.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\SwarmTerrain.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
     <None Include="Shader\Grass\GrassCommon.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
@@ -2714,6 +2810,9 @@
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\PointLights.hlsli">
+      <Filter>Graphics\Shader\HLSL\Common</Filter>
+    </None>
+    <None Include="Shader\Common\MathConst.hlsli">
       <Filter>Graphics\Shader\HLSL\Common</Filter>
     </None>
     <None Include="Shader\Common\WindSources.hlsli">

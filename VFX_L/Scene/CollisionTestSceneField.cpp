@@ -83,7 +83,7 @@ void CollisionTestScene::PushWind()
     // 草の火：風下へ広がる、雨で消える。燃えているマスからの粒子は SwarmSystem の Flush が出す
     m_GrassFire.SetWind(wind);
     m_GrassFire.SetRain(m_Weather.RainIntensity());
-    GrassFireEmitInput fire;
+    GroundEmitInput fire;
     CameraBase* cam = GetCamera();
     if (cam && m_GrassFire.FillEmitInput(fire, cam->GetPosition(), m_Grass.GetGroundSRV(), m_Grass.GetHeightSRV()))
         m_Swarm.SetGrassFire(&fire);
@@ -102,7 +102,7 @@ void CollisionTestScene::PushWind()
     PushMiasma(); // 遺跡の瘴気：風・箱の中心
     // 風の格子：プレイヤーの足元を中心に。天気の風の一部で残った風が風下へ流れる
     if (const Vector3* fp = PlayerPos())
-        m_WindGrid.SetCenter(Vector3(fp->x, fp->y - m_Swarm.GetAIParams().groundY, fp->z), Vector2(wind.Velocity(m_Grass.Time(), fp->x, fp->z).x, wind.Velocity(m_Grass.Time(), fp->x, fp->z).z));
+        m_WindGrid.SetCenter(Vector3(fp->x, fp->y - m_Swarm.GetAIParams().centerAboveFeet, fp->z), Vector2(wind.Velocity(m_Grass.Time(), fp->x, fp->z).x, wind.Velocity(m_Grass.Time(), fp->x, fp->z).z));
 }
 
 // ============================================================
@@ -213,7 +213,7 @@ void CollisionTestScene::BuildClimbMap()
     if (GetEnvironmentVariableA("VFXL_NO_CLIMB", env, sizeof(env)) > 0)
     {
         m_Grid.ClearClimb();
-        m_Swarm.GetBomberParams().climbSpeed = 0.0f;
+        m_Swarm.GetKindParams().climbSpeed = 0.0f;
         m_Swarm.GetFlowField().allowClimb = false;
         std::cout << "[Climb] disabled (VFXL_NO_CLIMB)" << std::endl;
         return;

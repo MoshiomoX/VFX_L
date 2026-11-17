@@ -35,15 +35,15 @@ namespace
     float TurnToward(float a, float b, float maxStep)
     {
         float d = b - a;
-        while (d > 3.1415927f) d -= 6.2831853f;
-        while (d < -3.1415927f) d += 6.2831853f;
+        while (d > DirectX::XM_PI) d -= DirectX::XM_2PI;
+        while (d < -DirectX::XM_PI) d += DirectX::XM_2PI;
         return a + std::clamp(d, -maxStep, maxStep);
     }
     // [0, 2π) へ
     float Wrap2Pi(float a)
     {
-        a = std::fmod(a, 6.2831853f);
-        return (a < 0.0f) ? a + 6.2831853f : a;
+        a = std::fmod(a, DirectX::XM_2PI);
+        return (a < 0.0f) ? a + DirectX::XM_2PI : a;
     }
     // 中心 foot・向き dir・半角 half・半径 r の扇にプレイヤーが居るか（すぐ近くなら向きは見ない）
     bool InFan(const Vector3& foot, const Vector2& dir, float half, float r, const Vector3& player)
@@ -375,7 +375,7 @@ bool BossAttacks::UpdateWingGust(const Input& in, const GridWorld& grid, Output&
 }
 
 // ============================================================
-// 尾の薙ぎ払い（二段目）：止まって尾を持ち上げる（足元の輪が育つ）→ 体ごと一回転（BomberCB::bossSpin）。
+// 尾の薙ぎ払い（二段目）：止まって尾を持ち上げる（足元の輪が育つ）→ 体ごと一回転（KindCB::bossSpin）。
 // 尾の先がプレイヤーの向きを通り過ぎる瞬間に、輪の中で足が地面近くなら当たり（跳べば避けられる）
 // ============================================================
 void BossAttacks::StartTailSweep(const Input& in, const GridWorld& grid)
@@ -404,12 +404,12 @@ bool BossAttacks::UpdateTailSweep(const Input& in, const GridWorld& grid, Output
     if (prevTime < windup) out.beast.sweepStart = true;
     if (t < spinTime)
     {
-        const float before = 6.2831853f * Smooth((prevTime - windup) / spinTime);
-        m_Beast.spin = 6.2831853f * Smooth(t / spinTime);
+        const float before = DirectX::XM_2PI * Smooth((prevTime - windup) / spinTime);
+        m_Beast.spin = DirectX::XM_2PI * Smooth(t / spinTime);
         // 尾は体の後ろ（向き + π）。今のフレームで尾が通り過ぎた角度にプレイヤーが居れば
         if (!m_Beast.struck && Flat(m_Beast.foot, in.player) <= beast.sweepRadius + kPlayerThick)
         {
-            const float tailBefore = YawOf(m_Beast.dir) + 3.1415927f + (std::max)(before, 0.0f);
+            const float tailBefore = YawOf(m_Beast.dir) + DirectX::XM_PI + (std::max)(before, 0.0f);
             const float step = m_Beast.spin - (std::max)(before, 0.0f);
             const float playerYaw = YawOf(FlatDir(m_Beast.foot, in.player, m_Beast.dir));
             // VS は yaw に spin を足して回す。yaw は +Z = 0 から +X へ増える向き（YawOf と同じ）

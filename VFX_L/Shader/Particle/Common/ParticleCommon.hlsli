@@ -6,6 +6,7 @@
 
 #ifndef PARTICLE_COMMON_HLSLI
 #define PARTICLE_COMMON_HLSLI
+#include "../../Common/MathConst.hlsli"
 
 // ============================================
 // renderMode（GPUParticle / GPUEmitter）。GPUParticle.h の ParticleRenderMode
@@ -19,6 +20,10 @@
 // ============================================
 #define PARTICLE_MESH_SLOTS      16u
 #define PARTICLE_MESH_BUCKET_CAP 16384u
+#define PARTICLE_MESH_SLOT_MASK      0xFFu      // bits 0-7
+#define PARTICLE_MESH_GLOW           (1u << 8)  // bit 8
+#define PARTICLE_MESH_FACE_VELOCITY  (1u << 9)  // bit 9
+#define PARTICLE_MESH_AXIS_SHIFT     10u        // bits 10-11
 
 // ビルボードのみ（bits 0-7 == 0）：加算の代わりにアルファブレンド。
 // ParticleRenderMode::kBillboardAlpha と一致させること
@@ -42,7 +47,9 @@
 #define PARTICLE_SINGLE_BODY (1u << 30)
 
 // ビルボードのみ：トゥーンの見た目、bits 14-25。GPUParticlePS で
-// 展開し（PARTICLE_TOON_*）、ParticleRenderMode::PackToon が詰める
+// 展開し（PARTICLE_TOON_*）、ParticleRenderMode::PackToon が詰める。
+// bit 14 = トゥーン（ParticleRenderMode::kToon）
+#define PARTICLE_TOON (1u << 14)
 
 // ビルボードのみ（風の流線）：四角形を
 // カメラに向けて立てる代わりに、パーティクルの速度に沿って引き伸ばす。
@@ -77,14 +84,14 @@ float ParticleStretch(int renderMode)
 uint ParticleDistortLevel(int renderMode)
 {
     uint m = (uint) renderMode;
-    if ((m & 0xFFu) != 0u || (m & (1u << 14)) != 0u)   // メッシュとトゥーン（bit 10 をトゥーンの火の色の段に使う）は歪まない
+    if ((m & 0xFFu) != 0u || (m & PARTICLE_TOON) != 0u)   // メッシュとトゥーン（bit 10 をトゥーンの火の色の段に使う）は歪まない
         return 0u;
     return (m >> PARTICLE_DISTORT_SHIFT) & 3u;
 }
 bool ParticleDistortOnly(int renderMode)
 {
     uint m = (uint) renderMode;
-    return (m & 0xFFu) == 0u && (m & (1u << 14)) == 0u && (m & PARTICLE_DISTORT_ONLY) != 0u;
+    return (m & 0xFFu) == 0u && (m & PARTICLE_TOON) == 0u && (m & PARTICLE_DISTORT_ONLY) != 0u;
 }
 
 // 全描画モード共通：風への反応、bits 26-29 = q。UpdateCS は
@@ -112,7 +119,7 @@ float ParticleWindResponse(int renderMode)
 
 uint ParticleMeshSlotPlusOne(int renderMode)
 {
-    return ((uint) renderMode) & 0xFFu;
+    return ((uint) renderMode) & PARTICLE_MESH_SLOT_MASK;
 }
 
 uint ParticleMeshBucket(int renderMode)
@@ -120,7 +127,7 @@ uint ParticleMeshBucket(int renderMode)
     uint slot = ParticleMeshSlotPlusOne(renderMode) - 1u;
     if (slot >= PARTICLE_MESH_SLOTS)
         slot = 0u; // 不明な表の番号：立方体として描く
-    return slot * 2u + ((((uint) renderMode) >> 8u) & 1u);
+    return slot * 2u + ((((uint) renderMode) & PARTICLE_MESH_GLOW) != 0u ? 1u : 0u);
 }
 
 // ============================================
@@ -154,7 +161,7 @@ struct GPUParticle
     
     int colorKeyOffset;
     int colorKeyCount;
-    int ownerID;
+    int _reserved0;
     int renderMode; // 上の PARTICLE_MESH_* 参照（0 = ビルボード）
     // メッシュのみ：3 軸の回転（度）。ビルボードは rotation / angularVel を使う
     float3 rot3;
@@ -164,7 +171,7 @@ struct GPUParticle
 };
 // ============================================
 // GPU エミッタ（C++ の GPUEmitter と一致、336 バイト）。
-// maxParticles / particleOffset はどのシェーダーも読まない（レイアウト用のみ）
+// _unused0〜2 はどのシェーダーも読まない（レイアウト用のみ）
 // ============================================
 struct GPUEmitter
 {
@@ -175,8 +182,8 @@ struct GPUEmitter
     float3 shapeSize;
     float _pad0;
     int emitCount;
-    int maxParticles;
-    int particleOffset;
+    int _unused0;
+    int _unused1;
     float emitRate;
     float2 speedRange;
     float2 lifetimeRange;
@@ -192,14 +199,14 @@ struct GPUEmitter
     int sourceId;
     int sourceCount;
     float isActive;
-    int emitterID;
+    int _unused2;
     int atlasRows;
     int atlasCols;
     int atlasIndex;
     int textureIndex;
     int colorKeyoffset;
     int colorKeyCount;
-    int ownerID;
+    int _reserved0;
     int frameCount; // PARTICLE_FRAME_ANIMATE / _RANDOM が使うフレーム数（旧 _pad2）
     // メッシュ発生：モデルのワールド行列。row_major = C++ の Matrix と同じメモリ順
     row_major float4x4 world;
@@ -241,36 +248,19 @@ struct ColorKey
     float _pad2;
 };
 // ============================================
-// GPU コライダー（C++ の GPUCollider は削除済み。この構造体はどこも使っていない）
-// 48 バイト
-// ============================================
-struct GPUCollider
-{
-    float3 center; // Sphere: 中心 / AABB: min / Capsule: 始点
-    float radius; // Sphere / Capsule: 半径
-
-    float3 extent; // AABB: max / Capsule: 終点
-    int type; // 0=Sphere, 1=AABB, 2=Capsule
-
-    float _pad0;
-    float _pad1;
-    float _pad2;
-    float _pad3;
-};
-// ============================================
 // 定数バッファ（バッファ本体は各 .hlsl で宣言する）
 // ============================================
 cbuffer GlobalCB : register(b0)
 {
     float g_DeltaTime;
-    float g_TotalTime;
+    float _globalPad0;   // C++ の GlobalCB::totalTime（CPU 側だけが使う）
     uint g_BaseSeed;
     int g_EmitterCount;
 };
 
 cbuffer DeadListCB : register(b1)
 {
-    uint g_DeadCount;
+    uint g_DLUnused; // 未使用（空き数は deadCount の SRV から読む）
     uint g_MaxParticles;
     uint g_DLPad0;
     uint g_DLPad1;
@@ -345,7 +335,7 @@ float3 RandomFloat3(inout uint seed)
 float3 RandomOnSphere(inout uint seed)
 {
     float z = Random(seed) * 2.0 - 1.0;
-    float phi = Random(seed) * 6.28318530718;
+    float phi = Random(seed) * TWO_PI;
     float r = sqrt(1.0 - z * z);
     return float3(r * cos(phi), r * sin(phi), z);
 }
@@ -365,7 +355,7 @@ float3 RandomInCone(inout uint seed, float3 dir, float angleInDegrees)
     float cosAngle = cos(angleRad);
 
     float z = lerp(cosAngle, 1.0, Random(seed));
-    float phi = Random(seed) * 6.28318530718;
+    float phi = Random(seed) * TWO_PI;
     float r = sqrt(1.0 - z * z);
     float3 localDir = float3(r * cos(phi), r * sin(phi), z);
 

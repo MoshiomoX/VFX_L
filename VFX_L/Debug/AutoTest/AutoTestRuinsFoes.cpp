@@ -40,12 +40,12 @@ void AutoTestRuinsFoes::Run()
     static uint32_t s_Wakes0 = 0, s_Dives0 = 0, s_Revived0 = 0, s_Raised0 = 0, s_Throws0 = 0, s_Chains0 = 0;
     static float s_EventAt = -1.0f;
     static std::vector<Vector3> s_Corpses;
-    const float groundY = m_Swarm.GetAIParams().groundY;
+    const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
 
     auto spawnAt = [&](float dx, float dz, uint32_t kind, float hp, float speed)
     {
         const float x = s_Origin.x + dx, z = s_Origin.z + dz;
-        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), hp, speed, kind, std::atan2(-dx, -dz));
+        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), hp, speed, kind, std::atan2(-dx, -dz));
     };
     auto look = [&](int id, const char* name)
     {
@@ -110,7 +110,7 @@ void AutoTestRuinsFoes::Run()
             if (ex[i].kind >= Swarm::kEnemyKindArmor && (nearDist < 0.0f || d < nearDist))
             {
                 nearDist = d;
-                nearY = en[i].position.y - m_Grid.SampleHeight(en[i].position.x, en[i].position.z) - groundY;
+                nearY = en[i].position.y - m_Grid.SampleHeight(en[i].position.x, en[i].position.z) - centerAboveFeet;
                 nearFuse = ex[i].fuse;
             }
         }
@@ -236,7 +236,7 @@ void AutoTestRuinsFoes::Run()
         }
         if (t >= 3.4f) look(0, "necro");
         if (m_Mobs.GetSkeletonsRaised() > s_Raised0 && s_EventAt < 0.0f) s_EventAt = t;
-        if (t >= 3.2f + m_Swarm.GetBomberParams().necroWindup) look(1, "raisemark");
+        if (t >= 3.2f + m_Swarm.GetKindParams().necroWindup) look(1, "raisemark");
         if (s_EventAt >= 0.0f && t >= s_EventAt + 0.6f) look(2, "skeletons");
         if (t >= 12.0f)
         {

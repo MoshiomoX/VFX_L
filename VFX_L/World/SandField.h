@@ -84,20 +84,20 @@ public:
     void Stamp(const DirectX::SimpleMath::Vector3& pos, float radius, float heat, float wet);
 
     // 描画の中、地形を描く前に 1 歩。areas / areaStates = SwarmSystem::GetAreaSRV / GetAreaStateSRV、
-    // enemies / enemyStates / enemyExtra = 雑魚の足跡、height = GrassRenderer::GetHeightSRV、groundY = AICB.groundY
+    // enemies / enemyStates / enemyExtra = 雑魚の足跡、height = GrassRenderer::GetHeightSRV、centerAboveFeet = AICB.centerAboveFeet
     // windSources = SwarmSystem::GetWindSourceSRV（風に舞う砂）
     void Step(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates,
         ID3D11ShaderResourceView* enemies, ID3D11ShaderResourceView* enemyStates, ID3D11ShaderResourceView* enemyExtra,
-        ID3D11ShaderResourceView* height, float groundY, ID3D11ShaderResourceView* windSources);
+        ID3D11ShaderResourceView* height, float centerAboveFeet, ID3D11ShaderResourceView* windSources);
 
     ID3D11ShaderResourceView* GetStateSRV() const;   // 無効なら null
     ID3D11ShaderResourceView* GetTrackSRV() const;
     DirectX::SimpleMath::Vector2 MapOrigin() const { return m_MapOrigin; }
     DirectX::SimpleMath::Vector2 MapSize() const { return m_MapSize; }
     // 陽炎の入力（SwarmSystem::SetSandHaze）。出さない時 false
-    bool FillEmitInput(GrassFireEmitInput& out, const DirectX::SimpleMath::Vector3& camPos, ID3D11ShaderResourceView* height) const;
+    bool FillEmitInput(GroundEmitInput& out, const DirectX::SimpleMath::Vector3& camPos, ID3D11ShaderResourceView* height) const;
     // 風に舞う砂の入力（SwarmSystem::SetSandDust、channel 1）。出さない時 false
-    bool FillDustInput(GrassFireEmitInput& out, const DirectX::SimpleMath::Vector3& camPos, ID3D11ShaderResourceView* height) const;
+    bool FillDustInput(GroundEmitInput& out, const DirectX::SimpleMath::Vector3& camPos, ID3D11ShaderResourceView* height) const;
 
     void DrawImGui(const DirectX::SimpleMath::Vector3* player);
     Settings& GetSettings() { return m_Settings; }
@@ -125,7 +125,7 @@ public:
     struct TrackCB
     {
         DirectX::SimpleMath::Vector2 mapOrigin, mapSize;
-        float radius, depth, groundY, on;
+        float radius, depth, centerAboveFeet, on;
     };
 
 private:

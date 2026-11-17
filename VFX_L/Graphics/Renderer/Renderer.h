@@ -19,6 +19,7 @@ struct MVPBuffer
     Matrix View;
     Matrix Projection;
 };
+static_assert(sizeof(MVPBuffer) == 192, "MVPBuffer layout mismatch");
 
 // ============================================================
 // 溶解（燃焼消滅）の描画パラメータ。

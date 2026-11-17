@@ -8,9 +8,9 @@
 #include "Particle/GPUParticleSystem.h"
 #include "Graphics/Shader/ComputeShader.h"
 
-void SwarmSystem::SetGrassFire(const GrassFireEmitInput* in)
+void SwarmSystem::SetGrassFire(const GroundEmitInput* in)
 {
-    m_HasGrassFire = (in != nullptr && in->fire && in->ground && in->height && in->vfx != 0);
+    m_HasGrassFire = (in != nullptr && in->stateMap && in->ground && in->height && in->vfx != 0);
     if (m_HasGrassFire) m_GrassFire = *in;
 }
 
@@ -18,7 +18,7 @@ void SwarmSystem::SetGrassFireDamage(ID3D11ShaderResourceView* fireMap, const Di
     const DirectX::SimpleMath::Vector2& size, float damage, float tick)
 {
     m_FireMapSRV = (damage > 0.0f) ? fireMap : nullptr;
-    auto& b = GetBomberParams();
+    auto& b = GetKindParams();
     b.fireOn = m_FireMapSRV ? 1.0f : 0.0f;
     b.fireDamage = damage;
     b.fireTick = tick;
@@ -32,18 +32,18 @@ void SwarmSystem::SetIceMaps(ID3D11ShaderResourceView* ice, ID3D11ShaderResource
 {
     m_IceMapSRV = ice;
     m_PondTopSRV = pondTop;
-    GetBomberParams().iceOn = (ice && pondTop) ? 1.0f : 0.0f;
+    GetKindParams().iceOn = (ice && pondTop) ? 1.0f : 0.0f;
 }
 
-void SwarmSystem::SetSandHaze(const GrassFireEmitInput* in)
+void SwarmSystem::SetSandHaze(const GroundEmitInput* in)
 {
-    m_HasSandHaze = (in != nullptr && in->fire && in->ground && in->height && in->vfx != 0);
+    m_HasSandHaze = (in != nullptr && in->stateMap && in->ground && in->height && in->vfx != 0);
     if (m_HasSandHaze) m_SandHaze = *in;
 }
 
-void SwarmSystem::SetSandDust(const GrassFireEmitInput* in)
+void SwarmSystem::SetSandDust(const GroundEmitInput* in)
 {
-    m_HasSandDust = (in != nullptr && in->fire && in->ground && in->height && in->vfx != 0);
+    m_HasSandDust = (in != nullptr && in->stateMap && in->ground && in->height && in->vfx != 0);
     if (m_HasSandDust) m_SandDust = *in;
 }
 
@@ -55,16 +55,16 @@ void SwarmSystem::DispatchFireEmit(float dt, float totalTime)
     if (m_HasSandDust) DispatchFireEmitOne(m_SandDust, dt, totalTime, 0x5be1d3a7u);
 }
 
-void SwarmSystem::DispatchFireEmitOne(const GrassFireEmitInput& in, float dt, float totalTime, uint32_t seedXor)
+void SwarmSystem::DispatchFireEmitOne(const GroundEmitInput& in, float dt, float totalTime, uint32_t seedXor)
 {
     if (!m_FireEmitCS || !m_Particles) return;
     if (!m_VFX.GetRecipeSRV() || !m_VFX.GetEmitterSRV()) return;
 
     // b0 = GlobalCB（ParticleCommon）。弾の分とは別の seed
-    struct GlobalCB { float dt; float total; uint32_t seed; int emitterCount; } gcb;
-    gcb.dt = dt;
-    gcb.total = totalTime;
-    gcb.seed = (uint32_t)(totalTime * 1000.0f) ^ seedXor;
+    GlobalCB gcb = {};
+    gcb.deltaTime = dt;
+    gcb.totalTime = totalTime;
+    gcb.baseSeed = (uint32_t)(totalTime * 1000.0f) ^ seedXor;
     gcb.emitterCount = 0;
 
     // GrassFireEmitCS の b2 と同じ並び（64B）
@@ -89,7 +89,7 @@ void SwarmSystem::DispatchFireEmitOne(const GrassFireEmitInput& in, float dt, fl
     m_FireEmitCS->WriteBuffer(m_Context, 0, &gcb);
     m_FireEmitCS->WriteBuffer(m_Context, 2, &fcb);
     m_FireEmitCS->Bind(m_Context);
-    m_FireEmitCS->SetSRV(m_Context, "fireMap", in.fire);
+    m_FireEmitCS->SetSRV(m_Context, "fireMap", in.stateMap);
     m_FireEmitCS->SetSRV(m_Context, "groundMap", in.ground);
     m_FireEmitCS->SetSRV(m_Context, "recipes", m_VFX.GetRecipeSRV());
     m_FireEmitCS->SetSRV(m_Context, "emitters", m_VFX.GetEmitterSRV());
@@ -101,7 +101,7 @@ void SwarmSystem::DispatchFireEmitOne(const GrassFireEmitInput& in, float dt, fl
     m_FireEmitCS->BindUAVs(m_Context);
 
     // 火のテクスチャの辺（GrassFireField::kSize）。8x8 のグループ
-    const UINT groups = (in.fireSize + 7) / 8;
+    const UINT groups = (in.stateMapSize + 7) / 8;
     m_Context->Dispatch(groups, groups, 1);
 
     m_FireEmitCS->UnbindSRVs(m_Context);

@@ -167,7 +167,7 @@ void AutoTestRarity::StartSolo(ItemID id)
     m_Swarm.KillAll();
     m_Swarm.ClearProjectiles();
     const auto& tf = m_Registry.Get<TransformComponent>(m_Player);
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     const float kOff[6][2] = { { -1.5f, 7.0f }, { 1.5f, 7.0f }, { 0.0f, 8.5f }, { -2.0f, 10.0f }, { 2.0f, 10.0f }, { 0.0f, 10.0f } };
     for (const auto& o : kOff)
     {

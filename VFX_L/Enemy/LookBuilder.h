@@ -183,7 +183,7 @@ namespace LookBuilder
             const float inner = 0.3f;   // 内側の輪の半径の割合（面は外側だけ見える）
             for (int i = 0; i < segs; ++i)
             {
-                const float t0 = 6.2831853f * (float)i / (float)segs, t1 = 6.2831853f * (float)(i + 1) / (float)segs;
+                const float t0 = DirectX::XM_2PI * (float)i / (float)segs, t1 = DirectX::XM_2PI * (float)(i + 1) / (float)segs;
                 const Vec3 o0 = s1 * std::cos(t0) + s2 * std::sin(t0), o1 = s1 * std::cos(t1) + s2 * std::sin(t1);
                 Vec3 v[8] = {
                     a + o0 * (r0 * inner), a + o0 * r0, a + o1 * r0, a + o1 * (r0 * inner),
@@ -200,11 +200,11 @@ namespace LookBuilder
             auto dir = [](float phi, float th) { return Vec3(std::cos(phi) * std::cos(th), std::sin(phi), std::cos(phi) * std::sin(th)); };
             for (int j = 0; j < rings; ++j)
             {
-                const float p0 = -1.5707963f + 3.1415927f * (float)j / (float)rings;
-                const float p1 = -1.5707963f + 3.1415927f * (float)(j + 1) / (float)rings;
+                const float p0 = -1.5707963f + DirectX::XM_PI * (float)j / (float)rings;
+                const float p1 = -1.5707963f + DirectX::XM_PI * (float)(j + 1) / (float)rings;
                 for (int i = 0; i < segs; ++i)
                 {
-                    const float t0 = 6.2831853f * (float)i / (float)segs, t1 = 6.2831853f * (float)(i + 1) / (float)segs;
+                    const float t0 = DirectX::XM_2PI * (float)i / (float)segs, t1 = DirectX::XM_2PI * (float)(i + 1) / (float)segs;
                     const Vec3 d00 = dir(p0, t0), d01 = dir(p0, t1), d10 = dir(p1, t0), d11 = dir(p1, t1);
                     Vec3 v[8] = {
                         c + d00 * (r * inner), c + d00 * r, c + d01 * r, c + d01 * (r * inner),

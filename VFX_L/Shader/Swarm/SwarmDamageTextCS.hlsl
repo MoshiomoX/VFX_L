@@ -5,8 +5,7 @@
 // イベントにする。CPU がそれをリードバックし、敵の頭上に数字として描く
 // （UI/DamageNumbers）。
 //
-// ダメージを与える各パスでやらずにここでやる理由：HitCS は D3D11.0 の UAV 8 本を
-// 使い切っていて、1 か所なら弾・範囲の tick・毒素の削り・接触を
+// ダメージを与える各パスでやらずにここでやる理由：1 か所なら弾・範囲の tick・毒素の削り・接触を
 // すべて同じように拾える。
 //
 // まとめ方：1 体の敵には 1 秒に何度も当たる（光線の tick、毒の
@@ -15,11 +14,13 @@
 // （そのときは撃破フラグ付き。残っていた hp も含める）。
 // 毒：減った分のうち、このフレームに削れた毒素（enemyPoison.x が
 // 減った量）に合う部分を毒として数え、残りを直接として数える。
+// 吸血：最後の一撃が吸血魔法だった敵の減った hp を lifesteal（u3）へ累積する
+// （hp の差分をここで取っているので一緒にやる。CPU は SwarmSystemLifesteal.cpp で差分を読む）。
 //
 // イベントリング（dmgEvents、RAW）：[0] = これまでに書いたイベント数、続いて 16 バイト
 // × SWARM_MAX_DAMAGE_TEXTS の float3 位置（体の上）+ uint
 // packed（SWARM_DTX_* のビット：下位 24 ビットに量 ×10）。CPU は
-// 分裂リングと同じようにリードバックする（ステージング 3 本、2〜3 フレーム遅れ）。
+// 敵の出来事の環と同じようにリードバックする（ステージング 3 本、2〜3 フレーム遅れ）。
 //
 // KillAll は prevHp と pending を消すので、フィールドを一掃しても何も出ない。
 // 同じフレーム内に死んで再利用されたスロットは取りこぼす（まれ）。
@@ -29,15 +30,14 @@
 // 「狙えない」砂旋など。これらは何も出さない。撃破フラグは
 // このフレームに hp が本当に 0 になったときだけ付ける。
 //
-// - 撃破の数字は倒した一撃の属性を使う。HitCS / AreaDamageCS が死んだスロットの
-//   attackCooldown に残す（SwarmKillElement）：その時点で状態ワードは
-//   ただの DEAD になっているため。
+// - 撃破の数字は倒した一撃の属性（enemyHitInfo.killElement）、それ以外は最後の命中の属性
+//   （enemyHitInfo.lastHit）を使う。どちらも HitCS / AreaDamageCS が書く。
 // - 前フレーム以降に RecycleCS が上書きしたスロットは prevHp に SWARM_PREVHP_RECYCLED が
 //   入っている（+ 新しい敵の生成時の hp）：前の敵の貯めていた数字と毒素は
 //   忘れ、減った分は新しい生成時の hp から測る。
 // ============================================================
 #define SWARM_AI_CB_REG b2
-#define SWARM_BOMBER_CB_REG b3
+#define SWARM_KIND_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
 cbuffer SwarmDamageTextCB : register(b4)
@@ -50,8 +50,9 @@ cbuffer SwarmDamageTextCB : register(b4)
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
-StructuredBuffer<float4> enemyPoison : register(t2);   // x = まだ削れていない毒素
+StructuredBuffer<float2> enemyPoison : register(t2);   // x = まだ削れていない毒素
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t3);
+StructuredBuffer<SwarmEnemyHitInfo> enemyHitInfo : register(t4);   // 最後の命中 / とどめの属性、吸血の印
 
 RWBuffer<uint> prevHp : register(u0);                  // 前フレームに見た hp（固定小数）、死んだスロットは 0
 RWStructuredBuffer<float4> pending : register(u1);     // x 直接、y 毒（hp）、z 最初に減ってからの秒、w 前フレームに見た毒素
@@ -62,7 +63,7 @@ static const uint SWARM_MAX_DAMAGE_TEXTS = 512u;   // Swarm::kMaxDamageTexts
 static const uint SWARM_DTX_AMOUNT_MASK = 0x00FFFFFFu;   // 量 × 10
 static const uint SWARM_DTX_POISON = 1u << 24;           // ほとんどが毒素の削り -> 緑
 static const uint SWARM_DTX_KILL = 1u << 25;             // 敵が死んだ -> 大きく
-static const uint SWARM_DTX_ELEMENT_SHIFT = 26u;         // ビット 26..29：最後の一撃の属性（状態ワード）、数字の色
+static const uint SWARM_DTX_ELEMENT_SHIFT = 26u;         // ビット 26..29：最後の一撃の属性、数字の色
 
 float HpOf(uint raw)
 {
@@ -105,8 +106,8 @@ void main(uint3 id : SV_DispatchThreadID)
     uint hpRaw = enemies[i].hp;
     uint state = enemyStates[i];
     bool dead = state == SWARM_DEAD;
-    // 死んだスロットの状態ワードはただの DEAD：倒した側が属性を attackCooldown に残している
-    uint elem = dead ? SwarmKillElement(enemies[i].attackCooldown) : SwarmStateElement(state);
+    SwarmEnemyHitInfo hitInfo = enemyHitInfo[i];
+    uint elem = dead ? hitInfo.killElement : SwarmHitElement(hitInfo.lastHit);
     uint prevRaw = prevHp[i];
     float4 p = pending[i];
     if ((prevRaw & SWARM_PREVHP_RECYCLED) != 0u)
@@ -120,9 +121,9 @@ void main(uint3 id : SV_DispatchThreadID)
     float drain = max(0.0, p.w - toxinNow);   // このフレームに削れた毒素（新しく盛られた分は増やすだけ）
     p.w = toxinNow;
 
-    // ---- 吸血：最後の一撃が吸血魔法のもの（SWARM_STATE_LIFESTEAL、HitCS / AreaDamageCS）
-    //      -> このフレームに減った hp をプレイヤーの回復に回す。倒した一撃はスロットを DEAD にする（印なし）：数えない ----
-    if ((state & SWARM_STATE_LIFESTEAL) != 0u && prevRaw != 0u)
+    // ---- 吸血：最後の一撃が吸血魔法のもの（SWARM_HIT_LIFESTEAL、HitCS / AreaDamageCS）
+    //      -> このフレームに減った hp をプレイヤーの回復に回す。倒されたスロットは数えない ----
+    if (!dead && (hitInfo.lastHit & SWARM_HIT_LIFESTEAL) != 0u && prevRaw != 0u)
     {
         float lost = HpOf(prevRaw) - HpOf(hpRaw);
         if (lost > 0.0)

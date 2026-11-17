@@ -14,14 +14,14 @@
 //
 // 同じフレーム内に死んで再利用されたスロットは取りこぼす（まれ）。
 //
-// 死んだスプリッターは分裂リングにも位置を書く
-// （splitEvents：+0 にこれまでの書き込み総数、続いて 16 バイト × SWARM_MAX_SPLIT_EVENTS
+// 死んだスプリッターと 1 回目の死の呪いの鎧は敵の出来事の環にも位置を書く
+// （enemyEvents：+0 にこれまでの書き込み総数、続いて 16 バイト × SWARM_MAX_ENEMY_EVENTS
 // の float3 位置 + uint 種類）。CPU は連鎖リングと同じようにリードバックし、
-// MobSpawner が分裂体を湧かせる。砕け散りを切っていてもこれは動く。
+// MobSpawner が分裂体 / 蘇った鎧を湧かせる。砕け散りを切っていてもこれは動く。
 // ============================================================
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b5   // ガーゴイルの飛ぶ高さ（死体は地面から飛び散らせる）
+#define SWARM_KIND_CB_REG b5   // ガーゴイルの飛ぶ高さ（死体は地面から飛び散らせる）
 #define SWARM_AREA_POOL_U u3
 #define SWARM_AREA_STATE_U u4
 #define SWARM_AREA_DEF_T t3
@@ -42,19 +42,9 @@ StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2);
 RWBuffer<uint> prevAlive : register(u0);
 RWStructuredBuffer<SwarmCorpse> corpses : register(u1);
 RWByteAddressBuffer corpseHead : register(u2);   // [0] = これまでに書いた死体の数（リングを回り込む）
-RWByteAddressBuffer splitEvents : register(u5);  // 分裂リング、上の説明を参照
+RWByteAddressBuffer enemyEvents : register(u5);  // 敵の出来事の環、上の説明を参照
 
-static const uint SWARM_MAX_SPLIT_EVENTS = 128u;   // Swarm::kMaxSplitEvents
-
-uint CorpseHash(uint x)
-{
-    x ^= x >> 16;
-    x *= 0x7feb352du;
-    x ^= x >> 15;
-    x *= 0x846ca68bu;
-    x ^= x >> 16;
-    return x;
-}
+#include "../Common/Hash.hlsli"
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -80,19 +70,19 @@ void main(uint3 id : SV_DispatchThreadID)
     if (kind == SWARM_KIND_ARMOR)
     {
         uint s;
-        splitEvents.InterlockedAdd(0, 1u, s);
-        uint at = 16u + (s % SWARM_MAX_SPLIT_EVENTS) * 16u;
-        splitEvents.Store3(at, asuint(e.position));
-        splitEvents.Store(at + 12u, kind);
+        enemyEvents.InterlockedAdd(0, 1u, s);
+        uint at = 16u + (s % SWARM_MAX_ENEMY_EVENTS) * 16u;
+        enemyEvents.Store3(at, asuint(e.position));
+        enemyEvents.Store(at + 12u, kind);
         return;
     }
     if (kind == SWARM_KIND_SPLITTER)
     {
         uint s;
-        splitEvents.InterlockedAdd(0, 1u, s);
-        uint at = 16u + (s % SWARM_MAX_SPLIT_EVENTS) * 16u;
-        splitEvents.Store3(at, asuint(e.position));
-        splitEvents.Store(at + 12u, kind);
+        enemyEvents.InterlockedAdd(0, 1u, s);
+        uint at = 16u + (s % SWARM_MAX_ENEMY_EVENTS) * 16u;
+        enemyEvents.Store3(at, asuint(e.position));
+        enemyEvents.Store(at + 12u, kind);
     }
     // 砂嵐の術師の砂旋はただ吹き消える：土煙だけで砕けない（ブロックの体が無い）
     if (kind == SWARM_KIND_TORNADO)
@@ -116,8 +106,8 @@ void main(uint3 id : SV_DispatchThreadID)
     c.dir = (awayLenSq > 1e-4) ? away * rsqrt(awayLenSq) : -float2(sin(e.yaw), cos(e.yaw));
     c.birth = g_CorpseTime;
     c.kind = kind;
-    c.seed = CorpseHash(i * 2654435761u ^ (n * 0x9E3779B9u));
-    c.cause = 0u;
+    c.seed = HashU32(i * 2654435761u ^ (n * 0x9E3779B9u));
+    c._pad0 = 0u;
     c._pad = float2(0.0, 0.0);
     corpses[n % SWARM_MAX_CORPSES] = c;
 

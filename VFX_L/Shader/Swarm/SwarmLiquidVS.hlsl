@@ -6,7 +6,7 @@
 // ピクセルは VFXLiquidPS（CPU 経路と同じ）。
 //
 //   recipe -> LiquidDef : recipeLiquid[a.vfxType] = def の番号 + 1（0 = なし）
-//   age / direction     : liquidTrack[slot]（SwarmLiquidTrackCS）
+//   age / direction     : areaTrack[slot]（SwarmAreaTrackCS）
 //   radius              : def の radius × 範囲のサイズ倍率。def が 0 なら
 //                         範囲の半径そのもの
 //   seed                : スロット + 落ちた位置。同じスロットを使い回した
@@ -29,7 +29,7 @@ cbuffer LiquidCameraCB : register(b0)
 
 StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
-StructuredBuffer<float4> liquidTrack : register(t2);   // （向き x、向き z、最初に見た時の timeLeft、前フレームの timeLeft）
+StructuredBuffer<float4> areaTrack : register(t2);   // （向き x、向き z、最初に見た時の timeLeft、前フレームの timeLeft）
 StructuredBuffer<float> heights : register(t3);
 StructuredBuffer<uint> recipeLiquid : register(t4);
 StructuredBuffer<LiquidDef> liquidDefs : register(t5);
@@ -45,12 +45,12 @@ LiquidVSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     uint li = recipeLiquid[a.vfxType];
     if (li == 0u)
         return o;
-    float4 tr = liquidTrack[iid];
+    float4 tr = areaTrack[iid];
     if (tr.w <= 0.0)
         return o;   // まだトラッカーに見つかっていない
 
     LiquidDef L = liquidDefs[li - 1u];
-    uint seed = LiquidHash(iid * 2654435761u ^ asuint(a.center.x) ^ (asuint(a.center.z) * 0x9E3779B9u));
+    uint seed = HashU32(iid * 2654435761u ^ asuint(a.center.x) ^ (asuint(a.center.z) * 0x9E3779B9u));
     float2 fwd, lft;
     LiquidFrame(tr.xy, seed, fwd, lft);
 

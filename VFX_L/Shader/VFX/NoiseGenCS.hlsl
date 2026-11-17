@@ -6,6 +6,8 @@
 //   type 2 fbm     : perlin を `octaves` 回足す、1 回ごとに周波数 x2
 // 出力は [0,1] の R32_FLOAT。1 テクセルに 1 スレッド。
 // ============================================================
+#include "../Common/MathConst.hlsli"
+
 RWTexture2D<float> dst : register(u0);
 
 cbuffer NoiseCB : register(b0)
@@ -30,7 +32,7 @@ float Hash(uint2 p, uint seed)
 
 float2 Gradient(uint2 p, uint seed)
 {
-    float a = Hash(p, seed) * 6.28318530718;
+    float a = Hash(p, seed) * TWO_PI;
     return float2(cos(a), sin(a));
 }
 

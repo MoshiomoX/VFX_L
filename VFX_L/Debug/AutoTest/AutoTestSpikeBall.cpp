@@ -47,11 +47,11 @@ void AutoTestSpikeBall::Run(float dt)
             hp.max = hp.current = 100000.0f;
             s_LastHp = hp.current;
         }
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         float hp = 15.0f, speed = 3.5f;
         m_Mobs.KindStats(Swarm::kEnemyKindSpikeBall, hp, speed);
         const float x = tf.position.x, z = tf.position.z + 7.0f;
-        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), hp, speed, Swarm::kEnemyKindSpikeBall);
+        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), hp, speed, Swarm::kEnemyKindSpikeBall);
         s_Start = tf.position;
         auto& cam = m_Camera.Camera();
         cam.SetYaw(-90.0f);

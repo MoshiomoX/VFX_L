@@ -30,13 +30,13 @@ class Texture;
 
 namespace Swarm
 {
-    // Shader/Common/SwarmCommon.hlsli の SwarmRecipe と一致（32 bytes）
+    // Shader/Common/SwarmRecipe.hlsli の SwarmRecipe と一致（32 bytes）
     struct VFXRecipe
     {
         uint32_t particleStart = 0;
         uint32_t particleCount = 0;
-        uint32_t modelStart = 0;    // 使っていない（モデル表は無い。HLSL の SwarmRecipe と並びを合わせるだけ）
-        uint32_t modelCount = 0;
+        uint32_t modelStart = 0;    // 未使用（GPU の SwarmRecipe と並びを合わせるだけ）
+        uint32_t modelCount = 0;    // 未使用（同上）
         uint32_t lightStart = 0;
         uint32_t lightCount = 0;
         uint32_t spriteStart = 0;   // Sprite entry の表（GPU の範囲だけが使う）

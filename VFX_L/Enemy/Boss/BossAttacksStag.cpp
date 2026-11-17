@@ -2,7 +2,7 @@
 // BossAttacksStag.cpp
 // 草原 3 面目の Boss「雷鳴の雄鹿」だけの中身：
 //   ・突進の姿勢（溜めで頭を下げ脚を開く、走りで前傾、当てた瞬間に頭を振り上げる、終わると頭が上がる）→ Output::chargePose
-//     → BomberCB::bossChargePose → SwarmEnemyVS が首（mode 3）・脚（mode 4）・全身を動かす
+//     → KindCB::bossChargePose → SwarmEnemyVS が首（mode 3）・脚（mode 4）・全身を動かす
 //   ・突進で通り過ぎた道筋の輪に落ちる雷（stagThunderWarn 秒の予告 → Ring{ thunder }。見た目・音はシーン）
 // 突進そのもの（溜め・走り・当たり）は BossAttacksCommon.cpp の Charge。
 // 専用の技（共通の技は突進だけ残す）：
@@ -43,7 +43,7 @@ void BossAttacks::UpdateStagPose(const Input& in, Output& out)
             // 当てた瞬間：頭を振り上げて戻す（1 → 1.3 → 1）
             m_ChargeTossT += in.dt;
             const float u = (std::min)(1.0f, m_ChargeTossT / (std::max)(stagTossTime, 0.02f));
-            pose = 1.0f + 0.3f * std::sin(u * 3.14159265f);
+            pose = 1.0f + 0.3f * std::sin(u * DirectX::XM_PI);
             if (u >= 1.0f) m_ChargeTossT = -1.0f;
         }
     }
@@ -55,7 +55,7 @@ void BossAttacks::UpdateStagPose(const Input& in, Output& out)
         if (t < 0.0f)
             pose = (std::min)(1.0f, m_MoveTime / (std::max)(tossWindup, 0.02f));
         else if (t < up)
-            pose = 1.0f + 0.3f * std::sin(t / up * 3.14159265f);
+            pose = 1.0f + 0.3f * std::sin(t / up * DirectX::XM_PI);
         else
             pose = (std::max)(0.0f, 1.0f - (t - up) / (std::max)(tossRest - up, 0.05f));
     }

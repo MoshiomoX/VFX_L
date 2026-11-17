@@ -322,7 +322,7 @@ void GrassRenderer::Render(Renderer& renderer, CameraBase& camera)
     cb.bladeShape = Vector4(s.twistMax, std::clamp(s.dryShare, 0.0f, 1.0f), std::clamp(s.wave2Weight, 0.0f, 1.0f),
         m_WindSourceSRV ? (std::max)(s.trailStrength, 0.0f) : 0.0f);
     cb.dryColor = Vector4(s.dryColor.x, s.dryColor.y, s.dryColor.z, (std::max)(s.trailSpeed, 0.1f));
-    cb.swarmExtra = Vector4(m_EnemyGroundY, 0.0f, 0.0f, 0.0f);
+    cb.swarmExtra = Vector4(m_EnemyCenterAboveFeet, 0.0f, 0.0f, 0.0f);
     m_GustCount = 0;   // 1 回押したら終わり
     m_PendingDt = 0.0f;   // 一時停止中（Update 無し）は 0 のまま = 踏み跡も止まる
 

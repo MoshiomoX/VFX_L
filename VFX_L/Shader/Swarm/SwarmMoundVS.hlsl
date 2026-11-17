@@ -9,12 +9,12 @@
 // 下半分は地形の下に入り、ドームだけが見える。
 // 敵が地上に出るのに合わせて（fuse）盛り上がる / 平らになり、移動中は上下に揺れる。
 // 敵のピクセルシェーダーと既定の白テクスチャで描くので、
-// 色は頂点カラー x g_ShieldTint になる。
+// 色は頂点カラー x g_PropTint になる。
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b5
+#define SWARM_KIND_CB_REG b5
 #include "../Common/ModelCommon.hlsli"
 #include "../Common/SwarmCommon.hlsli"
 
@@ -24,18 +24,7 @@ StructuredBuffer<uint> burrowerList : register(t2);
 // （t4 は使わない: 宣言しても読まないとコンパイラが削り、C++ のバインドが毎フレーム警告する）
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
-// C++ 側: SwarmSystem::PropMeshCB（SwarmShieldVS と同じブロック）
-cbuffer SwarmPropMeshCB : register(b4)
-{
-    float3 g_MeshAnchor; // 使わない
-    float g_MeshScale;   // 体格 1 のときの砂山の半径（m）
-    float3 g_HoldOffset; // y = 体格 1 のときの砂山の高さ（m）
-    float g_MeshYaw;     // 使わない
-    float4 g_ShieldTint; // 頂点カラーに掛ける
-    float g_BobAmount;   // 移動中の上下の揺れ（m）
-    float g_PropAlpha;   // 使わない
-    float2 _propPad;
-};
+#include "SwarmPropMeshCB.hlsli"   // g_MeshScale = 砂山の半径、g_HoldOffset.y = 高さ、g_PropParam = 上下の揺れ
 
 struct VS_INPUT_INST
 {
@@ -66,7 +55,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float r = g_MeshScale * k;
     float h = g_HoldOffset.y * k * down;
     bool moving = dot(e.velocity.xz, e.velocity.xz) > 0.01;
-    float bob = moving ? abs(sin(e.animTime * 7.0 + (float) slot * 0.37)) * g_BobAmount : 0.0;
+    float bob = moving ? abs(sin(e.animTime * 7.0 + (float) slot * 0.37)) * g_PropParam : 0.0;
 
     float3 local = input.Position * float3(r, h, r);
     // 押しつぶした球の法線: 逆数で拡大縮小する
@@ -79,6 +68,6 @@ VS_OUTPUT main(VS_INPUT_INST input)
     o.Normal = normal;
     o.Tangent = float3(1, 0, 0);
     o.UV = input.UV;
-    o.Color = input.Color * g_ShieldTint;
+    o.Color = input.Color * g_PropTint;
     return o;
 }

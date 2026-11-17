@@ -28,22 +28,11 @@ cbuffer GrassFireEmitCB : register(b2)
     float3 _channelPad;
 };
 
-// = SwarmRecipe（Shader/Common/SwarmCommon.hlsli）、32 バイト
-struct FireRecipe
-{
-    uint particleStart;
-    uint particleCount;
-    uint modelStart;
-    uint modelCount;
-    uint lightStart;
-    uint lightCount;
-    uint spriteStart;
-    uint spriteCount;
-};
+#include "../Common/SwarmRecipe.hlsli"
 
 Texture2D<float4> fireMap : register(t0);        // （温度、燃料、燃焼中）/ 砂: w = 舞っている量
 Texture2D<float4> groundMap : register(t1);      // a = 草
-StructuredBuffer<FireRecipe> recipes : register(t2);
+StructuredBuffer<SwarmRecipe> recipes : register(t2);
 StructuredBuffer<GPUEmitter> emitters : register(t3);
 Buffer<uint> deadCount : register(t4);
 Texture2D<float> heightMap : register(t5);       // GridWorld の高さ（GrassRenderer のテクスチャ）
@@ -74,7 +63,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (groundMap.Load(int3(int2(uv * float2(gw, gh)), 0)).a < 0.5)
         return;
 
-    FireRecipe r = recipes[g_FireVfx];
+    SwarmRecipe r = recipes[g_FireVfx];
     if (r.particleCount == 0u)
         return;
 

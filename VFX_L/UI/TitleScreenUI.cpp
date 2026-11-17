@@ -194,7 +194,7 @@ void TitleScreenUI::Render(Graphics& gfx)
                 const Vector4 halo = { 1.0f, 0.62f, 0.22f, 0.13f };
                 for (int i = 0; i < 8; ++i)
                 {
-                    const float a = static_cast<float>(i) * 6.2831853f / 8.0f;
+                    const float a = static_cast<float>(i) * DirectX::XM_2PI / 8.0f;
                     m_TitleText.Draw(title, at + Vector2(std::cos(a), std::sin(a)) * g, halo, titleScale);
                 }
                 DrawOutlined(m_TitleText, title, at, { 1.0f, 0.84f, 0.46f, 1.0f }, titleScale, 3.0f * k);
@@ -239,7 +239,7 @@ void TitleScreenUI::Render(Graphics& gfx)
         const Vector4 halo = { 1.0f, 0.62f, 0.22f, (0.10f + 0.05f * breath) * titleIn };
         for (int i = 0; i < 8; ++i)
         {
-            const float a = static_cast<float>(i) * 6.2831853f / 8.0f;
+            const float a = static_cast<float>(i) * DirectX::XM_2PI / 8.0f;
             m_TitleText.Draw(title, titlePos + Vector2(std::cos(a), std::sin(a)) * g, halo, titleScale);
         }
         DrawOutlined(m_TitleText, title, titlePos, { 1.0f * hdr, 0.84f * hdr, 0.46f * hdr, titleIn }, titleScale, 3.0f * k);

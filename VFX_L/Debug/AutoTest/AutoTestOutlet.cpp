@@ -74,14 +74,14 @@ float AutoTestOutlet::StageTime() const
 
 void AutoTestOutlet::SpawnTargets()
 {
-    const float groundY = m_Swarm.GetAIParams().groundY;
+    const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
     const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
     for (int k = 0; k < 12; ++k)
     {
         const float a = (-40.0f + 80.0f * (float)(k % 6) / 5.0f) * 0.0174533f;
         const float d = (k < 6) ? 7.0f : 11.0f;
         const float x = pp.x + std::sin(a) * d, z = pp.z + std::cos(a) * d;
-        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), 100000.0f, 0.0f, Swarm::kEnemyKindMob);
+        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), 100000.0f, 0.0f, Swarm::kEnemyKindMob);
     }
 }
 
@@ -120,13 +120,13 @@ void AutoTestOutlet::BeginStage(int stage)
     SpawnTargets();
     if (stage == 22)
     {
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
         for (int k = 0; k < 6; ++k)
         {
             const float a = 1.0472f * (float)k;
             const float x = pp.x + std::sin(a) * 3.2f, z = pp.z + std::cos(a) * 3.2f;
-            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), 100000.0f, 0.0f, Swarm::kEnemyKindMob);
+            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), 100000.0f, 0.0f, Swarm::kEnemyKindMob);
         }
     }
 

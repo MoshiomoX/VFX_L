@@ -46,6 +46,7 @@ RWStructuredBuffer<SwarmProjectile> projectiles : register(u0);
 RWBuffer<uint> projStates : register(u1);
 RWByteAddressBuffer counters : register(u2);
 RWStructuredBuffer<SwarmProjPath> paths : register(u3);
+RWStructuredBuffer<SwarmProjChain> projChain : register(u7);   // 連鎖・貫通の状態（HitCS が書く）
 
 // 一斉起爆：1 ステップだけ != 0。飛んでいる弾はすべて消えてこの範囲を残す
 cbuffer ProjDetonateCB : register(b1)
@@ -112,7 +113,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (m.mode == SWARM_MOTION_ORBIT)
     {
         p.pathT += g_Step;
-        float orbitAngle = paths[i].sideSign + p.pathT * m.c1.x;
+        float orbitAngle = paths[i].sideAngle + p.pathT * m.c1.x;
         float orbitRadius = min(p.pathT * 14.0, m.c1.y);
         float3 orbitPos = g_PlayerPos + float3(cos(orbitAngle) * orbitRadius, m.c1.z, sin(orbitAngle) * orbitRadius);
         projectiles[i].velocity = (orbitPos - p.position) / g_Step;
@@ -128,13 +129,13 @@ void main(uint3 id : SV_DispatchThreadID)
     // 届く範囲で一番近い「別の」生きている敵に狙いを付け、ここから今の向きで出ていく
     // 新しいカーブを組む。届く範囲に誰もいなければ、手放してそのまま飛ぶ
     // （TRACK の弾は自分でまた探す。HitCS は最後に当てた敵を飛ばし続ける） ----
-    uint state = projStates[i];
+    SwarmProjChain chain = projChain[i];
     // 貫通する弾（黄金の矢）は同じ状態を使うが、狙い直さない：直線のまま進む
-    bool chained = (state & SWARM_PROJ_CHAINED) != 0u && (state & SWARM_PROJ_PIERCE) == 0u;
-    if ((state & SWARM_PROJ_CHAIN_PENDING) != 0u)
+    bool chained = (chain.flags & SWARM_CHAIN_ACTIVE) != 0u && (chain.flags & SWARM_CHAIN_PIERCE) == 0u;
+    if ((chain.flags & SWARM_CHAIN_PENDING) != 0u)
     {
-        projStates[i] = state & ~SWARM_PROJ_CHAIN_PENDING;
-        uint lastHit = state & SWARM_PROJ_CHAIN_LAST_MASK;
+        projChain[i].flags = chain.flags & ~SWARM_CHAIN_PENDING;
+        uint lastHit = chain.lastHit;
         float bestSq = SWARM_CHAIN_RADIUS * SWARM_CHAIN_RADIUS;
         uint best = SWARM_NO_TARGET;
         for (uint j = 0; j < g_MaxEnemies; ++j)

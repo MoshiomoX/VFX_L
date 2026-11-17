@@ -7,12 +7,7 @@
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
-cbuffer SwarmCorpseListCB : register(b4)
-{
-    float g_CorpseTime;
-    float g_CorpseLife;
-    float2 _corpseListPad;
-};
+#include "SwarmCorpseListCB.hlsli"
 
 StructuredBuffer<SwarmCorpse> corpses : register(t0);
 AppendStructuredBuffer<uint> eliteACorpses : register(u0);

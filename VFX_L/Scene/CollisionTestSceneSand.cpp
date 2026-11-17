@@ -75,13 +75,13 @@ void CollisionTestScene::PushSand()
             grounded = m_Registry.Get<RigidbodyComponent>(m_Player).isGrounded;
         m_Sand.SetPlayer(tf.position, grounded && !IsPlayerDead());
     }
-    GrassFireEmitInput haze;
+    GroundEmitInput haze;
     CameraBase* cam = GetCamera();
     if (cam && m_Sand.FillEmitInput(haze, cam->GetPosition(), m_Grass.GetHeightSRV()))
         m_Swarm.SetSandHaze(&haze);
     else
         m_Swarm.SetSandHaze(nullptr);
-    GrassFireEmitInput dust;
+    GroundEmitInput dust;
     if (cam && m_Sand.FillDustInput(dust, cam->GetPosition(), m_Grass.GetHeightSRV()))
         m_Swarm.SetSandDust(&dust);
     else
@@ -103,7 +103,7 @@ void CollisionTestScene::StepSand()
 
     m_Sand.Step(m_Swarm.GetAreaSRV(), m_Swarm.GetAreaStateSRV(),
         m_Swarm.GetEnemySRV(), m_Swarm.GetEnemyStateSRV(), m_Swarm.GetEnemyExtraSRV(),
-        m_Grass.GetHeightSRV(), m_Swarm.GetAIParams().groundY, m_Swarm.GetWindSourceSRV());
+        m_Grass.GetHeightSRV(), m_Swarm.GetAIParams().centerAboveFeet, m_Swarm.GetWindSourceSRV());
     const auto& s = m_Sand.GetSettings();
     surface.SetSandField(m_Sand.GetStateSRV(), m_Sand.GetTrackSRV(), m_Sand.MapOrigin(), m_Sand.MapSize(),
         s.wetDark, s.heatTint, s.trackStrength);

@@ -28,7 +28,7 @@ void WeaponSystem::StartBats(const AreaStats& a, const Vector3& playerPos, float
     if (!m_Swarm || a.profile <= 0) return;
     const AreaProfile& ap = AreaProfileDB::At(a.profile);
     const int n = (std::max)(ap.batCount, 1);
-    const float ground = groundHeight ? groundHeight(playerPos.x, playerPos.z) : playerPos.y - m_Swarm->GetAIParams().groundY;
+    const float ground = groundHeight ? groundHeight(playerPos.x, playerPos.z) : playerPos.y - m_Swarm->GetAIParams().centerAboveFeet;
 
     // 敵の方を真ん中にして扇に飛び立つ
     Vector3 to = m_HasClose ? m_ClosePos - playerPos : Vector3::UnitZ;
@@ -63,7 +63,7 @@ void WeaponSystem::StartBats(const AreaStats& a, const Vector3& playerPos, float
 void WeaponSystem::UpdateBats(float dt, const Vector3& playerPos)
 {
     if (m_Bats.empty()) return;
-    const float lift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;
+    const float lift = m_Swarm ? m_Swarm->GetAIParams().centerAboveFeet : 0.9f;
 
     for (size_t i = 0; i < m_Bats.size();)
     {
@@ -97,7 +97,7 @@ void WeaponSystem::UpdateBats(float dt, const Vector3& playerPos)
                 area.damage = b.damage;
                 area.tickInterval = 1.0e9f;
                 area.timeLeft = 0.01f;
-                if (b.lifesteal) area.tickNow |= Swarm::kAreaExtraLifesteal;
+                if (b.lifesteal) area.extra |= Swarm::kAreaExtraLifesteal;
                 m_Swarm->SpawnArea(area);
                 b.heal = b.damage * ap.batHeal;
                 ++m_BatBites;

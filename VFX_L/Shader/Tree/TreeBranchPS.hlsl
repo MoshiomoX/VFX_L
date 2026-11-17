@@ -21,7 +21,7 @@ struct BranchOut
 float4 main(BranchOut i) : SV_TARGET
 {
     // tree の bit 24 = 枯れ木
-    uint h = TreeHash((i.tree & TREE_INDEX_MASK) * 7919u + 13u);
+    uint h = HashU32((i.tree & TREE_INDEX_MASK) * 7919u + 13u);
     float3 albedo = (i.tree & TREE_BARE_BIT) != 0u ? g_BareColor : g_BarkColor;
     // 木ごとの明るさのばらつき + 枝の筋
     albedo *= 0.85 + 0.3 * (float) (h & 0xFFu) / 255.0;

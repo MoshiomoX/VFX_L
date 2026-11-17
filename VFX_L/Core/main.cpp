@@ -1,4 +1,5 @@
 #include "Core/Application.h"
+#include "Graphics/Graphics.h"
 
 #include <ShellScalingApi.h>
 #pragma comment(lib, "Shcore.lib")
@@ -32,6 +33,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
     if (!app.Initialize())
     {
         std::cout << "[Error] Main Initialize failed" << std::endl;
+        if (Graphics::StartupMessageShown())
+            return -1;   // 理由はもう MessageBox で伝えてある
 #ifdef VFXL_DEMO
         MessageBoxW(nullptr, L"Failed to start. Please check that the Assets folder is next to the exe.", L"VFX_L", MB_OK | MB_ICONERROR);
 #else

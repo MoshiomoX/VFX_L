@@ -36,10 +36,10 @@ void SwarmSystem::DispatchEmit(float dt, float totalTime)
     const bool canEmit = m_Particles && m_EmitCS && m_VFX.GetRecipeSRV() && m_VFX.GetEmitterSRV();
 
     // b0 = GlobalCB（ParticleCommon の物）。dt と seed だけ要る
-    struct GlobalCB { float dt; float total; uint32_t seed; int emitterCount; } gcb;
-    gcb.dt = dt;
-    gcb.total = totalTime;
-    gcb.seed = (uint32_t)(totalTime * 1000.0f) ^ 0x5bd1e995u;
+    GlobalCB gcb = {};
+    gcb.deltaTime = dt;
+    gcb.totalTime = totalTime;
+    gcb.baseSeed = (uint32_t)(totalTime * 1000.0f) ^ 0x5bd1e995u;
     gcb.emitterCount = 0;
 
     if (canEmit)
@@ -174,22 +174,22 @@ void SwarmSystem::DispatchSprites(float dt)
 // その時に、出した物が残した向き（areaDirs、ProjMoveCS が書く）を 1 回だけ受け取り、
 // 最初に見た時の残り時間を覚える（年齢 = それ - 今の残り時間）。時計は要らない
 // ============================================================
-void SwarmSystem::DispatchLiquidTrack()
+void SwarmSystem::DispatchAreaTrack()
 {
-    if (!m_LiquidTrackCS) return;
+    if (!m_AreaTrackCS) return;
 
-    m_LiquidTrackCS->Bind(m_Context);
-    m_LiquidTrackCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
-    m_LiquidTrackCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
-    m_LiquidTrackCS->SetUAV(m_Context, "areaDirs", m_AreaDirUAV.Get());
-    m_LiquidTrackCS->SetUAV(m_Context, "liquidTrack", m_LiquidTrackUAV.Get());
-    m_LiquidTrackCS->SetUAV(m_Context, "areaBirths", m_AreaBirthUAV.Get());   // 生まれた範囲の数（揺らす範囲・レシピ毎。新しい範囲を見つけた所で数える）
-    m_LiquidTrackCS->BindUAVs(m_Context);
+    m_AreaTrackCS->Bind(m_Context);
+    m_AreaTrackCS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
+    m_AreaTrackCS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
+    m_AreaTrackCS->SetUAV(m_Context, "areaDirs", m_AreaDirUAV.Get());
+    m_AreaTrackCS->SetUAV(m_Context, "areaTrack", m_AreaTrackUAV.Get());
+    m_AreaTrackCS->SetUAV(m_Context, "areaBirths", m_AreaBirthUAV.Get());   // 生まれた範囲の数（揺らす範囲・レシピ毎。新しい範囲を見つけた所で数える）
+    m_AreaTrackCS->BindUAVs(m_Context);
 
     m_Context->Dispatch((Swarm::kMaxAreas + 63) / 64, 1, 1);
 
-    m_LiquidTrackCS->UnbindSRVs(m_Context);
-    m_LiquidTrackCS->UnbindUAVs(m_Context);
+    m_AreaTrackCS->UnbindSRVs(m_Context);
+    m_AreaTrackCS->UnbindUAVs(m_Context);
 }
 
 // ============================================================
@@ -205,7 +205,7 @@ void SwarmSystem::DispatchCorpses()
     CorpseTrackCB tcb = { m_AnimClock, corpse.enabled ? 1u : 0u, corpse.deathArea, 0u };
     m_CorpseTrackCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);   // プレイヤーの位置（飛ばす向き）・槽の数
     m_CorpseTrackCS->WriteBuffer(m_Context, 4, &tcb);
-    m_CorpseTrackCS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);   // ガーゴイルの飛ぶ高さ（空中で死んでも地面から砕ける）
+    m_CorpseTrackCS->WriteBuffer(m_Context, 5, &m_CachedKindCB);   // ガーゴイルの飛ぶ高さ（空中で死んでも地面から砕ける）
     m_CorpseTrackCS->Bind(m_Context);
     m_CorpseTrackCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_CorpseTrackCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
@@ -216,7 +216,7 @@ void SwarmSystem::DispatchCorpses()
     m_CorpseTrackCS->SetUAV(m_Context, "corpseHead", m_CorpseHeadUAV.Get());
     m_CorpseTrackCS->SetUAV(m_Context, "areas", m_AreaUAV.Get());
     m_CorpseTrackCS->SetUAV(m_Context, "areaStates", m_AreaStateUAV.Get());
-    m_CorpseTrackCS->SetUAV(m_Context, "splitEvents", m_SplitUAV.Get());   // スプリッターが死んだ所
+    m_CorpseTrackCS->SetUAV(m_Context, "enemyEvents", m_EnemyEventUAV.Get());   // スプリッター・呪いの鎧（1 回目）が死んだ所
     m_CorpseTrackCS->BindUAVs(m_Context);
     m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
     m_CorpseTrackCS->UnbindSRVs(m_Context);
@@ -257,13 +257,14 @@ void SwarmSystem::DispatchDamageText(float dt)
     DamageTextCB cb = { dt, damageText.merge, damageText.enabled ? 1u : 0u, damageText.poisonMerge };
     m_DamageTextCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
     m_DamageTextCS->WriteBuffer(m_Context, 2, &m_CachedAICB);       // 体の半径（頭の高さ）
-    m_DamageTextCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 体格
+    m_DamageTextCS->WriteBuffer(m_Context, 3, &m_CachedKindCB);   // 体格
     m_DamageTextCS->WriteBuffer(m_Context, 4, &cb);
     m_DamageTextCS->Bind(m_Context);
     m_DamageTextCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_DamageTextCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_DamageTextCS->SetSRV(m_Context, "enemyPoison", m_EnemyPoisonSRV.Get());
     m_DamageTextCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
+    m_DamageTextCS->SetSRV(m_Context, "enemyHitInfo", m_EnemyHitInfoSRV.Get());   // 数字の色・吸血の印
     m_DamageTextCS->SetUAV(m_Context, "prevHp", m_EnemyPrevHpUAV.Get());
     m_DamageTextCS->SetUAV(m_Context, "pending", m_DamagePendingUAV.Get());
     m_DamageTextCS->SetUAV(m_Context, "dmgEvents", m_DamageTextUAV.Get());

@@ -114,15 +114,15 @@ public:
 
     // 水の中を歩く雑魚の波紋：Render の前に毎フレーム渡す（SwarmSystem::GetEnemySRV / GetEnemyStateSRV / GetEnemyExtraSRV、
     // heights = GrassRenderer::GetHeightSRV = 飛んでいる物を除く。Flush の後なので読むだけ）。null = 雑魚の波紋は無し。
-    // groundY = SwarmSystem::GetAIParams().groundY（雑魚の position.y = 足 + これ）
+    // centerAboveFeet = SwarmSystem::GetAIParams().centerAboveFeet（雑魚の position.y = 足 + これ）
     void SetSwarmEnemies(ID3D11ShaderResourceView* enemies, ID3D11ShaderResourceView* states,
-        ID3D11ShaderResourceView* extra, ID3D11ShaderResourceView* heights, float groundY)
+        ID3D11ShaderResourceView* extra, ID3D11ShaderResourceView* heights, float centerAboveFeet)
     {
-        m_EnemySRV = enemies; m_EnemyStateSRV = states; m_EnemyExtraSRV = extra; m_GroundSRV = heights; m_EnemyGroundY = groundY;
+        m_EnemySRV = enemies; m_EnemyStateSRV = states; m_EnemyExtraSRV = extra; m_GroundSRV = heights; m_EnemyCenterAboveFeet = centerAboveFeet;
     }
 
-    // 冷たい物の表（GrassFireField::GetHeatSRV）・氷の上の雑魚を遅くする先（SwarmSystem::GetEnemySlowUAV）。Render の前に毎フレーム
-    void SetIceSources(ID3D11ShaderResourceView* heat, ID3D11UnorderedAccessView* enemySlow) { m_HeatSRV = heat; m_EnemySlowUAV = enemySlow; }
+    // 冷たい物の表（GrassFireField::GetHeatSRV）・氷の上の雑魚を遅くする先（SwarmSystem::GetEnemyStatusUAV）。Render の前に毎フレーム
+    void SetIceSources(ID3D11ShaderResourceView* heat, ID3D11UnorderedAccessView* enemyStatus) { m_HeatSRV = heat; m_EnemyStatusUAV = enemyStatus; }
     // 氷の上を歩く（足が氷に沈まない・水しぶきを出さない）。
     // プレイヤーの周りの氷を毎フレーム読み戻す。FrozenAt はその範囲（± 約 2m）だけ答える（2〜3 フレーム遅れ）
     void SetIceProbe(const Vector3& pos) { m_IceProbePos = pos; }
@@ -192,7 +192,7 @@ public:
         Vector2 mapOrigin, mapSize;
         float strength, radius, minSpeed, dt;
         uint32_t maxStirs, hasHeight; float stepStrength, stride;
-        float time, groundY, iceSlow, _pad;
+        float time, centerAboveFeet, iceSlow, _pad;
     };
     static_assert(sizeof(StirCB) == 64, "StirCB must match WaterStirCB");
     // HLSL の WaterIceCB（Shader/Water/WaterIceCS.hlsl）と同じ並び（32B）
@@ -234,7 +234,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_RippleSRV[2];
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_RippleUAV[2];
     // GPU の範囲の枠ごとに、水が前に見た時の残り時間（0 = 空）。R32F × 256 を 2 本交互。
-    // 増えていたら / 空だったら「出たばかり」= 波紋を起こす。tickNow の「最初の tick」は 1 歩しか立たず、
+    // 増えていたら / 空だったら「出たばかり」= 波紋を起こす。tickState の「最初の tick」は 1 歩しか立たず、
     // 群れが 1 フレームに 2 歩進むと（重いフレーム）水が見る前に消えてしまうので使わない
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_SeenBuf[2];
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SeenSRV[2];
@@ -260,7 +260,7 @@ private:
     bool m_IceCpuValid = false;
     Vector3 m_IceProbePos = Vector3::Zero;
     ID3D11ShaderResourceView* m_HeatSRV = nullptr;     // 非所有（GrassFireField のレシピ毎の熱）
-    ID3D11UnorderedAccessView* m_EnemySlowUAV = nullptr;   // 非所有（SwarmSystem の enemySlow）
+    ID3D11UnorderedAccessView* m_EnemyStatusUAV = nullptr;   // 非所有（SwarmSystem の enemyStatus）
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_StirBuf, m_StirCountBuf;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_StirSRV, m_StirCountSRV;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_StirUAV, m_StirCountUAV;
@@ -270,7 +270,7 @@ private:
     ID3D11ShaderResourceView* m_EnemyStateSRV = nullptr;
     ID3D11ShaderResourceView* m_EnemyExtraSRV = nullptr;
     ID3D11ShaderResourceView* m_GroundSRV = nullptr;
-    float m_EnemyGroundY = 0.9f;
+    float m_EnemyCenterAboveFeet = 0.9f;
     void GatherStirs();   // WaterRipples.cpp：WaterStirCS を 1 回
     int m_Cur = 0;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_MaskTex;

@@ -8,6 +8,7 @@
 
 #ifndef EMIT_RING_HLSLI
 #define EMIT_RING_HLSLI
+#include "../../Common/MathConst.hlsli"
 
 void EmitRing(GPUEmitter e, inout uint seed, out float3 pos, out float3 vel)
 {
@@ -16,7 +17,7 @@ void EmitRing(GPUEmitter e, inout uint seed, out float3 pos, out float3 vel)
 
     // 内径～外径間のランダム半径（均一分布補正）
     float r = sqrt(lerp(innerRadius * innerRadius, outerRadius * outerRadius, Random(seed)));
-    float angle = Random(seed) * 6.28318530718;
+    float angle = Random(seed) * TWO_PI;
 
     // リングの平面座標系を構築
     float3 normal = normalize(e.direction);

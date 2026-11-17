@@ -419,7 +419,7 @@ private:
         DirectX::SimpleMath::Vector3 origin;   // 根元（番人の手の高さ）
         DirectX::SimpleMath::Vector3 dir;      // 水平の向き（単位）
         float out = 0.0f;                      // 根元から鉤までの長さ（m）
-        float reach = 12.0f;                   // 届く長さ（BomberCB::wardenRange）
+        float reach = 12.0f;                   // 届く長さ（KindCB::wardenRange）
         int   state = 0;                       // 0 = 飛ぶ、1 = 引っ掛けて引く、2 = 戻る
         float timer = 0.0f;
         // 墓守の騎士の双鎖：根元の前 pullStop まで引く、damage ≥ 0 ならその値（< 0 = 番人の接触 × wardenDamageMul）、

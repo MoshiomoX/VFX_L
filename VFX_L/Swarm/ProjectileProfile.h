@@ -19,7 +19,7 @@
 //   Track     : 標的が死んでも、自分に一番近い敵を探して追い続ける
 //   Drop      : 撃った時の標的の位置へ空から落ちる（隕石）。c1 = (高さ m, 銃口側への水平距離 m, 未使用)
 //
-// 捕捉する相手は今のところ「プレイヤーに一番近い敵」固定（武器の自動照準と同じ）
+// 捕捉する相手は今のところ「杖の狙い」（SwarmSystem::GetAimTarget と同じ優先度付きの敵）固定
 // ============================================================
 #pragma once
 #include "Swarm/SwarmTypes.h"
@@ -61,7 +61,7 @@ struct ProjectileProfile
     float speed = 20.0f;
     float radius = 0.25f;     // 当たり判定
     float lifetime = 3.0f;
-    // 当たった敵をこの秒数凍らせる（0 = 凍らせない。アイスランス）。エリート・Boss は BomberCB::freezeBigMul 倍、
+    // 当たった敵をこの秒数凍らせる（0 = 凍らせない。アイスランス）。エリート・Boss は KindCB::freezeBigMul 倍、
     // 解けてから freezeImmunity 秒は凍らない。凍結中は動かず殴らない（SwarmHitCS が依頼 → SwarmEnemyAICS）
     float freezeTime = 0.0f;
     // 生成後、杖先で止まっている秒数（0 = 止まらない。ストーンショット：岩が一瞬浮いてから飛ぶ）。0.02 秒刻み・最大 5.1 秒
@@ -135,6 +135,6 @@ namespace ProjectileProfileDB
     // この 1 発を左右反転するか。Alternate / Random の状態はここが持つ（RandomAngle は常に false。向きは NextRoll）
     bool NextMirror(int index);
     // この 1 発の横ずれの回転（0〜127 = 0〜360 度。Mirror::RandomAngle の時だけ乱数、他は 0）。
-    // 生成依頼の uint2.y の bit 1〜7（Swarm::kSpawnRollShift）で GPU へ渡す
+    // 生成依頼の Swarm::SpawnProjExtra::roll で GPU へ渡す
     uint32_t NextRoll(int index);
 }

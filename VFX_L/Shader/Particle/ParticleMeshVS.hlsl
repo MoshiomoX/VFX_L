@@ -88,8 +88,8 @@ VS_OUTPUT main(VS_INPUT input, uint instanceID : SV_InstanceID)
     uint mode = (uint) p.renderMode;
     float3x3 R = RotationXYZ(p.rot3);
     float speedSq = dot(p.velocity, p.velocity);
-    if (((mode >> 9u) & 1u) != 0u && speedSq > 1e-6)
-        R = FaceDirection(p.velocity * rsqrt(speedSq), (mode >> 10u) & 3u);
+    if ((mode & PARTICLE_MESH_FACE_VELOCITY) != 0u && speedSq > 1e-6)
+        R = FaceDirection(p.velocity * rsqrt(speedSq), (mode >> PARTICLE_MESH_AXIS_SHIFT) & 3u);
 
     float3 local = (input.Position - g_Center) * (g_InvExtent * p.size);
     float3 worldPos = mul(local, R) + p.position;
@@ -100,7 +100,7 @@ VS_OUTPUT main(VS_INPUT input, uint instanceID : SV_InstanceID)
     // 発光パス: ParticleMeshGlowPS は接線を読まないので、.x で
     // 「裏面だけ」のフラグ（PARTICLE_MESH_BEHIND）を運ぶ。受光のパーティクルは
     // PS.hlsl のために本物の接線のまま
-    if (((mode >> 8u) & 1u) != 0u)
+    if ((mode & PARTICLE_MESH_GLOW) != 0u)
         o.Tangent = float3((mode & PARTICLE_MESH_BEHIND) != 0u ? 1.0 : 0.0, 0.0, 0.0);
     o.UV = input.UV;
     // 受光パス: 不透明、アルファは使わない。発光パス: アルファで消えていく

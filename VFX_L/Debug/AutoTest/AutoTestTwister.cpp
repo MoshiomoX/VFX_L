@@ -80,12 +80,12 @@ void AutoTestTwister::Run()
             snprintf(line, sizeof(line), "twister place twister %d vortex %d gust %d magnifier %d", tw, vv, gu, mg);
             AutoTestLog(line);
         }
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         for (int k = 0; k < 18; ++k)
         {
             const float x = tf.position.x - 6.0f + 12.0f * (float)(k % 6) / 5.0f;
             const float z = tf.position.z + 11.0f + 2.0f * (float)(k / 6);
-            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), 300.0f, 1.8f, Swarm::kEnemyKindMob);
+            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), 300.0f, 1.8f, Swarm::kEnemyKindMob);
         }
         auto& cam = m_Camera.Camera();
         cam.SetYaw(kCamYaw);

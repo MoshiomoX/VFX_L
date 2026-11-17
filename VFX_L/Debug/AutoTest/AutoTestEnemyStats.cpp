@@ -4,7 +4,7 @@
 // 敵の数値の書き出し（マップ毎・時間帯毎の各敵の数値）。
 // 3 マップ × 何面目か（1〜3）× 経過時間（0〜9 分 + 最終ウェーブ 10:00 / 10:30 / 11:00 / 12:00）毎に、
 // 湧く敵の種類毎の 割合・HP・速さ・接触ダメージ・技のダメージ・経験値 を、ゲームと同じ式（MobSpawner::ApplyStage・
-// DifficultyCurve・KindRamp・BomberCB）で計算して exe の隣の enemystats.json へ書く。Tier 1〜3 それぞれ（ApplyStage に渡す）。
+// DifficultyCurve・KindRamp・KindCB）で計算して exe の隣の enemystats.json へ書く。Tier 1〜3 それぞれ（ApplyStage に渡す）。
 // 実際に敵は湧かせない。終わったら `enemystats done`
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
@@ -64,7 +64,7 @@ void AutoTestEnemyStats::Run()
     m_AutoStep = 1;
     m_Mobs.Director().enabled = false;
 
-    const Swarm::BomberCB& b = m_Swarm.GetBomberParams();
+    const Swarm::KindCB& b = m_Swarm.GetKindParams();
     const float c = m_Mobs.baseContactDamage;   // 倍率 1 の接触（15）
     const float blast = m_Mobs.baseBlastDamage; // 倍率 1 の自爆兵の爆発（30）
     const float orbExp = Swarm::OrbCB{}.amount;  // 経験値オーブ 1 個（実行中に変える所は無い）

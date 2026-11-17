@@ -7,7 +7,7 @@
 // 敵スロット 1 つに 1 スレッド。WIND_MAX_SOURCES 個のスロットに早い者勝ちで入れる
 // （表とカウンタはディスパッチ前に CPU がゼロにする）。
 // GrassVS / DebrisUpdateCS / ParticleUpdateCS が WindSources.hlsli 経由で読む。
-// 生きている吸い込みの範囲（渦、SWARM_AREA_EXTRA_PULL）も
+// 生きている吸い込みの範囲（渦、SwarmArea.pullQ > 0）も
 // 風源になる（範囲スロット 1 つに 1 つ、先頭 g_AreaCount 本のスレッドで）：
 // ほぼ吸い込みだけなので、草は内側へ傾き、落ち葉は中心へ吸われる。
 // ============================================================
@@ -65,7 +65,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (g_VortexOn != 0u && i < g_AreaCount && areaStates[i] != SWARM_DEAD)
     {
         SwarmArea a = areas[i];
-        if ((a.tickNow & SWARM_AREA_EXTRA_PULL) != 0u && a.timeLeft > 0.0)
+        if (a.pullQ != 0u && a.timeLeft > 0.0)
         {
             uint vslot;
             windCount.InterlockedAdd(0, 1u, vslot);
@@ -80,7 +80,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 v.fade = saturate(a.timeLeft / max(g_VFadeTime, 1e-3));
                 v.pushDir = float2(0.0, 0.0);
                 v.push = 0.0;
-                v._pad = 0.0;
+                v.self = 0.0;
                 windSources[vslot] = v;
             }
         }
@@ -111,6 +111,6 @@ void main(uint3 id : SV_DispatchThreadID)
     w.fade = fade;
     w.pushDir = float2(0.0, 0.0);
     w.push = 0.0;
-    w._pad = 0.0;
+    w.self = 0.0;
     windSources[slot] = w;
 }

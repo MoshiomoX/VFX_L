@@ -213,10 +213,10 @@ void BossAttacks::StartMove(BossMove m, const Input& in, const GridWorld& grid, 
         m_ChargeDir = FlatDir(in.bossPos, in.player, Vector2(0.0f, 1.0f));
         const int n = (std::max)(1, Enraged(in) ? summonCountEnraged : summonCount);
         std::uniform_real_distribution<float> u01(0.0f, 1.0f);
-        const float base = u01(m_Rng) * 6.2831853f;
+        const float base = u01(m_Rng) * DirectX::XM_2PI;
         for (int k = 0; k < n; ++k)
         {
-            const float a = base + 6.2831853f * ((float)k + (u01(m_Rng) - 0.5f) * 0.5f) / (float)n;
+            const float a = base + DirectX::XM_2PI * ((float)k + (u01(m_Rng) - 0.5f) * 0.5f) / (float)n;
             const float d = summonRingMin + (summonRingMax - summonRingMin) * u01(m_Rng);
             for (float s = 1.0f; s > 0.3f; s -= 0.25f)
             {

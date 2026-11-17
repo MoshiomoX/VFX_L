@@ -62,10 +62,10 @@ bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, flo
         return true;
     }
 
-    const float groundY = swarm.GetAIParams().groundY;
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
     for (int attempt = 0; attempt < 16; ++attempt)
     {
-        const float ang = Rand01() * 6.2831853f;
+        const float ang = Rand01() * DirectX::XM_2PI;
         const float r = eliteRingMin + (eliteRingMax - eliteRingMin) * Rand01();
         const Vector3 pos = player + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
 
@@ -73,7 +73,7 @@ bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, flo
         grid.WorldToCell(pos, gx, gz);
         if (!grid.IsWalkable(gx, gz)) continue;
 
-        swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, hp, eliteSpeed, Swarm::kEnemyKindElite);
+        swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + centerAboveFeet, pos.z }, hp, eliteSpeed, Swarm::kEnemyKindElite);
         ++m_ElitesSpawned;
         std::cout << "[Stage] elite #" << m_ElitesSpawned << " hp " << hp << std::endl;
         return true;
@@ -83,10 +83,10 @@ bool StageDirector::SpawnElite(const GridWorld& grid, const Vector3& player, flo
 
 bool StageDirector::SpawnBoss(const GridWorld& grid, const Vector3& player, SwarmSystem& swarm)
 {
-    const float groundY = swarm.GetAIParams().groundY;
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
     for (int attempt = 0; attempt < 24; ++attempt)
     {
-        const float ang = Rand01() * 6.2831853f;
+        const float ang = Rand01() * DirectX::XM_2PI;
         const float r = bossRingMin + (bossRingMax - bossRingMin) * Rand01();
         const Vector3 pos = player + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
 
@@ -94,7 +94,7 @@ bool StageDirector::SpawnBoss(const GridWorld& grid, const Vector3& player, Swar
         grid.WorldToCell(pos, gx, gz);
         if (!grid.IsWalkable(gx, gz)) continue;
 
-        swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, m_BossSpawnHp, (m_BossSpeedOverride >= 0.0f) ? m_BossSpeedOverride : bossSpeed,
+        swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + centerAboveFeet, pos.z }, m_BossSpawnHp, (m_BossSpeedOverride >= 0.0f) ? m_BossSpeedOverride : bossSpeed,
             Swarm::kEnemyKindBoss);
         std::cout << "[Stage] boss summoned, hp " << m_BossSpawnHp << std::endl;
         return true;
@@ -271,7 +271,7 @@ bool StageDirector::SpawnBossAt(const GridWorld& grid, const Vector3& pos, Swarm
     int gx = 0, gz = 0;
     grid.WorldToCell(pos, gx, gz);
     if (!grid.IsWalkable(gx, gz)) return SpawnBoss(grid, pos, swarm);
-    swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + swarm.GetAIParams().groundY, pos.z }, m_BossSpawnHp,
+    swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + swarm.GetAIParams().centerAboveFeet, pos.z }, m_BossSpawnHp,
         (m_BossSpeedOverride >= 0.0f) ? m_BossSpeedOverride : bossSpeed, Swarm::kEnemyKindBoss);
     return true;
 }
@@ -519,7 +519,7 @@ void StageDirector::DrawImGui(SwarmSystem& swarm, float runTime)
     ImGui::DragFloat("Elite Speed", &eliteSpeed, 0.1f, 0.0f, 20.0f);
     ImGui::DragFloatRange2("Elite Ring", &eliteRingMin, &eliteRingMax, 0.5f, 5.0f, 60.0f);
 
-    auto& kind = swarm.GetBomberParams();   // エリート・Boss の体格などは GPU の定数（BomberCB と相乗り）
+    auto& kind = swarm.GetKindParams();   // エリート・Boss の体格などは GPU の定数（KindCB と相乗り）
     ImGui::DragFloat("Elite Scale", &kind.eliteScale, 0.05f, 1.0f, 5.0f);
     ImGui::DragFloat("Elite Damage x", &kind.eliteDamageMul, 0.05f, 0.0f, 20.0f);
     ImGui::DragFloat("Elite Exp x", &kind.eliteExpMul, 0.5f, 0.0f, 200.0f);

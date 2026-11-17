@@ -12,21 +12,8 @@
 #include "Common/ParticleTrail.hlsli"
 #include "Common/EffectTrail.hlsli"
 
-cbuffer ParticleRenderCB : register(b0)
-{
-    matrix g_View;
-    matrix g_Projection;
-    float3 g_CameraPosition;
-    float _pad0;
-};
-
-cbuffer TrailDrawCB : register(b1)
-{
-    uint g_StyleSlot; // スタイルの番号 + 1
-    uint g_Premultiply;
-    float g_Time; // EffectTrailCB.g_Now と同じ時計
-    float _padT;
-};
+#include "Common/ParticleRenderCB.hlsli"
+#include "Common/TrailDrawCB.hlsli"
 
 StructuredBuffer<uint> trailAlive : register(t0);
 StructuredBuffer<EffectTrailAnchor> anchors : register(t1);

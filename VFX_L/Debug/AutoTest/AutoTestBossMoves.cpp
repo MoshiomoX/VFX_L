@@ -333,7 +333,7 @@ void AutoTestBossMoves::Run()
                 tr.name, m_BossSlamHits - s_HitsBefore,
                 std::sqrt(d.x * d.x + d.z * d.z), m_Registry.Get<HealthComponent>(m_Player).current,
                 m_BossAttacks.summoned - s_SummonedBefore, m_Swarm.GetCounters().aliveEnemies, flatDist(), m_BossAttacks.PoisonLeft(),
-                (m_BossAttacks.DjinnPhase2() || m_BossAttacks.BeastPhase2()) ? 2 : 1, m_Swarm.GetBomberParams().bossHover);
+                (m_BossAttacks.DjinnPhase2() || m_BossAttacks.BeastPhase2()) ? 2 : 1, m_Swarm.GetKindParams().bossHover);
             AutoTestLog(line);
         }
         ++s_Trial;
@@ -405,7 +405,7 @@ void AutoTestBossMoves::Run()
         s_NextSandLog += 0.25f;
         const auto& q = m_BossAttacks.Quicksand();
         snprintf(line, sizeof(line), "bossmoves sand %s t %.2f dist %.2f burrow %d sink %.2f mound %u quick %d r %.1f strength %.2f",
-            tr.name, t, flatDist(), m_BossAttacks.BurrowPhase(), m_Swarm.GetBomberParams().bossBurrow, m_BossMoundVfx,
+            tr.name, t, flatDist(), m_BossAttacks.BurrowPhase(), m_Swarm.GetKindParams().bossBurrow, m_BossMoundVfx,
             q.active ? 1 : 0, q.radius, q.strength);
         AutoTestLog(line);
     }
@@ -414,7 +414,7 @@ void AutoTestBossMoves::Run()
     if (king && t >= s_NextSandLog)
     {
         s_NextSandLog += 0.25f;
-        const auto& bp = m_Swarm.GetBomberParams();
+        const auto& bp = m_Swarm.GetKindParams();
         const KingCurse& c = m_BossAttacks.KingCurseField();
         snprintf(line, sizeof(line), "bossmoves king %s t %.2f dist %.2f fly %.0f keep %.0f-%.0f sink %.2f orbs %d curse %d r %.1f raised %u alive %u pose %.2f",
             tr.name, t, flatDist(), bp.bossFly, bp.bossKeepMin, bp.bossKeepMax, bp.bossBurrow, (int)m_BossAttacks.KingOrbs().size(),
@@ -425,7 +425,7 @@ void AutoTestBossMoves::Run()
     if (beast && t >= s_NextSandLog)
     {
         s_NextSandLog += 0.25f;
-        const auto& bp = m_Swarm.GetBomberParams();
+        const auto& bp = m_Swarm.GetKindParams();
         const Vector3 sh = m_BossAttacks.BeastShadow();
         snprintf(line, sizeof(line), "bossmoves beast %s t %.2f dist %.2f phase %d hover %.2f fly %.0f wing %.2f spin %.2f pose %.2f petrify %.2f stone %.2f petrified %u hp %.2f roaring %d crush %d shadowDist %.2f shards %d crushHits %u shardHits %u",
             tr.name, t, flatDist(), m_BossAttacks.BeastPhase2() ? 2 : 1, bp.bossHover, bp.bossFly, bp.bossWing, bp.bossSpin, bp.bossChargePose,
@@ -473,7 +473,7 @@ void AutoTestBossMoves::Run()
     if (djinn && t >= s_NextSandLog)
     {
         s_NextSandLog += 0.25f;
-        const auto& bp = m_Swarm.GetBomberParams();
+        const auto& bp = m_Swarm.GetKindParams();
         int devilHit = 0;
         for (const DjinnDevil& d : m_BossAttacks.Devils()) devilHit += d.hitDone ? 1 : 0;
         snprintf(line, sizeof(line), "bossmoves djinn %s t %.2f dist %.2f phase %d hover %.2f fly %.0f keep %.0f-%.0f sink %.2f devils %d devilHit %d pose %.2f hp %.2f roaring %d",
@@ -547,8 +547,8 @@ void AutoTestBossMoves::Run()
             {
                 const float a0 = devs[i].angle;
                 float a1 = devs[(i + 1) % devs.size()].angle;
-                while (a1 <= a0) a1 += 6.2831853f;
-                const float mid = (devs.size() == 1) ? a0 + 3.1415927f : 0.5f * (a0 + a1);
+                while (a1 <= a0) a1 += DirectX::XM_2PI;
+                const float mid = (devs.size() == 1) ? a0 + DirectX::XM_PI : 0.5f * (a0 + a1);
                 const Vector3 dir(std::cos(mid), 0.0f, std::sin(mid));
                 if (dir.Dot(want) > best) { best = dir.Dot(want); s_SideDir = dir; }
             }

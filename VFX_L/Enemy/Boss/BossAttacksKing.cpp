@@ -33,8 +33,8 @@ namespace
     float TurnToward(float a, float b, float maxStep)
     {
         float d = b - a;
-        while (d > 3.1415927f) d -= 6.2831853f;
-        while (d < -3.1415927f) d += 6.2831853f;
+        while (d > DirectX::XM_PI) d -= DirectX::XM_2PI;
+        while (d < -DirectX::XM_PI) d += DirectX::XM_2PI;
         return a + std::clamp(d, -maxStep, maxStep);
     }
     constexpr float kPlayerThick = 0.4f;

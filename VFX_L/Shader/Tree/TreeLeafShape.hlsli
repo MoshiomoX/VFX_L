@@ -4,10 +4,11 @@
 // ============================================================
 #ifndef TREE_LEAF_SHAPE_HLSLI
 #define TREE_LEAF_SHAPE_HLSLI
+#include "../Common/MathConst.hlsli"
 
 float TreeLeafWidth(float x)
 {
-    return pow(saturate(sin(3.14159265 * x)), 0.7) * (1.0 - 0.2 * x);
+    return pow(saturate(sin(PI * x)), 0.7) * (1.0 - 0.2 * x);
 }
 
 #endif

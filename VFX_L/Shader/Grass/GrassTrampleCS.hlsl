@@ -16,28 +16,13 @@
 #include "GrassCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"
 
-// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / flags だけ
-struct TrampleArea
-{
-    float3 center;
-    float radius;
-    float damage;
-    float timeLeft;
-    float tickInterval;
-    float tickTimer;
-    float halfHeight;
-    uint flags;
-    uint vfxType;
-    uint tickNow;
-};
-#define TRAMPLE_MAX_AREAS 256u   // = SWARM_MAX_AREAS
-#define TRAMPLE_AREA_CAPSULE 4u  // SWARM_AREA_CAPSULE（光線）
-#define TRAMPLE_AREA_SHAKE 8u    // SWARM_AREA_SHAKE（爆発と光線）
 #define TRAMPLE_MAX_SOURCES 32u
 
 Texture2D<float2> g_TrampleIn : register(t0);
-StructuredBuffer<TrampleArea> g_Areas : register(t1);
+StructuredBuffer<SwarmArea> g_Areas : register(t1);   // 読むのは center / radius / flags だけ
 Buffer<uint> g_AreaStates : register(t2);          // 0 = 死亡
 StructuredBuffer<float4> g_AreaEnds : register(t3); // スロットごとのカプセルの終点（AreaTickCS）
 StructuredBuffer<WindSource> g_WindSources : register(t4);   // 未バインド = 風源なし（半径 0）
@@ -64,14 +49,14 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : S
     GroupMemoryBarrierWithGroupSync();
     if (g_TrampleExtra.x > 0.0 || g_TrampleExtra.y > 0.0)
     {
-        for (uint a = gi; a < TRAMPLE_MAX_AREAS; a += 64u)
+        for (uint a = gi; a < SWARM_MAX_AREAS; a += 64u)
         {
             if (g_AreaStates[a] == 0u)
                 continue;
-            TrampleArea ar = g_Areas[a];
-            if ((ar.flags & TRAMPLE_AREA_SHAKE) == 0u)
+            SwarmArea ar = g_Areas[a];
+            if ((ar.flags & SWARM_AREA_SHAKE) == 0u)   // 爆発と光線
                 continue;
-            bool capsule = (ar.flags & TRAMPLE_AREA_CAPSULE) != 0u;
+            bool capsule = (ar.flags & SWARM_AREA_CAPSULE) != 0u;
             float r = ar.radius * (capsule ? g_TrampleExtra.y : g_TrampleExtra.x);
             if (r <= 0.0)
                 continue;

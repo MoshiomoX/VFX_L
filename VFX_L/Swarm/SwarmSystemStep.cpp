@@ -44,7 +44,7 @@ void SwarmSystem::UploadSpawns()
         if (SUCCEEDED(m_Context->Map(m_SpawnProjExtraBuffer.Get(), 0,
             D3D11_MAP_WRITE_DISCARD, 0, &m)))
         {
-            memcpy(m.pData, m_PendingProjExtra.data(), sizeof(uint32_t) * m_PendingProjExtra.size());
+            memcpy(m.pData, m_PendingProjExtra.data(), sizeof(Swarm::SpawnProjExtra) * m_PendingProjExtra.size());
             m_Context->Unmap(m_SpawnProjExtraBuffer.Get(), 0);
         }
 
@@ -55,14 +55,14 @@ void SwarmSystem::UploadSpawns()
 
         m_SpawnProjCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_SpawnProjCS->WriteBuffer(m_Context, 1, &scb);
-        m_SpawnProjCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 飛んでいる敵の高さ（着弾点を地面へ）
+        m_SpawnProjCS->WriteBuffer(m_Context, 3, &m_CachedKindCB);   // 飛んでいる敵の高さ（着弾点を地面へ）
 
         // 3) dispatch
         m_SpawnProjCS->Bind(m_Context);
         m_SpawnProjCS->SetSRV(m_Context, "spawnRequests", m_SpawnProjSRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "spawnExtra", m_SpawnProjExtraSRV.Get());
         // 曲線の型は生成時に標的を捕捉して path を組む。
-        // counters には前ステップの「プレイヤーに一番近い雑魚」が残っている
+        // counters には前ステップの杖の狙い（SWARM_CNT_AIM_KEY）が残っている
         m_SpawnProjCS->SetSRV(m_Context, "motions", m_MotionSRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
         m_SpawnProjCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
@@ -77,6 +77,7 @@ void SwarmSystem::UploadSpawns()
         // 弾の帯：使い回す槽の環を空にする（前の弾の点から帯が伸びないように）
         m_SpawnProjCS->SetUAV(m_Context, "trailState", m_ProjTrailStateUAV.Get());
         m_SpawnProjCS->SetUAV(m_Context, "trailAge", m_ProjTrailAgeUAV.Get());
+        m_SpawnProjCS->SetUAV(m_Context, "projChain", m_ProjChainUAV.Get());   // 連鎖・貫通の回数
         m_SpawnProjCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((scb.requestCount + 63) / 64, 1, 1);
@@ -141,7 +142,7 @@ void SwarmSystem::UploadSpawns()
             D3D11_MAP_WRITE_DISCARD, 0, &m)))
         {
             memcpy(m.pData, m_EnemyUpload.data(),
-                sizeof(Swarm::Enemy) * m_EnemyUpload.size());
+                sizeof(Swarm::EnemySpawn) * m_EnemyUpload.size());
             m_Context->Unmap(m_SpawnEnemyBuffer.Get(), 0);
         }
 
@@ -160,9 +161,10 @@ void SwarmSystem::UploadSpawns()
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyStates", m_EnemyStateUAV.Get());
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyMaxHp", m_EnemyMaxHpUAV.Get());   // HP バーの分母
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());   // 種類・導火線
-            m_SpawnEnemyCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());     // 新しい敵は減速なし
+            m_SpawnEnemyCS->SetUAV(m_Context, "enemyStatus", m_EnemyStatusUAV.Get());     // 新しい敵は減速なし
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());     // 吹き飛ばしもなし
             m_SpawnEnemyCS->SetUAV(m_Context, "enemyPoison", m_EnemyPoisonUAV.Get()); // 毒素もなし
+            m_SpawnEnemyCS->SetUAV(m_Context, "enemyHitInfo", m_EnemyHitInfoUAV.Get()); // 被弾の記録もなし
             m_SpawnEnemyCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((newCount + 63) / 64, 1, 1);
@@ -191,11 +193,12 @@ void SwarmSystem::UploadSpawns()
             m_RecycleCS->SetUAV(m_Context, "claim", m_RecycleClaimUAV.Get());
             m_RecycleCS->SetUAV(m_Context, "enemyMaxHp", m_EnemyMaxHpUAV.Get());     // 上書きした分の分母も差し替える
             m_RecycleCS->SetUAV(m_Context, "enemyExtra", m_EnemyExtraUAV.Get());     // 種類も差し替え、導火線は消える
-            m_RecycleCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());       // 減速も消える
+            m_RecycleCS->SetUAV(m_Context, "enemyStatus", m_EnemyStatusUAV.Get());       // 減速も消える
             m_RecycleCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());
             m_RecycleCS->SetUAV(m_Context, "enemyPoison", m_EnemyPoisonUAV.Get());
             // ダメージの数字：前の hp と溜めを忘れさせる印（前の敵との hp の差を数字に出さない）
             m_RecycleCS->SetUAV(m_Context, "prevHp", m_EnemyPrevHpUAV.Get());
+            m_RecycleCS->SetUAV(m_Context, "enemyHitInfo", m_EnemyHitInfoUAV.Get());   // 前の敵の属性・吸血の印も消す
             m_RecycleCS->BindUAVs(m_Context);
 
             m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -259,7 +262,7 @@ void SwarmSystem::DispatchStep()
     {
         m_EnemyAICS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_EnemyAICS->WriteBuffer(m_Context, 1, &m_CachedAICB);
-        m_EnemyAICS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格（プレイヤーの手前で止まる距離）
+        m_EnemyAICS->WriteBuffer(m_Context, 3, &m_CachedKindCB);   // エリートの体格（プレイヤーの手前で止まる距離）
         m_EnemyAICS->Bind(m_Context);
         m_EnemyAICS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyAICS->SetSRV(m_Context, "terrain", MobTerrainSRV());   // 雑魚用（登れる障害物は通れる）
@@ -270,8 +273,8 @@ void SwarmSystem::DispatchStep()
         m_EnemyAICS->SetSRV(m_Context, "terrainHeight", MobHeightSRV());    // 崖・障害物の上面（登る向きでなければ壁と同じく止める）
         m_EnemyAICS->SetSRV(m_Context, "groundHeight", m_HeightSRV.Get());  // 障害物を含まない地面（砂旋が崖で消える）
         m_EnemyAICS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
-        m_EnemyAICS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 毒の池の減速・凍結（数え下げる）
-        m_EnemyAICS->SetUAV(m_Context, "castEvents", m_SplitUAV.Get());     // 砂嵐の術師の詠唱 → 分裂の環（CPU が砂旋を湧かせる）
+        m_EnemyAICS->SetUAV(m_Context, "enemyStatus", m_EnemyStatusUAV.Get());   // 毒の池の減速・凍結（数え下げる）
+        m_EnemyAICS->SetUAV(m_Context, "enemyEvents", m_EnemyEventUAV.Get());     // 術師の詠唱・番人の鎖・ガーゴイル → 敵の出来事の環（CPU が砂旋・骸骨などを出す）
         m_EnemyAICS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
@@ -284,10 +287,10 @@ void SwarmSystem::DispatchStep()
     if (m_EnemyMoveCS)
     {
         // トゲ玉の転がり：体格 1 の玉が 1m で回る角度（見た目の半径・倍率は spikeBallLook）
-        m_CachedBomberCB.spikeBallRollPerMeter = spikeBallLook.rollRate / (std::max)(spikeBallLook.radius, 1e-3f);
+        m_CachedKindCB.spikeBallRollPerMeter = spikeBallLook.rollRate / (std::max)(spikeBallLook.radius, 1e-3f);
         m_EnemyMoveCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_EnemyMoveCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
-        m_EnemyMoveCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 種類の体格（壁から体半径を離す）
+        m_EnemyMoveCS->WriteBuffer(m_Context, 3, &m_CachedKindCB);   // 種類の体格（壁から体半径を離す）
         m_EnemyMoveCS->Bind(m_Context);
         m_EnemyMoveCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyMoveCS->SetSRV(m_Context, "terrainHeight", MobHeightSRV());   // 斜面・障害物の上面の高さ（雑魚用）
@@ -297,7 +300,7 @@ void SwarmSystem::DispatchStep()
         m_EnemyMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_EnemyMoveCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());   // 突風の吹き飛ばし（積分に足して減らす。AI の速度の平滑化を通さない）
         m_EnemyMoveCS->SetUAV(m_Context, "enemyRoll", m_EnemyRollUAV.Get());   // トゲ玉の向き（実際に進んだ分だけ転がす）
-        m_EnemyMoveCS->SetUAV(m_Context, "closeTarget", m_CloseTargetUAV.Get());   // 優先度なしの一番近い敵の競争
+        m_EnemyMoveCS->SetUAV(m_Context, "nearestTarget", m_NearestTargetUAV.Get());   // 優先度なしの一番近い敵の競争
         m_EnemyMoveCS->SetUAV(m_Context, "enemyClimb", m_EnemyClimbUAV.Get());     // 壁を登っている状態
         m_EnemyMoveCS->BindUAVs(m_Context);
 
@@ -313,7 +316,7 @@ void SwarmSystem::DispatchStep()
     {
         m_EnemyPushCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_EnemyPushCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
-        m_EnemyPushCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // 種類の体格（壁から体半径を離す）
+        m_EnemyPushCS->WriteBuffer(m_Context, 3, &m_CachedKindCB);   // 種類の体格（壁から体半径を離す）
         m_EnemyPushCS->Bind(m_Context);
         m_EnemyPushCS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
         m_EnemyPushCS->SetSRV(m_Context, "terrain", MobTerrainSRV());   // 雑魚用
@@ -354,6 +357,7 @@ void SwarmSystem::DispatchStep()
         m_ProjMoveCS->SetUAV(m_Context, "projectiles", m_ProjUAV.Get());
         m_ProjMoveCS->SetUAV(m_Context, "projStates", m_ProjStateUAV.Get());
         m_ProjMoveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
+        m_ProjMoveCS->SetUAV(m_Context, "projChain", m_ProjChainUAV.Get());   // 連鎖の弾の次の標的
         m_ProjMoveCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxProjectiles + 255) / 256, 1, 1);
@@ -370,7 +374,7 @@ void SwarmSystem::DispatchStep()
         m_HitCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_HitCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
         m_HitCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
-        m_HitCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格・経験値
+        m_HitCS->WriteBuffer(m_Context, 3, &m_CachedKindCB);   // エリートの体格・経験値
         m_HitCS->Bind(m_Context);
         m_HitCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
         m_HitCS->SetSRV(m_Context, "projectiles", m_ProjSRV.Get());
@@ -390,6 +394,8 @@ void SwarmSystem::DispatchStep()
         m_HitCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_HitCS->SetUAV(m_Context, "orbs", m_OrbUAV.Get());
         m_HitCS->SetUAV(m_Context, "orbStates", m_OrbStateUAV.Get());
+        m_HitCS->SetUAV(m_Context, "enemyHitInfo", m_EnemyHitInfoUAV.Get());   // 当たった弾の属性・吸血の印
+        m_HitCS->SetUAV(m_Context, "projChain", m_ProjChainUAV.Get());         // 連鎖・貫通の残り回数
         m_HitCS->BindUAVs(m_Context);
 
         m_Context->Dispatch((Swarm::kMaxProjectiles + 255) / 256, 1, 1);
@@ -430,12 +436,12 @@ void SwarmSystem::DispatchStep()
         m_AreaTickCS->UnbindUAVs(m_Context);
 
         // tick した範囲が 1 つも無いステップは、各スレッドが counter を 1 回読んで帰る
-        m_FireClock += m_CachedFrameCB.step;
-        m_CachedBomberCB.fireClock = m_FireClock;
+        m_StepClock += m_CachedFrameCB.step;
+        m_CachedKindCB.stepClock = m_StepClock;
         m_AreaDamageCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_AreaDamageCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
         m_AreaDamageCS->WriteBuffer(m_Context, 2, &m_CachedOrbCB);
-        m_AreaDamageCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);   // エリートの体格・経験値、燃えている草
+        m_AreaDamageCS->WriteBuffer(m_Context, 3, &m_CachedKindCB);   // エリートの体格・経験値、燃えている草
         m_AreaDamageCS->Bind(m_Context);
         m_AreaDamageCS->SetSRV(m_Context, "g_FireMap", m_FireMapSRV.Get());
         m_AreaDamageCS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
@@ -447,9 +453,10 @@ void SwarmSystem::DispatchStep()
         m_AreaDamageCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "orbs", m_OrbUAV.Get());
         m_AreaDamageCS->SetUAV(m_Context, "orbStates", m_OrbStateUAV.Get());
-        m_AreaDamageCS->SetUAV(m_Context, "enemySlow", m_EnemySlowUAV.Get());   // 減速の範囲が tick したら書く
+        m_AreaDamageCS->SetUAV(m_Context, "enemyStatus", m_EnemyStatusUAV.Get());   // 減速の範囲が tick したら書く
         m_AreaDamageCS->SetUAV(m_Context, "enemyPush", m_EnemyPushUAV.Get());   // 吹き飛ばす範囲（突風）が tick したら書く
         m_AreaDamageCS->SetUAV(m_Context, "enemyPoison", m_EnemyPoisonUAV.Get()); // 毒素：範囲の tick で盛り、毎ステップ削る（毒沼）
+        m_AreaDamageCS->SetUAV(m_Context, "enemyHitInfo", m_EnemyHitInfoUAV.Get()); // 属性・吸血の印、剣・氷の範囲の時刻
         m_AreaDamageCS->BindUAVs(m_Context);
         m_Context->Dispatch((Swarm::kMaxEnemies + 255) / 256, 1, 1);
         m_AreaDamageCS->UnbindSRVs(m_Context);
@@ -462,7 +469,7 @@ void SwarmSystem::DispatchStep()
         m_AimResolveCS->Bind(m_Context);
         m_AimResolveCS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
         m_AimResolveCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
-        m_AimResolveCS->SetUAV(m_Context, "closeTarget", m_CloseTargetUAV.Get());   // 優先度なしの一番近い敵の位置
+        m_AimResolveCS->SetUAV(m_Context, "nearestTarget", m_NearestTargetUAV.Get());   // 優先度なしの一番近い敵の位置
         m_AimResolveCS->BindUAVs(m_Context);
         m_Context->Dispatch(1, 1, 1);
         m_AimResolveCS->UnbindSRVs(m_Context);
@@ -475,10 +482,10 @@ void SwarmSystem::DispatchStep()
     {
         m_ContactCS->WriteBuffer(m_Context, 0, &m_CachedFrameCB);
         m_ContactCS->WriteBuffer(m_Context, 1, &m_CachedAICB);
-        m_ContactCS->WriteBuffer(m_Context, 3, &m_CachedBomberCB);
+        m_ContactCS->WriteBuffer(m_Context, 3, &m_CachedKindCB);
         m_ContactCS->Bind(m_Context);
         m_ContactCS->SetSRV(m_Context, "areaDefs", m_AreaDefSRV.Get());
-        m_ContactCS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());   // 凍った敵は殴らない
+        m_ContactCS->SetSRV(m_Context, "enemyStatus", m_EnemyStatusSRV.Get());   // 凍った敵は殴らない
         m_ContactCS->SetUAV(m_Context, "enemies", m_EnemyUAV.Get());
         m_ContactCS->SetUAV(m_Context, "counters", m_CounterUAV.Get());
         m_ContactCS->SetUAV(m_Context, "enemyStates", m_EnemyStateUAV.Get());

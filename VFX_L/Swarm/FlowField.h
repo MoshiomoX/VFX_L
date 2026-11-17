@@ -14,6 +14,8 @@
 //   全域のまま、別スレッドの作業用の場で作り、出来たら結果だけ貰う（TakeResult）。作業領域は場ごとに持つ（同時に 2 つ作れる）
 // ============================================================
 #pragma once
+#include "Swarm/SwarmTypes.h"
+
 #include <SimpleMath.h>
 #include <vector>
 #include <cstdint>
@@ -52,21 +54,21 @@ public:
 
     // 隣のマス（中心の高さ）との差がこれを超えたら通れない = 台地の崖（m、斜めは √2 倍）。
     // 2m マスで 1.5m ≒ 37°。坂道（30° 以下 → 1 マス 1.15m 以下）は通り、崖は通らない。
-    // GPU 側の SWARM_MAX_WALK_SLOPE（40°）と揃えておく
-    float maxStep = 1.5f;
+    // GPU の SWARM_MAX_WALK_SLOPE（tan 40° = 0.84、2m で 1.68m）より少し厳しい。既定値は Swarm::kFlowMaxStep（= HLSL の kFlowLevelStep）
+    float maxStep = Swarm::kFlowMaxStep;
 
     // 境の段差：上下左右の隣とは、境を挟んだ原始の高さ（0.5m 刻み）の組も比べ、
     // これより大きい段があれば崖として扱う（上りは通れない、下りは飛び降りの規則）。
     // 中心の高さだけだと坂の横腹が通れることになり、GPU（原始の高さで身体が崖に当たる）と食い違う。
-    // = GPU の SWARM_BODY_MAX_SLOPE × 半径 0.4 + SWARM_BODY_CLIFF_RISE ≒ 0.6
-    float edgeStepMax = 0.6f;
+    // = GPU の SWARM_BODY_MAX_SLOPE × 半径 0.4 + SWARM_BODY_CLIFF_RISE ≒ 0.6（Swarm::kFlowEdgeStepMax）
+    float edgeStepMax = Swarm::kFlowEdgeStepMax;
 
     // 崖は上りだけ通れない（台地の上の雑魚は下のプレイヤーへ縁から飛び降りる）。
     // 下りの崖は「そのマスが目標（プレイヤーのマス）より dropMinBelow m 以上高い」時だけ通れる
-    // （= GPU の SwarmDropAllowed と同じ規則。プレイヤーも台地の上なら崖は両向き通れない）。
+    // （= GPU の SwarmDropAllowed / SWARM_DROP_MIN_BELOW と同じ規則。プレイヤーも台地の上なら崖は両向き通れない）。
     // 飛び降りの辺コスト = 1 マス分 + dropCost（坂へ回り道するより近ければ飛び降りる）
     bool  allowDrops = true;
-    float dropMinBelow = 1.0f;
+    float dropMinBelow = Swarm::kFlowDropMinBelow;
     int   dropCost = 5;
 
     // 上りの崖を登る：上りの崖も通れ、

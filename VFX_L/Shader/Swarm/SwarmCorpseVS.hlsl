@@ -22,12 +22,12 @@
 // 転がる。
 //
 // b0 = MVPBuffer（World は未使用）、b2 = AICB（体の大きさ）、b4 = CorpseCB、
-// b5 = BomberCB（エリート / ボスの倍率、幽霊の見た目）。C++: SwarmSystem::CorpseCB
+// b5 = KindCB（エリート / ボスの倍率、幽霊の見た目）。C++: SwarmSystem::CorpseCB
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b5
+#define SWARM_KIND_CB_REG b5
 #include "../Common/ModelCommon.hlsli"
 #include "../Common/SwarmCommon.hlsli"
 
@@ -39,7 +39,7 @@ static const uint kMaxCorpseParts = 8u;
 cbuffer SwarmCorpseCB : register(b4)
 {
     uint g_CorpsePart;        // 描いているサブメッシュ
-    uint g_CorpsePartCount;
+    uint _corpsePad0;
     float g_CorpseTime;       // SwarmSystem の時計
     float g_CorpseLife;       // 死体を描く秒数
 
@@ -56,9 +56,8 @@ cbuffer SwarmCorpseCB : register(b4)
     float4 g_PartPivot[kMaxCorpseParts]; // xyz = 焼き込んだメッシュ空間での支点
 };
 
-// エリート / ボス / 幽霊の色、SwarmEnemyVS と同じ
-static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
-static const float3 kGhostTint = float3(0.55, 1.25, 1.6);
+// エリート / 幽霊の色（kEliteTint / kGhostTint）と RotateY
+#include "SwarmEnemyLook.hlsli"
 
 struct VS_INPUT_INST
 {
@@ -70,25 +69,11 @@ struct VS_INPUT_INST
     uint InstanceID : SV_InstanceID;
 };
 
-uint CorpseHash(uint x)
-{
-    x ^= x >> 16;
-    x *= 0x7feb352du;
-    x ^= x >> 15;
-    x *= 0x846ca68bu;
-    x ^= x >> 16;
-    return x;
-}
+#include "../Common/Hash.hlsli"
 
 float CorpseRand(uint seed, uint k)
 {
-    return (float) (CorpseHash(seed ^ (k * 0x85EBCA6Bu)) & 0xFFFFFFu) / 16777216.0;
-}
-
-// yaw = atan2(v.x, v.z)：前方 (0,0,1) -> (sin, 0, cos)
-float3 RotateY(float3 p, float s, float c)
-{
-    return float3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c);
+    return (float) (HashU32(seed ^ (k * 0x85EBCA6Bu)) & 0xFFFFFFu) / 16777216.0;
 }
 
 // ロドリゲス：単位軸 k のまわりに v を角度 a だけ回す
@@ -123,7 +108,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     pivot.y = footY + (pivot.y - footY) * kindScale;
 
     // ---- 発射（ワールド） ----
-    uint seed = CorpseHash(cp.seed ^ (g_CorpsePart * 0x9E3779B9u));
+    uint seed = HashU32(cp.seed ^ (g_CorpsePart * 0x9E3779B9u));
     float r0 = CorpseRand(seed, 0u), r1 = CorpseRand(seed, 1u), r2 = CorpseRand(seed, 2u);
     float r3 = CorpseRand(seed, 3u), r4 = CorpseRand(seed, 4u), r5 = CorpseRand(seed, 5u);
     float3 away = float3(cp.dir.x, 0.0, cp.dir.y);

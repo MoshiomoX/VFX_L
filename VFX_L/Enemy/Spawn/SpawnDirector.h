@@ -28,7 +28,7 @@ public:
     // 湧く方向（湧きの波）：arcYaw（ラジアン、x = cos・z = sin）の ± arcHalf だけ。π = 全周。
     // 方向の中が歩けない所ばかりの時は、最後の数回は全周から探す（湧き損ねないように）
     float arcYaw = 0.0f;
-    float arcHalf = 3.14159265f;
+    float arcHalf = DirectX::XM_PI;
 
     int GetLastMobCount() const { return m_LastMobCount; }
     int GetTotalSpawned() const { return m_TotalSpawned; }

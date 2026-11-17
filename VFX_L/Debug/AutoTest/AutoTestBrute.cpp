@@ -35,7 +35,7 @@ void AutoTestBrute::Run()
         m_Swarm.KillAll();
         if (m_Registry.Has<WandComponent>(m_Player)) m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
         if (m_Registry.Has<HealthComponent>(m_Player)) m_Registry.Get<HealthComponent>(m_Player).invincible = true;
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         for (int i = 0; i < 12; ++i)
         {
             const bool brute = (i % 2) == 0;
@@ -44,7 +44,7 @@ void AutoTestBrute::Run()
             m_Mobs.KindStats(kind, hp, speed);
             const float x = tf.position.x + ((float)i - 5.5f) * 1.8f;
             const float z = tf.position.z + 10.0f + (brute ? 2.0f : 0.0f);
-            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), hp, speed, kind);
+            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), hp, speed, kind);
         }
         auto& cam = m_Camera.Camera();
         cam.SetYaw(0.0f);

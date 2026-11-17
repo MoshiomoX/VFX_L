@@ -46,7 +46,7 @@ void AutoTestDrop::Run()
     const int W = m_Grid.Width(), D = m_Grid.Depth();
     auto cellH = [&](int gx, int gz) { const Vector3 c = m_Grid.CellToWorld(gx, gz); return m_Grid.SampleHeight(c.x, c.z); };
     auto walk = [&](int gx, int gz) { return gx >= 0 && gz >= 0 && gx < W && gz < D && m_Grid.IsWalkable(gx, gz); };
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
 
     auto place = [&](int gx, int gz)
         {

@@ -49,7 +49,7 @@ bool BossAttacks::UpdateRingVolley(const Input& in, const GridWorld& grid, Outpu
             Vector3 c = Ground(grid, in.player.x, in.player.z);
             if (m_Pending < rockCount)
             {
-                const float a = u01(m_Rng) * 6.2831853f;
+                const float a = u01(m_Rng) * DirectX::XM_2PI;
                 const float d = std::sqrt(u01(m_Rng)) * rockSpread;
                 c = Ground(grid, m_RainCenter.x + std::cos(a) * d, m_RainCenter.z + std::sin(a) * d);
             }

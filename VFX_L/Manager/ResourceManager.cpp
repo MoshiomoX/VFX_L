@@ -313,6 +313,7 @@ std::shared_ptr<Texture> ResourceManager::LoadNoiseTexture(const NoiseRecipe& re
         float persistence;
         uint32_t seed, pad0, pad1;
     } cb = {};
+    static_assert(sizeof(NoiseCB) == 32, "NoiseCB layout mismatch");
     cb.type = (uint32_t)recipe.type;
     cb.size = size;
     cb.frequency = (uint32_t)(recipe.frequency < 1 ? 1 : recipe.frequency);

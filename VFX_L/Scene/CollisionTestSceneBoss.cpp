@@ -2,7 +2,7 @@
 // CollisionTestSceneBoss.cpp
 // 戦闘シーンの Boss の技:
 //   BossAttacks の出力 → 被弾（無敵時間・シールド・ノックバックは雑魚と同じ道）・見た目・音・
-//   GPU の Boss への突進の指示（BomberCB の bossCharge*）・地面の警告の輪の描画
+//   GPU の Boss への突進の指示（KindCB の bossCharge*）・地面の警告の輪の描画
 //   面毎の Boss（InitBossFx）と砂の守護者の技の見た目（流沙の渦と足元の効き・潜砂の砂丘・砂の槍の石のトゲ）
 //   Boss 毎の技の合図は CollisionTestSceneBossSignals.cpp、狂暴・撃破の演出は CollisionTestSceneBossDrama.cpp
 // ============================================================
@@ -132,7 +132,7 @@ void CollisionTestScene::UpdateBossAttacks(float dt, const Vector3& player)
     m_BossAttacks.Update(in, m_Grid, out);
 
     // ---- GPU の Boss へ：突進は一直線に走る、溜め（衝撃波・突進）の間はその場で止まる ----
-    auto& bomber = m_Swarm.GetBomberParams();
+    auto& bomber = m_Swarm.GetKindParams();
     bomber.bossChargeOn = out.chargeOn ? 1.0f : 0.0f;
     bomber.bossChargeDirX = out.chargeDir.x;
     bomber.bossChargeDirZ = out.chargeDir.y;

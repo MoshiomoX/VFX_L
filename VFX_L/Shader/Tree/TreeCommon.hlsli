@@ -81,19 +81,11 @@ struct TreeState
     float shake;     // 爆風の揺さぶり 0..1（だんだん消える）
 };
 
-uint TreeHash(uint x)
-{
-    x ^= x >> 16;
-    x *= 0x7feb352du;
-    x ^= x >> 15;
-    x *= 0x846ca68bu;
-    x ^= x >> 16;
-    return x;
-}
+#include "../Common/Hash.hlsli"
 
 float TreeRand(inout uint s)
 {
-    s = TreeHash(s + 0x9e3779b9u);
+    s = HashU32(s + 0x9e3779b9u);
     return (float) (s & 0xFFFFFFu) / 16777216.0;
 }
 

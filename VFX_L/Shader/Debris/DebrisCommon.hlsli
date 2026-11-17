@@ -19,8 +19,6 @@
 #define DEBRIS_COMMON_HLSLI
 
 #define DEBRIS_MAX_GUSTS 4u
-#define DEBRIS_MAX_AREAS 256u   // = SWARM_MAX_AREAS
-#define DEBRIS_AREA_SHAKE 8u    // Swarm::kAreaShake：爆発
 #define DEBRIS_HIDDEN 0x80000000u
 #define DEBRIS_KIND_MASK 3u
 
@@ -73,19 +71,11 @@ struct Debris
     uint seed;          // bit 0-1 種類、bit 2-15 大きさ / 色のばらつき、bit 31 = 非表示（崖 / 間引き）
 };
 
-uint DebrisHash(uint x)
-{
-    x ^= x >> 16;
-    x *= 0x7feb352du;
-    x ^= x >> 15;
-    x *= 0x846ca68bu;
-    x ^= x >> 16;
-    return x;
-}
+#include "../Common/Hash.hlsli"
 
 float DebrisRand(inout uint s)
 {
-    s = DebrisHash(s + 0x9e3779b9u);
+    s = HashU32(s + 0x9e3779b9u);
     return (float) (s & 0xFFFFFFu) / 16777216.0;
 }
 

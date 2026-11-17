@@ -173,9 +173,6 @@
         p.colorKeyOffset = e.colorKeyoffset;
         p.colorKeyCount = e.colorKeyCount;
 
-        // 所有者を引き継ぐ。0 = 所有者なし（弾のエフェクト）。
-        p.ownerID = e.ownerID;
-
         // リボントレイル：スタイルはパーティクルが持つ。リングは空から始める
         // （このスロットの前の持ち主の古い点は読まれない）
         p.trailStyle = (uint) max(e.trailStyle, 0);

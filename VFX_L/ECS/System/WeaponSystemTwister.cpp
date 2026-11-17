@@ -27,7 +27,7 @@ void WeaponSystem::StartTwister(const AreaStats& a, const Vector3& at, const Vec
     t.id = a.id;
     t.profile = a.profile;
     t.pos = at;
-    t.pos.y = groundHeight ? groundHeight(at.x, at.z) : at.y - m_Swarm->GetAIParams().groundY;
+    t.pos.y = groundHeight ? groundHeight(at.x, at.z) : at.y - m_Swarm->GetAIParams().centerAboveFeet;
     t.speed = ap.roamSpeed;
     t.life = a.duration * durationMul;   // 魔力解放中に誘発した竜巻は長く残る
     t.radius = a.radius;                 // 拡大鏡で広がる
@@ -72,7 +72,7 @@ void WeaponSystem::ClearActive()
 void WeaponSystem::UpdateTwisters(float dt, const Vector3& playerPos, bool hasTarget, const Vector3& targetPos)
 {
     if (m_Twisters.empty()) return;
-    const float lift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;   // 範囲の中心は敵の体の高さ（地面 + groundY）
+    const float lift = m_Swarm ? m_Swarm->GetAIParams().centerAboveFeet : 0.9f;   // 範囲の中心は敵の体の高さ（地面 + centerAboveFeet）
 
     for (size_t i = 0; i < m_Twisters.size();)
     {
@@ -152,7 +152,7 @@ void WeaponSystem::UpdateTwisters(float dt, const Vector3& playerPos, bool hasTa
             const AreaProfile& ap = AreaProfileDB::At(t.profile);
             Swarm::Area area = ap.MakeArea(t.pos + Vector3(0.0f, lift, 0.0f), false);
             area.radius = t.radius;
-            if (t.lifesteal) area.tickNow |= Swarm::kAreaExtraLifesteal;   // 吸血のルーン
+            if (t.lifesteal) area.extra |= Swarm::kAreaExtraLifesteal;   // 吸血のルーン
             area.damage = 0.0f;
             if (t.damageTimer <= 0.0f)
             {

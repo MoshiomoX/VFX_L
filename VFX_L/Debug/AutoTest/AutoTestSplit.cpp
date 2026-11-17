@@ -47,7 +47,7 @@ void AutoTestSplit::Run()
 
     auto spawnWave = [&]()
         {
-            const float gy = m_Swarm.GetAIParams().groundY;
+            const float gy = m_Swarm.GetAIParams().centerAboveFeet;
             for (int i = 0; i < 6; ++i)
             {
                 const float x = pp.x - 5.0f + 2.0f * (float)i;

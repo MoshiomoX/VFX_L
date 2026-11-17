@@ -214,7 +214,7 @@ void AutoTestClip::Run()
         if (m_Registry.Has<RigidbodyComponent>(m_Player))
             m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
 
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         const int count = sc.elite ? 8 : 30;
         const bool climbScene = (strcmp(sc.name, "climb") == 0);
         int spawned = 0;
@@ -254,7 +254,7 @@ void AutoTestClip::Run()
     if (m_AutoTime >= s_NextLog)
     {
         s_NextLog = m_AutoTime + 0.5f;
-        const float r = m_Swarm.GetAIParams().enemyRadius * (sc.elite ? m_Swarm.GetBomberParams().eliteScale : 1.0f);
+        const float r = m_Swarm.GetAIParams().enemyRadius * (sc.elite ? m_Swarm.GetKindParams().eliteScale : 1.0f);
         const Vector3 o = m_Grid.CellToWorld(sc.ox, sc.oz);
         std::vector<Swarm::Enemy> enemies;
         std::vector<uint32_t> states;
@@ -302,7 +302,7 @@ void AutoTestClip::Run()
                     };
                 // 基準は足の高さ（台地の縁から踏み出して縁の高さで支えられている途中 / 落ちている途中は、
                 // 中心の下の地面より上に居る。地面基準だと背後の台地を食い込みと誤って数えた）
-                const float h = (std::max)(rawH(p.x, p.z), p.y - m_Swarm.GetAIParams().groundY);
+                const float h = (std::max)(rawH(p.x, p.z), p.y - m_Swarm.GetAIParams().centerAboveFeet);
                 for (int k = 0; k < 16; ++k)
                 {
                     const float a = (float)k * DirectX::XM_2PI / 16.0f;

@@ -105,7 +105,7 @@ void AutoTestIceSpike::Run()
         AutoTestLog(l.c_str());
 
         // 正面 6m に立ち止まった雑魚の列 + その後ろ 9m にもう 1 列（死なない HP、動かない = トゲの列が見える）
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         for (int i = 0; i < 10; ++i)
         {
             const float x = pp.x - 3.0f + (float)(i % 5) * 1.5f, z = pp.z + 6.0f + (float)(i / 5) * 3.0f;

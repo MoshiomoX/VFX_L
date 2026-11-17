@@ -148,7 +148,7 @@ void SpriteRenderer::Flush()
     m_VS->Bind(m_Context);
     m_PS->Bind(m_Context);
 
-    SpriteCB cb;
+    ScreenCB cb;
     cb.screenSize = m_ScreenSize;
     cb.pad0 = { 0.0f, 0.0f };
     m_VS->WriteBuffer(m_Context, 0, &cb);

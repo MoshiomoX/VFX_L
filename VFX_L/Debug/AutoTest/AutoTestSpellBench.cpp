@@ -251,7 +251,7 @@ void AutoTestSpellBench::Run()
             bp.dirty = true;
         }
         wand.castingPaused = false;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         const Vector3 c = tf.position + Vector3(0.0f, 0.0f, tr.dist);
         // VFXL_BENCH_SPEED=<m/s> = 的が歩いて来る（突風に飛ばされても戻る）
         char speedEnv[32] = {};

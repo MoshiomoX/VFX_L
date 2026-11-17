@@ -34,13 +34,18 @@ void SwarmSystem::SetBeam(uint32_t ch, const Vector3& start, const Vector3& end,
 
 // 光線の標的の依頼（次の Flush の DispatchBeamTargets で効く）
 void SwarmSystem::SetBeamTarget(uint32_t ch, uint32_t cmd, const Vector3& origin, const Vector3& dir,
-    float length, const Vector3& seek, uint32_t serial)
+    float length, const Vector3& seek, uint32_t serial, const uint32_t* exclude)
 {
     if (ch >= Swarm::kMaxBeams) return;
-    auto asF = [](uint32_t u) { float f; memcpy(&f, &u, sizeof(f)); return f; };
-    m_CachedBeamTargetCB.origin[ch] = { origin.x, origin.y, origin.z, asF(cmd) };
+    m_CachedBeamTargetCB.origin[ch] = { origin.x, origin.y, origin.z, 0.0f };
     m_CachedBeamTargetCB.dir[ch] = { dir.x, dir.y, dir.z, length };
-    m_CachedBeamTargetCB.seek[ch] = { seek.x, seek.y, seek.z, asF(serial) };
+    m_CachedBeamTargetCB.seek[ch] = { seek.x, seek.y, seek.z, 0.0f };
+    m_CachedBeamTargetCB.cmd[ch].cmd = cmd;
+    m_CachedBeamTargetCB.cmd[ch].serial = serial;
+    Swarm::BeamTargetExclude ex;
+    if (exclude)
+        for (int k = 0; k < 3; ++k) ex.slot[k] = exclude[k];
+    m_CachedBeamTargetCB.exclude[ch] = ex;
 }
 
 bool SwarmSystem::GetBeamTarget(uint32_t ch, uint32_t serial, Vector3& pos) const
@@ -72,9 +77,7 @@ void SwarmSystem::DispatchBeamTargets()
     bool any = false;
     for (uint32_t ch = 0; ch < Swarm::kMaxBeams; ++ch)
     {
-        uint32_t cmd;
-        memcpy(&cmd, &m_CachedBeamTargetCB.origin[ch].w, sizeof(cmd));
-        any |= (cmd != Swarm::kBeamTargetIdle);
+        any |= (m_CachedBeamTargetCB.cmd[ch].cmd != Swarm::kBeamTargetIdle);
     }
     if (!any) return;
 
@@ -90,21 +93,12 @@ void SwarmSystem::DispatchBeamTargets()
     m_BeamTargetCS->UnbindSRVs(m_Context);
     m_BeamTargetCS->UnbindUAVs(m_Context);
 
-    m_Context->CopyResource(m_BeamTargetStaging[m_BeamTargetStagingWrite].Get(), m_BeamTargetBuffer.Get());
-    m_BeamTargetStagingFilled[m_BeamTargetStagingWrite] = true;
-    m_BeamTargetStagingWrite = (m_BeamTargetStagingWrite + 1) % kBossStaging;
+    m_BeamTargetStaging.Copy(m_Context, m_BeamTargetBuffer.Get());
 }
 
 // 一番古い staging を読む（待たない）。読めなければ前回の答えのまま
 void SwarmSystem::ReadBeamTargets()
 {
-    const int readIndex = m_BeamTargetStagingWrite;
-    if (!m_BeamTargetStagingFilled[readIndex] || !m_BeamTargetStaging[readIndex]) return;
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_BeamTargetStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
-    memcpy(m_BeamTargets, mapped.pData, sizeof(m_BeamTargets));
-    m_Context->Unmap(m_BeamTargetStaging[readIndex].Get(), 0);
-    m_BeamTargetStagingFilled[readIndex] = false;   // 同じ答えを 2 度読まない（光線が止まった後に古い物が残らない）
+    // 読んだ 1 枚は未写しに戻す（同じ答えを 2 度読まない。光線が止まった後に古い物が残らない）
+    m_BeamTargetStaging.TryRead(m_Context, [&](const void* data, bool) { memcpy(m_BeamTargets, data, sizeof(m_BeamTargets)); }, true);
 }

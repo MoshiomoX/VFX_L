@@ -25,13 +25,13 @@ void MobSpawner::Init(SwarmSystem& swarm)
     swarm.SetRecycleMinDist(m_Director.rMax);
 
     // 爆発の見た目の範囲。AreaProfileDB::LoadAll の後に呼ばれる（無ければ 0 = 見た目無しで爆発だけ）
-    swarm.GetBomberParams().blastArea = (uint32_t)AreaProfileDB::IndexOf("BomberBlast");
+    swarm.GetKindParams().blastArea = (uint32_t)AreaProfileDB::IndexOf("BomberBlast");
     // 死んだ敵の足元の土煙（砕け散りと一緒に出る。無ければ 0 = 部品が飛ぶだけ）
     swarm.corpse.deathArea = (uint32_t)AreaProfileDB::IndexOf("MobDeath");
 
     // 難度の倍率を掛ける元
     baseContactDamage = swarm.GetAIParams().contactDamage;
-    baseBlastDamage = swarm.GetBomberParams().blastDamage;
+    baseBlastDamage = swarm.GetKindParams().blastDamage;
 
     // 難度の表（保存してあれば。無ければコードの既定値）
     curve.Load();
@@ -72,8 +72,8 @@ float MobSpawner::ApplyStage(const StageDef& def, int pos, int tier)
 void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
 {
     // pos.y = 地面の高さ（SpawnDirector が高さ場から引く）
-    const float groundY = swarm.GetAIParams().groundY;
-    Vector3 p = { pos.x, pos.y + groundY, pos.z };
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
+    Vector3 p = { pos.x, pos.y + centerAboveFeet, pos.z };
     // 1 回の乱数を種類の割合で区切る（どれも雑魚の枠と入れ替わる = 湧く数は変えない）
     struct Pick { float ratio; uint32_t kind; float hp, speed; };
     const Pick picks[] = {
@@ -116,7 +116,7 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
     if (kind == Swarm::kEnemyKindGargoyle)
     {
         // 石像はプレイヤーの近くに（遠くの輪では目覚めるところが見えない）。プレイヤーの方を向いて眠る
-        p = GargoyleSpot(p, groundY);
+        p = GargoyleSpot(p, centerAboveFeet);
         yaw = std::atan2(m_Player.x - p.x, m_Player.z - p.z);
     }
     if (recycle) swarm.RecycleEnemy(p, hp, speed, kind);
@@ -126,12 +126,12 @@ void MobSpawner::Request(SwarmSystem& swarm, const Vector3& pos, bool recycle)
 void MobSpawner::SpawnDebugKind(const GridWorld& grid, const Vector3& player, SwarmSystem& swarm,
     int& count, float hp, float speed, uint32_t kind)
 {
-    const float groundY = swarm.GetAIParams().groundY;
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
     for (; count > 0; --count)
     {
         for (int attempt = 0; attempt < 8; ++attempt)
         {
-            const float ang = Rand01() * 6.2831853f;
+            const float ang = Rand01() * DirectX::XM_2PI;
             const float r = kDebugRingMin + (kDebugRingMax - kDebugRingMin) * Rand01();
             const Vector3 pos = player + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
 
@@ -139,14 +139,14 @@ void MobSpawner::SpawnDebugKind(const GridWorld& grid, const Vector3& player, Sw
             grid.WorldToCell(pos, gx, gz);
             if (!grid.IsWalkable(gx, gz)) continue;
 
-            swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + groundY, pos.z }, hp, speed, kind);
+            swarm.SpawnEnemy({ pos.x, grid.SampleHeight(pos.x, pos.z) + centerAboveFeet, pos.z }, hp, speed, kind);
             break;
         }
     }
 }
 
 // ============================================================
-// GPU の分裂の環（2〜3 フレーム遅れ）に届いた出来事：
+// GPU の敵の出来事の環（2〜3 フレーム遅れ）に届いた出来事：
 //   ・スプリッターの死 → 分裂体を死んだ所の周りに。同時上限（spawnCap）の空きが無ければ出さない。
 //     周りの点が塞がったマスなら死んだ所そのものに置く（GPU が重なりを押し広げる）
 //   ・砂嵐の術師の詠唱（kind = kEnemyKindSandMage）→ 術師の 1m 前から今のプレイヤーへ向けて砂旋
@@ -155,18 +155,18 @@ void MobSpawner::SpawnDebugKind(const GridWorld& grid, const Vector3& player, Sw
 // ============================================================
 void MobSpawner::SpawnFromEvents(const GridWorld& grid, const Vector3& player, SwarmSystem& swarm)
 {
-    static std::vector<Swarm::SplitEvent> s_Events;
+    static std::vector<Swarm::EnemyEvent> s_Events;
     s_Events.clear();
-    swarm.ConsumeSplitEvents(s_Events);
+    swarm.ConsumeEnemyEvents(s_Events);
     if (s_Events.empty()) return;
 
     const float hp = m_SplitlingHp * m_HpMul;
     const float speed = m_MobSpeed * m_SplitlingSpeedMul * finalSpeedMul;
     uint32_t splits = 0;
     int room = m_Director.spawnCap - (int)swarm.GetCounters().aliveEnemies;   // 同時上限の空き（分裂体はこれを超えて出さない）
-    for (const Swarm::SplitEvent& ev : s_Events)
+    for (const Swarm::EnemyEvent& ev : s_Events)
     {
-        const uint32_t evKind = ev.kind & Swarm::kSplitKindMask;   // 上 16 bit は出来事の中身
+        const uint32_t evKind = ev.kind & Swarm::kEnemyEventKindMask;   // 上 16 bit は出来事の中身
         if (HandleRuinsEvent(ev, grid, player, swarm))
             continue;   // 遺跡の敵（MobSpawnerRuins.cpp）
         if (evKind == Swarm::kEnemyKindSandMage)
@@ -187,10 +187,10 @@ void MobSpawner::SpawnFromEvents(const GridWorld& grid, const Vector3& player, S
             continue;
         ++m_SplitEventsSeen;
         ++splits;
-        const float base = Rand01() * 6.2831853f;
+        const float base = Rand01() * DirectX::XM_2PI;
         for (int k = 0; k < m_SplitCount; ++k)
         {
-            const float ang = base + 6.2831853f * (float)k / (float)(std::max)(1, m_SplitCount);
+            const float ang = base + DirectX::XM_2PI * (float)k / (float)(std::max)(1, m_SplitCount);
             Vector3 p = ev.position + Vector3(std::cos(ang), 0.0f, std::sin(ang)) * m_SplitSpread;
             int gx = 0, gz = 0;
             grid.WorldToCell(p, gx, gz);
@@ -240,7 +240,7 @@ void MobSpawner::Update(const GridWorld& grid, const Vector3& player, float dt, 
     m_NecroRatio = necroMix.At(runTime);
     m_WardenRatio = wardenMix.At(runTime);
     swarm.GetAIParams().contactDamage = baseContactDamage * m_DamageMul;
-    swarm.GetBomberParams().blastDamage = baseBlastDamage * m_DamageMul;
+    swarm.GetKindParams().blastDamage = baseBlastDamage * m_DamageMul;
 
     // 最終ウェーブ中は幽霊の枠（ghostCap + darkGhostCap）を雑魚の上限から引いておく：雑魚には「幽霊の枠は常に埋まっている」
     // ように見せる。幽霊自身は SpawnGhosts で自分の上限を見る
@@ -296,12 +296,12 @@ void MobSpawner::SpawnGhosts(const Vector3& player, float dt, SwarmSystem& swarm
     const int dark = budget(finalDarkGhostRate, m_DarkGhostAccum, darkGhostCap, info.darkGhosts, m_DebugDarkGhosts);
     m_DebugGhosts = m_DebugDarkGhosts = 0;
 
-    const float groundY = swarm.GetAIParams().groundY;
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
     auto ring = [&]()
     {
-        const float ang = Rand01() * 6.2831853f;
+        const float ang = Rand01() * DirectX::XM_2PI;
         const float r = m_Director.rMin + (m_Director.rMax - m_Director.rMin) * Rand01();
-        return Vector3(player.x + std::cos(ang) * r, groundY, player.z + std::sin(ang) * r);
+        return Vector3(player.x + std::cos(ang) * r, centerAboveFeet, player.z + std::sin(ang) * r);
     };
     for (int k = 0; k < white; ++k)
     {
@@ -341,7 +341,7 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::Checkbox("Scale with time", &scaling);
     ImGui::Text("run %.0f s  HP x%.2f  damage x%.2f  spawn %.2f /s  contact %.1f  blast %.1f",
         m_RunTime, m_HpMul, m_DamageMul, m_Director.spawnPerSecond,
-        swarm.GetAIParams().contactDamage, swarm.GetBomberParams().blastDamage);
+        swarm.GetAIParams().contactDamage, swarm.GetKindParams().blastDamage);
     ImGui::Text("stage: table +%.0f min  HP x%.2f  damage x%.2f  spawn x%.2f   final x%.2f", stageTimeOffsetMin, stageHpMul, stageDamageMul, stageSpawnMul, finalStatMul);
     curve.DrawImGui(m_RunTime / 60.0f + stageTimeOffsetMin, stageTimeOffsetMin);   // 表（分・湧き・HP・ダメージ）と曲線（この面の分）、Save / Load / Reset
     ImGui::DragFloat("Contact Damage (base)", &baseContactDamage, 0.5f, 0.0f, 200.0f);
@@ -354,7 +354,7 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::Separator();
 
     // ---- 自爆兵（湧きの割合・初期値は CPU、導火線と爆発は GPU の定数）----
-    auto& bomb = swarm.GetBomberParams();
+    auto& bomb = swarm.GetKindParams();
     ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.4f, 1), "Bomber (GPU)");
     ImGui::SliderFloat("Special Share Cap", &maxSpecialShare, 0.1f, 1.0f, "%.2f");
     ImGui::SliderFloat("Bomber Ratio", &m_BomberRatio, 0.0f, 1.0f, "%.2f");
@@ -390,7 +390,7 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Dark Ghost HP x", &darkGhostHpMul, 1.0f, 0.1f, 1000.0f);
     ImGui::DragInt("Dark Ghost Cap", &darkGhostCap, 1, 0, 500);
     {
-        auto& kind = swarm.GetBomberParams();
+        auto& kind = swarm.GetKindParams();
         ImGui::DragFloat("Dark Ghost Scale", &kind.darkGhostScale, 0.05f, 0.5f, 4.0f);
         ImGui::DragFloat("Dark Ghost Damage x", &kind.darkGhostDamageMul, 0.1f, 0.0f, 20.0f);
         ImGui::DragFloat("Dark Ghost Exp x", &kind.darkGhostExpMul, 0.5f, 0.0f, 200.0f);
@@ -448,7 +448,7 @@ void MobSpawner::DrawImGui(SwarmSystem& swarm)
     ImGui::DragFloat("Separation Power", &ai.separationPower, 0.1f, 0.0f, 20.0f);
     ImGui::DragFloat("Avoid Power", &ai.avoidPower, 0.1f, 0.0f, 20.0f);
     ImGui::DragFloat("Look Ahead", &ai.lookAhead, 0.01f, 0.0f, 1.0f);
-    ImGui::DragFloat("Ground Y", &ai.groundY, 0.01f, -1.0f, 3.0f);
+    ImGui::DragFloat("Center Above Feet", &ai.centerAboveFeet, 0.01f, -1.0f, 3.0f);
     ImGui::DragFloat("Enemy Radius", &ai.enemyRadius, 0.01f, 0.1f, 2.0f);
     ImGui::DragFloat("Velocity Lag", &ai.velocityLag, 0.5f, 1.0f, 40.0f);
     ImGui::DragFloat("Max Speed Mul", &ai.maxSpeedMul, 0.05f, 1.0f, 4.0f);

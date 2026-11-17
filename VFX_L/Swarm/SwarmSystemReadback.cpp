@@ -29,143 +29,81 @@ using Microsoft::WRL::ComPtr;
 // ============================================================
 void SwarmSystem::RequestReadback()
 {
-    m_Readback.RequestCopy(m_Context, m_CounterBuffer.Get());
+    m_CounterStaging.Copy(m_Context, m_CounterBuffer.Get());
 
-    // 誘発の環も写す（読むのは 2 フレーム後の Flush）
-    // stale = false：KillAll の後に写した物（中身は読む）
-    if (m_TriggerBuffer)
-    {
-        m_Context->CopyResource(m_TriggerStaging[m_TriggerStagingWrite].Get(), m_TriggerBuffer.Get());
-        m_TriggerStagingFilled[m_TriggerStagingWrite] = true;
-        m_TriggerStagingStale[m_TriggerStagingWrite] = false;
-        m_TriggerStagingWrite = (m_TriggerStagingWrite + 1) % kTriggerStaging;
-    }
-    // 分裂の環も
-    if (m_SplitBuffer)
-    {
-        m_Context->CopyResource(m_SplitStaging[m_SplitStagingWrite].Get(), m_SplitBuffer.Get());
-        m_SplitStagingFilled[m_SplitStagingWrite] = true;
-        m_SplitStagingStale[m_SplitStagingWrite] = false;
-        m_SplitStagingWrite = (m_SplitStagingWrite + 1) % kTriggerStaging;
-    }
-    // ダメージの数字の環も
-    if (m_DamageTextBuffer)
-    {
-        m_Context->CopyResource(m_DamageTextStaging[m_DamageTextStagingWrite].Get(), m_DamageTextBuffer.Get());
-        m_DamageTextStagingFilled[m_DamageTextStagingWrite] = true;
-        m_DamageTextStagingStale[m_DamageTextStagingWrite] = false;
-        m_DamageTextStagingWrite = (m_DamageTextStagingWrite + 1) % kTriggerStaging;
-    }
+    // 誘発・敵の出来事・ダメージの数字の環も写す（読むのは 2 フレーム後の Flush。写した 1 枚は KillAll の後の物）
+    m_TriggerStaging.Copy(m_Context, m_TriggerBuffer.Get());
+    m_EnemyEventStaging.Copy(m_Context, m_EnemyEventBuffer.Get());
+    m_DamageTextStaging.Copy(m_Context, m_DamageTextBuffer.Get());
     CopyLifestealForCPU();   // 吸血の累計
-    CopyCloseTargetForCPU(); // 優先度なしの一番近い敵
+    CopyNearestTargetForCPU(); // 優先度なしの一番近い敵
+}
+
+namespace
+{
+    // 先頭 16B = 今までの総数、以降 T × N の環を読み、前に読んだ所からの新しい分を out へ足す。
+    // 総数は GPU で永久に累積されるので、読めなかったフレームがあっても次に読めた時に取りこぼさない
+    // （環の長さを超えて溜まった分だけ捨てる）。stale = KillAll の前の写し：読んだ位置だけ進めて捨てる
+    template <class T, uint32_t N>
+    void ReadEventRing(const void* data, bool stale, uint32_t& readPos, std::vector<T>& out)
+    {
+        const auto* bytes = static_cast<const uint8_t*>(data);
+        const uint32_t total = *reinterpret_cast<const uint32_t*>(bytes);
+        const auto* ring = reinterpret_cast<const T*>(bytes + 16);
+
+        uint32_t from = readPos;
+        if (total - from > N) from = total - N;   // 溢れた分は捨てる
+        if (stale) from = total;
+        for (uint32_t n = from; n != total; ++n)
+            out.push_back(ring[n % N]);
+        readPos = total;
+    }
+
+    // 取り出し待ちが環の長さを超えたら古い物から捨てる
+    template <class T>
+    void TrimEvents(std::vector<T>& v, uint32_t maxCount)
+    {
+        if (v.size() > maxCount)
+            v.erase(v.begin(), v.end() - maxCount);
+    }
 }
 
 // ============================================================
-// 誘発の環を読む（一番古い staging、待たない）。総数は GPU で永久に累積されるので、
-// 読めなかったフレームがあっても次に読めた時に取りこぼさない（環の長さを超えて溜まった分だけ捨てる）
+// 誘発の環を読む（一番古い staging、待たない）
 // ============================================================
 void SwarmSystem::ReadTriggerEvents()
 {
-    const int readIndex = m_TriggerStagingWrite;   // 次に書く = 一番古い
-    if (!m_TriggerStagingFilled[readIndex] || !m_TriggerStaging[readIndex]) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_TriggerStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
-
-    const auto* bytes = static_cast<const uint8_t*>(mapped.pData);
-    const uint32_t total = *reinterpret_cast<const uint32_t*>(bytes);
-    const auto* ring = reinterpret_cast<const Swarm::TriggerEvent*>(bytes + 16);
-
-    uint32_t from = m_TriggerRead;
-    if (total - from > Swarm::kMaxTriggerEvents) from = total - Swarm::kMaxTriggerEvents;   // 溢れた分は捨てる
-    if (m_TriggerStagingStale[readIndex]) from = total;   // KillAll の前の写し：読んだ所だけ進めて捨てる
-    m_TriggerStagingStale[readIndex] = false;
-    for (uint32_t n = from; n != total; ++n)
-        m_TriggerEvents.push_back(ring[n % Swarm::kMaxTriggerEvents]);
-    m_TriggerRead = total;
-
-    m_Context->Unmap(m_TriggerStaging[readIndex].Get(), 0);
-
+    if (!m_TriggerStaging.TryRead(m_Context, [&](const void* data, bool stale)
+        { ReadEventRing<Swarm::TriggerEvent, Swarm::kMaxTriggerEvents>(data, stale, m_TriggerRead, m_TriggerEvents); }))
+        return;
     // 誰も取り出さない（杖が無いシーン）でも溜まり続けないように
-    if (m_TriggerEvents.size() > Swarm::kMaxTriggerEvents)
-        m_TriggerEvents.erase(m_TriggerEvents.begin(), m_TriggerEvents.end() - Swarm::kMaxTriggerEvents);
+    TrimEvents(m_TriggerEvents, Swarm::kMaxTriggerEvents);
 }
 
-// ============================================================
-// 分裂の環を読む（誘発の環と同じ作り。一番古い staging、待たない）
-// ============================================================
-void SwarmSystem::ReadSplitEvents()
+// 敵の出来事の環を読む（誘発の環と同じ作り）
+void SwarmSystem::ReadEnemyEvents()
 {
-    const int readIndex = m_SplitStagingWrite;   // 次に書く = 一番古い
-    if (!m_SplitStagingFilled[readIndex] || !m_SplitStaging[readIndex]) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_SplitStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
-
-    const auto* bytes = static_cast<const uint8_t*>(mapped.pData);
-    const uint32_t total = *reinterpret_cast<const uint32_t*>(bytes);
-    const auto* ring = reinterpret_cast<const Swarm::SplitEvent*>(bytes + 16);
-
-    uint32_t from = m_SplitRead;
-    if (total - from > Swarm::kMaxSplitEvents) from = total - Swarm::kMaxSplitEvents;   // 溢れた分は捨てる
-    if (m_SplitStagingStale[readIndex]) from = total;   // KillAll の前の写し（ReadTriggerEvents と同じ）
-    m_SplitStagingStale[readIndex] = false;
-    for (uint32_t n = from; n != total; ++n)
-        m_SplitEvents.push_back(ring[n % Swarm::kMaxSplitEvents]);
-    m_SplitRead = total;
-
-    m_Context->Unmap(m_SplitStaging[readIndex].Get(), 0);
-
-    if (m_SplitEvents.size() > Swarm::kMaxSplitEvents)
-        m_SplitEvents.erase(m_SplitEvents.begin(), m_SplitEvents.end() - Swarm::kMaxSplitEvents);
+    if (!m_EnemyEventStaging.TryRead(m_Context, [&](const void* data, bool stale)
+        { ReadEventRing<Swarm::EnemyEvent, Swarm::kMaxEnemyEvents>(data, stale, m_EnemyEventRead, m_EnemyEvents); }))
+        return;
+    TrimEvents(m_EnemyEvents, Swarm::kMaxEnemyEvents);
 }
 
+// ダメージの数字の環を読む（誘発の環と同じ作り）
 void SwarmSystem::ReadDamageTexts()
 {
-    const int readIndex = m_DamageTextStagingWrite;   // 次に書く = 一番古い
-    if (!m_DamageTextStagingFilled[readIndex] || !m_DamageTextStaging[readIndex]) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_DamageTextStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
-
-    const auto* bytes = static_cast<const uint8_t*>(mapped.pData);
-    const uint32_t total = *reinterpret_cast<const uint32_t*>(bytes);
-    const auto* ring = reinterpret_cast<const Swarm::DamageText*>(bytes + 16);
-
-    uint32_t from = m_DamageTextRead;
-    if (total - from > Swarm::kMaxDamageTexts) from = total - Swarm::kMaxDamageTexts;   // 溢れた分は捨てる
-    if (m_DamageTextStagingStale[readIndex]) from = total;   // KillAll の前の写し（ReadTriggerEvents と同じ）
-    m_DamageTextStagingStale[readIndex] = false;
-    for (uint32_t n = from; n != total; ++n)
-        m_DamageTexts.push_back(ring[n % Swarm::kMaxDamageTexts]);
-    m_DamageTextRead = total;
-
-    m_Context->Unmap(m_DamageTextStaging[readIndex].Get(), 0);
-
-    if (m_DamageTexts.size() > Swarm::kMaxDamageTexts)
-        m_DamageTexts.erase(m_DamageTexts.begin(), m_DamageTexts.end() - Swarm::kMaxDamageTexts);
+    if (!m_DamageTextStaging.TryRead(m_Context, [&](const void* data, bool stale)
+        { ReadEventRing<Swarm::DamageText, Swarm::kMaxDamageTexts>(data, stale, m_DamageTextRead, m_DamageTexts); }))
+        return;
+    TrimEvents(m_DamageTexts, Swarm::kMaxDamageTexts);
 }
 
 // ============================================================
-// Boss の様子を読む（GPUReadback::TryRead と同じ。一番古い staging、待たない）
+// Boss の様子を読む（一番古い staging、待たない）。読めなければ前回の値のまま
 // ============================================================
 void SwarmSystem::ReadBossInfo()
 {
-    const int readIndex = m_BossStagingWrite;   // 次に書く = 一番古い
-    if (!m_BossStagingFilled[readIndex] || !m_BossStaging[readIndex]) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_BossStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;   // まだ。前回の値のまま
-    memcpy(&m_BossInfo, mapped.pData, sizeof(Swarm::BossInfo));
-    m_Context->Unmap(m_BossStaging[readIndex].Get(), 0);
+    m_BossStaging.TryRead(m_Context, [&](const void* data, bool) { memcpy(&m_BossInfo, data, sizeof(Swarm::BossInfo)); });
 }
 
 // ============================================================
@@ -175,16 +113,9 @@ void SwarmSystem::ReadBossInfo()
 // ============================================================
 void SwarmSystem::ReadPlayerHits()
 {
-    const int readIndex = m_PlayerHitStagingWrite;   // 次に書く = 一番古い
-    if (!m_PlayerHitStagingFilled[readIndex] || !m_PlayerHitStaging[readIndex]) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_PlayerHitStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
     Swarm::PlayerHitInfo now;
-    memcpy(&now, mapped.pData, sizeof(now));
-    m_Context->Unmap(m_PlayerHitStaging[readIndex].Get(), 0);
+    if (!m_PlayerHitStaging.TryRead(m_Context, [&](const void* data, bool) { memcpy(&now, data, sizeof(now)); }))
+        return;
 
     auto diff = [](int32_t a, int32_t b) { return (int32_t)((uint32_t)a - (uint32_t)b); };
     const float s = 1.0f / Swarm::kHitDirScale;
@@ -210,24 +141,21 @@ SwarmSystem::PlayerHits SwarmSystem::ConsumePlayerHits()
 // 生まれた範囲の累計を読み、差分を溜める（ReadPlayerHits と同じ輪転）
 void SwarmSystem::ReadAreaBirths()
 {
-    const int readIndex = m_AreaBirthStagingWrite;   // 次に書く = 一番古い
-    if (!m_AreaBirthStagingFilled[readIndex] || !m_AreaBirthStaging[readIndex]) return;
-
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_AreaBirthStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
-    std::array<uint32_t, kAreaBirthSlots> now;
-    memcpy(now.data(), mapped.pData, sizeof(uint32_t) * kAreaBirthSlots);
-    m_Context->Unmap(m_AreaBirthStaging[readIndex].Get(), 0);
+    std::array<uint32_t, kAreaBirthSlots> now = {};
+    bool stale = false;
+    if (!m_AreaBirthStaging.TryRead(m_Context, [&](const void* data, bool st)
+        {
+            memcpy(now.data(), data, sizeof(uint32_t) * kAreaBirthSlots);
+            stale = st;
+        }))
+        return;
     // KillAll の前の写し：差分の基準だけ進めて、その間に生まれた範囲（音・揺れ）は捨てる
-    if (!m_AreaBirthStagingStale[readIndex])
+    if (!stale)
     {
         m_PendingShakes += now[0] - m_LastAreaBirths[0];
         for (uint32_t k = 0; k < Swarm::kAreaBirthKinds; ++k)
             m_PendingAreaBirths[k] += now[1 + k] - m_LastAreaBirths[1 + k];
     }
-    m_AreaBirthStagingStale[readIndex] = false;
     m_LastAreaBirths = now;
 }
 
@@ -298,11 +226,11 @@ bool SwarmSystem::DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::v
         if (!readback(m_EnemyExtraBuffer.Get(), (UINT)(sizeof(Swarm::EnemyExtra) * Swarm::kMaxEnemies), outExtras->data()))
             outExtras->clear();
     }
-    // 減速・凍結（enemySlow、float4）
-    if (outStatus && m_EnemySlowBuffer)
+    // 減速・凍結（enemyStatus、float4）
+    if (outStatus && m_EnemyStatusBuffer)
     {
         outStatus->resize(Swarm::kMaxEnemies);
-        if (!readback(m_EnemySlowBuffer.Get(), (UINT)(sizeof(float) * 4 * Swarm::kMaxEnemies), outStatus->data()))
+        if (!readback(m_EnemyStatusBuffer.Get(), (UINT)(sizeof(float) * 4 * Swarm::kMaxEnemies), outStatus->data()))
             outStatus->clear();
     }
     return true;

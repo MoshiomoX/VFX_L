@@ -113,7 +113,7 @@ void CollisionTestScene::StartTitleVignette(int index)
     SpawnTitleEnemies(40, 6.0f, 15.0f);
     if (v.sandMages > 0)
     {
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         float hp = 15.0f, speed = 3.0f;
         m_Mobs.KindStats(Swarm::kEnemyKindSandMage, hp, speed);
         for (int i = 0; i < v.sandMages; ++i)
@@ -308,7 +308,7 @@ void CollisionTestScene::UpdateTitleTornadoes(float dt)
     std::vector<MobSpawner::TornadoBirth> births;
     m_Mobs.ConsumeTornadoBirths(births);
     for (const MobSpawner::TornadoBirth& b : births)
-        m_SandTornadoes.Spawn(m_AreaVFX, m_VFXContext, b.pos, b.yaw, b.speed, m_Swarm.GetBomberParams().tornadoLife);
+        m_SandTornadoes.Spawn(m_AreaVFX, m_VFXContext, b.pos, b.yaw, b.speed, m_Swarm.GetKindParams().tornadoLife);
     m_SandTornadoes.Update(dt, m_AreaVFX, [this](float x, float z) { return m_Grid.SampleHeight(x, z); });
 }
 

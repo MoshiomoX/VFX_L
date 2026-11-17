@@ -225,7 +225,7 @@ void VideoShot::SetCasting(bool on)
 void VideoShot::SpawnRing(const Vector3& center, int count, float rMin, float rMax, uint32_t kind, float hp, float speedMul,
     float arcCenterDeg, float arcHalfDeg)
 {
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     float baseHp = 15.0f, speed = 3.5f;
     m_Mobs.KindStats(kind, baseHp, speed);
     for (int i = 0; i < count; ++i)
@@ -252,7 +252,7 @@ void VideoShot::DropMeteor(const Vector3& impactXZ)
     if (dir.LengthSquared() < 0.01f) dir = Vector3(0, 0, 1);
     dir.Normalize();
     Vector3 impact = impactXZ;
-    impact.y = m_Grid.SampleHeight(impact.x, impact.z) + m_Swarm.GetAIParams().groundY;
+    impact.y = m_Grid.SampleHeight(impact.x, impact.z) + m_Swarm.GetAIParams().centerAboveFeet;
     m_Swarm.SpawnProjectile(prof.ResolveVFX(), impact, dir * prof.speed, prof.damage, prof.radius, prof.lifetime,
         (uint32_t)s_Meteor, false, 0, true);
     AudioSystem::Get().Play(prof.castSound);
@@ -264,7 +264,7 @@ void VideoShot::FaceNearestEnemy(float dt, float turnDegPerSec)
     auto& tf = m_Registry.Get<TransformComponent>(m_Player);
     Vector3 np, nv;
     float nd = 0.0f;
-    if (!m_Swarm.GetNearestEnemy(np, nv, nd) || nd > 30.0f) return;
+    if (!m_Swarm.GetAimTarget(np, nv, nd) || nd > 30.0f) return;
     const Vector3 d = np - tf.position;
     if (d.x * d.x + d.z * d.z < 0.01f) return;
     const float target = DirectX::XMConvertToDegrees(std::atan2(d.x, d.z));

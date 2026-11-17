@@ -1,7 +1,7 @@
 // ============================================================
 // SwarmEnemyBinCS.hlsl
 // 敵スロット 1 つにつき 1 スレッド。生きている敵を、いるセルの空間
-// ハッシュのバケットに入れる（SwarmCommon の SWARM_BUCKET_CAP 参照）。
+// ハッシュのバケットに入れる（SwarmTerrain.hlsli の SWARM_BUCKET_CAP 参照）。
 // cellCount はこのディスパッチの直前に CPU が 0 クリアする
 // （ClearUnorderedAccessViewUint）。各固定ステップの最初に走らせ、
 // AI と押し出しパスが同じスナップショットを読むようにする。

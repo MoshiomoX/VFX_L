@@ -19,7 +19,7 @@ namespace
         constexpr int kSeg = 40;
         for (int i = 0; i < kSeg; ++i)
         {
-            const float a0 = i * 6.2831853f / kSeg, a1 = (i + 1) * 6.2831853f / kSeg;
+            const float a0 = i * DirectX::XM_2PI / kSeg, a1 = (i + 1) * DirectX::XM_2PI / kSeg;
             const Vector3 p0(c.x + std::cos(a0) * r, 0.0f, c.z + std::sin(a0) * r), p1(c.x + std::cos(a1) * r, 0.0f, c.z + std::sin(a1) * r);
             dbg.AddDebugLine({ p0.x, grid.SampleHeight(p0.x, p0.z) + 0.3f, p0.z },
                 { p1.x, grid.SampleHeight(p1.x, p1.z) + 0.3f, p1.z }, col);

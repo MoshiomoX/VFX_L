@@ -9,6 +9,7 @@
 // 分岐はパーティクル内で一様（四角形が 2 つのプリミティブにまたがる
 // ことはない）で、勾配は分岐の前に取る。
 // ============================================================
+#include "Common/ParticleCommon.hlsli"   // PARTICLE_TOON
 
 Texture2D g_Sheet0 : register(t0);
 Texture2D g_Sheet1 : register(t1);
@@ -94,10 +95,10 @@ float4 ParticleFog(float4 o, float3 worldPos, bool alphaBlend)
 // ------------------------------------------------------------
 // トゥーンのビルボード。renderMode のビット、
 // ParticleRenderMode::PackToon（GPUParticle.h）と一致させること:
-//   ビット 14 = トゥーン、ビット 15 = アウトライン、ビット 16-19 = アルファの切り（0.05 + 0.05 n）、
+//   ビット 14 = トゥーン（PARTICLE_TOON、ParticleCommon.hlsli）、ビット 15 = アウトライン、
+//   ビット 16-19 = アルファの切り（0.05 + 0.05 n）、
 //   ビット 20-21 = 色の段数 - 1、ビット 22-25 = 一番外の段の明るさ（n / 15）
 // ------------------------------------------------------------
-#define PARTICLE_TOON         (1u << 14)
 #define PARTICLE_TOON_OUTLINE (1u << 15)
 #define PARTICLE_TOON_NOISE   (1u << 8)    // ノイズ侵食（ビルボードでは空きの bit。ParticleRenderMode::kToonNoise）
 #define PARTICLE_TOON_FIRE    (1u << 10)   // 火の色の段：外 = 濃い赤、中 = 粒子の色、芯 = 白寄り（明るさではなく色で段を分ける。ParticleRenderMode::kToonFire）

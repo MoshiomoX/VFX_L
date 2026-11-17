@@ -9,13 +9,7 @@
 Texture2D g_Texture : register(t0);
 SamplerState g_Sampler : register(s0);
 
-cbuffer TrailDrawCB : register(b1)
-{
-    uint g_StyleSlot;
-    uint g_Premultiply;
-    float g_Time;
-    float _padT;
-};
+#include "Common/TrailDrawCB.hlsli"
 
 struct PSInput
 {

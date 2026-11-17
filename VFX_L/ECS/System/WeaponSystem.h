@@ -335,8 +335,8 @@ private:
         float halfHeight = 1.2f;
         float damage = 0.0f;         // 1 tick
         float tickInterval = 0.1f;
-        uint32_t flags = 0;          // kAreaCapsule | channel | (stun)
-        uint32_t extra = 0;          // 範囲の tickNow の上位に乗せる追加値（毒素の割合。AreaProfile::Extra）
+        uint32_t flags = 0;          // kAreaCapsule | (stun) | (shake)
+        uint32_t extra = 0;          // 範囲の Area::extra に入れる追加値（AreaProfile::Extra）
         bool spawned = false;        // GPU の範囲を出したか（溜めが終わった時に 1 回）
         uint32_t vfxHandle = 0;      // AreaVFXPlayer のインスタンス
         std::string sound;           // 溜め終わり（撃った瞬間）の音 = 範囲の sound

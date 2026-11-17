@@ -11,28 +11,18 @@
 // スロットや DROP でないスロットはニアプレーンの手前に潰す。地面の四角形の
 // 6 頂点を SV_VertexID から作る。頂点バッファなし。
 //
-// 着弾点 p3 は生成時の敵の位置で、地形の g_GroundY 上にある
+// 着弾点 p3 は生成時の敵の位置（体の中心）で、地形から g_CenterAboveFeet 上にある
 // （SwarmEnemyMoveCS 参照）。なので四角形は
-// p3.y - g_GroundY + g_RingLift に置く。
+// p3.y - g_CenterAboveFeet + g_RingLift に置く。
 //
-// cbuffer の C++ 側の対応：SwarmSystem::BomberRingCB
+// cbuffer は SwarmGroundMarkCB.hlsli（C++ 側: SwarmSystem::GroundMarkCB）
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
-cbuffer SwarmBomberRingCB : register(b0)
-{
-    row_major float4x4 g_RingView;
-    row_major float4x4 g_RingProj;
-    float4 g_RingFill;  // 広がる円（ストレートアルファ）
-    float4 g_RingEdge;  // 縁
-    float4 g_RingBack;  // 縁の内側の、まだ塗られていない所
-    float g_RingEdgeWidth; // 縁の太さ、m
-    float g_RingLift;      // 地面からの高さ、m
-    float2 _ringPad;
-};
+#include "SwarmGroundMarkCB.hlsli"
 
 StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 Buffer<uint> projStates : register(t1);
@@ -77,7 +67,7 @@ RingOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float3 c3 = paths[iid].p3;
     float2 c = kCorner[vid];
     float3 world = float3(c3.x + c.x * radius,
-                          c3.y - g_GroundY + g_RingLift,
+                          c3.y - g_CenterAboveFeet + g_RingLift,
                           c3.z + c.y * radius);
 
     o.pos = mul(mul(float4(world, 1.0), g_RingView), g_RingProj);

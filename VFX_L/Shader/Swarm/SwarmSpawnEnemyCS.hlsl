@@ -6,31 +6,26 @@
 // スレッドごとのオフセットから線形に走査し、状態バッファへの
 // InterlockedCompareExchange で確保する。
 //
-// リクエストには CPU から位置 / hp / moveSpeed がもう入っている。
-// velocity と yaw は 0 から始め、次の固定ステップで
-// AI のパスが埋める。
+// リクエスト（SwarmEnemySpawn）には CPU から位置 / hp / moveSpeed / yaw / 種類が入っている。
+// velocity は 0 から始め、次の固定ステップで AI のパスが埋める。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
-StructuredBuffer<SwarmEnemy> spawnRequests : register(t0);
+StructuredBuffer<SwarmEnemySpawn> spawnRequests : register(t0);
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWBuffer<uint> enemyStates : register(u1);
 // スロットごとの生成時の hp（固定小数点、SwarmEnemy.hp と同じ）。HP バー
 // （SwarmEnemyHpBarVS）がこれで割る。SwarmEnemy を 48B のままにするための並列バッファ
 RWStructuredBuffer<uint> enemyMaxHp : register(u2);
-// スロットごとの種類 + 導火線。リクエストは種類を animIndex に入れて運ぶ
+// スロットごとの種類 + 導火線
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // スロットごとの毒の減速（SwarmAreaDamageCS を参照）: 新しい敵は減速なしで始まる
-RWStructuredBuffer<float4> enemySlow : register(u4); // 減速 + 凍結
+RWStructuredBuffer<float4> enemyStatus : register(u4); // 減速 + 凍結
 RWStructuredBuffer<float4> enemyPush : register(u5); // ノックバック（突風）: 新しい敵には無い
-RWStructuredBuffer<float4> enemyPoison : register(u6); // 溜まった毒素（毒沼）: これも無し
+RWStructuredBuffer<float2> enemyPoison : register(u6); // 溜まった毒素（毒沼）: これも無し
+RWStructuredBuffer<SwarmEnemyHitInfo> enemyHitInfo : register(u7); // 被弾の記録: これも無し
 
-cbuffer SwarmSpawnCB : register(b1)
-{
-    uint g_RequestCount;
-    uint g_ScanStart;
-    uint2 _spawnPad;
-};
+#include "SwarmSpawnCB.hlsli"
 
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -38,11 +33,11 @@ void main(uint3 id : SV_DispatchThreadID)
     if (id.x >= g_RequestCount)
         return;
 
-    SwarmEnemy req = spawnRequests[id.x];
+    SwarmEnemySpawn req = spawnRequests[id.x];
+    SwarmEnemy e = SwarmEnemyFromSpawn(req);
     SwarmEnemyExtra extra;
-    extra.kind = req.animIndex;
+    extra.kind = req.kind;
     extra.fuse = 0.0;
-    req.animIndex = 0u;
 
     // 開始位置をばらして、スレッドごとに別の区間を確保させる
     uint start = (g_ScanStart + id.x * 97u) % g_MaxEnemies;
@@ -58,12 +53,13 @@ void main(uint3 id : SV_DispatchThreadID)
         if (prev == SWARM_DEAD)
         {
             // スロットを取れた。状態は交換でもう ALIVE になっている
-            enemies[slot] = req;
+            enemies[slot] = e;
             enemyMaxHp[slot] = req.hp;
             enemyExtra[slot] = extra;
-            enemySlow[slot] = float4(0, 0, 0, 0);
+            enemyStatus[slot] = float4(0, 0, 0, 0);
             enemyPush[slot] = float4(0, 0, 0, 0);
-            enemyPoison[slot] = float4(0, 0, 0, 0);
+            enemyPoison[slot] = float2(0, 0);
+            enemyHitInfo[slot] = (SwarmEnemyHitInfo) 0;
             return;
         }
     }

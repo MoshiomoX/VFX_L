@@ -70,7 +70,7 @@ void AutoTestGustAll::Spawn(float angleDeg, float dist, uint32_t kind, float hp)
     const auto& tf = m_Registry.Get<TransformComponent>(m_Player);
     const float a = angleDeg / kRad;
     const float x = tf.position.x + std::sin(a) * dist, z = tf.position.z + std::cos(a) * dist;
-    m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + m_Swarm.GetAIParams().groundY, z), hp, 0.0f, kind);
+    m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + m_Swarm.GetAIParams().centerAboveFeet, z), hp, 0.0f, kind);
     m_Spawned.push_back({ angleDeg, dist, kind });
 }
 

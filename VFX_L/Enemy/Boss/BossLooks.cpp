@@ -175,7 +175,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
             d.leg = true;
             const bool pairA = (front && sx < 0.0f) || (!front && sx > 0.0f);
             const Vec3 h = StagXf(hinge);
-            d.flap = { h.x, h.y, h.z, pairA ? 0.0f : 3.14159f };
+            d.flap = { h.x, h.y, h.z, pairA ? 0.0f : DirectX::XM_PI };
             if (d.model) decos.push_back(std::move(d));
         }
         {
@@ -208,7 +208,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
                 d.part = torsoPart;
                 d.insectLeg = true;
                 const bool phaseA = (((i & 1) == 0) == (side < 0));
-                d.flap = { root.x, root.y, root.z, phaseA ? 0.0f : 3.14159f };
+                d.flap = { root.x, root.y, root.z, phaseA ? 0.0f : DirectX::XM_PI };
                 if (d.model) decos.push_back(std::move(d));
             }
         // 鋏：胴に付ける（腕の部品に付けると歩き / 殴りの振りで上下に暴れた）
@@ -230,7 +230,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
     {
         // 石の守護獣（遺跡 2 面目）：体は隠し、全部を胴の部品に付ける。脚 = 雄鹿と同じ斜対歩（mode 4）、
         // 首 + 頭・尾 = 付け根の横軸で縦に揺れ、技（bossChargePose）で頭は前下へ・尾は上へ（mode 3）、
-        // 翼 = 付け根の前後の軸で回す（mode 2。角度は CPU の BomberCB::bossWing）
+        // 翼 = 付け根の前後の軸で回す（mode 2。角度は CPU の KindCB::bossWing）
         const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
         add(BuildBeastBody(device), torsoPart);
         for (int i = 0; i < 4; ++i)
@@ -243,7 +243,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
             d.leg = true;
             const bool pairA = (front && sx < 0.0f) || (!front && sx > 0.0f);
             const Vec3 h = BeastLegRoot(i);
-            d.flap = { h.x, h.y, h.z, pairA ? 0.0f : 3.14159f };
+            d.flap = { h.x, h.y, h.z, pairA ? 0.0f : DirectX::XM_PI };
             if (d.model) decos.push_back(std::move(d));
         }
         auto addHinged = [&](std::shared_ptr<Model> m, const Vec3& hinge, float swing)
@@ -333,7 +333,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
         const float kHunch = 0.45f;          // 立っている時の猫背（rad）。歩くと VS が 1.45 倍まで深くする
         const float kKneeBend = 0.65f;       // 脚を前へ振る間の膝の曲げ（rad）
         const uint32_t torsoPart = torso.Valid() ? (uint32_t)torso.index : 0u;
-        const DirectX::SimpleMath::Vector4 hips(kWolfHips.x, kWolfHips.y, kWolfHips.z, 0.0f);
+        const DirectX::SimpleMath::Vector3 hips(kWolfHips.x, kWolfHips.y, kWolfHips.z);
         auto addHunched = [&](std::shared_ptr<Model> m)
             {
                 if (!m) return;
@@ -341,7 +341,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
                 d.model = std::move(m);
                 d.part = torsoPart;
                 d.hunch = kHunch;
-                d.hinge = hips;
+                d.hunchPivot = hips;
                 decos.push_back(std::move(d));
             };
         addHunched(BuildWolfTorso(device));
@@ -356,7 +356,7 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
                 d.part = torsoPart;
                 d.leg = true;
                 const Vec3 h = WolfHipRoot(sx), k = WolfKnee(sx);
-                d.flap = { h.x, h.y, h.z, (sx < 0.0f) ? 0.0f : 3.14159f };
+                d.flap = { h.x, h.y, h.z, (sx < 0.0f) ? 0.0f : DirectX::XM_PI };
                 d.hinge = { k.x, k.y, k.z, kKneeBend };
                 if (d.model) decos.push_back(std::move(d));
             }
@@ -367,9 +367,9 @@ void BossLooks::Apply(BossType type, ID3D11Device* device, SwarmSystem& swarm)
                 d.part = torsoPart;
                 d.leg = true;
                 d.hunch = kHunch;
-                d.hinge = hips;
+                d.hunchPivot = hips;
                 const Vec3 s = WolfShoulder(sx);
-                d.flap = { s.x, s.y, s.z, ((sx < 0.0f) ? 3.14159f : 0.0f) - 0.35f };   // 同じ側の脚と逆、少し遅れて揺れる（垂れた腕）
+                d.flap = { s.x, s.y, s.z, ((sx < 0.0f) ? DirectX::XM_PI : 0.0f) - 0.35f };   // 同じ側の脚と逆、少し遅れて揺れる（垂れた腕）
                 if (d.model) decos.push_back(std::move(d));
             }
         }

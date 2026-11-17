@@ -65,15 +65,15 @@ void AutoTestVortex::Run()
             m_Registry.Get<WandComponent>(m_Player).castingPaused = true;      // 標的のリードバックを待ってから 1 発だけ撃つ
         }
         // 餌（一番近い 1 体）を正面 7m に置き、残りはその奥の半円（半径 2.5m）に並べる：弾は餌に当たり、渦は餌の所で開く
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         m_Center = tf.position + Vector3(0.0f, 0.0f, 7.0f);
-        m_Swarm.SpawnEnemy(Vector3(m_Center.x, m_Grid.SampleHeight(m_Center.x, m_Center.z) + groundY, m_Center.z), 100000.0f, 0.0f, Swarm::kEnemyKindMob);
+        m_Swarm.SpawnEnemy(Vector3(m_Center.x, m_Grid.SampleHeight(m_Center.x, m_Center.z) + centerAboveFeet, m_Center.z), 100000.0f, 0.0f, Swarm::kEnemyKindMob);
         for (int k = 0; k < 11; ++k)
         {
             const float ang = (-80.0f + 16.0f * (float)k) * 0.0174533f;
             const float x = m_Center.x + std::sin(ang) * 2.5f, z = m_Center.z + std::cos(ang) * 2.5f;
             const uint32_t kind = (k == 5) ? Swarm::kEnemyKindElite : Swarm::kEnemyKindMob;   // エリートは真奥
-            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), 100000.0f, 0.0f, kind);
+            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), 100000.0f, 0.0f, kind);
         }
         auto& cam = m_Camera.Camera();
         cam.SetYaw(0.0f);

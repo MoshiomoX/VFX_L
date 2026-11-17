@@ -107,7 +107,7 @@ void AutoTestBeam::Run()
     auto spawnBehind = [&]()
     {
         const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         for (float z : { 16.0f, 20.0f, 21.5f })
             m_Swarm.SpawnEnemy(Vector3(pp.x, gy, pp.z + z), 40.0f, 0.0f);
     };
@@ -118,7 +118,7 @@ void AutoTestBeam::Run()
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
         const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         m_Swarm.SpawnEnemy(Vector3(pp.x, gy, pp.z + 12.0f), 100000.0f, 0.0f);   // 的は中心線に 1 体だけ（横に並べると弾がどれに当たるかで光線の向きが 7 度ずれ、後ろの雑魚を外す）
         spawnBehind();
 
@@ -211,7 +211,7 @@ void AutoTestBeam::Run()
         m_Swarm.KillAll();
         {
             const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-            const float gy = m_Swarm.GetAIParams().groundY;
+            const float gy = m_Swarm.GetAIParams().centerAboveFeet;
             m_Swarm.SpawnEnemy(Vector3(pp.x, gy, pp.z + 12.0f), 100000.0f, 0.0f);
         }
         spawnBehind();

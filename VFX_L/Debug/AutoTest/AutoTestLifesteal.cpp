@@ -40,7 +40,7 @@ void AutoTestLifesteal::SpawnTargets()
 {
     m_Swarm.KillAll();
     const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     static const float kOff[5][2] = { { 0.0f, 10.0f }, { 2.5f, 10.5f }, { -2.5f, 11.0f }, { 1.5f, 13.0f }, { -1.5f, 13.5f } };
     for (const auto& o : kOff)
         m_Swarm.SpawnEnemy(Vector3(pp.x + o[0], m_Grid.SampleHeight(pp.x + o[0], pp.z + o[1]) + gy, pp.z + o[1]), 100000.0f, 0.0f);

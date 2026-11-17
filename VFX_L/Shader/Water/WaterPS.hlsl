@@ -22,6 +22,7 @@
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"   // 風の格子
 #include "WaterCommon.hlsli"
+#include "../Common/MathConst.hlsli"
 
 Texture2D<float4> g_Ripple : register(t0);   // x = 高さ (m)、y = 前のステップの値。zw = 大きな波だけの同じもの
 StructuredBuffer<WindSource> g_WindSources : register(t1);
@@ -97,7 +98,7 @@ float4 SampleRipple(float2 uv)
 // ---- 水面上の空気（草と同じ突風の波） ----
 float GustWave(float2 xz, float2 dir, float perMeter, float speed)
 {
-    float g = sin(dot(xz, dir) * perMeter * 6.2831853 - g_WindTime * speed) * 0.5 + 0.5;
+    float g = sin(dot(xz, dir) * perMeter * TWO_PI - g_WindTime * speed) * 0.5 + 0.5;
     return g * g;
 }
 

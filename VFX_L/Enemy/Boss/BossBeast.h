@@ -10,7 +10,7 @@
 //       （影から走って出て、衝撃波を跳ぶ）
 //     ・石羽の散弾（両方の段）：翼を振り上げ、扇に石の羽根を 2 回撃つ。2 回目は 1 回目の隙間を通る（隙間へ動き、次は戻る）
 //   二段目（狂暴の咆哮の瞬間に入れ替える）：降りて（hover → 0）地面を歩く。尾の薙ぎ払い / 石化の息 / 石羽の散弾 / 突進 / 投石雨
-// 翼の角度と体の回り（尾の薙ぎ払いで一回転）は毎フレーム CPU が決めて GPU の VS へ（BomberCB::bossWing / bossSpin）
+// 翼の角度と体の回り（尾の薙ぎ払いで一回転）は毎フレーム CPU が決めて GPU の VS へ（KindCB::bossWing / bossSpin）
 // ============================================================
 #pragma once
 #include <SimpleMath.h>
@@ -117,8 +117,8 @@ struct BeastShard
 // シーンへの出力（BossAttacks::Output::beast）
 struct BeastOutput
 {
-    float wing = 0.0f;             // 翼の角度（rad。0 = 横へ広げる、+ = 先を上へ）→ BomberCB::bossWing
-    float spin = 0.0f;             // 体の追加の回り（rad、尾の薙ぎ払い）→ BomberCB::bossSpin
+    float wing = 0.0f;             // 翼の角度（rad。0 = 横へ広げる、+ = 先を上へ）→ KindCB::bossWing
+    float spin = 0.0f;             // 体の追加の回り（rad、尾の薙ぎ払い）→ KindCB::bossSpin
     bool  flying = false;          // 一段目（羽ばたいている）
     bool  landing = false;         // 二段目へ入った瞬間（咆哮と同じフレーム。降りる見た目・音）
     bool  diveGo = false;          // 急降下が走り出した瞬間（音）

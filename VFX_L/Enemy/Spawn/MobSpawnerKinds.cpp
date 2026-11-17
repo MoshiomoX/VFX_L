@@ -18,7 +18,7 @@ float MobSpawner::KindRamp::At(float runTime) const
 
 void MobSpawner::DrawChargerShieldImGui(SwarmSystem& swarm)
 {
-    auto& bomb = swarm.GetBomberParams();
+    auto& bomb = swarm.GetKindParams();
     auto drawRamp = [](const char* label, KindRamp& r)
         {
             ImGui::PushID(label);

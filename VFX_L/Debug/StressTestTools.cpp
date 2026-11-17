@@ -53,8 +53,8 @@ void StressTestTools::SpawnProjectiles(Registry& reg, Entity player, SwarmSystem
 
     for (int i = 0; i < count; ++i)
     {
-        float a = (float)rand() / RAND_MAX * 6.2831853f;
-        float b = (float)rand() / RAND_MAX * 6.2831853f;
+        float a = (float)rand() / RAND_MAX * DirectX::XM_2PI;
+        float b = (float)rand() / RAND_MAX * DirectX::XM_2PI;
         Vector3 dir(std::cos(a) * std::cos(b), std::sin(b) * 0.3f, std::sin(a) * std::cos(b));
         dir.Normalize();
 

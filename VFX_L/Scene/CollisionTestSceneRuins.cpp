@@ -80,7 +80,7 @@ void CollisionTestScene::UpdateRuinsFoes(float dt, const Vector3& player)
     }
 
     // ---- 鎖の投げ ----
-    const auto& bomb = m_Swarm.GetBomberParams();
+    const auto& bomb = m_Swarm.GetKindParams();
     static std::vector<MobSpawner::ChainThrow> s_Throws;
     s_Throws.clear();
     m_Mobs.ConsumeChainThrows(s_Throws);

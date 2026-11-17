@@ -33,7 +33,7 @@ struct WindState
     // 位置 (x, z)・時刻 time の風速ベクトル（GPU と同じ波）
     DirectX::SimpleMath::Vector3 Velocity(float time, float x, float z) const
     {
-        const float phase = (x * dir.x + z * dir.y) * waveScale * 6.2831853f - time * waveSpeed;
+        const float phase = (x * dir.x + z * dir.y) * waveScale * DirectX::XM_2PI - time * waveSpeed;
         float w = std::sin(phase) * 0.5f + 0.5f;
         w *= w;
         const float v = (speed + gust * w) * strength;

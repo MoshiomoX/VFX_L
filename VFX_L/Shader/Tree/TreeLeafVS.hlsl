@@ -6,6 +6,7 @@
 // 影の段でも同じ VS（g_ViewProj が光源の行列、遠いカスケードは g_LeafStride 枚おきに大きくして描く）
 // ============================================================
 #include "TreeCommon.hlsli"
+#include "../Common/MathConst.hlsli"
 
 StructuredBuffer<TreeLeaf> g_Leaves : register(t0);
 StructuredBuffer<TreeState> g_States : register(t1);
@@ -48,13 +49,13 @@ LeafOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float3 n0 = normalize(cross(T, ax));
     float3 n1 = cross(T, n0);
     float amt = g_FlutterIdle + g_FlutterWind * t.windAmt;
-    float roll = r1 * 6.2831853 + sin(g_Time * (6.0 + 5.0 * r2) + r3 * 6.2831853) * amt;
+    float roll = r1 * TWO_PI + sin(g_Time * (6.0 + 5.0 * r2) + r3 * TWO_PI) * amt;
     float3 N = n0 * cos(roll) + n1 * sin(roll);
 
     // 風下へ倒す（強い風ほど、少しずつ揺れながら）
     float airLen = length(t.air);
     float2 wd = airLen > 1e-3 ? t.air / airLen : float2(1.0, 0.0);
-    float bend = saturate(0.3 * t.windAmt) * (0.6 + 0.4 * sin(g_Time * (4.0 + 3.0 * r2) + r1 * 6.2831853));
+    float bend = saturate(0.3 * t.windAmt) * (0.6 + 0.4 * sin(g_Time * (4.0 + 3.0 * r2) + r1 * TWO_PI));
     T = normalize(T + float3(wd.x, 0.0, wd.y) * bend);
     float3 S = normalize(cross(N, T));
     N = cross(T, S);

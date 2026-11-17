@@ -75,7 +75,7 @@ void AutoTestChain::Run()
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
         const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         for (float x : { -2.0f, 0.0f, 2.0f })
             m_Swarm.SpawnEnemy(Vector3(pp.x + x, gy, pp.z + 12.0f), 100000.0f, 0.0f);
 

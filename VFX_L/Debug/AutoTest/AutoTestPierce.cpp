@@ -50,7 +50,7 @@ void AutoTestPierce::Run()
         if (BackpackLogic::Place(bp, ItemID::GoldenArrow, lo, lo + 1, 0) < 0) AutoTestLog("pierce place FAILED");
         bp.dirty = true;
         m_Origin = m_Registry.Get<TransformComponent>(m_Player).position;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         for (float d : kDist)
         {
             const float x = m_Origin.x, z = m_Origin.z + d;

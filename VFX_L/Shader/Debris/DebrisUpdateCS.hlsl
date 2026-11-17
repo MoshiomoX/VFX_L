@@ -17,29 +17,16 @@
 #include "DebrisCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
-
-// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / flags だけ
-struct DebrisArea
-{
-    float3 center;
-    float radius;
-    float damage;
-    float timeLeft;
-    float tickInterval;
-    float tickTimer;
-    float halfHeight;
-    uint flags;
-    uint vfxType;
-    uint tickNow;
-};
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"
+#include "../Common/MathConst.hlsli"
 
 Texture2D<float> g_Height : register(t0);          // GridWorld の高さ（GrassRenderer のテクスチャ）
-StructuredBuffer<DebrisArea> g_Areas : register(t1);
+StructuredBuffer<SwarmArea> g_Areas : register(t1);   // 読むのは center / radius / halfHeight / flags だけ
 Buffer<uint> g_AreaStates : register(t2);          // 0 = 死んでいる
 StructuredBuffer<float4> g_AreaEnds : register(t3); // スロットごとのカプセル（光線）の終点、AreaTickCS から
 StructuredBuffer<WindSource> g_WindSources : register(t4);   // 局所風：砂旋など（SwarmWindSourceCS）
 SamplerState s_Linear : register(s0);
-#define DEBRIS_AREA_CAPSULE 4u   // SWARM_AREA_CAPSULE：光線。中心は杖口で、本体は線分
 RWStructuredBuffer<Debris> g_Debris : register(u0);
 
 float GroundAt(float2 xz)
@@ -51,7 +38,7 @@ float GroundAt(float2 xz)
 // xz での世界風（GrassVS の突風の式。草の葉・パーティクルと同じ時計）
 float2 WindAt(float2 xz)
 {
-    float phase = dot(xz, g_WindDir) * g_WindWaveScale * 6.2831853 - g_WindTime * g_WindWaveSpeed;
+    float phase = dot(xz, g_WindDir) * g_WindWaveScale * TWO_PI - g_WindTime * g_WindWaveSpeed;
     float w = sin(phase) * 0.5 + 0.5;
     w *= w;
     return g_WindDir * (g_WindSpeed + g_WindGust * w);
@@ -97,10 +84,10 @@ float3 GustAir(float2 xz, out float lift)
 
 // このステップで生きている揺れる範囲を、範囲スロット 1 つにつき 1 ビットで持つ（main の先頭でグループごとに 1 回作る）。
 // BlastAccel は立っているビットをスロット順にたどる
-#define DEBRIS_SHAKE_WORDS (DEBRIS_MAX_AREAS / 32u)
+#define DEBRIS_SHAKE_WORDS (SWARM_MAX_AREAS / 32u)
 groupshared uint gs_ShakeMask[DEBRIS_SHAKE_WORDS];
 
-// 生きている爆発の範囲（Swarm::kAreaShake）が与える外向きの加速度。どれかの中なら lift = 1
+// 生きている爆発の範囲（SWARM_AREA_SHAKE）が与える外向きの加速度。どれかの中なら lift = 1
 float3 BlastAccel(float3 pos, out float lift)
 {
     float3 acc = 0;
@@ -112,9 +99,9 @@ float3 BlastAccel(float3 pos, out float lift)
         {
             uint a = w * 32u + firstbitlow(bits);
             bits &= bits - 1u;
-            DebrisArea ar = g_Areas[a];
+            SwarmArea ar = g_Areas[a];
             // 光線：半径 × 2.5 の帯の中で、線分から横へ押し出し、少し線分に沿っても押す
-            if ((ar.flags & DEBRIS_AREA_CAPSULE) != 0u)
+            if ((ar.flags & SWARM_AREA_CAPSULE) != 0u)
             {
                 float2 seg = g_AreaEnds[a].xz - ar.center.xz;
                 float segLen = length(seg);
@@ -153,10 +140,10 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     if (gi < DEBRIS_SHAKE_WORDS)
         gs_ShakeMask[gi] = 0u;
     GroupMemoryBarrierWithGroupSync();
-    // DEBRIS_MAX_AREAS <= 256 = 1 スレッドに範囲 1 つ（ここをループにすると 1 周に展開されて X3557 が出る）
-    if (gi < DEBRIS_MAX_AREAS)
+    // SWARM_MAX_AREAS <= 256 = 1 スレッドに範囲 1 つ（ここをループにすると 1 周に展開されて X3557 が出る）
+    if (gi < SWARM_MAX_AREAS)
     {
-        if (g_AreaStates[gi] != 0u && (g_Areas[gi].flags & DEBRIS_AREA_SHAKE) != 0u)
+        if (g_AreaStates[gi] != 0u && (g_Areas[gi].flags & SWARM_AREA_SHAKE) != 0u)
             InterlockedOr(gs_ShakeMask[gi >> 5], 1u << (gi & 31u));
     }
     GroupMemoryBarrierWithGroupSync();
@@ -178,7 +165,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 
     if (cell != d.cell || g_Reset != 0u)
     {
-        uint s = DebrisHash((uint) cx * 73856093u ^ (uint) cz * 19349663u ^ g_Seed);
+        uint s = HashU32((uint) cx * 73856093u ^ (uint) cz * 19349663u ^ g_Seed);
         float2 xz = (float2(cx, cz) + float2(DebrisRand(s), DebrisRand(s))) * g_Spacing;
         float2 uv = (xz - g_MapOrigin) / g_MapSize;
         uint tw, th;
@@ -194,7 +181,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
         d.restT = 10.0;
         d.vel = 0;
         d.cell = cell;
-        d.rot = float3((DebrisRand(s) - 0.5) * 0.5, DebrisRand(s) * 6.2831853, (DebrisRand(s) - 0.5) * 0.5);
+        d.rot = float3((DebrisRand(s) - 0.5) * 0.5, DebrisRand(s) * TWO_PI, (DebrisRand(s) - 0.5) * 0.5);
         d.air = 0.0;
         d.angVel = 0;
         // 種類：葉 50%、草くず 35%、小枝 15%
@@ -210,7 +197,7 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     if ((d.seed & DEBRIS_HIDDEN) != 0u || g_Dt <= 0.0)
         return;
 
-    uint rs = DebrisHash(d.seed ^ asuint(g_WindTime) ^ i * 2654435761u);
+    uint rs = HashU32(d.seed ^ asuint(g_WindTime) ^ i * 2654435761u);
     float2 wind = WindAt(d.pos.xz);
     float gustLift, blastLift;
     float3 gustAir = GustAir(d.pos.xz, gustLift);

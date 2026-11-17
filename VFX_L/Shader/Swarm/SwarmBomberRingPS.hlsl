@@ -3,19 +3,9 @@
 // 自爆兵の警告円（SwarmBomberRingVS）の縁 + 大きくなる円盤。
 // uv は爆発半径の端から端までで -1..1 なので、r = 1 が縁。
 // 出力は乗算済み：CommonStates::AlphaBlend は ONE / INV_SRC_ALPHA。
-// cbuffer は VS と同じ（SwarmBomberRingCB、b0）。
+// cbuffer は VS と同じ（SwarmGroundMarkCB、b0）。
 // ============================================================
-cbuffer SwarmBomberRingCB : register(b0)
-{
-    row_major float4x4 g_RingView;
-    row_major float4x4 g_RingProj;
-    float4 g_RingFill;
-    float4 g_RingEdge;
-    float4 g_RingBack;
-    float g_RingEdgeWidth;
-    float g_RingLift;
-    float2 _ringPad;
-};
+#include "SwarmGroundMarkCB.hlsli"
 
 struct RingIn
 {

@@ -13,38 +13,13 @@
 // ============================================================
 #include "../Particle/Common/ParticleTrail.hlsli"
 #include "../Common/SwarmProjTrail.hlsli"
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmProjectileTypes.hlsli"
 
-// SwarmProjectile（SwarmCommon.hlsli、48 バイト）。SwarmCommon の
-// フレーム cbuffer に b0 を取られないよう、ここで宣言する
-struct ProjLite
-{
-    float3 position;
-    float damage;
-    float3 velocity;
-    float lifetime;
-    float radius;
-    uint vfxType;
-    uint motion;
-    float pathT;
-};
+#include "../Particle/Common/ParticleRenderCB.hlsli"
+#include "../Particle/Common/TrailDrawCB.hlsli"
 
-cbuffer ParticleRenderCB : register(b0)
-{
-    matrix g_View;
-    matrix g_Projection;
-    float3 g_CameraPosition;
-    float _pad0;
-};
-
-cbuffer TrailDrawCB : register(b1)
-{
-    uint g_StyleSlot; // スタイル番号 + 1（recipeTrail と同じ表し方）
-    uint g_Premultiply;
-    float g_Time;
-    float _padT;
-};
-
-StructuredBuffer<ProjLite> projectiles : register(t0);
+StructuredBuffer<SwarmProjectile> projectiles : register(t0);
 Buffer<uint> projStates : register(t1);
 StructuredBuffer<uint> recipeTrail : register(t2);
 StructuredBuffer<TrailStyle> trailStyles : register(t3);
@@ -104,7 +79,7 @@ VSOutput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     // 死んだスロットも、リボンが着弾点へ吸い込まれている間は描く
     if (projStates[slot] == 0u && !draining) // SWARM_DEAD
         return o;
-    ProjLite p = projectiles[slot];
+    SwarmProjectile p = projectiles[slot];
     if (recipeTrail[p.vfxType] != g_StyleSlot)
         return o;
 

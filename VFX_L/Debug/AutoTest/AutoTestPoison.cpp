@@ -51,7 +51,7 @@ void AutoTestPoison::Run()
         m_ShowWireframe = m_ShowWandDebug = m_ShowGridDebug = false;
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         char envBuf[8];
         s_PoisonClose = GetEnvironmentVariableA("VFXL_POISON_CLOSE", envBuf, sizeof(envBuf)) > 0;
         if (s_PoisonClose)

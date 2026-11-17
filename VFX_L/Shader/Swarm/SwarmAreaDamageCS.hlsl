@@ -15,13 +15,13 @@
 // 経験玉。両者は揃えておくこと（エリートの体格と経験玉の値も）。
 //
 // 減速ビット（SwarmAreaSlow）を持つ範囲が tick すると、その敵の
-// enemySlow も更新する（毒沼）。
+// enemyStatus も更新する（毒沼）。
 // 盾兵の装甲は範囲の tick ごとに別々に引かれる
 // （SwarmArmorDamage）: 沼 3 つなら小さな 3 発になる。
 //
-// 毒素（毒沼）: 毒素の割合（a.tickNow の SwarmAreaToxin）を
+// 毒素（毒沼）: 毒素の割合（a.extra の SwarmAreaToxin）を
 // 持つ範囲は、その場では残りの分しか与えない。割合の分は
-// enemyPoison[slot] =（残りダメージ、毎秒のダメージ、最後に剣が当たった時刻、最後に氷が当たった時刻）
+// enemyPoison[slot] =（残りダメージ、毎秒のダメージ）
 // に足され、ここで毎ステップ減らしていく（撃破の経路は
 // 同じ）。同じレシピ（vfxType）の毒素範囲は 1 体の敵に重ならない
 // （強い方だけ: 二重詠唱の猛毒の沼 2 つは 1 回分）が、別レシピなら重なる
@@ -33,7 +33,7 @@
 // g_FireTick 秒ごとに g_FireDamage を受ける。スロットごとに拍をずらし、
 // 撃破経路も同じ。飛んでいる敵と埋まっている敵には届かない。
 // ============================================================
-#define SWARM_BOMBER_CB_REG b3
+#define SWARM_KIND_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmArea> areas : register(t0);
@@ -48,15 +48,14 @@ RWByteAddressBuffer counters : register(u2);
 RWStructuredBuffer<SwarmOrb> orbs : register(u3);
 RWBuffer<uint> orbStates : register(u4);
 // x / y = 減速（残り秒、強さ）。AICS が読んでカウントダウンする。z / w = 凍結（ここでは触らない）
-RWStructuredBuffer<float4> enemySlow : register(u5);
+RWStructuredBuffer<float4> enemyStatus : register(u5);
 // ノックバック（突風）: xy = プレイヤーから離れる向きの速度、z = 残り秒。MoveCS が適用して減衰させる。
 // w = 1: 代わりに渦の中心への引き寄せ。押しが来たら押しで上書きされる
 RWStructuredBuffer<float4> enemyPush : register(u6);
-// 溜まった毒素: x = まだ減らす分のダメージ、y = 毎秒のダメージ。z = 最後に回る剣が当たった時刻（g_FireClock。1 回の通過で 1 回）。
-// w = 最後に氷の範囲が当たった時刻（g_FireClock。アイススパイクの隣の列を弾く。毒素とは関係ない空き）
-RWStructuredBuffer<float4> enemyPoison : register(u7);
-
-static const uint HP_CORPSE_BIT = 0x80000000u;
+// 溜まった毒素: x = まだ減らす分のダメージ、y = 毎秒のダメージ
+RWStructuredBuffer<float2> enemyPoison : register(u7);
+// 被弾の記録: 最後の命中の属性・吸血の印、とどめの属性、剣・氷の範囲が最後に当たった時刻（SwarmEnemyHitInfo）
+RWStructuredBuffer<SwarmEnemyHitInfo> enemyHitInfo : register(u8);
 static const uint SWARM_ELEMENT_FIRE = 1u;   // = Swarm::DamageElement::Fire
 static const uint SWARM_ELEMENT_SHATTER = 9u; // = Swarm::DamageElement::Shatter（凍った敵が砕けた）
 static const float SWARM_ICE_SAME_WAVE = 0.15;   // 凍ってからこの秒以内の氷の範囲は同じ波の隣の列とみなす（列の間 1.68m / 22 m/s = 0.08 秒 + 1 ステップ）
@@ -72,11 +71,11 @@ void main(uint3 id : SV_DispatchThreadID)
     uint stateNow = enemyStates[j];   // このパスで書くのはこのスレッドだけ
     if (stateNow == SWARM_DEAD)
         return;
-    float4 poison = enemyPoison[j];
+    float2 poison = enemyPoison[j];
     bool fireBeat = false;
     if (g_FireOn > 0.5 && g_FireTick > 0.0)
     {
-        float beat = g_FireClock / g_FireTick + frac((float) j * 0.618034);
+        float beat = g_StepClock / g_FireTick + frac((float) j * 0.618034);
         fireBeat = floor(beat) != floor(beat - g_Step / g_FireTick);
     }
     if (!ticking && poison.x <= 0.0 && !fireBeat)
@@ -118,10 +117,11 @@ void main(uint3 id : SV_DispatchThreadID)
     bool stun = false;
     float freeze = 0.0;   // この敵が立っている範囲のうち一番長い凍結（SwarmAreaFreeze）
     float iceDamage = 0.0; // 一番強い凍結範囲（合算しない、下を参照）
-    // 凍っているか（AICS が書く enemySlow.z = 凍結の残り秒）と、最後に氷の範囲が当たった時刻（enemyPoison.w = g_FireClock。
+    SwarmEnemyHitInfo hitInfo = enemyHitInfo[j];
+    // 凍っているか（AICS が書く enemyStatus.z = 凍結の残り秒）と、最後に氷の範囲が当たった時刻（hitInfo.iceTime = g_StepClock。
     // 0 = まだ）。SWARM_ICE_SAME_WAVE 秒以内なら同じ波の隣の列（凍らない敵・免疫中の敵でも 2 回受けないように、凍結の状態では見ない）
-    bool iceFrozen = enemySlow[j].z > 0.0;
-    bool iceRecent = poison.w > 0.0 && g_FireClock - poison.w < SWARM_ICE_SAME_WAVE;
+    bool iceFrozen = enemyStatus[j].z > 0.0;
+    bool iceRecent = hitInfo.iceTime > 0.0 && g_StepClock - hitInfo.iceTime < SWARM_ICE_SAME_WAVE;
     bool shatter = false;  // 凍った敵を氷の範囲が砕いた（ダメージ数字の色 = SWARM_ELEMENT_SHATTER）
     // 回る剣（SWARM_AREA_EXTRA_BLADE）：同じステップの剣の範囲は一番強い 1 つだけ。前の剣から範囲ごとのガード秒以内なら当てない
     float bladeDamage = 0.0;
@@ -134,8 +134,8 @@ void main(uint3 id : SV_DispatchThreadID)
     uint  poisonKind[SWARM_TOXIN_KINDS] = { 0xffffffffu, 0xffffffffu, 0xffffffffu };
     float slow = 0.0;     // この敵が立っている範囲のうち一番強い減速
     float slowTime = 0.0; // その範囲の次の tick まで + 少し
-    float push = 0.0;     // その中で一番強いノックバック（SwarmAreaPush）
-    float pull = 0.0;     // 範囲の中心への一番強い引き寄せ（SWARM_AREA_EXTRA_PULL、渦）
+    float push = 0.0;     // その中で一番強いノックバック（SwarmArea.pushQ）
+    float pull = 0.0;     // 範囲の中心への一番強い引き寄せ（SwarmArea.pullQ、渦）
     float2 pullTo = float2(0.0, 0.0); // その範囲の中心
     float pullTime = SWARM_PUSH_TIME; // その範囲の tick 間隔（1 回の脈動は次の tick まで続く）
 
@@ -145,7 +145,7 @@ void main(uint3 id : SV_DispatchThreadID)
             continue;
 
         SwarmArea a = areas[k];
-        if ((a.tickNow & SWARM_AREA_TICK_NOW) == 0u)
+        if ((a.tickState & SWARM_AREA_TICK_NOW) == 0u)
             continue;
 
         if (buried && (a.flags & SWARM_AREA_CAPSULE) != 0u)
@@ -183,20 +183,20 @@ void main(uint3 id : SV_DispatchThreadID)
         if (f > 0.0 && iceRecent)
             continue;
         // 回る剣: この剣の通過でもう当たっている（前の剣からガード秒以内）なら当てない
-        bool blade = (a.tickNow & SWARM_AREA_EXTRA_BLADE) != 0u;
-        if (blade && poison.z > 0.0 && g_FireClock - poison.z < SwarmAreaBladeGuard(a.tickNow))
+        bool blade = (a.extra & SWARM_AREA_EXTRA_BLADE) != 0u;
+        if (blade && hitInfo.bladeTime > 0.0 && g_StepClock - hitInfo.bladeTime < SwarmAreaBladeGuard(a.extra))
             continue;
         float dmg = SwarmTakenDamage(j, kind, a.damage);
         // 飛沫だけ（泥沼）: 着弾だけが当たり、残る沼は減速させるだけ
-        if ((a.tickNow & SWARM_AREA_EXTRA_SPLASH) != 0u && (a.tickNow & SWARM_AREA_TICK_FIRST) == 0u)
+        if ((a.extra & SWARM_AREA_EXTRA_SPLASH) != 0u && (a.tickState & SWARM_AREA_TICK_FIRST) == 0u)
             dmg = 0.0;
         // このステップで一番強く当たった範囲の属性でダメージ数字を色付けする。
         // 飛沫だけの 0 化の後に置く: 残った泥沼は何も当てないので、本当に当たったものの
         // 属性を塗り替えたり吸血の印を消したりしてはいけない
-        if (dmg > hitElemDmg) { hitElemDmg = dmg; hitElem = SwarmAreaElement(a.tickNow); }
-        if (dmg > 0.0 && (a.tickNow & SWARM_AREA_EXTRA_LIFESTEAL) != 0u)
+        if (dmg > hitElemDmg) { hitElemDmg = dmg; hitElem = SwarmAreaElement(a.extra); }
+        if (dmg > 0.0 && (a.extra & SWARM_AREA_EXTRA_LIFESTEAL) != 0u)
             stealHit = true;
-        float tox = SwarmAreaToxin(a.tickNow);
+        float tox = SwarmAreaToxin(a.extra);
         if (f > 0.0)
         {
             // 前から凍っている敵は砕ける = 2 倍（アイススパイクの「砕氷」）
@@ -231,13 +231,9 @@ void main(uint3 id : SV_DispatchThreadID)
             slow = max(slow, s);
             slowTime = max(slowTime, min(a.tickInterval, 2.0) + SWARM_SLOW_LINGER);
         }
-        float pq = SwarmAreaPush(a.flags);
-        if ((a.tickNow & SWARM_AREA_EXTRA_PULL) != 0u)
-        {
-            if (pq > pull) { pull = pq; pullTo = c.xz; pullTime = clamp(a.tickInterval, SWARM_PUSH_TIME, 1.0); }
-        }
-        else
-            push = max(push, pq);
+        float pl = SwarmAreaStrength(a.pullQ);
+        if (pl > pull) { pull = pl; pullTo = c.xz; pullTime = clamp(a.tickInterval, SWARM_PUSH_TIME, 1.0); }
+        push = max(push, SwarmAreaStrength(a.pushQ));
     }
 
     // ---- ノックバック: プレイヤーから離れる向き、強い方が勝つ（ダメージの早期 return より前） ----
@@ -273,11 +269,11 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         if (SwarmIsBigElite(kind) || kind == SWARM_KIND_BOSS)
             slow *= SWARM_SLOW_BIG_MUL;
-        float4 cur = enemySlow[j];
+        float4 cur = enemyStatus[j];
         if (cur.x <= 0.0)
             cur.y = 0.0;
         cur.xy = float2(max(cur.x, slowTime), max(cur.y, slow));
-        enemySlow[j] = cur;
+        enemyStatus[j] = cur;
     }
 
     if (shatter && iceDamage > 0.0 && iceDamage >= hitElemDmg)
@@ -287,12 +283,11 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     total += iceDamage;
     total += bladeDamage;
-    bool iceStamped = false;
+    // 剣・氷の範囲が当たった時刻（上の iceRecent / 剣のガード）
     if (iceDamage > 0.0)
-    {
-        poison.w = g_FireClock;   // 同じ波の隣の列を弾くための時刻（上の iceRecent）
-        iceStamped = true;
-    }
+        enemyHitInfo[j].iceTime = g_StepClock;
+    if (bladeDamage > 0.0)
+        enemyHitInfo[j].bladeTime = g_StepClock;
 
     // ---- 毒素: 溜まっている分（前に盛られた分）を減らし、それからこのステップの割合を溜める ----
     float toxinAdd = 0.0;
@@ -302,19 +297,14 @@ void main(uint3 id : SV_DispatchThreadID)
         toxinAdd += add;
         total += poisonDamage[q] - add;
     }
-    bool poisonDirty = iceStamped;
-    if (bladeDamage > 0.0)
-    {
-        poison.z = g_FireClock;   // 次の剣の範囲のガードの起点
-        poisonDirty = true;
-    }
+    bool poisonDirty = false;
     if (poison.x > 0.0)
     {
         float drained = min(poison.x, poison.y * g_Step);
         total += drained;
         poison.x -= drained;
         if (poison.x <= 1e-3)
-            poison = float4(0, 0, poison.z, poison.w); // 1 回分が終わった: 速度も一緒にリセット（z / w = 剣・氷の時刻は残す）
+            poison = float2(0, 0); // 1 回分が終わった: 速度も一緒にリセット
         poisonDirty = true;
     }
     if (toxinAdd > 0.0)
@@ -334,7 +324,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
     uint prev;
     InterlockedAdd(enemies[j].hp, (uint) (-(int) dmgFixed), prev);
-    if (prev == 0u || prev >= HP_CORPSE_BIT)
+    if (prev == 0u || prev >= SWARM_HP_CORPSE_BIT)
         return; // もう死体
 
     // 砂の下でも当たりは数えるが、凍結も硬直もしない（見えるものが無い）
@@ -349,21 +339,15 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     else if (stun && !noFlinch)
     {
-        enemies[j].animIndex = 2u;
+        enemies[j].animIndex = SWARM_ANIM_STUN;
         enemies[j].animTime = 0.0;
     }
 
     if (prev > dmgFixed && hitElemDmg > 0.0)
     {
         // とどめではなく、このステップで範囲が本当に当たった（毒素が減っただけではない。それだと
-        // 毎ステップ属性が消える）: 何が当たったかを覚える（ダメージ数字の色）。CAS、HitCS を参照
-        uint cur = enemyStates[j];
-        if (cur != SWARM_DEAD)
-        {
-            uint wasState;
-            InterlockedCompareExchange(enemyStates[j], cur,
-                SWARM_ALIVE | (hitElem << SWARM_STATE_ELEMENT_SHIFT) | (stealHit ? SWARM_STATE_LIFESTEAL : 0u), wasState);
-        }
+        // 毎ステップ属性が消える）: 何が当たったかを覚える（ダメージ数字の色、吸血の印）
+        enemyHitInfo[j].lastHit = SwarmHitWord(hitElem, stealHit);
     }
 
     if (prev <= dmgFixed)
@@ -372,15 +356,15 @@ void main(uint3 id : SV_DispatchThreadID)
         enemyStates[j] = SWARM_DEAD;
         // とどめの数字の色: このステップで一番強く当たった範囲。毒素が減っただけで
         // 倒れたときは最後に当たったものの属性（毒を盛った沼）
-        enemies[j].attackCooldown = SwarmKillElementMark((hitElemDmg > 0.0) ? hitElem : SwarmStateElement(stateNow));
+        enemyHitInfo[j].killElement = (hitElemDmg > 0.0) ? hitElem : SwarmHitElement(hitInfo.lastHit);
         counters.InterlockedAdd(SWARM_CNT_KILLS, 1u, prev);
 
         SwarmOrb orb;
         orb.position = epos;
-        orb.position.y = epos.y - g_GroundY + g_OrbY; // 死体の足元（SwarmHitCS を参照）
+        orb.position.y = epos.y - g_CenterAboveFeet + g_OrbY; // 死体の足元（SwarmHitCS を参照）
         orb.amount = g_OrbAmount * SwarmKindExpMul(kind);
         orb.velocity = float3(0, 0, 0);
-        orb._pad = 0.0;
+        orb.attractSpeed = 0.0;
 
         uint start = (j * 97u) % g_MaxOrbs;
         for (uint s = 0; s < g_MaxOrbs; ++s)

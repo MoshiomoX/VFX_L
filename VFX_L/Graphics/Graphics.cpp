@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Graphics.cpp
 // ============================================================
 #include "Graphics/Graphics.h"
@@ -52,7 +52,7 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
 
     // 11_1 を先頭に明示する（nullptr の既定リストには 11_1 が入っておらず、対応 GPU でも 11_0 になっていた）。
     // 11_1 なら全ステージで UAV が 64 スロット使える（11_0 は CS / PS で 8）。
-    // u8 以上を使う shader は 11_0 のデバイスでは作れないので、使い始めたら起動時に gotLevel を見て止めること
+    // 群れの CS（SwarmHitCS など）は u8 以上を使うので、11_0 しか取れない時は説明を出して起動をやめる
     const D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
     D3D_FEATURE_LEVEL gotLevel = D3D_FEATURE_LEVEL_11_0;
     HRESULT hr = D3D11CreateDevice(
@@ -68,6 +68,18 @@ bool Graphics::Initialize(HWND hWnd, int width, int height)
     DX_CHECK(hr, "D3D11CreateDevice failed");
     std::cout << "[Info] Feature level: " << ((gotLevel >= D3D_FEATURE_LEVEL_11_1) ? "11_1" : "11_0")
               << " (UAV slots: " << ((gotLevel >= D3D_FEATURE_LEVEL_11_1) ? 64 : 8) << ")" << std::endl;
+    if (gotLevel < D3D_FEATURE_LEVEL_11_1)
+    {
+        std::cout << "[Error] Feature level 11_1 is required" << std::endl;
+        MessageBoxW(hWnd,
+            L"このグラフィックスカード（またはドライバー）は、ゲームに必要な機能（Direct3D Feature Level 11.1）に対応していません。\n"
+            L"グラフィックスドライバーを更新するか、対応したグラフィックスカードのパソコンで起動してください。",
+            L"起動できません", MB_OK | MB_ICONERROR);
+        s_StartupMessageShown = true;
+        m_Context.Reset();
+        m_Device.Reset();
+        return false;
+    }
 
     // ---- MSAA: backbuffer と HDR RT の両方が対応する品質を取る ----
     UINT qBack = 0, qScene = 0;
@@ -378,6 +390,7 @@ void Graphics::ApplyDistortion()
     m_Context->RSSetViewports(1, &m_Viewport);
 
     struct DistortApplyCB { float strength; float aspect; float pad[2]; } cb = {};
+    static_assert(sizeof(DistortApplyCB) == 16, "DistortApplyCB layout mismatch");
     cb.strength = m_Distortion.strength;
     cb.aspect = m_Viewport.Height > 0.0f ? m_Viewport.Width / m_Viewport.Height : 1.0f;
     m_DistortApplyPS->WriteBuffer(m_Context.Get(), 0, &cb);

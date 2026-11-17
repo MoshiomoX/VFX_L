@@ -216,7 +216,7 @@ void SandField::Stamp(const Vector3& pos, float radius, float heat, float wet)
 
 void SandField::Step(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* areaStates,
     ID3D11ShaderResourceView* enemies, ID3D11ShaderResourceView* enemyStates, ID3D11ShaderResourceView* enemyExtra,
-    ID3D11ShaderResourceView* height, float groundY, ID3D11ShaderResourceView* windSources)
+    ID3D11ShaderResourceView* height, float centerAboveFeet, ID3D11ShaderResourceView* windSources)
 {
     if (!Active() || !m_Context || !m_TableSRV || !areas || !areaStates || !windSources || !m_WaterSRV) return;
 
@@ -272,7 +272,7 @@ void SandField::Step(ID3D11ShaderResourceView* areas, ID3D11ShaderResourceView* 
     // 雑魚の足跡（同じ跡の図へ min）。止まっている間は付けない
     if (enemies && enemyStates && enemyExtra && height && cb.dt > 0.0f)
     {
-        TrackCB tcb = { m_MapOrigin, m_MapSize, s.mobRadius, -s.mobDepth, groundY, 1.0f };
+        TrackCB tcb = { m_MapOrigin, m_MapSize, s.mobRadius, -s.mobDepth, centerAboveFeet, 1.0f };
         m_TrackCS->WriteBuffer(m_Context, 0, &tcb);
         m_TrackCS->Bind(m_Context);
         m_TrackCS->SetSRV(m_Context, "g_Enemies", enemies);
@@ -298,10 +298,10 @@ ID3D11ShaderResourceView* SandField::GetTrackSRV() const
     return Active() ? m_TrackSRV[m_Cur].Get() : nullptr;
 }
 
-bool SandField::FillEmitInput(GrassFireEmitInput& out, const Vector3& camPos, ID3D11ShaderResourceView* height) const
+bool SandField::FillEmitInput(GroundEmitInput& out, const Vector3& camPos, ID3D11ShaderResourceView* height) const
 {
     if (!Active() || m_HazeVfx == 0 || !m_WhiteSRV || !height || m_Settings.hazeRate <= 0.0f) return false;
-    out.fire = m_SRV[m_Cur].Get();   // x = 温度、y = 乾き、z = 陽炎の印 → 強さ = (温度 - hazeHeat) × 乾き
+    out.stateMap = m_SRV[m_Cur].Get();   // x = 温度、y = 乾き、z = 陽炎の印 → 強さ = (温度 - hazeHeat) × 乾き
     out.ground = m_WhiteSRV.Get();
     out.height = height;
     out.mapOrigin = m_MapOrigin;
@@ -312,14 +312,14 @@ bool SandField::FillEmitInput(GrassFireEmitInput& out, const Vector3& camPos, ID
     out.rateMul = m_Settings.hazeRate;
     out.vfx = m_HazeVfx;
     out.heightOffset = 0.1f;
-    out.fireSize = kSize;
+    out.stateMapSize = kSize;
     return true;
 }
 
-bool SandField::FillDustInput(GrassFireEmitInput& out, const Vector3& camPos, ID3D11ShaderResourceView* height) const
+bool SandField::FillDustInput(GroundEmitInput& out, const Vector3& camPos, ID3D11ShaderResourceView* height) const
 {
     if (!Active() || m_DustVfx == 0 || !m_WhiteSRV || !height || m_Settings.dustRate <= 0.0f) return false;
-    out.fire = m_SRV[m_Cur].Get();   // w = 砂が舞う強さ（SandFieldCS が乾き × 風で書く）
+    out.stateMap = m_SRV[m_Cur].Get();   // w = 砂が舞う強さ（SandFieldCS が乾き × 風で書く）
     out.ground = m_WhiteSRV.Get();
     out.height = height;
     out.mapOrigin = m_MapOrigin;
@@ -330,7 +330,7 @@ bool SandField::FillDustInput(GrassFireEmitInput& out, const Vector3& camPos, ID
     out.rateMul = m_Settings.dustRate;
     out.vfx = m_DustVfx;
     out.heightOffset = 0.03f;
-    out.fireSize = kSize;
+    out.stateMapSize = kSize;
     out.channel = 1;
     return true;
 }

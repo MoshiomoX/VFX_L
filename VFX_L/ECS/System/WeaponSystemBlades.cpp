@@ -21,7 +21,7 @@ void WeaponSystem::StartBlades(const AreaStats& a, const Vector3& playerPos, flo
     b.id = a.id;
     b.profile = a.profile;
     b.center = playerPos;
-    b.center.y = groundHeight ? groundHeight(playerPos.x, playerPos.z) : playerPos.y - m_Swarm->GetAIParams().groundY;
+    b.center.y = groundHeight ? groundHeight(playerPos.x, playerPos.z) : playerPos.y - m_Swarm->GetAIParams().centerAboveFeet;
     b.count = (std::max)(ap.bladeCount, 1);
     b.radius = a.radius;   // 拡大鏡・分裂で広がる
     // 剣の長さも同じ倍率で（柄はプレイヤー寄りに残す）
@@ -48,7 +48,7 @@ void WeaponSystem::StartBlades(const AreaStats& a, const Vector3& playerPos, flo
 void WeaponSystem::UpdateBlades(float dt, const Vector3& playerPos)
 {
     if (m_Blades.empty()) return;
-    const float lift = m_Swarm ? m_Swarm->GetAIParams().groundY : 0.9f;   // 範囲の中心は敵の体の高さ
+    const float lift = m_Swarm ? m_Swarm->GetAIParams().centerAboveFeet : 0.9f;   // 範囲の中心は敵の体の高さ
 
     for (size_t i = 0; i < m_Blades.size();)
     {
@@ -104,8 +104,8 @@ void WeaponSystem::UpdateBlades(float dt, const Vector3& playerPos)
                 area.damage = b.damage;
                 area.tickInterval = 1.0e9f;
                 area.timeLeft = 0.01f;   // 最初のステップに 1 回だけ当たって消える
-                area.tickNow |= Swarm::kAreaExtraBlade | (guardQ << Swarm::kAreaExtraGuardShift);
-                if (b.lifesteal) area.tickNow |= Swarm::kAreaExtraLifesteal;
+                area.extra |= Swarm::kAreaExtraBlade | (guardQ << Swarm::kAreaExtraGuardShift);
+                if (b.lifesteal) area.extra |= Swarm::kAreaExtraLifesteal;
                 m_Swarm->SpawnArea(area);
             }
         }

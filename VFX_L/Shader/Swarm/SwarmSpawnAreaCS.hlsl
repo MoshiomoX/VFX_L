@@ -5,7 +5,7 @@
 // プールが満杯なら要求は捨てる。
 //
 // GPU で生まれる範囲（弾の命中）はここを通らない。
-// SwarmCommon.hlsli の SwarmSpawnAreaFromDef を参照。
+// SwarmAreaSpawn.hlsli の SwarmSpawnAreaFromDef を参照。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -13,12 +13,7 @@ StructuredBuffer<SwarmArea> spawnRequests : register(t0);
 RWStructuredBuffer<SwarmArea> areas : register(u0);
 RWBuffer<uint> areaStates : register(u1);
 
-cbuffer SwarmSpawnCB : register(b1)
-{
-    uint g_RequestCount;
-    uint g_ScanStart;
-    uint2 _spawnPad;
-};
+#include "SwarmSpawnCB.hlsli"
 
 [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -27,7 +22,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
 
     SwarmArea req = spawnRequests[id.x];
-    req.tickNow &= ~SWARM_AREA_TICK_MASK; // CPU は追加の情報（毒素、飛沫）を上位ビットに入れた。tick の状態はまっさらから始める
+    req.tickState = 0u; // 判定の状態はまっさらから始める
 
     uint start = (g_ScanStart + id.x * 97u) % SWARM_MAX_AREAS;
     for (uint k = 0; k < SWARM_MAX_AREAS; ++k)

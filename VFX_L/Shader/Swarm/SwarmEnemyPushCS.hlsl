@@ -17,7 +17,7 @@
 // 塞がったセルに入ってしまう押しは捨てる：壁は
 // 硬く、群れは柔らかい。
 // ============================================================
-#define SWARM_BOMBER_CB_REG b3   // 種類ごとの体の倍率（エリート / ボスの壁との隙間）
+#define SWARM_KIND_CB_REG b3   // 種類ごとの体の倍率（エリート / ボスの壁との隙間）
 #include "../Common/SwarmCommon.hlsli"
 
 Buffer<uint> enemyStates : register(t0);
@@ -141,8 +141,8 @@ void main(uint3 id : SV_DispatchThreadID)
     // 0.25m 以内で面の半分まで下がり、押しで敵が沈み込むため
     //（代わりに MoveCS の Settle が足を台地の高さに保つ。坂道を下るときも次のステップで
     // 着地させる）。台地から落ちている最中（MoveCS）：高さはそのまま、重力で着地させる
-    float groundNow = g_GroundY + SwarmTerrainHeight(terrainHeight, pos.xz);
+    float groundNow = g_CenterAboveFeet + SwarmTerrainHeight(terrainHeight, pos.xz);
     bool falling = (pos.y > groundNow + 0.25);   // = MoveCS kSnapDown
-    np.y = falling ? pos.y : max(pos.y, g_GroundY + SwarmTerrainHeight(terrainHeight, np.xz));
+    np.y = falling ? pos.y : max(pos.y, g_CenterAboveFeet + SwarmTerrainHeight(terrainHeight, np.xz));
     enemies[i].position = np;
 }

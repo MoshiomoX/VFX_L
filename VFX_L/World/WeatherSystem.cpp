@@ -355,7 +355,7 @@ void WeatherSystem::Update(float dt, float runTime, const Vector3& camPos, const
     // 世界の風：向きはゆっくり揺れ、出来事の間は強く・波も速く（草・マント・粒子が同じ値を読む）
     {
         const float mul = (m_Kind == Kind::Sandstorm) ? windSandMul : (m_Kind == Kind::Rain) ? windRainMul : windStormMul;
-        m_Wind.SetYawDeg(windYawDeg + windDriftDeg * std::sin(runTime * 6.2831853f / (std::max)(windDriftPeriod, 1.0f)));
+        m_Wind.SetYawDeg(windYawDeg + windDriftDeg * std::sin(runTime * DirectX::XM_2PI / (std::max)(windDriftPeriod, 1.0f)));
         m_Wind.speed = windSpeed;
         m_Wind.gust = windGust;
         m_Wind.strength = 1.0f + mul * m_Intensity;

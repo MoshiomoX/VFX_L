@@ -22,17 +22,7 @@ bool SwarmSystem::CreateLifestealReadback(ID3D11Device* device)
     ud.Buffer.NumElements = 4;
     if (FAILED(device->CreateUnorderedAccessView(m_LifestealBuffer.Get(), &ud, &m_LifestealUAV))) return false;
 
-    D3D11_BUFFER_DESC sd = {};
-    sd.ByteWidth = 16;
-    sd.Usage = D3D11_USAGE_STAGING;
-    sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    for (int i = 0; i < kLifestealStaging; ++i)
-    {
-        if (FAILED(device->CreateBuffer(&sd, nullptr, &m_LifestealStaging[i]))) return false;
-        m_LifestealStagingFilled[i] = false;
-        m_LifestealStagingStale[i] = false;
-    }
-    m_LifestealStagingWrite = 0;
+    if (!m_LifestealStaging.Create(device, 16)) return false;
     m_LifestealLast = 0;
     m_LifestealPending = 0.0f;
     m_LifestealSeen = false;
@@ -42,27 +32,22 @@ bool SwarmSystem::CreateLifestealReadback(ID3D11Device* device)
 // 範囲・誘発の環と同じ所（Flush の終わり）で staging へ
 void SwarmSystem::CopyLifestealForCPU()
 {
-    if (!m_LifestealBuffer || !m_LifestealStaging[m_LifestealStagingWrite]) return;
-    m_Context->CopyResource(m_LifestealStaging[m_LifestealStagingWrite].Get(), m_LifestealBuffer.Get());
-    m_LifestealStagingFilled[m_LifestealStagingWrite] = true;
-    m_LifestealStagingStale[m_LifestealStagingWrite] = false;   // KillAll の後の写し
-    m_LifestealStagingWrite = (m_LifestealStagingWrite + 1) % kLifestealStaging;
+    m_LifestealStaging.Copy(m_Context, m_LifestealBuffer.Get());
 }
 
 void SwarmSystem::ReadLifesteal()
 {
-    const int readIndex = m_LifestealStagingWrite;   // 次に書く = 一番古い
-    if (!m_LifestealStagingFilled[readIndex] || !m_LifestealStaging[readIndex]) return;
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_LifestealStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
-    const uint32_t total = *static_cast<const uint32_t*>(mapped.pData);
-    m_Context->Unmap(m_LifestealStaging[readIndex].Get(), 0);
+    uint32_t total = 0;
+    bool stale = false;
+    if (!m_LifestealStaging.TryRead(m_Context, [&](const void* data, bool st)
+        {
+            total = *static_cast<const uint32_t*>(data);
+            stale = st;
+        }))
+        return;
     // KillAll の前の写しは前回値だけ進める（消した敵の分を後から回復させない）
-    if (m_LifestealSeen && !m_LifestealStagingStale[readIndex])
+    if (m_LifestealSeen && !stale)
         m_LifestealPending += Swarm::HpFromFixed(total - m_LifestealLast);   // 符号無しの差（溢れて一周しても正しい）
-    m_LifestealStagingStale[readIndex] = false;
     m_LifestealLast = total;
     m_LifestealSeen = true;
 }

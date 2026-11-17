@@ -332,8 +332,8 @@ void AutoTestSoak::Run(float dt)
     s_NextSample = t + kSampleDt;
     if (!m_Swarm.DebugReadEnemies(s_Enemies, s_States, &s_Extras)) return;
 
-    const auto& bomber = m_Swarm.GetBomberParams();
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const auto& bomber = m_Swarm.GetKindParams();
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     const float er = m_Swarm.GetAIParams().enemyRadius;
     const FlowField& flow = m_Swarm.GetFlowField();
     const auto& costs = flow.Costs();
@@ -592,7 +592,7 @@ void AutoTestSoak::Run(float dt)
         }
 
         // 経路探索（プレイヤーが立ち止まっている間、8 秒の窓）
-        if (evalPath && tr.count == kHist && e.animIndex != 2u)
+        if (evalPath && tr.count == kHist && e.animIndex != Swarm::kAnimStun)
         {
             const int o = tr.head;   // 一杯の時は一番古い
             float path = 0.0f, turn = 0.0f;

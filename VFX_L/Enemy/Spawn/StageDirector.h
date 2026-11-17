@@ -3,7 +3,7 @@
 // 1 面の進行。雑魚の湧き・難度そのものは MobSpawner、ここは時間と門で起きる出来事。
 //   ・制限時間 stageTime（10 分）。HUD は残りを数え下ろす
 //   ・決まった経過時間（3:00 / 6:00 / 8:00）にエリートを 1 体（GPU の雑魚の種類 kEnemyKindElite）。
-//     HP は eliteHp × その時の難度の倍率。体格・接触ダメージ・経験値は SwarmSystem::GetBomberParams の elite*
+//     HP は eliteHp × その時の難度の倍率。体格・接触ダメージ・経験値は SwarmSystem::GetKindParams の elite*
 //   ・時間切れの後は「最終ウェーブ」：湧きを finalSpawnRate に上げ、速さ × finalSpeedMul、
 //     finalStepTime 秒毎に強さ × finalStepMul。同時の上限は最初の 2 分 finalCap、その後 finalCapLate。
 //     MobSpawner の final* に書いて効かせる

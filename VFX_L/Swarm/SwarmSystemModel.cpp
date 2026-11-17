@@ -142,7 +142,7 @@ bool SwarmSystem::BuildEnemyPartAnim(ID3D11Device* device, const char* modelPath
 //   1) Kenney Blocky の L（緑肌のゾンビ、ピクセルテクスチャ）… 今の雑魚
 //   2) KayKit Skeleton_Minion                    … 予備
 //   3) カプセル                                   … どちらも読めない時
-// 位置合わせ: enemies[].position はカプセル中心（groundY = 半径 + 直線半分）
+// 位置合わせ: enemies[].position はカプセル中心（centerAboveFeet = 半径 + 直線半分）
 //   なので足元を -(radius + half) に置く。
 // 大きさ: ファイルの単位（cm / m）に頼らず、一度そのまま焼いて測った高さを
 //   targetHeight に合わせる（Kenney と KayKit で単位が違っても同じ寸法になる）
@@ -171,6 +171,19 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
         const wchar_t* sandMageAlbedo; // 砂嵐の術師に貼る物。null = 雑魚と同じ
         const wchar_t* dashBomberAlbedo; // 突撃爆弾兵に貼る物。null = 雑魚と同じ
     };
+    // 種類ごとの貼り替えを描画リストの番号へ入れる（null = 雑魚の材質の物）
+    auto setKindAlbedos = [this](const EnemyLook& look)
+        {
+            auto load = [](const wchar_t* path) { return path ? ResourceManager::Get().LoadTexture(path) : nullptr; };
+            m_ListLookAlbedo[Swarm::kDrawListBomber] = load(look.bomberAlbedo);
+            m_ListLookAlbedo[Swarm::kDrawListSplitter] = load(look.splitterAlbedo);
+            m_ListLookAlbedo[Swarm::kDrawListBrute] = load(look.bruteAlbedo);
+            m_ListLookAlbedo[Swarm::kDrawListCharger] = load(look.chargerAlbedo);
+            m_ListLookAlbedo[Swarm::kDrawListShield] = load(look.shieldAlbedo);
+            m_ListLookAlbedo[Swarm::kDrawListBurrower] = load(look.burrowerAlbedo);
+            m_ListLookAlbedo[Swarm::kDrawListSandMage] = load(look.sandMageAlbedo);
+            m_ListLookAlbedo[Swarm::kDrawListDashBomber] = load(look.dashBomberAlbedo);
+        };
     const EnemyLook looks[] =
     {
         // Kenney も KayKit と同じく -Z が正面（+Z のままだと背中を向けて歩いた）→ 180 度回す。
@@ -238,14 +251,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
             if (!baked->Load(device, look.model, opt)) continue;
 
             m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
-            m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
-            m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
-            m_BruteAlbedo = look.bruteAlbedo ? ResourceManager::Get().LoadTexture(look.bruteAlbedo) : nullptr;
-            m_ChargerAlbedo = look.chargerAlbedo ? ResourceManager::Get().LoadTexture(look.chargerAlbedo) : nullptr;
-            m_ShieldAlbedo = look.shieldAlbedo ? ResourceManager::Get().LoadTexture(look.shieldAlbedo) : nullptr;
-            m_BurrowerAlbedo = look.burrowerAlbedo ? ResourceManager::Get().LoadTexture(look.burrowerAlbedo) : nullptr;
-            m_SandMageAlbedo = look.sandMageAlbedo ? ResourceManager::Get().LoadTexture(look.sandMageAlbedo) : nullptr;
-            m_DashBomberAlbedo = look.dashBomberAlbedo ? ResourceManager::Get().LoadTexture(look.dashBomberAlbedo) : nullptr;
+            setKindAlbedos(look);
 
             // 部品アニメの表（待機・歩き・近接攻撃）。作れなければ従来の揺れで動く
             m_AnimClips[0] = look.idleClip;
@@ -283,14 +289,7 @@ std::shared_ptr<Model> SwarmSystem::BuildEnemyModel(ID3D11Device* device)
 
         // テクスチャは雑魚材質の t0 へ（VS/PS は雑魚専用のまま。頂点色は白で焼いてある）
         m_EnemyMaterial->SetAlbedoTexture(ResourceManager::Get().LoadTexture(look.albedo));
-        m_BomberAlbedo = look.bomberAlbedo ? ResourceManager::Get().LoadTexture(look.bomberAlbedo) : nullptr;
-        m_SplitterAlbedo = look.splitterAlbedo ? ResourceManager::Get().LoadTexture(look.splitterAlbedo) : nullptr;
-        m_BruteAlbedo = look.bruteAlbedo ? ResourceManager::Get().LoadTexture(look.bruteAlbedo) : nullptr;
-        m_ChargerAlbedo = look.chargerAlbedo ? ResourceManager::Get().LoadTexture(look.chargerAlbedo) : nullptr;
-        m_ShieldAlbedo = look.shieldAlbedo ? ResourceManager::Get().LoadTexture(look.shieldAlbedo) : nullptr;
-        m_BurrowerAlbedo = look.burrowerAlbedo ? ResourceManager::Get().LoadTexture(look.burrowerAlbedo) : nullptr;
-        m_SandMageAlbedo = look.sandMageAlbedo ? ResourceManager::Get().LoadTexture(look.sandMageAlbedo) : nullptr;
-        m_DashBomberAlbedo = look.dashBomberAlbedo ? ResourceManager::Get().LoadTexture(look.dashBomberAlbedo) : nullptr;
+        setKindAlbedos(look);
         std::cout << "[SwarmSystem] enemy model: " << look.label << " (baked, clip "
             << (clip >= 0 ? sk.GetClipName(clip) : std::string("-"))
             << ", scale " << scale << ")" << std::endl;

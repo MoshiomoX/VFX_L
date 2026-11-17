@@ -66,10 +66,10 @@ void AutoTestGold::Run(float dt)
         wallet = WalletComponent{};
         lv.experience = 0.0f;
         const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         for (int i = 0; i < 12; ++i)
         {
-            const float a = 6.2831853f * (float)i / 12.0f;
+            const float a = DirectX::XM_2PI * (float)i / 12.0f;
             const float r = 5.0f + 2.0f * (float)(i % 2);
             const Vector3 p = pp + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);
             m_Swarm.SpawnEnemy(Vector3(p.x, m_Grid.SampleHeight(p.x, p.z) + gy, p.z), 1.0f, 1.5f);

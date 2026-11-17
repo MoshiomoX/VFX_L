@@ -3,7 +3,7 @@
 // 敵の積分の固定ステップ 1 回分。SwarmEnemyAICS の後に走るので、
 // どの位置が動く前にも速度は確定している。
 //
-// y は g_GroundY + 地形の高さに貼り付く。ただし崖から踏み出した後
+// y は g_CenterAboveFeet + 地形の高さに貼り付く。ただし崖から踏み出した後
 // （下にいるプレイヤーへ向かう時は許可）は、着地するまで
 // kFallGravity で落ちる（velocity.y。書くのはここだけ）。
 // 高さ場（GridWorld::Heights、グリッドのセル 1 つに SWARM_HEIGHT_SUB 個）は
@@ -14,7 +14,7 @@
 //
 // リードバック用に生きている敵の数も数える。
 // ============================================================
-#define SWARM_BOMBER_CB_REG b3   // 種類ごとの体格（エリート / ボスは壁との間隔を大きく取る）
+#define SWARM_KIND_CB_REG b3   // 種類ごとの体格（エリート / ボスは壁との間隔を大きく取る）
 #include "../Common/SwarmCommon.hlsli"
 
 Buffer<uint> enemyStates : register(t0);
@@ -31,10 +31,10 @@ RWStructuredBuffer<float4> enemyPush : register(u2);
 // 描く。0 = 一度も転がっていない（SwarmSpikeBallRoll がスロットの静止姿勢を返す）。生成時にリセットしない: 玉の
 // 向きに意味は無いので、使い回されたスロットは前の玉が止まった姿勢から始めるだけ
 RWStructuredBuffer<float4> enemyRoll : register(u3);
-// 単純に一番近い敵: SWARM_CNT_NEAREST_KEY と同じ競争を実距離で行い、ボス / エリートの
+// 単純に一番近い敵: SWARM_CNT_AIM_KEY と同じ競争を実距離で行い、ボス / エリートの
 // 優先度は付けない。+0 キー（AimResolveCS が読んで SWARM_NO_TARGET_KEY に戻す）、+4 位置、+16 距離。射程の短い魔法
 // （突風、アイススパイクの線）はこれで狙う。杖は優先度付きの方で狙う（SwarmCounters は満杯）
-RWByteAddressBuffer closeTarget : register(u4);
+RWByteAddressBuffer nearestTarget : register(u4);
 // 壁登り。
 // x = 登っている秒数（0 = 登っていない。< 0 = 上面に乗り移る間の -（あと歩く m））、
 // y = 登る先の上面の高さ（地形空間）、zw = 壁面へ向かう向き。
@@ -44,7 +44,7 @@ RWStructuredBuffer<float4> enemyClimb : register(u5);
 // プレイヤーからこの m 以内の敵をスマートカメラ用に数える（FollowCamera::SetSituation）
 static const float kCrowdRadius = 10.0;
 
-// リードバック用に敵を数え、「プレイヤーに一番近い敵」の競争に参加させる
+// リードバック用に敵を数え、杖の狙い（優先度付き）と優先度なしの一番近い敵の競争に参加させる
 // （XZ 距離のみ。このパイプラインの他の所と同じ）
 void CountAlive(uint i, float3 pos)
 {
@@ -58,12 +58,12 @@ void CountAlive(uint i, float3 pos)
     uint key = (asuint(keyDist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK);
     if (!SwarmUntargetable(enemyExtra[i]))   // 砂に潜った砂潜り / 砂旋は標的にしない
     {
-        counters.InterlockedMin(SWARM_CNT_NEAREST_KEY, key, prev);
-        closeTarget.InterlockedMin(0, (asuint(dist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK), prev);
-        // プレイヤー周りの混み具合（スマートカメラが引く）:+20 で数え、AimResolveCS が
-        // リードバック用に +24 へ移し、次のステップ用に +20 をクリアする
+        counters.InterlockedMin(SWARM_CNT_AIM_KEY, key, prev);
+        nearestTarget.InterlockedMin(SWARM_NEAREST_KEY, (asuint(dist) & SWARM_DIST_MASK) | (i & SWARM_SLOT_MASK), prev);
+        // プレイヤー周りの混み具合（スマートカメラが引く）：ここで数え、AimResolveCS が
+        // リードバック用に移して、次のステップ用にクリアする
         if (dist < kCrowdRadius)
-            closeTarget.InterlockedAdd(20, 1u, prev);
+            nearestTarget.InterlockedAdd(SWARM_NEAREST_CROWD_COUNTING, 1u, prev);
     }
 }
 
@@ -143,11 +143,11 @@ float FaceTopAhead(float2 from, float2 dir, float radius)
 // 落ち始めることもない。円全体が縁を越えたら落ちる
 void Settle(inout SwarmEnemy e, float radius, bool allowDrop)
 {
-    float ground = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz);
+    float ground = g_CenterAboveFeet + SwarmTerrainHeight(terrainHeight, e.position.xz);
     // 支えは落下が許されているかどうかに関係なく効かせる: 台地の縁に
     // 立った敵がそこの双線形のくぼみに沈み込まないように
     {
-        float feet = e.position.y - g_GroundY;
+        float feet = e.position.y - g_CenterAboveFeet;
         float hi = SwarmTerrainHeightRaw(terrainHeight, e.position.xz), lo = hi;
         [unroll]
         for (int k = 0; k < 8; ++k)
@@ -163,7 +163,7 @@ void Settle(inout SwarmEnemy e, float radius, bool allowDrop)
         // 触れているだけの崖下の体は除く
         float rawHere = SwarmTerrainHeightRaw(terrainHeight, e.position.xz);
         if (hi - lo > kEdgeCliff && (feet >= hi - kSnapDown || rawHere >= hi - SWARM_BODY_CLIFF_RISE))
-            ground = max(ground, g_GroundY + hi);
+            ground = max(ground, g_CenterAboveFeet + hi);
     }
     if (e.position.y > ground + kSnapDown)
     {
@@ -201,7 +201,7 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             float2 t = g_EliteMove[row].xy;
             float2 toP = g_PlayerPos.xz - t;
-            float3 tp = float3(t.x, SwarmTerrainHeight(terrainHeight, t) + g_GroundY, t.y);
+            float3 tp = float3(t.x, SwarmTerrainHeight(terrainHeight, t) + g_CenterAboveFeet, t.y);
             enemies[i].position = tp;
             enemies[i].velocity = float3(0, 0, 0);
             enemyClimb[i] = float4(0, 0, 0, 0);
@@ -214,7 +214,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 startXZ = e.position.xz;   // このステップの開始位置（トゲ玉は実際に動いた分だけ転がる）
     // 壁に対する体の半径と、下りの崖を通れるか（プレイヤーが下にいる）
     float radius = SwarmBodyWallRadius(enemyExtra[i].kind);
-    bool allowDrop = SwarmDropAllowed(terrainHeight, e.position.xz, e.position.y - g_GroundY);
+    bool allowDrop = SwarmDropAllowed(terrainHeight, e.position.xz, e.position.y - g_CenterAboveFeet);
 
     // ノックバック（突風）: このステップの一押し。SWARM_PUSH_TIME かけて減衰する。速度に乗せて
     // 下の積分を通し（壁 / 崖の判定込み）、向きを決める前に取り除く
@@ -232,7 +232,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     e.velocity.xz += pushV;
 
-    if (e.animIndex == 2u && dot(pushV, pushV) < 1e-4)
+    if (e.animIndex == SWARM_ANIM_STUN && dot(pushV, pushV) < 1e-4)
     {
         // ---- 被弾の硬直: 位置と向きを保ち、時計だけ進める ----
         // HitCS が当てた時に animTime = 0 にしている
@@ -274,7 +274,7 @@ void main(uint3 id : SV_DispatchThreadID)
             float2 next = from + cdir * d;
             remaining -= d;
             e.position.xz = next;
-            e.position.y = g_GroundY + climb.y;
+            e.position.y = g_CenterAboveFeet + climb.y;
             e.velocity.y = 0.0;
             bool onTop = SwarmIsWalkable(terrain, float3(next.x, 0.0, next.y))
                       && SwarmTerrainHeightRaw(terrainHeight, next) >= climb.y - 0.3;
@@ -284,7 +284,7 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             // ---- 壁を登る: 壁面に張り付き、y だけが上がる。上に着いたら乗り移る ----
             float2 cdir = climb.zw;
-            float feet = e.position.y - g_GroundY;
+            float feet = e.position.y - g_CenterAboveFeet;
             float top = FaceTopAhead(from, cdir, radius);
             bool hold = dot(e.velocity.xz - pushV, cdir) > 0.25 * max(e.moveSpeed, 0.5)   // まだその向きへ行きたい
                      && dot(pushV, pushV) < 1.0                                          // 押されていない
@@ -297,7 +297,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 climb.y = top;
                 feet = min(feet + g_ClimbSpeed * g_Step, top);
                 climb.x += g_Step;
-                e.position.y = g_GroundY + feet;
+                e.position.y = g_CenterAboveFeet + feet;
                 e.velocity.y = 0.0;
                 if (feet >= top - 1e-3)
                 {
@@ -352,7 +352,7 @@ void main(uint3 id : SV_DispatchThreadID)
             // 持ち上げるので、下りを数えると低い側も触れてしまい、押し出しを
             // 打ち消して体が壁面に張り付く
             float rawHere = SwarmTerrainHeightRaw(terrainHeight, from);
-            float feet = e.position.y - g_GroundY;
+            float feet = e.position.y - g_CenterAboveFeet;
             float footH = allowDrop ? max(rawHere, feet) : rawHere;
             bool airborne = (feet > SwarmTerrainHeight(terrainHeight, from) + kSnapDown);   // 落下中（Settle）
             float3 touch = SwarmBodyContact(terrain, terrainHeight, from, radius, !allowDrop, footH);
@@ -443,7 +443,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (SwarmFliesThrough(enemyExtra[i]))   // 砂旋と飛んでいる石像ガーゴイルは幽霊のように飛ぶ
         {
             // 幽霊は何の上にも浮かぶ: 下の地面に合わせ、落下はしない（ガーゴイルは飛ぶ高さに）
-            e.position.y = g_GroundY + SwarmTerrainHeight(terrainHeight, e.position.xz) + SwarmBodyHover(enemyExtra[i]);
+            e.position.y = g_CenterAboveFeet + SwarmTerrainHeight(terrainHeight, e.position.xz) + SwarmBodyHover(enemyExtra[i]);
             e.velocity.y = 0.0;
         }
         else if (climb.x == 0.0)

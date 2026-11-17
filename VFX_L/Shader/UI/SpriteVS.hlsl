@@ -5,7 +5,8 @@
 // 座標系はピクセル単位：左上 (0,0)、右下 (screenW, screenH)。
 // ============================================================
 
-cbuffer SpriteCB : register(b0)
+// C++ 側：SpriteRenderer::ScreenCB
+cbuffer ScreenCB : register(b0)
 {
     float2 g_ScreenSize; // 画面サイズ（ピクセル）
     float2 _pad0;

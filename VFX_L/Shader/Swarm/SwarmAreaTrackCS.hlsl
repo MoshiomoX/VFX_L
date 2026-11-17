@@ -1,9 +1,10 @@
 // ============================================================
-// SwarmLiquidTrackCS.hlsl
-// 毎フレーム 1 回、範囲スロット 1 つに 1 スレッド（Liquid エントリ用）。
+// SwarmAreaTrackCS.hlsl
+// 毎フレーム 1 回、範囲スロット 1 つに 1 スレッド。全ての範囲スロットを追い、
+// 新しく生まれた範囲の数（areaBirths）も数える。
 // 前フレーム以降に生まれた範囲に気付き、スロットごとに次を保持する：
-//   liquidTrack[slot] = (投げた向き x, 投げた向き z,
-//                        最初に見たときの timeLeft, 前フレームの timeLeft)
+//   areaTrack[slot] = (投げた向き x, 投げた向き z,
+//                      最初に見たときの timeLeft, 前フレームの timeLeft)
 // これで SwarmLiquidVS は水たまりの年齢（= 最初に見た値 - 今）と、投げられた
 // 向きがわかる。時計は要らない：前フレームに空だった（w <= 0）か、timeLeft が
 // 増えたなら、そのスロットには新しい範囲が入っている。
@@ -21,7 +22,7 @@
 StructuredBuffer<SwarmArea> areas : register(t0);
 Buffer<uint> areaStates : register(t1);
 RWStructuredBuffer<float4> areaDirs : register(u0);
-RWStructuredBuffer<float4> liquidTrack : register(u1);
+RWStructuredBuffer<float4> areaTrack : register(u1);
 // これまでに生まれた範囲の数。増える一方で、CPU は差分を読む：
 //   [0]            = SWARM_AREA_SHAKE の範囲（SwarmSystem::ConsumeShakeAreas -> BattleCamera）
 //   [1 + vfxType]  = GPU エフェクトのレシピごとの範囲（命中の火花、爆発、死亡時の煙、池）
@@ -37,11 +38,11 @@ void main(uint3 id : SV_DispatchThreadID)
     if (i >= SWARM_MAX_AREAS)
         return;
 
-    float4 t = liquidTrack[i];
+    float4 t = areaTrack[i];
     if (areaStates[i] == SWARM_DEAD)
     {
         t.w = 0.0;   // 空
-        liquidTrack[i] = t;
+        areaTrack[i] = t;
         return;
     }
 
@@ -62,5 +63,5 @@ void main(uint3 id : SV_DispatchThreadID)
     {
         t.w = left;
     }
-    liquidTrack[i] = t;
+    areaTrack[i] = t;
 }

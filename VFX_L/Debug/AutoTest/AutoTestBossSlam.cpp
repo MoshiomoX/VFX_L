@@ -72,7 +72,7 @@ void AutoTestBossSlam::Run(float dt)
         for (float r = 14.0f; r >= 9.0f && !found; r -= 1.0f)
             for (int a = 0; a < 24 && !found; ++a)
             {
-                const float ang = 6.2831853f * (float)a / 24.0f;
+                const float ang = DirectX::XM_2PI * (float)a / 24.0f;
                 const Vector3 c = bp + Vector3(std::cos(ang), 0.0f, std::sin(ang)) * r;
                 int gx = 0, gz = 0;
                 m_Grid.WorldToCell(c, gx, gz);

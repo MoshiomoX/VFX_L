@@ -10,6 +10,7 @@
 #include "Common/ParticleCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
+#include "../Common/MathConst.hlsli"
 
 // 世界の風: renderMode の 26-29 ビットが立っているパーティクルは
 // 風の方へ流される（煙 / 霧 / 雨 / 砂。火花は 0 のまま）。
@@ -28,7 +29,7 @@ cbuffer ParticleWindCB : register(b2)
 // xz での世界の風（GrassVS の突風の式）
 float2 ParticleWindAt(float2 xz)
 {
-    float phase = dot(xz, g_WindDir) * g_WindWaveScale * 6.2831853 - g_WindTime * g_WindWaveSpeed;
+    float phase = dot(xz, g_WindDir) * g_WindWaveScale * TWO_PI - g_WindTime * g_WindWaveSpeed;
     float w = sin(phase) * 0.5 + 0.5;
     w *= w;
     return g_WindDir * (g_WindSpeed + g_WindGust * w);

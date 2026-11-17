@@ -4,7 +4,7 @@
 //
 // 設計意図：
 //   ・弾は直進（profile "IceLance"）。当たった 1 体を freezeTime 秒凍らせる（動かない・殴らない・溜めた突撃兵は溜めが消える）。
-//     エリート・ボスは半分、解けてから 3 秒は凍らない（凍らせ続けられないように。BomberCB::freezeBigMul / freezeImmunity）
+//     エリート・ボスは半分、解けてから 3 秒は凍らない（凍らせ続けられないように。KindCB::freezeBigMul / freezeImmunity）
 //   ・威力は単体の基本魔法の中で低め。代わりに「目の前の 1 体を止める」役
 //   ・凍った敵の足元に氷の塊（エフェクトモデル bingci_02.FBX、SwarmIceVS）、体は氷色
 //   ・形は縦 2 マスの槍、影響マスは形の上下左右

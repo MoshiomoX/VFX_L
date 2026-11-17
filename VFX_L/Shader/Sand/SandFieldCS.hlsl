@@ -24,6 +24,8 @@
 
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"
 
 // SandField::SandCB（144 バイト）と一致させること
 cbuffer SandCB : register(b0)
@@ -56,24 +58,9 @@ cbuffer SandCB : register(b0)
     float3 _pad;
 };
 
-// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト
-struct SandArea
-{
-    float3 center;
-    float radius;
-    float damage;
-    float timeLeft;
-    float tickInterval;
-    float tickTimer;
-    float halfHeight;
-    uint flags;
-    uint vfxType;
-    uint tickNow;
-};
-
 Texture2D<float4> g_In : register(t0);
 Texture2D<float> g_InTrack : register(t1);
-StructuredBuffer<SandArea> g_Areas : register(t2);
+StructuredBuffer<SwarmArea> g_Areas : register(t2);
 Buffer<uint> g_AreaStates : register(t3);
 StructuredBuffer<float2> g_RecipeSand : register(t4);   // エフェクトのレシピごと：(heat, wet)
 StructuredBuffer<WindSource> g_WindSources : register(t5);   // 竜巻 / 渦 / 突風（SwarmWindSourceCS）
@@ -81,10 +68,7 @@ Texture2D<float> g_Water : register(t6);                 // 1 = 池（乾かな�
 RWTexture2D<float4> g_Out : register(u0);
 RWTexture2D<float> g_OutTrack : register(u1);
 
-#define SAND_MAX_AREAS 256u     // = SWARM_MAX_AREAS
 #define SAND_MAX_SOURCES 64u
-#define SAND_FREEZE_MASK 0xF0u  // = Swarm::kAreaFreezeShift、4 ビット
-#define SAND_SHAKE 8u           // = SWARM_AREA_SHAKE（爆発）
 
 groupshared float4 gs_Src[SAND_MAX_SOURCES];    // xz, 半径, 熱
 groupshared float2 gs_Src2[SAND_MAX_SOURCES];   // wet, クレーター（1 = あり）
@@ -120,15 +104,15 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     GroupMemoryBarrierWithGroupSync();
     uint tableCount, tableStride;
     g_RecipeSand.GetDimensions(tableCount, tableStride);
-    for (uint a = gi; a < SAND_MAX_AREAS; a += 64u)
+    for (uint a = gi; a < SWARM_MAX_AREAS; a += 64u)
     {
         if (g_AreaStates[a] == 0u)
             continue;
-        SandArea ar = g_Areas[a];
+        SwarmArea ar = g_Areas[a];
         float2 hw = (ar.vfxType < tableCount) ? g_RecipeSand[ar.vfxType] : float2(0.0, 0.0);
-        if ((ar.flags & SAND_FREEZE_MASK) != 0u)
+        if ((ar.flags & SWARM_AREA_FREEZE_MASK) != 0u)
             hw = float2(min(hw.x, -1.0), max(hw.y, 0.8));   // 氷は溶けて砂に染みる
-        float crater = ((ar.flags & SAND_SHAKE) != 0u) ? 1.0 : 0.0;
+        float crater = ((ar.flags & SWARM_AREA_SHAKE) != 0u) ? 1.0 : 0.0;   // 爆発
         if (hw.x == 0.0 && hw.y == 0.0 && crater == 0.0)
             continue;
         uint slot;

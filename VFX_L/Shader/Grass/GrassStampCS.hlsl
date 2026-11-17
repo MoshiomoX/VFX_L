@@ -9,17 +9,14 @@
 // 書いた値をそのまま置き換える。何百もの
 // 敵が草の中を歩くので、これでフィールドが
 // 踏み荒らされたように見える。
-// 種類は SwarmCommon.hlsli から取る。足跡を付けないもの：最終ウェーブの幽霊 2 種（浮いている）、
+// 種類は SwarmEnemyTypes.hlsli から取る。足跡を付けないもの：最終ウェーブの幽霊 2 種（浮いている）、
 // 砂嵐の術師の砂旋（その風源がもう草を押している）、
 // 潜っている砂潜り / 砂の守護者、消えている影の剣士、そして
 // 足が下の地面より明らかに上にあるもの（飛んでいる、または
 // 急降下中のガーゴイル、段から落ちている雑魚）。
 // ============================================================
-// SwarmCommon の cbuffer はここでは使わない。b0（GrassCB）からずらす
-#define SWARM_FRAME_CB_REG b1
-#define SWARM_AI_CB_REG b2
-#define SWARM_ORB_CB_REG b3
-#include "../Common/SwarmCommon.hlsli"
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmEnemyTypes.hlsli"
 #include "GrassCommon.hlsli"
 
 StructuredBuffer<SwarmEnemy> g_Enemies : register(t0);
@@ -53,7 +50,7 @@ void main(uint3 id : SV_DispatchThreadID)
     g_Height.GetDimensions(hw, hh);
     int2 hc = int2(floor((p.xz - g_MapOrigin) / g_MapSize * float2(hw, hh)));
     hc = clamp(hc, int2(0, 0), int2((int) hw - 1, (int) hh - 1));
-    // position.y はカプセルの中心（足 + groundY）なので、groundY を引いてから地面と比べる
+    // position.y はカプセルの中心（足 + centerAboveFeet）なので、centerAboveFeet を引いてから地面と比べる
     if (p.y - g_SwarmExtra.x - g_Height.Load(int3(hc, 0)) > STAMP_AIR_HEIGHT)
         return;
 

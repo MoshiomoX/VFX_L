@@ -118,7 +118,7 @@ void AutoTestTutorial::Run(float dt)
         {
             // 正面 6m に HP 1 の雑魚を 3 体（開局のホーミングボルトが倒す）
             const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-            const float gy = m_Swarm.GetAIParams().groundY;
+            const float gy = m_Swarm.GetAIParams().centerAboveFeet;
             for (float x : { -1.0f, 0.0f, 1.0f })
                 m_Swarm.SpawnEnemy(Vector3(pp.x + x, gy, pp.z + 6.0f), 1.0f, 0.0f);
             m_Acted = m_AutoTime;

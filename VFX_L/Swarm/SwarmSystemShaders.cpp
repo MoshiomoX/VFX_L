@@ -64,7 +64,7 @@ bool SwarmSystem::LoadShaders(ID3D11Device* device)
     load(m_OrbEmitCS, L"Shader/Swarm/SwarmOrbEmitCS.hlsl", "OrbEmitCS");   // 無くてもオーブの尾が出ないだけ
     load(m_SpriteCS, L"Shader/Swarm/SwarmSpriteCS.hlsl", "SpriteCS");   // 無くても連番画像が出ないだけ
     load(m_ProjTrailCS, L"Shader/Swarm/SwarmProjTrailCS.hlsl", "ProjTrailCS");   // 無くても弾の帯が出ないだけ
-    load(m_LiquidTrackCS, L"Shader/Swarm/SwarmLiquidTrackCS.hlsl", "LiquidTrackCS");   // 無くても液溜まりが出ないだけ
+    load(m_AreaTrackCS, L"Shader/Swarm/SwarmAreaTrackCS.hlsl", "AreaTrackCS");   // 無くても液溜まりと範囲の誕生の数（揺れ・音）が出ないだけ
     load(m_CorpseTrackCS, L"Shader/Swarm/SwarmCorpseTrackCS.hlsl", "CorpseTrackCS");   // 無くても死体が砕けないだけ
     load(m_DamageTextCS, L"Shader/Swarm/SwarmDamageTextCS.hlsl", "DamageTextCS");   // 無くてもダメージの数字が出ないだけ
     load(m_CorpseListCS, L"Shader/Swarm/SwarmCorpseListCS.hlsl", "CorpseListCS");

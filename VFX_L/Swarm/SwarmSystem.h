@@ -22,7 +22,7 @@
 // ============================================================
 #pragma once
 #include "Swarm/SwarmTypes.h"
-#include "Swarm/GPUReadback.h"
+#include "Swarm/StagingRing.h"
 #include "Swarm/SwarmVFXTable.h"
 #include "Swarm/SwarmFireEmit.h"
 #include "Swarm/FlowField.h"
@@ -68,7 +68,7 @@ public:
     // 通行マップだけを上げ直してフローフィールドを作り直させる（置物の下を塞ぐ / 開けた箱の下を戻す時）。
     // 空間ハッシュ・高さ場・向き表の buffer はそのまま。格子の寸法が UploadTerrain の時と違えば UploadTerrain で全部作り直す
     void RefreshWalkable(const GridWorld& grid);
-    // 雑魚が壁を登る（SwarmSystemClimb.cpp）：速さは GetBomberParams().climbSpeed、登れる障害物は GridWorld::SetClimb
+    // 雑魚が壁を登る（SwarmSystemClimb.cpp）：速さは GetKindParams().climbSpeed、登れる障害物は GridWorld::SetClimb
 
     // VFXDatabase からレシピ表を作る。ItemDatabase / VFXDatabase の後に1回
     bool BuildVFXTable();
@@ -110,7 +110,7 @@ public:
     BlobShadowStyle blobShadow;
 
     // ---- 点火した自爆兵の足元の警告の輪（Render の中、雑魚とオーブの後・HP バーの前）----
-    // 外周 = 爆発半径（BomberCB.blastRadius）、中の円盤が導火線に合わせて中心から育ち、外周に届くと爆発。
+    // 外周 = 爆発半径（KindCB.blastRadius）、中の円盤が導火線に合わせて中心から育ち、外周に届くと爆発。
     // 色は straight alpha（シェーダーが premultiply する）
     struct BomberRingStyle
     {
@@ -295,9 +295,9 @@ public:
     // motion  : SetMotions で上げた表の番号（0 = 直進）
     // mirror  : 曲線を左右反転して撃つ（交互撃ち・乱数撃ちは呼ぶ側が決める）
     // 曲線の型では vel の「速さ」だけが使われ、向きは曲線が決める。
-    // 捕捉する敵はプレイヤーに一番近い 1 体（武器が狙っているのと同じ相手）
+    // 捕捉する敵は杖の狙いの 1 体（GetAimTarget と同じ相手）
     // triggerTag : この弾が消えたら誘発できる上級魔法（杖の spells の添字の bit）。0 = 無し
-    // spawnAtPos : Drop 型だけ。pos を着弾点にする（誘発の隕石。最寄りの敵を捕捉しない）
+    // spawnAtPos : Drop 型だけ。pos を着弾点にする（誘発の隕石。杖の狙いを捕捉しない）
     // areaDamageMul / areaDurationMul : この弾が命中・着弾で出す範囲の威力 / 持続に掛ける
     //   （魔法威力の能力アップ・魔力解放中の弾。持続は「持続する範囲」だけ伸びる。Swarm::PackSpawnBoost）
     void SpawnProjectile(VFXId vfx,
@@ -309,7 +309,7 @@ public:
         float areaDamageMul = 1.0f, float areaDurationMul = 1.0f,
         uint32_t roll = 0,   // 曲線の横ずれの回転（0〜127 = 0〜360 度。ProjectileProfileDB::NextRoll）
         uint32_t chainCount = 0,    // 連鎖のルーン: 当たった後に近くの別の敵へ跳ぶ回数（依頼の pathT に乗せる）
-        uint32_t fanIndex = 0);     // 出口魔法の扇の何発目か。1 以上は最寄りの敵ではなく自分の向きの敵を捕捉する
+        uint32_t fanIndex = 0);     // 出口魔法の扇の何発目か。1 以上は杖の狙いではなく自分の向きの敵を捕捉する
 
     // 一斉起爆:次のステップで全部の弾を消し、それぞれの場所に範囲 areaDef を出す（Drop / Lob 型は除く）。
     // 弾が消えた扱いなので、タグ付きの弾は誘発も起こす
@@ -321,11 +321,11 @@ public:
         out.insert(out.end(), m_TriggerEvents.begin(), m_TriggerEvents.end());
         m_TriggerEvents.clear();
     }
-    // リードバックで届いたスプリッターの死（MobSpawner が分裂体を湧かせる）を全部取り出す。2〜3 フレーム古い
-    void ConsumeSplitEvents(std::vector<Swarm::SplitEvent>& out)
+    // リードバックで届いた敵の出来事（スプリッターの死・術師の詠唱など。Swarm::EnemyEvent）を全部取り出す。2〜3 フレーム古い
+    void ConsumeEnemyEvents(std::vector<Swarm::EnemyEvent>& out)
     {
-        out.insert(out.end(), m_SplitEvents.begin(), m_SplitEvents.end());
-        m_SplitEvents.clear();
+        out.insert(out.end(), m_EnemyEvents.begin(), m_EnemyEvents.end());
+        m_EnemyEvents.clear();
     }
     // リードバックで届いたダメージの数字（UI/DamageNumbers が描く）を全部取り出す。2〜3 フレーム遅れ
     void ConsumeDamageTexts(std::vector<Swarm::DamageText>& out)
@@ -380,11 +380,12 @@ public:
         // 虫の脚（大サソリ）：true なら VS の g_AnimMode 5 = flap.xyz（脚の付け根）を通る縦軸の周りに、歩きの時計で
         // 前後に掻く（振幅 0.38 rad、位相 flap.w。前へ戻す間は先ほど持ち上がる）。torso に付ける。
         bool insectLeg = false;
-        // 猫背（月下の狼人）：0 以外なら hinge.xyz（腰）を通る横軸の周りに hunch rad 前へ倒してから部品の動きを掛ける
+        // 猫背（月下の狼人）：0 以外なら hunchPivot.xyz（腰）を通る横軸の周りに hunch rad 前へ倒してから部品の動きを掛ける
         // （胴・頭・腕。歩く間は VS が 1.45 倍まで深くする）。leg と一緒なら hinge = 膝（xyz）+ 曲げ（w）= 脚を上げる間に膝が折れる、
         // 腕（leg + hunch）は殴りの動作で前へ振る
         float hunch = 0.0f;
         DirectX::SimpleMath::Vector4 hinge = { 0.0f, 0.0f, 0.0f, 0.0f };
+        DirectX::SimpleMath::Vector3 hunchPivot = { 0.0f, 0.0f, 0.0f };
         // 浮く魔神（砂嵐の魔神）：true なら VS の g_AnimMode 6 = 部品の動き（歩き・殴りのクリップ）を掛けず、ゆっくり息をする。
         // flap.w != 0 なら腕：flap.xyz（肩）を通る横軸の周りに、詠唱（bossChargePose 0→1）で flap.w rad 振り上げ、
         // 叩き付け（1→1.3）で前下へ振り下ろす。hinge.w != 0 = 肘の有る腕（骸の王）：hinge.xyz = 肘、腕を上げると前腕が
@@ -441,7 +442,7 @@ public:
     void CollectLights();
 
     // ---- リードバック結果（1〜2 フレーム古い。用途上それで困らない）----
-    const SwarmCounters& GetCounters() const { return m_Readback.Latest(); }
+    const SwarmCounters& GetCounters() const { return m_Counters; }
     // Boss の数・HP・位置（描画の CompactCS が書くので 2〜3 フレーム古い）
     const Swarm::BossInfo& GetBossInfo() const { return m_BossInfo; }
     // 面の固定エリートの槽・種類・HP・位置（同じく 2〜3 フレーム古い）。serial は新しく読めた度に増える
@@ -449,9 +450,9 @@ public:
     uint32_t GetEliteInfoSerial() const { return m_EliteInfoSerial; }
     // 吸血の印の付いた敵が前回から失った HP の合計（取り出して 0 に戻す。2〜3 フレーム遅れ）
     float ConsumeLifesteal();
-    // 優先度なしで一番近い敵（突風・アイススパイクの線のような近距離の範囲が狙う。杖の狙い = GetNearestEnemy は
-    // Boss / エリートを優先する）。リードバックなので 2〜3 フレーム古い。居なければ false（SwarmSystemCloseTarget.cpp）
-    bool GetCloseEnemy(DirectX::SimpleMath::Vector3& pos, float& dist) const;
+    // 優先度なしで一番近い敵（突風・アイススパイクの線のような近距離の範囲が狙う。杖の狙い = GetAimTarget は
+    // Boss / エリートを優先する）。リードバックなので 2〜3 フレーム古い。居なければ false（SwarmSystemNearestTarget.cpp）
+    bool GetNearestEnemy(DirectX::SimpleMath::Vector3& pos, float& dist) const;
     // プレイヤーの 10m 以内（水平）に居る、狙える敵の数（2〜3 フレーム遅れ。スマートカメラが引く量に使う）
     uint32_t GetNearEnemyCount() const { return m_CloseNearCount; }
 
@@ -472,8 +473,8 @@ public:
     FlowField& GetFlowField() { return m_Flow; }
     // プレイヤーが同じマスに居ても次のフレームで作り直す（定数を変えた時）
     void RequestFlowRebuild() { m_FlowRequestX = m_FlowRequestZ = -1; }
-    // 自爆兵の定数（次の固定ステップ / 次の描画から効く）。blastArea は呼ぶ側が AreaProfileDB から入れる
-    Swarm::BomberCB& GetBomberParams() { return m_CachedBomberCB; }
+    // 敵の種類ごとの定数と毎フレームの指示（次の固定ステップ / 次の描画から効く）。blastArea は呼ぶ側が AreaProfileDB から入れる
+    Swarm::KindCB& GetKindParams() { return m_CachedKindCB; }
     // プレイヤーが受けた累計ダメージを取り出して 0 に戻す
     float ConsumePlayerDamage();
     // プレイヤーが受けた打撃（ノックバック用）を取り出して 0 に戻す。
@@ -491,16 +492,18 @@ public:
     // TEMP-TEST: 敵の池と状態を丸ごと読み戻す（Map で止まる。自動テストの検証だけ。毎フレーム呼ばない）
     bool DebugReadEnemies(std::vector<Swarm::Enemy>& outEnemies, std::vector<uint32_t>& outStates,
         std::vector<Swarm::EnemyExtra>* outExtras = nullptr,    // outExtras: 種類（soak 自動テスト）
-        std::vector<DirectX::SimpleMath::Vector4>* outStatus = nullptr);   // outStatus: 減速・凍結（enemySlow）
+        std::vector<DirectX::SimpleMath::Vector4>* outStatus = nullptr);   // outStatus: 減速・凍結（enemyStatus）
     // 光線（カプセル型の範囲）: チャンネル ch の起点 / 終点 / 半径を次の固定ステップから効かせる。
-    // 範囲そのものは SpawnArea（flags に kAreaCapsule | ch << kAreaBeamShift）で出す。
+    // 範囲そのものは SpawnArea（flags に kAreaCapsule、beamChannel = ch）で出す。
     // active = false にすると GPU 側の範囲が次のステップで消える
     void SetBeam(uint32_t ch, const DirectX::SimpleMath::Vector3& start, const DirectX::SimpleMath::Vector3& end,
         float radius, bool active);
     // 光線の標的（SwarmBeamTargetCS）。cmd = Swarm::kBeamTarget*。毎フレーム呼ぶ（次の Flush で効く）。
-    // serial はその光線の通し番号（チャンネルは使い回すので、答えがどの光線の物かを見分ける）
+    // serial はその光線の通し番号（チャンネルは使い回すので、答えがどの光線の物かを見分ける）。
+    // exclude: 連鎖（kBeamTargetChain）で除く敵のスロット 3 つ（nullptr = 除かない）
     void SetBeamTarget(uint32_t ch, uint32_t cmd, const DirectX::SimpleMath::Vector3& origin,
-        const DirectX::SimpleMath::Vector3& dir, float length, const DirectX::SimpleMath::Vector3& seek, uint32_t serial);
+        const DirectX::SimpleMath::Vector3& dir, float length, const DirectX::SimpleMath::Vector3& seek, uint32_t serial,
+        const uint32_t* exclude = nullptr);
     // リードバックした標的の位置（2〜3 フレーム古い）。serial が違う / 標的が無ければ false
     bool GetBeamTarget(uint32_t ch, uint32_t serial, DirectX::SimpleMath::Vector3& pos) const;
     // 同上、答えの有無も見分ける（連鎖の跳ぶ先）:-1 = まだ答えが来ていない（serial が違う）、
@@ -509,10 +512,10 @@ public:
 
     // 燃えている草からの粒子（GrassFireField）。毎フレーム Flush の前に渡す。null = 出さない。
     // 発射は弾・範囲の直後（Swarm/SwarmSystemFire.cpp）
-    void SetGrassFire(const GrassFireEmitInput* in);
+    void SetGrassFire(const GroundEmitInput* in);
     // 熱い砂の陽炎（SandField）。草の火と同じ入力の形・同じ CS。null = 出さない
-    void SetSandHaze(const GrassFireEmitInput* in);
-    void SetSandDust(const GrassFireEmitInput* in);   // 風に舞う砂（World/SandField。channel 1）
+    void SetSandHaze(const GroundEmitInput* in);
+    void SetSandDust(const GroundEmitInput* in);   // 風に舞う砂（World/SandField。channel 1）
     // 凍った池の上で体を持ち上げる。WaterSurface::GetIceSRV / GetPondTopSRV（null = 無し）。Flush の前に毎フレーム
     void SetIceMaps(ID3D11ShaderResourceView* ice, ID3D11ShaderResourceView* pondTop);
     // 燃えている草の上の敵へのダメージ。fireMap = GrassFireField::GetSRV（null = 無し）。Flush の前に毎フレーム
@@ -545,7 +548,7 @@ public:
     const LocalWind& GetLocalWind() const { return m_LocalWind; }
     ID3D11ShaderResourceView* GetEnemySRV() const { return m_EnemySRV.Get(); }
     ID3D11ShaderResourceView* GetEnemyStateSRV() const { return m_EnemyStateSRV.Get(); }
-    ID3D11UnorderedAccessView* GetEnemySlowUAV() const { return m_EnemySlowUAV.Get(); }   // 氷の上の雑魚（WaterStirCS）
+    ID3D11UnorderedAccessView* GetEnemyStatusUAV() const { return m_EnemyStatusUAV.Get(); }   // 氷の上の雑魚（WaterStirCS）
     ID3D11ShaderResourceView* GetEnemyExtraSRV() const { return m_EnemyExtraSRV.Get(); }
 
     // ---- ImGui 表示用 ----
@@ -575,17 +578,22 @@ public:
     // 弾だけ消す（負荷テストのリセット用）
     void ClearProjectiles();
 
-    // プレイヤーに一番近い雑魚（リードバックなので 1〜2 フレーム古い）。無ければ false
-    bool GetNearestEnemy(Vector3& pos, Vector3& vel, float& dist) const
+    // 杖の狙い（優先度付き：近くの雑魚 → Boss → エリート → 距離順。SwarmAimKeyDist）。
+    // リードバックなので 1〜2 フレーム古い。無ければ false。優先度なしの一番近い敵は GetNearestEnemy
+    bool GetAimTarget(Vector3& pos, Vector3& vel, float& dist) const
     {
         const auto& c = GetCounters();
-        if (c.aliveEnemies == 0 || c.nearestDist >= 1e29f) return false;   // 生きた雑魚が居なければ目標無し（同じ写しの値同士）
-        pos = { c.nearestPos[0], c.nearestPos[1], c.nearestPos[2] };
-        vel = { c.nearestVel[0], c.nearestVel[1], c.nearestVel[2] };
-        dist = c.nearestDist;
+        if (c.aliveEnemies == 0 || c.aimDist >= 1e29f) return false;   // 生きた雑魚が居なければ目標無し（同じ写しの値同士）
+        pos = { c.aimPos[0], c.aimPos[1], c.aimPos[2] };
+        vel = { c.aimVel[0], c.aimVel[1], c.aimVel[2] };
+        dist = c.aimDist;
         return true;
     }
 private:
+
+    // ================================================================
+    // 初期化・Flush の内訳・借り物
+    // ================================================================
     // --- 生成 ---
     bool CreateBuffers(ID3D11Device* device);
     bool LoadShaders(ID3D11Device* device);
@@ -599,13 +607,7 @@ private:
     void DispatchStep();          // 固定ステップ 1 回分の CS 群
     void DispatchEmit(float dt, float totalTime);   // 弾から粒子を発射
     void DispatchFireEmit(float dt, float totalTime);   // 燃えている草から粒子を発射（SwarmSystemFire.cpp）
-    void DispatchFireEmitOne(const GrassFireEmitInput& in, float dt, float totalTime, uint32_t seedXor);
-    GrassFireEmitInput m_SandHaze;     // 熱い砂の陽炎（World/SandField。同じ CS を入力を替えて）
-    bool m_HasSandHaze = false;
-    GrassFireEmitInput m_SandDust;     // 風に舞う砂（同じ CS の channel 1）
-    bool m_HasSandDust = false;
-    GrassFireEmitInput m_GrassFire;
-    bool m_HasGrassFire = false;
+    void DispatchFireEmitOne(const GroundEmitInput& in, float dt, float totalTime, uint32_t seedXor);
     void DispatchSprites(float dt);                  // 範囲の連番画像：古い物を進めて、生まれた範囲の分を始める
     void DispatchProjTrails();                       // 弾の帯：槽ごとの位置の環を進める（固定ステップ、弾の積分の直後。SwarmSystemTrail.cpp）
     void RequestReadback();       // counter の copy を発行
@@ -614,76 +616,14 @@ private:
     ID3D11DeviceContext* m_Context = nullptr;
     GPUParticleSystem* m_Particles = nullptr;
 
-    // ============================================================
-    // 本体バッファ（UAV で CS が書き、SRV で他の CS が読む）
-    // ※同じ資源を UAV と SRV に同時に繋げない。
-    //   各 dispatch の後で必ず UAV を外すこと
-    // ============================================================
+    // ================================================================
+    // 敵の槽ごとの buffer（本体・生死・種類・状態など。添字はどれもスロット番号）
+    // 本体バッファは UAV で CS が書き、SRV で他の CS が読む。
+    // 同じ資源を UAV と SRV に同時に繋げない。各 dispatch の後で必ず UAV を外すこと
+    // ================================================================
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemySRV;
-
-    // 雑魚の種類と自爆兵の導火線（Swarm::EnemyExtra、スロットと同じ添字）。
-    // SpawnEnemyCS / RecycleCS が書き、ContactCS が導火線を進める。AI・Compact・VS が読む
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyExtraBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyExtraUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyExtraSRV;
-    uint32_t m_DetonateArea = 0;   // 0 以外 = 次の ProjMoveCS で全部の弾をこの範囲に変える
-
-    // 敵の状態（float4、スロットと同じ添字。Swarm::kAnimFreezeRequest の説明）。
-    // xy = 毒の池の減速（残り秒・強さ）：AreaDamageCS が tick の度に書き、AICS が速度に掛けて数え下げる。
-    // zw = 凍結（アイスランス）：AICS が HitCS の依頼から入れて数え下げる。VS / ContactCS が読む。
-    // Spawn / Recycle で 0 に戻す
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemySlowBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemySlowUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemySlowSRV;
-    // 吹き飛ばし（突風）：float4 = 速度 xz・残り秒。AreaDamageCS が書き、MoveCS がそのステップの移動に足して減らす。本体の横に持つ
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPushBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPushUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPushSRV;
-    // 毒素（毒沼）：float4 = 残りダメージ・毎秒の削り・最後に盛られてからの秒。
-    // AreaDamageCS が範囲の tick で盛って毎ステップ削る（倒した時の扱いは範囲ダメージと同じ）。VS が緑に染める。Spawn / Recycle で 0
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPoisonBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPoisonUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPoisonSRV;
-    // トゲ玉の向き（四元数）：MoveCS が毎ステップ実際に進んだ分の転がりを掛け足し、SwarmSpikeBallVS が読む。
-    // 0 = まだ転がっていない（槽毎の決まった姿勢）。向きに意味は無いので生成 / 転送で戻さない
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyRollBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyRollUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyRollSRV;
-
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjSRV;
-
-    // --- 投射物の運動 ---
-    // path   : 投射物と同じ添字。GPU が組んだベジェ（CPU は触らない）
-    // motion : 運動表。CPU から上げる（読み取り専用）
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_PathBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_PathUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_PathSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_MotionBuffer;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_MotionSRV;
-
-    // --- 範囲攻撃 ---
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaStateBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaStateUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaStateSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaEndBuffer;      // 槽ごとのカプセルの終点（float4。AreaTickCS が書く）
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaEndUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaEndSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaDefBuffer;      // 雛形の表（CPU から書く）
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaDefSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnAreaBuffer;    // 生成依頼
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_SpawnAreaSRV;
-    std::vector<Swarm::Area> m_PendingAreas;
-
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_OrbBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_OrbUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_OrbSRV;
 
     // ============================================================
     // 生死フラグ（本体とは別バッファ）
@@ -695,6 +635,80 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyStateUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyStateSRV;
 
+    // 雑魚の種類と自爆兵の導火線（Swarm::EnemyExtra、スロットと同じ添字）。
+    // SpawnEnemyCS / RecycleCS が書き、ContactCS が導火線を進める。AI・Compact・VS が読む
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyExtraBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyExtraUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyExtraSRV;
+
+    // 敵の状態（float4、スロットと同じ添字。Swarm::kAnimFreezeRequest の説明）。
+    // xy = 毒の池の減速（残り秒・強さ）：AreaDamageCS が tick の度に書き、AICS が速度に掛けて数え下げる。
+    // zw = 凍結（アイスランス）：AICS が HitCS の依頼から入れて数え下げる。VS / ContactCS が読む。
+    // Spawn / Recycle で 0 に戻す
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyStatusBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyStatusUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyStatusSRV;
+    // 吹き飛ばし（突風）：float4 = 速度 xz・残り秒。AreaDamageCS が書き、MoveCS がそのステップの移動に足して減らす。本体の横に持つ
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPushBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPushUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPushSRV;
+    // 毒素（毒沼）：float2 = 残りダメージ・毎秒の削り。
+    // AreaDamageCS が範囲の tick で盛って毎ステップ削る（倒した時の扱いは範囲ダメージと同じ）。VS が緑に染める。Spawn / Recycle で 0
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyPoisonBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPoisonUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPoisonSRV;
+    // 被弾の記録（Swarm::EnemyHitInfo：最後の命中の属性・吸血の印、とどめの属性、剣・氷の範囲が最後に当たった時刻）。
+    // HitCS / AreaDamageCS が書き、DamageTextCS（数字の色・吸血）と AreaDamageCS が読む。Spawn / Recycle で 0
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyHitInfoBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyHitInfoUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyHitInfoSRV;
+    // トゲ玉の向き（四元数）：MoveCS が毎ステップ実際に進んだ分の転がりを掛け足し、SwarmSpikeBallVS が読む。
+    // 0 = まだ転がっていない（槽毎の決まった姿勢）。向きに意味は無いので生成 / 転送で戻さない
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyRollBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyRollUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyRollSRV;
+
+    // 壁を登っている状態（float4 per slot：x 登っている秒（0 = 登っていない）、y 登る先の上面、zw 向き）。MoveCS だけが読み書き
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyClimbBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyClimbUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_EnemyClimbSRV;
+
+    // 生成時の hp（固定小数、スロット毎）。SpawnEnemyCS / RecycleCS が書き、バーの VS が割る。
+    // Enemy 本体（48B）に場所が無いので横に持つ
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyMaxHpBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyMaxHpUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyMaxHpSRV;
+
+    // ---- 敵の生成と転送 ----
+    // 生成キュー：CPU が空きスロットを管理する（弾も同じ）。
+    // consume buffer を使わないのは、CopyStructureCount が命令キューをフラッシュして固定のコストが乗るため
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnEnemyBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnEnemySRV;
+    std::vector<Swarm::EnemySpawn> m_PendingEnemies;
+    std::shared_ptr<ComputeShader> m_RecycleCS;
+    std::vector<Swarm::EnemySpawn> m_PendingRecycles;
+    std::vector<Swarm::EnemySpawn> m_EnemyUpload;     // 新規 + 転送を連結した一時領域
+    float m_RecycleMinDist = 35.0f;
+    // 転送の「誰が何番目を取ったか」用。dispatch 前に 0 にする
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_RecycleClaim;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_RecycleClaimUAV;
+
+    // ---- 敵の CS（順序は DispatchStep が決める）----
+    std::shared_ptr<ComputeShader> m_SpawnEnemyCS;     // Phase 3
+    std::shared_ptr<ComputeShader> m_EnemyAICS;        // Phase 3: seek + separation + 回避
+    std::shared_ptr<ComputeShader> m_ContactCS;        // Phase 4: 敵 vs プレイヤー
+    std::shared_ptr<ComputeShader> m_EnemyMoveCS;
+    std::shared_ptr<ComputeShader> m_EnemyPushCS;        // 重なり解消（積分の後）
+    // 杖の狙いと優先度なしの一番近い敵をリードバック用に書き出す
+    std::shared_ptr<ComputeShader> m_AimResolveCS;
+
+    // ================================================================
+    // 弾（本体・運動・誘発タグ・倍率・生成依頼・帯）
+    // ================================================================
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjSRV;
+
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjStateBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjStateUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjStateSRV;
@@ -704,93 +718,41 @@ private:
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjTagUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjTagSRV;
 
-    // 弾スロット毎の「出す範囲への倍率」（威力 12bit | 持続 12bit、Swarm::PackSpawnBoost の >> 8）。
+    // 弾スロット毎の「出す範囲への倍率」（威力 12bit | 持続 12bit、Swarm::PackSpawnBoost）。
     // SpawnProjCS が書き、HitCS / ProjMoveCS が範囲を出す時に読む
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjBoostBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjBoostUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjBoostSRV;
 
-    // 誘発の環（ProjEndCS が書く）→ staging 3 枚でリードバック。総数は GPU 上で永久に累積、CPU は読んだ所まで覚える
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_TriggerBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_TriggerUAV;
-    static constexpr int kTriggerStaging = 3;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_TriggerStaging[kTriggerStaging];
-    bool m_TriggerStagingFilled[kTriggerStaging] = {};
-    // KillAll の前に写した staging：読めても読んだ位置 / 前回値を進めるだけで出来事は捨てる
-    // （消した後に分裂体・蘇った鎧・砂旋・骸骨・隕石・数字が湧かないように）。分裂・数字・吸血・生まれた範囲の環も同じ
-    bool m_TriggerStagingStale[kTriggerStaging] = {};
-    int  m_TriggerStagingWrite = 0;
-    uint32_t m_TriggerRead = 0;                         // 読み終えた総数
-    std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 読んだが、まだ誰も取り出していない物
-    void ReadTriggerEvents();   // 一番古い staging を読めたら新しい分を m_TriggerEvents へ（Flush の頭）
+    // 弾スロット毎の連鎖のルーン・貫通の状態（Swarm::ProjChain）。SpawnProjCS が書き、HitCS / ProjMoveCS が進める
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_ProjChainBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_ProjChainUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_ProjChainSRV;
 
-    // 分裂の環（CorpseTrackCS が書く）→ 誘発の環と同じく staging 3 枚でリードバック
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SplitBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SplitUAV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SplitStaging[kTriggerStaging];
-    bool m_SplitStagingFilled[kTriggerStaging] = {};
-    bool m_SplitStagingStale[kTriggerStaging] = {};
-    int  m_SplitStagingWrite = 0;
-    uint32_t m_SplitRead = 0;
-    std::vector<Swarm::SplitEvent> m_SplitEvents;
-    void ReadSplitEvents();
+    // --- 投射物の運動 ---
+    // path   : 投射物と同じ添字。GPU が組んだベジェ（CPU は触らない）
+    // motion : 運動表。CPU から上げる（読み取り専用）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_PathBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_PathUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_PathSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_MotionBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_MotionSRV;
 
-    // ダメージの数字の環（SwarmDamageTextCS が書く）→ 同じく staging 3 枚でリードバック
-    std::shared_ptr<ComputeShader> m_DamageTextCS;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevHpBuffer;     // 槽毎に前フレームの hp（死んだ槽は 0。RecycleCS が上書きした槽は新しい hp + 印 SWARM_PREVHP_RECYCLED）
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPrevHpUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPrevHpSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_DamagePendingBuffer;   // float4 = 直接 / 毒素 / 経過秒 / 前フレームの毒素
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_DamagePendingUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_DamagePendingSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_DamageTextBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_DamageTextUAV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_DamageTextStaging[kTriggerStaging];
-    bool m_DamageTextStagingFilled[kTriggerStaging] = {};
-    bool m_DamageTextStagingStale[kTriggerStaging] = {};
-    int  m_DamageTextStagingWrite = 0;
-    uint32_t m_DamageTextRead = 0;
-    std::vector<Swarm::DamageText> m_DamageTexts;
-    struct DamageTextCB { float step; float merge; uint32_t on; float poisonMerge; };
-    void DispatchDamageText(float dt);   // Flush の砕け散りの後
-    void ReadDamageTexts();
+    // 生成依頼（生成キューは敵と同じ作り）
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnProjBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnProjSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnProjExtraBuffer;   // 依頼と同じ添字の Swarm::SpawnProjExtra
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnProjExtraSRV;
+    std::vector<Swarm::SpawnProjExtra> m_PendingProjExtra;         // m_PendingProjectiles と並ぶ
+    std::vector<Swarm::Projectile> m_PendingProjectiles;
+    uint32_t m_DetonateArea = 0;   // 0 以外 = 次の ProjMoveCS で全部の弾をこの範囲に変える
 
-    // 地面の警告の輪（CPU の WarnCircle を毎フレーム書く動的 buffer → SwarmWarnRingVS + SwarmBomberRingPS）
-    Microsoft::WRL::ComPtr<ID3D11Buffer>             m_WarnCircleBuffer;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_WarnCircleSRV;
-    int m_WarnCircleCount = 0;
-    std::shared_ptr<VertexShader> m_WarnRingVS;
-    void RenderWarnRings(CameraBase* camera);
-
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_OrbStateBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_OrbStateUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_OrbStateSRV;
-
-    // --- counter（CS が InterlockedAdd で書き、CPU がリードバック）---
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_CounterBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CounterUAV;
-
-    // --- 発射予約（RAW UAV。毎フレーム 0 に戻す）---
-    // 1スレッドが k 個発射する時、スレッド番号では deadCount と比べられないので
-    // 原子的に予約して超過分を諦める。粒子 EmitCS のガードと同じ思想、別の形
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EmitBudget;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EmitBudgetUAV;
-
-    // ---- 範囲の連番画像（SwarmSprite.hlsli）----
-    // 再生中の表は環（満杯なら一番古い物から上書き）。範囲が消えても再生は続く。
-    // areaSeen = 範囲の槽ごとに前のフレームの timeLeft（asuint）。0xFFFFFFFF = 空・未見
-    static constexpr uint32_t kMaxSprites = 1024;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpriteBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpriteUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_SpriteSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaSeenBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaSeenUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaSeenSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpriteHead;       // 環の書き込み位置（RAW）
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpriteHeadUAV;
-    std::shared_ptr<ComputeShader> m_SpriteCS;
-    std::shared_ptr<VertexShader>  m_SpriteVS;
-    std::shared_ptr<PixelShader>   m_SpritePS;
+    // ---- 弾の CS ----
+    std::shared_ptr<ComputeShader> m_SpawnProjCS;      // 生成依頼を投射物の空きスロットへ
+    std::shared_ptr<ComputeShader> m_ProjMoveCS;       // 投射物の積分
+    std::shared_ptr<ComputeShader> m_ProjEndCS;        // タグ付きの弾が消えた場所を誘発の環へ（命中の直後）
+    std::shared_ptr<ComputeShader> m_HitCS;            // Phase 4: 弾 vs 敵
+    std::shared_ptr<ComputeShader> m_LightCollectCS;     // 弾の点光源を PointLightManager へ追記
 
     // ---- 弾の帯（Trail entry。SwarmSystemTrail.cpp）----
     // 弾の槽ごとに kTrailPoints 個の位置の環（粒子の帯と同じ ParticleTrail.hlsli）。
@@ -809,44 +771,116 @@ private:
     std::shared_ptr<PixelShader>   m_ProjTrailPS;   // 粒子の帯と同じ ParticleTrailPS
     std::shared_ptr<Texture>       m_TrailWhite;    // テクスチャの無い style 用
 
+    // ================================================================
+    // 範囲攻撃（本体・雛形・連番画像・液溜まり）
+    // ================================================================
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaStateBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaStateUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaStateSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaEndBuffer;      // 槽ごとのカプセルの終点（float4。AreaTickCS が書く）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaEndUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaEndSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaDefBuffer;      // 雛形の表（CPU から書く）
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaDefSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnAreaBuffer;    // 生成依頼
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_SpawnAreaSRV;
+    std::vector<Swarm::Area> m_PendingAreas;
+
+    // ---- 範囲の CS ----
+    std::shared_ptr<ComputeShader> m_SpawnAreaCS;    // CPU の依頼を空きスロットへ
+    std::shared_ptr<ComputeShader> m_AreaTickCS;     // 時計を進める・プレイヤーに追従・tick の判定（命中の直後）
+    std::shared_ptr<ComputeShader> m_AreaDamageCS;   // tick した範囲の中の雑魚へダメージ
+    std::shared_ptr<ComputeShader> m_AreaEmitCS;     // GPU が出した範囲（弾の命中）から粒子を発射
+    std::shared_ptr<ComputeShader> m_AreaLightCollectCS; // 範囲の分
+    float m_StepClock = 0.0f;   // AreaDamageCS の時計（KindCB::stepClock）。固定ステップごとに進める
+
+    // ---- 範囲の連番画像（SwarmSprite.hlsli）----
+    // 再生中の表は環（満杯なら一番古い物から上書き）。範囲が消えても再生は続く。
+    // areaSeen = 範囲の槽ごとに前のフレームの timeLeft（asuint）。0xFFFFFFFF = 空・未見
+    static constexpr uint32_t kMaxSprites = 1024;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpriteBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpriteUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_SpriteSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaSeenBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaSeenUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaSeenSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_SpriteHead;       // 環の書き込み位置（RAW）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_SpriteHeadUAV;
+    std::shared_ptr<ComputeShader> m_SpriteCS;
+    std::shared_ptr<VertexShader>  m_SpriteVS;
+    std::shared_ptr<PixelShader>   m_SpritePS;
+
     // ---- 液溜まり（Liquid entry）----
     // areaDirs   : 範囲を出した物が飛んでいた向き（xy = 単位 xz、w = 1 未読）。ProjMoveCS が書き、追跡が読んで w を消す
-    // liquidTrack: 槽ごとの (向き xz, 最初に見た時の残り時間, 前フレームの残り時間)。w <= 0 = 空。SwarmLiquidTrackCS
+    // areaTrack: 槽ごとの (向き xz, 最初に見た時の残り時間, 前フレームの残り時間)。w <= 0 = 空。SwarmAreaTrackCS
     Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaDirBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaDirUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaDirSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_LiquidTrackBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LiquidTrackUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_LiquidTrackSRV;
-    std::shared_ptr<ComputeShader> m_LiquidTrackCS;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaTrackBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaTrackUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_AreaTrackSRV;
+    std::shared_ptr<ComputeShader> m_AreaTrackCS;
     std::shared_ptr<VertexShader>  m_LiquidVS;   // SwarmLiquidVS
     std::shared_ptr<PixelShader>   m_LiquidPS;   // VFXLiquidPS（CPU の経路と同じ）
-    void DispatchLiquidTrack();
+    void DispatchAreaTrack();
     void RenderLiquids(CameraBase* camera, const LightBuffer& light);
 
-    // ---- 死んだ敵の砕け散り ----
-    // prevAlive : 槽毎の前フレームの生死（SwarmCorpseTrackCS が「生 → 死」を見つける）
-    // corpses   : 環（Swarm::kMaxCorpses 枠）。corpseHead の [0] = 今までに書いた数
-    // 一覧      : 見た目毎（雑魚 / 自爆兵 / 幽霊）の砕け中の環の番号（SwarmCorpseListCS、append）
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevAliveBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPrevAliveUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPrevAliveSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_CorpseSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseHead;   // RAW
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseHeadUAV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseListBuffer[Swarm::kEnemyKinds];
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseListUAV[Swarm::kEnemyKinds];   // APPEND
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_CorpseListSRV[Swarm::kEnemyKinds];
-    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_CorpseDrawArgs[Swarm::kEnemyKinds];  // submesh 毎
-    std::shared_ptr<ComputeShader> m_CorpseTrackCS;
-    std::shared_ptr<ComputeShader> m_CorpseListCS;
-    std::shared_ptr<VertexShader>  m_CorpseVS;
-    DirectX::SimpleMath::Vector4   m_PartPivots[8] = {};   // 部品の付け根（焼いた姿勢のノードの原点。BuildEnemyPartAnim）
-    void DispatchCorpses();
-    void RenderCorpses(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
+    // ================================================================
+    // 経験値オーブ
+    // ================================================================
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_OrbBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_OrbUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_OrbSRV;
 
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_OrbStateBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_OrbStateUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_OrbStateSRV;
+
+    // --- 経験値オーブの本描画 ---
+    std::shared_ptr<VertexShader> m_OrbVS;
+    std::shared_ptr<PixelShader>  m_OrbPS;         // 自発光の宝石（SwarmOrbPS）
+    std::shared_ptr<Material>     m_OrbMaterial;
+    std::shared_ptr<Model>        m_OrbModel;      // 双角錐（PrimitiveBuilder::CreateBipyramid）
+    // 吸い寄せ中のオーブから粒子（SwarmEmitCS と同じ発射。レシピは VFXId::ExpOrbTrail 固定）
+    std::shared_ptr<ComputeShader> m_OrbEmitCS;
+    uint32_t m_OrbTrailVfx = 0;                    // レシピ表の番号。0 = 無し（json が読めなかった）
+
+    std::shared_ptr<ComputeShader> m_OrbCS;            // Phase 4: 経験値オーブの吸引・取得（DispatchStep の第 7 段）
+    float m_MagnetTimer = 0.0f;   // MagnetAllOrbs の残り秒（> 0 の間 OrbMoveCS の吸い寄せ半径を場全体に）
+
+    // SwarmOrbVS の b4（orbLook の動きの分）
+    struct OrbLookCB
+    {
+        float time, scale, bobHeight, bobSpeed;
+        float spinSpeed, pulseAmount, pulseSpeed, fullPullSpeed;
+        float stretchPerSpeed, stretchMax, tiltMax, pullGlow;
+        DirectX::SimpleMath::Vector4 idleColor;
+        DirectX::SimpleMath::Vector4 pullColor;
+    };
+    static_assert(sizeof(OrbLookCB) == 80, "OrbLookCB layout mismatch");
+    // SwarmOrbPS の b1（b0 は LightBuffer）
+    struct OrbShadeCB
+    {
+        float emissive, facet, rimGain, rimPower;
+        float glintGain, glintPower, _pad[2];
+        DirectX::SimpleMath::Vector4 rimColor;
+    };
+    static_assert(sizeof(OrbShadeCB) == 48, "OrbShadeCB layout mismatch");
+    // SwarmOrbEmitCS の b3
+    struct OrbEmitCB
+    {
+        uint32_t vfx;
+        float    minSpeed;
+        uint32_t _pad[2];
+    };
+    static_assert(sizeof(OrbEmitCB) == 16, "OrbEmitCB layout mismatch");
+
+    // ================================================================
+    // 地形・空間ハッシュ・流れ場
+    // ================================================================
     // --- 地形（起動時に1回。読み取り専用）---
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_TerrainBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_TerrainSRV;
@@ -859,10 +893,6 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_MobHeightBuffer;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_MobHeightSRV;
     void UploadMobTerrain(const GridWorld& grid);   // 上の 2 つを作り、流れ場の格子もこれにする
-    // 壁を登っている状態（float4 per slot：x 登っている秒（0 = 登っていない）、y 登る先の上面、zw 向き）。MoveCS だけが読み書き
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EnemyClimbBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyClimbUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_EnemyClimbSRV;
     ID3D11ShaderResourceView* MobTerrainSRV() const { return m_MobTerrainSRV ? m_MobTerrainSRV.Get() : m_TerrainSRV.Get(); }
     ID3D11ShaderResourceView* MobHeightSRV() const { return m_MobHeightSRV ? m_MobHeightSRV.Get() : m_HeightSRV.Get(); }
 
@@ -875,7 +905,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_CellItemsBuffer;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CellItemsUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_CellItemsSRV;
-    static constexpr uint32_t kBucketCap = 32;   // = SwarmCommon.hlsli の SWARM_BUCKET_CAP
+    static constexpr uint32_t kBucketCap = 32;   // = SwarmTerrain.hlsli の SWARM_BUCKET_CAP
+    std::shared_ptr<ComputeShader> m_EnemyBinCS;         // 空間ハッシュ詰め（ステップ先頭）
 
     // --- 巡路（流れ場）---
     // CPU の FlowField がプレイヤーのマスへの向きをマス毎に持ち、GPU の AI が読む。
@@ -892,98 +923,22 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_FlowSRV;
     void UpdateFlowField(const DirectX::SimpleMath::Vector3& playerPos);
 
-    // --- VFX レシピ表（起動時に1回。読み取り専用）---
-    SwarmVFXTable m_VFX;
-
-    std::shared_ptr<VertexShader> m_DebugVS;
-    std::shared_ptr<PixelShader>  m_DebugPS;
-    std::shared_ptr<VertexShader> m_DebugEnemyVS;
-    struct DebugCB
-    {
-        DirectX::SimpleMath::Matrix view;
-        DirectX::SimpleMath::Matrix proj;
-    };
-    // ============================================================
-    // 生成キュー
-    // CPU が空きスロットを管理する。
-    // ※consume buffer を使わない理由:
-    //   CopyStructureCount は命令キューをフラッシュするため
-    //   約 0.076ms の固定コストが乗る（粒子で計測済み）
-    // ============================================================
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnEnemyBuffer;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnEnemySRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnProjBuffer;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnProjSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnProjExtraBuffer;   // 依頼と同じ添字の uint2（誘発タグ, kSpawnAtPos）
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_SpawnProjExtraSRV;
-    std::vector<uint32_t> m_PendingProjExtra;                      // 2 個ずつ（m_PendingProjectiles と並ぶ）
-
-    std::vector<Swarm::Enemy>      m_PendingEnemies;
-    std::vector<Swarm::Projectile> m_PendingProjectiles;
-
-    // --- 定数バッファ ---
-    DirectX::SimpleMath::Vector4 m_CarryColors[32] = {};   // SetCarryColors。SwarmEmitCS の b3、SwarmProjTrailVS の b2
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_FrameCB;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnCB;
-    Swarm::FrameCB m_CachedFrameCB;
-    Swarm::AICB m_CachedAICB;
-    Swarm::OrbCB m_CachedOrbCB;
-    Swarm::BomberCB m_CachedBomberCB;
-    Swarm::BeamCB m_CachedBeamCB = {};   // 光線の起点 / 終点（SetBeam）
-
-    // ============================================================
-    // CS 群
-    // 順序は DispatchStep / DispatchEmit が決める。宣言順に意味は無い
-    // ============================================================
-    std::shared_ptr<ComputeShader> m_ClearCountersCS;  // 子ステップ頭で counter を 0 に
-    std::shared_ptr<ComputeShader> m_SpawnProjCS;      // 生成依頼を投射物の空きスロットへ
-    std::shared_ptr<ComputeShader> m_ProjMoveCS;       // 投射物の積分
-    std::shared_ptr<ComputeShader> m_ProjEndCS;        // タグ付きの弾が消えた場所を誘発の環へ（命中の直後）
-    std::shared_ptr<ComputeShader> m_BeamTargetCS;     // 光線の標的（捕まえた敵 → 死んだら向きに近い敵へ）
-    std::shared_ptr<ComputeShader> m_EmitCS;           // 弾から粒子を発射
-    std::shared_ptr<ComputeShader> m_SpawnEnemyCS;     // Phase 3
-    std::shared_ptr<ComputeShader> m_EnemyAICS;        // Phase 3: seek + separation + 回避
-    std::shared_ptr<ComputeShader> m_HitCS;            // Phase 4: 弾 vs 敵
-    std::shared_ptr<ComputeShader> m_ContactCS;        // Phase 4: 敵 vs プレイヤー
-    std::shared_ptr<ComputeShader> m_OrbCS;            // Phase 4: 経験値オーブの吸引・取得（DispatchStep の第 7 段）
-    std::shared_ptr<ComputeShader> m_EnemyMoveCS;
-    // ---- 雑魚描画 ----
-    std::shared_ptr<VertexShader> m_EnemyVS;      // SwarmEnemyVS（buffer から位置と向きを読む）
-    std::shared_ptr<PixelShader>  m_EnemyPS;      // Shader/PS.hlsl をそのまま使う
-    std::shared_ptr<Material>     m_EnemyMaterial;// VS/PS + 既定テクスチャの束ね役
-    std::shared_ptr<Model>        m_EnemyModel;   // 雑魚共通のカプセル
-
-    // --- 経験値オーブの本描画 ---
-    std::shared_ptr<VertexShader> m_OrbVS;
-    std::shared_ptr<PixelShader>  m_OrbPS;         // 自発光の宝石（SwarmOrbPS）
-    std::shared_ptr<Material>     m_OrbMaterial;
-    std::shared_ptr<Model>        m_OrbModel;      // 双角錐（PrimitiveBuilder::CreateBipyramid）
-    // 吸い寄せ中のオーブから粒子（SwarmEmitCS と同じ発射。レシピは VFXId::ExpOrbTrail 固定）
-    std::shared_ptr<ComputeShader> m_OrbEmitCS;
-    uint32_t m_OrbTrailVfx = 0;                    // レシピ表の番号。0 = 無し（json が読めなかった）
-
-    std::shared_ptr<ComputeShader> m_RecycleCS;
-    std::vector<Swarm::Enemy> m_PendingRecycles;
-    std::vector<Swarm::Enemy> m_EnemyUpload;     // 新規 + 転送を連結した一時領域
-    float m_RecycleMinDist = 35.0f;
-
-    // ---- 範囲攻撃 ----
-    std::shared_ptr<ComputeShader> m_SpawnAreaCS;    // CPU の依頼を空きスロットへ
-    std::shared_ptr<ComputeShader> m_AreaTickCS;     // 時計を進める・プレイヤーに追従・tick の判定（命中の直後）
-    std::shared_ptr<ComputeShader> m_AreaDamageCS;   // tick した範囲の中の雑魚へダメージ
-    std::shared_ptr<ComputeShader> m_AreaEmitCS;     // GPU が出した範囲（弾の命中）から粒子を発射
+    // ---- 外の場（草の火・池の氷）----
     // 参照を持つ（ComPtr）：持ち主が作り直しても（ステージ選択で WaterSurface::Build が池面の高さを作り直す）、次の PushWind で
     // 差し替えるまで古い view が生きている（裸のポインタだと同じフレームの描画が解放済みの view を bind して落ちる）
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_FireMapSRV;   // GrassFireField の物
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_IceMapSRV;    // WaterSurface の物
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_PondTopSRV;
-    float m_FireClock = 0.0f;
-    std::shared_ptr<ComputeShader> m_FireEmitCS;     // 燃えている草から粒子を発射（Shader/Grass/GrassFireEmitCS）
-    std::shared_ptr<ComputeShader> m_LightCollectCS;     // 弾の点光源を PointLightManager へ追記
-    std::shared_ptr<ComputeShader> m_AreaLightCollectCS; // 範囲の分
+
+    // ================================================================
+    // 描画リスト（雑魚の描画・種類ごとの一覧・皮と飾り・LOD・部品アニメ・種類ごとの見た目）
+    // ================================================================
+    // ---- 雑魚描画 ----
+    std::shared_ptr<VertexShader> m_EnemyVS;      // SwarmEnemyVS（buffer から位置と向きを読む）
+    std::shared_ptr<PixelShader>  m_EnemyPS;      // Shader/PS.hlsl をそのまま使う
+    std::shared_ptr<Material>     m_EnemyMaterial;// VS/PS + 既定テクスチャの束ね役
+    std::shared_ptr<Model>        m_EnemyModel;   // 雑魚共通のカプセル
     std::shared_ptr<ComputeShader> m_EnemyCompactCS;     // 活きスロットの一覧（描画の instance 数）
-    std::shared_ptr<ComputeShader> m_EnemyBinCS;         // 空間ハッシュ詰め（ステップ先頭）
-    std::shared_ptr<ComputeShader> m_EnemyPushCS;        // 重なり解消（積分の後）
 
     // --- 雑魚描画の間接引数 ---
     // 4096 槽を毎フレーム全部 DrawInstanced すると頂点数がモデル × 4096 になる
@@ -999,14 +954,6 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_KindListSRV[Swarm::kEnemyKinds];
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_EnemyDrawArgs[Swarm::kEnemyKinds];  // submesh 毎（IndexCount が違う）
     bool CreateEnemyDrawArgs(ID3D11Device* device);
-    std::shared_ptr<Texture> m_BomberAlbedo;   // 自爆兵のテクスチャ（雑魚と同じメッシュ用）。null = 雑魚と同じテクスチャ
-    std::shared_ptr<Texture> m_SplitterAlbedo; // スプリッター・分裂体のテクスチャ（黄色い衝突試験人形）。null = 雑魚と同じテクスチャ
-    std::shared_ptr<Texture> m_BruteAlbedo;    // 重装兵のテクスチャ（緑のオーク）。null = 雑魚と同じテクスチャ
-    std::shared_ptr<Texture> m_ChargerAlbedo;  // 突撃兵（黒い忍者）
-    std::shared_ptr<Texture> m_ShieldAlbedo;   // 盾兵（紺の警官）
-    std::shared_ptr<Texture> m_BurrowerAlbedo; // 砂潜り
-    std::shared_ptr<Texture> m_SandMageAlbedo; // 砂嵐の術師
-    std::shared_ptr<Texture> m_DashBomberAlbedo; // 突撃爆弾兵（灰色ロボット）
     // 描画リスト毎の皮・飾り（SetListLook）。
     // 飾りの submesh 毎の間接引数は生きている一覧用と砕け中の一覧用の 2 組（InstanceCount はそのリストの一覧から）
     std::shared_ptr<Texture> m_ListLookAlbedo[Swarm::kEnemyKinds];
@@ -1018,6 +965,9 @@ private:
     void CopyListDecoCounts();                  // RenderOpaque：一覧の長さ → 飾りの InstanceCount（遺跡の敵の予告の帯も）
     void CopyCorpseDecoCounts();                // DispatchCorpses：砕け中の一覧の長さ → 飾りの InstanceCount
     void RenderListDecorations(uint32_t list);  // RenderOpaque：そのリストの体の直後（VS・CB・SRV はそのまま使う）
+    // 描画リストのテクスチャ（null = 雑魚の材質の物）
+    Texture* ListAlbedo(uint32_t list) const { return list < Swarm::kEnemyKinds ? m_ListLookAlbedo[list].get() : nullptr; }
+
     // ---- 遺跡の敵（中身は SwarmSystemRuins.cpp）----
     std::shared_ptr<ComputeShader> m_KindList2CS;     // 生きている一覧（呪いの鎧 / ガーゴイル / 死霊術師 / 骸骨 / 鎖の番人）
     std::shared_ptr<ComputeShader> m_CorpseList2CS;   // 砕け中の一覧（Boss・砂嵐の術師・突撃爆弾兵・遺跡の敵）
@@ -1040,64 +990,38 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_LodNearBuffer, m_LodFarBuffer, m_LodCountBuffer, m_LodFarArgs;
     Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LodNearUAV, m_LodFarUAV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_LodNearSRV, m_LodFarSRV, m_LodCountSRV;
-    void DispatchCorpseList2(const void* corpseListCB);
-    // ---- 面の固定エリート（中身は SwarmSystemElites.cpp）----
-    std::shared_ptr<ComputeShader> m_CorpseList3CS;   // 砕け中の一覧（固定エリート A / B）
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EliteInfoBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EliteInfoUAV;
-    static constexpr int kEliteStaging = 3;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EliteStaging[kEliteStaging];
-    bool m_EliteStagingFilled[kEliteStaging] = {};
-    int  m_EliteStagingWrite = 0;
-    Swarm::EliteInfoBlock m_EliteInfo;
-    uint32_t m_EliteInfoSerial = 0;
-    uint32_t m_KillAllCount = 0;
-    bool LoadEliteAssets(ID3D11Device* device);
-    void ClearEliteInfo();
-    void CopyEliteInfoForCPU();
-    void ReadEliteInfo();
-    void DispatchCorpseList3(const void* corpseListCB);
-    // ---- 吸血（中身は SwarmSystemLifesteal.cpp）----
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_LifestealBuffer;   // +0: 吸血の印の敵が失った HP（固定小数、永久に累積）
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LifestealUAV;
-    static constexpr int kLifestealStaging = 3;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_LifestealStaging[kLifestealStaging];
-    bool m_LifestealStagingFilled[kLifestealStaging] = {};
-    bool m_LifestealStagingStale[kLifestealStaging] = {};   // KillAll の前の写し（前回値だけ進める。m_TriggerStagingStale）
-    int  m_LifestealStagingWrite = 0;
-    uint32_t m_LifestealLast = 0;
-    bool  m_LifestealSeen = false;
-    float m_LifestealPending = 0.0f;
-    bool CreateLifestealReadback(ID3D11Device* device);
-    // ---- 優先度なしの一番近い敵（中身は SwarmSystemCloseTarget.cpp）----
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CloseTargetBuffer;   // +0 key / +4 位置 / +16 距離（MoveCS u4 → AimResolveCS u1）
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CloseTargetUAV;
-    static constexpr int kCloseTargetStaging = 3;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_CloseTargetStaging[kCloseTargetStaging];
-    bool m_CloseTargetStagingFilled[kCloseTargetStaging] = {};
-    int  m_CloseTargetStagingWrite = 0;
-    DirectX::SimpleMath::Vector3 m_CloseTargetPos;
-    float m_CloseTargetDist = 1.0e30f;
-    uint32_t m_CloseNearCount = 0;   // プレイヤーの 10m 以内の敵（+24）
-    bool CreateCloseTargetReadback(ID3D11Device* device);
-    void CopyCloseTargetForCPU();
-    void ReadCloseTarget();
-    void CopyLifestealForCPU();
-    void ReadLifesteal();
-    // 描画リストのテクスチャ（null = 雑魚の材質の物）
-    Texture* ListAlbedo(uint32_t list) const
+
+    // --- 雑魚の部品アニメ（部品をノードで動かすモデルだけ。Kenney Blocky）---
+    // 表: [クリップ][フレーム][部品] の行列。行列は「焼いた姿勢の部品 → そのフレームの部品」の差分
+    //     （頂点は焼いた姿勢で入っているので、VS はこれを掛けるだけで動く）。
+    // クリップ: 0 待機 / 1 歩き / 2 近接攻撃。どれを出すかは VS が敵の状態から決める
+    struct EnemyAnimCB
     {
-        if (list < Swarm::kEnemyKinds && m_ListLookAlbedo[list]) return m_ListLookAlbedo[list].get();
-        if (list == Swarm::kDrawListBomber) return m_BomberAlbedo.get();
-        if (list == Swarm::kDrawListSplitter) return m_SplitterAlbedo.get();
-        if (list == Swarm::kDrawListBrute) return m_BruteAlbedo.get();
-        if (list == Swarm::kDrawListCharger) return m_ChargerAlbedo.get();
-        if (list == Swarm::kDrawListShield) return m_ShieldAlbedo.get();
-        if (list == Swarm::kDrawListBurrower) return m_BurrowerAlbedo.get();
-        if (list == Swarm::kDrawListSandMage) return m_SandMageAlbedo.get();
-        if (list == Swarm::kDrawListDashBomber) return m_DashBomberAlbedo.get();
-        return nullptr;
-    }
+        uint32_t part = 0;           // 今描いている submesh（描画毎に書き換える）
+        uint32_t partCount = 0;
+        uint32_t enabled = 0;        // 0 = 表が無い → VS は従来の procedural な揺れ
+        uint32_t mode = 0;           // 0 = 部品（part）と一緒に動く、1 = Boss の飾りで体の軸の周りを回る、2〜6 は BossDecoration を参照
+        uint32_t clipStart[4] = {};  // 表の中の最初のフレーム番号
+        uint32_t clipFrames[4] = {};
+        float    clipLength[4] = {}; // 秒
+        float    time = 0.0f;        // 待機に使う時計（秒）
+        float    walkRate = 1.0f;    // 歩きの再生速度
+        float    orbitSpeed = 0.0f;  // mode 1 の回る速さ rad/s
+        float    hunch = 0.0f;       // 猫背（狼人）：0 以外なら hunchPivot.xyz（腰）を通る横軸の周りに部品ごと前へ倒す rad（歩くと更に深く）
+        float    flap[4] = {};       // mode 2（ガーゴイルの翼）：付け根 xyz、w = +1 右 / -1 左
+        float    hinge[4] = {};      // 第 2 関節（狼人の膝 / 骸の王の肘）：xyz、w = 曲げ rad（0 = 無し）
+        float    hunchPivot[4] = {}; // 猫背の軸（狼人の腰）：xyz、w は未使用
+    };
+    static_assert(sizeof(EnemyAnimCB) == 128, "EnemyAnimCB layout mismatch");
+    EnemyAnimCB m_EnemyAnim;
+    const char* m_AnimClips[3] = { "", "", "" };   // 待機 / 歩き / 攻撃 のクリップ名（BuildEnemyModel が入れる）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>             m_PartAnimBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_PartAnimSRV;
+    float m_AnimClock = 0.0f;
+    // 焼いた姿勢（bakeClip の bakeFrac）と rootTransform から表を作る。失敗したら enabled = 0 のまま
+    bool BuildEnemyPartAnim(ID3D11Device* device, const char* modelPath,
+        const char* bakeClip, float bakeFrac, const DirectX::SimpleMath::Matrix& rootTransform,
+        size_t partCount);
 
     // ---- 突撃兵・盾兵・凍結の見た目（中身は SwarmSystemKinds.cpp）----
     // CompactCS は UAV が 8 本で埋まっているので、突撃兵・盾兵の一覧は SwarmEnemyKindListCS が別に作る
@@ -1128,33 +1052,9 @@ private:
     std::shared_ptr<Material>     m_MoundMaterial;
     std::shared_ptr<Model>        m_MoundModel;      // PrimitiveBuilder::CreateSphere（半径 1）
     std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_MoundDrawArgs;
-    // 砂嵐の術師の砂旋：砂旋そのものは描かず、砂埃と風源だけ
-    std::shared_ptr<ComputeShader> m_TornadoEmitCS;  // 足元の砂埃（TornadoDust のレシピ）
-    uint32_t m_TornadoDustVfx = 0;                   // レシピ表の番号。0 = 無し
-    void DispatchTornadoEmit(float dt, float totalTime);   // Flush の中、草の火の発射の直後
-    // 局所の風源：砂旋 → Swarm::WindSource の表（kMaxWindSources 枠）。Flush の中、砂埃の直後
-    std::shared_ptr<ComputeShader> m_WindSourceCS;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindSourceBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindSourceSRV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindSourceCount;   // RAW 4B（InterlockedAdd の枠取り）
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceCountUAV;
-    // CPU の風源（AddWindBurst）：毎フレーム生きている物を Swarm::WindSource にして DYNAMIC の buffer へ（CS の t3）
-    std::vector<WindBurst> m_WindBursts;
-    std::vector<Swarm::WindSource> m_FrameWindSources;   // AddFrameWindSource（DispatchWindSources で表に足して空にする）
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindBurstBuffer;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindBurstSRV;
-    void DispatchWindSources(float dt);
-    // 風源の表のリードバック（CPU のマント・転がり草用）：DispatchWindSources の後に写し、次の Flush の頭で読む
-    static constexpr int kWindReadbackCount = 3;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_WindSourceStaging[kWindReadbackCount];
-    bool m_WindSourceStagingFilled[kWindReadbackCount] = {};
-    int  m_WindSourceStagingWrite = 0;
-    LocalWind m_LocalWind;
-    bool CreateWindSourceReadback(ID3D11Device* device);
-    void CopyWindSourcesForCPU();
-    void ReadWindSources();
-    // SwarmShieldVS / SwarmIceVS の b4
+    // 敵に付けて描くメッシュの b4（Shader/Swarm/SwarmPropMeshCB.hlsli）。
+    // 盾（SwarmShieldVS）・氷の塊（SwarmIceVS）・トゲ玉（SwarmSpikeBallVS）・砂山（SwarmMoundVS）で共用。
+    // 各フィールドの使い方は描くものごとに違う（表は hlsli 側）
     struct PropMeshCB
     {
         DirectX::SimpleMath::Vector3 anchor;   // モデル座標でこの点を hold に置く
@@ -1162,7 +1062,8 @@ private:
         DirectX::SimpleMath::Vector3 hold;
         float yaw;
         DirectX::SimpleMath::Vector4 tint;
-        float bob, alpha, _pad[2];
+        float param;                           // 盾 / 砂山 = 歩く時の上下の揺れ m、氷 = 0 前の塊 / 1 後ろの塊
+        float alpha, _pad[2];                  // alpha は氷だけ
     };
     static_assert(sizeof(PropMeshCB) == 64, "PropMeshCB layout mismatch");
     bool LoadKindAssets(ID3D11Device* device);       // LoadShaders の最後（雑魚のモデルの後）
@@ -1173,90 +1074,10 @@ private:
     void RenderIce(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
     void RenderChargeLines(CameraBase* camera);
 
-    // --- Boss の様子（CompactCS が書く 32B → staging 3 枚でリードバック。counter と同じ流儀で待たない）---
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_BossInfoBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_BossInfoUAV;
-    static constexpr int kBossStaging = 3;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_BossStaging[kBossStaging];
-    bool m_BossStagingFilled[kBossStaging] = {};
-    int  m_BossStagingWrite = 0;
-    Swarm::BossInfo m_BossInfo;
-    float m_MagnetTimer = 0.0f;   // MagnetAllOrbs の残り秒（> 0 の間 OrbMoveCS の吸い寄せ半径を場全体に）
-    void ReadBossInfo();   // 一番古い staging を読めたら m_BossInfo を更新（Flush の頭）
-
-    // --- プレイヤーが受けた打撃の向き（ContactCS u6 が永久に累積する 48B = Swarm::PlayerHitInfo → staging 3 枚、CPU は差分）---
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_PlayerHitBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_PlayerHitUAV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_PlayerHitStaging[kBossStaging];
-    bool m_PlayerHitStagingFilled[kBossStaging] = {};
-    int  m_PlayerHitStagingWrite = 0;
-    Swarm::PlayerHitInfo m_LastPlayerHits;   // 前回読んだ累計（差分の基準。counters と同じく戻さない）
-    PlayerHits m_PendingPlayerHits;          // 読んだ差分の未消費ぶん
-    void ReadPlayerHits();
-
-    // 生まれた範囲の数の累計。SwarmLiquidTrackCS が新しい範囲を見つけた時に足す。
-    //   [0] = カメラを揺らす範囲（kAreaShake）、[1 + vfxType] = GPU の VFX レシピ毎（命中の火花・爆発・土煙・毒の池 → 音）
-    // 永久に累積・CPU は差分（counters と同じ。SwarmCounters は変えない）
-    static constexpr uint32_t kAreaBirthSlots = 1 + Swarm::kAreaBirthKinds;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaBirthBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaBirthUAV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_AreaBirthStaging[kBossStaging];
-    bool     m_AreaBirthStagingFilled[kBossStaging] = {};
-    bool     m_AreaBirthStagingStale[kBossStaging] = {};   // KillAll の前の写し（前回値だけ進める。m_TriggerStagingStale）
-    int      m_AreaBirthStagingWrite = 0;
-    std::array<uint32_t, kAreaBirthSlots> m_LastAreaBirths = {};
-    uint32_t m_PendingShakes = 0;
-    std::array<uint32_t, Swarm::kAreaBirthKinds> m_PendingAreaBirths = {};
-    void ReadAreaBirths();
-
-    // --- 光線の標的（SwarmBeamTargetCS が毎フレーム書く 32B × kMaxBeams → staging 3 枚でリードバック）---
-    Swarm::BeamTargetCB m_CachedBeamTargetCB = {};
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_BeamTargetBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_BeamTargetUAV;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_BeamTargetStaging[kBossStaging];
-    bool m_BeamTargetStagingFilled[kBossStaging] = {};
-    int  m_BeamTargetStagingWrite = 0;
-    Swarm::BeamTarget m_BeamTargets[Swarm::kMaxBeams];   // 最後に読めた答え
-    void DispatchBeamTargets();   // Flush の固定ステップの後（敵の位置が決まってから）
-    void ReadBeamTargets();
-
-    // --- 雑魚の部品アニメ（部品をノードで動かすモデルだけ。Kenney Blocky）---
-    // 表: [クリップ][フレーム][部品] の行列。行列は「焼いた姿勢の部品 → そのフレームの部品」の差分
-    //     （頂点は焼いた姿勢で入っているので、VS はこれを掛けるだけで動く）。
-    // クリップ: 0 待機 / 1 歩き / 2 近接攻撃。どれを出すかは VS が敵の状態から決める
-    struct EnemyAnimCB
-    {
-        uint32_t part = 0;           // 今描いている submesh（描画毎に書き換える）
-        uint32_t partCount = 0;
-        uint32_t enabled = 0;        // 0 = 表が無い → VS は従来の procedural な揺れ
-        uint32_t mode = 0;           // 0 = 部品（part）と一緒に動く、1 = Boss の飾りで体の軸の周りを回る、2〜6 は BossDecoration を参照
-        uint32_t clipStart[4] = {};  // 表の中の最初のフレーム番号
-        uint32_t clipFrames[4] = {};
-        float    clipLength[4] = {}; // 秒
-        float    time = 0.0f;        // 待機に使う時計（秒）
-        float    walkRate = 1.0f;    // 歩きの再生速度
-        float    orbitSpeed = 0.0f;  // mode 1 の回る速さ rad/s
-        float    hunch = 0.0f;       // 猫背（狼人）：0 以外なら hinge.xyz（腰）を通る横軸の周りに部品ごと前へ倒す rad（歩くと更に深く）
-        float    flap[4] = {};       // mode 2（ガーゴイルの翼）：付け根 xyz、w = +1 右 / -1 左
-        float    hinge[4] = {};      // mode 4 の第 2 関節（狼人の膝）：xyz = 膝、w = 曲げ rad（0 = 無し）。hunch の時は xyz = 腰
-    };
-    static_assert(sizeof(EnemyAnimCB) == 112, "EnemyAnimCB layout mismatch");
-    EnemyAnimCB m_EnemyAnim;
-    const char* m_AnimClips[3] = { "", "", "" };   // 待機 / 歩き / 攻撃 のクリップ名（BuildEnemyModel が入れる）
-    Microsoft::WRL::ComPtr<ID3D11Buffer>             m_PartAnimBuffer;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_PartAnimSRV;
-    float m_AnimClock = 0.0f;
-    // 焼いた姿勢（bakeClip の bakeFrac）と rootTransform から表を作る。失敗したら enabled = 0 のまま
-    bool BuildEnemyPartAnim(ID3D11Device* device, const char* modelPath,
-        const char* bakeClip, float bakeFrac, const DirectX::SimpleMath::Matrix& rootTransform,
-        size_t partCount);
-
+    // ================================================================
+    // 雑魚の上と足元の描画（HP バー・丸い影・地面の警告の輪）
+    // ================================================================
     // --- 雑魚の HP バー ---
-    // 生成時の hp（固定小数、スロット毎）。SpawnEnemyCS / RecycleCS が書き、バーの VS が割る。
-    // Enemy 本体（48B）に場所が無いので横に持つ
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyMaxHpBuffer;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyMaxHpUAV;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyMaxHpSRV;
     // DrawInstancedIndirect: { 6 頂点, InstanceCount = 活き数（CopyStructureCount）, 0, 0 }
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_HpBarArgs;
     std::shared_ptr<VertexShader> m_HpBarVS;
@@ -1282,17 +1103,13 @@ private:
     std::shared_ptr<VertexShader> m_DropRingVS;
     void RenderDropRings(CameraBase* camera);
 
-    std::shared_ptr<ComputeShader> m_AimResolveCS;
-   // Phase 4: 最寄りの雑魚をリードバック用に書き出す
-    // 転送の「誰が何番目を取ったか」用。dispatch 前に 0 にする
-    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_RecycleClaim;
-    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_RecycleClaimUAV;
-    struct EnemyRenderCB
-    {
-        DirectX::SimpleMath::Matrix world = DirectX::SimpleMath::Matrix::Identity;
-        DirectX::SimpleMath::Matrix view;
-        DirectX::SimpleMath::Matrix proj;
-    };
+    // 地面の警告の輪（CPU の WarnCircle を毎フレーム書く動的 buffer → SwarmWarnRingVS + SwarmBomberRingPS）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>             m_WarnCircleBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_WarnCircleSRV;
+    int m_WarnCircleCount = 0;
+    std::shared_ptr<VertexShader> m_WarnRingVS;
+    void RenderWarnRings(CameraBase* camera);
+
     // SwarmEnemyHpBarVS / PS の b0（row_major なので Transpose しない）
     struct HpBarCB
     {
@@ -1313,23 +1130,9 @@ private:
         float clamp, _pad[3];
     };
     static_assert(sizeof(BlobShadowCB) == 160, "BlobShadowCB layout mismatch");
-    // SwarmCorpseVS の b4（砕け散り）
-    struct CorpseCB
-    {
-        uint32_t part = 0, partCount = 0;
-        float time = 0.0f, life = 0.9f;
-        float gravity = 18.0f, fling = 3.5f, up = 4.5f, spin = 9.0f;
-        float bounce = 0.35f, flash = 3.0f, flashTime = 0.08f, shrinkStart = 0.55f;
-        DirectX::SimpleMath::Vector4 pivot[8] = {};
-    };
-    static_assert(sizeof(CorpseCB) == 176, "CorpseCB layout mismatch");
-    // SwarmCorpseTrackCS / SwarmCorpseListCS の b4
-    struct CorpseTrackCB { float time; uint32_t on; uint32_t deathArea; uint32_t _pad; };
-    struct CorpseListCB { float time; float life; float _pad[2]; };
-    // RenderCorpses：そのリストの砕け散りの直後（SwarmCorpseVS）
-    void RenderCorpseDecorations(uint32_t list, CorpseCB& ccb);
-    // SwarmBomberRingVS / PS の b0（row_major なので Transpose しない）
-    struct BomberRingCB
+    // 地面の予告の印の b0（Shader/Swarm/SwarmGroundMarkCB.hlsli。row_major なので Transpose しない）。
+    // 自爆兵の円・警告の円・メテオの落下円・突進の帯で共用
+    struct GroundMarkCB
     {
         DirectX::SimpleMath::Matrix view;
         DirectX::SimpleMath::Matrix proj;
@@ -1338,48 +1141,249 @@ private:
         DirectX::SimpleMath::Vector4 back;
         float edgeWidth, lift, _pad[2];
     };
-    static_assert(sizeof(BomberRingCB) == 192, "BomberRingCB layout mismatch");
-    // SwarmOrbVS の b4（orbLook の動きの分）
-    struct OrbLookCB
+    static_assert(sizeof(GroundMarkCB) == 192, "GroundMarkCB layout mismatch");
+
+    // ================================================================
+    // 死んだ敵の砕け散り
+    // ================================================================
+    // prevAlive : 槽毎の前フレームの生死（SwarmCorpseTrackCS が「生 → 死」を見つける）
+    // corpses   : 環（Swarm::kMaxCorpses 枠）。corpseHead の [0] = 今までに書いた数
+    // 一覧      : 見た目毎（雑魚 / 自爆兵 / 幽霊）の砕け中の環の番号（SwarmCorpseListCS、append）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevAliveBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPrevAliveUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPrevAliveSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_CorpseSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseHead;   // RAW
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseHeadUAV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_CorpseListBuffer[Swarm::kEnemyKinds];
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CorpseListUAV[Swarm::kEnemyKinds];   // APPEND
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_CorpseListSRV[Swarm::kEnemyKinds];
+    std::vector<Microsoft::WRL::ComPtr<ID3D11Buffer>> m_CorpseDrawArgs[Swarm::kEnemyKinds];  // submesh 毎
+    std::shared_ptr<ComputeShader> m_CorpseTrackCS;
+    std::shared_ptr<ComputeShader> m_CorpseListCS;
+    std::shared_ptr<VertexShader>  m_CorpseVS;
+    DirectX::SimpleMath::Vector4   m_PartPivots[8] = {};   // 部品の付け根（焼いた姿勢のノードの原点。BuildEnemyPartAnim）
+    void DispatchCorpses();
+    void RenderCorpses(const DirectX::SimpleMath::Matrix& view, const DirectX::SimpleMath::Matrix& proj);
+    void DispatchCorpseList2(const void* corpseListCB);
+    std::shared_ptr<ComputeShader> m_CorpseList3CS;   // 砕け中の一覧（固定エリート A / B）
+    void DispatchCorpseList3(const void* corpseListCB);
+    // SwarmCorpseVS の b4（砕け散り）
+    struct CorpseCB
     {
-        float time, scale, bobHeight, bobSpeed;
-        float spinSpeed, pulseAmount, pulseSpeed, fullPullSpeed;
-        float stretchPerSpeed, stretchMax, tiltMax, pullGlow;
-        DirectX::SimpleMath::Vector4 idleColor;
-        DirectX::SimpleMath::Vector4 pullColor;
+        uint32_t part = 0, _pad0 = 0;
+        float time = 0.0f, life = 0.9f;
+        float gravity = 18.0f, fling = 3.5f, up = 4.5f, spin = 9.0f;
+        float bounce = 0.35f, flash = 3.0f, flashTime = 0.08f, shrinkStart = 0.55f;
+        DirectX::SimpleMath::Vector4 pivot[8] = {};
     };
-    static_assert(sizeof(OrbLookCB) == 80, "OrbLookCB layout mismatch");
-    // SwarmOrbPS の b1（b0 は LightBuffer）
-    struct OrbShadeCB
+    static_assert(sizeof(CorpseCB) == 176, "CorpseCB layout mismatch");
+    // SwarmCorpseTrackCS / SwarmCorpseListCS の b4
+    struct CorpseTrackCB { float time; uint32_t on; uint32_t deathArea; uint32_t _pad; };
+    static_assert(sizeof(CorpseTrackCB) == 16, "CorpseTrackCB: SwarmCorpseTrackCS の SwarmCorpseTrackCB と不一致");
+    struct CorpseListCB { float time; float life; float _pad[2]; };
+    static_assert(sizeof(CorpseListCB) == 16, "CorpseListCB: SwarmCorpseListCB.hlsli と不一致");
+    // RenderCorpses：そのリストの砕け散りの直後（SwarmCorpseVS）
+    void RenderCorpseDecorations(uint32_t list, CorpseCB& ccb);
+
+    // ================================================================
+    // 読み戻し（GPU → CPU。どれも StagingRing で 3 枚を輪転し、待たずに 2〜3 フレーム遅れで読む）
+    // ================================================================
+    // --- counter（CS が InterlockedAdd で書き、CPU がリードバック）---
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_CounterBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_CounterUAV;
+    std::shared_ptr<ComputeShader> m_ClearCountersCS;  // 子ステップ頭で counter を 0 に
+    StagingRing   m_CounterStaging;
+    SwarmCounters m_Counters;                // 最後に読めた値（読めなかったフレームは前回の値のまま）
+    float    m_PendingPlayerDamage = 0.0f;   // リードバックした分の未消費ぶん
+    uint32_t m_LastKillCount = 0;            // 累計 counter の前回値（差分用）
+    uint32_t m_LastDamageTotal = 0;
+    uint32_t m_LastExpTotal = 0;
+    float    m_PendingExp = 0.0f;
+
+    // 誘発の環（ProjEndCS が書く）→ staging 3 枚でリードバック。総数は GPU 上で永久に累積、CPU は読んだ所まで覚える
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_TriggerBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_TriggerUAV;
+    StagingRing m_TriggerStaging;   // KillAll の前の写しは MarkStale：読んだ位置だけ進めて出来事は捨てる（下の環・吸血・生まれた範囲も同じ）
+    uint32_t m_TriggerRead = 0;                         // 読み終えた総数
+    std::vector<Swarm::TriggerEvent> m_TriggerEvents;   // 読んだが、まだ誰も取り出していない物
+    void ReadTriggerEvents();   // 一番古い staging を読めたら新しい分を m_TriggerEvents へ（Flush の頭）
+
+    // 敵の出来事の環（EnemyAICS・CorpseTrackCS が書く）→ 誘発の環と同じく staging 3 枚でリードバック
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyEventBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyEventUAV;
+    StagingRing m_EnemyEventStaging;
+    uint32_t m_EnemyEventRead = 0;
+    std::vector<Swarm::EnemyEvent> m_EnemyEvents;
+    void ReadEnemyEvents();
+
+    // ダメージの数字の環（SwarmDamageTextCS が書く）→ 同じく staging 3 枚でリードバック
+    std::shared_ptr<ComputeShader> m_DamageTextCS;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EnemyPrevHpBuffer;     // 槽毎に前フレームの hp（死んだ槽は 0。RecycleCS が上書きした槽は新しい hp + 印 SWARM_PREVHP_RECYCLED）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EnemyPrevHpUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_EnemyPrevHpSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_DamagePendingBuffer;   // float4 = 直接 / 毒素 / 経過秒 / 前フレームの毒素
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_DamagePendingUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_DamagePendingSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_DamageTextBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_DamageTextUAV;
+    StagingRing m_DamageTextStaging;
+    uint32_t m_DamageTextRead = 0;
+    std::vector<Swarm::DamageText> m_DamageTexts;
+    struct DamageTextCB { float step; float merge; uint32_t on; float poisonMerge; };
+    static_assert(sizeof(DamageTextCB) == 16, "DamageTextCB: SwarmDamageTextCS の SwarmDamageTextCB と不一致");
+    void DispatchDamageText(float dt);   // Flush の砕け散りの後
+    void ReadDamageTexts();
+
+    // --- Boss の様子（CompactCS が書く 32B → staging 3 枚でリードバック。counter と同じ流儀で待たない）---
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_BossInfoBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_BossInfoUAV;
+    StagingRing m_BossStaging;
+    Swarm::BossInfo m_BossInfo;
+    void ReadBossInfo();   // 一番古い staging を読めたら m_BossInfo を更新（Flush の頭）
+
+    // --- 面の固定エリートの様子（SwarmEnemyKindList2CS が書く EliteInfoBlock。中身は SwarmSystemElites.cpp）---
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_EliteInfoBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EliteInfoUAV;
+    StagingRing m_EliteStaging;
+    Swarm::EliteInfoBlock m_EliteInfo;
+    uint32_t m_EliteInfoSerial = 0;
+    bool LoadEliteAssets(ID3D11Device* device);
+    void ClearEliteInfo();
+    void CopyEliteInfoForCPU();
+    void ReadEliteInfo();
+
+    // --- プレイヤーが受けた打撃の向き（ContactCS u6 が永久に累積する 48B = Swarm::PlayerHitInfo → staging 3 枚、CPU は差分）---
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_PlayerHitBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_PlayerHitUAV;
+    StagingRing m_PlayerHitStaging;
+    Swarm::PlayerHitInfo m_LastPlayerHits;   // 前回読んだ累計（差分の基準。counters と同じく戻さない）
+    PlayerHits m_PendingPlayerHits;          // 読んだ差分の未消費ぶん
+    void ReadPlayerHits();
+
+    // 生まれた範囲の数の累計。SwarmAreaTrackCS が新しい範囲を見つけた時に足す。
+    //   [0] = カメラを揺らす範囲（kAreaShake）、[1 + vfxType] = GPU の VFX レシピ毎（命中の火花・爆発・土煙・毒の池 → 音）
+    // 永久に累積・CPU は差分（counters と同じ。SwarmCounters は変えない）
+    static constexpr uint32_t kAreaBirthSlots = 1 + Swarm::kAreaBirthKinds;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_AreaBirthBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_AreaBirthUAV;
+    StagingRing m_AreaBirthStaging;
+    std::array<uint32_t, kAreaBirthSlots> m_LastAreaBirths = {};
+    uint32_t m_PendingShakes = 0;
+    std::array<uint32_t, Swarm::kAreaBirthKinds> m_PendingAreaBirths = {};
+    void ReadAreaBirths();
+
+    // --- 光線の標的（SwarmBeamTargetCS が毎フレーム書く 32B × kMaxBeams → staging 3 枚でリードバック）---
+    Swarm::BeamTargetCB m_CachedBeamTargetCB = {};
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_BeamTargetBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_BeamTargetUAV;
+    StagingRing m_BeamTargetStaging;
+    Swarm::BeamTarget m_BeamTargets[Swarm::kMaxBeams];   // 最後に読めた答え
+    void DispatchBeamTargets();   // Flush の固定ステップの後（敵の位置が決まってから）
+    void ReadBeamTargets();
+    std::shared_ptr<ComputeShader> m_BeamTargetCS;     // 光線の標的（捕まえた敵 → 死んだら向きに近い敵へ）
+
+    // ---- 吸血（中身は SwarmSystemLifesteal.cpp）----
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_LifestealBuffer;   // +0: 吸血の印の敵が失った HP（固定小数、永久に累積）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_LifestealUAV;
+    StagingRing m_LifestealStaging;
+    uint32_t m_LifestealLast = 0;
+    bool  m_LifestealSeen = false;
+    float m_LifestealPending = 0.0f;
+    bool CreateLifestealReadback(ID3D11Device* device);
+    void CopyLifestealForCPU();
+    void ReadLifesteal();
+
+    // ---- 優先度なしの一番近い敵（中身は SwarmSystemNearestTarget.cpp）----
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_NearestTargetBuffer;   // Swarm::NearestTarget（MoveCS u4 → AimResolveCS u1）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_NearestTargetUAV;
+    StagingRing m_NearestTargetStaging;
+    DirectX::SimpleMath::Vector3 m_NearestTargetPos;
+    float m_NearestTargetDist = 1.0e30f;
+    uint32_t m_CloseNearCount = 0;   // プレイヤーの 10m 以内の敵（+24）
+    bool CreateNearestTargetReadback(ID3D11Device* device);
+    void CopyNearestTargetForCPU();
+    void ReadNearestTarget();
+
+    // ================================================================
+    // 局所の風源（砂旋・渦・CPU の突風）
+    // ================================================================
+    // 局所の風源：砂旋 → Swarm::WindSource の表（kMaxWindSources 枠）。Flush の中、砂埃の直後
+    std::shared_ptr<ComputeShader> m_WindSourceCS;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindSourceBuffer;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceUAV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindSourceSRV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindSourceCount;   // RAW 4B（InterlockedAdd の枠取り）
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_WindSourceCountUAV;
+    // CPU の風源（AddWindBurst）：毎フレーム生きている物を Swarm::WindSource にして DYNAMIC の buffer へ（CS の t3）
+    std::vector<WindBurst> m_WindBursts;
+    std::vector<Swarm::WindSource> m_FrameWindSources;   // AddFrameWindSource（DispatchWindSources で表に足して空にする）
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_WindBurstBuffer;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_WindBurstSRV;
+    void DispatchWindSources(float dt);
+    // 風源の表のリードバック（CPU のマント・転がり草用）：DispatchWindSources の後に写し、次の Flush の頭で読む
+    StagingRing m_WindSourceStaging;
+    LocalWind m_LocalWind;
+    bool CreateWindSourceReadback(ID3D11Device* device);
+    void CopyWindSourcesForCPU();
+    void ReadWindSources();
+
+    // ================================================================
+    // 粒子の発射（弾・範囲・草の火・陽炎・砂・砂旋の砂埃）
+    // ================================================================
+    // --- 発射予約（RAW UAV。毎フレーム 0 に戻す）---
+    // 1スレッドが k 個発射する時、スレッド番号では deadCount と比べられないので
+    // 原子的に予約して超過分を諦める。粒子 EmitCS のガードと同じ思想、別の形
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_EmitBudget;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_EmitBudgetUAV;
+    std::shared_ptr<ComputeShader> m_EmitCS;           // 弾から粒子を発射
+    std::shared_ptr<ComputeShader> m_FireEmitCS;     // 燃えている草から粒子を発射（Shader/Grass/GrassFireEmitCS）
+    GroundEmitInput m_SandHaze;     // 熱い砂の陽炎（World/SandField。同じ CS を入力を替えて）
+    bool m_HasSandHaze = false;
+    GroundEmitInput m_SandDust;     // 風に舞う砂（同じ CS の channel 1）
+    bool m_HasSandDust = false;
+    GroundEmitInput m_GrassFire;
+    bool m_HasGrassFire = false;
+    // 砂嵐の術師の砂旋：砂旋そのものは描かず、砂埃と風源だけ
+    std::shared_ptr<ComputeShader> m_TornadoEmitCS;  // 足元の砂埃（TornadoDust のレシピ）
+    uint32_t m_TornadoDustVfx = 0;                   // レシピ表の番号。0 = 無し
+    void DispatchTornadoEmit(float dt, float totalTime);   // Flush の中、草の火の発射の直後
+
+    // ================================================================
+    // その他（定数バッファの写し・VFX レシピ表・デバッグ表示・固定ステップ・計測）
+    // ================================================================
+    // --- 定数バッファ ---
+    DirectX::SimpleMath::Vector4 m_CarryColors[32] = {};   // SetCarryColors。SwarmEmitCS の b3、SwarmProjTrailVS の b2
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_FrameCB;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_SpawnCB;
+    Swarm::FrameCB m_CachedFrameCB;
+    Swarm::AICB m_CachedAICB;
+    Swarm::OrbCB m_CachedOrbCB;
+    Swarm::KindCB m_CachedKindCB;
+    Swarm::BeamCB m_CachedBeamCB = {};   // 光線の起点 / 終点（SetBeam）
+
+    // --- VFX レシピ表（起動時に1回。読み取り専用）---
+    SwarmVFXTable m_VFX;
+
+    // --- デバッグ表示（RenderDebug）---
+    std::shared_ptr<VertexShader> m_DebugVS;
+    std::shared_ptr<PixelShader>  m_DebugPS;
+    std::shared_ptr<VertexShader> m_DebugEnemyVS;
+    struct DebugCB
     {
-        float emissive, facet, rimGain, rimPower;
-        float glintGain, glintPower, _pad[2];
-        DirectX::SimpleMath::Vector4 rimColor;
+        DirectX::SimpleMath::Matrix view;
+        DirectX::SimpleMath::Matrix proj;
     };
-    static_assert(sizeof(OrbShadeCB) == 48, "OrbShadeCB layout mismatch");
-    // SwarmOrbEmitCS の b3
-    struct OrbEmitCB
-    {
-        uint32_t vfx;
-        float    minSpeed;
-        uint32_t _pad[2];
-    };
-    static_assert(sizeof(OrbEmitCB) == 16, "OrbEmitCB layout mismatch");
+    static_assert(sizeof(DebugCB) == 128, "DebugCB: SwarmDebugEnemyVS / SwarmDebugProjVS の SwarmDebugCB と不一致");
+
+    uint32_t m_KillAllCount = 0;   // KillAll を呼んだ回数（GetKillAllCount）
+
     // --- 固定ステップ ---
     float m_Accumulator = 0.0f;
     int   m_LastSubSteps = 0;
     uint32_t m_FrameSeed = 0;
-
-    // --- リードバック ---
-    GPUReadback m_Readback;
-    float    m_PendingPlayerDamage = 0.0f;   // リードバックした分の未消費ぶん
-    uint32_t m_LastKillCount = 0;            // 累計 counter の前回値（差分用）
-    uint32_t m_LastDamageTotal = 0;
-
-
-    uint32_t m_LastExpTotal = 0;
-    float    m_PendingExp = 0.0f;
-
 
     // --- 計測 ---
     double   m_FlushMs = 0.0;

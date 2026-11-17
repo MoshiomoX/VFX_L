@@ -23,7 +23,7 @@ namespace BossLooksDetail
             const int n = 10;
             for (int i = 0; i < n; ++i)
             {
-                const float a0 = 6.2831853f * (float)i / (float)n, a1 = 6.2831853f * (float)(i + 1) / (float)n;
+                const float a0 = DirectX::XM_2PI * (float)i / (float)n, a1 = DirectX::XM_2PI * (float)(i + 1) / (float)n;
                 const Vec3 p0(std::cos(a0) * r, y + std::sin(a0) * tilt, 0.03f + std::sin(a0) * r);
                 const Vec3 p1(std::cos(a1) * r, y + std::sin(a1) * tilt, 0.03f + std::sin(a1) * r);
                 b.Beam(p0, p1, 0.045f, c);
@@ -59,7 +59,7 @@ namespace BossLooksDetail
         b.Tube(Vec3(0.0f, 0.26f, 0.0f), Vec3(0.0f, 0.37f, 0.02f), 0.085f, 0.075f, kDjinnSkin, 10);
         for (int i = 0; i < 12; ++i)
         {
-            const float a = 6.2831853f * (float)i / 12.0f;
+            const float a = DirectX::XM_2PI * (float)i / 12.0f;
             b.Ball(Vec3(std::cos(a) * 0.15f, 0.29f - 0.03f * (std::max)(0.0f, std::sin(a)), 0.01f + std::sin(a) * 0.13f), 0.028f, kGold, 6, 3);
         }
         b.Ball(Vec3(0.0f, 0.22f, 0.17f), 0.045f, kDjinnRuby, 8, 4);
@@ -153,7 +153,7 @@ namespace BossLooksDetail
                 const float t = (float)i / (float)(n - 1);
                 const float y = -0.42f - 0.46f * t;
                 const float r = 0.15f * (1.0f - t) + 0.03f;
-                const float a = t * 3.5f * 6.2831853f + 3.1415927f * (float)strand;
+                const float a = t * 3.5f * DirectX::XM_2PI + DirectX::XM_PI * (float)strand;
                 const Vec3 c(std::cos(a) * r, y, std::sin(a) * r);
                 const float s = 0.05f * (1.0f - 0.55f * t);
                 const bool spark = (i % 7) == 3;
@@ -174,7 +174,7 @@ namespace BossLooksDetail
         std::uniform_real_distribution<float> u(0.0f, 1.0f);
         for (int i = 0; i < 12; ++i)
         {
-            const float a = 6.2831853f * ((float)i + 0.3f * u(rng)) / 12.0f;
+            const float a = DirectX::XM_2PI * ((float)i + 0.3f * u(rng)) / 12.0f;
             const float r = 0.30f + 0.06f * u(rng);
             const float y = -0.32f + 0.12f * u(rng);
             const Vec3 c(std::cos(a) * r, y, std::sin(a) * r);

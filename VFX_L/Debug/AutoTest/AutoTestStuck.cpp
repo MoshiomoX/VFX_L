@@ -38,7 +38,7 @@ void AutoTestStuck::Run()
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
         const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
 
         // 塞がったマス（外周の 1 マスは除く）を近い順に
         std::vector<std::pair<float, Vector3>> blocked;

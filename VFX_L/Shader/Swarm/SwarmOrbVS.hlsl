@@ -19,6 +19,7 @@
 #define SWARM_ORB_CB_REG b3
 #include "../Common/ModelCommon.hlsli"
 #include "../Common/SwarmCommon.hlsli"
+#include "../Common/MathConst.hlsli"
 
 StructuredBuffer<SwarmOrb> orbs : register(t0);
 Buffer<uint> orbStates : register(t1);
@@ -76,9 +77,9 @@ VS_OUTPUT main(VS_INPUT_INST input)
     // スロットごとの位相
     uint h = input.InstanceID * 2654435761u;
     h ^= h >> 15;
-    float phase = (float) (h & 0xFFFFu) * (6.2831853 / 65535.0);
+    float phase = (float) (h & 0xFFFFu) * (TWO_PI / 65535.0);
 
-    float attract = saturate(b._pad / max(g_FullPullSpeed, 1e-3));
+    float attract = saturate(b.attractSpeed / max(g_FullPullSpeed, 1e-3));
 
     // ---- 大きさ：脈動 ----
     float pulse = 1.0 + g_PulseAmount * sin(g_LookTime * g_PulseSpeed + phase * 1.7);

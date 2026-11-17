@@ -2,7 +2,7 @@
 // SwarmOrbMoveCS.hlsl
 // 経験玉のスロット 1 つにつき 1 スレッド。プレイヤーへ吸い寄せ、拾い、数える。
 //
-// 吸引の状態は SwarmOrb._pad に今の吸引の速さとして入っている：
+// 吸引の状態は SwarmOrb.attractSpeed に今の吸引の速さとして入っている：
 //   0     -> 待機、プレイヤーが吸引半径に入るのを待つ
 //   > 0   -> 吸引中。一度吸われたら、プレイヤーが半径から出ても
 //            放さない（CPU 版と同じ規則、
@@ -11,7 +11,7 @@
 // 拾うと amount（固定小数点 x100）を SWARM_CNT_EXP に足す。これは
 // 永久に累積し、CPU が差分を取る。
 //
-// 経験玉の position / velocity / _pad を書くのはここだけ。HitCS の後に走るので、
+// 経験玉の position / velocity / attractSpeed を書くのはここだけ。HitCS の後に走るので、
 // このステップで落ちた経験玉も既に見えている。
 //
 // velocity は見た目専用（SwarmOrbVS が宝石をその向きに傾け / 伸ばし、
@@ -45,7 +45,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float dz = g_PlayerPos.z - o.position.z;
     float distSq = dx * dx + dz * dz;
 
-    float speed = o._pad;
+    float speed = o.attractSpeed;
     bool attracted = speed > 0.0;
     float3 vel = float3(0, 0, 0);
 
@@ -81,11 +81,11 @@ void main(uint3 id : SV_DispatchThreadID)
 
     float targetY = SwarmTerrainHeight(terrainHeight, o.position.xz) + g_OrbY;
     o.position.y = lerp(o.position.y, targetY, 1.0 - exp(-12.0 * g_Step));
-    o._pad = speed;
+    o.attractSpeed = speed;
 
     orbs[i].position = o.position;
     orbs[i].velocity = vel;
-    orbs[i]._pad = speed;
+    orbs[i].attractSpeed = speed;
 
     uint prev2;
     counters.InterlockedAdd(SWARM_CNT_ALIVE_ORBS, 1u, prev2);

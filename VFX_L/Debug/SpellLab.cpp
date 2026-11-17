@@ -134,7 +134,7 @@ void SpellLab::SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, 
 {
     if (m_SwarmLeft <= 0 || !reg.Has<TransformComponent>(player)) return;
     const Vector3 pp = reg.Get<TransformComponent>(player).position;
-    const float groundY = swarm.GetAIParams().groundY;
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
     static const uint32_t kKinds[17] = { Swarm::kEnemyKindMob, Swarm::kEnemyKindBomber, Swarm::kEnemyKindSplitter, Swarm::kEnemyKindBrute,
         Swarm::kEnemyKindCharger, Swarm::kEnemyKindShield, Swarm::kEnemyKindGhost, Swarm::kEnemyKindSpikeBall, Swarm::kEnemyKindBurrower,
@@ -161,13 +161,13 @@ void SpellLab::SpawnSwarmStep(Registry& reg, Entity player, SwarmSystem& swarm, 
 
         for (int attempt = 0; attempt < 6; ++attempt)
         {
-            const float a = u01(m_Rng) * 6.2831853f;
+            const float a = u01(m_Rng) * DirectX::XM_2PI;
             const float d = 12.0f + 12.0f * u01(m_Rng);
             const Vector3 p(pp.x + std::sin(a) * d, 0.0f, pp.z + std::cos(a) * d);
             int gx = 0, gz = 0;
             grid.WorldToCell(p, gx, gz);
             if (kind != Swarm::kEnemyKindGhost && kind != Swarm::kEnemyKindDarkGhost && !grid.IsWalkable(gx, gz)) continue;   // 幽霊は壁も素通り
-            swarm.SpawnEnemy({ p.x, grid.SampleHeight(p.x, p.z) + groundY, p.z }, hp, speed, kind);
+            swarm.SpawnEnemy({ p.x, grid.SampleHeight(p.x, p.z) + centerAboveFeet, p.z }, hp, speed, kind);
             break;
         }
     }
@@ -245,10 +245,10 @@ void SpellLab::SpawnTargets(Registry& reg, Entity player, SwarmSystem& swarm, co
 {
     if (!reg.Has<TransformComponent>(player)) return;
     const Vector3 pp = reg.Get<TransformComponent>(player).position;
-    const float groundY = swarm.GetAIParams().groundY;
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
     auto put = [&](float dx, float dz, uint32_t kind)
     {
-        const Vector3 p(pp.x + dx, grid.SampleHeight(pp.x + dx, pp.z + dz) + groundY, pp.z + dz);
+        const Vector3 p(pp.x + dx, grid.SampleHeight(pp.x + dx, pp.z + dz) + centerAboveFeet, pp.z + dz);
         swarm.SpawnEnemy(p, hp, 0.0f, kind);
     };
     switch (pattern)
@@ -262,7 +262,7 @@ void SpellLab::SpawnTargets(Registry& reg, Entity player, SwarmSystem& swarm, co
     case 1:   // 周り 7m の輪に 12 体（範囲魔法・連鎖の見比べ用）
         for (int i = 0; i < 12; ++i)
         {
-            const float a = (float)i / 12.0f * 6.2831853f;
+            const float a = (float)i / 12.0f * DirectX::XM_2PI;
             put(std::sin(a) * 7.0f, std::cos(a) * 7.0f, Swarm::kEnemyKindMob);
         }
         snprintf(m_Message, sizeof(m_Message), "ring of 12");

@@ -46,7 +46,7 @@ void SwarmSystem::RenderWarnRings(CameraBase* camera)
 {
     if (!warnRing.enabled || m_WarnCircleCount <= 0 || !m_WarnRingVS || !m_BomberRingPS || !m_HeightSRV) return;
 
-    BomberRingCB cb;
+    GroundMarkCB cb;
     cb.view = camera->GetViewMatrix();
     cb.proj = camera->GetProjectionMatrix();
     cb.fill = warnRing.fill;
@@ -83,7 +83,7 @@ void SwarmSystem::RenderWarnRings(CameraBase* camera)
 // ============================================================
 // 雑魚の足元の丸い影
 // 活きている雑魚 1 体につき 1 枚の地面の板（6 頂点、頂点バッファ無し）。数は HP バーと同じ間接引数。
-// 四隅を高さ場に載せる（b1 の格子、b2 の groundY、t3 の高さ場）。深度テストあり・書き込み無し、
+// 四隅を高さ場に載せる（b1 の格子、b2 の centerAboveFeet、t3 の高さ場）。深度テストあり・書き込み無し、
 // premultiplied の AlphaBlend（黒 x a = 地面を a だけ暗くする）
 // ============================================================
 void SwarmSystem::RenderBlobShadows(CameraBase* camera)
@@ -102,7 +102,7 @@ void SwarmSystem::RenderBlobShadows(CameraBase* camera)
     m_BlobShadowPS->WriteBuffer(m_Context, 0, &cb);
     m_BlobShadowVS->WriteBuffer(m_Context, 1, &m_CachedFrameCB);
     m_BlobShadowVS->WriteBuffer(m_Context, 2, &m_CachedAICB);
-    m_BlobShadowVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);   // 氷の上で持ち上げる（g_IceOn）
+    m_BlobShadowVS->WriteBuffer(m_Context, 4, &m_CachedKindCB);   // 氷の上で持ち上げる（g_IceOn）
     if (m_IceMapSRV && m_PondTopSRV)
     {
         m_BlobShadowVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV.Get());
@@ -143,7 +143,7 @@ void SwarmSystem::RenderBomberRings(CameraBase* camera)
 {
     if (!bomberRing.enabled || !m_BomberRingVS || !m_BomberRingPS || !m_BomberRingArgs) return;
 
-    BomberRingCB cb;
+    GroundMarkCB cb;
     cb.view = camera->GetViewMatrix();
     cb.proj = camera->GetProjectionMatrix();
     cb.fill = bomberRing.fill;
@@ -154,9 +154,9 @@ void SwarmSystem::RenderBomberRings(CameraBase* camera)
     cb._pad[0] = cb._pad[1] = 0.0f;
     m_BomberRingVS->WriteBuffer(m_Context, 0, &cb);
     m_BomberRingPS->WriteBuffer(m_Context, 0, &cb);
-    // b2: groundY（足元の高さ）、b4: 爆発半径と導火線の長さ
+    // b2: centerAboveFeet（体の中心から足元までの高さ）、b4: 爆発半径と導火線の長さ
     m_BomberRingVS->WriteBuffer(m_Context, 2, &m_CachedAICB);
-    m_BomberRingVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);
+    m_BomberRingVS->WriteBuffer(m_Context, 4, &m_CachedKindCB);
 
     m_BomberRingVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_BomberRingVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
@@ -201,7 +201,7 @@ void SwarmSystem::RenderDropRings(CameraBase* camera)
 {
     if (!dropRing.enabled || !m_DropRingVS || !m_BomberRingPS) return;
 
-    BomberRingCB cb;
+    GroundMarkCB cb;
     cb.view = camera->GetViewMatrix();
     cb.proj = camera->GetProjectionMatrix();
     cb.fill = dropRing.fill;
@@ -212,7 +212,7 @@ void SwarmSystem::RenderDropRings(CameraBase* camera)
     cb._pad[0] = cb._pad[1] = 0.0f;
     m_DropRingVS->WriteBuffer(m_Context, 0, &cb);
     m_BomberRingPS->WriteBuffer(m_Context, 0, &cb);
-    m_DropRingVS->WriteBuffer(m_Context, 2, &m_CachedAICB);   // b2: groundY（着弾点から地面へ下ろす）
+    m_DropRingVS->WriteBuffer(m_Context, 2, &m_CachedAICB);   // b2: centerAboveFeet（着弾点から地面へ下ろす）
 
     m_DropRingVS->SetSRV(m_Context, "projectiles", m_ProjSRV.Get());
     m_DropRingVS->SetSRV(m_Context, "projStates", m_ProjStateSRV.Get());
@@ -267,7 +267,7 @@ void SwarmSystem::RenderHpBars(CameraBase* camera)
         m_HpBarVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV.Get());
         m_HpBarVS->SetSRV(m_Context, "g_PondTop", m_PondTopSRV.Get());
     }
-    m_HpBarVS->WriteBuffer(m_Context, 4, &m_CachedBomberCB);  // エリートの体格
+    m_HpBarVS->WriteBuffer(m_Context, 4, &m_CachedKindCB);  // エリートの体格
     m_HpBarPS->WriteBuffer(m_Context, 0, &cb);
 
     m_HpBarVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());

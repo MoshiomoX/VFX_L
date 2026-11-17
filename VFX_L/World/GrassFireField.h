@@ -88,7 +88,7 @@ public:
     DirectX::SimpleMath::Vector2 MapOrigin() const { return m_MapOrigin; }
     DirectX::SimpleMath::Vector2 MapSize() const { return m_MapSize; }
     // 燃えているマスからの粒子の入力（SwarmSystem::SetGrassFire）。出さない時 false
-    bool FillEmitInput(GrassFireEmitInput& out, const DirectX::SimpleMath::Vector3& camPos,
+    bool FillEmitInput(GroundEmitInput& out, const DirectX::SimpleMath::Vector3& camPos,
         ID3D11ShaderResourceView* ground, ID3D11ShaderResourceView* height) const;
 
     // Terrain パネルの後の「Grass Fire」。player があれば「Ignite at player」ボタンが出る

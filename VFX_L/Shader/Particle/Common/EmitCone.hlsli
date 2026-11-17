@@ -7,12 +7,13 @@
 
 #ifndef EMIT_CONE_HLSLI
 #define EMIT_CONE_HLSLI
+#include "../../Common/MathConst.hlsli"
 
 void EmitCone(GPUEmitter e, inout uint seed, out float3 pos, out float3 vel)
 {
     // 底面上のランダムオフセット（底面半径内）
     float r = sqrt(Random(seed)) * e.shapeSize.x;
-    float angle = Random(seed) * 6.28318530718;
+    float angle = Random(seed) * TWO_PI;
 
     // 底面のローカル座標系を構築
     float3 dir = normalize(e.direction);

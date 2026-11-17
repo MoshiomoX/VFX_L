@@ -147,7 +147,7 @@ void BossAttacks::Update(const Input& in, const GridWorld& grid, Output& out)
     if (m_Move != BossMove::DjinnShift && m_Move != BossMove::ShadowStep) m_Djinn.shiftSink = 0.0f;
     out.bossBurrow = (std::max)(m_BurrowSink, m_Djinn.shiftSink);   // 魔神の砂渡りも同じ沈み（GPU は撃てなくなる）
 
-    // ---- 四足の Boss の姿勢 → GPU の VS（BomberCB::bossChargePose）：雄鹿 = 突進（BossAttacksStag.cpp）、
+    // ---- 四足の Boss の姿勢 → GPU の VS（KindCB::bossChargePose）：雄鹿 = 突進（BossAttacksStag.cpp）、
     //      大サソリ = 毒針の尾（BossAttacksScorpion.cpp）、狼人 = 飛びかかりの放物線（UpdatePounce が書く）。他の Boss は 0 のまま ----
     if (m_Type == BossType::Stag) UpdateStagPose(in, out);
     else if (m_Type == BossType::Scorpion) UpdateScorpionPose(out);

@@ -5,7 +5,7 @@
 //   1.0 秒  Boss が門の口のすぐ前（StageDirector::bossIntroDelay / bossIntroFront）に煙と一緒に湧く（咆哮と曲は BattleAudio）
 //   湧いてから walkTime 秒、walkDir へ walkSpeed で歩く（技は出さない・体で殴らない）
 //   歩き終わり：その場で踏み込み（土煙・石・草が倒れる・揺れ）+ 画面の真ん中に Boss の名前
-// 動かすのは GPU の Boss の突進の指示（BomberCB::bossCharge*）。シーンが Frame を見て BossAttacks の代わりに書く
+// 動かすのは GPU の Boss の突進の指示（KindCB::bossCharge*）。シーンが Frame を見て BossAttacks の代わりに書く
 // ============================================================
 #pragma once
 #include <SimpleMath.h>

@@ -159,7 +159,7 @@ void WaterSurface::GatherStirs()
     const float dt = (std::min)(m_StirDt, 0.1f);
     m_StirDt = 0.0f;
     const auto& s = m_Settings;
-    if (!s.mobWake || !m_StirCS || !m_StirUAV || !m_EnemySRV || !m_EnemyStateSRV || !m_EnemyExtraSRV || !m_EnemySlowUAV || dt <= 0.0f) return;
+    if (!s.mobWake || !m_StirCS || !m_StirUAV || !m_EnemySRV || !m_EnemyStateSRV || !m_EnemyExtraSRV || !m_EnemyStatusUAV || dt <= 0.0f) return;
 
     StirCB cb = {};
     cb.mapOrigin = m_MapOrigin;
@@ -173,7 +173,7 @@ void WaterSurface::GatherStirs()
     cb.stepStrength = s.mobStepStrength;
     cb.stride = (std::max)(s.mobStride, 0.1f);
     cb.time = m_Time;
-    cb.groundY = m_EnemyGroundY;
+    cb.centerAboveFeet = m_EnemyCenterAboveFeet;
     cb.iceSlow = s.iceSlow;
     m_StirCS->WriteBuffer(ctx, 0, &cb);
     m_StirCS->Bind(ctx);
@@ -185,7 +185,7 @@ void WaterSurface::GatherStirs()
     m_StirCS->SetSRV(ctx, "g_Ice", m_IceSRV.Get());
     m_StirCS->SetUAV(ctx, "g_Stirs", m_StirUAV.Get());
     m_StirCS->SetUAV(ctx, "g_StirCount", m_StirCountUAV.Get());
-    m_StirCS->SetUAV(ctx, "g_EnemySlow", m_EnemySlowUAV);
+    m_StirCS->SetUAV(ctx, "g_EnemyStatus", m_EnemyStatusUAV);
     m_StirCS->BindUAVs(ctx);
     ctx->Dispatch((kEnemyThreads + 255) / 256, 1, 1);
     m_StirCS->UnbindSRVs(ctx);

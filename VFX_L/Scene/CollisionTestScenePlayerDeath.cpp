@@ -61,7 +61,7 @@ void CollisionTestScene::PushEnemiesAway(float radius)
     a.damage = 0.0f;
     a.tickInterval = 1.0f;                       // 出た最初のステップで 1 回だけ
     a.timeLeft = 0.05f;
-    a.flags = 15u << Swarm::kAreaBeamShift;      // 押しの強さ 1（AreaProfile と同じ 4 bit）
+    a.pushQ = Swarm::kAreaForceMaxQ;             // 押しの強さ 1
     m_Swarm.SpawnArea(a);
     m_Grass.AddGust(m_DeathFeet, radius);
     m_Debris.AddGust(m_DeathFeet, radius);

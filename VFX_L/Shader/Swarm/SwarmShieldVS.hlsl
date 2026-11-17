@@ -4,7 +4,7 @@
 // 盾兵 1 体に 1 インスタンス（盾の描画一覧、
 // 数は DrawIndexedInstancedIndirect）。メッシュはエフェクト用モデル
 // （Assets/VFX/Mesh/dun01.FBX）で、敵のピクセルシェーダーと
-// 既定の白テクスチャで描くので、色は g_ShieldTint になる。
+// 既定の白テクスチャで描くので、色は g_PropTint になる。
 //
 // メッシュは中心（g_MeshAnchor）が敵の座標系（x 右、y 足元から上、
 // z 前）の g_HoldOffset に来るように動かし、g_MeshScale で拡大して
@@ -15,28 +15,17 @@
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b5
+#define SWARM_KIND_CB_REG b5
 #include "../Common/ModelCommon.hlsli"
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> shieldList : register(t2);
-StructuredBuffer<float4> enemySlow : register(t4);
+StructuredBuffer<float4> enemyStatus : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
-// C++ 側の対応：SwarmSystem::PropMeshCB
-cbuffer SwarmPropMeshCB : register(b4)
-{
-    float3 g_MeshAnchor; // g_HoldOffset に置くモデル空間の点
-    float g_MeshScale;   // モデルの単位 -> m
-    float3 g_HoldOffset; // 敵の座標系、m（y は足元から）
-    float g_MeshYaw;     // ラジアン。置く前にメッシュを回す
-    float4 g_ShieldTint; // 頂点色（線形。PS が白テクスチャにこれを掛ける）
-    float g_BobAmount;   // 歩く時の上下の m
-    float g_PropAlpha;   // ここでは使わない（SwarmIceVS 用）
-    float2 _propPad;
-};
+#include "SwarmPropMeshCB.hlsli"   // g_PropTint = 盾の色、g_PropParam = 歩く時の上下の揺れ
 
 struct VS_INPUT_INST
 {
@@ -48,12 +37,7 @@ struct VS_INPUT_INST
     uint InstanceID : SV_InstanceID;
 };
 
-static const float3 kIceTint = float3(0.75, 1.05, 1.7); // SwarmEnemyVS と同じ
-
-float3 RotateY(float3 p, float s, float c)
-{
-    return float3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c);
-}
+#include "SwarmEnemyLook.hlsli"   // kIceTint、RotateY
 
 VS_OUTPUT main(VS_INPUT_INST input)
 {
@@ -67,8 +51,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
 
     SwarmEnemy e = enemies[slot];
-    bool frozen = enemySlow[slot].z > 0.0;
-    bool moving = dot(e.velocity.xz, e.velocity.xz) > 0.01 && !frozen && e.animIndex != 2u;
+    bool frozen = enemyStatus[slot].z > 0.0;
+    bool moving = dot(e.velocity.xz, e.velocity.xz) > 0.01 && !frozen && e.animIndex != SWARM_ANIM_STUN;
 
     float ms, mc;
     sincos(g_MeshYaw, ms, mc);
@@ -77,7 +61,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     float3 tangent = RotateY(input.Tangent, ms, mc);
 
     float footY = -(g_EnemyRadius + g_EnemyCapsuleHalf);
-    float bob = moving ? abs(sin(e.animTime * 9.0 + (float) slot * 0.37)) * g_BobAmount : 0.0;
+    float bob = moving ? abs(sin(e.animTime * 9.0 + (float) slot * 0.37)) * g_PropParam : 0.0;
     local += g_HoldOffset;
     local.y += footY + bob;
 
@@ -94,8 +78,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
     o.Normal = RotateY(normal, s, c);
     o.Tangent = RotateY(tangent, s, c);
     o.UV = input.UV;
-    o.Color = g_ShieldTint;
-    if (e.animIndex == 2u)
+    o.Color = g_PropTint;
+    if (e.animIndex == SWARM_ANIM_STUN)
     {
         float t = saturate(e.animTime / max(g_HitStun, 1e-4));
         o.Color.rgb *= lerp(g_HitFlash, 1.0, t);

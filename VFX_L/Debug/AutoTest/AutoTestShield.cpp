@@ -130,7 +130,7 @@ void AutoTestShield::Run(float dt)
         if (s_Real >= 12.0f)
         {
             const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-            m_Swarm.SpawnEnemy(Vector3(pp.x, m_Swarm.GetAIParams().groundY, pp.z + 2.5f), 100000.0f, 1.5f);
+            m_Swarm.SpawnEnemy(Vector3(pp.x, m_Swarm.GetAIParams().centerAboveFeet, pp.z + 2.5f), 100000.0f, 1.5f);
             AutoTestLog("shield contact: 1 mob at +Z 2.5m");
             s_NextLog = s_Real;
             s_Step = 8;

@@ -85,7 +85,7 @@ void main(uint3 id : SV_DispatchThreadID)
         return;
     if (orbStates[i] == SWARM_DEAD)
         return;
-    if (orbs[i]._pad <= g_OrbTrailMinSpeed) // _pad = 吸引の速さ（SwarmOrbMoveCS）
+    if (orbs[i].attractSpeed <= g_OrbTrailMinSpeed) // 吸引の速さ（SwarmOrbMoveCS が書く）
         return;
     srcPos = orbs[i].position;
     srcVel = orbs[i].velocity;

@@ -10,11 +10,10 @@
 //   - CAPSULE の範囲（光線）は始点 / 半径 / 終点を SwarmBeamCB
 //     （b3、CPU が毎フレーム書く）から取り、CPU がチャンネルを
 //     無効にしたら死ぬ。終点は AreaDamageCS 用に areaEnds（u3）へ
-//   - tickNow の bit 0 は「このステップでダメージを与える」、bit 1 は「最初の tick」。
-//     上位ビットは範囲の追加情報（毒素 / 飛沫、生成時に設定）で、
-//     触らない（SwarmCommon.hlsli の SWARM_AREA_TICK_*）
+//   - tickState の bit 0 は「このステップでダメージを与える」、bit 1 は「最初の tick」
+//     （SwarmAreaTypes.hlsli の SWARM_AREA_TICK_*）
 //
-// SwarmArea.tickNow の tick ビット / tickTimer / timeLeft を書くのはここだけ。
+// SwarmArea.tickState / tickTimer / timeLeft を書くのはここだけ。
 // ============================================================
 #include "../Common/SwarmCommon.hlsli"
 
@@ -54,7 +53,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     if ((a.flags & SWARM_AREA_CAPSULE) != 0u)
     {
-        uint ch = (a.flags >> SWARM_AREA_BEAM_SHIFT) & 0xFu;
+        uint ch = a.beamChannel;
         float4 s = g_BeamStart[ch];
         float4 e = g_BeamEnd[ch];
         if (ch >= SWARM_MAX_BEAMS || e.w <= 0.0)
@@ -67,14 +66,13 @@ void main(uint3 id : SV_DispatchThreadID)
         areaEnds[i] = float4(e.xyz, 1.0);
     }
 
-    // tickNow の上位ビットは範囲の追加情報（毒素、飛沫のみ）：残して tick のビットだけ変える
-    a.tickNow &= ~(SWARM_AREA_TICK_NOW | SWARM_AREA_TICK_FIRST);
+    a.tickState &= ~(SWARM_AREA_TICK_NOW | SWARM_AREA_TICK_FIRST);
     a.tickTimer -= g_Step;
     if (a.tickTimer <= 0.0)
     {
-        a.tickNow |= SWARM_AREA_TICK_NOW;
-        if ((a.tickNow & SWARM_AREA_TICK_SEEN) == 0u)
-            a.tickNow |= SWARM_AREA_TICK_FIRST | SWARM_AREA_TICK_SEEN; // 泥沼はこの tick でだけダメージを与える
+        a.tickState |= SWARM_AREA_TICK_NOW;
+        if ((a.tickState & SWARM_AREA_TICK_SEEN) == 0u)
+            a.tickState |= SWARM_AREA_TICK_FIRST | SWARM_AREA_TICK_SEEN; // 泥沼はこの tick でだけダメージを与える
         a.tickTimer += max(a.tickInterval, g_Step);
     }
 
@@ -84,6 +82,6 @@ void main(uint3 id : SV_DispatchThreadID)
 
     uint prev;
     counters.InterlockedAdd(SWARM_CNT_ALIVE_AREAS, 1u, prev);
-    if ((a.tickNow & SWARM_AREA_TICK_NOW) != 0u)
+    if ((a.tickState & SWARM_AREA_TICK_NOW) != 0u)
         counters.InterlockedAdd(SWARM_CNT_TICKING_AREAS, 1u, prev);
 }

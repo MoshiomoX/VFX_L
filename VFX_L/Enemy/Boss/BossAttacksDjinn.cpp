@@ -40,8 +40,8 @@ namespace
     float TurnToward(float a, float b, float maxStep)
     {
         float d = b - a;
-        while (d > 3.1415927f) d -= 6.2831853f;
-        while (d < -3.1415927f) d += 6.2831853f;
+        while (d > DirectX::XM_PI) d -= DirectX::XM_2PI;
+        while (d < -DirectX::XM_PI) d += DirectX::XM_2PI;
         return a + std::clamp(d, -maxStep, maxStep);
     }
     // 中心 foot・向き dir・半角 half・半径 r の扇にプレイヤーが居るか（すぐ近くなら向きは見ない）
@@ -130,12 +130,12 @@ void BossAttacks::StartDustDevils(const Input& in, const GridWorld& grid, Output
     const Vector3 c = Ground(grid, in.player.x, in.player.z);
     const int n = (std::max)(1, m_Djinn.phase2 ? djinn.devilCountPhase2 : djinn.devilCount);
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
-    const float base = u01(m_Rng) * 6.2831853f;
+    const float base = u01(m_Rng) * DirectX::XM_2PI;
     for (int k = 0; k < n; ++k)
     {
         DjinnDevil d;
         d.center = c;
-        d.angle = base + 6.2831853f * (float)k / (float)n;
+        d.angle = base + DirectX::XM_2PI * (float)k / (float)n;
         d.radius = djinn.devilRadiusStart;
         d.pos = Ground(grid, c.x + std::cos(d.angle) * d.radius, c.z + std::sin(d.angle) * d.radius);
         d.id = m_Djinn.nextDevilId++;

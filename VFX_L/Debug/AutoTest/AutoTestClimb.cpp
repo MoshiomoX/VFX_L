@@ -40,11 +40,11 @@ namespace
 // 周りの rMin〜rMax の歩けるマス（足元がプレイヤーより maxBelowDiff 以上低い所だけ = 崖の下）に雑魚 16 体
 void AutoTestClimb::SpawnRing(const Vector3& centre, float rMin, float rMax, float maxBelowDiff)
 {
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     int placed = 0;
     for (int k = 0; k < 64 && placed < 16; ++k)
     {
-        const float a = 6.2831853f * (float)k / 16.0f + 0.37f * (float)(k / 16);
+        const float a = DirectX::XM_2PI * (float)k / 16.0f + 0.37f * (float)(k / 16);
         const float r = rMin + (rMax - rMin) * (float)((k * 7) % 16) / 15.0f;
         const float x = centre.x + std::cos(a) * r, z = centre.z + std::sin(a) * r;
         int gx = 0, gz = 0;
@@ -149,7 +149,7 @@ void AutoTestClimb::Sample(const char* phase)
     std::vector<Swarm::Enemy> en;
     std::vector<uint32_t> st;
     if (!m_Swarm.DebugReadEnemies(en, st)) return;
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     int alive = 0, nearN = 0, up = 0, climbing = 0;
     for (size_t i = 0; i < en.size(); ++i)
     {
@@ -189,7 +189,7 @@ void AutoTestClimb::Run()
         cam.SetPitch(30.0f);
         cam.distance = 14.0f;
         cam.avoidOcclusion = false;
-        snprintf(line, sizeof(line), "climb start climbSpeed %.2f climbCost %.2f", m_Swarm.GetBomberParams().climbSpeed,
+        snprintf(line, sizeof(line), "climb start climbSpeed %.2f climbCost %.2f", m_Swarm.GetKindParams().climbSpeed,
             m_Swarm.GetFlowField().climbCostPerMeter);
         AutoTestLog(line);
         if (!SetupRock()) { m_AutoStep = 3; return; }

@@ -8,7 +8,7 @@
 #include "Graphics/Shader/VertexShader.h"
 #include "Graphics/Shader/PixelShader.h"
 #include "Graphics/Renderer/RenderStates.h"
-#include "Graphics/Renderer/Renderer.h"   // DissolveCB
+#include "Graphics/Renderer/Renderer.h"   // DissolveCB / MVPBuffer
 #include "Camera/CameraBase.h"
 #include "Graphics/Model/Model.h"
 #include "Graphics/Material/Material.h"
@@ -33,9 +33,9 @@ void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
     if (!corpse.enabled || !m_CorpseVS || !m_EnemyMaterial || !m_EnemyModel || m_CorpseDrawArgs[0].empty()) return;
 
     ID3D11SamplerState* samp = RenderStates::Get().LinearWrap();
-    EnemyRenderCB cb;
-    cb.view = view;
-    cb.proj = proj;
+    MVPBuffer cb;   // World は単位行列のまま
+    cb.View = view;
+    cb.Projection = proj;
     // Material::Bind は VS も入れ直すので、その後で砕け散りの VS に差し替える
     auto bindVS = [&]()
         {
@@ -44,13 +44,12 @@ void SwarmSystem::RenderCorpses(const Matrix& view, const Matrix& proj)
             m_CorpseVS->Bind(m_Context);
             m_CorpseVS->WriteBuffer(m_Context, 0, &cb);
             m_CorpseVS->WriteBuffer(m_Context, 2, &m_CachedAICB);     // 体の大きさ
-            m_CorpseVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB); // エリート・Boss の倍率、幽霊の見た目
+            m_CorpseVS->WriteBuffer(m_Context, 5, &m_CachedKindCB); // エリート・Boss の倍率、幽霊の見た目
             m_CorpseVS->SetSRV(m_Context, "corpses", m_CorpseSRV.Get());
         };
     bindVS();
 
     CorpseCB ccb;
-    ccb.partCount = m_EnemyAnim.partCount;
     ccb.time = m_AnimClock;
     ccb.life = corpse.life;
     ccb.gravity = corpse.gravity;
@@ -122,7 +121,7 @@ void SwarmSystem::RenderLiquids(CameraBase* camera, const LightBuffer& light)
 
     m_LiquidVS->SetSRV(m_Context, "areas", m_AreaSRV.Get());
     m_LiquidVS->SetSRV(m_Context, "areaStates", m_AreaStateSRV.Get());
-    m_LiquidVS->SetSRV(m_Context, "liquidTrack", m_LiquidTrackSRV.Get());
+    m_LiquidVS->SetSRV(m_Context, "areaTrack", m_AreaTrackSRV.Get());
     m_LiquidVS->SetSRV(m_Context, "heights", m_HeightSRV.Get());
     m_LiquidVS->SetSRV(m_Context, "recipeLiquid", m_VFX.GetRecipeLiquidSRV());
     m_LiquidVS->SetSRV(m_Context, "liquidDefs", m_VFX.GetLiquidDefSRV());
@@ -143,7 +142,7 @@ void SwarmSystem::RenderLiquids(CameraBase* camera, const LightBuffer& light)
     constexpr UINT kVerts = 16 * 16 * 6;   // LiquidCommon.hlsli の LIQUID_VERTS
     m_Context->DrawInstanced(kVerts, Swarm::kMaxAreas, 0, 0);
 
-    // 次のフレームの Compute が UAV として使うので外す（liquidTrack・areas）
+    // 次のフレームの Compute が UAV として使うので外す（areaTrack・areas）
     m_LiquidVS->UnbindSRVs(m_Context);
     m_LiquidPS->UnbindSRVs(m_Context);
     rs.Restore(m_Context);
@@ -275,9 +274,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
         m_LodActive = DispatchLodSplit(camera->GetPosition());
 
         // Boss の様子を staging へ（読むのは 2 フレーム後の Flush）
-        m_Context->CopyResource(m_BossStaging[m_BossStagingWrite].Get(), m_BossInfoBuffer.Get());
-        m_BossStagingFilled[m_BossStagingWrite] = true;
-        m_BossStagingWrite = (m_BossStagingWrite + 1) % kBossStaging;
+        m_BossStaging.Copy(m_Context, m_BossInfoBuffer.Get());
 
         // 種類毎の一覧の長さ → その種類の submesh 毎の InstanceCount
         for (uint32_t k = 0; k < Swarm::kEnemyKinds; ++k)
@@ -318,14 +315,14 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     PointLightManager::Get().BindPS(m_Context);   // t6/t7（雑魚とオーブ共通）
 
     // VS b0: VS.hlsl と同じ row_major なので Transpose しない
-    EnemyRenderCB cb;
-    cb.view = camera->GetViewMatrix();
-    cb.proj = camera->GetProjectionMatrix();
+    MVPBuffer cb;   // World は単位行列のまま
+    cb.View = camera->GetViewMatrix();
+    cb.Projection = camera->GetProjectionMatrix();
     m_EnemyVS->WriteBuffer(m_Context, 0, &cb);
     // VS b2: 被弾の閃光が g_HitStun / g_HitFlash を読む（b1 の FrameCB は VS では未使用）
     m_EnemyVS->WriteBuffer(m_Context, 2, &m_CachedAICB);
     // VS b5: 自爆兵の点滅と膨らみ
-    m_EnemyVS->WriteBuffer(m_Context, 5, &m_CachedBomberCB);
+    m_EnemyVS->WriteBuffer(m_Context, 5, &m_CachedKindCB);
 
     // PS b0: 光。cameraPosition は Renderer が DrawMesh の中でしか詰めないので自分で入れる
     LightBuffer l = light;
@@ -341,7 +338,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     m_EnemyVS->SetSRV(m_Context, "enemies", m_EnemySRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemyStates", m_EnemyStateSRV.Get());
     m_EnemyVS->SetSRV(m_Context, "enemyExtra", m_EnemyExtraSRV.Get());
-    m_EnemyVS->SetSRV(m_Context, "enemySlow", m_EnemySlowSRV.Get());   // 凍った敵は姿勢を止めて氷色に
+    m_EnemyVS->SetSRV(m_Context, "enemyStatus", m_EnemyStatusSRV.Get());   // 凍った敵は姿勢を止めて氷色に
     if (m_IceMapSRV && m_PondTopSRV)
     {
         m_EnemyVS->SetSRV(m_Context, "g_IceMap", m_IceMapSRV.Get());      // 氷の上の体を持ち上げる
@@ -401,15 +398,15 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     // 盾兵の盾（敵の一部なのでステンシル 2 のまま。赤い陣営の縁取りが盾まで回る）
     if (indirect)
     {
-        RenderShields(cb.view, cb.proj);
-        RenderSpikeBalls(cb.view, cb.proj);   // トゲ玉の体
-        RenderMounds(cb.view, cb.proj);       // 砂潜りの砂の山
+        RenderShields(cb.View, cb.Projection);
+        RenderSpikeBalls(cb.View, cb.Projection);   // トゲ玉の体
+        RenderMounds(cb.View, cb.Projection);       // 砂潜りの砂の山
         // 砂旋の体は CPU のエフェクト（Enemy/SandTornadoFx）が描くので、ここでは描かない
     }
     m_Context->OMSetDepthStencilState(RenderStates::Get().DepthDefault(), 0);   // 砕け散り・オーブはステンシル無し
 
     // ---- 死んだ敵の砕け散り（同じ網・同じ PS。VS だけ差し替え）----
-    RenderCorpses(cb.view, cb.proj);
+    RenderCorpses(cb.View, cb.Projection);
 
     // ---- 経験値オーブ（自発光の宝石）----
     // 全スロットを DrawInstanced し、死んだ物は VS が潰す
@@ -450,7 +447,7 @@ void SwarmSystem::RenderOpaque(CameraBase* camera, const LightBuffer& light)
     // ---- 凍った敵の氷（半透明。深度は読むだけなので不透明物の一番最後）----
     // 生きている敵の一覧から描くので、一覧を作った時だけ（敵の体と同じ）
     if (indirect)
-        RenderIce(cb.view, cb.proj);
+        RenderIce(cb.View, cb.Projection);
 }
 
 // ============================================================

@@ -13,7 +13,7 @@
 #define SWARM_AI_CB_REG b2
 #include "../Common/SwarmCommon.hlsli"
 
-StructuredBuffer<SwarmEnemy> spawnRequests : register(t0);
+StructuredBuffer<SwarmEnemySpawn> spawnRequests : register(t0);
 Buffer<uint> enemyStates : register(t1);
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 RWByteAddressBuffer claim : register(u1);
@@ -23,14 +23,13 @@ RWStructuredBuffer<uint> enemyMaxHp : register(u2);
 // 転送されると導火線は忘れる
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u3);
 // スロットごとの毒の減速: 転送された敵は新しい敵なので減速なし
-RWStructuredBuffer<float4> enemySlow : register(u4); // 減速 + 凍結
+RWStructuredBuffer<float4> enemyStatus : register(u4); // 減速 + 凍結
 RWStructuredBuffer<float4> enemyPush : register(u5); // ノックバック（突風）: 減速と一緒に消す
-RWStructuredBuffer<float4> enemyPoison : register(u6); // 溜まった毒素: これも消す
+RWStructuredBuffer<float2> enemyPoison : register(u6); // 溜まった毒素: これも消す
 // ダメージ数字用の前フレームの HP（SwarmDamageTextCS）:新しい生成時 HP + SWARM_PREVHP_RECYCLED にして、
 // 旧 HP と新 HP の差をここでダメージとして出さず、旧い敵の保留中の数字も捨てさせる。
-// （状態ワード用の UAV はもう残っていない: その属性 / 吸血ビットは新しい敵が初めて当たった時に書き直されるまで残るが、
-// HP が減る時は必ずその書き直しが伴う。毒素は上で消してある）
 RWBuffer<uint> prevHp : register(u7);
+RWStructuredBuffer<SwarmEnemyHitInfo> enemyHitInfo : register(u8); // 被弾の記録: 前の敵の属性・吸血の印も消す
 
 cbuffer SwarmRecycleCB : register(b1)
 {
@@ -65,16 +64,16 @@ void main(uint3 id : SV_DispatchThreadID)
     if (prev >= g_RecycleCount)
         return;
 
-    SwarmEnemy req = spawnRequests[g_RecycleOffset + prev];
+    SwarmEnemySpawn req = spawnRequests[g_RecycleOffset + prev];
     SwarmEnemyExtra extra;
-    extra.kind = req.animIndex;
+    extra.kind = req.kind;
     extra.fuse = 0.0;
-    req.animIndex = 0u;
-    enemies[i] = req;
+    enemies[i] = SwarmEnemyFromSpawn(req);
     enemyMaxHp[i] = req.hp;
     enemyExtra[i] = extra;
-    enemySlow[i] = float4(0, 0, 0, 0);
+    enemyStatus[i] = float4(0, 0, 0, 0);
     enemyPush[i] = float4(0, 0, 0, 0);
-    enemyPoison[i] = float4(0, 0, 0, 0);
+    enemyPoison[i] = float2(0, 0);
+    enemyHitInfo[i] = (SwarmEnemyHitInfo) 0;
     prevHp[i] = SWARM_PREVHP_RECYCLED | (req.hp & ~SWARM_PREVHP_RECYCLED);
 }

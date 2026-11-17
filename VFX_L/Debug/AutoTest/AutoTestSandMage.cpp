@@ -48,11 +48,11 @@ void AutoTestSandMage::Run()
             s_LastHp = hp.current;
         }
         s_BaseY = tf.position.y;
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         float hp = 15.0f, speed = 3.5f;
         m_Mobs.KindStats(Swarm::kEnemyKindSandMage, hp, speed);
         const float x = tf.position.x, z = tf.position.z + 12.0f;
-        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), hp, speed, Swarm::kEnemyKindSandMage);
+        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), hp, speed, Swarm::kEnemyKindSandMage);
         auto& cam = m_Camera.Camera();
         cam.SetYaw(0.0f);
         cam.SetPitch(24.0f);

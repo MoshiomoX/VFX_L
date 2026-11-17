@@ -18,6 +18,7 @@
 #include "Graphics/Material/Texture.h"
 #include "Graphics/PrimitiveBuilder.h"
 #include "Graphics/Renderer/RenderStates.h"
+#include "Graphics/Renderer/Renderer.h"   // DissolveCB
 #include "Manager/ResourceManager.h"
 
 using namespace DirectX::SimpleMath;
@@ -35,18 +36,6 @@ namespace
         float    pad1;
     };
     static_assert(sizeof(MeshDrawCB) == 32, "MeshDrawCB layout mismatch");
-
-    // Shader/Common/Dissolve.hlsli の DissolveCB（b1）。PS.hlsl が読むので必ず書く（threshold < 0 = 溶解なし）
-    struct DissolveOffCB
-    {
-        float tiling[2] = { 1, 1 };
-        float scroll[2] = { 0, 0 };
-        float threshold = -1.0f;
-        float edge = 0.0f;
-        float pad[2] = { 0, 0 };
-        float edgeColor[4] = { 0, 0, 0, 0 };
-    };
-    static_assert(sizeof(DissolveOffCB) == 48, "DissolveCB layout mismatch");
 
     // 参照が 0 になってから別のモデルに使うまでの秒数（生き残った粒子が消えるのを待つ）
     constexpr float kMeshReuseDelay = 8.0f;
@@ -260,7 +249,10 @@ void GPUParticleSystem::RenderMeshes(ID3D11DeviceContext* context, int firstPass
 
     LightBuffer light = m_Light;
     light.cameraPosition = m_Camera->GetPosition();
-    DissolveOffCB dissolve;
+    // Shader/Common/Dissolve.hlsli の DissolveCB（b1）。PS が読むので必ず書く（threshold < 0 = 溶解なし）
+    DissolveCB dissolve = {};
+    dissolve.tiling = { 1.0f, 1.0f };
+    dissolve.threshold = -1.0f;
 
     m_MeshVS->Bind(context);
     m_MeshVS->WriteBuffer(context, 2, &mvp);

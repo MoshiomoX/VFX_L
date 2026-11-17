@@ -24,7 +24,7 @@ struct LightBuffer
     // 環境光の半球の下 = 地面の色（下向きの面ほどこちら）。
     // Renderer::SetAmbientColor は両方に同じ色を入れる（= 従来の一様な環境光）
     Vector3 groundAmbientColor = { 0.1f, 0.1f, 0.1f };
-    float   padding5 = 0.0f;                    // 16バイト境界
+    float   padding3 = 0.0f;                    // 16バイト境界
 
     // 距離の霧（Lighting.hlsli の ApplyFog。陰影の後で fogColor へ寄せる）。
     // fogMax = 0 で無し（既定。戦闘シーンだけ SceneLighting が入れ、終わる時に切る）
@@ -62,27 +62,11 @@ struct LightBuffer
     // 雲の影（Lighting.hlsli の CloudSun）。地面を流れる太陽の陰り。cloudParams.x = 0 で無し（既定）
     Vector4 cloudParams = { 0.0f, 0.0f, 0.0f, 0.0f };       // x = 陰りの強さ, y = 1 / 雲の大きさ（1/m）, z = 覆う割合, w = 縁のぼかし
     Vector4 cloudOffset = { 0.0f, 0.0f, 0.0f, 0.0f };       // xy = 風で流れた距離（m）
-    // HLSL の LightBuffer はここまで
-
-    // ★ここから追加：各テクスチャの有無（1=あり, 0=なし）
-    float   hasAlbedo = 0.0f;
-    float   hasNormal = 0.0f;
-    float   hasMetallic = 0.0f;
-    float   hasRoughness = 0.0f;                // ← この4つで1行(16byte)
-
-    float   hasAO = 0.0f;
-    Vector3 padding3 = { 0,0,0 };           // ← float + float3 で1行(16byte)
-
-    // ★テクスチャ欠落時のフォールバック値
-    Vector3 defaultAlbedo = { 1.0f, 1.0f, 1.0f };
-    float   defaultMetallic = 0.0f;            // ← float3 + float で1行(16byte)
-
-    float   defaultRoughness = 1.0f;
-    Vector3 padding4 = { 0,0,0 };       // ← float + float3 で1行(16byte)
+    // HLSL の LightBuffer はここまで（C++ もここで終わり）
 };
 // HLSL の cbuffer は先頭からの並びをそのまま読む（Shader::WriteBuffer は反射した大きさだけ写す）
 static_assert(offsetof(LightBuffer, shadowViewProj) == 112, "LightBuffer: shadow block must follow the fog block");
 static_assert(offsetof(LightBuffer, toonParams) == 368, "LightBuffer: toon block must follow the shadow block");
 static_assert(offsetof(LightBuffer, aoViewProj) == 416, "LightBuffer: AO block must follow the toon block");
 static_assert(offsetof(LightBuffer, cloudParams) == 496, "LightBuffer: cloud block must follow the AO block");
-static_assert(offsetof(LightBuffer, hasAlbedo) == 528, "LightBuffer: HLSL part must end at 528 bytes");
+static_assert(sizeof(LightBuffer) == 528, "LightBuffer: Lighting.hlsli の cbuffer LightBuffer と大きさが不一致");

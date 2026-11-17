@@ -6,7 +6,7 @@
 // コードで作り
 // （PrimitiveBuilder::CreateSpikeBall、半径 1、色は頂点に入っている）、
 // 敵のピクセルシェーダーと既定の白テクスチャで描くので、
-// 色は頂点カラー x g_ShieldTint になる。
+// 色は頂点カラー x g_PropTint になる。
 //
 // 玉は地面に乗り（中心 = 足元 + 半径）、種類の体格（SwarmKindScale）で
 // 拡大し、enemyRoll の向きで回す: SwarmEnemyMoveCS が
@@ -19,7 +19,7 @@
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b5
+#define SWARM_KIND_CB_REG b5
 #include "../Common/ModelCommon.hlsli"
 #include "../Common/SwarmCommon.hlsli"
 
@@ -27,21 +27,11 @@ StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<uint> spikeBallList : register(t2);
 StructuredBuffer<float4> enemyRoll : register(t3);   // スロットごとの向き（クォータニオン）、SwarmEnemyMoveCS
-StructuredBuffer<float4> enemySlow : register(t4);
+StructuredBuffer<float4> enemyStatus : register(t4);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 
-// C++ 側: SwarmSystem::PropMeshCB（SwarmShieldVS と同じブロック）
-cbuffer SwarmPropMeshCB : register(b4)
-{
-    float3 g_MeshAnchor; // 使わない（メッシュは原点中心）
-    float g_MeshScale;   // メッシュの半径 1 -> m（倍率 1 のときの体の半径）
-    float3 g_HoldOffset; // y = 倍率 1 のときの足元からの中心の高さ
-    float g_MeshYaw;     // 使わない
-    float4 g_ShieldTint; // 頂点カラーに掛ける
-    float g_BobAmount;   // 使わない（転がる速さは BomberCB の g_SpikeBallRollPerMeter として MoveCS へ）
-    float g_PropAlpha;   // 使わない
-    float2 _propPad;
-};
+// 転がる速さはここではなく KindCB の g_SpikeBallRollPerMeter として MoveCS へ
+#include "SwarmPropMeshCB.hlsli"   // g_MeshScale = 体の半径、g_HoldOffset.y = 中心の高さ
 
 struct VS_INPUT_INST
 {
@@ -53,7 +43,7 @@ struct VS_INPUT_INST
     uint InstanceID : SV_InstanceID;
 };
 
-static const float3 kIceTint = float3(0.75, 1.05, 1.7); // SwarmEnemyVS と同じ
+#include "SwarmEnemyLook.hlsli"   // kIceTint
 
 VS_OUTPUT main(VS_INPUT_INST input)
 {
@@ -67,7 +57,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
 
     SwarmEnemy e = enemies[slot];
-    bool frozen = enemySlow[slot].z > 0.0;
+    bool frozen = enemyStatus[slot].z > 0.0;
     float k = SwarmKindScale(ex.kind);
     float radius = g_MeshScale * k;
 
@@ -83,8 +73,8 @@ VS_OUTPUT main(VS_INPUT_INST input)
     o.Normal = normal;
     o.Tangent = float3(1, 0, 0);
     o.UV = input.UV;
-    o.Color = input.Color * g_ShieldTint;
-    if (e.animIndex == 2u)
+    o.Color = input.Color * g_PropTint;
+    if (e.animIndex == SWARM_ANIM_STUN)
     {
         float t = saturate(e.animTime / max(g_HitStun, 1e-4));
         o.Color.rgb *= lerp(g_HitFlash, 1.0, t);

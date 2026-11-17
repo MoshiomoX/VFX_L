@@ -116,7 +116,7 @@ void AutoTestSand::Run()
     }
     if (m_AutoStep == 4 && m_AutoTime >= 3.0f)
     {
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         for (int k = 0; k < 20; ++k)
         {
             const float a = 2.39996f * (float)k, r = 9.0f + 3.0f * std::fmod(0.618f * (float)k, 1.0f);

@@ -182,7 +182,7 @@ bool EliteAttacks::Spawn(const GridWorld& grid, SwarmSystem& swarm, const Vector
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
     for (int attempt = 0; attempt < 24; ++attempt)
     {
-        const float ang = u01(m_Rng) * 6.2831853f;
+        const float ang = u01(m_Rng) * DirectX::XM_2PI;
         const float r = ringMin + (ringMax - ringMin) * u01(m_Rng);
         const Vector3 p = player + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
         int gx = 0, gz = 0;
@@ -205,12 +205,12 @@ bool EliteAttacks::SpawnAt(const GridWorld& grid, SwarmSystem& swarm, const Vect
     if (m_Elites.size() >= Swarm::kMaxEliteInfo) return false;   // GPU から様子が返る数まで
     const EliteType type = ranged ? m_TypeB : m_TypeA;
     const TypeTuning& tt = tune[(int)type];
-    const float groundY = swarm.GetAIParams().groundY;
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
     int n = 0;
     for (int b = 0; b < kEliteAffixCount; ++b) if (affixes & (1u << b)) ++n;
     const float h = hp * tt.hpMul * (1.0f + affixHpMul * (float)n);
     const Vector3 ground = Ground(grid, p);
-    swarm.SpawnEnemy({ ground.x, ground.y + groundY, ground.z }, h, tt.speed,
+    swarm.SpawnEnemy({ ground.x, ground.y + centerAboveFeet, ground.z }, h, tt.speed,
         ranged ? Swarm::kEnemyKindEliteB : Swarm::kEnemyKindEliteA);
 
     Elite e;
@@ -345,7 +345,7 @@ void EliteAttacks::DebugReady()
 // ============================================================
 // GPU へ：面の体格と、見つかっている個体への指示（最大 kMaxEliteCmd 体）
 // ============================================================
-void EliteAttacks::WriteGpu(Swarm::BomberCB& cb) const
+void EliteAttacks::WriteGpu(Swarm::KindCB& cb) const
 {
     cb.fixedEliteAScale = tune[(int)m_TypeA].scale;
     cb.fixedEliteBScale = tune[(int)m_TypeB].scale;

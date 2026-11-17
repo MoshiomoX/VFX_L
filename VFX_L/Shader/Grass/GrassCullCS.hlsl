@@ -32,6 +32,7 @@
 #include "GrassCommon.hlsli"
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
+#include "../Common/MathConst.hlsli"
 
 Texture2D<float> g_Height : register(t0);  // GridWorld の高さ。テクセル中心 = 高さセルの中心
 Texture2D<float4> g_Ground : register(t1); // rgb = 地面の色（リニア）、a = 1 草あり / 0 無し
@@ -49,7 +50,13 @@ groupshared uint gs_Base;   // このグループが予約した最初のスロ�
 // 流れていく波 1 つの 0..1: ほとんど凪いでいて、波頭だけ鋭い
 float GustWave(float2 xz, float2 dir, float perMeter, float speed)
 {
-    float g = sin(dot(xz, dir) * perMeter * 6.2831853 - g_Time * speed) * 0.5 + 0.5;
+    // xz        : ワールド座標の水平成分（メートル単位）
+    // dir       : 波の進む方向（正規化されたベクトル）
+    // perMeter  : 1メートルあたりの波の数（周波数）
+    // TWO_PI    : 2π。1周期を 1 にするための係数
+    // g_Time    : 経過時間
+    // speed     : 波の移動速度
+    float g = sin(dot(xz, dir) * perMeter * TWO_PI - g_Time * speed) * 0.5 + 0.5;
     return g * g;
 }
 
@@ -84,7 +91,7 @@ void FinishBlade(float2 xz, float2 uv, float yaw, float curl, float rTwist, floa
     float g1 = GustWave(xz, g_WindDir, g_WindScale, g_WindSpeed);
     float g2 = GustWave(xz, g_Wave2.xy, g_Wave2.z, g_Wave2.w);
     float gust = g1 + g_BladeShape.z * g2 * (1.0 - g1);
-    float flutter = sin(g_Time * 3.1 + yaw * 5.0) * 0.15 + sin(g_Time * 9.3 + rPhase * 6.2831853) * 0.06 * gust;
+    float flutter = sin(g_Time * 3.1 + yaw * 5.0) * 0.15 + sin(g_Time * 9.3 + rPhase * TWO_PI) * 0.06 * gust;
     float2 bend = facing * curl
         + g_WindDir * (g_WindStrength * (0.25 + gust + flutter))
         + g_Trample.SampleLevel(s_Linear, uv, 0) * g_TrampleBend;
@@ -156,8 +163,9 @@ bool MakeBlade(uint3 id, out GrassBlade b)
     bool ok = false;
     if (id.x < g_CellCount.x && id.y < g_CellCount.y)
     {
+        
         int2 cell = g_CellMin + int2(id.xy);
-        uint seed = GrassHash(asuint(cell.x) * 73856093u ^ GrassHash(asuint(cell.y) * 19349663u));
+        uint seed = HashU32(asuint(cell.x) * 73856093u ^ HashU32(asuint(cell.y) * 19349663u));
         float jx = GrassRand(seed);
         float jz = GrassRand(seed);
         float2 xz = (float2(cell) + float2(jx, jz)) * g_Spacing;
@@ -187,7 +195,7 @@ bool MakeBlade(uint3 id, out GrassBlade b)
                 {
                     b.pos = float3(xz.x, y, xz.y);
                     b.height = lerp(g_HeightMin, g_HeightMax, GrassRand(seed)) * saturate((density - keep) / 0.08);
-                    float yaw = GrassRand(seed) * 6.2831853;
+                    float yaw = GrassRand(seed) * TWO_PI;
                     b.width = lerp(g_WidthMin, g_WidthMax, GrassRand(seed)) * min(rsqrt(max(density, 0.05)), 3.0);
                     float curl = GrassRand(seed) * g_CurlMax;
                     b.shade = 0.85 + 0.3 * GrassRand(seed);

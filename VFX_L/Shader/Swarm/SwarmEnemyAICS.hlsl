@@ -15,14 +15,15 @@
 //
 // 凍結（アイスランス）：HitCS が animIndex に要求を残す
 // （SWARM_ANIM_FREEZE_REQ、animTime = 秒）。このパスがそれを
-// enemySlow.z に変え、凍った敵を止めておく。
+// enemyStatus.z に変え、凍った敵を止めておく。
 // 突撃兵：突撃兵の enemyExtra.fuse を書くのはここだけ
 // （溜め -> 突進 -> 息切れ -> クールダウン、SwarmChargerPhase 参照）。突進の
 // 向きは溜めの開始時に設定した yaw（MoveCS は 0 でない速度の方へしか
 // yaw を回さないので、突撃兵が立っている間は保たれる）。
 // ============================================================
-#define SWARM_BOMBER_CB_REG b3
+#define SWARM_KIND_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
+#include "../Common/MathConst.hlsli"
 
 Buffer<uint> enemyStates : register(t0);
 StructuredBuffer<uint> terrain : register(t1);
@@ -33,13 +34,12 @@ StructuredBuffer<float> groundHeight : register(t5);          // 障害物を含
 StructuredBuffer<float> terrainHeight : register(t6);         // 崖は壁と同じく塞ぐ（SwarmSlopeOk）
 RWStructuredBuffer<SwarmEnemy> enemies : register(u0);
 // 減速（x 残り秒、y 量。AreaDamageCS）+ 凍結（z 残り秒、w 長さ / 免疫）、ここで減らしていく
-RWStructuredBuffer<float4> enemySlow : register(u1);
+RWStructuredBuffer<float4> enemyStatus : register(u1);
 // 種類 + 導火線。ContactCS が自爆兵の導火線に火を付け、このパスは突撃兵の分を回す
 RWStructuredBuffer<SwarmEnemyExtra> enemyExtra : register(u2);
-// 分裂リング（SwarmCorpseTrackCS がスプリッターの死をここに書く）：溜めを終えた砂嵐の術師は
-// 位置 + SWARM_KIND_SANDMAGE を書き、CPU がプレイヤーへ向けて砂旋を生成する
-RWByteAddressBuffer castEvents : register(u3);
-static const uint SWARM_MAX_SPLIT_EVENTS = 128u;   // Swarm::kMaxSplitEvents
+// 敵の出来事の環（SwarmCorpseTrackCS も書く）：術師の詠唱・番人の鎖・ガーゴイルの目覚め / 急降下 / 着地を
+// 位置 + 種類で書き、CPU（MobSpawner）が砂旋・骸骨・鎖・エフェクトを出す
+RWByteAddressBuffer enemyEvents : register(u3);
 // 砂旋が崖を調べる前方の距離と、それ以上上がれば崖とみなす高さ（World/CliffSteer.h の kProbe / kMaxRise と同じ値）
 static const float SWARM_TORNADO_PROBE = 0.6;
 static const float SWARM_TORNADO_MAX_RISE = 0.5;
@@ -70,14 +70,14 @@ bool TornadoBlocked(float2 here, float hHere, float2 dir)
     return blocked;
 }
 
-// 分裂リングの 1 要素：位置 + 種類（下位 16 ビット）| 何が起きたか（上位 16 ビット）
-void CastEvent(float3 pos, uint word)
+// 敵の出来事の環の 1 要素：位置 + 種類（下位 16 ビット）| 何が起きたか（上位 16 ビット）
+void PushEnemyEvent(float3 pos, uint word)
 {
     uint s;
-    castEvents.InterlockedAdd(0, 1u, s);
-    uint at = 16u + (s % SWARM_MAX_SPLIT_EVENTS) * 16u;
-    castEvents.Store3(at, asuint(pos));
-    castEvents.Store(at + 12u, word);
+    enemyEvents.InterlockedAdd(0, 1u, s);
+    uint at = 16u + (s % SWARM_MAX_ENEMY_EVENTS) * 16u;
+    enemyEvents.Store3(at, asuint(pos));
+    enemyEvents.Store(at + 12u, word);
 }
 
 // 詠唱する敵（砂嵐の術師 / 死霊術師 / 鎖の番人で共通）：fuse 0 = 準備完了 -> > 0 = 溜め（増えていく、
@@ -95,12 +95,12 @@ float CasterStep(uint i, float3 pos, float f, float windup, float cooldown, floa
         {
             uint word = kind;
             if (withYaw)
-                word |= ((uint) (frac(enemies[i].yaw / 6.2831853 + 1.0) * 65535.0 + 0.5) & 0xFFFFu) << 16;
-            CastEvent(pos, word);
+                word |= ((uint) (frac(enemies[i].yaw / TWO_PI + 1.0) * 65535.0 + 0.5) & 0xFFFFu) << 16;
+            PushEnemyEvent(pos, word);
             f = -cooldown;
         }
     }
-    if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != 2u && enemies[i].moveSpeed > 0.01
+    if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != SWARM_ANIM_STUN && enemies[i].moveSpeed > 0.01
         && abs(g_PlayerPos.y - pos.y) < 1.5)
     {
         float2 toP = g_PlayerPos.xz - pos.xz;
@@ -178,7 +178,7 @@ static const float kDirectChaseCells = 1.5;
 // 別の高さにあるセル（中心が敵の地面から kFlowLevelStep を超えて上 / 下）は
 // 除く：段々の台地の脇で、台地のセルの向き（ここ下からは通れない経路）が混ざり、
 // 敵を面 / 角へ向けてしまわないように
-static const float kFlowLevelStep = 1.5;   // = FlowField::maxStep
+static const float kFlowLevelStep = 1.5;   // = Swarm::kFlowMaxStep（FlowField::maxStep の既定値）
 float2 FlowAt(float2 xz, float groundH)
 {
     float fx = (xz.x - g_GridOrigin.x) / g_CellSize - 0.5;
@@ -276,7 +276,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
 
     // ---- 状態：減速（毒沼）と凍結（氷）。どの早期 return よりも前に減らす ----
-    float4 st = enemySlow[i];
+    float4 st = enemyStatus[i];
     float slowMul = 1.0;
     if (st.x > 0.0)
     {
@@ -311,7 +311,7 @@ void main(uint3 id : SV_DispatchThreadID)
         frozen = false;
         st = float4(0, 0, 0, 0);
     }
-    enemySlow[i] = st;
+    enemyStatus[i] = st;
 
     if (frozen)
     {
@@ -340,7 +340,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // 溜めを始める：プレイヤーが同じ高さ、範囲内、間に障害物なし。突進の
         // 向きはここで固定する（yaw）ので、地面の帯が行き先をそのまま示す
         // （moveSpeed 0 = 動いてはいけない訓練用の的：突進しない）
-        if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != 2u
+        if (f == 0.0 && g_PlayerAlive != 0u && enemies[i].animIndex != SWARM_ANIM_STUN
             && enemies[i].moveSpeed > 0.01 && abs(g_PlayerPos.y - pos.y) < 1.0)
         {
             float2 toP = g_PlayerPos.xz - pos.xz;
@@ -384,7 +384,7 @@ void main(uint3 id : SV_DispatchThreadID)
     }
 
     // ---- 砂嵐の術師：準備完了（fuse 0）-> 溜め（fuse が g_SandMageWindup まで増える、立ち止まる）-> 詠唱
-    //      （castEvents、CPU が砂旋を生成する）-> クールダウン（fuse < 0 が 0 まで増える）。プレイヤーが同じ
+    //      （enemyEvents、CPU が砂旋を生成する）-> クールダウン（fuse < 0 が 0 まで増える）。プレイヤーが同じ
     //      高さで g_SandMageCastRange 以内のときだけ。moveSpeed 0 = 訓練用の的：詠唱しない ----
     bool casting = false;
     if (extra.kind == SWARM_KIND_SANDMAGE)
@@ -416,7 +416,7 @@ void main(uint3 id : SV_DispatchThreadID)
     //      以内に来るか g_GargoyleAutoWake 経つと目覚める -> 目覚め中（震えて浮き上がる）-> 幽霊のようにプレイヤーへ飛ぶ
     //      -> プレイヤーが g_GargoyleDiveRange 以内：yaw を固定して空中で止まり（地面の帯）、それに沿って急降下し、
     //      着地して g_GargoyleLandTime だけ立つ（殴るチャンス）-> 浮き上がってまた飛ぶ。目覚め / 急降下 / 着地は
-    //      分裂リングへ送る（CPU が石くず・土煙・音を出す）。moveSpeed 0 = 訓練用の的：目覚めない ----
+    //      出来事の環へ送る（CPU が石くず・土煙・音を出す）。moveSpeed 0 = 訓練用の的：目覚めない ----
     bool gargStand = false, gargDive = false;
     if (extra.kind == SWARM_KIND_GARGOYLE)
     {
@@ -431,7 +431,7 @@ void main(uint3 id : SV_DispatchThreadID)
             if (enemies[i].moveSpeed > 0.01 && (near || -f >= g_GargoyleAutoWake))
             {
                 f = g_Step;
-                CastEvent(pos, SWARM_KIND_GARGOYLE | (0u << 16));
+                PushEnemyEvent(pos, SWARM_KIND_GARGOYLE | (0u << 16));
             }
         }
         else if (f < SWARM_GARGOYLE_DIVE)
@@ -442,7 +442,7 @@ void main(uint3 id : SV_DispatchThreadID)
             {
                 f = SWARM_GARGOYLE_DIVE + g_Step;
                 enemies[i].yaw = atan2(toP.x, toP.y);   // 急降下の線。ここで固定する
-                CastEvent(pos, SWARM_KIND_GARGOYLE | (1u << 16));
+                PushEnemyEvent(pos, SWARM_KIND_GARGOYLE | (1u << 16));
             }
         }
         else
@@ -451,7 +451,7 @@ void main(uint3 id : SV_DispatchThreadID)
             f += g_Step;
             float d1 = f - SWARM_GARGOYLE_DIVE;
             if (d0 < landAt && d1 >= landAt)
-                CastEvent(pos, SWARM_KIND_GARGOYLE | (2u << 16));
+                PushEnemyEvent(pos, SWARM_KIND_GARGOYLE | (2u << 16));
             // また飛ぶ：目覚めの震えを過ぎた所から再開し、なめらかに浮き上がらせる（SwarmGargoyleHover）
             if (d1 >= landAt + g_GargoyleLandTime)
                 f = 0.36 * g_GargoyleWakeTime;
@@ -500,7 +500,7 @@ void main(uint3 id : SV_DispatchThreadID)
             {
                 float want = atan2(face.x, face.y);
                 float dy = want - enemies[i].yaw;
-                dy -= 6.2831853 * floor((dy + 3.14159265) / 6.2831853);   // -pi..pi に回り込ませる
+                dy -= TWO_PI * floor((dy + PI) / TWO_PI);   // -pi..pi に回り込ませる
                 float turn = (ecmd == SWARM_ELITE_CMD_MOVE) ? 30.0 : 9.0;  // 固定した線へはすぐ向き、プレイヤーへは回って向く
                 enemies[i].yaw += clamp(dy, -turn * g_Step, turn * g_Step);
             }
@@ -514,7 +514,7 @@ void main(uint3 id : SV_DispatchThreadID)
     // 火の付いた自爆兵は爆発までその場に留まるので、プレイヤーは走って爆風から逃げられる。
     // 溜めを始めた突撃兵は怯まない（そうしないと攻撃を浴び続けて止められてしまう）
     bool lit = (extra.kind == SWARM_KIND_BOMBER) && (extra.fuse > 0.0);
-    bool stunned = (enemies[i].animIndex == 2u) && (cphase == SWARM_CHARGE_CHASE) && !dashing;
+    bool stunned = (enemies[i].animIndex == SWARM_ANIM_STUN) && (cphase == SWARM_CHARGE_CHASE) && !dashing;
     // 顔を出した砂潜りは出た場所に立つ（1 回噛んでからまた潜る）
     bool surfaced = (extra.kind == SWARM_KIND_BURROWER) && !buried;
     if (stunned || lit || surfaced || casting || dashWindup || gargStand || cphase == SWARM_CHARGE_WINDUP || cphase == SWARM_CHARGE_RECOVER)
@@ -648,7 +648,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 avoid = float3(0, 0, 0);
     float cs = g_CellSize;
     // 下りの崖はプレイヤーが低い所にいる間は開いている（SwarmDropAllowed）。回避とハードブロックで共用する
-    bool allowDrop = SwarmDropAllowed(terrainHeight, pos.xz, pos.y - g_GroundY);
+    bool allowDrop = SwarmDropAllowed(terrainHeight, pos.xz, pos.y - g_CenterAboveFeet);
     // （崖の面はわざと回避しない：台地の側面から押し離す力が
     // 敵を斜め隣の木々へ押し込んで詰まらせる）
     if (!ghost)
@@ -774,7 +774,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (!ghost && SwarmIsWalkable(terrain, pos))
     {
         float r = SwarmBodyWallRadius(extra.kind);   // MoveCS / PushCS と同じ体の半径
-        float feet = pos.y - g_GroundY;
+        float feet = pos.y - g_CenterAboveFeet;
         // 突進中の突撃兵は 2 ステップ先しか見ない：14 m/s だと普段の
         // 先読み（0.35 秒 = 5 m）では、プレイヤーの後ろにある壁の 5 m 手前で突進が終わってしまう
         float look = (cphase == SWARM_CHARGE_DASH || dashing || eliteDash) ? 2.0 * g_Step : g_LookAhead;

@@ -56,7 +56,7 @@ struct AreaStats
     // WeaponSystem::UpdateBeams が届いた敵の位置から次の光線を始める ---
     int chainCount = 0;
 
-    // --- 吸血:この範囲が敵に与えたダメージのこの割合をプレイヤーの HP に戻す（GPU には tickNow の印）---
+    // --- 吸血:この範囲が敵に与えたダメージのこの割合をプレイヤーの HP に戻す（GPU には Area::extra の印）---
     float lifesteal = 0.0f;
 
     // --- エディタのプロファイル（AreaProfileDB の番号。0 = 無し）---

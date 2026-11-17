@@ -13,7 +13,6 @@ using namespace DirectX::SimpleMath;
 
 namespace
 {
-    constexpr float kPi = 3.14159265f;
     // 目印を円の縁に留める半径（円の半径に対する比）。これより外の物は縁に寄せて小さく出す
     constexpr float kEdgeRatio = 0.90f;
 }
@@ -242,7 +241,7 @@ void HUDMinimap::Draw(SpriteRenderer& sprite, TextRenderer& text, ID3D11DeviceCo
             const float t = (pass == 0) ? thick + 2.0f : thick;
             const Vector4 col = (pass == 0) ? Vector4(0.0f, 0.0f, 0.0f, 0.8f) : s.minimapPlayerColor;
             for (float spread : { 0.62f, -0.62f })
-                sprite.Draw(white, { tip.x, tip.y - t * 0.5f }, { l, t }, col, ang + kPi + spread, tip);
+                sprite.Draw(white, { tip.x, tip.y - t * 0.5f }, { l, t }, col, ang + DirectX::XM_PI + spread, tip);
         }
         // 足元の点
         const float dot = (std::max)(3.0f, len * 0.3f);

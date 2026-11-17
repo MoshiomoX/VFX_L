@@ -26,6 +26,8 @@
 //   雨           雨セルごとに、このステップ確率 g_RainProb で 1 滴
 // それ以外に水を動かすものはない：原因がなければ平らなまま。
 // ============================================================
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"
 
 // WaterSurface::RippleCB と一致させること
 cbuffer WaterRippleCB : register(b0)
@@ -49,24 +51,9 @@ cbuffer WaterRippleCB : register(b0)
     float4 g_Impulse[16];   // x, z, 半径（負 = 大波）, 強さ（m、+ = 中心を押し下げる）
 };
 
-// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト
-struct RippleArea
-{
-    float3 center;
-    float radius;
-    float damage;
-    float timeLeft;
-    float tickInterval;
-    float tickTimer;
-    float halfHeight;
-    uint flags;
-    uint vfxType;
-    uint tickNow;
-};
-
 Texture2D<float4> g_In : register(t0);          // xy = 全部の波（現在、前ステップ）、zw = 大波のみ
 Texture2D<float> g_Mask : register(t1);          // 1 = 池
-StructuredBuffer<RippleArea> g_Areas : register(t2);
+StructuredBuffer<SwarmArea> g_Areas : register(t2);
 Buffer<uint> g_AreaStates : register(t3);        // 0 = 死亡
 Buffer<float> g_SeenIn : register(t4);           // 範囲スロットごと：水が前回見たときの timeLeft（0 = 空）
 StructuredBuffer<float4> g_Stirs : register(t5); // 水の中を歩く敵（WaterStirCS）：x, z, 半径, 強さ
@@ -76,30 +63,19 @@ RWTexture2D<float4> g_Out : register(u0);
 RWBuffer<float> g_SeenOut : register(u1);        // 次のフレーム用の同じもの（最初のステップでグループ 0 が書く）
 
 #define RIPPLE_SIZE 1024
-#define RIPPLE_MAX_AREAS 256u    // = SWARM_MAX_AREAS
 #define RIPPLE_MAX_SOURCES 32u
 #define RIPPLE_MAX_STIRS 128u    // = WaterSurface::kMaxStirs
-#define RIPPLE_AREA_CAPSULE 4u   // = SWARM_AREA_CAPSULE
-#define RIPPLE_AREA_SHAKE 8u     // = SWARM_AREA_SHAKE
 #define RIPPLE_ICE_SCALE 4u      // 氷 1 テクセルあたりの波紋テクセル数（WaterSurface::kIceSize）
 #define RIPPLE_ICE_SOLID 0.05    // これ以上で凍結：波は止まり、岸と同じように跳ね返る
 
 groupshared float4 gs_Source[RIPPLE_MAX_SOURCES];   // xz, 半径, 強さ
 groupshared uint gs_SourceCount;
 
-uint RippleHash(uint x)
-{
-    x ^= x >> 16;
-    x *= 0x7feb352du;
-    x ^= x >> 15;
-    x *= 0x846ca68bu;
-    x ^= x >> 16;
-    return x;
-}
+#include "../Common/Hash.hlsli"
 
 float RippleRand(uint x)
 {
-    return (float) (RippleHash(x) & 0xFFFFFFu) / 16777216.0;
+    return (float) (HashU32(x) & 0xFFFFFFu) / 16777216.0;
 }
 
 // なめらかな山：中心で 1、r で 0
@@ -139,25 +115,25 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_G
         float2 tileMin = g_MapOrigin + float2(gid.xy * 8u) * g_Texel;
         float2 tileMax = tileMin + 8.0 * g_Texel;
         bool firstGroup = all(gid.xy == uint2(0, 0));
-        for (uint k = gi; k < RIPPLE_MAX_AREAS; k += 64u)
+        for (uint k = gi; k < SWARM_MAX_AREAS; k += 64u)
         {
             bool alive = g_AreaStates[k] != 0u;
-            RippleArea a = g_Areas[k];
+            SwarmArea a = g_Areas[k];
             // 新しい = 前回はスロットが空だった、または時間が増えた（再利用スロットに入った新しい範囲）。
-            // tickNow の「初回 tick」は使わない：それは群れの 1 ステップしか続かず、群れが 1 フレームで
+            // tickState の「初回 tick」は使わない：それは群れの 1 ステップしか続かず、群れが 1 フレームで
             // 2 ステップ進んだとき（重いフレーム）は水が見る前に消える = 波紋の出ない爆発になる
             float seen = g_SeenIn[k];
             if (firstGroup)
                 g_SeenOut[k] = alive ? max(a.timeLeft, 1e-4) : 0.0;
             if (!alive || (seen > 0.0 && a.timeLeft <= seen + 1e-4))
                 continue;
-            if ((a.flags & RIPPLE_AREA_CAPSULE) != 0u || a.radius <= 0.0)
+            if ((a.flags & SWARM_AREA_CAPSULE) != 0u || a.radius <= 0.0)
                 continue;
             // 押しは半径の 1.2 倍まで届く（0.6 R の Splash は 2 x 0.6 R まで持ち上げる）
             float2 nearest = clamp(a.center.xz, tileMin, tileMax);
             if (distance(nearest, a.center.xz) > a.radius * 1.2)
                 continue;
-            bool blast = (a.flags & RIPPLE_AREA_SHAKE) != 0u;
+            bool blast = (a.flags & SWARM_AREA_SHAKE) != 0u;
             float s = blast ? g_BlastStrength : g_AreaStrength;
             uint slot;
             InterlockedAdd(gs_SourceCount, 1u, slot);
@@ -234,7 +210,7 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_G
                 for (int dx = -1; dx <= 1; ++dx)
                 {
                     int2 c = cell + int2(dx, dz);
-                    uint seed = RippleHash((uint) c.x * 73856093u ^ (uint) c.y * 19349663u ^ g_Step * 83492791u);
+                    uint seed = HashU32((uint) c.x * 73856093u ^ (uint) c.y * 19349663u ^ g_Step * 83492791u);
                     if (RippleRand(seed) >= g_RainProb)
                         continue;
                     float2 drop = (float2(c) + float2(RippleRand(seed + 1u), RippleRand(seed + 2u))) * g_RainCell;

@@ -24,6 +24,8 @@
 //
 // 陽的な拡散は g_Diffuse * dt <= 0.25（テクセル単位）の間は安定
 // ============================================================
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"
 
 // GrassFireField::FireCB と一致させること
 cbuffer GrassFireCB : register(b0)
@@ -49,32 +51,15 @@ cbuffer GrassFireCB : register(b0)
     float g_Reburn;         // 焼け跡はこの量まで燃料が戻ってからでないと燃えない
 };
 
-// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト。読むのは center / radius / vfxType だけ
-struct FireArea
-{
-    float3 center;
-    float radius;
-    float damage;
-    float timeLeft;
-    float tickInterval;
-    float tickTimer;
-    float halfHeight;
-    uint flags;
-    uint vfxType;
-    uint tickNow;
-};
-
 Texture2D<float4> g_In : register(t0);          // 前ステップ（温度、燃料、燃焼中）
 Texture2D<float4> g_Ground : register(t1);      // GrassRenderer の地面テクスチャ、a = 草が生える所
-StructuredBuffer<FireArea> g_Areas : register(t2);
+StructuredBuffer<SwarmArea> g_Areas : register(t2);   // 読むのは center / radius / flags / vfxType だけ
 Buffer<uint> g_AreaStates : register(t3);       // 0 = 死んでいる
 StructuredBuffer<float> g_RecipeHeat : register(t4);   // エフェクトのレシピごと: 着火の熱（0 = 火ではない、< 0 = 冷たい）
 Texture2D<float> g_Dry : register(t5);          // 1 = 枯れ草（GrassFireField::BuildDryMask）。燃えるのはこの草だけ
 RWTexture2D<float4> g_Out : register(u0);
 
-#define FIRE_MAX_AREAS 256u   // = SWARM_MAX_AREAS
 #define FIRE_MAX_SOURCES 64u
-#define FIRE_FREEZE_MASK 0xF0u   // = Swarm::kAreaFreezeShift、4 ビット（SwarmAreaFreeze）
 #define FIRE_COLD_AREA (-1.5)    // 自分の熱を持たない凍らせる範囲
 #define FIRE_MIN_TEMP (-2.0)
 
@@ -107,13 +92,13 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
 
     uint heatCount, heatStride;
     g_RecipeHeat.GetDimensions(heatCount, heatStride);
-    for (uint a = gi; a < FIRE_MAX_AREAS; a += 64u)
+    for (uint a = gi; a < SWARM_MAX_AREAS; a += 64u)
     {
         if (g_AreaStates[a] == 0u)
             continue;
-        FireArea ar = g_Areas[a];
+        SwarmArea ar = g_Areas[a];
         float heat = (ar.vfxType < heatCount) ? g_RecipeHeat[ar.vfxType] : 0.0;
-        if ((ar.flags & FIRE_FREEZE_MASK) != 0u)
+        if ((ar.flags & SWARM_AREA_FREEZE_MASK) != 0u)
             heat = min(heat, FIRE_COLD_AREA);   // アイススパイクの列は CPU から来る（レシピなし）
         if (heat == 0.0)
             continue;

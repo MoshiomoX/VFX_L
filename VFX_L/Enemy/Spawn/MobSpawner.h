@@ -6,8 +6,8 @@
 //     空き枠が無い分は「遠い雑魚の転送」として GPU に投げる
 //   ・雑魚の初期値（HP / 速さ）と Mob AI の定数（GPU、次の固定ステップから効く）のパネル
 //   ・自爆兵：新規・転送の 1 体ずつ m_BomberRatio の確率で自爆兵にする。
-//     導火線・爆発の定数は SwarmSystem::GetBomberParams（見た目の範囲は AreaData/BomberBlast.json）
-//   ・スプリッター：同じく m_SplitterRatio の確率（面毎に経過時間で伸びる）。死ぬと GPU の分裂の環が届き、分裂体を 3 体湧かせる
+//     導火線・爆発の定数は SwarmSystem::GetKindParams（見た目の範囲は AreaData/BomberBlast.json）
+//   ・スプリッター：同じく m_SplitterRatio の確率（面毎に経過時間で伸びる）。死ぬと GPU の敵の出来事の環が届き、分裂体を 3 体湧かせる
 //   ・難度（経過時間で上がる）：DifficultyCurve の表。
 //       湧く速さ・HP の倍率・ダメージの倍率が表から決まる。面の倍率 stageHpMul / stageDamageMul / stageSpawnMul を掛け、表は stageTimeOffsetMin 分進めて読む。
 //       HP は湧いた（転送された）瞬間の倍率で決まり、その後は変わらない。
@@ -69,7 +69,7 @@ public:
     void QueueDebugDarkGhosts(int n) { m_DebugDarkGhosts += n; }
     uint32_t GetGhostsSpawned() const { return m_GhostsSpawned; }
     uint32_t GetDarkGhostsSpawned() const { return m_DarkGhostsSpawned; }
-    // 倍率 1 の時の接触 / 爆発ダメージ。Init で GPU の既定値（AICB / BomberCB）から取る
+    // 倍率 1 の時の接触 / 爆発ダメージ。Init で GPU の既定値（AICB / KindCB）から取る
     float baseContactDamage = 0.0f;
     float baseBlastDamage = 0.0f;
     // 特殊な敵の割合の合計の上限。合計がこれを越えたら全部を同じ比で縮める = 残りは必ず普通の雑魚
@@ -86,7 +86,7 @@ public:
     // ---- スプリッター（kEnemyKindSplitter）----
     // 湧き（新規・転送）の splitterRatio がスプリッター。比率は面毎（StageDef）に経過時間で伸びる:
     //   splitterStart 秒までは 0、そこで splitterRatioStart、splitterRampEnd 秒で splitterRatioEnd（間は直線、以降そのまま）
-    // 死ぬと GPU の分裂の環 → ここで分裂体（kEnemyKindSplitling）を splitCount 体、死んだ所の周りに湧かせる
+    // 死ぬと GPU の敵の出来事の環 → ここで分裂体（kEnemyKindSplitling）を splitCount 体、死んだ所の周りに湧かせる
     float splitterStart = 1.0e9f;
     float splitterRatioStart = 0.0f;
     float splitterRatioEnd = 0.0f;
@@ -110,7 +110,7 @@ public:
     // ---- 突撃兵（kEnemyKindCharger）・盾兵（kEnemyKindShield）----
     // 湧き（新規・転送）のうちの割合。スプリッターと同じ形の直線で、面毎（StageDef::charger / shield、シーンが入れる）。
     // 第 2 面は突撃兵、第 3 面は盾兵が主力。雑魚と入れ替わる（湧く数は変えない）。
-    // 溜め・突進・盾の装甲の定数は GPU（SwarmSystem::GetBomberParams の charger* / shield*）
+    // 溜め・突進・盾の装甲の定数は GPU（SwarmSystem::GetKindParams の charger* / shield*）
     struct KindRamp
     {
         float start = 1.0e9f;      // この秒までは 0
@@ -140,7 +140,7 @@ public:
     // 普段の湧きの速さの上限（体/秒）。
     // 難度表 × 面の倍率 × 押し寄せの倍率を掛けた後にこれで止める。最終ウェーブ（finalSpawnRate）は別：時間切れの後は溢れさせる）
     float maxSpawnPerSecond = 6.0f;
-    // 砂嵐の術師が放つ砂旋の速さ m/s（砂旋 = kEnemyKindTornado。飛ぶ秒は BomberCB::tornadoLife）
+    // 砂嵐の術師が放つ砂旋の速さ m/s（砂旋 = kEnemyKindTornado。飛ぶ秒は KindCB::tornadoLife）
     float tornadoSpeed = 3.5f;
     uint32_t GetTornadoesSpawned() const { return m_TornadoesSpawned; }   // 自動テスト用（累計）
     // 砂旋が生まれた所・向き・速さ（見た目は CPU：Enemy/SandTornadoFx が同じ直線で追って柱を描く）。場面が毎フレーム取り出す
@@ -203,15 +203,15 @@ public:
 private:
     // 遺跡の敵（MobSpawnerRuins.cpp）
     void UpdateRuins(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, float dt, SwarmSystem& swarm);
-    // 分裂の環の遺跡の出来事（鎧の崩れ・ガーゴイル・死霊術師の詠唱・鎖の投げ）。扱ったら true
-    bool HandleRuinsEvent(const Swarm::SplitEvent& ev, const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
+    // 敵の出来事の環の遺跡の出来事（鎧の崩れ・ガーゴイル・死霊術師の詠唱・鎖の投げ）。扱ったら true
+    bool HandleRuinsEvent(const Swarm::EnemyEvent& ev, const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
     // ガーゴイルの石像を置く所（プレイヤーの周り gargoyleSpawnMin〜Max の歩けるマス。無ければ普通の湧きの所）
-    DirectX::SimpleMath::Vector3 GargoyleSpot(const DirectX::SimpleMath::Vector3& fallback, float groundY) const;
+    DirectX::SimpleMath::Vector3 GargoyleSpot(const DirectX::SimpleMath::Vector3& fallback, float centerAboveFeet) const;
     void DrawRuinsImGui(SwarmSystem& swarm);
     float m_ArmorHp = 50.0f;      // 雑魚の 3.3 倍（さらに蘇る）
     float m_ArmorSpeed = 2.4f;    // 遅い
     float m_GargoyleHp = 30.0f;
-    float m_GargoyleSpeed = 4.5f; // 飛ぶ速さ（急降下は BomberCB::gargoyleDiveSpeed）
+    float m_GargoyleSpeed = 4.5f; // 飛ぶ速さ（急降下は KindCB::gargoyleDiveSpeed）
     float m_NecroHp = 25.0f;
     float m_NecroSpeed = 3.0f;
     float m_SkeletonHp = 8.0f;    // 脆い
@@ -236,7 +236,7 @@ private:
     // パネルのボタンの分：プレイヤーの周り（kDebugRingMin〜Max m の歩けるマス）に自爆兵・スプリッターを湧かせる
     void SpawnDebugKind(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm,
         int& count, float hp, float speed, uint32_t kind);
-    // リードバックで届いた GPU の出来事（分裂の環）：スプリッターの死 → 分裂体、砂嵐の術師の詠唱 → 砂旋
+    // リードバックで届いた GPU の出来事（敵の出来事の環）：スプリッターの死 → 分裂体、砂嵐の術師の詠唱 → 砂旋
     void SpawnFromEvents(const GridWorld& grid, const DirectX::SimpleMath::Vector3& player, SwarmSystem& swarm);
     // Enemies パネルの突撃兵・盾兵・凍結の段（MobSpawnerKinds.cpp）
     void DrawChargerShieldImGui(SwarmSystem& swarm);
@@ -267,7 +267,7 @@ private:
     float m_ChargerSpeed = 3.8f;   // 追いかける速さは雑魚より少し速い（突進は GPU の chargerDashSpeed）
     int   m_DebugChargers = 0;
     float m_ShieldRatio = 0.0f;    // 今の湧きのうち盾兵の割合
-    float m_ShieldHp = 30.0f;      // 雑魚の 2 倍。これに 1 発毎の装甲（BomberCB::shieldArmor）が乗る
+    float m_ShieldHp = 30.0f;      // 雑魚の 2 倍。これに 1 発毎の装甲（KindCB::shieldArmor）が乗る
     float m_ShieldSpeed = 3.0f;    // 盾が重いので少し遅い
     int   m_DebugShields = 0;
     float m_SpikeBallRatio = 0.0f; // 今の湧きのうちトゲ玉の割合
@@ -276,7 +276,7 @@ private:
     int   m_DebugSpikeBalls = 0;
     float m_BurrowerRatio = 0.0f;  // 今の湧きのうち砂潜りの割合
     float m_BurrowerHp = 25.0f;    // 雑魚の 1.7 倍（出ている間しか撃てない）
-    float m_BurrowerSpeed = 3.0f;  // 基準。砂の下 ×1.3、出ている時 ×0.8（BomberCB の burrow*SpeedMul）
+    float m_BurrowerSpeed = 3.0f;  // 基準。砂の下 ×1.3、出ている時 ×0.8（KindCB の burrow*SpeedMul）
     int   m_DebugBurrowers = 0;
     float m_SandMageRatio = 0.0f;  // 今の湧きのうち砂嵐の術師の割合
     float m_SandMageHp = 20.0f;    // 雑魚の 1.33 倍（遠くに立つので弾が届きにくい）
@@ -284,7 +284,7 @@ private:
     int   m_DebugSandMages = 0;
     float m_DashBomberRatio = 0.0f;  // 今の湧きのうち突撃爆弾兵の割合
     float m_DashBomberHp = 18.0f;    // 自爆兵と同じ（点火前に撃ち落とす）
-    float m_DashBomberSpeed = 3.6f;  // 平時の追いかけ（点火後は BomberCB::dashBomberDashSpeed）
+    float m_DashBomberSpeed = 3.6f;  // 平時の追いかけ（点火後は KindCB::dashBomberDashSpeed）
     int   m_DebugDashBombers = 0;
     uint32_t m_TornadoesSpawned = 0;
     std::vector<TornadoBirth> m_TornadoBirths;   // 今フレーム生まれた砂旋（ConsumeTornadoBirths で空になる）

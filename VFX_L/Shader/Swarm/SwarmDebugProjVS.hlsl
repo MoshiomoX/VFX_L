@@ -9,9 +9,9 @@
 // インスタンス 1 つに 64 頂点 = 輪 2 つ x 16 区間 x 端点 2 つ。
 // ============================================================
 
-// SwarmCommon は既定で b0 を使うので退ける（ここでは使わない）
-#define SWARM_FRAME_CB_REG b1
-#include "../Common/SwarmCommon.hlsli"
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmProjectileTypes.hlsli"
+#include "../Common/MathConst.hlsli"
 
 cbuffer SwarmDebugCB : register(b0)
 {
@@ -29,7 +29,6 @@ struct VSOutput
 };
 
 static const uint SEGS = 16;
-static const float TWO_PI = 6.28318530718;
 
 VSOutput main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 {

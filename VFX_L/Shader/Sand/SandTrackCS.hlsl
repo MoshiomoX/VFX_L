@@ -9,11 +9,8 @@
 // 砂旋、潜っている敵、消えている影の剣士、足が明らかに
 // 地面より上にあるもの。
 // ============================================================
-// SwarmCommon の cbuffer はここでは使わない。b0 から外す（SandTrackCB）
-#define SWARM_FRAME_CB_REG b1
-#define SWARM_AI_CB_REG b2
-#define SWARM_ORB_CB_REG b3
-#include "../Common/SwarmCommon.hlsli"
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmEnemyTypes.hlsli"
 
 // SandField::TrackCB（32 バイト）と一致させること
 cbuffer SandTrackCB : register(b0)
@@ -22,7 +19,7 @@ cbuffer SandTrackCB : register(b0)
     float2 g_MapSize;
     float g_Radius;         // m（雑魚 1 体分。大きい種類はもっと広い）
     float g_Depth;          // m（負）
-    float g_TrackGroundY;   // AICB.groundY：position.y はカプセルの中心 = 足 + これ
+    float g_TrackCenterAboveFeet;   // AICB.centerAboveFeet：position.y はカプセルの中心 = 足 + これ
     float g_On;
 };
 
@@ -55,7 +52,7 @@ void main(uint3 id : SV_DispatchThreadID)
     g_Height.GetDimensions(hw, hh);
     int2 hc = int2(floor((p.xz - g_MapOrigin) / g_MapSize * float2(hw, hh)));
     hc = clamp(hc, int2(0, 0), int2((int) hw - 1, (int) hh - 1));
-    if (p.y - g_TrackGroundY - g_Height.Load(int3(hc, 0)) > TRACK_AIR_HEIGHT)
+    if (p.y - g_TrackCenterAboveFeet - g_Height.Load(int3(hc, 0)) > TRACK_AIR_HEIGHT)
         return;
 
     float r = g_Radius;

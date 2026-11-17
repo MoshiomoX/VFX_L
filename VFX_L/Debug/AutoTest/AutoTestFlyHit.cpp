@@ -4,7 +4,7 @@
 // 空を飛ぶ Boss に魔法が当たる高さ（浮きは見た目だけでなく位置そのものが高い）：
 //   1 秒: 湧き停止・全消し・無敵・MP 無限、火球だけ持って動かない Boss を呼ぶ
 //   Boss が出たら 8 秒、0.5 秒毎に `flyhit t hover bodyAboveGround hpLost`
-//   bodyAboveGround = Boss の位置 - その地面（普段の雑魚は groundY 0.9）
+//   bodyAboveGround = Boss の位置 - その地面（普段の雑魚は centerAboveFeet 0.9）
 // ============================================================
 #include "Debug/AutoTest/AutoTestCommon.h"
 
@@ -82,7 +82,7 @@ void AutoTestFlyHit::Run()
         const auto& info = m_Swarm.GetBossInfo();
         const float ground = m_Grid.SampleHeight(info.pos[0], info.pos[2]);
         snprintf(line, sizeof(line), "flyhit t %.1f hover %.2f bodyAboveGround %.2f hpLost %.0f",
-            t, m_Swarm.GetBomberParams().bossHover, info.pos[1] - ground, m_Hp0 - Swarm::HpFromFixed(info.hp));
+            t, m_Swarm.GetKindParams().bossHover, info.pos[1] - ground, m_Hp0 - Swarm::HpFromFixed(info.hp));
         AutoTestLog(line);
         if (t >= 2.0f && t <= 5.0f)   // 0.5 秒毎（落下中の予告の輪がどれかに写る）
         {

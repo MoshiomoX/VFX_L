@@ -13,13 +13,11 @@
 // （池の上を飛ぶ石像ガーゴイル）。
 // リストは最大 g_StirMax 個。それを超えた分は捨てる。
 // 氷の上（WaterIceCS）では敵は波紋を出さず、代わりに
-// 減速の範囲と同じ enemySlow を通して減速する。
+// 減速の範囲と同じ enemyStatus を通して減速する。
 // ============================================================
-// SwarmCommon の cbuffer はここでは使わない。b0 から退ける（WaterStirCB）
-#define SWARM_FRAME_CB_REG b1
-#define SWARM_AI_CB_REG b2
-#define SWARM_ORB_CB_REG b3
-#include "../Common/SwarmCommon.hlsli"
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmEnemyTypes.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"   // SWARM_SLOW_BIG_MUL
 
 // WaterSurface::StirCB と揃えること
 cbuffer WaterStirCB : register(b0)
@@ -35,7 +33,7 @@ cbuffer WaterStirCB : register(b0)
     float g_StepStrength;    // 足音 1 回で押し込む m
     float g_Stride;          // 足音 1 回あたりに歩く m
     float g_StirTime;        // 秒（水の時計、ポーズ中は止まる）
-    float g_StirGroundY;     // 敵の position.y = 足 + これ（群れの AICB の groundY、0.9）
+    float g_StirCenterAboveFeet;     // 敵の position.y = 足 + これ（群れの AICB の centerAboveFeet、0.9）
     float g_IceSlow;         // 氷の上で失う速度 0..1（エリートとボスはその半分）
     float _stirPad;
 };
@@ -48,7 +46,7 @@ Texture2D<float> g_Height : register(t4);          // GridWorld の高さ、texe
 Texture2D<float> g_Ice : register(t5);             // 氷（WaterIceCS）、マスクの 4 分の 1 の大きさ
 RWStructuredBuffer<float4> g_Stirs : register(u0); // x, z, 半径, 強さ（m、+ = 真ん中を押し下げる）
 RWBuffer<uint> g_StirCount : register(u1);         // [0] = このパスで書いた押し込みの数（CPU がクリアする）
-RWStructuredBuffer<float4> g_EnemySlow : register(u2); // 群れの enemySlow: x / y = 減速（残り秒、強さ）
+RWStructuredBuffer<float4> g_EnemyStatus : register(u2); // 群れの enemyStatus: x / y = 減速（残り秒、強さ）
 
 // 中心の下の生の高さセルから足がこれ以上浮いている = 空中（= GrassStampCS）
 static const float STIR_AIR_HEIGHT = 0.8;
@@ -92,8 +90,8 @@ void main(uint3 id : SV_DispatchThreadID)
         g_Height.GetDimensions(hw, hh);
         int2 hc = int2(floor((e.position.xz - g_StirOrigin) / g_StirSize * float2(hw, hh)));
         hc = clamp(hc, int2(0, 0), int2((int) hw - 1, (int) hh - 1));
-        // position.y はカプセルの中心: 先に groundY を引く（引かないと 0.9 上にある全部の敵が浮いて見えた）
-        if (e.position.y - g_StirGroundY - g_Height.Load(int3(hc, 0)) > STIR_AIR_HEIGHT)
+        // position.y はカプセルの中心: 先に centerAboveFeet を引く（引かないと 0.9 上にある全部の敵が浮いて見えた）
+        if (e.position.y - g_StirCenterAboveFeet - g_Height.Load(int3(hc, 0)) > STIR_AIR_HEIGHT)
             return;
     }
     else if (kind == SWARM_KIND_GARGOYLE)
@@ -105,11 +103,11 @@ void main(uint3 id : SV_DispatchThreadID)
         float amount = g_IceSlow;
         if (SwarmIsBigElite(kind) || kind == SWARM_KIND_BOSS)
             amount *= SWARM_SLOW_BIG_MUL;
-        float4 cur = g_EnemySlow[j];
+        float4 cur = g_EnemyStatus[j];
         if (cur.x <= 0.0)
             cur.y = 0.0;
         cur.xy = float2(max(cur.x, STIR_ICE_LINGER), max(cur.y, amount));
-        g_EnemySlow[j] = cur;
+        g_EnemyStatus[j] = cur;
         return;
     }
 

@@ -12,25 +12,15 @@
 // 届いたら突撃兵が走り出す。
 //
 // ピクセルシェーダ: SwarmChargeLinePS（b0 は自爆兵の円と同じ:
-// SwarmSystem::BomberRingCB、色は SwarmSystem::chargeLine）。
+// SwarmGroundMarkCB.hlsli、色は SwarmSystem::chargeLine）。
 // ============================================================
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b4
+#define SWARM_KIND_CB_REG b4
 #include "../Common/SwarmCommon.hlsli"
 
-cbuffer SwarmBomberRingCB : register(b0)
-{
-    row_major float4x4 g_RingView;
-    row_major float4x4 g_RingProj;
-    float4 g_RingFill;
-    float4 g_RingEdge;
-    float4 g_RingBack;
-    float g_RingEdgeWidth; // 横の縁、メートル
-    float g_RingLift;      // 地面からのメートル
-    float2 _ringPad;
-};
+#include "SwarmGroundMarkCB.hlsli"
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);

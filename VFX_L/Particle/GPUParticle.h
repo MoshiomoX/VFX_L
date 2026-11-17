@@ -40,9 +40,7 @@ struct GPUParticle
     // --- Color over Lifetime ---
     int      colorKeyOffset;
     int      colorKeyCount;
-    // 所有者ID (0 = 無主)。第5段階の生存数集計で使う。
-    // 現時点では EmitCS で 0 に初期化されるだけで、誰も読まない。
-    int      ownerID;
+    int      _reserved0;     // 並びのための空き
     int      renderMode;     // ParticleRenderMode（0 = ビルボード / 下位 8bit = メッシュ番号 + 1 など）
     // --- 立方体用の 3 軸回転（度）。ビルボードは上の rotation / angularVel を使う ---
     Vector3  rot3;
@@ -89,8 +87,8 @@ struct GPUEmitter
     Vector3  shapeSize;      // 形状パラメータ
     float    _pad0;
     int      emitCount;      // 今回の発射数（0 以上。負は GPU が uint で読んで壊れるので GPUParticleSystem が 0 にする）
-    int      maxParticles;   // 未使用（HLSL は読まない。並びのためだけに残す）
-    int      particleOffset; // 未使用（同上）
+    int      _unused0;       // 未使用（並びのためだけに残す）
+    int      _unused1;
     float    emitRate;       // 毎秒発射数
     Vector2  speedRange;     // x=min, y=max
     Vector2  lifetimeRange;  // x=min, y=max
@@ -107,7 +105,7 @@ struct GPUEmitter
     int      sourceId;
     int      sourceCount;
     float    isActive;       // 有効/無効 (0.0 / 1.0)
-    int      emitterID;      // 発射器ID
+    int      _unused2;       // 未使用（同上）
     // --- Atlas & Texture ---
     int      atlasRows;        // アトラス行数
     int      atlasCols;        // アトラス列数
@@ -116,8 +114,7 @@ struct GPUEmitter
 
     int      colorKeyOffset;   // ColorKeyBuffer内の開始位置
     int      colorKeyCount;    // キー数 (0=startColor/endColorで線形補間)
-    // 所有者ID (0 = 無主)。発射した粒子へ引き継がれる。
-    int      ownerID;
+    int      _reserved0;       // 並びのための空き
     int      frameCount;       // コマ数（ParticleFrameMode::Animate / Random で使う。元は _pad2）
 
     // --- Mesh 発射 ---
@@ -164,27 +161,23 @@ struct GlobalCB
     uint32_t baseSeed;
     int      emitterCount;   // アクティブな発射器数
 };
+static_assert(sizeof(GlobalCB) == 16, "GlobalCB layout mismatch");
 
 // ============================================
 // Dead List用定数バッファ (ConstantBuffer用)
 // b1
 //
-// ※ deadCount は現在未使用。
-//    空き数は CopyStructureCount で GPU 上のバッファへ渡し、
-//    EmitCS が SRV から直接読む方式に変えた。
-//    毎フレームの Map READ (GPU 待ち) を廃止するため。
-//
-// ※ maxParticles は削除不可。
-//    UpdateCS の "if (id.x >= g_MaxParticles) return;" が使っている。
-//    ここを消すと粒子が一切更新されなくなる。
+// 空き数は CopyStructureCount で GPU 上のバッファへ渡し、EmitCS が SRV から直接読むので、ここには持たない。
+// maxParticles は UpdateCS などの範囲判定（id.x >= g_MaxParticles）が使う
 // ============================================
 struct DeadListCB
 {
-    uint32_t deadCount;      // 未使用 (0 を入れる)
+    uint32_t _unused;        // 未使用（並びのためだけに残す）
     uint32_t maxParticles;   // 粒子プール全体のサイズ
     uint32_t _pad0;
     uint32_t _pad1;
 };
+static_assert(sizeof(DeadListCB) == 16, "DeadListCB layout mismatch");
 
 // ============================================
 // Emit の pass 用定数バッファ (ConstantBuffer用)
@@ -285,13 +278,20 @@ constexpr uint32_t kParticleMeshBuckets = kParticleMeshSlots * 2;   // 番号 ×
 
 namespace ParticleRenderMode
 {
+    // メッシュ粒子の下位 12 bit（HLSL の PARTICLE_MESH_SLOT_MASK / GLOW / FACE_VELOCITY / AXIS_SHIFT）
+    constexpr int kMeshSlotMask = 0xFF;          // bits 0-7 = 表の番号 + 1
+    constexpr int kMeshGlow = 1 << 8;
+    constexpr int kMeshFaceVelocity = 1 << 9;
+    constexpr int kMeshAxisShift = 10;           // bits 10-11
+    constexpr int kMeshBits = 0xFFF;             // Pack が詰める範囲
+
     inline int Pack(int meshSlot, bool glow, bool faceVelocity, int forwardAxis)
     {
         if (meshSlot < 0 || meshSlot >= (int)kParticleMeshSlots) meshSlot = 0;
         return (meshSlot + 1)
-            | (glow ? (1 << 8) : 0)
-            | (faceVelocity ? (1 << 9) : 0)
-            | ((forwardAxis & 3) << 10);
+            | (glow ? kMeshGlow : 0)
+            | (faceVelocity ? kMeshFaceVelocity : 0)
+            | ((forwardAxis & 3) << kMeshAxisShift);
     }
 
     // メッシュの発光だけ：裏面だけ描く = 本体（光を受けるメッシュ）の後ろに回った縁取りに見える
@@ -431,7 +431,7 @@ struct EffectTrailCB
     uint32_t _pad[2];
 };
 
-// ParticleTrailVS / PS の b1
+// 帯を描く VS / PS の b1（Shader/Particle/Common/TrailDrawCB.hlsli）
 struct TrailDrawCB
 {
     uint32_t styleSlot;      // style id + 1（GPUParticle::trailStyle と同じ表し方）
@@ -450,9 +450,12 @@ struct ParticleRenderCB
     Matrix   projection;
     Vector3  cameraPosition; // Billboard用
     // ビルボードのどれを描くか（GPUParticleVS の g_Pass。重なった煙のちらつき防止）：
-    // 0 = 全部 / 1 = 不透明なトゥーンだけ（深度を書く）/ 2 = それ以外
+    // 0 = 全部 / 1 = 不透明なトゥーンだけ（深度を書く）/ 2 = それ以外 /
+    // 3 = 歪みパス（歪みの強さを持つものだけを ParticleDistortPS でオフセットのターゲットへ）。
+    // 帯の VS（ParticleTrailVS など）は読まない
     float    pass = 0.0f;
 };
+static_assert(sizeof(ParticleRenderCB) == 144, "ParticleRenderCB layout mismatch");
 
 // ============================================
 // カラーキー (Color over Lifetime用)

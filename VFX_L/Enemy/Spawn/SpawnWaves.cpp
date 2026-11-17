@@ -5,6 +5,8 @@
 #include "Enemy/Spawn/SpawnWaves.h"
 #include "imgui.h"
 
+#include <DirectXMath.h>
+
 void SpawnWaves::Reset(uint32_t seed)
 {
     m_Rng.seed(seed ^ 0x5A17u);
@@ -35,7 +37,7 @@ void SpawnWaves::StartSurge(float runTime, float stageTime)
     const float k = (stageTime > 0.0f) ? (std::min)(1.0f, (std::max)(0.0f, runTime / stageTime)) : 0.5f;
     m_Phase = Phase::Surge;
     m_PhaseEnd = runTime + surgeTime + (surgeTimeLate - surgeTime) * k;
-    m_ArcYaw = u01(m_Rng) * 6.2831853f;
+    m_ArcYaw = u01(m_Rng) * DirectX::XM_2PI;
     m_NextAt = runTime + interval + (u01(m_Rng) * 2.0f - 1.0f) * jitter;
     m_JustStarted = true;
     ++m_Count;

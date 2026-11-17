@@ -15,7 +15,7 @@
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b4   // エリートの体の大きさ：バーを高く、幅広くする
+#define SWARM_KIND_CB_REG b4   // エリートの体の大きさ：バーを高く、幅広くする
 #include "../Common/SwarmCommon.hlsli"
 
 cbuffer SwarmHpBarCB : register(b0)
@@ -88,7 +88,7 @@ BarOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     float2 c = kCorner[vid];
     float3 center = e.position + float3(0.0, offset, 0.0);
     if (g_IceOn > 0.5)
-        center.y += IceLift(e.position.xz, e.position.y - g_GroundY);
+        center.y += IceLift(e.position.xz, e.position.y - g_CenterAboveFeet);
     float3 world = center
         + right * ((c.x - 0.5) * width)
         + up * ((0.5 - c.y) * g_BarHeight);

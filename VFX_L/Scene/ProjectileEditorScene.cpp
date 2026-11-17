@@ -18,7 +18,7 @@ using namespace DirectX::SimpleMath;
 
 namespace
 {
-    // 3 次ベジェ（SwarmCommon.hlsli の SwarmBezier と同じ）
+    // 3 次ベジェ（SwarmProjectileTypes.hlsli の SwarmBezier と同じ）
     Vector3 Bezier(const Vector3 p[4], float t)
     {
         const float u = 1.0f - t;
@@ -34,7 +34,7 @@ namespace
         Vector3 prev = c + Vector3(radius, 0, 0);
         for (int i = 1; i <= kSeg; ++i)
         {
-            const float a = 6.2831853f * (float)i / (float)kSeg;
+            const float a = DirectX::XM_2PI * (float)i / (float)kSeg;
             const Vector3 cur = c + Vector3(std::cos(a) * radius, 0, std::sin(a) * radius);
             dbg.AddDebugLine(prev, cur, col);
             prev = cur;
@@ -110,7 +110,7 @@ void ProjectileEditorScene::Init()
 
     // 標的は殴ってこない（銃口 = GPU 側のプレイヤー位置なので、放っておくと接触判定が走る）
     m_Swarm.GetAIParams().contactDamage = 0.0f;
-    m_Muzzle.y = m_Swarm.GetAIParams().groundY;   // 雑魚の胴の高さで水平に撃つ
+    m_Muzzle.y = m_Swarm.GetAIParams().centerAboveFeet;   // 雑魚の胴の高さで水平に撃つ
 
     // ---------- 範囲攻撃の見た目（CPU 側の VFX。Mesh entry も出せるように MeshRenderer も持つ）----------
     if (!m_MeshRenderer.Initialize(device))
@@ -126,7 +126,7 @@ void ProjectileEditorScene::Init()
     if (!m_LiquidRenderer.Initialize(device))
         std::cout << "[Error] VFXLiquidRenderer init failed" << std::endl;
     m_VFXContext.liquidRenderer = &m_LiquidRenderer;
-    m_AreaMarker.y = m_Swarm.GetAIParams().groundY;
+    m_AreaMarker.y = m_Swarm.GetAIParams().centerAboveFeet;
 
     // ---------- プロファイル ----------
     // 先に範囲：投射物の「命中で出す範囲」が範囲の番号を引くため
@@ -195,7 +195,7 @@ void ProjectileEditorScene::RespawnTargets()
 {
     m_Swarm.KillAll();   // 弾も消える
 
-    const float y = m_Swarm.GetAIParams().groundY;
+    const float y = m_Swarm.GetAIParams().centerAboveFeet;
     const int n = (std::max)(1, m_TargetCount);
     for (int i = 0; i < n; ++i)
     {
@@ -208,7 +208,7 @@ void ProjectileEditorScene::RespawnTargets()
 }
 
 // ============================================================
-// 1 発射つ。狙いはプレイヤー（= 銃口）に一番近い雑魚。武器の自動照準と同じ
+// 1 発射つ。狙いは杖の狙い（SwarmSystem::GetAimTarget）。武器の自動照準と同じ
 // ============================================================
 void ProjectileEditorScene::Fire(bool randomCurve)
 {
@@ -217,7 +217,7 @@ void ProjectileEditorScene::Fire(bool randomCurve)
     Vector3 dir(0, 0, 1);
     Vector3 tp, tv;
     float dist = 0.0f;
-    const bool hasTarget = m_Swarm.GetNearestEnemy(tp, tv, dist);
+    const bool hasTarget = m_Swarm.GetAimTarget(tp, tv, dist);
     if (hasTarget)
     {
         Vector3 d = tp - m_Muzzle;
@@ -393,13 +393,13 @@ void ProjectileEditorScene::Update(float dt)
 void ProjectileEditorScene::DrawGuides()
 {
     auto& dbg = DebugManager::Get();
-    const float groundY = m_Swarm.GetAIParams().groundY;
+    const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
 
     if (m_ShowGrid)
     {
         const Color col(0.22f, 0.24f, 0.28f, 1.0f);
         const float half = 30.0f, stepSize = 5.0f;
-        const float y = groundY - 0.9f;
+        const float y = centerAboveFeet - 0.9f;
         for (float v = -half; v <= half + 0.01f; v += stepSize)
         {
             dbg.AddDebugLine({ v, y, -half }, { v, y, half }, col);
@@ -420,7 +420,7 @@ void ProjectileEditorScene::DrawGuides()
         Vector3 c = m_AreaMarker, tp0, tv0;
         float d0 = 0.0f;
         bool ok = true;
-        if (m_AreaPlace == 0) { ok = m_Swarm.GetNearestEnemy(tp0, tv0, d0); c = tp0; }
+        if (m_AreaPlace == 0) { ok = m_Swarm.GetAimTarget(tp0, tv0, d0); c = tp0; }
         else if (m_AreaPlace == 1) c = m_Muzzle;
         if (ok) DrawRing(c, ap.radius, Color(0.45f, 0.30f, 0.15f, 1.0f));
         return;   // 範囲の頁では曲線を出さない
@@ -444,7 +444,7 @@ void ProjectileEditorScene::DrawGuides()
 
     Vector3 tp, tv;
     float dist = 0.0f;
-    if (!m_Swarm.GetNearestEnemy(tp, tv, dist)) return;
+    if (!m_Swarm.GetAimTarget(tp, tv, dist)) return;
 
     const ProjectileProfile& p = ProjectileProfileDB::At(m_Selected);
 
@@ -513,7 +513,7 @@ void ProjectileEditorScene::DrawGizmos()
 
     Vector3 tp, tv;
     float dist = 0.0f;
-    if (!m_Swarm.GetNearestEnemy(tp, tv, dist)) return;
+    if (!m_Swarm.GetAimTarget(tp, tv, dist)) return;
 
     Vector3 cp[4];
     p.BuildPreview(m_Muzzle, tp, 1.0f, cp);
@@ -847,7 +847,7 @@ void ProjectileEditorScene::CastArea()
     if (m_AreaPlace == 0)
     {
         Vector3 tv; float d = 0.0f;
-        if (!m_Swarm.GetNearestEnemy(center, tv, d)) return;   // 標的が居ない
+        if (!m_Swarm.GetAimTarget(center, tv, d)) return;   // 標的が居ない
     }
     else if (m_AreaPlace == 1)
     {

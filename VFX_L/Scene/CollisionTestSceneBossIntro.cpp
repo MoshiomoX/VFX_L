@@ -73,7 +73,7 @@ BossIntro::Frame CollisionTestScene::UpdateBossIntro(float dt)
 void CollisionTestScene::ApplyBossIntroSteer(const BossIntro::Frame& f)
 {
     if (!f.active) return;
-    auto& bomber = m_Swarm.GetBomberParams();
+    auto& bomber = m_Swarm.GetKindParams();
     bomber.bossNoContact = 1.0f;   // 出てくる間は体で殴らない
     if (!f.steer) return;
     bomber.bossChargeOn = 1.0f;

@@ -26,6 +26,8 @@
 
 #include "../Common/WindSources.hlsli"
 #include "../Common/WindGrid.hlsli"   // 風の格子（式の風を格子の風に置き換える）
+#include "../Common/SwarmCore.hlsli"
+#include "../Common/SwarmAreaTypes.hlsli"
 
 // MiasmaField::StepCB（432 バイト）と一致させること
 cbuffer MiasmaStepCB : register(b0)
@@ -66,25 +68,10 @@ cbuffer MiasmaStepCB : register(b0)
     float4 g_Torch[16];     // xyz = 位置、w = 揺らぎ
 };
 
-// = SwarmArea（Shader/Common/SwarmCommon.hlsli）、48 バイト
-struct MiasmaArea
-{
-    float3 center;
-    float radius;
-    float damage;
-    float timeLeft;
-    float tickInterval;
-    float tickTimer;
-    float halfHeight;
-    uint flags;
-    uint vfxType;
-    uint tickNow;
-};
-
 Texture3D<float> g_Prev : register(t0);
 Texture2D<float> g_Height : register(t1);               // GridWorld の高さ（テクセル中心 = 高さセルの中心）
 Texture2D<float> g_Solid : register(t2);                // 1 = 壁のセル（GridWorld のセル）
-StructuredBuffer<MiasmaArea> g_Areas : register(t3);
+StructuredBuffer<SwarmArea> g_Areas : register(t3);
 Buffer<uint> g_AreaStates : register(t4);
 StructuredBuffer<float> g_RecipeHeat : register(t5);    // エフェクトのレシピごと（GrassFireField）
 StructuredBuffer<WindSource> g_WindSources : register(t6);
@@ -96,9 +83,7 @@ RWTexture3D<float> g_Out : register(u0);
 #define MIASMA_NZ 128
 #define MIASMA_CELL 0.5
 #define MIASMA_CELL_Y 0.3
-#define MIASMA_MAX_AREAS 256u   // = SWARM_MAX_AREAS
 #define MIASMA_MAX_SOURCES 64u
-#define MIASMA_SHAKE 8u         // = SWARM_AREA_SHAKE
 
 groupshared float4 gs_Src[MIASMA_MAX_SOURCES];   // xz、半径、熱
 groupshared float gs_Blast[MIASMA_MAX_SOURCES];  // 1 = 爆発
@@ -194,12 +179,12 @@ void main(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     GroupMemoryBarrierWithGroupSync();
     uint heatCount, heatStride;
     g_RecipeHeat.GetDimensions(heatCount, heatStride);
-    // 範囲のスロット 1 つにつき 1 スレッド（グループの 256 スレッド = MIASMA_MAX_AREAS）
-    if (gi < MIASMA_MAX_AREAS && g_AreaStates[gi] != 0u)
+    // 範囲のスロット 1 つにつき 1 スレッド（グループの 256 スレッド = SWARM_MAX_AREAS）
+    if (gi < SWARM_MAX_AREAS && g_AreaStates[gi] != 0u)
     {
-        MiasmaArea ar = g_Areas[gi];
+        SwarmArea ar = g_Areas[gi];
         float heat = (ar.vfxType < heatCount) ? g_RecipeHeat[ar.vfxType] : 0.0;
-        float blast = ((ar.flags & MIASMA_SHAKE) != 0u) ? 1.0 : 0.0;
+        float blast = ((ar.flags & SWARM_AREA_SHAKE) != 0u) ? 1.0 : 0.0;
         if (heat > 0.0 || blast > 0.0)
         {
             uint slot;

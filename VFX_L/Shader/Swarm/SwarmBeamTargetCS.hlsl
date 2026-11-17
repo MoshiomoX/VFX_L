@@ -12,7 +12,7 @@
 //           方向が光線に最も近い（回す量が最小の）ものを選ぶ
 //   cmd 3 = 連鎖（アークボルトの連鎖のルーン）：シーク点
 //           （稲妻が届いた所）に最も近い生きた敵を SWARM_CHAIN_RADIUS
-//           以内で選ぶ。asuint(dir.xyz) のスロット（この連鎖が
+//           以内で選ぶ。g_BTExclude.xyz のスロット（この連鎖が
 //           既に届いた敵）は除く。
 //           いなければ valid = 0
 // 結果（slot, serial, valid, 位置）は beamTargets に残り、これが
@@ -23,9 +23,11 @@
 
 cbuffer BeamTargetCB : register(b4)
 {
-    float4 g_BTOrigin[SWARM_MAX_BEAMS]; // xyz = 杖口、w = asfloat(cmd)
-    float4 g_BTDir[SWARM_MAX_BEAMS];    // xyz = 今の光線の向き、w = 光線の長さ
-    float4 g_BTSeek[SWARM_MAX_BEAMS];   // xyz = シーク点（cmd 1）、w = asfloat(serial)
+    float4 g_BTOrigin[SWARM_MAX_BEAMS];  // xyz = 杖口
+    float4 g_BTDir[SWARM_MAX_BEAMS];     // xyz = 今の光線の向き、w = 光線の長さ
+    float4 g_BTSeek[SWARM_MAX_BEAMS];    // xyz = シーク点（cmd 1 / 3）
+    uint4 g_BTCmd[SWARM_MAX_BEAMS];      // x = 命令、y = 通し番号（serial）
+    uint4 g_BTExclude[SWARM_MAX_BEAMS];  // xyz = 連鎖で除く敵のスロット（cmd 3）
 };
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
@@ -33,6 +35,11 @@ Buffer<uint> enemyStates : register(t1);
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t2); // 潜っている砂潜りは標的にしない
 // チャンネルごとに 32 バイト：slot, serial, valid, pad, pos.xyz, pad
 RWByteAddressBuffer beamTargets : register(u0);
+// Swarm::BeamTarget のバイトオフセット（C++ の static_assert と一致させること）
+#define SWARM_BEAMTARGET_STRIDE 32u
+#define SWARM_BEAMTARGET_SLOT 0u
+#define SWARM_BEAMTARGET_SERIAL 4u
+#define SWARM_BEAMTARGET_POS 16u
 
 static const uint kNoSlot = 0xFFFFFFFFu;
 static const float kLockRadius = 2.5;  // 開始：弾が当たった敵は、弾が消えた所からこの距離以内にいる
@@ -44,20 +51,21 @@ groupshared uint gBest;
 void main(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
     uint ch = gid.x;
-    uint cmd = asuint(g_BTOrigin[ch].w);
+    uint cmd = g_BTCmd[ch].x;
     if (cmd == 0u)
         return; // グループ全体で同じ値（定数バッファ）
 
-    uint base = ch * 32u;
-    uint serial = asuint(g_BTSeek[ch].w);
+    uint base = ch * SWARM_BEAMTARGET_STRIDE;
+    uint serial = g_BTCmd[ch].y;
+    uint3 exclude = g_BTExclude[ch].xyz;
     float3 origin = g_BTOrigin[ch].xyz;
     float3 dir = g_BTDir[ch].xyz;
     float len = g_BTDir[ch].w;
     float3 seek = g_BTSeek[ch].xyz;
 
     // ロック中の敵を維持するか？
-    uint curSlot = beamTargets.Load(base + 0u);
-    uint curSerial = beamTargets.Load(base + 4u);
+    uint curSlot = beamTargets.Load(base + SWARM_BEAMTARGET_SLOT);
+    uint curSerial = beamTargets.Load(base + SWARM_BEAMTARGET_SERIAL);
     bool keep = false;
     if (cmd == 2u && curSerial == serial && curSlot < g_MaxEnemies && enemyStates[curSlot] != SWARM_DEAD)
     {
@@ -90,8 +98,8 @@ void main(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
             else if (cmd == 3u)
             {
                 // 連鎖：今当たった敵に最も近いもの。ただしこの連鎖が
-                // 既に届いた敵は除く（dir.xyz = スロット）
-                if (i == asuint(dir.x) || i == asuint(dir.y) || i == asuint(dir.z))
+                // 既に届いた敵は除く
+                if (i == exclude.x || i == exclude.y || i == exclude.z)
                     continue;
                 score = length(p.xz - seek.xz);
                 if (score > SWARM_CHAIN_RADIUS)
@@ -118,6 +126,6 @@ void main(uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
         bool valid = (slot != kNoSlot);
         float3 pos = valid ? enemies[slot].position : float3(0, 0, 0);
         beamTargets.Store4(base, uint4(slot, serial, valid ? 1u : 0u, 0u));
-        beamTargets.Store4(base + 16u, uint4(asuint(pos.x), asuint(pos.y), asuint(pos.z), 0u));
+        beamTargets.Store4(base + SWARM_BEAMTARGET_POS, uint4(asuint(pos.x), asuint(pos.y), asuint(pos.z), 0u));
     }
 }

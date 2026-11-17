@@ -61,11 +61,13 @@ private:
     };
     static_assert(sizeof(SpriteInstance) == 64, "SpriteInstance layout mismatch (SpriteVS.hlsl)");
 
-    struct SpriteCB
+    // SpriteVS.hlsl（UI）の b0
+    struct ScreenCB
     {
         DirectX::SimpleMath::Vector2 screenSize;
         DirectX::SimpleMath::Vector2 pad0;
     };
+    static_assert(sizeof(ScreenCB) == 16, "ScreenCB layout mismatch");
 
     void Flush();   // 溜めた分を 1 回で描画する
 

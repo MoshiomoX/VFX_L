@@ -18,10 +18,10 @@ void SwarmSystem::DispatchTornadoEmit(float dt, float totalTime)
     if (!m_TornadoEmitCS || !m_Particles || m_TornadoDustVfx == 0 || !tornadoLook.dust) return;
     if (!m_VFX.GetRecipeSRV() || !m_VFX.GetEmitterSRV()) return;
 
-    struct GlobalCB { float dt; float total; uint32_t seed; int emitterCount; } gcb;
-    gcb.dt = dt;
-    gcb.total = totalTime;
-    gcb.seed = (uint32_t)(totalTime * 1000.0f) ^ 0x3c6ef372u;
+    GlobalCB gcb = {};
+    gcb.deltaTime = dt;
+    gcb.totalTime = totalTime;
+    gcb.baseSeed = (uint32_t)(totalTime * 1000.0f) ^ 0x3c6ef372u;
     gcb.emitterCount = 0;
 
     // SwarmTornadoEmitCS の b2 と同じ並び（32B）
@@ -35,7 +35,7 @@ void SwarmSystem::DispatchTornadoEmit(float dt, float totalTime)
     tcb.rateMul = tornadoLook.dustRate;
     tcb.vfx = m_TornadoDustVfx;
     tcb.swirl = tornadoLook.dustSwirl;
-    tcb.footRadius = m_CachedAICB.enemyRadius * m_CachedBomberCB.tornadoScale;
+    tcb.footRadius = m_CachedAICB.enemyRadius * m_CachedKindCB.tornadoScale;
     tcb.slotCount = Swarm::kMaxEnemies;
     tcb.pad[0] = tcb.pad[1] = 0.0f;
 
@@ -87,7 +87,7 @@ void SwarmSystem::DispatchWindSources(float dt)
                 w.pos[0] = b.pos.x; w.pos[1] = b.pos.y; w.pos[2] = b.pos.z;
                 w.radius = b.radius;
                 w.swirl = b.swirl; w.updraft = b.updraft; w.inflow = b.inflow;
-                w.fade = std::sin(3.14159265f * (b.age / b.life));   // 出てすぐ強く、終わりで 0
+                w.fade = std::sin(DirectX::XM_PI * (b.age / b.life));   // 出てすぐ強く、終わりで 0
                 w.pushDir[0] = b.dir.x; w.pushDir[1] = b.dir.y;
                 w.push = b.push;
                 w.self = b.self ? 1.0f : 0.0f;
@@ -120,7 +120,7 @@ void SwarmSystem::DispatchWindSources(float dt)
     static_assert(sizeof(WindSourceCB) == 80, "WindSourceCB: HLSL 側と不一致");
     cb.footY = -(m_CachedAICB.enemyRadius + m_CachedAICB.enemyCapsuleHalf);
     cb.radiusMul = tornadoLook.windRadiusMul;
-    cb.hitRadius = m_CachedAICB.enemyRadius * m_CachedBomberCB.tornadoScale;
+    cb.hitRadius = m_CachedAICB.enemyRadius * m_CachedKindCB.tornadoScale;
     cb.swirl = tornadoLook.windSwirl;
     cb.updraft = tornadoLook.windUpdraft;
     cb.inflow = tornadoLook.windInflow;
@@ -159,37 +159,19 @@ void SwarmSystem::DispatchWindSources(float dt)
 // ============================================================
 bool SwarmSystem::CreateWindSourceReadback(ID3D11Device* device)
 {
-    D3D11_BUFFER_DESC sd = {};
-    sd.ByteWidth = sizeof(Swarm::WindSource) * Swarm::kMaxWindSources;
-    sd.Usage = D3D11_USAGE_STAGING;
-    sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    for (int i = 0; i < kWindReadbackCount; ++i)
-    {
-        if (FAILED(device->CreateBuffer(&sd, nullptr, &m_WindSourceStaging[i]))) return false;
-        m_WindSourceStagingFilled[i] = false;
-    }
-    m_WindSourceStagingWrite = 0;
+    if (!m_WindSourceStaging.Create(device, sizeof(Swarm::WindSource) * Swarm::kMaxWindSources)) return false;
     m_LocalWind = {};
     return true;
 }
 
 void SwarmSystem::CopyWindSourcesForCPU()
 {
-    if (!m_WindSourceBuffer || !m_WindSourceStaging[m_WindSourceStagingWrite]) return;
-    m_Context->CopyResource(m_WindSourceStaging[m_WindSourceStagingWrite].Get(), m_WindSourceBuffer.Get());
-    m_WindSourceStagingFilled[m_WindSourceStagingWrite] = true;
-    m_WindSourceStagingWrite = (m_WindSourceStagingWrite + 1) % kWindReadbackCount;
+    m_WindSourceStaging.Copy(m_Context, m_WindSourceBuffer.Get());
 }
 
 void SwarmSystem::ReadWindSources()
 {
-    const int readIndex = m_WindSourceStagingWrite;   // 次に書く = 一番古い
-    if (!m_WindSourceStagingFilled[readIndex] || !m_WindSourceStaging[readIndex]) return;
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const HRESULT hr = m_Context->Map(m_WindSourceStaging[readIndex].Get(), 0,
-        D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-    if (FAILED(hr) || hr == DXGI_ERROR_WAS_STILL_DRAWING) return;
-    memcpy(m_LocalWind.sources.data(), mapped.pData, sizeof(Swarm::WindSource) * Swarm::kMaxWindSources);
-    m_Context->Unmap(m_WindSourceStaging[readIndex].Get(), 0);
+    m_WindSourceStaging.TryRead(m_Context, [&](const void* data, bool)
+        { memcpy(m_LocalWind.sources.data(), data, sizeof(Swarm::WindSource) * Swarm::kMaxWindSources); });
 }
 

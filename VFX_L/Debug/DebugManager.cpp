@@ -302,12 +302,11 @@ void DebugManager::AddDebugLine(const Vector3& start, const Vector3& end, const 
 void DebugManager::DrawWireSphere(const Vector3& center, float radius, const Color& color)
 {
     const int SEG = 24;
-    const float TAU = 6.28318530718f;
 
     Vector3 prevXY, prevYZ, prevXZ;
     for (int i = 0; i <= SEG; ++i)
     {
-        float a = TAU * i / SEG;
+        float a = DirectX::XM_2PI * i / SEG;
         float c = std::cos(a) * radius;
         float s = std::sin(a) * radius;
 
@@ -333,13 +332,12 @@ void DebugManager::DrawWireCapsule(const Vector3& center, float radius, float he
     Vector3 bottom = center + Vector3(0, -halfH, 0);
 
     const int SEG = 24;
-    const float TAU = 6.28318530718f;
 
     // 上下の水平円
     Vector3 prevT, prevB;
     for (int i = 0; i <= SEG; ++i)
     {
-        float a = TAU * i / SEG;
+        float a = DirectX::XM_2PI * i / SEG;
         float c = std::cos(a) * radius;
         float s = std::sin(a) * radius;
         Vector3 curT = top + Vector3(c, 0, s);
@@ -355,7 +353,7 @@ void DebugManager::DrawWireCapsule(const Vector3& center, float radius, float he
     // 側面の縦線（4本）
     for (int i = 0; i < 4; ++i)
     {
-        float a = TAU * i / 4;
+        float a = DirectX::XM_2PI * i / 4;
         Vector3 off(std::cos(a) * radius, 0, std::sin(a) * radius);
         AddDebugLine(bottom + off, top + off, color);
     }
@@ -366,7 +364,7 @@ void DebugManager::DrawWireCapsule(const Vector3& center, float radius, float he
         Vector3 prevTop, prevBot;
         for (int i = 0; i <= SEG / 2; ++i)
         {
-            float a = 3.14159265f * i / (SEG / 2);
+            float a = DirectX::XM_PI * i / (SEG / 2);
             float y = std::sin(a) * radius;
             float x = std::cos(a) * radius;
             Vector3 dir = (axis == 0) ? Vector3(x, 0, 0) : Vector3(0, 0, x);

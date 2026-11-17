@@ -1,7 +1,7 @@
 // ============================================================
 // MobSpawnerRuins.cpp
 // 遺跡の敵（呪いの鎧・石像ガーゴイル・死霊術師・鎖の番人）の CPU 側。
-//   ・呪いの鎧：1 回目の死は GPU の分裂の環に「崩れた」が届く → armorReviveDelay 秒後に同じ所へ蘇った鎧（HP 半分、紫に脈打つ）
+//   ・呪いの鎧：1 回目の死は GPU の敵の出来事の環に「崩れた」が届く → armorReviveDelay 秒後に同じ所へ蘇った鎧（HP 半分、紫に脈打つ）
 //   ・ガーゴイル：目覚め・急降下・着地が環に届く → シーンが石の欠片・土煙・音を出す（動きは全部 GPU）
 //   ・死霊術師：詠唱の終わりが環に届く → 近くの最近の死体（シーンがダメージの数字の「倒した」から NoteKill で渡す）
 //     から necroRaiseCount 体の骸骨を起こす。地面に印 → necroRaiseDelay 秒後に立つ（死体が無ければ術師の周り）
@@ -44,18 +44,18 @@ void MobSpawner::ClearRuinsPending()
     m_ChainThrows.clear();
 }
 
-Vector3 MobSpawner::GargoyleSpot(const Vector3& fallback, float groundY) const
+Vector3 MobSpawner::GargoyleSpot(const Vector3& fallback, float centerAboveFeet) const
 {
     if (!m_Grid) return fallback;
     for (int attempt = 0; attempt < 10; ++attempt)
     {
-        const float ang = Rand01() * 6.2831853f;
+        const float ang = Rand01() * DirectX::XM_2PI;
         const float r = gargoyleSpawnMin + (gargoyleSpawnMax - gargoyleSpawnMin) * Rand01();
         const Vector3 q = m_Player + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
         int gx = 0, gz = 0;
         m_Grid->WorldToCell(q, gx, gz);
         if (!m_Grid->IsWalkable(gx, gz)) continue;
-        return { q.x, m_Grid->SampleHeight(q.x, q.z) + groundY, q.z };
+        return { q.x, m_Grid->SampleHeight(q.x, q.z) + centerAboveFeet, q.z };
     }
     return fallback;
 }
@@ -78,7 +78,7 @@ int MobSpawner::RaiseCorpsesAround(const Vector3& center, float radius, int maxC
     }
     for (int attempt = 0; raised < minCount && attempt < 6 * (std::max)(minCount, 1); ++attempt)
     {
-        const float ang = Rand01() * 6.2831853f;
+        const float ang = Rand01() * DirectX::XM_2PI;
         const float r = fillMin + (fillMax - fillMin) * Rand01();
         Vector3 q = center + Vector3(std::cos(ang) * r, 0.0f, std::sin(ang) * r);
         int gx = 0, gz = 0;
@@ -92,9 +92,9 @@ int MobSpawner::RaiseCorpsesAround(const Vector3& center, float radius, int maxC
     return raised;
 }
 
-bool MobSpawner::HandleRuinsEvent(const Swarm::SplitEvent& ev, const GridWorld& grid, const Vector3& player, SwarmSystem& swarm)
+bool MobSpawner::HandleRuinsEvent(const Swarm::EnemyEvent& ev, const GridWorld& grid, const Vector3& player, SwarmSystem& swarm)
 {
-    const uint32_t kind = ev.kind & Swarm::kSplitKindMask;
+    const uint32_t kind = ev.kind & Swarm::kEnemyEventKindMask;
     const uint32_t payload = ev.kind >> 16;
     const Vector3 ground(ev.position.x, grid.SampleHeight(ev.position.x, ev.position.z), ev.position.z);
     auto& audio = AudioSystem::Get();
@@ -141,7 +141,7 @@ bool MobSpawner::HandleRuinsEvent(const Swarm::SplitEvent& ev, const GridWorld& 
     {
         ChainThrow t;
         t.pos = ev.position;
-        t.yaw = (float)payload / 65535.0f * 6.2831853f;
+        t.yaw = (float)payload / 65535.0f * DirectX::XM_2PI;
         m_ChainThrows.push_back(t);
         ++m_ChainThrowsSeen;
         audio.Play("chain_throw");
@@ -155,7 +155,7 @@ bool MobSpawner::HandleRuinsEvent(const Swarm::SplitEvent& ev, const GridWorld& 
 
 void MobSpawner::UpdateRuins(const GridWorld& grid, const Vector3& player, float dt, SwarmSystem& swarm)
 {
-    const float groundY = swarm.GetAIParams().groundY;
+    const float centerAboveFeet = swarm.GetAIParams().centerAboveFeet;
     auto faceYaw = [&](const Vector3& p) { return std::atan2(player.x - p.x, player.z - p.z); };
 
     // 蘇った鎧
@@ -164,7 +164,7 @@ void MobSpawner::UpdateRuins(const GridWorld& grid, const Vector3& player, float
         Pending& p = m_ArmorPending[i];
         p.timer -= dt;
         if (p.timer > 0.0f) { ++i; continue; }
-        swarm.SpawnEnemy({ p.pos.x, p.pos.y + groundY, p.pos.z }, p.hp, m_ArmorSpeed * finalSpeedMul, Swarm::kEnemyKindArmorRevived, faceYaw(p.pos));
+        swarm.SpawnEnemy({ p.pos.x, p.pos.y + centerAboveFeet, p.pos.z }, p.hp, m_ArmorSpeed * finalSpeedMul, Swarm::kEnemyKindArmorRevived, faceYaw(p.pos));
         m_RuinsFx.push_back({ RuinsFxKind::ArmorRise, p.pos });
         AudioSystem::Get().Play("armor_rise");
         ++m_ArmorsRevived;
@@ -180,7 +180,7 @@ void MobSpawner::UpdateRuins(const GridWorld& grid, const Vector3& player, float
         // 同時上限（spawnCap）の空きが無ければ印だけで起きない
         if ((int)swarm.GetCounters().aliveEnemies < m_Director.spawnCap)
         {
-            swarm.SpawnEnemy({ p.pos.x, p.pos.y + groundY, p.pos.z }, p.hp, m_SkeletonSpeed * finalSpeedMul, Swarm::kEnemyKindSkeleton, faceYaw(p.pos));
+            swarm.SpawnEnemy({ p.pos.x, p.pos.y + centerAboveFeet, p.pos.z }, p.hp, m_SkeletonSpeed * finalSpeedMul, Swarm::kEnemyKindSkeleton, faceYaw(p.pos));
             m_RuinsFx.push_back({ RuinsFxKind::SkeletonRise, p.pos });
             ++m_SkeletonsRaised;
             ++risen;
@@ -206,7 +206,7 @@ void MobSpawner::UpdateRuins(const GridWorld& grid, const Vector3& player, float
 // ============================================================
 void MobSpawner::DrawRuinsImGui(SwarmSystem& swarm)
 {
-    auto& bomb = swarm.GetBomberParams();
+    auto& bomb = swarm.GetKindParams();
     auto drawRamp = [](const char* label, KindRamp& r)
         {
             ImGui::PushID(label);

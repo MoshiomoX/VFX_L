@@ -74,12 +74,12 @@ namespace
             bp.dirty = true;
             SetCasting(true);
             const Vector3 pp = PlayerPos();
-            const float groundY = m_Swarm.GetAIParams().groundY;
+            const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
             for (int k = 0; k < 24; ++k)
             {
                 const float x = pp.x - 7.0f + 14.0f * (float)(k % 6) / 5.0f;
                 const float z = pp.z + 11.0f + 2.0f * (float)(k / 6);
-                m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), 300.0f, 1.8f, Swarm::kEnemyKindMob);
+                m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), 300.0f, 1.8f, Swarm::kEnemyKindMob);
             }
             // 突風が届く距離（6m 前後）にも数体：突風の連鎖がすぐ起きて、竜巻が早く出る（渦は群れを向こうへ引き留める）
             SpawnRing(pp, 8, 4.5f, 6.5f, Swarm::kEnemyKindMob, 300.0f, 0.5f, 0.0f, 35.0f);
@@ -178,7 +178,7 @@ namespace
             tf.rotation.y = DirectX::XMConvertToDegrees(std::atan2(m_Dir.x, m_Dir.z));
             if (m_Registry.Has<RigidbodyComponent>(m_Player)) m_Registry.Get<RigidbodyComponent>(m_Player).velocity = Vector3::Zero;
             // 台地の上（崖の向こう 3〜16m、横 ±9m）に群れ
-            const float gy = m_Swarm.GetAIParams().groundY;
+            const float gy = m_Swarm.GetAIParams().centerAboveFeet;
             const Vector3 side(-m_Dir.z, 0.0f, m_Dir.x);
             for (int i = 0; i < 160; ++i)
             {

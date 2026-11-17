@@ -22,6 +22,8 @@
 // ハッシュの角度で回す（下の「カーネルの回転」）。その模様はブラーで消える。
 // ============================================================
 
+#include "../Common/MathConst.hlsli"
+
 Texture2DMS<float> g_Depth : register(t0);
 
 cbuffer SSAOCB : register(b0)
@@ -89,7 +91,7 @@ float4 main(float4 pos : SV_POSITION) : SV_Target
     //      模様が面の上を滑らずその場に留まる ----
     float3 worldP = mul(float4(P.x, P.y, -P.z, 1.0), g_InvView).xyz;   // ビュー空間は -z を見ている
     float3 cell = floor(worldP * 20.0);
-    float angle = 6.2831853 * frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453);
+    float angle = TWO_PI * frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453);
     float3 rvec = float3(cos(angle), sin(angle), 0.0);
     float3 T = normalize(rvec - N * dot(rvec, N));
     float3 B = cross(N, T);

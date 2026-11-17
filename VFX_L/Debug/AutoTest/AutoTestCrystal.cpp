@@ -50,7 +50,7 @@ void AutoTestCrystal::Run()
         m_Mobs.Director().enabled = false;
         m_Swarm.KillAll();
         const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         m_Swarm.SpawnEnemy(Vector3(pp.x, m_Grid.SampleHeight(pp.x, pp.z + 8.0f) + gy, pp.z + 8.0f), 100000.0f, 0.0f);
         m_Swarm.SpawnEnemy(Vector3(pp.x - 1.5f, m_Grid.SampleHeight(pp.x - 1.5f, pp.z + 9.0f) + gy, pp.z + 9.0f), 100000.0f, 0.0f);
         m_Swarm.SpawnEnemy(Vector3(pp.x + 1.5f, m_Grid.SampleHeight(pp.x + 1.5f, pp.z + 9.0f) + gy, pp.z + 9.0f), 100000.0f, 0.0f);

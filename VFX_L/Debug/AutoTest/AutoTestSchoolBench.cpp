@@ -353,7 +353,7 @@ void AutoTestSchoolBench::Run()
         m_Swarm.ClearAreas();
         if (s_Scene == 0) Arrange(bp, tr);
         wand.castingPaused = false;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         const Vector3 c = tf.position + Vector3(0.0f, 0.0f, tr.dist);
         const float speed = TargetSpeed();
         if (s_Scene == 0)

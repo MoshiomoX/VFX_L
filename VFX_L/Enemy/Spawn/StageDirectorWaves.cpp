@@ -71,7 +71,7 @@ void StageDirector::UpdateWaves(float runTime, float dt, MobSpawner& mobs)
     mobs.waveRateMul = rateMul;
     const bool arc = waves.ArcActive() && !(timed && runTime >= stageTime);
     director.arcYaw = waves.ArcYaw();
-    director.arcHalf = arc ? waves.arcHalfDeg * 0.0174532925f : 3.14159265f;
+    director.arcHalf = arc ? waves.arcHalfDeg * 0.0174532925f : DirectX::XM_PI;
 }
 
 void StageDirector::DrawWavesImGui(float runTime)

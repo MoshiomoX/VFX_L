@@ -90,19 +90,12 @@ struct Seed
     float life;
 };
 
-uint DandelionHash(uint x)
-{
-    x ^= x >> 16;
-    x *= 0x7feb352du;
-    x ^= x >> 15;
-    x *= 0x846ca68bu;
-    x ^= x >> 16;
-    return x;
-}
+#include "../Common/Hash.hlsli"
+#include "../Common/MathConst.hlsli"
 
 float DandelionRand(inout uint s)
 {
-    s = DandelionHash(s + 0x9e3779b9u);
+    s = HashU32(s + 0x9e3779b9u);
     return (float) (s & 0xFFFFFFu) / 16777216.0;
 }
 
@@ -114,7 +107,7 @@ float DandelionStemHeight(uint seed)
 // xz でのワールドの風（GrassVS の風の波の式）
 float2 DandelionWindAt(float2 xz)
 {
-    float phase = dot(xz, g_WindDir) * g_WindWaveScale * 6.2831853 - g_WindTime * g_WindWaveSpeed;
+    float phase = dot(xz, g_WindDir) * g_WindWaveScale * TWO_PI - g_WindTime * g_WindWaveSpeed;
     float w = sin(phase) * 0.5 + 0.5;
     w *= w;
     return g_WindDir * (g_WindSpeed + g_WindGust * w);

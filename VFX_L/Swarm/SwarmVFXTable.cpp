@@ -157,13 +157,12 @@ bool SwarmVFXTable::Build(ID3D11Device* device, GPUParticleSystem* particles)
             // 差し替えるのは下位 12 bit（番号 / 発光 / 向き / 軸）だけ。上位の継承速度・単体・裏面だけ・風は
             // ToGPU が詰めた物をそのまま残す（丸ごと作り直すと「単体」などの bit が GPU に届かない）
             if (pe->emitterData.renderMode != 0 && particles)
-                ge.renderMode = (ge.renderMode & ~0xFFF)
+                ge.renderMode = (ge.renderMode & ~ParticleRenderMode::kMeshBits)
                     | ParticleRenderMode::Pack(
                         particles->RegisterParticleMesh(pe->emitterData.meshPath),
                         pe->emitterData.meshGlow, pe->emitterData.meshFaceVelocity,
                         pe->emitterData.meshForwardAxis);
             ge.isActive = 1.0f;
-            ge.ownerID = 0;
             ge.colorKeyOffset = (int)keys.size();   // 静的区は offset 0 起点
             ge.colorKeyCount = pe->emitterData.colorKeyCount;
             for (int c = 0; c < pe->emitterData.colorKeyCount; ++c)

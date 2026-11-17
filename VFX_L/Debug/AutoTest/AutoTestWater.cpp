@@ -129,7 +129,7 @@ void AutoTestWater::Run()
         float bestScore = 1.0e9f;
         for (int k = 0; k < 16; ++k)
         {
-            const float a = k * 6.2831853f / 16.0f;
+            const float a = k * DirectX::XM_2PI / 16.0f;
             for (float r = 5.0f; r <= 8.0f; r += 1.0f)
             {
                 const float x = m_Pond.x + std::cos(a) * r, z = m_Pond.z + std::sin(a) * r;

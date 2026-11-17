@@ -711,7 +711,7 @@ void HUD::DrawMarkers(SpriteRenderer& sprite, const HUDFrameInfo& info)
         for (float spread : { 0.65f, -0.65f })
         {
             sprite.Draw(m_WhiteTex, { tip.x, tip.y - thick * 0.5f }, { len, thick },
-                col, ang + 3.14159265f + spread, tip);
+                col, ang + DirectX::XM_PI + spread, tip);
         }
 
         // 後ろに種類の絵（ミニマップと同じ）

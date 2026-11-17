@@ -6,8 +6,8 @@
 //               カリング CS が葉ごとに 1 回アニメも
 //               計算し（風、風源、踏みつけ、火）、葉の背骨を 3 次ベジェで
 //               保存する。VS は 21 頂点を組むだけ
-//   GrassHash   ワールドに揃えた格子に葉を置く（カメラが動いても
-//               葉はその場に留まる）
+//   GrassRand   格子セルの種（HashU32）からの乱数。ワールドに揃えた格子に
+//               葉を置く（カメラが動いても葉はその場に留まる）
 // C++ 側の対応：GrassRenderer::GrassCB / GrassBlade
 // ============================================================
 #ifndef GRASS_COMMON_HLSLI
@@ -69,7 +69,7 @@ cbuffer GrassCB : register(b0)
     float4 g_BladeShape;    // x = 葉自身の捻り（+- rad）、y = 枯れた葉の割合 0..1、z = 2 つ目の波の重み 0..1、
                             // w = 踏みつけマップに付く風源の跡（強さ、0 = オフ）
     float4 g_DryColor;      // rgb = 枯れた葉に掛ける、a = 跡のスタンプが最大になる風速（m/s）
-    float4 g_SwarmExtra;    // x = 敵の position.y から足元を引いた値（群れの AICB groundY、0.9）、yzw = 未使用
+    float4 g_SwarmExtra;    // x = 敵の position.y から足元を引いた値（群れの AICB centerAboveFeet、0.9）、yzw = 未使用
 };
 
 // 草の葉 1 枚（96 バイト）、GrassCullCS がアニメさせる。背骨は根元 (0) から c1、c2 を通って
@@ -92,20 +92,12 @@ struct GrassBlade
     float2 pad;
 };
 
-uint GrassHash(uint x)
-{
-    x ^= x >> 16;
-    x *= 0x7feb352du;
-    x ^= x >> 15;
-    x *= 0x846ca68bu;
-    x ^= x >> 16;
-    return x;
-}
+#include "../Common/Hash.hlsli"
 
 // 進行中のシードから次の乱数 0..1
 float GrassRand(inout uint s)
 {
-    s = GrassHash(s + 0x9e3779b9u);
+    s = HashU32(s + 0x9e3779b9u);
     return (float) (s & 0xFFFFFFu) / 16777216.0;
 }
 

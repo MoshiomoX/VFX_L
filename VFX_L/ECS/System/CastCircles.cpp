@@ -71,7 +71,7 @@ void CastCircles::OnCast(const Vector3& pos, const Vector3& dir, const Vector3& 
     h.pos = pos;
     h.dir = dir;
     h.color = color;
-    h.spin0 = std::fmod(m_Clock * 97.0f, 6.2831853f);   // 毎回違う角度から回り始める
+    h.spin0 = std::fmod(m_Clock * 97.0f, DirectX::XM_2PI);   // 毎回違う角度から回り始める
     m_Hands.push_back(h);
 }
 

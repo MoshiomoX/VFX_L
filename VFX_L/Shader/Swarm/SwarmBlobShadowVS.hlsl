@@ -18,7 +18,7 @@
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b4   // g_IceOn とマップ（凍った池）
+#define SWARM_KIND_CB_REG b4   // g_IceOn とマップ（凍った池）
 #include "../Common/SwarmCommon.hlsli"
 
 cbuffer SwarmBlobShadowCB : register(b0)
@@ -63,7 +63,7 @@ BlobOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
     if (enemyStates[slot] != SWARM_DEAD)
     {
         float3 p = enemies[slot].position;
-        float footY = p.y - g_GroundY - SwarmBodyHover(enemyExtra[slot]);   // 飛んでいる敵の影も地面に落とす
+        float footY = p.y - g_CenterAboveFeet - SwarmBodyHover(enemyExtra[slot]);   // 飛んでいる敵の影も地面に落とす
         float2 c = kCorner[vid];
         float2 xz = p.xz + c * g_BlobRadius;
         float y = clamp(SwarmTerrainHeight(heights, xz), footY - g_BlobClamp, footY + g_BlobClamp);

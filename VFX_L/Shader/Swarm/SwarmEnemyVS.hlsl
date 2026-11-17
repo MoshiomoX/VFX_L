@@ -15,9 +15,10 @@
 #define SWARM_FRAME_CB_REG b1
 #define SWARM_AI_CB_REG b2
 #define SWARM_ORB_CB_REG b3
-#define SWARM_BOMBER_CB_REG b5
+#define SWARM_KIND_CB_REG b5
 #include "../Common/ModelCommon.hlsli"
 #include "../Common/SwarmCommon.hlsli"
+#include "../Common/MathConst.hlsli"
 
 StructuredBuffer<SwarmEnemy> enemies : register(t0);
 Buffer<uint> enemyStates : register(t1);
@@ -28,9 +29,9 @@ StructuredBuffer<uint> aliveList : register(t2);
 // 突撃兵は溜めの間は赤く点滅する
 StructuredBuffer<SwarmEnemyExtra> enemyExtra : register(t5);
 // スロットごとの減速 + 凍結（z > 0 = アイスランスで凍結中：ポーズが止まり、体が氷色になる）
-StructuredBuffer<float4> enemySlow : register(t4);
+StructuredBuffer<float4> enemyStatus : register(t4);
 // スロットごとの溜まった毒素（x = まだ削る残りダメージ、毒沼）：体が病的な緑になる
-StructuredBuffer<float4> enemyPoison : register(t6);
+StructuredBuffer<float2> enemyPoison : register(t6);
 #define SWARM_ICE_MAP_REG t7
 #define SWARM_POND_TOP_REG t8
 #include "../Common/SwarmIceLift.hlsli"
@@ -42,13 +43,9 @@ static const float kFuseBlinkEnd = 14.0;
 // 突撃兵の溜めの点滅、同じ上がり方（溜めの開始 / 終了時の 1 秒あたりの点滅回数）
 static const float kChargeBlinkStart = 4.0;
 static const float kChargeBlinkEnd = 12.0;
-// 凍結：淡い青、g_FreezeTint を掛ける
-static const float3 kIceTint = float3(0.75, 1.05, 1.7);
-// エリート：共通のゾンビテクスチャに暗い赤を乗せる
-static const float3 kEliteTint = float3(1.4, 0.55, 0.5);
-// ボス：g_BossTint（BomberCB、ステージごと：草原は紫、砂漠は砂岩色）
-// 幽霊：半透明の青白、アルファブレンドで描く（SwarmSystem がこの一覧を最後に描く）
-static const float3 kGhostTint = float3(0.55, 1.25, 1.6);
+// 凍結 / エリート / 幽霊の色（kIceTint / kEliteTint / kGhostTint）
+#include "SwarmEnemyLook.hlsli"
+// ボス：g_BossTint（KindCB、ステージごと：草原は紫、砂漠は砂岩色）
 // 黒幽霊：黒に近い紫、より不透明、ゆっくりした紫の脈動付き
 static const float3 kDarkGhostTint = float3(0.10, 0.03, 0.24);
 
@@ -71,9 +68,10 @@ cbuffer SwarmEnemyAnimCB : register(b4)
     float g_AnimTime;      // idle 用の時計（秒）
     float g_WalkRate;      // 歩きの再生速度
     float g_OrbitSpeed;    // g_AnimMode 1 用の rad/s
-    float g_Hunch;         // 狼人の猫背：パーツ自身の動きの前に、腰（g_Hinge.xyz）を軸に前へ倒す rad。0 = なし
+    float g_Hunch;         // 狼人の猫背：パーツ自身の動きの前に、腰（g_HunchPivot.xyz）を軸に前へ倒す rad。0 = なし
     float4 g_Flap;         // g_AnimMode 2（石像鬼の翼）：ヒンジ（焼いたメッシュ空間）xyz、w = +1 右翼 / -1 左翼
-    float4 g_Hinge;        // g_AnimMode 4 の第 2 関節（狼人の膝）：xyz、w = 脚を上げる間の曲げ rad（0 = なし）。g_Hunch がある時：xyz = 腰
+    float4 g_Hinge;        // 第 2 関節（狼人の膝 / 骸の王の肘）：xyz、w = 曲げ rad（0 = なし）
+    float4 g_HunchPivot;   // 猫背の軸（狼人の腰）：xyz、w は未使用
 };
 
 struct PartXform
@@ -124,12 +122,6 @@ static const float kWalkFreq = 9.0;    // 歩き時計の rad/s -> 約 1.4 歩/�
 static const float kWalkBounce = 0.06; // m
 static const float kWalkRoll = 0.10;   // 頭の位置での rad
 
-// yaw = atan2(v.x, v.z)：前方 (0,0,1) -> (sin, 0, cos)
-float3 RotateY(float3 p, float s, float c)
-{
-    return float3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c);
-}
-
 VS_OUTPUT main(VS_INPUT_INST input)
 {
     VS_OUTPUT o = (VS_OUTPUT) 0;
@@ -153,7 +145,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     bool moving = dot(e.velocity.xz, e.velocity.xz) > 0.01;
     float phaseOffset = (float) slot * 0.37; // 群れが足並みを揃えて動かないように
     SwarmEnemyExtra extra = enemyExtra[slot];
-    float4 status = enemySlow[slot];
+    float4 status = enemyStatus[slot];
     bool frozen = status.z > 0.0;
     // 眠っている石像鬼は石像：一切動かない。目覚めの最初の部分は震えるだけ
     bool statue = (extra.kind == SWARM_KIND_GARGOYLE) && extra.fuse < 0.35 * g_GargoyleWakeTime;
@@ -196,7 +188,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
     if (biped && moving && !frozen)
     {
         float stride0 = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);
-        float legAng = 0.65 * (0.5 + 0.25 * dashK) * sin(stride0 * 6.2831853 * (1.0 + 0.8 * dashK));
+        float legAng = 0.65 * (0.5 + 0.25 * dashK) * sin(stride0 * TWO_PI * (1.0 + 0.8 * dashK));
         bipedDrop = 0.43 * (1.0 - cos(legAng));
     }
     float3 inPos = input.Position;
@@ -235,7 +227,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         if (e.attackCooldown > 0.0 && sinceStab < g_ClipLength.z)
         {
             float u = saturate(sinceStab / max(g_ClipLength.z, 0.05));
-            ang += g_Flap.w * sin(u * 3.14159);
+            ang += g_Flap.w * sin(u * PI);
         }
         // 雄鹿の突進：溜めで頭を下げ、突進中も下げたまま、命中で振り上げる
         ang += g_Flap.w * (headDown - 2.2 * headToss);
@@ -261,7 +253,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         {
             float stride = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);   // 歩きのループ数 = 歩数
             // 突進（dashK）：脚を速く大きく振る（駆け足）
-            float ph = stride * 6.2831853 * (1.0 + 0.8 * dashK) + g_Flap.w;
+            float ph = stride * TWO_PI * (1.0 + 0.8 * dashK) + g_Flap.w;
             ang = (0.5 + 0.25 * dashK) * sin(ph);
             if (g_Hinge.w > 0.0)
                 ang *= 0.65;   // 二足の脚（狼人）：四足より歩幅を短く
@@ -283,7 +275,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
             if (sinceSwing < g_ClipLength.z)
             {
                 float u = saturate(sinceSwing / max(g_ClipLength.z, 0.05)) * 2.0 - ((g_Flap.x < 0.0) ? 0.0 : 1.0);
-                ang -= 1.6 * sin(saturate(u) * 3.14159);
+                ang -= 1.6 * sin(saturate(u) * PI);
             }
         }
         if (bend > 0.0 && g_Hinge.w > 0.0 && inPos.y < g_Hinge.y)
@@ -317,7 +309,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         if (moving && !frozen)
         {
             float stride = e.animTime * g_WalkRate / max(g_ClipLength.y, 0.05);
-            float ph = stride * 6.2831853 * (1.0 + 0.8 * dashK) + g_Flap.w;
+            float ph = stride * TWO_PI * (1.0 + 0.8 * dashK) + g_Flap.w;
             ang = 0.38 * sin(ph) * ((g_Flap.x < 0.0) ? 1.0 : -1.0);
             lift = 0.10 * max(0.0, cos(ph));
         }
@@ -346,7 +338,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         float sinceSwing = g_AttackInterval - e.attackCooldown;
         float swing = 0.0;
         if (e.attackCooldown > 0.0 && sinceSwing < g_ClipLength.z)
-            swing = sin(saturate(sinceSwing / max(g_ClipLength.z, 0.05)) * 3.14159);
+            swing = sin(saturate(sinceSwing / max(g_ClipLength.z, 0.05)) * PI);
         ang += 0.5 * g_Flap.w * swing;
         // ---- 肘：前腕
         //      （上腕に直交し g_Hinge.xyz を通る面より先）を、腕が上がるにつれて（接触攻撃の振りでも）肘を通る横軸で
@@ -374,13 +366,13 @@ VS_OUTPUT main(VS_INPUT_INST input)
     }
 
     // ---- 狼人の猫背（g_Hunch != 0）：パーツ（胴 / 頭 / 腕、上で振り済み）を、パーツ自身の動きの前に
-    //      腰（g_Hinge.yz）を軸に前へ倒す。走っている間は深くなる（速度でなめらかに変わる） ----
+    //      腰（g_HunchPivot.yz）を軸に前へ倒す。走っている間は深くなる（速度でなめらかに変わる） ----
     if (g_Hunch != 0.0)
     {
         float hs, hc;
         sincos(hunchEff, hs, hc);
-        float2 rh = inPos.yz - g_Hinge.yz;
-        inPos.yz = g_Hinge.yz + float2(rh.x * hc - rh.y * hs, rh.x * hs + rh.y * hc);
+        float2 rh = inPos.yz - g_HunchPivot.yz;
+        inPos.yz = g_HunchPivot.yz + float2(rh.x * hc - rh.y * hs, rh.x * hs + rh.y * hc);
         inNrm.yz = float2(inNrm.y * hc - inNrm.z * hs, inNrm.y * hs + inNrm.z * hc);
         inTan.yz = float2(inTan.y * hc - inTan.z * hs, inTan.y * hs + inTan.z * hc);
         local = inPos;
@@ -426,7 +418,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         //            ダメージの tick で始まり、1 回だけ再生する
         //   walk   : 移動中。animTime は MoveCS が進める敵ごとの時計
         //   idle   : 立っている（塞がれている、またはプレイヤーの前で次の攻撃待ち）
-        //   被弾硬直（animIndex 2）と凍結は歩きの 1 フレームで止める。下のフラッシュは動く
+        //   被弾硬直（SWARM_ANIM_STUN）と凍結は歩きの 1 フレームで止める。下のフラッシュは動く
         uint clip = 0u;
         float t = g_AnimTime + phaseOffset;
         bool loop = true;
@@ -454,7 +446,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
             t = sinceAttack;
             loop = false;
         }
-        else if (e.animIndex == 2u)
+        else if (e.animIndex == SWARM_ANIM_STUN)
         {
             clip = 1u;
             t = phaseOffset;
@@ -472,7 +464,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
         normal = normalize(lerp(XformDir(fa, inNrm), XformDir(fb, inNrm), w));
         tangent = lerp(XformDir(fa, inTan), XformDir(fb, inTan), w);
     }
-    else if (e.animIndex != 2u && moving && !frozen)
+    else if (e.animIndex != SWARM_ANIM_STUN && moving && !frozen)
     {
         // ---- プロシージャルな歩き：メッシュは焼いた 1 フレームなので足運びをそれらしく見せる ----
         // animTime は敵ごとの歩き時計（MoveCS が移動中に進め、
@@ -559,7 +551,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
 
     float3 worldPos = RotateY(local, s, c) + e.position;
     if (g_IceOn > 0.5)
-        worldPos.y += IceLift(e.position.xz, e.position.y - g_GroundY);
+        worldPos.y += IceLift(e.position.xz, e.position.y - g_CenterAboveFeet);
     // 浮いているボスはゆっくり上下する（高さ g_BossHover は位置に入っている：MoveCS）
     if (extra.kind == SWARM_KIND_BOSS && g_BossHover > 0.0)
         worldPos.y += 0.18 * saturate(g_BossHover) * sin(g_AnimTime * 1.3);
@@ -603,7 +595,7 @@ VS_OUTPUT main(VS_INPUT_INST input)
 
     // ---- 被弾フラッシュ：硬直中は頂点色を明るくしすぎ、1 へ減衰させる ----
     // PS がアルベドに Color を掛けるので、> 1 は HDR になりブルームが拾う
-    if (e.animIndex == 2u)
+    if (e.animIndex == SWARM_ANIM_STUN)
     {
         float t = saturate(e.animTime / max(g_HitStun, 1e-4));
         o.Color.rgb *= lerp(g_HitFlash, 1.0, t);

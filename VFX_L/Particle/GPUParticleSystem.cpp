@@ -83,7 +83,6 @@ bool GPUParticleSystem::Initialize(ID3D11Device* device, ID3D11DeviceContext* co
 
     // DeadList を全インデックスで初期化
     DeadListCB dlcb = {};
-    dlcb.deadCount = 0;
     dlcb.maxParticles = maxParticles;
 
     m_InitDeadListCS->WriteBuffer(context, 0, &dlcb);
@@ -652,7 +651,7 @@ void GPUParticleSystem::Update(float deltaTime, float totalTime,
         {
             addCapped(requestedPlain, e.emitCount);
             const uint32_t mode = (uint32_t)e.renderMode;
-            if ((mode & 0xFFu) == 0u && ((mode >> ParticleRenderMode::kDistortShift) & 3u) != 0u)
+            if ((mode & (uint32_t)ParticleRenderMode::kMeshSlotMask) == 0u && ((mode >> ParticleRenderMode::kDistortShift) & 3u) != 0u)
                 m_DistortHint = kStatsRing + 1;
         }
     }
@@ -795,11 +794,8 @@ void GPUParticleSystem::DispatchEmitPass(ID3D11DeviceContext* context, int activ
 // ============================================
 void GPUParticleSystem::DispatchUpdate(ID3D11DeviceContext* context)
 {
-    // ※deadCount は UpdateCS 側で未使用（g_MaxParticles しか読んでいない）。
-    //   maxParticles は削除不可：id.x の上限判定に使われている。
-    //     ここを消すと粒子が一切更新されなくなる。
+    // maxParticles は UpdateCS の id.x の上限判定に使う（0 のままだと粒子が一切更新されない）
     DeadListCB dlcb = {};
-    dlcb.deadCount = 0;
     dlcb.maxParticles = m_MaxParticles;
 
     m_UpdateCS->WriteBuffer(context, 0, &m_CachedGlobalCB);
@@ -1132,7 +1128,6 @@ void GPUParticleSystem::ResetSystem()
     m_Context->UpdateSubresource(m_ParticleBuffer.Get(), 0, nullptr, emptyParticles.data(), 0, 0);
 
     DeadListCB dlcb = {};
-    dlcb.deadCount = 0;
     dlcb.maxParticles = m_MaxParticles;
 
     m_InitDeadListCS->WriteBuffer(m_Context, 0, &dlcb);
@@ -1428,7 +1423,6 @@ void GPUParticleSystem::DispatchTrail(ID3D11DeviceContext* context)
     UploadTrailStyles(context);
 
     DeadListCB dlcb = {};
-    dlcb.deadCount = 0;
     dlcb.maxParticles = m_MaxParticles;
 
     m_TrailCS->WriteBuffer(context, 0, &m_CachedGlobalCB);

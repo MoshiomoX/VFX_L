@@ -8,7 +8,7 @@
 //   ・衝撃波：溜め（Boss が止まり、足元に輪が育つ）→ 地面を這う帯が waveSpeed で外へ。帯が通る瞬間に
 //     足が地面近くなら当たり（跳べば避けられる）
 //   ・突進：Boss → プレイヤーの向きを決めて道筋に輪を並べ、溜め → chargeSpeed で一直線。Boss の近くに
-//     プレイヤーが居れば当たり。走らせるのは GPU（Output::chargeOn → BomberCB の bossCharge*）
+//     プレイヤーが居れば当たり。走らせるのは GPU（Output::chargeOn → KindCB の bossCharge*）
 //   ・召喚：Boss が止まって吠え、周りに小さな輪 → summonWindup 秒後に輪から雑魚・自爆兵が湧く
 //     （Output::summons。湧かせるのはシーン。同時上限は見ない＝分裂体と同じ）
 //   面毎の Boss（BossType、Configure）。砂漠の「砂の守護者」は上の 5 つ + 砂の 3 つ（BossAttacksSand.cpp）:
@@ -85,11 +85,11 @@ public:
         bool waveLaunched = false;                  // 衝撃波が出た瞬間（地面を叩く見た目と音）
         DirectX::SimpleMath::Vector3 wavePos;
         bool chargeGo = false;                      // 突進が走り出した瞬間
-        // GPU の Boss への指示（BomberCB の bossCharge*）。chargeOn の間、Boss は (dir × speed) で真っ直ぐ動く
+        // GPU の Boss への指示（KindCB の bossCharge*）。chargeOn の間、Boss は (dir × speed) で真っ直ぐ動く
         bool  chargeOn = false;
         DirectX::SimpleMath::Vector2 chargeDir = { 0.0f, 1.0f };
         float chargeSpeed = 0.0f;
-        // 四足の Boss（雷鳴の雄鹿）の突進の姿勢 → BomberCB::bossChargePose（0 普段 / 0→1 溜め / 1 突進中 / 1〜1.3 当てた瞬間の
+        // 四足の Boss（雷鳴の雄鹿）の突進の姿勢 → KindCB::bossChargePose（0 普段 / 0→1 溜め / 1 突進中 / 1〜1.3 当てた瞬間の
         // 頭の振り上げ / 終わると 1→0）。他の Boss は 0 のまま
         float chargePose = 0.0f;
         bool  thunderStruck = false;                // 雷鳴の雄鹿：この瞬間に道筋の輪へ雷の予告を置いた（音）
@@ -102,7 +102,7 @@ public:
         struct SpearLine { DirectX::SimpleMath::Vector3 start, end; };
         std::vector<SpearLine> spearLines;
         float spearSpeed = 0.0f;       // トゲが先へ進む速さ（見た目を判定に合わせる）
-        // 潜砂奇襲：GPU の Boss の沈み具合 0（地上）〜 1（地面の下・撃てない）。毎フレーム BomberCB::bossBurrow へ
+        // 潜砂奇襲：GPU の Boss の沈み具合 0（地上）〜 1（地面の下・撃てない）。毎フレーム KindCB::bossBurrow へ
         float bossBurrow = 0.0f;
         bool  burrowSank = false;      // 潜り始めた瞬間（砂の噴き上げ）
         bool  burrowMound = false;     // 砂丘を出す間（地面の下を動く・止まって輪）
@@ -123,7 +123,7 @@ public:
         bool  pounceJump = false;      // 跳び始めた瞬間（音）
         bool  wolfSlash = false;       // 爪の突っ込みが始まった瞬間（音・斬撃の見た目。clawDir の向き）
         bool  howled = false;          // 吠えた瞬間（召喚と同じフレーム。音・見た目）
-        float jumpHeight = 0.0f;       // 跳びの高さ（VS が chargePose の放物線に掛ける。BomberCB::bossJumpHeight）
+        float jumpHeight = 0.0f;       // 跳びの高さ（VS が chargePose の放物線に掛ける。KindCB::bossJumpHeight）
         bool  noContact = false;       // 技の間 Boss が体で殴らない（飛びかかり：地面を走り抜ける体に触れると無敵時間で着地の当たりが消える）
         // ---- 雷鳴の雄鹿 ----
         bool  antlerTossed = false;    // 角で振り上げた瞬間（当たらなくても。土と火花・音。向きは clawDir）
@@ -341,11 +341,11 @@ public:
     // どの Boss か（面毎）。技の有り / 無し・召喚する敵・体の色を入れ替える（Reset はしない）
     void Configure(BossType t);
     BossType Type() const { return m_Type; }
-    // 体の色（GPU の BomberCB::bossTint。雑魚の網の色に掛ける）
+    // 体の色（GPU の KindCB::bossTint。雑魚の網の色に掛ける）
     DirectX::SimpleMath::Vector3 bodyTint = { 1.1f, 0.5f, 1.5f };
-    // 走り（chargePose 1）の前傾の支点（焼いた網の空間 y / z）と角度 rad（BomberCB::bossLean*。Configure が Boss 毎に入れる）
+    // 走り（chargePose 1）の前傾の支点（焼いた網の空間 y / z）と角度 rad（KindCB::bossLean*。Configure が Boss 毎に入れる）
     float leanPivotY = 0.0f, leanPivotZ = 0.0f, leanAngle = 0.0f;
-    // 体の大きさ（BomberCB::bossScale。雑魚の網に掛ける倍率。Configure が Boss 毎に入れる。
+    // 体の大きさ（KindCB::bossScale。雑魚の網に掛ける倍率。Configure が Boss 毎に入れる。
     // 当たり・血条・止まる距離も一緒に大きくなる）
     float bodyScale = 3.0f;
 

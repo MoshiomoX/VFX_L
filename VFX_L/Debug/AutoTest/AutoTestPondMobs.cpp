@@ -162,7 +162,7 @@ void AutoTestPondMobs::MeasurePonds()
 // 水の真ん中のプレイヤーの周り、乾いた歩ける地面 9〜14m に雑魚 12 体
 void AutoTestPondMobs::SpawnRing()
 {
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     int placed = 0;
     for (int k = 0; k < 64 && placed < 12; ++k)
     {
@@ -183,7 +183,7 @@ void AutoTestPondMobs::SpawnRing()
 // 水の中に動かない的 3 体
 void AutoTestPondMobs::SpawnTargets()
 {
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     static const float kOff[3][2] = { { 0.0f, 0.0f }, { 1.2f, 0.6f }, { -1.0f, -0.8f } };
     for (const auto& o : kOff)
     {
@@ -291,7 +291,7 @@ void AutoTestPondMobs::Run()
             m_Stand = m_Pond;
             for (int k = 0; k < 16; ++k)
             {
-                const float a = k * 6.2831853f / 16.0f;
+                const float a = k * DirectX::XM_2PI / 16.0f;
                 for (float r = 5.0f; r <= 8.0f; r += 1.0f)
                 {
                     const float x = m_Pond.x + std::cos(a) * r, z = m_Pond.z + std::sin(a) * r;

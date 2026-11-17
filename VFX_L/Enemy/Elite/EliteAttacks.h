@@ -2,7 +2,7 @@
 // EliteAttacks.h
 // 面の固定エリート（各面 2 体、どれも「予告を避ける」型）。
 // 体は GPU の雑魚（kEnemyKindEliteA / EliteB）。技の拍子・予告・当たりは CPU がここで決め、
-// BomberCB::eliteCmd / eliteMove で GPU の体に「立つ・決めた向きへ走る・瞬間移動・隠れる」を伝える
+// KindCB::eliteCmd / eliteMove で GPU の体に「立つ・決めた向きへ走る・瞬間移動・隠れる」を伝える
 // （位置・HP は SwarmSystem::GetEliteInfo のリードバック。2〜3 フレーム遅れる）。
 //   草原 A「大斧の戦鬼」：近付くと足元に輪 → 回転斬り（輪の外へ走る）
 //   草原 B「森の弓手」  ：距離を取り、扇に 3 本の帯 → 矢が帯に沿って飛ぶ（横へ避ける）
@@ -82,7 +82,7 @@ public:
     };
 
     void Init(AreaVFXPlayer* vfx, const VFXContext* ctx);
-    // 面（1..3）で A / B の個体が決まる。体格・距離を BomberCB へ入れるのは WriteGpu
+    // 面（1..3）で A / B の個体が決まる。体格・距離を KindCB へ入れるのは WriteGpu
     void Configure(int stage);
     // 全部消す（KillAll・面の切替）。続いているエフェクトも止める
     void Clear();
@@ -105,8 +105,8 @@ public:
     int  Alive() const { return (int)m_Elites.size(); }
     int  ActiveShots() const { return (int)(m_Orbs.size() + m_Arrows.size() + m_Strikes.size()); }   // 飛んでいる玉・矢・落ちる前の雷
 
-    // GPU の体への指示と面毎の体格（毎フレーム。BomberCB の fixedElite* / eliteCmd / eliteMove）
-    void WriteGpu(Swarm::BomberCB& cb) const;
+    // GPU の体への指示と面毎の体格（毎フレーム。KindCB の fixedElite* / eliteCmd / eliteMove）
+    void WriteGpu(Swarm::KindCB& cb) const;
 
     // Enemies パネルの「Elites」（EliteAttacksPanel.cpp）。spawn = 出す依頼（-1 = 無し、0 = A、1 = B）
     void DrawImGui(int& spawn, uint32_t& spawnAffixes);
@@ -126,7 +126,7 @@ public:
     {
         float hpMul = 1.0f;       // 基準 HP（StageDirector::eliteHp × 難度）に掛ける
         float speed = 3.2f;       // 歩く速さ m/s
-        float scale = 2.0f;       // 体格（BomberCB の fixedEliteAScale / BScale へ。同じ面の A / B）
+        float scale = 2.0f;       // 体格（KindCB の fixedEliteAScale / BScale へ。同じ面の A / B）
         float trigger = 6.0f;     // プレイヤーがこれより近いと技を始める（m）
         float windup = 1.0f;      // 溜め（予告が育つ秒）
         float active = 0.5f;      // 技の最中の秒（息・回転）
@@ -139,7 +139,7 @@ public:
         int   count = 3;          // 矢の本数・突進の回数・玉の数
         float spreadDeg = 0.0f;   // 矢の帯の間の角度
         float extra = 0.0f;       // 型毎（影の剣士：背後のどれだけ後ろに出るか m）
-        float keepMin = 0.0f;     // B（遠距離型）が立つ距離（BomberCB の fixedEliteKeepMin〜Max）
+        float keepMin = 0.0f;     // B（遠距離型）が立つ距離（KindCB の fixedEliteKeepMin〜Max）
         float keepMax = 0.0f;
     };
     TypeTuning tune[(int)EliteType::Count];

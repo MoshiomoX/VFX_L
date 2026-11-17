@@ -35,8 +35,6 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.direction = direction;
     e._pad0 = 0.0f;
     e.emitCount = (m_PendingEmitCount > 0) ? m_PendingEmitCount : 0;
-    e.maxParticles = maxParticles;
-    e.particleOffset = particleOffset;
     e.emitRate = emitRate;
     e.speedRange = speedRange;
     e.lifetimeRange = lifetimeRange;
@@ -50,7 +48,6 @@ GPUEmitter GPUParticleEmitter::ToGPU() const
     e.rotationRange = rotationRange;
     e.angularVelRange = angularVelRange;
     e.isActive = m_IsActive ? 1.0f : 0.0f;
-    e.emitterID = m_ID;
     e.atlasRows = atlasRows;
     e.atlasCols = atlasCols;
     e.textureIndex = textureIndex;

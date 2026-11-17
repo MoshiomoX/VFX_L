@@ -46,7 +46,7 @@ void AutoTestArrow::Run()
         m_Swarm.KillAll();
         // 的はプレイヤーの +Z 側 14m（カメラの yaw 0 = +Z）
         const Vector3 pp = m_Registry.Get<TransformComponent>(m_Player).position;
-        const float gy = m_Swarm.GetAIParams().groundY;
+        const float gy = m_Swarm.GetAIParams().centerAboveFeet;
         for (float x : { -1.5f, 0.0f, 1.5f })
             m_Swarm.SpawnEnemy(Vector3(pp.x + x, gy, pp.z + 14.0f), 100000.0f, 0.0f);
         if (m_Registry.Has<BackpackComponent>(m_Player) && m_Registry.Has<WandComponent>(m_Player))

@@ -67,7 +67,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
                 static std::vector<MobSpawner::TornadoBirth> s_TornadoBirths;
                 m_Mobs.ConsumeTornadoBirths(s_TornadoBirths);
                 for (const MobSpawner::TornadoBirth& b : s_TornadoBirths)
-                    m_SandTornadoes.Spawn(m_AreaVFX, m_VFXContext, b.pos, b.yaw, b.speed, m_Swarm.GetBomberParams().tornadoLife);
+                    m_SandTornadoes.Spawn(m_AreaVFX, m_VFXContext, b.pos, b.yaw, b.speed, m_Swarm.GetKindParams().tornadoLife);
                 if (m_Swarm.GetKillAllCount() != m_SandTornadoKillSerial)
                 {
                     m_SandTornadoKillSerial = m_Swarm.GetKillAllCount();
@@ -414,7 +414,7 @@ void CollisionTestScene::UpdateGameplay(float dt)
         m_Swarm.CollectLights();
         {   // TEMP-TEST crowd
             static int f = 0;
-            if (f++ % 120 == 0) { Vector3 np, nv; float nd = 0; m_Swarm.GetNearestEnemy(np, nv, nd); std::cout << "[crowd] fps=" << Application::Get().GetTimer().GetFPS() << " alive=" << m_Swarm.GetCounters().aliveEnemies << " nearest=" << nd << " flushMs=" << m_Stress.GetFlushMsAvg() << std::endl; }
+            if (f++ % 120 == 0) { Vector3 np, nv; float nd = 0; m_Swarm.GetAimTarget(np, nv, nd); std::cout << "[crowd] fps=" << Application::Get().GetTimer().GetFPS() << " alive=" << m_Swarm.GetCounters().aliveEnemies << " nearest=" << nd << " flushMs=" << m_Stress.GetFlushMsAvg() << std::endl; }
         }
 
         auto t1 = std::chrono::high_resolution_clock::now();

@@ -7,6 +7,7 @@
 
 #ifndef EMIT_DISC_HLSLI
 #define EMIT_DISC_HLSLI
+#include "../../Common/MathConst.hlsli"
 
 void EmitDisc(GPUEmitter e, inout uint seed, out float3 pos, out float3 vel)
 {
@@ -14,7 +15,7 @@ void EmitDisc(GPUEmitter e, inout uint seed, out float3 pos, out float3 vel)
 
     // 円盤内のランダム位置（均一分布補正）
     float r = sqrt(Random(seed)) * radius;
-    float angle = Random(seed) * 6.28318530718;
+    float angle = Random(seed) * TWO_PI;
 
     // ディスクの平面座標系を構築
     float3 normal = normalize(e.direction);

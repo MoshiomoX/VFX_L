@@ -4,7 +4,7 @@
 //   ・面に合わせる（EliteAttacks::Configure と皮・飾り EliteLooks::Apply。InitBossFx から）
 //   ・技の当たりを被弾へ（TryApplyHit = 無敵時間・シールドは雑魚と同じ道、ノックバックは技の種類で）
 //   ・倒されたら死んだ所に金色の宝箱（無料。RewardCrateSystem::SpawnFree）+ 光の粒
-//   ・GPU の体への指示（BomberCB）・地面の予告（Boss の輪とまとめて SetWarnCircles）・HUD の HP 条
+//   ・GPU の体への指示（KindCB）・地面の予告（Boss の輪とまとめて SetWarnCircles）・HUD の HP 条
 // 技・アフィックス・予告そのものは Enemy/EliteAttacks（EliteMoves.cpp / EliteAffixes.cpp）
 // ============================================================
 #include "Scene/CollisionTestScene.h"
@@ -49,7 +49,7 @@ void CollisionTestScene::UpdateElites(float dt, const Vector3& player)
     in.playerAlive = !IsPlayerDead();
     in.damageMul = m_Mobs.GetDamageMul();
     m_StageElites.Update(in, m_Grid, m_Swarm);
-    m_StageElites.WriteGpu(m_Swarm.GetBomberParams());
+    m_StageElites.WriteGpu(m_Swarm.GetKindParams());
 
     // ---- 当たり：無敵時間・シールドは TryApplyHit、吹き飛ばしは技の種類（殴り / 爆発級 / トゲ）----
     for (const EliteAttacks::Hit& h : m_StageElites.Hits())

@@ -45,12 +45,12 @@ void AutoTestPlayerDeath::Run()
         m_Registry.Get<WandComponent>(m_Player).castingPaused = true;
         pcs.testInput = true;
         pcs.testMove = Vector2::Zero;
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         for (int k = 0; k < 16; ++k)
         {
-            const float a = 6.2831853f * (float)k / 16.0f, r = 4.0f + 3.0f * (float)(k % 4) / 3.0f;
+            const float a = DirectX::XM_2PI * (float)k / 16.0f, r = 4.0f + 3.0f * (float)(k % 4) / 3.0f;
             const float x = tf.position.x + std::sin(a) * r, z = tf.position.z + std::cos(a) * r;
-            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), 100000.0f, 3.0f, Swarm::kEnemyKindMob);
+            m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), 100000.0f, 3.0f, Swarm::kEnemyKindMob);
         }
         m_AutoStep = 1;
     }

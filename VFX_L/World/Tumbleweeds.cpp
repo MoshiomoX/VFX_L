@@ -61,7 +61,7 @@ namespace
             e1.Normalize();
             const Vector3 e2 = n.Cross(e1);
             const float r = (k < outer) ? U(0.72f, 1.0f) : U(0.3f, 0.62f);
-            const float a0 = U(0.0f, 6.2831853f);
+            const float a0 = U(0.0f, DirectX::XM_2PI);
             const float span = U(1.6f, 3.6f);
             const int segs = 5 + (int)(span * 2.0f);
             const float t = U(0.026f, 0.042f);
@@ -151,7 +151,7 @@ bool Tumbleweeds::Place(const GridWorld& grid, Weed& w, const Vector3& center, f
     std::uniform_real_distribution<float> u01(0.0f, 1.0f);
     for (int attempt = 0; attempt < 40; ++attempt)
     {
-        float a = u01(m_Rng) * 6.2831853f;
+        float a = u01(m_Rng) * DirectX::XM_2PI;
         if (upwind) a = std::atan2(upwind->y, upwind->x) + (u01(m_Rng) - 0.5f) * 2.44f;   // ±70 度
         const float r = rMin + (rMax - rMin) * u01(m_Rng);
         const Vector3 p = center + Vector3(std::cos(a) * r, 0.0f, std::sin(a) * r);

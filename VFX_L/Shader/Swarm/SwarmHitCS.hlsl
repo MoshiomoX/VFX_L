@@ -27,14 +27,13 @@
 // 通った敵だけ。
 // 盾兵は SwarmArmorDamage を受ける。motion に freezeTime を持つ弾
 // （アイスランス）は animIndex に凍結リクエストを残す。
-// とどめを刺した弾は、死んだスロットの attackCooldown に自分の属性を残す
-// （SwarmKillElementMark、とどめの数字の色用）。
+// 当たった弾の属性・吸血の印は enemyHitInfo に残す（ダメージ数字の色、吸血の回復）。
 // ============================================================
 // 当たった所に範囲を残すことがある（爆発 / 燃える地面）
 #define SWARM_AREA_POOL_U u6
 #define SWARM_AREA_STATE_U u7
 #define SWARM_AREA_DEF_T t2
-#define SWARM_BOMBER_CB_REG b3
+#define SWARM_KIND_CB_REG b3
 #include "../Common/SwarmCommon.hlsli"
 
 StructuredBuffer<SwarmMotion> motions : register(t1);
@@ -52,7 +51,10 @@ RWBuffer<uint> enemyStates : register(u2);
 RWByteAddressBuffer counters : register(u3);
 RWStructuredBuffer<SwarmOrb> orbs : register(u4);
 RWBuffer<uint> orbStates : register(u5);
-static const uint HP_CORPSE_BIT = 0x80000000u;
+// 被弾の記録（最後の命中の属性・吸血の印、とどめの属性）
+RWStructuredBuffer<SwarmEnemyHitInfo> enemyHitInfo : register(u8);
+// 弾の連鎖・貫通の状態（SwarmProjChain）
+RWStructuredBuffer<SwarmProjChain> projChain : register(u9);
 
 // このステップの最初にビンを埋めてから敵が動ける距離（m）（AI の速度、突風の
 // 押し、群れの押し合い）: 0.02 s のステップで ~150 m/s 未満なら収まる
@@ -116,14 +118,16 @@ void main(uint3 id : SV_DispatchThreadID)
     float coarse = p.radius + kMax * 2.0 * (g_EnemyRadius + g_EnemyCapsuleHalf);
     float coarseSq = coarse * coarse;
     // アイスランス: 当たった敵がこの秒数だけ凍る（リクエストは AICS が受け取る）
-    float freezeTime = motions[p.motion & SWARM_MOTION_INDEX_MASK].freezeTime;
+    SwarmMotion motion = motions[p.motion & SWARM_MOTION_INDEX_MASK];
+    float freezeTime = motion.freezeTime;
     // 連鎖のルーン: 連鎖中の弾は跳ぶ回数が残っている間は生きた敵に当たっても消えず、
-    // 跳んできた元の敵には二度と当たらない（SwarmCommon.hlsli を参照）
-    uint state = projStates[i];
-    bool chained = (state & SWARM_PROJ_CHAINED) != 0u;
-    bool pierced = chained && (state & SWARM_PROJ_PIERCE) != 0u;   // 跳ぶ代わりに貫通する
-    uint chainsLeft = chained ? ((state >> SWARM_PROJ_CHAIN_LEFT_SHIFT) & SWARM_PROJ_CHAIN_LEFT_MASK) : 0u;
-    uint lastHit = chained ? (state & SWARM_PROJ_CHAIN_LAST_MASK) : SWARM_PROJ_CHAIN_NO_LAST;
+    // 跳んできた元の敵には二度と当たらない（SwarmProjectileTypes.hlsli の SwarmProjChain を参照）
+    SwarmProjChain chain = projChain[i];
+    bool chained = (chain.flags & SWARM_CHAIN_ACTIVE) != 0u;
+    bool pierced = chained && (chain.flags & SWARM_CHAIN_PIERCE) != 0u;   // 跳ぶ代わりに貫通する
+    uint chainsLeft = chained ? chain.left : 0u;
+    uint lastHit = chained ? chain.lastHit : SWARM_NO_TARGET;
+    bool stealShot = (projTags[i] & SWARM_TAG_LIFESTEAL) != 0u;   // 吸血の弾
 
     // ---- どのセルを見るか（冒頭を参照）。判定を通りうるものは xz で `coarse` 以内にある ----
     uint hashCells, hashStride;
@@ -218,12 +222,12 @@ void main(uint3 id : SV_DispatchThreadID)
         // 貫通する弾（黄金の矢）は、すでに貫いた敵 1 体ごとに SWARM_PIERCE_FALLOFF を掛ける
         float shotDamage = p.damage;
         if (pierced)
-            shotDamage *= pow(SWARM_PIERCE_FALLOFF, (float) (SwarmMotionPierce(motions[p.motion & SWARM_MOTION_INDEX_MASK]) - min(chainsLeft, 15u)));
+            shotDamage *= pow(SWARM_PIERCE_FALLOFF, (float) (motion.pierce - min(chainsLeft, 15u)));
         uint dmgFixed = SwarmHpToFixed(SwarmTakenDamage(j, kind, shotDamage));
         uint prev;
         InterlockedAdd(enemies[j].hp, (uint) (-(int) dmgFixed), prev);
 
-        if (prev == 0u || prev >= HP_CORPSE_BIT)
+        if (prev == 0u || prev >= SWARM_HP_CORPSE_BIT)
         {
             after = j + 1u;
             continue; // 死体。このステップで別の弾がもう倒した
@@ -243,31 +247,23 @@ void main(uint3 id : SV_DispatchThreadID)
         }
         else if (!noFlinch)
         {
-            enemies[j].animIndex = 2u;
+            enemies[j].animIndex = SWARM_ANIM_STUN;
             enemies[j].animTime = 0.0;
         }
 
         if (prev > dmgFixed)
         {
-            // とどめではない: 何が当たったかを覚える（ダメージ数字の色）。CAS にするのは、その間に別スレッドの
-            // とどめが書いた DEAD を ALIVE に戻してしまわないため
-            uint cur = enemyStates[j];
-            if (cur != SWARM_DEAD)
-            {
-                uint wasState;
-                // + 吸血の印: この敵の hp の減りを SwarmDamageTextCS がプレイヤーの回復に数える
-                const uint steal = ((projTags[i] & SWARM_TAG_LIFESTEAL) != 0u) ? SWARM_STATE_LIFESTEAL : 0u;
-                InterlockedCompareExchange(enemyStates[j], cur,
-                    SWARM_ALIVE | (SwarmMotionElement(motions[p.motion & SWARM_MOTION_INDEX_MASK]) << SWARM_STATE_ELEMENT_SHIFT) | steal, wasState);
-            }
+            // とどめではない: 何が当たったかを覚える（ダメージ数字の色 + 吸血の印。吸血の印があると
+            // この敵の hp の減りを SwarmDamageTextCS がプレイヤーの回復に数える）
+            enemyHitInfo[j].lastHit = SwarmHitWord(motion.element, stealShot);
         }
 
         if (prev <= dmgFixed)
         {
             // ---- この一発がとどめ ----
             enemyStates[j] = SWARM_DEAD;
-            // とどめの数字の色 = この弾の属性（状態ワードはもう DEAD）
-            enemies[j].attackCooldown = SwarmKillElementMark(SwarmMotionElement(motions[p.motion & SWARM_MOTION_INDEX_MASK]));
+            // とどめの数字の色 = この弾の属性
+            enemyHitInfo[j].killElement = motion.element;
             counters.InterlockedAdd(SWARM_CNT_KILLS, 1u, prev);
 
             // ---- 死体の所に経験玉を落とす ----
@@ -275,12 +271,12 @@ void main(uint3 id : SV_DispatchThreadID)
             // ばらして、同じステップのとどめ同士が同じ区間を
             // 取り合わないようにする。プールが満杯 -> 経験玉なし。
             SwarmOrb orb;
-            // 死体の足元（台地の上: position.y - groundY = 地形の高さ）
+            // 死体の足元（台地の上: position.y - centerAboveFeet = 地形の高さ）
             orb.position = enemies[j].position;
-            orb.position.y = enemies[j].position.y - g_GroundY + g_OrbY;
+            orb.position.y = enemies[j].position.y - g_CenterAboveFeet + g_OrbY;
             orb.amount = g_OrbAmount * SwarmKindExpMul(kind);
             orb.velocity = float3(0, 0, 0);
-            orb._pad = 0.0; // 吸引速度、0 = まだ吸われていない
+            orb.attractSpeed = 0.0; // 吸引速度、0 = まだ吸われていない
 
             uint start = (j * 97u + i * 31u) % g_MaxOrbs;
             for (uint k = 0; k < g_MaxOrbs; ++k)
@@ -299,15 +295,15 @@ void main(uint3 id : SV_DispatchThreadID)
 
         // ---- 命中時の範囲（爆発など）。同じステップで tick する:
         // このシェーダのすぐ後に AreaTickCS / AreaDamageCS が走る ----
-        SwarmSpawnAreaFromDefX(motions[p.motion & SWARM_MOTION_INDEX_MASK].hitArea,
+        SwarmSpawnAreaFromDefX(motion.hitArea,
                                p.position, i + j, SwarmProjScale(p), projBoost[i], p.velocity.xz,
-                               ((projTags[i] & SWARM_TAG_LIFESTEAL) != 0u) ? SWARM_AREA_EXTRA_LIFESTEAL : 0u);
+                               stealShot ? SWARM_AREA_EXTRA_LIFESTEAL : 0u);
 
         // 弾はどちらにしても消費される -- ただし連鎖の跳躍 / 貫通が残っていれば別:
         // そのときは生きたままこの敵を覚える。連鎖中の弾は次の標的を ProjMoveCS に頼み、
         // 貫通する弾はそのまま飛び続ける
         if (chainsLeft > 0u)
-            projStates[i] = SwarmProjChainState(chainsLeft - 1u, j) | (pierced ? SWARM_PROJ_PIERCE : SWARM_PROJ_CHAIN_PENDING);
+            projChain[i] = SwarmMakeProjChain(SWARM_CHAIN_ACTIVE | (pierced ? SWARM_CHAIN_PIERCE : SWARM_CHAIN_PENDING), chainsLeft - 1u, j);
         else
             projStates[i] = SWARM_DEAD;
         return;

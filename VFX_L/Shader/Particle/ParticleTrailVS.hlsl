@@ -15,21 +15,8 @@
 #include "Common/ParticleCommon.hlsli"
 #include "Common/ParticleTrail.hlsli"
 
-cbuffer ParticleRenderCB : register(b0)
-{
-    matrix g_View;
-    matrix g_Projection;
-    float3 g_CameraPosition;
-    float _pad0;
-};
-
-cbuffer TrailDrawCB : register(b1)
-{
-    uint g_StyleSlot; // スタイル番号 + 1。GPUParticle.trailStyle と同じ表し方
-    uint g_Premultiply;
-    float g_Time;
-    float _padT;
-};
+#include "Common/ParticleRenderCB.hlsli"
+#include "Common/TrailDrawCB.hlsli"
 
 StructuredBuffer<GPUParticle> particles : register(t0);
 StructuredBuffer<uint> trailAlive : register(t1);

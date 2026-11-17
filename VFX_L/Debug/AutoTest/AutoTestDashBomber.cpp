@@ -43,11 +43,11 @@ void AutoTestDashBomber::Run()
 
     auto spawnAt = [&](float dz, uint32_t kind)
     {
-        const float groundY = m_Swarm.GetAIParams().groundY;
+        const float centerAboveFeet = m_Swarm.GetAIParams().centerAboveFeet;
         float hp = 15.0f, speed = 3.5f;
         m_Mobs.KindStats(kind, hp, speed);
         const float x = tf.position.x, z = tf.position.z + dz;
-        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + groundY, z), hp, speed, kind);
+        m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + centerAboveFeet, z), hp, speed, kind);
         snprintf(line, sizeof(line), "dashbomber %s start kind %u hp %.0f speed %.2f at %.0fm", s_Phase, kind, hp, speed, dz);
         AutoTestLog(line);
     };
@@ -143,7 +143,7 @@ void AutoTestDashBomber::Run()
                     snprintf(line, sizeof(line), "dashbomber E dodge t %.2f fuse %.2f dist %.2f", m_AutoTime, fuse, dist);
                     AutoTestLog(line);
                 }
-                if (!s_LookDash && s_Phase[0] == 'E' && fuse > m_Swarm.GetBomberParams().dashBomberWindup + 0.3f)
+                if (!s_LookDash && s_Phase[0] == 'E' && fuse > m_Swarm.GetKindParams().dashBomberWindup + 0.3f)
                 {
                     s_LookDash = true;
                     AutoTestLog("dashbomber look Edash");

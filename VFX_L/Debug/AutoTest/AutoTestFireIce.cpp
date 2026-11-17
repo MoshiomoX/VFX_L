@@ -80,7 +80,7 @@ bool AutoTestFireIce::FindPatches()
     for (float r = 8.0f; r < 90.0f && found < 3; r += 2.0f)
         for (int k = 0; k < 24 && found < 3; ++k)
         {
-            const float a = 6.2831853f * (float)k / 24.0f;
+            const float a = DirectX::XM_2PI * (float)k / 24.0f;
             const float x = from.x + std::sin(a) * r, z = from.z + std::cos(a) * r;
             if (!PatchAt(x, z)) continue;
             bool farEnough = true;
@@ -137,7 +137,7 @@ bool AutoTestFireIce::FindPond()
 
 void AutoTestFireIce::SpawnWalkers()
 {
-    const float gy = m_Swarm.GetAIParams().groundY;
+    const float gy = m_Swarm.GetAIParams().centerAboveFeet;
     for (int k = 0; k < 6; ++k)
     {
         const float x = m_Pond.x - 7.0f, z = m_Pond.z - 2.5f + (float)k;
@@ -282,11 +282,11 @@ void AutoTestFireIce::Run()
         AutoTestLog(line);
         // ---- B: 帯の中の敵だけ焼ける ----
         {
-            const float gy = m_Swarm.GetAIParams().groundY;
+            const float gy = m_Swarm.GetAIParams().centerAboveFeet;
             const Vector3 c = m_Patch[1];
             for (int k = 0; k < 6; ++k)
             {
-                const float a = 6.2831853f * (float)k / 6.0f;
+                const float a = DirectX::XM_2PI * (float)k / 6.0f;
                 const float x = c.x + std::sin(a) * 2.5f, z = c.z + std::cos(a) * 2.5f;
                 m_Swarm.SpawnEnemy(Vector3(x, m_Grid.SampleHeight(x, z) + gy, z), 1000.0f, 0.0f, Swarm::kEnemyKindMob);
             }
@@ -294,7 +294,7 @@ void AutoTestFireIce::Run()
             for (float r = 5.0f; r < 28.0f && outside < 4; r += 1.0f)
                 for (int k = 0; k < 16 && outside < 4; ++k)
                 {
-                    const float a = 6.2831853f * (float)k / 16.0f;
+                    const float a = DirectX::XM_2PI * (float)k / 16.0f;
                     const float x = c.x + std::sin(a) * r, z = c.z + std::cos(a) * r;
                     if (m_GrassFire.IsDry(x, z)) continue;
                     bool nearDry = false;
@@ -451,7 +451,7 @@ void AutoTestFireIce::Run()
     case 18:
         if (t < 0.4f) return;
         {
-            const float gy = m_Swarm.GetAIParams().groundY;
+            const float gy = m_Swarm.GetAIParams().centerAboveFeet;
             for (int k = 0; k < 4; ++k)
             {
                 const float a = 1.5707963f * (float)k + 0.8f;
